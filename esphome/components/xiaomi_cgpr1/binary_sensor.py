@@ -33,9 +33,7 @@ CONFIG_SCHEMA = cv.All(
             cv.Required(CONF_BINDKEY): cv.bind_key,
             cv.Required(CONF_MAC_ADDRESS): cv.mac_address,
             cv.Optional(CONF_BATTERY_LEVEL): sensor.sensor_schema(
-                kind=sensor.BATTERY,
-                accuracy_decimals=0,
-                entity_category=ENTITY_CATEGORY_DIAGNOSTIC,
+                kind=sensor.BATTERY, entity_category=ENTITY_CATEGORY_DIAGNOSTIC
             ),
             cv.Optional(CONF_IDLE_TIME): sensor.sensor_schema(
                 unit_of_measurement=UNIT_MINUTE,
@@ -45,7 +43,7 @@ CONFIG_SCHEMA = cv.All(
                 state_class=STATE_CLASS_MEASUREMENT,
             ),
             cv.Optional(CONF_ILLUMINANCE): sensor.sensor_schema(
-                kind=sensor.ILLUMINANCE, accuracy_decimals=0
+                kind=sensor.ILLUMINANCE
             ),
         }
     )

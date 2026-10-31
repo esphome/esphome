@@ -20,7 +20,7 @@ THERMOCOUPLE_TYPE = MAX31856ThermocoupleType.options(
 )
 
 CONFIG_SCHEMA = (
-    sensor.sensor_schema(MAX31856Sensor, kind=sensor.TEMPERATURE, accuracy_decimals=1)
+    sensor.sensor_schema(MAX31856Sensor, kind=sensor.TEMPERATURE)
     .extend(
         {
             cv.Optional(CONF_MAINS_FILTER, default="60Hz"): cv.All(

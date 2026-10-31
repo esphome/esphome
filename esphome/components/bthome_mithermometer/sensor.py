@@ -27,9 +27,7 @@ CONFIG_SCHEMA = bthome_mithermometer_base_schema(
             kind=sensor.HUMIDITY, accuracy_decimals=2
         ),
         cv.Optional(CONF_BATTERY_LEVEL): sensor.sensor_schema(
-            kind=sensor.BATTERY,
-            accuracy_decimals=0,
-            entity_category=ENTITY_CATEGORY_DIAGNOSTIC,
+            kind=sensor.BATTERY, entity_category=ENTITY_CATEGORY_DIAGNOSTIC
         ),
         cv.Optional(CONF_BATTERY_VOLTAGE): sensor.sensor_schema(
             kind=sensor.VOLTAGE,
@@ -37,9 +35,7 @@ CONFIG_SCHEMA = bthome_mithermometer_base_schema(
             entity_category=ENTITY_CATEGORY_DIAGNOSTIC,
         ),
         cv.Optional(CONF_SIGNAL_STRENGTH): sensor.sensor_schema(
-            kind=sensor.SIGNAL_STRENGTH,
-            accuracy_decimals=0,
-            entity_category=ENTITY_CATEGORY_DIAGNOSTIC,
+            kind=sensor.SIGNAL_STRENGTH, entity_category=ENTITY_CATEGORY_DIAGNOSTIC
         ),
     }
 )

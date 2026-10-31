@@ -13,9 +13,7 @@ CONFIG_SCHEMA = cv.Schema(
     {
         cv.GenerateID(): cv.use_id(XiaomiRTCGQ02LM),
         cv.Optional(CONF_BATTERY_LEVEL): sensor.sensor_schema(
-            kind=sensor.BATTERY,
-            accuracy_decimals=0,
-            entity_category=ENTITY_CATEGORY_DIAGNOSTIC,
+            kind=sensor.BATTERY, entity_category=ENTITY_CATEGORY_DIAGNOSTIC
         ),
     }
 )

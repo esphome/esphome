@@ -13,7 +13,6 @@ WiFiSignalSensor = wifi_signal_ns.class_(
 CONFIG_SCHEMA = sensor.sensor_schema(
     WiFiSignalSensor,
     kind=sensor.SIGNAL_STRENGTH,
-    accuracy_decimals=0,
     entity_category=ENTITY_CATEGORY_DIAGNOSTIC,
 ).extend(cv.polling_component_schema("60s"))
 

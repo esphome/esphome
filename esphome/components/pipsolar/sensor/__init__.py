@@ -173,9 +173,7 @@ TYPES = {
     CONF_BATTERY_CHARGING_CURRENT: sensor.sensor_schema(
         kind=sensor.CURRENT, accuracy_decimals=0
     ),
-    CONF_BATTERY_CAPACITY_PERCENT: sensor.sensor_schema(
-        kind=sensor.BATTERY, accuracy_decimals=0
-    ),
+    CONF_BATTERY_CAPACITY_PERCENT: sensor.sensor_schema(kind=sensor.BATTERY),
     CONF_INVERTER_HEAT_SINK_TEMPERATURE: sensor.sensor_schema(
         kind=sensor.TEMPERATURE, accuracy_decimals=0
     ),

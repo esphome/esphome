@@ -51,7 +51,7 @@ CONFIG_SCHEMA = cv.Schema(
         cv.GenerateID(): cv.declare_id(cg.EntityBase),
         cv.GenerateID(CONF_BME68X_BSEC2_ID): cv.use_id(BME68xBSEC2Component),
         cv.Optional(CONF_TEMPERATURE): sensor.sensor_schema(
-            kind=sensor.TEMPERATURE, icon=ICON_THERMOMETER, accuracy_decimals=1
+            kind=sensor.TEMPERATURE, icon=ICON_THERMOMETER
         ).extend(
             {cv.Optional(CONF_SAMPLE_RATE): cv.enum(SAMPLE_RATE_OPTIONS, upper=True)}
         ),
@@ -63,9 +63,7 @@ CONFIG_SCHEMA = cv.Schema(
         ).extend(
             {cv.Optional(CONF_SAMPLE_RATE): cv.enum(SAMPLE_RATE_OPTIONS, upper=True)}
         ),
-        cv.Optional(CONF_HUMIDITY): sensor.sensor_schema(
-            kind=sensor.HUMIDITY, accuracy_decimals=1
-        ).extend(
+        cv.Optional(CONF_HUMIDITY): sensor.sensor_schema(kind=sensor.HUMIDITY).extend(
             {cv.Optional(CONF_SAMPLE_RATE): cv.enum(SAMPLE_RATE_OPTIONS, upper=True)}
         ),
         cv.Optional(CONF_GAS_RESISTANCE): sensor.sensor_schema(

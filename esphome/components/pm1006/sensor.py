@@ -17,9 +17,7 @@ CONFIG_SCHEMA = cv.All(
     cv.Schema(
         {
             cv.GenerateID(): cv.declare_id(PM1006Component),
-            cv.Optional(CONF_PM_2_5): sensor.sensor_schema(
-                kind=sensor.PM25, accuracy_decimals=0
-            ),
+            cv.Optional(CONF_PM_2_5): sensor.sensor_schema(kind=sensor.PM25),
         }
     )
     .extend(cv.COMPONENT_SCHEMA)

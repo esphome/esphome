@@ -14,11 +14,9 @@ CONFIG_SCHEMA = (
         {
             cv.GenerateID(): cv.declare_id(AM2315C),
             cv.Optional(CONF_TEMPERATURE): sensor.sensor_schema(
-                kind=sensor.TEMPERATURE, accuracy_decimals=1
+                kind=sensor.TEMPERATURE
             ),
-            cv.Optional(CONF_HUMIDITY): sensor.sensor_schema(
-                kind=sensor.HUMIDITY, accuracy_decimals=1
-            ),
+            cv.Optional(CONF_HUMIDITY): sensor.sensor_schema(kind=sensor.HUMIDITY),
         }
     )
     .extend(cv.polling_component_schema("60s"))

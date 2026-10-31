@@ -22,14 +22,10 @@ CONFIG_SCHEMA = cv.Schema(
         cv.Required(CONF_CLOCK_PIN): cv.All(pins.internal_gpio_input_pin_schema),
         cv.Required(CONF_DATA_PIN): cv.All(pins.internal_gpio_input_pin_schema),
         cv.Optional(CONF_CO2): sensor.sensor_schema(
-            kind=sensor.CARBON_DIOXIDE, icon=ICON_MOLECULE_CO2, accuracy_decimals=0
+            kind=sensor.CARBON_DIOXIDE, icon=ICON_MOLECULE_CO2
         ),
-        cv.Optional(CONF_TEMPERATURE): sensor.sensor_schema(
-            kind=sensor.TEMPERATURE, accuracy_decimals=1
-        ),
-        cv.Optional(CONF_HUMIDITY): sensor.sensor_schema(
-            kind=sensor.HUMIDITY, accuracy_decimals=1
-        ),
+        cv.Optional(CONF_TEMPERATURE): sensor.sensor_schema(kind=sensor.TEMPERATURE),
+        cv.Optional(CONF_HUMIDITY): sensor.sensor_schema(kind=sensor.HUMIDITY),
     }
 ).extend(cv.polling_component_schema("60s"))
 

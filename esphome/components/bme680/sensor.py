@@ -41,7 +41,7 @@ CONFIG_SCHEMA = (
         {
             cv.GenerateID(): cv.declare_id(BME680Component),
             cv.Optional(CONF_TEMPERATURE): sensor.sensor_schema(
-                kind=sensor.TEMPERATURE, accuracy_decimals=1
+                kind=sensor.TEMPERATURE
             ).extend(
                 {
                     cv.Optional(CONF_OVERSAMPLING, default="16X"): cv.enum(
@@ -62,7 +62,7 @@ CONFIG_SCHEMA = (
                 }
             ),
             cv.Optional(CONF_HUMIDITY): sensor.sensor_schema(
-                kind=sensor.HUMIDITY, accuracy_decimals=1
+                kind=sensor.HUMIDITY
             ).extend(
                 {
                     cv.Optional(CONF_OVERSAMPLING, default="16X"): cv.enum(

@@ -13,7 +13,7 @@ WTS01Sensor = wts01_ns.class_(
 )
 
 CONFIG_SCHEMA = (
-    sensor.sensor_schema(WTS01Sensor, kind=sensor.TEMPERATURE, accuracy_decimals=1)
+    sensor.sensor_schema(WTS01Sensor, kind=sensor.TEMPERATURE)
     .extend(cv.COMPONENT_SCHEMA)
     .extend(uart.UART_DEVICE_SCHEMA)
 )

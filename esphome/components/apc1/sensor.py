@@ -56,8 +56,8 @@ _PM_COUNT_SCHEMA = sensor.sensor_schema(
     accuracy_decimals=0,
     state_class=STATE_CLASS_MEASUREMENT,
 )
-_TEMPERATURE_SCHEMA = sensor.sensor_schema(kind=sensor.TEMPERATURE, accuracy_decimals=1)
-_HUMIDITY_SCHEMA = sensor.sensor_schema(kind=sensor.HUMIDITY, accuracy_decimals=1)
+_TEMPERATURE_SCHEMA = sensor.sensor_schema(kind=sensor.TEMPERATURE)
+_HUMIDITY_SCHEMA = sensor.sensor_schema(kind=sensor.HUMIDITY)
 _RESISTANCE_SCHEMA = sensor.sensor_schema(
     unit_of_measurement=UNIT_OHM,
     icon=ICON_OMEGA,
@@ -69,24 +69,12 @@ CONFIG_SCHEMA = (
     cv.Schema(
         {
             cv.GenerateID(): cv.declare_id(APC1Component),
-            cv.Optional(CONF_PM_1_0): sensor.sensor_schema(
-                kind=sensor.PM1, accuracy_decimals=0
-            ),
-            cv.Optional(CONF_PM_2_5): sensor.sensor_schema(
-                kind=sensor.PM25, accuracy_decimals=0
-            ),
-            cv.Optional(CONF_PM_10_0): sensor.sensor_schema(
-                kind=sensor.PM10, accuracy_decimals=0
-            ),
-            cv.Optional(CONF_PM_1_0_STD): sensor.sensor_schema(
-                kind=sensor.PM1, accuracy_decimals=0
-            ),
-            cv.Optional(CONF_PM_2_5_STD): sensor.sensor_schema(
-                kind=sensor.PM25, accuracy_decimals=0
-            ),
-            cv.Optional(CONF_PM_10_0_STD): sensor.sensor_schema(
-                kind=sensor.PM10, accuracy_decimals=0
-            ),
+            cv.Optional(CONF_PM_1_0): sensor.sensor_schema(kind=sensor.PM1),
+            cv.Optional(CONF_PM_2_5): sensor.sensor_schema(kind=sensor.PM25),
+            cv.Optional(CONF_PM_10_0): sensor.sensor_schema(kind=sensor.PM10),
+            cv.Optional(CONF_PM_1_0_STD): sensor.sensor_schema(kind=sensor.PM1),
+            cv.Optional(CONF_PM_2_5_STD): sensor.sensor_schema(kind=sensor.PM25),
+            cv.Optional(CONF_PM_10_0_STD): sensor.sensor_schema(kind=sensor.PM10),
             cv.Optional(CONF_PM_0_3UM): _PM_COUNT_SCHEMA,
             cv.Optional(CONF_PM_0_5UM): _PM_COUNT_SCHEMA,
             cv.Optional(CONF_PM_1_0UM): _PM_COUNT_SCHEMA,
@@ -101,7 +89,7 @@ CONFIG_SCHEMA = (
                 state_class=STATE_CLASS_MEASUREMENT,
             ),
             cv.Optional(CONF_ECO2): sensor.sensor_schema(
-                kind=sensor.CARBON_DIOXIDE, icon=ICON_MOLECULE_CO2, accuracy_decimals=0
+                kind=sensor.CARBON_DIOXIDE, icon=ICON_MOLECULE_CO2
             ),
             cv.Optional(CONF_AQI): sensor.sensor_schema(
                 icon=ICON_CHEMICAL_WEAPON,

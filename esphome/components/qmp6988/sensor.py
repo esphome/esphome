@@ -38,7 +38,7 @@ CONFIG_SCHEMA = (
         {
             cv.GenerateID(): cv.declare_id(QMP6988Component),
             cv.Optional(CONF_TEMPERATURE): sensor.sensor_schema(
-                kind=sensor.TEMPERATURE, accuracy_decimals=1
+                kind=sensor.TEMPERATURE
             ).extend(
                 {
                     cv.Optional(CONF_OVERSAMPLING, default="8X"): cv.enum(
@@ -47,7 +47,7 @@ CONFIG_SCHEMA = (
                 }
             ),
             cv.Optional(CONF_PRESSURE): sensor.sensor_schema(
-                kind=sensor.PRESSURE, accuracy_decimals=1
+                kind=sensor.PRESSURE
             ).extend(
                 {
                     cv.Optional(CONF_OVERSAMPLING, default="8X"): cv.enum(

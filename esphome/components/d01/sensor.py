@@ -13,7 +13,7 @@ D01SensorComponent = d01_ns.class_(
 
 
 CONFIG_SCHEMA = (
-    sensor.sensor_schema(D01SensorComponent, kind=sensor.PM25, accuracy_decimals=0)
+    sensor.sensor_schema(D01SensorComponent, kind=sensor.PM25)
     .extend(cv.COMPONENT_SCHEMA)
     .extend(uart.UART_DEVICE_SCHEMA)
 )

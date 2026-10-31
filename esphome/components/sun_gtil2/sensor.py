@@ -32,7 +32,7 @@ CONFIG_SCHEMA = cv.All(
                 kind=sensor.POWER, accuracy_decimals=1
             ),
             cv.Optional(CONF_TEMPERATURE): sensor.sensor_schema(
-                kind=sensor.TEMPERATURE, icon=ICON_THERMOMETER, accuracy_decimals=1
+                kind=sensor.TEMPERATURE, icon=ICON_THERMOMETER
             ),
         }
     ).extend(cv.COMPONENT_SCHEMA)

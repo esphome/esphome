@@ -36,7 +36,7 @@ CONFIG_SCHEMA = (
                 }
             ),
             cv.Optional(CONF_TEMPERATURE): sensor.sensor_schema(
-                kind=sensor.TEMPERATURE, accuracy_decimals=1
+                kind=sensor.TEMPERATURE
             ),
         }
     )

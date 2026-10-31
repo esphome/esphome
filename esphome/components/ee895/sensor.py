@@ -23,7 +23,7 @@ CONFIG_SCHEMA = (
         {
             cv.GenerateID(): cv.declare_id(EE895Component),
             cv.Optional(CONF_TEMPERATURE): sensor.sensor_schema(
-                kind=sensor.TEMPERATURE, accuracy_decimals=1
+                kind=sensor.TEMPERATURE
             ),
             cv.Optional(CONF_CO2): sensor.sensor_schema(
                 unit_of_measurement=UNIT_PARTS_PER_MILLION,
@@ -31,9 +31,7 @@ CONFIG_SCHEMA = (
                 accuracy_decimals=0,
                 state_class=STATE_CLASS_MEASUREMENT,
             ),
-            cv.Optional(CONF_PRESSURE): sensor.sensor_schema(
-                kind=sensor.PRESSURE, accuracy_decimals=1
-            ),
+            cv.Optional(CONF_PRESSURE): sensor.sensor_schema(kind=sensor.PRESSURE),
         }
     )
     .extend(cv.polling_component_schema("60s"))

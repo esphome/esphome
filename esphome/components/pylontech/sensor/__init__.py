@@ -25,21 +25,13 @@ _request_cell_slot = cg.slot_counter("PYLONTECH_SENSOR_CELL_COUNT")
 TYPES: dict[str, cv.Schema] = {
     CONF_VOLTAGE: sensor.sensor_schema(kind=sensor.VOLTAGE, accuracy_decimals=3),
     CONF_CURRENT: sensor.sensor_schema(kind=sensor.CURRENT, accuracy_decimals=3),
-    CONF_TEMPERATURE: sensor.sensor_schema(
-        kind=sensor.TEMPERATURE, accuracy_decimals=1
-    ),
-    CONF_TEMPERATURE_LOW: sensor.sensor_schema(
-        kind=sensor.TEMPERATURE, accuracy_decimals=1
-    ),
-    CONF_TEMPERATURE_HIGH: sensor.sensor_schema(
-        kind=sensor.TEMPERATURE, accuracy_decimals=1
-    ),
+    CONF_TEMPERATURE: sensor.sensor_schema(kind=sensor.TEMPERATURE),
+    CONF_TEMPERATURE_LOW: sensor.sensor_schema(kind=sensor.TEMPERATURE),
+    CONF_TEMPERATURE_HIGH: sensor.sensor_schema(kind=sensor.TEMPERATURE),
     CONF_VOLTAGE_LOW: sensor.sensor_schema(kind=sensor.VOLTAGE, accuracy_decimals=3),
     CONF_VOLTAGE_HIGH: sensor.sensor_schema(kind=sensor.VOLTAGE, accuracy_decimals=3),
-    CONF_COULOMB: sensor.sensor_schema(kind=sensor.BATTERY, accuracy_decimals=0),
-    CONF_MOS_TEMPERATURE: sensor.sensor_schema(
-        kind=sensor.TEMPERATURE, accuracy_decimals=1
-    ),
+    CONF_COULOMB: sensor.sensor_schema(kind=sensor.BATTERY),
+    CONF_MOS_TEMPERATURE: sensor.sensor_schema(kind=sensor.TEMPERATURE),
 }
 
 CELL_SCHEMA = cv.All(

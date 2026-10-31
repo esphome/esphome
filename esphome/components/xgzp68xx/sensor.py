@@ -57,7 +57,7 @@ pressure_pa = cv.float_with_unit("pressure", "(Pa)", optional_unit=True)
 
 
 def _temperature_schema() -> cv.Schema:
-    return sensor.sensor_schema(kind=sensor.TEMPERATURE, accuracy_decimals=1)
+    return sensor.sensor_schema(kind=sensor.TEMPERATURE)
 
 
 def _pressure_schema(oversampling: cv.Optional, options: dict) -> cv.Schema:

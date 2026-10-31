@@ -55,11 +55,9 @@ CONFIG_SCHEMA = cv.All(
                 accuracy_decimals=0,
                 state_class=STATE_CLASS_MEASUREMENT,
             ),
-            cv.Optional(CONF_CO2): sensor.sensor_schema(
-                kind=sensor.CARBON_DIOXIDE, accuracy_decimals=0
-            ),
+            cv.Optional(CONF_CO2): sensor.sensor_schema(kind=sensor.CARBON_DIOXIDE),
             cv.Optional(CONF_ILLUMINANCE): sensor.sensor_schema(
-                kind=sensor.ILLUMINANCE, accuracy_decimals=0
+                kind=sensor.ILLUMINANCE
             ),
             cv.Optional(CONF_DEVICE_TYPE, default="WAVE_PLUS"): cv.enum(
                 DEVICE_TYPES, upper=True

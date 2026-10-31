@@ -87,7 +87,7 @@ CONFIG_SCHEMA = (
                 kind=sensor.ENERGY_KWH, accuracy_decimals=1
             ),
             cv.Optional(CONF_INVERTER_MODULE_TEMP): sensor.sensor_schema(
-                kind=sensor.TEMPERATURE, accuracy_decimals=1
+                kind=sensor.TEMPERATURE
             ),
         }
     )

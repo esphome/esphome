@@ -197,24 +197,12 @@ CONFIG_SCHEMA = cv.All(
         {
             cv.GenerateID(): cv.declare_id(PMSX003Component),
             cv.Required(CONF_TYPE): cv.enum(PMSX003_TYPES, upper=True),
-            cv.Optional(CONF_PM_1_0_STD): sensor.sensor_schema(
-                kind=sensor.PM1, accuracy_decimals=0
-            ),
-            cv.Optional(CONF_PM_2_5_STD): sensor.sensor_schema(
-                kind=sensor.PM25, accuracy_decimals=0
-            ),
-            cv.Optional(CONF_PM_10_0_STD): sensor.sensor_schema(
-                kind=sensor.PM10, accuracy_decimals=0
-            ),
-            cv.Optional(CONF_PM_1_0): sensor.sensor_schema(
-                kind=sensor.PM1, accuracy_decimals=0
-            ),
-            cv.Optional(CONF_PM_2_5): sensor.sensor_schema(
-                kind=sensor.PM25, accuracy_decimals=0
-            ),
-            cv.Optional(CONF_PM_10_0): sensor.sensor_schema(
-                kind=sensor.PM10, accuracy_decimals=0
-            ),
+            cv.Optional(CONF_PM_1_0_STD): sensor.sensor_schema(kind=sensor.PM1),
+            cv.Optional(CONF_PM_2_5_STD): sensor.sensor_schema(kind=sensor.PM25),
+            cv.Optional(CONF_PM_10_0_STD): sensor.sensor_schema(kind=sensor.PM10),
+            cv.Optional(CONF_PM_1_0): sensor.sensor_schema(kind=sensor.PM1),
+            cv.Optional(CONF_PM_2_5): sensor.sensor_schema(kind=sensor.PM25),
+            cv.Optional(CONF_PM_10_0): sensor.sensor_schema(kind=sensor.PM10),
             cv.Optional(CONF_PM_0_3UM): sensor.sensor_schema(
                 unit_of_measurement=UNIT_COUNT_DECILITRE,
                 icon=ICON_CHEMICAL_WEAPON,
@@ -258,11 +246,9 @@ CONFIG_SCHEMA = cv.All(
                 state_class=STATE_CLASS_MEASUREMENT,
             ),
             cv.Optional(CONF_TEMPERATURE): sensor.sensor_schema(
-                kind=sensor.TEMPERATURE, accuracy_decimals=1
+                kind=sensor.TEMPERATURE
             ),
-            cv.Optional(CONF_HUMIDITY): sensor.sensor_schema(
-                kind=sensor.HUMIDITY, accuracy_decimals=1
-            ),
+            cv.Optional(CONF_HUMIDITY): sensor.sensor_schema(kind=sensor.HUMIDITY),
             cv.Optional(CONF_UPDATE_INTERVAL, default="0s"): validate_update_interval,
         }
     )

@@ -27,9 +27,7 @@ CONFIG_SCHEMA = (
                 cv.Length(min=PROFILE_SIZE, max=PROFILE_SIZE),
             ),
             cv.Optional(CONF_BATTERY_LEVEL): sensor.sensor_schema(
-                kind=sensor.BATTERY,
-                accuracy_decimals=0,
-                entity_category=ENTITY_CATEGORY_DIAGNOSTIC,
+                kind=sensor.BATTERY, entity_category=ENTITY_CATEGORY_DIAGNOSTIC
             ),
             cv.Optional(CONF_BATTERY_VOLTAGE): sensor.sensor_schema(
                 kind=sensor.VOLTAGE,

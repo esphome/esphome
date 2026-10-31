@@ -23,15 +23,9 @@ CONFIG_SCHEMA = cv.All(
         {
             cv.GenerateID(): cv.declare_id(PM2005Component),
             cv.Optional(CONF_TYPE, default="PM2005"): cv.enum(SENSOR_TYPE, upper=True),
-            cv.Optional(CONF_PM_1_0): sensor.sensor_schema(
-                kind=sensor.PM1, accuracy_decimals=0
-            ),
-            cv.Optional(CONF_PM_2_5): sensor.sensor_schema(
-                kind=sensor.PM25, accuracy_decimals=0
-            ),
-            cv.Optional(CONF_PM_10_0): sensor.sensor_schema(
-                kind=sensor.PM10, accuracy_decimals=0
-            ),
+            cv.Optional(CONF_PM_1_0): sensor.sensor_schema(kind=sensor.PM1),
+            cv.Optional(CONF_PM_2_5): sensor.sensor_schema(kind=sensor.PM25),
+            cv.Optional(CONF_PM_10_0): sensor.sensor_schema(kind=sensor.PM10),
         },
     )
     .extend(cv.polling_component_schema("60s"))

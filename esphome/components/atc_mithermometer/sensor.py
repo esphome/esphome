@@ -28,15 +28,13 @@ CONFIG_SCHEMA = cv.All(
             cv.GenerateID(): cv.declare_id(ATCMiThermometer),
             cv.Required(CONF_MAC_ADDRESS): cv.mac_address,
             cv.Optional(CONF_TEMPERATURE): sensor.sensor_schema(
-                kind=sensor.TEMPERATURE, accuracy_decimals=1
+                kind=sensor.TEMPERATURE
             ),
             cv.Optional(CONF_HUMIDITY): sensor.sensor_schema(
                 kind=sensor.HUMIDITY, accuracy_decimals=0
             ),
             cv.Optional(CONF_BATTERY_LEVEL): sensor.sensor_schema(
-                kind=sensor.BATTERY,
-                accuracy_decimals=0,
-                entity_category=ENTITY_CATEGORY_DIAGNOSTIC,
+                kind=sensor.BATTERY, entity_category=ENTITY_CATEGORY_DIAGNOSTIC
             ),
             cv.Optional(CONF_BATTERY_VOLTAGE): sensor.sensor_schema(
                 kind=sensor.VOLTAGE,
@@ -44,9 +42,7 @@ CONFIG_SCHEMA = cv.All(
                 entity_category=ENTITY_CATEGORY_DIAGNOSTIC,
             ),
             cv.Optional(CONF_SIGNAL_STRENGTH): sensor.sensor_schema(
-                kind=sensor.SIGNAL_STRENGTH,
-                accuracy_decimals=0,
-                entity_category=ENTITY_CATEGORY_DIAGNOSTIC,
+                kind=sensor.SIGNAL_STRENGTH, entity_category=ENTITY_CATEGORY_DIAGNOSTIC
             ),
         }
     )

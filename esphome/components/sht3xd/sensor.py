@@ -21,11 +21,9 @@ CONFIG_SCHEMA = (
         {
             cv.GenerateID(): cv.declare_id(SHT3XDComponent),
             cv.Optional(CONF_TEMPERATURE): sensor.sensor_schema(
-                kind=sensor.TEMPERATURE, accuracy_decimals=1
+                kind=sensor.TEMPERATURE
             ),
-            cv.Optional(CONF_HUMIDITY): sensor.sensor_schema(
-                kind=sensor.HUMIDITY, accuracy_decimals=1
-            ),
+            cv.Optional(CONF_HUMIDITY): sensor.sensor_schema(kind=sensor.HUMIDITY),
             cv.Optional(CONF_HEATER_ENABLED, default=False): cv.boolean,
         },
     )

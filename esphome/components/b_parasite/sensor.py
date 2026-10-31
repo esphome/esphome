@@ -31,11 +31,9 @@ CONFIG_SCHEMA = cv.All(
             cv.GenerateID(): cv.declare_id(BParasite),
             cv.Required(CONF_MAC_ADDRESS): cv.mac_address,
             cv.Optional(CONF_TEMPERATURE): sensor.sensor_schema(
-                kind=sensor.TEMPERATURE, accuracy_decimals=1
+                kind=sensor.TEMPERATURE
             ),
-            cv.Optional(CONF_HUMIDITY): sensor.sensor_schema(
-                kind=sensor.HUMIDITY, accuracy_decimals=1
-            ),
+            cv.Optional(CONF_HUMIDITY): sensor.sensor_schema(kind=sensor.HUMIDITY),
             cv.Optional(CONF_BATTERY_VOLTAGE): sensor.sensor_schema(
                 kind=sensor.VOLTAGE,
                 accuracy_decimals=3,
@@ -48,7 +46,7 @@ CONFIG_SCHEMA = cv.All(
                 state_class=STATE_CLASS_MEASUREMENT,
             ),
             cv.Optional(CONF_ILLUMINANCE): sensor.sensor_schema(
-                kind=sensor.ILLUMINANCE, accuracy_decimals=0
+                kind=sensor.ILLUMINANCE
             ),
         }
     )

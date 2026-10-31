@@ -22,9 +22,7 @@ CONFIG_SCHEMA = (
         {
             cv.GenerateID(): cv.declare_id(Am43),
             cv.Optional(CONF_BATTERY_LEVEL): sensor.sensor_schema(
-                kind=sensor.BATTERY,
-                accuracy_decimals=0,
-                entity_category=ENTITY_CATEGORY_DIAGNOSTIC,
+                kind=sensor.BATTERY, entity_category=ENTITY_CATEGORY_DIAGNOSTIC
             ),
             cv.Optional(CONF_ILLUMINANCE): sensor.sensor_schema(
                 unit_of_measurement=UNIT_PERCENT,

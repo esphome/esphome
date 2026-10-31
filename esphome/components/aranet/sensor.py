@@ -47,29 +47,19 @@ CONFIG_SCHEMA = (
         {
             cv.GenerateID(): cv.declare_id(Aranet),
             cv.Required(CONF_MAC_ADDRESS): cv.mac_address,
-            cv.Optional(CONF_CO2): sensor.sensor_schema(
-                kind=sensor.CARBON_DIOXIDE, accuracy_decimals=0
-            ),
+            cv.Optional(CONF_CO2): sensor.sensor_schema(kind=sensor.CARBON_DIOXIDE),
             cv.Optional(CONF_TEMPERATURE): sensor.sensor_schema(
-                kind=sensor.TEMPERATURE, accuracy_decimals=1
+                kind=sensor.TEMPERATURE
             ),
-            cv.Optional(CONF_HUMIDITY): sensor.sensor_schema(
-                kind=sensor.HUMIDITY, accuracy_decimals=1
-            ),
-            cv.Optional(CONF_PRESSURE): sensor.sensor_schema(
-                kind=sensor.PRESSURE, accuracy_decimals=1
-            ),
+            cv.Optional(CONF_HUMIDITY): sensor.sensor_schema(kind=sensor.HUMIDITY),
+            cv.Optional(CONF_PRESSURE): sensor.sensor_schema(kind=sensor.PRESSURE),
             cv.Optional(CONF_BATTERY_LEVEL): sensor.sensor_schema(
-                kind=sensor.BATTERY,
-                accuracy_decimals=0,
-                entity_category=ENTITY_CATEGORY_DIAGNOSTIC,
+                kind=sensor.BATTERY, entity_category=ENTITY_CATEGORY_DIAGNOSTIC
             ),
             cv.Optional(CONF_MEASUREMENT_INTERVAL): DIAGNOSTIC_DURATION_SCHEMA,
             cv.Optional(CONF_MEASUREMENT_AGE): DIAGNOSTIC_DURATION_SCHEMA,
             cv.Optional(CONF_SIGNAL_STRENGTH): sensor.sensor_schema(
-                kind=sensor.SIGNAL_STRENGTH,
-                accuracy_decimals=0,
-                entity_category=ENTITY_CATEGORY_DIAGNOSTIC,
+                kind=sensor.SIGNAL_STRENGTH, entity_category=ENTITY_CATEGORY_DIAGNOSTIC
             ),
             cv.Optional(CONF_RADON): sensor.sensor_schema(
                 unit_of_measurement=UNIT_BECQUEREL_PER_CUBIC_METER,

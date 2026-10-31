@@ -36,7 +36,7 @@ CONFIG_SCHEMA = cv.Schema(
     {
         cv.GenerateID(CONF_MICRONOVA_ID): cv.use_id(MicroNova),
         cv.Optional(CONF_ROOM_TEMPERATURE): sensor.sensor_schema(
-            MicroNovaSensor, kind=sensor.TEMPERATURE, accuracy_decimals=1
+            MicroNovaSensor, kind=sensor.TEMPERATURE
         ).extend(
             MICRONOVA_ADDRESS_SCHEMA(
                 default_memory_location=0x00,
@@ -45,7 +45,7 @@ CONFIG_SCHEMA = cv.Schema(
             )
         ),
         cv.Optional(CONF_FUMES_TEMPERATURE): sensor.sensor_schema(
-            MicroNovaSensor, kind=sensor.TEMPERATURE, accuracy_decimals=1
+            MicroNovaSensor, kind=sensor.TEMPERATURE
         ).extend(
             MICRONOVA_ADDRESS_SCHEMA(
                 default_memory_location=0x00,
@@ -78,7 +78,7 @@ CONFIG_SCHEMA = cv.Schema(
         )
         .extend({cv.Optional(CONF_FAN_RPM_OFFSET, default=0): cv.uint8_t}),
         cv.Optional(CONF_WATER_TEMPERATURE): sensor.sensor_schema(
-            MicroNovaSensor, kind=sensor.TEMPERATURE, accuracy_decimals=1
+            MicroNovaSensor, kind=sensor.TEMPERATURE
         ).extend(
             MICRONOVA_ADDRESS_SCHEMA(
                 default_memory_location=0x00,

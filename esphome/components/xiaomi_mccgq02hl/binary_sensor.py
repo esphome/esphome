@@ -35,9 +35,7 @@ CONFIG_SCHEMA = cv.All(
                 device_class=DEVICE_CLASS_LIGHT
             ),
             cv.Optional(CONF_BATTERY_LEVEL): sensor.sensor_schema(
-                kind=sensor.BATTERY,
-                accuracy_decimals=0,
-                entity_category=ENTITY_CATEGORY_DIAGNOSTIC,
+                kind=sensor.BATTERY, entity_category=ENTITY_CATEGORY_DIAGNOSTIC
             ),
         }
     )

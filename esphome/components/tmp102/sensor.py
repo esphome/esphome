@@ -44,7 +44,7 @@ _ADVANCED_SCHEMA = {
 }
 
 CONFIG_SCHEMA = cv.All(
-    sensor.sensor_schema(TMP102Component, kind=sensor.TEMPERATURE, accuracy_decimals=1)
+    sensor.sensor_schema(TMP102Component, kind=sensor.TEMPERATURE)
     .extend(cv.polling_component_schema("60s"))
     .extend(i2c.i2c_device_schema(0x48))
     .extend(_ADVANCED_SCHEMA),

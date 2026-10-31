@@ -30,9 +30,7 @@ CONFIG_SCHEMA = RENOGY_INVERTER_BLE_COMPONENT_SCHEMA.extend(
         cv.Optional(CONF_AC_OUTPUT_FREQUENCY): FREQUENCY_SCHEMA,
         cv.Optional(CONF_INPUT_FREQUENCY): FREQUENCY_SCHEMA,
         cv.Optional(CONF_BATTERY_VOLTAGE): VOLTAGE_SCHEMA,
-        cv.Optional(CONF_TEMPERATURE): sensor.sensor_schema(
-            kind=sensor.TEMPERATURE, accuracy_decimals=1
-        ),
+        cv.Optional(CONF_TEMPERATURE): sensor.sensor_schema(kind=sensor.TEMPERATURE),
         cv.Optional(CONF_LOAD_CURRENT): CURRENT_SCHEMA,
         cv.Optional(CONF_LOAD_ACTIVE_POWER): sensor.sensor_schema(
             kind=sensor.POWER, accuracy_decimals=0

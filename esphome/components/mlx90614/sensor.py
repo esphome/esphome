@@ -19,11 +19,9 @@ CONFIG_SCHEMA = (
     cv.Schema(
         {
             cv.GenerateID(): cv.declare_id(MLX90614Component),
-            cv.Optional(CONF_AMBIENT): sensor.sensor_schema(
-                kind=sensor.TEMPERATURE, accuracy_decimals=1
-            ),
+            cv.Optional(CONF_AMBIENT): sensor.sensor_schema(kind=sensor.TEMPERATURE),
             cv.Optional(CONF_OBJECT): sensor.sensor_schema(
-                kind=sensor.TEMPERATURE, accuracy_decimals=1
+                kind=sensor.TEMPERATURE
             ).extend(
                 {
                     cv.Optional(CONF_EMISSIVITY, default=1.0): cv.percentage,

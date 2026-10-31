@@ -103,7 +103,7 @@ CONFIG_SCHEMA = cv.All(
             cv.Optional(CONF_TEMPERATURE_COMPENSATION, default=False): bool,
             cv.Optional(CONF_HALLCONF, default=0xC): cv.one_of(0xC, 0x0),
             cv.Optional(CONF_TEMPERATURE): sensor.sensor_schema(
-                kind=sensor.TEMPERATURE, accuracy_decimals=1, icon=ICON_THERMOMETER
+                kind=sensor.TEMPERATURE, icon=ICON_THERMOMETER
             ).extend(
                 cv.Schema(
                     {

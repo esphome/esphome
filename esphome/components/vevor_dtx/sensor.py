@@ -41,9 +41,7 @@ _WIND_SCHEMA = sensor.sensor_schema(
 CONFIG_SCHEMA = cv.Schema(
     {
         cv.GenerateID(CONF_VEVOR_DTX_ID): cv.use_id(VevorDtxComponent),
-        cv.Optional(CONF_TEMPERATURE): sensor.sensor_schema(
-            kind=sensor.TEMPERATURE, accuracy_decimals=1
-        ),
+        cv.Optional(CONF_TEMPERATURE): sensor.sensor_schema(kind=sensor.TEMPERATURE),
         cv.Optional(CONF_HUMIDITY): sensor.sensor_schema(
             kind=sensor.HUMIDITY, accuracy_decimals=0
         ),
@@ -66,9 +64,7 @@ CONFIG_SCHEMA = cv.Schema(
             accuracy_decimals=0,
             state_class=STATE_CLASS_MEASUREMENT,
         ),
-        cv.Optional(CONF_ILLUMINANCE): sensor.sensor_schema(
-            kind=sensor.ILLUMINANCE, accuracy_decimals=0
-        ),
+        cv.Optional(CONF_ILLUMINANCE): sensor.sensor_schema(kind=sensor.ILLUMINANCE),
         cv.Optional(CONF_TX_COUNTER): sensor.sensor_schema(
             accuracy_decimals=0,
             icon=ICON_COUNTER,

@@ -28,7 +28,7 @@ IIR_FILTER_OPTIONS = BMP280IIRFilter.options(
 CONFIG_SCHEMA_BASE = cv.Schema(
     {
         cv.Optional(CONF_TEMPERATURE): sensor.sensor_schema(
-            kind=sensor.TEMPERATURE, accuracy_decimals=1
+            kind=sensor.TEMPERATURE
         ).extend(
             {
                 cv.Optional(CONF_OVERSAMPLING, default="16X"): cv.enum(
@@ -36,9 +36,7 @@ CONFIG_SCHEMA_BASE = cv.Schema(
                 ),
             }
         ),
-        cv.Optional(CONF_PRESSURE): sensor.sensor_schema(
-            kind=sensor.PRESSURE, accuracy_decimals=1
-        ).extend(
+        cv.Optional(CONF_PRESSURE): sensor.sensor_schema(kind=sensor.PRESSURE).extend(
             {
                 cv.Optional(CONF_OVERSAMPLING, default="16X"): cv.enum(
                     OVERSAMPLING_OPTIONS, upper=True

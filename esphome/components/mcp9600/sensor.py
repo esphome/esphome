@@ -28,10 +28,10 @@ CONFIG_SCHEMA = (
                 THERMOCOUPLE_TYPE, upper=True
             ),
             cv.Optional(CONF_HOT_JUNCTION): sensor.sensor_schema(
-                kind=sensor.TEMPERATURE, accuracy_decimals=1
+                kind=sensor.TEMPERATURE
             ),
             cv.Optional(CONF_COLD_JUNCTION): sensor.sensor_schema(
-                kind=sensor.TEMPERATURE, accuracy_decimals=1
+                kind=sensor.TEMPERATURE
             ),
         }
     )

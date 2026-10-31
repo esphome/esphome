@@ -55,12 +55,8 @@ CONFIG_SCHEMA = (
                 state_class=STATE_CLASS_MEASUREMENT,
                 unit_of_measurement=UNIT_KILOWATT,
             ),
-            cv.Optional(CONF_TEMP1): sensor.sensor_schema(
-                kind=sensor.TEMPERATURE, accuracy_decimals=1
-            ),
-            cv.Optional(CONF_TEMP2): sensor.sensor_schema(
-                kind=sensor.TEMPERATURE, accuracy_decimals=1
-            ),
+            cv.Optional(CONF_TEMP1): sensor.sensor_schema(kind=sensor.TEMPERATURE),
+            cv.Optional(CONF_TEMP2): sensor.sensor_schema(kind=sensor.TEMPERATURE),
             cv.Optional(CONF_TEMP_DIFF): sensor.sensor_schema(
                 accuracy_decimals=1,
                 device_class=DEVICE_CLASS_TEMPERATURE,

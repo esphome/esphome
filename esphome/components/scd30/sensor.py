@@ -29,14 +29,12 @@ CONFIG_SCHEMA = (
         {
             cv.GenerateID(): cv.declare_id(SCD30Component),
             cv.Optional(CONF_CO2): sensor.sensor_schema(
-                kind=sensor.CARBON_DIOXIDE, icon=ICON_MOLECULE_CO2, accuracy_decimals=0
+                kind=sensor.CARBON_DIOXIDE, icon=ICON_MOLECULE_CO2
             ),
             cv.Optional(CONF_TEMPERATURE): sensor.sensor_schema(
-                kind=sensor.TEMPERATURE, accuracy_decimals=1
+                kind=sensor.TEMPERATURE
             ),
-            cv.Optional(CONF_HUMIDITY): sensor.sensor_schema(
-                kind=sensor.HUMIDITY, accuracy_decimals=1
-            ),
+            cv.Optional(CONF_HUMIDITY): sensor.sensor_schema(kind=sensor.HUMIDITY),
             cv.Optional(CONF_AUTOMATIC_SELF_CALIBRATION, default=True): cv.boolean,
             cv.Optional(CONF_ALTITUDE_COMPENSATION): cv.All(
                 cv.float_with_unit("altitude", "(m|m a.s.l.|MAMSL|MASL)"),

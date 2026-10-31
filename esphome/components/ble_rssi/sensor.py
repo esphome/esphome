@@ -30,9 +30,7 @@ def _validate(config: ConfigType) -> ConfigType:
 
 CONFIG_SCHEMA = cv.All(
     ble_device_base.rename_legacy_hub_id("ble_rssi"),
-    sensor.sensor_schema(
-        BLERSSISensor, kind=sensor.SIGNAL_STRENGTH, accuracy_decimals=0
-    )
+    sensor.sensor_schema(BLERSSISensor, kind=sensor.SIGNAL_STRENGTH)
     .extend(
         {
             cv.Optional(CONF_MAC_ADDRESS): cv.mac_address,

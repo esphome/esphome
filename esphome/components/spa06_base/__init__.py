@@ -144,7 +144,7 @@ CONFIG_SCHEMA_BASE = cv.Schema(
     {
         cv.GenerateID(): cv.declare_id(SPA06Component),
         cv.Optional(CONF_TEMPERATURE): sensor.sensor_schema(
-            kind=sensor.TEMPERATURE, accuracy_decimals=1
+            kind=sensor.TEMPERATURE
         ).extend(
             {
                 cv.Optional(CONF_OVERSAMPLING, default="NONE"): cv.enum(

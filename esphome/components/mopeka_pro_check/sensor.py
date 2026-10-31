@@ -94,9 +94,7 @@ CONFIG_SCHEMA = cv.All(
                 accuracy_decimals=0,
                 state_class=STATE_CLASS_MEASUREMENT,
             ),
-            cv.Optional(CONF_BATTERY_LEVEL): sensor.sensor_schema(
-                kind=sensor.BATTERY, accuracy_decimals=0
-            ),
+            cv.Optional(CONF_BATTERY_LEVEL): sensor.sensor_schema(kind=sensor.BATTERY),
             cv.Optional(CONF_SIGNAL_QUALITY): sensor.sensor_schema(
                 unit_of_measurement=UNIT_EMPTY,
                 icon=ICON_SIGNAL,

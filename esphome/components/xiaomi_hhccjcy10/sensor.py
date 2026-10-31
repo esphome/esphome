@@ -31,7 +31,7 @@ CONFIG_SCHEMA = cv.All(
             cv.GenerateID(): cv.declare_id(XiaomiHHCCJCY10),
             cv.Required(CONF_MAC_ADDRESS): cv.mac_address,
             cv.Optional(CONF_TEMPERATURE): sensor.sensor_schema(
-                kind=sensor.TEMPERATURE, accuracy_decimals=1
+                kind=sensor.TEMPERATURE
             ),
             cv.Optional(CONF_MOISTURE): sensor.sensor_schema(
                 unit_of_measurement=UNIT_PERCENT,
@@ -40,7 +40,7 @@ CONFIG_SCHEMA = cv.All(
                 state_class=STATE_CLASS_MEASUREMENT,
             ),
             cv.Optional(CONF_ILLUMINANCE): sensor.sensor_schema(
-                kind=sensor.ILLUMINANCE, accuracy_decimals=0
+                kind=sensor.ILLUMINANCE
             ),
             cv.Optional(CONF_CONDUCTIVITY): sensor.sensor_schema(
                 unit_of_measurement=UNIT_MICROSIEMENS_PER_CENTIMETER,
@@ -49,9 +49,7 @@ CONFIG_SCHEMA = cv.All(
                 state_class=STATE_CLASS_MEASUREMENT,
             ),
             cv.Optional(CONF_BATTERY_LEVEL): sensor.sensor_schema(
-                kind=sensor.BATTERY,
-                accuracy_decimals=0,
-                entity_category=ENTITY_CATEGORY_DIAGNOSTIC,
+                kind=sensor.BATTERY, entity_category=ENTITY_CATEGORY_DIAGNOSTIC
             ),
         }
     )

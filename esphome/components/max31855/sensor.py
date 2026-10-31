@@ -10,7 +10,7 @@ MAX31855Sensor = max31855_ns.class_(
 )
 
 CONFIG_SCHEMA = (
-    sensor.sensor_schema(MAX31855Sensor, kind=sensor.TEMPERATURE, accuracy_decimals=1)
+    sensor.sensor_schema(MAX31855Sensor, kind=sensor.TEMPERATURE)
     .extend(
         {
             cv.Optional(CONF_REFERENCE_TEMPERATURE): sensor.sensor_schema(

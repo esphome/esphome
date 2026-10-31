@@ -31,52 +31,50 @@ CONFIG_SCHEMA = cv.Schema(
     {
         cv.GenerateID(CONF_DSMR_ID): cv.use_id(Dsmr),
         cv.Optional("energy_delivered_lux"): sensor.sensor_schema(
-            kind=sensor.ENERGY_KWH, accuracy_decimals=3
+            kind=sensor.ENERGY_KWH
         ),
         cv.Optional("energy_delivered_tariff1"): sensor.sensor_schema(
-            kind=sensor.ENERGY_KWH, accuracy_decimals=3
+            kind=sensor.ENERGY_KWH
         ),
         cv.Optional("energy_delivered_tariff2"): sensor.sensor_schema(
-            kind=sensor.ENERGY_KWH, accuracy_decimals=3
+            kind=sensor.ENERGY_KWH
         ),
         cv.Optional("energy_delivered_tariff3"): sensor.sensor_schema(
-            kind=sensor.ENERGY_KWH, accuracy_decimals=3
+            kind=sensor.ENERGY_KWH
         ),
         cv.Optional("energy_delivered_tariff4"): sensor.sensor_schema(
-            kind=sensor.ENERGY_KWH, accuracy_decimals=3
+            kind=sensor.ENERGY_KWH
         ),
         cv.Optional("energy_returned_lux"): sensor.sensor_schema(
-            kind=sensor.ENERGY_KWH, accuracy_decimals=3
+            kind=sensor.ENERGY_KWH
         ),
         cv.Optional("energy_returned_tariff1"): sensor.sensor_schema(
-            kind=sensor.ENERGY_KWH, accuracy_decimals=3
+            kind=sensor.ENERGY_KWH
         ),
         cv.Optional("energy_returned_tariff2"): sensor.sensor_schema(
-            kind=sensor.ENERGY_KWH, accuracy_decimals=3
+            kind=sensor.ENERGY_KWH
         ),
         cv.Optional("energy_returned_tariff3"): sensor.sensor_schema(
-            kind=sensor.ENERGY_KWH, accuracy_decimals=3
+            kind=sensor.ENERGY_KWH
         ),
         cv.Optional("energy_returned_tariff4"): sensor.sensor_schema(
-            kind=sensor.ENERGY_KWH, accuracy_decimals=3
+            kind=sensor.ENERGY_KWH
         ),
         cv.Optional("energy_delivered_ch"): sensor.sensor_schema(
-            kind=sensor.ENERGY_KWH, accuracy_decimals=3
+            kind=sensor.ENERGY_KWH
         ),
         cv.Optional("energy_delivered_tariff1_ch"): sensor.sensor_schema(
-            kind=sensor.ENERGY_KWH, accuracy_decimals=3
+            kind=sensor.ENERGY_KWH
         ),
         cv.Optional("energy_delivered_tariff2_ch"): sensor.sensor_schema(
-            kind=sensor.ENERGY_KWH, accuracy_decimals=3
+            kind=sensor.ENERGY_KWH
         ),
-        cv.Optional("energy_returned_ch"): sensor.sensor_schema(
-            kind=sensor.ENERGY_KWH, accuracy_decimals=3
-        ),
+        cv.Optional("energy_returned_ch"): sensor.sensor_schema(kind=sensor.ENERGY_KWH),
         cv.Optional("energy_returned_tariff1_ch"): sensor.sensor_schema(
-            kind=sensor.ENERGY_KWH, accuracy_decimals=3
+            kind=sensor.ENERGY_KWH
         ),
         cv.Optional("energy_returned_tariff2_ch"): sensor.sensor_schema(
-            kind=sensor.ENERGY_KWH, accuracy_decimals=3
+            kind=sensor.ENERGY_KWH
         ),
         # Reactive energy totals and per-quadrant (Q1-Q4) values (Switzerland, e.g. EWL Luzern AM550)
         cv.Optional("total_imported_energy_ch"): sensor.sensor_schema(
@@ -150,22 +148,22 @@ CONFIG_SCHEMA = cv.Schema(
             state_class=STATE_CLASS_TOTAL_INCREASING,
         ),
         cv.Optional("energy_delivered_tariff1_il"): sensor.sensor_schema(
-            kind=sensor.ENERGY_KWH, accuracy_decimals=3
+            kind=sensor.ENERGY_KWH
         ),
         cv.Optional("energy_delivered_tariff2_il"): sensor.sensor_schema(
-            kind=sensor.ENERGY_KWH, accuracy_decimals=3
+            kind=sensor.ENERGY_KWH
         ),
         cv.Optional("energy_delivered_tariff3_il"): sensor.sensor_schema(
-            kind=sensor.ENERGY_KWH, accuracy_decimals=3
+            kind=sensor.ENERGY_KWH
         ),
         cv.Optional("energy_returned_tariff1_il"): sensor.sensor_schema(
-            kind=sensor.ENERGY_KWH, accuracy_decimals=3
+            kind=sensor.ENERGY_KWH
         ),
         cv.Optional("energy_returned_tariff2_il"): sensor.sensor_schema(
-            kind=sensor.ENERGY_KWH, accuracy_decimals=3
+            kind=sensor.ENERGY_KWH
         ),
         cv.Optional("energy_returned_tariff3_il"): sensor.sensor_schema(
-            kind=sensor.ENERGY_KWH, accuracy_decimals=3
+            kind=sensor.ENERGY_KWH
         ),
         cv.Optional("total_imported_energy"): sensor.sensor_schema(
             unit_of_measurement=UNIT_KILOVOLT_AMPS_REACTIVE_HOURS,

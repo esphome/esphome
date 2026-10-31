@@ -30,7 +30,7 @@ CONFIG_SCHEMA = (
         {
             cv.GenerateID(): cv.declare_id(UFireECComponent),
             cv.Exclusive(CONF_TEMPERATURE, "temperature"): sensor.sensor_schema(
-                kind=sensor.TEMPERATURE, accuracy_decimals=1
+                kind=sensor.TEMPERATURE
             ),
             cv.Optional(CONF_EC): sensor.sensor_schema(
                 unit_of_measurement=UNIT_MILLISIEMENS_PER_CENTIMETER,

@@ -42,9 +42,7 @@ CONFIG_SCHEMA = (
             cv.Optional(CONF_POWER): sensor.sensor_schema(
                 kind=sensor.POWER, accuracy_decimals=1
             ),
-            cv.Optional(CONF_ENERGY): sensor.sensor_schema(
-                kind=sensor.ENERGY_KWH, accuracy_decimals=3
-            ),
+            cv.Optional(CONF_ENERGY): sensor.sensor_schema(kind=sensor.ENERGY_KWH),
             cv.Optional(CONF_FREQUENCY): sensor.sensor_schema(
                 kind=sensor.FREQUENCY, accuracy_decimals=2
             ),

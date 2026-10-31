@@ -71,13 +71,11 @@ CONFIG_SCHEMA = cv.Schema(
         cv.Optional(CONF_PARENT_AVERAGE_RSSI): sensor.sensor_schema(
             ParentAverageRssiOpenThreadInfo,
             kind=sensor.SIGNAL_STRENGTH,
-            accuracy_decimals=0,
             entity_category=ENTITY_CATEGORY_DIAGNOSTIC,
         ).extend(cv.polling_component_schema("5s")),
         cv.Optional(CONF_PARENT_LAST_RSSI): sensor.sensor_schema(
             ParentLastRssiOpenThreadInfo,
             kind=sensor.SIGNAL_STRENGTH,
-            accuracy_decimals=0,
             entity_category=ENTITY_CATEGORY_DIAGNOSTIC,
         ).extend(cv.polling_component_schema("5s")),
         cv.Optional(CONF_PARENT_LINK_QUALITY_IN): sensor.sensor_schema(

@@ -9,7 +9,7 @@ MAX6675Sensor = max6675_ns.class_(
 )
 
 CONFIG_SCHEMA = (
-    sensor.sensor_schema(MAX6675Sensor, kind=sensor.TEMPERATURE, accuracy_decimals=1)
+    sensor.sensor_schema(MAX6675Sensor, kind=sensor.TEMPERATURE)
     .extend(cv.polling_component_schema("60s"))
     .extend(spi.spi_device_schema())
 )

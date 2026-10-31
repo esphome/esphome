@@ -181,9 +181,7 @@ def _model_schema(
             device_class=model.device_class,
             state_class=STATE_CLASS_MEASUREMENT,
         ),
-        cv.Optional(CONF_TEMPERATURE): sensor.sensor_schema(
-            kind=sensor.TEMPERATURE, accuracy_decimals=1
-        ),
+        cv.Optional(CONF_TEMPERATURE): sensor.sensor_schema(kind=sensor.TEMPERATURE),
     }
     if model.compensation:
         schema[cv.Optional(CONF_TEMPERATURE_COMPENSATION, default=False)] = cv.boolean

@@ -18,7 +18,7 @@ CONFIG_SCHEMA = (
         {
             cv.GenerateID(): cv.declare_id(NPI19Component),
             cv.Optional(CONF_TEMPERATURE): sensor.sensor_schema(
-                kind=sensor.TEMPERATURE, accuracy_decimals=1
+                kind=sensor.TEMPERATURE
             ),
             cv.Optional(CONF_RAW_PRESSURE): sensor.sensor_schema(
                 accuracy_decimals=0, state_class=STATE_CLASS_MEASUREMENT

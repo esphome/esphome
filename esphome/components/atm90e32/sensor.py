@@ -294,9 +294,7 @@ CONFIG_SCHEMA = cv.All(
                 kind=sensor.FREQUENCY, icon=ICON_CURRENT_AC, accuracy_decimals=1
             ),
             cv.Optional(CONF_CHIP_TEMPERATURE): sensor.sensor_schema(
-                kind=sensor.TEMPERATURE,
-                accuracy_decimals=1,
-                entity_category=ENTITY_CATEGORY_DIAGNOSTIC,
+                kind=sensor.TEMPERATURE, entity_category=ENTITY_CATEGORY_DIAGNOSTIC
             ),
             cv.Required(CONF_LINE_FREQUENCY): cv.enum(LINE_FREQS, upper=True),
             cv.Optional(CONF_CURRENT_PHASES, default="3"): cv.enum(

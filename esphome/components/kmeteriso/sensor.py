@@ -4,7 +4,10 @@ import esphome.config_validation as cv
 from esphome.const import (
     CONF_INTERNAL_TEMPERATURE,
     CONF_TEMPERATURE,
+    DEVICE_CLASS_TEMPERATURE,
     ENTITY_CATEGORY_DIAGNOSTIC,
+    STATE_CLASS_MEASUREMENT,
+    UNIT_CELSIUS,
 )
 from esphome.types import ConfigType
 
@@ -24,7 +27,10 @@ CONFIG_SCHEMA = (
                 kind=sensor.TEMPERATURE, accuracy_decimals=2
             ),
             cv.Optional(CONF_INTERNAL_TEMPERATURE): sensor.sensor_schema(
-                kind=sensor.TEMPERATURE, entity_category=ENTITY_CATEGORY_DIAGNOSTIC
+                unit_of_measurement=UNIT_CELSIUS,
+                device_class=DEVICE_CLASS_TEMPERATURE,
+                state_class=STATE_CLASS_MEASUREMENT,
+                entity_category=ENTITY_CATEGORY_DIAGNOSTIC,
             ),
         }
     )

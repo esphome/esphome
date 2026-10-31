@@ -47,13 +47,9 @@ CONFIG_SCHEMA = (
                 accuracy_decimals=3,
                 entity_category=ENTITY_CATEGORY_DIAGNOSTIC,
             ),
-            cv.Optional(CONF_BATTERY_LEVEL): sensor.sensor_schema(
-                kind=sensor.BATTERY, accuracy_decimals=0
-            ),
+            cv.Optional(CONF_BATTERY_LEVEL): sensor.sensor_schema(kind=sensor.BATTERY),
             cv.Optional(CONF_TEMPERATURE): sensor.sensor_schema(
-                kind=sensor.TEMPERATURE,
-                accuracy_decimals=1,
-                entity_category=ENTITY_CATEGORY_DIAGNOSTIC,
+                kind=sensor.TEMPERATURE, entity_category=ENTITY_CATEGORY_DIAGNOSTIC
             ),
             cv.Optional(CONF_REMAINING_CAPACITY): sensor.sensor_schema(
                 unit_of_measurement=UNIT_MILLIAMPERE_HOUR,

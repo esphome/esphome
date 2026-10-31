@@ -27,7 +27,7 @@ CONF_CELL_VOLTAGES = [f"cell_{i}_voltage" for i in range(1, 17)]
 
 voltage_sensor_schema = sensor.sensor_schema(kind=sensor.VOLTAGE, accuracy_decimals=3)
 
-temp_sensor_schema = sensor.sensor_schema(kind=sensor.TEMPERATURE, accuracy_decimals=1)
+temp_sensor_schema = sensor.sensor_schema(kind=sensor.TEMPERATURE)
 
 CONFIG_SCHEMA = cv.Schema(
     {

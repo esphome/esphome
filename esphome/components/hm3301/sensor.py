@@ -41,15 +41,9 @@ CONFIG_SCHEMA = cv.All(
     cv.Schema(
         {
             cv.GenerateID(): cv.declare_id(HM3301Component),
-            cv.Optional(CONF_PM_1_0): sensor.sensor_schema(
-                kind=sensor.PM1, accuracy_decimals=0
-            ),
-            cv.Optional(CONF_PM_2_5): sensor.sensor_schema(
-                kind=sensor.PM25, accuracy_decimals=0
-            ),
-            cv.Optional(CONF_PM_10_0): sensor.sensor_schema(
-                kind=sensor.PM10, accuracy_decimals=0
-            ),
+            cv.Optional(CONF_PM_1_0): sensor.sensor_schema(kind=sensor.PM1),
+            cv.Optional(CONF_PM_2_5): sensor.sensor_schema(kind=sensor.PM25),
+            cv.Optional(CONF_PM_10_0): sensor.sensor_schema(kind=sensor.PM10),
             cv.Optional(CONF_AQI): sensor.sensor_schema(
                 unit_of_measurement=UNIT_INDEX,
                 icon=ICON_CHEMICAL_WEAPON,

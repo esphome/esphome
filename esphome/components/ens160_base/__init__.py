@@ -29,7 +29,7 @@ ens160_ns = cg.esphome_ns.namespace("ens160_base")
 CONFIG_SCHEMA_BASE = cv.Schema(
     {
         cv.Optional(CONF_ECO2): sensor.sensor_schema(
-            kind=sensor.CARBON_DIOXIDE, icon=ICON_MOLECULE_CO2, accuracy_decimals=0
+            kind=sensor.CARBON_DIOXIDE, icon=ICON_MOLECULE_CO2
         ),
         cv.Optional(CONF_TVOC): sensor.sensor_schema(
             unit_of_measurement=UNIT_PARTS_PER_BILLION,

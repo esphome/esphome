@@ -22,9 +22,7 @@ CONFIG_SCHEMA = (
     cv.Schema(
         {
             cv.GenerateID(): cv.declare_id(iAQCore),
-            cv.Optional(CONF_CO2): sensor.sensor_schema(
-                kind=sensor.CARBON_DIOXIDE, accuracy_decimals=0
-            ),
+            cv.Optional(CONF_CO2): sensor.sensor_schema(kind=sensor.CARBON_DIOXIDE),
             cv.Optional(CONF_TVOC): sensor.sensor_schema(
                 unit_of_measurement=UNIT_PARTS_PER_BILLION,
                 accuracy_decimals=0,

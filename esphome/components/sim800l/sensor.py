@@ -12,9 +12,7 @@ CONF_RSSI = "rssi"
 CONFIG_SCHEMA = {
     cv.GenerateID(CONF_SIM800L_ID): cv.use_id(Sim800LComponent),
     cv.Optional(CONF_RSSI): sensor.sensor_schema(
-        kind=sensor.SIGNAL_STRENGTH,
-        accuracy_decimals=0,
-        entity_category=ENTITY_CATEGORY_DIAGNOSTIC,
+        kind=sensor.SIGNAL_STRENGTH, entity_category=ENTITY_CATEGORY_DIAGNOSTIC
     ),
 }
 

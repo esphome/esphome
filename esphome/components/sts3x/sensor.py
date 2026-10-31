@@ -13,7 +13,7 @@ STS3XComponent = sts3x_ns.class_(
 )
 
 CONFIG_SCHEMA = (
-    sensor.sensor_schema(STS3XComponent, kind=sensor.TEMPERATURE, accuracy_decimals=1)
+    sensor.sensor_schema(STS3XComponent, kind=sensor.TEMPERATURE)
     .extend(cv.polling_component_schema("60s"))
     .extend(i2c.i2c_device_schema(0x4A))
 )

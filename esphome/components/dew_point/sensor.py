@@ -13,10 +13,7 @@ DewPointComponent = dew_point_ns.class_(
 
 CONFIG_SCHEMA = (
     sensor.sensor_schema(
-        DewPointComponent,
-        kind=sensor.TEMPERATURE,
-        accuracy_decimals=1,
-        icon="mdi:weather-rainy",
+        DewPointComponent, kind=sensor.TEMPERATURE, icon="mdi:weather-rainy"
     )
     .extend(
         {

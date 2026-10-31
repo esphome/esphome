@@ -17,7 +17,7 @@ GP2Y1010AU0FSensor = gp2y1010au0f_ns.class_(
 )
 
 CONFIG_SCHEMA = (
-    sensor.sensor_schema(GP2Y1010AU0FSensor, kind=sensor.PM25, accuracy_decimals=0)
+    sensor.sensor_schema(GP2Y1010AU0FSensor, kind=sensor.PM25)
     .extend(
         {
             cv.Required(CONF_SENSOR): cv.use_id(voltage_sampler.VoltageSampler),

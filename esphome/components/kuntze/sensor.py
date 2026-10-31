@@ -38,7 +38,7 @@ CONFIG_SCHEMA = (
                 device_class=DEVICE_CLASS_EMPTY,
             ),
             cv.Optional(CONF_TEMPERATURE): sensor.sensor_schema(
-                kind=sensor.TEMPERATURE, icon=ICON_THERMOMETER, accuracy_decimals=1
+                kind=sensor.TEMPERATURE, icon=ICON_THERMOMETER
             ),
             cv.Optional(CONF_DIS1): sensor.sensor_schema(
                 unit_of_measurement=UNIT_EMPTY,

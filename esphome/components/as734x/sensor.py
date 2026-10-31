@@ -69,7 +69,7 @@ CONFIG_SCHEMA = cv.Schema(
             state_class=STATE_CLASS_MEASUREMENT,
         ),
         cv.Optional(CONF_ILLUMINANCE): sensor.sensor_schema(
-            kind=sensor.ILLUMINANCE, icon=ICON_ILLUMINANCE, accuracy_decimals=0
+            kind=sensor.ILLUMINANCE, icon=ICON_ILLUMINANCE
         ),
         cv.Optional(CONF_IRRADIANCE_PHOTOPIC): sensor.sensor_schema(
             unit_of_measurement=UNIT_IRRADIANCE,

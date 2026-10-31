@@ -33,7 +33,7 @@ CONFIG_SCHEMA = (
         {
             cv.GenerateID(): cv.declare_id(MHZ19Component),
             cv.Optional(CONF_CO2): sensor.sensor_schema(
-                kind=sensor.CARBON_DIOXIDE, icon=ICON_MOLECULE_CO2, accuracy_decimals=0
+                kind=sensor.CARBON_DIOXIDE, icon=ICON_MOLECULE_CO2
             ),
             cv.Optional(CONF_TEMPERATURE): sensor.sensor_schema(
                 kind=sensor.TEMPERATURE, accuracy_decimals=0

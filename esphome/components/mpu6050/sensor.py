@@ -37,7 +37,7 @@ gyro_schema = sensor.sensor_schema(
     accuracy_decimals=2,
     state_class=STATE_CLASS_MEASUREMENT,
 )
-temperature_schema = sensor.sensor_schema(kind=sensor.TEMPERATURE, accuracy_decimals=1)
+temperature_schema = sensor.sensor_schema(kind=sensor.TEMPERATURE)
 
 CONFIG_SCHEMA = (
     cv.Schema(

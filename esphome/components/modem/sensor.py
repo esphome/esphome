@@ -19,9 +19,7 @@ CONFIG_SCHEMA = cv.Schema(
     {
         cv.GenerateID(CONF_MODEM_ID): cv.use_id(ModemComponent),
         cv.Optional(CONF_RSSI): sensor.sensor_schema(
-            kind=sensor.SIGNAL_STRENGTH,
-            accuracy_decimals=0,
-            entity_category=ENTITY_CATEGORY_DIAGNOSTIC,
+            kind=sensor.SIGNAL_STRENGTH, entity_category=ENTITY_CATEGORY_DIAGNOSTIC
         ),
         cv.Optional(CONF_BER): sensor.sensor_schema(
             unit_of_measurement=UNIT_PERCENT,

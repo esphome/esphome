@@ -81,9 +81,7 @@ CONFIG_SCHEMA = cv.All(
                 accuracy_decimals=0,
                 state_class=STATE_CLASS_MEASUREMENT,
             ),
-            cv.Optional(CONF_BATTERY_LEVEL): sensor.sensor_schema(
-                kind=sensor.BATTERY, accuracy_decimals=0
-            ),
+            cv.Optional(CONF_BATTERY_LEVEL): sensor.sensor_schema(kind=sensor.BATTERY),
         }
     )
     .extend(cv.COMPONENT_SCHEMA)

@@ -26,7 +26,7 @@ CONFIG_SCHEMA = (
                 CONF_PRESSURE,
                 "pressure",
                 f"{CONF_PRESSURE} and {CONF_ALTITUDE} can't be used together",
-            ): sensor.sensor_schema(kind=sensor.PRESSURE, accuracy_decimals=1),
+            ): sensor.sensor_schema(kind=sensor.PRESSURE),
             cv.Exclusive(
                 CONF_ALTITUDE,
                 "pressure",
@@ -37,7 +37,7 @@ CONFIG_SCHEMA = (
                 state_class=STATE_CLASS_MEASUREMENT,
             ),
             cv.Optional(CONF_TEMPERATURE): sensor.sensor_schema(
-                kind=sensor.TEMPERATURE, accuracy_decimals=1
+                kind=sensor.TEMPERATURE
             ),
         }
     )

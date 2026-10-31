@@ -51,19 +51,13 @@ CONFIG_SCHEMA = (
             cv.Optional(CONF_ACTIVE_POWER_2): sensor.sensor_schema(
                 kind=sensor.POWER, accuracy_decimals=0
             ),
-            cv.Optional(CONF_ENERGY_1): sensor.sensor_schema(
-                kind=sensor.ENERGY_KWH, accuracy_decimals=3
-            ),
-            cv.Optional(CONF_ENERGY_2): sensor.sensor_schema(
-                kind=sensor.ENERGY_KWH, accuracy_decimals=3
-            ),
+            cv.Optional(CONF_ENERGY_1): sensor.sensor_schema(kind=sensor.ENERGY_KWH),
+            cv.Optional(CONF_ENERGY_2): sensor.sensor_schema(kind=sensor.ENERGY_KWH),
             cv.Optional(CONF_ENERGY_TOTAL): sensor.sensor_schema(
-                kind=sensor.ENERGY_KWH, accuracy_decimals=3
+                kind=sensor.ENERGY_KWH
             ),
             cv.Optional(CONF_INTERNAL_TEMPERATURE): sensor.sensor_schema(
-                kind=sensor.TEMPERATURE,
-                accuracy_decimals=1,
-                entity_category=ENTITY_CATEGORY_DIAGNOSTIC,
+                kind=sensor.TEMPERATURE, entity_category=ENTITY_CATEGORY_DIAGNOSTIC
             ),
         }
     )

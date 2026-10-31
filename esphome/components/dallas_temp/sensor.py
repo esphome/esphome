@@ -14,9 +14,7 @@ DallasTemperatureSensor = dallas_temp_ns.class_(
 )
 
 CONFIG_SCHEMA = (
-    sensor.sensor_schema(
-        DallasTemperatureSensor, kind=sensor.TEMPERATURE, accuracy_decimals=1
-    )
+    sensor.sensor_schema(DallasTemperatureSensor, kind=sensor.TEMPERATURE)
     .extend(
         {
             cv.Optional(CONF_RESOLUTION, default=12): cv.int_range(min=9, max=12),

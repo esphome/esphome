@@ -37,9 +37,7 @@ BASE_SCHEMA = (
             cv.Optional(CONF_TEMPERATURE): sensor.sensor_schema(
                 kind=sensor.TEMPERATURE, accuracy_decimals=2
             ),
-            cv.Optional(CONF_PRESSURE): sensor.sensor_schema(
-                kind=sensor.PRESSURE, accuracy_decimals=1
-            ),
+            cv.Optional(CONF_PRESSURE): sensor.sensor_schema(kind=sensor.PRESSURE),
             cv.Optional(CONF_TVOC): sensor.sensor_schema(
                 unit_of_measurement=UNIT_PARTS_PER_BILLION,
                 accuracy_decimals=0,
