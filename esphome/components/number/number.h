@@ -40,6 +40,9 @@ class Number : public EntityBase {
 
   NumberTraits traits;
 
+  // Out of line so each generated call site loads one pointer instead of three floats.
+  void set_range(const NumberRange *range);
+
  protected:
   friend class NumberCall;
 
