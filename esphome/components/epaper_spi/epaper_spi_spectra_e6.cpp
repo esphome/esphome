@@ -6,19 +6,7 @@
 namespace esphome::epaper_spi {
 ESPHOME_LOG_TAG(TAG, "epaper_spi.6c");
 
-// Native hardware color codes for this panel's 4-bit color values.
-enum E6Color : uint8_t {
-  BLACK = 0,
-  WHITE = 1,
-  YELLOW = 2,
-  RED = 3,
-  BLUE = 5,
-  GREEN = 6,
-};
-
-uint8_t EPaperSpectraE6::color_to_native(Color color) {
-  return color_to_bwyrgb<uint8_t>(color, BLACK, WHITE, YELLOW, RED, GREEN, BLUE);
-}
+uint8_t EPaperSpectraE6::color_to_native(Color color) { return color_to_spectra6(color); }
 
 void EPaperSpectraE6::power_on() {
   ESP_LOGV(TAG, "Power on");

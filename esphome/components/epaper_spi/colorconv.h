@@ -215,4 +215,20 @@ constexpr NATIVE_COLOR color_to_bwyrgbo(Color color, NATIVE_COLOR hw_black, NATI
   return hw_black;
 }
 
+/// Native color codes of E Ink Spectra 6 controllers, 4 bits per pixel.
+enum Spectra6Color : uint8_t {
+  SPECTRA6_BLACK = 0,
+  SPECTRA6_WHITE = 1,
+  SPECTRA6_YELLOW = 2,
+  SPECTRA6_RED = 3,
+  SPECTRA6_BLUE = 5,
+  SPECTRA6_GREEN = 6,
+};
+
+/// Map RGB color to the native Spectra 6 color code.
+constexpr uint8_t color_to_spectra6(Color color) {
+  return color_to_bwyrgb<uint8_t>(color, SPECTRA6_BLACK, SPECTRA6_WHITE, SPECTRA6_YELLOW, SPECTRA6_RED, SPECTRA6_GREEN,
+                                  SPECTRA6_BLUE);
+}
+
 }  // namespace esphome::epaper_spi
