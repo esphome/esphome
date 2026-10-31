@@ -428,6 +428,9 @@ async def select_to_code(
         options=area_id_options(area_kinds),
         **SELECT_CONTROL,
     )
+    if CONF_AREA_ID in config:
+        # The area_id select can pick an area of any kind, so the hub sizes them all.
+        request_model_sizes(hub, area_kinds=len(area_kinds))
     return selects
 
 

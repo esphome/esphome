@@ -56,22 +56,20 @@ PROGMEM_STRING_TABLE(WorkModeStrings, "normal", "low_power", "radar_off_p20_high
 static_assert(WorkModeStrings::COUNT == WORK_MODE_COUNT);
 #endif
 
-// The mode reports carry one byte or a little-endian uint32; returns count for any other length, and callers
-// reject anything >= count.
-static uint32_t read_mode(const uint8_t *data, uint16_t len, uint32_t count) {
-  uint32_t mode = count;
-  if (len == 1) {
-    mode = data[0];
-  } else if (len == 4) {
-    mode = encode_value_le<uint32_t>(data);
-  }
-  return mode;
+// The mode reports carry one byte or a little-endian uint32. Any other length returns UINT32_MAX, which the
+// callers' range checks reject.
+static uint32_t read_mode(const uint8_t *data, uint16_t len) {
+  if (len == 1)
+    return data[0];
+  if (len == 4)
+    return encode_value_le<uint32_t>(data);
+  return UINT32_MAX;
 }
 
 bool LD6004Component::handle_model_report(uint16_t type, const uint8_t *data, uint16_t len) {
   switch (type) {
     case TYPE_REPORT_WORK_MODE: {
-      const uint32_t mode = read_mode(data, len, WORK_MODE_COUNT);
+      const uint32_t mode = read_mode(data, len);
       if (mode >= WORK_MODE_COUNT)
         break;
       this->radar_off_ = mode == WORK_MODE_RADAR_OFF_P20_HIGH || mode == WORK_MODE_RADAR_OFF_P20_LOW;
@@ -99,7 +97,7 @@ bool LD6004Component::handle_model_report(uint16_t type, const uint8_t *data, ui
         this->clear_area_presence_();
       return true;
     case TYPE_REPORT_P20_MODE: {
-      const uint32_t mode = read_mode(data, len, P20_MODE_COUNT);
+      const uint32_t mode = read_mode(data, len);
       if (mode >= P20_MODE_COUNT)
         break;
 #ifdef USE_SELECT

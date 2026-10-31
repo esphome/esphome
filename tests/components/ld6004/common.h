@@ -17,6 +17,7 @@
 #include "esphome/components/host/preferences.h"
 #include "esphome/components/ld6004/ld6004.h"
 #include "esphome/components/ld600x/ld600x_frame.h"
+#include "esphome/components/select/select.h"
 #include "esphome/components/uart/uart_component.h"
 #include "esphome/core/application.h"
 #include "esphome/core/hal.h"
@@ -122,6 +123,20 @@ inline std::vector<uint8_t> area_presence(const std::array<uint32_t, AREA_COUNT>
   return tf_frame(TYPE_REPORT_AREA_PRESENCE, p);
 }
 
+// The generated apply entities forward to the hub through this pointer.
+inline LD6004Component *&test_hub() {
+  static LD6004Component *hub = nullptr;
+  return hub;
+}
+
+// What the generated publish="on_success" select does.
+inline void apply_select(select::Select *entity, size_t index) {
+  if (test_hub()->set_select_value(entity, index))
+    entity->publish_state(index);
+}
+
+using TestSelect = select::ApplySelect<apply_select>;
+
 /// A hub with the presence binary sensors, set up as codegen does and past its boot timeout.
 class LD6004Test : public ::testing::Test {
  protected:
@@ -132,6 +147,7 @@ class LD6004Test : public ::testing::Test {
     setenv("ESPHOME_PREFDIR", this->temp_dir_.c_str(), 1);
     host::host_preferences = &this->prefs_;
     global_preferences = &this->prefs_;
+    test_hub() = &this->sut_;
 
     this->sut_.set_uart_parent(&this->uart_);
     this->configure_();
@@ -152,6 +168,7 @@ class LD6004Test : public ::testing::Test {
   }
 
   void TearDown() override {
+    test_hub() = nullptr;
     host::setup_preferences();
     unsetenv("ESPHOME_PREFDIR");
     std::filesystem::remove_all(this->temp_dir_);
@@ -160,6 +177,20 @@ class LD6004Test : public ::testing::Test {
   void feed_(const std::vector<uint8_t> &bytes) {
     this->uart_.rx.insert(this->uart_.rx.end(), bytes.begin(), bytes.end());
     this->sut_.loop();
+  }
+
+  /// ACK every boot command in turn until the queue is empty; returns the control codes that were sent.
+  std::vector<uint32_t> drain_commands_() {
+    std::vector<uint32_t> controls;
+    for (int i = 0; i < 32 && this->uart_.tx.size() >= ld600x::TF_FRAME_OVERHEAD; i++) {
+      const uint16_t type = encode_uint16(this->uart_.tx[5], this->uart_.tx[6]);
+      if (type == TYPE_CONTROL && this->uart_.tx.size() >= ld600x::TF_PAYLOAD_OFFSET + 4)
+        controls.push_back(encode_value_le<uint32_t>(&this->uart_.tx[ld600x::TF_PAYLOAD_OFFSET]));
+      this->uart_.tx.clear();
+      this->feed_(ack(type));
+    }
+    EXPECT_TRUE(this->uart_.tx.empty());
+    return controls;
   }
 
   host::HostPreferences prefs_;
