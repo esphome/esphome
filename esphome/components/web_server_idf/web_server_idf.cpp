@@ -77,6 +77,13 @@ DefaultHeaders default_headers_instance;
 
 DefaultHeaders &DefaultHeaders::Instance() { return default_headers_instance; }
 
+void DefaultHeaders::apply_(httpd_req_t *req, uint8_t skip_mask) const {
+  for (size_t i = 0; i < this->headers_.size(); i++) {
+    if (!(skip_mask & (1U << i)))
+      httpd_resp_set_hdr(req, this->headers_[i].name, this->headers_[i].value);
+  }
+}
+
 namespace {
 // Non-blocking send function to prevent watchdog timeouts when TCP buffers are full
 /**
@@ -381,12 +388,18 @@ void AsyncWebServerRequest::init_response_(AsyncWebServerResponse *rsp, int code
   }
   httpd_resp_set_hdr(*this, "Accept-Ranges", "none");
 
-  for (const auto &header : DefaultHeaders::Instance().headers_) {
-    httpd_resp_set_hdr(*this, header.name, header.value);
-  }
+  // A response object sends the defaults in send(), after its own headers, so one it set itself can
+  // replace a default of the same name (httpd_resp_set_hdr only appends).
+  if (rsp == nullptr)
+    DefaultHeaders::Instance().apply_(*this, 0);
 
   delete this->rsp_;
   this->rsp_ = rsp;
+}
+
+void AsyncWebServerRequest::send(AsyncWebServerResponse *response) {
+  DefaultHeaders::Instance().apply_(*this, response->replaced_defaults_);
+  httpd_resp_send(*this, response->get_content_data(), response->get_content_size());
 }
 
 #ifdef USE_WEBSERVER_AUTH
@@ -679,6 +692,11 @@ std::string AsyncWebServerRequest::arg(const char *name) {
 }
 
 void AsyncWebServerResponse::addHeader(const char *name, const char *value) {
+  const auto &defaults = DefaultHeaders::Instance().headers_;
+  for (size_t i = 0; i < defaults.size(); i++) {
+    if (strcasecmp(name, defaults[i].name) == 0)
+      this->replaced_defaults_ |= 1U << i;
+  }
   httpd_resp_set_hdr(*this->req_, name, value);
 }
 
@@ -819,9 +837,7 @@ AsyncEventSourceResponse::AsyncEventSourceResponse(const AsyncWebServerRequest *
   httpd_resp_set_hdr(req, "Cache-Control", "no-cache");
   httpd_resp_set_hdr(req, "Connection", "keep-alive");
 
-  for (const auto &header : DefaultHeaders::Instance().headers_) {
-    httpd_resp_set_hdr(req, header.name, header.value);
-  }
+  DefaultHeaders::Instance().apply_(req, 0);
 
   httpd_resp_send_chunk(req, CRLF_STR, CRLF_LEN);
 
