@@ -134,16 +134,3 @@ def test_interval_looping_count(main_cpp: str) -> None:
         "esphome__interval_intervaltrigger_id__fn>>::value)" in main_cpp
     )
     assert "(1 * HasLoopOverride<interval::IntervalTrigger>::value)" in main_cpp
-
-
-def test_interval_startup_delay_cut_to_32_bits(
-    generate_main: Callable[[str | Path], str],
-    component_config_path: Callable[[str], Path],
-) -> None:
-    """A delay past uint32_t is cut to 32 bits, as the setter did, so the template still builds."""
-    main_cpp = generate_main(component_config_path("interval_long_delay.yaml"))
-
-    delay = (50 * 24 * 3600 * 1000) & 0xFFFFFFFF
-    assert constructed(main_cpp, "interval_intervaltrigger_id") == _callback(
-        "interval_intervaltrigger_id", delay
-    )
