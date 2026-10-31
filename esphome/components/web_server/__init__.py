@@ -10,7 +10,10 @@ import esphome.codegen as cg
 from esphome.components import web_server_base
 from esphome.components.json import enable_arena
 from esphome.components.logger import request_log_listener
-from esphome.components.web_server_base import CONF_WEB_SERVER_BASE_ID
+from esphome.components.web_server_base import (
+    CONF_WEB_SERVER_BASE_ID,
+    MAX_ORIGIN_LENGTH,
+)
 import esphome.config_validation as cv
 
 # Re-exported so entity components and external components keep importing
@@ -164,6 +167,11 @@ def validate_origin(value: Any) -> str:
             f"'{value}' is not a valid origin. An origin must be 'scheme://host[:port]' with no "
             f"path or trailing slash (e.g. 'https://example.com'), or '*' to allow any origin."
         )
+    if len(value) > MAX_ORIGIN_LENGTH:
+        raise cv.Invalid(
+            f"'{value}' is too long; an allowed origin can have at most "
+            f"{MAX_ORIGIN_LENGTH} characters."
+        )
     # Browsers send the scheme and host lowercased in the Origin header, so normalize to match.
     return value.lower()
 
@@ -223,13 +231,10 @@ def _final_validate_sorting(config: ConfigType) -> None:
 
 def _consume_web_server_sockets(config: ConfigType) -> ConfigType:
     """Register socket needs for web_server component."""
-    from esphome.components import socket
-
     # Web server needs typically 5 concurrent client connections
     # (browser opens connections for page resources, SSE event stream, and POST
     # requests for entity control which may linger before closing)
-    # The listening socket is registered by web_server_base (shared with captive_portal)
-    socket.consume_sockets(5, "web_server")(config)
+    web_server_base.add_httpd_clients(5, DOMAIN)
     return config
 
 
@@ -502,11 +507,16 @@ async def to_code(config: ConfigType) -> None:
         cg.add(var.set_expose_log(False))
     if config[CONF_ENABLE_PRIVATE_NETWORK_ACCESS]:
         cg.add_define("USE_WEBSERVER_PRIVATE_NETWORK_ACCESS")
-    if (allowed_origins := config.get(CONF_ALLOWED_ORIGINS)) is not None:
+    allowed_origins = config.get(CONF_ALLOWED_ORIGINS, [])
+    if "*" in allowed_origins:
+        # Any origin is allowed, so the check compiles to nothing and no table is stored.
+        cg.add_define("USE_WEBSERVER_ALLOW_ANY_ORIGIN")
+    elif allowed_origins:
         cg.add_define("USE_WEBSERVER_ALLOWED_ORIGINS")
         # Shared flash table ended by nullptr, so the server stores only a pointer.
+        # Set on web_server_base so every handler added through add_handler() uses it.
         cg.add(
-            var.set_allowed_origins(
+            paren.set_allowed_origins(
                 cg.shared_progmem_array(
                     "web_server_allowed_origins",
                     cg.const_char_ptr,

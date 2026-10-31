@@ -15,6 +15,8 @@
 #include <utility>
 #include <vector>
 
+#include "stream_head.h"
+
 #ifdef USE_WEBSERVER
 #include "esphome/components/json/json_util.h"
 #include "esphome/components/web_server/list_entities.h"
@@ -191,6 +193,9 @@ class AsyncWebServerRequest {
 
   operator httpd_req_t *() const { return this->req_; }
   optional<std::string> get_header(const char *name) const;
+  /// Copy a header value into buf without heap allocation.
+  /// Returns its length, 0 when absent, or SIZE_MAX when it does not fit in buf.
+  size_t get_header_to(const char *name, std::span<char> buf) const;
   // NOLINTNEXTLINE(readability-identifier-naming)
   bool hasHeader(const char *name) const;
 
@@ -264,6 +269,74 @@ class AsyncWebHandler {
   virtual bool isRequestHandlerTrivial() const { return true; }
 };
 
+/// A response that keeps its connection open and is written from the main loop, such as an event stream or
+/// an audio stream. Use it directly or derive from it. Call loop() and delete the object only through the type
+/// it was created as: subclasses hide loop() instead of overriding it, and the destructor is not virtual.
+///
+/// Lifecycle:
+///  1. Httpd task, inside handleRequest(): create it and call begin(), then hand the pointer to the main loop.
+///  2. Main loop: once is_attached() is true, write() may go through. Call loop() on every pass.
+///  3. Main loop: delete it once safe_to_delete() is true. httpd owns the socket throughout.
+class AsyncStreamResponse {
+ public:
+  /// Httpd task, once. Sends the status line (for example HTTPD_200), Content-Type, headers, the default headers
+  /// and body (raw bytes, may be null), then makes this object the session context. A chunked response passes
+  /// {"Transfer-Encoding", "chunked"} as its first header and frames each chunk itself.
+  void begin(const AsyncWebServerRequest *request, const char *status, const char *content_type,
+             std::span<const HttpHeader> headers, const char *body = nullptr);
+
+  /// Main loop. Non-blocking gather write. Returns the bytes accepted, which may be fewer than offered: the caller
+  /// keeps the rest and continues from there. 0 means the socket is full or not ours yet; -1 means the stream failed
+  /// and is closing. Refused writes for SEND_STALL_TIMEOUT_MS in a row also close it.
+  ssize_t write(struct iovec *iov, int iovcnt);
+  ssize_t write(const void *data, size_t len);
+  /// Main loop. Shuts the connection down through httpd; safe to call more than once.
+  void close();
+  /// Main loop, every pass. Keeps the session fresh in httpd's LRU and retries a pending close.
+  void loop();
+
+  /// httpd committed this response as the session context, after the creating handler returned.
+  bool is_attached() const { return this->owns_session_(this->fd_.load()); }
+  /// The client is still connected; httpd has not freed the session.
+  bool is_connected() const { return this->fd_.load() != 0; }
+  bool is_closing() const { return this->close_requested_; }
+  /// Sends are making no progress; after write() returns -1 this tells a send timeout from a send error.
+  bool is_stalled() const { return this->stall_.is_running(); }
+  /// The session is gone and no queued httpd work still references this object.
+  bool safe_to_delete() const {
+    return this->fd_.load() == 0 && !this->close_work_queued_.load(std::memory_order_acquire) &&
+           !this->lru_work_queued_.load(std::memory_order_acquire);
+  }
+
+  static constexpr uint32_t SEND_STALL_TIMEOUT_MS = 20000;
+
+ protected:
+  void process_close_();
+  static void close_session_work(void *arg);
+  void refresh_lru_();
+  static void refresh_lru_work(void *arg);
+  // httpd frees a session before closing its socket, so the fd may already belong to a new client
+  bool owns_session_(int fd) const { return fd != 0 && httpd_sess_get_ctx(this->hd_, fd) == this; }
+  static void destroy(void *p);
+
+  httpd_handle_t hd_{};
+  std::atomic<int> fd_{};
+  // Runs while sends make no progress; a running clock keeps its start time
+  StallClock stall_;
+  uint32_t next_close_attempt_ms_{0};
+  uint32_t last_lru_refresh_ms_{0};
+  // Set on the main loop before queueing close work, cleared by the HTTPD-task callback when done.
+  std::atomic<bool> close_work_queued_{false};
+  std::atomic<bool> lru_work_queued_{false};
+  // Main-loop only; the HTTPD task never reads or writes these flags.
+  bool close_requested_{false};
+  bool close_retry_warning_logged_{false};
+
+  static constexpr uint32_t CLOSE_RETRY_INTERVAL_MS = 250;
+  static constexpr uint32_t CLOSE_CONFIRM_INTERVAL_MS = 1000;
+  static constexpr uint32_t LRU_REFRESH_INTERVAL_MS = 1000;
+};
+
 #ifdef USE_WEBSERVER
 class AsyncEventSource;
 class AsyncEventSourceResponse;
@@ -295,7 +368,7 @@ struct DeferredEvent {
 static_assert(sizeof(DeferredEvent) == sizeof(void *) + sizeof(message_generator_t *),
               "DeferredEvent should have no padding");
 
-class AsyncEventSourceResponse {
+class AsyncEventSourceResponse : public AsyncStreamResponse {
   friend class AsyncEventSource;
 
  public:
@@ -318,10 +391,7 @@ class AsyncEventSourceResponse {
   void process_deferred_queue_();
   // A new chunk may go out: not re-entered from a log line, session alive, tail empty
   bool ready_to_send_();
-  // Non-blocking gather write. Returns bytes written, 0 on would-block or a socket that is not
-  // ours, -1 after requesting the close on any other error.
-  ssize_t send_(struct iovec *iov, int iovcnt);
-  // Push what is left of the chunk in tail_ to the socket; owns the stall timer.
+  // Push what is left of the chunk in tail_ to the socket
   void drain_tail_();
   // Grow tail_ to hold len bytes, kept at its high-water mark. False on OOM.
   bool reserve_tail_(size_t len);
@@ -341,9 +411,8 @@ class AsyncEventSourceResponse {
   // unused for TAIL.
   JsonPrepareResult __attribute__((noinline)) prepare_json_(void *source, message_generator_t *generator, char *buffer,
                                                             size_t *size_out);
-  // Warn once, and close the session once the stall timeout passes with no memory for the tail
+  // Warn once per stall, and close the session once the stall timeout passes with no memory for the tail
   void tail_alloc_failed_(size_t cap);
-  void request_close_();
 
   // A log line emitted inside a send re-enters try_send_nodefer on this session; refuse it
   struct SendGuard {
@@ -351,42 +420,22 @@ class AsyncEventSourceResponse {
     explicit SendGuard(AsyncEventSourceResponse &owner) : owner(owner) { owner.sending_ = true; }
     ~SendGuard() { this->owner.sending_ = false; }
   };
-  void process_close_();
-  static void close_session_work(void *arg);
-  void refresh_lru_();
-  static void refresh_lru_work(void *arg);
-  // httpd frees a session before closing its socket, so the fd may already belong to a new client
-  bool owns_session_(int fd) const { return fd != 0 && httpd_sess_get_ctx(this->hd_, fd) == this; }
+  // Frees the tail and the queue's storage once the session is closing
+  void release_buffers_();
 
-  // Deletable only after destroy() zeroed fd_ and no queued HTTPD work still references this object.
-  bool safe_to_delete_() const {
-    return this->fd_.load() == 0 && !this->close_work_queued_.load(std::memory_order_acquire) &&
-           !this->lru_work_queued_.load(std::memory_order_acquire);
-  }
-
-  static void destroy(void *p);
   AsyncEventSource *server_;
-  httpd_handle_t hd_{};
-  std::atomic<int> fd_{};
   std::vector<DeferredEvent> deferred_queue_;
   esphome::web_server::WebServer *web_server_;
   esphome::web_server::ListEntitiesIterator entities_iterator_;
   // One chunk the socket did not take whole, allocated on the first stall; the only heap use
   // on the send path
   RAMUniquePtr<uint8_t[]> tail_;
-  uint32_t send_failure_started_ms_{0};  // Zero means no send stall in progress.
-  uint32_t next_close_attempt_ms_{0};
-  uint32_t last_lru_refresh_ms_{0};
   uint16_t tail_cap_{0};
   uint16_t tail_len_{0};  // Zero means nothing pending
   uint16_t tail_sent_{0};
-  // Set on the main loop before queueing close work, cleared by the HTTPD-task callback when done.
-  std::atomic<bool> close_work_queued_{false};
-  std::atomic<bool> lru_work_queued_{false};
-  // Main-loop only; the HTTPD task never reads or writes these flags.
-  bool close_requested_{false};
-  bool close_retry_warning_logged_{false};
   bool sending_{false};
+  // The no-memory warning went out during the current stall; cleared on send progress
+  bool no_memory_logged_{false};
   // The longest multi line log message in the tree (a climate dump_config) has 22 lines; a
   // longer one goes through the tail
   static constexpr size_t MAX_SEND_LINES = 22;
@@ -401,10 +450,6 @@ class AsyncEventSourceResponse {
   static constexpr size_t JSON_MAX_SIZE = 5120;
   // Most RAM a stalled session keeps: the largest state document plus any accepted framing
   static constexpr size_t TAIL_MAX_SIZE = JSON_MAX_SIZE + PREFIX_BUF_SIZE + SSE_SUFFIX_LEN;
-  static constexpr uint32_t SEND_STALL_TIMEOUT_MS = 20000;
-  static constexpr uint32_t CLOSE_RETRY_INTERVAL_MS = 250;
-  static constexpr uint32_t CLOSE_CONFIRM_INTERVAL_MS = 1000;
-  static constexpr uint32_t LRU_REFRESH_INTERVAL_MS = 1000;
 };
 
 using AsyncEventSourceClient = AsyncEventSourceResponse;
@@ -451,16 +496,9 @@ class AsyncEventSource : public AsyncWebHandler {
 };
 #endif  // USE_WEBSERVER
 
-struct HttpHeader {
-  const char *name;
-  const char *value;
-};
-
 class DefaultHeaders {
   friend class AsyncWebServerRequest;
-#ifdef USE_WEBSERVER
-  friend class AsyncEventSourceResponse;
-#endif
+  friend class AsyncStreamResponse;
 
  public:
   // NOLINTNEXTLINE(readability-identifier-naming)
