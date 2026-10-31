@@ -1181,9 +1181,8 @@ async def test_apply_condition_lambda_modifying_its_arg(
     await _run_apply_condition(
         registries, check, {"state": Lambda("return x *= 2;")}, args=[(cg.float_, "x")]
     )
-    assert (
-        f"return ::{PARENT_OBJ}->state == static_cast<float>(x *= 2);"
-        in _apply_definition(mock_cg)
+    assert f"return ::{PARENT_OBJ}->state == static_cast<float>(x *= 2);" in _squash(
+        _apply_definition(mock_cg)
     )
 
 
