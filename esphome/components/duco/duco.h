@@ -95,6 +95,7 @@ class DucoDiscovery : public DucoDevice {
   static constexpr uint8_t NODE_COUNT = 0x45;
 
   std::array<uint8_t, NODE_COUNT> node_types_{};  // 0 when no node answered at that address
+  std::array<uint8_t, NODE_COUNT> node_network_types_{};
   uint8_t next_node_{0};
   uint8_t attempts_{0};
 };
