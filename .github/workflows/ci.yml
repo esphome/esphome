@@ -73,16 +73,17 @@ jobs:
     runs-on: ubuntu-24.04
     # PR-branch cache saves are invisible to other PRs, so dev/beta/release
     # pushes seed the one shared entry PR jobs restore. The key is derived
-    # only from the package list and version; keep both identical in every
-    # step that restores it. In ci-status needs so a broken seed fails dev.
+    # only from the package list and version, kept in the apt-packages action.
+    # In ci-status needs so a broken seed fails dev.
     if: github.event_name == 'push'
     timeout-minutes: 10
     steps:
-      - name: Install apt packages (cached)
-        uses: awalsh128/cache-apt-pkgs-action@553a35bb8ebd9fcabcb1c9451aa4c98e1b4ca8a9 # v1.6.3
+      - name: Check out code from GitHub
+        uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
         with:
-          packages: libsdl2-dev libmbedtls-dev ccache
-          version: 1.2
+          sparse-checkout: .github
+      - name: Install apt packages (cached)
+        uses: ./.github/actions/apt-packages
 
   determine-jobs:
     name: Determine which jobs to run
@@ -104,6 +105,7 @@ jobs:
       esp32-platformio-components: ${{ steps.determine.outputs.esp32-platformio-components }}
       esp8266-native: ${{ steps.determine.outputs.esp8266-native }}
       esp8266-native-components: ${{ steps.determine.outputs.esp8266-native-components }}
+      windows-build-matrix: ${{ steps.determine.outputs.windows-build-matrix }}
       changed-components: ${{ steps.determine.outputs.changed-components }}
       changed-components-with-tests: ${{ steps.determine.outputs.changed-components-with-tests }}
       directly-changed-components-with-tests: ${{ steps.determine.outputs.directly-changed-components-with-tests }}
@@ -169,6 +171,7 @@ jobs:
           echo "esp32-platformio-components=$(echo "$output" | jq -r '.esp32_platformio_components')" >> $GITHUB_OUTPUT
           echo "esp8266-native=$(echo "$output" | jq -r '.esp8266_native')" >> $GITHUB_OUTPUT
           echo "esp8266-native-components=$(echo "$output" | jq -r '.esp8266_native_components')" >> $GITHUB_OUTPUT
+          echo "windows-build-matrix=$(echo "$output" | jq -c '.windows_build_matrix')" >> $GITHUB_OUTPUT
           echo "changed-components=$(echo "$output" | jq -c '.changed_components')" >> $GITHUB_OUTPUT
           echo "changed-components-with-tests=$(echo "$output" | jq -c '.changed_components_with_tests')" >> $GITHUB_OUTPUT
           echo "directly-changed-components-with-tests=$(echo "$output" | jq -c '.directly_changed_components_with_tests')" >> $GITHUB_OUTPUT
@@ -406,20 +409,21 @@ jobs:
       # Registry libraries (noise-c, libsodium, ArduinoJson, lvgl) the host builds
       # download, shared per xdist worker by tests/integration/conftest.py
       INTEGRATION_LIBRARY_CACHE_PATH: ~/.esphome-integration-tests/pio_components
+      # The host build's ccache (get_build_env() in esphome/host/toolchain.py)
+      INTEGRATION_CCACHE_PATH: ~/.cache/esphome/host/ccache
+      # Only a full matrix run saves the ccache seed: a partial run would
+      # trim it to the few tests it ran
+      INTEGRATION_CCACHE_SAVE: ${{ needs.determine-jobs.outputs.integration-run-all == 'true' && (github.ref == 'refs/heads/dev' || contains(github.event.pull_request.labels.*.name, 'ci-cache-write')) }}
     steps:
       - name: Check out code from GitHub
         uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
       - name: Install apt packages (cached)
         # ccache speeds up the host compiles. A cache hit never touches apt
         # (mirror outages cannot hang the job); the timeout bounds the cold
-        # path. Packages and version must match seed-apt-cache exactly.
-        # libsdl2-dev is needed by the headless display tests, which capture
-        # screenshots.
+        # path. libsdl2-dev is needed by the headless display tests, which
+        # capture screenshots.
         timeout-minutes: 10
-        uses: awalsh128/cache-apt-pkgs-action@553a35bb8ebd9fcabcb1c9451aa4c98e1b4ca8a9 # v1.6.3
-        with:
-          packages: libsdl2-dev libmbedtls-dev ccache
-          version: 1.2
+        uses: ./.github/actions/apt-packages
       - name: Set up Python 3.13
         id: python
         uses: actions/setup-python@6d4fd22b20465ccc0f7354476588e8df7c9ca0e0 # v7.1.0
@@ -432,6 +436,54 @@ jobs:
         with:
           path: ${{ env.INTEGRATION_LIBRARY_CACHE_PATH }}
           key: integration-libraries-v1-${{ runner.os }}-${{ hashFiles('esphome/components/json/__init__.py', 'esphome/components/noise/__init__.py', 'esphome/components/lvgl/__init__.py', 'esphome/components/improv_base/__init__.py') }}
+      # A full run saves one ccache slice per bucket and restores only its own; a
+      # partial run groups tests differently, so it restores all of them. One step
+      # per slice of INTEGRATION_TESTS_SPLIT_BUCKETS in script/determine-jobs.py.
+      - name: Restore integration ccache (slice 1/5)
+        if: needs.determine-jobs.outputs.integration-run-all != 'true' || strategy.job-index == 0
+        uses: actions/cache/restore@55cc8345863c7cc4c66a329aec7e433d2d1c52a9 # v6.1.0
+        with:
+          path: ${{ env.INTEGRATION_CCACHE_PATH }}
+          key: integration-ccache-v1-0-${{ github.run_id }}
+          restore-keys: integration-ccache-v1-0-
+      - name: Restore integration ccache (slice 2/5)
+        if: needs.determine-jobs.outputs.integration-run-all != 'true' || strategy.job-index == 1
+        uses: actions/cache/restore@55cc8345863c7cc4c66a329aec7e433d2d1c52a9 # v6.1.0
+        with:
+          path: ${{ env.INTEGRATION_CCACHE_PATH }}
+          key: integration-ccache-v1-1-${{ github.run_id }}
+          restore-keys: integration-ccache-v1-1-
+      - name: Restore integration ccache (slice 3/5)
+        if: needs.determine-jobs.outputs.integration-run-all != 'true' || strategy.job-index == 2
+        uses: actions/cache/restore@55cc8345863c7cc4c66a329aec7e433d2d1c52a9 # v6.1.0
+        with:
+          path: ${{ env.INTEGRATION_CCACHE_PATH }}
+          key: integration-ccache-v1-2-${{ github.run_id }}
+          restore-keys: integration-ccache-v1-2-
+      - name: Restore integration ccache (slice 4/5)
+        if: needs.determine-jobs.outputs.integration-run-all != 'true' || strategy.job-index == 3
+        uses: actions/cache/restore@55cc8345863c7cc4c66a329aec7e433d2d1c52a9 # v6.1.0
+        with:
+          path: ${{ env.INTEGRATION_CCACHE_PATH }}
+          key: integration-ccache-v1-3-${{ github.run_id }}
+          restore-keys: integration-ccache-v1-3-
+      - name: Restore integration ccache (slice 5/5)
+        if: needs.determine-jobs.outputs.integration-run-all != 'true' || strategy.job-index == 4
+        uses: actions/cache/restore@55cc8345863c7cc4c66a329aec7e433d2d1c52a9 # v6.1.0
+        with:
+          path: ${{ env.INTEGRATION_CCACHE_PATH }}
+          key: integration-ccache-v1-4-${{ github.run_id }}
+          restore-keys: integration-ccache-v1-4-
+      - name: Mark the restored ccache as unused
+        # A hit refreshes an entry's mtime, so the trim before the save keeps
+        # exactly what this run used; the zeroed statistics cover this run only
+        run: |
+          dir="${INTEGRATION_CCACHE_PATH/#\~/$HOME}"
+          if [ -d "$dir" ]; then
+            find "$dir" -type f -exec touch -m -d 2000-01-01 {} +
+          fi
+          echo "CCACHE_DIR=$dir" >> "$GITHUB_ENV"
+          CCACHE_DIR="$dir" ccache -z
       - name: Restore Python virtual environment
         id: cache-venv
         uses: actions/cache@55cc8345863c7cc4c66a329aec7e433d2d1c52a9 # v6.1.0
@@ -462,6 +514,7 @@ jobs:
       - name: Register matcher
         run: echo "::add-matcher::.github/workflows/matchers/pytest.json"
       - name: Run integration tests
+        id: integration
         env:
           # JSON array of test paths; parsed into a bash array below to avoid
           # shell word-splitting / glob hazards.
@@ -477,6 +530,32 @@ jobs:
           # A hung test fails after 30 min: the 15 min shared build lock wait plus a cold compile
           pytest -vv --no-cov --tb=native --durations=30 -n auto --dist worksteal --timeout=1800 \
             --junitxml=junit-integration.xml "${test_files[@]}"
+      - name: Re-run the failed tests with debug symbols
+        # The first run builds without -g. A crash in the re-run prints a gdb
+        # backtrace of its core; exit 1 keeps the job red when the re-run passes.
+        if: failure() && steps.integration.outcome == 'failure'
+        timeout-minutes: 30
+        env:
+          ESPHOME_INTEGRATION_DEBUG_SYMBOLS: "1"
+          ESPHOME_INTEGRATION_CORE_DIR: /tmp/esphome-cores
+        run: |
+          . venv/bin/activate
+          # The image's package lists usually suffice; refresh them only if not
+          if ! command -v gdb >/dev/null &&
+            ! sudo DEBIAN_FRONTEND=noninteractive timeout -k 15 90 apt-get install -y -qq gdb; then
+            sudo timeout -k 15 300 apt-get update -qq &&
+              sudo DEBIAN_FRONTEND=noninteractive timeout -k 15 300 apt-get install -y -qq gdb ||
+              echo "::warning::gdb install failed; no backtraces"
+          fi
+          {
+            mkdir -p "$ESPHOME_INTEGRATION_CORE_DIR" &&
+              echo "$ESPHOME_INTEGRATION_CORE_DIR/core.%p" | sudo tee /proc/sys/kernel/core_pattern &&
+              ulimit -c unlimited
+          } || echo "::warning::core dumps not enabled; no backtraces"
+          # Under the step limit, so a hung test still reports before Actions kills the step
+          pytest -vv --no-cov --tb=native -n auto --dist worksteal --timeout=600 \
+            --lf --lfnf=none tests/integration || true
+          exit 1
       - name: Upload test artifacts
         # Tests that compare rendered output write the image they actually got here, so a
         # failure can be looked at without reproducing the whole build locally.
@@ -499,10 +578,19 @@ jobs:
           if-no-files-found: error
           # A full cron period of margin for the weekly refresh
           retention-days: 14
+      - name: Trim the integration ccache to this run
+        # Restored entries this run did not hit are stale; dropping them keeps
+        # the seed at one full run's working set instead of growing per save
+        if: success() && env.INTEGRATION_CCACHE_SAVE == 'true'
+        run: ccache --evict-older-than 1d
       - name: Print ccache statistics
-        # esphome stores the host build's ccache under the machine-global
-        # cache dir (see get_build_env() in esphome/host/toolchain.py).
-        run: CCACHE_DIR="$HOME/.cache/esphome/host/ccache" ccache -s
+        run: ccache -s
+      - name: Save integration ccache slice
+        if: success() && env.INTEGRATION_CCACHE_SAVE == 'true'
+        uses: actions/cache/save@55cc8345863c7cc4c66a329aec7e433d2d1c52a9 # v6.1.0
+        with:
+          path: ${{ env.INTEGRATION_CCACHE_PATH }}
+          key: integration-ccache-v1-${{ strategy.job-index }}-${{ github.run_id }}
       - name: Save integration library cache
         # Bucket 0 only; the others would race the same immutable key.
         if: success() && (github.ref == 'refs/heads/dev' || contains(github.event.pull_request.labels.*.name, 'ci-cache-write')) && strategy.job-index == 0 && steps.library-cache.outputs.cache-hit != 'true'
@@ -510,6 +598,41 @@ jobs:
         with:
           path: ${{ env.INTEGRATION_LIBRARY_CACHE_PATH }}
           key: ${{ steps.library-cache.outputs.cache-primary-key }}
+
+  integration-ccache-prune:
+    name: Prune replaced integration ccache slices
+    runs-on: ubuntu-24.04
+    needs:
+      - determine-jobs
+      - integration-tests
+    # Dev only: a pull request's saves stay in its own scope and expire unused.
+    # A separate job so no test code runs with the cache write scope.
+    if: >-
+      !cancelled() &&
+      github.ref == 'refs/heads/dev' &&
+      needs.determine-jobs.outputs.integration-run-all == 'true'
+    permissions:
+      actions: write
+    steps:
+      - name: Delete the slices this run replaced
+        env:
+          GH_TOKEN: ${{ github.token }}
+          GH_REPO: ${{ github.repository }}
+        run: |
+          entries=$(gh cache list --ref refs/heads/dev --key integration-ccache-v1- --limit 100 --json id,key)
+          # A slice whose bucket failed did not save; its older entry stays
+          for key in $(jq -r --arg run "-$GITHUB_RUN_ID" '.[].key | select(endswith($run))' <<<"$entries"); do
+            prefix="${key%-"$GITHUB_RUN_ID"}-"
+            jq -r --arg p "$prefix" --argjson run "$GITHUB_RUN_ID" \
+              '.[] | select((.key | startswith($p)) and (.key | ltrimstr($p) | tonumber) < $run) | .id' <<<"$entries" |
+              while read -r id; do
+                if ! out=$(gh api -X DELETE "repos/$GH_REPO/actions/caches/$id" 2>&1); then
+                  # An overlapping dev run may have deleted it already; any other error fails the job
+                  grep -q 'HTTP 404' <<<"$out" || { echo "$out" >&2; exit 1; }
+                  echo "::notice::cache $id already gone"
+                fi
+              done
+          done
 
   import-time:
     name: Check import esphome.__main__ time
@@ -718,13 +841,9 @@ jobs:
       - name: Install apt packages (cached)
         if: matrix.pio_cache_key == 'tidyhost'
         # libsdl2-dev is needed by the sdl component on the host, libmbedtls-dev
-        # by dsmr and dlms_meter. Packages and version must match seed-apt-cache
-        # exactly.
+        # by dsmr and dlms_meter.
         timeout-minutes: 10
-        uses: awalsh128/cache-apt-pkgs-action@553a35bb8ebd9fcabcb1c9451aa4c98e1b4ca8a9 # v1.6.3
-        with:
-          packages: libsdl2-dev libmbedtls-dev ccache
-          version: 1.2
+        uses: ./.github/actions/apt-packages
 
       - name: Restore Python
         id: restore-python
@@ -1111,20 +1230,16 @@ jobs:
       - name: List components
         run: echo ${{ matrix.batch.components }}
 
+      - name: Check out code from GitHub
+        uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
+
       - name: Install apt packages (cached)
         # A cache hit (seeded on dev by seed-apt-cache) never touches apt,
         # so mirror outages cannot hang this PR-only job; the timeout bounds
-        # the cold path. Packages and version must match seed-apt-cache
-        # exactly. The action has no --no-install-recommends; same package
-        # set this job used before #17463.
+        # the cold path. The action has no --no-install-recommends; same
+        # package set this job used before #17463.
         timeout-minutes: 10
-        uses: awalsh128/cache-apt-pkgs-action@553a35bb8ebd9fcabcb1c9451aa4c98e1b4ca8a9 # v1.6.3
-        with:
-          packages: libsdl2-dev libmbedtls-dev ccache
-          version: 1.2
-
-      - name: Check out code from GitHub
-        uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
+        uses: ./.github/actions/apt-packages
       - name: Restore Python
         uses: ./.github/actions/restore-python
         with:
@@ -1353,23 +1468,26 @@ jobs:
           # config first, so a separate config pass is redundant.
           python3 script/test_build_components.py -e compile -t esp8266-ard -c "$TEST_COMPONENTS" -f --toolchain arduino --fail-on-no-tests
 
-  test-esp8266-native-windows:
-    name: Compile esp8266 with the native toolchain on Windows (ccache ${{ matrix.ccache }})
+  test-windows:
+    name: Compile ${{ matrix.target }} with ${{ matrix.toolchain }} on Windows (ccache ${{ matrix.ccache }})
     runs-on: windows-latest
     needs:
       - common
       - determine-jobs
-    if: github.event_name == 'pull_request' && needs.determine-jobs.outputs.esp8266-native == 'true'
+    if: github.event_name == 'pull_request' && needs.determine-jobs.outputs.windows-build-matrix != '[]'
     # A hung compiler must fail the job, not hold the runner for six hours.
     timeout-minutes: 40
     strategy:
       fail-fast: false
       matrix:
-        # Both ways the build runs on Windows: ESPHome Desktop bundles
-        # ccache and puts it on PATH, a pip install has none.
-        ccache: ["1", "0"]
+        # One leg per build path ESPHome ships on Windows; the list comes from
+        # script/determine-jobs.py (WINDOWS_BUILD_LEGS), which also decides
+        # which legs a change needs. No toolchain is cached: every leg installs
+        # its own from scratch, as a fresh Windows machine does.
+        include: ${{ fromJson(needs.determine-jobs.outputs.windows-build-matrix) }}
     env:
-      ESPHOME_CCACHE_ENABLE: ${{ matrix.ccache }}
+      # ESPHOME_CCACHE_ENABLE stays unset: the build must detect ccache on
+      # PATH by itself, as it does for ESPHome Desktop and a pip install
       # The test script prints characters the cp1252 console cannot encode
       PYTHONUTF8: "1"
       # The exact static build ESPHome Desktop ships
@@ -1403,24 +1521,56 @@ jobs:
           Add-Content -Path $env:GITHUB_PATH -Value $bin.DirectoryName
           & $bin.FullName --version
 
+      - name: Take any ccache off PATH
+        if: matrix.ccache == '0'
+        shell: pwsh
+        # The runner image ships one with Strawberry Perl; this leg is the build of a machine without
+        run: |
+          $path = $env:PATH
+          for ($i = 0; $i -lt 5; $i++) {
+            $found = Get-Command ccache -ErrorAction SilentlyContinue
+            if (-not $found) { break }
+            $dir = Split-Path $found.Source
+            Write-Host "Taking $dir off PATH for $($found.Source)"
+            $path = ($path -split ';' | Where-Object { $_ -ne $dir }) -join ';'
+            $env:PATH = $path
+          }
+          if (Get-Command ccache -ErrorAction SilentlyContinue) {
+            Write-Host "::error::a ccache is still on PATH"
+            exit 1
+          }
+          "PATH=$path" | Out-File -FilePath $env:GITHUB_ENV -Append -Encoding utf8
+
+      - name: Show disk space
+        shell: pwsh
+        run: Get-PSDrive -PSProvider FileSystem | Format-Table Name, @{n='FreeGB';e={[math]::Round($_.Free/1GB,1)}}, @{n='UsedGB';e={[math]::Round($_.Used/1GB,1)}}
+
       - name: Compile
         shell: pwsh
-        # One component test: web_server brings wifi, api and the async web
-        # server libraries, the shape of a typical ESP8266 device
+        # One base config per leg; the toolchain install is part of the timed
+        # run, and the slowest leg (sdk-nrf from scratch) takes about 7 minutes
         run: |
+          if ("${{ matrix.ccache }}" -eq "0" -and (Get-Command ccache -ErrorAction SilentlyContinue)) {
+            Write-Host "::error::a ccache is on PATH; this leg builds without one"
+            exit 1
+          }
           . .\venv\Scripts\Activate.ps1
-          $arguments = "script/test_build_components.py", "-e", "compile", "-t", "esp8266-ard", "-c", "web_server", "--base-only", "--toolchain", "arduino", "--fail-on-no-tests"
+          if ("${{ matrix.idf_target }}") {
+            # Only the chip this leg builds; CI otherwise installs every toolchain
+            $env:ESPHOME_IDF_DEFAULT_TARGETS = "${{ matrix.idf_target }}"
+          }
+          $arguments = "script/test_build_components.py", "-e", "compile", "-t", "${{ matrix.target }}", "-c", "${{ matrix.component }}", "--base-only", "--toolchain", "${{ matrix.toolchain }}", "--fail-on-no-tests"
           $p = Start-Process -FilePath python -ArgumentList $arguments -NoNewWindow -PassThru
           # Reading the handle keeps ExitCode available after the process exits
           $null = $p.Handle
           if (-not $p.WaitForExit(25 * 60 * 1000)) {
             Write-Host "::error::The compile did not finish in 25 minutes; processes still running:"
             Get-CimInstance Win32_Process |
-              Where-Object { $_.CommandLine -match 'xtensa|ccache|ninja|esphome' } |
+              Where-Object { $_.CommandLine -match 'xtensa|riscv|arm-|ccache|ninja|cmake|west|platformio|pio|esphome' } |
               Select-Object ProcessId, ParentProcessId, CreationDate, CommandLine |
               Format-List | Out-String -Width 4096 | Write-Host
             Get-Process |
-              Where-Object { $_.Name -match 'cc1|ccache|ninja|xtensa|python' } |
+              Where-Object { $_.Name -match 'cc1|ccache|ninja|cmake|xtensa|riscv|arm-|python' } |
               Select-Object Id, Name, CPU, WorkingSet64 |
               Format-Table | Out-String | Write-Host
             taskkill /PID $p.Id /T /F
@@ -1433,10 +1583,35 @@ jobs:
         # ccache was ever reached
         if: always() && matrix.ccache == '1'
         shell: pwsh
-        # The build keeps its store under the esphome tools cache
+        # The stores live under ESPHome's tools cache (tools_cache_path() in
+        # build_helpers/tools_cache.py), each native build's next to its
+        # install. A passing compile that never called ccache is a bug in the
+        # build's ccache wiring, not a pass.
         run: |
-          $env:CCACHE_DIR = Join-Path $env:LOCALAPPDATA "esphome\Cache\arduino8266\ccache"
+          $cache = Join-Path $env:LOCALAPPDATA "esphome\Cache"
+          $env:CCACHE_DIR = switch ("${{ matrix.toolchain }}") {
+            "arduino" { Join-Path $cache "arduino8266\ccache" }
+            "esp-idf" { Join-Path $cache "idf\ccache" }
+            "sdk-nrf" { Join-Path $cache "sdk-nrf\ccache" }
+            "platformio" { Join-Path $cache "platformio-ccache" }
+            default {
+              Write-Host "::error::No ccache store known for toolchain ${{ matrix.toolchain }}"
+              exit 1
+            }
+          }
           ccache -s
+          # Cacheable calls = hits + misses; the tab-separated keys do not change between locales
+          $calls = 0
+          foreach ($line in (ccache --print-stats)) {
+            $key, $value = $line -split "`t"
+            if ($key -in "direct_cache_hit", "preprocessed_cache_hit", "cache_miss") {
+              $calls += [int]$value
+            }
+          }
+          if ($calls -eq 0) {
+            Write-Host "::error::ccache was never called by the compile"
+            exit 1
+          }
 
   device-builder:
     name: Test downstream esphome/device-builder
@@ -1799,6 +1974,7 @@ jobs:
       - pytest
       - codecov-empty-upload
       - integration-tests
+      - integration-ccache-prune
       - import-time
       - cpp-unit-tests
       - clang-tidy-single
@@ -1808,7 +1984,7 @@ jobs:
       - test-build-components-split
       - test-esp32-platformio
       - test-esp8266-native
-      - test-esp8266-native-windows
+      - test-windows
       - device-builder
       - memory-impact-target-branch
       - memory-impact-pr-branch

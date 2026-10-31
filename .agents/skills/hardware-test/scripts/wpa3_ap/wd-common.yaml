@@ -1,0 +1,44 @@
+esphome:
+  name: ${name}
+
+logger:
+  level: DEBUG
+
+globals:
+  - id: connect_ms
+    type: uint32_t
+    initial_value: "0"
+
+wifi:
+  networks:
+    - ssid: ${ap_ssid}
+      password: !secret wd_ap_password
+      priority: 10
+    - ssid: !secret wifi_ssid
+      password: !secret wifi_password
+      priority: 0
+  on_connect:
+    - lambda: |-
+        id(connect_ms) = millis();
+        char buf[wifi::SSID_BUFFER_SIZE];
+        ESP_LOGI("wd", "JOINED %s after %u ms since boot", wifi::global_wifi_component->wifi_ssid_to(buf), (unsigned) millis());
+
+api:
+  reboot_timeout: 0s
+
+ota:
+  - platform: esphome
+
+interval:
+  - interval: 5s
+    then:
+      - lambda: |-
+          if (!wifi::global_wifi_component->is_connected() || id(connect_ms) == 0)
+            return;
+          char buf[wifi::SSID_BUFFER_SIZE];
+          bool on_ap = strcmp(wifi::global_wifi_component->wifi_ssid_to(buf), "${ap_ssid}") == 0;
+          uint32_t up = millis() - id(connect_ms);
+          if (up > (on_ap ? 30000u : 150000u)) {
+            ESP_LOGI("wd", "REBOOT on %s", on_ap ? "ap" : "home");
+            App.safe_reboot();
+          }

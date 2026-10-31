@@ -882,6 +882,41 @@ _IDF6 = cv.Version(6, 0, 0)
             id="idf_advanced_disables_off",
         ),
         pytest.param(
+            # TLS 1.3 depends on the peer certificate in Kconfig.
+            PlatformFramework.ESP32_IDF,
+            _IDF5,
+            MbedtlsSdkconfigData(tls_required=True),
+            {"CONFIG_MBEDTLS_SSL_PROTO_TLS1_3": RawSdkconfigValue("y")},
+            {
+                "CONFIG_MBEDTLS_SSL_PROTO_TLS1_3": RawSdkconfigValue("y"),
+                **_TLS_CLIENT_ONLY,
+                **_TLS_EXTRAS_OFF,
+                "CONFIG_MBEDTLS_SSL_KEEP_PEER_CERTIFICATE": True,
+                "CONFIG_MBEDTLS_PKCS7_C": False,
+            },
+            set(_ESP_TLS_LINKING_COMPONENTS),
+            id="idf_tls13_keeps_peer_cert",
+        ),
+        pytest.param(
+            # A user choice for the peer certificate still wins over TLS 1.3.
+            PlatformFramework.ESP32_IDF,
+            _IDF5,
+            MbedtlsSdkconfigData(tls_required=True),
+            {
+                "CONFIG_MBEDTLS_SSL_PROTO_TLS1_3": RawSdkconfigValue("y"),
+                "CONFIG_MBEDTLS_SSL_KEEP_PEER_CERTIFICATE": RawSdkconfigValue("n"),
+            },
+            {
+                "CONFIG_MBEDTLS_SSL_PROTO_TLS1_3": RawSdkconfigValue("y"),
+                "CONFIG_MBEDTLS_SSL_KEEP_PEER_CERTIFICATE": RawSdkconfigValue("n"),
+                **_TLS_CLIENT_ONLY,
+                **_TLS_EXTRAS_OFF,
+                "CONFIG_MBEDTLS_PKCS7_C": False,
+            },
+            set(_ESP_TLS_LINKING_COMPONENTS),
+            id="idf_tls13_user_peer_cert_wins",
+        ),
+        pytest.param(
             # advanced: disable_mbedtls_tls: false keeps TLS with no requester.
             PlatformFramework.ESP32_IDF,
             _IDF5,
@@ -944,6 +979,38 @@ def test_reconcile_mbedtls_sdkconfig(
     asyncio.run(_reconcile_mbedtls_sdkconfig())
 
     assert CORE.data[KEY_ESP32][KEY_SDKCONFIG_OPTIONS] == expected
+
+
+@pytest.mark.parametrize(
+    ("peer_cert", "warns"),
+    [
+        pytest.param(RawSdkconfigValue("n"), True, id="user_off_warns"),
+        pytest.param(RawSdkconfigValue("y"), False, id="user_on"),
+        pytest.param(None, False, id="unset"),
+    ],
+)
+def test_reconcile_mbedtls_warns_when_peer_cert_drops_tls13(
+    set_core_config: SetCoreConfigCallable,
+    caplog: pytest.LogCaptureFixture,
+    peer_cert: RawSdkconfigValue | None,
+    warns: bool,
+) -> None:
+    """Turning off the peer certificate with TLS 1.3 on drops TLS 1.3, so say so."""
+    set_core_config(PlatformFramework.ESP32_IDF)
+    preset: dict[str, Any] = {"CONFIG_MBEDTLS_SSL_PROTO_TLS1_3": RawSdkconfigValue("y")}
+    if peer_cert is not None:
+        preset["CONFIG_MBEDTLS_SSL_KEEP_PEER_CERTIFICATE"] = peer_cert
+    CORE.data[KEY_ESP32] = {
+        KEY_IDF_VERSION: _IDF5,
+        KEY_SDKCONFIG_OPTIONS: preset,
+        KEY_MBEDTLS_SDKCONFIG: MbedtlsSdkconfigData(tls_required=True),
+        KEY_EXCLUDE_COMPONENTS: set(_ESP_TLS_LINKING_COMPONENTS),
+    }
+
+    with caplog.at_level(logging.WARNING):
+        asyncio.run(_reconcile_mbedtls_sdkconfig())
+
+    assert ("TLS 1.3 is disabled" in caplog.text) is warns
 
 
 def test_esp_tls_linking_components_are_excluded_by_default() -> None:
