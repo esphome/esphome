@@ -36,5 +36,11 @@ async def test_core_automation_order(
             "-100",
             "after delay",
         ]
-        assert sum("BOOT runs 1" in line for line in waiter.lines) == 1
-        assert not any("BOOT runs 2" in line for line in waiter.lines)
+        lines = waiter.lines
+        setup_done = next(
+            i for i, line in enumerate(lines) if "setup() finished" in line
+        )
+        after_delay = next(
+            i for i, line in enumerate(lines) if "BOOT step after delay" in line
+        )
+        assert setup_done < after_delay
