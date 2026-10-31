@@ -77,10 +77,18 @@ class AuthMiddlewareHandler : public MiddlewareHandler {
     if (!success) {
 #if USE_ESP32
       request->requestAuthentication();
-#elif defined(USE_WEBSERVER_AUTH_DIGEST)
+#else
+      // Every upload or body chunk is checked; the first rejection already answered.
+      if (request->isSent())
+        return false;
+      // ESPAsyncWebServer holds a response until the whole body has arrived, so a rejected upload
+      // would be read to the end first. A paused request sends its response at once.
+      request->pause();
+#ifdef USE_WEBSERVER_AUTH_DIGEST
       request->requestAuthentication(nullptr, true);
 #else
       request->requestAuthentication(nullptr, false);
+#endif
 #endif
     }
     return success;
