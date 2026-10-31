@@ -5,6 +5,8 @@
 #include <cstring>
 #include <span>
 
+#include <strings.h>
+
 // Pure helpers of AsyncStreamResponse, kept free of httpd and lwIP so they build on the host.
 // The iovec type is a template parameter: lwIP defines its own on the device, POSIX on the host.
 
@@ -35,9 +37,20 @@ constexpr size_t stream_head_iov_count(size_t header_count) { return 4 + 4 * hea
 /// Pieces per batch: a head with up to four headers goes out in one write; 192 bytes on 32-bit
 static constexpr int STREAM_HEAD_MAX_IOV = 24;
 
-/// Gathers the head of a stream response: "HTTP/1.1 <status>", Content-Type, headers, default_headers, the
-/// blank line and body (may be null). send(Iovec *iov, int count) gets each full batch of STREAM_HEAD_MAX_IOV pieces
-/// and then the rest; once it returns false the later pieces are skipped. Returns false if any send failed.
+/// True if headers holds a header named name, compared case insensitively
+inline bool has_header(std::span<const HttpHeader> headers, const char *name) {
+  for (const auto &header : headers) {
+    if (strcasecmp(header.name, name) == 0) {
+      return true;
+    }
+  }
+  return false;
+}
+
+/// Gathers the head of a stream response: "HTTP/1.1 <status>", Content-Type, headers, the default_headers that
+/// headers does not replace, the blank line and body (may be null). send(Iovec *iov, int count) gets each full batch of
+/// STREAM_HEAD_MAX_IOV pieces and then the rest; once it returns false the later pieces are skipped. Returns false if
+/// any send failed.
 template<typename Iovec, typename Send>
 bool write_stream_head(Send &&send, const char *status, const char *content_type, std::span<const HttpHeader> headers,
                        std::span<const HttpHeader> default_headers, const char *body) {
@@ -76,7 +89,9 @@ bool write_stream_head(Send &&send, const char *status, const char *content_type
     batch.add_header(header);
   }
   for (const auto &header : default_headers) {
-    batch.add_header(header);
+    if (!has_header(headers, header.name)) {
+      batch.add_header(header);
+    }
   }
   batch.add("\r\n\r\n", 4);
   if (body != nullptr) {

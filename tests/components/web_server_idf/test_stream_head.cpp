@@ -72,6 +72,17 @@ TEST(StreamHead, SseHeadMatchesHttpdRespSendChunk) {
   EXPECT_EQ(build_head(cap, SSE_STATUS, SSE_CONTENT_TYPE, SSE_HEADERS, DEFAULTS, SSE_FIRST_CHUNK), expected);
 }
 
+TEST(StreamHead, HeaderReplacesDefaultOfSameName) {
+  // A default the caller also sets, in any case, goes out once with the caller's value
+  static constexpr HttpHeader HEADERS[] = {
+      {"access-control-allow-origin", "http://example.com"},
+  };
+  Capture cap;
+  EXPECT_EQ(build_head(cap, "200 OK", "text/plain", HEADERS, DEFAULTS, nullptr),
+            "HTTP/1.1 200 OK\r\nContent-Type: text/plain\r\naccess-control-allow-origin: http://example.com"
+            "\r\nAccess-Control-Allow-Private-Network: true\r\n\r\n");
+}
+
 TEST(StreamHead, RawHeadWithCustomHeadersAndNoBody) {
   static constexpr HttpHeader HEADERS[] = {
       {"Cache-Control", "no-store"},
