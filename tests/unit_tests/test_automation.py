@@ -91,7 +91,15 @@ from esphome.const import (
     CONF_TYPE_ID,
     CONF_UPDATE_INTERVAL,
 )
-from esphome.core import CORE, ID, KEY_CORE, KEY_TARGET_PLATFORM, EsphomeError, Lambda
+from esphome.core import (
+    CORE,
+    ID,
+    KEY_CORE,
+    KEY_TARGET_PLATFORM,
+    EsphomeError,
+    Lambda,
+    TimePeriodMilliseconds,
+)
 from esphome.cpp_generator import LambdaExpression, MockObj, RawExpression
 from esphome.schema_extractors import SCHEMA_EXTRACT
 from esphome.types import ConfigType
@@ -2262,7 +2270,10 @@ async def test_component_action_codegen(name: str) -> None:
 @pytest.mark.usefixtures("polling_component")
 async def test_component_resume_constant_interval_codegen() -> None:
     await build_action(
-        _component_action("component.resume", {CONF_UPDATE_INTERVAL: 250}),
+        _component_action(
+            "component.resume",
+            {CONF_UPDATE_INTERVAL: TimePeriodMilliseconds(milliseconds=250)},
+        ),
         TEMPLATE_ARG,
         [],
     )
@@ -2291,6 +2302,20 @@ async def test_component_resume_interval_lambda_codegen() -> None:
         "    return x * 1000;\n"
         "});"
     ) in main
+
+
+@pytest.mark.asyncio
+@pytest.mark.usefixtures("polling_component")
+@pytest.mark.parametrize("body", ["x *= 1000; return x;", "return x *= 1000;"])
+async def test_component_resume_interval_lambda_takes_args_by_value(body: str) -> None:
+    """The user's interval lambda gets the trigger args by value, so it may modify them."""
+    await build_action(
+        _component_action("component.resume", {CONF_UPDATE_INTERVAL: Lambda(body)}),
+        cg.TemplateArguments(cg.uint32),
+        [(cg.uint32, "x")],
+    )
+
+    assert f"[](uint32_t x) -> uint32_t {{\n    {body}\n}}" in CORE.cpp_main_section
 
 
 COMPONENT_ID = ID("comp", type=cg.Component)
