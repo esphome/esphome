@@ -3398,9 +3398,17 @@ async def to_code(config):
                 "CONFIG_BOOTLOADER_CACHE_32BIT_ADDR_QUAD_FLASH", True
             )
 
-    # Enable OTA rollback support
-    if advanced[CONF_ENABLE_OTA_ROLLBACK]:
+    # ESP-IDF 6.2 enables app rollback by default with automatic confirmation at
+    # startup and renamed the confirm-by-app option, so there the explicit off is needed
+    rollback = advanced[CONF_ENABLE_OTA_ROLLBACK]
+    if idf_version() >= cv.Version(6, 2, 0):
+        add_idf_sdkconfig_option("CONFIG_BOOTLOADER_APP_ROLLBACK", rollback)
+        add_idf_sdkconfig_option(
+            "CONFIG_BOOTLOADER_APP_ROLLBACK_CONFIRM_BY_APP", rollback
+        )
+    elif rollback:
         add_idf_sdkconfig_option("CONFIG_BOOTLOADER_APP_ROLLBACK_ENABLE", True)
+    if rollback:
         cg.add_define("USE_OTA_ROLLBACK")
 
     # Enable software OTA downgrade protection. Embed the project version into
