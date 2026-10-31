@@ -33,6 +33,13 @@ void MicrophoneHttpStream::setup() {
   for (size_t i = 0; i < this->max_clients_; ++i) {
     auto &client = this->clients_[i];
     client.ring = ring_buffer::RingBuffer::create(this->ring_size_);
+    if (client.ring == nullptr && this->max_clients_ == 1 && this->ring_size_ != SINGLE_RING_SIZE) {
+      // PSRAM already used by other components; the small ring still streams over Ethernet
+      ESP_LOGW(TAG, "Cannot allocate %u bytes in PSRAM, using %u", static_cast<unsigned>(this->ring_size_),
+               static_cast<unsigned>(SINGLE_RING_SIZE));
+      this->ring_size_ = SINGLE_RING_SIZE;
+      client.ring = ring_buffer::RingBuffer::create(this->ring_size_);
+    }
     if (client.ring == nullptr) {
       this->fail_setup_(LOG_STR("Cannot allocate microphone audio buffers"));
       return;
