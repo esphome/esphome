@@ -40,8 +40,8 @@ def _core_data(
         ("nrf52840dongle", "nrf", False, 0xD8000),
         # Nothing reserved: the end of the 1 MB flash
         ("adafruit_feather_nrf52840", "mcuboot", False, 0xF8000),
-        # An nRF52840 board whose name does not say so
-        ("xiao_ble", "mcuboot", False, 0xF8000),
+        # Below settings_storage when MCUboot replaces the factory bootloader
+        ("xiao_ble", "mcuboot", False, 0xEE000),
         # Testing mode moves the bootloader to the end of the faked 4 MB flash
         ("adafruit_itsybitsy_nrf52840", "adafruit_nrf52_sd140_v6", True, 0x3EC000),
         ("adafruit_feather_nrf52840", "mcuboot", True, 0x3F8000),

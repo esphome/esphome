@@ -174,6 +174,18 @@ async def _request_with_retry(
     )
 
 
+async def _in_primary_slot(
+    smp_client: SMPClient, image_hash: bytes, timeout_s: float | None, target: str
+) -> bool:
+    """True when our image sits in slot 0 after the upload."""
+    state = await _request_with_retry(smp_client, ImageStatesRead, timeout_s, 0, target)
+    return (
+        success(state)
+        and (ours := _find_image(state, image_hash)) is not None
+        and ours.slot == 0
+    )
+
+
 async def _smpmgr_upload_connected(
     smp_client: SMPClient,
     device: str,
@@ -254,16 +266,23 @@ async def _smpmgr_upload_connected(
             finally:
                 progress.done()
 
-    _LOGGER.info("Mark image for testing")
-    r = await _request_with_retry(
-        smp_client,
-        partial(ImageStatesWrite, hash=image_tlv_sha256),
-        write_timeout,
-        retries,
-        target,
-    )
-    if error(r):
-        raise EsphomeError(f"Failed to mark image for testing on {device}: {r}")
+    if not udp and await _in_primary_slot(
+        smp_client, image_tlv_sha256, read_timeout, target
+    ):
+        # MCUboot serial recovery writes the primary slot, and its image state
+        # write only looks at the secondary slot
+        _LOGGER.info("Image written to the primary slot by MCUboot serial recovery")
+    else:
+        _LOGGER.info("Mark image for testing")
+        r = await _request_with_retry(
+            smp_client,
+            partial(ImageStatesWrite, hash=image_tlv_sha256),
+            write_timeout,
+            retries,
+            target,
+        )
+        if error(r):
+            raise EsphomeError(f"Failed to mark image for testing on {device}: {r}")
 
     await asyncio.sleep(RESET_DELAY)
     _LOGGER.info("Reset")

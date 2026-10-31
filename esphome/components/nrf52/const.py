@@ -19,8 +19,6 @@ AIN_TO_GPIO = {
     "AIN7": 31,
 }
 
-FLASH_SECTOR_SIZE = 0x1000  # nRF52 flash page
-
 # zephyr_mcumgr OTA keys, shared with the upload path
 CONF_TRANSPORT = "transport"
 CONF_UDP = "udp"

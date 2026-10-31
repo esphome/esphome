@@ -3,11 +3,11 @@ import logging
 from esphome import pins
 import esphome.codegen as cg
 from esphome.components import network
+from esphome.components.nrf52 import mcuboot_replaces_factory_bootloader
 from esphome.components.nrf52.boards import MCUMGR_OTA_BOOTLOADERS
 from esphome.components.nrf52.const import (
     CONF_TRANSPORT,
     CONF_UDP,
-    FLASH_SECTOR_SIZE,
     IPV4_UDP_HEADERS,
     IPV6_UDP_HEADERS,
     SMP_UDP_LINK_MTU,
@@ -20,12 +20,14 @@ from esphome.components.zephyr import (
     zephyr_add_prj_conf,
     zephyr_claim_cdc_acm,
     zephyr_data,
+    zephyr_enable_sysbuild,
+    zephyr_mcuboot_slot_size,
+    zephyr_mcuboot_slots_overlay,
 )
 from esphome.components.zephyr.const import (
     BOOTLOADER_MCUBOOT,
     KEY_BOOTLOADER,
     KEY_PM_STATIC,
-    KEY_SYSBUILD,
 )
 from esphome.components.zephyr_ble_server import request_ble_l2cap_mtu
 import esphome.config_validation as cv
@@ -38,6 +40,7 @@ from esphome.const import (
     CONF_STATUS,
     KEY_CORE,
     KEY_FRAMEWORK_VERSION,
+    PLATFORM_NRF52,
     Framework,
 )
 from esphome.core import CORE, coroutine_with_priority
@@ -145,10 +148,17 @@ def _final_validate(config: ConfigType) -> None:
     _validate_udp_network(config)
     _validate_bootloader(config)
     if "zephyr_coredump" in fv.full_config.get():
+        # USB serial recovery rewrites only the application, not MCUboot itself
+        how = (
+            "one SWD flash of merged.hex"
+            if mcuboot_replaces_factory_bootloader(fv.full_config.get()[PLATFORM_NRF52])
+            else "one flash over USB"
+        )
         _LOGGER.warning(
             "zephyr_coredump moves the OTA image slots. A device that already runs mcumgr OTA "
-            "needs one flash over USB after enabling or disabling it; an OTA update alone leaves "
-            "the installed MCUboot with the old slot layout"
+            "needs %s after enabling or disabling it; an OTA update alone leaves "
+            "the installed MCUboot with the old slot layout",
+            how,
         )
     if (uart := config[CONF_TRANSPORT].get(CONF_HARDWARE_UART)) is not None:
         cdc_id = UARTS[uart][1]
@@ -235,6 +245,7 @@ async def to_code(config: ConfigType) -> None:
             "GPIO_ACTIVE_LOW" if pin_conf[CONF_INVERTED] else "GPIO_ACTIVE_HIGH"
         )
         zephyr_add_prj_conf("MCUBOOT_INDICATION_LED", True, image="mcuboot")
+        zephyr_add_prj_conf("GPIO", True, image="mcuboot")
         zephyr_add_overlay(
             f"""
                 #include <dt-bindings/gpio/gpio.h>
@@ -254,7 +265,7 @@ async def to_code(config: ConfigType) -> None:
         )
     framework_ver = CORE.data[KEY_CORE][KEY_FRAMEWORK_VERSION]
     if framework_ver >= cv.Version(2, 9, 2):
-        zephyr_data()[KEY_SYSBUILD] = True
+        zephyr_enable_sysbuild()
 
     bootloader = zephyr_data()[KEY_BOOTLOADER]
     if bootloader != BOOTLOADER_MCUBOOT:
@@ -266,35 +277,15 @@ async def to_code(config: ConfigType) -> None:
         sections = zephyr_data()[KEY_PM_STATIC]
         mcuboot_size = 0x9000
         sd_end = next(s.end_address for s in sections if "SoftDevice" in s.name)
-        top = min(s.address for s in sections if s.address >= sd_end)
         slot0_start = sd_end + mcuboot_size
-        # Align slot size down to a 4 KB sector boundary
-        slot_size = (top - slot0_start) // 2 // FLASH_SECTOR_SIZE * FLASH_SECTOR_SIZE
-        slot1_start = slot0_start + slot_size
-
-        def _mcuboot_partition_overlay() -> str:
-            def part(name: str, start: int, size: int) -> str:
-                return f"""
-                {name}: partition@{start:x} {{
-                    reg = <0x{start:x} 0x{size:x}>;
-                }};"""
-
-            return f"""
-                /delete-node/ &boot_partition;
-                /delete-node/ &storage_partition;
-                /delete-node/ &code_partition;
-                /delete-node/ &reserved_partition_0;
-
-                &flash0 {{
-                    partitions {{
-                        compatible = "fixed-partitions";
-                        #address-cells = <1>;
-                        #size-cells = <1>;
-                        {part("slot0_partition", slot0_start, slot_size)}
-                        {part("slot1_partition", slot1_start, slot_size)}
-                    }};
-                }};
-            """
+        slots_overlay = """
+            /delete-node/ &boot_partition;
+            /delete-node/ &storage_partition;
+            /delete-node/ &code_partition;
+            /delete-node/ &reserved_partition_0;
+        """ + zephyr_mcuboot_slots_overlay(
+            slot0_start, zephyr_mcuboot_slot_size(slot0_start)
+        )
 
         def _code_partition_overlay() -> str:
             return """
@@ -305,8 +296,8 @@ async def to_code(config: ConfigType) -> None:
                 };
                 """
 
-        zephyr_add_overlay(_mcuboot_partition_overlay())
-        zephyr_add_overlay(_mcuboot_partition_overlay(), "mcuboot")
+        zephyr_add_overlay(slots_overlay)
+        zephyr_add_overlay(slots_overlay, "mcuboot")
         zephyr_add_overlay(_code_partition_overlay())
         zephyr_add_overlay(_code_partition_overlay(), "mcuboot")
         # mcuboot is second bootloader. It's only task is to swap partitions.
