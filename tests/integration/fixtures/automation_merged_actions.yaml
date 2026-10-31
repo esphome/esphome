@@ -10,6 +10,9 @@ globals:
   - id: running
     type: int
     initial_value: "7"
+  - id: loops
+    type: int
+    initial_value: "0"
 
 switch:
   - platform: template
@@ -36,6 +39,65 @@ switch:
 
 api:
   actions:
+    - action: run_control_flow
+      variables:
+        value: int
+      then:
+        - if:
+            condition:
+              and:
+                - lambda: return value > 0;
+                - not:
+                    lambda: return value > 100;
+            then:
+              - logger.log:
+                  format: "FLOW if then %d"
+                  args: [value]
+            else:
+              - logger.log:
+                  format: "FLOW if else %d"
+                  args: [value]
+        - choose:
+            - if:
+                lambda: return value < 10;
+              then:
+                - logger.log:
+                    format: "FLOW choose small %d"
+                    args: [value]
+            - if:
+                lambda: return value < 100;
+              then:
+                - logger.log:
+                    format: "FLOW choose medium %d"
+                    args: [value]
+            - else:
+                - logger.log:
+                    format: "FLOW choose large %d"
+                    args: [value]
+        - repeat:
+            count: !lambda "return value > 0 ? 2 : 0;"
+            then:
+              - repeat:
+                  count: 2
+                  then:
+                    - lambda: |-
+                        ESP_LOGI("test", "FLOW repeat %u %u %d", (unsigned) iteration_1, (unsigned) iteration, value);
+        - script.execute: while_counter
+        - logger.log:
+            format: "FLOW done %d"
+            args: [value]
+    - action: run_stop_in_loops
+      then:
+        - script.execute: stop_in_repeat
+        - script.execute: stop_in_while
+        - script.execute: stop_in_condition
+        - logger.log: "LOOP_STOP done"
+    - action: run_while_reentry
+      then:
+        - lambda: id(loops) = 0;
+        - script.execute: while_reenter
+        - lambda: |-
+            ESP_LOGI("test", "WHILE_REENTER running %d", id(while_reenter).is_running());
     - action: run_direct
       then:
         - switch.turn_on: direct
@@ -128,6 +190,65 @@ api:
             ESP_LOGI("test", "ARGS fourth %d", value);
 
 script:
+  - id: while_reenter
+    mode: parallel
+    then:
+      - while:
+          condition:
+            lambda: return id(loops) < 1;
+          then:
+            - lambda: id(loops) += 1;
+            - script.execute: while_reenter
+            - logger.log: "WHILE_REENTER after nested"
+      - logger.log: "WHILE_REENTER after while"
+  - id: while_counter
+    then:
+      - lambda: id(loops) = 0;
+      - while:
+          condition:
+            lambda: return id(loops) < 3;
+          then:
+            - lambda: id(loops) += 1;
+            - logger.log:
+                format: "FLOW while %d"
+                args: [id(loops)]
+  - id: stop_in_repeat
+    then:
+      - repeat:
+          count: 3
+          then:
+            - logger.log:
+                format: "LOOP_STOP repeat %u"
+                args: [iteration]
+            - lambda: |-
+                if (iteration == 1)
+                  id(stop_in_repeat).stop();
+      - logger.log: "LOOP_STOP repeat after"
+  - id: stop_in_while
+    then:
+      - lambda: id(loops) = 0;
+      - while:
+          condition:
+            lambda: return id(loops) < 3;
+          then:
+            - lambda: id(loops) += 1;
+            - logger.log:
+                format: "LOOP_STOP while %d"
+                args: [id(loops)]
+            - lambda: |-
+                if (id(loops) == 2)
+                  id(stop_in_while).stop();
+      - logger.log: "LOOP_STOP while after"
+  - id: stop_in_condition
+    then:
+      - if:
+          condition:
+            lambda: |-
+              id(stop_in_condition).stop();
+              return true;
+          then:
+            - logger.log: "LOOP_STOP condition then"
+      - logger.log: "LOOP_STOP condition after"
   - id: arg_order
     parameters:
       first: int

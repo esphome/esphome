@@ -30,6 +30,58 @@ async def test_automation_merged_actions(
         _, services = await client.list_entities_services()
         service: dict[str, UserService] = {s.name: s for s in services}
 
+        # Conditions, branches and loops with inline bodies choose the same paths
+        for value, branch, choice in (
+            (5, "then", "small"),
+            (50, "then", "medium"),
+            (500, "else", "large"),
+            (0, "else", "small"),
+        ):
+            start = len(waiter.lines)
+            await client.execute_service(service["run_control_flow"], {"value": value})
+            await waiter.wait_for(f"FLOW done {value}", timeout=5.0)
+            flow = [
+                match.group(1)
+                for line in waiter.lines[start:]
+                if (match := re.search(r"FLOW ([a-z ]+[\d ]*\d)", line))
+            ]
+            repeats = [
+                f"repeat {outer} {inner} {value}"
+                for outer in (0, 1)
+                for inner in (0, 1)
+            ]
+            assert flow == [
+                f"if {branch} {value}",
+                f"choose {choice} {value}",
+                *(repeats if value > 0 else []),
+                "while 1",
+                "while 2",
+                "while 3",
+                f"done {value}",
+            ]
+
+        # A stop in a loop body or in a condition ends the script at that point
+        await client.execute_service(service["run_stop_in_loops"], {})
+        await waiter.wait_for("LOOP_STOP done", timeout=5.0)
+        assert count("LOOP_STOP repeat 0") == 1
+        assert count("LOOP_STOP repeat 1") == 1
+        assert count("LOOP_STOP repeat 2") == 0
+        assert count("LOOP_STOP repeat after") == 0
+        assert count("LOOP_STOP while 1") == 1
+        assert count("LOOP_STOP while 2") == 1
+        assert count("LOOP_STOP while 3") == 0
+        assert count("LOOP_STOP while after") == 0
+        assert count("LOOP_STOP condition then") == 0
+        assert count("LOOP_STOP condition after") == 0
+
+        # With an inline body, a nested run whose while condition is false does not end the
+        # outer run. WhileAction, still used for a deferring body, stops its body there.
+        await client.execute_service(service["run_while_reentry"], {})
+        await waiter.wait_for("WHILE_REENTER running", timeout=5.0)
+        assert count("WHILE_REENTER after nested") == 1
+        assert count("WHILE_REENTER after while") == 2
+        assert count("WHILE_REENTER running 0") == 1
+
         # Automations that run directly from the callback get their arguments, in order,
         # and the on and off filters still apply.
         # The switch also publishes its state at boot, so only later lines count.
