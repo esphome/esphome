@@ -1,4 +1,3 @@
 packages:
-  uart: !include ../../test_build_components/common/uart/esp32-idf.yaml
-
-<<: !include common.yaml
+  uart_115200: !include ../../test_build_components/common/uart_115200/esp32-idf.yaml
+  hlk_fm22x: !include common.yaml
