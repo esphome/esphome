@@ -3,6 +3,17 @@
 
 namespace esphome::ld6002b::testing {
 
+namespace {
+
+std::vector<uint8_t> z_range(float z_min, float z_max) {
+  std::vector<uint8_t> p;
+  put_f32(p, z_min);
+  put_f32(p, z_max);
+  return tf_frame(TYPE_REPORT_Z_RANGE, p);
+}
+
+}  // namespace
+
 TEST_F(LD6002BTest, DelayReportPublishesHoldDelay) {
   this->feed_(tf_frame(TYPE_REPORT_DELAY, u32_payload(300)));
   EXPECT_FLOAT_EQ(this->hold_delay_.state, 300.0f);
@@ -39,6 +50,36 @@ TEST_F(LD6002BTest, HoldDelayKeepsValueWhenQueueFull) {
     this->trigger_speed_.make_call().set_index(0).perform();
   this->hold_delay_.make_call().set_value(60).perform();
   EXPECT_FLOAT_EQ(this->hold_delay_.state, 30.0f);
+}
+
+// Crossed bounds cannot be written, so the number keeps the module's value and the next write uses the old bound
+TEST_F(LD6002BTest, CrossedZRangeIsNotPublished) {
+  this->feed_(z_range(-0.5f, 2.75f));
+  const uint16_t id = this->drain_commands_();
+  this->z_min_.make_call().set_value(5.0f).perform();
+  EXPECT_TRUE(this->uart_.tx.empty());
+  EXPECT_FLOAT_EQ(this->z_min_.state, -0.5f);
+  this->z_max_.make_call().set_value(3.0f).perform();
+  std::vector<uint8_t> p;
+  put_f32(p, -0.5f);
+  put_f32(p, 3.0f);
+  EXPECT_EQ(this->uart_.tx, command(id, TYPE_SET_Z_RANGE, p));
+}
+
+TEST_F(LD6002BTest, ZRangeIsNotPublishedWhenQueueFull) {
+  this->feed_(z_range(-0.5f, 2.75f));
+  for (int i = 0; i < 32; i++)
+    this->trigger_speed_.make_call().set_index(0).perform();
+  this->z_max_.make_call().set_value(3.0f).perform();
+  EXPECT_FLOAT_EQ(this->z_max_.state, 2.75f);
+}
+
+// With the other bound unknown nothing can be written yet; the value is held and shown
+TEST_F(LD6002BTest, ZBoundIsHeldAndPublishedWhileOtherIsUnknown) {
+  this->drain_commands_();
+  this->z_min_.make_call().set_value(1.0f).perform();
+  EXPECT_TRUE(this->uart_.tx.empty());
+  EXPECT_FLOAT_EQ(this->z_min_.state, 1.0f);
 }
 
 }  // namespace esphome::ld6002b::testing
