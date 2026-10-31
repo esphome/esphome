@@ -33,19 +33,15 @@ FINAL_VALIDATE_SCHEMA = entities.number_final_validate(CONF_LD6004_ID, "ld6004")
 async def to_code(config: ConfigType) -> None:
     numbers = await entities.number_to_code(config, CONF_LD6004_ID)
     hub = numbers.parent
-    await numbers(
-        CONF_DWELL_LIFETIME,
-        hub.set_dwell_lifetime_number,
-        min_value=0,
-        max_value=MAX_WHOLE_FLOAT,
-        step=1,
-        **entities.NUMBER_CONTROL,
-    )
-    await numbers(
-        CONF_OUTPUT_INTERVAL,
-        hub.set_output_interval_number,
-        min_value=1,
-        max_value=MAX_WHOLE_FLOAT,
-        step=1,
-        **entities.NUMBER_CONTROL,
-    )
+    for key, setter, min_value in (
+        (CONF_DWELL_LIFETIME, hub.set_dwell_lifetime_number, 0),
+        (CONF_OUTPUT_INTERVAL, hub.set_output_interval_number, 1),
+    ):
+        await numbers(
+            key,
+            setter,
+            min_value=min_value,
+            max_value=MAX_WHOLE_FLOAT,
+            step=1,
+            **entities.NUMBER_CONTROL,
+        )
