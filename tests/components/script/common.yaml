@@ -143,3 +143,21 @@ script:
                       value: !lambda |-
                         int total = iteration;
                         return total;
+  # Lambdas take the parameters by value, so each form can change its own copy
+  - id: my_script_by_value_params
+    parameters:
+      x: int
+    then:
+      - lambda: |-
+          x *= 2;
+          ESP_LOGD("main", "x=%d", x);
+      - logger.log:
+          format: "again %d"
+          args: [x *= 2]
+      - script.execute:
+          id: my_script_with_params
+          prefix: !lambda |-
+            x *= 2;
+            return std::to_string(x);
+          param2: !lambda return x *= 2;
+          param3: true
