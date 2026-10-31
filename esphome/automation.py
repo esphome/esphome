@@ -43,6 +43,9 @@ CONF_CHOOSE = "choose"
 CONF_CHOICE_ID = "choice_id"
 
 
+_BYTE_VECTOR = cg.std_vector.template(cg.uint8)
+
+
 def progmem_bytes(name: str, data: bytes | list[int]) -> MockObj:
     """Shared PROGMEM table for constant bytes; equal payloads share one, empty is nullptr."""
     if not data:
@@ -58,10 +61,11 @@ async def templatable_bytes(
     set_template: MockObj,
     set_static: MockObj,
     table_name: str,
+    return_type: MockObj = _BYTE_VECTOR,
 ) -> None:
-    """Set a TemplatableBytes: a lambda via set_template, constant bytes via set_static."""
+    """Set a TemplatableBuffer: a lambda returning return_type via set_template, constant bytes via set_static."""
     if cg.is_template(value):
-        fn = await cg.templatable(value, args, cg.std_vector.template(cg.uint8))
+        fn = await cg.templatable(value, args, return_type)
         cg.add(set_template(fn))
     else:
         cg.add(set_static(*_static_bytes(table_name, value)))
@@ -657,9 +661,7 @@ async def _render_bytes(
         return f"{receiver}{target.format(data, parent=parent)};"
 
     if isinstance(value, Lambda):
-        inner = await cg.process_lambda(
-            value, args, return_type=cg.std_vector.template(cg.uint8)
-        )
+        inner = await cg.process_lambda(value, args, return_type=_BYTE_VECTOR)
         # Never reduced into the outer function, whose own parameters are const
         call = CallExpression(inner, *[cg.MockObj(name) for _, name in args])
         return [

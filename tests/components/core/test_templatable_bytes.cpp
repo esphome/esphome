@@ -1,6 +1,7 @@
 #include <gtest/gtest.h>
 #include <vector>
 #include "esphome/core/automation.h"
+#include "esphome/core/helpers.h"
 
 namespace esphome::testing {
 
@@ -38,6 +39,25 @@ TEST(TemplatableBytesTest, VisitLambdaWithArgument) {
   std::vector<uint8_t> seen;
   bytes.visit([&](const uint8_t *data, size_t len) { seen.assign(data, data + len); }, 4);
   EXPECT_EQ(seen, (std::vector<uint8_t>(4, 7)));
+}
+
+using Fixed = StaticVector<uint8_t, 2>;
+
+static Fixed pair(int first) { return {static_cast<uint8_t>(first), 9}; }
+
+TEST(TemplatableBytesTest, FixedBufferLambda) {
+  TemplatableBuffer<Fixed, int> bytes;
+  bytes.set_template(pair);
+  std::vector<uint8_t> seen;
+  bytes.visit([&](const uint8_t *data, size_t len) { seen.assign(data, data + len); }, 4);
+  EXPECT_EQ(seen, (std::vector<uint8_t>{4, 9}));
+}
+
+TEST(TemplatableBytesTest, FixedBufferValueKeepsWhatFits) {
+  TemplatableBuffer<Fixed> bytes;
+  bytes.set_static(PAYLOAD, sizeof(PAYLOAD));
+  const Fixed value = bytes.value();
+  EXPECT_EQ(std::vector<uint8_t>(value.begin(), value.end()), (std::vector<uint8_t>{1, 2}));
 }
 
 }  // namespace esphome::testing
