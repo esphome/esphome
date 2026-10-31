@@ -2,6 +2,7 @@
 #include "esphome/core/hal.h"
 #include "esphome/core/helpers.h"
 #include "esphome/core/log.h"
+#include "esphome/core/progmem.h"
 
 namespace esphome::bme680 {
 
@@ -30,46 +31,18 @@ constexpr float BME680_GAS_LOOKUP_TABLE_1[16] PROGMEM = {0.0, 0.0, 0.0,  0.0,  0
 constexpr float BME680_GAS_LOOKUP_TABLE_2[16] PROGMEM = {0.0,  0.0, 0.0, 0.0, 0.1, 0.7, 0.0, -0.8,
                                                          -0.1, 0.0, 0.0, 0.0, 0.0, 0.0, 0.0, 0.0};
 
-[[maybe_unused]] static const char *oversampling_to_str(BME680Oversampling oversampling) {
-  switch (oversampling) {
-    case BME680_OVERSAMPLING_NONE:
-      return "None";
-    case BME680_OVERSAMPLING_1X:
-      return "1x";
-    case BME680_OVERSAMPLING_2X:
-      return "2x";
-    case BME680_OVERSAMPLING_4X:
-      return "4x";
-    case BME680_OVERSAMPLING_8X:
-      return "8x";
-    case BME680_OVERSAMPLING_16X:
-      return "16x";
-    default:
-      return "UNKNOWN";
-  }
+// Indexed by BME680Oversampling
+PROGMEM_STRING_TABLE(OversamplingStrings, "None", "1x", "2x", "4x", "8x", "16x", "UNKNOWN");
+
+[[maybe_unused]] static const LogString *oversampling_to_str(BME680Oversampling value) {
+  return OversamplingStrings::get_log_str(static_cast<uint8_t>(value), OversamplingStrings::LAST_INDEX);
 }
 
-[[maybe_unused]] static const char *iir_filter_to_str(BME680IIRFilter filter) {
-  switch (filter) {
-    case BME680_IIR_FILTER_OFF:
-      return "OFF";
-    case BME680_IIR_FILTER_1X:
-      return "1x";
-    case BME680_IIR_FILTER_3X:
-      return "3x";
-    case BME680_IIR_FILTER_7X:
-      return "7x";
-    case BME680_IIR_FILTER_15X:
-      return "15x";
-    case BME680_IIR_FILTER_31X:
-      return "31x";
-    case BME680_IIR_FILTER_63X:
-      return "63x";
-    case BME680_IIR_FILTER_127X:
-      return "127x";
-    default:
-      return "UNKNOWN";
-  }
+// Indexed by BME680IIRFilter
+PROGMEM_STRING_TABLE(IIRFilterStrings, "OFF", "1x", "3x", "7x", "15x", "31x", "63x", "127x", "UNKNOWN");
+
+[[maybe_unused]] static const LogString *iir_filter_to_str(BME680IIRFilter value) {
+  return IIRFilterStrings::get_log_str(static_cast<uint8_t>(value), IIRFilterStrings::LAST_INDEX);
 }
 
 void BME680Component::setup() {
@@ -98,7 +71,7 @@ bool BME680Component::setup_registers_() {
   this->calibration_.t3 = coeff1[3];
 
   this->calibration_.h1 = coeff2[2] << 4 | (coeff2[1] & 0x0F);
-  this->calibration_.h2 = coeff2[0] << 4 | coeff2[1] >> 4;
+  this->calibration_.h2 = encode_uint16(coeff2[0], coeff2[1]) >> 4;
   this->calibration_.h3 = coeff2[3];
   this->calibration_.h4 = coeff2[4];
   this->calibration_.h5 = coeff2[5];
@@ -180,15 +153,15 @@ bool BME680Component::setup_registers_() {
 void BME680Component::dump_config() {
   ESP_LOGCONFIG(TAG, "BME680:");
   LOG_I2C_DEVICE(this);
-  ESP_LOGCONFIG(TAG, "  IIR Filter: %s", iir_filter_to_str(this->iir_filter_));
+  ESP_LOGCONFIG(TAG, "  IIR Filter: %s", LOG_STR_ARG(iir_filter_to_str(this->iir_filter_)));
   LOG_UPDATE_INTERVAL(this);
 
   LOG_SENSOR("  ", "Temperature", this->temperature_sensor_);
-  ESP_LOGCONFIG(TAG, "    Oversampling: %s", oversampling_to_str(this->temperature_oversampling_));
+  ESP_LOGCONFIG(TAG, "    Oversampling: %s", LOG_STR_ARG(oversampling_to_str(this->temperature_oversampling_)));
   LOG_SENSOR("  ", "Pressure", this->pressure_sensor_);
-  ESP_LOGCONFIG(TAG, "    Oversampling: %s", oversampling_to_str(this->pressure_oversampling_));
+  ESP_LOGCONFIG(TAG, "    Oversampling: %s", LOG_STR_ARG(oversampling_to_str(this->pressure_oversampling_)));
   LOG_SENSOR("  ", "Humidity", this->humidity_sensor_);
-  ESP_LOGCONFIG(TAG, "    Oversampling: %s", oversampling_to_str(this->humidity_oversampling_));
+  ESP_LOGCONFIG(TAG, "    Oversampling: %s", LOG_STR_ARG(oversampling_to_str(this->humidity_oversampling_)));
   LOG_SENSOR("  ", "Gas Resistance", this->gas_resistance_sensor_);
   if (this->heater_duration_ == 0 || this->heater_temperature_ == 0) {
     ESP_LOGCONFIG(TAG, "  Heater OFF");
@@ -260,22 +233,18 @@ uint8_t BME680Component::calc_heater_duration_(uint16_t duration) {
 void BME680Component::read_data_() {
   uint8_t data[15];
   if (!this->status_comm_result(this->read_bytes(BME680_REGISTER_FIELD0, data, 15))) {
-    if (this->temperature_sensor_ != nullptr)
-      this->temperature_sensor_->publish_state(NAN);
-    if (this->pressure_sensor_ != nullptr)
-      this->pressure_sensor_->publish_state(NAN);
-    if (this->humidity_sensor_ != nullptr)
-      this->humidity_sensor_->publish_state(NAN);
-    if (this->gas_resistance_sensor_ != nullptr)
-      this->gas_resistance_sensor_->publish_state(NAN);
+    PUBLISH_STATE(this->temperature_sensor_, NAN);
+    PUBLISH_STATE(this->pressure_sensor_, NAN);
+    PUBLISH_STATE(this->humidity_sensor_, NAN);
+    PUBLISH_STATE(this->gas_resistance_sensor_, NAN);
     ESP_LOGW(TAG, ESP_LOG_MSG_COMM_FAIL);
     return;
   }
 
-  uint32_t raw_temperature = (uint32_t(data[5]) << 12) | (uint32_t(data[6]) << 4) | (uint32_t(data[7]) >> 4);
-  uint32_t raw_pressure = (uint32_t(data[2]) << 12) | (uint32_t(data[3]) << 4) | (uint32_t(data[4]) >> 4);
-  uint32_t raw_humidity = (uint32_t(data[8]) << 8) | uint32_t(data[9]);
-  uint16_t raw_gas = (uint16_t) ((uint32_t) data[13] * 4 | (((uint32_t) data[14]) / 64));
+  uint32_t raw_temperature = encode_uint24(data[5], data[6], data[7]) >> 4;
+  uint32_t raw_pressure = encode_uint24(data[2], data[3], data[4]) >> 4;
+  uint32_t raw_humidity = encode_uint16(data[8], data[9]);
+  uint16_t raw_gas = encode_uint16(data[13], data[14]) >> 6;
   uint8_t gas_range = data[14] & 0x0F;
 
   float temperature = this->calc_temperature_(raw_temperature);
@@ -297,12 +266,9 @@ void BME680Component::read_data_() {
     ESP_LOGW(TAG, "Heater unstable, reading invalid! (Normal for a few readings after a power cycle)");
   }
 
-  if (this->temperature_sensor_ != nullptr)
-    this->temperature_sensor_->publish_state(temperature);
-  if (this->pressure_sensor_ != nullptr)
-    this->pressure_sensor_->publish_state(pressure);
-  if (this->humidity_sensor_ != nullptr)
-    this->humidity_sensor_->publish_state(humidity);
+  PUBLISH_STATE(this->temperature_sensor_, temperature);
+  PUBLISH_STATE(this->pressure_sensor_, pressure);
+  PUBLISH_STATE(this->humidity_sensor_, humidity);
   if (this->gas_resistance_sensor_ != nullptr) {
     if (gas_valid && heat_stable) {
       this->gas_resistance_sensor_->publish_state(gas_resistance);
