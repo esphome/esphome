@@ -42,7 +42,7 @@ void EPaperWaveshareBWR::draw_pixel_at(int x, int y, Color color) {
   assign_bits(this->buffer_[red_offset + pos], bit, bwr == BwrState::BWR_RED);
 }
 
-void EPaperWaveshareBWR::fill(Color color) {
+void EPaperWaveshareBWR::fill_buffer(Color color) {
   const size_t half_buffer = this->buffer_length_ / 2u;
   const auto bwr = color_to_bwr(color);
 
