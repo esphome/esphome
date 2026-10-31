@@ -13,7 +13,6 @@ CODEOWNERS = ["@esphome/core"]
 DOMAIN = "script"
 script_ns = cg.esphome_ns.namespace("script")
 Script = script_ns.class_("Script", automation.Trigger.template())
-ScriptExecuteAction = script_ns.class_("ScriptExecuteAction", automation.Action)
 ScriptWaitAction = script_ns.class_("ScriptWaitAction", automation.Action, cg.Component)
 SingleScript = script_ns.class_("SingleScript", Script)
 RestartScript = script_ns.class_("RestartScript", Script)
@@ -210,7 +209,7 @@ async def to_code(config):
 
 @automation.register_action(
     "script.execute",
-    ScriptExecuteAction,
+    automation.ApplyAction,
     maybe_simple_id(
         {
             cv.Required(CONF_ID): cv.use_id(Script),
@@ -251,17 +250,18 @@ async def script_execute_action_to_code(config, action_id, template_arg, args):
 
     script = get_script(config[CONF_ID])
     params = script.get(CONF_PARAMETERS, [])
-    template, script_params = parameters_to_template(params)
+    _, script_params = parameters_to_template(params)
     script_args = await get_ordered_args(config, script_params)
 
-    # We need to use the parent class 'Script' as the template argument
-    # to match the partial specialization of the ScriptExecuteAction template
-    template_arg = cg.TemplateArguments(Script.template(template), *template_arg)
-
     paren = await cg.get_variable(config[CONF_ID])
-    var = cg.new_Pvariable(action_id, template_arg, paren)
-    cg.add(var.set_args(*script_args))
-    return var
+    # Separate statements, because the order of evaluation inside one call is not defined
+    statements = [
+        f"auto esphome__arg_{index} = {automation.immediate_lambda_call(arg)};"
+        for index, arg in enumerate(script_args)
+    ]
+    names = ", ".join(f"esphome__arg_{index}" for index in range(len(script_args)))
+    statements.append(f"{automation.parent_ref(paren)}->execute({names});")
+    return automation.apply_statements_action(action_id, template_arg, args, statements)
 
 
 def _require_script_stop_id(config: ConfigType) -> ConfigType:

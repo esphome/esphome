@@ -18,6 +18,7 @@ from esphome.automation import (
     ApplyCall,
     ApplyCondition,
     ApplyField,
+    Automation,
     CallbackAutomation,
     DelayAction,
     ForCondition,
@@ -1754,7 +1755,7 @@ async def test_build_parent_callback_automation(mock_cg: MockCodegen) -> None:
 
 @pytest.mark.asyncio
 async def test_build_callback_automation_lambda(mock_cg: MockCodegen) -> None:
-    """Reshaping keywords switch the registration to the lambda; forwarder cannot join them."""
+    """Reshaping keywords switch the registration to the lambda."""
     parent = MockObj("sel", "->")
     await build_callback_automation(
         parent,
@@ -1768,15 +1769,26 @@ async def test_build_callback_automation_lambda(mock_cg: MockCodegen) -> None:
         "sel->add_cb([](const std::remove_cvref_t<size_t> & index) -> void { "
         f"::{NEW_OBJ}->trigger(::sel->option_at(index), index); }})"
     )
-    with pytest.raises(ValueError, match="forwarder"):
-        await build_callback_automation(
-            parent,
-            "add_cb",
-            [],
-            TRIGGER_CONF,
-            forwarder=TriggerOnTrueForwarder,
-            when="x",
-        )
+
+
+@pytest.mark.asyncio
+async def test_build_callback_automation_forwarder_with_filter(
+    mock_cg: MockCodegen,
+) -> None:
+    """When objects are needed, a forwarder given with a filter is the one registered."""
+    await build_callback_automation(
+        MockObj("parent", "->"),
+        "add_cb",
+        [],
+        TRIGGER_CONF,
+        forwarder=TriggerOnTrueForwarder,
+        params=[(cg.bool_, "state")],
+        forward=[],
+        when="state",
+    )
+    assert str(mock_cg.add.call_args.args[0]) == (
+        f"parent->add_cb(TriggerOnTrueForwarder{{{NEW_OBJ}}})"
+    )
 
 
 @pytest.mark.asyncio
@@ -2413,3 +2425,129 @@ async def test_build_action_list_nested_builders_emit_normally() -> None:
     assert "new(act_a) ApplyRunAction<esphome__act_a__fn>();" in text
     assert "act_if->add_then_action(act_a);" in text
     assert "act_if->finish_then();" in text
+
+
+def _automation_conf(*then: ConfigType, is_manual: bool = False) -> ConfigType:
+    return {
+        CONF_THEN: list(then),
+        CONF_AUTOMATION_ID: ID(
+            "auto", is_declaration=True, type=Automation, is_manual=is_manual
+        ),
+    }
+
+
+def _delay(id_: str) -> ConfigType:
+    return {
+        "delay": 100,
+        CONF_TYPE_ID: ID(id_, is_declaration=True, type=DelayAction),
+    }
+
+
+CALLBACK_PARENT = MockObj("parent", "->")
+
+
+@pytest.mark.asyncio
+@pytest.mark.usefixtures("apply_actions")
+async def test_callback_automation_all_inline_has_no_objects() -> None:
+    """A callback runs an all-inline automation directly, with no objects or stop checks."""
+    conf = _automation_conf(_action("my.a", "act_a"), _action("my.b", "act_b"))
+
+    await build_callback_automation(CALLBACK_PARENT, "add_cb", [(cg.bool_, "x")], conf)
+
+    main = CORE.cpp_main_section
+    assert "Automation" not in main
+    assert "Action" not in main
+    assert "parent->add_cb([](const std::remove_cvref_t<bool> & x) -> void {" in main
+    assert "esphome__act_a__fn(x);" in main
+    text = CORE.cpp_global_section
+    assert "::comp->do_a();" in text
+    assert "::comp->do_b();" in text
+    assert "esphome__running" not in text
+
+
+@pytest.mark.asyncio
+@pytest.mark.usefixtures("apply_actions")
+@pytest.mark.parametrize(
+    ("forwarder", "check"),
+    [
+        (TriggerOnTrueForwarder, "if (!(state))"),
+        (TriggerOnFalseForwarder, "if (!(!state))"),
+    ],
+)
+async def test_callback_automation_core_forwarder_becomes_filter(
+    forwarder: MockObj, check: str
+) -> None:
+    """The on-true and on-false forwarders turn into the same filter in the lambda."""
+    conf = _automation_conf(_action("my.a", "act_a"))
+
+    await build_callback_automation(
+        CALLBACK_PARENT, "add_cb", [], conf, forwarder=forwarder
+    )
+
+    main = CORE.cpp_main_section
+    assert "Forwarder" not in main
+    assert "Automation" not in main
+    assert check in main
+    assert "esphome__act_a__fn();" in main
+
+
+@pytest.mark.asyncio
+@pytest.mark.usefixtures("apply_actions")
+async def test_callback_automation_unknown_forwarder_keeps_objects() -> None:
+    """A forwarder alone may filter in ways codegen cannot see, so it is kept."""
+    forwarder = cg.esphome_ns.class_("MyForwarder")
+    conf = _automation_conf(_action("my.a", "act_a"))
+
+    await build_callback_automation(
+        CALLBACK_PARENT, "add_cb", [], conf, forwarder=forwarder
+    )
+
+    main = CORE.cpp_main_section
+    assert "new(auto) Automation<>();" in main
+    assert "new(act_a) ApplyAction<esphome__act_a__fn>();" in main
+    assert "parent->add_cb(MyForwarder{auto})" in main
+
+
+@pytest.mark.asyncio
+@pytest.mark.usefixtures("apply_actions")
+async def test_callback_automation_manual_id_keeps_objects() -> None:
+    """A lambda can reach an automation by a manual id, so it needs its objects."""
+    conf = _automation_conf(_action("my.a", "act_a"), is_manual=True)
+
+    await build_callback_automation(CALLBACK_PARENT, "add_cb", [], conf)
+
+    main = CORE.cpp_main_section
+    assert "new(auto) Automation<>();" in main
+    assert "parent->add_cb(TriggerForwarder<>{auto})" in main
+
+
+@pytest.mark.asyncio
+@pytest.mark.usefixtures("apply_actions")
+async def test_callback_automation_with_object_action_keeps_objects() -> None:
+    """A deferring action needs the chain, so the inline actions stay objects around it."""
+    conf = _automation_conf(
+        _action("my.a", "act_a"), _delay("act_d"), _action("my.b", "act_b")
+    )
+
+    await build_callback_automation(CALLBACK_PARENT, "add_cb", [], conf)
+
+    main = CORE.cpp_main_section
+    assert "new(auto) Automation<>();" in main
+    assert "auto->add_action(act_a);" in main
+    assert "auto->add_action(act_d);" in main
+    assert "auto->add_action(act_b);" in main
+    assert "parent->add_cb(TriggerForwarder<>{auto})" in main
+
+
+@pytest.mark.asyncio
+@pytest.mark.usefixtures("apply_actions")
+async def test_trigger_callback_all_inline_is_direct() -> None:
+    """Direct callers of build_trigger_callback get the direct call too."""
+    conf = _automation_conf(_action("my.a", "act_a"), _action("my.b", "act_b"))
+
+    callback = await build_trigger_callback(
+        [(cg.int_, "x")], conf, [(cg.int_, "index")], forward=["index + 1"]
+    )
+
+    assert "esphome__act_a__fn(index + 1);" in str(callback)
+    assert "Automation" not in CORE.cpp_main_section

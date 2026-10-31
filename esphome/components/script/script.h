@@ -252,47 +252,6 @@ template<typename... Ts> class ParallelScript : public Script<Ts...> {
   int max_runs_ = 0;
 };
 
-template<class S, typename... Ts> class ScriptExecuteAction;
-
-template<class... As, typename... Ts> class ScriptExecuteAction<Script<As...>, Ts...> final : public Action<Ts...> {
- public:
-  ScriptExecuteAction(Script<As...> *script) : script_(script) {}
-
-  using Args = std::tuple<TemplatableFn<As, Ts...>...>;
-
-  template<typename... F> void set_args(F... x) { args_ = Args{x...}; }
-
-  void play(const Ts &...x) override { this->script_->execute_tuple(this->eval_args_(x...)); }
-
- protected:
-  // NOTE:
-  //  `eval_args_impl` functions evaluates `I`th the functions in `args` member.
-  //  and then recursively calls `eval_args_impl` for the `I+1`th arg.
-  //  if `I` = `N` all args have been stored, and nothing is done.
-
-  template<std::size_t N>
-  void eval_args_impl_(std::tuple<As...> & /*unused*/, std::integral_constant<std::size_t, N> /*unused*/,
-                       std::integral_constant<std::size_t, N> /*unused*/, Ts... /*unused*/) {}
-
-  template<std::size_t I, std::size_t N>
-  void eval_args_impl_(std::tuple<As...> &evaled_args, std::integral_constant<std::size_t, I> /*unused*/,
-                       std::integral_constant<std::size_t, N> n, Ts... x) {
-    std::get<I>(evaled_args) = std::get<I>(args_).value(x...);  // NOTE: evaluate `i`th arg, and store in tuple.
-    eval_args_impl_(evaled_args, std::integral_constant<std::size_t, I + 1>{}, n,
-                    x...);  // NOTE: recurse to next index.
-  }
-
-  std::tuple<As...> eval_args_(Ts... x) {
-    std::tuple<As...> evaled_args;
-    eval_args_impl_(evaled_args, std::integral_constant<std::size_t, 0>{}, std::tuple_size<Args>{}, x...);
-    return evaled_args;
-  }
-
-  Script<As...> *script_;
-  // Empty tuple for scripts without parameters; takes no space then
-  [[no_unique_address]] Args args_;
-};
-
 /** Wait for a script to finish before continuing.
  *
  * Uses queue-based storage to safely handle concurrent executions.

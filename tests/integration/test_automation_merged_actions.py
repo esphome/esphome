@@ -30,6 +30,46 @@ async def test_automation_merged_actions(
         _, services = await client.list_entities_services()
         service: dict[str, UserService] = {s.name: s for s in services}
 
+        # Automations that run directly from the callback get their arguments, in order,
+        # and the on and off filters still apply.
+        # The switch also publishes its state at boot, so only later lines count.
+        boot_lines = len(waiter.lines)
+        await client.execute_service(service["run_direct"], {})
+        await waiter.wait_for("DIRECT done off", timeout=5.0)
+        direct = [
+            match.group(1)
+            for line in waiter.lines[boot_lines:]
+            if (match := re.search(r"DIRECT ((?:state|on|off|done) \w+(?: \d)?)", line))
+        ]
+        assert sorted(direct) == sorted(
+            [
+                "state first 1",
+                "state second 1",
+                "on first",
+                "on second",
+                "done on",
+                "state first 0",
+                "state second 0",
+                "off first",
+                "off second",
+                "done off",
+            ]
+        )
+        assert direct.index("on first") < direct.index("on second")
+        assert direct.index("off first") < direct.index("off second")
+        assert direct.index("state first 1") < direct.index("state second 1")
+        assert direct.index("done on") < direct.index("off first")
+
+        # script.execute evaluates its arguments left to right
+        await client.execute_service(service["run_arg_order"], {})
+        await waiter.wait_for("ARG_ORDER done", timeout=5.0)
+        order = [
+            match.group(1)
+            for line in waiter.lines
+            if (match := re.search(r"ARG_ORDER (eval \w+|run \d \d)", line))
+        ]
+        assert order == ["eval first", "eval second", "run 1 2"]
+
         # A stop during one action keeps the following actions from running, whichever way
         # it is reached, and execution returns to the caller.
         for action, prefix in (
