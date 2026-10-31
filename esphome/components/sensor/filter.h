@@ -501,22 +501,39 @@ class HeartbeatFilter : public Filter {
   bool optimistic_{false};
 };
 
+/// Whether value differs from ref by more than min (and at most max); a *_PCT bound is that
+/// fraction of ref. An infinite or NaN ref never passes.
+template<bool MIN_PCT = false> inline bool delta_passes(float value, float ref, float min) {
+  if constexpr (MIN_PCT) {
+    return fabsf(value - ref) > fabsf(ref * min);
+  } else {
+    // Bit test: std::isinf is two soft-float calls on ESP8266
+    return (bit_cast<uint32_t>(ref) & 0x7FFFFFFF) != 0x7F800000 && fabsf(value - ref) > min;
+  }
+}
+template<bool MIN_PCT = false, bool MAX_PCT = false>
+inline bool delta_passes(float value, float ref, float min, float max) {
+  if constexpr (!MIN_PCT && MAX_PCT) {
+    if ((bit_cast<uint32_t>(ref) & 0x7FFFFFFF) == 0x7F800000)
+      return false;
+  }
+  const float delta = fabsf(value - ref);
+  if constexpr (MIN_PCT)
+    min = fabsf(ref * min);
+  if constexpr (MAX_PCT)
+    max = fabsf(ref * max);
+  return delta > min && delta <= max;
+}
+
 class DeltaFilter : public Filter {
  public:
-  explicit DeltaFilter(float min_a0, float min_a1, float max_a0, float max_a1);
-
-  void set_baseline(float (*fn)(float));
+  /// accept(last, value) is generated from the config with the thresholds and baseline baked in.
+  explicit DeltaFilter(bool (*accept)(float, float)) : accept_(accept) {}
 
   optional<float> new_value(float value) override;
 
  protected:
-  // These values represent linear equations for the min and max values but in practice only one of a0 and a1 will be
-  // non-zero Each limit is calculated as fabs(a0 + value * a1)
-
-  float min_a0_, min_a1_, max_a0_, max_a1_;
-  // default baseline is the previous value
-  float (*baseline_)(float) = [](float last_value) { return last_value; };
-
+  bool (*accept_)(float, float);
   float last_value_{NAN};
 };
 
