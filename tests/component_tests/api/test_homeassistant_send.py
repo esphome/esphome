@@ -113,3 +113,13 @@ def test_button_on_press(main_cpp: str) -> None:
     assert re.search(
         r"add_on_press_callback\(TriggerForwarder<>\{automation_id_5\}\);", main_cpp
     )
+    sends = {
+        match.group(2): match.group(1)
+        for match in re.finditer(
+            r"new\((\w+)\) api::HomeAssistantServiceCallAction<>"
+            r"\(api_apiserver_id, true, (ha_action_fields_[56]), [01], 0, 0\);",
+            main_cpp,
+        )
+    }
+    actions = re.findall(r"\bautomation_id_5->add_action\((\w+)\);", main_cpp)
+    assert actions == [sends["ha_action_fields_5"], sends["ha_action_fields_6"]]
