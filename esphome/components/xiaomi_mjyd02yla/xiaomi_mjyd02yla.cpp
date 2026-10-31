@@ -19,8 +19,7 @@ void XiaomiMJYD02YLA::publish_result(const xiaomi_ble::XiaomiParseResult &res) {
   publish_optional(this->idle_time_sensor_, res.idle_time);
   publish_optional(this->battery_level_sensor_, res.battery_level);
   publish_optional(this->illuminance_sensor_, res.illuminance);
-  if (res.is_light.has_value() && this->light_binary_sensor_ != nullptr)
-    this->light_binary_sensor_->publish_state(*res.is_light);
+  publish_optional(this->light_binary_sensor_, res.is_light);
   if (res.has_motion.has_value())
     this->publish_state(*res.has_motion);
 }

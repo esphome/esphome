@@ -28,8 +28,7 @@ void XiaomiRTCGQ02LM::publish_result(const xiaomi_ble::XiaomiParseResult &res) {
     this->set_timeout(MOTION_TIMEOUT_ID, this->motion_timeout_,
                       [this]() { this->motion_binary_sensor_->publish_state(false); });
   }
-  if (res.is_light.has_value() && this->light_binary_sensor_ != nullptr)
-    this->light_binary_sensor_->publish_state(*res.is_light);
+  publish_optional(this->light_binary_sensor_, res.is_light);
   if (res.button_press.has_value() && this->button_binary_sensor_ != nullptr) {
     this->button_binary_sensor_->publish_state(*res.button_press);
     this->set_timeout(BUTTON_TIMEOUT_ID, this->button_timeout_,
