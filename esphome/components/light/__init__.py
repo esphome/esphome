@@ -251,17 +251,13 @@ def validate_channel_colors(value: str) -> str:
 
 def channel_colors_struct(value: str) -> cg.StructInitializer:
     """Build the C++ `light::ChannelColors` for a validated channel order string."""
-    return cg.StructInitializer(
-        ChannelColors,
-        ("r", value.index("R")),
-        ("g", value.index("G")),
-        ("b", value.index("B")),
-        (
-            "w",
-            value.index("W")
-            if "W" in value
-            else cg.RawExpression(f"{ChannelColors}::NO_WHITE"),
-        ),
+    return ChannelColors(
+        value.index("R"),
+        value.index("G"),
+        value.index("B"),
+        value.index("W")
+        if "W" in value
+        else cg.RawExpression(f"{ChannelColors}::NO_WHITE"),
     )
 
 

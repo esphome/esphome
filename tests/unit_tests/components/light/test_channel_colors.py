@@ -63,8 +63,8 @@ def test_validate_channel_colors_rejects_invalid(value: str) -> None:
 )
 def test_channel_colors_struct(value: str, expected: tuple[int, int, int, int]) -> None:
     struct = channel_colors_struct(value)
-    assert str(struct.base) == "light::ChannelColors"
-    assert tuple(str(arg) for arg in struct.args.values()) == tuple(
+    assert struct.base.base == "light::ChannelColors"
+    assert tuple(str(arg) for arg in struct.base.args) == tuple(
         str(field) for field in expected
     )
 

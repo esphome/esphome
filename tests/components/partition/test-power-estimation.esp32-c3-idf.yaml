@@ -1,11 +1,17 @@
 light:
-  - platform: ${light_platform}
+  - platform: esp32_rmt_led_strip
     id: part_leds
     default_transition_length: 500ms
     chipset: ws2812
     num_leds: 256
     channel_colors: GRB
-    pin: ${pin}
+    pin: GPIO2
+    power_estimation:
+      ma_per_led_red: 16.0
+      ma_per_led_green: 11.0
+      ma_per_led_blue: 15.0
+      idle_ma_per_led: 1.0
+      max_current_ma: 100.0
   - platform: partition
     name: Partition Light
     segments:

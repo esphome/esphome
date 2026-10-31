@@ -24,14 +24,14 @@ class SpiLedStrip final : public light::AddressableLight,
 
   void write_state(light::LightState *state) override;
 
-  void clear_effect_data() override { memset(this->effect_data_, 0, this->num_leds_ * sizeof(this->effect_data_[0])); }
+  void clear_effect_data() override {
+    memset(this->internal_accessor_.effect_data, 0, this->num_leds_ * sizeof(this->internal_accessor_.effect_data[0]));
+  }
 
  protected:
-  light::ESPColorView get_view_internal(int32_t index) const override;
-
+  light::CorrectedBufferColorAccessor internal_accessor_{
+      nullptr, nullptr, {2, 1, 0, light::ChannelColors::RESERVED_WHITE}, &this->correction_};
   size_t buffer_size_{};
-  uint8_t *effect_data_{nullptr};
-  uint8_t *buf_{nullptr};
   uint16_t num_leds_;
 };
 

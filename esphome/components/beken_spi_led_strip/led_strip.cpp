@@ -163,15 +163,15 @@ void BekenSPILEDStripLightOutput::setup() {
   size_t dma_buffer_size = (buffer_size * 8) + (2 * 64);
 
   RAMAllocator<uint8_t> allocator;
-  this->buf_ = allocator.allocate(buffer_size);
-  if (this->buf_ == nullptr) {
+  this->internal_accessor_.color_data = allocator.allocate(buffer_size);
+  if (this->internal_accessor_.color_data == nullptr) {
     ESP_LOGE(TAG, "Cannot allocate LED buffer!");
     this->mark_failed();
     return;
   }
 
-  this->effect_data_ = allocator.allocate(this->num_leds_);
-  if (this->effect_data_ == nullptr) {
+  this->internal_accessor_.effect_data = allocator.allocate(this->num_leds_);
+  if (this->internal_accessor_.effect_data == nullptr) {
     ESP_LOGE(TAG, "Cannot allocate effect data!");
     this->mark_failed();
     return;
@@ -184,8 +184,8 @@ void BekenSPILEDStripLightOutput::setup() {
     return;
   }
 
-  memset(this->buf_, 0, buffer_size);
-  memset(this->effect_data_, 0, this->num_leds_);
+  memset(this->internal_accessor_.color_data, 0, buffer_size);
+  memset(this->internal_accessor_.effect_data, 0, this->num_leds_);
   memset(this->dma_buf_, 0, dma_buffer_size);
 
   uint32_t value = PCLK_POSI_SPI;
@@ -291,6 +291,8 @@ void BekenSPILEDStripLightOutput::setup() {
   // T-like variants: No transfer-length register. The SPI controller shifts out
   // everything the DMA writes into SPI_DAT.
 #endif
+
+  this->accessor_ = &this->internal_accessor_;
 }
 
 void BekenSPILEDStripLightOutput::set_led_params(uint8_t bit0, uint8_t bit1, uint32_t spi_frequency) {
@@ -351,7 +353,7 @@ void BekenSPILEDStripLightOutput::write_state(light::LightState *state) {
 
   size_t buffer_size = this->get_buffer_size_();
   size_t size = 0;
-  uint8_t *psrc = this->buf_;
+  uint8_t *psrc = this->internal_accessor_.color_data;
   uint8_t *pdest = this->dma_buf_ + 64;
   // The 64 byte padding is a workaround for a SPI DMA bug where the
   // output doesn't exactly start at the beginning of dma_buf_
@@ -381,7 +383,8 @@ void BekenSPILEDStripLightOutput::dump_config() {
                 "  Channel colors: %s\n"
                 "  Max refresh rate: %" PRIu32 "\n"
                 "  Number of LEDs: %u",
-                this->channel_colors_.to_string(channel_colors), this->max_refresh_rate_, this->num_leds_);
+                this->internal_accessor_.channel_colors.to_string(channel_colors), this->max_refresh_rate_,
+                this->num_leds_);
 }
 
 float BekenSPILEDStripLightOutput::get_setup_priority() const { return setup_priority::HARDWARE; }
