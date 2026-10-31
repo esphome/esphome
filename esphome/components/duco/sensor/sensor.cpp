@@ -32,6 +32,7 @@ static constexpr ReadingLayout READINGS[] PROGMEM = {
     {FUNCTION_PARAMETER, 3, DucoValueFormat::DUCO_VALUE_FORMAT_UINT8, 1, 0, 255},       // filter remaining
     {FUNCTION_NODE, 2, DucoValueFormat::DUCO_VALUE_FORMAT_UINT8, 1, 0, 255},            // flow level
     {FUNCTION_NODE, 12, DucoValueFormat::DUCO_VALUE_FORMAT_UINT16, 1, 0, 65535},        // time remaining
+    {FUNCTION_NODE_DATA, 8, DucoValueFormat::DUCO_VALUE_FORMAT_UINT16, 1, 0, 65535},    // uptime
     {FUNCTION_PARAMETER, 3, DucoValueFormat::DUCO_VALUE_FORMAT_INT16, 10, -999, 1000},  // box temperature
     {FUNCTION_PARAMETER, 3, DucoValueFormat::DUCO_VALUE_FORMAT_UINT8, 1, 0, 100},       // bypass
 };

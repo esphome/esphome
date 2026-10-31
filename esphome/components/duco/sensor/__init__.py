@@ -10,7 +10,9 @@ from esphome.const import (
     DEVICE_CLASS_HUMIDITY,
     DEVICE_CLASS_TEMPERATURE,
     STATE_CLASS_MEASUREMENT,
+    STATE_CLASS_TOTAL_INCREASING,
     UNIT_CELSIUS,
+    UNIT_MINUTE,
     UNIT_PARTS_PER_MILLION,
     UNIT_PERCENT,
     UNIT_SECOND,
@@ -38,6 +40,7 @@ CONF_TEMPERATURE_ETA = "temperature_eta"
 CONF_TEMPERATURE_ODA = "temperature_oda"
 CONF_TEMPERATURE_SUP = "temperature_sup"
 CONF_TIME_REMAINING = "time_remaining"
+CONF_UPTIME = "uptime"
 
 DucoSensor = duco_ns.class_("DucoSensor", DucoDevice, sensor.Sensor)
 DucoReading = duco_ns.enum("DucoReading", is_class=True)
@@ -55,6 +58,20 @@ def _node_schema(**kwargs) -> cv.All:
     """A list of sensors, one per node address."""
     return cv.ensure_list(
         _schema(**kwargs).extend({cv.Required(CONF_ADDRESS): cv.int_range(0, 68)})
+    )
+
+
+def _uptime_schema() -> cv.All:
+    return cv.ensure_list(
+        sensor.sensor_schema(
+            DucoSensor,
+            state_class=STATE_CLASS_TOTAL_INCREASING,
+            unit_of_measurement=UNIT_MINUTE,
+            accuracy_decimals=0,
+            device_class=DEVICE_CLASS_DURATION,
+        )
+        .extend(cv.polling_component_schema("60s"))
+        .extend({cv.Optional(CONF_ADDRESS, default=BOX_NODE): cv.int_range(1, 68)})
     )
 
 
@@ -112,6 +129,11 @@ SENSORS = {
             accuracy_decimals=0,
             device_class=DEVICE_CLASS_DURATION,
         ),
+    ),
+    CONF_UPTIME: (
+        DucoReading.DUCO_READING_UPTIME,
+        BOX_NODE,
+        _uptime_schema(),
     ),
     CONF_TEMPERATURE_ODA: (
         DucoReading.DUCO_READING_BOX_TEMPERATURE,
