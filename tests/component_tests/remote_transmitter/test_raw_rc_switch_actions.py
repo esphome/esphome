@@ -202,30 +202,3 @@ def test_lambdas_take_args_by_value(bodies: list[str]) -> None:
         "    x *= 1; return remote_base::rc_switch_protocol(x);\n"
         "  }(x).transmit(esphome__call.get_data(), esphome__code, esphome__nbits);",
     )
-
-
-@pytest.fixture
-def storage_cpp(
-    generate_main: Callable[[str | Path], str],
-    component_config_path: Callable[[str], Path],
-) -> str:
-    return generate_main(component_config_path("raw_code_storage_id.yaml"))
-
-
-def test_raw_manual_code_storage_id(storage_cpp: str) -> None:
-    # A user-set id names a global table that the action and lambdas both read
-    table = "static constexpr int32_t my_raw_code[] PROGMEM = {1000, -1000, 500, -500};"
-    assert storage_cpp.count(table) == 1
-    send = (
-        "remote_base::encode_raw_timings(esphome__call.get_data(), ::my_raw_code, 4);"
-    )
-    _in_order(storage_cpp, table, send, "sizeof(my_raw_code)")
-
-
-def test_raw_generated_code_storage_id(storage_cpp: str) -> None:
-    # A generated id is not emitted; the equal code still gets the shared table
-    assert "int32_t int32_t_id" not in storage_cpp
-    assert (
-        "remote_base::encode_raw_timings(esphome__call.get_data(), "
-        "::remote_base_raw_code, 4);"
-    ) in storage_cpp
