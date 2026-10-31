@@ -51,6 +51,18 @@ void JpegDecoder::draw_rgb565(int x, int y, int w, int h, const uint8_t *pixels)
   }
 }
 
+// Some very big images take too long to decode, so feed the watchdog as the decode goes
+// to avoid crashing if the executing task has a watchdog enabled.
+static void feed_watchdog() {
+#ifdef USE_ESP_IDF
+  if (esp_task_wdt_status(nullptr) == ESP_OK) {
+#endif
+    App.feed_wdt();
+#ifdef USE_ESP_IDF
+  }
+#endif
+}
+
 /**
  * @brief Callback method that will be called by the JPEGDEC engine when a chunk
  * of the image is decoded.
@@ -65,15 +77,7 @@ static int draw_callback(JPEGDRAW *jpeg) {
     return 0;
   }
 
-  // Some very big images take too long to decode, so feed the watchdog on each callback
-  // to avoid crashing if the executing task has a watchdog enabled.
-#ifdef USE_ESP_IDF
-  if (esp_task_wdt_status(nullptr) == ESP_OK) {
-#endif
-    App.feed_wdt();
-#ifdef USE_ESP_IDF
-  }
-#endif
+  feed_watchdog();
   if (decoder->uses_direct_rgb565()) {
     decoder->draw_rgb565(jpeg->x, jpeg->y, jpeg->iWidth, jpeg->iHeight,
                          reinterpret_cast<const uint8_t *>(jpeg->pPixels));
@@ -132,7 +136,13 @@ int HOT JpegDecoder::decode(uint8_t *buffer, size_t size) {
   const int err = this->start_();
   if (err != 0)
     return err;
-  if (!this->jpeg_->decode(0, 0, this->scale_option_()))
+  // Row by row rather than with decode(): a progressive image decodes all its scans before the first draw callback
+  if (!this->jpeg_->decodeBegin(0, 0, this->scale_option_()))
+    return this->fail_();
+  int result;
+  while ((result = this->jpeg_->decodeRows(1)) == JPEG_DECODE_MORE)
+    feed_watchdog();
+  if (result != 1)
     return this->fail_();
   this->decoded_bytes_ = size;
   this->jpeg_->close();
