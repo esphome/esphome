@@ -3,7 +3,12 @@
 #include "esphome/components/i2c/i2c.h"
 #include "esphome/components/touchscreen/touchscreen.h"
 #include "esphome/core/component.h"
+#include "esphome/core/defines.h"
 #include "esphome/core/hal.h"
+#include "esphome/core/helpers.h"
+#ifdef CST328_BUTTON_COUNT
+#include "esphome/components/binary_sensor/binary_sensor.h"
+#endif
 
 namespace esphome::cst328 {
 
@@ -23,15 +28,12 @@ static const uint16_t CST_REG_FW_REVISION = 0xD208;
 static const uint16_t CST_WM_DEBUG_INFO = 0xD101;
 static const uint16_t CST_WM_NORMAL = 0xD109;
 
-class CST328ButtonListener {
- public:
-  virtual void update_button(bool state) = 0;
-};
-
 class CST328Touchscreen : public touchscreen::Touchscreen, public i2c::I2CDevice {
  public:
   void setup() override;
-  void register_button_listener(CST328ButtonListener *listener) { this->button_listeners_.push_back(listener); }
+#ifdef CST328_BUTTON_COUNT
+  void add_button_binary_sensor(binary_sensor::BinarySensor *sensor) { this->button_binary_sensors_.push_back(sensor); }
+#endif
   void dump_config() override;
 
   void set_interrupt_pin(InternalGPIOPin *pin) { this->interrupt_pin_ = pin; }
@@ -46,8 +48,10 @@ class CST328Touchscreen : public touchscreen::Touchscreen, public i2c::I2CDevice
   InternalGPIOPin *interrupt_pin_{};
   GPIOPin *reset_pin_{};
 
-  std::vector<CST328ButtonListener *> button_listeners_;
+#ifdef CST328_BUTTON_COUNT
+  StaticVector<binary_sensor::BinarySensor *, CST328_BUTTON_COUNT> button_binary_sensors_;
   bool button_touched_{};
+#endif
 
   uint16_t chip_id_{};
   uint16_t project_id_{};

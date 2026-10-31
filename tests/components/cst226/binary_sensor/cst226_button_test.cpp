@@ -2,7 +2,7 @@
 
 #include <vector>
 
-#include "esphome/components/cst226/binary_sensor/cs226_button.h"
+#include "esphome/components/binary_sensor/binary_sensor.h"
 #include "esphome/components/cst226/touchscreen/cst226_touchscreen.h"
 #include "esphome/core/application.h"
 #include "esphome/core/hal.h"
@@ -23,16 +23,9 @@ class CST226ButtonTest : public ::testing::Test {
     new (&App) Application();
   }
 
-  void add_button_(CST226Button &button) {
-    button.set_parent(&this->hub_);
-    this->buttons_.push_back(&button);
-  }
+  void add_button_(binary_sensor::BinarySensor &button) { this->hub_.add_button_binary_sensor(&button); }
 
-  void setup_() {
-    this->hub_.setup();
-    for (auto *button : this->buttons_)
-      button->setup();
-  }
+  void setup_() { this->hub_.setup(); }
 
   void key_(bool pressed) {
     this->bus_.set_key(pressed);
@@ -51,11 +44,10 @@ class CST226ButtonTest : public ::testing::Test {
 
   StatusBus bus_;
   CST226Touchscreen hub_;
-  std::vector<CST226Button *> buttons_;
 };
 
 TEST_F(CST226ButtonTest, SetupPublishesOff) {
-  CST226Button button;
+  binary_sensor::BinarySensor button;
   this->add_button_(button);
   std::vector<optional<bool>> published;
   button.add_full_state_callback([&published](optional<bool>, optional<bool> state) { published.push_back(state); });
@@ -83,7 +75,7 @@ TEST_F(CST226ButtonTest, ResetPinSetupPublishesOffBeforeItFinishes) {
 
 TEST_F(CST226ButtonTest, SetupPublishesOffWhenTheHubFails) {
   this->bus_.fail = true;
-  CST226Button button;
+  binary_sensor::BinarySensor button;
   this->add_button_(button);
   this->setup_();
   EXPECT_TRUE(this->hub_.is_failed());
@@ -92,7 +84,7 @@ TEST_F(CST226ButtonTest, SetupPublishesOffWhenTheHubFails) {
 }
 
 TEST_F(CST226ButtonTest, KeyReportDrivesState) {
-  CST226Button button;
+  binary_sensor::BinarySensor button;
   this->add_button_(button);
   this->setup_();
   std::vector<bool> states;
@@ -110,7 +102,7 @@ TEST_F(CST226ButtonTest, KeyReportDrivesState) {
 }
 
 TEST_F(CST226ButtonTest, FailedReadKeepsState) {
-  CST226Button button;
+  binary_sensor::BinarySensor button;
   this->add_button_(button);
   this->setup_();
   this->key_(true);
@@ -121,8 +113,8 @@ TEST_F(CST226ButtonTest, FailedReadKeepsState) {
 }
 
 TEST_F(CST226ButtonTest, EveryButtonOfAHubFollowsTheKey) {
-  CST226Button first;
-  CST226Button second;
+  binary_sensor::BinarySensor first;
+  binary_sensor::BinarySensor second;
   this->add_button_(first);
   this->add_button_(second);
   this->setup_();

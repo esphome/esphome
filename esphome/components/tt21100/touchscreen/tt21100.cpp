@@ -46,6 +46,11 @@ struct TT21100TouchReport {
 float TT21100Touchscreen::get_setup_priority() const { return setup_priority::HARDWARE - 1.0f; }
 
 void TT21100Touchscreen::setup() {
+#ifdef TT21100_BUTTON_COUNT
+  for (auto &button : this->buttons_)
+    button.sensor->publish_initial_state(false);
+#endif
+
   // Register interrupt pin
   if (this->interrupt_pin_ != nullptr) {
     this->interrupt_pin_->pin_mode(gpio::FLAG_INPUT | gpio::FLAG_PULLUP);
@@ -88,10 +93,10 @@ void TT21100Touchscreen::update_touches() {
                report->length, report->report_id, report->timestamp, report->btn_value, report->btn_signal[0],
                report->btn_signal[1], report->btn_signal[2], report->btn_signal[3]);
 
-      for (uint8_t i = 0; i < 4; i++) {
-        for (auto *listener : this->button_listeners_)
-          listener->update_button(i, report->btn_signal[i]);
-      }
+#ifdef TT21100_BUTTON_COUNT
+      for (auto &button : this->buttons_)
+        button.sensor->publish_state(report->btn_signal[button.index] > 0);
+#endif
 
     } else if (data_len >= 7) {
       // Touch point event
@@ -124,6 +129,12 @@ void TT21100Touchscreen::dump_config() {
   LOG_I2C_DEVICE(this);
   LOG_PIN("  Interrupt Pin: ", this->interrupt_pin_);
   LOG_PIN("  Reset Pin: ", this->reset_pin_);
+#ifdef TT21100_BUTTON_COUNT
+  for (auto &button : this->buttons_) {
+    LOG_BINARY_SENSOR("  ", "Button", button.sensor);
+    ESP_LOGCONFIG(TAG, "    Index: %u", button.index);
+  }
+#endif
 }
 
 }  // namespace esphome::tt21100

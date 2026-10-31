@@ -33,6 +33,10 @@ static const uint8_t ZERO_BYTE = 0;
 
 void CST328Touchscreen::setup() {
   ESP_LOGCONFIG(TAG, "Setting up CST328 Touchscreen...");
+#ifdef CST328_BUTTON_COUNT
+  for (auto *button : this->button_binary_sensors_)
+    button->publish_initial_state(false);
+#endif
   if (this->reset_pin_ != nullptr) {
     this->reset_pin_->setup();
     this->reset_pin_->digital_write(true);
@@ -107,16 +111,22 @@ void CST328Touchscreen::dump_config() {
   ESP_LOGCONFIG(TAG, "  Chip ID: 0x%04X, Project ID: 0x%04X", this->chip_id_, this->project_id_);
   ESP_LOGCONFIG(TAG, "  FW version: %d.%d.%d", this->fw_ver_major_, this->fw_ver_minor_, this->fw_build_);
   ESP_LOGCONFIG(TAG, "  X/Y resolution: %d/%d", this->x_raw_max_, this->y_raw_max_);
+#ifdef CST328_BUTTON_COUNT
+  for (auto *button : this->button_binary_sensors_)
+    LOG_BINARY_SENSOR("  ", "Button", button);
+#endif
 }
 
 void CST328Touchscreen::update_button_state_(bool state) {
+#ifdef CST328_BUTTON_COUNT
   if (this->button_touched_ == state) {
     return;
   }
   this->button_touched_ = state;
-  for (auto *listener : this->button_listeners_) {
-    listener->update_button(state);
+  for (auto *button : this->button_binary_sensors_) {
+    button->publish_state(state);
   }
+#endif
 }
 
 void CST328Touchscreen::update_touches() {

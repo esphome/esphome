@@ -3,14 +3,14 @@
 #include "esphome/components/i2c/i2c.h"
 #include "esphome/components/touchscreen/touchscreen.h"
 #include "esphome/core/component.h"
+#include "esphome/core/defines.h"
 #include "esphome/core/hal.h"
+#include "esphome/core/helpers.h"
+#ifdef GT911_BUTTON_COUNT
+#include "esphome/components/binary_sensor/binary_sensor.h"
+#endif
 
 namespace esphome::gt911 {
-
-class GT911ButtonListener {
- public:
-  virtual void update_button(uint8_t index, bool state) = 0;
-};
 
 class GT911Touchscreen final : public touchscreen::Touchscreen, public i2c::I2CDevice {
  public:
@@ -24,7 +24,11 @@ class GT911Touchscreen final : public touchscreen::Touchscreen, public i2c::I2CD
   void set_interrupt_pin(GPIOPin *pin) { this->interrupt_pin_ = pin; }
 
   void set_reset_pin(GPIOPin *pin) { this->reset_pin_ = pin; }
-  void register_button_listener(GT911ButtonListener *listener) { this->button_listeners_.push_back(listener); }
+#ifdef GT911_BUTTON_COUNT
+  void add_button_binary_sensor(binary_sensor::BinarySensor *sensor, uint8_t index) {
+    this->buttons_.push_back({sensor, index});
+  }
+#endif
 
  protected:
   void update_touches() override;
@@ -43,7 +47,13 @@ class GT911Touchscreen final : public touchscreen::Touchscreen, public i2c::I2CD
 
   GPIOPin *interrupt_pin_{nullptr};
   GPIOPin *reset_pin_{nullptr};
-  std::vector<GT911ButtonListener *> button_listeners_;
+#ifdef GT911_BUTTON_COUNT
+  struct KeySensor {
+    binary_sensor::BinarySensor *sensor;
+    uint8_t index;
+  };
+  StaticVector<KeySensor, GT911_BUTTON_COUNT> buttons_;
+#endif
   uint8_t button_state_{0xFF};  // last button state. Initial FF guarantees first update.
 };
 
