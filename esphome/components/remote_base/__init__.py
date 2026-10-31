@@ -63,7 +63,7 @@ from esphome.core import (
     coroutine,
     coroutine_with_priority,
 )
-from esphome.cpp_generator import MockObj
+from esphome.cpp_generator import MockObj, ProgmemAssignmentExpression
 from esphome.schema_extractors import SCHEMA_EXTRACT, schema_extractor
 from esphome.types import ConfigType, SafeExpType, TemplateArgsType
 from esphome.util import Registry, SimpleRegistry
@@ -1684,6 +1684,15 @@ async def _raw_encode(config: ConfigType, args: TemplateArgsType) -> list[str]:
     if isinstance(code, Lambda):
         timings = await _transmit_value(code, args, cg.std_vector.template(cg.int32))
         statements = [f"{data}->set_data({timings});"]
+    elif (storage_id := config[CONF_CODE_STORAGE_ID]).is_manual:
+        # A user-set id still names a global table, so lambdas can read it
+        CORE.add_global_after_includes(
+            ProgmemAssignmentExpression(
+                cg.int32, storage_id, cg.ArrayInitializer(*code)
+            )
+        )
+        CORE.register_variable(storage_id, MockObj(storage_id, "."))
+        statements = [f"{encode_raw_timings}({data}, ::{storage_id}, {len(code)});"]
     else:
         # Equal codes share one flash table
         table = cg.shared_progmem_array(
