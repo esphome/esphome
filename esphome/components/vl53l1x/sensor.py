@@ -1,3 +1,5 @@
+import struct
+
 from esphome import pins
 import esphome.codegen as cg
 from esphome.components import i2c, sensor
@@ -37,6 +39,14 @@ CONF_ROI_HEIGHT = "roi_height"
 CONF_ROI_CENTER = "roi_center"
 
 DEFAULT_ADDRESS = 0x29
+# The signal rate limit register holds MCPS as 9.7 fixed point
+SIGNAL_RATE_SCALE = 128
+# Keep in sync with the initializers in vl53l1x.h
+DEFAULT_DISTANCE_MODE = "long"
+DEFAULT_TIMING_BUDGET_MS = 50
+DEFAULT_SIGNAL_RATE_LIMIT = 1.0
+DEFAULT_ROI_SIZE = 16
+DEFAULT_OFFSET = 0
 # ROI centre the ULD uses for a ROI wider or taller than 10 SPADs
 ROI_CENTER_LARGE = 199
 # Timing budgets in ms supported by the ST Ultra Lite Driver tables, per distance mode
@@ -122,22 +132,30 @@ CONFIG_SCHEMA = cv.All(
     )
     .extend(
         {
-            cv.Optional(CONF_DISTANCE_MODE, default="long"): cv.enum(
+            cv.Optional(CONF_DISTANCE_MODE, default=DEFAULT_DISTANCE_MODE): cv.enum(
                 DISTANCE_MODE_OPTIONS, lower=True
             ),
             cv.Optional(
-                CONF_TIMING_BUDGET, default="50ms"
+                CONF_TIMING_BUDGET, default=f"{DEFAULT_TIMING_BUDGET_MS}ms"
             ): cv.positive_time_period_milliseconds,
             cv.Optional(CONF_ENABLE_PIN): pins.gpio_output_pin_schema,
             # Minimum return signal rate in MCPS (mega counts per second)
-            cv.Optional(CONF_SIGNAL_RATE_LIMIT, default=1.0): cv.float_range(
+            cv.Optional(
+                CONF_SIGNAL_RATE_LIMIT, default=DEFAULT_SIGNAL_RATE_LIMIT
+            ): cv.float_range(
                 min=0.0, max=512.0, min_included=False, max_included=False
             ),
-            cv.Optional(CONF_ROI_WIDTH, default=16): cv.int_range(min=4, max=16),
-            cv.Optional(CONF_ROI_HEIGHT, default=16): cv.int_range(min=4, max=16),
+            cv.Optional(CONF_ROI_WIDTH, default=DEFAULT_ROI_SIZE): cv.int_range(
+                min=4, max=16
+            ),
+            cv.Optional(CONF_ROI_HEIGHT, default=DEFAULT_ROI_SIZE): cv.int_range(
+                min=4, max=16
+            ),
             # Defaults to the chip's optical centre, or 199 for a ROI larger than 10x10
             cv.Optional(CONF_ROI_CENTER): cv.int_range(min=1, max=255),
-            cv.Optional(CONF_OFFSET, default=0): cv.int_range(min=-1024, max=1023),
+            cv.Optional(CONF_OFFSET, default=DEFAULT_OFFSET): cv.int_range(
+                min=-1024, max=1023
+            ),
         }
     )
     .extend(cv.polling_component_schema("1s"))
@@ -154,12 +172,22 @@ async def to_code(config: ConfigType) -> None:
     var = await i2c.new_i2c_component(config)
     await sensor.register_sensor(var, config)
 
-    cg.add(var.set_distance_mode(config[CONF_DISTANCE_MODE]))
-    cg.add(var.set_timing_budget(config[CONF_TIMING_BUDGET].total_milliseconds))
-    cg.add(var.set_signal_rate_limit(config[CONF_SIGNAL_RATE_LIMIT]))
-    cg.add(var.set_roi(config[CONF_ROI_WIDTH], config[CONF_ROI_HEIGHT]))
-    if (roi_center := config.get(CONF_ROI_CENTER)) is not None:
-        cg.add(var.set_roi_center(roi_center))
-    cg.add(var.set_offset(config[CONF_OFFSET]))
+    # Skip the setters when the config matches the C++ initializers.
+    if (mode := config[CONF_DISTANCE_MODE]) != DEFAULT_DISTANCE_MODE:
+        cg.add(var.set_distance_mode(mode))
+    budget_ms = config[CONF_TIMING_BUDGET].total_milliseconds
+    if budget_ms != DEFAULT_TIMING_BUDGET_MS:
+        cg.add(var.set_timing_budget(budget_ms))
+    # Round to float32 first, as the old float setter did, so the register value is unchanged
+    mcps = struct.unpack("<f", struct.pack("<f", config[CONF_SIGNAL_RATE_LIMIT]))[0]
+    rate = int(mcps * SIGNAL_RATE_SCALE)
+    if rate != DEFAULT_SIGNAL_RATE_LIMIT * SIGNAL_RATE_SCALE:
+        cg.add(var.set_signal_rate_limit(rate))
+    width, height = config[CONF_ROI_WIDTH], config[CONF_ROI_HEIGHT]
+    if width != DEFAULT_ROI_SIZE or height != DEFAULT_ROI_SIZE:
+        cg.add(var.set_roi(width, height))
+    cg.add_optional(var.set_roi_center, config.get(CONF_ROI_CENTER))
+    if (offset := config[CONF_OFFSET]) != DEFAULT_OFFSET:
+        cg.add(var.set_offset(offset))
 
     await cg.add_pin(var.set_enable_pin, config.get(CONF_ENABLE_PIN))
