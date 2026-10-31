@@ -1,6 +1,18 @@
 esphome:
   on_boot:
     then:
+      # External components keep scripts as script::Script<...> pointers
+      - lambda: |-
+          script::Script<int> *by_base = id(my_script_by_value_params);
+          by_base->execute(1);
+          if (by_base->is_running())
+            by_base->stop();
+          script::Script<> *single = id(my_script);
+          single->execute();
+          single->stop();
+          script::Script<> *queued = id(my_script_queued);
+          queued->execute();
+          queued->stop();
       - script.execute: my_script
       - script.execute:
           id: my_script_with_params
