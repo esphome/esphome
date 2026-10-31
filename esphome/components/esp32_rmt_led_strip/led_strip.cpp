@@ -69,17 +69,8 @@ void ESP32RMTLEDStripLightOutput::setup() {
   size_t buffer_size = this->get_buffer_size_();
 
   RAMAllocator<uint8_t> allocator(this->use_psram_ ? 0 : RAMAllocator<uint8_t>::ALLOC_INTERNAL);
-  this->internal_accessor_.color_data = allocator.allocate(buffer_size);
-  if (this->internal_accessor_.color_data == nullptr) {
+  if (!this->internal_accessor_.allocate(allocator, this->num_leds_)) {
     ESP_LOGE(TAG, "Cannot allocate LED buffer!");
-    this->mark_failed();
-    return;
-  }
-  memset(this->internal_accessor_.color_data, 0, buffer_size);
-
-  this->internal_accessor_.effect_data = allocator.allocate(this->num_leds_);
-  if (this->internal_accessor_.effect_data == nullptr) {
-    ESP_LOGE(TAG, "Cannot allocate effect data!");
     this->mark_failed();
     return;
   }

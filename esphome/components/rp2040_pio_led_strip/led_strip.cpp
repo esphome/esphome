@@ -31,16 +31,8 @@ void RP2040PIOLEDStripLightOutput::setup() {
   size_t buffer_size = this->get_buffer_size_();
 
   RAMAllocator<uint8_t> allocator;
-  this->internal_accessor_.color_data = allocator.allocate(buffer_size);
-  if (this->internal_accessor_.color_data == nullptr) {
-    ESP_LOGE(TAG, "Failed to allocate buffer of size %u", buffer_size);
-    this->mark_failed();
-    return;
-  }
-
-  this->internal_accessor_.effect_data = allocator.allocate(this->num_leds_);
-  if (this->internal_accessor_.effect_data == nullptr) {
-    ESP_LOGE(TAG, "Failed to allocate effect data of size %u", this->num_leds_);
+  if (!this->internal_accessor_.allocate(allocator, this->num_leds_)) {
+    ESP_LOGE(TAG, "Failed to allocate buffer of size %u", buffer_size + this->num_leds_);
     this->mark_failed();
     return;
   }

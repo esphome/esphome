@@ -163,16 +163,8 @@ void BekenSPILEDStripLightOutput::setup() {
   size_t dma_buffer_size = (buffer_size * 8) + (2 * 64);
 
   RAMAllocator<uint8_t> allocator;
-  this->internal_accessor_.color_data = allocator.allocate(buffer_size);
-  if (this->internal_accessor_.color_data == nullptr) {
+  if (!this->internal_accessor_.allocate(allocator, this->num_leds_)) {
     ESP_LOGE(TAG, "Cannot allocate LED buffer!");
-    this->mark_failed();
-    return;
-  }
-
-  this->internal_accessor_.effect_data = allocator.allocate(this->num_leds_);
-  if (this->internal_accessor_.effect_data == nullptr) {
-    ESP_LOGE(TAG, "Cannot allocate effect data!");
     this->mark_failed();
     return;
   }
@@ -184,8 +176,6 @@ void BekenSPILEDStripLightOutput::setup() {
     return;
   }
 
-  memset(this->internal_accessor_.color_data, 0, buffer_size);
-  memset(this->internal_accessor_.effect_data, 0, this->num_leds_);
   memset(this->dma_buf_, 0, dma_buffer_size);
 
   uint32_t value = PCLK_POSI_SPI;

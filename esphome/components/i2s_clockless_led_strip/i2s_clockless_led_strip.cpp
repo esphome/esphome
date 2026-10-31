@@ -151,12 +151,8 @@ bool I2SClocklessLedStrip::allocate_buffers_() {
   RAMAllocator<uint8_t> allocator(RAMAllocator<uint8_t>::ALLOC_INTERNAL);
   this->i2s_data_ = allocator.allocate(i2s_data_bytes);
   if (this->i2s_data_ != nullptr) {
-    // The effect data follows the color data
-    this->internal_accessor_.color_data = allocator.allocate(this->color_data_bytes_ + this->num_leds_);
-    if (this->internal_accessor_.color_data != nullptr) {
-      this->internal_accessor_.effect_data = this->internal_accessor_.color_data + this->color_data_bytes_;
+    if (this->internal_accessor_.allocate(allocator, this->num_leds_)) {
       memset(this->i2s_data_, 0, i2s_data_bytes);
-      memset(this->internal_accessor_.color_data, 0, this->color_data_bytes_ + this->num_leds_);
       return true;
     }
     allocator.deallocate(this->i2s_data_, i2s_data_bytes);

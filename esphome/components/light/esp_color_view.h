@@ -4,6 +4,7 @@
 #include <utility>
 
 #include "esphome/core/color.h"
+#include "esphome/core/helpers.h"
 #include "esp_hsv_color.h"
 #include "esp_color_correction.h"
 #include "channel_colors.h"
@@ -76,6 +77,20 @@ class BufferColorAccessor : public ESPColorAccessor {
     this->channel_colors.set_channel(this->color_data, index, channel, raw_value);
   }
   void set_effect_data(int32_t index, uint8_t value) override { this->effect_data[index] = value; }
+
+  /// Allocate the color and effect data for `num_leds` LEDs as one zeroed block, followed by `extra_bytes` more
+  /// for the caller, which start at `effect_data + num_leds`. Returns false if it failed.
+  bool allocate(RAMAllocator<uint8_t> &allocator, size_t num_leds, size_t extra_bytes = 0) {
+    const size_t color_bytes = num_leds * this->channel_colors.bytes_per_led();
+    const size_t total_bytes = color_bytes + num_leds + extra_bytes;
+    uint8_t *buf = allocator.allocate(total_bytes);
+    if (buf == nullptr)
+      return false;
+    memset(buf, 0, total_bytes);
+    this->color_data = buf;
+    this->effect_data = buf + color_bytes;
+    return true;
+  }
 
   /// Zero the effect data of the first `num_leds` LEDs; does nothing before the effect data is allocated.
   void clear_effect_data(size_t num_leds) {
