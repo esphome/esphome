@@ -70,8 +70,8 @@ class BLEServiceDataAdvertiseTrigger final : public Trigger<const adv_data_t &>,
   }
 
  protected:
-  ESPBTUUID uuid_{};
   uint64_t address_{0};
+  ESPBTUUID uuid_{};
   bool has_address_{false};
 };
 
@@ -104,8 +104,8 @@ class BLEManufacturerDataAdvertiseTrigger final : public Trigger<const adv_data_
   }
 
  protected:
-  ESPBTUUID uuid_{};
   uint64_t address_{0};
+  ESPBTUUID uuid_{};
   bool has_address_{false};
 };
 
