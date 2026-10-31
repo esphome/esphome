@@ -720,6 +720,9 @@ def apply_action_builder(
     A constant that is an id (``cv.use_id`` under ``cv.templatable``) is the object it names.
     With ``call`` every statement targets the call object ``auto apply_call = parent->call()``,
     and ``apply_call.perform()`` is appended.
+
+    A wrapper may do other work first, but must return the builder's result unchanged and not
+    use it: when the action merges with its neighbors, the result names no C++ object.
     """
     # An action stores the value, so a std::string constant stays in flash on ESP8266.
     _check_key_in_schema(name, schema, id_key)
@@ -1605,6 +1608,11 @@ async def _build_action_or_inline(
         action = await build_action(full_config, template_arg, args)
     finally:
         _INLINE_COLLECTOR.reset(token)
+    # Returning anything else would silently drop the collected action from the firmware
+    if (action is _COLLECTED_ACTION) != (collector.action is not None):
+        raise EsphomeError(
+            f"The builder of action {action_id} must return the result of its apply builder"
+        )
     return collector.action if action is _COLLECTED_ACTION else action
 
 
@@ -1958,6 +1966,8 @@ async def build_callback_automation(
     if not custom and (
         forwarder is TriggerOnTrueForwarder or forwarder is TriggerOnFalseForwarder
     ):
+        if args:
+            raise ValueError(f"{forwarder} triggers an automation with no arguments")
         params, forward, custom = [(cg.bool_, "state")], [], True
         when = "state" if forwarder is TriggerOnTrueForwarder else "!state"
     call = _when_call(when, parent)

@@ -2425,6 +2425,30 @@ def _if_action(*then: ConfigType, condition: ConfigType | None = None) -> Config
 
 @pytest.mark.asyncio
 @pytest.mark.usefixtures("apply_actions")
+async def test_build_action_list_rejects_a_dropped_collected_action() -> None:
+    """A wrapper that returns another object would lose the collected action without a trace."""
+    builder = apply_action_builder(
+        "my.wrapped",
+        {cv.Required(CONF_ID): cv.use_id(cg.Component)},
+        ApplyCall("do_wrapped()"),
+    )
+
+    @register_action("my.wrapped", ApplyAction, {}, synchronous=True)
+    async def wrapped_to_code(
+        config: ConfigType,
+        action_id: ID,
+        template_arg: cg.TemplateArguments,
+        args: list[tuple[object, str]],
+    ) -> MockObj:
+        await builder(config, action_id, template_arg, args)
+        return MockObj("something_else", "->")
+
+    with pytest.raises(EsphomeError, match="must return the result"):
+        await build_action_list([_action("my.wrapped", "act_w")], TEMPLATE_ARG, [])
+
+
+@pytest.mark.asyncio
+@pytest.mark.usefixtures("apply_actions")
 async def test_build_action_list_inline_if_is_control_flow() -> None:
     """An all-inline ``if`` merges with its neighbours and checks for a stop after the condition."""
     config = [
@@ -2745,6 +2769,20 @@ def _delay(id_: str) -> ConfigType:
 
 
 CALLBACK_PARENT = MockObj("parent", "->")
+
+
+@pytest.mark.asyncio
+@pytest.mark.parametrize("forwarder", [TriggerOnTrueForwarder, TriggerOnFalseForwarder])
+async def test_callback_automation_core_forwarder_rejects_args(
+    forwarder: MockObj,
+) -> None:
+    """These forwarders call an Automation<>, so arguments would only fail in the C++ build."""
+    conf = _automation_conf()
+
+    with pytest.raises(ValueError, match="no arguments"):
+        await build_callback_automation(
+            CALLBACK_PARENT, "add_cb", [(cg.bool_, "x")], conf, forwarder=forwarder
+        )
 
 
 @pytest.mark.asyncio
