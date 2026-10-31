@@ -3,6 +3,7 @@
 #include "esphome/components/motion/motion_component.h"
 #include "esphome/components/i2c/i2c.h"
 #include "esphome/core/component.h"
+#include "esphome/core/gpio.h"
 #include "esphome/core/helpers.h"
 
 namespace esphome::lis3dh {
@@ -23,6 +24,12 @@ static constexpr uint8_t LIS3DH_REG_INT1_CFG = 0x30;
 static constexpr uint8_t LIS3DH_REG_INT1_SRC = 0x31;
 static constexpr uint8_t LIS3DH_REG_INT1_THS = 0x32;
 static constexpr uint8_t LIS3DH_REG_INT1_DURATION = 0x33;
+static constexpr uint8_t LIS3DH_REG_CLICK_CFG = 0x38;
+static constexpr uint8_t LIS3DH_REG_CLICK_SRC = 0x39;
+static constexpr uint8_t LIS3DH_REG_CLICK_THS = 0x3A;
+static constexpr uint8_t LIS3DH_REG_TIME_LIMIT = 0x3B;
+static constexpr uint8_t LIS3DH_REG_TIME_LATENCY = 0x3C;
+static constexpr uint8_t LIS3DH_REG_TIME_WINDOW = 0x3D;
 
 static constexpr uint8_t LIS3DH_WHO_AM_I_VALUE = 0x33;
 
@@ -33,7 +40,8 @@ static constexpr uint8_t LIS3DH_AUTO_INCREMENT = 0x80;
 static constexpr uint8_t LIS3DH_CTRL_REG1_AXES_EN = 0x07;  // Xen | Yen | Zen
 static constexpr uint8_t LIS3DH_CTRL_REG1_LPEN = 0x08;     // low-power enable
 // CTRL_REG2
-static constexpr uint8_t LIS3DH_CTRL_REG2_HP_IA1 = 0x01;  // high-pass filter the IA1 interrupt
+static constexpr uint8_t LIS3DH_CTRL_REG2_HP_IA1 = 0x01;   // high-pass filter the IA1 interrupt
+static constexpr uint8_t LIS3DH_CTRL_REG2_HPCLICK = 0x04;  // high-pass filter the click detector
 // CTRL_REG4
 static constexpr uint8_t LIS3DH_CTRL_REG4_HR = 0x08;   // high-resolution enable
 static constexpr uint8_t LIS3DH_CTRL_REG4_BDU = 0x80;  // block data update
@@ -43,6 +51,20 @@ static constexpr uint8_t LIS3DH_CTRL_REG5_LIR_INT1 = 0x08;  // latch IA1 interru
 static constexpr uint8_t LIS3DH_CTRL_REG3_I1_IA1 = 0x40;        // route IA1 to INT1 pad
 static constexpr uint8_t LIS3DH_CTRL_REG6_I2_IA1 = 0x40;        // route IA1 to INT2 pad
 static constexpr uint8_t LIS3DH_CTRL_REG6_INT_POLARITY = 0x02;  // 1 = active low
+static constexpr uint8_t LIS3DH_CTRL_REG3_I1_CLICK = 0x80;      // route click to INT1 pad
+static constexpr uint8_t LIS3DH_CTRL_REG6_I2_CLICK = 0x80;      // route click to INT2 pad
+// CLICK_CFG
+static constexpr uint8_t LIS3DH_CLICK_CFG_SINGLE = 0x15;  // XS | YS | ZS
+static constexpr uint8_t LIS3DH_CLICK_CFG_DOUBLE = 0x2A;  // XD | YD | ZD
+// CLICK_THS
+static constexpr uint8_t LIS3DH_CLICK_THS_MAX = 0x7F;
+// CLICK_SRC
+static constexpr uint8_t LIS3DH_CLICK_SRC_X = 0x01;
+static constexpr uint8_t LIS3DH_CLICK_SRC_Y = 0x02;
+static constexpr uint8_t LIS3DH_CLICK_SRC_SIGN = 0x08;  // 1 = tap in the negative direction
+static constexpr uint8_t LIS3DH_CLICK_SRC_SCLICK = 0x10;
+static constexpr uint8_t LIS3DH_CLICK_SRC_DCLICK = 0x20;
+static constexpr uint8_t LIS3DH_CLICK_SRC_IA = 0x40;
 // TEMP_CFG_REG
 static constexpr uint8_t LIS3DH_TEMP_CFG_ADC_EN = 0x80;
 static constexpr uint8_t LIS3DH_TEMP_CFG_TEMP_EN = 0x40;
@@ -89,6 +111,7 @@ enum LIS3DHInterruptPin : uint8_t {
 class LIS3DHComponent : public motion::MotionComponent, public i2c::I2CDevice {
  public:
   void setup() override;
+  void loop() override;
   void dump_config() override;
   void on_shutdown() override;
 
@@ -107,13 +130,40 @@ class LIS3DHComponent : public motion::MotionComponent, public i2c::I2CDevice {
     this->interrupt_high_pass_ = high_pass;
   }
 
+  // axes_cfg is the CLICK_CFG mask and the times are in samples, all computed in Python.
+  // double_tap_wait_ms is latency + window: how long a single tap is held back when double
+  // taps are also enabled, in case it turns out to be the first half of one.
+  void set_tap(uint8_t axes_cfg, uint8_t time_limit, uint8_t latency, uint8_t window, bool high_pass,
+               uint32_t double_tap_wait_ms) {
+    this->tap_axes_cfg_ = axes_cfg;
+    this->tap_time_limit_ = time_limit;
+    this->tap_latency_ = latency;
+    this->tap_window_ = window;
+    this->tap_high_pass_ = high_pass;
+    this->tap_double_wait_ms_ = double_tap_wait_ms;
+  }
+  // Read CLICK_SRC only while this pin shows the chip's interrupt pad asserted, instead of polling.
+  void set_tap_interrupt(GPIOPin *pin, LIS3DHInterruptPin pad) {
+    this->tap_interrupt_pin_ = pin;
+    this->tap_pad_ = pad;
+  }
+  /// Set the tap threshold in g. Takes effect immediately when called after setup.
+  void set_tap_threshold(float threshold_g);
+
   template<typename F> void add_temperature_listener(F &&cb) { this->temperature_callback_.add(std::forward<F>(cb)); }
+  template<typename F> void add_on_tap_callback(F &&cb) { this->tap_callback_.add(std::forward<F>(cb)); }
+  template<typename F> void add_on_double_tap_callback(F &&cb) { this->double_tap_callback_.add(std::forward<F>(cb)); }
 
  protected:
   bool update_data(motion::MotionData &data) override;
   bool setup_accelerometer_();
   bool setup_temperature_();
   bool setup_interrupt_();
+  bool setup_tap_();
+  bool write_tap_threshold_();
+  void read_tap_(uint32_t now);
+  void check_pending_tap_(uint32_t now);
+  void resolve_tap_axis_(uint8_t src, uint8_t &axis, bool &negative) const;
   bool publish_temperature_();
 
   LIS3DHRange range_{LIS3DH_RANGE_2G};
@@ -129,7 +179,28 @@ class LIS3DHComponent : public motion::MotionComponent, public i2c::I2CDevice {
   bool interrupt_active_high_{true};
   bool interrupt_high_pass_{false};
 
+  // Tap (click) detection; a zero CLICK_CFG mask means disabled.
+  GPIOPin *tap_interrupt_pin_{nullptr};
+  LIS3DHInterruptPin tap_pad_{LIS3DH_INT_PIN_INT1};
+  uint8_t tap_axes_cfg_{0};
+  uint8_t tap_threshold_{1};
+  uint8_t tap_time_limit_{0};
+  uint8_t tap_latency_{0};
+  uint8_t tap_window_{0};
+  bool tap_high_pass_{true};
+  uint32_t tap_double_wait_ms_{0};
+  // CLICK_SRC from the previous read, so each event fires once even if its bit is still set.
+  uint8_t last_tap_src_{0};
+  // A single tap seen while double taps are enabled, waiting to see whether a second follows.
+  bool tap_pending_{false};
+  bool tap_pending_negative_{false};
+  uint8_t tap_pending_axis_{0};
+  uint32_t tap_pending_since_{0};
+
   LazyCallbackManager<void(float)> temperature_callback_{};
+  // Arguments: the tapped axis (motion::X_AXIS etc., after axis_map) and whether it was the negative side.
+  LazyCallbackManager<void(uint8_t, bool)> tap_callback_{};
+  LazyCallbackManager<void(uint8_t, bool)> double_tap_callback_{};
 };
 
 }  // namespace esphome::lis3dh

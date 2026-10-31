@@ -19,6 +19,19 @@ motion:
       latched: true
       active_high: true
       high_pass_filter: false
+    # Single and double tap together, polled (no interrupt pin).
+    tap:
+      threshold: 0.6g
+      time_limit: 25ms
+      high_pass_filter: false
+      on_tap:
+        - logger.log:
+            format: "Tap on axis %u, %s side"
+            args: ["axis", 'negative ? "negative" : "positive"']
+      on_double_tap:
+        - logger.log:
+            format: "Double tap on axis %u, %s side"
+            args: ["axis", 'negative ? "negative" : "positive"']
 
   # A second device covering the other side of each option: low power mode with
   # the rate that only exists there, routed to INT2, active low, unlatched, and
@@ -38,6 +51,24 @@ motion:
       latched: false
       active_high: false
       high_pass_filter: true
+    # Double tap only on INT1 (the motion interrupt uses INT2), read only when the
+    # interrupt pin is asserted.
+    tap:
+      threshold: 2g
+      time_limit: 20ms
+      latency: 40ms
+      window: 150ms
+      axes: [x, y]
+      high_pass_filter: true
+      pin: INT1
+      interrupt_pin: ${tap_interrupt_pin}
+      on_double_tap:
+        - lis3dh.set_tap_threshold:
+            id: lis3dh_low_power
+            threshold: 2.5g
+        - lis3dh.set_tap_threshold:
+            id: lis3dh_low_power
+            threshold: !lambda "return 1.5f;"
 
 sensor:
   - platform: lis3dh
