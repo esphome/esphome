@@ -11,11 +11,9 @@ static constexpr size_t TEE501_SERIAL_NUMBER_SIZE = 7;
 void TEE501Component::setup() {
   uint8_t address[] = {0x70, 0x29};
   uint8_t identification[9];
-  this->read(identification, 9);
   this->write_read(address, sizeof address, identification, sizeof identification);
   if (identification[8] != crc8(identification, 8, 0xFF, 0x31, true)) {
-    this->error_code_ = CRC_CHECK_FAILED;
-    this->mark_failed();
+    this->mark_failed(LOG_STR("CRC check failed"));
     return;
   }
 #if ESPHOME_LOG_LEVEL >= ESPHOME_LOG_LEVEL_VERBOSE
@@ -27,17 +25,6 @@ void TEE501Component::setup() {
 void TEE501Component::dump_config() {
   ESP_LOGCONFIG(TAG, "TEE501:");
   LOG_I2C_DEVICE(this);
-  switch (this->error_code_) {
-    case COMMUNICATION_FAILED:
-      ESP_LOGE(TAG, ESP_LOG_MSG_COMM_FAIL);
-      break;
-    case CRC_CHECK_FAILED:
-      ESP_LOGE(TAG, "The crc check failed");
-      break;
-    case NONE:
-    default:
-      break;
-  }
   LOG_UPDATE_INTERVAL(this);
   LOG_SENSOR("  ", "TEE501", this);
 }
@@ -49,16 +36,10 @@ void TEE501Component::update() {
     uint8_t i2c_response[3];
     this->read(i2c_response, 3);
     if (i2c_response[2] != crc8(i2c_response, 2, 0xFF, 0x31, true)) {
-      this->error_code_ = CRC_CHECK_FAILED;
-      this->status_set_warning();
+      this->status_set_warning(LOG_STR("CRC check failed"));
       return;
     }
-    float temperature = (float) encode_uint16(i2c_response[0], i2c_response[1]);
-    if (temperature > 55536) {
-      temperature = (temperature - 65536) / 100;
-    } else {
-      temperature = temperature / 100;
-    }
+    float temperature = static_cast<int16_t>(encode_uint16(i2c_response[0], i2c_response[1])) / 100.0f;
     ESP_LOGD(TAG, "Got temperature=%.2f°C", temperature);
     this->publish_state(temperature);
     this->status_clear_warning();
