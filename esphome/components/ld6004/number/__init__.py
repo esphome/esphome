@@ -1,10 +1,7 @@
-import esphome.codegen as cg
 from esphome.components import number
 from esphome.components.ld600x import entities
 import esphome.config_validation as cv
 from esphome.const import ENTITY_CATEGORY_CONFIG
-from esphome.core.entity_helpers import SubEntities
-from esphome.cpp_generator import MockObj
 from esphome.types import ConfigType
 
 from .. import LD6004Component
@@ -31,9 +28,8 @@ FINAL_VALIDATE_SCHEMA = entities.number_final_validate(CONF_LD6004_ID, "ld6004")
 
 
 async def to_code(config: ConfigType) -> None:
-    await entities.number_to_code(config, CONF_LD6004_ID)
-    hub: MockObj = await cg.get_variable(config[CONF_LD6004_ID])
-    numbers: SubEntities = number.sub_numbers(config, parent=hub)
+    numbers = await entities.number_to_code(config, CONF_LD6004_ID)
+    hub = numbers.parent
     await numbers(
         CONF_DWELL_LIFETIME,
         hub.set_dwell_lifetime_number,

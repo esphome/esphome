@@ -6,6 +6,7 @@ import pytest
 
 from esphome.components.button import ApplyButton
 from esphome.components.ld6004 import LD6004Component
+from esphome.components.number import ApplyNumber
 from esphome.components.select import ApplySelect
 import esphome.config_validation as cv
 from esphome.const import PlatformFramework
@@ -66,6 +67,15 @@ def _cases(
             ),
         ),
         *_cases("button", ApplyButton, "config", (), ("clear_dwell",)),
+        *_cases(
+            "number",
+            ApplyNumber,
+            "config",
+            (),
+            ("dwell_lifetime",),
+            ("output_interval",),
+            ("dwell_lifetime", "output_interval"),
+        ),
     ],
 )
 def test_platform_keys(
@@ -110,3 +120,17 @@ def test_platform_rejects_key(
     set_core_config(PlatformFramework.ESP32_IDF)
     with pytest.raises(cv.Invalid, match=match):
         _schema(platform)(config)
+
+
+def test_area_config_keys(set_core_config: SetCoreConfigCallable) -> None:
+    set_core_config(PlatformFramework.ESP32_IDF)
+    keys = ("x_min", "x_max", "y_min", "y_max", "z_min", "z_max")
+    config: ConfigType = _schema("number")(
+        {"area_config": {key: {"name": key} for key in keys}}
+    )
+    assert config["ld6004_id"].type == LD6004Component
+    assert set(config["area_config"]) == set(keys)
+    for key in keys:
+        assert config["area_config"][key]["id"].type == ApplyNumber
+        assert config["area_config"][key]["unit_of_measurement"] == "m"
+        assert config["area_config"][key]["entity_category"] == "config"
