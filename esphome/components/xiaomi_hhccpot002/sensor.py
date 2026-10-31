@@ -9,6 +9,7 @@ from esphome.const import (
     ICON_WATER_PERCENT,
     STATE_CLASS_MEASUREMENT,
     UNIT_MICROSIEMENS_PER_CENTIMETER,
+    UNIT_PERCENT,
 )
 from esphome.types import ConfigType
 
@@ -26,7 +27,10 @@ CONFIG_SCHEMA = cv.All(
             cv.GenerateID(): cv.declare_id(XiaomiHHCCPOT002),
             cv.Required(CONF_MAC_ADDRESS): cv.mac_address,
             cv.Optional(CONF_MOISTURE): sensor.sensor_schema(
-                kind=sensor.PERCENT, icon=ICON_WATER_PERCENT
+                unit_of_measurement=UNIT_PERCENT,
+                icon=ICON_WATER_PERCENT,
+                accuracy_decimals=0,
+                state_class=STATE_CLASS_MEASUREMENT,
             ),
             cv.Optional(CONF_CONDUCTIVITY): sensor.sensor_schema(
                 unit_of_measurement=UNIT_MICROSIEMENS_PER_CENTIMETER,

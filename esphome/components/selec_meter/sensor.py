@@ -128,9 +128,8 @@ COMMON_SENSORS = {
     **_sensor_group(
         CONF_IMPORT_REACTIVE_ENERGY,
         CONF_EXPORT_REACTIVE_ENERGY,
-        unit_of_measurement=UNIT_KILOVOLT_AMPS_REACTIVE_HOURS,
+        kind=sensor.REACTIVE_ENERGY_KVARH,
         accuracy_decimals=2,
-        state_class=STATE_CLASS_TOTAL_INCREASING,
     ),
     CONF_ACTIVE_POWER: sensor.sensor_schema(kind=sensor.POWER, accuracy_decimals=3),
     CONF_REACTIVE_POWER: sensor.sensor_schema(

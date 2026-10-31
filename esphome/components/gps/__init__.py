@@ -14,6 +14,7 @@ from esphome.const import (
     STATE_CLASS_MEASUREMENT_ANGLE,
     UNIT_DEGREES,
     UNIT_KILOMETER_PER_HOUR,
+    UNIT_METER,
 )
 from esphome.cpp_generator import MockObj
 from esphome.types import ConfigType
@@ -55,7 +56,10 @@ CONFIG_SCHEMA = cv.All(
         {
             cv.GenerateID(): cv.declare_id(GPS),
             cv.Optional(CONF_LATITUDE): sensor.sensor_schema(
-                kind=sensor.ANGLE, icon=ICON_LATITUDE, accuracy_decimals=6
+                unit_of_measurement=UNIT_DEGREES,
+                icon=ICON_LATITUDE,
+                accuracy_decimals=6,
+                state_class=STATE_CLASS_MEASUREMENT,
             ),
             cv.Optional(CONF_LONGITUDE): sensor.sensor_schema(
                 unit_of_measurement=UNIT_DEGREES,
@@ -77,7 +81,10 @@ CONFIG_SCHEMA = cv.All(
                 state_class=STATE_CLASS_MEASUREMENT_ANGLE,
             ),
             cv.Optional(CONF_ALTITUDE): sensor.sensor_schema(
-                kind=sensor.DISTANCE_M, icon=ICON_ALTIMETER
+                unit_of_measurement=UNIT_METER,
+                icon=ICON_ALTIMETER,
+                accuracy_decimals=2,
+                state_class=STATE_CLASS_MEASUREMENT,
             ),
             cv.Optional(CONF_SATELLITES): sensor.sensor_schema(
                 # no unit_of_measurement

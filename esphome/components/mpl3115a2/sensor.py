@@ -1,7 +1,13 @@
 import esphome.codegen as cg
 from esphome.components import i2c, sensor
 import esphome.config_validation as cv
-from esphome.const import CONF_ALTITUDE, CONF_PRESSURE, CONF_TEMPERATURE
+from esphome.const import (
+    CONF_ALTITUDE,
+    CONF_PRESSURE,
+    CONF_TEMPERATURE,
+    STATE_CLASS_MEASUREMENT,
+    UNIT_METER,
+)
 from esphome.types import ConfigType
 
 CODEOWNERS = ["@kbickar"]
@@ -25,7 +31,11 @@ CONFIG_SCHEMA = (
                 CONF_ALTITUDE,
                 "pressure",
                 f"{CONF_PRESSURE} and {CONF_ALTITUDE} can't be used together",
-            ): sensor.sensor_schema(kind=sensor.DISTANCE_M, accuracy_decimals=1),
+            ): sensor.sensor_schema(
+                unit_of_measurement=UNIT_METER,
+                accuracy_decimals=1,
+                state_class=STATE_CLASS_MEASUREMENT,
+            ),
             cv.Optional(CONF_TEMPERATURE): sensor.sensor_schema(
                 kind=sensor.TEMPERATURE
             ),

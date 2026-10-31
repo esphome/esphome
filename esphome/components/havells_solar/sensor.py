@@ -14,6 +14,7 @@ from esphome.const import (
     ICON_CURRENT_AC,
     STATE_CLASS_MEASUREMENT,
     STATE_CLASS_TOTAL_INCREASING,
+    UNIT_DEGREES,
     UNIT_MINUTE,
 )
 from esphome.types import ConfigType
@@ -109,10 +110,14 @@ CONFIG_SCHEMA = (
                 state_class=STATE_CLASS_TOTAL_INCREASING,
             ),
             cv.Optional(CONF_INVERTER_MODULE_TEMP): sensor.sensor_schema(
-                kind=sensor.ANGLE, accuracy_decimals=0
+                unit_of_measurement=UNIT_DEGREES,
+                accuracy_decimals=0,
+                state_class=STATE_CLASS_MEASUREMENT,
             ),
             cv.Optional(CONF_INVERTER_INNER_TEMP): sensor.sensor_schema(
-                kind=sensor.ANGLE, accuracy_decimals=0
+                unit_of_measurement=UNIT_DEGREES,
+                accuracy_decimals=0,
+                state_class=STATE_CLASS_MEASUREMENT,
             ),
             cv.Optional(CONF_INVERTER_BUS_VOLTAGE): sensor.sensor_schema(
                 kind=sensor.VOLTAGE, accuracy_decimals=0
