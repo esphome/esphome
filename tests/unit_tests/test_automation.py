@@ -8,6 +8,7 @@ from unittest.mock import AsyncMock, MagicMock, call, patch
 import pytest
 
 from esphome.automation import (
+    _COLLECTED_ACTION,
     ACTION_REGISTRY,
     CONF_CHOICE_ID,
     CONF_CHOOSE,
@@ -2449,6 +2450,72 @@ async def test_build_action_list_rejects_a_dropped_collected_action() -> None:
         EsphomeError, match=r"'my\.wrapped' \(act_w\) must return the result"
     ):
         await build_action_list([_action("my.wrapped", "act_w")], TEMPLATE_ARG, [])
+
+
+@pytest.mark.asyncio
+@pytest.mark.usefixtures("apply_actions")
+async def test_build_action_list_rejects_using_the_collected_result() -> None:
+    """A wrapper that uses the result fails here, not later as an undeclared name in C++."""
+    builder = apply_action_builder(
+        "my.wrapped",
+        {cv.Required(CONF_ID): cv.use_id(cg.Component)},
+        ApplyCall("do_wrapped()"),
+    )
+
+    @register_action("my.wrapped", ApplyAction, {}, synchronous=True)
+    async def wrapped_to_code(
+        config: ConfigType,
+        action_id: ID,
+        template_arg: cg.TemplateArguments,
+        args: list[tuple[object, str]],
+    ) -> MockObj:
+        var = await builder(config, action_id, template_arg, args)
+        cg.add(var.set_x(1))
+        return var
+
+    with pytest.raises(EsphomeError, match=r"'my\.wrapped' \(act_w\) used the result"):
+        await build_action_list([_action("my.wrapped", "act_w")], TEMPLATE_ARG, [])
+
+
+@pytest.mark.asyncio
+@pytest.mark.usefixtures("apply_actions")
+async def test_build_action_list_rejects_building_an_action_twice() -> None:
+    """The second build would otherwise replace the first without a trace."""
+    builder = apply_action_builder(
+        "my.wrapped",
+        {cv.Required(CONF_ID): cv.use_id(cg.Component)},
+        ApplyCall("do_wrapped()"),
+    )
+
+    @register_action("my.wrapped", ApplyAction, {}, synchronous=True)
+    async def wrapped_to_code(
+        config: ConfigType,
+        action_id: ID,
+        template_arg: cg.TemplateArguments,
+        args: list[tuple[object, str]],
+    ) -> MockObj:
+        await builder(config, action_id, template_arg, args)
+        return await builder(config, action_id, template_arg, args)
+
+    with pytest.raises(
+        EsphomeError, match=r"'my\.wrapped' \(act_w\) built its action twice"
+    ):
+        await build_action_list([_action("my.wrapped", "act_w")], TEMPLATE_ARG, [])
+
+
+@pytest.mark.parametrize(
+    "use",
+    [str, lambda result: result(), lambda result: result.set_x],
+    ids=["str", "call", "attribute"],
+)
+def test_collected_result_cannot_be_used(use: Callable[[MockObj], object]) -> None:
+    with pytest.raises(EsphomeError, match="The builder of an action used the result"):
+        use(_COLLECTED_ACTION)
+
+
+def test_collected_result_leaves_python_protocols_alone() -> None:
+    """Python probes for dunder methods and expects them to be missing."""
+    assert not hasattr(_COLLECTED_ACTION, "__wrapped__")
 
 
 @pytest.mark.asyncio

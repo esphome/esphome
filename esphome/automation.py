@@ -281,14 +281,43 @@ class _InlineCollector:
     """Takes the statements of the action being built, instead of it emitting an object."""
 
     action_id: ID
+    # For errors, from _builder_name
+    name: str
     action: _InlineAction | None = None
 
 
 _INLINE_COLLECTOR: ContextVar[_InlineCollector | None] = ContextVar(
     "esphome_automation_inline_collector", default=None
 )
-# What a collected builder returns; it names nothing, so using it fails the C++ build
-_COLLECTED_ACTION = MockObj("esphome__collected_action", "->")
+
+
+class _CollectedAction(MockObj):
+    """What a collected builder returns: it names no C++ object, so any use of it is an error."""
+
+    __slots__ = ()
+
+    def _misuse(self) -> EsphomeError:
+        collector = _INLINE_COLLECTOR.get()
+        name = "an action" if collector is None else collector.name
+        return EsphomeError(
+            f"The builder of {name} used the result of its apply builder. It must return "
+            "that result unchanged, because a merged action has no C++ object"
+        )
+
+    def __getattr__(self, attr: str) -> MockObj:
+        # Python looks up dunder methods itself and expects AttributeError
+        if attr.startswith("__"):
+            raise AttributeError(attr)
+        raise self._misuse()
+
+    def __call__(self, *args: SafeExpType) -> MockObj:
+        raise self._misuse()
+
+    def __str__(self) -> str:
+        raise self._misuse()
+
+
+_COLLECTED_ACTION = _CollectedAction("esphome__collected_action", "->")
 _RUNNING_PARAM = "esphome__running"
 # One statement of its own, so a function that nothing can stop can leave them all out
 _STOP_CHECK = f"if (!{_RUNNING_PARAM})\n  return;"
@@ -308,7 +337,11 @@ def _collect_action(
     """
     if not _is_collecting(id_):
         return False
-    _INLINE_COLLECTOR.get().action = _InlineAction(id_, statements, emit)
+    collector = _INLINE_COLLECTOR.get()
+    # Replacing it would silently lose the statements already collected
+    if collector.action is not None:
+        raise EsphomeError(f"The builder of {collector.name} built its action twice")
+    collector.action = _InlineAction(id_, statements, emit)
     return True
 
 
@@ -1609,23 +1642,21 @@ async def _build_action_or_inline(
     action_id = full_config[CONF_TYPE_ID]
     if action_id.is_manual:
         return await build_action(full_config, template_arg, args)
-    collector = _InlineCollector(action_id)
+    collector = _InlineCollector(action_id, _builder_name(full_config))
     token = _INLINE_COLLECTOR.set(collector)
     try:
         action = await build_action(full_config, template_arg, args)
     finally:
         _INLINE_COLLECTOR.reset(token)
-    _check_collected(full_config, action, collector)
+    _check_collected(action, collector)
     return collector.action if action is _COLLECTED_ACTION else action
 
 
-def _check_collected(
-    full_config: ConfigType, result: MockObj, collector: _InlineCollector
-) -> None:
+def _check_collected(result: MockObj, collector: _InlineCollector) -> None:
     """Returning anything else would silently drop the collected item from the firmware."""
     if (result is _COLLECTED_ACTION) != (collector.action is not None):
         raise EsphomeError(
-            f"The builder of {_builder_name(full_config)} must return the result of "
+            f"The builder of {collector.name} must return the result of "
             "its apply builder unchanged"
         )
 
@@ -1643,20 +1674,20 @@ async def _build_condition_or_inline(
     condition_id = full_config[CONF_TYPE_ID]
     if condition_id.is_manual:
         return await build_condition(full_config, template_arg, args)
-    collector = _InlineCollector(condition_id)
+    collector = _InlineCollector(condition_id, _builder_name(full_config))
     token = _INLINE_COLLECTOR.set(collector)
     try:
         condition = await build_condition(full_config, template_arg, args)
     finally:
         _INLINE_COLLECTOR.reset(token)
-    _check_collected(full_config, condition, collector)
+    _check_collected(condition, collector)
     if condition is not _COLLECTED_ACTION:
         return condition
     collected = collector.action
     # One statement: ``return <check>;`` from a builder, or a lambda call with its ``;``
     if len(collected.statements) != 1:
         raise EsphomeError(
-            f"The condition {_builder_name(full_config)} must generate one statement, "
+            f"The condition {collector.name} must generate one statement, "
             f"not {len(collected.statements)}"
         )
     expression = collected.statements[0].removeprefix("return ").removesuffix(";")
