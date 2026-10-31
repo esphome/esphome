@@ -5,11 +5,15 @@ namespace esphome::ld6002b::testing {
 
 namespace {
 
-std::vector<uint8_t> z_range(float z_min, float z_max) {
+std::vector<uint8_t> z_payload(float z_min, float z_max) {
   std::vector<uint8_t> p;
   put_f32(p, z_min);
   put_f32(p, z_max);
-  return tf_frame(TYPE_REPORT_Z_RANGE, p);
+  return p;
+}
+
+std::vector<uint8_t> z_range(float z_min, float z_max) {
+  return tf_frame(TYPE_REPORT_Z_RANGE, z_payload(z_min, z_max));
 }
 
 }  // namespace
@@ -20,10 +24,7 @@ TEST_F(LD6002BTest, DelayReportPublishesHoldDelay) {
 }
 
 TEST_F(LD6002BTest, ZRangeReportPublishesLittleEndianFloats) {
-  std::vector<uint8_t> p;
-  put_f32(p, -0.5f);
-  put_f32(p, 2.75f);
-  this->feed_(tf_frame(TYPE_REPORT_Z_RANGE, p));
+  this->feed_(z_range(-0.5f, 2.75f));
   EXPECT_FLOAT_EQ(this->z_min_.state, -0.5f);
   EXPECT_FLOAT_EQ(this->z_max_.state, 2.75f);
 }
@@ -43,11 +44,22 @@ TEST_F(LD6002BTest, ReportOutsideTheNumberRangeIsClamped) {
   EXPECT_FLOAT_EQ(this->low_power_sleep_.state, 60000.0f);
 }
 
+// The module takes whole numbers only, so a fraction is rejected rather than truncated
+TEST_F(LD6002BTest, HoldDelayFractionIsNotWrittenOrPublished) {
+  this->feed_(tf_frame(TYPE_REPORT_DELAY, u32_payload(30)));
+  const uint16_t id = this->drain_commands_();
+  this->hold_delay_.make_call().set_value(12.5f).perform();
+  EXPECT_TRUE(this->uart_.tx.empty());
+  EXPECT_FLOAT_EQ(this->hold_delay_.state, 30.0f);
+  this->hold_delay_.make_call().set_value(60).perform();
+  EXPECT_EQ(this->uart_.tx, command(id, TYPE_SET_HOLD_DELAY, u32_payload(60)));
+  EXPECT_FLOAT_EQ(this->hold_delay_.state, 60.0f);
+}
+
 // A full command queue drops the write, and the number keeps showing the module's setting
 TEST_F(LD6002BTest, HoldDelayKeepsValueWhenQueueFull) {
   this->feed_(tf_frame(TYPE_REPORT_DELAY, u32_payload(30)));
-  for (int i = 0; i < 32; i++)
-    this->trigger_speed_.make_call().set_index(0).perform();
+  this->fill_command_queue_();
   this->hold_delay_.make_call().set_value(60).perform();
   EXPECT_FLOAT_EQ(this->hold_delay_.state, 30.0f);
 }
@@ -60,16 +72,12 @@ TEST_F(LD6002BTest, CrossedZRangeIsNotPublished) {
   EXPECT_TRUE(this->uart_.tx.empty());
   EXPECT_FLOAT_EQ(this->z_min_.state, -0.5f);
   this->z_max_.make_call().set_value(3.0f).perform();
-  std::vector<uint8_t> p;
-  put_f32(p, -0.5f);
-  put_f32(p, 3.0f);
-  EXPECT_EQ(this->uart_.tx, command(id, TYPE_SET_Z_RANGE, p));
+  EXPECT_EQ(this->uart_.tx, command(id, TYPE_SET_Z_RANGE, z_payload(-0.5f, 3.0f)));
 }
 
 TEST_F(LD6002BTest, ZRangeIsNotPublishedWhenQueueFull) {
   this->feed_(z_range(-0.5f, 2.75f));
-  for (int i = 0; i < 32; i++)
-    this->trigger_speed_.make_call().set_index(0).perform();
+  this->fill_command_queue_();
   this->z_max_.make_call().set_value(3.0f).perform();
   EXPECT_FLOAT_EQ(this->z_max_.state, 2.75f);
 }

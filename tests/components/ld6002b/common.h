@@ -258,6 +258,15 @@ class LD6002BTest : public ::testing::Test {
     return next_id;
   }
 
+  /// Queue writes until the hub rejects one, which leaves the command queue full.
+  void fill_command_queue_() {
+    for (int i = 0; i < 64; i++) {
+      if (!this->sut_.set_select_value(&this->trigger_speed_, 0))
+        return;
+    }
+    FAIL() << "Command queue never filled";
+  }
+
   host::HostPreferences prefs_;
   std::filesystem::path temp_dir_;
   MockUARTComponent uart_;
