@@ -27,10 +27,12 @@ static constexpr uint16_t CMD_GET_SENSOR_INFORMATION = 0x0110;
 static constexpr std::array<ClimateMode, 5> DEVICE_MODES{CLIMATE_MODE_FAN_ONLY, CLIMATE_MODE_DRY,
                                                          CLIMATE_MODE_HEAT_COOL, CLIMATE_MODE_COOL, CLIMATE_MODE_HEAT};
 static constexpr uint8_t DEVICE_MODE_HEAT = 4;
+// Publishes the parsed state when the poll's last reply, SENSOR_INFORMATION, does not arrive
+static constexpr uint32_t PUBLISH_DELAY_MS = 800;
 
 void DaikinMadoka::dump_config() { LOG_CLIMATE(TAG, "Daikin Madoka Climate Controller", this); }
 
-// Replies arrive in order, so the last one, SENSOR_INFORMATION, ends the poll and publishes
+// Replies arrive in order, so the last one, SENSOR_INFORMATION, ends the poll and publishes at once
 static constexpr std::array<uint16_t, 5> POLL_CMDS{CMD_GET_SETTING_STATUS, CMD_GET_OPERATION_MODE, CMD_GET_SETPOINT,
                                                    CMD_GET_FAN_SPEED, CMD_GET_SENSOR_INFORMATION};
 static constexpr std::array<uint8_t, 2> NO_ARGS{0x00, 0x00};
@@ -176,6 +178,7 @@ void DaikinMadoka::gattc_event_handler(esp_gattc_cb_event_t event, esp_gatt_if_t
 
       this->assembler_.reset();
       this->cancel_timeout(QUERY_TIMEOUT_ID);
+      this->cancel_timeout(PUBLISH_TIMEOUT_ID);
       this->query_cooldown_ = false;
       this->query_queue_.clear();
       this->poll_pending_ = false;
@@ -397,13 +400,14 @@ void DaikinMadoka::parse_cb_(std::span<const uint8_t> msg) {
       if (auto value = find_arg(msg, 0x40); value.size() == 1) {
         this->current_temperature = static_cast<float>(value[0]);
       }
-      // The last reply of every batch; a lost one leaves the publish to the next poll
+      this->cancel_timeout(PUBLISH_TIMEOUT_ID);
       this->publish_state();
-      break;
+      return;
     }
     default:
-      break;
+      return;
   }
+  this->set_timeout(PUBLISH_TIMEOUT_ID, PUBLISH_DELAY_MS, [this]() { this->publish_state(); });
 }
 
 }  // namespace esphome::daikin_madoka

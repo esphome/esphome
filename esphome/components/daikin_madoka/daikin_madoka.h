@@ -93,6 +93,7 @@ class DaikinMadoka final : public climate::Climate, public esphome::ble_client::
   bool poll_pending_{false};
 
   static constexpr uint32_t QUERY_TIMEOUT_ID = 0;
+  static constexpr uint32_t PUBLISH_TIMEOUT_ID = 1;
 };
 
 }  // namespace esphome::daikin_madoka
