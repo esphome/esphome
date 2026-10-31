@@ -1,0 +1,61 @@
+packages:
+  spi: !include ../../test_build_components/common/spi/esp32-idf.yaml
+
+cc1101:
+  - id: transceiver_long_fixed
+    cs_pin: GPIO5
+    gdo0_pin: GPIO4
+    frequency: 433.92MHz
+    if_frequency: 153kHz
+    filter_bandwidth: 203kHz
+    channel: 0
+    channel_spacing: 200kHz
+    symbol_rate: 4800
+    modulation_type: GFSK
+    packet_mode: true
+    # Above the 64-byte RX FIFO and above the old 255-byte PKTLEN cap: exercises
+    # both the RX FIFO draining and the infinite-to-fixed packet length switch
+    # (CC1101 datasheet section 15.2.2, "Packet Length > 255").
+    packet_length: 1024
+    crc_enable: true
+    whitening: false
+    sync_mode: "16/16"
+    sync0: 0x91
+    sync1: 0xD3
+    num_preamble: 2
+    on_packet:
+      then:
+        - lambda: |-
+            ESP_LOGD("cc1101", "long fixed packet %u bytes freq_offset %.0f Hz rssi %.1f dBm lqi %u",
+                     x.size(), freq_offset, rssi, lqi);
+
+  - id: transceiver_long_lambda
+    cs_pin: GPIO15
+    gdo0_pin: GPIO2
+    frequency: 868.95MHz
+    if_frequency: 153kHz
+    filter_bandwidth: 203kHz
+    channel: 0
+    channel_spacing: 200kHz
+    symbol_rate: 4800
+    modulation_type: GFSK
+    packet_mode: true
+    # packet_length: 0 with packet_length_lambda exercises the arbitrary length
+    # field configuration (CC1101 datasheet section 15.2.1): the length is not
+    # known upfront and is derived at runtime from the bytes received so far.
+    packet_length: 0
+    packet_length_lambda: |-
+      if (x.size() < 3) return 0;
+      if (x[0] != 0x54) return -1;
+      return x[2] + 12;
+    crc_enable: false
+    whitening: false
+    sync_mode: "16/16"
+    sync0: 0x3D
+    sync1: 0x54
+    num_preamble: 2
+    on_packet:
+      then:
+        - lambda: |-
+            ESP_LOGD("cc1101", "long lambda packet %u bytes freq_offset %.0f Hz rssi %.1f dBm lqi %u",
+                     x.size(), freq_offset, rssi, lqi);
