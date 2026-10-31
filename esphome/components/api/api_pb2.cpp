@@ -3028,6 +3028,15 @@ uint8_t *VoiceAssistantRequest::encode_msg(const void *self, uint8_t *__restrict
   pos = ProtoEncode::encode_uint32(pos PROTO_ENCODE_DEBUG_ARG, 3, msg.flags);
   pos = ProtoEncode::encode_optional_sub_message(pos PROTO_ENCODE_DEBUG_ARG, 4, msg.audio_settings);
   pos = ProtoEncode::encode_string(pos PROTO_ENCODE_DEBUG_ARG, 5, msg.wake_word_phrase);
+  pos = ProtoEncode::encode_string(pos PROTO_ENCODE_DEBUG_ARG, 6, msg.wake_word_id);
+  pos = ProtoEncode::encode_uint32(pos PROTO_ENCODE_DEBUG_ARG, 7, msg.wake_word_audio_bytes);
+  if (uint32_t raw = float_to_raw(msg.wake_word_probability); raw != 0) [[likely]] {
+    pos = ProtoEncode::write_tag_and_fixed32(pos PROTO_ENCODE_DEBUG_ARG, 69, raw);
+  }
+  if (uint32_t raw = float_to_raw(msg.wake_word_probability_cutoff); raw != 0) [[likely]] {
+    pos = ProtoEncode::write_tag_and_fixed32(pos PROTO_ENCODE_DEBUG_ARG, 77, raw);
+  }
+  pos = ProtoEncode::encode_uint32(pos PROTO_ENCODE_DEBUG_ARG, 10, msg.wake_word_audio_bytes2);
   return pos;
 }
 uint32_t VoiceAssistantRequest::calc_size_msg(const void *self) {
@@ -3038,6 +3047,11 @@ uint32_t VoiceAssistantRequest::calc_size_msg(const void *self) {
   size += ProtoSize::calc_uint32(1, msg.flags);
   size += ProtoSize::calc_message(1, msg.audio_settings.calculate_size());
   size += ProtoSize::calc_length(1, msg.wake_word_phrase.size());
+  size += ProtoSize::calc_length(1, msg.wake_word_id.size());
+  size += ProtoSize::calc_uint32(1, msg.wake_word_audio_bytes);
+  size += ProtoSize::calc_float(1, msg.wake_word_probability);
+  size += ProtoSize::calc_float(1, msg.wake_word_probability_cutoff);
+  size += ProtoSize::calc_uint32(1, msg.wake_word_audio_bytes2);
   return size;
 }
 void VoiceAssistantResponse::decode_field(void *self, uint32_t tag, const uint8_t *data, proto_varint_value_t scalar) {
