@@ -1,0 +1,10 @@
+canbus:
+  - platform: esp32_can
+    id: canbus_toptronic
+    rx_pin: GPIO4
+    tx_pin: GPIO5
+    can_id: 0
+    bit_rate: 50kbps
+
+packages:
+  toptronic: !include common.yaml
