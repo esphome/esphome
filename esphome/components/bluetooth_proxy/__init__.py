@@ -94,10 +94,20 @@ def _esp32_config_schema() -> cv.All:
     CONNECTION_SCHEMA = bluetooth_connection.hub_connection_schema(PLATFORM_ESP32)
 
     def validate_connections(config: ConfigType) -> ConfigType:
-        if CONF_CONNECTIONS in config or not config[CONF_ACTIVE]:
+        if CONF_CONNECTIONS in config:
+            # Explicit entries claim slots like the generated ones; dev
+            # historically skipped this, letting an explicit-connections
+            # config evade the controller budget.
+            bluetooth_connection.consume_gatt_slot(
+                "bluetooth_proxy", len(config[CONF_CONNECTIONS])
+            )(config)
+            return config
+        if not config[CONF_ACTIVE]:
             return config
         connection_slots: int = config[CONF_CONNECTION_SLOTS]
-        esp32_ble.consume_connection_slots(connection_slots, "bluetooth_proxy")(config)
+        bluetooth_connection.consume_gatt_slot("bluetooth_proxy", connection_slots)(
+            config
+        )
         return {
             **config,
             CONF_CONNECTIONS: [CONNECTION_SCHEMA({}) for _ in range(connection_slots)],
@@ -149,14 +159,14 @@ def _rp2_config_schema() -> cv.All:
     connection_schema = bluetooth_connection.hub_connection_schema(PLATFORM_RP2)
 
     def populate_connections(config: ConfigType) -> ConfigType:
-        from esphome.components import rp2040_ble
-
         # One wrapper + backend pair per slot, declared during validation so
         # their ids exist for codegen (the esp32 arm's `connections` pattern).
         if not config[CONF_ACTIVE]:
             return config
         connection_slots: int = config[CONF_CONNECTION_SLOTS]
-        rp2040_ble.consume_connection_slots(connection_slots, "bluetooth_proxy")(config)
+        bluetooth_connection.consume_gatt_slot("bluetooth_proxy", connection_slots)(
+            config
+        )
         return {
             **config,
             CONF_CONNECTIONS: [connection_schema({}) for _ in range(connection_slots)],
@@ -206,7 +216,9 @@ async def _connections_to_code(var: cg.MockObj, config: ConfigType) -> None:
         # sends those requests and their handlers and encoders are dead.
         cg.add_define("USE_BLUETOOTH_PROXY_CONNECTIONS")
     for connection_conf in connections:
-        backend = await bluetooth_connection.new_gatt_backend(connection_conf)
+        backend = await bluetooth_connection.new_gatt_backend(
+            connection_conf, service_table=False
+        )
         connection = cg.new_Pvariable(connection_conf[CONF_ID])
         cg.add(connection.set_backend(backend))
         cg.add(var.register_connection(connection))
