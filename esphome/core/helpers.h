@@ -77,13 +77,14 @@ using std::is_invocable;
 using std::bit_cast;
 #else
 /// Convert data between types, without aliasing issues or undefined behaviour.
+/// Forced inline: GCC 10 for ESP8266 otherwise emits it out of line at -Os.
 template<
     typename To, typename From,
     enable_if_t<sizeof(To) == sizeof(From) && is_trivially_copyable<From>::value && is_trivially_copyable<To>::value,
                 int> = 0>
-To bit_cast(const From &src) {
+ESPHOME_ALWAYS_INLINE inline To bit_cast(const From &src) {
   To dst;
-  memcpy(&dst, &src, sizeof(To));
+  __builtin_memcpy(&dst, &src, sizeof(To));
   return dst;
 }
 #endif
