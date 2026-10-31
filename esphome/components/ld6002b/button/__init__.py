@@ -1,6 +1,7 @@
 from esphome.automation import parent_ref
 import esphome.codegen as cg
 from esphome.components import button
+from esphome.components.ld600x import ButtonType
 from esphome.components.select import DOMAIN as SELECT_DOMAIN
 import esphome.config_validation as cv
 from esphome.const import (
@@ -14,7 +15,7 @@ from esphome.cpp_generator import ParameterListExpression
 import esphome.final_validate as fv
 from esphome.types import ConfigType
 
-from .. import LD6002BComponent, ld6002b_ns
+from .. import LD6002BComponent
 from ..const import (
     CONF_APPLY_AREA,
     CONF_AUTO_INTERFERENCE,
@@ -34,8 +35,6 @@ from ..const import (
 )
 
 DEPENDENCIES = ["ld6002b"]
-
-ButtonType = ld6002b_ns.enum("ButtonType", is_class=True)
 
 CONFIG_SCHEMA = cv.Schema(
     {
@@ -113,20 +112,20 @@ def final_validate(config: ConfigType) -> None:
 FINAL_VALIDATE_SCHEMA = final_validate
 
 BUTTON_MAP = {
-    CONF_APPLY_AREA: ButtonType.APPLY_AREA,
-    CONF_AUTO_INTERFERENCE: ButtonType.AUTO_INTERFERENCE,
-    CONF_GET_AREAS: ButtonType.GET_AREAS,
-    CONF_CLEAR_INTERFERENCE: ButtonType.CLEAR_INTERFERENCE,
-    CONF_RESET_DETECTION_AREA: ButtonType.RESET_DETECTION_AREA,
-    CONF_GET_DELAY: ButtonType.GET_DELAY,
-    CONF_GET_SENSITIVITY: ButtonType.GET_SENSITIVITY,
-    CONF_GET_TRIGGER_SPEED: ButtonType.GET_TRIGGER_SPEED,
-    CONF_GET_Z_RANGE: ButtonType.GET_Z_RANGE,
-    CONF_GET_INSTALLATION: ButtonType.GET_INSTALLATION,
-    CONF_GET_LOW_POWER_MODE: ButtonType.GET_LOW_POWER_MODE,
-    CONF_GET_LOW_POWER_SLEEP_TIME: ButtonType.GET_LOW_POWER_SLEEP_TIME,
-    CONF_RESET_UNATTENDED: ButtonType.RESET_UNATTENDED,
-    CONF_WAKE: ButtonType.WAKE,
+    CONF_APPLY_AREA: ButtonType.BUTTON_APPLY_AREA,
+    CONF_AUTO_INTERFERENCE: ButtonType.BUTTON_AUTO_INTERFERENCE,
+    CONF_GET_AREAS: ButtonType.BUTTON_GET_AREAS,
+    CONF_CLEAR_INTERFERENCE: ButtonType.BUTTON_CLEAR_INTERFERENCE,
+    CONF_RESET_DETECTION_AREA: ButtonType.BUTTON_RESET_DETECTION_AREA,
+    CONF_GET_DELAY: ButtonType.BUTTON_GET_DELAY,
+    CONF_GET_SENSITIVITY: ButtonType.BUTTON_GET_SENSITIVITY,
+    CONF_GET_TRIGGER_SPEED: ButtonType.BUTTON_GET_TRIGGER_SPEED,
+    CONF_GET_Z_RANGE: ButtonType.BUTTON_GET_Z_RANGE,
+    CONF_GET_INSTALLATION: ButtonType.BUTTON_GET_INSTALLATION,
+    CONF_GET_LOW_POWER_MODE: ButtonType.BUTTON_GET_LOW_POWER_MODE,
+    CONF_GET_LOW_POWER_SLEEP_TIME: ButtonType.BUTTON_GET_LOW_POWER_SLEEP_TIME,
+    CONF_RESET_UNATTENDED: ButtonType.BUTTON_RESET_UNATTENDED,
+    CONF_WAKE: ButtonType.BUTTON_WAKE,
 }
 
 
