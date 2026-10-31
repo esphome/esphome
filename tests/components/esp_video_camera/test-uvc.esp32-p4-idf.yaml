@@ -1,0 +1,13 @@
+# USB-UVC camera: no I2C bus and no sensor_model, since a USB camera is not on
+# a bus and carries its own format list.
+esp_video_camera:
+  name: Test USB Camera
+  device: uvc
+  enable_uvc: true
+  jpeg_quality: 80
+  max_framerate: 10
+
+# Frames land in PSRAM; the component refuses to validate without it.
+psram:
+  mode: hex
+  speed: 200MHz
