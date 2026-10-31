@@ -49,7 +49,8 @@ LAT_LON_REGEX = re.compile(
     r"(?:([0-9]+)\s*°)?\s*"
     r"(?:([0-9]+)\s*[′\'])?\s*"
     r'(?:([0-9]+)\s*[″"])?\s*'
-    r"([NESW])?"
+    r"([NESW])?",
+    re.IGNORECASE,
 )
 
 
@@ -63,7 +64,7 @@ def parse_latlon(value: Any) -> float:
         pass
 
     value = cv.string_strict(value)
-    m = LAT_LON_REGEX.match(value)
+    m = LAT_LON_REGEX.fullmatch(value.strip())
 
     if m is None:
         raise cv.Invalid("Invalid format for latitude/longitude")
@@ -73,10 +74,15 @@ def parse_latlon(value: Any) -> float:
     second = m.group(4)
     d = m.group(5)
 
+    if deg is None and minute is None and second is None:
+        raise cv.Invalid("Invalid format for latitude/longitude")
+    if sign == "-" and d:
+        raise cv.Invalid("Use either a minus sign or a hemisphere letter, not both")
+
     val = float(deg or 0) + float(minute or 0) / 60 + float(second or 0) / 3600
     if sign == "-":
         val *= -1
-    if d and d in "SW":
+    if d and d.upper() in "SW":
         val *= -1
     return val
 
