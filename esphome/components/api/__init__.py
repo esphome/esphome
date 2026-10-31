@@ -838,14 +838,12 @@ async def _service_call_table(
     template_arg: cg.TemplateArguments,
     args: TemplateArgsType,
     service: Any,
-    data: dict[str, Any],
-    data_template: dict[str, Any],
-    variables: dict[str, Any],
+    groups: tuple[dict[str, Any], ...],
 ) -> list[Expression | int]:
-    """Return the name and fields in one shared flash table, then the size of each map."""
+    """Return the name and the data, data_template and variables ``groups`` in one shared
+    flash table, then the size of each map."""
     cg.add_define("USE_API_HOMEASSISTANT_SERVICES")
     field_type = HomeAssistantField.template(template_arg)
-    groups = [data, data_template, variables]
     # A lambda may keep static state, so a table with lambdas is never shared
     has_lambda = cg.is_template(service) or any(
         cg.is_template(value) for group in groups for value in group.values()
@@ -879,14 +877,15 @@ async def _send_service_call(
     args: TemplateArgsType,
     is_event: bool,
     service: Any,
-    data: dict[str, Any],
-    data_template: dict[str, Any],
-    variables: dict[str, Any],
+    groups: tuple[dict[str, Any], ...] | None = None,
 ) -> MockObj:
-    """Send the action or event from a generated function, without waiting for a response."""
+    """Send the action or event from a generated function, without waiting for a response.
+
+    ``groups`` default to the config's data, data_template and variables.
+    """
     server = automation.parent_ref(await cg.get_variable(config[CONF_ID]))
     table, *counts = await _service_call_table(
-        template_arg, args, service, data, data_template, variables
+        template_arg, args, service, groups or _service_call_fields(config)
     )
     call = api_ns.send_homeassistant_fields(
         server,
@@ -935,7 +934,6 @@ async def homeassistant_service_to_code(
             args,
             False,
             config[CONF_ACTION],
-            *_service_call_fields(config),
         )
 
     # Waiting for the response needs an object that holds the triggers
@@ -946,7 +944,7 @@ async def homeassistant_service_to_code(
         template_arg,
         await cg.get_variable(config[CONF_ID]),
         *await _service_call_table(
-            template_arg, args, config[CONF_ACTION], *_service_call_fields(config)
+            template_arg, args, config[CONF_ACTION], _service_call_fields(config)
         ),
     )
 
@@ -1024,7 +1022,6 @@ async def homeassistant_event_to_code(
         args,
         True,
         config[CONF_EVENT],
-        *_service_call_fields(config),
     )
 
 
@@ -1056,9 +1053,7 @@ async def homeassistant_tag_scanned_to_code(
         args,
         True,
         "esphome.tag_scanned",
-        {"tag_id": config[CONF_TAG]},
-        {},
-        {},
+        ({"tag_id": config[CONF_TAG]}, {}, {}),
     )
 
 

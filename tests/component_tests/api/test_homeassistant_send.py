@@ -20,6 +20,16 @@ def _table(main_cpp: str, name: str) -> str:
     return match.group(1)
 
 
+def _function_body(main_cpp: str, name: str, params: str = "") -> str:
+    match = re.search(
+        rf"static void {name}\({re.escape(params)}\) \{{\n(.*?)\n\}}\n",
+        main_cpp,
+        re.DOTALL,
+    )
+    assert match is not None, name
+    return match.group(1)
+
+
 def test_field_order(main_cpp: str) -> None:
     """The name comes first, then data, data_template and variables, in that order."""
     table = _table(main_cpp, "ha_action_fields")
@@ -91,22 +101,18 @@ def test_action_with_response_is_an_object(main_cpp: str) -> None:
 
 def test_action_then_log(main_cpp: str) -> None:
     """The send is an if-free statement, so the action merged after it still runs."""
-    match = re.search(
-        r"static void (\w+)\(const int & esphome__running\) \{\n(.*?)\n\}\n",
-        main_cpp,
-        re.DOTALL,
+    assert re.findall(r"\bautomation_id->add_action\((\w+)\);", main_cpp) == [
+        "applyaction_id"
+    ]
+    assert "ApplyRunAction<esphome__applyaction_id__fn>();" in main_cpp
+    body = _function_body(
+        main_cpp, "esphome__applyaction_id__fn", "const int & esphome__running"
     )
-    assert match is not None
-    body = match.group(2)
     assert body.index(f"{SEND}false, ::ha_action_fields,") < body.index(
         '"after action"'
     )
     # The only return is the stop check between the two actions
     assert body.count("return;") == 1
-    assert re.findall(r"\bautomation_id->add_action\((\w+)\);", main_cpp) == [
-        "applyaction_id"
-    ]
-    assert f"ApplyRunAction<{match.group(1)}>();" in main_cpp
 
 
 def test_button_on_press(main_cpp: str) -> None:
@@ -116,9 +122,7 @@ def test_button_on_press(main_cpp: str) -> None:
         main_cpp,
     )
     assert match is not None
-    body = main_cpp.split(f"static void {match.group(1)}() {{\n", 1)[1].split("\n}", 1)[
-        0
-    ]
+    body = _function_body(main_cpp, match.group(1))
     assert f"{SEND}true, ::ha_action_fields_5, 0, 0, 0);" in body
     assert f"{SEND}true, ::ha_action_fields_6, 1, 0, 0);" in body
     assert "TriggerForwarder" not in main_cpp

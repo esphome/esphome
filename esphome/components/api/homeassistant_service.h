@@ -81,13 +81,17 @@ class ActionResponse {
 template<typename... Ts> using ActionResponseCallback = std::function<void(const ActionResponse &, Ts...)>;
 #endif
 
-/// Builds the request from `fields` and the trigger args, lets `prepare` add to it, then sends it.
+/// Called with the request just before it is sent, and the context passed with it.
+using HomeAssistantPrepareFn = void (*)(HomeassistantActionRequest &, void *);
+
+/// Builds the request from `fields` and the trigger args, calls `prepare` (when set), then sends it.
 /// `fields` is a codegen table: the action or event name (no key), then the data, data_template
 /// and variables entries.
-template<typename F, typename... Ts>
-void send_homeassistant_fields(const F &prepare, APIServer *server, bool is_event,
-                               const HomeAssistantField<Ts...> *fields, uint8_t data_count, uint8_t data_template_count,
-                               uint8_t variables_count, const std::type_identity_t<Ts> &...x) {
+template<typename... Ts>
+void send_homeassistant_fields_with(HomeAssistantPrepareFn prepare, void *context, APIServer *server, bool is_event,
+                                    const HomeAssistantField<Ts...> *fields, uint8_t data_count,
+                                    uint8_t data_template_count, uint8_t variables_count,
+                                    const std::type_identity_t<Ts> &...x) {
   using Field = HomeAssistantField<Ts...>;
   const size_t total = 1 + data_count + data_template_count + variables_count;
 
@@ -119,7 +123,8 @@ void send_homeassistant_fields(const F &prepare, APIServer *server, bool is_even
   fill(resp.data, data_count);
   fill(resp.data_template, data_template_count);
   fill(resp.variables, variables_count);
-  prepare(resp);
+  if (prepare != nullptr)
+    prepare(resp, context);
   server->send_homeassistant_action(resp);
 }
 
@@ -128,8 +133,8 @@ template<typename... Ts>
 void send_homeassistant_fields(APIServer *server, bool is_event, const HomeAssistantField<Ts...> *fields,
                                uint8_t data_count, uint8_t data_template_count, uint8_t variables_count,
                                const std::type_identity_t<Ts> &...x) {
-  send_homeassistant_fields([](HomeassistantActionRequest &) {}, server, is_event, fields, data_count,
-                            data_template_count, variables_count, x...);
+  send_homeassistant_fields_with(nullptr, nullptr, server, is_event, fields, data_count, data_template_count,
+                                 variables_count, x...);
 }
 
 #ifdef USE_API_HOMEASSISTANT_ACTION_RESPONSES
@@ -138,7 +143,7 @@ template<typename... Ts> class HomeAssistantServiceCallAction final : public Act
  public:
   using Field = HomeAssistantField<Ts...>;
 
-  /// `fields` is a table as for `send_homeassistant_fields`.
+  /// `fields` is a table as for `send_homeassistant_fields_with`.
   HomeAssistantServiceCallAction(APIServer *parent, const Field *fields, uint8_t data_count,
                                  uint8_t data_template_count, uint8_t variables_count)
       : parent_(parent),
@@ -148,12 +153,9 @@ template<typename... Ts> class HomeAssistantServiceCallAction final : public Act
         variables_count_(variables_count) {}
 
 #ifdef USE_API_HOMEASSISTANT_ACTION_RESPONSES_JSON
-  template<typename T> void set_response_template(T response_template) {
-    this->response_template_ = response_template;
-    this->flags_.has_response_template = true;
-  }
+  template<typename T> void set_response_template(T response_template) { this->response_template_ = response_template; }
 
-  void set_wants_response() { this->flags_.wants_response = true; }
+  void set_wants_response() { this->wants_response_ = true; }
 
   Trigger<JsonObjectConst, Ts...> *get_success_trigger_with_response() { return &this->success_trigger_with_response_; }
 #endif
@@ -171,10 +173,10 @@ template<typename... Ts> class HomeAssistantServiceCallAction final : public Act
       uint32_t call_id = call_id_counter++;
       resp.call_id = call_id;
 #ifdef USE_API_HOMEASSISTANT_ACTION_RESPONSES_JSON
-      if (this->flags_.wants_response) {
+      if (this->wants_response_) {
         resp.wants_response = true;
         // Set response template if provided
-        if (this->flags_.has_response_template) {
+        if (this->response_template_.has_value()) {
           response_template_value = this->response_template_.value(x...);
           resp.response_template = StringRef(response_template_value);
         }
@@ -187,7 +189,7 @@ template<typename... Ts> class HomeAssistantServiceCallAction final : public Act
             [this, &response](auto &&...args) {
               if (response.is_success()) {
 #ifdef USE_API_HOMEASSISTANT_ACTION_RESPONSES_JSON
-                if (this->flags_.wants_response) {
+                if (this->wants_response_) {
                   this->success_trigger_with_response_.trigger(response.get_json(), args...);
                 } else
 #endif
@@ -201,8 +203,11 @@ template<typename... Ts> class HomeAssistantServiceCallAction final : public Act
             captured_args);
       });
     };
-    send_homeassistant_fields(prepare, this->parent_, false, this->fields_, this->data_count_,
-                              this->data_template_count_, this->variables_count_, x...);
+    // One body per Ts, shared with the sends that do not wait for a response
+    send_homeassistant_fields_with(
+        [](HomeassistantActionRequest &resp, void *context) { (*static_cast<decltype(prepare) *>(context))(resp); },
+        &prepare, this->parent_, false, this->fields_, this->data_count_, this->data_template_count_,
+        this->variables_count_, x...);
   }
 
  protected:
@@ -212,11 +217,7 @@ template<typename... Ts> class HomeAssistantServiceCallAction final : public Act
   uint8_t data_template_count_;
   uint8_t variables_count_;
 #ifdef USE_API_HOMEASSISTANT_ACTION_RESPONSES_JSON
-  struct Flags {
-    uint8_t wants_response : 1;
-    uint8_t has_response_template : 1;
-    uint8_t reserved : 6;
-  } flags_{0};
+  bool wants_response_{false};
   TemplatableValue<std::string, Ts...> response_template_{};
   Trigger<JsonObjectConst, Ts...> success_trigger_with_response_;
 #endif  // USE_API_HOMEASSISTANT_ACTION_RESPONSES_JSON
