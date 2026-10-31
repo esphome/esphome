@@ -1016,13 +1016,15 @@ void LD600XComponent::apply_area_config_() {
 
 #ifdef USE_NUMBER
 // Each setter picks its setting by entity pointer, so the entities share one generated class.
-void LD600XComponent::set_number_value(number::Number *entity, float value) {
+bool LD600XComponent::set_number_value(number::Number *entity, float value) {
   if (entity == this->hold_delay_number_ || entity == this->low_power_sleep_number_) {
     uint8_t data[4];
     write_u32_le(data, static_cast<uint32_t>(value));
-    this->queue_command_(entity == this->hold_delay_number_ ? TYPE_SET_HOLD_DELAY : TYPE_SET_LOW_POWER_SLEEP, data,
-                         sizeof(data));
-  } else if (entity == this->z_min_number_) {
+    return this->queue_command_(entity == this->hold_delay_number_ ? TYPE_SET_HOLD_DELAY : TYPE_SET_LOW_POWER_SLEEP,
+                                data, sizeof(data));
+  }
+  // The z bounds and the area edits are kept here until both bounds or the apply button write them.
+  if (entity == this->z_min_number_) {
     this->z_min_ = value;
     this->send_z_range_();
   } else if (entity == this->z_max_number_) {
@@ -1047,39 +1049,43 @@ void LD600XComponent::set_number_value(number::Number *entity, float value) {
     this->area_z_max_ = value;
     this->area_edits_.z_max = value;
   }
+  return true;
 }
 #endif
 
 #ifdef USE_SELECT
-void LD600XComponent::set_select_value(select::Select *entity, size_t index) {
+bool LD600XComponent::set_select_value(select::Select *entity, size_t index) {
   if (entity == this->sensitivity_select_) {
-    if (index == 0) {
-      this->send_control_command_(CMD_SENSITIVITY_LOW);
-    } else if (index == 1) {
-      this->send_control_command_(CMD_SENSITIVITY_MEDIUM);
-    } else if (index == 2) {
-      this->send_control_command_(CMD_SENSITIVITY_HIGH);
-    }
-  } else if (entity == this->trigger_speed_select_) {
-    if (index == 0) {
-      this->send_control_command_(CMD_TRIGGER_SLOW);
-    } else if (index == 1) {
-      this->send_control_command_(CMD_TRIGGER_MEDIUM);
-    } else if (index == 2) {
-      this->send_control_command_(CMD_TRIGGER_FAST);
-    }
-  } else if (entity == this->installation_select_) {
-    if (index == 0) {
-      this->send_control_command_(CMD_INSTALL_TOP);
-    } else if (index == 1) {
-      this->send_control_command_(CMD_INSTALL_SIDE);
-    }
-  } else {  // Only registered entities call this, so the last one needs no compare
-    this->area_id_ = static_cast<uint8_t>(index);
-    this->area_id_set_ = true;
-    this->update_area_numbers_for_id_(this->area_id_);
-    this->save_area_id_pref_(this->area_id_);
+    if (index == 0)
+      return this->send_control_command_(CMD_SENSITIVITY_LOW);
+    if (index == 1)
+      return this->send_control_command_(CMD_SENSITIVITY_MEDIUM);
+    if (index == 2)
+      return this->send_control_command_(CMD_SENSITIVITY_HIGH);
+    return false;
   }
+  if (entity == this->trigger_speed_select_) {
+    if (index == 0)
+      return this->send_control_command_(CMD_TRIGGER_SLOW);
+    if (index == 1)
+      return this->send_control_command_(CMD_TRIGGER_MEDIUM);
+    if (index == 2)
+      return this->send_control_command_(CMD_TRIGGER_FAST);
+    return false;
+  }
+  if (entity == this->installation_select_) {
+    if (index == 0)
+      return this->send_control_command_(CMD_INSTALL_TOP);
+    if (index == 1)
+      return this->send_control_command_(CMD_INSTALL_SIDE);
+    return false;
+  }
+  // Only registered entities call this, so the last one needs no compare
+  this->area_id_ = static_cast<uint8_t>(index);
+  this->area_id_set_ = true;
+  this->update_area_numbers_for_id_(this->area_id_);
+  this->save_area_id_pref_(this->area_id_);
+  return true;
 }
 #endif
 

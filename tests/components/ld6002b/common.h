@@ -133,19 +133,19 @@ inline std::vector<uint8_t> concat(std::vector<uint8_t> a, const std::vector<uin
   return a;
 }
 
-// The generated apply/publish="before" entities forward to the hub through this pointer.
+// The generated apply entities forward to the hub through this pointer.
 inline LD6002BComponent *&test_hub() {
   static LD6002BComponent *hub = nullptr;
   return hub;
 }
 
 inline void apply_number(number::Number *entity, float value) {
-  entity->publish_state(value);
-  test_hub()->set_number_value(entity, value);
+  if (test_hub()->set_number_value(entity, value))
+    entity->publish_state(value);
 }
 inline void apply_select(select::Select *entity, size_t index) {
-  entity->publish_state(index);
-  test_hub()->set_select_value(entity, index);
+  if (test_hub()->set_select_value(entity, index))
+    entity->publish_state(index);
 }
 inline void apply_switch(switch_::Switch *entity, bool state) {
   if (test_hub()->set_switch_state(entity, state))

@@ -13,6 +13,7 @@ DEPENDENCIES = ["ld6004"]
 CONF_P20_MODE = "p20_mode"
 
 # The order is the wire contract: index i sends entry i of WORK_MODE_COMMANDS / P20_MODE_COMMANDS in ld6004.cpp.
+# tests/components/ld6004/select pins the same order on the C++ side.
 WORK_MODE_OPTIONS = (
     "normal",
     "low_power",

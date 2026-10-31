@@ -32,6 +32,15 @@ TEST_F(LD6002BTest, ReportOutsideTheNumberRangeIsClamped) {
   EXPECT_FLOAT_EQ(this->low_power_sleep_.state, 60000.0f);
 }
 
+// A full command queue drops the write, and the number keeps showing the module's setting
+TEST_F(LD6002BTest, HoldDelayKeepsValueWhenQueueFull) {
+  this->feed_(tf_frame(TYPE_REPORT_DELAY, u32_payload(30)));
+  for (int i = 0; i < 32; i++)
+    this->trigger_speed_.make_call().set_index(0).perform();
+  this->hold_delay_.make_call().set_value(60).perform();
+  EXPECT_FLOAT_EQ(this->hold_delay_.state, 30.0f);
+}
+
 }  // namespace esphome::ld6002b::testing
 
 #endif  // USE_HOST

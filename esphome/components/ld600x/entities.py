@@ -39,7 +39,7 @@ from esphome.cpp_generator import MockObj, MockObjClass, ParameterListExpression
 import esphome.final_validate as fv
 from esphome.types import ConfigType
 
-from . import AreaAxis, AreaKind, ButtonType
+from . import AreaAxis, AreaKind, ButtonType, request_model_sizes
 from .const import (
     AREA_COUNT,
     CONF_APPLY_AREA,
@@ -196,14 +196,19 @@ async def sensor_to_code(
                 if conf := target_config.get(key):
                     cg.add(setter(i, await sensor.new_sensor(conf)))
 
-    for kind in area_kinds:
+    used_kinds = 0
+    for kind_index, kind in enumerate(area_kinds):
         area_kind = _AREA_KINDS[kind]
         for i in range(AREA_COUNT):
             if area_config := config.get(f"{kind}_area_{i}"):
+                used_kinds = kind_index + 1
                 for key, axis in _AREA_AXES:
                     if conf := area_config.get(key):
                         sens = await sensor.new_sensor(conf)
                         cg.add(hub.set_area_sensor(area_kind, i, axis, sens))
+    # The hub sizes the common kinds; a later kind such as dwell is sized only when used.
+    if used_kinds:
+        request_model_sizes(hub, area_kinds=used_kinds)
 
 
 _OCCUPANCY_SCHEMA = binary_sensor.binary_sensor_schema(
@@ -317,7 +322,8 @@ def number_final_validate(
 # The apply call picks the setting by entity pointer, so every number shares one generated class.
 NUMBER_CONTROL: dict[str, str] = {
     "apply": "set_number_value(entity, value)",
-    "publish": "before",
+    # A rejected value or a full command queue leaves the number at its old value.
+    "publish": "on_success",
 }
 
 
@@ -388,7 +394,8 @@ def select_schema(
 
 SELECT_CONTROL: dict[str, str] = {
     "apply": "set_select_value(entity, index)",
-    "publish": "before",
+    # A full command queue rejects the write, and the select then keeps its old option.
+    "publish": "on_success",
 }
 
 

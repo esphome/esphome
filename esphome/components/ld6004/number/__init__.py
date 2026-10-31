@@ -11,6 +11,9 @@ DEPENDENCIES = ["ld6004"]
 
 CONF_DWELL_LIFETIME = "dwell_lifetime"
 CONF_OUTPUT_INTERVAL = "output_interval"
+# The settings are uint32 on the wire, but the entity value is a float, which holds every
+# whole number only up to 2**24.
+MAX_WHOLE_FLOAT = 2**24 - 1
 
 CONFIG_SCHEMA = entities.number_schema(
     LD6004Component,
@@ -34,7 +37,7 @@ async def to_code(config: ConfigType) -> None:
         CONF_DWELL_LIFETIME,
         hub.set_dwell_lifetime_number,
         min_value=0,
-        max_value=16777215,
+        max_value=MAX_WHOLE_FLOAT,
         step=1,
         **entities.NUMBER_CONTROL,
     )
@@ -42,7 +45,7 @@ async def to_code(config: ConfigType) -> None:
         CONF_OUTPUT_INTERVAL,
         hub.set_output_interval_number,
         min_value=1,
-        max_value=16777215,
+        max_value=MAX_WHOLE_FLOAT,
         step=1,
         **entities.NUMBER_CONTROL,
     )

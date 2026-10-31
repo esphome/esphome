@@ -195,10 +195,12 @@ class LD600XComponent : public Component, public uart::UARTDevice {
   // Each setter picks its setting by entity pointer, so the entities share one generated class. A model
   // with its own entities handles those first and passes the rest down.
 #ifdef USE_NUMBER
-  virtual void set_number_value(number::Number *entity, float value);
+  // Returns false when the value was rejected or its command not queued, so the number keeps its old value.
+  virtual bool set_number_value(number::Number *entity, float value);
 #endif
 #ifdef USE_SELECT
-  virtual void set_select_value(select::Select *entity, size_t index);
+  // Returns false when the command was not queued, so the select keeps its old option.
+  virtual bool set_select_value(select::Select *entity, size_t index);
 #endif
 #ifdef USE_SWITCH
   // Returns false when the command was not queued, so the switch keeps its old state.
