@@ -4,6 +4,7 @@
 #include <atomic>
 #include <cstdint>
 #include <deque>
+#include <utility>
 #include <vector>
 
 #include "esphome/components/canbus/canbus.h"
@@ -47,13 +48,10 @@ class QueuedCanbus : public Canbus {
 };
 
 TEST(CanbusFrameCallback, PassesEveryFrameAndItsPayload) {
+  using Received = std::vector<std::pair<uint32_t, std::vector<uint8_t>>>;
   QueuedCanbus bus;
-  std::vector<uint32_t> ids;
-  std::vector<std::vector<uint8_t>> payloads;
-  bus.add_frame_callback([&](const CanFrame &frame) {
-    ids.push_back(frame.can_id);
-    payloads.push_back(bus.frame_payload(frame));
-  });
+  Received received;
+  bus.add_frame_callback([&](const CanFrame &frame) { received.emplace_back(frame.can_id, bus.frame_payload(frame)); });
   bus.setup();
   bus.queue(0x100, false, {0x01, 0x02});
   bus.queue(0x1ABCDE42, true, {});
@@ -61,10 +59,7 @@ TEST(CanbusFrameCallback, PassesEveryFrameAndItsPayload) {
 
   bus.loop();
 
-  EXPECT_EQ(ids, (std::vector<uint32_t>{0x100, 0x1ABCDE42, 0x7FF}));
-  EXPECT_EQ(payloads[0], (std::vector<uint8_t>{0x01, 0x02}));
-  EXPECT_TRUE(payloads[1].empty());
-  EXPECT_EQ(payloads[2], (std::vector<uint8_t>{1, 2, 3, 4, 5, 6, 7, 8}));
+  EXPECT_EQ(received, (Received{{0x100, {0x01, 0x02}}, {0x1ABCDE42, {}}, {0x7FF, {1, 2, 3, 4, 5, 6, 7, 8}}}));
 }
 
 TEST(CanbusFrameCallback, ReceivingFramesDoesNotAllocate) {

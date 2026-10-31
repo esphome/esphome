@@ -4,6 +4,7 @@
 #include "esphome/core/component.h"
 #include "esphome/core/optional.h"
 
+#include <algorithm>
 #include <cinttypes>
 #include <vector>
 
@@ -60,6 +61,8 @@ struct CanFrame {
   uint32_t can_id;              /* 29 or 11 bit CAN_ID; drivers clear bits 29-31 (on_frame relies on it) */
   uint8_t can_data_length_code; /* frame payload length in byte (0 .. CAN_MAX_DATA_LENGTH) */
   uint8_t data[CAN_MAX_DATA_LENGTH] __attribute__((aligned(8)));
+
+  uint8_t payload_length() const { return std::min(this->can_data_length_code, CAN_MAX_DATA_LENGTH); }
 };
 
 enum CanEventFlags : uint8_t {
@@ -128,8 +131,9 @@ class Canbus : public Component {
   template<typename F>
   ESPDEPRECATED("Use add_frame_callback(), which does not copy the payload. Removed in 2027.5.0.", "2026.11.0")
   void add_callback(F &&callback) {
-    this->payload_.reserve(CAN_MAX_DATA_LENGTH);
-    this->callback_manager_.add(std::forward<F>(callback));
+    this->frame_callbacks_.add([this, cb = std::forward<F>(callback)](const CanFrame &frame) {
+      cb(frame.can_id, frame.use_extended_id, frame.remote_transmission_request, this->frame_payload(frame));
+    });
   }
 
  protected:
@@ -141,9 +145,6 @@ class Canbus : public Component {
   uint8_t events_to_log_{0};
   bool bus_off_{false};
   CallbackManager<void(const CanFrame &frame)> frame_callbacks_{};
-  CallbackManager<void(uint32_t can_id, bool extended_id, bool rtr, const std::vector<uint8_t> &data)>
-      callback_manager_{};
-  // Reserved before the first frame, so filling it per frame never allocates
   std::vector<uint8_t> payload_;
 
   // interval in which to check for new can bus events (bus-off, passive, active)
