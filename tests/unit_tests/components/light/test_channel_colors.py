@@ -14,8 +14,6 @@ import esphome.config_validation as cv
 from esphome.const import CONF_IS_RGBW, CONF_RGB_ORDER
 from esphome.types import ConfigType
 
-NO_WHITE = "light::ChannelColors::NO_WHITE"
-
 
 @pytest.mark.parametrize(
     ("value", "expected"),
@@ -52,16 +50,16 @@ def test_validate_channel_colors_rejects_invalid(value: str) -> None:
 @pytest.mark.parametrize(
     ("value", "expected"),
     [
-        ("RGB", (0, 1, 2, NO_WHITE)),
-        ("GRB", (1, 0, 2, NO_WHITE)),
-        ("BRG", (1, 2, 0, NO_WHITE)),
+        ("RGB", (0, 1, 2)),
+        ("GRB", (1, 0, 2)),
+        ("BRG", (1, 2, 0)),
         ("RGBW", (0, 1, 2, 3)),
         ("GRBW", (1, 0, 2, 3)),
         ("WRGB", (1, 2, 3, 0)),
         ("GWRB", (2, 0, 3, 1)),
     ],
 )
-def test_channel_colors_struct(value: str, expected: tuple[int, int, int, int]) -> None:
+def test_channel_colors_struct(value: str, expected: tuple[int, ...]) -> None:
     struct = channel_colors_struct(value)
     assert struct.base.base == "light::ChannelColors"
     assert tuple(str(arg) for arg in struct.base.args) == tuple(

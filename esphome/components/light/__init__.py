@@ -249,15 +249,10 @@ def validate_channel_colors(value: str) -> str:
     return value
 
 
-def channel_colors_struct(value: str) -> cg.StructInitializer:
+def channel_colors_struct(value: str) -> cg.MockObj:
     """Build the C++ `light::ChannelColors` for a validated channel order string."""
     return ChannelColors(
-        value.index("R"),
-        value.index("G"),
-        value.index("B"),
-        value.index("W")
-        if "W" in value
-        else cg.RawExpression(f"{ChannelColors}::NO_WHITE"),
+        *(value.index(channel) for channel in "RGBW" if channel in value)
     )
 
 
