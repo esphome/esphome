@@ -12,3 +12,5 @@ speaker:
     id: resampler_speaker_2_id
     output_speaker: resampler_speaker_id
     bits_per_sample: passthrough
+    task_core: 1
+    task_priority: 5

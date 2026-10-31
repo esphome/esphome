@@ -1,0 +1,30 @@
+esphome:
+  name: resampler-task-scheduling
+
+esp32:
+  variant: ESP32S3
+  framework:
+    type: esp-idf
+
+packages:
+  i2s_audio: !include ../../../test_build_components/common/i2s_audio/esp32-s3-idf.yaml
+
+speaker:
+  - platform: i2s_audio
+    id: output
+    i2s_audio_id: i2s_audio_bus
+    dac_type: external
+    i2s_dout_pin: GPIO16
+  - platform: resampler
+    id: default_resampler
+    output_speaker: output
+  - platform: resampler
+    id: core_zero_resampler
+    output_speaker: output
+    task_core: 0
+    task_priority: 5
+  - platform: resampler
+    id: core_one_resampler
+    output_speaker: output
+    task_core: 1
+    task_priority: 23
