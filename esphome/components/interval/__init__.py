@@ -10,6 +10,10 @@ interval_ns = cg.esphome_ns.namespace("interval")
 IntervalTrigger = interval_ns.class_(
     "IntervalTrigger", automation.Trigger.template(), cg.PollingComponent
 )
+IntervalCallback = interval_ns.class_("IntervalCallback", cg.PollingComponent)
+DelayedIntervalCallback = interval_ns.class_(
+    "DelayedIntervalCallback", IntervalCallback
+)
 
 CONFIG_SCHEMA = automation.validate_automation(
     cv.Schema(
@@ -26,9 +30,14 @@ CONFIG_SCHEMA = automation.validate_automation(
 
 async def to_code(config: list[ConfigType]) -> None:
     for conf in config:
-        var = cg.new_Pvariable(conf[CONF_ID])
-        await cg.register_component(var, conf)
-        await automation.build_automation(var, [], conf)
-
+        if startup_delay := conf[CONF_STARTUP_DELAY].total_milliseconds:
+            component_class, template_args = DelayedIntervalCallback, [startup_delay]
+        else:
+            component_class, template_args = IntervalCallback, []
+        var = await automation.build_component_automation(
+            conf, component_class, id_key=CONF_ID, template_args=template_args
+        )
         cg.add(var.set_update_interval(conf[CONF_INTERVAL]))
-        cg.add(var.set_startup_delay(conf[CONF_STARTUP_DELAY]))
+        # A hand-set id keeps the IntervalTrigger, which takes the delay at run time
+        if startup_delay and conf[CONF_ID].is_manual:
+            cg.add(var.set_startup_delay(startup_delay))

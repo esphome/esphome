@@ -40,3 +40,17 @@ def get_define_value(name: str) -> str | None:
         if define.name == name:
             return str(define.value)
     return None
+
+
+def constructed(main_cpp: str, var: str) -> str:
+    """The expression placement-new builds ``var`` with, e.g. ``Foo<bar>()``."""
+    match = re.search(rf"new\({var}\) ([^;]+);", main_cpp)
+    assert match is not None, var
+    return match.group(1)
+
+
+def function_body(main_cpp: str, name: str) -> str:
+    """The body of the generated ``static void name()``."""
+    match = re.search(rf"static void {name}\(\) \{{(.*?)\n\}}\n", main_cpp, re.DOTALL)
+    assert match is not None, name
+    return match.group(1)
