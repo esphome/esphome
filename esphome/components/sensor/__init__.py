@@ -113,18 +113,30 @@ from esphome.const import (
     DEVICE_CLASS_WIND_SPEED,
     ENTITY_CATEGORY_CONFIG,
     ICON_CHEMICAL_WEAPON,
+    ICON_TIMER,
     STATE_CLASS_MEASUREMENT,
     STATE_CLASS_TOTAL_INCREASING,
     UNIT_AMPERE,
     UNIT_CELSIUS,
     UNIT_DECIBEL_MILLIWATT,
+    UNIT_DEGREES,
     UNIT_HECTOPASCAL,
     UNIT_HERTZ,
+    UNIT_HOUR,
+    UNIT_KILOVOLT_AMPS,
+    UNIT_KILOVOLT_AMPS_REACTIVE,
+    UNIT_KILOVOLT_AMPS_REACTIVE_HOURS,
+    UNIT_KILOWATT,
     UNIT_KILOWATT_HOURS,
     UNIT_LUX,
+    UNIT_METER,
     UNIT_MICROGRAMS_PER_CUBIC_METER,
+    UNIT_MILLIMETER,
+    UNIT_MINUTE,
+    UNIT_OHM,
     UNIT_PARTS_PER_MILLION,
     UNIT_PERCENT,
+    UNIT_SECOND,
     UNIT_VOLT,
     UNIT_VOLT_AMPS,
     UNIT_VOLT_AMPS_REACTIVE,
@@ -415,8 +427,8 @@ class SensorKind(NamedTuple):
     Passing any other field the kind sets is an error.
     """
 
-    unit_of_measurement: str
-    device_class: str
+    unit_of_measurement: str = cv.UNDEFINED
+    device_class: str = cv.UNDEFINED
     state_class: str = STATE_CLASS_MEASUREMENT
     icon: str = cv.UNDEFINED
     accuracy_decimals: int = cv.UNDEFINED
@@ -462,6 +474,32 @@ ENERGY_KWH = SensorKind(
 ENERGY_WH = SensorKind(
     UNIT_WATT_HOURS, DEVICE_CLASS_ENERGY, STATE_CLASS_TOTAL_INCREASING
 )
+
+
+POWER_KW = SensorKind(UNIT_KILOWATT, DEVICE_CLASS_POWER, accuracy_decimals=3)
+APPARENT_POWER_KVA = SensorKind(
+    UNIT_KILOVOLT_AMPS, DEVICE_CLASS_APPARENT_POWER, accuracy_decimals=3
+)
+REACTIVE_POWER_KVAR = SensorKind(
+    UNIT_KILOVOLT_AMPS_REACTIVE, DEVICE_CLASS_REACTIVE_POWER, accuracy_decimals=3
+)
+REACTIVE_ENERGY_KVARH = SensorKind(
+    UNIT_KILOVOLT_AMPS_REACTIVE_HOURS,
+    state_class=STATE_CLASS_TOTAL_INCREASING,
+    accuracy_decimals=3,
+)
+POWER_FACTOR = SensorKind(device_class=DEVICE_CLASS_POWER_FACTOR)
+PERCENT = SensorKind(UNIT_PERCENT, accuracy_decimals=0)
+ANGLE = SensorKind(UNIT_DEGREES)
+MASS_CONCENTRATION = SensorKind(UNIT_MICROGRAMS_PER_CUBIC_METER, accuracy_decimals=0)
+DISTANCE_M = SensorKind(UNIT_METER, accuracy_decimals=2)
+DISTANCE_MM = SensorKind(UNIT_MILLIMETER, DEVICE_CLASS_DISTANCE, accuracy_decimals=0)
+RESISTANCE = SensorKind(UNIT_OHM, accuracy_decimals=0)
+DURATION_H = SensorKind(
+    UNIT_HOUR, DEVICE_CLASS_DURATION, icon=ICON_TIMER, accuracy_decimals=0
+)
+DURATION_MIN = SensorKind(UNIT_MINUTE, DEVICE_CLASS_DURATION, accuracy_decimals=0)
+DURATION_S = SensorKind(UNIT_SECOND, DEVICE_CLASS_DURATION, accuracy_decimals=0)
 
 
 def sensor_schema(
