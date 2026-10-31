@@ -1110,79 +1110,67 @@ async def test_apply_condition_id_constant_is_the_named_object(
     )
 
 
+def _by_value_call(type_: str, body: str) -> str:
+    """A config lambda called in place with arg ``x`` by value, whitespace folded."""
+    return f"[]({type_} x) -> {type_} {{ {_squash(body)} }}(x)"
+
+
+LAMBDA_BODIES = [
+    "return x * 2;",
+    "if (x) return 1;\nreturn 2;",
+    "x *= 2;\nreturn x;",
+    "return x *= 2;",
+]
+
+
 @pytest.mark.asyncio
+@pytest.mark.parametrize("body", LAMBDA_BODIES)
 async def test_apply_lambdas(
-    registries: tuple[Registry, Registry], mock_cg: MockCodegen
+    registries: tuple[Registry, Registry], mock_cg: MockCodegen, body: str
 ) -> None:
-    """A single return reduces to a cast, anything longer is called inline with the trigger args."""
-    fields = (
-        ApplyField("kp", "set_kp", cg.float_),
-        ApplyField("ki", "set_ki", cg.float_),
+    """Every lambda is called in place with the trigger arg by value, so it may modify it."""
+    fields = (ApplyField("kp", "set_kp", cg.int32),)
+    await _run_apply_action(
+        registries, fields, {"kp": Lambda(body)}, args=[(cg.int32, "x")]
     )
-    config = {
-        "kp": Lambda("return x * 2;"),
-        "ki": Lambda("if (x) return 1.0f;\nreturn 2.0f;"),
-    }
-    await _run_apply_action(registries, fields, config, args=[(cg.int32, "x")])
-    text = _apply_definition(mock_cg)
-    assert text.startswith(
-        "static void esphome__obj_1__fn(const std::remove_cvref_t<int32_t> & x) {"
-    )
-    # The parent is global-scope qualified, so an arg named like the id cannot shadow it.
-    assert f"::{PARENT_OBJ}->set_kp(" in text
-    assert f"::{PARENT_OBJ}->set_kp(static_cast<float>(x * 2));" in text
-    # Outer apply lambda and inner field lambda spell the trigger arg identically.
-    assert text.count("const std::remove_cvref_t<int32_t> & x") == 2
-    assert (
-        f"::{PARENT_OBJ}->set_ki([](const std::remove_cvref_t<int32_t> & x) -> float {{"
-        in text
-    )
-    assert "}(x));" in text
-
-
-@pytest.mark.asyncio
-async def test_apply_lambda_modifying_its_arg(
-    registries: tuple[Registry, Registry], mock_cg: MockCodegen
-) -> None:
-    """How a field lambda that modifies its trigger arg is rendered."""
-    fields = (
-        ApplyField("kp", "set_kp", cg.float_),
-        ApplyField("ki", "set_ki", cg.float_),
-    )
-    config = {"kp": Lambda("x *= 2;\nreturn x;"), "ki": Lambda("return x *= 2;")}
-    await _run_apply_action(registries, fields, config, args=[(cg.int32, "x")])
     text = _squash(_apply_definition(mock_cg))
     assert text.startswith(
         "static void esphome__obj_1__fn(const std::remove_cvref_t<int32_t> & x) {"
     )
-    assert (
-        f"::{PARENT_OBJ}->set_kp([](const std::remove_cvref_t<int32_t> & x) -> float "
-        "{ x *= 2; return x; }(x));"
-    ) in text
-    assert f"::{PARENT_OBJ}->set_ki(static_cast<float>(x *= 2));" in text
+    # The parent is global-scope qualified, so an arg named like the id cannot shadow it.
+    assert f"::{PARENT_OBJ}->set_kp({_by_value_call('int32_t', body)});" in text
 
 
 @pytest.mark.asyncio
-async def test_apply_condition_lambda_modifying_its_arg(
+async def test_apply_lambda_naming_no_arg_is_reduced(
     registries: tuple[Registry, Registry], mock_cg: MockCodegen
 ) -> None:
-    """How a condition lambda that modifies its trigger arg is rendered."""
-    check = ApplyCall("state == {}", (("state", cg.float_),))
-    await _run_apply_condition(
-        registries,
-        check,
-        {"state": Lambda("x *= 2;\nreturn x;")},
-        args=[(cg.float_, "x")],
+    """A lone return that names no value arg copies nothing, so it is the bare expression."""
+    fields = (ApplyField("kp", "set_kp", cg.int32),)
+    config = {"kp": Lambda("return 42;")}
+    await _run_apply_action(registries, fields, config, args=[(cg.int32, "x")])
+    assert f"::{PARENT_OBJ}->set_kp(static_cast<int32_t>(42));" in _apply_definition(
+        mock_cg
     )
+    # Beside an operator a reduced class-typed expression is parenthesized.
+    check = ApplyCall("state == {}", (("state", cg.std_string),))
+    config = {"state": Lambda('return "a";')}
+    await _run_apply_condition(registries, check, config, args=[(cg.int32, "x")])
+    assert f'return ::{PARENT_OBJ}->state == ("a");' in _apply_definition(mock_cg)
+
+
+@pytest.mark.asyncio
+async def test_apply_lambda_unnamed_arg_is_not_copied(
+    registries: tuple[Registry, Registry], mock_cg: MockCodegen
+) -> None:
+    """An arg the body never names stays a reference; a named one is by value."""
+    fields = (ApplyField("index", "set_index", cg.size_t),)
+    args = [(cg.std_string, "x"), (cg.size_t, "i")]
+    # `xi` must not count as naming `x`
+    config = {"index": Lambda("size_t xi = i;\nreturn xi;")}
+    await _run_apply_action(registries, fields, config, args=args)
     assert (
-        f"return ::{PARENT_OBJ}->state == [](const std::remove_cvref_t<float> & x) "
-        "-> float { x *= 2; return x; }(x);"
-    ) in _squash(_apply_definition(mock_cg))
-    await _run_apply_condition(
-        registries, check, {"state": Lambda("return x *= 2;")}, args=[(cg.float_, "x")]
-    )
-    assert (
-        f"return ::{PARENT_OBJ}->state == static_cast<float>(x *= 2);"
+        "set_index([](const std::remove_cvref_t<std::string> & x, size_t i) -> size_t {"
         in _apply_definition(mock_cg)
     )
 
@@ -1615,28 +1603,26 @@ async def test_apply_condition_string_constant(
 
 @pytest.mark.asyncio
 @pytest.mark.parametrize(
-    ("body", "expected", "called"),
+    ("type_", "body"),
     [
-        ("return x;", "->state == (x);", False),
-        ('return x.empty() ? "e" : x;', '->state == (x.empty() ? "e" : x);', False),
-        ('if (x.empty()) return "e";\nreturn x;', "}(x);", True),
+        *((cg.int32, body) for body in LAMBDA_BODIES),
+        (cg.std_string, "return x;"),
+        (cg.std_string, 'if (x.empty()) return "e";\nreturn x;'),
     ],
 )
-async def test_apply_condition_string_lambda_paths(
+async def test_apply_condition_lambdas(
     registries: tuple[Registry, Registry],
     mock_cg: MockCodegen,
+    type_: MockObj,
     body: str,
-    expected: str,
-    called: bool,
 ) -> None:
-    """A single return is inlined with no copy; a longer body is a called std::string lambda."""
-    check = ApplyCall("state == {}", (("state", cg.std_string),))
+    """A condition lambda is called in place with the trigger arg by value, a std::string too."""
+    check = ApplyCall("state == {}", (("state", type_),))
     await _run_apply_condition(
-        registries, check, {"state": Lambda(body)}, args=[(cg.std_string, "x")]
+        registries, check, {"state": Lambda(body)}, args=[(type_, "x")]
     )
-    text = _apply_definition(mock_cg)
-    assert expected in text
-    assert ("-> std::string {" in text) is called
+    text = _squash(_apply_definition(mock_cg))
+    assert f"->state == {_by_value_call(str(type_), body)};" in text
 
 
 def test_progmem_bytes_shares_equal_payloads() -> None:
@@ -1775,33 +1761,19 @@ async def test_trigger_callback_filter_names_parent(mock_cg: MockCodegen) -> Non
 
 
 @pytest.mark.asyncio
-@pytest.mark.parametrize(
-    ("body", "expected"),
-    [
-        (
-            "x *= 2;\nreturn x;",
-            (
-                "if (!(x == [](const std::remove_cvref_t<float> & x) -> float "
-                "{ x *= 2; return x; }(x))) return;"
-            ),
-        ),
-        ("return x *= 2;", "if (!(x == static_cast<float>(x *= 2))) return;"),
-    ],
-)
-async def test_trigger_callback_filter_lambda_modifying_its_arg(
-    mock_cg: MockCodegen, body: str, expected: str
-) -> None:
-    """How a filter lambda that modifies the callback's arg is rendered."""
+@pytest.mark.parametrize("body", LAMBDA_BODIES)
+async def test_trigger_callback_filter_lambdas(mock_cg: MockCodegen, body: str) -> None:
+    """A filter lambda is called in place with the callback's arg by value."""
     text = _squash(
         await build_trigger_callback(
-            [(cg.float_, "x")],
+            [(cg.int32, "x")],
             {**TRIGGER_CONF, "level": Lambda(body)},
-            [(cg.float_, "x")],
-            when=ApplyCall("x == {}", (("level", cg.float_),)),
+            [(cg.int32, "x")],
+            when=ApplyCall("x == {}", (("level", cg.int32),)),
         )
     )
-    assert text.startswith("[](const std::remove_cvref_t<float> & x) -> void {")
-    assert expected in text
+    assert text.startswith("[](const std::remove_cvref_t<int32_t> & x) -> void {")
+    assert f"if (!(x == {_by_value_call('int32_t', body)})) return;" in text
 
 
 @pytest.mark.asyncio

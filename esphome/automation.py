@@ -3,6 +3,7 @@ from contextvars import ContextVar
 from dataclasses import dataclass, field
 import logging
 import math
+import re
 import string
 from typing import Any
 
@@ -623,34 +624,34 @@ async def _apply_parent(config: ConfigType, id_key: str = CONF_ID) -> str:
     return str(parent_ref(await cg.get_variable(config[id_key])))
 
 
-def _apply_lambda_args(args: TemplateArgsType) -> TemplateArgsType:
-    # The generated function's parameters: a reference keeps its spelling, so a mutable
-    # one stays mutable; a value is taken by const reference, so a std::string is never copied.
-    return [
-        (
-            (
-                t
-                if str(cg.safe_exp(t)).rstrip().endswith("&")
-                else cg.RawExpression(f"const std::remove_cvref_t<{cg.safe_exp(t)}> &")
-            ),
-            arg,
-        )
-        for t, arg in args
-    ]
+def _is_reference(type_: SafeExpType) -> bool:
+    return str(cg.safe_exp(type_)).rstrip().endswith("&")
+
+
+def _apply_param_type(type_: SafeExpType) -> SafeExpType:
+    # A reference keeps its spelling; a value is taken by const reference, so it is never copied.
+    if _is_reference(type_):
+        return type_
+    return cg.RawExpression(f"const std::remove_cvref_t<{cg.safe_exp(type_)}> &")
+
+
+def _apply_params(args: TemplateArgsType) -> TemplateArgsType:
+    """The generated function's parameters."""
+    return [(_apply_param_type(t), arg) for t, arg in args]
 
 
 def _apply_function(
     id_: ID,
     return_type: SafeExpType,
     template_arg: cg.TemplateArguments,
-    lambda_args: TemplateArgsType,
+    args: TemplateArgsType,
     statements: list[str],
 ) -> MockObj:
     """Emit the generated function and declare ``id_`` as the ``ApplyAction`` or
     ``ApplyCondition`` templated on it, so ``play()`` calls it directly."""
 
     def emit() -> MockObj:
-        fn = apply_static_function(id_, return_type, lambda_args, statements)
+        fn = apply_static_function(id_, return_type, _apply_params(args), statements)
         return cg.new_Pvariable(id_, cg.TemplateArguments(fn, *template_arg))
 
     return _COLLECTED_ACTION if _collect_action(id_, statements, emit) else emit()
@@ -667,9 +668,7 @@ def apply_statements_action(
     Use it when the statements do not fit ``register_apply_action``. Generated names should
     start with ``esphome__`` so a trigger argument cannot shadow them.
     """
-    return _apply_function(
-        action_id, cg.void, template_arg, _apply_lambda_args(args), statements
-    )
+    return _apply_function(action_id, cg.void, template_arg, args, statements)
 
 
 def apply_static_function(
@@ -682,19 +681,39 @@ def apply_static_function(
     return cg.static_function(f"esphome__{id_.id}__fn", return_type, params, statements)
 
 
-async def _render_values(
+async def _call_user_lambda(
+    value: Lambda, args: TemplateArgsType, return_type: SafeExpType
+) -> Expression:
+    """Call a config lambda in place; a value arg its body names is a copy it may modify.
+
+    The other args are the generated function's const references, so a body that names
+    none of them is reduced to its expression, as ``call_lambda`` does.
+    """
+    by_value = {
+        name
+        for t, name in args
+        if not _is_reference(t) and re.search(rf"\b{name}\b", value.value)
+    }
+    params = [
+        (t if name in by_value else _apply_param_type(t), name) for t, name in args
+    ]
+    inner = await cg.process_lambda(value, params, return_type=return_type)
+    return immediate_lambda_call(inner) if by_value else call_lambda(inner)
+
+
+async def _render_call(
     name: str,
     target: str,
     members: list[tuple[Any, Any, Any]],
     values: list[Any],
     config: ConfigType,
     parent: str | None,
-    lambda_args: TemplateArgsType,
+    args: TemplateArgsType,
     compare: bool = False,
-) -> list[str]:
-    """Render the argument text of one statement; every key must be present.
+) -> str:
+    """Render ``target`` with its config values filled in; every key must be present.
 
-    ``compare``: an inlined lambda expression is parenthesized so it binds as a whole
+    ``compare``: a reduced lambda expression is parenthesized so it binds as a whole
     beside an operator.
     """
     if any(value is None for value in values):
@@ -705,8 +724,7 @@ async def _render_values(
         if isinstance(value, Lambda):
             if isinstance(type_, str):
                 type_ = cg.RawExpression(type_.format(parent=parent))
-            inner = await cg.process_lambda(value, lambda_args, return_type=type_)
-            expr = call_lambda(inner)
+            expr = await _call_user_lambda(value, args, type_)
             bare = compare and isinstance(expr, cg.RawExpression)
             exprs.append(f"({expr})" if bare else str(expr))
         elif isinstance(value, ID):
@@ -716,7 +734,7 @@ async def _render_values(
             exprs.append(const_fn(config, value))
         else:
             exprs.append(str(cg.safe_exp(value)))
-    return exprs
+    return target.format(*exprs, parent=parent)
 
 
 def _apply_values(config: ConfigType, members: list[tuple[Any, Any, Any]]) -> list[Any]:
@@ -780,7 +798,6 @@ def apply_action_builder(
         args: TemplateArgsType,
     ) -> MockObj:
         parent = await _apply_parent(config, id_key)
-        lambda_args = _apply_lambda_args(args)
         receiver = "apply_call." if call else f"{parent}->"
         statements: list[str] = []
         for spec in statements_spec:
@@ -795,19 +812,17 @@ def apply_action_builder(
             values = _apply_values(config, members)
             if not _apply_call_active(members, values):
                 continue
-            exprs = await _render_values(
-                name, target, members, values, config, parent, lambda_args
+            rendered = await _render_call(
+                name, target, members, values, config, parent, args
             )
-            statements.append(f"{receiver}{target.format(*exprs, parent=parent)};")
+            statements.append(f"{receiver}{rendered};")
         if call:
             statements = [
                 f"auto apply_call = {parent}->{call}();",
                 *statements,
                 "apply_call.perform();",
             ]
-        return _apply_function(
-            action_id, cg.void, template_arg, lambda_args, statements
-        )
+        return _apply_function(action_id, cg.void, template_arg, args, statements)
 
     return builder
 
@@ -820,11 +835,7 @@ async def _render_bytes(
     args: TemplateArgsType,
     table_name: str,
 ) -> list[str]:
-    """The statements for one ``ApplyBytes``: what ``TemplatableBytes::visit`` does, inlined.
-
-    The payload lambda keeps the automation's own argument types, as ``TemplatableBytes``
-    gave it, and is always called, so a body that modifies an argument still compiles.
-    """
+    """The statements for one ``ApplyBytes``: what ``TemplatableBytes::visit`` does, inlined."""
     value = _config_lookup(config, spec.conf_key)
     if value is None:
         return []
@@ -834,11 +845,7 @@ async def _render_bytes(
         return f"{receiver}{target.format(data, parent=parent)};"
 
     if isinstance(value, Lambda):
-        inner = await cg.process_lambda(
-            value, args, return_type=cg.std_vector.template(cg.uint8)
-        )
-        # Never reduced into the outer function, whose own parameters are const
-        call = CallExpression(inner, *[cg.MockObj(name) for _, name in args])
+        call = await _call_user_lambda(value, args, cg.std_vector.template(cg.uint8))
         return [
             "{",
             f"  const std::vector<uint8_t> esphome__bytes = {call};",
@@ -873,22 +880,6 @@ def _apply_call_active(members: list[tuple[Any, Any, Any]], values: list[Any]) -
     return not members or any(value is not None for value in values)
 
 
-async def _render_check(
-    name: str,
-    target: str,
-    members: list[tuple[Any, Any, Any]],
-    values: list[Any],
-    config: ConfigType,
-    parent: str | None,
-    lambda_args: TemplateArgsType,
-) -> str:
-    """Render a boolean check with ``values`` compared against config."""
-    exprs = await _render_values(
-        name, target, members, values, config, parent, lambda_args, compare=True
-    )
-    return target.format(*exprs, parent=parent)
-
-
 def register_apply_condition(
     name: str,
     schema: cv.Schema,
@@ -921,16 +912,15 @@ def register_apply_condition(
         if defaults:
             config = {**defaults, **config}
         parent = await _apply_parent(config, id_key)
-        lambda_args = _apply_lambda_args(args)
         values = _apply_values(config, members)
-        check = await _render_check(
-            name, call.target, members, values, config, parent, lambda_args
+        check = await _render_call(
+            name, call.target, members, values, config, parent, args, compare=True
         )
         return _apply_function(
             condition_id,
             cg.bool_,
             template_arg,
-            lambda_args,
+            args,
             [f"return {parent}->{check};"],
         )
 
@@ -1718,7 +1708,7 @@ def _emit_inline_run(
         cg.void,
         [
             (cg.RawExpression("const int &"), _RUNNING_PARAM),
-            *_apply_lambda_args(args),
+            *_apply_params(args),
         ],
         statements,
     )
@@ -1913,7 +1903,7 @@ def _direct_function(
         return None
     statements = [line for line in _run_statements(plan[0]) if line != _STOP_CHECK]
     return apply_static_function(
-        plan[0][0].id_, cg.void, _apply_lambda_args(args), statements
+        plan[0][0].id_, cg.void, _apply_params(args), statements
     )
 
 
@@ -1969,27 +1959,27 @@ async def _trigger_callback(
 ) -> LambdaExpression:
     if (target := _direct_function(plan, args, config)) is None:
         target = f"{parent_ref(_automation_from_plan(plan, args, config))}->trigger"
-    lambda_args = _apply_lambda_args(params)
     statements: list[str] = []
     if call is not None:
         members = call.members
         values = _apply_values(config, members)
         if _apply_call_active(members, values):
-            check = await _render_check(
+            check = await _render_call(
                 "trigger filter",
                 call.target,
                 members,
                 values,
                 config,
                 None if parent is None else str(parent_ref(parent)),
-                lambda_args,
+                params,
+                compare=True,
             )
             statements.append(f"if (!({check}))\n  return;")
     if forward is None:
         forward = [name for _, name in params]
     statements.append(f"{target}({', '.join(map(str, forward))});")
     return LambdaExpression(
-        ["\n".join(statements)], lambda_args, capture="", return_type=cg.void
+        ["\n".join(statements)], _apply_params(params), capture="", return_type=cg.void
     )
 
 
