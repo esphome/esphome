@@ -2311,7 +2311,9 @@ async def test_component_resume_interval_lambda_codegen() -> None:
         "static void esphome__act__fn(const std::remove_cvref_t<uint32_t> & x) {\n"
         "  PollingComponent &esphome__component = *::comp;\n"
         "  if (esphome__component.is_ready()) {\n"
-        "    esphome__component.set_update_interval(static_cast<uint32_t>(x * 1000));\n"
+        "    esphome__component.set_update_interval([](uint32_t x) -> uint32_t {\n"
+        "    return x * 1000;\n"
+        "  }(x));\n"
         "    esphome__component.start_poller();\n"
         "  }\n"
     ) in CORE.cpp_global_section
@@ -2376,14 +2378,20 @@ async def test_callback_automation_if_with_component_update_is_direct() -> None:
 @pytest.mark.usefixtures("polling_component")
 @pytest.mark.parametrize("body", ["x *= 1000; return x;", "return x *= 1000;"])
 async def test_component_resume_interval_lambda_takes_args_by_value(body: str) -> None:
-    """The user's interval lambda gets the trigger args by value, so it may modify them."""
+    """The user's interval lambda gets the trigger args by value, so it may modify them.
+
+    It is called rather than reduced, so even a single return modifies only its own copy.
+    """
     await build_action(
         _component_action("component.resume", {CONF_UPDATE_INTERVAL: Lambda(body)}),
         cg.TemplateArguments(cg.uint32),
         [(cg.uint32, "x")],
     )
 
-    assert f"[](uint32_t x) -> uint32_t {{\n    {body}\n}}" in CORE.cpp_main_section
+    assert (
+        f"set_update_interval([](uint32_t x) -> uint32_t {{\n    {body}\n  }}(x));"
+        in CORE.cpp_global_section
+    )
 
 
 COMPONENT_ID = ID("comp", type=cg.Component)
