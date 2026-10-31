@@ -54,8 +54,8 @@ class Duco : public uart::UARTDevice, public Component {
   void send(DucoDevice *device, uint8_t function, std::initializer_list<uint8_t> data);
 
  protected:
-  // The longest answer to a request sent here is 25 bytes (node status), the longest request 9
-  static constexpr size_t MAX_FRAME_SIZE = 32;
+  // The longest answer to a request sent here is 39 bytes (box serial number), the longest request 9
+  static constexpr size_t MAX_FRAME_SIZE = 48;
   static constexpr size_t MAX_REQUEST_DATA = 9;
 
   bool parse_byte_(uint8_t byte);
