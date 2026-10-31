@@ -10,33 +10,16 @@ ESPHOME_LOG_TAG(TAG, "am43");
 
 void Am43::dump_config() {
   ESP_LOGCONFIG(TAG, "AM43");
-  LOG_SENSOR(" ", "Battery", this->battery_);
-  LOG_SENSOR(" ", "Illuminance", this->illuminance_);
-}
-
-void Am43::setup() {
-  this->encoder_ = make_unique<Am43Encoder>();
-  this->decoder_ = make_unique<Am43Decoder>();
-  this->logged_in_ = false;
-  this->last_battery_update_ = 0;
-  this->current_sensor_ = 0;
+  LOG_SENSOR(" ", "Battery", this->battery_sensor_);
+  LOG_SENSOR(" ", "Illuminance", this->illuminance_sensor_);
 }
 
 void Am43::gattc_event_handler(esp_gattc_cb_event_t event, esp_gatt_if_t gattc_if, esp_ble_gattc_cb_param_t *param) {
   switch (event) {
-    case ESP_GATTC_OPEN_EVT: {
-      if (param->open.status == ESP_GATT_OK) {
-        this->logged_in_ = false;
-      }
-      break;
-    }
     case ESP_GATTC_DISCONNECT_EVT: {
-      this->logged_in_ = false;
       this->node_state = espbt::ClientState::IDLE;
-      if (this->battery_ != nullptr)
-        this->battery_->publish_state(NAN);
-      if (this->illuminance_ != nullptr)
-        this->illuminance_->publish_state(NAN);
+      PUBLISH_STATE(this->battery_sensor_, NAN);
+      PUBLISH_STATE(this->illuminance_sensor_, NAN);
       break;
     }
     case ESP_GATTC_SEARCH_CMPL_EVT: {
@@ -60,28 +43,22 @@ void Am43::gattc_event_handler(esp_gattc_cb_event_t event, esp_gatt_if_t gattc_i
     case ESP_GATTC_NOTIFY_EVT: {
       if (param->notify.handle != this->char_handle_)
         break;
-      this->decoder_->decode(param->notify.value, param->notify.value_len);
+      Am43Decoder decoder;
+      decoder.decode(param->notify.value, param->notify.value_len);
 
-      if (this->battery_ != nullptr && this->decoder_->has_battery_level() &&
+      if (this->battery_sensor_ != nullptr && decoder.has_battery_level() &&
           millis() - this->last_battery_update_ > 10000) {
-        this->battery_->publish_state(this->decoder_->battery_level_);
+        this->battery_sensor_->publish_state(decoder.battery_level_);
         this->last_battery_update_ = millis();
       }
 
-      if (this->illuminance_ != nullptr && this->decoder_->has_light_level()) {
-        this->illuminance_->publish_state(this->decoder_->light_level_);
+      if (this->illuminance_sensor_ != nullptr && decoder.has_light_level()) {
+        this->illuminance_sensor_->publish_state(decoder.light_level_);
       }
 
       if (this->current_sensor_ > 0) {
-        if (this->illuminance_ != nullptr) {
-          auto *packet = this->encoder_->get_light_level_request();
-          auto status = esp_ble_gattc_write_char(this->parent_->get_gattc_if(), this->parent_->get_conn_id(),
-                                                 this->char_handle_, packet->length, packet->data,
-                                                 ESP_GATT_WRITE_TYPE_NO_RSP, ESP_GATT_AUTH_REQ_NONE);
-          if (status) {
-            ESP_LOGW(TAG, "[%s] esp_ble_gattc_write_char failed, status=%d", this->parent_->address_str(), status);
-          }
-        }
+        if (this->illuminance_sensor_ != nullptr)
+          this->write_packet_(Am43Encoder::get_light_level_request());
         this->current_sensor_ = 0;
       }
       break;
@@ -97,16 +74,19 @@ void Am43::update() {
     return;
   }
   if (this->current_sensor_ == 0) {
-    if (this->battery_ != nullptr) {
-      auto *packet = this->encoder_->get_battery_level_request();
-      auto status =
-          esp_ble_gattc_write_char(this->parent_->get_gattc_if(), this->parent_->get_conn_id(), this->char_handle_,
-                                   packet->length, packet->data, ESP_GATT_WRITE_TYPE_NO_RSP, ESP_GATT_AUTH_REQ_NONE);
-      if (status) {
-        ESP_LOGW(TAG, "[%s] esp_ble_gattc_write_char failed, status=%d", this->parent_->address_str(), status);
-      }
-    }
+    if (this->battery_sensor_ != nullptr)
+      this->write_packet_(Am43Encoder::get_battery_level_request());
     this->current_sensor_++;
+  }
+}
+
+void Am43::write_packet_(const Am43Packet &packet) {
+  // NOLINTNEXTLINE(cppcoreguidelines-pro-type-const-cast) the IDF API takes a mutable buffer it only reads
+  auto status = esp_ble_gattc_write_char(this->parent_->get_gattc_if(), this->parent_->get_conn_id(),
+                                         this->char_handle_, packet.length, const_cast<uint8_t *>(packet.data),
+                                         ESP_GATT_WRITE_TYPE_NO_RSP, ESP_GATT_AUTH_REQ_NONE);
+  if (status) {
+    ESP_LOGW(TAG, "[%s] esp_ble_gattc_write_char failed, status=%d", this->parent_->address_str(), status);
   }
 }
 

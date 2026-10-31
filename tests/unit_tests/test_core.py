@@ -996,7 +996,7 @@ class TestEsphomeCore:
         target.toolchain = const.Toolchain.PLATFORMIO
         assert target.using_native_toolchain is False
         target.toolchain = const.Toolchain.SDK_NRF
-        assert target.using_native_toolchain is False
+        assert target.using_native_toolchain is True
 
     def test_using_toolchain_host(self, target):
         """The host's only toolchain: the system compiler driven by ninja."""
@@ -1021,20 +1021,24 @@ class TestEsphomeCore:
 
         assert "Wire" in target.platformio_libraries
 
-    def test_add_build_unflag__warns_on_native_idf_toolchain(
-        self, target, caplog: pytest.LogCaptureFixture
+    @pytest.mark.parametrize(
+        "toolchain", [const.Toolchain.ESP_IDF, const.Toolchain.SDK_NRF]
+    )
+    def test_add_build_unflag__warns_on_native_cmake_toolchains(
+        self, target, caplog: pytest.LogCaptureFixture, toolchain: const.Toolchain
     ) -> None:
-        """Build unflags are not consumed by the native IDF build generator,
-        so adding one on that toolchain warns; PlatformIO stays silent."""
+        """Build unflags are not consumed by the native IDF and nRF52 build
+        generators, so adding one on those toolchains warns; PlatformIO stays
+        silent."""
         target.toolchain = const.Toolchain.PLATFORMIO
         target.add_build_unflag("-fno-rtti")
         assert "ignored" not in caplog.text
 
-        target.toolchain = const.Toolchain.ESP_IDF
+        target.toolchain = toolchain
         target.add_build_unflag("-fno-exceptions")
         assert (
             "Build unflag -fno-exceptions is ignored when building with the "
-            "native ESP-IDF toolchain" in caplog.text
+            f"native '{toolchain.value}' toolchain" in caplog.text
         )
         # The unflag is still recorded either way.
         assert target.build_unflags == {"-fno-rtti", "-fno-exceptions"}

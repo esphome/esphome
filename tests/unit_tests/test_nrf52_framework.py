@@ -1283,6 +1283,32 @@ def test_patch_gen_defines_relativizes_the_dts_path(tmp_path: Path) -> None:
     framework._patch_gen_defines_dts_path(tmp_path / "absent")  # tolerant
 
 
+def test_patch_west_build_tolerates_a_source_dir_on_another_drive(
+    tmp_path: Path,
+) -> None:
+    """West build's relative source path raises across Windows drives; the
+    patch applies Zephyr main's fallback to the absolute path."""
+    build = tmp_path / "zephyr" / "scripts" / "west_commands" / "build.py"
+    build.parent.mkdir(parents=True)
+    build.write_text(
+        "    def _sanity_check_source_dir(self):\n"
+        "        srcrel = os.path.relpath(self.source_dir)\n"
+        "        self.check_force(True, srcrel)\n"
+    )
+    framework._patch_west_build_source_dir_relpath(tmp_path)
+    patched = build.read_text()
+    assert "relative_to(pathlib.Path.cwd(), walk_up=True)" in patched
+    assert (
+        "        except ValueError:\n            srcrel = self.source_dir\n" in patched
+    )
+    assert "os.path.relpath" not in patched
+    assert "        self.check_force(True, srcrel)\n" in patched
+    assert not list(build.parent.glob("*.tmp"))
+    framework._patch_west_build_source_dir_relpath(tmp_path)  # idempotent
+    assert build.read_text() == patched
+    framework._patch_west_build_source_dir_relpath(tmp_path / "absent")  # tolerant
+
+
 def test_patch_gen_defines_warns_when_the_anchor_is_gone(
     tmp_path: Path, caplog: pytest.LogCaptureFixture
 ) -> None:

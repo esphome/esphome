@@ -185,16 +185,11 @@ void QMC5883LComponent::read_sensor_() {
   ESP_LOGV(TAG, "Got x=%0.02fµT y=%0.02fµT z=%0.02fµT heading=%0.01f° temperature=%0.01f°C status=%u", x, y, z, heading,
            temp, status);
 
-  if (this->x_sensor_ != nullptr)
-    this->x_sensor_->publish_state(x);
-  if (this->y_sensor_ != nullptr)
-    this->y_sensor_->publish_state(y);
-  if (this->z_sensor_ != nullptr)
-    this->z_sensor_->publish_state(z);
-  if (this->heading_sensor_ != nullptr)
-    this->heading_sensor_->publish_state(heading);
-  if (this->temperature_sensor_ != nullptr)
-    this->temperature_sensor_->publish_state(temp);
+  PUBLISH_STATE(this->x_sensor_, x);
+  PUBLISH_STATE(this->y_sensor_, y);
+  PUBLISH_STATE(this->z_sensor_, z);
+  PUBLISH_STATE(this->heading_sensor_, heading);
+  PUBLISH_STATE(this->temperature_sensor_, temp);
 }
 
 i2c::ErrorCode QMC5883LComponent::read_bytes_16_le_(uint8_t a_register, uint16_t *data, uint8_t len) {

@@ -1,0 +1,76 @@
+name: Install apt packages (cached)
+description: >-
+  Installs libsdl2-dev, libmbedtls-dev and ccache from one shared cache. The cache key comes
+  only from the package list and version, so both live here and nowhere else.
+runs:
+  using: "composite"
+  steps:
+    - name: Keep a failed install out of the cache
+      # cache-apt-pkgs ignores install failures and saved an empty cache when a stale package
+      # list got a 404 (upstream awalsh128/cache-apt-pkgs-action#221). It uses an apt-fast
+      # already on PATH: this one refreshes the lists and retries when the install fails and,
+      # if that fails too, removes the folder the action would save. Only a cache miss installs.
+      shell: bash
+      run: |
+        sudo tee /etc/apt/apt.conf.d/99ci-acquire-timeouts >/dev/null <<'EOF'
+        Acquire::Retries "1";
+        Acquire::http::Timeout "15";
+        Acquire::https::Timeout "15";
+        EOF
+        sudo tee /usr/local/bin/apt-fast > /dev/null <<'EOF'
+        #!/bin/bash
+        if [[ " $* " != *" install "* ]]; then
+          exec apt-get "$@"
+        fi
+        touch /tmp/apt-fast-standin-ran
+        apt-get "$@" && exit 0
+        apt-get update -qq >&2
+        # The action pins each package to the version the stale lists named
+        args=()
+        for arg in "$@"; do
+          if [[ "${arg}" == -* ]]; then args+=("${arg}"); else args+=("${arg%%=*}"); fi
+        done
+        apt-get "${args[@]}" && exit 0
+        # The action writes our output to install.log inside the folder it saves
+        log="$(readlink -f "/proc/$$/fd/1")"
+        if [ "$(basename "${log}")" = install.log ]; then
+          rm -rf "$(dirname "${log}")"
+        else
+          touch /tmp/apt-fast-cleanup-missed
+        fi
+        exit 1
+        EOF
+        sudo chmod +x /usr/local/bin/apt-fast
+    - name: Install apt packages (cached)
+      id: apt
+      # Pinned on purpose and not watched by Dependabot: the step above relies on how this
+      # release calls apt-fast and where it writes install.log.
+      uses: awalsh128/cache-apt-pkgs-action@553a35bb8ebd9fcabcb1c9451aa4c98e1b4ca8a9 # v1.6.3
+      with:
+        packages: libsdl2-dev libmbedtls-dev ccache
+        # 1.3 drops the empty caches saved before the step above existed
+        version: 1.3
+    - name: Check the packages are installed
+      shell: bash
+      env:
+        CACHE_HIT: ${{ steps.apt.outputs.cache-hit }}
+      run: |
+        if [ "${CACHE_HIT}" != "true" ] && [ ! -e /tmp/apt-fast-standin-ran ]; then
+          echo "::error::cache-apt-pkgs did not use the apt-fast stand-in; check the pinned release"
+          exit 1
+        fi
+        if [ -e /tmp/apt-fast-cleanup-missed ]; then
+          echo "::error::the failed install may have been cached; check the pinned release and bump the version"
+          exit 1
+        fi
+        # The action restores files without registering them with dpkg
+        for cmd in ccache sdl2-config; do
+          if ! command -v "${cmd}" > /dev/null; then
+            echo "::error::${cmd} is missing after the cached install"
+            exit 1
+          fi
+        done
+        if [ ! -f /usr/include/mbedtls/version.h ]; then
+          echo "::error::libmbedtls-dev is missing after the cached install"
+          exit 1
+        fi

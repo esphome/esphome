@@ -197,9 +197,7 @@ def model_schema(config: ConfigType) -> cv.All | cv.Schema:
             {
                 cv.GenerateID(): cv.declare_id(MipiSpi),
                 cv_dimensions(CONF_DIMENSIONS): dimension_schema(1),
-                model.option(CONF_ENABLE_PIN, cv.UNDEFINED): cv.ensure_list(
-                    pins.gpio_output_pin_schema
-                ),
+                **display.enable_pin_schema(model, config),
                 model.option(CONF_COLOR_ORDER, MODE_BGR): cv.enum(
                     COLOR_ORDERS, upper=True
                 ),

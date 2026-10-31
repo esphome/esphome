@@ -21,6 +21,16 @@
 #ifdef USE_API
 #include "esphome/components/api/api_server.h"
 #endif
+#ifdef USE_MQTT_SESSION_PERSISTENCE
+#include "mqtt_subscription_fingerprint.h"
+#ifdef USE_ESP8266
+#include "esphome/core/preferences.h"
+#elif defined(USE_ESP32)
+#include <esp_attr.h>
+#include <soc/soc_caps.h>
+#include "esphome/core/preferences_rtc.h"
+#endif
+#endif
 #ifdef USE_DASHBOARD_IMPORT
 #include "esphome/components/dashboard_import/dashboard_import.h"
 #endif
@@ -32,6 +42,39 @@ ESPHOME_LOG_TAG(TAG, "mqtt");
 // Maximum number of MQTT component resends per loop iteration.
 // Limits work to avoid triggering the task watchdog on reconnect.
 static constexpr uint8_t MAX_RESENDS_PER_LOOP = 8;
+#ifdef USE_MQTT_SESSION_PERSISTENCE
+static constexpr uint32_t SESSION_FINGERPRINT_HASH = fnv1a_hash("mqtt_session_fingerprint");
+#ifdef USE_ESP8266
+// NOLINTNEXTLINE(cppcoreguidelines-avoid-non-const-global-variables)
+static ESPPreferenceObject s_session_fingerprint_pref;
+#elif defined(USE_ESP32) && SOC_RTC_MEM_SUPPORTED
+#define USE_MQTT_SESSION_FINGERPRINT_RTC_NOINIT
+// Own 8 bytes rather than core's RTC preference pool, which would add 248 bytes of RTC RAM (usable memory on
+// variants with RTC fast memory only). The fingerprint and its checksum; power-on garbage fails the checksum.
+// NOLINTNEXTLINE(cppcoreguidelines-avoid-non-const-global-variables)
+static RTC_NOINIT_ATTR uint32_t s_session_fingerprint[2];
+#endif
+
+// RTC memory where available; RAM only otherwise, so a reset resubscribes
+static void load_session_fingerprint([[maybe_unused]] uint32_t *fingerprint) {
+#ifdef USE_ESP8266
+  s_session_fingerprint_pref = global_preferences->make_preference<uint32_t>(SESSION_FINGERPRINT_HASH, false);
+  s_session_fingerprint_pref.load(fingerprint);
+#elif defined(USE_MQTT_SESSION_FINGERPRINT_RTC_NOINIT)
+  rtc_pref_decode(s_session_fingerprint, SESSION_FINGERPRINT_HASH, 1, reinterpret_cast<uint8_t *>(fingerprint),
+                  sizeof(*fingerprint));
+#endif
+}
+
+static void store_session_fingerprint([[maybe_unused]] const uint32_t *fingerprint) {
+#ifdef USE_ESP8266
+  s_session_fingerprint_pref.save(fingerprint);
+#elif defined(USE_MQTT_SESSION_FINGERPRINT_RTC_NOINIT)
+  rtc_pref_encode(s_session_fingerprint, SESSION_FINGERPRINT_HASH, 1, reinterpret_cast<const uint8_t *>(fingerprint),
+                  sizeof(*fingerprint));
+#endif
+}
+#endif
 
 // Disconnect reason strings indexed by MQTTClientDisconnectReason enum (0-8)
 PROGMEM_STRING_TABLE(MQTTDisconnectReasonStrings, "TCP disconnected", "Unacceptable Protocol Version",
@@ -80,6 +123,19 @@ void MQTTClientComponent::setup() {
     this->state_ = MQTT_CLIENT_DISCONNECTED;
     this->disconnect_reason_ = reason;
   });
+#ifdef USE_MQTT_SESSION_PERSISTENCE
+  this->mqtt_backend_.set_on_connect([this](bool session_present) {
+    this->session_present_ = session_present;
+#ifndef USE_ESP32
+    // AsyncMqttClient delivers CONNACK and SUBACK in the same context, so the counter has one writer
+    this->subacks_.reset();
+#endif
+  });
+#ifndef USE_ESP32
+  this->mqtt_backend_.set_on_subscribe([this](uint16_t, uint8_t return_code) { this->subacks_.add(return_code); });
+#endif
+  load_session_fingerprint(&this->session_fingerprint_);
+#endif
 #ifdef USE_LOGGER
   if (this->is_log_message_enabled() && logger::global_logger != nullptr) {
     logger::global_logger->add_log_callback(
@@ -361,6 +417,9 @@ void MQTTClientComponent::start_connect_() {
                                  this->last_will_.payload.c_str());
   }
 
+#ifdef USE_MQTT_SESSION_PERSISTENCE
+  this->session_present_ = false;
+#endif
   this->mqtt_backend_.connect();
   this->state_ = MQTT_CLIENT_CONNECTING;
   this->connect_begin_ = millis();
@@ -385,14 +444,30 @@ void MQTTClientComponent::check_connected() {
   // MQTT Client needs some time to be fully set up.
   delay(100);  // NOLINT
 
+#ifdef USE_MQTT_SESSION_PERSISTENCE
+  this->subscribes_sent_ = 0;
+  const bool resumed =
+      session_has_subscriptions(this->session_present_, this->session_fingerprint_, this->subscriptions_fingerprint_());
+  this->subacks_settled_ = resumed;
+  if (resumed) {
+    for (auto &subscription : this->subscriptions_)
+      subscription.subscribed = true;
+  } else {
+    // Untrusted until all are acknowledged again, so a reset part way through does not trust a partial session;
+    // topics only an older firmware used stay subscribed in the session
+    this->set_session_fingerprint_(UNTRUSTED_SESSION_FINGERPRINT);
+  }
+#endif
   this->resubscribe_subscriptions_();
 #ifdef USE_MQTT_CRASH_LOG
-  // Best effort: a refused subscription is tried again at the next connection
-  if (this->crash_log_offered_) {
-    char topic[ESPHOME_TOPIC_BUFFER_SIZE];
-    format_esphome_topic(topic, "logs");
-    this->subscribe_(topic, 0);
+#ifdef USE_MQTT_SESSION_PERSISTENCE
+  // Otherwise sent once the SUBACKs are in, so its own SUBACK is never counted
+  if (resumed) {
+    this->subscribe_crash_log_();
   }
+#else
+  this->subscribe_crash_log_();
+#endif
 #endif
   this->send_device_info_();
 
@@ -441,7 +516,12 @@ void MQTTClientComponent::loop() {
         }
 
         this->last_connected_ = now;
+#ifdef USE_MQTT_SESSION_PERSISTENCE
+        if (this->resubscribe_subscriptions_() && !this->subacks_settled_)
+          this->check_subacks_();
+#else
         this->resubscribe_subscriptions_();
+#endif
 
         // Process pending resends for all MQTT components centrally
         // Limit work per loop iteration to avoid triggering task WDT on reconnect
@@ -499,15 +579,69 @@ void MQTTClientComponent::resubscribe_subscription_(MQTTSubscription *sub) {
   if (do_resub) {
     sub->subscribed = this->subscribe_topic_(sub->topic, sub->qos);
     sub->resubscribe_timeout = now;
+#ifdef USE_MQTT_SESSION_PERSISTENCE
+    // Only the subscriptions the fingerprint covers are counted
+    if (sub->subscribed)
+      this->subscribes_sent_++;
+#endif
   }
 }
-void MQTTClientComponent::resubscribe_subscriptions_() {
+bool MQTTClientComponent::resubscribe_subscriptions_() {
+  bool all_subscribed = true;
   for (auto &subscription : this->subscriptions_) {
     this->resubscribe_subscription_(&subscription);
+    all_subscribed &= subscription.subscribed;
   }
+  return all_subscribed;
 }
 
+#ifdef USE_MQTT_SESSION_PERSISTENCE
+// Out of line so the topic buffer is not part of loop()'s stack frame
+__attribute__((noinline)) uint32_t MQTTClientComponent::subscriptions_fingerprint_() {
+  // Seeded with the config hash, so a new firmware config sends every subscription once
+  uint32_t fingerprint = App.get_config_hash();
+  char buf[MQTT_DEFAULT_TOPIC_MAX_LEN];
+  for (const auto &subscription : this->subscriptions_)
+    fingerprint = add_subscription_fingerprint(fingerprint, subscription.topic.build(buf).c_str(), subscription.qos);
+  return fingerprint;
+}
+
+void MQTTClientComponent::check_subacks_() {
+#ifdef USE_ESP32
+  const SubackTally tally = this->mqtt_backend_.get_subacks().tally(this->subscribes_sent_);
+#else
+  const SubackTally tally = this->subacks_.tally(this->subscribes_sent_);
+#endif
+  if (tally == SubackTally::SUBACK_TALLY_PENDING)
+    return;
+  this->subacks_settled_ = true;
+  // Trusted only once the broker granted every SUBSCRIBE, so a reset or a lost link before that sends them again,
+  // and a refused one is tried again at the next connect
+  if (tally == SubackTally::SUBACK_TALLY_ALL_GRANTED)
+    this->set_session_fingerprint_(this->subscriptions_fingerprint_());
 #ifdef USE_MQTT_CRASH_LOG
+  this->subscribe_crash_log_();
+#endif
+}
+
+void MQTTClientComponent::set_session_fingerprint_(uint32_t fingerprint) {
+  if (this->session_fingerprint_ == fingerprint)
+    return;
+  this->session_fingerprint_ = fingerprint;
+  store_session_fingerprint(&this->session_fingerprint_);
+}
+#endif
+
+#ifdef USE_MQTT_CRASH_LOG
+void MQTTClientComponent::subscribe_crash_log_() {
+  // Best effort: a refused subscription is tried again at the next connection
+  if (!this->crash_log_offered_)
+    return;
+  char topic[ESPHOME_TOPIC_BUFFER_SIZE];
+  format_esphome_topic(topic, "logs");
+  this->subscribe_(topic, 0);
+}
+
 void MQTTClientComponent::handle_crash_log_request_(const std::string &topic, const std::string &payload) {
   // Only the CLI's empty request counts: a log_topic pointing at this topic would otherwise replay the crash
   // log for every line it logs
@@ -572,6 +706,10 @@ __attribute__((noinline)) static bool topic_equals(const MQTTTopicSource &source
 }
 
 void MQTTClientComponent::unsubscribe(const std::string &topic) {
+#ifdef USE_MQTT_SESSION_PERSISTENCE
+  // Before the broker drops the topic, so a reset in between cannot leave a matching fingerprint
+  this->set_session_fingerprint_(UNTRUSTED_SESSION_FINGERPRINT);
+#endif
   bool ret = this->mqtt_backend_.unsubscribe(topic.c_str());
   yield();
   if (ret) {
@@ -675,7 +813,7 @@ void MQTTClientComponent::disable() {
     return;
   ESP_LOGD(TAG, "Disabling");
   this->state_ = MQTT_CLIENT_DISABLED;
-  this->on_shutdown();
+  this->mqtt_backend_.disconnect();
 }
 
 // Out of line so the topic buffer is off the stack while the matched callback runs
@@ -737,14 +875,7 @@ void MQTTClientComponent::register_mqtt_component(MQTTComponent *component) { th
 void MQTTClientComponent::set_keep_alive(uint16_t keep_alive_s) { this->mqtt_backend_.set_keep_alive(keep_alive_s); }
 void MQTTClientComponent::set_log_message_template(MQTTMessage &&message) { this->log_message_ = std::move(message); }
 const MQTTDiscoveryInfo &MQTTClientComponent::get_discovery_info() const { return this->discovery_info_; }
-void MQTTClientComponent::set_topic_prefix(const std::string &topic_prefix, const std::string &check_topic_prefix) {
-  if (App.is_name_add_mac_suffix_enabled() && (topic_prefix == check_topic_prefix)) {
-    char buf[ESPHOME_DEVICE_NAME_MAX_LEN + 1];
-    this->topic_prefix_ = str_sanitize_to(buf, App.get_name().c_str());
-  } else {
-    this->topic_prefix_ = topic_prefix;
-  }
-}
+void MQTTClientComponent::set_topic_prefix(std::string topic_prefix) { this->topic_prefix_ = std::move(topic_prefix); }
 const std::string &MQTTClientComponent::get_topic_prefix() const { return this->topic_prefix_; }
 void MQTTClientComponent::disable_birth_message() {
   this->birth_message_.topic = "";
@@ -803,12 +934,17 @@ void MQTTClientComponent::disable_discovery() {
   };
 }
 void MQTTClientComponent::on_shutdown() {
-  if (!this->shutdown_message_.topic.empty()) {
-    yield();
-    this->publish(this->shutdown_message_);
-    yield();
-  }
+  // teardown() disconnects once the broker has confirmed the shutdown message
+  this->shutdown_message_sent_ = !this->shutdown_message_.topic.empty() && this->is_connected() &&
+                                 this->mqtt_backend_.publish_tracked(this->shutdown_message_);
+}
+
+bool MQTTClientComponent::teardown() {
+  // A disconnect drops a message the broker has not confirmed; the core's teardown timeout bounds the wait
+  if (this->shutdown_message_sent_ && this->mqtt_backend_.connected() && !this->mqtt_backend_.publish_acknowledged())
+    return false;
   this->mqtt_backend_.disconnect();
+  return true;
 }
 
 void MQTTClientComponent::set_on_connect(mqtt_on_connect_callback_t &&callback) {
