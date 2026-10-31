@@ -92,7 +92,7 @@ size_t encode_frame(uint16_t frame_id, uint16_t type, const uint8_t *data, uint1
   out[6] = type & 0xFF;
   // TinyFrame checksums are the inverted XOR of the bytes they cover, SOF included for the header.
   out[TF_HEADER_LEN + 1] = static_cast<uint8_t>(~xor_bytes(out, TF_HEADER_LEN + 1));
-  size_t pos = TF_HEADER_LEN + 2;
+  size_t pos = TF_PAYLOAD_OFFSET;
   if (len > 0 && data != nullptr) {
     std::memcpy(out + pos, data, len);
     pos += len;

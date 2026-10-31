@@ -355,6 +355,7 @@ esphome/components/ld2450/* @hareeshmu
 esphome/components/ld2460/* @jesusvallejo
 esphome/components/ld24xx/* @kbx81
 esphome/components/ld6002b/* @hepter
+esphome/components/ld6004/* @wolph
 esphome/components/ld600x/* @hepter @wolph
 esphome/components/ledc/* @OttoWinter
 esphome/components/libretiny/* @kuba2k2
@@ -480,6 +481,7 @@ esphome/components/output/* @esphome/core
 esphome/components/packet_interface/* @clydebarrow
 esphome/components/packet_interface/packet_transport/* @clydebarrow
 esphome/components/packet_transport/* @clydebarrow
+esphome/components/panasonic_ir/* @duckle29
 esphome/components/pca6416a/* @Mat931
 esphome/components/pca9505/* @ajfriesen @ssieb
 esphome/components/pca9554/* @bdraco @clydebarrow @hwstar

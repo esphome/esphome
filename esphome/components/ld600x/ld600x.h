@@ -195,13 +195,16 @@ class LD600XComponent : public Component, public uart::UARTDevice {
   // Each setter picks its setting by entity pointer, so the entities share one generated class. A model
   // with its own entities handles those first and passes the rest down.
 #ifdef USE_NUMBER
-  virtual void set_number_value(number::Number *entity, float value);
+  // Returns false when the value was rejected or its command not queued, so the number keeps its old value.
+  virtual bool set_number_value(number::Number *entity, float value);
 #endif
 #ifdef USE_SELECT
-  virtual void set_select_value(select::Select *entity, size_t index);
+  // Returns false when the command was not queued, so the select keeps its old option.
+  virtual bool set_select_value(select::Select *entity, size_t index);
 #endif
 #ifdef USE_SWITCH
-  virtual void set_switch_state(switch_::Switch *entity, bool state);
+  // Returns false when the command was not queued, so the switch keeps its old state.
+  virtual bool set_switch_state(switch_::Switch *entity, bool state);
 #endif
 #ifdef USE_BUTTON
   virtual void press_button(uint8_t kind);
@@ -268,7 +271,13 @@ class LD600XComponent : public Component, public uart::UARTDevice {
   void write_frame_(uint16_t type, const uint8_t *data, uint8_t len, bool track);
   // Returns whether the command reached the queue; see queue_command_.
   bool send_control_command_(uint32_t command);
-  void send_z_range_();
+  // Writes the candidate range; the caller stores it only on true. Returns false when it was not
+  // queued: crossed bounds or a full queue. A bound held until the other one is known counts as accepted.
+  bool send_z_range_(float z_min, float z_max);
+#ifdef USE_NUMBER
+  // Writes a whole-number setting as a uint32; returns false for a fractional value or a full queue.
+  bool queue_u32_setting_(uint16_t type, float value);
+#endif
   void apply_area_config_();
 
 #ifdef USE_SENSOR

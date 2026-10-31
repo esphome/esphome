@@ -12,6 +12,8 @@ static constexpr uint8_t TF_SOF = 0x01;
 static constexpr uint8_t TF_HEADER_LEN = 6;
 // SOF, header, header checksum and data checksum around a payload.
 static constexpr uint8_t TF_FRAME_OVERHEAD = TF_HEADER_LEN + 3;
+// SOF, header and header checksum come before the payload.
+static constexpr uint8_t TF_PAYLOAD_OFFSET = TF_HEADER_LEN + 2;
 
 inline float read_f32_le(const uint8_t *data) { return bit_cast<float>(encode_value_le<uint32_t>(data)); }
 
