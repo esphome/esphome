@@ -1,0 +1,2 @@
+packages:
+  tflite_model_debug: !include common.yaml
