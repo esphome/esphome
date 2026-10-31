@@ -5,6 +5,7 @@
 #include "esphome/components/gpio_expander/cached_gpio.h"
 #include "esphome/core/component.h"
 #include "esphome/core/hal.h"
+#include "esphome/core/helpers.h"
 #include "esphome/components/gpio_expander/expander_gpio_pin.h"
 #include "sx1509_registers.h"
 
@@ -61,6 +62,11 @@ class SX1509Component final : public Component,
   }
   void register_key_trigger(SX1509KeyTrigger *trig) { this->key_triggers_.push_back(trig); };
   void setup_led_driver(uint8_t pin);
+#ifdef SX1509_LED_CHANNEL_COUNT
+  /// setup() turns `pin` into an LED driver output and writes `initial_duty`, in registration order.
+  void register_led_channel(uint8_t pin, uint8_t initial_duty) { this->led_channels_.push_back({pin, initial_duty}); }
+  void write_led(uint8_t pin, float state) { this->set_pin_value(pin, static_cast<uint8_t>(roundf(state * 255))); }
+#endif
 
  protected:
   // Virtual methods from CachedGpioExpander — names come from base class
@@ -87,6 +93,14 @@ class SX1509Component final : public Component,
 
   uint32_t last_loop_timestamp_ = 0;
   const uint32_t min_loop_period_ = 15;  // ms
+
+#ifdef SX1509_LED_CHANNEL_COUNT
+  struct LedChannel {
+    uint8_t pin;
+    uint8_t initial_duty;
+  };
+  StaticVector<LedChannel, SX1509_LED_CHANNEL_COUNT> led_channels_;
+#endif
 
   void setup_keypad_();
   void set_debounce_config_(uint8_t config_value);

@@ -56,3 +56,13 @@ output:
     id: sx1509_output
     sx1509_id: sx1509_hub
     pin: 5
+  - platform: sx1509
+    id: sx1509_output_inverted
+    sx1509_id: sx1509_hub
+    pin: 6
+    inverted: true
+    min_power: 10%
+  - platform: sx1509
+    id: sx1509_output_second_hub
+    sx1509_id: sx1509_hub_second
+    pin: 5
