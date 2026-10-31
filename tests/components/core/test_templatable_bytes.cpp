@@ -59,7 +59,6 @@ TEST(TemplatableBytesTest, FixedBufferValueKeepsWhatFits) {
   EXPECT_EQ(std::vector<uint8_t>(value.begin(), value.end()), (std::vector<uint8_t>{1, 2}));
 }
 
-// The type is the macro's last argument, so one with a comma needs no alias
 template<typename... Ts> class FixedHolder {
   TEMPLATABLE_BUFFER(data, StaticVector<uint8_t, 2>)
 

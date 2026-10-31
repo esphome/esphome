@@ -64,11 +64,7 @@ async def templatable_bytes(
     table_name: str,
     return_type: MockObj = _BYTE_VECTOR,
 ) -> None:
-    """Set a TemplatableBuffer: a lambda via set_template, constant bytes via set_static.
-
-    ``return_type`` is the lambda's byte container (``data()``, ``size()``, ``resize()``); ``std::vector<uint8_t>``
-    by default.
-    """
+    """Set a TemplatableBytes: a lambda via set_template, constant bytes via set_static."""
     if cg.is_template(value):
         fn = await cg.templatable(value, args, return_type)
         cg.add(set_template(fn))

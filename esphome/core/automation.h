@@ -79,9 +79,8 @@ template<typename T, typename... X> class TemplatableFn {
   T (*f_)(X...){nullptr};
 };
 
-/// Byte payload that is either a stateless lambda returning B (a byte container with data(), size() and resize())
-/// or a static table, which may be in PROGMEM. 8 bytes on 32-bit; codegen stores constant payloads as shared tables.
-/// For a fixed-capacity B, the schema must cap a constant payload at B's capacity; value() drops any excess.
+/// Byte payload that is either a stateless lambda or a static table, which may be in PROGMEM.
+/// 8 bytes on 32-bit; codegen stores constant payloads as shared flash tables.
 template<typename B, typename... Ts> class TemplatableBuffer {
  public:
   void set_template(B (*func)(Ts...)) {
@@ -139,7 +138,6 @@ template<typename B, typename... Ts> class TemplatableBuffer {
 
 template<typename... Ts> using TemplatableBytes = TemplatableBuffer<std::vector<uint8_t>, Ts...>;
 
-/// A byte payload member whose lambda returns the given type, which may contain commas; see TemplatableBuffer.
 #define TEMPLATABLE_BUFFER(name, ...) \
  protected: \
   TemplatableBuffer<__VA_ARGS__, Ts...> name##_{}; \
