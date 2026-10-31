@@ -287,6 +287,7 @@ def test_services_registered_in_order(generate_main) -> None:
         "respond_then_log",
         "status_inline",
         "self_reference",
+        "respond_named",
     ]
     match = re.search(
         r"\bapi_apiserver_id->initialize_user_services\(\{(.*?)\}\);", main_cpp
@@ -302,3 +303,12 @@ def test_legacy_services_key(generate_main) -> None:
     function = _service_function(main_cpp, "legacy_service", NONE, "StringRef")
     assert "Automation<StringRef>" not in main_cpp
     assert '"LEGACY %s", devices.c_str()' in _function_body(main_cpp, function)
+
+
+def test_cleanup_action_id_avoids_config_ids(generate_main) -> None:
+    """The response cleanup action does not take an id the config already uses."""
+    main_cpp = generate_main(CONFIG)
+    last = _actions_of(main_cpp, "worker")[-1]
+    assert last.startswith("worker__after")
+    assert last != "worker__after"
+    assert _action_code(main_cpp, last) == f"\n  {UNREGISTER}"

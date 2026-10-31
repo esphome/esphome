@@ -1990,9 +1990,7 @@ def declare_automation_function(
     async def build() -> None:
         plan = await _build_automation_plan(args, config)
         if after:
-            after_id = ID(
-                f"{automation_id.id}__after", is_declaration=True, type=ApplyAction
-            )
+            after_id = cg.unique_global_id(f"{automation_id.id}__after", ApplyAction)
             _plan_append(
                 plan,
                 _inline_action(

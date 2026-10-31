@@ -14,6 +14,10 @@ globals:
   - id: doubled
     type: int
     initial_value: "0"
+  # Same id the respond_named cleanup action would get without a uniqueness check
+  - id: worker__after
+    type: int
+    initial_value: "0"
 
 api:
   actions:
@@ -101,3 +105,11 @@ api:
       then:
         - lambda: |-
             ESP_LOGD("test", "SELF_REFERENCE %p", (const void *) id(self_reference_service));
+    # A config id that the response cleanup action's generated id would otherwise take
+    - action: respond_named
+      automation_id: worker
+      supports_response: only
+      then:
+        - api.respond:
+            data: !lambda |-
+              root["ok"] = true;
