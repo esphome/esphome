@@ -388,7 +388,8 @@ def select_schema(
 
 SELECT_CONTROL: dict[str, str] = {
     "apply": "set_select_value(entity, index)",
-    "publish": "before",
+    # A full command queue rejects the write, and the select then keeps its old option.
+    "publish": "on_success",
 }
 
 

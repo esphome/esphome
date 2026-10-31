@@ -1051,35 +1051,38 @@ void LD600XComponent::set_number_value(number::Number *entity, float value) {
 #endif
 
 #ifdef USE_SELECT
-void LD600XComponent::set_select_value(select::Select *entity, size_t index) {
+bool LD600XComponent::set_select_value(select::Select *entity, size_t index) {
   if (entity == this->sensitivity_select_) {
-    if (index == 0) {
-      this->send_control_command_(CMD_SENSITIVITY_LOW);
-    } else if (index == 1) {
-      this->send_control_command_(CMD_SENSITIVITY_MEDIUM);
-    } else if (index == 2) {
-      this->send_control_command_(CMD_SENSITIVITY_HIGH);
-    }
-  } else if (entity == this->trigger_speed_select_) {
-    if (index == 0) {
-      this->send_control_command_(CMD_TRIGGER_SLOW);
-    } else if (index == 1) {
-      this->send_control_command_(CMD_TRIGGER_MEDIUM);
-    } else if (index == 2) {
-      this->send_control_command_(CMD_TRIGGER_FAST);
-    }
-  } else if (entity == this->installation_select_) {
-    if (index == 0) {
-      this->send_control_command_(CMD_INSTALL_TOP);
-    } else if (index == 1) {
-      this->send_control_command_(CMD_INSTALL_SIDE);
-    }
-  } else {  // Only registered entities call this, so the last one needs no compare
-    this->area_id_ = static_cast<uint8_t>(index);
-    this->area_id_set_ = true;
-    this->update_area_numbers_for_id_(this->area_id_);
-    this->save_area_id_pref_(this->area_id_);
+    if (index == 0)
+      return this->send_control_command_(CMD_SENSITIVITY_LOW);
+    if (index == 1)
+      return this->send_control_command_(CMD_SENSITIVITY_MEDIUM);
+    if (index == 2)
+      return this->send_control_command_(CMD_SENSITIVITY_HIGH);
+    return false;
   }
+  if (entity == this->trigger_speed_select_) {
+    if (index == 0)
+      return this->send_control_command_(CMD_TRIGGER_SLOW);
+    if (index == 1)
+      return this->send_control_command_(CMD_TRIGGER_MEDIUM);
+    if (index == 2)
+      return this->send_control_command_(CMD_TRIGGER_FAST);
+    return false;
+  }
+  if (entity == this->installation_select_) {
+    if (index == 0)
+      return this->send_control_command_(CMD_INSTALL_TOP);
+    if (index == 1)
+      return this->send_control_command_(CMD_INSTALL_SIDE);
+    return false;
+  }
+  // Only registered entities call this, so the last one needs no compare
+  this->area_id_ = static_cast<uint8_t>(index);
+  this->area_id_set_ = true;
+  this->update_area_numbers_for_id_(this->area_id_);
+  this->save_area_id_pref_(this->area_id_);
+  return true;
 }
 #endif
 

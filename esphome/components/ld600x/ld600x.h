@@ -198,7 +198,8 @@ class LD600XComponent : public Component, public uart::UARTDevice {
   virtual void set_number_value(number::Number *entity, float value);
 #endif
 #ifdef USE_SELECT
-  virtual void set_select_value(select::Select *entity, size_t index);
+  // Returns false when the command was not queued, so the select keeps its old option.
+  virtual bool set_select_value(select::Select *entity, size_t index);
 #endif
 #ifdef USE_SWITCH
   // Returns false when the command was not queued, so the switch keeps its old state.
