@@ -13,8 +13,7 @@ void HTE501Component::setup() {
   uint8_t identification[9];
   this->write_read(address, sizeof address, identification, sizeof identification);
   if (identification[8] != crc8(identification, 8, 0xFF, 0x31, true)) {
-    this->error_code_ = CRC_CHECK_FAILED;
-    this->mark_failed();
+    this->mark_failed(LOG_STR("CRC check failed"));
     return;
   }
 #if ESPHOME_LOG_LEVEL >= ESPHOME_LOG_LEVEL_VERBOSE
@@ -26,17 +25,6 @@ void HTE501Component::setup() {
 void HTE501Component::dump_config() {
   ESP_LOGCONFIG(TAG, "HTE501:");
   LOG_I2C_DEVICE(this);
-  switch (this->error_code_) {
-    case COMMUNICATION_FAILED:
-      ESP_LOGE(TAG, ESP_LOG_MSG_COMM_FAIL);
-      break;
-    case CRC_CHECK_FAILED:
-      ESP_LOGE(TAG, "The crc check failed");
-      break;
-    case NONE:
-    default:
-      break;
-  }
   LOG_UPDATE_INTERVAL(this);
   LOG_SENSOR("  ", "Temperature", this->temperature_sensor_);
   LOG_SENSOR("  ", "Humidity", this->humidity_sensor_);
@@ -50,16 +38,10 @@ void HTE501Component::update() {
     this->read(i2c_response, 6);
     if (i2c_response[2] != crc8(i2c_response, 2, 0xFF, 0x31, true) ||
         i2c_response[5] != crc8(i2c_response + 3, 2, 0xFF, 0x31, true)) {
-      this->error_code_ = CRC_CHECK_FAILED;
-      this->status_set_warning();
+      this->status_set_warning(LOG_STR("CRC check failed"));
       return;
     }
-    float temperature = (float) encode_uint16(i2c_response[0], i2c_response[1]);
-    if (temperature > 55536) {
-      temperature = (temperature - 65536) / 100;
-    } else {
-      temperature = temperature / 100;
-    }
+    float temperature = static_cast<int16_t>(encode_uint16(i2c_response[0], i2c_response[1])) / 100.0f;
     float humidity = ((float) encode_uint16(i2c_response[3], i2c_response[4])) / 100.0f;
 
     ESP_LOGD(TAG, "Got temperature=%.2f°C humidity=%.2f%%", temperature, humidity);

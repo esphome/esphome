@@ -1,16 +1,20 @@
-#include "ld6002b.h"
+#include "ld600x.h"
+#include "esphome/core/application.h"
+#include "esphome/core/hal.h"
 #include "esphome/core/log.h"
 #include <algorithm>
+#include <cctype>
 #include <cinttypes>
 #include <cmath>
 #include <cstdio>
 #include <cstring>
 
-namespace esphome::ld6002b {
+namespace esphome::ld600x {
 
-ESPHOME_LOG_TAG(TAG, "ld6002b");
+// Every log line in this file carries the derived model's tag. The ESP_LOG* and LOG_* macros take the
+// identifier TAG, so it resolves to the per-instance tag inside the member functions below.
+#define TAG (this->log_tag_)
 
-static constexpr uint8_t TF_SOF = 0x01;
 static constexpr uint32_t SETUP_DELAY_MS = 100;
 
 // Command/message types
@@ -33,6 +37,9 @@ static constexpr uint16_t TYPE_REPORT_INSTALLATION = 0x0A11;
 static constexpr uint16_t TYPE_REPORT_LOW_POWER = 0x0A12;
 static constexpr uint16_t TYPE_REPORT_LOW_POWER_SLEEP = 0x0A13;
 static constexpr uint16_t TYPE_REPORT_WORK_MODE = 0x0A14;
+#if LD600X_AREA_KINDS > 2
+static constexpr uint16_t TYPE_REPORT_DWELL_AREAS = 0x0A16;
+#endif
 static constexpr uint16_t TYPE_QUERY_VERSION = 0xFFFF;
 
 // Control command values for TYPE_CONTROL
@@ -203,47 +210,24 @@ static bool is_expected_control_report(uint32_t command, uint16_t type) {
 }
 #endif
 
-float LD6002BComponent::read_f32_le(const uint8_t *data) {
-  uint32_t raw = encode_value_le<uint32_t>(data);
-  float value;
-  std::memcpy(&value, &raw, sizeof(value));
-  return value;
-}
-
-void LD6002BComponent::write_u32_le(uint8_t *data, uint32_t value) {
-  data[0] = value & 0xFF;
-  data[1] = (value >> 8) & 0xFF;
-  data[2] = (value >> 16) & 0xFF;
-  data[3] = (value >> 24) & 0xFF;
-}
-
-void LD6002BComponent::write_int32_le(uint8_t *data, int32_t value) {
-  write_u32_le(data, static_cast<uint32_t>(value));
-}
-
-void LD6002BComponent::write_f32_le(uint8_t *data, float value) {
-  uint32_t raw;
-  std::memcpy(&raw, &value, sizeof(raw));
-  write_u32_le(data, raw);
-}
-
-void LD6002BComponent::setup() {
+void LD600XComponent::setup() {
   // Only the point cloud stream needs the larger frame; nothing resizes the buffer after setup.
   bool point_cloud_configured = false;
 #ifdef USE_SENSOR
-  point_cloud_configured = point_cloud_configured || this->point_count_sensor_ != nullptr;
+  point_cloud_configured = point_cloud_configured || this->point_count_sensor_.has_sensor();
 #endif
 #ifdef USE_SWITCH
   point_cloud_configured = point_cloud_configured || this->point_cloud_switch_ != nullptr;
 #endif
-  this->max_data_len_ = point_cloud_configured ? DEFAULT_MAX_DATA_LEN_POINT_CLOUD : DEFAULT_MAX_DATA_LEN;
-  // One allocation for the component lifetime; the parser reuses it for the header and every payload.
+  const uint16_t capacity = point_cloud_configured ? DEFAULT_MAX_DATA_LEN_POINT_CLOUD : DEFAULT_MAX_DATA_LEN;
+  // One allocation for the component lifetime; the parser reuses it for every payload.
   RAMAllocator<uint8_t> allocator;
-  this->data_buf_ = allocator.allocate(this->max_data_len_);
-  if (this->data_buf_ == nullptr) {
+  uint8_t *buffer = allocator.allocate(capacity);
+  if (buffer == nullptr) {
     this->mark_failed(LOG_STR("Failed to allocate frame buffer"));
     return;
   }
+  this->parser_.init(buffer, capacity);
   if (this->wakeup_pin_ != nullptr) {
     this->wakeup_pin_->setup();
     this->wakeup_pin_->digital_write(true);
@@ -252,11 +236,11 @@ void LD6002BComponent::setup() {
   this->set_timeout(SETUP_DELAY_MS, [this]() {
     bool want_target_stream = false;
 #ifdef USE_SENSOR
-    want_target_stream = want_target_stream || this->target_count_sensor_ != nullptr;
+    want_target_stream = want_target_stream || this->target_count_sensor_.has_sensor();
     if (!want_target_stream) {
       for (const auto &target : this->targets_) {
         if (target.x != nullptr || target.y != nullptr || target.z != nullptr || target.dop_idx != nullptr ||
-            target.cluster_id != nullptr) {
+            target.cluster_id.has_sensor()) {
           want_target_stream = true;
           break;
         }
@@ -278,8 +262,10 @@ void LD6002BComponent::setup() {
     // The work mode fallback reads presence off this stream, so it counts as a
     // consumer of it here.  This only feeds the automatic branch below: with a
     // target_display switch configured that switch still decides, and the
-    // fallback weighs no presence at all while the stream is off.
-    want_target_stream = want_target_stream || this->work_mode_text_sensor_ != nullptr;
+    // fallback weighs no presence at all while the stream is off.  A model that
+    // reports the mode itself has no fallback and so no claim on the stream.
+    want_target_stream =
+        want_target_stream || (this->work_mode_text_sensor_ != nullptr && this->work_mode_uses_fallback());
 #endif
     bool target_display_controlled = false;
 #ifdef USE_SWITCH
@@ -311,7 +297,7 @@ void LD6002BComponent::setup() {
       // the frame buffer above was sized for.
       bool want_point_cloud = false;
 #ifdef USE_SENSOR
-      want_point_cloud = this->point_count_sensor_ != nullptr;
+      want_point_cloud = this->point_count_sensor_.has_sensor();
 #endif
       this->send_control_command_(want_point_cloud ? CMD_POINT_CLOUD_ON : CMD_POINT_CLOUD_OFF);
       this->point_cloud_enabled_ = want_point_cloud;
@@ -350,7 +336,7 @@ void LD6002BComponent::setup() {
     bool want_low_power = false;
 #endif
 #ifdef USE_TEXT_SENSOR
-    want_low_power = want_low_power || this->work_mode_text_sensor_ != nullptr;
+    want_low_power = want_low_power || (this->work_mode_text_sensor_ != nullptr && this->work_mode_uses_fallback());
 #endif
     if (want_low_power) {
       this->send_control_command_(CMD_GET_LOW_POWER);
@@ -358,21 +344,9 @@ void LD6002BComponent::setup() {
 
     bool want_area_report = false;
 #ifdef USE_SENSOR
-    for (const auto &area : this->interference_areas_) {
-      if (area.x_min != nullptr || area.x_max != nullptr || area.y_min != nullptr || area.y_max != nullptr ||
-          area.z_min != nullptr || area.z_max != nullptr) {
-        want_area_report = true;
-        break;
-      }
-    }
-    if (!want_area_report) {
-      for (const auto &area : this->detection_areas_) {
-        if (area.x_min != nullptr || area.x_max != nullptr || area.y_min != nullptr || area.y_max != nullptr ||
-            area.z_min != nullptr || area.z_max != nullptr) {
-          want_area_report = true;
-          break;
-        }
-      }
+    for (const auto &area : this->areas_) {
+      for (auto *sensor : area)
+        want_area_report = want_area_report || sensor != nullptr;
     }
 #endif
 #ifdef USE_NUMBER
@@ -394,50 +368,74 @@ void LD6002BComponent::setup() {
       this->queue_command_(TYPE_QUERY_VERSION, VERSION_QUERY_DATA, sizeof(VERSION_QUERY_DATA));
     }
 #endif
+    this->setup_model();
   });
 }
 
-void LD6002BComponent::dump_config() {
+void LD600XComponent::dump_config() {
+  // "HLK-" plus the upper-cased tag. The tag sits in flash on ESP8266, so it is read a byte at a time.
+  char model[16] = "HLK-";
+  size_t pos = 4;
+  for (const auto *p = reinterpret_cast<const uint8_t *>(this->log_tag_); pos < sizeof(model) - 1; p++) {
+    const uint8_t c = progmem_read_byte(p);
+    if (c == 0)
+      break;
+    model[pos++] = static_cast<char>(std::toupper(c));
+  }
+  model[pos] = '\0';
   ESP_LOGCONFIG(TAG,
-                "HLK-LD6002B:\n"
+                "%s:\n"
                 "  Auto wake: %s\n"
                 "  Max data length: %u",
-                this->auto_wake_ ? LOG_STR_LITERAL("true") : LOG_STR_LITERAL("false"),
-                static_cast<unsigned>(this->max_data_len_));
+                model, this->auto_wake_ ? LOG_STR_LITERAL("true") : LOG_STR_LITERAL("false"),
+                static_cast<unsigned>(this->parser_.capacity()));
   if (this->wakeup_pin_ != nullptr) {
     LOG_PIN("  Wake-up Pin: ", this->wakeup_pin_);
     ESP_LOGCONFIG(TAG, "  Wake Pulse: %" PRIu32 "ms", this->wakeup_pulse_ms_);
   }
 #ifdef USE_SENSOR
-  LOG_SENSOR("  ", "Target Count", this->target_count_sensor_);
-  LOG_SENSOR("  ", "Point Count", this->point_count_sensor_);
+  LOG_SENSOR_WITH_DEDUP("  ", "Target Count", this->target_count_sensor_);
+  LOG_SENSOR_WITH_DEDUP("  ", "Point Count", this->point_count_sensor_);
   for (auto &target : this->targets_) {
     LOG_SENSOR("  ", "Target X", target.x);
     LOG_SENSOR("  ", "Target Y", target.y);
     LOG_SENSOR("  ", "Target Z", target.z);
     LOG_SENSOR("  ", "Target Doppler Index", target.dop_idx);
-    LOG_SENSOR("  ", "Target Cluster ID", target.cluster_id);
+    LOG_SENSOR_WITH_DEDUP("  ", "Target Cluster ID", target.cluster_id);
   }
-  for (auto &area : this->interference_areas_) {
-    LOG_SENSOR("  ", "Interference Area X Min", area.x_min);
-    LOG_SENSOR("  ", "Interference Area X Max", area.x_max);
-    LOG_SENSOR("  ", "Interference Area Y Min", area.y_min);
-    LOG_SENSOR("  ", "Interference Area Y Max", area.y_max);
-    LOG_SENSOR("  ", "Interference Area Z Min", area.z_min);
-    LOG_SENSOR("  ", "Interference Area Z Max", area.z_max);
+  for (uint8_t i = 0; i < AREA_COUNT; i++) {
+    const AreaSensors &area = this->areas_[area_index(AREA_KIND_INTERFERENCE, i)];
+    LOG_SENSOR("  ", "Interference Area X Min", area[AREA_AXIS_X_MIN]);
+    LOG_SENSOR("  ", "Interference Area X Max", area[AREA_AXIS_X_MAX]);
+    LOG_SENSOR("  ", "Interference Area Y Min", area[AREA_AXIS_Y_MIN]);
+    LOG_SENSOR("  ", "Interference Area Y Max", area[AREA_AXIS_Y_MAX]);
+    LOG_SENSOR("  ", "Interference Area Z Min", area[AREA_AXIS_Z_MIN]);
+    LOG_SENSOR("  ", "Interference Area Z Max", area[AREA_AXIS_Z_MAX]);
   }
-  for (auto &area : this->detection_areas_) {
-    LOG_SENSOR("  ", "Detection Area X Min", area.x_min);
-    LOG_SENSOR("  ", "Detection Area X Max", area.x_max);
-    LOG_SENSOR("  ", "Detection Area Y Min", area.y_min);
-    LOG_SENSOR("  ", "Detection Area Y Max", area.y_max);
-    LOG_SENSOR("  ", "Detection Area Z Min", area.z_min);
-    LOG_SENSOR("  ", "Detection Area Z Max", area.z_max);
+  for (uint8_t i = 0; i < AREA_COUNT; i++) {
+    const AreaSensors &area = this->areas_[area_index(AREA_KIND_DETECTION, i)];
+    LOG_SENSOR("  ", "Detection Area X Min", area[AREA_AXIS_X_MIN]);
+    LOG_SENSOR("  ", "Detection Area X Max", area[AREA_AXIS_X_MAX]);
+    LOG_SENSOR("  ", "Detection Area Y Min", area[AREA_AXIS_Y_MIN]);
+    LOG_SENSOR("  ", "Detection Area Y Max", area[AREA_AXIS_Y_MAX]);
+    LOG_SENSOR("  ", "Detection Area Z Min", area[AREA_AXIS_Z_MIN]);
+    LOG_SENSOR("  ", "Detection Area Z Max", area[AREA_AXIS_Z_MAX]);
   }
+#if LD600X_AREA_KINDS > 2
+  for (uint8_t i = 0; i < AREA_COUNT; i++) {
+    const AreaSensors &area = this->areas_[area_index(AREA_KIND_DWELL, i)];
+    LOG_SENSOR("  ", "Dwell Area X Min", area[AREA_AXIS_X_MIN]);
+    LOG_SENSOR("  ", "Dwell Area X Max", area[AREA_AXIS_X_MAX]);
+    LOG_SENSOR("  ", "Dwell Area Y Min", area[AREA_AXIS_Y_MIN]);
+    LOG_SENSOR("  ", "Dwell Area Y Max", area[AREA_AXIS_Y_MAX]);
+    LOG_SENSOR("  ", "Dwell Area Z Min", area[AREA_AXIS_Z_MIN]);
+    LOG_SENSOR("  ", "Dwell Area Z Max", area[AREA_AXIS_Z_MAX]);
+  }
+#endif
 #endif
 #ifdef USE_BINARY_SENSOR
   LOG_BINARY_SENSOR("  ", "Presence", this->presence_binary_sensor_);
-  for (uint8_t i = 0; i < MAX_TARGETS; i++) {
+  for (uint8_t i = 0; i < LD600X_MAX_TARGETS; i++) {
     LOG_BINARY_SENSOR("  ", "Target Presence", this->target_presence_[i]);
   }
   for (uint8_t i = 0; i < AREA_COUNT; i++) {
@@ -471,123 +469,39 @@ void LD6002BComponent::dump_config() {
   LOG_SELECT("  ", "Installation Mode", this->installation_select_);
   LOG_SELECT("  ", "Area ID", this->area_id_select_);
 #endif
+  this->dump_model_config();
 }
 
-void LD6002BComponent::loop() {
-  this->read_available([this](uint8_t byte) { this->parse_byte_(byte); });
+void LD600XComponent::loop() {
+  this->read_available([this](uint8_t byte) {
+    if (this->parser_.feed(byte)) {
+      this->handle_frame_(this->parser_.type(), this->parser_.data(), this->parser_.length());
+    }
+  });
   this->process_command_queue_();
 }
 
-void LD6002BComponent::reset_parser_() {
-  this->parse_state_ = ParseState::SOF;
-  this->header_pos_ = 0;
-  this->header_xor_ = 0;
-  this->data_len_ = 0;
-  this->data_pos_ = 0;
-  this->data_xor_ = 0;
-  this->discard_remaining_ = 0;
-  this->frame_oversize_ = false;
-}
-
-void LD6002BComponent::parse_byte_(uint8_t byte) {
-  switch (this->parse_state_) {
-    case ParseState::DISCARD:
-      // discard_remaining_ is unsigned: an unguarded decrement at zero would swallow 4 GB of stream.
-      if (this->discard_remaining_ > 0) {
-        this->discard_remaining_--;
-      }
-      if (this->discard_remaining_ == 0) {
-        this->reset_parser_();
-      }
-      return;
-    case ParseState::SOF:
-      if (byte != TF_SOF)
-        return;
-      this->header_pos_ = 0;
-      this->header_xor_ = 0;
-      this->header_xor_ ^= byte;
-      this->parse_state_ = ParseState::HEADER;
-      return;
-    case ParseState::HEADER:
-      if (this->header_pos_ < 6) {
-        this->data_buf_[this->header_pos_] = byte;
-        this->header_xor_ ^= byte;
-        this->header_pos_++;
-        if (this->header_pos_ == 6) {
-          this->frame_id_ = encode_value<uint16_t>(this->data_buf_);
-          this->data_len_ = encode_value<uint16_t>(this->data_buf_ + 2);
-          this->frame_type_ = encode_value<uint16_t>(this->data_buf_ + 4);
-          // The length is only trustworthy once the header checksum has been verified, so just
-          // remember that the frame is oversized and let the HCK state act on it.
-          this->frame_oversize_ = this->data_len_ > this->max_data_len_;
-          this->parse_state_ = ParseState::HCK;
-        }
-      }
-      return;
-    case ParseState::HCK: {
-      uint8_t expected = static_cast<uint8_t>(~this->header_xor_);
-      if (byte != expected) {
-        ESP_LOGV(TAG, "Header checksum mismatch");
-        this->reset_parser_();
-        return;
-      }
-      if (this->frame_oversize_) {
-        ESP_LOGW(TAG, "Frame too large: %u", this->data_len_);
-        // The header is verified, so the length can be trusted: skip the payload and its checksum.
-        this->discard_remaining_ = static_cast<uint32_t>(this->data_len_) + 1;
-        this->parse_state_ = ParseState::DISCARD;
-        return;
-      }
-      if (this->data_len_ == 0) {
-        this->handle_frame_(this->frame_type_, nullptr, 0);
-        this->reset_parser_();
-      } else {
-        this->data_pos_ = 0;
-        this->data_xor_ = 0;
-        this->parse_state_ = ParseState::DATA;
-      }
-      return;
-    }
-    case ParseState::DATA:
-      this->data_buf_[this->data_pos_++] = byte;
-      this->data_xor_ ^= byte;
-      if (this->data_pos_ >= this->data_len_) {
-        this->parse_state_ = ParseState::DCK;
-      }
-      return;
-    case ParseState::DCK: {
-      uint8_t expected = static_cast<uint8_t>(~this->data_xor_);
-      if (byte == expected) {
-        this->handle_frame_(this->frame_type_, this->data_buf_, this->data_len_);
-      } else {
-        ESP_LOGV(TAG, "Data checksum mismatch");
-      }
-      this->reset_parser_();
-      return;
-    }
-  }
-}
-
-void LD6002BComponent::handle_frame_(uint16_t type, const uint8_t *data, uint16_t len) {
-  this->last_traffic_ms_ = millis();
-  if (this->stale_ack_count_ > 0 && millis() - this->stale_ack_ms_ > STALE_ACK_MAX_AGE_MS) {
+void LD600XComponent::handle_frame_(uint16_t type, const uint8_t *data, uint16_t len) {
+  const uint32_t now = App.get_loop_component_start_time();
+  this->last_traffic_ms_ = now;
+  if (this->stale_ack_count_ > 0 && now - this->stale_ack_ms_ > STALE_ACK_MAX_AGE_MS) {
     this->stale_ack_count_ = 0;
   }
   // ACKs carry no id and arrive in send order: debt from earlier attempts is paid before the active command.
   if (len == 0 && this->stale_ack_count_ > 0 && this->stale_ack_type_ == type) {
     this->stale_ack_count_--;
     ESP_LOGV(TAG, "Ignoring ACK for command 0x%04X from an earlier attempt (module frame 0x%04X)", type,
-             this->frame_id_);
+             this->parser_.id());
     return;
   }
   if (len == 0 && this->command_active_ && this->command_sent_ && type == this->active_command_.type) {
-    ESP_LOGV(TAG, "ACK for command 0x%04X (module frame 0x%04X)", type, this->frame_id_);
+    ESP_LOGV(TAG, "ACK for command 0x%04X (module frame 0x%04X)", type, this->parser_.id());
     const bool refresh_areas = (type == TYPE_SET_AREA) && this->area_write_in_flight_;
     // This settles one expected reply; the rest stay owed and become the debt for the next command.
     this->send_generation_++;
     this->stale_ack_type_ = type;
     this->stale_ack_count_ = this->acks_expected_ > 0 ? static_cast<uint8_t>(this->acks_expected_ - 1) : 0;
-    this->stale_ack_ms_ = millis();
+    this->stale_ack_ms_ = now;
     this->command_active_ = false;
     this->command_sent_ = false;
     this->last_send_ms_ = 0;
@@ -610,6 +524,9 @@ void LD6002BComponent::handle_frame_(uint16_t type, const uint8_t *data, uint16_
   }
 #endif
 
+  if (this->handle_model_report(type, data, len))
+    return;
+
   switch (type) {
     case TYPE_REPORT_TARGET:
       this->handle_target_report_(data, len);
@@ -621,11 +538,16 @@ void LD6002BComponent::handle_frame_(uint16_t type, const uint8_t *data, uint16_
       this->handle_area_presence_(data, len);
       break;
     case TYPE_REPORT_INTERFERENCE_AREAS:
-      this->handle_area_report_(true, data, len);
+      this->handle_area_report_(AREA_KIND_INTERFERENCE, data, len);
       break;
     case TYPE_REPORT_DETECTION_AREAS:
-      this->handle_area_report_(false, data, len);
+      this->handle_area_report_(AREA_KIND_DETECTION, data, len);
       break;
+#if LD600X_AREA_KINDS > 2
+    case TYPE_REPORT_DWELL_AREAS:
+      this->handle_area_report_(AREA_KIND_DWELL, data, len);
+      break;
+#endif
     case TYPE_REPORT_DELAY:
       this->handle_delay_report_(data, len);
       break;
@@ -658,7 +580,7 @@ void LD6002BComponent::handle_frame_(uint16_t type, const uint8_t *data, uint16_
   }
 }
 
-void LD6002BComponent::handle_target_report_(const uint8_t *data, uint16_t len) {
+void LD600XComponent::handle_target_report_(const uint8_t *data, uint16_t len) {
   // The module stops streaming when it acts on the command, not when the command
   // is queued, so trailing frames after an off must not repopulate what
   // set_switch_state just cleared.
@@ -672,19 +594,19 @@ void LD6002BComponent::handle_target_report_(const uint8_t *data, uint16_t len) 
   uint16_t available = (len - 4) / TARGET_DATA_LEN;
   // Un-narrowed: a report of e.g. 256 targets must not truncate to 0 and read as "absent".
   const uint32_t reported = std::min<uint32_t>(target_num, available);
-  uint8_t count = static_cast<uint8_t>(std::min<uint32_t>(reported, MAX_TARGETS));
+  uint8_t count = static_cast<uint8_t>(std::min<uint32_t>(reported, LD600X_MAX_TARGETS));
 
   // The module re-sorts its array by cluster id, so slots key on the id to track the person.
-  std::array<int32_t, MAX_TARGETS> wire_cluster{};
-  std::array<bool, MAX_TARGETS> wire_placed{};
-  std::array<bool, MAX_TARGETS> slot_seen{};
-  std::array<uint8_t, MAX_TARGETS> slot_wire{};
+  std::array<int32_t, LD600X_MAX_TARGETS> wire_cluster{};
+  std::array<bool, LD600X_MAX_TARGETS> wire_placed{};
+  std::array<bool, LD600X_MAX_TARGETS> slot_seen{};
+  std::array<uint8_t, LD600X_MAX_TARGETS> slot_wire{};
   for (uint8_t i = 0; i < count; i++) {
     uint16_t cluster_offset = 4 + (i * TARGET_DATA_LEN) + 16;
     wire_cluster[i] = encode_value_le<int32_t>(data + cluster_offset);
   }
   for (uint8_t i = 0; i < count; i++) {
-    for (uint8_t s = 0; s < MAX_TARGETS; s++) {
+    for (uint8_t s = 0; s < LD600X_MAX_TARGETS; s++) {
       if (this->slot_occupied_[s] && !slot_seen[s] && this->slot_cluster_[s] == wire_cluster[i]) {
         slot_seen[s] = true;
         wire_placed[i] = true;
@@ -693,7 +615,7 @@ void LD6002BComponent::handle_target_report_(const uint8_t *data, uint16_t len) 
       }
     }
   }
-  for (uint8_t s = 0; s < MAX_TARGETS; s++) {
+  for (uint8_t s = 0; s < LD600X_MAX_TARGETS; s++) {
     if (!slot_seen[s]) {
       this->slot_occupied_[s] = false;
     }
@@ -702,7 +624,7 @@ void LD6002BComponent::handle_target_report_(const uint8_t *data, uint16_t len) 
     if (wire_placed[i]) {
       continue;
     }
-    for (uint8_t s = 0; s < MAX_TARGETS; s++) {
+    for (uint8_t s = 0; s < LD600X_MAX_TARGETS; s++) {
       if (!this->slot_occupied_[s]) {
         this->slot_occupied_[s] = true;
         this->slot_cluster_[s] = wire_cluster[i];
@@ -713,12 +635,7 @@ void LD6002BComponent::handle_target_report_(const uint8_t *data, uint16_t len) 
   }
 
 #ifdef USE_SENSOR
-  if (this->target_count_sensor_ != nullptr) {
-    if (reported != this->last_target_count_) {
-      this->target_count_sensor_->publish_state(reported);
-      this->last_target_count_ = reported;
-    }
-  }
+  this->target_count_sensor_.publish_state_if_not_dup(reported);
 #endif
 
   this->target_presence_any_ = (reported > 0);
@@ -728,7 +645,7 @@ void LD6002BComponent::handle_target_report_(const uint8_t *data, uint16_t len) 
 #endif
   this->update_work_mode_fallback_();
 
-  for (uint8_t i = 0; i < MAX_TARGETS; i++) {
+  for (uint8_t i = 0; i < LD600X_MAX_TARGETS; i++) {
     bool has_target = this->slot_occupied_[i];
     if (has_target) {
 #ifdef USE_SENSOR
@@ -743,13 +660,7 @@ void LD6002BComponent::handle_target_report_(const uint8_t *data, uint16_t len) 
       PUBLISH_STATE(target.y, y);
       PUBLISH_STATE(target.z, z);
       PUBLISH_STATE(target.dop_idx, static_cast<float>(dop_idx));
-      if (target.cluster_id != nullptr) {
-        if (!this->last_cluster_id_valid_[i] || cluster_id != this->last_cluster_id_[i]) {
-          target.cluster_id->publish_state(static_cast<float>(cluster_id));
-          this->last_cluster_id_[i] = cluster_id;
-          this->last_cluster_id_valid_[i] = true;
-        }
-      }
+      target.cluster_id.publish_state_if_not_dup(cluster_id);
 #endif
     } else {
 #ifdef USE_SENSOR
@@ -766,7 +677,7 @@ void LD6002BComponent::handle_target_report_(const uint8_t *data, uint16_t len) 
   }
 }
 
-void LD6002BComponent::handle_point_cloud_(const uint8_t *data, uint16_t len) {
+void LD600XComponent::handle_point_cloud_(const uint8_t *data, uint16_t len) {
   // Same window as the target stream: a frame already in flight must not put the
   // count back after the switch cleared it.
   if (!this->point_cloud_enabled_) {
@@ -776,13 +687,7 @@ void LD6002BComponent::handle_point_cloud_(const uint8_t *data, uint16_t len) {
     return;
 
 #ifdef USE_SENSOR
-  uint32_t point_num = encode_value_le<uint32_t>(data);
-  if (this->point_count_sensor_ != nullptr) {
-    if (point_num != this->last_point_count_) {
-      this->point_count_sensor_->publish_state(point_num);
-      this->last_point_count_ = point_num;
-    }
-  }
+  this->point_count_sensor_.publish_state_if_not_dup(encode_value_le<uint32_t>(data));
 #endif
 }
 
@@ -790,7 +695,7 @@ void LD6002BComponent::handle_point_cloud_(const uint8_t *data, uint16_t len) {
 // fields detection_state_area0..3 -- so this covers area ids 4..7 only.  The
 // interference areas have no presence report: a target inside one is what they
 // exist to suppress.
-void LD6002BComponent::handle_area_presence_(const uint8_t *data, uint16_t len) {
+void LD600XComponent::handle_area_presence_(const uint8_t *data, uint16_t len) {
   const uint16_t needed = AREA_COUNT * AREA_PRESENCE_ENTRY_LEN;
   if (len < needed)
     return;
@@ -812,7 +717,7 @@ void LD6002BComponent::handle_area_presence_(const uint8_t *data, uint16_t len) 
   this->update_work_mode_fallback_();
 }
 
-void LD6002BComponent::handle_area_report_(bool interference, const uint8_t *data, uint16_t len) {
+void LD600XComponent::handle_area_report_(uint8_t kind, const uint8_t *data, uint16_t len) {
   uint16_t needed = AREA_COUNT * AREA_DATA_LEN;
   if (len < needed)
     return;
@@ -827,16 +732,13 @@ void LD6002BComponent::handle_area_report_(bool interference, const uint8_t *dat
     float z_max = read_f32_le(data + offset + 20);
 
 #ifdef USE_SENSOR
-    AreaSensors &area = interference ? this->interference_areas_[i] : this->detection_areas_[i];
-    PUBLISH_STATE(area.x_min, x_min);
-    PUBLISH_STATE(area.x_max, x_max);
-    PUBLISH_STATE(area.y_min, y_min);
-    PUBLISH_STATE(area.y_max, y_max);
-    PUBLISH_STATE(area.z_min, z_min);
-    PUBLISH_STATE(area.z_max, z_max);
+    const AreaSensors &area = this->areas_[area_index(kind, i)];
+    const float values[AREA_AXIS_COUNT] = {x_min, x_max, y_min, y_max, z_min, z_max};
+    for (uint8_t axis = 0; axis < AREA_AXIS_COUNT; axis++)
+      PUBLISH_STATE(area[axis], values[axis]);
 #endif
 
-    AreaConfig &store = interference ? this->interference_area_values_[i] : this->detection_area_values_[i];
+    AreaConfig &store = this->area_values_[area_index(kind, i)];
     store.x_min = x_min;
     store.x_max = x_max;
     store.y_min = y_min;
@@ -845,16 +747,14 @@ void LD6002BComponent::handle_area_report_(bool interference, const uint8_t *dat
     store.z_max = z_max;
 
     uint8_t selected_id = this->area_id_set_ ? this->area_id_ : AREA_ID_DEFAULT;
-    bool selected_interference = selected_id < AREA_COUNT;
-    uint8_t selected_index = selected_interference ? selected_id : static_cast<uint8_t>(selected_id - AREA_COUNT);
-    if (selected_interference == interference && selected_index == i) {
+    if (selected_id == area_index(kind, i)) {
       this->update_area_numbers_(store);
     }
   }
-  this->try_apply_pending_area_(interference);
+  this->try_apply_pending_area_(kind);
 }
 
-void LD6002BComponent::handle_delay_report_(const uint8_t *data, uint16_t len) {
+void LD600XComponent::handle_delay_report_(const uint8_t *data, uint16_t len) {
   if (len < 4)
     return;
 #ifdef USE_NUMBER
@@ -863,7 +763,7 @@ void LD6002BComponent::handle_delay_report_(const uint8_t *data, uint16_t len) {
 #endif
 }
 
-void LD6002BComponent::handle_sensitivity_report_(const uint8_t *data, uint16_t len) {
+void LD600XComponent::handle_sensitivity_report_(const uint8_t *data, uint16_t len) {
   if (len < 1)
     return;
 #ifdef USE_SELECT
@@ -876,7 +776,7 @@ void LD6002BComponent::handle_sensitivity_report_(const uint8_t *data, uint16_t 
 #endif
 }
 
-void LD6002BComponent::handle_trigger_speed_report_(const uint8_t *data, uint16_t len) {
+void LD600XComponent::handle_trigger_speed_report_(const uint8_t *data, uint16_t len) {
   if (len < 1)
     return;
 #ifdef USE_SELECT
@@ -889,7 +789,7 @@ void LD6002BComponent::handle_trigger_speed_report_(const uint8_t *data, uint16_
 #endif
 }
 
-void LD6002BComponent::handle_z_range_report_(const uint8_t *data, uint16_t len) {
+void LD600XComponent::handle_z_range_report_(const uint8_t *data, uint16_t len) {
   if (len < 8)
     return;
   float z_min = read_f32_le(data);
@@ -902,7 +802,7 @@ void LD6002BComponent::handle_z_range_report_(const uint8_t *data, uint16_t len)
 #endif
 }
 
-void LD6002BComponent::handle_installation_report_(const uint8_t *data, uint16_t len) {
+void LD600XComponent::handle_installation_report_(const uint8_t *data, uint16_t len) {
   if (len < 1)
     return;
 #ifdef USE_SELECT
@@ -915,7 +815,7 @@ void LD6002BComponent::handle_installation_report_(const uint8_t *data, uint16_t
 #endif
 }
 
-void LD6002BComponent::handle_low_power_report_(const uint8_t *data, uint16_t len) {
+void LD600XComponent::handle_low_power_report_(const uint8_t *data, uint16_t len) {
   if (len < 1)
     return;
   bool enabled = data[0] != 0;
@@ -927,7 +827,7 @@ void LD6002BComponent::handle_low_power_report_(const uint8_t *data, uint16_t le
   this->update_work_mode_fallback_();
 }
 
-void LD6002BComponent::handle_low_power_sleep_report_(const uint8_t *data, uint16_t len) {
+void LD600XComponent::handle_low_power_sleep_report_(const uint8_t *data, uint16_t len) {
   if (len < 4)
     return;
 #ifdef USE_NUMBER
@@ -936,7 +836,7 @@ void LD6002BComponent::handle_low_power_sleep_report_(const uint8_t *data, uint1
 #endif
 }
 
-void LD6002BComponent::handle_work_mode_report_(const uint8_t *data, uint16_t len) {
+void LD600XComponent::handle_work_mode_report_(const uint8_t *data, uint16_t len) {
   if (len < 1)
     return;
   // Zero is the unattended half of this transition.  Read outside the text sensor's
@@ -959,9 +859,9 @@ void LD6002BComponent::handle_work_mode_report_(const uint8_t *data, uint16_t le
   }
 }
 
-void LD6002BComponent::update_work_mode_fallback_() {
+void LD600XComponent::update_work_mode_fallback_() {
 #ifdef USE_TEXT_SENSOR
-  if (this->work_mode_text_sensor_ == nullptr || this->work_mode_reported_) {
+  if (this->work_mode_text_sensor_ == nullptr || this->work_mode_reported_ || !this->work_mode_uses_fallback()) {
     return;
   }
   if (!this->low_power_reported_) {
@@ -975,22 +875,19 @@ void LD6002BComponent::update_work_mode_fallback_() {
 #endif
 }
 
-void LD6002BComponent::publish_work_mode_(bool low_power) {
+void LD600XComponent::publish_work_mode_(bool low_power) {
 #ifdef USE_TEXT_SENSOR
   if (this->work_mode_text_sensor_ == nullptr) {
     return;
   }
-  if (this->last_work_mode_valid_ && this->last_work_mode_low_power_ == low_power) {
-    return;
+  if (this->work_mode_low_power_.next(low_power)) {
+    this->work_mode_text_sensor_->publish_state(low_power ? "low_power" : "normal");
   }
-  this->work_mode_text_sensor_->publish_state(low_power ? "low_power" : "normal");
-  this->last_work_mode_valid_ = true;
-  this->last_work_mode_low_power_ = low_power;
 #endif
 }
 
 #ifdef USE_NUMBER
-void LD6002BComponent::publish_number_clamped_(number::Number *number, float value) {
+void LD600XComponent::publish_number_clamped_(number::Number *number, float value) {
   if (number == nullptr)
     return;
   if (std::isnan(value)) {
@@ -1016,7 +913,7 @@ void LD6002BComponent::publish_number_clamped_(number::Number *number, float val
 }
 #endif
 
-void LD6002BComponent::handle_version_report_(const uint8_t *data, uint16_t len) {
+void LD600XComponent::handle_version_report_(const uint8_t *data, uint16_t len) {
   if (len < 4)
     return;
 #ifdef USE_TEXT_SENSOR
@@ -1037,7 +934,7 @@ void LD6002BComponent::handle_version_report_(const uint8_t *data, uint16_t len)
 #endif
 }
 
-bool LD6002BComponent::queue_command_(uint16_t type, const uint8_t *data, uint8_t len) {
+bool LD600XComponent::queue_command_(uint16_t type, const uint8_t *data, uint8_t len) {
   if (len > CMD_MAX_DATA_LEN) {
     ESP_LOGW(TAG, "Command data too large: %u", len);
     return false;
@@ -1059,8 +956,8 @@ bool LD6002BComponent::queue_command_(uint16_t type, const uint8_t *data, uint8_
   return true;
 }
 
-void LD6002BComponent::process_command_queue_() {
-  uint32_t now = millis();
+void LD600XComponent::process_command_queue_() {
+  const uint32_t now = App.get_loop_component_start_time();
   if (this->command_active_) {
     // A sleeping module consumes the opening attempt as its wake-up instead of answering it.
     const uint32_t ack_timeout = this->attempts_sent_ <= 1 ? CMD_FIRST_ACK_TIMEOUT_MS : CMD_ACK_TIMEOUT_MS;
@@ -1140,11 +1037,11 @@ void LD6002BComponent::process_command_queue_() {
   this->send_command_(this->active_command_.type, this->active_command_.data.data(), this->active_command_.len);
 }
 
-void LD6002BComponent::send_command_(uint16_t type, const uint8_t *data, uint8_t len) {
+void LD600XComponent::send_command_(uint16_t type, const uint8_t *data, uint8_t len) {
   this->send_command_internal_(type, data, len, true);
 }
 
-void LD6002BComponent::send_command_internal_(uint16_t type, const uint8_t *data, uint8_t len, bool track) {
+void LD600XComponent::send_command_internal_(uint16_t type, const uint8_t *data, uint8_t len, bool track) {
   if (len > CMD_MAX_DATA_LEN) {
     ESP_LOGW(TAG, "Command data too large: %u", len);
     if (track) {
@@ -1183,31 +1080,13 @@ void LD6002BComponent::send_command_internal_(uint16_t type, const uint8_t *data
   this->write_frame_(type, data, len, track);
 }
 
-void LD6002BComponent::write_frame_(uint16_t type, const uint8_t *data, uint8_t len, bool track) {
-  uint16_t frame_id = this->next_frame_id_++ & 0x7FFF;
-  frame_id |= 0x8000;
-
-  uint8_t header_xor = 0;
-  auto write_header = [&](uint8_t b) {
-    this->write_byte(b);
-    header_xor ^= b;
-  };
-
-  write_header(TF_SOF);
-  write_header((frame_id >> 8) & 0xFF);
-  write_header(frame_id & 0xFF);
-  write_header((len >> 8) & 0xFF);
-  write_header(len & 0xFF);
-  write_header((type >> 8) & 0xFF);
-  write_header(type & 0xFF);
-
-  this->write_byte(static_cast<uint8_t>(~header_xor));
-
-  if (len > 0 && data != nullptr) {
-    this->write_array(data, len);
-    this->write_byte(static_cast<uint8_t>(~xor_bytes(data, len)));
-  }
-  const uint32_t now = millis();
+void LD600XComponent::write_frame_(uint16_t type, const uint8_t *data, uint8_t len, bool track) {
+  const uint16_t frame_id = next_frame_id(this->next_frame_id_);
+  // send_command_internal_ rejects anything longer than CMD_MAX_DATA_LEN before it gets here.
+  uint8_t frame[TF_FRAME_OVERHEAD + CMD_MAX_DATA_LEN];
+  size_t frame_len = encode_frame(frame_id, type, data, len, frame);
+  this->write_array(frame, frame_len);
+  const uint32_t now = App.get_loop_component_start_time();
   if (track) {
     // A frame sent to a module that has had time to fall asleep is its wake-up, and goes unanswered.
     if (this->last_traffic_ms_ != 0 && now - this->last_traffic_ms_ < MODULE_AWAKE_MS) {
@@ -1220,13 +1099,13 @@ void LD6002BComponent::write_frame_(uint16_t type, const uint8_t *data, uint8_t 
   this->last_traffic_ms_ = now;
 }
 
-bool LD6002BComponent::send_control_command_(uint32_t command) {
+bool LD600XComponent::send_control_command_(uint32_t command) {
   uint8_t data[4];
   write_u32_le(data, command);
   return this->queue_command_(TYPE_CONTROL, data, sizeof(data));
 }
 
-void LD6002BComponent::send_z_range_() {
+void LD600XComponent::send_z_range_() {
   // One frame carries both bounds, so half a range cannot be written.
   if (std::isnan(this->z_min_) || std::isnan(this->z_max_)) {
     ESP_LOGW(TAG, "Z range not written, other bound unknown");
@@ -1243,7 +1122,7 @@ void LD6002BComponent::send_z_range_() {
   this->queue_command_(TYPE_SET_Z_RANGE, data, sizeof(data));
 }
 
-void LD6002BComponent::apply_area_config_() {
+void LD600XComponent::apply_area_config_() {
   if (!this->area_id_set_) {
     ESP_LOGW(TAG, "Area ID not selected; ignoring apply");
     return;
@@ -1253,9 +1132,7 @@ void LD6002BComponent::apply_area_config_() {
     return;
   }
 
-  const bool interference = this->area_id_ < AREA_COUNT;
-  const uint8_t index = interference ? this->area_id_ : static_cast<uint8_t>(this->area_id_ - AREA_COUNT);
-  AreaConfig desired = interference ? this->interference_area_values_[index] : this->detection_area_values_[index];
+  AreaConfig desired = this->area_values_[this->area_id_];
   if (!std::isnan(this->area_x_min_))
     desired.x_min = this->area_x_min_;
   if (!std::isnan(this->area_x_max_))
@@ -1301,7 +1178,7 @@ void LD6002BComponent::apply_area_config_() {
   }
 }
 
-void LD6002BComponent::wake_() {
+void LD600XComponent::wake_() {
   // A command's own pulse raises the pin and writes after it, so ride along instead of
   // claiming the flag: claiming it would send that command down the immediate-write path
   // with the pin still low.
@@ -1314,7 +1191,7 @@ void LD6002BComponent::wake_() {
 
 #ifdef USE_NUMBER
 // Each setter picks its setting by entity pointer, so the entities share one generated class.
-void LD6002BComponent::set_number_value(number::Number *entity, float value) {
+void LD600XComponent::set_number_value(number::Number *entity, float value) {
   if (entity == this->hold_delay_number_ || entity == this->low_power_sleep_number_) {
     uint8_t data[4];
     write_u32_le(data, static_cast<uint32_t>(value));
@@ -1349,7 +1226,7 @@ void LD6002BComponent::set_number_value(number::Number *entity, float value) {
 #endif
 
 #ifdef USE_SELECT
-void LD6002BComponent::set_select_value(select::Select *entity, size_t index) {
+void LD600XComponent::set_select_value(select::Select *entity, size_t index) {
   if (entity == this->sensitivity_select_) {
     if (index == 0) {
       this->send_control_command_(CMD_SENSITIVITY_LOW);
@@ -1381,7 +1258,7 @@ void LD6002BComponent::set_select_value(select::Select *entity, size_t index) {
 }
 #endif
 
-void LD6002BComponent::update_area_numbers_(const AreaConfig &area) {
+void LD600XComponent::update_area_numbers_(const AreaConfig &area) {
   // A report refreshes every axis the user is not in the middle of changing.  An
   // unapplied edit is the one value here the module cannot know about, so taking
   // the report over it would discard what the user typed with nothing to show for it.
@@ -1403,7 +1280,7 @@ void LD6002BComponent::update_area_numbers_(const AreaConfig &area) {
 
 // The mirror, not the report: an axis a report was kept away from has to keep its
 // displayed value too, or the entity and the value the next apply sends disagree.
-void LD6002BComponent::publish_area_numbers_() {
+void LD600XComponent::publish_area_numbers_() {
 #ifdef USE_NUMBER
   this->publish_number_clamped_(this->area_x_min_number_, this->area_x_min_);
   this->publish_number_clamped_(this->area_x_max_number_, this->area_x_max_);
@@ -1414,18 +1291,16 @@ void LD6002BComponent::publish_area_numbers_() {
 #endif
 }
 
-void LD6002BComponent::update_area_numbers_for_id_(uint8_t area_id) {
+void LD600XComponent::update_area_numbers_for_id_(uint8_t area_id) {
   if (area_id >= AREA_ID_COUNT)
     return;
-  const bool interference = area_id < AREA_COUNT;
-  const uint8_t index = interference ? area_id : static_cast<uint8_t>(area_id - AREA_COUNT);
-  const AreaConfig &area = interference ? this->interference_area_values_[index] : this->detection_area_values_[index];
+  const AreaConfig &area = this->area_values_[area_id];
   // The edits belonged to the area being navigated away from.
   this->area_edits_ = AreaConfig{};
   this->update_area_numbers_(area);
 }
 
-bool LD6002BComponent::queue_area_config_(uint8_t area_id, const AreaConfig &desired) {
+bool LD600XComponent::queue_area_config_(uint8_t area_id, const AreaConfig &desired) {
   // One frame carries all three pairs and cannot express a crossed one; the module
   // would keep a box nothing can ever be inside.  Both callers arrive with the six
   // bounds resolved, so this is the last place that can say no -- and the return
@@ -1436,7 +1311,7 @@ bool LD6002BComponent::queue_area_config_(uint8_t area_id, const AreaConfig &des
     return false;
   }
   uint8_t data[AREA_CONFIG_LEN];
-  write_int32_le(data, static_cast<int32_t>(area_id));
+  write_u32_le(data, static_cast<uint32_t>(area_id));
   write_f32_le(data + 4, desired.x_min);
   write_f32_le(data + 8, desired.x_max);
   write_f32_le(data + 12, desired.y_min);
@@ -1452,9 +1327,7 @@ bool LD6002BComponent::queue_area_config_(uint8_t area_id, const AreaConfig &des
   }
   this->area_write_in_flight_ = true;
 
-  const bool interference = area_id < AREA_COUNT;
-  const uint8_t index = interference ? area_id : static_cast<uint8_t>(area_id - AREA_COUNT);
-  AreaConfig &store = interference ? this->interference_area_values_[index] : this->detection_area_values_[index];
+  AreaConfig &store = this->area_values_[area_id];
   store = desired;
   // The six numbers show one area at a time, and a deferred apply can land here for
   // an area the user has navigated away from.  Same question handle_area_report_
@@ -1466,7 +1339,7 @@ bool LD6002BComponent::queue_area_config_(uint8_t area_id, const AreaConfig &des
   return true;
 }
 
-void LD6002BComponent::try_apply_pending_area_(bool reported_interference) {
+void LD600XComponent::try_apply_pending_area_(uint8_t reported_kind) {
   if (!this->deferred_apply_pending_) {
     return;
   }
@@ -1474,10 +1347,8 @@ void LD6002BComponent::try_apply_pending_area_(bool reported_interference) {
     this->deferred_apply_pending_ = false;
     return;
   }
-  const bool interference = this->pending_area_id_ < AREA_COUNT;
-  const uint8_t index =
-      interference ? this->pending_area_id_ : static_cast<uint8_t>(this->pending_area_id_ - AREA_COUNT);
-  AreaConfig desired = interference ? this->interference_area_values_[index] : this->detection_area_values_[index];
+  const uint8_t kind = this->pending_area_id_ / AREA_COUNT;
+  AreaConfig desired = this->area_values_[this->pending_area_id_];
 
   if (!std::isnan(this->pending_area_updates_.x_min))
     desired.x_min = this->pending_area_updates_.x_min;
@@ -1497,7 +1368,7 @@ void LD6002BComponent::try_apply_pending_area_(bool reported_interference) {
     // Only the report covering this area's half can still fill it in, and there is
     // exactly one of those per read.  Once it has landed with a bound still unknown,
     // nothing further is coming and waiting means waiting forever.
-    if (reported_interference == interference) {
+    if (reported_kind == kind) {
       this->deferred_apply_pending_ = false;
       this->restore_deferred_edits_();
       ESP_LOGW(TAG, "Dropping deferred area apply, area report incomplete");
@@ -1514,7 +1385,7 @@ void LD6002BComponent::try_apply_pending_area_(bool reported_interference) {
   }
 }
 
-void LD6002BComponent::init_area_id_pref_() {
+void LD600XComponent::init_area_id_pref_() {
 #ifdef USE_SELECT
   if (this->area_id_select_ == nullptr) {
     return;
@@ -1536,7 +1407,7 @@ void LD6002BComponent::init_area_id_pref_() {
 #endif
 }
 
-void LD6002BComponent::save_area_id_pref_(uint8_t value) {
+void LD600XComponent::save_area_id_pref_(uint8_t value) {
 #ifdef USE_SELECT
   if (!this->area_id_pref_initialized_) {
     return;
@@ -1545,7 +1416,7 @@ void LD6002BComponent::save_area_id_pref_(uint8_t value) {
 #endif
 }
 
-void LD6002BComponent::init_version_pref_() {
+void LD600XComponent::init_version_pref_() {
 #ifdef USE_TEXT_SENSOR
   if (this->ota_version_text_sensor_ == nullptr) {
     return;
@@ -1561,7 +1432,7 @@ void LD6002BComponent::init_version_pref_() {
 #endif
 }
 
-void LD6002BComponent::save_version_pref_(const char *value) {
+void LD600XComponent::save_version_pref_(const char *value) {
 #ifdef USE_TEXT_SENSOR
   if (!this->version_pref_initialized_) {
     return;
@@ -1574,7 +1445,7 @@ void LD6002BComponent::save_version_pref_(const char *value) {
 }
 
 #ifdef USE_SENSOR
-void LD6002BComponent::clear_target_slot_(uint8_t index) {
+void LD600XComponent::clear_target_slot_(uint8_t index) {
   if (!this->last_target_presence_[index]) {
     return;
   }
@@ -1583,13 +1454,12 @@ void LD6002BComponent::clear_target_slot_(uint8_t index) {
   PUBLISH_STATE(target.y, NAN);
   PUBLISH_STATE(target.z, NAN);
   PUBLISH_STATE(target.dop_idx, NAN);
-  PUBLISH_STATE(target.cluster_id, NAN);
   // The slot is free: the next person's id is new even when it repeats this one.
-  this->last_cluster_id_valid_[index] = false;
+  target.cluster_id.publish_state_unknown();
 }
 #endif
 
-void LD6002BComponent::restore_deferred_edits_() {
+void LD600XComponent::restore_deferred_edits_() {
   // The staged values become an unsent edit again, but only for the user who is
   // still looking at the area they were staged for; anyone else's ledger belongs to
   // the area they are on now.
@@ -1636,7 +1506,7 @@ void LD6002BComponent::restore_deferred_edits_() {
   this->publish_area_numbers_();
 }
 
-void LD6002BComponent::clear_area_presence_() {
+void LD600XComponent::clear_area_presence_() {
   if (!this->area_presence_any_) {
     return;
   }
@@ -1653,13 +1523,13 @@ void LD6002BComponent::clear_area_presence_() {
 #endif
 }
 
-void LD6002BComponent::clear_target_state_() {
+void LD600XComponent::clear_target_state_() {
   // Nothing corrects any of this until the stream comes back.  The slot table goes
   // with it: slots key on cluster ids, which only track a person while reports are
   // arriving, and the room can empty and refill across the gap -- so the next
   // report starts from an empty table and fills slots in wire order, rather than
   // handing one back to whoever last held that id.
-  for (uint8_t i = 0; i < MAX_TARGETS; i++) {
+  for (uint8_t i = 0; i < LD600X_MAX_TARGETS; i++) {
 #ifdef USE_SENSOR
     this->clear_target_slot_(i);
     this->last_target_presence_[i] = false;
@@ -1672,10 +1542,7 @@ void LD6002BComponent::clear_target_state_() {
     }
   }
 #ifdef USE_SENSOR
-  if (this->last_target_count_ != 0xFFFFFFFF) {
-    PUBLISH_STATE(this->target_count_sensor_, NAN);
-    this->last_target_count_ = 0xFFFFFFFF;
-  }
+  this->target_count_sensor_.publish_state_unknown();
 #endif
   if (this->target_presence_any_) {
     this->target_presence_any_ = false;
@@ -1688,7 +1555,7 @@ void LD6002BComponent::clear_target_state_() {
 }
 
 #ifdef USE_SWITCH
-void LD6002BComponent::set_switch_state(switch_::Switch *entity, bool state) {
+void LD600XComponent::set_switch_state(switch_::Switch *entity, bool state) {
   if (entity == this->low_power_switch_) {
     this->low_power_enabled_ = state;
     this->low_power_reported_ = true;
@@ -1701,10 +1568,8 @@ void LD6002BComponent::set_switch_state(switch_::Switch *entity, bool state) {
     // The count only moves while the stream runs, so the last one would stand as
     // a live reading.  The dedup sentinel is cleared with it: the same count is
     // new again when the stream comes back.
-    if (!state && this->point_count_sensor_ != nullptr && this->last_point_count_ != 0xFFFFFFFF) {
-      this->point_count_sensor_->publish_state(NAN);
-      this->last_point_count_ = 0xFFFFFFFF;
-    }
+    if (!state)
+      this->point_count_sensor_.publish_state_unknown();
 #endif
   } else {  // Only registered entities call this, so the last one needs no compare
     this->target_display_enabled_ = state;
@@ -1717,57 +1582,62 @@ void LD6002BComponent::set_switch_state(switch_::Switch *entity, bool state) {
 }
 #endif
 
-void LD6002BComponent::press_button(ButtonType type) {
-  switch (type) {
-    case ButtonType::APPLY_AREA:
+#ifdef USE_BUTTON
+void LD600XComponent::press_button(uint8_t kind) {
+  switch (kind) {
+    case BUTTON_APPLY_AREA:
       this->apply_area_config_();
       break;
-    case ButtonType::AUTO_INTERFERENCE:
+    case BUTTON_AUTO_INTERFERENCE:
       this->send_control_command_(CMD_AUTO_INTERFERENCE);
       // The module recomputes the interference areas without reporting them.
       this->send_control_command_(CMD_GET_AREAS);
       break;
-    case ButtonType::GET_AREAS:
+    case BUTTON_GET_AREAS:
       this->send_control_command_(CMD_GET_AREAS);
       break;
-    case ButtonType::CLEAR_INTERFERENCE:
+    case BUTTON_CLEAR_INTERFERENCE:
       this->send_control_command_(CMD_CLEAR_INTERFERENCE);
       // The module rewrites the areas but does not report them, so ask for the new geometry the
       // way the apply_area ack path does; the queue keeps it behind the command above.
       this->send_control_command_(CMD_GET_AREAS);
       break;
-    case ButtonType::RESET_DETECTION_AREA:
+    case BUTTON_RESET_DETECTION_AREA:
       this->send_control_command_(CMD_RESET_DETECTION_AREA);
       this->send_control_command_(CMD_GET_AREAS);
       break;
-    case ButtonType::GET_DELAY:
+    case BUTTON_GET_DELAY:
       this->send_control_command_(CMD_GET_DELAY);
       break;
-    case ButtonType::GET_SENSITIVITY:
+    case BUTTON_GET_SENSITIVITY:
       this->send_control_command_(CMD_GET_SENSITIVITY);
       break;
-    case ButtonType::GET_TRIGGER_SPEED:
+    case BUTTON_GET_TRIGGER_SPEED:
       this->send_control_command_(CMD_GET_TRIGGER);
       break;
-    case ButtonType::GET_Z_RANGE:
+    case BUTTON_GET_Z_RANGE:
       this->send_control_command_(CMD_GET_Z_RANGE);
       break;
-    case ButtonType::GET_INSTALLATION:
+    case BUTTON_GET_INSTALLATION:
       this->send_control_command_(CMD_GET_INSTALLATION);
       break;
-    case ButtonType::GET_LOW_POWER_MODE:
+    case BUTTON_GET_LOW_POWER_MODE:
       this->send_control_command_(CMD_GET_LOW_POWER);
       break;
-    case ButtonType::GET_LOW_POWER_SLEEP_TIME:
+    case BUTTON_GET_LOW_POWER_SLEEP_TIME:
       this->send_control_command_(CMD_GET_LOW_POWER_SLEEP);
       break;
-    case ButtonType::RESET_UNATTENDED:
+    case BUTTON_RESET_UNATTENDED:
       this->send_control_command_(CMD_RESET_UNATTENDED);
       break;
-    case ButtonType::WAKE:
+    case BUTTON_WAKE:
       this->wake_();
+      break;
+    default:
+      ESP_LOGW(TAG, "Unknown %s kind %u", LOG_STR_LITERAL("button"), kind);
       break;
   }
 }
+#endif  // USE_BUTTON
 
-}  // namespace esphome::ld6002b
+}  // namespace esphome::ld600x
