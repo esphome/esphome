@@ -38,6 +38,10 @@ DucoTimeFilter = duco_ns.class_("DucoTimeFilter", DucoDevice, select.Select)
 DucoBypassControl = duco_ns.class_("DucoBypassControl", DucoDevice, select.Select)
 DucoBypassAdaptiveControl = duco_ns.class_("DucoBypassAdaptiveControl", DucoDevice, select.Select)
 DucoFrostHeater = duco_ns.class_("DucoFrostHeater", DucoDevice, select.Select)
+DucoPassiveCooling = duco_ns.class_("DucoPassiveCooling", DucoDevice, select.Select)
+DucoNightboost = duco_ns.class_("DucoNightboost", DucoDevice, select.Select)
+DucoNightboostMonthStart = duco_ns.class_("DucoNightboostMonthStart", DucoDevice, select.Select)
+DucoNightboostMonthStop = duco_ns.class_("DucoNightboostMonthStop", DucoDevice, select.Select)
 
 TYPE_MODE = "mode"
 TYPE_TIME_FILTER = "time_filter"
@@ -45,11 +49,31 @@ CONF_MODE = "mode"
 CONF_BYPASS = "bypass"
 CONF_ADAPTIVE_BYPASS = "adaptive_bypass"
 CONF_FROST_HEATER = "frost_heater"
+CONF_PASSIVE_COOLING = "passive_cooling"
+CONF_NIGHTBOOST = "nightboost"
+CONF_NIGHTBOOST_MONTH_START = "nightboost_month_start"
+CONF_NIGHTBOOST_MONTH_STOP = "nightboost_month_stop"
 
 TIME_FILTER_OPTIONS = ["90 days", "180 days", "270 days", "360 days"]
 BYPASS_OPTIONS = ["AUTO", "OPEN", "CLOSED"]
 ADAPTIVE_BYPASS_OPTIONS = ["ON", "OFF"]
 FROST_HEATER_OPTIONS = ["ALLOW", "REFUSE"]
+PASSIVE_COOLING_OPTIONS = ["AUTO", "ON", "OFF"]
+NIGHTBOOST_OPTIONS = ["ON", "OFF"]
+MONTH_OPTIONS = [
+    "January",
+    "February",
+    "March",
+    "April",
+    "May",
+    "June",
+    "July",
+    "August",
+    "September",
+    "October",
+    "November",
+    "December",
+]
 
 MODE_ENTITY_SCHEMA = (
     select.select_schema(DucoSelect)
@@ -76,6 +100,14 @@ ADAPTIVE_BYPASS_SCHEMA = select.select_schema(DucoBypassAdaptiveControl).extend(
 
 FROST_HEATER_SCHEMA = select.select_schema(DucoFrostHeater).extend(cv.polling_component_schema("60s"))
 
+PASSIVE_COOLING_SCHEMA = select.select_schema(DucoPassiveCooling).extend(cv.polling_component_schema("60s"))
+
+NIGHTBOOST_SCHEMA = select.select_schema(DucoNightboost).extend(cv.polling_component_schema("60s"))
+
+NIGHTBOOST_MONTH_START_SCHEMA = select.select_schema(DucoNightboostMonthStart).extend(cv.polling_component_schema("60s"))
+
+NIGHTBOOST_MONTH_STOP_SCHEMA = select.select_schema(DucoNightboostMonthStop).extend(cv.polling_component_schema("60s"))
+
 CONFIG_SCHEMA = cv.Any(
     LEGACY_MODE_SCHEMA,
     TIME_FILTER_SCHEMA,
@@ -85,6 +117,10 @@ CONFIG_SCHEMA = cv.Any(
             cv.Optional(CONF_BYPASS): BYPASS_SCHEMA,
             cv.Optional(CONF_ADAPTIVE_BYPASS): ADAPTIVE_BYPASS_SCHEMA,
             cv.Optional(CONF_FROST_HEATER): FROST_HEATER_SCHEMA,
+            cv.Optional(CONF_PASSIVE_COOLING): PASSIVE_COOLING_SCHEMA,
+            cv.Optional(CONF_NIGHTBOOST): NIGHTBOOST_SCHEMA,
+            cv.Optional(CONF_NIGHTBOOST_MONTH_START): NIGHTBOOST_MONTH_START_SCHEMA,
+            cv.Optional(CONF_NIGHTBOOST_MONTH_STOP): NIGHTBOOST_MONTH_STOP_SCHEMA,
         }
     ),
 )
@@ -112,6 +148,26 @@ async def to_code(config: ConfigType) -> None:
     if entity_config := config.get(CONF_FROST_HEATER):
         grouped = True
         var = await select.new_select(entity_config, options=FROST_HEATER_OPTIONS)
+        await register_duco_device(var, entity_config, config[CONF_DUCO_ID])
+
+    if entity_config := config.get(CONF_PASSIVE_COOLING):
+        grouped = True
+        var = await select.new_select(entity_config, options=PASSIVE_COOLING_OPTIONS)
+        await register_duco_device(var, entity_config, config[CONF_DUCO_ID])
+
+    if entity_config := config.get(CONF_NIGHTBOOST):
+        grouped = True
+        var = await select.new_select(entity_config, options=NIGHTBOOST_OPTIONS)
+        await register_duco_device(var, entity_config, config[CONF_DUCO_ID])
+
+    if entity_config := config.get(CONF_NIGHTBOOST_MONTH_START):
+        grouped = True
+        var = await select.new_select(entity_config, options=MONTH_OPTIONS)
+        await register_duco_device(var, entity_config, config[CONF_DUCO_ID])
+
+    if entity_config := config.get(CONF_NIGHTBOOST_MONTH_STOP):
+        grouped = True
+        var = await select.new_select(entity_config, options=MONTH_OPTIONS)
         await register_duco_device(var, entity_config, config[CONF_DUCO_ID])
 
     if grouped:

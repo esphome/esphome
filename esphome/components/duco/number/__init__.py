@@ -1,7 +1,7 @@
 import esphome.codegen as cg
 from esphome.components import number
 import esphome.config_validation as cv
-from esphome.const import CONF_ADDRESS, DEVICE_CLASS_TEMPERATURE, UNIT_CELSIUS
+from esphome.const import CONF_ADDRESS, DEVICE_CLASS_TEMPERATURE, UNIT_CELSIUS, UNIT_PERCENT
 from esphome.types import ConfigType
 
 from .. import (
@@ -18,8 +18,12 @@ CODEOWNERS = ["@kokx"]
 DucoComfortTemperature = duco_ns.class_(
     "DucoComfortTemperature", DucoDevice, number.Number
 )
+DucoNightboostTemperature = duco_ns.class_("DucoNightboostTemperature", DucoDevice, number.Number)
+DucoNightboostMax = duco_ns.class_("DucoNightboostMax", DucoDevice, number.Number)
 
 CONF_COMFORT_TEMPERATURE = "comfort_temperature"
+CONF_NIGHTBOOST_TEMPERATURE = "nightboost_temperature"
+CONF_NIGHTBOOST_MAX = "nightboost_max"
 
 COMFORT_TEMPERATURE_SCHEMA = (
     number.number_schema(
@@ -37,24 +41,51 @@ COMFORT_TEMPERATURE_SCHEMA = (
 
 LEGACY_SCHEMA = COMFORT_TEMPERATURE_SCHEMA.extend(DUCO_COMPONENT_SCHEMA)
 
+NIGHTBOOST_TEMPERATURE_SCHEMA = (
+    number.number_schema(
+        DucoNightboostTemperature,
+        unit_of_measurement=UNIT_CELSIUS,
+        device_class=DEVICE_CLASS_TEMPERATURE,
+    ).extend(cv.polling_component_schema("60s"))
+)
+
+NIGHTBOOST_MAX_SCHEMA = number.number_schema(DucoNightboostMax, unit_of_measurement=UNIT_PERCENT).extend(
+    cv.polling_component_schema("60s")
+)
+
 CONFIG_SCHEMA = cv.Any(
     LEGACY_SCHEMA,
     DUCO_COMPONENT_SCHEMA.extend(
         {
             cv.Optional(CONF_COMFORT_TEMPERATURE): cv.ensure_list(COMFORT_TEMPERATURE_SCHEMA),
+            cv.Optional(CONF_NIGHTBOOST_TEMPERATURE): NIGHTBOOST_TEMPERATURE_SCHEMA,
+            cv.Optional(CONF_NIGHTBOOST_MAX): NIGHTBOOST_MAX_SCHEMA,
         }
     ),
 )
 
 
 async def to_code(config: ConfigType) -> None:
-    if CONF_COMFORT_TEMPERATURE not in config:
+    grouped_keys = (
+        CONF_COMFORT_TEMPERATURE,
+        CONF_NIGHTBOOST_TEMPERATURE,
+        CONF_NIGHTBOOST_MAX,
+    )
+    if all(key not in config for key in grouped_keys):
         var = await number.new_number(config, min_value=10.0, max_value=25.5, step=0.1)
         cg.add(var.set_address(config[CONF_ADDRESS]))
         await register_duco_device(var, config, config[CONF_DUCO_ID])
         return
 
-    for entity_config in config[CONF_COMFORT_TEMPERATURE]:
+    for entity_config in config.get(CONF_COMFORT_TEMPERATURE, []):
         var = await number.new_number(entity_config, min_value=10.0, max_value=25.5, step=0.1)
         cg.add(var.set_address(entity_config[CONF_ADDRESS]))
+        await register_duco_device(var, entity_config, config[CONF_DUCO_ID])
+
+    if entity_config := config.get(CONF_NIGHTBOOST_TEMPERATURE):
+        var = await number.new_number(entity_config, min_value=0, max_value=60, step=1)
+        await register_duco_device(var, entity_config, config[CONF_DUCO_ID])
+
+    if entity_config := config.get(CONF_NIGHTBOOST_MAX):
+        var = await number.new_number(entity_config, min_value=10, max_value=100, step=5)
         await register_duco_device(var, entity_config, config[CONF_DUCO_ID])
