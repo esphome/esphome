@@ -135,6 +135,7 @@ def final_validate_unique_channel(
     *,
     platform: str,
     hub_key: str,
+    channel_key: str = CONF_CHANNEL,
     channel_count: Callable[[ConfigType], int] | None = None,
 ) -> Callable[[ConfigType], ConfigType]:
     """Reject a second output of platform on the same channel of one hub.
@@ -145,8 +146,8 @@ def final_validate_unique_channel(
     unique = fv.unique_platform_key(
         domain=DOMAIN,
         platform=platform,
-        keys=(hub_key, CONF_CHANNEL),
-        message="Channel '{1}' of '{0}' is already used by another output",
+        keys=(hub_key, channel_key),
+        message=f"{channel_key.capitalize()} '{{1}}' of '{{0}}' is already used by another output",
     )
     if channel_count is None:
         return unique
@@ -154,10 +155,10 @@ def final_validate_unique_channel(
     def validator(config: ConfigType) -> ConfigType:
         hub_id = config[hub_key]
         count = channel_count(fv.get_declaring_config(hub_id))
-        if config[CONF_CHANNEL] >= count:
+        if config[channel_key] >= count:
             raise cv.Invalid(
-                f"Channel must be less than {count}, the number of channels of '{hub_id}'",
-                path=[CONF_CHANNEL],
+                f"{channel_key.capitalize()} must be less than {count}, the number of channels of '{hub_id}'",
+                path=[channel_key],
             )
         return unique(config)
 

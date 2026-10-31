@@ -1,0 +1,46 @@
+# D1 mini with three optimistic template datetime entities. -s name NAME; build prom-datetime-tz.yaml for a time zone.
+substitutions:
+  name: prom-datetime
+
+esphome:
+  name: ${name}
+
+esp8266:
+  board: d1_mini
+
+logger:
+
+wifi:
+  ssid: !secret wifi_ssid
+  password: !secret wifi_password
+
+api:
+  reboot_timeout: 0s
+
+ota:
+  - platform: esphome
+
+web_server:
+  port: 80
+
+datetime:
+  - platform: template
+    name: Date
+    id: test_date
+    type: date
+    optimistic: true
+    initial_value: "2000-1-2"
+  - platform: template
+    name: Time
+    id: test_time
+    type: time
+    optimistic: true
+    initial_value: "12:34:56am"
+  - platform: template
+    name: DateTime
+    id: test_datetime
+    type: datetime
+    optimistic: true
+    initial_value: "2000-1-2 12:34:56"
+
+prometheus:
