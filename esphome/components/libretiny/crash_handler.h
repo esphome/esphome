@@ -6,7 +6,7 @@
 
 #ifdef USE_LIBRETINY_CRASH_HANDLER
 
-#if defined(USE_LIBRETINY_VARIANT_RTL8720C) || defined(USE_LN882X)
+#if defined(USE_LIBRETINY_VARIANT_RTL8720C) || defined(USE_LIBRETINY_VARIANT_RTL8720D) || defined(USE_LN882X)
 // Cortex-M families: the recorder goes in front of the SDK's fault handlers through the RAM vector table.
 #define USE_LIBRETINY_CRASH_HANDLER_VECTOR_PATCH
 #endif
