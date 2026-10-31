@@ -32,6 +32,8 @@ struct DucoPendingRequest {
   DucoDevice *device;
   uint8_t id;
   uint8_t function;  // 0 while nothing is open
+  uint8_t address;
+  uint8_t group;
   bool missed;       // the request before this one got no answer; sits in padding
 };
 
@@ -45,7 +47,7 @@ class Duco : public uart::UARTDevice, public Component {
   bool allows_dangerous_controls() const { return this->allow_dangerous_controls_; }
 
 #ifdef DUCO_DEVICE_COUNT
-  void register_device(DucoDevice *device) { this->pending_.push_back({device, 0, 0, false}); }
+  void register_device(DucoDevice *device) { this->pending_.push_back({device, 0, 0, 0, 0, false}); }
 #endif
 
   /// Forget device's open request, for a device that will not send again.

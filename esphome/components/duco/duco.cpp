@@ -109,6 +109,11 @@ void Duco::finalize_message_() {
   const DucoMessage message{raw[2], raw + 3, static_cast<uint8_t>(length - 2)};
   for (auto &pending : this->pending_) {
     if (pending.function != 0 && pending.id == message.id && pending.function + 2 == raw[1]) {
+      // Request IDs can wrap while older requests are still pending, so also check the parameter address and group.
+      if (pending.function == FUNCTION_PARAMETER &&
+           (message.size < 3 || pending.address != message.data[1] || pending.group != message.data[2])) {
+        continue;
+      }
       pending.function = 0;
       pending.missed = false;
       this->update_warning_();
@@ -177,6 +182,12 @@ void Duco::send(DucoDevice *device, uint8_t function, std::initializer_list<uint
       }
       pending.id = id;
       pending.function = function;
+      pending.address = 0;
+      pending.group = 0;
+      if (function == FUNCTION_PARAMETER && size >= 3) {
+        pending.address = data.begin()[1];
+        pending.group = data.begin()[2];
+      }
       break;
     }
   }
