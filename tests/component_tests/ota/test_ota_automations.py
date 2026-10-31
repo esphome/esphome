@@ -41,9 +41,26 @@ def test_ota_automations_generated(generate_main: Callable[[str], str]) -> None:
     assert "USE_OTA_STATE_LISTENER" in _defines()
 
 
+def test_ota_automations_are_callbacks(generate_main: Callable[[str], str]) -> None:
+    """Each automation is one callback on the list every OTA component shares,
+    filtered on its component and state; the list is sized for all of them."""
+    main_cpp = generate_main(AUTOMATIONS_YAML)
+    assert main_cpp.count("ota::OTAComponent::add_state_callback(") == 10
+    assert main_cpp.count("component == ::ota_native") == 7
+    assert main_cpp.count("component == ::ota_web") == 2
+    assert main_cpp.count("component == ::ota_http") == 1
+    assert main_cpp.count("!component->is_failed()") == 10
+    assert "Trigger" not in main_cpp
+    assert "->trigger(progress);" in main_cpp
+    assert "->trigger(error);" in main_cpp
+    assert "->trigger(state);" in main_cpp
+    counts = {d.name: str(d.value) for d in CORE.defines}
+    assert counts["OTA_STATE_CALLBACK_COUNT"] == "10"
+
+
 def test_ota_without_automations_skips_state_listener(
     generate_main: Callable[[str], str],
 ) -> None:
     """Without automations or listeners the state notifications compile out."""
     generate_main(PLAIN_YAML)
-    assert "USE_OTA_STATE_LISTENER" not in _defines()
+    assert not {"USE_OTA_STATE_LISTENER", "OTA_STATE_CALLBACK_COUNT"} & _defines()
