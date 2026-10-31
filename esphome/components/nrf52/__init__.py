@@ -1130,9 +1130,11 @@ def _generate_cmake_lists(pch_on: bool) -> bool:
     # modules and discover them through EXTRA_ZEPHYR_MODULES (a CMake list, set
     # before find_package(Zephyr) so the modules are picked up). Only
     # framework-agnostic libraries actually compile under Zephyr.
-    from esphome.components.zephyr.library import generate_zephyr_modules
+    from esphome.components.zephyr.library import DEFINES_VAR, generate_zephyr_modules
 
     module_dirs = generate_zephyr_modules(list(CORE.platformio_libraries.values()))
+    defines = [flag for flag in compile_flags if flag.startswith("-D")]
+    options = [flag for flag in compile_flags if not flag.startswith("-D")]
 
     lines = [
         "cmake_minimum_required(VERSION 3.20.0)",
@@ -1144,6 +1146,9 @@ def _generate_cmake_lists(pch_on: bool) -> bool:
     if module_dirs:
         modules = ";".join(str(d).replace("\\", "/") for d in module_dirs)
         lines += [f'set(EXTRA_ZEPHYR_MODULES "{modules}")', ""]
+        if defines:
+            escaped = ";".join(cmake_escape(flag) for flag in defines)
+            lines += [f'set({DEFINES_VAR} "{escaped}")', ""]
 
     lines += [
         "find_package(Zephyr REQUIRED)",
@@ -1156,8 +1161,6 @@ def _generate_cmake_lists(pch_on: bool) -> bool:
         'target_include_directories(app PRIVATE "${CMAKE_CURRENT_LIST_DIR}/../src")',
     ]
 
-    defines = [flag for flag in compile_flags if flag.startswith("-D")]
-    options = [flag for flag in compile_flags if not flag.startswith("-D")]
     if defines:
         lines += [
             "",

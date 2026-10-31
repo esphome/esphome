@@ -1347,7 +1347,7 @@ lvgl:
                     start_angle: !lambda return (int)((float)rand() / RAND_MAX * 100);
                     end_angle: !lambda return (int)((float)rand() / RAND_MAX * 100);
                     rotation: !lambda return (int)((float)rand() / RAND_MAX * 100);
-                    change_rate: !lambda return (uint)((float)rand() / RAND_MAX * 100);
+                    change_rate: !lambda return (uint32_t)((float)rand() / RAND_MAX * 100);
                     mode: NORMAL
         - bar:
             id: bar_id
