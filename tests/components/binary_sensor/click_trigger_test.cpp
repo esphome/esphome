@@ -14,7 +14,7 @@ static constexpr uint32_t SHORT_MS = 20;
 static constexpr uint32_t INSIDE_MS = 200;
 static constexpr uint32_t LONG_MS = 450;
 
-static int fired = 0;
+static int fired = 0;  // NOLINT(cppcoreguidelines-avoid-non-const-global-variables)
 
 class ClickTriggerTest : public ::testing::Test {
  protected:
@@ -24,20 +24,20 @@ class ClickTriggerTest : public ::testing::Test {
   }
 
   // As codegen builds on_click and on_double_click
-  void add_click(uint32_t min_length = MIN_MS, uint32_t max_length = MAX_MS, BinarySensor *sensor = nullptr) {
+  void add_click_(uint32_t min_length = MIN_MS, uint32_t max_length = MAX_MS, BinarySensor *sensor = nullptr) {
     (sensor != nullptr ? sensor : &this->sensor_)->add_on_state_callback([this, min_length, max_length](bool state) {
       if (this->click_.check(state, min_length, max_length))
         fired++;
     });
   }
-  void add_double_click() {
+  void add_double_click_() {
     this->sensor_.add_on_state_callback([this](bool state) {
       if (this->double_click_.check(state, MIN_MS, MAX_MS))
         fired++;
     });
   }
 
-  void click(uint32_t length) {
+  void press_for_(uint32_t length) {
     this->sensor_.publish_state(true);
     delay(length);
     this->sensor_.publish_state(false);
@@ -59,31 +59,31 @@ TEST(ClickMatchInterval, BoundsAreInclusive) {
 }
 
 TEST_F(ClickTriggerTest, ClickInsideWindowFiresOnRelease) {
-  this->add_click();
+  this->add_click_();
   this->sensor_.publish_state(true);
   delay(INSIDE_MS);
   EXPECT_EQ(fired, 0);
   this->sensor_.publish_state(false);
   EXPECT_EQ(fired, 1);
-  this->click(INSIDE_MS);
+  this->press_for_(INSIDE_MS);
   EXPECT_EQ(fired, 2);
 }
 
 TEST_F(ClickTriggerTest, ClickOutsideWindowDoesNotFire) {
-  this->add_click();
-  this->click(SHORT_MS);
-  this->click(LONG_MS);
+  this->add_click_();
+  this->press_for_(SHORT_MS);
+  this->press_for_(LONG_MS);
   EXPECT_EQ(fired, 0);
 }
 
 TEST_F(ClickTriggerTest, ClickWithoutMaximumFiresOnLongPress) {
-  this->add_click(0, 0);
-  this->click(LONG_MS);
+  this->add_click_(0, 0);
+  this->press_for_(LONG_MS);
   EXPECT_EQ(fired, 1);
 }
 
 TEST_F(ClickTriggerTest, RepeatedPressDoesNotRestartClick) {
-  this->add_click();
+  this->add_click_();
   this->sensor_.publish_state(true);
   delay(INSIDE_MS);
   // Not a state change, so the click is now 400 ms long
@@ -96,7 +96,7 @@ TEST_F(ClickTriggerTest, RepeatedPressDoesNotRestartClick) {
 TEST_F(ClickTriggerTest, ClickSeesFilteredState) {
   InvertFilter invert;
   this->sensor_.add_filter(&invert);
-  this->add_click();
+  this->add_click_();
   // Inverted: false presses and true releases
   this->sensor_.publish_state(false);
   delay(INSIDE_MS);
@@ -111,7 +111,7 @@ TEST_F(ClickTriggerTest, ClickSeesFilteredState) {
 TEST_F(ClickTriggerTest, InitialPressIsNotAClick) {
   BinarySensor sensor;
   sensor.set_trigger_on_initial_state(false);
-  this->add_click(MIN_MS, MAX_MS, &sensor);
+  this->add_click_(MIN_MS, MAX_MS, &sensor);
   // As codegen sets it: the first state skips the callback, so the click is timed from 0
   sensor.publish_state(true);
   delay(INSIDE_MS);
@@ -120,8 +120,8 @@ TEST_F(ClickTriggerTest, InitialPressIsNotAClick) {
 }
 
 TEST_F(ClickTriggerTest, DoubleClickFiresOnSecondPress) {
-  this->add_double_click();
-  this->click(INSIDE_MS);
+  this->add_double_click_();
+  this->press_for_(INSIDE_MS);
   delay(INSIDE_MS);
   EXPECT_EQ(fired, 0);
   this->sensor_.publish_state(true);
@@ -133,51 +133,51 @@ TEST_F(ClickTriggerTest, DoubleClickFiresOnSecondPress) {
 }
 
 TEST_F(ClickTriggerTest, DoubleClickNeedsFirstPressInWindow) {
-  this->add_double_click();
-  this->click(SHORT_MS);
+  this->add_double_click_();
+  this->press_for_(SHORT_MS);
   delay(INSIDE_MS);
   this->sensor_.publish_state(true);
   EXPECT_EQ(fired, 0);
   this->sensor_.publish_state(false);
-  this->click(LONG_MS);
+  this->press_for_(LONG_MS);
   delay(INSIDE_MS);
   this->sensor_.publish_state(true);
   EXPECT_EQ(fired, 0);
 }
 
 TEST_F(ClickTriggerTest, DoubleClickNeedsGapInWindow) {
-  this->add_double_click();
-  this->click(INSIDE_MS);
+  this->add_double_click_();
+  this->press_for_(INSIDE_MS);
   delay(SHORT_MS);
   this->sensor_.publish_state(true);
   EXPECT_EQ(fired, 0);
   this->sensor_.publish_state(false);
-  this->click(INSIDE_MS);
+  this->press_for_(INSIDE_MS);
   delay(LONG_MS);
   this->sensor_.publish_state(true);
   EXPECT_EQ(fired, 0);
 }
 
 TEST_F(ClickTriggerTest, DoubleClickWindowSlidesOverEdges) {
-  this->add_double_click();
+  this->add_double_click_();
   // A gap too long, then a press and gap in the window: the last release and press match
-  this->click(INSIDE_MS);
+  this->press_for_(INSIDE_MS);
   delay(LONG_MS);
-  this->click(INSIDE_MS);
+  this->press_for_(INSIDE_MS);
   delay(INSIDE_MS);
   this->sensor_.publish_state(true);
   EXPECT_EQ(fired, 1);
 }
 
 TEST_F(ClickTriggerTest, DoubleClickResetsAfterFiring) {
-  this->add_double_click();
-  this->click(INSIDE_MS);
+  this->add_double_click_();
+  this->press_for_(INSIDE_MS);
   delay(INSIDE_MS);
-  this->click(SHORT_MS);
+  this->press_for_(INSIDE_MS);
   EXPECT_EQ(fired, 1);
   // The release after a double click does not pair with its edges: the next press only starts one
   delay(INSIDE_MS);
-  this->click(INSIDE_MS);
+  this->press_for_(INSIDE_MS);
   EXPECT_EQ(fired, 1);
   delay(INSIDE_MS);
   this->sensor_.publish_state(true);
