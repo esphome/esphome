@@ -13,6 +13,7 @@ from esphome.automation import (
     CONF_CHOOSE,
     IN_RANGE_CHECK,
     IN_RANGE_DEFAULTS,
+    Action,
     AndCondition,
     ApplyAction,
     ApplyBytes,
@@ -61,6 +62,7 @@ from esphome.automation import (
     register_apply_condition,
     register_bare_action,
     register_bare_condition,
+    register_condition,
     register_parented_action,
     register_parented_condition,
     register_simple_action,
@@ -2511,14 +2513,13 @@ async def test_build_action_list_if_with_object_branch_keeps_objects() -> None:
     [
         ("and", AndCondition, ") && ("),
         ("or", OrCondition, ") || ("),
-        ("xor", XorCondition, ") + ("),
     ],
-    ids=["and", "or", "xor"],
+    ids=["and", "or"],
 )
 async def test_inline_condition_group_operators(
     key: str, type_: cg.MockObjClass, expected: str
 ) -> None:
-    """Each condition group becomes its operator; xor must evaluate every condition."""
+    """Each condition group becomes its operator."""
     group = {
         key: [_inline_condition("c_1"), _inline_condition("c_2")],
         CONF_TYPE_ID: ID("group", is_declaration=True, type=type_, is_manual=False),
@@ -2529,6 +2530,108 @@ async def test_inline_condition_group_operators(
 
     assert expected in _squash(CORE.cpp_global_section)
     assert "Condition" not in CORE.cpp_main_section
+
+
+@pytest.mark.asyncio
+@pytest.mark.usefixtures("apply_actions")
+async def test_xor_of_several_stays_an_object() -> None:
+    """C++ does not define the order of ``+`` operands, and xor evaluates in order."""
+    group = {
+        "xor": [_inline_condition("c_1"), _inline_condition("c_2")],
+        CONF_TYPE_ID: ID(
+            "group", is_declaration=True, type=XorCondition, is_manual=False
+        ),
+    }
+
+    await build_action_list(
+        [_if_action(_action("my.a", "act_a"), condition=group)], TEMPLATE_ARG, []
+    )
+
+    assert "new(group) XorCondition<2>(c_1, c_2);" in CORE.cpp_main_section
+    assert "::group->check()" in CORE.cpp_global_section
+
+
+@pytest.mark.asyncio
+@pytest.mark.usefixtures("apply_actions")
+async def test_xor_of_one_is_that_condition() -> None:
+    group = {
+        "xor": [_inline_condition("c_1")],
+        CONF_TYPE_ID: ID(
+            "group", is_declaration=True, type=XorCondition, is_manual=False
+        ),
+    }
+
+    await build_action_list(
+        [_if_action(_action("my.a", "act_a"), condition=group)], TEMPLATE_ARG, []
+    )
+
+    assert "Condition" not in CORE.cpp_main_section
+
+
+@pytest.mark.asyncio
+@pytest.mark.usefixtures("apply_actions")
+async def test_new_lambda_pvariable_keeps_other_stateless_classes() -> None:
+    """A builder using its own stateless class keeps that object, and ends the run."""
+    my_action = cg.esphome_ns.class_("MyStatelessAction", Action)
+
+    @register_action("my.stateless", my_action, {}, synchronous=True)
+    async def stateless_to_code(
+        config: ConfigType,
+        action_id: ID,
+        template_arg: cg.TemplateArguments,
+        args: list[tuple[object, str]],
+    ) -> MockObj:
+        lambda_ = await cg.process_lambda(Lambda("do_it();"), args, return_type=cg.void)
+        return new_lambda_pvariable(action_id, lambda_, my_action, template_arg)
+
+    config = [
+        {
+            "my.stateless": {},
+            CONF_TYPE_ID: ID(
+                "act_m", is_declaration=True, type=my_action, is_manual=False
+            ),
+        }
+    ]
+
+    result = await build_action_list(config, TEMPLATE_ARG, [])
+
+    assert [str(action) for action in result] == ["act_m"]
+    assert "new(act_m) MyStatelessAction<>(" in CORE.cpp_main_section
+
+
+@pytest.mark.asyncio
+@pytest.mark.usefixtures("apply_actions")
+async def test_condition_builder_must_return_collected_condition() -> None:
+    """A condition builder that drops what it collected fails during code generation."""
+    builder_schema = {cv.Required(CONF_ID): cv.use_id(cg.Component)}
+    conditions = Registry()
+    with patch("esphome.automation.CONDITION_REGISTRY", conditions):
+        register_apply_condition("my.real", builder_schema, "is_ready()")
+        real = conditions["my.real"].fun
+
+        @register_condition("my.drops", ApplyCondition, builder_schema)
+        async def drops_to_code(
+            config: ConfigType,
+            condition_id: ID,
+            template_arg: cg.TemplateArguments,
+            args: list[tuple[object, str]],
+        ) -> MockObj:
+            await real(config, condition_id, template_arg, args)
+            return MockObj("something_else", "->")
+
+        condition = {
+            "my.drops": {CONF_ID: COMPONENT_ID},
+            CONF_TYPE_ID: ID(
+                "cond", is_declaration=True, type=ApplyCondition, is_manual=False
+            ),
+        }
+
+        with pytest.raises(EsphomeError, match="must return the result"):
+            await build_action_list(
+                [_if_action(_action("my.a", "act_a"), condition=condition)],
+                TEMPLATE_ARG,
+                [],
+            )
 
 
 @pytest.mark.asyncio

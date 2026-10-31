@@ -958,8 +958,14 @@ def new_lambda_pvariable(
     Returns:
         The created Pvariable
     """
-    if lambda_expr.capture == "" and (
-        _collect_action(
+    # Not ``in``: comparing two MockObj values gives a truthy MockObj
+    if (
+        lambda_expr.capture == ""
+        and (
+            stateless_class is StatelessLambdaAction
+            or stateless_class is StatelessLambdaCondition
+        )
+        and _collect_action(
             id_obj,
             [f"{immediate_lambda_call(lambda_expr)};"],
             lambda: new_lambda_pvariable(
@@ -1061,7 +1067,13 @@ async def condition_group_to_code(
     template_arg: cg.TemplateArguments,
     args: TemplateArgsType,
 ) -> MockObj:
-    if config and _is_collecting(condition_id):
+    # Xor of several stays an object, which evaluates every condition in order; C++ does not
+    # define the order of the operands of ``+``.
+    if (
+        config
+        and _is_collecting(condition_id)
+        and (len(config) == 1 or condition_id.type is not XorCondition)
+    ):
         items = [
             await _build_condition_or_inline(c, template_arg, args) for c in config
         ]
@@ -1071,13 +1083,8 @@ async def condition_group_to_code(
                 condition_id, template_arg, [_condition_object(i) for i in items]
             )
 
-        exprs = [_condition_expression(item, args) for item in items]
-        if condition_id.type is OrCondition:
-            check = " || ".join(exprs)
-        elif condition_id.type is XorCondition:
-            check = f"{' + '.join(exprs)} == 1" if len(exprs) > 1 else exprs[0]
-        else:
-            check = " && ".join(exprs)
+        operator = " || " if condition_id.type is OrCondition else " && "
+        check = operator.join(_condition_expression(item, args) for item in items)
         _collect_action(condition_id, [f"return {check};"], emit)
         return _COLLECTED_ACTION
     conditions = await build_condition_list(config, template_arg, args)
@@ -1350,7 +1357,6 @@ async def choose_action_to_code(
     if CONF_ELSE in config[-1]:
         else_actions = await build_list(config[-1][CONF_ELSE], template_arg, args)
         config = config[:-1]
-    # A manual id names an object a lambda can reach, so the choices stay objects
     built = [
         (
             await build_cond(choice[CONF_IF], template_arg, args),
@@ -1358,6 +1364,7 @@ async def choose_action_to_code(
         )
         for choice in config
     ]
+    # A lambda can reach a choice by a manual id, so those stay objects
     if (
         _is_collecting(action_id)
         and not any(choice[CONF_CHOICE_ID].is_manual for choice in config)
@@ -1608,12 +1615,16 @@ async def _build_action_or_inline(
         action = await build_action(full_config, template_arg, args)
     finally:
         _INLINE_COLLECTOR.reset(token)
-    # Returning anything else would silently drop the collected action from the firmware
-    if (action is _COLLECTED_ACTION) != (collector.action is not None):
-        raise EsphomeError(
-            f"The builder of action {action_id} must return the result of its apply builder"
-        )
+    _check_collected(action_id, action, collector)
     return collector.action if action is _COLLECTED_ACTION else action
+
+
+def _check_collected(id_: ID, result: MockObj, collector: _InlineCollector) -> None:
+    """Returning anything else would silently drop the collected item from the firmware."""
+    if (result is _COLLECTED_ACTION) != (collector.action is not None):
+        raise EsphomeError(
+            f"The builder of {id_} must return the result of its apply builder"
+        )
 
 
 async def _build_condition_or_inline(
@@ -1629,6 +1640,7 @@ async def _build_condition_or_inline(
         condition = await build_condition(full_config, template_arg, args)
     finally:
         _INLINE_COLLECTOR.reset(token)
+    _check_collected(condition_id, condition, collector)
     if condition is not _COLLECTED_ACTION:
         return condition
     collected = collector.action
@@ -1642,7 +1654,10 @@ def _emit_inline_run(
     template_arg: cg.TemplateArguments,
     args: TemplateArgsType,
 ) -> MockObj:
-    """Emit one object for adjacent inline actions; a single one is emitted as if never collected."""
+    """Emit one object for adjacent inline actions.
+
+    A single action with no stop checks is emitted as if never collected; control flow always has them.
+    """
     statements = _run_statements(run)
     if _STOP_CHECK not in statements:
         return run[0].emit()

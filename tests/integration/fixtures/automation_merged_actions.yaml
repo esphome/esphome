@@ -92,6 +92,12 @@ api:
         - script.execute: stop_in_while
         - script.execute: stop_in_condition
         - logger.log: "LOOP_STOP done"
+    - action: run_while_reentry
+      then:
+        - lambda: id(loops) = 0;
+        - script.execute: while_reenter
+        - lambda: |-
+            ESP_LOGI("test", "WHILE_REENTER running %d", id(while_reenter).is_running());
     - action: run_direct
       then:
         - switch.turn_on: direct
@@ -184,6 +190,17 @@ api:
             ESP_LOGI("test", "ARGS fourth %d", value);
 
 script:
+  - id: while_reenter
+    mode: parallel
+    then:
+      - while:
+          condition:
+            lambda: return id(loops) < 1;
+          then:
+            - lambda: id(loops) += 1;
+            - script.execute: while_reenter
+            - logger.log: "WHILE_REENTER after nested"
+      - logger.log: "WHILE_REENTER after while"
   - id: while_counter
     then:
       - lambda: id(loops) = 0;
