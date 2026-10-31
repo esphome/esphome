@@ -866,14 +866,14 @@ async def mqtt_publish_json_action_to_code(
     parent = automation.parent_ref(await cg.get_variable(config[CONF_ID]))
     # Lambdas are called in order before the publish, with the trigger args by value
     statements: list[str] = []
-    values: list[str] = []
+    values: dict[str, str] = {}
     for key, type_, const_fn in (
         (CONF_TOPIC, cg.std_string, automation.flash_string),
         (CONF_QOS, cg.uint8, None),
         (CONF_RETAIN, cg.bool_, None),
     ):
         if not isinstance(value := config[key], Lambda):
-            values.append(
+            values[key] = (
                 const_fn(config, value) if const_fn else str(cg.safe_exp(value))
             )
             continue
@@ -881,14 +881,14 @@ async def mqtt_publish_json_action_to_code(
         statements.append(
             f"const {type_} esphome__{key} = {automation.immediate_lambda_call(lambda_)};"
         )
-        values.append(f"esphome__{key}")
+        values[key] = f"esphome__{key}"
     payload = await cg.process_lambda(
         config[CONF_PAYLOAD], [*args, (cg.JsonObject, "root")], return_type=cg.void
     )
-    topic, qos, retain = values
     statements.append(
-        f"{parent}->publish_json({topic}, [&]({cg.JsonObject} root) {{ "
-        f"{automation.immediate_lambda_call(payload)}; }}, {qos}, {retain});"
+        f"{parent}->publish_json({values[CONF_TOPIC]}, [&]({cg.JsonObject} root) {{ "
+        f"{automation.immediate_lambda_call(payload)}; }}, "
+        f"{values[CONF_QOS]}, {values[CONF_RETAIN]});"
     )
     return automation.apply_statements_action(action_id, template_arg, args, statements)
 
