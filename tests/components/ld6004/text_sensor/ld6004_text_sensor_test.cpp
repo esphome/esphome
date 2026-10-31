@@ -13,13 +13,10 @@ constexpr size_t PAYLOAD_OFFSET = ld600x::TF_HEADER_LEN + 2;
 
 }  // namespace
 
-/// The presence hub plus the work_mode text sensor, which needs the boot query on its own.
+/// Only the work_mode text sensor, which needs the boot query on its own.
 class LD6004TextSensorTest : public LD6004Test {
  protected:
-  void SetUp() override {
-    this->sut_.set_work_mode_text_sensor(&this->work_mode_);
-    LD6004Test::SetUp();
-  }
+  void configure_() override { this->sut_.set_work_mode_text_sensor(&this->work_mode_); }
 
   /// ACK every boot command in turn and return the control codes that were sent.
   std::vector<uint32_t> drain_controls_() {
@@ -41,6 +38,8 @@ class LD6004TextSensorTest : public LD6004Test {
 TEST_F(LD6004TextSensorTest, TextSensorAloneQueriesWorkModeAtBoot) {
   const auto controls = this->drain_controls_();
   EXPECT_EQ(std::count(controls.begin(), controls.end(), CMD_GET_WORK_MODE), 1);
+  // The text sensor reads no target reports, so the target stream stays off.
+  EXPECT_EQ(std::count(controls.begin(), controls.end(), CMD_TARGET_DISPLAY_ON), 0);
 }
 
 // Each 0x0A12 value maps to its own name, sent as one byte or as a uint32

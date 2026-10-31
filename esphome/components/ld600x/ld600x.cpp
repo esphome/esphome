@@ -941,21 +941,21 @@ bool LD600XComponent::send_control_command_(uint32_t command) {
   return this->queue_command_(TYPE_CONTROL, data, sizeof(data));
 }
 
-void LD600XComponent::send_z_range_() {
-  // One frame carries both bounds, so half a range cannot be written.
+bool LD600XComponent::send_z_range_() {
+  // One frame carries both bounds, so half a range cannot be written; the bound is held until the other is known.
   if (std::isnan(this->z_min_) || std::isnan(this->z_max_)) {
     ESP_LOGW(TAG, "Z range not written, other bound unknown");
-    return;
+    return true;
   }
   // Both bounds are known and crossed; the frame has no way to say that.
   if (this->z_min_ > this->z_max_) {
     ESP_LOGW(TAG, "Z range not written, min above max");
-    return;
+    return false;
   }
   uint8_t data[8];
   write_f32_le(data, this->z_min_);
   write_f32_le(data + 4, this->z_max_);
-  this->queue_command_(TYPE_SET_Z_RANGE, data, sizeof(data));
+  return this->queue_command_(TYPE_SET_Z_RANGE, data, sizeof(data));
 }
 
 void LD600XComponent::apply_area_config_() {
@@ -1024,13 +1024,17 @@ bool LD600XComponent::set_number_value(number::Number *entity, float value) {
                                 data, sizeof(data));
   }
   // The z bounds and the area edits are kept here until both bounds or the apply button write them.
-  if (entity == this->z_min_number_) {
-    this->z_min_ = value;
-    this->send_z_range_();
-  } else if (entity == this->z_max_number_) {
-    this->z_max_ = value;
-    this->send_z_range_();
-  } else if (entity == this->area_x_min_number_) {
+  if (entity == this->z_min_number_ || entity == this->z_max_number_) {
+    float &bound = entity == this->z_min_number_ ? this->z_min_ : this->z_max_;
+    const float previous = bound;
+    bound = value;
+    if (this->send_z_range_())
+      return true;
+    // Not written, so the next write of the other bound must not pick up this one.
+    bound = previous;
+    return false;
+  }
+  if (entity == this->area_x_min_number_) {
     this->area_x_min_ = value;
     this->area_edits_.x_min = value;
   } else if (entity == this->area_x_max_number_) {
