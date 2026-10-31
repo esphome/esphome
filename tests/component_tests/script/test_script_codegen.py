@@ -33,10 +33,26 @@ def _actions_of(main_cpp: str, automation: str) -> list[str]:
     return re.findall(rf"\b{automation}->add_action\((\w+)\);", main_cpp)
 
 
+def _mode_class(mode: str, *types: str) -> str:
+    """The mode class shared by scripts that run a function, with the same parameters."""
+    args = "".join(f", {type_}" for type_ in types)
+    return f"script::{mode}<script::FunctionBody<{', '.join(types)}>{args}>"
+
+
 def _function_script(mode: str, script: str, *types: str) -> str:
     """The class of a script whose actions run as one function."""
     args = "".join(f", {type_}" for type_ in types)
-    return f"script::{mode}<script::FunctionScript<esphome__{script}__fn{args}>{args}>"
+    return f"script::FunctionScript<{_mode_class(mode, *types)}, esphome__{script}__fn{args}>"
+
+
+def _assert_function_script(main_cpp: str, mode: str, script: str, *types: str) -> None:
+    assert _constructed(main_cpp, script) == (
+        f"{_function_script(mode, script, *types)}()"
+    )
+
+
+def _wait_class(script_class: str) -> str:
+    return f"script::ScriptWaitAction<{script_class}>"
 
 
 def _script_body(main_cpp: str, script: str) -> str:
@@ -48,8 +64,8 @@ def _script_body(main_cpp: str, script: str) -> str:
 def test_inline_actions_run_as_one_function(generate_main) -> None:
     """A script of inline actions calls one function, declared before the script."""
     main_cpp = generate_main(CONFIG)
+    _assert_function_script(main_cpp, "SingleMode", "inline_single")
     class_ = _function_script("SingleMode", "inline_single")
-    assert _constructed(main_cpp, "inline_single") == f"{class_}()"
     declaration = main_cpp.index(
         "static void esphome__inline_single__fn(const int & esphome__running);"
     )
@@ -78,7 +94,7 @@ def test_modes(generate_main) -> None:
         ("QueueingMode", "inline_queued"),
         ("ParallelMode", "inline_parallel"),
     ):
-        assert _constructed(main_cpp, script) == f"{_function_script(mode, script)}()"
+        _assert_function_script(main_cpp, mode, script)
     assert "inline_queued->set_max_runs(3);" in main_cpp
     assert "inline_parallel->set_max_runs(2);" in main_cpp
     assert re.search(r"App\.register_component_\(inline_queued, \d+\);", main_cpp)
@@ -99,9 +115,7 @@ def test_restart_executes_itself(generate_main) -> None:
 def test_parameters_by_value(generate_main) -> None:
     """Lambdas take the parameters by value, so ``x *= 2`` compiles in every form."""
     main_cpp = generate_main(CONFIG)
-    assert _constructed(main_cpp, "with_params") == (
-        f"{_function_script('SingleMode', 'with_params', 'int', 'std::string')}()"
-    )
+    _assert_function_script(main_cpp, "SingleMode", "with_params", "int", "std::string")
     assert re.search(
         r"static void esphome__with_params__fn\(const int & esphome__running, "
         r"const std::remove_cvref_t<int> & x, "
@@ -131,9 +145,7 @@ def test_script_stop_inside(generate_main) -> None:
 def test_calls_itself_with_parameter(generate_main) -> None:
     """A parallel script with a parameter can execute itself from an ``if``."""
     main_cpp = generate_main(CONFIG)
-    assert _constructed(main_cpp, "calls_itself") == (
-        f"{_function_script('ParallelMode', 'calls_itself', 'int')}()"
-    )
+    _assert_function_script(main_cpp, "ParallelMode", "calls_itself", "int")
     body = _script_body(main_cpp, "calls_itself")
     assert "return n > 0;" in body
     assert "::calls_itself->execute(std::move(esphome__arg_0));" in body
@@ -161,24 +173,20 @@ def test_manual_automation_id(generate_main) -> None:
 
 
 def test_script_wait(generate_main) -> None:
-    """``script.wait`` is templated on the final class of the script it waits for."""
+    """``script.wait`` on a script that runs a function uses the class shared by its mode."""
     main_cpp = generate_main(CONFIG)
     (action,) = _actions_of(main_cpp, _automation(main_cpp, "waits"))
-    assert _constructed(main_cpp, action) == (
-        f"script::ScriptWaitAction<{_function_script('SingleMode', 'inline_single')}>"
-        "(inline_single)"
-    )
+    class_ = _wait_class(_mode_class("SingleMode"))
+    assert _constructed(main_cpp, action) == f"{class_}(inline_single)"
 
 
 def test_script_wait_built_first(generate_main) -> None:
-    """A ``script.wait`` built before the script it waits for gets its final class too."""
+    """A ``script.wait`` built before the script it waits for gets the shared class too."""
     main_cpp = generate_main(CONFIG)
     late, delay = _actions_of(main_cpp, _automation(main_cpp, "waits_early"))
-    class_ = (
-        f"script::ScriptWaitAction<{_function_script('SingleMode', 'late_target')}>"
-    )
+    class_ = _wait_class(_mode_class("SingleMode"))
     assert _constructed(main_cpp, late) == f"{class_}(late_target)"
     assert f"static {class_} *const {late}" in main_cpp
     assert _constructed(main_cpp, delay) == (
-        "script::ScriptWaitAction<script::SingleScript<>>(with_delay)"
+        f"{_wait_class('script::SingleScript<>')}(with_delay)"
     )

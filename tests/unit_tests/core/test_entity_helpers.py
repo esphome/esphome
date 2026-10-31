@@ -1595,7 +1595,11 @@ def apply_functions(monkeypatch: pytest.MonkeyPatch) -> list[tuple[str, str, str
     emitted: list[tuple[str, str, str]] = []
 
     def fake_static_function(
-        name: str, return_type: Any, parameters: list[tuple[Any, str]], body: list[str]
+        name: str,
+        return_type: Any,
+        parameters: list[tuple[Any, str]],
+        body: list[str],
+        before: Any = None,
     ) -> RawExpression:
         assert str(return_type) == "void"
         params = ", ".join(f"{type_} {arg}" for type_, arg in parameters)

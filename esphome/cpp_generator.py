@@ -794,18 +794,24 @@ def static_function(
     return_type: SafeExpType,
     parameters: TemplateArgsType,
     body: list[str],
+    before: Statement | None = None,
 ) -> RawExpression:
     """Emit ``static <return_type> <name>(parameters) { body }`` at global scope and return an
     expression naming it, for use as a template argument or a function pointer.
 
     The declaration goes with the other globals, so a template argument can name the function
-    at once; the body goes after the user includes, where every id and everything those
-    headers declare is in scope.
+    at once (``before`` puts it ahead of that global statement, for one emitted earlier); the
+    body goes after the user includes, where every id and everything those headers declare is
+    in scope.
     """
     signature = (
         f"static {safe_exp(return_type)} {name}({ParameterListExpression(*parameters)})"
     )
-    add_global(RawStatement(f"{signature};"))
+    declaration = RawStatement(f"{signature};")
+    if before is None:
+        add_global(declaration)
+    else:
+        CORE.global_statements.insert(CORE.global_statements.index(before), declaration)
     add_global_after_includes(
         RawStatement(f"{signature} {{\n{indent(chr(10).join(body))}\n}}")
     )

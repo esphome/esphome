@@ -15,8 +15,8 @@ from esphome.components.script import (
 )
 import esphome.config_validation as cv
 from esphome.const import CONF_ID, CONF_MODE, CONF_PARAMETERS, CONF_THEN
-from esphome.core import ID
-from esphome.cpp_generator import MockObj
+from esphome.core import CORE, ID
+from esphome.cpp_generator import MockObj, RawStatement
 
 
 def test_bare_script_stop_defaults_to_enclosing_script() -> None:
@@ -98,6 +98,11 @@ def test_bare_script_stop_in_single_script_mapping() -> None:
     assert result[CONF_THEN] == [{CONF_SCRIPT_STOP: {CONF_ID: "my_script"}}]
 
 
+def _fake_new_pvariable(id_: ID, *args: Any) -> MockObj:
+    CORE.add_global(RawStatement(f"// {id_.id}"))
+    return MockObj(id_.id, "->")
+
+
 @pytest.mark.asyncio
 async def test_on_stop_builds_stop_trigger_automation() -> None:
     stop_conf = {CONF_THEN: []}
@@ -123,19 +128,24 @@ async def test_on_stop_builds_stop_trigger_automation() -> None:
         patch(
             "esphome.automation.build_automation", new_callable=AsyncMock
         ) as build_automation,
+        patch(
+            "esphome.automation.build_automation_or_run_function",
+            new_callable=AsyncMock,
+            return_value=None,
+        ) as build_or_run,
     ):
-        new_pvariable.side_effect = lambda id_, *args: MockObj(id_.id, "->")
+        new_pvariable.side_effect = _fake_new_pvariable
         await to_code(config)
 
     add_define.assert_called_once_with("USE_SCRIPT_ON_STOP")
 
-    assert [
-        (str(c.args[0]), *c.args[1:]) for c in build_automation.await_args_list
-    ] == [
+    assert [(str(c.args[0]), *c.args[1:3]) for c in build_or_run.await_args_list] == [
         ("my_script", [], config[0]),
-        ("my_script->get_stop_trigger()", [], stop_conf),
         ("other_script", [], config[1]),
     ]
+    assert [
+        (str(c.args[0]), *c.args[1:]) for c in build_automation.await_args_list
+    ] == [("my_script->get_stop_trigger()", [], stop_conf)]
 
 
 @pytest.mark.asyncio
@@ -152,9 +162,13 @@ async def test_no_on_stop_define_without_on_stop() -> None:
         patch("esphome.codegen.new_Pvariable") as new_pvariable,
         patch("esphome.codegen.add"),
         patch("esphome.codegen.add_define") as add_define,
-        patch("esphome.automation.build_automation", new_callable=AsyncMock),
+        patch(
+            "esphome.automation.build_automation_or_run_function",
+            new_callable=AsyncMock,
+            return_value=None,
+        ),
     ):
-        new_pvariable.side_effect = lambda id_, *args: MockObj(id_.id, "->")
+        new_pvariable.side_effect = _fake_new_pvariable
         await to_code(config)
 
     add_define.assert_not_called()

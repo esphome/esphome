@@ -986,6 +986,17 @@ def test_static_function_declares_early_and_defines_after_includes() -> None:
     ]
 
 
+def test_static_function_declared_before_statement() -> None:
+    first = CORE.add_global(cg.RawStatement("int first;"))
+    CORE.add_global(cg.RawStatement("int second;"))
+    cg.static_function("esphome__act__fn", ct.void, [], ["return;"], before=first)
+    assert [str(st) for st in CORE.global_statements] == [
+        "static void esphome__act__fn();",
+        "int first;",
+        "int second;",
+    ]
+
+
 def test_add_global_after_includes_rejects_non_statements() -> None:
     with pytest.raises(ValueError, match="must be expression or statement"):
         CORE.add_global_after_includes("not a statement")

@@ -4,9 +4,9 @@
 
 namespace esphome::script::testing {
 
-// Each body runs as Fn of its script, like the function code generation emits.
+// Each body is the function of its script, as code generation emits it.
 static void single_body(const int &running);
-using TestSingle = SingleMode<FunctionScript<single_body>>;
+using TestSingle = FunctionScript<SingleMode<FunctionBody<>>, single_body>;
 static TestSingle *single_script;
 static int single_runs;
 static bool single_running_inside;
@@ -27,7 +27,7 @@ TEST(FunctionScriptTest, SingleIsRunningOnlyInsideItsBody) {
 }
 
 static void stop_body(const int &running);
-using TestStop = SingleMode<FunctionScript<stop_body>>;
+using TestStop = FunctionScript<SingleMode<FunctionBody<>>, stop_body>;
 static TestStop *stop_script;
 static int stop_running_after;
 static void stop_body(const int &running) {
@@ -45,7 +45,7 @@ TEST(FunctionScriptTest, StopInsideClearsTheRunCount) {
 }
 
 static void restart_body(const int &running);
-using TestRestart = RestartMode<FunctionScript<restart_body>>;
+using TestRestart = FunctionScript<RestartMode<FunctionBody<>>, restart_body>;
 static TestRestart *restart_script;
 static int restart_starts;
 static int restart_ends;
@@ -67,7 +67,7 @@ TEST(FunctionScriptTest, RestartFromInsideStopsTheOuterRun) {
 }
 
 static void parallel_body(const int &running, const int &n);
-using TestParallel = ParallelMode<FunctionScript<parallel_body, int>, int>;
+using TestParallel = FunctionScript<ParallelMode<FunctionBody<int>, int>, parallel_body, int>;
 static TestParallel *parallel_script;
 static int parallel_runs;
 static void parallel_body(const int &running, const int &n) {
@@ -87,7 +87,7 @@ TEST(FunctionScriptTest, ParallelCountsNestedRuns) {
 }
 
 static void queued_body(const int &running, const int &n);
-using TestQueued = QueueingMode<FunctionScript<queued_body, int>, int>;
+using TestQueued = FunctionScript<QueueingMode<FunctionBody<int>, int>, queued_body, int>;
 static TestQueued *queued_script;
 static int queued_last;
 static int queued_runs;

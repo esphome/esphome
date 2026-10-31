@@ -33,6 +33,7 @@ from esphome.cpp_generator import (
     LambdaExpression,
     MockObj,
     MockObjClass,
+    Statement,
     TemplateArgsType,
     call_lambda,
 )
@@ -677,9 +678,12 @@ def apply_static_function(
     return_type: SafeExpType,
     params: TemplateArgsType,
     statements: list[str],
+    before: Statement | None = None,
 ) -> MockObj:
     """Emit the static function generated for ``id_`` and return an expression naming it."""
-    return cg.static_function(f"esphome__{id_.id}__fn", return_type, params, statements)
+    return cg.static_function(
+        f"esphome__{id_.id}__fn", return_type, params, statements, before
+    )
 
 
 async def _render_values(
@@ -1712,21 +1716,29 @@ def _emit_inline_run(
         return run[0].emit()
     id_ = run[0].id_.copy()
     id_.type = ApplyRunAction
-    fn = _run_function(id_, run, args)
-    return cg.new_Pvariable(id_, cg.TemplateArguments(fn, *template_arg))
-
-
-def _run_function(id_: ID, run: list[_InlineAction], args: TemplateArgsType) -> MockObj:
-    """Emit the function that runs ``run``; it takes the run count first, which a stop clears."""
-    return apply_static_function(
-        id_,
-        cg.void,
-        [
-            (cg.RawExpression("const int &"), _RUNNING_PARAM),
-            *_apply_lambda_args(args),
-        ],
-        _run_statements(run),
+    return cg.new_Pvariable(
+        id_, cg.TemplateArguments(_run_function(id_, run, args), *template_arg)
     )
+
+
+def _run_function(
+    id_: ID,
+    run: list[_InlineAction],
+    args: TemplateArgsType,
+    stoppable: bool = True,
+    before: Statement | None = None,
+) -> MockObj:
+    """Emit the function that runs ``run``, declared ahead of ``before`` if given.
+
+    A stoppable one takes the run count first and returns once a stop clears it.
+    """
+    params = _apply_lambda_args(args)
+    statements = _run_statements(run)
+    if stoppable:
+        params = [(cg.RawExpression("const int &"), _RUNNING_PARAM), *params]
+    else:
+        statements = [line for line in statements if line != _STOP_CHECK]
+    return apply_static_function(id_, cg.void, params, statements, before)
 
 
 async def _build_action_plan(
@@ -1915,10 +1927,7 @@ def _direct_function(
 ) -> MockObj | None:
     if not _is_direct(plan, config):
         return None
-    statements = [line for line in _run_statements(plan[0]) if line != _STOP_CHECK]
-    return apply_static_function(
-        plan[0][0].id_, cg.void, _apply_lambda_args(args), statements
-    )
+    return _run_function(plan[0][0].id_, plan[0], args, stoppable=False)
 
 
 def _when_call(
@@ -1939,19 +1948,25 @@ async def build_automation(
 
 
 async def build_automation_or_run_function(
-    trigger: MockObj, args: TemplateArgsType, config: ConfigType, id_: ID
+    trigger: MockObj,
+    args: TemplateArgsType,
+    config: ConfigType,
+    id_: ID,
+    before: Statement | None = None,
 ) -> MockObj | None:
-    """Build ``config`` on ``trigger`` like ``build_automation``, unless every action is inline.
+    """Build ``config`` on ``trigger`` like ``build_automation`` and return None, unless every
+    action is inline.
 
-    Then build no Automation, and return the function ``esphome__<id_>__fn`` that runs the
-    actions instead, for ``trigger`` to call with a run count and ``args``. Its stop checks
-    stay: the run count is cleared to stop the actions, as in ``ApplyRunAction``.
+    Then build no Automation, and return the function ``esphome__<id_>__fn`` (declared ahead
+    of the global statement ``before`` if given) that runs the actions instead, for
+    ``trigger`` to call with a run count and ``args``. Its stop checks stay: the run count is
+    cleared to stop the actions, as in ``ApplyRunAction``.
     """
     plan = await _build_automation_plan(args, config)
-    if not _is_direct(plan, config):
-        _automation_from_plan(plan, args, config, trigger)
-        return None
-    return _run_function(id_, plan[0], args)
+    if _is_direct(plan, config):
+        return _run_function(id_, plan[0], args, before=before)
+    _automation_from_plan(plan, args, config, trigger)
+    return None
 
 
 async def build_trigger_callback(

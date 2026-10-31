@@ -61,19 +61,21 @@ template<typename... Ts> class AutomationScript : public Script<Ts...>, public T
 
 /** Runs the script's actions as one generated function, when they are all inline.
  *
- * Like ApplyRunAction, Fn gets the run count by reference and returns early once a stop clears it.
+ * Like ApplyRunAction, the function gets the run count by reference and returns early once a
+ * stop clears it. The mode code built on this is shared; only FunctionScript names the function.
  */
-template<auto Fn, typename... Ts> class FunctionScript : public Script<Ts...> {
+template<typename... Ts> class FunctionBody : public Script<Ts...> {
  protected:
   bool body_running_() { return this->num_running_ > 0; }
   int body_num_running_() { return this->num_running_; }
-  void run_body_(const Ts &...x) {
+  inline void run_body_(const Ts &...x) ESPHOME_ALWAYS_INLINE {
     this->num_running_++;
-    Fn(this->num_running_, x...);
+    this->run_function_(this->num_running_, x...);
     if (this->num_running_ > 0)
       this->num_running_--;
   }
   void stop_body_() { this->num_running_ = 0; }
+  virtual void run_function_(const int &running, const Ts &...x) = 0;
 
   int num_running_{0};
 };
@@ -92,9 +94,8 @@ template<class Body, typename... Ts> class ScriptBase : public Body {
 #endif
 
  protected:
-  // Run the actions with this script's name published as the current source (RAII save/restore,
-  // so nesting composes), so deferred work inside the script is attributed to it in blocking
-  // warnings. Force-inlined to fold into the always-inlined trigger chain (no extra stack frame).
+  // Publish this script's name as the current source while the actions run (RAII, so nesting
+  // composes), so deferred work is attributed to it in blocking warnings.
   inline void run_actions_(const Ts &...x) ESPHOME_ALWAYS_INLINE {
     ScopedSourceGuard source_guard{this->name_};
     this->run_body_(x...);
@@ -212,7 +213,7 @@ template<class Body, typename... Ts> class QueueingMode : public ScriptBase<Body
     if (stopping)
       this->stop_running_();
 #else
-    this->stop_body_();
+    ScriptBase<Body, Ts...>::stop();
 #endif
   }
 
@@ -284,6 +285,12 @@ template<typename... Ts> using SingleScript = SingleMode<AutomationScript<Ts...>
 template<typename... Ts> using RestartScript = RestartMode<AutomationScript<Ts...>, Ts...>;
 template<typename... Ts> using QueueingScript = QueueingMode<AutomationScript<Ts...>, Ts...>;
 template<typename... Ts> using ParallelScript = ParallelMode<AutomationScript<Ts...>, Ts...>;
+
+/// A script of mode `Mode` (built on FunctionBody) whose actions are the generated function Fn.
+template<class Mode, auto Fn, typename... Ts> class FunctionScript final : public Mode {
+ protected:
+  void run_function_(const int &running, const Ts &...x) override { Fn(running, x...); }
+};
 
 /** Wait for a script to finish before continuing.
  *
