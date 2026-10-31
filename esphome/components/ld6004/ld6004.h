@@ -35,6 +35,9 @@ class LD6004Component final : public ld600x::LD600XComponent {
   bool handle_model_report(uint16_t type, const uint8_t *data, uint16_t len) override;
   void setup_model() override;
   void dump_model_config() override;
+
+  // Set by a work mode report that turns the radar off, and cleared by one that turns it back on.
+  bool radar_off_{false};
 };
 
 }  // namespace esphome::ld6004
