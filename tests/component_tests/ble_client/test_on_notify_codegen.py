@@ -3,6 +3,8 @@
 from collections.abc import Callable
 from pathlib import Path
 
+from tests.component_tests.helpers import get_define_value
+
 
 def test_on_notify_wiring(
     generate_main: Callable[[str | Path], str],
@@ -13,9 +15,15 @@ def test_on_notify_wiring(
 
     assert "notify_sensor->set_enable_notify(true);" in main_cpp
     assert "notify_text->set_enable_notify(true);" in main_cpp
-    assert "ble_client::BLESensorNotifyTrigger(notify_sensor);" in main_cpp
-    assert "Automation<float>(ble_client_blesensornotifytrigger_id);" in main_cpp
-    assert "ble_client::BLETextSensorNotifyTrigger(notify_text);" in main_cpp
     assert (
-        "Automation<std::string>(ble_client_bletextsensornotifytrigger_id);" in main_cpp
+        "notify_sensor->add_on_notify_callback(TriggerForwarder<float>{automation_id});"
+        in main_cpp
     )
+    assert (
+        "notify_text->add_on_notify_callback("
+        "TriggerForwarder<std::string>{automation_id_2});" in main_cpp
+    )
+    # No trigger node is registered on the client for on_notify any more.
+    assert main_cpp.count("test_blec->register_ble_node(") == 2
+    assert get_define_value("USE_BLE_SENSOR_ON_NOTIFY") is not None
+    assert get_define_value("USE_BLE_TEXT_SENSOR_ON_NOTIFY") is not None
