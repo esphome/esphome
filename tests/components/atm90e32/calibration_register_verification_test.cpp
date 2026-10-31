@@ -13,9 +13,7 @@
 #endif
 #include "esphome/components/logger/logger.h"
 
-namespace esphome::atm90e32 {
-
-namespace testing {
+namespace esphome::atm90e32::testing {
 
 TEST(ATM90E32OffsetRegisterVerification, AcceptsExactSignedReadback) {
   EXPECT_TRUE(offset_register_value_matches(0x007B, 123));
@@ -27,7 +25,9 @@ TEST(ATM90E32OffsetRegisterVerification, RejectsMismatchedReadback) {
   EXPECT_FALSE(offset_register_value_matches(0xFF84, -123));
 }
 
-}  // namespace testing
+}  // namespace esphome::atm90e32::testing
+
+namespace esphome::atm90e32 {
 
 #ifdef USE_HOST
 
