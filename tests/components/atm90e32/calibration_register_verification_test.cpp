@@ -458,6 +458,29 @@ TEST(ATM90E32Setup, ConfiguresGainsAndThresholdsWithCalibrationEnabledOrDisabled
   }
 }
 
+TEST(ATM90E32Setup, ThresholdsUseRestoredGains) {
+  Access access;
+  auto &component = access.component;
+  spi::NullPin cs;
+  component.set_cs_pin(&cs);
+  component.set_enable_gain_calibration(true);
+  GainCalibration stored[3];
+  for (uint8_t phase = 0; phase < 3; ++phase) {
+    component.set_volt_gain(phase, 7305);
+    component.set_ct_gain(phase, 27518);
+    stored[phase] = {9000, 27518};
+  }
+  auto preference = global_preferences->make_preference<GainCalibration[3]>(
+      fnv1_hash_extend(fnv1_hash("_gain_calibration_"), "test"), true);
+  ASSERT_TRUE(preference.save(&stored));
+
+  access.configure_chip();
+
+  EXPECT_EQ(access.read16(component.voltage_gain_registers[0]), 9000);
+  EXPECT_EQ(access.read16(ATM90E32_REGISTER_SAGTH), component.calculate_voltage_threshold(60, 9000, 0.78f));
+  EXPECT_EQ(access.read16(ATM90E32_REGISTER_OVTH), component.calculate_voltage_threshold(60, 9000, 1.22f));
+}
+
 class ATM90E32CalibrationPersistence : public ::testing::TestWithParam<CalibrationTraits> {};
 class ATM90E32OffsetPersistence : public ATM90E32CalibrationPersistence {};
 
@@ -653,6 +676,39 @@ TEST(ATM90E32CalibrationPersistence, OffsetRestoreFallbackPreservesOtherSavedCat
   EXPECT_TRUE(component.*Access::GAIN.restored);
   access.expect_mismatches_cleared(Access::OFFSET);
   EXPECT_NE(output.find("config values verified"), std::string::npos);
+}
+
+TEST(ATM90E32CalibrationPersistence, GainTableEqualToConfigIsBackedUpAndCleared) {
+  const auto &kind = Access::GAIN;
+  Access access;
+  auto &component = access.component;
+  access.fail_sync();
+  auto &preference = access.make_preference(kind);
+  save_values(preference, kind, SavedValue::SAVED_VALUE_OLD);
+  for (uint8_t phase = 0; phase < 3; ++phase) {
+    const auto value = gain_values(SavedValue::SAVED_VALUE_OLD, phase);
+    component.set_volt_gain(phase, value.voltage_gain);
+    component.set_ct_gain(phase, value.current_gain);
+  }
+
+  access.restore(kind);
+
+  EXPECT_TRUE(component.*kind.has_stored);
+  EXPECT_FALSE(component.*kind.restored);
+
+  access.set_new_calibration(kind);
+  access.finish(kind, false);
+
+  EXPECT_TRUE(component.*kind.has_stored);
+  expect_values(preference, kind, SavedValue::SAVED_VALUE_OLD);
+
+  access.allow_sync();
+  const auto output = capture_calibration_logs([&]() { component.clear_gain_calibrations(); });
+
+  EXPECT_FALSE(component.*kind.has_stored);
+  expect_values(preference, kind, SavedValue::SAVED_VALUE_ZERO);
+  EXPECT_EQ(output.find("No stored gain calibrations to clear"), std::string::npos);
+  EXPECT_EQ(output.find("Failed to clear"), std::string::npos);
 }
 
 }  // namespace testing

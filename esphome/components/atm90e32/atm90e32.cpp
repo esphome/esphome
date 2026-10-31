@@ -262,10 +262,11 @@ void ATM90E32Component::configure_chip_() {
     this->write_gains_to_registers_();
   }
 
+  // gain_phase_ holds the gains written to the chip above, restored from flash or from the config.
   // Sag threshold (78%)
-  uint16_t sagth = calculate_voltage_threshold(line_freq_, this->phase_[0].voltage_gain_, 0.78f);
+  uint16_t sagth = calculate_voltage_threshold(line_freq_, this->gain_phase_[0].voltage_gain, 0.78f);
   // Overvoltage threshold (122%)
-  uint16_t ovth = calculate_voltage_threshold(line_freq_, this->phase_[0].voltage_gain_, 1.22f);
+  uint16_t ovth = calculate_voltage_threshold(line_freq_, this->gain_phase_[0].voltage_gain, 1.22f);
 
   // Calibration helpers close config access before returning.
   this->write16_(ATM90E32_REGISTER_CFGREGACCEN, 0x55AA);
@@ -945,7 +946,9 @@ void ATM90E32Component::restore_gain_calibrations_() {
     }
   }
 
-  this->has_stored_gain_calibration_ = have_data && !all_zero && !same_as_config;
+  // A stored table equal to the config still counts as stored, so it is backed up and can be cleared;
+  // it is only not reported as restored from flash.
+  this->has_stored_gain_calibration_ = have_data && !all_zero;
   if (!this->has_stored_gain_calibration_) {
     for (uint8_t phase = 0; phase < 3; ++phase)
       this->gain_phase_[phase] = this->config_gain_phase_[phase];
@@ -963,7 +966,7 @@ void ATM90E32Component::restore_gain_calibrations_() {
            (this->has_config_current_gain_[phase] &&
             this->gain_phase_[phase].current_gain != this->config_gain_phase_[phase].current_gain));
     }
-    this->restored_gain_calibration_ = this->has_stored_gain_calibration_;
+    this->restored_gain_calibration_ = this->has_stored_gain_calibration_ && !same_as_config;
     return;
   }
 
