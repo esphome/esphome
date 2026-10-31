@@ -323,6 +323,14 @@ enum TextMode : uint32_t {
   TEXT_MODE_PASSWORD = 1,
 };
 #endif
+#ifdef USE_EVENT_DATA
+enum EventVariableType : uint32_t {
+  EVENT_VARIABLE_TYPE_BOOL = 0,
+  EVENT_VARIABLE_TYPE_INT = 1,
+  EVENT_VARIABLE_TYPE_FLOAT = 2,
+  EVENT_VARIABLE_TYPE_STRING = 3,
+};
+#endif
 #ifdef USE_VALVE
 enum ValveOperation : uint32_t {
   VALVE_OPERATION_IDLE = 0,
@@ -3468,16 +3476,61 @@ class TimeCommandRequest final : public CommandProtoMessage {
   static void decode_field(void *self, uint32_t tag, const uint8_t *data, proto_varint_value_t scalar);
 };
 #endif
+#ifdef USE_EVENT_DATA
+class ListEntitiesEventVariable final : public ProtoMessage {
+ public:
+  ProgmemStringRef name{};
+  enums::EventVariableType type{};
+  static uint8_t *encode_msg(const void *self, uint8_t *pos PROTO_ENCODE_DEBUG_PARAM);
+  uint8_t *encode(ProtoWriteBuffer &buffer PROTO_ENCODE_DEBUG_PARAM) const {
+    return encode_msg(this, buffer.get_pos() PROTO_ENCODE_DEBUG_ARG);
+  }
+  static uint32_t calc_size_msg(const void *self);
+  uint32_t calculate_size() const { return calc_size_msg(this); }
+#ifdef HAS_PROTO_MESSAGE_DUMP
+  const char *dump_to(DumpBuffer &out) const override;
+#endif
+
+ protected:
+};
+class EventVariableValue final : public ProtoMessage {
+ public:
+  uint32_t index{0};
+  bool bool_{false};
+  int32_t int_{0};
+  float float_{0.0f};
+  StringRef string_{nullptr, 0};  // null until set, encode only
+  static uint8_t *encode_msg(const void *self, uint8_t *pos PROTO_ENCODE_DEBUG_PARAM);
+  uint8_t *encode(ProtoWriteBuffer &buffer PROTO_ENCODE_DEBUG_PARAM) const {
+    return encode_msg(this, buffer.get_pos() PROTO_ENCODE_DEBUG_ARG);
+  }
+  static uint32_t calc_size_msg(const void *self);
+  uint32_t calculate_size() const { return calc_size_msg(this); }
+#ifdef HAS_PROTO_MESSAGE_DUMP
+  const char *dump_to(DumpBuffer &out) const override;
+#endif
+
+ protected:
+};
+#endif
 #ifdef USE_EVENT
 class ListEntitiesEventResponse final : public InfoResponseProtoMessage {
  public:
   static constexpr uint16_t MESSAGE_TYPE = 107;
+#ifdef USE_EVENT_DATA
+  static constexpr uint8_t ESTIMATED_SIZE = 203;
+#else
   static constexpr uint8_t ESTIMATED_SIZE = 67;
+#endif
 #ifdef HAS_PROTO_MESSAGE_DUMP
   const LogString *message_name() const override { return LOG_STR("list_entities_event_response"); }
 #endif
   ProgmemStringRef device_class{};
   const ConstVector<const char *, true> *event_types{};
+#ifdef USE_EVENT_DATA
+  std::array<ListEntitiesEventVariable, ESPHOME_EVENT_MAX_VARIABLES> variables{};
+  uint16_t variables_len{0};
+#endif
   static uint8_t *encode_msg(const void *self, uint8_t *pos PROTO_ENCODE_DEBUG_PARAM);
   uint8_t *encode(ProtoWriteBuffer &buffer PROTO_ENCODE_DEBUG_PARAM) const {
     return encode_msg(this, buffer.get_pos() PROTO_ENCODE_DEBUG_ARG);
@@ -3493,11 +3546,19 @@ class ListEntitiesEventResponse final : public InfoResponseProtoMessage {
 class EventResponse final : public StateResponseProtoMessage {
  public:
   static constexpr uint16_t MESSAGE_TYPE = 108;
+#ifdef USE_EVENT_DATA
+  static constexpr uint8_t ESTIMATED_SIZE = 154;
+#else
   static constexpr uint8_t ESTIMATED_SIZE = 18;
+#endif
 #ifdef HAS_PROTO_MESSAGE_DUMP
   const LogString *message_name() const override { return LOG_STR("event_response"); }
 #endif
   StringRef event_type{nullptr, 0};  // null until set, encode only
+#ifdef USE_EVENT_DATA
+  std::array<EventVariableValue, ESPHOME_EVENT_MAX_VARIABLES> values{};
+  uint16_t values_len{0};
+#endif
   static uint8_t *encode_msg(const void *self, uint8_t *pos PROTO_ENCODE_DEBUG_PARAM);
   uint8_t *encode(ProtoWriteBuffer &buffer PROTO_ENCODE_DEBUG_PARAM) const {
     return encode_msg(this, buffer.get_pos() PROTO_ENCODE_DEBUG_ARG);

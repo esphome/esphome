@@ -1557,7 +1557,19 @@ void APIConnection::on_water_heater_command_request(const WaterHeaterCommandRequ
 void APIConnection::send_event(event::Event *event) {
   const uint8_t type_index = event->get_last_event_type_index();
   const size_t size_before = this->deferred_batch_.size();
+#ifdef USE_EVENT_DATA
+  // A stale event must not read as AUX_DATA_UNUSED, which dispatch_message_() skips
+  static_assert(((event::EVENT_DATA_MAX_TYPES - 1) | DeferredBatch::AUX_DATA_EVENT_STALE) !=
+                DeferredBatch::AUX_DATA_UNUSED);
+  // An event keeps the values of its last trigger only, so its older queued events lose them
+  const auto older = this->deferred_batch_.mark_events_stale(event, event->get_last_event_data().size() != 0);
+  if (older == DeferredBatch::OlderEvents::OLDER_EVENTS_FIRST_STALE) {
+    ESP_LOGW(TAG, "'%s': queued events lose their values to newer ones", LOG_STR_ARG(event->get_log_name()));
+  }
+  if (older != DeferredBatch::OlderEvents::OLDER_EVENTS_NONE) {
+#else
   if (this->deferred_batch_.contains(event, EventResponse::MESSAGE_TYPE)) {
+#endif
     // Sending now would overtake the older event of this entity that still waits in the batch
     this->schedule_message_(event, EventResponse::MESSAGE_TYPE, EventResponse::ESTIMATED_SIZE, type_index);
   } else {
@@ -1567,10 +1579,39 @@ void APIConnection::send_event(event::Event *event) {
   if (this->deferred_batch_.size() > size_before)
     this->make_batch_due_now_();
 }
-uint16_t APIConnection::try_send_event_response(event::Event *event, StringRef event_type, APIConnection *conn,
+uint16_t APIConnection::try_send_event_response(event::Event *event, uint8_t aux_data_index, APIConnection *conn,
                                                 uint32_t remaining_size) {
   EventResponse resp;
-  resp.event_type = event_type;
+#ifdef USE_EVENT_DATA
+  const event::EventData data = event->get_last_event_data();
+  if (data.size() != 0 && (aux_data_index & DeferredBatch::AUX_DATA_EVENT_STALE) != 0) {
+    // Its values belong to a newer event, so it goes out with its type only
+    aux_data_index &= ~DeferredBatch::AUX_DATA_EVENT_STALE;
+  } else {
+    for (uint8_t i = 0; i < data.size(); i++) {
+      if (!data.has(i))
+        continue;
+      const event::EventValue stored = data.get_value(i);
+      EventVariableValue &value = resp.values[resp.values_len++];
+      value.index = i;
+      switch (stored.type) {
+        case event::EVENT_VARIABLE_TYPE_BOOL:
+          value.bool_ = stored.bool_value;
+          break;
+        case event::EVENT_VARIABLE_TYPE_INT:
+          value.int_ = stored.int_value;
+          break;
+        case event::EVENT_VARIABLE_TYPE_FLOAT:
+          value.float_ = stored.float_value;
+          break;
+        case event::EVENT_VARIABLE_TYPE_STRING:
+          value.string_ = stored.string_value;
+          break;
+      }
+    }
+  }
+#endif
+  resp.event_type = StringRef::from_maybe_nullptr(event->get_event_type(aux_data_index));
   return fill_and_encode_entity_state(event, resp, conn, remaining_size);
 }
 
@@ -1578,6 +1619,15 @@ uint16_t APIConnection::try_send_event_info(EntityBase *entity, APIConnection *c
   auto *event = static_cast<event::Event *>(entity);
   ListEntitiesEventResponse msg;
   msg.event_types = &event->get_event_types();
+#ifdef USE_EVENT_DATA
+  const event::EventData data = event->get_last_event_data();
+  for (uint8_t i = 0; i < data.size(); i++) {
+    const event::EventVariable variable = data.variable(i);
+    msg.variables[i].name = ProgmemStringRef(variable.name, ESPHOME_strlen_P(variable.name));
+    msg.variables[i].type = static_cast<enums::EventVariableType>(variable.type);
+  }
+  msg.variables_len = data.size();
+#endif
   return fill_and_encode_entity_info_with_device_class(event, msg, msg.device_class, conn, remaining_size);
 }
 #endif
@@ -2643,9 +2693,7 @@ uint16_t APIConnection::dispatch_message_(const DeferredBatch::BatchItem &item, 
     // Skip if aux_data_index is invalid (should never happen in normal operation)
     if (item.aux_data_index == DeferredBatch::AUX_DATA_UNUSED)
       return 0;
-    auto *event = static_cast<event::Event *>(item.entity);
-    return try_send_event_response(event, StringRef::from_maybe_nullptr(event->get_event_type(item.aux_data_index)),
-                                   this, remaining_size);
+    return try_send_event_response(static_cast<event::Event *>(item.entity), item.aux_data_index, this, remaining_size);
   }
 #endif
 

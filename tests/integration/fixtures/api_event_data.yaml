@@ -1,0 +1,90 @@
+esphome:
+  name: api-event-data-test
+
+host:
+
+api:
+
+logger:
+
+external_components:
+  - source:
+      type: local
+      path: EXTERNAL_COMPONENT_PATH
+    components: [sndbuf_pin_component]
+
+# Small socket send buffers, so a client that does not read blocks the device quickly
+sndbuf_pin_component:
+  buffer_size: 8192
+
+event:
+  - platform: template
+    name: "Dimmer"
+    id: dimmer
+    event_types: [press, rotate_left]
+    variables:
+      number_of_presses:
+        type: int
+        event_types: [press]
+      steps:
+        type: int
+        event_types: [rotate_left]
+      fast: bool
+      speed: float
+      action:
+        type: string
+        max_length: 7
+  - platform: template
+    name: "Doorbell"
+    id: doorbell
+    event_types: [ring]
+  - platform: template
+    name: "Dial"
+    id: dial
+    event_types: [turn]
+    variables:
+      count: int
+
+button:
+  - platform: template
+    name: "Press Twice"
+    on_press:
+      - event.trigger:
+          id: dimmer
+          event_type: press
+          data:
+            number_of_presses: 2
+  - platform: template
+    name: "Turn Left"
+    on_press:
+      - event.trigger:
+          id: dimmer
+          event_type: rotate_left
+          data:
+            steps: -3
+            fast: true
+            speed: 1.5
+            action: start
+  - platform: template
+    name: "Ring"
+    on_press:
+      - event.trigger:
+          id: doorbell
+          event_type: ring
+  # Values equal to the protobuf default; number_of_presses is variable 0
+  - platform: template
+    name: "Press Zero"
+    on_press:
+      - event.trigger:
+          id: dimmer
+          event_type: press
+          data:
+            number_of_presses: 0
+            fast: false
+  - platform: template
+    name: "Turn Dial"
+    on_press:
+      - lambda: |-
+          // Many more events than the blocked socket takes, so the later ones wait in the queue
+          for (int count = 1; count <= 10000; count++)
+            id(dial).trigger("turn", {{0, count}});

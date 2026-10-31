@@ -588,7 +588,7 @@ class APIConnection final : public APIServerConnectionBase {
   static uint16_t try_send_radio_frequency_info(EntityBase *entity, APIConnection *conn, uint32_t remaining_size);
 #endif
 #ifdef USE_EVENT
-  static uint16_t try_send_event_response(event::Event *event, StringRef event_type, APIConnection *conn,
+  static uint16_t try_send_event_response(event::Event *event, uint8_t aux_data_index, APIConnection *conn,
                                           uint32_t remaining_size);
   static uint16_t try_send_event_info(EntityBase *entity, APIConnection *conn, uint32_t remaining_size);
 #endif
