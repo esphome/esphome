@@ -272,14 +272,43 @@ class _InlineCollector:
     """Takes the statements of the action being built, instead of it emitting an object."""
 
     action_id: ID
+    # For errors, from _builder_name
+    name: str
     action: _InlineAction | None = None
 
 
 _INLINE_COLLECTOR: ContextVar[_InlineCollector | None] = ContextVar(
     "esphome_automation_inline_collector", default=None
 )
-# What a collected builder returns; it names nothing, so using it fails the C++ build
-_COLLECTED_ACTION = MockObj("esphome__collected_action", "->")
+
+
+class _CollectedAction(MockObj):
+    """What a collected builder returns: it names no C++ object, so any use of it is an error."""
+
+    __slots__ = ()
+
+    def _misuse(self) -> EsphomeError:
+        collector = _INLINE_COLLECTOR.get()
+        name = "an action" if collector is None else collector.name
+        return EsphomeError(
+            f"The builder of {name} used the result of its apply builder. It must return "
+            "that result unchanged, because a merged action has no C++ object"
+        )
+
+    def __getattr__(self, attr: str) -> MockObj:
+        # Python looks up dunder methods itself and expects AttributeError
+        if attr.startswith("__"):
+            raise AttributeError(attr)
+        raise self._misuse()
+
+    def __call__(self, *args: SafeExpType) -> MockObj:
+        raise self._misuse()
+
+    def __str__(self) -> str:
+        raise self._misuse()
+
+
+_COLLECTED_ACTION = _CollectedAction("esphome__collected_action", "->")
 _RUNNING_PARAM = "esphome__running"
 
 
@@ -293,6 +322,9 @@ def _collect_action(
     collector = _INLINE_COLLECTOR.get()
     if collector is None or collector.action_id is not id_:
         return False
+    # Replacing it would silently lose the statements already collected
+    if collector.action is not None:
+        raise EsphomeError(f"The builder of {collector.name} built its action twice")
     collector.action = _InlineAction(id_, statements, emit)
     return True
 
@@ -1393,7 +1425,7 @@ async def _build_action_or_inline(
     action_id = full_config[CONF_TYPE_ID]
     if action_id.is_manual:
         return await build_action(full_config, template_arg, args)
-    collector = _InlineCollector(action_id)
+    collector = _InlineCollector(action_id, _builder_name(full_config))
     token = _INLINE_COLLECTOR.set(collector)
     try:
         action = await build_action(full_config, template_arg, args)
@@ -1401,13 +1433,17 @@ async def _build_action_or_inline(
         _INLINE_COLLECTOR.reset(token)
     # Returning anything else would silently drop the collected action from the firmware
     if (action is _COLLECTED_ACTION) != (collector.action is not None):
-        # The id is usually generated, so only the registry key tells the author where to look
-        name = next(key for key in full_config if key != CONF_TYPE_ID)
         raise EsphomeError(
-            f"The builder of action '{name}' ({action_id}) must return the result of "
+            f"The builder of {collector.name} must return the result of "
             "its apply builder unchanged"
         )
     return collector.action if action is _COLLECTED_ACTION else action
+
+
+def _builder_name(full_config: ConfigType) -> str:
+    """For an error: the id is usually generated, so the registry key tells the author where to look."""
+    name = next(key for key in full_config if key != CONF_TYPE_ID)
+    return f"'{name}' ({full_config[CONF_TYPE_ID]})"
 
 
 def _emit_inline_run(
