@@ -59,7 +59,7 @@ FINAL_VALIDATE_SCHEMA = uart_final_validate("ld6002b")
 
 async def to_code(config: ConfigType) -> None:
     var = await uart.new_uart_component(config)
-    request_model_sizes(var, max_targets=3, area_kinds=2)
+    request_model_sizes(var, area_kinds=2)
 
     await cg.add_pin(var.set_wakeup_pin, config.get(CONF_WAKEUP_PIN))
 
