@@ -1,0 +1,35 @@
+canbus:
+  - platform: mcp251xfd
+    id: mcp251xfd_can
+    cs_pin: ${cs_pin}
+    can_id: 0x123
+    bit_rate: 1000KBPS
+    data_bit_rate: 8000KBPS
+    clock: 40MHZ
+    on_frame:
+      - can_id: 0x123
+        then:
+          - lambda: |-
+              ESP_LOGD("mcp251xfd_test", "Received %u bytes", static_cast<unsigned>(x.size()));
+  - platform: mcp251xfd
+    id: mcp251xfd_default
+    cs_pin: ${cs_pin_default}
+    can_id: 0x456
+    bit_rate: 500KBPS
+    clock: 20MHZ
+
+interval:
+  - interval: 1s
+    then:
+      - lambda: |-
+          esphome::canbus::CanFrame frame{};
+          frame.can_id = 0x123;
+          frame.fd = true;
+          frame.bit_rate_switch = true;
+          frame.can_data_length_code = 15;
+          for (size_t i = 0; i < sizeof(frame.data); i++)
+            frame.data[i] = i;
+          id(mcp251xfd_can).send_data(frame);
+      - canbus.send:
+          canbus_id: mcp251xfd_default
+          data: [0x11, 0x22]

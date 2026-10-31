@@ -1,0 +1,28 @@
+esphome:
+  name: mcp2515test
+
+esp32:
+  board: esp32dev
+  framework:
+    type: esp-idf
+
+packages:
+  spi: !include ../../../test_build_components/common/spi/esp32-idf.yaml
+
+canbus:
+  - platform: mcp2515
+    id: mcp2515_can
+    cs_pin: GPIO21
+    can_id: 4
+    clock: 12mhz
+    mode: LISTENONLY
+    bit_rate: 500kbps
+
+button:
+  - platform: template
+    name: Send CAN frame
+    on_press:
+      - canbus.send:
+          canbus_id: mcp2515_can
+          can_id: 291
+          data: [0x01, 0x02, 0x03]
