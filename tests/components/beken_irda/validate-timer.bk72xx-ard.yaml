@@ -1,0 +1,15 @@
+# Timer capture on a non-IRDA pin with every timer option set explicitly.
+bk72xx:
+  board: generic-bk7231n-qfn32-tuya
+
+beken_irda:
+  id: irda_rx
+  pin:
+    number: P14
+    mode: INPUT_PULLUP
+  mode: timer
+  sample_period: 50us
+  filter: 50us
+  idle: 12ms
+  buffer_size: 256
+  tolerance: 500us
