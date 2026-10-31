@@ -1,0 +1,49 @@
+# Config-only fixture: the divider is checked against the range of the sampler
+# `voltage:` reads from too, and that range is only known once the whole
+# configuration is validated.
+esphome:
+  name: test
+
+esp32:
+  board: esp32dev
+
+sensor:
+  - platform: adc
+    id: mq_range_adc
+    name: MQ AO voltage
+    pin: GPIO34
+    attenuation: 12db
+
+  - platform: adc
+    id: mq_range_adc_6db
+    name: MQ AO voltage at 6 dB
+    pin: GPIO35
+    attenuation: 6db
+
+  # 5 V through the 20k/10k divider is 1.67 V, inside the 2.45 V of a 12 dB ADC.
+  - platform: mq_gas_sensors
+    id: mq_range_fits
+    name: MQ-8 H2
+    sensor_type: MQ-8
+    gas: H2
+    voltage: mq_range_adc
+    voltage_divider:
+      r1: 20.0
+      r2: 10.0
+    r0: 10.0
+
+  # 5 V through the 10k/10k divider is 2.5 V: below the 3.6 V the pin survives and
+  # below the default 3.3 V the platform check uses without a `pin:`, above the
+  # 1.75 V the 6 dB ADC measures. Declaring `adc_pin_max:` says nothing about the
+  # range, so the attenuation of the sampler is what refuses it.
+  - platform: mq_gas_sensors
+    id: mq_range_clipped
+    name: MQ-8 H2 clipped
+    sensor_type: MQ-8
+    gas: H2
+    voltage: mq_range_adc_6db
+    voltage_divider:
+      r1: 10.0
+      r2: 10.0
+    adc_pin_max: 3.6
+    r0: 10.0
