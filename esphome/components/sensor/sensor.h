@@ -4,7 +4,6 @@
 #include "esphome/core/entity_base.h"
 #include "esphome/core/helpers.h"
 #include "esphome/core/log.h"
-#include "esphome/core/optional.h"
 #ifdef USE_SENSOR_FILTER
 #include "esphome/components/sensor/filter.h"
 #endif
@@ -166,12 +165,6 @@ class Sensor : public EntityBase {
     uint8_t reserved : 5;  // Reserved for future use
   } sensor_flags_{};
 };
-
-/// Publish value to sensor when the sensor is configured and the value is set.
-inline void publish_optional(Sensor *sensor, const optional<float> &value) {
-  if (sensor != nullptr && value.has_value())
-    sensor->publish_state(*value);
-}
 
 /** Read another sensor as an input, such as the temperature a gas sensor compensates for.
  *
