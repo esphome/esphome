@@ -215,10 +215,7 @@ class FastLEDLightOutput final : public light::AddressableLight {
   void write_state(light::LightState *state) override;
   float get_setup_priority() const override { return setup_priority::HARDWARE; }
 
-  void clear_effect_data() override {
-    for (int i = 0; i < this->size(); i++)
-      this->internal_accessor_.effect_data[i] = 0;
-  }
+  void clear_effect_data() override { this->internal_accessor_.clear_effect_data(this->size()); }
 
  protected:
   light::CorrectedBufferColorAccessor internal_accessor_{

@@ -28,7 +28,7 @@ class M5Stack8AngleLightOutput final : public light::AddressableLight, public Pa
     return traits;
   };
 
-  void clear_effect_data() override { memset(this->internal_accessor_.effect_data, 0x00, M5STACK_8ANGLE_NUM_LEDS); };
+  void clear_effect_data() override { this->internal_accessor_.clear_effect_data(M5STACK_8ANGLE_NUM_LEDS); }
 
  protected:
   uint8_t color_data_[M5STACK_8ANGLE_NUM_LEDS * M5STACK_8ANGLE_BYTES_PER_LED];

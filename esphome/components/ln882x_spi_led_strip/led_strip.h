@@ -25,10 +25,7 @@ class LN882xSPILEDStripLightOutput final : public light::AddressableLight {
 
   light::LightTraits get_traits() override { return this->internal_accessor_.channel_colors.traits(); }
   int32_t size() const override { return this->num_leds_; }
-  void clear_effect_data() override {
-    if (this->internal_accessor_.effect_data != nullptr)
-      memset(this->internal_accessor_.effect_data, 0, this->num_leds_);
-  }
+  void clear_effect_data() override { this->internal_accessor_.clear_effect_data(this->num_leds_); }
   void write_state(light::LightState *state) override;
 
   /// Set a maximum refresh rate in µs as some lights do not like being updated too often.

@@ -48,10 +48,7 @@ class ESP32RMTLEDStripLightOutput final : public light::AddressableLight {
 
   void set_rmt_symbols(uint32_t rmt_symbols) { this->rmt_symbols_ = rmt_symbols; }
 
-  void clear_effect_data() override {
-    if (this->internal_accessor_.effect_data != nullptr)
-      memset(this->internal_accessor_.effect_data, 0, this->num_leds_);
-  }
+  void clear_effect_data() override { this->internal_accessor_.clear_effect_data(this->num_leds_); }
 
   void dump_config() override;
 

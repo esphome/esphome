@@ -1,5 +1,6 @@
 #pragma once
 
+#include <cstring>
 #include <utility>
 
 #include "esphome/core/color.h"
@@ -75,6 +76,12 @@ class BufferColorAccessor : public ESPColorAccessor {
     this->channel_colors.set_channel(this->color_data, index, channel, raw_value);
   }
   void set_effect_data(int32_t index, uint8_t value) override { this->effect_data[index] = value; }
+
+  /// Zero the effect data of the first `num_leds` LEDs; does nothing before the effect data is allocated.
+  void clear_effect_data(size_t num_leds) {
+    if (this->effect_data != nullptr)
+      memset(this->effect_data, 0, num_leds);
+  }
 
   // These fields must all be initialized to valid (non-null) values prior to using the accessor.
   uint8_t *color_data{nullptr};

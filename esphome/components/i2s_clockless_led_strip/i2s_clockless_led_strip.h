@@ -31,10 +31,7 @@ class I2SClocklessLedStrip final : public light::AddressableLight {
   light::LightTraits get_traits() override { return this->internal_accessor_.channel_colors.traits(); }
 
   int32_t size() const override { return this->num_leds_; }
-  void clear_effect_data() override {
-    if (uint8_t *effect = this->internal_accessor_.effect_data)
-      memset(effect, 0, this->num_leds_);
-  }
+  void clear_effect_data() override { this->internal_accessor_.clear_effect_data(this->num_leds_); }
   void write_state(light::LightState *state) override;
 
  protected:

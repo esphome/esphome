@@ -51,10 +51,7 @@ class NeoPixelBusLightOutputBase : public light::AddressableLight {
  public:
   NeoPixelBus<T_COLOR_FEATURE, T_METHOD> *get_controller() const { return this->controller_; }
 
-  void clear_effect_data() override {
-    for (int i = 0; i < this->size(); i++)
-      this->internal_accessor_.effect_data[i] = 0;
-  }
+  void clear_effect_data() override { this->internal_accessor_.clear_effect_data(this->size()); }
 
   /// Add some LEDS, can only be called once.
   void add_leds(uint16_t count_pixels, uint8_t pin) {
