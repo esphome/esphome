@@ -2,6 +2,7 @@
 #include "esphome/core/application.h"
 #include "esphome/core/hal.h"
 #include "esphome/core/log.h"
+#include "esphome/core/progmem.h"
 #include <algorithm>
 #include <cctype>
 #include <cinttypes>
@@ -34,9 +35,8 @@ static constexpr uint16_t TYPE_REPORT_SENSITIVITY = 0x0A0E;
 static constexpr uint16_t TYPE_REPORT_TRIGGER = 0x0A0F;
 static constexpr uint16_t TYPE_REPORT_Z_RANGE = 0x0A10;
 static constexpr uint16_t TYPE_REPORT_INSTALLATION = 0x0A11;
-static constexpr uint16_t TYPE_REPORT_LOW_POWER = 0x0A12;
+static constexpr uint16_t TYPE_REPORT_MODE = 0x0A12;  // low power on the LD6002B, work mode on the LD6004
 static constexpr uint16_t TYPE_REPORT_LOW_POWER_SLEEP = 0x0A13;
-static constexpr uint16_t TYPE_REPORT_WORK_MODE = 0x0A14;
 #if LD600X_AREA_KINDS > 2
 static constexpr uint16_t TYPE_REPORT_DWELL_AREAS = 0x0A16;
 #endif
@@ -64,9 +64,12 @@ static constexpr uint32_t CMD_GET_Z_RANGE = 0x12;
 static constexpr uint32_t CMD_INSTALL_TOP = 0x13;
 static constexpr uint32_t CMD_INSTALL_SIDE = 0x14;
 static constexpr uint32_t CMD_GET_INSTALLATION = 0x15;
+// Both models answer 0x16 to 0x18 with report 0x0A12; the opcodes stay here for the verbose logs.
 static constexpr uint32_t CMD_LOW_POWER_ON = 0x16;
 static constexpr uint32_t CMD_LOW_POWER_OFF = 0x17;
-static constexpr uint32_t CMD_GET_LOW_POWER = 0x18;
+// Asks for report 0x0A12, which each model reads its own way: low power on the LD6002B, the work mode
+// on the LD6004. Only the shared get_low_power_mode button sends it from here.
+static constexpr uint32_t CMD_GET_MODE = 0x18;
 static constexpr uint32_t CMD_GET_LOW_POWER_SLEEP = 0x19;
 static constexpr uint32_t CMD_RESET_UNATTENDED = 0x1A;
 
@@ -80,107 +83,63 @@ static constexpr uint8_t AREA_ID_DEFAULT = 4;  // detection_area_0 for initial d
 static constexpr uint8_t VERSION_QUERY_DATA[] = {0x01, 0x01, 0x00, 0x00};
 
 #ifdef ESPHOME_LOG_HAS_VERBOSE
-static const char *control_command_name(uint32_t command) {
-  switch (command) {
-    case CMD_AUTO_INTERFERENCE:
-      return "auto_interference";
-    case CMD_GET_AREAS:
-      return "get_areas";
-    case CMD_CLEAR_INTERFERENCE:
-      return "clear_interference";
-    case CMD_RESET_DETECTION_AREA:
-      return "reset_detection_area";
-    case CMD_GET_DELAY:
-      return "get_delay";
-    case CMD_POINT_CLOUD_ON:
-      return "point_cloud_on";
-    case CMD_POINT_CLOUD_OFF:
-      return "point_cloud_off";
-    case CMD_TARGET_DISPLAY_ON:
-      return "target_display_on";
-    case CMD_TARGET_DISPLAY_OFF:
-      return "target_display_off";
-    case CMD_SENSITIVITY_LOW:
-      return "sensitivity_low";
-    case CMD_SENSITIVITY_MEDIUM:
-      return "sensitivity_medium";
-    case CMD_SENSITIVITY_HIGH:
-      return "sensitivity_high";
-    case CMD_GET_SENSITIVITY:
-      return "get_sensitivity";
-    case CMD_TRIGGER_SLOW:
-      return "trigger_slow";
-    case CMD_TRIGGER_MEDIUM:
-      return "trigger_medium";
-    case CMD_TRIGGER_FAST:
-      return "trigger_fast";
-    case CMD_GET_TRIGGER:
-      return "get_trigger";
-    case CMD_GET_Z_RANGE:
-      return "get_z_range";
-    case CMD_INSTALL_TOP:
-      return "install_top";
-    case CMD_INSTALL_SIDE:
-      return "install_side";
-    case CMD_GET_INSTALLATION:
-      return "get_installation";
-    case CMD_LOW_POWER_ON:
-      return "low_power_on";
-    case CMD_LOW_POWER_OFF:
-      return "low_power_off";
-    case CMD_GET_LOW_POWER:
-      return "get_low_power";
-    case CMD_GET_LOW_POWER_SLEEP:
-      return "get_low_power_sleep";
-    case CMD_RESET_UNATTENDED:
-      return "reset_unattended";
-    default:
-      return "unknown";
-  }
+// Indexed by control command code - 1 (codes run 0x01 to 0x1A); the last entry is the fallback.
+PROGMEM_STRING_TABLE(ControlCommandNames, "auto_interference", "get_areas", "clear_interference",
+                     "reset_detection_area", "get_delay", "point_cloud_on", "point_cloud_off", "target_display_on",
+                     "target_display_off", "sensitivity_low", "sensitivity_medium", "sensitivity_high",
+                     "get_sensitivity", "trigger_slow", "trigger_medium", "trigger_fast", "get_trigger", "get_z_range",
+                     "install_top", "install_side", "get_installation", "low_power_on", "low_power_off", "get_mode",
+                     "get_low_power_sleep", "reset_unattended", "unknown");
+static_assert(CMD_AUTO_INTERFERENCE == 1 && CMD_RESET_UNATTENDED == ControlCommandNames::LAST_INDEX,
+              "ControlCommandNames is indexed by command - 1");
+
+static const LogString *control_command_name(uint32_t command) {
+  // Range checked in 32 bits: get_log_str takes a uint8_t index; command 0 wraps and falls back too
+  const uint32_t idx = command - 1;
+  return ControlCommandNames::get_log_str(idx < ControlCommandNames::COUNT ? idx : ControlCommandNames::LAST_INDEX,
+                                          ControlCommandNames::LAST_INDEX);
 }
 
-static const char *frame_type_name(uint16_t type) {
+static const LogString *frame_type_name(uint16_t type) {
   switch (type) {
     case TYPE_CONTROL:
-      return "control";
+      return LOG_STR("control");
     case TYPE_SET_AREA:
-      return "set_area";
+      return LOG_STR("set_area");
     case TYPE_SET_HOLD_DELAY:
-      return "set_hold_delay";
+      return LOG_STR("set_hold_delay");
     case TYPE_SET_Z_RANGE:
-      return "set_z_range";
+      return LOG_STR("set_z_range");
     case TYPE_SET_LOW_POWER_SLEEP:
-      return "set_low_power_sleep";
+      return LOG_STR("set_low_power_sleep");
     case TYPE_REPORT_TARGET:
-      return "report_target";
+      return LOG_STR("report_target");
     case TYPE_REPORT_POINT_CLOUD:
-      return "report_point_cloud";
+      return LOG_STR("report_point_cloud");
     case TYPE_REPORT_AREA_PRESENCE:
-      return "report_area_presence";
+      return LOG_STR("report_area_presence");
     case TYPE_REPORT_INTERFERENCE_AREAS:
-      return "report_interference_areas";
+      return LOG_STR("report_interference_areas");
     case TYPE_REPORT_DETECTION_AREAS:
-      return "report_detection_areas";
+      return LOG_STR("report_detection_areas");
     case TYPE_REPORT_DELAY:
-      return "report_delay";
+      return LOG_STR("report_delay");
     case TYPE_REPORT_SENSITIVITY:
-      return "report_sensitivity";
+      return LOG_STR("report_sensitivity");
     case TYPE_REPORT_TRIGGER:
-      return "report_trigger";
+      return LOG_STR("report_trigger");
     case TYPE_REPORT_Z_RANGE:
-      return "report_z_range";
+      return LOG_STR("report_z_range");
     case TYPE_REPORT_INSTALLATION:
-      return "report_installation";
-    case TYPE_REPORT_LOW_POWER:
-      return "report_low_power";
+      return LOG_STR("report_installation");
+    case TYPE_REPORT_MODE:
+      return LOG_STR("report_mode");
     case TYPE_REPORT_LOW_POWER_SLEEP:
-      return "report_low_power_sleep";
-    case TYPE_REPORT_WORK_MODE:
-      return "report_work_mode";
+      return LOG_STR("report_low_power_sleep");
     case TYPE_QUERY_VERSION:
-      return "query_version";
+      return LOG_STR("query_version");
     default:
-      return "unknown";
+      return LOG_STR("unknown");
   }
 }
 
@@ -198,10 +157,10 @@ static bool is_expected_control_report(uint32_t command, uint16_t type) {
       return type == TYPE_REPORT_Z_RANGE;
     case CMD_GET_INSTALLATION:
       return type == TYPE_REPORT_INSTALLATION;
-    case CMD_GET_LOW_POWER:
     case CMD_LOW_POWER_ON:
     case CMD_LOW_POWER_OFF:
-      return type == TYPE_REPORT_LOW_POWER;
+    case CMD_GET_MODE:
+      return type == TYPE_REPORT_MODE;
     case CMD_GET_LOW_POWER_SLEEP:
       return type == TYPE_REPORT_LOW_POWER_SLEEP;
     default:
@@ -228,10 +187,6 @@ void LD600XComponent::setup() {
     return;
   }
   this->parser_.init(buffer, capacity);
-  if (this->wakeup_pin_ != nullptr) {
-    this->wakeup_pin_->setup();
-    this->wakeup_pin_->digital_write(true);
-  }
 
   this->set_timeout(SETUP_DELAY_MS, [this]() {
     bool want_target_stream = false;
@@ -258,15 +213,9 @@ void LD600XComponent::setup() {
       }
     }
 #endif
-#ifdef USE_TEXT_SENSOR
-    // The work mode fallback reads presence off this stream, so it counts as a
-    // consumer of it here.  This only feeds the automatic branch below: with a
-    // target_display switch configured that switch still decides, and the
-    // fallback weighs no presence at all while the stream is off.  A model that
-    // reports the mode itself has no fallback and so no claim on the stream.
-    want_target_stream =
-        want_target_stream || (this->work_mode_text_sensor_ != nullptr && this->work_mode_uses_fallback());
-#endif
+    // This only feeds the automatic branch below: with a target_display switch
+    // configured that switch still decides.
+    want_target_stream = want_target_stream || this->model_wants_target_stream();
     bool target_display_controlled = false;
 #ifdef USE_SWITCH
     if (this->target_display_switch_ != nullptr) {
@@ -325,23 +274,6 @@ void LD600XComponent::setup() {
       this->send_control_command_(CMD_GET_DELAY);
     }
 #endif
-#ifdef USE_SWITCH
-    bool want_low_power = this->low_power_switch_ != nullptr;
-    if (want_low_power) {
-      // The query below confirms what the module took; until it lands, the work mode
-      // fallback runs on the restored value.
-      this->low_power_switch_->restore(false);
-    }
-#else
-    bool want_low_power = false;
-#endif
-#ifdef USE_TEXT_SENSOR
-    want_low_power = want_low_power || (this->work_mode_text_sensor_ != nullptr && this->work_mode_uses_fallback());
-#endif
-    if (want_low_power) {
-      this->send_control_command_(CMD_GET_LOW_POWER);
-    }
-
     bool want_area_report = false;
 #ifdef USE_SENSOR
     for (const auto &area : this->areas_) {
@@ -385,14 +317,8 @@ void LD600XComponent::dump_config() {
   model[pos] = '\0';
   ESP_LOGCONFIG(TAG,
                 "%s:\n"
-                "  Auto wake: %s\n"
                 "  Max data length: %u",
-                model, this->auto_wake_ ? LOG_STR_LITERAL("true") : LOG_STR_LITERAL("false"),
-                static_cast<unsigned>(this->parser_.capacity()));
-  if (this->wakeup_pin_ != nullptr) {
-    LOG_PIN("  Wake-up Pin: ", this->wakeup_pin_);
-    ESP_LOGCONFIG(TAG, "  Wake Pulse: %" PRIu32 "ms", this->wakeup_pulse_ms_);
-  }
+                model, static_cast<unsigned>(this->parser_.capacity()));
 #ifdef USE_SENSOR
   LOG_SENSOR_WITH_DEDUP("  ", "Target Count", this->target_count_sensor_);
   LOG_SENSOR_WITH_DEDUP("  ", "Point Count", this->point_count_sensor_);
@@ -459,7 +385,6 @@ void LD600XComponent::dump_config() {
   LOG_NUMBER("  ", "Area Z Max", this->area_z_max_number_);
 #endif
 #ifdef USE_SWITCH
-  LOG_SWITCH("  ", "Low Power", this->low_power_switch_);
   LOG_SWITCH("  ", "Point Cloud", this->point_cloud_switch_);
   LOG_SWITCH("  ", "Target Display", this->target_display_switch_);
 #endif
@@ -519,8 +444,8 @@ void LD600XComponent::handle_frame_(uint16_t type, const uint8_t *data, uint16_t
           ? encode_value_le<uint32_t>(this->active_command_.data.data())
           : 0;
   if (active_control_command != 0 && is_expected_control_report(active_control_command, type)) {
-    ESP_LOGV(TAG, "Received %s (0x%04X) while waiting for %s (0x%02" PRIX32 ") ACK", frame_type_name(type), type,
-             control_command_name(active_control_command), active_control_command);
+    ESP_LOGV(TAG, "Received %s (0x%04X) while waiting for %s (0x%02" PRIX32 ") ACK", LOG_STR_ARG(frame_type_name(type)),
+             type, LOG_STR_ARG(control_command_name(active_control_command)), active_control_command);
   }
 #endif
 
@@ -563,14 +488,8 @@ void LD600XComponent::handle_frame_(uint16_t type, const uint8_t *data, uint16_t
     case TYPE_REPORT_INSTALLATION:
       this->handle_installation_report_(data, len);
       break;
-    case TYPE_REPORT_LOW_POWER:
-      this->handle_low_power_report_(data, len);
-      break;
     case TYPE_REPORT_LOW_POWER_SLEEP:
       this->handle_low_power_sleep_report_(data, len);
-      break;
-    case TYPE_REPORT_WORK_MODE:
-      this->handle_work_mode_report_(data, len);
       break;
     case TYPE_QUERY_VERSION:
       this->handle_version_report_(data, len);
@@ -643,7 +562,7 @@ void LD600XComponent::handle_target_report_(const uint8_t *data, uint16_t len) {
   bool presence = this->target_presence_any_ || this->area_presence_any_;
   PUBLISH_STATE(this->presence_binary_sensor_, presence);
 #endif
-  this->update_work_mode_fallback_();
+  this->on_presence_update();
 
   for (uint8_t i = 0; i < LD600X_MAX_TARGETS; i++) {
     bool has_target = this->slot_occupied_[i];
@@ -714,7 +633,7 @@ void LD600XComponent::handle_area_presence_(const uint8_t *data, uint16_t len) {
   bool presence = this->target_presence_any_ || this->area_presence_any_;
   PUBLISH_STATE(this->presence_binary_sensor_, presence);
 #endif
-  this->update_work_mode_fallback_();
+  this->on_presence_update();
 }
 
 void LD600XComponent::handle_area_report_(uint8_t kind, const uint8_t *data, uint16_t len) {
@@ -815,74 +734,12 @@ void LD600XComponent::handle_installation_report_(const uint8_t *data, uint16_t 
 #endif
 }
 
-void LD600XComponent::handle_low_power_report_(const uint8_t *data, uint16_t len) {
-  if (len < 1)
-    return;
-  bool enabled = data[0] != 0;
-  this->low_power_enabled_ = enabled;
-  this->low_power_reported_ = true;
-#ifdef USE_SWITCH
-  PUBLISH_STATE(this->low_power_switch_, enabled);
-#endif
-  this->update_work_mode_fallback_();
-}
-
 void LD600XComponent::handle_low_power_sleep_report_(const uint8_t *data, uint16_t len) {
   if (len < 4)
     return;
 #ifdef USE_NUMBER
   uint32_t sleep_ms = encode_value_le<uint32_t>(data);
   this->publish_number_clamped_(this->low_power_sleep_number_, sleep_ms);
-#endif
-}
-
-void LD600XComponent::handle_work_mode_report_(const uint8_t *data, uint16_t len) {
-  if (len < 1)
-    return;
-  // Zero is the unattended half of this transition.  Read outside the text sensor's
-  // ifdef because the area sensors do not need one configured to have gone stale.
-  const bool low_power = (data[0] == 0);
-#ifdef USE_TEXT_SENSOR
-  if (this->work_mode_text_sensor_ != nullptr) {
-    this->work_mode_reported_ = true;
-    this->publish_work_mode_(low_power);
-  }
-#endif
-  // Protocol V1.2 section 2.1.17: this message is sent only on the transition
-  // between the unattended low-power mode and normal operation, so a zero is the
-  // module stating that nobody is in any area.  Not while a target is still being
-  // tracked, though: the reset_unattended command is undocumented on whether it
-  // forces this report, and where two statements from the module disagree the live
-  // one wins.
-  if (low_power && !this->target_presence_any_) {
-    this->clear_area_presence_();
-  }
-}
-
-void LD600XComponent::update_work_mode_fallback_() {
-#ifdef USE_TEXT_SENSOR
-  if (this->work_mode_text_sensor_ == nullptr || this->work_mode_reported_ || !this->work_mode_uses_fallback()) {
-    return;
-  }
-  if (!this->low_power_reported_) {
-    return;
-  }
-  // Target presence is only meaningful while the stream that maintains it runs.
-  // Area presence keeps its own report, so it still counts with the target stream
-  // off and low power alone decides only when neither half has anything to say.
-  const bool presence = (this->target_display_enabled_ && this->target_presence_any_) || this->area_presence_any_;
-  this->publish_work_mode_(this->low_power_enabled_ && !presence);
-#endif
-}
-
-void LD600XComponent::publish_work_mode_(bool low_power) {
-#ifdef USE_TEXT_SENSOR
-  if (this->work_mode_text_sensor_ == nullptr) {
-    return;
-  }
-  if (this->work_mode_low_power_.next(low_power)) {
-    this->work_mode_text_sensor_->publish_state(low_power ? "low_power" : "normal");
-  }
 #endif
 }
 
@@ -970,7 +827,8 @@ void LD600XComponent::process_command_queue_() {
 #ifdef ESPHOME_LOG_HAS_VERBOSE
         if (active_control_command != 0) {
           ESP_LOGV(TAG, "Retrying %s (0x%02" PRIX32 "), %u attempt(s) remaining",
-                   control_command_name(active_control_command), active_control_command, this->retries_left_);
+                   LOG_STR_ARG(control_command_name(active_control_command)), active_control_command,
+                   this->retries_left_);
         } else {
           // Writes without a control subcommand (hold delay, z-range) had no retry trace at all.
           ESP_LOGV(TAG, "Retrying command 0x%04X, %u attempt(s) remaining", this->active_command_.type,
@@ -1053,30 +911,8 @@ void LD600XComponent::send_command_internal_(uint16_t type, const uint8_t *data,
     return;
   }
 
-  // Anonymous timeouts never replace each other; with a pulse already pending the module is waking anyway.
-  if (this->auto_wake_ && this->wakeup_pin_ != nullptr && !this->wake_pulse_pending_) {
-    // Snapshot the payload: the deferred write must not depend on state a completing command changes.
-    if (len > 0 && data != nullptr) {
-      std::memcpy(this->wake_scratch_.data(), data, len);
-    }
-    // A button pulse must not raise the pin in the middle of this one.
-    this->cancel_timeout(WAKE_BUTTON_TIMEOUT_ID);
-    this->wake_pulse_pending_ = true;
-    this->wakeup_pin_->digital_write(false);
-    const uint8_t generation = this->send_generation_;
-    this->set_timeout(this->wakeup_pulse_ms_, [this, type, len, track, generation]() {
-      this->wakeup_pin_->digital_write(true);
-      this->wake_pulse_pending_ = false;
-      // Anonymous timeouts are never cancelled, so a tracked pulse whose command has since been
-      // retired must not transmit: the frame would land after its successor and be booked to it.
-      if (track && generation != this->send_generation_) {
-        return;
-      }
-      this->write_frame_(type, (len > 0) ? this->wake_scratch_.data() : nullptr, len, track);
-    });
+  if (this->defer_frame_write(type, data, len, track))
     return;
-  }
-
   this->write_frame_(type, data, len, track);
 }
 
@@ -1176,17 +1012,6 @@ void LD600XComponent::apply_area_config_() {
   if (this->queue_area_config_(this->area_id_, desired)) {
     this->area_edits_ = AreaConfig{};
   }
-}
-
-void LD600XComponent::wake_() {
-  // A command's own pulse raises the pin and writes after it, so ride along instead of
-  // claiming the flag: claiming it would send that command down the immediate-write path
-  // with the pin still low.
-  if (this->wakeup_pin_ == nullptr || this->wake_pulse_pending_)
-    return;
-  this->wakeup_pin_->digital_write(false);
-  this->set_timeout(WAKE_BUTTON_TIMEOUT_ID, this->wakeup_pulse_ms_,
-                    [this]() { this->wakeup_pin_->digital_write(true); });
 }
 
 #ifdef USE_NUMBER
@@ -1550,18 +1375,13 @@ void LD600XComponent::clear_target_state_() {
     bool presence = this->target_presence_any_ || this->area_presence_any_;
     PUBLISH_STATE(this->presence_binary_sensor_, presence);
 #endif
-    this->update_work_mode_fallback_();
+    this->on_presence_update();
   }
 }
 
 #ifdef USE_SWITCH
 void LD600XComponent::set_switch_state(switch_::Switch *entity, bool state) {
-  if (entity == this->low_power_switch_) {
-    this->low_power_enabled_ = state;
-    this->low_power_reported_ = true;
-    this->send_control_command_(state ? CMD_LOW_POWER_ON : CMD_LOW_POWER_OFF);
-    this->update_work_mode_fallback_();
-  } else if (entity == this->point_cloud_switch_) {
+  if (entity == this->point_cloud_switch_) {
     this->point_cloud_enabled_ = state;
     this->send_control_command_(state ? CMD_POINT_CLOUD_ON : CMD_POINT_CLOUD_OFF);
 #ifdef USE_SENSOR
@@ -1622,16 +1442,13 @@ void LD600XComponent::press_button(uint8_t kind) {
       this->send_control_command_(CMD_GET_INSTALLATION);
       break;
     case BUTTON_GET_LOW_POWER_MODE:
-      this->send_control_command_(CMD_GET_LOW_POWER);
+      this->send_control_command_(CMD_GET_MODE);
       break;
     case BUTTON_GET_LOW_POWER_SLEEP_TIME:
       this->send_control_command_(CMD_GET_LOW_POWER_SLEEP);
       break;
     case BUTTON_RESET_UNATTENDED:
       this->send_control_command_(CMD_RESET_UNATTENDED);
-      break;
-    case BUTTON_WAKE:
-      this->wake_();
       break;
     default:
       ESP_LOGW(TAG, "Unknown %s kind %u", LOG_STR_LITERAL("button"), kind);
