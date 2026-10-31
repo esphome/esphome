@@ -45,6 +45,8 @@ static std::vector<std::string> run_custom(const std::string &reply) {
     ezo.loop();
     delay(10);
   }
+  // One byte short of the 54-byte buffer, so its last byte stays the terminator
+  EXPECT_EQ(bus.read_sizes, std::vector<size_t>{53});
   return replies;
 }
 
