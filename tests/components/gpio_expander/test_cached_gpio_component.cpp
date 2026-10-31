@@ -19,7 +19,6 @@ class FakeComponent : public CachedGpioExpanderComponent<uint8_t, 8> {
     this->reads++;
     return true;
   }
-  bool digital_read_cache(uint8_t pin) override { return false; }
   void digital_write_hw(uint8_t pin, bool value) override {}
 };
 
