@@ -38,8 +38,7 @@ from esphome.const import (
     PLATFORM_NRF52,
     PlatformFramework,
 )
-from esphome.core import CORE, ID, Lambda
-from esphome.cpp_generator import MockObj, TemplateArgsType
+from esphome.core import CORE
 from esphome.types import ConfigType
 
 WAKEUP_PINS = {
@@ -229,7 +228,6 @@ def _validate_sleep_duration(value: core.TimePeriod) -> core.TimePeriod:
 
 deep_sleep_ns = cg.esphome_ns.namespace("deep_sleep")
 DeepSleepComponent = deep_sleep_ns.class_("DeepSleepComponent", cg.Component)
-EnterDeepSleepAction = deep_sleep_ns.class_("EnterDeepSleepAction", automation.Action)
 
 WakeupPinMode = deep_sleep_ns.enum("WakeupPinMode")
 WAKEUP_PIN_MODES = WakeupPinMode.options(
@@ -463,35 +461,23 @@ DEEP_SLEEP_ENTER_SCHEMA = cv.All(
 )
 
 
-@automation.register_action(
+automation.register_apply_action(
     "deep_sleep.enter",
-    automation.ApplyAction,
     DEEP_SLEEP_ENTER_SCHEMA,
-    synchronous=True,
+    automation.ApplyField(
+        CONF_SLEEP_DURATION, "set_sleep_duration", cg.uint32, by_value=True
+    ),
+    automation.ApplyCall(
+        "set_sleep_until({}, {}, {}, {})",
+        (
+            (CONF_TIME_ID, time.RealTimeClock),
+            ((CONF_UNTIL, CONF_HOUR), cg.uint8),
+            ((CONF_UNTIL, CONF_MINUTE), cg.uint8),
+            ((CONF_UNTIL, CONF_SECOND), cg.uint8),
+        ),
+    ),
+    automation.ApplyCall("begin_sleep(true)"),
 )
-async def deep_sleep_enter_to_code(
-    config: ConfigType,
-    action_id: ID,
-    template_arg: cg.TemplateArguments,
-    args: TemplateArgsType,
-) -> MockObj:
-    parent = automation.parent_ref(await cg.get_variable(config[CONF_ID]))
-    statements: list[str] = []
-    if (duration := config.get(CONF_SLEEP_DURATION)) is not None:
-        if isinstance(duration, Lambda):
-            # Built with the trigger's by-value arguments and called, so the body may modify them
-            duration = automation.immediate_lambda_call(
-                await cg.process_lambda(duration, args, return_type=cg.uint32)
-            )
-        statements.append(f"{parent.set_sleep_duration(duration)};")
-    if (until := config.get(CONF_UNTIL)) is not None:
-        clock = automation.parent_ref(await cg.get_variable(config[CONF_TIME_ID]))
-        call = parent.set_sleep_until(
-            clock, until[CONF_HOUR], until[CONF_MINUTE], until[CONF_SECOND]
-        )
-        statements.append(f"{call};")
-    statements.append(f"{parent.begin_sleep(True)};")
-    return automation.apply_statements_action(action_id, template_arg, args, statements)
 
 
 for _name, _call in (

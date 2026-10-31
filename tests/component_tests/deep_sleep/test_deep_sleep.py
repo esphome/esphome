@@ -264,13 +264,8 @@ def test_deep_sleep_enter_lambda_duration(
         "const std::remove_cvref_t<uint32_t> & seconds) {\n"
         "  ::deepsleep->set_sleep_duration([](uint32_t seconds) -> uint32_t {\n"
     ) in main_cpp
-    assert (
-        "      return seconds * 1000;\n"
-        "      // ESPHOME_LINE_DIRECTIVE_RESET\n"
-        "  }(seconds));\n"
-        "  ::deepsleep->begin_sleep(true);\n"
-        "}\n"
-    ) in main_cpp
+    start = main_cpp.index("    return seconds * 1000;\n")
+    assert main_cpp.index("  ::deepsleep->begin_sleep(true);\n}\n", start) > start
 
 
 @pytest.mark.parametrize(
@@ -287,9 +282,9 @@ def test_deep_sleep_enter_lambda_takes_args_by_value(
 
     assert re.search(
         r"set_sleep_duration\(\[\]\(uint32_t seconds\) -> uint32_t \{\n"
-        r"(?:      #line [^\n]*\n)?      "
+        r"(?:    #line [^\n]*\n)?    "
         + re.escape(body)
-        + r"\n(?:      // ESPHOME_LINE_DIRECTIVE_RESET\n)?  \}\(seconds\)\);\n",
+        + r"\n(?:    // ESPHOME_LINE_DIRECTIVE_RESET\n)?  \}\(seconds\)\);\n",
         main_cpp,
     )
 
