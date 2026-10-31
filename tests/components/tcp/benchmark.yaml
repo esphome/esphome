@@ -1,0 +1,4 @@
+packet_interface:
+  - platform: tcp
+    role: server
+    port: 6000
