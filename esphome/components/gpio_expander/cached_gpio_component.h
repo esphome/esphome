@@ -14,9 +14,9 @@ class InterruptExpanderComponent : public Component {
   float get_setup_priority() const override { return setup_priority::IO; }
 
  protected:
-  /// Attach the falling-edge ISR when there is an interrupt pin, then disable the loop until an input
-  /// needs it. Returns whether the interrupt pin is in use.
-  bool attach_interrupt_pin_();
+  /// Call at the end of setup(): attach the falling-edge ISR when there is an interrupt pin, then disable the
+  /// loop until an input needs it.
+  void setup_interrupt_pin_();
   /// The loop runs again after the INT line falls; stop it once the line is released (HIGH).
   /// Only called with an interrupt pin.
   void disable_loop_when_released_();
@@ -29,27 +29,19 @@ class InterruptExpanderComponent : public Component {
   InternalGPIOPin *interrupt_pin_{nullptr};
 };
 
-/// Base for expanders that cache reads per loop. With an interrupt pin the cache stays valid until INT fires.
-/// Expander picks the cache class (see BankedGpioExpanderComponent).
-template<typename T, uint16_t N, typename Expander = CachedGpioExpander<T, N>>
-class CachedGpioExpanderComponent : public InterruptExpanderComponent, public Expander {
+/// Base for expanders that cache reads per loop, with the per-bank input store of GpioExpanderInputs. Without
+/// an interrupt pin each read invalidates its pin; with one the cache stays valid until INT fires.
+template<typename T, uint16_t N>
+class CachedGpioExpanderComponent : public InterruptExpanderComponent,
+                                    public GpioExpanderInputs<GpioExpanderReadCache<T, N>> {
  public:
+  bool digital_read(uint8_t pin) { return this->cached_read_(pin, this->interrupt_pin_ == nullptr); }
+
   void loop() override {
     this->reset_pin_cache_();
     if (this->interrupt_pin_ != nullptr)
       this->disable_loop_when_released_();
   }
-
- protected:
-  /// Call at the end of setup().
-  void setup_interrupt_pin_() {
-    if (this->attach_interrupt_pin_())
-      this->set_invalidate_on_read_(false);
-  }
 };
-
-/// CachedGpioExpanderComponent with the per-bank input store of BankedGpioExpander.
-template<typename T, uint16_t N>
-using BankedGpioExpanderComponent = CachedGpioExpanderComponent<T, N, BankedGpioExpander<T, N>>;
 
 }  // namespace esphome::gpio_expander
