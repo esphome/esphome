@@ -10,7 +10,6 @@ from esphome.const import (
     CONF_OUTPUT,
     CONF_PULLDOWN,
     CONF_PULLUP,
-    CONF_TRIGGER_ID,
 )
 from esphome.cpp_generator import MockObj
 from esphome.types import ConfigType
@@ -34,8 +33,9 @@ SX1509Component = sx1509_ns.class_(
     "SX1509Component", cg.Component, i2c.I2CDevice, key_provider.KeyProvider
 )
 SX1509GPIOPin = sx1509_ns.class_("SX1509GPIOPin", cg.GPIOPin)
-SX1509KeyTrigger = sx1509_ns.class_(
-    "SX1509KeyTrigger", automation.Trigger.template(cg.uint8)
+
+_AUTOMATION_LISTS = (
+    automation.AutomationList(CONF_ON_KEY, "SX1509_ON_KEY_COUNT", [(cg.uint8, "x")]),
 )
 
 
@@ -63,11 +63,7 @@ KEYPAD_SCHEMA = cv.All(
             cv.Optional(CONF_SCAN_TIME): cv.int_range(min=1, max=128),
             cv.Optional(CONF_DEBOUNCE_TIME): cv.int_range(min=1, max=64),
             cv.Optional(CONF_KEYS): cv.string,
-            cv.Optional(CONF_ON_KEY): automation.validate_automation(
-                {
-                    cv.GenerateID(CONF_TRIGGER_ID): cv.declare_id(SX1509KeyTrigger),
-                }
-            ),
+            cv.Optional(CONF_ON_KEY): automation.validate_automation(),
         }
     ),
     check_keys,
@@ -102,10 +98,7 @@ async def to_code(config: ConfigType) -> None:
                 "sx1509_keys", cg.uint8, list(keys.encode())
             )
             cg.add(var.set_keys(table))
-        for tconf in conf.get(CONF_ON_KEY, []):
-            trigger = cg.new_Pvariable(tconf[CONF_TRIGGER_ID])
-            cg.add(var.register_key_trigger(trigger))
-            await automation.build_automation(trigger, [(cg.uint8, "x")], tconf)
+        await automation.build_automation_lists(var, conf, _AUTOMATION_LISTS)
 
 
 def validate_mode(value: ConfigType) -> ConfigType:
