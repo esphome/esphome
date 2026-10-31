@@ -2472,6 +2472,20 @@ CALLBACK_PARENT = MockObj("parent", "->")
 
 
 @pytest.mark.asyncio
+@pytest.mark.parametrize("forwarder", [TriggerOnTrueForwarder, TriggerOnFalseForwarder])
+async def test_callback_automation_core_forwarder_rejects_args(
+    forwarder: MockObj,
+) -> None:
+    """These forwarders call an Automation<>, so arguments would only fail in the C++ build."""
+    conf = _automation_conf()
+
+    with pytest.raises(ValueError, match="no arguments"):
+        await build_callback_automation(
+            CALLBACK_PARENT, "add_cb", [(cg.bool_, "x")], conf, forwarder=forwarder
+        )
+
+
+@pytest.mark.asyncio
 @pytest.mark.usefixtures("apply_actions")
 async def test_callback_automation_all_inline_has_no_objects() -> None:
     """A callback runs an all-inline automation directly, with no objects or stop checks."""

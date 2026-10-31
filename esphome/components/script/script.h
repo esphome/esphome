@@ -46,19 +46,10 @@ template<typename... Ts> class Script : public ScriptLogger, public Trigger<Ts..
   virtual void stop() { this->stop_action(); }
 #endif
 
-  // execute this script using a tuple that contains the arguments
-  void execute_tuple(const std::tuple<Ts...> &tuple) {
-    this->execute_tuple_(tuple, std::make_index_sequence<sizeof...(Ts)>{});
-  }
-
   // Internal function to give scripts readable names.
   void set_name(const LogString *name) { name_ = name; }
 
  protected:
-  template<size_t... S> void execute_tuple_(const std::tuple<Ts...> &tuple, std::index_sequence<S...> /*unused*/) {
-    this->execute(std::get<S>(tuple)...);
-  }
-
   // Run the action chain with this script's name published as the current source (RAII save/restore,
   // so nesting composes), so deferred work inside the script is attributed to it in blocking
   // warnings. Force-inlined to fold into the always-inlined trigger chain (no extra stack frame).

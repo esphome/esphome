@@ -1757,6 +1757,8 @@ async def build_callback_automation(
     if not custom and (
         forwarder is TriggerOnTrueForwarder or forwarder is TriggerOnFalseForwarder
     ):
+        if args:
+            raise ValueError(f"{forwarder} triggers an automation with no arguments")
         params, forward, custom = [(cg.bool_, "state")], [], True
         when = "state" if forwarder is TriggerOnTrueForwarder else "!state"
     call = _when_call(when, parent)

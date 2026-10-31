@@ -259,7 +259,9 @@ async def script_execute_action_to_code(config, action_id, template_arg, args):
         f"auto esphome__arg_{index} = {automation.immediate_lambda_call(arg)};"
         for index, arg in enumerate(script_args)
     ]
-    names = ", ".join(f"esphome__arg_{index}" for index in range(len(script_args)))
+    names = ", ".join(
+        f"std::move(esphome__arg_{index})" for index in range(len(script_args))
+    )
     statements.append(f"{automation.parent_ref(paren)}->execute({names});")
     return automation.apply_statements_action(action_id, template_arg, args, statements)
 
