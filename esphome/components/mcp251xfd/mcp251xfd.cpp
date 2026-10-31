@@ -322,26 +322,6 @@ canbus::Error MCP251XFD::send_message(canbus::CanFrame *frame) {
     return canbus::ERROR_FAILTX;
 
   const uint8_t length = canbus::can_dlc_to_len(frame->can_data_length_code);
-  if (length == canbus::CAN_INVALID_DLC)
-    return canbus::ERROR_FAILTX;
-  if (!frame->fd) {
-    if (length > canbus::CAN_MAX_DATA_LENGTH)
-      return canbus::ERROR_FAILTX;
-  }
-  if (frame->fd) {
-    if (frame->remote_transmission_request)
-      return canbus::ERROR_FAILTX;
-    if (this->mcp_mode_ == CanMode::CAN_MODE_CLASSIC)
-      return canbus::ERROR_FAILTX;
-  } else if (frame->bit_rate_switch) {
-    return canbus::ERROR_FAILTX;
-  }
-  if (frame->use_extended_id) {
-    if (frame->can_id > EXTENDED_ID_MASK)
-      return canbus::ERROR_FAILTX;
-  } else if (frame->can_id > STANDARD_ID_MASK) {
-    return canbus::ERROR_FAILTX;
-  }
 
   std::array<uint8_t, 8> fifo;
   if (!this->read_registers_(REG_TX_FIFO_STA, fifo.data(), fifo.size()))
