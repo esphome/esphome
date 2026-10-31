@@ -838,7 +838,7 @@ async def _render_bytes(
             value, args, return_type=cg.std_vector.template(cg.uint8)
         )
         # Never reduced into the outer function, whose own parameters are const
-        call = CallExpression(inner, *[cg.MockObj(name) for _, name in args])
+        call = immediate_lambda_call(inner)
         return [
             "{",
             f"  const std::vector<uint8_t> esphome__bytes = {call};",

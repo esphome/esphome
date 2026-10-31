@@ -39,41 +39,17 @@ class RawTrigger final : public Trigger<RawTimings>, public RemoteReceiverListen
   }
 };
 
-template<typename... Ts> class RawAction : public RemoteTransmitterActionBase<Ts...> {
- public:
-  void set_code_template(RawTimings (*func)(Ts...)) {
-    this->code_.func = func;
-    this->len_ = -1;  // Sentinel value indicates template mode
-  }
-  void set_code_static(const int32_t *code, size_t len) {
-    this->code_.data = code;
-    this->len_ = len;  // Length >= 0 indicates static mode
-  }
-  TEMPLATABLE_VALUE(uint32_t, carrier_frequency);
-
-  void encode(RemoteTransmitData *dst, Ts... x) override {
-    if (this->len_ >= 0) {
-      for (size_t i = 0; i < static_cast<size_t>(this->len_); i++) {
-        auto val = this->code_.data[i];
-        if (val < 0) {
-          dst->space(static_cast<uint32_t>(-val));
-        } else {
-          dst->mark(static_cast<uint32_t>(val));
-        }
-      }
+/// Appends constant timings, marks positive and spaces negative; the table may be in flash
+inline void encode_raw_timings(RemoteTransmitData *dst, const int32_t *data, size_t len) {
+  for (size_t i = 0; i < len; i++) {
+    auto val = data[i];
+    if (val < 0) {
+      dst->space(static_cast<uint32_t>(-val));
     } else {
-      dst->set_data(this->code_.func(x...));
+      dst->mark(static_cast<uint32_t>(val));
     }
-    dst->set_carrier_frequency(this->carrier_frequency_.value(x...));
   }
-
- protected:
-  ssize_t len_{-1};  // -1 = template mode, >=0 = static mode with length
-  union Code {
-    RawTimings (*func)(Ts...);
-    const int32_t *data;
-  } code_;
-};
+}
 
 class RawDumper : public RemoteReceiverDumperBase {
  public:
