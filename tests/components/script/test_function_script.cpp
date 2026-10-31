@@ -4,7 +4,9 @@
 
 namespace esphome::script::testing {
 
-// Each body is the function of its script, as code generation emits it.
+// Each body is the function of its script, as code generation emits it; the bodies reach
+// their script and record what happened through globals.
+// NOLINTBEGIN(cppcoreguidelines-avoid-non-const-global-variables)
 static void single_body(const int &running);
 using TestSingle = FunctionScript<SingleMode<FunctionBody<>>, single_body>;
 static TestSingle *single_script;
@@ -112,5 +114,7 @@ TEST(FunctionScriptTest, QueuedRunsTheQueuedRunAfterTheBody) {
   EXPECT_EQ(queued_last, 2);
   EXPECT_FALSE(script.is_running());
 }
+
+// NOLINTEND(cppcoreguidelines-avoid-non-const-global-variables)
 
 }  // namespace esphome::script::testing

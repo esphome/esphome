@@ -707,6 +707,18 @@ def Pvariable(id_: ID, rhs: SafeExpType, type_: "MockObj" = None) -> "MockObj":
     if type_ is not None:
         id_.type = type_
 
+    _emit_pvariable(id_, rhs, CORE.add_global, CORE.add)
+    CORE.register_variable(id_, obj)
+    return obj
+
+
+def _emit_pvariable(
+    id_: ID,
+    rhs: SafeExpType,
+    add_global_: Callable[[Statement], object],
+    add_: Callable[[Statement], object],
+) -> None:
+    """Emit the storage, declaration and construction of the pointer variable ``id_``."""
     if isinstance(rhs, MockObj) and rhs.is_new_expr:
         # For 'new' allocations, use placement new into static storage
         # to avoid heap fragmentation on embedded devices.
@@ -731,31 +743,70 @@ def Pvariable(id_: ID, rhs: SafeExpType, type_: "MockObj" = None) -> "MockObj":
         storage_name = f"{component_ns}__{id_.id}__pstorage"
 
         # Declare aligned byte array for the object storage
-        CORE.add_global(
+        add_global_(
             RawStatement(
                 f"alignas({actual_type}) static unsigned char {storage_name}[sizeof({actual_type})];"
             )
         )
         # Pointer declaration uses id_.type to preserve the declared base-class
         # pointer type for downstream callers (polymorphism through base ptr).
-        CORE.add_global(
-            AssignmentExpression(
-                f"static {pointer_type}",
-                "*const ",
-                id_,
-                MockObj(f"reinterpret_cast<{pointer_type} *>({storage_name})"),
+        add_global_(
+            statement(
+                AssignmentExpression(
+                    f"static {pointer_type}",
+                    "*const ",
+                    id_,
+                    MockObj(f"reinterpret_cast<{pointer_type} *>({storage_name})"),
+                )
             )
         )
         placement_new = CallExpression(f"new({id_.id}) {actual_type}", *call_expr.args)
-        CORE.add(ExpressionStatement(placement_new))
+        add_(ExpressionStatement(placement_new))
         CORE.data.setdefault(_STATIC_POINTER_IDS, set()).add(id_.id)
     else:
         decl = VariableDeclarationExpression(id_.type, "*", id_, static=True)
-        CORE.add_global(decl)
-        CORE.add(AssignmentExpression(None, None, id_, rhs))
+        add_global_(statement(decl))
+        add_(statement(AssignmentExpression(None, None, id_, rhs)))
 
-    CORE.register_variable(id_, obj)
-    return obj
+
+class _StatementSlot(Statement):
+    """A place for statements that are added later."""
+
+    __slots__ = ("statements",)
+
+    def __init__(self) -> None:
+        self.statements: list[Statement] = []
+
+    def __str__(self) -> str:
+        return "\n".join(str(item).rstrip() for item in self.statements)
+
+
+class LatePvariable:
+    """A pointer variable registered now, so other code can refer to it, and created later in
+    the place it was declared, once its class is known.
+
+    ``globals`` is where its storage goes, for code that must be declared before it.
+    """
+
+    def __init__(self, id_: ID) -> None:
+        self.globals = _StatementSlot()
+        self._main = _StatementSlot()
+        CORE.add_global(self.globals)
+        CORE.add(self._main)
+        self.var = MockObj(id_, "->")
+        CORE.register_variable(id_, self.var)
+
+    def define(self, type_: "MockObjClass", *args: SafeExpType) -> "MockObj":
+        """Create the variable as ``type_`` with the constructor arguments ``args``."""
+        id_ = self.var.base
+        id_.type = type_
+        _emit_pvariable(
+            id_,
+            type_.new(*args),
+            self.globals.statements.append,
+            self._main.statements.append,
+        )
+        return self.var
 
 
 _STATIC_POINTER_IDS = "static_pointer_ids"

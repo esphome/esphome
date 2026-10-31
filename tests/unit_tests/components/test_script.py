@@ -12,11 +12,11 @@ from esphome.components.script import (
     SingleScript,
     default_script_stop_ids,
     to_code,
+    validate_parameter_name,
 )
 import esphome.config_validation as cv
 from esphome.const import CONF_ID, CONF_MODE, CONF_PARAMETERS, CONF_THEN
-from esphome.core import CORE, ID
-from esphome.cpp_generator import MockObj, RawStatement
+from esphome.core import ID
 
 
 def test_bare_script_stop_defaults_to_enclosing_script() -> None:
@@ -98,11 +98,6 @@ def test_bare_script_stop_in_single_script_mapping() -> None:
     assert result[CONF_THEN] == [{CONF_SCRIPT_STOP: {CONF_ID: "my_script"}}]
 
 
-def _fake_new_pvariable(id_: ID, *args: Any) -> MockObj:
-    CORE.add_global(RawStatement(f"// {id_.id}"))
-    return MockObj(id_.id, "->")
-
-
 @pytest.mark.asyncio
 async def test_on_stop_builds_stop_trigger_automation() -> None:
     stop_conf = {CONF_THEN: []}
@@ -122,7 +117,6 @@ async def test_on_stop_builds_stop_trigger_automation() -> None:
         },
     ]
     with (
-        patch("esphome.codegen.new_Pvariable") as new_pvariable,
         patch("esphome.codegen.add"),
         patch("esphome.codegen.add_define") as add_define,
         patch(
@@ -134,7 +128,6 @@ async def test_on_stop_builds_stop_trigger_automation() -> None:
             return_value=None,
         ) as build_or_run,
     ):
-        new_pvariable.side_effect = _fake_new_pvariable
         await to_code(config)
 
     add_define.assert_called_once_with("USE_SCRIPT_ON_STOP")
@@ -159,7 +152,6 @@ async def test_no_on_stop_define_without_on_stop() -> None:
         }
     ]
     with (
-        patch("esphome.codegen.new_Pvariable") as new_pvariable,
         patch("esphome.codegen.add"),
         patch("esphome.codegen.add_define") as add_define,
         patch(
@@ -168,7 +160,16 @@ async def test_no_on_stop_define_without_on_stop() -> None:
             return_value=None,
         ),
     ):
-        new_pvariable.side_effect = _fake_new_pvariable
         await to_code(config)
 
     add_define.assert_not_called()
+
+
+@pytest.mark.parametrize("name", ["id", "esphome__running", "esphome__arg_0"])
+def test_reserved_parameter_names_rejected(name: str) -> None:
+    with pytest.raises(cv.Invalid):
+        validate_parameter_name(name)
+
+
+def test_parameter_name_accepted() -> None:
+    assert validate_parameter_name("esphome_running") == "esphome_running"

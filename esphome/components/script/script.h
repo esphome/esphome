@@ -70,12 +70,12 @@ template<typename... Ts> class FunctionBody : public Script<Ts...> {
   int body_num_running_() { return this->num_running_; }
   inline void run_body_(const Ts &...x) ESPHOME_ALWAYS_INLINE {
     this->num_running_++;
-    this->run_function_(this->num_running_, x...);
+    this->run_function(this->num_running_, x...);
     if (this->num_running_ > 0)
       this->num_running_--;
   }
   void stop_body_() { this->num_running_ = 0; }
-  virtual void run_function_(const int &running, const Ts &...x) = 0;
+  virtual void run_function(const int &running, const Ts &...x) = 0;
 
   int num_running_{0};
 };
@@ -289,7 +289,7 @@ template<typename... Ts> using ParallelScript = ParallelMode<AutomationScript<Ts
 /// A script of mode `Mode` (built on FunctionBody) whose actions are the generated function Fn.
 template<class Mode, auto Fn, typename... Ts> class FunctionScript final : public Mode {
  protected:
-  void run_function_(const int &running, const Ts &...x) override { Fn(running, x...); }
+  void run_function(const int &running, const Ts &...x) override { Fn(running, x...); }
 };
 
 /** Wait for a script to finish before continuing.

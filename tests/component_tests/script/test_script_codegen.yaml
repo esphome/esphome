@@ -17,6 +17,14 @@ script:
       - script.wait: late_target
       - script.wait: with_delay
 
+  # Has a parameter of the class an inline script had before it was known
+  - id: waits_with_param
+    parameters:
+      other: script::SingleScript<>*
+    then:
+      - script.wait: late_target
+      - lambda: other->execute();
+
   # Inline actions only
   - id: inline_single
     then:

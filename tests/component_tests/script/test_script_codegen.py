@@ -190,3 +190,14 @@ def test_script_wait_built_first(generate_main) -> None:
     assert _constructed(main_cpp, delay) == (
         f"{_wait_class('script::SingleScript<>')}(with_delay)"
     )
+
+
+def test_script_wait_keeps_waiting_script_parameters(generate_main) -> None:
+    """Only the waited-for script's class changes, not a parameter with the same name."""
+    main_cpp = generate_main(CONFIG)
+    automation = _automation(main_cpp, "waits_with_param")
+    wait, _ = _actions_of(main_cpp, automation)
+    assert _constructed(main_cpp, wait) == (
+        f"script::ScriptWaitAction<{_mode_class('SingleMode')}, "
+        "script::SingleScript<>*>(late_target)"
+    )
