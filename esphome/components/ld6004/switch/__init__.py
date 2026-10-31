@@ -17,4 +17,4 @@ FINAL_VALIDATE_SCHEMA = entities.unique_settings_final_validate(
 
 
 async def to_code(config: ConfigType) -> None:
-    await entities.switch_to_code(config, CONF_LD6004_ID, keys=KEYS)
+    await entities.switch_to_code(config, CONF_LD6004_ID)

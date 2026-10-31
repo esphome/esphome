@@ -8,6 +8,7 @@ from esphome.components.button import ApplyButton
 from esphome.components.ld6004 import LD6004Component
 from esphome.components.number import ApplyNumber
 from esphome.components.select import ApplySelect
+from esphome.components.switch import ApplySwitch
 import esphome.config_validation as cv
 from esphome.const import PlatformFramework
 from esphome.core import ID
@@ -76,6 +77,15 @@ def _cases(
             ("output_interval",),
             ("dwell_lifetime", "output_interval"),
         ),
+        *_cases(
+            "switch",
+            ApplySwitch,
+            "config",
+            (),
+            ("point_cloud",),
+            ("target_display",),
+            ("point_cloud", "target_display"),
+        ),
     ],
 )
 def test_platform_keys(
@@ -109,6 +119,11 @@ def test_platform_keys(
             "ld6002b_id",
         ),
         ("button", {"ld6004_id": "radar", "wake": {"name": "Wake"}}, "wake"),
+        (
+            "switch",
+            {"ld6004_id": "radar", "low_power": {"name": "Low Power"}},
+            "low_power",
+        ),
     ],
 )
 def test_platform_rejects_key(
