@@ -1,5 +1,7 @@
 #include <gtest/gtest.h>
 
+#include <cstring>
+
 #include "esphome/components/mcp23017/mcp23017.h"
 
 namespace esphome::mcp23017::testing {
@@ -13,8 +15,7 @@ class FakeBus : public i2c::I2CBus {
     EXPECT_EQ(address, ADDRESS);
     if (this->fail)
       return i2c::ERROR_TIMEOUT;
-    for (size_t i = 0; i < read_count; i++)
-      read_buffer[i] = 0x00;
+    std::memset(read_buffer, 0, read_count);
     return i2c::ERROR_OK;
   }
 
@@ -38,13 +39,14 @@ TEST_F(MCP23017Test, ReadWarningClearsAfterSuccessfulRead) {
 
   // One read per port: GPIOA (pin 0) and GPIOB (pin 8)
   for (uint8_t pin : {0, 8}) {
+    SCOPED_TRACE(int(pin));
     this->bus_.fail = true;
     this->component_.digital_read(pin);
-    EXPECT_TRUE(this->component_.status_has_warning()) << "pin " << int(pin);
+    EXPECT_TRUE(this->component_.status_has_warning());
 
     this->bus_.fail = false;
     this->component_.digital_read(pin);
-    EXPECT_FALSE(this->component_.status_has_warning()) << "pin " << int(pin);
+    EXPECT_FALSE(this->component_.status_has_warning());
   }
 }
 
