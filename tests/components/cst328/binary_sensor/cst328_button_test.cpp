@@ -64,7 +64,7 @@ TEST_F(CST328ButtonTest, SetupPublishesOff) {
 TEST_F(CST328ButtonTest, ResetPinSetupPublishesOffBeforeItFinishes) {
   FakePin reset;
   this->hub_.set_reset_pin(&reset);
-  CST328Button button;
+  binary_sensor::BinarySensor button;
   this->add_button_(button);
   this->setup_();
   ASSERT_TRUE(button.has_state());

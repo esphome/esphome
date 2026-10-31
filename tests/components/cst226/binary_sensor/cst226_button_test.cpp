@@ -61,7 +61,7 @@ TEST_F(CST226ButtonTest, SetupPublishesOff) {
 TEST_F(CST226ButtonTest, ResetPinSetupPublishesOffBeforeItFinishes) {
   FakePin reset;
   this->hub_.set_reset_pin(&reset);
-  CST226Button button;
+  binary_sensor::BinarySensor button;
   this->add_button_(button);
   this->setup_();
   ASSERT_TRUE(button.has_state());

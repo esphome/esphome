@@ -64,7 +64,7 @@ TEST_F(GT911ButtonTest, SetupPublishesOff) {
 TEST_F(GT911ButtonTest, ResetPinSetupPublishesOffBeforeItFinishes) {
   FakePin reset;
   this->hub_.set_reset_pin(&reset);
-  GT911Button button;
+  binary_sensor::BinarySensor button;
   this->add_button_(button, 0);
   this->setup_();
   ASSERT_TRUE(button.has_state());
