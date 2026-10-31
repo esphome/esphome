@@ -56,6 +56,7 @@ from esphome.automation import (
     literal_with_length,
     maybe_simple_id,
     new_lambda_pvariable,
+    owning_args,
     parent_ref,
     progmem_bytes,
     register_action,
@@ -335,6 +336,42 @@ def test_has_non_synchronous_actions_set_playlist_delay() -> None:
         }
     ]
     assert has_non_synchronous_actions(actions) is False
+
+
+OWNING_ARGS = [(cg.StringRef, "key"), (cg.bool_, "value")]
+
+
+def test_owning_args_synchronous_keeps_string_ref(
+    mock_registry: dict[str, RegistryEntry],
+) -> None:
+    assert owning_args(OWNING_ARGS, {CONF_THEN: [{"logger.log": "hi"}]}) == OWNING_ARGS
+
+
+def test_owning_args_deferring_gets_std_string(
+    mock_registry: dict[str, RegistryEntry],
+) -> None:
+    conf = {CONF_THEN: [{"logger.log": "hi"}, {"delay": "1s"}]}
+    assert owning_args(OWNING_ARGS, conf) == [
+        (cg.std_string, "key"),
+        (cg.bool_, "value"),
+    ]
+
+
+def test_owning_args_nested_deferring_gets_std_string(
+    mock_registry: dict[str, RegistryEntry],
+) -> None:
+    conf = {CONF_THEN: [{"if": {CONF_THEN: [{"delay": "1s"}]}}]}
+    assert owning_args(OWNING_ARGS, conf)[0] == (cg.std_string, "key")
+
+
+def test_owning_args_swaps_every_string_ref(
+    mock_registry: dict[str, RegistryEntry],
+) -> None:
+    args = [(cg.StringRef, "key"), (cg.StringRef, "value")]
+    assert owning_args(args, {CONF_THEN: [{"delay": "1s"}]}) == [
+        (cg.std_string, "key"),
+        (cg.std_string, "value"),
+    ]
 
 
 def test_validate_no_deferring_actions_accepts_synchronous(
