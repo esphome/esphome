@@ -3,6 +3,7 @@
 #include <type_traits>
 
 #include "esphome/components/interval/interval_callback.h"
+#include "esphome/core/application.h"
 
 namespace esphome::interval::testing {
 

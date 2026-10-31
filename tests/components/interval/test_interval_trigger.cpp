@@ -1,15 +1,16 @@
 #include <gtest/gtest.h>
 
 #include "esphome/components/interval/interval.h"
+#include "esphome/core/application.h"
 
 namespace esphome::interval::testing {
 
 class CountAction : public Action<> {
  public:
   explicit CountAction(int *count) : count_(count) {}
+  void play() override { (*this->count_)++; }
 
  protected:
-  void play() override { (*this->count_)++; }
   int *count_;
 };
 
