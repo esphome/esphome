@@ -69,7 +69,7 @@ TEST(EzoReplyTest, LongBusySpellKeepsPolling) {
   ezo.set_i2c_bus(&bus);
   ezo.set_i2c_address(99);
   std::vector<std::string> replies;
-  ezo.add_custom_callback([&replies](std::string x) { replies.push_back(std::move(x)); });
+  ezo.add_custom_callback([&replies](const std::string &x) { replies.push_back(x); });
   ezo.send_custom("Status");
   static constexpr uint32_t READY_AT = 40000;
   for (uint32_t now = 1000; now < READY_AT + 1000 && replies.empty(); now += 100) {
