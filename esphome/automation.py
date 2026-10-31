@@ -619,13 +619,9 @@ def parent_ref(var: MockObj) -> MockObj:
     return MockObj(f"::{var}", "->")
 
 
-async def get_parent_ref(config: ConfigType, id_key: str = CONF_ID) -> MockObj:
-    """The variable ``config[id_key]`` names, as ``parent_ref`` names it."""
-    return parent_ref(await cg.get_variable(config[id_key]))
-
-
-async def _apply_parent(config: ConfigType, id_key: str = CONF_ID) -> str:
-    return str(await get_parent_ref(config, id_key))
+async def apply_parent(config: ConfigType, id_key: str = CONF_ID) -> str:
+    """The object ``config[id_key]`` names, as ``parent_ref`` spells it."""
+    return str(parent_ref(await cg.get_variable(config[id_key])))
 
 
 def _apply_lambda_args(args: TemplateArgsType) -> TemplateArgsType:
@@ -784,7 +780,7 @@ def apply_action_builder(
         template_arg: cg.TemplateArguments,
         args: TemplateArgsType,
     ) -> MockObj:
-        parent = await _apply_parent(config, id_key)
+        parent = await apply_parent(config, id_key)
         lambda_args = _apply_lambda_args(args)
         receiver = "apply_call." if call else f"{parent}->"
         statements: list[str] = []
@@ -925,7 +921,7 @@ def register_apply_condition(
     ) -> MockObj:
         if defaults:
             config = {**defaults, **config}
-        parent = await _apply_parent(config, id_key)
+        parent = await apply_parent(config, id_key)
         lambda_args = _apply_lambda_args(args)
         values = _apply_values(config, members)
         check = await _render_check(

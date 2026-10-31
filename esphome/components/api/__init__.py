@@ -880,7 +880,7 @@ async def _send_service_call(
     groups: tuple[dict[str, Any], ...],
 ) -> MockObj:
     """Send the action or event from a generated function, without waiting for a response."""
-    server = await automation.get_parent_ref(config)
+    server = MockObj(await automation.apply_parent(config))
     table, *counts = await _service_call_table(template_arg, args, service, groups)
     call = api_ns.send_homeassistant_fields(
         server,

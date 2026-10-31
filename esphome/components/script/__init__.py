@@ -253,7 +253,7 @@ async def script_execute_action_to_code(config, action_id, template_arg, args):
     _, script_params = parameters_to_template(params)
     script_args = await get_ordered_args(config, script_params)
 
-    parent = await automation.get_parent_ref(config)
+    parent = await automation.apply_parent(config)
     # Separate statements, because the order of evaluation inside one call is not defined
     statements = [
         f"auto esphome__arg_{index} = {automation.immediate_lambda_call(arg)};"
