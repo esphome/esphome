@@ -14,6 +14,9 @@ from esphome.core import CORE
         ("binary_sensor_only.yaml", "2"),
         ("detection_area_sensor.yaml", "2"),
         ("dwell_area_sensor.yaml", "3"),
+        ("sensitivity_select.yaml", "2"),
+        ("area_id_select.yaml", "3"),
+        ("dwell_area_sensor_and_area_id_select.yaml", "3"),
     ],
 )
 def test_area_kinds(
