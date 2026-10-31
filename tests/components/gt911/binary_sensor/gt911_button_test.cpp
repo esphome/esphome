@@ -1,0 +1,113 @@
+#include <gtest/gtest.h>
+
+#include <vector>
+
+#include "esphome/components/gt911/binary_sensor/gt911_button.h"
+#include "esphome/components/gt911/touchscreen/gt911_touchscreen.h"
+#include "esphome/core/application.h"
+#include "../common.h"
+
+namespace esphome::gt911::testing {
+
+class GT911ButtonTest : public ::testing::Test {
+ protected:
+  void SetUp() override {
+    this->bus_.registers[0x8048] = {0x40, 0x01, 0xF0, 0x00};
+    this->hub_.set_i2c_bus(&this->bus_);
+    this->hub_.set_i2c_address(0x5D);
+  }
+
+  // A touch loop defers work on the hub; a fresh App drops it before the hub goes away
+  void TearDown() override {
+    App.~Application();
+    new (&App) Application();
+  }
+
+  void add_button_(GT911Button &button, uint8_t index) {
+    button.set_parent(&this->hub_);
+    button.set_index(index);
+    this->buttons_.push_back(&button);
+  }
+
+  void setup_() {
+    this->hub_.setup();
+    for (auto *button : this->buttons_)
+      button->setup();
+  }
+
+  void keys_(uint8_t keys) {
+    this->bus_.set_keys(keys);
+    this->hub_.update();
+    this->hub_.loop();
+  }
+
+  RegisterBus bus_;
+  GT911Touchscreen hub_;
+  std::vector<GT911Button *> buttons_;
+};
+
+TEST_F(GT911ButtonTest, SetupPublishesOff) {
+  GT911Button button;
+  this->add_button_(button, 0);
+  std::vector<optional<bool>> published;
+  button.add_full_state_callback([&published](optional<bool>, optional<bool> state) { published.push_back(state); });
+  EXPECT_FALSE(button.has_state());
+  this->setup_();
+  ASSERT_TRUE(button.has_state());
+  EXPECT_FALSE(button.state);
+  EXPECT_EQ(published, (std::vector<optional<bool>>{false}));
+}
+
+TEST_F(GT911ButtonTest, SetupPublishesOffWhenTheHubFails) {
+  this->bus_.fail = true;
+  GT911Button button;
+  this->add_button_(button, 0);
+  this->setup_();
+  EXPECT_TRUE(this->hub_.is_failed());
+  ASSERT_TRUE(button.has_state());
+  EXPECT_FALSE(button.state);
+}
+
+TEST_F(GT911ButtonTest, EachButtonFollowsItsKeyBit) {
+  GT911Button key0;
+  GT911Button key2;
+  GT911Button key3;
+  this->add_button_(key0, 0);
+  this->add_button_(key2, 2);
+  this->add_button_(key3, 3);
+  this->setup_();
+  std::vector<bool> states;
+  key2.add_on_state_callback([&states](bool state) { states.push_back(state); });
+
+  this->keys_(0b0100);
+  EXPECT_FALSE(key0.state);
+  EXPECT_TRUE(key2.state);
+  EXPECT_FALSE(key3.state);
+  this->keys_(0b1001);
+  EXPECT_TRUE(key0.state);
+  EXPECT_FALSE(key2.state);
+  EXPECT_TRUE(key3.state);
+  // Bits above the four keys are ignored
+  this->keys_(0b11110000);
+  EXPECT_FALSE(key0.state);
+  EXPECT_FALSE(key2.state);
+  EXPECT_FALSE(key3.state);
+  EXPECT_EQ(states, (std::vector<bool>{true, false}));
+}
+
+TEST_F(GT911ButtonTest, ButtonsSharingAnIndexBothFollowIt) {
+  GT911Button first;
+  GT911Button second;
+  this->add_button_(first, 1);
+  this->add_button_(second, 1);
+  this->setup_();
+
+  this->keys_(0b0010);
+  EXPECT_TRUE(first.state);
+  EXPECT_TRUE(second.state);
+  this->keys_(0);
+  EXPECT_FALSE(first.state);
+  EXPECT_FALSE(second.state);
+}
+
+}  // namespace esphome::gt911::testing
