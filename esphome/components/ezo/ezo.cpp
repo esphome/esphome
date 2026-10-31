@@ -232,14 +232,11 @@ void EZOSensor::send_queued(EZOSensor *self, uint32_t now) {
 }
 
 void EZOSensor::add_command_(EzoCommandId id, float value) {
-  if (!this->queue_.push(EzoCommand{id, {value}})) {
+  if (!this->enqueue_(EzoCommand{id, {value}})) {
     ESP_LOGW(
         TAG, "Command queue full, dropped \"%s\"",
         LOG_STR_ARG(EzoCommandTextStrings::get_log_str(static_cast<uint8_t>(id), EzoCommandTextStrings::LAST_INDEX)));
-    return;
   }
-  this->send_queued_fn_ = send_queued;
-  this->enable_loop();
 }
 
 void EZOSensor::set_address(uint8_t address) {
@@ -324,9 +321,7 @@ void EZOSensor::send_custom(const std::string &to_send) {
   memcpy(this->custom_text_, to_send.data() + first, length - first);
   EzoCommand command{EzoCommandId::EZO_COMMAND_ID_CUSTOM, {}};
   command.text_length = length;
-  this->queue_.push(command);
-  this->send_queued_fn_ = send_queued;
-  this->enable_loop();
+  this->enqueue_(command);
 }
 
 }  // namespace esphome::ezo
