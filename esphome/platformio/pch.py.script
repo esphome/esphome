@@ -37,8 +37,14 @@ _OLD_GCC_PIO_PLATFORM = "libretiny"
 _MOVABLE_PCH_GCC = 12
 # Relative: compiles run in the project root
 _CC1_DIR = "pch_cc1"
+_CC1PLUS_START = '#!/usr/bin/env -S "{python}" -IS'
+# macOS splits a shebang on whitespace, so such a Python path goes through
+# sh; to Python the exec line is a string
+_CC1PLUS_START_SH = """\
+#!/bin/sh
+''''exec {python} -IS "$0" "$@" # '''"""
 _CC1PLUS_WRAPPER = """\
-#!/usr/bin/env -S "{python}" -IS
+{start}
 # Written by ESPHome: starts cc1plus without address randomisation, so it
 # loads the precompiled header. See esphome/platformio/pch.py.script.
 import ctypes
@@ -144,7 +150,12 @@ def _old_gcc_flags(proj_dir: Path, pio_platform: str, cxx: str):
     wrapper = proj_dir / _CC1_DIR / "cc1plus"
     wrapper.parent.mkdir(exist_ok=True)
     real = os.path.normpath(real)
-    wrapper.write_text(_CC1PLUS_WRAPPER.format(python=sys.executable, real=real))
+    python = sys.executable
+    if any(c.isspace() for c in python):
+        start = _CC1PLUS_START_SH.format(python=shlex.quote(python))
+    else:
+        start = _CC1PLUS_START.format(python=python)
+    wrapper.write_text(_CC1PLUS_WRAPPER.format(start=start, real=real))
     wrapper.chmod(0o755)
     return [f"-B{_CC1_DIR}/"]
 
