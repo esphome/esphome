@@ -91,13 +91,13 @@ enum OutputDataRate : uint8_t {
 
 /// This class implements support for the BMP3XX Temperature+Pressure sensor.
 class BMP3XXComponent : public PollingComponent {
+  SUB_SENSOR(temperature)
+  SUB_SENSOR(pressure)
+
  public:
   void setup() override;
   void dump_config() override;
   void update() override;
-
-  void set_temperature_sensor(sensor::Sensor *temperature_sensor) { temperature_sensor_ = temperature_sensor; }
-  void set_pressure_sensor(sensor::Sensor *pressure_sensor) { pressure_sensor_ = pressure_sensor; }
 
   /// Set the oversampling value for the temperature sensor. Default is 16x.
   void set_temperature_oversampling_config(Oversampling temperature_oversampling) {
@@ -147,8 +147,6 @@ class BMP3XXComponent : public PollingComponent {
   Oversampling pressure_oversampling_{OVERSAMPLING_X16};
   IIRFilter iir_filter_{IIR_FILTER_OFF};
   OperationMode operation_mode_{FORCED_MODE};
-  sensor::Sensor *temperature_sensor_{nullptr};
-  sensor::Sensor *pressure_sensor_{nullptr};
 
   struct {  // The BMP388 compensation trim parameters (coefficients)
     uint16_t param_T1;

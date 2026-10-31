@@ -190,10 +190,8 @@ void BMP3XXComponent::read_and_publish_() {
     ESP_LOGD(TAG, "Got temperature=%.1f°C", temperature);
   }
 
-  if (this->temperature_sensor_ != nullptr)
-    this->temperature_sensor_->publish_state(temperature);
-  if (this->pressure_sensor_ != nullptr)
-    this->pressure_sensor_->publish_state(pressure);
+  PUBLISH_STATE(this->temperature_sensor_, temperature);
+  PUBLISH_STATE(this->pressure_sensor_, pressure);
   this->status_clear_warning();
   if (this->operation_mode_ == FORCED_MODE)
     set_mode(SLEEP_MODE);
