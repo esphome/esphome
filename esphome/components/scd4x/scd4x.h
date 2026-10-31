@@ -18,6 +18,7 @@ class SCD4XComponent final : public PollingComponent, public sensirion_common::S
   SUB_SENSOR(co2)
   SUB_SENSOR(temperature)
   SUB_SENSOR(humidity)
+  // Input sensors for compensation
   SUB_SENSOR(ambient_pressure_source)
 
  public:

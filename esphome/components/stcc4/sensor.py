@@ -111,7 +111,9 @@ async def to_code(config: ConfigType) -> None:
         var.set_temperature_source_sensor, config.get(CONF_TEMPERATURE_SOURCE)
     )
 
-    await cg.add_variable(var.set_humidity_source_sensor, config.get(CONF_HUMIDITY_SOURCE))
+    await cg.add_variable(
+        var.set_humidity_source_sensor, config.get(CONF_HUMIDITY_SOURCE)
+    )
 
     if (
         ambient_pressure_compensation := config.get(CONF_AMBIENT_PRESSURE_COMPENSATION)

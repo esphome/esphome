@@ -16,6 +16,10 @@ enum class TemplateClimateRestoreMode {
 };
 
 class TemplateClimate final : public climate::Climate, public Component {
+#ifdef USE_SENSOR
+  SUB_SENSOR(humidity)
+#endif
+
  public:
   void setup() override;
   void dump_config() override;
@@ -33,7 +37,6 @@ class TemplateClimate final : public climate::Climate, public Component {
 #ifdef USE_SENSOR
   // The matching feature flag is added from codegen, so the configuration alone decides it.
   void set_sensor(sensor::Sensor *sensor) { this->sensor_ = sensor; }
-  void set_humidity_sensor(sensor::Sensor *sensor) { this->humidity_sensor_ = sensor; }
 #endif
 
   void add_supported_mode(climate::ClimateMode mode) { this->traits_.add_supported_mode(mode); }
@@ -80,7 +83,6 @@ class TemplateClimate final : public climate::Climate, public Component {
 
 #ifdef USE_SENSOR
   sensor::Sensor *sensor_{nullptr};
-  sensor::Sensor *humidity_sensor_{nullptr};
 #endif
 
   Trigger<climate::ClimateMode> set_mode_trigger_;
