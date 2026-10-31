@@ -1,7 +1,6 @@
 #include <gtest/gtest.h>
 #include <vector>
 #include "esphome/core/automation.h"
-#include "esphome/core/helpers.h"
 
 namespace esphome::testing {
 
@@ -58,6 +57,19 @@ TEST(TemplatableBytesTest, FixedBufferValueKeepsWhatFits) {
   bytes.set_static(PAYLOAD, sizeof(PAYLOAD));
   const Fixed value = bytes.value();
   EXPECT_EQ(std::vector<uint8_t>(value.begin(), value.end()), (std::vector<uint8_t>{1, 2}));
+}
+
+// The type is the macro's last argument, so one with a comma needs no alias
+template<typename... Ts> class FixedHolder {
+  TEMPLATABLE_BUFFER(data, StaticVector<uint8_t, 2>)
+
+  size_t size(const Ts &...x) const { return this->data_.value(x...).size(); }
+};
+
+TEST(TemplatableBytesTest, BufferMacroTakesTypeWithComma) {
+  FixedHolder<int> holder;
+  holder.set_data_template(pair);
+  EXPECT_EQ(holder.size(1), 2u);
 }
 
 }  // namespace esphome::testing
