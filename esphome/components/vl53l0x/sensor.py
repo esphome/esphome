@@ -43,7 +43,7 @@ def check_timeout(value: Any) -> TimePeriodMicroseconds:
 
 CONFIG_SCHEMA = cv.All(
     sensor.sensor_schema(
-        VL53L0XSensor, kind=sensor.DISTANCE_M, icon=ICON_ARROW_EXPAND_VERTICAL
+        VL53L0XSensor, kind=sensor.LENGTH_M, icon=ICON_ARROW_EXPAND_VERTICAL
     )
     .extend(
         {

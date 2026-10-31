@@ -13,7 +13,7 @@ HrxlMaxsonarWrComponent = hrxlmaxsonarwr_ns.class_(
 
 CONFIG_SCHEMA = sensor.sensor_schema(
     HrxlMaxsonarWrComponent,
-    kind=sensor.DISTANCE_M,
+    kind=sensor.LENGTH_M,
     icon=ICON_ARROW_EXPAND_VERTICAL,
     accuracy_decimals=3,
 ).extend(uart.UART_DEVICE_SCHEMA)
