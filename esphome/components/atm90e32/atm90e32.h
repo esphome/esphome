@@ -27,19 +27,22 @@ struct GainCalibration {
   uint16_t current_gain{1};
 };
 
-static constexpr GainCalibration GAIN_CALIBRATION_CLEARED{0, 0};
+// Stored size of each calibration table; an all-zero payload marks a table as cleared.
+static constexpr size_t CALIBRATION_PAYLOAD_SIZE = 12;
 
-static_assert(sizeof(OffsetCalibration[3]) == 12, "Offset calibration preference layout must remain compatible");
-static_assert(sizeof(GainCalibration[3]) == 12, "Gain calibration preference layout must remain compatible");
+static_assert(sizeof(OffsetCalibration[3]) == CALIBRATION_PAYLOAD_SIZE,
+              "Offset calibration preference layout must remain compatible");
+static_assert(sizeof(GainCalibration[3]) == CALIBRATION_PAYLOAD_SIZE,
+              "Gain calibration preference layout must remain compatible");
 
 enum class OffsetCalibrationType : uint8_t {
   OFFSET_CALIBRATION_TYPE_VOLTAGE_CURRENT,
   OFFSET_CALIBRATION_TYPE_POWER,
 };
 
-class ATM90E32Component : public PollingComponent,
-                          public spi::SPIDevice<spi::BIT_ORDER_MSB_FIRST, spi::CLOCK_POLARITY_HIGH,
-                                                spi::CLOCK_PHASE_TRAILING, spi::DATA_RATE_1MHZ> {
+class ATM90E32Component final : public PollingComponent,
+                                public spi::SPIDevice<spi::BIT_ORDER_MSB_FIRST, spi::CLOCK_POLARITY_HIGH,
+                                                      spi::CLOCK_PHASE_TRAILING, spi::DATA_RATE_1MHZ> {
  public:
   static const uint8_t PHASEA = 0;
   static const uint8_t PHASEB = 1;
@@ -146,8 +149,6 @@ class ATM90E32Component : public PollingComponent,
     return 5.0f;  // Default current
 #endif
   }
-  // True when any verified stored gain, offset, or power-offset calibration is in use.
-  bool using_saved_calibrations_ = false;
 #ifdef USE_TEXT_SENSOR
   void check_phase_status();
   void check_freq_status();
@@ -196,9 +197,15 @@ class ATM90E32Component : public PollingComponent,
   void set_publish_interval_flag_(bool flag) { publish_interval_flag_ = flag; };
   void restore_offset_calibrations_(OffsetCalibrationType type);
   void restore_gain_calibrations_();
-  void finish_gain_calibration_(const GainCalibration (&previous)[3], bool previous_restored);
-  void finish_offset_calibration_(const OffsetCalibration (&previous)[3], bool previous_restored,
-                                  OffsetCalibrationType type);
+  void finish_gain_calibration_(const GainCalibration (&previous)[3]);
+  void finish_offset_calibration_(const OffsetCalibration (&previous)[3], OffsetCalibrationType type);
+  // Persists verified register values; otherwise rollback() rewrites the previous values and returns their readback.
+  template<typename T, typename F>
+  void finish_calibration_(const LogString *name, ESPPreferenceObject &preference, const T (&values)[3],
+                           bool writes_verified, bool &has_stored, bool &restored, bool (&mismatches)[3], F &&rollback);
+  bool clear_calibration_pref_(ESPPreferenceObject &preference, bool &has_stored, bool &restored,
+                               bool (&mismatches)[3]);
+  void configure_chip_();
   void write_offsets_to_registers_(uint8_t phase, int16_t first_offset, int16_t second_offset,
                                    OffsetCalibrationType type);
   void write_gains_to_registers_();
@@ -206,7 +213,6 @@ class ATM90E32Component : public PollingComponent,
   bool verify_offset_writes_(OffsetCalibrationType type);
   bool validate_spi_read_(uint16_t expected, const char *context = nullptr);
   void log_calibration_status_();
-  void update_using_saved_calibrations_();
   const char *get_calibration_id_();
   void get_cs_summary_(std::span<char, GPIO_SUMMARY_MAX_LEN> buffer);
 
@@ -261,6 +267,8 @@ class ATM90E32Component : public PollingComponent,
   ESPPreferenceObject offset_pref_;
   ESPPreferenceObject power_offset_pref_;
   ESPPreferenceObject gain_calibration_pref_;
+
+  friend class ATM90E32CalibrationTestAccess;
 
 #ifdef USE_TEXT_SENSOR
   text_sensor::TextSensor *phase_status_text_sensor_[3]{nullptr};
