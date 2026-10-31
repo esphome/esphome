@@ -16,8 +16,8 @@ void XiaomiWX08ZM::publish_result(const xiaomi_ble::XiaomiParseResult &res) {
   if (res.is_active.has_value()) {
     this->publish_state(*res.is_active);
   }
-  sensor::publish_optional(this->tablet_sensor_, res.tablet);
-  sensor::publish_optional(this->battery_level_sensor_, res.battery_level);
+  publish_optional(this->tablet_sensor_, res.tablet);
+  publish_optional(this->battery_level_sensor_, res.battery_level);
 }
 
 }  // namespace esphome::xiaomi_wx08zm

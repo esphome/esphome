@@ -34,7 +34,7 @@ bool XiaomiMiscale::parse_device(const ble_device_base::ESPBTDevice &device) {
     if (!report_results_(res, addr_str))
       continue;
 
-    sensor::publish_optional(this->weight_sensor_, res->weight);
+    publish_optional(this->weight_sensor_, res->weight);
 
     if (this->impedance_sensor_ != nullptr) {
       if (res->version == 1) {

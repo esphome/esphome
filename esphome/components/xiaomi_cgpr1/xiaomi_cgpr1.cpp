@@ -15,9 +15,9 @@ void XiaomiCGPR1::dump_config() {
 }
 
 void XiaomiCGPR1::publish_result(const xiaomi_ble::XiaomiParseResult &res) {
-  sensor::publish_optional(this->idle_time_sensor_, res.idle_time);
-  sensor::publish_optional(this->battery_level_sensor_, res.battery_level);
-  sensor::publish_optional(this->illuminance_sensor_, res.illuminance);
+  publish_optional(this->idle_time_sensor_, res.idle_time);
+  publish_optional(this->battery_level_sensor_, res.battery_level);
+  publish_optional(this->illuminance_sensor_, res.illuminance);
   if (res.has_motion.has_value())
     this->publish_state(*res.has_motion);
 }

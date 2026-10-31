@@ -15,11 +15,11 @@ void XiaomiHHCCJCY01::dump_config() {
 }
 
 void XiaomiHHCCJCY01::publish_result(const xiaomi_ble::XiaomiParseResult &res) {
-  sensor::publish_optional(this->temperature_sensor_, res.temperature);
-  sensor::publish_optional(this->moisture_sensor_, res.moisture);
-  sensor::publish_optional(this->conductivity_sensor_, res.conductivity);
-  sensor::publish_optional(this->illuminance_sensor_, res.illuminance);
-  sensor::publish_optional(this->battery_level_sensor_, res.battery_level);
+  publish_optional(this->temperature_sensor_, res.temperature);
+  publish_optional(this->moisture_sensor_, res.moisture);
+  publish_optional(this->conductivity_sensor_, res.conductivity);
+  publish_optional(this->illuminance_sensor_, res.illuminance);
+  publish_optional(this->battery_level_sensor_, res.battery_level);
 }
 
 }  // namespace esphome::xiaomi_hhccjcy01

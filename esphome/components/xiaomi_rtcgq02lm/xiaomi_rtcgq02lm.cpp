@@ -37,7 +37,7 @@ void XiaomiRTCGQ02LM::publish_result(const xiaomi_ble::XiaomiParseResult &res) {
   }
 #endif
 #ifdef USE_SENSOR
-  sensor::publish_optional(this->battery_level_sensor_, res.battery_level);
+  publish_optional(this->battery_level_sensor_, res.battery_level);
 #endif
 }
 

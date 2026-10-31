@@ -16,9 +16,9 @@ void XiaomiMJYD02YLA::dump_config() {
 }
 
 void XiaomiMJYD02YLA::publish_result(const xiaomi_ble::XiaomiParseResult &res) {
-  sensor::publish_optional(this->idle_time_sensor_, res.idle_time);
-  sensor::publish_optional(this->battery_level_sensor_, res.battery_level);
-  sensor::publish_optional(this->illuminance_sensor_, res.illuminance);
+  publish_optional(this->idle_time_sensor_, res.idle_time);
+  publish_optional(this->battery_level_sensor_, res.battery_level);
+  publish_optional(this->illuminance_sensor_, res.illuminance);
   if (res.is_light.has_value() && this->light_binary_sensor_ != nullptr)
     this->light_binary_sensor_->publish_state(*res.is_light);
   if (res.has_motion.has_value())

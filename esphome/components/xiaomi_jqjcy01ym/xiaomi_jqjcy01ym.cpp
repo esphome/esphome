@@ -14,10 +14,10 @@ void XiaomiJQJCY01YM::dump_config() {
 }
 
 void XiaomiJQJCY01YM::publish_result(const xiaomi_ble::XiaomiParseResult &res) {
-  sensor::publish_optional(this->temperature_sensor_, res.temperature);
-  sensor::publish_optional(this->humidity_sensor_, res.humidity);
-  sensor::publish_optional(this->formaldehyde_sensor_, res.formaldehyde);
-  sensor::publish_optional(this->battery_level_sensor_, res.battery_level);
+  publish_optional(this->temperature_sensor_, res.temperature);
+  publish_optional(this->humidity_sensor_, res.humidity);
+  publish_optional(this->formaldehyde_sensor_, res.formaldehyde);
+  publish_optional(this->battery_level_sensor_, res.battery_level);
 }
 
 }  // namespace esphome::xiaomi_jqjcy01ym
