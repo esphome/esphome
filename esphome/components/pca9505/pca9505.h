@@ -14,7 +14,7 @@ static constexpr uint8_t PIN_COUNT = 40;
 /// The pins are grouped into five ports of eight, each with its own set of registers.
 static constexpr uint8_t BANK_COUNT = PIN_COUNT / 8;
 
-class PCA9505Component final : public gpio_expander::BankedGpioExpanderComponent<uint8_t, PIN_COUNT>,
+class PCA9505Component final : public gpio_expander::CachedGpioExpanderComponent<uint8_t, PIN_COUNT>,
                                public i2c::I2CDevice {
  public:
   void setup() override;

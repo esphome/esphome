@@ -8,7 +8,7 @@
 
 namespace esphome::pca6416a {
 
-class PCA6416AComponent final : public gpio_expander::BankedGpioExpanderComponent<uint8_t, 16>, public i2c::I2CDevice {
+class PCA6416AComponent final : public gpio_expander::CachedGpioExpanderComponent<uint8_t, 16>, public i2c::I2CDevice {
  public:
   PCA6416AComponent() = default;
 
