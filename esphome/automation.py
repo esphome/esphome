@@ -1,6 +1,7 @@
 from collections.abc import Awaitable, Callable, Sequence
 from contextvars import ContextVar
 from dataclasses import dataclass, field
+from functools import partial
 import logging
 import math
 import string
@@ -958,9 +959,6 @@ IfAction = cg.esphome_ns.class_("IfAction", Action)
 WhileAction = cg.esphome_ns.class_("WhileAction", Action)
 RepeatAction = cg.esphome_ns.class_("RepeatAction", Action)
 WaitUntilAction = cg.esphome_ns.class_("WaitUntilAction", Action, cg.Component)
-UpdateComponentAction = cg.esphome_ns.class_("UpdateComponentAction", Action)
-SuspendComponentAction = cg.esphome_ns.class_("SuspendComponentAction", Action)
-ResumeComponentAction = cg.esphome_ns.class_("ResumeComponentAction", Action)
 Automation = cg.esphome_ns.class_("Automation")
 TriggerForwarder = cg.esphome_ns.class_("TriggerForwarder")
 TriggerOnTrueForwarder = cg.esphome_ns.class_("TriggerOnTrueForwarder")
@@ -1578,25 +1576,49 @@ async def lambda_action_to_code(
     return new_lambda_pvariable(action_id, lambda_, StatelessLambdaAction, template_arg)
 
 
-register_simple_action(
-    "component.update",
-    UpdateComponentAction,
-    maybe_simple_id({cv.Required(CONF_ID): cv.use_id(cg.PollingComponent)}),
-    synchronous=True,
+_POLLING_COMPONENT_SCHEMA = maybe_simple_id(
+    {cv.Required(CONF_ID): cv.use_id(cg.PollingComponent)}
 )
 
 
-register_simple_action(
-    "component.suspend",
-    SuspendComponentAction,
-    maybe_simple_id({cv.Required(CONF_ID): cv.use_id(cg.PollingComponent)}),
-    synchronous=True,
-)
+async def _polling_component_action(
+    config: ConfigType,
+    action_id: ID,
+    template_arg: cg.TemplateArguments,
+    args: TemplateArgsType,
+    calls: list[str],
+) -> MockObj:
+    """Run ``calls`` on the component once it is ready, through ``PollingComponent``.
+
+    An if block, not an early return, so actions merged after this one still run.
+    """
+    parent = await _apply_parent(config)
+    statements = [
+        f"{cg.PollingComponent} &esphome__component = *{parent};",
+        "if (esphome__component.is_ready()) {",
+        *(f"  esphome__component.{call};" for call in calls),
+        "}",
+    ]
+    return apply_statements_action(action_id, template_arg, args, statements)
+
+
+for _name, _call in (
+    ("component.update", "update()"),
+    ("component.suspend", "stop_poller()"),
+):
+    register_action(_name, ApplyAction, _POLLING_COMPONENT_SCHEMA, synchronous=True)(
+        partial(_polling_component_action, calls=[_call])
+    )
+
+
+_RESUME_INTERVAL = ApplyField(
+    CONF_UPDATE_INTERVAL, "set_update_interval", cg.uint32
+).call()
 
 
 @register_action(
     "component.resume",
-    ResumeComponentAction,
+    ApplyAction,
     maybe_simple_id(
         {
             cv.Required(CONF_ID): cv.use_id(cg.PollingComponent),
@@ -1613,12 +1635,21 @@ async def component_resume_action_to_code(
     template_arg: cg.TemplateArguments,
     args: TemplateArgsType,
 ) -> MockObj:
-    comp = await cg.get_variable(config[CONF_ID])
-    var = cg.new_Pvariable(action_id, template_arg, comp)
+    calls: list[str] = []
     if CONF_UPDATE_INTERVAL in config:
-        template_ = await cg.templatable(config[CONF_UPDATE_INTERVAL], args, cg.uint32)
-        cg.add(var.set_update_interval(template_))
-    return var
+        target, members = _RESUME_INTERVAL.target, _RESUME_INTERVAL.members
+        exprs = await _render_values(
+            "component.resume",
+            target,
+            members,
+            _apply_values(config, members),
+            config,
+            None,
+            _apply_lambda_args(args),
+        )
+        calls.append(target.format(*exprs))
+    calls.append("start_poller()")
+    return await _polling_component_action(config, action_id, template_arg, args, calls)
 
 
 async def build_action(
