@@ -619,8 +619,13 @@ def parent_ref(var: MockObj) -> MockObj:
     return MockObj(f"::{var}", "->")
 
 
+async def get_parent_ref(config: ConfigType, id_key: str = CONF_ID) -> MockObj:
+    """The variable ``config[id_key]`` names, as ``parent_ref`` names it."""
+    return parent_ref(await cg.get_variable(config[id_key]))
+
+
 async def _apply_parent(config: ConfigType, id_key: str = CONF_ID) -> str:
-    return str(parent_ref(await cg.get_variable(config[id_key])))
+    return str(await get_parent_ref(config, id_key))
 
 
 def _apply_lambda_args(args: TemplateArgsType) -> TemplateArgsType:

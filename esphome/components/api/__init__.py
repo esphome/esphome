@@ -877,16 +877,11 @@ async def _send_service_call(
     args: TemplateArgsType,
     is_event: bool,
     service: Any,
-    groups: tuple[dict[str, Any], ...] | None = None,
+    groups: tuple[dict[str, Any], ...],
 ) -> MockObj:
-    """Send the action or event from a generated function, without waiting for a response.
-
-    ``groups`` default to the config's data, data_template and variables.
-    """
-    server = automation.parent_ref(await cg.get_variable(config[CONF_ID]))
-    table, *counts = await _service_call_table(
-        template_arg, args, service, groups or _service_call_fields(config)
-    )
+    """Send the action or event from a generated function, without waiting for a response."""
+    server = await automation.get_parent_ref(config)
+    table, *counts = await _service_call_table(template_arg, args, service, groups)
     call = api_ns.send_homeassistant_fields(
         server,
         is_event,
@@ -934,6 +929,7 @@ async def homeassistant_service_to_code(
             args,
             False,
             config[CONF_ACTION],
+            _service_call_fields(config),
         )
 
     # Waiting for the response needs an object that holds the triggers
@@ -1022,6 +1018,7 @@ async def homeassistant_event_to_code(
         args,
         True,
         config[CONF_EVENT],
+        _service_call_fields(config),
     )
 
 

@@ -6,6 +6,8 @@ import re
 
 import pytest
 
+from tests.component_tests.helpers import static_function_body
+
 CONFIG = "tests/component_tests/api/test_homeassistant_send.yaml"
 
 
@@ -16,16 +18,6 @@ def fixture_main_cpp(generate_main: Callable[[str | Path], str]) -> str:
 
 def _table(main_cpp: str, name: str) -> str:
     match = re.search(rf"\b{name}\[\] PROGMEM = \{{\n(.*?)\n\}};", main_cpp, re.DOTALL)
-    assert match is not None, name
-    return match.group(1)
-
-
-def _function_body(main_cpp: str, name: str, params: str = "") -> str:
-    match = re.search(
-        rf"static void {name}\({re.escape(params)}\) \{{\n(.*?)\n\}}\n",
-        main_cpp,
-        re.DOTALL,
-    )
     assert match is not None, name
     return match.group(1)
 
@@ -105,9 +97,7 @@ def test_action_then_log(main_cpp: str) -> None:
         "applyaction_id"
     ]
     assert "ApplyRunAction<esphome__applyaction_id__fn>();" in main_cpp
-    body = _function_body(
-        main_cpp, "esphome__applyaction_id__fn", "const int & esphome__running"
-    )
+    body = static_function_body(main_cpp, "esphome__applyaction_id__fn")
     assert body.index(f"{SEND}false, ::ha_action_fields,") < body.index(
         '"after action"'
     )
@@ -122,7 +112,7 @@ def test_button_on_press(main_cpp: str) -> None:
         main_cpp,
     )
     assert match is not None
-    body = _function_body(main_cpp, match.group(1))
+    body = static_function_body(main_cpp, match.group(1))
     assert body.index(f"{SEND}true, ::ha_action_fields_5, 0, 0, 0);") < body.index(
         f"{SEND}true, ::ha_action_fields_6, 1, 0, 0);"
     )

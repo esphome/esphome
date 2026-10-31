@@ -253,7 +253,7 @@ async def script_execute_action_to_code(config, action_id, template_arg, args):
     _, script_params = parameters_to_template(params)
     script_args = await get_ordered_args(config, script_params)
 
-    paren = await cg.get_variable(config[CONF_ID])
+    parent = await automation.get_parent_ref(config)
     # Separate statements, because the order of evaluation inside one call is not defined
     statements = [
         f"auto esphome__arg_{index} = {automation.immediate_lambda_call(arg)};"
@@ -262,7 +262,7 @@ async def script_execute_action_to_code(config, action_id, template_arg, args):
     names = ", ".join(
         f"std::move(esphome__arg_{index})" for index in range(len(script_args))
     )
-    statements.append(f"{automation.parent_ref(paren)}->execute({names});")
+    statements.append(f"{parent}->execute({names});")
     return automation.apply_statements_action(action_id, template_arg, args, statements)
 
 
