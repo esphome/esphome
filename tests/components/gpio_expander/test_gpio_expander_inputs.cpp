@@ -1,5 +1,7 @@
 #include <gtest/gtest.h>
 
+#include <type_traits>
+
 #include "esphome/components/gpio_expander/cached_gpio_component.h"
 
 namespace esphome::gpio_expander::testing {
@@ -41,6 +43,10 @@ class FakeInputsComponent : public CachedGpioExpanderComponent<uint8_t, 16> {
   }
   void digital_write_hw(uint8_t pin, bool value) override {}
 };
+
+// The store and the cache take T and N from one place, so they cannot disagree.
+static_assert(std::is_base_of_v<GpioExpanderInputs<GpioExpanderReadCache<uint8_t, 16>>, FakeInputsComponent>);
+static_assert(std::is_base_of_v<CachedGpioExpander<uint16_t, 32>, FakeInputsExpander<uint16_t, 32>>);
 
 class GpioExpanderInputsTest : public ::testing::Test {
  protected:
