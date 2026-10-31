@@ -6,15 +6,8 @@ from .const import CONF_LD6002B_ID
 
 DEPENDENCIES = ["ld6002b"]
 
-CONFIG_SCHEMA = entities.binary_sensor_schema(
-    LD6002BComponent,
-    CONF_LD6002B_ID,
-    max_targets=3,
-    area_kinds=("interference", "detection"),
-)
+CONFIG_SCHEMA = entities.binary_sensor_schema(LD6002BComponent, CONF_LD6002B_ID)
 
 
 async def to_code(config: ConfigType) -> None:
-    await entities.binary_sensor_to_code(
-        config, CONF_LD6002B_ID, max_targets=3, area_kinds=("interference", "detection")
-    )
+    await entities.binary_sensor_to_code(config, CONF_LD6002B_ID)
