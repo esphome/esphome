@@ -4,13 +4,11 @@ from . import EpaperModel
 
 
 class SpectraE6(EpaperModel):
+    class_name = "EPaperSpectraE6"
     source_files = (
         "epaper_spi_4bpp.cpp",
         "epaper_spi_spectra_e6.cpp",
     )
-
-    def __init__(self, name, class_name="EPaperSpectraE6", **defaults):
-        super().__init__(name, class_name, **defaults)
 
     # fmt: off
     def get_init_sequence(self, config: dict):

@@ -15,6 +15,9 @@ def ultrachip_resolution(width: int, gates: int) -> tuple:
 class EpaperModel:
     models: dict[str, Self] = {}
 
+    # The C++ driver class; a subclass sets it for all its models, or one model passes class_name.
+    class_name: str = ""
+
     # Whether the driver manages chip-select itself instead of via the SPI bus.
     manages_cs: bool = False
 
@@ -25,14 +28,17 @@ class EpaperModel:
     def __init__(
         self,
         name: str,
-        class_name: str,
+        class_name: str | None = None,
         initsequence=(),
         source_files: tuple[str, ...] | None = None,
         **defaults,
     ):
+        if class_name is not None:
+            self.class_name = class_name
+        if not self.class_name:
+            raise ValueError(f"Model {name} has no class_name")
         name = name.upper()
         self.name = name
-        self.class_name = class_name
         self.initsequence = initsequence
         if source_files is not None:
             self.source_files = source_files
@@ -115,17 +121,19 @@ class EpaperModel:
         :param kwargs:
         :return:
         """
+        class_name = kwargs.pop("class_name", self.class_name)
+        source_files = kwargs.pop("source_files", self.source_files)
         initsequence = list(kwargs.pop("initsequence", self.initsequence) or ())
         initsequence.extend(kwargs.pop("add_init_sequence", ()))
         defaults = self.defaults.copy()
         defaults.update(kwargs)
-        model = self.__class__(name, initsequence=tuple(initsequence), **defaults)
-        # Subclass constructors do not all take these, so carry them over unless overridden
-        if "class_name" not in kwargs:
-            model.class_name = self.class_name
-        if "source_files" not in kwargs:
-            model.source_files = self.source_files
-        return model
+        return self.__class__(
+            name,
+            class_name=class_name,
+            initsequence=tuple(initsequence),
+            source_files=source_files,
+            **defaults,
+        )
 
     def check_requirements(self) -> None:
         """Check that the components this model needs are configured, see check_model_requirements()."""
