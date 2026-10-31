@@ -123,7 +123,8 @@ def test_button_on_press(main_cpp: str) -> None:
     )
     assert match is not None
     body = _function_body(main_cpp, match.group(1))
-    assert f"{SEND}true, ::ha_action_fields_5, 0, 0, 0);" in body
-    assert f"{SEND}true, ::ha_action_fields_6, 1, 0, 0);" in body
+    assert body.index(f"{SEND}true, ::ha_action_fields_5, 0, 0, 0);") < body.index(
+        f"{SEND}true, ::ha_action_fields_6, 1, 0, 0);"
+    )
     assert "TriggerForwarder" not in main_cpp
     assert "Automation<>()" not in main_cpp
