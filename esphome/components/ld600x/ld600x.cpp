@@ -34,6 +34,7 @@ static constexpr uint16_t TYPE_REPORT_SENSITIVITY = 0x0A0E;
 static constexpr uint16_t TYPE_REPORT_TRIGGER = 0x0A0F;
 static constexpr uint16_t TYPE_REPORT_Z_RANGE = 0x0A10;
 static constexpr uint16_t TYPE_REPORT_INSTALLATION = 0x0A11;
+static constexpr uint16_t TYPE_REPORT_MODE = 0x0A12;  // low power on the LD6002B, work mode on the LD6004
 static constexpr uint16_t TYPE_REPORT_LOW_POWER_SLEEP = 0x0A13;
 #if LD600X_AREA_KINDS > 2
 static constexpr uint16_t TYPE_REPORT_DWELL_AREAS = 0x0A16;
@@ -62,6 +63,9 @@ static constexpr uint32_t CMD_GET_Z_RANGE = 0x12;
 static constexpr uint32_t CMD_INSTALL_TOP = 0x13;
 static constexpr uint32_t CMD_INSTALL_SIDE = 0x14;
 static constexpr uint32_t CMD_GET_INSTALLATION = 0x15;
+// Both models answer 0x16 to 0x18 with report 0x0A12; the opcodes stay here for the verbose logs.
+static constexpr uint32_t CMD_LOW_POWER_ON = 0x16;
+static constexpr uint32_t CMD_LOW_POWER_OFF = 0x17;
 // Asks for report 0x0A12, which each model reads its own way: low power on the LD6002B, the work mode
 // on the LD6004. Only the shared get_low_power_mode button sends it from here.
 static constexpr uint32_t CMD_GET_MODE = 0x18;
@@ -122,6 +126,10 @@ static const char *control_command_name(uint32_t command) {
       return "install_side";
     case CMD_GET_INSTALLATION:
       return "get_installation";
+    case CMD_LOW_POWER_ON:
+      return "low_power_on";
+    case CMD_LOW_POWER_OFF:
+      return "low_power_off";
     case CMD_GET_MODE:
       return "get_mode";
     case CMD_GET_LOW_POWER_SLEEP:
@@ -165,6 +173,8 @@ static const char *frame_type_name(uint16_t type) {
       return "report_z_range";
     case TYPE_REPORT_INSTALLATION:
       return "report_installation";
+    case TYPE_REPORT_MODE:
+      return "report_mode";
     case TYPE_REPORT_LOW_POWER_SLEEP:
       return "report_low_power_sleep";
     case TYPE_QUERY_VERSION:
@@ -188,6 +198,10 @@ static bool is_expected_control_report(uint32_t command, uint16_t type) {
       return type == TYPE_REPORT_Z_RANGE;
     case CMD_GET_INSTALLATION:
       return type == TYPE_REPORT_INSTALLATION;
+    case CMD_LOW_POWER_ON:
+    case CMD_LOW_POWER_OFF:
+    case CMD_GET_MODE:
+      return type == TYPE_REPORT_MODE;
     case CMD_GET_LOW_POWER_SLEEP:
       return type == TYPE_REPORT_LOW_POWER_SLEEP;
     default:
