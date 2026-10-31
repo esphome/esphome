@@ -945,22 +945,36 @@ bool LD600XComponent::send_control_command_(uint32_t command) {
   return this->queue_command_(TYPE_CONTROL, data, sizeof(data));
 }
 
-bool LD600XComponent::send_z_range_() {
+bool LD600XComponent::send_z_range_(float z_min, float z_max) {
   // One frame carries both bounds, so half a range cannot be written; the bound is held until the other is known.
-  if (std::isnan(this->z_min_) || std::isnan(this->z_max_)) {
+  if (std::isnan(z_min) || std::isnan(z_max)) {
     ESP_LOGW(TAG, "Z range not written, other bound unknown");
     return true;
   }
   // Both bounds are known and crossed; the frame has no way to say that.
-  if (this->z_min_ > this->z_max_) {
+  if (z_min > z_max) {
     ESP_LOGW(TAG, "Z range not written, min above max");
     return false;
   }
   uint8_t data[8];
-  write_f32_le(data, this->z_min_);
-  write_f32_le(data + 4, this->z_max_);
+  write_f32_le(data, z_min);
+  write_f32_le(data + 4, z_max);
   return this->queue_command_(TYPE_SET_Z_RANGE, data, sizeof(data));
 }
+
+#ifdef USE_NUMBER
+bool LD600XComponent::queue_u32_setting_(uint16_t type, float value) {
+  // NumberCall keeps the value inside the traits' range but does not round it to the step;
+  // the module takes whole numbers only.
+  if (std::floor(value) != value) {
+    ESP_LOGW(TAG, "Invalid number value: %f", value);
+    return false;
+  }
+  uint8_t data[4];
+  write_u32_le(data, static_cast<uint32_t>(value));
+  return this->queue_command_(type, data, sizeof(data));
+}
+#endif
 
 void LD600XComponent::apply_area_config_() {
   if (!this->area_id_set_) {
@@ -1021,22 +1035,20 @@ void LD600XComponent::apply_area_config_() {
 #ifdef USE_NUMBER
 // Each setter picks its setting by entity pointer, so the entities share one generated class.
 bool LD600XComponent::set_number_value(number::Number *entity, float value) {
-  if (entity == this->hold_delay_number_ || entity == this->low_power_sleep_number_) {
-    uint8_t data[4];
-    write_u32_le(data, static_cast<uint32_t>(value));
-    return this->queue_command_(entity == this->hold_delay_number_ ? TYPE_SET_HOLD_DELAY : TYPE_SET_LOW_POWER_SLEEP,
-                                data, sizeof(data));
-  }
+  if (entity == this->hold_delay_number_)
+    return this->queue_u32_setting_(TYPE_SET_HOLD_DELAY, value);
+  if (entity == this->low_power_sleep_number_)
+    return this->queue_u32_setting_(TYPE_SET_LOW_POWER_SLEEP, value);
   // The z bounds and the area edits are kept here until both bounds or the apply button write them.
   if (entity == this->z_min_number_ || entity == this->z_max_number_) {
-    float &bound = entity == this->z_min_number_ ? this->z_min_ : this->z_max_;
-    const float previous = bound;
-    bound = value;
-    if (this->send_z_range_())
-      return true;
-    // Not written, so the next write of the other bound must not pick up this one.
-    bound = previous;
-    return false;
+    const bool is_min = entity == this->z_min_number_;
+    const float z_min = is_min ? value : this->z_min_;
+    const float z_max = is_min ? this->z_max_ : value;
+    if (!this->send_z_range_(z_min, z_max))
+      return false;
+    this->z_min_ = z_min;
+    this->z_max_ = z_max;
+    return true;
   }
   if (entity == this->area_x_min_number_) {
     this->area_x_min_ = value;
