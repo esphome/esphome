@@ -8,11 +8,14 @@ namespace esphome::duco {
 
 class DucoSelect : public DucoDevice, public select::Select {
  public:
+  void set_address(uint8_t address) { this->address_ = address; }
   void update() override;
   void receive_response(const DucoMessage &message) override;
 
  protected:
   void control(size_t index) override;
+
+  uint8_t address_{1};
 };
 
 }  // namespace esphome::duco

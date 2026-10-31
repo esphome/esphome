@@ -25,7 +25,7 @@ static constexpr uint8_t MODE_CODES[] PROGMEM = {
     0xc6,  // MAN3x3
 };
 
-void DucoSelect::update() { this->parent_->send(this, FUNCTION_NODE, {0x02, 0x01}); }
+void DucoSelect::update() { this->parent_->send(this, FUNCTION_NODE, {0x02, this->address_}); }
 
 void DucoSelect::receive_response(const DucoMessage &message) {
   if (message.size < 1)
@@ -41,7 +41,7 @@ void DucoSelect::receive_response(const DucoMessage &message) {
 
 void DucoSelect::control(size_t index) {
   // The next update reads the new mode back
-  this->parent_->send(nullptr, FUNCTION_NODE, {0x04, 0x01, progmem_read_byte(&MODE_CODES[index])});
+  this->parent_->send(nullptr, FUNCTION_NODE, {0x04, this->address_, progmem_read_byte(&MODE_CODES[index])});
 }
 
 }  // namespace esphome::duco

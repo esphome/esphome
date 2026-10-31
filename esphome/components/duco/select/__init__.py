@@ -1,6 +1,7 @@
+import esphome.codegen as cg
 from esphome.components import select
 import esphome.config_validation as cv
-from esphome.const import CONF_TYPE
+from esphome.const import CONF_ADDRESS, CONF_TYPE
 from esphome.types import ConfigType
 
 from .. import (
@@ -37,31 +38,48 @@ DucoTimeFilter = duco_ns.class_("DucoTimeFilter", DucoDevice, select.Select)
 
 TYPE_MODE = "mode"
 TYPE_TIME_FILTER = "time_filter"
+CONF_MODE = "mode"
 
 TIME_FILTER_OPTIONS = ["90 days", "180 days", "270 days", "360 days"]
 
-MODE_SCHEMA = (
+MODE_ENTITY_SCHEMA = (
     select.select_schema(DucoSelect)
     .extend(cv.polling_component_schema("3s"))
-    .extend(DUCO_COMPONENT_SCHEMA)
+    .extend({cv.Optional(CONF_ADDRESS, default=1): cv.int_range(min=1, max=0x45)})
+)
+
+LEGACY_MODE_SCHEMA = MODE_ENTITY_SCHEMA.extend(DUCO_COMPONENT_SCHEMA).extend(
+    {cv.Optional(CONF_TYPE): cv.one_of(TYPE_MODE)}
 )
 
 TIME_FILTER_SCHEMA = (
     select.select_schema(DucoTimeFilter)
     .extend(cv.polling_component_schema("60s"))
     .extend(DUCO_COMPONENT_SCHEMA)
+    .extend({cv.Required(CONF_TYPE): cv.one_of(TYPE_TIME_FILTER)})
 )
 
-CONFIG_SCHEMA = cv.typed_schema(
-    {
-        TYPE_MODE: MODE_SCHEMA,
-        TYPE_TIME_FILTER: TIME_FILTER_SCHEMA,
-    },
-    default_type=TYPE_MODE,
+CONFIG_SCHEMA = cv.Any(
+    LEGACY_MODE_SCHEMA,
+    TIME_FILTER_SCHEMA,
+    DUCO_COMPONENT_SCHEMA.extend(
+        {
+            cv.Optional(CONF_MODE): cv.ensure_list(MODE_ENTITY_SCHEMA),
+        }
+    ),
 )
 
 
 async def to_code(config: ConfigType) -> None:
-    options = TIME_FILTER_OPTIONS if config[CONF_TYPE] == TYPE_TIME_FILTER else DUCO_MODE_OPTIONS
+    if CONF_MODE in config:
+        for entity_config in config[CONF_MODE]:
+            var = await select.new_select(entity_config, options=DUCO_MODE_OPTIONS)
+            await register_duco_device(var, entity_config, config[CONF_DUCO_ID])
+            cg.add(var.set_address(entity_config[CONF_ADDRESS]))
+        return
+
+    options = TIME_FILTER_OPTIONS if config.get(CONF_TYPE) == TYPE_TIME_FILTER else DUCO_MODE_OPTIONS
     var = await select.new_select(config, options=options)
     await register_duco_device(var, config, config[CONF_DUCO_ID])
+    if config.get(CONF_TYPE) != TYPE_TIME_FILTER:
+        cg.add(var.set_address(config[CONF_ADDRESS]))
