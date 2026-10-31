@@ -1,5 +1,7 @@
 #pragma once
 
+#include <string>
+
 #include "esphome/components/text/text.h"
 
 #include "../duco.h"
