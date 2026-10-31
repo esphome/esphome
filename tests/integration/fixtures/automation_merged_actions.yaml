@@ -17,9 +17,42 @@ switch:
     optimistic: true
     on_turn_on:
       - script.stop: stop_by_callback
+  # Automations with only inline actions, which run directly from the callback
+  - platform: template
+    id: direct
+    optimistic: true
+    on_state:
+      - logger.log:
+          format: "DIRECT state first %d"
+          args: [x]
+      - lambda: |-
+          ESP_LOGI("test", "DIRECT state second %d", x);
+    on_turn_on:
+      - logger.log: "DIRECT on first"
+      - logger.log: "DIRECT on second"
+    on_turn_off:
+      - logger.log: "DIRECT off first"
+      - logger.log: "DIRECT off second"
 
 api:
   actions:
+    - action: run_direct
+      then:
+        - switch.turn_on: direct
+        - logger.log: "DIRECT done on"
+        - switch.turn_off: direct
+        - logger.log: "DIRECT done off"
+    - action: run_arg_order
+      then:
+        - script.execute:
+            id: arg_order
+            first: !lambda |-
+              ESP_LOGI("test", "ARG_ORDER eval first");
+              return 1;
+            second: !lambda |-
+              ESP_LOGI("test", "ARG_ORDER eval second");
+              return 2;
+        - logger.log: "ARG_ORDER done"
     - action: run_stop_in_lambda
       then:
         - script.execute: stop_in_lambda
@@ -95,6 +128,14 @@ api:
             ESP_LOGI("test", "ARGS fourth %d", value);
 
 script:
+  - id: arg_order
+    parameters:
+      first: int
+      second: int
+    then:
+      - logger.log:
+          format: "ARG_ORDER run %d %d"
+          args: [first, second]
   - id: stop_in_lambda
     then:
       - logger.log: "STOP_LAMBDA before"

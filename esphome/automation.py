@@ -575,6 +575,22 @@ def _apply_function(
     return _COLLECTED_ACTION if _collect_action(id_, statements, emit) else emit()
 
 
+def apply_statements_action(
+    action_id: ID,
+    template_arg: cg.TemplateArguments,
+    args: TemplateArgsType,
+    statements: list[str],
+) -> MockObj:
+    """Build an action from C++ statements, for a builder registered with ``ApplyAction``.
+
+    Use it when the statements do not fit ``register_apply_action``. Generated names should
+    start with ``esphome__`` so a trigger argument cannot shadow them.
+    """
+    return _apply_function(
+        action_id, cg.void, template_arg, _apply_lambda_args(args), statements
+    )
+
+
 def apply_static_function(
     id_: ID,
     return_type: SafeExpType,
@@ -899,7 +915,7 @@ def new_lambda_pvariable(
         and stateless_class is StatelessLambdaAction
         and _collect_action(
             id_obj,
-            [_lambda_call_statement(lambda_expr)],
+            [f"{immediate_lambda_call(lambda_expr)};"],
             lambda: new_lambda_pvariable(
                 id_obj, lambda_expr, stateless_class, template_arg
             ),
@@ -917,10 +933,10 @@ def new_lambda_pvariable(
     return cg.new_Pvariable(id_obj, lambda_expr)
 
 
-def _lambda_call_statement(lambda_expr: LambdaExpression) -> str:
-    """Call a lambda on the spot, so a ``return`` in it ends only that lambda."""
+def immediate_lambda_call(lambda_expr: LambdaExpression) -> CallExpression:
+    """Call a lambda on the spot with its own parameter names; a ``return`` ends only the lambda."""
     names = [MockObj(param.id) for param in lambda_expr.parameters.parameters]
-    return f"{CallExpression(lambda_expr, *names)};"
+    return CallExpression(lambda_expr, *names)
 
 
 def validate_automation(extra_schema=None, extra_validators=None, single=False):
@@ -1474,6 +1490,33 @@ def _emit_inline_run(
     return cg.new_Pvariable(id_, cg.TemplateArguments(fn, *template_arg))
 
 
+async def _build_action_plan(
+    config: list[ConfigType], templ: cg.TemplateArguments, arg_type: TemplateArgsType
+) -> list[MockObj | list[_InlineAction]]:
+    """Build the actions of ``config``; adjacent inline actions stay together, not yet emitted."""
+    plan: list[MockObj | list[_InlineAction]] = []
+    for conf in config:
+        action = await _build_action_or_inline(conf, templ, arg_type)
+        if not isinstance(action, _InlineAction):
+            plan.append(action)
+        elif plan and isinstance(plan[-1], list):
+            plan[-1].append(action)
+        else:
+            plan.append([action])
+    return plan
+
+
+def _emit_action_plan(
+    plan: list[MockObj | list[_InlineAction]],
+    templ: cg.TemplateArguments,
+    arg_type: TemplateArgsType,
+) -> list[MockObj]:
+    return [
+        _emit_inline_run(item, templ, arg_type) if isinstance(item, list) else item
+        for item in plan
+    ]
+
+
 async def build_action_list(
     config: list[ConfigType], templ: cg.TemplateArguments, arg_type: TemplateArgsType
 ) -> list[MockObj]:
@@ -1481,20 +1524,8 @@ async def build_action_list(
 
     The result can therefore be shorter than ``config``.
     """
-    actions: list[MockObj] = []
-    run: list[_InlineAction] = []
-    for conf in config:
-        action = await _build_action_or_inline(conf, templ, arg_type)
-        if isinstance(action, _InlineAction):
-            run.append(action)
-            continue
-        if run:
-            actions.append(_emit_inline_run(run, templ, arg_type))
-            run = []
-        actions.append(action)
-    if run:
-        actions.append(_emit_inline_run(run, templ, arg_type))
-    return actions
+    plan = await _build_action_plan(config, templ, arg_type)
+    return _emit_action_plan(plan, templ, arg_type)
 
 
 async def build_condition(
@@ -1601,12 +1632,65 @@ async def _new_automation(
     args: TemplateArgsType, config: ConfigType, *ctor_args: MockObj
 ) -> MockObj:
     """Create the Automation for ``config`` with its actions."""
+    plan = await _build_automation_plan(args, config)
+    return _automation_from_plan(plan, args, config, *ctor_args)
+
+
+async def _build_automation_plan(
+    args: TemplateArgsType, config: ConfigType
+) -> list[MockObj | list[_InlineAction]]:
+    templ = cg.TemplateArguments(*(arg[0] for arg in args))
+    return await _build_action_plan(config[CONF_THEN], templ, args)
+
+
+def _automation_from_plan(
+    plan: list[MockObj | list[_InlineAction]],
+    args: TemplateArgsType,
+    config: ConfigType,
+    *ctor_args: MockObj,
+) -> MockObj:
     templ = cg.TemplateArguments(*(arg[0] for arg in args))
     obj = cg.new_Pvariable(config[CONF_AUTOMATION_ID], templ, *ctor_args)
-    actions = await build_action_list(config[CONF_THEN], templ, args)
-    for action in actions:
+    for action in _emit_action_plan(plan, templ, args):
         cg.add(obj.add_action(action))
     return obj
+
+
+def _is_direct(plan: list[MockObj | list[_InlineAction]], config: ConfigType) -> bool:
+    """Whether a callback automation is all inline actions, so it needs no objects.
+
+    Without a Trigger or a manual id nothing can reach such an automation to stop it, so
+    no stop checks are needed either. Only for callers that create no Trigger.
+    """
+    return (
+        not config[CONF_AUTOMATION_ID].is_manual
+        and len(plan) == 1
+        and isinstance(plan[0], list)
+    )
+
+
+def _direct_function(
+    plan: list[MockObj | list[_InlineAction]],
+    args: TemplateArgsType,
+    config: ConfigType,
+) -> MockObj | None:
+    if not _is_direct(plan, config):
+        return None
+    statements = [line for action in plan[0] for line in ("{", *action.statements, "}")]
+    return apply_static_function(
+        plan[0][0].id_, cg.void, _apply_lambda_args(args), statements
+    )
+
+
+def _when_call(
+    when: str | ApplyCall | None, parent: MockObj | None
+) -> ApplyCall | None:
+    if when is None:
+        return None
+    call = when if isinstance(when, ApplyCall) else ApplyCall(when)
+    if parent is None and call.names_parent:
+        raise ValueError(f"trigger filter {call.target!r} names {{parent}}")
+    return call
 
 
 async def build_automation(
@@ -1623,24 +1707,37 @@ async def build_trigger_callback(
     when: str | ApplyCall | None = None,
     parent: MockObj | None = None,
 ) -> LambdaExpression:
-    """Build the Automation for ``config`` and return a stateless callback that triggers it.
+    """Build ``config`` and return a stateless callback that runs its actions.
+
+    An automation that is all inline actions becomes a function the callback calls, with no
+    Automation or action objects; otherwise the callback triggers an Automation.
 
     ``params`` are the parent callback's parameters, ``forward`` the expressions passed to
-    ``trigger()`` (default: the parameter names; write the parent as ``parent_ref(var)``),
+    the actions (default: the parameter names; write the parent as ``parent_ref(var)``),
     ``when`` a filter the callback returns early on, skipped like any ``ApplyCall`` when none
     of its keys is set. ``when`` may name ``parent`` as ``{parent}``, e.g.
     ``"{parent}->is_fully_open()"``.
     """
-    members: list[tuple[Any, Any, Any]] = []
-    if when is not None:
-        call = when if isinstance(when, ApplyCall) else ApplyCall(when)
-        members = call.members
-        if parent is None and call.names_parent:
-            raise ValueError(f"trigger filter {call.target!r} names {{parent}}")
-    obj = await _new_automation(args, config)
+    call = _when_call(when, parent)
+    plan = await _build_automation_plan(args, config)
+    return await _trigger_callback(plan, args, config, params, forward, call, parent)
+
+
+async def _trigger_callback(
+    plan: list[MockObj | list[_InlineAction]],
+    args: TemplateArgsType,
+    config: ConfigType,
+    params: TemplateArgsType,
+    forward: Sequence[str | Expression] | None,
+    call: ApplyCall | None,
+    parent: MockObj | None,
+) -> LambdaExpression:
+    if (target := _direct_function(plan, args, config)) is None:
+        target = f"{parent_ref(_automation_from_plan(plan, args, config))}->trigger"
     lambda_args = _apply_lambda_args(params)
     statements: list[str] = []
-    if when is not None:
+    if call is not None:
+        members = call.members
         values = _apply_values(config, members)
         if _apply_call_active(members, values):
             check = await _render_check(
@@ -1655,7 +1752,7 @@ async def build_trigger_callback(
             statements.append(f"if (!({check}))\n  return;")
     if forward is None:
         forward = [name for _, name in params]
-    statements.append(f"{parent_ref(obj)}->trigger({', '.join(map(str, forward))});")
+    statements.append(f"{target}({', '.join(map(str, forward))});")
     return LambdaExpression(
         ["\n".join(statements)], lambda_args, capture="", return_type=cg.void
     )
@@ -1682,7 +1779,10 @@ async def build_callback_automation(
     and avoid heap allocation.
 
     With ``params``, ``forward`` or ``when`` the callback is instead the stateless
-    lambda of ``build_trigger_callback``; ``forwarder`` cannot be combined with them.
+    lambda of ``build_trigger_callback``. An automation that is all inline actions needs
+    no objects and is called directly, so it also takes that lambda when no filter is
+    given. A ``forwarder`` given with them is used when the automation does need objects;
+    they must then describe the same filter. A ``forwarder`` alone keeps its objects.
 
     :param parent: The component object (e.g., button, sensor).
     :param callback_method: Name of the callback method (e.g., "add_on_press_callback").
@@ -1692,17 +1792,32 @@ async def build_callback_automation(
         TriggerForwarder<Ts...>. Pass any struct type whose aggregate init takes
         a single Automation pointer (e.g., TriggerOnTrueForwarder).
     """
-    if params is not None or forward is not None or when is not None:
-        if forwarder is not None:
-            raise ValueError(
-                "forwarder cannot be combined with params, forward or when"
-            )
-        callback = await build_trigger_callback(
-            args, config, args if params is None else params, forward, when, parent
+    custom = params is not None or forward is not None or when is not None
+    if not custom and (
+        forwarder is TriggerOnTrueForwarder or forwarder is TriggerOnFalseForwarder
+    ):
+        if args:
+            raise ValueError(f"{forwarder} triggers an automation with no arguments")
+        params, forward, custom = [(cg.bool_, "state")], [], True
+        when = "state" if forwarder is TriggerOnTrueForwarder else "!state"
+    call = _when_call(when, parent)
+    plan = await _build_automation_plan(args, config)
+    # A forwarder alone says nothing about what it filters, so it cannot be replaced
+    if (custom and forwarder is None) or (
+        (custom or forwarder is None) and _is_direct(plan, config)
+    ):
+        callback = await _trigger_callback(
+            plan,
+            args,
+            config,
+            args if params is None else params,
+            forward,
+            call,
+            parent,
         )
         cg.add(getattr(parent, callback_method)(callback))
         return
-    obj = await _new_automation(args, config)
+    obj = _automation_from_plan(plan, args, config)
     # Use template forwarder structs for deduplication. The compiler generates
     # one operator() per forwarder type; different automation pointers are just
     # data in the struct.
