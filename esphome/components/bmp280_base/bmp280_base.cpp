@@ -20,8 +20,6 @@ static const uint8_t BMP280_MODE_FORCED = 0b01;
 static const uint8_t BMP280_SOFT_RESET = 0xB6;
 static const uint8_t BMP280_STATUS_IM_UPDATE = 0b01;
 
-inline uint16_t combine_bytes(uint8_t msb, uint8_t lsb) { return ((msb & 0xFF) << 8) | (lsb & 0xFF); }
-
 static const char *oversampling_to_str(BMP280Oversampling oversampling) {
   switch (oversampling) {
     case BMP280_OVERSAMPLING_NONE:
