@@ -9,6 +9,9 @@
 
 namespace esphome::gpio_expander {
 
+/// Pin number type for an expander with N pins.
+template<uint16_t N> using expander_pin_t = std::conditional_t<(N > 256), uint16_t, uint8_t>;
+
 /// @brief A class to cache the read state of a GPIO expander.
 ///        This class caches reads between GPIO Pins which are on the same bank.
 ///        This means that for reading whole Port (ex. 8 pins) component needs only one
@@ -26,10 +29,9 @@ namespace esphome::gpio_expander {
 ///               uint8_t for N<=256, uint16_t for N>256). Can be explicitly specified
 ///               if needed (e.g., for components like SN74HC165 with >256 pins)
 ///
-///        GpioExpanderReadCache holds the cache; CachedGpioExpander adds the invalidate-on-read flag, and
+///        CachedGpioExpanderBase holds the cache; CachedGpioExpander adds the invalidate-on-read flag, and
 ///        CachedGpioExpanderComponent takes it from the interrupt pin instead.
-template<typename T, uint16_t N, typename P = typename std::conditional<(N > 256), uint16_t, uint8_t>::type>
-class GpioExpanderReadCache {
+template<typename T, uint16_t N, typename P = expander_pin_t<N>> class CachedGpioExpanderBase {
  public:
   void digital_write(P pin, bool value) { this->digital_write_hw(pin, value); }
 
@@ -37,15 +39,11 @@ class GpioExpanderReadCache {
   using bank_t = T;
   using pin_t = P;
 
-  /// @brief Read the state of the given pin.
-  /// With invalidate_on_read, each read invalidates the pin's cache entry so the next read
-  /// of the same pin triggers a fresh hardware read. Without it, the cache stays valid until
-  /// explicitly cleared via reset_pin_cache_().
-  /// @param pin Pin number to read
-  /// @return Pin state
+  /// Read pin through the bank cache. With invalidate_on_read the pin is read from hardware again next
+  /// time; otherwise the bank stays cached until reset_pin_cache_().
   bool cached_read_(P pin, bool invalidate_on_read) {
     const P bank = pin / BANK_SIZE;
-    const T pin_mask = (1 << (pin % BANK_SIZE));
+    const T pin_mask = T(1) << (pin % BANK_SIZE);
     // Check if specific pin cache is valid
     if (this->read_cache_valid_[bank] & pin_mask) {
       if (invalidate_on_read) {
@@ -91,9 +89,9 @@ class GpioExpanderReadCache {
   T read_cache_valid_[BANKS]{0};
 };
 
-/// A GpioExpanderReadCache whose digital_read() invalidates each pin it returns unless told otherwise.
-template<typename T, uint16_t N, typename P = typename std::conditional<(N > 256), uint16_t, uint8_t>::type>
-class CachedGpioExpander : public GpioExpanderReadCache<T, N, P> {
+/// A CachedGpioExpanderBase whose digital_read() invalidates each pin it returns unless told otherwise.
+template<typename T, uint16_t N, typename P = expander_pin_t<N>>
+class CachedGpioExpander : public CachedGpioExpanderBase<T, N, P> {
  public:
   bool digital_read(P pin) { return this->cached_read_(pin, this->invalidate_on_read_); }
 
@@ -114,13 +112,14 @@ template<typename Base> class GpioExpanderInputs : public Base {
   using typename Base::bank_t;
   using typename Base::pin_t;
   using Base::BANK_SIZE;
+  using Base::BANKS;
 
   bool digital_read_cache(pin_t pin) override {
     return this->input_[pin / BANK_SIZE] & (bank_t(1) << (pin % BANK_SIZE));
   }
 
   /// The input state per bank - 1 means HIGH, 0 means LOW
-  bank_t input_[Base::BANKS]{};
+  bank_t input_[BANKS]{};
 };
 
 }  // namespace esphome::gpio_expander
