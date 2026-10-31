@@ -35,10 +35,8 @@ from esphome.cpp_generator import (
     MockObj,
     MockObjClass,
     TemplateArgsType,
-    add_global_after_includes,
     call_lambda,
 )
-from esphome.helpers import indent
 from esphome.schema_extractors import SCHEMA_EXTRACT, schema_extractor
 from esphome.types import ConfigType, SafeExpType
 from esphome.util import Registry
@@ -1961,7 +1959,7 @@ async def build_component_automation(
         return var
     # Declared and registered before the actions are built, which can wait for other ids
     name = f"esphome__{trigger_id.id}__fn"
-    cg.add_global(cg.RawStatement(f"static void {name}();"))
+    define = cg.declare_static_function(name, cg.void, [])
     id_ = trigger_id.copy()
     id_.type = component_class
     bits = [] if priority is None else [_float_bits(priority)]
@@ -1970,9 +1968,7 @@ async def build_component_automation(
     plan = await _build_automation_plan([], config)
     if (body := _direct_statements(plan, config)) is None:
         body = [f"{parent_ref(_automation_from_plan(plan, [], config))}->trigger();"]
-    add_global_after_includes(
-        cg.RawStatement(f"static void {name}() {{\n{indent(chr(10).join(body))}\n}}")
-    )
+    define(body)
     return var
 
 
