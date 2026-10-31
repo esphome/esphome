@@ -31,11 +31,7 @@ static constexpr uint8_t REPEATING_NOTE_GAP_MS = 10;
 #ifdef USE_SPEAKER
 static constexpr uint16_t SAMPLE_BUFFER_SIZE = 2048;
 static constexpr uint16_t SAMPLE_RATE = 16000;
-
-inline double deg2rad(double degrees) {
-  static constexpr double PI_ON_180 = M_PI / 180.0;
-  return degrees * PI_ON_180;
-}
+static constexpr float TWO_PI = 2.0f * static_cast<float>(M_PI);
 #endif  // USE_SPEAKER
 
 #if ESPHOME_LOG_LEVEL >= ESPHOME_LOG_LEVEL_VERBOSE
@@ -123,13 +119,14 @@ void Rtttl::loop() {
     if (this->samples_sent_ != this->samples_count_) {
       int16_t sample[SAMPLE_BUFFER_SIZE];
       uint16_t sample_index = 0;
-      double rem = 0.0;
+      // Single precision: ESP32 FPUs have no double support, and a software sin() per sample blocks the loop
+      const float radians_per_step = this->samples_per_wave_ != 0 ? TWO_PI / this->samples_per_wave_ : 0.0f;
 
       while (sample_index < SAMPLE_BUFFER_SIZE && this->samples_sent_ < this->samples_count_) {
         // Try and send out the remainder of the existing note, one per `loop()`
         if (this->samples_per_wave_ != 0 && this->samples_sent_ >= this->samples_gap_) {  // Play note
-          rem = ((this->samples_sent_ << 10) % this->samples_per_wave_) * (360.0 / this->samples_per_wave_);
-          sample[sample_index] = INT16_MAX * sin(deg2rad(rem));
+          const uint32_t step = (this->samples_sent_ << 10) % this->samples_per_wave_;
+          sample[sample_index] = static_cast<int16_t>(INT16_MAX * sinf(step * radians_per_step));
         } else {
           sample[sample_index] = 0;
         }
