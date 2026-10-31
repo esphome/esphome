@@ -12,12 +12,15 @@ from esphome.components import output
 from esphome.components.lp5562 import output as lp5562_output
 from esphome.components.mcp4461 import output as mcp4461_output
 from esphome.components.mcp4728 import output as mcp4728_output
+from esphome.components.my9231 import output as my9231_output
 from esphome.components.pca9685 import output as pca9685_output
 from esphome.components.sm2135 import output as sm2135_output
+from esphome.components.sm16716 import output as sm16716_output
 from esphome.config import Config, read_config
 from esphome.const import (
     CONF_CHANNEL,
     CONF_ID,
+    CONF_NUM_CHANNELS,
     CONF_PIN,
     CONF_PLATFORM,
     PlatformFramework,
@@ -125,6 +128,22 @@ _FAKE_VALIDATE = output.final_validate_unique_channel(
     ("validate", "platform", "hub_key", "hub", "count"),
     [
         pytest.param(_FAKE_VALIDATE, "fake", "fake_id", {"channels": 4}, 4, id="fake"),
+        pytest.param(
+            my9231_output.FINAL_VALIDATE_SCHEMA,
+            "my9231",
+            "my9231_id",
+            {CONF_NUM_CHANNELS: 6},
+            6,
+            id="my9231",
+        ),
+        pytest.param(
+            sm16716_output.FINAL_VALIDATE_SCHEMA,
+            "sm16716",
+            "sm16716_id",
+            {CONF_NUM_CHANNELS: 3},
+            3,
+            id="sm16716",
+        ),
     ],
 )
 def test_hub_channel_count(
