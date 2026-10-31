@@ -439,6 +439,8 @@ TEST(ATM90E32Setup, ConfiguresGainsAndThresholdsWithCalibrationEnabledOrDisabled
       component.set_cs_pin(&cs);
       component.set_enable_offset_calibration(offsets);
       component.set_enable_gain_calibration(gains);
+      component.set_threshold_voltage_sag_v(93.6f);
+      component.set_threshold_voltage_peak_v(146.4f);
       for (uint8_t phase = 0; phase < 3; ++phase) {
         component.set_volt_gain(phase, 7305);
         component.set_ct_gain(phase, 27518);
@@ -464,6 +466,8 @@ TEST(ATM90E32Setup, ThresholdsUseRestoredGains) {
   spi::NullPin cs;
   component.set_cs_pin(&cs);
   component.set_enable_gain_calibration(true);
+  component.set_threshold_voltage_sag_v(93.6f);
+  component.set_threshold_voltage_peak_v(146.4f);
   GainCalibration stored[3];
   for (uint8_t phase = 0; phase < 3; ++phase) {
     component.set_volt_gain(phase, 7305);
@@ -477,8 +481,10 @@ TEST(ATM90E32Setup, ThresholdsUseRestoredGains) {
   access.configure_chip();
 
   EXPECT_EQ(access.read16(component.voltage_gain_registers[0]), 9000);
-  EXPECT_EQ(access.read16(ATM90E32_REGISTER_SAGTH), component.calculate_voltage_threshold(60, 9000, 0.78f));
-  EXPECT_EQ(access.read16(ATM90E32_REGISTER_OVTH), component.calculate_voltage_threshold(60, 9000, 1.22f));
+  EXPECT_EQ(access.read16(ATM90E32_REGISTER_SAGTH),
+            ATM90E32Component::calculate_voltage_threshold_from_volts(93.6f, 9000));
+  EXPECT_EQ(access.read16(ATM90E32_REGISTER_OVTH),
+            ATM90E32Component::calculate_voltage_threshold_from_volts(146.4f, 9000));
 }
 
 class ATM90E32CalibrationPersistence : public ::testing::TestWithParam<CalibrationTraits> {};

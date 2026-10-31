@@ -1,10 +1,14 @@
 #pragma once
 
-#include <span>
-#include <unordered_map>
 #include "atm90e32_reg.h"
 #include "esphome/components/sensor/sensor.h"
 #include "esphome/components/spi/spi.h"
+#include <cmath>
+#include <span>
+#include <unordered_map>
+#ifdef USE_TEXT_SENSOR
+#include "esphome/components/text_sensor/text_sensor.h"
+#endif
 #include "esphome/core/application.h"
 #include "esphome/core/component.h"
 #include "esphome/core/gpio.h"
@@ -114,6 +118,13 @@ class ATM90E32Component final : public PollingComponent,
     this->has_config_reactive_power_offset_[phase] = true;
   }
   void set_peak_current_signed(bool flag) { peak_current_signed_ = flag; }
+  void set_threshold_voltage_sag_v(float voltage) { this->threshold_voltage_sag_v_ = voltage; }
+  void set_threshold_voltage_peak_v(float voltage) { this->threshold_voltage_peak_v_ = voltage; }
+  void set_threshold_current_peak_a(float current) { this->threshold_current_peak_a_ = current; }
+  void set_frequency_thresholds(uint16_t low, uint16_t high) {
+    this->frequency_low_threshold_ = low;
+    this->frequency_high_threshold_ = high;
+  }
   void set_line_freq(int freq) { line_freq_ = freq; }
   void set_current_phases(int phases) { current_phases_ = phases; }
   void set_pga_gain(uint16_t gain) { pga_gain_ = gain; }
@@ -152,14 +163,15 @@ class ATM90E32Component final : public PollingComponent,
 #ifdef USE_TEXT_SENSOR
   void check_phase_status();
   void check_freq_status();
-  void check_over_current();
   void set_phase_status_text_sensor(uint8_t phase, text_sensor::TextSensor *sensor) {
     this->phase_status_text_sensor_[phase] = sensor;
   }
 #endif
-  uint16_t calculate_voltage_threshold(int line_freq, uint16_t ugain, float multiplier);
+  static uint16_t calculate_voltage_threshold_from_volts(float voltage_rms, uint16_t ugain);
+  static uint16_t calculate_current_threshold_from_amps(float current_rms, uint16_t igain);
 
  protected:
+  friend class ATM90E32ThresholdRegisters;
 #ifdef USE_NUMBER
   number::Number *ref_voltages_[3]{nullptr, nullptr, nullptr};
   number::Number *ref_currents_[3]{nullptr, nullptr, nullptr};
@@ -211,6 +223,7 @@ class ATM90E32Component final : public PollingComponent,
   void write_offsets_to_registers_(uint8_t phase, int16_t first_offset, int16_t second_offset,
                                    OffsetCalibrationType type);
   void write_gains_to_registers_();
+  void write_thresholds_();
   bool verify_gain_writes_();
   bool verify_offset_writes_(OffsetCalibrationType type);
   bool validate_spi_read_(uint16_t expected, const char *context = nullptr);
@@ -282,6 +295,11 @@ class ATM90E32Component final : public PollingComponent,
   bool peak_current_signed_{false};
   bool enable_offset_calibration_{false};
   bool enable_gain_calibration_{false};
+  float threshold_voltage_sag_v_{0.0f};
+  float threshold_voltage_peak_v_{0.0f};
+  float threshold_current_peak_a_{NAN};  // NAN keeps the legacy OITH register and 65.53 A software limit
+  uint16_t frequency_low_threshold_{0};
+  uint16_t frequency_high_threshold_{0};
   const char *instance_id_{nullptr};
   bool has_stored_offset_calibration_{false};
   bool has_stored_power_offset_calibration_{false};
@@ -290,6 +308,10 @@ class ATM90E32Component final : public PollingComponent,
   bool restored_power_offset_calibration_{false};
   bool restored_gain_calibration_{false};
   bool calibration_message_printed_{false};
+#ifdef USE_TEXT_SENSOR
+  bool use_voltage_threshold_flags_{true};
+  bool use_current_threshold_flags_{true};
+#endif
   bool offset_calibration_mismatch_[3]{false, false, false};
   bool power_offset_calibration_mismatch_[3]{false, false, false};
   bool gain_calibration_mismatch_[3]{false, false, false};
