@@ -126,7 +126,7 @@ class EZOSensor final : public sensor::Sensor, public PollingComponent, public i
   bool enqueue_(const EzoCommand &command) {
     if (!this->queue_.push(command))
       return false;
-    this->send_queued_fn_ = send_queued;
+    send_queued_fn = send_queued;
     this->enable_loop();
     return true;
   }
@@ -141,8 +141,8 @@ class EZOSensor final : public sensor::Sensor, public PollingComponent, public i
   CallbackManager<void(const std::string &)> custom_callback_{};
   CallbackManager<void(bool)> led_callback_{};
 
-  /// send_queued, set when a command is queued, so configs that only poll do not link it or the text tables.
-  void (*send_queued_fn_)(EZOSensor *self, uint32_t now){nullptr};
+  /// Set to send_queued on first queue, so poll-only configs do not link it or the command text tables.
+  inline static void (*send_queued_fn)(EZOSensor *self, uint32_t now){nullptr};
   /// Queued commands; the front one stays in place while it is in flight. The periodic read is not queued.
   StaticRingBuffer<EzoCommand, EZO_COMMAND_QUEUE_SIZE> queue_;
   EzoState state_{EzoState::EZO_STATE_IDLE};
