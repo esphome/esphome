@@ -4,6 +4,7 @@ from dataclasses import dataclass, field
 import logging
 import math
 import string
+import struct
 from typing import Any
 
 import esphome.codegen as cg
@@ -1932,6 +1933,37 @@ async def build_automation(
     trigger: MockObj, args: TemplateArgsType, config: ConfigType
 ) -> MockObj:
     return await _new_automation(args, config, trigger)
+
+
+async def build_component_automation(
+    config: ConfigType, direct_class: MockObjClass, priority: float | None = None
+) -> MockObj:
+    """Create and register the Component that runs a no-argument automation.
+
+    That is the ``CONF_TRIGGER_ID`` Trigger, built with ``priority`` if given, or, when every
+    action is inline and no id is set by hand, ``direct_class<function[, priority bits]>``.
+    """
+    trigger_id: ID = config[CONF_TRIGGER_ID]
+    priority_args = [] if priority is None else [priority]
+    plan = await _build_automation_plan([], config)
+    fn = None if trigger_id.is_manual else _direct_function(plan, [], config)
+    if fn is None:
+        var = cg.new_Pvariable(trigger_id, *priority_args)
+    else:
+        id_ = trigger_id.copy()
+        id_.type = direct_class
+        bits = [_float_bits(value) for value in priority_args]
+        var = cg.new_Pvariable(id_, cg.TemplateArguments(fn, *bits))
+    await cg.register_component(var, config)
+    if fn is None:
+        _automation_from_plan(plan, [], config, var)
+    return var
+
+
+def _float_bits(value: float) -> cg.RawExpression:
+    """``value`` as a C++ float's bit pattern, for a template argument."""
+    (bits,) = struct.unpack("<I", struct.pack("<f", value))
+    return cg.RawExpression(f"0x{bits:08X}u")
 
 
 async def build_trigger_callback(
