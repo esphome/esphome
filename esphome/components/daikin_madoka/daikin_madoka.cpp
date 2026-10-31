@@ -22,6 +22,7 @@ static constexpr uint16_t CMD_SET_SETPOINT = 0x4040;
 static constexpr uint16_t CMD_GET_FAN_SPEED = 0x0050;
 static constexpr uint16_t CMD_SET_FAN_SPEED = 0x4050;
 static constexpr uint16_t CMD_GET_SENSOR_INFORMATION = 0x0110;
+static constexpr uint16_t CMD_SET_FLAG = 0x4000;
 
 // Indexed by the device's operation mode byte
 static constexpr std::array<ClimateMode, 5> DEVICE_MODES{CLIMATE_MODE_FAN_ONLY, CLIMATE_MODE_DRY,
@@ -182,6 +183,7 @@ void DaikinMadoka::gattc_event_handler(esp_gattc_cb_event_t event, esp_gatt_if_t
       this->query_cooldown_ = false;
       this->query_queue_.clear();
       this->poll_pending_ = false;
+      this->get_in_flight_ = false;
       break;
     }
     case ESP_GATTC_WRITE_DESCR_EVT:
@@ -288,6 +290,7 @@ void DaikinMadoka::send_next_query_() {
     this->query_queue_.clear();
     this->query_cooldown_ = false;
     this->poll_pending_ = false;
+    this->get_in_flight_ = false;
     return;
   }
   if (this->query_queue_.empty()) {
@@ -296,17 +299,22 @@ void DaikinMadoka::send_next_query_() {
       return;
     }
     this->poll_pending_ = false;
+    // Chunks left from a partly lost reply must not combine with this batch's replies
+    this->assembler_.reset();
     for (auto cmd : POLL_CMDS) {
       this->enqueue_query_(cmd, NO_ARGS);
     }
   }
   const Query &query = this->query_queue_.front();
   const uint16_t cmd = query.cmd;
-  // Chunks left from a partly lost reply must not combine with the reply to this command
-  this->assembler_.reset();
+  const bool is_set = (cmd & CMD_SET_FLAG) != 0;
+  // A GET's reply may still be arriving when the next command goes out, so a SET resets only when none is
+  if (is_set && !this->get_in_flight_)
+    this->assembler_.reset();
   // On a failed write the query stays queued for the next pass
   if (this->write_query_(query)) {
     this->query_queue_.pop();
+    this->get_in_flight_ = !is_set;
   }
   this->query_cooldown_ = true;
   this->set_timeout(QUERY_TIMEOUT_ID, get_command_cooldown(cmd), [this]() { this->send_next_query_(); });

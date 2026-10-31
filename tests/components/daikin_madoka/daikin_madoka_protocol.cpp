@@ -166,7 +166,7 @@ TEST(DaikinMadokaAssembler, ResetDropsLeftoverChunks) {
   EXPECT_EQ(assembler.feed(next[0]), ChunkResult::CHUNK_RESULT_COMPLETE);
   EXPECT_NE(to_vector(assembler.message()), msg);
 
-  // A reset before the next command drops it, so the reply waits for its own chunk 1
+  // The reset at the start of the next poll batch drops it, so the reply waits for its own chunk 1
   EXPECT_EQ(assembler.feed(lost[1]), ChunkResult::CHUNK_RESULT_PARTIAL);
   assembler.reset();
   EXPECT_EQ(assembler.feed(next[0]), ChunkResult::CHUNK_RESULT_PARTIAL);
