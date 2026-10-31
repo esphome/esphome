@@ -27,11 +27,6 @@ class ESPRangeView final : public ESPColorSettable {
   void set(Color color) override;
   void set_channel(uint8_t channel, uint8_t value) override;
 
-  inline void set_red(uint8_t red) ESPHOME_ALWAYS_INLINE { this->set_channel(COLOR_CHANNEL_R, red); }
-  inline void set_green(uint8_t green) ESPHOME_ALWAYS_INLINE { this->set_channel(COLOR_CHANNEL_G, green); }
-  inline void set_blue(uint8_t blue) ESPHOME_ALWAYS_INLINE { this->set_channel(COLOR_CHANNEL_B, blue); }
-  inline void set_white(uint8_t white) ESPHOME_ALWAYS_INLINE { this->set_channel(COLOR_CHANNEL_W, white); }
-
   void set_effect_data(uint8_t effect_data) override;
 
   void fade_to_white(uint8_t amnt) override;
