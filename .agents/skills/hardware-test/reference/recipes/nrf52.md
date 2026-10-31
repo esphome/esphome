@@ -28,3 +28,64 @@ and ends with PASS (more than one server connection) or FAIL; an empty capture o
 - macOS is a poor central here: it keeps old bonds with a board (`Peer removed pairing information` on connect)
   and clearing them is a system setting. Use an ESP32 `ble_client`; the server's random static address comes from
   its own log.
+
+## SMP over UDP OTA over Thread, with reset faults (#17245, #21910)
+
+Setup: a Thread border router (see openthread.md) whose OMR prefix the laptop routes to, and an ItsyBitsy nRF52840
+(the Adafruit bootloader carries the MCUboot layout; the nRF52840 Dongle's Open DFU bootloader is rejected for
+`zephyr_mcumgr` OTA). `scripts/smp_udp_ota/smp-udp-ota-dut.yaml` joins the network with `force_dataset: true` and
+logs its build label every 10 s. The first image goes in over UF2, every later one with
+`ota.sh MODE YAML VER ADDR` to the device's OMR address. A full image (about 380 KB) takes about 130 s.
+
+- Install the smpclient version pinned in requirements. An older one fails with `unexpected keyword argument
+  'timeout_s'`, which looks like a PR bug.
+- A new image refuses the next upload (`No free slot. Testing mode but not confirmed yet.`) until it confirms itself.
+  Wait about 4 minutes between uploads.
+- An image that is already in the secondary slot is only marked and reset (a few seconds). Change `ver` for every
+  upload that has to transfer, and expect a host-only change to rebuild byte-identical firmware.
+- `inject.py` faults the reset on the host: `lostreply` drops the reply of a reset the device got, `lostreq` drops the
+  first request, `lostreq2` drops every reset. The device resets after a short delay, so even after a lost reply the
+  client usually still finds the old image running with the new one pending and resends the reset to the old image,
+  which is safe. `lostreq2` must end in an error with the old image still running. `ota.sh` ends with `check.sh`,
+  which prints PASS or FAIL for the mode, and `inject.py` fails the run when no reset was faulted.
+- Without `libc_nano` the config overflows the 396,800 B slot by about 4 KB with Zephyr's TCP stack linked (about
+  11 KB of it, unused by SMP over UDP). With TCP left out (#21910) it fits with the full libc. A config with `api:`
+  keeps TCP.
+- **The real OTA size limit is lower than the link limit.** The nRF Connect SDK partition manager overrides the device
+  tree, so read `partitions.yml` in the build directory, not `zephyr.dts`. On the ItsyBitsy layout `mcuboot_primary` is
+  0x61000 (97 sectors of 4 KB) and the app partition 0x60e00 (396,800 B). MCUboot swap using move keeps one sector for
+  its trailer and one for the move, so it only swaps in an image up to (97 - 1 - 1) × 4 KB = 389,120 B
+  (`app_max_sectors()` and `app_max_size()` in bootutil `swap_move.c`). An image between 389,120 and 396,800 B links,
+  uploads and the CLI reports `Successfully uploaded program`, but MCUboot never swaps it in: it stays pending in the
+  secondary slot, and every later upload and the SMP image erase fail with `NO_FREE_SLOT`. OTA stays stuck until
+  the slot is cleared over USB. Measured: 388,787 B swapped in, 392,155 B did not. `ota.sh` checks `app_update.bin`
+  against this limit with `mcuboot_slot.py limit` before it uploads, and afterwards asks the device which image runs
+  (`mcuboot_slot.py active`, by the image's SHA-256), since the CLI's exit code alone is not proof.
+- With #17245 at 03d45d1aaa the build itself fails above the limit (`The application image is N bytes, but MCUboot
+  can only swap in L bytes on this board`), and after a confirmed reset the client waits for the device and logs
+  `runs the new image` or fails with `rebooted but did not swap in the new image`. After a dropped reset reply it still
+  ends with `The reboot of ... is not confirmed` without that wait, so `ota.sh`'s own image check is what proves those
+  runs.
+- Clearing a stuck pending image: the SMP image erase is refused while the image is pending, and resets do not help.
+  Over USB, touch the app's CDC port at 1200 baud to enter the UF2 bootloader, then copy the 16-block UF2 from
+  `mcuboot_slot.py blank-uf2 BUILD OUT`, which writes 0xFF over the secondary slot's header page (`mcuboot_secondary`
+  in `partitions.yml`, 0x90000 on the ItsyBitsy). The bootloader resets on its own once the last block is written
+  (`cp` may report an I/O error then, which is normal), MCUboot finds no image header and clears the slot, and the
+  image states show slot 0 only.
+- Over USB, the Adafruit UF2 bootloader only accepts blocks inside its app area (its `CURRENT.UF2` maps 0x1000 to
+  0xE9000). A UF2 with a block outside that area is never completed, and the bootloader then waits until a physical
+  reset, ignoring later files. Keep hand-made UF2 writes inside the app area.
+- Results: https://github.com/esphome/esphome/pull/17245#issuecomment-6516152182,
+  https://github.com/esphome/esphome/pull/17245#issuecomment-6518292041 (swap limit),
+  https://github.com/esphome/esphome/pull/17245#issuecomment-6519010038 (retest)
+
+## TCP stack only when a component uses TCP (#21910)
+
+`scripts/nrf52_tcp_probe/tcp-probe.yaml` joins the test Thread network with no TCP user and opens a TCP and a UDP
+socket twice from an interval. Build it per tree with `-s name NAME`, flash over UF2, capture the USB log, then
+`check.sh BUILD CAPTURE`: it reads `CONFIG_NET_TCP` and the packet and buffer counts from
+`.pioenvs/<name>/zephyr/zephyr/.config` and wants `tcp null udp ok` twice plus the `TCP stack not built` error exactly
+once on a build without TCP, or `tcp ok udp ok` twice and no error with it. Add `api:` to see TCP and the larger pools
+come back, and connect with `apicheck.py ADDR` over Thread. Measured on the ItsyBitsy: 12.9 KB less flash and 17.1 KB
+less RAM without TCP (Zephyr's default pools, 16/16 instead of 24/48), and SMP over UDP OTA still works with them.
+Results: https://github.com/esphome/esphome/pull/21910#issuecomment-6518287139
