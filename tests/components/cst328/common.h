@@ -22,15 +22,19 @@ class FakePin final : public GPIOPin {
   bool level{false};
 };
 
-// Answers 16-bit register reads from a map; every write succeeds.
+// Answers 16-bit register reads from a map; every write succeeds and records its register.
 class RegisterBus final : public i2c::I2CBus {
  public:
   std::map<uint16_t, std::vector<uint8_t>> registers;
+  uint16_t last_write{0};
 
   i2c::ErrorCode write_readv(uint8_t address, const uint8_t *data, size_t size, uint8_t *out,
                              size_t out_size) override {
-    if (out_size == 0)
+    if (out_size == 0) {
+      if (size >= 2)
+        this->last_write = encode_uint16(data[0], data[1]);
       return i2c::ERROR_OK;
+    }
     if (size < 2)
       return i2c::ERROR_NOT_ACKNOWLEDGED;
     auto &value = this->registers[encode_uint16(data[0], data[1])];

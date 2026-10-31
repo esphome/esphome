@@ -43,10 +43,10 @@ class CST328ButtonTest : public ::testing::Test {
     this->hub_.loop();
   }
 
-  // Runs the scheduler for ms, so setup timeouts that chain fire in turn
-  static void run_timers_(uint32_t ms) {
-    const uint32_t end = millis() + ms;
-    while (static_cast<int32_t>(end - millis()) > 0) {
+  // Runs the scheduler until done() holds, so setup timeouts that chain fire in turn; gives up after 2 s
+  template<typename F> void run_timers_until_(F done) {
+    const uint32_t start = millis();
+    while (!done() && millis() - start < 2000) {
       delay(5);
       App.scheduler.call(millis());
     }
@@ -80,7 +80,7 @@ TEST_F(CST328ButtonTest, ResetPinSetupPublishesOffBeforeItFinishes) {
   // Setup finishes from timeouts; until then touches are skipped
   this->touch_(1);
   EXPECT_FALSE(button.state);
-  this->run_timers_(450);
+  this->run_timers_until_([this] { return this->bus_.last_write == CST_REG_TOUCH_INFORMATION; });
   this->touch_(1);
   EXPECT_TRUE(button.state);
 }

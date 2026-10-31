@@ -40,10 +40,10 @@ class CST226ButtonTest : public ::testing::Test {
     this->hub_.loop();
   }
 
-  // Runs the scheduler for ms, so setup timeouts that chain fire in turn
-  static void run_timers_(uint32_t ms) {
-    const uint32_t end = millis() + ms;
-    while (static_cast<int32_t>(end - millis()) > 0) {
+  // Runs the scheduler until done() holds, so setup timeouts that chain fire in turn; gives up after 2 s
+  template<typename F> void run_timers_until_(F done) {
+    const uint32_t start = millis();
+    while (!done() && millis() - start < 2000) {
       delay(5);
       App.scheduler.call(millis());
     }
@@ -75,7 +75,7 @@ TEST_F(CST226ButtonTest, ResetPinSetupPublishesOffBeforeItFinishes) {
   ASSERT_TRUE(button.has_state());
   EXPECT_FALSE(button.state);
   EXPECT_FALSE(this->hub_.can_proceed());
-  this->run_timers_(100);
+  this->run_timers_until_([this] { return this->hub_.can_proceed(); });
   EXPECT_TRUE(this->hub_.can_proceed());
   this->key_(true);
   EXPECT_TRUE(button.state);
