@@ -269,11 +269,27 @@ class APIServer final : public Component
   const std::vector<UserServiceDescriptor *> &get_user_services() const { return this->user_services_; }
 #endif
 
+#if defined(USE_API_CLIENT_CONNECTED_TRIGGER) || defined(USE_API_CLIENT_DISCONNECTED_TRIGGER) || \
+    defined(USE_API_CLIENT_SYNCED_TRIGGER)
+  /// Called with the client name and address, which are only valid during the call
+  using ClientCallback = Callback<void(StringRef, StringRef)>;
+#endif
 #ifdef USE_API_CLIENT_CONNECTED_TRIGGER
-  Trigger<std::string, std::string> *get_client_connected_trigger() { return &this->client_connected_trigger_; }
+  template<typename F> void set_on_client_connected_callback(F &&callback) {
+    this->client_connected_callback_ = ClientCallback::create(std::forward<F>(callback));
+  }
+  const ClientCallback &get_client_connected_callback() const { return this->client_connected_callback_; }
 #endif
 #ifdef USE_API_CLIENT_DISCONNECTED_TRIGGER
-  Trigger<std::string, std::string> *get_client_disconnected_trigger() { return &this->client_disconnected_trigger_; }
+  template<typename F> void set_on_client_disconnected_callback(F &&callback) {
+    this->client_disconnected_callback_ = ClientCallback::create(std::forward<F>(callback));
+  }
+#endif
+#ifdef USE_API_CLIENT_SYNCED_TRIGGER
+  template<typename F> void set_on_client_synced_callback(F &&callback) {
+    this->client_synced_callback_ = ClientCallback::create(std::forward<F>(callback));
+  }
+  const ClientCallback &get_client_synced_callback() const { return this->client_synced_callback_; }
 #endif
 
  protected:
@@ -335,10 +351,13 @@ class APIServer final : public Component
   // Pointers and pointer-like types first (4 bytes each)
   socket::ListenSocket *socket_{nullptr};
 #ifdef USE_API_CLIENT_CONNECTED_TRIGGER
-  Trigger<std::string, std::string> client_connected_trigger_;
+  ClientCallback client_connected_callback_;
 #endif
 #ifdef USE_API_CLIENT_DISCONNECTED_TRIGGER
-  Trigger<std::string, std::string> client_disconnected_trigger_;
+  ClientCallback client_disconnected_callback_;
+#endif
+#ifdef USE_API_CLIENT_SYNCED_TRIGGER
+  ClientCallback client_synced_callback_;
 #endif
 
   // 4-byte aligned types
