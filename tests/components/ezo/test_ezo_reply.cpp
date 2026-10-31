@@ -30,23 +30,34 @@ class EzoReplyBus final : public i2c::I2CBus {
   bool busy{false};
 };
 
-static std::vector<std::string> run_custom(const std::string &reply) {
+// A sensor on EzoReplyBus that collects custom replies; queue a command with send_custom().
+struct CustomRig {
+  explicit CustomRig(const std::string &reply) {
+    this->bus.reply = reply;
+    this->ezo.set_i2c_bus(&this->bus);
+    this->ezo.set_i2c_address(99);
+    this->ezo.add_custom_callback([this](const std::string &x) { this->replies.push_back(x); });
+  }
+  void loop_at(uint32_t now) {
+    LoopBlockingGuard guard{nullptr, nullptr, now};
+    this->ezo.loop();
+  }
+
   EzoReplyBus bus;
-  bus.reply = reply;
   EZOSensor ezo;
-  ezo.set_i2c_bus(&bus);
-  ezo.set_i2c_address(99);
   std::vector<std::string> replies;
-  ezo.add_custom_callback([&replies](const std::string &x) { replies.push_back(x); });
-  ezo.send_custom("Status");
+};
+
+static std::vector<std::string> run_custom(const std::string &reply) {
+  CustomRig rig(reply);
+  rig.ezo.send_custom("Status");
   // The reply is read once its delay has passed on the real clock.
   const uint32_t start = millis();
-  while (replies.empty() && millis() - start < 2000) {
-    LoopBlockingGuard guard{nullptr, nullptr, millis()};
-    ezo.loop();
+  while (rig.replies.empty() && millis() - start < 2000) {
+    rig.loop_at(millis());
     delay(10);
   }
-  return replies;
+  return rig.replies;
 }
 
 // EZO-RGB's largest reply is 52 characters; it arrives whole even with no terminator in the read.
@@ -62,22 +73,25 @@ TEST(EzoReplyTest, ShortReplyIsUnchanged) {
 // A device that answers "still busy" for longer than the 16-bit reply window is still read every loop,
 // and its reply arrives as soon as it is ready.
 TEST(EzoReplyTest, LongBusySpellKeepsPolling) {
-  EzoReplyBus bus;
-  bus.reply = "?Status,P,5.038";
-  bus.busy = true;
-  EZOSensor ezo;
-  ezo.set_i2c_bus(&bus);
-  ezo.set_i2c_address(99);
-  std::vector<std::string> replies;
-  ezo.add_custom_callback([&replies](const std::string &x) { replies.push_back(x); });
-  ezo.send_custom("Status");
+  CustomRig rig("?Status,P,5.038");
+  rig.ezo.send_custom("Status");
   static constexpr uint32_t READY_AT = 40000;
-  for (uint32_t now = 1000; now < READY_AT + 1000 && replies.empty(); now += 100) {
-    bus.busy = now < READY_AT;
-    LoopBlockingGuard guard{nullptr, nullptr, now};
-    ezo.loop();
+  for (uint32_t now = 1000; now < READY_AT + 1000 && rig.replies.empty(); now += 100) {
+    rig.bus.busy = now < READY_AT;
+    rig.loop_at(now);
   }
-  EXPECT_EQ(replies, (std::vector<std::string>{"?Status,P,5.038"}));
+  EXPECT_EQ(rig.replies, (std::vector<std::string>{"?Status,P,5.038"}));
+}
+
+// A reply due just past a 16-bit wrap of the clock is not read early.
+TEST(EzoReplyTest, ReplyDueAcrossSixteenBitWrap) {
+  CustomRig rig("?Status,P,5.038");
+  rig.ezo.send_custom("Status");
+  rig.loop_at(65300);  // sent; due at 65600, stored as 64
+  rig.loop_at(65400);
+  EXPECT_TRUE(rig.bus.read_sizes.empty());
+  rig.loop_at(65600);
+  EXPECT_EQ(rig.replies, (std::vector<std::string>{"?Status,P,5.038"}));
 }
 
 }  // namespace esphome::ezo::testing
