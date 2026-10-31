@@ -33,7 +33,7 @@ static float tp97_celsius(float raw) { return fahrenheit_to_celsius(raw - 54.0f)
 // Some probes append 6 bytes of the base station MAC to the 7-byte frame
 static bool parse_tp96(const uint8_t *data, size_t data_size, ParseResult &result) {
   if (data_size != 7 && data_size != 13) {
-    ESP_LOGVV(TAG, "TP96 payload size %u not 7 or 13", static_cast<unsigned>(data_size));
+    ESP_LOGVV(TAG, "Probe payload size %u not supported", static_cast<unsigned>(data_size));
     return false;
   }
   // Temperatures are offset by 30 °C
