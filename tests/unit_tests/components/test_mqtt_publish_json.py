@@ -53,8 +53,15 @@ def client() -> None:
 
 @pytest.mark.asyncio
 @pytest.mark.usefixtures("client")
-@pytest.mark.parametrize("platform", [PLATFORM_ESP32, PLATFORM_ESP8266])
-async def test_publish_json_constants_codegen(platform: str) -> None:
+@pytest.mark.parametrize(
+    ("platform", "topic"),
+    [
+        (PLATFORM_ESP32, '"the/topic"'),
+        (PLATFORM_ESP8266, 'progmem_string(ESPHOME_F("the/topic"))'),
+    ],
+)
+async def test_publish_json_constants_codegen(platform: str, topic: str) -> None:
+    """Constants are passed straight to ``publish_json``; the topic stays in flash on ESP8266."""
     CORE.data[KEY_CORE][KEY_TARGET_PLATFORM] = platform
 
     await automation.build_action(
@@ -63,25 +70,21 @@ async def test_publish_json_constants_codegen(platform: str) -> None:
         [],
     )
 
+    assert "new(act) ApplyAction<esphome__act__fn>();" in CORE.cpp_main_section
     assert (
-        "new(act) mqtt::MQTTPublishJsonAction<>(client);\n"
-        'act->set_topic(ESPHOME_F("the/topic"));\n'
-        "act->set_payload([](ArduinoJson::JsonObject root) -> void {\n"
+        "static void esphome__act__fn() {\n"
+        f"  ::client->publish_json({topic}, [&](ArduinoJson::JsonObject root) {{ "
+        "[](ArduinoJson::JsonObject root) -> void {\n"
         '    root["key"] = 1;\n'
-        "});\n"
-        "act->set_qos([]() -> uint8_t {\n"
-        "    return 1;\n"
-        "});\n"
-        "act->set_retain([]() -> bool {\n"
-        "    return true;\n"
-        "});\n"
-    ) in CORE.cpp_main_section
+        "  }(root); }, 1, true);\n"
+        "}\n"
+    ) in CORE.cpp_global_section
 
 
 @pytest.mark.asyncio
 @pytest.mark.usefixtures("client")
 async def test_publish_json_lambdas_codegen() -> None:
-    """Topic, qos and retain are lambdas over the trigger args; the payload also gets ``root``."""
+    """Topic, qos and retain are computed in that order before the publish; the payload also gets ``root``."""
     await automation.build_action(
         _publish_json(
             **{
@@ -95,21 +98,44 @@ async def test_publish_json_lambdas_codegen() -> None:
         INT_ARGS,
     )
 
+    assert "new(act) ApplyAction<esphome__act__fn, int>();" in CORE.cpp_main_section
     assert (
-        "new(act) mqtt::MQTTPublishJsonAction<int>(client);\n"
-        "act->set_topic([](int x) -> std::string {\n"
+        "static void esphome__act__fn(const std::remove_cvref_t<int> & x) {\n"
+        "  {\n"
+        "    const std::string esphome__topic = [](int x) -> std::string {\n"
         "    return to_string(x);\n"
-        "});\n"
-        "act->set_payload([](int x, ArduinoJson::JsonObject root) -> void {\n"
-        '    root["x"] = x;\n'
-        "});\n"
-        "act->set_qos([](int x) -> uint8_t {\n"
+        "  }(x);\n"
+        "    const uint8_t esphome__qos = [](int x) -> uint8_t {\n"
         "    return x > 0;\n"
-        "});\n"
-        "act->set_retain([](int x) -> bool {\n"
+        "  }(x);\n"
+        "    const bool esphome__retain = [](int x) -> bool {\n"
         "    return x > 1;\n"
-        "});\n"
-    ) in CORE.cpp_main_section
+        "  }(x);\n"
+        "    ::client->publish_json(esphome__topic, [&](ArduinoJson::JsonObject root) { "
+        "[](int x, ArduinoJson::JsonObject root) -> void {\n"
+        '    root["x"] = x;\n'
+        "  }(x, root); }, esphome__qos, esphome__retain);\n"
+        "  }\n"
+        "}\n"
+    ) in CORE.cpp_global_section
+
+
+@pytest.mark.asyncio
+@pytest.mark.usefixtures("client")
+async def test_publish_json_merged_actions_keep_their_locals_apart() -> None:
+    """Two merged publishes each bind their values in their own block."""
+    first = _publish_json(**{CONF_TOPIC: Lambda("return to_string(x);")})
+    second = _publish_json(**{CONF_TOPIC: Lambda("return to_string(x + 1);")})
+    second[CONF_TYPE_ID] = ID(
+        "act2", is_declaration=True, type=automation.ApplyAction, is_manual=False
+    )
+
+    result = await automation.build_action_list([first, second], INT_ARG, INT_ARGS)
+
+    assert [str(action) for action in result] == ["act"]
+    text = CORE.cpp_global_section
+    assert text.count("  {\n    const std::string esphome__topic = ") == 2
+    assert text.count("esphome__topic, [&]") == 2
 
 
 @pytest.mark.asyncio
@@ -133,9 +159,12 @@ async def test_publish_json_lambdas_codegen() -> None:
 async def test_publish_json_lambdas_take_args_by_value(
     key: str, body: str, lambda_: str
 ) -> None:
-    """A user lambda gets the trigger args by value, so it may modify them."""
+    """A user lambda gets the trigger args by value, so it may modify them.
+
+    It is called rather than reduced, so even a single return modifies only its own copy.
+    """
     await automation.build_action(
         _publish_json(**{key: Lambda(body)}), INT_ARG, INT_ARGS
     )
 
-    assert f"{lambda_}\n    {body}\n}}" in CORE.cpp_main_section
+    assert f"{lambda_}\n    {body}\n  }}(x" in CORE.cpp_global_section
