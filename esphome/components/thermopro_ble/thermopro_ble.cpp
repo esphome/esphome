@@ -32,7 +32,7 @@ static bool parse_tp972(const uint8_t *data, size_t data_size, ParseResult &resu
     ESP_LOGVV(TAG, "TP972 payload size %u != 23", static_cast<unsigned>(data_size));
     return false;
   }
-  // Temperatures are offset by 54 °C
+  // TODO: both temperatures are °F + 54 and the internal one is a float; fixed in a follow-up
   result.external_temperature = static_cast<float>(encode_value_le<uint16_t>(data + 1)) - 54.0f;
   result.battery_level = tp96_battery(encode_value_le<uint16_t>(data + 3));
   result.temperature = static_cast<float>(encode_value_le<uint32_t>(data + 9)) - 54.0f;
