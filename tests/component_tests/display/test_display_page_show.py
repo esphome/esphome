@@ -30,6 +30,7 @@ def test_page_show_lambda_page(main_cpp: str) -> None:
         "  {\n"
         "  display::DisplayPage * esphome__page = []() -> display::DisplayPage * {\n"
     )
+    assert "    return page2;\n" in body
     assert (
         "  }();\n"
         "  if (esphome__page != nullptr) {\n"
