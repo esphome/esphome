@@ -105,9 +105,9 @@ canbus::Error Canbus::send_data(uint32_t can_id, bool use_extended_id, bool remo
 
 void Canbus::add_trigger(CanbusTrigger *trigger) {
   if (trigger->use_extended_id_) {
-    ESP_LOGVV(TAG, "add trigger for extended canid=0x%08" PRIx32, trigger->can_id_);
+    ESP_LOGVV(TAG, "add trigger for extended can_id=0x%08" PRIx32, trigger->can_id_);
   } else {
-    ESP_LOGVV(TAG, "add trigger for std canid=0x%03" PRIx32, trigger->can_id_);
+    ESP_LOGVV(TAG, "add trigger for standard can_id=0x%03" PRIx32, trigger->can_id_);
   }
   this->triggers_.push_back(trigger);
 };
@@ -136,10 +136,10 @@ void Canbus::loop() {
     }
 
     if (can_message.use_extended_id) {
-      ESP_LOGD(TAG, "received can message (#%" PRIu32 ") ext can_id=0x%" PRIx32 " size=%d", message_counter + 1,
+      ESP_LOGD(TAG, "received can message (#%" PRIu32 ") extended can_id=0x%" PRIx32 " size=%d", message_counter + 1,
                can_message.can_id, size);
     } else {
-      ESP_LOGD(TAG, "received can message (#%" PRIu32 ") std can_id=0x%" PRIx32 " size=%d", message_counter + 1,
+      ESP_LOGD(TAG, "received can message (#%" PRIu32 ") standard can_id=0x%" PRIx32 " size=%d", message_counter + 1,
                can_message.can_id, size);
     }
 
