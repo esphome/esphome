@@ -115,7 +115,8 @@ class Canbus : public Component {
    */
   template<typename F> void add_frame_callback(F &&callback) { this->frame_callbacks_.add(std::forward<F>(callback)); }
 
-  /// A received frame's payload, in one buffer reused for every frame; valid until the next call.
+  /// A received frame's payload as a vector, in one buffer shared by every caller and overwritten by the next
+  /// call; do not keep it past the callback. Read frame.data directly to avoid the copy.
   const std::vector<uint8_t> &frame_payload(const CanFrame &frame);
 
   /**
