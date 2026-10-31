@@ -3,6 +3,7 @@
 #include "esphome/core/component.h"
 #include "esphome/components/sensor/sensor.h"
 #include "esphome/components/i2c/i2c.h"
+#include "esphome/core/helpers.h"
 
 namespace esphome::tcs34725 {
 
@@ -57,7 +58,7 @@ class TCS34725Component final : public PollingComponent, public i2c::I2CDevice {
     uint8_t buffer[2];
     auto retval = this->read_register(a_register, buffer, 2);
     if (retval == i2c::ERROR_OK)
-      data = (uint16_t(buffer[1]) << 8) | (uint16_t(buffer[0]) & 0xFF);
+      data = encode_uint16(buffer[1], buffer[0]);
     return retval;
   }
   i2c::ErrorCode write_config_register_(uint8_t a_register, uint8_t data) {
