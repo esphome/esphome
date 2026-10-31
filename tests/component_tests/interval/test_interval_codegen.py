@@ -49,7 +49,7 @@ def test_interval_update_interval_and_startup_delay(main_cpp: str) -> None:
         ("interval_intervaltrigger_id", 1000, 0),
         ("interval_intervaltrigger_id_2", 2000, 5000),
         ("interval_intervaltrigger_id_3", 3000, 0),
-        ("named_interval", 4000, 0),
+        ("named_interval", 4000, 3000),
         ("interval_intervaltrigger_id_4", 5000, 0),
     ):
         assert f"{var}->set_update_interval({interval});" in main_cpp

@@ -22,6 +22,7 @@ interval:
       - logger.log: after delay
   - id: named_interval
     interval: 4s
+    startup_delay: 3s
     then:
       - logger.log: named tick
   - interval: 5s
