@@ -45,7 +45,6 @@ class MCP23016 final : public gpio_expander::CachedGpioExpanderComponent<uint16_
   void update_reg_(uint8_t pin, bool pin_value, uint8_t reg_a);
 
   uint16_t olat_{0x0000};
-  // Cache for input values (16-bit combined for both banks)
 };
 
 using MCP23016GPIOPin = gpio_expander::ExpanderGPIOPin<MCP23016>;

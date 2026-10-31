@@ -33,8 +33,7 @@ void PCF8574Component::dump_config() {
   LOG_I2C_DEVICE(this)
 }
 bool PCF8574Component::digital_read_hw(uint8_t pin) {
-  // Read all pins from hardware into input_[0]
-  return this->read_gpio_();  // Return true if I2C read succeeded, false on error
+  return this->read_gpio_();
 }
 
 void PCF8574Component::digital_write_hw(uint8_t pin, bool value) {
