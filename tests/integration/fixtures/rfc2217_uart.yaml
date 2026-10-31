@@ -1,0 +1,25 @@
+esphome:
+  name: rfc2217-uart-test
+
+host:
+
+api:
+
+logger:
+  level: DEBUG
+
+uart:
+  - id: uart_bus
+    baud_rate: 115200
+    port: PTY_PATH
+
+tcp_uart:
+  - id: inbound
+    role: server
+    port: 18128
+
+rfc2217_uart:
+  - id: port_server
+    role: server
+    tcp_uart_id: inbound
+    uart_id: uart_bus

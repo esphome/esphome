@@ -1,0 +1,14 @@
+wifi:
+  ssid: MySSID
+  password: password1
+
+tcp_uart:
+  - id: inbound
+    role: server
+    port: 2217
+
+rfc2217_uart:
+  - id: port_server
+    role: server
+    tcp_uart_id: inbound
+    uart_id: uart_bus
