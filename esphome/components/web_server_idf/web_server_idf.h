@@ -478,7 +478,7 @@ class DefaultHeaders {
   StaticVector<HttpHeader, WEB_SERVER_DEFAULT_HEADERS_COUNT> headers_;
 
   /// Set every default header on the response except those whose bit is set in skip_mask.
-  void apply_(httpd_req_t *req, uint8_t skip_mask) const;
+  void apply_(httpd_req_t *req, uint8_t skip_mask = 0) const;
 };
 
 }  // namespace web_server_idf

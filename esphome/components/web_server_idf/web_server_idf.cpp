@@ -391,7 +391,7 @@ void AsyncWebServerRequest::init_response_(AsyncWebServerResponse *rsp, int code
   // A response object sends the defaults in send(), after its own headers, so one it set itself can
   // replace a default of the same name (httpd_resp_set_hdr only appends).
   if (rsp == nullptr)
-    DefaultHeaders::Instance().apply_(*this, 0);
+    DefaultHeaders::Instance().apply_(*this);
 
   delete this->rsp_;
   this->rsp_ = rsp;
@@ -694,7 +694,7 @@ std::string AsyncWebServerRequest::arg(const char *name) {
 void AsyncWebServerResponse::addHeader(const char *name, const char *value) {
   const auto &defaults = DefaultHeaders::Instance().headers_;
   for (size_t i = 0; i < defaults.size(); i++) {
-    if (strcasecmp(name, defaults[i].name) == 0)
+    if (str_equals_case_insensitive(name, defaults[i].name))
       this->replaced_defaults_ |= 1U << i;
   }
   httpd_resp_set_hdr(*this->req_, name, value);
@@ -837,7 +837,7 @@ AsyncEventSourceResponse::AsyncEventSourceResponse(const AsyncWebServerRequest *
   httpd_resp_set_hdr(req, "Cache-Control", "no-cache");
   httpd_resp_set_hdr(req, "Connection", "keep-alive");
 
-  DefaultHeaders::Instance().apply_(req, 0);
+  DefaultHeaders::Instance().apply_(req);
 
   httpd_resp_send_chunk(req, CRLF_STR, CRLF_LEN);
 
