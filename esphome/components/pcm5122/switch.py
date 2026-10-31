@@ -4,7 +4,7 @@ import esphome.config_validation as cv
 from esphome.const import CONF_POWER_MODE, ENTITY_CATEGORY_CONFIG
 from esphome.types import ConfigType
 
-from ..audio_dac import CONF_PCM5122, PCM5122
+from .audio_dac import CONF_PCM5122, PCM5122
 
 CONFIG_SCHEMA = switch.switch_schema(
     switch.ApplySwitch,

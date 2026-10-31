@@ -4,7 +4,7 @@ import esphome.config_validation as cv
 from esphome.const import CONF_FACTORY_RESET, CONF_ID, CONF_RESTART
 from esphome.types import ConfigType
 
-from .. import CONF_LD2450_ID, LD2450Component
+from . import CONF_LD2450_ID, FILTER_SOURCE_FILES, LD2450Component  # noqa: F401  pylint: disable=unused-import
 
 CONFIG_SCHEMA = {
     cv.GenerateID(CONF_ID): cv.declare_id(cg.EntityBase),

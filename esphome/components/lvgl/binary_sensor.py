@@ -6,10 +6,10 @@ from esphome.components.binary_sensor import (
 import esphome.config_validation as cv
 from esphome.const import CONF_STATE
 
-from ..defines import CONF_CLICKABLE, CONF_WIDGET, LvConstant
-from ..lvcode import EVENT_ARG, UPDATE_EVENT, LambdaContext, LvContext, lvgl_static
-from ..types import LV_EVENT, LV_STATE, lv_pseudo_button_t
-from ..widgets import Widget, get_widgets
+from .defines import CONF_CLICKABLE, CONF_WIDGET, LvConstant
+from .lvcode import EVENT_ARG, UPDATE_EVENT, LambdaContext, LvContext, lvgl_static
+from .types import LV_EVENT, LV_STATE, lv_pseudo_button_t
+from .widgets import Widget, get_widgets
 
 STATE_PRESSED = "PRESSED"
 STATE_CHECKED = "CHECKED"

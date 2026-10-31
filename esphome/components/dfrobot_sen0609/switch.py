@@ -10,7 +10,7 @@ from esphome.const import (
 )
 from esphome.types import ConfigType
 
-from .. import (
+from . import (
     CONF_DFROBOT_SEN0609_ID,
     MODE_SPEED_AND_DISTANCE,
     DFRobotSEN0609Component,

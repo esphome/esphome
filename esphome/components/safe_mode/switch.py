@@ -3,7 +3,7 @@ import esphome.config_validation as cv
 from esphome.const import CONF_SAFE_MODE, ENTITY_CATEGORY_CONFIG, ICON_RESTART_ALERT
 from esphome.types import ConfigType
 
-from .. import SafeModeComponent
+from . import SafeModeComponent
 
 DEPENDENCIES = ["safe_mode"]
 

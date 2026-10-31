@@ -5,8 +5,8 @@ import esphome.config_validation as cv
 from esphome.const import ENTITY_CATEGORY_CONFIG
 from esphome.types import ConfigType
 
-from .. import LD6004Component
-from ..const import AREA_KINDS, CONF_LD6004_ID
+from . import LD6004Component
+from .const import AREA_KINDS, CONF_LD6004_ID
 
 DEPENDENCIES = ["ld6004"]
 

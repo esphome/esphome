@@ -5,10 +5,10 @@ from esphome.components.text_sensor import (
 )
 import esphome.config_validation as cv
 
-from ..defines import CONF_WIDGET
-from ..lvcode import EVENT_ARG, UPDATE_EVENT, LambdaContext, LvContext, lvgl_static
-from ..types import LV_EVENT, LvText
-from ..widgets import get_widgets
+from .defines import CONF_WIDGET
+from .lvcode import EVENT_ARG, UPDATE_EVENT, LambdaContext, LvContext, lvgl_static
+from .types import LV_EVENT, LvText
+from .widgets import get_widgets
 
 CONFIG_SCHEMA = text_sensor_schema(TextSensor).extend(
     {

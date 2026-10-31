@@ -11,7 +11,7 @@ from esphome.const import (
 )
 from esphome.types import ConfigType
 
-from .. import CONF_LD2410_ID, LD2410Component
+from . import CONF_LD2410_ID, LD2410Component
 
 CONF_ENGINEERING_MODE = "engineering_mode"
 

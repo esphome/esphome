@@ -11,7 +11,7 @@ from esphome.const import (
 )
 from esphome.types import ConfigType
 
-from .. import CONF_LD2450_ID, LD2450Component
+from . import CONF_LD2450_ID, FILTER_SOURCE_FILES, LD2450Component  # noqa: F401  pylint: disable=unused-import
 
 CONF_PRESENCE_TIMEOUT = "presence_timeout"
 CONF_X1 = "x1"

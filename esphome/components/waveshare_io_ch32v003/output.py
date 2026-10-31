@@ -3,7 +3,7 @@ import esphome.config_validation as cv
 from esphome.const import CONF_ID, CONF_MAX_VALUE, CONF_MIN_VALUE
 from esphome.types import ConfigType
 
-from .. import CONF_WAVESHARE_IO_CH32V003_ID, WaveshareIOCH32V003Component
+from . import CONF_WAVESHARE_IO_CH32V003_ID, WaveshareIOCH32V003Component
 
 DEPENDENCIES = ["waveshare_io_ch32v003"]
 

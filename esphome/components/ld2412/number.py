@@ -20,7 +20,7 @@ from esphome.const import (
 )
 from esphome.types import ConfigType
 
-from .. import CONF_LD2412_ID, LD2412Component
+from . import CONF_LD2412_ID, LD2412Component
 
 CONF_LIGHT_THRESHOLD = "light_threshold"
 CONF_MAX_DISTANCE_GATE = "max_distance_gate"

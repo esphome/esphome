@@ -4,7 +4,7 @@ import esphome.config_validation as cv
 from esphome.const import CONF_TYPE, ENTITY_CATEGORY_CONFIG
 from esphome.types import ConfigType
 
-from .. import CONF_DFROBOT_SEN0395_ID, DfrobotSen0395Component, dfrobot_sen0395_ns
+from . import CONF_DFROBOT_SEN0395_ID, DfrobotSen0395Component, dfrobot_sen0395_ns
 
 DEPENDENCIES = ["dfrobot_sen0395"]
 

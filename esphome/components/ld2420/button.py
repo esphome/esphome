@@ -12,7 +12,7 @@ from esphome.const import (
 )
 from esphome.types import ConfigType
 
-from .. import CONF_LD2420_ID, LD2420Component
+from . import CONF_LD2420_ID, LD2420Component
 
 CONF_APPLY_CONFIG = "apply_config"
 CONF_REVERT_CONFIG = "revert_config"

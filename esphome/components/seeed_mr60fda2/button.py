@@ -10,7 +10,7 @@ from esphome.const import (
 )
 from esphome.types import ConfigType
 
-from .. import CONF_MR60FDA2_ID, MR60FDA2Component
+from . import CONF_MR60FDA2_ID, MR60FDA2Component
 
 DEPENDENCIES = ["seeed_mr60fda2"]
 

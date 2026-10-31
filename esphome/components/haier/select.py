@@ -4,7 +4,7 @@ import esphome.config_validation as cv
 from esphome.const import ENTITY_CATEGORY_CONFIG
 from esphome.types import ConfigType
 
-from ..climate import (
+from .climate import (
     CONF_HAIER_ID,
     CONF_HORIZONTAL_AIRFLOW,
     CONF_VERTICAL_AIRFLOW,

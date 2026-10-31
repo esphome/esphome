@@ -4,7 +4,7 @@ import esphome.config_validation as cv
 from esphome.const import CONF_DISPLAY, ENTITY_CATEGORY_CONFIG
 from esphome.types import ConfigType
 
-from ..climate import CONF_AIRTON_ID, CONF_SLEEP_MODE, AirtonClimate, airton_ns
+from .climate import CONF_AIRTON_ID, CONF_SLEEP_MODE, AirtonClimate, airton_ns
 
 CODEOWNERS = ["@Procsiab"]
 

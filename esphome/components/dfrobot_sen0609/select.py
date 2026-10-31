@@ -5,7 +5,7 @@ import esphome.config_validation as cv
 from esphome.const import CONF_ID, ENTITY_CATEGORY_CONFIG, ICON_SCALE
 from esphome.types import ConfigType
 
-from .. import CONF_DFROBOT_SEN0609_ID, DFRobotSEN0609Component
+from . import CONF_DFROBOT_SEN0609_ID, DFRobotSEN0609Component
 
 CONFIG_SCHEMA = {
     cv.GenerateID(CONF_ID): cv.declare_id(cg.EntityBase),

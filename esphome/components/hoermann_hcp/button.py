@@ -3,7 +3,7 @@ import esphome.config_validation as cv
 from esphome.const import ICON_AIR_FILTER
 from esphome.types import ConfigType
 
-from .. import CONF_HOERMANN_HCP_ID, HoermannHcp
+from . import CONF_HOERMANN_HCP_ID, HoermannHcp
 
 DEPENDENCIES = ["hoermann_hcp"]
 

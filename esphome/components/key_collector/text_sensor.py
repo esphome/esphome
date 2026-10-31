@@ -6,7 +6,7 @@ from esphome.const import CONF_ID
 from esphome.cpp_generator import literal
 from esphome.types import ConfigType, TemplateArgsType
 
-from .. import CONF_ON_RESULT, CONF_SOURCE_ID, TRIGGER_TYPES, KeyCollector
+from . import CONF_ON_RESULT, CONF_SOURCE_ID, TRIGGER_TYPES, KeyCollector
 
 CONFIG_SCHEMA = text_sensor.text_sensor_schema(TextSensor).extend(
     {

@@ -4,7 +4,7 @@ import esphome.config_validation as cv
 from esphome.const import ENTITY_CATEGORY_CONFIG
 from esphome.types import ConfigType
 
-from .. import CONF_MR24HPC1_ID, MR24HPC1Component
+from . import CONF_MR24HPC1_ID, MR24HPC1Component
 
 CONF_SCENE_MODE = "scene_mode"
 CONF_UNMAN_TIME = "unman_time"

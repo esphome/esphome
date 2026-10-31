@@ -5,7 +5,7 @@ from esphome.const import CONF_CHANNEL
 import esphome.final_validate as fv
 from esphome.types import ConfigType
 
-from .. import CONF_M5STACK_4RELAY_ID, DOMAIN, M5Stack4Relay
+from . import CONF_M5STACK_4RELAY_ID, DOMAIN, M5Stack4Relay
 
 DEPENDENCIES = ["m5stack_4relay"]
 

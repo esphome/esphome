@@ -3,7 +3,7 @@ import esphome.config_validation as cv
 from esphome.const import ENTITY_CATEGORY_CONFIG
 from esphome.types import ConfigType
 
-from .. import CONF_ESPECTRE_ID, ESPectreComponent
+from . import CONF_ESPECTRE_ID, ESPectreComponent
 
 DEPENDENCIES = ["espectre"]
 

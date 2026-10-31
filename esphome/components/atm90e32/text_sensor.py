@@ -4,7 +4,7 @@ import esphome.config_validation as cv
 from esphome.const import CONF_ID, CONF_PHASE_A, CONF_PHASE_B, CONF_PHASE_C
 from esphome.types import ConfigType
 
-from ..sensor import ATM90E32Component
+from .sensor import ATM90E32Component
 
 CONF_PHASE_STATUS = "phase_status"
 CONF_FREQUENCY_STATUS = "frequency_status"

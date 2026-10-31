@@ -2,7 +2,7 @@ from esphome.components import button
 import esphome.config_validation as cv
 from esphome.types import ConfigType
 
-from ..climate import CONF_HAIER_ID, HonClimate
+from .climate import CONF_HAIER_ID, HonClimate
 
 CODEOWNERS = ["@paveldn"]
 

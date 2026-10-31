@@ -3,7 +3,7 @@ import esphome.config_validation as cv
 from esphome.const import CONF_ID
 from esphome.types import ConfigType
 
-from .. import CONF_EMC2101_ID, EMC2101_COMPONENT_SCHEMA
+from . import CONF_EMC2101_ID, EMC2101_COMPONENT_SCHEMA
 
 DEPENDENCIES = ["emc2101"]
 

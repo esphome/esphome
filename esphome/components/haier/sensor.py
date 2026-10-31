@@ -27,7 +27,7 @@ from esphome.const import (
     UNIT_WATT,
 )
 
-from ..climate import CONF_HAIER_ID, HonClimate
+from .climate import CONF_HAIER_ID, HonClimate
 
 CODEOWNERS = ["@paveldn"]
 SensorTypeEnum = HonClimate.enum("SubSensorType", True)

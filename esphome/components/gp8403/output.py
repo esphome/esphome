@@ -3,7 +3,7 @@ import esphome.config_validation as cv
 from esphome.const import CONF_CHANNEL
 from esphome.types import ConfigType
 
-from .. import CONF_GP8403_ID, GP8403Component
+from . import CONF_GP8403_ID, GP8403Component
 
 DEPENDENCIES = ["gp8403"]
 

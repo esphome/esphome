@@ -8,7 +8,7 @@ from esphome.const import ICON_POWER
 from esphome.cpp_generator import MockObj
 from esphome.types import ConfigType
 
-from .. import CONF_PIPSOLAR_ID, PIPSOLAR_COMPONENT_SCHEMA
+from . import CONF_PIPSOLAR_ID, PIPSOLAR_COMPONENT_SCHEMA
 
 DEPENDENCIES = ["uart"]
 

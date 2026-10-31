@@ -4,7 +4,7 @@ import esphome.config_validation as cv
 from esphome.const import CONF_SENSITIVITY, ENTITY_CATEGORY_CONFIG
 from esphome.types import ConfigType
 
-from .. import CONF_MR24HPC1_ID, MR24HPC1Component
+from . import CONF_MR24HPC1_ID, MR24HPC1Component
 
 CONF_CUSTOM_MODE = "custom_mode"
 CONF_EXISTENCE_THRESHOLD = "existence_threshold"

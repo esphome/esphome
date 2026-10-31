@@ -4,7 +4,7 @@ import esphome.config_validation as cv
 from esphome.const import CONF_VERSION, ENTITY_CATEGORY_DIAGNOSTIC, ICON_CHIP
 from esphome.types import ConfigType
 
-from .. import CONF_EMONTX_ID, EmonTx
+from . import CONF_EMONTX_ID, EmonTx
 
 CONFIG_SCHEMA = cv.Schema(
     {

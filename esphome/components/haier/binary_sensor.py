@@ -3,7 +3,7 @@ from esphome.components import binary_sensor
 import esphome.config_validation as cv
 from esphome.const import ENTITY_CATEGORY_DIAGNOSTIC, ICON_FAN, ICON_RADIATOR
 
-from ..climate import CONF_HAIER_ID, HonClimate
+from .climate import CONF_HAIER_ID, HonClimate
 
 CODEOWNERS = ["@paveldn"]
 BinarySensorTypeEnum = HonClimate.enum("SubBinarySensorType", True)

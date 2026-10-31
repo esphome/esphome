@@ -1,11 +1,11 @@
 from esphome.components.sensor import Sensor, new_sensor, sensor_schema
 import esphome.config_validation as cv
 
-from ..defines import CONF_TRIGGER, CONF_WIDGET
-from ..lvcode import EVENT_ARG, LambdaContext, LvContext, lv_add, lvgl_static
-from ..schemas import TRIGGER_EVENT_MAP, VALUE_TRIGGER_SCHEMA
-from ..types import LvNumber
-from ..widgets import Widget, get_widgets
+from .defines import CONF_TRIGGER, CONF_WIDGET
+from .lvcode import EVENT_ARG, LambdaContext, LvContext, lv_add, lvgl_static
+from .schemas import TRIGGER_EVENT_MAP, VALUE_TRIGGER_SCHEMA
+from .types import LvNumber
+from .widgets import Widget, get_widgets
 
 CONFIG_SCHEMA = sensor_schema(Sensor).extend(
     {

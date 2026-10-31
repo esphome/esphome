@@ -3,7 +3,7 @@ from esphome.components import text_sensor
 import esphome.config_validation as cv
 from esphome.const import ENTITY_CATEGORY_DIAGNOSTIC, ENTITY_CATEGORY_NONE
 
-from ..climate import CONF_HAIER_ID, HonClimate
+from .climate import CONF_HAIER_ID, HonClimate
 
 CODEOWNERS = ["@paveldn"]
 TextSensorTypeEnum = HonClimate.enum("SubTextSensorType", True)

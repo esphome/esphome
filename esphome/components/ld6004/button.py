@@ -2,8 +2,8 @@ from esphome.components.ld600x import entities
 import esphome.config_validation as cv
 from esphome.types import ConfigType
 
-from .. import LD6004Component, ld6004_ns
-from ..const import CONF_LD6004_ID
+from . import LD6004Component, ld6004_ns
+from .const import CONF_LD6004_ID
 
 DEPENDENCIES = ["ld6004"]
 

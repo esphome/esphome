@@ -3,7 +3,7 @@ from typing import Any
 from esphome.components import sensor
 import esphome.config_validation as cv
 
-from .. import const, generate, schema, validate
+from . import const, generate, schema, validate
 
 DEPENDENCIES = [const.OPENTHERM]
 COMPONENT_TYPE = const.SENSOR

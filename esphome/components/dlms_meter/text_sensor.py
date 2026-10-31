@@ -3,7 +3,7 @@ from esphome.components import text_sensor
 import esphome.config_validation as cv
 from esphome.types import ConfigType
 
-from .. import (
+from . import (
     CONF_DLMS_METER_ID,
     CONF_OBIS_CODE,
     DlmsMeterComponent,

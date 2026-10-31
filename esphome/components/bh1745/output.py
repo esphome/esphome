@@ -3,7 +3,7 @@ from esphome.components import output
 import esphome.config_validation as cv
 from esphome.types import ConfigType
 
-from .. import CONF_BH1745_ID, BH1745Component
+from . import CONF_BH1745_ID, BH1745Component
 
 DEPENDENCIES = ["bh1745"]
 

@@ -3,7 +3,7 @@ import esphome.config_validation as cv
 from esphome.const import CONF_LED
 from esphome.types import ConfigType
 
-from ..display import CONF_TM1638_ID, TM1638Component
+from .display import CONF_TM1638_ID, TM1638Component
 
 CONFIG_SCHEMA = switch.switch_schema(switch.ApplySwitch).extend(
     {

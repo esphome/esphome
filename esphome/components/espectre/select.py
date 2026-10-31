@@ -5,7 +5,7 @@ from esphome.const import ENTITY_CATEGORY_CONFIG
 from esphome.core import CORE
 from esphome.types import ConfigType
 
-from .. import (
+from . import (
     CONF_ESPECTRE_ID,
     DOMAIN,
     ESPectreComponent,

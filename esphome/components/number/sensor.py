@@ -4,7 +4,7 @@ import esphome.config_validation as cv
 from esphome.const import CONF_SOURCE_ID
 from esphome.types import ConfigType
 
-from .. import Number
+from . import Number
 
 CONFIG_SCHEMA = sensor.sensor_schema(sensor.Sensor).extend(
     {

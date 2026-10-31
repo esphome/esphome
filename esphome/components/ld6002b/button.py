@@ -5,8 +5,8 @@ from esphome.core import ID
 import esphome.final_validate as fv
 from esphome.types import ConfigType
 
-from .. import LD6002BComponent, ld6002b_ns
-from ..const import CONF_LD6002B_ID, CONF_WAKE
+from . import LD6002BComponent, ld6002b_ns
+from .const import CONF_LD6002B_ID, CONF_WAKE
 
 DEPENDENCIES = ["ld6002b"]
 

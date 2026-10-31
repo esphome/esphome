@@ -3,8 +3,8 @@ import esphome.config_validation as cv
 from esphome.const import ENTITY_CATEGORY_CONFIG, ICON_RESTART
 from esphome.types import ConfigType
 
-from .. import CONF_BL0940_ID
-from ..sensor import BL0940
+from . import CONF_BL0940_ID
+from .sensor import BL0940
 
 CONFIG_SCHEMA = button.button_schema(
     button.ApplyButton,

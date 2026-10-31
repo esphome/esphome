@@ -4,7 +4,7 @@ import esphome.config_validation as cv
 from esphome.const import CONF_ID, ENTITY_CATEGORY_CONFIG, ICON_SCALE
 from esphome.types import ConfigType
 
-from ..sensor import ATM90E32Component
+from .sensor import ATM90E32Component
 
 CONF_RUN_GAIN_CALIBRATION = "run_gain_calibration"
 CONF_CLEAR_GAIN_CALIBRATION = "clear_gain_calibration"

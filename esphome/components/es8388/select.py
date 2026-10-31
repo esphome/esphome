@@ -8,7 +8,7 @@ from esphome.const import (
 )
 from esphome.types import ConfigType
 
-from ..audio_dac import CONF_ES8388_ID, ES8388, es8388_ns
+from .audio_dac import CONF_ES8388_ID, ES8388, es8388_ns
 
 CONF_DAC_OUTPUT = "dac_output"
 CONF_ADC_INPUT_MIC = "adc_input_mic"

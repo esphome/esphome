@@ -4,7 +4,7 @@ import esphome.config_validation as cv
 from esphome.const import DEVICE_CLASS_SWITCH, ICON_WIFI
 from esphome.types import ConfigType
 
-from .. import CONF_AT581X_ID, AT581XComponent
+from . import CONF_AT581X_ID, AT581XComponent
 
 DEPENDENCIES = ["at581x"]
 

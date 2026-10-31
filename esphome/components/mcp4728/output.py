@@ -4,7 +4,7 @@ import esphome.config_validation as cv
 from esphome.const import CONF_CHANNEL, CONF_GAIN, CONF_ID
 from esphome.types import ConfigType
 
-from .. import CONF_MCP4728_ID, MCP4728Component, mcp4728_ns
+from . import CONF_MCP4728_ID, MCP4728Component, mcp4728_ns
 
 DEPENDENCIES = ["mcp4728"]
 

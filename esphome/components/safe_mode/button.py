@@ -8,7 +8,7 @@ from esphome.const import (
 )
 from esphome.types import ConfigType
 
-from .. import SafeModeComponent
+from . import SafeModeComponent
 
 DEPENDENCIES = ["safe_mode"]
 

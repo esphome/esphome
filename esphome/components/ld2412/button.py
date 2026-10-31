@@ -11,7 +11,7 @@ from esphome.const import (
 )
 from esphome.types import ConfigType
 
-from .. import CONF_LD2412_ID, LD2412Component
+from . import CONF_LD2412_ID, LD2412Component
 
 CONF_START_DYNAMIC_BACKGROUND_CORRECTION = "start_dynamic_background_correction"
 

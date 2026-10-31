@@ -4,7 +4,7 @@ import esphome.config_validation as cv
 from esphome.const import CONF_ID, DEVICE_CLASS_PROBLEM, ENTITY_CATEGORY_DIAGNOSTIC
 from esphome.types import ConfigType
 
-from .. import CONF_DS3231_ID, DS3231Component
+from . import CONF_DS3231_ID, DS3231Component
 
 DEPENDENCIES = ["ds3231"]
 

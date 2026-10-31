@@ -6,8 +6,8 @@ from esphome.core import CORE
 import esphome.final_validate as fv
 from esphome.types import ConfigType
 
-from .. import DOMAIN
-from ..audio_dac import (
+from . import DOMAIN, FILTER_SOURCE_FILES  # noqa: F401  pylint: disable=unused-import
+from .audio_dac import (
     CONF_DAC_MODE,
     CONF_MIXER_MODE,
     CONF_TAS58XX_ID,

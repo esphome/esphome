@@ -4,7 +4,7 @@ import esphome.config_validation as cv
 from esphome.const import ENTITY_CATEGORY_CONFIG
 from esphome.types import ConfigType
 
-from ..climate import HitachiClimate
+from .climate import HitachiClimate
 
 CONF_HITACHI_AC344_ID = "hitachi_ac344_id"
 CONF_MILDEW_PROOF = "mildew_proof"

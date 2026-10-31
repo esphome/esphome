@@ -5,7 +5,7 @@ from esphome.const import CONF_CHANNEL
 import esphome.final_validate as fv
 from esphome.types import ConfigType
 
-from .. import CONF_SEEED_MULTI_CHANNEL_RELAY_ID, DOMAIN, SeeedMultiChannelRelay
+from . import CONF_SEEED_MULTI_CHANNEL_RELAY_ID, DOMAIN, SeeedMultiChannelRelay
 
 DEPENDENCIES = ["seeed_multi_channel_relay"]
 

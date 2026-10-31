@@ -2,7 +2,7 @@ from esphome.components import button
 import esphome.config_validation as cv
 from esphome.types import ConfigType
 
-from .. import (
+from . import (
     CONF_MEMORY_ADDRESS,
     CONF_MEMORY_LOCATION,
     CONF_MICRONOVA_ID,

@@ -4,7 +4,7 @@ import esphome.config_validation as cv
 from esphome.const import CONF_SENSITIVITY, ENTITY_CATEGORY_CONFIG, ICON_ACCELERATION_Z
 from esphome.types import ConfigType
 
-from .. import CONF_MR60FDA2_ID, MR60FDA2Component
+from . import CONF_MR60FDA2_ID, MR60FDA2Component
 
 DEPENDENCIES = ["seeed_mr60fda2"]
 

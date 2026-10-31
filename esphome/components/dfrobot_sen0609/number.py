@@ -21,7 +21,7 @@ from esphome.core import CORE
 import esphome.final_validate as fv
 from esphome.types import ConfigType
 
-from .. import (
+from . import (
     CONF_DFROBOT_SEN0609_ID,
     MAX_RANGES,
     MODE_PRESENCE,

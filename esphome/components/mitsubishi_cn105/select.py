@@ -4,7 +4,7 @@ import esphome.config_validation as cv
 import esphome.final_validate as fv
 from esphome.types import ConfigType
 
-from .. import (
+from . import (
     CONF_MITSUBISHI_CN105_ID,
     DOMAIN,
     HORIZONTAL_VANE_DIRECTIONS,

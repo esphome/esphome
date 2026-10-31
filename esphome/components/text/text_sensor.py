@@ -4,7 +4,7 @@ import esphome.config_validation as cv
 from esphome.const import CONF_SOURCE_ID
 from esphome.types import ConfigType
 
-from .. import Text
+from . import Text
 
 CONFIG_SCHEMA = text_sensor.text_sensor_schema(text_sensor.TextSensor).extend(
     {

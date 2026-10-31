@@ -5,7 +5,7 @@ from esphome.const import CONF_BEEPER, CONF_DISPLAY, ENTITY_CATEGORY_CONFIG
 import esphome.final_validate as fv
 from esphome.types import ConfigType
 
-from ..climate import CONF_HAIER_ID, CONF_PROTOCOL, PROTOCOL_HON, HaierClimateBase
+from .climate import CONF_HAIER_ID, CONF_PROTOCOL, PROTOCOL_HON, HaierClimateBase
 
 CODEOWNERS = ["@paveldn"]
 

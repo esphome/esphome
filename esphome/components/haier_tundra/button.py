@@ -3,7 +3,7 @@ import esphome.config_validation as cv
 from esphome.const import CONF_LIGHT
 from esphome.types import ConfigType
 
-from ..climate import HaierTundra
+from .climate import HaierTundra
 
 CODEOWNERS = ["@fauxpark"]
 

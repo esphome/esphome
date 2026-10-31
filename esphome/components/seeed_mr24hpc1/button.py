@@ -9,7 +9,7 @@ from esphome.const import (
 )
 from esphome.types import ConfigType
 
-from .. import CONF_MR24HPC1_ID, MR24HPC1Component
+from . import CONF_MR24HPC1_ID, MR24HPC1Component
 
 CONF_CUSTOM_SET_END = "custom_set_end"
 
