@@ -6,6 +6,10 @@
 #include "esphome/core/log.h"
 #include "esphome/core/progmem.h"
 
+#ifdef USE_DEEP_SLEEP
+#include "esphome/components/deep_sleep/deep_sleep_component.h"
+#endif
+
 namespace esphome::epaper_spi {
 
 ESPHOME_LOG_TAG(TAG, "epaper_spi");
@@ -25,6 +29,67 @@ void EPaperBase::setup() {
   }
   this->setup_pins_();
   this->spi_setup();
+  this->load_sleep_state_();
+}
+
+bool EPaperBase::woke_from_deep_sleep_() const {
+#ifdef USE_DEEP_SLEEP
+  return deep_sleep::woke_from_deep_sleep();
+#else
+  return false;
+#endif
+}
+
+// The sleep state survives the controller's deep sleep in RTC memory: the update count, and whether
+// the panel was left holding its image, so the first update after the wake can be partial.
+void EPaperBase::load_sleep_state_() {
+  if (this->sleep_state_hash_ == 0 || !this->is_using_partial_update_())
+    return;
+  this->sleep_state_ = global_preferences->make_preference<SleepState>(this->sleep_state_hash_, false);
+  SleepState state{};
+  if (this->woke_from_deep_sleep_() && this->sleep_state_.load(&state) && state.panel_holds_image) {
+    this->update_count_ = state.update_count % this->full_update_every_;
+    this->panel_holds_image_ = true;
+    ESP_LOGD(TAG, "Panel kept its image through deep sleep; next update is %s",
+             this->update_count_ != 0 ? LOG_STR_LITERAL("partial") : LOG_STR_LITERAL("full"));
+  }
+  // Only a wake from deep sleep may use the state, so it is cleared once read
+  this->save_sleep_state_(false);
+}
+
+void EPaperBase::save_sleep_state_(bool panel_holds_image) {
+  if (this->sleep_state_hash_ == 0 || !this->is_using_partial_update_())
+    return;
+  const SleepState state{this->update_count_, panel_holds_image};
+  this->sleep_state_.save(&state);
+}
+
+// Runs before the controller sleeps or reboots, after on_safe_shutdown(): finish an update in flight,
+// then note that the panel holds its image, so the first update after a wake is partial.
+bool EPaperBase::teardown() {
+  if (this->sleep_state_hash_ == 0)
+    return true;
+  if (this->state_ != EPaperState::IDLE) {
+    this->loop();
+    return false;
+  }
+  if (this->parked_)
+    return true;
+  this->parked_ = true;
+  if (this->panel_holds_image_ && this->image_survives_sleep())
+    this->save_sleep_state_(true);
+  return true;
+}
+
+// Runs after teardown() even when it ran out of time: give up on an update still in flight so the panel sleeps
+void EPaperBase::on_powerdown() {
+  if (!this->leave_update_to_teardown_())
+    return;
+  if (this->state_ == EPaperState::TRANSFER_DATA)
+    this->abort_transfer();
+  this->power_off();
+  this->set_state_(EPaperState::IDLE);
+  this->on_safe_shutdown();
 }
 
 bool EPaperBase::init_buffer_(size_t buffer_length) {
@@ -231,6 +296,8 @@ void EPaperBase::abandon_update_() {
   // Leave the panel powered down rather than with its high-voltage drivers enabled
   this->power_off();
   this->full_update_requested_ = true;
+  // The request above does not survive a deep sleep, so the panel must not be trusted after one either
+  this->panel_holds_image_ = false;
   this->current_data_index_ = 0;
   this->set_state_(EPaperState::IDLE);
 }
@@ -331,6 +398,7 @@ void EPaperBase::process_state_() {
     case EPaperState::DEEP_SLEEP:
       this->deep_sleep();
       this->shown_hash_valid_ = this->sent_hash_intact_;
+      this->panel_holds_image_ = this->is_using_partial_update_();
       this->status_clear_warning();
       this->set_state_(EPaperState::IDLE);
       ESP_LOGD(TAG, "Display update took %" PRIu32 " ms", millis() - this->update_start_time_);
@@ -363,7 +431,15 @@ void EPaperBase::start_data_() {
   this->enable();
 }
 
-void EPaperBase::on_safe_shutdown() { this->deep_sleep(); }
+// When the image is kept through the sleep, teardown() finishes an update in flight, which ends in deep sleep
+bool EPaperBase::leave_update_to_teardown_() const {
+  return this->sleep_state_hash_ != 0 && this->state_ != EPaperState::IDLE;
+}
+
+void EPaperBase::on_safe_shutdown() {
+  if (!this->leave_update_to_teardown_())
+    this->deep_sleep();
+}
 
 void EPaperBase::send_init_sequence_(const uint8_t *sequence, size_t length) {
   size_t index = 0;
@@ -562,10 +638,12 @@ void EPaperBase::dump_config() {
                 "  Model: %s\n"
                 "  SPI Data Rate: %uMHz\n"
                 "  Full update every: %d\n"
+                "  Partial update after deep sleep: %s\n"
                 "  Swap X/Y: %s\n"
                 "  Mirror X: %s\n"
                 "  Mirror Y: %s",
                 this->name_, (unsigned) (this->data_rate_ / 1000000), this->full_update_every_,
+                this->sleep_state_hash_ == 0 ? LOG_STR_LITERAL("no") : LOG_STR_LITERAL("panel"),
                 YESNO(this->transform_ & SWAP_XY), YESNO(this->transform_ & MIRROR_X),
                 YESNO(this->transform_ & MIRROR_Y));
   LOG_PIN("  Reset Pin: ", this->reset_pin_);
