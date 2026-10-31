@@ -354,6 +354,30 @@ def test_uart_clock_source_preserves_variant_metadata(
     assert "ESP32C6" not in clock_source["values"]["APB"]["variants"]
 
 
+def test_vbus_select_options_preserve_integer_keys(language_schema_dir: Path) -> None:
+    """Custom VBus labels must remain exportable to the editor schema."""
+    schema = json.loads((language_schema_dir / "vbus.json").read_text())
+    select_schemas = schema["vbus.select"]["schemas"]
+    root = select_schemas["CONFIG_SCHEMA"]["schema"]
+    fields = root["config_vars"]
+    assert root["extends"] == ["vbus.select.ENTITY_SCHEMA"]
+    options = select_schemas["ENTITY_SCHEMA"]["schema"]["config_vars"]["options"]
+    assert options["type"] == "schema"
+    assert options["key_type"] == "int_"
+    assert options["schema"]["config_vars"]["string"]["type"] == "string"
+    assert "display_language" in fields["parameter"]["values"]
+    assert fields["parameter"]["key"] == "Optional"
+    assert "display_language" in fields
+    assert fields["display_language"]["schema"]["extends"] == [
+        "vbus.select.ENTITY_SCHEMA"
+    ]
+    number_fields = schema["vbus.number"]["schemas"]["CONFIG_SCHEMA"]["schema"][
+        "config_vars"
+    ]
+    assert "min_pump_speed_1" in number_fields
+    assert len(number_fields["parameter"]["values"]) == 58
+
+
 # ---------------------------------------------------------------------------
 # Regression tests for the lvgl schema dump.
 #
