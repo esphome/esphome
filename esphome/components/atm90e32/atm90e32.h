@@ -310,6 +310,7 @@ class ATM90E32Component final : public PollingComponent,
   bool calibration_message_printed_{false};
 #ifdef USE_TEXT_SENSOR
   bool use_voltage_threshold_flags_{true};
+  bool use_current_threshold_flags_{true};
 #endif
   bool offset_calibration_mismatch_[3]{false, false, false};
   bool power_offset_calibration_mismatch_[3]{false, false, false};

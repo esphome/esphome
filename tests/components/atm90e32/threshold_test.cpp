@@ -256,6 +256,25 @@ TEST_F(ATM90E32ThresholdRegisters, IgnoresLegacyCurrentFlagAndPreservesRmsLimit)
   EXPECT_EQ(status.state, "Over Voltage");
 }
 
+TEST_F(ATM90E32ThresholdRegisters, UsesRmsCurrentLimitForDifferentCurrentGains) {
+  text_sensor::TextSensor status_a, status_b;
+  this->component_.set_phase_status_text_sensor(0, &status_a);
+  this->component_.set_phase_status_text_sensor(1, &status_b);
+  this->component_.set_ct_gain(0, 13980);
+  this->component_.set_ct_gain(1, 27961);
+  this->component_.set_threshold_current_peak_a(10.0f);
+  this->setup_component_();
+  // OITH is encoded at the highest gain, so the chip flags phase A below 10 A; only the RMS current counts.
+  this->delegate_.registers[ATM90E32_REGISTER_EMMSTATE0] =
+      ATM90E32_STATUS_S0_OIPHASEAST | ATM90E32_STATUS_S0_OIPHASEBST;
+  this->delegate_.registers[ATM90E32_REGISTER_IRMS] = 9000;
+  this->delegate_.registers[ATM90E32_REGISTER_IRMS + 1] = 11000;
+
+  this->component_.update();
+  EXPECT_EQ(status_a.state, "Okay");
+  EXPECT_EQ(status_b.state, "Over Current");
+}
+
 TEST_F(ATM90E32ThresholdRegisters, ReportsConfiguredCurrentFlagBelowRmsLimit) {
   text_sensor::TextSensor status;
   this->component_.set_ct_gain(1, 27961);

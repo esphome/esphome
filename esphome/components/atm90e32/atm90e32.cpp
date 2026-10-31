@@ -915,10 +915,12 @@ void ATM90E32Component::write_thresholds_() {
   if (!this->use_voltage_threshold_flags_) {
     ESP_LOGW(TAG, "Phase voltage gains differ; using per-phase RMS voltage alarms");
   }
-#endif
-  if (current.min != current.max && current_configured) {
-    ESP_LOGW(TAG, "Phase current gains differ; shared over-current threshold uses the highest gain");
+  // The shared OITH is encoded at the highest gain, so a lower-gain phase would flag below current_peak.
+  this->use_current_threshold_flags_ = current.min == current.max;
+  if (!this->use_current_threshold_flags_ && current_configured) {
+    ESP_LOGW(TAG, "Phase current gains differ; using per-phase RMS over-current alarms");
   }
+#endif
 
   const uint16_t sagth = calculate_voltage_threshold_from_volts(this->threshold_voltage_sag_v_, voltage.min);
   const uint16_t ovth = calculate_voltage_threshold_from_volts(this->threshold_voltage_peak_v_, voltage.max);
@@ -1319,7 +1321,8 @@ void ATM90E32Component::check_phase_status() {
     }
 
     const float current = this->has_config_current_gain_[phase] ? this->get_phase_current_(phase) : 0.0f;
-    if ((current_configured && (state0 & OVER_CURRENT_FLAGS[phase])) || current > current_limit)
+    if ((current_configured && this->use_current_threshold_flags_ && (state0 & OVER_CURRENT_FLAGS[phase])) ||
+        current > current_limit)
       length = buf_append_str(status, sizeof(status), length, "Over Current; ");
     if (over_voltage)
       length = buf_append_str(status, sizeof(status), length, "Over Voltage; ");
