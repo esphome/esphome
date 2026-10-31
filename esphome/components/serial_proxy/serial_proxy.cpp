@@ -427,6 +427,7 @@ void SerialProxy::fill_identity_([[maybe_unused]] IdentityScratch &scratch, api:
       return;
     }
     auto *client = this->usb_channel_->get_parent();
+    const uint8_t interface_number = this->usb_channel_->get_interface_number();
     msg.flags = api::enums::SERIAL_PROXY_IDENTITY_FLAG_CONNECTED;
     if (!client->get_device_info(scratch)) {
       msg.flags |= api::enums::SERIAL_PROXY_IDENTITY_FLAG_ERROR;
@@ -435,9 +436,10 @@ void SerialProxy::fill_identity_([[maybe_unused]] IdentityScratch &scratch, api:
     msg.usb.vendor_id = scratch.vendor_id;
     msg.usb.product_id = scratch.product_id;
     msg.usb.bcd_device = scratch.bcd_device;
-    msg.usb.interface_number = this->usb_channel_->get_interface_number();
+    msg.usb.interface_number = interface_number;
     msg.usb.interface_class = this->usb_channel_->get_interface_class();
     msg.usb.port_number = this->usb_channel_->get_port_number();
+    msg.usb.interface_description = StringRef(this->usb_channel_->get_interface_description());
     msg.manufacturer = StringRef(scratch.manufacturer);
     msg.product = StringRef(scratch.product);
     msg.serial_number = StringRef(scratch.serial_number);

@@ -75,6 +75,7 @@ usb_uart:
     pid: 0x4001
     manufacturer: Nabu Casa
     product: ZBT-2
+    interface_description: Zigbee
     channels:
       - id: channel_9_1
   - id: uart_10

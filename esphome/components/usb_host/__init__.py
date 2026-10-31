@@ -37,16 +37,18 @@ DOMAIN = "usb_host"
 CONF_VID = "vid"
 CONF_PID = "pid"
 CONF_PRODUCT = "product"
+CONF_INTERFACE_DESCRIPTION = "interface_description"
 CONF_ENABLE_HUBS = "enable_hubs"
 CONF_MAX_TRANSFER_REQUESTS = "max_transfer_requests"
 
 
-# VID/PID set to 0 or `None` product/manufacturer are wildcards
+# VID/PID set to 0 or `None` strings are wildcards
 _FILTER_WILDCARDS = {
     CONF_VID: 0,
     CONF_PID: 0,
     CONF_MANUFACTURER: None,
     CONF_PRODUCT: None,
+    CONF_INTERFACE_DESCRIPTION: None,
 }
 
 
@@ -71,6 +73,7 @@ def usb_device_schema(
         {
             cv.Optional(CONF_MANUFACTURER): cv.string_strict,
             cv.Optional(CONF_PRODUCT): cv.string_strict,
+            cv.Optional(CONF_INTERFACE_DESCRIPTION): cv.string_strict,
         }
     )
 
@@ -262,6 +265,10 @@ async def register_usb_client(config: ConfigType) -> MockObj:
         )
     if (product := config.get(CONF_PRODUCT)) is not None:
         cg.add(var.set_product_filter(cg.RawExpression(cpp_u16string_escape(product))))
+    if (interface := config.get(CONF_INTERFACE_DESCRIPTION)) is not None:
+        cg.add(
+            var.set_interface_filter(cg.RawExpression(cpp_u16string_escape(interface)))
+        )
     return var
 
 
