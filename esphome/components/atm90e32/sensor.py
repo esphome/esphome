@@ -93,7 +93,8 @@ PGA_GAINS = {
 
 DEFAULT_VOLTAGE_SAG_PCT = 0.78
 DEFAULT_VOLTAGE_PEAK_PCT = 1.22
-MAX_CURRENT_PEAK_A = 65.535
+# IRMS saturates at 65.535 A, so a higher limit could never be exceeded.
+MAX_CURRENT_PEAK_A = 65.53
 MAX_FREQUENCY_HZ = 655.35
 DEFAULT_FREQUENCY_THRESHOLD_BAND_HZ = 3.0
 
@@ -265,24 +266,32 @@ def _validate_thresholds(config: ConfigType) -> ConfigType:
             "at the register resolution of 0.01Hz."
         )
 
-    for gain_key, triggers, registers, scale in (
+    # Each limit counts as set by the user when any key it is derived from was given.
+    for gain_key, scale, registers in (
         (
             CONF_GAIN_VOLTAGE,
-            (
-                CONF_VOLTAGE_NOMINAL,
-                CONF_VOLTAGE_SAG_PCT,
-                CONF_VOLTAGE_PEAK_PCT,
-                CONF_VOLTAGE_SAG_V,
-                CONF_VOLTAGE_PEAK_V,
-            ),
-            ((CONF_VOLTAGE_SAG_V, min), (CONF_VOLTAGE_PEAK_V, max)),
             100,
+            (
+                (
+                    CONF_VOLTAGE_SAG_V,
+                    min,
+                    (CONF_VOLTAGE_NOMINAL, CONF_VOLTAGE_SAG_PCT, CONF_VOLTAGE_SAG_V),
+                ),
+                (
+                    CONF_VOLTAGE_PEAK_V,
+                    max,
+                    (CONF_VOLTAGE_NOMINAL, CONF_VOLTAGE_PEAK_PCT, CONF_VOLTAGE_PEAK_V),
+                ),
+            ),
         ),
-        (CONF_GAIN_CT, (CONF_CURRENT_PEAK,), ((CONF_CURRENT_PEAK, max),), 1000),
+        (CONF_GAIN_CT, 1000, ((CONF_CURRENT_PEAK, max, (CONF_CURRENT_PEAK,)),)),
     ):
-        user_set = any(key in configured for key in triggers)
+        explicit = {
+            key: any(source in configured for source in sources)
+            for key, _, sources in registers
+        }
         # A legacy config without current_peak keeps the fixed OITH register value.
-        if not user_set and gain_key == CONF_GAIN_CT:
+        if gain_key == CONF_GAIN_CT and not explicit[CONF_CURRENT_PEAK]:
             continue
         gains = {
             config[phase][gain_key]
@@ -290,12 +299,12 @@ def _validate_thresholds(config: ConfigType) -> ConfigType:
             if phase in config
         }
         if not gains or 0 in gains:
-            if not user_set:
+            if not any(explicit.values()):
                 continue
             raise cv.Invalid(
                 f"Thresholds require at least one phase and a nonzero {gain_key} on every configured phase."
             )
-        for key, select_gain in registers:
+        for key, select_gain, _ in registers:
             gain = select_gain(gains)
             limit = 65535 * gain / (scale * math.sqrt(2) * 16384)
             if thresholds[key] <= limit:
@@ -304,7 +313,7 @@ def _validate_thresholds(config: ConfigType) -> ConfigType:
                 f"thresholds.{key} ({thresholds[key]:.1f}) cannot fit the 16-bit threshold register with "
                 f"{gain_key}: {gain}; the highest value that fits is {limit:.1f}"
             )
-            if user_set:
+            if explicit[key]:
                 raise cv.Invalid(
                     f"{message}. Increase {gain_key} or lower the threshold."
                 )
@@ -317,7 +326,6 @@ def _validate_thresholds(config: ConfigType) -> ConfigType:
                 limit,
             )
 
-    config[CONF_THRESHOLDS] = thresholds
     return config
 
 
@@ -418,7 +426,8 @@ async def to_code(config: ConfigType) -> None:
     cg.add(var.set_enable_offset_calibration(config[CONF_ENABLE_OFFSET_CALIBRATION]))
     cg.add(var.set_enable_gain_calibration(config[CONF_ENABLE_GAIN_CALIBRATION]))
 
-    thresholds = config[CONF_THRESHOLDS]
+    # The user's keys stay as written so `esphome config` output can be loaded again.
+    thresholds = _resolve_thresholds(config)
     cg.add(var.set_threshold_voltage_sag_v(thresholds[CONF_VOLTAGE_SAG_V]))
     cg.add(var.set_threshold_voltage_peak_v(thresholds[CONF_VOLTAGE_PEAK_V]))
     cg.add_optional(var.set_threshold_current_peak_a, thresholds.get(CONF_CURRENT_PEAK))

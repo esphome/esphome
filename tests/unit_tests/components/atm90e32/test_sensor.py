@@ -34,7 +34,7 @@ def _validate(
 def test_resolves_defaults_without_threshold_block(
     line_frequency: int, nominal: int
 ) -> None:
-    thresholds = _validate(line_frequency=line_frequency)["thresholds"]
+    thresholds = atm90e32._resolve_thresholds(_validate(line_frequency=line_frequency))
     assert thresholds["voltage_nominal"] == nominal
     assert thresholds["voltage_sag_v"] == pytest.approx(nominal * 0.78)
     assert thresholds["voltage_peak_v"] == pytest.approx(nominal * 1.22)
@@ -50,7 +50,9 @@ def test_rejects_frequency_register_overflow(key: str) -> None:
 
 
 def test_accepts_frequency_register_limit() -> None:
-    thresholds = _validate({"frequency_high_hz": "655.35Hz"})["thresholds"]
+    thresholds = atm90e32._resolve_thresholds(
+        _validate({"frequency_high_hz": "655.35Hz"})
+    )
     assert thresholds["frequency_high_hz"] == 655.35
 
 
@@ -112,7 +114,9 @@ def test_rejects_thresholds_unrepresentable_at_configured_gain(
 
 @pytest.mark.parametrize("phase", ["phase_b", "phase_c"])
 def test_single_phase_threshold_does_not_require_phase_a(phase: str) -> None:
-    thresholds = _validate({"current_peak": "10A"}, {phase: {}})["thresholds"]
+    thresholds = atm90e32._resolve_thresholds(
+        _validate({"current_peak": "10A"}, {phase: {}})
+    )
     assert thresholds["current_peak"] == 10
 
 
@@ -198,6 +202,28 @@ def test_default_peak_that_cannot_fit_warns(caplog: pytest.LogCaptureFixture) ->
         _validate(phases={"phase_a": {"gain_voltage": 4470}})
     assert "thresholds.voltage_peak_v (146.4)" in caplog.text
     assert "at most 126.4" in caplog.text
+
+
+def test_sag_only_keeps_default_peak_a_warning(
+    caplog: pytest.LogCaptureFixture,
+) -> None:
+    with caplog.at_level(logging.WARNING):
+        _validate({"voltage_sag_v": "96V"}, {"phase_a": {"gain_voltage": 4470}})
+    assert "thresholds.voltage_peak_v (146.4)" in caplog.text
+
+
+def test_validated_thresholds_keep_the_user_keys() -> None:
+    thresholds = _validate({"voltage_sag_pct": "80%"})["thresholds"]
+    # Adding the derived _v keys would break the Exclusive groups when the output is loaded again.
+    assert "voltage_sag_v" not in thresholds
+    assert "voltage_peak_v" not in thresholds
+    atm90e32.THRESHOLDS_SCHEMA(thresholds)
+
+
+def test_current_peak_stays_below_rms_saturation() -> None:
+    with pytest.raises(cv.Invalid):
+        atm90e32.THRESHOLDS_SCHEMA({"current_peak": "65.535A"})
+    atm90e32.THRESHOLDS_SCHEMA({"current_peak": "65.53A"})
 
 
 def test_explicit_peak_that_cannot_fit_names_the_limit() -> None:
