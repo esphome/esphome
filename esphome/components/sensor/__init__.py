@@ -409,30 +409,44 @@ _SENSOR_SCHEMA.add_extra(lazy_load_validator("zigbee", "validate_sensor"))
 
 
 class SensorKind(NamedTuple):
-    """Values `sensor_schema(kind=...)` sets; an unset icon is left to the caller."""
+    """Values `sensor_schema(kind=...)` sets; unset fields are left to the caller.
+
+    `accuracy_decimals` is only a default: precision varies per chip, so the caller's
+    value wins. Passing any other field the kind sets is an error.
+    """
 
     unit_of_measurement: str
     device_class: str
     state_class: str = STATE_CLASS_MEASUREMENT
     icon: str = cv.UNDEFINED
+    accuracy_decimals: int = cv.UNDEFINED
 
 
-TEMPERATURE = SensorKind(UNIT_CELSIUS, DEVICE_CLASS_TEMPERATURE)
-HUMIDITY = SensorKind(UNIT_PERCENT, DEVICE_CLASS_HUMIDITY)
-BATTERY = SensorKind(UNIT_PERCENT, DEVICE_CLASS_BATTERY)
-PRESSURE = SensorKind(UNIT_HECTOPASCAL, DEVICE_CLASS_PRESSURE)
-ILLUMINANCE = SensorKind(UNIT_LUX, DEVICE_CLASS_ILLUMINANCE)
-CARBON_DIOXIDE = SensorKind(UNIT_PARTS_PER_MILLION, DEVICE_CLASS_CARBON_DIOXIDE)
-PM1 = SensorKind(
-    UNIT_MICROGRAMS_PER_CUBIC_METER, DEVICE_CLASS_PM1, icon=ICON_CHEMICAL_WEAPON
+TEMPERATURE = SensorKind(UNIT_CELSIUS, DEVICE_CLASS_TEMPERATURE, accuracy_decimals=1)
+HUMIDITY = SensorKind(UNIT_PERCENT, DEVICE_CLASS_HUMIDITY, accuracy_decimals=1)
+BATTERY = SensorKind(UNIT_PERCENT, DEVICE_CLASS_BATTERY, accuracy_decimals=0)
+PRESSURE = SensorKind(UNIT_HECTOPASCAL, DEVICE_CLASS_PRESSURE, accuracy_decimals=1)
+ILLUMINANCE = SensorKind(UNIT_LUX, DEVICE_CLASS_ILLUMINANCE, accuracy_decimals=0)
+CARBON_DIOXIDE = SensorKind(
+    UNIT_PARTS_PER_MILLION, DEVICE_CLASS_CARBON_DIOXIDE, accuracy_decimals=0
 )
-PM25 = SensorKind(
-    UNIT_MICROGRAMS_PER_CUBIC_METER, DEVICE_CLASS_PM25, icon=ICON_CHEMICAL_WEAPON
+
+
+def _particulate(device_class: str) -> SensorKind:
+    return SensorKind(
+        UNIT_MICROGRAMS_PER_CUBIC_METER,
+        device_class,
+        icon=ICON_CHEMICAL_WEAPON,
+        accuracy_decimals=0,
+    )
+
+
+PM1 = _particulate(DEVICE_CLASS_PM1)
+PM25 = _particulate(DEVICE_CLASS_PM25)
+PM10 = _particulate(DEVICE_CLASS_PM10)
+SIGNAL_STRENGTH = SensorKind(
+    UNIT_DECIBEL_MILLIWATT, DEVICE_CLASS_SIGNAL_STRENGTH, accuracy_decimals=0
 )
-PM10 = SensorKind(
-    UNIT_MICROGRAMS_PER_CUBIC_METER, DEVICE_CLASS_PM10, icon=ICON_CHEMICAL_WEAPON
-)
-SIGNAL_STRENGTH = SensorKind(UNIT_DECIBEL_MILLIWATT, DEVICE_CLASS_SIGNAL_STRENGTH)
 VOLTAGE = SensorKind(UNIT_VOLT, DEVICE_CLASS_VOLTAGE)
 CURRENT = SensorKind(UNIT_AMPERE, DEVICE_CLASS_CURRENT)
 POWER = SensorKind(UNIT_WATT, DEVICE_CLASS_POWER)
@@ -440,7 +454,10 @@ APPARENT_POWER = SensorKind(UNIT_VOLT_AMPS, DEVICE_CLASS_APPARENT_POWER)
 REACTIVE_POWER = SensorKind(UNIT_VOLT_AMPS_REACTIVE, DEVICE_CLASS_REACTIVE_POWER)
 FREQUENCY = SensorKind(UNIT_HERTZ, DEVICE_CLASS_FREQUENCY)
 ENERGY_KWH = SensorKind(
-    UNIT_KILOWATT_HOURS, DEVICE_CLASS_ENERGY, STATE_CLASS_TOTAL_INCREASING
+    UNIT_KILOWATT_HOURS,
+    DEVICE_CLASS_ENERGY,
+    STATE_CLASS_TOTAL_INCREASING,
+    accuracy_decimals=3,
 )
 ENERGY_WH = SensorKind(
     UNIT_WATT_HOURS, DEVICE_CLASS_ENERGY, STATE_CLASS_TOTAL_INCREASING
@@ -459,20 +476,26 @@ def sensor_schema(
     entity_category: str = cv.UNDEFINED,
     filters: list = cv.UNDEFINED,
 ) -> cv.Schema:
-    """Sensor schema; `kind` presets the unit, device class, state class and icon."""
+    """Sensor schema; `kind` presets the unit, device class, state class, icon and decimals."""
     if kind is not cv.UNDEFINED:
         given = SensorKind(
             unit_of_measurement=unit_of_measurement,
             device_class=device_class,
             state_class=state_class,
             icon=icon,
+            accuracy_decimals=accuracy_decimals,
         )
         merged = []
         for name, preset, value in zip(kind._fields, kind, given, strict=True):
-            if preset is not cv.UNDEFINED and value is not cv.UNDEFINED:
+            if value is cv.UNDEFINED:
+                merged.append(preset)
+                continue
+            if preset is not cv.UNDEFINED and name != CONF_ACCURACY_DECIMALS:
                 raise ValueError(f"kind already sets {name}")
-            merged.append(value if preset is cv.UNDEFINED else preset)
-        unit_of_measurement, device_class, state_class, icon = SensorKind(*merged)
+            merged.append(value)
+        unit_of_measurement, device_class, state_class, icon, accuracy_decimals = (
+            SensorKind(*merged)
+        )
 
     schema = {}
 

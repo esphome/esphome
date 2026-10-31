@@ -51,42 +51,52 @@ _M = STATE_CLASS_MEASUREMENT
 _T = STATE_CLASS_TOTAL_INCREASING
 _PM = UNIT_MICROGRAMS_PER_CUBIC_METER
 _NO_ICON = cv.UNDEFINED
+_UNSET = cv.UNDEFINED
 
-# (unit, device class, state class, icon) each preset must expand to
+# (unit, device class, state class, icon, accuracy decimals) each preset must expand to
 EXPECTED = {
-    "TEMPERATURE": (UNIT_CELSIUS, DEVICE_CLASS_TEMPERATURE, _M, _NO_ICON),
-    "HUMIDITY": (UNIT_PERCENT, DEVICE_CLASS_HUMIDITY, _M, _NO_ICON),
-    "BATTERY": (UNIT_PERCENT, DEVICE_CLASS_BATTERY, _M, _NO_ICON),
-    "PRESSURE": (UNIT_HECTOPASCAL, DEVICE_CLASS_PRESSURE, _M, _NO_ICON),
-    "ILLUMINANCE": (UNIT_LUX, DEVICE_CLASS_ILLUMINANCE, _M, _NO_ICON),
+    "TEMPERATURE": (UNIT_CELSIUS, DEVICE_CLASS_TEMPERATURE, _M, _NO_ICON, 1),
+    "HUMIDITY": (UNIT_PERCENT, DEVICE_CLASS_HUMIDITY, _M, _NO_ICON, 1),
+    "BATTERY": (UNIT_PERCENT, DEVICE_CLASS_BATTERY, _M, _NO_ICON, 0),
+    "PRESSURE": (UNIT_HECTOPASCAL, DEVICE_CLASS_PRESSURE, _M, _NO_ICON, 1),
+    "ILLUMINANCE": (UNIT_LUX, DEVICE_CLASS_ILLUMINANCE, _M, _NO_ICON, 0),
     "CARBON_DIOXIDE": (
         UNIT_PARTS_PER_MILLION,
         DEVICE_CLASS_CARBON_DIOXIDE,
         _M,
         _NO_ICON,
+        0,
     ),
-    "PM1": (_PM, DEVICE_CLASS_PM1, _M, ICON_CHEMICAL_WEAPON),
-    "PM25": (_PM, DEVICE_CLASS_PM25, _M, ICON_CHEMICAL_WEAPON),
-    "PM10": (_PM, DEVICE_CLASS_PM10, _M, ICON_CHEMICAL_WEAPON),
+    "PM1": (_PM, DEVICE_CLASS_PM1, _M, ICON_CHEMICAL_WEAPON, 0),
+    "PM25": (_PM, DEVICE_CLASS_PM25, _M, ICON_CHEMICAL_WEAPON, 0),
+    "PM10": (_PM, DEVICE_CLASS_PM10, _M, ICON_CHEMICAL_WEAPON, 0),
     "SIGNAL_STRENGTH": (
         UNIT_DECIBEL_MILLIWATT,
         DEVICE_CLASS_SIGNAL_STRENGTH,
         _M,
         _NO_ICON,
+        0,
     ),
-    "VOLTAGE": (UNIT_VOLT, DEVICE_CLASS_VOLTAGE, _M, _NO_ICON),
-    "CURRENT": (UNIT_AMPERE, DEVICE_CLASS_CURRENT, _M, _NO_ICON),
-    "POWER": (UNIT_WATT, DEVICE_CLASS_POWER, _M, _NO_ICON),
-    "APPARENT_POWER": (UNIT_VOLT_AMPS, DEVICE_CLASS_APPARENT_POWER, _M, _NO_ICON),
+    "VOLTAGE": (UNIT_VOLT, DEVICE_CLASS_VOLTAGE, _M, _NO_ICON, _UNSET),
+    "CURRENT": (UNIT_AMPERE, DEVICE_CLASS_CURRENT, _M, _NO_ICON, _UNSET),
+    "POWER": (UNIT_WATT, DEVICE_CLASS_POWER, _M, _NO_ICON, _UNSET),
+    "APPARENT_POWER": (
+        UNIT_VOLT_AMPS,
+        DEVICE_CLASS_APPARENT_POWER,
+        _M,
+        _NO_ICON,
+        _UNSET,
+    ),
     "REACTIVE_POWER": (
         UNIT_VOLT_AMPS_REACTIVE,
         DEVICE_CLASS_REACTIVE_POWER,
         _M,
         _NO_ICON,
+        _UNSET,
     ),
-    "FREQUENCY": (UNIT_HERTZ, DEVICE_CLASS_FREQUENCY, _M, _NO_ICON),
-    "ENERGY_KWH": (UNIT_KILOWATT_HOURS, DEVICE_CLASS_ENERGY, _T, _NO_ICON),
-    "ENERGY_WH": (UNIT_WATT_HOURS, DEVICE_CLASS_ENERGY, _T, _NO_ICON),
+    "FREQUENCY": (UNIT_HERTZ, DEVICE_CLASS_FREQUENCY, _M, _NO_ICON, _UNSET),
+    "ENERGY_KWH": (UNIT_KILOWATT_HOURS, DEVICE_CLASS_ENERGY, _T, _NO_ICON, 3),
+    "ENERGY_WH": (UNIT_WATT_HOURS, DEVICE_CLASS_ENERGY, _T, _NO_ICON, _UNSET),
 }
 
 
@@ -116,17 +126,32 @@ def test_every_preset_is_pinned() -> None:
 
 @pytest.mark.parametrize("name", sorted(EXPECTED))
 def test_kind_matches_hand_written(name: str) -> None:
-    unit, device_class, state_class, icon = EXPECTED[name]
-    by_kind = sensor.sensor_schema(kind=getattr(sensor, name), accuracy_decimals=1)
+    unit, device_class, state_class, icon, decimals = EXPECTED[name]
+    by_kind = sensor.sensor_schema(kind=getattr(sensor, name))
     by_hand = sensor.sensor_schema(
         unit_of_measurement=unit,
         icon=icon,
-        accuracy_decimals=1,
+        accuracy_decimals=decimals,
         device_class=device_class,
         state_class=state_class,
     )
     assert _keys(by_kind) == _keys(by_hand)
     assert _defaults(by_kind) == _defaults(by_hand)
+
+
+def test_accuracy_decimals_default_applies() -> None:
+    assert (
+        _defaults(sensor.sensor_schema(kind=sensor.TEMPERATURE))["accuracy_decimals"]
+        == 1
+    )
+    assert "accuracy_decimals" not in _defaults(
+        sensor.sensor_schema(kind=sensor.VOLTAGE)
+    )
+
+
+def test_accuracy_decimals_can_be_overridden() -> None:
+    schema = sensor.sensor_schema(kind=sensor.TEMPERATURE, accuracy_decimals=3)
+    assert _defaults(schema)["accuracy_decimals"] == 3
 
 
 def test_extra_arguments_pass_through() -> None:
