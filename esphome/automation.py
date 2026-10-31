@@ -611,6 +611,13 @@ def _check_key_in_schema(
         schema = schema.schema[markers[part]]
 
 
+def _check_call_keys(
+    name: str, schema: Any, members: list[tuple[Any, Any, Any]]
+) -> None:
+    for conf_key, _, _ in members:
+        _check_key_in_schema(name, schema, conf_key)
+
+
 def parent_ref(var: MockObj) -> MockObj:
     """``var`` named from global scope, so a trigger argument cannot shadow it.
 
@@ -645,12 +652,20 @@ def _apply_function(
     template_arg: cg.TemplateArguments,
     lambda_args: TemplateArgsType,
     statements: list[str],
+    share: bool = False,
 ) -> MockObj:
-    """Emit the generated function and declare ``id_`` as the ``ApplyAction`` or
-    ``ApplyCondition`` templated on it, so ``play()`` calls it directly."""
+    """Emit the generated function and declare ``id_`` as the ``ApplyAction``,
+    ``ApplyCondition`` or ``ApplyFilter`` templated on it, so the object calls it directly.
+
+    With ``share`` an identical function emitted before is reused, so equal objects share one
+    class. Never share a body that may hold ``static`` state, that is one with code from a user
+    lambda.
+    """
 
     def emit() -> MockObj:
-        fn = apply_static_function(id_, return_type, lambda_args, statements)
+        fn = apply_static_function(
+            id_, return_type, lambda_args, statements, share=share
+        )
         return cg.new_Pvariable(id_, cg.TemplateArguments(fn, *template_arg))
 
     return _COLLECTED_ACTION if _collect_action(id_, statements, emit) else emit()
@@ -677,9 +692,18 @@ def apply_static_function(
     return_type: SafeExpType,
     params: TemplateArgsType,
     statements: list[str],
+    share: bool = False,
+    suffix: str = "fn",
 ) -> MockObj:
-    """Emit the static function generated for ``id_`` and return an expression naming it."""
-    return cg.static_function(f"esphome__{id_.id}__fn", return_type, params, statements)
+    """Emit the static function generated for ``id_`` and return an expression naming it.
+
+    ``share`` reuses an identical function through ``cg.shared_static_function``; leave it
+    false for a body with user lambda code. The name never matches a config id; ``suffix``
+    names a second function for ``id_``.
+    """
+    return cg.shared_static_function(
+        f"esphome__{id_.id}__{suffix}", return_type, params, statements, share=share
+    )
 
 
 async def _render_values(
@@ -767,8 +791,7 @@ def apply_action_builder(
             continue
         c = f if isinstance(f, ApplyCall) else f.call()
         members = _default_std_string(c.members, flash_string)
-        for conf_key, _, _ in members:
-            _check_key_in_schema(name, schema, conf_key)
+        _check_call_keys(name, schema, members)
         statements_spec.append((c.target, members))
     # Named like the generated function, so it cannot clash with an SDK symbol
     table_name = f"esphome__{name.replace('.', '_')}__bytes"
@@ -909,8 +932,7 @@ def register_apply_condition(
     call = check if isinstance(check, ApplyCall) else ApplyCall(check)
     members = _default_std_string(call.members, flash_compare)
     _check_key_in_schema(name, schema, id_key)
-    for conf_key, _, _ in members:
-        _check_key_in_schema(name, schema, conf_key)
+    _check_call_keys(name, schema, members)
 
     async def builder(
         config: ConfigType,
@@ -935,6 +957,100 @@ def register_apply_condition(
         )
 
     register_condition(name, ApplyCondition, schema)(builder)
+
+
+# The key of a filter whose schema is a single value rather than a mapping
+WHOLE_CONFIG: tuple[str, ...] = ()
+
+
+def _apply_calls(statements: tuple[str | ApplyCall, ...]) -> list[ApplyCall]:
+    return [s if isinstance(s, ApplyCall) else ApplyCall(s) for s in statements]
+
+
+async def _apply_value_function(
+    filter_id: ID, index: int, value: Lambda, type_: SafeExpType
+) -> cg.RawExpression:
+    """A value lambda as its own function, called from the filter's function; inlined there,
+    its ids would be shadowed by the filter's parameters, such as an id ``x``."""
+    lambda_ = await cg.process_lambda(value, [], return_type=type_)
+    fn = apply_static_function(
+        filter_id, type_, [], lambda_.body_lines, suffix=f"value{index}"
+    )
+    return cg.RawExpression(f"{fn}()")
+
+
+@dataclass(frozen=True)
+class ApplyFilterDomain:
+    """How one entity domain declares filters that are one generated function.
+
+    ``filter_class`` is the domain's ``ApplyFilter``, templated on the function, whose
+    ``params`` and ``return_type`` follow what that class passes and expects.
+    """
+
+    registry: Registry
+    filter_class: MockObjClass
+    return_type: SafeExpType
+    params: tuple[tuple[Any, str], ...]
+
+    def new(self, filter_id: ID, statements: list[str], share: bool = False) -> MockObj:
+        """Declare ``filter_id`` as the domain's ``ApplyFilter`` on a function of ``statements``.
+
+        Pass ``share`` for a body of constants only; see ``_apply_function``.
+        """
+        id_ = filter_id.copy()
+        id_.type = self.filter_class
+        return _apply_function(
+            id_,
+            self.return_type,
+            cg.TemplateArguments(),
+            list(self.params),
+            statements,
+            share=share,
+        )
+
+    async def build(
+        self, name: str, config: Any, filter_id: ID, *statements: str | ApplyCall
+    ) -> MockObj:
+        """Declare filter ``name`` as the function of ``statements`` over ``config``.
+
+        Each ``ApplyCall`` is a statement whose ``{}`` take config values: constants baked in,
+        value lambdas (which take no arguments) as their own functions. ``WHOLE_CONFIG`` is the
+        key of a single value schema. A statement whose keys are all absent is skipped. A
+        function with a value lambda is not shared.
+        """
+        body: list[str] = []
+        lambdas = 0
+        for c in _apply_calls(statements):
+            values = _apply_values(config, c.members)
+            if not _apply_call_active(c.members, values):
+                continue
+            members = list(c.members)
+            for i, ((key, type_, _), value) in enumerate(
+                zip(members, values, strict=True)
+            ):
+                if isinstance(value, Lambda):
+                    # The call is already the argument text, so no const_fn applies
+                    members[i] = (key, type_, None)
+                    values[i] = await _apply_value_function(
+                        filter_id, lambdas, value, type_
+                    )
+                    lambdas += 1
+            exprs = await _render_values(
+                name, c.target, members, values, config, None, [], compare=True
+            )
+            body.append(c.target.format(*exprs))
+        return self.new(filter_id, body, share=not lambdas)
+
+    def register(self, name: str, schema: Any, *statements: str | ApplyCall) -> None:
+        """Register filter ``name`` as the function of ``statements``; see ``build``."""
+        calls = _apply_calls(statements)
+        for c in calls:
+            _check_call_keys(name, schema, c.members)
+
+        async def builder(config: Any, filter_id: ID) -> MockObj:
+            return await self.build(name, config, filter_id, *calls)
+
+        self.registry.register(name, self.filter_class, schema)(builder)
 
 
 def validate_potentially_and_condition(value):

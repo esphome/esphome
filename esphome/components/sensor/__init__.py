@@ -299,6 +299,10 @@ ExponentialMovingAverageFilter = sensor_ns.class_(
 ThrottleAverageFilter = sensor_ns.class_("ThrottleAverageFilter", Filter)
 LambdaFilter = sensor_ns.class_("LambdaFilter", Filter)
 StatelessLambdaFilter = sensor_ns.class_("StatelessLambdaFilter", Filter)
+ApplyFilter = sensor_ns.class_("ApplyFilter", Filter)
+APPLY_FILTER = automation.ApplyFilterDomain(
+    FILTER_REGISTRY, ApplyFilter, cg.optional.template(cg.float_), ((cg.float_, "x"),)
+)
 OffsetFilter = sensor_ns.class_("OffsetFilter", Filter)
 MultiplyFilter = sensor_ns.class_("MultiplyFilter", Filter)
 ValueListFilter = sensor_ns.class_("ValueListFilter", Filter)

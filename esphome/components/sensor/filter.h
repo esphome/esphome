@@ -309,6 +309,12 @@ class StatelessLambdaFilter : public Filter {
   optional<float> (*lambda_filter_)(float);
 };
 
+/// Codegen use only: the filter's work and constants are one generated function, so the object is only the base.
+template<auto Fn> class ApplyFilter final : public Filter {
+ public:
+  optional<float> new_value(float value) override { return Fn(value); }
+};
+
 /// A simple filter that adds `offset` to each value it receives.
 class OffsetFilter : public Filter {
  public:
