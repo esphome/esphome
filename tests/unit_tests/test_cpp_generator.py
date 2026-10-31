@@ -986,6 +986,21 @@ def test_static_function_declares_early_and_defines_after_includes() -> None:
     ]
 
 
+def test_declare_static_function_defines_the_body_later() -> None:
+    """The declaration is emitted at once; the body only when define() is called."""
+    define = cg.declare_static_function("esphome__act__fn", ct.void, [])
+    assert [str(st) for st in CORE.global_statements] == [
+        "static void esphome__act__fn();"
+    ]
+    assert CORE.global_statements_after_includes == []
+
+    fn = define(["first();", "second();"])
+    assert str(fn) == "esphome__act__fn"
+    assert [str(st) for st in CORE.global_statements_after_includes] == [
+        "static void esphome__act__fn() {\n  first();\n  second();\n}"
+    ]
+
+
 def test_add_global_after_includes_rejects_non_statements() -> None:
     with pytest.raises(ValueError, match="must be expression or statement"):
         CORE.add_global_after_includes("not a statement")

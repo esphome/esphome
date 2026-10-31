@@ -171,6 +171,36 @@ class LoopTrigger : public Trigger<>, public Component {
   float get_setup_priority() const override { return setup_priority::DATA; }
 };
 
+/// The float whose bit pattern is BITS. Folds to a constant; GCC 10's bit_cast fallback is not
+/// inlined at -Os, and IDF builds memcpy as a call.
+template<uint32_t BITS> ESPHOME_ALWAYS_INLINE inline float float_from_bits() {
+  const uint32_t bits = BITS;
+  float value;
+  __builtin_memcpy(&value, &bits, sizeof(value));
+  return value;
+}
+
+/// Calls Fn from setup(), for on_boot. PRIORITY_BITS is the setup priority's float bit pattern,
+/// since GCC 10 (ESP8266) has no float template parameters.
+template<void (*Fn)(), uint32_t PRIORITY_BITS> class StartupCallback final : public Component {
+ public:
+  void setup() override { Fn(); }
+  float get_setup_priority() const override { return float_from_bits<PRIORITY_BITS>(); }
+};
+
+/// Calls Fn from on_shutdown(), for on_shutdown.
+template<void (*Fn)(), uint32_t PRIORITY_BITS> class ShutdownCallback final : public Component {
+ public:
+  void on_shutdown() override { Fn(); }
+  float get_setup_priority() const override { return float_from_bits<PRIORITY_BITS>(); }
+};
+
+/// Calls Fn from loop(), for on_loop.
+template<void (*Fn)()> class LoopCallback final : public Component {
+ public:
+  void loop() override { Fn(); }
+};
+
 #ifdef ESPHOME_PROJECT_NAME
 class ProjectUpdateTrigger : public Trigger<std::string>, public Component {
  public:

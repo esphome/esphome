@@ -4,6 +4,7 @@ from dataclasses import dataclass, field
 import logging
 import math
 import string
+import struct
 from typing import Any
 
 import esphome.codegen as cg
@@ -1904,14 +1905,21 @@ def _is_direct(plan: list[MockObj | list[_InlineAction]], config: ConfigType) ->
     )
 
 
+def _direct_statements(
+    plan: list[MockObj | list[_InlineAction]], config: ConfigType
+) -> list[str] | None:
+    if not _is_direct(plan, config):
+        return None
+    return [line for line in _run_statements(plan[0]) if line != _STOP_CHECK]
+
+
 def _direct_function(
     plan: list[MockObj | list[_InlineAction]],
     args: TemplateArgsType,
     config: ConfigType,
 ) -> MockObj | None:
-    if not _is_direct(plan, config):
+    if (statements := _direct_statements(plan, config)) is None:
         return None
-    statements = [line for line in _run_statements(plan[0]) if line != _STOP_CHECK]
     return apply_static_function(
         plan[0][0].id_, cg.void, _apply_lambda_args(args), statements
     )
@@ -1932,6 +1940,42 @@ async def build_automation(
     trigger: MockObj, args: TemplateArgsType, config: ConfigType
 ) -> MockObj:
     return await _new_automation(args, config, trigger)
+
+
+async def build_component_automation(
+    config: ConfigType, component_class: MockObjClass, priority: float | None = None
+) -> MockObj:
+    """Create and register the Component that runs a no-argument automation.
+
+    That is ``component_class<function[, priority bits]>``, whose function runs the actions
+    directly when they are all inline, else triggers their Automation. A ``trigger_id`` set
+    by hand keeps its Trigger, built with ``priority`` if given.
+    """
+    trigger_id: ID = config[CONF_TRIGGER_ID]
+    if trigger_id.is_manual:
+        var = cg.new_Pvariable(trigger_id, *([] if priority is None else [priority]))
+        await cg.register_component(var, config)
+        await build_automation(var, [], config)
+        return var
+    # Declared and registered before the actions are built, which can wait for other ids
+    name = f"esphome__{trigger_id.id}__fn"
+    define = cg.declare_static_function(name, cg.void, [])
+    id_ = trigger_id.copy()
+    id_.type = component_class
+    bits = [] if priority is None else [_float_bits(priority)]
+    var = cg.new_Pvariable(id_, cg.TemplateArguments(cg.RawExpression(name), *bits))
+    await cg.register_component(var, config)
+    plan = await _build_automation_plan([], config)
+    if (body := _direct_statements(plan, config)) is None:
+        body = [f"{parent_ref(_automation_from_plan(plan, [], config))}->trigger();"]
+    define(body)
+    return var
+
+
+def _float_bits(value: float) -> cg.RawExpression:
+    """``value`` as a C++ float's bit pattern, for a template argument."""
+    (bits,) = struct.unpack("<I", struct.pack("<f", value))
+    return cg.RawExpression(f"0x{bits:08X}u")
 
 
 async def build_trigger_callback(
