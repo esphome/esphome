@@ -1,5 +1,7 @@
 #pragma once
 
+#include <cstdint>
+
 #include "esphome/core/log.h"
 
 namespace esphome::duco {
