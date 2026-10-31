@@ -137,7 +137,7 @@ bool match_interval(uint32_t min_length, uint32_t max_length, uint32_t length) {
   }
 }
 
-bool ClickState::on_state(bool state, uint32_t min_length, uint32_t max_length) {
+bool ClickDetector::check(bool state, uint32_t min_length, uint32_t max_length) {
   if (state) {
     this->start_time_ = millis();
     return false;
@@ -145,7 +145,7 @@ bool ClickState::on_state(bool state, uint32_t min_length, uint32_t max_length) 
   return match_interval(min_length, max_length, millis() - this->start_time_);
 }
 
-bool DoubleClickState::on_state(bool state, uint32_t min_length, uint32_t max_length) {
+bool DoubleClickDetector::check(bool state, uint32_t min_length, uint32_t max_length) {
   const uint32_t now = millis();
   if (state && this->start_time_ != 0 && this->end_time_ != 0 &&
       match_interval(min_length, max_length, this->end_time_ - this->start_time_) &&

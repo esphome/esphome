@@ -24,21 +24,21 @@ static_assert(std::is_same_v<decltype(MultiClickTriggerEvent::state), uint32_t> 
 
 bool match_interval(uint32_t min_length, uint32_t max_length, uint32_t length);
 
-/// The timing of an on_click automation, fed every state change by a codegen callback.
-class ClickState {
+/// Times the presses of one on_click automation.
+class ClickDetector {
  public:
   /// Whether `state` ends a press of min_length to max_length ms; a max_length of 0 means no maximum.
-  bool on_state(bool state, uint32_t min_length, uint32_t max_length);
+  bool check(bool state, uint32_t min_length, uint32_t max_length);
 
  protected:
   uint32_t start_time_{0};  ///< The millis() time when the press started.
 };
 
-/// The timing of an on_double_click automation, fed every state change by a codegen callback.
-class DoubleClickState {
+/// Times the presses of one on_double_click automation.
+class DoubleClickDetector {
  public:
   /// Whether `state` is the second press, with the first press and the gap both in the window.
-  bool on_state(bool state, uint32_t min_length, uint32_t max_length);
+  bool check(bool state, uint32_t min_length, uint32_t max_length);
 
  protected:
   uint32_t start_time_{0};  ///< The millis() time of the edge before the last one.
