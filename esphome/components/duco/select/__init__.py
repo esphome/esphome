@@ -15,7 +15,7 @@ from .. import (
 DEPENDENCIES = ["duco"]
 CODEOWNERS = ["@kokx"]
 
-# Same order as MODE_CODES in select.cpp
+# Same order as MODE_CODES in mode.cpp
 DUCO_MODE_OPTIONS = [
     "AUTO",
     "MAN1",
@@ -35,12 +35,18 @@ DUCO_MODE_OPTIONS = [
 
 DucoSelect = duco_ns.class_("DucoSelect", DucoDevice, select.Select)
 DucoTimeFilter = duco_ns.class_("DucoTimeFilter", DucoDevice, select.Select)
+DucoBypassControl = duco_ns.class_("DucoBypassControl", DucoDevice, select.Select)
+DucoBypassAdaptiveControl = duco_ns.class_("DucoBypassAdaptiveControl", DucoDevice, select.Select)
 
 TYPE_MODE = "mode"
 TYPE_TIME_FILTER = "time_filter"
 CONF_MODE = "mode"
+CONF_BYPASS = "bypass"
+CONF_ADAPTIVE_BYPASS = "adaptive_bypass"
 
 TIME_FILTER_OPTIONS = ["90 days", "180 days", "270 days", "360 days"]
+BYPASS_OPTIONS = ["AUTO", "OPEN", "CLOSED"]
+ADAPTIVE_BYPASS_OPTIONS = ["ON", "OFF"]
 
 MODE_ENTITY_SCHEMA = (
     select.select_schema(DucoSelect)
@@ -59,23 +65,45 @@ TIME_FILTER_SCHEMA = (
     .extend({cv.Required(CONF_TYPE): cv.one_of(TYPE_TIME_FILTER)})
 )
 
+BYPASS_SCHEMA = select.select_schema(DucoBypassControl).extend(cv.polling_component_schema("60s"))
+
+ADAPTIVE_BYPASS_SCHEMA = select.select_schema(DucoBypassAdaptiveControl).extend(
+    cv.polling_component_schema("60s")
+)
+
 CONFIG_SCHEMA = cv.Any(
     LEGACY_MODE_SCHEMA,
     TIME_FILTER_SCHEMA,
     DUCO_COMPONENT_SCHEMA.extend(
         {
             cv.Optional(CONF_MODE): cv.ensure_list(MODE_ENTITY_SCHEMA),
+            cv.Optional(CONF_BYPASS): BYPASS_SCHEMA,
+            cv.Optional(CONF_ADAPTIVE_BYPASS): ADAPTIVE_BYPASS_SCHEMA,
         }
     ),
 )
 
 
 async def to_code(config: ConfigType) -> None:
+    grouped = False
     if CONF_MODE in config:
+        grouped = True
         for entity_config in config[CONF_MODE]:
             var = await select.new_select(entity_config, options=DUCO_MODE_OPTIONS)
             await register_duco_device(var, entity_config, config[CONF_DUCO_ID])
             cg.add(var.set_address(entity_config[CONF_ADDRESS]))
+
+    if entity_config := config.get(CONF_BYPASS):
+        grouped = True
+        var = await select.new_select(entity_config, options=BYPASS_OPTIONS)
+        await register_duco_device(var, entity_config, config[CONF_DUCO_ID])
+
+    if entity_config := config.get(CONF_ADAPTIVE_BYPASS):
+        grouped = True
+        var = await select.new_select(entity_config, options=ADAPTIVE_BYPASS_OPTIONS)
+        await register_duco_device(var, entity_config, config[CONF_DUCO_ID])
+
+    if grouped:
         return
 
     options = TIME_FILTER_OPTIONS if config.get(CONF_TYPE) == TYPE_TIME_FILTER else DUCO_MODE_OPTIONS
