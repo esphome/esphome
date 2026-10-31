@@ -118,20 +118,19 @@ bool LD6004Component::handle_model_report(uint16_t type, const uint8_t *data, ui
 }
 
 #ifdef USE_NUMBER
-void LD6004Component::set_number_value(number::Number *entity, float value) {
-  if (entity != this->dwell_lifetime_number_ && entity != this->output_interval_number_) {
-    this->LD600XComponent::set_number_value(entity, value);
-    return;
-  }
-  // NumberCall already keeps the value inside the traits' range; the module takes whole numbers only.
+bool LD6004Component::set_number_value(number::Number *entity, float value) {
+  if (entity != this->dwell_lifetime_number_ && entity != this->output_interval_number_)
+    return this->LD600XComponent::set_number_value(entity, value);
+  // NumberCall keeps the value inside the traits' range but does not round it to the step;
+  // the module takes whole numbers only.
   if (std::floor(value) != value) {
     ESP_LOGW(TAG, "Invalid number value: %f", value);
-    return;
+    return false;
   }
   uint8_t data[4];
   ld600x::write_u32_le(data, static_cast<uint32_t>(value));
-  this->queue_command_(entity == this->dwell_lifetime_number_ ? TYPE_SET_DWELL_LIFETIME : TYPE_SET_OUTPUT_INTERVAL,
-                       data, sizeof(data));
+  return this->queue_command_(
+      entity == this->dwell_lifetime_number_ ? TYPE_SET_DWELL_LIFETIME : TYPE_SET_OUTPUT_INTERVAL, data, sizeof(data));
 }
 #endif  // USE_NUMBER
 

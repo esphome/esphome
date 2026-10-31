@@ -140,8 +140,8 @@ inline LD6002BComponent *&test_hub() {
 }
 
 inline void apply_number(number::Number *entity, float value) {
-  entity->publish_state(value);
-  test_hub()->set_number_value(entity, value);
+  if (test_hub()->set_number_value(entity, value))
+    entity->publish_state(value);
 }
 inline void apply_select(select::Select *entity, size_t index) {
   entity->publish_state(index);

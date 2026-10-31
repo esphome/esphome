@@ -1016,13 +1016,15 @@ void LD600XComponent::apply_area_config_() {
 
 #ifdef USE_NUMBER
 // Each setter picks its setting by entity pointer, so the entities share one generated class.
-void LD600XComponent::set_number_value(number::Number *entity, float value) {
+bool LD600XComponent::set_number_value(number::Number *entity, float value) {
   if (entity == this->hold_delay_number_ || entity == this->low_power_sleep_number_) {
     uint8_t data[4];
     write_u32_le(data, static_cast<uint32_t>(value));
-    this->queue_command_(entity == this->hold_delay_number_ ? TYPE_SET_HOLD_DELAY : TYPE_SET_LOW_POWER_SLEEP, data,
-                         sizeof(data));
-  } else if (entity == this->z_min_number_) {
+    return this->queue_command_(entity == this->hold_delay_number_ ? TYPE_SET_HOLD_DELAY : TYPE_SET_LOW_POWER_SLEEP,
+                                data, sizeof(data));
+  }
+  // The z bounds and the area edits are kept here until both bounds or the apply button write them.
+  if (entity == this->z_min_number_) {
     this->z_min_ = value;
     this->send_z_range_();
   } else if (entity == this->z_max_number_) {
@@ -1047,6 +1049,7 @@ void LD600XComponent::set_number_value(number::Number *entity, float value) {
     this->area_z_max_ = value;
     this->area_edits_.z_max = value;
   }
+  return true;
 }
 #endif
 

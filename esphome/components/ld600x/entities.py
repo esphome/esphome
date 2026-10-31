@@ -317,7 +317,8 @@ def number_final_validate(
 # The apply call picks the setting by entity pointer, so every number shares one generated class.
 NUMBER_CONTROL: dict[str, str] = {
     "apply": "set_number_value(entity, value)",
-    "publish": "before",
+    # A rejected value or a full command queue leaves the number at its old value.
+    "publish": "on_success",
 }
 
 
