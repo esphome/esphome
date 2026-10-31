@@ -30,6 +30,7 @@ class InterruptExpanderComponent : public Component {
 };
 
 /// Base for expanders that cache reads per loop. With an interrupt pin the cache stays valid until INT fires.
+/// Expander picks the cache class (see BankedGpioExpanderComponent).
 template<typename T, uint16_t N, typename Expander = CachedGpioExpander<T, N>>
 class CachedGpioExpanderComponent : public InterruptExpanderComponent, public Expander {
  public:
