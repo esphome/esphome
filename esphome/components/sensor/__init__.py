@@ -459,14 +459,18 @@ def sensor_schema(
 ) -> cv.Schema:
     """Sensor schema; `kind` presets the unit, device class, state class and icon."""
     if kind is not cv.UNDEFINED:
+        given = SensorKind(
+            unit_of_measurement=unit_of_measurement,
+            device_class=device_class,
+            state_class=state_class,
+            icon=icon,
+        )
         merged = []
-        # `given` follows the SensorKind field order.
-        given = (unit_of_measurement, device_class, state_class, icon)
         for name, preset, value in zip(kind._fields, kind, given, strict=True):
             if preset is not cv.UNDEFINED and value is not cv.UNDEFINED:
                 raise ValueError(f"kind already sets {name}")
             merged.append(value if preset is cv.UNDEFINED else preset)
-        unit_of_measurement, device_class, state_class, icon = merged
+        unit_of_measurement, device_class, state_class, icon = SensorKind(*merged)
 
     schema = {}
 
