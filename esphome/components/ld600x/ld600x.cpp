@@ -1380,10 +1380,11 @@ void LD600XComponent::clear_target_state_() {
 }
 
 #ifdef USE_SWITCH
-void LD600XComponent::set_switch_state(switch_::Switch *entity, bool state) {
+bool LD600XComponent::set_switch_state(switch_::Switch *entity, bool state) {
   if (entity == this->point_cloud_switch_) {
+    if (!this->send_control_command_(state ? CMD_POINT_CLOUD_ON : CMD_POINT_CLOUD_OFF))
+      return false;
     this->point_cloud_enabled_ = state;
-    this->send_control_command_(state ? CMD_POINT_CLOUD_ON : CMD_POINT_CLOUD_OFF);
 #ifdef USE_SENSOR
     // The count only moves while the stream runs, so the last one would stand as
     // a live reading.  The dedup sentinel is cleared with it: the same count is
@@ -1392,13 +1393,15 @@ void LD600XComponent::set_switch_state(switch_::Switch *entity, bool state) {
       this->point_count_sensor_.publish_state_unknown();
 #endif
   } else {  // Only registered entities call this, so the last one needs no compare
+    if (!this->send_control_command_(state ? CMD_TARGET_DISPLAY_ON : CMD_TARGET_DISPLAY_OFF))
+      return false;
     this->target_display_enabled_ = state;
-    this->send_control_command_(state ? CMD_TARGET_DISPLAY_ON : CMD_TARGET_DISPLAY_OFF);
     if (!state) {
       // Every target entity is fed by the reports this just stopped.
       this->clear_target_state_();
     }
   }
+  return true;
 }
 #endif
 
