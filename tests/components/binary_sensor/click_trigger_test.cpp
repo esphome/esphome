@@ -184,4 +184,25 @@ TEST_F(ClickTriggerTest, DoubleClickResetsAfterFiring) {
   EXPECT_EQ(fired, 2);
 }
 
+TEST_F(ClickTriggerTest, DoubleClickKeepsPressPublishedByItsActions) {
+  // The times reset before the actions run, so a press the first action publishes is kept
+  this->sensor_.add_on_state_callback([this](bool state) {
+    if (!this->double_click_.check(state, MIN_MS, MAX_MS))
+      return;
+    if (++fired == 1) {
+      this->sensor_.publish_state(false);
+      this->sensor_.publish_state(true);
+    }
+  });
+  this->press_for_(INSIDE_MS);
+  delay(INSIDE_MS);
+  this->sensor_.publish_state(true);
+  EXPECT_EQ(fired, 1);
+  delay(INSIDE_MS);
+  this->sensor_.publish_state(false);
+  delay(INSIDE_MS);
+  this->sensor_.publish_state(true);
+  EXPECT_EQ(fired, 2);
+}
+
 }  // namespace esphome::binary_sensor::testing
