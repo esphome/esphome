@@ -148,14 +148,14 @@ void GT911Touchscreen::update_touches() {
     uint16_t y = encode_uint16(data[i][4], data[i][3]);
     this->add_raw_touch_position_(id, x, y);
   }
+#ifdef GT911_BUTTON_COUNT
   auto keys = data[num_of_touches][0] & ((1 << MAX_BUTTONS) - 1);
   if (keys != this->button_state_) {
     this->button_state_ = keys;
-#ifdef GT911_BUTTON_COUNT
     for (auto &button : this->buttons_)
       button.sensor->publish_state((keys & (1 << button.index)) != 0);
-#endif
   }
+#endif
 }
 
 void GT911Touchscreen::dump_config() {

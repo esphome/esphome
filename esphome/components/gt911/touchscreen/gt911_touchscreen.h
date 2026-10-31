@@ -5,9 +5,9 @@
 #include "esphome/core/component.h"
 #include "esphome/core/defines.h"
 #include "esphome/core/hal.h"
-#include "esphome/core/helpers.h"
 #ifdef GT911_BUTTON_COUNT
 #include "esphome/components/binary_sensor/binary_sensor.h"
+#include "esphome/core/helpers.h"
 #endif
 
 namespace esphome::gt911 {
@@ -48,13 +48,13 @@ class GT911Touchscreen final : public touchscreen::Touchscreen, public i2c::I2CD
   GPIOPin *interrupt_pin_{nullptr};
   GPIOPin *reset_pin_{nullptr};
 #ifdef GT911_BUTTON_COUNT
-  struct KeySensor {
+  struct ButtonSensor {
     binary_sensor::BinarySensor *sensor;
     uint8_t index;
   };
-  StaticVector<KeySensor, GT911_BUTTON_COUNT> buttons_;
-#endif
+  StaticVector<ButtonSensor, GT911_BUTTON_COUNT> buttons_;
   uint8_t button_state_{0xFF};  // last button state. Initial FF guarantees first update.
+#endif
 };
 
 }  // namespace esphome::gt911

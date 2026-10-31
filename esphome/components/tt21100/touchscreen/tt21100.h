@@ -5,9 +5,9 @@
 #include "esphome/core/component.h"
 #include "esphome/core/defines.h"
 #include "esphome/core/hal.h"
-#include "esphome/core/helpers.h"
 #ifdef TT21100_BUTTON_COUNT
 #include "esphome/components/binary_sensor/binary_sensor.h"
+#include "esphome/core/helpers.h"
 #endif
 
 namespace esphome::tt21100 {
@@ -36,11 +36,11 @@ class TT21100Touchscreen final : public Touchscreen, public i2c::I2CDevice {
   GPIOPin *reset_pin_{nullptr};
 
 #ifdef TT21100_BUTTON_COUNT
-  struct KeySensor {
+  struct ButtonSensor {
     binary_sensor::BinarySensor *sensor;
     uint8_t index;
   };
-  StaticVector<KeySensor, TT21100_BUTTON_COUNT> buttons_;
+  StaticVector<ButtonSensor, TT21100_BUTTON_COUNT> buttons_;
 #endif
 };
 

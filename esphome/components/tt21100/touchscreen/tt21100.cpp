@@ -50,7 +50,6 @@ void TT21100Touchscreen::setup() {
   for (auto &button : this->buttons_)
     button.sensor->publish_initial_state(false);
 #endif
-
   // Register interrupt pin
   if (this->interrupt_pin_ != nullptr) {
     this->interrupt_pin_->pin_mode(gpio::FLAG_INPUT | gpio::FLAG_PULLUP);

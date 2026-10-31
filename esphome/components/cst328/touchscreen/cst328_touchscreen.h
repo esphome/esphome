@@ -5,9 +5,9 @@
 #include "esphome/core/component.h"
 #include "esphome/core/defines.h"
 #include "esphome/core/hal.h"
-#include "esphome/core/helpers.h"
 #ifdef CST328_BUTTON_COUNT
 #include "esphome/components/binary_sensor/binary_sensor.h"
+#include "esphome/core/helpers.h"
 #endif
 
 namespace esphome::cst328 {
@@ -32,7 +32,7 @@ class CST328Touchscreen : public touchscreen::Touchscreen, public i2c::I2CDevice
  public:
   void setup() override;
 #ifdef CST328_BUTTON_COUNT
-  void add_button_binary_sensor(binary_sensor::BinarySensor *sensor) { this->button_binary_sensors_.push_back(sensor); }
+  void add_button_binary_sensor(binary_sensor::BinarySensor *sensor) { this->buttons_.push_back(sensor); }
 #endif
   void dump_config() override;
 
@@ -49,7 +49,7 @@ class CST328Touchscreen : public touchscreen::Touchscreen, public i2c::I2CDevice
   GPIOPin *reset_pin_{};
 
 #ifdef CST328_BUTTON_COUNT
-  StaticVector<binary_sensor::BinarySensor *, CST328_BUTTON_COUNT> button_binary_sensors_;
+  StaticVector<binary_sensor::BinarySensor *, CST328_BUTTON_COUNT> buttons_;
   bool button_touched_{};
 #endif
 
