@@ -259,20 +259,29 @@ def test_deep_sleep_enter_lambda_duration(
     """A lambda sleep_duration is computed from the script parameters before the sleep begins."""
     main_cpp = generate_main(ENTER_YAML)
 
-    assert (
-        "static void esphome__applyaction_id_3__fn("
-        "const std::remove_cvref_t<uint32_t> & seconds) {\n"
-        "  ::deepsleep->set_sleep_duration([](uint32_t seconds) -> uint32_t {\n"
-    ) in main_cpp
-    start = main_cpp.index("    return seconds * 1000;\n")
-    assert main_cpp.index("  ::deepsleep->begin_sleep(true);\n}\n", start) > start
+    assert re.search(
+        r"static void esphome__applyaction_id_3__fn\("
+        r"const std::remove_cvref_t<uint32_t> & seconds\) \{\n"
+        r"  ::deepsleep->set_sleep_duration\(\[\]\(uint32_t seconds\) -> uint32_t \{\n"
+        r"(?:    #line [^\n]*\n)?"
+        r"    return seconds \* 1000;\n"
+        r"(?:    // ESPHOME_LINE_DIRECTIVE_RESET\n)?"
+        r"  \}\(seconds\)\);\n"
+        r"  ::deepsleep->begin_sleep\(true\);\n"
+        r"\}\n",
+        main_cpp,
+    )
 
 
 @pytest.mark.parametrize(
-    "body", ["seconds *= 1000; return seconds;", "return seconds *= 1000;"]
+    ("fn_id", "body"),
+    [
+        ("applyaction_id_4", "seconds *= 1000; return seconds;"),
+        ("applyaction_id_5", "return seconds *= 1000;"),
+    ],
 )
 def test_deep_sleep_enter_lambda_takes_args_by_value(
-    generate_main: Callable[[str | Path], str], body: str
+    generate_main: Callable[[str | Path], str], fn_id: str, body: str
 ) -> None:
     """The sleep_duration lambda gets the script parameters by value, so it may modify them.
 
@@ -281,10 +290,14 @@ def test_deep_sleep_enter_lambda_takes_args_by_value(
     main_cpp = generate_main(ENTER_YAML)
 
     assert re.search(
-        r"set_sleep_duration\(\[\]\(uint32_t seconds\) -> uint32_t \{\n"
+        r"static void esphome__"
+        + fn_id
+        + r"__fn\(const std::remove_cvref_t<uint32_t> & seconds\) \{\n"
+        r"  ::deepsleep->set_sleep_duration\(\[\]\(uint32_t seconds\) -> uint32_t \{\n"
         r"(?:    #line [^\n]*\n)?    "
         + re.escape(body)
-        + r"\n(?:    // ESPHOME_LINE_DIRECTIVE_RESET\n)?  \}\(seconds\)\);\n",
+        + r"\n(?:    // ESPHOME_LINE_DIRECTIVE_RESET\n)?  \}\(seconds\)\);\n"
+        r"  ::deepsleep->begin_sleep\(true\);\n\}\n",
         main_cpp,
     )
 
