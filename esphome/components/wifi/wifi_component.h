@@ -461,6 +461,7 @@ class WiFiPowerSaveListener {
 static constexpr uint32_t AP_HANDOVER_TIMEOUT_ID = 0;
 static constexpr uint32_t LEASE_RENEW_TIMEOUT_ID = 1;
 static constexpr uint32_t AP_DEAUTH_RETRY_TIMEOUT_ID = 2;
+static constexpr uint32_t IPV6_RECOUNT_TIMEOUT_ID = 3;
 
 /// This component is responsible for managing the ESP WiFi interface.
 class WiFiComponent final : public Component {

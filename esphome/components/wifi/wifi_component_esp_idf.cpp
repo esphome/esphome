@@ -41,6 +41,10 @@
 #include "lwip/apps/sntp.h"
 #include "lwip/dns.h"
 #include "lwip/err.h"
+#if !USE_NETWORK_IPV4 && LWIP_IPV6_DHCP6
+#include <esp_netif_net_stack.h>
+#include "lwip/dhcp6.h"
+#endif
 #ifdef USE_WIFI_LEASE_CACHE
 #include <esp_netif_net_stack.h>  // esp_netif_get_netif_impl()
 #include <esp_rtc_time.h>         // esp_rtc_get_time_us() -- RTC-domain clock for lease age
@@ -667,6 +671,7 @@ static void disable_dhcp_sntp() {
 #ifdef USE_WIFI_LEASE_CACHE
 // Minimum lease time that must remain before a cached lease is applied.
 static constexpr uint32_t LEASE_APPLY_MARGIN_SECS = 60;
+static constexpr uint32_t IPV6_ROAM_SETTLE_MS = 5000;
 
 // Seconds since capture on the RTC-domain clock; UINT32_MAX if the clock was reset (age unknown).
 static uint32_t lease_cache_age_secs(const SavedWifiLeaseSettings &lease) {
@@ -729,6 +734,11 @@ bool WiFiComponent::wifi_sta_ip_config_(const optional<ManualIP> &manual_ip) {
     return false;
   }
 
+#if !USE_NETWORK_IPV4
+  // No IPv4 stack: addresses come from SLAAC, validation rejects manual_ip
+  (void) manual_ip;
+  return true;
+#else
   esp_netif_dhcp_status_t dhcp_status;
   esp_err_t err = esp_netif_dhcpc_get_status(s_sta_netif, &dhcp_status);
   if (err != ESP_OK) {
@@ -810,6 +820,7 @@ bool WiFiComponent::wifi_sta_ip_config_(const optional<ManualIP> &manual_ip) {
   }
 
   return true;
+#endif  // USE_NETWORK_IPV4
 }
 
 #ifdef USE_WIFI_LEASE_CACHE
@@ -882,6 +893,7 @@ network::IPAddresses WiFiComponent::wifi_sta_ip_addresses() {
   if (!this->has_sta())
     return {};
   network::IPAddresses addresses;
+#if USE_NETWORK_IPV4
   esp_netif_ip_info_t ip;
   esp_err_t err = esp_netif_get_ip_info(s_sta_netif, &ip);
   if (err != ESP_OK) {
@@ -891,6 +903,7 @@ network::IPAddresses WiFiComponent::wifi_sta_ip_addresses() {
   } else {
     addresses[0] = network::IPAddress(&ip.ip);
   }
+#endif
 #if USE_NETWORK_IPV6
   network::fill_ip6_addresses(s_sta_netif, addresses);
 #endif /* USE_NETWORK_IPV6 */
@@ -1101,6 +1114,18 @@ void WiFiComponent::wifi_process_event_(IDFWiFiEvent *data) {
     if (esp_err_t ll_err = esp_netif_create_ip6_linklocal(s_sta_netif); ll_err != ESP_OK) {
       ESP_LOGW(TAG, "esp_netif_create_ip6_linklocal failed: %s", esp_err_to_name(ll_err));
     }
+#if !USE_NETWORK_IPV4 && LWIP_IPV6_DHCP6
+    // Without DHCPv4, DNS servers come from RDNSS or stateless DHCPv6; esp_netif never starts the latter
+    if (auto *netif = static_cast<struct netif *>(esp_netif_get_netif_impl(s_sta_netif)); netif != nullptr) {
+      // LwIPLock is a no-op without core locking; esp_netif_tcpip_exec always runs in the TCP/IP context.
+      esp_netif_tcpip_exec(
+          [](void *ctx) -> esp_err_t {
+            dhcp6_enable_stateless(static_cast<struct netif *>(ctx));
+            return ESP_OK;
+          },
+          netif);
+    }
+#endif
 #endif /* USE_NETWORK_IPV6 */
     if (this->state_ == WIFI_COMPONENT_STATE_STA_CONNECTED) {
       // Driver-initiated roam: the WIFI_REASON_ROAMING disconnect was ignored,
@@ -1114,6 +1139,15 @@ void WiFiComponent::wifi_process_event_(IDFWiFiEvent *data) {
       bssid_t roam_bssid;
       std::copy(it.bssid, it.bssid + 6, roam_bssid.begin());
       this->handle_driver_roam_(roam_bssid, it.channel);
+#if USE_NETWORK_IPV6
+      // The count only rises (see GOT_IP6) so a roam can't read as a lost connection. Once SLAAC has
+      // settled, take the real count so addresses the new AP did not give back are not counted forever.
+      this->set_timeout(IPV6_RECOUNT_TIMEOUT_ID, IPV6_ROAM_SETTLE_MS, [this]() {
+        esp_ip6_addr_t addresses[CONFIG_LWIP_IPV6_NUM_ADDRESSES];
+        LwIPLock lock;
+        this->num_ipv6_addresses_ = static_cast<uint8_t>(esp_netif_get_all_ip6(s_sta_netif, addresses));
+      });
+#endif
     }
 #ifdef USE_WIFI_CONNECT_STATE_LISTENERS
     // Defer listener notification until state machine reaches STA_CONNECTED
@@ -1195,16 +1229,25 @@ void WiFiComponent::wifi_process_event_(IDFWiFiEvent *data) {
 #if USE_NETWORK_IPV6
   } else if (data->event_base == IP_EVENT && data->event_id == IP_EVENT_GOT_IP6) {
     const auto &it = data->data.ip_got_ip6;
+    if (it.esp_netif != s_sta_netif) {
+      return;  // another interface's address (AP netif, or ethernet alongside wifi)
+    }
     if (!s_sta_connected) {
       ESP_LOGV(TAG, "Ignoring IPv6 address event before association");
       return;
     }
+    ESP_LOGV(TAG, "IPv6 address=" IPV6STR, IPV62STR(it.ip6_info.ip));
+    // Count the addresses on the interface, not the events: a roam re-creates the
+    // link-local and fires another event for the same address. Never count down
+    // while associated: a roam briefly clears every address before SLAAC re-adds
+    // them, and that must not read as a lost connection. wifi_sta_connect_() resets.
     esp_ip6_addr_t addresses[CONFIG_LWIP_IPV6_NUM_ADDRESSES];
+    uint8_t count;
     {
       LwIPLock lock;
-      this->num_ipv6_addresses_ = esp_netif_get_all_ip6(s_sta_netif, addresses);
+      count = static_cast<uint8_t>(esp_netif_get_all_ip6(s_sta_netif, addresses));
     }
-    ESP_LOGV(TAG, "IPv6 address=" IPV6STR, IPV62STR(it.ip6_info.ip));
+    this->num_ipv6_addresses_ = std::max(this->num_ipv6_addresses_, count);
 #ifdef USE_WIFI_IP_STATE_LISTENERS
     this->notify_ip_state_listeners_();
 #endif
@@ -1391,6 +1434,12 @@ void WiFiComponent::wifi_process_event_(IDFWiFiEvent *data) {
 }
 
 WiFiSTAConnectStatus WiFiComponent::wifi_sta_connect_status_() const {
+#if !USE_NETWORK_IPV4
+  // Without IPv4 an IPv6 address is the connection, so wait for at least one
+  if (s_sta_connected && this->num_ipv6_addresses_ >= std::max(USE_NETWORK_MIN_IPV6_ADDR_COUNT, 1)) {
+    return WiFiSTAConnectStatus::CONNECTED;
+  }
+#else
   if (s_sta_connected && this->got_ipv4_address_) {
 #if USE_NETWORK_IPV6 && (USE_NETWORK_MIN_IPV6_ADDR_COUNT > 0)
     if (this->num_ipv6_addresses_ >= USE_NETWORK_MIN_IPV6_ADDR_COUNT) {
@@ -1398,8 +1447,9 @@ WiFiSTAConnectStatus WiFiComponent::wifi_sta_connect_status_() const {
     }
 #else
     return WiFiSTAConnectStatus::CONNECTED;
-#endif /* USE_NETWORK_IPV6 */
+#endif  /* USE_NETWORK_IPV6 */
   }
+#endif  // USE_NETWORK_IPV4
   if (s_sta_connect_error) {
     return WiFiSTAConnectStatus::ERROR_CONNECT_FAILED;
   }
@@ -1666,6 +1716,7 @@ int32_t WiFiComponent::get_wifi_channel() {
   return primary;
 }
 network::IPAddress WiFiComponent::wifi_subnet_mask_() {
+#if USE_NETWORK_IPV4
   esp_netif_ip_info_t ip;
   esp_err_t err = esp_netif_get_ip_info(s_sta_netif, &ip);
   if (err != ESP_OK) {
@@ -1673,8 +1724,12 @@ network::IPAddress WiFiComponent::wifi_subnet_mask_() {
     return {};
   }
   return network::IPAddress(&ip.netmask);
+#else
+  return {};
+#endif
 }
 network::IPAddress WiFiComponent::wifi_gateway_ip_() {
+#if USE_NETWORK_IPV4
   esp_netif_ip_info_t ip;
   esp_err_t err = esp_netif_get_ip_info(s_sta_netif, &ip);
   if (err != ESP_OK) {
@@ -1682,6 +1737,9 @@ network::IPAddress WiFiComponent::wifi_gateway_ip_() {
     return {};
   }
   return network::IPAddress(&ip.gw);
+#else
+  return {};
+#endif
 }
 network::IPAddress WiFiComponent::wifi_dns_ip_(int num) {
   const ip_addr_t *dns_ip = dns_getserver(num);
