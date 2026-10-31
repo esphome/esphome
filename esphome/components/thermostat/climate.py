@@ -142,11 +142,11 @@ _SWING_MODE_ACTIONS: dict[str, str] = {
     "OFF": CONF_SWING_OFF_ACTION,
     "VERTICAL": CONF_SWING_VERTICAL_ACTION,
 }
-_PRESET_MODE_ACTIONS: tuple[tuple[str, dict[str, tuple[str, ...]]], ...] = (
-    (CONF_MODE, _MODE_ACTIONS),
-    (CONF_FAN_MODE, {m: (k,) for m, k in _FAN_MODE_ACTIONS.items()}),
-    (CONF_SWING_MODE, {m: (k,) for m, k in _SWING_MODE_ACTIONS.items()}),
-)
+_PRESET_MODE_ACTIONS: dict[str, dict[str, tuple[str, ...]]] = {
+    CONF_MODE: _MODE_ACTIONS,
+    CONF_FAN_MODE: {m: (k,) for m, k in _FAN_MODE_ACTIONS.items()},
+    CONF_SWING_MODE: {m: (k,) for m, k in _SWING_MODE_ACTIONS.items()},
+}
 
 
 class _Trigger(NamedTuple):
@@ -208,7 +208,7 @@ _HUMIDITY_CONTROL_TRIGGERS: tuple[_Trigger, ...] = (
 )
 
 # Settings passed to their setter as is, in this order
-_DEADBANDS: dict[str, str] = {
+_DEADBAND_OVERRUNS: dict[str, str] = {
     CONF_COOL_DEADBAND: "set_cool_deadband",
     CONF_COOL_OVERRUN: "set_cool_overrun",
     CONF_HEAT_DEADBAND: "set_heat_deadband",
@@ -237,7 +237,7 @@ _FLAGS: dict[str, str] = {
     CONF_STARTUP_DELAY: "set_use_startup_delay",
 }
 _SETTINGS: tuple[tuple[str, str], ...] = (
-    *_DEADBANDS.items(),
+    *_DEADBAND_OVERRUNS.items(),
     *_TIMERS.items(),
     *_SUPPLEMENTAL_DELTAS.items(),
     (CONF_MIN_IDLE_TIME, "set_idle_minimum_time_in_sec"),
@@ -404,13 +404,11 @@ _KEY_REQUIREMENTS: dict[str, list[str]] = {
 def validate_thermostat(config: ConfigType) -> ConfigType:
     if CONF_FAN_ONLY_ACTION in config:
         # determine validation requirements based on fan_only_action_uses_fan_mode_timer setting
-        if config[CONF_FAN_ONLY_ACTION_USES_FAN_MODE_TIMER] is True:
-            requirements = [CONF_MIN_FAN_MODE_SWITCHING_TIME]
-        else:
-            requirements = [
-                CONF_MIN_FANNING_OFF_TIME,
-                CONF_MIN_FANNING_RUN_TIME,
-            ]
+        requirements = (
+            [CONF_MIN_FAN_MODE_SWITCHING_TIME]
+            if config[CONF_FAN_ONLY_ACTION_USES_FAN_MODE_TIMER]
+            else [CONF_MIN_FANNING_OFF_TIME, CONF_MIN_FANNING_RUN_TIME]
+        )
         for config_req_action in requirements:
             if config_req_action not in config:
                 raise cv.Invalid(
@@ -418,19 +416,14 @@ def validate_thermostat(config: ConfigType) -> ConfigType:
                 )
 
     # determine validation requirements based on fan_only_cooling setting
-    if config[CONF_FAN_ONLY_COOLING] is True:
-        requirements = {
-            CONF_DEFAULT_TARGET_TEMPERATURE_HIGH: [
-                CONF_COOL_ACTION,
-                CONF_FAN_ONLY_ACTION,
-            ],
-            CONF_DEFAULT_TARGET_TEMPERATURE_LOW: [CONF_HEAT_ACTION],
-        }
-    else:
-        requirements = {
-            CONF_DEFAULT_TARGET_TEMPERATURE_HIGH: [CONF_COOL_ACTION],
-            CONF_DEFAULT_TARGET_TEMPERATURE_LOW: [CONF_HEAT_ACTION],
-        }
+    requirements = {
+        CONF_DEFAULT_TARGET_TEMPERATURE_HIGH: (
+            [CONF_COOL_ACTION, CONF_FAN_ONLY_ACTION]
+            if config[CONF_FAN_ONLY_COOLING]
+            else [CONF_COOL_ACTION]
+        ),
+        CONF_DEFAULT_TARGET_TEMPERATURE_LOW: [CONF_HEAT_ACTION],
+    }
 
     # Legacy high/low configs
     for key in _TARGET_TEMPERATURES:
@@ -494,7 +487,7 @@ def validate_thermostat(config: ConfigType) -> ConfigType:
                     )
 
         # Mode, fan mode and swing mode validation
-        for mode_key, mode_actions in _PRESET_MODE_ACTIONS:
+        for mode_key, mode_actions in _PRESET_MODE_ACTIONS.items():
             for preset_config in config[CONF_PRESET]:
                 if (mode := preset_config.get(mode_key)) is None:
                     continue
@@ -555,13 +548,13 @@ CONFIG_SCHEMA = cv.All(
                     if key == CONF_HEAT_COOL_MODE
                     else automation.validate_automation(single=True)
                 )
-                for key, _, _ in _TRIGGERS
+                for key, *_ in _TRIGGERS
             },
             **{
                 cv.Exclusive(
                     key, group_of_exclusion="humidity_control"
                 ): automation.validate_automation(single=True)
-                for key, _, _ in _HUMIDITY_CONTROL_TRIGGERS
+                for key, *_ in _HUMIDITY_CONTROL_TRIGGERS
             },
             cv.Optional(
                 CONF_HUMIDITY_CONTROL_OFF_ACTION
@@ -575,7 +568,7 @@ CONFIG_SCHEMA = cv.All(
             ): cv.temperature_delta,
             **{
                 cv.Optional(key, default=0.5): cv.temperature_delta
-                for key in _DEADBANDS
+                for key in _DEADBAND_OVERRUNS
             },
             **{cv.Optional(key): cv.positive_time_period_seconds for key in _TIMERS},
             cv.Required(CONF_MIN_IDLE_TIME): cv.positive_time_period_seconds,
