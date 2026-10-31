@@ -3,59 +3,23 @@
 
 namespace esphome::xiaomi_hhccjcy01 {
 
-static const char *const TAG = "xiaomi_hhccjcy01";
+ESPHOME_LOG_TAG(TAG, "xiaomi_hhccjcy01");
 
 void XiaomiHHCCJCY01::dump_config() {
   ESP_LOGCONFIG(TAG, "Xiaomi HHCCJCY01");
-  LOG_SENSOR("  ", "Temperature", this->temperature_);
-  LOG_SENSOR("  ", "Moisture", this->moisture_);
-  LOG_SENSOR("  ", "Conductivity", this->conductivity_);
-  LOG_SENSOR("  ", "Illuminance", this->illuminance_);
-  LOG_SENSOR("  ", "Battery Level", this->battery_level_);
+  LOG_SENSOR("  ", "Temperature", this->temperature_sensor_);
+  LOG_SENSOR("  ", "Moisture", this->moisture_sensor_);
+  LOG_SENSOR("  ", "Conductivity", this->conductivity_sensor_);
+  LOG_SENSOR("  ", "Illuminance", this->illuminance_sensor_);
+  LOG_SENSOR("  ", "Battery Level", this->battery_level_sensor_);
 }
 
-bool XiaomiHHCCJCY01::parse_device(const ble_device_base::ESPBTDevice &device) {
-  if (device.address_uint64() != this->address_) {
-    ESP_LOGVV(TAG, "parse_device(): unknown MAC address.");
-    return false;
-  }
-  char addr_buf[MAC_ADDRESS_PRETTY_BUFFER_SIZE];
-  const char *addr_str = device.address_str_to(addr_buf);
-  ESP_LOGVV(TAG, "parse_device(): MAC address %s found.", addr_str);
-
-  bool success = false;
-  for (auto &service_data : device.get_service_datas()) {
-    auto res = xiaomi_ble::parse_xiaomi_header(service_data);
-    if (!res.has_value()) {
-      continue;
-    }
-    if (res->is_duplicate) {
-      continue;
-    }
-    if (res->has_encryption) {
-      ESP_LOGVV(TAG, "parse_device(): payload decryption is currently not supported on this device.");
-      continue;
-    }
-    if (!(xiaomi_ble::parse_xiaomi_message(service_data.data, *res))) {
-      continue;
-    }
-    if (!(xiaomi_ble::report_xiaomi_results(res, addr_str))) {
-      continue;
-    }
-    if (res->temperature.has_value() && this->temperature_ != nullptr)
-      this->temperature_->publish_state(*res->temperature);
-    if (res->moisture.has_value() && this->moisture_ != nullptr)
-      this->moisture_->publish_state(*res->moisture);
-    if (res->conductivity.has_value() && this->conductivity_ != nullptr)
-      this->conductivity_->publish_state(*res->conductivity);
-    if (res->illuminance.has_value() && this->illuminance_ != nullptr)
-      this->illuminance_->publish_state(*res->illuminance);
-    if (res->battery_level.has_value() && this->battery_level_ != nullptr)
-      this->battery_level_->publish_state(*res->battery_level);
-    success = true;
-  }
-
-  return success;
+void XiaomiHHCCJCY01::publish_result(const xiaomi_ble::XiaomiParseResult &res) {
+  publish_optional(this->temperature_sensor_, res.temperature);
+  publish_optional(this->moisture_sensor_, res.moisture);
+  publish_optional(this->conductivity_sensor_, res.conductivity);
+  publish_optional(this->illuminance_sensor_, res.illuminance);
+  publish_optional(this->battery_level_sensor_, res.battery_level);
 }
 
 }  // namespace esphome::xiaomi_hhccjcy01

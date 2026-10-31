@@ -20,6 +20,21 @@
 #include "esphome/components/api/api_pb2.h"
 #endif
 
+#ifdef USE_SERIAL_PROXY_USB_IDENTITY
+namespace esphome::usb_uart {
+class USBUartChannel;
+}  // namespace esphome::usb_uart
+namespace esphome::usb_host {
+struct UsbDeviceInfo;
+}  // namespace esphome::usb_host
+#endif
+
+#ifdef USE_SERIAL_PROXY_HOST_UART
+namespace esphome::uart {
+class HostUartComponent;
+}  // namespace esphome::uart
+#endif
+
 // Forward-declare types needed outside the USE_API guard.
 namespace esphome::api {
 class APIConnection;
@@ -53,6 +68,11 @@ enum class SerialProxyResult : uint8_t {
 /// Maximum bytes to read from UART in a single loop iteration
 inline constexpr size_t SERIAL_PROXY_MAX_READ_SIZE = 256;
 
+/// Longest main-loop stall client writes may cause per loop pass, shared by every instance;
+/// bytes the UART cannot buffer within it are dropped. Well under the shortest watchdog
+/// timeout, since the API hands the proxies up to ten writes in one pass.
+inline constexpr uint32_t SERIAL_PROXY_MAX_WRITE_STALL_MS = 1000;
+
 #ifdef USE_SERIAL_PROXY_TAP
 /// Observes a port's traffic without owning it, and may inject bytes of its own.
 ///
@@ -75,11 +95,20 @@ class SerialProxyTap {
   /// subscriber holds the port; with one attached, the port mode alone decides.
   virtual bool tap_needs_port() const = 0;
 
+  /// A client turned protocol handling on for this port. The tap has seen none of the
+  /// traffic since it was last on, so anything it remembers from then is stale.
+  virtual void on_protocol_enabled() = 0;
+
   /// A client explicitly turned protocol handling off for this port. Distinct from the
   /// automatic reset when a session ends: this one means a client intends to do something
   /// else with the device -- reflash it, most likely -- so anything the tap believes about
   /// it should be treated as suspect.
   virtual void on_protocol_disabled() = 0;
+
+  /// The device behind the port went away -- unplugged, or its power was cut. Whatever
+  /// session the tap had observed ended with it; the device that appears next starts from
+  /// scratch and may not even be the same one. Only a USB UART can report this.
+  virtual void on_device_disconnected() = 0;
 };
 #endif
 
@@ -139,10 +168,12 @@ class SerialProxy final : public uart::UARTDevice, public Component {
   /// Get current modem pin states as a bitmask of SerialProxyLineStateFlag values
   uint32_t get_modem_pins() const;
 
-  /// Get the modem pins this instance can drive as a bitmask of SerialProxyLineStateFlag values
+  /// Get the modem pins this instance can drive as a bitmask of SerialProxyLineStateFlag values.
+  /// A line is driven by its GPIO pin when one is configured, otherwise by the UART if it can.
   uint32_t get_configured_modem_pins() const {
-    return (this->rts_pin_ != nullptr ? static_cast<uint32_t>(SERIAL_PROXY_LINE_STATE_FLAG_RTS) : 0u) |
-           (this->dtr_pin_ != nullptr ? static_cast<uint32_t>(SERIAL_PROXY_LINE_STATE_FLAG_DTR) : 0u);
+    const bool uart_lines = this->with_modem_uart_([](auto *) {});
+    return (this->rts_pin_ != nullptr || uart_lines ? static_cast<uint32_t>(SERIAL_PROXY_LINE_STATE_FLAG_RTS) : 0u) |
+           (this->dtr_pin_ != nullptr || uart_lines ? static_cast<uint32_t>(SERIAL_PROXY_LINE_STATE_FLAG_DTR) : 0u);
   }
 
   /// Flush the serial port (block until all TX data is sent)
@@ -154,6 +185,21 @@ class SerialProxy final : public uart::UARTDevice, public Component {
 
   /// Set the DTR GPIO pin (from YAML configuration)
   void set_dtr_pin(GPIOPin *pin) { this->dtr_pin_ = pin; }
+
+#ifdef USE_SERIAL_PROXY_USB_IDENTITY
+  /// Attach the USB UART channel behind this port (from code generation)
+  void set_usb_channel(usb_uart::USBUartChannel *channel) { this->usb_channel_ = channel; }
+#endif
+
+#ifdef USE_SERIAL_PROXY_HOST_UART
+  /// Attach the host UART behind this port (from code generation)
+  void set_host_uart(uart::HostUartComponent *host_uart) { this->host_uart_ = host_uart; }
+#endif
+
+#ifdef USE_API
+  /// Send this port's identity to one client
+  void send_identity(api::APIConnection *api_connection);
+#endif
 
 #ifdef USE_SERIAL_PROXY_TAP
   /// Attach a traffic observer. At most one, set once at setup time.
@@ -204,6 +250,27 @@ class SerialProxy final : public uart::UARTDevice, public Component {
   bool is_subscriber_(api::APIConnection *api_connection) const { return this->api_connection_ == api_connection; }
 #endif
 
+  /// Call f with the UART behind this port if that UART drives the modem lines itself.
+  /// Returns false when it cannot. Typed pointers, so the calls are direct.
+  template<typename F> bool with_modem_uart_(F &&f) const {
+#ifdef USE_SERIAL_PROXY_USB_IDENTITY
+    if (this->usb_channel_ != nullptr) {
+      f(this->usb_channel_);
+      return true;
+    }
+#endif
+#ifdef USE_SERIAL_PROXY_HOST_UART
+    if (this->host_uart_ != nullptr) {
+      f(this->host_uart_);
+      return true;
+    }
+#endif
+    return false;
+  }
+
+  /// Time the wire needs for the given number of bytes at the current framing
+  uint32_t wire_time_ms_(size_t bytes) const;
+
 #ifdef USE_SERIAL_PROXY_TAP
   /// Return the port to RAW when a subscriber goes away, so the mode never outlives it
   void reset_mode_();
@@ -218,8 +285,31 @@ class SerialProxy final : public uart::UARTDevice, public Component {
   bool tap_observing_() const;
 #endif
 
+#ifdef USE_API
+#ifdef USE_SERIAL_PROXY_USB_IDENTITY
+  using IdentityScratch = usb_host::UsbDeviceInfo;
+#else
+  struct IdentityScratch {};
+#endif
+  /// Fill an identity message for this port. The message's strings are views into scratch,
+  /// so it must outlive the send.
+  void fill_identity_(IdentityScratch &scratch, api::SerialProxyIdentity &msg) const;
+#endif
+
+#ifdef USE_SERIAL_PROXY_USB_IDENTITY
+  /// The USB device behind this port was attached or removed; report the port's new
+  /// identity to every subscribed API client
+  void on_usb_connection_changed_(bool connected);
+#endif
+
   /// Instance index for identifying this proxy in API messages
   uint32_t instance_index_{0};
+
+  /// Stall spent by writes in the current loop pass, keyed by the pass's cached start time.
+  /// Static on purpose: there is one main loop, and writes to different ports that arrive in
+  /// the same pass all stall it, so the budget is one per device rather than one per port
+  static uint32_t stall_loop_time;
+  static uint32_t stall_spent_ms;
 
   /// Subscribed API client (only one allowed at a time)
   api::APIConnection *api_connection_{nullptr};
@@ -248,8 +338,21 @@ class SerialProxy final : public uart::UARTDevice, public Component {
   bool rts_state_{false};
   bool dtr_state_{false};
 
+  /// Set while writes are being trimmed, so a client streaming into a slow port warns once
+  bool trim_warned_{false};
+
 #ifdef USE_SERIAL_PROXY_TAP
   SerialProxyTap *tap_{nullptr};
+#endif
+
+#ifdef USE_SERIAL_PROXY_USB_IDENTITY
+  /// The USB UART channel behind this port; nullptr on non-USB ports
+  usb_uart::USBUartChannel *usb_channel_{nullptr};
+#endif
+
+#ifdef USE_SERIAL_PROXY_HOST_UART
+  /// The host UART behind this port; nullptr on other ports
+  uart::HostUartComponent *host_uart_{nullptr};
 #endif
 };
 

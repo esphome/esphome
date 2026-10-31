@@ -3,8 +3,25 @@ rc522_i2c:
     i2c_id: i2c_bus
     update_interval: 1s
     on_tag:
-      - lambda: |-
-          ESP_LOGD("main", "Found tag %s", x.c_str());
+      - then:
+          - lambda: |-
+              ESP_LOGD("main", "Found tag %s", x.c_str());
+      - then:
+          - lambda: |-
+              ESP_LOGD("main", "Second found tag %s", x.c_str());
+    on_tag_removed:
+      - then:
+          - lambda: |-
+              ESP_LOGD("main", "Removed tag %s", x.c_str());
+      - then:
+          - lambda: |-
+              ESP_LOGD("main", "Second removed tag %s", x.c_str());
+  - id: rc522_nfcc_i2c_second
+    i2c_id: i2c_bus
+    address: 0x29
+    update_interval: 1s
+    on_tag:
+      - lambda: ESP_LOGD("main", "Second hub tag %s", x.c_str());
 
 binary_sensor:
   - platform: rc522

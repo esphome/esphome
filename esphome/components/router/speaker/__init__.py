@@ -1,4 +1,4 @@
-from esphome import automation, core
+from esphome import automation
 import esphome.codegen as cg
 from esphome.components import audio, speaker
 import esphome.config_validation as cv
@@ -9,9 +9,7 @@ from esphome.const import (
     CONF_OUTPUT_SPEAKER,
     CONF_SAMPLE_RATE,
 )
-from esphome.core import ID
-from esphome.cpp_generator import MockObj
-from esphome.types import ConfigType, TemplateArgsType
+from esphome.types import ConfigType
 
 CODEOWNERS = ["@kahrendt"]
 
@@ -20,7 +18,6 @@ CONF_TARGET_SPEAKER = "target_speaker"
 
 router_ns = cg.esphome_ns.namespace("router")
 Router = router_ns.class_("Router", cg.Component, speaker.Speaker)
-SwitchOutputAction = router_ns.class_("SwitchOutputAction", automation.Action)
 
 SpeakerPtr = speaker.Speaker.operator("ptr")
 
@@ -89,13 +86,11 @@ async def to_code(config: ConfigType) -> None:
     speakers = config[CONF_OUTPUT_SPEAKERS]
     cg.add(var.set_output_count(len(speakers)))
     for spk_id in speakers:
-        spk = await cg.get_variable(spk_id)
-        cg.add(var.add_output(spk))
+        await cg.add_variable(var.add_output, spk_id)
 
 
-@automation.register_action(
+automation.register_apply_action(
     "router.speaker.switch_output",
-    SwitchOutputAction,
     cv.Schema(
         {
             cv.GenerateID(CONF_ID): cv.use_id(Router),
@@ -104,19 +99,5 @@ async def to_code(config: ConfigType) -> None:
             ),
         }
     ),
-    synchronous=True,
+    automation.ApplyField(CONF_TARGET_SPEAKER, "switch_to_output", SpeakerPtr),
 )
-async def switch_output_to_code(
-    config: ConfigType,
-    action_id: ID,
-    template_arg: cg.TemplateArguments,
-    args: TemplateArgsType,
-) -> MockObj:
-    parent = await cg.get_variable(config[CONF_ID])
-    var = cg.new_Pvariable(action_id, template_arg, parent)
-    target = config[CONF_TARGET_SPEAKER]
-    if not isinstance(target, core.Lambda):
-        target = await cg.get_variable(target)
-    template_ = await cg.templatable(target, args, SpeakerPtr)
-    cg.add(var.set_target(template_))
-    return var

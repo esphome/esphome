@@ -1,3 +1,5 @@
+import logging
+
 from esphome import automation
 import esphome.codegen as cg
 from esphome.components import climate, sensor
@@ -27,12 +29,21 @@ from esphome.const import (
     CONF_TARGET_TEMPERATURE,
     CONF_TARGET_TEMPERATURE_HIGH,
     CONF_TARGET_TEMPERATURE_LOW,
+    CONF_UNIT_OF_MEASUREMENT,
 )
-from esphome.core import ID
-from esphome.cpp_generator import MockObj, TemplateArgsType
+from esphome.core.entity_helpers import (
+    UNRESOLVED_PROPERTY,
+    convert_temperature_keys,
+    entity_temperature_unit,
+    resolve_inherited_property,
+    temperature_in_entity_unit,
+)
+from esphome.cpp_types import TEMPERATURE_UNITS
 from esphome.types import ConfigType
 
 from .. import template_ns
+
+_LOGGER = logging.getLogger(__name__)
 
 CONF_CURRENT_HUMIDITY = "current_humidity"
 CONF_TARGET_HUMIDITY = "target_humidity"
@@ -53,19 +64,13 @@ CONF_SET_PRESET_ACTION = "set_preset_action"
 CONF_SET_CUSTOM_PRESET_ACTION = "set_custom_preset_action"
 
 TemplateClimate = template_ns.class_("TemplateClimate", climate.Climate, cg.Component)
-TemplateClimatePublishAction = template_ns.class_(
-    "TemplateClimatePublishAction",
-    automation.Action,
-    cg.Parented.template(TemplateClimate),
-)
 
 TemplateClimateRestoreMode = template_ns.enum(
     "TemplateClimateRestoreMode", is_class=True
 )
-CLIMATE_RESTORE_MODES = {
-    "NO_RESTORE": TemplateClimateRestoreMode.TEMPLATE_CLIMATE_RESTORE_MODE_NO_RESTORE,
-    "RESTORE": TemplateClimateRestoreMode.TEMPLATE_CLIMATE_RESTORE_MODE_RESTORE,
-}
+CLIMATE_RESTORE_MODES = TemplateClimateRestoreMode.options(
+    "NO_RESTORE", "RESTORE", prefix="TEMPLATE_CLIMATE_RESTORE_MODE_"
+)
 
 # Per-field actions that forward a requested value on. The third item is the type of `x`.
 SET_ACTIONS = (
@@ -198,6 +203,9 @@ def _validate_initial_state(config: ConfigType) -> ConfigType:
             f"'{CONF_TARGET_HUMIDITY}' requires '{CONF_SUPPORTS_TARGET_HUMIDITY}' to be enabled",
             path=[CONF_INITIAL_STATE, CONF_TARGET_HUMIDITY],
         )
+    convert_temperature_keys(
+        initial_state, climate.TARGET_TEMPERATURE_KEYS, entity_temperature_unit(config)
+    )
     return config
 
 
@@ -207,9 +215,9 @@ INITIAL_STATE_SCHEMA = cv.All(
     cv.Schema(
         {
             cv.Optional(CONF_MODE): climate.validate_climate_mode,
-            cv.Optional(CONF_TARGET_TEMPERATURE): cv.temperature,
-            cv.Optional(CONF_TARGET_TEMPERATURE_LOW): cv.temperature,
-            cv.Optional(CONF_TARGET_TEMPERATURE_HIGH): cv.temperature,
+            cv.Optional(CONF_TARGET_TEMPERATURE): cv.temperature_with_unit,
+            cv.Optional(CONF_TARGET_TEMPERATURE_LOW): cv.temperature_with_unit,
+            cv.Optional(CONF_TARGET_TEMPERATURE_HIGH): cv.temperature_with_unit,
             cv.Optional(CONF_TARGET_HUMIDITY): cv.percentage_int,
             cv.Exclusive(CONF_FAN_MODE, "fan_mode"): climate.validate_climate_fan_mode,
             cv.Exclusive(
@@ -224,7 +232,7 @@ INITIAL_STATE_SCHEMA = cv.All(
 )
 
 CONFIG_SCHEMA = cv.All(
-    climate.climate_schema(TemplateClimate)
+    climate.climate_schema(TemplateClimate, temperature_unit=True)
     .extend(
         {
             cv.Optional(CONF_SENSOR): cv.use_id(sensor.Sensor),
@@ -298,16 +306,37 @@ CONFIG_SCHEMA = cv.All(
 )
 
 
+def _sensor_reports_in_the_entity_unit(config: ConfigType) -> ConfigType:
+    """A sensor's state is copied as is, so a temperature sensor must report in the climate's unit."""
+    if (sensor_id := config.get(CONF_SENSOR)) is None:
+        return config
+    unit = entity_temperature_unit(config)
+    sensor_unit = resolve_inherited_property(sensor_id, CONF_UNIT_OF_MEASUREMENT)
+    if sensor_unit is UNRESOLVED_PROPERTY:
+        _LOGGER.warning(
+            "Could not determine the unit of sensor '%s'; it must report in %s",
+            sensor_id,
+            unit,
+        )
+        return config
+    if sensor_unit in TEMPERATURE_UNITS and sensor_unit != unit:
+        raise cv.Invalid(
+            f"'{CONF_SENSOR}' reports in {sensor_unit} but the climate reports in {unit}",
+            path=[CONF_SENSOR],
+        )
+    return config
+
+
+FINAL_VALIDATE_SCHEMA = _sensor_reports_in_the_entity_unit
+
+
 async def to_code(config: ConfigType) -> None:
     var = cg.new_Pvariable(config[CONF_ID])
     await cg.register_component(var, config)
     await climate.register_climate(var, config)
 
-    if (sens := config.get(CONF_SENSOR)) is not None:
-        cg.add(var.set_sensor(await cg.get_variable(sens)))
-
-    if (sens := config.get(CONF_HUMIDITY_SENSOR)) is not None:
-        cg.add(var.set_humidity_sensor(await cg.get_variable(sens)))
+    await cg.add_variable(var.set_sensor, config.get(CONF_SENSOR))
+    await cg.add_variable(var.set_humidity_sensor, config.get(CONF_HUMIDITY_SENSOR))
 
     for key, flag in (
         (CONF_SUPPORTS_ACTION, climate_ns.CLIMATE_SUPPORTS_ACTION),
@@ -331,12 +360,7 @@ async def to_code(config: ConfigType) -> None:
     for mode in config.get(CONF_SUPPORTED_FAN_MODES, []):
         cg.add(var.add_supported_fan_mode(mode))
 
-    if CONF_CUSTOM_FAN_MODES in config:
-        cg.add(
-            var.set_supported_custom_fan_modes(
-                cg.ArrayInitializer(*config[CONF_CUSTOM_FAN_MODES])
-            )
-        )
+    climate.set_custom_fan_modes(var, config.get(CONF_CUSTOM_FAN_MODES, []))
 
     for mode in config.get(CONF_SUPPORTED_SWING_MODES, []):
         cg.add(var.add_supported_swing_mode(mode))
@@ -344,12 +368,7 @@ async def to_code(config: ConfigType) -> None:
     for preset in config.get(CONF_SUPPORTED_PRESETS, []):
         cg.add(var.add_supported_preset(preset))
 
-    if CONF_CUSTOM_PRESETS in config:
-        cg.add(
-            var.set_supported_custom_presets(
-                cg.ArrayInitializer(*config[CONF_CUSTOM_PRESETS])
-            )
-        )
+    climate.set_custom_presets(var, config.get(CONF_CUSTOM_PRESETS, []))
 
     for key, trigger_getter, arg_type in SET_ACTIONS:
         if (conf := config.get(key)) is not None:
@@ -381,17 +400,18 @@ async def to_code(config: ConfigType) -> None:
             cg.add(var.set_preset(v))
         if (v := initial_state.get(CONF_CUSTOM_PRESET)) is not None:
             cg.add(var.set_custom_preset(v))
+        cg.add(var.set_has_state(True))
 
 
 CLIMATE_TEMPLATE_PUBLISH_ACTION_SCHEMA = cv.All(
     cv.Schema(
         {
             cv.GenerateID(): cv.use_id(TemplateClimate),
-            cv.Optional(CONF_CURRENT_TEMPERATURE): cv.templatable(cv.temperature),
+            cv.Optional(CONF_CURRENT_TEMPERATURE): cv.templatable_temperature,
             cv.Optional(CONF_CURRENT_HUMIDITY): cv.templatable(cv.percentage_int),
-            cv.Optional(CONF_TARGET_TEMPERATURE): cv.templatable(cv.temperature),
-            cv.Optional(CONF_TARGET_TEMPERATURE_LOW): cv.templatable(cv.temperature),
-            cv.Optional(CONF_TARGET_TEMPERATURE_HIGH): cv.templatable(cv.temperature),
+            cv.Optional(CONF_TARGET_TEMPERATURE): cv.templatable_temperature,
+            cv.Optional(CONF_TARGET_TEMPERATURE_LOW): cv.templatable_temperature,
+            cv.Optional(CONF_TARGET_TEMPERATURE_HIGH): cv.templatable_temperature,
             cv.Optional(CONF_TARGET_HUMIDITY): cv.templatable(cv.percentage_int),
             cv.Optional(CONF_MODE): cv.templatable(climate.validate_climate_mode),
             cv.Optional(CONF_ACTION): cv.templatable(climate.validate_climate_action),
@@ -416,50 +436,28 @@ CLIMATE_TEMPLATE_PUBLISH_ACTION_SCHEMA = cv.All(
 )
 
 
-@automation.register_action(
+automation.register_apply_action(
     "climate.template.publish",
-    TemplateClimatePublishAction,
     CLIMATE_TEMPLATE_PUBLISH_ACTION_SCHEMA,
-    synchronous=True,
+    automation.ApplyField(
+        CONF_CURRENT_TEMPERATURE,
+        "current_temperature = {}",
+        cg.float_,
+        temperature_in_entity_unit,
+    ),
+    automation.ApplyField(CONF_CURRENT_HUMIDITY, "current_humidity = {}", cg.float_),
+    *climate.TARGET_TEMPERATURE_APPLY_FIELDS,
+    automation.ApplyField(CONF_TARGET_HUMIDITY, "set_target_humidity", cg.float_),
+    automation.ApplyField(CONF_MODE, "set_mode", climate.ClimateMode),
+    automation.ApplyField(CONF_ACTION, "action = {}", climate.ClimateAction),
+    automation.ApplyField(CONF_FAN_MODE, "set_fan_mode", climate.ClimateFanMode),
+    automation.ApplyField(
+        CONF_CUSTOM_FAN_MODE, "set_custom_fan_mode(StringRef({}))", cg.std_string
+    ),
+    automation.ApplyField(CONF_SWING_MODE, "set_swing_mode", climate.ClimateSwingMode),
+    automation.ApplyField(CONF_PRESET, "set_preset", climate.ClimatePreset),
+    automation.ApplyField(
+        CONF_CUSTOM_PRESET, "set_custom_preset(StringRef({}))", cg.std_string
+    ),
+    automation.ApplyCall("publish_state()"),
 )
-async def climate_template_publish_to_code(
-    config: ConfigType,
-    action_id: ID,
-    template_arg: cg.TemplateArguments,
-    args: TemplateArgsType,
-) -> MockObj:
-    var = cg.new_Pvariable(action_id, template_arg)
-    await cg.register_parented(var, config[CONF_ID])
-
-    if (v := config.get(CONF_CURRENT_TEMPERATURE)) is not None:
-        cg.add(var.set_current_temperature(await cg.templatable(v, args, cg.float_)))
-    if (v := config.get(CONF_CURRENT_HUMIDITY)) is not None:
-        cg.add(var.set_current_humidity(await cg.templatable(v, args, cg.float_)))
-    if (v := config.get(CONF_TARGET_TEMPERATURE)) is not None:
-        cg.add(var.set_target_temperature(await cg.templatable(v, args, cg.float_)))
-    if (v := config.get(CONF_TARGET_TEMPERATURE_LOW)) is not None:
-        cg.add(var.set_target_temperature_low(await cg.templatable(v, args, cg.float_)))
-    if (v := config.get(CONF_TARGET_TEMPERATURE_HIGH)) is not None:
-        cg.add(
-            var.set_target_temperature_high(await cg.templatable(v, args, cg.float_))
-        )
-    if (v := config.get(CONF_TARGET_HUMIDITY)) is not None:
-        cg.add(var.set_target_humidity(await cg.templatable(v, args, cg.float_)))
-    if (v := config.get(CONF_MODE)) is not None:
-        cg.add(var.set_mode(await cg.templatable(v, args, climate.ClimateMode)))
-    if (v := config.get(CONF_ACTION)) is not None:
-        cg.add(var.set_action(await cg.templatable(v, args, climate.ClimateAction)))
-    if (v := config.get(CONF_FAN_MODE)) is not None:
-        cg.add(var.set_fan_mode(await cg.templatable(v, args, climate.ClimateFanMode)))
-    if (v := config.get(CONF_CUSTOM_FAN_MODE)) is not None:
-        cg.add(var.set_custom_fan_mode(await cg.templatable(v, args, cg.std_string)))
-    if (v := config.get(CONF_SWING_MODE)) is not None:
-        cg.add(
-            var.set_swing_mode(await cg.templatable(v, args, climate.ClimateSwingMode))
-        )
-    if (v := config.get(CONF_PRESET)) is not None:
-        cg.add(var.set_preset(await cg.templatable(v, args, climate.ClimatePreset)))
-    if (v := config.get(CONF_CUSTOM_PRESET)) is not None:
-        cg.add(var.set_custom_preset(await cg.templatable(v, args, cg.std_string)))
-
-    return var

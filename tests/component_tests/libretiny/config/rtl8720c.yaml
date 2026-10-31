@@ -1,0 +1,5 @@
+esphome:
+  name: test
+
+rtl87xx:
+  board: bw15

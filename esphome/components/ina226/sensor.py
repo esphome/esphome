@@ -1,16 +1,17 @@
 """INA226 sensor component for ESPHome."""
 
+from collections.abc import Callable
 from typing import Any
 
 from esphome import automation
 from esphome.automation import maybe_simple_id
 import esphome.codegen as cg
 from esphome.components import i2c, sensor
+from esphome.components.const import CONF_ADC_AVERAGING, CONF_ADC_TIME
 import esphome.config_validation as cv
 from esphome.const import (
     CONF_BUS_VOLTAGE,
     CONF_CURRENT,
-    CONF_ID,
     CONF_MAX_CURRENT,
     CONF_POWER,
     CONF_SHUNT_RESISTANCE,
@@ -28,8 +29,6 @@ from esphome.types import ConfigType
 
 DEPENDENCIES = ["i2c"]
 
-CONF_ADC_AVERAGING = "adc_averaging"
-CONF_ADC_TIME = "adc_time"
 CONF_ALERT = "alert"
 CONF_FUNCTION = "function"
 CONF_LIMIT = "limit"
@@ -107,11 +106,11 @@ def validate_alert_config(config):
                     f"alert.limit must be non-negative for power alert, got {limit}W"
                 )
         elif function in ["shunt_over", "shunt_under"]:
-            # INA226 shunt voltage range: ±81.92mV
+            # INA226 shunt voltage range: 卤81.92mV
             # Negative values are valid for reverse current detection
             if limit < -0.08192 or limit > 0.08192:
                 raise cv.Invalid(
-                    f"alert.limit must be within shunt voltage range (±81.92mV), got {limit * 1000:.3f}mV"
+                    f"alert.limit must be within shunt voltage range (卤81.92mV), got {limit * 1000:.3f}mV"
                 )
 
     return config
@@ -120,6 +119,19 @@ def validate_alert_config(config):
 def validate_adc_time(value: Any) -> int:
     value = cv.positive_time_period_microseconds(value).total_microseconds
     return cv.enum(ADC_TIMES, int=True)(value)
+
+
+def _per_channel(validator: Callable[[Any], Any]) -> Callable[[Any], ConfigType]:
+    """One value for both channels, or one each; always returns the per-channel dict."""
+    return cv.Any(
+        cv.All(validator, lambda value: {CONF_VOLTAGE: value, CONF_CURRENT: value}),
+        cv.Schema(
+            {
+                cv.Required(CONF_VOLTAGE): validator,
+                cv.Required(CONF_CURRENT): validator,
+            }
+        ),
+    )
 
 
 CONFIG_SCHEMA = (
@@ -156,14 +168,8 @@ CONFIG_SCHEMA = (
             cv.Optional(CONF_MAX_CURRENT, default=3.2): cv.All(
                 cv.current, cv.Range(min=0.0)
             ),
-            cv.Optional(CONF_ADC_TIME, default="1100 us"): cv.Any(
-                validate_adc_time,
-                cv.Schema(
-                    {
-                        cv.Required(CONF_VOLTAGE): validate_adc_time,
-                        cv.Required(CONF_CURRENT): validate_adc_time,
-                    }
-                ),
+            cv.Optional(CONF_ADC_TIME, default="1100 us"): _per_channel(
+                validate_adc_time
             ),
             cv.Optional(CONF_ADC_AVERAGING, default=4): cv.enum(
                 ADC_AVG_SAMPLES, int=True
@@ -193,38 +199,22 @@ CONFIG_SCHEMA = (
 
 
 async def to_code(config: ConfigType) -> None:
-    var = cg.new_Pvariable(config[CONF_ID])
-    await cg.register_component(var, config)
-    await i2c.register_i2c_device(var, config)
+    var = await i2c.new_i2c_component(config)
 
     cg.add(var.set_shunt_resistance_ohm(config[CONF_SHUNT_RESISTANCE]))
     cg.add(var.set_max_current_a(config[CONF_MAX_CURRENT]))
 
-    adc_time_config = config[CONF_ADC_TIME]
-    if isinstance(adc_time_config, dict):
-        cg.add(var.set_adc_time_voltage(adc_time_config[CONF_VOLTAGE]))
-        cg.add(var.set_adc_time_current(adc_time_config[CONF_CURRENT]))
-    else:
-        cg.add(var.set_adc_time_voltage(adc_time_config))
-        cg.add(var.set_adc_time_current(adc_time_config))
+    adc_time = config[CONF_ADC_TIME]
+    cg.add(var.set_adc_time_voltage(adc_time[CONF_VOLTAGE]))
+    cg.add(var.set_adc_time_current(adc_time[CONF_CURRENT]))
 
     cg.add(var.set_adc_avg_samples(config[CONF_ADC_AVERAGING]))
 
-    if CONF_BUS_VOLTAGE in config:
-        sens = await sensor.new_sensor(config[CONF_BUS_VOLTAGE])
-        cg.add(var.set_bus_voltage_sensor(sens))
-
-    if CONF_SHUNT_VOLTAGE in config:
-        sens = await sensor.new_sensor(config[CONF_SHUNT_VOLTAGE])
-        cg.add(var.set_shunt_voltage_sensor(sens))
-
-    if CONF_CURRENT in config:
-        sens = await sensor.new_sensor(config[CONF_CURRENT])
-        cg.add(var.set_current_sensor(sens))
-
-    if CONF_POWER in config:
-        sens = await sensor.new_sensor(config[CONF_POWER])
-        cg.add(var.set_power_sensor(sens))
+    sensors = sensor.sub_sensors(config)
+    await sensors(CONF_BUS_VOLTAGE, var.set_bus_voltage_sensor)
+    await sensors(CONF_SHUNT_VOLTAGE, var.set_shunt_voltage_sensor)
+    await sensors(CONF_CURRENT, var.set_current_sensor)
+    await sensors(CONF_POWER, var.set_power_sensor)
 
     alert_conf = config.get(CONF_ALERT)
     if alert_conf:

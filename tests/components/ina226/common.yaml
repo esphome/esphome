@@ -15,6 +15,7 @@ sensor:
       name: INA226 Shunt Voltage
     max_current: 3.2A
     update_interval: 15s
+    adc_time: 588us
     alert:
       function: none
       conversion_ready: false
@@ -35,7 +36,7 @@ sensor:
     update_interval: 15s
     alert:
       function: shunt_over
-      limit: 0.075  # 75mV, about 3A overcurrent protection
+      limit: 0.075  # 75mV, 0.75A with a 0.1 ohm shunt
       conversion_ready: false
       active_high: true
       latch: true
@@ -154,3 +155,13 @@ sensor:
       conversion_ready: true
       active_high: false
       latch: true
+
+  # Independent ADC conversion times
+  - platform: ina226
+    i2c_id: i2c_bus
+    address: 0x49
+    current:
+      name: INA226 Current 2
+    adc_time:
+      voltage: 2116us
+      current: 4156us

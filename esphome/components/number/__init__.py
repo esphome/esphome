@@ -1,6 +1,5 @@
 from esphome import automation
 import esphome.codegen as cg
-from esphome.components import mqtt, web_server, zigbee
 import esphome.config_validation as cv
 from esphome.const import (
     CONF_ABOVE,
@@ -18,7 +17,6 @@ from esphome.const import (
     CONF_TRIGGER_ID,
     CONF_UNIT_OF_MEASUREMENT,
     CONF_VALUE,
-    CONF_WEB_SERVER,
     DEVICE_CLASS_ABSOLUTE_HUMIDITY,
     DEVICE_CLASS_APPARENT_POWER,
     DEVICE_CLASS_AQI,
@@ -79,16 +77,22 @@ from esphome.const import (
     DEVICE_CLASS_WIND_DIRECTION,
     DEVICE_CLASS_WIND_SPEED,
 )
-from esphome.core import CORE, CoroPriority, coroutine_with_priority
+from esphome.core import CORE, ID, CoroPriority, coroutine_with_priority, entity_helpers
 from esphome.core.config import UNIT_OF_MEASUREMENT_MAX_LENGTH
 from esphome.core.entity_helpers import (
+    ApplyEntity,
+    SubEntities,
     entity_duplicate_validator,
+    lazy_load_setup,
+    lazy_load_validator,
+    mqtt_component_class,
     queue_entity_register,
     setup_device_class,
     setup_entity,
     setup_unit_of_measurement,
 )
-from esphome.cpp_generator import MockObjClass
+from esphome.cpp_generator import MockObj, MockObjClass
+from esphome.types import ConfigType
 
 CODEOWNERS = ["@esphome/core"]
 DEVICE_CLASSES = [
@@ -152,24 +156,17 @@ DEVICE_CLASSES = [
     DEVICE_CLASS_WIND_DIRECTION,
     DEVICE_CLASS_WIND_SPEED,
 ]
+DOMAIN = "number"
 IS_PLATFORM_COMPONENT = True
 
 number_ns = cg.esphome_ns.namespace("number")
 Number = number_ns.class_("Number", cg.EntityBase)
 NumberPtr = Number.operator("ptr")
+ApplyNumber = number_ns.class_("ApplyNumber", Number)
 
 # Triggers
 ValueRangeTrigger = number_ns.class_(
     "ValueRangeTrigger", automation.Trigger.template(cg.float_), cg.Component
-)
-
-# Actions
-NumberSetAction = number_ns.class_("NumberSetAction", automation.Action)
-NumberOperationAction = number_ns.class_("NumberOperationAction", automation.Action)
-
-# Conditions
-NumberInRangeCondition = number_ns.class_(
-    "NumberInRangeCondition", automation.Condition
 )
 
 NumberMode = number_ns.enum("NumberMode")
@@ -178,20 +175,13 @@ NumberMode = number_ns.enum("NumberMode")
 # skips the setter when the config equals it.
 DEFAULT_MODE = "AUTO"
 
-NUMBER_MODES = {
-    "AUTO": NumberMode.NUMBER_MODE_AUTO,
-    "BOX": NumberMode.NUMBER_MODE_BOX,
-    "SLIDER": NumberMode.NUMBER_MODE_SLIDER,
-}
+NUMBER_MODES = NumberMode.options("AUTO", "BOX", "SLIDER", prefix="NUMBER_MODE_")
 
 NumberOperation = number_ns.enum("NumberOperation")
 
-NUMBER_OPERATION_OPTIONS = {
-    "INCREMENT": NumberOperation.NUMBER_OP_INCREMENT,
-    "DECREMENT": NumberOperation.NUMBER_OP_DECREMENT,
-    "TO_MIN": NumberOperation.NUMBER_OP_TO_MIN,
-    "TO_MAX": NumberOperation.NUMBER_OP_TO_MAX,
-}
+NUMBER_OPERATION_OPTIONS = NumberOperation.options(
+    "INCREMENT", "DECREMENT", "TO_MIN", "TO_MAX", prefix="NUMBER_OP_"
+)
 
 validate_device_class = cv.one_of(*DEVICE_CLASSES, lower=True, space="_")
 validate_unit_of_measurement = cv.All(
@@ -201,12 +191,14 @@ validate_unit_of_measurement = cv.All(
 )
 
 _NUMBER_SCHEMA = (
-    cv.ENTITY_BASE_SCHEMA.extend(web_server.WEBSERVER_SORTING_SCHEMA)
+    cv.ENTITY_BASE_SCHEMA.extend(entity_helpers.WEBSERVER_SORTING_SCHEMA)
     .extend(cv.MQTT_COMMAND_COMPONENT_SCHEMA)
-    .extend(zigbee.NUMBER_SCHEMA)
+    .extend(entity_helpers.ZIGBEE_NUMBER_SCHEMA)
     .extend(
         {
-            cv.OnlyWith(CONF_MQTT_ID, "mqtt"): cv.declare_id(mqtt.MQTTNumberComponent),
+            cv.OnlyWith(CONF_MQTT_ID, "mqtt"): cv.declare_id(
+                mqtt_component_class("MQTTNumberComponent")
+            ),
             cv.Optional(CONF_ON_VALUE): automation.validate_automation({}),
             cv.Optional(CONF_ON_VALUE_RANGE): automation.validate_automation(
                 {
@@ -231,7 +223,7 @@ _NUMBER_SCHEMA = (
 
 
 _NUMBER_SCHEMA.add_extra(entity_duplicate_validator("number"))
-_NUMBER_SCHEMA.add_extra(zigbee.validate_number)
+_NUMBER_SCHEMA.add_extra(lazy_load_validator("zigbee", "validate_number"))
 
 
 def number_schema(
@@ -300,13 +292,11 @@ async def setup_number_core_(
     setup_device_class(config)
     setup_unit_of_measurement(config)
 
-    if (mqtt_id := config.get(CONF_MQTT_ID)) is not None:
-        mqtt_ = cg.new_Pvariable(mqtt_id, var)
-        await mqtt.register_mqtt_component(mqtt_, config)
-    if web_server_config := config.get(CONF_WEB_SERVER):
-        await web_server.add_entity_config(var, web_server_config)
+    await entity_helpers.setup_entity_integrations(var, config)
 
-    await zigbee.setup_number(var, config, min_value, max_value, step)
+    await lazy_load_setup(
+        "zigbee", "setup_number", var, config, min_value, max_value, step
+    )
 
 
 async def register_number(
@@ -329,6 +319,20 @@ async def new_number(config, *args, min_value: float, max_value: float, step: fl
     return var
 
 
+APPLY_ENTITY = ApplyEntity(
+    ApplyNumber,
+    ((NumberPtr, "entity"), (cg.float_, "value")),
+    "entity->publish_state(value);",
+)
+
+
+def sub_numbers(
+    config: ConfigType, *, parent: MockObj | ID | None = None
+) -> SubEntities:
+    """Return a SubEntities bound to new_number; ``apply`` statements can use ``entity`` and ``value``."""
+    return SubEntities(new_number, config, parent, APPLY_ENTITY)
+
+
 NUMBER_IN_RANGE_CONDITION_SCHEMA = cv.All(
     {
         cv.Required(CONF_ID): cv.use_id(Number),
@@ -339,19 +343,12 @@ NUMBER_IN_RANGE_CONDITION_SCHEMA = cv.All(
 )
 
 
-@automation.register_condition(
-    "number.in_range", NumberInRangeCondition, NUMBER_IN_RANGE_CONDITION_SCHEMA
+automation.register_apply_condition(
+    "number.in_range",
+    NUMBER_IN_RANGE_CONDITION_SCHEMA,
+    automation.IN_RANGE_CHECK,
+    defaults=automation.IN_RANGE_DEFAULTS,
 )
-async def number_in_range_to_code(config, condition_id, template_arg, args):
-    paren = await cg.get_variable(config[CONF_ID])
-    var = cg.new_Pvariable(condition_id, template_arg, paren)
-
-    if (above := config.get(CONF_ABOVE)) is not None:
-        cg.add(var.set_min(above))
-    if (below := config.get(CONF_BELOW)) is not None:
-        cg.add(var.set_max(below))
-
-    return var
 
 
 @coroutine_with_priority(CoroPriority.CORE)
@@ -366,85 +363,40 @@ OPERATION_BASE_SCHEMA = cv.Schema(
 )
 
 
-@automation.register_action(
+automation.register_apply_action(
     "number.set",
-    NumberSetAction,
     OPERATION_BASE_SCHEMA.extend(
         {
             cv.Required(CONF_VALUE): cv.templatable(cv.float_),
         }
     ),
-    synchronous=True,
+    automation.ApplyField(CONF_VALUE, "set_value", cg.float_),
+    call="make_call",
 )
-async def number_set_to_code(config, action_id, template_arg, args):
-    paren = await cg.get_variable(config[CONF_ID])
-    var = cg.new_Pvariable(action_id, template_arg, paren)
-    template_ = await cg.templatable(config[CONF_VALUE], args, cg.float_)
-    cg.add(var.set_value(template_))
-    return var
 
+# The operation is fixed by the action name; CONF_MODE only stays accepted in the config.
+for _name, _mode, _cycle in (
+    ("number.increment", "INCREMENT", True),
+    ("number.decrement", "DECREMENT", True),
+    ("number.to_min", "TO_MIN", False),
+    ("number.to_max", "TO_MAX", False),
+):
+    _schema = {cv.Optional(CONF_MODE, default=_mode): cv.one_of(_mode, upper=True)}
+    _fields = [
+        automation.ApplyCall(f"with_operation({NUMBER_OPERATION_OPTIONS[_mode]})")
+    ]
+    if _cycle:
+        _schema[cv.Optional(CONF_CYCLE, default=True)] = cv.boolean
+        _fields.append(automation.ApplyField(CONF_CYCLE, "with_cycle", cg.bool_))
+    automation.register_apply_action(
+        _name,
+        automation.maybe_simple_id(OPERATION_BASE_SCHEMA.extend(_schema)),
+        *_fields,
+        call="make_call",
+    )
 
-@automation.register_action(
-    "number.increment",
-    NumberOperationAction,
-    automation.maybe_simple_id(
-        OPERATION_BASE_SCHEMA.extend(
-            {
-                cv.Optional(CONF_MODE, default="INCREMENT"): cv.one_of(
-                    "INCREMENT", upper=True
-                ),
-                cv.Optional(CONF_CYCLE, default=True): cv.boolean,
-            }
-        )
-    ),
-    synchronous=True,
-)
-@automation.register_action(
-    "number.decrement",
-    NumberOperationAction,
-    automation.maybe_simple_id(
-        OPERATION_BASE_SCHEMA.extend(
-            {
-                cv.Optional(CONF_MODE, default="DECREMENT"): cv.one_of(
-                    "DECREMENT", upper=True
-                ),
-                cv.Optional(CONF_CYCLE, default=True): cv.boolean,
-            }
-        )
-    ),
-    synchronous=True,
-)
-@automation.register_action(
-    "number.to_min",
-    NumberOperationAction,
-    automation.maybe_simple_id(
-        OPERATION_BASE_SCHEMA.extend(
-            {
-                cv.Optional(CONF_MODE, default="TO_MIN"): cv.one_of(
-                    "TO_MIN", upper=True
-                ),
-            }
-        )
-    ),
-    synchronous=True,
-)
-@automation.register_action(
-    "number.to_max",
-    NumberOperationAction,
-    automation.maybe_simple_id(
-        OPERATION_BASE_SCHEMA.extend(
-            {
-                cv.Optional(CONF_MODE, default="TO_MAX"): cv.one_of(
-                    "TO_MAX", upper=True
-                ),
-            }
-        )
-    ),
-    synchronous=True,
-)
-@automation.register_action(
+automation.register_apply_action(
     "number.operation",
-    NumberOperationAction,
     OPERATION_BASE_SCHEMA.extend(
         {
             cv.Required(CONF_OPERATION): cv.templatable(
@@ -453,23 +405,7 @@ async def number_set_to_code(config, action_id, template_arg, args):
             cv.Optional(CONF_CYCLE, default=True): cv.templatable(cv.boolean),
         }
     ),
-    synchronous=True,
+    automation.ApplyField(CONF_OPERATION, "with_operation", NumberOperation),
+    automation.ApplyField(CONF_CYCLE, "with_cycle", cg.bool_),
+    call="make_call",
 )
-async def number_to_to_code(config, action_id, template_arg, args):
-    paren = await cg.get_variable(config[CONF_ID])
-    var = cg.new_Pvariable(action_id, template_arg, paren)
-    if (operation := config.get(CONF_OPERATION)) is not None:
-        to_ = await cg.templatable(operation, args, NumberOperation)
-        cg.add(var.set_operation(to_))
-        if (cycle := config.get(CONF_CYCLE)) is not None:
-            template_ = await cg.templatable(cycle, args, cg.bool_)
-            cg.add(var.set_cycle(template_))
-    if (mode := config.get(CONF_MODE)) is not None:
-        template_ = await cg.templatable(
-            NUMBER_OPERATION_OPTIONS[mode], args, NumberOperation
-        )
-        cg.add(var.set_operation(template_))
-        if (cycle := config.get(CONF_CYCLE)) is not None:
-            template_ = await cg.templatable(cycle, args, cg.bool_)
-            cg.add(var.set_cycle(template_))
-    return var

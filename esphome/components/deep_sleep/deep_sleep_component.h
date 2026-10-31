@@ -60,8 +60,6 @@ struct WakeupCauseToRunDuration {
 
 #endif  // USE_ESP32
 
-#ifdef USE_DEEP_SLEEP_ON_WAKE
-
 /// Why the device woke from deep sleep. Passed to on_wake automations.
 enum WakeupCause : uint8_t {
   /// The device did not wake from deep sleep (for example a cold boot, reset or OTA restart).
@@ -78,6 +76,11 @@ enum WakeupCause : uint8_t {
 
 /// Return why the device woke from deep sleep. Implemented per platform.
 WakeupCause get_wakeup_cause();
+
+/// Return true when this boot is a wake from deep sleep.
+inline bool woke_from_deep_sleep() { return get_wakeup_cause() != WAKEUP_CAUSE_NONE; }
+
+#ifdef USE_DEEP_SLEEP_ON_WAKE
 
 /** Setup priority of on_wake triggers.
  *
@@ -120,8 +123,6 @@ class Ext1WakeTrigger : public Trigger<>, public Component {
 #endif  // USE_DEEP_SLEEP_ON_WAKE
 
 template<typename... Ts> class EnterDeepSleepAction;
-
-template<typename... Ts> class PreventDeepSleepAction;
 
 /** This component allows setting up the node to go into deep sleep mode to conserve battery.
  *
@@ -296,17 +297,6 @@ template<typename... Ts> class EnterDeepSleepAction final : public Action<Ts...>
 
   time::RealTimeClock *time_;
 #endif
-};
-
-template<typename... Ts>
-class PreventDeepSleepAction final : public Action<Ts...>, public Parented<DeepSleepComponent> {
- public:
-  void play(const Ts &...x) override { this->parent_->prevent_deep_sleep(); }
-};
-
-template<typename... Ts> class AllowDeepSleepAction final : public Action<Ts...>, public Parented<DeepSleepComponent> {
- public:
-  void play(const Ts &...x) override { this->parent_->allow_deep_sleep(); }
 };
 
 }  // namespace esphome::deep_sleep

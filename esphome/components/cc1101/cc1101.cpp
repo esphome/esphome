@@ -2,11 +2,21 @@
 #include "cc1101pa.h"
 #include "esphome/core/helpers.h"
 #include "esphome/core/log.h"
+#include "esphome/core/progmem.h"
 #include <cmath>
+#include <cstring>
+
+#ifdef USE_ESP32
+#include <esp_memory_utils.h>
+#endif
 
 namespace esphome::cc1101 {
 
-static const char *const TAG = "cc1101";
+ESPHOME_LOG_TAG(TAG, "cc1101");
+static constexpr size_t TX_FIFO_SIZE = 64;
+
+// MDMCFG2 MOD_FORMAT values
+PROGMEM_STRING_TABLE(ModulationStrings, "2-FSK", "GFSK", "UNUSED", "ASK/OOK", "4-FSK", "UNUSED", "UNUSED", "MSK");
 
 static void split_float(float value, int mbits, uint8_t &e, uint32_t &m) {
   int e_tmp;
@@ -232,8 +242,6 @@ void CC1101Component::loop() {
 }
 
 void CC1101Component::dump_config() {
-  static const char *const MODULATION_NAMES[] = {"2-FSK", "GFSK",   "UNUSED", "ASK/OOK",
-                                                 "4-FSK", "UNUSED", "UNUSED", "MSK"};
   int32_t freq = static_cast<int32_t>(this->state_.FREQ2 << 16 | this->state_.FREQ1 << 8 | this->state_.FREQ0) *
                  XTAL_FREQUENCY / (1 << 16);
   float symbol_rate = (((256.0f + this->state_.DRATE_M) * (1 << this->state_.DRATE_E)) / (1 << 28)) * XTAL_FREQUENCY;
@@ -247,17 +255,24 @@ void CC1101Component::dump_config() {
                 "  Symbol Rate: %.0f baud\n"
                 "  Filter Bandwidth: %.1f Hz\n"
                 "  Output Power: %.1f dBm",
-                this->chip_id_, freq, this->state_.CHANNR, MODULATION_NAMES[this->state_.MOD_FORMAT & 0x07],
-                symbol_rate, bw, this->output_power_effective_);
+                this->chip_id_, freq, this->state_.CHANNR,
+                LOG_STR_ARG(ModulationStrings::get_log_str(this->state_.MOD_FORMAT & 0x07, 0)), symbol_rate, bw,
+                this->output_power_effective_);
   LOG_PIN("  CS Pin: ", this->cs_);
 }
 
 void CC1101Component::begin_tx() {
+  // Read the mode before the PKTCTRL0 write below overwrites it in state_
+  const bool packet_mode = this->state_.PKT_FORMAT == static_cast<uint8_t>(PacketFormat::PACKET_FORMAT_FIFO);
   // Ensure Packet Format is 3 (Async Serial)
   this->write_(Register::PKTCTRL0, 0x32);
   ESP_LOGV(TAG, "Beginning TX sequence");
   if (this->gdo0_pin_ != nullptr) {
-    this->gdo0_pin_->detach_interrupt();
+    // setup() only attaches the interrupt in packet mode. In async serial mode the pin may be
+    // shared with remote_receiver, and detaching here would remove the receiver's interrupt.
+    if (packet_mode) {
+      this->gdo0_pin_->detach_interrupt();
+    }
     this->gdo0_pin_->pin_mode(gpio::FLAG_OUTPUT);
   }
   // Transition through IDLE to bypass CCA (Clear Channel Assessment) which can
@@ -379,18 +394,32 @@ void CC1101Component::read_(Register reg, uint8_t *buffer, size_t length) {
   this->disable();
 }
 
-CC1101Error CC1101Component::transmit_packet(const std::vector<uint8_t> &packet) {
+CC1101Error CC1101Component::transmit_packet(const uint8_t *data, size_t len) {
   if (this->state_.PKT_FORMAT != static_cast<uint8_t>(PacketFormat::PACKET_FORMAT_FIFO)) {
+    return CC1101Error::PARAMS;
+  }
+  const bool variable = this->state_.LENGTH_CONFIG == static_cast<uint8_t>(LengthConfig::LENGTH_CONFIG_VARIABLE);
+  // In variable length mode the FIFO also holds the length byte
+  if (len + (variable ? 1 : 0) > TX_FIFO_SIZE) {
+    ESP_LOGE(TAG, "Packet of %u bytes does not fit the TX FIFO", static_cast<unsigned>(len));
     return CC1101Error::PARAMS;
   }
 
   // Write packet
   this->enter_idle_();
   this->strobe_(Command::FTX);
-  if (this->state_.LENGTH_CONFIG == static_cast<uint8_t>(LengthConfig::LENGTH_CONFIG_VARIABLE)) {
-    this->write_(Register::FIFO, static_cast<uint8_t>(packet.size()));
+  if (variable) {
+    this->write_(Register::FIFO, static_cast<uint8_t>(len));
   }
-  this->write_(Register::FIFO, packet.data(), packet.size());
+#ifdef USE_ESP32
+  // SPI DMA cannot read flash or unaligned buffers; stage them here so the driver does not allocate a copy
+  alignas(4) uint8_t staged[TX_FIFO_SIZE];
+  if (len != 0 && (!esp_ptr_dma_capable(data) || (reinterpret_cast<uintptr_t>(data) & 3) != 0)) {
+    std::memcpy(staged, data, len);
+    data = staged;
+  }
+#endif
+  this->write_(Register::FIFO, data, len);
 
   // Calibrate PLL
   if (!this->enter_calibrated_(State::FSTXON, Command::FSTXON)) {

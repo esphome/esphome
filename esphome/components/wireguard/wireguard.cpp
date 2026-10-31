@@ -14,7 +14,7 @@
 
 namespace esphome::wireguard {
 
-static const char *const TAG = "wireguard";
+ESPHOME_LOG_TAG(TAG, "wireguard");
 
 /*
  * Cannot use `static const char*` for LOGMSG_PEER_STATUS on esp8266 platform
@@ -51,9 +51,7 @@ void Wireguard::setup() {
     this->defer([this]() { this->start_connection_(); });  // defer to avoid blocking setup
 
 #ifdef USE_TEXT_SENSOR
-    if (this->address_sensor_ != nullptr) {
-      this->address_sensor_->publish_state(this->address_);
-    }
+    PUBLISH_STATE(this->address_text_sensor_, this->address_);
 #endif
   } else {
     ESP_LOGE(TAG, "Cannot initialize: error code %d", this->wg_initialized_);
@@ -101,8 +99,13 @@ void Wireguard::update() {
     if (this->wg_peer_offline_time_ == 0) {
       ESP_LOGW(TAG, LOGMSG_PEER_STATUS, LOGMSG_OFFLINE, latest_handshake.c_str());
       this->wg_peer_offline_time_ = millis();
+      this->wg_reconnect_time_ = this->wg_peer_offline_time_;
     } else if (this->enabled_) {
       ESP_LOGD(TAG, LOGMSG_PEER_STATUS, LOGMSG_OFFLINE, latest_handshake.c_str());
+      if (millis() - this->wg_reconnect_time_ >= RECONNECT_INTERVAL_MS) {
+        this->wg_reconnect_time_ = millis();
+        this->stop_connection_();
+      }
       this->start_connection_();
     }
 
@@ -116,9 +119,7 @@ void Wireguard::update() {
   }
 
 #ifdef USE_BINARY_SENSOR
-  if (this->status_sensor_ != nullptr) {
-    this->status_sensor_->publish_state(peer_up);
-  }
+  PUBLISH_STATE(this->status_binary_sensor_, peer_up);
 #endif
 
 #ifdef USE_SENSOR
@@ -149,8 +150,8 @@ void Wireguard::dump_config() {
       (this->preshared_key_ != nullptr ? preshared_key_masked : LOG_STR_LITERAL("NOT IN USE")));
   // clang-format on
   ESP_LOGCONFIG(TAG, "  Peer Allowed IPs:");
-  for (const AllowedIP &allowed_ip : this->allowed_ips_) {
-    ESP_LOGCONFIG(TAG, "    - %s/%s", allowed_ip.ip, allowed_ip.netmask);
+  for (const AllowedIP *it = this->allowed_ips_; it != nullptr && it->ip != nullptr; it++) {
+    ESP_LOGCONFIG(TAG, "    - %s/%s", it->ip, it->netmask);
   }
   ESP_LOGCONFIG(TAG, "  Peer Persistent Keepalive: %d%s", this->keepalive_,
                 (this->keepalive_ > 0 ? LOG_STR_LITERAL("s") : LOG_STR_LITERAL(" (DISABLED)")));
@@ -194,9 +195,7 @@ void Wireguard::disable() {
 
 void Wireguard::publish_enabled_state() {
 #ifdef USE_BINARY_SENSOR
-  if (this->enabled_sensor_ != nullptr) {
-    this->enabled_sensor_->publish_state(this->enabled_);
-  }
+  PUBLISH_STATE(this->enabled_binary_sensor_, this->enabled_);
 #endif
 }
 
@@ -244,8 +243,8 @@ void Wireguard::start_connection_() {
 
   ESP_LOGD(TAG, "Configuring allowed IPs list");
   bool allowed_ips_ok = true;
-  for (const AllowedIP &ip : this->allowed_ips_) {
-    allowed_ips_ok &= (esp_wireguard_add_allowed_ip(&(this->wg_ctx_), ip.ip, ip.netmask) == ESP_OK);
+  for (const AllowedIP *it = this->allowed_ips_; it != nullptr && it->ip != nullptr; it++) {
+    allowed_ips_ok &= (esp_wireguard_add_allowed_ip(&(this->wg_ctx_), it->ip, it->netmask) == ESP_OK);
   }
 
   if (allowed_ips_ok) {
