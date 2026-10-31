@@ -68,8 +68,7 @@ void PCA9554Component::dump_config() {
 }
 
 bool PCA9554Component::digital_read_hw(uint8_t pin) {
-  // Read all pins from hardware into input_[0]
-  return this->read_inputs_();  // Return true if I2C read succeeded, false on error
+  return this->read_inputs_();
 }
 
 void PCA9554Component::digital_write_hw(uint8_t pin, bool value) {
