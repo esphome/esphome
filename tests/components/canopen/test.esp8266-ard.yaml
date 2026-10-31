@@ -1,0 +1,10 @@
+canbus:
+  - platform: mcp2515
+    cs_pin: GPIO15
+    id: canopen_test_bus
+    can_id: 127
+    bit_rate: 125kbps
+
+packages:
+  spi: !include ../../test_build_components/common/spi/esp8266-ard.yaml
+  canopen: !include common.yaml
