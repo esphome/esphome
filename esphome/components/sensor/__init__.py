@@ -690,10 +690,9 @@ async def delta_filter_to_code(config, filter_id):
     else:
         min = _get_delta(config)
     var = cg.new_Pvariable(filter_id, *min, *max)
-    if isinstance(config, dict) and (baseline_lambda := config.get(CONF_BASELINE)):
-        baseline = await cg.process_lambda(
-            baseline_lambda, [(float, "x")], return_type=float
-        )
+    if isinstance(config, dict) and (baseline := config.get(CONF_BASELINE)) is not None:
+        # A plain number is wrapped in a lambda that returns it
+        baseline = await cg.templatable(baseline, [(float, "x")], float)
         cg.add(var.set_baseline(baseline))
     return var
 

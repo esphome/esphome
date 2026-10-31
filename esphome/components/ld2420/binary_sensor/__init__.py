@@ -28,6 +28,6 @@ async def to_code(config: ConfigType) -> None:
     var = cg.new_Pvariable(config[CONF_ID])
     await cg.register_component(var, config)
     binary_sensors = binary_sensor.sub_binary_sensors(config)
-    await binary_sensors(CONF_HAS_TARGET, var.set_presence_sensor)
+    await binary_sensors(CONF_HAS_TARGET, var.set_presence_binary_sensor)
     hub = await cg.get_variable(config[CONF_LD2420_ID])
     await register_listener(hub, var)

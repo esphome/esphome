@@ -296,12 +296,8 @@ size_t DebugComponent::get_device_info_(std::span<char, DEVICE_INFO_BUFFER_SIZE>
 void DebugComponent::update_platform_() {
 #ifdef USE_SENSOR
   uint32_t max_alloc = heap_caps_get_largest_free_block(MALLOC_CAP_INTERNAL);
-  if (this->block_sensor_ != nullptr) {
-    this->block_sensor_->publish_state(max_alloc);
-  }
-  if (this->min_free_sensor_ != nullptr) {
-    this->min_free_sensor_->publish_state(heap_caps_get_minimum_free_size(MALLOC_CAP_INTERNAL));
-  }
+  PUBLISH_STATE(this->block_sensor_, max_alloc);
+  PUBLISH_STATE(this->min_free_sensor_, heap_caps_get_minimum_free_size(MALLOC_CAP_INTERNAL));
   if (this->fragmentation_sensor_ != nullptr) {
     uint32_t free_heap = heap_caps_get_free_size(MALLOC_CAP_INTERNAL);
     if (free_heap > 0) {
@@ -309,9 +305,7 @@ void DebugComponent::update_platform_() {
       this->fragmentation_sensor_->publish_state(fragmentation);
     }
   }
-  if (this->psram_sensor_ != nullptr) {
-    this->psram_sensor_->publish_state(heap_caps_get_free_size(MALLOC_CAP_SPIRAM));
-  }
+  PUBLISH_STATE(this->psram_sensor_, heap_caps_get_free_size(MALLOC_CAP_SPIRAM));
 #endif
 }
 
