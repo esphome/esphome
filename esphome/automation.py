@@ -1615,15 +1615,20 @@ async def _build_action_or_inline(
         action = await build_action(full_config, template_arg, args)
     finally:
         _INLINE_COLLECTOR.reset(token)
-    _check_collected(action_id, action, collector)
+    _check_collected(full_config, action, collector)
     return collector.action if action is _COLLECTED_ACTION else action
 
 
-def _check_collected(id_: ID, result: MockObj, collector: _InlineCollector) -> None:
+def _check_collected(
+    full_config: ConfigType, result: MockObj, collector: _InlineCollector
+) -> None:
     """Returning anything else would silently drop the collected item from the firmware."""
     if (result is _COLLECTED_ACTION) != (collector.action is not None):
+        # The id is usually generated, so only the registry key tells the author where to look
+        name = next(key for key in full_config if key != CONF_TYPE_ID)
         raise EsphomeError(
-            f"The builder of {id_} must return the result of its apply builder"
+            f"The builder of '{name}' ({collector.action_id}) must return the result of "
+            "its apply builder unchanged"
         )
 
 
@@ -1640,7 +1645,7 @@ async def _build_condition_or_inline(
         condition = await build_condition(full_config, template_arg, args)
     finally:
         _INLINE_COLLECTOR.reset(token)
-    _check_collected(condition_id, condition, collector)
+    _check_collected(full_config, condition, collector)
     if condition is not _COLLECTED_ACTION:
         return condition
     collected = collector.action

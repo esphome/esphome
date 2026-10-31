@@ -2445,7 +2445,9 @@ async def test_build_action_list_rejects_a_dropped_collected_action() -> None:
         await builder(config, action_id, template_arg, args)
         return MockObj("something_else", "->")
 
-    with pytest.raises(EsphomeError, match="must return the result"):
+    with pytest.raises(
+        EsphomeError, match=r"'my\.wrapped' \(act_w\) must return the result"
+    ):
         await build_action_list([_action("my.wrapped", "act_w")], TEMPLATE_ARG, [])
 
 
@@ -2626,7 +2628,9 @@ async def test_condition_builder_must_return_collected_condition() -> None:
             ),
         }
 
-        with pytest.raises(EsphomeError, match="must return the result"):
+        with pytest.raises(
+            EsphomeError, match=r"'my\.drops' \(cond\) must return the result"
+        ):
             await build_action_list(
                 [_if_action(_action("my.a", "act_a"), condition=condition)],
                 TEMPLATE_ARG,
