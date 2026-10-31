@@ -1,13 +1,7 @@
 import esphome.codegen as cg
 from esphome.components import sensor
 import esphome.config_validation as cv
-from esphome.const import (
-    CONF_HUMIDITY,
-    CONF_TEMPERATURE,
-    DEVICE_CLASS_TEMPERATURE,
-    STATE_CLASS_MEASUREMENT,
-    UNIT_CELSIUS,
-)
+from esphome.const import CONF_HUMIDITY, CONF_TEMPERATURE
 from esphome.types import ConfigType
 
 DEPENDENCIES = ["sensor"]
@@ -20,10 +14,8 @@ DewPointComponent = dew_point_ns.class_(
 CONFIG_SCHEMA = (
     sensor.sensor_schema(
         DewPointComponent,
-        unit_of_measurement=UNIT_CELSIUS,
+        kind=sensor.TEMPERATURE,
         accuracy_decimals=1,
-        device_class=DEVICE_CLASS_TEMPERATURE,
-        state_class=STATE_CLASS_MEASUREMENT,
         icon="mdi:weather-rainy",
     )
     .extend(

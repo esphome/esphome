@@ -12,14 +12,10 @@ from esphome.const import (
     CONF_PRESSURE,
     CONF_TEMPERATURE,
     DEVICE_CLASS_ATMOSPHERIC_PRESSURE,
-    DEVICE_CLASS_HUMIDITY,
-    DEVICE_CLASS_TEMPERATURE,
     ICON_GAS_CYLINDER,
     STATE_CLASS_MEASUREMENT,
-    UNIT_CELSIUS,
     UNIT_HECTOPASCAL,
     UNIT_OHM,
-    UNIT_PERCENT,
 )
 from esphome.types import ConfigType
 
@@ -45,10 +41,7 @@ CONFIG_SCHEMA = (
         {
             cv.GenerateID(): cv.declare_id(BME680Component),
             cv.Optional(CONF_TEMPERATURE): sensor.sensor_schema(
-                unit_of_measurement=UNIT_CELSIUS,
-                accuracy_decimals=1,
-                device_class=DEVICE_CLASS_TEMPERATURE,
-                state_class=STATE_CLASS_MEASUREMENT,
+                kind=sensor.TEMPERATURE, accuracy_decimals=1
             ).extend(
                 {
                     cv.Optional(CONF_OVERSAMPLING, default="16X"): cv.enum(
@@ -69,10 +62,7 @@ CONFIG_SCHEMA = (
                 }
             ),
             cv.Optional(CONF_HUMIDITY): sensor.sensor_schema(
-                unit_of_measurement=UNIT_PERCENT,
-                accuracy_decimals=1,
-                device_class=DEVICE_CLASS_HUMIDITY,
-                state_class=STATE_CLASS_MEASUREMENT,
+                kind=sensor.HUMIDITY, accuracy_decimals=1
             ).extend(
                 {
                     cv.Optional(CONF_OVERSAMPLING, default="16X"): cv.enum(

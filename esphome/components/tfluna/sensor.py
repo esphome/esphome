@@ -8,14 +8,12 @@ from esphome.const import (
     DEVICE_CLASS_DISTANCE,
     DEVICE_CLASS_DURATION,
     DEVICE_CLASS_SIGNAL_STRENGTH,
-    DEVICE_CLASS_TEMPERATURE,
     ENTITY_CATEGORY_DIAGNOSTIC,
     ICON_ARROW_EXPAND_VERTICAL,
     ICON_SIGNAL,
     ICON_THERMOMETER,
     ICON_TIMER,
     STATE_CLASS_MEASUREMENT,
-    UNIT_CELSIUS,
     UNIT_CENTIMETER,
     UNIT_MILLISECOND,
 )
@@ -35,11 +33,9 @@ CONFIG_SCHEMA = {
         state_class=STATE_CLASS_MEASUREMENT,
     ),
     cv.Optional(CONF_TEMPERATURE): sensor.sensor_schema(
-        unit_of_measurement=UNIT_CELSIUS,
+        kind=sensor.TEMPERATURE,
         icon=ICON_THERMOMETER,
         accuracy_decimals=2,
-        device_class=DEVICE_CLASS_TEMPERATURE,
-        state_class=STATE_CLASS_MEASUREMENT,
         entity_category=ENTITY_CATEGORY_DIAGNOSTIC,
     ),
     cv.Optional(CONF_SIGNAL_STRENGTH): sensor.sensor_schema(

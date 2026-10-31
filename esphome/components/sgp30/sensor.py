@@ -9,14 +9,12 @@ from esphome.const import (
     CONF_STORE_BASELINE,
     CONF_TEMPERATURE_SOURCE,
     CONF_TVOC,
-    DEVICE_CLASS_CARBON_DIOXIDE,
     DEVICE_CLASS_VOLATILE_ORGANIC_COMPOUNDS_PARTS,
     ENTITY_CATEGORY_DIAGNOSTIC,
     ICON_MOLECULE_CO2,
     ICON_RADIATOR,
     STATE_CLASS_MEASUREMENT,
     UNIT_PARTS_PER_BILLION,
-    UNIT_PARTS_PER_MILLION,
 )
 from esphome.types import ConfigType
 
@@ -38,11 +36,7 @@ CONFIG_SCHEMA = (
         {
             cv.GenerateID(): cv.declare_id(SGP30Component),
             cv.Optional(CONF_ECO2): sensor.sensor_schema(
-                unit_of_measurement=UNIT_PARTS_PER_MILLION,
-                icon=ICON_MOLECULE_CO2,
-                accuracy_decimals=0,
-                device_class=DEVICE_CLASS_CARBON_DIOXIDE,
-                state_class=STATE_CLASS_MEASUREMENT,
+                kind=sensor.CARBON_DIOXIDE, icon=ICON_MOLECULE_CO2, accuracy_decimals=0
             ),
             cv.Optional(CONF_TVOC): sensor.sensor_schema(
                 unit_of_measurement=UNIT_PARTS_PER_BILLION,

@@ -9,15 +9,12 @@ from esphome.const import (
     CONF_LEVEL,
     CONF_MAC_ADDRESS,
     CONF_TEMPERATURE,
-    DEVICE_CLASS_BATTERY,
-    DEVICE_CLASS_TEMPERATURE,
     ENTITY_CATEGORY_DIAGNOSTIC,
     ICON_COUNTER,
     ICON_RULER,
     ICON_SIGNAL,
     ICON_THERMOMETER,
     STATE_CLASS_MEASUREMENT,
-    UNIT_CELSIUS,
     UNIT_EMPTY,
     UNIT_MILLIMETER,
     UNIT_PERCENT,
@@ -83,11 +80,7 @@ CONFIG_SCHEMA = cv.All(
             cv.Optional(CONF_CUSTOM_DISTANCE_EMPTY): small_distance,
             cv.Required(CONF_TANK_TYPE): cv.enum(CONF_SUPPORTED_TANKS_MAP, upper=True),
             cv.Optional(CONF_TEMPERATURE): sensor.sensor_schema(
-                unit_of_measurement=UNIT_CELSIUS,
-                icon=ICON_THERMOMETER,
-                accuracy_decimals=0,
-                device_class=DEVICE_CLASS_TEMPERATURE,
-                state_class=STATE_CLASS_MEASUREMENT,
+                kind=sensor.TEMPERATURE, icon=ICON_THERMOMETER, accuracy_decimals=0
             ),
             cv.Optional(CONF_LEVEL): sensor.sensor_schema(
                 unit_of_measurement=UNIT_PERCENT,
@@ -102,10 +95,7 @@ CONFIG_SCHEMA = cv.All(
                 state_class=STATE_CLASS_MEASUREMENT,
             ),
             cv.Optional(CONF_BATTERY_LEVEL): sensor.sensor_schema(
-                unit_of_measurement=UNIT_PERCENT,
-                accuracy_decimals=0,
-                device_class=DEVICE_CLASS_BATTERY,
-                state_class=STATE_CLASS_MEASUREMENT,
+                kind=sensor.BATTERY, accuracy_decimals=0
             ),
             cv.Optional(CONF_SIGNAL_QUALITY): sensor.sensor_schema(
                 unit_of_measurement=UNIT_EMPTY,

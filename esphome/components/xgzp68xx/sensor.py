@@ -7,9 +7,7 @@ from esphome.const import (
     CONF_TEMPERATURE,
     CONF_VARIANT,
     DEVICE_CLASS_PRESSURE,
-    DEVICE_CLASS_TEMPERATURE,
     STATE_CLASS_MEASUREMENT,
-    UNIT_CELSIUS,
     UNIT_PASCAL,
 )
 from esphome.types import ConfigType
@@ -58,15 +56,6 @@ XGZP6899DCComponent = xgzp68xx_ns.class_(
 pressure_pa = cv.float_with_unit("pressure", "(Pa)", optional_unit=True)
 
 
-def _temperature_schema() -> cv.Schema:
-    return sensor.sensor_schema(
-        unit_of_measurement=UNIT_CELSIUS,
-        accuracy_decimals=1,
-        device_class=DEVICE_CLASS_TEMPERATURE,
-        state_class=STATE_CLASS_MEASUREMENT,
-    )
-
-
 def _pressure_schema(oversampling: cv.Optional, options: dict) -> cv.Schema:
     return sensor.sensor_schema(
         unit_of_measurement=UNIT_PASCAL,
@@ -85,7 +74,9 @@ def _xgzp68xx_schema() -> cv.Schema:
                     cv.Optional(CONF_OVERSAMPLING, default="4096X"),
                     OVERSAMPLING_OPTIONS,
                 ),
-                cv.Optional(CONF_TEMPERATURE): _temperature_schema(),
+                cv.Optional(CONF_TEMPERATURE): sensor.sensor_schema(
+                    kind=sensor.TEMPERATURE, accuracy_decimals=1
+                ),
                 cv.Optional(CONF_K_VALUE, default=4096): cv.int_range(min=1, max=65535),
                 # The likely mistake is a 6899DC config without its variant line
                 **{
@@ -124,7 +115,9 @@ def _xgzp6899dc_schema() -> cv.All:
                 cv.Optional(CONF_PRESSURE): _pressure_schema(
                     cv.Optional(CONF_OVERSAMPLING), XGZP6899DC_OVERSAMPLING_OPTIONS
                 ),
-                cv.Optional(CONF_TEMPERATURE): _temperature_schema(),
+                cv.Optional(CONF_TEMPERATURE): sensor.sensor_schema(
+                    kind=sensor.TEMPERATURE, accuracy_decimals=1
+                ),
                 cv.Optional(CONF_PRESSURE_MIN): pressure_pa,
                 cv.Optional(CONF_PRESSURE_MAX): pressure_pa,
             }

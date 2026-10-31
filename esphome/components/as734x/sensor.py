@@ -7,11 +7,9 @@ from esphome.const import (
     CONF_COUNTS,
     CONF_ILLUMINANCE,
     CONF_TYPE,
-    DEVICE_CLASS_ILLUMINANCE,
     DEVICE_CLASS_IRRADIANCE,
     STATE_CLASS_MEASUREMENT,
     UNIT_KELVIN,
-    UNIT_LUX,
     UNIT_PERCENT,
 )
 import esphome.final_validate as fv
@@ -71,11 +69,7 @@ CONFIG_SCHEMA = cv.Schema(
             state_class=STATE_CLASS_MEASUREMENT,
         ),
         cv.Optional(CONF_ILLUMINANCE): sensor.sensor_schema(
-            unit_of_measurement=UNIT_LUX,
-            icon=ICON_ILLUMINANCE,
-            accuracy_decimals=0,
-            device_class=DEVICE_CLASS_ILLUMINANCE,
-            state_class=STATE_CLASS_MEASUREMENT,
+            kind=sensor.ILLUMINANCE, icon=ICON_ILLUMINANCE, accuracy_decimals=0
         ),
         cv.Optional(CONF_IRRADIANCE_PHOTOPIC): sensor.sensor_schema(
             unit_of_measurement=UNIT_IRRADIANCE,

@@ -7,27 +7,13 @@ from esphome.const import (
     CONF_ADDRESS,
     CONF_FREQUENCY,
     CONF_ID,
-    DEVICE_CLASS_APPARENT_POWER,
-    DEVICE_CLASS_CURRENT,
-    DEVICE_CLASS_ENERGY,
-    DEVICE_CLASS_FREQUENCY,
-    DEVICE_CLASS_POWER,
     DEVICE_CLASS_POWER_FACTOR,
     DEVICE_CLASS_REACTIVE_ENERGY,
-    DEVICE_CLASS_REACTIVE_POWER,
-    DEVICE_CLASS_VOLTAGE,
     ICON_CURRENT_AC,
     STATE_CLASS_MEASUREMENT,
     STATE_CLASS_TOTAL_INCREASING,
-    UNIT_AMPERE,
-    UNIT_HERTZ,
     UNIT_KILOVOLT_AMPS_HOURS,
     UNIT_KILOVOLT_AMPS_REACTIVE_HOURS,
-    UNIT_KILOWATT_HOURS,
-    UNIT_VOLT,
-    UNIT_VOLT_AMPS,
-    UNIT_VOLT_AMPS_REACTIVE,
-    UNIT_WATT,
 )
 from esphome.types import ConfigType
 
@@ -55,35 +41,14 @@ CONF_TOTAL_APPARENT_ENERGY = "total_apparent_energy"
 CONF_PHASE = "phase"
 
 
-_VOLTAGE_SCHEMA = sensor.sensor_schema(
-    unit_of_measurement=UNIT_VOLT,
-    accuracy_decimals=1,
-    device_class=DEVICE_CLASS_VOLTAGE,
-    state_class=STATE_CLASS_MEASUREMENT,
-)
-_CURRENT_SCHEMA = sensor.sensor_schema(
-    unit_of_measurement=UNIT_AMPERE,
-    accuracy_decimals=2,
-    device_class=DEVICE_CLASS_CURRENT,
-    state_class=STATE_CLASS_MEASUREMENT,
-)
-_ACTIVE_POWER_SCHEMA = sensor.sensor_schema(
-    unit_of_measurement=UNIT_WATT,
-    accuracy_decimals=1,
-    device_class=DEVICE_CLASS_POWER,
-    state_class=STATE_CLASS_MEASUREMENT,
-)
+_VOLTAGE_SCHEMA = sensor.sensor_schema(kind=sensor.VOLTAGE, accuracy_decimals=1)
+_CURRENT_SCHEMA = sensor.sensor_schema(kind=sensor.CURRENT, accuracy_decimals=2)
+_ACTIVE_POWER_SCHEMA = sensor.sensor_schema(kind=sensor.POWER, accuracy_decimals=1)
 _REACTIVE_POWER_SCHEMA = sensor.sensor_schema(
-    unit_of_measurement=UNIT_VOLT_AMPS_REACTIVE,
-    accuracy_decimals=1,
-    device_class=DEVICE_CLASS_REACTIVE_POWER,
-    state_class=STATE_CLASS_MEASUREMENT,
+    kind=sensor.REACTIVE_POWER, accuracy_decimals=1
 )
 _APPARENT_POWER_SCHEMA = sensor.sensor_schema(
-    unit_of_measurement=UNIT_VOLT_AMPS,
-    accuracy_decimals=1,
-    device_class=DEVICE_CLASS_APPARENT_POWER,
-    state_class=STATE_CLASS_MEASUREMENT,
+    kind=sensor.APPARENT_POWER, accuracy_decimals=1
 )
 _POWER_FACTOR_SCHEMA = sensor.sensor_schema(
     accuracy_decimals=2,
@@ -91,10 +56,7 @@ _POWER_FACTOR_SCHEMA = sensor.sensor_schema(
     state_class=STATE_CLASS_MEASUREMENT,
 )
 _ACTIVE_ENERGY_SCHEMA = sensor.sensor_schema(
-    unit_of_measurement=UNIT_KILOWATT_HOURS,
-    accuracy_decimals=1,
-    device_class=DEVICE_CLASS_ENERGY,
-    state_class=STATE_CLASS_TOTAL_INCREASING,
+    kind=sensor.ENERGY_KWH, accuracy_decimals=1
 )
 _REACTIVE_ENERGY_SCHEMA = sensor.sensor_schema(
     unit_of_measurement=UNIT_KILOVOLT_AMPS_REACTIVE_HOURS,
@@ -108,11 +70,7 @@ _APPARENT_ENERGY_SCHEMA = sensor.sensor_schema(
     state_class=STATE_CLASS_TOTAL_INCREASING,
 )
 _FREQUENCY_SCHEMA = sensor.sensor_schema(
-    unit_of_measurement=UNIT_HERTZ,
-    icon=ICON_CURRENT_AC,
-    accuracy_decimals=2,
-    device_class=DEVICE_CLASS_FREQUENCY,
-    state_class=STATE_CLASS_MEASUREMENT,
+    kind=sensor.FREQUENCY, icon=ICON_CURRENT_AC, accuracy_decimals=2
 )
 
 # Quantities measured once per phase; the config key is "<name>_<phase>".

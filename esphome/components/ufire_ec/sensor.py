@@ -9,10 +9,8 @@ from esphome.const import (
     CONF_TEMPERATURE,
     CONF_TEMPERATURE_COMPENSATION,
     DEVICE_CLASS_EMPTY,
-    DEVICE_CLASS_TEMPERATURE,
     ICON_EMPTY,
     STATE_CLASS_MEASUREMENT,
-    UNIT_CELSIUS,
     UNIT_MILLISIEMENS_PER_CENTIMETER,
 )
 from esphome.types import ConfigType
@@ -32,10 +30,7 @@ CONFIG_SCHEMA = (
         {
             cv.GenerateID(): cv.declare_id(UFireECComponent),
             cv.Exclusive(CONF_TEMPERATURE, "temperature"): sensor.sensor_schema(
-                unit_of_measurement=UNIT_CELSIUS,
-                device_class=DEVICE_CLASS_TEMPERATURE,
-                state_class=STATE_CLASS_MEASUREMENT,
-                accuracy_decimals=1,
+                kind=sensor.TEMPERATURE, accuracy_decimals=1
             ),
             cv.Optional(CONF_EC): sensor.sensor_schema(
                 unit_of_measurement=UNIT_MILLISIEMENS_PER_CENTIMETER,

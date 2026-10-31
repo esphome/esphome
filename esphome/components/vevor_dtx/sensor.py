@@ -7,9 +7,6 @@ from esphome.const import (
     CONF_TEMPERATURE,
     CONF_WIND_DIRECTION_DEGREES,
     CONF_WIND_SPEED,
-    DEVICE_CLASS_HUMIDITY,
-    DEVICE_CLASS_ILLUMINANCE,
-    DEVICE_CLASS_TEMPERATURE,
     DEVICE_CLASS_WIND_DIRECTION,
     DEVICE_CLASS_WIND_SPEED,
     ICON_COUNTER,
@@ -18,12 +15,9 @@ from esphome.const import (
     ICON_WEATHER_WINDY,
     STATE_CLASS_MEASUREMENT,
     STATE_CLASS_TOTAL_INCREASING,
-    UNIT_CELSIUS,
     UNIT_DEGREES,
-    UNIT_LUX,
     UNIT_METER_PER_SECOND,
     UNIT_MILLIMETER,
-    UNIT_PERCENT,
 )
 from esphome.types import ConfigType
 
@@ -48,16 +42,10 @@ CONFIG_SCHEMA = cv.Schema(
     {
         cv.GenerateID(CONF_VEVOR_DTX_ID): cv.use_id(VevorDtxComponent),
         cv.Optional(CONF_TEMPERATURE): sensor.sensor_schema(
-            unit_of_measurement=UNIT_CELSIUS,
-            accuracy_decimals=1,
-            device_class=DEVICE_CLASS_TEMPERATURE,
-            state_class=STATE_CLASS_MEASUREMENT,
+            kind=sensor.TEMPERATURE, accuracy_decimals=1
         ),
         cv.Optional(CONF_HUMIDITY): sensor.sensor_schema(
-            unit_of_measurement=UNIT_PERCENT,
-            accuracy_decimals=0,
-            device_class=DEVICE_CLASS_HUMIDITY,
-            state_class=STATE_CLASS_MEASUREMENT,
+            kind=sensor.HUMIDITY, accuracy_decimals=0
         ),
         cv.Optional(CONF_WIND_SPEED): _WIND_SCHEMA,
         cv.Optional(CONF_WIND_GUST): _WIND_SCHEMA,
@@ -79,10 +67,7 @@ CONFIG_SCHEMA = cv.Schema(
             state_class=STATE_CLASS_MEASUREMENT,
         ),
         cv.Optional(CONF_ILLUMINANCE): sensor.sensor_schema(
-            unit_of_measurement=UNIT_LUX,
-            accuracy_decimals=0,
-            device_class=DEVICE_CLASS_ILLUMINANCE,
-            state_class=STATE_CLASS_MEASUREMENT,
+            kind=sensor.ILLUMINANCE, accuracy_decimals=0
         ),
         cv.Optional(CONF_TX_COUNTER): sensor.sensor_schema(
             accuracy_decimals=0,

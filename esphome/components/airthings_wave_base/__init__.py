@@ -7,18 +7,18 @@ from esphome.const import (
     CONF_PRESSURE,
     CONF_TEMPERATURE,
     CONF_TVOC,
-    DEVICE_CLASS_HUMIDITY,
-    DEVICE_CLASS_PRESSURE,
-    DEVICE_CLASS_TEMPERATURE,
+    DEVICE_CLASS_HUMIDITY as DEVICE_CLASS_HUMIDITY,
+    DEVICE_CLASS_PRESSURE as DEVICE_CLASS_PRESSURE,
+    DEVICE_CLASS_TEMPERATURE as DEVICE_CLASS_TEMPERATURE,
     DEVICE_CLASS_VOLATILE_ORGANIC_COMPOUNDS_PARTS,
-    DEVICE_CLASS_VOLTAGE,
+    DEVICE_CLASS_VOLTAGE as DEVICE_CLASS_VOLTAGE,
     ENTITY_CATEGORY_DIAGNOSTIC,
     STATE_CLASS_MEASUREMENT,
-    UNIT_CELSIUS,
-    UNIT_HECTOPASCAL,
+    UNIT_CELSIUS as UNIT_CELSIUS,
+    UNIT_HECTOPASCAL as UNIT_HECTOPASCAL,
     UNIT_PARTS_PER_BILLION,
-    UNIT_PERCENT,
-    UNIT_VOLT,
+    UNIT_PERCENT as UNIT_PERCENT,
+    UNIT_VOLT as UNIT_VOLT,
 )
 from esphome.cpp_generator import MockObj
 from esphome.types import ConfigType
@@ -40,22 +40,13 @@ BASE_SCHEMA = (
     cv.Schema(
         {
             cv.Optional(CONF_HUMIDITY): sensor.sensor_schema(
-                unit_of_measurement=UNIT_PERCENT,
-                accuracy_decimals=0,
-                device_class=DEVICE_CLASS_HUMIDITY,
-                state_class=STATE_CLASS_MEASUREMENT,
+                kind=sensor.HUMIDITY, accuracy_decimals=0
             ),
             cv.Optional(CONF_TEMPERATURE): sensor.sensor_schema(
-                unit_of_measurement=UNIT_CELSIUS,
-                accuracy_decimals=2,
-                device_class=DEVICE_CLASS_TEMPERATURE,
-                state_class=STATE_CLASS_MEASUREMENT,
+                kind=sensor.TEMPERATURE, accuracy_decimals=2
             ),
             cv.Optional(CONF_PRESSURE): sensor.sensor_schema(
-                unit_of_measurement=UNIT_HECTOPASCAL,
-                accuracy_decimals=1,
-                device_class=DEVICE_CLASS_PRESSURE,
-                state_class=STATE_CLASS_MEASUREMENT,
+                kind=sensor.PRESSURE, accuracy_decimals=1
             ),
             cv.Optional(CONF_TVOC): sensor.sensor_schema(
                 unit_of_measurement=UNIT_PARTS_PER_BILLION,
@@ -64,10 +55,8 @@ BASE_SCHEMA = (
                 state_class=STATE_CLASS_MEASUREMENT,
             ),
             cv.Optional(CONF_BATTERY_VOLTAGE): sensor.sensor_schema(
-                unit_of_measurement=UNIT_VOLT,
+                kind=sensor.VOLTAGE,
                 accuracy_decimals=3,
-                device_class=DEVICE_CLASS_VOLTAGE,
-                state_class=STATE_CLASS_MEASUREMENT,
                 entity_category=ENTITY_CATEGORY_DIAGNOSTIC,
             ),
             cv.Optional(

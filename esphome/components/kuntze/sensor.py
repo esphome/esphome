@@ -6,11 +6,9 @@ from esphome.const import (
     CONF_PH,
     CONF_TEMPERATURE,
     DEVICE_CLASS_EMPTY,
-    DEVICE_CLASS_TEMPERATURE,
     ICON_EMPTY,
     ICON_THERMOMETER,
     STATE_CLASS_MEASUREMENT,
-    UNIT_CELSIUS,
     UNIT_EMPTY,
     UNIT_PH,
 )
@@ -40,11 +38,7 @@ CONFIG_SCHEMA = (
                 device_class=DEVICE_CLASS_EMPTY,
             ),
             cv.Optional(CONF_TEMPERATURE): sensor.sensor_schema(
-                unit_of_measurement=UNIT_CELSIUS,
-                icon=ICON_THERMOMETER,
-                accuracy_decimals=1,
-                state_class=STATE_CLASS_MEASUREMENT,
-                device_class=DEVICE_CLASS_TEMPERATURE,
+                kind=sensor.TEMPERATURE, icon=ICON_THERMOMETER, accuracy_decimals=1
             ),
             cv.Optional(CONF_DIS1): sensor.sensor_schema(
                 unit_of_measurement=UNIT_EMPTY,

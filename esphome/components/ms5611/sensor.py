@@ -1,16 +1,7 @@
 import esphome.codegen as cg
 from esphome.components import i2c, sensor
 import esphome.config_validation as cv
-from esphome.const import (
-    CONF_PRESSURE,
-    CONF_TEMPERATURE,
-    DEVICE_CLASS_PRESSURE,
-    DEVICE_CLASS_TEMPERATURE,
-    ICON_GAUGE,
-    STATE_CLASS_MEASUREMENT,
-    UNIT_CELSIUS,
-    UNIT_HECTOPASCAL,
-)
+from esphome.const import CONF_PRESSURE, CONF_TEMPERATURE
 from esphome.types import ConfigType
 
 DEPENDENCIES = ["i2c"]
@@ -25,17 +16,10 @@ CONFIG_SCHEMA = (
         {
             cv.GenerateID(): cv.declare_id(MS5611Component),
             cv.Optional(CONF_TEMPERATURE): sensor.sensor_schema(
-                unit_of_measurement=UNIT_CELSIUS,
-                accuracy_decimals=1,
-                device_class=DEVICE_CLASS_TEMPERATURE,
-                state_class=STATE_CLASS_MEASUREMENT,
+                kind=sensor.TEMPERATURE, accuracy_decimals=1
             ),
             cv.Optional(CONF_PRESSURE): sensor.sensor_schema(
-                unit_of_measurement=UNIT_HECTOPASCAL,
-                icon=ICON_GAUGE,
-                accuracy_decimals=1,
-                device_class=DEVICE_CLASS_PRESSURE,
-                state_class=STATE_CLASS_MEASUREMENT,
+                kind=sensor.PRESSURE, accuracy_decimals=1
             ),
         }
     )

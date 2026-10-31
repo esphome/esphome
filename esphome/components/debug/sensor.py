@@ -8,7 +8,6 @@ from esphome.const import (
     CONF_FRAGMENTATION,
     CONF_FREE,
     CONF_LOOP_TIME,
-    DEVICE_CLASS_FREQUENCY,
     ENTITY_CATEGORY_DIAGNOSTIC,
     ICON_COUNTER,
     ICON_TIMER,
@@ -17,13 +16,16 @@ from esphome.const import (
     PLATFORM_RTL87XX,
     STATE_CLASS_MEASUREMENT,
     UNIT_BYTES,
-    UNIT_HERTZ,
     UNIT_MILLISECOND,
     UNIT_PERCENT,
 )
 from esphome.types import ConfigType
 
-from . import CONF_DEBUG_ID, FILTER_SOURCE_FILES, DebugComponent  # noqa: F401  pylint: disable=unused-import
+from . import (  # noqa: F401  pylint: disable=unused-import
+    CONF_DEBUG_ID,
+    FILTER_SOURCE_FILES,
+    DebugComponent,
+)
 
 DEPENDENCIES = ["debug"]
 
@@ -94,12 +96,10 @@ CONFIG_SCHEMA = {
     ),
     cv.Optional(CONF_CPU_FREQUENCY): cv.All(
         sensor.sensor_schema(
-            unit_of_measurement=UNIT_HERTZ,
+            kind=sensor.FREQUENCY,
             icon="mdi:speedometer",
             accuracy_decimals=0,
-            device_class=DEVICE_CLASS_FREQUENCY,
             entity_category=ENTITY_CATEGORY_DIAGNOSTIC,
-            state_class=STATE_CLASS_MEASUREMENT,
         ),
     ),
 }

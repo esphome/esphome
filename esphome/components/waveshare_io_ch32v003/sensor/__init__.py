@@ -4,9 +4,9 @@ import esphome.config_validation as cv
 from esphome.const import (
     CONF_ID,
     CONF_REFERENCE_VOLTAGE,
-    DEVICE_CLASS_VOLTAGE,
-    STATE_CLASS_MEASUREMENT,
-    UNIT_VOLT,
+    DEVICE_CLASS_VOLTAGE as DEVICE_CLASS_VOLTAGE,
+    STATE_CLASS_MEASUREMENT as STATE_CLASS_MEASUREMENT,
+    UNIT_VOLT as UNIT_VOLT,
 )
 from esphome.types import ConfigType
 
@@ -29,11 +29,7 @@ WaveshareIOCH32V003Sensor = waveshare_io_ch32v003_ns.class_(
 
 CONFIG_SCHEMA = (
     sensor.sensor_schema(
-        WaveshareIOCH32V003Sensor,
-        unit_of_measurement=UNIT_VOLT,
-        accuracy_decimals=3,
-        device_class=DEVICE_CLASS_VOLTAGE,
-        state_class=STATE_CLASS_MEASUREMENT,
+        WaveshareIOCH32V003Sensor, kind=sensor.VOLTAGE, accuracy_decimals=3
     )
     .extend(
         {

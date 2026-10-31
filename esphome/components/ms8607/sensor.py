@@ -1,18 +1,7 @@
 import esphome.codegen as cg
 from esphome.components import i2c, sensor
 import esphome.config_validation as cv
-from esphome.const import (
-    CONF_HUMIDITY,
-    CONF_PRESSURE,
-    CONF_TEMPERATURE,
-    DEVICE_CLASS_HUMIDITY,
-    DEVICE_CLASS_PRESSURE,
-    DEVICE_CLASS_TEMPERATURE,
-    STATE_CLASS_MEASUREMENT,
-    UNIT_CELSIUS,
-    UNIT_HECTOPASCAL,
-    UNIT_PERCENT,
-)
+from esphome.const import CONF_HUMIDITY, CONF_PRESSURE, CONF_TEMPERATURE
 from esphome.types import ConfigType
 
 DEPENDENCIES = ["i2c"]
@@ -30,22 +19,16 @@ CONFIG_SCHEMA = (
         {
             cv.GenerateID(): cv.declare_id(MS8607Component),
             cv.Optional(CONF_TEMPERATURE): sensor.sensor_schema(
-                unit_of_measurement=UNIT_CELSIUS,
+                kind=sensor.TEMPERATURE,
                 accuracy_decimals=2,  # Resolution: 0.01
-                device_class=DEVICE_CLASS_TEMPERATURE,
-                state_class=STATE_CLASS_MEASUREMENT,
             ),
             cv.Optional(CONF_PRESSURE): sensor.sensor_schema(
-                unit_of_measurement=UNIT_HECTOPASCAL,
+                kind=sensor.PRESSURE,
                 accuracy_decimals=2,  # Resolution: 0.016
-                device_class=DEVICE_CLASS_PRESSURE,
-                state_class=STATE_CLASS_MEASUREMENT,
             ),
             cv.Optional(CONF_HUMIDITY): sensor.sensor_schema(
-                unit_of_measurement=UNIT_PERCENT,
+                kind=sensor.HUMIDITY,
                 accuracy_decimals=2,  # Resolution: 0.04
-                device_class=DEVICE_CLASS_HUMIDITY,
-                state_class=STATE_CLASS_MEASUREMENT,
             )
             .extend(
                 {

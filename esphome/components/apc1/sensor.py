@@ -23,12 +23,9 @@ from esphome.const import (
     CONF_TEMPERATURE,
     CONF_TVOC,
     DEVICE_CLASS_AQI,
-    DEVICE_CLASS_CARBON_DIOXIDE,
-    DEVICE_CLASS_HUMIDITY,
     DEVICE_CLASS_PM1,
     DEVICE_CLASS_PM10,
     DEVICE_CLASS_PM25,
-    DEVICE_CLASS_TEMPERATURE,
     DEVICE_CLASS_VOLATILE_ORGANIC_COMPOUNDS_PARTS,
     ENTITY_CATEGORY_DIAGNOSTIC,
     ICON_CHEMICAL_WEAPON,
@@ -36,13 +33,10 @@ from esphome.const import (
     ICON_OMEGA,
     ICON_RADIATOR,
     STATE_CLASS_MEASUREMENT,
-    UNIT_CELSIUS,
     UNIT_COUNT_DECILITRE,
     UNIT_MICROGRAMS_PER_CUBIC_METER,
     UNIT_OHM,
     UNIT_PARTS_PER_BILLION,
-    UNIT_PARTS_PER_MILLION,
-    UNIT_PERCENT,
 )
 from esphome.types import ConfigType
 
@@ -76,18 +70,8 @@ _PM_COUNT_SCHEMA = sensor.sensor_schema(
     accuracy_decimals=0,
     state_class=STATE_CLASS_MEASUREMENT,
 )
-_TEMPERATURE_SCHEMA = sensor.sensor_schema(
-    unit_of_measurement=UNIT_CELSIUS,
-    accuracy_decimals=1,
-    device_class=DEVICE_CLASS_TEMPERATURE,
-    state_class=STATE_CLASS_MEASUREMENT,
-)
-_HUMIDITY_SCHEMA = sensor.sensor_schema(
-    unit_of_measurement=UNIT_PERCENT,
-    accuracy_decimals=1,
-    device_class=DEVICE_CLASS_HUMIDITY,
-    state_class=STATE_CLASS_MEASUREMENT,
-)
+_TEMPERATURE_SCHEMA = sensor.sensor_schema(kind=sensor.TEMPERATURE, accuracy_decimals=1)
+_HUMIDITY_SCHEMA = sensor.sensor_schema(kind=sensor.HUMIDITY, accuracy_decimals=1)
 _RESISTANCE_SCHEMA = sensor.sensor_schema(
     unit_of_measurement=UNIT_OHM,
     icon=ICON_OMEGA,
@@ -119,11 +103,7 @@ CONFIG_SCHEMA = (
                 state_class=STATE_CLASS_MEASUREMENT,
             ),
             cv.Optional(CONF_ECO2): sensor.sensor_schema(
-                unit_of_measurement=UNIT_PARTS_PER_MILLION,
-                icon=ICON_MOLECULE_CO2,
-                accuracy_decimals=0,
-                device_class=DEVICE_CLASS_CARBON_DIOXIDE,
-                state_class=STATE_CLASS_MEASUREMENT,
+                kind=sensor.CARBON_DIOXIDE, icon=ICON_MOLECULE_CO2, accuracy_decimals=0
             ),
             cv.Optional(CONF_AQI): sensor.sensor_schema(
                 icon=ICON_CHEMICAL_WEAPON,

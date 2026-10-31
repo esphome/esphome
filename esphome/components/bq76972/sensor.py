@@ -1,13 +1,6 @@
 import esphome.codegen as cg
 from esphome.components import sensor
 import esphome.config_validation as cv
-from esphome.const import (
-    DEVICE_CLASS_TEMPERATURE,
-    DEVICE_CLASS_VOLTAGE,
-    STATE_CLASS_MEASUREMENT,
-    UNIT_CELSIUS,
-    UNIT_VOLT,
-)
 from esphome.types import ConfigType
 
 from . import CONF_BQ76972_ID, BQ76972Component
@@ -32,19 +25,9 @@ CONF_TEMPERATURES = [
 
 CONF_CELL_VOLTAGES = [f"cell_{i}_voltage" for i in range(1, 17)]
 
-voltage_sensor_schema = sensor.sensor_schema(
-    unit_of_measurement=UNIT_VOLT,
-    accuracy_decimals=3,
-    device_class=DEVICE_CLASS_VOLTAGE,
-    state_class=STATE_CLASS_MEASUREMENT,
-)
+voltage_sensor_schema = sensor.sensor_schema(kind=sensor.VOLTAGE, accuracy_decimals=3)
 
-temp_sensor_schema = sensor.sensor_schema(
-    unit_of_measurement=UNIT_CELSIUS,
-    accuracy_decimals=1,
-    device_class=DEVICE_CLASS_TEMPERATURE,
-    state_class=STATE_CLASS_MEASUREMENT,
-)
+temp_sensor_schema = sensor.sensor_schema(kind=sensor.TEMPERATURE, accuracy_decimals=1)
 
 CONFIG_SCHEMA = cv.Schema(
     {

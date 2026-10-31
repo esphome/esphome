@@ -9,13 +9,9 @@ from esphome.const import (
     CONF_PMC_1_0,
     CONF_PMC_2_5,
     CONF_PMC_10_0,
-    DEVICE_CLASS_PM1,
-    DEVICE_CLASS_PM10,
-    DEVICE_CLASS_PM25,
     ICON_CHEMICAL_WEAPON,
     ICON_COUNTER,
     STATE_CLASS_MEASUREMENT,
-    UNIT_MICROGRAMS_PER_CUBIC_METER,
 )
 from esphome.types import ConfigType
 
@@ -39,25 +35,13 @@ CONFIG_SCHEMA = (
             cv.GenerateID(): cv.declare_id(PMSA003IComponent),
             cv.Optional(CONF_STANDARD_UNITS, default=True): cv.boolean,
             cv.Optional(CONF_PM_1_0): sensor.sensor_schema(
-                unit_of_measurement=UNIT_MICROGRAMS_PER_CUBIC_METER,
-                icon=ICON_CHEMICAL_WEAPON,
-                accuracy_decimals=2,
-                device_class=DEVICE_CLASS_PM1,
-                state_class=STATE_CLASS_MEASUREMENT,
+                kind=sensor.PM1, accuracy_decimals=2
             ),
             cv.Optional(CONF_PM_2_5): sensor.sensor_schema(
-                unit_of_measurement=UNIT_MICROGRAMS_PER_CUBIC_METER,
-                icon=ICON_CHEMICAL_WEAPON,
-                accuracy_decimals=2,
-                device_class=DEVICE_CLASS_PM25,
-                state_class=STATE_CLASS_MEASUREMENT,
+                kind=sensor.PM25, icon=ICON_CHEMICAL_WEAPON, accuracy_decimals=2
             ),
             cv.Optional(CONF_PM_10_0): sensor.sensor_schema(
-                unit_of_measurement=UNIT_MICROGRAMS_PER_CUBIC_METER,
-                icon=ICON_CHEMICAL_WEAPON,
-                accuracy_decimals=2,
-                device_class=DEVICE_CLASS_PM10,
-                state_class=STATE_CLASS_MEASUREMENT,
+                kind=sensor.PM10, accuracy_decimals=2
             ),
             cv.Optional(CONF_PMC_0_3): sensor.sensor_schema(
                 unit_of_measurement=UNIT_COUNTS_PER_100ML,

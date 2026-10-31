@@ -5,7 +5,6 @@ from esphome.const import (
     CONF_BATTERY_LEVEL,
     CONF_MAC_ADDRESS,
     CONF_TABLET,
-    DEVICE_CLASS_BATTERY,
     ENTITY_CATEGORY_DIAGNOSTIC,
     ICON_BUG,
     STATE_CLASS_MEASUREMENT,
@@ -36,10 +35,8 @@ CONFIG_SCHEMA = cv.All(
                 state_class=STATE_CLASS_MEASUREMENT,
             ),
             cv.Optional(CONF_BATTERY_LEVEL): sensor.sensor_schema(
-                unit_of_measurement=UNIT_PERCENT,
+                kind=sensor.BATTERY,
                 accuracy_decimals=0,
-                device_class=DEVICE_CLASS_BATTERY,
-                state_class=STATE_CLASS_MEASUREMENT,
                 entity_category=ENTITY_CATEGORY_DIAGNOSTIC,
             ),
         }

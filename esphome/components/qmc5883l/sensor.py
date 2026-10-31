@@ -17,11 +17,9 @@ from esphome.const import (
     CONF_RANGE,
     CONF_TEMPERATURE,
     CONF_UPDATE_INTERVAL,
-    DEVICE_CLASS_TEMPERATURE,
     ICON_MAGNET,
     ICON_SCREEN_ROTATION,
     STATE_CLASS_MEASUREMENT,
-    UNIT_CELSIUS,
     UNIT_DEGREES,
     UNIT_MICROTESLA,
 )
@@ -106,12 +104,7 @@ heading_schema = sensor.sensor_schema(
     accuracy_decimals=1,
     state_class=STATE_CLASS_MEASUREMENT,
 )
-temperature_schema = sensor.sensor_schema(
-    unit_of_measurement=UNIT_CELSIUS,
-    accuracy_decimals=1,
-    device_class=DEVICE_CLASS_TEMPERATURE,
-    state_class=STATE_CLASS_MEASUREMENT,
-)
+temperature_schema = sensor.sensor_schema(kind=sensor.TEMPERATURE, accuracy_decimals=1)
 
 CONFIG_SCHEMA = cv.All(
     cv.Schema(

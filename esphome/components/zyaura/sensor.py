@@ -9,14 +9,7 @@ from esphome.const import (
     CONF_HUMIDITY,
     CONF_ID,
     CONF_TEMPERATURE,
-    DEVICE_CLASS_CARBON_DIOXIDE,
-    DEVICE_CLASS_HUMIDITY,
-    DEVICE_CLASS_TEMPERATURE,
     ICON_MOLECULE_CO2,
-    STATE_CLASS_MEASUREMENT,
-    UNIT_CELSIUS,
-    UNIT_PARTS_PER_MILLION,
-    UNIT_PERCENT,
 )
 from esphome.types import ConfigType
 
@@ -29,23 +22,13 @@ CONFIG_SCHEMA = cv.Schema(
         cv.Required(CONF_CLOCK_PIN): cv.All(pins.internal_gpio_input_pin_schema),
         cv.Required(CONF_DATA_PIN): cv.All(pins.internal_gpio_input_pin_schema),
         cv.Optional(CONF_CO2): sensor.sensor_schema(
-            unit_of_measurement=UNIT_PARTS_PER_MILLION,
-            icon=ICON_MOLECULE_CO2,
-            accuracy_decimals=0,
-            device_class=DEVICE_CLASS_CARBON_DIOXIDE,
-            state_class=STATE_CLASS_MEASUREMENT,
+            kind=sensor.CARBON_DIOXIDE, icon=ICON_MOLECULE_CO2, accuracy_decimals=0
         ),
         cv.Optional(CONF_TEMPERATURE): sensor.sensor_schema(
-            unit_of_measurement=UNIT_CELSIUS,
-            accuracy_decimals=1,
-            device_class=DEVICE_CLASS_TEMPERATURE,
-            state_class=STATE_CLASS_MEASUREMENT,
+            kind=sensor.TEMPERATURE, accuracy_decimals=1
         ),
         cv.Optional(CONF_HUMIDITY): sensor.sensor_schema(
-            unit_of_measurement=UNIT_PERCENT,
-            accuracy_decimals=1,
-            device_class=DEVICE_CLASS_HUMIDITY,
-            state_class=STATE_CLASS_MEASUREMENT,
+            kind=sensor.HUMIDITY, accuracy_decimals=1
         ),
     }
 ).extend(cv.polling_component_schema("60s"))

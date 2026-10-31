@@ -10,9 +10,9 @@ from esphome.const import (
     CONF_PRESSURE,
     CONF_TEMPERATURE,
     DEVICE_CLASS_ATMOSPHERIC_PRESSURE,
-    DEVICE_CLASS_TEMPERATURE,
+    DEVICE_CLASS_TEMPERATURE as DEVICE_CLASS_TEMPERATURE,
     STATE_CLASS_MEASUREMENT,
-    UNIT_CELSIUS,
+    UNIT_CELSIUS as UNIT_CELSIUS,
     UNIT_PASCAL,
 )
 from esphome.cpp_generator import MockObj
@@ -102,10 +102,7 @@ CONFIG_SCHEMA_BASE = cv.Schema(
     {
         cv.GenerateID(): cv.declare_id(BMP581Component),
         cv.Optional(CONF_TEMPERATURE): sensor.sensor_schema(
-            unit_of_measurement=UNIT_CELSIUS,
-            accuracy_decimals=1,
-            device_class=DEVICE_CLASS_TEMPERATURE,
-            state_class=STATE_CLASS_MEASUREMENT,
+            kind=sensor.TEMPERATURE, accuracy_decimals=1
         ).extend(
             {
                 cv.Optional(CONF_OVERSAMPLING, default="NONE"): cv.enum(

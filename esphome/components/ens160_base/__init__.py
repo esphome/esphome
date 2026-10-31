@@ -10,14 +10,14 @@ from esphome.const import (
     CONF_TEMPERATURE,
     CONF_TVOC,
     DEVICE_CLASS_AQI,
-    DEVICE_CLASS_CARBON_DIOXIDE,
+    DEVICE_CLASS_CARBON_DIOXIDE as DEVICE_CLASS_CARBON_DIOXIDE,
     DEVICE_CLASS_VOLATILE_ORGANIC_COMPOUNDS_PARTS,
     ICON_CHEMICAL_WEAPON,
     ICON_MOLECULE_CO2,
     ICON_RADIATOR,
     STATE_CLASS_MEASUREMENT,
     UNIT_PARTS_PER_BILLION,
-    UNIT_PARTS_PER_MILLION,
+    UNIT_PARTS_PER_MILLION as UNIT_PARTS_PER_MILLION,
 )
 from esphome.cpp_generator import MockObj
 from esphome.types import ConfigType
@@ -31,11 +31,7 @@ ens160_ns = cg.esphome_ns.namespace("ens160_base")
 CONFIG_SCHEMA_BASE = cv.Schema(
     {
         cv.Optional(CONF_ECO2): sensor.sensor_schema(
-            unit_of_measurement=UNIT_PARTS_PER_MILLION,
-            icon=ICON_MOLECULE_CO2,
-            accuracy_decimals=0,
-            device_class=DEVICE_CLASS_CARBON_DIOXIDE,
-            state_class=STATE_CLASS_MEASUREMENT,
+            kind=sensor.CARBON_DIOXIDE, icon=ICON_MOLECULE_CO2, accuracy_decimals=0
         ),
         cv.Optional(CONF_TVOC): sensor.sensor_schema(
             unit_of_measurement=UNIT_PARTS_PER_BILLION,

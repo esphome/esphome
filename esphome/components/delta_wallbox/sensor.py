@@ -6,13 +6,10 @@ from esphome.const import (
     CONF_MAX_CURRENT,
     CONF_POWER,
     DEVICE_CLASS_DURATION,
-    DEVICE_CLASS_ENERGY,
     DEVICE_CLASS_POWER,
     STATE_CLASS_MEASUREMENT,
-    STATE_CLASS_TOTAL_INCREASING,
     UNIT_AMPERE,
     UNIT_KILOWATT,
-    UNIT_KILOWATT_HOURS,
     UNIT_MINUTE,
 )
 from esphome.types import ConfigType
@@ -41,10 +38,7 @@ CONFIG_SCHEMA = cv.Schema(
             state_class=STATE_CLASS_MEASUREMENT,
         ),
         cv.Optional(CONF_ENERGY): sensor.sensor_schema(
-            unit_of_measurement=UNIT_KILOWATT_HOURS,
-            accuracy_decimals=2,
-            device_class=DEVICE_CLASS_ENERGY,
-            state_class=STATE_CLASS_TOTAL_INCREASING,
+            kind=sensor.ENERGY_KWH, accuracy_decimals=2
         ),
         cv.Optional(CONF_CHARGING_TIME): sensor.sensor_schema(
             unit_of_measurement=UNIT_MINUTE,

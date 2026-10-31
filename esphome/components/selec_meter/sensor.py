@@ -23,27 +23,15 @@ from esphome.const import (
     CONF_POWER_FACTOR,
     CONF_REACTIVE_POWER,
     CONF_VOLTAGE,
-    DEVICE_CLASS_APPARENT_POWER,
-    DEVICE_CLASS_CURRENT,
     DEVICE_CLASS_ENERGY,
-    DEVICE_CLASS_FREQUENCY,
-    DEVICE_CLASS_POWER,
     DEVICE_CLASS_POWER_FACTOR,
-    DEVICE_CLASS_REACTIVE_POWER,
-    DEVICE_CLASS_VOLTAGE,
     ICON_CURRENT_AC,
     STATE_CLASS_MEASUREMENT,
     STATE_CLASS_TOTAL,
     STATE_CLASS_TOTAL_INCREASING,
-    UNIT_AMPERE,
-    UNIT_HERTZ,
     UNIT_KILOVOLT_AMPS_HOURS,
     UNIT_KILOVOLT_AMPS_REACTIVE_HOURS,
     UNIT_KILOWATT_HOURS,
-    UNIT_VOLT,
-    UNIT_VOLT_AMPS,
-    UNIT_VOLT_AMPS_REACTIVE,
-    UNIT_WATT,
 )
 from esphome.types import ConfigType
 
@@ -112,10 +100,7 @@ validate_byte_order = cv.enum(BYTE_ORDER_WORD_SWAP, lower=True)
 # EM2M-only: total combined energy figures with no non-DG equivalent on the EM4M.
 EM2M_SENSORS = {
     CONF_TOTAL_ACTIVE_ENERGY: sensor.sensor_schema(
-        unit_of_measurement=UNIT_KILOWATT_HOURS,
-        accuracy_decimals=2,
-        device_class=DEVICE_CLASS_ENERGY,
-        state_class=STATE_CLASS_TOTAL_INCREASING,
+        kind=sensor.ENERGY_KWH, accuracy_decimals=2
     ),
     CONF_TOTAL_REACTIVE_ENERGY: sensor.sensor_schema(
         unit_of_measurement=UNIT_KILOVOLT_AMPS_REACTIVE_HOURS,
@@ -133,16 +118,10 @@ EM2M_SENSORS = {
 # (Total/Average) registers rather than a single-phase measurement.
 COMMON_SENSORS = {
     CONF_IMPORT_ACTIVE_ENERGY: sensor.sensor_schema(
-        unit_of_measurement=UNIT_KILOWATT_HOURS,
-        accuracy_decimals=2,
-        device_class=DEVICE_CLASS_ENERGY,
-        state_class=STATE_CLASS_TOTAL_INCREASING,
+        kind=sensor.ENERGY_KWH, accuracy_decimals=2
     ),
     CONF_EXPORT_ACTIVE_ENERGY: sensor.sensor_schema(
-        unit_of_measurement=UNIT_KILOWATT_HOURS,
-        accuracy_decimals=2,
-        device_class=DEVICE_CLASS_ENERGY,
-        state_class=STATE_CLASS_TOTAL_INCREASING,
+        kind=sensor.ENERGY_KWH, accuracy_decimals=2
     ),
     CONF_IMPORT_REACTIVE_ENERGY: sensor.sensor_schema(
         unit_of_measurement=UNIT_KILOVOLT_AMPS_REACTIVE_HOURS,
@@ -154,65 +133,31 @@ COMMON_SENSORS = {
         accuracy_decimals=2,
         state_class=STATE_CLASS_TOTAL_INCREASING,
     ),
-    CONF_ACTIVE_POWER: sensor.sensor_schema(
-        unit_of_measurement=UNIT_WATT,
-        accuracy_decimals=3,
-        device_class=DEVICE_CLASS_POWER,
-        state_class=STATE_CLASS_MEASUREMENT,
-    ),
+    CONF_ACTIVE_POWER: sensor.sensor_schema(kind=sensor.POWER, accuracy_decimals=3),
     CONF_REACTIVE_POWER: sensor.sensor_schema(
-        unit_of_measurement=UNIT_VOLT_AMPS_REACTIVE,
-        accuracy_decimals=3,
-        device_class=DEVICE_CLASS_REACTIVE_POWER,
-        state_class=STATE_CLASS_MEASUREMENT,
+        kind=sensor.REACTIVE_POWER, accuracy_decimals=3
     ),
     CONF_APPARENT_POWER: sensor.sensor_schema(
-        unit_of_measurement=UNIT_VOLT_AMPS,
-        accuracy_decimals=3,
-        device_class=DEVICE_CLASS_APPARENT_POWER,
-        state_class=STATE_CLASS_MEASUREMENT,
+        kind=sensor.APPARENT_POWER, accuracy_decimals=3
     ),
-    CONF_VOLTAGE: sensor.sensor_schema(
-        unit_of_measurement=UNIT_VOLT,
-        accuracy_decimals=2,
-        device_class=DEVICE_CLASS_VOLTAGE,
-        state_class=STATE_CLASS_MEASUREMENT,
-    ),
-    CONF_CURRENT: sensor.sensor_schema(
-        unit_of_measurement=UNIT_AMPERE,
-        accuracy_decimals=3,
-        device_class=DEVICE_CLASS_CURRENT,
-        state_class=STATE_CLASS_MEASUREMENT,
-    ),
+    CONF_VOLTAGE: sensor.sensor_schema(kind=sensor.VOLTAGE, accuracy_decimals=2),
+    CONF_CURRENT: sensor.sensor_schema(kind=sensor.CURRENT, accuracy_decimals=3),
     CONF_POWER_FACTOR: sensor.sensor_schema(
         accuracy_decimals=3,
         device_class=DEVICE_CLASS_POWER_FACTOR,
         state_class=STATE_CLASS_MEASUREMENT,
     ),
     CONF_FREQUENCY: sensor.sensor_schema(
-        unit_of_measurement=UNIT_HERTZ,
-        icon=ICON_CURRENT_AC,
-        accuracy_decimals=2,
-        device_class=DEVICE_CLASS_FREQUENCY,
-        state_class=STATE_CLASS_MEASUREMENT,
+        kind=sensor.FREQUENCY, icon=ICON_CURRENT_AC, accuracy_decimals=2
     ),
     CONF_MAXIMUM_DEMAND_ACTIVE_POWER: sensor.sensor_schema(
-        unit_of_measurement=UNIT_WATT,
-        accuracy_decimals=3,
-        device_class=DEVICE_CLASS_POWER,
-        state_class=STATE_CLASS_MEASUREMENT,
+        kind=sensor.POWER, accuracy_decimals=3
     ),
     CONF_MAXIMUM_DEMAND_REACTIVE_POWER: sensor.sensor_schema(
-        unit_of_measurement=UNIT_VOLT_AMPS_REACTIVE,
-        accuracy_decimals=3,
-        device_class=DEVICE_CLASS_REACTIVE_POWER,
-        state_class=STATE_CLASS_MEASUREMENT,
+        kind=sensor.REACTIVE_POWER, accuracy_decimals=3
     ),
     CONF_MAXIMUM_DEMAND_APPARENT_POWER: sensor.sensor_schema(
-        unit_of_measurement=UNIT_VOLT_AMPS,
-        accuracy_decimals=3,
-        device_class=DEVICE_CLASS_APPARENT_POWER,
-        state_class=STATE_CLASS_MEASUREMENT,
+        kind=sensor.APPARENT_POWER, accuracy_decimals=3
     ),
 }
 
@@ -253,10 +198,8 @@ EM4M_SENSORS = {
         CONF_VOLTAGE_L23,
         CONF_VOLTAGE_L31,
         CONF_AVERAGE_VOLTAGE_LL,
-        unit_of_measurement=UNIT_VOLT,
+        kind=sensor.VOLTAGE,
         accuracy_decimals=2,
-        device_class=DEVICE_CLASS_VOLTAGE,
-        state_class=STATE_CLASS_MEASUREMENT,
     ),
     # Net (import - export) energy totals, split by source. Only meaningful when the meter's
     # "Dual Source" setting is Yes; DG registers read 0 on single-source installs.

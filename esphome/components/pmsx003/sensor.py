@@ -21,17 +21,10 @@ from esphome.const import (
     CONF_TEMPERATURE,
     CONF_TYPE,
     CONF_UPDATE_INTERVAL,
-    DEVICE_CLASS_HUMIDITY,
-    DEVICE_CLASS_PM1,
-    DEVICE_CLASS_PM10,
-    DEVICE_CLASS_PM25,
-    DEVICE_CLASS_TEMPERATURE,
     ICON_CHEMICAL_WEAPON,
     STATE_CLASS_MEASUREMENT,
-    UNIT_CELSIUS,
     UNIT_COUNT_DECILITRE,
     UNIT_MICROGRAMS_PER_CUBIC_METER,
-    UNIT_PERCENT,
 )
 from esphome.core import TimePeriodMilliseconds
 from esphome.types import ConfigType
@@ -205,46 +198,22 @@ CONFIG_SCHEMA = cv.All(
             cv.GenerateID(): cv.declare_id(PMSX003Component),
             cv.Required(CONF_TYPE): cv.enum(PMSX003_TYPES, upper=True),
             cv.Optional(CONF_PM_1_0_STD): sensor.sensor_schema(
-                unit_of_measurement=UNIT_MICROGRAMS_PER_CUBIC_METER,
-                icon=ICON_CHEMICAL_WEAPON,
-                accuracy_decimals=0,
-                device_class=DEVICE_CLASS_PM1,
-                state_class=STATE_CLASS_MEASUREMENT,
+                kind=sensor.PM1, accuracy_decimals=0
             ),
             cv.Optional(CONF_PM_2_5_STD): sensor.sensor_schema(
-                unit_of_measurement=UNIT_MICROGRAMS_PER_CUBIC_METER,
-                icon=ICON_CHEMICAL_WEAPON,
-                accuracy_decimals=0,
-                device_class=DEVICE_CLASS_PM25,
-                state_class=STATE_CLASS_MEASUREMENT,
+                kind=sensor.PM25, icon=ICON_CHEMICAL_WEAPON, accuracy_decimals=0
             ),
             cv.Optional(CONF_PM_10_0_STD): sensor.sensor_schema(
-                unit_of_measurement=UNIT_MICROGRAMS_PER_CUBIC_METER,
-                icon=ICON_CHEMICAL_WEAPON,
-                accuracy_decimals=0,
-                device_class=DEVICE_CLASS_PM10,
-                state_class=STATE_CLASS_MEASUREMENT,
+                kind=sensor.PM10, accuracy_decimals=0
             ),
             cv.Optional(CONF_PM_1_0): sensor.sensor_schema(
-                unit_of_measurement=UNIT_MICROGRAMS_PER_CUBIC_METER,
-                icon=ICON_CHEMICAL_WEAPON,
-                accuracy_decimals=0,
-                device_class=DEVICE_CLASS_PM1,
-                state_class=STATE_CLASS_MEASUREMENT,
+                kind=sensor.PM1, accuracy_decimals=0
             ),
             cv.Optional(CONF_PM_2_5): sensor.sensor_schema(
-                unit_of_measurement=UNIT_MICROGRAMS_PER_CUBIC_METER,
-                icon=ICON_CHEMICAL_WEAPON,
-                accuracy_decimals=0,
-                device_class=DEVICE_CLASS_PM25,
-                state_class=STATE_CLASS_MEASUREMENT,
+                kind=sensor.PM25, icon=ICON_CHEMICAL_WEAPON, accuracy_decimals=0
             ),
             cv.Optional(CONF_PM_10_0): sensor.sensor_schema(
-                unit_of_measurement=UNIT_MICROGRAMS_PER_CUBIC_METER,
-                icon=ICON_CHEMICAL_WEAPON,
-                accuracy_decimals=0,
-                device_class=DEVICE_CLASS_PM10,
-                state_class=STATE_CLASS_MEASUREMENT,
+                kind=sensor.PM10, accuracy_decimals=0
             ),
             cv.Optional(CONF_PM_0_3UM): sensor.sensor_schema(
                 unit_of_measurement=UNIT_COUNT_DECILITRE,
@@ -289,16 +258,10 @@ CONFIG_SCHEMA = cv.All(
                 state_class=STATE_CLASS_MEASUREMENT,
             ),
             cv.Optional(CONF_TEMPERATURE): sensor.sensor_schema(
-                unit_of_measurement=UNIT_CELSIUS,
-                accuracy_decimals=1,
-                device_class=DEVICE_CLASS_TEMPERATURE,
-                state_class=STATE_CLASS_MEASUREMENT,
+                kind=sensor.TEMPERATURE, accuracy_decimals=1
             ),
             cv.Optional(CONF_HUMIDITY): sensor.sensor_schema(
-                unit_of_measurement=UNIT_PERCENT,
-                accuracy_decimals=1,
-                device_class=DEVICE_CLASS_HUMIDITY,
-                state_class=STATE_CLASS_MEASUREMENT,
+                kind=sensor.HUMIDITY, accuracy_decimals=1
             ),
             cv.Optional(CONF_UPDATE_INTERVAL, default="0s"): validate_update_interval,
         }

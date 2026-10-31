@@ -7,11 +7,11 @@ from esphome.const import (
     CONF_OVERSAMPLING,
     CONF_PRESSURE,
     CONF_TEMPERATURE,
-    DEVICE_CLASS_PRESSURE,
-    DEVICE_CLASS_TEMPERATURE,
-    STATE_CLASS_MEASUREMENT,
-    UNIT_CELSIUS,
-    UNIT_HECTOPASCAL,
+    DEVICE_CLASS_PRESSURE as DEVICE_CLASS_PRESSURE,
+    DEVICE_CLASS_TEMPERATURE as DEVICE_CLASS_TEMPERATURE,
+    STATE_CLASS_MEASUREMENT as STATE_CLASS_MEASUREMENT,
+    UNIT_CELSIUS as UNIT_CELSIUS,
+    UNIT_HECTOPASCAL as UNIT_HECTOPASCAL,
 )
 from esphome.cpp_generator import MockObj
 from esphome.types import ConfigType
@@ -33,10 +33,7 @@ IIR_FILTER_OPTIONS = BMP280IIRFilter.options(
 CONFIG_SCHEMA_BASE = cv.Schema(
     {
         cv.Optional(CONF_TEMPERATURE): sensor.sensor_schema(
-            unit_of_measurement=UNIT_CELSIUS,
-            accuracy_decimals=1,
-            device_class=DEVICE_CLASS_TEMPERATURE,
-            state_class=STATE_CLASS_MEASUREMENT,
+            kind=sensor.TEMPERATURE, accuracy_decimals=1
         ).extend(
             {
                 cv.Optional(CONF_OVERSAMPLING, default="16X"): cv.enum(
@@ -45,10 +42,7 @@ CONFIG_SCHEMA_BASE = cv.Schema(
             }
         ),
         cv.Optional(CONF_PRESSURE): sensor.sensor_schema(
-            unit_of_measurement=UNIT_HECTOPASCAL,
-            accuracy_decimals=1,
-            device_class=DEVICE_CLASS_PRESSURE,
-            state_class=STATE_CLASS_MEASUREMENT,
+            kind=sensor.PRESSURE, accuracy_decimals=1
         ).extend(
             {
                 cv.Optional(CONF_OVERSAMPLING, default="16X"): cv.enum(

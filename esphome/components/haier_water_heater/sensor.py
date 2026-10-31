@@ -4,9 +4,7 @@ import esphome.config_validation as cv
 from esphome.const import (
     CONF_TARGET_TEMPERATURE,
     DEVICE_CLASS_DURATION,
-    DEVICE_CLASS_TEMPERATURE,
     STATE_CLASS_MEASUREMENT,
-    UNIT_CELSIUS,
     UNIT_MINUTE,
     UNIT_PERCENT,
 )
@@ -19,12 +17,7 @@ CONF_ESTIMATED_HEATING_TIME = "estimated_heating_time"
 CONF_PRIMARY_TEMPERATURE = "primary_temperature"
 CONF_SECONDARY_TEMPERATURE = "secondary_temperature"
 
-_TEMPERATURE_SENSOR = sensor.sensor_schema(
-    unit_of_measurement=UNIT_CELSIUS,
-    accuracy_decimals=0,
-    device_class=DEVICE_CLASS_TEMPERATURE,
-    state_class=STATE_CLASS_MEASUREMENT,
-)
+_TEMPERATURE_SENSOR = sensor.sensor_schema(kind=sensor.TEMPERATURE, accuracy_decimals=0)
 
 CONFIG_SCHEMA = cv.Schema(
     {

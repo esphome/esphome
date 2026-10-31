@@ -3,9 +3,9 @@ from esphome.components import sensor
 import esphome.config_validation as cv
 from esphome.const import (
     DEVICE_CLASS_PRESSURE,
-    DEVICE_CLASS_TEMPERATURE,
+    DEVICE_CLASS_TEMPERATURE as DEVICE_CLASS_TEMPERATURE,
     STATE_CLASS_MEASUREMENT,
-    UNIT_CELSIUS,
+    UNIT_CELSIUS as UNIT_CELSIUS,
     UNIT_REVOLUTIONS_PER_MINUTE,
 )
 from esphome.types import ConfigType
@@ -38,11 +38,7 @@ CONFIG_SCHEMA = cv.Schema(
     {
         cv.GenerateID(CONF_MICRONOVA_ID): cv.use_id(MicroNova),
         cv.Optional(CONF_ROOM_TEMPERATURE): sensor.sensor_schema(
-            MicroNovaSensor,
-            unit_of_measurement=UNIT_CELSIUS,
-            device_class=DEVICE_CLASS_TEMPERATURE,
-            state_class=STATE_CLASS_MEASUREMENT,
-            accuracy_decimals=1,
+            MicroNovaSensor, kind=sensor.TEMPERATURE, accuracy_decimals=1
         ).extend(
             MICRONOVA_ADDRESS_SCHEMA(
                 default_memory_location=0x00,
@@ -51,11 +47,7 @@ CONFIG_SCHEMA = cv.Schema(
             )
         ),
         cv.Optional(CONF_FUMES_TEMPERATURE): sensor.sensor_schema(
-            MicroNovaSensor,
-            unit_of_measurement=UNIT_CELSIUS,
-            device_class=DEVICE_CLASS_TEMPERATURE,
-            state_class=STATE_CLASS_MEASUREMENT,
-            accuracy_decimals=1,
+            MicroNovaSensor, kind=sensor.TEMPERATURE, accuracy_decimals=1
         ).extend(
             MICRONOVA_ADDRESS_SCHEMA(
                 default_memory_location=0x00,
@@ -88,11 +80,7 @@ CONFIG_SCHEMA = cv.Schema(
         )
         .extend({cv.Optional(CONF_FAN_RPM_OFFSET, default=0): cv.uint8_t}),
         cv.Optional(CONF_WATER_TEMPERATURE): sensor.sensor_schema(
-            MicroNovaSensor,
-            unit_of_measurement=UNIT_CELSIUS,
-            device_class=DEVICE_CLASS_TEMPERATURE,
-            state_class=STATE_CLASS_MEASUREMENT,
-            accuracy_decimals=1,
+            MicroNovaSensor, kind=sensor.TEMPERATURE, accuracy_decimals=1
         ).extend(
             MICRONOVA_ADDRESS_SCHEMA(
                 default_memory_location=0x00,

@@ -13,12 +13,10 @@ from esphome.const import (
     CONF_GLASS_ATTENUATION_FACTOR,
     CONF_ILLUMINANCE,
     CONF_INTEGRATION_TIME,
-    DEVICE_CLASS_ILLUMINANCE,
     ICON_LIGHTBULB,
     ICON_THERMOMETER,
     STATE_CLASS_MEASUREMENT,
     UNIT_KELVIN,
-    UNIT_LUX,
     UNIT_PERCENT,
 )
 from esphome.types import ConfigType
@@ -69,12 +67,7 @@ color_temperature_schema = sensor.sensor_schema(
     accuracy_decimals=1,
     state_class=STATE_CLASS_MEASUREMENT,
 )
-illuminance_schema = sensor.sensor_schema(
-    unit_of_measurement=UNIT_LUX,
-    accuracy_decimals=1,
-    device_class=DEVICE_CLASS_ILLUMINANCE,
-    state_class=STATE_CLASS_MEASUREMENT,
-)
+illuminance_schema = sensor.sensor_schema(kind=sensor.ILLUMINANCE, accuracy_decimals=1)
 
 CONFIG_SCHEMA = (
     cv.Schema(

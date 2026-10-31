@@ -6,15 +6,7 @@ import esphome.codegen as cg
 from esphome.components import sensor, uart
 from esphome.components.const import CONF_AUTOMATIC_BASELINE_CALIBRATION
 import esphome.config_validation as cv
-from esphome.const import (
-    CONF_BASELINE,
-    CONF_CO2,
-    CONF_CYCLE,
-    DEVICE_CLASS_CARBON_DIOXIDE,
-    ICON_MOLECULE_CO2,
-    STATE_CLASS_MEASUREMENT,
-    UNIT_PARTS_PER_MILLION,
-)
+from esphome.const import CONF_BASELINE, CONF_CO2, CONF_CYCLE, ICON_MOLECULE_CO2
 from esphome.types import ConfigType
 
 DEPENDENCIES = ["uart"]
@@ -41,11 +33,7 @@ CONFIG_SCHEMA = (
         {
             cv.GenerateID(): cv.declare_id(CM1106Component),
             cv.Optional(CONF_CO2): sensor.sensor_schema(
-                unit_of_measurement=UNIT_PARTS_PER_MILLION,
-                icon=ICON_MOLECULE_CO2,
-                accuracy_decimals=0,
-                device_class=DEVICE_CLASS_CARBON_DIOXIDE,
-                state_class=STATE_CLASS_MEASUREMENT,
+                kind=sensor.CARBON_DIOXIDE, icon=ICON_MOLECULE_CO2, accuracy_decimals=0
             ),
             cv.Optional(CONF_AUTOMATIC_BASELINE_CALIBRATION): cv.Any(
                 cv.boolean, _ABC_SETTINGS_SCHEMA

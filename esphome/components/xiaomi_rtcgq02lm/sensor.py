@@ -1,14 +1,7 @@
 import esphome.codegen as cg
 from esphome.components import sensor
 import esphome.config_validation as cv
-from esphome.const import (
-    CONF_BATTERY_LEVEL,
-    CONF_ID,
-    DEVICE_CLASS_BATTERY,
-    ENTITY_CATEGORY_DIAGNOSTIC,
-    STATE_CLASS_MEASUREMENT,
-    UNIT_PERCENT,
-)
+from esphome.const import CONF_BATTERY_LEVEL, CONF_ID, ENTITY_CATEGORY_DIAGNOSTIC
 from esphome.types import ConfigType
 
 from . import XiaomiRTCGQ02LM
@@ -20,10 +13,8 @@ CONFIG_SCHEMA = cv.Schema(
     {
         cv.GenerateID(): cv.use_id(XiaomiRTCGQ02LM),
         cv.Optional(CONF_BATTERY_LEVEL): sensor.sensor_schema(
-            unit_of_measurement=UNIT_PERCENT,
+            kind=sensor.BATTERY,
             accuracy_decimals=0,
-            device_class=DEVICE_CLASS_BATTERY,
-            state_class=STATE_CLASS_MEASUREMENT,
             entity_category=ENTITY_CATEGORY_DIAGNOSTIC,
         ),
     }
