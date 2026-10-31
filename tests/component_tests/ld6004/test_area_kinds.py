@@ -35,6 +35,26 @@ binary_sensor:
     ("extra", "area_kinds"),
     [
         ("", "2"),
+        (
+            """
+sensor:
+  - platform: ld6004
+    detection_area_0:
+      x_min:
+        name: Detection X Min
+""",
+            "2",
+        ),
+        (
+            """
+sensor:
+  - platform: ld6004
+    dwell_area_1:
+      x_min:
+        name: Dwell X Min
+""",
+            "3",
+        ),
     ],
 )
 def test_area_kinds(
