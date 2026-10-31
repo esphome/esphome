@@ -4,10 +4,12 @@ from typing import Any
 
 from esphome import automation
 import esphome.codegen as cg
+from esphome.config import iter_ids
 import esphome.config_validation as cv
 from esphome.const import CONF_DATA, CONF_ID, CONF_PLATFORM, CONF_TRIGGER_ID
 from esphome.core import CORE, ID
 from esphome.cpp_generator import MockObj, TemplateArgsType
+import esphome.final_validate as fv
 from esphome.types import ConfigType
 
 _LOGGER = logging.getLogger(__name__)
@@ -218,6 +220,26 @@ def validate_send(config: ConfigType) -> ConfigType:
     ):
         raise cv.Invalid("CAN FD data length requires pad_data: true")
     return config
+
+
+def final_validate(config: list[ConfigType]) -> None:
+    full_config = fv.full_config.get()
+    for bus_id, path in iter_ids(full_config):
+        if len(path) < 2 or path[-2:] != ["canbus.send", CONF_CANBUS_ID]:
+            continue
+        action_path = path[:-1]
+        action = full_config.get_config_for_path(action_path)
+        bus = fv.get_declaring_config(bus_id, full_config)
+        effective_action = {
+            **action,
+            CONF_FD: action.get(CONF_FD, bus[CONF_DEFAULT_FD]),
+            CONF_PAD_DATA: action.get(CONF_PAD_DATA, bus[CONF_DEFAULT_PAD_DATA]),
+        }
+        with cv.prepend_path([cv.ROOT_CONFIG_PATH, *action_path]):
+            validate_send(effective_action)
+
+
+FINAL_VALIDATE_SCHEMA = final_validate
 
 
 # Actions
