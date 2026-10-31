@@ -264,6 +264,15 @@ class _InlineAction:
 
     id_: ID
     statements: list[str]
+    # None for control flow, which always needs the stop checks of a merged run
+    emit: Callable[[], MockObj] | None
+
+
+@dataclass(frozen=True)
+class _InlineCondition:
+    """A condition whose builder only produced an expression, not yet emitted as an object."""
+
+    expression: str
     emit: Callable[[], MockObj]
 
 
@@ -281,20 +290,91 @@ _INLINE_COLLECTOR: ContextVar[_InlineCollector | None] = ContextVar(
 # What a collected builder returns; it names nothing, so using it fails the C++ build
 _COLLECTED_ACTION = MockObj("esphome__collected_action", "->")
 _RUNNING_PARAM = "esphome__running"
+# One statement of its own, so a function that nothing can stop can leave them all out
+_STOP_CHECK = f"if (!{_RUNNING_PARAM})\n  return;"
+
+
+def _is_collecting(id_: ID) -> bool:
+    collector = _INLINE_COLLECTOR.get()
+    return collector is not None and collector.action_id is id_
 
 
 def _collect_action(
-    id_: ID, statements: list[str], emit: Callable[[], MockObj]
+    id_: ID, statements: list[str], emit: Callable[[], MockObj] | None
 ) -> bool:
-    """Record ``id_`` as inline if it is the action being collected.
+    """Record ``id_`` as inline if it is the action or condition being collected.
 
     Matching the id leaves the conditions and child actions a builder creates to emit normally.
     """
-    collector = _INLINE_COLLECTOR.get()
-    if collector is None or collector.action_id is not id_:
+    if not _is_collecting(id_):
         return False
-    collector.action = _InlineAction(id_, statements, emit)
+    _INLINE_COLLECTOR.get().action = _InlineAction(id_, statements, emit)
     return True
+
+
+def _collect_control_flow(action_id: ID, statements: list[str]) -> MockObj:
+    _collect_action(action_id, statements, None)
+    return _COLLECTED_ACTION
+
+
+def _control_flow_builders(action_id: ID) -> tuple[Callable, Callable]:
+    """How a control flow builder builds its condition and branches.
+
+    Only while it is being collected can the result become statements, so only then are
+    they left unemitted.
+    """
+    if _is_collecting(action_id):
+        return _build_condition_or_inline, _build_action_plan
+    return build_condition, build_action_list
+
+
+def _plans_inline(*plans: list[MockObj | list[_InlineAction]] | None) -> bool:
+    return all(
+        not plan or (len(plan) == 1 and isinstance(plan[0], list)) for plan in plans
+    )
+
+
+def _run_statements(run: list[_InlineAction]) -> list[str]:
+    statements: list[str] = []
+    for index, action in enumerate(run):
+        # Any action can stop this automation, and then the rest must not run
+        if index > 0:
+            statements.append(_STOP_CHECK)
+        statements.extend(["{", *action.statements, "}"])
+    return statements
+
+
+def _plan_statements(plan: list[MockObj | list[_InlineAction]] | None) -> list[str]:
+    return _run_statements(plan[0]) if plan else []
+
+
+def _if_statements(
+    condition: str, then: list[str], otherwise: list[str] | None
+) -> list[str]:
+    # The condition itself can stop the automation
+    statements = [
+        "{",
+        f"const bool esphome__condition = {condition};",
+        _STOP_CHECK,
+        "if (esphome__condition) {",
+        *then,
+    ]
+    if otherwise is not None:
+        statements.extend(["} else {", *otherwise])
+    return [*statements, "}", "}"]
+
+
+def _condition_expression(
+    condition: MockObj | _InlineCondition, args: TemplateArgsType
+) -> str:
+    if isinstance(condition, _InlineCondition):
+        return f"({condition.expression})"
+    names = ", ".join(name for _, name in args)
+    return f"{parent_ref(condition)}->check({names})"
+
+
+def _condition_object(condition: MockObj | _InlineCondition) -> MockObj:
+    return condition.emit() if isinstance(condition, _InlineCondition) else condition
 
 
 def flash_string(config: ConfigType, value: str) -> str:
@@ -875,10 +955,8 @@ def new_lambda_pvariable(
     Returns:
         The created Pvariable
     """
-    if (
-        lambda_expr.capture == ""
-        and stateless_class is StatelessLambdaAction
-        and _collect_action(
+    if lambda_expr.capture == "" and (
+        _collect_action(
             id_obj,
             [f"{immediate_lambda_call(lambda_expr)};"],
             lambda: new_lambda_pvariable(
@@ -980,7 +1058,32 @@ async def condition_group_to_code(
     template_arg: cg.TemplateArguments,
     args: TemplateArgsType,
 ) -> MockObj:
+    if config and _is_collecting(condition_id):
+        items = [
+            await _build_condition_or_inline(c, template_arg, args) for c in config
+        ]
+
+        def emit() -> MockObj:
+            return _new_condition_group(
+                condition_id, template_arg, [_condition_object(i) for i in items]
+            )
+
+        exprs = [_condition_expression(item, args) for item in items]
+        if condition_id.type is OrCondition:
+            check = " || ".join(exprs)
+        elif condition_id.type is XorCondition:
+            check = f"{' + '.join(exprs)} == 1" if len(exprs) > 1 else exprs[0]
+        else:
+            check = " && ".join(exprs)
+        _collect_action(condition_id, [f"return {check};"], emit)
+        return _COLLECTED_ACTION
     conditions = await build_condition_list(config, template_arg, args)
+    return _new_condition_group(condition_id, template_arg, conditions)
+
+
+def _new_condition_group(
+    condition_id: ID, template_arg: cg.TemplateArguments, conditions: list[MockObj]
+) -> MockObj:
     # A group of one is that condition for and, or and xor; skip the wrapper.
     if len(conditions) == 1:
         return conditions[0]
@@ -996,6 +1099,16 @@ async def not_condition_to_code(
     template_arg: cg.TemplateArguments,
     args: TemplateArgsType,
 ) -> MockObj:
+    if _is_collecting(condition_id):
+        item = await _build_condition_or_inline(config, template_arg, args)
+        _collect_action(
+            condition_id,
+            [f"return !{_condition_expression(item, args)};"],
+            lambda: cg.new_Pvariable(
+                condition_id, template_arg, _condition_object(item)
+            ),
+        )
+        return _COLLECTED_ACTION
     condition = await build_condition(config, template_arg, args)
     return cg.new_Pvariable(condition_id, template_arg, condition)
 
@@ -1127,14 +1240,32 @@ async def if_action_to_code(
     # Prepend HasElse bool to template arguments: IfAction<HasElse, Ts...>
     if_template_arg = cg.TemplateArguments(has_else, *template_arg)
     cond_conf = next(el for el in config if el in (CONF_ANY, CONF_ALL, CONF_CONDITION))
-    condition = await build_condition(config[cond_conf], template_arg, args)
-    var = cg.new_Pvariable(action_id, if_template_arg, condition)
+    build_cond, build_list = _control_flow_builders(action_id)
+    condition = await build_cond(config[cond_conf], template_arg, args)
     then_actions = else_actions = None
     if CONF_THEN in config:
-        then_actions = await build_action_list(config[CONF_THEN], template_arg, args)
+        then_actions = await build_list(config[CONF_THEN], template_arg, args)
     if has_else:
-        else_actions = await build_action_list(config[CONF_ELSE], template_arg, args)
-    _add_if_branches(var, then_actions, else_actions)
+        else_actions = await build_list(config[CONF_ELSE], template_arg, args)
+    if _is_collecting(action_id) and _plans_inline(then_actions, else_actions):
+        return _collect_control_flow(
+            action_id,
+            _if_statements(
+                _condition_expression(condition, args),
+                _plan_statements(then_actions),
+                _plan_statements(else_actions) if has_else else None,
+            ),
+        )
+    var = cg.new_Pvariable(action_id, if_template_arg, _condition_object(condition))
+    _add_if_branches(
+        var,
+        None
+        if then_actions is None
+        else _emit_action_plan(then_actions, template_arg, args),
+        None
+        if else_actions is None
+        else _emit_action_plan(else_actions, template_arg, args),
+    )
     return var
 
 
@@ -1211,21 +1342,44 @@ async def choose_action_to_code(
 ) -> MockObj:
     # Built as a chain of if/else actions: each choice's else branch holds the next choice,
     # and the last choice's else branch holds the `else` actions, if any.
+    build_cond, build_list = _control_flow_builders(action_id)
     else_actions: list[MockObj] | None = None
     if CONF_ELSE in config[-1]:
-        else_actions = await build_action_list(
-            config[-1][CONF_ELSE], template_arg, args
-        )
+        else_actions = await build_list(config[-1][CONF_ELSE], template_arg, args)
         config = config[:-1]
+    # A manual id names an object a lambda can reach, so the choices stay objects
+    built = [
+        (
+            await build_cond(choice[CONF_IF], template_arg, args),
+            await build_list(choice[CONF_THEN], template_arg, args),
+        )
+        for choice in config
+    ]
+    if (
+        _is_collecting(action_id)
+        and not any(choice[CONF_CHOICE_ID].is_manual for choice in config)
+        and _plans_inline(else_actions, *(then for _, then in built))
+    ):
+        statements = None if else_actions is None else _plan_statements(else_actions)
+        for condition, then_actions in reversed(built):
+            statements = _if_statements(
+                _condition_expression(condition, args),
+                _plan_statements(then_actions),
+                statements,
+            )
+        return _collect_control_flow(action_id, statements)
+    if else_actions is not None:
+        else_actions = _emit_action_plan(else_actions, template_arg, args)
     var: MockObj | None = None
     for index in reversed(range(len(config))):
         choice = config[index]
+        condition, then_actions = built[index]
         if_template_arg = cg.TemplateArguments(else_actions is not None, *template_arg)
-        condition = await build_condition(choice[CONF_IF], template_arg, args)
         choice_id = action_id if index == 0 else choice[CONF_CHOICE_ID]
-        var = cg.new_Pvariable(choice_id, if_template_arg, condition)
-        then_actions = await build_action_list(choice[CONF_THEN], template_arg, args)
-        _add_if_branches(var, then_actions, else_actions)
+        var = cg.new_Pvariable(choice_id, if_template_arg, _condition_object(condition))
+        _add_if_branches(
+            var, _emit_action_plan(then_actions, template_arg, args), else_actions
+        )
         else_actions = [var]
     return var
 
@@ -1247,9 +1401,25 @@ async def while_action_to_code(
     template_arg: cg.TemplateArguments,
     args: TemplateArgsType,
 ) -> MockObj:
-    condition = await build_condition(config[CONF_CONDITION], template_arg, args)
-    var = cg.new_Pvariable(action_id, template_arg, condition)
-    for action in await build_action_list(config[CONF_THEN], template_arg, args):
+    build_cond, build_list = _control_flow_builders(action_id)
+    condition = await build_cond(config[CONF_CONDITION], template_arg, args)
+    actions = await build_list(config[CONF_THEN], template_arg, args)
+    # An empty body exits the loop at once, unlike an empty C++ loop body
+    if _is_collecting(action_id) and actions and _plans_inline(actions):
+        return _collect_control_flow(
+            action_id,
+            [
+                "while (true) {",
+                f"const bool esphome__condition = {_condition_expression(condition, args)};",
+                _STOP_CHECK,
+                "if (!esphome__condition)\n  break;",
+                *_plan_statements(actions),
+                _STOP_CHECK,
+                "}",
+            ],
+        )
+    var = cg.new_Pvariable(action_id, template_arg, _condition_object(condition))
+    for action in _emit_action_plan(actions, template_arg, args):
         cg.add(var.add_then_action(action))
     cg.add(var.finish_then())
     return var
@@ -1287,15 +1457,38 @@ async def repeat_action_to_code(
     template_arg: cg.TemplateArguments,
     args: TemplateArgsType,
 ) -> MockObj:
-    var = cg.new_Pvariable(action_id, template_arg)
     count_template = await cg.templatable(config[CONF_COUNT], args, cg.uint32)
+    shadowed = _shadow_iteration(args)
+    then_template = cg.TemplateArguments(cg.uint32, *template_arg.args)
+    then_args = [(cg.uint32, "iteration"), *shadowed]
+    _, build_list = _control_flow_builders(action_id)
+    actions = await build_list(config[CONF_THEN], then_template, then_args)
+    if _is_collecting(action_id) and actions and _plans_inline(actions):
+        # The body reads an outer `iteration` under its new name, and the count is read
+        # again for every iteration, outside the scope of the body's own `iteration`.
+        aliases = [
+            f"const auto &{new} = {old};"
+            for (_, old), (_, new) in zip(args, shadowed, strict=True)
+            if old != new
+        ]
+        count = immediate_lambda_call(count_template)
+        loop_condition = f"esphome__iteration < {count}"
+        return _collect_control_flow(
+            action_id,
+            [
+                "{",
+                *aliases,
+                f"for (uint32_t esphome__iteration = 0; {loop_condition}; esphome__iteration++) {{",
+                "const uint32_t iteration = esphome__iteration;",
+                *_plan_statements(actions),
+                _STOP_CHECK,
+                "}",
+                "}",
+            ],
+        )
+    var = cg.new_Pvariable(action_id, template_arg)
     cg.add(var.set_count(count_template))
-    actions = await build_action_list(
-        config[CONF_THEN],
-        cg.TemplateArguments(cg.uint32, *template_arg.args),
-        [(cg.uint32, "iteration"), *_shadow_iteration(args)],
-    )
-    for action in actions:
+    for action in _emit_action_plan(actions, then_template, then_args):
         cg.add(var.add_then_action(action))
     cg.add(var.finish_then())
     return var
@@ -1415,22 +1608,38 @@ async def _build_action_or_inline(
     return collector.action if action is _COLLECTED_ACTION else action
 
 
+async def _build_condition_or_inline(
+    full_config: ConfigType, template_arg: cg.TemplateArguments, args: TemplateArgsType
+) -> MockObj | _InlineCondition:
+    """Condition counterpart of ``_build_action_or_inline``."""
+    condition_id = full_config[CONF_TYPE_ID]
+    if condition_id.is_manual:
+        return await build_condition(full_config, template_arg, args)
+    collector = _InlineCollector(condition_id)
+    token = _INLINE_COLLECTOR.set(collector)
+    try:
+        condition = await build_condition(full_config, template_arg, args)
+    finally:
+        _INLINE_COLLECTOR.reset(token)
+    if condition is not _COLLECTED_ACTION:
+        return condition
+    collected = collector.action
+    # One statement: ``return <check>;`` from a builder, or a lambda call with its ``;``
+    expression = collected.statements[0].removeprefix("return ").removesuffix(";")
+    return _InlineCondition(expression, collected.emit)
+
+
 def _emit_inline_run(
     run: list[_InlineAction],
     template_arg: cg.TemplateArguments,
     args: TemplateArgsType,
 ) -> MockObj:
     """Emit one object for adjacent inline actions; a single one is emitted as if never collected."""
-    if len(run) == 1:
+    statements = _run_statements(run)
+    if _STOP_CHECK not in statements:
         return run[0].emit()
     id_ = run[0].id_.copy()
     id_.type = ApplyRunAction
-    statements: list[str] = []
-    for index, action in enumerate(run):
-        # Any action can stop this automation, and then the rest must not run
-        if index > 0:
-            statements.append(f"if (!{_RUNNING_PARAM})\n  return;")
-        statements.extend(["{", *action.statements, "}"])
     fn = apply_static_function(
         id_,
         cg.void,
@@ -1629,7 +1838,7 @@ def _direct_function(
 ) -> MockObj | None:
     if not _is_direct(plan, config):
         return None
-    statements = [line for action in plan[0] for line in ("{", *action.statements, "}")]
+    statements = [line for line in _run_statements(plan[0]) if line != _STOP_CHECK]
     return apply_static_function(
         plan[0][0].id_, cg.void, _apply_lambda_args(args), statements
     )

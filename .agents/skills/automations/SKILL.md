@@ -207,7 +207,8 @@ object, which saves 12 to 16 bytes of RAM per merged action. An action with its 
 run, so prefer `register_apply_action` wherever the action allows it. Because of this, `build_action_list` can
 return fewer objects than the config has entries. A builder that must generate its own statements, and is
 registered with `automation.ApplyAction`, can call `apply_statements_action` and still merge; `script.execute`
-is an example.
+is an example. `if`, `choose`, `while` and `repeat` whose bodies are all inline become C++ control flow in the
+same function, and `register_apply_condition` and `lambda:` conditions become plain expressions there.
 
 ## Conditions
 
