@@ -5,6 +5,7 @@ import json
 import logging
 from pathlib import Path
 import string
+from typing import Any
 from unittest.mock import patch
 
 from hypothesis import example, given, settings
@@ -25,7 +26,9 @@ from esphome.components.esp32 import (
 from esphome.components.substitutions import do_substitution_pass
 from esphome.config_validation import Invalid
 from esphome.const import (
+    CONF_ARGUMENT,
     CONF_DAY,
+    CONF_ENTITY_STATE,
     CONF_HOUR,
     CONF_ID,
     CONF_INTERNAL,
@@ -1766,6 +1769,13 @@ def test_templatable_dict_validators() -> None:
     assert validator({"x": 5}) == {"x": 5}
 
 
+def test_templatable_dict_without_shorthand_keys_falls_through() -> None:
+    """A dict with neither shorthand key is validated by the normal schema."""
+    validator = cv.templatable({cv.Required("y"): cv.string})
+    assert validator({"y": "hello"}) == {"y": "hello"}
+    assert cv.convert_lambda_shorthand({"y": "hello"}) is None
+
+
 # ---------------------------------------------------------------------------
 # only_on / only_with_framework
 # ---------------------------------------------------------------------------
@@ -2821,6 +2831,181 @@ def test_returning_lambda_return_only_in_comment() -> None:
 def test_returning_lambda_missing_semicolon_is_accepted() -> None:
     """A forgotten semicolon is left for the C++ compiler to report."""
     assert isinstance(cv.returning_lambda(Lambda("return x")), Lambda)
+
+
+def test_templatable_entity_state_shorthand() -> None:
+    result = cv.templatable(cv.float_)({CONF_ENTITY_STATE: "some_sensor"})
+    assert isinstance(result, Lambda)
+    assert result.value == "return id(some_sensor).state;"
+
+
+def test_templatable_argument_shorthand() -> None:
+    result = cv.templatable(cv.float_)({CONF_ARGUMENT: "x"})
+    assert isinstance(result, Lambda)
+    assert result.value == "return x;"
+    # `argument_name` is what lets process_lambda check this against the parameters
+    # actually available at the call site (see test_cpp_generator.py).
+    assert result.argument_name == "x"
+
+
+def test_templatable_shorthand_requires_exactly_one_key() -> None:
+    with pytest.raises(Invalid):
+        cv.templatable(cv.float_)(
+            {CONF_ENTITY_STATE: "some_sensor", CONF_ARGUMENT: "x"}
+        )
+
+
+def test_returning_lambda_entity_state_shorthand() -> None:
+    result = cv.returning_lambda({CONF_ENTITY_STATE: "some_sensor"})
+    assert isinstance(result, Lambda)
+    assert result.value == "return id(some_sensor).state;"
+
+
+def test_lambda_does_not_expand_shorthand() -> None:
+    """`cv.lambda_` also feeds non-returning lambdas and `cv.Any(cv.lambda_, <mapping>)`
+    sites, so a dict with a shorthand key must not become a lambda there."""
+    with pytest.raises(Invalid):
+        cv.lambda_({CONF_ARGUMENT: "x"})
+
+
+@pytest.mark.parametrize("key", [CONF_ARGUMENT, CONF_ENTITY_STATE])
+def test_http_request_json_mapping_with_shorthand_key_stays_literal(key: str) -> None:
+    from esphome.components.http_request import HTTP_REQUEST_SEND_ACTION_SCHEMA
+
+    result = HTTP_REQUEST_SEND_ACTION_SCHEMA(
+        {
+            "id": "http",
+            "url": "http://example.com",
+            "method": "POST",
+            "json": {key: "x"},
+        }
+    )
+    assert result["json"] == {key: "x"}
+
+
+def test_argument_shorthand_name_not_checked_against_loaded_integrations() -> None:
+    """An `argument:` name is a lambda parameter, not an id, so it may match a loaded
+    integration's name (`event` from LVGL event lambdas)."""
+    CORE.loaded_integrations = {"event"}
+    result = cv.templatable(cv.float_)({CONF_ARGUMENT: "event"})
+    assert isinstance(result, Lambda)
+    assert result.argument_name == "event"
+
+
+def test_argument_shorthand_allows_reserved_id_name() -> None:
+    """`text` is in RESERVED_IDS but is also the parameter name LVGL text widgets pass;
+    an `argument:` name is checked against the call site's parameters instead."""
+    result = cv.templatable(cv.string)({CONF_ARGUMENT: "text"})
+    assert isinstance(result, Lambda)
+    assert result.argument_name == "text"
+
+
+def test_argument_shorthand_rejects_invalid_chars() -> None:
+    with pytest.raises(Invalid):
+        cv.templatable(cv.float_)({CONF_ARGUMENT: "not-valid"})
+
+
+def test_argument_shorthand_rejects_empty_name() -> None:
+    with pytest.raises(Invalid, match="must not be empty"):
+        cv.templatable(cv.float_)({CONF_ARGUMENT: ""})
+
+
+def test_argument_shorthand_rejects_digit_leading_name() -> None:
+    with pytest.raises(Invalid, match="cannot be a digit"):
+        cv.templatable(cv.float_)({CONF_ARGUMENT: "1x"})
+
+
+def _contains_type(types: tuple, target: Any) -> bool:
+    # MockObjClass overloads `==` to build a C++ expression rather than compare
+    # equality, so `in`/`not in` can't be used on a tuple of these -- compare by
+    # identity instead.
+    return any(t is target for t in types)
+
+
+def test_templatable_entity_state_shorthand_attaches_typed_id() -> None:
+    """The id embedded by `entity_state:` must carry a type, not just a name, so the
+    id-resolution pass can reject a reference to an id with no `.state` member at
+    all. It's always every known state-bearing type, regardless of the field's own
+    validator (e.g. `cv.float_` vs `cv.string`) -- whether a *specific* one of those
+    types' `.state` kind is actually compatible with the field is checked separately,
+    at codegen time once the field's real return type is known (see
+    TestProcessLambda.test_process_lambda__entity_state_shorthand_* in
+    test_cpp_generator.py), which covers composed/custom validators uniformly instead
+    of only a hand-list of recognized ones.
+    """
+    from esphome.components.sensor import Sensor
+    from esphome.components.text_sensor import TextSensor
+
+    result = cv.templatable(cv.float_)({CONF_ENTITY_STATE: "some_sensor"})
+    assert len(result.requires_ids) == 1
+    required_id = result.requires_ids[0]
+    assert required_id.id == "some_sensor"
+    assert not required_id.is_declaration
+    assert _contains_type(required_id.type, Sensor)
+    assert _contains_type(required_id.type, TextSensor)
+
+
+@pytest.mark.parametrize(
+    "other_validators",
+    [
+        cv.float_,
+        cv.string,
+        cv.All(cv.float_, cv.Range(min=0)),
+        {cv.Required("x"): cv.int_},
+    ],
+    ids=["float_", "string", "composed", "dict_schema"],
+)
+def test_templatable_entity_state_shorthand_allowed_types_unaffected_by_validator(
+    other_validators: Any,
+) -> None:
+    """The allowed-types tuple `entity_state:` attaches is the same regardless of the
+    field's own validator, dict schemas (unhashable) included -- kind-narrowing is
+    not done at this layer at all any more, see the docstring above."""
+    from esphome.components.sensor import Sensor
+    from esphome.components.text_sensor import TextSensor
+
+    result = cv.templatable(other_validators)({CONF_ENTITY_STATE: "x"})
+    assert _contains_type(result.requires_ids[0].type, Sensor)
+    assert _contains_type(result.requires_ids[0].type, TextSensor)
+
+
+def test_templatable_entity_state_shorthand_includes_text() -> None:
+    """A `text:` entity has the same public `std::string state` as a text sensor."""
+    from esphome.components.text import Text
+
+    result = cv.templatable(cv.string)({CONF_ENTITY_STATE: "x"})
+    assert _contains_type(result.requires_ids[0].type, Text)
+
+
+@pytest.mark.parametrize(
+    ("module", "name"),
+    [
+        ("esphome.components.lock", "Lock"),
+        ("esphome.components.media_player", "MediaPlayer"),
+    ],
+)
+def test_templatable_entity_state_shorthand_includes_enum_state_types(
+    module: str, name: str
+) -> None:
+    import importlib
+
+    cls = getattr(importlib.import_module(module), name)
+    result = cv.templatable(cv.int_)({CONF_ENTITY_STATE: "x"})
+    assert _contains_type(result.requires_ids[0].type, cls)
+
+
+def test_templatable_entity_state_shorthand_excludes_light_state() -> None:
+    """`light::LightState` has no usable `.state` field, so a light id is rejected."""
+    from esphome.components.light.types import LightState
+
+    result = cv.templatable(cv.float_)({CONF_ENTITY_STATE: "x"})
+    assert not _contains_type(result.requires_ids[0].type, LightState)
+
+
+def test_returning_lambda_argument_shorthand() -> None:
+    result = cv.returning_lambda({CONF_ARGUMENT: "x"})
+    assert isinstance(result, Lambda)
+    assert result.value == "return x;"
 
 
 @pytest.mark.parametrize(

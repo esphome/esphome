@@ -5,6 +5,7 @@ import math
 import re
 from typing import Any
 
+from esphome import lambda_shorthand
 from esphome.core import (
     CORE,
     ID,
@@ -913,6 +914,78 @@ async def get_variable_with_full_id(id_: ID) -> tuple[ID, "MockObj"]:
     return await CORE.get_variable_with_full_id(id_)
 
 
+def _lambda_location(value: Lambda) -> str:
+    """`' at <file> <line>:<col>'`, or `''` if `value` has no YAML location."""
+    if isinstance(value, ESPHomeDataBase) and value.esp_range is not None:
+        return f" at {value.esp_range.start_mark}"
+    return ""
+
+
+def _check_argument_shorthand(
+    value: Lambda, parameters: TemplateArgsType, return_type: SafeExpType
+) -> None:
+    """Check an `argument:` shorthand name against the parameters available here."""
+    name = value.argument_name
+    if name is None:
+        return
+    location = _lambda_location(value)
+    match = next((t for t, pname in parameters if pname == name), None)
+    if match is None:
+        available = ", ".join(f"'{pname}'" for _, pname in parameters)
+        raise EsphomeError(
+            f"'argument: {name}' does not match any available parameter "
+            f"({available or 'none available here'}){location}."
+        )
+    if return_type is None:
+        # Without a return type a mismatch is left to the C++ compiler
+        return
+    param_kind = lambda_shorthand.arg_kind(match)
+    return_kind = lambda_shorthand.arg_kind(return_type)
+    if (
+        param_kind is not None
+        and return_kind is not None
+        and not lambda_shorthand.kinds_compatible(param_kind, return_kind)
+    ):
+        raise EsphomeError(
+            f"'argument: {name}' has type '{match}', which is not compatible with the "
+            f"expected type '{return_type}'{location}."
+        )
+
+
+def _check_entity_state_shorthand(
+    value: Lambda, id: ID, full_id: ID | None, return_type: SafeExpType
+) -> None:
+    """Check that an `entity_state:` id's state kind suits the field's return type,
+    e.g. reject a `TextSensor` (string state) feeding a float field.
+
+    The id pass only checks that the id has some `.state`; the field's C++ return
+    type, needed to compare kinds, is only known here.
+    """
+    if not isinstance(id.type, tuple) or full_id is None or return_type is None:
+        return
+    if not isinstance(full_id.type, MockObjClass):
+        return
+    entity_kind = next(
+        (
+            kind
+            for entity_type, kind in lambda_shorthand.state_bearing_types()
+            if full_id.type.inherits_from(entity_type)
+        ),
+        None,
+    )
+    if entity_kind is None:
+        return
+    return_kind = lambda_shorthand.arg_kind(return_type)
+    if return_kind is not None and not lambda_shorthand.kinds_compatible(
+        entity_kind, return_kind
+    ):
+        raise EsphomeError(
+            f"'entity_state: {id.id}' resolves to type '{full_id.type}', whose state "
+            f"is not compatible with the expected type '{return_type}'"
+            f"{_lambda_location(value)}."
+        )
+
+
 async def process_lambda(
     value: Lambda | Expression,
     parameters: TemplateArgsType,
@@ -945,10 +1018,12 @@ async def process_lambda(
     )
     if isinstance(value, Expression):
         value = Lambda(value)
+    _check_argument_shorthand(value, parameters, return_type)
 
     parts = value.parts[:]
     for i, id in enumerate(value.requires_ids):
         full_id, var = await get_variable_with_full_id(id)
+        _check_entity_state_shorthand(value, id, full_id, return_type)
         if (
             full_id is not None
             and isinstance(full_id.type, MockObjClass)

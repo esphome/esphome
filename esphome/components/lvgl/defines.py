@@ -219,13 +219,13 @@ class LValidator:
         self.retmapper = retmapper
         self.requires = requires
         self.animatable = animatable
+        # Built once: these instances are shared by every widget using the property
+        self._templatable = cv.templatable(validator)
 
     def __call__(self, value):
         if self.requires:
             value = cv.requires_component(self.requires)(value)
-        if isinstance(value, cv.Lambda):
-            return cv.returning_lambda(value)
-        return self.validator(value)
+        return self._templatable(value)
 
     async def process(
         self,
