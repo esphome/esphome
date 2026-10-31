@@ -278,9 +278,10 @@ void EthernetComponent::ethernet_lazy_init_() {
 #endif
 
 #if defined(USE_ETHERNET_W5500)
-  w5500_config.int_gpio_num = this->interrupt_pin_;
+  auto &w5500_spi = w5500_spi_config(w5500_config);
+  w5500_spi.int_gpio_num = this->interrupt_pin_;
 #ifdef USE_ETHERNET_SPI_POLLING_SUPPORT
-  w5500_config.poll_period_ms = this->polling_interval_;
+  w5500_spi.poll_period_ms = this->polling_interval_;
 #endif
   // Install the custom SPI driver that offloads the bulk RX/TX frame transfers off the busy-wait
   // path. w5500_config (and the devcfg it references) outlives esp_eth_mac_new_w5500() below, which

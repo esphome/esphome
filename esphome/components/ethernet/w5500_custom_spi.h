@@ -15,6 +15,16 @@
 
 namespace esphome::ethernet {
 
+// The registry w5500 driver (2.x, IDF 6) nests the SPI fields in a wiznet_common .base member;
+// the IDF 5 built-in driver keeps them at the top level.
+template<typename T> auto &w5500_spi_config(T &config) {
+#if ESP_IDF_VERSION >= ESP_IDF_VERSION_VAL(6, 0, 0)
+  return config.base;
+#else
+  return config;
+#endif
+}
+
 // Installs a custom W5500 SPI driver that offloads the bulk frame transfers off the busy-wait path.
 //
 // The stock W5500 driver runs every SPI transfer through spi_device_polling_transmit(), which

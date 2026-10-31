@@ -28,14 +28,14 @@ constexpr uint32_t W5500_SPI_BULK_THRESHOLD = 64;
 constexpr uint32_t W5500_SPI_LOCK_TIMEOUT_MS = 50;
 
 void *w5500_custom_spi_init(const void *spi_config) {
-  const auto *config = static_cast<const eth_w5500_config_t *>(spi_config);
+  const auto &config = w5500_spi_config(*static_cast<const eth_w5500_config_t *>(spi_config));
   auto *ctx = &w5500_context;
   // The W5500 SPI frame carries the 16-bit address in the command phase and the 8-bit control
   // byte in the address phase; mirror what the stock driver configures.
-  spi_device_interface_config_t devcfg = *config->spi_devcfg;
+  spi_device_interface_config_t devcfg = *config.spi_devcfg;
   devcfg.command_bits = 16;
   devcfg.address_bits = 8;
-  if (spi_bus_add_device(config->spi_host_id, &devcfg, &ctx->handle) != ESP_OK) {
+  if (spi_bus_add_device(config.spi_host_id, &devcfg, &ctx->handle) != ESP_OK) {
     ctx->handle = nullptr;
     return nullptr;
   }
@@ -107,11 +107,12 @@ void install_w5500_async_spi(eth_w5500_config_t &config) {
   // Point the custom driver's config at the W5500 config itself; init() reads spi_host_id and
   // spi_devcfg back out of it. The self-reference is valid because both the config and the
   // spi_devcfg it points at outlive the esp_eth_mac_new_w5500() call that runs init().
-  config.custom_spi_driver.config = &config;
-  config.custom_spi_driver.init = w5500_custom_spi_init;
-  config.custom_spi_driver.deinit = w5500_custom_spi_deinit;
-  config.custom_spi_driver.read = w5500_custom_spi_read;
-  config.custom_spi_driver.write = w5500_custom_spi_write;
+  auto &spi = w5500_spi_config(config);
+  spi.custom_spi_driver.config = &config;
+  spi.custom_spi_driver.init = w5500_custom_spi_init;
+  spi.custom_spi_driver.deinit = w5500_custom_spi_deinit;
+  spi.custom_spi_driver.read = w5500_custom_spi_read;
+  spi.custom_spi_driver.write = w5500_custom_spi_write;
 }
 
 }  // namespace esphome::ethernet
