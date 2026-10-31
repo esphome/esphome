@@ -648,6 +648,26 @@ class TestEsphomeCore:
         assert target.is_esp32 is False
         assert target.is_esp8266 is False
 
+    def test_is_zephyr(self, target) -> None:
+        target.data[const.KEY_CORE] = {const.KEY_TARGET_PLATFORM: "zephyr"}
+
+        assert target.is_zephyr is True
+
+    def test_is_zephyr__nrf52(self, target) -> None:
+        target.data[const.KEY_CORE] = {const.KEY_TARGET_PLATFORM: "nrf52"}
+
+        assert target.is_zephyr is False
+
+    def test_is_nrf52(self, target) -> None:
+        target.data[const.KEY_CORE] = {const.KEY_TARGET_PLATFORM: "nrf52"}
+
+        assert target.is_nrf52 is True
+
+    def test_is_nrf52__zephyr(self, target) -> None:
+        target.data[const.KEY_CORE] = {const.KEY_TARGET_PLATFORM: "zephyr"}
+
+        assert target.is_nrf52 is False
+
     def test_is_rp2040_deprecated_alias_matches_is_rp2(self, target, caplog):
         """``is_rp2040`` is kept as a deprecation shim that returns whatever
         ``is_rp2`` returns; both must agree across platform values. A
