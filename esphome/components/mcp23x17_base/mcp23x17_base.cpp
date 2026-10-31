@@ -8,8 +8,8 @@ ESPHOME_LOG_TAG(TAG, "mcp23x17_base");
 
 bool MCP23X17Base::digital_read_hw(uint8_t pin) {
   uint8_t data;
-  if (!this->status_comm_result(
-          this->read_reg(pin < 8 ? mcp23x17_base::MCP23X17_GPIOA : mcp23x17_base::MCP23X17_GPIOB, &data)))
+  uint8_t reg = pin < 8 ? mcp23x17_base::MCP23X17_GPIOA : mcp23x17_base::MCP23X17_GPIOB;
+  if (!this->status_comm_result(this->read_reg(reg, &data)))
     return false;
   this->input_[pin / 8] = data;
   return true;
