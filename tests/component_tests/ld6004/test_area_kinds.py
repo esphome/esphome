@@ -55,6 +55,38 @@ sensor:
 """,
             "3",
         ),
+        (
+            """
+select:
+  - platform: ld6004
+    sensitivity:
+      name: Sensitivity
+""",
+            "2",
+        ),
+        (
+            """
+select:
+  - platform: ld6004
+    area_id:
+      name: Area ID
+""",
+            "3",
+        ),
+        (
+            """
+sensor:
+  - platform: ld6004
+    dwell_area_1:
+      x_min:
+        name: Dwell X Min
+select:
+  - platform: ld6004
+    area_id:
+      name: Area ID
+""",
+            "3",
+        ),
     ],
 )
 def test_area_kinds(

@@ -5,6 +5,7 @@ from importlib import import_module
 import pytest
 
 from esphome.components.ld6004 import LD6004Component
+from esphome.components.select import ApplySelect
 import esphome.config_validation as cv
 from esphome.const import PlatformFramework
 from esphome.core import ID
@@ -46,6 +47,22 @@ def _cases(
             ("work_mode",),
             ("ota_version",),
             ("work_mode", "ota_version"),
+        ),
+        *_cases(
+            "select",
+            ApplySelect,
+            "config",
+            (),
+            ("work_mode",),
+            ("p20_mode",),
+            (
+                "sensitivity",
+                "trigger_speed",
+                "installation_mode",
+                "area_id",
+                "work_mode",
+                "p20_mode",
+            ),
         ),
     ],
 )
