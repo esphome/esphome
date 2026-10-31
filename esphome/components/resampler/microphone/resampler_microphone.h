@@ -3,6 +3,7 @@
 #ifdef USE_ESP32
 
 #include "esphome/components/audio/audio.h"
+#include "esphome/components/audio/decimator.h"
 #include "esphome/components/microphone/microphone.h"
 #include "esphome/components/microphone/microphone_source.h"
 
@@ -40,6 +41,9 @@ class ResamplerMicrophone final : public Component, public microphone::Microphon
   void set_target_sample_rate(uint32_t target_sample_rate) { this->target_sample_rate_ = target_sample_rate; }
   void set_filters(uint16_t filters) { this->filters_ = filters; }
   void set_taps(uint16_t taps) { this->taps_ = taps; }
+#ifdef USE_DSP_DECIMATOR
+  void set_fast_decimation(bool fast_decimation) { this->fast_decimation_ = fast_decimation; }
+#endif
 
  protected:
   /// @brief Sets up the resampler for the given input format. No resampler is needed if the sample rates match.
@@ -60,6 +64,10 @@ class ResamplerMicrophone final : public Component, public microphone::Microphon
   uint32_t target_sample_rate_;
   uint16_t taps_;
   uint16_t filters_;
+#ifdef USE_DSP_DECIMATOR
+  bool fast_decimation_{false};
+  audio::DspDecimator dsp_decimator_;
+#endif
 
   uint8_t active_listeners_{0};
   bool resampler_ready_{false};

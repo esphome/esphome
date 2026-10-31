@@ -1,0 +1,10 @@
+esphome:
+  name: aec-standard-48khz
+
+esp32:
+  variant: esp32
+  framework:
+    type: esp-idf
+
+packages:
+  aec: !include test-standard-resampler.esp32-idf.yaml

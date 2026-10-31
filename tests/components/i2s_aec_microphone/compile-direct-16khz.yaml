@@ -1,0 +1,10 @@
+esphome:
+  name: aec-direct-16khz
+
+esp32:
+  variant: esp32
+  framework:
+    type: esp-idf
+
+packages:
+  aec: !include test-direct-16khz.esp32-idf.yaml
