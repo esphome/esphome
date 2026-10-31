@@ -85,13 +85,11 @@ void XGZP6899DCComponent::read_data_() {
 }
 
 void XGZP6899DCComponent::dump_config() {
-  ESP_LOGCONFIG(TAG,
-                "XGZP6899DC:\n"
-                "  Pressure span: %.0f Pa",
-                this->pressure_scale_ * PRESSURE_FULL_SCALE);
+  ESP_LOGCONFIG(TAG, "XGZP6899DC:");
   LOG_SENSOR("  ", "Temperature: ", this->temperature_sensor_);
   LOG_SENSOR("  ", "Pressure: ", this->pressure_sensor_);
   if (this->pressure_sensor_ != nullptr) {
+    ESP_LOGCONFIG(TAG, "    Span: %.0f Pa", this->pressure_scale_ * PRESSURE_FULL_SCALE);
     if (this->pressure_oversampling_ == UINT8_MAX) {
       ESP_LOGCONFIG(TAG, "    Oversampling: factory setting");
     } else {

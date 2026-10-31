@@ -102,6 +102,12 @@ def _xgzp68xx_schema() -> cv.Schema:
 
 
 def _validate_pressure_range(config: ConfigType) -> ConfigType:
+    # The range only scales the pressure reading, so a temperature-only config can leave it out
+    if CONF_PRESSURE not in config:
+        return config
+    for key in (CONF_PRESSURE_MIN, CONF_PRESSURE_MAX):
+        if key not in config:
+            raise cv.Invalid(f"'{key}' is required with a pressure sensor", path=[key])
     if config[CONF_PRESSURE_MAX] <= config[CONF_PRESSURE_MIN]:
         raise cv.Invalid(
             f"'{CONF_PRESSURE_MAX}' must be greater than '{CONF_PRESSURE_MIN}'"
@@ -119,8 +125,8 @@ def _xgzp6899dc_schema() -> cv.All:
                     cv.Optional(CONF_OVERSAMPLING), XGZP6899DC_OVERSAMPLING_OPTIONS
                 ),
                 cv.Optional(CONF_TEMPERATURE): _temperature_schema(),
-                cv.Required(CONF_PRESSURE_MIN): pressure_pa,
-                cv.Required(CONF_PRESSURE_MAX): pressure_pa,
+                cv.Optional(CONF_PRESSURE_MIN): pressure_pa,
+                cv.Optional(CONF_PRESSURE_MAX): pressure_pa,
             }
         )
         .extend(cv.polling_component_schema("60s"))
@@ -141,10 +147,14 @@ CONFIG_SCHEMA = cv.typed_schema(
 
 
 async def to_code(config: ConfigType) -> None:
-    # The XGZP6899DC takes the rated span of the part in Pa
+    # The XGZP6899DC takes the rated span of the part in Pa, unused without a pressure sensor
     args = []
     if config[CONF_VARIANT] == VARIANT_XGZP6899DC:
-        args.append(config[CONF_PRESSURE_MAX] - config[CONF_PRESSURE_MIN])
+        args.append(
+            config[CONF_PRESSURE_MAX] - config[CONF_PRESSURE_MIN]
+            if CONF_PRESSURE in config
+            else 0.0
+        )
     var = await i2c.new_i2c_component(config, *args)
 
     sensors = sensor.sub_sensors(config)

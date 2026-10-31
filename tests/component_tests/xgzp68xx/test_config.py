@@ -47,7 +47,10 @@ def test_xgzp6899dc_keeps_factory_oversampling(
     ("config_file", "message"),
     [
         ("xgzp6899dc_k_value.yaml", "[k_value] is an invalid option"),
-        ("xgzp6899dc_missing_range.yaml", "required key not provided"),
+        (
+            "xgzp6899dc_missing_range.yaml",
+            "'pressure_min' is required with a pressure sensor",
+        ),
         (
             "xgzp6899dc_inverted_range.yaml",
             "'pressure_max' must be greater than 'pressure_min'",
@@ -74,7 +77,7 @@ def test_xgzp6899dc_temperature_only(
     component_config_path: Callable[[str], Path],
 ) -> None:
     source = generate_main(component_config_path("xgzp6899dc_temperature_only.yaml"))
-    assert ") xgzp68xx::XGZP6899DCComponent(10000.0f)" in source
+    assert ") xgzp68xx::XGZP6899DCComponent(0.0f)" in source
     assert "set_temperature_sensor" in source
     assert "set_pressure_sensor" not in source
     assert "set_pressure_oversampling" not in source

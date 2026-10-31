@@ -12,7 +12,5 @@ i2c:
 sensor:
   - platform: xgzp68xx
     variant: xgzp6899dc
-    pressure_min: 0
-    pressure_max: 10kPa
     temperature:
       name: Temperature
