@@ -2,9 +2,12 @@ name: Add External Component Comment
 
 on:
   pull_request_target:
-    types: [opened, synchronize]
+    # edited covers a change of base, such as when a stacked PR is retargeted after its parent merges
+    types: [opened, synchronize, edited]
+    # PRs against the release branches are not meant to be used as external components
+    branches-ignore: [beta, release]
 
-# All API calls (pulls.listFiles + issues.{list,create,update}Comment) are performed with
+# All API calls (pulls.{list,listFiles}, repos.compareCommits + issues.{list,create,update}Comment) are performed with
 # the App token minted below, so the workflow's GITHUB_TOKEN does not need any scopes.
 permissions: {}
 
@@ -12,6 +15,8 @@ jobs:
   external-comment:
     name: External component comment
     runs-on: ubuntu-latest
+    # Ignore edits to the title or description
+    if: github.event.action != 'edited' || github.event.changes.base
     steps:
       - name: Generate a token
         id: generate-token
@@ -19,9 +24,10 @@ jobs:
         with:
           client-id: ${{ vars.ESPHOME_GITHUB_APP_CLIENT_ID }}
           private-key: ${{ secrets.ESPHOME_GITHUB_APP_PRIVATE_KEY }}
-          # pulls.listFiles + issues.{list,create,update}Comment on PRs. For PR resources
+          # pulls.{list,listFiles} + issues.{list,create,update}Comment on PRs. For PR resources
           # the issues.*Comment APIs require the pull-requests scope, not issues.
           permission-pull-requests: write
+          permission-contents: read  # repos.compareCommitsWithBasehead for stacked PRs
 
       - name: Add external component comment
         uses: actions/github-script@3a2844b7e9c422d3c10d287c895573f7108da1b3 # v9.0.0
@@ -69,11 +75,12 @@ jobs:
             `;
             }
 
-            async function createComment(octokit, owner, repo, prNumber, esphomeChanges, componentChanges) {
+            async function createComment(octokit, owner, repo, prNumber, esphomeChanges, componentChanges, complete) {
                 const commentMarker = "<!-- This comment was generated automatically by the external-component-bot workflow. -->";
                 const legacyCommentMarker = "<!-- This comment was generated automatically by a GitHub workflow. -->";
                 let commentBody;
-                if (esphomeChanges.length === 1) {
+                // If the file list was cut short, the component list may be missing some, so give the clone instructions
+                if (complete && esphomeChanges.length === 1) {
                     commentBody = generateExternalComponentInstructions(prNumber, componentChanges, owner, repo);
                 } else {
                     commentBody = generateRepoInstructions(prNumber, owner, repo, context.payload.pull_request.head.ref);
@@ -124,16 +131,62 @@ jobs:
                 }
             }
 
-            async function getEsphomeAndComponentChanges(github, owner, repo, prNumber) {
-                const changedFiles = await github.paginate(
-                    github.rest.pulls.listFiles,
-                    {
-                        owner: owner,
-                        repo: repo,
-                        pull_number: prNumber,
-                        per_page: 100,
-                    }
-                );
+            // Find the open PR whose head branch is the given branch of this repo, if there is one
+            async function findPullRequestForBranch(github, owner, repo, branch) {
+                const {data} = await github.rest.pulls.list({
+                    owner: owner,
+                    repo: repo,
+                    state: 'open',
+                    head: `${owner}:${branch}`,
+                    per_page: 1,
+                });
+                return data.length !== 0 ? data[0] : null;
+            }
+
+            // List the files the PR changes, and whether the list is complete. A stacked PR, whose base is the head branch of another open PR,
+            // is compared with the base of the bottom PR in the stack rather than its direct base, so the
+            // changes from the PRs below it, which the external component source also fetches, are included.
+            async function listChangedFiles(github, owner, repo, pullRequest) {
+                // Walk down the stack; the depth limit guards against a cycle of PRs based on each other.
+                // The long-lived branches end the walk, so an open PR from one of them, such as a dev to beta
+                // test merge, is not taken as the bottom of a stack.
+                const longLivedBranches = [context.payload.repository.default_branch, 'beta', 'release'];
+                let base = pullRequest.base.ref;
+                let stacked = false;
+                for (let depth = 0; depth !== 20 && !longLivedBranches.includes(base); depth++) {
+                    const parent = await findPullRequestForBranch(github, owner, repo, base);
+                    if (parent === null)
+                        break;
+                    base = parent.base.ref;
+                    stacked = true;
+                }
+                if (!stacked) {
+                    const files = await github.paginate(
+                        github.rest.pulls.listFiles,
+                        {
+                            owner: owner,
+                            repo: repo,
+                            pull_number: pullRequest.number,
+                            per_page: 100,
+                        }
+                    );
+                    // pulls.listFiles returns at most 3000 files
+                    return {files: files, complete: files.length < 3000};
+                }
+                // The compare API returns the changed files, at most 300, on the first page; per_page only
+                // limits the commit list, which is not needed here.
+                const {data} = await github.rest.repos.compareCommitsWithBasehead({
+                    owner: owner,
+                    repo: repo,
+                    basehead: `${base}...${pullRequest.head.sha}`,
+                    per_page: 1,
+                });
+                const files = data.files ?? [];
+                return {files: files, complete: files.length < 300};
+            }
+
+            async function getEsphomeAndComponentChanges(github, owner, repo, pullRequest) {
+                const {files: changedFiles, complete} = await listChangedFiles(github, owner, repo, pullRequest);
 
                 // Files used only for development and CI, which do not affect use as an external component
                 const ignoredFiles = ["esphome/core/defines.h", "esphome/idf_component.yml"];
@@ -146,7 +199,7 @@ jobs:
                     .filter(it => it !== null);
 
                 if (esphomeChanges.length === 0) {
-                    return {esphomeChanges: [], componentChanges: []};
+                    return {esphomeChanges: [], componentChanges: [], complete: complete};
                 }
 
                 const uniqueEsphomeChanges = [...new Set(esphomeChanges)];
@@ -158,15 +211,16 @@ jobs:
                     })
                     .filter(it => it !== null);
 
-                return {esphomeChanges: uniqueEsphomeChanges, componentChanges: [...new Set(componentChanges)]};
+                return {esphomeChanges: uniqueEsphomeChanges, componentChanges: [...new Set(componentChanges)], complete: complete};
             }
 
             // Start of main code.
 
-            const prNumber = context.payload.pull_request.number;
+            const pullRequest = context.payload.pull_request;
+            const prNumber = pullRequest.number;
             const {owner, repo} = context.repo;
 
-            const {esphomeChanges, componentChanges} = await getEsphomeAndComponentChanges(github, owner, repo, prNumber);
+            const {esphomeChanges, componentChanges, complete} = await getEsphomeAndComponentChanges(github, owner, repo, pullRequest);
             if (componentChanges.length !== 0) {
-                await createComment(github, owner, repo, prNumber, esphomeChanges, componentChanges);
+                await createComment(github, owner, repo, prNumber, esphomeChanges, componentChanges, complete);
             }
