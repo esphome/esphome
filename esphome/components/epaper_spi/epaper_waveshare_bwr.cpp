@@ -62,6 +62,7 @@ void EPaperWaveshareBWR::fill(Color color) {
     // Black plane: 0x00 (no black), Red plane: 0x00 (no red)
     this->buffer_.fill(0x00);
   }
+  this->mark_all_drawn_();
 }
 
 bool HOT EPaperWaveshareBWR::transfer_data() {
