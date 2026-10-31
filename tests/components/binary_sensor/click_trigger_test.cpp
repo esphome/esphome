@@ -186,4 +186,16 @@ TEST_F(ClickTriggerTest, DoubleClickResetsAfterFiring) {
   EXPECT_EQ(fired, 2);
 }
 
+TEST_F(ClickTriggerTest, DoubleClickDoesNotFireTwiceWithoutReset) {
+  this->add_double_click_();
+  this->press_for_(INSIDE_MS);
+  delay(INSIDE_MS);
+  this->press_for_(SHORT_MS);
+  EXPECT_EQ(fired, 1);
+  // Without the reset, the first release and the short second press would pair with this gap
+  delay(INSIDE_MS);
+  this->sensor_.publish_state(true);
+  EXPECT_EQ(fired, 1);
+}
+
 }  // namespace esphome::binary_sensor::testing
