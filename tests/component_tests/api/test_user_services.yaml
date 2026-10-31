@@ -95,3 +95,9 @@ api:
         - logger.log: "STATUS_INLINE first"
         - lambda: |-
             api::global_api_server->send_action_response(call_id, true, StringRef());
+    # A lambda may use the service's own id
+    - action: self_reference
+      trigger_id: self_reference_service
+      then:
+        - lambda: |-
+            ESP_LOGD("test", "SELF_REFERENCE %p", (const void *) id(self_reference_service));

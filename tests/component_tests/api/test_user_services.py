@@ -234,6 +234,16 @@ def test_manual_trigger_id(generate_main) -> None:
     assert "MANUAL called" in _function_body(main_cpp, function)
 
 
+def test_lambda_uses_own_service_id(generate_main) -> None:
+    """A lambda in a service can refer to the service's own id."""
+    main_cpp = generate_main(CONFIG)
+    service = _service(main_cpp, "self_reference")
+    assert service.id == "self_reference_service"
+    function = _service_function(main_cpp, "self_reference", NONE)
+    body = _function_body(main_cpp, function)
+    assert "(const void *) self_reference_service" in body
+
+
 def test_services_registered_in_order(generate_main) -> None:
     """Every service is registered with the server once, in config order."""
     main_cpp = generate_main(CONFIG)
@@ -247,6 +257,7 @@ def test_services_registered_in_order(generate_main) -> None:
         "manual_trigger_id",
         "respond_then_log",
         "status_inline",
+        "self_reference",
     ]
     match = re.search(
         r"\bapi_apiserver_id->initialize_user_services\(\{(.*?)\}\);", main_cpp
