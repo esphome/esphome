@@ -1,0 +1,88 @@
+# BQ25820 battery management and MPPT charger.
+#
+# Notes:
+# - temp_in_c and the ts_t1..ts_t5 thresholds assume a 10k NTC thermistor
+#   from TS to PGND with a 10k reference resistor.
+# - charge_voltage is the VFB feedback setpoint (1.504-1.566 V trim); the
+#   pack charge voltage itself is set by the external VFB resistor divider.
+# - charge_timer also enables the charge safety timer (EN_CHG_TMR).
+# - The ACUV/ACOV input window and the switching frequency are set by
+#   external resistors on the ACUV, ACOV and FSW_SYNC pins, not by I2C.
+
+bq25820:
+  id: bq25820_component
+  i2c_id: i2c_bus
+  charge_current: 3A
+  bat_sns_res: 5mΩ
+  ac_sns_res: 2mΩ
+  watchdog: false
+  charge_voltage: 1.536V
+  input_current_limit: 8A
+  input_voltage_limit: 40V
+  precharge_current: 1A
+  reverse_system_voltage: 3.3V
+  charge_enabled: true
+  hiz_enabled: false
+  charge_timer: 12h
+  topoff_timer: disabled
+  ideal_diode: false
+  mppt_enabled: true
+  mppt_sweep_timer: 10m
+  force_mppt_sweep: false
+  temp_en: true
+  ts_t1: 0C
+  ts_t2: 10C
+  ts_t3: 45C
+  ts_t5: 50C
+
+sensor:
+  - platform: bq25820
+    bq25820_id: bq25820_component
+    vbat:
+      name: "Battery Voltage"
+    vsys:
+      name: "System Voltage"
+    vac:
+      name: "Input Voltage"
+    ibat:
+      name: "Battery Current"
+    iac:
+      name: "Input Current"
+    temp_in_c:
+      name: "temp_in_c"
+
+binary_sensor:
+  - platform: bq25820
+    bq25820_id: bq25820_component
+    charging:
+      name: "Charging"
+    charged:
+      name: "Charged"
+    low_battery:
+      name: "Low Battery"
+    pg:
+      name: "Power Good"
+    reverse:
+      name: "Reverse Mode"
+    vac_undervoltage:
+      name: "Input Undervoltage"
+    vac_overvoltage:
+      name: "Input Overvoltage"
+    ibat_overcurrent:
+      name: "Battery Overcurrent"
+    vbat_overvoltage:
+      name: "Battery Overvoltage"
+    thermal_shutdown:
+      name: "Thermal Shutdown"
+    charge_safety_timer:
+      name: "Charge Safety Timer"
+    drv_supply_invalid:
+      name: "Driver Supply Invalid"
+
+text_sensor:
+  - platform: bq25820
+    bq25820_id: bq25820_component
+    charge_status:
+      name: "Charge Status"
+    temp_status:
+      name: "Temperature Status"

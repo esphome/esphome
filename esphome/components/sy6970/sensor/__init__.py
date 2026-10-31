@@ -1,5 +1,6 @@
 import esphome.codegen as cg
 from esphome.components import sensor
+from esphome.components.const import CONF_CHARGE_CURRENT, CONF_PRECHARGE_CURRENT
 import esphome.config_validation as cv
 from esphome.const import (
     CONF_BATTERY_VOLTAGE,
@@ -17,8 +18,6 @@ DEPENDENCIES = ["sy6970"]
 
 CONF_VBUS_VOLTAGE = "vbus_voltage"
 CONF_SYSTEM_VOLTAGE = "system_voltage"
-CONF_CHARGE_CURRENT = "charge_current"
-CONF_PRECHARGE_CURRENT = "precharge_current"
 
 SY6970VbusVoltageSensor = sy6970_ns.class_("SY6970VbusVoltageSensor", sensor.Sensor)
 SY6970BatteryVoltageSensor = sy6970_ns.class_(
