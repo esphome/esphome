@@ -26,11 +26,6 @@ uint8_t ESPColorCorrection::gamma_uncorrect_(uint8_t value) const {
   return (target - a <= b - target) ? lo : lo + 1;
 }
 
-uint8_t ESPColorCorrection::color_correct_channel(uint8_t channel, uint8_t value) const {
-  return this->limit_(
-      this->gamma_correct_(esp_scale8_twice(value, this->max_brightness_[channel], this->local_brightness_)));
-}
-
 // Under the limit, gamma and the limit are undone together: the largest level that encodes to at most the
 // stored one, so a read, change and write of a pixel re-encodes to what was stored
 uint8_t ESPColorCorrection::uncorrect_level_(uint8_t value) const {
