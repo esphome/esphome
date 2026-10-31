@@ -4,10 +4,15 @@ Covers the LD6002B and the LD6004. The LD6001A is a different family (AT command
 another report format) and gets its own component, so it does not build on this one.
 """
 
+from dataclasses import dataclass, field
+
 import esphome.codegen as cg
 from esphome.components import uart
 import esphome.config_validation as cv
+from esphome.core import CORE
 from esphome.cpp_generator import MockObj, MockObjClass
+
+from .const import MAX_TARGETS
 
 CODEOWNERS = ["@hepter", "@wolph"]
 DEPENDENCIES = ["uart"]
@@ -23,11 +28,28 @@ _request_target_slot = cg.slot_counter("LD600X_MAX_TARGETS")
 _request_area_kind_slot = cg.slot_counter("LD600X_AREA_KINDS")
 
 
-def request_model_sizes(hub: MockObj, *, max_targets: int, area_kinds: int) -> None:
-    for _ in range(max_targets):
-        _request_target_slot(str(hub))
-    for _ in range(area_kinds):
-        _request_area_kind_slot(str(hub))
+@dataclass
+class LD600XData:
+    # Area kinds already requested per hub, so repeated requests keep the largest count.
+    area_kinds: dict[str, int] = field(default_factory=dict)
+
+
+def _get_data() -> LD600XData:
+    if DOMAIN not in CORE.data:
+        CORE.data[DOMAIN] = LD600XData()
+    return CORE.data[DOMAIN]
+
+
+def request_model_sizes(hub: MockObj, *, area_kinds: int) -> None:
+    """Size the hub's target and area arrays; call it again to raise the area kinds."""
+    requested = _get_data().area_kinds
+    key = str(hub)
+    if key not in requested:
+        for _ in range(MAX_TARGETS):
+            _request_target_slot(key)
+    for _ in range(requested.get(key, 0), area_kinds):
+        _request_area_kind_slot(key)
+    requested[key] = max(requested.get(key, 0), area_kinds)
 
 
 def ld600x_hub_schema(component_class: MockObjClass) -> cv.Schema:

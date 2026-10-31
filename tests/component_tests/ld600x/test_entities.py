@@ -36,9 +36,7 @@ def test_sensor_area_kinds(
     kinds: tuple[str, ...] = ("interference", "detection")
     if with_dwell:
         kinds += ("dwell",)
-    schema: cv.Schema = sensor_schema(
-        LD600XComponent, "hub_id", max_targets=3, area_kinds=kinds
-    )
+    schema: cv.Schema = sensor_schema(LD600XComponent, "hub_id", area_kinds=kinds)
     assert "interference_area_0" in schema({"interference_area_0": {}})
     if with_dwell:
         assert "dwell_area_0" in schema({"dwell_area_0": {}})
