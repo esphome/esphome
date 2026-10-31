@@ -697,6 +697,28 @@ def caplog_at_warning():
         logger.setLevel(prev_level)
 
 
+def test_component_version_absent_by_default() -> None:
+    """A component declaring no COMPONENT_VERSION reports None rather than raising.
+
+    Declaring one is optional, so the common case must stay silent.
+    """
+    mod = ModuleType("esphome.components.no_version")
+    assert ComponentManifest(mod).component_version is None
+
+
+def test_component_version_read_from_module() -> None:
+    mod = ModuleType("esphome.components.has_version")
+    mod.COMPONENT_VERSION = "1.2.3"
+    assert ComponentManifest(mod).component_version == "1.2.3"
+
+
+def test_component_version_coerced_to_str() -> None:
+    """A non-string COMPONENT_VERSION is coerced rather than rejected."""
+    mod = ModuleType("esphome.components.odd_version")
+    mod.COMPONENT_VERSION = 7
+    assert ComponentManifest(mod).component_version == "7"
+
+
 def test_file_resource_path_yields_real_file() -> None:
     """``FileResource.path`` resolves a packaged resource to a real path."""
     resource = FileResource("esphome.core", "config.py")
