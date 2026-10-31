@@ -87,7 +87,7 @@ struct CanStatus {
 
 class Canbus : public Component {
  public:
-  Canbus() {};
+  Canbus(){};
   void setup() override;
   void dump_config() override;
   float get_setup_priority() const override { return setup_priority::HARDWARE; }
@@ -132,7 +132,7 @@ class Canbus : public Component {
   template<typename F>
   ESPDEPRECATED("Use add_frame_callback(), which does not copy the payload. Removed in 2027.5.0.", "2026.11.0")
   void add_callback(F &&callback) {
-    this->frame_callbacks_.add([this, cb = std::forward<F>(callback)](const CanFrame &frame) {
+    this->frame_callbacks_.add([this, cb = std::forward<F>(callback)](const CanFrame &frame) mutable {
       cb(frame.can_id, frame.use_extended_id, frame.remote_transmission_request, this->frame_payload(frame));
     });
   }

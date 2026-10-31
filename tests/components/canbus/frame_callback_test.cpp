@@ -108,4 +108,21 @@ TEST(CanbusFrameCallback, DeprecatedVectorCallbackStillReceivesFrames) {
   EXPECT_EQ(received, (std::vector<uint8_t>{0xAA, 0xBB}));
 }
 
+TEST(CanbusFrameCallback, DeprecatedCallbackMayBeMutable) {
+  QueuedCanbus bus;
+  int calls = 0;
+#pragma GCC diagnostic push
+#pragma GCC diagnostic ignored "-Wdeprecated-declarations"
+  // A lambda that changes its own captured copy, as add_callback() accepted before
+  bus.add_callback([&calls, seen = 0](uint32_t, bool, bool, const std::vector<uint8_t> &) mutable { calls = ++seen; });
+#pragma GCC diagnostic pop
+  bus.setup();
+  bus.queue(0x123, false, {0x01});
+  bus.queue(0x124, false, {0x02});
+
+  bus.loop();
+
+  EXPECT_EQ(calls, 2);
+}
+
 }  // namespace esphome::canbus::testing
