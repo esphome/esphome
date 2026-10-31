@@ -16,7 +16,7 @@ class DucoComfortTemperature : public DucoDevice, public number::Number {
  protected:
   void control(float value) override;
 
-  uint8_t address_{0x12};
+  uint8_t address_{12};
 };
 
 }  // namespace esphome::duco

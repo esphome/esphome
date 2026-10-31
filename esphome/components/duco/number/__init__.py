@@ -27,7 +27,7 @@ CONFIG_SCHEMA = (
     )
     .extend(
         {
-            cv.Optional(CONF_ADDRESS, default=0x12): cv.int_range(min=0, max=0xFF),
+            cv.Optional(CONF_ADDRESS, default=12): cv.int_range(min=0, max=0xFF),
         }
     )
     .extend(DUCO_COMPONENT_SCHEMA)
