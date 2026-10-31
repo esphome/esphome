@@ -1176,6 +1176,81 @@ async def test_apply_lambda_unnamed_arg_is_not_copied(
 
 
 @pytest.mark.asyncio
+@pytest.mark.parametrize(
+    "body",
+    [
+        "return 42; // x",
+        "return 1 /* x */;",
+        'return sizeof("x");',
+        'return sizeof("a\\"x");',
+        'return sizeof(R"(x)");',
+        "return 'x';",
+        "return foo.x;",
+        "return p->x;",
+        "return ns::x;",
+    ],
+)
+async def test_apply_lambda_arg_in_noise_is_not_copied(
+    registries: tuple[Registry, Registry], mock_cg: MockCodegen, body: str
+) -> None:
+    """A name only in a comment, a literal or after member access does not copy the arg."""
+    fields = (ApplyField("kp", "set_kp", cg.int32),)
+    await _run_apply_action(
+        registries, fields, {"kp": Lambda(body)}, args=[(cg.std_string, "x")]
+    )
+    text = _apply_definition(mock_cg)
+    assert "std::string x" not in text
+    assert "const std::remove_cvref_t<std::string> & x" in text
+
+
+@pytest.mark.asyncio
+@pytest.mark.parametrize(
+    "body",
+    [
+        "return x.size(); // done",
+        "/* a */ return x.size();",
+        'return sizeof("a") + x.size();',
+        "return 1'0 + x.size() + 2'0;",
+        "return '\"' + x.size();",
+        "return s.x + x.size();",
+    ],
+)
+async def test_apply_lambda_arg_beside_noise_is_copied(
+    registries: tuple[Registry, Registry], mock_cg: MockCodegen, body: str
+) -> None:
+    """A real use next to a comment, literal or digit separator still takes the arg by value."""
+    fields = (ApplyField("kp", "set_kp", cg.int32),)
+    await _run_apply_action(
+        registries, fields, {"kp": Lambda(body)}, args=[(cg.std_string, "x")]
+    )
+    assert "[](std::string x) -> int32_t {" in _apply_definition(mock_cg)
+
+
+@pytest.mark.asyncio
+async def test_apply_reduced_comma_expression_is_parenthesized(
+    registries: tuple[Registry, Registry], mock_cg: MockCodegen
+) -> None:
+    """A reduced uncast expression with a top-level comma stays one value."""
+    fields = (ApplyBytes("data", "send({})"),)
+    config = {"data": Lambda("return touch(), std::vector<uint8_t>{0x01};")}
+    await _run_apply_action(registries, fields, config)
+    assert (
+        "const std::vector<uint8_t> esphome__bytes = "
+        "(touch(), std::vector<uint8_t>{0x01});"
+    ) in _apply_definition(mock_cg)
+    fields = (ApplyField("name", "set_name", cg.std_string),)
+    config = {"name": Lambda('return touch(), std::string("a");')}
+    await _run_apply_action(registries, fields, config)
+    assert f'::{PARENT_OBJ}->set_name((touch(), std::string("a")));' in (
+        _apply_definition(mock_cg)
+    )
+    # Commas inside brackets or literals are not top level
+    config = {"name": Lambda('return f(1, 2) + ",";')}
+    await _run_apply_action(registries, fields, config)
+    assert f'::{PARENT_OBJ}->set_name(f(1, 2) + ",");' in _apply_definition(mock_cg)
+
+
+@pytest.mark.asyncio
 async def test_apply_call_keys(
     registries: tuple[Registry, Registry], mock_cg: MockCodegen
 ) -> None:
@@ -1380,7 +1455,7 @@ async def test_apply_bytes_lambda_is_a_vector_in_a_block(
     body: str,
 ) -> None:
     """A lambda payload is called once into a scoped vector and passed as data and size;
-    it takes the trigger args by their own types and is never reduced, so it may modify them."""
+    a trigger arg it names is taken by its own type, so it may modify it."""
     fields = (ApplyBytes("data", "send({})"),)
     config = {"data": Lambda(body)}
     await _run_apply_action(

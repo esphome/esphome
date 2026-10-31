@@ -681,24 +681,63 @@ def apply_static_function(
     return cg.static_function(f"esphome__{id_.id}__fn", return_type, params, statements)
 
 
+# Comments, raw strings, strings and char literals; a ' after a digit is a digit separator.
+_CPP_NOISE = re.compile(
+    r"//[^\n]*|/\*.*?\*/"
+    r'|\b(?:u8|u|U|L)?R"([^()\\\s]{0,16})\(.*?\)\1"'
+    r'|"(?:\\.|[^"\\\n])*"'
+    r"|(?<!\w)'(?:\\.[^'\\\n]{0,8}|[^'\\\n])'",
+    re.DOTALL,
+)
+
+
+def _cpp_code_only(text: str) -> str:
+    return _CPP_NOISE.sub(" ", text)
+
+
+def _names_arg(code: str, name: str) -> bool:
+    """Whether ``code`` (with noise removed) names ``name`` other than as a member."""
+    return re.search(rf"(?<!\.)(?<!->)(?<!::)\b{re.escape(name)}\b", code) is not None
+
+
+def _has_top_level_comma(code: str) -> bool:
+    depth = 0
+    for ch in code:
+        if ch in "([{":
+            depth += 1
+        elif ch in ")]}":
+            depth -= 1
+        elif ch == "," and depth == 0:
+            return True
+    return False
+
+
 async def _call_user_lambda(
     value: Lambda, args: TemplateArgsType, return_type: SafeExpType
 ) -> Expression:
     """Call a config lambda in place; a value arg its body names is a copy it may modify.
 
     The other args are the generated function's const references, so a body that names
-    none of them is reduced to its expression, as ``call_lambda`` does.
+    none of them is reduced to its expression, as ``call_lambda`` does. When unsure the
+    name check counts a use: a needless copy is only a cost, a missed one fails to compile.
     """
+    code = _cpp_code_only(value.value)
     by_value = {
-        name
-        for t, name in args
-        if not _is_reference(t) and re.search(rf"\b{name}\b", value.value)
+        name for t, name in args if not _is_reference(t) and _names_arg(code, name)
     }
     params = [
         (t if name in by_value else _apply_param_type(t), name) for t, name in args
     ]
     inner = await cg.process_lambda(value, params, return_type=return_type)
-    return immediate_lambda_call(inner) if by_value else call_lambda(inner)
+    if by_value:
+        return immediate_lambda_call(inner)
+    expr = call_lambda(inner)
+    # An uncast `a, b` would split into two arguments or end an initializer early
+    if isinstance(expr, cg.RawExpression) and _has_top_level_comma(
+        _cpp_code_only(str(expr))
+    ):
+        return cg.RawExpression(f"({expr})")
+    return expr
 
 
 async def _render_call(
