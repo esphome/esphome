@@ -1,0 +1,28 @@
+esphome:
+  name: test
+
+esp8266:
+  board: d1_mini
+
+uart:
+  tx_pin: 1
+  rx_pin: 3
+  baud_rate: 256000
+
+ld2410:
+  background_correction_duration: 30s
+
+button:
+  - platform: ld2410
+    background_correction:
+      name: bg
+
+binary_sensor:
+  - platform: ld2410
+    calibration:
+      name: running
+
+text_sensor:
+  - platform: ld2410
+    calibration_result:
+      name: result
