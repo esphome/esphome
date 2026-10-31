@@ -11,6 +11,8 @@ ESPHOME_LOG_TAG(TAG, "ld6004");
 
 static constexpr uint16_t TYPE_SET_DWELL_LIFETIME = 0x0206;
 static constexpr uint16_t TYPE_SET_OUTPUT_INTERVAL = 0x0207;
+static constexpr uint16_t TYPE_REPORT_TARGET = 0x0A04;
+static constexpr uint16_t TYPE_REPORT_AREA_PRESENCE = 0x0A0A;
 static constexpr uint16_t TYPE_REPORT_WORK_MODE = 0x0A12;
 static constexpr uint16_t TYPE_REPORT_WORK_STATUS = 0x0A14;
 static constexpr uint16_t TYPE_REPORT_P20_MODE = 0x0A15;
@@ -36,6 +38,8 @@ static constexpr uint32_t CMD_GET_OUTPUT_INTERVAL = 0x27;
 
 // The work_mode select options, the 0x0A12 report values and the tables below share one order.
 static constexpr uint8_t WORK_MODE_COUNT = 5;
+static constexpr uint8_t WORK_MODE_RADAR_OFF_P20_HIGH = 2;
+static constexpr uint8_t WORK_MODE_RADAR_OFF_P20_LOW = 3;
 static constexpr uint8_t P20_MODE_COUNT = 6;
 #ifdef USE_SELECT
 // Every control code fits in a byte, so the tables are bytes in flash.
@@ -60,6 +64,12 @@ bool LD6004Component::handle_model_report(uint16_t type, const uint8_t *data, ui
       const uint32_t mode = len == 4 ? encode_value_le<uint32_t>(data) : data[0];
       if (mode >= WORK_MODE_COUNT)
         break;
+      this->radar_off_ = mode == WORK_MODE_RADAR_OFF_P20_HIGH || mode == WORK_MODE_RADAR_OFF_P20_LOW;
+      if (this->radar_off_) {
+        // Detection has stopped, so no later report clears what the last ones showed.
+        this->clear_area_presence_();
+        this->clear_target_state_();
+      }
 #ifdef USE_SELECT
       PUBLISH_STATE(this->work_mode_select_, mode);
 #endif
@@ -69,6 +79,10 @@ bool LD6004Component::handle_model_report(uint16_t type, const uint8_t *data, ui
 #endif
       return true;
     }
+    case TYPE_REPORT_TARGET:
+    case TYPE_REPORT_AREA_PRESENCE:
+      // Claimed while the radar is off: frames still in flight must not restore the cleared presence.
+      return this->radar_off_;
     case TYPE_REPORT_WORK_STATUS:
       // 0x0A14 marks the unattended low-power transition; a zero means nobody is in any area.
       if (len >= 1 && data[0] == 0 && !this->target_presence_any_)
