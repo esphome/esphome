@@ -11,6 +11,12 @@ globals:
     type: int
 
 script:
+  # Built before the scripts it waits for
+  - id: waits_early
+    then:
+      - script.wait: late_target
+      - script.wait: with_delay
+
   # Inline actions only
   - id: inline_single
     then:
@@ -103,3 +109,7 @@ script:
   - id: waits
     then:
       - script.wait: inline_single
+
+  - id: late_target
+    then:
+      - logger.log: "LATE target"

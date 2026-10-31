@@ -1710,19 +1710,23 @@ def _emit_inline_run(
     """
     if len(run) == 1 and run[0].emit is not None:
         return run[0].emit()
-    statements = _run_statements(run)
     id_ = run[0].id_.copy()
     id_.type = ApplyRunAction
-    fn = apply_static_function(
+    fn = _run_function(id_, run, args)
+    return cg.new_Pvariable(id_, cg.TemplateArguments(fn, *template_arg))
+
+
+def _run_function(id_: ID, run: list[_InlineAction], args: TemplateArgsType) -> MockObj:
+    """Emit the function that runs ``run``; it takes the run count first, which a stop clears."""
+    return apply_static_function(
         id_,
         cg.void,
         [
             (cg.RawExpression("const int &"), _RUNNING_PARAM),
             *_apply_lambda_args(args),
         ],
-        statements,
+        _run_statements(run),
     )
-    return cg.new_Pvariable(id_, cg.TemplateArguments(fn, *template_arg))
 
 
 async def _build_action_plan(
@@ -1892,10 +1896,10 @@ def _automation_from_plan(
 
 
 def _is_direct(plan: list[MockObj | list[_InlineAction]], config: ConfigType) -> bool:
-    """Whether a callback automation is all inline actions, so it needs no objects.
+    """Whether an automation is all inline actions without a manual id, so it needs no objects.
 
-    Without a Trigger or a manual id nothing can reach such an automation to stop it, so
-    no stop checks are needed either. Only for callers that create no Trigger.
+    Without a Trigger or a manual id nothing can reach such an automation to stop it, so a
+    caller that creates no Trigger needs no stop checks either.
     """
     return (
         not config[CONF_AUTOMATION_ID].is_manual
@@ -1932,6 +1936,22 @@ async def build_automation(
     trigger: MockObj, args: TemplateArgsType, config: ConfigType
 ) -> MockObj:
     return await _new_automation(args, config, trigger)
+
+
+async def build_automation_or_run_function(
+    trigger: MockObj, args: TemplateArgsType, config: ConfigType, id_: ID
+) -> MockObj | None:
+    """Build ``config`` on ``trigger`` like ``build_automation``, unless every action is inline.
+
+    Then build no Automation, and return the function ``esphome__<id_>__fn`` that runs the
+    actions instead, for ``trigger`` to call with a run count and ``args``. Its stop checks
+    stay: the run count is cleared to stop the actions, as in ``ApplyRunAction``.
+    """
+    plan = await _build_automation_plan(args, config)
+    if not _is_direct(plan, config):
+        _automation_from_plan(plan, args, config, trigger)
+        return None
+    return _run_function(id_, plan[0], args)
 
 
 async def build_trigger_callback(
