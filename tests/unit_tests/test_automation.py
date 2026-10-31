@@ -1141,6 +1141,53 @@ async def test_apply_lambdas(
 
 
 @pytest.mark.asyncio
+async def test_apply_lambda_modifying_its_arg(
+    registries: tuple[Registry, Registry], mock_cg: MockCodegen
+) -> None:
+    """How a field lambda that modifies its trigger arg is rendered."""
+    fields = (
+        ApplyField("kp", "set_kp", cg.float_),
+        ApplyField("ki", "set_ki", cg.float_),
+    )
+    config = {"kp": Lambda("x *= 2;\nreturn x;"), "ki": Lambda("return x *= 2;")}
+    await _run_apply_action(registries, fields, config, args=[(cg.int32, "x")])
+    text = _squash(_apply_definition(mock_cg))
+    assert text.startswith(
+        "static void esphome__obj_1__fn(const std::remove_cvref_t<int32_t> & x) {"
+    )
+    assert (
+        f"::{PARENT_OBJ}->set_kp([](const std::remove_cvref_t<int32_t> & x) -> float "
+        "{ x *= 2; return x; }(x));"
+    ) in text
+    assert f"::{PARENT_OBJ}->set_ki(static_cast<float>(x *= 2));" in text
+
+
+@pytest.mark.asyncio
+async def test_apply_condition_lambda_modifying_its_arg(
+    registries: tuple[Registry, Registry], mock_cg: MockCodegen
+) -> None:
+    """How a condition lambda that modifies its trigger arg is rendered."""
+    check = ApplyCall("state == {}", (("state", cg.float_),))
+    await _run_apply_condition(
+        registries,
+        check,
+        {"state": Lambda("x *= 2;\nreturn x;")},
+        args=[(cg.float_, "x")],
+    )
+    assert (
+        f"return ::{PARENT_OBJ}->state == [](const std::remove_cvref_t<float> & x) "
+        "-> float { x *= 2; return x; }(x);"
+    ) in _squash(_apply_definition(mock_cg))
+    await _run_apply_condition(
+        registries, check, {"state": Lambda("return x *= 2;")}, args=[(cg.float_, "x")]
+    )
+    assert (
+        f"return ::{PARENT_OBJ}->state == static_cast<float>(x *= 2);"
+        in _apply_definition(mock_cg)
+    )
+
+
+@pytest.mark.asyncio
 async def test_apply_call_keys(
     registries: tuple[Registry, Registry], mock_cg: MockCodegen
 ) -> None:
@@ -1725,6 +1772,36 @@ async def test_trigger_callback_filter_names_parent(mock_cg: MockCodegen) -> Non
         "if (!(state == 1 && ::improv->is_failed() == false)) return; "
         f"::{NEW_OBJ}->trigger();"
     ) in text
+
+
+@pytest.mark.asyncio
+@pytest.mark.parametrize(
+    ("body", "expected"),
+    [
+        (
+            "x *= 2;\nreturn x;",
+            (
+                "if (!(x == [](const std::remove_cvref_t<float> & x) -> float "
+                "{ x *= 2; return x; }(x))) return;"
+            ),
+        ),
+        ("return x *= 2;", "if (!(x == static_cast<float>(x *= 2))) return;"),
+    ],
+)
+async def test_trigger_callback_filter_lambda_modifying_its_arg(
+    mock_cg: MockCodegen, body: str, expected: str
+) -> None:
+    """How a filter lambda that modifies the callback's arg is rendered."""
+    text = _squash(
+        await build_trigger_callback(
+            [(cg.float_, "x")],
+            {**TRIGGER_CONF, "level": Lambda(body)},
+            [(cg.float_, "x")],
+            when=ApplyCall("x == {}", (("level", cg.float_),)),
+        )
+    )
+    assert text.startswith("[](const std::remove_cvref_t<float> & x) -> void {")
+    assert expected in text
 
 
 @pytest.mark.asyncio
