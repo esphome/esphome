@@ -2,6 +2,7 @@
 
 from collections.abc import Callable
 from pathlib import Path
+import re
 from types import ModuleType
 
 import pytest
@@ -93,6 +94,28 @@ def test_hub_channel_must_be_unique(
         module.FINAL_VALIDATE_SCHEMA(entry)
     with pytest.raises(cv.Invalid, match=f"Channel '{channel}' of 'a' is already used"):
         module.FINAL_VALIDATE_SCHEMA(entries[3])
+
+
+def test_output_button_presses_through_shared_helper(
+    generate_main: Callable[[str | Path], str],
+    component_config_path: Callable[[str], Path],
+) -> None:
+    """Each output button is an ApplyButton calling the helper with its output and duration."""
+    main_cpp = generate_main(component_config_path("output_button.yaml"))
+
+    fns = {
+        button_id: re.search(
+            rf"new\({button_id}\) button::ApplyButton<(\w+)>\(\);", main_cpp
+        ).group(1)
+        for button_id in ("pulse_a", "pulse_b", "pulse_long")
+    }
+    # Equal output and duration share one generated function
+    assert fns["pulse_a"] == fns["pulse_b"] != fns["pulse_long"]
+    for button_id, duration in (("pulse_a", 500), ("pulse_long", 2000)):
+        assert (
+            f"static void {fns[button_id]}(button::Button * entity) {{\n"
+            f"  output::press_output_button(entity, ::relay, {duration});\n}}"
+        ) in main_cpp
 
 
 def test_hub_channel_key_can_be_renamed(set_core_config: SetCoreConfigCallable) -> None:
