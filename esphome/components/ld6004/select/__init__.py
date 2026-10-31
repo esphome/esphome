@@ -12,6 +12,23 @@ DEPENDENCIES = ["ld6004"]
 
 CONF_P20_MODE = "p20_mode"
 
+# The order is the wire contract: index i sends entry i of WORK_MODE_COMMANDS / P20_MODE_COMMANDS in ld6004.cpp.
+WORK_MODE_OPTIONS = (
+    "normal",
+    "low_power",
+    "radar_off_p20_high",
+    "radar_off_p20_low",
+    "high_reflectivity",
+)
+P20_MODE_OPTIONS = (
+    "presence_high",
+    "presence_low",
+    "constant_low",
+    "constant_high",
+    "pulse_low",
+    "pulse_high",
+)
+
 CONFIG_SCHEMA = entities.select_schema(
     LD6004Component,
     CONF_LD6004_ID,
@@ -40,25 +57,12 @@ async def to_code(config: ConfigType) -> None:
     await selects(
         CONF_WORK_MODE,
         hub.set_work_mode_select,
-        options=[
-            "normal",
-            "low_power",
-            "radar_off_p20_high",
-            "radar_off_p20_low",
-            "high_reflectivity",
-        ],
+        options=list(WORK_MODE_OPTIONS),
         **entities.SELECT_CONTROL,
     )
     await selects(
         CONF_P20_MODE,
         hub.set_p20_mode_select,
-        options=[
-            "presence_high",
-            "presence_low",
-            "constant_low",
-            "constant_high",
-            "pulse_low",
-            "pulse_high",
-        ],
+        options=list(P20_MODE_OPTIONS),
         **entities.SELECT_CONTROL,
     )

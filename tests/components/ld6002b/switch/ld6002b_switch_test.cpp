@@ -16,6 +16,13 @@ TEST_F(LD6002BTest, EmptyLowPowerReportIsIgnored) {
   EXPECT_TRUE(this->low_power_.state);
 }
 
+TEST_F(LD6002BTest, LowPowerSwitchKeepsStateWhenQueueFull) {
+  for (int i = 0; i < 32; i++)
+    this->sensitivity_.make_call().set_index(0).perform();
+  this->low_power_.turn_on();
+  EXPECT_FALSE(this->low_power_.state);
+}
+
 }  // namespace esphome::ld6002b::testing
 
 #endif  // USE_HOST
