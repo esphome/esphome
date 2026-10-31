@@ -6,6 +6,7 @@
 
 #include "light_traits.h"
 #include "esphome/core/color.h"
+#include "esphome/core/helpers.h"
 
 namespace esphome::light {
 
@@ -40,7 +41,7 @@ struct ChannelColors {
 
   inline size_t bytes_per_led() const { return this->w == NO_WHITE ? 3 : 4; }
 
-  Color get(const uint8_t *color_data, int32_t index) const {
+  inline Color get(const uint8_t *color_data, int32_t index) const ESPHOME_ALWAYS_INLINE {
     if (this->w == NO_WHITE)
       return Color(color_data[index * 3 + this->r], color_data[index * 3 + this->g], color_data[index * 3 + this->b]);
     return Color(color_data[index * 4 + this->r], color_data[index * 4 + this->g], color_data[index * 4 + this->b],

@@ -129,7 +129,7 @@ class CorrectedBufferColorAccessor final : public BufferColorAccessor {
       : BufferColorAccessor(color_data, effect_data, channel_colors), color_correction(color_correction) {}
 
   Color get(int32_t index) const override {
-    const Color raw_color = this->get_raw(index);
+    const Color raw_color = this->channel_colors.get(this->color_data, index);
     const ESPColorCorrection *correction = this->color_correction;
     // Skip white when the strip has none; uncorrecting its zero is wasted work on every read
     return Color(correction->color_uncorrect_red(raw_color.red), correction->color_uncorrect_green(raw_color.green),
