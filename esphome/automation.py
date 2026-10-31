@@ -538,6 +538,12 @@ IN_RANGE_CHECK = ApplyCall(
 )
 IN_RANGE_DEFAULTS = {CONF_ABOVE: math.nan, CONF_BELOW: math.nan}
 
+ValueRange = cg.esphome_ns.struct("ValueRange")
+# The bounds of an on_value_range trigger, rendered by ``new_value_range_trigger``.
+_VALUE_RANGE_BOUNDS = ApplyCall(
+    "ValueRange{{{}, {}}}", ((CONF_ABOVE, cg.float_), (CONF_BELOW, cg.float_))
+)
+
 
 @dataclass(frozen=True)
 class ApplyBytes:
@@ -679,7 +685,13 @@ def apply_static_function(
     statements: list[str],
 ) -> MockObj:
     """Emit the static function generated for ``id_`` and return an expression naming it."""
-    return cg.static_function(f"esphome__{id_.id}__fn", return_type, params, statements)
+    return cg.static_function(
+        _apply_function_name(id_), return_type, params, statements
+    )
+
+
+def _apply_function_name(id_: ID) -> str:
+    return f"esphome__{id_.id}__fn"
 
 
 async def _render_values(
@@ -887,6 +899,37 @@ async def _render_check(
         name, target, members, values, config, parent, lambda_args, compare=True
     )
     return target.format(*exprs, parent=parent)
+
+
+async def new_value_range_trigger(
+    trigger_id: ID, parent: MockObj, config: ConfigType
+) -> MockObj:
+    """Create ``trigger_id`` with ``parent`` and a generated ``ValueRange (*)(float x)``: the bounds at ``x``.
+
+    The trigger is declared before its bounds are rendered, so a bound may use the trigger's own id.
+    ``x`` is const, so an inlined bound cannot change the value the other bound sees.
+    """
+    trigger = cg.new_Pvariable(
+        trigger_id, parent, cg.RawExpression(_apply_function_name(trigger_id))
+    )
+    config = {**IN_RANGE_DEFAULTS, **config}
+    members = _VALUE_RANGE_BOUNDS.members
+    exprs = await _render_values(
+        "on_value_range",
+        _VALUE_RANGE_BOUNDS.target,
+        members,
+        _apply_values(config, members),
+        config,
+        None,
+        [(cg.float_, "x")],
+    )
+    apply_static_function(
+        trigger_id,
+        ValueRange,
+        [(cg.RawExpression("const float"), "x")],
+        [f"return {_VALUE_RANGE_BOUNDS.target.format(*exprs)};"],
+    )
+    return trigger
 
 
 def register_apply_condition(
