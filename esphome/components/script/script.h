@@ -299,12 +299,13 @@ template<class Mode, auto Fn, typename... Ts> class FunctionScript final : publi
  */
 template<class Mode, typename... Ts> class FunctionPointerScript final : public Mode {
  public:
-  explicit FunctionPointerScript(void (*fn)(const int &, const Ts &...)) : fn_(fn) {}
+  using fn_t = void (*)(const int &, const Ts &...);
+  explicit FunctionPointerScript(fn_t fn) : fn_(fn) {}
 
  protected:
   void run_function(const int &running, const Ts &...x) override { this->fn_(running, x...); }
 
-  void (*fn_)(const int &, const Ts &...);
+  const fn_t fn_;
 };
 
 /** Wait for a script to finish before continuing.

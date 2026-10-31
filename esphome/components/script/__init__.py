@@ -138,10 +138,12 @@ def validate_parameter_names(value: Any) -> Any:
     reported as "extra keys not allowed"."""
     if isinstance(value, dict):
         for name in value:
-            try:
-                cv.not_generated_name(str(name))
-            except cv.Invalid as err:
-                raise cv.Invalid(err.msg, path=[name]) from err
+            # Generated C++ code names its own variables like this
+            if str(name).startswith("esphome__"):
+                raise cv.Invalid(
+                    "Names starting with 'esphome__' are reserved for generated code",
+                    path=[name],
+                )
     return value
 
 
@@ -241,15 +243,15 @@ async def to_code(config):
         if CONF_MAX_RUNS in conf:
             cg.add(script.set_max_runs(conf[CONF_MAX_RUNS]))
 
-        if conf[CONF_MODE] == CONF_QUEUED:
+        if queued := conf[CONF_MODE] == CONF_QUEUED:
             await cg.register_component(script, conf)
 
-        scripts.append((late, template, func_args, conf))
+        scripts.append((late, template, func_args, conf, queued))
 
     if any(CONF_ON_STOP in conf for conf in config):
         cg.add_define("USE_SCRIPT_ON_STOP")
-    for late, template, func_args, conf in scripts:
-        # The class names the function, so it is declared in the script's place
+    for late, template, func_args, conf, queued in scripts:
+        # The class or its constructor names the function, so it is declared in the script's place
         fn = await automation.build_automation_or_run_function(
             late.var, func_args, conf, late.global_slot.add
         )
@@ -259,7 +261,7 @@ async def to_code(config):
             wait_class = MODES[conf[CONF_MODE]][1].template(
                 FunctionBody.template(template), *template
             )
-            if conf[CONF_MODE] == CONF_QUEUED:
+            if queued:
                 # One class for all of them: a per-script class would also copy the
                 # Component vtable, which costs more flash than the pointer's RAM
                 script_class = FunctionPointerScript.template(wait_class, *template)
