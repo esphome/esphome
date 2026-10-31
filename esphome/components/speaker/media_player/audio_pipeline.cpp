@@ -173,6 +173,9 @@ AudioPipelineState AudioPipeline::process_state() {
         this->pending_file_ = false;
       }
 
+      // An idle stop or media switch may leave a hard stop pending. Clear it for the new media
+      // so its buffered audio can finish at the end.
+      this->hard_stop_ = false;
       this->is_playing_ = true;
       return AudioPipelineState::PLAYING;
     }
