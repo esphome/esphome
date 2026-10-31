@@ -3,6 +3,7 @@
 #include "atm90e32_reg.h"
 #include "esphome/components/sensor/sensor.h"
 #include "esphome/components/spi/spi.h"
+#include <cmath>
 #include <span>
 #include <unordered_map>
 #ifdef USE_TEXT_SENSOR
@@ -73,8 +74,6 @@ class ATM90E32Component final : public PollingComponent,
                                                        ATM90E32_REGISTER_QOFFSETC};
   const uint16_t over_voltage_flags[3] = {ATM90E32_STATUS_S0_OVPHASEAST, ATM90E32_STATUS_S0_OVPHASEBST,
                                           ATM90E32_STATUS_S0_OVPHASECST};
-  const uint16_t over_current_flags[3] = {ATM90E32_STATUS_S0_OIPHASEAST, ATM90E32_STATUS_S0_OIPHASEBST,
-                                          ATM90E32_STATUS_S0_OIPHASECST};
   const uint16_t voltage_sag_flags[3] = {ATM90E32_STATUS_S1_SAGPHASEAST, ATM90E32_STATUS_S1_SAGPHASEBST,
                                          ATM90E32_STATUS_S1_SAGPHASECST};
   const uint16_t phase_loss_flags[3] = {ATM90E32_STATUS_S1_PHASELOSSAST, ATM90E32_STATUS_S1_PHASELOSSBST,
@@ -128,10 +127,7 @@ class ATM90E32Component final : public PollingComponent,
   void set_peak_current_signed(bool flag) { peak_current_signed_ = flag; }
   void set_threshold_voltage_sag_v(float voltage) { this->threshold_voltage_sag_v_ = voltage; }
   void set_threshold_voltage_peak_v(float voltage) { this->threshold_voltage_peak_v_ = voltage; }
-  void set_threshold_current_peak_a(float current, uint16_t default_oith = 0) {
-    this->threshold_current_peak_a_ = current;
-    this->default_oith_ = default_oith;
-  }
+  void set_threshold_current_peak_a(float current) { this->threshold_current_peak_a_ = current; }
   void set_frequency_thresholds(uint16_t low, uint16_t high) {
     this->frequency_low_threshold_ = low;
     this->frequency_high_threshold_ = high;
@@ -304,11 +300,9 @@ class ATM90E32Component final : public PollingComponent,
   bool enable_gain_calibration_{false};
   float threshold_voltage_sag_v_{0.0f};
   float threshold_voltage_peak_v_{0.0f};
-  float threshold_current_peak_a_{0.0f};
+  float threshold_current_peak_a_{NAN};  // NAN keeps the legacy OITH register and 65.53 A software limit
   uint16_t frequency_low_threshold_{0};
   uint16_t frequency_high_threshold_{0};
-  uint16_t default_oith_{0xC000};  // Zero selects the configured RMS threshold
-                                   // instead of the legacy register value.
   const char *instance_id_{nullptr};
   bool has_stored_offset_calibration_{false};
   bool has_stored_power_offset_calibration_{false};

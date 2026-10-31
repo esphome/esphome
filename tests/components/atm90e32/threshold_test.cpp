@@ -22,6 +22,18 @@ namespace esphome::atm90e32 {
 
 static_assert(std::is_final_v<ATM90E32Component>);
 
+struct ExpectedThresholds {
+  uint16_t sag;
+  uint16_t over_voltage;
+  uint16_t over_current;
+};
+
+// Phase gains 7305 (voltage) and 27961 (current) with 96 V / 144 V / 10 A thresholds.
+static constexpr ExpectedThresholds DEFAULT_GAIN_THRESHOLDS{30450, 45675, 8287};
+// Calibrated gains 14610 (voltage) and 13980 (current).
+static constexpr ExpectedThresholds CALIBRATED_GAIN_THRESHOLDS{15225, 22837, 16574};
+static constexpr ExpectedThresholds CLAMPED_THRESHOLDS{65535, 65535, 65535};
+
 class ThresholdRegisterDelegate : public spi::SPIDelegate {
  public:
   std::array<uint16_t, 1024> registers{};
@@ -55,7 +67,6 @@ class ATM90E32ThresholdRegisters : public ::testing::Test {
     this->component_.set_instance_id("threshold_test");
     this->component_.set_threshold_voltage_sag_v(96.0f);
     this->component_.set_threshold_voltage_peak_v(144.0f);
-    this->component_.set_threshold_current_peak_a(65.53f, 0xC000);
     this->component_.set_frequency_thresholds(5995, 65535);
   }
 
@@ -66,6 +77,17 @@ class ATM90E32ThresholdRegisters : public ::testing::Test {
   GainCalibration (&gain_phase_)[3]{this->component_.gain_phase_};
   ESPPreferenceObject &gain_calibration_pref_{this->component_.gain_calibration_pref_};
   void setup_component_() { this->component_.setup_registers_(); }
+  void setup_phase_(uint8_t phase = 1) {
+    this->component_.set_volt_gain(phase, 7305);
+    this->component_.set_ct_gain(phase, 27961);
+    this->component_.set_threshold_current_peak_a(10.0f);
+    this->setup_component_();
+  }
+  void expect_thresholds_(const ExpectedThresholds &expected, uint16_t tolerance = 1) {
+    EXPECT_NEAR(this->delegate_.registers[ATM90E32_REGISTER_SAGTH], expected.sag, tolerance);
+    EXPECT_NEAR(this->delegate_.registers[ATM90E32_REGISTER_OVTH], expected.over_voltage, tolerance);
+    EXPECT_NEAR(this->delegate_.registers[ATM90E32_REGISTER_OITH], expected.over_current, tolerance);
+  }
   void write_gains_() { this->component_.write_gains_to_registers_(); }
   void restore_gains_() { this->component_.restore_gain_calibrations_(); }
 };
@@ -87,31 +109,20 @@ class ATM90E32SinglePhaseThresholds : public ATM90E32ThresholdRegisters,
                                       public ::testing::WithParamInterface<uint8_t> {};
 
 TEST_P(ATM90E32SinglePhaseThresholds, UsesConfiguredPhaseWithoutPhaseA) {
-  const auto phase = GetParam();
-  this->component_.set_volt_gain(phase, 7305);
-  this->component_.set_ct_gain(phase, 27961);
-  this->component_.set_threshold_current_peak_a(10.0f);
-  this->setup_component_();
+  this->setup_phase_(GetParam());
 
-  EXPECT_NEAR(this->delegate_.registers[ATM90E32_REGISTER_SAGTH], 30450, 1);
-  EXPECT_NEAR(this->delegate_.registers[ATM90E32_REGISTER_OVTH], 45675, 1);
-  EXPECT_NEAR(this->delegate_.registers[ATM90E32_REGISTER_OITH], 8287, 1);
+  this->expect_thresholds_(DEFAULT_GAIN_THRESHOLDS);
 }
 
 INSTANTIATE_TEST_SUITE_P(PhaseBAndC, ATM90E32SinglePhaseThresholds, ::testing::Values(1, 2));
 
 TEST_F(ATM90E32ThresholdRegisters, RefreshesThresholdsWhenCalibratedGainsAreWritten) {
-  this->component_.set_volt_gain(1, 7305);
-  this->component_.set_ct_gain(1, 27961);
-  this->component_.set_threshold_current_peak_a(10.0f);
-  this->setup_component_();
+  this->setup_phase_();
   this->gain_phase_[1] = {14610, 13980};
 
   this->write_gains_();
 
-  EXPECT_NEAR(this->delegate_.registers[ATM90E32_REGISTER_SAGTH], 15225, 1);
-  EXPECT_NEAR(this->delegate_.registers[ATM90E32_REGISTER_OVTH], 22837, 1);
-  EXPECT_NEAR(this->delegate_.registers[ATM90E32_REGISTER_OITH], 16574, 1);
+  this->expect_thresholds_(CALIBRATED_GAIN_THRESHOLDS);
 }
 
 TEST_F(ATM90E32ThresholdRegisters, UsesNativeVoltageLimitsForDifferentCalibratedGains) {
@@ -125,9 +136,7 @@ TEST_F(ATM90E32ThresholdRegisters, UsesNativeVoltageLimitsForDifferentCalibrated
   this->component_.set_threshold_current_peak_a(10.0f);
   this->setup_component_();
 
-  EXPECT_NEAR(this->delegate_.registers[ATM90E32_REGISTER_SAGTH], 30450, 1);
-  EXPECT_NEAR(this->delegate_.registers[ATM90E32_REGISTER_OVTH], 22837, 1);
-  EXPECT_NEAR(this->delegate_.registers[ATM90E32_REGISTER_OITH], 8287, 1);
+  this->expect_thresholds_({30450, 22837, 8287});
 
   this->delegate_.registers[ATM90E32_REGISTER_EMMSTATE0] =
       ATM90E32_STATUS_S0_OVPHASEAST | ATM90E32_STATUS_S0_OVPHASEBST;
@@ -173,27 +182,19 @@ TEST_F(ATM90E32ThresholdRegisters, PreservesLegacyCurrentAndReadyMadeFrequencyRe
 }
 
 TEST_F(ATM90E32ThresholdRegisters, ClampsWhenCalibrationExceedsTheRegisterRange) {
-  this->component_.set_volt_gain(1, 7305);
-  this->component_.set_ct_gain(1, 27961);
-  this->component_.set_threshold_current_peak_a(10.0f);
-  this->setup_component_();
+  this->setup_phase_();
   this->gain_phase_[1] = {1000, 1000};
 
   this->write_gains_();
 
-  EXPECT_EQ(this->delegate_.registers[ATM90E32_REGISTER_SAGTH], 65535);
-  EXPECT_EQ(this->delegate_.registers[ATM90E32_REGISTER_OVTH], 65535);
-  EXPECT_EQ(this->delegate_.registers[ATM90E32_REGISTER_OITH], 65535);
+  this->expect_thresholds_(CLAMPED_THRESHOLDS, 0);
 }
 
 #ifdef USE_HOST
 TEST_F(ATM90E32ThresholdRegisters, RefreshesThresholdsAfterRestoringAndClearingStoredGains) {
   if (global_preferences == nullptr)
     host::setup_preferences();
-  this->component_.set_volt_gain(1, 7305);
-  this->component_.set_ct_gain(1, 27961);
-  this->component_.set_threshold_current_peak_a(10.0f);
-  this->setup_component_();
+  this->setup_phase_();
   auto preference = global_preferences->make_preference<GainCalibration[3]>(0x15244000);
   const GainCalibration saved[3]{{0, 0}, {14610, 13980}, {0, 0}};
   ASSERT_TRUE(preference.save(&saved));
@@ -202,16 +203,12 @@ TEST_F(ATM90E32ThresholdRegisters, RefreshesThresholdsAfterRestoringAndClearingS
   this->restore_gains_();
 
   EXPECT_TRUE(this->component_.using_saved_calibrations_);
-  EXPECT_NEAR(this->delegate_.registers[ATM90E32_REGISTER_SAGTH], 15225, 1);
-  EXPECT_NEAR(this->delegate_.registers[ATM90E32_REGISTER_OVTH], 22837, 1);
-  EXPECT_NEAR(this->delegate_.registers[ATM90E32_REGISTER_OITH], 16574, 1);
+  this->expect_thresholds_(CALIBRATED_GAIN_THRESHOLDS);
 
   this->component_.clear_gain_calibrations();
 
   EXPECT_FALSE(this->component_.using_saved_calibrations_);
-  EXPECT_NEAR(this->delegate_.registers[ATM90E32_REGISTER_SAGTH], 30450, 1);
-  EXPECT_NEAR(this->delegate_.registers[ATM90E32_REGISTER_OVTH], 45675, 1);
-  EXPECT_NEAR(this->delegate_.registers[ATM90E32_REGISTER_OITH], 8287, 1);
+  this->expect_thresholds_(DEFAULT_GAIN_THRESHOLDS);
 }
 #endif  // USE_HOST
 

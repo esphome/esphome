@@ -18,11 +18,14 @@ def _validate(
     phases: ConfigType | None = None,
     line_frequency: int = 60,
 ) -> ConfigType:
-    config = {"line_frequency": line_frequency}
+    config = {
+        "line_frequency": cv.enum(atm90e32.LINE_FREQS, upper=True)(
+            f"{line_frequency}Hz"
+        ),
+        "thresholds": atm90e32.THRESHOLDS_SCHEMA(thresholds or {}),
+    }
     for phase, values in ({"phase_a": {}} if phases is None else phases).items():
         config[phase] = atm90e32.ATM90E32_PHASE_SCHEMA(values)
-    if thresholds is not None:
-        config["thresholds"] = atm90e32.THRESHOLDS_SCHEMA(thresholds)
     return atm90e32._validate_thresholds(config)
 
 
@@ -35,7 +38,6 @@ def test_resolves_defaults_without_threshold_block(
     assert thresholds["voltage_sag_v"] == pytest.approx(nominal * 0.78)
     assert thresholds["voltage_peak_v"] == pytest.approx(nominal * 1.22)
     assert "current_peak" not in thresholds
-    assert "default_oith" not in thresholds
     assert thresholds["frequency_low_hz"] == line_frequency - 3
     assert thresholds["frequency_high_hz"] == line_frequency + 3
 
@@ -51,9 +53,16 @@ def test_accepts_frequency_register_limit() -> None:
     assert thresholds["frequency_high_hz"] == 655.35
 
 
-def test_rejects_frequency_band_collapsed_by_register_rounding() -> None:
-    with pytest.raises(cv.Invalid, match="0.01Hz"):
-        _validate({"frequency_low_hz": "59.996Hz", "frequency_high_hz": "60.004Hz"})
+@pytest.mark.parametrize(
+    "low, high",
+    [
+        ("59.996Hz", "60.004Hz"),
+        ("62Hz", "58Hz"),
+    ],
+)
+def test_rejects_inverted_or_collapsed_frequency_band(low: str, high: str) -> None:
+    with pytest.raises(cv.Invalid, match="frequency_low_hz must be lower"):
+        _validate({"frequency_low_hz": low, "frequency_high_hz": high})
 
 
 @pytest.mark.parametrize(
@@ -107,21 +116,16 @@ def test_single_phase_threshold_does_not_require_phase_a(phase: str) -> None:
 
 
 @pytest.mark.parametrize(
-    "thresholds, gain",
-    [
-        ({"current_peak": "10A"}, "gain_ct"),
-        ({"voltage_nominal": "120V"}, "gain_voltage"),
-    ],
-)
-def test_accepts_different_gains_for_a_shared_threshold(
-    thresholds: ConfigType, gain: str
-) -> None:
-    _validate(thresholds, {"phase_a": {gain: 15000}, "phase_b": {gain: 20000}})
-
-
-@pytest.mark.parametrize(
     "thresholds, phases",
     [
+        (
+            {"current_peak": "10A"},
+            {"phase_a": {"gain_ct": 15000}, "phase_b": {"gain_ct": 20000}},
+        ),
+        (
+            {"voltage_nominal": "120V"},
+            {"phase_a": {"gain_voltage": 15000}, "phase_b": {"gain_voltage": 20000}},
+        ),
         (
             {"current_peak": "50A"},
             {"phase_a": {"gain_ct": 10000}, "phase_b": {"gain_ct": 27961}},
@@ -132,7 +136,7 @@ def test_accepts_different_gains_for_a_shared_threshold(
         ),
     ],
 )
-def test_peak_register_fit_uses_highest_phase_gain(
+def test_accepts_different_phase_gains_for_a_shared_threshold(
     thresholds: ConfigType, phases: ConfigType
 ) -> None:
     _validate(thresholds, phases)
@@ -189,24 +193,22 @@ def test_default_thresholds_do_not_reject_legacy_phase_gains() -> None:
 
 @pytest.mark.asyncio
 @pytest.mark.parametrize(
-    "thresholds, current_peak, default_oith, low, high",
+    "thresholds, current_peak, low, high",
     [
-        (None, 65.53, 49152, 5700, 6300),
+        (None, None, 5700, 6300),
         (
             {"frequency_low_hz": "59.95Hz", "frequency_high_hz": "60.01Hz"},
-            65.53,
-            49152,
+            None,
             5995,
             6001,
         ),
-        ({"current_peak": "10A"}, 10.0, 0, 5700, 6300),
-        ({"current_peak": "65.53A"}, 65.53, 0, 5700, 6300),
+        ({"current_peak": "10A"}, 10.0, 5700, 6300),
+        ({"current_peak": "65.53A"}, 65.53, 5700, 6300),
     ],
 )
-async def test_codegen_rounds_frequency_and_emits_current_defaults(
+async def test_codegen_rounds_frequency_and_emits_configured_current(
     thresholds: ConfigType | None,
-    current_peak: float,
-    default_oith: int,
+    current_peak: float | None,
     low: int,
     high: int,
 ) -> None:
@@ -233,6 +235,9 @@ async def test_codegen_rounds_frequency_and_emits_current_defaults(
     CORE.flush_tasks()
 
     source = CORE.cpp_main_section
-    assert "default_oith" not in config["thresholds"]
     assert f"set_frequency_thresholds({low}, {high})" in source
-    assert f"set_threshold_current_peak_a({current_peak}f, {default_oith})" in source
+    assert "set_line_freq(60)" in source
+    if current_peak is None:
+        assert "set_threshold_current_peak_a" not in source
+    else:
+        assert f"set_threshold_current_peak_a({current_peak}f)" in source
