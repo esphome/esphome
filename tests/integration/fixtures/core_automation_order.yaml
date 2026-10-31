@@ -1,0 +1,39 @@
+esphome:
+  name: core-automation-order
+  # Listed out of priority order; they must run highest priority first
+  on_boot:
+    - priority: -100
+      then:
+        - logger.log: "BOOT step -100"
+    - priority: 250.5
+      then:
+        - logger.log: "BOOT step 250.5 before delay"
+        - delay: 10ms
+        - logger.log: "BOOT step after delay"
+    - then:
+        - logger.log: "BOOT step 600"
+    - priority: 700
+      then:
+        - logger.log: "BOOT step 700"
+        - lambda: id(boot_runs) += 1;
+        - logger.log:
+            format: "BOOT runs %d"
+            args: [id(boot_runs)]
+  on_loop:
+    - then:
+        - lambda: |-
+            if (++id(loop_runs) == 3) {
+              ESP_LOGI("test", "LOOP ran 3 times");
+            }
+
+host:
+api:
+logger:
+
+globals:
+  - id: boot_runs
+    type: int
+    initial_value: "0"
+  - id: loop_runs
+    type: int
+    initial_value: "0"
