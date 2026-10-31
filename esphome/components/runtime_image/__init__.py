@@ -99,8 +99,9 @@ class JPEGFormat(Format):
         # (swapped red and blue in the 4:2:0 RGB8888 path, writes past the row on clipped MCUs). It also
         # uses the ESP32-S3 SIMD colour conversion in ESP-IDF builds, not only Arduino ones, and is built
         # with -O2. It also decodes progressive images in full, through a buffer for the coefficients of
-        # the whole image (PSRAM first on ESP32), and at 1/8 size or with only the DC when that buffer
-        # does not fit, and decodes 8-bit extended sequential (SOF1) images.
+        # the whole image (PSRAM first on ESP32). When that buffer does not fit, the image is drawn at the
+        # same size from only the DC, so each block is one colour. It also decodes 8-bit extended
+        # sequential (SOF1) images.
         cg.add_library(
             "JPEGDEC",
             "1.8.4",

@@ -502,6 +502,34 @@ TEST(JpegSourceDecode, ProgressiveImageMatchesBaseline) {
   }
 }
 
+// An extended sequential (SOF1) frame holds what a baseline one does, so changing the marker keeps the pixels
+TEST(JpegSourceDecode, ExtendedSequentialImageMatchesBaseline) {
+  static const uint8_t SOF0[] = {0xFF, 0xC0};
+  std::vector<uint8_t> extended(JPEG_ROWS, JPEG_ROWS + sizeof(JPEG_ROWS));
+  auto sof = std::search(extended.begin(), extended.end(), std::begin(SOF0), std::end(SOF0));
+  ASSERT_NE(sof, extended.end());
+  *(sof + 1) = 0xC1;
+
+  for (int scale : {1, 2, 4, 8}) {
+    for (auto type : {image::IMAGE_TYPE_RGB565, image::IMAGE_TYPE_RGB}) {
+      SourceImage baseline(type, 48 / scale, 40 / scale);
+      ASSERT_TRUE(decode_fed(baseline));
+      ASSERT_EQ(baseline.scale(), scale);
+
+      SourceImage fed(type, 48 / scale, 40 / scale);
+      ASSERT_TRUE(decode_fed(fed, extended.data(), extended.size()));
+      EXPECT_EQ(pixels(fed), pixels(baseline)) << "fed, scale " << scale << ", image type " << type;
+
+      SourceImage stepped(type, 48 / scale, 40 / scale);
+      MemorySource source(extended.data(), extended.size());
+      int steps;
+      ASSERT_EQ(decode_stepped(stepped, source, steps, extended.size()), DECODE_STEP_DONE);
+      ASSERT_EQ(stepped.scale(), scale);
+      EXPECT_EQ(pixels(stepped), pixels(baseline)) << "stepped, scale " << scale << ", image type " << type;
+    }
+  }
+}
+
 TEST(JpegSourceDecode, ProgressiveImageWaitsForDataThatHasNotArrived) {
   SourceImage baseline;
   ASSERT_TRUE(decode_fed(baseline));

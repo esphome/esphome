@@ -126,8 +126,8 @@ int HOT JpegDecoder::decode(uint8_t *buffer, size_t size) {
     return 0;
   }
 
-  // If size unknown, try to decode and see if it's valid
-  // The JPEGDEC library will fail gracefully if data is incomplete
+  // If size unknown, try to decode what has arrived. JPEGDEC usually fails on an incomplete baseline image, but draws
+  // the scans that arrived of an incomplete progressive image and reports success, so any data after that cannot open.
 
   if (!this->jpeg_->openRAM(buffer, size, draw_callback)) {
     ESP_LOGE(TAG, "Could not open image for decoding: %d", this->jpeg_->getLastError());
