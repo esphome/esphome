@@ -15,7 +15,8 @@ class FakeBus : public i2c::I2CBus {
     EXPECT_EQ(address, ADDRESS);
     if (this->fail)
       return i2c::ERROR_TIMEOUT;
-    std::memset(read_buffer, 0, read_count);
+    if (read_count != 0)
+      std::memset(read_buffer, 0, read_count);
     return i2c::ERROR_OK;
   }
 
@@ -27,6 +28,7 @@ class MCP23017Test : public ::testing::Test {
   void SetUp() override {
     this->component_.set_i2c_bus(&this->bus_);
     this->component_.set_i2c_address(FakeBus::ADDRESS);
+    this->component_.set_open_drain_ints(false);
   }
 
   FakeBus bus_;
