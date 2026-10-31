@@ -140,7 +140,6 @@ async def setup_canbus_core_(var: MockObj, config: ConfigType) -> None:
         checks.append(_flag("frame.use_extended_id", conf[CONF_USE_EXTENDED_ID]))
         if (rtr := conf.get(CONF_REMOTE_TRANSMISSION_REQUEST)) is not None:
             checks.append(_flag("frame.remote_transmission_request", rtr))
-        # Only a matching frame copies its payload, onto the stack
         await automation.build_callback_automation(
             var,
             "add_frame_callback",

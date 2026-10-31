@@ -52,13 +52,11 @@ static const uint8_t CAN_MAX_DATA_LENGTH = 8;
 
 static const uint8_t CAN_ERROR_PASSIVE_THRESHOLD = 128;
 
-/// A frame's payload, held inline with no heap. Converts to and from std::vector<uint8_t> so lambdas written for
-/// the older vector payload keep compiling; only that conversion allocates.
+/// Frame payload without heap; converts to and from std::vector<uint8_t> for older lambdas.
 class CanPayload : public StaticVector<uint8_t, CAN_MAX_DATA_LENGTH> {
  public:
   using StaticVector<uint8_t, CAN_MAX_DATA_LENGTH>::StaticVector;
-  CanPayload() {}  // user provided, so `CanPayload x{}` does not zero the buffer
-  // Data past CAN_MAX_DATA_LENGTH is dropped, as send_data() would
+  CanPayload() {}                               // does not zero the buffer
   CanPayload(const std::vector<uint8_t> &data)  // NOLINT(google-explicit-constructor)
       : StaticVector<uint8_t, CAN_MAX_DATA_LENGTH>(data.begin(), data.end()) {}
   operator std::vector<uint8_t>() const { return {this->begin(), this->end()}; }  // NOLINT(google-explicit-constructor)
@@ -79,7 +77,7 @@ struct CanFrame {
   uint8_t payload_length() const { return std::min(this->can_data_length_code, CAN_MAX_DATA_LENGTH); }
   CanPayload payload() const {
     CanPayload out;
-    std::memcpy(out.data(), this->data, CAN_MAX_DATA_LENGTH);  // fixed size, so it compiles to word moves
+    std::memcpy(out.data(), this->data, CAN_MAX_DATA_LENGTH);
     out.resize(this->payload_length());
     return out;
   }
@@ -129,7 +127,7 @@ class Canbus : public Component {
   void set_max_frames_per_loop(uint32_t max_frames_per_loop) { this->max_frames_per_loop_ = max_frames_per_loop; }
   virtual CanStatus get_status() { return {}; }
 
-  /// Called with every received frame, unfiltered; the frame is only valid during the call.
+  /// The frame is only valid during the call.
   template<typename F> void add_frame_callback(F &&callback) { this->frame_callbacks_.add(std::forward<F>(callback)); }
 
   /**

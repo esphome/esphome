@@ -10,7 +10,7 @@
 
 #include "esphome/components/canbus/canbus.h"
 
-// The allocation check relies on AddressSanitizer's malloc hooks, which the cpp_unit_test harness enables.
+// Needs AddressSanitizer's malloc hooks
 #ifndef __has_feature
 #define __has_feature(x) 0
 #endif
@@ -22,7 +22,7 @@ extern "C" int __sanitizer_install_malloc_and_free_hooks(void (*malloc_hook)(con
 
 namespace esphome::canbus::testing {
 
-// A driver whose received frames the test queues; sent frames are discarded.
+// Receives queued frames
 class QueuedCanbus : public Canbus {
  public:
   void queue(uint32_t can_id, bool extended, std::initializer_list<uint8_t> data) {
@@ -72,7 +72,6 @@ TEST(CanbusFrameCallback, ReceivingFramesDoesNotAllocate) {
   ASSERT_NE(hooks_installed, 0);
   QueuedCanbus bus;
   size_t bytes_seen = 0;
-  // Reads the payload the way generated on_frame callbacks do
   bus.add_frame_callback([&](const CanFrame &frame) { bytes_seen += frame.payload().size(); });
   bus.setup();
   for (uint8_t i = 0; i < 10; i++)
@@ -96,7 +95,7 @@ TEST(CanbusFrameCallback, DeprecatedVectorCallbackStillReceivesFrames) {
   int calls = 0;
 #pragma GCC diagnostic push
 #pragma GCC diagnostic ignored "-Wdeprecated-declarations"
-  // Mutable, as add_callback() accepted before
+  // mutable, as before
   bus.add_callback([&, seen = 0](uint32_t can_id, bool, bool, const std::vector<uint8_t> &data) mutable {
     received_id = can_id;
     received = data;
@@ -114,7 +113,6 @@ TEST(CanbusFrameCallback, DeprecatedVectorCallbackStillReceivesFrames) {
   EXPECT_EQ(received, (std::vector<uint8_t>{0xAA, 0xBB}));
 }
 
-// The forms on_frame lambdas use on x, written for the older std::vector<uint8_t> payload
 TEST(CanbusFrameCallback, PayloadKeepsVectorForms) {
   CanFrame frame{};
   frame.can_data_length_code = 3;
@@ -133,12 +131,11 @@ TEST(CanbusFrameCallback, PayloadKeepsVectorForms) {
   auto takes_vector = [](const std::vector<uint8_t> &v) { return v.size(); };
   EXPECT_EQ(takes_vector(x), 3u);
 
-  // canbus.send lambdas return a CanPayload: x itself, a braced list or a vector
   CanPayload braced = {0x00, 0x20, 0x42};
   EXPECT_EQ(braced.size(), 3u);
   const CanPayload too_long = std::vector<uint8_t>(CAN_MAX_DATA_LENGTH + 2, 7);
   EXPECT_EQ(too_long.size(), CAN_MAX_DATA_LENGTH);
-  frame.can_data_length_code = 15;  // a DLC above 8 is legal on the wire
+  frame.can_data_length_code = 15;  // legal on the wire
   EXPECT_EQ(frame.payload().size(), CAN_MAX_DATA_LENGTH);
 }
 

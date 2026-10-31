@@ -20,7 +20,7 @@ canbus:
               then:
                 logger.log: Truth
           - canbus.send: !lambda return x;
-      # x forms used by the docs and by existing configs
+      # x forms from the docs
       - can_id: 24
         then:
           - number.set:
