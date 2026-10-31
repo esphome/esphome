@@ -1,0 +1,116 @@
+#include <gtest/gtest.h>
+
+#include <algorithm>
+#include <atomic>
+#include <cstdint>
+#include <deque>
+#include <vector>
+
+#include "esphome/components/canbus/canbus.h"
+
+// The allocation check relies on AddressSanitizer's malloc hooks, which the cpp_unit_test harness enables.
+#ifndef __has_feature
+#define __has_feature(x) 0
+#endif
+#if defined(__SANITIZE_ADDRESS__) || __has_feature(address_sanitizer)
+#define CANBUS_TEST_ASAN
+extern "C" int __sanitizer_install_malloc_and_free_hooks(void (*malloc_hook)(const volatile void *, size_t),
+                                                         void (*free_hook)(const volatile void *));
+#endif
+
+namespace esphome::canbus::testing {
+
+// A driver whose received frames the test queues; sent frames are discarded.
+class QueuedCanbus : public Canbus {
+ public:
+  void queue(uint32_t can_id, bool extended, std::initializer_list<uint8_t> data) {
+    CanFrame frame{};
+    frame.can_id = can_id;
+    frame.use_extended_id = extended;
+    frame.can_data_length_code = static_cast<uint8_t>(data.size());
+    std::copy(data.begin(), data.end(), frame.data);
+    this->rx_.push_back(frame);
+  }
+
+ protected:
+  bool setup_internal() override { return true; }
+  Error send_message(CanFrame *frame) override { return ERROR_OK; }
+  Error read_message(CanFrame *frame) override {
+    if (this->rx_.empty())
+      return ERROR_NOMSG;
+    *frame = this->rx_.front();
+    this->rx_.pop_front();
+    return ERROR_OK;
+  }
+
+  std::deque<CanFrame> rx_;
+};
+
+TEST(CanbusFrameCallback, PassesEveryFrameAndItsPayload) {
+  QueuedCanbus bus;
+  std::vector<uint32_t> ids;
+  std::vector<std::vector<uint8_t>> payloads;
+  bus.add_frame_callback([&](const CanFrame &frame) {
+    ids.push_back(frame.can_id);
+    payloads.push_back(bus.frame_payload(frame));
+  });
+  bus.setup();
+  bus.queue(0x100, false, {0x01, 0x02});
+  bus.queue(0x1ABCDE42, true, {});
+  bus.queue(0x7FF, false, {1, 2, 3, 4, 5, 6, 7, 8});
+
+  bus.loop();
+
+  EXPECT_EQ(ids, (std::vector<uint32_t>{0x100, 0x1ABCDE42, 0x7FF}));
+  EXPECT_EQ(payloads[0], (std::vector<uint8_t>{0x01, 0x02}));
+  EXPECT_TRUE(payloads[1].empty());
+  EXPECT_EQ(payloads[2], (std::vector<uint8_t>{1, 2, 3, 4, 5, 6, 7, 8}));
+}
+
+TEST(CanbusFrameCallback, ReceivingFramesDoesNotAllocate) {
+#ifdef CANBUS_TEST_ASAN
+  static std::atomic<size_t> allocations{0};
+  static const int hooks_installed = __sanitizer_install_malloc_and_free_hooks(
+      [](const volatile void *, size_t) { allocations.fetch_add(1, std::memory_order_relaxed); },
+      [](const volatile void *) {});
+  ASSERT_NE(hooks_installed, 0);
+  QueuedCanbus bus;
+  size_t bytes_seen = 0;
+  // Reads the payload the way generated on_frame callbacks do
+  bus.add_frame_callback([&](const CanFrame &frame) { bytes_seen += bus.frame_payload(frame).size(); });
+  bus.setup();
+  for (uint8_t i = 0; i < 10; i++)
+    bus.queue(0x100 + i, false, {i, i, i, i, i, i, i, i});
+
+  const size_t before = allocations.load(std::memory_order_relaxed);
+  bus.loop();
+  const size_t after = allocations.load(std::memory_order_relaxed);
+
+  EXPECT_EQ(bytes_seen, 80u);
+  EXPECT_EQ(after - before, 0u);
+#else
+  GTEST_SKIP() << "Allocation counting requires AddressSanitizer";
+#endif
+}
+
+TEST(CanbusFrameCallback, DeprecatedVectorCallbackStillReceivesFrames) {
+  QueuedCanbus bus;
+  std::vector<uint8_t> received;
+  uint32_t received_id = 0;
+#pragma GCC diagnostic push
+#pragma GCC diagnostic ignored "-Wdeprecated-declarations"
+  bus.add_callback([&](uint32_t can_id, bool, bool, const std::vector<uint8_t> &data) {
+    received_id = can_id;
+    received = data;
+  });
+#pragma GCC diagnostic pop
+  bus.setup();
+  bus.queue(0x123, false, {0xAA, 0xBB});
+
+  bus.loop();
+
+  EXPECT_EQ(received_id, 0x123u);
+  EXPECT_EQ(received, (std::vector<uint8_t>{0xAA, 0xBB}));
+}
+
+}  // namespace esphome::canbus::testing

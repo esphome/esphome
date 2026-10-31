@@ -107,6 +107,15 @@ class Canbus : public Component {
   virtual CanStatus get_status() { return {}; }
 
   /**
+   * Add a callback to be called with every received frame, without filtering. The frame is
+   * only valid during the call.
+   */
+  template<typename F> void add_frame_callback(F &&callback) { this->frame_callbacks_.add(std::forward<F>(callback)); }
+
+  /// A received frame's payload, in one buffer reused for every frame; valid until the next call.
+  const std::vector<uint8_t> &frame_payload(const CanFrame &frame);
+
+  /**
    * Add a callback to be called when a CAN message is received. All received messages
    * are passed to the callback without filtering.
    *
@@ -116,7 +125,12 @@ class Canbus : public Component {
    * - rtr If this is a remote transmission request
    * - data The message data
    */
-  template<typename F> void add_callback(F &&callback) { this->callback_manager_.add(std::forward<F>(callback)); }
+  template<typename F>
+  ESPDEPRECATED("Use add_frame_callback(), which does not copy the payload. Removed in 2027.5.0.", "2026.11.0")
+  void add_callback(F &&callback) {
+    this->payload_.reserve(CAN_MAX_DATA_LENGTH);
+    this->callback_manager_.add(std::forward<F>(callback));
+  }
 
  protected:
   template<typename... Ts> friend class CanbusSendAction;
@@ -126,8 +140,11 @@ class Canbus : public Component {
   bool use_extended_id_{false};
   uint8_t events_to_log_{0};
   bool bus_off_{false};
+  CallbackManager<void(const CanFrame &frame)> frame_callbacks_{};
   CallbackManager<void(uint32_t can_id, bool extended_id, bool rtr, const std::vector<uint8_t> &data)>
       callback_manager_{};
+  // Reserved before the first frame, so filling it per frame never allocates
+  std::vector<uint8_t> payload_;
 
   // interval in which to check for new can bus events (bus-off, passive, active)
   static constexpr uint32_t EVENT_CHECK_INTERVAL_MS = 100;

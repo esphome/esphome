@@ -56,6 +56,7 @@ def validate_raw_data(value: Any) -> bytes | list:
 canbus_ns = cg.esphome_ns.namespace("canbus")
 CanbusComponent = canbus_ns.class_("CanbusComponent", cg.Component)
 _FRAME_DATA = cg.std_vector.template(cg.uint8)
+CanFrame = canbus_ns.struct("CanFrame")
 CanSpeed = canbus_ns.enum("CAN_SPEED")
 
 CAN_SPEEDS = CanSpeed.options(
@@ -133,28 +134,28 @@ async def setup_canbus_core_(var: MockObj, config: ConfigType) -> None:
     for conf in config.get(CONF_ON_FRAME, []):
         can_id = f"0x{conf[CONF_CAN_ID]:X}"
         if (mask := conf[CONF_CAN_ID_MASK]) != CAN_ID_MASK_ALL:
-            checks = [f"(can_id & 0x{mask:X}) == {can_id}"]
+            checks = [f"(frame.can_id & 0x{mask:X}) == {can_id}"]
         else:
-            checks = [f"can_id == {can_id}"]
-        checks.append(_flag("extended_id", conf[CONF_USE_EXTENDED_ID]))
+            checks = [f"frame.can_id == {can_id}"]
+        checks.append(_flag("frame.use_extended_id", conf[CONF_USE_EXTENDED_ID]))
         if (rtr := conf.get(CONF_REMOTE_TRANSMISSION_REQUEST)) is not None:
-            checks.append(_flag("rtr", rtr))
+            checks.append(_flag("frame.remote_transmission_request", rtr))
+        # Only a matching frame copies its payload, into the bus's reused buffer
         await automation.build_callback_automation(
             var,
-            "add_callback",
+            "add_frame_callback",
             [
                 (_FRAME_DATA, "x"),
                 (cg.uint32, "can_id"),
                 (cg.bool_, "remote_transmission_request"),
             ],
             conf,
-            params=[
-                (cg.uint32, "can_id"),
-                (cg.bool_, "extended_id"),
-                (cg.bool_, "rtr"),
-                (_FRAME_DATA.operator("const").operator("ref"), "data"),
+            params=[(CanFrame.operator("const").operator("ref"), "frame")],
+            forward=[
+                f"{automation.parent_ref(var)}->frame_payload(frame)",
+                "frame.can_id",
+                "frame.remote_transmission_request",
             ],
-            forward=["data", "can_id", "rtr"],
             when=" && ".join(checks),
         )
 
