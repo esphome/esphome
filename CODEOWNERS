@@ -724,6 +724,7 @@ esphome/components/veml6040/* @aalaei
 esphome/components/veml7700/* @latonita
 esphome/components/version/* @esphome/core
 esphome/components/vevor_dtx/* @Bofr5555
+esphome/components/virtual_uart/* @Bascht74
 esphome/components/vl53l1x/* @will-tm
 esphome/components/vnc/* @MindFreeze
 esphome/components/voice_assistant/* @jesserockz @kahrendt
