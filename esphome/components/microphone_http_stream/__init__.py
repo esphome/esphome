@@ -3,7 +3,7 @@
 import re
 
 import esphome.codegen as cg
-from esphome.components import microphone, psram, web_server_base
+from esphome.components import microphone, network, psram, web_server_base
 from esphome.components.web_server_base import CONF_WEB_SERVER_BASE_ID
 import esphome.config_validation as cv
 from esphome.const import CONF_DISABLED, CONF_ID, CONF_MICROPHONE, CONF_SOURCE
@@ -51,6 +51,9 @@ def stream_id_from_microphone_id(microphone_id: str) -> str:
 
 def _register_httpd_clients(config: ConfigType) -> ConfigType:
     web_server_base.add_httpd_clients(config[CONF_MAX_CLIENTS], DOMAIN)
+    # The default 5.7 KB TCP send buffer carries less than a mono stream over Wi-Fi, so streams end with
+    # buffer_full; ask for the larger buffers (network: enable_high_performance: false undoes it)
+    network.require_high_performance_networking()
     return config
 
 

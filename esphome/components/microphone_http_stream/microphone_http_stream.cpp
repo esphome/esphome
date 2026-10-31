@@ -8,6 +8,10 @@
 #include <cstdio>
 #include <sys/socket.h>
 
+#ifdef USE_PSRAM
+#include <esp_heap_caps.h>
+#endif
+
 namespace esphome::microphone_http_stream {
 
 ESPHOME_LOG_TAG(TAG, "microphone_http_stream");
@@ -19,9 +23,16 @@ static constexpr char CRLF[] = "\r\n";
 static constexpr char LAST_CHUNK[] = "0\r\n\r\n";
 
 void MicrophoneHttpStream::setup() {
+  bool large_ring = this->max_clients_ > 1;
+#ifdef USE_PSRAM
+  // With PSRAM one client also gets the large ring, so it rides out Wi-Fi pauses of several seconds
+  large_ring |= heap_caps_get_total_size(MALLOC_CAP_SPIRAM) > 0;
+#endif
+  if (large_ring)
+    this->ring_size_ = MULTI_RING_SIZE;
   for (size_t i = 0; i < this->max_clients_; ++i) {
     auto &client = this->clients_[i];
-    client.ring = ring_buffer::RingBuffer::create(this->ring_size_());
+    client.ring = ring_buffer::RingBuffer::create(this->ring_size_);
     if (client.ring == nullptr) {
       this->fail_setup_(LOG_STR("Cannot allocate microphone audio buffers"));
       return;
@@ -51,7 +62,7 @@ void MicrophoneHttpStream::dump_config() {
                 "Microphone HTTP Stream:\n  ID: %s\n  Format: S16LE mono, %" PRIu32
                 " Hz\n  Path: %s\n  Maximum clients: %u\n  Buffer per client: %u B",
                 this->stream_id_(), this->source_->get_audio_stream_info().get_sample_rate(),
-                this->stream_path_.c_str(), this->max_clients_, static_cast<unsigned>(this->ring_size_()));
+                this->stream_path_.c_str(), this->max_clients_, static_cast<unsigned>(this->ring_size_));
 }
 
 bool MicrophoneHttpStream::canHandle(AsyncWebServerRequest *request) const {
@@ -287,7 +298,7 @@ void MicrophoneHttpStream::write_audio_(ClientSlot *client, std::span<const uint
     return;
   }
 #if defined(USE_LOGGER) && defined(ESPHOME_LOG_HAS_DEBUG)
-  const uint32_t filled = this->ring_size_() - client->ring->free();
+  const uint32_t filled = this->ring_size_ - client->ring->free();
   if (filled > client->peak_ring_used.load(std::memory_order_relaxed))
     client->peak_ring_used.store(filled, std::memory_order_relaxed);
 #endif

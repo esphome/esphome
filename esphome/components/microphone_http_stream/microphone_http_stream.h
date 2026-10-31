@@ -101,7 +101,6 @@ class MicrophoneHttpStream final : public Component, public AsyncWebHandler {
   void fail_setup_(const LogString *reason);
   void register_handler_();
   const char *stream_id_() const { return this->stream_path_.c_str() + STREAM_PATH_PREFIX_LEN; }
-  size_t ring_size_() const { return this->max_clients_ == 1 ? SINGLE_RING_SIZE : MULTI_RING_SIZE; }
   unsigned client_index_(const ClientSlot *client) const {
     return static_cast<unsigned>(client - this->clients_.data());
   }
@@ -109,6 +108,7 @@ class MicrophoneHttpStream final : public Component, public AsyncWebHandler {
   microphone::MicrophoneSource *source_;
   web_server_base::WebServerBase *base_;
   StringRef stream_path_;
+  uint32_t ring_size_{SINGLE_RING_SIZE};  // Set in setup()
   uint8_t max_clients_;
 
   std::array<ClientSlot, MAX_CLIENTS> clients_{};
