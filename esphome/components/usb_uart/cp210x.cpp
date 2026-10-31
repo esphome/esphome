@@ -2,6 +2,7 @@
     defined(USE_ESP32_VARIANT_ESP32S31) || defined(USE_ESP32_VARIANT_ESP32H4)
 #include "usb_uart.h"
 #include "usb/usb_host.h"
+#include "esphome/core/helpers.h"
 #include "esphome/core/log.h"
 
 #include "esphome/components/bytebuffer/bytebuffer.h"
@@ -172,7 +173,7 @@ bool USBUartTypeCP210X::config_device_step(uint8_t step, bool ok, const uint8_t 
     case 2: {
       if (!ok)
         return false;
-      const uint32_t version = (response[0] << 16) | (response[1] << 8) | response[2];
+      const uint32_t version = encode_uint24(response[0], response[1], response[2]);
       ESP_LOGD(TAG, "CP2102N firmware %u.%u.%u", response[0], response[1], response[2]);
       this->no_flow_control_ = version <= CP2102N_LAST_FW_WITHOUT_FLOW_CONTROL;
       if (this->no_flow_control_) {
