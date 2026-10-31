@@ -533,3 +533,14 @@ light:
     default_transition_length: 1s
     segments:
       - single_light_id: test_rgb_light
+
+# Field lambdas take the script arguments by value, so they may modify them
+script:
+  - id: light_lambda_args
+    parameters:
+      x: float
+    then:
+      - light.turn_on:
+          id: test_monochromatic_light
+          brightness: !lambda "x *= 0.5f; return x;"
+          transition_length: !lambda "return x *= 1000.0f;"

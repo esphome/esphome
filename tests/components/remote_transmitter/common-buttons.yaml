@@ -1059,3 +1059,15 @@ button:
       - remote_transmitter.transmit_raw:
           code: [1000, -1000]
           carrier_frequency: !lambda return 38000;
+
+# Field lambdas take the script arguments by value, so they may modify them
+script:
+  - id: remote_transmitter_nec_lambda_args
+    parameters:
+      x: int
+    then:
+      - remote_transmitter.transmit_nec:
+          address: !lambda "x *= 2; return x;"
+          command: !lambda "return x *= 2;"
+          repeat:
+            times: !lambda "return x *= 2;"
