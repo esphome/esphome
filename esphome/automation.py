@@ -1624,12 +1624,16 @@ def _check_collected(
 ) -> None:
     """Returning anything else would silently drop the collected item from the firmware."""
     if (result is _COLLECTED_ACTION) != (collector.action is not None):
-        # The id is usually generated, so only the registry key tells the author where to look
-        name = next(key for key in full_config if key != CONF_TYPE_ID)
         raise EsphomeError(
-            f"The builder of '{name}' ({collector.action_id}) must return the result of "
+            f"The builder of {_builder_name(full_config)} must return the result of "
             "its apply builder unchanged"
         )
+
+
+def _builder_name(full_config: ConfigType) -> str:
+    """For an error: the id is usually generated, so the registry key tells the author where to look."""
+    name = next(key for key in full_config if key != CONF_TYPE_ID)
+    return f"'{name}' ({full_config[CONF_TYPE_ID]})"
 
 
 async def _build_condition_or_inline(
@@ -1650,6 +1654,11 @@ async def _build_condition_or_inline(
         return condition
     collected = collector.action
     # One statement: ``return <check>;`` from a builder, or a lambda call with its ``;``
+    if len(collected.statements) != 1:
+        raise EsphomeError(
+            f"The condition {_builder_name(full_config)} must generate one statement, "
+            f"not {len(collected.statements)}"
+        )
     expression = collected.statements[0].removeprefix("return ").removesuffix(";")
     return _InlineCondition(expression, collected.emit)
 
@@ -1661,11 +1670,12 @@ def _emit_inline_run(
 ) -> MockObj:
     """Emit one object for adjacent inline actions.
 
-    A single action with no stop checks is emitted as if never collected; control flow always has them.
+    A single action is emitted as if never collected, unless it is control flow, which has no
+    other form once collected.
     """
-    statements = _run_statements(run)
-    if _STOP_CHECK not in statements:
+    if len(run) == 1 and run[0].emit is not None:
         return run[0].emit()
+    statements = _run_statements(run)
     id_ = run[0].id_.copy()
     id_.type = ApplyRunAction
     fn = apply_static_function(

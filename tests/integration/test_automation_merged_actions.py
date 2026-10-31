@@ -30,8 +30,6 @@ async def test_automation_merged_actions(
         _, services = await client.list_entities_services()
         service: dict[str, UserService] = {s.name: s for s in services}
 
-        # Automations that run directly from the callback get their arguments, in order,
-        # and the on and off filters still apply.
         # Conditions, branches and loops with inline bodies choose the same paths
         for value, branch, choice in (
             (5, "then", "small"),
@@ -84,6 +82,8 @@ async def test_automation_merged_actions(
         assert count("WHILE_REENTER after while") == 2
         assert count("WHILE_REENTER running 0") == 1
 
+        # Automations that run directly from the callback get their arguments, in order,
+        # and the on and off filters still apply.
         # The switch also publishes its state at boot, so only later lines count.
         boot_lines = len(waiter.lines)
         await client.execute_service(service["run_direct"], {})

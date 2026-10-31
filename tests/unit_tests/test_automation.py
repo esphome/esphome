@@ -2639,6 +2639,41 @@ async def test_condition_builder_must_return_collected_condition() -> None:
 
 
 @pytest.mark.asyncio
+@pytest.mark.usefixtures("apply_actions")
+async def test_condition_must_generate_one_statement() -> None:
+    """Only one statement can become an expression; the rest must not be lost."""
+    conditions = Registry()
+    with patch("esphome.automation.CONDITION_REGISTRY", conditions):
+
+        @register_condition("my.two", ApplyCondition, {})
+        async def two_to_code(
+            config: ConfigType,
+            condition_id: ID,
+            template_arg: cg.TemplateArguments,
+            args: list[tuple[object, str]],
+        ) -> MockObj:
+            return apply_statements_action(
+                condition_id, template_arg, args, ["first();", "return second();"]
+            )
+
+        condition = {
+            "my.two": {},
+            CONF_TYPE_ID: ID(
+                "cond", is_declaration=True, type=ApplyCondition, is_manual=False
+            ),
+        }
+
+        with pytest.raises(
+            EsphomeError, match=r"'my\.two' \(cond\) must generate one statement, not 2"
+        ):
+            await build_action_list(
+                [_if_action(_action("my.a", "act_a"), condition=condition)],
+                TEMPLATE_ARG,
+                [],
+            )
+
+
+@pytest.mark.asyncio
 async def test_condition_group_outside_control_flow_is_an_object() -> None:
     """A group built on its own, as ``wait_until`` does, stays an object with its children."""
     CORE.config = {}
