@@ -8,8 +8,6 @@ namespace esphome::ld6004::testing {
 namespace {
 
 constexpr uint32_t CMD_GET_WORK_MODE = 0x18;
-// SOF, id, length, type and header checksum come before the payload.
-constexpr size_t PAYLOAD_OFFSET = ld600x::TF_HEADER_LEN + 2;
 
 }  // namespace
 
@@ -18,25 +16,11 @@ class LD6004TextSensorTest : public LD6004Test {
  protected:
   void configure_() override { this->sut_.set_work_mode_text_sensor(&this->work_mode_); }
 
-  /// ACK every boot command in turn and return the control codes that were sent.
-  std::vector<uint32_t> drain_controls_() {
-    std::vector<uint32_t> controls;
-    for (int i = 0; i < 32 && this->uart_.tx.size() >= ld600x::TF_FRAME_OVERHEAD; i++) {
-      const uint16_t type = encode_uint16(this->uart_.tx[5], this->uart_.tx[6]);
-      if (type == TYPE_CONTROL && this->uart_.tx.size() >= PAYLOAD_OFFSET + 4)
-        controls.push_back(encode_value_le<uint32_t>(&this->uart_.tx[PAYLOAD_OFFSET]));
-      this->uart_.tx.clear();
-      this->feed_(ack(type));
-    }
-    EXPECT_TRUE(this->uart_.tx.empty());
-    return controls;
-  }
-
   text_sensor::TextSensor work_mode_;
 };
 
 TEST_F(LD6004TextSensorTest, TextSensorAloneQueriesWorkModeAtBoot) {
-  const auto controls = this->drain_controls_();
+  const auto controls = this->drain_commands_();
   EXPECT_EQ(std::count(controls.begin(), controls.end(), CMD_GET_WORK_MODE), 1);
   // The text sensor reads no target reports, so the target stream stays off.
   EXPECT_EQ(std::count(controls.begin(), controls.end(), CMD_TARGET_DISPLAY_ON), 0);
