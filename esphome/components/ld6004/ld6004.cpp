@@ -64,20 +64,13 @@ bool LD6004Component::handle_model_report(uint16_t type, const uint8_t *data, ui
       PUBLISH_STATE(this->work_mode_select_, mode);
 #endif
 #ifdef USE_TEXT_SENSOR
-      // The LD6004 has five modes, so the text sensor follows this report instead of the base's
-      // two-state fallback, which is disarmed by marking the mode as reported.
-      if (this->work_mode_text_sensor_ != nullptr) {
-        this->work_mode_reported_ = true;
+      if (this->work_mode_text_sensor_ != nullptr)
         this->work_mode_text_sensor_->publish_state(WorkModeStrings::get_progmem_str(static_cast<uint8_t>(mode), 0));
-      }
 #endif
-      this->low_power_enabled_ = mode == 1;
-      this->low_power_reported_ = true;
       return true;
     }
     case TYPE_REPORT_WORK_STATUS:
-      // 0x0A14 marks the unattended low-power transition. The base would also publish it as a
-      // two-state work mode; here only its presence side effect is kept.
+      // 0x0A14 marks the unattended low-power transition; a zero means nobody is in any area.
       if (len >= 1 && data[0] == 0 && !this->target_presence_any_)
         this->clear_area_presence_();
       return true;
@@ -155,8 +148,8 @@ void LD6004Component::setup_model() {
     this->send_control_command_(CMD_GET_P20_MODE);
 #endif
 #ifdef USE_TEXT_SENSOR
-  // The text sensor follows the 0x0A12 report instead of the base's fallback, so it needs the
-  // same boot query as the select to show a mode before the module next changes it.
+  // The text sensor follows the 0x0A12 report too, so it needs the same boot query as the select
+  // to show a mode before the module next changes it.
   want_work_mode = want_work_mode || this->work_mode_text_sensor_ != nullptr;
 #endif
   if (want_work_mode)
