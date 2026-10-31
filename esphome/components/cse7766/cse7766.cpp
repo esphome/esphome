@@ -28,30 +28,23 @@ void CSE7766Component::loop() {
 
   // Read all available bytes in batches to reduce UART call overhead.
   // At 4800 baud (~480 bytes/sec) with ~122 Hz loop rate, typically ~4 bytes per call.
-  uint8_t buf[CSE7766_RAW_DATA_SIZE];
-  while (avail > 0) {
-    size_t to_read = std::min(avail, sizeof(buf));
-    if (!this->read_array(buf, to_read)) {
-      break;
-    }
-    avail -= to_read;
+  this->read_available<CSE7766_RAW_DATA_SIZE>(
+      [this](uint8_t byte) {
+        this->raw_data_[this->raw_data_index_] = byte;
+        if (!this->check_byte_()) {
+          this->raw_data_index_ = 0;
+          this->status_set_warning();
+          return;
+        }
 
-    for (size_t i = 0; i < to_read; i++) {
-      this->raw_data_[this->raw_data_index_] = buf[i];
-      if (!this->check_byte_()) {
-        this->raw_data_index_ = 0;
-        this->status_set_warning();
-        continue;
-      }
+        if (this->raw_data_index_ == CSE7766_RAW_DATA_SIZE - 1) {
+          this->parse_data_();
+          this->status_clear_warning();
+        }
 
-      if (this->raw_data_index_ == CSE7766_RAW_DATA_SIZE - 1) {
-        this->parse_data_();
-        this->status_clear_warning();
-      }
-
-      this->raw_data_index_ = (this->raw_data_index_ + 1) % CSE7766_RAW_DATA_SIZE;
-    }
-  }
+        this->raw_data_index_ = (this->raw_data_index_ + 1) % CSE7766_RAW_DATA_SIZE;
+      },
+      avail);
 }
 
 bool CSE7766Component::check_byte_() {
@@ -136,9 +129,7 @@ void CSE7766Component::parse_data_() {
   float voltage = 0.0f;
   if (have_voltage) {
     voltage = voltage_coeff / float(voltage_cycle);
-    if (this->voltage_sensor_ != nullptr) {
-      this->voltage_sensor_->publish_state(voltage);
-    }
+    PUBLISH_STATE(this->voltage_sensor_, voltage);
   }
 
   float energy = 0.0;
@@ -158,15 +149,11 @@ void CSE7766Component::parse_data_() {
     // Datasheet: power cycle exceeding range means active power is 0
     have_power = true;
     this->last_power_cycle_ = 0;
-    if (this->power_sensor_ != nullptr) {
-      this->power_sensor_->publish_state(0.0f);
-    }
+    PUBLISH_STATE(this->power_sensor_, 0.0f);
   } else if (have_power) {
     power = power_coeff / float(power_cycle);
     this->last_power_cycle_ = power_cycle;
-    if (this->power_sensor_ != nullptr) {
-      this->power_sensor_->publish_state(power);
-    }
+    PUBLISH_STATE(this->power_sensor_, power);
   } else if (this->last_power_cycle_ > MIN_HELD_POWER_CYCLE && power_cycle <= 2 * this->last_power_cycle_) {
     // No new measurement in this frame. With cycles over 1 s the register holds the last
     // cycle or the time elapsed since the last pulse. While that time is within twice the
@@ -174,16 +161,12 @@ void CSE7766Component::parse_data_() {
     // Shorter cycles never get here in normal operation and keep the previous behaviour.
     have_power = true;
     power = power_coeff / float(this->last_power_cycle_);
-    if (this->power_sensor_ != nullptr) {
-      this->power_sensor_->publish_state(power);
-    }
+    PUBLISH_STATE(this->power_sensor_, power);
   } else {
     // The next pulse is overdue: the load has dropped, report 0 W. A load that drops to less
     // than half also reads 0 W here until its first new pulse arrives.
     this->last_power_cycle_ = 0;
-    if (this->power_sensor_ != nullptr) {
-      this->power_sensor_->publish_state(0.0f);
-    }
+    PUBLISH_STATE(this->power_sensor_, 0.0f);
   }
 
   float current = 0.0f;
@@ -197,16 +180,12 @@ void CSE7766Component::parse_data_() {
     if (calculated_current > 0.05f) {
       current = current_coeff / float(current_cycle);
     }
-    if (this->current_sensor_ != nullptr) {
-      this->current_sensor_->publish_state(current);
-    }
+    PUBLISH_STATE(this->current_sensor_, current);
   }
 
   if (have_voltage && have_current) {
     const float apparent_power = voltage * current;
-    if (this->apparent_power_sensor_ != nullptr) {
-      this->apparent_power_sensor_->publish_state(apparent_power);
-    }
+    PUBLISH_STATE(this->apparent_power_sensor_, apparent_power);
     if (have_power && this->reactive_power_sensor_ != nullptr) {
       const float q_squared = apparent_power * apparent_power - power * power;
       if (q_squared < 0.0f) {

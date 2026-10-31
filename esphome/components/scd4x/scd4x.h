@@ -15,6 +15,10 @@ enum MeasurementMode : uint8_t {
 };
 
 class SCD4XComponent final : public PollingComponent, public sensirion_common::SensirionI2CDevice {
+  SUB_SENSOR(co2)
+  SUB_SENSOR(temperature)
+  SUB_SENSOR(humidity)
+
  public:
   void setup() override;
   void dump_config() override;
@@ -26,9 +30,6 @@ class SCD4XComponent final : public PollingComponent, public sensirion_common::S
   void set_ambient_pressure_source(sensor::Sensor *pressure) { ambient_pressure_source_ = pressure; }
   void set_temperature_offset(float offset) { temperature_offset_ = offset; };
 
-  void set_co2_sensor(sensor::Sensor *co2) { co2_sensor_ = co2; }
-  void set_temperature_sensor(sensor::Sensor *temperature) { temperature_sensor_ = temperature; };
-  void set_humidity_sensor(sensor::Sensor *humidity) { humidity_sensor_ = humidity; }
   void set_measurement_mode(MeasurementMode mode) { measurement_mode_ = mode; }
   bool perform_forced_calibration(uint16_t current_co2_concentration);
   bool factory_reset();
@@ -37,9 +38,6 @@ class SCD4XComponent final : public PollingComponent, public sensirion_common::S
   bool update_ambient_pressure_compensation_(uint16_t pressure_in_hpa);
   bool start_measurement_();
 
-  sensor::Sensor *co2_sensor_{nullptr};
-  sensor::Sensor *temperature_sensor_{nullptr};
-  sensor::Sensor *humidity_sensor_{nullptr};
   sensor::Sensor *ambient_pressure_source_{nullptr};  // used for compensation
   float temperature_offset_;
   uint16_t altitude_compensation_{0};

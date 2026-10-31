@@ -251,6 +251,13 @@ async def add_variable(
     return var
 
 
+def add_optional[T](setter: Callable[[T], Expression], value: T | None) -> T | None:
+    """Pass ``value`` to ``setter`` and return it; skip None."""
+    if value is not None:
+        add(setter(value))
+    return value
+
+
 def set_setup_priority(var, priority: float) -> None:
     """Emit a setup-priority override for the given component.
 
@@ -363,6 +370,31 @@ async def build_registry_list(registry, config):
         action = await build_registry_entry(registry, conf)
         actions.append(action)
     return actions
+
+
+async def build_registry_list_merged(
+    registry: Registry,
+    config: list[ConfigType],
+    merge: Callable[[ConfigType, ConfigType], tuple[Any, list] | None],
+) -> list[MockObj]:
+    """Like build_registry_list, but two neighbouring entries that ``merge`` accepts are built as one Component.
+
+    ``merge(first, second)`` returns the merged class and its constructor arguments, or None.
+    """
+    built = []
+    i = 0
+    while i < len(config):
+        if i + 1 < len(config) and (merged := merge(config[i], config[i + 1])):
+            type_id = config[i][CONF_TYPE_ID].copy()
+            type_id.type, args = merged
+            var = new_Pvariable(type_id, *args)
+            await register_component(var, {})
+            built.append(var)
+            i += 2
+            continue
+        built.append(await build_registry_entry(registry, config[i]))
+        i += 1
+    return built
 
 
 async def past_safe_mode():

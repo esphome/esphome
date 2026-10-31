@@ -2,8 +2,23 @@
 
 from collections.abc import Callable
 from pathlib import Path
+import re
+from types import ModuleType
 
-from esphome.core import CORE
+import pytest
+
+from esphome import config_validation as cv
+from esphome.components import output
+from esphome.components.lp5562 import output as lp5562_output
+from esphome.components.mcp4461 import output as mcp4461_output
+from esphome.components.mcp4728 import output as mcp4728_output
+from esphome.components.pca9685 import output as pca9685_output
+from esphome.components.sm2135 import output as sm2135_output
+from esphome.config import Config, read_config
+from esphome.const import CONF_CHANNEL, CONF_PIN, CONF_PLATFORM, PlatformFramework
+from esphome.core import CORE, ID
+
+from ..types import SetCoreConfigCallable
 
 
 def test_default_power_limits_are_not_emitted(
@@ -29,3 +44,91 @@ def test_default_min_power_keeps_scaling_fields(
 
     assert "dimmer->set_min_power(" not in main_cpp
     assert "USE_OUTPUT_FLOAT_POWER_SCALING" in {d.name for d in CORE.defines}
+
+
+def test_duplicate_hub_channel_is_rejected(
+    component_config_path: Callable[[str], Path],
+    capsys: pytest.CaptureFixture[str],
+) -> None:
+    """Two outputs on one hub channel would overwrite each other's value."""
+    CORE.config_path = component_config_path("pca9685_duplicate_channel.yaml")
+    assert read_config({}) is None
+    assert "Channel '0' of 'pwm_a' is already used by another output" in (
+        capsys.readouterr().out
+    )
+
+
+def _entries(platform: str, hub_key: str, *hub_channels: tuple[str, object]) -> list:
+    return [
+        {CONF_PLATFORM: platform, hub_key: ID(hub), CONF_CHANNEL: channel}
+        for hub, channel in hub_channels
+    ]
+
+
+@pytest.mark.parametrize(
+    ("module", "platform", "hub_key", "channel", "other"),
+    [
+        (pca9685_output, "pca9685", "pca9685_id", 3, 4),
+        (mcp4728_output, "mcp4728", "mcp4728_id", "A", "B"),
+        (mcp4461_output, "mcp4461", "mcp4461_id", "A", "E"),
+        (sm2135_output, "sm2135", "sm2135_id", 1, 2),
+        (lp5562_output, "lp5562", "lp5562_id", "red", "blue"),
+    ],
+)
+def test_hub_channel_must_be_unique(
+    set_core_config: SetCoreConfigCallable,
+    module: ModuleType,
+    platform: str,
+    hub_key: str,
+    channel: object,
+    other: object,
+) -> None:
+    """Each channel of a hub takes one output; another hub or channel is fine."""
+    entries = _entries(
+        platform, hub_key, ("a", channel), ("a", other), ("b", channel), ("a", channel)
+    )
+    full = Config()
+    full["output"] = entries
+    set_core_config(PlatformFramework.ESP32_IDF, full_config=full)
+    for entry in entries[1:3]:
+        module.FINAL_VALIDATE_SCHEMA(entry)
+    with pytest.raises(cv.Invalid, match=f"Channel '{channel}' of 'a' is already used"):
+        module.FINAL_VALIDATE_SCHEMA(entries[3])
+
+
+def test_output_button_presses_through_shared_helper(
+    generate_main: Callable[[str | Path], str],
+    component_config_path: Callable[[str], Path],
+) -> None:
+    """Each output button is an ApplyButton calling the helper with its output and duration."""
+    main_cpp = generate_main(component_config_path("output_button.yaml"))
+
+    fns = {
+        button_id: re.search(
+            rf"new\({button_id}\) button::ApplyButton<(\w+)>\(\);", main_cpp
+        ).group(1)
+        for button_id in ("pulse_a", "pulse_b", "pulse_long")
+    }
+    # Equal output and duration share one generated function
+    assert fns["pulse_a"] == fns["pulse_b"] != fns["pulse_long"]
+    for button_id, duration in (("pulse_a", 500), ("pulse_long", 2000)):
+        assert (
+            f"static void {fns[button_id]}(button::Button * entity) {{\n"
+            f"  output::press_output_button(entity, ::relay, {duration});\n}}"
+        ) in main_cpp
+
+
+def test_hub_channel_key_can_be_renamed(set_core_config: SetCoreConfigCallable) -> None:
+    """A hub that names its channel `pin` passes channel_key and gets the same check."""
+    validate = output.final_validate_unique_channel(
+        platform="fake", hub_key="fake_id", channel_key=CONF_PIN
+    )
+    entries = [
+        {CONF_PLATFORM: "fake", "fake_id": ID("a"), CONF_PIN: pin} for pin in (3, 4, 3)
+    ]
+    full = Config()
+    full["output"] = entries
+    set_core_config(PlatformFramework.ESP32_IDF, full_config=full)
+    validate(entries[1])
+    with pytest.raises(cv.Invalid, match="Pin '3' of 'a' is already used"):
+        validate(entries[2])

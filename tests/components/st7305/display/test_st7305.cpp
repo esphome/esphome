@@ -108,9 +108,23 @@ TEST_F(ST7305Test, WindowAlignsToAddressBlocks) {
   EXPECT_EQ(window.outer_end, 0);
   EXPECT_EQ(window.block_start, 0);
   EXPECT_EQ(window.block_end, 2);
-  EXPECT_EQ(window.caset_start, 0x12);
-  EXPECT_EQ(window.caset_end, 0x12);
+  EXPECT_EQ(window.caset_start, 0x2A);
+  EXPECT_EQ(window.caset_end, 0x2A);
   EXPECT_EQ(window.data_length(), 3u);
+
+  // A window spanning several bands is addressed from the far end of the column range.
+  this->reset_screen_();
+  this->display_.draw_pixel_at(100, 85, Color::WHITE);
+  this->display_.draw_pixel_at(368, 293, Color::WHITE);
+
+  const auto bands = this->display_.compute_window();
+  EXPECT_EQ(bands.outer_start, 50);
+  EXPECT_EQ(bands.outer_end, 184);
+  EXPECT_EQ(bands.block_start, 0);
+  EXPECT_EQ(bands.block_end, 53);
+  EXPECT_EQ(bands.caset_start, 0x19);
+  EXPECT_EQ(bands.caset_end, 0x2A);
+  EXPECT_EQ(bands.data_length(), 135u * 54u);
 
   this->reset_screen_();
   this->display_.draw_pixel_at(200, 150, Color::WHITE);

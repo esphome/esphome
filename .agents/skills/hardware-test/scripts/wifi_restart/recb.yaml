@@ -1,0 +1,13 @@
+# CB3S (BK7231N) DUT, flashed over the air by run.sh; its log port is UART1 (TX1)
+substitutions:
+  name: recb
+  ip: 10.40.0.22
+
+packages:
+  common: !include re-common.yaml
+
+bk72xx:
+  board: cb3s
+
+logger:
+  hardware_uart: UART1

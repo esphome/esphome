@@ -3,6 +3,7 @@
 #include <gmock/gmock.h>
 #include <gtest/gtest.h>
 #include <algorithm>
+#include <array>
 #include <cstdint>
 #include <initializer_list>
 #include <vector>
@@ -35,13 +36,53 @@ class MockUARTComponent : public uart::UARTComponent {
 
   size_t available() override { return this->rx.size(); }
 
-  MOCK_METHOD(bool, peek_byte, (uint8_t * data), (override));
+  MOCK_METHOD(bool, peek_byte, (uint8_t *data), (override));
   MOCK_METHOD(uart::UARTFlushResult, flush, (), (override));
   MOCK_METHOD(void, check_logger_conflict, (), (override));
 #if defined(USE_ESP8266) || defined(USE_ESP32)
   void load_settings(bool dump_config) override {}
 #endif  // defined(USE_ESP8266) || defined(USE_ESP32)
 };
+
+// Appends a frame and its checksum to the RX buffer.
+template<std::size_t N> inline void push_frame(MockUARTComponent &uart, const std::array<uint8_t, N> &frame) {
+  uart.rx.insert(uart.rx.end(), frame.begin(), frame.end());
+  uint8_t sum = 0;
+  for (const uint8_t value : frame) {
+    sum += value;
+  }
+  uart.rx.push_back(static_cast<uint8_t>(0xFC - sum));
+}
+
+// Raw 0x02 mode bytes.
+static constexpr uint8_t RAW_MODE_HEAT = 0x01;
+static constexpr uint8_t RAW_MODE_COOL = 0x03;
+static constexpr uint8_t RAW_MODE_AUTO = 0x08;
+
+// 0x02 settings: target 24°C (encoding A), fan auto, vane position 4, wide vane swing.
+inline void push_settings_response(MockUARTComponent &uart, bool power_on = false, uint8_t raw_mode = RAW_MODE_AUTO) {
+  push_frame(uart, std::array<uint8_t, 21>{0xFC, 0x62, 0x01, 0x30, 0x10, 0x02, 0x00, 0x00, power_on, raw_mode, 0x07,
+                                           0x00, 0x04, 0x00, 0x00, 0x0C, 0x00, 0x00, 0x00, 0x00,     0x00});
+}
+
+// 0x03 room temperature, 21°C by default, in whole degrees.
+inline void push_room_temperature_response(MockUARTComponent &uart, uint8_t celsius = 21) {
+  std::array<uint8_t, 21> frame{0xFC, 0x62, 0x01, 0x30, 0x10, 0x03};
+  frame[8] = celsius - 10;
+  frame[11] = celsius * 2 + 128;
+  push_frame(uart, frame);
+}
+
+// 0x06 operating status.
+inline void push_operating_status_response(MockUARTComponent &uart, bool operating) {
+  push_frame(uart, std::array<uint8_t, 21>{0xFC, 0x62, 0x01, 0x30, 0x10, 0x06, 0x00, 0x00, 0x00, operating, 0x00,
+                                           0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00});
+}
+
+// Write settings acknowledgement.
+inline void push_write_settings_response(MockUARTComponent &uart) {
+  push_frame(uart, std::array<uint8_t, 21>{0xFC, 0x61, 0x01, 0x30, 0x10});
+}
 
 class TestableMitsubishiCN105 : public MitsubishiCN105 {
  public:
@@ -54,6 +95,7 @@ class TestableMitsubishiCN105 : public MitsubishiCN105 {
   using MitsubishiCN105::property_context_;
   using MitsubishiCN105::status_update_wait_credit_ms_;
   using MitsubishiCN105::pending_updates_;
+  using MitsubishiCN105::is_operating_status_unsupported_;
 
   void set_state(State s) { this->set_state_(s); }
   void apply_settings() { this->apply_settings_(); }
