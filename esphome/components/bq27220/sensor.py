@@ -7,12 +7,9 @@ from esphome.const import (
     CONF_CURRENT,
     CONF_TEMPERATURE,
     CONF_VOLTAGE,
-    DEVICE_CLASS_DURATION,
     ENTITY_CATEGORY_DIAGNOSTIC,
     ICON_BATTERY,
     STATE_CLASS_MEASUREMENT,
-    UNIT_MINUTE,
-    UNIT_PERCENT,
 )
 from esphome.types import ConfigType
 
@@ -66,16 +63,10 @@ CONFIG_SCHEMA = (
                 entity_category=ENTITY_CATEGORY_DIAGNOSTIC,
             ),
             cv.Optional(CONF_TIME_TO_EMPTY): sensor.sensor_schema(
-                unit_of_measurement=UNIT_MINUTE,
-                accuracy_decimals=0,
-                device_class=DEVICE_CLASS_DURATION,
-                state_class=STATE_CLASS_MEASUREMENT,
-                entity_category=ENTITY_CATEGORY_DIAGNOSTIC,
+                kind=sensor.DURATION_MIN, entity_category=ENTITY_CATEGORY_DIAGNOSTIC
             ),
             cv.Optional(CONF_STATE_OF_HEALTH): sensor.sensor_schema(
-                unit_of_measurement=UNIT_PERCENT,
-                accuracy_decimals=0,
-                state_class=STATE_CLASS_MEASUREMENT,
+                kind=sensor.PERCENT,
                 icon=ICON_BATTERY,
                 entity_category=ENTITY_CATEGORY_DIAGNOSTIC,
             ),

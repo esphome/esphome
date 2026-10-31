@@ -20,11 +20,8 @@ from esphome.const import (
     CONF_REACTIVE_POWER,
     CONF_REVERSE_ACTIVE_ENERGY,
     CONF_VOLTAGE,
-    DEVICE_CLASS_POWER_FACTOR,
     ENTITY_CATEGORY_DIAGNOSTIC,
     ICON_CURRENT_AC,
-    STATE_CLASS_MEASUREMENT,
-    UNIT_DEGREES,
 )
 from esphome.types import ConfigType
 
@@ -102,9 +99,7 @@ ATM90E32_PHASE_SCHEMA = cv.Schema(
             kind=sensor.APPARENT_POWER, accuracy_decimals=2
         ),
         cv.Optional(CONF_POWER_FACTOR): sensor.sensor_schema(
-            accuracy_decimals=2,
-            device_class=DEVICE_CLASS_POWER_FACTOR,
-            state_class=STATE_CLASS_MEASUREMENT,
+            kind=sensor.POWER_FACTOR, accuracy_decimals=2
         ),
         cv.Optional(CONF_FORWARD_ACTIVE_ENERGY): sensor.sensor_schema(
             kind=sensor.ENERGY_WH, accuracy_decimals=2
@@ -113,9 +108,7 @@ ATM90E32_PHASE_SCHEMA = cv.Schema(
             kind=sensor.ENERGY_WH, accuracy_decimals=2
         ),
         cv.Optional(CONF_PHASE_ANGLE): sensor.sensor_schema(
-            unit_of_measurement=UNIT_DEGREES,
-            accuracy_decimals=2,
-            state_class=STATE_CLASS_MEASUREMENT,
+            kind=sensor.ANGLE, accuracy_decimals=2
         ),
         cv.Optional(CONF_HARMONIC_POWER): sensor.sensor_schema(
             kind=sensor.POWER, accuracy_decimals=2

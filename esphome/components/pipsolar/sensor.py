@@ -6,8 +6,6 @@ from esphome.const import (
     CONF_BUS_VOLTAGE,
     ICON_CURRENT_AC,
     ICON_GAUGE,
-    STATE_CLASS_MEASUREMENT,
-    UNIT_PERCENT,
 )
 from esphome.types import ConfigType
 
@@ -161,10 +159,7 @@ TYPES = {
         kind=sensor.POWER, accuracy_decimals=0
     ),
     CONF_OUTPUT_LOAD_PERCENT: sensor.sensor_schema(
-        unit_of_measurement=UNIT_PERCENT,
-        icon=ICON_GAUGE,
-        accuracy_decimals=0,
-        state_class=STATE_CLASS_MEASUREMENT,
+        kind=sensor.PERCENT, icon=ICON_GAUGE
     ),
     CONF_BUS_VOLTAGE: sensor.sensor_schema(kind=sensor.VOLTAGE, accuracy_decimals=0),
     CONF_BATTERY_VOLTAGE: sensor.sensor_schema(

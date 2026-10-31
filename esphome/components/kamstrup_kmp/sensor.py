@@ -9,7 +9,6 @@ from esphome.const import (
     CONF_VOLUME,
     DEVICE_CLASS_EMPTY,
     DEVICE_CLASS_ENERGY,
-    DEVICE_CLASS_POWER,
     DEVICE_CLASS_TEMPERATURE,
     DEVICE_CLASS_VOLUME,
     DEVICE_CLASS_VOLUME_FLOW_RATE,
@@ -18,7 +17,6 @@ from esphome.const import (
     UNIT_CUBIC_METER,
     UNIT_EMPTY,
     UNIT_KELVIN,
-    UNIT_KILOWATT,
     UNIT_LITRE_PER_HOUR,
 )
 from esphome.types import ConfigType
@@ -49,12 +47,7 @@ CONFIG_SCHEMA = (
                 state_class=STATE_CLASS_TOTAL_INCREASING,
                 unit_of_measurement=UNIT_GIGA_JOULE,
             ),
-            cv.Optional(CONF_POWER): sensor.sensor_schema(
-                accuracy_decimals=3,
-                device_class=DEVICE_CLASS_POWER,
-                state_class=STATE_CLASS_MEASUREMENT,
-                unit_of_measurement=UNIT_KILOWATT,
-            ),
+            cv.Optional(CONF_POWER): sensor.sensor_schema(kind=sensor.POWER_KW),
             cv.Optional(CONF_TEMP1): sensor.sensor_schema(kind=sensor.TEMPERATURE),
             cv.Optional(CONF_TEMP2): sensor.sensor_schema(kind=sensor.TEMPERATURE),
             cv.Optional(CONF_TEMP_DIFF): sensor.sensor_schema(

@@ -15,7 +15,6 @@ from esphome.const import (
     ICON_GAS_CYLINDER,
     STATE_CLASS_MEASUREMENT,
     UNIT_HECTOPASCAL,
-    UNIT_OHM,
 )
 from esphome.types import ConfigType
 
@@ -71,10 +70,7 @@ CONFIG_SCHEMA = (
                 }
             ),
             cv.Optional(CONF_GAS_RESISTANCE): sensor.sensor_schema(
-                unit_of_measurement=UNIT_OHM,
-                icon=ICON_GAS_CYLINDER,
-                accuracy_decimals=1,
-                state_class=STATE_CLASS_MEASUREMENT,
+                kind=sensor.RESISTANCE, icon=ICON_GAS_CYLINDER, accuracy_decimals=1
             ),
             cv.Optional(CONF_IIR_FILTER, default="OFF"): cv.enum(
                 IIR_FILTER_OPTIONS, upper=True

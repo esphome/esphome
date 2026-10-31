@@ -18,13 +18,8 @@ from esphome.const import (
     CONF_REACTIVE_POWER,
     CONF_TOTAL_POWER,
     CONF_VOLTAGE,
-    DEVICE_CLASS_POWER_FACTOR,
     ICON_CURRENT_AC,
     ICON_FLASH,
-    STATE_CLASS_MEASUREMENT,
-    STATE_CLASS_TOTAL_INCREASING,
-    UNIT_DEGREES,
-    UNIT_KILOVOLT_AMPS_REACTIVE_HOURS,
 )
 from esphome.types import ConfigType
 
@@ -47,15 +42,10 @@ PHASE_SENSORS = {
         kind=sensor.REACTIVE_POWER, accuracy_decimals=2
     ),
     CONF_POWER_FACTOR: sensor.sensor_schema(
-        accuracy_decimals=3,
-        device_class=DEVICE_CLASS_POWER_FACTOR,
-        state_class=STATE_CLASS_MEASUREMENT,
+        kind=sensor.POWER_FACTOR, accuracy_decimals=3
     ),
     CONF_PHASE_ANGLE: sensor.sensor_schema(
-        unit_of_measurement=UNIT_DEGREES,
-        icon=ICON_FLASH,
-        accuracy_decimals=3,
-        state_class=STATE_CLASS_MEASUREMENT,
+        kind=sensor.ANGLE, icon=ICON_FLASH, accuracy_decimals=3
     ),
 }
 
@@ -83,14 +73,10 @@ CONFIG_SCHEMA = (
                 kind=sensor.ENERGY_KWH, accuracy_decimals=2
             ),
             cv.Optional(CONF_IMPORT_REACTIVE_ENERGY): sensor.sensor_schema(
-                unit_of_measurement=UNIT_KILOVOLT_AMPS_REACTIVE_HOURS,
-                accuracy_decimals=2,
-                state_class=STATE_CLASS_TOTAL_INCREASING,
+                kind=sensor.REACTIVE_ENERGY_KVARH, accuracy_decimals=2
             ),
             cv.Optional(CONF_EXPORT_REACTIVE_ENERGY): sensor.sensor_schema(
-                unit_of_measurement=UNIT_KILOVOLT_AMPS_REACTIVE_HOURS,
-                accuracy_decimals=2,
-                state_class=STATE_CLASS_TOTAL_INCREASING,
+                kind=sensor.REACTIVE_ENERGY_KVARH, accuracy_decimals=2
             ),
         }
     )

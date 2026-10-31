@@ -20,7 +20,6 @@ from esphome.const import (
     ICON_THERMOMETER,
     STATE_CLASS_MEASUREMENT,
     UNIT_HECTOPASCAL,
-    UNIT_OHM,
     UNIT_PARTS_PER_MILLION,
 )
 from esphome.cpp_generator import MockObj
@@ -64,10 +63,7 @@ CONFIG_SCHEMA = cv.Schema(
             {cv.Optional(CONF_SAMPLE_RATE): cv.enum(SAMPLE_RATE_OPTIONS, upper=True)}
         ),
         cv.Optional(CONF_GAS_RESISTANCE): sensor.sensor_schema(
-            unit_of_measurement=UNIT_OHM,
-            icon=ICON_GAS_CYLINDER,
-            accuracy_decimals=0,
-            state_class=STATE_CLASS_MEASUREMENT,
+            kind=sensor.RESISTANCE, icon=ICON_GAS_CYLINDER
         ),
         cv.Optional(CONF_IAQ): sensor.sensor_schema(
             unit_of_measurement=UNIT_IAQ,

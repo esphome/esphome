@@ -17,7 +17,6 @@ from esphome.const import (
     STATE_CLASS_MEASUREMENT,
     UNIT_EMPTY,
     UNIT_MILLIMETER,
-    UNIT_PERCENT,
 )
 from esphome.types import ConfigType
 
@@ -83,10 +82,7 @@ CONFIG_SCHEMA = cv.All(
                 kind=sensor.TEMPERATURE, icon=ICON_THERMOMETER, accuracy_decimals=0
             ),
             cv.Optional(CONF_LEVEL): sensor.sensor_schema(
-                unit_of_measurement=UNIT_PERCENT,
-                icon=ICON_PROPANE_TANK,
-                accuracy_decimals=0,
-                state_class=STATE_CLASS_MEASUREMENT,
+                kind=sensor.PERCENT, icon=ICON_PROPANE_TANK
             ),
             cv.Optional(CONF_DISTANCE): sensor.sensor_schema(
                 unit_of_measurement=UNIT_MILLIMETER,

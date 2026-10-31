@@ -10,7 +10,6 @@ from esphome.const import (
     DEVICE_CLASS_IRRADIANCE,
     STATE_CLASS_MEASUREMENT,
     UNIT_KELVIN,
-    UNIT_PERCENT,
 )
 import esphome.final_validate as fv
 from esphome.types import ConfigType
@@ -63,10 +62,7 @@ CONFIG_SCHEMA = cv.Schema(
             {cv.Optional(band): _BASIC_COUNTS_SENSOR for band in BANDS_43}
         ),
         cv.Optional(CONF_SATURATION_LEVEL): sensor.sensor_schema(
-            unit_of_measurement=UNIT_PERCENT,
-            icon=ICON_SATURATION,
-            accuracy_decimals=0,
-            state_class=STATE_CLASS_MEASUREMENT,
+            kind=sensor.PERCENT, icon=ICON_SATURATION
         ),
         cv.Optional(CONF_ILLUMINANCE): sensor.sensor_schema(
             kind=sensor.ILLUMINANCE, icon=ICON_ILLUMINANCE

@@ -17,7 +17,6 @@ from esphome.const import (
     ICON_THERMOMETER,
     STATE_CLASS_MEASUREMENT,
     UNIT_KELVIN,
-    UNIT_PERCENT,
 )
 from esphome.types import ConfigType
 
@@ -56,10 +55,7 @@ TCS34725Gain = tcs34725_ns.enum("TCS34725Gain")
 TCS34725_GAINS = TCS34725Gain.options("1X", "4X", "16X", "60X", prefix="TCS34725_GAIN_")
 
 color_channel_schema = sensor.sensor_schema(
-    unit_of_measurement=UNIT_PERCENT,
-    icon=ICON_LIGHTBULB,
-    accuracy_decimals=1,
-    state_class=STATE_CLASS_MEASUREMENT,
+    kind=sensor.PERCENT, icon=ICON_LIGHTBULB, accuracy_decimals=1
 )
 color_temperature_schema = sensor.sensor_schema(
     unit_of_measurement=UNIT_KELVIN,

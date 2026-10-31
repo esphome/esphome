@@ -13,7 +13,6 @@ from esphome.const import (
     ICON_WATER_PERCENT,
     STATE_CLASS_MEASUREMENT,
     UNIT_MICROSIEMENS_PER_CENTIMETER,
-    UNIT_PERCENT,
 )
 from esphome.types import ConfigType
 
@@ -34,10 +33,7 @@ CONFIG_SCHEMA = cv.All(
                 kind=sensor.TEMPERATURE
             ),
             cv.Optional(CONF_MOISTURE): sensor.sensor_schema(
-                unit_of_measurement=UNIT_PERCENT,
-                icon=ICON_WATER_PERCENT,
-                accuracy_decimals=0,
-                state_class=STATE_CLASS_MEASUREMENT,
+                kind=sensor.PERCENT, icon=ICON_WATER_PERCENT
             ),
             cv.Optional(CONF_ILLUMINANCE): sensor.sensor_schema(
                 kind=sensor.ILLUMINANCE

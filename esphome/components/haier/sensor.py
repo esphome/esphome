@@ -11,8 +11,6 @@ from esphome.const import (
     ICON_PULSE,
     ICON_THERMOMETER,
     ICON_WEATHER_WINDY,
-    STATE_CLASS_MEASUREMENT,
-    UNIT_PERCENT,
 )
 
 from .climate import CONF_HAIER_ID, HonClimate
@@ -46,10 +44,9 @@ SENSOR_TYPES = {
         entity_category=ENTITY_CATEGORY_DIAGNOSTIC,
     ),
     CONF_EXPANSION_VALVE_OPEN_DEGREE: sensor.sensor_schema(
-        unit_of_measurement=UNIT_PERCENT,
+        kind=sensor.PERCENT,
         icon=ICON_GAUGE,
         accuracy_decimals=2,
-        state_class=STATE_CLASS_MEASUREMENT,
         entity_category=ENTITY_CATEGORY_DIAGNOSTIC,
     ),
     CONF_HUMIDITY: sensor.sensor_schema(kind=sensor.HUMIDITY, accuracy_decimals=0),

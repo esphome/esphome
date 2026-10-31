@@ -9,8 +9,6 @@ from esphome.const import (
     CONF_POWER_FACTOR,
     CONF_VOLTAGE,
     CONF_VOLTAGE_DIVIDER,
-    DEVICE_CLASS_POWER_FACTOR,
-    STATE_CLASS_MEASUREMENT,
 )
 from esphome.types import ConfigType
 
@@ -36,9 +34,7 @@ CONFIG_SCHEMA = (
                 kind=sensor.APPARENT_POWER, accuracy_decimals=1
             ),
             cv.Optional(CONF_POWER_FACTOR): sensor.sensor_schema(
-                accuracy_decimals=2,
-                device_class=DEVICE_CLASS_POWER_FACTOR,
-                state_class=STATE_CLASS_MEASUREMENT,
+                kind=sensor.POWER_FACTOR, accuracy_decimals=2
             ),
             cv.Optional(CONF_CURRENT_RESISTOR, default=0.001): cv.resistance,
             cv.Optional(CONF_VOLTAGE_DIVIDER, default=1.720): cv.positive_float,

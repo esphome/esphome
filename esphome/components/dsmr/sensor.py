@@ -3,22 +3,12 @@ from esphome.components import sensor
 import esphome.config_validation as cv
 from esphome.const import (
     CONF_ID,
-    DEVICE_CLASS_APPARENT_POWER,
-    DEVICE_CLASS_DURATION,
     DEVICE_CLASS_ENERGY,
     DEVICE_CLASS_GAS,
-    DEVICE_CLASS_POWER,
-    DEVICE_CLASS_POWER_FACTOR,
-    DEVICE_CLASS_REACTIVE_POWER,
     DEVICE_CLASS_WATER,
     STATE_CLASS_MEASUREMENT,
     STATE_CLASS_TOTAL_INCREASING,
     UNIT_CUBIC_METER,
-    UNIT_KILOVOLT_AMPS,
-    UNIT_KILOVOLT_AMPS_REACTIVE,
-    UNIT_KILOVOLT_AMPS_REACTIVE_HOURS,
-    UNIT_KILOWATT,
-    UNIT_SECOND,
 )
 from esphome.types import ConfigType
 
@@ -78,74 +68,46 @@ CONFIG_SCHEMA = cv.Schema(
         ),
         # Reactive energy totals and per-quadrant (Q1-Q4) values (Switzerland, e.g. EWL Luzern AM550)
         cv.Optional("total_imported_energy_ch"): sensor.sensor_schema(
-            unit_of_measurement=UNIT_KILOVOLT_AMPS_REACTIVE_HOURS,
-            accuracy_decimals=3,
-            state_class=STATE_CLASS_TOTAL_INCREASING,
+            kind=sensor.REACTIVE_ENERGY_KVARH
         ),
         cv.Optional("total_exported_energy_ch"): sensor.sensor_schema(
-            unit_of_measurement=UNIT_KILOVOLT_AMPS_REACTIVE_HOURS,
-            accuracy_decimals=3,
-            state_class=STATE_CLASS_TOTAL_INCREASING,
+            kind=sensor.REACTIVE_ENERGY_KVARH
         ),
         cv.Optional("reactive_energy_q1_ch"): sensor.sensor_schema(
-            unit_of_measurement=UNIT_KILOVOLT_AMPS_REACTIVE_HOURS,
-            accuracy_decimals=3,
-            state_class=STATE_CLASS_TOTAL_INCREASING,
+            kind=sensor.REACTIVE_ENERGY_KVARH
         ),
         cv.Optional("reactive_energy_q1_tariff1_ch"): sensor.sensor_schema(
-            unit_of_measurement=UNIT_KILOVOLT_AMPS_REACTIVE_HOURS,
-            accuracy_decimals=3,
-            state_class=STATE_CLASS_TOTAL_INCREASING,
+            kind=sensor.REACTIVE_ENERGY_KVARH
         ),
         cv.Optional("reactive_energy_q1_tariff2_ch"): sensor.sensor_schema(
-            unit_of_measurement=UNIT_KILOVOLT_AMPS_REACTIVE_HOURS,
-            accuracy_decimals=3,
-            state_class=STATE_CLASS_TOTAL_INCREASING,
+            kind=sensor.REACTIVE_ENERGY_KVARH
         ),
         cv.Optional("reactive_energy_q2_ch"): sensor.sensor_schema(
-            unit_of_measurement=UNIT_KILOVOLT_AMPS_REACTIVE_HOURS,
-            accuracy_decimals=3,
-            state_class=STATE_CLASS_TOTAL_INCREASING,
+            kind=sensor.REACTIVE_ENERGY_KVARH
         ),
         cv.Optional("reactive_energy_q2_tariff1_ch"): sensor.sensor_schema(
-            unit_of_measurement=UNIT_KILOVOLT_AMPS_REACTIVE_HOURS,
-            accuracy_decimals=3,
-            state_class=STATE_CLASS_TOTAL_INCREASING,
+            kind=sensor.REACTIVE_ENERGY_KVARH
         ),
         cv.Optional("reactive_energy_q2_tariff2_ch"): sensor.sensor_schema(
-            unit_of_measurement=UNIT_KILOVOLT_AMPS_REACTIVE_HOURS,
-            accuracy_decimals=3,
-            state_class=STATE_CLASS_TOTAL_INCREASING,
+            kind=sensor.REACTIVE_ENERGY_KVARH
         ),
         cv.Optional("reactive_energy_q3_ch"): sensor.sensor_schema(
-            unit_of_measurement=UNIT_KILOVOLT_AMPS_REACTIVE_HOURS,
-            accuracy_decimals=3,
-            state_class=STATE_CLASS_TOTAL_INCREASING,
+            kind=sensor.REACTIVE_ENERGY_KVARH
         ),
         cv.Optional("reactive_energy_q3_tariff1_ch"): sensor.sensor_schema(
-            unit_of_measurement=UNIT_KILOVOLT_AMPS_REACTIVE_HOURS,
-            accuracy_decimals=3,
-            state_class=STATE_CLASS_TOTAL_INCREASING,
+            kind=sensor.REACTIVE_ENERGY_KVARH
         ),
         cv.Optional("reactive_energy_q3_tariff2_ch"): sensor.sensor_schema(
-            unit_of_measurement=UNIT_KILOVOLT_AMPS_REACTIVE_HOURS,
-            accuracy_decimals=3,
-            state_class=STATE_CLASS_TOTAL_INCREASING,
+            kind=sensor.REACTIVE_ENERGY_KVARH
         ),
         cv.Optional("reactive_energy_q4_ch"): sensor.sensor_schema(
-            unit_of_measurement=UNIT_KILOVOLT_AMPS_REACTIVE_HOURS,
-            accuracy_decimals=3,
-            state_class=STATE_CLASS_TOTAL_INCREASING,
+            kind=sensor.REACTIVE_ENERGY_KVARH
         ),
         cv.Optional("reactive_energy_q4_tariff1_ch"): sensor.sensor_schema(
-            unit_of_measurement=UNIT_KILOVOLT_AMPS_REACTIVE_HOURS,
-            accuracy_decimals=3,
-            state_class=STATE_CLASS_TOTAL_INCREASING,
+            kind=sensor.REACTIVE_ENERGY_KVARH
         ),
         cv.Optional("reactive_energy_q4_tariff2_ch"): sensor.sensor_schema(
-            unit_of_measurement=UNIT_KILOVOLT_AMPS_REACTIVE_HOURS,
-            accuracy_decimals=3,
-            state_class=STATE_CLASS_TOTAL_INCREASING,
+            kind=sensor.REACTIVE_ENERGY_KVARH
         ),
         cv.Optional("energy_delivered_tariff1_il"): sensor.sensor_schema(
             kind=sensor.ENERGY_KWH
@@ -166,181 +128,84 @@ CONFIG_SCHEMA = cv.Schema(
             kind=sensor.ENERGY_KWH
         ),
         cv.Optional("total_imported_energy"): sensor.sensor_schema(
-            unit_of_measurement=UNIT_KILOVOLT_AMPS_REACTIVE_HOURS,
-            accuracy_decimals=3,
-            state_class=STATE_CLASS_TOTAL_INCREASING,
+            kind=sensor.REACTIVE_ENERGY_KVARH
         ),
         cv.Optional("reactive_energy_delivered_tariff1"): sensor.sensor_schema(
-            unit_of_measurement=UNIT_KILOVOLT_AMPS_REACTIVE_HOURS,
-            accuracy_decimals=3,
-            state_class=STATE_CLASS_TOTAL_INCREASING,
+            kind=sensor.REACTIVE_ENERGY_KVARH
         ),
         cv.Optional("reactive_energy_delivered_tariff2"): sensor.sensor_schema(
-            unit_of_measurement=UNIT_KILOVOLT_AMPS_REACTIVE_HOURS,
-            accuracy_decimals=3,
-            state_class=STATE_CLASS_TOTAL_INCREASING,
+            kind=sensor.REACTIVE_ENERGY_KVARH
         ),
         cv.Optional("reactive_energy_delivered_tariff3"): sensor.sensor_schema(
-            unit_of_measurement=UNIT_KILOVOLT_AMPS_REACTIVE_HOURS,
-            accuracy_decimals=3,
-            state_class=STATE_CLASS_TOTAL_INCREASING,
+            kind=sensor.REACTIVE_ENERGY_KVARH
         ),
         cv.Optional("reactive_energy_delivered_tariff4"): sensor.sensor_schema(
-            unit_of_measurement=UNIT_KILOVOLT_AMPS_REACTIVE_HOURS,
-            accuracy_decimals=3,
-            state_class=STATE_CLASS_TOTAL_INCREASING,
+            kind=sensor.REACTIVE_ENERGY_KVARH
         ),
         cv.Optional("total_exported_energy"): sensor.sensor_schema(
-            unit_of_measurement=UNIT_KILOVOLT_AMPS_REACTIVE_HOURS,
-            accuracy_decimals=3,
-            state_class=STATE_CLASS_TOTAL_INCREASING,
+            kind=sensor.REACTIVE_ENERGY_KVARH
         ),
         cv.Optional("reactive_energy_returned_tariff1"): sensor.sensor_schema(
-            unit_of_measurement=UNIT_KILOVOLT_AMPS_REACTIVE_HOURS,
-            accuracy_decimals=3,
-            state_class=STATE_CLASS_TOTAL_INCREASING,
+            kind=sensor.REACTIVE_ENERGY_KVARH
         ),
         cv.Optional("reactive_energy_returned_tariff2"): sensor.sensor_schema(
-            unit_of_measurement=UNIT_KILOVOLT_AMPS_REACTIVE_HOURS,
-            accuracy_decimals=3,
-            state_class=STATE_CLASS_TOTAL_INCREASING,
+            kind=sensor.REACTIVE_ENERGY_KVARH
         ),
         cv.Optional("reactive_energy_returned_tariff3"): sensor.sensor_schema(
-            unit_of_measurement=UNIT_KILOVOLT_AMPS_REACTIVE_HOURS,
-            accuracy_decimals=3,
-            state_class=STATE_CLASS_TOTAL_INCREASING,
+            kind=sensor.REACTIVE_ENERGY_KVARH
         ),
         cv.Optional("reactive_energy_returned_tariff4"): sensor.sensor_schema(
-            unit_of_measurement=UNIT_KILOVOLT_AMPS_REACTIVE_HOURS,
-            accuracy_decimals=3,
-            state_class=STATE_CLASS_TOTAL_INCREASING,
+            kind=sensor.REACTIVE_ENERGY_KVARH
         ),
-        cv.Optional("power_delivered"): sensor.sensor_schema(
-            unit_of_measurement=UNIT_KILOWATT,
-            accuracy_decimals=3,
-            device_class=DEVICE_CLASS_POWER,
-            state_class=STATE_CLASS_MEASUREMENT,
-        ),
-        cv.Optional("power_returned"): sensor.sensor_schema(
-            unit_of_measurement=UNIT_KILOWATT,
-            accuracy_decimals=3,
-            device_class=DEVICE_CLASS_POWER,
-            state_class=STATE_CLASS_MEASUREMENT,
-        ),
-        cv.Optional("power_delivered_ch"): sensor.sensor_schema(
-            unit_of_measurement=UNIT_KILOWATT,
-            accuracy_decimals=3,
-            device_class=DEVICE_CLASS_POWER,
-            state_class=STATE_CLASS_MEASUREMENT,
-        ),
-        cv.Optional("power_returned_ch"): sensor.sensor_schema(
-            unit_of_measurement=UNIT_KILOWATT,
-            accuracy_decimals=3,
-            device_class=DEVICE_CLASS_POWER,
-            state_class=STATE_CLASS_MEASUREMENT,
-        ),
+        cv.Optional("power_delivered"): sensor.sensor_schema(kind=sensor.POWER_KW),
+        cv.Optional("power_returned"): sensor.sensor_schema(kind=sensor.POWER_KW),
+        cv.Optional("power_delivered_ch"): sensor.sensor_schema(kind=sensor.POWER_KW),
+        cv.Optional("power_returned_ch"): sensor.sensor_schema(kind=sensor.POWER_KW),
         # Per-phase active power and maximum demand (Switzerland, e.g. EWL Luzern AM550)
         cv.Optional("power_delivered_l1_ch"): sensor.sensor_schema(
-            unit_of_measurement=UNIT_KILOWATT,
-            accuracy_decimals=3,
-            device_class=DEVICE_CLASS_POWER,
-            state_class=STATE_CLASS_MEASUREMENT,
+            kind=sensor.POWER_KW
         ),
         cv.Optional("power_delivered_l2_ch"): sensor.sensor_schema(
-            unit_of_measurement=UNIT_KILOWATT,
-            accuracy_decimals=3,
-            device_class=DEVICE_CLASS_POWER,
-            state_class=STATE_CLASS_MEASUREMENT,
+            kind=sensor.POWER_KW
         ),
         cv.Optional("power_delivered_l3_ch"): sensor.sensor_schema(
-            unit_of_measurement=UNIT_KILOWATT,
-            accuracy_decimals=3,
-            device_class=DEVICE_CLASS_POWER,
-            state_class=STATE_CLASS_MEASUREMENT,
+            kind=sensor.POWER_KW
         ),
-        cv.Optional("power_returned_l1_ch"): sensor.sensor_schema(
-            unit_of_measurement=UNIT_KILOWATT,
-            accuracy_decimals=3,
-            device_class=DEVICE_CLASS_POWER,
-            state_class=STATE_CLASS_MEASUREMENT,
-        ),
-        cv.Optional("power_returned_l2_ch"): sensor.sensor_schema(
-            unit_of_measurement=UNIT_KILOWATT,
-            accuracy_decimals=3,
-            device_class=DEVICE_CLASS_POWER,
-            state_class=STATE_CLASS_MEASUREMENT,
-        ),
-        cv.Optional("power_returned_l3_ch"): sensor.sensor_schema(
-            unit_of_measurement=UNIT_KILOWATT,
-            accuracy_decimals=3,
-            device_class=DEVICE_CLASS_POWER,
-            state_class=STATE_CLASS_MEASUREMENT,
-        ),
+        cv.Optional("power_returned_l1_ch"): sensor.sensor_schema(kind=sensor.POWER_KW),
+        cv.Optional("power_returned_l2_ch"): sensor.sensor_schema(kind=sensor.POWER_KW),
+        cv.Optional("power_returned_l3_ch"): sensor.sensor_schema(kind=sensor.POWER_KW),
         cv.Optional("reactive_power_delivered_l1_ch"): sensor.sensor_schema(
-            unit_of_measurement=UNIT_KILOVOLT_AMPS_REACTIVE,
-            accuracy_decimals=3,
-            device_class=DEVICE_CLASS_REACTIVE_POWER,
-            state_class=STATE_CLASS_MEASUREMENT,
+            kind=sensor.REACTIVE_POWER_KVAR
         ),
         cv.Optional("reactive_power_delivered_l2_ch"): sensor.sensor_schema(
-            unit_of_measurement=UNIT_KILOVOLT_AMPS_REACTIVE,
-            accuracy_decimals=3,
-            device_class=DEVICE_CLASS_REACTIVE_POWER,
-            state_class=STATE_CLASS_MEASUREMENT,
+            kind=sensor.REACTIVE_POWER_KVAR
         ),
         cv.Optional("reactive_power_delivered_l3_ch"): sensor.sensor_schema(
-            unit_of_measurement=UNIT_KILOVOLT_AMPS_REACTIVE,
-            accuracy_decimals=3,
-            device_class=DEVICE_CLASS_REACTIVE_POWER,
-            state_class=STATE_CLASS_MEASUREMENT,
+            kind=sensor.REACTIVE_POWER_KVAR
         ),
         cv.Optional("reactive_power_returned_l1_ch"): sensor.sensor_schema(
-            unit_of_measurement=UNIT_KILOVOLT_AMPS_REACTIVE,
-            accuracy_decimals=3,
-            device_class=DEVICE_CLASS_REACTIVE_POWER,
-            state_class=STATE_CLASS_MEASUREMENT,
+            kind=sensor.REACTIVE_POWER_KVAR
         ),
         cv.Optional("reactive_power_returned_l2_ch"): sensor.sensor_schema(
-            unit_of_measurement=UNIT_KILOVOLT_AMPS_REACTIVE,
-            accuracy_decimals=3,
-            device_class=DEVICE_CLASS_REACTIVE_POWER,
-            state_class=STATE_CLASS_MEASUREMENT,
+            kind=sensor.REACTIVE_POWER_KVAR
         ),
         cv.Optional("reactive_power_returned_l3_ch"): sensor.sensor_schema(
-            unit_of_measurement=UNIT_KILOVOLT_AMPS_REACTIVE,
-            accuracy_decimals=3,
-            device_class=DEVICE_CLASS_REACTIVE_POWER,
-            state_class=STATE_CLASS_MEASUREMENT,
+            kind=sensor.REACTIVE_POWER_KVAR
         ),
         cv.Optional("maximum_power_delivered_ch"): sensor.sensor_schema(
-            unit_of_measurement=UNIT_KILOWATT,
-            accuracy_decimals=3,
-            device_class=DEVICE_CLASS_POWER,
-            state_class=STATE_CLASS_MEASUREMENT,
+            kind=sensor.POWER_KW
         ),
         cv.Optional("maximum_power_returned_ch"): sensor.sensor_schema(
-            unit_of_measurement=UNIT_KILOWATT,
-            accuracy_decimals=3,
-            device_class=DEVICE_CLASS_POWER,
-            state_class=STATE_CLASS_MEASUREMENT,
+            kind=sensor.POWER_KW
         ),
         cv.Optional("reactive_power_delivered"): sensor.sensor_schema(
-            unit_of_measurement=UNIT_KILOVOLT_AMPS_REACTIVE,
-            accuracy_decimals=3,
-            device_class=DEVICE_CLASS_REACTIVE_POWER,
-            state_class=STATE_CLASS_MEASUREMENT,
+            kind=sensor.REACTIVE_POWER_KVAR
         ),
         cv.Optional("reactive_power_returned"): sensor.sensor_schema(
-            unit_of_measurement=UNIT_KILOVOLT_AMPS_REACTIVE,
-            accuracy_decimals=3,
-            device_class=DEVICE_CLASS_REACTIVE_POWER,
-            state_class=STATE_CLASS_MEASUREMENT,
+            kind=sensor.REACTIVE_POWER_KVAR
         ),
         cv.Optional("electricity_threshold"): sensor.sensor_schema(
-            unit_of_measurement=UNIT_KILOWATT,
-            accuracy_decimals=3,
-            device_class=DEVICE_CLASS_POWER,
-            state_class=STATE_CLASS_MEASUREMENT,
+            kind=sensor.POWER_KW
         ),
         cv.Optional("electricity_failures"): sensor.sensor_schema(
             accuracy_decimals=0,
@@ -375,22 +240,13 @@ CONFIG_SCHEMA = cv.Schema(
             state_class=STATE_CLASS_MEASUREMENT,
         ),
         cv.Optional("voltage_sag_time_l1"): sensor.sensor_schema(
-            unit_of_measurement=UNIT_SECOND,
-            accuracy_decimals=0,
-            device_class=DEVICE_CLASS_DURATION,
-            state_class=STATE_CLASS_MEASUREMENT,
+            kind=sensor.DURATION_S
         ),
         cv.Optional("voltage_sag_time_l2"): sensor.sensor_schema(
-            unit_of_measurement=UNIT_SECOND,
-            accuracy_decimals=0,
-            device_class=DEVICE_CLASS_DURATION,
-            state_class=STATE_CLASS_MEASUREMENT,
+            kind=sensor.DURATION_S
         ),
         cv.Optional("voltage_sag_time_l3"): sensor.sensor_schema(
-            unit_of_measurement=UNIT_SECOND,
-            accuracy_decimals=0,
-            device_class=DEVICE_CLASS_DURATION,
-            state_class=STATE_CLASS_MEASUREMENT,
+            kind=sensor.DURATION_S
         ),
         cv.Optional("voltage_sag_l1"): sensor.sensor_schema(
             kind=sensor.VOLTAGE, accuracy_decimals=0
@@ -402,22 +258,13 @@ CONFIG_SCHEMA = cv.Schema(
             kind=sensor.VOLTAGE, accuracy_decimals=0
         ),
         cv.Optional("voltage_swell_time_l1"): sensor.sensor_schema(
-            unit_of_measurement=UNIT_SECOND,
-            accuracy_decimals=0,
-            device_class=DEVICE_CLASS_DURATION,
-            state_class=STATE_CLASS_MEASUREMENT,
+            kind=sensor.DURATION_S
         ),
         cv.Optional("voltage_swell_time_l2"): sensor.sensor_schema(
-            unit_of_measurement=UNIT_SECOND,
-            accuracy_decimals=0,
-            device_class=DEVICE_CLASS_DURATION,
-            state_class=STATE_CLASS_MEASUREMENT,
+            kind=sensor.DURATION_S
         ),
         cv.Optional("voltage_swell_time_l3"): sensor.sensor_schema(
-            unit_of_measurement=UNIT_SECOND,
-            accuracy_decimals=0,
-            device_class=DEVICE_CLASS_DURATION,
-            state_class=STATE_CLASS_MEASUREMENT,
+            kind=sensor.DURATION_S
         ),
         cv.Optional("voltage_swell_l1"): sensor.sensor_schema(
             kind=sensor.VOLTAGE, accuracy_decimals=0
@@ -455,77 +302,29 @@ CONFIG_SCHEMA = cv.Schema(
         cv.Optional("current_fuse_l3"): sensor.sensor_schema(
             kind=sensor.CURRENT, accuracy_decimals=3
         ),
-        cv.Optional("power_delivered_l1"): sensor.sensor_schema(
-            unit_of_measurement=UNIT_KILOWATT,
-            accuracy_decimals=3,
-            device_class=DEVICE_CLASS_POWER,
-            state_class=STATE_CLASS_MEASUREMENT,
-        ),
-        cv.Optional("power_delivered_l2"): sensor.sensor_schema(
-            unit_of_measurement=UNIT_KILOWATT,
-            accuracy_decimals=3,
-            device_class=DEVICE_CLASS_POWER,
-            state_class=STATE_CLASS_MEASUREMENT,
-        ),
-        cv.Optional("power_delivered_l3"): sensor.sensor_schema(
-            unit_of_measurement=UNIT_KILOWATT,
-            accuracy_decimals=3,
-            device_class=DEVICE_CLASS_POWER,
-            state_class=STATE_CLASS_MEASUREMENT,
-        ),
-        cv.Optional("power_returned_l1"): sensor.sensor_schema(
-            unit_of_measurement=UNIT_KILOWATT,
-            accuracy_decimals=3,
-            device_class=DEVICE_CLASS_POWER,
-            state_class=STATE_CLASS_MEASUREMENT,
-        ),
-        cv.Optional("power_returned_l2"): sensor.sensor_schema(
-            unit_of_measurement=UNIT_KILOWATT,
-            accuracy_decimals=3,
-            device_class=DEVICE_CLASS_POWER,
-            state_class=STATE_CLASS_MEASUREMENT,
-        ),
-        cv.Optional("power_returned_l3"): sensor.sensor_schema(
-            unit_of_measurement=UNIT_KILOWATT,
-            accuracy_decimals=3,
-            device_class=DEVICE_CLASS_POWER,
-            state_class=STATE_CLASS_MEASUREMENT,
-        ),
+        cv.Optional("power_delivered_l1"): sensor.sensor_schema(kind=sensor.POWER_KW),
+        cv.Optional("power_delivered_l2"): sensor.sensor_schema(kind=sensor.POWER_KW),
+        cv.Optional("power_delivered_l3"): sensor.sensor_schema(kind=sensor.POWER_KW),
+        cv.Optional("power_returned_l1"): sensor.sensor_schema(kind=sensor.POWER_KW),
+        cv.Optional("power_returned_l2"): sensor.sensor_schema(kind=sensor.POWER_KW),
+        cv.Optional("power_returned_l3"): sensor.sensor_schema(kind=sensor.POWER_KW),
         cv.Optional("reactive_power_delivered_l1"): sensor.sensor_schema(
-            unit_of_measurement=UNIT_KILOVOLT_AMPS_REACTIVE,
-            accuracy_decimals=3,
-            device_class=DEVICE_CLASS_REACTIVE_POWER,
-            state_class=STATE_CLASS_MEASUREMENT,
+            kind=sensor.REACTIVE_POWER_KVAR
         ),
         cv.Optional("reactive_power_delivered_l2"): sensor.sensor_schema(
-            unit_of_measurement=UNIT_KILOVOLT_AMPS_REACTIVE,
-            accuracy_decimals=3,
-            device_class=DEVICE_CLASS_REACTIVE_POWER,
-            state_class=STATE_CLASS_MEASUREMENT,
+            kind=sensor.REACTIVE_POWER_KVAR
         ),
         cv.Optional("reactive_power_delivered_l3"): sensor.sensor_schema(
-            unit_of_measurement=UNIT_KILOVOLT_AMPS_REACTIVE,
-            accuracy_decimals=3,
-            device_class=DEVICE_CLASS_REACTIVE_POWER,
-            state_class=STATE_CLASS_MEASUREMENT,
+            kind=sensor.REACTIVE_POWER_KVAR
         ),
         cv.Optional("reactive_power_returned_l1"): sensor.sensor_schema(
-            unit_of_measurement=UNIT_KILOVOLT_AMPS_REACTIVE,
-            accuracy_decimals=3,
-            device_class=DEVICE_CLASS_REACTIVE_POWER,
-            state_class=STATE_CLASS_MEASUREMENT,
+            kind=sensor.REACTIVE_POWER_KVAR
         ),
         cv.Optional("reactive_power_returned_l2"): sensor.sensor_schema(
-            unit_of_measurement=UNIT_KILOVOLT_AMPS_REACTIVE,
-            accuracy_decimals=3,
-            device_class=DEVICE_CLASS_REACTIVE_POWER,
-            state_class=STATE_CLASS_MEASUREMENT,
+            kind=sensor.REACTIVE_POWER_KVAR
         ),
         cv.Optional("reactive_power_returned_l3"): sensor.sensor_schema(
-            unit_of_measurement=UNIT_KILOVOLT_AMPS_REACTIVE,
-            accuracy_decimals=3,
-            device_class=DEVICE_CLASS_REACTIVE_POWER,
-            state_class=STATE_CLASS_MEASUREMENT,
+            kind=sensor.REACTIVE_POWER_KVAR
         ),
         cv.Optional("voltage_l1"): sensor.sensor_schema(
             kind=sensor.VOLTAGE, accuracy_decimals=3
@@ -551,12 +350,7 @@ CONFIG_SCHEMA = cv.Schema(
         cv.Optional("frequency"): sensor.sensor_schema(
             kind=sensor.FREQUENCY, accuracy_decimals=3
         ),
-        cv.Optional("abs_power"): sensor.sensor_schema(
-            unit_of_measurement=UNIT_KILOWATT,
-            accuracy_decimals=3,
-            device_class=DEVICE_CLASS_POWER,
-            state_class=STATE_CLASS_MEASUREMENT,
-        ),
+        cv.Optional("abs_power"): sensor.sensor_schema(kind=sensor.POWER_KW),
         cv.Optional("gas_delivered"): sensor.sensor_schema(
             unit_of_measurement=UNIT_CUBIC_METER,
             accuracy_decimals=3,
@@ -625,209 +419,91 @@ CONFIG_SCHEMA = cv.Schema(
             state_class=STATE_CLASS_MEASUREMENT,
         ),
         cv.Optional("apparent_delivery_power"): sensor.sensor_schema(
-            unit_of_measurement=UNIT_KILOVOLT_AMPS,
-            accuracy_decimals=3,
-            device_class=DEVICE_CLASS_APPARENT_POWER,
-            state_class=STATE_CLASS_MEASUREMENT,
+            kind=sensor.APPARENT_POWER_KVA
         ),
         cv.Optional("apparent_delivery_power_l1"): sensor.sensor_schema(
-            unit_of_measurement=UNIT_KILOVOLT_AMPS,
-            accuracy_decimals=3,
-            device_class=DEVICE_CLASS_APPARENT_POWER,
-            state_class=STATE_CLASS_MEASUREMENT,
+            kind=sensor.APPARENT_POWER_KVA
         ),
         cv.Optional("apparent_delivery_power_l2"): sensor.sensor_schema(
-            unit_of_measurement=UNIT_KILOVOLT_AMPS,
-            accuracy_decimals=3,
-            device_class=DEVICE_CLASS_APPARENT_POWER,
-            state_class=STATE_CLASS_MEASUREMENT,
+            kind=sensor.APPARENT_POWER_KVA
         ),
         cv.Optional("apparent_delivery_power_l3"): sensor.sensor_schema(
-            unit_of_measurement=UNIT_KILOVOLT_AMPS,
-            accuracy_decimals=3,
-            device_class=DEVICE_CLASS_APPARENT_POWER,
-            state_class=STATE_CLASS_MEASUREMENT,
+            kind=sensor.APPARENT_POWER_KVA
         ),
         cv.Optional("apparent_return_power"): sensor.sensor_schema(
-            unit_of_measurement=UNIT_KILOVOLT_AMPS,
-            accuracy_decimals=3,
-            device_class=DEVICE_CLASS_APPARENT_POWER,
-            state_class=STATE_CLASS_MEASUREMENT,
+            kind=sensor.APPARENT_POWER_KVA
         ),
         cv.Optional("apparent_return_power_l1"): sensor.sensor_schema(
-            unit_of_measurement=UNIT_KILOVOLT_AMPS,
-            accuracy_decimals=3,
-            device_class=DEVICE_CLASS_APPARENT_POWER,
-            state_class=STATE_CLASS_MEASUREMENT,
+            kind=sensor.APPARENT_POWER_KVA
         ),
         cv.Optional("apparent_return_power_l2"): sensor.sensor_schema(
-            unit_of_measurement=UNIT_KILOVOLT_AMPS,
-            accuracy_decimals=3,
-            device_class=DEVICE_CLASS_APPARENT_POWER,
-            state_class=STATE_CLASS_MEASUREMENT,
+            kind=sensor.APPARENT_POWER_KVA
         ),
         cv.Optional("apparent_return_power_l3"): sensor.sensor_schema(
-            unit_of_measurement=UNIT_KILOVOLT_AMPS,
-            accuracy_decimals=3,
-            device_class=DEVICE_CLASS_APPARENT_POWER,
-            state_class=STATE_CLASS_MEASUREMENT,
+            kind=sensor.APPARENT_POWER_KVA
         ),
-        cv.Optional("active_demand_power"): sensor.sensor_schema(
-            unit_of_measurement=UNIT_KILOWATT,
-            accuracy_decimals=3,
-            device_class=DEVICE_CLASS_POWER,
-            state_class=STATE_CLASS_MEASUREMENT,
-        ),
-        cv.Optional("active_demand_net"): sensor.sensor_schema(
-            unit_of_measurement=UNIT_KILOWATT,
-            accuracy_decimals=3,
-            device_class=DEVICE_CLASS_POWER,
-            state_class=STATE_CLASS_MEASUREMENT,
-        ),
-        cv.Optional("active_demand_abs"): sensor.sensor_schema(
-            unit_of_measurement=UNIT_KILOWATT,
-            accuracy_decimals=3,
-            device_class=DEVICE_CLASS_POWER,
-            state_class=STATE_CLASS_MEASUREMENT,
-        ),
+        cv.Optional("active_demand_power"): sensor.sensor_schema(kind=sensor.POWER_KW),
+        cv.Optional("active_demand_net"): sensor.sensor_schema(kind=sensor.POWER_KW),
+        cv.Optional("active_demand_abs"): sensor.sensor_schema(kind=sensor.POWER_KW),
         cv.Optional(
             "active_energy_import_current_average_demand"
-        ): sensor.sensor_schema(
-            unit_of_measurement=UNIT_KILOWATT,
-            accuracy_decimals=3,
-            device_class=DEVICE_CLASS_POWER,
-            state_class=STATE_CLASS_MEASUREMENT,
-        ),
+        ): sensor.sensor_schema(kind=sensor.POWER_KW),
         cv.Optional(
             "active_energy_export_current_average_demand"
-        ): sensor.sensor_schema(
-            unit_of_measurement=UNIT_KILOWATT,
-            accuracy_decimals=3,
-            device_class=DEVICE_CLASS_POWER,
-            state_class=STATE_CLASS_MEASUREMENT,
-        ),
+        ): sensor.sensor_schema(kind=sensor.POWER_KW),
         cv.Optional(
             "reactive_energy_import_current_average_demand"
-        ): sensor.sensor_schema(
-            unit_of_measurement=UNIT_KILOVOLT_AMPS_REACTIVE,
-            accuracy_decimals=3,
-            device_class=DEVICE_CLASS_REACTIVE_POWER,
-            state_class=STATE_CLASS_MEASUREMENT,
-        ),
+        ): sensor.sensor_schema(kind=sensor.REACTIVE_POWER_KVAR),
         cv.Optional(
             "reactive_energy_export_current_average_demand"
-        ): sensor.sensor_schema(
-            unit_of_measurement=UNIT_KILOVOLT_AMPS_REACTIVE,
-            accuracy_decimals=3,
-            device_class=DEVICE_CLASS_REACTIVE_POWER,
-            state_class=STATE_CLASS_MEASUREMENT,
-        ),
+        ): sensor.sensor_schema(kind=sensor.REACTIVE_POWER_KVAR),
         cv.Optional(
             "apparent_energy_import_current_average_demand"
-        ): sensor.sensor_schema(
-            unit_of_measurement=UNIT_KILOVOLT_AMPS,
-            accuracy_decimals=3,
-            device_class=DEVICE_CLASS_APPARENT_POWER,
-            state_class=STATE_CLASS_MEASUREMENT,
-        ),
+        ): sensor.sensor_schema(kind=sensor.APPARENT_POWER_KVA),
         cv.Optional(
             "apparent_energy_export_current_average_demand"
-        ): sensor.sensor_schema(
-            unit_of_measurement=UNIT_KILOVOLT_AMPS,
-            accuracy_decimals=3,
-            device_class=DEVICE_CLASS_APPARENT_POWER,
-            state_class=STATE_CLASS_MEASUREMENT,
-        ),
+        ): sensor.sensor_schema(kind=sensor.APPARENT_POWER_KVA),
         cv.Optional("active_energy_import_last_completed_demand"): sensor.sensor_schema(
-            unit_of_measurement=UNIT_KILOWATT,
-            accuracy_decimals=3,
-            device_class=DEVICE_CLASS_POWER,
-            state_class=STATE_CLASS_MEASUREMENT,
+            kind=sensor.POWER_KW
         ),
         cv.Optional("active_energy_export_last_completed_demand"): sensor.sensor_schema(
-            unit_of_measurement=UNIT_KILOWATT,
-            accuracy_decimals=3,
-            device_class=DEVICE_CLASS_POWER,
-            state_class=STATE_CLASS_MEASUREMENT,
+            kind=sensor.POWER_KW
         ),
         cv.Optional(
             "reactive_energy_import_last_completed_demand"
-        ): sensor.sensor_schema(
-            unit_of_measurement=UNIT_KILOVOLT_AMPS_REACTIVE,
-            accuracy_decimals=3,
-            device_class=DEVICE_CLASS_REACTIVE_POWER,
-            state_class=STATE_CLASS_MEASUREMENT,
-        ),
+        ): sensor.sensor_schema(kind=sensor.REACTIVE_POWER_KVAR),
         cv.Optional(
             "reactive_energy_export_last_completed_demand"
-        ): sensor.sensor_schema(
-            unit_of_measurement=UNIT_KILOVOLT_AMPS_REACTIVE,
-            accuracy_decimals=3,
-            device_class=DEVICE_CLASS_REACTIVE_POWER,
-            state_class=STATE_CLASS_MEASUREMENT,
-        ),
+        ): sensor.sensor_schema(kind=sensor.REACTIVE_POWER_KVAR),
         cv.Optional(
             "apparent_energy_import_last_completed_demand"
-        ): sensor.sensor_schema(
-            unit_of_measurement=UNIT_KILOVOLT_AMPS,
-            accuracy_decimals=3,
-            device_class=DEVICE_CLASS_APPARENT_POWER,
-            state_class=STATE_CLASS_MEASUREMENT,
-        ),
+        ): sensor.sensor_schema(kind=sensor.APPARENT_POWER_KVA),
         cv.Optional(
             "apparent_energy_export_last_completed_demand"
-        ): sensor.sensor_schema(
-            unit_of_measurement=UNIT_KILOVOLT_AMPS,
-            accuracy_decimals=3,
-            device_class=DEVICE_CLASS_APPARENT_POWER,
-            state_class=STATE_CLASS_MEASUREMENT,
-        ),
+        ): sensor.sensor_schema(kind=sensor.APPARENT_POWER_KVA),
         cv.Optional(
             "active_energy_import_maximum_demand_running_month"
-        ): sensor.sensor_schema(
-            unit_of_measurement=UNIT_KILOWATT,
-            accuracy_decimals=3,
-            device_class=DEVICE_CLASS_POWER,
-            state_class=STATE_CLASS_MEASUREMENT,
-        ),
+        ): sensor.sensor_schema(kind=sensor.POWER_KW),
         cv.Optional(
             "active_energy_import_maximum_demand_last_13_months"
-        ): sensor.sensor_schema(
-            unit_of_measurement=UNIT_KILOWATT,
-            accuracy_decimals=3,
-            device_class=DEVICE_CLASS_POWER,
-            state_class=STATE_CLASS_MEASUREMENT,
-        ),
+        ): sensor.sensor_schema(kind=sensor.POWER_KW),
         cv.Optional("power_factor"): sensor.sensor_schema(
-            accuracy_decimals=3,
-            device_class=DEVICE_CLASS_POWER_FACTOR,
-            state_class=STATE_CLASS_MEASUREMENT,
+            kind=sensor.POWER_FACTOR, accuracy_decimals=3
         ),
         cv.Optional("power_factor_l1"): sensor.sensor_schema(
-            accuracy_decimals=3,
-            device_class=DEVICE_CLASS_POWER_FACTOR,
-            state_class=STATE_CLASS_MEASUREMENT,
+            kind=sensor.POWER_FACTOR, accuracy_decimals=3
         ),
         cv.Optional("power_factor_l2"): sensor.sensor_schema(
-            accuracy_decimals=3,
-            device_class=DEVICE_CLASS_POWER_FACTOR,
-            state_class=STATE_CLASS_MEASUREMENT,
+            kind=sensor.POWER_FACTOR, accuracy_decimals=3
         ),
         cv.Optional("power_factor_l3"): sensor.sensor_schema(
-            accuracy_decimals=3,
-            device_class=DEVICE_CLASS_POWER_FACTOR,
-            state_class=STATE_CLASS_MEASUREMENT,
+            kind=sensor.POWER_FACTOR, accuracy_decimals=3
         ),
         cv.Optional("min_power_factor"): sensor.sensor_schema(
-            accuracy_decimals=3,
-            device_class=DEVICE_CLASS_POWER_FACTOR,
-            state_class=STATE_CLASS_MEASUREMENT,
+            kind=sensor.POWER_FACTOR, accuracy_decimals=3
         ),
         cv.Optional("period_3_for_instantaneous_values"): sensor.sensor_schema(
-            unit_of_measurement=UNIT_SECOND,
-            accuracy_decimals=0,
-            device_class=DEVICE_CLASS_DURATION,
-            state_class=STATE_CLASS_MEASUREMENT,
+            kind=sensor.DURATION_S
         ),
         cv.Optional("electricity_switch_position"): cv.invalid(
             "'electricity_switch_position' has moved to the 'text_sensor' platform."

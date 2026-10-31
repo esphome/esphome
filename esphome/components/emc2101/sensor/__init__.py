@@ -8,7 +8,6 @@ from esphome.const import (
     CONF_SPEED,
     ICON_PERCENT,
     STATE_CLASS_MEASUREMENT,
-    UNIT_PERCENT,
     UNIT_REVOLUTIONS_PER_MINUTE,
 )
 from esphome.types import ConfigType
@@ -37,10 +36,7 @@ CONFIG_SCHEMA = EMC2101_COMPONENT_SCHEMA.extend(
             icon="mdi:fan",
         ),
         cv.Optional(CONF_DUTY_CYCLE): sensor.sensor_schema(
-            unit_of_measurement=UNIT_PERCENT,
-            accuracy_decimals=2,
-            state_class=STATE_CLASS_MEASUREMENT,
-            icon=ICON_PERCENT,
+            kind=sensor.PERCENT, accuracy_decimals=2, icon=ICON_PERCENT
         ),
     }
 ).extend(cv.polling_component_schema("60s"))

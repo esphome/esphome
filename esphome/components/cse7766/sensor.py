@@ -9,8 +9,6 @@ from esphome.const import (
     CONF_POWER_FACTOR,
     CONF_REACTIVE_POWER,
     CONF_VOLTAGE,
-    DEVICE_CLASS_POWER_FACTOR,
-    STATE_CLASS_MEASUREMENT,
 )
 from esphome.types import ConfigType
 
@@ -42,9 +40,7 @@ CONFIG_SCHEMA = (
                 kind=sensor.REACTIVE_POWER, accuracy_decimals=1
             ),
             cv.Optional(CONF_POWER_FACTOR): sensor.sensor_schema(
-                accuracy_decimals=2,
-                device_class=DEVICE_CLASS_POWER_FACTOR,
-                state_class=STATE_CLASS_MEASUREMENT,
+                kind=sensor.POWER_FACTOR, accuracy_decimals=2
             ),
         }
     )

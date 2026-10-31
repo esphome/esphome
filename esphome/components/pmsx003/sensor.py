@@ -24,7 +24,6 @@ from esphome.const import (
     ICON_CHEMICAL_WEAPON,
     STATE_CLASS_MEASUREMENT,
     UNIT_COUNT_DECILITRE,
-    UNIT_MICROGRAMS_PER_CUBIC_METER,
 )
 from esphome.core import TimePeriodMilliseconds
 from esphome.types import ConfigType
@@ -240,10 +239,7 @@ CONFIG_SCHEMA = cv.All(
                 state_class=STATE_CLASS_MEASUREMENT,
             ),
             cv.Optional(CONF_FORMALDEHYDE): sensor.sensor_schema(
-                unit_of_measurement=UNIT_MICROGRAMS_PER_CUBIC_METER,
-                icon=ICON_CHEMICAL_WEAPON,
-                accuracy_decimals=0,
-                state_class=STATE_CLASS_MEASUREMENT,
+                kind=sensor.MASS_CONCENTRATION, icon=ICON_CHEMICAL_WEAPON
             ),
             cv.Optional(CONF_TEMPERATURE): sensor.sensor_schema(
                 kind=sensor.TEMPERATURE

@@ -6,8 +6,6 @@ from esphome.const import (
     CONF_ILLUMINANCE,
     ENTITY_CATEGORY_DIAGNOSTIC,
     ICON_BRIGHTNESS_5,
-    STATE_CLASS_MEASUREMENT,
-    UNIT_PERCENT,
 )
 from esphome.types import ConfigType
 
@@ -25,10 +23,7 @@ CONFIG_SCHEMA = (
                 kind=sensor.BATTERY, entity_category=ENTITY_CATEGORY_DIAGNOSTIC
             ),
             cv.Optional(CONF_ILLUMINANCE): sensor.sensor_schema(
-                unit_of_measurement=UNIT_PERCENT,
-                icon=ICON_BRIGHTNESS_5,
-                accuracy_decimals=0,
-                state_class=STATE_CLASS_MEASUREMENT,
+                kind=sensor.PERCENT, icon=ICON_BRIGHTNESS_5
             ),
         }
     )

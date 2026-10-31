@@ -20,7 +20,6 @@ from esphome.const import (
     ICON_RULER,
     STATE_CLASS_MEASUREMENT,
     UNIT_COUNTS_PER_CUBIC_CENTIMETER,
-    UNIT_MICROGRAMS_PER_CUBIC_METER,
     UNIT_MICROMETER,
 )
 from esphome.types import ConfigType
@@ -48,10 +47,9 @@ CONFIG_SCHEMA = (
                 kind=sensor.PM25, accuracy_decimals=2
             ),
             cv.Optional(CONF_PM_4_0): sensor.sensor_schema(
-                unit_of_measurement=UNIT_MICROGRAMS_PER_CUBIC_METER,
+                kind=sensor.MASS_CONCENTRATION,
                 icon=ICON_CHEMICAL_WEAPON,
                 accuracy_decimals=2,
-                state_class=STATE_CLASS_MEASUREMENT,
             ),
             cv.Optional(CONF_PM_10_0): sensor.sensor_schema(
                 kind=sensor.PM10, accuracy_decimals=2

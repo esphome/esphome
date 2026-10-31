@@ -10,7 +10,7 @@ from . import CONF_LIS3DH_ID, LIS3DHComponent
 # The LIS3DH temperature sensor is uncalibrated and only reports relative
 # changes (roughly 1 °C per count), so a single decimal of accuracy is plenty.
 CONFIG_SCHEMA = sensor.sensor_schema(
-    kind=sensor.TEMPERATURE, icon=ICON_THERMOMETER
+    kind=sensor.TEMPERATURE, icon=ICON_THERMOMETER, accuracy_decimals=1
 ).extend(
     {
         cv.Optional(CONF_TYPE): cv.one_of(CONF_TEMPERATURE),

@@ -24,9 +24,7 @@ from esphome.const import (
     CONF_REACTIVE_POWER,
     CONF_VOLTAGE,
     DEVICE_CLASS_ENERGY,
-    DEVICE_CLASS_POWER_FACTOR,
     ICON_CURRENT_AC,
-    STATE_CLASS_MEASUREMENT,
     STATE_CLASS_TOTAL,
     STATE_CLASS_TOTAL_INCREASING,
     UNIT_KILOVOLT_AMPS_HOURS,
@@ -109,9 +107,7 @@ EM2M_SENSORS = {
         kind=sensor.ENERGY_KWH, accuracy_decimals=2
     ),
     CONF_TOTAL_REACTIVE_ENERGY: sensor.sensor_schema(
-        unit_of_measurement=UNIT_KILOVOLT_AMPS_REACTIVE_HOURS,
-        accuracy_decimals=2,
-        state_class=STATE_CLASS_TOTAL_INCREASING,
+        kind=sensor.REACTIVE_ENERGY_KVARH, accuracy_decimals=2
     ),
     CONF_APPARENT_ENERGY: sensor.sensor_schema(
         unit_of_measurement=UNIT_KILOVOLT_AMPS_HOURS,
@@ -146,9 +142,7 @@ COMMON_SENSORS = {
     CONF_VOLTAGE: sensor.sensor_schema(kind=sensor.VOLTAGE, accuracy_decimals=2),
     CONF_CURRENT: sensor.sensor_schema(kind=sensor.CURRENT, accuracy_decimals=3),
     CONF_POWER_FACTOR: sensor.sensor_schema(
-        accuracy_decimals=3,
-        device_class=DEVICE_CLASS_POWER_FACTOR,
-        state_class=STATE_CLASS_MEASUREMENT,
+        kind=sensor.POWER_FACTOR, accuracy_decimals=3
     ),
     CONF_FREQUENCY: sensor.sensor_schema(
         kind=sensor.FREQUENCY, icon=ICON_CURRENT_AC, accuracy_decimals=2

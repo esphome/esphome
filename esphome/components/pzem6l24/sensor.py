@@ -7,10 +7,8 @@ from esphome.const import (
     CONF_ADDRESS,
     CONF_FREQUENCY,
     CONF_ID,
-    DEVICE_CLASS_POWER_FACTOR,
     DEVICE_CLASS_REACTIVE_ENERGY,
     ICON_CURRENT_AC,
-    STATE_CLASS_MEASUREMENT,
     STATE_CLASS_TOTAL_INCREASING,
     UNIT_KILOVOLT_AMPS_HOURS,
     UNIT_KILOVOLT_AMPS_REACTIVE_HOURS,
@@ -51,9 +49,7 @@ _APPARENT_POWER_SCHEMA = sensor.sensor_schema(
     kind=sensor.APPARENT_POWER, accuracy_decimals=1
 )
 _POWER_FACTOR_SCHEMA = sensor.sensor_schema(
-    accuracy_decimals=2,
-    device_class=DEVICE_CLASS_POWER_FACTOR,
-    state_class=STATE_CLASS_MEASUREMENT,
+    kind=sensor.POWER_FACTOR, accuracy_decimals=2
 )
 _ACTIVE_ENERGY_SCHEMA = sensor.sensor_schema(
     kind=sensor.ENERGY_KWH, accuracy_decimals=1

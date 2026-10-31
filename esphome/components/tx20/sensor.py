@@ -11,7 +11,6 @@ from esphome.const import (
     ICON_SIGN_DIRECTION,
     ICON_WEATHER_WINDY,
     STATE_CLASS_MEASUREMENT,
-    UNIT_DEGREES,
     UNIT_KILOMETER_PER_HOUR,
 )
 from esphome.types import ConfigType
@@ -30,10 +29,7 @@ CONFIG_SCHEMA = cv.Schema(
             state_class=STATE_CLASS_MEASUREMENT,
         ),
         cv.Optional(CONF_WIND_DIRECTION_DEGREES): sensor.sensor_schema(
-            unit_of_measurement=UNIT_DEGREES,
-            icon=ICON_SIGN_DIRECTION,
-            accuracy_decimals=1,
-            state_class=STATE_CLASS_MEASUREMENT,
+            kind=sensor.ANGLE, icon=ICON_SIGN_DIRECTION, accuracy_decimals=1
         ),
         cv.Required(CONF_PIN): cv.All(pins.internal_gpio_input_pin_schema),
     }

@@ -1,12 +1,7 @@
 import esphome.codegen as cg
 from esphome.components import sensor, uart
 import esphome.config_validation as cv
-from esphome.const import (
-    CONF_FREQUENCY,
-    CONF_VOLTAGE,
-    DEVICE_CLASS_POWER_FACTOR,
-    STATE_CLASS_MEASUREMENT,
-)
+from esphome.const import CONF_FREQUENCY, CONF_VOLTAGE
 from esphome.types import ConfigType
 
 CODEOWNERS = ["@berfenger"]
@@ -45,9 +40,7 @@ CONFIG_SCHEMA = (
                 kind=sensor.FREQUENCY, accuracy_decimals=2
             ),
             cv.Optional(CONF_POWER_FACTOR_1): sensor.sensor_schema(
-                accuracy_decimals=2,
-                device_class=DEVICE_CLASS_POWER_FACTOR,
-                state_class=STATE_CLASS_MEASUREMENT,
+                kind=sensor.POWER_FACTOR, accuracy_decimals=2
             ),
             cv.Optional(CONF_CURRENT_1): sensor.sensor_schema(
                 kind=sensor.CURRENT, accuracy_decimals=2

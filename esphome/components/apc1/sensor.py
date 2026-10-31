@@ -31,7 +31,6 @@ from esphome.const import (
     ICON_RADIATOR,
     STATE_CLASS_MEASUREMENT,
     UNIT_COUNT_DECILITRE,
-    UNIT_OHM,
     UNIT_PARTS_PER_BILLION,
 )
 from esphome.types import ConfigType
@@ -58,12 +57,7 @@ _PM_COUNT_SCHEMA = sensor.sensor_schema(
 )
 _TEMPERATURE_SCHEMA = sensor.sensor_schema(kind=sensor.TEMPERATURE)
 _HUMIDITY_SCHEMA = sensor.sensor_schema(kind=sensor.HUMIDITY)
-_RESISTANCE_SCHEMA = sensor.sensor_schema(
-    unit_of_measurement=UNIT_OHM,
-    icon=ICON_OMEGA,
-    accuracy_decimals=0,
-    state_class=STATE_CLASS_MEASUREMENT,
-)
+_RESISTANCE_SCHEMA = sensor.sensor_schema(kind=sensor.RESISTANCE, icon=ICON_OMEGA)
 
 CONFIG_SCHEMA = (
     cv.Schema(
