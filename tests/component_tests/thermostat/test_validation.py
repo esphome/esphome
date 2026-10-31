@@ -69,7 +69,9 @@ climate:
 def _read_error(tmp_path: Path, extra: str, capsys: pytest.CaptureFixture[str]) -> str:
     """Validate the base cooling thermostat plus *extra* and return the error output."""
     path = tmp_path / "test.yaml"
-    path.write_text(_BASE + textwrap.indent(textwrap.dedent(extra), "    "))
+    path.write_text(
+        _BASE + textwrap.indent(textwrap.dedent(extra), "    "), encoding="utf-8"
+    )
     CORE.config_path = path
     assert read_config({}) is None
     return re.sub(r"\x1b\[[0-9;]*m", "", capsys.readouterr().out)
@@ -218,6 +220,52 @@ def _read_error(tmp_path: Path, extra: str, capsys: pytest.CaptureFixture[str]) 
         ),
         pytest.param(
             """\
+            heat_action:
+              - logger.log: heat
+            min_heating_off_time: 300s
+            min_heating_run_time: 300s
+            preset:
+              - name: Away
+                default_target_temperature_high: 24°C
+                default_target_temperature_low: 5°C
+            """,
+            "default_target_temperature_low for Away is set to 5.0 which is less than "
+            "the visual minimum temperature of 10.0",
+            id="preset_below_visual_min",
+        ),
+        pytest.param(
+            """\
+            fan_only_action:
+              - logger.log: fan
+            fan_only_action_uses_fan_mode_timer: true
+            """,
+            "min_fan_mode_switching_time must be defined to use fan_only_action",
+            id="fan_only_action_uses_fan_mode_timer",
+        ),
+        pytest.param(
+            """\
+            on_boot_restore_from: default_preset
+            """,
+            "default_preset must be defined to use on_boot_restore_from in DEFAULT_PRESET mode",
+            id="restore_default_preset_without_default",
+        ),
+        pytest.param(
+            """\
+            away_config:
+              default_target_temperature_high: 26°C
+            """,
+            "away_config is no longer valid. Please switch to using a preset named Away",
+            id="legacy_away_config",
+        ),
+        pytest.param(
+            """\
+            default_mode: cool
+            """,
+            "default_mode is no longer valid. Please switch to using presets and specify a default_preset",
+            id="legacy_default_mode",
+        ),
+        pytest.param(
+            """\
             default_preset: Home
             preset:
               - name: Away
@@ -254,6 +302,14 @@ def test_legacy_low_suggests_preset(
         "       default_target_temperature_low: 18.0\n"
         "       default_target_temperature_high: 24.0."
     ) in out
+
+
+def _assert_thermo_calls(main_cpp: str, expected: list[str]) -> None:
+    """The thermostat's calls are exactly *expected*, in order, with nothing extra."""
+    calls = [line.strip() for line in main_cpp.splitlines() if "thermo->" in line]
+    assert len(calls) == len(expected), calls
+    for call, line in zip(calls, expected, strict=True):
+        assert call.endswith(line), f"{call!r} is not {line!r}"
 
 
 def test_all_triggers_codegen(
@@ -344,12 +400,7 @@ def test_all_triggers_codegen(
         "thermo->set_humidity_hysteresis(0.5f);",
         "(thermo->get_preset_change_trigger());",
     ]
-    pos = 0
-    for line in expected:
-        found = main_cpp.find(line, pos)
-        assert found != -1, f"{line!r} missing or out of order"
-        pos = found + len(line)
-    assert "set_supports_dehumidification" not in main_cpp
+    _assert_thermo_calls(main_cpp, expected)
 
 
 def test_heat_cool_mode_true_sets_support_only(
@@ -361,3 +412,39 @@ def test_heat_cool_mode_true_sets_support_only(
 
     assert "thermo->set_supports_heat_cool(true);" in main_cpp
     assert "get_heat_cool_mode_trigger" not in main_cpp
+
+
+def test_dehumidify_codegen(
+    generate_main: Callable[[str | Path], str],
+    component_config_path: Callable[[str], Path],
+) -> None:
+    """Dehumidification sets its supports flag before building its automation."""
+    main_cpp = generate_main(component_config_path("dehumidify.yaml"))
+
+    _assert_thermo_calls(
+        main_cpp,
+        [
+            "thermo->set_set_point_minimum_differential(0.5f);",
+            "thermo->set_sensor(temp_sensor);",
+            "thermo->set_humidity_sensor(temp_sensor);",
+            "thermo->set_cool_deadband(0.5f);",
+            "thermo->set_cool_overrun(0.5f);",
+            "thermo->set_heat_deadband(0.5f);",
+            "thermo->set_heat_overrun(0.5f);",
+            "thermo->set_cooling_minimum_off_time_in_sec(300);",
+            "thermo->set_cooling_minimum_run_time_in_sec(300);",
+            "thermo->set_idle_minimum_time_in_sec(30);",
+            "thermo->set_supports_fan_only_action_uses_fan_mode_timer(false);",
+            "thermo->set_supports_fan_only_cooling(false);",
+            "thermo->set_supports_fan_with_cooling(false);",
+            "thermo->set_supports_fan_with_heating(false);",
+            "thermo->set_use_startup_delay(false);",
+            "(thermo->get_idle_action_trigger());",
+            "(thermo->get_cool_action_trigger());",
+            "thermo->set_supports_cool(true);",
+            "thermo->set_supports_dehumidification(true);",
+            "(thermo->get_humidity_control_dehumidify_action_trigger());",
+            "(thermo->get_humidity_control_off_action_trigger());",
+            "thermo->set_humidity_hysteresis(1.0f);",
+        ],
+    )
