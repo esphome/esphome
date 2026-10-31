@@ -1417,8 +1417,11 @@ async def _build_action_or_inline(
         _INLINE_COLLECTOR.reset(token)
     # Returning anything else would silently drop the collected action from the firmware
     if (action is _COLLECTED_ACTION) != (collector.action is not None):
+        # The id is usually generated, so only the registry key tells the author where to look
+        name = next(key for key in full_config if key != CONF_TYPE_ID)
         raise EsphomeError(
-            f"The builder of action {action_id} must return the result of its apply builder"
+            f"The builder of action '{name}' ({action_id}) must return the result of "
+            "its apply builder unchanged"
         )
     return collector.action if action is _COLLECTED_ACTION else action
 
