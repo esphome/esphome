@@ -19,8 +19,6 @@ void Canbus::setup() {
 }
 
 const std::vector<uint8_t> &Canbus::frame_payload(const CanFrame &frame) {
-  if (this->payload_.capacity() < CAN_MAX_DATA_LENGTH)
-    this->payload_.reserve(CAN_MAX_DATA_LENGTH);  // a callback added after setup allocates once, here
   this->payload_.assign(frame.data, frame.data + frame.payload_length());
   return this->payload_;
 }
