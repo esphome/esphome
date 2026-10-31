@@ -213,6 +213,18 @@ def test_unregister_merges_with_trailing_inline_actions(generate_main) -> None:
     assert body.endswith(f"{UNREGISTER}\n  }}")
 
 
+def test_unregister_in_fully_inline_response_service(generate_main) -> None:
+    """With only inline actions, the unregister ends the function the service calls."""
+    main_cpp = generate_main(CONFIG)
+    function = _service_function(main_cpp, "status_inline", STATUS)
+    body = _function_body(main_cpp, function)
+    assert "->trigger(" not in body
+    assert "esphome__running" not in body
+    assert f"Action<{function}" not in main_cpp
+    assert body.index("STATUS_INLINE first") < body.index("send_action_response")
+    assert body.endswith(f"\n  {{\n  {UNREGISTER}\n  }}")
+
+
 def test_manual_trigger_id(generate_main) -> None:
     """A trigger_id set by hand names the service object."""
     main_cpp = generate_main(CONFIG)
@@ -234,6 +246,7 @@ def test_services_registered_in_order(generate_main) -> None:
         "respond_only",
         "manual_trigger_id",
         "respond_then_log",
+        "status_inline",
     ]
     match = re.search(
         r"\bapi_apiserver_id->initialize_user_services\(\{(.*?)\}\);", main_cpp
