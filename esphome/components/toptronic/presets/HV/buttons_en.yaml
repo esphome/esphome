@@ -1,0 +1,10 @@
+button:
+  - platform: toptronic
+    name: Acknowledge filter maintenance
+    device_type: HV
+    function_group: 0
+    function_number: 0
+    datapoint: 21054
+    type: U8
+    value: 7
+    icon: mdi:air-filter
