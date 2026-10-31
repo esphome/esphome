@@ -356,10 +356,11 @@ canbus::Error MCP251XFD::send_message(canbus::CanFrame *frame) {
 
   std::array<uint8_t, MESSAGE_SIZE> message{};
   uint32_t id;
-  if (frame->use_extended_id)
+  if (frame->use_extended_id) {
     id = (frame->can_id >> 18) | ((frame->can_id & EXTENDED_ID_LOW_MASK) << 11);
-  else
+  } else {
     id = frame->can_id;
+  }
   decode_value_le_into(id, message.data());
   message[4] = frame->can_data_length_code;
   if (frame->use_extended_id)
@@ -402,10 +403,11 @@ canbus::Error MCP251XFD::read_message(canbus::CanFrame *frame) {
 
   const uint32_t id = encode_value_le<uint32_t>(message.data());
   frame->use_extended_id = (message[4] & MESSAGE_IDE) != 0;
-  if (frame->use_extended_id)
+  if (frame->use_extended_id) {
     frame->can_id = ((id & STANDARD_ID_MASK) << 18) | ((id >> 11) & EXTENDED_ID_LOW_MASK);
-  else
+  } else {
     frame->can_id = id & STANDARD_ID_MASK;
+  }
   frame->remote_transmission_request = (message[4] & MESSAGE_RTR) != 0;
   frame->fd = (message[4] & MESSAGE_FDF) != 0;
   frame->bit_rate_switch = false;
@@ -421,10 +423,11 @@ canbus::Error MCP251XFD::read_message(canbus::CanFrame *frame) {
   frame->can_data_length_code = message[4] & MESSAGE_DLC_MASK;
   // Classic CAN DLC values 9..15 still represent eight data bytes.
   uint8_t length;
-  if (frame->fd)
+  if (frame->fd) {
     length = canbus::can_dlc_to_len(frame->can_data_length_code);
-  else
+  } else {
     length = std::min(frame->can_data_length_code, canbus::CAN_MAX_DATA_LENGTH);
+  }
   std::memset(frame->data, 0, sizeof(frame->data));
   if (!frame->remote_transmission_request)
     std::memcpy(frame->data, message.data() + 8, length);
