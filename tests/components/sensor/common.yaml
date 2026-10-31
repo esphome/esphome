@@ -16,6 +16,14 @@ sensor:
       - sensor.template.publish:
           id: sensor_publish_target
           state: !lambda "return x * 2.0;"
+    on_value_range:
+      - above: 10
+        below: 90
+        then:
+          - logger.log: Sensor in range
+      - below: !lambda "return x > 1000 ? NAN : id(sensor_publish_target).state;"
+        then:
+          - logger.log: Sensor below the publish target
 
   - platform: template
     name: "Publish Target"
