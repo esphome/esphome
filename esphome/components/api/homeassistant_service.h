@@ -81,77 +81,91 @@ class ActionResponse {
 template<typename... Ts> using ActionResponseCallback = std::function<void(const ActionResponse &, Ts...)>;
 #endif
 
+/// Builds the request from `fields` and the trigger args, lets `prepare` add to it, then sends it.
+/// `fields` is a codegen table: the action or event name (no key), then the data, data_template
+/// and variables entries.
+template<typename F, typename... Ts>
+void send_homeassistant_fields(const F &prepare, APIServer *server, bool is_event,
+                               const HomeAssistantField<Ts...> *fields, uint8_t data_count, uint8_t data_template_count,
+                               uint8_t variables_count, const std::type_identity_t<Ts> &...x) {
+  using Field = HomeAssistantField<Ts...>;
+  const size_t total = 1 + data_count + data_template_count + variables_count;
+
+  // Lambda results must live until the send; the constant strings are encoded from flash where they are
+  size_t lambda_count = 0;
+  for (size_t i = 0; i < total; i++)
+    lambda_count += fields[i].fn != nullptr;
+  FixedVector<std::string> results;
+  results.init(lambda_count);
+  auto string_ref = [](const char *str) { return ProgmemStringRef(str, ESPHOME_strlen_P(str)); };
+  auto value_ref = [&](const Field &field) {
+    if (field.fn == nullptr)
+      return string_ref(field.value);
+    results.push_back(field.fn(x...));
+    return ProgmemStringRef(StringRef(results.back()));
+  };
+  auto fill = [&](FixedVector<HomeassistantServiceMap> &dest, uint8_t count) {
+    dest.init(count);
+    for (uint8_t i = 0; i < count; i++, fields++) {
+      auto &kv = dest.emplace_back();
+      kv.key = string_ref(fields->key);
+      kv.value = value_ref(*fields);
+    }
+  };
+
+  HomeassistantActionRequest resp;
+  resp.service = value_ref(*fields++);
+  resp.is_event = is_event;
+  fill(resp.data, data_count);
+  fill(resp.data_template, data_template_count);
+  fill(resp.variables, variables_count);
+  prepare(resp);
+  server->send_homeassistant_action(resp);
+}
+
+/// Sends an action or event that does not wait for a response; generated actions call it.
+template<typename... Ts>
+void send_homeassistant_fields(APIServer *server, bool is_event, const HomeAssistantField<Ts...> *fields,
+                               uint8_t data_count, uint8_t data_template_count, uint8_t variables_count,
+                               const std::type_identity_t<Ts> &...x) {
+  send_homeassistant_fields([](HomeassistantActionRequest &) {}, server, is_event, fields, data_count,
+                            data_template_count, variables_count, x...);
+}
+
+#ifdef USE_API_HOMEASSISTANT_ACTION_RESPONSES
+/// An action whose on_success or on_error automation runs when Home Assistant responds.
 template<typename... Ts> class HomeAssistantServiceCallAction final : public Action<Ts...> {
  public:
   using Field = HomeAssistantField<Ts...>;
 
-  /// `fields` is a codegen table: the action or event name (no key), then the data, data_template
-  /// and variables entries.
-  HomeAssistantServiceCallAction(APIServer *parent, bool is_event, const Field *fields, uint8_t data_count,
+  /// `fields` is a table as for `send_homeassistant_fields`.
+  HomeAssistantServiceCallAction(APIServer *parent, const Field *fields, uint8_t data_count,
                                  uint8_t data_template_count, uint8_t variables_count)
       : parent_(parent),
         fields_(fields),
         data_count_(data_count),
         data_template_count_(data_template_count),
-        variables_count_(variables_count) {
-    this->flags_.is_event = is_event;
-  }
+        variables_count_(variables_count) {}
 
-#ifdef USE_API_HOMEASSISTANT_ACTION_RESPONSES
+#ifdef USE_API_HOMEASSISTANT_ACTION_RESPONSES_JSON
   template<typename T> void set_response_template(T response_template) {
     this->response_template_ = response_template;
     this->flags_.has_response_template = true;
   }
 
-  void set_wants_status() { this->flags_.wants_status = true; }
   void set_wants_response() { this->flags_.wants_response = true; }
 
-#ifdef USE_API_HOMEASSISTANT_ACTION_RESPONSES_JSON
   Trigger<JsonObjectConst, Ts...> *get_success_trigger_with_response() { return &this->success_trigger_with_response_; }
 #endif
   Trigger<Ts...> *get_success_trigger() { return &this->success_trigger_; }
   Trigger<std::string, Ts...> *get_error_trigger() { return &this->error_trigger_; }
-#endif  // USE_API_HOMEASSISTANT_ACTION_RESPONSES
 
   void play(const Ts &...x) override {
-    const Field *fields = this->fields_;
-    const size_t total = 1 + this->data_count_ + this->data_template_count_ + this->variables_count_;
-
-    // Lambda results must live until the send; the constant strings are encoded from flash where they are
-    size_t lambda_count = 0;
-    for (size_t i = 0; i < total; i++)
-      lambda_count += fields[i].fn != nullptr;
-    FixedVector<std::string> results;
-    results.init(lambda_count);
-    auto string_ref = [](const char *str) { return ProgmemStringRef(str, ESPHOME_strlen_P(str)); };
-    auto value_ref = [&](const Field &field) {
-      if (field.fn == nullptr)
-        return string_ref(field.value);
-      results.push_back(field.fn(x...));
-      return ProgmemStringRef(StringRef(results.back()));
-    };
-    auto fill = [&](FixedVector<HomeassistantServiceMap> &dest, uint8_t count) {
-      dest.init(count);
-      for (uint8_t i = 0; i < count; i++, fields++) {
-        auto &kv = dest.emplace_back();
-        kv.key = string_ref(fields->key);
-        kv.value = value_ref(*fields);
-      }
-    };
-
-    HomeassistantActionRequest resp;
-    resp.service = value_ref(*fields++);
-    resp.is_event = this->flags_.is_event;
-    fill(resp.data, this->data_count_);
-    fill(resp.data_template, this->data_template_count_);
-    fill(resp.variables, this->variables_count_);
-
-#ifdef USE_API_HOMEASSISTANT_ACTION_RESPONSES
 #ifdef USE_API_HOMEASSISTANT_ACTION_RESPONSES_JSON
     // IMPORTANT: Declare at outer scope so it lives until send_homeassistant_action returns.
     std::string response_template_value;
 #endif
-    if (this->flags_.wants_status) {
+    auto prepare = [&](HomeassistantActionRequest &resp) {
       // Generate a unique call ID for this service call
       static uint32_t call_id_counter = 1;
       uint32_t call_id = call_id_counter++;
@@ -186,10 +200,9 @@ template<typename... Ts> class HomeAssistantServiceCallAction final : public Act
             },
             captured_args);
       });
-    }
-#endif
-
-    this->parent_->send_homeassistant_action(resp);
+    };
+    send_homeassistant_fields(prepare, this->parent_, false, this->fields_, this->data_count_,
+                              this->data_template_count_, this->variables_count_, x...);
   }
 
  protected:
@@ -198,22 +211,19 @@ template<typename... Ts> class HomeAssistantServiceCallAction final : public Act
   uint8_t data_count_;
   uint8_t data_template_count_;
   uint8_t variables_count_;
+#ifdef USE_API_HOMEASSISTANT_ACTION_RESPONSES_JSON
   struct Flags {
-    uint8_t is_event : 1;
-    uint8_t wants_status : 1;
     uint8_t wants_response : 1;
     uint8_t has_response_template : 1;
-    uint8_t reserved : 4;
+    uint8_t reserved : 6;
   } flags_{0};
-#ifdef USE_API_HOMEASSISTANT_ACTION_RESPONSES
-#ifdef USE_API_HOMEASSISTANT_ACTION_RESPONSES_JSON
   TemplatableValue<std::string, Ts...> response_template_{};
   Trigger<JsonObjectConst, Ts...> success_trigger_with_response_;
 #endif  // USE_API_HOMEASSISTANT_ACTION_RESPONSES_JSON
   Trigger<Ts...> success_trigger_;
   Trigger<std::string, Ts...> error_trigger_;
-#endif  // USE_API_HOMEASSISTANT_ACTION_RESPONSES
 };
+#endif  // USE_API_HOMEASSISTANT_ACTION_RESPONSES
 
 }  // namespace esphome::api
 
