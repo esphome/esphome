@@ -56,10 +56,10 @@ CONFIG_SCHEMA = (
                 unit_of_measurement=UNIT_KILOWATT,
             ),
             cv.Optional(CONF_TEMP1): sensor.sensor_schema(
-                accuracy_decimals=1, kind=sensor.TEMPERATURE
+                kind=sensor.TEMPERATURE, accuracy_decimals=1
             ),
             cv.Optional(CONF_TEMP2): sensor.sensor_schema(
-                accuracy_decimals=1, kind=sensor.TEMPERATURE
+                kind=sensor.TEMPERATURE, accuracy_decimals=1
             ),
             cv.Optional(CONF_TEMP_DIFF): sensor.sensor_schema(
                 accuracy_decimals=1,

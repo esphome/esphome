@@ -33,19 +33,19 @@ CONFIG_SCHEMA = (
         {
             cv.GenerateID(): cv.declare_id(BL0906),
             cv.Optional(CONF_FREQUENCY): sensor.sensor_schema(
-                icon=ICON_FREQUENCY, accuracy_decimals=0, kind=sensor.FREQUENCY
+                kind=sensor.FREQUENCY, icon=ICON_FREQUENCY, accuracy_decimals=0
             ),
             cv.Optional(CONF_TEMPERATURE): sensor.sensor_schema(
-                icon=ICON_THERMOMETER, accuracy_decimals=0, kind=sensor.TEMPERATURE
+                kind=sensor.TEMPERATURE, icon=ICON_THERMOMETER, accuracy_decimals=0
             ),
             cv.Optional(CONF_VOLTAGE): sensor.sensor_schema(
-                accuracy_decimals=1, kind=sensor.VOLTAGE
+                kind=sensor.VOLTAGE, accuracy_decimals=1
             ),
             cv.Optional(CONF_TOTAL_POWER): sensor.sensor_schema(
-                accuracy_decimals=3, kind=sensor.POWER
+                kind=sensor.POWER, accuracy_decimals=3
             ),
             cv.Optional(CONF_TOTAL_ENERGY): sensor.sensor_schema(
-                accuracy_decimals=3, kind=sensor.ENERGY_KWH
+                kind=sensor.ENERGY_KWH, accuracy_decimals=3
             ),
         }
     )
@@ -56,19 +56,19 @@ CONFIG_SCHEMA = (
                     {
                         cv.Optional(CONF_CURRENT): cv.maybe_simple_value(
                             sensor.sensor_schema(
-                                accuracy_decimals=3, kind=sensor.CURRENT
+                                kind=sensor.CURRENT, accuracy_decimals=3
                             ),
                             key=CONF_NAME,
                         ),
                         cv.Optional(CONF_POWER): cv.maybe_simple_value(
                             sensor.sensor_schema(
-                                accuracy_decimals=0, kind=sensor.POWER
+                                kind=sensor.POWER, accuracy_decimals=0
                             ),
                             key=CONF_NAME,
                         ),
                         cv.Optional(CONF_ENERGY): cv.maybe_simple_value(
                             sensor.sensor_schema(
-                                accuracy_decimals=3, kind=sensor.ENERGY_KWH
+                                kind=sensor.ENERGY_KWH, accuracy_decimals=3
                             ),
                             key=CONF_NAME,
                         ),

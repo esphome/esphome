@@ -97,6 +97,12 @@ BYTE_ORDER_WORD_SWAP = {
 }
 validate_byte_order = cv.enum(BYTE_ORDER_WORD_SWAP, lower=True)
 
+
+def _sensor_group(*keys: str, **schema_kwargs) -> dict[str, cv.Schema]:
+    """One identical sensor_schema() per key."""
+    return {key: sensor.sensor_schema(**schema_kwargs) for key in keys}
+
+
 # EM2M-only: total combined energy figures with no non-DG equivalent on the EM4M.
 EM2M_SENSORS = {
     CONF_TOTAL_ACTIVE_ENERGY: sensor.sensor_schema(
@@ -117,18 +123,15 @@ EM2M_SENSORS = {
 # Sensors available on both EM2M and EM4M. On EM4M these read the aggregate
 # (Total/Average) registers rather than a single-phase measurement.
 COMMON_SENSORS = {
-    CONF_IMPORT_ACTIVE_ENERGY: sensor.sensor_schema(
-        kind=sensor.ENERGY_KWH, accuracy_decimals=2
-    ),
-    CONF_EXPORT_ACTIVE_ENERGY: sensor.sensor_schema(
-        kind=sensor.ENERGY_KWH, accuracy_decimals=2
-    ),
-    CONF_IMPORT_REACTIVE_ENERGY: sensor.sensor_schema(
-        unit_of_measurement=UNIT_KILOVOLT_AMPS_REACTIVE_HOURS,
+    **_sensor_group(
+        CONF_IMPORT_ACTIVE_ENERGY,
+        CONF_EXPORT_ACTIVE_ENERGY,
+        kind=sensor.ENERGY_KWH,
         accuracy_decimals=2,
-        state_class=STATE_CLASS_TOTAL_INCREASING,
     ),
-    CONF_EXPORT_REACTIVE_ENERGY: sensor.sensor_schema(
+    **_sensor_group(
+        CONF_IMPORT_REACTIVE_ENERGY,
+        CONF_EXPORT_REACTIVE_ENERGY,
         unit_of_measurement=UNIT_KILOVOLT_AMPS_REACTIVE_HOURS,
         accuracy_decimals=2,
         state_class=STATE_CLASS_TOTAL_INCREASING,
@@ -160,11 +163,6 @@ COMMON_SENSORS = {
         kind=sensor.APPARENT_POWER, accuracy_decimals=3
     ),
 }
-
-
-def _sensor_group(*keys: str, **schema_kwargs) -> dict[str, cv.Schema]:
-    """One identical sensor_schema() per key."""
-    return {key: sensor.sensor_schema(**schema_kwargs) for key in keys}
 
 
 # EM4M-only, genuinely per-phase quantities, nested under phase_a/phase_b/phase_c like

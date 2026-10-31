@@ -11,7 +11,7 @@ stts22h = sensor_ns.class_(
 )
 
 CONFIG_SCHEMA = (
-    sensor.sensor_schema(stts22h, accuracy_decimals=2, kind=sensor.TEMPERATURE)
+    sensor.sensor_schema(stts22h, kind=sensor.TEMPERATURE, accuracy_decimals=2)
     .extend(cv.polling_component_schema("60s"))
     .extend(i2c.i2c_device_schema(0x3C))
 )

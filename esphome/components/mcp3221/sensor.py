@@ -19,7 +19,7 @@ MCP3221Sensor = mcp3221_ns.class_(
 
 
 CONFIG_SCHEMA = (
-    sensor.sensor_schema(MCP3221Sensor, accuracy_decimals=2, kind=sensor.VOLTAGE)
+    sensor.sensor_schema(MCP3221Sensor, kind=sensor.VOLTAGE, accuracy_decimals=2)
     .extend(
         {
             cv.Optional(CONF_REFERENCE_VOLTAGE, default="3.3V"): cv.voltage,
