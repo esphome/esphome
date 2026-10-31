@@ -33,15 +33,14 @@ struct Record {
 };
 
 struct Watch {
-  SunTrigger trigger;
-  Automation<> automation{&this->trigger};
+  Automation<> automation;
   LambdaAction<> action;
   explicit Watch(std::function<void()> &&on_fire) : action(std::move(on_fire)) {
     this->automation.add_action(&this->action);
   }
 };
 
-class SunTriggerTest : public ::testing::Test {
+class SunElevationTest : public ::testing::Test {
  protected:
   void SetUp() override {
     this->sun_.set_time(&this->clock_);
@@ -49,23 +48,25 @@ class SunTriggerTest : public ::testing::Test {
     this->sun_.set_longitude(LONGITUDE);
   }
 
+  // Adds the automation the way codegen does for on_sunrise / on_sunset.
   Record &add_(bool sunrise, double elevation) {
     auto &record = this->records_.emplace_back();
     auto &watch = this->watches_.emplace_back([this, &record]() {
       record.count++;
       record.last_fired = this->clock_.now;
     });
-    watch.trigger.set_parent(&this->sun_);
-    watch.trigger.set_sunrise(sunrise);
-    watch.trigger.set_elevation(elevation);
+    if (sunrise) {
+      this->sun_.add_sunrise_automation(&watch.automation, static_cast<float>(elevation));
+    } else {
+      this->sun_.add_sunset_automation(&watch.automation, static_cast<float>(elevation));
+    }
     return record;
   }
 
   // One 60 s poll at time t.
   void tick_(time_t t) {
     this->clock_.now = t;
-    for (auto &watch : this->watches_)
-      watch.trigger.update();
+    this->sun_.poll_elevation();
   }
 
   double elevation_at_(time_t t) {
@@ -73,15 +74,18 @@ class SunTriggerTest : public ::testing::Test {
     return this->sun_.elevation();
   }
 
-  // Elevation set to exactly the value at t: no fire when it lands there, fires on the next poll.
-  void expect_landing_fires_next_poll_(bool sunrise, time_t t) {
-    auto &record = this->add_(sunrise, this->elevation_at_(t));
+  // The elevation is stored as a float, so the sun passes it between t - 1 min and t + 1 min.
+  void expect_fires_on_first_poll_past_(bool sunrise, time_t t) {
+    const float elevation = static_cast<float>(this->elevation_at_(t));
+    auto &record = this->add_(sunrise, elevation);
     this->tick_(t - MINUTE);
     this->tick_(t);
-    EXPECT_EQ(record.count, 0);
     this->tick_(t + MINUTE);
-    EXPECT_EQ(record.count, 1);
-    EXPECT_EQ(record.last_fired, t + MINUTE);
+    ASSERT_EQ(record.count, 1);
+    const double before = this->elevation_at_(record.last_fired - MINUTE);
+    const double after = this->elevation_at_(record.last_fired);
+    EXPECT_TRUE(sunrise ? before <= elevation : before >= elevation);
+    EXPECT_TRUE(sunrise ? after > elevation : after < elevation);
   }
 
   // The sun passes the elevation in the other direction around t.
@@ -98,7 +102,7 @@ class SunTriggerTest : public ::testing::Test {
   std::list<Watch> watches_;
 };
 
-TEST_F(SunTriggerTest, FullDayFiresEachTriggerOnce) {
+TEST_F(SunElevationTest, FullDayFiresEachTriggerOnce) {
   auto &sunrise = this->add_(true, DEFAULT_ELEVATION);
   auto &sunrise_high = this->add_(true, 5.0);
   auto &sunset = this->add_(false, DEFAULT_ELEVATION);
@@ -123,7 +127,7 @@ TEST_F(SunTriggerTest, FullDayFiresEachTriggerOnce) {
   EXPECT_LT(this->elevation_at_(sunset.last_fired), DEFAULT_ELEVATION);
 }
 
-TEST_F(SunTriggerTest, FirstPollNeverFires) {
+TEST_F(SunElevationTest, FirstPollNeverFires) {
   const time_t start = NOON - 3 * 3600;
   const double current = this->elevation_at_(start);
   // Already past both thresholds on the first poll.
@@ -140,15 +144,28 @@ TEST_F(SunTriggerTest, FirstPollNeverFires) {
   EXPECT_EQ(sunset.count, 0);
 }
 
-TEST_F(SunTriggerTest, SunriseLandingOnElevationFiresOnNextPoll) {
-  this->expect_landing_fires_next_poll_(true, MORNING);
+TEST_F(SunElevationTest, SunriseFiresOnFirstPollPast) { this->expect_fires_on_first_poll_past_(true, MORNING); }
+
+TEST_F(SunElevationTest, SunsetFiresOnFirstPollPast) { this->expect_fires_on_first_poll_past_(false, EVENING); }
+
+// Landing exactly on the elevation does not fire; leaving it in the right direction does.
+TEST(SunCrossing, RosePastEdges) {
+  EXPECT_FALSE(rose_past(4.0, 5.0, 5.0));
+  EXPECT_TRUE(rose_past(5.0, 6.0, 5.0));
+  EXPECT_TRUE(rose_past(4.0, 6.0, 5.0));
+  EXPECT_FALSE(rose_past(6.0, 4.0, 5.0));
+  EXPECT_FALSE(rose_past(NAN, 6.0, 5.0));
 }
 
-TEST_F(SunTriggerTest, SunsetLandingOnElevationFiresOnNextPoll) {
-  this->expect_landing_fires_next_poll_(false, EVENING);
+TEST(SunCrossing, SetPastEdges) {
+  EXPECT_FALSE(set_past(6.0, 5.0, 5.0));
+  EXPECT_TRUE(set_past(5.0, 4.0, 5.0));
+  EXPECT_TRUE(set_past(6.0, 4.0, 5.0));
+  EXPECT_FALSE(set_past(4.0, 6.0, 5.0));
+  EXPECT_FALSE(set_past(NAN, 4.0, 5.0));
 }
 
-TEST_F(SunTriggerTest, NanElevationKeepsPreviousElevation) {
+TEST_F(SunElevationTest, NanElevationKeepsPreviousElevation) {
   auto &sunrise = this->add_(true, this->elevation_at_(MORNING));
 
   this->tick_(MORNING - MINUTE);
@@ -161,8 +178,8 @@ TEST_F(SunTriggerTest, NanElevationKeepsPreviousElevation) {
   EXPECT_EQ(sunrise.count, 1);
 }
 
-TEST_F(SunTriggerTest, SunsetIgnoresRisingSun) { this->expect_other_direction_ignored_(false, MORNING); }
+TEST_F(SunElevationTest, SunsetIgnoresRisingSun) { this->expect_other_direction_ignored_(false, MORNING); }
 
-TEST_F(SunTriggerTest, SunriseIgnoresSettingSun) { this->expect_other_direction_ignored_(true, EVENING); }
+TEST_F(SunElevationTest, SunriseIgnoresSettingSun) { this->expect_other_direction_ignored_(true, EVENING); }
 
 }  // namespace esphome::sun::testing

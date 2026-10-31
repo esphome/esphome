@@ -6,13 +6,7 @@ from esphome import automation
 import esphome.codegen as cg
 from esphome.components import time
 import esphome.config_validation as cv
-from esphome.const import (
-    CONF_ID,
-    CONF_LATITUDE,
-    CONF_LONGITUDE,
-    CONF_TIME_ID,
-    CONF_TRIGGER_ID,
-)
+from esphome.const import CONF_ID, CONF_LATITUDE, CONF_LONGITUDE, CONF_TIME_ID
 from esphome.types import ConfigType
 
 CODEOWNERS = ["@OttoWinter"]
@@ -20,9 +14,6 @@ DOMAIN = "sun"
 sun_ns = cg.esphome_ns.namespace("sun")
 
 Sun = sun_ns.class_("Sun")
-SunTrigger = sun_ns.class_(
-    "SunTrigger", cg.PollingComponent, automation.Trigger.template()
-)
 
 CONF_SUN_ID = "sun_id"
 CONF_ELEVATION = "elevation"
@@ -96,6 +87,14 @@ def parse_latlon(value: Any) -> float:
     return val
 
 
+# Each direction's fill count in Sun is a uint8_t
+ELEVATION_AUTOMATIONS_SCHEMA = cv.All(
+    automation.validate_automation(
+        {cv.Optional(CONF_ELEVATION, default=DEFAULT_ELEVATION): elevation}
+    ),
+    cv.Length(max=255),
+)
+
 CONFIG_SCHEMA = cv.Schema(
     {
         cv.GenerateID(): cv.declare_id(Sun),
@@ -106,19 +105,15 @@ CONFIG_SCHEMA = cv.Schema(
         cv.Required(CONF_LONGITUDE): cv.All(
             parse_latlon, cv.float_range(min=-180, max=180)
         ),
-        cv.Optional(CONF_ON_SUNRISE): automation.validate_automation(
-            {
-                cv.GenerateID(CONF_TRIGGER_ID): cv.declare_id(SunTrigger),
-                cv.Optional(CONF_ELEVATION, default=DEFAULT_ELEVATION): elevation,
-            }
-        ),
-        cv.Optional(CONF_ON_SUNSET): automation.validate_automation(
-            {
-                cv.GenerateID(CONF_TRIGGER_ID): cv.declare_id(SunTrigger),
-                cv.Optional(CONF_ELEVATION, default=DEFAULT_ELEVATION): elevation,
-            }
-        ),
+        cv.Optional(CONF_ON_SUNRISE): ELEVATION_AUTOMATIONS_SCHEMA,
+        cv.Optional(CONF_ON_SUNSET): ELEVATION_AUTOMATIONS_SCHEMA,
     }
+)
+
+
+_DIRECTIONS = (
+    (CONF_ON_SUNRISE, "SUN_SUNRISE_AUTOMATION_COUNT", "add_sunrise_automation"),
+    (CONF_ON_SUNSET, "SUN_SUNSET_AUTOMATION_COUNT", "add_sunset_automation"),
 )
 
 
@@ -128,21 +123,16 @@ async def to_code(config: ConfigType) -> None:
     cg.add(var.set_latitude(config[CONF_LATITUDE]))
     cg.add(var.set_longitude(config[CONF_LONGITUDE]))
 
-    for conf in config.get(CONF_ON_SUNRISE, []):
-        trigger = cg.new_Pvariable(conf[CONF_TRIGGER_ID])
-        await cg.register_component(trigger, conf)
-        await cg.register_parented(trigger, var)
-        cg.add(trigger.set_sunrise(True))
-        cg.add(trigger.set_elevation(conf[CONF_ELEVATION]))
-        await automation.build_automation(trigger, [], conf)
-
-    for conf in config.get(CONF_ON_SUNSET, []):
-        trigger = cg.new_Pvariable(conf[CONF_TRIGGER_ID])
-        await cg.register_component(trigger, conf)
-        await cg.register_parented(trigger, var)
-        cg.add(trigger.set_sunrise(False))
-        cg.add(trigger.set_elevation(conf[CONF_ELEVATION]))
-        await automation.build_automation(trigger, [], conf)
+    if not any(key in config for key, _, _ in _DIRECTIONS):
+        return
+    cg.add_define("USE_SUN_ELEVATION_POLL")
+    for key, count_define, method in _DIRECTIONS:
+        if confs := config.get(key):
+            cg.add_define(count_define, len(confs))
+            for conf in confs:
+                obj = await automation.new_automation([], conf)
+                cg.add(getattr(var, method)(obj, conf[CONF_ELEVATION]))
+    cg.add(var.start_elevation_poll())
 
 
 SUN_HORIZON_CONDITION_SCHEMA = cv.Schema(
