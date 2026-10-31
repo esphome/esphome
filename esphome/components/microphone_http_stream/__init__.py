@@ -6,7 +6,13 @@ import esphome.codegen as cg
 from esphome.components import microphone, network, psram, web_server_base
 from esphome.components.web_server_base import CONF_WEB_SERVER_BASE_ID
 import esphome.config_validation as cv
-from esphome.const import CONF_DISABLED, CONF_ID, CONF_MICROPHONE, CONF_SOURCE
+from esphome.const import (
+    CONF_DISABLED,
+    CONF_ID,
+    CONF_MICROPHONE,
+    CONF_SOURCE,
+    CONF_WIFI,
+)
 import esphome.final_validate as fv
 from esphome.types import ConfigType
 
@@ -51,9 +57,15 @@ def stream_id_from_microphone_id(microphone_id: str) -> str:
 
 def _register_httpd_clients(config: ConfigType) -> ConfigType:
     web_server_base.add_httpd_clients(config[CONF_MAX_CLIENTS], DOMAIN)
+    return config
+
+
+def _request_wifi_networking(config: ConfigType) -> ConfigType:
     # The default 5.7 KB TCP send buffer carries less than a mono stream over Wi-Fi, so streams end with
-    # buffer_full; ask for the larger buffers (network: enable_high_performance: false undoes it)
-    network.require_high_performance_networking()
+    # buffer_full. Ethernet streams fine on the defaults, so an ethernet-only build keeps the smaller
+    # internal RAM buffers (network: enable_high_performance: false undoes it on Wi-Fi too).
+    if CONF_WIFI in fv.full_config.get():
+        network.require_high_performance_networking()
     return config
 
 
@@ -97,6 +109,7 @@ FINAL_VALIDATE_SCHEMA = cv.All(
         extra=cv.ALLOW_EXTRA,
     ),
     _validate_psram,
+    _request_wifi_networking,
 )
 
 
