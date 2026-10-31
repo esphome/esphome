@@ -864,38 +864,32 @@ async def mqtt_publish_json_action_to_code(
     args: TemplateArgsType,
 ) -> MockObj:
     parent = automation.parent_ref(await cg.get_variable(config[CONF_ID]))
-    # User lambdas get the trigger args by value and are always called, so they may modify them
-    locals_: list[str] = []
+    # Lambdas are called in order before the publish, with the trigger args by value
+    statements: list[str] = []
     values: list[str] = []
-    for key, type_ in (
-        (CONF_TOPIC, cg.std_string),
-        (CONF_QOS, cg.uint8),
-        (CONF_RETAIN, cg.bool_),
+    for key, type_, const_fn in (
+        (CONF_TOPIC, cg.std_string, automation.flash_string),
+        (CONF_QOS, cg.uint8, None),
+        (CONF_RETAIN, cg.bool_, None),
     ):
-        value = config[key]
-        if not isinstance(value, Lambda):
+        if not isinstance(value := config[key], Lambda):
             values.append(
-                automation.flash_string(config, value)
-                if key == CONF_TOPIC
-                else str(cg.safe_exp(value))
+                const_fn(config, value) if const_fn else str(cg.safe_exp(value))
             )
             continue
-        # Bound in order before the publish, as the action evaluated them
         lambda_ = await cg.process_lambda(value, args, return_type=type_)
-        locals_.append(
-            f"  const {type_} esphome__{key} = {automation.immediate_lambda_call(lambda_)};"
+        statements.append(
+            f"const {type_} esphome__{key} = {automation.immediate_lambda_call(lambda_)};"
         )
         values.append(f"esphome__{key}")
     payload = await cg.process_lambda(
         config[CONF_PAYLOAD], [*args, (cg.JsonObject, "root")], return_type=cg.void
     )
     topic, qos, retain = values
-    publish = (
+    statements.append(
         f"{parent}->publish_json({topic}, [&]({cg.JsonObject} root) {{ "
         f"{automation.immediate_lambda_call(payload)}; }}, {qos}, {retain});"
     )
-    # A block, so the locals of merged actions do not clash
-    statements = ["{", *locals_, f"  {publish}", "}"] if locals_ else [publish]
     return automation.apply_statements_action(action_id, template_arg, args, statements)
 
 
