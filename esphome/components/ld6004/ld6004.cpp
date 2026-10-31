@@ -36,12 +36,12 @@ static constexpr uint32_t CMD_GET_OUTPUT_INTERVAL = 0x27;
 
 // The work_mode select options, the 0x0A12 report values and the tables below share one order.
 static constexpr uint8_t WORK_MODE_COUNT = 5;
+static constexpr uint8_t P20_MODE_COUNT = 6;
 #ifdef USE_SELECT
 // Every control code fits in a byte, so the tables are bytes in flash.
 static constexpr uint8_t WORK_MODE_COMMANDS[WORK_MODE_COUNT] PROGMEM = {
     CMD_WORK_NORMAL, CMD_WORK_LOW_POWER, CMD_WORK_RADAR_OFF_P20_HIGH, CMD_WORK_RADAR_OFF_P20_LOW,
     CMD_WORK_HIGH_REFLECTIVITY};
-static constexpr uint8_t P20_MODE_COUNT = 6;
 static constexpr uint8_t P20_MODE_COMMANDS[P20_MODE_COUNT] PROGMEM = {CMD_P20_PRESENCE_HIGH, CMD_P20_PRESENCE_LOW,
                                                                       CMD_P20_CONSTANT_LOW,  CMD_P20_CONSTANT_HIGH,
                                                                       CMD_P20_PULSE_LOW,     CMD_P20_PULSE_HIGH};
@@ -56,10 +56,10 @@ bool LD6004Component::handle_model_report(uint16_t type, const uint8_t *data, ui
   switch (type) {
     case TYPE_REPORT_WORK_MODE: {
       if (len != 1 && len != 4)
-        return true;
+        break;
       const uint32_t mode = len == 4 ? encode_value_le<uint32_t>(data) : data[0];
       if (mode >= WORK_MODE_COUNT)
-        return true;
+        break;
 #ifdef USE_SELECT
       PUBLISH_STATE(this->work_mode_select_, mode);
 #endif
@@ -75,26 +75,32 @@ bool LD6004Component::handle_model_report(uint16_t type, const uint8_t *data, ui
         this->clear_area_presence_();
       return true;
     case TYPE_REPORT_P20_MODE:
+      if (len != 1 || data[0] >= P20_MODE_COUNT)
+        break;
 #ifdef USE_SELECT
-      if (len == 1 && data[0] < P20_MODE_COUNT)
-        PUBLISH_STATE(this->p20_mode_select_, data[0]);
+      PUBLISH_STATE(this->p20_mode_select_, data[0]);
 #endif
       return true;
     case TYPE_REPORT_DWELL_LIFETIME:
+      if (len != 4)
+        break;
 #ifdef USE_NUMBER
-      if (len == 4)
-        this->publish_number_clamped_(this->dwell_lifetime_number_, encode_value_le<uint32_t>(data));
+      this->publish_number_clamped_(this->dwell_lifetime_number_, encode_value_le<uint32_t>(data));
 #endif
       return true;
     case TYPE_REPORT_OUTPUT_INTERVAL:
+      if (len != 4)
+        break;
 #ifdef USE_NUMBER
-      if (len == 4)
-        this->publish_number_clamped_(this->output_interval_number_, encode_value_le<uint32_t>(data));
+      this->publish_number_clamped_(this->output_interval_number_, encode_value_le<uint32_t>(data));
 #endif
       return true;
     default:
       return false;
   }
+  // Still claimed, so the base does not treat it as an unknown frame.
+  ESP_LOGD(TAG, "Unexpected report 0x%04X: %u bytes, first byte 0x%02X", type, len, len > 0 ? data[0] : 0);
+  return true;
 }
 
 #ifdef USE_NUMBER
@@ -132,8 +138,9 @@ void LD6004Component::set_select_value(select::Select *entity, size_t index) {
 #ifdef USE_BUTTON
 void LD6004Component::press_button(uint8_t kind) {
   if (kind == BUTTON_CLEAR_DWELL) {
-    this->send_control_command_(CMD_CLEAR_DWELL);
-    this->LD600XComponent::press_button(ld600x::BUTTON_GET_AREAS);
+    if (this->send_control_command_(CMD_CLEAR_DWELL)) {
+      this->LD600XComponent::press_button(ld600x::BUTTON_GET_AREAS);
+    }
   } else {
     this->LD600XComponent::press_button(kind);
   }
