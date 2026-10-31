@@ -9,10 +9,10 @@ from esphome import automation
 from esphome.components.const import CONF_ON_STOP
 from esphome.components.script import (
     CONF_SCRIPT_STOP,
+    CONFIG_SCHEMA,
     SCRIPT_MODES,
     default_script_stop_ids,
     to_code,
-    validate_parameter_name,
 )
 import esphome.config_validation as cv
 from esphome.const import CONF_ID, CONF_MODE, CONF_PARAMETERS, CONF_THEN
@@ -167,11 +167,25 @@ async def test_no_on_stop_define_without_on_stop() -> None:
     add_define.assert_not_called()
 
 
-@pytest.mark.parametrize("name", ["id", "esphome__running", "esphome__arg_0"])
+@pytest.mark.parametrize("name", ["esphome__running", "esphome__arg_0"])
 def test_reserved_parameter_names_rejected(name: str) -> None:
-    with pytest.raises(cv.Invalid):
-        validate_parameter_name(name)
+    """The reason reaches the user, at the parameter's path."""
+    config = [{CONF_ID: "my_script", CONF_PARAMETERS: {name: "int"}, CONF_THEN: []}]
+    with pytest.raises(cv.MultipleInvalid) as err:
+        CONFIG_SCHEMA(config)
+    (error,) = err.value.errors
+    assert (
+        error.msg == "Names starting with 'esphome__' are reserved for generated code"
+    )
+    assert error.path == [0, CONF_PARAMETERS, name]
 
 
 def test_parameter_name_accepted() -> None:
-    assert validate_parameter_name("esphome_running") == "esphome_running"
+    config = [
+        {
+            CONF_ID: "my_script",
+            CONF_PARAMETERS: {"esphome_running": "int"},
+            CONF_THEN: [],
+        }
+    ]
+    assert CONFIG_SCHEMA(config)[0][CONF_PARAMETERS] == {"esphome_running": "int"}

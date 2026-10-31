@@ -62,7 +62,8 @@ template<typename... Ts> class AutomationScript : public Script<Ts...>, public T
 /** Runs the script's actions as one generated function, when they are all inline.
  *
  * Like ApplyRunAction, the function gets the run count by reference and returns early once a
- * stop clears it. The mode code built on this is shared; only FunctionScript names the function.
+ * stop clears it. The mode code built on this is shared; FunctionScript or FunctionPointerScript
+ * supplies the function.
  */
 template<typename... Ts> class FunctionBody : public Script<Ts...> {
  protected:
@@ -290,6 +291,20 @@ template<typename... Ts> using ParallelScript = ParallelMode<AutomationScript<Ts
 template<class Mode, auto Fn, typename... Ts> class FunctionScript final : public Mode {
  protected:
   void run_function(const int &running, const Ts &...x) override { Fn(running, x...); }
+};
+
+/** Like FunctionScript, but one class for all scripts of `Mode`, holding the function.
+ *
+ * For queued scripts, whose per-script class would copy the Component vtable too.
+ */
+template<class Mode, typename... Ts> class FunctionPointerScript final : public Mode {
+ public:
+  explicit FunctionPointerScript(void (*fn)(const int &, const Ts &...)) : fn_(fn) {}
+
+ protected:
+  void run_function(const int &running, const Ts &...x) override { this->fn_(running, x...); }
+
+  void (*fn_)(const int &, const Ts &...);
 };
 
 /** Wait for a script to finish before continuing.

@@ -20,6 +20,7 @@ AutomationScript = script_ns.class_(
 )
 FunctionBody = script_ns.class_("FunctionBody", Script)
 FunctionScript = script_ns.class_("FunctionScript", Script)
+FunctionPointerScript = script_ns.class_("FunctionPointerScript", Script)
 ScriptWaitAction = script_ns.class_("ScriptWaitAction", automation.Action, cg.Component)
 
 CONF_SINGLE = "single"
@@ -129,7 +130,19 @@ def validate_parameter_name(value):
     value = cv.string(value)
     if value == CONF_ID:
         raise cv.Invalid(f"Script's parameter name cannot be {CONF_ID}")
-    return cv.not_generated_name(value)
+    return value
+
+
+def validate_parameter_names(value: Any) -> Any:
+    """Reject reserved parameter names here: as dict keys of a schema they would only be
+    reported as "extra keys not allowed"."""
+    if isinstance(value, dict):
+        for name in value:
+            try:
+                cv.not_generated_name(str(name))
+            except cv.Invalid as err:
+                raise cv.Invalid(err.msg, path=[name]) from err
+    return value
 
 
 ALLOWED_PARAM_TYPE_CHARSET = set("abcdefghijklmnopqrstuvwxyz0123456789_:*&[]<>")
@@ -199,10 +212,9 @@ CONFIG_SCHEMA = cv.All(
                 *SCRIPT_MODES, lower=True
             ),
             cv.Optional(CONF_MAX_RUNS): cv.int_range(min=0, max=100),
-            cv.Optional(CONF_PARAMETERS, default={}): cv.Schema(
-                {
-                    validate_parameter_name: validate_parameter_type,
-                }
+            cv.Optional(CONF_PARAMETERS, default={}): cv.All(
+                validate_parameter_names,
+                cv.Schema({validate_parameter_name: validate_parameter_type}),
             ),
             cv.Optional(CONF_ON_STOP): automation.validate_automation(single=True),
         },
@@ -242,12 +254,19 @@ async def to_code(config):
             late.var, func_args, conf, late.global_slot.add
         )
         script_class = wait_class = late.id.type
+        ctor_args = []
         if fn is not None:
             wait_class = MODES[conf[CONF_MODE]][1].template(
                 FunctionBody.template(template), *template
             )
-            script_class = FunctionScript.template(wait_class, fn, *template)
-        late.define(script_class)
+            if conf[CONF_MODE] == CONF_QUEUED:
+                # One class for all of them: a per-script class would also copy the
+                # Component vtable, which costs more flash than the pointer's RAM
+                script_class = FunctionPointerScript.template(wait_class, *template)
+                ctor_args = [fn]
+            else:
+                script_class = FunctionScript.template(wait_class, fn, *template)
+        late.define(script_class, *ctor_args)
         for create_wait in waits[late.id.id]:
             create_wait(wait_class)
         waits[late.id.id] = wait_class

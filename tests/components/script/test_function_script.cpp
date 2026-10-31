@@ -91,8 +91,9 @@ TEST(FunctionScriptTest, ParallelCountsNestedRuns) {
 }
 
 static void queued_body(const int &running, const int &n);
-using TestQueued = FunctionScript<QueueingMode<FunctionBody<int>, int>, queued_body, int>;
-static TestQueued *queued_script;
+using TestQueued = FunctionPointerScript<QueueingMode<FunctionBody<int>, int>, int>;
+// Through the base class, as external components keep scripts
+static Script<int> *queued_script;
 static int queued_last;
 static int queued_runs;
 static void queued_body(const int &running, const int &n) {
@@ -105,7 +106,7 @@ static void queued_body(const int &running, const int &n) {
 }
 
 TEST(FunctionScriptTest, QueuedRunsTheQueuedRunAfterTheBody) {
-  TestQueued script;
+  TestQueued script(queued_body);
   script.set_max_runs(2);
   queued_script = &script;
   queued_runs = 0;

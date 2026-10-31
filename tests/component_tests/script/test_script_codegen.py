@@ -96,10 +96,14 @@ def test_modes(generate_main) -> None:
     main_cpp = generate_main(CONFIG)
     for mode, script in (
         ("RestartMode", "inline_restart"),
-        ("QueueingMode", "inline_queued"),
         ("ParallelMode", "inline_parallel"),
     ):
         _assert_function_script(main_cpp, mode, script)
+    # One class for all queued scripts, given the function
+    assert _constructed(main_cpp, "inline_queued") == (
+        f"script::FunctionPointerScript<{_mode_class('QueueingMode')}>"
+        "(esphome__inline_queued__fn)"
+    )
     assert "inline_queued->set_max_runs(3);" in main_cpp
     assert "inline_parallel->set_max_runs(2);" in main_cpp
     assert re.search(r"App\.register_component_\(inline_queued, \d+\);", main_cpp)
