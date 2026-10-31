@@ -686,7 +686,13 @@ def apply_static_function(
     statements: list[str],
 ) -> MockObj:
     """Emit the static function generated for ``id_`` and return an expression naming it."""
-    return cg.static_function(f"esphome__{id_.id}__fn", return_type, params, statements)
+    return cg.static_function(
+        _static_function_name(id_), return_type, params, statements
+    )
+
+
+def _static_function_name(id_: ID) -> str:
+    return f"esphome__{id_.id}__fn"
 
 
 async def _render_values(
@@ -1919,19 +1925,24 @@ def _is_direct(plan: list[MockObj | list[_InlineAction]], config: ConfigType) ->
     )
 
 
-def _plan_target(
+def _direct_statements(
+    plan: list[MockObj | list[_InlineAction]], config: ConfigType
+) -> list[str] | None:
+    if not _is_direct(plan, config):
+        return None
+    return [line for line in _run_statements(plan[0]) if line != _STOP_CHECK]
+
+
+def _direct_function(
     plan: list[MockObj | list[_InlineAction]],
     args: TemplateArgsType,
-    lambda_args: TemplateArgsType,
     config: ConfigType,
-) -> MockObj | str:
-    """What runs ``plan``: the function of its statements when it is direct, else the
-    ``trigger`` of its Automation, built without a Trigger. ``lambda_args`` are
-    ``_apply_lambda_args(args)``."""
-    if not _is_direct(plan, config):
-        return f"{parent_ref(_automation_from_plan(plan, args, config))}->trigger"
-    statements = [line for line in _run_statements(plan[0]) if line != _STOP_CHECK]
-    return apply_static_function(plan[0][0].id_, cg.void, lambda_args, statements)
+) -> MockObj | None:
+    if (statements := _direct_statements(plan, config)) is None:
+        return None
+    return apply_static_function(
+        plan[0][0].id_, cg.void, _apply_lambda_args(args), statements
+    )
 
 
 def _args_templ(args: TemplateArgsType) -> cg.TemplateArguments:
@@ -1959,33 +1970,41 @@ async def build_automation(
     return await _new_automation(args, config, trigger)
 
 
-async def build_automation_function(
+def declare_automation_function(
     args: TemplateArgsType, config: ConfigType, after: list[str] | None = None
-) -> MockObj:
-    """Emit a ``static void`` function that runs ``config`` and return its name.
+) -> tuple[MockObj, Callable[[], Awaitable[None]]]:
+    """Declare a ``static void`` function that runs ``config``; return its name and the
+    coroutine that builds the actions and defines its body.
 
-    The function takes ``args`` by const reference, like ``_apply_lambda_args``. All-inline
-    actions run in it directly; otherwise, or with a manual ``automation_id``, it triggers
-    their Automation, built without a Trigger. ``after`` are statements run after the last
-    action, including one that waits; they are skipped if the automation is stopped.
+    Await it only once the object that names the function exists, as the actions can wait
+    for its id. The function takes ``args`` by const reference, like ``_apply_lambda_args``.
+    All-inline actions run in it directly; otherwise, or with a manual ``automation_id``, it
+    triggers their Automation, built without a Trigger. ``after`` are statements run after
+    the last action, including one that waits; they are skipped if the automation is stopped.
     """
-    plan = await _build_automation_plan(args, config)
-    lambda_args = _apply_lambda_args(args)
     automation_id = config[CONF_AUTOMATION_ID]
-    if after:
-        after_id = ID(
-            f"{automation_id.id}__after", is_declaration=True, type=ApplyAction
-        )
-        _plan_append(
-            plan,
-            _inline_action(after_id, cg.void, _args_templ(args), lambda_args, after),
-        )
-    target = _plan_target(plan, args, lambda_args, config)
-    if not isinstance(target, str):
-        return target
-    return apply_static_function(
-        automation_id, cg.void, lambda_args, [f"{target}({_arg_names(args)});"]
-    )
+    lambda_args = _apply_lambda_args(args)
+    name = _static_function_name(automation_id)
+    define = cg.declare_static_function(name, cg.void, lambda_args)
+
+    async def build() -> None:
+        plan = await _build_automation_plan(args, config)
+        if after:
+            after_id = ID(
+                f"{automation_id.id}__after", is_declaration=True, type=ApplyAction
+            )
+            _plan_append(
+                plan,
+                _inline_action(
+                    after_id, cg.void, _args_templ(args), lambda_args, after
+                ),
+            )
+        if (body := _direct_statements(plan, config)) is None:
+            automation = _automation_from_plan(plan, args, config)
+            body = [f"{parent_ref(automation)}->trigger({_arg_names(args)});"]
+        define(body)
+
+    return cg.RawExpression(name), build
 
 
 async def build_trigger_callback(
@@ -2021,7 +2040,8 @@ async def _trigger_callback(
     call: ApplyCall | None,
     parent: MockObj | None,
 ) -> LambdaExpression:
-    target = _plan_target(plan, args, _apply_lambda_args(args), config)
+    if (target := _direct_function(plan, args, config)) is None:
+        target = f"{parent_ref(_automation_from_plan(plan, args, config))}->trigger"
     lambda_args = _apply_lambda_args(params)
     statements: list[str] = []
     if call is not None:

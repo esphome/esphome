@@ -309,6 +309,20 @@ VARIABLE_SCHEMA = cv.All(
 validate_variable = cv.maybe_simple_value(VARIABLE_SCHEMA, key=CONF_TYPE)
 
 
+def _validate_reserved_variables(config: ConfigType) -> ConfigType:
+    """Reject variables named like the arguments a response service passes first."""
+    mode = config[CONF_SUPPORTS_RESPONSE]
+    reserved = {"none": (), "optional": ("call_id", "return_response")}
+    for name in reserved.get(mode, ("call_id",)):
+        if name in config[CONF_VARIABLES]:
+            raise cv.Invalid(
+                f"'{name}' is reserved with supports_response: {mode}, "
+                "give the variable another name",
+                path=[CONF_VARIABLES, name],
+            )
+    return config
+
+
 ACTIONS_SCHEMA = automation.validate_automation(
     {
         cv.GenerateID(CONF_TRIGGER_ID): cv.declare_id(UserServiceCallback),
@@ -334,6 +348,7 @@ ACTIONS_SCHEMA = automation.validate_automation(
             {cv.Required(CONF_SUPPORTS_RESPONSE): _validate_supports_response},
             extra=cv.ALLOW_EXTRA,
         ),
+        _validate_reserved_variables,
     ),
 )
 
@@ -679,7 +694,7 @@ async def to_code(config: ConfigType) -> None:
                 after = [
                     f"if (call_id != 0)\n  {server}->unregister_active_action_call(call_id);"
                 ]
-            fn = await automation.build_automation_function(func_args, conf, after)
+            fn, build = automation.declare_automation_function(func_args, conf, after)
             templ = cg.TemplateArguments(fn, supports_response, *service_template_args)
             # Key is hashed here because the name is not readable at runtime on ESP8266
             services.append(
@@ -687,6 +702,7 @@ async def to_code(config: ConfigType) -> None:
                     conf[CONF_TRIGGER_ID], templ, table, fnv1_hash(conf[CONF_ACTION])
                 )
             )
+            await build()
         # Register all services at once - single allocation, no reallocations
         cg.add(var.initialize_user_services(services))
 

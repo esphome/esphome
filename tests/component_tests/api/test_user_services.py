@@ -7,6 +7,10 @@ auto-numbered ids, so adding or changing one action does not break the others.
 import re
 from typing import NamedTuple
 
+import pytest
+
+from esphome.components.api import ACTIONS_SCHEMA
+from esphome.config_validation import Invalid
 from esphome.helpers import fnv1_hash
 
 CONFIG = "tests/component_tests/api/test_user_services.yaml"
@@ -242,6 +246,31 @@ def test_lambda_uses_own_service_id(generate_main) -> None:
     function = _service_function(main_cpp, "self_reference", NONE)
     body = _function_body(main_cpp, function)
     assert "(const void *) self_reference_service" in body
+
+
+@pytest.mark.parametrize(
+    ("mode", "name"),
+    [
+        ("status", "call_id"),
+        ("optional", "call_id"),
+        ("optional", "return_response"),
+    ],
+)
+def test_reserved_variable_name_rejected(mode: str, name: str) -> None:
+    """A variable cannot take the name of an argument the response mode passes first."""
+    action = {"action": "x", "supports_response": mode, "variables": {name: "int"}}
+    with pytest.raises(Invalid, match=f"'{name}' is reserved"):
+        ACTIONS_SCHEMA({**action, "then": []})
+
+
+@pytest.mark.parametrize(
+    ("mode", "name"), [("none", "call_id"), ("status", "return_response")]
+)
+def test_variable_name_free_in_other_modes(mode: str, name: str) -> None:
+    """The names are only reserved in the modes that pass those arguments."""
+    action = {"action": "x", "supports_response": mode, "variables": {name: "int"}}
+    (config,) = ACTIONS_SCHEMA({**action, "then": []})
+    assert name in config["variables"]
 
 
 def test_services_registered_in_order(generate_main) -> None:
