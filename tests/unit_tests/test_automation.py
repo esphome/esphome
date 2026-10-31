@@ -2404,9 +2404,9 @@ async def test_build_action_list_keeps_wrapper_side_effects() -> None:
     assert "::comp->do_wrapped();" in CORE.cpp_global_section
 
 
-def _lambda_condition(id_: str = "cond", body: str = "return true;") -> ConfigType:
+def _inline_condition(id_: str = "cond") -> ConfigType:
     return {
-        "lambda": Lambda(body),
+        "lambda": Lambda("return true;"),
         CONF_TYPE_ID: ID(
             id_, is_declaration=True, type=LambdaCondition, is_manual=False
         ),
@@ -2416,7 +2416,7 @@ def _lambda_condition(id_: str = "cond", body: str = "return true;") -> ConfigTy
 def _if_action(*then: ConfigType, condition: ConfigType | None = None) -> ConfigType:
     return {
         "if": {
-            CONF_CONDITION: condition or _lambda_condition(),
+            CONF_CONDITION: condition or _inline_condition(),
             CONF_THEN: list(then),
         },
         CONF_TYPE_ID: ID("act_if", is_declaration=True, type=IfAction, is_manual=False),
@@ -2496,7 +2496,7 @@ async def test_inline_condition_group_operators(
 ) -> None:
     """Each condition group becomes its operator; xor must evaluate every condition."""
     group = {
-        key: [_lambda_condition("c_1"), _lambda_condition("c_2")],
+        key: [_inline_condition("c_1"), _inline_condition("c_2")],
         CONF_TYPE_ID: ID("group", is_declaration=True, type=type_, is_manual=False),
     }
     config = [_if_action(_action("my.a", "act_a"), condition=group)]
@@ -2508,11 +2508,47 @@ async def test_inline_condition_group_operators(
 
 
 @pytest.mark.asyncio
+async def test_condition_group_outside_control_flow_is_an_object() -> None:
+    """A group built on its own, as ``wait_until`` does, stays an object with its children."""
+    CORE.config = {}
+    group = {
+        "and": [_inline_condition("c_1"), _inline_condition("c_2")],
+        CONF_TYPE_ID: ID(
+            "group", is_declaration=True, type=AndCondition, is_manual=False
+        ),
+    }
+
+    result = await build_condition(group, TEMPLATE_ARG, [])
+
+    assert str(result) == "group"
+    assert "new(group) AndCondition<2>(c_1, c_2);" in CORE.cpp_main_section
+
+
+@pytest.mark.asyncio
+@pytest.mark.usefixtures("apply_actions")
+async def test_empty_condition_group_is_called_through_its_object() -> None:
+    """An empty group has no expression to join, so ``if`` calls its object."""
+    group = {
+        "or": [],
+        CONF_TYPE_ID: ID(
+            "group", is_declaration=True, type=OrCondition, is_manual=False
+        ),
+    }
+
+    await build_action_list(
+        [_if_action(_action("my.a", "act_a"), condition=group)], TEMPLATE_ARG, []
+    )
+
+    assert "new(group) OrCondition<0>();" in CORE.cpp_main_section
+    assert "::group->check()" in CORE.cpp_global_section
+
+
+@pytest.mark.asyncio
 @pytest.mark.usefixtures("apply_actions")
 async def test_inline_not_condition() -> None:
     """``not`` negates its child without an object."""
     negated = {
-        "not": _lambda_condition("inner"),
+        "not": _inline_condition("inner"),
         CONF_TYPE_ID: ID(
             "neg", is_declaration=True, type=NotCondition, is_manual=False
         ),
@@ -2532,7 +2568,7 @@ async def test_inline_while_checks_condition_and_stops() -> None:
     config = [
         {
             "while": {
-                CONF_CONDITION: _lambda_condition(),
+                CONF_CONDITION: _inline_condition(),
                 CONF_THEN: [_action("my.a", "act_a")],
             },
             CONF_TYPE_ID: ID(
@@ -2557,7 +2593,7 @@ async def test_inline_while_with_empty_body_keeps_its_object() -> None:
     """An empty body exits a WhileAction at once, which a C++ loop would not do."""
     config = [
         {
-            "while": {CONF_CONDITION: _lambda_condition(), CONF_THEN: []},
+            "while": {CONF_CONDITION: _inline_condition(), CONF_THEN: []},
             CONF_TYPE_ID: ID(
                 "act_w", is_declaration=True, type=WhileAction, is_manual=False
             ),
@@ -2641,7 +2677,7 @@ def _choose_action(*choices: ConfigType) -> ConfigType:
 
 def _choice(id_: str, *then: ConfigType, is_manual: bool = False) -> ConfigType:
     return {
-        "if": _lambda_condition(f"cond_{id_}"),
+        "if": _inline_condition(f"cond_{id_}"),
         CONF_THEN: list(then),
         CONF_CHOICE_ID: ID(
             id_, is_declaration=True, type=IfAction, is_manual=is_manual
