@@ -4,6 +4,7 @@
 #include "esphome/core/hal.h"
 #include "esphome/components/output/float_output.h"
 #include <vector>
+#include <array>
 
 namespace esphome::bp5758d {
 
@@ -53,9 +54,8 @@ class BP5758D final : public Component {
 
   GPIOPin *data_pin_;
   GPIOPin *clock_pin_;
-  uint8_t update_channel_;
-  std::vector<uint8_t> channel_current_;
-  std::vector<uint16_t> pwm_amounts_;
+  std::array<uint8_t, 5> channel_current_{};
+  std::array<uint16_t, 5> pwm_amounts_{};
   bool update_{true};
 };
 

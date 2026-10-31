@@ -120,11 +120,7 @@ class ATM90E32Component final : public PollingComponent,
     this->power_offset_phase_[phase].second_offset = offset;
     this->has_config_reactive_power_offset_[phase] = true;
   }
-  void set_freq_sensor(sensor::Sensor *freq_sensor) { freq_sensor_ = freq_sensor; }
   void set_peak_current_signed(bool flag) { peak_current_signed_ = flag; }
-  void set_chip_temperature_sensor(sensor::Sensor *chip_temperature_sensor) {
-    chip_temperature_sensor_ = chip_temperature_sensor;
-  }
   void set_line_freq(int freq) { line_freq_ = freq; }
   void set_current_phases(int phases) { current_phases_ = phases; }
   void set_pga_gain(uint16_t gain) { pga_gain_ = gain; }
@@ -168,7 +164,6 @@ class ATM90E32Component final : public PollingComponent,
   void set_phase_status_text_sensor(uint8_t phase, text_sensor::TextSensor *sensor) {
     this->phase_status_text_sensor_[phase] = sensor;
   }
-  void set_freq_status_text_sensor(text_sensor::TextSensor *sensor) { this->freq_status_text_sensor_ = sensor; }
 #endif
   uint16_t calculate_voltage_threshold(int line_freq, uint16_t ugain, float multiplier);
 
@@ -279,12 +274,9 @@ class ATM90E32Component final : public PollingComponent,
   ESPPreferenceObject power_offset_pref_;
   ESPPreferenceObject gain_calibration_pref_;
 
-  sensor::Sensor *freq_sensor_{nullptr};
 #ifdef USE_TEXT_SENSOR
   text_sensor::TextSensor *phase_status_text_sensor_[3]{nullptr};
-  text_sensor::TextSensor *freq_status_text_sensor_{nullptr};
 #endif
-  sensor::Sensor *chip_temperature_sensor_{nullptr};
   uint16_t pga_gain_{0x15};
   int line_freq_{60};
   int current_phases_{3};
@@ -302,6 +294,13 @@ class ATM90E32Component final : public PollingComponent,
   bool offset_calibration_mismatch_[3]{false, false, false};
   bool power_offset_calibration_mismatch_[3]{false, false, false};
   bool gain_calibration_mismatch_[3]{false, false, false};
+
+  // Last, so no member below them becomes public
+  SUB_SENSOR(freq)
+  SUB_SENSOR(chip_temperature)
+#ifdef USE_TEXT_SENSOR
+  SUB_TEXT_SENSOR(freq_status)
+#endif
 };
 
 }  // namespace esphome::atm90e32

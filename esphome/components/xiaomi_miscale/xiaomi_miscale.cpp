@@ -9,8 +9,8 @@ ESPHOME_LOG_TAG(TAG, "xiaomi_miscale");
 
 void XiaomiMiscale::dump_config() {
   ESP_LOGCONFIG(TAG, "Xiaomi Miscale");
-  LOG_SENSOR("  ", "Weight", this->weight_);
-  LOG_SENSOR("  ", "Impedance", this->impedance_);
+  LOG_SENSOR("  ", "Weight", this->weight_sensor_);
+  LOG_SENSOR("  ", "Impedance", this->impedance_sensor_);
 }
 
 bool XiaomiMiscale::parse_device(const ble_device_base::ESPBTDevice &device) {
@@ -34,18 +34,17 @@ bool XiaomiMiscale::parse_device(const ble_device_base::ESPBTDevice &device) {
     if (!report_results_(res, addr_str))
       continue;
 
-    if (res->weight.has_value() && this->weight_ != nullptr)
-      this->weight_->publish_state(*res->weight);
+    publish_optional(this->weight_sensor_, res->weight);
 
-    if (this->impedance_ != nullptr) {
+    if (this->impedance_sensor_ != nullptr) {
       if (res->version == 1) {
         ESP_LOGW(TAG, "Impedance is only supported on version 2. Your scale was identified as version 1.");
       } else {
         if (res->impedance.has_value()) {
-          this->impedance_->publish_state(*res->impedance);
+          this->impedance_sensor_->publish_state(*res->impedance);
         } else {
           if (clear_impedance_)
-            this->impedance_->publish_state(NAN);
+            this->impedance_sensor_->publish_state(NAN);
         }
       }
     }

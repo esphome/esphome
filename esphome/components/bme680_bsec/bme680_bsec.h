@@ -47,15 +47,15 @@ class BME680BSECComponent final : public Component, public i2c::I2CDevice {
   void set_pressure_sample_rate(SampleRate sample_rate) { this->pressure_sample_rate_ = sample_rate; }
   void set_humidity_sample_rate(SampleRate sample_rate) { this->humidity_sample_rate_ = sample_rate; }
 
-  void set_temperature_sensor(sensor::Sensor *sensor) { this->temperature_sensor_ = sensor; }
-  void set_pressure_sensor(sensor::Sensor *sensor) { this->pressure_sensor_ = sensor; }
-  void set_humidity_sensor(sensor::Sensor *sensor) { this->humidity_sensor_ = sensor; }
-  void set_gas_resistance_sensor(sensor::Sensor *sensor) { this->gas_resistance_sensor_ = sensor; }
-  void set_iaq_sensor(sensor::Sensor *sensor) { this->iaq_sensor_ = sensor; }
-  void set_iaq_accuracy_text_sensor(text_sensor::TextSensor *sensor) { this->iaq_accuracy_text_sensor_ = sensor; }
-  void set_iaq_accuracy_sensor(sensor::Sensor *sensor) { this->iaq_accuracy_sensor_ = sensor; }
-  void set_co2_equivalent_sensor(sensor::Sensor *sensor) { this->co2_equivalent_sensor_ = sensor; }
-  void set_breath_voc_equivalent_sensor(sensor::Sensor *sensor) { this->breath_voc_equivalent_sensor_ = sensor; }
+  SUB_SENSOR(temperature)
+  SUB_SENSOR(pressure)
+  SUB_SENSOR(humidity)
+  SUB_SENSOR(gas_resistance)
+  SUB_SENSOR(iaq)
+  SUB_TEXT_SENSOR(iaq_accuracy)
+  SUB_SENSOR(iaq_accuracy)
+  SUB_SENSOR(co2_equivalent)
+  SUB_SENSOR(breath_voc_equivalent)
 
   static std::vector<BME680BSECComponent *> instances;
   static int8_t read_bytes_wrapper(uint8_t devid, uint8_t a_register, uint8_t *data, uint16_t len);
@@ -120,16 +120,6 @@ class BME680BSECComponent final : public Component, public i2c::I2CDevice {
   SampleRate temperature_sample_rate_{SAMPLE_RATE_DEFAULT};
   SampleRate pressure_sample_rate_{SAMPLE_RATE_DEFAULT};
   SampleRate humidity_sample_rate_{SAMPLE_RATE_DEFAULT};
-
-  sensor::Sensor *temperature_sensor_{nullptr};
-  sensor::Sensor *pressure_sensor_{nullptr};
-  sensor::Sensor *humidity_sensor_{nullptr};
-  sensor::Sensor *gas_resistance_sensor_{nullptr};
-  sensor::Sensor *iaq_sensor_{nullptr};
-  text_sensor::TextSensor *iaq_accuracy_text_sensor_{nullptr};
-  sensor::Sensor *iaq_accuracy_sensor_{nullptr};
-  sensor::Sensor *co2_equivalent_sensor_{nullptr};
-  sensor::Sensor *breath_voc_equivalent_sensor_{nullptr};
 };
 #endif
 }  // namespace esphome::bme680_bsec
