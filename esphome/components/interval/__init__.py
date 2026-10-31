@@ -33,7 +33,8 @@ CONFIG_SCHEMA = automation.validate_automation(
 
 async def to_code(config: list[ConfigType]) -> None:
     for conf in config:
-        if startup_delay := conf[CONF_STARTUP_DELAY].total_milliseconds:
+        # Cut to 32 bits, as the uint32_t setter always did
+        if startup_delay := conf[CONF_STARTUP_DELAY].total_milliseconds & 0xFFFFFFFF:
             component_class, template_args = DelayedIntervalCallback, [startup_delay]
         else:
             component_class, template_args = IntervalCallback, []
