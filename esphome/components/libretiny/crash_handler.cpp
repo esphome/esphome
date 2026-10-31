@@ -59,6 +59,21 @@ extern char __ram_code_text_end__[];
 // NOLINTEND(bugprone-reserved-identifier,cert-dcl37-c,cert-dcl51-cpp,readability-identifier-naming)
 #endif  // USE_LIBRETINY_VARIANT_RTL8720C
 
+#ifdef USE_LIBRETINY_VARIANT_RTL8720D
+// NOLINTBEGIN(bugprone-reserved-identifier,cert-dcl37-c,cert-dcl51-cpp,readability-identifier-naming)
+extern "C" {
+// Bounds of the code in flash (XIP) and in RAM (entry and text; linker symbols, rlx8721d_img2_all.template.ld).
+extern char __flash_text_start__[];
+extern char __flash_text_end__[];
+extern char __ram_image2_text_start__[];
+extern char __ram_text_end__[];
+// The KM4 ROM keeps VTOR on its own table (ROM, read-only); its fault entries continue through this RAM table
+// (rtl8721d_vector.h), where app_start.c installs the SDK's INT_*_Patch handlers.
+extern void (*NewVectorTable[])();
+}
+// NOLINTEND(bugprone-reserved-identifier,cert-dcl37-c,cert-dcl51-cpp,readability-identifier-naming)
+#endif  // USE_LIBRETINY_VARIANT_RTL8720D
+
 #ifdef USE_LN882X
 // NOLINTBEGIN(bugprone-reserved-identifier,cert-dcl37-c,cert-dcl51-cpp,readability-identifier-naming)
 extern "C" {
@@ -109,7 +124,8 @@ struct CrashRecord {
 // ln882hki_bsp.template.ld puts .noinit in RETENTION RAM, which startup does not clear.
 #define CRASH_RECORD_SECTION ".noinit"
 #else
-// rtl8710c_ram.ld keeps .ram.bss.noinit* out of the startup zeroing.
+// rtl8710c_ram.ld keeps .ram.bss.noinit* out of the startup zeroing; on the RTL8720D patch_linker.py adds the
+// output section (.ram_image2.noinit) after the .ram_image2.bss that startup clears.
 #define CRASH_RECORD_SECTION ".ram.bss.noinit.esphome_crash"
 #endif
 // NOLINTNEXTLINE(cppcoreguidelines-avoid-non-const-global-variables)
@@ -165,6 +181,9 @@ static inline bool is_code_addr(uint32_t val) {
 #elif defined(USE_LN882X)
   return (addr >= (uint32_t) _stext && addr < (uint32_t) _etext) ||
          (addr >= (uint32_t) __esphome_sram_text_start && addr < (uint32_t) __esphome_sram_text_end);
+#elif defined(USE_LIBRETINY_VARIANT_RTL8720D)
+  return (addr >= (uint32_t) __flash_text_start__ && addr < (uint32_t) __flash_text_end__) ||
+         (addr >= (uint32_t) __ram_image2_text_start__ && addr < (uint32_t) __ram_text_end__);
 #else
   return (addr >= (uint32_t) __xip_code_text_start__ && addr < (uint32_t) __xip_code_text_end__) ||
          (addr >= (uint32_t) __ram_entry_text_start__ && addr < (uint32_t) __ram_code_text_end__);
@@ -278,9 +297,11 @@ extern "C" void __wrap_bk_trap_dabt(arm_registers *regs) {
 
 #ifdef USE_LIBRETINY_CRASH_HANDLER_VECTOR_PATCH
 
-// The SDK's RAM vector table (VTOR) points the fault vectors at a handler that prints a register dump and then
-// spins: a ROM handler on the RTL8720C, CmBacktrace (hal_interrupt.c) on the LN882H. crash_handler_install()
-// puts esphome_fault_entry() in front of it, as the RTL8720C SDK's own CONFIG_MIIO patch (app_start.c) does.
+// The SDK's RAM vector table (VTOR, or NewVectorTable on the RTL8720D) points the fault vectors at a handler
+// that prints a register dump and then spins or resets: a ROM handler on the RTL8720C, CmBacktrace
+// (hal_interrupt.c) on the LN882H, INT_HardFault_Patch (app_start.c, ota_platform_reset()) on the RTL8720D.
+// crash_handler_install() puts esphome_fault_entry() in front of it, as the RTL8720C SDK's own CONFIG_MIIO patch
+// (app_start.c) does.
 static_assert(LT_HW_WATCHDOG, "the crash reboot relies on the hardware watchdog");
 // The RTL8720C ROM dump takes about 0.4 s at 115200 baud; without the re-arm the reset waits for the 10 s
 // watchdog from arch_init().
@@ -291,6 +312,11 @@ static constexpr uint32_t FAULT_VECTOR_COUNT = 5;  // and SecureFault (ARMv8-M)
 // DTCM, where the app's stacks and heap live (rtl8710c_ram.ld).
 static constexpr uint32_t SRAM_START = 0x10000000;
 static constexpr uint32_t SRAM_END = 0x1003FA00;
+#elif defined(USE_LIBRETINY_VARIANT_RTL8720D)
+static constexpr uint32_t FAULT_VECTOR_COUNT = 5;  // and SecureFault (ARMv8-M)
+// MSP_RAM_NS and BD_RAM_NS, where the KM4's main stack, task stacks and heap live (rlx8721d_layout_is.ld).
+static constexpr uint32_t SRAM_START = 0x10004000;
+static constexpr uint32_t SRAM_END = 0x1007C000;
 #else
 static constexpr uint32_t FAULT_VECTOR_COUNT = 4;
 // RAM0, where the stacks and heap live (ln882hki_bsp.template.ld).
@@ -382,7 +408,11 @@ extern "C" __attribute__((naked, used)) void esphome_fault_entry() {
 }
 
 void crash_handler_install() {
+#ifdef USE_LIBRETINY_VARIANT_RTL8720D
+  auto *vectors = (uint32_t *) NewVectorTable;
+#else
   auto *vectors = (uint32_t *) read_reg(SCB_VTOR);  // NOLINT(performance-no-int-to-ptr)
+#endif
   for (uint32_t i = 0; i < FAULT_VECTOR_COUNT; i++) {
     s_sdk_fault_vectors[i] = vectors[FIRST_FAULT_VECTOR + i];
     vectors[FIRST_FAULT_VECTOR + i] = (uint32_t) &esphome_fault_entry;

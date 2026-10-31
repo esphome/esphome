@@ -797,13 +797,15 @@
 #endif
 
 #ifdef USE_LIBRETINY
-#if defined(USE_BK72XX) || defined(USE_LIBRETINY_VARIANT_RTL8720C) || defined(USE_LN882X)
+#if defined(USE_BK72XX) || defined(USE_LIBRETINY_VARIANT_RTL8720C) || defined(USE_LIBRETINY_VARIANT_RTL8720D) || \
+    defined(USE_LN882X)
 #define USE_LIBRETINY_CRASH_HANDLER
 #endif
 #define USE_BK72XX_BLE
 #define BK72XX_BLE_SCAN_LISTENER_COUNT 1
 #define USE_LN882H_BLE
 #define LN882H_BLE_SCAN_LISTENER_COUNT 1
+#define USE_RTL87XX_BLE
 // One tracker arm per build: ln882x gets its real hub; bk72xx also stands in
 // for hub-less LibreTiny chips (rtl87xx) so bluetooth_proxy.h has a BLEHub
 // to parse against.
