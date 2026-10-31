@@ -2389,6 +2389,30 @@ async def test_build_action_list_keeps_wrapper_side_effects() -> None:
 
 @pytest.mark.asyncio
 @pytest.mark.usefixtures("apply_actions")
+async def test_build_action_list_rejects_a_dropped_collected_action() -> None:
+    """A wrapper that returns another object would lose the collected action without a trace."""
+    builder = apply_action_builder(
+        "my.wrapped",
+        {cv.Required(CONF_ID): cv.use_id(cg.Component)},
+        ApplyCall("do_wrapped()"),
+    )
+
+    @register_action("my.wrapped", ApplyAction, {}, synchronous=True)
+    async def wrapped_to_code(
+        config: ConfigType,
+        action_id: ID,
+        template_arg: cg.TemplateArguments,
+        args: list[tuple[object, str]],
+    ) -> MockObj:
+        await builder(config, action_id, template_arg, args)
+        return MockObj("something_else", "->")
+
+    with pytest.raises(EsphomeError, match="must return the result"):
+        await build_action_list([_action("my.wrapped", "act_w")], TEMPLATE_ARG, [])
+
+
+@pytest.mark.asyncio
+@pytest.mark.usefixtures("apply_actions")
 async def test_build_action_list_nested_builders_emit_normally() -> None:
     """An ``if`` keeps its object and condition, and merges inside its own branch."""
     condition = {

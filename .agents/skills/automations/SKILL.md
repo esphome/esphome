@@ -190,7 +190,8 @@ for actions whose `play()` has real logic beyond forwarding values.
 Adjacent `register_apply_action` and `lambda:` actions in a list merge into one generated function and one
 object, which saves 12 to 16 bytes of RAM per merged action. An action with its own C++ class ends the merged
 run, so prefer `register_apply_action` wherever the action allows it. Because of this, `build_action_list` can
-return fewer objects than the config has entries.
+return fewer objects than the config has entries. A builder that wraps `apply_action_builder` may do other work
+first, but must return its result unchanged and not use it.
 
 ## Conditions
 
