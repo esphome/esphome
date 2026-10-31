@@ -10,8 +10,8 @@ namespace esphome::waveshare_io_ch32v003 {
 
 class WaveshareIOCH32V003Component
     : public Component,
-      public i2c::I2CDevice,
-      public gpio_expander::GpioExpanderInputs<gpio_expander::CachedGpioExpander<uint8_t, 8>> {
+      public gpio_expander::GpioExpanderInputs<gpio_expander::CachedGpioExpander<uint8_t, 8>>,
+      public i2c::I2CDevice {
  public:
   WaveshareIOCH32V003Component() = default;
 
