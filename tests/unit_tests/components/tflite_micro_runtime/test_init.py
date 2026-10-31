@@ -95,6 +95,22 @@ def test_final_validate_rejects_an_unsupported_operator(setup_core: Path) -> Non
         tflm.FINAL_VALIDATE_SCHEMA({tflm.CONF_MODEL_TYPE: "image"})
 
 
+def test_final_validate_reports_a_broken_operator_report(setup_core: Path) -> None:
+    """A report the parser rejects is a config error, not an unexpected exception."""
+    with (
+        patch.object(tflm, "resolve_model_source", return_value=(MODEL_PATH, b"")),
+        patch.object(
+            tflm,
+            "extract_model_ops",
+            side_effect=ValueError(
+                "digit.txt: the operator list declares zero operators"
+            ),
+        ),
+        pytest.raises(cv.Invalid, match="zero operators"),
+    ):
+        tflm.FINAL_VALIDATE_SCHEMA({tflm.CONF_MODEL_TYPE: "image"})
+
+
 def test_yaml_input_geometry_overrides_the_report() -> None:
     var = MagicMock()
     with (

@@ -168,11 +168,18 @@ def _validate_model_operators(model_path: Path) -> None:
     """Reject a model whose operators the pinned TFLM cannot register.
 
     A model without a .txt report cannot be checked here; the loader's
-    device-side check covers it at load time. A report that names no operator at
-    all is treated the same way: it says nothing about what the model runs, so it
-    must not pass as a model that needs no kernel.
+    device-side check covers it at load time. A report that has no operator
+    section is treated the same way: it says nothing about what the model runs,
+    so it must not pass as a model that needs no kernel. A report that cannot be
+    read at all raises from ``extract_model_ops()`` and is reported here as a
+    config error.
     """
-    model_ops = extract_model_ops(model_path)
+    try:
+        model_ops = extract_model_ops(model_path)
+    except ValueError as err:
+        # Report the parse failure as a config error, not as an unexpected
+        # exception with a traceback.
+        raise cv.Invalid(str(err)) from err
     if not model_ops:
         _LOGGER.info(
             "No usable operator report for model '%s'; the operator check runs on the device",
