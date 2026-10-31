@@ -200,9 +200,11 @@ class ATM90E32Component final : public PollingComponent,
   void finish_gain_calibration_(const GainCalibration (&previous)[3]);
   void finish_offset_calibration_(const OffsetCalibration (&previous)[3], OffsetCalibrationType type);
   // Persists verified register values; otherwise rollback() rewrites the previous values and returns their readback.
+  // name starts a sentence; noun is used mid-sentence, keeping the log text the calibration helper matches.
   template<typename T, typename F>
-  void finish_calibration_(const LogString *name, ESPPreferenceObject &preference, const T (&values)[3],
-                           bool writes_verified, bool &has_stored, bool &restored, bool (&mismatches)[3], F &&rollback);
+  void finish_calibration_(const LogString *name, const LogString *noun, ESPPreferenceObject &preference,
+                           const T (&values)[3], bool writes_verified, bool &has_stored, bool &restored,
+                           bool (&mismatches)[3], F &&rollback);
   bool clear_calibration_pref_(ESPPreferenceObject &preference, bool &has_stored, bool &restored,
                                bool (&mismatches)[3]);
   void configure_chip_();

@@ -735,9 +735,9 @@ void ATM90E32Component::run_gain_calibrations() {
 }
 
 template<typename T, typename F>
-void ATM90E32Component::finish_calibration_(const LogString *name, ESPPreferenceObject &preference,
-                                            const T (&values)[3], bool writes_verified, bool &has_stored,
-                                            bool &restored, bool (&mismatches)[3], F &&rollback) {
+void ATM90E32Component::finish_calibration_(const LogString *name, const LogString *noun,
+                                            ESPPreferenceObject &preference, const T (&values)[3], bool writes_verified,
+                                            bool &has_stored, bool &restored, bool (&mismatches)[3], F &&rollback) {
   static_assert(sizeof(values) == CALIBRATION_PAYLOAD_SIZE, "Calibration payload size mismatch");
   const char *cs = this->get_calibration_id_();
   const bool previous_has_stored = has_stored;
@@ -751,7 +751,7 @@ void ATM90E32Component::finish_calibration_(const LogString *name, ESPPreference
              "[CALIBRATION][%s] Failed to load stored %s calibration "
              "values; refusing to overwrite them. "
              "Clear stored %s calibrations and retry.",
-             cs, LOG_STR_ARG(name), LOG_STR_ARG(name));
+             cs, LOG_STR_ARG(noun), LOG_STR_ARG(noun));
   }
 
   bool persisted = false;
@@ -772,7 +772,7 @@ void ATM90E32Component::finish_calibration_(const LogString *name, ESPPreference
   }
 
   if (attempt) {
-    ESP_LOGE(TAG, "[CALIBRATION][%s] Failed to save %s calibration to memory!", cs, LOG_STR_ARG(name));
+    ESP_LOGE(TAG, "[CALIBRATION][%s] Failed to save %s calibration to memory!", cs, LOG_STR_ARG(noun));
   }
 
   const bool rollback_verified = rollback();
@@ -781,7 +781,7 @@ void ATM90E32Component::finish_calibration_(const LogString *name, ESPPreference
     const bool rollback_saved = preference.save(&previous_stored);
     const bool rollback_synced = global_preferences->sync();
     if (!rollback_saved || !rollback_synced) {
-      ESP_LOGE(TAG, "[CALIBRATION][%s] Failed to persist restored %s calibration values!", cs, LOG_STR_ARG(name));
+      ESP_LOGE(TAG, "[CALIBRATION][%s] Failed to persist restored %s calibration values!", cs, LOG_STR_ARG(noun));
     }
   }
 
@@ -798,7 +798,7 @@ void ATM90E32Component::finish_calibration_(const LogString *name, ESPPreference
 }
 
 void ATM90E32Component::finish_gain_calibration_(const GainCalibration (&previous)[3]) {
-  this->finish_calibration_(LOG_STR("Gain"), this->gain_calibration_pref_, this->gain_phase_,
+  this->finish_calibration_(LOG_STR("Gain"), LOG_STR("gain"), this->gain_calibration_pref_, this->gain_phase_,
                             this->verify_gain_writes_(), this->has_stored_gain_calibration_,
                             this->restored_gain_calibration_, this->gain_calibration_mismatch_, [this, &previous]() {
                               for (uint8_t phase = 0; phase < 3; phase++)
@@ -811,7 +811,8 @@ void ATM90E32Component::finish_gain_calibration_(const GainCalibration (&previou
 void ATM90E32Component::finish_offset_calibration_(const OffsetCalibration (&previous)[3], OffsetCalibrationType type) {
   const bool power_offsets = type == OffsetCalibrationType::OFFSET_CALIBRATION_TYPE_POWER;
   this->finish_calibration_(
-      offset_calibration_name(power_offsets), power_offsets ? this->power_offset_pref_ : this->offset_pref_,
+      offset_calibration_name(power_offsets), offset_calibration_name(power_offsets),
+      power_offsets ? this->power_offset_pref_ : this->offset_pref_,
       power_offsets ? this->power_offset_phase_ : this->offset_phase_, this->verify_offset_writes_(type),
       power_offsets ? this->has_stored_power_offset_calibration_ : this->has_stored_offset_calibration_,
       power_offsets ? this->restored_power_offset_calibration_ : this->restored_offset_calibration_,
@@ -978,9 +979,11 @@ void ATM90E32Component::restore_gain_calibrations_() {
   const bool fallback_verified = this->verify_gain_writes_();
   this->restored_gain_calibration_ = false;
   if (fallback_verified) {
-    ESP_LOGE(TAG, "[CALIBRATION][%s] Gain calibration restore failed verification; config values verified.", cs);
+    ESP_LOGE(TAG, "[CALIBRATION][%s] %s calibration restore failed verification; config values verified.", cs,
+             LOG_STR_LITERAL("gain"));
   } else {
-    ESP_LOGE(TAG, "[CALIBRATION][%s] Gain calibration restore failed; config readback verification failed.", cs);
+    ESP_LOGE(TAG, "[CALIBRATION][%s] %s calibration restore and config fallback both failed verification.", cs,
+             LOG_STR_LITERAL("gain"));
   }
 }
 

@@ -522,9 +522,7 @@ TEST_P(ATM90E32CalibrationPersistence, RestoreVerifiesStoredValuesAndConfigFallb
         if (!restored)
           access.expect_previous_runtime_values(kind);
         if (corrupt) {
-          EXPECT_NE(output.find(kind.gain ? "config readback verification failed"
-                                          : "config fallback both failed verification"),
-                    std::string::npos);
+          EXPECT_NE(output.find("config fallback both failed verification"), std::string::npos);
         } else if (drop) {
           EXPECT_NE(output.find("config values verified"), std::string::npos);
         }
@@ -550,6 +548,9 @@ TEST_P(ATM90E32CalibrationPersistence, FailedPersistencePreservesStoredPayloadAn
     EXPECT_TRUE(access.component.*kind.has_stored);
     EXPECT_EQ(access.component.*kind.restored, restored);
     EXPECT_EQ(output.find("completed and verified"), std::string::npos);
+    // The CircuitSetup calibration helper matches this line, so its text must not change.
+    if (kind.gain)
+      EXPECT_NE(output.find("Failed to save gain calibration to memory!"), std::string::npos);
   }
 }
 
