@@ -354,6 +354,17 @@ def test_uart_clock_source_preserves_variant_metadata(
     assert "ESP32C6" not in clock_source["values"]["APB"]["variants"]
 
 
+def test_automation_with_one_extra_key_keeps_it(language_schema_dir: Path) -> None:
+    """A trigger whose only extra key is not trigger_id still lists that key."""
+    modbus_schema = json.loads((language_schema_dir / "modbus_client.json").read_text())
+    on_no_response = modbus_schema["modbus_client"]["schemas"]["_ACTION_BASE_SCHEMA"][
+        "schema"
+    ]["config_vars"]["on_no_response"]
+
+    assert on_no_response["type"] == "trigger"
+    assert set(on_no_response["schema"]["config_vars"]) == {"retry", "then"}
+
+
 # ---------------------------------------------------------------------------
 # Regression tests for the lvgl schema dump.
 #
