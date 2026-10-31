@@ -783,6 +783,13 @@ positive_not_null_int = int_range(min=0, min_included=False)
 positive_not_null_float = float_range(min=0, min_included=False)
 
 
+def not_generated_name(value: str) -> str:
+    """Reject a name starting with ``esphome__``, which generated C++ code uses for its own."""
+    if value.startswith("esphome__"):
+        raise Invalid("Names starting with 'esphome__' are reserved for generated code")
+    return value
+
+
 def validate_id_name(value):
     """Validate that the given value would be a valid C++ identifier name."""
     value = string(value)

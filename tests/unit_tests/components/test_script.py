@@ -9,7 +9,7 @@ from esphome import automation
 from esphome.components.const import CONF_ON_STOP
 from esphome.components.script import (
     CONF_SCRIPT_STOP,
-    SingleScript,
+    SCRIPT_MODES,
     default_script_stop_ids,
     to_code,
     validate_parameter_name,
@@ -103,14 +103,16 @@ async def test_on_stop_builds_stop_trigger_automation() -> None:
     stop_conf = {CONF_THEN: []}
     config = [
         {
-            CONF_ID: ID("my_script", is_declaration=True, type=SingleScript),
+            CONF_ID: ID("my_script", is_declaration=True, type=SCRIPT_MODES["single"]),
             CONF_MODE: "single",
             CONF_PARAMETERS: {},
             CONF_THEN: [],
             CONF_ON_STOP: stop_conf,
         },
         {
-            CONF_ID: ID("other_script", is_declaration=True, type=SingleScript),
+            CONF_ID: ID(
+                "other_script", is_declaration=True, type=SCRIPT_MODES["single"]
+            ),
             CONF_MODE: "single",
             CONF_PARAMETERS: {},
             CONF_THEN: [],
@@ -145,7 +147,7 @@ async def test_on_stop_builds_stop_trigger_automation() -> None:
 async def test_no_on_stop_define_without_on_stop() -> None:
     config = [
         {
-            CONF_ID: ID("my_script", is_declaration=True, type=SingleScript),
+            CONF_ID: ID("my_script", is_declaration=True, type=SCRIPT_MODES["single"]),
             CONF_MODE: "single",
             CONF_PARAMETERS: {},
             CONF_THEN: [],

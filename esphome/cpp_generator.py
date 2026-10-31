@@ -715,8 +715,8 @@ def Pvariable(id_: ID, rhs: SafeExpType, type_: "MockObj" = None) -> "MockObj":
 def _emit_pvariable(
     id_: ID,
     rhs: SafeExpType,
-    add_global_: Callable[[Statement], object],
-    add_: Callable[[Statement], object],
+    add_global_: Callable[[Expression | Statement], object],
+    add_: Callable[[Expression | Statement], object],
 ) -> None:
     """Emit the storage, declaration and construction of the pointer variable ``id_``."""
     if isinstance(rhs, MockObj) and rhs.is_new_expr:
@@ -751,13 +751,11 @@ def _emit_pvariable(
         # Pointer declaration uses id_.type to preserve the declared base-class
         # pointer type for downstream callers (polymorphism through base ptr).
         add_global_(
-            statement(
-                AssignmentExpression(
-                    f"static {pointer_type}",
-                    "*const ",
-                    id_,
-                    MockObj(f"reinterpret_cast<{pointer_type} *>({storage_name})"),
-                )
+            AssignmentExpression(
+                f"static {pointer_type}",
+                "*const ",
+                id_,
+                MockObj(f"reinterpret_cast<{pointer_type} *>({storage_name})"),
             )
         )
         placement_new = CallExpression(f"new({id_.id}) {actual_type}", *call_expr.args)
@@ -765,8 +763,8 @@ def _emit_pvariable(
         CORE.data.setdefault(_STATIC_POINTER_IDS, set()).add(id_.id)
     else:
         decl = VariableDeclarationExpression(id_.type, "*", id_, static=True)
-        add_global_(statement(decl))
-        add_(statement(AssignmentExpression(None, None, id_, rhs)))
+        add_global_(decl)
+        add_(AssignmentExpression(None, None, id_, rhs))
 
 
 class _StatementSlot(Statement):
@@ -777,36 +775,32 @@ class _StatementSlot(Statement):
     def __init__(self) -> None:
         self.statements: list[Statement] = []
 
+    def add(self, expression: Expression | Statement) -> None:
+        self.statements.append(statement(expression))
+
     def __str__(self) -> str:
         return "\n".join(str(item).rstrip() for item in self.statements)
 
 
 class LatePvariable:
-    """A pointer variable registered now, so other code can refer to it, and created later in
-    the place it was declared, once its class is known.
-
-    ``globals`` is where its storage goes, for code that must be declared before it.
-    """
+    """A pointer variable registered now, so other code can refer to ``var``, and created by
+    ``define()`` in the place it was declared, once its class is known."""
 
     def __init__(self, id_: ID) -> None:
-        self.globals = _StatementSlot()
-        self._main = _StatementSlot()
-        CORE.add_global(self.globals)
-        CORE.add(self._main)
+        self.id = id_
         self.var = MockObj(id_, "->")
+        # Global declarations that must come before the variable can be added here
+        self.global_slot = _StatementSlot()
+        self._main_slot = _StatementSlot()
+        CORE.add_global(self.global_slot)
+        CORE.add(self._main_slot)
         CORE.register_variable(id_, self.var)
 
-    def define(self, type_: "MockObjClass", *args: SafeExpType) -> "MockObj":
-        """Create the variable as ``type_`` with the constructor arguments ``args``."""
-        id_ = self.var.base
-        id_.type = type_
-        _emit_pvariable(
-            id_,
-            type_.new(*args),
-            self.globals.statements.append,
-            self._main.statements.append,
-        )
-        return self.var
+    def define(self, type_: "MockObjClass", *args: SafeExpType) -> None:
+        """Create the variable as ``type_``, like ``new_Pvariable`` with ``args``."""
+        self.id.type = type_
+        rhs = _new_expression(self.id, args)
+        _emit_pvariable(self.id, rhs, self.global_slot.add, self._main_slot.add)
 
 
 _STATIC_POINTER_IDS = "static_pointer_ids"
@@ -828,16 +822,21 @@ def new_Pvariable(id_: ID, *args: SafeExpType) -> "MockObj":
     with the given arguments.
 
     :param id_: The ID used to declare the variable (also specifies the type).
-    :param args: The values to pass to the constructor.
+    :param args: The values to pass to the constructor, after optional template arguments.
 
     :return: The new variable as a MockObj.
     """
     if args and isinstance(args[0], TemplateArguments):
         id_ = id_.copy()
+    return Pvariable(id_, _new_expression(id_, args))
+
+
+def _new_expression(id_: ID, args: tuple[SafeExpType, ...]) -> "MockObj":
+    """``new`` of ``id_.type``, first templated on ``args[0]`` if that is TemplateArguments."""
+    if args and isinstance(args[0], TemplateArguments):
         id_.type = id_.type.template(args[0])
         args = args[1:]
-    rhs = id_.type.new(*args)
-    return Pvariable(id_, rhs)
+    return id_.type.new(*args)
 
 
 def static_function(
@@ -845,24 +844,19 @@ def static_function(
     return_type: SafeExpType,
     parameters: TemplateArgsType,
     body: list[str],
-    before: Statement | None = None,
+    add_global_: "Callable[[Statement], object] | None" = None,
 ) -> RawExpression:
     """Emit ``static <return_type> <name>(parameters) { body }`` at global scope and return an
     expression naming it, for use as a template argument or a function pointer.
 
-    The declaration goes with the other globals, so a template argument can name the function
-    at once (``before`` puts it ahead of that global statement, for one emitted earlier); the
-    body goes after the user includes, where every id and everything those headers declare is
-    in scope.
+    The declaration goes with the other globals (or to ``add_global_``, e.g. a
+    ``LatePvariable``'s place), so a template argument can name the function at once; the body
+    goes after the user includes, where every id and everything those headers declare is in scope.
     """
     signature = (
         f"static {safe_exp(return_type)} {name}({ParameterListExpression(*parameters)})"
     )
-    declaration = RawStatement(f"{signature};")
-    if before is None:
-        add_global(declaration)
-    else:
-        CORE.global_statements.insert(CORE.global_statements.index(before), declaration)
+    (add_global_ or add_global)(RawStatement(f"{signature};"))
     add_global_after_includes(
         RawStatement(f"{signature} {{\n{indent(chr(10).join(body))}\n}}")
     )

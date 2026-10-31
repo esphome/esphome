@@ -986,15 +986,13 @@ def test_static_function_declares_early_and_defines_after_includes() -> None:
     ]
 
 
-def test_static_function_declared_before_statement() -> None:
-    first = CORE.add_global(cg.RawStatement("int first;"))
-    CORE.add_global(cg.RawStatement("int second;"))
-    cg.static_function("esphome__act__fn", ct.void, [], ["return;"], before=first)
-    assert [str(st) for st in CORE.global_statements] == [
-        "static void esphome__act__fn();",
-        "int first;",
-        "int second;",
-    ]
+def test_static_function_declaration_sink() -> None:
+    declarations: list[cg.Statement] = []
+    cg.static_function(
+        "esphome__act__fn", ct.void, [], ["return;"], declarations.append
+    )
+    assert [str(st) for st in declarations] == ["static void esphome__act__fn();"]
+    assert CORE.global_statements == []
 
 
 def test_late_pvariable_is_created_where_declared() -> None:
@@ -1004,7 +1002,8 @@ def test_late_pvariable_is_created_where_declared() -> None:
     assert CORE.variables[id_] is late.var
     CORE.add_global(cg.RawStatement("int after;"))
     cg.add(cg.RawStatement("after();"))
-    late.define(ct.esphome_ns.class_("Final").template(ct.int32), 5)
+    late.global_slot.add(cg.RawStatement("int before_late;"))
+    late.define(ct.esphome_ns.class_("Final"), cg.TemplateArguments(ct.int32), 5)
     assert str(id_.type) == "Final<int32_t>"
     globals_ = CORE.cpp_global_section
     assert globals_.index("Final<int32_t> *const late") < globals_.index("int after;")

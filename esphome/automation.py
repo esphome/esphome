@@ -678,11 +678,11 @@ def apply_static_function(
     return_type: SafeExpType,
     params: TemplateArgsType,
     statements: list[str],
-    before: Statement | None = None,
+    add_global_: Callable[[Statement], object] | None = None,
 ) -> MockObj:
     """Emit the static function generated for ``id_`` and return an expression naming it."""
     return cg.static_function(
-        f"esphome__{id_.id}__fn", return_type, params, statements, before
+        f"esphome__{id_.id}__fn", return_type, params, statements, add_global_
     )
 
 
@@ -1726,19 +1726,17 @@ def _run_function(
     run: list[_InlineAction],
     args: TemplateArgsType,
     stoppable: bool = True,
-    before: Statement | None = None,
+    add_global_: Callable[[Statement], object] | None = None,
 ) -> MockObj:
-    """Emit the function that runs ``run``, declared ahead of ``before`` if given.
-
-    A stoppable one takes the run count first and returns once a stop clears it.
-    """
+    """Emit the function that runs ``run``; a stoppable one takes the run count first and
+    returns once a stop clears it. ``add_global_`` is passed to ``cg.static_function``."""
     params = _apply_lambda_args(args)
     statements = _run_statements(run)
     if stoppable:
         params = [(cg.RawExpression("const int &"), _RUNNING_PARAM), *params]
     else:
         statements = [line for line in statements if line != _STOP_CHECK]
-    return apply_static_function(id_, cg.void, params, statements, before)
+    return apply_static_function(id_, cg.void, params, statements, add_global_)
 
 
 async def _build_action_plan(
@@ -1924,10 +1922,15 @@ def _direct_function(
     plan: list[MockObj | list[_InlineAction]],
     args: TemplateArgsType,
     config: ConfigType,
+    id_: ID | None = None,
+    stoppable: bool = False,
+    add_global_: Callable[[Statement], object] | None = None,
 ) -> MockObj | None:
+    """The function that runs ``plan`` if it is direct, named after ``id_`` (default: its
+    first action); see ``_run_function``."""
     if not _is_direct(plan, config):
         return None
-    return _run_function(plan[0][0].id_, plan[0], args, stoppable=False)
+    return _run_function(id_ or plan[0][0].id_, plan[0], args, stoppable, add_global_)
 
 
 def _when_call(
@@ -1951,22 +1954,16 @@ async def build_automation_or_run_function(
     trigger: MockObj,
     args: TemplateArgsType,
     config: ConfigType,
-    id_: ID,
-    before: Statement | None = None,
+    add_global_: Callable[[Statement], object] | None = None,
 ) -> MockObj | None:
-    """Build ``config`` on ``trigger`` like ``build_automation`` and return None, unless every
-    action is inline.
-
-    Then build no Automation, and return the function ``esphome__<id_>__fn`` (declared ahead
-    of the global statement ``before`` if given) that runs the actions instead, for
-    ``trigger`` to call with a run count and ``args``. Its stop checks stay: the run count is
-    cleared to stop the actions, as in ``ApplyRunAction``.
-    """
+    """Build ``config`` on ``trigger`` like ``build_automation`` and return None; if every
+    action is inline, return the stoppable function ``esphome__<trigger id>__fn`` instead."""
     plan = await _build_automation_plan(args, config)
-    if _is_direct(plan, config):
-        return _run_function(id_, plan[0], args, before=before)
-    _automation_from_plan(plan, args, config, trigger)
-    return None
+    if (
+        fn := _direct_function(plan, args, config, trigger.base, True, add_global_)
+    ) is None:
+        _automation_from_plan(plan, args, config, trigger)
+    return fn
 
 
 async def build_trigger_callback(

@@ -33,21 +33,26 @@ def _actions_of(main_cpp: str, automation: str) -> list[str]:
     return re.findall(rf"\b{automation}->add_action\((\w+)\);", main_cpp)
 
 
+def _template_tail(types: tuple[str, ...]) -> str:
+    return "".join(f", {type_}" for type_ in types)
+
+
 def _mode_class(mode: str, *types: str) -> str:
     """The mode class shared by scripts that run a function, with the same parameters."""
-    args = "".join(f", {type_}" for type_ in types)
-    return f"script::{mode}<script::FunctionBody<{', '.join(types)}>{args}>"
+    return f"script::{mode}<script::FunctionBody<{', '.join(types)}>{_template_tail(types)}>"
 
 
 def _function_script(mode: str, script: str, *types: str) -> str:
     """The class of a script whose actions run as one function."""
-    args = "".join(f", {type_}" for type_ in types)
-    return f"script::FunctionScript<{_mode_class(mode, *types)}, esphome__{script}__fn{args}>"
+    return (
+        f"script::FunctionScript<{_mode_class(mode, *types)}, "
+        f"esphome__{script}__fn{_template_tail(types)}>"
+    )
 
 
 def _assert_function_script(main_cpp: str, mode: str, script: str, *types: str) -> None:
-    assert _constructed(main_cpp, script) == (
-        f"{_function_script(mode, script, *types)}()"
+    assert (
+        _constructed(main_cpp, script) == f"{_function_script(mode, script, *types)}()"
     )
 
 

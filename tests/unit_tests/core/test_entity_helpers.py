@@ -1599,7 +1599,7 @@ def apply_functions(monkeypatch: pytest.MonkeyPatch) -> list[tuple[str, str, str
         return_type: Any,
         parameters: list[tuple[Any, str]],
         body: list[str],
-        before: Any = None,
+        add_global_: Any = None,
     ) -> RawExpression:
         assert str(return_type) == "void"
         params = ", ".join(f"{type_} {arg}" for type_, arg in parameters)

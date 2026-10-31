@@ -9,7 +9,6 @@ from esphome.components.const import CONF_ON_STOP
 import esphome.config_validation as cv
 from esphome.const import CONF_ID, CONF_MODE, CONF_PARAMETERS, CONF_RESTART
 from esphome.core import CORE, EsphomeError
-from esphome.cpp_generator import MockObj
 from esphome.types import ConfigType
 
 CODEOWNERS = ["@esphome/core"]
@@ -40,31 +39,20 @@ def _mode(
     )
 
 
-SingleScript, SingleMode = _mode("Single")
-RestartScript, RestartMode = _mode("Restart")
-QueueingScript, QueueingMode = _mode("Queueing", cg.Component)
-ParallelScript, ParallelMode = _mode("Parallel")
-
-SCRIPT_MODES = {
-    CONF_SINGLE: SingleScript,
-    CONF_RESTART: RestartScript,
-    CONF_QUEUED: QueueingScript,
-    CONF_PARALLEL: ParallelScript,
+MODES = {
+    CONF_SINGLE: _mode("Single"),
+    CONF_RESTART: _mode("Restart"),
+    CONF_QUEUED: _mode("Queueing", cg.Component),
+    CONF_PARALLEL: _mode("Parallel"),
 }
-MODE_TEMPLATES = {
-    CONF_SINGLE: SingleMode,
-    CONF_RESTART: RestartMode,
-    CONF_QUEUED: QueueingMode,
-    CONF_PARALLEL: ParallelMode,
-}
+SCRIPT_MODES = {mode: classes[0] for mode, classes in MODES.items()}
 
 
 @dataclass
 class ScriptData:
-    # The class script.wait is templated on, by script id, once the script's class is known
-    wait_classes: dict[str, MockObj] = field(default_factory=dict)
-    # script.wait actions to create once then, by script id
-    pending_waits: dict[str, list[Callable[[MockObj], MockObj]]] = field(
+    # By script id: the class script.wait is templated on, or the script.wait actions to
+    # create once the script's class is known
+    waits: dict[str, cg.MockObj | list[Callable[[cg.MockObj], None]]] = field(
         default_factory=dict
     )
 
@@ -141,10 +129,7 @@ def validate_parameter_name(value):
     value = cv.string(value)
     if value == CONF_ID:
         raise cv.Invalid(f"Script's parameter name cannot be {CONF_ID}")
-    # Generated code names its own variables like this
-    if value.startswith("esphome__"):
-        raise cv.Invalid("Script parameter names cannot start with 'esphome__'")
-    return value
+    return cv.not_generated_name(value)
 
 
 ALLOWED_PARAM_TYPE_CHARSET = set("abcdefghijklmnopqrstuvwxyz0123456789_:*&[]<>")
@@ -229,14 +214,14 @@ CONFIG_SCHEMA = cv.All(
 async def to_code(config):
     # Register all variables first, so that scripts can use other scripts. Each is created
     # once its actions are built, which decides its class, in the place it was declared.
-    data = _data()
+    waits = _data().waits
     scripts = []
     for conf in config:
         template, func_args = parameters_to_template(conf[CONF_PARAMETERS])
         id_ = conf[CONF_ID].copy()
-        id_.type = SCRIPT_MODES[conf[CONF_MODE]].template(template)
+        id_.type = id_.type.template(template)
         late = cg.LatePvariable(id_)
-        data.pending_waits[id_.id] = []
+        waits[id_.id] = []
         script = late.var
         # Add a human-readable name to the script
         cg.add(script.set_name(cg.LogStringLiteral(id_.id)))
@@ -247,29 +232,29 @@ async def to_code(config):
         if conf[CONF_MODE] == CONF_QUEUED:
             await cg.register_component(script, conf)
 
-        scripts.append((late, func_args, conf))
+        scripts.append((late, template, func_args, conf))
 
     if any(CONF_ON_STOP in conf for conf in config):
         cg.add_define("USE_SCRIPT_ON_STOP")
-    for late, func_args, conf in scripts:
-        script = late.var
-        # The class names the function, so it is declared before the script
+    for late, template, func_args, conf in scripts:
+        # The class names the function, so it is declared in the script's place
         fn = await automation.build_automation_or_run_function(
-            script, func_args, conf, conf[CONF_ID], before=late.globals
+            late.var, func_args, conf, late.global_slot.add
         )
-        script_class = wait_class = script.base.type
+        script_class = wait_class = late.id.type
         if fn is not None:
-            types = [type_ for type_, _ in func_args]
-            wait_class = MODE_TEMPLATES[conf[CONF_MODE]].template(
-                FunctionBody.template(*types), *types
+            wait_class = MODES[conf[CONF_MODE]][1].template(
+                FunctionBody.template(template), *template
             )
-            script_class = FunctionScript.template(wait_class, fn, *types)
+            script_class = FunctionScript.template(wait_class, fn, *template)
         late.define(script_class)
-        data.wait_classes[script.base.id] = wait_class
-        for create_wait in data.pending_waits.pop(script.base.id):
+        for create_wait in waits[late.id.id]:
             create_wait(wait_class)
+        waits[late.id.id] = wait_class
         if (stop_conf := conf.get(CONF_ON_STOP)) is not None:
-            await automation.build_automation(script.get_stop_trigger(), [], stop_conf)
+            await automation.build_automation(
+                late.var.get_stop_trigger(), [], stop_conf
+            )
 
 
 @automation.register_action(
@@ -356,24 +341,25 @@ automation.register_apply_action(
 )
 async def script_wait_action_to_code(config, action_id, template_arg, args):
     full_id, paren = await cg.get_variable_with_full_id(config[CONF_ID])
-    data = _data()
+    script_waits = _data().waits[full_id.id]
+    pending = isinstance(script_waits, list)
+    # Created where it is built, once the class of the script it waits for is known
+    id_ = action_id.copy()
+    id_.type = id_.type.template(
+        full_id.type if pending else script_waits, *template_arg
+    )
+    late = cg.LatePvariable(id_)
 
-    def wait_type(script_class: MockObj) -> MockObj:
-        return action_id.type.template(script_class, *template_arg)
-
-    if (wait_class := data.wait_classes.get(full_id.id)) is not None:
-        var = cg.new_Pvariable(
-            action_id, cg.TemplateArguments(wait_class, *template_arg), paren
+    def create(script_class: cg.MockObj) -> None:
+        late.define(
+            action_id.type, cg.TemplateArguments(script_class, *template_arg), paren
         )
+
+    if pending:
+        script_waits.append(create)
     else:
-        # Created where it is built, once the script's class is known
-        id_ = action_id.copy()
-        id_.type = wait_type(full_id.type)
-        late = cg.LatePvariable(id_)
-        data.pending_waits[full_id.id].append(
-            lambda script_class: late.define(wait_type(script_class), paren)
-        )
-        var = late.var
+        create(script_waits)
+    var = late.var
     await cg.register_component(var, {})
     return var
 
