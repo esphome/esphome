@@ -403,14 +403,14 @@ void ToshibaClimate::setup() {
   this->minimum_temperature_ = this->temperature_min();
   this->maximum_temperature_ = this->temperature_max_();
   this->swing_modes_ = this->toshiba_swing_modes_();
-  if (this->temperature_sensor_) {
-    this->temperature_sensor_->add_on_state_callback([this](float state) {
+  if (this->sensor_) {
+    this->sensor_->add_on_state_callback([this](float state) {
       this->current_temperature = state;
       this->transmit_current_temperature();
       // current temperature changed, publish state
       this->publish_state();
     });
-    this->current_temperature = this->temperature_sensor_->state;
+    this->current_temperature = this->sensor_->state;
   } else {
     this->current_temperature = NAN;
   }
@@ -698,7 +698,7 @@ void ToshibaClimate::transmit_rac_pt1411hwru_() {
   data->space(TOSHIBA_PACKET_SPACE);
   transmit.perform();
 
-  if (this->temperature_sensor_) {
+  if (this->sensor_) {
     this->transmit_rac_pt1411hwru_temp_(true, false);
   }
 }

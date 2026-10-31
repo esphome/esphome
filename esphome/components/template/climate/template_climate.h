@@ -17,7 +17,7 @@ enum class TemplateClimateRestoreMode {
 
 class TemplateClimate final : public climate::Climate, public Component {
 #ifdef USE_SENSOR
-  // The matching feature flag is added from codegen, so the configuration alone decides it.
+  // Codegen adds the matching feature flags, so the configuration alone decides them.
   SUB_SENSOR(temperature)
   SUB_SENSOR(humidity)
 #endif

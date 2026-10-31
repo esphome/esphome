@@ -7,7 +7,7 @@ ESPHOME_LOG_TAG(TAG, "climate_ir");
 
 climate::ClimateTraits ClimateIR::traits() {
   auto traits = climate::ClimateTraits();
-  if (this->temperature_sensor_ != nullptr) {
+  if (this->sensor_ != nullptr) {
     traits.add_feature_flags(climate::CLIMATE_SUPPORTS_CURRENT_TEMPERATURE);
   }
   if (this->humidity_sensor_ != nullptr) {
@@ -27,13 +27,13 @@ climate::ClimateTraits ClimateIR::traits() {
 void ClimateIR::setup() { this->setup_(this->restore_state_()); }
 
 void ClimateIR::setup_(optional<climate::ClimateDeviceRestoreState> restore) {
-  if (this->temperature_sensor_) {
-    this->temperature_sensor_->add_on_state_callback([this](float state) {
+  if (this->sensor_) {
+    this->sensor_->add_on_state_callback([this](float state) {
       this->current_temperature = state;
       // current temperature changed, publish state
       this->publish_state();
     });
-    this->current_temperature = this->temperature_sensor_->state;
+    this->current_temperature = this->sensor_->state;
   }
   if (this->humidity_sensor_ != nullptr) {
     this->humidity_sensor_->add_on_state_callback([this](float state) {
