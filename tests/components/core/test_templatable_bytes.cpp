@@ -1,6 +1,7 @@
 #include <gtest/gtest.h>
 #include <vector>
 #include "esphome/core/automation.h"
+#include "esphome/core/helpers.h"
 
 namespace esphome::testing {
 
@@ -52,11 +53,14 @@ TEST(TemplatableBytesTest, FixedBufferLambda) {
   EXPECT_EQ(seen, (std::vector<uint8_t>{4, 9}));
 }
 
-TEST(TemplatableBytesTest, FixedBufferValueKeepsWhatFits) {
+TEST(TemplatableBytesTest, FixedBufferKeepsWhatFits) {
   TemplatableBuffer<Fixed> bytes;
   bytes.set_static(PAYLOAD, sizeof(PAYLOAD));
   const Fixed value = bytes.value();
   EXPECT_EQ(std::vector<uint8_t>(value.begin(), value.end()), (std::vector<uint8_t>{1, 2}));
+  std::vector<uint8_t> seen;
+  bytes.visit([&](const uint8_t *data, size_t len) { seen.assign(data, data + len); });
+  EXPECT_EQ(seen, (std::vector<uint8_t>{1, 2}));
 }
 
 template<typename... Ts> class FixedHolder {

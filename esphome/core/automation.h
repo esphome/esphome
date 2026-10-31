@@ -6,6 +6,7 @@
 #include "esphome/core/preferences.h"
 #include "esphome/core/progmem.h"
 #include "esphome/core/string_ref.h"
+#include <algorithm>
 #include <concepts>
 #include <functional>
 #include <type_traits>
@@ -109,17 +110,27 @@ template<typename B, typename... Ts> class TemplatableBuffer {
       fn(bytes.data(), bytes.size());
       return;
     }
+    const size_t len = this->static_len_();
 #ifdef USE_ESP8266
-    SmallBufferWithHeapFallback<N> buf(this->size());
-    if (this->len_ != 0)
-      progmem_memcpy(buf.get(), this->code_.data, this->size());
-    fn(buf.get(), this->size());
+    SmallBufferWithHeapFallback<N> buf(len);
+    if (len != 0)
+      progmem_memcpy(buf.get(), this->code_.data, len);
+    fn(buf.get(), len);
 #else
-    fn(this->code_.data, this->size());
+    fn(this->code_.data, len);
 #endif
   }
 
  protected:
+  // A fixed-capacity B keeps only what fits, so visit() passes what value() returns
+  size_t static_len_() const {
+    if constexpr (requires { B::capacity(); }) {
+      return std::min(this->size(), B::capacity());
+    } else {
+      return this->size();
+    }
+  }
+
   static B to_buffer(const uint8_t *data, size_t len) {
     B out;
     out.resize(len);
