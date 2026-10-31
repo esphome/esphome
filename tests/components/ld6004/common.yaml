@@ -49,6 +49,35 @@ select:
     p20_mode:
       name: LD6004 P20 Mode
 
+number:
+  - platform: ld6004
+    ld6004_id: ld6004_radar
+    hold_delay:
+      name: LD6004 Hold Delay
+    z_min:
+      name: LD6004 Z Min
+    z_max:
+      name: LD6004 Z Max
+    low_power_sleep_time:
+      name: LD6004 Low Power Sleep
+    dwell_lifetime:
+      name: LD6004 Dwell Lifetime
+    output_interval:
+      name: LD6004 Output Interval
+    area_config:
+      x_min:
+        name: LD6004 Area X Min
+      x_max:
+        name: LD6004 Area X Max
+      y_min:
+        name: LD6004 Area Y Min
+      y_max:
+        name: LD6004 Area Y Max
+      z_min:
+        name: LD6004 Area Z Min
+      z_max:
+        name: LD6004 Area Z Max
+
 text_sensor:
   - platform: ld6004
     ld6004_id: ld6004_radar

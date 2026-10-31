@@ -29,8 +29,7 @@ TEST_F(LD6002BTest, InstallationReportPublishesOption) {
 // A full command queue drops the write, and the select keeps showing the module's setting
 TEST_F(LD6002BTest, SensitivityKeepsOptionWhenQueueFull) {
   this->feed_(tf_frame(TYPE_REPORT_SENSITIVITY, {0x01}));
-  for (int i = 0; i < 32; i++)
-    this->trigger_speed_.make_call().set_index(0).perform();
+  this->fill_command_queue_();
   this->sensitivity_.make_call().set_index(2).perform();
   EXPECT_EQ(this->sensitivity_.current_option(), "medium");
 }

@@ -140,8 +140,8 @@ inline LD6002BComponent *&test_hub() {
 }
 
 inline void apply_number(number::Number *entity, float value) {
-  entity->publish_state(value);
-  test_hub()->set_number_value(entity, value);
+  if (test_hub()->set_number_value(entity, value))
+    entity->publish_state(value);
 }
 inline void apply_select(select::Select *entity, size_t index) {
   if (test_hub()->set_select_value(entity, index))
@@ -256,6 +256,15 @@ class LD6002BTest : public ::testing::Test {
     }
     EXPECT_TRUE(this->uart_.tx.empty());
     return next_id;
+  }
+
+  /// Queue writes until the hub rejects one, which leaves the command queue full.
+  void fill_command_queue_() {
+    for (int i = 0; i < 64; i++) {
+      if (!this->sut_.set_select_value(&this->trigger_speed_, 0))
+        return;
+    }
+    FAIL() << "Command queue never filled";
   }
 
   host::HostPreferences prefs_;
