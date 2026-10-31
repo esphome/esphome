@@ -43,6 +43,8 @@ static EzoCommandType reply_type(EzoCommandId id) {
 
 static constexpr uint32_t LONG_DELAY_MS = 900;  // reads and calibration points
 static constexpr uint32_t COMMAND_DELAY_MS = 300;
+// reply_due_ is 16 bits, compared as a signed difference
+static_assert(LONG_DELAY_MS < INT16_MAX && COMMAND_DELAY_MS < INT16_MAX);
 static constexpr size_t MAX_REPLY_LENGTH = 52;
 
 static uint32_t reply_delay_ms(EzoCommandId id) {
