@@ -1,6 +1,6 @@
 import logging
 import math
-from typing import Any
+from typing import Any, NamedTuple
 
 from esphome import automation
 import esphome.codegen as cg
@@ -112,6 +112,24 @@ from esphome.const import (
     DEVICE_CLASS_WIND_DIRECTION,
     DEVICE_CLASS_WIND_SPEED,
     ENTITY_CATEGORY_CONFIG,
+    ICON_CHEMICAL_WEAPON,
+    STATE_CLASS_MEASUREMENT,
+    STATE_CLASS_TOTAL_INCREASING,
+    UNIT_AMPERE,
+    UNIT_CELSIUS,
+    UNIT_DECIBEL_MILLIWATT,
+    UNIT_HECTOPASCAL,
+    UNIT_HERTZ,
+    UNIT_KILOWATT_HOURS,
+    UNIT_LUX,
+    UNIT_MICROGRAMS_PER_CUBIC_METER,
+    UNIT_PARTS_PER_MILLION,
+    UNIT_PERCENT,
+    UNIT_VOLT,
+    UNIT_VOLT_AMPS,
+    UNIT_VOLT_AMPS_REACTIVE,
+    UNIT_WATT,
+    UNIT_WATT_HOURS,
 )
 from esphome.core import (
     CORE,
@@ -390,9 +408,51 @@ _SENSOR_SCHEMA.add_extra(entity_duplicate_validator("sensor"))
 _SENSOR_SCHEMA.add_extra(lazy_load_validator("zigbee", "validate_sensor"))
 
 
+class SensorKind(NamedTuple):
+    """Values `sensor_schema(kind=...)` sets; an unset icon is left to the caller."""
+
+    unit_of_measurement: str
+    device_class: str
+    state_class: str
+    icon: str = cv.UNDEFINED
+
+
+def _measurement(unit: str, device_class: str, icon: str = cv.UNDEFINED) -> SensorKind:
+    return SensorKind(unit, device_class, STATE_CLASS_MEASUREMENT, icon)
+
+
+TEMPERATURE = _measurement(UNIT_CELSIUS, DEVICE_CLASS_TEMPERATURE)
+HUMIDITY = _measurement(UNIT_PERCENT, DEVICE_CLASS_HUMIDITY)
+BATTERY = _measurement(UNIT_PERCENT, DEVICE_CLASS_BATTERY)
+PRESSURE = _measurement(UNIT_HECTOPASCAL, DEVICE_CLASS_PRESSURE)
+ILLUMINANCE = _measurement(UNIT_LUX, DEVICE_CLASS_ILLUMINANCE)
+CARBON_DIOXIDE = _measurement(UNIT_PARTS_PER_MILLION, DEVICE_CLASS_CARBON_DIOXIDE)
+PM1 = _measurement(
+    UNIT_MICROGRAMS_PER_CUBIC_METER, DEVICE_CLASS_PM1, ICON_CHEMICAL_WEAPON
+)
+PM25 = _measurement(UNIT_MICROGRAMS_PER_CUBIC_METER, DEVICE_CLASS_PM25)
+PM10 = _measurement(
+    UNIT_MICROGRAMS_PER_CUBIC_METER, DEVICE_CLASS_PM10, ICON_CHEMICAL_WEAPON
+)
+SIGNAL_STRENGTH = _measurement(UNIT_DECIBEL_MILLIWATT, DEVICE_CLASS_SIGNAL_STRENGTH)
+VOLTAGE = _measurement(UNIT_VOLT, DEVICE_CLASS_VOLTAGE)
+CURRENT = _measurement(UNIT_AMPERE, DEVICE_CLASS_CURRENT)
+POWER = _measurement(UNIT_WATT, DEVICE_CLASS_POWER)
+APPARENT_POWER = _measurement(UNIT_VOLT_AMPS, DEVICE_CLASS_APPARENT_POWER)
+REACTIVE_POWER = _measurement(UNIT_VOLT_AMPS_REACTIVE, DEVICE_CLASS_REACTIVE_POWER)
+FREQUENCY = _measurement(UNIT_HERTZ, DEVICE_CLASS_FREQUENCY)
+ENERGY = SensorKind(
+    UNIT_KILOWATT_HOURS, DEVICE_CLASS_ENERGY, STATE_CLASS_TOTAL_INCREASING
+)
+ENERGY_WH = SensorKind(
+    UNIT_WATT_HOURS, DEVICE_CLASS_ENERGY, STATE_CLASS_TOTAL_INCREASING
+)
+
+
 def sensor_schema(
     class_: MockObjClass = cv.UNDEFINED,
     *,
+    kind: SensorKind | None = None,
     unit_of_measurement: str = cv.UNDEFINED,
     icon: str = cv.UNDEFINED,
     accuracy_decimals: int = cv.UNDEFINED,
@@ -401,6 +461,17 @@ def sensor_schema(
     entity_category: str = cv.UNDEFINED,
     filters: list = cv.UNDEFINED,
 ) -> cv.Schema:
+    """Sensor schema; `kind` presets the unit, device class, state class and icon."""
+    if kind is not None:
+        given = (unit_of_measurement, device_class, state_class, icon)
+        for name, preset, value in zip(kind._fields, kind, given, strict=True):
+            if preset is not cv.UNDEFINED and value is not cv.UNDEFINED:
+                raise ValueError(f"kind already sets {name}")
+        unit_of_measurement, device_class, state_class, icon = (
+            value if preset is cv.UNDEFINED else preset
+            for preset, value in zip(kind, given, strict=True)
+        )
+
     schema = {}
 
     if class_ is not cv.UNDEFINED:
