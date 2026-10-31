@@ -83,6 +83,18 @@ api:
       trigger_id: manual_service_trigger
       then:
         - logger.log: "MANUAL called"
+    - action: respond_then_log
+      then:
+        - api.respond:
+            success: true
+        - logger.log: "RESPONDED"
+    # Only inline actions: the lambda reports the status itself
+    - action: status_inline
+      supports_response: status
+      then:
+        - logger.log: "STATUS_INLINE first"
+        - lambda: |-
+            api::global_api_server->send_action_response(call_id, true, StringRef());
     # A lambda may use the service's own id
     - action: self_reference
       trigger_id: self_reference_service
