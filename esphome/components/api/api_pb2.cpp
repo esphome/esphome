@@ -327,6 +327,19 @@ uint32_t SendspinCapabilities::calc_size_msg(const void *self) {
   return size;
 }
 #endif
+#ifdef USE_CRASH_REPORT
+uint8_t *CrashReportCapabilities::encode_msg(const void *self, uint8_t *__restrict__ pos PROTO_ENCODE_DEBUG_PARAM) {
+  const auto &msg = *static_cast<const CrashReportCapabilities *>(self);
+  pos = ProtoEncode::encode_uint32(pos PROTO_ENCODE_DEBUG_ARG, 1, msg.flags);
+  return pos;
+}
+uint32_t CrashReportCapabilities::calc_size_msg(const void *self) {
+  const auto &msg = *static_cast<const CrashReportCapabilities *>(self);
+  uint32_t size = 0;
+  size += ProtoSize::calc_uint32(1, msg.flags);
+  return size;
+}
+#endif
 uint8_t *DeviceCapabilitiesResponse::encode_msg(const void *self, uint8_t *__restrict__ pos PROTO_ENCODE_DEBUG_PARAM) {
   const auto &msg = *static_cast<const DeviceCapabilitiesResponse *>(self);
 #ifdef USE_BLUETOOTH_PROXY
@@ -348,6 +361,9 @@ uint8_t *DeviceCapabilitiesResponse::encode_msg(const void *self, uint8_t *__res
 #endif
 #ifdef USE_SENDSPIN
   pos = ProtoEncode::encode_optional_sub_message(pos PROTO_ENCODE_DEBUG_ARG, 6, msg.sendspin);
+#endif
+#ifdef USE_CRASH_REPORT
+  pos = ProtoEncode::encode_optional_sub_message(pos PROTO_ENCODE_DEBUG_ARG, 8, msg.crash_report);
 #endif
   return pos;
 }
@@ -373,6 +389,9 @@ uint32_t DeviceCapabilitiesResponse::calc_size_msg(const void *self) {
 #endif
 #ifdef USE_SENDSPIN
   size += ProtoSize::calc_message(1, msg.sendspin.calculate_size());
+#endif
+#ifdef USE_CRASH_REPORT
+  size += ProtoSize::calc_message(1, msg.crash_report.calculate_size());
 #endif
   return size;
 }
@@ -403,6 +422,43 @@ void WizardInputSetRequest::decode_field(void *self, uint32_t tag, const uint8_t
     default:
       break;
   }
+}
+#endif
+#ifdef USE_CRASH_REPORT
+uint8_t *CrashReportResponse::encode_msg(const void *self, uint8_t *__restrict__ pos PROTO_ENCODE_DEBUG_PARAM) {
+  const auto &msg = *static_cast<const CrashReportResponse *>(self);
+  pos = ProtoEncode::encode_uint32(pos PROTO_ENCODE_DEBUG_ARG, 1, msg.flags);
+  pos = ProtoEncode::encode_uint32(pos PROTO_ENCODE_DEBUG_ARG, 2, msg.reason);
+  pos = ProtoEncode::encode_uint32(pos PROTO_ENCODE_DEBUG_ARG, 3, msg.pc);
+  for (uint16_t i = 0; i < msg.backtrace_len; i++) {
+    pos = ProtoEncode::encode_uint32_force(pos PROTO_ENCODE_DEBUG_ARG, 4, msg.backtrace[i]);
+  }
+  pos = ProtoEncode::encode_uint32(pos PROTO_ENCODE_DEBUG_ARG, 5, msg.cause);
+  pos = ProtoEncode::encode_uint32(pos PROTO_ENCODE_DEBUG_ARG, 6, msg.fault_address);
+  pos = ProtoEncode::encode_uint32(pos PROTO_ENCODE_DEBUG_ARG, 7, msg.build_time);
+  pos = ProtoEncode::encode_uint32(pos PROTO_ENCODE_DEBUG_ARG, 8, msg.crashed_core);
+  for (uint16_t i = 0; i < msg.other_core_backtrace_len; i++) {
+    pos = ProtoEncode::encode_uint32_force(pos PROTO_ENCODE_DEBUG_ARG, 9, msg.other_core_backtrace[i]);
+  }
+  return pos;
+}
+uint32_t CrashReportResponse::calc_size_msg(const void *self) {
+  const auto &msg = *static_cast<const CrashReportResponse *>(self);
+  uint32_t size = 0;
+  size += ProtoSize::calc_uint32(1, msg.flags);
+  size += ProtoSize::calc_uint32(1, msg.reason);
+  size += ProtoSize::calc_uint32(1, msg.pc);
+  for (uint16_t i = 0; i < msg.backtrace_len; i++) {
+    size += ProtoSize::calc_uint32_force(1, msg.backtrace[i]);
+  }
+  size += ProtoSize::calc_uint32(1, msg.cause);
+  size += ProtoSize::calc_uint32(1, msg.fault_address);
+  size += ProtoSize::calc_uint32(1, msg.build_time);
+  size += ProtoSize::calc_uint32(1, msg.crashed_core);
+  for (uint16_t i = 0; i < msg.other_core_backtrace_len; i++) {
+    size += ProtoSize::calc_uint32_force(1, msg.other_core_backtrace[i]);
+  }
+  return size;
 }
 #endif
 #ifdef USE_BINARY_SENSOR

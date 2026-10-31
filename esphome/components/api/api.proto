@@ -22,6 +22,7 @@ service APIConnection {
   rpc device_capabilities (DeviceCapabilitiesRequest) returns (DeviceCapabilitiesResponse) {}
   rpc device_wizard (DeviceWizardRequest) returns (DeviceWizardResponse) {}
   rpc wizard_input_set (WizardInputSetRequest) returns (void) {}
+  rpc crash_report (CrashReportRequest) returns (CrashReportResponse) {}
   rpc list_entities (ListEntitiesRequest) returns (void) {}
   rpc subscribe_states (SubscribeStatesRequest) returns (void) {}
   rpc subscribe_logs (SubscribeLogsRequest) returns (void) {}
@@ -414,6 +415,11 @@ message SendspinCapabilities {
   string client_id = 2 [(max_data_length) = 43];
 }
 
+message CrashReportCapabilities {
+  // Bitmask of CrashReportFlag
+  uint32 flags = 1;
+}
+
 message DeviceCapabilitiesResponse {
   option (id) = 150;
   option (source) = SOURCE_SERVER;
@@ -425,6 +431,7 @@ message DeviceCapabilitiesResponse {
       [(field_ifdef) = "USE_SERIAL_PROXY", (fixed_array_size_define) = "SERIAL_PROXY_COUNT"];
   WizardCapabilities wizard = 5 [(field_ifdef) = "USE_API_WIZARD"];
   SendspinCapabilities sendspin = 6 [(field_ifdef) = "USE_SENDSPIN"];
+  CrashReportCapabilities crash_report = 8 [(field_ifdef) = "USE_CRASH_REPORT"];
 }
 
 // ==================== DEVICE WIZARD ====================
@@ -536,6 +543,33 @@ message SubscribeStatesRequest {
   option (id) = 20;
   option (source) = SOURCE_CLIENT;
   // Empty
+}
+
+// ==================== CRASH REPORT ====================
+
+// Send only when crash_report.flags has PRESENT. The report is dropped once sent.
+message CrashReportRequest {
+  option (id) = 163;
+  option (source) = SOURCE_CLIENT;
+  option (ifdef) = "USE_CRASH_REPORT";
+  // Empty
+}
+
+message CrashReportResponse {
+  option (id) = 164;
+  option (source) = SOURCE_SERVER;
+  option (ifdef) = "USE_CRASH_REPORT";
+
+  uint32 flags = 1;  // Bitmask of CrashReportFlag
+  uint32 reason = 2;  // CrashReason
+  uint32 pc = 3;
+  repeated uint32 backtrace = 4 [(fixed_array_with_length_define) = "CRASH_REPORT_MAX_BACKTRACE"];
+  uint32 cause = 5;
+  uint32 fault_address = 6;
+  uint32 build_time = 7;
+  uint32 crashed_core = 8;
+  // Dual-core chips only
+  repeated uint32 other_core_backtrace = 9 [(fixed_array_with_length_define) = "CRASH_REPORT_MAX_BACKTRACE"];
 }
 
 // ==================== COMMON =====================

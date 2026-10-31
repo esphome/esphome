@@ -761,6 +761,15 @@ void APIConnection::read_message_(uint32_t msg_size, uint32_t msg_type, const ui
       break;
     }
 #endif
+#ifdef USE_CRASH_REPORT
+    case 163 /* CrashReportRequest is empty */: {
+#ifdef HAS_PROTO_MESSAGE_DUMP
+      this->log_receive_message_(LOG_STR("on_crash_report_request"));
+#endif
+      this->on_crash_report_request();
+      break;
+    }
+#endif
     default:
       break;
   }

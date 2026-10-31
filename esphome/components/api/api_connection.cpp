@@ -1932,7 +1932,7 @@ bool APIConnection::send_hello_response_(const HelloRequest &msg) {
 
   HelloResponse resp;
   resp.api_version_major = 1;
-  resp.api_version_minor = 19;
+  resp.api_version_minor = 20;
   // Send only the version string - the client only logs this for debugging and doesn't use it otherwise
   resp.server_info = esphome_version_ref();
   resp.name = StringRef(App.get_name());
@@ -2124,6 +2124,11 @@ bool APIConnection::send_device_capabilities_response_() {
   resp.sendspin.feature_flags = sendspin_::global_sendspin_hub->get_feature_flags();
   resp.sendspin.client_id = sendspin_::global_sendspin_hub->get_client_id();
 #endif
+#ifdef USE_CRASH_REPORT
+  CrashReport report;
+  if (crash_report_get(report))
+    resp.crash_report.flags = report.flags;
+#endif
   return this->send_message(resp);
 }
 void APIConnection::on_hello_request(const HelloRequest &msg) {
@@ -2152,6 +2157,31 @@ void APIConnection::on_device_capabilities_request() {
     this->on_fatal_error();
   }
 }
+#ifdef USE_CRASH_REPORT
+void APIConnection::on_crash_report_request() {
+  CrashReport report;
+  CrashReportResponse resp;
+  if (crash_report_get(report)) {
+    resp.flags = report.flags;
+    resp.reason = static_cast<uint32_t>(report.reason);
+    resp.pc = report.pc;
+    resp.cause = report.cause;
+    resp.fault_address = report.fault_address;
+    resp.build_time = report.build_time;
+    resp.crashed_core = report.crashed_core;
+    resp.backtrace = report.backtrace;
+    resp.backtrace_len = report.backtrace_count;
+    resp.other_core_backtrace = report.other_core_backtrace;
+    resp.other_core_backtrace_len = report.other_core_backtrace_count;
+  }
+  if (!this->send_message(resp)) {
+    this->on_fatal_error();
+    return;
+  }
+  if (resp.flags & CRASH_REPORT_FLAG_PRESENT)
+    crash_report_clear();
+}
+#endif
 
 #ifdef USE_API_HOMEASSISTANT_STATES
 void APIConnection::on_home_assistant_state_response(const HomeAssistantStateResponse &msg) {

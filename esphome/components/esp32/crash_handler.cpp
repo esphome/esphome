@@ -5,6 +5,7 @@
 
 #include "crash_handler.h"
 #include "esphome/core/build_info_data.h"
+#include "esphome/core/crash_report.h"
 #include "esphome/core/log.h"
 
 #include <cinttypes>
@@ -499,6 +500,79 @@ void crash_handler_log() {
 }
 
 }  // namespace esphome::esp32
+
+namespace esphome {
+
+static_assert(MAX_BACKTRACE <= CRASH_REPORT_MAX_BACKTRACE, "Crash report backtrace too small for the record");
+
+// The record itself stays valid for log replay this boot
+static bool s_report_read = false;  // NOLINT(cppcoreguidelines-avoid-non-const-global-variables)
+
+// Filtered as in log_backtrace()
+static uint8_t copy_backtrace(const uint32_t *addrs, uint8_t count, [[maybe_unused]] uint8_t reg_frame_count,
+                              [[maybe_unused]] bool filter, uint32_t *out) {
+  uint8_t out_count = 0;
+  for (uint8_t i = 0; i < count; i++) {
+#if CONFIG_IDF_TARGET_ARCH_RISCV
+    if (filter && i >= reg_frame_count && !is_return_addr(addrs[i]))
+      continue;
+#endif
+    out[out_count++] = addrs[i];
+  }
+  return out_count;
+}
+
+static CrashReason get_crash_reason() {
+  switch (s_raw_crash_data.exception) {
+    case PANIC_EXCEPTION_ABORT:
+      return CrashReason::CRASH_REASON_ABORT;
+    case PANIC_EXCEPTION_TWDT:
+      return CrashReason::CRASH_REASON_TASK_WATCHDOG;
+    case PANIC_EXCEPTION_IWDT:
+      return CrashReason::CRASH_REASON_INTERRUPT_WATCHDOG;
+    default:
+      return CrashReason::CRASH_REASON_EXCEPTION;
+  }
+}
+
+bool crash_report_get(CrashReport &out) {
+  if (s_report_read || !esp32::crash_handler_has_data())
+    return false;
+  out = {};
+  out.flags = CRASH_REPORT_FLAG_PRESENT;
+  const bool build_matches = s_raw_crash_data.build_time == esp32::s_current_build_time;
+  if (build_matches)
+    out.flags |= CRASH_REPORT_FLAG_BUILD_MATCHES;
+  out.reason = get_crash_reason();
+  out.crashed_core = s_raw_crash_data.crashed_core;
+  out.pc = s_raw_crash_data.pc;
+  out.build_time = s_raw_crash_data.build_time;
+  // A pseudo cause is an IDF panic reason
+  if (s_raw_crash_data.exception != PANIC_EXCEPTION_ABORT && s_raw_crash_data.exception != PANIC_EXCEPTION_TWDT &&
+      !s_raw_crash_data.pseudo_excause && esp32::cause_slot_was_written()) {
+    out.flags |= CRASH_REPORT_FLAG_CAUSE;
+    out.cause = s_raw_crash_data.cause;
+  }
+  if (esp32::has_fault_addr()) {
+    out.flags |= CRASH_REPORT_FLAG_FAULT_ADDRESS;
+    out.fault_address = s_raw_crash_data.fault_addr;
+  }
+  out.backtrace_count = copy_backtrace(s_raw_crash_data.backtrace, s_raw_crash_data.backtrace_count,
+                                       s_raw_crash_data.reg_frame_count, build_matches, out.backtrace.data());
+#if SOC_CPU_CORES_NUM > 1
+  out.other_core_backtrace_count =
+      copy_backtrace(s_raw_crash_data.other_backtrace, s_raw_crash_data.other_backtrace_count,
+                     s_raw_crash_data.other_reg_frame_count, build_matches, out.other_core_backtrace.data());
+#endif
+  return true;
+}
+
+void crash_report_clear() {
+  s_report_read = true;
+  esp32::crash_handler_clear();
+}
+
+}  // namespace esphome
 
 // --- Panic handler wrapper ---
 // Intercepts esp_panic_handler() via --wrap linker flag to capture crash data
