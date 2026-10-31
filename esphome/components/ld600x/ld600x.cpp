@@ -82,105 +82,105 @@ static constexpr uint8_t AREA_ID_DEFAULT = 4;  // detection_area_0 for initial d
 static constexpr uint8_t VERSION_QUERY_DATA[] = {0x01, 0x01, 0x00, 0x00};
 
 #ifdef ESPHOME_LOG_HAS_VERBOSE
-static const char *control_command_name(uint32_t command) {
+static const LogString *control_command_name(uint32_t command) {
   switch (command) {
     case CMD_AUTO_INTERFERENCE:
-      return "auto_interference";
+      return LOG_STR("auto_interference");
     case CMD_GET_AREAS:
-      return "get_areas";
+      return LOG_STR("get_areas");
     case CMD_CLEAR_INTERFERENCE:
-      return "clear_interference";
+      return LOG_STR("clear_interference");
     case CMD_RESET_DETECTION_AREA:
-      return "reset_detection_area";
+      return LOG_STR("reset_detection_area");
     case CMD_GET_DELAY:
-      return "get_delay";
+      return LOG_STR("get_delay");
     case CMD_POINT_CLOUD_ON:
-      return "point_cloud_on";
+      return LOG_STR("point_cloud_on");
     case CMD_POINT_CLOUD_OFF:
-      return "point_cloud_off";
+      return LOG_STR("point_cloud_off");
     case CMD_TARGET_DISPLAY_ON:
-      return "target_display_on";
+      return LOG_STR("target_display_on");
     case CMD_TARGET_DISPLAY_OFF:
-      return "target_display_off";
+      return LOG_STR("target_display_off");
     case CMD_SENSITIVITY_LOW:
-      return "sensitivity_low";
+      return LOG_STR("sensitivity_low");
     case CMD_SENSITIVITY_MEDIUM:
-      return "sensitivity_medium";
+      return LOG_STR("sensitivity_medium");
     case CMD_SENSITIVITY_HIGH:
-      return "sensitivity_high";
+      return LOG_STR("sensitivity_high");
     case CMD_GET_SENSITIVITY:
-      return "get_sensitivity";
+      return LOG_STR("get_sensitivity");
     case CMD_TRIGGER_SLOW:
-      return "trigger_slow";
+      return LOG_STR("trigger_slow");
     case CMD_TRIGGER_MEDIUM:
-      return "trigger_medium";
+      return LOG_STR("trigger_medium");
     case CMD_TRIGGER_FAST:
-      return "trigger_fast";
+      return LOG_STR("trigger_fast");
     case CMD_GET_TRIGGER:
-      return "get_trigger";
+      return LOG_STR("get_trigger");
     case CMD_GET_Z_RANGE:
-      return "get_z_range";
+      return LOG_STR("get_z_range");
     case CMD_INSTALL_TOP:
-      return "install_top";
+      return LOG_STR("install_top");
     case CMD_INSTALL_SIDE:
-      return "install_side";
+      return LOG_STR("install_side");
     case CMD_GET_INSTALLATION:
-      return "get_installation";
+      return LOG_STR("get_installation");
     case CMD_LOW_POWER_ON:
-      return "low_power_on";
+      return LOG_STR("low_power_on");
     case CMD_LOW_POWER_OFF:
-      return "low_power_off";
+      return LOG_STR("low_power_off");
     case CMD_GET_MODE:
-      return "get_mode";
+      return LOG_STR("get_mode");
     case CMD_GET_LOW_POWER_SLEEP:
-      return "get_low_power_sleep";
+      return LOG_STR("get_low_power_sleep");
     case CMD_RESET_UNATTENDED:
-      return "reset_unattended";
+      return LOG_STR("reset_unattended");
     default:
-      return "unknown";
+      return LOG_STR("unknown");
   }
 }
 
-static const char *frame_type_name(uint16_t type) {
+static const LogString *frame_type_name(uint16_t type) {
   switch (type) {
     case TYPE_CONTROL:
-      return "control";
+      return LOG_STR("control");
     case TYPE_SET_AREA:
-      return "set_area";
+      return LOG_STR("set_area");
     case TYPE_SET_HOLD_DELAY:
-      return "set_hold_delay";
+      return LOG_STR("set_hold_delay");
     case TYPE_SET_Z_RANGE:
-      return "set_z_range";
+      return LOG_STR("set_z_range");
     case TYPE_SET_LOW_POWER_SLEEP:
-      return "set_low_power_sleep";
+      return LOG_STR("set_low_power_sleep");
     case TYPE_REPORT_TARGET:
-      return "report_target";
+      return LOG_STR("report_target");
     case TYPE_REPORT_POINT_CLOUD:
-      return "report_point_cloud";
+      return LOG_STR("report_point_cloud");
     case TYPE_REPORT_AREA_PRESENCE:
-      return "report_area_presence";
+      return LOG_STR("report_area_presence");
     case TYPE_REPORT_INTERFERENCE_AREAS:
-      return "report_interference_areas";
+      return LOG_STR("report_interference_areas");
     case TYPE_REPORT_DETECTION_AREAS:
-      return "report_detection_areas";
+      return LOG_STR("report_detection_areas");
     case TYPE_REPORT_DELAY:
-      return "report_delay";
+      return LOG_STR("report_delay");
     case TYPE_REPORT_SENSITIVITY:
-      return "report_sensitivity";
+      return LOG_STR("report_sensitivity");
     case TYPE_REPORT_TRIGGER:
-      return "report_trigger";
+      return LOG_STR("report_trigger");
     case TYPE_REPORT_Z_RANGE:
-      return "report_z_range";
+      return LOG_STR("report_z_range");
     case TYPE_REPORT_INSTALLATION:
-      return "report_installation";
+      return LOG_STR("report_installation");
     case TYPE_REPORT_MODE:
-      return "report_mode";
+      return LOG_STR("report_mode");
     case TYPE_REPORT_LOW_POWER_SLEEP:
-      return "report_low_power_sleep";
+      return LOG_STR("report_low_power_sleep");
     case TYPE_QUERY_VERSION:
-      return "query_version";
+      return LOG_STR("query_version");
     default:
-      return "unknown";
+      return LOG_STR("unknown");
   }
 }
 
@@ -485,8 +485,8 @@ void LD600XComponent::handle_frame_(uint16_t type, const uint8_t *data, uint16_t
           ? encode_value_le<uint32_t>(this->active_command_.data.data())
           : 0;
   if (active_control_command != 0 && is_expected_control_report(active_control_command, type)) {
-    ESP_LOGV(TAG, "Received %s (0x%04X) while waiting for %s (0x%02" PRIX32 ") ACK", frame_type_name(type), type,
-             control_command_name(active_control_command), active_control_command);
+    ESP_LOGV(TAG, "Received %s (0x%04X) while waiting for %s (0x%02" PRIX32 ") ACK", LOG_STR_ARG(frame_type_name(type)),
+             type, LOG_STR_ARG(control_command_name(active_control_command)), active_control_command);
   }
 #endif
 
@@ -868,7 +868,8 @@ void LD600XComponent::process_command_queue_() {
 #ifdef ESPHOME_LOG_HAS_VERBOSE
         if (active_control_command != 0) {
           ESP_LOGV(TAG, "Retrying %s (0x%02" PRIX32 "), %u attempt(s) remaining",
-                   control_command_name(active_control_command), active_control_command, this->retries_left_);
+                   LOG_STR_ARG(control_command_name(active_control_command)), active_control_command,
+                   this->retries_left_);
         } else {
           // Writes without a control subcommand (hold delay, z-range) had no retry trace at all.
           ESP_LOGV(TAG, "Retrying command 0x%04X, %u attempt(s) remaining", this->active_command_.type,
