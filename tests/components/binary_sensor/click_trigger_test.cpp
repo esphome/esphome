@@ -1,16 +1,13 @@
 #include <gtest/gtest.h>
-#include <memory>
 
 #include "esphome/components/binary_sensor/automation.h"
 #include "esphome/components/binary_sensor/binary_sensor.h"
 #include "esphome/components/binary_sensor/filter.h"
-#include "esphome/core/automation.h"
-#include "esphome/core/base_automation.h"
 #include "esphome/core/hal.h"
 
 namespace esphome::binary_sensor::testing {
 
-// The triggers read the real millis(), so every wait is at least 80 ms away from a window edge
+// The click states read the real millis(), so every wait is at least 80 ms away from a window edge
 static constexpr uint32_t MIN_MS = 100;
 static constexpr uint32_t MAX_MS = 300;
 static constexpr uint32_t SHORT_MS = 20;
@@ -24,17 +21,20 @@ class ClickTriggerTest : public ::testing::Test {
   void SetUp() override {
     fired = 0;
     this->sensor_.publish_state(false);
-    this->automation_.add_action(&this->action_);
   }
 
   // As codegen builds on_click and on_double_click
   void add_click(uint32_t min_length = MIN_MS, uint32_t max_length = MAX_MS, BinarySensor *sensor = nullptr) {
-    this->click_ = std::make_unique<ClickTrigger>(sensor != nullptr ? sensor : &this->sensor_, min_length, max_length);
-    this->click_->set_automation_parent(&this->automation_);
+    (sensor != nullptr ? sensor : &this->sensor_)->add_on_state_callback([this, min_length, max_length](bool state) {
+      if (this->click_.on_state(state, min_length, max_length))
+        fired++;
+    });
   }
   void add_double_click() {
-    this->double_click_ = std::make_unique<DoubleClickTrigger>(&this->sensor_, MIN_MS, MAX_MS);
-    this->double_click_->set_automation_parent(&this->automation_);
+    this->sensor_.add_on_state_callback([this](bool state) {
+      if (this->double_click_.on_state(state, MIN_MS, MAX_MS))
+        fired++;
+    });
   }
 
   void click(uint32_t length) {
@@ -44,10 +44,8 @@ class ClickTriggerTest : public ::testing::Test {
   }
 
   BinarySensor sensor_;
-  StatelessLambdaAction<> action_{[]() { fired++; }};
-  Automation<> automation_;
-  std::unique_ptr<ClickTrigger> click_;
-  std::unique_ptr<DoubleClickTrigger> double_click_;
+  ClickState click_;
+  DoubleClickState double_click_;
 };
 
 TEST(ClickMatchInterval, BoundsAreInclusive) {

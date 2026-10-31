@@ -133,10 +133,8 @@ BinarySensorInitiallyOff = binary_sensor_ns.class_(
 BinarySensorPtr = BinarySensor.operator("ptr")
 
 # Triggers
-ClickTrigger = binary_sensor_ns.class_("ClickTrigger", automation.Trigger.template())
-DoubleClickTrigger = binary_sensor_ns.class_(
-    "DoubleClickTrigger", automation.Trigger.template()
-)
+ClickState = binary_sensor_ns.class_("ClickState")
+DoubleClickState = binary_sensor_ns.class_("DoubleClickState")
 MultiClickTrigger = binary_sensor_ns.class_(
     "MultiClickTrigger", automation.Trigger.template(), cg.Component
 )
@@ -461,7 +459,7 @@ _BINARY_SENSOR_SCHEMA = (
             cv.Optional(CONF_ON_CLICK): cv.All(
                 automation.validate_automation(
                     {
-                        cv.GenerateID(CONF_TRIGGER_ID): cv.declare_id(ClickTrigger),
+                        cv.GenerateID(CONF_TRIGGER_ID): cv.declare_id(ClickState),
                         cv.Optional(
                             CONF_MIN_LENGTH, default="50ms"
                         ): cv.positive_time_period_milliseconds,
@@ -475,9 +473,7 @@ _BINARY_SENSOR_SCHEMA = (
             cv.Optional(CONF_ON_DOUBLE_CLICK): cv.All(
                 automation.validate_automation(
                     {
-                        cv.GenerateID(CONF_TRIGGER_ID): cv.declare_id(
-                            DoubleClickTrigger
-                        ),
+                        cv.GenerateID(CONF_TRIGGER_ID): cv.declare_id(DoubleClickState),
                         cv.Optional(
                             CONF_MIN_LENGTH, default="50ms"
                         ): cv.positive_time_period_milliseconds,
@@ -576,17 +572,20 @@ async def _build_binary_sensor_automations(var, config):
     if config.get(CONF_ON_RAW_VALUE):
         cg.add_define("USE_BINARY_SENSOR_RAW_CALLBACK")
 
-    for conf in config.get(CONF_ON_CLICK, []):
-        trigger = cg.new_Pvariable(
-            conf[CONF_TRIGGER_ID], var, conf[CONF_MIN_LENGTH], conf[CONF_MAX_LENGTH]
+    for conf in (*config.get(CONF_ON_CLICK, ()), *config.get(CONF_ON_DOUBLE_CLICK, ())):
+        timing = cg.new_Pvariable(conf[CONF_TRIGGER_ID])
+        await automation.build_callback_automation(
+            var,
+            "add_on_state_callback",
+            [],
+            conf,
+            params=[(cg.bool_, "state")],
+            forward=[],
+            when=automation.ApplyCall(
+                f"{timing}->on_state(state, {{}}, {{}})",
+                ((CONF_MIN_LENGTH, cg.uint32), (CONF_MAX_LENGTH, cg.uint32)),
+            ),
         )
-        await automation.build_automation(trigger, [], conf)
-
-    for conf in config.get(CONF_ON_DOUBLE_CLICK, []):
-        trigger = cg.new_Pvariable(
-            conf[CONF_TRIGGER_ID], var, conf[CONF_MIN_LENGTH], conf[CONF_MAX_LENGTH]
-        )
-        await automation.build_automation(trigger, [], conf)
 
     for conf in config.get(CONF_ON_MULTI_CLICK, []):
         timings = [

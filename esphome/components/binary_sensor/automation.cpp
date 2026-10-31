@@ -136,6 +136,28 @@ bool match_interval(uint32_t min_length, uint32_t max_length, uint32_t length) {
     return length >= min_length && length <= max_length;
   }
 }
+
+bool ClickState::on_state(bool state, uint32_t min_length, uint32_t max_length) {
+  if (state) {
+    this->start_time_ = millis();
+    return false;
+  }
+  return match_interval(min_length, max_length, millis() - this->start_time_);
+}
+
+bool DoubleClickState::on_state(bool state, uint32_t min_length, uint32_t max_length) {
+  const uint32_t now = millis();
+  if (state && this->start_time_ != 0 && this->end_time_ != 0 &&
+      match_interval(min_length, max_length, this->end_time_ - this->start_time_) &&
+      match_interval(min_length, max_length, now - this->end_time_)) {
+    this->start_time_ = 0;
+    this->end_time_ = 0;
+    return true;
+  }
+  this->start_time_ = this->end_time_;
+  this->end_time_ = now;
+  return false;
+}
 #endif  // USE_BINARY_SENSOR_CLICK_TRIGGER
 
 }  // namespace esphome::binary_sensor
