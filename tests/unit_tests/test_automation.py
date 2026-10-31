@@ -39,6 +39,7 @@ from esphome.automation import (
     XorCondition,
     _shadow_iteration,
     apply_action_builder,
+    apply_statements_action,
     build_action,
     build_action_list,
     build_callback_automation,
@@ -2815,3 +2816,54 @@ async def test_trigger_callback_all_inline_is_direct() -> None:
 
     assert "esphome__act_a__fn(index + 1);" in str(callback)
     assert "Automation" not in CORE.cpp_main_section
+
+
+@pytest.fixture
+def statements_action() -> Generator[None]:
+    """Register ``my.statements``, a builder that generates its own statements."""
+
+    @register_action("my.statements", ApplyAction, {}, synchronous=True)
+    async def statements_to_code(
+        config: ConfigType,
+        action_id: ID,
+        template_arg: cg.TemplateArguments,
+        args: list[tuple[object, str]],
+    ) -> MockObj:
+        return apply_statements_action(
+            action_id, template_arg, args, ["auto esphome__v = x;", "use(esphome__v);"]
+        )
+
+    yield
+
+
+@pytest.mark.asyncio
+@pytest.mark.usefixtures("apply_actions", "statements_action")
+async def test_apply_statements_action_alone_is_an_apply_action() -> None:
+    """Alone, it is a plain ApplyAction taking the arguments by const reference."""
+    config = [_action("my.statements", "act_s")]
+
+    result = await build_action_list(
+        config, cg.TemplateArguments(cg.int_), [(cg.int_, "x")]
+    )
+
+    assert [str(action) for action in result] == ["act_s"]
+    assert "new(act_s) ApplyAction<esphome__act_s__fn, int>();" in CORE.cpp_main_section
+    text = CORE.cpp_global_section
+    assert "esphome__act_s__fn(const std::remove_cvref_t<int> & x)" in text
+    assert "use(esphome__v);" in text
+
+
+@pytest.mark.asyncio
+@pytest.mark.usefixtures("apply_actions", "statements_action")
+async def test_apply_statements_action_merges_with_neighbours() -> None:
+    """Next to another inline action, its statements join the merged function."""
+    config = [_action("my.statements", "act_s"), _action("my.a", "act_a")]
+
+    result = await build_action_list(
+        config, cg.TemplateArguments(cg.int_), [(cg.int_, "x")]
+    )
+
+    assert [str(action) for action in result] == ["act_s"]
+    assert "ApplyRunAction<esphome__act_s__fn, int>" in CORE.cpp_main_section
+    text = CORE.cpp_global_section
+    assert text.index("use(esphome__v);") < text.index("::comp->do_a();")
