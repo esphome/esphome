@@ -1,7 +1,6 @@
 #include "canbus.h"
 #include <algorithm>
 #include "esphome/core/application.h"
-#include "esphome/core/helpers.h"
 #include "esphome/core/log.h"
 
 namespace esphome::canbus {
@@ -9,18 +8,10 @@ namespace esphome::canbus {
 ESPHOME_LOG_TAG(TAG, "canbus");
 
 void Canbus::setup() {
-  // Generated on_frame callbacks are registered by now, so they never allocate after setup
-  if (this->frame_callbacks_.size() != 0)
-    this->payload_.reserve(CAN_MAX_DATA_LENGTH);
   if (!this->setup_internal()) {
     ESP_LOGE(TAG, "setup error!");
     this->mark_failed();
   }
-}
-
-const std::vector<uint8_t> &Canbus::frame_payload(const CanFrame &frame) {
-  this->payload_.assign(frame.data, frame.data + frame.payload_length());
-  return this->payload_;
 }
 
 void Canbus::dump_config() {

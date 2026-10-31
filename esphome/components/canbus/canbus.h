@@ -2,10 +2,12 @@
 
 #include "esphome/core/automation.h"
 #include "esphome/core/component.h"
+#include "esphome/core/helpers.h"
 #include "esphome/core/optional.h"
 
 #include <algorithm>
 #include <cinttypes>
+#include <cstring>
 #include <vector>
 
 namespace esphome::canbus {
@@ -50,6 +52,18 @@ static const uint8_t CAN_MAX_DATA_LENGTH = 8;
 
 static const uint8_t CAN_ERROR_PASSIVE_THRESHOLD = 128;
 
+/// A frame's payload, held inline with no heap. Converts to and from std::vector<uint8_t> so lambdas written for
+/// the older vector payload keep compiling; only that conversion allocates.
+class CanPayload : public StaticVector<uint8_t, CAN_MAX_DATA_LENGTH> {
+ public:
+  using StaticVector<uint8_t, CAN_MAX_DATA_LENGTH>::StaticVector;
+  CanPayload() {}  // user provided, so `CanPayload x{}` does not zero the buffer
+  // Data past CAN_MAX_DATA_LENGTH is dropped, as send_data() would
+  CanPayload(const std::vector<uint8_t> &data)  // NOLINT(google-explicit-constructor)
+      : StaticVector<uint8_t, CAN_MAX_DATA_LENGTH>(data.begin(), data.end()) {}
+  operator std::vector<uint8_t>() const { return {this->begin(), this->end()}; }  // NOLINT(google-explicit-constructor)
+};
+
 /*
 Can Frame describes a normative CAN Frame
 The RTR = Remote Transmission Request is implemented in every CAN controller but rarely used
@@ -63,6 +77,12 @@ struct CanFrame {
   uint8_t data[CAN_MAX_DATA_LENGTH] __attribute__((aligned(8)));
 
   uint8_t payload_length() const { return std::min(this->can_data_length_code, CAN_MAX_DATA_LENGTH); }
+  CanPayload payload() const {
+    CanPayload out;
+    std::memcpy(out.data(), this->data, CAN_MAX_DATA_LENGTH);  // fixed size, so it compiles to word moves
+    out.resize(this->payload_length());
+    return out;
+  }
 };
 
 enum CanEventFlags : uint8_t {
@@ -109,15 +129,8 @@ class Canbus : public Component {
   void set_max_frames_per_loop(uint32_t max_frames_per_loop) { this->max_frames_per_loop_ = max_frames_per_loop; }
   virtual CanStatus get_status() { return {}; }
 
-  /**
-   * Add a callback to be called with every received frame, without filtering. The frame is
-   * only valid during the call.
-   */
+  /// Called with every received frame, unfiltered; the frame is only valid during the call.
   template<typename F> void add_frame_callback(F &&callback) { this->frame_callbacks_.add(std::forward<F>(callback)); }
-
-  /// A received frame's payload as a vector, in one buffer shared by every caller and overwritten by the next
-  /// call; do not keep it past the callback. Read frame.data directly to avoid the copy.
-  const std::vector<uint8_t> &frame_payload(const CanFrame &frame);
 
   /**
    * Add a callback to be called when a CAN message is received. All received messages
@@ -132,8 +145,9 @@ class Canbus : public Component {
   template<typename F>
   ESPDEPRECATED("Use add_frame_callback(), which does not copy the payload. Removed in 2027.5.0.", "2026.11.0")
   void add_callback(F &&callback) {
-    this->frame_callbacks_.add([this, cb = std::forward<F>(callback)](const CanFrame &frame) mutable {
-      cb(frame.can_id, frame.use_extended_id, frame.remote_transmission_request, this->frame_payload(frame));
+    this->frame_callbacks_.add([cb = std::forward<F>(callback)](const CanFrame &frame) mutable {
+      cb(frame.can_id, frame.use_extended_id, frame.remote_transmission_request,
+         std::vector<uint8_t>(frame.data, frame.data + frame.payload_length()));
     });
   }
 
@@ -146,7 +160,6 @@ class Canbus : public Component {
   uint8_t events_to_log_{0};
   bool bus_off_{false};
   CallbackManager<void(const CanFrame &frame)> frame_callbacks_{};
-  std::vector<uint8_t> payload_;
 
   // interval in which to check for new can bus events (bus-off, passive, active)
   static constexpr uint32_t EVENT_CHECK_INTERVAL_MS = 100;
@@ -173,7 +186,7 @@ class Canbus : public Component {
 };
 
 template<typename... Ts> class CanbusSendAction final : public Action<Ts...>, public Parented<Canbus> {
-  TEMPLATABLE_BYTES(data)
+  TEMPLATABLE_BUFFER(CanPayload, data)
 
   void set_can_id(uint32_t can_id) { this->can_id_ = can_id; }
 
