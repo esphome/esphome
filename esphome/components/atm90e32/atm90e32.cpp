@@ -71,50 +71,34 @@ void ATM90E32Component::loop() {
         this->phase_[phase].peak_current_ = this->get_phase_peak_current_(phase);
 
       // After the local store is collected we can publish them trusting they are within +-1 hardware sampling
-      if (this->phase_[phase].voltage_sensor_ != nullptr)
-        this->phase_[phase].voltage_sensor_->publish_state(this->get_local_phase_voltage_(phase));
+      PUBLISH_STATE(this->phase_[phase].voltage_sensor_, this->get_local_phase_voltage_(phase));
 
-      if (this->phase_[phase].current_sensor_ != nullptr)
-        this->phase_[phase].current_sensor_->publish_state(this->get_local_phase_current_(phase));
+      PUBLISH_STATE(this->phase_[phase].current_sensor_, this->get_local_phase_current_(phase));
 
-      if (this->phase_[phase].power_sensor_ != nullptr)
-        this->phase_[phase].power_sensor_->publish_state(this->get_local_phase_active_power_(phase));
+      PUBLISH_STATE(this->phase_[phase].power_sensor_, this->get_local_phase_active_power_(phase));
 
-      if (this->phase_[phase].power_factor_sensor_ != nullptr)
-        this->phase_[phase].power_factor_sensor_->publish_state(this->get_local_phase_power_factor_(phase));
+      PUBLISH_STATE(this->phase_[phase].power_factor_sensor_, this->get_local_phase_power_factor_(phase));
 
-      if (this->phase_[phase].reactive_power_sensor_ != nullptr)
-        this->phase_[phase].reactive_power_sensor_->publish_state(this->get_local_phase_reactive_power_(phase));
+      PUBLISH_STATE(this->phase_[phase].reactive_power_sensor_, this->get_local_phase_reactive_power_(phase));
 
-      if (this->phase_[phase].apparent_power_sensor_ != nullptr)
-        this->phase_[phase].apparent_power_sensor_->publish_state(this->get_local_phase_apparent_power_(phase));
+      PUBLISH_STATE(this->phase_[phase].apparent_power_sensor_, this->get_local_phase_apparent_power_(phase));
 
-      if (this->phase_[phase].forward_active_energy_sensor_ != nullptr) {
-        this->phase_[phase].forward_active_energy_sensor_->publish_state(
-            this->get_local_phase_forward_active_energy_(phase));
-      }
+      PUBLISH_STATE(this->phase_[phase].forward_active_energy_sensor_,
+                    this->get_local_phase_forward_active_energy_(phase));
 
-      if (this->phase_[phase].reverse_active_energy_sensor_ != nullptr) {
-        this->phase_[phase].reverse_active_energy_sensor_->publish_state(
-            this->get_local_phase_reverse_active_energy_(phase));
-      }
+      PUBLISH_STATE(this->phase_[phase].reverse_active_energy_sensor_,
+                    this->get_local_phase_reverse_active_energy_(phase));
 
-      if (this->phase_[phase].phase_angle_sensor_ != nullptr)
-        this->phase_[phase].phase_angle_sensor_->publish_state(this->get_local_phase_angle_(phase));
+      PUBLISH_STATE(this->phase_[phase].phase_angle_sensor_, this->get_local_phase_angle_(phase));
 
-      if (this->phase_[phase].harmonic_active_power_sensor_ != nullptr) {
-        this->phase_[phase].harmonic_active_power_sensor_->publish_state(
-            this->get_local_phase_harmonic_active_power_(phase));
-      }
+      PUBLISH_STATE(this->phase_[phase].harmonic_active_power_sensor_,
+                    this->get_local_phase_harmonic_active_power_(phase));
 
-      if (this->phase_[phase].peak_current_sensor_ != nullptr)
-        this->phase_[phase].peak_current_sensor_->publish_state(this->get_local_phase_peak_current_(phase));
+      PUBLISH_STATE(this->phase_[phase].peak_current_sensor_, this->get_local_phase_peak_current_(phase));
     }
-    if (this->freq_sensor_ != nullptr)
-      this->freq_sensor_->publish_state(this->get_frequency_());
+    PUBLISH_STATE(this->freq_sensor_, this->get_frequency_());
 
-    if (this->chip_temperature_sensor_ != nullptr)
-      this->chip_temperature_sensor_->publish_state(this->get_chip_temperature_());
+    PUBLISH_STATE(this->chip_temperature_sensor_, this->get_chip_temperature_());
   }
 }
 

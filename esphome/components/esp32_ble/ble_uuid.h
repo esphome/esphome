@@ -15,7 +15,7 @@
 namespace esphome::esp32_ble {
 
 using ble_device_base::UUID_STR_LEN;
-using ESPBTUUID = ble_device_base::ESPBTUUID;
+using ble_device_base::ESPBTUUID;
 
 }  // namespace esphome::esp32_ble
 

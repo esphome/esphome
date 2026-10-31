@@ -392,6 +392,8 @@ template<typename... X> class TemplatableValue<std::string, X...> {
   }
 
   bool has_value() const { return this->type_ != NONE; }
+  /// Whether the value comes from a lambda, so it may differ between reads.
+  bool is_lambda() const { return this->type_ == LAMBDA || this->type_ == STATELESS_LAMBDA; }
 
   std::string value(X... x) const {
     switch (this->type_) {
