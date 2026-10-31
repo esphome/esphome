@@ -194,7 +194,7 @@ static const LogString *node_type_name(uint8_t type, uint8_t network_type) {
     case 10:
       return network_type == 3 ? LOG_STR("BSRH") : LOG_STR("UCRH");
     case 12:
-      return network_type == 3 ? LOG_STR("BSCO2") :LOG_STR("UCCO2");
+      return network_type == 3 ? LOG_STR("BSCO2") : LOG_STR("UCCO2");
     case 13:
       return LOG_STR("VLV");
     case 17:
