@@ -1,0 +1,4 @@
+climate:
+  - id: !extend midea_unit
+    compressor_power:
+      name: Compressor Power
