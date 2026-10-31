@@ -61,8 +61,7 @@ bool LD6004Component::handle_model_report(uint16_t type, const uint8_t *data, ui
       if (mode >= WORK_MODE_COUNT)
         return true;
 #ifdef USE_SELECT
-      if (this->work_mode_select_ != nullptr)
-        this->work_mode_select_->publish_state(mode);
+      PUBLISH_STATE(this->work_mode_select_, mode);
 #endif
 #ifdef USE_TEXT_SENSOR
       // The LD6004 has five modes, so the text sensor follows this report instead of the base's
@@ -84,8 +83,8 @@ bool LD6004Component::handle_model_report(uint16_t type, const uint8_t *data, ui
       return true;
     case TYPE_REPORT_P20_MODE:
 #ifdef USE_SELECT
-      if (len == 1 && data[0] < P20_MODE_COUNT && this->p20_mode_select_ != nullptr)
-        this->p20_mode_select_->publish_state(data[0]);
+      if (len == 1 && data[0] < P20_MODE_COUNT)
+        PUBLISH_STATE(this->p20_mode_select_, data[0]);
 #endif
       return true;
     case TYPE_REPORT_DWELL_LIFETIME:
@@ -111,9 +110,8 @@ void LD6004Component::set_number_value(number::Number *entity, float value) {
     this->LD600XComponent::set_number_value(entity, value);
     return;
   }
-  const float minimum = entity == this->output_interval_number_ ? 1.0f : 0.0f;
-  // UINT32_MAX rounds up to 2^32 as a float. Reject that value before converting it.
-  if (!std::isfinite(value) || value < minimum || value >= 4294967296.0f || std::floor(value) != value) {
+  // NumberCall already keeps the value inside the traits' range; the module takes whole numbers only.
+  if (std::floor(value) != value) {
     ESP_LOGW(TAG, "Invalid number value: %f", value);
     return;
   }

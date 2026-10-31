@@ -6,7 +6,6 @@ from esphome.components.ld600x import (
     request_model_sizes,
     uart_final_validate,
 )
-from esphome.cpp_generator import MockObj
 from esphome.types import ConfigType
 
 AUTO_LOAD = ["ld600x"]
@@ -23,5 +22,6 @@ FINAL_VALIDATE_SCHEMA = uart_final_validate("ld6004")
 
 
 async def to_code(config: ConfigType) -> None:
-    var: MockObj = await uart.new_uart_component(config)
-    request_model_sizes(var, max_targets=3, area_kinds=3)
+    var = await uart.new_uart_component(config)
+    # The dwell areas take a third kind, which the platforms request only when they use them.
+    request_model_sizes(var, area_kinds=2)
