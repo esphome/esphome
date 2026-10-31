@@ -271,9 +271,13 @@ class LD600XComponent : public Component, public uart::UARTDevice {
   void write_frame_(uint16_t type, const uint8_t *data, uint8_t len, bool track);
   // Returns whether the command reached the queue; see queue_command_.
   bool send_control_command_(uint32_t command);
-  // Returns false when the range was not queued: crossed bounds or a full queue. A bound held
-  // until the other one is known counts as accepted.
-  bool send_z_range_();
+  // Writes the candidate range; the caller stores it only on true. Returns false when it was not
+  // queued: crossed bounds or a full queue. A bound held until the other one is known counts as accepted.
+  bool send_z_range_(float z_min, float z_max);
+#ifdef USE_NUMBER
+  // Writes a whole-number setting as a uint32; returns false for a fractional value or a full queue.
+  bool queue_u32_setting_(uint16_t type, float value);
+#endif
   void apply_area_config_();
 
 #ifdef USE_SENSOR

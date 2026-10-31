@@ -116,8 +116,7 @@ TEST_F(LD6004SelectTest, MalformedP20ModeReportIsIgnored) {
 // A full command queue drops the write, and the select keeps showing the module's mode
 TEST_F(LD6004SelectTest, WorkModeKeepsOptionWhenQueueFull) {
   this->feed_(work_mode(0));
-  for (int i = 0; i < 32; i++)
-    this->p20_mode_.make_call().set_index(0).perform();
+  this->fill_command_queue_([this] { return this->sut_.set_select_value(&this->p20_mode_, 0); });
   this->work_mode_.make_call().set_option("low_power").perform();
   EXPECT_EQ(this->work_mode_.current_option(), "normal");
 }
