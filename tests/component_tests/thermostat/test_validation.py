@@ -197,7 +197,7 @@ def _read_error(tmp_path: Path, extra: str, capsys: pytest.CaptureFixture[str]) 
             """\
             humidity_sensor: temp_sensor
             humidity_control_off_action:
-              - logger.log: off
+              - logger.log: humidity off
             humidity_control_humidify_action:
               - logger.log: humidify
             humidity_control_dehumidify_action:
