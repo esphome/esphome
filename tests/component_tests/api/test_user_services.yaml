@@ -1,0 +1,85 @@
+esphome:
+  name: test
+
+esp32:
+  board: esp32dev
+
+wifi:
+  ssid: SomeNetwork
+  password: SomePassword
+
+logger:
+
+globals:
+  - id: doubled
+    type: int
+    initial_value: "0"
+
+api:
+  actions:
+    - action: no_args
+      then:
+        - logger.log: "NO_ARGS called"
+        - globals.set:
+            id: doubled
+            value: "1"
+    - action: mixed_args
+      variables:
+        bool_: bool
+        int_: int
+        float_: float
+        string_: string
+        int_arr: int[]
+        string_arr: string[]
+      then:
+        - logger.log:
+            format: "MIXED %d %ld %.1f %s %zu %zu"
+            args:
+              - bool_
+              - (long) int_
+              - float_
+              - string_.c_str()
+              - int_arr.size()
+              - string_arr.size()
+    # A lambda action gets the arguments by value, so it may change them
+    - action: by_value
+      variables:
+        x: int
+      then:
+        - lambda: |-
+            x *= 2;
+            ESP_LOGD("test", "BY_VALUE %d", x);
+        - lambda: |-
+            ESP_LOGD("test", "BY_VALUE again %d", x *= 2);
+    - action: with_delay
+      variables:
+        name: string
+        int_arr: int[]
+      then:
+        - logger.log: "WITH_DELAY before"
+        - delay: 10ms
+        - logger.log:
+            format: "WITH_DELAY %s %zu"
+            args: [name.c_str(), int_arr.size()]
+    - action: respond_optional
+      variables:
+        value: int
+      then:
+        - api.respond:
+            data: !lambda |-
+              root["value"] = value;
+    - action: respond_only
+      supports_response: only
+      variables:
+        name: string
+      then:
+        - logger.log:
+            format: "RESPOND_ONLY %s"
+            args: [name.c_str()]
+        - api.respond:
+            data: !lambda |-
+              root["name"] = name;
+    - action: manual_trigger_id
+      trigger_id: manual_service_trigger
+      then:
+        - logger.log: "MANUAL called"
