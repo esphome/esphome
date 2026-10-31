@@ -59,6 +59,18 @@ extern char __ram_code_text_end__[];
 // NOLINTEND(bugprone-reserved-identifier,cert-dcl37-c,cert-dcl51-cpp,readability-identifier-naming)
 #endif  // USE_LIBRETINY_VARIANT_RTL8720C
 
+#ifdef USE_LIBRETINY_VARIANT_RTL8710B
+// NOLINTBEGIN(bugprone-reserved-identifier,cert-dcl37-c,cert-dcl51-cpp,readability-identifier-naming)
+extern "C" {
+// Bounds of the code in flash (XIP) and of the IRAM_ATTR code (linker symbols; the latter from patch_linker.py).
+extern char __flash_text_start__[];
+extern char __flash_text_end__[];
+extern char __esphome_sram_text_start[];
+extern char __esphome_sram_text_end[];
+}
+// NOLINTEND(bugprone-reserved-identifier,cert-dcl37-c,cert-dcl51-cpp,readability-identifier-naming)
+#endif  // USE_LIBRETINY_VARIANT_RTL8710B
+
 #ifdef USE_LN882X
 // NOLINTBEGIN(bugprone-reserved-identifier,cert-dcl37-c,cert-dcl51-cpp,readability-identifier-naming)
 extern "C" {
@@ -82,7 +94,7 @@ static constexpr uint32_t CRASH_MAGIC_V2 = 0xDEAD0002;
 static constexpr uint32_t CRASH_REASON_UNDEFINED = 1;
 static constexpr uint32_t CRASH_REASON_PREFETCH_ABORT = 2;
 static constexpr uint32_t CRASH_REASON_DATA_ABORT = 3;
-// RTL8720C and LN882H: the Cortex-M exception number (3 to 7) plus this offset.
+// Cortex-M families: the exception number (3 to 7) plus this offset.
 static constexpr uint32_t CRASH_REASON_CORTEX_M_OFFSET = 1;
 PROGMEM_STRING_TABLE(CrashReasonStrings, "Unknown", "Undefined instruction", "Prefetch abort", "Data abort",
                      "Hard fault", "MemManage fault", "Bus fault", "Usage fault", "Secure fault");
@@ -108,6 +120,10 @@ struct CrashRecord {
 #elif defined(USE_LN882X)
 // ln882hki_bsp.template.ld puts .noinit in RETENTION RAM, which startup does not clear.
 #define CRASH_RECORD_SECTION ".noinit"
+#elif defined(USE_LIBRETINY_VARIANT_RTL8710B)
+// The AmebaZ linker script puts .bfsram.data* (the FreeRTOS heap) after the .bss that startup zeroes, and the
+// image the bootloader loads ends before .bss.
+#define CRASH_RECORD_SECTION ".bfsram.data.esphome_crash"
 #else
 // rtl8710c_ram.ld keeps .ram.bss.noinit* out of the startup zeroing.
 #define CRASH_RECORD_SECTION ".ram.bss.noinit.esphome_crash"
@@ -162,6 +178,9 @@ static inline bool is_code_addr(uint32_t val) {
 #ifdef USE_BK72XX
   return (addr >= (uint32_t) _vector_start && addr < (uint32_t) _data_flash_begin) ||
          (addr >= (uint32_t) _itcmcode_ram_begin && addr < (uint32_t) _itcmcode_ram_end);
+#elif defined(USE_LIBRETINY_VARIANT_RTL8710B)
+  return (addr >= (uint32_t) __flash_text_start__ && addr < (uint32_t) __flash_text_end__) ||
+         (addr >= (uint32_t) __esphome_sram_text_start && addr < (uint32_t) __esphome_sram_text_end);
 #elif defined(USE_LN882X)
   return (addr >= (uint32_t) _stext && addr < (uint32_t) _etext) ||
          (addr >= (uint32_t) __esphome_sram_text_start && addr < (uint32_t) __esphome_sram_text_end);
@@ -279,8 +298,9 @@ extern "C" void __wrap_bk_trap_dabt(arm_registers *regs) {
 #ifdef USE_LIBRETINY_CRASH_HANDLER_VECTOR_PATCH
 
 // The SDK's RAM vector table (VTOR) points the fault vectors at a handler that prints a register dump and then
-// spins: a ROM handler on the RTL8720C, CmBacktrace (hal_interrupt.c) on the LN882H. crash_handler_install()
-// puts esphome_fault_entry() in front of it, as the RTL8720C SDK's own CONFIG_MIIO patch (app_start.c) does.
+// spins: a ROM handler on the RTL8720C and RTL8710B, CmBacktrace (hal_interrupt.c) on the LN882H.
+// crash_handler_install() puts esphome_fault_entry() in front of it, as the RTL8720C SDK's own CONFIG_MIIO patch
+// (app_start.c) does.
 static_assert(LT_HW_WATCHDOG, "the crash reboot relies on the hardware watchdog");
 // The RTL8720C ROM dump takes about 0.4 s at 115200 baud; without the re-arm the reset waits for the 10 s
 // watchdog from arch_init().
@@ -291,6 +311,11 @@ static constexpr uint32_t FAULT_VECTOR_COUNT = 5;  // and SecureFault (ARMv8-M)
 // DTCM, where the app's stacks and heap live (rtl8710c_ram.ld).
 static constexpr uint32_t SRAM_START = 0x10000000;
 static constexpr uint32_t SRAM_END = 0x1003FA00;
+#elif defined(USE_LIBRETINY_VARIANT_RTL8710B)
+static constexpr uint32_t FAULT_VECTOR_COUNT = 4;
+// All of SRAM: the heap regions span it (heap_5.c) and MSP starts at 0x1003EFFC.
+static constexpr uint32_t SRAM_START = 0x10000000;
+static constexpr uint32_t SRAM_END = 0x10040000;
 #else
 static constexpr uint32_t FAULT_VECTOR_COUNT = 4;
 // RAM0, where the stacks and heap live (ln882hki_bsp.template.ld).
@@ -306,7 +331,7 @@ static constexpr uintptr_t SCB_BFAR = 0xE000ED38;
 static constexpr uint32_t CFSR_MMARVALID = 1u << 7;
 static constexpr uint32_t CFSR_BFARVALID = 1u << 15;
 
-// Exception frame: r0-r3, r12, lr, pc, xPSR, then the FPU registers when EXC_RETURN says so (LN882H only).
+// Exception frame: r0-r3, r12, lr, pc, xPSR, then the FPU registers when EXC_RETURN says so (FPU chips).
 static constexpr uint32_t FRAME_LR = 5;
 static constexpr uint32_t FRAME_PC = 6;
 static constexpr uint32_t FRAME_XPSR = 7;
