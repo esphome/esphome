@@ -41,7 +41,9 @@ from esphome.automation import (
     XorCondition,
     _shadow_iteration,
     apply_action_builder,
+    apply_parent,
     apply_statements_action,
+    bind_lambda,
     build_action,
     build_action_list,
     build_callback_automation,
@@ -3181,3 +3183,22 @@ async def test_apply_statements_action_merges_with_neighbours() -> None:
     assert "ApplyRunAction<esphome__act_s__fn, int>" in CORE.cpp_main_section
     text = CORE.cpp_global_section
     assert text.index("use(esphome__v);") < text.index("::comp->do_a();")
+
+
+@pytest.mark.asyncio
+async def test_bind_lambda_keeps_args_by_value() -> None:
+    """The lambda is built with the trigger args by value and called, never reduced."""
+    statement = await bind_lambda(
+        Lambda("return x *= 2;"), [(cg.int_, "x")], cg.uint8, "esphome__v"
+    )
+
+    assert statement == (
+        "const uint8_t esphome__v = [](int x) -> uint8_t {\n  return x *= 2;\n}(x);"
+    )
+
+
+@pytest.mark.asyncio
+async def test_apply_parent_names_the_id_from_global_scope() -> None:
+    cg.new_Pvariable(ID("comp", is_declaration=True, type=cg.Component))
+
+    assert await apply_parent({"out": ID("comp", type=cg.Component)}, "out") == "::comp"

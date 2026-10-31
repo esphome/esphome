@@ -863,7 +863,7 @@ async def mqtt_publish_json_action_to_code(
     template_arg: cg.TemplateArguments,
     args: TemplateArgsType,
 ) -> MockObj:
-    parent = automation.parent_ref(await cg.get_variable(config[CONF_ID]))
+    parent = await automation.apply_parent(config)
     # Lambdas are called in order before the publish, with the trigger args by value
     statements: list[str] = []
     values: dict[str, str] = {}
@@ -877,9 +877,8 @@ async def mqtt_publish_json_action_to_code(
                 const_fn(config, value) if const_fn else str(cg.safe_exp(value))
             )
             continue
-        lambda_ = await cg.process_lambda(value, args, return_type=type_)
         statements.append(
-            f"const {type_} esphome__{key} = {automation.immediate_lambda_call(lambda_)};"
+            await automation.bind_lambda(value, args, type_, f"esphome__{key}")
         )
         values[key] = f"esphome__{key}"
     payload = await cg.process_lambda(

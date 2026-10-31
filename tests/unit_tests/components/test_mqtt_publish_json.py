@@ -91,7 +91,7 @@ async def test_publish_json_constants_codegen(platform: str, topic: str) -> None
 @pytest.mark.asyncio
 @pytest.mark.usefixtures("client")
 async def test_publish_json_lambdas_codegen() -> None:
-    """Topic, qos and retain are computed in that order before the publish; the payload also gets ``root``."""
+    """Lambdas run in order before the publish; the payload also gets ``root``."""
     await automation.build_action(
         _publish_json(
             **{
