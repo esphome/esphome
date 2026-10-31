@@ -165,11 +165,17 @@ TEST(CanFrameTest, ReceiveUsesDecodedLengthWithoutChangingCallback) {
 
 TEST(CanFrameTest, LegacySendLengthsRemainClassic) {
   TestCanbus bus;
-  std::vector<uint8_t> payload(256, 0xAB);
+  std::vector<uint8_t> payload(256);
+  for (size_t i = 0; i < payload.size(); i++)
+    payload[i] = static_cast<uint8_t>(i);
   for (size_t len = 0; len <= payload.size(); len++) {
-    EXPECT_EQ(bus.send_data(0x123, false, false, payload.data(), len), len <= 8 ? ERROR_OK : ERROR_FAILTX);
+    const size_t before = bus.send_count;
+    EXPECT_EQ(bus.send_data(0x123, false, false, payload.data(), len), ERROR_OK);
+    EXPECT_EQ(bus.send_count, before + 1);
     EXPECT_EQ(bus.sent_frame.can_data_length_code, can_len_to_dlc(std::min<size_t>(len, 8), false));
     EXPECT_FALSE(bus.sent_frame.fd);
+    for (size_t i = 0; i < std::min<size_t>(len, 8); i++)
+      EXPECT_EQ(bus.sent_frame.data[i], payload[i]);
   }
 }
 
@@ -254,9 +260,10 @@ TEST(CanFrameTest, PayloadSendRejectsInvalidFlagsAndNullData) {
   const uint8_t data[9]{};
   EXPECT_EQ(bus.send_data(0x123, false, false, data, 8, false, true), ERROR_FAILTX);
   EXPECT_EQ(bus.send_data(0x123, false, true, data, 8, true, false), ERROR_FAILTX);
-  EXPECT_EQ(bus.send_data(0x123, false, false, data, 9, false, false, true), ERROR_FAILTX);
   EXPECT_EQ(bus.send_data(0x123, false, false, nullptr, 1), ERROR_FAILTX);
   EXPECT_EQ(bus.send_count, 0);
+  EXPECT_EQ(bus.send_data(0x123, false, false, data, 9, false, false, true), ERROR_OK);
+  EXPECT_EQ(bus.sent_frame.can_data_length_code, 8);
   EXPECT_EQ(bus.send_data(0x123, false, false, nullptr, 0), ERROR_OK);
   EXPECT_EQ(bus.send_data(0x123, false, true, nullptr, 8), ERROR_OK);
   EXPECT_TRUE(bus.sent_frame.remote_transmission_request);
@@ -352,11 +359,14 @@ TEST(CanFrameTest, ActionInheritsPaddingDefaultAndAllowsOverrides) {
 
   bus.set_default_pad_data(true);
   EXPECT_EQ(bus.send_data(0x123, false, false, data, sizeof(data), true, false), ERROR_FAILTX);
-  EXPECT_EQ(bus.send_data(0x123, false, false, data, sizeof(data)), ERROR_FAILTX);
-  EXPECT_EQ(bus.send_count, 3);
+  EXPECT_EQ(bus.send_data(0x123, false, false, data, sizeof(data)), ERROR_OK);
+  EXPECT_EQ(bus.send_count, 4);
+  EXPECT_EQ(bus.sent_frame.can_data_length_code, 8);
+  for (size_t i = 0; i < 8; i++)
+    EXPECT_EQ(bus.sent_frame.data[i], data[i]);
 }
 
-TEST(CanFrameTest, ActionEvaluatesLambdaFlagsAndRejectsOversizedLambdaPayloads) {
+TEST(CanFrameTest, ActionEvaluatesLambdaFlagsAndPayloadLengths) {
   TestFdCanbus bus;
   bus.set_can_id(0x123);
   CanbusSendAction<bool, unsigned> action;
@@ -369,12 +379,15 @@ TEST(CanFrameTest, ActionEvaluatesLambdaFlagsAndRejectsOversizedLambdaPayloads) 
     for (unsigned len : {0, 8, 9, 12, 64, 65, 256}) {
       const size_t before = bus.send_count;
       action.play(fd, len);
-      const bool valid = len <= (fd ? 64 : 8);
+      const bool valid = !fd || len <= 64;
       EXPECT_EQ(bus.send_count, before + (valid ? 1 : 0));
       if (valid) {
         EXPECT_EQ(bus.sent_frame.fd, fd);
         EXPECT_EQ(bus.sent_frame.bit_rate_switch, fd);
-        EXPECT_EQ(bus.sent_frame.can_data_length_code, can_len_to_dlc(len, true));
+        const size_t sent_len = fd ? len : std::min<unsigned>(len, 8);
+        EXPECT_EQ(bus.sent_frame.can_data_length_code, can_len_to_dlc(sent_len, true));
+        for (size_t i = 0; i < sent_len; i++)
+          EXPECT_EQ(bus.sent_frame.data[i], 0xAB);
       }
     }
   }

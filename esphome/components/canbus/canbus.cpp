@@ -69,9 +69,13 @@ canbus::Error Canbus::send_data(CanFrame &frame) {
 
 canbus::Error Canbus::send_data(uint32_t can_id, bool use_extended_id, bool remote_transmission_request,
                                 const uint8_t *data, size_t len, bool fd, bool bit_rate_switch, bool pad_data) {
-  if (len > (fd ? CAN_FD_MAX_DATA_LENGTH : CAN_MAX_DATA_LENGTH)) {
-    ESP_LOGE(TAG, "CAN payload length %zu exceeds maximum of %zu bytes", len,
-             static_cast<size_t>(fd ? CAN_FD_MAX_DATA_LENGTH : CAN_MAX_DATA_LENGTH));
+  if (!fd && len > CAN_MAX_DATA_LENGTH) {
+    // Maintain original behavior of clamping non-FD frames to 8-bytes. Print a warning to alert the user that
+    // an operation they requested did not happen as they expected.
+    ESP_LOGW(TAG, "CAN payload length %zu exceeds maximum, sending first %" PRIu8 " bytes", len, CAN_MAX_DATA_LENGTH);
+    len = CAN_MAX_DATA_LENGTH;
+  } else if (fd && len > CAN_FD_MAX_DATA_LENGTH) {
+    ESP_LOGE(TAG, "CAN FD payload length %zu exceeds maximum of %" PRIu8 " bytes", len, CAN_FD_MAX_DATA_LENGTH);
     return ERROR_FAILTX;
   }
   const uint8_t dlc = can_len_to_dlc(len, pad_data);
@@ -101,9 +105,9 @@ canbus::Error Canbus::send_data(uint32_t can_id, bool use_extended_id, bool remo
 
 void Canbus::add_trigger(CanbusTrigger *trigger) {
   if (trigger->use_extended_id_) {
-    ESP_LOGVV(TAG, "add trigger for extended canid=0x%08" PRIx32, trigger->can_id_);
+    ESP_LOGVV(TAG, "add trigger for extended can_id=0x%08" PRIx32, trigger->can_id_);
   } else {
-    ESP_LOGVV(TAG, "add trigger for std canid=0x%03" PRIx32, trigger->can_id_);
+    ESP_LOGVV(TAG, "add trigger for standard can_id=0x%03" PRIx32, trigger->can_id_);
   }
   this->triggers_.push_back(trigger);
 };
@@ -132,10 +136,10 @@ void Canbus::loop() {
     }
 
     if (can_message.use_extended_id) {
-      ESP_LOGD(TAG, "received can message (#%" PRIu32 ") ext can_id=0x%" PRIx32 " size=%d", message_counter + 1,
+      ESP_LOGD(TAG, "received can message (#%" PRIu32 ") extended can_id=0x%" PRIx32 " size=%d", message_counter + 1,
                can_message.can_id, size);
     } else {
-      ESP_LOGD(TAG, "received can message (#%" PRIu32 ") std can_id=0x%" PRIx32 " size=%d", message_counter + 1,
+      ESP_LOGD(TAG, "received can message (#%" PRIu32 ") standard can_id=0x%" PRIx32 " size=%d", message_counter + 1,
                can_message.can_id, size);
     }
 
