@@ -66,15 +66,16 @@ class MS8607HumidityDevice final : public i2c::I2CDevice {};
  - https://github.com/sparkfun/SparkFun_PHT_MS8607_Arduino_Library
  */
 class MS8607Component final : public PollingComponent, public i2c::I2CDevice {
+  SUB_SENSOR(temperature)
+  SUB_SENSOR(pressure)
+  SUB_SENSOR(humidity)
+
  public:
   ~MS8607Component() = default;
   void setup() override;
   void update() override;
   void dump_config() override;
 
-  void set_temperature_sensor(sensor::Sensor *temperature_sensor) { this->temperature_sensor_ = temperature_sensor; }
-  void set_pressure_sensor(sensor::Sensor *pressure_sensor) { this->pressure_sensor_ = pressure_sensor; }
-  void set_humidity_sensor(sensor::Sensor *humidity_sensor) { this->humidity_sensor_ = humidity_sensor; }
   void set_humidity_device(MS8607HumidityDevice *humidity_device) { this->humidity_device_ = humidity_device; }
 
  protected:
@@ -102,10 +103,6 @@ class MS8607Component final : public PollingComponent, public i2c::I2CDevice {
   void read_humidity_(float temperature);
   /// End the update cycle, setting or clearing the warning from update_ok_
   void finalize_update_();
-
-  sensor::Sensor *temperature_sensor_{nullptr};
-  sensor::Sensor *pressure_sensor_{nullptr};
-  sensor::Sensor *humidity_sensor_{nullptr};
 
   /** I2CDevice object to communicate with secondary I2C address for the humidity sensor
    *

@@ -264,9 +264,7 @@ void MS8607Component::read_temperature_() {
     return;
   }
 
-  if (this->temperature_sensor_ != nullptr) {
-    this->temperature_sensor_->publish_state(temperature.temperature_float);
-  }
+  PUBLISH_STATE(this->temperature_sensor_, temperature.temperature_float);
 
   if (this->pressure_sensor_ == nullptr || !this->request_read_pressure_(d2_raw_temperature)) {
     this->finish_update_(temperature.temperature_float);
