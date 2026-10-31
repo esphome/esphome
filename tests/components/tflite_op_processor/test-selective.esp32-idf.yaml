@@ -1,0 +1,2 @@
+packages:
+  tflite_op_processor_selective: !include common-selective.yaml
