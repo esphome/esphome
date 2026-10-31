@@ -166,16 +166,18 @@ def extract_model_ops(model_path: str | Path) -> set[str] | None:
 
     Returns:
         A set of operator names, or ``None`` when no companion ``.txt`` file
-        exists (or it contains no operator list). A report that exists but has no
+        exists or it has no operator section. A report that exists but has no
         readable list is logged: the caller then compiles every kernel in, and the
         build log says why. The device-side runtime check remains the final safety
         net in both cases.
 
     Raises:
-        ValueError: if an entry in the list cannot be read, or the number of
-            entries does not match the count in the header. A partial set would
-            compile out kernels the model needs, and the device would only find
-            out when it tries to register them.
+        ValueError: if an entry in the list cannot be read, the number of entries
+            does not match the count in the header, or the header declares zero
+            operators. A partial set would compile out kernels the model needs,
+            and the device would only find out when it tries to register them. A
+            zero count usually means the report generator failed, so it raises
+            instead of falling back to compiling every kernel.
     """
     txt_path = Path(model_path).with_suffix(".txt")
     if not txt_path.exists():
@@ -198,6 +200,14 @@ def extract_model_ops(model_path: str | Path) -> set[str] | None:
             txt_path.name,
         )
         return None
+    # A zero count almost certainly means the report generator failed, so we
+    # treat it as an error rather than falling back to every kernel. It only
+    # depends on the header, so it fails before any entries are read.
+    if declared == 0:
+        raise ValueError(
+            f"{txt_path}: the operator list declares zero operators; "
+            "regenerate the report instead of editing it"
+        )
     ops: set[str] = set()
     for line in lines[start:]:
         # The list ends at a blank line or at the next non-indented section.
@@ -214,20 +224,7 @@ def extract_model_ops(model_path: str | Path) -> set[str] | None:
             f"{txt_path}: the operator list names {len(ops)} operator(s) but "
             f"declares {declared}; regenerate the report instead of editing it"
         )
-    if len(ops) != declared:
-        raise ValueError(
-            f"{txt_path}: the operator list names {len(ops)} operator(s) but "
-            f"declares {declared}; regenerate the report instead of editing it"
-        )
-    # A zero count almost certainly means the report generator failed, so we
-    # treat it as an error rather than silently returning None and letting the
-    # caller compile every kernel.
-    if declared == 0:
-        raise ValueError(
-            f"{txt_path}: the operator list declares zero operators; "
-            "regenerate the report instead of editing it"
-        )
-    return ops or None
+    return ops
 
 
 def build_selective_op_defines(

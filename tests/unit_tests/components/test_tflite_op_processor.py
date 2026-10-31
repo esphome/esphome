@@ -346,3 +346,14 @@ def test_extract_model_ops_rejects_a_count_mismatch(tmp_path: Path) -> None:
 
     with pytest.raises(ValueError, match="declares 3"):
         extract_model_ops(model)
+
+
+def test_extract_model_ops_rejects_a_zero_count(tmp_path: Path) -> None:
+    """A zero count means the report generator failed, not that no kernel is needed."""
+    model = tmp_path / "model.tflite"
+    (tmp_path / "model.txt").write_text(
+        "Unique operator types: 0\n\n", encoding="utf-8"
+    )
+
+    with pytest.raises(ValueError, match="zero operators"):
+        extract_model_ops(model)
