@@ -1,9 +1,29 @@
-"""Code generation of api user-defined actions (``api: actions:`` and legacy ``services:``)."""
+"""Code generation of api user-defined actions (``api: actions:`` and legacy ``services:``).
+
+Objects are found from the action name and the links between them, not from
+auto-numbered ids, so adding or changing one action does not break the others.
+"""
 
 import re
+from typing import NamedTuple
+
+from esphome.helpers import fnv1_hash
 
 CONFIG = "tests/component_tests/api/test_user_services.yaml"
 LEGACY_CONFIG = "tests/component_tests/api/test_user_services_legacy.yaml"
+
+NONE = "api::enums::SUPPORTS_RESPONSE_NONE"
+OPTIONAL = "api::enums::SUPPORTS_RESPONSE_OPTIONAL"
+ONLY = "api::enums::SUPPORTS_RESPONSE_ONLY"
+STATUS = "api::enums::SUPPORTS_RESPONSE_STATUS"
+UNREGISTER = (
+    "if (call_id != 0)\n    ::api_apiserver_id->unregister_active_action_call(call_id);"
+)
+
+
+class Service(NamedTuple):
+    id: str
+    type: str
 
 
 def _constructed(main_cpp: str, id_: str) -> str:
@@ -24,28 +44,81 @@ def _function_body(main_cpp: str, name: str) -> str:
     return match.group(1)
 
 
-NONE = "api::enums::SUPPORTS_RESPONSE_NONE"
-OPTIONAL = "api::enums::SUPPORTS_RESPONSE_OPTIONAL"
-ONLY = "api::enums::SUPPORTS_RESPONSE_ONLY"
-UNREGISTER_BODY = (
-    "\n  if (call_id != 0)\n"
-    "    ::api_apiserver_id->unregister_active_action_call(call_id);"
-)
+def _strings(main_cpp: str, name: str) -> tuple[str, str]:
+    """Return the id and the entries of the strings table of action ``name``."""
+    match = re.search(
+        rf'\b(api_action\d+_strings)\[\] PROGMEM = \{{("{name}"(?:, .*?)?)\}};',
+        main_cpp,
+    )
+    assert match is not None, name
+    return match.group(1), match.group(2)
+
+
+def _service(main_cpp: str, name: str) -> Service:
+    """Return the service object built from the strings table of action ``name``."""
+    table, _ = _strings(main_cpp, name)
+    match = re.search(
+        rf"\bnew\((\w+)\) ([\w:]+<.*?>)\({table}, (\d+)(?:UL)?\);\n", main_cpp
+    )
+    assert match is not None, name
+    assert int(match.group(3)) == fnv1_hash(name)
+    return Service(match.group(1), match.group(2))
+
+
+def _service_function(main_cpp: str, name: str, mode: str, types: str = "") -> str:
+    """Check action ``name`` is a UserServiceCallback and return the function it calls."""
+    service = _service(main_cpp, name)
+    tail = f", {types}" if types else ""
+    match = re.fullmatch(
+        rf"api::UserServiceCallback<(\w+), {re.escape(mode + tail)}>", service.type
+    )
+    assert match is not None, service.type
+    return match.group(1)
+
+
+def _triggered_automation(main_cpp: str, function: str, args: str) -> str:
+    """Check ``function`` only triggers an Automation with ``args``; return its id."""
+    match = re.fullmatch(
+        rf"\n  ::(\w+)->trigger\({re.escape(args)}\);",
+        _function_body(main_cpp, function),
+    )
+    assert match is not None, function
+    return match.group(1)
+
+
+def _action_code(main_cpp: str, action: str) -> str:
+    """Return the code an action runs: its generated function, or its constructor."""
+    constructed = _constructed(main_cpp, action)
+    if match := re.match(r"Apply(?:Run)?Action<(\w+)[,>]", constructed):
+        return _function_body(main_cpp, match.group(1))
+    return constructed
+
+
+def _action_class(main_cpp: str, action: str) -> str:
+    return re.match(r"[\w:]+", _constructed(main_cpp, action)).group(0)
+
+
+def _assert_unregister_after(main_cpp: str, automation: str, types: str) -> None:
+    """The last action of ``automation`` only unregisters the call."""
+    last = _actions_of(main_cpp, automation)[-1]
+    assert last == f"{automation}__after"
+    assert _constructed(main_cpp, last) == (
+        f"ApplyAction<esphome__{automation}__after__fn, {types}>()"
+    )
+    assert _action_code(main_cpp, last) == f"\n  {UNREGISTER}"
 
 
 def test_no_args_service(generate_main) -> None:
     """Inline actions run in one function the service calls, with no Automation."""
     main_cpp = generate_main(CONFIG)
-    assert _constructed(main_cpp, "api_userservicecallback_id") == (
-        f"api::UserServiceCallback<esphome__lambdaaction_id__fn, {NONE}>"
-        "(api_action0_strings, 4067713328UL)"
-    )
-    body = _function_body(main_cpp, "esphome__lambdaaction_id__fn")
+    function = _service_function(main_cpp, "no_args", NONE)
+    body = _function_body(main_cpp, function)
     assert "NO_ARGS called" in body
     assert "::doubled->value() = 1;" in body
     assert "esphome__running" not in body
-    assert "new(lambdaaction_id)" not in main_cpp
     assert "Automation<>" not in main_cpp
+    # The service calls the function directly, with no action object around it
+    assert f"Action<{function}" not in main_cpp
 
 
 def test_mixed_args_types(generate_main) -> None:
@@ -55,31 +128,26 @@ def test_mixed_args_types(generate_main) -> None:
         "bool, int32_t, float, StringRef, const FixedVector<int32_t> &, "
         "const FixedVector<std::string> &"
     )
-    assert _constructed(main_cpp, "api_userservicecallback_id_2") == (
-        f"api::UserServiceCallback<esphome__lambdaaction_id_2__fn, {NONE}, {types}>"
-        "(api_action1_strings, 2898783538UL)"
-    )
-    assert (
-        'api_action1_strings[] PROGMEM = {"mixed_args", "bool_", "int_", "float_", '
-        '"string_", "int_arr", "string_arr"};' in main_cpp
+    function = _service_function(main_cpp, "mixed_args", NONE, types)
+    assert _strings(main_cpp, "mixed_args")[1] == (
+        '"mixed_args", "bool_", "int_", "float_", "string_", "int_arr", "string_arr"'
     )
     # Arrays stay non-owning references in the generated function
-    assert (
-        "const FixedVector<int32_t> & int_arr, "
-        "const FixedVector<std::string> & string_arr) {" in main_cpp
+    assert re.search(
+        rf"static void {function}\([^)]*"
+        r"const FixedVector<int32_t> & int_arr, "
+        r"const FixedVector<std::string> & string_arr\) \{",
+        main_cpp,
     )
-    body = _function_body(main_cpp, "esphome__lambdaaction_id_2__fn")
+    body = _function_body(main_cpp, function)
     assert "string_.c_str(), int_arr.size(), string_arr.size()" in body
 
 
 def test_lambda_action_gets_args_by_value(generate_main) -> None:
     """A lambda action takes the arguments by value, so ``x *= 2`` compiles in both forms."""
     main_cpp = generate_main(CONFIG)
-    assert _constructed(main_cpp, "api_userservicecallback_id_3") == (
-        f"api::UserServiceCallback<esphome__lambdaaction_id_3__fn, {NONE}, int32_t>"
-        "(api_action2_strings, 3911810908UL)"
-    )
-    body = _function_body(main_cpp, "esphome__lambdaaction_id_3__fn")
+    function = _service_function(main_cpp, "by_value", NONE, "int32_t")
+    body = _function_body(main_cpp, function)
     assert body.count("[](int32_t x) -> void {") == 2
     assert "x *= 2;" in body
     assert '"BY_VALUE again %d", x *= 2' in body
@@ -89,129 +157,95 @@ def test_delay_uses_owning_args(generate_main) -> None:
     """A delay keeps an Automation of separate actions, which the function triggers."""
     main_cpp = generate_main(CONFIG)
     types = "std::string, std::vector<int32_t>"
-    assert _constructed(main_cpp, "api_userservicecallback_id_4") == (
-        f"api::UserServiceCallback<esphome__automation_id_4__fn, {NONE}, {types}>"
-        "(api_action3_strings, 1486811133)"
-    )
-    assert _constructed(main_cpp, "automation_id_4") == f"Automation<{types}>()"
-    assert _function_body(main_cpp, "esphome__automation_id_4__fn") == (
-        "\n  ::automation_id_4->trigger(name, int_arr);"
-    )
-    assert _actions_of(main_cpp, "automation_id_4") == [
-        "lambdaaction_id_5",
-        "delayaction_id",
-        "lambdaaction_id_6",
-    ]
+    function = _service_function(main_cpp, "with_delay", NONE, types)
+    automation = _triggered_automation(main_cpp, function, "name, int_arr")
+    assert _constructed(main_cpp, automation) == f"Automation<{types}>()"
+    before, delay, after = _actions_of(main_cpp, automation)
+    assert _action_class(main_cpp, delay) == "DelayAction"
+    assert "WITH_DELAY before" in _action_code(main_cpp, before)
+    after_code = _action_code(main_cpp, after)
+    assert "WITH_DELAY %s %zu" in after_code
+    assert "[](std::string name, std::vector<int32_t> int_arr) -> void" in after_code
 
 
 def test_respond_optional(generate_main) -> None:
     """An optional response passes call_id and return_response; the call is unregistered last."""
     main_cpp = generate_main(CONFIG)
-    assert _constructed(main_cpp, "api_userservicecallback_id_5") == (
-        f"api::UserServiceCallback<esphome__automation_id_5__fn, {OPTIONAL}, int32_t>"
-        "(api_action4_strings, 89086895)"
+    types = "uint32_t, bool, int32_t"
+    function = _service_function(main_cpp, "respond_optional", OPTIONAL, "int32_t")
+    automation = _triggered_automation(
+        main_cpp, function, "call_id, return_response, value"
     )
-    assert _constructed(main_cpp, "automation_id_5") == (
-        "Automation<uint32_t, bool, int32_t>()"
+    assert _constructed(main_cpp, automation) == f"Automation<{types}>()"
+    respond, _ = _actions_of(main_cpp, automation)
+    assert _constructed(main_cpp, respond) == (
+        f"api::APIRespondAction<{types}>(api_apiserver_id)"
     )
-    assert _function_body(main_cpp, "esphome__automation_id_5__fn") == (
-        "\n  ::automation_id_5->trigger(call_id, return_response, value);"
-    )
-    assert _constructed(main_cpp, "api_apirespondaction_id") == (
-        "api::APIRespondAction<uint32_t, bool, int32_t>(api_apiserver_id)"
-    )
-    assert "api_apirespondaction_id->set_is_optional_mode(true);" in main_cpp
-    assert _actions_of(main_cpp, "automation_id_5") == [
-        "api_apirespondaction_id",
-        "automation_id_5__after",
-    ]
-    assert _constructed(main_cpp, "automation_id_5__after") == (
-        "ApplyAction<esphome__automation_id_5__after__fn, uint32_t, bool, int32_t>()"
-    )
-    assert (
-        _function_body(main_cpp, "esphome__automation_id_5__after__fn")
-        == UNREGISTER_BODY
-    )
+    assert f"{respond}->set_is_optional_mode(true);" in main_cpp
+    _assert_unregister_after(main_cpp, automation, types)
 
 
 def test_respond_only(generate_main) -> None:
     """A response-only service passes call_id; the call is unregistered after every action."""
     main_cpp = generate_main(CONFIG)
-    assert _constructed(main_cpp, "api_userservicecallback_id_6") == (
-        f"api::UserServiceCallback<esphome__automation_id_6__fn, {ONLY}, StringRef>"
-        "(api_action5_strings, 2886062137UL)"
+    types = "uint32_t, StringRef"
+    function = _service_function(main_cpp, "respond_only", ONLY, "StringRef")
+    automation = _triggered_automation(main_cpp, function, "call_id, name")
+    assert _constructed(main_cpp, automation) == f"Automation<{types}>()"
+    log, respond, _ = _actions_of(main_cpp, automation)
+    assert "RESPOND_ONLY %s" in _action_code(main_cpp, log)
+    assert _constructed(main_cpp, respond) == (
+        f"api::APIRespondAction<{types}>(api_apiserver_id)"
     )
-    assert _constructed(main_cpp, "automation_id_6") == (
-        "Automation<uint32_t, StringRef>()"
-    )
-    assert _function_body(main_cpp, "esphome__automation_id_6__fn") == (
-        "\n  ::automation_id_6->trigger(call_id, name);"
-    )
-    assert "api_apirespondaction_id_2->set_is_optional_mode" not in main_cpp
-    assert _actions_of(main_cpp, "automation_id_6") == [
-        "lambdaaction_id_7",
-        "api_apirespondaction_id_2",
-        "automation_id_6__after",
-    ]
-    assert _constructed(main_cpp, "automation_id_6__after") == (
-        "ApplyAction<esphome__automation_id_6__after__fn, uint32_t, StringRef>()"
-    )
-    assert (
-        _function_body(main_cpp, "esphome__automation_id_6__after__fn")
-        == UNREGISTER_BODY
-    )
+    assert f"{respond}->set_is_optional_mode" not in main_cpp
+    _assert_unregister_after(main_cpp, automation, types)
 
 
 def test_unregister_merges_with_trailing_inline_actions(generate_main) -> None:
     """After a non-inline action, the unregister joins the inline actions that follow it."""
     main_cpp = generate_main(CONFIG)
-    assert _constructed(main_cpp, "api_userservicecallback_id_7") == (
-        "api::UserServiceCallback<esphome__automation_id_8__fn, "
-        "api::enums::SUPPORTS_RESPONSE_STATUS>(api_action7_strings, 738580677)"
-    )
-    assert _actions_of(main_cpp, "automation_id_8") == [
-        "api_apirespondaction_id_3",
-        "lambdaaction_id_9",
-    ]
-    body = _function_body(main_cpp, "esphome__lambdaaction_id_9__fn")
+    function = _service_function(main_cpp, "respond_then_log", STATUS)
+    automation = _triggered_automation(main_cpp, function, "call_id")
+    respond, log = _actions_of(main_cpp, automation)
+    assert _action_class(main_cpp, respond) == "api::APIRespondAction"
+    body = _action_code(main_cpp, log)
     assert body.index("RESPONDED") < body.index("if (!esphome__running)")
-    assert body.endswith(
-        "if (call_id != 0)\n"
-        "    ::api_apiserver_id->unregister_active_action_call(call_id);\n  }"
-    )
+    assert body.endswith(f"{UNREGISTER}\n  }}")
 
 
 def test_manual_trigger_id(generate_main) -> None:
     """A trigger_id set by hand names the service object."""
     main_cpp = generate_main(CONFIG)
-    assert _constructed(main_cpp, "manual_service_trigger") == (
-        f"api::UserServiceCallback<esphome__lambdaaction_id_8__fn, {NONE}>"
-        "(api_action6_strings, 3319738294UL)"
-    )
-    assert "MANUAL called" in _function_body(main_cpp, "esphome__lambdaaction_id_8__fn")
+    service = _service(main_cpp, "manual_trigger_id")
+    assert service.id == "manual_service_trigger"
+    function = _service_function(main_cpp, "manual_trigger_id", NONE)
+    assert "MANUAL called" in _function_body(main_cpp, function)
 
 
 def test_services_registered_in_order(generate_main) -> None:
     """Every service is registered with the server once, in config order."""
     main_cpp = generate_main(CONFIG)
-    assert (
-        "api_apiserver_id->initialize_user_services({api_userservicecallback_id, "
-        "api_userservicecallback_id_2, api_userservicecallback_id_3, "
-        "api_userservicecallback_id_4, api_userservicecallback_id_5, "
-        "api_userservicecallback_id_6, manual_service_trigger, "
-        "api_userservicecallback_id_7});" in main_cpp
+    names = [
+        "no_args",
+        "mixed_args",
+        "by_value",
+        "with_delay",
+        "respond_optional",
+        "respond_only",
+        "manual_trigger_id",
+        "respond_then_log",
+    ]
+    match = re.search(
+        r"\bapi_apiserver_id->initialize_user_services\(\{(.*?)\}\);", main_cpp
     )
+    assert match is not None
+    assert match.group(1).split(", ") == [_service(main_cpp, n).id for n in names]
 
 
 def test_legacy_services_key(generate_main) -> None:
     """The legacy ``services:`` key with ``service:`` names builds the same service."""
     main_cpp = generate_main(LEGACY_CONFIG)
-    assert 'api_action0_strings[] PROGMEM = {"legacy_service", "devices"};' in main_cpp
-    assert _constructed(main_cpp, "api_userservicecallback_id") == (
-        f"api::UserServiceCallback<esphome__lambdaaction_id__fn, {NONE}, StringRef>"
-        "(api_action0_strings, 2510686252UL)"
-    )
+    assert _strings(main_cpp, "legacy_service")[1] == '"legacy_service", "devices"'
+    function = _service_function(main_cpp, "legacy_service", NONE, "StringRef")
     assert "Automation<StringRef>" not in main_cpp
-    assert '"LEGACY %s", devices.c_str()' in _function_body(
-        main_cpp, "esphome__lambdaaction_id__fn"
-    )
+    assert '"LEGACY %s", devices.c_str()' in _function_body(main_cpp, function)
