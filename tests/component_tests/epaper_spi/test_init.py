@@ -27,6 +27,7 @@ from esphome.const import (
     CONF_ENABLE_PIN,
     CONF_HEIGHT,
     CONF_INIT_SEQUENCE,
+    CONF_INVERTED,
     CONF_RESET_PIN,
     CONF_WIDTH,
     PlatformFramework,
@@ -152,6 +153,8 @@ def test_all_predefined_models(
         # Add other optional pins that some models might require
         if not model.get_default(CONF_BUSY_PIN):
             config[CONF_BUSY_PIN] = 22
+        if name == "WAVESHARE-3.97IN-G":
+            config[CONF_BUSY_PIN] = {"number": 22, CONF_INVERTED: True}
 
         if not model.get_default(CONF_RESET_PIN):
             config[CONF_RESET_PIN] = 23
@@ -206,6 +209,8 @@ def test_individual_models(
 
     if not model.get_default(CONF_BUSY_PIN):
         config[CONF_BUSY_PIN] = 22
+    if model_name == "WAVESHARE-3.97IN-G":
+        config[CONF_BUSY_PIN] = {"number": 22, CONF_INVERTED: True}
 
     if not model.get_default(CONF_RESET_PIN):
         config[CONF_RESET_PIN] = 23
@@ -276,6 +281,55 @@ def test_waveshare_3p97_g_requires_busy_pin(
                 "cs_pin": 5,
             }
         )
+
+
+@pytest.mark.parametrize(
+    "busy_pin",
+    [22, "GPIO22", {"number": 22}, {"number": 22, "inverted": False}],
+)
+def test_waveshare_3p97_g_rejects_non_inverted_busy_pin(
+    busy_pin: int | str | ConfigType,
+    set_core_config: SetCoreConfigCallable,
+    set_component_config: Callable[[str, Any], None],
+) -> None:
+    set_core_config(
+        PlatformFramework.ESP32_IDF,
+        platform_data={KEY_BOARD: "esp32dev", KEY_VARIANT: VARIANT_ESP32},
+    )
+    set_component_config("spi", {"id": "spi_bus", "clk_pin": 18, "mosi_pin": 19})
+    with pytest.raises(cv.Invalid, match="requires busy_pin.inverted: true"):
+        CONFIG_SCHEMA(
+            {
+                "id": "test_display",
+                "model": "waveshare-3.97in-g",
+                CONF_BUSY_PIN: busy_pin,
+                CONF_DC_PIN: 21,
+                CONF_RESET_PIN: 23,
+                CONF_CS_PIN: 5,
+            }
+        )
+
+
+def test_waveshare_3p97_g_accepts_inverted_busy_pin(
+    set_core_config: SetCoreConfigCallable,
+    set_component_config: Callable[[str, Any], None],
+) -> None:
+    set_core_config(
+        PlatformFramework.ESP32_IDF,
+        platform_data={KEY_BOARD: "esp32dev", KEY_VARIANT: VARIANT_ESP32},
+    )
+    set_component_config("spi", {"id": "spi_bus", "clk_pin": 18, "mosi_pin": 19})
+    config = CONFIG_SCHEMA(
+        {
+            "id": "test_display",
+            "model": "waveshare-3.97in-g",
+            CONF_BUSY_PIN: {"number": 22, CONF_INVERTED: True},
+            CONF_DC_PIN: 21,
+            CONF_RESET_PIN: 23,
+            CONF_CS_PIN: 5,
+        }
+    )
+    assert config[CONF_BUSY_PIN][CONF_INVERTED] is True
 
 
 def test_retired_waveshare_model_is_not_registered() -> None:

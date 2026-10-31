@@ -17,13 +17,6 @@ class EPaperWaveshare3P97InG final : public EPaperBase {
 
  protected:
   void draw_pixel_at(int x, int y, Color color) override;
-  bool is_idle() const override {
-    if (this->state_ == EPaperState::DEEP_SLEEP ||
-        (this->state_ == EPaperState::INITIALISE && this->step_ == Step::INIT_SEQUENCE)) {
-      return true;
-    }
-    return this->busy_pin_->digital_read();
-  }
   bool reset() override;
   bool initialise(bool partial) override;
   bool transfer_data() override;

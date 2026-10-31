@@ -117,7 +117,7 @@ void EPaperBase::cmd_data(uint8_t command, const uint8_t *ptr, size_t length) {
   this->disable();
 }
 
-bool EPaperBase::is_idle() const {
+bool EPaperBase::is_idle_() const {
   if (this->busy_pin_ == nullptr) {
     return true;
   }
@@ -193,7 +193,7 @@ void EPaperBase::loop() {
     return;
   }
   if (this->waiting_for_idle_) {
-    if (this->is_idle()) {
+    if (this->is_idle_()) {
       this->waiting_for_idle_ = false;
       this->high_frequency_loop_.start();
 #if ESPHOME_LOG_LEVEL >= ESPHOME_LOG_LEVEL_VERBOSE
@@ -346,7 +346,8 @@ void EPaperBase::set_state_(EPaperState state, uint16_t delay) {
     delay = this->next_delay_;
   this->next_delay_ = 0;
   this->delay_until_ = millis() + delay;
-  this->wait_for_idle_(state > EPaperState::SHOULD_WAIT);
+  this->wait_for_idle_(state > EPaperState::SHOULD_WAIT && this->next_idle_wait_);
+  this->next_idle_wait_ = true;
   ESP_LOGV(TAG, "Enter state %s, delay %u, wait_for_idle=%s", LOG_STR_ARG(this->epaper_state_to_string_()), delay,
            TRUEFALSE(this->waiting_for_idle_));
   // Each step of an update otherwise waits for the next loop iteration; loop() slows down again for long waits

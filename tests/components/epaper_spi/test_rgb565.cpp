@@ -28,7 +28,7 @@ TEST(Waveshare3P97Rgb565, FrameFormat) {
 class Waveshare3P97Rgb565Drawing : public ::testing::TestWithParam<std::tuple<DisplayRotation, bool, bool>> {};
 
 TEST_P(Waveshare3P97Rgb565Drawing, MatchesScalarPixels) {
-  const auto [rotation, big_endian, clipped] = this->GetParam();
+  const auto [rotation, big_endian, clipped] = GetParam();
   EPaperWaveshare3P97InG panel("block", 800, 480, nullptr, 0);
   EPaperWaveshare3P97InG reference("scalar", 800, 480, nullptr, 0);
   auto &buffer = panel.*FrameAccess::BUFFER;

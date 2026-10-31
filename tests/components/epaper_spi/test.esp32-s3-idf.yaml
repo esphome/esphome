@@ -535,3 +535,4 @@ display:
     busy_pin:
       allow_other_uses: true
       number: GPIO4
+      inverted: true

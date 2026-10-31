@@ -1,5 +1,6 @@
 import esphome.config_validation as cv
-from esphome.const import CONF_BUSY_PIN
+from esphome.const import CONF_BUSY_PIN, CONF_INVERTED
+from esphome.types import ConfigType
 
 from . import EpaperModel
 
@@ -11,6 +12,15 @@ class Waveshare3P97InG(EpaperModel):
         if name == CONF_BUSY_PIN:
             return cv.Required(name)
         return super().option(name, fallback)
+
+    def validate_config(self, config: ConfigType) -> ConfigType:
+        if not config[CONF_BUSY_PIN][CONF_INVERTED]:
+            raise cv.Invalid(
+                f"{self.name} requires busy_pin.inverted: true; "
+                "replace the bare GPIO with {number: GPIOxx, inverted: true}",
+                path=[CONF_BUSY_PIN, CONF_INVERTED],
+            )
+        return config
 
 
 # Vendor init derived from the Waveshare 3.97inch E-Paper Display (G) sample.

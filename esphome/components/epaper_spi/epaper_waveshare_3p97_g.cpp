@@ -49,6 +49,8 @@ void HOT EPaperWaveshare3P97InG::draw_pixel_at(int x, int y, Color color) {
 bool EPaperWaveshare3P97InG::reset() {
   if (this->reset_pin_ == nullptr) {
     this->step_ = Step::INIT_SEQUENCE;
+    // No reset pulse was sent, so the panel is still busy; skip the wait before the init sequence
+    this->skip_next_idle_wait_();
     return true;
   }
 
@@ -70,6 +72,8 @@ bool EPaperWaveshare3P97InG::reset() {
       return false;
     case Step::RESET_SETTLE:
       this->step_ = Step::INIT_SEQUENCE;
+      // The panel stays busy after reset; start the init sequence without waiting for idle
+      this->skip_next_idle_wait_();
       return true;
     default:
       this->mark_failed(LOG_STR("Invalid reset state"));
@@ -130,7 +134,11 @@ void EPaperWaveshare3P97InG::refresh_screen([[maybe_unused]] bool partial) {
   this->next_delay_ = 100;
 }
 
-void EPaperWaveshare3P97InG::power_off() { this->cmd_data(0x02, {0x00}); }
+void EPaperWaveshare3P97InG::power_off() {
+  this->cmd_data(0x02, {0x00});
+  // The panel stops driving BUSY once off, so don't wait before deep sleep
+  this->skip_next_idle_wait_();
+}
 
 void EPaperWaveshare3P97InG::deep_sleep() { this->cmd_data(0x07, {0xA5}); }
 
