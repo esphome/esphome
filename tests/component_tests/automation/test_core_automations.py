@@ -76,3 +76,17 @@ def test_on_loop(main_cpp: str) -> None:
     assert "Automation<>(looptrigger_id)" in main_cpp
     assert _constructed(main_cpp, "looptrigger_id_2") == "LoopTrigger()"
     assert "automation_id_8->add_action(delayaction_id_3);" in main_cpp
+
+
+def test_on_boot_registered_before_its_actions_are_built(
+    generate_main: Callable[[str | Path], str],
+    component_config_path: Callable[[str], Path],
+) -> None:
+    """The block keeps its place among components with the same priority while it waits."""
+    main_cpp = generate_main(component_config_path("on_boot_waits_for_ids.yaml"))
+
+    assert _registered(main_cpp)[-3:] == [
+        "startuptrigger_id",
+        "interval_intervaltrigger_id",
+        "some_sensor",
+    ]
