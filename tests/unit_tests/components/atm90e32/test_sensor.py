@@ -1,5 +1,6 @@
 """Validate ATM90E32 thresholds before narrowing them to hardware registers."""
 
+import logging
 from typing import Any
 
 import pytest
@@ -189,6 +190,19 @@ def test_safety_override_does_not_allow_register_overflow() -> None:
 
 def test_default_thresholds_do_not_reject_legacy_phase_gains() -> None:
     _validate(phases={"phase_a": {"gain_ct": 10000}, "phase_b": {"gain_ct": 20000}})
+
+
+def test_default_peak_that_cannot_fit_warns(caplog: pytest.LogCaptureFixture) -> None:
+    # The Gelidus PM1 calibration: 122% of 120V does not fit the overvoltage register.
+    with caplog.at_level(logging.WARNING):
+        _validate(phases={"phase_a": {"gain_voltage": 4470}})
+    assert "thresholds.voltage_peak_v (146.4)" in caplog.text
+    assert "at most 126.4" in caplog.text
+
+
+def test_explicit_peak_that_cannot_fit_names_the_limit() -> None:
+    with pytest.raises(cv.Invalid, match="highest value that fits is 126.4"):
+        _validate({"voltage_peak_v": "130V"}, {"phase_a": {"gain_voltage": 4470}})
 
 
 @pytest.mark.asyncio

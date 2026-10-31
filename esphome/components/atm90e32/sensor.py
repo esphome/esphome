@@ -1,3 +1,4 @@
+import logging
 import math
 
 import esphome.codegen as cg
@@ -46,6 +47,8 @@ from esphome.const import (
 from esphome.types import ConfigType
 
 from . import atm90e32_ns
+
+_LOGGER = logging.getLogger(__name__)
 
 CONF_CHIP_TEMPERATURE = "chip_temperature"
 CONF_GAIN_PGA = "gain_pga"
@@ -277,7 +280,9 @@ def _validate_thresholds(config: ConfigType) -> ConfigType:
         ),
         (CONF_GAIN_CT, (CONF_CURRENT_PEAK,), ((CONF_CURRENT_PEAK, max),), 1000),
     ):
-        if not any(key in configured for key in triggers):
+        user_set = any(key in configured for key in triggers)
+        # A legacy config without current_peak keeps the fixed OITH register value.
+        if not user_set and gain_key == CONF_GAIN_CT:
             continue
         gains = {
             config[phase][gain_key]
@@ -285,16 +290,32 @@ def _validate_thresholds(config: ConfigType) -> ConfigType:
             if phase in config
         }
         if not gains or 0 in gains:
+            if not user_set:
+                continue
             raise cv.Invalid(
                 f"Thresholds require at least one phase and a nonzero {gain_key} on every configured phase."
             )
         for key, select_gain in registers:
             gain = select_gain(gains)
-            if thresholds[key] * scale * math.sqrt(2) * 16384 / gain > 65535:
+            limit = 65535 * gain / (scale * math.sqrt(2) * 16384)
+            if thresholds[key] <= limit:
+                continue
+            message = (
+                f"thresholds.{key} ({thresholds[key]:.1f}) cannot fit the 16-bit threshold register with "
+                f"{gain_key}: {gain}; the highest value that fits is {limit:.1f}"
+            )
+            if user_set:
                 raise cv.Invalid(
-                    f"thresholds.{key} cannot fit the 16-bit threshold register with {gain_key}: {gain}; "
-                    f"increase {gain_key} or lower the threshold."
+                    f"{message}. Increase {gain_key} or lower the threshold."
                 )
+            # Defaults are only warned about so existing configs keep building; the register is clamped.
+            _LOGGER.warning(
+                "%s. The default is clamped to the register maximum, so this alarm cannot trigger; "
+                "set thresholds.%s to at most %.1f to use it.",
+                message,
+                key,
+                limit,
+            )
 
     config[CONF_THRESHOLDS] = thresholds
     return config
