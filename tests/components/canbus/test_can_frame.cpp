@@ -42,7 +42,7 @@ TEST(CanFrameTest, FullFdPayloadAndMetadataCopy) {
   frame.fd = true;
   frame.bit_rate_switch = true;
   frame.error_state_indicator = true;
-  for (uint8_t i = 0; i < sizeof(frame.data); i++)
+  for (size_t i = 0; i < sizeof(frame.data); i++)
     frame.data[i] = i;
 
   CanFrame copy = frame;
@@ -52,7 +52,7 @@ TEST(CanFrameTest, FullFdPayloadAndMetadataCopy) {
   EXPECT_TRUE(copy.bit_rate_switch);
   EXPECT_TRUE(copy.error_state_indicator);
   EXPECT_FALSE(copy.remote_transmission_request);
-  for (uint8_t i = 0; i < sizeof(copy.data); i++)
+  for (size_t i = 0; i < sizeof(copy.data); i++)
     EXPECT_EQ(copy.data[i], i);
 
   copy.can_data_length_code = 8;
