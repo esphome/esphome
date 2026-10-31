@@ -17,7 +17,7 @@ void PCF8574Component::setup() {
     this->write_gpio_();
     this->read_gpio_();
   } else {
-    this->output_mask_ = this->input_mask_;
+    this->output_mask_ = this->input_[0];
     this->mode_mask_ = ~this->configured_input_pins_;
   }
 
@@ -33,11 +33,9 @@ void PCF8574Component::dump_config() {
   LOG_I2C_DEVICE(this)
 }
 bool PCF8574Component::digital_read_hw(uint8_t pin) {
-  // Read all pins from hardware into input_mask_
+  // Read all pins from hardware into input_[0]
   return this->read_gpio_();  // Return true if I2C read succeeded, false on error
 }
-
-bool PCF8574Component::digital_read_cache(uint8_t pin) { return this->input_mask_ & (1 << pin); }
 
 void PCF8574Component::digital_write_hw(uint8_t pin, bool value) {
   assign_bits(this->output_mask_, 1 << pin, value);
@@ -61,7 +59,7 @@ bool PCF8574Component::read_gpio_() {
   uint8_t data[2]{};  // Keep the bytes zero for the PCF8574's one-byte read.
   if (!this->status_comm_result(this->read_bytes_raw(data, this->pcf8575_ ? 2 : 1)))
     return false;
-  this->input_mask_ = encode_value_le<uint16_t>(data);
+  this->input_[0] = encode_value_le<uint16_t>(data);
   return true;
 }
 bool PCF8574Component::write_gpio_() {

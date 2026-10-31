@@ -28,7 +28,6 @@ class PCF8574Component final : public gpio_expander::CachedGpioExpanderComponent
 
  protected:
   bool digital_read_hw(uint8_t pin) override;
-  bool digital_read_cache(uint8_t pin) override;
   void digital_write_hw(uint8_t pin, bool value) override;
 
   bool read_gpio_();
@@ -39,7 +38,6 @@ class PCF8574Component final : public gpio_expander::CachedGpioExpanderComponent
   /// The mask to write as output state - 1 means HIGH, 0 means LOW
   uint16_t output_mask_{0x00};
   /// The state read in read_gpio_ - 1 means HIGH, 0 means LOW
-  uint16_t input_mask_{0x00};
   // Pins configured as inputs before setup; 1 means input. With reset disabled, all other pins
   // (including undeclared pins) are treated as outputs seeded from their observed levels.
   uint16_t configured_input_pins_{0x00};

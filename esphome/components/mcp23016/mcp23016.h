@@ -35,7 +35,6 @@ class MCP23016 final : public gpio_expander::CachedGpioExpanderComponent<uint16_
  protected:
   // Virtual methods from CachedGpioExpander
   bool digital_read_hw(uint8_t pin) override;
-  bool digital_read_cache(uint8_t pin) override;
   void digital_write_hw(uint8_t pin, bool value) override;
 
   // read a given register
@@ -47,7 +46,6 @@ class MCP23016 final : public gpio_expander::CachedGpioExpanderComponent<uint16_
 
   uint16_t olat_{0x0000};
   // Cache for input values (16-bit combined for both banks)
-  uint16_t input_mask_{0x0000};
 };
 
 using MCP23016GPIOPin = gpio_expander::ExpanderGPIOPin<MCP23016>;

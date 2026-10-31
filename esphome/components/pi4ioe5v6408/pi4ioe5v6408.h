@@ -22,7 +22,6 @@ class PI4IOE5V6408Component final : public gpio_expander::CachedGpioExpanderComp
 
  protected:
   bool digital_read_hw(uint8_t pin) override;
-  bool digital_read_cache(uint8_t pin) override;
   void digital_write_hw(uint8_t pin, bool value) override;
 
   /// Mask for the pin mode - 1 means output, 0 means input
@@ -30,7 +29,6 @@ class PI4IOE5V6408Component final : public gpio_expander::CachedGpioExpanderComp
   /// The mask to write as output state - 1 means HIGH, 0 means LOW
   uint8_t output_mask_{0x00};
   /// The state read in digital_read_hw - 1 means HIGH, 0 means LOW
-  uint8_t input_mask_{0x00};
   /// The mask to write as input buffer state - 1 means enabled, 0 means disabled
   uint8_t pull_enable_mask_{0x00};
   /// The mask to write as pullup state - 1 means pullup, 0 means pulldown
