@@ -87,6 +87,58 @@ TEST_F(ThermoProBLETest, TP972Battery) {
   EXPECT_NEAR(this->battery_level_.state, 90.43f, 0.01f);
 }
 
+TEST_F(ThermoProBLETest, TP3BatteryLevels) {
+  std::vector<uint8_t> record = TP357;
+  record[4] = 0x00;
+  EXPECT_TRUE(this->parse_("TP357 (2142)", record));
+  EXPECT_FLOAT_EQ(this->battery_level_.state, 1.0f);
+  record[4] = 0x01;
+  EXPECT_TRUE(this->parse_("TP357 (2142)", record));
+  EXPECT_FLOAT_EQ(this->battery_level_.state, 50.0f);
+}
+
+TEST_F(ThermoProBLETest, TP3UnknownBatteryNotPublished) {
+  std::vector<uint8_t> record = TP357;
+  record[4] = 0x03;
+  EXPECT_TRUE(this->parse_("TP357 (2142)", record));
+  EXPECT_FLOAT_EQ(this->temperature_.state, 24.1f);
+  EXPECT_FALSE(this->battery_level_.has_state());
+}
+
+TEST_F(ThermoProBLETest, TP357SInvalidReadingNotPublished) {
+  EXPECT_TRUE(this->parse_("TP357S (3C62)", TP357S_INVALID));
+  EXPECT_FALSE(this->temperature_.has_state());
+  EXPECT_FALSE(this->humidity_.has_state());
+  EXPECT_FLOAT_EQ(this->battery_level_.state, 100.0f);
+}
+
+TEST_F(ThermoProBLETest, TP96ThirteenByteFrame) {
+  std::vector<uint8_t> record = TP960R;
+  record.insert(record.end(), {0xFF, 0xEE, 0xDD, 0xCC, 0xBB, 0xAA});
+  EXPECT_TRUE(this->parse_("TP960R", record));
+  EXPECT_FLOAT_EQ(this->temperature_.state, 28.0f);
+  EXPECT_FLOAT_EQ(this->external_temperature_.state, 26.0f);
+  EXPECT_NEAR(this->battery_level_.state, 9.10f, 0.01f);
+}
+
+TEST_F(ThermoProBLETest, TP972ThirteenByteFrame) {
+  EXPECT_TRUE(this->parse_("TP972S", TP972S_13B));
+  EXPECT_FLOAT_EQ(this->temperature_.state, 21.0f);
+  EXPECT_FLOAT_EQ(this->external_temperature_.state, 21.0f);
+  EXPECT_NEAR(this->battery_level_.state, 87.34f, 0.01f);
+}
+
+// The library truncates ambient to whole degrees (15 and 30); the sensor keeps one decimal.
+TEST_F(ThermoProBLETest, TP972FahrenheitTemperatures) {
+  EXPECT_TRUE(this->parse_("TP972S", TP972S));
+  EXPECT_NEAR(this->temperature_.state, 3.6f, 0.05f);
+  EXPECT_NEAR(this->external_temperature_.state, 15.56f, 0.01f);
+  EXPECT_TRUE(this->parse_("TP972S", TP972S_2));
+  EXPECT_NEAR(this->temperature_.state, 23.3f, 0.05f);
+  EXPECT_NEAR(this->external_temperature_.state, 30.56f, 0.01f);
+  EXPECT_NEAR(this->battery_level_.state, 94.65f, 0.01f);
+}
+
 TEST_F(ThermoProBLETest, OversizedFrameRejected) {
   EXPECT_FALSE(this->parse_("TP972S", INVALID_TP972));
   EXPECT_TRUE(this->nothing_published_());
