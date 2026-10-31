@@ -45,18 +45,21 @@ class CST328Touchscreen : public touchscreen::Touchscreen, public i2c::I2CDevice
   void continue_setup_();
   void update_button_state_(bool state);
 
+  // Small fields first: they fill the padding at the end of the base classes
+  uint8_t fw_ver_major_{};
+  uint8_t fw_ver_minor_{};
+#ifdef CST328_BUTTON_COUNT
+  bool button_touched_{};
+#endif
   InternalGPIOPin *interrupt_pin_{};
   GPIOPin *reset_pin_{};
 
 #ifdef CST328_BUTTON_COUNT
   StaticVector<binary_sensor::BinarySensor *, CST328_BUTTON_COUNT> buttons_;
-  bool button_touched_{};
 #endif
 
   uint16_t chip_id_{};
   uint16_t project_id_{};
-  uint8_t fw_ver_major_{};
-  uint8_t fw_ver_minor_{};
   uint16_t fw_build_{};
 
   bool setup_complete_{};

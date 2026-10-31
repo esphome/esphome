@@ -33,14 +33,17 @@ class CST226Touchscreen final : public touchscreen::Touchscreen, public i2c::I2C
   void continue_setup_();
   void update_button_state_(bool state);
 
+  // Small fields first: they fill the padding at the end of the base classes
+  uint8_t chip_id_{};
+  bool setup_complete_{};
+#ifdef CST226_BUTTON_COUNT
+  bool button_touched_{};
+#endif
   InternalGPIOPin *interrupt_pin_{};
   GPIOPin *reset_pin_{};
 #ifdef CST226_BUTTON_COUNT
   StaticVector<binary_sensor::BinarySensor *, CST226_BUTTON_COUNT> buttons_;
-  bool button_touched_{};
 #endif
-  uint8_t chip_id_{};
-  bool setup_complete_{};
 };
 
 }  // namespace esphome::cst226

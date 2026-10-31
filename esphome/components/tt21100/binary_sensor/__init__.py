@@ -1,4 +1,5 @@
 from dataclasses import dataclass, field
+from operator import itemgetter
 
 import esphome.codegen as cg
 from esphome.components import binary_sensor
@@ -20,32 +21,27 @@ CONFIG_SCHEMA = binary_sensor.binary_sensor_schema().extend(
 )
 
 
+_request_button_slot = cg.slot_counter("TT21100_BUTTON_COUNT")
+
+
 @dataclass
 class _ButtonData:
-    # Each hub's binary sensors and their key index, by hub id
-    hubs: dict[str, tuple[cg.MockObj, list[tuple[int, cg.MockObj]]]] = field(
-        default_factory=dict
-    )
+    # (index, hub, binary sensor) in config order
+    buttons: list[tuple[int, cg.MockObj, cg.MockObj]] = field(default_factory=list)
 
 
 @coroutine_with_priority(CoroPriority.FINAL)
 async def _add_buttons() -> None:
-    hubs = CORE.data[DOMAIN].hubs
-    for hub, buttons in hubs.values():
-        # A report publishes in list order: by index, and stable so config order within one
-        for index, var in sorted(buttons, key=lambda button: button[0]):
-            cg.add(hub.add_button_binary_sensor(var, index))
-    # Each hub keeps its buttons in a fixed size list sized for the largest one
-    cg.add_define(
-        "TT21100_BUTTON_COUNT", max(len(buttons) for _, buttons in hubs.values())
-    )
+    # Stable sort: each hub's keys publish in index order, config order within one
+    for index, hub, var in sorted(CORE.data[DOMAIN].buttons, key=itemgetter(0)):
+        cg.add(hub.add_button_binary_sensor(var, index))
 
 
 async def to_code(config: ConfigType) -> None:
     hub = await cg.get_variable(config[CONF_TT21100_ID])
     var = await binary_sensor.new_binary_sensor(config)
+    _request_button_slot(str(hub))
     if DOMAIN not in CORE.data:
         CORE.data[DOMAIN] = _ButtonData()
         CORE.add_job(_add_buttons)
-    hubs = CORE.data[DOMAIN].hubs
-    hubs.setdefault(str(hub), (hub, []))[1].append((config[CONF_INDEX], var))
+    CORE.data[DOMAIN].buttons.append((config[CONF_INDEX], hub, var))

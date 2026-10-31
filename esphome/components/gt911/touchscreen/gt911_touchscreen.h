@@ -45,6 +45,9 @@ class GT911Touchscreen final : public touchscreen::Touchscreen, public i2c::I2CD
   void setup_internal_();
   /// @brief True if the touchscreen setup has completed successfully.
   bool setup_done_{false};
+#ifdef GT911_BUTTON_COUNT
+  uint8_t button_state_{0xFF};  // last button state. Initial FF guarantees first update.
+#endif
 
   GPIOPin *interrupt_pin_{nullptr};
   GPIOPin *reset_pin_{nullptr};
@@ -54,7 +57,6 @@ class GT911Touchscreen final : public touchscreen::Touchscreen, public i2c::I2CD
     uint8_t index;
   };
   StaticVector<ButtonSensor, GT911_BUTTON_COUNT> buttons_;
-  uint8_t button_state_{0xFF};  // last button state. Initial FF guarantees first update.
 #endif
 };
 
