@@ -21,8 +21,11 @@ def main_cpp(
 
 def _action(main_cpp: str, action_id: str) -> str:
     """The setup statements of one action object."""
-    start = main_cpp.index(f"new({action_id}) ")
-    return main_cpp[start : main_cpp.index("new(automation_id", start)]
+    marker = f"new({action_id}) "
+    start = main_cpp.index(marker)
+    # Ends at the next object constructed, or at the end of the file
+    end = main_cpp.find("new(", start + len(marker))
+    return main_cpp[start : end if end != -1 else len(main_cpp)]
 
 
 def test_raw_static_code_in_flash(main_cpp: str) -> None:
