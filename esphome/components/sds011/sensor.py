@@ -1,13 +1,7 @@
 import esphome.codegen as cg
 from esphome.components import sensor, uart
 import esphome.config_validation as cv
-from esphome.const import (
-    CONF_PM_2_5,
-    CONF_PM_10_0,
-    CONF_RX_ONLY,
-    CONF_UPDATE_INTERVAL,
-    ICON_CHEMICAL_WEAPON,
-)
+from esphome.const import CONF_PM_2_5, CONF_PM_10_0, CONF_RX_ONLY, CONF_UPDATE_INTERVAL
 from esphome.types import ConfigType
 
 DEPENDENCIES = ["uart"]
@@ -29,7 +23,7 @@ CONFIG_SCHEMA = cv.All(
         {
             cv.GenerateID(): cv.declare_id(SDS011Component),
             cv.Optional(CONF_PM_2_5): sensor.sensor_schema(
-                kind=sensor.PM25, icon=ICON_CHEMICAL_WEAPON, accuracy_decimals=1
+                kind=sensor.PM25, accuracy_decimals=1
             ),
             cv.Optional(CONF_PM_10_0): sensor.sensor_schema(
                 kind=sensor.PM10, accuracy_decimals=1

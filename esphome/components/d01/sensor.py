@@ -1,7 +1,6 @@
 import esphome.codegen as cg
 from esphome.components import sensor, uart
 import esphome.config_validation as cv
-from esphome.const import ICON_BLUR
 from esphome.types import ConfigType
 
 CODEOWNERS = ["@ch604"]
@@ -14,9 +13,7 @@ D01SensorComponent = d01_ns.class_(
 
 
 CONFIG_SCHEMA = (
-    sensor.sensor_schema(
-        D01SensorComponent, kind=sensor.PM25, icon=ICON_BLUR, accuracy_decimals=0
-    )
+    sensor.sensor_schema(D01SensorComponent, kind=sensor.PM25, accuracy_decimals=0)
     .extend(cv.COMPONENT_SCHEMA)
     .extend(uart.UART_DEVICE_SCHEMA)
 )

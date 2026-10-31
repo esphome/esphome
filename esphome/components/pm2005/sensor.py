@@ -3,13 +3,7 @@
 import esphome.codegen as cg
 from esphome.components import i2c, sensor
 import esphome.config_validation as cv
-from esphome.const import (
-    CONF_PM_1_0,
-    CONF_PM_2_5,
-    CONF_PM_10_0,
-    CONF_TYPE,
-    ICON_CHEMICAL_WEAPON,
-)
+from esphome.const import CONF_PM_1_0, CONF_PM_2_5, CONF_PM_10_0, CONF_TYPE
 from esphome.types import ConfigType
 
 DEPENDENCIES = ["i2c"]
@@ -33,7 +27,7 @@ CONFIG_SCHEMA = cv.All(
                 kind=sensor.PM1, accuracy_decimals=0
             ),
             cv.Optional(CONF_PM_2_5): sensor.sensor_schema(
-                kind=sensor.PM25, icon=ICON_CHEMICAL_WEAPON, accuracy_decimals=0
+                kind=sensor.PM25, accuracy_decimals=0
             ),
             cv.Optional(CONF_PM_10_0): sensor.sensor_schema(
                 kind=sensor.PM10, accuracy_decimals=0

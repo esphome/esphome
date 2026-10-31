@@ -120,7 +120,7 @@ CONFIG_SCHEMA = cv.All(
                 kind=sensor.PM1, accuracy_decimals=2
             ),
             cv.Optional(CONF_PM_2_5): sensor.sensor_schema(
-                kind=sensor.PM25, icon=ICON_CHEMICAL_WEAPON, accuracy_decimals=2
+                kind=sensor.PM25, accuracy_decimals=2
             ),
             cv.Optional(CONF_PM_4_0): sensor.sensor_schema(
                 unit_of_measurement=UNIT_MICROGRAMS_PER_CUBIC_METER,

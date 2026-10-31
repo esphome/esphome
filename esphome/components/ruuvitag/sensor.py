@@ -14,6 +14,7 @@ from esphome.const import (
     CONF_PRESSURE,
     CONF_TEMPERATURE,
     CONF_TX_POWER,
+    DEVICE_CLASS_SIGNAL_STRENGTH,
     ENTITY_CATEGORY_DIAGNOSTIC,
     ICON_ACCELERATION,
     ICON_ACCELERATION_X,
@@ -21,6 +22,7 @@ from esphome.const import (
     ICON_ACCELERATION_Z,
     ICON_GAUGE,
     STATE_CLASS_MEASUREMENT,
+    UNIT_DECIBEL_MILLIWATT,
     UNIT_G,
 )
 from esphome.types import ConfigType
@@ -77,8 +79,10 @@ CONFIG_SCHEMA = cv.All(
                 entity_category=ENTITY_CATEGORY_DIAGNOSTIC,
             ),
             cv.Optional(CONF_TX_POWER): sensor.sensor_schema(
-                kind=sensor.SIGNAL_STRENGTH,
+                unit_of_measurement=UNIT_DECIBEL_MILLIWATT,
                 accuracy_decimals=0,
+                device_class=DEVICE_CLASS_SIGNAL_STRENGTH,
+                state_class=STATE_CLASS_MEASUREMENT,
                 entity_category=ENTITY_CATEGORY_DIAGNOSTIC,
             ),
             cv.Optional(CONF_MOVEMENT_COUNTER): sensor.sensor_schema(

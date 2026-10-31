@@ -1,12 +1,7 @@
 import esphome.codegen as cg
 from esphome.components import sensor, uart
 import esphome.config_validation as cv
-from esphome.const import (
-    CONF_PM_2_5,
-    CONF_UPDATE_INTERVAL,
-    ICON_BLUR,
-    SCHEDULER_DONT_RUN,
-)
+from esphome.const import CONF_PM_2_5, CONF_UPDATE_INTERVAL, SCHEDULER_DONT_RUN
 from esphome.types import ConfigType
 
 CODEOWNERS = ["@habbie"]
@@ -23,7 +18,7 @@ CONFIG_SCHEMA = cv.All(
         {
             cv.GenerateID(): cv.declare_id(PM1006Component),
             cv.Optional(CONF_PM_2_5): sensor.sensor_schema(
-                kind=sensor.PM25, icon=ICON_BLUR, accuracy_decimals=0
+                kind=sensor.PM25, accuracy_decimals=0
             ),
         }
     )

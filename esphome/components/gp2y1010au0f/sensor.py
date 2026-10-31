@@ -1,7 +1,7 @@
 import esphome.codegen as cg
 from esphome.components import output, sensor, voltage_sampler
 import esphome.config_validation as cv
-from esphome.const import CONF_OUTPUT, CONF_SENSOR, ICON_CHEMICAL_WEAPON
+from esphome.const import CONF_OUTPUT, CONF_SENSOR
 from esphome.types import ConfigType
 
 DEPENDENCIES = ["output"]
@@ -17,12 +17,7 @@ GP2Y1010AU0FSensor = gp2y1010au0f_ns.class_(
 )
 
 CONFIG_SCHEMA = (
-    sensor.sensor_schema(
-        GP2Y1010AU0FSensor,
-        kind=sensor.PM25,
-        accuracy_decimals=0,
-        icon=ICON_CHEMICAL_WEAPON,
-    )
+    sensor.sensor_schema(GP2Y1010AU0FSensor, kind=sensor.PM25, accuracy_decimals=0)
     .extend(
         {
             cv.Required(CONF_SENSOR): cv.use_id(voltage_sampler.VoltageSampler),

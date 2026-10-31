@@ -12,7 +12,6 @@ from esphome.const import (
     DEVICE_CLASS_VOLATILE_ORGANIC_COMPOUNDS,
     ICON_CHEMICAL_WEAPON,
     ICON_FLASK,
-    ICON_GRAIN,
     ICON_MOLECULE_CO2,
     STATE_CLASS_MEASUREMENT,
     UNIT_MICROGRAMS_PER_CUBIC_METER,
@@ -45,7 +44,7 @@ CONFIG_SCHEMA = cv.All(
                 state_class=STATE_CLASS_MEASUREMENT,
             ),
             cv.Optional(CONF_PM_2_5): sensor.sensor_schema(
-                kind=sensor.PM25, icon=ICON_GRAIN, accuracy_decimals=0
+                kind=sensor.PM25, accuracy_decimals=0
             ),
             cv.Optional(CONF_PM_10_0): sensor.sensor_schema(
                 kind=sensor.PM10, accuracy_decimals=0

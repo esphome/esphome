@@ -9,7 +9,6 @@ from esphome.const import (
     CONF_PMC_1_0,
     CONF_PMC_2_5,
     CONF_PMC_10_0,
-    ICON_CHEMICAL_WEAPON,
     ICON_COUNTER,
     STATE_CLASS_MEASUREMENT,
 )
@@ -38,7 +37,7 @@ CONFIG_SCHEMA = (
                 kind=sensor.PM1, accuracy_decimals=2
             ),
             cv.Optional(CONF_PM_2_5): sensor.sensor_schema(
-                kind=sensor.PM25, icon=ICON_CHEMICAL_WEAPON, accuracy_decimals=2
+                kind=sensor.PM25, accuracy_decimals=2
             ),
             cv.Optional(CONF_PM_10_0): sensor.sensor_schema(
                 kind=sensor.PM10, accuracy_decimals=2
