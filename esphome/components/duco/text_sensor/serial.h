@@ -8,8 +8,12 @@ namespace esphome::duco {
 
 class DucoSerial : public DucoDevice, public text_sensor::TextSensor {
  public:
+  void set_address(uint8_t address) { this->address_ = address; }
   void update() override;
   void receive_response(const DucoMessage &message) override;
+
+ protected:
+  uint8_t address_{0};
 };
 
 }  // namespace esphome::duco
