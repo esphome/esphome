@@ -69,9 +69,13 @@ canbus::Error Canbus::send_data(CanFrame &frame) {
 
 canbus::Error Canbus::send_data(uint32_t can_id, bool use_extended_id, bool remote_transmission_request,
                                 const uint8_t *data, size_t len, bool fd, bool bit_rate_switch, bool pad_data) {
-  if (len > (fd ? CAN_FD_MAX_DATA_LENGTH : CAN_MAX_DATA_LENGTH)) {
-    ESP_LOGE(TAG, "CAN payload length %zu exceeds maximum of %zu bytes", len,
-             static_cast<size_t>(fd ? CAN_FD_MAX_DATA_LENGTH : CAN_MAX_DATA_LENGTH));
+  if (!fd && len > CAN_MAX_DATA_LENGTH) {
+    // Maintain original behavior of clamping non-FD frames to 8-bytes. Print a warning to alert the user that
+    // an operation they requested did not happen as they expected.
+    ESP_LOGW(TAG, "CAN payload length %zu exceeds maximum, sending first %" PRIu8 " bytes", len, CAN_MAX_DATA_LENGTH);
+    len = CAN_MAX_DATA_LENGTH;
+  } else if (fd && len > CAN_FD_MAX_DATA_LENGTH) {
+    ESP_LOGE(TAG, "CAN FD payload length %zu exceeds maximum of %" PRIu8 " bytes", len, CAN_FD_MAX_DATA_LENGTH);
     return ERROR_FAILTX;
   }
   const uint8_t dlc = can_len_to_dlc(len, pad_data);
