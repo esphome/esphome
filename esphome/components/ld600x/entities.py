@@ -39,7 +39,7 @@ from esphome.cpp_generator import MockObj, MockObjClass, ParameterListExpression
 import esphome.final_validate as fv
 from esphome.types import ConfigType
 
-from . import AreaAxis, AreaKind, ButtonType
+from . import AreaAxis, AreaKind, ButtonType, request_model_sizes
 from .const import (
     AREA_COUNT,
     CONF_APPLY_AREA,
@@ -196,14 +196,19 @@ async def sensor_to_code(
                 if conf := target_config.get(key):
                     cg.add(setter(i, await sensor.new_sensor(conf)))
 
-    for kind in area_kinds:
+    used_kinds = 0
+    for kind_index, kind in enumerate(area_kinds):
         area_kind = _AREA_KINDS[kind]
         for i in range(AREA_COUNT):
             if area_config := config.get(f"{kind}_area_{i}"):
+                used_kinds = kind_index + 1
                 for key, axis in _AREA_AXES:
                     if conf := area_config.get(key):
                         sens = await sensor.new_sensor(conf)
                         cg.add(hub.set_area_sensor(area_kind, i, axis, sens))
+    # The hub sizes the common kinds; a later kind such as dwell is sized only when used.
+    if used_kinds:
+        request_model_sizes(hub, area_kinds=used_kinds)
 
 
 _OCCUPANCY_SCHEMA = binary_sensor.binary_sensor_schema(
@@ -317,7 +322,8 @@ def number_final_validate(
 # The apply call picks the setting by entity pointer, so every number shares one generated class.
 NUMBER_CONTROL: dict[str, str] = {
     "apply": "set_number_value(entity, value)",
-    "publish": "before",
+    # A rejected value or a full command queue leaves the number at its old value.
+    "publish": "on_success",
 }
 
 
@@ -388,7 +394,8 @@ def select_schema(
 
 SELECT_CONTROL: dict[str, str] = {
     "apply": "set_select_value(entity, index)",
-    "publish": "before",
+    # A full command queue rejects the write, and the select then keeps its old option.
+    "publish": "on_success",
 }
 
 
@@ -422,24 +429,28 @@ async def select_to_code(
         options=area_id_options(area_kinds),
         **SELECT_CONTROL,
     )
+    if CONF_AREA_ID in config:
+        # The area_id select can pick an area of any kind, so the hub sizes them all.
+        request_model_sizes(hub, area_kinds=len(area_kinds))
     return selects
 
 
-CONFIG_SWITCH_SCHEMA = switch.switch_schema(
-    switch.ApplySwitch,
-    block_inverted=True,
-    device_class=DEVICE_CLASS_SWITCH,
-    entity_category=ENTITY_CATEGORY_CONFIG,
-)
-
-_SWITCH_SCHEMAS = {
-    CONF_POINT_CLOUD: CONFIG_SWITCH_SCHEMA,
-    CONF_TARGET_DISPLAY: switch.switch_schema(
+def _config_switch_schema(**kwargs: Any) -> cv.Schema:
+    return switch.switch_schema(
         switch.ApplySwitch,
         block_inverted=True,
         device_class=DEVICE_CLASS_SWITCH,
         entity_category=ENTITY_CATEGORY_CONFIG,
-        default_restore_mode="RESTORE_DEFAULT_ON",
+        **kwargs,
+    )
+
+
+CONFIG_SWITCH_SCHEMA = _config_switch_schema()
+
+_SWITCH_SCHEMAS = {
+    CONF_POINT_CLOUD: CONFIG_SWITCH_SCHEMA,
+    CONF_TARGET_DISPLAY: _config_switch_schema(
+        default_restore_mode="RESTORE_DEFAULT_ON"
     ),
 }
 
@@ -448,47 +459,42 @@ def switch_schema(
     hub_class: MockObjClass,
     hub_id_key: str,
     *,
-    keys: tuple[str, ...] | None = None,
     extra: dict[Any, Any] | None = None,
 ) -> cv.Schema:
     return cv.Schema(
         {
             cv.GenerateID(hub_id_key): cv.use_id(hub_class),
-            **{
-                cv.Optional(key): schema
-                for key, schema in _SWITCH_SCHEMAS.items()
-                if keys is None or key in keys
-            },
+            **{cv.Optional(key): schema for key, schema in _SWITCH_SCHEMAS.items()},
         }
     ).extend(extra or {})
 
 
 SWITCH_CONTROL: dict[str, str] = {
     "apply": "set_switch_state(entity, state)",
-    "publish": "after",
+    # A full command queue rejects the write, and the switch then keeps its old state.
+    "publish": "on_success",
 }
 
 
 async def switch_to_code(config: ConfigType, hub_id_key: str) -> None:
     hub = await cg.get_variable(config[hub_id_key])
-    # The schema only accepts the model's keys, so a missing one is skipped here.
     switches = switch.sub_switches(config, parent=hub)
     await switches(CONF_POINT_CLOUD, hub.set_point_cloud_switch, **SWITCH_CONTROL)
     await switches(CONF_TARGET_DISPLAY, hub.set_target_display_switch, **SWITCH_CONTROL)
 
 
-_CONFIG_BUTTON_SCHEMA = button.button_schema(
+CONFIG_BUTTON_SCHEMA = button.button_schema(
     button.ApplyButton, entity_category=ENTITY_CATEGORY_CONFIG
 )
 DIAGNOSTIC_BUTTON_SCHEMA = button.button_schema(
     button.ApplyButton, entity_category=ENTITY_CATEGORY_DIAGNOSTIC
 )
 _BUTTON_SCHEMAS = {
-    CONF_APPLY_AREA: _CONFIG_BUTTON_SCHEMA,
-    CONF_AUTO_INTERFERENCE: _CONFIG_BUTTON_SCHEMA,
+    CONF_APPLY_AREA: CONFIG_BUTTON_SCHEMA,
+    CONF_AUTO_INTERFERENCE: CONFIG_BUTTON_SCHEMA,
     CONF_GET_AREAS: DIAGNOSTIC_BUTTON_SCHEMA,
-    CONF_CLEAR_INTERFERENCE: _CONFIG_BUTTON_SCHEMA,
-    CONF_RESET_DETECTION_AREA: _CONFIG_BUTTON_SCHEMA,
+    CONF_CLEAR_INTERFERENCE: CONFIG_BUTTON_SCHEMA,
+    CONF_RESET_DETECTION_AREA: CONFIG_BUTTON_SCHEMA,
     CONF_GET_DELAY: DIAGNOSTIC_BUTTON_SCHEMA,
     CONF_GET_SENSITIVITY: DIAGNOSTIC_BUTTON_SCHEMA,
     CONF_GET_TRIGGER_SPEED: DIAGNOSTIC_BUTTON_SCHEMA,
@@ -496,7 +502,7 @@ _BUTTON_SCHEMAS = {
     CONF_GET_INSTALLATION: DIAGNOSTIC_BUTTON_SCHEMA,
     CONF_GET_LOW_POWER_MODE: DIAGNOSTIC_BUTTON_SCHEMA,
     CONF_GET_LOW_POWER_SLEEP_TIME: DIAGNOSTIC_BUTTON_SCHEMA,
-    CONF_RESET_UNATTENDED: _CONFIG_BUTTON_SCHEMA,
+    CONF_RESET_UNATTENDED: CONFIG_BUTTON_SCHEMA,
 }
 
 
@@ -504,17 +510,12 @@ def button_schema(
     hub_class: MockObjClass,
     hub_id_key: str,
     *,
-    keys: tuple[str, ...] | None = None,
     extra: dict[Any, Any] | None = None,
 ) -> cv.Schema:
     return cv.Schema(
         {
             cv.GenerateID(hub_id_key): cv.use_id(hub_class),
-            **{
-                cv.Optional(key): schema
-                for key, schema in _BUTTON_SCHEMAS.items()
-                if keys is None or key in keys
-            },
+            **{cv.Optional(key): schema for key, schema in _BUTTON_SCHEMAS.items()},
         }
     ).extend(extra or {})
 
