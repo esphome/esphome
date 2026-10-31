@@ -78,6 +78,13 @@ sensor:
     chip_temperature:
       name: EMON Chip Temp
     line_frequency: 60Hz
+    thresholds:
+      voltage_nominal: 120V
+      voltage_sag_pct: 80%
+      voltage_peak_pct: 120%
+      current_peak: 65.53A
+      frequency_low_hz: 58Hz
+      frequency_high_hz: 62Hz
     current_phases: 3
     gain_pga: 1X
     enable_offset_calibration: True
