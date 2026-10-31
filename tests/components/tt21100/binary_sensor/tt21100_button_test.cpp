@@ -82,6 +82,23 @@ TEST_F(TT21100ButtonTest, EachButtonFollowsItsSignal) {
   EXPECT_EQ(states, (std::vector<bool>{true, false}));
 }
 
+TEST_F(TT21100ButtonTest, KeysPublishInIndexOrder) {
+  TT21100Button key3;
+  TT21100Button key0;
+  TT21100Button key0_again;
+  this->add_button_(key3, 3);
+  this->add_button_(key0, 0);
+  this->add_button_(key0_again, 0);
+  this->setup_();
+  std::vector<int> order;
+  key3.add_on_state_callback([&order](bool) { order.push_back(3); });
+  key0.add_on_state_callback([&order](bool) { order.push_back(0); });
+  key0_again.add_on_state_callback([&order](bool) { order.push_back(10); });
+
+  this->signals_(1, 0, 0, 1);
+  EXPECT_EQ(order, (std::vector<int>{0, 10, 3}));
+}
+
 TEST_F(TT21100ButtonTest, ButtonsSharingAnIndexBothFollowIt) {
   TT21100Button first;
   TT21100Button second;

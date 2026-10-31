@@ -95,6 +95,23 @@ TEST_F(GT911ButtonTest, EachButtonFollowsItsKeyBit) {
   EXPECT_EQ(states, (std::vector<bool>{true, false}));
 }
 
+TEST_F(GT911ButtonTest, KeysPublishInIndexOrder) {
+  GT911Button key3;
+  GT911Button key0;
+  GT911Button key0_again;
+  this->add_button_(key3, 3);
+  this->add_button_(key0, 0);
+  this->add_button_(key0_again, 0);
+  this->setup_();
+  std::vector<int> order;
+  key3.add_on_state_callback([&order](bool) { order.push_back(3); });
+  key0.add_on_state_callback([&order](bool) { order.push_back(0); });
+  key0_again.add_on_state_callback([&order](bool) { order.push_back(10); });
+
+  this->keys_(0b1001);
+  EXPECT_EQ(order, (std::vector<int>{0, 10, 3}));
+}
+
 TEST_F(GT911ButtonTest, ButtonsSharingAnIndexBothFollowIt) {
   GT911Button first;
   GT911Button second;
