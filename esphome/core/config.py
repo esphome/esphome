@@ -788,13 +788,13 @@ async def _add_environment_variables(env_vars: dict[str, str]) -> None:
 
 @coroutine_with_priority(CoroPriority.AUTOMATION)
 async def _add_automations(config):
-    for key, direct_class in (
+    for key, component_class in (
         (CONF_ON_BOOT, StartupCallback),
         (CONF_ON_SHUTDOWN, ShutdownCallback),
     ):
         for conf in config.get(key, []):
             await automation.build_component_automation(
-                conf, direct_class, conf[CONF_PRIORITY]
+                conf, component_class, conf[CONF_PRIORITY]
             )
 
     for conf in config.get(CONF_ON_LOOP, []):

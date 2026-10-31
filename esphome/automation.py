@@ -35,8 +35,10 @@ from esphome.cpp_generator import (
     MockObj,
     MockObjClass,
     TemplateArgsType,
+    add_global_after_includes,
     call_lambda,
 )
+from esphome.helpers import indent
 from esphome.schema_extractors import SCHEMA_EXTRACT, schema_extractor
 from esphome.types import ConfigType, SafeExpType
 from esphome.util import Registry
@@ -1905,14 +1907,21 @@ def _is_direct(plan: list[MockObj | list[_InlineAction]], config: ConfigType) ->
     )
 
 
+def _direct_statements(
+    plan: list[MockObj | list[_InlineAction]], config: ConfigType
+) -> list[str] | None:
+    if not _is_direct(plan, config):
+        return None
+    return [line for line in _run_statements(plan[0]) if line != _STOP_CHECK]
+
+
 def _direct_function(
     plan: list[MockObj | list[_InlineAction]],
     args: TemplateArgsType,
     config: ConfigType,
 ) -> MockObj | None:
-    if not _is_direct(plan, config):
+    if (statements := _direct_statements(plan, config)) is None:
         return None
-    statements = [line for line in _run_statements(plan[0]) if line != _STOP_CHECK]
     return apply_static_function(
         plan[0][0].id_, cg.void, _apply_lambda_args(args), statements
     )
@@ -1936,27 +1945,35 @@ async def build_automation(
 
 
 async def build_component_automation(
-    config: ConfigType, direct_class: MockObjClass, priority: float | None = None
+    config: ConfigType, component_class: MockObjClass, priority: float | None = None
 ) -> MockObj:
     """Create and register the Component that runs a no-argument automation.
 
-    That is the ``CONF_TRIGGER_ID`` Trigger, built with ``priority`` if given, or, when every
-    action is inline and no id is set by hand, ``direct_class<function[, priority bits]>``.
+    That is ``component_class<function[, priority bits]>``, whose function runs the actions
+    directly when they are all inline, else triggers their Automation. A ``trigger_id`` set
+    by hand keeps its Trigger, built with ``priority`` if given.
     """
     trigger_id: ID = config[CONF_TRIGGER_ID]
     priority_args = [] if priority is None else [priority]
-    plan = await _build_automation_plan([], config)
-    fn = None if trigger_id.is_manual else _direct_function(plan, [], config)
-    if fn is None:
+    if trigger_id.is_manual:
         var = cg.new_Pvariable(trigger_id, *priority_args)
-    else:
-        id_ = trigger_id.copy()
-        id_.type = direct_class
-        bits = [_float_bits(value) for value in priority_args]
-        var = cg.new_Pvariable(id_, cg.TemplateArguments(fn, *bits))
+        await cg.register_component(var, config)
+        await build_automation(var, [], config)
+        return var
+    # Declared and registered before the actions are built, which can wait for other ids
+    name = f"esphome__{trigger_id.id}__fn"
+    cg.add_global(cg.RawStatement(f"static void {name}();"))
+    id_ = trigger_id.copy()
+    id_.type = component_class
+    bits = [_float_bits(value) for value in priority_args]
+    var = cg.new_Pvariable(id_, cg.TemplateArguments(cg.RawExpression(name), *bits))
     await cg.register_component(var, config)
-    if fn is None:
-        _automation_from_plan(plan, [], config, var)
+    plan = await _build_automation_plan([], config)
+    if (body := _direct_statements(plan, config)) is None:
+        body = [f"{parent_ref(_automation_from_plan(plan, [], config))}->trigger();"]
+    add_global_after_includes(
+        cg.RawStatement(f"static void {name}() {{\n{indent(chr(10).join(body))}\n}}")
+    )
     return var
 
 
