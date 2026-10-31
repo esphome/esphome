@@ -28,12 +28,9 @@ void RP2040PIOLEDStripLightOutput::dma_write_complete_handler() {
 }
 
 void RP2040PIOLEDStripLightOutput::setup() {
-  size_t buffer_size = this->get_buffer_size_();
-
   RAMAllocator<uint8_t> allocator;
   if (!this->internal_accessor_.allocate(allocator, this->num_leds_)) {
-    ESP_LOGE(TAG, "Failed to allocate buffer of size %u", buffer_size + this->num_leds_);
-    this->mark_failed();
+    this->mark_failed(LOG_STR(ESP_LOG_MSG_ALLOC_FAIL));
     return;
   }
 

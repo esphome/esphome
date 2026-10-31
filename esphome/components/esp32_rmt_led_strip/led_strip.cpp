@@ -70,8 +70,7 @@ void ESP32RMTLEDStripLightOutput::setup() {
 
   RAMAllocator<uint8_t> allocator(this->use_psram_ ? 0 : RAMAllocator<uint8_t>::ALLOC_INTERNAL);
   if (!this->internal_accessor_.allocate(allocator, this->num_leds_)) {
-    ESP_LOGE(TAG, "Cannot allocate LED buffer!");
-    this->mark_failed();
+    this->mark_failed(LOG_STR(ESP_LOG_MSG_ALLOC_FAIL));
     return;
   }
 

@@ -164,8 +164,7 @@ void BekenSPILEDStripLightOutput::setup() {
 
   RAMAllocator<uint8_t> allocator;
   if (!this->internal_accessor_.allocate(allocator, this->num_leds_)) {
-    ESP_LOGE(TAG, "Cannot allocate LED buffer!");
-    this->mark_failed();
+    this->mark_failed(LOG_STR(ESP_LOG_MSG_ALLOC_FAIL));
     return;
   }
 

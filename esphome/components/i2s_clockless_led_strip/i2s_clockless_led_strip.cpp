@@ -14,7 +14,6 @@ namespace esphome::i2s_clockless_led_strip {
 
 ESPHOME_LOG_TAG(TAG, "i2s_clockless_led_strip");
 
-constexpr const char *const ERROR_ALLOCATION = "Allocation error";
 constexpr const char *const ERROR_I2S = "I2S error";
 
 // These values are hardcoded for an LED strip at 800 kbps.
@@ -70,7 +69,7 @@ float I2SClocklessLedStrip::get_setup_priority() const { return setup_priority::
 
 void I2SClocklessLedStrip::setup() {
   if (!this->allocate_buffers_()) {
-    this->mark_failed(LOG_STR(ERROR_ALLOCATION));
+    this->mark_failed(LOG_STR(ESP_LOG_MSG_ALLOC_FAIL));
     return;
   }
 
