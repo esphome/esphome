@@ -23,6 +23,13 @@ def _constructed(main_cpp: str, var: str) -> str:
     return match.group(1)
 
 
+def _automation_of(main_cpp: str, trigger: str) -> str:
+    """The Automation built on ``trigger``, found by its trigger rather than an id counter."""
+    match = re.search(rf"new\((\w+)\) Automation<>\({trigger}\);", main_cpp)
+    assert match is not None, trigger
+    return match.group(1)
+
+
 def _registered(main_cpp: str) -> list[str]:
     return re.findall(r"App\.register_component_\((\w+), \d+\);", main_cpp)
 
@@ -45,6 +52,19 @@ def _function_body(main_cpp: str, name: str) -> str:
     match = re.search(rf"static void {name}\(\) \{{(.*?)\n\}}\n", main_cpp, re.DOTALL)
     assert match is not None, name
     return match.group(1)
+
+
+def _delayed_automation(main_cpp: str, function: str) -> str:
+    """The Automation that ``function`` triggers, checked to hold a delay; found through the
+    function rather than an id counter."""
+    match = re.fullmatch(
+        r"\n  ::(\w+)->trigger\(\);", _function_body(main_cpp, function)
+    )
+    assert match is not None, function
+    automation = match.group(1)
+    assert f"new({automation}) Automation<>();" in main_cpp
+    assert re.search(rf"{automation}->add_action\(delayaction_id\w*\);", main_cpp)
+    return automation
 
 
 def test_on_boot_inline_priorities(main_cpp: str) -> None:
@@ -75,17 +95,13 @@ def test_on_boot_delay_triggers_automation(main_cpp: str) -> None:
     assert _constructed(main_cpp, "startuptrigger_id_3") == (
         "StartupCallback<esphome__startuptrigger_id_3__fn, 0xC2C80000u>()"
     )
-    assert "new(automation_id_3) Automation<>();" in main_cpp
-    assert "automation_id_3->add_action(delayaction_id);" in main_cpp
-    assert _function_body(main_cpp, "esphome__startuptrigger_id_3__fn") == (
-        "\n  ::automation_id_3->trigger();"
-    )
+    _delayed_automation(main_cpp, "esphome__startuptrigger_id_3__fn")
 
 
 def test_on_boot_manual_trigger_id_keeps_trigger(main_cpp: str) -> None:
     """A trigger_id set by hand can be used from lambdas, so the Trigger stays."""
     assert _constructed(main_cpp, "manual_boot") == "StartupTrigger(250.5f)"
-    assert "new(automation_id_4) Automation<>(manual_boot);" in main_cpp
+    _automation_of(main_cpp, "manual_boot")
 
 
 def test_on_shutdown_priorities(main_cpp: str) -> None:
@@ -99,10 +115,7 @@ def test_on_shutdown_priorities(main_cpp: str) -> None:
     assert _constructed(main_cpp, "shutdowntrigger_id_2") == (
         "ShutdownCallback<esphome__shutdowntrigger_id_2__fn, 0x44160000u>()"
     )
-    assert "automation_id_6->add_action(delayaction_id_2);" in main_cpp
-    assert "::automation_id_6->trigger();" in _function_body(
-        main_cpp, "esphome__shutdowntrigger_id_2__fn"
-    )
+    _delayed_automation(main_cpp, "esphome__shutdowntrigger_id_2__fn")
 
 
 def test_on_loop(main_cpp: str) -> None:
@@ -115,10 +128,7 @@ def test_on_loop(main_cpp: str) -> None:
     assert _constructed(main_cpp, "looptrigger_id_2") == (
         "LoopCallback<esphome__looptrigger_id_2__fn>()"
     )
-    assert "automation_id_8->add_action(delayaction_id_3);" in main_cpp
-    assert "::automation_id_8->trigger();" in _function_body(
-        main_cpp, "esphome__looptrigger_id_2__fn"
-    )
+    _delayed_automation(main_cpp, "esphome__looptrigger_id_2__fn")
 
 
 def test_on_boot_registered_before_its_actions_are_built(
