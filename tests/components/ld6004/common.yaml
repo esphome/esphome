@@ -33,6 +33,14 @@ button:
     clear_dwell:
       name: LD6004 Clear Dwell
 
+switch:
+  - platform: ld6004
+    ld6004_id: ld6004_radar
+    point_cloud:
+      name: LD6004 Point Cloud
+    target_display:
+      name: LD6004 Target Display
+
 select:
   - platform: ld6004
     ld6004_id: ld6004_radar
