@@ -15,7 +15,7 @@ template<typename T, uint16_t N> class FakeBankedExpander : public BankedGpioExp
 
  protected:
   bool digital_read_hw(uint8_t pin) override {
-    const uint8_t bank = pin / (sizeof(T) * 8);
+    const uint8_t bank = pin / BankedGpioExpander<T, N>::BANK_SIZE;
     this->reads[bank]++;
     if (this->fail)
       return false;
@@ -33,7 +33,8 @@ class FakeBankedComponent : public BankedGpioExpanderComponent<uint8_t, 16> {
 
  protected:
   bool digital_read_hw(uint8_t pin) override {
-    this->input_[pin / 8] = this->chip[pin / 8];
+    const uint8_t bank = pin / 8;
+    this->input_[bank] = this->chip[bank];
     return true;
   }
   void digital_write_hw(uint8_t pin, bool value) override {}
@@ -69,7 +70,7 @@ TEST_F(BankedGpioExpanderTest, ReadingOneBankKeepsTheOther) {
   EXPECT_EQ(this->expander_.reads[1], 2u);
 }
 
-TEST_F(BankedGpioExpanderTest, FailedReadReturnsLowAndKeepsTheStoredBank) {
+TEST_F(BankedGpioExpanderTest, FailedReadReturnsLowAndKeepsOtherPinsCached) {
   this->expander_.chip[0] = 0x03;
   EXPECT_TRUE(this->expander_.digital_read(0));
 
