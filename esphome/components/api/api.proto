@@ -414,6 +414,17 @@ message SendspinCapabilities {
   string client_id = 2 [(max_data_length) = 43];
 }
 
+// The network interface the device is currently reachable through, in priority order when
+// several are connected (see network::get_network_type()). Modem/cellular interfaces are
+// intentionally out of scope for this first step and report NETWORK_TYPE_UNKNOWN, same as a
+// disconnected or not-compiled-in interface.
+enum NetworkType {
+  NETWORK_TYPE_UNKNOWN = 0;
+  NETWORK_TYPE_WIFI = 1;
+  NETWORK_TYPE_ETHERNET = 2;
+  NETWORK_TYPE_THREAD = 3;
+}
+
 message DeviceCapabilitiesResponse {
   option (id) = 150;
   option (source) = SOURCE_SERVER;
@@ -425,6 +436,8 @@ message DeviceCapabilitiesResponse {
       [(field_ifdef) = "USE_SERIAL_PROXY", (fixed_array_size_define) = "SERIAL_PROXY_COUNT"];
   WizardCapabilities wizard = 5 [(field_ifdef) = "USE_API_WIZARD"];
   SendspinCapabilities sendspin = 6 [(field_ifdef) = "USE_SENDSPIN"];
+  // The kind of network interface the device is currently reachable through.
+  NetworkType network_type = 7;
 }
 
 // ==================== DEVICE WIZARD ====================
