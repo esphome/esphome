@@ -11,14 +11,61 @@ duco:
   discovery: {}
   time:
     time_id: sntp_time
+  disable_crc: false
+  allow_dangerous_controls: false
 
 text_sensor:
   - platform: duco
     name: Serial Number
+  - platform: duco
+    serial:
+      - name: Serial Number Node 2
+        address: 2
+    version:
+      - name: Version Node 2
+        address: 2
+    error:
+      - name: Error Node 2
+        address: 2
+    uptime:
+      - name: Uptime Node 2
+        address: 2
+    node_type:
+      - name: Node 2 Type
+        address: 2
+
+text:
+  - platform: duco
+    nightboost_time_start:
+      name: NightBoost Start Time
+    nightboost_time_stop:
+      name: NightBoost Stop Time
 
 select:
   - platform: duco
     name: Mode
+  - platform: duco
+    mode:
+      - name: Mode Node 1
+      - name: Mode Node 2
+        address: 2
+    bypass:
+      name: Bypass Control
+    adaptive_bypass:
+      name: Adaptive Bypass Control
+    frost_heater:
+      name: Frost Protection Heater
+    passive_cooling:
+      name: Passive Cooling
+    nightboost:
+      name: NightBoost
+    nightboost_month_start:
+      name: NightBoost Start Month
+    nightboost_month_stop:
+      name: NightBoost Stop Month
+  - platform: duco
+    type: time_filter
+    name: Time Filter
 
 sensor:
   - platform: duco
@@ -41,6 +88,10 @@ sensor:
     time_remaining:
       name: Mode Time Remaining
       update_interval: 5s
+    uptime:
+      - name: Uptime Box (Minutes)
+      - name: Uptime Node 2 (Minutes)
+        address: 2
     bypass:
       name: Bypass
     temperature_oda:
@@ -56,3 +107,32 @@ number:
   - platform: duco
     name: Comfort Temperature
     update_interval: 10s
+  - platform: duco
+    comfort_temperature:
+      - name: Comfort Temperature Zone 1
+        address: 0x13
+      - name: Comfort Temperature Zone 2
+        address: 0x14
+    nightboost_temperature:
+      name: NightBoost Setpoint
+    nightboost_max:
+      name: NightBoost Max Ventilation Percentage
+    box_ventilation_min:
+      name: Box Ventilation Minimum
+    box_ventilation_max:
+      name: Box Ventilation Maximum
+
+switch:
+  - platform: duco
+    allow_dangerous_controls:
+      name: Allow Dangerous Controls
+    installer_mode:
+      name: Installer Mode
+    locator:
+      - name: Locator Node 2
+        address: 2
+
+button:
+  - platform: duco
+    type: reboot
+    name: Reboot
