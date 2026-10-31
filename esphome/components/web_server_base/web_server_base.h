@@ -1,8 +1,6 @@
 #pragma once
 #include "esphome/core/defines.h"
 #if defined(USE_NETWORK) && !defined(USE_ZEPHYR) && !defined(USE_HOST)
-#include <vector>
-
 #include "esphome/core/progmem.h"
 
 #if USE_ESP32
@@ -115,26 +113,14 @@ class WebServerBase final {
   // The AsyncWebServer is created once and intentionally never deleted: on Arduino
   // platforms ESPAsyncWebServer owns its registered handlers, so destroying it would
   // also destroy live components (e.g. the captive portal) out from under us.
-  // init()/deinit() refcount users and start/stop the listener; handlers are
-  // registered once at creation and survive listener restarts.
+  // init()/deinit() refcount users and start/stop the listener; handlers stay
+  // registered across listener restarts.
   void init() {
-    this->initialized_++;
-    if (this->server_ != nullptr) {
-      if (this->initialized_ == 1) {
-        // Restart the listener after a previous deinit()
-        this->server_->begin();
-      }
+    if (++this->initialized_ != 1)
       return;
-    }
-    this->server_ = new AsyncWebServer(this->port_);
-    // All content is controlled and created by user - so allowing all origins is fine here.
-    // NOTE: Currently 1 header. If more are added, update in __init__.py:
-    //   cg.add_define("WEB_SERVER_DEFAULT_HEADERS_COUNT", 1)
-    DefaultHeaders::Instance().addHeader(ESPHOME_F("Access-Control-Allow-Origin"), ESPHOME_F("*"));
+    if (this->server_ == nullptr)
+      this->create_server_();
     this->server_->begin();
-
-    for (auto *handler : this->handlers_)
-      this->server_->addHandler(handler);
   }
   void deinit() {
     if (this->initialized_ == 0)
@@ -169,10 +155,15 @@ class WebServerBase final {
   uint16_t get_port() const { return port_; }
 
  protected:
+  void create_server_();
+
   uint8_t initialized_{0};
   uint16_t port_{80};  // Keep in sync with DEFAULT_PORT in web_server/__init__.py
   AsyncWebServer *server_{nullptr};
-  std::vector<AsyncWebHandler *> handlers_;
+#ifdef USE_WEBSERVER_BASE_PENDING_HANDLER
+  // Web OTA's handler when it is added before any component created the server
+  AsyncWebHandler *pending_handler_{nullptr};
+#endif
 #ifdef USE_WEBSERVER_AUTH
   internal::Credentials credentials_;
 #endif
