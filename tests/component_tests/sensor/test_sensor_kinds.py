@@ -7,8 +7,6 @@ import pytest
 from esphome.components import sensor
 import esphome.config_validation as cv
 from esphome.const import (
-    CONF_FILTERS,
-    CONF_ID,
     DEVICE_CLASS_APPARENT_POWER,
     DEVICE_CLASS_BATTERY,
     DEVICE_CLASS_CARBON_DIOXIDE,
@@ -131,7 +129,7 @@ EXPECTED = {
     "PERCENT": (UNIT_PERCENT, _UNSET, _M, _UNSET, 0),
     "ANGLE": (UNIT_DEGREES, _UNSET, _M, _UNSET, _UNSET),
     "MASS_CONCENTRATION": (_PM, _UNSET, _M, _UNSET, 0),
-    "DISTANCE_M": (UNIT_METER, _UNSET, _M, _UNSET, 2),
+    "LENGTH_M": (UNIT_METER, _UNSET, _M, _UNSET, 2),
     "DISTANCE_MM": (UNIT_MILLIMETER, DEVICE_CLASS_DISTANCE, _M, _UNSET, 0),
     "RESISTANCE": (UNIT_OHM, _UNSET, _M, _UNSET, 0),
     "DURATION_H": (UNIT_HOUR, DEVICE_CLASS_DURATION, _M, ICON_TIMER, 0),
@@ -179,40 +177,28 @@ def test_kind_matches_hand_written(name: str) -> None:
     assert _defaults(by_kind) == _defaults(by_hand)
 
 
-def test_accuracy_decimals_can_be_overridden() -> None:
-    schema = sensor.sensor_schema(kind=sensor.TEMPERATURE, accuracy_decimals=3)
+@pytest.mark.parametrize("kind", [sensor.TEMPERATURE, sensor.VOLTAGE])
+def test_accuracy_decimals_can_be_overridden(kind: sensor.SensorKind) -> None:
+    schema = sensor.sensor_schema(kind=kind, accuracy_decimals=3)
     assert _defaults(schema)["accuracy_decimals"] == 3
 
 
 def test_extra_arguments_pass_through() -> None:
-    schema = sensor.sensor_schema(
-        sensor.Sensor,
-        kind=sensor.TEMPERATURE,
-        accuracy_decimals=2,
-        icon="mdi:thermometer",
-        entity_category=ENTITY_CATEGORY_DIAGNOSTIC,
-        filters=[{"offset": 1.0}],
+    extra = {
+        "accuracy_decimals": 2,
+        "icon": "mdi:thermometer",
+        "entity_category": ENTITY_CATEGORY_DIAGNOSTIC,
+        "filters": [{"offset": 1.0}],
+    }
+    by_kind = sensor.sensor_schema(kind=sensor.TEMPERATURE, **extra)
+    by_hand = sensor.sensor_schema(
+        unit_of_measurement=UNIT_CELSIUS,
+        device_class=DEVICE_CLASS_TEMPERATURE,
+        state_class=STATE_CLASS_MEASUREMENT,
+        **extra,
     )
-    defaults = _defaults(schema)
-    assert (
-        defaults.items()
-        >= {
-            "unit_of_measurement": UNIT_CELSIUS,
-            "icon": "mdi:thermometer",
-            "accuracy_decimals": 2,
-            "device_class": DEVICE_CLASS_TEMPERATURE,
-            "state_class": STATE_CLASS_MEASUREMENT,
-            "entity_category": ENTITY_CATEGORY_DIAGNOSTIC,
-            CONF_FILTERS: [{"offset": 1.0}],
-        }.items()
-    )
-    # class_ replaces the default sensor ID declaration
-    ids = [v for k, v in schema.schema.items() if str(k) == CONF_ID]
-    default_ids = [
-        v for k, v in sensor.sensor_schema().schema.items() if str(k) == CONF_ID
-    ]
-    assert len(ids) == 1
-    assert ids != default_ids
+    assert _keys(by_kind) == _keys(by_hand)
+    assert _defaults(by_kind) == _defaults(by_hand)
 
 
 @pytest.mark.parametrize(

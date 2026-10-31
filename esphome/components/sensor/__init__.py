@@ -423,8 +423,9 @@ _SENSOR_SCHEMA.add_extra(lazy_load_validator("zigbee", "validate_sensor"))
 class SensorKind(NamedTuple):
     """Values `sensor_schema(kind=...)` sets; unset fields are left to the caller.
 
-    `accuracy_decimals` is only a default, as sensors differ; the caller's value wins.
-    Passing any other field the kind sets is an error.
+    `state_class` is always set (measurement by default). `accuracy_decimals` is only a
+    default, as sensors differ; the caller's value wins. Passing any other field the kind
+    sets is an error.
     """
 
     unit_of_measurement: str = cv.UNDEFINED
@@ -442,14 +443,12 @@ ILLUMINANCE = SensorKind(UNIT_LUX, DEVICE_CLASS_ILLUMINANCE, accuracy_decimals=0
 CARBON_DIOXIDE = SensorKind(
     UNIT_PARTS_PER_MILLION, DEVICE_CLASS_CARBON_DIOXIDE, accuracy_decimals=0
 )
+MASS_CONCENTRATION = SensorKind(UNIT_MICROGRAMS_PER_CUBIC_METER, accuracy_decimals=0)
 
 
 def _particulate(device_class: str) -> SensorKind:
-    return SensorKind(
-        UNIT_MICROGRAMS_PER_CUBIC_METER,
-        device_class,
-        icon=ICON_CHEMICAL_WEAPON,
-        accuracy_decimals=0,
+    return MASS_CONCENTRATION._replace(
+        device_class=device_class, icon=ICON_CHEMICAL_WEAPON
     )
 
 
@@ -461,45 +460,44 @@ SIGNAL_STRENGTH = SensorKind(
 )
 VOLTAGE = SensorKind(UNIT_VOLT, DEVICE_CLASS_VOLTAGE)
 CURRENT = SensorKind(UNIT_AMPERE, DEVICE_CLASS_CURRENT)
-POWER = SensorKind(UNIT_WATT, DEVICE_CLASS_POWER)
-APPARENT_POWER = SensorKind(UNIT_VOLT_AMPS, DEVICE_CLASS_APPARENT_POWER)
-REACTIVE_POWER = SensorKind(UNIT_VOLT_AMPS_REACTIVE, DEVICE_CLASS_REACTIVE_POWER)
 FREQUENCY = SensorKind(UNIT_HERTZ, DEVICE_CLASS_FREQUENCY)
+POWER = SensorKind(UNIT_WATT, DEVICE_CLASS_POWER)
+POWER_KW = SensorKind(UNIT_KILOWATT, DEVICE_CLASS_POWER, accuracy_decimals=3)
+APPARENT_POWER = SensorKind(UNIT_VOLT_AMPS, DEVICE_CLASS_APPARENT_POWER)
+APPARENT_POWER_KVA = SensorKind(
+    UNIT_KILOVOLT_AMPS, DEVICE_CLASS_APPARENT_POWER, accuracy_decimals=3
+)
+REACTIVE_POWER = SensorKind(UNIT_VOLT_AMPS_REACTIVE, DEVICE_CLASS_REACTIVE_POWER)
+REACTIVE_POWER_KVAR = SensorKind(
+    UNIT_KILOVOLT_AMPS_REACTIVE, DEVICE_CLASS_REACTIVE_POWER, accuracy_decimals=3
+)
+POWER_FACTOR = SensorKind(device_class=DEVICE_CLASS_POWER_FACTOR)
+ENERGY_WH = SensorKind(
+    UNIT_WATT_HOURS, DEVICE_CLASS_ENERGY, STATE_CLASS_TOTAL_INCREASING
+)
 ENERGY_KWH = SensorKind(
     UNIT_KILOWATT_HOURS,
     DEVICE_CLASS_ENERGY,
     STATE_CLASS_TOTAL_INCREASING,
     accuracy_decimals=3,
 )
-ENERGY_WH = SensorKind(
-    UNIT_WATT_HOURS, DEVICE_CLASS_ENERGY, STATE_CLASS_TOTAL_INCREASING
-)
-
-
-POWER_KW = SensorKind(UNIT_KILOWATT, DEVICE_CLASS_POWER, accuracy_decimals=3)
-APPARENT_POWER_KVA = SensorKind(
-    UNIT_KILOVOLT_AMPS, DEVICE_CLASS_APPARENT_POWER, accuracy_decimals=3
-)
-REACTIVE_POWER_KVAR = SensorKind(
-    UNIT_KILOVOLT_AMPS_REACTIVE, DEVICE_CLASS_REACTIVE_POWER, accuracy_decimals=3
-)
+# No device class, matching the meters that report it today.
 REACTIVE_ENERGY_KVARH = SensorKind(
     UNIT_KILOVOLT_AMPS_REACTIVE_HOURS,
     state_class=STATE_CLASS_TOTAL_INCREASING,
     accuracy_decimals=3,
 )
-POWER_FACTOR = SensorKind(device_class=DEVICE_CLASS_POWER_FACTOR)
-PERCENT = SensorKind(UNIT_PERCENT, accuracy_decimals=0)
-ANGLE = SensorKind(UNIT_DEGREES)
-MASS_CONCENTRATION = SensorKind(UNIT_MICROGRAMS_PER_CUBIC_METER, accuracy_decimals=0)
-DISTANCE_M = SensorKind(UNIT_METER, accuracy_decimals=2)
 DISTANCE_MM = SensorKind(UNIT_MILLIMETER, DEVICE_CLASS_DISTANCE, accuracy_decimals=0)
-RESISTANCE = SensorKind(UNIT_OHM, accuracy_decimals=0)
 DURATION_H = SensorKind(
     UNIT_HOUR, DEVICE_CLASS_DURATION, icon=ICON_TIMER, accuracy_decimals=0
 )
 DURATION_MIN = SensorKind(UNIT_MINUTE, DEVICE_CLASS_DURATION, accuracy_decimals=0)
 DURATION_S = SensorKind(UNIT_SECOND, DEVICE_CLASS_DURATION, accuracy_decimals=0)
+# Generic quantities with no device class.
+PERCENT = SensorKind(UNIT_PERCENT, accuracy_decimals=0)
+ANGLE = SensorKind(UNIT_DEGREES)
+LENGTH_M = SensorKind(UNIT_METER, accuracy_decimals=2)
+RESISTANCE = SensorKind(UNIT_OHM, accuracy_decimals=0)
 
 
 def sensor_schema(
@@ -518,12 +516,7 @@ def sensor_schema(
     if kind is not cv.UNDEFINED:
         if accuracy_decimals is not cv.UNDEFINED:
             kind = kind._replace(accuracy_decimals=accuracy_decimals)
-        given = SensorKind(
-            unit_of_measurement=unit_of_measurement,
-            device_class=device_class,
-            state_class=state_class,
-            icon=icon,
-        )
+        given = (unit_of_measurement, device_class, state_class, icon, cv.UNDEFINED)
         merged = []
         for name, preset, value in zip(kind._fields, kind, given, strict=True):
             if preset is not cv.UNDEFINED and value is not cv.UNDEFINED:
