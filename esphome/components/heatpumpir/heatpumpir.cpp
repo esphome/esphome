@@ -117,8 +117,8 @@ HEATPUMPIR_PROTOCOL(PROTOCOL_R51M, R51MHeatpumpIR)
 
 void HeatpumpIRClimate::setup() {
   climate_ir::ClimateIR::setup();
-  if (this->sensor_) {
-    this->sensor_->add_on_state_callback([this](float state) {
+  if (this->temperature_sensor_) {
+    this->temperature_sensor_->add_on_state_callback([this](float state) {
       this->current_temperature = state;
 
       IRSenderESPHome esp_sender(this->transmitter_);
@@ -127,7 +127,7 @@ void HeatpumpIRClimate::setup() {
       // current temperature changed, publish state
       this->publish_state();
     });
-    this->current_temperature = this->sensor_->state;
+    this->current_temperature = this->temperature_sensor_->state;
   } else {
     this->current_temperature = NAN;
   }

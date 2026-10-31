@@ -49,7 +49,7 @@ void HistoryData::take_sample(float data) {
 void GraphTrace::init(Graph *g) {
   ESP_LOGI(TAG, "Init trace for sensor %s", this->name_);
   this->data_.init(g->get_width());
-  sensor_->add_on_state_callback([this](float state) { this->data_.take_sample(state); });
+  this->source_sensor_->add_on_state_callback([this](float state) { this->data_.take_sample(state); });
   this->data_.set_update_time_ms(g->get_duration() * 1000 / g->get_width());
 }
 

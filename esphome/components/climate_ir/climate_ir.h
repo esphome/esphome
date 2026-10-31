@@ -21,6 +21,7 @@ class ClimateIR : public Component,
                   public climate::Climate,
                   public remote_base::RemoteReceiverListener,
                   public remote_base::RemoteTransmittable {
+  SUB_SENSOR(temperature)
   SUB_SENSOR(humidity)
 
  public:
@@ -48,7 +49,6 @@ class ClimateIR : public Component,
   void set_supports_heat_cool(bool supports_heat_cool) {
     this->set_mode_supported_(climate::CLIMATE_MODE_HEAT_COOL, supports_heat_cool);
   }
-  void set_sensor(sensor::Sensor *sensor) { this->sensor_ = sensor; }
 
  protected:
   float minimum_temperature_, maximum_temperature_, temperature_step_;
@@ -83,8 +83,6 @@ class ClimateIR : public Component,
   climate::ClimateFanModeMask fan_modes_{};
   climate::ClimateSwingModeMask swing_modes_{};
   climate::ClimatePresetMask presets_{};
-
-  sensor::Sensor *sensor_{nullptr};
 };
 
 }  // namespace esphome::climate_ir

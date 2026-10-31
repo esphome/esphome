@@ -80,7 +80,7 @@ async def register_climate_ir(var: MockObj, config: ConfigType) -> None:
         cg.add(var.set_supports_heat_cool(False))
     if remote_base.CONF_RECEIVER_ID in config:
         await remote_base.register_listener(var, config)
-    await cg.add_variable(var.set_sensor, config.get(CONF_SENSOR))
+    await cg.add_variable(var.set_temperature_sensor, config.get(CONF_SENSOR))
     await cg.add_variable(var.set_humidity_sensor, config.get(CONF_HUMIDITY_SENSOR))
 
 
