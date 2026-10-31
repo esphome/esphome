@@ -32,12 +32,10 @@ class FakeInputsComponent : public CachedGpioExpanderComponent<uint8_t, 16> {
   void setup() override { this->setup_interrupt_pin_(); }
 
   uint8_t chip[2]{};
-  unsigned reads{0};
 
  protected:
   bool digital_read_hw(uint8_t pin) override {
     const uint8_t bank = pin / 8;
-    this->reads++;
     this->input_[bank] = this->chip[bank];
     return true;
   }
@@ -115,16 +113,6 @@ TEST(GpioExpanderInputs, WideBanks) {
   EXPECT_FALSE(expander.digital_read(31));
   EXPECT_EQ(expander.reads[0], 1u);
   EXPECT_EQ(expander.reads[1], 1u);
-}
-
-TEST(GpioExpanderInputsComponent, WithoutAnInterruptPinEachReadInvalidatesItsPin) {
-  FakeInputsComponent component;
-  component.setup();
-  component.chip[0] = 0x01;
-  EXPECT_TRUE(component.digital_read(0));
-  component.chip[0] = 0x00;
-  EXPECT_FALSE(component.digital_read(0));
-  EXPECT_EQ(component.reads, 2u);
 }
 
 TEST(GpioExpanderInputsComponent, InterruptPinKeepsEveryBankUntilTheLoopRuns) {

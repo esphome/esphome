@@ -35,7 +35,9 @@ template<typename T, uint16_t N>
 class CachedGpioExpanderComponent : public InterruptExpanderComponent,
                                     public GpioExpanderInputs<GpioExpanderReadCache<T, N>> {
  public:
-  bool digital_read(uint8_t pin) { return this->cached_read_(pin, this->interrupt_pin_ == nullptr); }
+  using typename GpioExpanderInputs<GpioExpanderReadCache<T, N>>::pin_t;
+
+  bool digital_read(pin_t pin) { return this->cached_read_(pin, this->interrupt_pin_ == nullptr); }
 
   void loop() override {
     this->reset_pin_cache_();
