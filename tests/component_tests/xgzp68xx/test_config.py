@@ -46,10 +46,7 @@ def test_xgzp6899dc_keeps_factory_oversampling(
 @pytest.mark.parametrize(
     ("config_file", "message"),
     [
-        (
-            "xgzp6899dc_k_value.yaml",
-            "'k_value' is not used by the 'xgzp6899dc' variant",
-        ),
+        ("xgzp6899dc_k_value.yaml", "[k_value] is an invalid option"),
         ("xgzp6899dc_missing_range.yaml", "required key not provided"),
         (
             "xgzp6899dc_inverted_range.yaml",
@@ -57,7 +54,7 @@ def test_xgzp6899dc_keeps_factory_oversampling(
         ),
         (
             "legacy_pressure_range.yaml",
-            "'pressure_min' is only used by the 'xgzp6899dc' variant",
+            "'pressure_min' is only used with 'variant: xgzp6899dc'",
         ),
     ],
 )
