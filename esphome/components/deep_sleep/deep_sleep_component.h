@@ -134,6 +134,10 @@ class DeepSleepComponent final : public Component {
  public:
   /// Set the duration in ms the component should sleep once it's in deep sleep mode.
   void set_sleep_duration(uint32_t time_ms) { this->sleep_duration_ = uint64_t(time_ms) * 1000; }
+#ifdef USE_TIME
+  /// Set the sleep duration to end at the next hour:minute:second local time on the clock.
+  void set_sleep_until(time::RealTimeClock *clock, uint8_t hour, uint8_t minute, uint8_t second);
+#endif
 #if defined(USE_ESP32)
   /** Set the pin to wake up to on the ESP32 once it's in deep sleep mode.
    * Use the inverted property to set the wakeup level.
@@ -247,42 +251,8 @@ template<typename... Ts> class EnterDeepSleepAction final : public Action<Ts...>
       this->deep_sleep_->set_sleep_duration(this->sleep_duration_.value(x...));
     }
 #ifdef USE_TIME
-
     if (this->hour_.has_value()) {
-      auto time = this->time_->now();
-      const uint32_t timestamp_now = time.timestamp;
-
-      bool after_time = false;
-      if (time.hour > this->hour_) {
-        after_time = true;
-      } else {
-        if (time.hour == this->hour_) {
-          if (time.minute > this->minute_) {
-            after_time = true;
-          } else {
-            if (time.minute == this->minute_) {
-              if (time.second > this->second_) {
-                after_time = true;
-              }
-            }
-          }
-        }
-      }
-
-      time.hour = *this->hour_;
-      time.minute = *this->minute_;
-      time.second = *this->second_;
-      time.recalc_timestamp_utc();
-
-      time_t timestamp = time.timestamp;  // timestamp in local time zone
-
-      if (after_time)
-        timestamp += 60 * 60 * 24;
-
-      int32_t offset = ESPTime::timezone_offset();
-      timestamp -= offset;  // Change timestamp to utc
-      const uint32_t ms_left = (timestamp - timestamp_now) * 1000;
-      this->deep_sleep_->set_sleep_duration(ms_left);
+      this->deep_sleep_->set_sleep_until(this->time_, *this->hour_, *this->minute_, *this->second_);
     }
 #endif
     this->deep_sleep_->begin_sleep(true);

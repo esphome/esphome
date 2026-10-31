@@ -38,7 +38,7 @@ from esphome.const import (
     PLATFORM_NRF52,
     PlatformFramework,
 )
-from esphome.core import CORE, ID
+from esphome.core import CORE, ID, Lambda
 from esphome.cpp_generator import MockObj, TemplateArgsType
 from esphome.types import ConfigType
 
@@ -465,7 +465,7 @@ DEEP_SLEEP_ENTER_SCHEMA = cv.All(
 
 @automation.register_action(
     "deep_sleep.enter",
-    EnterDeepSleepAction,
+    automation.ApplyAction,
     DEEP_SLEEP_ENTER_SCHEMA,
     synchronous=True,
 )
@@ -475,19 +475,23 @@ async def deep_sleep_enter_to_code(
     template_arg: cg.TemplateArguments,
     args: TemplateArgsType,
 ) -> MockObj:
-    paren = await cg.get_variable(config[CONF_ID])
-    var = cg.new_Pvariable(action_id, template_arg, paren)
-    if CONF_SLEEP_DURATION in config:
-        template_ = await cg.templatable(config[CONF_SLEEP_DURATION], args, cg.uint32)
-        cg.add(var.set_sleep_duration(template_))
-
-    if CONF_UNTIL in config:
-        until = config[CONF_UNTIL]
-        cg.add(var.set_until(until[CONF_HOUR], until[CONF_MINUTE], until[CONF_SECOND]))
-
-        await cg.add_variable(var.set_time, config[CONF_TIME_ID])
-
-    return var
+    parent = automation.parent_ref(await cg.get_variable(config[CONF_ID]))
+    statements: list[str] = []
+    if (duration := config.get(CONF_SLEEP_DURATION)) is not None:
+        if isinstance(duration, Lambda):
+            # Built with the trigger's by-value arguments and called, so the body may modify them
+            duration = automation.immediate_lambda_call(
+                await cg.process_lambda(duration, args, return_type=cg.uint32)
+            )
+        statements.append(f"{parent.set_sleep_duration(duration)};")
+    if (until := config.get(CONF_UNTIL)) is not None:
+        clock = automation.parent_ref(await cg.get_variable(config[CONF_TIME_ID]))
+        call = parent.set_sleep_until(
+            clock, until[CONF_HOUR], until[CONF_MINUTE], until[CONF_SECOND]
+        )
+        statements.append(f"{call};")
+    statements.append(f"{parent.begin_sleep(True)};")
+    return automation.apply_statements_action(action_id, template_arg, args, statements)
 
 
 for _name, _call in (
