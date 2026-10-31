@@ -1,0 +1,7 @@
+esphome:
+  name: vbus-tx-rx-codegen
+host:
+uart:
+  port: /dev/null
+  baud_rate: 9600
+vbus:
