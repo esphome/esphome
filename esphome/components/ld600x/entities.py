@@ -20,7 +20,6 @@ from esphome.const import (
     CONF_PLATFORM,
     CONF_SENSITIVITY,
     CONF_TARGET,
-    CONF_WAKEUP_PIN,
     CONF_X,
     CONF_Y,
     DEVICE_CLASS_DISTANCE,
@@ -59,7 +58,6 @@ from .const import (
     CONF_GET_Z_RANGE,
     CONF_HOLD_DELAY,
     CONF_INSTALLATION_MODE,
-    CONF_LOW_POWER,
     CONF_LOW_POWER_SLEEP_TIME,
     CONF_OTA_VERSION,
     CONF_POINT_CLOUD,
@@ -68,7 +66,6 @@ from .const import (
     CONF_RESET_UNATTENDED,
     CONF_TARGET_DISPLAY,
     CONF_TRIGGER_SPEED,
-    CONF_WAKE,
     CONF_WORK_MODE,
     CONF_Z,
     CONF_Z_MAX,
@@ -428,19 +425,15 @@ async def select_to_code(
     return selects
 
 
+CONFIG_SWITCH_SCHEMA = switch.switch_schema(
+    switch.ApplySwitch,
+    block_inverted=True,
+    device_class=DEVICE_CLASS_SWITCH,
+    entity_category=ENTITY_CATEGORY_CONFIG,
+)
+
 _SWITCH_SCHEMAS = {
-    CONF_LOW_POWER: switch.switch_schema(
-        switch.ApplySwitch,
-        block_inverted=True,
-        device_class=DEVICE_CLASS_SWITCH,
-        entity_category=ENTITY_CATEGORY_CONFIG,
-    ),
-    CONF_POINT_CLOUD: switch.switch_schema(
-        switch.ApplySwitch,
-        block_inverted=True,
-        device_class=DEVICE_CLASS_SWITCH,
-        entity_category=ENTITY_CATEGORY_CONFIG,
-    ),
+    CONF_POINT_CLOUD: CONFIG_SWITCH_SCHEMA,
     CONF_TARGET_DISPLAY: switch.switch_schema(
         switch.ApplySwitch,
         block_inverted=True,
@@ -452,7 +445,11 @@ _SWITCH_SCHEMAS = {
 
 
 def switch_schema(
-    hub_class: MockObjClass, hub_id_key: str, *, keys: tuple[str, ...]
+    hub_class: MockObjClass,
+    hub_id_key: str,
+    *,
+    keys: tuple[str, ...] | None = None,
+    extra: dict[Any, Any] | None = None,
 ) -> cv.Schema:
     return cv.Schema(
         {
@@ -460,10 +457,10 @@ def switch_schema(
             **{
                 cv.Optional(key): schema
                 for key, schema in _SWITCH_SCHEMAS.items()
-                if key in keys
+                if keys is None or key in keys
             },
         }
-    )
+    ).extend(extra or {})
 
 
 SWITCH_CONTROL: dict[str, str] = {
@@ -476,7 +473,6 @@ async def switch_to_code(config: ConfigType, hub_id_key: str) -> None:
     hub = await cg.get_variable(config[hub_id_key])
     # The schema only accepts the model's keys, so a missing one is skipped here.
     switches = switch.sub_switches(config, parent=hub)
-    await switches(CONF_LOW_POWER, hub.set_low_power_switch, **SWITCH_CONTROL)
     await switches(CONF_POINT_CLOUD, hub.set_point_cloud_switch, **SWITCH_CONTROL)
     await switches(CONF_TARGET_DISPLAY, hub.set_target_display_switch, **SWITCH_CONTROL)
 
@@ -484,24 +480,23 @@ async def switch_to_code(config: ConfigType, hub_id_key: str) -> None:
 _CONFIG_BUTTON_SCHEMA = button.button_schema(
     button.ApplyButton, entity_category=ENTITY_CATEGORY_CONFIG
 )
-_DIAGNOSTIC_BUTTON_SCHEMA = button.button_schema(
+DIAGNOSTIC_BUTTON_SCHEMA = button.button_schema(
     button.ApplyButton, entity_category=ENTITY_CATEGORY_DIAGNOSTIC
 )
 _BUTTON_SCHEMAS = {
     CONF_APPLY_AREA: _CONFIG_BUTTON_SCHEMA,
     CONF_AUTO_INTERFERENCE: _CONFIG_BUTTON_SCHEMA,
-    CONF_GET_AREAS: _DIAGNOSTIC_BUTTON_SCHEMA,
+    CONF_GET_AREAS: DIAGNOSTIC_BUTTON_SCHEMA,
     CONF_CLEAR_INTERFERENCE: _CONFIG_BUTTON_SCHEMA,
     CONF_RESET_DETECTION_AREA: _CONFIG_BUTTON_SCHEMA,
-    CONF_GET_DELAY: _DIAGNOSTIC_BUTTON_SCHEMA,
-    CONF_GET_SENSITIVITY: _DIAGNOSTIC_BUTTON_SCHEMA,
-    CONF_GET_TRIGGER_SPEED: _DIAGNOSTIC_BUTTON_SCHEMA,
-    CONF_GET_Z_RANGE: _DIAGNOSTIC_BUTTON_SCHEMA,
-    CONF_GET_INSTALLATION: _DIAGNOSTIC_BUTTON_SCHEMA,
-    CONF_GET_LOW_POWER_MODE: _DIAGNOSTIC_BUTTON_SCHEMA,
-    CONF_GET_LOW_POWER_SLEEP_TIME: _DIAGNOSTIC_BUTTON_SCHEMA,
+    CONF_GET_DELAY: DIAGNOSTIC_BUTTON_SCHEMA,
+    CONF_GET_SENSITIVITY: DIAGNOSTIC_BUTTON_SCHEMA,
+    CONF_GET_TRIGGER_SPEED: DIAGNOSTIC_BUTTON_SCHEMA,
+    CONF_GET_Z_RANGE: DIAGNOSTIC_BUTTON_SCHEMA,
+    CONF_GET_INSTALLATION: DIAGNOSTIC_BUTTON_SCHEMA,
+    CONF_GET_LOW_POWER_MODE: DIAGNOSTIC_BUTTON_SCHEMA,
+    CONF_GET_LOW_POWER_SLEEP_TIME: DIAGNOSTIC_BUTTON_SCHEMA,
     CONF_RESET_UNATTENDED: _CONFIG_BUTTON_SCHEMA,
-    CONF_WAKE: _DIAGNOSTIC_BUTTON_SCHEMA,
 }
 
 
@@ -509,7 +504,7 @@ def button_schema(
     hub_class: MockObjClass,
     hub_id_key: str,
     *,
-    keys: tuple[str, ...],
+    keys: tuple[str, ...] | None = None,
     extra: dict[Any, Any] | None = None,
 ) -> cv.Schema:
     return cv.Schema(
@@ -518,7 +513,7 @@ def button_schema(
             **{
                 cv.Optional(key): schema
                 for key, schema in _BUTTON_SCHEMAS.items()
-                if key in keys
+                if keys is None or key in keys
             },
         }
     ).extend(extra or {})
@@ -538,15 +533,6 @@ def button_final_validate(
                 path=[CONF_APPLY_AREA],
             )
 
-        # Only a model whose schema accepts wake gets here with it set.
-        if config.get(CONF_WAKE):
-            hub_config = fv.get_declaring_config(hub_id, fv.full_config.get())
-            if hub_config.get(CONF_WAKEUP_PIN) is None:
-                raise cv.Invalid(
-                    f"{CONF_WAKE} requires {CONF_WAKEUP_PIN} on the parent {component_name} component",
-                    path=[CONF_WAKE],
-                )
-
     return final_validate
 
 
@@ -564,7 +550,6 @@ BUTTON_MAP = {
     CONF_GET_LOW_POWER_MODE: ButtonType.BUTTON_GET_LOW_POWER_MODE,
     CONF_GET_LOW_POWER_SLEEP_TIME: ButtonType.BUTTON_GET_LOW_POWER_SLEEP_TIME,
     CONF_RESET_UNATTENDED: ButtonType.BUTTON_RESET_UNATTENDED,
-    CONF_WAKE: ButtonType.BUTTON_WAKE,
 }
 
 
@@ -574,20 +559,20 @@ async def button_to_code(
     *,
     extra: dict[str, MockObj] | None = None,
 ) -> None:
-    button_map: dict[str, MockObj] = {**BUTTON_MAP, **(extra or {})}
-    if extra:
-        # Two enum types in one ?: chain draw a warning, so a model's buttons put everything in uint8_t.
-        button_map = {
-            key: cg.RawExpression(f"static_cast<uint8_t>({value})")
-            for key, value in button_map.items()
-        }
+    extra = extra or {}
     confs: list[tuple[MockObj, ConfigType]] = [
         (button_type, conf)
-        for key, button_type in button_map.items()
+        for key, button_type in {**BUTTON_MAP, **extra}.items()
         if (conf := config.get(key)) is not None
     ]
     if not confs:
         return
+    if any(key in config for key in extra):
+        # Two enum types in one ?: chain draw a warning, so a model's buttons put everything in uint8_t.
+        confs = [
+            (cg.RawExpression(f"static_cast<uint8_t>({button_type})"), conf)
+            for button_type, conf in confs
+        ]
     hub = await cg.get_variable(config[hub_id_key])
     params = button.APPLY_ENTITY.params
     # One function for all buttons, picking the type by pointer: one class instead of one per button.
