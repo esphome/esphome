@@ -21,15 +21,17 @@ async def test_script_synchronous(
     """Script modes, stop, wait and parameters behave the same for a synchronous body."""
     waiter = LineWaiter()
 
-    def count(text: str) -> int:
-        return sum(text in line for line in waiter.lines)
+    count = waiter.count
 
     def in_order(*texts: str) -> bool:
         """Whether the first log lines containing ``texts`` come in that order."""
-        first = [
-            next(i for i, line in enumerate(waiter.lines) if text in line)
-            for text in texts
-        ]
+        first: list[int] = []
+        for text in texts:
+            index = next(
+                (i for i, line in enumerate(waiter.lines) if text in line), None
+            )
+            assert index is not None, f"{text!r} not logged"
+            first.append(index)
         return first == sorted(first)
 
     async with (
@@ -98,7 +100,7 @@ async def test_script_synchronous(
 
         # not running once execute() returns
         await client.execute_service(service["run_outside"], {})
-        await waiter.wait_for("OUTSIDE", timeout=5.0)
+        await waiter.wait_for("OUTSIDE idle", timeout=5.0)
         await waiter.wait_count("WAITER done", 2, timeout=5.0)
         assert count("OUTSIDE idle") == 1
         assert count("OUTSIDE running") == 0
@@ -119,5 +121,7 @@ async def test_script_synchronous(
         assert count("STOP on_stop") == 1
         assert count("SINGLE start") == 1
         assert count("RESTART end") == 1
+        assert count("QUEUED run 1") == 1
+        assert count("QUEUED run 2") == 1
         assert count("QUEUED run 3") == 0
         assert count("WAITER done") == 2
