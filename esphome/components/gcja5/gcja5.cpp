@@ -36,24 +36,15 @@ void GCJA5Component::loop() {
           this->parse_data_();
 
           if (this->have_good_data_) {
-            if (this->pm_1_0_sensor_ != nullptr)
-              this->pm_1_0_sensor_->publish_state(get_32_bit_uint_(1));
-            if (this->pm_2_5_sensor_ != nullptr)
-              this->pm_2_5_sensor_->publish_state(get_32_bit_uint_(5));
-            if (this->pm_10_0_sensor_ != nullptr)
-              this->pm_10_0_sensor_->publish_state(get_32_bit_uint_(9));
-            if (this->pmc_0_3_sensor_ != nullptr)
-              this->pmc_0_3_sensor_->publish_state(get_16_bit_uint_(13));
-            if (this->pmc_0_5_sensor_ != nullptr)
-              this->pmc_0_5_sensor_->publish_state(get_16_bit_uint_(15));
-            if (this->pmc_1_0_sensor_ != nullptr)
-              this->pmc_1_0_sensor_->publish_state(get_16_bit_uint_(17));
-            if (this->pmc_2_5_sensor_ != nullptr)
-              this->pmc_2_5_sensor_->publish_state(get_16_bit_uint_(21));
-            if (this->pmc_5_0_sensor_ != nullptr)
-              this->pmc_5_0_sensor_->publish_state(get_16_bit_uint_(23));
-            if (this->pmc_10_0_sensor_ != nullptr)
-              this->pmc_10_0_sensor_->publish_state(get_16_bit_uint_(25));
+            PUBLISH_STATE(this->pm_1_0_sensor_, get_32_bit_uint_(1));
+            PUBLISH_STATE(this->pm_2_5_sensor_, get_32_bit_uint_(5));
+            PUBLISH_STATE(this->pm_10_0_sensor_, get_32_bit_uint_(9));
+            PUBLISH_STATE(this->pmc_0_3_sensor_, get_16_bit_uint_(13));
+            PUBLISH_STATE(this->pmc_0_5_sensor_, get_16_bit_uint_(15));
+            PUBLISH_STATE(this->pmc_1_0_sensor_, get_16_bit_uint_(17));
+            PUBLISH_STATE(this->pmc_2_5_sensor_, get_16_bit_uint_(21));
+            PUBLISH_STATE(this->pmc_5_0_sensor_, get_16_bit_uint_(23));
+            PUBLISH_STATE(this->pmc_10_0_sensor_, get_16_bit_uint_(25));
           } else {
             this->status_set_warning();
             ESP_LOGV(TAG, "Have 32 bytes but not good data. Skipping.");

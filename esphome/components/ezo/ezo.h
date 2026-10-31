@@ -54,7 +54,7 @@ enum class EzoCommandId : uint8_t {
 
 struct __attribute__((packed)) EzoCommand {
   EzoCommandId id;
-  union {
+  union __attribute__((packed)) {
     float value;          // CAL_* and T_SET value, or the I2C address
     uint8_t text_length;  // CUSTOM: length of its text in EZOSensor::custom_text_
   };
