@@ -13,6 +13,7 @@ from esphome.const import (
     CONF_DUMMY_RECEIVER,
     CONF_ID,
     CONF_PORT,
+    CONF_TIMEOUT,
     CONF_UART_ID,
 )
 from esphome.core import CORE
@@ -39,6 +40,7 @@ BASE_SCHEMA = cv.Schema(
         cv.Optional(
             CONF_RECONNECT_INTERVAL, default="5s"
         ): cv.positive_time_period_milliseconds,
+        cv.Optional(CONF_TIMEOUT, default="0s"): cv.positive_time_period_milliseconds,
     }
 ).extend(cv.COMPONENT_SCHEMA)
 
@@ -112,7 +114,7 @@ def _final_validate(config: ConfigType) -> ConfigType:
     return config
 
 
-FINAL_VALIDATE_SCHEMA = _final_validate
+FINAL_VALIDATE_SCHEMA = cv.All(socket.final_validate_idle_timeout, _final_validate)
 
 
 async def to_code(config: ConfigType) -> None:
@@ -127,4 +129,6 @@ async def to_code(config: ConfigType) -> None:
         socket.require_tcp_client_link()
     cg.add(var.set_port(config[CONF_PORT]))
     cg.add(var.set_reconnect_interval(config[CONF_RECONNECT_INTERVAL]))
+    if (timeout := config[CONF_TIMEOUT]).total_milliseconds > 0:
+        cg.add(var.set_timeout(timeout))
     cg.add_optional(var.set_host, config.get(CONF_HOST))
