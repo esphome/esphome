@@ -1,7 +1,10 @@
+from functools import partial
+
 from esphome import automation
 import esphome.codegen as cg
 import esphome.config_validation as cv
 from esphome.const import CONF_ID, CONF_INTERVAL, CONF_STARTUP_DELAY
+from esphome.cpp_generator import MockObj
 from esphome.types import ConfigType
 
 CODEOWNERS = ["@esphome/core"]
@@ -35,9 +38,17 @@ async def to_code(config: list[ConfigType]) -> None:
         else:
             component_class, template_args = IntervalCallback, []
         var = await automation.build_component_automation(
-            conf, component_class, id_key=CONF_ID, template_args=template_args
+            conf,
+            component_class,
+            id_key=CONF_ID,
+            template_args=template_args,
+            # A hand-set id keeps the IntervalTrigger, which takes the delay at run time
+            trigger_setup=partial(_set_startup_delay, startup_delay)
+            if startup_delay
+            else None,
         )
         cg.add(var.set_update_interval(conf[CONF_INTERVAL]))
-        # A hand-set id keeps the IntervalTrigger, which takes the delay at run time
-        if startup_delay and conf[CONF_ID].is_manual:
-            cg.add(var.set_startup_delay(startup_delay))
+
+
+def _set_startup_delay(startup_delay: int, trigger: MockObj) -> None:
+    cg.add(trigger.set_startup_delay(startup_delay))
