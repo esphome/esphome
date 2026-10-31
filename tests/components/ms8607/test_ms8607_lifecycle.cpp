@@ -115,7 +115,9 @@ class MS8607LifecycleTest : public ::testing::Test {
   sensor::Sensor humidity_;
 
   void SetUp() override {
-    new (&App) Application;
+    // The test main keeps App alive; this test replaces it with a fresh one it owns
+    App.~Application();
+    new (&App) Application();
     App.pre_setup("ms8607-lifecycle-tests", 22, "MS8607 tests", 12);
     host::setup_preferences();
     this->chip_.set_i2c_bus(&this->bus_);
@@ -129,6 +131,7 @@ class MS8607LifecycleTest : public ::testing::Test {
       App.scheduler.cancel_timeout(&this->chip_, id);
     App.scheduler.call(millis());
     App.~Application();
+    new (&App) Application();  // later tests and the test listener use App
   }
 
   static void run_timers(uint32_t duration) {
