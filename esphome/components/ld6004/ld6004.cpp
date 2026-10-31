@@ -56,12 +56,20 @@ PROGMEM_STRING_TABLE(WorkModeStrings, "normal", "low_power", "radar_off_p20_high
 static_assert(WorkModeStrings::COUNT == WORK_MODE_COUNT);
 #endif
 
+// The mode reports carry one byte or a little-endian uint32. Any other length returns UINT32_MAX, which the
+// callers' range checks reject.
+static uint32_t read_mode(const uint8_t *data, uint16_t len) {
+  if (len == 1)
+    return data[0];
+  if (len == 4)
+    return encode_value_le<uint32_t>(data);
+  return UINT32_MAX;
+}
+
 bool LD6004Component::handle_model_report(uint16_t type, const uint8_t *data, uint16_t len) {
   switch (type) {
     case TYPE_REPORT_WORK_MODE: {
-      if (len != 1 && len != 4)
-        break;
-      const uint32_t mode = len == 4 ? encode_value_le<uint32_t>(data) : data[0];
+      const uint32_t mode = read_mode(data, len);
       if (mode >= WORK_MODE_COUNT)
         break;
       this->radar_off_ = mode == WORK_MODE_RADAR_OFF_P20_HIGH || mode == WORK_MODE_RADAR_OFF_P20_LOW;
@@ -88,13 +96,15 @@ bool LD6004Component::handle_model_report(uint16_t type, const uint8_t *data, ui
       if (len >= 1 && data[0] == 0 && !this->target_presence_any_)
         this->clear_area_presence_();
       return true;
-    case TYPE_REPORT_P20_MODE:
-      if (len != 1 || data[0] >= P20_MODE_COUNT)
+    case TYPE_REPORT_P20_MODE: {
+      const uint32_t mode = read_mode(data, len);
+      if (mode >= P20_MODE_COUNT)
         break;
 #ifdef USE_SELECT
-      PUBLISH_STATE(this->p20_mode_select_, data[0]);
+      PUBLISH_STATE(this->p20_mode_select_, mode);
 #endif
       return true;
+    }
     case TYPE_REPORT_DWELL_LIFETIME:
       if (len != 4)
         break;
@@ -136,16 +146,12 @@ void LD6004Component::set_number_value(number::Number *entity, float value) {
 #endif  // USE_NUMBER
 
 #ifdef USE_SELECT
-void LD6004Component::set_select_value(select::Select *entity, size_t index) {
-  if (entity == this->work_mode_select_) {
-    if (index < WORK_MODE_COUNT)
-      this->send_control_command_(progmem_read_byte(&WORK_MODE_COMMANDS[index]));
-  } else if (entity == this->p20_mode_select_) {
-    if (index < P20_MODE_COUNT)
-      this->send_control_command_(progmem_read_byte(&P20_MODE_COMMANDS[index]));
-  } else {
-    this->LD600XComponent::set_select_value(entity, index);
-  }
+bool LD6004Component::set_select_value(select::Select *entity, size_t index) {
+  if (entity == this->work_mode_select_)
+    return index < WORK_MODE_COUNT && this->send_control_command_(progmem_read_byte(&WORK_MODE_COMMANDS[index]));
+  if (entity == this->p20_mode_select_)
+    return index < P20_MODE_COUNT && this->send_control_command_(progmem_read_byte(&P20_MODE_COMMANDS[index]));
+  return this->LD600XComponent::set_select_value(entity, index);
 }
 #endif  // USE_SELECT
 

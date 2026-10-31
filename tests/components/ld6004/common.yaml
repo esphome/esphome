@@ -1,6 +1,22 @@
 ld6004:
   id: ld6004_radar
 
+select:
+  - platform: ld6004
+    ld6004_id: ld6004_radar
+    sensitivity:
+      name: LD6004 Sensitivity
+    trigger_speed:
+      name: LD6004 Trigger Speed
+    installation_mode:
+      name: LD6004 Installation
+    area_id:
+      name: LD6004 Area ID
+    work_mode:
+      name: LD6004 Work Mode Select
+    p20_mode:
+      name: LD6004 P20 Mode
+
 text_sensor:
   - platform: ld6004
     ld6004_id: ld6004_radar
