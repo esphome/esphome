@@ -134,16 +134,21 @@ class LD6004Test : public ::testing::Test {
     global_preferences = &this->prefs_;
 
     this->sut_.set_uart_parent(&this->uart_);
-    this->sut_.set_presence_binary_sensor(&this->presence_);
-    for (uint8_t i = 0; i < MAX_TARGETS; i++)
-      this->sut_.set_target_presence_binary_sensor(i, &this->target_presence_[i]);
-    for (uint8_t i = 0; i < AREA_COUNT; i++)
-      this->sut_.set_area_presence_binary_sensor(i, &this->area_presence_[i]);
+    this->configure_();
 
     this->sut_.setup();
     // Past setup()'s 100 ms boot timeout, which starts the streams and queues the queries
     std::this_thread::sleep_for(std::chrono::milliseconds(120));
     App.scheduler.call(millis());
+  }
+
+  /// Attach the entities under test before setup(); the default is the presence hub.
+  virtual void configure_() {
+    this->sut_.set_presence_binary_sensor(&this->presence_);
+    for (uint8_t i = 0; i < MAX_TARGETS; i++)
+      this->sut_.set_target_presence_binary_sensor(i, &this->target_presence_[i]);
+    for (uint8_t i = 0; i < AREA_COUNT; i++)
+      this->sut_.set_area_presence_binary_sensor(i, &this->area_presence_[i]);
   }
 
   void TearDown() override {
