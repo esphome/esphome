@@ -29,12 +29,15 @@ ThermoProBLE = thermopro_ble_ns.class_(
     "ThermoProBLE", ble_device_base.ESPBTDeviceListener, cg.Component
 )
 
-TEMPERATURE_SCHEMA = sensor.sensor_schema(
-    unit_of_measurement=UNIT_CELSIUS,
-    accuracy_decimals=1,
-    device_class=DEVICE_CLASS_TEMPERATURE,
-    state_class=STATE_CLASS_MEASUREMENT,
-)
+
+def _temperature_schema() -> cv.Schema:
+    return sensor.sensor_schema(
+        unit_of_measurement=UNIT_CELSIUS,
+        accuracy_decimals=1,
+        device_class=DEVICE_CLASS_TEMPERATURE,
+        state_class=STATE_CLASS_MEASUREMENT,
+    )
+
 
 CONFIG_SCHEMA = cv.All(
     ble_device_base.rename_legacy_hub_id("thermopro_ble"),
@@ -42,8 +45,8 @@ CONFIG_SCHEMA = cv.All(
         {
             cv.GenerateID(): cv.declare_id(ThermoProBLE),
             cv.Required(CONF_MAC_ADDRESS): cv.mac_address,
-            cv.Optional(CONF_TEMPERATURE): TEMPERATURE_SCHEMA,
-            cv.Optional(CONF_EXTERNAL_TEMPERATURE): TEMPERATURE_SCHEMA,
+            cv.Optional(CONF_TEMPERATURE): _temperature_schema(),
+            cv.Optional(CONF_EXTERNAL_TEMPERATURE): _temperature_schema(),
             cv.Optional(CONF_HUMIDITY): sensor.sensor_schema(
                 unit_of_measurement=UNIT_PERCENT,
                 accuracy_decimals=0,
