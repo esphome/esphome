@@ -31,10 +31,10 @@ class PCA6416AComponent final : public gpio_expander::CachedGpioExpanderComponen
   /// The mask to write as output state - 1 means HIGH, 0 means LOW
   uint8_t output_0_{0x00};
   uint8_t output_1_{0x00};
-  /// Storage for last I2C error seen
-  esphome::i2c::ErrorCode last_error_;
   /// Only the PCAL6416A has pull-up resistors
   bool has_pullup_{false};
+  /// Storage for last I2C error seen
+  esphome::i2c::ErrorCode last_error_;
 };
 
 using PCA6416AGPIOPin = gpio_expander::ExpanderGPIOPin<PCA6416AComponent>;
