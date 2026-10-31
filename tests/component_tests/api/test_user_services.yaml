@@ -83,3 +83,9 @@ api:
       trigger_id: manual_service_trigger
       then:
         - logger.log: "MANUAL called"
+    # A lambda may use the service's own id
+    - action: self_reference
+      trigger_id: self_reference_service
+      then:
+        - lambda: |-
+            ESP_LOGD("test", "SELF_REFERENCE %p", (const void *) id(self_reference_service));
