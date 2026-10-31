@@ -13,7 +13,9 @@ static bool single_running_inside;
 static void single_body(const int &running) {
   single_runs++;
   single_running_inside = single_script->is_running();
-  single_script->execute();
+  // Only once, so a script that is not running here fails the test instead of recursing
+  if (single_runs == 1)
+    single_script->execute();
 }
 
 TEST(FunctionScriptTest, SingleIsRunningOnlyInsideItsBody) {
