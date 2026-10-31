@@ -33,3 +33,4 @@ KEY_X_MAX = "x_max"
 KEY_X_MIN = "x_min"
 KEY_Y_MAX = "y_max"
 KEY_Y_MIN = "y_min"
+MAX_TARGETS = 3
