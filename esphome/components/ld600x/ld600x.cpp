@@ -63,6 +63,10 @@ static constexpr uint32_t CMD_GET_TRIGGER = 0x11;
 static constexpr uint32_t CMD_GET_Z_RANGE = 0x12;
 static constexpr uint32_t CMD_INSTALL_TOP = 0x13;
 static constexpr uint32_t CMD_INSTALL_SIDE = 0x14;
+// set_select_value() sends the first command of each run plus the option index.
+static_assert(CMD_SENSITIVITY_MEDIUM == CMD_SENSITIVITY_LOW + 1 && CMD_SENSITIVITY_HIGH == CMD_SENSITIVITY_LOW + 2);
+static_assert(CMD_TRIGGER_MEDIUM == CMD_TRIGGER_SLOW + 1 && CMD_TRIGGER_FAST == CMD_TRIGGER_SLOW + 2);
+static_assert(CMD_INSTALL_SIDE == CMD_INSTALL_TOP + 1);
 static constexpr uint32_t CMD_GET_INSTALLATION = 0x15;
 // Both models answer 0x16 to 0x18 with report 0x0A12; the opcodes stay here for the verbose logs.
 static constexpr uint32_t CMD_LOW_POWER_ON = 0x16;
@@ -1059,31 +1063,12 @@ bool LD600XComponent::set_number_value(number::Number *entity, float value) {
 
 #ifdef USE_SELECT
 bool LD600XComponent::set_select_value(select::Select *entity, size_t index) {
-  if (entity == this->sensitivity_select_) {
-    if (index == 0)
-      return this->send_control_command_(CMD_SENSITIVITY_LOW);
-    if (index == 1)
-      return this->send_control_command_(CMD_SENSITIVITY_MEDIUM);
-    if (index == 2)
-      return this->send_control_command_(CMD_SENSITIVITY_HIGH);
-    return false;
-  }
-  if (entity == this->trigger_speed_select_) {
-    if (index == 0)
-      return this->send_control_command_(CMD_TRIGGER_SLOW);
-    if (index == 1)
-      return this->send_control_command_(CMD_TRIGGER_MEDIUM);
-    if (index == 2)
-      return this->send_control_command_(CMD_TRIGGER_FAST);
-    return false;
-  }
-  if (entity == this->installation_select_) {
-    if (index == 0)
-      return this->send_control_command_(CMD_INSTALL_TOP);
-    if (index == 1)
-      return this->send_control_command_(CMD_INSTALL_SIDE);
-    return false;
-  }
+  if (entity == this->sensitivity_select_)
+    return index < 3 && this->send_control_command_(CMD_SENSITIVITY_LOW + index);
+  if (entity == this->trigger_speed_select_)
+    return index < 3 && this->send_control_command_(CMD_TRIGGER_SLOW + index);
+  if (entity == this->installation_select_)
+    return index < 2 && this->send_control_command_(CMD_INSTALL_TOP + index);
   // Only registered entities call this, so the last one needs no compare
   this->area_id_ = static_cast<uint8_t>(index);
   this->area_id_set_ = true;
