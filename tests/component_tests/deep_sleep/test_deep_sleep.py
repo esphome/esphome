@@ -256,25 +256,31 @@ def test_deep_sleep_enter_lambda_duration(
     """A lambda sleep_duration is computed from the script parameters."""
     main_cpp = generate_main(ENTER_YAML)
 
-    assert (
-        "new(deep_sleep_enterdeepsleepaction_id_3) "
-        "deep_sleep::EnterDeepSleepAction<uint32_t>(deepsleep);\n"
-        "deep_sleep_enterdeepsleepaction_id_3->set_sleep_duration("
-        "[](uint32_t seconds) -> uint32_t {"
-    ) in main_cpp
-    assert "    return seconds * 1000;\n" in main_cpp
+    assert re.search(
+        r"new\(deep_sleep_enterdeepsleepaction_id_3\) "
+        r"deep_sleep::EnterDeepSleepAction<uint32_t>\(deepsleep\);\n"
+        r"deep_sleep_enterdeepsleepaction_id_3->set_sleep_duration\("
+        r"\[\]\(uint32_t seconds\) -> uint32_t \{\n(?:    #line [^\n]*\n)?"
+        r"    return seconds \* 1000;\n",
+        main_cpp,
+    )
 
 
 @pytest.mark.parametrize(
-    "body", ["seconds *= 1000; return seconds;", "return seconds *= 1000;"]
+    ("action_id", "body"),
+    [
+        ("deep_sleep_enterdeepsleepaction_id_4", "seconds *= 1000; return seconds;"),
+        ("deep_sleep_enterdeepsleepaction_id_5", "return seconds *= 1000;"),
+    ],
 )
 def test_deep_sleep_enter_lambda_takes_args_by_value(
-    generate_main: Callable[[str | Path], str], body: str
+    generate_main: Callable[[str | Path], str], action_id: str, body: str
 ) -> None:
     """The sleep_duration lambda gets the script parameters by value, so it may modify them."""
     main_cpp = generate_main(ENTER_YAML)
 
     assert re.search(
+        action_id + r"->set_sleep_duration\("
         r"\[\]\(uint32_t seconds\) -> uint32_t \{\n(?:    #line [^\n]*\n)?    "
         + re.escape(body)
         + "\n",
