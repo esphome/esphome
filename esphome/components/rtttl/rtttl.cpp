@@ -3,6 +3,7 @@
 #include <cmath>
 #include <cstring>
 #include <limits>
+#include <numbers>
 #include "esphome/core/hal.h"
 #include "esphome/core/log.h"
 #include "esphome/core/progmem.h"
@@ -31,7 +32,7 @@ static constexpr uint8_t REPEATING_NOTE_GAP_MS = 10;
 #ifdef USE_SPEAKER
 static constexpr uint16_t SAMPLE_BUFFER_SIZE = 2048;
 static constexpr uint16_t SAMPLE_RATE = 16000;
-static constexpr float TWO_PI = 2.0f * static_cast<float>(M_PI);
+static constexpr float RADIANS_PER_TURN = 2.0f * std::numbers::pi_v<float>;
 #endif  // USE_SPEAKER
 
 #if ESPHOME_LOG_LEVEL >= ESPHOME_LOG_LEVEL_VERBOSE
@@ -120,7 +121,7 @@ void Rtttl::loop() {
       int16_t sample[SAMPLE_BUFFER_SIZE];
       uint16_t sample_index = 0;
       // Single precision: ESP32 FPUs have no double support, and a software sin() per sample blocks the loop
-      const float radians_per_step = this->samples_per_wave_ != 0 ? TWO_PI / this->samples_per_wave_ : 0.0f;
+      const float radians_per_step = this->samples_per_wave_ != 0 ? RADIANS_PER_TURN / this->samples_per_wave_ : 0.0f;
 
       while (sample_index < SAMPLE_BUFFER_SIZE && this->samples_sent_ < this->samples_count_) {
         // Try and send out the remainder of the existing note, one per `loop()`
