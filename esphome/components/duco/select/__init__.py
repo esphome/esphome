@@ -1,5 +1,6 @@
 from esphome.components import select
 import esphome.config_validation as cv
+from esphome.const import CONF_TYPE
 from esphome.types import ConfigType
 
 from .. import (
@@ -32,14 +33,35 @@ DUCO_MODE_OPTIONS = [
 ]
 
 DucoSelect = duco_ns.class_("DucoSelect", DucoDevice, select.Select)
+DucoTimeFilter = duco_ns.class_("DucoTimeFilter", DucoDevice, select.Select)
 
-CONFIG_SCHEMA = (
+TYPE_MODE = "mode"
+TYPE_TIME_FILTER = "time_filter"
+
+TIME_FILTER_OPTIONS = ["90 days", "180 days", "270 days", "360 days"]
+
+MODE_SCHEMA = (
     select.select_schema(DucoSelect)
     .extend(cv.polling_component_schema("3s"))
     .extend(DUCO_COMPONENT_SCHEMA)
 )
 
+TIME_FILTER_SCHEMA = (
+    select.select_schema(DucoTimeFilter)
+    .extend(cv.polling_component_schema("60s"))
+    .extend(DUCO_COMPONENT_SCHEMA)
+)
+
+CONFIG_SCHEMA = cv.typed_schema(
+    {
+        TYPE_MODE: MODE_SCHEMA,
+        TYPE_TIME_FILTER: TIME_FILTER_SCHEMA,
+    },
+    default_type=TYPE_MODE,
+)
+
 
 async def to_code(config: ConfigType) -> None:
-    var = await select.new_select(config, options=DUCO_MODE_OPTIONS)
+    options = TIME_FILTER_OPTIONS if config[CONF_TYPE] == TYPE_TIME_FILTER else DUCO_MODE_OPTIONS
+    var = await select.new_select(config, options=options)
     await register_duco_device(var, config, config[CONF_DUCO_ID])
