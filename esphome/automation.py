@@ -328,25 +328,23 @@ def _is_collecting(id_: ID) -> bool:
     return collector is not None and collector.action_id is id_
 
 
-def _collect_action(
-    id_: ID, statements: list[str], emit: Callable[[], MockObj] | None
-) -> bool:
-    """Record ``id_`` as inline if it is the action or condition being collected.
+def _collect_action(action: _InlineAction) -> bool:
+    """Record ``action`` as inline if it is the action or condition being collected.
 
     Matching the id leaves the conditions and child actions a builder creates to emit normally.
     """
-    if not _is_collecting(id_):
+    if not _is_collecting(action.id_):
         return False
     collector = _INLINE_COLLECTOR.get()
     # Replacing it would silently lose the statements already collected
     if collector.action is not None:
         raise EsphomeError(f"The builder of {collector.name} built its action twice")
-    collector.action = _InlineAction(id_, statements, emit)
+    collector.action = action
     return True
 
 
 def _collect_control_flow(action_id: ID, statements: list[str]) -> MockObj:
-    _collect_action(action_id, statements, None)
+    _collect_action(_InlineAction(action_id, statements, None))
     return _COLLECTED_ACTION
 
 
@@ -402,8 +400,7 @@ def _condition_expression(
 ) -> str:
     if isinstance(condition, _InlineCondition):
         return f"({condition.expression})"
-    names = ", ".join(name for _, name in args)
-    return f"{parent_ref(condition)}->check({names})"
+    return f"{parent_ref(condition)}->check({_arg_names(args)})"
 
 
 def _condition_object(condition: MockObj | _InlineCondition) -> MockObj:
@@ -648,12 +645,22 @@ def _apply_function(
 ) -> MockObj:
     """Emit the generated function and declare ``id_`` as the ``ApplyAction`` or
     ``ApplyCondition`` templated on it, so ``play()`` calls it directly."""
+    action = _inline_action(id_, return_type, template_arg, lambda_args, statements)
+    return _COLLECTED_ACTION if _collect_action(action) else action.emit()
 
+
+def _inline_action(
+    id_: ID,
+    return_type: SafeExpType,
+    template_arg: cg.TemplateArguments,
+    lambda_args: TemplateArgsType,
+    statements: list[str],
+) -> _InlineAction:
     def emit() -> MockObj:
         fn = apply_static_function(id_, return_type, lambda_args, statements)
         return cg.new_Pvariable(id_, cg.TemplateArguments(fn, *template_arg))
 
-    return _COLLECTED_ACTION if _collect_action(id_, statements, emit) else emit()
+    return _InlineAction(id_, statements, emit)
 
 
 def apply_statements_action(
@@ -999,11 +1006,13 @@ def new_lambda_pvariable(
             or stateless_class is StatelessLambdaCondition
         )
         and _collect_action(
-            id_obj,
-            [f"{immediate_lambda_call(lambda_expr)};"],
-            lambda: new_lambda_pvariable(
-                id_obj, lambda_expr, stateless_class, template_arg
-            ),
+            _InlineAction(
+                id_obj,
+                [f"{immediate_lambda_call(lambda_expr)};"],
+                lambda: new_lambda_pvariable(
+                    id_obj, lambda_expr, stateless_class, template_arg
+                ),
+            )
         )
     ):
         return _COLLECTED_ACTION
@@ -1118,7 +1127,7 @@ async def condition_group_to_code(
 
         operator = " || " if condition_id.type is OrCondition else " && "
         check = operator.join(_condition_expression(item, args) for item in items)
-        _collect_action(condition_id, [f"return {check};"], emit)
+        _collect_action(_InlineAction(condition_id, [f"return {check};"], emit))
         return _COLLECTED_ACTION
     conditions = await build_condition_list(config, template_arg, args)
     return _new_condition_group(condition_id, template_arg, conditions)
@@ -1145,11 +1154,13 @@ async def not_condition_to_code(
     if _is_collecting(condition_id):
         item = await _build_condition_or_inline(config, template_arg, args)
         _collect_action(
-            condition_id,
-            [f"return !{_condition_expression(item, args)};"],
-            lambda: cg.new_Pvariable(
-                condition_id, template_arg, _condition_object(item)
-            ),
+            _InlineAction(
+                condition_id,
+                [f"return !{_condition_expression(item, args)};"],
+                lambda: cg.new_Pvariable(
+                    condition_id, template_arg, _condition_object(item)
+                ),
+            )
         )
         return _COLLECTED_ACTION
     condition = await build_condition(config, template_arg, args)
@@ -1731,14 +1742,19 @@ async def _build_action_plan(
     """Build the actions of ``config``; adjacent inline actions stay together, not yet emitted."""
     plan: list[MockObj | list[_InlineAction]] = []
     for conf in config:
-        action = await _build_action_or_inline(conf, templ, arg_type)
-        if not isinstance(action, _InlineAction):
-            plan.append(action)
-        elif plan and isinstance(plan[-1], list):
-            plan[-1].append(action)
-        else:
-            plan.append([action])
+        _plan_append(plan, await _build_action_or_inline(conf, templ, arg_type))
     return plan
+
+
+def _plan_append(
+    plan: list[MockObj | list[_InlineAction]], action: MockObj | _InlineAction
+) -> None:
+    if not isinstance(action, _InlineAction):
+        plan.append(action)
+    elif plan and isinstance(plan[-1], list):
+        plan[-1].append(action)
+    else:
+        plan.append([action])
 
 
 def _emit_action_plan(
@@ -1874,8 +1890,7 @@ async def _new_automation(
 async def _build_automation_plan(
     args: TemplateArgsType, config: ConfigType
 ) -> list[MockObj | list[_InlineAction]]:
-    templ = cg.TemplateArguments(*(arg[0] for arg in args))
-    return await _build_action_plan(config[CONF_THEN], templ, args)
+    return await _build_action_plan(config[CONF_THEN], _args_templ(args), args)
 
 
 def _automation_from_plan(
@@ -1884,7 +1899,7 @@ def _automation_from_plan(
     config: ConfigType,
     *ctor_args: MockObj,
 ) -> MockObj:
-    templ = cg.TemplateArguments(*(arg[0] for arg in args))
+    templ = _args_templ(args)
     obj = cg.new_Pvariable(config[CONF_AUTOMATION_ID], templ, *ctor_args)
     for action in _emit_action_plan(plan, templ, args):
         cg.add(obj.add_action(action))
@@ -1904,17 +1919,27 @@ def _is_direct(plan: list[MockObj | list[_InlineAction]], config: ConfigType) ->
     )
 
 
-def _direct_function(
+def _plan_target(
     plan: list[MockObj | list[_InlineAction]],
     args: TemplateArgsType,
+    lambda_args: TemplateArgsType,
     config: ConfigType,
-) -> MockObj | None:
+) -> MockObj | str:
+    """What runs ``plan``: the function of its statements when it is direct, else the
+    ``trigger`` of its Automation, built without a Trigger. ``lambda_args`` are
+    ``_apply_lambda_args(args)``."""
     if not _is_direct(plan, config):
-        return None
+        return f"{parent_ref(_automation_from_plan(plan, args, config))}->trigger"
     statements = [line for line in _run_statements(plan[0]) if line != _STOP_CHECK]
-    return apply_static_function(
-        plan[0][0].id_, cg.void, _apply_lambda_args(args), statements
-    )
+    return apply_static_function(plan[0][0].id_, cg.void, lambda_args, statements)
+
+
+def _args_templ(args: TemplateArgsType) -> cg.TemplateArguments:
+    return cg.TemplateArguments(*(arg[0] for arg in args))
+
+
+def _arg_names(args: TemplateArgsType) -> str:
+    return ", ".join(name for _, name in args)
 
 
 def _when_call(
@@ -1932,6 +1957,35 @@ async def build_automation(
     trigger: MockObj, args: TemplateArgsType, config: ConfigType
 ) -> MockObj:
     return await _new_automation(args, config, trigger)
+
+
+async def build_automation_function(
+    args: TemplateArgsType, config: ConfigType, after: list[str] | None = None
+) -> MockObj:
+    """Emit a ``static void`` function that runs ``config`` and return its name.
+
+    The function takes ``args`` by const reference, like ``_apply_lambda_args``. All-inline
+    actions run in it directly; otherwise, or with a manual ``automation_id``, it triggers
+    their Automation, built without a Trigger. ``after`` are statements run after the last
+    action, including one that waits; they are skipped if the automation is stopped.
+    """
+    plan = await _build_automation_plan(args, config)
+    lambda_args = _apply_lambda_args(args)
+    automation_id = config[CONF_AUTOMATION_ID]
+    if after:
+        after_id = ID(
+            f"{automation_id.id}__after", is_declaration=True, type=ApplyAction
+        )
+        _plan_append(
+            plan,
+            _inline_action(after_id, cg.void, _args_templ(args), lambda_args, after),
+        )
+    target = _plan_target(plan, args, lambda_args, config)
+    if not isinstance(target, str):
+        return target
+    return apply_static_function(
+        automation_id, cg.void, lambda_args, [f"{target}({_arg_names(args)});"]
+    )
 
 
 async def build_trigger_callback(
@@ -1967,8 +2021,7 @@ async def _trigger_callback(
     call: ApplyCall | None,
     parent: MockObj | None,
 ) -> LambdaExpression:
-    if (target := _direct_function(plan, args, config)) is None:
-        target = f"{parent_ref(_automation_from_plan(plan, args, config))}->trigger"
+    target = _plan_target(plan, args, _apply_lambda_args(args), config)
     lambda_args = _apply_lambda_args(params)
     statements: list[str] = []
     if call is not None:

@@ -83,3 +83,8 @@ api:
       trigger_id: manual_service_trigger
       then:
         - logger.log: "MANUAL called"
+    - action: respond_then_log
+      then:
+        - api.respond:
+            success: true
+        - logger.log: "RESPONDED"

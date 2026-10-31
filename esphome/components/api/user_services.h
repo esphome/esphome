@@ -174,57 +174,23 @@ template<typename... Ts> class UserServiceDynamic : public UserServiceDescriptor
   uint32_t key_{0};
 };
 
-// Primary template declaration
-template<enums::SupportsResponseType Mode, typename... Ts> class UserServiceTrigger;
-
-// Specialization for NONE - no extra trigger arguments
-template<typename... Ts>
-class UserServiceTrigger<enums::SUPPORTS_RESPONSE_NONE, Ts...> final : public UserServiceBase<Ts...>,
-                                                                       public Trigger<Ts...> {
+/// A YAML-defined action that calls the generated function Fn. Fn takes the call id first unless
+/// Mode is SUPPORTS_RESPONSE_NONE, then return_response for SUPPORTS_RESPONSE_OPTIONAL.
+template<auto Fn, enums::SupportsResponseType Mode, typename... Ts>
+class UserServiceCallback final : public UserServiceBase<Ts...> {
  public:
-  UserServiceTrigger(const char *const *strings, uint32_t key)
-      : UserServiceBase<Ts...>(strings, key, enums::SUPPORTS_RESPONSE_NONE) {}
+  UserServiceCallback(const char *const *strings, uint32_t key) : UserServiceBase<Ts...>(strings, key, Mode) {}
 
  protected:
-  void execute(uint32_t /*call_id*/, bool /*return_response*/, Ts... x) override { this->trigger(x...); }
-};
-
-// Specialization for OPTIONAL - call_id and return_response trigger arguments
-template<typename... Ts>
-class UserServiceTrigger<enums::SUPPORTS_RESPONSE_OPTIONAL, Ts...> final : public UserServiceBase<Ts...>,
-                                                                           public Trigger<uint32_t, bool, Ts...> {
- public:
-  UserServiceTrigger(const char *const *strings, uint32_t key)
-      : UserServiceBase<Ts...>(strings, key, enums::SUPPORTS_RESPONSE_OPTIONAL) {}
-
- protected:
-  void execute(uint32_t call_id, bool return_response, Ts... x) override {
-    this->trigger(call_id, return_response, x...);
+  void execute([[maybe_unused]] uint32_t call_id, [[maybe_unused]] bool return_response, Ts... x) override {
+    if constexpr (Mode == enums::SUPPORTS_RESPONSE_NONE) {
+      Fn(x...);
+    } else if constexpr (Mode == enums::SUPPORTS_RESPONSE_OPTIONAL) {
+      Fn(call_id, return_response, x...);
+    } else {
+      Fn(call_id, x...);
+    }
   }
-};
-
-// Specialization for ONLY - just call_id trigger argument
-template<typename... Ts>
-class UserServiceTrigger<enums::SUPPORTS_RESPONSE_ONLY, Ts...> final : public UserServiceBase<Ts...>,
-                                                                       public Trigger<uint32_t, Ts...> {
- public:
-  UserServiceTrigger(const char *const *strings, uint32_t key)
-      : UserServiceBase<Ts...>(strings, key, enums::SUPPORTS_RESPONSE_ONLY) {}
-
- protected:
-  void execute(uint32_t call_id, bool /*return_response*/, Ts... x) override { this->trigger(call_id, x...); }
-};
-
-// Specialization for STATUS - just call_id trigger argument (reports success/error without data)
-template<typename... Ts>
-class UserServiceTrigger<enums::SUPPORTS_RESPONSE_STATUS, Ts...> final : public UserServiceBase<Ts...>,
-                                                                         public Trigger<uint32_t, Ts...> {
- public:
-  UserServiceTrigger(const char *const *strings, uint32_t key)
-      : UserServiceBase<Ts...>(strings, key, enums::SUPPORTS_RESPONSE_STATUS) {}
-
- protected:
-  void execute(uint32_t call_id, bool /*return_response*/, Ts... x) override { this->trigger(call_id, x...); }
 };
 
 }  // namespace esphome::api
@@ -299,25 +265,6 @@ template<typename... Ts> class APIRespondAction final : public Action<Ts...> {
   bool has_data_{false};
 #endif
   bool is_optional_mode_{false};
-};
-
-// Action to unregister a service call after execution completes
-// Automatically appended to the end of action lists for non-none response modes
-template<typename... Ts> class APIUnregisterServiceCallAction final : public Action<Ts...> {
- public:
-  explicit APIUnregisterServiceCallAction(APIServer *parent) : parent_(parent) {}
-
-  void play(const Ts &...x) override {
-    // Extract call_id from first argument - same convention as APIRespondAction
-    auto args = std::forward_as_tuple(x...);
-    uint32_t call_id = std::get<0>(args);
-    if (call_id != 0) {
-      this->parent_->unregister_active_action_call(call_id);
-    }
-  }
-
- protected:
-  APIServer *parent_;
 };
 
 }  // namespace esphome::api
