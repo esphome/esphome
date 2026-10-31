@@ -504,6 +504,8 @@ void BedJetHub::dump_config() {
   for (auto *child : this->children_) {
     ESP_LOGCONFIG(TAG, "    - %s", child->describe().c_str());
   }
+  for (auto *child : this->children_)
+    child->dump_child_config();
 }
 
 void BedJetHub::dispatch_state_(bool is_ready) {

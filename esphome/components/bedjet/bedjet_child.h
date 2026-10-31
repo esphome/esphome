@@ -12,6 +12,8 @@ class BedJetClient : public Parented<BedJetHub> {
  public:
   virtual void on_status(const BedjetStatusPacket *data) = 0;
   virtual void on_bedjet_state(bool is_ready) = 0;
+  // Called from the hub's dump_config(); not dump_config() so Component children don't print twice
+  virtual void dump_child_config() {}
 
  protected:
   friend BedJetHub;
