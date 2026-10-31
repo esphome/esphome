@@ -91,4 +91,18 @@ class CachedGpioExpander {
   bool invalidate_on_read_{true};
 };
 
+/// CachedGpioExpander that stores the last value read from each bank in input_. digital_read_hw() reads
+/// a bank into input_[pin / BANK_SIZE]; digital_read_cache() is provided.
+template<typename T, uint16_t N, typename P = typename std::conditional<(N > 256), uint16_t, uint8_t>::type>
+class BankedGpioExpander : public CachedGpioExpander<T, N, P> {
+ protected:
+  using CachedGpioExpander<T, N, P>::BANK_SIZE;
+  using CachedGpioExpander<T, N, P>::BANKS;
+
+  bool digital_read_cache(P pin) override { return this->input_[pin / BANK_SIZE] & (T(1) << (pin % BANK_SIZE)); }
+
+  /// The input state per bank - 1 means HIGH, 0 means LOW
+  T input_[BANKS]{};
+};
+
 }  // namespace esphome::gpio_expander

@@ -30,8 +30,8 @@ class InterruptExpanderComponent : public Component {
 };
 
 /// Base for expanders that cache reads per loop. With an interrupt pin the cache stays valid until INT fires.
-template<typename T, uint16_t N>
-class CachedGpioExpanderComponent : public InterruptExpanderComponent, public CachedGpioExpander<T, N> {
+template<typename T, uint16_t N, typename Expander = CachedGpioExpander<T, N>>
+class CachedGpioExpanderComponent : public InterruptExpanderComponent, public Expander {
  public:
   void loop() override {
     this->reset_pin_cache_();
@@ -46,5 +46,9 @@ class CachedGpioExpanderComponent : public InterruptExpanderComponent, public Ca
       this->set_invalidate_on_read_(false);
   }
 };
+
+/// CachedGpioExpanderComponent with the per-bank input store of BankedGpioExpander.
+template<typename T, uint16_t N>
+using BankedGpioExpanderComponent = CachedGpioExpanderComponent<T, N, BankedGpioExpander<T, N>>;
 
 }  // namespace esphome::gpio_expander
