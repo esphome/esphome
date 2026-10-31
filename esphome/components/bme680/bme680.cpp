@@ -98,7 +98,7 @@ bool BME680Component::setup_registers_() {
   this->calibration_.t3 = coeff1[3];
 
   this->calibration_.h1 = coeff2[2] << 4 | (coeff2[1] & 0x0F);
-  this->calibration_.h2 = coeff2[0] << 4 | coeff2[1] >> 4;
+  this->calibration_.h2 = encode_uint16(coeff2[0], coeff2[1]) >> 4;
   this->calibration_.h3 = coeff2[3];
   this->calibration_.h4 = coeff2[4];
   this->calibration_.h5 = coeff2[5];
@@ -260,22 +260,18 @@ uint8_t BME680Component::calc_heater_duration_(uint16_t duration) {
 void BME680Component::read_data_() {
   uint8_t data[15];
   if (!this->status_comm_result(this->read_bytes(BME680_REGISTER_FIELD0, data, 15))) {
-    if (this->temperature_sensor_ != nullptr)
-      this->temperature_sensor_->publish_state(NAN);
-    if (this->pressure_sensor_ != nullptr)
-      this->pressure_sensor_->publish_state(NAN);
-    if (this->humidity_sensor_ != nullptr)
-      this->humidity_sensor_->publish_state(NAN);
-    if (this->gas_resistance_sensor_ != nullptr)
-      this->gas_resistance_sensor_->publish_state(NAN);
+    PUBLISH_STATE(this->temperature_sensor_, NAN);
+    PUBLISH_STATE(this->pressure_sensor_, NAN);
+    PUBLISH_STATE(this->humidity_sensor_, NAN);
+    PUBLISH_STATE(this->gas_resistance_sensor_, NAN);
     ESP_LOGW(TAG, ESP_LOG_MSG_COMM_FAIL);
     return;
   }
 
-  uint32_t raw_temperature = (uint32_t(data[5]) << 12) | (uint32_t(data[6]) << 4) | (uint32_t(data[7]) >> 4);
-  uint32_t raw_pressure = (uint32_t(data[2]) << 12) | (uint32_t(data[3]) << 4) | (uint32_t(data[4]) >> 4);
-  uint32_t raw_humidity = (uint32_t(data[8]) << 8) | uint32_t(data[9]);
-  uint16_t raw_gas = (uint16_t) ((uint32_t) data[13] * 4 | (((uint32_t) data[14]) / 64));
+  uint32_t raw_temperature = encode_uint24(data[5], data[6], data[7]) >> 4;
+  uint32_t raw_pressure = encode_uint24(data[2], data[3], data[4]) >> 4;
+  uint32_t raw_humidity = encode_uint16(data[8], data[9]);
+  uint16_t raw_gas = encode_uint16(data[13], data[14]) >> 6;
   uint8_t gas_range = data[14] & 0x0F;
 
   float temperature = this->calc_temperature_(raw_temperature);
@@ -297,12 +293,9 @@ void BME680Component::read_data_() {
     ESP_LOGW(TAG, "Heater unstable, reading invalid! (Normal for a few readings after a power cycle)");
   }
 
-  if (this->temperature_sensor_ != nullptr)
-    this->temperature_sensor_->publish_state(temperature);
-  if (this->pressure_sensor_ != nullptr)
-    this->pressure_sensor_->publish_state(pressure);
-  if (this->humidity_sensor_ != nullptr)
-    this->humidity_sensor_->publish_state(humidity);
+  PUBLISH_STATE(this->temperature_sensor_, temperature);
+  PUBLISH_STATE(this->pressure_sensor_, pressure);
+  PUBLISH_STATE(this->humidity_sensor_, humidity);
   if (this->gas_resistance_sensor_ != nullptr) {
     if (gas_valid && heat_stable) {
       this->gas_resistance_sensor_->publish_state(gas_resistance);

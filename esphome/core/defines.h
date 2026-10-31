@@ -6,6 +6,9 @@
 // This file is only used by static analyzers and IDEs.
 
 #include "esphome/core/macros.h"
+#ifdef USE_ESP32
+#include <esp_idf_version.h>
+#endif
 
 // Informative flags
 #define ESPHOME_BOARD "dummy_board"
@@ -20,13 +23,13 @@
 
 // Threading model for static analysis. Match what the real codegen picks per
 // platform (see esphome/components/<platform>/__init__.py ThreadModel.*):
-//   USE_ESP8266 / USE_RP2 / USE_NRF52 → SINGLE
+//   USE_ESP8266 / USE_RP2 → SINGLE
 //   USE_BK72XX (ARMv5TE, no LDREX/STREX) → MULTI_NO_ATOMICS
-//   everything else (ESP32, host, RTL87XX, LN882X) → MULTI_ATOMICS
+//   everything else (ESP32, host, RTL87XX, LN882X, USE_NRF52) → MULTI_ATOMICS
 // Without this the clang-tidy envs end up with USE_<single-threaded platform>
 // + MULTI_ATOMICS simultaneously, a combination that can never occur in a
 // real build.
-#if defined(USE_ESP8266) || defined(USE_RP2) || defined(USE_NRF52)
+#if defined(USE_ESP8266) || defined(USE_RP2)
 #define ESPHOME_THREAD_SINGLE
 #elif defined(USE_BK72XX)
 #define ESPHOME_THREAD_MULTI_NO_ATOMICS
@@ -55,6 +58,7 @@
 #define USE_BINARY_SENSOR_CLICK_TRIGGER
 #define USE_BINARY_SENSOR_FILTER
 #define USE_BINARY_SENSOR_MULTI_CLICK_TRIGGER
+#define USE_BINARY_SENSOR_RAW_CALLBACK
 #define USE_BLE_DEVICE_IRK
 #define USE_BMI270_BMM150
 #define USE_BQ25186_PG_GPO
@@ -123,6 +127,7 @@
 #define USE_JSON
 #define USE_JSON_ARENA
 #define USE_RADIO_FREQUENCY
+#define USE_LD2410_BG_CORRECTION
 #define USE_LD2410S_PARAMETERS
 #define USE_LD2410S_VERSION
 #define USE_LIGHT
@@ -181,6 +186,8 @@
 #define GPS_LISTENER_COUNT 1
 #define HDMI_CEC_MESSAGE_CALLBACK_COUNT 2
 #define I2C_PORT_FREQUENCY_COUNT 1
+#define LD600X_AREA_KINDS 3
+#define LD600X_MAX_TARGETS 3
 #define MDNS_SERVICE_COUNT 3
 #define USE_MDNS_DYNAMIC_TXT
 #define USE_MDNS_EXTRA_SERVICES
@@ -509,7 +516,9 @@
 #define USE_ESP32_BLE_SERVER_ON_CONNECT
 #define USE_ESP32_BLE_SERVER_ON_DISCONNECT
 #define USE_ESP32_BLE_TRACKER
+#if ESP_IDF_VERSION < ESP_IDF_VERSION_VAL(6, 2, 0)
 #define USE_ESP32_BLE_TRACKER_DIRECT_CONN_GUARD
+#endif
 #define USE_BLE_GATT_CLIENT
 #define ESPHOME_BLE_GATT_CLIENT_COUNT 1
 #define ESPHOME_ESP32_BLE_TRACKER_LISTENER_COUNT 1
@@ -537,6 +546,7 @@
 #define USE_SENDSPIN_ENABLED_SWITCH
 #define USE_SENDSPIN_METADATA
 #define USE_SENDSPIN_PLAYER
+#define USE_SENDSPIN_SOURCE
 #define USE_SENDSPIN_SWITCH
 #define USE_SENDSPIN_VISUALIZER
 #define USE_SENDSPIN_PORT 8928  // NOLINT
