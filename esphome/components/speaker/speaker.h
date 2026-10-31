@@ -53,7 +53,11 @@ class Speaker {
   size_t play(const std::vector<uint8_t> &data) { return this->play(data.data(), data.size()); }
 
   virtual void start() = 0;
+  /// @brief Start an output before the media reader starts, if it needs a connection.
+  virtual void prepare_for_media() { this->start(); }
   virtual void stop() = 0;
+  /// @brief Whether a prepared output can receive media without a new connection.
+  virtual bool is_ready_for_media() const { return true; }
   // In compare between *STOP()* and *FINISH()*; *FINISH()* will stop after emptying the play buffer,
   // while *STOP()* will break directly.
   // When finish() is not implemented on the platform component it should just do a normal stop.
