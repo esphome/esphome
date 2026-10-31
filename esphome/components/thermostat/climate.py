@@ -1,3 +1,4 @@
+from collections.abc import Callable
 from typing import Any, NamedTuple
 
 from esphome import automation
@@ -149,10 +150,24 @@ _PRESET_MODE_ACTIONS: dict[str, dict[str, tuple[str, ...]]] = {
 }
 
 
+def validate_heat_cool_mode(value: Any) -> list:
+    """Validate heat_cool_mode - accepts either True or an automation."""
+    if value is True:
+        # Convert True to empty automation list
+        return []
+    if value is False:
+        raise cv.Invalid(
+            "heat_cool_mode cannot be 'false'. Specify 'true' to enable the mode or provide an automation"
+        )
+    # Otherwise validate as automation
+    return automation.validate_automation(single=True)(value)
+
+
 class _Trigger(NamedTuple):
     key: str
     getter: str
     supports: str | None = None  # set to true when the key is configured
+    validator: Callable[[Any], Any] | None = None  # None: a single automation
 
 
 # Generated in this order
@@ -171,7 +186,10 @@ _TRIGGERS: tuple[_Trigger, ...] = (
     _Trigger(CONF_FAN_ONLY_MODE, "get_fan_only_mode_trigger", "set_supports_fan_only"),
     _Trigger(CONF_HEAT_MODE, "get_heat_mode_trigger", "set_supports_heat"),
     _Trigger(
-        CONF_HEAT_COOL_MODE, "get_heat_cool_mode_trigger", "set_supports_heat_cool"
+        CONF_HEAT_COOL_MODE,
+        "get_heat_cool_mode_trigger",
+        "set_supports_heat_cool",
+        validate_heat_cool_mode,
     ),
     _Trigger(CONF_OFF_MODE, "get_off_mode_trigger"),
     *(
@@ -290,19 +308,6 @@ def generate_comparable_preset(config: ConfigType, name: str) -> str:
         if key in config:
             comparable_preset += f"     {key}: {config[key]}\n"
     return comparable_preset
-
-
-def validate_heat_cool_mode(value: Any) -> list:
-    """Validate heat_cool_mode - accepts either True or an automation."""
-    if value is True:
-        # Convert True to empty automation list
-        return []
-    if value is False:
-        raise cv.Invalid(
-            "heat_cool_mode cannot be 'false'. Specify 'true' to enable the mode or provide an automation"
-        )
-    # Otherwise validate as automation
-    return automation.validate_automation(single=True)(value)
 
 
 _KEY_REQUIREMENTS: dict[str, list[str]] = {
@@ -543,18 +548,15 @@ CONFIG_SCHEMA = cv.All(
             cv.Optional(CONF_HUMIDITY_SENSOR): cv.use_id(sensor.Sensor),
             cv.Required(CONF_IDLE_ACTION): automation.validate_automation(single=True),
             **{
-                cv.Optional(key): (
-                    validate_heat_cool_mode
-                    if key == CONF_HEAT_COOL_MODE
-                    else automation.validate_automation(single=True)
-                )
-                for key, *_ in _TRIGGERS
+                cv.Optional(t.key): t.validator
+                or automation.validate_automation(single=True)
+                for t in _TRIGGERS
             },
             **{
                 cv.Exclusive(
-                    key, group_of_exclusion="humidity_control"
+                    t.key, group_of_exclusion="humidity_control"
                 ): automation.validate_automation(single=True)
-                for key, *_ in _HUMIDITY_CONTROL_TRIGGERS
+                for t in _HUMIDITY_CONTROL_TRIGGERS
             },
             cv.Optional(
                 CONF_HUMIDITY_CONTROL_OFF_ACTION
@@ -638,14 +640,14 @@ async def to_code(config: ConfigType) -> None:
         cg.add_optional(getattr(var, setter), config.get(key))
 
     await _build_trigger(var, config, CONF_IDLE_ACTION, "get_idle_action_trigger")
-    for key, getter, supports in _TRIGGERS:
-        await _build_trigger(var, config, key, getter)
-        if supports is not None and key in config:
-            cg.add(getattr(var, supports)(True))
-    for key, getter, supports in _HUMIDITY_CONTROL_TRIGGERS:
-        if key in config:
-            cg.add(getattr(var, supports)(True))
-        await _build_trigger(var, config, key, getter)
+    for t in _TRIGGERS:
+        await _build_trigger(var, config, t.key, t.getter)
+        if t.supports is not None and t.key in config:
+            cg.add(getattr(var, t.supports)(True))
+    for t in _HUMIDITY_CONTROL_TRIGGERS:
+        if t.key in config:
+            cg.add(getattr(var, t.supports)(True))
+        await _build_trigger(var, config, t.key, t.getter)
     await _build_trigger(
         var,
         config,
