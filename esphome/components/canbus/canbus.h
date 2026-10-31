@@ -87,7 +87,7 @@ struct CanStatus {
 
 class Canbus : public Component {
  public:
-  Canbus(){};
+  Canbus() {};
   void setup() override;
   void dump_config() override;
   float get_setup_priority() const override { return setup_priority::HARDWARE; }
