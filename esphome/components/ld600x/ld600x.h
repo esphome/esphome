@@ -201,7 +201,8 @@ class LD600XComponent : public Component, public uart::UARTDevice {
   virtual void set_select_value(select::Select *entity, size_t index);
 #endif
 #ifdef USE_SWITCH
-  virtual void set_switch_state(switch_::Switch *entity, bool state);
+  // Returns false when the command was not queued, so the switch keeps its old state.
+  virtual bool set_switch_state(switch_::Switch *entity, bool state);
 #endif
 #ifdef USE_BUTTON
   virtual void press_button(uint8_t kind);
