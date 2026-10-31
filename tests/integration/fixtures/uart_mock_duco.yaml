@@ -16,6 +16,9 @@ esphome:
       - component.update: temperature_eta
       - component.update: temperature_eha
       - component.update: serial_number
+      - component.update: serial_number_node_2
+      - component.update: version_node_3
+      - component.update: errors_node_1
       - component.update: comfort_temperature
 
 host:
@@ -96,10 +99,16 @@ uart_mock:
               } else if (function == 0x10 && d[3] == 0x49) {
                 // temperature 21.5, CO2 682 (0x02AA exercises the byte stuffing), humidity 54.32
                 reply(0x12, {0, 0, 215, 0, 0xAA, 0x02, 0x38, 0x15});
-              } else if (function == 0x10 && d[3] == 0x1a) {
-                std::vector<uint8_t> serial{0, 0, 'S', 'N', '1', '2', '3', '4'};
+              } else if (function == 0x10 &&
+                         ((d[1] == 1 && d[3] == 0x1a && d[4] == 0x10) ||
+                          (d[1] != 1 && d[3] == 0x08 && d[4] == 0x06))) {
+                std::vector<uint8_t> serial{0, 0, 'S', 'N', d[1] == 2 ? '2' : '1', '2', '3', '4'};
                 serial.resize(18, 0);
                 reply(0x12, serial);
+              } else if (function == 0x10 && d[3] == 0x00 && d[4] == 0x04) {
+                reply(0x12, {0, 0, 0xBE, 0x00, 0x04, 0x05, 0x06});
+              } else if (function == 0x30) {
+                reply(0x32, {0x01, 0x00, 0x1F, 0x13, 0x01});
               } else if (function == 0x24 && d[0] == 0x00) {
                 int16_t value = 0;
                 if (d[2] == 0x0a && d[1] == 0x12)
@@ -129,6 +138,8 @@ uart_mock:
 
 duco:
   uart_id: mock_uart
+  disable_crc: false
+  allow_dangerous_controls: false
   discovery: {}
   time:
     time_id: host_time
@@ -138,18 +149,103 @@ select:
   - platform: duco
     name: Mode
     update_interval: 1s
+  - platform: duco
+    mode:
+      - id: mode_node_2
+        name: Mode Node 2
+        address: 2
+    bypass:
+      id: bypass_control
+      name: Bypass Control
+    adaptive_bypass:
+      id: adaptive_bypass
+      name: Adaptive Bypass
+    frost_heater:
+      id: frost_heater
+      name: Frost Heater
+    passive_cooling:
+      id: passive_cooling
+      name: Passive Cooling
+    nightboost:
+      id: nightboost
+      name: NightBoost
+    nightboost_month_start:
+      id: nightboost_month_start
+      name: NightBoost Start Month
+    nightboost_month_stop:
+      id: nightboost_month_stop
+      name: NightBoost Stop Month
+  - platform: duco
+    type: time_filter
+    id: time_filter
+    name: Time Filter
 
 number:
   - platform: duco
     id: comfort_temperature
     name: Comfort Temperature
     update_interval: never
+  - platform: duco
+    comfort_temperature:
+      - id: comfort_temperature_zone_1
+        name: Comfort Temperature Zone 1
+        address: 0x13
+      - id: comfort_temperature_zone_2
+        name: Comfort Temperature Zone 2
+        address: 0x14
+    nightboost_temperature:
+      id: nightboost_temperature
+      name: NightBoost Temperature
+    nightboost_max:
+      id: nightboost_max
+      name: NightBoost Max
+    box_ventilation_min:
+      id: ventilation_min
+      name: Ventilation Min
+    box_ventilation_max:
+      id: ventilation_max
+      name: Ventilation Max
 
 text_sensor:
   - platform: duco
     id: serial_number
     name: Serial Number
     update_interval: never
+  - platform: duco
+    serial:
+      - id: serial_number_node_2
+        name: Serial Number Node 2
+        address: 2
+        update_interval: never
+    version:
+      - id: version_node_3
+        name: Version Node 3
+        address: 3
+        update_interval: never
+    error:
+      - id: errors_node_1
+        name: Errors Node 1
+        address: 1
+        update_interval: never
+    uptime:
+      - id: uptime_node_2
+        name: Uptime Node 2
+        address: 2
+        update_interval: never
+    node_type:
+      - id: node_type_2
+        name: Node Type 2
+        address: 2
+        update_interval: never
+
+text:
+  - platform: duco
+    nightboost_time_start:
+      id: nightboost_time_start
+      name: NightBoost Start Time
+    nightboost_time_stop:
+      id: nightboost_time_stop
+      name: NightBoost Stop Time
 
 sensor:
   - platform: duco
@@ -200,3 +296,26 @@ sensor:
       id: temperature_eha
       name: Temperature EHA
       update_interval: never
+    uptime:
+      - id: uptime_box_minutes
+        name: Uptime Box Minutes
+        update_interval: never
+
+switch:
+  - platform: duco
+    allow_dangerous_controls:
+      id: dangerous_controls
+      name: Dangerous Controls
+    installer_mode:
+      id: installer_mode
+      name: Installer Mode
+    locator:
+      - id: locator_node_2
+        name: Locator Node 2
+        address: 2
+
+button:
+  - platform: duco
+    type: reboot
+    id: reboot
+    name: Reboot
