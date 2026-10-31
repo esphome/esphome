@@ -1,5 +1,7 @@
 #include <gtest/gtest.h>
 
+#include <cstring>
+
 #include "esphome/components/mcp23008/mcp23008.h"
 
 namespace esphome::mcp23008::testing {
@@ -13,8 +15,7 @@ class FakeBus : public i2c::I2CBus {
     EXPECT_EQ(address, ADDRESS);
     if (this->fail)
       return i2c::ERROR_TIMEOUT;
-    for (size_t i = 0; i < read_count; i++)
-      read_buffer[i] = 0x00;
+    std::memset(read_buffer, 0, read_count);
     return i2c::ERROR_OK;
   }
 
