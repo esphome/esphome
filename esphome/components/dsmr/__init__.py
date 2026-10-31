@@ -2,7 +2,7 @@ import logging
 
 from esphome import pins
 import esphome.codegen as cg
-from esphome.components import uart
+from esphome.components import esp32, uart
 from esphome.components.uart import DOMAIN as UART_DOMAIN
 import esphome.config_validation as cv
 from esphome.const import (
@@ -11,6 +11,7 @@ from esphome.const import (
     CONF_RX_BUFFER_SIZE,
     CONF_UART_ID,
 )
+from esphome.core import CORE
 import esphome.final_validate as fv
 from esphome.types import ConfigType
 
@@ -33,6 +34,8 @@ CONF_THERMAL_MBUS_ID = "thermal_mbus_id"
 CONF_MAX_TELEGRAM_LENGTH = "max_telegram_length"
 CONF_REQUEST_INTERVAL = "request_interval"
 CONF_REQUEST_PIN = "request_pin"
+
+DSMR_PARSER_VERSION = "1.11.0"
 
 dsmr_ns = cg.esphome_ns.namespace("dsmr")
 Dsmr = dsmr_ns.class_("Dsmr", cg.Component, uart.UARTDevice)
@@ -87,7 +90,10 @@ async def to_code(config: ConfigType) -> None:
     cg.add_build_flag("-DDSMR_WATER_MBUS_ID=" + str(config[CONF_WATER_MBUS_ID]))
     cg.add_build_flag("-DDSMR_THERMAL_MBUS_ID=" + str(config[CONF_THERMAL_MBUS_ID]))
 
-    cg.add_library("esphome/dsmr_parser", "1.10.0")
+    if CORE.is_esp32:
+        esp32.add_idf_component(name="esphome/dsmr_parser", ref=DSMR_PARSER_VERSION)
+    else:
+        cg.add_library("esphome/dsmr_parser", DSMR_PARSER_VERSION)
 
 
 def final_validate(config: ConfigType) -> None:

@@ -3,6 +3,8 @@ dependencies:
     version: "7.4.3"
   esphome/dlms_parser:
     version: 2.2.2
+  esphome/dsmr_parser:
+    version: 1.11.0
   esphome/esp-audio-libs:
     version: 4.1.0
   esphome/esp-micro-speech-features:
