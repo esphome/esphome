@@ -1,16 +1,7 @@
 import esphome.codegen as cg
 from esphome.components import sensor, voltage_sampler
 import esphome.config_validation as cv
-from esphome.const import (
-    CONF_GAIN,
-    CONF_MULTIPLEXER,
-    CONF_TYPE,
-    DEVICE_CLASS_TEMPERATURE as DEVICE_CLASS_TEMPERATURE,
-    DEVICE_CLASS_VOLTAGE as DEVICE_CLASS_VOLTAGE,
-    STATE_CLASS_MEASUREMENT as STATE_CLASS_MEASUREMENT,
-    UNIT_CELSIUS as UNIT_CELSIUS,
-    UNIT_VOLT as UNIT_VOLT,
-)
+from esphome.const import CONF_GAIN, CONF_MULTIPLEXER, CONF_TYPE
 from esphome.types import ConfigType
 
 from .. import ADS1118, CONF_ADS1118_ID, ads1118_ns

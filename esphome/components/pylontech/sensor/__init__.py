@@ -1,21 +1,7 @@
 import esphome.codegen as cg
 from esphome.components import sensor
 import esphome.config_validation as cv
-from esphome.const import (
-    CONF_CURRENT,
-    CONF_ID,
-    CONF_TEMPERATURE,
-    CONF_VOLTAGE,
-    DEVICE_CLASS_BATTERY as DEVICE_CLASS_BATTERY,
-    DEVICE_CLASS_CURRENT as DEVICE_CLASS_CURRENT,
-    DEVICE_CLASS_TEMPERATURE as DEVICE_CLASS_TEMPERATURE,
-    DEVICE_CLASS_VOLTAGE as DEVICE_CLASS_VOLTAGE,
-    STATE_CLASS_MEASUREMENT as STATE_CLASS_MEASUREMENT,
-    UNIT_AMPERE as UNIT_AMPERE,
-    UNIT_CELSIUS as UNIT_CELSIUS,
-    UNIT_PERCENT as UNIT_PERCENT,
-    UNIT_VOLT as UNIT_VOLT,
-)
+from esphome.const import CONF_CURRENT, CONF_ID, CONF_TEMPERATURE, CONF_VOLTAGE
 from esphome.types import ConfigType
 
 from .. import CONF_BATTERY, PYLONTECH_COMPONENT_SCHEMA, pylontech_ns, register_listener

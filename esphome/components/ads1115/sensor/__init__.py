@@ -7,9 +7,6 @@ from esphome.const import (
     CONF_MULTIPLEXER,
     CONF_RESOLUTION,
     CONF_SAMPLE_RATE,
-    DEVICE_CLASS_VOLTAGE as DEVICE_CLASS_VOLTAGE,
-    STATE_CLASS_MEASUREMENT as STATE_CLASS_MEASUREMENT,
-    UNIT_VOLT as UNIT_VOLT,
 )
 from esphome.types import ConfigType
 

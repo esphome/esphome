@@ -4,7 +4,6 @@ import esphome.config_validation as cv
 from esphome.const import (
     CONF_BATTERY_LEVEL,
     CONF_ILLUMINANCE,
-    DEVICE_CLASS_BATTERY as DEVICE_CLASS_BATTERY,
     ENTITY_CATEGORY_DIAGNOSTIC,
     ICON_BRIGHTNESS_5,
     STATE_CLASS_MEASUREMENT,

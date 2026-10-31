@@ -3,9 +3,7 @@ from esphome.components import sensor
 import esphome.config_validation as cv
 from esphome.const import (
     DEVICE_CLASS_PRESSURE,
-    DEVICE_CLASS_TEMPERATURE as DEVICE_CLASS_TEMPERATURE,
     STATE_CLASS_MEASUREMENT,
-    UNIT_CELSIUS as UNIT_CELSIUS,
     UNIT_REVOLUTIONS_PER_MINUTE,
 )
 from esphome.types import ConfigType

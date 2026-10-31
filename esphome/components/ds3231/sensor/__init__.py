@@ -1,12 +1,7 @@
 import esphome.codegen as cg
 from esphome.components import sensor
 import esphome.config_validation as cv
-from esphome.const import (
-    DEVICE_CLASS_TEMPERATURE as DEVICE_CLASS_TEMPERATURE,
-    ICON_THERMOMETER,
-    STATE_CLASS_MEASUREMENT as STATE_CLASS_MEASUREMENT,
-    UNIT_CELSIUS as UNIT_CELSIUS,
-)
+from esphome.const import ICON_THERMOMETER
 from esphome.types import ConfigType
 
 from .. import CONF_DS3231_ID, DS3231Component, ds3231_ns

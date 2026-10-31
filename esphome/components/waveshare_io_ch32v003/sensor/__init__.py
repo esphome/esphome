@@ -1,13 +1,7 @@
 import esphome.codegen as cg
 from esphome.components import sensor, voltage_sampler
 import esphome.config_validation as cv
-from esphome.const import (
-    CONF_ID,
-    CONF_REFERENCE_VOLTAGE,
-    DEVICE_CLASS_VOLTAGE as DEVICE_CLASS_VOLTAGE,
-    STATE_CLASS_MEASUREMENT as STATE_CLASS_MEASUREMENT,
-    UNIT_VOLT as UNIT_VOLT,
-)
+from esphome.const import CONF_ID, CONF_REFERENCE_VOLTAGE
 from esphome.types import ConfigType
 
 from .. import (
