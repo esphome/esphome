@@ -565,6 +565,12 @@ button:
       - remote_transmitter.transmit_pd_pioneer:
           code: [0x23, 0xCB, 0x26, 0x01, 0x00, 0x24, 0x03, 0x0B, 0x05, 0x00, 0x00, 0x00, 0x80]
   - platform: template
+    name: Cardin S438
+    on_press:
+      remote_transmitter.transmit_cardin_s438:
+        code: "01001001110100"
+        channel: B
+  - platform: template
     name: Repeat on every protocol
     on_press:
       - remote_transmitter.transmit_abbwelcome:
@@ -610,6 +616,12 @@ button:
           device: 0x25
           address: 0x02
           command: 0x1C
+          repeat:
+            times: 2
+            wait_time: 10ms
+      - remote_transmitter.transmit_cardin_s438:
+          code: "01001001110100"
+          channel: B
           repeat:
             times: 2
             wait_time: 10ms
@@ -895,6 +907,10 @@ button:
           device: !lambda return 0x25;
           address: !lambda return 0x01;
           command: 0x1C
+      - remote_transmitter.transmit_cardin_s438:
+          code: !lambda return 0x1274;
+          channel: !lambda return 1;
+          command_repeats: !lambda return 3;
       - remote_transmitter.transmit_coolix:
           first: !lambda return 0xB2BF40;
           second: !lambda return 0xB2BF40;
@@ -1043,3 +1059,38 @@ button:
       - remote_transmitter.transmit_raw:
           code: [1000, -1000]
           carrier_frequency: !lambda return 38000;
+
+script:
+  # The lambdas modify their by-value argument
+  - id: remote_transmitter_send_scaled
+    parameters:
+      x: int
+    then:
+      - remote_transmitter.transmit_raw:
+          code: !lambda |-
+            x *= 2;
+            return {x, -1000};
+          carrier_frequency: !lambda return x *= 1000;
+          repeat:
+            times: !lambda return x *= 1;
+            wait_time: !lambda x *= 3; return x;
+      - remote_transmitter.transmit_rc_switch_raw:
+          code: !lambda x *= 1; return std::string(x, '1');
+      - remote_transmitter.transmit_rc_switch_type_a:
+          group: !lambda x *= 1; return std::string("11001");
+          device: !lambda return std::string(x *= 1, '0');
+          state: !lambda return (x *= 1) > 0;
+      - remote_transmitter.transmit_rc_switch_type_b:
+          address: !lambda x *= 2; return x;
+          channel: !lambda return x *= 1;
+          state: !lambda return x > 0;
+          protocol: !lambda x *= 1; return remote_base::rc_switch_protocol(x);
+      - remote_transmitter.transmit_rc_switch_type_c:
+          family: !lambda x *= 1; return std::string("a");
+          group: !lambda return x *= 1;
+          device: !lambda x += 1; return x;
+          state: !lambda return x > 0;
+      - remote_transmitter.transmit_rc_switch_type_d:
+          group: !lambda x *= 1; return std::string("a");
+          device: !lambda return x *= 1;
+          state: !lambda x *= 1; return true;

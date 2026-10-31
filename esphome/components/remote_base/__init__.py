@@ -1,4 +1,6 @@
 from collections.abc import Callable
+import dataclasses
+from dataclasses import dataclass
 from pathlib import Path
 from typing import Any
 
@@ -132,9 +134,22 @@ def add_listener(receiver: MockObj, listener: MockObj) -> None:
     cg.add(receiver.register_listener(listener))
 
 
+@dataclass
+class _RemoteBaseData:
+    # receiver id -> (receiver, its dumpers in registration order)
+    tables: dict[str, tuple[MockObj, list[MockObj]]] = dataclasses.field(
+        default_factory=dict
+    )
+    # dumper type -> its one flash object, shared by every receiver that lists it
+    flash_dumpers: dict[str, str] = dataclasses.field(default_factory=dict)
+
+
+def _get_data() -> _RemoteBaseData:
+    return CORE.data.setdefault(DOMAIN, _RemoteBaseData())
+
+
 def _get_dumper_tables() -> dict[str, tuple[MockObj, list[MockObj]]]:
-    """Receiver id -> (receiver, its dumpers in registration order)."""
-    return CORE.data.setdefault(DOMAIN, {})
+    return _get_data().tables
 
 
 @coroutine_with_priority(CoroPriority.FINAL)
@@ -255,7 +270,32 @@ def register_trigger(name, type, data_type):
     return decorator
 
 
+def _new_flash_dumper(dumper_id: ID) -> cg.RawExpression:
+    """Place a stateless dumper in flash; the receiver only ever calls it."""
+    flash_dumpers = _get_data().flash_dumpers
+    if (storage := flash_dumpers.get(str(dumper_id.type))) is None:
+        # A generated name a config id cannot take; registered so later globals avoid it too
+        storage_id = cg.unique_global_id(f"{dumper_id.id}__flash", dumper_id.type)
+        storage = flash_dumpers[str(dumper_id.type)] = storage_id.id
+        CORE.register_variable(storage_id, cg.MockObj(storage))
+        CORE.add_global_after_includes(
+            cg.RawStatement(
+                f"static_assert(sizeof({dumper_id.type}) == sizeof(void *) && "
+                f"std::is_trivially_destructible_v<{dumper_id.type}>, "
+                '"a dumper kept in flash must have no data members or destructor");'
+            )
+        )
+        CORE.add_global_after_includes(
+            cg.RawStatement(f"static constexpr {dumper_id.type} {storage} PROGMEM{{}};")
+        )
+    # A constant address for the receiver's flash table; lambdas get a pointer-like object
+    address = f"const_cast<{dumper_id.type} *>(&{storage})"
+    CORE.register_variable(dumper_id, cg.MockObj(address, "->"))
+    return cg.RawExpression(address)
+
+
 def register_dumper(name, type, schema=None):
+    """Dumpers are stateless, so each is a flash object; one with data members fails the build."""
     if schema is None:
         schema = {}
     registerer = DUMPER_REGISTRY.register(name, type, schema)
@@ -263,7 +303,7 @@ def register_dumper(name, type, schema=None):
     def decorator(func):
         async def new_func(config, dumper_id):
             _request_protocol_if_in_tree(name)
-            var = cg.new_Pvariable(dumper_id)
+            var = _new_flash_dumper(dumper_id)
             await coroutine(func)(var, config)
             return var
 
@@ -3003,4 +3043,74 @@ register_protocol_action(
     (CONF_REMOTE_ID, "remote_id", cg.uint32),
     (CONF_CHANNELS, "channels", cg.uint16),
     (CONF_COMMAND, "command", cg.uint8),
+)
+
+
+# Cardin S438
+(
+    CardinS438Data,
+    CardinS438BinarySensor,
+    CardinS438Trigger,
+    _,
+    CardinS438Dumper,
+) = declare_protocol("CardinS438")
+
+
+CARDIN_S438_CHANNELS = {
+    "A": 0x02,
+    "B": 0x00,
+    "C": 0x03,
+    "D": 0x01,
+}
+
+
+def _validate_cardin_s438_code(code):
+    """Accept the DIP switches as a 14-character binary string."""
+    code = cv.string_strict(code)
+    if len(code) != 14 or any(bit not in "01" for bit in code):
+        raise cv.Invalid("code must be exactly 14 binary digits, e.g. '10100110101010'")
+    return int(code, 2)
+
+
+CARDIN_S438_SCHEMA = cv.Schema(
+    {
+        cv.Required(CONF_CODE): _validate_cardin_s438_code,
+        cv.Optional(CONF_CHANNEL, default="A"): cv.enum(
+            CARDIN_S438_CHANNELS, upper=True
+        ),
+        cv.Optional(CONF_COMMAND_REPEATS, default=3): cv.int_range(min=1, max=255),
+    }
+)
+
+
+@register_binary_sensor("cardin_s438", CardinS438BinarySensor, CARDIN_S438_SCHEMA)
+def cardin_s438_binary_sensor(var: MockObj, config: ConfigType) -> None:
+    cg.add(
+        var.set_data(
+            cg.StructInitializer(
+                CardinS438Data,
+                ("code", config[CONF_CODE]),
+                ("channel", config[CONF_CHANNEL]),
+            )
+        )
+    )
+
+
+@register_trigger("cardin_s438", CardinS438Trigger, CardinS438Data)
+def cardin_s438_trigger(var: MockObj, config: ConfigType) -> None:
+    """The trigger takes no options beyond the automation."""
+
+
+@register_dumper("cardin_s438", CardinS438Dumper)
+def cardin_s438_dumper(var: MockObj, config: ConfigType) -> None:
+    """The dumper takes no options."""
+
+
+register_protocol_action(
+    "cardin_s438",
+    "CardinS438",
+    CARDIN_S438_SCHEMA,
+    (CONF_CODE, "code", cg.uint16),
+    (CONF_CHANNEL, "channel", cg.uint8),
+    (CONF_COMMAND_REPEATS, "repeats", cg.uint8),
 )
