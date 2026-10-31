@@ -227,13 +227,13 @@ def validate_loop_interval(config: ConfigType) -> ConfigType:
         # max_loop interval is calculated from WDT_FEED_INTERVAL_MS. Make sure to align with application.h
         max_loop = 600  # 2 * 300ms default for other platforms
         if CORE.is_esp32:
-            max_loop = (
-                2
-                * fv.full_config.get()[PLATFORM_ESP32][
-                    CONF_WATCHDOG_TIMEOUT
-                ].total_milliseconds
-                // 5
-            )
+            wdt_ms = fv.full_config.get()[PLATFORM_ESP32][
+                CONF_WATCHDOG_TIMEOUT
+            ].total_milliseconds
+            if wdt_ms == 0:
+                # Task watchdog disabled: the loop sleep is not capped
+                return config
+            max_loop = 2 * wdt_ms // 5
         elif CORE.is_bk72xx:
             max_loop = 4000  # 10000ms / 5 * 2 default value
         if config[CONF_LOOP_INTERVAL].total_milliseconds > max_loop:

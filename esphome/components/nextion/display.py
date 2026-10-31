@@ -148,6 +148,14 @@ CONFIG_SCHEMA = cv.All(
 )
 
 
+def _final_validate(config: ConfigType) -> None:
+    if CORE.is_esp32:
+        esp32.validate_task_wdt_enabled(config, CONF_TFT_UPLOAD_WATCHDOG_TIMEOUT)
+
+
+FINAL_VALIDATE_SCHEMA = _final_validate
+
+
 automation.register_apply_action(
     "display.nextion.set_brightness",
     cv.maybe_simple_value(
