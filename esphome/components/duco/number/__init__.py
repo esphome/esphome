@@ -1,6 +1,7 @@
+import esphome.codegen as cg
 from esphome.components import number
 import esphome.config_validation as cv
-from esphome.const import DEVICE_CLASS_TEMPERATURE, UNIT_CELSIUS
+from esphome.const import CONF_ADDRESS, DEVICE_CLASS_TEMPERATURE, UNIT_CELSIUS
 from esphome.types import ConfigType
 
 from .. import (
@@ -24,6 +25,11 @@ CONFIG_SCHEMA = (
         unit_of_measurement=UNIT_CELSIUS,
         device_class=DEVICE_CLASS_TEMPERATURE,
     )
+    .extend(
+        {
+            cv.Optional(CONF_ADDRESS, default=0x12): cv.int_range(min=0, max=0xFF),
+        }
+    )
     .extend(DUCO_COMPONENT_SCHEMA)
     .extend(cv.polling_component_schema("60s"))
 )
@@ -31,4 +37,5 @@ CONFIG_SCHEMA = (
 
 async def to_code(config: ConfigType) -> None:
     var = await number.new_number(config, min_value=10.0, max_value=25.5, step=0.1)
+    cg.add(var.set_address(config[CONF_ADDRESS]))
     await register_duco_device(var, config, config[CONF_DUCO_ID])
