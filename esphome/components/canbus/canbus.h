@@ -56,7 +56,8 @@ static const uint8_t CAN_ERROR_PASSIVE_THRESHOLD = 128;
 class CanPayload : public StaticVector<uint8_t, CAN_MAX_DATA_LENGTH> {
  public:
   using StaticVector<uint8_t, CAN_MAX_DATA_LENGTH>::StaticVector;
-  CanPayload() {}                               // does not zero the buffer
+  // Not = default, so value-init does not zero the buffer
+  CanPayload() {}
   CanPayload(const std::vector<uint8_t> &data)  // NOLINT(google-explicit-constructor)
       : StaticVector<uint8_t, CAN_MAX_DATA_LENGTH>(data.begin(), data.end()) {}
   operator std::vector<uint8_t>() const { return {this->begin(), this->end()}; }  // NOLINT(google-explicit-constructor)
