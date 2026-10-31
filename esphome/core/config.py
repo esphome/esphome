@@ -1,6 +1,5 @@
 from __future__ import annotations
 
-from collections import Counter
 import logging
 import os
 from pathlib import Path
@@ -60,6 +59,7 @@ from esphome.core import (
     TimePeriodMilliseconds,
     coroutine_with_priority,
 )
+from esphome.cpp_helpers import add_component_counts
 import esphome.final_validate as fv
 from esphome.helpers import (
     copy_file_if_changed,
@@ -843,28 +843,6 @@ async def _add_controller_registry_dispatch() -> None:
     cg.add_global(cg.RawStatement('#include "esphome/core/controller_dispatch.h"'))
 
 
-@coroutine_with_priority(CoroPriority.FINAL)
-async def _add_looping_components() -> None:
-    # Emit ESPHOME_LOOPING_COMPONENT_COUNT. Sizing of looping_components_
-    # happens in core to_code() so it lands before safe_mode's early return.
-    entries = CORE.data.get("looping_component_entries", [])
-
-    # Build constexpr sum for the exact count, deduplicating by type
-    # Uses HasLoopOverride<T> which handles ambiguous &T::loop from multiple inheritance
-    type_counts = Counter(entries)
-    terms = [
-        f"({count} * HasLoopOverride<{cpp_type}>::value)"
-        for cpp_type, count in type_counts.items()
-    ] or ["0"]
-    constexpr_expr = " + \\\n  ".join(terms)
-    cg.add_global(
-        cg.RawStatement(
-            f"static constexpr size_t ESPHOME_LOOPING_COMPONENT_COUNT = \\\n"
-            f"  {constexpr_expr};"
-        )
-    )
-
-
 @coroutine_with_priority(CoroPriority.CORE)
 async def to_code(config: ConfigType) -> None:
     # using namespace esphome is hardcoded in writer.py to guarantee it
@@ -904,8 +882,7 @@ async def to_code(config: ConfigType) -> None:
     if name_add_mac_suffix:
         cg.add_define("ESPHOME_NAME_ADD_MAC_SUFFIX")
     cg.add(cg.App.pre_setup(name_expr, name_len, friendly_expr, friendly_len))
-    # Define component count for static allocation
-    cg.add_define("ESPHOME_COMPONENT_COUNT", len(CORE.component_ids))
+    CORE.add_job(add_component_counts)
 
     # Pre-init FixedVector with exact capacity so calculate_looping_components_()
     # can skip the counting pass
@@ -917,7 +894,6 @@ async def to_code(config: ConfigType) -> None:
 
     CORE.add_job(_add_platform_defines)
     CORE.add_job(_add_controller_registry_dispatch)
-    CORE.add_job(_add_looping_components)
 
     CORE.add_job(_add_automations, config)
 
