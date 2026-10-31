@@ -1,4 +1,5 @@
 from collections.abc import Awaitable, Callable, Sequence
+from contextvars import ContextVar
 from dataclasses import dataclass, field
 import logging
 import math
@@ -253,7 +254,47 @@ validate_condition = cv.validate_registry_entry("condition", CONDITION_REGISTRY)
 validate_condition_list = cv.validate_registry("condition", CONDITION_REGISTRY)
 
 ApplyAction = cg.esphome_ns.class_("ApplyAction", Action)
+ApplyRunAction = cg.esphome_ns.class_("ApplyRunAction", Action)
 ApplyCondition = cg.esphome_ns.class_("ApplyCondition", Condition)
+
+
+@dataclass(frozen=True)
+class _InlineAction:
+    """An action whose builder only produced statements, not yet emitted as an object."""
+
+    id_: ID
+    statements: list[str]
+    emit: Callable[[], MockObj]
+
+
+@dataclass
+class _InlineCollector:
+    """Takes the statements of the action being built, instead of it emitting an object."""
+
+    action_id: ID
+    action: _InlineAction | None = None
+
+
+_INLINE_COLLECTOR: ContextVar[_InlineCollector | None] = ContextVar(
+    "esphome_automation_inline_collector", default=None
+)
+# What a collected builder returns; it names nothing, so using it fails the C++ build
+_COLLECTED_ACTION = MockObj("esphome__collected_action", "->")
+_RUNNING_PARAM = "esphome__running"
+
+
+def _collect_action(
+    id_: ID, statements: list[str], emit: Callable[[], MockObj]
+) -> bool:
+    """Record ``id_`` as inline if it is the action being collected.
+
+    Matching the id leaves the conditions and child actions a builder creates to emit normally.
+    """
+    collector = _INLINE_COLLECTOR.get()
+    if collector is None or collector.action_id is not id_:
+        return False
+    collector.action = _InlineAction(id_, statements, emit)
+    return True
 
 
 def flash_string(config: ConfigType, value: str) -> str:
@@ -494,8 +535,12 @@ def _apply_function(
 ) -> MockObj:
     """Emit the generated function and declare ``id_`` as the ``ApplyAction`` or
     ``ApplyCondition`` templated on it, so ``play()`` calls it directly."""
-    fn = apply_static_function(id_, return_type, lambda_args, statements)
-    return cg.new_Pvariable(id_, cg.TemplateArguments(fn, *template_arg))
+
+    def emit() -> MockObj:
+        fn = apply_static_function(id_, return_type, lambda_args, statements)
+        return cg.new_Pvariable(id_, cg.TemplateArguments(fn, *template_arg))
+
+    return _COLLECTED_ACTION if _collect_action(id_, statements, emit) else emit()
 
 
 def apply_static_function(
@@ -814,6 +859,19 @@ def new_lambda_pvariable(
     Returns:
         The created Pvariable
     """
+    if (
+        lambda_expr.capture == ""
+        and stateless_class is StatelessLambdaAction
+        and _collect_action(
+            id_obj,
+            [_lambda_call_statement(lambda_expr)],
+            lambda: new_lambda_pvariable(
+                id_obj, lambda_expr, stateless_class, template_arg
+            ),
+        )
+    ):
+        return _COLLECTED_ACTION
+
     # For stateless lambdas, use function pointer instead of std::function
     if lambda_expr.capture == "":
         id_obj = id_obj.copy()
@@ -822,6 +880,12 @@ def new_lambda_pvariable(
     if template_arg is not None:
         return cg.new_Pvariable(id_obj, template_arg, lambda_expr)
     return cg.new_Pvariable(id_obj, lambda_expr)
+
+
+def _lambda_call_statement(lambda_expr: LambdaExpression) -> str:
+    """Call a lambda on the spot, so a ``return`` in it ends only that lambda."""
+    names = [MockObj(param.id) for param in lambda_expr.parameters.parameters]
+    return f"{CallExpression(lambda_expr, *names)};"
 
 
 def validate_automation(extra_schema=None, extra_validators=None, single=False):
@@ -1316,13 +1380,73 @@ async def build_action(
     return await builder(config, action_id, template_arg, args)
 
 
+async def _build_action_or_inline(
+    full_config: ConfigType, template_arg: cg.TemplateArguments, args: TemplateArgsType
+) -> MockObj | _InlineAction:
+    """Run the action's builder, and return what it collected if it emitted no object.
+
+    An action with a manual ``type_id`` keeps its object: a lambda can reach it by that id.
+    """
+    action_id = full_config[CONF_TYPE_ID]
+    if action_id.is_manual:
+        return await build_action(full_config, template_arg, args)
+    collector = _InlineCollector(action_id)
+    token = _INLINE_COLLECTOR.set(collector)
+    try:
+        action = await build_action(full_config, template_arg, args)
+    finally:
+        _INLINE_COLLECTOR.reset(token)
+    return collector.action if action is _COLLECTED_ACTION else action
+
+
+def _emit_inline_run(
+    run: list[_InlineAction],
+    template_arg: cg.TemplateArguments,
+    args: TemplateArgsType,
+) -> MockObj:
+    """Emit one object for adjacent inline actions; a single one is emitted as if never collected."""
+    if len(run) == 1:
+        return run[0].emit()
+    id_ = run[0].id_.copy()
+    id_.type = ApplyRunAction
+    statements: list[str] = []
+    for index, action in enumerate(run):
+        # Any action can stop this automation, and then the rest must not run
+        if index > 0:
+            statements.append(f"if (!{_RUNNING_PARAM})\n  return;")
+        statements.extend(["{", *action.statements, "}"])
+    fn = apply_static_function(
+        id_,
+        cg.void,
+        [
+            (cg.RawExpression("const int &"), _RUNNING_PARAM),
+            *_apply_lambda_args(args),
+        ],
+        statements,
+    )
+    return cg.new_Pvariable(id_, cg.TemplateArguments(fn, *template_arg))
+
+
 async def build_action_list(
     config: list[ConfigType], templ: cg.TemplateArguments, arg_type: TemplateArgsType
 ) -> list[MockObj]:
+    """Build the actions of ``config``, merging adjacent inline actions into one object.
+
+    The result can therefore be shorter than ``config``.
+    """
     actions: list[MockObj] = []
+    run: list[_InlineAction] = []
     for conf in config:
-        action = await build_action(conf, templ, arg_type)
+        action = await _build_action_or_inline(conf, templ, arg_type)
+        if isinstance(action, _InlineAction):
+            run.append(action)
+            continue
+        if run:
+            actions.append(_emit_inline_run(run, templ, arg_type))
+            run = []
         actions.append(action)
+    if run:
+        actions.append(_emit_inline_run(run, templ, arg_type))
     return actions
 
 

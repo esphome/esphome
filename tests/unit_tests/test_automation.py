@@ -19,7 +19,9 @@ from esphome.automation import (
     ApplyCondition,
     ApplyField,
     CallbackAutomation,
+    DelayAction,
     ForCondition,
+    IfAction,
     LambdaAction,
     LambdaCondition,
     NotCondition,
@@ -31,7 +33,9 @@ from esphome.automation import (
     TriggerOnTrueForwarder,
     WaitUntilAction,
     _shadow_iteration,
+    apply_action_builder,
     build_action,
+    build_action_list,
     build_callback_automation,
     build_callback_automations,
     build_condition,
@@ -2217,3 +2221,195 @@ async def test_component_resume_action_update_interval_is_optional(
     }
     await build_action(config, TEMPLATE_ARG, [])
     assert ("resume->set_update_interval(" in CORE.cpp_main_section) == with_interval
+
+
+COMPONENT_ID = ID("comp", type=cg.Component)
+
+
+def _action(name: str, id_: str, is_manual: bool = False) -> ConfigType:
+    """Config for an action taking the component id; ``id_`` names the action object."""
+    return {
+        name: {CONF_ID: COMPONENT_ID},
+        CONF_TYPE_ID: ID(
+            id_, is_declaration=True, type=ApplyAction, is_manual=is_manual
+        ),
+    }
+
+
+def _lambda_action(id_: str, body: str) -> ConfigType:
+    return {
+        "lambda": Lambda(body),
+        CONF_TYPE_ID: ID(id_, is_declaration=True, type=LambdaAction, is_manual=False),
+    }
+
+
+@pytest.fixture
+def apply_actions() -> Generator[None]:
+    """Declare the component and register apply actions ``my.a`` to ``my.c``."""
+    CORE.config = {}
+    cg.new_Pvariable(ID("comp", is_declaration=True, type=cg.Component))
+    schema = {cv.Required(CONF_ID): cv.use_id(cg.Component)}
+    actions = Registry()
+    actions.update(ACTION_REGISTRY)
+    with patch("esphome.automation.ACTION_REGISTRY", actions):
+        for name in ("a", "b", "c"):
+            register_apply_action(f"my.{name}", schema, ApplyCall(f"do_{name}()"))
+        yield
+
+
+@pytest.mark.asyncio
+@pytest.mark.usefixtures("apply_actions")
+async def test_build_action_list_merges_adjacent_actions() -> None:
+    """Adjacent inline actions become one object, with a stop check between the actions."""
+    config = [_action("my.a", "act_a"), _action("my.b", "act_b")]
+
+    result = await build_action_list(config, TEMPLATE_ARG, [])
+
+    assert len(result) == 1
+    assert "new(act_a) ApplyRunAction<esphome__act_a__fn>();" in CORE.cpp_main_section
+    assert "act_b" not in CORE.cpp_main_section
+    text = CORE.cpp_global_section
+    assert "void esphome__act_a__fn(const int & esphome__running)" in text
+    assert "esphome__act_b__fn" not in text
+    assert text.index("::comp->do_a();") < text.index("if (!esphome__running)")
+    assert text.index("if (!esphome__running)") < text.index("::comp->do_b();")
+    assert text.count("if (!esphome__running)") == 1
+
+
+@pytest.mark.asyncio
+@pytest.mark.usefixtures("apply_actions")
+async def test_build_action_list_single_action_is_unchanged() -> None:
+    """A lone apply action keeps its plain ApplyAction and no stop check."""
+    result = await build_action_list([_action("my.a", "act_a")], TEMPLATE_ARG, [])
+
+    assert len(result) == 1
+    assert "new(act_a) ApplyAction<esphome__act_a__fn>();" in CORE.cpp_main_section
+    assert "esphome__running" not in CORE.cpp_global_section
+
+
+@pytest.mark.asyncio
+@pytest.mark.usefixtures("apply_actions")
+async def test_build_action_list_single_lambda_is_unchanged() -> None:
+    """A lone lambda keeps the StatelessLambdaAction that shares one vtable."""
+    config = [_lambda_action("act_l", "do_it();")]
+
+    result = await build_action_list(config, TEMPLATE_ARG, [])
+
+    assert len(result) == 1
+    assert "new(act_l) StatelessLambdaAction<>(" in CORE.cpp_main_section
+    assert "esphome__running" not in CORE.cpp_global_section
+
+
+@pytest.mark.asyncio
+@pytest.mark.usefixtures("apply_actions")
+async def test_build_action_list_merges_lambda_as_immediate_call() -> None:
+    """A lambda keeps its scope and argument copy; a leading one must not type the object."""
+    config = [_lambda_action("act_l", "x += 1;\nreturn;"), _action("my.a", "act_a")]
+    args = [(cg.int_, "x")]
+
+    result = await build_action_list(config, cg.TemplateArguments(cg.int_), args)
+
+    assert len(result) == 1
+    assert "new(act_l) ApplyRunAction<esphome__act_l__fn, int>();" in (
+        CORE.cpp_main_section
+    )
+    text = CORE.cpp_global_section
+    assert "const std::remove_cvref_t<int> & x" in text
+    assert "[](int x) -> void {" in text
+    assert "}(x);" in text
+
+
+@pytest.mark.asyncio
+@pytest.mark.usefixtures("apply_actions")
+async def test_build_action_list_object_action_ends_a_run() -> None:
+    """An action with its own class splits the runs on either side of it."""
+    delay = {
+        "delay": 100,
+        CONF_TYPE_ID: ID("act_d", is_declaration=True, type=DelayAction),
+    }
+    config = [
+        _action("my.a", "act_a"),
+        _action("my.b", "act_b"),
+        delay,
+        _action("my.c", "act_c"),
+    ]
+
+    result = await build_action_list(config, TEMPLATE_ARG, [])
+
+    assert [str(action) for action in result] == ["act_a", "act_d", "act_c"]
+    text = CORE.cpp_main_section
+    assert "new(act_a) ApplyRunAction<esphome__act_a__fn>();" in text
+    assert "new(act_c) ApplyAction<esphome__act_c__fn>();" in text
+
+
+@pytest.mark.asyncio
+@pytest.mark.usefixtures("apply_actions")
+async def test_build_action_list_manual_type_id_keeps_its_object() -> None:
+    """A lambda can reach an action by a manual type_id, so it stays a separate object."""
+    config = [
+        _action("my.a", "act_a"),
+        _action("my.b", "act_b"),
+        _action("my.c", "act_c", is_manual=True),
+    ]
+
+    result = await build_action_list(config, TEMPLATE_ARG, [])
+
+    assert [str(action) for action in result] == ["act_a", "act_c"]
+    assert "new(act_c) ApplyAction<esphome__act_c__fn>();" in CORE.cpp_main_section
+
+
+@pytest.mark.asyncio
+@pytest.mark.usefixtures("apply_actions")
+async def test_build_action_list_keeps_wrapper_side_effects() -> None:
+    """A builder that wraps an apply builder still runs, and its action still merges."""
+    builder = apply_action_builder(
+        "my.wrapped",
+        {cv.Required(CONF_ID): cv.use_id(cg.Component)},
+        ApplyCall("do_wrapped()"),
+    )
+
+    @register_action("my.wrapped", ApplyAction, {}, synchronous=True)
+    async def wrapped_to_code(
+        config: ConfigType,
+        action_id: ID,
+        template_arg: cg.TemplateArguments,
+        args: list[tuple[object, str]],
+    ) -> MockObj:
+        cg.add_define("USE_MY_WRAPPED")
+        return await builder(config, action_id, template_arg, args)
+
+    config = [_action("my.wrapped", "act_w"), _action("my.a", "act_a")]
+
+    result = await build_action_list(config, TEMPLATE_ARG, [])
+
+    assert len(result) == 1
+    assert any(define.name == "USE_MY_WRAPPED" for define in CORE.defines)
+    assert "::comp->do_wrapped();" in CORE.cpp_global_section
+
+
+@pytest.mark.asyncio
+@pytest.mark.usefixtures("apply_actions")
+async def test_build_action_list_nested_builders_emit_normally() -> None:
+    """An ``if`` keeps its object and condition, and merges inside its own branch."""
+    condition = {
+        "lambda": Lambda("return true;"),
+        CONF_TYPE_ID: ID("cond", is_declaration=True, type=LambdaCondition),
+    }
+    if_action = {
+        "if": {
+            CONF_CONDITION: condition,
+            CONF_THEN: [_action("my.a", "act_a"), _action("my.b", "act_b")],
+        },
+        CONF_TYPE_ID: ID("act_if", is_declaration=True, type=IfAction),
+    }
+
+    result = await build_action_list(
+        [if_action, _action("my.c", "act_c")], TEMPLATE_ARG, []
+    )
+
+    assert [str(action) for action in result] == ["act_if", "act_c"]
+    text = CORE.cpp_main_section
+    assert "new(cond) StatelessLambdaCondition<>(" in text
+    assert "new(act_a) ApplyRunAction<esphome__act_a__fn>();" in text
+    assert "act_if->add_then_action(act_a);" in text
+    assert "act_if->finish_then();" in text

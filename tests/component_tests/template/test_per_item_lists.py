@@ -22,7 +22,8 @@ def test_filters_and_actions_are_added_per_item(
     assert len(re.findall(r"temp->add_filter\(", main_cpp)) == 3
     assert len(re.findall(r"button->add_filter\(", main_cpp)) == 2
     assert len(re.findall(r"label->add_filter\(", main_cpp)) == 2
-    assert main_cpp.count("->add_then_action(") == 4
+    # Adjacent actions in a branch merge into one object
+    assert main_cpp.count("->add_then_action(") == 3
     assert main_cpp.count("->add_else_action(") == 1
     assert main_cpp.count("->finish_then();") == 3
     assert main_cpp.count("->finish_else();") == 1
