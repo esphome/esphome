@@ -52,9 +52,6 @@ namespace esphome::web_server_idf {
 #define HTTPD_422 "422 Unprocessable Entity"
 #endif
 
-#define CRLF_STR "\r\n"
-#define CRLF_LEN (sizeof(CRLF_STR) - 1)
-
 ESPHOME_LOG_TAG(TAG, "web_server_idf");
 
 // Only prepare_json_() may hold the JSON arena: every other frame in this file is capped below one
@@ -707,6 +704,194 @@ void AsyncResponseStream::printf(const char *fmt, ...) {
   this->print(str);
 }
 
+void AsyncStreamResponse::begin(const AsyncWebServerRequest *request, const char *status, const char *content_type,
+                                std::span<const HttpHeader> headers, const char *body) {
+  httpd_req_t *req = *request;
+  // Same head httpd_resp_send_chunk() writes, without its first chunk. Blocking sends: the session's non-blocking
+  // send override is not installed yet.
+  const int fd = httpd_req_to_sockfd(req);
+  const auto &defaults = DefaultHeaders::Instance().headers_;
+  const bool head_sent = write_stream_head<struct iovec>(
+      [fd](struct iovec *iov, int count) {
+        while (count > 0) {
+          struct msghdr msg{};
+          msg.msg_iov = iov;
+          msg.msg_iovlen = count;
+          const ssize_t sent = sendmsg(fd, &msg, 0);
+          if (sent <= 0) {
+            return false;
+          }
+          advance_iovecs(iov, count, sent);
+        }
+        return true;
+      },
+      status, content_type, headers, std::span<const HttpHeader>(defaults.data(), defaults.size()), body);
+
+  req->sess_ctx = this;
+  req->free_ctx = AsyncStreamResponse::destroy;
+
+  this->hd_ = req->handle;
+  this->fd_.store(fd);
+
+  // Use non-blocking send to prevent watchdog timeouts when TCP buffers are full
+  httpd_sess_set_send_override(this->hd_, fd, nonblocking_send);
+
+  if (!head_sent) {
+    // A partly sent head must not be continued by later writes. close() is main loop only, so shut the socket
+    // down here; the first write() then fails and closes the stream, and httpd frees the session as usual.
+    shutdown(fd, SHUT_RDWR);
+  }
+}
+
+void AsyncStreamResponse::destroy(void *ptr) {
+  auto *rsp = static_cast<AsyncStreamResponse *>(ptr);
+  int fd = rsp->fd_.exchange(0);  // Atomically get and clear fd
+  ESP_LOGD(TAG, "Stream connection closed (fd: %d)", fd);
+  // Mark as dead - the owner deletes it from the main loop once safe_to_delete().
+  // httpd will call our custom close_fn (safe_close_with_shutdown) which handles
+  // shutdown() before close() to prevent lwIP race conditions
+}
+
+void AsyncStreamResponse::close() {
+  if (!this->close_requested_) {
+    this->close_requested_ = true;
+    this->next_close_attempt_ms_ = App.get_loop_component_start_time();
+  }
+  this->process_close_();
+}
+
+void AsyncStreamResponse::loop() {
+  if (this->close_requested_) {
+    this->process_close_();
+  } else {
+    this->refresh_lru_();
+  }
+}
+
+void AsyncStreamResponse::process_close_() {
+  if (!this->close_requested_ || this->close_work_queued_.load(std::memory_order_acquire)) {
+    return;
+  }
+  const int fd = this->fd_.load();
+  if (fd == 0) {
+    return;
+  }
+
+  const uint32_t now = App.get_loop_component_start_time();
+  if (static_cast<int32_t>(now - this->next_close_attempt_ms_) < 0) {
+    return;
+  }
+
+  // Queue an identity-checked shutdown on the HTTPD task. The public
+  // httpd_sess_trigger_close() queues only a reusable fd/session slot and can
+  // therefore close a new client if the original peer disconnects meanwhile.
+  this->close_work_queued_.store(true, std::memory_order_release);
+  const esp_err_t err = httpd_queue_work(this->hd_, &AsyncStreamResponse::close_session_work, this);
+  this->next_close_attempt_ms_ = now + (err == ESP_OK ? CLOSE_CONFIRM_INTERVAL_MS : CLOSE_RETRY_INTERVAL_MS);
+  if (err == ESP_OK) {
+    return;
+  }
+
+  this->close_work_queued_.store(false, std::memory_order_release);
+  if (!this->close_retry_warning_logged_) {
+    ESP_LOGW(TAG, "Failed to queue stream close (%s); retrying", esp_err_to_name(err));
+    this->close_retry_warning_logged_ = true;
+  }
+}
+
+void AsyncStreamResponse::refresh_lru_() {
+  // httpd only advances a session's LRU counter when a request arrives, and a stream receives one
+  // request ever, so the purge that frees a socket for a new client would evict the live streams first.
+  // The HTTPD task owns the session table, so the refresh runs there.
+  // A stalled stream is the socket the purge should take, and a zeroed fd has no session left to refresh.
+  if (this->stall_.is_running() || this->fd_.load() == 0)
+    return;
+  const uint32_t now = App.get_loop_component_start_time();
+  if (now - this->last_lru_refresh_ms_ < LRU_REFRESH_INTERVAL_MS ||
+      this->lru_work_queued_.load(std::memory_order_acquire)) {
+    return;
+  }
+  this->last_lru_refresh_ms_ = now;  // a full queue also waits for the next interval
+  this->lru_work_queued_.store(true, std::memory_order_release);
+  if (httpd_queue_work(this->hd_, &AsyncStreamResponse::refresh_lru_work, this) != ESP_OK) {
+    this->lru_work_queued_.store(false, std::memory_order_release);
+  }
+}
+
+void AsyncStreamResponse::refresh_lru_work(void *arg) {
+  auto *response = static_cast<AsyncStreamResponse *>(arg);
+  const int fd = response->fd_.load();
+  if (response->owns_session_(fd)) {
+    httpd_sess_update_lru_counter(response->hd_, fd);
+  }
+  // Release self only after the HTTPD-task callback has finished every access.
+  response->lru_work_queued_.store(false, std::memory_order_release);
+}
+
+void AsyncStreamResponse::close_session_work(void *arg) {
+  auto *response = static_cast<AsyncStreamResponse *>(arg);
+  const int fd = response->fd_.load();
+  if (response->owns_session_(fd)) {
+    // The HTTPD task remains the session owner. Shutting the socket down makes
+    // its next select/recv path delete the session and invoke destroy().
+    shutdown(fd, SHUT_RDWR);
+  }
+
+  // Release self only after the HTTPD-task callback has finished every access.
+  response->close_work_queued_.store(false, std::memory_order_release);
+}
+
+ssize_t AsyncStreamResponse::write(struct iovec *iov, int iovcnt) {
+  if (this->close_requested_) {
+    return -1;
+  }
+  // Nothing to send is not a stall
+  size_t total = 0;
+  for (int i = 0; i < iovcnt; i++) {
+    total += iov[i].iov_len;
+  }
+  if (total == 0) {
+    return 0;
+  }
+  // httpd frees a session before closing its socket, so the fd may already be a new client's.
+  // Treated as would-block; the stall timer ends a session that never becomes ours again.
+  const int fd = this->fd_.load();
+  if (this->owns_session_(fd)) {
+    struct msghdr msg{};
+    msg.msg_iov = iov;
+    msg.msg_iovlen = iovcnt;
+    const ssize_t sent = sendmsg(fd, &msg, MSG_DONTWAIT);
+    if (sent > 0) {
+      this->stall_.clear();
+      return sent;
+    }
+    if (sent < 0) {
+      const int err = errno;
+      if (err != EAGAIN && err != EWOULDBLOCK) {
+        ESP_LOGD(TAG, "send error: errno %d", err);
+        // A hard error is not a timeout, so is_stalled() must not report one
+        this->stall_.clear();
+        this->close();
+        return -1;
+      }
+    }
+  }
+  // Socket buffer full, try again later; a socket that stays full past the stall timeout is closed
+  const uint32_t now = App.get_loop_component_start_time();
+  this->stall_.start(now);
+  if (this->stall_.is_expired(now, SEND_STALL_TIMEOUT_MS)) {
+    ESP_LOGW(TAG, "Closing stuck stream after %" PRIu32 " ms without send progress", this->stall_.elapsed(now));
+    this->close();
+    return -1;
+  }
+  return 0;
+}
+
+ssize_t AsyncStreamResponse::write(const void *data, size_t len) {
+  struct iovec iov = {const_cast<void *>(data), len};
+  return this->write(&iov, 1);
+}
+
 #ifdef USE_WEBSERVER
 AsyncEventSource::~AsyncEventSource() {
   LockGuard guard{this->pending_mutex_};
@@ -745,7 +930,7 @@ bool AsyncEventSource::loop() {
   for (size_t i = 0; i < this->sessions_.size();) {
     auto *ses = this->sessions_[i];
     // If the session has a dead socket (marked by destroy callback)
-    if (ses->safe_to_delete_()) {
+    if (ses->safe_to_delete()) {
       // destroy() already logged the close with the fd; don't double-log here.
       delete ses;  // NOLINT(cppcoreguidelines-owning-memory)
       // Remove by swapping with last element (O(1) removal, order doesn't matter for sessions)
@@ -769,13 +954,13 @@ void AsyncEventSource::adopt_pending_sessions_main_loop_() {
   }
   for (auto *rsp : incoming) {
     // Already disconnected? Drop it; skip session start on a dead session.
-    if (rsp->safe_to_delete_()) {
+    if (rsp->safe_to_delete()) {
       delete rsp;  // NOLINT(cppcoreguidelines-owning-memory)
       continue;
     }
     // httpd commits the session context only after the creating handler returns, so stay
     // pending until then; httpd_req_cleanup() always commits it or calls destroy()
-    if (httpd_sess_get_ctx(rsp->hd_, rsp->fd_.load()) != rsp) {
+    if (!rsp->is_attached()) {
       LockGuard guard{this->pending_mutex_};
       this->pending_sessions_.push_back(rsp);
       this->has_pending_sessions_.store(true, std::memory_order_release);
@@ -790,7 +975,7 @@ void AsyncEventSource::adopt_pending_sessions_main_loop_() {
 void AsyncEventSource::try_send_nodefer(const char *message, size_t message_len, const char *event, uint32_t id,
                                         uint32_t reconnect) {
   for (auto *ses : this->sessions_) {
-    if (ses->fd_.load() != 0) {  // Skip dead sessions
+    if (ses->is_connected()) {
       ses->try_send_nodefer(message, message_len, event, id, reconnect);
     }
   }
@@ -801,7 +986,7 @@ void AsyncEventSource::deferrable_send_state(void *source, bool detail_all, mess
   if (this->empty())
     return;
   for (auto *ses : this->sessions_) {
-    if (ses->fd_.load() != 0) {  // Skip dead sessions
+    if (ses->is_connected()) {
       ses->deferrable_send_state(source, detail_all, message_generator);
     }
   }
@@ -812,28 +997,10 @@ AsyncEventSourceResponse::AsyncEventSourceResponse(const AsyncWebServerRequest *
                                                    esphome::web_server::WebServer *ws)
     : server_(server), web_server_(ws), entities_iterator_(ws, server) {
   // Httpd task only. start_session_main_loop_() sends the greeting and starts the iterator.
-  httpd_req_t *req = *request;
-
-  httpd_resp_set_status(req, HTTPD_200);
-  httpd_resp_set_type(req, "text/event-stream");
-  httpd_resp_set_hdr(req, "Cache-Control", "no-cache");
-  httpd_resp_set_hdr(req, "Connection", "keep-alive");
-
-  for (const auto &header : DefaultHeaders::Instance().headers_) {
-    httpd_resp_set_hdr(req, header.name, header.value);
-  }
-
-  httpd_resp_send_chunk(req, CRLF_STR, CRLF_LEN);
-
-  req->sess_ctx = this;
-  req->free_ctx = AsyncEventSourceResponse::destroy;
-
-  this->hd_ = req->handle;
-  this->fd_.store(httpd_req_to_sockfd(req));
-
-  // Use non-blocking send to prevent watchdog timeouts when TCP buffers are full
-  httpd_sess_set_send_override(this->hd_, this->fd_.load(), nonblocking_send);
+  this->begin(request, SSE_STATUS, SSE_CONTENT_TYPE, SSE_HEADERS, SSE_FIRST_CHUNK);
 }
+static_assert(stream_head_iov_count(std::size(SSE_HEADERS) + WEB_SERVER_DEFAULT_HEADERS_COUNT) <= STREAM_HEAD_MAX_IOV,
+              "the event stream head must go out in one write");
 
 // NOLINTBEGIN(clang-analyzer-cplusplus.NewDeleteLeaks) false positive with ArduinoJson
 void AsyncEventSourceResponse::start_session_main_loop_() {
@@ -844,7 +1011,7 @@ void AsyncEventSourceResponse::start_session_main_loop_() {
   auto message = ws->get_config_json();
   if (!this->try_send_nodefer(message.c_str(), message.size(), "ping", millis(), 30000)) {
     ESP_LOGW(TAG, "Config not sent to fd %d", this->fd_.load());
-    this->request_close_();
+    this->close();
     return;
   }
 
@@ -871,16 +1038,6 @@ void AsyncEventSourceResponse::start_session_main_loop_() {
 }
 // NOLINTEND(clang-analyzer-cplusplus.NewDeleteLeaks)
 
-void AsyncEventSourceResponse::destroy(void *ptr) {
-  auto *rsp = static_cast<AsyncEventSourceResponse *>(ptr);
-  int fd = rsp->fd_.exchange(0);  // Atomically get and clear fd
-  ESP_LOGD(TAG, "Event source connection closed (fd: %d)", fd);
-  // Mark as dead - will be cleaned up in the main loop
-  // Note: We don't delete or remove from set here to avoid race conditions
-  // httpd will call our custom close_fn (safe_close_with_shutdown) which handles
-  // shutdown() before close() to prevent lwIP race conditions
-}
-
 // helper for allowing only unique entries in the queue
 void AsyncEventSourceResponse::deq_push_back_with_dedup_(void *source, message_generator_t *message_generator) {
   DeferredEvent item(source, message_generator);
@@ -895,13 +1052,13 @@ void AsyncEventSourceResponse::deq_push_back_with_dedup_(void *source, message_g
 }
 
 void AsyncEventSourceResponse::process_deferred_queue_() {
-  if (this->close_requested_) {
+  if (this->is_closing()) {
     return;
   }
   while (!deferred_queue_.empty()) {
     DeferredEvent &de = deferred_queue_.front();
     if (this->send_json_(de.source_, de.message_generator_)) {
-      if (this->close_requested_ || deferred_queue_.empty()) {
+      if (this->is_closing() || deferred_queue_.empty()) {
         return;
       }
       // O(n) but memory efficiency is more important than speed here which is why std::vector was chosen
@@ -912,145 +1069,26 @@ void AsyncEventSourceResponse::process_deferred_queue_() {
   }
 }
 
-void AsyncEventSourceResponse::request_close_() {
-  if (!this->close_requested_) {
-    this->close_requested_ = true;
-    this->deferred_queue_.clear();
-    this->tail_.reset();
-    this->tail_cap_ = 0;
-    this->tail_len_ = 0;
-    this->tail_sent_ = 0;
-    this->next_close_attempt_ms_ = App.get_loop_component_start_time();
-  }
-
-  this->process_close_();
-}
-
-void AsyncEventSourceResponse::process_close_() {
-  if (!this->close_requested_ || this->close_work_queued_.load(std::memory_order_acquire)) {
-    return;
-  }
-  const int fd = this->fd_.load();
-  if (fd == 0) {
-    return;
-  }
-
-  const uint32_t now = App.get_loop_component_start_time();
-  if (static_cast<int32_t>(now - this->next_close_attempt_ms_) < 0) {
-    return;
-  }
-
-  // Queue an identity-checked shutdown on the HTTPD task. The public
-  // httpd_sess_trigger_close() queues only a reusable fd/session slot and can
-  // therefore close a new client if the original peer disconnects meanwhile.
-  this->close_work_queued_.store(true, std::memory_order_release);
-  const esp_err_t err = httpd_queue_work(this->hd_, &AsyncEventSourceResponse::close_session_work, this);
-  this->next_close_attempt_ms_ = now + (err == ESP_OK ? CLOSE_CONFIRM_INTERVAL_MS : CLOSE_RETRY_INTERVAL_MS);
-  if (err == ESP_OK) {
-    return;
-  }
-
-  this->close_work_queued_.store(false, std::memory_order_release);
-  if (!this->close_retry_warning_logged_) {
-    ESP_LOGW(TAG, "Failed to queue EventSource close (%s); retrying", esp_err_to_name(err));
-    this->close_retry_warning_logged_ = true;
-  }
-}
-
-void AsyncEventSourceResponse::refresh_lru_() {
-  // httpd only advances a session's LRU counter when a request arrives, and an event stream receives one
-  // request ever, so the purge that frees a socket for a new client would evict the live streams first.
-  // The HTTPD task owns the session table, so the refresh runs there.
-  // A stalled stream is the socket the purge should take, and a zeroed fd has no session left to refresh.
-  if (this->send_failure_started_ms_ != 0 || this->fd_.load() == 0)
-    return;
-  const uint32_t now = App.get_loop_component_start_time();
-  if (now - this->last_lru_refresh_ms_ < LRU_REFRESH_INTERVAL_MS ||
-      this->lru_work_queued_.load(std::memory_order_acquire)) {
-    return;
-  }
-  this->last_lru_refresh_ms_ = now;  // a full queue also waits for the next interval
-  this->lru_work_queued_.store(true, std::memory_order_release);
-  if (httpd_queue_work(this->hd_, &AsyncEventSourceResponse::refresh_lru_work, this) != ESP_OK) {
-    this->lru_work_queued_.store(false, std::memory_order_release);
-  }
-}
-
-void AsyncEventSourceResponse::refresh_lru_work(void *arg) {
-  auto *response = static_cast<AsyncEventSourceResponse *>(arg);
-  const int fd = response->fd_.load();
-  if (response->owns_session_(fd)) {
-    httpd_sess_update_lru_counter(response->hd_, fd);
-  }
-  // Release self only after the HTTPD-task callback has finished every access.
-  response->lru_work_queued_.store(false, std::memory_order_release);
-}
-
-void AsyncEventSourceResponse::close_session_work(void *arg) {
-  auto *response = static_cast<AsyncEventSourceResponse *>(arg);
-  const int fd = response->fd_.load();
-  if (response->owns_session_(fd)) {
-    // The HTTPD task remains the session owner. Shutting the socket down makes
-    // its next select/recv path delete the session and invoke destroy().
-    shutdown(fd, SHUT_RDWR);
-  }
-
-  // Release self only after the HTTPD-task callback has finished every access.
-  response->close_work_queued_.store(false, std::memory_order_release);
-}
-
-ssize_t AsyncEventSourceResponse::send_(struct iovec *iov, int iovcnt) {
-  // httpd frees a session before closing its socket, so the fd may already be a new client's.
-  // Treated as would-block; the stall timer ends a session that never becomes ours again.
-  const int fd = this->fd_.load();
-  if (!this->owns_session_(fd)) {
-    return 0;
-  }
-  struct msghdr msg{};
-  msg.msg_iov = iov;
-  msg.msg_iovlen = iovcnt;
-  const ssize_t sent = sendmsg(fd, &msg, MSG_DONTWAIT);
-  if (sent >= 0) {
-    return sent;
-  }
-  const int err = errno;
-  if (err == EAGAIN || err == EWOULDBLOCK) {
-    return 0;
-  }
-  ESP_LOGD(TAG, "send error: errno %d", err);
-  this->request_close_();
-  return -1;
+void AsyncEventSourceResponse::release_buffers_() {
+  std::vector<DeferredEvent>().swap(this->deferred_queue_);
+  this->tail_.reset();
+  this->tail_cap_ = 0;
+  this->tail_len_ = 0;
+  this->tail_sent_ = 0;
 }
 
 void AsyncEventSourceResponse::drain_tail_() {
-  if (this->sending_ || this->close_requested_ || this->tail_len_ == 0) {
+  if (this->sending_ || this->is_closing() || this->tail_len_ == 0) {
     return;
   }
   SendGuard guard{*this};
 
   const size_t remaining = this->tail_len_ - this->tail_sent_;
-  struct iovec iov = {this->tail_.get() + this->tail_sent_, remaining};
-  const ssize_t sent = this->send_(&iov, 1);
-  if (sent < 0) {
-    return;
+  const ssize_t sent = this->write(this->tail_.get() + this->tail_sent_, remaining);
+  if (sent <= 0) {
+    return;  // write() owns the stall clock and the close
   }
-  if (sent == 0) {
-    // Socket buffer full, try again later
-    // NOTE: Similar logic exists in web_server/web_server.cpp in DeferredUpdateEventSource::process_deferred_queue_().
-    // The IDF path is intentionally time-based and closes through HTTPD to preserve session ownership.
-    const uint32_t now = App.get_loop_component_start_time();
-    if (this->send_failure_started_ms_ == 0) {
-      this->send_failure_started_ms_ = now != 0 ? now : 1;  // Reserve zero for no stall.
-    }
-    if (static_cast<int32_t>(now - (this->send_failure_started_ms_ + SEND_STALL_TIMEOUT_MS)) >= 0) {
-      ESP_LOGW(TAG, "Closing stuck EventSource connection after %" PRIu32 " ms without send progress",
-               now - this->send_failure_started_ms_);
-      this->request_close_();
-    }
-    return;
-  }
-
-  this->send_failure_started_ms_ = 0;
+  this->no_memory_logged_ = false;
   this->tail_sent_ += sent;
   if (this->tail_sent_ < this->tail_len_) {
     ESP_LOGV(TAG, "Partial send: %zd/%zu bytes (total: %u/%u)", sent, remaining, this->tail_sent_, this->tail_len_);
@@ -1085,7 +1123,7 @@ bool AsyncEventSourceResponse::stash_chunk_(const char *prefix, size_t prefix_le
     if (sent != 0) {
       // Part of the chunk is on the wire, so the stream is broken and the client has to go
       ESP_LOGW(TAG, "Cannot buffer a %zu byte chunk, closing", total);
-      this->request_close_();
+      this->close();
     } else {
       this->tail_alloc_failed_(total);  // nothing on the wire, the caller retries on the stall clock
     }
@@ -1108,14 +1146,16 @@ bool AsyncEventSourceResponse::stash_chunk_(const char *prefix, size_t prefix_le
 }
 
 void AsyncEventSourceResponse::loop() {
-  if (this->close_requested_) {
-    this->process_close_();
+  AsyncStreamResponse::loop();
+  if (this->is_closing()) {
+    if (this->tail_cap_ != 0 || this->deferred_queue_.capacity() != 0) {
+      this->release_buffers_();
+    }
     return;
   }
-  this->refresh_lru_();
   drain_tail_();
   process_deferred_queue_();
-  if (this->close_requested_)
+  if (this->is_closing())
     return;
   // One step per loop; refusals retry next pass
   this->entities_iterator_.try_advance(1);
@@ -1198,7 +1238,8 @@ bool AsyncEventSourceResponse::send_json_(void *source, message_generator_t *gen
       ESP_LOGW(TAG, "State event does not fit %zu bytes, dropped", size);
       this->tail_.reset();
       this->tail_cap_ = 0;
-      this->send_failure_started_ms_ = 0;
+      this->stall_.clear();
+      this->no_memory_logged_ = false;
       return true;
     }
   }
@@ -1206,25 +1247,29 @@ bool AsyncEventSourceResponse::send_json_(void *source, message_generator_t *gen
 }
 
 void AsyncEventSourceResponse::tail_alloc_failed_(size_t cap) {
-  // Same stall clock as a socket that stops draining, so a session cannot retry forever
-  const uint32_t now = App.get_loop_component_start_time();
-  if (this->send_failure_started_ms_ == 0) {
-    this->send_failure_started_ms_ = now != 0 ? now : 1;  // Reserve zero for no stall.
+  // Same stall clock as a socket that stops draining, so a session cannot retry forever. A refused write may
+  // already have started it, so the warning keeps its own flag.
+  if (!this->no_memory_logged_) {
+    this->no_memory_logged_ = true;
     ESP_LOGW(TAG, "No memory for a %zu byte chunk", cap);
+  }
+  const uint32_t now = App.get_loop_component_start_time();
+  if (!this->stall_.is_running()) {
+    this->stall_.start(now);
     return;
   }
-  if (static_cast<int32_t>(now - (this->send_failure_started_ms_ + SEND_STALL_TIMEOUT_MS)) >= 0) {
-    ESP_LOGW(TAG, "Closing EventSource after %" PRIu32 " ms without memory", now - this->send_failure_started_ms_);
-    this->request_close_();
+  if (this->stall_.is_expired(now, SEND_STALL_TIMEOUT_MS)) {
+    ESP_LOGW(TAG, "Closing EventSource after %" PRIu32 " ms without memory", this->stall_.elapsed(now));
+    this->close();
   }
 }
 
 bool AsyncEventSourceResponse::ready_to_send_() {
-  if (this->sending_ || this->fd_.load() == 0 || this->close_requested_) {
+  if (this->sending_ || !this->is_connected() || this->is_closing()) {
     return false;
   }
   drain_tail_();
-  return !this->close_requested_ && this->tail_len_ == 0;
+  return !this->is_closing() && this->tail_len_ == 0;
 }
 
 bool AsyncEventSourceResponse::try_send_nodefer(const char *message, size_t message_len, const char *event, uint32_t id,
@@ -1274,12 +1319,14 @@ bool AsyncEventSourceResponse::try_send_nodefer(const char *message, size_t mess
   g.iov[0] = {prefix, prefix_len};
 
   // A message with more lines than the list holds skips straight to the tail
-  const ssize_t sent = g.fits ? this->send_(g.iov, g.iovcnt) : 0;
+  const ssize_t sent = g.fits ? this->write(g.iov, g.iovcnt) : 0;
   if (sent < 0) {
     return false;
   }
+  if (sent > 0) {
+    this->no_memory_logged_ = false;
+  }
   if (static_cast<size_t>(sent) == g.total) {
-    this->send_failure_started_ms_ = 0;  // progress, whichever stall clock was running
     return true;
   }
   // The caller's buffers do not outlive this call, so keep the chunk and continue from loop()
@@ -1296,7 +1343,7 @@ void AsyncEventSourceResponse::deferrable_send_state(void *source, bool detail_a
   drain_tail_();
   process_deferred_queue_();
 
-  if (this->close_requested_) {
+  if (this->is_closing()) {
     return;
   }
 
@@ -1306,7 +1353,7 @@ void AsyncEventSourceResponse::deferrable_send_state(void *source, bool detail_a
     deq_push_back_with_dedup_(source, message_generator);
   } else {
     // A send error closes the session and clears the queue; nothing is queued after that
-    if (!this->send_json_(source, message_generator) && !this->close_requested_) {
+    if (!this->send_json_(source, message_generator) && !this->is_closing()) {
       deq_push_back_with_dedup_(source, message_generator);
     }
   }
