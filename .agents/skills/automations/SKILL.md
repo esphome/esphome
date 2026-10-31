@@ -133,7 +133,11 @@ automation.CallbackAutomation(
     forward=[],
     when=automation.ApplyCall(
         "{}->check(state, {}, {})",
-        ((CONF_TRIGGER_ID, cg.void), (CONF_MIN_LENGTH, cg.uint32), (CONF_MAX_LENGTH, cg.uint32)),
+        (
+            (CONF_TRIGGER_ID, cg.void),
+            (CONF_MIN_LENGTH, cg.uint32),
+            (CONF_MAX_LENGTH, cg.uint32),
+        ),
     ),
 )
 ```
