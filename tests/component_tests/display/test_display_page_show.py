@@ -22,11 +22,17 @@ def test_page_show_constant_page(main_cpp: str) -> None:
 
 def test_page_show_lambda_page(main_cpp: str) -> None:
     """A page lambda is stored on the action."""
+    # The user lambda carries #line directives; match the block without them
+    code = "\n".join(
+        line
+        for line in main_cpp.splitlines()
+        if not line.lstrip().startswith(("#line", "// ESPHOME_LINE_DIRECTIVE_RESET"))
+    )
     assert (
         "display_displaypageshowaction_id->set_page([]() -> display::DisplayPage * {\n"
         "    return page2;\n"
         "});"
-    ) in main_cpp
+    ) in code
 
 
 @pytest.mark.parametrize(
