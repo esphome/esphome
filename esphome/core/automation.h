@@ -81,6 +81,7 @@ template<typename T, typename... X> class TemplatableFn {
 
 /// Byte payload that is either a stateless lambda returning B (a byte container with data(), size() and resize())
 /// or a static table, which may be in PROGMEM. 8 bytes on 32-bit; codegen stores constant payloads as shared tables.
+/// For a fixed-capacity B, the schema must cap a constant payload at B's capacity; value() drops any excess.
 template<typename B, typename... Ts> class TemplatableBuffer {
  public:
   void set_template(B (*func)(Ts...)) {
@@ -122,7 +123,7 @@ template<typename B, typename... Ts> class TemplatableBuffer {
  protected:
   static B to_buffer(const uint8_t *data, size_t len) {
     B out;
-    out.resize(len);  // a fixed-capacity B keeps only what fits
+    out.resize(len);
     // An empty payload is (nullptr, 0), and memcpy from nullptr is undefined even for zero bytes.
     if (out.size() != 0)
       progmem_memcpy(out.data(), data, out.size());  // byte loads from flash fault on ESP8266
@@ -138,16 +139,16 @@ template<typename B, typename... Ts> class TemplatableBuffer {
 
 template<typename... Ts> using TemplatableBytes = TemplatableBuffer<std::vector<uint8_t>, Ts...>;
 
-/// A byte payload member whose lambda returns `type`; see TemplatableBuffer.
-#define TEMPLATABLE_BUFFER(type, name) \
+/// A byte payload member whose lambda returns the given type, which may contain commas; see TemplatableBuffer.
+#define TEMPLATABLE_BUFFER(name, ...) \
  protected: \
-  TemplatableBuffer<type, Ts...> name##_{}; \
+  TemplatableBuffer<__VA_ARGS__, Ts...> name##_{}; \
 \
  public: \
-  void set_##name##_template(type (*func)(Ts...)) { this->name##_.set_template(func); } \
+  void set_##name##_template(__VA_ARGS__ (*func)(Ts...)) { this->name##_.set_template(func); } \
   void set_##name##_static(const uint8_t *data, uint16_t len) { this->name##_.set_static(data, len); }
 
-#define TEMPLATABLE_BYTES(name) TEMPLATABLE_BUFFER(std::vector<uint8_t>, name)
+#define TEMPLATABLE_BYTES(name) TEMPLATABLE_BUFFER(name, std::vector<uint8_t>)
 
 // Forward declaration for TemplatableValue (string specialization needs it)
 template<typename T, typename... X> class TemplatableValue;

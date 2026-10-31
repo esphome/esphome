@@ -186,7 +186,7 @@ class Canbus : public Component {
 };
 
 template<typename... Ts> class CanbusSendAction final : public Action<Ts...>, public Parented<Canbus> {
-  TEMPLATABLE_BUFFER(CanPayload, data)
+  TEMPLATABLE_BUFFER(data, CanPayload)
 
   void set_can_id(uint32_t can_id) { this->can_id_ = can_id; }
 
