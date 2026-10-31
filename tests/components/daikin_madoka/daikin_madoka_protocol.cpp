@@ -148,6 +148,33 @@ TEST(DaikinMadokaAssembler, NewMessageReplacesUnfinishedOne) {
   EXPECT_TRUE(assembler.message().empty());
 }
 
+TEST(DaikinMadokaAssembler, ResetDropsLeftoverChunks) {
+  // A 38 byte reply whose chunk 1 is a full 19 bytes, like the leftover chunk 1 of a lost reply
+  std::vector<uint8_t> args;
+  for (uint8_t id = 0x40; id < 0x40 + 10; id++)
+    args.insert(args.end(), {id, 0x01, id});
+  args.insert(args.end(), {0x50, 0x02, 0x01, 0x02});
+  auto msg = make_message(0x0110, args);
+  ASSERT_EQ(msg.size(), 2u * MAX_CHUNK_PAYLOAD);
+  auto lost = make_chunks(make_four_chunk_message());
+  auto next = make_chunks(msg);
+  ASSERT_EQ(next.size(), 2u);
+
+  // Without a reset the leftover chunk 1 completes the next reply with the wrong bytes
+  MessageAssembler assembler;
+  EXPECT_EQ(assembler.feed(lost[1]), ChunkResult::CHUNK_RESULT_PARTIAL);
+  EXPECT_EQ(assembler.feed(next[0]), ChunkResult::CHUNK_RESULT_COMPLETE);
+  EXPECT_NE(to_vector(assembler.message()), msg);
+
+  // A reset before the next command drops it, so the reply waits for its own chunk 1
+  EXPECT_EQ(assembler.feed(lost[1]), ChunkResult::CHUNK_RESULT_PARTIAL);
+  assembler.reset();
+  EXPECT_EQ(assembler.feed(next[0]), ChunkResult::CHUNK_RESULT_PARTIAL);
+  EXPECT_TRUE(assembler.message().empty());
+  EXPECT_EQ(assembler.feed(next[1]), ChunkResult::CHUNK_RESULT_COMPLETE);
+  EXPECT_EQ(to_vector(assembler.message()), msg);
+}
+
 TEST(DaikinMadokaAssembler, RejectsShortAndOverlongChunks) {
   MessageAssembler assembler;
   const std::vector<uint8_t> id_only{0x00};

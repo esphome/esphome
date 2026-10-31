@@ -302,6 +302,8 @@ void DaikinMadoka::send_next_query_() {
   }
   const Query &query = this->query_queue_.front();
   const uint16_t cmd = query.cmd;
+  // Chunks left from a partly lost reply must not combine with the reply to this command
+  this->assembler_.reset();
   // On a failed write the query stays queued for the next pass
   if (this->write_query_(query)) {
     this->query_queue_.pop();
