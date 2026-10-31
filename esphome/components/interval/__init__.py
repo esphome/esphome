@@ -19,14 +19,15 @@ DelayedIntervalCallback = interval_ns.class_(
 )
 
 
-_UINT32_MAX_MS = 2**32 - 1
+# Held as uint32_t milliseconds, where UINT32_MAX is SCHEDULER_DONT_RUN (never run)
+_MAX_PERIOD_MS = 2**32 - 2
 
 
 def _uint32_milliseconds() -> cv.All:
     """Built per key, so the language schema keeps the time period type."""
     return cv.All(
         cv.positive_time_period_milliseconds,
-        cv.Range(max=cv.TimePeriod(milliseconds=_UINT32_MAX_MS)),
+        cv.Range(max=cv.TimePeriod(milliseconds=_MAX_PERIOD_MS)),
     )
 
 
