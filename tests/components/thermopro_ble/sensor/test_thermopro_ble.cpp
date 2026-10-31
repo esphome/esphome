@@ -87,6 +87,13 @@ TEST_F(ThermoProBLETest, TP972Battery) {
   EXPECT_NEAR(this->battery_level_.state, 90.43f, 0.01f);
 }
 
+TEST_F(ThermoProBLETest, LargestFrameAccepted) {
+  std::vector<uint8_t> record = TP357;
+  record.resize(24);
+  EXPECT_TRUE(this->parse_("TP357 (2142)", record));
+  EXPECT_FLOAT_EQ(this->temperature_.state, 24.1f);
+}
+
 TEST_F(ThermoProBLETest, OversizedFrameRejected) {
   EXPECT_FALSE(this->parse_("TP972S", INVALID_TP972));
   EXPECT_TRUE(this->nothing_published_());
