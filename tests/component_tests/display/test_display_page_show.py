@@ -24,8 +24,9 @@ def test_page_show_lambda_page(main_cpp: str) -> None:
     """A page lambda is stored on the action."""
     assert (
         "display_displaypageshowaction_id->set_page([]() -> display::DisplayPage * {\n"
+        "    return page2;\n"
+        "});"
     ) in main_cpp
-    assert "    return page2;\n" in main_cpp
 
 
 @pytest.mark.parametrize(
