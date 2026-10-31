@@ -791,14 +791,12 @@ async def _add_automations(config):
     for key, component_class in (
         (CONF_ON_BOOT, StartupCallback),
         (CONF_ON_SHUTDOWN, ShutdownCallback),
+        (CONF_ON_LOOP, LoopCallback),
     ):
         for conf in config.get(key, []):
             await automation.build_component_automation(
-                conf, component_class, conf[CONF_PRIORITY]
+                conf, component_class, conf.get(CONF_PRIORITY)
             )
-
-    for conf in config.get(CONF_ON_LOOP, []):
-        await automation.build_component_automation(conf, LoopCallback)
 
 
 # Datetime component has special subtypes that need additional defines

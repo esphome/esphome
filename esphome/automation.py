@@ -1954,9 +1954,8 @@ async def build_component_automation(
     by hand keeps its Trigger, built with ``priority`` if given.
     """
     trigger_id: ID = config[CONF_TRIGGER_ID]
-    priority_args = [] if priority is None else [priority]
     if trigger_id.is_manual:
-        var = cg.new_Pvariable(trigger_id, *priority_args)
+        var = cg.new_Pvariable(trigger_id, *([] if priority is None else [priority]))
         await cg.register_component(var, config)
         await build_automation(var, [], config)
         return var
@@ -1965,7 +1964,7 @@ async def build_component_automation(
     cg.add_global(cg.RawStatement(f"static void {name}();"))
     id_ = trigger_id.copy()
     id_.type = component_class
-    bits = [_float_bits(value) for value in priority_args]
+    bits = [] if priority is None else [_float_bits(priority)]
     var = cg.new_Pvariable(id_, cg.TemplateArguments(cg.RawExpression(name), *bits))
     await cg.register_component(var, config)
     plan = await _build_automation_plan([], config)

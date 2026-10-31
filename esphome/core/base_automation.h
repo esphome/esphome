@@ -176,14 +176,26 @@ class LoopTrigger : public Trigger<>, public Component {
 template<void (*Fn)(), uint32_t PRIORITY_BITS> class StartupCallback final : public Component {
  public:
   void setup() override { Fn(); }
-  float get_setup_priority() const override { return bit_cast<float>(PRIORITY_BITS); }
+  float get_setup_priority() const override {
+    // Folds to a constant; GCC 10's bit_cast fallback is not inlined at -Os, IDF builds memcpy as a call
+    const uint32_t bits = PRIORITY_BITS;
+    float priority;
+    __builtin_memcpy(&priority, &bits, sizeof(priority));
+    return priority;
+  }
 };
 
 /// Calls Fn from on_shutdown(), for on_shutdown.
 template<void (*Fn)(), uint32_t PRIORITY_BITS> class ShutdownCallback final : public Component {
  public:
   void on_shutdown() override { Fn(); }
-  float get_setup_priority() const override { return bit_cast<float>(PRIORITY_BITS); }
+  float get_setup_priority() const override {
+    // Folds to a constant; GCC 10's bit_cast fallback is not inlined at -Os, IDF builds memcpy as a call
+    const uint32_t bits = PRIORITY_BITS;
+    float priority;
+    __builtin_memcpy(&priority, &bits, sizeof(priority));
+    return priority;
+  }
 };
 
 /// Calls Fn from loop(), for on_loop.
