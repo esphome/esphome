@@ -1,4 +1,6 @@
 #include <gtest/gtest.h>
+#include <functional>
+#include <utility>
 
 #include "esphome/components/binary_sensor/automation.h"
 #include "esphome/components/binary_sensor/binary_sensor.h"
@@ -25,17 +27,20 @@ class ClickTriggerTest : public ::testing::Test {
 
   // As codegen builds on_click and on_double_click
   void add_click_(uint32_t min_length = MIN_MS, uint32_t max_length = MAX_MS, BinarySensor *sensor = nullptr) {
-    (sensor != nullptr ? sensor : &this->sensor_)->add_on_state_callback([this, min_length, max_length](bool state) {
-      if (this->click_.check(state, min_length, max_length))
-        fired++;
+    this->watch_(this->click_, min_length, max_length, sensor != nullptr ? *sensor : this->sensor_);
+  }
+  void add_double_click_(std::function<void()> on_fire = count_fire) {
+    this->watch_(this->double_click_, MIN_MS, MAX_MS, this->sensor_, std::move(on_fire));
+  }
+  template<typename D>
+  void watch_(D &detector, uint32_t min_length, uint32_t max_length, BinarySensor &sensor,
+              std::function<void()> on_fire = count_fire) {
+    sensor.add_on_state_callback([&detector, min_length, max_length, on_fire = std::move(on_fire)](bool state) {
+      if (detector.check(state, min_length, max_length))
+        on_fire();
     });
   }
-  void add_double_click_() {
-    this->sensor_.add_on_state_callback([this](bool state) {
-      if (this->double_click_.check(state, MIN_MS, MAX_MS))
-        fired++;
-    });
-  }
+  static void count_fire() { fired++; }
 
   void press_for_(uint32_t length) {
     this->sensor_.publish_state(true);
@@ -198,9 +203,7 @@ TEST_F(ClickTriggerTest, DoubleClickDoesNotFireTwiceWithoutReset) {
 
 TEST_F(ClickTriggerTest, DoubleClickKeepsPressPublishedByItsActions) {
   // The times reset before the actions run, so a press the first action publishes is kept
-  this->sensor_.add_on_state_callback([this](bool state) {
-    if (!this->double_click_.check(state, MIN_MS, MAX_MS))
-      return;
+  this->add_double_click_([this]() {
     if (++fired == 1) {
       this->sensor_.publish_state(false);
       this->sensor_.publish_state(true);

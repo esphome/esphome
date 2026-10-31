@@ -122,26 +122,11 @@ their templatized `add()` method. `LazyCallbackManager` is a drop-in replacement
 callback is added. Prefer it for entity-level callbacks where most instances have no subscribers.
 
 A filter that keeps state between calls (timing, edges) still needs no Trigger class: give each automation a
-small object with constant initializers, created from its `CONF_TRIGGER_ID`, and let `when` ask it. An `ID`
+small object with constant initializers, created from its `CONF_TRIGGER_ID` before the automations are built,
+and let `when` ask it, e.g. `ApplyCall("{}->check(state, {}, {})", ((CONF_TRIGGER_ID, ...), ...))`. An `ID`
 value in an `ApplyCall` is written as `::id`, so a callback parameter cannot hide it. `on_click` in
-`binary_sensor` is the in-tree example:
-```python
-automation.CallbackAutomation(
-    CONF_ON_CLICK,
-    "add_on_state_callback",
-    params=[(cg.bool_, "state")],
-    forward=[],
-    when=automation.ApplyCall(
-        "{}->check(state, {}, {})",
-        (
-            (CONF_TRIGGER_ID, cg.void),
-            (CONF_MIN_LENGTH, cg.uint32),
-            (CONF_MAX_LENGTH, cg.uint32),
-        ),
-    ),
-)
-```
-Create the objects with `cg.new_Pvariable(conf[CONF_TRIGGER_ID])` before building the automations.
+`esphome/components/binary_sensor/__init__.py` is the in-tree example; once a second component needs this,
+move the object creation into `CallbackAutomation`.
 
 ## Triggers: Trigger class method
 

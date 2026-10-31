@@ -132,7 +132,7 @@ BinarySensorInitiallyOff = binary_sensor_ns.class_(
 )
 BinarySensorPtr = BinarySensor.operator("ptr")
 
-# Triggers and click detectors
+# Triggers
 ClickDetector = binary_sensor_ns.class_("ClickDetector")
 DoubleClickDetector = binary_sensor_ns.class_("DoubleClickDetector")
 MultiClickTrigger = binary_sensor_ns.class_(
@@ -529,6 +529,11 @@ def binary_sensor_schema(
     return _BINARY_SENSOR_SCHEMA.extend(schema)
 
 
+_CLICK_DETECTORS = (
+    (CONF_ON_CLICK, ClickDetector),
+    (CONF_ON_DOUBLE_CLICK, DoubleClickDetector),
+)
+
 _CALLBACK_AUTOMATIONS = (
     automation.CallbackAutomation(
         CONF_ON_PRESS,
@@ -555,31 +560,31 @@ _CALLBACK_AUTOMATIONS = (
         automation.CallbackAutomation(
             conf_key,
             "add_on_state_callback",
-            params=[(cg.bool_, "state")],
+            params=[(bool, "state")],
             forward=[],
-            # The detector created for the automation's trigger id decides
             when=automation.ApplyCall(
                 "{}->check(state, {}, {})",
                 (
-                    (CONF_TRIGGER_ID, cg.void),
+                    (CONF_TRIGGER_ID, detector.operator("ptr")),
                     (CONF_MIN_LENGTH, cg.uint32),
                     (CONF_MAX_LENGTH, cg.uint32),
                 ),
             ),
         )
-        for conf_key in (CONF_ON_CLICK, CONF_ON_DOUBLE_CLICK)
+        for conf_key, detector in _CLICK_DETECTORS
     ),
 )
 
 
 @coroutine_with_priority(CoroPriority.AUTOMATION)
 async def _build_binary_sensor_automations(var, config):
-    for conf in (*config.get(CONF_ON_CLICK, ()), *config.get(CONF_ON_DOUBLE_CLICK, ())):
+    # The detectors must exist before the automations that name them are built
+    if clicks := [c for key, _ in _CLICK_DETECTORS for c in config.get(key, ())]:
+        cg.add_define("USE_BINARY_SENSOR_CLICK_TRIGGER")
+    for conf in clicks:
         cg.new_Pvariable(conf[CONF_TRIGGER_ID])
     await automation.build_callback_automations(var, config, _CALLBACK_AUTOMATIONS)
 
-    if config.get(CONF_ON_CLICK) or config.get(CONF_ON_DOUBLE_CLICK):
-        cg.add_define("USE_BINARY_SENSOR_CLICK_TRIGGER")
     if config.get(CONF_ON_MULTI_CLICK):
         cg.add_define("USE_BINARY_SENSOR_MULTI_CLICK_TRIGGER")
     if config.get(CONF_ON_RAW_VALUE):
