@@ -37,16 +37,19 @@ DucoSelect = duco_ns.class_("DucoSelect", DucoDevice, select.Select)
 DucoTimeFilter = duco_ns.class_("DucoTimeFilter", DucoDevice, select.Select)
 DucoBypassControl = duco_ns.class_("DucoBypassControl", DucoDevice, select.Select)
 DucoBypassAdaptiveControl = duco_ns.class_("DucoBypassAdaptiveControl", DucoDevice, select.Select)
+DucoFrostHeater = duco_ns.class_("DucoFrostHeater", DucoDevice, select.Select)
 
 TYPE_MODE = "mode"
 TYPE_TIME_FILTER = "time_filter"
 CONF_MODE = "mode"
 CONF_BYPASS = "bypass"
 CONF_ADAPTIVE_BYPASS = "adaptive_bypass"
+CONF_FROST_HEATER = "frost_heater"
 
 TIME_FILTER_OPTIONS = ["90 days", "180 days", "270 days", "360 days"]
 BYPASS_OPTIONS = ["AUTO", "OPEN", "CLOSED"]
 ADAPTIVE_BYPASS_OPTIONS = ["ON", "OFF"]
+FROST_HEATER_OPTIONS = ["ALLOW", "REFUSE"]
 
 MODE_ENTITY_SCHEMA = (
     select.select_schema(DucoSelect)
@@ -71,6 +74,8 @@ ADAPTIVE_BYPASS_SCHEMA = select.select_schema(DucoBypassAdaptiveControl).extend(
     cv.polling_component_schema("60s")
 )
 
+FROST_HEATER_SCHEMA = select.select_schema(DucoFrostHeater).extend(cv.polling_component_schema("60s"))
+
 CONFIG_SCHEMA = cv.Any(
     LEGACY_MODE_SCHEMA,
     TIME_FILTER_SCHEMA,
@@ -79,6 +84,7 @@ CONFIG_SCHEMA = cv.Any(
             cv.Optional(CONF_MODE): cv.ensure_list(MODE_ENTITY_SCHEMA),
             cv.Optional(CONF_BYPASS): BYPASS_SCHEMA,
             cv.Optional(CONF_ADAPTIVE_BYPASS): ADAPTIVE_BYPASS_SCHEMA,
+            cv.Optional(CONF_FROST_HEATER): FROST_HEATER_SCHEMA,
         }
     ),
 )
@@ -101,6 +107,11 @@ async def to_code(config: ConfigType) -> None:
     if entity_config := config.get(CONF_ADAPTIVE_BYPASS):
         grouped = True
         var = await select.new_select(entity_config, options=ADAPTIVE_BYPASS_OPTIONS)
+        await register_duco_device(var, entity_config, config[CONF_DUCO_ID])
+
+    if entity_config := config.get(CONF_FROST_HEATER):
+        grouped = True
+        var = await select.new_select(entity_config, options=FROST_HEATER_OPTIONS)
         await register_duco_device(var, entity_config, config[CONF_DUCO_ID])
 
     if grouped:
