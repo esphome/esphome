@@ -1504,7 +1504,7 @@ async def repeat_action_to_code(
     shadowed = _shadow_iteration(args)
     then_template = cg.TemplateArguments(cg.uint32, *template_arg.args)
     then_args = [(cg.uint32, "iteration"), *shadowed]
-    _, build_list = _control_flow_builders(action_id)
+    build_list = _build_action_plan if _is_collecting(action_id) else build_action_list
     actions = await build_list(config[CONF_THEN], then_template, then_args)
     if _is_collecting(action_id) and actions and _plans_inline(actions):
         # The body reads an outer `iteration` under its new name, and the count is read
@@ -1684,11 +1684,15 @@ async def _build_condition_or_inline(
     if condition is not _COLLECTED_ACTION:
         return condition
     collected = collector.action
-    # One statement: ``return <check>;`` from a builder, or a lambda call with its ``;``
-    if len(collected.statements) != 1:
+    # ``return <check>;`` from a builder, or a lambda call with its ``;``
+    if (
+        len(collected.statements) != 1
+        or not collected.statements[0].startswith(("return ", "["))
+        or not collected.statements[0].endswith(";")
+    ):
         raise EsphomeError(
-            f"The condition {collector.name} must generate one statement, "
-            f"not {len(collected.statements)}"
+            f"The condition {collector.name} must generate one "
+            f"'return <expression>;' statement, not {collected.statements}"
         )
     expression = collected.statements[0].removeprefix("return ").removesuffix(";")
     return _InlineCondition(expression, collected.emit)

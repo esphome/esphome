@@ -2707,31 +2707,42 @@ async def test_condition_builder_must_return_collected_condition() -> None:
 
 @pytest.mark.asyncio
 @pytest.mark.usefixtures("apply_actions")
-async def test_condition_must_generate_one_statement() -> None:
-    """Only one statement can become an expression; the rest must not be lost."""
+@pytest.mark.parametrize(
+    "statements",
+    [
+        ["first();", "return second();"],
+        ["first(); return second();"],
+        ["ok = check();"],
+        ["return check()"],
+        [],
+    ],
+    ids=["two_entries", "two_in_one", "not_a_return", "no_semicolon", "empty"],
+)
+async def test_condition_must_generate_one_return_statement(
+    statements: list[str],
+) -> None:
+    """Anything else cannot become an expression, and could still compile as one."""
     conditions = Registry()
     with patch("esphome.automation.CONDITION_REGISTRY", conditions):
 
-        @register_condition("my.two", ApplyCondition, {})
-        async def two_to_code(
+        @register_condition("my.bad", ApplyCondition, {})
+        async def bad_to_code(
             config: ConfigType,
             condition_id: ID,
             template_arg: cg.TemplateArguments,
             args: list[tuple[object, str]],
         ) -> MockObj:
-            return apply_statements_action(
-                condition_id, template_arg, args, ["first();", "return second();"]
-            )
+            return apply_statements_action(condition_id, template_arg, args, statements)
 
         condition = {
-            "my.two": {},
+            "my.bad": {},
             CONF_TYPE_ID: ID(
                 "cond", is_declaration=True, type=ApplyCondition, is_manual=False
             ),
         }
 
         with pytest.raises(
-            EsphomeError, match=r"'my\.two' \(cond\) must generate one statement, not 2"
+            EsphomeError, match=r"'my\.bad' \(cond\) must generate one 'return"
         ):
             await build_action_list(
                 [_if_action(_action("my.a", "act_a"), condition=condition)],
@@ -2793,6 +2804,26 @@ async def test_inline_not_condition() -> None:
     assert "(!([]() -> bool {" in CORE.cpp_global_section
     assert "new(neg)" not in CORE.cpp_main_section
     assert "new(inner)" not in CORE.cpp_main_section
+
+
+@pytest.mark.asyncio
+@pytest.mark.usefixtures("apply_actions")
+async def test_not_condition_is_an_object_when_its_if_keeps_one() -> None:
+    """A deferring action in the branch makes the collected ``not`` and its child emit objects."""
+    negated = {
+        "not": _inline_condition("inner"),
+        CONF_TYPE_ID: ID(
+            "neg", is_declaration=True, type=NotCondition, is_manual=False
+        ),
+    }
+    config = [_if_action(_delay("act_d"), condition=negated)]
+
+    await build_action_list(config, TEMPLATE_ARG, [])
+
+    main = CORE.cpp_main_section
+    assert "new(inner) StatelessLambdaCondition<>(" in main
+    assert "new(neg) NotCondition<>(inner);" in main
+    assert "new(act_if) IfAction<false>(neg);" in main
 
 
 @pytest.mark.asyncio
