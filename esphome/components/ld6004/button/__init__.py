@@ -1,7 +1,5 @@
-from esphome.components import button
 from esphome.components.ld600x import entities
 import esphome.config_validation as cv
-from esphome.const import ENTITY_CATEGORY_CONFIG
 from esphome.types import ConfigType
 
 from .. import LD6004Component, ld6004_ns
@@ -17,9 +15,7 @@ CONFIG_SCHEMA = entities.button_schema(
     LD6004Component,
     CONF_LD6004_ID,
     extra={
-        cv.Optional(CONF_CLEAR_DWELL): button.button_schema(
-            button.ApplyButton, entity_category=ENTITY_CATEGORY_CONFIG
-        ),
+        cv.Optional(CONF_CLEAR_DWELL): entities.CONFIG_BUTTON_SCHEMA,
     },
 )
 FINAL_VALIDATE_SCHEMA = entities.button_final_validate(CONF_LD6004_ID, "ld6004")
