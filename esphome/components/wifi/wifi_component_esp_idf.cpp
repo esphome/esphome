@@ -671,6 +671,7 @@ static void disable_dhcp_sntp() {
 #ifdef USE_WIFI_LEASE_CACHE
 // Minimum lease time that must remain before a cached lease is applied.
 static constexpr uint32_t LEASE_APPLY_MARGIN_SECS = 60;
+static constexpr uint32_t IPV6_ROAM_SETTLE_MS = 5000;
 
 // Seconds since capture on the RTC-domain clock; UINT32_MAX if the clock was reset (age unknown).
 static uint32_t lease_cache_age_secs(const SavedWifiLeaseSettings &lease) {
@@ -1138,6 +1139,15 @@ void WiFiComponent::wifi_process_event_(IDFWiFiEvent *data) {
       bssid_t roam_bssid;
       std::copy(it.bssid, it.bssid + 6, roam_bssid.begin());
       this->handle_driver_roam_(roam_bssid, it.channel);
+#if USE_NETWORK_IPV6
+      // The count only rises (see GOT_IP6) so a roam can't read as a lost connection. Once SLAAC has
+      // settled, take the real count so addresses the new AP did not give back are not counted forever.
+      this->set_timeout(IPV6_RECOUNT_TIMEOUT_ID, IPV6_ROAM_SETTLE_MS, [this]() {
+        esp_ip6_addr_t addresses[CONFIG_LWIP_IPV6_NUM_ADDRESSES];
+        LwIPLock lock;
+        this->num_ipv6_addresses_ = static_cast<uint8_t>(esp_netif_get_all_ip6(s_sta_netif, addresses));
+      });
+#endif
     }
 #ifdef USE_WIFI_CONNECT_STATE_LISTENERS
     // Defer listener notification until state machine reaches STA_CONNECTED
