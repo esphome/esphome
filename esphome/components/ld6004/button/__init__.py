@@ -16,13 +16,14 @@ KEYS = tuple(key for key in entities.BUTTON_MAP if key != CONF_WAKE)
 LD6004ButtonType = ld6004_ns.enum("LD6004ButtonType")
 
 CONFIG_SCHEMA = entities.button_schema(
-    LD6004Component, CONF_LD6004_ID, keys=KEYS
-).extend(
-    {
+    LD6004Component,
+    CONF_LD6004_ID,
+    keys=KEYS,
+    extra={
         cv.Optional(CONF_CLEAR_DWELL): button.button_schema(
             button.ApplyButton, entity_category=ENTITY_CATEGORY_CONFIG
         ),
-    }
+    },
 )
 FINAL_VALIDATE_SCHEMA = entities.button_final_validate(CONF_LD6004_ID, "ld6004")
 
