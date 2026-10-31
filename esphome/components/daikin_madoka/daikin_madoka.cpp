@@ -242,8 +242,8 @@ void DaikinMadoka::process_incoming_chunk_(std::span<const uint8_t> chunk) {
     case ChunkResult::CHUNK_RESULT_INVALID_LENGTH:
       ESP_LOGW(TAG, "Chunk discarded: invalid length");
       break;
-    case ChunkResult::CHUNK_RESULT_OUT_OF_ORDER:
-      ESP_LOGW(TAG, "Chunk discarded: unexpected chunk id %u", chunk[0]);
+    case ChunkResult::CHUNK_RESULT_INVALID_ID:
+      ESP_LOGW(TAG, "Chunk discarded: invalid chunk id %u", chunk[0]);
       break;
     case ChunkResult::CHUNK_RESULT_TOO_LONG:
       ESP_LOGW(TAG, "Message discarded: too long");

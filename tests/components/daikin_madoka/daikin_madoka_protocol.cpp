@@ -69,21 +69,83 @@ TEST(DaikinMadokaAssembler, MultiChunkMessage) {
   EXPECT_EQ(std::vector<uint8_t>(out.begin(), out.end()), next);
 }
 
-TEST(DaikinMadokaAssembler, OutOfOrderChunkDropsMessage) {
+// A sensor information reply of 64 bytes, which takes four chunks.
+static std::vector<uint8_t> make_four_chunk_message() {
+  std::vector<uint8_t> args;
+  for (uint8_t id = 0x40; id < 0x40 + 20; id++) {
+    args.push_back(id);
+    args.push_back(1);
+    args.push_back(id ^ 0x5A);
+  }
+  return make_message(0x0110, args);
+}
+
+static std::vector<uint8_t> to_vector(std::span<const uint8_t> data) { return {data.begin(), data.end()}; }
+
+TEST(DaikinMadokaAssembler, SwappedChunksAssemble) {
+  MessageAssembler assembler;
+  auto msg = make_four_chunk_message();
+  auto chunks = make_chunks(msg);
+  ASSERT_EQ(chunks.size(), 4u);
+  EXPECT_EQ(assembler.feed(chunks[1]), ChunkResult::CHUNK_RESULT_PARTIAL);
+  EXPECT_EQ(assembler.feed(chunks[0]), ChunkResult::CHUNK_RESULT_PARTIAL);
+  EXPECT_EQ(assembler.feed(chunks[2]), ChunkResult::CHUNK_RESULT_PARTIAL);
+  EXPECT_EQ(assembler.feed(chunks[3]), ChunkResult::CHUNK_RESULT_COMPLETE);
+  EXPECT_EQ(to_vector(assembler.message()), msg);
+
+  // Chunk 0 last works as well
+  EXPECT_EQ(assembler.feed(chunks[3]), ChunkResult::CHUNK_RESULT_PARTIAL);
+  EXPECT_EQ(assembler.feed(chunks[2]), ChunkResult::CHUNK_RESULT_PARTIAL);
+  EXPECT_EQ(assembler.feed(chunks[1]), ChunkResult::CHUNK_RESULT_PARTIAL);
+  EXPECT_EQ(assembler.feed(chunks[0]), ChunkResult::CHUNK_RESULT_COMPLETE);
+  EXPECT_EQ(to_vector(assembler.message()), msg);
+}
+
+TEST(DaikinMadokaAssembler, DuplicateAndInvalidChunkIds) {
+  MessageAssembler assembler;
+  auto msg = make_four_chunk_message();
+  auto chunks = make_chunks(msg);
+  ASSERT_EQ(chunks.size(), 4u);
+  EXPECT_EQ(assembler.feed(chunks[0]), ChunkResult::CHUNK_RESULT_PARTIAL);
+  EXPECT_EQ(assembler.feed(chunks[0]), ChunkResult::CHUNK_RESULT_PARTIAL);
+  EXPECT_EQ(assembler.feed(chunks[2]), ChunkResult::CHUNK_RESULT_PARTIAL);
+  // Ids past the last chunk a 255 byte message can need are rejected without losing the others
+  const std::vector<uint8_t> past_end{MAX_CHUNKS, 0x01, 0x02};
+  EXPECT_EQ(assembler.feed(past_end), ChunkResult::CHUNK_RESULT_INVALID_ID);
+  const std::vector<uint8_t> garbage{0xFF, 0x01, 0x02};
+  EXPECT_EQ(assembler.feed(garbage), ChunkResult::CHUNK_RESULT_INVALID_ID);
+  EXPECT_EQ(assembler.feed(chunks[2]), ChunkResult::CHUNK_RESULT_PARTIAL);
+  EXPECT_EQ(assembler.feed(chunks[1]), ChunkResult::CHUNK_RESULT_PARTIAL);
+  EXPECT_EQ(assembler.feed(chunks[3]), ChunkResult::CHUNK_RESULT_COMPLETE);
+  EXPECT_EQ(to_vector(assembler.message()), msg);
+}
+
+TEST(DaikinMadokaAssembler, ShortChunkBeforeTheLast) {
+  // Chunk 0 carries only 5 bytes, so chunk 1 does not start at its slot's offset in the message
+  MessageAssembler assembler;
+  auto msg = make_message(0x0020, {0x20, 0x01, 0x01, 0x21, 0x01, 0x02, 0x22, 0x01, 0x03});
+  std::vector<uint8_t> first{0x00};
+  first.insert(first.end(), msg.begin(), msg.begin() + 5);
+  std::vector<uint8_t> second{0x01};
+  second.insert(second.end(), msg.begin() + 5, msg.end());
+  EXPECT_EQ(assembler.feed(second), ChunkResult::CHUNK_RESULT_PARTIAL);
+  EXPECT_EQ(assembler.feed(first), ChunkResult::CHUNK_RESULT_COMPLETE);
+  EXPECT_EQ(to_vector(assembler.message()), msg);
+}
+
+TEST(DaikinMadokaAssembler, NewMessageReplacesUnfinishedOne) {
   MessageAssembler assembler;
   auto chunks = make_chunks(make_wide_setpoint_message());
   ASSERT_GT(chunks.size(), 2u);
   EXPECT_EQ(assembler.feed(chunks[0]), ChunkResult::CHUNK_RESULT_PARTIAL);
-  EXPECT_EQ(assembler.feed(chunks[2]), ChunkResult::CHUNK_RESULT_OUT_OF_ORDER);
-  EXPECT_EQ(assembler.expected_chunk_id(), 0);
-  EXPECT_TRUE(assembler.message().empty());
-  // The rest of the dropped message is discarded too
-  EXPECT_EQ(assembler.feed(chunks[1]), ChunkResult::CHUNK_RESULT_OUT_OF_ORDER);
-
-  // A new chunk 0 in the middle of a message restarts reassembly
-  EXPECT_EQ(assembler.feed(chunks[0]), ChunkResult::CHUNK_RESULT_PARTIAL);
+  EXPECT_EQ(assembler.feed(chunks[1]), ChunkResult::CHUNK_RESULT_PARTIAL);
+  // A single chunk message takes over slot 0 and completes on its own
   auto msg = make_message(0x0020, {0x20, 0x01, 0x01});
   EXPECT_EQ(assembler.feed(make_chunks(msg)[0]), ChunkResult::CHUNK_RESULT_COMPLETE);
+  EXPECT_EQ(to_vector(assembler.message()), msg);
+  // The leftover chunks were dropped with it
+  EXPECT_EQ(assembler.feed(chunks[2]), ChunkResult::CHUNK_RESULT_PARTIAL);
+  EXPECT_TRUE(assembler.message().empty());
 }
 
 TEST(DaikinMadokaAssembler, RejectsShortAndOverlongChunks) {

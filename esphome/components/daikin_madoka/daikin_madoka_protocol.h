@@ -1,6 +1,7 @@
 #pragma once
 
 #include <algorithm>
+#include <array>
 #include <cstddef>
 #include <cstdint>
 #include <span>
@@ -13,6 +14,9 @@ namespace esphome::daikin_madoka {
 static constexpr uint8_t MAX_CHUNK_SIZE = 20;
 // A message's leading length byte is a uint8_t, so a full message is at most 255 bytes
 static constexpr uint16_t MAX_MESSAGE_SIZE = 255;
+// Each notification is a chunk id byte followed by up to 19 message bytes
+static constexpr uint8_t MAX_CHUNK_PAYLOAD = MAX_CHUNK_SIZE - 1;
+static constexpr uint8_t MAX_CHUNKS = (MAX_MESSAGE_SIZE + MAX_CHUNK_PAYLOAD - 1) / MAX_CHUNK_PAYLOAD;
 // Longest args payload is a two-point setpoint: {0x20,0x02,hi,lo,0x21,0x02,hi,lo}
 static constexpr uint8_t MAX_QUERY_ARGS = 8;
 // Length byte, reserved byte and two command bytes precede the args
@@ -29,55 +33,67 @@ enum class ChunkResult : uint8_t {
   CHUNK_RESULT_PARTIAL,
   CHUNK_RESULT_COMPLETE,
   CHUNK_RESULT_INVALID_LENGTH,
-  CHUNK_RESULT_OUT_OF_ORDER,
+  CHUNK_RESULT_INVALID_ID,
   CHUNK_RESULT_TOO_LONG,
 };
 
-/// Reassembles notifications (one chunk id byte followed by payload) into a message.
+/// Reassembles notifications (one chunk id byte followed by payload) into a message. Chunks may
+/// arrive in any order: each is kept in the slot of its id, and the message is complete once chunk 0
+/// is in and the chunks from 0 on add up to its length byte.
 /// After CHUNK_RESULT_COMPLETE, message() holds the message until reset() or the next feed().
 class MessageAssembler {
  public:
   ChunkResult feed(std::span<const uint8_t> chunk) {
     if (chunk.size() < 2)
       return ChunkResult::CHUNK_RESULT_INVALID_LENGTH;
-    if (this->is_complete_())
+    if (this->message_size_ != 0)
       this->reset();
     const uint8_t chunk_id = chunk[0];
     const auto payload = chunk.subspan(1);
-    if (chunk_id != this->expected_chunk_id_) {
-      this->reset();
-      // A chunk 0 starts a new message; any other id belongs to one we did not see begin
-      if (chunk_id != 0)
-        return ChunkResult::CHUNK_RESULT_OUT_OF_ORDER;
-    }
-    const size_t old_size = this->data_.size();
-    if (payload.size() > MAX_MESSAGE_SIZE - old_size) {
+    if (chunk_id >= MAX_CHUNKS)
+      return ChunkResult::CHUNK_RESULT_INVALID_ID;
+    if (payload.size() > MAX_CHUNK_PAYLOAD) {
       this->reset();
       return ChunkResult::CHUNK_RESULT_TOO_LONG;
     }
-    this->data_.resize(old_size + payload.size());
-    std::copy(payload.begin(), payload.end(), this->data_.begin() + old_size);
-    this->expected_chunk_id_++;
-    if (this->data_.size() > this->data_[0]) {
+    std::copy(payload.begin(), payload.end(), this->data_.begin() + chunk_id * MAX_CHUNK_PAYLOAD);
+    this->chunk_sizes_[chunk_id] = payload.size();
+    if (this->chunk_sizes_[0] == 0)
+      return ChunkResult::CHUNK_RESULT_PARTIAL;
+
+    const uint8_t length = this->data_[0];
+    size_t total = this->chunk_sizes_[0];
+    uint8_t count = 1;
+    while (total < length && count < MAX_CHUNKS && this->chunk_sizes_[count] != 0)
+      total += this->chunk_sizes_[count++];
+    if (total > length) {
       this->reset();
       return ChunkResult::CHUNK_RESULT_TOO_LONG;
     }
-    return this->is_complete_() ? ChunkResult::CHUNK_RESULT_COMPLETE : ChunkResult::CHUNK_RESULT_PARTIAL;
+    if (total < length)
+      return ChunkResult::CHUNK_RESULT_PARTIAL;
+    // Close the gaps left by short chunks; each one only moves towards the start
+    size_t pos = this->chunk_sizes_[0];
+    for (uint8_t i = 1; i < count; i++) {
+      std::copy_n(this->data_.begin() + i * MAX_CHUNK_PAYLOAD, this->chunk_sizes_[i], this->data_.begin() + pos);
+      pos += this->chunk_sizes_[i];
+    }
+    this->message_size_ = length;
+    return ChunkResult::CHUNK_RESULT_COMPLETE;
   }
 
-  std::span<const uint8_t> message() const { return this->data_; }
-  uint8_t expected_chunk_id() const { return this->expected_chunk_id_; }
+  std::span<const uint8_t> message() const { return {this->data_.data(), this->message_size_}; }
 
   void reset() {
-    this->data_.clear();
-    this->expected_chunk_id_ = 0;
+    this->chunk_sizes_.fill(0);
+    this->message_size_ = 0;
   }
 
  protected:
-  bool is_complete_() const { return !this->data_.empty() && this->data_.size() == this->data_[0]; }
-
-  StaticVector<uint8_t, MAX_MESSAGE_SIZE> data_;
-  uint8_t expected_chunk_id_{0};
+  std::array<uint8_t, MAX_CHUNKS * MAX_CHUNK_PAYLOAD> data_;
+  // Payload bytes held for each chunk id, 0 while that chunk is missing
+  std::array<uint8_t, MAX_CHUNKS> chunk_sizes_{};
+  uint8_t message_size_{0};
 };
 
 /// True when the length byte matches and the header (length, reserved, function id) is present.
