@@ -7,11 +7,11 @@
 
 namespace esphome::systa_bus {
 
-class SystaSolarAquaTextSensor : public SystaBusListener, public Component {
+class SystaSolarAquaTextSensor : public SystaBusListener {
   SUB_TEXT_SENSOR(error_code)
 
  public:
-  void dump_config() override;
+  void dump_child_config() override;
   void handle_message(std::span<const uint8_t> message) override;
 };
 
