@@ -41,11 +41,17 @@ bool LambdaFilter::new_value(std::string &value) {
   auto result = this->lambda_filter_(value);
   if (result.has_value()) {
     ESP_LOGVV(TAG, "LambdaFilter(%p)::new_value(%s) -> %s (continue)", this, value.c_str(), result->c_str());
-    value = std::move(*result);
-    return true;
+  } else {
+    ESP_LOGVV(TAG, "LambdaFilter(%p)::new_value(%s) -> (stop)", this, value.c_str());
   }
-  ESP_LOGVV(TAG, "LambdaFilter(%p)::new_value(%s) -> (stop)", this, value.c_str());
-  return false;
+  return apply_lambda_filter_result(value, std::move(result));
+}
+
+bool apply_lambda_filter_result(std::string &value, optional<std::string> &&result) {
+  if (!result.has_value())
+    return false;
+  value = std::move(*result);
+  return true;
 }
 
 // ToUpperFilter
