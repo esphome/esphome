@@ -17,6 +17,8 @@ static constexpr uint16_t MAX_MESSAGE_SIZE = 255;
 static constexpr uint8_t MAX_QUERY_ARGS = 8;
 // Length byte, reserved byte and two command bytes precede the args
 static constexpr uint8_t MESSAGE_HEADER_SIZE = 4;
+// A record length of 0xFF marks an argument with no value
+static constexpr uint8_t EMPTY_ARG_LENGTH = 0xFF;
 
 static constexpr float MIN_TEMP = 16.0f;
 static constexpr float MAX_TEMP = 32.0f;
@@ -85,12 +87,12 @@ inline bool is_valid_message(std::span<const uint8_t> msg) {
 
 inline uint16_t message_function_id(std::span<const uint8_t> msg) { return encode_uint16(msg[2], msg[3]); }
 
-/// Returns the value of argument `id`, or an empty span when it is absent or the records are truncated.
+/// Returns the value of argument `id`, or an empty span when it is absent, has no value or the records are truncated.
 inline std::span<const uint8_t> find_arg(std::span<const uint8_t> msg, uint8_t id) {
   size_t i = MESSAGE_HEADER_SIZE;
   while (i + 2 <= msg.size()) {
     const uint8_t arg_id = msg[i];
-    const uint8_t len = msg[i + 1];
+    const uint8_t len = msg[i + 1] == EMPTY_ARG_LENGTH ? 0 : msg[i + 1];
     i += 2;
     if (len > msg.size() - i)
       return {};

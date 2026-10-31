@@ -122,6 +122,20 @@ TEST(DaikinMadokaFindArg, TruncatedArgumentIsNotReturned) {
   EXPECT_TRUE(find_arg(dangling, 0x21).empty());
 }
 
+TEST(DaikinMadokaFindArg, SkipsEmptyRecords) {
+  // Argument 0x40 has no value (length 0xFF) and must not stop the search for 0x41
+  auto msg = make_message(0x0110, {0x40, 0xFF, 0x41, 0x01, 0x17});
+  auto value = find_arg(msg, 0x41);
+  ASSERT_EQ(value.size(), 1u);
+  EXPECT_EQ(value[0], 0x17);
+  EXPECT_TRUE(find_arg(msg, 0x40).empty());
+  // An empty record at the very end is fine too
+  auto trailing = make_message(0x0110, {0x41, 0x01, 0x17, 0x40, 0xFF});
+  EXPECT_EQ(find_arg(trailing, 0x41).size(), 1u);
+  EXPECT_TRUE(find_arg(trailing, 0x40).empty());
+  EXPECT_TRUE(find_arg(trailing, 0x42).empty());
+}
+
 TEST(DaikinMadokaFindArg, MessageValidation) {
   const std::vector<uint8_t> too_short{0x03, 0x00, 0x00};
   EXPECT_FALSE(is_valid_message(too_short));
