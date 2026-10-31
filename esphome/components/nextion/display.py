@@ -12,7 +12,7 @@ from esphome.const import (
 from esphome.core import CORE, TimePeriod
 from esphome.types import ConfigType, TemplateArgsType
 
-from . import FILTER_SOURCE_FILES, Nextion, nextion_ns, nextion_ref  # noqa: F401  pylint: disable=unused-import
+from . import Nextion, nextion_ref
 from .base_component import (
     CONF_AUTO_WAKE_ON_TOUCH,
     CONF_COMMAND_SPACING,
