@@ -42,18 +42,6 @@ class TimeoutFilter : public Filter {
   TemplatableFn<uint32_t> timeout_delay_{};
 };
 
-class DelayedOnOffFilter final : public Filter {
- public:
-  optional<bool> new_value(bool value) override;
-
-  template<typename T> void set_on_delay(T delay) { this->on_delay_ = delay; }
-  template<typename T> void set_off_delay(T delay) { this->off_delay_ = delay; }
-
- protected:
-  TemplatableFn<uint32_t> on_delay_{};
-  TemplatableFn<uint32_t> off_delay_{};
-};
-
 class DelayedOnFilter : public Filter {
  public:
   // User provided, not "= default": `new(p) DelayedOnFilter()` would zero-fill .bss that is already zero.
@@ -150,6 +138,10 @@ class StatelessLambdaFilter : public Filter {
  protected:
   optional<bool> (*f_)(bool);
 };
+
+/// Codegen use only: output `value` from `filter` after `delay` ms, replacing its pending output, and return empty
+/// to stop the chain for now.
+optional<bool> delay_output(Filter *filter, uint32_t delay, bool value);
 
 /// Codegen use only: the filter's work and constants are one generated function, so the object is only the base.
 /// The function gets the filter, so it can schedule output on it.
