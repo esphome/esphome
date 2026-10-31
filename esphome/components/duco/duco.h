@@ -41,6 +41,8 @@ class Duco : public uart::UARTDevice, public Component {
   void dump_config() override;
 
   void set_disable_crc(bool disable_crc) { this->disable_crc_ = disable_crc; }
+  void set_allow_dangerous_controls(bool allow) { this->allow_dangerous_controls_ = allow; }
+  bool allows_dangerous_controls() const { return this->allow_dangerous_controls_; }
 
 #ifdef DUCO_DEVICE_COUNT
   void register_device(DucoDevice *device) { this->pending_.push_back({device, 0, 0, false}); }
@@ -75,6 +77,7 @@ class Duco : public uart::UARTDevice, public Component {
   uint8_t last_id_{10};
   bool escaped_{false};  // the last 0xAA was followed by a stuffing byte, so it starts no header
   bool disable_crc_{false};
+  bool allow_dangerous_controls_{false};
 };
 
 /// Every entity polls the box; deriving from PollingComponent shares its vtable.

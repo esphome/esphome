@@ -12,6 +12,7 @@ MULTI_CONF = True
 
 CONF_DISABLE_CRC = "disable_crc"
 CONF_DUCO_ID = "duco_id"
+CONF_ALLOW_DANGEROUS_CONTROLS = "allow_dangerous_controls"
 
 duco_ns = cg.esphome_ns.namespace("duco")
 Duco = duco_ns.class_("Duco", cg.Component, uart.UARTDevice)
@@ -41,6 +42,7 @@ CONFIG_SCHEMA = (
         {
             cv.GenerateID(): cv.declare_id(Duco),
             cv.Optional(CONF_DISABLE_CRC, default=False): cv.boolean,
+            cv.Optional(CONF_ALLOW_DANGEROUS_CONTROLS, default=False): cv.boolean,
             cv.Optional(CONF_DISCOVERY): DISCOVERY_SCHEMA,
             cv.Optional(CONF_TIME): TIME_SCHEMA,
         }
@@ -75,6 +77,7 @@ async def register_duco_device(var: cg.MockObj, config: ConfigType, hub_id: ID) 
 async def to_code(config: ConfigType) -> None:
     var = await uart.new_uart_component(config)
     cg.add(var.set_disable_crc(config[CONF_DISABLE_CRC]))
+    cg.add(var.set_allow_dangerous_controls(config[CONF_ALLOW_DANGEROUS_CONTROLS]))
 
     if (discovery := config.get(CONF_DISCOVERY)) is not None:
         discovery_var = cg.new_Pvariable(discovery[CONF_ID])
