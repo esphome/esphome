@@ -5,9 +5,10 @@ from pathlib import Path
 import re
 
 import pytest
+import yaml
 
-from esphome.components.canbus import CANBUS_SEND_ACTION_SCHEMA
-import esphome.config_validation as cv
+from esphome.config import read_config
+from esphome.core import CORE
 
 
 def test_constant_payloads_share_progmem_tables(
@@ -38,12 +39,34 @@ def test_constant_payloads_share_progmem_tables(
 @pytest.mark.parametrize("size", [8, 9])
 @pytest.mark.parametrize("make", [lambda n: [0x01] * n, lambda n: "a" * n])
 def test_send_one_frame_limit(
-    size: int, make: Callable[[int], list[int] | str]
+    size: int,
+    make: Callable[[int], list[int] | str],
+    tmp_path: Path,
+    capsys: pytest.CaptureFixture[str],
 ) -> None:
-    """Payloads up to one 8 byte CAN frame are accepted, longer ones rejected."""
-    config = {"canbus_id": "can_bus", "fd": False, "data": make(size)}
-    if size <= 8:
-        assert len(CANBUS_SEND_ACTION_SCHEMA(config)["data"]) == size
-    else:
-        with pytest.raises(cv.Invalid, match="at most 8"):
-            CANBUS_SEND_ACTION_SCHEMA(config)
+    """Final validation limits classic CAN payloads to eight bytes."""
+    config = {
+        "esphome": {
+            "name": "test",
+            "on_boot": [{"then": [{"canbus.send": {"data": make(size)}}]}],
+        },
+        "esp32": {"board": "esp32dev"},
+        "canbus": [
+            {
+                "platform": "esp32_can",
+                "id": "can_bus",
+                "can_id": 4,
+                "rx_pin": 4,
+                "tx_pin": 5,
+            }
+        ],
+    }
+    path = tmp_path / "test.yaml"
+    path.write_text(yaml.safe_dump(config), encoding="utf-8")
+    CORE.config_path = path
+    result = read_config({})
+    output = capsys.readouterr().out
+    assert (result is not None) is (size <= 8), output
+    if size > 8:
+        assert "Classic CAN data must be at most 8 bytes" in output
+        assert "canbus.send" in output
