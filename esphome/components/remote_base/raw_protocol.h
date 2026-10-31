@@ -39,6 +39,18 @@ class RawTrigger final : public Trigger<RawTimings>, public RemoteReceiverListen
   }
 };
 
+/// Appends constant timings, marks positive and spaces negative; the table may be in flash
+inline void encode_raw_timings(RemoteTransmitData *dst, const int32_t *data, size_t len) {
+  for (size_t i = 0; i < len; i++) {
+    auto val = data[i];
+    if (val < 0) {
+      dst->space(static_cast<uint32_t>(-val));
+    } else {
+      dst->mark(static_cast<uint32_t>(val));
+    }
+  }
+}
+
 template<typename... Ts> class RawAction : public RemoteTransmitterActionBase<Ts...> {
  public:
   void set_code_template(RawTimings (*func)(Ts...)) {
@@ -53,14 +65,7 @@ template<typename... Ts> class RawAction : public RemoteTransmitterActionBase<Ts
 
   void encode(RemoteTransmitData *dst, Ts... x) override {
     if (this->len_ >= 0) {
-      for (size_t i = 0; i < static_cast<size_t>(this->len_); i++) {
-        auto val = this->code_.data[i];
-        if (val < 0) {
-          dst->space(static_cast<uint32_t>(-val));
-        } else {
-          dst->mark(static_cast<uint32_t>(val));
-        }
-      }
+      encode_raw_timings(dst, this->code_.data, this->len_);
     } else {
       dst->set_data(this->code_.func(x...));
     }
