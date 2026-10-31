@@ -31,17 +31,17 @@ class RuuviTag final : public Component, public ble_device_base::ESPBTDeviceList
     if (!res.has_value())
       return false;
 
-    sensor::publish_optional(this->humidity_sensor_, res->humidity);
-    sensor::publish_optional(this->temperature_sensor_, res->temperature);
-    sensor::publish_optional(this->pressure_sensor_, res->pressure);
-    sensor::publish_optional(this->acceleration_sensor_, res->acceleration);
-    sensor::publish_optional(this->acceleration_x_sensor_, res->acceleration_x);
-    sensor::publish_optional(this->acceleration_y_sensor_, res->acceleration_y);
-    sensor::publish_optional(this->acceleration_z_sensor_, res->acceleration_z);
-    sensor::publish_optional(this->battery_voltage_sensor_, res->battery_voltage);
-    sensor::publish_optional(this->tx_power_sensor_, res->tx_power);
-    sensor::publish_optional(this->movement_counter_sensor_, res->movement_counter);
-    sensor::publish_optional(this->measurement_sequence_number_sensor_, res->measurement_sequence_number);
+    publish_optional(this->humidity_sensor_, res->humidity);
+    publish_optional(this->temperature_sensor_, res->temperature);
+    publish_optional(this->pressure_sensor_, res->pressure);
+    publish_optional(this->acceleration_sensor_, res->acceleration);
+    publish_optional(this->acceleration_x_sensor_, res->acceleration_x);
+    publish_optional(this->acceleration_y_sensor_, res->acceleration_y);
+    publish_optional(this->acceleration_z_sensor_, res->acceleration_z);
+    publish_optional(this->battery_voltage_sensor_, res->battery_voltage);
+    publish_optional(this->tx_power_sensor_, res->tx_power);
+    publish_optional(this->movement_counter_sensor_, res->movement_counter);
+    publish_optional(this->measurement_sequence_number_sensor_, res->measurement_sequence_number);
     return true;
   }
 
