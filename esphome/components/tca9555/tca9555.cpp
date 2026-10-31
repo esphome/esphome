@@ -69,22 +69,12 @@ bool TCA9555Component::read_gpio_modes_() {
 bool TCA9555Component::digital_read_hw(uint8_t pin) {
   if (this->is_failed())
     return false;
+  const uint8_t bank = pin / 8;
   uint8_t data;
-  uint8_t bank_number = pin < 8 ? 0 : 1;
-  uint8_t register_to_read = bank_number ? TCA9555_INPUT_PORT_REGISTER_1 : TCA9555_INPUT_PORT_REGISTER_0;
-  if (!this->read_bytes(register_to_read, &data, 1)) {
-    this->status_set_warning(LOG_STR("Failed to read input register"));
+  if (!this->status_comm_result(this->read_bytes(TCA9555_INPUT_PORT_REGISTER_0 + bank, &data, 1),
+                                LOG_STR("Failed to read input register")))
     return false;
-  }
-  uint8_t second_half = this->input_mask_ >> 8;
-  uint8_t first_half = this->input_mask_;
-  if (bank_number) {
-    this->input_mask_ = (data << 8) | (uint16_t(first_half) << 0);
-  } else {
-    this->input_mask_ = (uint16_t(second_half) << 8) | (data << 0);
-  }
-
-  this->status_clear_warning();
+  this->input_[bank] = data;
   return true;
 }
 
@@ -104,8 +94,6 @@ bool TCA9555Component::write_gpio_modes_() {
   return this->status_comm_result(this->write_byte_16_le(TCA9555_CONFIGURATION_PORT_0, this->mode_mask_),
                                   LOG_STR("Failed to write mode register"));
 }
-
-bool TCA9555Component::digital_read_cache(uint8_t pin) { return this->input_mask_ & (1 << pin); }
 
 }  // namespace esphome::tca9555
 

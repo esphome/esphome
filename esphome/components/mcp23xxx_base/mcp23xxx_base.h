@@ -8,7 +8,7 @@ namespace esphome::mcp23xxx_base {
 
 enum MCP23XXXInterruptMode : uint8_t { MCP23XXX_NO_INTERRUPT = 0, MCP23XXX_CHANGE, MCP23XXX_RISING, MCP23XXX_FALLING };
 
-template<uint8_t N> class MCP23XXXBase : public gpio_expander::CachedGpioExpanderComponent<uint8_t, N> {
+template<uint8_t N> class MCP23XXXBase : public gpio_expander::BankedGpioExpanderComponent<uint8_t, N> {
  public:
   virtual void pin_mode(uint8_t pin, gpio::Flags flags);
   virtual void pin_interrupt_mode(uint8_t pin, MCP23XXXInterruptMode interrupt_mode);

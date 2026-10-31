@@ -8,7 +8,7 @@
 
 namespace esphome::pca6416a {
 
-class PCA6416AComponent final : public gpio_expander::CachedGpioExpanderComponent<uint8_t, 16>, public i2c::I2CDevice {
+class PCA6416AComponent final : public gpio_expander::BankedGpioExpanderComponent<uint8_t, 16>, public i2c::I2CDevice {
  public:
   PCA6416AComponent() = default;
 
@@ -22,7 +22,6 @@ class PCA6416AComponent final : public gpio_expander::CachedGpioExpanderComponen
  protected:
   // Virtual methods from CachedGpioExpander
   bool digital_read_hw(uint8_t pin) override;
-  bool digital_read_cache(uint8_t pin) override;
   void digital_write_hw(uint8_t pin, bool value) override;
 
   bool read_register_(uint8_t reg, uint8_t *value);
@@ -32,8 +31,6 @@ class PCA6416AComponent final : public gpio_expander::CachedGpioExpanderComponen
   /// The mask to write as output state - 1 means HIGH, 0 means LOW
   uint8_t output_0_{0x00};
   uint8_t output_1_{0x00};
-  /// Cache for input values (16-bit combined for both banks)
-  uint16_t input_mask_{0x00};
   /// Storage for last I2C error seen
   esphome::i2c::ErrorCode last_error_;
   /// Only the PCAL6416A has pull-up resistors

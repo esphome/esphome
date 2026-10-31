@@ -14,7 +14,7 @@ static constexpr uint8_t PIN_COUNT = 40;
 /// The pins are grouped into five ports of eight, each with its own set of registers.
 static constexpr uint8_t BANK_COUNT = PIN_COUNT / 8;
 
-class PCA9505Component final : public gpio_expander::CachedGpioExpanderComponent<uint8_t, PIN_COUNT>,
+class PCA9505Component final : public gpio_expander::BankedGpioExpanderComponent<uint8_t, PIN_COUNT>,
                                public i2c::I2CDevice {
  public:
   void setup() override;
@@ -24,7 +24,6 @@ class PCA9505Component final : public gpio_expander::CachedGpioExpanderComponent
 
  protected:
   bool digital_read_hw(uint8_t pin) override;
-  bool digital_read_cache(uint8_t pin) override;
   void digital_write_hw(uint8_t pin, bool value) override;
 
   bool read_bank_(uint8_t bank);
@@ -35,8 +34,6 @@ class PCA9505Component final : public gpio_expander::CachedGpioExpanderComponent
   uint8_t config_[BANK_COUNT]{};
   /// The output state per bank - 1 means HIGH, 0 means LOW
   uint8_t output_[BANK_COUNT]{};
-  /// The input pin states per bank - 1 means HIGH, 0 means LOW
-  uint8_t input_[BANK_COUNT]{};
   /// Which pins may pull INT low - 1 means masked, matching the chip
   uint8_t mask_[BANK_COUNT]{};
 };
