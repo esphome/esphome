@@ -6,47 +6,11 @@ namespace esphome::epaper_spi {
 
 ESPHOME_LOG_TAG(TAG, "epaper_spi.ssd1677_gray4");
 
-// Combine two source bytes (4 pixels each, 2 bits per pixel, most significant pixel first) into
-// one plane byte covering the same 8 pixels (1 bit per pixel), choosing high or low bit
-static uint8_t plane_byte(uint8_t first, uint8_t second, bool high_bit) {
-  uint8_t out = 0;
-  for (const uint8_t src : {first, second}) {
-    for (uint8_t shift = 6;; shift -= 2) {
-      const uint8_t level = (src >> shift) & 0x03;
-      out = (uint8_t) ((out << 1) | (high_bit ? (level >> 1) : (level & 1)));
-      if (shift == 0)
-        break;
-    }
-  }
-  return out;
-}
-
-void EPaperSSD1677Gray4::fill(Color color) {
-  if (this->get_clipping().is_set()) {
-    // Falls back to the generic per-pixel implementation for the clipped rectangle.
-    EPaperBase::fill(color);
-    return;
-  }
-  const uint8_t level = color_to_gray4(color);
-  this->buffer_.fill((uint8_t) (level | (level << 2) | (level << 4) | (level << 6)));
-  this->mark_all_drawn_();
-}
-
-void HOT EPaperSSD1677Gray4::draw_pixel_at(int x, int y, Color color) {
-  if (!this->rotate_coordinates_(x, y))
-    return;
-  const uint8_t level = color_to_gray4(color);
-  const size_t byte_position = (size_t) y * this->row_width_ + x / 4;
-  const uint8_t shift = (uint8_t) (6 - 2 * (x % 4));  // most significant pixel first
-  const uint8_t original = this->buffer_[byte_position];
-  this->buffer_[byte_position] = (uint8_t) ((original & ~(0x03 << shift)) | (level << shift));
-}
-
 // A partial update reduces each pixel to its high bit: levels 2 and 3 are light, 0 and 1 dark.
 void EPaperSSD1677Gray4::plane_row(size_t y, uint8_t *out) {
   const size_t src_row = y * this->row_width_;
   for (size_t i = 0; i != this->plane_row_length_(); i++)
-    out[i] = plane_byte(this->buffer_[src_row + 2 * i], this->buffer_[src_row + 2 * i + 1], true);
+    out[i] = gray4_plane_byte(this->buffer_[src_row + 2 * i], this->buffer_[src_row + 2 * i + 1], true);
 }
 
 // the high bit of every pixel's level goes to the new (bw) plane
@@ -81,7 +45,8 @@ bool HOT EPaperSSD1677Gray4::transfer_data() {
   while (this->current_data_index_ != this->y_high_) {
     const size_t src_row = this->current_data_index_ * this->row_width_ + this->x_low_ / 4;
     for (size_t i = 0; i != plane_row_length; i++)
-      bytes_to_send[i] = plane_byte(this->buffer_[src_row + 2 * i], this->buffer_[src_row + 2 * i + 1], first_pass);
+      bytes_to_send[i] =
+          gray4_plane_byte(this->buffer_[src_row + 2 * i], this->buffer_[src_row + 2 * i + 1], first_pass);
     // What the next partial update compares against: the high bits, as a black-and-white frame.
     if (first_pass)
       this->record_sent_(this->current_data_index_ * plane_row_length, bytes_to_send, plane_row_length);
