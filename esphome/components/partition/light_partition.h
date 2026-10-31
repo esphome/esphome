@@ -98,7 +98,7 @@ class PartitionLightOutput final : public light::AddressableLight {
       this->parent_->get_color_view_(index).set_effect_data(value);
     }
 
-#if defined(USE_LIGHT_PARTITION) && defined(USE_LIGHT_POWER_ESTIMATION)
+#ifdef USE_LIGHT_POWER_ESTIMATION
     const light::ESPColorCorrection *get_color_correction_internal(int32_t index) const override {  // NOLINT
       return this->parent_->get_color_correction_(this->parent_->get_color_view_(index));
     }
@@ -113,7 +113,7 @@ class PartitionLightOutput final : public light::AddressableLight {
   // Gets the color correction associated with the specified color view.
   // The correction will only be valid until the next call to this method.
   const light::ESPColorCorrection *get_color_correction_(const light::ESPColorView &color_view) const {
-#if defined(USE_LIGHT_PARTITION) && defined(USE_LIGHT_POWER_ESTIMATION)
+#ifdef USE_LIGHT_POWER_ESTIMATION
     // A partition has no power limit of its own so it adopts the power brightness of the underlying segment.
     // PartitionColorAccessor calls this method to access one LED, applies color correction if needed, then
     // discards the view.  This method won't be called again until the next access thus the power brightness
