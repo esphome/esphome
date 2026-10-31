@@ -122,8 +122,6 @@ class Ext1WakeTrigger : public Trigger<>, public Component {
 
 #endif  // USE_DEEP_SLEEP_ON_WAKE
 
-template<typename... Ts> class EnterDeepSleepAction;
-
 /** This component allows setting up the node to go into deep sleep mode to conserve battery.
  *
  * To set this component up, first set *when* the deep sleep should trigger using set_run_cycles
@@ -230,43 +228,5 @@ class DeepSleepComponent final : public Component {
 };
 
 extern bool global_has_deep_sleep;  // NOLINT(cppcoreguidelines-avoid-non-const-global-variables)
-
-template<typename... Ts> class EnterDeepSleepAction final : public Action<Ts...> {
- public:
-  EnterDeepSleepAction(DeepSleepComponent *deep_sleep) : deep_sleep_(deep_sleep) {}
-  TEMPLATABLE_VALUE(uint32_t, sleep_duration);
-
-#ifdef USE_TIME
-  void set_until(uint8_t hour, uint8_t minute, uint8_t second) {
-    this->hour_ = hour;
-    this->minute_ = minute;
-    this->second_ = second;
-  }
-
-  void set_time(time::RealTimeClock *time) { this->time_ = time; }
-#endif
-
-  void play(const Ts &...x) override {
-    if (this->sleep_duration_.has_value()) {
-      this->deep_sleep_->set_sleep_duration(this->sleep_duration_.value(x...));
-    }
-#ifdef USE_TIME
-    if (this->hour_.has_value()) {
-      this->deep_sleep_->set_sleep_until(this->time_, *this->hour_, *this->minute_, *this->second_);
-    }
-#endif
-    this->deep_sleep_->begin_sleep(true);
-  }
-
- protected:
-  DeepSleepComponent *deep_sleep_;
-#ifdef USE_TIME
-  optional<uint8_t> hour_;
-  optional<uint8_t> minute_;
-  optional<uint8_t> second_;
-
-  time::RealTimeClock *time_;
-#endif
-};
 
 }  // namespace esphome::deep_sleep
