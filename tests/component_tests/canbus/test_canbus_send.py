@@ -6,16 +6,146 @@ import re
 from typing import Any
 
 import pytest
+import yaml
 
 from esphome.components import canbus
 from esphome.components.esp32_can import canbus as esp32_can
 from esphome.components.mcp251xfd import canbus as mcp251xfd
 from esphome.components.mcp2515 import canbus as mcp2515
+from esphome.config import read_config
 import esphome.config_validation as cv
 from esphome.const import PlatformFramework
-from esphome.core import Lambda
+from esphome.core import CORE, Lambda
 
 from ..types import SetCoreConfigCallable
+
+
+@pytest.mark.parametrize(
+    ("bus", "defaults", "action", "error"),
+    [
+        ("classic_bus", {}, {"data": [0] * 9}, "at most 8"),
+        ("classic_bus", {}, {"data": "é" * 5}, "at most 8"),
+        ("classic_bus", {}, {"data": [0], "bit_rate_switch": True}, "bit_rate_switch"),
+        ("fd_bus", {}, {"data": [0] * 12}, None),
+        ("fd_bus", {}, {"data": [0] * 64}, None),
+        ("fd_bus", {}, {"data": [0] * 9}, "pad_data"),
+        ("fd_bus", {}, {"data": [0] * 63}, "pad_data"),
+        ("fd_bus", {"default_pad_data": True}, {"data": [0] * 9}, None),
+        (
+            "fd_bus",
+            {"default_pad_data": True},
+            {"data": [0] * 9, "pad_data": False},
+            "pad_data",
+        ),
+        ("fd_bus", {}, {"data": [0] * 9, "pad_data": True}, None),
+        (
+            "fd_bus",
+            {},
+            {"data": [], "remote_transmission_request": True},
+            "remote_transmission_request",
+        ),
+        (
+            "fd_bus",
+            {},
+            {"data": [], "remote_transmission_request": True, "fd": False},
+            None,
+        ),
+        ("fd_bus", {"default_fd": False}, {"data": [0] * 9}, "at most 8"),
+        (
+            "fd_bus",
+            {"default_fd": False},
+            {"data": [0], "bit_rate_switch": True},
+            "bit_rate_switch",
+        ),
+        ("fd_bus", {"default_fd": False}, {"data": [0] * 12, "fd": True}, None),
+        ("fd_bus", {}, {"data": [0] * 9, "fd": False}, "at most 8"),
+        ("fd_bus", {}, {"data": [0] * 65}, "at most 64"),
+        ("classic_bus", {}, {"data": [0] * 9, "fd": "LAMBDA_TRUE"}, None),
+        ("fd_bus", {}, {"data": [0] * 9, "pad_data": "LAMBDA_TRUE"}, None),
+        (
+            "fd_bus",
+            {},
+            {"data": [], "remote_transmission_request": True, "fd": "LAMBDA_TRUE"},
+            None,
+        ),
+        ("classic_bus", {}, {"data": "LAMBDA_DATA"}, None),
+        ("classic_bus", {}, {"data": [0], "bit_rate_switch": "LAMBDA_TRUE"}, None),
+        *[
+            (
+                "fd_bus",
+                {"default_pad_data": pad},
+                {"data": [0] * size},
+                (
+                    "at most 64"
+                    if size > 64
+                    else "pad_data"
+                    if not pad and size not in (*range(9), 12, 16, 20, 24, 32, 48, 64)
+                    else None
+                ),
+            )
+            for pad in (False, True)
+            for size in range(66)
+        ],
+    ],
+)
+def test_send_final_validation(
+    tmp_path: Path,
+    capsys: pytest.CaptureFixture[str],
+    bus: str,
+    defaults: dict[str, bool],
+    action: dict[str, Any],
+    error: str | None,
+) -> None:
+    """Validate nested actions against the selected bus and its inherited defaults."""
+    spi_package = Path(
+        "tests/test_build_components/common/spi/esp32-idf.yaml"
+    ).resolve()
+    config = {
+        "esphome": {
+            "name": "test",
+            "on_boot": [
+                {
+                    "then": [
+                        {
+                            "if": {
+                                "condition": {"lambda": "LAMBDA_TRUE"},
+                                "then": [{"canbus.send": {"canbus_id": bus, **action}}],
+                            }
+                        }
+                    ]
+                }
+            ],
+        },
+        "esp32": {"board": "esp32dev"},
+        "canbus": [
+            {
+                "platform": "esp32_can",
+                "id": "classic_bus",
+                "can_id": 1,
+                "rx_pin": 4,
+                "tx_pin": 5,
+            },
+            {
+                "platform": "mcp251xfd",
+                "id": "fd_bus",
+                "can_id": 2,
+                "cs_pin": 21,
+                **defaults,
+            },
+        ],
+    }
+    yaml_text = yaml.safe_dump(config).replace("LAMBDA_TRUE", "!lambda return true;")
+    yaml_text = yaml_text.replace("LAMBDA_DATA", "!lambda return {1, 2, 3};")
+    yaml_text += f"\npackages:\n  spi: !include {spi_package}\n"
+    path = tmp_path / "test.yaml"
+    path.write_text(yaml_text, encoding="utf-8")
+    CORE.config_path = path
+    result = read_config({})
+    output = capsys.readouterr().out
+    assert (result is None) is (error is not None), output
+    if error is not None:
+        assert error in output
+        assert "canbus.send" in output
 
 
 @pytest.mark.parametrize("size", [0, 8, 9, 12, 16, 20, 24, 32, 48, 64])
