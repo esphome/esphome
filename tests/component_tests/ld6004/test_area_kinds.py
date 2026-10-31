@@ -3,39 +3,26 @@
 from collections.abc import Callable
 from pathlib import Path
 
+import pytest
+
 from esphome.core import CORE
 
-BASE = """
-esphome:
-  name: test
 
-esp32:
-  board: esp32dev
-  framework:
-    type: esp-idf
-
-uart:
-  tx_pin: GPIO17
-  rx_pin: GPIO16
-  baud_rate: 115200
-
-ld6004:
-  id: radar
-
-binary_sensor:
-  - platform: ld6004
-    target:
-      name: Presence
-"""
-
-
+@pytest.mark.parametrize(
+    ("config_file", "area_kinds"),
+    [
+        ("binary_sensor_only.yaml", "2"),
+        ("detection_area_sensor.yaml", "2"),
+        ("dwell_area_sensor.yaml", "3"),
+    ],
+)
 def test_area_kinds(
     generate_main: Callable[[str | Path], str],
-    tmp_path: Path,
+    component_config_path: Callable[[str], Path],
+    config_file: str,
+    area_kinds: str,
 ) -> None:
-    path = tmp_path / "test.yaml"
-    path.write_text(BASE)
-    generate_main(path)
+    generate_main(component_config_path(config_file))
     defines = {define.name: str(define.value) for define in CORE.defines}
-    assert defines["LD600X_AREA_KINDS"] == "2"
+    assert defines["LD600X_AREA_KINDS"] == area_kinds
     assert defines["LD600X_MAX_TARGETS"] == "3"
