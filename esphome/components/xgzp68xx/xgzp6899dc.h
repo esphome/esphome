@@ -12,7 +12,7 @@ namespace esphome::xgzp68xx {
 class XGZP6899DCComponent final : public PollingComponent, public i2c::I2CDevice {
  public:
   /// @param pressure_span Rated range of the part in Pa (PMAX - PMIN), for example 1000 for a +/-500 Pa part.
-  explicit XGZP6899DCComponent(float pressure_span) : pressure_span_(pressure_span) {}
+  explicit XGZP6899DCComponent(float pressure_span);
 
   SUB_SENSOR(temperature)
   SUB_SENSOR(pressure)
@@ -28,12 +28,11 @@ class XGZP6899DCComponent final : public PollingComponent, public i2c::I2CDevice
  protected:
   void read_data_();
 
-  float pressure_span_;
-  float temperature_offset_{0.0f};
-  uint8_t temperature_shift_{0};
-  uint8_t chip_id_{0};
-  uint8_t cal_offset_{0};
-  uint8_t cal_shift_{0};
+  // Pa per raw count
+  float pressure_scale_;
+  // Temperature = raw * temperature_scale_ + temperature_bias_, from the calibration registers
+  float temperature_scale_{0.0f};
+  float temperature_bias_{0.0f};
   uint8_t pressure_oversampling_{UINT8_MAX};
 };
 

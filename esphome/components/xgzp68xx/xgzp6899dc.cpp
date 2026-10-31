@@ -4,7 +4,6 @@
 
 #include <cinttypes>
 #include <cstddef>
-#include <cmath>
 
 namespace esphome::xgzp68xx {
 
@@ -28,35 +27,39 @@ static constexpr uint32_t MEASUREMENT_TIME_MS = 20;
 static constexpr float PRESSURE_FULL_SCALE = 2097152.0f;
 static constexpr float TEMPERATURE_REFERENCE = 25.0f;
 
+// 2^exponent built from its bits, without pulling in libm; valid for exponents -126 to 127
+static float power_of_two(int exponent) { return bit_cast<float>(static_cast<uint32_t>(127 + exponent) << 23); }
+
+XGZP6899DCComponent::XGZP6899DCComponent(float pressure_span) : pressure_scale_(pressure_span / PRESSURE_FULL_SCALE) {}
+
 void XGZP6899DCComponent::setup() {
-  if (!this->read_byte(ID_REGISTER, &this->chip_id_) || !this->read_byte(CAL_OFFSET_REGISTER, &this->cal_offset_) ||
-      !this->read_byte(CAL_SHIFT_REGISTER, &this->cal_shift_)) {
+  uint8_t chip_id;
+  uint8_t cal_offset;
+  uint8_t cal_shift;
+  if (!this->read_byte(ID_REGISTER, &chip_id) || !this->read_byte(CAL_OFFSET_REGISTER, &cal_offset) ||
+      !this->read_byte(CAL_SHIFT_REGISTER, &cal_shift)) {
     this->mark_failed(LOG_STR(ESP_LOG_MSG_COMM_FAIL));
     return;
   }
   // The ID register holds the I2C address of the part, so a mismatch most likely means a different sensor
-  if (this->chip_id_ != this->get_i2c_address()) {
-    ESP_LOGW(TAG, "ID register reads 0x%02X, expected 0x%02X; check the configured variant", this->chip_id_,
+  if (chip_id != this->get_i2c_address()) {
+    ESP_LOGW(TAG, "ID register reads 0x%02X, expected 0x%02X; check the configured variant", chip_id,
              this->get_i2c_address());
   }
 
-  // Bits 6:0 are a power-of-two exponent and bit 7 is the sign, e.g. 0x8D = -8192
-  this->temperature_offset_ = std::ldexp((this->cal_offset_ & 0x80) ? -1.0f : 1.0f, this->cal_offset_ & 0x7F);
-  this->temperature_shift_ = this->cal_shift_ / 10;
+  // Temperature = (raw - offset) / 2^shift + 25. Offset bits 6:0 are a power-of-two exponent and bit 7 is the
+  // sign, e.g. 0x8D = -8192; the shift is a tenth of its register
+  const float offset = power_of_two(cal_offset & 0x7F) * ((cal_offset & 0x80) ? -1.0f : 1.0f);
+  this->temperature_scale_ = power_of_two(-(cal_shift / 10));
+  this->temperature_bias_ = TEMPERATURE_REFERENCE - offset * this->temperature_scale_;
+  ESP_LOGD(TAG, "Cal_coff 0x%02X 0x%02X (offset %.0f, shift %u)", cal_offset, cal_shift, offset, cal_shift / 10);
 
   if (this->pressure_oversampling_ != UINT8_MAX) {
-    uint8_t config;
-    if (!this->read_byte(CFG_OSR_REGISTER, &config)) {
+    if (!this->update_register(CFG_OSR_REGISTER, CFG_OSR_P_MASK | CFG_OSR_MODE_MASK,
+                               (this->pressure_oversampling_ << 2) | CFG_OSR_MODE_NORMAL)) {
       this->mark_failed(LOG_STR(ESP_LOG_MSG_COMM_FAIL));
       return;
     }
-    uint8_t new_config = (config & ~(CFG_OSR_P_MASK | CFG_OSR_MODE_MASK)) |
-                         ((this->pressure_oversampling_ << 2) & CFG_OSR_P_MASK) | CFG_OSR_MODE_NORMAL;
-    if (!this->write_byte(CFG_OSR_REGISTER, new_config)) {
-      this->mark_failed(LOG_STR(ESP_LOG_MSG_COMM_FAIL));
-      return;
-    }
-    ESP_LOGD(TAG, "CFG_OSR 0x%02X -> 0x%02X", config, new_config);
   }
 }
 
@@ -77,26 +80,15 @@ void XGZP6899DCComponent::read_data_() {
   const int16_t temperature_raw = static_cast<int16_t>(encode_uint16(data[3], data[4]));
   ESP_LOGV(TAG, "Got raw pressure=%" PRIu32 ", raw temperature=%d", pressure_raw, temperature_raw);
 
-  if (this->pressure_sensor_ != nullptr) {
-    const float pressure =
-        static_cast<float>(sign_extend<24>(pressure_raw)) / PRESSURE_FULL_SCALE * this->pressure_span_;
-    this->pressure_sensor_->publish_state(pressure);
-  }
-  if (this->temperature_sensor_ != nullptr) {
-    const float temperature =
-        std::ldexp(temperature_raw - this->temperature_offset_, -this->temperature_shift_) + TEMPERATURE_REFERENCE;
-    this->temperature_sensor_->publish_state(temperature);
-  }
+  PUBLISH_STATE(this->pressure_sensor_, static_cast<float>(sign_extend<24>(pressure_raw)) * this->pressure_scale_);
+  PUBLISH_STATE(this->temperature_sensor_, temperature_raw * this->temperature_scale_ + this->temperature_bias_);
 }
 
 void XGZP6899DCComponent::dump_config() {
   ESP_LOGCONFIG(TAG,
                 "XGZP6899DC:\n"
-                "  Chip ID: 0x%02X\n"
-                "  Pressure span: %.0f Pa\n"
-                "  Cal_coff: 0x%02X 0x%02X (offset %.0f, shift %u)",
-                this->chip_id_, this->pressure_span_, this->cal_offset_, this->cal_shift_, this->temperature_offset_,
-                this->temperature_shift_);
+                "  Pressure span: %.0f Pa",
+                this->pressure_scale_ * PRESSURE_FULL_SCALE);
   LOG_SENSOR("  ", "Temperature: ", this->temperature_sensor_);
   LOG_SENSOR("  ", "Pressure: ", this->pressure_sensor_);
   if (this->pressure_sensor_ != nullptr) {

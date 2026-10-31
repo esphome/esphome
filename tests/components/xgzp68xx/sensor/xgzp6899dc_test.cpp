@@ -69,7 +69,7 @@ TEST(XGZP6899DCTest, WrongIdOnlyWarns) {
 
 TEST(XGZP6899DCTest, SilentBusAtSetupFails) {
   Fixture f;
-  f.bus.silent = true;
+  f.bus.failing.fill(true);
   f.chip.setup();
   EXPECT_TRUE(f.chip.is_failed());
 }
@@ -89,22 +89,9 @@ TEST(XGZP6899DCTest, FailedOversamplingReadFails) {
   EXPECT_TRUE(f.chip.is_failed());
 }
 
-class WriteFailingBus final : public i2c::I2CBus {
- public:
-  i2c::ErrorCode write_readv(uint8_t address, const uint8_t *data, size_t size, uint8_t *out,
-                             size_t out_size) override {
-    if (size == 2)
-      return i2c::ERROR_NOT_ACKNOWLEDGED;
-    for (size_t i = 0; i < out_size; i++)
-      out[i] = data[0] == 0x00 ? ADDRESS : 0;
-    return i2c::ERROR_OK;
-  }
-};
-
 TEST(XGZP6899DCTest, FailedOversamplingWriteFails) {
   Fixture f;
-  WriteFailingBus bus;
-  f.chip.set_i2c_bus(&bus);
+  f.bus.fail_writes = true;
   f.chip.set_pressure_oversampling(5);
   f.chip.setup();
   EXPECT_TRUE(f.chip.is_failed());
@@ -113,11 +100,11 @@ TEST(XGZP6899DCTest, FailedOversamplingWriteFails) {
 TEST(XGZP6899DCTest, FailedStartSetsWarningAndRecovers) {
   Fixture f;
   f.chip.setup();
-  f.bus.silent = true;
+  f.bus.failing.fill(true);
   f.chip.update();
   EXPECT_TRUE(f.chip.status_has_warning());
 
-  f.bus.silent = false;
+  f.bus.failing.fill(false);
   f.bus.set_data(0, 4096);
   f.measure();
   EXPECT_FALSE(f.chip.status_has_warning());
