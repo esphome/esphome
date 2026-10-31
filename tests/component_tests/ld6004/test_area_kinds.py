@@ -3,8 +3,6 @@
 from collections.abc import Callable
 from pathlib import Path
 
-import pytest
-
 from esphome.core import CORE
 
 BASE = """
@@ -31,21 +29,13 @@ binary_sensor:
 """
 
 
-@pytest.mark.parametrize(
-    ("extra", "area_kinds"),
-    [
-        ("", "2"),
-    ],
-)
 def test_area_kinds(
     generate_main: Callable[[str | Path], str],
     tmp_path: Path,
-    extra: str,
-    area_kinds: str,
 ) -> None:
     path = tmp_path / "test.yaml"
-    path.write_text(BASE + extra)
+    path.write_text(BASE)
     generate_main(path)
     defines = {define.name: str(define.value) for define in CORE.defines}
-    assert defines["LD600X_AREA_KINDS"] == area_kinds
+    assert defines["LD600X_AREA_KINDS"] == "2"
     assert defines["LD600X_MAX_TARGETS"] == "3"
