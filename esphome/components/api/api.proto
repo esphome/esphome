@@ -408,9 +408,9 @@ message SendspinCapabilities {
   string client_id = 2 [(max_data_length) = 43];
 }
 
-// The network interface the device is currently reachable through, in priority order when
-// several are connected (see network::get_network_type()). Modem/cellular interfaces are
-// intentionally out of scope for this first step and report NETWORK_TYPE_UNKNOWN, same as a
+// The device's primary network interface, using the same priority order as its default route
+// (see network::get_network_type()) when more than one is connected. Modem/cellular interfaces
+// are intentionally out of scope for this first step and report NETWORK_TYPE_UNKNOWN, same as a
 // disconnected or not-compiled-in interface.
 enum NetworkType {
   NETWORK_TYPE_UNKNOWN = 0;
@@ -430,7 +430,9 @@ message DeviceCapabilitiesResponse {
       [(field_ifdef) = "USE_SERIAL_PROXY", (fixed_array_size_define) = "SERIAL_PROXY_COUNT"];
   WizardCapabilities wizard = 5 [(field_ifdef) = "USE_API_WIZARD"];
   SendspinCapabilities sendspin = 6 [(field_ifdef) = "USE_SENDSPIN"];
-  // The kind of network interface the device is currently reachable through.
+  // The device's primary connected interface when this response was sent, using the same
+  // priority as the default route. Not necessarily the interface carrying this API connection.
+  // UNKNOWN when no station-mode interface is connected, including AP-only.
   NetworkType network_type = 7;
 }
 

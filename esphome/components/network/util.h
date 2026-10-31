@@ -68,11 +68,13 @@ ESPHOME_ALWAYS_INLINE inline bool is_connected() {
 /// The network interface currently providing connectivity, in priority order when more than one
 /// is connected. Modem has no value yet (no matching API wire value); a device reachable only
 /// over modem reports NETWORK_TYPE_NONE, same as no interface being connected at all.
+/// Numbered to match api::enums::NetworkType so api_connection.cpp can cast instead of switching;
+/// keep the two in sync.
 enum class NetworkType : uint8_t {
-  NETWORK_TYPE_NONE,
-  NETWORK_TYPE_ETHERNET,
-  NETWORK_TYPE_WIFI,
-  NETWORK_TYPE_THREAD,
+  NETWORK_TYPE_NONE = 0,
+  NETWORK_TYPE_WIFI = 1,
+  NETWORK_TYPE_ETHERNET = 2,
+  NETWORK_TYPE_THREAD = 3,
 };
 
 /// Return which interface the device is currently reachable through. Uses the same
