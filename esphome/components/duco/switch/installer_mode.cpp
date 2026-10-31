@@ -4,7 +4,7 @@
 
 namespace esphome::duco {
 
-static const char *const TAG = "duco.installer_mode";
+ESPHOME_LOG_TAG(TAG, "duco.installer_mode");
 
 void DucoInstallerMode::write_state(bool state) {
   if (!this->parent_->allows_dangerous_controls()) {

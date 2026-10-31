@@ -4,7 +4,7 @@
 
 namespace esphome::duco {
 
-static const char *const TAG = "duco.reboot";
+ESPHOME_LOG_TAG(TAG, "duco.reboot");
 
 void DucoReboot::press_action() {
   if (!this->parent_->allows_dangerous_controls()) {
