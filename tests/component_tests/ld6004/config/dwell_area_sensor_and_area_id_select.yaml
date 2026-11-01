@@ -1,0 +1,13 @@
+packages:
+  base: !include base.yaml
+
+sensor:
+  - platform: ld6004
+    dwell_area_1:
+      x_min:
+        name: Dwell X Min
+
+select:
+  - platform: ld6004
+    area_id:
+      name: Area ID
