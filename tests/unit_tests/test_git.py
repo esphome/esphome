@@ -10,6 +10,7 @@ import threading
 import time
 from typing import Any
 from unittest.mock import Mock, patch
+import urllib.parse
 
 from filelock import FileLock
 import pytest
@@ -2097,6 +2098,48 @@ def test_recovery_reclone_keeps_credentials_and_cache_key(
     assert clone_url.count("@") == 1
 
 
+def test_clone_credentials_with_slash_are_escaped(
+    tmp_path: Path, mock_run_git_command: Mock
+) -> None:
+    """A "/" in the username or password must be percent-encoded, or the
+    userinfo ends at the "/" and git reports the password in its error."""
+    CORE.config_path = tmp_path / "test.yaml"
+
+    url = "https://github.com/test/repo"
+    domain = "test"
+    repo_dir = _compute_repo_dir(url, None, domain)
+
+    def git_command_side_effect(
+        cmd: list[str], cwd: str | None = None, **kwargs: Any
+    ) -> str:
+        if _get_git_command_type(cmd) == "clone":
+            _simulate_cloned_repo(repo_dir)
+        return ""
+
+    mock_run_git_command.side_effect = git_command_side_effect
+
+    git.clone_or_update(
+        url=url,
+        ref=None,
+        refresh=TimePeriodSeconds(days=1),
+        domain=domain,
+        username="team/user",
+        password="ab/cd@ef",
+    )
+
+    clone_cmds = [
+        c[0][0]
+        for c in mock_run_git_command.call_args_list
+        if _get_git_command_type(c[0][0]) == "clone"
+    ]
+    assert clone_cmds
+    clone_url = clone_cmds[0][-2]
+    assert clone_url == "https://team%2Fuser:ab%2Fcd%40ef@github.com/test/repo"
+    assert urllib.parse.urlsplit(clone_url).hostname == "github.com"
+    redacted = git._redact_url_credentials(f"fatal: unable to access '{clone_url}/'")
+    assert redacted == "fatal: unable to access 'https://***@github.com/test/repo/'"
+
+
 def test_refresh_submodule_failure_recovers_then_raises(
     tmp_path: Path, mock_run_git_command: Mock
 ) -> None:
@@ -3287,6 +3330,26 @@ def test_git_file_from_shorthand_without_ref_or_query() -> None:
     gf = git.GitFile.from_shorthand("codeberg://owner/repo/file.yaml")
 
     assert gf == git.GitFile("codeberg.org", "owner", "repo", "file.yaml")
+
+
+def test_git_file_from_shorthand_keeps_whole_ref() -> None:
+    gf = git.GitFile.from_shorthand("github://owner/repo/file.yaml@feat+x?full_config")
+
+    assert gf.ref == "feat+x"
+    assert gf.query == "full_config"
+
+
+@pytest.mark.parametrize(
+    "shorthand",
+    [
+        "github://owner/repo/file.yaml@main hi",
+        "github://owner/repo/my file.yaml",
+        "github://owner/repo/file.yaml?full config",
+    ],
+)
+def test_git_file_from_shorthand_rejects_trailing_text(shorthand: str) -> None:
+    with pytest.raises(ValueError, match="not in expected"):
+        git.GitFile.from_shorthand(shorthand)
 
 
 def test_git_file_from_shorthand_requires_string() -> None:

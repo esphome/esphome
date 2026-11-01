@@ -1,4 +1,5 @@
 #include "qmp6988.h"
+#include "esphome/core/progmem.h"
 
 #include <cinttypes>
 #include <cmath>
@@ -45,46 +46,18 @@ static const uint32_t SUBTRACTOR = 8388608;
 
 ESPHOME_LOG_TAG(TAG, "qmp6988");
 
-static const char *oversampling_to_str(QMP6988Oversampling oversampling) {
-  switch (oversampling) {
-    case QMP6988_OVERSAMPLING_SKIPPED:
-      return "None";
-    case QMP6988_OVERSAMPLING_1X:
-      return "1x";
-    case QMP6988_OVERSAMPLING_2X:
-      return "2x";
-    case QMP6988_OVERSAMPLING_4X:
-      return "4x";
-    case QMP6988_OVERSAMPLING_8X:
-      return "8x";
-    case QMP6988_OVERSAMPLING_16X:
-      return "16x";
-    case QMP6988_OVERSAMPLING_32X:
-      return "32x";
-    case QMP6988_OVERSAMPLING_64X:
-      return "64x";
-    default:
-      return "UNKNOWN";
-  }
+// Indexed by QMP6988Oversampling
+PROGMEM_STRING_TABLE(OversamplingStrings, "None", "1x", "2x", "4x", "8x", "16x", "32x", "64x", "UNKNOWN");
+
+[[maybe_unused]] static const LogString *oversampling_to_str(QMP6988Oversampling value) {
+  return OversamplingStrings::get_log_str(static_cast<uint8_t>(value), OversamplingStrings::LAST_INDEX);
 }
 
-static const char *iir_filter_to_str(QMP6988IIRFilter filter) {
-  switch (filter) {
-    case QMP6988_IIR_FILTER_OFF:
-      return "OFF";
-    case QMP6988_IIR_FILTER_2X:
-      return "2x";
-    case QMP6988_IIR_FILTER_4X:
-      return "4x";
-    case QMP6988_IIR_FILTER_8X:
-      return "8x";
-    case QMP6988_IIR_FILTER_16X:
-      return "16x";
-    case QMP6988_IIR_FILTER_32X:
-      return "32x";
-    default:
-      return "UNKNOWN";
-  }
+// Indexed by QMP6988IIRFilter
+PROGMEM_STRING_TABLE(IIRFilterStrings, "OFF", "2x", "4x", "8x", "16x", "32x", "UNKNOWN");
+
+[[maybe_unused]] static const LogString *iir_filter_to_str(QMP6988IIRFilter value) {
+  return IIRFilterStrings::get_log_str(static_cast<uint8_t>(value), IIRFilterStrings::LAST_INDEX);
 }
 
 bool QMP6988Component::device_check_() {
@@ -327,12 +300,14 @@ void QMP6988Component::dump_config() {
   LOG_UPDATE_INTERVAL(this);
 
   LOG_SENSOR("  ", "Temperature", this->temperature_sensor_);
-  ESP_LOGCONFIG(TAG, "    Temperature Oversampling: %s", oversampling_to_str(this->temperature_oversampling_));
+  ESP_LOGCONFIG(TAG, "    Temperature Oversampling: %s",
+                LOG_STR_ARG(oversampling_to_str(this->temperature_oversampling_)));
   LOG_SENSOR("  ", "Pressure", this->pressure_sensor_);
   ESP_LOGCONFIG(TAG,
                 "    Pressure Oversampling: %s\n"
                 "  IIR Filter: %s",
-                oversampling_to_str(this->pressure_oversampling_), iir_filter_to_str(this->iir_filter_));
+                LOG_STR_ARG(oversampling_to_str(this->pressure_oversampling_)),
+                LOG_STR_ARG(iir_filter_to_str(this->iir_filter_)));
 }
 
 void QMP6988Component::update() {
@@ -344,10 +319,8 @@ void QMP6988Component::update() {
   float temperature = this->qmp6988_data_.temperature;
 
   ESP_LOGD(TAG, "Temperature=%.2f°C, Pressure=%.2fhPa", temperature, pressurehectopascals);
-  if (this->temperature_sensor_ != nullptr)
-    this->temperature_sensor_->publish_state(temperature);
-  if (this->pressure_sensor_ != nullptr)
-    this->pressure_sensor_->publish_state(pressurehectopascals);
+  PUBLISH_STATE(this->temperature_sensor_, temperature);
+  PUBLISH_STATE(this->pressure_sensor_, pressurehectopascals);
 }
 
 }  // namespace esphome::qmp6988

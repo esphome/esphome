@@ -277,6 +277,9 @@ class MQTTComponent : public Component {
  protected:
   static constexpr uint32_t SEND_DEFER_ID = 0;
 
+  /// Publish a float formatted to accuracy, or "None" for NaN when publish_nan_as_none is set.
+  bool publish_float_(StringRef topic, float value, int8_t accuracy);
+
   /// Helper method to get the discovery topic for this component into a buffer.
   StringRef get_discovery_topic_to_(std::span<char, MQTT_DISCOVERY_TOPIC_MAX_LEN> buf,
                                     const MQTTDiscoveryInfo &discovery_info) const;

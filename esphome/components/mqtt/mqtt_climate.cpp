@@ -321,15 +321,15 @@ bool MQTTClimateComponent::publish_state_() {
   }
   if (traits.has_feature_flags(climate::CLIMATE_SUPPORTS_TWO_POINT_TARGET_TEMPERATURE |
                                climate::CLIMATE_REQUIRES_TWO_POINT_TARGET_TEMPERATURE)) {
-    len = value_accuracy_to_buf(payload, this->device_->target_temperature_low, target_accuracy);
-    if (!this->publish(this->get_target_temperature_low_state_topic_to(topic_buf), payload, len))
+    if (!this->publish_float_(this->get_target_temperature_low_state_topic_to(topic_buf),
+                              this->device_->target_temperature_low, target_accuracy))
       success = false;
-    len = value_accuracy_to_buf(payload, this->device_->target_temperature_high, target_accuracy);
-    if (!this->publish(this->get_target_temperature_high_state_topic_to(topic_buf), payload, len))
+    if (!this->publish_float_(this->get_target_temperature_high_state_topic_to(topic_buf),
+                              this->device_->target_temperature_high, target_accuracy))
       success = false;
   } else {
-    len = value_accuracy_to_buf(payload, this->device_->target_temperature, target_accuracy);
-    if (!this->publish(this->get_target_temperature_state_topic_to(topic_buf), payload, len))
+    if (!this->publish_float_(this->get_target_temperature_state_topic_to(topic_buf), this->device_->target_temperature,
+                              target_accuracy))
       success = false;
   }
 
@@ -340,9 +340,8 @@ bool MQTTClimateComponent::publish_state_() {
       success = false;
   }
   if (traits.has_feature_flags(climate::CLIMATE_SUPPORTS_TARGET_HUMIDITY) &&
-      !std::isnan(this->device_->target_humidity)) {
-    len = value_accuracy_to_buf(payload, this->device_->target_humidity, 0);
-    if (!this->publish(this->get_target_humidity_state_topic_to(topic_buf), payload, len))
+      (!std::isnan(this->device_->target_humidity) || mqtt::global_mqtt_client->is_publish_nan_as_none())) {
+    if (!this->publish_float_(this->get_target_humidity_state_topic_to(topic_buf), this->device_->target_humidity, 0))
       success = false;
   }
 

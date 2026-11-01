@@ -62,6 +62,13 @@ struct SpiData {
 
 static SpiData *spi_data = nullptr;  // NOLINT(cppcoreguidelines-avoid-non-const-global-variables)
 
+// BDK 3.0.78 makes REG_WRITE a statement expression that yields the volatile assignment,
+// a deprecated volatile read under clang
+static inline void reg_write(uint32_t addr, uint32_t value) {
+  // NOLINTNEXTLINE(performance-no-int-to-ptr) - MMIO register at a fixed address
+  *reinterpret_cast<volatile uint32_t *>(addr) = value;
+}
+
 static void set_spi_ctrl_register(uint32_t bit, bool val) {
   uint32_t value = REG_READ(SPI_CTRL);
   if (val == 0) {
@@ -69,7 +76,7 @@ static void set_spi_ctrl_register(uint32_t bit, bool val) {
   } else if (val == 1) {
     value |= bit;
   }
-  REG_WRITE(SPI_CTRL, value);
+  reg_write(SPI_CTRL, value);
 }
 
 #ifdef BEKEN_SPI_IS_N_LIKE
@@ -80,7 +87,7 @@ static void set_spi_config_register(uint32_t bit, bool val) {
   } else if (val == 1) {
     value |= bit;
   }
-  REG_WRITE(SPI_CONFIG, value);
+  reg_write(SPI_CONFIG, value);
 }
 #endif
 
@@ -136,7 +143,7 @@ static void spi_set_clock(uint32_t max_hz) {
   param = REG_READ(SPI_CTRL);
   param &= ~(SPI_CKR_MASK << SPI_CKR_POSI);
   param |= (div << SPI_CKR_POSI);
-  REG_WRITE(SPI_CTRL, param);
+  reg_write(SPI_CTRL, param);
 #ifdef BEKEN_SPI_IS_N_LIKE
   const int divisor = div;
 #else
@@ -156,17 +163,8 @@ void BekenSPILEDStripLightOutput::setup() {
   size_t dma_buffer_size = (buffer_size * 8) + (2 * 64);
 
   RAMAllocator<uint8_t> allocator;
-  this->buf_ = allocator.allocate(buffer_size);
-  if (this->buf_ == nullptr) {
-    ESP_LOGE(TAG, "Cannot allocate LED buffer!");
-    this->mark_failed();
-    return;
-  }
-
-  this->effect_data_ = allocator.allocate(this->num_leds_);
-  if (this->effect_data_ == nullptr) {
-    ESP_LOGE(TAG, "Cannot allocate effect data!");
-    this->mark_failed();
+  if (!this->internal_accessor_.allocate(allocator, this->num_leds_)) {
+    this->mark_failed(LOG_STR(ESP_LOG_MSG_ALLOC_FAIL));
     return;
   }
 
@@ -177,8 +175,6 @@ void BekenSPILEDStripLightOutput::setup() {
     return;
   }
 
-  memset(this->buf_, 0, buffer_size);
-  memset(this->effect_data_, 0, this->num_leds_);
   memset(this->dma_buf_, 0, dma_buffer_size);
 
   uint32_t value = PCLK_POSI_SPI;
@@ -229,7 +225,7 @@ void BekenSPILEDStripLightOutput::setup() {
   value = REG_READ(SPI_CTRL);
   value &= ~CTRL_NSSMD_3;
   value |= (1 << 17);
-  REG_WRITE(SPI_CTRL, value);
+  reg_write(SPI_CTRL, value);
 
 #ifdef BEKEN_SPI_IS_N_LIKE
   value = GFUNC_MODE_SPI_DMA;
@@ -279,11 +275,13 @@ void BekenSPILEDStripLightOutput::setup() {
   value = REG_READ(SPI_CONFIG);
   value &= ~(0xFFF << 8);
   value |= ((dma_buffer_size & 0xFFF) << 8);
-  REG_WRITE(SPI_CONFIG, value);
+  reg_write(SPI_CONFIG, value);
 #else
   // T-like variants: No transfer-length register. The SPI controller shifts out
   // everything the DMA writes into SPI_DAT.
 #endif
+
+  this->accessor_ = &this->internal_accessor_;
 }
 
 void BekenSPILEDStripLightOutput::set_led_params(uint8_t bit0, uint8_t bit1, uint32_t spi_frequency) {
@@ -344,7 +342,7 @@ void BekenSPILEDStripLightOutput::write_state(light::LightState *state) {
 
   size_t buffer_size = this->get_buffer_size_();
   size_t size = 0;
-  uint8_t *psrc = this->buf_;
+  uint8_t *psrc = this->internal_accessor_.color_data;
   uint8_t *pdest = this->dma_buf_ + 64;
   // The 64 byte padding is a workaround for a SPI DMA bug where the
   // output doesn't exactly start at the beginning of dma_buf_
@@ -374,7 +372,8 @@ void BekenSPILEDStripLightOutput::dump_config() {
                 "  Channel colors: %s\n"
                 "  Max refresh rate: %" PRIu32 "\n"
                 "  Number of LEDs: %u",
-                this->channel_colors_.to_string(channel_colors), this->max_refresh_rate_, this->num_leds_);
+                this->internal_accessor_.channel_colors.to_string(channel_colors), this->max_refresh_rate_,
+                this->num_leds_);
 }
 
 float BekenSPILEDStripLightOutput::get_setup_priority() const { return setup_priority::HARDWARE; }
