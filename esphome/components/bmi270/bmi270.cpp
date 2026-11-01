@@ -288,7 +288,7 @@ bool BMI270Component::update_data(motion::MotionData &data) {
   // When the magnetometer is active, the 8 aux data bytes (0x04–0x0B) sit directly before
   // the accel data, so one burst read from AUX_X_LSB fetches both.
 #ifdef USE_BMI270_BMM150
-  const bool read_mag = this->magnetometer_ready_ && !this->magnetometer_callback_.empty();
+  const bool read_mag = this->magnetometer_ready_ && this->magnetometer_publisher_ != nullptr;
   uint8_t buf[BMI270_AUX_DATA_LEN + REG_READ_LEN];
   const uint8_t *mag_raw = buf;
   const uint8_t *raw_data = read_mag ? buf + BMI270_AUX_DATA_LEN : buf;
@@ -330,19 +330,21 @@ bool BMI270Component::update_data(motion::MotionData &data) {
   data.angular_rate[motion::Y_AXIS] = encode_value_le<int16_t>(&raw_data[GYR_OFFS + 2]) * scale;
   data.angular_rate[motion::Z_AXIS] = encode_value_le<int16_t>(&raw_data[GYR_OFFS + 4]) * scale;
 
-  if (!this->temperature_callback_.empty()) {
+#ifdef USE_MOTION_TEMPERATURE_PUBLISHER
+  if (this->temperature_publisher_ != nullptr) {
     //  Temperature: registers 0x22–0x23
     // Formula from datasheet: T[°C] = raw / 512 + 23
     static constexpr uint8_t TEMP_OFFS = BMI270_REG_TEMP_0 - BMI270_REG_DATA_8;
     int16_t raw_t = encode_value_le<int16_t>(&raw_data[TEMP_OFFS]);
     float temperature = (raw_t / 512.0f) + 23.0f;
-    this->temperature_callback_.call(temperature);
+    this->temperature_publisher_(temperature);
   }
+#endif
 
 #ifdef USE_BMI270_BMM150
   if (read_mag) {
     const BMM150Data mag_data = bmm150_convert(this->mag_trim_, mag_raw);
-    this->magnetometer_callback_.call(mag_data);
+    this->magnetometer_publisher_(mag_data);
   }
 #endif
   return true;

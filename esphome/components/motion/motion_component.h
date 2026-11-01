@@ -85,6 +85,9 @@ class MotionComponent : public PollingComponent {
 #ifdef USE_MOTION_DATA_PUBLISHER
   HUB_PUBLISHER(data, const MotionData &)
 #endif
+#ifdef USE_MOTION_TEMPERATURE_PUBLISHER
+  HUB_PUBLISHER(temperature, float)
+#endif
 
  protected:
   // platforms must implement this method to update raw data.

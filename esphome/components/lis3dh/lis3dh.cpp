@@ -53,8 +53,11 @@ bool LIS3DHComponent::setup_accelerometer_() {
 
 bool LIS3DHComponent::setup_temperature_() {
   // Only power the ADC / temperature sensor when a temperature sensor is used.
-  uint8_t temp_cfg =
-      this->temperature_callback_.empty() ? 0x00 : (uint8_t) (LIS3DH_TEMP_CFG_ADC_EN | LIS3DH_TEMP_CFG_TEMP_EN);
+  uint8_t temp_cfg = 0x00;
+#ifdef USE_MOTION_TEMPERATURE_PUBLISHER
+  if (this->temperature_publisher_ != nullptr)
+    temp_cfg = LIS3DH_TEMP_CFG_ADC_EN | LIS3DH_TEMP_CFG_TEMP_EN;
+#endif
   return this->write_byte(LIS3DH_REG_TEMP_CFG, temp_cfg);
 }
 
@@ -162,11 +165,15 @@ bool LIS3DHComponent::update_data(motion::MotionData &data) {
   data.acceleration[motion::Y_AXIS] = raw_y * scale;
   data.acceleration[motion::Z_AXIS] = raw_z * scale;
 
-  if (this->temperature_callback_.empty() || this->publish_temperature_())
-    this->status_clear_warning();
+#ifdef USE_MOTION_TEMPERATURE_PUBLISHER
+  if (this->temperature_publisher_ != nullptr && !this->publish_temperature_())
+    return true;
+#endif
+  this->status_clear_warning();
   return true;
 }
 
+#ifdef USE_MOTION_TEMPERATURE_PUBLISHER
 bool LIS3DHComponent::publish_temperature_() {
   int16_t raw;
   if (!this->read_bytes_16_le(LIS3DH_REG_OUT_ADC3_L | LIS3DH_AUTO_INCREMENT, &raw, 1)) {
@@ -176,8 +183,9 @@ bool LIS3DHComponent::publish_temperature_() {
   // Signed, left-justified, relative value with 1 °C per count of the high byte; the
   // low byte carries the fractional bits in the modes that have them.
   float temperature = raw / 256.0f + LIS3DH_TEMP_REFERENCE_C;
-  this->temperature_callback_.call(temperature);
+  this->temperature_publisher_(temperature);
   return true;
 }
+#endif
 
 }  // namespace esphome::lis3dh

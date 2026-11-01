@@ -187,18 +187,20 @@ bool LSM6DSComponent::update_data(motion::MotionData &data) {
   data.acceleration[motion::Y_AXIS] = encode_value_le<int16_t>(&raw[LSM6DS_ACCEL_OFFSET + 2]) * accel_scale;
   data.acceleration[motion::Z_AXIS] = encode_value_le<int16_t>(&raw[LSM6DS_ACCEL_OFFSET + 4]) * accel_scale;
 
-  //  Temperature (lazy — only read if a listener is registered)
+#ifdef USE_MOTION_TEMPERATURE_PUBLISHER
+  //  Temperature (lazy — only read if a sensor is configured)
   // Kept as a separate 2-byte read to avoid extending the burst to 14 bytes when
   // temperature is not needed.
   // Formula: T(°C) = raw / sensitivity + 25.0, sensitivity in LSB/°C per chip (0 LSB at 25 °C)
-  if (!this->temperature_callback_.empty()) {
+  if (this->temperature_publisher_ != nullptr) {
     uint8_t raw_t[2];
     if (this->read_bytes(LSM6DS_REG_OUT_TEMP_L, raw_t, 2)) {
       int16_t temp_raw = encode_value_le<int16_t>(raw_t);
       float temperature = temp_raw / static_cast<float>(this->temperature_sensitivity_) + 25.0f;
-      this->temperature_callback_.call(temperature);
+      this->temperature_publisher_(temperature);
     }
   }
+#endif
 
   return true;
 }

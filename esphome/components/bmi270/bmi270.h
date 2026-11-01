@@ -8,7 +8,6 @@
 #ifdef USE_BMI270_BMM150
 #include "bmm150_aux.h"
 #endif
-#include <functional>
 
 namespace esphome::bmi270 {
 
@@ -142,11 +141,10 @@ class BMI270Component final : public motion::MotionComponent, public i2c::I2CDev
   void set_accel_odr(BMI270AccelODR o) { this->accel_odr_ = o; }
   void set_gyro_range(BMI270GyroRange r) { this->gyro_range_ = r; }
   void set_gyro_odr(BMI270GyroODR o) { this->gyro_odr_ = o; }
-  template<typename F> void add_temperature_listener(F &&cb) { this->temperature_callback_.add(std::forward<F>(cb)); }
 #ifdef USE_BMI270_BMM150
   void set_aux_device(BMI270AuxDevice device) { this->aux_device_ = device; }
   void set_aux_device_address(uint8_t address) { this->aux_device_address_ = address; }
-  template<typename F> void add_magnetometer_listener(F &&cb) { this->magnetometer_callback_.add(std::forward<F>(cb)); }
+  HUB_PUBLISHER(magnetometer, const bmm150::BMM150Data &)
 #endif
 
  protected:
@@ -172,9 +170,7 @@ class BMI270Component final : public motion::MotionComponent, public i2c::I2CDev
   BMI270AccelODR accel_odr_{BMI270_ACCEL_ODR_100};
   BMI270GyroRange gyro_range_{BMI270_GYRO_RANGE_2000};
   BMI270GyroODR gyro_odr_{BMI270_GYRO_ODR_200};
-  LazyCallbackManager<void(float)> temperature_callback_{};
 #ifdef USE_BMI270_BMM150
-  LazyCallbackManager<void(const bmm150::BMM150Data &)> magnetometer_callback_{};
   bmm150::BMM150Trim mag_trim_{};
   BMI270AuxDevice aux_device_{BMI270_AUX_DEVICE_NONE};
   uint8_t aux_device_address_{bmm150::BMM150_DEFAULT_I2C_ADDRESS};
