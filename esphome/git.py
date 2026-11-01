@@ -111,6 +111,15 @@ _TRANSIENT_GIT_ERROR_PATTERNS: tuple[str, ...] = (
 # simple rule since git hosts rarely emit them.
 _PERMANENT_HTTP_ERROR_RE = re.compile(r"(?:http |returned error: )4(?!29)\d\d")
 
+# How git reports a clone of a repository it cannot see. GitHub answers a
+# missing repository like a private one, asking for credentials, so without a
+# terminal git fails on the username prompt rather than saying "not found".
+_MISSING_REPOSITORY_RE = re.compile(
+    r"could not read (?:username|password)|repository not found"
+    r"|authentication failed|repository '[^']*' not found",
+    re.IGNORECASE,
+)
+
 # Network commands get 3 attempts with 2s/4s backoff. Worst case is ~3x
 # the command's own duration plus 6s of sleep, held under the cache entry
 # lock; peers with a complete entry fall back to it after
@@ -740,7 +749,18 @@ def _clone_or_update_locked(
         try:
             cmd = ["git", "clone", "--depth=1"]
             cmd += ["--", url, str(repo_dir)]
-            run_git_command(cmd, network=True, retry_cleanup=repo_dir)
+            try:
+                run_git_command(cmd, network=True, retry_cleanup=repo_dir)
+            except GitCommandError as err:
+                if not _MISSING_REPOSITORY_RE.search(err.stderr):
+                    raise
+                raise GitCommandError(
+                    f"Could not clone {_redact_url_credentials(original_url)}: the "
+                    "repository does not exist, or it is private and needs a "
+                    "username and password. Check the owner and repository name "
+                    f"in the source. Git reported: {_redact_url_credentials(str(err))}",
+                    stderr=err.stderr,
+                ) from err
 
             if ref is not None:
                 # We need to fetch the PR branch first, otherwise git will complain
