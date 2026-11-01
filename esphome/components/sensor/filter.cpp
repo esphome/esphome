@@ -282,31 +282,18 @@ optional<float> ThrottleWithPriorityNanFilter::new_value(float value) {
 }
 
 // DeltaFilter
-DeltaFilter::DeltaFilter(float min_a0, float min_a1, float max_a0, float max_a1)
-    : min_a0_(min_a0), min_a1_(min_a1), max_a0_(max_a0), max_a1_(max_a1) {}
-
-void DeltaFilter::set_baseline(float (*fn)(float)) { this->baseline_ = fn; }
+// Bit test: std::isnan is a soft-float call on ESP8266
+static bool delta_is_nan(float value) { return (bit_cast<uint32_t>(value) & 0x7FFFFFFF) > 0x7F800000; }
 
 optional<float> DeltaFilter::new_value(float value) {
-  const bool no_value = std::isnan(value);
-  const bool no_reference = std::isnan(this->last_value_);
+  const bool no_value = delta_is_nan(value);
+  const bool no_reference = delta_is_nan(this->last_value_);
   if (no_value && no_reference)
     return {};
-  if (no_value || no_reference) {
-    this->last_value_ = value;
-    return value;
-  }
-  // calculate min and max using the linear equation
-  float ref = this->baseline_(this->last_value_);
-  float min = fabsf(this->min_a0_ + ref * this->min_a1_);
-  float max = fabsf(this->max_a0_ + ref * this->max_a1_);
-  float delta = fabsf(value - ref);
-  // accept only if within range
-  if (delta > min && delta <= max) {
-    this->last_value_ = value;
-    return value;
-  }
-  return {};
+  if (!no_value && !no_reference && !this->accept_(this->last_value_, value))
+    return {};
+  this->last_value_ = value;
+  return value;
 }
 
 // OrFilter helpers

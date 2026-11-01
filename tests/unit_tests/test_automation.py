@@ -41,6 +41,7 @@ from esphome.automation import (
     _shadow_iteration,
     apply_action_builder,
     apply_statements_action,
+    apply_static_function,
     build_action,
     build_action_list,
     build_callback_automation,
@@ -2392,6 +2393,32 @@ async def test_component_resume_interval_lambda_takes_args_by_value(body: str) -
     )
 
     assert f"[](uint32_t x) -> uint32_t {{\n    {body}\n}}" in CORE.cpp_main_section
+
+
+def test_apply_static_function_share() -> None:
+    """share=True reuses an identical function; the default emits one per id."""
+    CORE.config = {}
+    body = ["return x > 1;"]
+    params = [(cg.float_, "x")]
+    a = apply_static_function(ID("a"), cg.bool_, params, body, share=True)
+    b = apply_static_function(ID("b"), cg.bool_, params, body, share=True)
+    c = apply_static_function(ID("c"), cg.bool_, params, body)
+    assert [str(a), str(b), str(c)] == [
+        "esphome__a__fn",
+        "esphome__a__fn",
+        "esphome__c__fn",
+    ]
+    assert len(CORE.global_statements_after_includes) == 2
+
+
+@pytest.mark.parametrize("share", [True, False])
+def test_apply_static_function_name_skips_config_ids(share: bool) -> None:
+    """A user id equal to the generated name gets the function a suffixed name instead."""
+    CORE.config = {"sensor": [{"id": ID("esphome__a__fn", is_declaration=True)}]}
+    fn = apply_static_function(
+        ID("a"), cg.bool_, [(cg.float_, "x")], ["return x > 1;"], share=share
+    )
+    assert str(fn) == "esphome__a__fn_2"
 
 
 COMPONENT_ID = ID("comp", type=cg.Component)
