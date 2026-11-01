@@ -92,8 +92,8 @@ UART_SELECTION_ESP8266 = [UART0, UART0_SWAP, UART1]
 UART_SELECTION_RP2040 = [USB_CDC, UART0, UART1]
 
 UART_SELECTION_NRF52 = [USB_CDC, UART0]
-# nRF54L has no USB
-UART_SELECTION_NRF54L = [UART0, UART1]
+# nRF54L has no USB; its UARTs are named after their devicetree nodes
+UART_SELECTION_NRF54L = ["UART00", "UART20", "UART21", "UART22", "UART30"]
 
 HARDWARE_UART_TO_UART_SELECTION = {
     UART0: logger_ns.UART_SELECTION_UART0,
@@ -103,6 +103,8 @@ HARDWARE_UART_TO_UART_SELECTION = {
     USB_CDC: logger_ns.UART_SELECTION_USB_CDC,
     USB_SERIAL_JTAG: logger_ns.UART_SELECTION_USB_SERIAL_JTAG,
     DEFAULT: logger_ns.UART_SELECTION_DEFAULT,
+    # Zephyr opens the UART by its devicetree node; the enum only marks a hardware UART
+    **dict.fromkeys(UART_SELECTION_NRF54L, logger_ns.UART_SELECTION_UART0),
 }
 
 HARDWARE_UART_TO_SERIAL = {
@@ -396,7 +398,7 @@ CONFIG_SCHEMA = cv.All(
                 ln882x=DEFAULT,
                 rtl87xx=DEFAULT,
                 nrf52=USB_CDC,
-                nrf52_54l=UART0,
+                nrf52_54l="UART20",
             ): cv.All(
                 cv.only_on(
                     [
@@ -669,15 +671,12 @@ async def _late_logger_init(config: ConfigType) -> None:
         zephyr_add_prj_conf("THREAD_LOCAL_STORAGE", True)
         if has_serial_logging:
             zephyr_add_prj_conf("SERIAL", True)
-            # nRF54L names its UARTs after their power domain; uart20 and uart30 are the DK's VCOM0 and VCOM1
-            nrf54l = _is_nrf54l()
-            if config[CONF_HARDWARE_UART] == UART0:
-                label = "uart20" if nrf54l else "uart0"
-                zephyr_add_overlay(f"""&{label} {{ status = "okay";}};""")
-            if config[CONF_HARDWARE_UART] == UART1:
-                label = "uart30" if nrf54l else "uart1"
-                zephyr_add_overlay(f"""&{label} {{ status = "okay";}};""")
-            if config[CONF_HARDWARE_UART] == USB_CDC:
+            if config[CONF_HARDWARE_UART] != USB_CDC:
+                # Each hardware UART option names a devicetree node: UART0 is uart0, UART20 is uart20
+                node = config[CONF_HARDWARE_UART].lower()
+                zephyr_add_overlay(f"""&{node} {{ status = "okay";}};""")
+                cg.add_define("USE_LOGGER_UART_NODE", cg.RawExpression(node))
+            else:
                 cg.add_define("USE_LOGGER_UART_SELECTION_USB_CDC")
                 zephyr_add_prj_conf("UART_LINE_CTRL", True)
 
