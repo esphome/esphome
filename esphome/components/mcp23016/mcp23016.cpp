@@ -28,9 +28,8 @@ void MCP23016::setup() {
   this->setup_interrupt_pin_();
 }
 
-bool MCP23016::digital_read_hw(uint8_t pin) { return this->read_reg_(MCP23016_GP1, &this->input_mask_); }
+bool MCP23016::digital_read_hw(uint8_t pin) { return this->read_reg_(MCP23016_GP1, &this->input_[0]); }
 
-bool MCP23016::digital_read_cache(uint8_t pin) { return this->input_mask_ & (1 << pin); }
 void MCP23016::digital_write_hw(uint8_t pin, bool value) { this->update_reg_(pin, value, MCP23016_OLAT1); }
 void MCP23016::pin_mode(uint8_t pin, gpio::Flags flags) {
   if (flags == gpio::FLAG_INPUT) {
