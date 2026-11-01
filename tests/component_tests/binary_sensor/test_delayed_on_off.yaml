@@ -1,0 +1,20 @@
+esphome:
+  name: test
+
+esp8266:
+  board: d1_mini_lite
+
+binary_sensor:
+  - platform: template
+    id: shorthand_constant
+    lambda: return true;
+    filters:
+      - delayed_on_off: 50ms
+  # Each edge had its own copy of the lambda, so its static state stays per edge
+  - platform: template
+    id: shorthand_lambda
+    lambda: return true;
+    filters:
+      - delayed_on_off: !lambda |-
+          static uint32_t n = 0;
+          return ++n * 100;
