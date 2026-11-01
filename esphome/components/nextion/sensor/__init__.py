@@ -55,13 +55,18 @@ CONFIG_SCHEMA = cv.All(
 )
 
 
+_register_sensor_component = cg.slot_list(
+    "NEXTION_SENSOR_COUNT", "register_sensor_component"
+)
+
+
 async def to_code(config):
     hub = await cg.get_variable(config[CONF_NEXTION_ID])
     var = cg.new_Pvariable(config[CONF_ID], hub)
     await cg.register_component(var, config)
     await sensor.register_sensor(var, config)
 
-    cg.add(hub.register_sensor_component(var))
+    cg.add(_register_sensor_component(hub, var))
 
     await setup_component_core_(var, config, ".val")
 

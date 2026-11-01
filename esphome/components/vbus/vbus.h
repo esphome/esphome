@@ -30,7 +30,11 @@ class VBus final : public uart::UARTDevice, public Component {
   void dump_config() override;
   void loop() override;
 
-  void register_listener(VBusListener *listener) { this->listeners_.push_back(listener); }
+#ifdef VBUS_LISTENER_COUNT
+  SLOT_LIST(VBusListener, listeners_, register_listener, VBUS_LISTENER_COUNT)
+#else
+  SLOT_LIST_EMPTY(VBusListener, listeners_)
+#endif
 
  protected:
   int state_{0};
@@ -43,7 +47,6 @@ class VBus final : public uart::UARTDevice, public Component {
   uint8_t cframe_;
   uint8_t fbytes_[6];
   int fbcount_;
-  std::vector<VBusListener *> listeners_{};
 };
 
 }  // namespace esphome::vbus

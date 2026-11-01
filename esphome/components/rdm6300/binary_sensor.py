@@ -21,9 +21,12 @@ CONFIG_SCHEMA = binary_sensor.binary_sensor_schema(RDM6300BinarySensor).extend(
 )
 
 
+_register_card = cg.slot_list("RDM6300_CARD_COUNT", "register_card")
+
+
 async def to_code(config: ConfigType) -> None:
     var = await binary_sensor.new_binary_sensor(config)
 
     hub = await cg.get_variable(config[CONF_RDM6300_ID])
-    cg.add(hub.register_card(var))
+    cg.add(_register_card(hub, var))
     cg.add(var.set_id(config[CONF_UID]))

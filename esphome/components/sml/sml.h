@@ -19,10 +19,13 @@ class SmlListener {
 
 class Sml final : public Component, public uart::UARTDevice {
  public:
-  void register_sml_listener(SmlListener *listener);
+#ifdef SML_LISTENER_COUNT
+  SLOT_LIST(SmlListener, sml_listeners_, register_sml_listener, SML_LISTENER_COUNT)
+#else
+  SLOT_LIST_EMPTY(SmlListener, sml_listeners_)
+#endif
   void loop() override;
   void dump_config() override;
-  std::vector<SmlListener *> sml_listeners_{};
   template<typename F> void add_on_data_callback(F &&callback) { this->data_callbacks_.add(std::forward<F>(callback)); }
 
  protected:

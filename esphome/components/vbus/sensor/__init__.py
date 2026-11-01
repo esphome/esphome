@@ -41,6 +41,7 @@ from .. import (
     CONF_DELTASOL_CS_PLUS,
     CONF_VBUS_ID,
     VBus,
+    register_listener,
     vbus_ns,
 )
 
@@ -784,4 +785,4 @@ async def to_code(config: ConfigType) -> None:
         cg.add(var.set_sensors(custom_sensors))
 
     vbus = await cg.get_variable(config[CONF_VBUS_ID])
-    cg.add(vbus.register_listener(var))
+    cg.add(register_listener(vbus, var))

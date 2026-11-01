@@ -36,17 +36,26 @@ class Wiegand final : public key_provider::KeyProvider, public Component {
 
   void set_d0_pin(InternalGPIOPin *pin) { this->d0_pin_ = pin; };
   void set_d1_pin(InternalGPIOPin *pin) { this->d1_pin_ = pin; };
-  void register_tag_trigger(WiegandTagTrigger *trig) { this->tag_triggers_.push_back(trig); }
-  void register_raw_trigger(WiegandRawTrigger *trig) { this->raw_triggers_.push_back(trig); }
-  void register_key_trigger(WiegandKeyTrigger *trig) { this->key_triggers_.push_back(trig); }
+#ifdef WIEGAND_TAG_TRIGGER_COUNT
+  SLOT_LIST(WiegandTagTrigger, tag_triggers_, register_tag_trigger, WIEGAND_TAG_TRIGGER_COUNT)
+#else
+  SLOT_LIST_EMPTY(WiegandTagTrigger, tag_triggers_)
+#endif
+#ifdef WIEGAND_RAW_TRIGGER_COUNT
+  SLOT_LIST(WiegandRawTrigger, raw_triggers_, register_raw_trigger, WIEGAND_RAW_TRIGGER_COUNT)
+#else
+  SLOT_LIST_EMPTY(WiegandRawTrigger, raw_triggers_)
+#endif
+#ifdef WIEGAND_KEY_TRIGGER_COUNT
+  SLOT_LIST(WiegandKeyTrigger, key_triggers_, register_key_trigger, WIEGAND_KEY_TRIGGER_COUNT)
+#else
+  SLOT_LIST_EMPTY(WiegandKeyTrigger, key_triggers_)
+#endif
 
  protected:
   InternalGPIOPin *d0_pin_;
   InternalGPIOPin *d1_pin_;
   WiegandStore store_{};
-  std::vector<WiegandTagTrigger *> tag_triggers_;
-  std::vector<WiegandRawTrigger *> raw_triggers_;
-  std::vector<WiegandKeyTrigger *> key_triggers_;
 };
 
 }  // namespace esphome::wiegand

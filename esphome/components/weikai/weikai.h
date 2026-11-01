@@ -147,6 +147,12 @@ class WeikaiComponent : public Component {
 
   bool page1() { return page1_; }
 
+#ifdef WEIKAI_CHANNEL_COUNT
+  SLOT_LIST(WeikaiChannel, children_, register_channel, WEIKAI_CHANNEL_COUNT)
+#else
+  SLOT_LIST_EMPTY(WeikaiChannel, children_)
+#endif
+
   /// @brief Factory method to create a Register object
   /// @param reg address of the register
   /// @param channel channel associated with this register
@@ -182,14 +188,13 @@ class WeikaiComponent : public Component {
   /// @}
 #endif
 
-  uint8_t pin_config_{0x00};                 ///< pin config mask: 1 means OUTPUT, 0 means INPUT
-  uint8_t output_state_{0x00};               ///< output state: 1 means HIGH, 0 means LOW
-  uint8_t input_state_{0x00};                ///< input pin states: 1 means HIGH, 0 means LOW
-  uint32_t crystal_;                         ///< crystal value;
-  int test_mode_;                            ///< test mode value (0 -> no tests)
-  bool page1_{false};                        ///< set to true when in "page1 mode"
-  std::vector<WeikaiChannel *> children_{};  ///< the list of WeikaiChannel UART children
-  std::string name_;                         ///< name of entity
+  uint8_t pin_config_{0x00};    ///< pin config mask: 1 means OUTPUT, 0 means INPUT
+  uint8_t output_state_{0x00};  ///< output state: 1 means HIGH, 0 means LOW
+  uint8_t input_state_{0x00};   ///< input pin states: 1 means HIGH, 0 means LOW
+  uint32_t crystal_;            ///< crystal value;
+  int test_mode_;               ///< test mode value (0 -> no tests)
+  bool page1_{false};           ///< set to true when in "page1 mode"
+  std::string name_;            ///< name of entity
 };
 
 ///////////////////////////////////////////////////////////////////////////////
@@ -226,10 +231,7 @@ class WeikaiChannel final : public uart::UARTComponent {
  public:
   /// @brief We belongs to this WeikaiComponent
   /// @param parent pointer to the component we belongs to
-  void set_parent(WeikaiComponent *parent) {
-    this->parent_ = parent;
-    this->parent_->children_.push_back(this);  // add ourself to the list (vector)
-  }
+  void set_parent(WeikaiComponent *parent) { this->parent_ = parent; }
 
   /// @brief Sets the channel number
   /// @param channel number

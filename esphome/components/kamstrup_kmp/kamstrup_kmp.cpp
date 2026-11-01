@@ -28,9 +28,9 @@ void KamstrupKMPComponent::dump_config() {
   LOG_SENSOR("  ", "Flow", this->flow_sensor_);
   LOG_SENSOR("  ", "Volume", this->volume_sensor_);
 
-  for (size_t i = 0; i < this->custom_sensors_.size(); i++) {
-    LOG_SENSOR("  ", "Custom Sensor", this->custom_sensors_[i]);
-    ESP_LOGCONFIG(TAG, "    Command: 0x%04X", this->custom_commands_[i]);
+  for (const auto &custom : this->custom_sensors_) {
+    LOG_SENSOR("  ", "Custom Sensor", custom.sensor);
+    ESP_LOGCONFIG(TAG, "    Command: 0x%04X", custom.command);
   }
 }
 
@@ -63,8 +63,8 @@ void KamstrupKMPComponent::update() {
     this->command_queue_.push(CMD_VOLUME);
   }
 
-  for (uint16_t custom_command : this->custom_commands_) {
-    this->command_queue_.push(custom_command);
+  for (const auto &custom : this->custom_sensors_) {
+    this->command_queue_.push(custom.command);
   }
 }
 
@@ -264,9 +264,9 @@ void KamstrupKMPComponent::set_sensor_value_(uint16_t command, float value, uint
   }
 
   // Custom sensors
-  for (size_t i = 0; i < this->custom_commands_.size(); i++) {
-    if (command == this->custom_commands_[i]) {
-      this->custom_sensors_[i]->publish_state(value);
+  for (const auto &custom : this->custom_sensors_) {
+    if (command == custom.command) {
+      custom.sensor->publish_state(value);
     }
   }
 

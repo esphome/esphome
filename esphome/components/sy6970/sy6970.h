@@ -100,7 +100,11 @@ class SY6970Component final : public PollingComponent, public i2c::I2CDevice {
   void update() override;
 
   // Listener registration
-  void add_listener(SY6970Listener *listener) { this->listeners_.push_back(listener); }
+#ifdef SY6970_LISTENER_COUNT
+  SLOT_LIST(SY6970Listener, listeners_, add_listener, SY6970_LISTENER_COUNT)
+#else
+  SLOT_LIST_EMPTY(SY6970Listener, listeners_)
+#endif
 
   // Configuration methods to be called from lambdas
   void set_input_current_limit(uint16_t milliamps);
@@ -121,7 +125,6 @@ class SY6970Component final : public PollingComponent, public i2c::I2CDevice {
   bool update_register_(uint8_t reg, uint8_t mask, uint8_t value);
 
   SY6970Data data_{};
-  std::vector<SY6970Listener *> listeners_;
 
   // Configuration values to set during setup()
   bool led_enabled_;

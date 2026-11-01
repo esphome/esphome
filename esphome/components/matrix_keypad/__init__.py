@@ -66,6 +66,11 @@ CONFIG_SCHEMA = cv.All(
 )
 
 
+_register_key_trigger = cg.slot_list(
+    "MATRIX_KEYPAD_KEY_TRIGGER_COUNT", "register_key_trigger"
+)
+
+
 async def to_code(config: ConfigType) -> None:
     var = cg.new_Pvariable(config[CONF_ID])
     await cg.register_component(var, config)
@@ -89,5 +94,5 @@ async def to_code(config: ConfigType) -> None:
     cg.add_optional(var.set_has_pulldowns, config.get(CONF_HAS_PULLDOWNS))
     for conf in config.get(CONF_ON_KEY, []):
         trigger = cg.new_Pvariable(conf[CONF_TRIGGER_ID])
-        cg.add(var.register_key_trigger(trigger))
+        cg.add(_register_key_trigger(var, trigger))
         await automation.build_automation(trigger, [(cg.uint8, "x")], conf)

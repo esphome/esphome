@@ -41,6 +41,14 @@ RC522_SCHEMA = cv.Schema(
 ).extend(cv.polling_component_schema("1s"))
 
 
+_register_ontag_trigger = cg.slot_list(
+    "RC522_ON_TAG_TRIGGER_COUNT", "register_ontag_trigger"
+)
+_register_ontagremoved_trigger = cg.slot_list(
+    "RC522_ON_TAG_REMOVED_TRIGGER_COUNT", "register_ontagremoved_trigger"
+)
+
+
 async def setup_rc522(var: MockObj, config: ConfigType) -> None:
     await cg.register_component(var, config)
 
@@ -48,10 +56,10 @@ async def setup_rc522(var: MockObj, config: ConfigType) -> None:
 
     for conf in config.get(CONF_ON_TAG, []):
         trigger = cg.new_Pvariable(conf[CONF_TRIGGER_ID])
-        cg.add(var.register_ontag_trigger(trigger))
+        cg.add(_register_ontag_trigger(var, trigger))
         await automation.build_automation(trigger, [(cg.std_string, "x")], conf)
 
     for conf in config.get(CONF_ON_TAG_REMOVED, []):
         trigger = cg.new_Pvariable(conf[CONF_TRIGGER_ID])
-        cg.add(var.register_ontagremoved_trigger(trigger))
+        cg.add(_register_ontagremoved_trigger(var, trigger))
         await automation.build_automation(trigger, [(cg.std_string, "x")], conf)

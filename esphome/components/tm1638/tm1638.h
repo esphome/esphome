@@ -34,7 +34,11 @@ class TM1638Component final : public PollingComponent {
   void set_dio_pin(GPIOPin *pin) { this->dio_pin_ = pin; }
   void set_stb_pin(GPIOPin *pin) { this->stb_pin_ = pin; }
 
-  void register_listener(KeyListener *listener) { this->listeners_.push_back(listener); }
+#ifdef TM1638_LISTENER_COUNT
+  SLOT_LIST(KeyListener, listeners_, register_listener, TM1638_LISTENER_COUNT)
+#else
+  SLOT_LIST_EMPTY(KeyListener, listeners_)
+#endif
 
   /// Evaluate the printf-format and print the result at the given position.
   uint8_t printf(uint8_t pos, const char *format, ...) __attribute__((format(printf, 3, 4)));
@@ -71,7 +75,6 @@ class TM1638Component final : public PollingComponent {
   GPIOPin *dio_pin_;
   uint8_t buffer_[8]{};
   tm1638_writer_t writer_{};
-  std::vector<KeyListener *> listeners_{};
 };
 
 }  // namespace esphome::tm1638

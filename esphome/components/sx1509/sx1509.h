@@ -56,10 +56,16 @@ class SX1509Component final : public Component,
   void set_sleep_time(uint16_t sleep_time) { this->sleep_time_ = sleep_time; };
   void set_scan_time(uint8_t scan_time) { this->scan_time_ = scan_time; };
   void set_debounce_time(uint8_t debounce_time = 1) { this->debounce_time_ = debounce_time; };
-  void register_keypad_binary_sensor(SX1509Processor *binary_sensor) {
-    this->keypad_binary_sensors_.push_back(binary_sensor);
-  }
-  void register_key_trigger(SX1509KeyTrigger *trig) { this->key_triggers_.push_back(trig); };
+#ifdef SX1509_KEYPAD_BINARY_SENSOR_COUNT
+  SLOT_LIST(SX1509Processor, keypad_binary_sensors_, register_keypad_binary_sensor, SX1509_KEYPAD_BINARY_SENSOR_COUNT)
+#else
+  SLOT_LIST_EMPTY(SX1509Processor, keypad_binary_sensors_)
+#endif
+#ifdef SX1509_KEY_TRIGGER_COUNT
+  SLOT_LIST(SX1509KeyTrigger, key_triggers_, register_key_trigger, SX1509_KEY_TRIGGER_COUNT)
+#else
+  SLOT_LIST_EMPTY(SX1509KeyTrigger, key_triggers_)
+#endif
   void setup_led_driver(uint8_t pin);
 
  protected:
@@ -82,8 +88,6 @@ class SX1509Component final : public Component,
   uint8_t scan_time_ = 1;
   uint8_t debounce_time_ = 1;
   uint8_t last_key_ = 0;
-  std::vector<SX1509Processor *> keypad_binary_sensors_;
-  std::vector<SX1509KeyTrigger *> key_triggers_;
 
   uint32_t last_loop_timestamp_ = 0;
   const uint32_t min_loop_period_ = 15;  // ms

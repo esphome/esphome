@@ -23,12 +23,15 @@ class TeleInfoListener {
 class TeleInfo final : public PollingComponent, public uart::UARTDevice {
  public:
   TeleInfo(bool historical_mode);
-  void register_teleinfo_listener(TeleInfoListener *listener);
+#ifdef TELEINFO_LISTENER_COUNT
+  SLOT_LIST(TeleInfoListener, teleinfo_listeners_, register_teleinfo_listener, TELEINFO_LISTENER_COUNT)
+#else
+  SLOT_LIST_EMPTY(TeleInfoListener, teleinfo_listeners_)
+#endif
   void loop() override;
   void setup() override;
   void update() override;
   void dump_config() override;
-  std::vector<TeleInfoListener *> teleinfo_listeners_{};
 
  protected:
   int checksum_area_end_;

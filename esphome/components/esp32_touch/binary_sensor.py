@@ -25,6 +25,9 @@ CONFIG_SCHEMA = binary_sensor.binary_sensor_schema(ESP32TouchBinarySensor).exten
 )
 
 
+_register_touch_pad = cg.slot_list("ESP32_TOUCH_PAD_COUNT", "register_touch_pad")
+
+
 async def to_code(config: ConfigType) -> None:
     hub = await cg.get_variable(config[CONF_ESP32_TOUCH_ID])
     var = cg.new_Pvariable(
@@ -34,4 +37,4 @@ async def to_code(config: ConfigType) -> None:
         config[CONF_WAKEUP_THRESHOLD],
     )
     await binary_sensor.register_binary_sensor(var, config)
-    cg.add(hub.register_touch_pad(var))
+    cg.add(_register_touch_pad(hub, var))

@@ -24,13 +24,18 @@ CONFIG_SCHEMA = cv.All(
 )
 
 
+_register_switch_component = cg.slot_list(
+    "NEXTION_SWITCH_COUNT", "register_switch_component"
+)
+
+
 async def to_code(config):
     hub = await cg.get_variable(config[CONF_NEXTION_ID])
     var = cg.new_Pvariable(config[CONF_ID], hub)
     await cg.register_component(var, config)
     await switch.register_switch(var, config)
 
-    cg.add(hub.register_switch_component(var))
+    cg.add(_register_switch_component(hub, var))
 
     await setup_component_core_(var, config, ".val")
 

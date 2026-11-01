@@ -185,7 +185,11 @@ class Sprinkler final : public Component {
   void add_valve(SprinklerControllerSwitch *valve_sw, SprinklerControllerSwitch *enable_sw = nullptr);
 
   /// add another controller to the controller so it can check if pumps/main valves are in use
-  void add_controller(Sprinkler *other_controller);
+#ifdef SPRINKLER_OTHER_CONTROLLER_COUNT
+  SLOT_LIST(Sprinkler, other_controllers_, add_controller, SPRINKLER_OTHER_CONTROLLER_COUNT)
+#else
+  SLOT_LIST_EMPTY(Sprinkler, other_controllers_)
+#endif
 
   /// configure important controller switches
   void set_controller_main_switch(SprinklerControllerSwitch *controller_switch);
@@ -570,9 +574,6 @@ class Sprinkler final : public Component {
 
   /// Valve control timers, indexed by SprinklerTimerIndex (also used as the scheduler id)
   std::array<SprinklerTimer, 2> timer_;
-
-  /// Other Sprinkler instances we should be aware of (used to check if pumps are in use)
-  std::vector<Sprinkler *> other_controllers_;
 
   /// Switches we'll present to the front end
   SprinklerControllerSwitch *auto_adv_sw_{nullptr};

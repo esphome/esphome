@@ -70,7 +70,11 @@ class UponorSmatrixComponent final : public uart::UARTDevice, public Component {
   void dump_config() override;
   void loop() override;
 
-  void register_device(UponorSmatrixDevice *device) { this->devices_.push_back(device); }
+#ifdef UPONOR_SMATRIX_DEVICE_COUNT
+  SLOT_LIST(UponorSmatrixDevice, devices_, register_device, UPONOR_SMATRIX_DEVICE_COUNT)
+#else
+  SLOT_LIST_EMPTY(UponorSmatrixDevice, devices_)
+#endif
 
   bool send(uint32_t device_address, const UponorSmatrixData *data, size_t data_len);
 
@@ -83,7 +87,6 @@ class UponorSmatrixComponent final : public uart::UARTDevice, public Component {
  protected:
   bool parse_byte_(uint8_t byte);
 
-  std::vector<UponorSmatrixDevice *> devices_;
   std::set<uint32_t> unknown_devices_;
 
   std::vector<uint8_t> rx_buffer_;

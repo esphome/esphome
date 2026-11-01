@@ -64,6 +64,9 @@ UPONOR_SMATRIX_DEVICE_SCHEMA = cv.Schema(
 )
 
 
+_register_device = cg.slot_list("UPONOR_SMATRIX_DEVICE_COUNT", "register_device")
+
+
 async def to_code(config: ConfigType) -> None:
     cg.add_global(uponor_smatrix_ns.using)
     var = await uart.new_uart_component(config)
@@ -78,4 +81,4 @@ async def register_uponor_smatrix_device(var: MockObj, config: ConfigType) -> No
     parent = await cg.get_variable(config[CONF_UPONOR_SMATRIX_ID])
     cg.add(var.set_parent(parent))
     cg.add(var.set_address(config[CONF_ADDRESS]))
-    cg.add(parent.register_device(var))
+    cg.add(_register_device(parent, var))

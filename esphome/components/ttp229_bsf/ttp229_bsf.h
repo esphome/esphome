@@ -21,7 +21,11 @@ class TTP229BSFComponent final : public Component {
  public:
   void set_sdo_pin(GPIOPin *sdo_pin) { sdo_pin_ = sdo_pin; }
   void set_scl_pin(GPIOPin *scl_pin) { scl_pin_ = scl_pin; }
-  void register_channel(TTP229BSFChannel *channel) { this->channels_.push_back(channel); }
+#ifdef TTP229_BSF_CHANNEL_COUNT
+  SLOT_LIST(TTP229BSFChannel, channels_, register_channel, TTP229_BSF_CHANNEL_COUNT)
+#else
+  SLOT_LIST_EMPTY(TTP229BSFChannel, channels_)
+#endif
   void setup() override;
   void dump_config() override;
   void loop() override {
@@ -47,7 +51,6 @@ class TTP229BSFComponent final : public Component {
  protected:
   GPIOPin *sdo_pin_;
   GPIOPin *scl_pin_;
-  std::vector<TTP229BSFChannel *> channels_{};
 };
 
 }  // namespace esphome::ttp229_bsf

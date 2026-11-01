@@ -4,6 +4,7 @@
 #include "esphome/components/sensor/sensor.h"
 #include "esphome/components/uart/uart.h"
 #include "esphome/core/component.h"
+#include "esphome/core/helpers.h"
 
 namespace esphome::kamstrup_kmp {
 
@@ -75,15 +76,22 @@ class KamstrupKMPComponent final : public PollingComponent, public uart::UARTDev
   void dump_config() override;
   void update() override;
   void loop() override;
+#ifdef KAMSTRUP_KMP_CUSTOM_SENSOR_COUNT
   void add_custom_sensor(sensor::Sensor *sensor, uint16_t command) {
-    this->custom_sensors_.push_back(sensor);
-    this->custom_commands_.push_back(command);
+    this->custom_sensors_.push_back({sensor, command});
   }
+#endif
 
  protected:
-  // Custom sensors and commands
-  std::vector<sensor::Sensor *> custom_sensors_;
-  std::vector<uint16_t> custom_commands_;
+  struct CustomSensor {
+    sensor::Sensor *sensor;
+    uint16_t command;
+  };
+#ifdef KAMSTRUP_KMP_CUSTOM_SENSOR_COUNT
+  StaticVector<CustomSensor, KAMSTRUP_KMP_CUSTOM_SENSOR_COUNT> custom_sensors_;
+#else
+  [[no_unique_address]] EmptyList<CustomSensor> custom_sensors_;
+#endif
 
   // Command queue
   std::queue<uint16_t> command_queue_;

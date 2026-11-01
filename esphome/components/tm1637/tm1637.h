@@ -62,7 +62,11 @@ class TM1637Display final : public PollingComponent {
 #ifdef USE_BINARY_SENSOR
   void loop() override;
   uint8_t get_keys();
-  void add_tm1637_key(TM1637Key *tm1637_key) { this->tm1637_keys_.push_back(tm1637_key); }
+#ifdef TM1637_KEY_COUNT
+  SLOT_LIST(TM1637Key, tm1637_keys_, add_tm1637_key, TM1637_KEY_COUNT)
+#else
+  SLOT_LIST_EMPTY(TM1637Key, tm1637_keys_)
+#endif
 #endif
 
   /// Evaluate the strftime-format and print the result at the given position.
@@ -86,9 +90,6 @@ class TM1637Display final : public PollingComponent {
   bool on_{true};
   tm1637_writer_t writer_{};
   uint8_t buffer_[6] = {0};
-#ifdef USE_BINARY_SENSOR
-  std::vector<TM1637Key *> tm1637_keys_{};
-#endif
 };
 
 #ifdef USE_BINARY_SENSOR

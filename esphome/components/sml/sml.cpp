@@ -98,8 +98,6 @@ void Sml::publish_value_(const ObisInfo &obis_info) {
 
 void Sml::dump_config() { ESP_LOGCONFIG(TAG, "SML:"); }
 
-void Sml::register_sml_listener(SmlListener *listener) { sml_listeners_.emplace_back(listener); }
-
 bool check_sml_data(const bytes &buffer) {
   if (buffer.size() < 2) {
     ESP_LOGW(TAG, "Checksum error in received SML data.");

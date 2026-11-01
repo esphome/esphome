@@ -35,6 +35,11 @@ CONFIG_SCHEMA = (
 )
 
 
+register_teleinfo_listener = cg.slot_list(
+    "TELEINFO_LISTENER_COUNT", "register_teleinfo_listener"
+)
+
+
 def _final_validate(config: ConfigType) -> ConfigType:
     # Historical mode runs at 1200 baud, standard mode at 9600 baud.
     baud_rate = 1200 if config[CONF_HISTORICAL_MODE] else 9600

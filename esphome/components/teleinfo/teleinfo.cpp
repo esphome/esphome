@@ -197,6 +197,5 @@ TeleInfo::TeleInfo(bool historical_mode) {
     separator_ = 0x9;
   }
 }
-void TeleInfo::register_teleinfo_listener(TeleInfoListener *listener) { teleinfo_listeners_.push_back(listener); }
 
 }  // namespace esphome::teleinfo

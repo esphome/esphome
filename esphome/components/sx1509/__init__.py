@@ -85,6 +85,9 @@ CONFIG_SCHEMA = (
 )
 
 
+_register_key_trigger = cg.slot_list("SX1509_KEY_TRIGGER_COUNT", "register_key_trigger")
+
+
 async def to_code(config: ConfigType) -> None:
     var = await i2c.new_i2c_component(config)
     if conf := config.get(CONF_KEYPAD):
@@ -104,7 +107,7 @@ async def to_code(config: ConfigType) -> None:
             cg.add(var.set_keys(table))
         for tconf in conf.get(CONF_ON_KEY, []):
             trigger = cg.new_Pvariable(tconf[CONF_TRIGGER_ID])
-            cg.add(var.register_key_trigger(trigger))
+            cg.add(_register_key_trigger(var, trigger))
             await automation.build_automation(trigger, [(cg.uint8, "x")], tconf)
 
 

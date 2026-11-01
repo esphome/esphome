@@ -1,10 +1,12 @@
+from functools import partial
+
 import esphome.codegen as cg
 from esphome.components import binary_sensor
 import esphome.config_validation as cv
 from esphome.const import DEVICE_CLASS_CONNECTIVITY, DEVICE_CLASS_POWER
 from esphome.types import ConfigType
 
-from .. import CONF_SY6970_ID, SY6970Component, sy6970_ns
+from .. import CONF_SY6970_ID, SY6970Component, add_listener, sy6970_ns
 
 DEPENDENCIES = ["sy6970"]
 
@@ -43,8 +45,9 @@ CONFIG_SCHEMA = cv.Schema(
 
 async def to_code(config: ConfigType) -> None:
     hub = await cg.get_variable(config[CONF_SY6970_ID])
+    add_hub_listener = partial(add_listener, hub)
 
     binary_sensors = binary_sensor.sub_binary_sensors(config)
-    await binary_sensors(CONF_VBUS_CONNECTED, hub.add_listener)
-    await binary_sensors(CONF_CHARGING, hub.add_listener)
-    await binary_sensors(CONF_CHARGE_DONE, hub.add_listener)
+    await binary_sensors(CONF_VBUS_CONNECTED, add_hub_listener)
+    await binary_sensors(CONF_CHARGING, add_hub_listener)
+    await binary_sensors(CONF_CHARGE_DONE, add_hub_listener)

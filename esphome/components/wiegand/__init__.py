@@ -53,6 +53,17 @@ CONFIG_SCHEMA = cv.Schema(
 ).extend(cv.COMPONENT_SCHEMA)
 
 
+_register_tag_trigger = cg.slot_list(
+    "WIEGAND_TAG_TRIGGER_COUNT", "register_tag_trigger"
+)
+_register_raw_trigger = cg.slot_list(
+    "WIEGAND_RAW_TRIGGER_COUNT", "register_raw_trigger"
+)
+_register_key_trigger = cg.slot_list(
+    "WIEGAND_KEY_TRIGGER_COUNT", "register_key_trigger"
+)
+
+
 async def to_code(config: ConfigType) -> None:
     var = cg.new_Pvariable(config[CONF_ID])
     await cg.register_component(var, config)
@@ -61,17 +72,17 @@ async def to_code(config: ConfigType) -> None:
 
     for conf in config.get(CONF_ON_TAG, []):
         trigger = cg.new_Pvariable(conf[CONF_TRIGGER_ID])
-        cg.add(var.register_tag_trigger(trigger))
+        cg.add(_register_tag_trigger(var, trigger))
         await automation.build_automation(trigger, [(cg.std_string, "x")], conf)
 
     for conf in config.get(CONF_ON_RAW, []):
         trigger = cg.new_Pvariable(conf[CONF_TRIGGER_ID])
-        cg.add(var.register_raw_trigger(trigger))
+        cg.add(_register_raw_trigger(var, trigger))
         await automation.build_automation(
             trigger, [(cg.uint8, "bits"), (cg.uint64, "value")], conf
         )
 
     for conf in config.get(CONF_ON_KEY, []):
         trigger = cg.new_Pvariable(conf[CONF_TRIGGER_ID])
-        cg.add(var.register_key_trigger(trigger))
+        cg.add(_register_key_trigger(var, trigger))
         await automation.build_automation(trigger, [(cg.uint8, "x")], conf)

@@ -16,8 +16,11 @@ CONFIG_SCHEMA = binary_sensor.binary_sensor_schema(TM1638Key).extend(
 )
 
 
+_register_listener = cg.slot_list("TM1638_LISTENER_COUNT", "register_listener")
+
+
 async def to_code(config: ConfigType) -> None:
     var = await binary_sensor.new_binary_sensor(config)
     cg.add(var.set_keycode(config[CONF_KEY]))
     hub = await cg.get_variable(config[CONF_TM1638_ID])
-    cg.add(hub.register_listener(var))
+    cg.add(_register_listener(hub, var))

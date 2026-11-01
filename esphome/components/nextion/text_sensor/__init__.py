@@ -20,13 +20,18 @@ CONFIG_SCHEMA = (
 )
 
 
+_register_textsensor_component = cg.slot_list(
+    "NEXTION_TEXT_SENSOR_COUNT", "register_textsensor_component"
+)
+
+
 async def to_code(config):
     hub = await cg.get_variable(config[CONF_NEXTION_ID])
     var = cg.new_Pvariable(config[CONF_ID], hub)
     await text_sensor.register_text_sensor(var, config)
     await cg.register_component(var, config)
 
-    cg.add(hub.register_textsensor_component(var))
+    cg.add(_register_textsensor_component(hub, var))
 
     await setup_component_core_(var, config, ".txt")
 

@@ -1049,11 +1049,31 @@ class Nextion final : public NextionBase, public PollingComponent, public uart::
 
   // ========== INTERNAL METHODS ==========
   // (In most use cases you won't need these)
-  void register_touch_component(NextionComponentBase *obj) { this->touch_.push_back(obj); }
-  void register_switch_component(NextionComponentBase *obj) { this->switchtype_.push_back(obj); }
-  void register_binarysensor_component(NextionComponentBase *obj) { this->binarysensortype_.push_back(obj); }
-  void register_sensor_component(NextionComponentBase *obj) { this->sensortype_.push_back(obj); }
-  void register_textsensor_component(NextionComponentBase *obj) { this->textsensortype_.push_back(obj); }
+#ifdef NEXTION_TOUCH_COUNT
+  SLOT_LIST(NextionComponentBase, touch_, register_touch_component, NEXTION_TOUCH_COUNT)
+#else
+  SLOT_LIST_EMPTY(NextionComponentBase, touch_)
+#endif
+#ifdef NEXTION_SWITCH_COUNT
+  SLOT_LIST(NextionComponentBase, switchtype_, register_switch_component, NEXTION_SWITCH_COUNT)
+#else
+  SLOT_LIST_EMPTY(NextionComponentBase, switchtype_)
+#endif
+#ifdef NEXTION_BINARY_SENSOR_COUNT
+  SLOT_LIST(NextionComponentBase, binarysensortype_, register_binarysensor_component, NEXTION_BINARY_SENSOR_COUNT)
+#else
+  SLOT_LIST_EMPTY(NextionComponentBase, binarysensortype_)
+#endif
+#ifdef NEXTION_SENSOR_COUNT
+  SLOT_LIST(NextionComponentBase, sensortype_, register_sensor_component, NEXTION_SENSOR_COUNT)
+#else
+  SLOT_LIST_EMPTY(NextionComponentBase, sensortype_)
+#endif
+#ifdef NEXTION_TEXT_SENSOR_COUNT
+  SLOT_LIST(NextionComponentBase, textsensortype_, register_textsensor_component, NEXTION_TEXT_SENSOR_COUNT)
+#else
+  SLOT_LIST_EMPTY(NextionComponentBase, textsensortype_)
+#endif
 
   void setup() override;
   void set_brightness(float brightness) { this->brightness_ = brightness; }
@@ -1630,11 +1650,6 @@ class Nextion final : public NextionBase, public PollingComponent, public uart::
 
   bool check_connect_();
 
-  std::vector<NextionComponentBase *> touch_;
-  std::vector<NextionComponentBase *> switchtype_;
-  std::vector<NextionComponentBase *> sensortype_;
-  std::vector<NextionComponentBase *> textsensortype_;
-  std::vector<NextionComponentBase *> binarysensortype_;
   CallbackManager<void()> setup_callback_{};
   CallbackManager<void()> sleep_callback_{};
   CallbackManager<void()> wake_callback_{};

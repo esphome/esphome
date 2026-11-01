@@ -36,10 +36,13 @@ FINAL_VALIDATE_SCHEMA = uart.final_validate_device_schema(
 )
 
 
+_register_trigger = cg.slot_list("RDM6300_TRIGGER_COUNT", "register_trigger")
+
+
 async def to_code(config: ConfigType) -> None:
     var = await uart.new_uart_component(config)
 
     for conf in config.get(CONF_ON_TAG, []):
         trigger = cg.new_Pvariable(conf[CONF_TRIGGER_ID])
-        cg.add(var.register_trigger(trigger))
+        cg.add(_register_trigger(var, trigger))
         await automation.build_automation(trigger, [(cg.uint32, "x")], conf)

@@ -107,7 +107,9 @@ class Canbus : public Component {
   void set_max_frames_per_loop(uint32_t max_frames_per_loop) { this->max_frames_per_loop_ = max_frames_per_loop; }
   virtual CanStatus get_status() { return {}; }
 
+#ifdef CANBUS_TRIGGER_COUNT
   void add_trigger(CanbusTrigger *trigger);
+#endif
   /**
    * Add a callback to be called when a CAN message is received. All received messages
    * are passed to the callback without filtering.
@@ -122,7 +124,11 @@ class Canbus : public Component {
 
  protected:
   template<typename... Ts> friend class CanbusSendAction;
-  std::vector<CanbusTrigger *> triggers_{};
+#ifdef CANBUS_TRIGGER_COUNT
+  StaticVector<CanbusTrigger *, CANBUS_TRIGGER_COUNT> triggers_;
+#else
+  [[no_unique_address]] EmptyList<CanbusTrigger *> triggers_;
+#endif
   uint32_t can_id_;
   uint32_t max_frames_per_loop_{50};  // Keep in sync with DEFAULT_MAX_FRAMES_PER_LOOP in __init__.py
   CanSpeed bit_rate_{CAN_125KBPS};    // Keep in sync with DEFAULT_BIT_RATE in __init__.py
@@ -196,7 +202,11 @@ class CanbusTrigger final : public Trigger<std::vector<uint8_t>, uint32_t, bool>
     this->remote_transmission_request_ = remote_transmission_request;
   }
 
-  void setup() override { this->parent_->add_trigger(this); }
+  void setup() override {
+#ifdef CANBUS_TRIGGER_COUNT
+    this->parent_->add_trigger(this);
+#endif
+  }
 
  protected:
   Canbus *parent_;

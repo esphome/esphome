@@ -497,6 +497,9 @@ automation.register_simple_action(
 )
 
 
+_add_controller = cg.slot_list("SPRINKLER_OTHER_CONTROLLER_COUNT", "add_controller")
+
+
 async def to_code(config):
     for sprinkler_controller in config:
         if len(sprinkler_controller[CONF_VALVES]) > 1:
@@ -733,4 +736,5 @@ async def to_code(config):
         var = await cg.get_variable(sprinkler_controller[CONF_ID])
         for controller_to_add in config:
             if sprinkler_controller[CONF_ID] != controller_to_add[CONF_ID]:
-                await cg.add_variable(var.add_controller, controller_to_add[CONF_ID])
+                other = await cg.get_variable(controller_to_add[CONF_ID])
+                cg.add(_add_controller(var, other))

@@ -143,6 +143,9 @@ CONFIG_SCHEMA = cv.All(
 )
 
 
+_add_trace = cg.slot_list("GRAPH_TRACE_COUNT", "add_trace")
+
+
 async def to_code(config: ConfigType) -> None:
     var = cg.new_Pvariable(config[CONF_ID])
     cg.add(var.set_duration(config[CONF_DURATION]))
@@ -174,7 +177,7 @@ async def to_code(config: ConfigType) -> None:
         await cg.add_variable(tr.set_line_color, trace.get(CONF_COLOR))
         if CONF_CONTINUOUS in trace:
             cg.add(tr.set_continuous(trace[CONF_CONTINUOUS]))
-        cg.add(var.add_trace(tr))
+        cg.add(_add_trace(var, tr))
     # Add legend
     if CONF_LEGEND in config:
         lgd = config[CONF_LEGEND]

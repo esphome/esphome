@@ -33,8 +33,16 @@ class MatrixKeypad final : public key_provider::KeyProvider, public Component {
   void set_has_diodes(bool has_diodes) { has_diodes_ = has_diodes; };
   void set_has_pulldowns(bool has_pulldowns) { has_pulldowns_ = has_pulldowns; };
 
-  void register_listener(MatrixKeypadListener *listener);
-  void register_key_trigger(MatrixKeyTrigger *trig);
+#ifdef MATRIX_KEYPAD_LISTENER_COUNT
+  SLOT_LIST(MatrixKeypadListener, listeners_, register_listener, MATRIX_KEYPAD_LISTENER_COUNT)
+#else
+  SLOT_LIST_EMPTY(MatrixKeypadListener, listeners_)
+#endif
+#ifdef MATRIX_KEYPAD_KEY_TRIGGER_COUNT
+  SLOT_LIST(MatrixKeyTrigger, key_triggers_, register_key_trigger, MATRIX_KEYPAD_KEY_TRIGGER_COUNT)
+#else
+  SLOT_LIST_EMPTY(MatrixKeyTrigger, key_triggers_)
+#endif
 
  protected:
   std::vector<GPIOPin *> rows_;
@@ -46,9 +54,6 @@ class MatrixKeypad final : public key_provider::KeyProvider, public Component {
   int pressed_key_ = -1;
   uint32_t active_start_{0};
   int active_key_{-1};
-
-  std::vector<MatrixKeypadListener *> listeners_{};
-  std::vector<MatrixKeyTrigger *> key_triggers_;
 };
 
 }  // namespace esphome::matrix_keypad
