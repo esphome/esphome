@@ -196,10 +196,9 @@ A binary sensor tests its field value against an on-values bitmap (`match`); a o
 ```python
 # hub __init__.py
 STATUS_PUBLISHER = cg.HubFunction(
-    "status_fn",
+    "status",  # esphome__<hub>__status_fn, passed to HUB_PUBLISHER(status, ...)'s setter
     cg.void,
     [(BQ25186StatusRegisters.const_ref(), "status")],
-    setter="set_status_publisher",
     define="USE_BQ25186_STATUS_PUBLISHER",
 )
 STATUS = STATUS_PUBLISHER.param("status")
