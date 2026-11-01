@@ -21,9 +21,7 @@ from dataclasses import dataclass
 import hashlib
 import os
 from pathlib import Path
-import re
 import shutil
-import struct
 import subprocess
 import sys
 import time
@@ -32,7 +30,6 @@ import time
 sys.path.insert(0, str(Path(__file__).parent.parent))
 
 # pylint: disable=wrong-import-position
-from esphome.analyze_memory.toolchain import find_elf_path
 from script.analyze_component_buses import (
     BASE_BUS_COMPONENTS,
     ISOLATED_COMPONENTS,
@@ -51,12 +48,6 @@ from script.helpers import (
     split_conflicting_groups,
 )
 from script.merge_component_configs import merge_component_configs
-
-# esp32_ble wraps Bluedroid's only sscanf callers (bluedroid_hex_wraps.cpp), so a
-# build with the wraps must not link newlib's scanf engine. Core parses floats
-# with strtof, so _strtod_r/_strtod_l stay legitimately.
-SCANF_WRAP_SYMBOL = "__wrap_string_to_bdaddr"
-SCANF_ENGINE_SYMBOLS = frozenset({"sscanf", "__ssvfscanf_r", "__svfscanf_r"})
 
 
 @dataclass
@@ -351,57 +342,6 @@ def _wants_skip_bootloader(skip: bool, command: str, platform: str) -> bool:
     return skip and command == "compile" and platform.startswith("esp32")
 
 
-def elf_defined_symbols(elf: Path, names: frozenset[str]) -> set[str]:
-    """Return which of ``names`` an ELF32 LE file defines in a section (not ROM/absolute)."""
-    data = elf.read_bytes()
-    (shoff,) = struct.unpack_from("<I", data, 0x20)
-    shentsize, shnum = struct.unpack_from("<HH", data, 0x2E)
-    sections = [
-        struct.unpack_from("<IIIIIIII", data, shoff + i * shentsize)
-        for i in range(shnum)
-    ]
-    found: set[str] = set()
-    for _, sh_type, _, _, offset, size, link, _ in sections:
-        if sh_type != 2:  # SHT_SYMTAB
-            continue
-        str_offset = sections[link][4]
-        for sym in range(offset, offset + size, 16):
-            st_name, _, _, _, _, st_shndx = struct.unpack_from("<IIIBBH", data, sym)
-            if st_shndx in (0, 0xFFF1):  # SHN_UNDEF, SHN_ABS
-                continue
-            end = data.index(b"\0", str_offset + st_name)
-            if (name := data[str_offset + st_name : end].decode()) in names:
-                found.add(name)
-    return found
-
-
-def check_scanf_engine_absent(
-    build_dir: Path, base_file: Path, esphome_command: str
-) -> int:
-    """Return 1 (after printing why) when a build with the sscanf wraps still links scanf."""
-    if esphome_command != "compile":
-        return 0
-    name = re.search(
-        r"^\s+name:\s*(\S+)", base_file.read_text(encoding="utf-8"), re.MULTILINE
-    )
-    if (
-        name is None
-        or (elf := find_elf_path(build_dir / ".esphome" / "build" / name.group(1)))
-        is None
-    ):
-        return 0
-    defined = elf_defined_symbols(elf, SCANF_ENGINE_SYMBOLS | {SCANF_WRAP_SYMBOL})
-    if SCANF_WRAP_SYMBOL not in defined or not (
-        linked := defined & SCANF_ENGINE_SYMBOLS
-    ):
-        return 0
-    print(
-        f"FAILED: {elf} links {', '.join(sorted(linked))} although esp32_ble wraps "
-        "Bluedroid's sscanf callers; find the new caller (see bluedroid_hex_wraps.cpp)"
-    )
-    return 1
-
-
 def run_esphome_test(
     component: str,
     test_file: Path,
@@ -507,10 +447,7 @@ def run_esphome_test(
     finally:
         end_log_group()
 
-    returncode = result.returncode or check_scanf_engine_absent(
-        build_dir, base_file, esphome_command
-    )
-    success = returncode == 0
+    success = result.returncode == 0
     duration = time.time() - start_time
 
     if not success and not continue_on_fail:
@@ -521,7 +458,7 @@ def run_esphome_test(
         print(f"{'=' * 80}")
         print(cmd_str)
         print()
-        raise subprocess.CalledProcessError(returncode, cmd)
+        raise subprocess.CalledProcessError(result.returncode, cmd)
 
     return TestResult(
         test_id=test_id,
@@ -658,10 +595,7 @@ def run_grouped_test(
     finally:
         end_log_group()
 
-    returncode = result.returncode or check_scanf_engine_absent(
-        build_dir, base_file, esphome_command
-    )
-    success = returncode == 0
+    success = result.returncode == 0
     duration = time.time() - start_time
 
     if not success and not continue_on_fail:
@@ -672,7 +606,7 @@ def run_grouped_test(
         print(f"{'=' * 80}")
         print(cmd_str)
         print()
-        raise subprocess.CalledProcessError(returncode, cmd)
+        raise subprocess.CalledProcessError(result.returncode, cmd)
 
     return TestResult(
         test_id=test_id,

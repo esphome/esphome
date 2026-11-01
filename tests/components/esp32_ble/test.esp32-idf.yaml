@@ -1,6 +1,12 @@
 <<: !include common.yaml
 <<: !include common_use_psram.yaml
 
+esphome:
+  # Fails the link if anything still calls sscanf; bluedroid_hex_wraps.cpp
+  # replaces Bluedroid's two callers so newlib's scanf engine stays out.
+  build_flags:
+    - "-Wl,--wrap=sscanf"
+
 esp32_ble:
   io_capability: keyboard_only
   disable_bt_logs: false
