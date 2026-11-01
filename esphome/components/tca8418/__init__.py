@@ -16,15 +16,6 @@ DOMAIN = "tca8418"
 AUTO_LOAD = ["key_provider", "gpio_expander"]
 MULTI_CONF = True
 
-# Each keypad keeps its listeners in a fixed size list; the define is the largest count any one keypad needs
-_request_listener_slot = cg.slot_counter("TCA8418_LISTENER_COUNT")
-
-
-async def register_listener(keypad: cg.MockObj, var: cg.MockObj) -> None:
-    _request_listener_slot(str(keypad))
-    cg.add(keypad.register_listener(var))
-
-
 CONF_GPI_EVENTS = "gpi_events"
 CONF_KEYPAD_ID = "keypad_id"
 
@@ -43,6 +34,15 @@ def _matrix_key(row: int, col: int) -> int:
 tca8418_ns = cg.esphome_ns.namespace("tca8418")
 TCA8418Component = tca8418_ns.class_(
     "TCA8418Component", key_provider.KeyProvider, cg.Component, i2c.I2CDevice
+)
+
+# Publishes the binary sensors on each key event
+KEY_PUBLISHER = cg.HubFunction(
+    "key_fn",
+    cg.void,
+    [(cg.uint8, "key"), (cg.bool_, "pressed")],
+    setter="set_key_publisher",
+    define="USE_TCA8418_KEY_PUBLISHER",
 )
 
 
