@@ -74,7 +74,7 @@ def child_schema(platform: str, schema: dict) -> cv.All:
             {
                 cv.GenerateID(CONF_SYSTA_BUS_ID): cv.use_id(SystaBus),
                 # Remove before 2027.5.0
-                cv.Optional(CONF_ID): cv.validate_id_name,
+                cv.Optional(CONF_ID): cv.All(cv.string, cv.validate_id_name),
                 cv.Optional(CONF_SETUP_PRIORITY): cv.float_,
                 **schema,
             }
