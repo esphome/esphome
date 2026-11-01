@@ -201,6 +201,14 @@ def _mock_file(filename: str) -> MagicMock:
     return m
 
 
+def _mock_component_module(package: str) -> MagicMock:
+    """Mock a component's ``__init__`` module without ``FILTER_SOURCE_FILES``."""
+    m = MagicMock()
+    m.__package__ = m.__name__ = package
+    del m.FILTER_SOURCE_FILES
+    return m
+
+
 def _mock_dir(dirname: str, children: list, has_init: bool = False) -> MagicMock:
     """Mock a directory entry with an iterdir() and joinpath('__init__.py')."""
     d = MagicMock()
@@ -216,10 +224,7 @@ def _mock_dir(dirname: str, children: list, has_init: bool = False) -> MagicMock
 
 def test_component_manifest_resources_non_recursive_skips_subdirs() -> None:
     """Default (recursive_sources=False) does not descend into subdirectories."""
-    mock_module = MagicMock()
-    mock_module.__package__ = "esphome.components.test_component"
-    # No FILTER_SOURCE_FILES.
-    del mock_module.FILTER_SOURCE_FILES
+    mock_module = _mock_component_module("esphome.components.test_component")
 
     manifest = ComponentManifest(mock_module)  # recursive_sources defaults to False
 
@@ -239,9 +244,7 @@ def test_component_manifest_resources_non_recursive_skips_subdirs() -> None:
 
 def test_component_manifest_resources_recursive_walks_non_subpackage_subdirs() -> None:
     """With recursive_sources=True, a subdir without __init__.py is walked."""
-    mock_module = MagicMock()
-    mock_module.__package__ = "esphome.core"
-    del mock_module.FILTER_SOURCE_FILES
+    mock_module = _mock_component_module("esphome.core")
 
     manifest = ComponentManifest(mock_module, recursive_sources=True)
 
@@ -272,9 +275,7 @@ def test_component_manifest_resources_recursive_skips_subpackages() -> None:
     """Subdirectories that ARE Python subpackages (contain __init__.py) are
     skipped even with recursive_sources=True — those load as their own
     ComponentManifest and would otherwise be double-counted."""
-    mock_module = MagicMock()
-    mock_module.__package__ = "esphome.components.haier"
-    del mock_module.FILTER_SOURCE_FILES
+    mock_module = _mock_component_module("esphome.components.haier")
 
     manifest = ComponentManifest(mock_module, recursive_sources=True)
 
@@ -299,9 +300,7 @@ def test_component_manifest_resources_recursive_skips_subpackages() -> None:
 
 def test_component_manifest_resources_recursive_skips_pycache() -> None:
     """__pycache__ inside a recursive walk must never be descended into."""
-    mock_module = MagicMock()
-    mock_module.__package__ = "esphome.core"
-    del mock_module.FILTER_SOURCE_FILES
+    mock_module = _mock_component_module("esphome.core")
 
     manifest = ComponentManifest(mock_module, recursive_sources=True)
 
@@ -348,6 +347,39 @@ def test_component_manifest_resources_recursive_filter_source_files_supports_sub
         names = [r.resource for r in manifest.resources]
 
     assert names == ["wake/wake_freertos.cpp"]
+
+
+@pytest.mark.parametrize(
+    ("package_platform", "platform_filter", "expected"),
+    [
+        (False, None, ["hub.cpp"]),
+        (False, ["hub.cpp"], ["hub_extra.cpp"]),
+        (True, None, ["hub.cpp", "hub_extra.cpp"]),
+    ],
+    ids=["inherits_parent_filter", "keeps_own_filter", "package_ignores_parent"],
+)
+def test_component_manifest_resources_platform_filter(
+    package_platform: bool, platform_filter: list[str] | None, expected: list[str]
+) -> None:
+    """A module platform (sensor.py) without its own filter uses its component's;
+    a package platform (sensor/__init__.py) has its own directory and does not."""
+    parent = ModuleType("esphome.components._test_parent")
+    parent.FILTER_SOURCE_FILES = lambda: ["hub_extra.cpp"]
+    platform = ModuleType("esphome.components._test_parent.sensor")
+    platform.__package__ = platform.__name__ if package_platform else parent.__name__
+    if platform_filter is not None:
+        platform.FILTER_SOURCE_FILES = lambda: platform_filter
+    with (
+        patch.dict(sys.modules, {parent.__name__: parent}),
+        patch("importlib.resources.files") as mock_files_func,
+    ):
+        mock_files_func.return_value.iterdir.return_value = [
+            _mock_file("hub.cpp"),
+            _mock_file("hub_extra.cpp"),
+        ]
+        names = [r.resource for r in ComponentManifest(platform).resources]
+
+    assert names == expected
 
 
 # ---------------------------------------------------------------------------
@@ -731,9 +763,7 @@ def test_component_manifest_metadata_defaults() -> None:
 
 def test_component_manifest_resources_recursive_skips_non_file_entries() -> None:
     """Nested directories inside a walked subdirectory are ignored."""
-    mock_module = MagicMock()
-    mock_module.__package__ = "esphome.core"
-    del mock_module.FILTER_SOURCE_FILES
+    mock_module = _mock_component_module("esphome.core")
     manifest = ComponentManifest(mock_module, recursive_sources=True)
 
     group = _mock_dir(
