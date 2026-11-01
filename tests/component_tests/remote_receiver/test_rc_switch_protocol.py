@@ -20,6 +20,6 @@ def test_rc_switch_protocols_share_flash_tables(
     # Receivers point into flash instead of holding a copy.
     assert "->set_protocol(&remote_base::RC_SWITCH_PROTOCOLS[1]);" in main_cpp
     assert "->set_protocol(rc_switch_custom_protocol_2);" in main_cpp
-    # Numbered and lambda protocols keep their existing paths.
-    assert "return remote_base::rc_switch_protocol(1);" in main_cpp
+    # A numbered protocol is copied out where it is sent; a lambda keeps its own path.
+    assert "remote_base::rc_switch_protocol(1).transmit(" in main_cpp
     assert "return remote_base::rc_switch_protocol(2);" in main_cpp
