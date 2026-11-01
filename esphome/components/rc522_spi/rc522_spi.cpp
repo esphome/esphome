@@ -7,7 +7,7 @@
 
 namespace esphome::rc522_spi {
 
-static const char *const TAG = "rc522_spi";
+ESPHOME_LOG_TAG(TAG, "rc522_spi");
 
 void RC522Spi::setup() {
   this->spi_setup();

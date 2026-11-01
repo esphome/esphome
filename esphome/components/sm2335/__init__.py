@@ -5,6 +5,7 @@ from esphome.types import ConfigType
 
 AUTO_LOAD = ["sm10bit_base", "output"]
 CODEOWNERS = ["@Cossid"]
+DOMAIN = "sm2335"
 MULTI_CONF = True
 
 sm2335_ns = cg.esphome_ns.namespace("sm2335")
@@ -19,5 +20,4 @@ CONFIG_SCHEMA = cv.Schema(
 
 
 async def to_code(config: ConfigType) -> None:
-    var = await sm10bit_base.register_sm10bit_base(config)
-    cg.add(var.set_model(0xC0))
+    await sm10bit_base.register_sm10bit_base(config)

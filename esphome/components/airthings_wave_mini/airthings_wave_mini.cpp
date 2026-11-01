@@ -4,23 +4,17 @@
 
 namespace esphome::airthings_wave_mini {
 
-static const char *const TAG = "airthings_wave_mini";
+ESPHOME_LOG_TAG(TAG, "airthings_wave_mini");
 
 void AirthingsWaveMini::read_sensors(uint8_t *raw_value, uint16_t value_len) {
   auto *value = (WaveMiniReadings *) raw_value;
 
   if (sizeof(WaveMiniReadings) <= value_len) {
-    if (this->humidity_sensor_ != nullptr) {
-      this->humidity_sensor_->publish_state(value->humidity / 100.0f);
-    }
+    PUBLISH_STATE(this->humidity_sensor_, value->humidity / 100.0f);
 
-    if (this->pressure_sensor_ != nullptr) {
-      this->pressure_sensor_->publish_state(value->pressure / 50.0f);
-    }
+    PUBLISH_STATE(this->pressure_sensor_, value->pressure / 50.0f);
 
-    if (this->temperature_sensor_ != nullptr) {
-      this->temperature_sensor_->publish_state(value->temperature / 100.0f - 273.15f);
-    }
+    PUBLISH_STATE(this->temperature_sensor_, value->temperature / 100.0f - 273.15f);
 
     if ((this->tvoc_sensor_ != nullptr) && this->is_valid_voc_value_(value->voc)) {
       this->tvoc_sensor_->publish_state(value->voc);

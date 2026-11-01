@@ -4,7 +4,7 @@
 
 namespace esphome::key_collector {
 
-static const char *const TAG = "key_collector";
+ESPHOME_LOG_TAG(TAG, "key_collector");
 
 void KeyCollector::loop() {
   if ((this->timeout_ == 0) || this->result_.empty() || (millis() - this->last_key_time_ < this->timeout_))

@@ -1,10 +1,10 @@
 from esphome import automation
 import esphome.codegen as cg
 from esphome.components import i2c
+from esphome.components.const import CONF_ON_DOUBLE_TAP, CONF_ON_TAP
 import esphome.config_validation as cv
 from esphome.const import (
     CONF_CALIBRATION,
-    CONF_ID,
     CONF_MIRROR_X,
     CONF_MIRROR_Y,
     CONF_OFFSET_X,
@@ -20,6 +20,7 @@ from esphome.types import ConfigType
 
 CODEOWNERS = ["@latonita"]
 DEPENDENCIES = ["i2c"]
+DOMAIN = "msa3xx"
 
 MULTI_CONF = True
 
@@ -27,10 +28,8 @@ CONF_MSA3XX_ID = "msa3xx_id"
 
 CONF_MIRROR_Z = "mirror_z"
 CONF_ON_ACTIVE = "on_active"
-CONF_ON_DOUBLE_TAP = "on_double_tap"
 CONF_ON_FREEFALL = "on_freefall"
 CONF_ON_ORIENTATION = "on_orientation"
-CONF_ON_TAP = "on_tap"
 
 MODEL_MSA301 = "MSA301"
 MODEL_MSA311 = "MSA311"
@@ -47,12 +46,7 @@ MSA_MODELS = {
 }
 
 MSARange = msa3xx_ns.enum("Range", True)
-MSA_RANGES = {
-    "2G": MSARange.RANGE_2G,
-    "4G": MSARange.RANGE_4G,
-    "8G": MSARange.RANGE_8G,
-    "16G": MSARange.RANGE_16G,
-}
+MSA_RANGES = MSARange.options("2G", "4G", "8G", "16G", prefix="RANGE_")
 
 MSAResolution = msa3xx_ns.enum("Resolution", True)
 RESOLUTIONS_MSA301 = {
@@ -125,9 +119,7 @@ MSA_SENSOR_SCHEMA = cv.Schema(
 
 
 async def to_code(config: ConfigType) -> None:
-    var = cg.new_Pvariable(config[CONF_ID])
-    await cg.register_component(var, config)
-    await i2c.register_i2c_device(var, config)
+    var = await i2c.new_i2c_component(config)
 
     cg.add(var.set_model(config[CONF_TYPE]))
     cg.add(var.set_range(MSA_RANGES[config[CONF_RANGE]]))

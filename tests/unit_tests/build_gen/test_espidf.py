@@ -4,11 +4,13 @@ from __future__ import annotations
 
 import json
 import logging
+import os
 from pathlib import Path
-from unittest.mock import patch
+from unittest.mock import Mock, patch
 
 import pytest
 
+from esphome.build_helpers import pch
 from esphome.components.esp32 import (
     KEY_COMPONENTS,
     KEY_ESP32,
@@ -163,6 +165,53 @@ def test_has_discovered_components_after_configure(tmp_path: Path) -> None:
     assert has_discovered_components()
 
 
+@pytest.mark.parametrize("minimal", [False, True])
+def test_get_project_cmakelists_emits_ldgen_override(
+    minimal: bool, monkeypatch: pytest.MonkeyPatch
+) -> None:
+    """Both renders override the ldgen dep walker to drop the app archive,
+    after include(project.cmake) which defines the original."""
+    monkeypatch.delenv("ESPHOME_LDGEN_FULL_DEPS", raising=False)
+    monkeypatch.delenv("ESPHOME_LDGEN_STRICT", raising=False)
+    content = _render(minimal=minimal)
+    assert "REMOVE_ITEM ${out_list_var} idf::src __idf_src" in content
+    # Quoted so spaced elements survive and an empty list stays defined
+    assert 'set(${out_list_var} "${${out_list_var}}" PARENT_SCOPE)' in content
+    assert 'message(WARNING "ESPHome ldgen app archive exclusion' in content
+    assert 'message(STATUS "ESPHome ldgen override target not found' in content
+    assert 'message(WARNING "ESPHome ldgen override never filtered' in content
+    assert content.index("tools/cmake/project.cmake") < content.index(
+        "function(__ldgen_get_lib_deps_of_target"
+    )
+    # The never-filtered check must run after project() has walked the deps
+    assert content.index("project(test)") < content.index("esphome_ldgen_armed GLOBAL")
+
+
+def test_get_project_cmakelists_ldgen_strict_fails_closed(
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    """ESPHOME_LDGEN_STRICT turns both degradation paths into hard errors so
+    CI fails right away when an IDF bump breaks the override."""
+    monkeypatch.delenv("ESPHOME_LDGEN_FULL_DEPS", raising=False)
+    monkeypatch.setenv("ESPHOME_LDGEN_STRICT", "1")
+    content = _render()
+    assert 'message(FATAL_ERROR "ESPHome ldgen app archive exclusion' in content
+    assert 'message(FATAL_ERROR "ESPHome ldgen override target not found' in content
+    assert 'message(FATAL_ERROR "ESPHome ldgen override never filtered' in content
+    assert "@SEVERITY@" not in content
+    assert "@MISSING@" not in content
+
+
+def test_get_project_cmakelists_ldgen_full_deps_escape_hatch(
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    """ESPHOME_LDGEN_FULL_DEPS restores stock ldgen behavior."""
+    monkeypatch.setenv("ESPHOME_LDGEN_FULL_DEPS", "true")
+    content = _render()
+    assert "__ldgen_get_lib_deps_of_target" not in content
+    assert "esphome_ldgen_armed" not in content
+
+
 def test_get_project_cmakelists_size_command_uses_json2() -> None:
     """The POST_BUILD size command uses the cheap json2 format, with --ng
     only on the 1.x tool bundled with IDF < 6."""
@@ -173,6 +222,39 @@ def test_get_project_cmakelists_size_command_uses_json2() -> None:
     content = _render()
     assert "--ng" not in content
     assert "--format=json2" in content
+
+
+def test_get_project_cmakelists_drops_empty_lwip_sources() -> None:
+    """The filter comes after project(), where the lwip target exists."""
+    from esphome.build_gen.espidf import (
+        LWIP_EMPTY_SOURCES,
+        LWIP_FULL_SOURCES_ENV,
+        lwip_empty_source_gate,
+    )
+
+    content = _render()
+    filter_at = content.index(
+        "set_property(TARGET ${esphome_lwip_lib} PROPERTY SOURCES"
+    )
+    assert filter_at > content.index("project(")
+    assert f"NOT DEFINED ENV{{{LWIP_FULL_SOURCES_ENV}}}" in content
+    for entry in LWIP_EMPTY_SOURCES:
+        assert lwip_empty_source_gate(*entry) in content
+
+
+def test_get_project_cmakelists_declares_map_as_link_byproduct() -> None:
+    """The map is a link byproduct only when IDF has not declared it itself."""
+    content = _render()
+    assert (
+        "get_source_file_property(esphome_map_declared\n"
+        "    ${CMAKE_BINARY_DIR}/${CMAKE_PROJECT_NAME}.map GENERATED)"
+    ) in content
+    assert (
+        "set(esphome_map_byproducts BYPRODUCTS "
+        "${CMAKE_BINARY_DIR}/${CMAKE_PROJECT_NAME}.map)"
+    ) in content
+    assert "    ${esphome_map_byproducts}\n    WORKING_DIRECTORY" in content
+    assert "BYPRODUCTS ${CMAKE_BINARY_DIR}/${CMAKE_PROJECT_NAME}.map\n" not in content
 
 
 def test_get_project_cmakelists_uses_supplied_builtin_components() -> None:
@@ -279,15 +361,52 @@ def test_get_project_cmakelists_emits_exclude_components(tmp_path: Path) -> None
     assert "ESPHOME_PROJECT_BUILTIN_COMPONENTS esp_lcd" not in content
 
 
-def test_get_project_cmakelists_minimal_emits_exclude_components() -> None:
-    """The discovery (minimal) write also excludes components so they never
-    register in project_description.json."""
+def test_get_project_cmakelists_minimal_excludes_only_managed_components(
+    tmp_path: Path,
+) -> None:
+    """The discovery (minimal) write lets built-in components register so
+    the cached list serves every exclusion set; managed ones stay excluded."""
+    (tmp_path / "components" / "unity").mkdir(parents=True)
+    CORE.data[KEY_ESP32][KEY_EXCLUDE_COMPONENTS] = {"unity", "espressif__esp_hosted"}
+    register_exclude_components_cmake_arg()
+
+    with patch("esphome.espidf.toolchain._get_idf_path", return_value=tmp_path):
+        minimal = _render(minimal=True)
+        full = _render()
+
+    assert 'set(EXCLUDE_COMPONENTS "espressif__esp_hosted")' in minimal
+    assert 'set(EXCLUDE_COMPONENTS "espressif__esp_hosted;unity")' in full
+
+
+def test_get_project_cmakelists_minimal_keeps_exclusions_for_custom_idf_path(
+    tmp_path: Path,
+) -> None:
+    """Nothing is cached for a user-supplied IDF_PATH, so its discovery write
+    keeps every exclusion."""
+    (tmp_path / "components" / "unity").mkdir(parents=True)
     CORE.data[KEY_ESP32][KEY_EXCLUDE_COMPONENTS] = {"unity"}
     register_exclude_components_cmake_arg()
 
-    content = _render(minimal=True)
+    with (
+        patch("esphome.espidf.toolchain._get_idf_path", return_value=tmp_path),
+        patch.dict(os.environ, {"IDF_PATH": str(tmp_path)}),
+    ):
+        content = _render(minimal=True)
 
     assert 'set(EXCLUDE_COMPONENTS "unity")' in content
+
+
+def test_get_project_cmakelists_minimal_drops_exclude_line_when_all_builtin(
+    tmp_path: Path,
+) -> None:
+    (tmp_path / "components" / "unity").mkdir(parents=True)
+    CORE.data[KEY_ESP32][KEY_EXCLUDE_COMPONENTS] = {"unity"}
+    register_exclude_components_cmake_arg()
+
+    with patch("esphome.espidf.toolchain._get_idf_path", return_value=tmp_path):
+        content = _render(minimal=True)
+
+    assert "EXCLUDE_COMPONENTS" not in content
 
 
 def test_get_project_cmakelists_no_exclude_components_line_when_empty() -> None:
@@ -357,9 +476,39 @@ def test_get_component_cmakelists_single_link_flag() -> None:
 
     content = get_component_cmakelists()
     assert (
-        "target_link_options(${COMPONENT_LIB} PUBLIC\n    -Wl,--gc-sections\n)"
+        'target_link_options(${COMPONENT_LIB} PUBLIC\n    "-Wl,--gc-sections"\n)'
         in content
     )
+
+
+def test_get_component_cmakelists_emits_src_cmake_blocks_in_order() -> None:
+    """Blocks registered with add_src_cmake() follow idf_component_register() in order."""
+    from esphome.build_gen.espidf import get_component_cmakelists
+    from esphome.components.esp32 import KEY_SRC_CMAKE, add_src_cmake
+
+    CORE.build_flags = set()
+    CORE.data[KEY_ESP32][KEY_SRC_CMAKE] = []
+    add_src_cmake('ulp_embed_binary(ulp_main "a.c" "main.cpp")')
+    add_src_cmake("target_compile_definitions(${COMPONENT_LIB} PRIVATE SECOND)")
+
+    content = get_component_cmakelists()
+    register = content.index("idf_component_register(")
+    link = content.index("target_link_options(${COMPONENT_LIB}")
+    first = content.index("ulp_embed_binary(ulp_main")
+    second = content.index("PRIVATE SECOND)")
+    assert register < link < first < second
+
+
+def test_get_component_cmakelists_without_src_cmake_blocks() -> None:
+    """No registered blocks leaves nothing between target_link_options and the pch block."""
+    from esphome.build_gen.espidf import get_component_cmakelists
+    from esphome.components.esp32 import KEY_SRC_CMAKE
+
+    CORE.build_flags = set()
+    CORE.data[KEY_ESP32].pop(KEY_SRC_CMAKE, None)
+    content = get_component_cmakelists()
+    assert "ulp_embed_binary" not in content
+    assert content.count("target_link_options(") == 1
 
 
 def test_get_component_cmakelists_multiple_link_flags_sorted() -> None:
@@ -370,9 +519,9 @@ def test_get_component_cmakelists_multiple_link_flags_sorted() -> None:
     content = get_component_cmakelists()
     expected = (
         "target_link_options(${COMPONENT_LIB} PUBLIC\n"
-        "    -Wl,--gc-sections\n"
-        "    -Wl,-Map=out.map\n"
-        "    -Wl,-z,noexecstack\n"
+        '    "-Wl,--gc-sections"\n'
+        '    "-Wl,-Map=out.map"\n'
+        '    "-Wl,-z,noexecstack"\n'
         ")"
     )
     assert expected in content
@@ -491,6 +640,182 @@ def test_get_project_cmakelists_cxx_build_flags(tmp_path: Path) -> None:
     assert include_pos < flag_pos < project_pos
 
 
+@pytest.mark.parametrize(
+    ("flag", "lines"),
+    [
+        # One entry with several flags is split, as PlatformIO does
+        ("-DA=1 -DB=2", ['"-DA=1"', '"-DB=2"']),
+        # Shell quotes are removed and escaped quotes are kept as a C string
+        ('-DMY_STR="hello"', ['"-DMY_STR=hello"']),
+        ('-DMY_STR=\\"hello\\"', ['"-DMY_STR=\\"hello\\""']),
+        # CMake must not expand ${...} or read \ as an escape
+        ("-DY=${HOME}", ['"-DY=\\${HOME}"']),
+        ("-DP='a\\b'", ['"-DP=a\\\\b"']),
+    ],
+)
+def test_get_project_cmakelists_quotes_compile_flags(
+    flag: str, lines: list[str]
+) -> None:
+    with (
+        patch("esphome.build_gen.espidf.get_esp32_variant", return_value="ESP32"),
+        patch.object(CORE, "name", "test"),
+        patch.object(CORE, "build_flags", {flag}),
+    ):
+        from esphome.build_gen.espidf import get_project_cmakelists
+
+        content = get_project_cmakelists(minimal=True)
+
+    emitted = [
+        line.removeprefix("idf_build_set_property(COMPILE_OPTIONS ").removesuffix(
+            " APPEND)"
+        )
+        for line in content.splitlines()
+        if line.startswith("idf_build_set_property(COMPILE_OPTIONS ")
+    ]
+    assert emitted == lines
+
+
+def test_get_component_cmakelists_quotes_link_flags() -> None:
+    CORE.build_flags = {"-Wl,--defsym=a=1 -Wl,--gc-sections"}
+    from esphome.build_gen.espidf import get_component_cmakelists
+
+    content = get_component_cmakelists()
+    assert (
+        "target_link_options(${COMPONENT_LIB} PUBLIC\n"
+        '    "-Wl,--defsym=a=1,--gc-sections"\n'
+        ")"
+    ) in content
+
+
+@pytest.mark.parametrize(
+    "entry", ["-DTEST=1 -Wl,--wrap=malloc", "-Wl,--wrap=malloc -DTEST=1"]
+)
+def test_mixed_entry_routes_each_flag(entry: str) -> None:
+    """An entry holding a define and a linker flag sends each flag to its own
+    place, whichever comes first."""
+    with (
+        patch("esphome.build_gen.espidf.get_esp32_variant", return_value="ESP32"),
+        patch.object(CORE, "name", "test"),
+        patch.object(CORE, "build_flags", {entry}),
+    ):
+        from esphome.build_gen.espidf import (
+            get_component_cmakelists,
+            get_project_cmakelists,
+        )
+
+        project = get_project_cmakelists(minimal=True)
+        component = get_component_cmakelists()
+
+    compile_lines = [
+        line
+        for line in project.splitlines()
+        if line.startswith("idf_build_set_property(COMPILE_OPTIONS ")
+    ]
+    assert compile_lines == [
+        'idf_build_set_property(COMPILE_OPTIONS "-DTEST=1" APPEND)'
+    ]
+    assert (
+        'target_link_options(${COMPONENT_LIB} PUBLIC\n    "-Wl,--wrap=malloc"\n)'
+    ) in component
+
+
+def test_linker_groups_stay_whole() -> None:
+    """The linker flags of one entry stay in the order written, joined into
+    one -Wl, flag, so CMake does not drop the markers of a second group as
+    repeated options."""
+    CORE.build_flags = {
+        "-Wl,--start-group -Wl,-lfoo -Wl,--end-group",
+        "-Wl,--start-group -Wl,-lbar -Wl,--end-group",
+    }
+    from esphome.build_gen.espidf import get_component_cmakelists
+
+    content = get_component_cmakelists()
+    assert (
+        "target_link_options(${COMPONENT_LIB} PUBLIC\n"
+        '    "-Wl,--start-group,-lbar,--end-group"\n'
+        '    "-Wl,--start-group,-lfoo,--end-group"\n'
+        ")"
+    ) in content
+
+
+@pytest.mark.parametrize(
+    "entry", ["-DLEVEL=2 -DLEVEL=1", "-DLEVEL=1 -DLEVEL=2 -DLEVEL=1"]
+)
+def test_split_defines_keep_their_order(entry: str) -> None:
+    """A repeated define keeps the order written, so the last one wins as on
+    the command line. CMake drops repeated compile options after the first,
+    so only the last copy of an identical define is emitted."""
+    with (
+        patch("esphome.build_gen.espidf.get_esp32_variant", return_value="ESP32"),
+        patch.object(CORE, "name", "test"),
+        patch.object(CORE, "build_flags", {entry}),
+    ):
+        from esphome.build_gen.espidf import get_project_cmakelists
+
+        content = get_project_cmakelists(minimal=True)
+
+    assert [
+        line
+        for line in content.splitlines()
+        if line.startswith("idf_build_set_property(COMPILE_OPTIONS ")
+    ] == [
+        'idf_build_set_property(COMPILE_OPTIONS "-DLEVEL=2" APPEND)',
+        'idf_build_set_property(COMPILE_OPTIONS "-DLEVEL=1" APPEND)',
+    ]
+
+
+def test_dropped_flag_warns_once_per_entry(
+    caplog: pytest.LogCaptureFixture,
+) -> None:
+    """A flag that native ESP-IDF does not pass on is named in one warning
+    per entry, however often the project files are written. A flag holding
+    ';' is dropped too, as CMake would split it into two."""
+    with (
+        patch("esphome.build_gen.espidf.get_esp32_variant", return_value="ESP32"),
+        patch.object(CORE, "name", "test"),
+        patch.object(
+            CORE,
+            "build_flags",
+            {
+                "-DFOO=1 -fno-rtti",
+                "-DBAR=2 -fno-rtti",
+                "-O2",
+                "-DA=1;-O2",
+                "-std=gnu++23",
+            },
+        ),
+        caplog.at_level(logging.WARNING, logger="esphome.framework_helpers"),
+    ):
+        from esphome.build_gen.espidf import (
+            get_component_cmakelists,
+            get_project_cmakelists,
+        )
+
+        for _ in range(2):
+            get_project_cmakelists(minimal=True)
+            get_component_cmakelists()
+
+    warnings = [r.getMessage() for r in caplog.records if r.levelno == logging.WARNING]
+    assert warnings == [
+        "Build flag '-DA=1;-O2' is ignored: CMake splits arguments at ';'"
+    ] + [
+        (
+            f"Build flag '-fno-rtti' in '{entry}' is ignored: native "
+            "ESP-IDF builds only pass -D, -W and -Wl, flags"
+        )
+        for entry in ("-DBAR=2 -fno-rtti", "-DFOO=1 -fno-rtti")
+    ] + [
+        (
+            "Build flag '-O2' is ignored: native ESP-IDF builds only pass -D, -W "
+            "and -Wl, flags"
+        ),
+        (
+            "Build flag '-std=gnu++23' is ignored: native ESP-IDF builds only pass "
+            "-D, -W and -Wl, flags"
+        ),
+    ]
+
+
 def test_get_component_cmakelists_no_compile_features() -> None:
     """The C++ standard is pinned project-wide via CXX_COMPILE_OPTIONS in the
     top-level CMakeLists; the src component must not set its own."""
@@ -500,3 +825,229 @@ def test_get_component_cmakelists_no_compile_features() -> None:
         content = get_component_cmakelists()
 
     assert "target_compile_features" not in content
+
+
+def _make_pch_project(tmp_path: Path) -> Path:
+    """A build path with the core headers, an sdkconfig and a lock file."""
+    from esphome.build_helpers.pch import PCH_DEFAULT_HEADERS
+
+    CORE.build_path = tmp_path
+    for header in PCH_DEFAULT_HEADERS:
+        path = tmp_path / "src" / header
+        path.parent.mkdir(parents=True, exist_ok=True)
+        path.write_text('#include "esphome/core/defines.h"\n')
+    (tmp_path / "src" / "esphome" / "core" / "defines.h").write_text("#define M 1\n")
+    (tmp_path / "sdkconfig.test").write_text("CONFIG_X=y\n")
+    (tmp_path / "dependencies.lock").write_text("espressif/mdns: 1.12.0\n")
+    return tmp_path
+
+
+def _pch_checksum() -> str:
+    from esphome.build_gen.espidf import _PCH_SUM_PATH, write_pch_checksum
+
+    with patch.object(CORE, "name", "test"):
+        write_pch_checksum()
+    return CORE.relative_build_path(_PCH_SUM_PATH).read_text()
+
+
+def test_component_cmakelists_pch_block(monkeypatch: pytest.MonkeyPatch) -> None:
+    from esphome.build_gen.espidf import get_component_cmakelists
+
+    content = get_component_cmakelists()
+    assert (
+        "target_precompile_headers(${COMPONENT_LIB} PRIVATE\n"
+        '    "$<$<COMPILE_LANGUAGE:CXX>:${CMAKE_CURRENT_SOURCE_DIR}/'
+        'esphome/core/pch_prefix.h>"\n)'
+    ) in content
+    monkeypatch.setenv("ESPHOME_PCH_ENABLE", "0")
+    assert "target_precompile_headers" not in get_component_cmakelists()
+
+
+def test_component_cmakelists_pch_ccache_gate(
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    """With the knob unset, CMake checks the ccache IDF found and records its
+    choice; the knob drops the gate."""
+    from esphome.build_gen.espidf import get_component_cmakelists
+
+    monkeypatch.delenv("ESPHOME_PCH_ENABLE")
+    # Off Windows, so the GCC rule stays out of the block
+    monkeypatch.setattr(pch.sys, "platform", "linux")
+    # Code generation must not run ccache or need an installed toolchain
+    monkeypatch.setattr(pch, "ccache_breaks_pch", Mock(side_effect=AssertionError))
+    content = get_component_cmakelists()
+    assert (
+        "if(CCACHE_ENABLE AND CCACHE_FOUND)\n"
+        '  execute_process(COMMAND "${CCACHE_FOUND}" --version '
+        "OUTPUT_VARIABLE _esphome_ccache ERROR_QUIET)\n"
+        '  if(_esphome_ccache MATCHES "ccache version ([0-9.]+)")\n'
+        "    if(CMAKE_MATCH_1 VERSION_LESS 4.7)\n"
+    ) in content
+    assert (
+        'set(ESPHOME_PCH ${_esphome_pch} CACHE BOOL "ESPHome precompiled header in use" FORCE)\n'
+        "if(_esphome_pch)\n  target_precompile_headers(${COMPONENT_LIB} PRIVATE\n"
+    ) in content
+    assert "CMAKE_CXX_COMPILER_VERSION VERSION_LESS" not in content
+    monkeypatch.setenv("ESPHOME_PCH_ENABLE", "1")
+    content = get_component_cmakelists()
+    assert "CCACHE_FOUND" not in content
+    assert "\ntarget_precompile_headers(${COMPONENT_LIB} PRIVATE\n" in content
+
+
+def test_component_cmakelists_pch_gate_on_windows(windows_gcc_rule: None) -> None:
+    """On Windows the GCC rule joins the ccache check."""
+    from esphome.build_gen.espidf import get_component_cmakelists
+
+    content = get_component_cmakelists()
+    assert (
+        'if(CMAKE_CXX_COMPILER_ID STREQUAL "GNU" AND '
+        "(CMAKE_CXX_COMPILER_VERSION VERSION_LESS 14.4 OR "
+        "(CMAKE_CXX_COMPILER_VERSION VERSION_GREATER_EQUAL 15 AND "
+        "CMAKE_CXX_COMPILER_VERSION VERSION_LESS 15.3)))\n"
+        "  message(STATUS "
+    ) in content
+    assert (
+        "  set(_esphome_pch OFF)\nendif()\nif(CCACHE_ENABLE AND CCACHE_FOUND)"
+        in content
+    )
+
+
+@pytest.mark.parametrize(
+    ("choice", "logged"), [("OFF", False), ("ON", True), (None, False)]
+)
+def test_pch_checksum_ignores_the_cmake_choice(
+    monkeypatch: pytest.MonkeyPatch,
+    tmp_path: Path,
+    caplog: pytest.LogCaptureFixture,
+    choice: str | None,
+    logged: bool,
+) -> None:
+    """The sum is always refreshed, so a reconfigure that turns the pch on,
+    or a build tree from before the gate, never pairs a new .gch with an old
+    sum; only the log line follows the choice."""
+    from esphome.build_gen.espidf import _PCH_SUM_PATH, write_pch_checksum
+
+    monkeypatch.delenv("ESPHOME_PCH_ENABLE")
+    _make_pch_project(tmp_path)
+    with (
+        patch(
+            "esphome.espidf.toolchain.get_cmake_cache_value", return_value=choice
+        ) as asked,
+        patch.object(CORE, "name", "test"),
+        caplog.at_level("INFO"),
+    ):
+        write_pch_checksum()
+    assert asked.call_args.args == ("ESPHOME_PCH",)
+    assert CORE.relative_build_path(_PCH_SUM_PATH).exists()
+    assert ("Compiling with a precompiled header" in caplog.text) is logged
+
+
+@pytest.mark.parametrize(
+    ("file", "content"),
+    [
+        ("src/esphome/core/defines.h", "#define M 2\n"),
+        ("sdkconfig.test", "CONFIG_X=n\n"),
+        ("dependencies.lock", "espressif/mdns: 1.13.0\n"),
+    ],
+)
+def test_pch_checksum_tracks_its_inputs(
+    tmp_path: Path, file: str, content: str
+) -> None:
+    """The checksum stands in for the .gch in ccache, so it has to change
+    with a core header, the sdkconfig and a managed component version."""
+    project = _make_pch_project(tmp_path)
+    first = _pch_checksum()
+    assert len(first.strip()) == 64
+    (project / file).write_text(content)
+    assert _pch_checksum() != first
+
+
+def test_pch_checksum_is_the_same_for_two_devices(tmp_path: Path) -> None:
+    sums = []
+    for name in ("dev_a", "dev_b"):
+        _make_pch_project(tmp_path / name)
+        sums.append(_pch_checksum())
+    assert sums[0] == sums[1]
+
+
+def test_pch_checksum_disabled_writes_nothing(
+    tmp_path: Path, monkeypatch: pytest.MonkeyPatch
+) -> None:
+    from esphome.build_gen.espidf import _PCH_SUM_PATH, write_pch_checksum
+
+    monkeypatch.setenv("ESPHOME_PCH_ENABLE", "0")
+    _make_pch_project(tmp_path)
+    write_pch_checksum()
+    assert not CORE.relative_build_path(_PCH_SUM_PATH).exists()
+
+
+# The macro body as shipped in tools/cmake/build.cmake; byte identical in
+# IDF 5.5.5 and 6.1.0, so one fixture covers both supported versions.
+IDF_BUILD_CMAKE = """\
+some_other_cmake()
+
+macro(__build_process_project_includes)
+    # Include the sdkconfig cmake file, since the following operations require
+    # knowledge of config values.
+    idf_build_get_property(sdkconfig_cmake SDKCONFIG_CMAKE)
+    include(${sdkconfig_cmake})
+
+    # Make each build property available as a read-only variable
+    idf_build_get_property(build_properties __BUILD_PROPERTIES)
+    foreach(build_property ${build_properties})
+        idf_build_get_property(val ${build_property})
+        set(${build_property} "${val}")
+    endforeach()
+
+    idf_build_get_property(build_component_targets __BUILD_COMPONENT_TARGETS)
+
+    # Include each component's project_include.cmake
+    foreach(component_target ${build_component_targets})
+        __component_get_property(dir ${component_target} COMPONENT_DIR)
+        __component_get_property(_name ${component_target} COMPONENT_NAME)
+        set(COMPONENT_NAME ${_name})
+        set(COMPONENT_DIR ${dir})
+        set(COMPONENT_PATH ${dir})  # this is deprecated, users are encouraged to use COMPONENT_DIR;
+                                    # retained for compatibility
+        if(EXISTS ${COMPONENT_DIR}/project_include.cmake)
+            include(${COMPONENT_DIR}/project_include.cmake)
+        endif()
+    endforeach()
+endmacro()
+"""
+
+
+def _write_idf_build_cmake(tmp_path: Path, text: str = IDF_BUILD_CMAKE) -> Path:
+    idf = tmp_path / "idf"
+    (idf / "tools" / "cmake").mkdir(parents=True)
+    (idf / "tools" / "cmake" / "build.cmake").write_text(text)
+    return idf
+
+
+def test_normalized_macro_strips_comments_and_whitespace() -> None:
+    from esphome.build_gen.espidf import _normalized_macro
+
+    text = "macro(__build_process_project_includes)\n  a( b )  # tail\n\n  # only\n  c(d)\nendmacro()"
+    assert _normalized_macro(text) == ["a( b )", "c(d)"]
+
+
+def test_normalized_macro_none_without_macro() -> None:
+    from esphome.build_gen.espidf import _normalized_macro
+
+    assert _normalized_macro("nothing here") is None
+
+
+def test_idf_macro_matches_the_shipped_body(tmp_path: Path) -> None:
+    """The override's embedded copy must equal what build.cmake ships."""
+    from esphome.build_gen.espidf import idf_macro_matches
+
+    assert idf_macro_matches(_write_idf_build_cmake(tmp_path)) is True
+
+
+def test_idf_macro_mismatch_detected(tmp_path: Path) -> None:
+    from esphome.build_gen.espidf import idf_macro_matches
+
+    changed = IDF_BUILD_CMAKE.replace(
+        "include(${sdkconfig_cmake})", "include(${sdkconfig_cmake} NEW_ARG)"
+    )
+    assert idf_macro_matches(_write_idf_build_cmake(tmp_path, changed)) is False

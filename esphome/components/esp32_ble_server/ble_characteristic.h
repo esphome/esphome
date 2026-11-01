@@ -26,10 +26,11 @@ class BLEService;
 
 class BLECharacteristic final {
  public:
-  BLECharacteristic(ESPBTUUID uuid, uint32_t properties);
+  BLECharacteristic(ESPBTUUID uuid, uint32_t properties, esp_gatt_perm_t permissions);
   ~BLECharacteristic();
 
   void set_value(ByteBuffer buffer);
+  void set_value(const uint8_t *data, size_t length);
   void set_value(std::vector<uint8_t> &&buffer);
   void set_value(std::initializer_list<uint8_t> data);
   void set_value(const std::string &buffer);
@@ -96,7 +97,7 @@ class BLECharacteristic final {
   std::unique_ptr<std::function<void(std::span<const uint8_t>, uint16_t)>> on_write_callback_;
   std::unique_ptr<std::function<void(uint16_t)>> on_read_callback_;
 
-  esp_gatt_perm_t permissions_ = ESP_GATT_PERM_READ | ESP_GATT_PERM_WRITE;
+  esp_gatt_perm_t permissions_;
 
   enum State : uint8_t {
     FAILED = 0x00,

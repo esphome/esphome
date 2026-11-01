@@ -2,6 +2,8 @@
 
 #ifdef USE_ESP32
 
+#include <algorithm>
+
 #include "esphome/core/defines.h"
 #include "esphome/core/hal.h"
 #include "esphome/core/helpers.h"
@@ -19,10 +21,13 @@ static const uint32_t CONNECTION_TIMEOUT_MS = 5000;
 static const uint8_t MAX_FETCHING_HEADER_ATTEMPTS = 6;
 
 static const size_t HTTP_STREAM_BUFFER_SIZE = 2048;
+// esp_http_client_read() blocks until it fills the request; small requests deliver a phrase tail before a pause ends
+static constexpr size_t HTTP_READ_MAX_BYTES = 1024;
+static constexpr int HTTP_BODY_TIMEOUT_MS = 100;
 
 static const uint8_t MAX_REDIRECTIONS = 5;
 
-static const char *const TAG = "audio_reader";
+ESPHOME_LOG_TAG(TAG, "audio_reader");
 
 // Some common HTTP status codes - borrowed from http_request component accessed 20241224
 enum HttpStatus {
@@ -72,7 +77,7 @@ esp_err_t AudioReader::add_sink(const std::weak_ptr<ring_buffer::RingBuffer> &ou
   return ESP_ERR_INVALID_STATE;
 }
 
-esp_err_t AudioReader::start(AudioFile *audio_file, AudioFileType &file_type) {
+esp_err_t AudioReader::start(const AudioFile *audio_file, AudioFileType &file_type) {
   file_type = AudioFileType::NONE;
 
   this->current_audio_file_ = audio_file;
@@ -196,10 +201,18 @@ esp_err_t AudioReader::start(const std::string &uri, AudioFileType &file_type) {
     file_type = this->audio_file_type_;
   }
 
+  // Keep the longer timeout for connection, headers, and redirects.
+  err = esp_http_client_set_timeout_ms(this->client_, HTTP_BODY_TIMEOUT_MS);
+  if (err != ESP_OK) {
+    this->cleanup_connection_();
+    return err;
+  }
+
   this->last_data_read_ms_ = millis();
 
   this->output_transfer_buffer_ = AudioSinkTransferBuffer::create(this->buffer_size_);
   if (this->output_transfer_buffer_ == nullptr) {
+    this->cleanup_connection_();
     return ESP_ERR_NO_MEM;
   }
 
@@ -254,8 +267,9 @@ AudioReaderState AudioReader::http_read_() {
       return AudioReaderState::FINISHED;
     }
   } else if (this->output_transfer_buffer_->free() > 0) {
-    int received_len = esp_http_client_read(this->client_, (char *) this->output_transfer_buffer_->get_buffer_end(),
-                                            this->output_transfer_buffer_->free());
+    size_t read_size = std::min(this->output_transfer_buffer_->free(), HTTP_READ_MAX_BYTES);
+    int received_len =
+        esp_http_client_read(this->client_, (char *) this->output_transfer_buffer_->get_buffer_end(), read_size);
 
     if (received_len > 0) {
       this->output_transfer_buffer_->increase_buffer_length(received_len);
@@ -278,6 +292,9 @@ AudioReaderState AudioReader::http_read_() {
 
       delay(READ_WRITE_TIMEOUT_MS);
     }
+  } else {
+    // A full buffer means the consumer is behind, not that the server went quiet
+    this->last_data_read_ms_ = millis();
   }
 
   return AudioReaderState::READING;

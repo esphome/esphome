@@ -4,10 +4,13 @@
 
 #include "honeywell_hih.h"
 #include "esphome/core/log.h"
+#include "esphome/core/helpers.h"
 
 namespace esphome::honeywell_hih_i2c {
 
-static const char *const TAG = "honeywell_hih.i2c";
+ESPHOME_LOG_TAG(TAG, "honeywell_hih.i2c");
+
+static constexpr uint32_t MEASUREMENT_TIMEOUT_ID = 0;
 
 static const uint8_t REQUEST_CMD[1] = {0x00};  // Measurement Request Format
 static const uint16_t MAX_COUNT = 0x3FFE;      // 2^14 - 2
@@ -16,28 +19,24 @@ void HoneywellHIComponent::read_sensor_data_() {
   uint8_t data[4];
 
   if (this->read(data, sizeof(data)) != i2c::ERROR_OK) {
-    ESP_LOGE(TAG, ESP_LOG_MSG_COMM_FAIL);
-    this->mark_failed();
+    this->mark_failed(LOG_STR(ESP_LOG_MSG_COMM_FAIL));
     return;
   }
 
-  const uint16_t raw_humidity = (static_cast<uint16_t>(data[0] & 0x3F) << 8) | data[1];
+  const uint16_t raw_humidity = encode_uint16(data[0] & 0x3F, data[1]);
   float humidity = (static_cast<float>(raw_humidity) / MAX_COUNT) * 100;
 
-  const uint16_t raw_temperature = (static_cast<uint16_t>(data[2]) << 6) | (data[3] >> 2);
+  const uint16_t raw_temperature = encode_uint16(data[2], data[3]) >> 2;
   float temperature = (static_cast<float>(raw_temperature) / MAX_COUNT) * 165 - 40;
 
   ESP_LOGD(TAG, "Got temperature=%.2f°C humidity=%.2f%%", temperature, humidity);
-  if (this->temperature_sensor_ != nullptr)
-    this->temperature_sensor_->publish_state(temperature);
-  if (this->humidity_sensor_ != nullptr)
-    this->humidity_sensor_->publish_state(humidity);
+  PUBLISH_STATE(this->temperature_sensor_, temperature);
+  PUBLISH_STATE(this->humidity_sensor_, humidity);
 }
 
 void HoneywellHIComponent::start_measurement_() {
   if (this->write(REQUEST_CMD, sizeof(REQUEST_CMD)) != i2c::ERROR_OK) {
-    ESP_LOGE(TAG, ESP_LOG_MSG_COMM_FAIL);
-    this->mark_failed();
+    this->mark_failed(LOG_STR(ESP_LOG_MSG_COMM_FAIL));
     return;
   }
 
@@ -48,8 +47,7 @@ bool HoneywellHIComponent::is_measurement_ready_() {
   uint8_t data[1];
 
   if (this->read(data, sizeof(data)) != i2c::ERROR_OK) {
-    ESP_LOGE(TAG, ESP_LOG_MSG_COMM_FAIL);
-    this->mark_failed();
+    this->mark_failed(LOG_STR(ESP_LOG_MSG_COMM_FAIL));
     return false;
   }
 
@@ -58,9 +56,8 @@ bool HoneywellHIComponent::is_measurement_ready_() {
 }
 
 void HoneywellHIComponent::measurement_timeout_() {
-  ESP_LOGE(TAG, "Honeywell HIH Timeout!");
   this->measurement_running_ = false;
-  this->mark_failed();
+  this->mark_failed(LOG_STR("Measurement timeout"));
 }
 
 void HoneywellHIComponent::update() {
@@ -68,13 +65,13 @@ void HoneywellHIComponent::update() {
 
   this->start_measurement_();
   // The measurement cycle duration is typically 36.65 ms for temperature and humidity readings.
-  this->set_timeout("meas_timeout", 100, [this] { this->measurement_timeout_(); });
+  this->set_timeout(MEASUREMENT_TIMEOUT_ID, 100, [this] { this->measurement_timeout_(); });
 }
 
 void HoneywellHIComponent::loop() {
   if (this->measurement_running_ && this->is_measurement_ready_()) {
     this->measurement_running_ = false;
-    this->cancel_timeout("meas_timeout");
+    this->cancel_timeout(MEASUREMENT_TIMEOUT_ID);
     this->read_sensor_data_();
   }
 }
@@ -82,9 +79,6 @@ void HoneywellHIComponent::loop() {
 void HoneywellHIComponent::dump_config() {
   ESP_LOGD(TAG, "Honeywell HIH:");
   LOG_I2C_DEVICE(this);
-  if (this->is_failed()) {
-    ESP_LOGE(TAG, ESP_LOG_MSG_COMM_FAIL);
-  }
   LOG_SENSOR("  ", "Temperature", this->temperature_sensor_);
   LOG_SENSOR("  ", "Humidity", this->humidity_sensor_);
   LOG_UPDATE_INTERVAL(this);

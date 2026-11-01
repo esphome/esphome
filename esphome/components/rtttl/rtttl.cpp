@@ -1,12 +1,14 @@
 #include "rtttl.h"
-#include <cmath>
+#include <algorithm>
+#include <cstring>
+#include <limits>
 #include "esphome/core/hal.h"
 #include "esphome/core/log.h"
 #include "esphome/core/progmem.h"
 
 namespace esphome::rtttl {
 
-static const char *const TAG = "rtttl";
+ESPHOME_LOG_TAG(TAG, "rtttl");
 
 static constexpr uint8_t SONG_NAME_LENGTH_LIMIT = 64;
 static constexpr uint8_t SEMITONES_IN_OCTAVE = 12;
@@ -17,22 +19,29 @@ static constexpr uint8_t MAX_OCTAVE = 7;
 static constexpr uint8_t DEFAULT_BPM = 63;  // Default beats per minute
 
 // These values can also be found as constants in the Tone library (Tone.h)
-static constexpr uint16_t NOTES[] = {0,    262,  277,  294,  311,  330,  349,  370,  392,  415,  440,  466,  494,
-                                     523,  554,  587,  622,  659,  698,  740,  784,  831,  880,  932,  988,  1047,
-                                     1109, 1175, 1245, 1319, 1397, 1480, 1568, 1661, 1760, 1865, 1976, 2093, 2217,
-                                     2349, 2489, 2637, 2794, 2960, 3136, 3322, 3520, 3729, 3951};
+static constexpr uint16_t NOTES[] PROGMEM = {
+    0,    262,  277,  294,  311,  330,  349,  370,  392,  415,  440,  466,  494,  523,  554,  587,  622,
+    659,  698,  740,  784,  831,  880,  932,  988,  1047, 1109, 1175, 1245, 1319, 1397, 1480, 1568, 1661,
+    1760, 1865, 1976, 2093, 2217, 2349, 2489, 2637, 2794, 2960, 3136, 3322, 3520, 3729, 3951};
 static constexpr uint8_t NOTES_COUNT = static_cast<uint8_t>(sizeof(NOTES) / sizeof(NOTES[0]));
 
 static constexpr uint8_t REPEATING_NOTE_GAP_MS = 10;
 
+// Each note fades in and out over 2^5 samples (2 ms at 16 kHz)
+static constexpr uint8_t NOTE_FADE_BITS = 5;
+
+// The first quarter of a sine wave at full scale: round(32767 * sin(i * pi / 128))
+static constexpr uint8_t QUARTER_SINE_BITS = 6;
+static constexpr uint16_t QUARTER_SINE[(1 << QUARTER_SINE_BITS) + 1] PROGMEM = {
+    0,     804,   1608,  2410,  3212,  4011,  4808,  5602,  6393,  7179,  7962,  8739,  9512,
+    10278, 11039, 11793, 12539, 13279, 14010, 14732, 15446, 16151, 16846, 17530, 18204, 18868,
+    19519, 20159, 20787, 21403, 22005, 22594, 23170, 23731, 24279, 24811, 25329, 25832, 26319,
+    26790, 27245, 27683, 28105, 28510, 28898, 29268, 29621, 29956, 30273, 30571, 30852, 31113,
+    31356, 31580, 31785, 31971, 32137, 32285, 32412, 32521, 32609, 32678, 32728, 32757, 32767};
+
 #ifdef USE_SPEAKER
 static constexpr uint16_t SAMPLE_BUFFER_SIZE = 2048;
 static constexpr uint16_t SAMPLE_RATE = 16000;
-
-inline double deg2rad(double degrees) {
-  static constexpr double PI_ON_180 = M_PI / 180.0;
-  return degrees * PI_ON_180;
-}
 #endif  // USE_SPEAKER
 
 #if ESPHOME_LOG_LEVEL >= ESPHOME_LOG_LEVEL_VERBOSE
@@ -120,13 +129,14 @@ void Rtttl::loop() {
     if (this->samples_sent_ != this->samples_count_) {
       int16_t sample[SAMPLE_BUFFER_SIZE];
       uint16_t sample_index = 0;
-      double rem = 0.0;
 
       while (sample_index < SAMPLE_BUFFER_SIZE && this->samples_sent_ < this->samples_count_) {
         // Try and send out the remainder of the existing note, one per `loop()`
-        if (this->samples_per_wave_ != 0 && this->samples_sent_ >= this->samples_gap_) {  // Play note
-          rem = ((this->samples_sent_ << 10) % this->samples_per_wave_) * (360.0 / this->samples_per_wave_);
-          sample[sample_index] = INT16_MAX * sin(deg2rad(rem));
+        if (this->phase_step_ != 0 && this->samples_sent_ >= this->samples_gap_) {  // Play note
+          // The multiplication wraps at exactly one full cycle of the phase
+          sample[sample_index] =
+              fade_sample(sine_sample(this->samples_sent_ * this->phase_step_),
+                          this->samples_sent_ - this->samples_gap_, this->samples_count_ - 1 - this->samples_sent_);
         } else {
           sample[sample_index] = 0;
         }
@@ -147,14 +157,14 @@ void Rtttl::loop() {
 #endif  // USE_SPEAKER
 
   // Align to note: most rtttl's out there does not add any space after the ',' separator but just in case
-  while (this->position_ < this->rtttl_.length()) {
-    char c = this->rtttl_[this->position_];
+  while (this->position_ < this->song_len_) {
+    char c = this->song_at_(this->position_);
     if (c != ',' && c != ' ')
       break;
     this->position_++;
   }
 
-  if (this->position_ >= this->rtttl_.length()) {
+  if (this->position_ >= this->song_len_) {
     this->finish_();
     return;
   }
@@ -169,12 +179,12 @@ void Rtttl::loop() {
     this->note_duration_ = this->wholenote_duration_ / this->default_note_denominator_;
   }
 
-  uint8_t note_index_in_octave = note_index_from_char(this->rtttl_[this->position_]);
+  uint8_t note_index_in_octave = note_index_from_char(this->song_at_(this->position_));
 
   this->position_++;
 
   // Now, get optional '#' sharp
-  if (this->rtttl_[this->position_] == '#') {
+  if (this->song_at_(this->position_) == '#') {
     note_index_in_octave++;
     this->position_++;
   }
@@ -192,7 +202,7 @@ void Rtttl::loop() {
   }
 
   // Now, get optional '.' dotted note
-  if (this->rtttl_[this->position_] == '.') {
+  if (this->song_at_(this->position_) == '.') {
     this->note_duration_ += this->note_duration_ / 2;  // Duration +50%
     this->position_++;
   }
@@ -211,7 +221,7 @@ void Rtttl::loop() {
       this->finish_();
       return;
     }
-    uint16_t freq = NOTES[note_index];
+    uint16_t freq = progmem_read_uint16(&NOTES[note_index]);
     need_note_gap = freq == this->output_freq_;
 
     // Add small silence gap between same note
@@ -240,7 +250,7 @@ void Rtttl::loop() {
   if (this->speaker_ != nullptr) {
     this->samples_sent_ = 0;
     this->samples_gap_ = 0;
-    this->samples_per_wave_ = 0;
+    this->phase_step_ = 0;
     this->samples_count_ = (SAMPLE_RATE * this->note_duration_) / 1000;
     if (need_note_gap) {
       this->samples_gap_ = (SAMPLE_RATE * REPEATING_NOTE_GAP_MS) / 1000;
@@ -248,13 +258,14 @@ void Rtttl::loop() {
     if (this->output_freq_ != 0) {
       // Make sure there is enough samples to add a full last sinus.
       uint32_t samples_wish = this->samples_count_;
-      this->samples_per_wave_ = (SAMPLE_RATE << 10) / this->output_freq_;
+      const uint32_t samples_per_wave = (SAMPLE_RATE << 10) / this->output_freq_;
 
-      uint16_t division = ((this->samples_count_ << 10) / this->samples_per_wave_) + 1;
+      uint16_t division = ((this->samples_count_ << 10) / samples_per_wave) + 1;
 
-      this->samples_count_ = (division * this->samples_per_wave_) >> 10;
+      this->samples_count_ = (division * samples_per_wave) >> 10;
+      this->phase_step_ = (static_cast<uint64_t>(this->output_freq_) << 32) / SAMPLE_RATE;
       ESP_LOGVV(TAG, "Calc play time: wish: %" PRIu32 " gets: %" PRIu32 " (div: %d spw: %" PRIu32 ")", samples_wish,
-                this->samples_count_, division, this->samples_per_wave_);
+                this->samples_count_, division, samples_per_wave);
     }
     // Convert from frequency in Hz to high and low samples in fixed point
   }
@@ -263,16 +274,89 @@ void Rtttl::loop() {
   this->last_note_start_time_ = millis();
 }
 
+int16_t Rtttl::sine_sample(uint32_t phase) {
+  static constexpr uint8_t QUARTER_BITS = 30;
+  static constexpr uint32_t QUARTER_MASK = (1UL << QUARTER_BITS) - 1;
+  // The second and fourth quarters of the wave read the table backwards
+  const uint32_t position = ((phase >> QUARTER_BITS) & 1) != 0 ? ~phase & QUARTER_MASK : phase & QUARTER_MASK;
+  const uint8_t index = position >> (QUARTER_BITS - QUARTER_SINE_BITS);
+  const int32_t fraction = (position >> (QUARTER_BITS - QUARTER_SINE_BITS - 16)) & 0xFFFF;
+  const int32_t low = progmem_read_uint16(&QUARTER_SINE[index]);
+  const int32_t high = progmem_read_uint16(&QUARTER_SINE[index + 1]);
+  const int32_t value = low + (((high - low) * fraction) >> 16);
+  return static_cast<int16_t>((phase >> 31) != 0 ? -value : value);
+}
+
+int16_t Rtttl::fade_sample(int16_t value, uint32_t from_start, uint32_t to_end) {
+  const uint32_t edge = std::min(from_start, to_end);
+  if (edge >= (1U << NOTE_FADE_BITS))
+    return value;
+  return static_cast<int16_t>((value * static_cast<int32_t>(edge)) >> NOTE_FADE_BITS);
+}
+
 void Rtttl::play(std::string rtttl) {
-  if (this->state_ != State::STOPPED && this->state_ != State::STOPPING) {
-    size_t pos = this->rtttl_.find(':');
-    size_t len = (pos != std::string::npos) ? pos : this->rtttl_.length();
-    ESP_LOGW(TAG, "Already playing: %.*s", (int) len, this->rtttl_.c_str());
+  if (this->is_busy_()) {
     return;
   }
+  this->owned_song_ = std::move(rtttl);
+  this->set_song_(this->owned_song_.data(), this->owned_song_.size());
+  this->start_();
+}
 
-  this->rtttl_ = std::move(rtttl);
+void Rtttl::play(StaticSong song) {
+  if (this->is_busy_()) {
+    return;
+  }
+  // Release a previously owned song; the static one needs no storage.
+  std::string().swap(this->owned_song_);
+  const char *data = reinterpret_cast<const char *>(song.rtttl);
+  this->set_song_(data, ESPHOME_strlen_P(data));
+  this->start_();
+}
 
+void Rtttl::set_song_(const char *song, size_t len) {
+  this->song_ = song;
+  // Anything past what the 16 bit length holds is dropped; the validator keeps configured songs shorter.
+  this->song_len_ = static_cast<uint16_t>(std::min<size_t>(len, std::numeric_limits<uint16_t>::max()));
+}
+
+bool Rtttl::is_busy_() const {
+  if (this->state_ == State::STOPPED || this->state_ == State::STOPPING) {
+    return false;
+  }
+  char name[SONG_NAME_LENGTH_LIMIT + 1];
+  this->song_name_(name, sizeof(name), this->song_find_(':', 0, this->song_len_));
+  ESP_LOGW(TAG, "Already playing: %s", name);
+  return true;
+}
+
+size_t Rtttl::song_find_(char c, size_t from, size_t end) const {
+  for (size_t pos = from; pos < end; pos++) {
+    if (this->song_at_(pos) == c)
+      return pos;
+  }
+  return end;
+}
+
+size_t Rtttl::song_find_control_(char key, size_t from, size_t end) const {
+  size_t pos = from;
+  while ((pos = this->song_find_(key, pos, end)) < end) {
+    if (this->song_at_(pos + 1) == '=')
+      return pos;
+    pos++;
+  }
+  return end;
+}
+
+void Rtttl::song_name_(char *buf, size_t size, size_t name_len) const {
+  size_t len = std::min(name_len, size - 1);
+  for (size_t pos = 0; pos < len; pos++) {
+    buf[pos] = this->song_at_(pos);
+  }
+  buf[len] = '\0';
+}
+
+void Rtttl::start_() {
   this->default_note_denominator_ = DEFAULT_NOTE_DENOMINATOR;
   this->default_octave_ = DEFAULT_OCTAVE;
   this->note_duration_ = 0;
@@ -281,9 +365,9 @@ void Rtttl::play(std::string rtttl) {
   uint16_t num;  // Used for: default note-denominator, default octave, BPM
 
   // Get name
-  this->position_ = this->rtttl_.find(':');
+  this->position_ = this->song_find_(':', 0, this->song_len_);
 
-  if (this->position_ == std::string::npos) {
+  if (this->position_ == this->song_len_) {
     ESP_LOGE(TAG, "Unable to determine name; missing ':'");
     return;
   }
@@ -292,18 +376,20 @@ void Rtttl::play(std::string rtttl) {
              static_cast<unsigned>(SONG_NAME_LENGTH_LIMIT));
     return;
   }
-  ESP_LOGD(TAG, "Playing song %.*s", (int) this->position_, this->rtttl_.c_str());
+  char name[SONG_NAME_LENGTH_LIMIT + 1];
+  this->song_name_(name, sizeof(name), this->position_);
+  ESP_LOGD(TAG, "Playing song %s", name);
 
   size_t name_end_position = this->position_;
-  size_t control_end = this->rtttl_.find(':', name_end_position + 1);
-  if (control_end == std::string::npos) {
+  size_t control_end = this->song_find_(':', name_end_position + 1, this->song_len_);
+  if (control_end == this->song_len_) {
     ESP_LOGE(TAG, "Missing second ':'");
     return;
   }
 
   // Get default duration
-  size_t pos = this->rtttl_.find("d=", name_end_position);
-  if (pos == std::string::npos || pos >= control_end) {
+  size_t pos = this->song_find_control_('d', name_end_position, control_end);
+  if (pos == control_end) {
     ESP_LOGW(TAG, "Missing 'd='; use default duration %d", this->default_note_denominator_);
   } else {
     this->position_ = pos + 2;
@@ -317,8 +403,8 @@ void Rtttl::play(std::string rtttl) {
   }
 
   // Get default octave
-  pos = this->rtttl_.find("o=", name_end_position);
-  if (pos == std::string::npos || pos >= control_end) {
+  pos = this->song_find_control_('o', name_end_position, control_end);
+  if (pos == control_end) {
     ESP_LOGW(TAG, "Missing 'o='; use default octave %d", this->default_octave_);
   } else {
     this->position_ = pos + 2;
@@ -332,8 +418,8 @@ void Rtttl::play(std::string rtttl) {
   }
 
   // Get BPM
-  pos = this->rtttl_.find("b=", name_end_position);
-  if (pos == std::string::npos || pos >= control_end) {
+  pos = this->song_find_control_('b', name_end_position, control_end);
+  if (pos == control_end) {
     ESP_LOGW(TAG, "Missing 'b='; use default BPM %d", bpm);
   } else {
     this->position_ = pos + 2;
@@ -387,7 +473,7 @@ void Rtttl::stop() {
   }
 #endif  // USE_SPEAKER
 
-  this->position_ = this->rtttl_.length();
+  this->position_ = this->song_len_;
   this->note_duration_ = 0;
 }
 
@@ -411,7 +497,7 @@ void Rtttl::finish_() {
 #endif  // USE_SPEAKER
 
   // Ensure no more notes are played in case finish_() is called for an error.
-  this->position_ = this->rtttl_.length();
+  this->position_ = this->song_len_;
   this->note_duration_ = 0;
 }
 

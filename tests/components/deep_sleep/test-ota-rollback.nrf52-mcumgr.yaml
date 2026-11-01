@@ -6,6 +6,7 @@ packages:
   deep_sleep: !include common.yaml
 
 deep_sleep:
+  id: deep_sleep_1
   run_duration: 10s
 
 zephyr_ble_server:

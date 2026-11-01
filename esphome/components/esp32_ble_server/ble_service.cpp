@@ -6,7 +6,7 @@
 
 namespace esphome::esp32_ble_server {
 
-static const char *const TAG = "esp32_ble_server.service";
+ESPHOME_LOG_TAG(TAG, "esp32_ble_server.service");
 
 BLEService::BLEService(ESPBTUUID uuid, uint16_t num_handles, uint8_t inst_id, bool advertise)
     : uuid_(uuid), num_handles_(num_handles), inst_id_(inst_id), advertise_(advertise) {}
@@ -27,15 +27,18 @@ BLECharacteristic *BLEService::get_characteristic(ESPBTUUID uuid) {
 BLECharacteristic *BLEService::get_characteristic(uint16_t uuid) {
   return this->get_characteristic(ESPBTUUID::from_uint16(uuid));
 }
-BLECharacteristic *BLEService::create_characteristic(uint16_t uuid, esp_gatt_char_prop_t properties) {
-  return create_characteristic(ESPBTUUID::from_uint16(uuid), properties);
+BLECharacteristic *BLEService::create_characteristic(uint16_t uuid, esp_gatt_char_prop_t properties,
+                                                     esp_gatt_perm_t permissions) {
+  return create_characteristic(ESPBTUUID::from_uint16(uuid), properties, permissions);
 }
-BLECharacteristic *BLEService::create_characteristic(const std::string &uuid, esp_gatt_char_prop_t properties) {
-  return create_characteristic(ESPBTUUID::from_raw(uuid), properties);
+BLECharacteristic *BLEService::create_characteristic(const std::string &uuid, esp_gatt_char_prop_t properties,
+                                                     esp_gatt_perm_t permissions) {
+  return create_characteristic(ESPBTUUID::from_raw(uuid), properties, permissions);
 }
-BLECharacteristic *BLEService::create_characteristic(ESPBTUUID uuid, esp_gatt_char_prop_t properties) {
+BLECharacteristic *BLEService::create_characteristic(ESPBTUUID uuid, esp_gatt_char_prop_t properties,
+                                                     esp_gatt_perm_t permissions) {
   // NOLINTNEXTLINE(cppcoreguidelines-owning-memory)
-  BLECharacteristic *characteristic = new BLECharacteristic(uuid, properties);
+  BLECharacteristic *characteristic = new BLECharacteristic(uuid, properties, permissions);
   this->characteristics_.push_back(characteristic);
   return characteristic;
 }

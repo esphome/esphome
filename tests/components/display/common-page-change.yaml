@@ -1,0 +1,45 @@
+display:
+  - platform: ssd1306_i2c
+    i2c_id: i2c_bus
+    model: SSD1306_128X64
+    reset_pin: ${reset_pin}
+    id: display_page_change_display
+    pages:
+      - id: display_page_change_page1
+        lambda: |-
+          it.rectangle(0, 0, it.get_width(), it.get_height());
+      - id: display_page_change_page2
+        lambda: |-
+          it.rectangle(0, 0, 10, 10);
+    on_page_change:
+      - then:
+          lambda: 'ESP_LOGD("display", "any change, %p %p", from, to);'
+      - from: display_page_change_page1
+        then:
+          lambda: 'ESP_LOGD("display", "left page 1, %p %p", from, to);'
+      - to: display_page_change_page1
+        then:
+          lambda: 'ESP_LOGD("display", "entered page 1, %p %p", from, to);'
+      - from: display_page_change_page1
+        to: display_page_change_page2
+        then:
+          lambda: 'ESP_LOGD("display", "1 -> 2, %p %p", from, to);'
+
+button:
+  - platform: template
+    name: Show Page
+    on_press:
+      - display.page.show: display_page_change_page1
+      - display.page.show:
+          id: !lambda return id(display_page_change_page2);
+
+script:
+  - id: display_page_change_show_by_index
+    parameters:
+      index: int
+    then:
+      # The page lambda may modify its by-value argument
+      - display.page.show:
+          id: !lambda "index *= 2; return index == 0 ? id(display_page_change_page1) : id(display_page_change_page2);"
+      - display.page.show:
+          id: !lambda "return (index *= 2) == 0 ? id(display_page_change_page1) : id(display_page_change_page2);"

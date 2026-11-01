@@ -1,11 +1,12 @@
 #include "ina226.h"
+#include "esphome/core/helpers.h"
 #include "esphome/core/log.h"
 #include "esphome/core/hal.h"
 #include <cinttypes>
 
 namespace esphome::ina226 {
 
-static const char *const TAG = "ina226";
+ESPHOME_LOG_TAG(TAG, "ina226");
 
 // | A0   | A1   | Address |
 // | GND  | GND  | 0x40    |
@@ -42,7 +43,7 @@ void INA226Component::setup() {
 
   config.reset = 1;
   if (!this->write_byte_16(INA226_REGISTER_CONFIG, config.raw)) {
-    this->mark_failed();
+    this->mark_failed(LOG_STR(ESP_LOG_MSG_COMM_FAIL));
     return;
   }
   delay(1);
@@ -63,7 +64,7 @@ void INA226Component::setup() {
   config.mode = 0b111;
 
   if (!this->write_byte_16(INA226_REGISTER_CONFIG, config.raw)) {
-    this->mark_failed();
+    this->mark_failed(LOG_STR(ESP_LOG_MSG_COMM_FAIL));
     return;
   }
 
@@ -77,7 +78,7 @@ void INA226Component::setup() {
   ESP_LOGV(TAG, "    Using LSB=%" PRIu32 " calibration=%" PRIu32, lsb, calibration);
 
   if (!this->write_byte_16(INA226_REGISTER_CALIBRATION, calibration)) {
-    this->mark_failed();
+    this->mark_failed(LOG_STR(ESP_LOG_MSG_COMM_FAIL));
     return;
   }
 
@@ -95,7 +96,7 @@ void INA226Component::setup() {
             TAG,
             "Alert limit %.6f %s (%s) converts to register value %.2f, out of range [-32768, 32767] (%.6f to %.6f %s)",
             this->alert_limit_, unit, function_name, rounded, min_limit, max_limit, unit);
-        this->mark_failed();
+        this->mark_failed(LOG_STR("Alert limit out of range"));
         return 0;
       }
       return static_cast<int16_t>(rounded);
@@ -133,7 +134,7 @@ void INA226Component::setup() {
 
     if (this->alert_function_ != ALERT_FUNCTION_NONE) {
       if (!this->write_byte_16(INA226_REGISTER_ALERT_LIMIT, static_cast<uint16_t>(alert_limit_raw))) {
-        this->mark_failed();
+        this->mark_failed(LOG_STR(ESP_LOG_MSG_COMM_FAIL));
         return;
       }
     }
@@ -150,7 +151,7 @@ void INA226Component::setup() {
     }
 
     if (!this->write_byte_16(INA226_REGISTER_MASK_ENABLE, mask)) {
-      this->mark_failed();
+      this->mark_failed(LOG_STR(ESP_LOG_MSG_COMM_FAIL));
       return;
     }
   }
@@ -160,10 +161,8 @@ void INA226Component::dump_config() {
   ESP_LOGCONFIG(TAG, "INA226:");
   LOG_I2C_DEVICE(this);
 
-  if (this->is_failed()) {
-    ESP_LOGE(TAG, ESP_LOG_MSG_COMM_FAIL);
+  if (this->is_failed())
     return;
-  }
   LOG_UPDATE_INTERVAL(this);
 
   ESP_LOGCONFIG(TAG,
@@ -205,9 +204,9 @@ void INA226Component::dump_config() {
     if (this->alert_function_ != ALERT_FUNCTION_NONE) {
       ESP_LOGCONFIG(TAG, "  Alert Limit: %.6f", this->alert_limit_);
     }
-    ESP_LOGCONFIG(TAG, "  Alert Conversion Ready: %s", this->alert_conversion_ready_ ? "ON" : "OFF");
-    ESP_LOGCONFIG(TAG, "  Alert Polarity High: %s", this->alert_polarity_high_ ? "ON" : "OFF");
-    ESP_LOGCONFIG(TAG, "  Alert Latch Enabled: %s", this->alert_latch_ ? "ON" : "OFF");
+    ESP_LOGCONFIG(TAG, "  Alert Conversion Ready: %s", ONOFF(this->alert_conversion_ready_));
+    ESP_LOGCONFIG(TAG, "  Alert Polarity High: %s", ONOFF(this->alert_polarity_high_));
+    ESP_LOGCONFIG(TAG, "  Alert Latch Enabled: %s", ONOFF(this->alert_latch_));
   } else {
     ESP_LOGCONFIG(TAG, "  Alert: Disabled");
   }
@@ -221,7 +220,7 @@ void INA226Component::update() {
       return;
     }
     // Convert for 2's compliment and signed value (though always positive)
-    float bus_voltage_v = this->twos_complement_(raw_bus_voltage, 16);
+    float bus_voltage_v = sign_extend<16>(raw_bus_voltage);
     bus_voltage_v *= 0.00125f;
     this->bus_voltage_sensor_->publish_state(bus_voltage_v);
   }
@@ -233,7 +232,7 @@ void INA226Component::update() {
       return;
     }
     // Convert for 2's compliment and signed value
-    float shunt_voltage_v = this->twos_complement_(raw_shunt_voltage, 16);
+    float shunt_voltage_v = sign_extend<16>(raw_shunt_voltage);
     shunt_voltage_v *= 0.0000025f;
     this->shunt_voltage_sensor_->publish_state(shunt_voltage_v);
   }
@@ -245,7 +244,7 @@ void INA226Component::update() {
       return;
     }
     // Convert for 2's compliment and signed value
-    float current_ma = this->twos_complement_(raw_current, 16);
+    float current_ma = sign_extend<16>(raw_current);
     current_ma *= (this->calibration_lsb_ / 1000.0f);
     this->current_sensor_->publish_state(current_ma / 1000.0f);
   }
@@ -261,13 +260,6 @@ void INA226Component::update() {
   }
 
   this->status_clear_warning();
-}
-
-int32_t INA226Component::twos_complement_(int32_t val, uint8_t bits) {
-  if (val & ((uint32_t) 1 << (bits - 1))) {
-    val -= (uint32_t) 1 << bits;
-  }
-  return val;
 }
 
 void INA226Component::clear_alert_flag() {

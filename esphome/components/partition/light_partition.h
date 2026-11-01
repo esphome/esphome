@@ -33,12 +33,14 @@ class AddressableSegment {
 
 class PartitionLightOutput final : public light::AddressableLight {
  public:
-  explicit PartitionLightOutput(std::vector<AddressableSegment> segments) : segments_(std::move(segments)) {
+  explicit PartitionLightOutput(std::vector<AddressableSegment> segments)
+      : segments_(std::move(segments)), internal_accessor_(this) {
     int32_t off = 0;
     for (auto &seg : this->segments_) {
       seg.set_dst_offset(off);
       off += seg.get_size();
     }
+    this->accessor_ = &this->internal_accessor_;
   }
   int32_t size() const override {
     auto &last_seg = this->segments_[this->segments_.size() - 1];
@@ -58,38 +60,73 @@ class PartitionLightOutput final : public light::AddressableLight {
   }
 
  protected:
-  light::ESPColorView get_view_internal(int32_t index) const override {
-    uint32_t lo = 0;
-    uint32_t hi = this->segments_.size() - 1;
-    while (lo < hi) {
-      uint32_t mid = (lo + hi) / 2;
-      int32_t begin = this->segments_[mid].get_dst_offset();
-      int32_t end = begin + this->segments_[mid].get_size();
-      if (index < begin) {
-        hi = mid - 1;
-      } else if (index >= end) {
-        lo = mid + 1;
-      } else {
-        lo = hi = mid;
-      }
+  class PartitionColorAccessor final : public light::ESPColorAccessor {
+   public:
+    PartitionColorAccessor(const PartitionLightOutput *parent) : parent_(parent) {}
+
+    Color get(int32_t index) const override {
+      light::ESPColorView color_view = this->parent_->get_color_view_(index);
+      return this->parent_->get_color_correction_(color_view)->color_uncorrect(color_view.get_raw());
     }
-    auto &seg = this->segments_[lo];
-    // offset within the segment
-    int32_t seg_off = index - seg.get_dst_offset();
-    // offset within the src
-    int32_t src_off;
-    if (seg.is_reversed()) {
-      src_off = seg.get_src_offset() + seg.get_size() - seg_off - 1;
-    } else {
-      src_off = seg.get_src_offset() + seg_off;
+    uint8_t get_channel(int32_t index, uint8_t channel) const override {
+      light::ESPColorView color_view = this->parent_->get_color_view_(index);
+      return this->parent_->get_color_correction_(color_view)
+          ->color_uncorrect_channel(channel, color_view.get_channel_raw(channel));
+    }
+    Color get_raw(int32_t index) const override { return this->parent_->get_color_view_(index).get_raw(); }
+    uint8_t get_channel_raw(int32_t index, uint8_t channel) const override {
+      return this->parent_->get_color_view_(index).get_channel_raw(channel);
+    }
+    uint8_t get_effect_data(int32_t index) const override {
+      return this->parent_->get_color_view_(index).get_effect_data();
     }
 
-    auto view = (*seg.get_src())[src_off];
-    view.raw_set_color_correction(&this->correction_);
-    return view;
+    void set(int32_t index, Color color) override {
+      light::ESPColorView color_view = this->parent_->get_color_view_(index);
+      color_view.set_raw(this->parent_->get_color_correction_(color_view)->color_correct(color));
+    }
+    void set_channel(int32_t index, uint8_t channel, uint8_t value) override {
+      light::ESPColorView color_view = this->parent_->get_color_view_(index);
+      color_view.set_channel_raw(
+          channel, this->parent_->get_color_correction_(color_view)->color_correct_channel(channel, value));
+    }
+    void set_raw(int32_t index, Color raw_color) override { this->parent_->get_color_view_(index).set_raw(raw_color); }
+    void set_channel_raw(int32_t index, uint8_t channel, uint8_t raw_value) override {
+      this->parent_->get_color_view_(index).set_channel_raw(channel, raw_value);
+    }
+    void set_effect_data(int32_t index, uint8_t value) override {
+      this->parent_->get_color_view_(index).set_effect_data(value);
+    }
+
+#ifdef USE_LIGHT_POWER_ESTIMATION
+    const light::ESPColorCorrection *get_color_correction_internal(int32_t index) const override {  // NOLINT
+      return this->parent_->get_color_correction_(this->parent_->get_color_view_(index));
+    }
+#endif
+
+   protected:
+    const PartitionLightOutput *const parent_;
+  };
+
+  light::ESPColorView get_color_view_(int32_t index) const;
+
+  // Gets the color correction associated with the specified color view.
+  // The correction will only be valid until the next call to this method.
+  const light::ESPColorCorrection *get_color_correction_(const light::ESPColorView &color_view) const {
+#ifdef USE_LIGHT_POWER_ESTIMATION
+    // A partition has no power limit of its own so it adopts the power brightness of the underlying segment.
+    // PartitionColorAccessor calls this method to access one LED, applies color correction if needed, then
+    // discards the view.  This method won't be called again until the next access thus the power brightness
+    // that is set here is guaranteed to be valid for the entire lifetime of the view that is returned.
+    const light::ESPColorCorrection *color_view_correction = color_view.get_color_correction_internal();  // NOLINT
+    const_cast<light::ESPColorCorrection &>(this->correction_)
+        .set_power_brightness(color_view_correction ? color_view_correction->get_power_brightness() : 255);
+#endif
+    return &this->correction_;
   }
 
   std::vector<AddressableSegment> segments_;
+  PartitionColorAccessor internal_accessor_;
 };
 
 }  // namespace esphome::partition

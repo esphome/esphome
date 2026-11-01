@@ -1,4 +1,5 @@
 #include "qmp6988.h"
+#include "esphome/core/progmem.h"
 
 #include <cinttypes>
 #include <cmath>
@@ -43,48 +44,20 @@ static const uint8_t QMP6988_CONFIG_REG_FILTER_LEN = 3;
 
 static const uint32_t SUBTRACTOR = 8388608;
 
-static const char *const TAG = "qmp6988";
+ESPHOME_LOG_TAG(TAG, "qmp6988");
 
-static const char *oversampling_to_str(QMP6988Oversampling oversampling) {
-  switch (oversampling) {
-    case QMP6988_OVERSAMPLING_SKIPPED:
-      return "None";
-    case QMP6988_OVERSAMPLING_1X:
-      return "1x";
-    case QMP6988_OVERSAMPLING_2X:
-      return "2x";
-    case QMP6988_OVERSAMPLING_4X:
-      return "4x";
-    case QMP6988_OVERSAMPLING_8X:
-      return "8x";
-    case QMP6988_OVERSAMPLING_16X:
-      return "16x";
-    case QMP6988_OVERSAMPLING_32X:
-      return "32x";
-    case QMP6988_OVERSAMPLING_64X:
-      return "64x";
-    default:
-      return "UNKNOWN";
-  }
+// Indexed by QMP6988Oversampling
+PROGMEM_STRING_TABLE(OversamplingStrings, "None", "1x", "2x", "4x", "8x", "16x", "32x", "64x", "UNKNOWN");
+
+[[maybe_unused]] static const LogString *oversampling_to_str(QMP6988Oversampling value) {
+  return OversamplingStrings::get_log_str(static_cast<uint8_t>(value), OversamplingStrings::LAST_INDEX);
 }
 
-static const char *iir_filter_to_str(QMP6988IIRFilter filter) {
-  switch (filter) {
-    case QMP6988_IIR_FILTER_OFF:
-      return "OFF";
-    case QMP6988_IIR_FILTER_2X:
-      return "2x";
-    case QMP6988_IIR_FILTER_4X:
-      return "4x";
-    case QMP6988_IIR_FILTER_8X:
-      return "8x";
-    case QMP6988_IIR_FILTER_16X:
-      return "16x";
-    case QMP6988_IIR_FILTER_32X:
-      return "32x";
-    default:
-      return "UNKNOWN";
-  }
+// Indexed by QMP6988IIRFilter
+PROGMEM_STRING_TABLE(IIRFilterStrings, "OFF", "2x", "4x", "8x", "16x", "32x", "UNKNOWN");
+
+[[maybe_unused]] static const LogString *iir_filter_to_str(QMP6988IIRFilter value) {
+  return IIRFilterStrings::get_log_str(static_cast<uint8_t>(value), IIRFilterStrings::LAST_INDEX);
 }
 
 bool QMP6988Component::device_check_() {
@@ -112,21 +85,21 @@ bool QMP6988Component::get_calibration_data_() {
       (int32_t) encode_uint32(a_data_uint8_tr[18], a_data_uint8_tr[19], (a_data_uint8_tr[24] & 0x0f) << 4, 0);
   qmp6988_data_.qmp6988_cali.COE_a0 = qmp6988_data_.qmp6988_cali.COE_a0 >> 12;
 
-  qmp6988_data_.qmp6988_cali.COE_a1 = (int16_t) encode_uint16(a_data_uint8_tr[20], a_data_uint8_tr[21]);
-  qmp6988_data_.qmp6988_cali.COE_a2 = (int16_t) encode_uint16(a_data_uint8_tr[22], a_data_uint8_tr[23]);
+  qmp6988_data_.qmp6988_cali.COE_a1 = encode_value<int16_t>(&a_data_uint8_tr[20]);
+  qmp6988_data_.qmp6988_cali.COE_a2 = encode_value<int16_t>(&a_data_uint8_tr[22]);
 
   qmp6988_data_.qmp6988_cali.COE_b00 =
       (int32_t) encode_uint32(a_data_uint8_tr[0], a_data_uint8_tr[1], a_data_uint8_tr[24] & 0xf0, 0);
   qmp6988_data_.qmp6988_cali.COE_b00 = qmp6988_data_.qmp6988_cali.COE_b00 >> 12;
 
-  qmp6988_data_.qmp6988_cali.COE_bt1 = (int16_t) encode_uint16(a_data_uint8_tr[2], a_data_uint8_tr[3]);
-  qmp6988_data_.qmp6988_cali.COE_bt2 = (int16_t) encode_uint16(a_data_uint8_tr[4], a_data_uint8_tr[5]);
-  qmp6988_data_.qmp6988_cali.COE_bp1 = (int16_t) encode_uint16(a_data_uint8_tr[6], a_data_uint8_tr[7]);
-  qmp6988_data_.qmp6988_cali.COE_b11 = (int16_t) encode_uint16(a_data_uint8_tr[8], a_data_uint8_tr[9]);
-  qmp6988_data_.qmp6988_cali.COE_bp2 = (int16_t) encode_uint16(a_data_uint8_tr[10], a_data_uint8_tr[11]);
-  qmp6988_data_.qmp6988_cali.COE_b12 = (int16_t) encode_uint16(a_data_uint8_tr[12], a_data_uint8_tr[13]);
-  qmp6988_data_.qmp6988_cali.COE_b21 = (int16_t) encode_uint16(a_data_uint8_tr[14], a_data_uint8_tr[15]);
-  qmp6988_data_.qmp6988_cali.COE_bp3 = (int16_t) encode_uint16(a_data_uint8_tr[16], a_data_uint8_tr[17]);
+  qmp6988_data_.qmp6988_cali.COE_bt1 = encode_value<int16_t>(&a_data_uint8_tr[2]);
+  qmp6988_data_.qmp6988_cali.COE_bt2 = encode_value<int16_t>(&a_data_uint8_tr[4]);
+  qmp6988_data_.qmp6988_cali.COE_bp1 = encode_value<int16_t>(&a_data_uint8_tr[6]);
+  qmp6988_data_.qmp6988_cali.COE_b11 = encode_value<int16_t>(&a_data_uint8_tr[8]);
+  qmp6988_data_.qmp6988_cali.COE_bp2 = encode_value<int16_t>(&a_data_uint8_tr[10]);
+  qmp6988_data_.qmp6988_cali.COE_b12 = encode_value<int16_t>(&a_data_uint8_tr[12]);
+  qmp6988_data_.qmp6988_cali.COE_b21 = encode_value<int16_t>(&a_data_uint8_tr[14]);
+  qmp6988_data_.qmp6988_cali.COE_bp3 = encode_value<int16_t>(&a_data_uint8_tr[16]);
 
   ESP_LOGV(TAG,
            "Calibration data:\n"
@@ -288,12 +261,10 @@ bool QMP6988Component::calculate_pressure_() {
   int32_t t_int, p_int;
 
   err = this->read_register(QMP6988_PRESSURE_MSB_REG, a_data_uint8_tr, 6);
-  if (err != i2c::ERROR_OK) {
+  if (!this->status_comm_result(err == i2c::ERROR_OK)) {
     ESP_LOGE(TAG, "Error reading raw pressure/temp values");
-    this->status_set_warning();
     return false;
   }
-  this->status_clear_warning();
 
   p_read = encode_uint24(a_data_uint8_tr[0], a_data_uint8_tr[1], a_data_uint8_tr[2]);
   p_raw = (int32_t) (p_read - SUBTRACTOR);
@@ -329,12 +300,14 @@ void QMP6988Component::dump_config() {
   LOG_UPDATE_INTERVAL(this);
 
   LOG_SENSOR("  ", "Temperature", this->temperature_sensor_);
-  ESP_LOGCONFIG(TAG, "    Temperature Oversampling: %s", oversampling_to_str(this->temperature_oversampling_));
+  ESP_LOGCONFIG(TAG, "    Temperature Oversampling: %s",
+                LOG_STR_ARG(oversampling_to_str(this->temperature_oversampling_)));
   LOG_SENSOR("  ", "Pressure", this->pressure_sensor_);
   ESP_LOGCONFIG(TAG,
                 "    Pressure Oversampling: %s\n"
                 "  IIR Filter: %s",
-                oversampling_to_str(this->pressure_oversampling_), iir_filter_to_str(this->iir_filter_));
+                LOG_STR_ARG(oversampling_to_str(this->pressure_oversampling_)),
+                LOG_STR_ARG(iir_filter_to_str(this->iir_filter_)));
 }
 
 void QMP6988Component::update() {
@@ -346,10 +319,8 @@ void QMP6988Component::update() {
   float temperature = this->qmp6988_data_.temperature;
 
   ESP_LOGD(TAG, "Temperature=%.2f°C, Pressure=%.2fhPa", temperature, pressurehectopascals);
-  if (this->temperature_sensor_ != nullptr)
-    this->temperature_sensor_->publish_state(temperature);
-  if (this->pressure_sensor_ != nullptr)
-    this->pressure_sensor_->publish_state(pressurehectopascals);
+  PUBLISH_STATE(this->temperature_sensor_, temperature);
+  PUBLISH_STATE(this->pressure_sensor_, pressurehectopascals);
 }
 
 }  // namespace esphome::qmp6988

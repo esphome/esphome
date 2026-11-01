@@ -4,12 +4,40 @@ esp32_ble_server:
   manufacturer: ESPHome
   appearance: 0x1
   model: Test
+  passkey: 123456
+  pairing_enabled: false
   on_connect:
     - lambda: |-
         ESP_LOGD("BLE", "Connection from %d", id);
+    - ble_server.disable_pairing:
+        id: ble_server
   on_disconnect:
     - lambda: |-
         ESP_LOGD("BLE", "Disconnection from %d", id);
+    - ble_server.remove_bond:
+        id: ble_server
+        address: "11:22:33:44:55:66"
+    - ble_server.enable_pairing:
+        id: ble_server
+  on_numeric_comparison_request:
+    - logger.log:
+        format: "Compare this passkey with the one on your BLE device: %06u"
+        args: ["(unsigned) passkey"]
+    - ble_server.numeric_comparison_reply:
+        id: ble_server
+        address: !lambda return address;
+        accept: true
+  on_passkey_notification:
+    - logger.log:
+        format: "Passkey: %06u"
+        args: ["(unsigned) passkey"]
+  on_passkey_request:
+    - logger.log: "Got passkey request"
+    - ble_server.passkey_reply:
+        id: ble_server
+        address: !lambda return address;
+        passkey: 123456
+
   services:
     - uuid: 2a24b789-7aab-4535-af3e-ee76a35cc12d
       advertise: false
@@ -18,6 +46,7 @@ esp32_ble_server:
           description: "Notify characteristic"
           uuid: cad48e28-7fbe-41cf-bae9-d77a6c233423
           read: true
+          read_encrypt: true
           notify: true
           value: [1, 2, 3, 4]
           descriptors:
@@ -37,6 +66,13 @@ esp32_ble_server:
           uuid: 2a24b789-7a1b-4535-af3e-ee76a35cc12c
           read: true
           value: !lambda return { 1, 2 };
+        - uuid: 2a24b789-7a1b-4535-af3e-ee76a35cc13d
+          read: true
+          read_encrypt_mitm: true
+          write: true
+          write_encrypt_mitm: true
+          notify: true
+          value: "authenticated"
         - id: test_change_characteristic
           uuid: 2a24b789-7a1b-4535-af3e-ee76a35cc11c
           read: true
@@ -57,6 +93,7 @@ esp32_ble_server:
                     ESP_LOGD("BLE", "Descriptor received: %s from %d", std::string(x.begin(), x.end()).c_str(), id);
         - uuid: 2a24b789-7a1b-4535-af3e-ee76a35cc99a
           write: true
+          write_encrypt: true
           on_write:
             then:
               - lambda: |-
@@ -77,6 +114,53 @@ esp32_ble_server:
                   id: test_change_descriptor
                   value:
                     data: [0x01, 0x02, 0x03]
+              # Identical constants, strings and typed numbers
+              - ble_server.characteristic.set_value:
+                  id: test_change_characteristic
+                  value:
+                    data: [0xfc, 0xef, 0xfe, 0x86]
+              - ble_server.characteristic.set_value:
+                  id: test_change_characteristic
+                  value: "Changed"
+              - ble_server.characteristic.set_value:
+                  id: test_change_characteristic
+                  value:
+                    data: 4660
+                    type: uint16_t
+                    endianness: BIG
+              - ble_server.characteristic.set_value:
+                  id: test_change_characteristic
+                  value:
+                    data: -2
+                    type: int32_t
+              - ble_server.characteristic.set_value:
+                  id: test_change_characteristic
+                  value:
+                    data: 0.1
+                    type: double
+              - ble_server.descriptor.set_value:
+                  id: test_change_descriptor
+                  value:
+                    data: 123.1
+                    type: float
+                    endianness: BIG
+              - ble_server.descriptor.set_value:
+                  id: test_change_descriptor
+                  value: "Changed"
+              # Empty constants
+              - ble_server.characteristic.set_value:
+                  id: test_change_characteristic
+                  value: ""
+              - ble_server.descriptor.set_value:
+                  id: test_change_descriptor
+                  value: ""
+              # Lambdas that read the trigger argument
+              - ble_server.characteristic.set_value:
+                  id: test_change_characteristic
+                  value: !lambda return x;
+              - ble_server.descriptor.set_value:
+                  id: test_change_descriptor
+                  value: !lambda return x;
 
 # Regression test for #17142: the set_value action used from a trigger that passes
 # its argument by reference (climate on_control supplies ClimateCall&) previously

@@ -1,15 +1,16 @@
 #include "xiaomi_miscale.h"
 #include "esphome/components/ble_device_base/ble_device.h"
+#include "esphome/core/helpers.h"
 #include "esphome/core/log.h"
 
 namespace esphome::xiaomi_miscale {
 
-static const char *const TAG = "xiaomi_miscale";
+ESPHOME_LOG_TAG(TAG, "xiaomi_miscale");
 
 void XiaomiMiscale::dump_config() {
   ESP_LOGCONFIG(TAG, "Xiaomi Miscale");
-  LOG_SENSOR("  ", "Weight", this->weight_);
-  LOG_SENSOR("  ", "Impedance", this->impedance_);
+  LOG_SENSOR("  ", "Weight", this->weight_sensor_);
+  LOG_SENSOR("  ", "Impedance", this->impedance_sensor_);
 }
 
 bool XiaomiMiscale::parse_device(const ble_device_base::ESPBTDevice &device) {
@@ -33,18 +34,17 @@ bool XiaomiMiscale::parse_device(const ble_device_base::ESPBTDevice &device) {
     if (!report_results_(res, addr_str))
       continue;
 
-    if (res->weight.has_value() && this->weight_ != nullptr)
-      this->weight_->publish_state(*res->weight);
+    publish_optional(this->weight_sensor_, res->weight);
 
-    if (this->impedance_ != nullptr) {
+    if (this->impedance_sensor_ != nullptr) {
       if (res->version == 1) {
         ESP_LOGW(TAG, "Impedance is only supported on version 2. Your scale was identified as version 1.");
       } else {
         if (res->impedance.has_value()) {
-          this->impedance_->publish_state(*res->impedance);
+          this->impedance_sensor_->publish_state(*res->impedance);
         } else {
           if (clear_impedance_)
-            this->impedance_->publish_state(NAN);
+            this->impedance_sensor_->publish_state(NAN);
         }
       }
     }
@@ -92,7 +92,7 @@ bool XiaomiMiscale::parse_message_v1_(const std::vector<uint8_t> &message, Parse
   const uint8_t *data = message.data();
 
   // weight, 2 bytes, 16-bit  unsigned integer, 1 kg
-  const int16_t weight = uint16_t(data[1]) | (uint16_t(data[2]) << 8);
+  const int16_t weight = encode_value_le<int16_t>(&data[1]);
   if (data[0] == 0x22 || data[0] == 0xa2) {
     result.weight = weight * 0.01f / 2.0f;  // unit 'kg'
   } else if (data[0] == 0x12 || data[0] == 0xb2) {
@@ -126,7 +126,7 @@ bool XiaomiMiscale::parse_message_v2_(const std::vector<uint8_t> &message, Parse
   }
 
   // weight, 2 bytes, 16-bit  unsigned integer, 1 kg
-  const int16_t weight = uint16_t(data[11]) | (uint16_t(data[12]) << 8);
+  const int16_t weight = encode_value_le<int16_t>(&data[11]);
   if (data[0] == 0x02) {
     result.weight = weight * 0.01f / 2.0f;  // unit 'kg'
   } else if (data[0] == 0x03) {
@@ -135,7 +135,7 @@ bool XiaomiMiscale::parse_message_v2_(const std::vector<uint8_t> &message, Parse
 
   if (has_impedance) {
     // impedance, 2 bytes, 16-bit
-    const int16_t impedance = uint16_t(data[9]) | (uint16_t(data[10]) << 8);
+    const int16_t impedance = encode_value_le<int16_t>(&data[9]);
     result.impedance = impedance;
 
     if (impedance == 0 || impedance >= 3000) {

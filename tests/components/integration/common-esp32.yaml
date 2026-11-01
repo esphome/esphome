@@ -17,3 +17,4 @@ sensor:
     sensor: integration_my_sensor
     name: Integration Sensor
     time_unit: s
+    state_class: total_increasing

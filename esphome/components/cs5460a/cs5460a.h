@@ -1,7 +1,6 @@
 #pragma once
 
 #include "esphome/core/component.h"
-#include "esphome/core/automation.h"
 #include "esphome/components/sensor/sensor.h"
 #include "esphome/components/spi/spi.h"
 
@@ -55,6 +54,10 @@ enum CS5460APGAGain {
 class CS5460AComponent final : public Component,
                                public spi::SPIDevice<spi::BIT_ORDER_MSB_FIRST, spi::CLOCK_POLARITY_LOW,
                                                      spi::CLOCK_PHASE_LEADING, spi::DATA_RATE_1MHZ> {
+  SUB_SENSOR(current)
+  SUB_SENSOR(voltage)
+  SUB_SENSOR(power)
+
  public:
   void set_samples(uint32_t samples) { samples_ = samples; }
   void set_phase_offset(int8_t phase_offset) { phase_offset_ = phase_offset; }
@@ -68,9 +71,6 @@ class CS5460AComponent final : public Component,
     voltage_hpf_ = voltage_hpf;
   }
   void set_pulse_energy_wh(float pulse_energy_wh) { pulse_energy_wh_ = pulse_energy_wh; }
-  void set_current_sensor(sensor::Sensor *current_sensor) { current_sensor_ = current_sensor; }
-  void set_voltage_sensor(sensor::Sensor *voltage_sensor) { voltage_sensor_ = voltage_sensor; }
-  void set_power_sensor(sensor::Sensor *power_sensor) { power_sensor_ = power_sensor; }
 
   void restart() { restart_(); }
 
@@ -86,9 +86,6 @@ class CS5460AComponent final : public Component,
   bool current_hpf_;
   bool voltage_hpf_;
   float pulse_energy_wh_;
-  sensor::Sensor *current_sensor_{nullptr};
-  sensor::Sensor *voltage_sensor_{nullptr};
-  sensor::Sensor *power_sensor_{nullptr};
 
   void write_register_(enum CS5460ARegister addr, uint32_t value);
   uint32_t read_register_(uint8_t addr);
@@ -106,16 +103,6 @@ class CS5460AComponent final : public Component,
   uint32_t expect_data_ts_;
   uint32_t prev_raw_current_{0};
   uint32_t prev_raw_energy_{0};
-};
-
-template<typename... Ts> class CS5460ARestartAction final : public Action<Ts...> {
- public:
-  CS5460ARestartAction(CS5460AComponent *cs5460a) : cs5460a_(cs5460a) {}
-
-  void play(const Ts &...x) override { cs5460a_->restart(); }
-
- protected:
-  CS5460AComponent *cs5460a_;
 };
 
 }  // namespace esphome::cs5460a

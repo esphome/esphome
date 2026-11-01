@@ -11,7 +11,7 @@ namespace esphome::speaker_source {
 
 static constexpr uint32_t MEDIA_CONTROLS_QUEUE_LENGTH = 20;
 
-static const char *const TAG = "speaker_source_media_player";
+ESPHOME_LOG_TAG(TAG, "speaker_source_media_player");
 
 // SourceBinding method implementations (defined here because SpeakerSourceMediaPlayer is forward-declared in the
 // header)
@@ -56,6 +56,9 @@ void SpeakerSourceMediaPlayer::dump_config() {
                 "  Volume Min: %.2f\n"
                 "  Volume Max: %.2f",
                 this->volume_increment_, this->volume_min_, this->volume_max_);
+  if (this->announcement_volume_.is_configured()) {
+    ESP_LOGCONFIG(TAG, "  Announcement Volume: %.2f", this->announcement_volume_.get_volume());
+  }
 }
 
 void SpeakerSourceMediaPlayer::setup() {
@@ -196,10 +199,19 @@ size_t SpeakerSourceMediaPlayer::handle_media_output_(uint8_t pipeline, media_so
       vTaskDelay(pdMS_TO_TICKS(timeout_ms));
       return 0;
     }
+    // Reserve frames before the speaker can play them and report their progress,
+    // then release the portion it did not accept.
+    const uint32_t reserved_frames = stream_info.bytes_to_frames(length);
+    ps.pending_frames.fetch_add(reserved_frames, std::memory_order_relaxed);
     size_t bytes_written = ps.speaker->play(data, length, pdMS_TO_TICKS(timeout_ms));
-    if (bytes_written > 0) {
-      // Track frames sent to speaker for this source
-      ps.pending_frames.fetch_add(stream_info.bytes_to_frames(bytes_written), std::memory_order_relaxed);
+    const uint32_t unused_frames = reserved_frames - stream_info.bytes_to_frames(bytes_written);
+    if (unused_frames > 0) {
+      // The main loop may reset pending_frames while play() is blocked.
+      // Clamp the release so that a concurrent reset cannot cause underflow.
+      uint32_t pending = ps.pending_frames.load(std::memory_order_relaxed);
+      while (!ps.pending_frames.compare_exchange_weak(pending, pending - std::min(pending, unused_frames),
+                                                      std::memory_order_relaxed)) {
+      }
     }
     return bytes_written;
   }
@@ -280,10 +292,27 @@ void SpeakerSourceMediaPlayer::loop() {
     this->state = this->get_source_state_(media_ps.active_source, media_playlist_active, old_state);
   }
 
+  // After the source goes idle the speaker still plays its buffered audio, so also wait until it has stopped
+  if (this->is_media_playing_() ||
+      (ann_ps.is_configured() && ann_ps.active_source == nullptr && ann_ps.pending_source == nullptr &&
+       !announcement_playlist_active && ann_ps.speaker->is_stopped())) {
+    this->announcement_volume_.end(this->volume, this->speaker_volume_applier_());
+  }
+
   if (this->state != old_state) {
     this->publish_state();
     ESP_LOGD(TAG, "State changed to %s", media_player::media_player_state_to_string(this->state));
   }
+}
+
+bool SpeakerSourceMediaPlayer::is_media_playing_() const {
+  const PipelineContext &ps = this->pipelines_[MEDIA_PIPELINE];
+  media_source::MediaSource *source = ps.active_source;
+  if (source != nullptr) {
+    return source->get_state() == media_source::MediaSourceState::PLAYING;
+  }
+  // After the source goes idle the speaker still plays its buffered audio
+  return ps.is_configured() && !ps.speaker->is_stopped();
 }
 
 media_source::MediaSource *SpeakerSourceMediaPlayer::find_source_for_uri_(const std::string &uri, uint8_t pipeline) {
@@ -350,6 +379,13 @@ bool SpeakerSourceMediaPlayer::try_execute_play_uri_(const std::string &uri, uin
   // Check if speaker is ready
   if (!ps.speaker->is_stopped()) {
     return false;  // Speaker not ready yet, retry later
+  }
+
+  // Without a media pipeline, media also plays on the announcement pipeline and must keep the media volume
+  if (pipeline == ANNOUNCEMENT_PIPELINE && this->pipelines_[MEDIA_PIPELINE].is_configured()) {
+    this->announcement_volume_.begin(
+        this->state == media_player::MEDIA_PLAYER_STATE_ANNOUNCING || this->is_media_playing_(),
+        this->speaker_volume_applier_());
   }
 
   // Set pending source so handle_media_state_changed_ can recognize it when the source transitions to PLAYING
@@ -504,10 +540,12 @@ void SpeakerSourceMediaPlayer::handle_player_command_(media_player::MediaPlayerC
   media_source::MediaSource *active_source = ps.active_source;
   bool has_internal_playlist = (active_source != nullptr) && active_source->has_internal_playlist();
 
-  // Determine target source: prefer active, fall back to last
+  // Prefer the active source, then a pending source awaiting its PLAYING callback, then the last source.
   media_source::MediaSource *target_source = nullptr;
   if (active_source != nullptr) {
     target_source = active_source;
+  } else if (ps.pending_source != nullptr) {
+    target_source = ps.pending_source;
   } else if (ps.last_source != nullptr) {
     target_source = ps.last_source;
   }
@@ -562,14 +600,21 @@ void SpeakerSourceMediaPlayer::handle_player_command_(media_player::MediaPlayerC
     }
 
     case media_player::MEDIA_PLAYER_COMMAND_STOP: {
-      if (!has_internal_playlist) {
-        this->cancel_timeout(PIPELINE_TIMEOUT_IDS[pipeline]);
-        ps.playlist.clear();
-        ps.shuffle_indices.clear();
-        ps.playlist_index = 0;
-      }
+      // Cleared for every source: the stop suppresses the advance that would otherwise end the playlist
+      this->cancel_timeout(PIPELINE_TIMEOUT_IDS[pipeline]);
+      ps.playlist.clear();
+      ps.shuffle_indices.clear();
+      ps.playlist_index = 0;
       if (target_source != nullptr) {
+        ps.stopping_source = target_source;
         target_source->handle_command(media_source::MediaSourceCommand::STOP);
+        // A cancelled startup may already be IDLE and emit no state transition; the decoder sources' stop() joins
+        // their tasks and drops pending events, so no PLAYING follows.
+        if (target_source->get_state() == media_source::MediaSourceState::IDLE) {
+          if (ps.pending_source == target_source)
+            ps.pending_source = nullptr;
+          ps.stopping_source = nullptr;
+        }
       }
       break;
     }
@@ -809,17 +854,9 @@ void SpeakerSourceMediaPlayer::set_mute_state_(bool mute_state, bool publish) {
 }
 
 void SpeakerSourceMediaPlayer::set_volume_(float volume, bool publish) {
-  // Remap the volume to fit within the configured limits. An effectively zero volume is passed through as zero so
-  // the speaker silences it, otherwise volume_min would make it audible.
-  float bounded_volume = (volume < speaker::SILENT_VOLUME_THRESHOLD)
-                             ? 0.0f
-                             : remap<float, float>(volume, 0.0f, 1.0f, this->volume_min_, this->volume_max_);
-
-  for (auto &ps : this->pipelines_) {
-    if (ps.is_configured()) {
-      ps.speaker->set_volume(bounded_volume);
-    }
-  }
+  // A volume change made while an announcement uses the announcement volume applies right away
+  this->announcement_volume_.cancel();
+  this->apply_speaker_volume_(volume);
 
   if (publish) {
     this->volume = volume;
@@ -837,6 +874,25 @@ void SpeakerSourceMediaPlayer::set_volume_(float volume, bool publish) {
   }
 
   this->defer([this, volume]() { this->volume_trigger_.trigger(volume); });
+}
+
+void SpeakerSourceMediaPlayer::apply_speaker_volume_(float volume) {
+  // Remap the volume to fit within the configured limits. An effectively zero volume is passed through as zero so
+  // the speaker silences it, otherwise volume_min would make it audible.
+  float bounded_volume = (volume < speaker::SILENT_VOLUME_THRESHOLD)
+                             ? 0.0f
+                             : remap<float, float>(volume, 0.0f, 1.0f, this->volume_min_, this->volume_max_);
+
+  for (auto &ps : this->pipelines_) {
+    if (ps.is_configured()) {
+      ps.speaker->set_volume(bounded_volume);
+    }
+  }
+}
+
+// THREAD CONTEXT: Called from main loop via automation commands (direct)
+void SpeakerSourceMediaPlayer::set_announcement_volume(float announcement_volume) {
+  this->announcement_volume_.set_volume(announcement_volume, this->speaker_volume_applier_());
 }
 
 size_t SpeakerSourceMediaPlayer::get_playlist_position_(uint8_t pipeline) const {

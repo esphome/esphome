@@ -1,14 +1,15 @@
 import asyncio
+from collections.abc import Callable
 from dataclasses import asdict
+from functools import partial
 import json
 import logging
 from pathlib import Path
 
-from bleak import BleakScanner
 from bleak.exc import BleakDBusError, BleakDeviceNotFoundError
 from smp.exceptions import SMPBadStartDelimiter
 from smpclient import SMPClient
-from smpclient.generics import error, success
+from smpclient.generics import SMPRequest, error, success
 from smpclient.mcuboot import IMAGE_TLV, ImageInfo, MCUBootImageError, TLVNotFound
 from smpclient.requests.image_management import ImageStatesRead, ImageStatesWrite
 from smpclient.requests.os_management import ResetWrite
@@ -23,9 +24,9 @@ from smpclient.transport.serial import SMPSerialTransport
 from esphome.core import EsphomeError
 from esphome.espota2 import ProgressBar
 
-from .ble_logger import is_mac_address
+from .ble_logger import find_device_by_name, is_ble_address
+from .const import SMP_UDP_LINK_MTU, SMP_UDP_PORT
 
-SMP_SERVICE_UUID = "8D53DC1D-1DB7-4CD3-868B-8A527460AA84"
 BLE_SCAN_TIMEOUT = 10.0  # seconds
 RESET_DELAY = 2.0  # seconds to wait before reset, allows on_end action to execute
 
@@ -45,17 +46,20 @@ def _json_state(o: object) -> object:
 
 async def smpmgr_scan(name: str) -> str:
     _LOGGER.info("Scanning bluetooth for %s...", name)
-    for device in await BleakScanner.discover(
-        timeout=BLE_SCAN_TIMEOUT, service_uuids=[SMP_SERVICE_UUID]
-    ):
-        if device.name == name:
-            return device.address
-    raise EsphomeError(f"BLE device {name} with OTA service not found")
+    # No service filter: the SMP UUID only fits in the scan response, which macOS does not filter on.
+    # The SMP service is checked on connect.
+    device = await find_device_by_name(name, timeout=BLE_SCAN_TIMEOUT)
+    if device is None:
+        raise EsphomeError(f"BLE device {name} not found")
+    return device.address
 
 
-async def smpmgr_upload(device: str, firmware: Path) -> None:
+async def smpmgr_upload(device: str, firmware: Path, udp: bool = False) -> None:
+    from .ota_udp import _quiet_smpclient_timeouts
+
     try:
-        await _smpmgr_upload(device, firmware)
+        with _quiet_smpclient_timeouts(udp):
+            await _smpmgr_upload(device, firmware, udp)
     except SMPTransportDisconnected as exc:
         raise EsphomeError(f"{device} was disconnected.") from exc
     except SMPBLETransportDeviceNotFound as exc:
@@ -85,10 +89,23 @@ def _get_image_tlv_sha256(file: Path) -> bytes:
     return image_tlv_sha256.value
 
 
-async def _smpmgr_upload(device: str, firmware: Path) -> None:
+async def _smpmgr_upload(device: str, firmware: Path, udp: bool) -> None:
+    from .ota_udp import (
+        SMP_UDP_PROBE_TIMEOUT,
+        SMPUnreachableError,
+        _SequenceMatchingUDPTransport,
+    )
+
     image_tlv_sha256 = _get_image_tlv_sha256(firmware)
 
-    if is_mac_address(device):
+    if udp:
+        smp_client = SMPClient(
+            _SequenceMatchingUDPTransport(mtu=SMP_UDP_LINK_MTU),
+            device,
+            # Short, so a dead address fails fast; uploads pass their own timeout
+            timeout_s=SMP_UDP_PROBE_TIMEOUT,
+        )
+    elif is_ble_address(device):
         smp_client = SMPClient(SMPBLETransport(), device)
     else:
         smp_client = SMPClient(SMPSerialTransport(), device)
@@ -96,6 +113,10 @@ async def _smpmgr_upload(device: str, firmware: Path) -> None:
     _LOGGER.info("Connecting %s...", device)
     try:
         await smp_client.connect()
+    except OSError as exc:
+        if not udp:
+            raise
+        raise SMPUnreachableError(f"Cannot reach {device}: {exc}") from exc
     except BleakDeviceNotFoundError as exc:
         raise EsphomeError(f"Device {device} not found") from exc
     except BleakDBusError as exc:
@@ -105,21 +126,83 @@ async def _smpmgr_upload(device: str, firmware: Path) -> None:
             ) from exc
         raise EsphomeError(f"BLE error connecting to {device}: {exc}") from exc
     except SMPBLETransportException as exc:
-        raise EsphomeError(f"Connection error with {device}") from exc
+        # Reached when a device with the right name has no SMP service, among other causes
+        raise EsphomeError(f"Connection error with {device}: {exc}") from exc
 
     _LOGGER.info("Connected %s...", device)
     try:
-        await _smpmgr_upload_connected(smp_client, device, firmware, image_tlv_sha256)
+        await _smpmgr_upload_connected(
+            smp_client, device, firmware, image_tlv_sha256, udp
+        )
     finally:
         await smp_client.disconnect()
 
 
-async def _smpmgr_upload_connected(
-    smp_client: SMPClient, device: str, firmware: Path, image_tlv_sha256: bytes
-) -> None:
+def _find_image(state: object, image_hash: bytes) -> object | None:
+    """Our image in an image state reply, or None."""
+    return next((image for image in state.images if image.hash == image_hash), None)
+
+
+async def _try_request(
+    smp_client: SMPClient, request: SMPRequest, timeout_s: float | None
+) -> object | None:
+    """The reply, or None when none arrives in time."""
     try:
-        image_state = await smp_client.request(ImageStatesRead(), 2.5)
-    except (SMPBadStartDelimiter, TimeoutError) as exc:
+        return await smp_client.request(request, timeout_s)
+    except TimeoutError:
+        return None
+
+
+async def _request_with_retry(
+    smp_client: SMPClient,
+    make_request: Callable[[], SMPRequest],
+    timeout_s: float | None,
+    retries: int,
+    target: str,
+):
+    """Send a fresh request (new sequence number) each attempt until one is answered."""
+    for attempt in range(retries + 1):
+        if (
+            reply := await _try_request(smp_client, make_request(), timeout_s)
+        ) is not None:
+            return reply
+        if attempt < retries:
+            _LOGGER.debug("No reply, resending (%d/%d)", attempt + 1, retries)
+    name = getattr(make_request, "func", make_request).__name__
+    raise EsphomeError(
+        f"{target} could not be reached: no reply to {name} after {retries + 1} attempts"
+    )
+
+
+async def _smpmgr_upload_connected(
+    smp_client: SMPClient,
+    device: str,
+    firmware: Path,
+    image_tlv_sha256: bytes,
+    udp: bool,
+) -> None:
+    from .ota_udp import (
+        SMP_UDP_REQUEST_TIMEOUT,
+        SMP_UDP_STATE_RETRIES,
+        SMPUnreachableError,
+        _udp_reset,
+        _udp_upload,
+    )
+
+    # UDP state reads use the client's short timeout; BLE and serial keep their tuned ones
+    read_timeout, write_timeout, retries = (
+        (None, SMP_UDP_REQUEST_TIMEOUT, SMP_UDP_STATE_RETRIES) if udp else (2.5, 1.0, 0)
+    )
+    target = f"{device} on UDP port {SMP_UDP_PORT}" if udp else device
+    try:
+        image_state = await _request_with_retry(
+            smp_client, ImageStatesRead, read_timeout, retries, target
+        )
+    except SMPBadStartDelimiter as exc:
+        raise EsphomeError(f"mcumgr is not supported by device ({device})") from exc
+    except EsphomeError as exc:
+        if udp:
+            raise SMPUnreachableError(str(exc)) from exc
         raise EsphomeError(f"mcumgr is not supported by device ({device})") from exc
 
     already_uploaded = False
@@ -127,22 +210,32 @@ async def _smpmgr_upload_connected(
     if error(image_state):
         raise EsphomeError(f"Failed to read image state from {device}: {image_state}")
     if success(image_state):
-        if len(image_state.images) == 0:
+        images = image_state.images
+        if len(images) == 0:
             _LOGGER.warning("No images on device!")
-        for image in image_state.images:
+        for image in images:
             _LOGGER.info(
                 "Image state:\n%s",
                 json.dumps(image, indent=2, default=_json_state),
             )
             if image.active and not image.confirmed:
                 raise EsphomeError("No free slot. Testing mode but not confirmed yet.")
-            if image.hash == image_tlv_sha256:
-                if already_uploaded:
-                    raise EsphomeError("Both slots have the same image already")
-                if image.confirmed:
-                    raise EsphomeError("The same image already confirmed")
-                _LOGGER.warning("The same image already uploaded")
-                already_uploaded = True
+        if sum(image.hash == image_tlv_sha256 for image in images) > 1:
+            raise EsphomeError("Both slots have the same image already")
+        if (ours := _find_image(image_state, image_tlv_sha256)) is not None:
+            if ours.confirmed:
+                raise EsphomeError("The same image already confirmed")
+            _LOGGER.warning("The same image already uploaded")
+            already_uploaded = True
+        elif any(image.pending and not image.active for image in images):
+            # The device refuses to erase or overwrite a pending slot (NO_FREE_SLOT).
+            # The image states carry no size, so the cause cannot be told from here.
+            raise EsphomeError(
+                f"{device} still has an earlier update pending. Restart the device to "
+                "apply it; if it then still runs the old firmware, the image was probably "
+                "too large for the MCUboot slot and the device must be flashed once over "
+                "USB to clear it."
+            )
 
     if not already_uploaded:
         with firmware.open("rb") as file:
@@ -151,20 +244,33 @@ async def _smpmgr_upload_connected(
             progress = ProgressBar("Uploading")
             progress.update(0)
             try:
-                async for offset in smp_client.upload(image):
-                    progress.update(offset / upload_size)
+                if udp:
+                    await _udp_upload(
+                        smp_client, image, progress, target, image_tlv_sha256
+                    )
+                else:
+                    async for offset in smp_client.upload(image):
+                        progress.update(offset / upload_size)
             finally:
                 progress.done()
 
     _LOGGER.info("Mark image for testing")
-    r = await smp_client.request(ImageStatesWrite(hash=image_tlv_sha256), 1.0)
-
+    r = await _request_with_retry(
+        smp_client,
+        partial(ImageStatesWrite, hash=image_tlv_sha256),
+        write_timeout,
+        retries,
+        target,
+    )
     if error(r):
         raise EsphomeError(f"Failed to mark image for testing on {device}: {r}")
 
     await asyncio.sleep(RESET_DELAY)
     _LOGGER.info("Reset")
-    r = await smp_client.request(ResetWrite(), 1.0)
+    if udp:
+        await _udp_reset(smp_client, device, image_tlv_sha256)
+        return
+    r = await smp_client.request(ResetWrite(), write_timeout)
 
     if error(r):
         raise EsphomeError(f"Failed to reset {device}: {r}")

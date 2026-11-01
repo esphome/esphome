@@ -13,18 +13,16 @@ from esphome.const import (
     CONF_TIME_ID,
     CONF_TRIGGER_ID,
 )
-from esphome.core import ID
-from esphome.cpp_generator import MockObj, TemplateArgsType
 from esphome.types import ConfigType
 
 CODEOWNERS = ["@OttoWinter"]
+DOMAIN = "sun"
 sun_ns = cg.esphome_ns.namespace("sun")
 
 Sun = sun_ns.class_("Sun")
 SunTrigger = sun_ns.class_(
     "SunTrigger", cg.PollingComponent, automation.Trigger.template()
 )
-SunCondition = sun_ns.class_("SunCondition", automation.Condition)
 
 CONF_SUN_ID = "sun_id"
 CONF_ELEVATION = "elevation"
@@ -60,7 +58,8 @@ LAT_LON_REGEX = re.compile(
     r"(?:([0-9]+)\s*°)?\s*"
     r"(?:([0-9]+)\s*[′\'])?\s*"
     r'(?:([0-9]+)\s*[″"])?\s*'
-    r"([NESW])?"
+    r"([NESW])?",
+    re.IGNORECASE,
 )
 
 
@@ -74,7 +73,7 @@ def parse_latlon(value: Any) -> float:
         pass
 
     value = cv.string_strict(value)
-    m = LAT_LON_REGEX.match(value)
+    m = LAT_LON_REGEX.fullmatch(value.strip())
 
     if m is None:
         raise cv.Invalid("Invalid format for latitude/longitude")
@@ -84,10 +83,15 @@ def parse_latlon(value: Any) -> float:
     second = m.group(4)
     d = m.group(5)
 
+    if deg is None and minute is None and second is None:
+        raise cv.Invalid("Invalid format for latitude/longitude")
+    if sign == "-" and d:
+        raise cv.Invalid("Use either a minus sign or a hemisphere letter, not both")
+
     val = float(deg or 0) + float(minute or 0) / 60 + float(second or 0) / 3600
     if sign == "-":
         val *= -1
-    if d and d in "SW":
+    if d and d.upper() in "SW":
         val *= -1
     return val
 
@@ -120,8 +124,7 @@ CONFIG_SCHEMA = cv.Schema(
 
 async def to_code(config: ConfigType) -> None:
     var = cg.new_Pvariable(config[CONF_ID])
-    time_ = await cg.get_variable(config[CONF_TIME_ID])
-    cg.add(var.set_time(time_))
+    await cg.add_variable(var.set_time, config[CONF_TIME_ID])
     cg.add(var.set_latitude(config[CONF_LATITUDE]))
     cg.add(var.set_longitude(config[CONF_LONGITUDE]))
 
@@ -142,53 +145,23 @@ async def to_code(config: ConfigType) -> None:
         await automation.build_automation(trigger, [], conf)
 
 
-@automation.register_condition(
+SUN_HORIZON_CONDITION_SCHEMA = cv.Schema(
+    {
+        cv.GenerateID(): cv.use_id(Sun),
+        cv.Optional(CONF_ELEVATION, default=DEFAULT_ELEVATION): cv.templatable(
+            elevation
+        ),
+    }
+)
+
+automation.register_apply_condition(
     "sun.is_above_horizon",
-    SunCondition,
-    cv.Schema(
-        {
-            cv.GenerateID(): cv.use_id(Sun),
-            cv.Optional(CONF_ELEVATION, default=DEFAULT_ELEVATION): cv.templatable(
-                elevation
-            ),
-        }
-    ),
+    SUN_HORIZON_CONDITION_SCHEMA,
+    automation.ApplyCall("elevation() > {}", ((CONF_ELEVATION, cg.double),)),
 )
-async def sun_above_horizon_to_code(
-    config: ConfigType,
-    condition_id: ID,
-    template_arg: cg.TemplateArguments,
-    args: TemplateArgsType,
-) -> MockObj:
-    var = cg.new_Pvariable(condition_id, template_arg)
-    await cg.register_parented(var, config[CONF_ID])
-    templ = await cg.templatable(config[CONF_ELEVATION], args, cg.double)
-    cg.add(var.set_elevation(templ))
-    cg.add(var.set_above(True))
-    return var
 
-
-@automation.register_condition(
+automation.register_apply_condition(
     "sun.is_below_horizon",
-    SunCondition,
-    cv.Schema(
-        {
-            cv.GenerateID(): cv.use_id(Sun),
-            cv.Optional(CONF_ELEVATION, default=DEFAULT_ELEVATION): cv.templatable(
-                elevation
-            ),
-        }
-    ),
+    SUN_HORIZON_CONDITION_SCHEMA,
+    automation.ApplyCall("elevation() < {}", ((CONF_ELEVATION, cg.double),)),
 )
-async def sun_below_horizon_to_code(
-    config: ConfigType,
-    condition_id: ID,
-    template_arg: cg.TemplateArguments,
-    args: TemplateArgsType,
-) -> MockObj:
-    var = cg.new_Pvariable(condition_id, template_arg)
-    await cg.register_parented(var, config[CONF_ID])
-    templ = await cg.templatable(config[CONF_ELEVATION], args, cg.double)
-    cg.add(var.set_elevation(templ))
-    cg.add(var.set_above(False))
-    return var

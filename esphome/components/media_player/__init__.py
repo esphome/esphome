@@ -2,7 +2,7 @@ from collections.abc import Callable
 
 from esphome import automation
 import esphome.codegen as cg
-from esphome.components import audio
+from esphome.components.const import CONF_BITRATE
 import esphome.config_validation as cv
 from esphome.const import (
     CONF_ENTITY_CATEGORY,
@@ -29,6 +29,7 @@ from esphome.cpp_generator import MockObj, MockObjClass
 from esphome.types import ConfigType
 
 CODEOWNERS = ["@jesserockz"]
+DOMAIN = "media_player"
 
 IS_PLATFORM_COMPONENT = True
 
@@ -41,10 +42,9 @@ MediaPlayerSupportedFormat = media_player_ns.struct("MediaPlayerSupportedFormat"
 MediaPlayerFormatPurpose = media_player_ns.enum(
     "MediaPlayerFormatPurpose", is_class=True
 )
-MEDIA_PLAYER_FORMAT_PURPOSE_ENUM = {
-    "default": MediaPlayerFormatPurpose.PURPOSE_DEFAULT,
-    "announcement": MediaPlayerFormatPurpose.PURPOSE_ANNOUNCEMENT,
-}
+MEDIA_PLAYER_FORMAT_PURPOSE_ENUM = MediaPlayerFormatPurpose.options(
+    "default", "announcement", prefix="PURPOSE_"
+)
 
 # Public API for external components. Do not remove.
 FORMAT_MAPPING = {
@@ -53,6 +53,30 @@ FORMAT_MAPPING = {
     "OPUS": "opus",
     "WAV": "wav",
 }
+
+
+# MP3 constant bitrates in kbps; the encoder rounds anything else to the nearest one
+MP3_BITRATES = (
+    8,
+    16,
+    24,
+    32,
+    40,
+    48,
+    56,
+    64,
+    80,
+    96,
+    112,
+    128,
+    144,  # MPEG-2 only, at 16, 22.05 and 24 kHz
+    160,
+    192,
+    224,
+    256,
+    320,
+)
+validate_mp3_bitrate = cv.one_of(*MP3_BITRATES, int=True)
 
 
 def build_supported_format_struct(
@@ -75,6 +99,10 @@ def build_supported_format_struct(
     if format_config[CONF_FORMAT] != "MP3":
         args.append(("sample_bytes", 2))
 
+    # Omitted means no preference, and the client keeps encoding as it always has.
+    if bitrate := format_config.get(CONF_BITRATE):
+        args.append(("bitrate", bitrate))
+
     return cg.StructInitializer(*args)
 
 
@@ -87,9 +115,19 @@ def validate_preferred_format(
     """
 
     def validator(config: ConfigType) -> ConfigType:
+        from esphome.components import audio
+
         # Inherit settings from audio device if not manually set
         inherit_property_from(CONF_NUM_CHANNELS, audio_device_key)(config)
         inherit_property_from(CONF_SAMPLE_RATE, audio_device_key)(config)
+
+        # A constant bitrate is only meaningful for the one lossy format whose
+        # encoder Home Assistant can be told to fix
+        if CONF_BITRATE in config and config.get(CONF_FORMAT) != "MP3":
+            raise cv.Invalid(
+                f"{CONF_BITRATE} is only supported for the MP3 format",
+                path=[CONF_BITRATE],
+            )
 
         # Opus only supports 48 kHz
         if config.get(CONF_FORMAT) == "OPUS" and config.get(CONF_SAMPLE_RATE) != 48000:
@@ -118,6 +156,8 @@ def request_codecs_for_format_configs(
 
     Public API for external components. Do not remove.
     """
+    from esphome.components import audio
+
     needed_formats: set[str] = set()
     need_all = False
 
@@ -152,7 +192,7 @@ CONF_ON_PAUSE = "on_pause"
 CONF_ON_ANNOUNCEMENT = "on_announcement"
 CONF_MEDIA_URL = "media_url"
 
-# Command actions that all share the same schema and codegen handler
+# Command actions that all share the same schema and only differ in the command sent
 _COMMAND_ACTIONS = [
     "play",
     "pause",
@@ -190,71 +230,46 @@ _STATE_TRIGGERS = (
     (CONF_ON_TURN_OFF, MediaPlayerState.MEDIA_PLAYER_STATE_OFF),
 )
 
-# State conditions that all share the same schema and codegen handler
-_STATE_CONDITIONS = [
-    "idle",
-    "paused",
-    "playing",
-    "announcing",
-    "on",
-    "off",
-    "muted",
-]
+# State conditions: (config_key suffix, checked state)
+_STATE_CONDITIONS = (
+    ("idle", MediaPlayerState.MEDIA_PLAYER_STATE_IDLE),
+    ("paused", MediaPlayerState.MEDIA_PLAYER_STATE_PAUSED),
+    ("playing", MediaPlayerState.MEDIA_PLAYER_STATE_PLAYING),
+    ("announcing", MediaPlayerState.MEDIA_PLAYER_STATE_ANNOUNCING),
+    ("on", MediaPlayerState.MEDIA_PLAYER_STATE_ON),
+    ("off", MediaPlayerState.MEDIA_PLAYER_STATE_OFF),
+)
 
-# Special action classes with custom schemas/handlers
-PlayMediaAction = media_player_ns.class_(
-    "PlayMediaAction", automation.Action, cg.Parented.template(MediaPlayer)
-)
-EnqueueMediaAction = media_player_ns.class_(
-    "EnqueueMediaAction", automation.Action, cg.Parented.template(MediaPlayer)
-)
-VolumeSetAction = media_player_ns.class_(
-    "VolumeSetAction", automation.Action, cg.Parented.template(MediaPlayer)
-)
+MediaPlayerCommand = media_player_ns.enum("MediaPlayerCommand", is_class=True)
+
+
+def _on_state_enter(conf_key: str, state: cg.MockObj) -> automation.CallbackAutomation:
+    return automation.CallbackAutomation(
+        conf_key,
+        "add_on_state_callback",
+        forwarder=StateEnterForwarder.template(state),
+        params=[(MediaPlayerState, "state")],
+        forward=[],
+        when=f"state == {state}",
+    )
 
 
 _CALLBACK_AUTOMATIONS = (
     automation.CallbackAutomation(
-        CONF_ON_STATE, "add_on_state_callback", forwarder=StateAnyForwarder
-    ),
-    automation.CallbackAutomation(
-        CONF_ON_IDLE,
+        CONF_ON_STATE,
         "add_on_state_callback",
-        forwarder=StateEnterForwarder.template(
-            MediaPlayerState.MEDIA_PLAYER_STATE_IDLE
-        ),
+        forwarder=StateAnyForwarder,
+        params=[(MediaPlayerState, "state")],
+        forward=[],
     ),
-    automation.CallbackAutomation(
-        CONF_ON_PLAY,
-        "add_on_state_callback",
-        forwarder=StateEnterForwarder.template(
-            MediaPlayerState.MEDIA_PLAYER_STATE_PLAYING
-        ),
+    _on_state_enter(CONF_ON_IDLE, MediaPlayerState.MEDIA_PLAYER_STATE_IDLE),
+    _on_state_enter(CONF_ON_PLAY, MediaPlayerState.MEDIA_PLAYER_STATE_PLAYING),
+    _on_state_enter(CONF_ON_PAUSE, MediaPlayerState.MEDIA_PLAYER_STATE_PAUSED),
+    _on_state_enter(
+        CONF_ON_ANNOUNCEMENT, MediaPlayerState.MEDIA_PLAYER_STATE_ANNOUNCING
     ),
-    automation.CallbackAutomation(
-        CONF_ON_PAUSE,
-        "add_on_state_callback",
-        forwarder=StateEnterForwarder.template(
-            MediaPlayerState.MEDIA_PLAYER_STATE_PAUSED
-        ),
-    ),
-    automation.CallbackAutomation(
-        CONF_ON_ANNOUNCEMENT,
-        "add_on_state_callback",
-        forwarder=StateEnterForwarder.template(
-            MediaPlayerState.MEDIA_PLAYER_STATE_ANNOUNCING
-        ),
-    ),
-    automation.CallbackAutomation(
-        CONF_ON_TURN_ON,
-        "add_on_state_callback",
-        forwarder=StateEnterForwarder.template(MediaPlayerState.MEDIA_PLAYER_STATE_ON),
-    ),
-    automation.CallbackAutomation(
-        CONF_ON_TURN_OFF,
-        "add_on_state_callback",
-        forwarder=StateEnterForwarder.template(MediaPlayerState.MEDIA_PLAYER_STATE_OFF),
-    ),
+    _on_state_enter(CONF_ON_TURN_ON, MediaPlayerState.MEDIA_PLAYER_STATE_ON),
+    _on_state_enter(CONF_ON_TURN_OFF, MediaPlayerState.MEDIA_PLAYER_STATE_OFF),
 )
 
 
@@ -329,81 +344,60 @@ _MEDIA_URL_ACTION_SCHEMA = cv.maybe_simple_value(
 )
 
 
-async def _media_action_handler(config, action_id, template_arg, args):
-    var = cg.new_Pvariable(action_id, template_arg)
-    await cg.register_parented(var, config[CONF_ID])
-    media_url = await cg.templatable(config[CONF_MEDIA_URL], args, cg.std_string)
-    announcement = await cg.templatable(config[CONF_ANNOUNCEMENT], args, cg.bool_)
-    cg.add(var.set_media_url(media_url))
-    cg.add(var.set_announcement(announcement))
-    return var
+_ANNOUNCEMENT_FIELD = automation.ApplyField(
+    CONF_ANNOUNCEMENT, "set_announcement", cg.bool_
+)
+_MEDIA_URL_FIELD = automation.ApplyField(CONF_MEDIA_URL, "set_media_url", cg.std_string)
 
 
-automation.register_action(
+def _set_command(command_name: str) -> automation.ApplyCall:
+    command = getattr(
+        MediaPlayerCommand, f"MEDIA_PLAYER_COMMAND_{command_name.upper()}"
+    )
+    return automation.ApplyCall(f"set_command({command})")
+
+
+automation.register_apply_action(
     "media_player.play_media",
-    PlayMediaAction,
     _MEDIA_URL_ACTION_SCHEMA,
-    synchronous=True,
-)(_media_action_handler)
+    _MEDIA_URL_FIELD,
+    _ANNOUNCEMENT_FIELD,
+    call="make_call",
+)
 
-automation.register_action(
+automation.register_apply_action(
     "media_player.enqueue",
-    EnqueueMediaAction,
     _MEDIA_URL_ACTION_SCHEMA,
-    synchronous=True,
-)(_media_action_handler)
+    _set_command("enqueue"),
+    _MEDIA_URL_FIELD,
+    _ANNOUNCEMENT_FIELD,
+    call="make_call",
+)
+
+for _action_name in _COMMAND_ACTIONS:
+    automation.register_apply_action(
+        f"media_player.{_action_name}",
+        MEDIA_PLAYER_ACTION_SCHEMA,
+        _set_command(_action_name),
+        _ANNOUNCEMENT_FIELD,
+        call="make_call",
+    )
 
 
-def _snake_to_camel(name):
-    return "".join(word.capitalize() for word in name.split("_"))
+for _condition_name, _state in _STATE_CONDITIONS:
+    automation.register_apply_condition(
+        f"media_player.is_{_condition_name}",
+        MEDIA_PLAYER_CONDITION_SCHEMA,
+        f"state == {_state}",
+    )
+
+automation.register_apply_condition(
+    "media_player.is_muted", MEDIA_PLAYER_CONDITION_SCHEMA, "is_muted()"
+)
 
 
-def _register_command_actions():
-    async def handler(config, action_id, template_arg, args):
-        var = cg.new_Pvariable(action_id, template_arg)
-        await cg.register_parented(var, config[CONF_ID])
-        announcement = await cg.templatable(config[CONF_ANNOUNCEMENT], args, cg.bool_)
-        cg.add(var.set_announcement(announcement))
-        return var
-
-    for action_name in _COMMAND_ACTIONS:
-        class_name = f"{_snake_to_camel(action_name)}Action"
-        action_class = media_player_ns.class_(
-            class_name, automation.Action, cg.Parented.template(MediaPlayer)
-        )
-        automation.register_action(
-            f"media_player.{action_name}",
-            action_class,
-            MEDIA_PLAYER_ACTION_SCHEMA,
-            synchronous=True,
-        )(handler)
-
-
-_register_command_actions()
-
-
-def _register_state_conditions():
-    async def handler(config, action_id, template_arg, args):
-        var = cg.new_Pvariable(action_id, template_arg)
-        await cg.register_parented(var, config[CONF_ID])
-        return var
-
-    for condition_name in _STATE_CONDITIONS:
-        class_name = f"Is{_snake_to_camel(condition_name)}Condition"
-        condition_class = media_player_ns.class_(class_name, automation.Condition)
-        automation.register_condition(
-            f"media_player.is_{condition_name}",
-            condition_class,
-            MEDIA_PLAYER_CONDITION_SCHEMA,
-        )(handler)
-
-
-_register_state_conditions()
-
-
-@automation.register_action(
+automation.register_apply_action(
     "media_player.volume_set",
-    VolumeSetAction,
     cv.maybe_simple_value(
         {
             cv.GenerateID(): cv.use_id(MediaPlayer),
@@ -411,14 +405,9 @@ _register_state_conditions()
         },
         key=CONF_VOLUME,
     ),
-    synchronous=True,
+    automation.ApplyField(CONF_VOLUME, "set_volume", cg.float_),
+    call="make_call",
 )
-async def media_player_volume_set_action(config, action_id, template_arg, args):
-    var = cg.new_Pvariable(action_id, template_arg)
-    await cg.register_parented(var, config[CONF_ID])
-    volume = await cg.templatable(config[CONF_VOLUME], args, cg.float_)
-    cg.add(var.set_volume(volume))
-    return var
 
 
 @coroutine_with_priority(CoroPriority.CORE)
