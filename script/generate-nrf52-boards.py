@@ -2,7 +2,7 @@
 """Update the generated board data in esphome/components/nrf52/boards.py.
 
 For each nRF Connect SDK version below, the board files of that SDK and of the Zephyr
-version it uses are fetched and every nRF52 board device tree is read.
+version it uses are fetched and every board device tree for a Nordic SoC is read.
 """
 
 from __future__ import annotations
@@ -28,7 +28,7 @@ from esphome.helpers import write_file_if_changed
 SDK_VERSIONS = ("2.9.2", "3.2.0", "3.4.0")
 SDK_NRF_REPO = "https://github.com/nrfconnect/sdk-nrf"
 # Only what the device trees and their includes need
-SPARSE_PATHS = ("/west.yml", "/boards/", "/dts/", "/include/")
+SPARSE_PATHS = ("/west.yml", "/boards/", "/dts/", "/include/", "/soc/**/soc.yml")
 
 root = Path(__file__).parent.parent
 boards_file_path = root / "esphome" / "components" / "nrf52" / "boards.py"
@@ -86,7 +86,7 @@ def main(check: bool) -> None:
             sys.exit(1)
         print("esphome/components/nrf52/boards.py is up to date")
     elif write_file_if_changed(boards_file_path, content):
-        print("nRF52 boards updated successfully.")
+        print("nRF boards updated successfully.")
 
 
 if __name__ == "__main__":

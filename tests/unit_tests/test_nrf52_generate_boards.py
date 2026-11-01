@@ -1,4 +1,4 @@
-"""Tests for the nRF52 board data generator."""
+"""Tests for the Nordic board data generator."""
 
 from pathlib import Path
 import shutil
@@ -10,8 +10,10 @@ from esphome.components.nrf52.generate_boards import (
     GENERATED_MARKER,
     BoardInfo,
     BoardTarget,
+    NordicSoc,
     find_targets,
     load_boards,
+    load_socs,
     render,
     replace_generated,
 )
@@ -41,7 +43,45 @@ def _write(path: Path, content: str) -> None:
     path.write_text(content, encoding="utf-8")
 
 
+SOC_YML = """\
+family:
+  - name: nordic_nrf
+    series:
+      - name: nrf52
+        socs:
+          - name: nrf52840
+      - name: nrf53
+        socs:
+          - name: nrf5340
+            cpuclusters:
+              - name: cpuapp
+              - name: cpunet
+      - name: nrf91
+        socs:
+          - name: nrf9160
+  - name: other
+    series:
+      - name: stm32
+        socs:
+          - name: stm32f401
+"""
+
+
+def _socs(tmp_path: Path) -> dict[str, NordicSoc]:
+    _write(tmp_path / "soc" / "nordic" / "soc.yml", SOC_YML)
+    return load_socs([tmp_path])
+
+
+def test_load_socs(tmp_path: Path) -> None:
+    assert _socs(tmp_path) == {
+        "nrf52840": NordicSoc("nrf52", ()),
+        "nrf5340": NordicSoc("nrf53", ("cpuapp", "cpunet")),
+        "nrf9160": NordicSoc("nrf91", ()),
+    }
+
+
 def test_board_yml_targets(tmp_path: Path) -> None:
+    socs = _socs(tmp_path)
     board = tmp_path / "boards" / "seeed" / "xiao_ble"
     _write(
         board / "board.yml",
@@ -50,20 +90,74 @@ def test_board_yml_targets(tmp_path: Path) -> None:
     )
     _write(board / "xiao_ble.dts", "")
     _write(board / "xiao_ble_nrf52840_sense.dts", "")
-    multi = tmp_path / "boards" / "nordic" / "thingy91"
+    multi = tmp_path / "boards" / "nordic" / "nrf9160dk"
     _write(
         multi / "board.yml",
-        "board:\n  name: thingy91\n  socs:\n  - name: nrf9160\n  - name: nrf52840\n",
+        "board:\n  name: nrf9160dk\n  socs:\n  - name: nrf9160\n"
+        "    variants:\n    - name: ns\n  - name: nrf52840\n"
+        "  revision:\n    default: 0.14.0\n",
     )
-    _write(multi / "thingy91_nrf52840.dts", "")
-    _write(multi / "thingy91_nrf9160.dts", "")
+    for name in ("nrf52840", "nrf9160", "nrf9160_ns"):
+        _write(multi / f"nrf9160dk_{name}.dts", "")
+    _write(multi / "nrf9160dk_nrf52840_0_14_0.overlay", "")
+    _write(multi / "nrf9160dk_nrf52840_0_7_0.overlay", "")
+    clusters = tmp_path / "boards" / "nordic" / "nrf5340dk"
+    _write(
+        clusters / "board.yml",
+        "board:\n  name: nrf5340dk\n  socs:\n  - name: nrf5340\n"
+        "    variants:\n    - name: ns\n      cpucluster: cpuapp\n",
+    )
+    for name in ("cpuapp", "cpuapp_ns", "cpunet"):
+        _write(clusters / f"nrf5340dk_nrf5340_{name}.dts", "")
+    other = tmp_path / "boards" / "st" / "nucleo"
+    _write(
+        other / "board.yml", "board:\n  name: nucleo\n  socs:\n  - name: stm32f401\n"
+    )
+    _write(other / "nucleo.dts", "")
 
-    assert find_targets(tmp_path / "boards") == [
-        BoardTarget("thingy91/nrf52840", "nrf52840", multi / "thingy91_nrf52840.dts"),
-        BoardTarget("xiao_ble", "nrf52840", board / "xiao_ble.dts"),
-        BoardTarget(
+    def target(name: str, soc: str, series: str, dts: Path, *overlays: Path):
+        return BoardTarget(name, soc, series, dts, overlays)
+
+    assert find_targets(tmp_path / "boards", socs) == [
+        target(
+            "nrf5340dk/nrf5340/cpuapp",
+            "nrf5340",
+            "nrf53",
+            clusters / "nrf5340dk_nrf5340_cpuapp.dts",
+        ),
+        target(
+            "nrf5340dk/nrf5340/cpuapp/ns",
+            "nrf5340",
+            "nrf53",
+            clusters / "nrf5340dk_nrf5340_cpuapp_ns.dts",
+        ),
+        target(
+            "nrf5340dk/nrf5340/cpunet",
+            "nrf5340",
+            "nrf53",
+            clusters / "nrf5340dk_nrf5340_cpunet.dts",
+        ),
+        target(
+            "nrf9160dk/nrf9160", "nrf9160", "nrf91", multi / "nrf9160dk_nrf9160.dts"
+        ),
+        target(
+            "nrf9160dk/nrf9160/ns",
+            "nrf9160",
+            "nrf91",
+            multi / "nrf9160dk_nrf9160_ns.dts",
+        ),
+        target(
+            "nrf9160dk/nrf52840",
+            "nrf52840",
+            "nrf52",
+            multi / "nrf9160dk_nrf52840.dts",
+            multi / "nrf9160dk_nrf52840_0_14_0.overlay",
+        ),
+        target("xiao_ble", "nrf52840", "nrf52", board / "xiao_ble.dts"),
+        target(
             "xiao_ble/nrf52840/sense",
             "nrf52840",
+            "nrf52",
             board / "xiao_ble_nrf52840_sense.dts",
         ),
     ]
@@ -77,26 +171,34 @@ def test_load_boards_reads_enabled_cdc_acm_nodes(tmp_path: Path) -> None:
         board / "board.yml", "board:\n  name: xiao_ble\n  socs:\n  - name: nrf52840\n"
     )
     _write(board / "xiao_ble.dts", DTS)
-    # Found through the dts include directory, as in a build
-    _write(zephyr / "dts" / "soc.dtsi", "/dts-v1/;\n/ { soc { }; };\n")
+    # Found through the dts/<arch> include directory, as in a build
+    _write(zephyr / "dts" / "arm" / "soc.dtsi", "/dts-v1/;\n/ { soc { }; };\n")
+    _socs(zephyr)
+    broken = zephyr / "boards" / "nordic" / "broken"
+    _write(broken / "board.yml", "board:\n  name: broken\n  socs:\n  - name: nrf9160\n")
+    _write(broken / "broken.dts", "/dts-v1/;\n/ { x = &missing; };\n")
 
     assert load_boards([zephyr]) == {
-        "xiao_ble": BoardInfo("nrf52840", ("/soc/usbd@40027000/board_cdc_acm_uart",))
+        "xiao_ble": BoardInfo(
+            "nrf52840", "nrf52", ("/soc/usbd@40027000/board_cdc_acm_uart",)
+        )
     }
 
 
 def test_render_and_replace() -> None:
     generated = render(
         {
-            "3.2.0": {"b": BoardInfo("nrf52840", ("/soc/usbd/cdc",))},
-            "2.9.2": {"a": BoardInfo("nrf52832", ())},
+            "3.2.0": {"b": BoardInfo("nrf52840", "nrf52", ("/soc/usbd/cdc",))},
+            "2.9.2": {"a": BoardInfo("nrf5340", "nrf53", ())},
         }
     )
     namespace: dict = {}
     exec(generated, namespace)  # noqa: S102
     assert namespace["BOARDS"] == {
-        "2.9.2": {"a": {"soc": "nrf52832"}},
-        "3.2.0": {"b": {"soc": "nrf52840", "cdc_acm": ["/soc/usbd/cdc"]}},
+        "2.9.2": {"a": {"soc": "nrf5340", "series": "nrf53"}},
+        "3.2.0": {
+            "b": {"soc": "nrf52840", "series": "nrf52", "cdc_acm": ["/soc/usbd/cdc"]}
+        },
     }
     assert list(namespace["BOARDS"]) == ["2.9.2", "3.2.0"]
 
@@ -111,7 +213,7 @@ def test_boards_py_is_formatted_as_generated() -> None:
     generated = content[content.index(GENERATED_MARKER) :]
     versions = {
         version: {
-            name: BoardInfo(info["soc"], tuple(info.get("cdc_acm", ())))
+            name: BoardInfo(info["soc"], info["series"], tuple(info.get("cdc_acm", ())))
             for name, info in board_infos.items()
         }
         for version, board_infos in boards.BOARDS.items()

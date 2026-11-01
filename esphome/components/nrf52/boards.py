@@ -96,960 +96,2839 @@ def get_board(framework_version: cv.Version, board: str) -> dict[str, Any] | Non
 # nRF Connect SDK version -> board -> data read from the board device tree
 BOARDS = {
     "2.9.2": {
+        "96b_carbon/nrf51822": {
+            "soc": "nrf51822",
+            "series": "nrf51",
+        },
         "96b_nitrogen": {
             "soc": "nrf52832",
+            "series": "nrf52",
         },
         "acn52832": {
             "soc": "nrf52832",
+            "series": "nrf52",
+        },
+        "actinius_icarus": {
+            "soc": "nrf9160",
+            "series": "nrf91",
+        },
+        "actinius_icarus/nrf9160/ns": {
+            "soc": "nrf9160",
+            "series": "nrf91",
+        },
+        "actinius_icarus_bee": {
+            "soc": "nrf9160",
+            "series": "nrf91",
+        },
+        "actinius_icarus_bee/nrf9160/ns": {
+            "soc": "nrf9160",
+            "series": "nrf91",
+        },
+        "actinius_icarus_som": {
+            "soc": "nrf9160",
+            "series": "nrf91",
+        },
+        "actinius_icarus_som/nrf9160/ns": {
+            "soc": "nrf9160",
+            "series": "nrf91",
+        },
+        "actinius_icarus_som_dk": {
+            "soc": "nrf9160",
+            "series": "nrf91",
+        },
+        "actinius_icarus_som_dk/nrf9160/ns": {
+            "soc": "nrf9160",
+            "series": "nrf91",
         },
         "adafruit_feather_nrf52840": {
             "soc": "nrf52840",
+            "series": "nrf52",
         },
         "adafruit_feather_nrf52840/nrf52840/sense": {
             "soc": "nrf52840",
+            "series": "nrf52",
+        },
+        "adafruit_feather_nrf52840/nrf52840/sense/uf2": {
+            "soc": "nrf52840",
+            "series": "nrf52",
+            "cdc_acm": [
+                "/soc/usbd@40027000/cdc_acm_uart0",
+            ],
         },
         "adafruit_feather_nrf52840/nrf52840/uf2": {
             "soc": "nrf52840",
+            "series": "nrf52",
             "cdc_acm": [
                 "/soc/usbd@40027000/cdc_acm_uart0",
             ],
         },
         "adafruit_itsybitsy": {
             "soc": "nrf52840",
+            "series": "nrf52",
             "cdc_acm": [
                 "/soc/usbd@40027000/cdc_acm_uart0",
             ],
         },
         "arduino_nano_33_ble": {
             "soc": "nrf52840",
+            "series": "nrf52",
         },
         "arduino_nano_33_ble/nrf52840/sense": {
             "soc": "nrf52840",
+            "series": "nrf52",
         },
         "arduino_nicla_sense_me": {
             "soc": "nrf52832",
+            "series": "nrf52",
+        },
+        "bbc_microbit": {
+            "soc": "nrf51822",
+            "series": "nrf51",
         },
         "bbc_microbit_v2": {
             "soc": "nrf52833",
+            "series": "nrf52",
+        },
+        "bl5340_dvk/nrf5340/cpuapp": {
+            "soc": "nrf5340",
+            "series": "nrf53",
+        },
+        "bl5340_dvk/nrf5340/cpuapp/ns": {
+            "soc": "nrf5340",
+            "series": "nrf53",
+        },
+        "bl5340_dvk/nrf5340/cpunet": {
+            "soc": "nrf5340",
+            "series": "nrf53",
         },
         "bl652_dvk": {
             "soc": "nrf52832",
+            "series": "nrf52",
         },
         "bl653_dvk": {
             "soc": "nrf52833",
+            "series": "nrf52",
         },
         "bl654_dvk": {
             "soc": "nrf52840",
+            "series": "nrf52",
         },
         "bl654_dvk/nrf52840/pa": {
             "soc": "nrf52840",
+            "series": "nrf52",
         },
         "bl654_sensor_board": {
             "soc": "nrf52840",
+            "series": "nrf52",
         },
         "bl654_usb": {
             "soc": "nrf52840",
+            "series": "nrf52",
             "cdc_acm": [
                 "/soc/usbd@40027000/bl654_cdc_acm_uart",
             ],
         },
         "blueclover_plt_demo_v2": {
             "soc": "nrf52832",
+            "series": "nrf52",
         },
         "bt510": {
             "soc": "nrf52840",
+            "series": "nrf52",
         },
         "bt610": {
             "soc": "nrf52840",
+            "series": "nrf52",
         },
         "bytesensi_l": {
             "soc": "nrf52832",
+            "series": "nrf52",
+        },
+        "circuitdojo_feather": {
+            "soc": "nrf9160",
+            "series": "nrf91",
+        },
+        "circuitdojo_feather/nrf9160/ns": {
+            "soc": "nrf9160",
+            "series": "nrf91",
         },
         "contextualelectronics_abc": {
             "soc": "nrf52840",
+            "series": "nrf52",
         },
         "croxel_cx1825": {
             "soc": "nrf52840",
+            "series": "nrf52",
             "cdc_acm": [
                 "/soc/usbd@40027000/cdc_acm_0",
             ],
         },
         "ctcc": {
             "soc": "nrf52840",
+            "series": "nrf52",
             "cdc_acm": [
                 "/soc/usbd@40027000/cdc_acm_uart",
             ],
         },
         "decawave_dwm1001_dev": {
             "soc": "nrf52832",
+            "series": "nrf52",
         },
         "degu_evk": {
             "soc": "nrf52840",
+            "series": "nrf52",
             "cdc_acm": [
                 "/soc/usbd@40027000/degu_cdc_acm_uart",
             ],
         },
         "ebyte_e73_tbb": {
             "soc": "nrf52832",
+            "series": "nrf52",
         },
         "holyiot_yj16019": {
             "soc": "nrf52832",
+            "series": "nrf52",
+        },
+        "innblue21": {
+            "soc": "nrf9160",
+            "series": "nrf91",
+        },
+        "innblue21/nrf9160/ns": {
+            "soc": "nrf9160",
+            "series": "nrf91",
+        },
+        "innblue22": {
+            "soc": "nrf9160",
+            "series": "nrf91",
+        },
+        "innblue22/nrf9160/ns": {
+            "soc": "nrf9160",
+            "series": "nrf91",
         },
         "mg100": {
             "soc": "nrf52840",
+            "series": "nrf52",
         },
         "micromod": {
             "soc": "nrf52840",
+            "series": "nrf52",
         },
         "nrf21540dk": {
             "soc": "nrf52840",
+            "series": "nrf52",
+        },
+        "nrf51_ble400": {
+            "soc": "nrf51822",
+            "series": "nrf51",
+        },
+        "nrf51_blenano": {
+            "soc": "nrf51822",
+            "series": "nrf51",
+        },
+        "nrf51_vbluno51": {
+            "soc": "nrf51822",
+            "series": "nrf51",
+        },
+        "nrf51dk": {
+            "soc": "nrf51822",
+            "series": "nrf51",
+        },
+        "nrf51dongle": {
+            "soc": "nrf51822",
+            "series": "nrf51",
         },
         "nrf52810dmouse": {
             "soc": "nrf52810",
+            "series": "nrf52",
         },
         "nrf52820dongle": {
             "soc": "nrf52820",
+            "series": "nrf52",
         },
         "nrf52832_mdk": {
             "soc": "nrf52832",
+            "series": "nrf52",
         },
         "nrf52833dk/nrf52820": {
             "soc": "nrf52820",
+            "series": "nrf52",
         },
         "nrf52833dk/nrf52833": {
             "soc": "nrf52833",
+            "series": "nrf52",
         },
         "nrf52833dongle": {
             "soc": "nrf52833",
+            "series": "nrf52",
         },
         "nrf52840_blip": {
             "soc": "nrf52840",
+            "series": "nrf52",
         },
         "nrf52840_mdk": {
             "soc": "nrf52840",
+            "series": "nrf52",
         },
         "nrf52840_mdk_usb_dongle": {
             "soc": "nrf52840",
+            "series": "nrf52",
         },
         "nrf52840_papyr": {
             "soc": "nrf52840",
+            "series": "nrf52",
         },
         "nrf52840dk/nrf52811": {
             "soc": "nrf52811",
+            "series": "nrf52",
         },
         "nrf52840dk/nrf52840": {
             "soc": "nrf52840",
+            "series": "nrf52",
         },
         "nrf52840dongle": {
             "soc": "nrf52840",
+            "series": "nrf52",
             "cdc_acm": [
                 "/soc/usbd@40027000/cdc_acm_uart",
             ],
         },
         "nrf52840gmouse": {
             "soc": "nrf52840",
+            "series": "nrf52",
         },
         "nrf52_adafruit_feather": {
             "soc": "nrf52832",
+            "series": "nrf52",
         },
         "nrf52_blenano2": {
             "soc": "nrf52832",
+            "series": "nrf52",
         },
         "nrf52_sparkfun": {
             "soc": "nrf52832",
+            "series": "nrf52",
         },
         "nrf52_vbluno52": {
             "soc": "nrf52832",
+            "series": "nrf52",
         },
         "nrf52dk/nrf52805": {
             "soc": "nrf52805",
+            "series": "nrf52",
         },
         "nrf52dk/nrf52810": {
             "soc": "nrf52810",
+            "series": "nrf52",
         },
         "nrf52dk/nrf52832": {
             "soc": "nrf52832",
+            "series": "nrf52",
         },
         "nrf52dmouse": {
             "soc": "nrf52832",
+            "series": "nrf52",
         },
         "nrf52kbd": {
             "soc": "nrf52832",
+            "series": "nrf52",
+        },
+        "nrf5340_audio_dk/nrf5340/cpuapp": {
+            "soc": "nrf5340",
+            "series": "nrf53",
+        },
+        "nrf5340_audio_dk/nrf5340/cpuapp/ns": {
+            "soc": "nrf5340",
+            "series": "nrf53",
+        },
+        "nrf5340_audio_dk/nrf5340/cpunet": {
+            "soc": "nrf5340",
+            "series": "nrf53",
+        },
+        "nrf5340bsim/nrf5340/cpuapp": {
+            "soc": "nrf5340",
+            "series": "nrf53",
+        },
+        "nrf5340bsim/nrf5340/cpunet": {
+            "soc": "nrf5340",
+            "series": "nrf53",
+        },
+        "nrf5340dk/nrf5340/cpuapp": {
+            "soc": "nrf5340",
+            "series": "nrf53",
+        },
+        "nrf5340dk/nrf5340/cpuapp/ns": {
+            "soc": "nrf5340",
+            "series": "nrf53",
+        },
+        "nrf5340dk/nrf5340/cpunet": {
+            "soc": "nrf5340",
+            "series": "nrf53",
+        },
+        "nrf54h20dk/nrf54h20/cpuapp": {
+            "soc": "nrf54h20",
+            "series": "nrf54h",
+        },
+        "nrf54h20dk/nrf54h20/cpuflpr": {
+            "soc": "nrf54h20",
+            "series": "nrf54h",
+        },
+        "nrf54h20dk/nrf54h20/cpuflpr/xip": {
+            "soc": "nrf54h20",
+            "series": "nrf54h",
+        },
+        "nrf54h20dk/nrf54h20/cpuppr": {
+            "soc": "nrf54h20",
+            "series": "nrf54h",
+        },
+        "nrf54h20dk/nrf54h20/cpuppr/xip": {
+            "soc": "nrf54h20",
+            "series": "nrf54h",
+        },
+        "nrf54h20dk/nrf54h20/cpurad": {
+            "soc": "nrf54h20",
+            "series": "nrf54h",
+        },
+        "nrf54l15bsim/nrf54l15/cpuapp": {
+            "soc": "nrf54l15",
+            "series": "nrf54l",
+        },
+        "nrf54l15dk/nrf54l05/cpuapp": {
+            "soc": "nrf54l05",
+            "series": "nrf54l",
+        },
+        "nrf54l15dk/nrf54l10/cpuapp": {
+            "soc": "nrf54l10",
+            "series": "nrf54l",
+        },
+        "nrf54l15dk/nrf54l15/cpuapp": {
+            "soc": "nrf54l15",
+            "series": "nrf54l",
+        },
+        "nrf54l15dk/nrf54l15/cpuapp/ns": {
+            "soc": "nrf54l15",
+            "series": "nrf54l",
+        },
+        "nrf54l15dk/nrf54l15/cpuflpr": {
+            "soc": "nrf54l15",
+            "series": "nrf54l",
+        },
+        "nrf54l15dk/nrf54l15/cpuflpr/xip": {
+            "soc": "nrf54l15",
+            "series": "nrf54l",
+        },
+        "nrf54l20pdk/nrf54l20/cpuapp": {
+            "soc": "nrf54l20",
+            "series": "nrf54l",
+        },
+        "nrf7002dk/nrf5340/cpuapp": {
+            "soc": "nrf5340",
+            "series": "nrf53",
+        },
+        "nrf7002dk/nrf5340/cpuapp/nrf7001": {
+            "soc": "nrf5340",
+            "series": "nrf53",
+        },
+        "nrf7002dk/nrf5340/cpuapp/nrf7001/ns": {
+            "soc": "nrf5340",
+            "series": "nrf53",
+        },
+        "nrf7002dk/nrf5340/cpuapp/ns": {
+            "soc": "nrf5340",
+            "series": "nrf53",
+        },
+        "nrf7002dk/nrf5340/cpunet": {
+            "soc": "nrf5340",
+            "series": "nrf53",
+        },
+        "nrf9131ek": {
+            "soc": "nrf9131",
+            "series": "nrf91",
+        },
+        "nrf9131ek/nrf9131/ns": {
+            "soc": "nrf9131",
+            "series": "nrf91",
+        },
+        "nrf9151dk": {
+            "soc": "nrf9151",
+            "series": "nrf91",
+        },
+        "nrf9151dk/nrf9151/ns": {
+            "soc": "nrf9151",
+            "series": "nrf91",
         },
         "nrf9160dk/nrf52840": {
             "soc": "nrf52840",
+            "series": "nrf52",
+        },
+        "nrf9160dk/nrf9160": {
+            "soc": "nrf9160",
+            "series": "nrf91",
+        },
+        "nrf9160dk/nrf9160/ns": {
+            "soc": "nrf9160",
+            "series": "nrf91",
+        },
+        "nrf9161dk": {
+            "soc": "nrf9161",
+            "series": "nrf91",
+        },
+        "nrf9161dk/nrf9161/ns": {
+            "soc": "nrf9161",
+            "series": "nrf91",
+        },
+        "nrf9280pdk/nrf9280/cpuapp": {
+            "soc": "nrf9280",
+            "series": "nrf92",
+        },
+        "nrf9280pdk/nrf9280/cpuppr": {
+            "soc": "nrf9280",
+            "series": "nrf92",
+        },
+        "nrf9280pdk/nrf9280/cpuppr/xip": {
+            "soc": "nrf9280",
+            "series": "nrf92",
+        },
+        "nrf9280pdk/nrf9280/cpurad": {
+            "soc": "nrf9280",
+            "series": "nrf92",
         },
         "pan1770_evb": {
             "soc": "nrf52840",
+            "series": "nrf52",
         },
         "pan1780_evb": {
             "soc": "nrf52840",
+            "series": "nrf52",
         },
         "pan1781_evb": {
             "soc": "nrf52820",
+            "series": "nrf52",
         },
         "pan1782_evb": {
             "soc": "nrf52833",
+            "series": "nrf52",
+        },
+        "pan1783_evb/nrf5340/cpuapp": {
+            "soc": "nrf5340",
+            "series": "nrf53",
+        },
+        "pan1783_evb/nrf5340/cpunet": {
+            "soc": "nrf5340",
+            "series": "nrf53",
+        },
+        "pan1783a_evb/nrf5340/cpuapp": {
+            "soc": "nrf5340",
+            "series": "nrf53",
+        },
+        "pan1783a_evb/nrf5340/cpunet": {
+            "soc": "nrf5340",
+            "series": "nrf53",
+        },
+        "pan1783a_pa_evb/nrf5340/cpuapp": {
+            "soc": "nrf5340",
+            "series": "nrf53",
+        },
+        "pan1783a_pa_evb/nrf5340/cpunet": {
+            "soc": "nrf5340",
+            "series": "nrf53",
         },
         "particle_argon": {
             "soc": "nrf52840",
+            "series": "nrf52",
         },
         "particle_boron": {
             "soc": "nrf52840",
+            "series": "nrf52",
         },
         "particle_xenon": {
             "soc": "nrf52840",
+            "series": "nrf52",
         },
         "pinetime_devkit0": {
             "soc": "nrf52832",
+            "series": "nrf52",
         },
         "pinnacle_100_dvk": {
             "soc": "nrf52840",
+            "series": "nrf52",
+        },
+        "qemu_cortex_m0": {
+            "soc": "nrf51822",
+            "series": "nrf51",
         },
         "rak4631": {
             "soc": "nrf52840",
+            "series": "nrf52",
         },
         "rak5010": {
             "soc": "nrf52840",
+            "series": "nrf52",
         },
         "raytac_mdbt50q_db_33": {
             "soc": "nrf52833",
+            "series": "nrf52",
         },
         "raytac_mdbt50q_db_40": {
             "soc": "nrf52840",
+            "series": "nrf52",
+        },
+        "raytac_mdbt53_db_40/nrf5340/cpuapp": {
+            "soc": "nrf5340",
+            "series": "nrf53",
+        },
+        "raytac_mdbt53_db_40/nrf5340/cpuapp/ns": {
+            "soc": "nrf5340",
+            "series": "nrf53",
+        },
+        "raytac_mdbt53_db_40/nrf5340/cpunet": {
+            "soc": "nrf5340",
+            "series": "nrf53",
+        },
+        "raytac_mdbt53v_db_40/nrf5340/cpuapp": {
+            "soc": "nrf5340",
+            "series": "nrf53",
+        },
+        "raytac_mdbt53v_db_40/nrf5340/cpuapp/ns": {
+            "soc": "nrf5340",
+            "series": "nrf53",
+        },
+        "raytac_mdbt53v_db_40/nrf5340/cpunet": {
+            "soc": "nrf5340",
+            "series": "nrf53",
         },
         "reel_board": {
             "soc": "nrf52840",
+            "series": "nrf52",
+        },
+        "rm1xx_dvk": {
+            "soc": "nrf51822",
+            "series": "nrf51",
         },
         "ruuvi_ruuvitag": {
             "soc": "nrf52832",
+            "series": "nrf52",
+        },
+        "sparkfun_thing_plus": {
+            "soc": "nrf9160",
+            "series": "nrf91",
+        },
+        "sparkfun_thing_plus/nrf9160/ns": {
+            "soc": "nrf9160",
+            "series": "nrf91",
         },
         "thingy52": {
             "soc": "nrf52832",
+            "series": "nrf52",
+        },
+        "thingy53/nrf5340/cpuapp": {
+            "soc": "nrf5340",
+            "series": "nrf53",
+            "cdc_acm": [
+                "/soc/peripheral@50000000/usbd@36000/cdc_acm_uart",
+            ],
+        },
+        "thingy53/nrf5340/cpuapp/ns": {
+            "soc": "nrf5340",
+            "series": "nrf53",
+            "cdc_acm": [
+                "/soc/peripheral@40000000/usbd@36000/cdc_acm_uart",
+            ],
+        },
+        "thingy53/nrf5340/cpunet": {
+            "soc": "nrf5340",
+            "series": "nrf53",
         },
         "thingy91/nrf52840": {
             "soc": "nrf52840",
+            "series": "nrf52",
+        },
+        "thingy91/nrf9160": {
+            "soc": "nrf9160",
+            "series": "nrf91",
+        },
+        "thingy91/nrf9160/ns": {
+            "soc": "nrf9160",
+            "series": "nrf91",
+        },
+        "thingy91x/nrf5340/cpuapp": {
+            "soc": "nrf5340",
+            "series": "nrf53",
+            "cdc_acm": [
+                "/soc/peripheral@50000000/usbd@36000/cdc_acm_uart0",
+            ],
+        },
+        "thingy91x/nrf5340/cpuapp/ns": {
+            "soc": "nrf5340",
+            "series": "nrf53",
+            "cdc_acm": [
+                "/soc/peripheral@40000000/usbd@36000/cdc_acm_uart0",
+            ],
+        },
+        "thingy91x/nrf5340/cpunet": {
+            "soc": "nrf5340",
+            "series": "nrf53",
+        },
+        "thingy91x/nrf9151": {
+            "soc": "nrf9151",
+            "series": "nrf91",
+        },
+        "thingy91x/nrf9151/ns": {
+            "soc": "nrf9151",
+            "series": "nrf91",
         },
         "ubx_bmd300eval": {
             "soc": "nrf52832",
+            "series": "nrf52",
         },
         "ubx_bmd330eval": {
             "soc": "nrf52810",
+            "series": "nrf52",
         },
         "ubx_bmd340eval": {
             "soc": "nrf52840",
+            "series": "nrf52",
         },
         "ubx_bmd345eval": {
             "soc": "nrf52840",
+            "series": "nrf52",
         },
         "ubx_bmd360eval": {
             "soc": "nrf52811",
+            "series": "nrf52",
         },
         "ubx_bmd380eval": {
             "soc": "nrf52840",
+            "series": "nrf52",
         },
         "ubx_evkannab1": {
             "soc": "nrf52832",
+            "series": "nrf52",
         },
         "ubx_evkninab1": {
             "soc": "nrf52832",
+            "series": "nrf52",
         },
         "ubx_evkninab3": {
             "soc": "nrf52840",
+            "series": "nrf52",
         },
         "ubx_evkninab4": {
             "soc": "nrf52833",
+            "series": "nrf52",
         },
         "we_ophelia1ev": {
             "soc": "nrf52805",
+            "series": "nrf52",
         },
         "we_proteus2ev": {
             "soc": "nrf52832",
+            "series": "nrf52",
         },
         "we_proteus3ev": {
             "soc": "nrf52840",
+            "series": "nrf52",
         },
         "xiao_ble": {
             "soc": "nrf52840",
+            "series": "nrf52",
             "cdc_acm": [
                 "/soc/usbd@40027000/cdc-acm-uart",
             ],
         },
         "xiao_ble/nrf52840/sense": {
             "soc": "nrf52840",
+            "series": "nrf52",
             "cdc_acm": [
                 "/soc/usbd@40027000/cdc-acm-uart",
             ],
         },
     },
     "3.2.0": {
+        "96b_carbon/nrf51822": {
+            "soc": "nrf51822",
+            "series": "nrf51",
+        },
         "96b_nitrogen": {
             "soc": "nrf52832",
+            "series": "nrf52",
         },
         "acn52832": {
             "soc": "nrf52832",
+            "series": "nrf52",
+        },
+        "actinius_icarus": {
+            "soc": "nrf9160",
+            "series": "nrf91",
+        },
+        "actinius_icarus/nrf9160/ns": {
+            "soc": "nrf9160",
+            "series": "nrf91",
+        },
+        "actinius_icarus_bee": {
+            "soc": "nrf9160",
+            "series": "nrf91",
+        },
+        "actinius_icarus_bee/nrf9160/ns": {
+            "soc": "nrf9160",
+            "series": "nrf91",
+        },
+        "actinius_icarus_som": {
+            "soc": "nrf9160",
+            "series": "nrf91",
+        },
+        "actinius_icarus_som/nrf9160/ns": {
+            "soc": "nrf9160",
+            "series": "nrf91",
+        },
+        "actinius_icarus_som_dk": {
+            "soc": "nrf9160",
+            "series": "nrf91",
+        },
+        "actinius_icarus_som_dk/nrf9160/ns": {
+            "soc": "nrf9160",
+            "series": "nrf91",
         },
         "adafruit_feather_nrf52840": {
             "soc": "nrf52840",
+            "series": "nrf52",
         },
         "adafruit_feather_nrf52840/nrf52840/sense": {
             "soc": "nrf52840",
+            "series": "nrf52",
+        },
+        "adafruit_feather_nrf52840/nrf52840/sense/uf2": {
+            "soc": "nrf52840",
+            "series": "nrf52",
+            "cdc_acm": [
+                "/soc/usbd@40027000/board_cdc_acm_uart",
+            ],
         },
         "adafruit_feather_nrf52840/nrf52840/uf2": {
             "soc": "nrf52840",
+            "series": "nrf52",
             "cdc_acm": [
                 "/soc/usbd@40027000/board_cdc_acm_uart",
             ],
         },
         "adafruit_itsybitsy": {
             "soc": "nrf52840",
+            "series": "nrf52",
             "cdc_acm": [
                 "/soc/usbd@40027000/board_cdc_acm_uart",
             ],
         },
         "arduino_nano_33_ble": {
             "soc": "nrf52840",
+            "series": "nrf52",
         },
         "arduino_nano_33_ble/nrf52840/sense": {
             "soc": "nrf52840",
+            "series": "nrf52",
         },
         "arduino_nicla_sense_me": {
             "soc": "nrf52832",
+            "series": "nrf52",
+        },
+        "bbc_microbit": {
+            "soc": "nrf51822",
+            "series": "nrf51",
         },
         "bbc_microbit_v2": {
             "soc": "nrf52833",
+            "series": "nrf52",
+        },
+        "bl5340_dvk/nrf5340/cpuapp": {
+            "soc": "nrf5340",
+            "series": "nrf53",
+        },
+        "bl5340_dvk/nrf5340/cpuapp/ns": {
+            "soc": "nrf5340",
+            "series": "nrf53",
+        },
+        "bl5340_dvk/nrf5340/cpunet": {
+            "soc": "nrf5340",
+            "series": "nrf53",
+        },
+        "bl54l15_dvk/nrf54l10/cpuapp": {
+            "soc": "nrf54l10",
+            "series": "nrf54l",
+        },
+        "bl54l15_dvk/nrf54l10/cpuapp/ns": {
+            "soc": "nrf54l10",
+            "series": "nrf54l",
+        },
+        "bl54l15_dvk/nrf54l15/cpuapp": {
+            "soc": "nrf54l15",
+            "series": "nrf54l",
+        },
+        "bl54l15_dvk/nrf54l15/cpuapp/ns": {
+            "soc": "nrf54l15",
+            "series": "nrf54l",
+        },
+        "bl54l15_dvk/nrf54l15/cpuflpr": {
+            "soc": "nrf54l15",
+            "series": "nrf54l",
+        },
+        "bl54l15_dvk/nrf54l15/cpuflpr/xip": {
+            "soc": "nrf54l15",
+            "series": "nrf54l",
+        },
+        "bl54l15u_dvk/nrf54l15/cpuapp": {
+            "soc": "nrf54l15",
+            "series": "nrf54l",
+        },
+        "bl54l15u_dvk/nrf54l15/cpuapp/ns": {
+            "soc": "nrf54l15",
+            "series": "nrf54l",
+        },
+        "bl54l15u_dvk/nrf54l15/cpuflpr": {
+            "soc": "nrf54l15",
+            "series": "nrf54l",
+        },
+        "bl54l15u_dvk/nrf54l15/cpuflpr/xip": {
+            "soc": "nrf54l15",
+            "series": "nrf54l",
         },
         "bl652_dvk": {
             "soc": "nrf52832",
+            "series": "nrf52",
         },
         "bl653_dvk": {
             "soc": "nrf52833",
+            "series": "nrf52",
         },
         "bl654_dvk": {
             "soc": "nrf52840",
+            "series": "nrf52",
         },
         "bl654_dvk/nrf52840/pa": {
             "soc": "nrf52840",
+            "series": "nrf52",
         },
         "bl654_sensor_board": {
             "soc": "nrf52840",
+            "series": "nrf52",
         },
         "bl654_usb": {
             "soc": "nrf52840",
+            "series": "nrf52",
             "cdc_acm": [
                 "/soc/usbd@40027000/board_cdc_acm_uart",
             ],
         },
         "bl654_usb/nrf52840/bare": {
             "soc": "nrf52840",
+            "series": "nrf52",
             "cdc_acm": [
                 "/soc/usbd@40027000/board_cdc_acm_uart",
             ],
         },
         "blueclover_plt_demo_v2": {
             "soc": "nrf52832",
+            "series": "nrf52",
         },
         "bt510": {
             "soc": "nrf52840",
+            "series": "nrf52",
         },
         "bt610": {
             "soc": "nrf52840",
+            "series": "nrf52",
         },
         "bytesensi_l": {
             "soc": "nrf52832",
+            "series": "nrf52",
+        },
+        "circuitdojo_feather": {
+            "soc": "nrf9160",
+            "series": "nrf91",
+        },
+        "circuitdojo_feather/nrf9160/ns": {
+            "soc": "nrf9160",
+            "series": "nrf91",
         },
         "contextualelectronics_abc": {
             "soc": "nrf52840",
+            "series": "nrf52",
         },
         "croxel_cx1825": {
             "soc": "nrf52840",
+            "series": "nrf52",
             "cdc_acm": [
                 "/soc/usbd@40027000/board_cdc_acm_uart",
             ],
         },
         "ctcc/nrf52840": {
             "soc": "nrf52840",
+            "series": "nrf52",
             "cdc_acm": [
                 "/soc/usbd@40027000/board_cdc_acm_uart",
             ],
         },
+        "ctcc/nrf9161": {
+            "soc": "nrf9161",
+            "series": "nrf91",
+        },
+        "ctcc/nrf9161/ns": {
+            "soc": "nrf9161",
+            "series": "nrf91",
+        },
         "decawave_dwm1001_dev": {
             "soc": "nrf52832",
+            "series": "nrf52",
         },
         "decawave_dwm3001cdk": {
             "soc": "nrf52833",
+            "series": "nrf52",
         },
         "degu_evk": {
             "soc": "nrf52840",
+            "series": "nrf52",
             "cdc_acm": [
                 "/soc/usbd@40027000/board_cdc_acm_uart",
             ],
         },
         "ebyte_e73_tbb": {
             "soc": "nrf52832",
+            "series": "nrf52",
         },
         "holyiot_yj16019": {
             "soc": "nrf52832",
+            "series": "nrf52",
         },
         "holyiot_yj17095": {
             "soc": "nrf52832",
+            "series": "nrf52",
+        },
+        "innblue21": {
+            "soc": "nrf9160",
+            "series": "nrf91",
+        },
+        "innblue21/nrf9160/ns": {
+            "soc": "nrf9160",
+            "series": "nrf91",
+        },
+        "innblue22": {
+            "soc": "nrf9160",
+            "series": "nrf91",
+        },
+        "innblue22/nrf9160/ns": {
+            "soc": "nrf9160",
+            "series": "nrf91",
         },
         "mg100": {
             "soc": "nrf52840",
+            "series": "nrf52",
         },
         "micromod": {
             "soc": "nrf52840",
+            "series": "nrf52",
         },
         "nrf21540dk": {
             "soc": "nrf52840",
+            "series": "nrf52",
+        },
+        "nrf51_ble400": {
+            "soc": "nrf51822",
+            "series": "nrf51",
+        },
+        "nrf51_blenano": {
+            "soc": "nrf51822",
+            "series": "nrf51",
+        },
+        "nrf51_vbluno51": {
+            "soc": "nrf51822",
+            "series": "nrf51",
+        },
+        "nrf51dk": {
+            "soc": "nrf51822",
+            "series": "nrf51",
+        },
+        "nrf51dongle": {
+            "soc": "nrf51822",
+            "series": "nrf51",
         },
         "nrf52820dongle": {
             "soc": "nrf52820",
+            "series": "nrf52",
         },
         "nrf52832_mdk": {
             "soc": "nrf52832",
+            "series": "nrf52",
         },
         "nrf52833dk/nrf52820": {
             "soc": "nrf52820",
+            "series": "nrf52",
         },
         "nrf52833dk/nrf52833": {
             "soc": "nrf52833",
+            "series": "nrf52",
         },
         "nrf52833dongle": {
             "soc": "nrf52833",
+            "series": "nrf52",
         },
         "nrf52840_blip": {
             "soc": "nrf52840",
+            "series": "nrf52",
         },
         "nrf52840_mdk": {
             "soc": "nrf52840",
+            "series": "nrf52",
         },
         "nrf52840_mdk_usb_dongle": {
             "soc": "nrf52840",
+            "series": "nrf52",
             "cdc_acm": [
                 "/soc/usbd@40027000/board_cdc_acm_uart",
             ],
         },
         "nrf52840_papyr": {
             "soc": "nrf52840",
+            "series": "nrf52",
         },
         "nrf52840dk/nrf52811": {
             "soc": "nrf52811",
+            "series": "nrf52",
         },
         "nrf52840dk/nrf52840": {
             "soc": "nrf52840",
+            "series": "nrf52",
         },
         "nrf52840dongle": {
             "soc": "nrf52840",
+            "series": "nrf52",
             "cdc_acm": [
                 "/soc/usbd@40027000/board_cdc_acm_uart",
             ],
         },
         "nrf52840dongle/nrf52840/bare": {
             "soc": "nrf52840",
+            "series": "nrf52",
             "cdc_acm": [
                 "/soc/usbd@40027000/board_cdc_acm_uart",
             ],
         },
         "nrf52840gmouse": {
             "soc": "nrf52840",
+            "series": "nrf52",
         },
         "nrf52_adafruit_feather": {
             "soc": "nrf52832",
+            "series": "nrf52",
         },
         "nrf52_blenano2": {
             "soc": "nrf52832",
+            "series": "nrf52",
         },
         "nrf52_sparkfun": {
             "soc": "nrf52832",
+            "series": "nrf52",
         },
         "nrf52_vbluno52": {
             "soc": "nrf52832",
+            "series": "nrf52",
         },
         "nrf52dk/nrf52805": {
             "soc": "nrf52805",
+            "series": "nrf52",
         },
         "nrf52dk/nrf52810": {
             "soc": "nrf52810",
+            "series": "nrf52",
         },
         "nrf52dk/nrf52832": {
             "soc": "nrf52832",
+            "series": "nrf52",
         },
         "nrf52dmouse": {
             "soc": "nrf52832",
+            "series": "nrf52",
         },
         "nrf52kbd": {
             "soc": "nrf52832",
+            "series": "nrf52",
+        },
+        "nrf5340_audio_dk/nrf5340/cpuapp": {
+            "soc": "nrf5340",
+            "series": "nrf53",
+        },
+        "nrf5340_audio_dk/nrf5340/cpuapp/ns": {
+            "soc": "nrf5340",
+            "series": "nrf53",
+        },
+        "nrf5340_audio_dk/nrf5340/cpunet": {
+            "soc": "nrf5340",
+            "series": "nrf53",
+        },
+        "nrf5340bsim/nrf5340/cpuapp": {
+            "soc": "nrf5340",
+            "series": "nrf53",
+        },
+        "nrf5340bsim/nrf5340/cpunet": {
+            "soc": "nrf5340",
+            "series": "nrf53",
+        },
+        "nrf5340dk/nrf5340/cpuapp": {
+            "soc": "nrf5340",
+            "series": "nrf53",
+        },
+        "nrf5340dk/nrf5340/cpuapp/ns": {
+            "soc": "nrf5340",
+            "series": "nrf53",
+        },
+        "nrf5340dk/nrf5340/cpunet": {
+            "soc": "nrf5340",
+            "series": "nrf53",
+        },
+        "nrf54h20dk/nrf54h20/cpuapp": {
+            "soc": "nrf54h20",
+            "series": "nrf54h",
+        },
+        "nrf54h20dk/nrf54h20/cpuflpr": {
+            "soc": "nrf54h20",
+            "series": "nrf54h",
+        },
+        "nrf54h20dk/nrf54h20/cpuflpr/xip": {
+            "soc": "nrf54h20",
+            "series": "nrf54h",
+        },
+        "nrf54h20dk/nrf54h20/cpuppr": {
+            "soc": "nrf54h20",
+            "series": "nrf54h",
+        },
+        "nrf54h20dk/nrf54h20/cpuppr/xip": {
+            "soc": "nrf54h20",
+            "series": "nrf54h",
+        },
+        "nrf54h20dk/nrf54h20/cpurad": {
+            "soc": "nrf54h20",
+            "series": "nrf54h",
+        },
+        "nrf54l15bsim/nrf54l15/cpuapp": {
+            "soc": "nrf54l15",
+            "series": "nrf54l",
+        },
+        "nrf54l15dk/nrf54l05/cpuapp": {
+            "soc": "nrf54l05",
+            "series": "nrf54l",
+        },
+        "nrf54l15dk/nrf54l10/cpuapp": {
+            "soc": "nrf54l10",
+            "series": "nrf54l",
+        },
+        "nrf54l15dk/nrf54l10/cpuapp/ns": {
+            "soc": "nrf54l10",
+            "series": "nrf54l",
+        },
+        "nrf54l15dk/nrf54l15/cpuapp": {
+            "soc": "nrf54l15",
+            "series": "nrf54l",
+        },
+        "nrf54l15dk/nrf54l15/cpuapp/ns": {
+            "soc": "nrf54l15",
+            "series": "nrf54l",
+        },
+        "nrf54l15dk/nrf54l15/cpuflpr": {
+            "soc": "nrf54l15",
+            "series": "nrf54l",
+        },
+        "nrf54l15dk/nrf54l15/cpuflpr/xip": {
+            "soc": "nrf54l15",
+            "series": "nrf54l",
+        },
+        "nrf54lm20bsim/nrf54lm20a/cpuapp": {
+            "soc": "nrf54lm20a",
+            "series": "nrf54l",
+        },
+        "nrf54lm20dk/nrf54lm20a/cpuapp": {
+            "soc": "nrf54lm20a",
+            "series": "nrf54l",
+        },
+        "nrf54lm20dk/nrf54lm20a/cpuapp/ns": {
+            "soc": "nrf54lm20a",
+            "series": "nrf54l",
+        },
+        "nrf54lm20dk/nrf54lm20a/cpuflpr": {
+            "soc": "nrf54lm20a",
+            "series": "nrf54l",
+        },
+        "nrf54ls05dk/nrf54ls05b/cpuapp": {
+            "soc": "nrf54ls05b",
+            "series": "nrf54l",
+        },
+        "nrf54lv10dk/nrf54lv10a/cpuapp": {
+            "soc": "nrf54lv10a",
+            "series": "nrf54l",
+        },
+        "nrf54lv10dk/nrf54lv10a/cpuapp/ns": {
+            "soc": "nrf54lv10a",
+            "series": "nrf54l",
+        },
+        "nrf54lv10dk/nrf54lv10a/cpuflpr": {
+            "soc": "nrf54lv10a",
+            "series": "nrf54l",
+        },
+        "nrf7002dk/nrf5340/cpuapp": {
+            "soc": "nrf5340",
+            "series": "nrf53",
+        },
+        "nrf7002dk/nrf5340/cpuapp/nrf7001": {
+            "soc": "nrf5340",
+            "series": "nrf53",
+        },
+        "nrf7002dk/nrf5340/cpuapp/ns": {
+            "soc": "nrf5340",
+            "series": "nrf53",
+        },
+        "nrf7002dk/nrf5340/cpunet": {
+            "soc": "nrf5340",
+            "series": "nrf53",
+        },
+        "nrf7120pdk/nrf7120/cpuapp": {
+            "soc": "nrf7120",
+            "series": "nrf71",
+        },
+        "nrf7120pdk/nrf7120/cpuapp/emu": {
+            "soc": "nrf7120",
+            "series": "nrf71",
+        },
+        "nrf7120pdk/nrf7120/cpuapp/fpga": {
+            "soc": "nrf7120",
+            "series": "nrf71",
+        },
+        "nrf7120pdk/nrf7120/cpuapp/ns": {
+            "soc": "nrf7120",
+            "series": "nrf71",
+        },
+        "nrf7120pdk/nrf7120/cpuflpr": {
+            "soc": "nrf7120",
+            "series": "nrf71",
+        },
+        "nrf7120pdk/nrf7120/cpuflpr/xip": {
+            "soc": "nrf7120",
+            "series": "nrf71",
+        },
+        "nrf9131ek": {
+            "soc": "nrf9131",
+            "series": "nrf91",
+        },
+        "nrf9131ek/nrf9131/ns": {
+            "soc": "nrf9131",
+            "series": "nrf91",
+        },
+        "nrf9151dk": {
+            "soc": "nrf9151",
+            "series": "nrf91",
+        },
+        "nrf9151dk/nrf9151/ns": {
+            "soc": "nrf9151",
+            "series": "nrf91",
         },
         "nrf9160dk/nrf52840": {
             "soc": "nrf52840",
+            "series": "nrf52",
+        },
+        "nrf9160dk/nrf9160": {
+            "soc": "nrf9160",
+            "series": "nrf91",
+        },
+        "nrf9160dk/nrf9160/ns": {
+            "soc": "nrf9160",
+            "series": "nrf91",
+        },
+        "nrf9161dk": {
+            "soc": "nrf9161",
+            "series": "nrf91",
+        },
+        "nrf9161dk/nrf9161/ns": {
+            "soc": "nrf9161",
+            "series": "nrf91",
+        },
+        "nrf9280pdk/nrf9280/cpuapp": {
+            "soc": "nrf9280",
+            "series": "nrf92",
+        },
+        "nrf9280pdk/nrf9280/cpuapp/iron": {
+            "soc": "nrf9280",
+            "series": "nrf92",
+        },
+        "nrf9280pdk/nrf9280/cpuppr": {
+            "soc": "nrf9280",
+            "series": "nrf92",
+        },
+        "nrf9280pdk/nrf9280/cpuppr/xip": {
+            "soc": "nrf9280",
+            "series": "nrf92",
+        },
+        "nrf9280pdk/nrf9280/cpurad": {
+            "soc": "nrf9280",
+            "series": "nrf92",
+        },
+        "octopus_io_board": {
+            "soc": "nrf9160",
+            "series": "nrf91",
+        },
+        "octopus_io_board/nrf9160/ns": {
+            "soc": "nrf9160",
+            "series": "nrf91",
+        },
+        "octopus_som": {
+            "soc": "nrf9160",
+            "series": "nrf91",
+        },
+        "octopus_som/nrf9160/ns": {
+            "soc": "nrf9160",
+            "series": "nrf91",
+        },
+        "ophelia4ev/nrf54l15/cpuapp": {
+            "soc": "nrf54l15",
+            "series": "nrf54l",
+        },
+        "ophelia4ev/nrf54l15/cpuflpr": {
+            "soc": "nrf54l15",
+            "series": "nrf54l",
         },
         "pan1770_evb": {
             "soc": "nrf52840",
+            "series": "nrf52",
         },
         "pan1780_evb": {
             "soc": "nrf52840",
+            "series": "nrf52",
         },
         "pan1781_evb": {
             "soc": "nrf52820",
+            "series": "nrf52",
         },
         "pan1782_evb": {
             "soc": "nrf52833",
+            "series": "nrf52",
+        },
+        "pan1783_evb/nrf5340/cpuapp": {
+            "soc": "nrf5340",
+            "series": "nrf53",
+        },
+        "pan1783_evb/nrf5340/cpunet": {
+            "soc": "nrf5340",
+            "series": "nrf53",
+        },
+        "pan1783a_evb/nrf5340/cpuapp": {
+            "soc": "nrf5340",
+            "series": "nrf53",
+        },
+        "pan1783a_evb/nrf5340/cpunet": {
+            "soc": "nrf5340",
+            "series": "nrf53",
+        },
+        "pan1783a_pa_evb/nrf5340/cpuapp": {
+            "soc": "nrf5340",
+            "series": "nrf53",
+        },
+        "pan1783a_pa_evb/nrf5340/cpunet": {
+            "soc": "nrf5340",
+            "series": "nrf53",
+        },
+        "panb611evb/nrf54l15/cpuapp": {
+            "soc": "nrf54l15",
+            "series": "nrf54l",
+        },
+        "panb611evb/nrf54l15/cpuapp/ns": {
+            "soc": "nrf54l15",
+            "series": "nrf54l",
+        },
+        "panb611evb/nrf54l15/cpuflpr": {
+            "soc": "nrf54l15",
+            "series": "nrf54l",
+        },
+        "panb611evb/nrf54l15/cpuflpr/xip": {
+            "soc": "nrf54l15",
+            "series": "nrf54l",
         },
         "particle_argon": {
             "soc": "nrf52840",
+            "series": "nrf52",
         },
         "particle_boron": {
             "soc": "nrf52840",
+            "series": "nrf52",
         },
         "particle_xenon": {
             "soc": "nrf52840",
+            "series": "nrf52",
         },
         "pinetime_devkit0": {
             "soc": "nrf52832",
+            "series": "nrf52",
         },
         "pinnacle_100_dvk": {
             "soc": "nrf52840",
+            "series": "nrf52",
         },
         "promicro_nrf52840": {
             "soc": "nrf52840",
+            "series": "nrf52",
             "cdc_acm": [
                 "/soc/usbd@40027000/board_cdc_acm_uart",
             ],
         },
         "promicro_nrf52840/nrf52840/uf2": {
             "soc": "nrf52840",
+            "series": "nrf52",
             "cdc_acm": [
                 "/soc/usbd@40027000/board_cdc_acm_uart",
             ],
         },
+        "qemu_cortex_m0": {
+            "soc": "nrf51822",
+            "series": "nrf51",
+        },
         "quill_nrf52840_mesh": {
             "soc": "nrf52840",
+            "series": "nrf52",
             "cdc_acm": [
                 "/soc/usbd@40027000/board_cdc_acm_uart",
             ],
         },
         "rak4631": {
             "soc": "nrf52840",
+            "series": "nrf52",
         },
         "rak5010": {
             "soc": "nrf52840",
+            "series": "nrf52",
+        },
+        "raytac_an54l15q_db/nrf54l15/cpuapp": {
+            "soc": "nrf54l15",
+            "series": "nrf54l",
+        },
+        "raytac_an54l15q_db/nrf54l15/cpuapp/ns": {
+            "soc": "nrf54l15",
+            "series": "nrf54l",
+        },
+        "raytac_an54l15q_db/nrf54l15/cpuflpr": {
+            "soc": "nrf54l15",
+            "series": "nrf54l",
+        },
+        "raytac_an54l15q_db/nrf54l15/cpuflpr/xip": {
+            "soc": "nrf54l15",
+            "series": "nrf54l",
+        },
+        "raytac_an7002q_db/nrf5340/cpuapp": {
+            "soc": "nrf5340",
+            "series": "nrf53",
+        },
+        "raytac_an7002q_db/nrf5340/cpunet": {
+            "soc": "nrf5340",
+            "series": "nrf53",
         },
         "raytac_mdbt50q_cx_40_dongle": {
             "soc": "nrf52840",
+            "series": "nrf52",
             "cdc_acm": [
                 "/soc/usbd@40027000/board_cdc_acm_uart",
             ],
         },
         "raytac_mdbt50q_db_33": {
             "soc": "nrf52833",
+            "series": "nrf52",
         },
         "raytac_mdbt50q_db_40": {
             "soc": "nrf52840",
+            "series": "nrf52",
+        },
+        "raytac_mdbt53_db_40/nrf5340/cpuapp": {
+            "soc": "nrf5340",
+            "series": "nrf53",
+        },
+        "raytac_mdbt53_db_40/nrf5340/cpuapp/ns": {
+            "soc": "nrf5340",
+            "series": "nrf53",
+        },
+        "raytac_mdbt53_db_40/nrf5340/cpunet": {
+            "soc": "nrf5340",
+            "series": "nrf53",
+        },
+        "raytac_mdbt53v_db_40/nrf5340/cpuapp": {
+            "soc": "nrf5340",
+            "series": "nrf53",
+        },
+        "raytac_mdbt53v_db_40/nrf5340/cpuapp/ns": {
+            "soc": "nrf5340",
+            "series": "nrf53",
+        },
+        "raytac_mdbt53v_db_40/nrf5340/cpunet": {
+            "soc": "nrf5340",
+            "series": "nrf53",
         },
         "reel_board": {
             "soc": "nrf52840",
+            "series": "nrf52",
+        },
+        "rm1xx_dvk": {
+            "soc": "nrf51822",
+            "series": "nrf51",
         },
         "ruuvi_ruuvitag": {
             "soc": "nrf52832",
+            "series": "nrf52",
+        },
+        "sparkfun_thing_plus": {
+            "soc": "nrf9160",
+            "series": "nrf91",
+        },
+        "sparkfun_thing_plus/nrf9160/ns": {
+            "soc": "nrf9160",
+            "series": "nrf91",
         },
         "thingy52": {
             "soc": "nrf52832",
+            "series": "nrf52",
+        },
+        "thingy53/nrf5340/cpuapp": {
+            "soc": "nrf5340",
+            "series": "nrf53",
+            "cdc_acm": [
+                "/soc/peripheral@50000000/usbd@36000/board_cdc_acm_uart",
+            ],
+        },
+        "thingy53/nrf5340/cpuapp/ns": {
+            "soc": "nrf5340",
+            "series": "nrf53",
+            "cdc_acm": [
+                "/soc/peripheral@40000000/usbd@36000/board_cdc_acm_uart",
+            ],
+        },
+        "thingy53/nrf5340/cpunet": {
+            "soc": "nrf5340",
+            "series": "nrf53",
         },
         "thingy91/nrf52840": {
             "soc": "nrf52840",
+            "series": "nrf52",
+        },
+        "thingy91/nrf9160": {
+            "soc": "nrf9160",
+            "series": "nrf91",
+        },
+        "thingy91/nrf9160/ns": {
+            "soc": "nrf9160",
+            "series": "nrf91",
+        },
+        "thingy91x/nrf5340/cpuapp": {
+            "soc": "nrf5340",
+            "series": "nrf53",
+            "cdc_acm": [
+                "/soc/peripheral@50000000/usbd@36000/cdc_acm_uart0",
+            ],
+        },
+        "thingy91x/nrf5340/cpunet": {
+            "soc": "nrf5340",
+            "series": "nrf53",
+        },
+        "thingy91x/nrf9151": {
+            "soc": "nrf9151",
+            "series": "nrf91",
+        },
+        "thingy91x/nrf9151/ns": {
+            "soc": "nrf9151",
+            "series": "nrf91",
+        },
+        "tpm530mevk": {
+            "soc": "tpm530m",
+            "series": "nrf91",
+        },
+        "tpm530mevk/tpm530m/ns": {
+            "soc": "tpm530m",
+            "series": "nrf91",
         },
         "ubx_bmd300eval": {
             "soc": "nrf52832",
+            "series": "nrf52",
         },
         "ubx_bmd330eval": {
             "soc": "nrf52810",
+            "series": "nrf52",
         },
         "ubx_bmd340eval": {
             "soc": "nrf52840",
+            "series": "nrf52",
         },
         "ubx_bmd345eval": {
             "soc": "nrf52840",
+            "series": "nrf52",
         },
         "ubx_bmd360eval": {
             "soc": "nrf52811",
+            "series": "nrf52",
         },
         "ubx_bmd380eval": {
             "soc": "nrf52840",
+            "series": "nrf52",
         },
         "ubx_evkannab1": {
             "soc": "nrf52832",
+            "series": "nrf52",
         },
         "ubx_evkninab1": {
             "soc": "nrf52832",
+            "series": "nrf52",
         },
         "ubx_evkninab3": {
             "soc": "nrf52840",
+            "series": "nrf52",
         },
         "ubx_evkninab4": {
             "soc": "nrf52833",
+            "series": "nrf52",
         },
         "we_ophelia1ev": {
             "soc": "nrf52805",
+            "series": "nrf52",
         },
         "we_proteus2ev": {
             "soc": "nrf52832",
+            "series": "nrf52",
         },
         "we_proteus3ev": {
             "soc": "nrf52840",
+            "series": "nrf52",
         },
         "wio_wm1110_dev_kit": {
             "soc": "nrf52840",
+            "series": "nrf52",
         },
         "xiao_ble": {
             "soc": "nrf52840",
+            "series": "nrf52",
             "cdc_acm": [
                 "/soc/usbd@40027000/board_cdc_acm_uart",
             ],
         },
         "xiao_ble/nrf52840/sense": {
             "soc": "nrf52840",
+            "series": "nrf52",
             "cdc_acm": [
                 "/soc/usbd@40027000/board_cdc_acm_uart",
             ],
+        },
+        "xiao_nrf54l15/nrf54l15/cpuapp": {
+            "soc": "nrf54l15",
+            "series": "nrf54l",
+        },
+        "xiao_nrf54l15/nrf54l15/cpuflpr": {
+            "soc": "nrf54l15",
+            "series": "nrf54l",
         },
     },
     "3.4.0": {
+        "96b_carbon/nrf51822": {
+            "soc": "nrf51822",
+            "series": "nrf51",
+        },
         "96b_nitrogen": {
             "soc": "nrf52832",
+            "series": "nrf52",
         },
         "acn52832": {
             "soc": "nrf52832",
+            "series": "nrf52",
+        },
+        "actinius_icarus": {
+            "soc": "nrf9160",
+            "series": "nrf91",
+        },
+        "actinius_icarus/nrf9160/ns": {
+            "soc": "nrf9160",
+            "series": "nrf91",
+        },
+        "actinius_icarus_bee": {
+            "soc": "nrf9160",
+            "series": "nrf91",
+        },
+        "actinius_icarus_bee/nrf9160/ns": {
+            "soc": "nrf9160",
+            "series": "nrf91",
+        },
+        "actinius_icarus_som": {
+            "soc": "nrf9160",
+            "series": "nrf91",
+        },
+        "actinius_icarus_som/nrf9160/ns": {
+            "soc": "nrf9160",
+            "series": "nrf91",
+        },
+        "actinius_icarus_som_dk": {
+            "soc": "nrf9160",
+            "series": "nrf91",
+        },
+        "actinius_icarus_som_dk/nrf9160/ns": {
+            "soc": "nrf9160",
+            "series": "nrf91",
         },
         "adafruit_feather_nrf52840": {
             "soc": "nrf52840",
+            "series": "nrf52",
         },
         "adafruit_feather_nrf52840/nrf52840/sense": {
             "soc": "nrf52840",
+            "series": "nrf52",
+        },
+        "adafruit_feather_nrf52840/nrf52840/sense/uf2": {
+            "soc": "nrf52840",
+            "series": "nrf52",
+            "cdc_acm": [
+                "/soc/usbd@40027000/board_cdc_acm_uart",
+            ],
         },
         "adafruit_feather_nrf52840/nrf52840/uf2": {
             "soc": "nrf52840",
+            "series": "nrf52",
             "cdc_acm": [
                 "/soc/usbd@40027000/board_cdc_acm_uart",
             ],
         },
         "adafruit_itsybitsy": {
             "soc": "nrf52840",
+            "series": "nrf52",
             "cdc_acm": [
                 "/soc/usbd@40027000/board_cdc_acm_uart",
             ],
         },
         "arduino_nano_33_ble": {
             "soc": "nrf52840",
+            "series": "nrf52",
         },
         "arduino_nano_33_ble/nrf52840/sense": {
             "soc": "nrf52840",
+            "series": "nrf52",
         },
         "arduino_nicla_sense_me": {
             "soc": "nrf52832",
+            "series": "nrf52",
+        },
+        "bbc_microbit": {
+            "soc": "nrf51822",
+            "series": "nrf51",
         },
         "bbc_microbit_v2": {
             "soc": "nrf52833",
+            "series": "nrf52",
+        },
+        "bl5340_dvk/nrf5340/cpuapp": {
+            "soc": "nrf5340",
+            "series": "nrf53",
+        },
+        "bl5340_dvk/nrf5340/cpuapp/ns": {
+            "soc": "nrf5340",
+            "series": "nrf53",
+        },
+        "bl5340_dvk/nrf5340/cpunet": {
+            "soc": "nrf5340",
+            "series": "nrf53",
+        },
+        "bl54l15_dvk/nrf54l10/cpuapp": {
+            "soc": "nrf54l10",
+            "series": "nrf54l",
+        },
+        "bl54l15_dvk/nrf54l10/cpuapp/ns": {
+            "soc": "nrf54l10",
+            "series": "nrf54l",
+        },
+        "bl54l15_dvk/nrf54l15/cpuapp": {
+            "soc": "nrf54l15",
+            "series": "nrf54l",
+        },
+        "bl54l15_dvk/nrf54l15/cpuapp/ns": {
+            "soc": "nrf54l15",
+            "series": "nrf54l",
+        },
+        "bl54l15_dvk/nrf54l15/cpuflpr": {
+            "soc": "nrf54l15",
+            "series": "nrf54l",
+        },
+        "bl54l15_dvk/nrf54l15/cpuflpr/xip": {
+            "soc": "nrf54l15",
+            "series": "nrf54l",
+        },
+        "bl54l15u_dvk/nrf54l15/cpuapp": {
+            "soc": "nrf54l15",
+            "series": "nrf54l",
+        },
+        "bl54l15u_dvk/nrf54l15/cpuapp/ns": {
+            "soc": "nrf54l15",
+            "series": "nrf54l",
+        },
+        "bl54l15u_dvk/nrf54l15/cpuflpr": {
+            "soc": "nrf54l15",
+            "series": "nrf54l",
+        },
+        "bl54l15u_dvk/nrf54l15/cpuflpr/xip": {
+            "soc": "nrf54l15",
+            "series": "nrf54l",
         },
         "bl652_dvk": {
             "soc": "nrf52832",
+            "series": "nrf52",
         },
         "bl653_dvk": {
             "soc": "nrf52833",
+            "series": "nrf52",
         },
         "bl654_dvk": {
             "soc": "nrf52840",
+            "series": "nrf52",
         },
         "bl654_dvk/nrf52840/pa": {
             "soc": "nrf52840",
+            "series": "nrf52",
         },
         "bl654_sensor_board": {
             "soc": "nrf52840",
+            "series": "nrf52",
         },
         "bl654_usb": {
             "soc": "nrf52840",
+            "series": "nrf52",
             "cdc_acm": [
                 "/soc/usbd@40027000/board_cdc_acm_uart",
             ],
         },
         "bl654_usb/nrf52840/bare": {
             "soc": "nrf52840",
+            "series": "nrf52",
             "cdc_acm": [
                 "/soc/usbd@40027000/board_cdc_acm_uart",
             ],
         },
         "blueclover_plt_demo_v2": {
             "soc": "nrf52832",
+            "series": "nrf52",
         },
         "bt510": {
             "soc": "nrf52840",
+            "series": "nrf52",
         },
         "bt610": {
             "soc": "nrf52840",
+            "series": "nrf52",
         },
         "bytesensi_l": {
             "soc": "nrf52832",
+            "series": "nrf52",
+        },
+        "circuitdojo_feather": {
+            "soc": "nrf9160",
+            "series": "nrf91",
+        },
+        "circuitdojo_feather/nrf9160/ns": {
+            "soc": "nrf9160",
+            "series": "nrf91",
         },
         "contextualelectronics_abc": {
             "soc": "nrf52840",
+            "series": "nrf52",
         },
         "croxel_cx1825": {
             "soc": "nrf52840",
+            "series": "nrf52",
             "cdc_acm": [
                 "/soc/usbd@40027000/board_cdc_acm_uart",
             ],
         },
         "ctcc/nrf52840": {
             "soc": "nrf52840",
+            "series": "nrf52",
             "cdc_acm": [
                 "/soc/usbd@40027000/board_cdc_acm_uart",
             ],
         },
+        "ctcc/nrf9161": {
+            "soc": "nrf9161",
+            "series": "nrf91",
+        },
+        "ctcc/nrf9161/ns": {
+            "soc": "nrf9161",
+            "series": "nrf91",
+        },
         "decawave_dwm1001_dev": {
             "soc": "nrf52832",
+            "series": "nrf52",
         },
         "decawave_dwm3001cdk": {
             "soc": "nrf52833",
+            "series": "nrf52",
         },
         "degu_evk": {
             "soc": "nrf52840",
+            "series": "nrf52",
             "cdc_acm": [
                 "/soc/usbd@40027000/board_cdc_acm_uart",
             ],
         },
         "ebyte_e73_tbb": {
             "soc": "nrf52832",
+            "series": "nrf52",
         },
         "holyiot_21014": {
             "soc": "nrf52810",
+            "series": "nrf52",
+        },
+        "holyiot_25008/nrf54l15/cpuapp": {
+            "soc": "nrf54l15",
+            "series": "nrf54l",
         },
         "holyiot_yj16019": {
             "soc": "nrf52832",
+            "series": "nrf52",
         },
         "holyiot_yj17095": {
             "soc": "nrf52832",
+            "series": "nrf52",
+        },
+        "innblue21": {
+            "soc": "nrf9160",
+            "series": "nrf91",
+        },
+        "innblue21/nrf9160/ns": {
+            "soc": "nrf9160",
+            "series": "nrf91",
+        },
+        "innblue22": {
+            "soc": "nrf9160",
+            "series": "nrf91",
+        },
+        "innblue22/nrf9160/ns": {
+            "soc": "nrf9160",
+            "series": "nrf91",
         },
         "mg100": {
             "soc": "nrf52840",
+            "series": "nrf52",
         },
         "micromod": {
             "soc": "nrf52840",
+            "series": "nrf52",
         },
         "nrf21540dk": {
             "soc": "nrf52840",
+            "series": "nrf52",
+        },
+        "nrf51_ble400": {
+            "soc": "nrf51822",
+            "series": "nrf51",
+        },
+        "nrf51_blenano": {
+            "soc": "nrf51822",
+            "series": "nrf51",
+        },
+        "nrf51_vbluno51": {
+            "soc": "nrf51822",
+            "series": "nrf51",
+        },
+        "nrf51dk": {
+            "soc": "nrf51822",
+            "series": "nrf51",
+        },
+        "nrf51dongle": {
+            "soc": "nrf51822",
+            "series": "nrf51",
         },
         "nrf52820dongle": {
             "soc": "nrf52820",
+            "series": "nrf52",
         },
         "nrf52832_mdk": {
             "soc": "nrf52832",
+            "series": "nrf52",
         },
         "nrf52833dk/nrf52820": {
             "soc": "nrf52820",
+            "series": "nrf52",
         },
         "nrf52833dk/nrf52833": {
             "soc": "nrf52833",
+            "series": "nrf52",
         },
         "nrf52833dongle": {
             "soc": "nrf52833",
+            "series": "nrf52",
         },
         "nrf52840_blip": {
             "soc": "nrf52840",
+            "series": "nrf52",
         },
         "nrf52840_mdk": {
             "soc": "nrf52840",
+            "series": "nrf52",
         },
         "nrf52840_mdk_usb_dongle": {
             "soc": "nrf52840",
+            "series": "nrf52",
             "cdc_acm": [
                 "/soc/usbd@40027000/board_cdc_acm_uart",
             ],
         },
         "nrf52840_papyr": {
             "soc": "nrf52840",
+            "series": "nrf52",
         },
         "nrf52840dk/nrf52811": {
             "soc": "nrf52811",
+            "series": "nrf52",
         },
         "nrf52840dk/nrf52840": {
             "soc": "nrf52840",
+            "series": "nrf52",
         },
         "nrf52840dongle": {
             "soc": "nrf52840",
+            "series": "nrf52",
             "cdc_acm": [
                 "/soc/usbd@40027000/board_cdc_acm_uart",
             ],
         },
         "nrf52840dongle/nrf52840/bare": {
             "soc": "nrf52840",
+            "series": "nrf52",
             "cdc_acm": [
                 "/soc/usbd@40027000/board_cdc_acm_uart",
             ],
         },
         "nrf52840gmouse": {
             "soc": "nrf52840",
+            "series": "nrf52",
         },
         "nrf52_adafruit_feather": {
             "soc": "nrf52832",
+            "series": "nrf52",
         },
         "nrf52_blenano2": {
             "soc": "nrf52832",
+            "series": "nrf52",
         },
         "nrf52_sparkfun": {
             "soc": "nrf52832",
+            "series": "nrf52",
         },
         "nrf52_vbluno52": {
             "soc": "nrf52832",
+            "series": "nrf52",
         },
         "nrf52dk/nrf52805": {
             "soc": "nrf52805",
+            "series": "nrf52",
         },
         "nrf52dk/nrf52810": {
             "soc": "nrf52810",
+            "series": "nrf52",
         },
         "nrf52dk/nrf52832": {
             "soc": "nrf52832",
+            "series": "nrf52",
         },
         "nrf52dmouse": {
             "soc": "nrf52832",
+            "series": "nrf52",
         },
         "nrf52kbd": {
             "soc": "nrf52832",
+            "series": "nrf52",
+        },
+        "nrf5340_audio_dk/nrf5340/cpuapp": {
+            "soc": "nrf5340",
+            "series": "nrf53",
+        },
+        "nrf5340_audio_dk/nrf5340/cpuapp/ns": {
+            "soc": "nrf5340",
+            "series": "nrf53",
+        },
+        "nrf5340_audio_dk/nrf5340/cpunet": {
+            "soc": "nrf5340",
+            "series": "nrf53",
+        },
+        "nrf5340bsim/nrf5340/cpuapp": {
+            "soc": "nrf5340",
+            "series": "nrf53",
+        },
+        "nrf5340bsim/nrf5340/cpunet": {
+            "soc": "nrf5340",
+            "series": "nrf53",
+        },
+        "nrf5340dk/nrf5340/cpuapp": {
+            "soc": "nrf5340",
+            "series": "nrf53",
+        },
+        "nrf5340dk/nrf5340/cpuapp/ns": {
+            "soc": "nrf5340",
+            "series": "nrf53",
+        },
+        "nrf5340dk/nrf5340/cpunet": {
+            "soc": "nrf5340",
+            "series": "nrf53",
+        },
+        "nrf54h20dk/nrf54h20/cpuapp": {
+            "soc": "nrf54h20",
+            "series": "nrf54h",
+        },
+        "nrf54h20dk/nrf54h20/cpuflpr": {
+            "soc": "nrf54h20",
+            "series": "nrf54h",
+        },
+        "nrf54h20dk/nrf54h20/cpuflpr/xip": {
+            "soc": "nrf54h20",
+            "series": "nrf54h",
+        },
+        "nrf54h20dk/nrf54h20/cpuppr": {
+            "soc": "nrf54h20",
+            "series": "nrf54h",
+        },
+        "nrf54h20dk/nrf54h20/cpuppr/xip": {
+            "soc": "nrf54h20",
+            "series": "nrf54h",
+        },
+        "nrf54h20dk/nrf54h20/cpurad": {
+            "soc": "nrf54h20",
+            "series": "nrf54h",
+        },
+        "nrf54l15bsim/nrf54l15/cpuapp": {
+            "soc": "nrf54l15",
+            "series": "nrf54l",
+        },
+        "nrf54l15dk/nrf54l05/cpuapp": {
+            "soc": "nrf54l05",
+            "series": "nrf54l",
+        },
+        "nrf54l15dk/nrf54l05/cpuflpr": {
+            "soc": "nrf54l05",
+            "series": "nrf54l",
+        },
+        "nrf54l15dk/nrf54l10/cpuapp": {
+            "soc": "nrf54l10",
+            "series": "nrf54l",
+        },
+        "nrf54l15dk/nrf54l10/cpuapp/ns": {
+            "soc": "nrf54l10",
+            "series": "nrf54l",
+        },
+        "nrf54l15dk/nrf54l10/cpuflpr": {
+            "soc": "nrf54l10",
+            "series": "nrf54l",
+        },
+        "nrf54l15dk/nrf54l15/cpuapp": {
+            "soc": "nrf54l15",
+            "series": "nrf54l",
+        },
+        "nrf54l15dk/nrf54l15/cpuapp/ns": {
+            "soc": "nrf54l15",
+            "series": "nrf54l",
+        },
+        "nrf54l15dk/nrf54l15/cpuflpr": {
+            "soc": "nrf54l15",
+            "series": "nrf54l",
+        },
+        "nrf54l15dk/nrf54l15/cpuflpr/xip": {
+            "soc": "nrf54l15",
+            "series": "nrf54l",
+        },
+        "nrf54l15tag/nrf54l15/cpuapp": {
+            "soc": "nrf54l15",
+            "series": "nrf54l",
+        },
+        "nrf54l15tag/nrf54l15/cpuapp/ns": {
+            "soc": "nrf54l15",
+            "series": "nrf54l",
+        },
+        "nrf54l15tag/nrf54l15/cpuflpr": {
+            "soc": "nrf54l15",
+            "series": "nrf54l",
+        },
+        "nrf54l15tag/nrf54l15/cpuflpr/xip": {
+            "soc": "nrf54l15",
+            "series": "nrf54l",
+        },
+        "nrf54lc10dk/nrf54lc10a/cpuapp": {
+            "soc": "nrf54lc10a",
+            "series": "nrf54l",
+        },
+        "nrf54lc10dk/nrf54lc10a/cpuapp/ns": {
+            "soc": "nrf54lc10a",
+            "series": "nrf54l",
+        },
+        "nrf54lc10dk/nrf54lc10a/cpuflpr": {
+            "soc": "nrf54lc10a",
+            "series": "nrf54l",
+        },
+        "nrf54lm20bsim/nrf54lm20a/cpuapp": {
+            "soc": "nrf54lm20a",
+            "series": "nrf54l",
+        },
+        "nrf54lm20dk/nrf54lm20a/cpuapp": {
+            "soc": "nrf54lm20a",
+            "series": "nrf54l",
+        },
+        "nrf54lm20dk/nrf54lm20a/cpuapp/ns": {
+            "soc": "nrf54lm20a",
+            "series": "nrf54l",
+        },
+        "nrf54lm20dk/nrf54lm20a/cpuflpr": {
+            "soc": "nrf54lm20a",
+            "series": "nrf54l",
+        },
+        "nrf54lm20dk/nrf54lm20b/cpuapp": {
+            "soc": "nrf54lm20b",
+            "series": "nrf54l",
+        },
+        "nrf54lm20dk/nrf54lm20b/cpuapp/ns": {
+            "soc": "nrf54lm20b",
+            "series": "nrf54l",
+        },
+        "nrf54lm20dk/nrf54lm20b/cpuflpr": {
+            "soc": "nrf54lm20b",
+            "series": "nrf54l",
+        },
+        "nrf54lm20dongle/nrf54lm20b/cpuapp": {
+            "soc": "nrf54lm20b",
+            "series": "nrf54l",
+            "cdc_acm": [
+                "/soc/peripheral@50000000/usbhs_wrapper@5a000/usbhs@20000/board_cdc_acm_uart",
+                "/soc/peripheral@50000000/usbhs_wrapper@5a000/usbhs@20000/mcumgr_cdc_acm_uart",
+            ],
+        },
+        "nrf54lm20dongle/nrf54lm20b/cpuapp/ns": {
+            "soc": "nrf54lm20b",
+            "series": "nrf54l",
+            "cdc_acm": [
+                "/soc/peripheral@40000000/usbhs_wrapper@5a000/usbhs@20000/board_cdc_acm_uart",
+                "/soc/peripheral@40000000/usbhs_wrapper@5a000/usbhs@20000/mcumgr_cdc_acm_uart",
+            ],
+        },
+        "nrf54lm20dongle/nrf54lm20b/cpuflpr": {
+            "soc": "nrf54lm20b",
+            "series": "nrf54l",
+        },
+        "nrf54ls05dk/nrf54ls05a/cpuapp": {
+            "soc": "nrf54ls05a",
+            "series": "nrf54l",
+        },
+        "nrf54ls05dk/nrf54ls05b/cpuapp": {
+            "soc": "nrf54ls05b",
+            "series": "nrf54l",
+        },
+        "nrf54lv10dk/nrf54lv10a/cpuapp": {
+            "soc": "nrf54lv10a",
+            "series": "nrf54l",
+        },
+        "nrf54lv10dk/nrf54lv10a/cpuapp/ns": {
+            "soc": "nrf54lv10a",
+            "series": "nrf54l",
+        },
+        "nrf54lv10dk/nrf54lv10a/cpuflpr": {
+            "soc": "nrf54lv10a",
+            "series": "nrf54l",
+        },
+        "nrf7002dk/nrf5340/cpuapp": {
+            "soc": "nrf5340",
+            "series": "nrf53",
+        },
+        "nrf7002dk/nrf5340/cpuapp/nrf7001": {
+            "soc": "nrf5340",
+            "series": "nrf53",
+        },
+        "nrf7002dk/nrf5340/cpuapp/nrf7001/ns": {
+            "soc": "nrf5340",
+            "series": "nrf53",
+        },
+        "nrf7002dk/nrf5340/cpuapp/ns": {
+            "soc": "nrf5340",
+            "series": "nrf53",
+        },
+        "nrf7002dk/nrf5340/cpunet": {
+            "soc": "nrf5340",
+            "series": "nrf53",
+        },
+        "nrf7120dk/nrf7120/cpuapp": {
+            "soc": "nrf7120",
+            "series": "nrf71",
+        },
+        "nrf7120dk/nrf7120/cpuapp/ns": {
+            "soc": "nrf7120",
+            "series": "nrf71",
+        },
+        "nrf7120dk/nrf7120/cpuflpr": {
+            "soc": "nrf7120",
+            "series": "nrf71",
+        },
+        "nrf7120dk/nrf7120/cpuflpr/xip": {
+            "soc": "nrf7120",
+            "series": "nrf71",
+        },
+        "nrf9131ek": {
+            "soc": "nrf9131",
+            "series": "nrf91",
+        },
+        "nrf9131ek/nrf9131/ns": {
+            "soc": "nrf9131",
+            "series": "nrf91",
+        },
+        "nrf9151dk": {
+            "soc": "nrf9151",
+            "series": "nrf91",
+        },
+        "nrf9151dk/nrf9151/ns": {
+            "soc": "nrf9151",
+            "series": "nrf91",
         },
         "nrf9160dk/nrf52840": {
             "soc": "nrf52840",
+            "series": "nrf52",
+        },
+        "nrf9160dk/nrf9160": {
+            "soc": "nrf9160",
+            "series": "nrf91",
+        },
+        "nrf9160dk/nrf9160/ns": {
+            "soc": "nrf9160",
+            "series": "nrf91",
+        },
+        "nrf9161dk": {
+            "soc": "nrf9161",
+            "series": "nrf91",
+        },
+        "nrf9161dk/nrf9161/ns": {
+            "soc": "nrf9161",
+            "series": "nrf91",
+        },
+        "nrf9251dk/nrf9251/cpuapp": {
+            "soc": "nrf9251",
+            "series": "nrf92",
+        },
+        "nrf9251dk/nrf9251/cpuflpr": {
+            "soc": "nrf9251",
+            "series": "nrf92",
+        },
+        "nrf9251dk/nrf9251/cpuflpr/xip": {
+            "soc": "nrf9251",
+            "series": "nrf92",
+        },
+        "nrf9251dk/nrf9251/cpuppr": {
+            "soc": "nrf9251",
+            "series": "nrf92",
+        },
+        "nrf9251dk/nrf9251/cpuppr/xip": {
+            "soc": "nrf9251",
+            "series": "nrf92",
+        },
+        "nrf9280pdk/nrf9280/cpuapp": {
+            "soc": "nrf9280",
+            "series": "nrf92",
+        },
+        "nrf9280pdk/nrf9280/cpuppr": {
+            "soc": "nrf9280",
+            "series": "nrf92",
+        },
+        "nrf9280pdk/nrf9280/cpuppr/xip": {
+            "soc": "nrf9280",
+            "series": "nrf92",
+        },
+        "nrf9280pdk/nrf9280/cpurad": {
+            "soc": "nrf9280",
+            "series": "nrf92",
+        },
+        "octopus_io_board": {
+            "soc": "nrf9160",
+            "series": "nrf91",
+        },
+        "octopus_io_board/nrf9160/ns": {
+            "soc": "nrf9160",
+            "series": "nrf91",
+        },
+        "octopus_som": {
+            "soc": "nrf9160",
+            "series": "nrf91",
+        },
+        "octopus_som/nrf9160/ns": {
+            "soc": "nrf9160",
+            "series": "nrf91",
+        },
+        "ophelia4ev/nrf54l15/cpuapp": {
+            "soc": "nrf54l15",
+            "series": "nrf54l",
+        },
+        "ophelia4ev/nrf54l15/cpuflpr": {
+            "soc": "nrf54l15",
+            "series": "nrf54l",
         },
         "p2d": {
             "soc": "nrf52840",
+            "series": "nrf52",
         },
         "pan1770_evb": {
             "soc": "nrf52840",
+            "series": "nrf52",
         },
         "pan1780_evb": {
             "soc": "nrf52840",
+            "series": "nrf52",
         },
         "pan1781_evb": {
             "soc": "nrf52820",
+            "series": "nrf52",
         },
         "pan1782_evb": {
             "soc": "nrf52833",
+            "series": "nrf52",
+        },
+        "pan1783_evb/nrf5340/cpuapp": {
+            "soc": "nrf5340",
+            "series": "nrf53",
+        },
+        "pan1783_evb/nrf5340/cpunet": {
+            "soc": "nrf5340",
+            "series": "nrf53",
+        },
+        "pan1783a_evb/nrf5340/cpuapp": {
+            "soc": "nrf5340",
+            "series": "nrf53",
+        },
+        "pan1783a_evb/nrf5340/cpunet": {
+            "soc": "nrf5340",
+            "series": "nrf53",
+        },
+        "pan1783a_pa_evb/nrf5340/cpuapp": {
+            "soc": "nrf5340",
+            "series": "nrf53",
+        },
+        "pan1783a_pa_evb/nrf5340/cpunet": {
+            "soc": "nrf5340",
+            "series": "nrf53",
+        },
+        "panb611evb/nrf54l15/cpuapp": {
+            "soc": "nrf54l15",
+            "series": "nrf54l",
+        },
+        "panb611evb/nrf54l15/cpuapp/ns": {
+            "soc": "nrf54l15",
+            "series": "nrf54l",
+        },
+        "panb611evb/nrf54l15/cpuflpr": {
+            "soc": "nrf54l15",
+            "series": "nrf54l",
+        },
+        "panb611evb/nrf54l15/cpuflpr/xip": {
+            "soc": "nrf54l15",
+            "series": "nrf54l",
         },
         "particle_argon": {
             "soc": "nrf52840",
+            "series": "nrf52",
         },
         "particle_boron": {
             "soc": "nrf52840",
+            "series": "nrf52",
         },
         "particle_xenon": {
             "soc": "nrf52840",
+            "series": "nrf52",
         },
         "pinetime_devkit0": {
             "soc": "nrf52832",
+            "series": "nrf52",
         },
         "pinnacle_100_dvk": {
             "soc": "nrf52840",
+            "series": "nrf52",
         },
         "promicro_nrf52840": {
             "soc": "nrf52840",
+            "series": "nrf52",
             "cdc_acm": [
                 "/soc/usbd@40027000/board_cdc_acm_uart",
             ],
         },
         "promicro_nrf52840/nrf52840/uf2": {
             "soc": "nrf52840",
+            "series": "nrf52",
             "cdc_acm": [
                 "/soc/usbd@40027000/board_cdc_acm_uart",
             ],
         },
+        "qemu_cortex_m0": {
+            "soc": "nrf51822",
+            "series": "nrf51",
+        },
         "quill_nrf52840_mesh": {
             "soc": "nrf52840",
+            "series": "nrf52",
             "cdc_acm": [
                 "/soc/usbd@40027000/board_cdc_acm_uart",
             ],
         },
         "rak4631": {
             "soc": "nrf52840",
+            "series": "nrf52",
         },
         "rak5010": {
             "soc": "nrf52840",
+            "series": "nrf52",
+        },
+        "raytac_an54lq_db_15/nrf54l15/cpuapp": {
+            "soc": "nrf54l15",
+            "series": "nrf54l",
+        },
+        "raytac_an54lq_db_15/nrf54l15/cpuapp/ns": {
+            "soc": "nrf54l15",
+            "series": "nrf54l",
+        },
+        "raytac_an54lq_db_15/nrf54l15/cpuflpr": {
+            "soc": "nrf54l15",
+            "series": "nrf54l",
+        },
+        "raytac_an54lq_db_15/nrf54l15/cpuflpr/xip": {
+            "soc": "nrf54l15",
+            "series": "nrf54l",
+        },
+        "raytac_an7002q_db/nrf5340/cpuapp": {
+            "soc": "nrf5340",
+            "series": "nrf53",
+        },
+        "raytac_an7002q_db/nrf5340/cpunet": {
+            "soc": "nrf5340",
+            "series": "nrf53",
         },
         "raytac_mdbt50q_cx_40_dongle": {
             "soc": "nrf52840",
+            "series": "nrf52",
             "cdc_acm": [
                 "/soc/usbd@40027000/board_cdc_acm_uart",
             ],
         },
         "raytac_mdbt50q_db_33": {
             "soc": "nrf52833",
+            "series": "nrf52",
         },
         "raytac_mdbt50q_db_40": {
             "soc": "nrf52840",
+            "series": "nrf52",
+        },
+        "raytac_mdbt53_db_40/nrf5340/cpuapp": {
+            "soc": "nrf5340",
+            "series": "nrf53",
+        },
+        "raytac_mdbt53_db_40/nrf5340/cpuapp/ns": {
+            "soc": "nrf5340",
+            "series": "nrf53",
+        },
+        "raytac_mdbt53_db_40/nrf5340/cpunet": {
+            "soc": "nrf5340",
+            "series": "nrf53",
+        },
+        "raytac_mdbt53v_db_40/nrf5340/cpuapp": {
+            "soc": "nrf5340",
+            "series": "nrf53",
+        },
+        "raytac_mdbt53v_db_40/nrf5340/cpuapp/ns": {
+            "soc": "nrf5340",
+            "series": "nrf53",
+        },
+        "raytac_mdbt53v_db_40/nrf5340/cpunet": {
+            "soc": "nrf5340",
+            "series": "nrf53",
         },
         "reel_board": {
             "soc": "nrf52840",
+            "series": "nrf52",
+        },
+        "rm1xx_dvk": {
+            "soc": "nrf51822",
+            "series": "nrf51",
         },
         "ruuvi_ruuvitag": {
             "soc": "nrf52832",
+            "series": "nrf52",
+        },
+        "sparkfun_thing_plus": {
+            "soc": "nrf9160",
+            "series": "nrf91",
+        },
+        "sparkfun_thing_plus/nrf9160/ns": {
+            "soc": "nrf9160",
+            "series": "nrf91",
         },
         "thingy52": {
             "soc": "nrf52832",
+            "series": "nrf52",
+        },
+        "thingy53/nrf5340/cpuapp": {
+            "soc": "nrf5340",
+            "series": "nrf53",
+            "cdc_acm": [
+                "/soc/peripheral@50000000/usbd@36000/board_cdc_acm_uart",
+            ],
+        },
+        "thingy53/nrf5340/cpuapp/ns": {
+            "soc": "nrf5340",
+            "series": "nrf53",
+            "cdc_acm": [
+                "/soc/peripheral@40000000/usbd@36000/board_cdc_acm_uart",
+            ],
+        },
+        "thingy53/nrf5340/cpunet": {
+            "soc": "nrf5340",
+            "series": "nrf53",
         },
         "thingy91/nrf52840": {
             "soc": "nrf52840",
+            "series": "nrf52",
+        },
+        "thingy91/nrf9160": {
+            "soc": "nrf9160",
+            "series": "nrf91",
+        },
+        "thingy91/nrf9160/ns": {
+            "soc": "nrf9160",
+            "series": "nrf91",
+        },
+        "thingy91x/nrf5340/cpuapp": {
+            "soc": "nrf5340",
+            "series": "nrf53",
+            "cdc_acm": [
+                "/soc/peripheral@50000000/usbd@36000/cdc_acm_uart0",
+            ],
+        },
+        "thingy91x/nrf5340/cpunet": {
+            "soc": "nrf5340",
+            "series": "nrf53",
+        },
+        "thingy91x/nrf9151": {
+            "soc": "nrf9151",
+            "series": "nrf91",
+        },
+        "thingy91x/nrf9151/ns": {
+            "soc": "nrf9151",
+            "series": "nrf91",
+        },
+        "tpm530mevk": {
+            "soc": "tpm530m",
+            "series": "nrf91",
+        },
+        "tpm530mevk/tpm530m/ns": {
+            "soc": "tpm530m",
+            "series": "nrf91",
         },
         "ubx_bmd300eval": {
             "soc": "nrf52832",
+            "series": "nrf52",
         },
         "ubx_bmd330eval": {
             "soc": "nrf52810",
+            "series": "nrf52",
         },
         "ubx_bmd340eval": {
             "soc": "nrf52840",
+            "series": "nrf52",
         },
         "ubx_bmd345eval": {
             "soc": "nrf52840",
+            "series": "nrf52",
         },
         "ubx_bmd360eval": {
             "soc": "nrf52811",
+            "series": "nrf52",
         },
         "ubx_bmd380eval": {
             "soc": "nrf52840",
+            "series": "nrf52",
         },
         "ubx_evkannab1": {
             "soc": "nrf52832",
+            "series": "nrf52",
         },
         "ubx_evkninab1": {
             "soc": "nrf52832",
+            "series": "nrf52",
         },
         "ubx_evkninab3": {
             "soc": "nrf52840",
+            "series": "nrf52",
         },
         "ubx_evkninab4": {
             "soc": "nrf52833",
+            "series": "nrf52",
+        },
+        "ubx_evknorab2/nrf54l05/cpuapp": {
+            "soc": "nrf54l05",
+            "series": "nrf54l",
+        },
+        "ubx_evknorab2/nrf54l05/cpuflpr": {
+            "soc": "nrf54l05",
+            "series": "nrf54l",
+        },
+        "ubx_evknorab2/nrf54l10/cpuapp": {
+            "soc": "nrf54l10",
+            "series": "nrf54l",
+        },
+        "ubx_evknorab2/nrf54l10/cpuapp/ns": {
+            "soc": "nrf54l10",
+            "series": "nrf54l",
+        },
+        "ubx_evknorab2/nrf54l10/cpuflpr": {
+            "soc": "nrf54l10",
+            "series": "nrf54l",
+        },
+        "ubx_evknorab2/nrf54l15/cpuapp": {
+            "soc": "nrf54l15",
+            "series": "nrf54l",
+        },
+        "ubx_evknorab2/nrf54l15/cpuapp/ns": {
+            "soc": "nrf54l15",
+            "series": "nrf54l",
+        },
+        "ubx_evknorab2/nrf54l15/cpuflpr": {
+            "soc": "nrf54l15",
+            "series": "nrf54l",
+        },
+        "ubx_evknorab2/nrf54l15/cpuflpr/xip": {
+            "soc": "nrf54l15",
+            "series": "nrf54l",
         },
         "we_ophelia1ev": {
             "soc": "nrf52805",
+            "series": "nrf52",
         },
         "we_proteus2ev": {
             "soc": "nrf52832",
+            "series": "nrf52",
         },
         "we_proteus3ev": {
             "soc": "nrf52840",
+            "series": "nrf52",
         },
         "wio_wm1110_dev_kit": {
             "soc": "nrf52840",
+            "series": "nrf52",
         },
         "xiao_ble": {
             "soc": "nrf52840",
+            "series": "nrf52",
             "cdc_acm": [
                 "/soc/usbd@40027000/board_cdc_acm_uart",
             ],
         },
         "xiao_ble/nrf52840/sense": {
             "soc": "nrf52840",
+            "series": "nrf52",
             "cdc_acm": [
                 "/soc/usbd@40027000/board_cdc_acm_uart",
             ],
+        },
+        "xiao_nrf54l15/nrf54l15/cpuapp": {
+            "soc": "nrf54l15",
+            "series": "nrf54l",
+        },
+        "xiao_nrf54l15/nrf54l15/cpuflpr": {
+            "soc": "nrf54l15",
+            "series": "nrf54l",
         },
     },
 }
