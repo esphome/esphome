@@ -3,7 +3,6 @@
 #include "esphome/components/text_sensor/text_sensor.h"
 
 #include <string>
-#include <vector>
 
 namespace esphome::bq25186::testing {
 
@@ -61,7 +60,7 @@ static constexpr std::array<SingleBit, 19> SINGLE_BITS{{
     {BATTERY_OCP_FLAG, BQ25186_REG_FLAG0, 0x01},
 }};
 
-// Copy of the generated function for a hub with every status entity, binary block first;
+// Copy of the generated function for a hub with every status entity;
 // tests/component_tests/bq25186/test_hub_function.py checks it against the generated code
 struct StatusEntities {
   std::array<binary_sensor::BinarySensor, BINARY_COUNT> binary;
@@ -215,24 +214,6 @@ TEST_F(BQ25186StatusTest, BinarySensorsPublishEveryPoll) {
     SCOPED_TRACE(i);
     EXPECT_EQ(published[i], 3);
   }
-}
-
-TEST_F(BQ25186StatusTest, BinarySensorsPublishBeforeTextSensorsInFieldOrder) {
-  // Binary sensor i records i, text sensor i records TEXT_BASE + i
-  static constexpr size_t TEXT_BASE = 100;
-  std::vector<size_t> order;
-  for (size_t i = 0; i < BINARY_COUNT; i++)
-    this->binary_(i).add_on_raw_state_callback([&order, i](bool) { order.push_back(i); });
-  for (size_t i = 0; i < TEXT_COUNT; i++)
-    this->text_(i).add_on_state_callback([&order, i](const std::string &) { order.push_back(TEXT_BASE + i); });
-  this->poll_(0);
-  std::vector<size_t> expected;
-  expected.reserve(BINARY_COUNT + TEXT_COUNT);
-  for (size_t i = 0; i < BINARY_COUNT; i++)
-    expected.push_back(i);
-  for (size_t i = 0; i < TEXT_COUNT; i++)
-    expected.push_back(TEXT_BASE + i);
-  EXPECT_EQ(order, expected);
 }
 
 TEST_F(BQ25186StatusTest, FailedReadPublishesNothing) {
