@@ -1,0 +1,20 @@
+packages:
+  i2c: !include ../../test_build_components/common/i2c/esp32-idf.yaml
+
+bme690:
+  - id: bme690_raw
+    i2c_id: i2c_bus
+    address: 0x76
+    update_interval: 5s
+
+sensor:
+  - platform: bme690
+    bme690_id: bme690_raw
+    temperature:
+      name: BME690 Raw Temperature
+    humidity:
+      name: BME690 Raw Humidity
+    pressure:
+      name: BME690 Raw Pressure
+    gas_resistance:
+      name: BME690 Raw Gas Resistance
