@@ -754,11 +754,19 @@ def _clone_or_update_locked(
             except GitCommandError as err:
                 if not _MISSING_REPOSITORY_RE.search(err.stderr):
                     raise
+                # Asking for a username and password only helps over HTTPS
+                # when none was sent; otherwise the ones used were refused.
+                sent_credentials = URL_USERINFO_RE.search(url) is not None
+                if url.startswith(("http://", "https://")) and not sent_credentials:
+                    access = "it is private and needs a username and password"
+                    check = "the owner and repository name"
+                else:
+                    access = "the credentials used cannot access it"
+                    check = "the owner and repository name, and the credentials"
                 raise GitCommandError(
                     f"Could not clone {_redact_url_credentials(original_url)}: the "
-                    "repository does not exist, or it is private and needs a "
-                    "username and password. Check the owner and repository name "
-                    f"in the source. Git reported: {_redact_url_credentials(str(err))}",
+                    f"repository does not exist, or {access}. Check {check} in "
+                    f"the source. Git reported: {_redact_url_credentials(str(err))}",
                     stderr=err.stderr,
                 ) from err
 

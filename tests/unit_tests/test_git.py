@@ -1007,16 +1007,25 @@ def test_clone_or_update_explains_missing_repository(
     CORE.config_path = tmp_path / "test.yaml"
     url = "https://github.com/test/repo"
     repo_dir = _compute_repo_dir(url, None, "test")
-    mock_run_git_command.side_effect = GitCommandError(
-        stderr.splitlines()[-1].removeprefix("fatal: "), stderr=stderr
-    )
+
+    def fail_clone(cmd: list[str], **kwargs: Any) -> str:
+        # Leave a partial clone behind, as git does.
+        repo_dir.mkdir(parents=True)
+        raise GitCommandError(
+            stderr.splitlines()[-1].removeprefix("fatal: "), stderr=stderr
+        )
+
+    mock_run_git_command.side_effect = fail_clone
 
     with pytest.raises(GitCommandError) as exc_info:
         git.clone_or_update(url=url, ref=None, refresh=None, domain="test")
 
     message = str(exc_info.value)
-    assert message.startswith(f"Could not clone {url}: the repository does not exist")
-    assert "Check the owner and repository name" in message
+    assert message.startswith(
+        f"Could not clone {url}: the repository does not exist, or it is private "
+        "and needs a username and password. Check the owner and repository name "
+        "in the source."
+    )
     assert exc_info.value.stderr == stderr
     assert not repo_dir.exists()
 
@@ -1039,10 +1048,21 @@ def test_clone_or_update_keeps_other_clone_errors(
     assert str(exc_info.value) == "couldn't find remote ref refs/heads/nope"
 
 
-def test_clone_or_update_redacts_credentials_in_missing_repository_error(
-    tmp_path: Path, mock_run_git_command: Mock
+@pytest.mark.parametrize(
+    ("url", "username", "password"),
+    [
+        ("https://github.com/test/repo", "user", "secret"),
+        ("https://user:secret@github.com/test/repo", None, None),
+    ],
+)
+def test_clone_or_update_explains_refused_credentials(
+    tmp_path: Path,
+    mock_run_git_command: Mock,
+    url: str,
+    username: str | None,
+    password: str | None,
 ) -> None:
-    """The explained error never shows a password the user gave."""
+    """With credentials sent, the error points at them and never shows the password."""
     CORE.config_path = tmp_path / "test.yaml"
     stderr = (
         "fatal: Authentication failed for 'https://user:secret@github.com/test/repo/'"
@@ -1053,15 +1073,40 @@ def test_clone_or_update_redacts_credentials_in_missing_repository_error(
 
     with pytest.raises(GitCommandError) as exc_info:
         git.clone_or_update(
-            url="https://github.com/test/repo",
+            url=url,
             ref=None,
             refresh=None,
             domain="test",
-            username="user",
-            password="secret",
+            username=username,
+            password=password,
         )
 
-    assert "secret" not in str(exc_info.value)
+    message = str(exc_info.value)
+    assert "secret" not in message
+    assert "the credentials used cannot access it" in message
+    assert "and the credentials in the source" in message
+    assert "needs a username and password" not in message
+
+
+def test_clone_or_update_explains_missing_ssh_repository(
+    tmp_path: Path, mock_run_git_command: Mock
+) -> None:
+    """Over SSH the error does not ask for a username and password."""
+    CORE.config_path = tmp_path / "test.yaml"
+    url = "git@github.com:test/repo.git"
+    stderr = (
+        "ERROR: Repository not found.\nfatal: Could not read from remote repository."
+    )
+    mock_run_git_command.side_effect = GitCommandError(
+        "Could not read from remote repository.", stderr=stderr
+    )
+
+    with pytest.raises(GitCommandError) as exc_info:
+        git.clone_or_update(url=url, ref=None, refresh=None, domain="test")
+
+    message = str(exc_info.value)
+    assert message.startswith(f"Could not clone {url}: the repository does not exist")
+    assert "the credentials used cannot access it" in message
 
 
 def test_clone_or_update_with_none_refresh_always_updates(
