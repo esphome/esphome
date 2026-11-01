@@ -1,0 +1,33 @@
+esphome:
+  name: mk2pvrouter-dump-listeners
+
+host:
+api:
+logger:
+  level: DEBUG
+
+uart:
+  baud_rate: 9600
+  port: /dev/null
+  data_bits: 7
+  parity: EVEN
+
+mk2pvrouter:
+
+sensor:
+  - platform: mk2pvrouter
+    name: Power
+    tag: P
+  - platform: mk2pvrouter
+    name: Voltage Phase 1
+    tag: V1
+
+binary_sensor:
+  - platform: mk2pvrouter
+    name: Relay 2
+    tag: R2
+
+text_sensor:
+  - platform: mk2pvrouter
+    name: S per MC
+    tag: S_MC

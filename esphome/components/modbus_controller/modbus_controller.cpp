@@ -537,6 +537,8 @@ void ModbusController::dump_config() {
                 "  Max Command Retries: %d\n"
                 "  Offline Skip Updates: %d\n",
                 this->address_, this->max_cmd_retries_, this->offline_skip_updates_);
+  for (auto *item : this->sensorset_)
+    item->dump_child_config();
 
 #if ESPHOME_LOG_LEVEL >= ESPHOME_LOG_LEVEL_VERBOSE
   ESP_LOGCONFIG(TAG, "sensormap");

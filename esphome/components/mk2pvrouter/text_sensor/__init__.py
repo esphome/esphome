@@ -11,7 +11,7 @@ from .. import (
 )
 
 Mk2PVRouterTextSensor = mk2pvrouter_ns.class_(
-    "Mk2PVRouterTextSensor", text_sensor.TextSensor, cg.Component
+    "Mk2PVRouterTextSensor", text_sensor.TextSensor
 )
 
 CONFIG_SCHEMA = text_sensor.text_sensor_schema(Mk2PVRouterTextSensor).extend(
@@ -21,7 +21,6 @@ CONFIG_SCHEMA = text_sensor.text_sensor_schema(Mk2PVRouterTextSensor).extend(
 
 async def to_code(config: ConfigType) -> None:
     var = cg.new_Pvariable(config[CONF_ID], config[CONF_TAG])
-    await cg.register_component(var, config)
     await text_sensor.register_text_sensor(var, config)
     mk2pvrouter = await cg.get_variable(config[CONF_MK2PVROUTER_ID])
     await register_mk2pvrouter_listener(mk2pvrouter, var)
