@@ -1,0 +1,7 @@
+display:
+  - platform: uart_terminal
+    id: terminal
+    dimensions: 20x4
+    lambda: |-
+      it.print("Uart terminal");
+      it.printf(0, 1, "Row %d", 2);

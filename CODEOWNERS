@@ -659,6 +659,7 @@ esphome/components/template/datetime/* @rfdarter
 esphome/components/template/event/* @nohat
 esphome/components/template/fan/* @ssieb
 esphome/components/text/* @mauritskorse
+esphome/components/text_display/* @tomaszduda23
 esphome/components/tfluna/* @candrews
 esphome/components/thermopro_ble/* @sittner
 esphome/components/thermostat/* @kbx81
@@ -697,6 +698,7 @@ esphome/components/uart/packet_interface/* @clydebarrow
 esphome/components/uart/packet_transport/* @clydebarrow
 esphome/components/uart_mux/* @kbx81
 esphome/components/uart_tcp/* @Bascht74
+esphome/components/uart_terminal/* @tomaszduda23
 esphome/components/udp/* @clydebarrow
 esphome/components/udp/packet_interface/* @clydebarrow
 esphome/components/ufire_ec/* @pvizeli

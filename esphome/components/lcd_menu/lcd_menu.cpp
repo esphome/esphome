@@ -27,7 +27,7 @@ void LCDCharacterMenuComponent::dump_config() {
 }
 
 void LCDCharacterMenuComponent::draw_item(const display_menu_base::MenuItem *item, uint8_t row, bool selected) {
-  char data[this->columns_ + 1];  // Bounded to 65 through the config
+  char data[this->columns_ + 1];  // At most 256, from text_display's dimension limit
 
   memset(data, ' ', this->columns_);
 
