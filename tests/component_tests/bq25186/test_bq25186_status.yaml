@@ -20,33 +20,89 @@ bq25186:
     i2c_id: i2c_bus
     address: 0x6C
 
+# charger_a has every status entity, charger_b one, charger_c none.
 # The text block comes first; its sensors still publish after the binary sensors
 text_sensor:
   - platform: bq25186
     bq25186_id: charger_a
     charge_status:
-      id: a_charge_status
-      name: A Charge Status
+      id: tx_charge_status
+      name: A charge_status
     ts_status:
-      id: a_ts_status
-      name: A TS Status
+      id: tx_ts_status
+      name: A ts_status
   - platform: bq25186
     bq25186_id: charger_b
     ts_status:
       id: b_ts_status
-      name: B TS Status
+      name: B ts_status
 
+# Two blocks on one hub publish in block order
 binary_sensor:
   - platform: bq25186
     bq25186_id: charger_a
     ts:
-      id: a_ts
-      name: A TS Open
+      id: bs_ts
+      name: A ts
     charging:
-      id: a_charging
-      name: A Charging
+      id: bs_charging
+      name: A charging
+    charge_done:
+      id: bs_charge_done
+      name: A charge_done
+    ilim:
+      id: bs_ilim
+      name: A ilim
+    vdppm:
+      id: bs_vdppm
+      name: A vdppm
+    vindpm:
+      id: bs_vindpm
+      name: A vindpm
+    thermreg:
+      id: bs_thermreg
+      name: A thermreg
+    power_good:
+      id: bs_power_good
+      name: A power_good
+    vin_ovp:
+      id: bs_vin_ovp
+      name: A vin_ovp
+    battery_uvlo:
+      id: bs_battery_uvlo
+      name: A battery_uvlo
   - platform: bq25186
     bq25186_id: charger_a
+    safety_timer_flag:
+      id: bs_safety_timer_flag
+      name: A safety_timer_flag
+    wake1_flag:
+      id: bs_wake1_flag
+      name: A wake1_flag
+    wake2_flag:
+      id: bs_wake2_flag
+      name: A wake2_flag
+    ts_flag:
+      id: bs_ts_flag
+      name: A ts_flag
+    ilim_flag:
+      id: bs_ilim_flag
+      name: A ilim_flag
+    vdppm_flag:
+      id: bs_vdppm_flag
+      name: A vdppm_flag
+    vindpm_flag:
+      id: bs_vindpm_flag
+      name: A vindpm_flag
+    thermreg_flag:
+      id: bs_thermreg_flag
+      name: A thermreg_flag
+    vin_ovp_flag:
+      id: bs_vin_ovp_flag
+      name: A vin_ovp_flag
+    battery_uvlo_flag:
+      id: bs_battery_uvlo_flag
+      name: A battery_uvlo_flag
     battery_ocp_flag:
-      id: a_battery_ocp_flag
-      name: A Battery OCP Flag
+      id: bs_battery_ocp_flag
+      name: A battery_ocp_flag

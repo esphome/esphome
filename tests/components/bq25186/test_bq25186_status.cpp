@@ -61,7 +61,7 @@ static constexpr std::array<SingleBit, 19> SINGLE_BITS{{
 }};
 
 // A copy of the function code generation emits for a hub with every status entity;
-// tests/component_tests/bq25186/test_status_publisher.py pins the generated text
+// tests/component_tests/bq25186/test_status_publisher.py checks it decodes like the generated code
 struct StatusEntities {
   std::array<binary_sensor::BinarySensor, BINARY_COUNT> binary;
   std::array<text_sensor::TextSensor, TEXT_COUNT> text;
