@@ -60,12 +60,15 @@
 
 /// Declares the `<name>_publisher_` function pointer and `set_<name>_publisher()` that a cg.HubFunction named
 /// `<name>` fills; the pointer stays nullptr when no child added an item, so check it before calling.
-#define HUB_PUBLISHER(name, ...) \
+/// Use it in a public section: it ends on `public:`.
+#define HUB_PUBLISHER(name, ...) HUB_PUBLISHER_RETURNING(void, name, __VA_ARGS__)
+/// HUB_PUBLISHER for a cg.HubFunction that returns `ret` (bool: whether any item was true).
+#define HUB_PUBLISHER_RETURNING(ret, name, ...) \
  protected: \
-  void (*name##_publisher_)(__VA_ARGS__){nullptr}; \
+  ret (*name##_publisher_)(__VA_ARGS__){nullptr}; \
 \
  public: \
-  void set_##name##_publisher(void (*publisher)(__VA_ARGS__)) { this->name##_publisher_ = publisher; }
+  void set_##name##_publisher(ret (*publisher)(__VA_ARGS__)) { this->name##_publisher_ = publisher; }
 
 namespace esphome {
 
