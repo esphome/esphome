@@ -25,6 +25,7 @@ extern "C" {
 extern "C" {
 #include <wifi_conf.h>
 #include <wifi_structures.h>
+#include <wifi_util.h>
 }
 #endif
 
@@ -252,12 +253,24 @@ bool WiFiComponent::wifi_sta_connect_(const WiFiAP &ap) {
   this->sta_state_ = static_cast<uint8_t>(LTWiFiSTAState::CONNECTING);
   s_ignored_disconnect_count = 0;
 
+  uint8_t channel = ap.get_channel();  // 0 = auto
+#ifdef USE_RTL87XX
+  // Given a channel and a BSSID, LibreTiny narrows the driver's scan list to the channel for the join, then leaves it
+  // disabled, so the next scan finds nothing. Narrow it here and pass no channel (LibreTiny ignores a channel without
+  // a BSSID); the join's own scan restores the full list when it ends. The placeholder SSID starts that scan, as
+  // LibreTiny's does; narrowed before it, the scan can miss the beacon.
+  if (channel != 0 && ap.has_bssid()) {
+    wext_set_ssid(WLAN0_NAME, reinterpret_cast<const uint8_t *>("-"), 1);
+    uint8_t pscan_config = PSCAN_ENABLE | PSCAN_FAST_SURVEY;
+    wifi_set_pscan_chan(&channel, &pscan_config, 1);
+  }
+  channel = 0;
+#endif
   WiFiStatus status;
   {
     // The driver blocks until the join has started, or finished on Realtek
     UnavoidableBlockingScope scope;
-    status = WiFi.begin(ap.ssid_.c_str(), ap.password_.empty() ? NULL : ap.password_.c_str(),
-                        ap.get_channel(),  // 0 = auto
+    status = WiFi.begin(ap.ssid_.c_str(), ap.password_.empty() ? NULL : ap.password_.c_str(), channel,
                         ap.has_bssid() ? ap.get_bssid().data() : NULL);
   }
   if (status != WL_CONNECTED) {
