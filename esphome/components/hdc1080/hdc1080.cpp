@@ -47,11 +47,8 @@ void HDC1080Component::update() {
       return;
     }
 
-    if (this->temperature_sensor_ != nullptr) {
-      raw_temperature = i2c::i2ctohs(raw_temperature);
-      float temperature = raw_temperature * 0.0025177f - 40.0f;  // raw * 2^-16 * 165 - 40
-      this->temperature_sensor_->publish_state(temperature);
-    }
+    // raw * 2^-16 * 165 - 40
+    PUBLISH_STATE(this->temperature_sensor_, i2c::i2ctohs(raw_temperature) * 0.0025177f - 40.0f);
 
     if (this->write(&HDC1080_CMD_HUMIDITY, 1) != i2c::ERROR_OK) {
       this->status_set_warning();
@@ -65,11 +62,8 @@ void HDC1080Component::update() {
         return;
       }
 
-      if (this->humidity_sensor_ != nullptr) {
-        raw_humidity = i2c::i2ctohs(raw_humidity);
-        float humidity = raw_humidity * 0.001525879f;  // raw * 2^-16 * 100
-        this->humidity_sensor_->publish_state(humidity);
-      }
+      // raw * 2^-16 * 100
+      PUBLISH_STATE(this->humidity_sensor_, i2c::i2ctohs(raw_humidity) * 0.001525879f);
     });
   });
 }
