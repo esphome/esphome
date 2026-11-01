@@ -986,6 +986,21 @@ def test_static_function_declares_early_and_defines_after_includes() -> None:
     ]
 
 
+def test_static_function_accepts_statements() -> None:
+    call = cg.MockObj("foo")(cg.MockObj("x") >> 2)
+    cg.static_function(
+        "esphome__st__fn", ct.void, [(ct.int32, "x")], [cg.statement(call), "return;"]
+    )
+    assert [str(st) for st in CORE.global_statements_after_includes] == [
+        "static void esphome__st__fn(int32_t x) {\n  foo((x >> 2));\n  return;\n}"
+    ]
+
+
+def test_const_ref_renders_const_reference() -> None:
+    regs = cg.MockObj("hub", "::").class_("Regs")
+    assert str(regs.const_ref()) == "const hub::Regs &"
+
+
 def test_add_global_after_includes_rejects_non_statements() -> None:
     with pytest.raises(ValueError, match="must be expression or statement"):
         CORE.add_global_after_includes("not a statement")
