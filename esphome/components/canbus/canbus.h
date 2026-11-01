@@ -5,6 +5,7 @@
 #include "esphome/core/optional.h"
 
 #include <cinttypes>
+#include <cstddef>
 #include <vector>
 
 namespace esphome::canbus {
@@ -39,16 +40,81 @@ enum CanSpeed : uint8_t {
   CAN_250KBPS,
   CAN_500KBPS,
   CAN_800KBPS,
-  CAN_1000KBPS
+  CAN_1000KBPS,
+  CAN_2000KBPS,
+  CAN_3000KBPS,
+  CAN_4000KBPS,
+  CAN_5000KBPS,
+  CAN_6000KBPS,
+  CAN_7000KBPS,
+  CAN_8000KBPS
 };
 
 class CanbusTrigger;
 template<typename... Ts> class CanbusSendAction;
 
 /* CAN payload length definitions according to ISO 11898-1 */
-static const uint8_t CAN_MAX_DATA_LENGTH = 8;
+static constexpr uint8_t CAN_MAX_DATA_LENGTH = 8;
+static constexpr uint8_t CAN_FD_MAX_DATA_LENGTH = 64;
 
-static const uint8_t CAN_ERROR_PASSIVE_THRESHOLD = 128;
+static constexpr uint8_t CAN_ERROR_PASSIVE_THRESHOLD = 128;
+
+/* Returned by either length conversion when the input cannot be represented. */
+static constexpr uint8_t CAN_INVALID_DLC = UINT8_MAX;
+
+/* Decode using the CAN FD mapping. Classic CAN callers must cap valid results at eight bytes. */
+constexpr uint8_t can_dlc_to_len(uint8_t dlc) {
+  if (dlc <= CAN_MAX_DATA_LENGTH) {
+    return dlc;
+  }
+
+  switch (dlc) {
+    case 9:
+      return 12;
+    case 10:
+      return 16;
+    case 11:
+      return 20;
+    case 12:
+      return 24;
+    case 13:
+      return 32;
+    case 14:
+      return 48;
+    case 15:
+      return 64;
+    default:
+      return CAN_INVALID_DLC;
+  }
+}
+
+/* With pad, round up to the next CAN FD length. The caller must fill the extra payload bytes. */
+constexpr uint8_t can_len_to_dlc(size_t len, bool pad) {
+  if (len > CAN_FD_MAX_DATA_LENGTH) {
+    return CAN_INVALID_DLC;
+  }
+
+  if (len <= CAN_MAX_DATA_LENGTH) {
+    return static_cast<uint8_t>(len);
+  }
+
+  if (len <= 12)
+    return (len == 12 || pad) ? 9 : CAN_INVALID_DLC;
+  if (len <= 16)
+    return (len == 16 || pad) ? 10 : CAN_INVALID_DLC;
+  if (len <= 20)
+    return (len == 20 || pad) ? 11 : CAN_INVALID_DLC;
+  if (len <= 24)
+    return (len == 24 || pad) ? 12 : CAN_INVALID_DLC;
+  if (len <= 32)
+    return (len == 32 || pad) ? 13 : CAN_INVALID_DLC;
+  if (len <= 48)
+    return (len == 48 || pad) ? 14 : CAN_INVALID_DLC;
+  if (len <= 64)
+    return (len == 64 || pad) ? 15 : CAN_INVALID_DLC;
+
+  return CAN_INVALID_DLC;
+}
 
 /*
 Can Frame describes a normative CAN Frame
@@ -56,11 +122,17 @@ The RTR = Remote Transmission Request is implemented in every CAN controller but
 So currently the flag is passed to and from the hardware but currently ignored to the user application.
 */
 struct CanFrame {
-  bool use_extended_id = false;
-  bool remote_transmission_request = false;
   uint32_t can_id;              /* 29 or 11 bit CAN_ID  */
-  uint8_t can_data_length_code; /* frame payload length in byte (0 .. CAN_MAX_DATA_LENGTH) */
-  uint8_t data[CAN_MAX_DATA_LENGTH] __attribute__((aligned(8)));
+  uint8_t can_data_length_code; /* Wire DLC (0..15), not byte length. For RTR, the requested length. */
+
+  bool use_extended_id : 1 = false;
+  bool remote_transmission_request : 1 = false;
+  bool fd : 1 = false; /* FD frames cannot use RTR. BRS and ESI are only meaningful for FD frames. */
+  bool bit_rate_switch : 1 = false;
+  bool error_state_indicator : 1 =
+      false; /* Received transmitter error state. Transmit handling is controller-specific. */
+
+  uint8_t data[CAN_FD_MAX_DATA_LENGTH] __attribute__((aligned(8)));
 };
 
 enum CanEventFlags : uint8_t {
@@ -91,8 +163,15 @@ class Canbus : public Component {
   float get_setup_priority() const override { return setup_priority::HARDWARE; }
   void loop() override;
 
+  canbus::Error send_data(CanFrame &frame);
+
+  // Explicit frame format. pad_data permits zero-padding to the next representable FD length.
   canbus::Error send_data(uint32_t can_id, bool use_extended_id, bool remote_transmission_request, const uint8_t *data,
-                          size_t len);
+                          size_t len, bool fd, bool bit_rate_switch, bool pad_data = false);
+  canbus::Error send_data(uint32_t can_id, bool use_extended_id, bool remote_transmission_request, const uint8_t *data,
+                          size_t len) {
+    return this->send_data(can_id, use_extended_id, remote_transmission_request, data, len, false, false);
+  }
   canbus::Error send_data(uint32_t can_id, bool use_extended_id, bool remote_transmission_request,
                           const std::vector<uint8_t> &data) {
     return this->send_data(can_id, use_extended_id, remote_transmission_request, data.data(), data.size());
@@ -105,6 +184,13 @@ class Canbus : public Component {
   void set_use_extended_id(bool use_extended_id) { this->use_extended_id_ = use_extended_id; }
   void set_bitrate(CanSpeed bit_rate) { this->bit_rate_ = bit_rate; }
   void set_max_frames_per_loop(uint32_t max_frames_per_loop) { this->max_frames_per_loop_ = max_frames_per_loop; }
+  // Defaults apply to canbus.send actions, not the classic-only send_data() overloads or explicit CanFrames.
+  void set_default_fd(bool default_fd) { this->default_fd_ = default_fd; }
+  void set_default_bit_rate_switch(bool default_bit_rate_switch) {
+    this->default_bit_rate_switch_ = default_bit_rate_switch;
+  }
+  void set_default_pad_data(bool default_pad_data) { this->default_pad_data_ = default_pad_data; }
+  virtual bool supports_fd() const { return false; }
   virtual CanStatus get_status() { return {}; }
 
   void add_trigger(CanbusTrigger *trigger);
@@ -120,6 +206,13 @@ class Canbus : public Component {
    */
   template<typename F> void add_callback(F &&callback) { this->callback_manager_.add(std::forward<F>(callback)); }
 
+  /** Add a callback for every valid received frame, without filtering.
+   * The frame reference is only valid for the duration of the callback.
+   */
+  template<typename F> void add_on_frame_received_callback(F &&callback) {
+    this->received_frame_callbacks_.add(std::forward<F>(callback));
+  }
+
  protected:
   template<typename... Ts> friend class CanbusSendAction;
   std::vector<CanbusTrigger *> triggers_{};
@@ -127,10 +220,14 @@ class Canbus : public Component {
   uint32_t max_frames_per_loop_{50};  // Keep in sync with DEFAULT_MAX_FRAMES_PER_LOOP in __init__.py
   CanSpeed bit_rate_{CAN_125KBPS};    // Keep in sync with DEFAULT_BIT_RATE in __init__.py
   bool use_extended_id_{false};
+  bool default_fd_{false};
+  bool default_bit_rate_switch_{false};
+  bool default_pad_data_{false};
   uint8_t events_to_log_{0};
   bool bus_off_{false};
   CallbackManager<void(uint32_t can_id, bool extended_id, bool rtr, const std::vector<uint8_t> &data)>
       callback_manager_{};
+  LazyCallbackManager<void(const CanFrame &)> received_frame_callbacks_;
 
   // interval in which to check for new can bus events (bus-off, passive, active)
   static constexpr uint32_t EVENT_CHECK_INTERVAL_MS = 100;
@@ -158,6 +255,9 @@ class Canbus : public Component {
 
 template<typename... Ts> class CanbusSendAction final : public Action<Ts...>, public Parented<Canbus> {
   TEMPLATABLE_BYTES(data)
+  TEMPLATABLE_VALUE(bool, fd)
+  TEMPLATABLE_VALUE(bool, bit_rate_switch)
+  TEMPLATABLE_VALUE(bool, pad_data)
 
   void set_can_id(uint32_t can_id) { this->can_id_ = can_id; }
 
@@ -171,9 +271,13 @@ template<typename... Ts> class CanbusSendAction final : public Action<Ts...>, pu
     auto can_id = this->can_id_.has_value() ? *this->can_id_ : this->parent_->can_id_;
     auto use_extended_id =
         this->use_extended_id_.has_value() ? *this->use_extended_id_ : this->parent_->use_extended_id_;
-    this->data_.template visit<CAN_MAX_DATA_LENGTH>(
+    const bool fd = this->fd_.value_or(x..., this->parent_->default_fd_);
+    const bool bit_rate_switch = this->bit_rate_switch_.value_or(x..., fd && this->parent_->default_bit_rate_switch_);
+    const bool pad_data = this->pad_data_.value_or(x..., this->parent_->default_pad_data_);
+    this->data_.template visit<CAN_FD_MAX_DATA_LENGTH>(
         [&](const uint8_t *data, size_t len) {
-          this->parent_->send_data(can_id, use_extended_id, this->remote_transmission_request_, data, len);
+          this->parent_->send_data(can_id, use_extended_id, this->remote_transmission_request_, data, len, fd,
+                                   bit_rate_switch, pad_data);
         },
         x...);
   }

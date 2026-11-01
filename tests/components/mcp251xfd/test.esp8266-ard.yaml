@@ -1,0 +1,7 @@
+substitutions:
+  cs_pin: GPIO5
+  cs_pin_default: GPIO4
+
+packages:
+  spi: !include ../../test_build_components/common/spi/esp8266-ard.yaml
+  mcp251xfd: !include common.yaml
