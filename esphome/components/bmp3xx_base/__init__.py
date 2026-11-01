@@ -68,15 +68,11 @@ DATA_RATE_OPTIONS = {
 
 
 def _validate_data_rate(config: ConfigType) -> ConfigType:
-    """With data_rate set the sensor measures continuously. One measurement must fit
-    in the data rate period, and polling faster than new data arrives is pointless.
-    Timings from the BMP390 datasheet, section 3.9.2."""
+    """One measurement must fit in the data rate period (BMP390 datasheet 3.9.2, as in update())."""
     if (data_rate := config.get(CONF_DATA_RATE)) is None:
         return config
     # DATA_RATE_OPTIONS is in register order and each step doubles the 5 ms period
     period_ms = 5 * 2 ** list(DATA_RATE_OPTIONS).index(data_rate)
-    # cv.enum upper-cases the value; show it as written, e.g. 12.5Hz
-    rate = data_rate.removesuffix("HZ") + "Hz"
     oversampling = list(OVERSAMPLING_OPTIONS)
     meas_us = 234
     if CONF_PRESSURE in config:
@@ -89,13 +85,13 @@ def _validate_data_rate(config: ConfigType) -> ConfigType:
     if meas_us > period_ms * 1000:
         raise cv.Invalid(
             f"One measurement takes {meas_us / 1000:.1f} ms with these oversampling "
-            f"settings, longer than the {period_ms} ms period of {rate}. "
+            f"settings, longer than the {period_ms} ms data rate period. "
             "Lower the oversampling or choose a slower data_rate.",
             path=[CONF_DATA_RATE],
         )
     if config[CONF_UPDATE_INTERVAL].total_milliseconds < period_ms:
         raise cv.Invalid(
-            f"update_interval must be at least the {period_ms} ms period of {rate}.",
+            f"update_interval must be at least the {period_ms} ms data rate period.",
             path=[CONF_UPDATE_INTERVAL],
         )
     return config

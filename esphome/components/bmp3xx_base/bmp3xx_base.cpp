@@ -108,7 +108,8 @@ void BMP3XXComponent::setup() {
       this->mark_failed(LOG_STR(ESP_LOG_MSG_COMM_FAIL));
       return;
     }
-    // The sensor stays asleep and sets conf_err if one measurement takes longer than the data rate period
+    // The sensor stays asleep and sets conf_err if one measurement takes longer than the data rate period.
+    // _validate_data_rate rejects that at config time; this guards against its timing formula drifting.
     if (err_reg & ERR_REG_CONF_ERR) {
       this->mark_failed(LOG_STR("Data rate too fast for the oversampling settings"));
       return;
@@ -158,6 +159,7 @@ void BMP3XXComponent::update() {
   ESP_LOGV(TAG, "Sending conversion request");
   float meas_time = 1.0f;
   // Ref: https://www.bosch-sensortec.com/media/boschsensortec/downloads/datasheets/bst-bmp390-ds002.pdf 3.9.2
+  // Keep in step with _validate_data_rate in __init__.py
   meas_time += 2.02f * oversampling_to_time(this->temperature_oversampling_) + 0.163f;
   meas_time += 2.02f * oversampling_to_time(this->pressure_oversampling_) + 0.392f;
   meas_time += 0.234f;
@@ -308,7 +310,7 @@ bool BMP3XXComponent::data_ready() {
     ESP_LOGD(TAG, "Not ready - sensor is in sleep mode");
     return false;
   }
-  if (pwr_ctrl_.bit.mode == NORMAL_MODE) {
+  if (this->operation_mode_ == NORMAL_MODE) {
     // A sensor that lost power comes back asleep with default settings, and its data would never change
     decltype(this->pwr_ctrl_) pwr_ctrl;
     if (!this->read_byte(BMP388_PWR_CTRL, &pwr_ctrl.reg)) {
@@ -342,7 +344,8 @@ bool BMP3XXComponent::data_ready() {
     if (pwr_ctrl_.bit.mode == FORCED_MODE) {
       pwr_ctrl_.bit.mode = SLEEP_MODE;
     }
-    this->normal_mode_data_valid_ = pwr_ctrl_.bit.mode == NORMAL_MODE;
+    // Only read in NORMAL_MODE
+    this->normal_mode_data_valid_ = true;
     return true;  // The measurement is ready
   }
   return false;  // The measurement is still pending
