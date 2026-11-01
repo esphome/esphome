@@ -1,0 +1,26 @@
+# Final bench handoff. This is a virtual fixed test value, not a physical measurement.
+esphome:
+  name: ow-unicore-error
+  on_boot:
+    then:
+      - logger.log: "HIL_IMAGE final-models-v3 DS18B20"
+esp32:
+  board: esp32dev
+  framework:
+    type: esp-idf
+    sdkconfig_options:
+      CONFIG_FREERTOS_UNICORE: y
+logger:
+  level: DEBUG
+one_wire_device:
+  id: emulated_temperature
+  pin: GPIO4
+  type: DS18B20
+  # Preserve the address expected by the installed bridge-backed controller.
+  address: 0x6EB807A434E3EC28
+  value: 23.5
+
+interval:
+  - interval: 5s
+    then:
+      - logger.log: "HIL_TICK final-bench"
