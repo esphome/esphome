@@ -60,7 +60,7 @@ def test_status_publishers(generate_main: Callable[[str], str]) -> None:
         _check(f"{call[3]} + (({call[2]}) & 0x03)", reg, bits, expected)
     assert _body(main_cpp, "charger_b") == [
         "static uint8_t esphome__b_ts_status__last = 0xFF;",
-        "bq25186::publish_status_text(::b_ts_status, esphome__b_ts_status__last, status[1] >> 3, 4);",
+        "bq25186::publish_status_text(::b_ts_status, esphome__b_ts_status__last, (status[1] >> 3), 4);",
     ]
     for hub in ("charger_a", "charger_b"):
         assert f"{hub}->set_status_publisher(esphome__{hub}__status_fn);" in main_cpp
@@ -79,7 +79,7 @@ def test_status_publishers(generate_main: Callable[[str], str]) -> None:
 def test_single_bit_shortcut_needs_a_one_bit_field() -> None:
     """A wider field whose match looks like a single bit keeps the bitmap form."""
     for mask, match in ((0x01, 0b10), (0x01, 0b01), (0x03, 0b10), (0x03, 0b0110)):
-        expr = _state_expression(0, 2, mask, match)
+        expr = str(_state_expression(0, 2, mask, match))
         for value in range(256):
             status = [value]
             result = eval(expr, {"__builtins__": {}}, {"status": status})  # noqa: S307
