@@ -73,12 +73,21 @@ void Logger::pre_setup() {
   if (this->baud_rate_ > 0) {
     static const struct device *uart_dev = nullptr;
     switch (this->uart_) {
+#ifdef USE_NRF54L
+      case UART_SELECTION_UART0:  // NOLINT(bugprone-branch-clone)
+        uart_dev = DEVICE_DT_GET_OR_NULL(DT_NODELABEL(uart20));
+        break;
+      case UART_SELECTION_UART1:
+        uart_dev = DEVICE_DT_GET_OR_NULL(DT_NODELABEL(uart30));
+        break;
+#else
       case UART_SELECTION_UART0:  // NOLINT(bugprone-branch-clone)
         uart_dev = DEVICE_DT_GET_OR_NULL(DT_NODELABEL(uart0));
         break;
       case UART_SELECTION_UART1:
         uart_dev = DEVICE_DT_GET_OR_NULL(DT_NODELABEL(uart1));
         break;
+#endif
 #ifdef USE_LOGGER_USB_CDC
       case UART_SELECTION_USB_CDC:
 #ifdef CONFIG_USB_DEVICE_STACK

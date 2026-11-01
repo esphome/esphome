@@ -2361,6 +2361,14 @@ class SplitDefault(Optional):
                 keys += _get_default_key(variant, framework)
                 keys += _get_default_key(variant)
             keys += _get_default_key(framework)
+        elif CORE.is_nrf52:
+            from esphome.components.nrf52.boards import is_nrf54l
+            from esphome.components.zephyr.const import KEY_ZEPHYR
+
+            # nrf52_nrf54l=... is the override for nRF54L boards
+            board = CORE.data.get(KEY_ZEPHYR, {}).get("board")
+            if board and is_nrf54l(board):
+                keys += _get_default_key("nrf54l")
         keys += _get_default_key()
         for key in keys:
             if self._defaults.get(key) is not None:

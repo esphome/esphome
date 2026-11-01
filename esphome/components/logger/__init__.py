@@ -92,6 +92,8 @@ UART_SELECTION_ESP8266 = [UART0, UART0_SWAP, UART1]
 UART_SELECTION_RP2040 = [USB_CDC, UART0, UART1]
 
 UART_SELECTION_NRF52 = [USB_CDC, UART0]
+# nRF54L has no USB
+UART_SELECTION_NRF54L = [UART0, UART1]
 
 HARDWARE_UART_TO_UART_SELECTION = {
     UART0: logger_ns.UART_SELECTION_UART0,
@@ -217,8 +219,17 @@ def uart_selection(value: Any) -> str:
     if CORE.is_host:
         raise cv.Invalid("Uart selection not valid for host platform")
     if CORE.is_nrf52:
+        if _is_nrf54l():
+            return cv.one_of(*UART_SELECTION_NRF54L, upper=True)(value)
         return cv.one_of(*UART_SELECTION_NRF52, upper=True)(value)
     raise NotImplementedError
+
+
+def _is_nrf54l() -> bool:
+    from esphome.components.nrf52.boards import is_nrf54l
+    from esphome.components.zephyr import zephyr_data
+
+    return is_nrf54l(zephyr_data()["board"])
 
 
 def validate_local_no_higher_than_global(config: ConfigType) -> ConfigType:
@@ -385,6 +396,7 @@ CONFIG_SCHEMA = cv.All(
                 ln882x=DEFAULT,
                 rtl87xx=DEFAULT,
                 nrf52=USB_CDC,
+                nrf52_nrf54l=UART0,
             ): cv.All(
                 cv.only_on(
                     [
@@ -657,10 +669,14 @@ async def _late_logger_init(config: ConfigType) -> None:
         zephyr_add_prj_conf("THREAD_LOCAL_STORAGE", True)
         if has_serial_logging:
             zephyr_add_prj_conf("SERIAL", True)
+            # nRF54L names its UARTs after their power domain; uart20 and uart30 are the DK's VCOM0 and VCOM1
+            nrf54l = _is_nrf54l()
             if config[CONF_HARDWARE_UART] == UART0:
-                zephyr_add_overlay("""&uart0 { status = "okay";};""")
+                label = "uart20" if nrf54l else "uart0"
+                zephyr_add_overlay(f"""&{label} {{ status = "okay";}};""")
             if config[CONF_HARDWARE_UART] == UART1:
-                zephyr_add_overlay("""&uart1 { status = "okay";};""")
+                label = "uart30" if nrf54l else "uart1"
+                zephyr_add_overlay(f"""&{label} {{ status = "okay";}};""")
             if config[CONF_HARDWARE_UART] == USB_CDC:
                 cg.add_define("USE_LOGGER_UART_SELECTION_USB_CDC")
                 zephyr_add_prj_conf("UART_LINE_CTRL", True)

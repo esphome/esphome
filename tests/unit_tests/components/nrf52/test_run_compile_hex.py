@@ -147,3 +147,11 @@ def test_successful_build_writes_idedata(build_dir: Path, run_cmd: Mock) -> None
     ) as get_idedata:
         _build(build_dir, cv.Version(3, 4, 0), ["zephyr/zephyr/zephyr.hex"], run_cmd)
     get_idedata.assert_called_once_with()
+
+
+def test_new_west_project_cleans_the_build_dir(build_dir: Path, run_cmd: Mock) -> None:
+    """The CMake cache keeps the modules it found first, so a new project needs a clean build."""
+    build_dir.mkdir(parents=True)
+    (build_dir / ".esphome_west_projects").write_text("zephyr", encoding="utf-8")
+    _build(build_dir, cv.Version(2, 9, 2), [], run_cmd, leftovers=("stale",))
+    assert not (build_dir / "stale").exists()
