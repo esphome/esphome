@@ -5,26 +5,20 @@
 namespace esphome::mk2pvrouter::testing {
 
 TEST(Mk2PVRouterSensorTest, ScaleCentiTrueScalesByOneHundredth) {
-  sensor::Sensor sensor;
-  publish_sensor_value(&sensor, "V", true, "V", "23042");
+  Mk2PVRouterSensor sensor("V", true);
+  sensor.publish_val("23042");
   EXPECT_FLOAT_EQ(sensor.get_raw_state(), 230.42f);
 }
 
 TEST(Mk2PVRouterSensorTest, ScaleCentiFalseDoesNotScale) {
-  sensor::Sensor sensor;
-  publish_sensor_value(&sensor, "P1", false, "P1", "1234");
+  Mk2PVRouterSensor sensor("P1", false);
+  sensor.publish_val("1234");
   EXPECT_FLOAT_EQ(sensor.get_raw_state(), 1234.0f);
 }
 
 TEST(Mk2PVRouterSensorTest, UnparseableValueIsNotPublished) {
-  sensor::Sensor sensor;
-  publish_sensor_value(&sensor, "V1", true, "V1", "not-a-number");
-  EXPECT_FALSE(sensor.has_state());
-}
-
-TEST(Mk2PVRouterSensorTest, OtherTagIsNotPublished) {
-  sensor::Sensor sensor;
-  publish_sensor_value(&sensor, "P1", false, "P2", "1234");
+  Mk2PVRouterSensor sensor("V1", true);
+  sensor.publish_val("not-a-number");
   EXPECT_FALSE(sensor.has_state());
 }
 

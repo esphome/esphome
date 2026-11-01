@@ -5,15 +5,15 @@
 namespace esphome::mk2pvrouter::testing {
 
 TEST(Mk2PVRouterBinarySensorTest, ZeroPublishesOff) {
-  binary_sensor::BinarySensor sensor;
-  publish_binary_sensor_value(&sensor, "R1", "R1", "0");
+  Mk2PVRouterBinarySensor sensor("R1");
+  sensor.publish_val("0");
   ASSERT_TRUE(sensor.has_state());
   EXPECT_FALSE(sensor.state);
 }
 
 TEST(Mk2PVRouterBinarySensorTest, OnePublishesOn) {
-  binary_sensor::BinarySensor sensor;
-  publish_binary_sensor_value(&sensor, "R1", "R1", "1");
+  Mk2PVRouterBinarySensor sensor("R1");
+  sensor.publish_val("1");
   ASSERT_TRUE(sensor.has_state());
   EXPECT_TRUE(sensor.state);
 }
