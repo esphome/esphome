@@ -375,9 +375,9 @@ file does, and it is the authority when they disagree. The most useful starting 
         **Heap allocation after `setup()` should be avoided unless absolutely unavoidable.** ESP devices run for
         months with small shared heaps, and repeated allocations fragment them until a large allocation fails; we
         have seen field crashes caused by this. ESPHome treats runtime heap allocation as a long-term reliability
-        bug, not a performance issue. Prefer `std::array`, `StaticVector` (sized with `cg.slot_counter()` for
-        registration lists), `FixedVector` and `StringRef` over growing `std::vector`, `std::map`, `std::deque`
-        and `std::string`. The `embedded-memory` skill has the full container guidelines.
+        bug, not a performance issue. Prefer `std::array`, `StaticVector` (a hub's child list is one
+        `SLOT_LIST` line sized by `cg.slot_list()`; `cg.slot_counter()` when the C++ side registers itself),
+        `FixedVector` and `StringRef` over growing `std::vector`, `std::map`, `std::deque` and `std::string`. The `embedded-memory` skill has the full container guidelines.
 
     *   **State Management:** keep code generation state in `CORE.data`, namespaced under the component's
         `DOMAIN` in a `@dataclass`, never in module-level mutable globals (see the `component-codegen` skill).
