@@ -217,18 +217,19 @@ TEST_F(BQ25186StatusTest, BinarySensorsPublishEveryPoll) {
 }
 
 TEST_F(BQ25186StatusTest, BinarySensorsPublishBeforeTextSensorsInFieldOrder) {
-  std::vector<std::string> order;
+  // Binary sensor i records i, text sensor i records TEXT_BASE + i
+  static constexpr size_t TEXT_BASE = 100;
+  std::vector<size_t> order;
   for (size_t i = 0; i < BINARY_COUNT; i++)
-    this->binary_(i).add_on_raw_state_callback([&order, i](bool) { order.push_back("b" + std::to_string(i)); });
+    this->binary_(i).add_on_raw_state_callback([&order, i](bool) { order.push_back(i); });
   for (size_t i = 0; i < TEXT_COUNT; i++)
-    this->text_(i).add_on_state_callback(
-        [&order, i](const std::string &) { order.push_back("t" + std::to_string(i)); });
+    this->text_(i).add_on_state_callback([&order, i](const std::string &) { order.push_back(TEXT_BASE + i); });
   this->poll_(0);
-  std::vector<std::string> expected;
+  std::vector<size_t> expected;
   for (size_t i = 0; i < BINARY_COUNT; i++)
-    expected.push_back("b" + std::to_string(i));
+    expected.push_back(i);
   for (size_t i = 0; i < TEXT_COUNT; i++)
-    expected.push_back("t" + std::to_string(i));
+    expected.push_back(TEXT_BASE + i);
   EXPECT_EQ(order, expected);
 }
 
