@@ -34,10 +34,10 @@ class EPaperJD79660 : public EPaperBase {
 
   void fill(Color color) override;
 
- protected:
   /** Draw colored pixel into frame buffer */
   void draw_pixel_at(int x, int y, Color color) override;
 
+ protected:
   /** Reset (multistep sequence)
    * @pre this->reset_pin_ != nullptr // cv.Required check
    * @post Should be idle on successful reset. Can mark failures.

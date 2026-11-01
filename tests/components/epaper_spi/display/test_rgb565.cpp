@@ -7,6 +7,7 @@
 #include "esphome/components/epaper_spi/epaper_waveshare_3p97_g.h"
 
 namespace esphome::epaper_spi::testing {
+namespace {
 
 class FrameAccess : public EPaperBase {
  public:
@@ -16,6 +17,8 @@ class FrameAccess : public EPaperBase {
   static constexpr auto BUFFER_LENGTH = &FrameAccess::buffer_length_;
   static constexpr auto IS_MONO = &FrameAccess::buffer_is_mono_;
 };
+
+}  // namespace
 
 TEST(Waveshare3P97Rgb565, FrameFormat) {
   EPaperWaveshare3P97InG panel("test", 800, 480, nullptr, 0);
@@ -73,10 +76,9 @@ TEST_P(Waveshare3P97Rgb565Drawing, MatchesScalarPixels) {
     }
     panel.draw_pixels_at(origin[0], origin[1], width, height, source.data(), COLOR_BITNESS_565, big_endian, x_offset,
                          y_offset, x_pad);
-    auto &scalar = static_cast<display::Display &>(reference);
     for (int row = 0; row < height; row++) {
       for (int column = 0; column < width; column++) {
-        scalar.draw_pixel_at(origin[0] + column, origin[1] + row, colors[(row + column) % colors.size()]);
+        reference.draw_pixel_at(origin[0] + column, origin[1] + row, colors[(row + column) % colors.size()]);
       }
     }
     EXPECT_EQ(std::memcmp(bytes, reference_bytes, 96000), 0);
