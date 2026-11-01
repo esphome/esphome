@@ -68,12 +68,13 @@ class PipsolarTest : public ::testing::Test {
 
   MockUARTComponent uart_;
   Pipsolar sut_;
-  sensor::Sensor battery_type_;
-  sensor::Sensor input_voltage_range_;
-  sensor::Sensor output_source_priority_;
-  sensor::Sensor pv_ok_condition_for_parallel_;
-  sensor::Sensor pv_power_balance_;
 };
+
+constexpr const char *QPIRI_PREFIX = "(230.0 21.7 230.0 50.0 21.7 5000 4000 48.0 46.0 42.0 56.4 54.0 1 10 010 ";
+constexpr const char *QPIRI_GOOD_TAIL = "1 2 1 9 01 0 0 54.0 0 1";
+// Ends just before the fan offset field
+constexpr const char *QPIGS_PREFIX =
+    "(230.0 50.0 230.0 50.0 0161 0105 003 397 52.70 000 100 0035 0000 000.0 00.00 00000 00010101";
 
 class PipsolarQpiriTest : public PipsolarTest {
  protected:
@@ -85,14 +86,46 @@ class PipsolarQpiriTest : public PipsolarTest {
     this->sut_.set_pv_ok_condition_for_parallel(&this->pv_ok_condition_for_parallel_);
     this->sut_.set_pv_power_balance(&this->pv_power_balance_);
   }
+
+  // The four QPIRI fields that used to publish INT_MIN when missing
+  void expect_optional_fields_nan_() {
+    EXPECT_THAT(this->input_voltage_range_.state, ::testing::IsNan());
+    EXPECT_THAT(this->output_source_priority_.state, ::testing::IsNan());
+    EXPECT_THAT(this->pv_ok_condition_for_parallel_.state, ::testing::IsNan());
+    EXPECT_THAT(this->pv_power_balance_.state, ::testing::IsNan());
+  }
+
+  sensor::Sensor battery_type_;
+  sensor::Sensor input_voltage_range_;
+  sensor::Sensor output_source_priority_;
+  sensor::Sensor pv_ok_condition_for_parallel_;
+  sensor::Sensor pv_power_balance_;
 };
 
-constexpr const char *QPIRI_PREFIX = "(230.0 21.7 230.0 50.0 21.7 5000 4000 48.0 46.0 42.0 56.4 54.0 1 10 010 ";
+class PipsolarQpigsTest : public PipsolarTest {
+ protected:
+  void SetUp() override {
+    PipsolarTest::SetUp();
+    this->sut_.set_battery_voltage_offset_for_fans_on(&this->offset_);
+  }
+
+  sensor::Sensor offset_;
+};
+
+class PipsolarQpiwsTest : public PipsolarTest {
+ protected:
+  void SetUp() override {
+    PipsolarTest::SetUp();
+    this->sut_.set_fault_code(&this->fault_code_);
+  }
+
+  binary_sensor::BinarySensor fault_code_;
+};
 
 }  // namespace
 
 TEST_F(PipsolarQpiriTest, IntegerFieldsPublishValues) {
-  this->poll_(frame(std::string(QPIRI_PREFIX) + "1 2 1 9 01 0 0 54.0 0 1"));
+  this->poll_(frame(std::string(QPIRI_PREFIX) + QPIRI_GOOD_TAIL));
   EXPECT_FLOAT_EQ(this->battery_type_.state, 1.0f);
   EXPECT_FLOAT_EQ(this->input_voltage_range_.state, 1.0f);
   EXPECT_FLOAT_EQ(this->output_source_priority_.state, 2.0f);
@@ -103,65 +136,46 @@ TEST_F(PipsolarQpiriTest, IntegerFieldsPublishValues) {
 TEST_F(PipsolarQpiriTest, UnparseableFieldsPublishNan) {
   this->poll_(frame(std::string(QPIRI_PREFIX) + "x x 1 9 01 0 0 54.0 x x"));
   EXPECT_FLOAT_EQ(this->battery_type_.state, 1.0f);
-  EXPECT_THAT(this->input_voltage_range_.state, ::testing::IsNan());
-  EXPECT_THAT(this->output_source_priority_.state, ::testing::IsNan());
-  EXPECT_THAT(this->pv_ok_condition_for_parallel_.state, ::testing::IsNan());
-  EXPECT_THAT(this->pv_power_balance_.state, ::testing::IsNan());
+  this->expect_optional_fields_nan_();
 }
 
 // A failed poll decodes an empty answer, so every field is missing
 TEST_F(PipsolarQpiriTest, FailedPollPublishesNan) {
-  this->poll_(frame(std::string(QPIRI_PREFIX) + "1 2 1 9 01 0 0 54.0 0 1", true));
+  this->poll_(frame(std::string(QPIRI_PREFIX) + QPIRI_GOOD_TAIL, true));
   EXPECT_THAT(this->battery_type_.state, ::testing::IsNan());
-  EXPECT_THAT(this->input_voltage_range_.state, ::testing::IsNan());
-  EXPECT_THAT(this->output_source_priority_.state, ::testing::IsNan());
-  EXPECT_THAT(this->pv_ok_condition_for_parallel_.state, ::testing::IsNan());
-  EXPECT_THAT(this->pv_power_balance_.state, ::testing::IsNan());
+  this->expect_optional_fields_nan_();
 }
 
-TEST_F(PipsolarTest, QpigsFanOffsetPublishesValue) {
-  sensor::Sensor offset;
-  this->sut_.set_battery_voltage_offset_for_fans_on(&offset);
-  this->poll_(frame("(230.0 50.0 230.0 50.0 0161 0105 003 397 52.70 000 100 0035 0000 000.0 00.00 00000 00010101 "
-                    "03 00 00000 010"));
-  EXPECT_FLOAT_EQ(offset.state, 0.3f);
+TEST_F(PipsolarQpigsTest, FanOffsetPublishesValue) {
+  this->poll_(frame(std::string(QPIGS_PREFIX) + " 03 00 00000 010"));
+  EXPECT_FLOAT_EQ(this->offset_.state, 0.3f);
 }
 
-TEST_F(PipsolarTest, QpigsMissingFanOffsetPublishesNan) {
-  sensor::Sensor offset;
-  this->sut_.set_battery_voltage_offset_for_fans_on(&offset);
-  this->poll_(frame("(230.0 50.0 230.0 50.0 0161 0105 003 397 52.70 000 100 0035 0000 000.0 00.00 00000 00010101"));
-  EXPECT_THAT(offset.state, ::testing::IsNan());
+TEST_F(PipsolarQpigsTest, MissingFanOffsetPublishesNan) {
+  this->poll_(frame(QPIGS_PREFIX));
+  EXPECT_THAT(this->offset_.state, ::testing::IsNan());
 }
 
-TEST_F(PipsolarTest, QpiwsFaultCodePublishesValue) {
-  binary_sensor::BinarySensor fault_code;
-  this->sut_.set_fault_code(&fault_code);
+TEST_F(PipsolarQpiwsTest, FaultCodePublishesOn) {
   this->poll_(frame("(0000000000000000000000000000000050000"));
-  EXPECT_TRUE(fault_code.has_state());
-  EXPECT_TRUE(fault_code.state);
+  EXPECT_TRUE(this->fault_code_.has_state());
+  EXPECT_TRUE(this->fault_code_.state);
 }
 
-TEST_F(PipsolarTest, QpiwsZeroFaultCodePublishesOff) {
-  binary_sensor::BinarySensor fault_code;
-  this->sut_.set_fault_code(&fault_code);
+TEST_F(PipsolarQpiwsTest, ZeroFaultCodePublishesOff) {
   this->poll_(frame("(0000000000000000000000000000000000000"));
-  EXPECT_TRUE(fault_code.has_state());
-  EXPECT_FALSE(fault_code.state);
+  EXPECT_TRUE(this->fault_code_.has_state());
+  EXPECT_FALSE(this->fault_code_.state);
 }
 
-TEST_F(PipsolarTest, QpiwsMissingFaultCodePublishesUnknown) {
-  binary_sensor::BinarySensor fault_code;
-  this->sut_.set_fault_code(&fault_code);
+TEST_F(PipsolarQpiwsTest, MissingFaultCodePublishesUnknown) {
   this->poll_(frame("(0000000000000000000000000000000"));
-  EXPECT_FALSE(fault_code.has_state());
+  EXPECT_FALSE(this->fault_code_.has_state());
 }
 
-TEST_F(PipsolarTest, QpiwsUnparseableFaultCodePublishesUnknown) {
-  binary_sensor::BinarySensor fault_code;
-  this->sut_.set_fault_code(&fault_code);
+TEST_F(PipsolarQpiwsTest, UnparseableFaultCodePublishesUnknown) {
   this->poll_(frame("(0000000000000000000000000000000xx0000"));
-  EXPECT_FALSE(fault_code.has_state());
+  EXPECT_FALSE(this->fault_code_.has_state());
 }
 
 }  // namespace esphome::pipsolar::testing
