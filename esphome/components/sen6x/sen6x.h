@@ -80,6 +80,8 @@ class SEN6XComponent final : public PollingComponent, public sensirion_common::S
   SUB_SENSOR(nox)
   SUB_SENSOR(co2)
   SUB_SENSOR(hcho)
+  // Input sensors for compensation
+  SUB_SENSOR(ambient_pressure_source)
 
  public:
   void setup() override;
@@ -121,7 +123,6 @@ class SEN6XComponent final : public PollingComponent, public sensirion_common::S
   void set_automatic_self_calibration(bool enabled) { this->co2_asc_ = enabled; }
   void set_altitude_compensation(uint16_t altitude) { this->altitude_compensation_ = altitude; }
   void set_ambient_pressure_compensation(uint16_t pressure_hpa) { this->ambient_pressure_ = pressure_hpa; }
-  void set_ambient_pressure_source(sensor::Sensor *pressure) { this->ambient_pressure_source_ = pressure; }
   void start_measurement();
   void stop_measurement();
   void start_fan_cleaning();
@@ -175,7 +176,6 @@ class SEN6XComponent final : public PollingComponent, public sensirion_common::S
   optional<TemperatureAcceleration> temperature_acceleration_;
   optional<TemperatureCompensation> temperature_compensation_;
   uint16_t read_cmd_{0};
-  sensor::Sensor *ambient_pressure_source_{nullptr};
   uint32_t startup_delay_ms_{60000};
   Sen6xType sen6x_type_{UNKNOWN};
   // Post-command wait windows, stored as start time plus duration so elapsed-time checks survive millis() wrap
