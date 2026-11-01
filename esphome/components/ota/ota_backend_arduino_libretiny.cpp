@@ -43,8 +43,9 @@ OTAResponseTypes ArduinoLibreTinyOTABackend::begin(size_t image_size, OTAType ot
 }
 
 void ArduinoLibreTinyOTABackend::set_update_md5(const char *md5) {
-  // Checked in end()
-  this->md5_set_ = parse_hex(md5, this->expected_md5_, 16);
+  // Checked in end(); a checksum that does not parse refuses the update
+  this->md5_set_ = true;
+  this->md5_parsed_ = parse_hex(md5, this->expected_md5_, 16);
 }
 
 bool ArduinoLibreTinyOTABackend::feed_(const uint8_t *data, size_t len) {
@@ -76,7 +77,7 @@ OTAResponseTypes ArduinoLibreTinyOTABackend::write(uint8_t *data, size_t len) {
 OTAResponseTypes ArduinoLibreTinyOTABackend::end() {
   if (this->md5_set_) {
     this->md5_.calculate();
-    if (!this->md5_.equals_bytes(this->expected_md5_)) {
+    if (!this->md5_parsed_ || !this->md5_.equals_bytes(this->expected_md5_)) {
       ESP_LOGE(TAG, "MD5 mismatch");
       return OTA_RESPONSE_ERROR_MD5_MISMATCH;
     }
@@ -100,11 +101,20 @@ void ArduinoLibreTinyOTABackend::abort() {
   if (!this->lock_.is_held())  // refused in begin(), or end() succeeded
     return;
   Update.abort();
-  // A dual-slot bootloader can boot a written image LibreTiny never marked
-  // (RTL8720C boots the valid image with the higher serial number), so
-  // invalidate it. LN882H's lt_ota_switch() ignores revert, and BK72xx has no
-  // mark to undo, so single-slot chips rely on the held-back last byte.
-  if (this->wrote_ && lt_ota_get_type() == OTA_TYPE_DUAL && !lt_ota_switch(/* revert= */ true)) {
+  // Bootloaders take a written image LibreTiny never marked: RTL8720C boots the
+  // valid one with the higher serial number, BK72xx and LN882H install a
+  // complete download. On LN882H the device image ends before the flasher
+  // blocks of a full UF2, so the held-back byte does not keep it incomplete.
+  if (!this->wrote_)
+    return;
+#ifdef USE_LN882X
+  // lt_ota_switch() ignores revert here; erasing the header voids the download
+  const bool reverted = lt_flash_erase_block(FLASH_OTA_OFFSET);
+#else
+  // On BK72xx this erases the download header
+  const bool reverted = lt_ota_switch(/* revert= */ true);
+#endif
+  if (!reverted) {
     ESP_LOGE(TAG, "Revert failed");
   }
 }

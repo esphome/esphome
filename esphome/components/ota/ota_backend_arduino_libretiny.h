@@ -28,10 +28,11 @@ class ArduinoLibreTinyOTABackend final {
   uint8_t expected_md5_[16];
   // The last byte is held back until end() has checked the MD5: lt_ota_end(),
   // which Update.abort() runs too, marks the image bootable once every block is
-  // written. LN882H cannot revert that mark, so this is its only guard.
+  // written.
   uint8_t pending_{0};
   bool has_pending_{false};
   bool md5_set_{false};
+  bool md5_parsed_{false};
   bool wrote_{false};
 };
 
