@@ -12,9 +12,11 @@ from .. import (
     CONF_KEYPAD_ID,
     GPI_KEY_MAX,
     GPI_KEY_MIN,
+    KEY,
     KEY_PUBLISHER,
     MATRIX_COLUMNS,
     MATRIX_KEY_MAX,
+    PRESSED,
     TCA8418Component,
     _ascii_string,
     _matrix_key,
@@ -139,8 +141,8 @@ async def to_code(config: ConfigType) -> None:
         keypad,
         tca8418_ns.publish_key(
             parent_ref(var),
-            KEY_PUBLISHER.param("key"),
+            KEY,
             config[CONF_KEY_CODE],
-            KEY_PUBLISHER.param("pressed"),
+            PRESSED,
         ),
     )

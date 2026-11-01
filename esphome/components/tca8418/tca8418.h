@@ -31,7 +31,7 @@ static constexpr uint8_t TCA8418_KEY_CODE_MASK = 0x7F;
 //  The event queue holds ten entries, which bounds how many can be read at once.
 static constexpr uint8_t TCA8418_FIFO_DEPTH = 10;
 
-/// Publish `pressed` on `sensor` when `key` is the sensor's key number.
+// A template on the sensor type keeps binary_sensor.h out of this hub header
 template<typename T> inline void publish_key(T *sensor, uint8_t key, uint8_t sensor_key, bool pressed) {
   if (key == sensor_key)
     sensor->publish_state(pressed);
@@ -53,8 +53,8 @@ class TCA8418Component : public key_provider::KeyProvider, public Component, pub
   void set_interrupt_pin(InternalGPIOPin *pin) { this->interrupt_pin_ = pin; }
 
 #ifdef USE_TCA8418_KEY_PUBLISHER
-  /// Generated function that publishes the binary sensors; key is 1..80 matrix, 97..114 individual inputs.
-  void set_key_publisher(void (*fn)(uint8_t key, bool pressed)) { this->key_publisher_ = fn; }
+  // key is 1..80 for the matrix, 97..114 for individual inputs
+  HUB_PUBLISHER(key, uint8_t, bool)
 #endif
 
   /// Wakes the loop so queued events are read. Runs in interrupt context.
@@ -72,9 +72,6 @@ class TCA8418Component : public key_provider::KeyProvider, public Component, pub
 
   const uint8_t *keys_{nullptr};  // PROGMEM, indexed by key number - 1
   InternalGPIOPin *interrupt_pin_{nullptr};
-#ifdef USE_TCA8418_KEY_PUBLISHER
-  void (*key_publisher_)(uint8_t key, bool pressed){nullptr};
-#endif
   uint32_t last_poll_{0};
   uint8_t rows_{0};
   uint8_t columns_{0};

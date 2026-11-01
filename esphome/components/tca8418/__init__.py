@@ -38,12 +38,13 @@ TCA8418Component = tca8418_ns.class_(
 
 # Publishes the binary sensors on each key event
 KEY_PUBLISHER = cg.HubFunction(
-    "key_fn",
+    "key",
     cg.void,
     [(cg.uint8, "key"), (cg.bool_, "pressed")],
-    setter="set_key_publisher",
     define="USE_TCA8418_KEY_PUBLISHER",
 )
+KEY = KEY_PUBLISHER.param("key")
+PRESSED = KEY_PUBLISHER.param("pressed")
 
 
 def _ascii_string(value: str) -> str:
