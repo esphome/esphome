@@ -239,7 +239,8 @@ class HubFunction:
 
     Declare it once at module level and call ``add`` from ``to_code``. At FINAL priority each
     hub with items gets ``static <return_type> esphome__<hub>__<name>_fn(<parameters>)``, passed
-    to ``hub.set_<name>_publisher()``, which ``HUB_PUBLISHER(<name>, ...)`` declares in C++;
+    to ``hub.set_<name>_publisher()``, which ``HUB_PUBLISHER(<name>, ...)`` declares in C++
+    (``HUB_PUBLISHER_RETURNING(bool, <name>, ...)`` for a ``bool`` function);
     ``define`` is emitted once. A hub without items gets no call and keeps a ``nullptr``.
 
     ``void``: each item is a statement, or an expression run as one. ``bool``: each item is a
