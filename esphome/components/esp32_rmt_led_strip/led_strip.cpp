@@ -129,7 +129,7 @@ void ESP32RMTLEDStripLightOutput::setup() {
 #endif
 
   if (rmt_enable(this->channel_) != ESP_OK) {
-    this->mark_failed(LOG_STR("Enable channel failed"));
+    this->mark_failed(LOG_STR("Enabling channel failed"));
     return;
   }
 
