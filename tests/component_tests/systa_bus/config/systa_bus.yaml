@@ -1,0 +1,31 @@
+esphome:
+  name: test
+
+esp32:
+  board: esp32dev
+  framework:
+    type: esp-idf
+
+uart:
+  rx_pin: GPIO16
+  baud_rate: 9600
+
+systa_bus:
+  id: bus
+
+sensor:
+  - platform: systa_bus
+    model: systasolar_aqua
+    temperature_tsa:
+      id: tsa
+      name: TSA
+    pump_speed:
+      id: pump
+      name: Pump Speed
+
+text_sensor:
+  - platform: systa_bus
+    model: systasolar_aqua
+    error_code:
+      id: error_code
+      name: Error Code
