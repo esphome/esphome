@@ -34,6 +34,55 @@ api:
             format: "YAML service many args: %d, %.2f, %d, %s"
             args: [arg1, arg2, arg3, arg4.c_str()]
 
+    # Array arguments, read in place
+    - action: test_yaml_service_arrays
+      variables:
+        bool_arr: bool[]
+        int_arr: int[]
+        float_arr: float[]
+        string_arr: string[]
+      then:
+        - logger.log:
+            format: "YAML service arrays: %d %d, %ld %ld %ld, %.1f, %s %s"
+            args:
+              - bool_arr[0]
+              - bool_arr[1]
+              - (long) int_arr[0]
+              - (long) int_arr[1]
+              - (long) int_arr[2]
+              - float_arr[0]
+              - string_arr[0].c_str()
+              - string_arr[1].c_str()
+
+    # Arguments still read after a delay
+    - action: test_yaml_service_delay
+      variables:
+        name: string
+        int_arr: int[]
+      then:
+        - logger.log: "YAML service delay before"
+        - delay: 10ms
+        - logger.log:
+            format: "YAML service delay after: %s %zu %ld"
+            args:
+              - name.c_str()
+              - int_arr.size()
+              - (long) int_arr[1]
+
+    # Each lambda gets its own copy of the arguments
+    - action: test_yaml_service_by_value
+      variables:
+        x: int
+      then:
+        - lambda: |-
+            x *= 2;
+            ESP_LOGI("test", "YAML service by value first: %d", (int) x);
+        - lambda: |-
+            ESP_LOGI("test", "YAML service by value second: %d", (int) (x *= 3));
+        - logger.log:
+            format: "YAML service by value last: %d"
+            args: [(int) x]
+
 logger:
   level: DEBUG
 
