@@ -27,6 +27,13 @@ void SX1509Component::setup() {
   delayMicroseconds(500);
   if (this->has_keypad_)
     this->setup_keypad_();
+#ifdef SX1509_LED_CHANNEL_COUNT
+  for (const auto &led : this->led_channels_) {
+    this->pin_mode(led.pin, gpio::FLAG_OUTPUT);
+    this->setup_led_driver(led.pin);
+    this->set_pin_value(led.pin, led.initial_duty);
+  }
+#endif
 }
 
 void SX1509Component::dump_config() {
