@@ -425,7 +425,7 @@ def compile_and_get_binary(
             return exit_code, None
     except Exception as e:  # noqa: BLE001
         print(f"Error compiling {label} for {', '.join(components)}: {e!r}")
-        traceback.print_exc()
+        traceback.print_exc(file=sys.stdout)
         return EXIT_COMPILE_ERROR, None
 
     # After a successful compilation, locate the executable:
