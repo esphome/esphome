@@ -32,8 +32,8 @@ static const uint8_t INA226_REGISTER_BUS_VOLTAGE = 0x02;
 static const uint8_t INA226_REGISTER_POWER = 0x03;
 static const uint8_t INA226_REGISTER_CURRENT = 0x04;
 static const uint8_t INA226_REGISTER_CALIBRATION = 0x05;
-static const uint8_t INA226_REGISTER_MASK_ENABLE = 0x06;
-static const uint8_t INA226_REGISTER_ALERT_LIMIT = 0x07;
+static constexpr uint8_t INA226_REGISTER_MASK_ENABLE = 0x06;
+static constexpr uint8_t INA226_REGISTER_ALERT_LIMIT = 0x07;
 
 static const uint16_t INA226_ADC_TIMES[] = {140, 204, 332, 588, 1100, 2116, 4156, 8244};
 static const uint16_t INA226_ADC_AVG_SAMPLES[] = {1, 4, 16, 64, 128, 256, 512, 1024};
@@ -82,79 +82,13 @@ void INA226Component::setup() {
     return;
   }
 
-  // Configure Alert/Conversion Ready pin when requested
-  if (this->alert_function_ != ALERT_FUNCTION_NONE || this->alert_conversion_ready_) {
-    int16_t alert_limit_raw = 0;
-
-    auto safe_round_to_int16 = [this](float value, const char *function_name, const char *unit,
-                                      float scale_factor) -> int16_t {
-      float rounded = value + (value >= 0.0f ? 0.5f : -0.5f);
-      if (rounded < -32768.0f || rounded > 32767.0f) {
-        float min_limit = -32768.0f * scale_factor;
-        float max_limit = 32767.0f * scale_factor;
-        ESP_LOGE(
-            TAG,
-            "Alert limit %.6f %s (%s) converts to register value %.2f, out of range [-32768, 32767] (%.6f to %.6f %s)",
-            this->alert_limit_, unit, function_name, rounded, min_limit, max_limit, unit);
-        this->mark_failed(LOG_STR("Alert limit out of range"));
-        return 0;
-      }
-      return static_cast<int16_t>(rounded);
-    };
-
-    switch (this->alert_function_) {
-      case ALERT_FUNCTION_SHUNT_OVER:
-      case ALERT_FUNCTION_SHUNT_UNDER:
-        alert_limit_raw = safe_round_to_int16(
-            this->alert_limit_ / 0.0000025f,
-            this->alert_function_ == ALERT_FUNCTION_SHUNT_OVER ? "shunt_over" : "shunt_under", "V", 0.0000025f);
-        break;
-      case ALERT_FUNCTION_BUS_OVER:
-      case ALERT_FUNCTION_BUS_UNDER:
-        alert_limit_raw = safe_round_to_int16(
-            this->alert_limit_ / 0.00125f, this->alert_function_ == ALERT_FUNCTION_BUS_OVER ? "bus_over" : "bus_under",
-            "V", 0.00125f);
-        break;
-      case ALERT_FUNCTION_POWER_OVER: {
-        float current_lsb_a = this->calibration_lsb_ / 1000000.0f;
-        float denom = current_lsb_a * 25.0f;
-        if (denom > 0.0f) {
-          alert_limit_raw = safe_round_to_int16(this->alert_limit_ / denom, "power_over", "W", denom);
-        }
-        break;
-      }
-      case ALERT_FUNCTION_NONE:
-      default:
-        break;
-    }
-
-    if (this->is_failed()) {
-      return;
-    }
-
-    if (this->alert_function_ != ALERT_FUNCTION_NONE) {
-      if (!this->write_byte_16(INA226_REGISTER_ALERT_LIMIT, static_cast<uint16_t>(alert_limit_raw))) {
-        this->mark_failed(LOG_STR(ESP_LOG_MSG_COMM_FAIL));
-        return;
-      }
-    }
-
-    uint16_t mask = static_cast<uint16_t>(this->alert_function_);
-    if (this->alert_conversion_ready_) {
-      mask |= 1 << 10;
-    }
-    if (this->alert_polarity_high_) {
-      mask |= 1 << 1;
-    }
-    if (this->alert_latch_) {
-      mask |= 1 << 0;
-    }
-
-    if (!this->write_byte_16(INA226_REGISTER_MASK_ENABLE, mask)) {
-      this->mark_failed(LOG_STR(ESP_LOG_MSG_COMM_FAIL));
-      return;
-    }
+#ifdef USE_INA226_ALERT
+  if (!this->write_byte_16(INA226_REGISTER_ALERT_LIMIT, this->alert_limit_) ||
+      !this->write_byte_16(INA226_REGISTER_MASK_ENABLE, this->alert_mask_)) {
+    this->mark_failed(LOG_STR(ESP_LOG_MSG_COMM_FAIL));
+    return;
   }
+#endif
 }
 
 void INA226Component::dump_config() {
@@ -177,39 +111,9 @@ void INA226Component::dump_config() {
   LOG_SENSOR("  ", "Current", this->current_sensor_);
   LOG_SENSOR("  ", "Power", this->power_sensor_);
 
-  if (this->alert_function_ != ALERT_FUNCTION_NONE || this->alert_conversion_ready_) {
-    const char *alert_function_label = "None";
-    switch (this->alert_function_) {
-      case ALERT_FUNCTION_SHUNT_OVER:
-        alert_function_label = "Shunt Over";
-        break;
-      case ALERT_FUNCTION_SHUNT_UNDER:
-        alert_function_label = "Shunt Under";
-        break;
-      case ALERT_FUNCTION_BUS_OVER:
-        alert_function_label = "Bus Over";
-        break;
-      case ALERT_FUNCTION_BUS_UNDER:
-        alert_function_label = "Bus Under";
-        break;
-      case ALERT_FUNCTION_POWER_OVER:
-        alert_function_label = "Power Over";
-        break;
-      case ALERT_FUNCTION_NONE:
-      default:
-        break;
-    }
-
-    ESP_LOGCONFIG(TAG, "  Alert Function: %s", alert_function_label);
-    if (this->alert_function_ != ALERT_FUNCTION_NONE) {
-      ESP_LOGCONFIG(TAG, "  Alert Limit: %.6f", this->alert_limit_);
-    }
-    ESP_LOGCONFIG(TAG, "  Alert Conversion Ready: %s", ONOFF(this->alert_conversion_ready_));
-    ESP_LOGCONFIG(TAG, "  Alert Polarity High: %s", ONOFF(this->alert_polarity_high_));
-    ESP_LOGCONFIG(TAG, "  Alert Latch Enabled: %s", ONOFF(this->alert_latch_));
-  } else {
-    ESP_LOGCONFIG(TAG, "  Alert: Disabled");
-  }
+#ifdef USE_INA226_ALERT
+  ESP_LOGCONFIG(TAG, "  Alert: mask 0x%04X, limit 0x%04X", this->alert_mask_, this->alert_limit_);
+#endif
 }
 
 void INA226Component::update() {
@@ -263,10 +167,9 @@ void INA226Component::update() {
 }
 
 void INA226Component::clear_alert_flag() {
+  // Reading MASK_ENABLE releases a latched alert
   uint16_t mask_reg;
-  if (this->read_byte_16(INA226_REGISTER_MASK_ENABLE, &mask_reg)) {
-    ESP_LOGI(TAG, "Alert flag cleared");
-  } else {
+  if (!this->read_byte_16(INA226_REGISTER_MASK_ENABLE, &mask_reg)) {
     ESP_LOGW(TAG, "Failed to clear alert flag");
   }
 }

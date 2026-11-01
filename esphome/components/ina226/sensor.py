@@ -1,11 +1,12 @@
 from collections.abc import Callable
+import math
 from typing import Any
 
 from esphome import automation
 from esphome.automation import maybe_simple_id
 import esphome.codegen as cg
 from esphome.components import i2c, sensor
-from esphome.components.const import CONF_ADC_AVERAGING, CONF_ADC_TIME
+from esphome.components.const import CONF_ACTIVE_HIGH, CONF_ADC_AVERAGING, CONF_ADC_TIME
 import esphome.config_validation as cv
 from esphome.const import (
     CONF_BUS_VOLTAGE,
@@ -30,7 +31,6 @@ DEPENDENCIES = ["i2c"]
 CONF_ALERT = "alert"
 CONF_FUNCTION = "function"
 CONF_LIMIT = "limit"
-CONF_ACTIVE_HIGH = "active_high"
 CONF_LATCH = "latch"
 CONF_CONVERSION_READY = "conversion_ready"
 
@@ -38,16 +38,6 @@ ina226_ns = cg.esphome_ns.namespace("ina226")
 INA226Component = ina226_ns.class_(
     "INA226Component", cg.PollingComponent, i2c.I2CDevice
 )
-
-AlertFunction = ina226_ns.enum("AlertFunction")
-ALERT_FUNCTIONS = {
-    "none": AlertFunction.ALERT_FUNCTION_NONE,
-    "shunt_over": AlertFunction.ALERT_FUNCTION_SHUNT_OVER,
-    "shunt_under": AlertFunction.ALERT_FUNCTION_SHUNT_UNDER,
-    "bus_over": AlertFunction.ALERT_FUNCTION_BUS_OVER,
-    "bus_under": AlertFunction.ALERT_FUNCTION_BUS_UNDER,
-    "power_over": AlertFunction.ALERT_FUNCTION_POWER_OVER,
-}
 
 AdcTime = ina226_ns.enum("AdcTime")
 ADC_TIMES = {
@@ -74,43 +64,75 @@ ADC_AVG_SAMPLES = {
 }
 
 
-def validate_alert_config(config):
-    """Validate alert configuration to ensure proper usage."""
-    function = config.get(CONF_FUNCTION, "none")
+# MASK_ENABLE function bit and the ALERT_LIMIT LSB (V, V or W per count, power from the current LSB)
+ALERT_FUNCTION_BITS = {
+    "shunt_over": 1 << 15,
+    "shunt_under": 1 << 14,
+    "bus_over": 1 << 13,
+    "bus_under": 1 << 12,
+    "power_over": 1 << 11,
+}
+MASK_CONVERSION_READY = 1 << 10
+MASK_ACTIVE_HIGH = 1 << 1
+MASK_LATCH = 1 << 0
+SHUNT_LSB_V = 2.5e-6
+BUS_LSB_V = 1.25e-3
 
-    # If function is not none, limit should be explicitly set
-    if function != "none":
-        if CONF_LIMIT not in config:
-            raise cv.Invalid(
-                f"alert.limit is required when alert.function is '{function}' (not 'none'). "
-                f"Please specify a threshold value for the alert."
-            )
+POWER = cv.float_with_unit("power", "(w|W|watt|Watts)?")
 
-        limit = config[CONF_LIMIT]
+_ALERT_FLAGS = {
+    cv.Optional(CONF_CONVERSION_READY, default=False): cv.boolean,
+    cv.Optional(CONF_ACTIVE_HIGH, default=False): cv.boolean,
+    cv.Optional(CONF_LATCH, default=False): cv.boolean,
+}
+_SHUNT_LIMIT = {cv.Required(CONF_LIMIT): cv.voltage, **_ALERT_FLAGS}
+_BUS_LIMIT = {
+    cv.Required(CONF_LIMIT): cv.All(cv.voltage, cv.Range(min=0.0, max=36.0)),
+    **_ALERT_FLAGS,
+}
+ALERT_SCHEMA = cv.typed_schema(
+    {
+        "none": cv.Schema(_ALERT_FLAGS),
+        "shunt_over": cv.Schema(_SHUNT_LIMIT),
+        "shunt_under": cv.Schema(_SHUNT_LIMIT),
+        "bus_over": cv.Schema(_BUS_LIMIT),
+        "bus_under": cv.Schema(_BUS_LIMIT),
+        "power_over": cv.Schema(
+            {cv.Required(CONF_LIMIT): cv.All(POWER, cv.Range(min=0.0)), **_ALERT_FLAGS}
+        ),
+    },
+    key=CONF_FUNCTION,
+    default_type="none",
+)
 
-        # Range validation per function
-        if function in ["bus_over", "bus_under"]:
-            if limit < 0:
-                raise cv.Invalid(
-                    f"alert.limit must be non-negative for bus voltage alerts, got {limit}V"
-                )
-            if limit > 36.0:  # INA226 max bus voltage
-                raise cv.Invalid(
-                    f"alert.limit exceeds maximum bus voltage (36V), got {limit}V"
-                )
-        elif function == "power_over":
-            if limit < 0:
-                raise cv.Invalid(
-                    f"alert.limit must be non-negative for power alert, got {limit}W"
-                )
-        elif function in ["shunt_over", "shunt_under"]:
-            # INA226 shunt voltage range: ±81.92mV
-            # Negative values are valid for reverse current detection
-            if limit < -0.08192 or limit > 0.08192:
-                raise cv.Invalid(
-                    f"alert.limit must be within shunt voltage range (±81.92mV), got {limit * 1000:.3f}mV"
-                )
 
+def _alert_limit_register(config: ConfigType) -> int:
+    """The ALERT_LIMIT value as a signed count; range checked by the caller."""
+    alert = config[CONF_ALERT]
+    function = alert[CONF_FUNCTION]
+    if function == "none":
+        return 0
+    if function.startswith("shunt"):
+        lsb = SHUNT_LSB_V
+    elif function.startswith("bus"):
+        lsb = BUS_LSB_V
+    else:
+        # The power register counts 25 current LSBs
+        lsb = math.ceil(config[CONF_MAX_CURRENT] * 1e6 / 32768) * 25 / 1e6
+    return round(alert[CONF_LIMIT] / lsb)
+
+
+def _validate_alert(config: ConfigType) -> ConfigType:
+    if CONF_ALERT not in config:
+        return config
+    raw = _alert_limit_register(config)
+    low = -32768 if config[CONF_ALERT][CONF_FUNCTION].startswith("shunt") else 0
+    high = 65535 if config[CONF_ALERT][CONF_FUNCTION] == "power_over" else 32767
+    if not low <= raw <= high:
+        raise cv.Invalid(
+            f"'limit' is out of range; it gives register value {raw}, allowed {low} to {high}",
+            path=[CONF_ALERT, CONF_LIMIT],
+        )
     return config
 
 
@@ -132,7 +154,7 @@ def _per_channel(validator: Callable[[Any], Any]) -> Callable[[Any], ConfigType]
     )
 
 
-CONFIG_SCHEMA = (
+CONFIG_SCHEMA = cv.All(
     cv.Schema(
         {
             cv.GenerateID(): cv.declare_id(INA226Component),
@@ -172,27 +194,12 @@ CONFIG_SCHEMA = (
             cv.Optional(CONF_ADC_AVERAGING, default=4): cv.enum(
                 ADC_AVG_SAMPLES, int=True
             ),
-            cv.Optional(
-                CONF_ALERT,
-                default={},
-            ): cv.All(
-                cv.Schema(
-                    {
-                        cv.Optional(CONF_FUNCTION, default="none"): cv.enum(
-                            ALERT_FUNCTIONS
-                        ),
-                        cv.Optional(CONF_LIMIT): cv.float_,
-                        cv.Optional(CONF_CONVERSION_READY, default=False): cv.boolean,
-                        cv.Optional(CONF_ACTIVE_HIGH, default=False): cv.boolean,
-                        cv.Optional(CONF_LATCH, default=False): cv.boolean,
-                    }
-                ),
-                validate_alert_config,
-            ),
+            cv.Optional(CONF_ALERT): ALERT_SCHEMA,
         }
     )
     .extend(cv.polling_component_schema("60s"))
-    .extend(i2c.i2c_device_schema(0x40))
+    .extend(i2c.i2c_device_schema(0x40)),
+    _validate_alert,
 )
 
 
@@ -214,17 +221,16 @@ async def to_code(config: ConfigType) -> None:
     await sensors(CONF_CURRENT, var.set_current_sensor)
     await sensors(CONF_POWER, var.set_power_sensor)
 
-    alert_conf = config.get(CONF_ALERT)
-    if alert_conf:
-        cg.add(var.set_alert_function(alert_conf[CONF_FUNCTION]))
-        if CONF_LIMIT in alert_conf:
-            cg.add(var.set_alert_limit(alert_conf[CONF_LIMIT]))
-        else:
-            # Set default limit of 0.0 when function is "none"
-            cg.add(var.set_alert_limit(0.0))
-        cg.add(var.set_alert_conversion_ready(alert_conf[CONF_CONVERSION_READY]))
-        cg.add(var.set_alert_polarity(alert_conf[CONF_ACTIVE_HIGH]))
-        cg.add(var.set_alert_latch(alert_conf[CONF_LATCH]))
+    if (alert := config.get(CONF_ALERT)) is not None:
+        cg.add_define("USE_INA226_ALERT")
+        mask = ALERT_FUNCTION_BITS.get(alert[CONF_FUNCTION], 0)
+        if alert[CONF_CONVERSION_READY]:
+            mask |= MASK_CONVERSION_READY
+        if alert[CONF_ACTIVE_HIGH]:
+            mask |= MASK_ACTIVE_HIGH
+        if alert[CONF_LATCH]:
+            mask |= MASK_LATCH
+        cg.add(var.set_alert(_alert_limit_register(config) & 0xFFFF, mask))
 
 
 CLEAR_ALERT_ACTION_SCHEMA = maybe_simple_id(

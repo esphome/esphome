@@ -3,7 +3,6 @@
 #include "esphome/core/component.h"
 #include "esphome/components/sensor/sensor.h"
 #include "esphome/components/i2c/i2c.h"
-#include "esphome/core/automation.h"
 
 namespace esphome::ina226 {
 
@@ -27,15 +26,6 @@ enum AdcAvgSamples : uint16_t {
   ADC_AVG_SAMPLES_256 = 5,
   ADC_AVG_SAMPLES_512 = 6,
   ADC_AVG_SAMPLES_1024 = 7
-};
-
-enum AlertFunction : uint16_t {
-  ALERT_FUNCTION_NONE = 0,
-  ALERT_FUNCTION_SHUNT_OVER = 1 << 15,
-  ALERT_FUNCTION_SHUNT_UNDER = 1 << 14,
-  ALERT_FUNCTION_BUS_OVER = 1 << 13,
-  ALERT_FUNCTION_BUS_UNDER = 1 << 12,
-  ALERT_FUNCTION_POWER_OVER = 1 << 11
 };
 
 union ConfigurationRegister {
@@ -67,11 +57,13 @@ class INA226Component final : public PollingComponent, public i2c::I2CDevice {
   void set_adc_time_current(AdcTime time) { adc_time_current_ = time; }
   void set_adc_avg_samples(AdcAvgSamples samples) { adc_avg_samples_ = samples; }
 
-  void set_alert_function(AlertFunction alert_function) { alert_function_ = alert_function; }
-  void set_alert_limit(float alert_limit) { alert_limit_ = alert_limit; }
-  void set_alert_conversion_ready(bool alert_conversion_ready) { alert_conversion_ready_ = alert_conversion_ready; }
-  void set_alert_polarity(bool alert_polarity) { alert_polarity_high_ = alert_polarity; }
-  void set_alert_latch(bool alert_latch) { alert_latch_ = alert_latch; }
+#ifdef USE_INA226_ALERT
+  // Register values computed in Python
+  void set_alert(uint16_t limit, uint16_t mask) {
+    this->alert_limit_ = limit;
+    this->alert_mask_ = mask;
+  }
+#endif
 
   void clear_alert_flag();
 
@@ -82,12 +74,10 @@ class INA226Component final : public PollingComponent, public i2c::I2CDevice {
   AdcTime adc_time_current_{AdcTime::ADC_TIME_1100US};
   AdcAvgSamples adc_avg_samples_{AdcAvgSamples::ADC_AVG_SAMPLES_4};
   uint32_t calibration_lsb_;
-
-  AlertFunction alert_function_{ALERT_FUNCTION_NONE};
-  float alert_limit_{0.0f};
-  bool alert_conversion_ready_{false};
-  bool alert_polarity_high_{false};
-  bool alert_latch_{false};
+#ifdef USE_INA226_ALERT
+  uint16_t alert_limit_{0};
+  uint16_t alert_mask_{0};
+#endif
 };
 
 }  // namespace esphome::ina226

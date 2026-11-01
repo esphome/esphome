@@ -17,7 +17,7 @@ sensor:
     adc_time: 588us
     alert:
       function: power_over
-      limit: 50.0
+      limit: 50W
       conversion_ready: true
       active_high: true
       latch: true
@@ -32,7 +32,7 @@ sensor:
           - ina226.clear_alert: ina226_basic
     alert:
       function: shunt_under
-      limit: -0.01
+      limit: -10mV
     adc_time:
       voltage: 2116us
       current: 4156us
