@@ -32,6 +32,10 @@ static const uint8_t INA226_REGISTER_BUS_VOLTAGE = 0x02;
 static const uint8_t INA226_REGISTER_POWER = 0x03;
 static const uint8_t INA226_REGISTER_CURRENT = 0x04;
 static const uint8_t INA226_REGISTER_CALIBRATION = 0x05;
+#ifdef USE_INA226_ALERT
+static constexpr uint8_t INA226_REGISTER_MASK_ENABLE = 0x06;
+static constexpr uint8_t INA226_REGISTER_ALERT_LIMIT = 0x07;
+#endif
 
 static const uint16_t INA226_ADC_TIMES[] = {140, 204, 332, 588, 1100, 2116, 4156, 8244};
 static const uint16_t INA226_ADC_AVG_SAMPLES[] = {1, 4, 16, 64, 128, 256, 512, 1024};
@@ -79,6 +83,14 @@ void INA226Component::setup() {
     this->mark_failed(LOG_STR(ESP_LOG_MSG_COMM_FAIL));
     return;
   }
+
+#ifdef USE_INA226_ALERT
+  if (!this->write_byte_16(INA226_REGISTER_ALERT_LIMIT, this->alert_limit_) ||
+      !this->write_byte_16(INA226_REGISTER_MASK_ENABLE, this->alert_mask_)) {
+    this->mark_failed(LOG_STR(ESP_LOG_MSG_COMM_FAIL));
+    return;
+  }
+#endif
 }
 
 void INA226Component::dump_config() {
@@ -100,6 +112,10 @@ void INA226Component::dump_config() {
   LOG_SENSOR("  ", "Shunt Voltage", this->shunt_voltage_sensor_);
   LOG_SENSOR("  ", "Current", this->current_sensor_);
   LOG_SENSOR("  ", "Power", this->power_sensor_);
+
+#ifdef USE_INA226_ALERT
+  ESP_LOGCONFIG(TAG, "  Alert: mask 0x%04X, limit 0x%04X", this->alert_mask_, this->alert_limit_);
+#endif
 }
 
 void INA226Component::update() {
@@ -151,5 +167,15 @@ void INA226Component::update() {
 
   this->status_clear_warning();
 }
+
+#ifdef USE_INA226_ALERT
+void INA226Component::clear_alert_flag() {
+  // Reading MASK_ENABLE releases a latched alert
+  uint16_t mask_reg;
+  if (!this->read_byte_16(INA226_REGISTER_MASK_ENABLE, &mask_reg)) {
+    ESP_LOGW(TAG, "Failed to clear alert flag");
+  }
+}
+#endif
 
 }  // namespace esphome::ina226

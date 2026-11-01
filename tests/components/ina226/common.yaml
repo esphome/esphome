@@ -1,5 +1,6 @@
 sensor:
   - platform: ina226
+    id: ina226_basic
     i2c_id: i2c_bus
     address: 0x40
     shunt_resistance: 0.1 ohm
@@ -14,12 +15,24 @@ sensor:
     max_current: 3.2A
     update_interval: 15s
     adc_time: 588us
+    alert:
+      function: power_over
+      limit: 50W
+      conversion_ready: true
+      active_high: true
+      latch: true
   - platform: ina226
     i2c_id: i2c_bus
     address: 0x41
     shunt_resistance: 0.1 ohm
     current:
       name: INA226 Current 2
+      on_value:
+        then:
+          - ina226.clear_alert: ina226_basic
+    alert:
+      function: shunt_under
+      limit: -10mV
     adc_time:
       voltage: 2116us
       current: 4156us
