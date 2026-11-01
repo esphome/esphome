@@ -41,8 +41,8 @@ class BoardTarget:
     name: str
     # full_name from board.yml
     full_name: str
-    # The SoC, such as nrf52840, as BOARDS in rp2/boards.py names it
-    mcu: str
+    # The SoC in upper case, such as NRF52840, like the variant in esp32/boards.py
+    variant: str
     dts: Path
     # Overlays the build adds on top, for the board's default revision
     overlays: tuple[Path, ...] = ()
@@ -51,7 +51,7 @@ class BoardTarget:
 @dataclass(frozen=True)
 class BoardInfo:
     name: str
-    mcu: str
+    variant: str
     # Paths of the CDC ACM nodes the board enables on its own
     cdc_acm: tuple[str, ...]
 
@@ -140,7 +140,7 @@ def _board_yml_targets(
                 yield BoardTarget(
                     target,
                     full_name,
-                    soc["name"],
+                    soc["name"].upper(),
                     dts,
                     overlays,
                 )
@@ -212,7 +212,7 @@ def read_board(target: BoardTarget, roots: list[Path]) -> BoardInfo:
         and _is_okay(node)
         and all(_is_okay(parent) for parent in _parents(node))
     )
-    return BoardInfo(target.full_name, target.mcu, cdc_acm)
+    return BoardInfo(target.full_name, target.variant, cdc_acm)
 
 
 def _parents(node: dtlib.Node) -> Iterator[dtlib.Node]:
@@ -251,7 +251,7 @@ def render(versions: dict[str, dict[str, BoardInfo]]) -> str:
             lines.append(
                 f'            "name": {json.dumps(info.name, ensure_ascii=False)},'
             )
-            lines.append(f'            "mcu": "{info.mcu}",')
+            lines.append(f'            "variant": "{info.variant}",')
             if info.cdc_acm:
                 lines.append('            "cdc_acm": [')
                 lines.extend(f'                "{path}",' for path in info.cdc_acm)

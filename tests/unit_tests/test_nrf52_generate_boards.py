@@ -140,10 +140,10 @@ def test_board_yml_targets(tmp_path: Path) -> None:
     )
     _write(other / "nucleo.dts", "")
 
-    def target(name: str, mcu: str, dts: Path, *overlays: Path) -> BoardTarget:
+    def target(name: str, soc: str, dts: Path, *overlays: Path) -> BoardTarget:
         # Without a full_name in board.yml the board name is used
         full_name = name.split("/", maxsplit=1)[0]
-        return BoardTarget(name, full_name, mcu, dts, overlays)
+        return BoardTarget(name, full_name, soc.upper(), dts, overlays)
 
     assert find_targets(tmp_path / "boards", socs) == [
         target(
@@ -197,7 +197,7 @@ def test_load_boards_reads_enabled_cdc_acm_nodes(tmp_path: Path) -> None:
     assert load_boards([zephyr]) == {
         "xiao_ble": BoardInfo(
             "XIAO BLE",
-            "nrf52840",
+            "NRF52840",
             (
                 "/soc/usbd@40027000/board_cdc_acm_uart",
                 "/soc/usbd@40027000/old_spelling",
@@ -209,18 +209,18 @@ def test_load_boards_reads_enabled_cdc_acm_nodes(tmp_path: Path) -> None:
 def test_render_and_replace() -> None:
     generated = render(
         {
-            "3.2.0": {"b": BoardInfo('Say "B"', "nrf52840", ("/soc/cdc",))},
-            "2.9.2": {"a": BoardInfo("A", "nrf54l15", ())},
+            "3.2.0": {"b": BoardInfo('Say "B"', "NRF52840", ("/soc/cdc",))},
+            "2.9.2": {"a": BoardInfo("A", "NRF54L15", ())},
         }
     )
     namespace: dict = {}
     exec(generated, namespace)  # noqa: S102
     assert namespace["BOARDS"] == {
-        "2.9.2": {"a": {"name": "A", "mcu": "nrf54l15"}},
+        "2.9.2": {"a": {"name": "A", "variant": "NRF54L15"}},
         "3.2.0": {
             "b": {
                 "name": 'Say "B"',
-                "mcu": "nrf52840",
+                "variant": "NRF52840",
                 "cdc_acm": ["/soc/cdc"],
             }
         },
@@ -242,7 +242,7 @@ def test_boards_py_is_formatted_as_generated() -> None:
         version: {
             name: BoardInfo(
                 info["name"],
-                info["mcu"],
+                info["variant"],
                 tuple(info.get("cdc_acm", ())),
             )
             for name, info in board_infos.items()
@@ -262,7 +262,9 @@ def test_get_board_info_picks_sdk_version(
     monkeypatch.setattr(
         boards,
         "BOARDS",
-        {v: {"b": {"mcu": v}} for v in ("3.4.0", "2.9.2", "3.2.0")},
+        {v: {"b": {"variant": v}} for v in ("3.4.0", "2.9.2", "3.2.0")},
     )
-    assert boards.get_board_info(cv.Version.parse(framework), "b") == {"mcu": expected}
+    assert boards.get_board_info(cv.Version.parse(framework), "b") == {
+        "variant": expected
+    }
     assert boards.get_board_info(cv.Version.parse(framework), "unknown") is None
