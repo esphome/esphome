@@ -17,7 +17,7 @@ CONF_MK2PVROUTER_ID = "mk2pvrouter_id"
 # which needs room for a trailing null terminator.
 MAX_TAG_LEN = 7
 
-MK2PVROUTER_LISTENER_SCHEMA = cv.Schema(
+MK2PVROUTER_CHILD_SCHEMA = cv.Schema(
     {
         cv.GenerateID(CONF_MK2PVROUTER_ID): cv.use_id(Mk2PVRouter),
         cv.Required(CONF_TAG): cv.All(
@@ -55,19 +55,22 @@ FINAL_VALIDATE_SCHEMA = final_validate
 
 
 # Children publish each received tag/value pair that matches their tag
-VALUE = cg.HubFunction(
-    "value_fn",
+VALUE_PUBLISHER = cg.HubFunction(
+    "value",
     cg.void,
     [(cg.const_char_ptr, "tag"), (cg.const_char_ptr, "val")],
-    setter="set_value_fn",
-    define="USE_MK2PVROUTER_VALUE_FN",
+    define="USE_MK2PVROUTER_VALUE_PUBLISHER",
 )
-TAG = VALUE.param("tag")
-VAL = VALUE.param("val")
-# Children's dump_config lines
-DUMP = cg.HubFunction(
-    "dump_fn", cg.void, [], setter="set_dump_fn", define="USE_MK2PVROUTER_VALUE_FN"
+TAG = VALUE_PUBLISHER.param("tag")
+VAL = VALUE_PUBLISHER.param("val")
+# Children's dump_config lines, logged under the hub's tag
+DUMP_PUBLISHER = cg.HubFunction(
+    "dump",
+    cg.void,
+    [(cg.const_char_ptr, "tag")],
+    define="USE_MK2PVROUTER_VALUE_PUBLISHER",
 )
+DUMP_TAG = DUMP_PUBLISHER.param("tag")
 
 
 async def to_code(config: ConfigType) -> None:
