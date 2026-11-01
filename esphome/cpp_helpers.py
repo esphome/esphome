@@ -216,6 +216,47 @@ def slot_counter(define: str) -> Callable[..., None]:
     return request_slot
 
 
+# Define of every cg.slot_list() -> its hub's domain. Filled at import time, so no per-run state.
+_SLOT_LIST_DOMAINS: dict[str, str] = {}
+
+
+def slot_list(define: str, register: str, domain: str) -> Callable[..., Expression]:
+    """Create the codegen side of a `SLOT_LIST` (esphome/core/helpers.h).
+
+    `register_item(hub, *args)` reserves a slot for `hub` and returns the
+    `hub->register(args...)` call. `define` is the largest count of any one hub, and 0
+    when `domain` (the hub's DOMAIN) is built but nothing registered. Call it in the
+    hub's `__init__.py`, since a platform module may not be imported.
+    """
+    if _SLOT_LIST_DOMAINS.setdefault(define, domain) != domain:
+        raise ValueError(
+            f"cg.slot_list('{define}') already belongs to {_SLOT_LIST_DOMAINS[define]}"
+        )
+    request_slot = slot_counter(define)
+
+    def register_item(hub: MockObj, *args: Any) -> Expression:
+        request_slot(str(hub))
+        return getattr(hub, register)(*args)
+
+    return register_item
+
+
+@coroutine_with_priority(CoroPriority.FINAL)
+async def emit_empty_slot_lists() -> None:
+    """Emit 0 for each `cg.slot_list()` define of a built hub that nothing registered into."""
+    from esphome.config import iter_components
+
+    state = _get_slot_counter_state()
+    # components and platforms; C++ unit tests have no MULTI_CONF hub entry and set the define
+    built = {name.rpartition(".")[2] for name, _ in iter_components(CORE.config)}
+    # leave a define set by hand (a test manifest override) alone
+    done = state.counts.keys() | {d.name for d in CORE.defines}
+    for define, domain in _SLOT_LIST_DOMAINS.items():
+        if domain in built and define not in done:
+            state.emitted.add(define)
+            add_define(define, 0)
+
+
 async def gpio_pin_expression(conf):
     """Generate an expression for the given pin option.
 
