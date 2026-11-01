@@ -16,6 +16,7 @@ from esphome.components.zephyr import (
     Section,
     add_extra_script,
     copy_files as zephyr_copy_files,
+    zephyr_add_board_cdc_acm_node,
     zephyr_add_overlay,
     zephyr_add_pm_static,
     zephyr_add_prj_conf,
@@ -71,7 +72,7 @@ from esphome.helpers import rmtree, write_file_if_changed
 from esphome.storage_json import StorageJSON
 from esphome.types import ConfigType
 
-from .boards import BOARDS_ZEPHYR, BOOTLOADER_CONFIG, SELF_RESET_PINS
+from .boards import BOARDS_ZEPHYR, BOOTLOADER_CONFIG, SELF_RESET_PINS, get_board_info
 from .const import (
     BOOTLOADER_ADAFRUIT,
     BOOTLOADER_ADAFRUIT_NRF52_SD132,
@@ -537,6 +538,10 @@ async def to_code(config: ConfigType) -> None:
                 };
             """
         )
+    # Some boards add their own CDC ACM port, which ESPHome replaces with its own ports
+    if board_info := get_board_info(framework_ver, config[CONF_BOARD]):
+        for path in board_info.get("cdc_acm", []):
+            zephyr_add_board_cdc_acm_node(path)
     zephyr_add_prj_conf("REBOOT", True)
 
     # some boards enable USB and UART by default.
