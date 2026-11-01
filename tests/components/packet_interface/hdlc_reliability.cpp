@@ -56,6 +56,11 @@ struct Peer {
         [this](const PacketBuffer &data, const PacketMetaData &) { this->received.push_back(to_vector(data)); });
     this->hdlc->add_on_session_state_callback([this](bool connected) { this->states.push_back(connected); });
   }
+  // Drop the layer's pending timers (ids 0 to 2) so none outlives it
+  ~Peer() {
+    for (uint32_t id = 0; id < 3; ++id)
+      App.scheduler.cancel_timeout(this->hdlc.get(), id);
+  }
   bool send(const Frame &data) { return this->hdlc->send_to_interface(PacketBuffer(data), {}); }
 
   MockLink link;
@@ -108,20 +113,10 @@ static Frame make_frame(uint8_t control, const Frame &payload) {
   return frame;
 }
 
-// Each test replaces App with a fresh one; the retransmit timer needs its scheduler
 class HdlcReliabilityTest : public ::testing::Test {
  protected:
-  void SetUp() override {
-    App.~Application();
-    new (&App) Application();
-    static char name[] = "hdlc-tests";
-    static char friendly_name[] = "";
-    App.pre_setup(name, sizeof(name) - 1, friendly_name, 0);
-  }
-  void TearDown() override {
-    App.~Application();
-    new (&App) Application();  // later tests and the test listener use App
-  }
+  // Free the timers each Peer cancelled, so none is left in the scheduler for a later test
+  void TearDown() override { App.scheduler.call(millis()); }
 };
 
 TEST_F(HdlcReliabilityTest, MaxPacketSizeAllowsForOverhead) {

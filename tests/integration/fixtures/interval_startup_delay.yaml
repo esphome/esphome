@@ -1,0 +1,37 @@
+esphome:
+  name: interval-startup-delay
+
+host:
+api:
+logger:
+  level: DEBUG
+
+globals:
+  - id: plain_count
+    type: int
+    initial_value: "0"
+  - id: delayed_count
+    type: int
+    initial_value: "0"
+
+interval:
+  - id: plain_interval
+    interval: 100ms
+    then:
+      - lambda: |-
+          id(plain_count) += 1;
+          if (id(plain_count) == 1) {
+            ESP_LOGI("test", "PLAIN_FIRST uptime=%u", (unsigned) millis());
+          }
+  - id: delayed_interval
+    interval: 100ms
+    startup_delay: 1500ms
+    then:
+      - lambda: |-
+          id(delayed_count) += 1;
+          if (id(delayed_count) == 1) {
+            // Lambdas reach the delayed interval through its IntervalTrigger base.
+            interval::IntervalTrigger *base = id(delayed_interval);
+            ESP_LOGI("test", "DELAYED_FIRST uptime=%u plain_count=%d update_interval=%u", (unsigned) millis(),
+                     id(plain_count), (unsigned) base->get_update_interval());
+          }
