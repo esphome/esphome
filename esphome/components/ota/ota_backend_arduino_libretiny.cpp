@@ -7,7 +7,6 @@
 #include "esphome/core/log.h"
 
 #include <algorithm>
-#include <cstring>
 
 #include <Update.h>
 
@@ -44,34 +43,36 @@ OTAResponseTypes ArduinoLibreTinyOTABackend::begin(size_t image_size, OTAType ot
 }
 
 void ArduinoLibreTinyOTABackend::set_update_md5(const char *md5) {
-  // Compared in end() before the last block is written, since LibreTiny marks
+  // Compared in end() before the last byte is written, since LibreTiny marks
   // the image bootable before it compares its own MD5
   this->md5_set_ = parse_hex(md5, this->expected_md5_, 16);
 }
 
-bool ArduinoLibreTinyOTABackend::write_block_() {
-  size_t written = Update.write(this->block_, this->block_len_);
-  if (written != this->block_len_) {
-    ESP_LOGE(TAG, "Write error: %d", Update.getError());
-    return false;
+bool ArduinoLibreTinyOTABackend::feed_(const uint8_t *data, size_t len) {
+  while (len != 0) {
+    // Below a full UF2 block LibreTiny copies into its own buffer; given a full
+    // block it patches the caller's memory in place when writing OTA2
+    const size_t chunk = std::min(len, MAX_FEED);
+    if (Update.write(data, chunk) != chunk) {
+      ESP_LOGE(TAG, "Write error: %d", Update.getError());
+      return false;
+    }
+    this->wrote_ = true;
+    data += chunk;
+    len -= chunk;
   }
-  this->block_len_ = 0;
-  this->wrote_ = true;
   return true;
 }
 
 OTAResponseTypes ArduinoLibreTinyOTABackend::write(uint8_t *data, size_t len) {
+  if (len == 0)
+    return OTA_RESPONSE_OK;
   this->md5_.add(data, len);
-  while (len != 0) {
-    // Flush a full block only once more data follows, keeping the last one
-    if (this->block_len_ == BLOCK_SIZE && !this->write_block_())
-      return OTA_RESPONSE_ERROR_WRITING_FLASH;
-    const size_t chunk = std::min(len, BLOCK_SIZE - this->block_len_);
-    memcpy(this->block_ + this->block_len_, data, chunk);
-    this->block_len_ += chunk;
-    data += chunk;
-    len -= chunk;
-  }
+  // Keep the last byte back so the image stays incomplete until end()
+  if ((this->has_pending_ && !this->feed_(&this->pending_, 1)) || !this->feed_(data, len - 1))
+    return OTA_RESPONSE_ERROR_WRITING_FLASH;
+  this->pending_ = data[len - 1];
+  this->has_pending_ = true;
   return OTA_RESPONSE_OK;
 }
 
@@ -83,7 +84,7 @@ OTAResponseTypes ArduinoLibreTinyOTABackend::end() {
       return OTA_RESPONSE_ERROR_MD5_MISMATCH;
     }
   }
-  if (!this->write_block_())
+  if (this->has_pending_ && !this->feed_(&this->pending_, 1))
     return OTA_RESPONSE_ERROR_WRITING_FLASH;
   // Use strict validation (false) when MD5 is set, lenient validation (true) when no MD5
   // This matches the behavior of the old web_server OTA implementation

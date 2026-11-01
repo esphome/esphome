@@ -17,20 +17,20 @@ class ArduinoLibreTinyOTABackend final {
   static constexpr bool supports_compression() { return false; }
 
  private:
-  // One UF2 block. LibreTiny patches a full block in place when writing the
-  // OTA2 slot, so it only ever gets this copy, never the caller's buffer.
-  static constexpr size_t BLOCK_SIZE = 512;
+  // LibreTiny uses a full 512-byte UF2 block in place, and patches it there
+  // when writing the OTA2 slot, so it never gets more than one byte less
+  static constexpr size_t MAX_FEED = 511;
 
-  bool write_block_();
+  bool feed_(const uint8_t *data, size_t len);
 
   UpdateLock lock_;
   md5::MD5Digest md5_{};
   uint8_t expected_md5_[16];
-  // The last block is held back until end() has checked the MD5: lt_ota_end(),
+  // The last byte is held back until end() has checked the MD5: lt_ota_end(),
   // which Update.abort() runs too, marks the image bootable once every block is
   // written. LN882H cannot revert that mark, so this is its only guard.
-  uint8_t block_[BLOCK_SIZE];
-  size_t block_len_{0};
+  uint8_t pending_{0};
+  bool has_pending_{false};
   bool md5_set_{false};
   bool wrote_{false};
 };
