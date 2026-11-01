@@ -78,6 +78,10 @@ from .const import (
     BOOTLOADER_ADAFRUIT_NRF52_SD140_V6,
     BOOTLOADER_ADAFRUIT_NRF52_SD140_V7,
     BOOTLOADER_NRF,
+    CONF_TRANSPORT,
+    CONF_UDP,
+    FLASH_SECTOR_SIZE,
+    SMP_UDP_PORT,
 )
 from .framework import (
     check_and_install,
@@ -756,6 +760,15 @@ def _enter_open_dfu(host: str) -> str:
     )
 
 
+def has_network_ota(config: ConfigType) -> bool:
+    """True when zephyr_mcumgr OTA listens on UDP."""
+    return any(
+        ota.get(CONF_PLATFORM) == "zephyr_mcumgr"
+        and ota.get(CONF_TRANSPORT, {}).get(CONF_UDP)
+        for ota in config.get(CONF_OTA, [])
+    )
+
+
 def upload_program(config: ConfigType, args, host: str) -> bool:
     from esphome.__main__ import check_permissions
     from esphome.upload_targets import PortType, get_port_type
@@ -855,32 +868,91 @@ def upload_program(config: ConfigType, args, host: str) -> bool:
                 raise EsphomeError(f"Upload failed with result: {result}")
         return True  # Handled: PYOCD upload
 
+    file = getattr(args, "file", None)
     if mcumgr_device:
         # MCUboot over USB CDC: the serial port speaks the MCUmgr SMP protocol
-        asyncio.run(_smpmgr_upload(mcumgr_device))
+        asyncio.run(_smpmgr_upload(mcumgr_device, file))
         return True  # Handled: mcumgr serial upload
 
     # Deferred imports: bleak and friends are heavy, only load for BLE paths
     from .ble_logger import is_ble_address
 
     if host == "BLE" or is_ble_address(host):
-        asyncio.run(_upload_over_ble(config, host))
+        asyncio.run(_upload_over_ble(config, host, file))
         return True  # Handled: BLE OTA upload
+
+    if get_port_type(host) == PortType.NETWORK and has_network_ota(config):
+        ipv4 = config.get(network.DOMAIN, {}).get(network.CONF_ENABLE_IPV4, False)
+        addresses = _resolve_smp_udp_hosts(host, ipv4)
+        asyncio.run(_upload_over_udp(host, addresses, file))
+        return True  # Handled: mcumgr UDP upload
 
     return False  # Not handled: let caller try default upload methods
 
 
-async def _smpmgr_upload(device: str) -> None:
-    """Upload the MCUboot application image over the MCUmgr SMP protocol."""
+async def _smpmgr_upload(
+    device: str, file: str | None = None, udp: bool = False
+) -> None:
+    """Upload the MCUboot application image (or --file) over the MCUmgr SMP protocol."""
     from .ota import smpmgr_upload
 
     firmware = Path(
-        CORE.relative_pioenvs_path(CORE.name, "zephyr", "app_update.bin")
+        file or CORE.relative_pioenvs_path(CORE.name, "zephyr", "app_update.bin")
     ).resolve()
-    await smpmgr_upload(device, firmware)
+    await smpmgr_upload(device, firmware, udp)
 
 
-async def _upload_over_ble(config: ConfigType, host: str) -> None:
+def _resolve_smp_udp_hosts(host: str, ipv4: bool) -> list[str]:
+    """Every address for the host through the address cache, in resolve_ip_address order.
+
+    The device listens on IPv6, and on IPv4 only with network enable_ipv4.
+    """
+    import socket
+
+    from esphome.helpers import resolve_ip_address
+
+    # The CLI hands over only the first address it expanded from the cache
+    cache = CORE.address_cache
+    if cache and CORE.address and host in (cache.get_addresses(CORE.address) or ()):
+        host = CORE.address
+    resolved = resolve_ip_address(host, SMP_UDP_PORT, cache)
+    if not resolved:
+        raise EsphomeError(f"No addresses to connect to for {host}")
+    if not ipv4:
+        resolved = [addr for addr in resolved if addr[0] == socket.AF_INET6]
+        if not resolved:
+            raise EsphomeError(
+                f"{host} has no IPv6 address; the device listens for OTA on IPv6 "
+                "unless 'network: enable_ipv4: true' is set"
+            )
+    addresses: list[str] = []
+    for family, _, _, _, sockaddr in resolved:
+        address = sockaddr[0]
+        if family == socket.AF_INET6 and sockaddr[3]:
+            address = f"{address}%{sockaddr[3]}"
+        if address not in addresses:
+            addresses.append(address)
+    return addresses
+
+
+async def _upload_over_udp(host: str, addresses: list[str], file: str | None) -> None:
+    """Try each address until one answers; a failure after that is final."""
+    from .ota_udp import SMPUnreachableError
+
+    for index, address in enumerate(addresses, 1):
+        _LOGGER.info("Uploading to %s at %s", host, address)
+        try:
+            await _smpmgr_upload(address, file, udp=True)
+            return
+        except SMPUnreachableError as err:
+            if index == len(addresses):
+                raise
+            _LOGGER.warning("%s, trying the next address", err)
+
+
+async def _upload_over_ble(
+    config: ConfigType, host: str, file: str | None = None
+) -> None:
     """Upload over the OTA protocol the firmware was built with."""
     from .ota import smpmgr_scan
 
@@ -890,7 +962,7 @@ async def _upload_over_ble(config: ConfigType, host: str) -> None:
         ota.get(CONF_PLATFORM) == "adafruit_ble" for ota in config.get(CONF_OTA, [])
     ):
         address = await smpmgr_scan(CORE.name) if host == "BLE" else host
-        await _smpmgr_upload(address)
+        await _smpmgr_upload(address, file)
         return
 
     from esphome.components.adafruit_ble import dfu
@@ -1128,6 +1200,74 @@ def _copy_if_exists(src: Path, dst: Path) -> None:
         shutil.copy2(src, dst)
 
 
+# nRF52 flash write size and MCUboot's trailer layout (bootutil_misc.c)
+FLASH_WRITE_SIZE = 4
+MCUBOOT_SWAP_MOVE_STATES = 3
+MCUBOOT_TRAILER_INFO_SIZE = 4 * 8 + 16  # swap info fields and magic
+
+
+def _mcuboot_swap_limit(partitions: dict, mcuboot_config: str) -> int | None:
+    """The largest image MCUboot's swap using move can swap in, or None for other modes.
+
+    Mirrors app_max_size() in swap_move.c: the primary slot less its trailer sectors
+    and the sector the move needs, and no more than the secondary slot.
+    """
+    if "CONFIG_BOOT_SWAP_USING_MOVE=y" not in mcuboot_config.splitlines():
+        return None
+    match = re.search(
+        r"^CONFIG_BOOT_MAX_IMG_SECTORS=(\d+)$", mcuboot_config, re.MULTILINE
+    )
+    if match is None:
+        _LOGGER.warning(
+            "Skipping the MCUboot slot size check: BOOT_MAX_IMG_SECTORS is not set"
+        )
+        return None
+    trailer = (
+        int(match.group(1)) * MCUBOOT_SWAP_MOVE_STATES * FLASH_WRITE_SIZE
+        + MCUBOOT_TRAILER_INFO_SIZE
+    )
+    trailer_sectors = -(-trailer // FLASH_SECTOR_SIZE)
+    primary_sectors = partitions["mcuboot_primary"]["size"] // FLASH_SECTOR_SIZE
+    primary = (primary_sectors - trailer_sectors - 1) * FLASH_SECTOR_SIZE
+    return min(primary, partitions["mcuboot_secondary"]["size"])
+
+
+def _check_mcuboot_swap_limit(build_dir: Path, image: Path) -> None:
+    """Fail a build whose image MCUboot would refuse to swap in.
+
+    The linker only checks the app partition. MCUboot then boots the old image and
+    leaves the new one pending, which blocks every later OTA update.
+    """
+    partitions_file = build_dir / "partitions.yml"
+    mcuboot_config = build_dir / "mcuboot" / "zephyr" / ".config"
+    if not image.is_file():
+        # A stale app_update.bin from an earlier build could otherwise go out unnoticed
+        _LOGGER.warning("Skipping the MCUboot slot size check: %s is missing", image)
+        return
+    if not (partitions_file.is_file() and mcuboot_config.is_file()):
+        _LOGGER.warning(
+            "Skipping the MCUboot slot size check: %s or %s is missing",
+            partitions_file,
+            mcuboot_config,
+        )
+        return
+    import yaml
+
+    limit = _mcuboot_swap_limit(
+        yaml.safe_load(partitions_file.read_text()), mcuboot_config.read_text()
+    )
+    if limit is None:
+        return
+    size = image.stat().st_size
+    if size > limit:
+        raise EsphomeError(
+            f"The application image is {size} bytes, but MCUboot can only swap in "
+            f"{limit} bytes on this board. Remove at least {size - limit} bytes, for "
+            "example by leaving out components or lowering the log level."
+        )
+    _LOGGER.info("Application image: %d of %d bytes MCUboot can swap in", size, limit)
+
+
 def _west_build_command(
     python_executable: Path, board: str, build_dir: Path, source_dir: Path
 ) -> list[str]:
@@ -1233,6 +1373,9 @@ def run_compile(args, config: ConfigType) -> bool:
         west_out = zephyr_dir
     else:
         west_out = zephyr_dir / "zephyr"
+        if zephyr_data().get(KEY_SYSBUILD):
+            # Before the copies, so a failed check leaves no oversized app_update.bin
+            _check_mcuboot_swap_limit(build_dir, west_out / "zephyr.signed.bin")
         _copy_if_exists(west_out / "zephyr.uf2", zephyr_dir / "zephyr.uf2")
         _copy_if_exists(west_out / "zephyr.signed.bin", zephyr_dir / "app_update.bin")
         _copy_if_exists(west_out / "zephyr.hex", zephyr_dir / "zephyr.hex")

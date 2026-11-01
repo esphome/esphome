@@ -591,6 +591,11 @@ lvgl:
             text_letter_space: -4
             text_line_space: -4
         - container:
+            id: scrollable_container
+            scrollable: true
+            width: 50
+            height: 50
+        - container:
             align: center
             anim_duration: 1s
             arc_opa: COVER
