@@ -32,7 +32,8 @@ def short_board_name(board: str) -> str:
 
     Zephyr lets a board with a single SoC and no CPU clusters leave the SoC out, so
     xiao_ble/nrf52840 and xiao_ble are the same target. BOARDS lists such targets by
-    the short name; any other name is returned unchanged.
+    the short name; any other name is returned unchanged. Use it to look the board up
+    in ESPHome's tables only: west gets the board as the user wrote it.
     """
     name, _, soc = board.partition("/")
     if not soc or "/" in soc:

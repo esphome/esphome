@@ -334,7 +334,9 @@ async def to_code(config: ConfigType) -> None:
     elif CORE.using_zephyr:
         zephyr_add_prj_conf("I2C", True)
         i2c = "i2c0"
-        if zephyr_data()[KEY_BOARD] == "xiao_ble":
+        from esphome.components.nrf52.boards import short_board_name
+
+        if short_board_name(zephyr_data()[KEY_BOARD]) == "xiao_ble":
             i2c = "i2c1"
         zephyr_add_overlay(
             f"""

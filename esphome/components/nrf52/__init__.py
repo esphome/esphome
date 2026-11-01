@@ -225,13 +225,6 @@ BOOTLOADERS = [*SERIAL_DFU_BOOTLOADERS, BOOTLOADER_MCUBOOT]
 _validate_toolchain = cv.toolchain_enum(_TOOLCHAINS)
 
 
-def _short_board_name(config: ConfigType) -> ConfigType:
-    """Use the short name for <board>/<soc>, so board-specific settings find the board."""
-    if isinstance(board := config.get(CONF_BOARD), str):
-        config = {**config, CONF_BOARD: short_board_name(board)}
-    return config
-
-
 def _detect_bootloader(config: ConfigType) -> ConfigType:
     """Detect the bootloader for the given board."""
     config = config.copy()
@@ -239,10 +232,11 @@ def _detect_bootloader(config: ConfigType) -> ConfigType:
     if CONF_BOARD not in config:
         raise cv.Invalid("'board' is a required option for [nrf52].")
     board = config[CONF_BOARD]
+    board_id = short_board_name(board)
 
-    if board in BOARDS_ZEPHYR and KEY_BOOTLOADER in BOARDS_ZEPHYR[board]:
+    if board_id in BOARDS_ZEPHYR and KEY_BOOTLOADER in BOARDS_ZEPHYR[board_id]:
         # this board have bootloaders config available
-        bootloaders = BOARDS_ZEPHYR[board][KEY_BOOTLOADER]
+        bootloaders = BOARDS_ZEPHYR[board_id][KEY_BOOTLOADER]
 
     if KEY_BOOTLOADER not in config:
         if bootloaders:
@@ -282,7 +276,7 @@ def _default_self_reset_pin(config: ConfigType) -> ConfigType:
     # The factory bootloader ignores the retained register the touch sets, so a board with a GPIO
     # wired to RESET resets itself through that pin
     dfu = config.get(CONF_DFU)
-    number = SELF_RESET_PINS.get(config[CONF_BOARD])
+    number = SELF_RESET_PINS.get(short_board_name(config[CONF_BOARD]))
     if dfu is not None and number and CONF_RESET_PIN not in dfu:
         dfu[CONF_RESET_PIN] = pins.gpio_output_pin_schema(
             {CONF_NUMBER: number, CONF_INVERTED: True}
@@ -299,7 +293,6 @@ def _dfu_schema(value: bool | ConfigType) -> ConfigType:
 
 
 CONFIG_SCHEMA = cv.All(
-    _short_board_name,
     _detect_bootloader,
     set_core_data,
     cv.Schema(
@@ -428,9 +421,12 @@ async def to_code(config: ConfigType) -> None:
     cg.add_build_flag("-DUSE_NRF52")
     cg.add_define("ESPHOME_BOARD", config[CONF_BOARD])
     cg.add_define("ESPHOME_VARIANT", "NRF52")
+    # Board-specific settings look the board up by its short name; west and PlatformIO
+    # get config[CONF_BOARD] as written
+    board_id = short_board_name(config[CONF_BOARD])
     # Zephyr is a preemptive RTOS: BLE, Thread, USB and workqueue callbacks
     # run in other threads, so the scheduler must be thread-safe.
-    if config[CONF_BOARD] == "bbc_microbit":
+    if board_id == "bbc_microbit":
         # micro:bit v1 is an nRF51822 (Cortex-M0, ARMv6-M) without LDREX/STREX;
         # std::atomic RMW would need libatomic, so use k_mutex-based locking.
         cg.add_define(ThreadModel.MULTI_NO_ATOMICS)
@@ -543,7 +539,7 @@ async def to_code(config: ConfigType) -> None:
                 };
             """
         )
-    if config[CONF_BOARD] == "nrf52840dongle":
+    if board_id == "nrf52840dongle":
         # The board DTS enables uart0 on edge GPIOs (P0.17, P0.22, P0.24) although nothing is wired to it
         zephyr_add_overlay(
             """
@@ -554,7 +550,7 @@ async def to_code(config: ConfigType) -> None:
         )
     # Some boards add their own CDC ACM port. ESPHome adds the ports its components use
     # (cdc_acm_uartN), so the board's one would be an extra serial port.
-    if board_info := get_board_info(framework_ver, config[CONF_BOARD]):
+    if board_info := get_board_info(framework_ver, board_id):
         for path in board_info.get("cdc_acm", []):
             zephyr_add_overlay(
                 f"""
@@ -607,7 +603,7 @@ def copy_files() -> None:
 
     if CORE.using_toolchain_platformio and (
         zephyr_data()[KEY_BOOTLOADER] == BOOTLOADER_MCUBOOT
-        or zephyr_data()[KEY_BOARD] == "xiao_ble"
+        or short_board_name(zephyr_data()[KEY_BOARD]) == "xiao_ble"
     ):
         write_file_if_changed(
             CORE.relative_build_path(f"boards/{zephyr_data()[KEY_BOARD]}.json"),

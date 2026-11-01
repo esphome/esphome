@@ -32,6 +32,13 @@ def test_dongle_defaults_to_nrf_bootloader() -> None:
     assert config["bootloader"] == BOOTLOADER_NRF
 
 
+def test_board_with_soc_keeps_its_name_and_gets_the_board_bootloader() -> None:
+    """xiao_ble/nrf52840 goes to west as written but finds the xiao_ble settings."""
+    config = _detect_bootloader({"board": "xiao_ble/nrf52840"})
+    assert config["board"] == "xiao_ble/nrf52840"
+    assert config["bootloader"] == "adafruit_nrf52_sd140_v7"
+
+
 def test_dongle_rejects_foreign_bootloader() -> None:
     with pytest.raises(cv.Invalid, match="nrf52840dongle does not support"):
         _detect_bootloader({"board": "nrf52840dongle", "bootloader": "mcuboot"})
@@ -91,6 +98,14 @@ def test_dongle_dfu_resets_itself_through_the_pin_wired_to_reset() -> None:
     pin = config["dfu"]["reset_pin"]
     assert pin[CONF_NUMBER] == 19
     assert pin[CONF_INVERTED] is True
+
+
+@pytest.mark.usefixtures("_path_ctx")
+def test_dongle_with_soc_in_its_name_gets_the_reset_pin() -> None:
+    _dongle_core_data()
+    config = _default_self_reset_pin({"board": "nrf52840dongle/nrf52840", "dfu": {}})
+    assert config["board"] == "nrf52840dongle/nrf52840"
+    assert config["dfu"]["reset_pin"][CONF_NUMBER] == 19
 
 
 @pytest.mark.usefixtures("_path_ctx")
