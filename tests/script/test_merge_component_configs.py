@@ -155,3 +155,28 @@ def test_list_style_packages_are_expanded(tmp_path: Path) -> None:
 
     assert "packages" not in result
     assert result["wifi"] == {"ssid": "MySSID"}
+
+
+def test_esphome_section_dropped_but_build_flags_kept(tmp_path: Path) -> None:
+    """The wrapper provides esphome:, but a test's build flags survive the merge."""
+    (tmp_path / "flagged").mkdir()
+    (tmp_path / "flagged" / "test.esp32-idf.yaml").write_text(
+        'esphome:\n  name_add_mac_suffix: true\n  build_flags:\n    - "-Wl,--wrap=sscanf"\n'
+    )
+    (tmp_path / "plain").mkdir()
+    (tmp_path / "plain" / "test.esp32-idf.yaml").write_text(
+        "esphome:\n  name_add_mac_suffix: true\nlogger:\n"
+    )
+    output = tmp_path / "merged.yaml"
+
+    merge_component_configs.merge_component_configs(
+        ["flagged", "plain"], "esp32-idf", tmp_path, output
+    )
+    assert yaml_util.load_yaml(output)["esphome"] == {
+        "build_flags": ["-Wl,--wrap=sscanf"]
+    }
+
+    merge_component_configs.merge_component_configs(
+        ["plain"], "esp32-idf", tmp_path, output
+    )
+    assert "esphome" not in yaml_util.load_yaml(output)
