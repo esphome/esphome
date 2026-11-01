@@ -175,8 +175,12 @@ static const char *reason_to_str(unsigned int reason, char *buf) {
 }
 
 #ifdef USE_BOOTLOADER_ADAFRUIT
+static constexpr unsigned ADAFRUIT_BOOTLOADER_MIN_MAJOR = 0;
+static constexpr unsigned ADAFRUIT_BOOTLOADER_MIN_MINOR = 11;
+static constexpr unsigned ADAFRUIT_BOOTLOADER_MIN_PATCH = 0;
 // Adafruit_nRF52_Bootloader passes its version to the app as 0x00MMmmpp (major, minor, patch)
-static constexpr uint32_t ADAFRUIT_BOOTLOADER_MIN_VERSION = 0x000B00;  // 0.11.0
+static constexpr uint32_t ADAFRUIT_BOOTLOADER_MIN_VERSION =
+    (ADAFRUIT_BOOTLOADER_MIN_MAJOR << 16) | (ADAFRUIT_BOOTLOADER_MIN_MINOR << 8) | ADAFRUIT_BOOTLOADER_MIN_PATCH;
 
 void Logger::dump_bootloader_() {
   // NOLINTNEXTLINE(clang-analyzer-core.FixedAddressDereference) -- NRF_TIMER2 is MMIO at a fixed address
@@ -189,8 +193,9 @@ void Logger::dump_bootloader_() {
     snprintf(version_buf, sizeof(version_buf), "%u.%u.%u", static_cast<unsigned>((version >> 16) & 0xFF),
              static_cast<unsigned>((version >> 8) & 0xFF), static_cast<unsigned>(version & 0xFF));
   }
-  ESP_LOGW(TAG, "Adafruit_nRF52_Bootloader version %s has known stability issues. Please update it to 0.11.0 or newer.",
-           version_buf);
+  ESP_LOGW(TAG,
+           "Adafruit_nRF52_Bootloader version %s has known stability issues. Please update it to %u.%u.%u or newer.",
+           version_buf, ADAFRUIT_BOOTLOADER_MIN_MAJOR, ADAFRUIT_BOOTLOADER_MIN_MINOR, ADAFRUIT_BOOTLOADER_MIN_PATCH);
 }
 #endif
 
