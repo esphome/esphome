@@ -2,7 +2,6 @@ import esphome.codegen as cg
 from esphome.components import uart
 import esphome.config_validation as cv
 from esphome.const import CONF_TAG
-from esphome.cpp_generator import MockObj
 from esphome.types import ConfigType
 
 CODEOWNERS = ["@FredM67"]
@@ -55,13 +54,20 @@ def final_validate(config: ConfigType) -> None:
 FINAL_VALIDATE_SCHEMA = final_validate
 
 
-_request_listener_slot = cg.slot_counter("MK2PVROUTER_LISTENER_COUNT")
-
-
-async def register_mk2pvrouter_listener(mk2pvrouter: MockObj, var: MockObj) -> None:
-    """Register a listener with its hub and count it for the compile-time buffer size."""
-    _request_listener_slot()
-    cg.add(mk2pvrouter.register_mk2pvrouter_listener(var))
+# Children publish each received tag/value pair that matches their tag
+VALUE = cg.HubFunction(
+    "value_fn",
+    cg.void,
+    [(cg.const_char_ptr, "tag"), (cg.const_char_ptr, "val")],
+    setter="set_value_fn",
+    define="USE_MK2PVROUTER_VALUE_FN",
+)
+TAG = VALUE.param("tag")
+VAL = VALUE.param("val")
+# Children's dump_config lines
+DUMP = cg.HubFunction(
+    "dump_fn", cg.void, [], setter="set_dump_fn", define="USE_MK2PVROUTER_VALUE_FN"
+)
 
 
 async def to_code(config: ConfigType) -> None:

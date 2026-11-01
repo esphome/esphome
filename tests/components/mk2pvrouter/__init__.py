@@ -5,7 +5,7 @@ from tests.testing_helpers import ComponentManifestOverride
 
 def override_manifest(manifest: ComponentManifestOverride) -> None:
     async def to_code_testing(config: ConfigType) -> None:
-        # Listener storage is sized by code generation; the gtests register one listener per hub.
-        cg.add_define("MK2PVROUTER_LISTENER_COUNT", 1)
+        # The gtests install their own stand-in for the generated function.
+        cg.add_define("USE_MK2PVROUTER_VALUE_FN")
 
     manifest.to_code = to_code_testing
