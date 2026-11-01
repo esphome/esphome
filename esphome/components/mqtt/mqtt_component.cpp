@@ -57,12 +57,10 @@ void MQTTComponent::set_subscribe_qos(uint8_t qos) { this->subscribe_qos_ = qos;
 void MQTTComponent::set_retain(bool retain) { this->retain_ = retain; }
 
 StringRef MQTTComponent::get_discovery_topic_to_(std::span<char, MQTT_DISCOVERY_TOPIC_MAX_LEN> buf,
-                                                 const MQTTDiscoveryInfo &discovery_info) const {
+                                                 const MQTTDiscoveryInfo &discovery_info, StringRef object_id) const {
   char sanitized_name[ESPHOME_DEVICE_NAME_MAX_LEN + 1];
   str_sanitize_to(sanitized_name, App.get_name().c_str());
   const char *comp_type = this->component_type();
-  char object_id_buf[OBJECT_ID_MAX_LEN];
-  StringRef object_id = this->get_default_object_id_to_(object_id_buf);
 
   char *p = buf.data();
 
@@ -76,6 +74,18 @@ StringRef MQTTComponent::get_discovery_topic_to_(std::span<char, MQTT_DISCOVERY_
   p = append_str(p, "/config", 7);
   *p = '\0';
 
+  return StringRef(buf.data(), p - buf.data());
+}
+
+StringRef MQTTComponent::get_discovery_object_id_to_(std::span<char, MQTT_DISCOVERY_OBJECT_ID_MAX_LEN> buf,
+                                                     size_t &sub_device_len) const {
+  // Home Assistant's discovery object id is a single topic level, so "_" joins the sub-device
+  sub_device_len = this->write_sub_device_segment_to_(buf.data());
+  char *p = buf.data();
+  if (sub_device_len > 0) {
+    p = append_char(p + sub_device_len, '_');
+  }
+  p += this->get_entity()->write_object_id_to(p, OBJECT_ID_MAX_LEN);
   return StringRef(buf.data(), p - buf.data());
 }
 
@@ -94,6 +104,10 @@ StringRef MQTTComponent::get_default_topic_for_to_(std::span<char, MQTT_DEFAULT_
 
   p = append_str(p, topic_prefix.data(), topic_prefix.size());
   p = append_char(p, '/');
+  size_t seg_len = this->write_sub_device_segment_to_(p);
+  if (seg_len > 0) {
+    p = append_char(p + seg_len, '/');
+  }
   p = append_str(p, comp_type, strlen(comp_type));
   p = append_char(p, '/');
   p = append_str(p, object_id.c_str(), object_id.size());
@@ -103,6 +117,22 @@ StringRef MQTTComponent::get_default_topic_for_to_(std::span<char, MQTT_DEFAULT_
 
   return StringRef(buf.data(), p - buf.data());
 }
+
+#if defined(USE_MQTT_SUB_DEVICE_TOPICS) && defined(USE_DEVICES)
+// Mirrored by _sub_device_segment() in __init__.py; keep the two in sync.
+size_t MQTTComponent::write_sub_device_segment_to_(char *buf) const {
+  Device *device = this->get_entity()->get_device();
+  if (device == nullptr) {
+    return 0;
+  }
+  const char *name = device->get_name();
+  size_t len = std::min(strlen(name), MQTT_SUB_DEVICE_SEGMENT_MAX_LEN - 1);
+  for (size_t i = 0; i < len; i++) {
+    buf[i] = to_sanitized_char(to_snake_case_char(name[i]));
+  }
+  return len;
+}
+#endif
 
 std::string MQTTComponent::get_default_topic_for_(const std::string &suffix) const {
   char buf[MQTT_DEFAULT_TOPIC_MAX_LEN];
@@ -201,8 +231,16 @@ bool MQTTComponent::publish_json(const char *topic, const json::json_build_t &f)
 bool MQTTComponent::send_discovery_() {
   const MQTTDiscoveryInfo &discovery_info = global_mqtt_client->get_discovery_info();
 
+  // Captured by reference so the callback stays two pointers, small enough for std::function to hold inline
+  char object_id_buf[MQTT_DISCOVERY_OBJECT_ID_MAX_LEN];
+  struct {
+    StringRef object_id;
+    size_t sub_device_len;
+  } ids;
+  ids.object_id = this->get_discovery_object_id_to_(object_id_buf, ids.sub_device_len);
+
   char discovery_topic_buf[MQTT_DISCOVERY_TOPIC_MAX_LEN];
-  StringRef discovery_topic = this->get_discovery_topic_to_(discovery_topic_buf, discovery_info);
+  StringRef discovery_topic = this->get_discovery_topic_to_(discovery_topic_buf, discovery_info, ids.object_id);
 
   if (discovery_info.clean) {
     ESP_LOGV(TAG, "'%s': Cleaning discovery", LOG_STR_ARG(this->log_name_()));
@@ -214,7 +252,7 @@ bool MQTTComponent::send_discovery_() {
   // NOLINTBEGIN(clang-analyzer-cplusplus.NewDeleteLeaks) false positive with ArduinoJson
   return global_mqtt_client->publish_json(
       discovery_topic.c_str(),
-      [this](JsonObject root) {
+      [this, &ids](JsonObject root) {
         SendDiscoveryConfig config;
         config.state_topic = true;
         config.command_topic = true;
@@ -271,13 +309,19 @@ bool MQTTComponent::send_discovery_() {
         }
 
         const MQTTDiscoveryInfo &discovery_info = global_mqtt_client->get_discovery_info();
-        char object_id_buf[OBJECT_ID_MAX_LEN];
-        StringRef object_id = this->get_default_object_id_to_(object_id_buf);
+        const StringRef &object_id = ids.object_id;
         if (discovery_info.unique_id_generator == MQTT_MAC_ADDRESS_UNIQUE_ID_GENERATOR) {
           char name_buf[ENTITY_NAME_BUF_SIZE];
           char friendly_name_hash[9];
-          buf_append_printf(friendly_name_hash, sizeof(friendly_name_hash), 0, "%08" PRIx32,
-                            fnv1_hash(this->get_entity()->get_name_to(name_buf).c_str()));
+          uint32_t name_hash = fnv1_hash(this->get_entity()->get_name_to(name_buf).c_str());
+          if (ids.sub_device_len > 0) {
+            // A NUL between the two, so "power" on "battery" and "powerbattery" on the node hash apart.
+            name_hash = fnv1_hash_extend(name_hash, uint8_t{0});
+            for (size_t i = 0; i < ids.sub_device_len; i++) {
+              name_hash = fnv1_hash_extend(name_hash, object_id[i]);
+            }
+          }
+          buf_append_printf(friendly_name_hash, sizeof(friendly_name_hash), 0, "%08" PRIx32, name_hash);
           // Format: mac-component_type-hash (e.g. "aabbccddeeff-sensor-12345678")
           // MAC (12) + "-" (1) + domain (max 20) + "-" (1) + hash (8) + null (1) = 43
           char unique_id[MAC_ADDRESS_BUFFER_SIZE + ESPHOME_DOMAIN_MAX_LEN + 11];
@@ -289,8 +333,8 @@ bool MQTTComponent::send_discovery_() {
         } else {
           // default to almost-unique ID. It's a hack but the only way to get that
           // gorgeous device registry view.
-          // "ESP" (3) + component_type (max 20) + object_id (max 128) + null
-          char unique_id_buf[3 + MQTT_COMPONENT_TYPE_MAX_LEN + OBJECT_ID_MAX_LEN + 1];
+          // "ESP" (3) + component_type (max 20) + discovery object_id + null
+          char unique_id_buf[3 + MQTT_COMPONENT_TYPE_MAX_LEN + MQTT_DISCOVERY_OBJECT_ID_MAX_LEN + 1];
           buf_append_printf(unique_id_buf, sizeof(unique_id_buf), 0, "ESP%s%s", this->component_type(),
                             object_id.c_str());
           root[MQTT_UNIQUE_ID] = unique_id_buf;
@@ -298,8 +342,8 @@ bool MQTTComponent::send_discovery_() {
 
         const auto &node_name = App.get_name();
         if (discovery_info.object_id_generator == MQTT_DEVICE_NAME_OBJECT_ID_GENERATOR) {
-          // node_name (max 31) + "_" (1) + object_id (max 128) + null
-          char object_id_full[ESPHOME_DEVICE_NAME_MAX_LEN + 1 + OBJECT_ID_MAX_LEN + 1];
+          // node_name (max 31) + "_" (1) + discovery object_id + null
+          char object_id_full[ESPHOME_DEVICE_NAME_MAX_LEN + 1 + MQTT_DISCOVERY_OBJECT_ID_MAX_LEN + 1];
           buf_append_printf(object_id_full, sizeof(object_id_full), 0, "%s_%s", node_name.c_str(), object_id.c_str());
           root[MQTT_OBJECT_ID] = object_id_full;
         }
@@ -311,6 +355,31 @@ bool MQTTComponent::send_discovery_() {
         JsonObject device_info = root[MQTT_DEVICE].to<JsonObject>();
         char mac[MAC_ADDRESS_BUFFER_SIZE];
         get_mac_address_into_buffer(mac);
+#if defined(USE_MQTT_SUB_DEVICE_TOPICS) && defined(USE_DEVICES)
+        if (ids.sub_device_len > 0) {
+          // Its own Home Assistant device via this node; no connections, a shared MAC would merge them
+          Device *device = this->get_entity()->get_device();
+          char sub_device_ids[MAC_ADDRESS_BUFFER_SIZE + 1 + 8 + 1];
+          buf_append_printf(sub_device_ids, sizeof(sub_device_ids), 0, "%s-%08" PRIx32, mac, device->get_device_id());
+          device_info[MQTT_DEVICE_IDENTIFIERS] = sub_device_ids;
+          device_info[MQTT_DEVICE_NAME] = device->get_name();
+          device_info[MQTT_DEVICE_VIA_DEVICE] = mac;
+          // Its own area, else the node's
+          const char *area = node_area;
+#ifdef USE_AREAS
+          for (Area *candidate : App.get_areas()) {
+            if (candidate != nullptr && candidate->get_area_id() == device->get_area_id()) {
+              area = candidate->get_name();
+              break;
+            }
+          }
+#endif
+          if (area[0] != '\0') {
+            device_info[MQTT_DEVICE_SUGGESTED_AREA] = area;
+          }
+          return;
+        }
+#endif
         device_info[MQTT_DEVICE_IDENTIFIERS] = mac;
         device_info[MQTT_DEVICE_NAME] = node_friendly_name;
 #ifdef ESPHOME_PROJECT_NAME
