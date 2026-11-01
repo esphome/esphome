@@ -17,15 +17,17 @@ from esphome.components.motion import AXES, motion_schema, new_motion_component
 import esphome.config_validation as cv
 from esphome.const import (
     CONF_DURATION,
+    CONF_ID,
     CONF_INTERRUPT,
     CONF_INTERRUPT_PIN,
     CONF_INVERTED,
     CONF_PIN,
     CONF_THRESHOLD,
 )
+from esphome.core import CORE
 from esphome.types import ConfigType
 
-from . import ACCELERATION_G, LIS3DHComponent, lis3dh_ns
+from . import ACCELERATION_G, KEY_TAP_THRESHOLD_IDS, LIS3DHComponent, lis3dh_ns
 
 _LOGGER = logging.getLogger(__name__)
 
@@ -293,6 +295,20 @@ CONFIG_SCHEMA = cv.All(
     _validate_interrupt,
     _validate_tap,
 )
+
+
+def _final_validate(config: ConfigType) -> ConfigType:
+    if CONF_TAP not in config and config[CONF_ID].id in CORE.data.get(
+        KEY_TAP_THRESHOLD_IDS, ()
+    ):
+        raise cv.Invalid(
+            "'lis3dh.set_tap_threshold' needs a 'tap' block on this sensor",
+            path=[CONF_ID],
+        )
+    return config
+
+
+FINAL_VALIDATE_SCHEMA = _final_validate
 
 
 async def to_code(config: ConfigType) -> None:

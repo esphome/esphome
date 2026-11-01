@@ -6,11 +6,13 @@ import logging
 
 import pytest
 
+from esphome.components.lis3dh import KEY_TAP_THRESHOLD_IDS
 from esphome.components.lis3dh.motion import (
     CONF_ACCELEROMETER_ODR,
     CONF_ACCELEROMETER_RANGE,
     CONF_DURATION,
     CONF_HIGH_PASS_FILTER,
+    CONF_ID,
     CONF_INTERRUPT,
     CONF_INTERRUPT_PIN,
     CONF_INVERTED,
@@ -24,13 +26,14 @@ from esphome.components.lis3dh.motion import (
     CONF_TIME_LIMIT,
     CONF_WINDOW,
     _duration_register,
+    _final_validate,
     _threshold_register,
     _validate_interrupt,
     _validate_odr_mode,
     _validate_tap,
 )
 import esphome.config_validation as cv
-from esphome.core import TimePeriod
+from esphome.core import CORE, ID, TimePeriod
 
 
 def _interrupt_config(
@@ -279,3 +282,24 @@ def test_tap_at_400hz_is_silent(caplog: pytest.LogCaptureFixture) -> None:
     with caplog.at_level(logging.WARNING):
         _validate_tap(_tap_config())
     assert caplog.text == ""
+
+
+@pytest.mark.parametrize("has_tap", [True, False])
+def test_set_tap_threshold_needs_tap_block(
+    has_tap: bool, monkeypatch: pytest.MonkeyPatch
+) -> None:
+    """The threshold setter is compiled out without a tap block."""
+    monkeypatch.setitem(CORE.data, KEY_TAP_THRESHOLD_IDS, {"accel"})
+    config = _tap_config() if has_tap else {}
+    config[CONF_ID] = ID("accel")
+    if has_tap:
+        assert _final_validate(config) is config
+    else:
+        with pytest.raises(cv.Invalid, match="needs a 'tap' block"):
+            _final_validate(config)
+
+
+def test_sensor_without_tap_and_unreferenced_is_accepted() -> None:
+    """A sensor no threshold action targets needs no tap block."""
+    config = {CONF_ID: ID("other")}
+    assert _final_validate(config) is config
