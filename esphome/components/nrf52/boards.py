@@ -27,6 +27,22 @@ def get_board_info(framework_version: cv.Version, board: str) -> dict[str, Any] 
     return BOARDS[version].get(board)
 
 
+def short_board_name(board: str) -> str:
+    """Return <board> for <board>/<soc> when Zephyr also accepts the short name.
+
+    Zephyr lets a board with a single SoC and no CPU clusters leave the SoC out, so
+    xiao_ble/nrf52840 and xiao_ble are the same target. BOARDS lists such targets by
+    the short name; any other name is returned unchanged.
+    """
+    name, _, soc = board.partition("/")
+    if not soc or "/" in soc:
+        return board
+    for boards in BOARDS.values():
+        if (info := boards.get(name)) is not None and info["variant"] == soc.upper():
+            return name
+    return board
+
+
 BOARDS_ZEPHYR = {
     "adafruit_itsybitsy_nrf52840": {
         KEY_BOOTLOADER: [

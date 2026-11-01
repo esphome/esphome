@@ -268,3 +268,34 @@ def test_get_board_info_picks_sdk_version(
         "variant": expected
     }
     assert boards.get_board_info(cv.Version.parse(framework), "unknown") is None
+
+
+@pytest.mark.parametrize(
+    ("board", "expected"),
+    [
+        ("xiao_ble/nrf52840", "xiao_ble"),
+        ("xiao_ble/NRF52840", "xiao_ble"),
+        ("xiao_ble", "xiao_ble"),
+        ("xiao_ble/nrf52840/sense", "xiao_ble/nrf52840/sense"),
+        # Wrong SoC for the board
+        ("xiao_ble/nrf52832", "xiao_ble/nrf52832"),
+        # Listed with its SoC, as it has more than one
+        ("nrf9160dk/nrf52840", "nrf9160dk/nrf52840"),
+        ("unknown/nrf52840", "unknown/nrf52840"),
+    ],
+)
+def test_short_board_name(
+    monkeypatch: pytest.MonkeyPatch, board: str, expected: str
+) -> None:
+    monkeypatch.setattr(
+        boards,
+        "BOARDS",
+        {
+            "2.9.2": {
+                "xiao_ble": {"variant": "NRF52840"},
+                "xiao_ble/nrf52840/sense": {"variant": "NRF52840"},
+                "nrf9160dk/nrf52840": {"variant": "NRF52840"},
+            }
+        },
+    )
+    assert boards.short_board_name(board) == expected

@@ -72,7 +72,13 @@ from esphome.helpers import rmtree, write_file_if_changed
 from esphome.storage_json import StorageJSON
 from esphome.types import ConfigType
 
-from .boards import BOARDS_ZEPHYR, BOOTLOADER_CONFIG, SELF_RESET_PINS, get_board_info
+from .boards import (
+    BOARDS_ZEPHYR,
+    BOOTLOADER_CONFIG,
+    SELF_RESET_PINS,
+    get_board_info,
+    short_board_name,
+)
 from .const import (
     BOOTLOADER_ADAFRUIT,
     BOOTLOADER_ADAFRUIT_NRF52_SD132,
@@ -219,6 +225,13 @@ BOOTLOADERS = [*SERIAL_DFU_BOOTLOADERS, BOOTLOADER_MCUBOOT]
 _validate_toolchain = cv.toolchain_enum(_TOOLCHAINS)
 
 
+def _short_board_name(config: ConfigType) -> ConfigType:
+    """Use the short name for <board>/<soc>, so board-specific settings find the board."""
+    if isinstance(board := config.get(CONF_BOARD), str):
+        config = {**config, CONF_BOARD: short_board_name(board)}
+    return config
+
+
 def _detect_bootloader(config: ConfigType) -> ConfigType:
     """Detect the bootloader for the given board."""
     config = config.copy()
@@ -286,6 +299,7 @@ def _dfu_schema(value: bool | ConfigType) -> ConfigType:
 
 
 CONFIG_SCHEMA = cv.All(
+    _short_board_name,
     _detect_bootloader,
     set_core_data,
     cv.Schema(
