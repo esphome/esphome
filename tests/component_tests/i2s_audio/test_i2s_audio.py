@@ -52,6 +52,7 @@ def test_full_duplex_generates_code(
     assert "duplex_bus->set_audio_in(duplex_mic);" in main_cpp
     assert "duplex_bus->set_audio_out(duplex_speaker_a);" in main_cpp
     assert "duplex_bus->set_audio_out(duplex_speaker_b);" in main_cpp
+    assert "duplex_bus->set_keep_tx_active(true);" in main_cpp
     assert "USE_I2S_AUDIO_FULL_DUPLEX" in {define.name for define in CORE.defines}
 
 
