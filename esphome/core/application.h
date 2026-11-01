@@ -433,16 +433,15 @@ class Application {
     // FixedVector capacity was pre-initialized by codegen with the exact count
     // of components that override loop(), computed at C++ compile time.
 
-    // Add all components with loop override that aren't already LOOP_DONE
-    // Some components (like logger) may call disable_loop() during initialization
-    // before setup runs, so we need to respect their LOOP_DONE state
+    // Add all components with loop override that aren't already LOOP_DONE or FAILED
+    // Some components (like logger) may call disable_loop() during initialization,
+    // and some call mark_failed() from their constructor, before setup runs
     this->add_looping_components_by_state_(false);
     this->looping_components_active_end_ = this->looping_components_.size();
-    // Then add any components that are already LOOP_DONE to the inactive section
-    // This handles components that called disable_loop() during initialization
+    // Then add any components that are already LOOP_DONE or FAILED to the inactive section
     this->add_looping_components_by_state_(true);
   }
-  void add_looping_components_by_state_(bool match_loop_done);
+  void add_looping_components_by_state_(bool inactive);
 
   // These methods are called by Component::disable_loop() and Component::enable_loop()
   // Components should not call these directly - use this->disable_loop() or this->enable_loop()

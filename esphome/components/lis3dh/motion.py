@@ -3,7 +3,11 @@ import math
 
 import esphome.codegen as cg
 from esphome.components import i2c
-from esphome.components.const import CONF_ACCELEROMETER_ODR, CONF_ACCELEROMETER_RANGE
+from esphome.components.const import (
+    CONF_ACCELEROMETER_ODR,
+    CONF_ACCELEROMETER_RANGE,
+    CONF_ACTIVE_HIGH,
+)
 from esphome.components.motion import AXES, motion_schema, new_motion_component
 import esphome.config_validation as cv
 from esphome.const import CONF_DURATION, CONF_INTERRUPT, CONF_PIN, CONF_THRESHOLD
@@ -16,7 +20,6 @@ _LOGGER = logging.getLogger(__name__)
 CONF_OPERATING_MODE = "operating_mode"
 CONF_AXES = "axes"
 CONF_LATCHED = "latched"
-CONF_ACTIVE_HIGH = "active_high"
 CONF_HIGH_PASS_FILTER = "high_pass_filter"
 
 # Enum values must match the C++ enums.
@@ -24,19 +27,20 @@ LIS3DHRange = lis3dh_ns.enum("LIS3DHRange")
 RANGE_OPTIONS = LIS3DHRange.options("2G", "4G", "8G", "16G", prefix="LIS3DH_RANGE_")
 
 LIS3DHDataRate = lis3dh_ns.enum("LIS3DHDataRate")
-DATA_RATE_OPTIONS = {
-    "1HZ": LIS3DHDataRate.LIS3DH_DATA_RATE_1HZ,
-    "10HZ": LIS3DHDataRate.LIS3DH_DATA_RATE_10HZ,
-    "25HZ": LIS3DHDataRate.LIS3DH_DATA_RATE_25HZ,
-    "50HZ": LIS3DHDataRate.LIS3DH_DATA_RATE_50HZ,
-    "100HZ": LIS3DHDataRate.LIS3DH_DATA_RATE_100HZ,
-    "200HZ": LIS3DHDataRate.LIS3DH_DATA_RATE_200HZ,
-    "400HZ": LIS3DHDataRate.LIS3DH_DATA_RATE_400HZ,
-    # 1620HZ is only available in low-power mode.
-    "1620HZ": LIS3DHDataRate.LIS3DH_DATA_RATE_1620HZ,
-    # 1344HZ in normal / high-resolution mode; 5376HZ in low-power mode.
-    "1344HZ": LIS3DHDataRate.LIS3DH_DATA_RATE_1344HZ,
-}
+# 1620HZ is only available in low-power mode.
+# 1344HZ in normal / high-resolution mode; 5376HZ in low-power mode.
+DATA_RATE_OPTIONS = LIS3DHDataRate.options(
+    "1HZ",
+    "10HZ",
+    "25HZ",
+    "50HZ",
+    "100HZ",
+    "200HZ",
+    "400HZ",
+    "1620HZ",
+    "1344HZ",
+    prefix="LIS3DH_DATA_RATE_",
+)
 
 # Samples per second for each data rate key; INT1_DURATION counts samples.
 ODR_HZ = {
