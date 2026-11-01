@@ -1,4 +1,5 @@
 #include "wifi_component.h"
+#include "expected_disconnect.h"
 #include "esphome/components/network/util.h"
 
 #ifdef USE_WIFI
@@ -67,6 +68,8 @@ static bool s_sta_connect_not_found = false;  // NOLINT(cppcoreguidelines-avoid-
 static bool s_sta_connect_error = false;      // NOLINT(cppcoreguidelines-avoid-non-const-global-variables)
 static bool s_sta_connecting = false;         // NOLINT(cppcoreguidelines-avoid-non-const-global-variables)
 static bool s_wifi_started = false;           // NOLINT(cppcoreguidelines-avoid-non-const-global-variables)
+
+static ExpectedDisconnect s_expected_disconnect;  // NOLINT(cppcoreguidelines-avoid-non-const-global-variables)
 
 #ifdef USE_WIFI_DPP
 /// Terminated copies of the received station credentials; the supplicant's wifi_config_t would grow every event
@@ -420,6 +423,7 @@ bool WiFiComponent::wifi_apply_band_mode_() { return esp_wifi_set_band_mode(this
 #endif
 
 bool WiFiComponent::wifi_sta_connect_(const WiFiAP &ap) {
+  s_expected_disconnect.clear();
   // enable STA
   if (!this->wifi_mode_(true, {}))
     return false;
@@ -505,11 +509,26 @@ bool WiFiComponent::wifi_sta_connect_(const WiFiAP &ap) {
   }
 
   if (memcmp(&current_conf, &conf, sizeof(wifi_config_t)) != 0) {  // NOLINT
-    err = esp_wifi_disconnect();
-    if (err != ESP_OK) {
+    // Events are handled in loop(), so expecting the leave after the disconnect is in time for it
+    const bool disconnected = s_expected_disconnect.disconnect_and_expect_leave(
+        [](uint8_t *bssid) {
+          wifi_ap_record_t old_ap{};
+          if (esp_wifi_sta_get_ap_info(&old_ap) != ESP_OK)
+            return false;
+          std::copy_n(old_ap.bssid, sizeof(old_ap.bssid), bssid);
+          return true;
+        },
+        [&err]() {
+          err = esp_wifi_disconnect();
+          return err == ESP_OK;
+        });
+    if (!disconnected) {
       ESP_LOGV(TAG, "esp_wifi_disconnect failed: %s", esp_err_to_name(err));
       return false;
     }
+    // The old session is gone even if configuring the next attempt fails.
+    s_sta_connecting = false;
+    this->clear_sta_session_();
   }
 
   err = esp_wifi_set_config(WIFI_IF_STA, &conf);
@@ -613,23 +632,28 @@ bool WiFiComponent::wifi_sta_connect_(const WiFiAP &ap) {
   // Reset flags, do this _before_ wifi_station_connect as the callback method
   // may be called from wifi_station_connect
   s_sta_connecting = true;
-  s_sta_connected = false;
   s_sta_connect_error = false;
   s_sta_connect_not_found = false;
-  // Reset IP address flags - ensures we don't report connected before DHCP completes
-  // (IP_EVENT_STA_LOST_IP doesn't always fire on disconnect)
-  this->got_ipv4_address_ = false;
-#if USE_NETWORK_IPV6
-  this->num_ipv6_addresses_ = 0;
-#endif
+  // Ensures we don't report connected before DHCP completes (IP_EVENT_STA_LOST_IP doesn't always fire on disconnect)
+  this->clear_sta_session_();
 
   err = esp_wifi_connect();
   if (err != ESP_OK) {
     ESP_LOGW(TAG, "esp_wifi_connect failed: %s", esp_err_to_name(err));
+    // An expected leave no longer clears this, so the next attempt would wait for the connect timeout
+    s_sta_connecting = false;
     return false;
   }
 
   return true;
+}
+
+void WiFiComponent::clear_sta_session_() {
+  s_sta_connected = false;
+  this->got_ipv4_address_ = false;
+#if USE_NETWORK_IPV6
+  this->num_ipv6_addresses_ = 0;
+#endif
 }
 
 // sntp_servermode_dhcp() is an empty macro unless lwIP takes NTP servers from DHCP; that build needs the core lock
@@ -1020,6 +1044,8 @@ bool WiFiComponent::wifi_loop_() {
   uint16_t dropped = this->event_queue_.get_and_reset_dropped_count();
   if (dropped > 0) {
     ESP_LOGW(TAG, "Dropped %u WiFi events due to buffer overflow", dropped);
+    // The previous AP's leave event may be among them, so it can no longer be told apart
+    s_expected_disconnect.clear();
 #ifdef USE_WIFI_AP
     // A dropped join or leave is made up for by reading the list again
     if (this->ap_setup_)
@@ -1048,6 +1074,7 @@ void WiFiComponent::wifi_process_event_(IDFWiFiEvent *data) {
 #endif
 
   } else if (data->event_base == WIFI_EVENT && data->event_id == WIFI_EVENT_STA_STOP) {
+    s_expected_disconnect.clear();
     ESP_LOGV(TAG, "STA stop");
     s_sta_connecting = false;
 
@@ -1057,6 +1084,11 @@ void WiFiComponent::wifi_process_event_(IDFWiFiEvent *data) {
 
   } else if (data->event_base == WIFI_EVENT && data->event_id == WIFI_EVENT_STA_CONNECTED) {
     const auto &it = data->data.sta_connected;
+    if (s_expected_disconnect.is_previous_ap(it.bssid)) {
+      ESP_LOGD(TAG, "Ignoring queued connection from previous AP");
+      return;
+    }
+    s_expected_disconnect.clear();
 #if ESPHOME_LOG_LEVEL >= ESPHOME_LOG_LEVEL_VERBOSE
     char bssid_buf[MAC_ADDRESS_PRETTY_BUFFER_SIZE];
     format_mac_addr_upper(it.bssid, bssid_buf);
@@ -1105,13 +1137,18 @@ void WiFiComponent::wifi_process_event_(IDFWiFiEvent *data) {
 
   } else if (data->event_base == WIFI_EVENT && data->event_id == WIFI_EVENT_STA_DISCONNECTED) {
     const auto &it = data->data.sta_disconnected;
-    if (it.reason == WIFI_REASON_NO_AP_FOUND) {
+    if (it.reason == WIFI_REASON_ROAMING) {
+      ESP_LOGI(TAG, "Disconnected ssid='%.*s' reason='Station Roaming'", it.ssid_len, (const char *) it.ssid);
+      return;
+    }
+    const bool expected_disconnect =
+        s_expected_disconnect.consume_disconnect(it.bssid, it.reason == WIFI_REASON_ASSOC_LEAVE);
+    if (expected_disconnect) {
+      ESP_LOGD(TAG, "Expected disconnect from previous AP");
+    } else if (it.reason == WIFI_REASON_NO_AP_FOUND) {
       ESP_LOGW(TAG, "Disconnected ssid='%.*s' reason='Probe Request Unsuccessful'", it.ssid_len,
                (const char *) it.ssid);
       s_sta_connect_not_found = true;
-    } else if (it.reason == WIFI_REASON_ROAMING) {
-      ESP_LOGI(TAG, "Disconnected ssid='%.*s' reason='Station Roaming'", it.ssid_len, (const char *) it.ssid);
-      return;
     } else {
       char bssid_s[MAC_ADDRESS_PRETTY_BUFFER_SIZE];
       format_mac_addr_upper(it.bssid, bssid_s);
@@ -1120,9 +1157,11 @@ void WiFiComponent::wifi_process_event_(IDFWiFiEvent *data) {
       s_sta_connect_error = true;
     }
     s_sta_connected = false;
-    s_sta_connecting = false;
-    error_from_callback_ = true;
-    // Refresh is_connected() cache; error_from_callback_ makes it false.
+    if (!expected_disconnect) {
+      s_sta_connecting = false;
+      this->error_from_callback_ = true;
+    }
+    // Refresh is_connected() cache; the old session is no longer connected.
     this->update_connected_state_();
 #ifdef USE_WIFI_CONNECT_STATE_LISTENERS
     this->notify_disconnect_state_listeners_();
@@ -1135,6 +1174,12 @@ void WiFiComponent::wifi_process_event_(IDFWiFiEvent *data) {
 #endif
   } else if (data->event_base == IP_EVENT && data->event_id == IP_EVENT_STA_GOT_IP) {
     const auto &it = data->data.ip_got_ip;
+    esp_netif_ip_info_t current_ip{};
+    if (!s_sta_connected || !esp_netif_is_netif_up(s_sta_netif) ||
+        esp_netif_get_ip_info(s_sta_netif, &current_ip) != ESP_OK || current_ip.ip.addr != it.ip_info.ip.addr) {
+      ESP_LOGV(TAG, "Ignoring stale IPv4 address event");
+      return;
+    }
     ESP_LOGV(TAG, "static_ip=" IPSTR " gateway=" IPSTR, IP2STR(&it.ip_info.ip), IP2STR(&it.ip_info.gw));
     this->got_ipv4_address_ = true;
 #if defined(USE_WIFI_AP_WISP) && !defined(USE_WIFI_AP_WISP_STATIC_DNS)
@@ -1150,8 +1195,16 @@ void WiFiComponent::wifi_process_event_(IDFWiFiEvent *data) {
 #if USE_NETWORK_IPV6
   } else if (data->event_base == IP_EVENT && data->event_id == IP_EVENT_GOT_IP6) {
     const auto &it = data->data.ip_got_ip6;
+    if (!s_sta_connected) {
+      ESP_LOGV(TAG, "Ignoring IPv6 address event before association");
+      return;
+    }
+    esp_ip6_addr_t addresses[CONFIG_LWIP_IPV6_NUM_ADDRESSES];
+    {
+      LwIPLock lock;
+      this->num_ipv6_addresses_ = esp_netif_get_all_ip6(s_sta_netif, addresses);
+    }
     ESP_LOGV(TAG, "IPv6 address=" IPV6STR, IPV62STR(it.ip6_info.ip));
-    this->num_ipv6_addresses_++;
 #ifdef USE_WIFI_IP_STATE_LISTENERS
     this->notify_ip_state_listeners_();
 #endif
@@ -1263,7 +1316,7 @@ void WiFiComponent::wifi_process_event_(IDFWiFiEvent *data) {
     // the AP goes down and its setup runs again, which brings it back up through this event.
     if (esp_err_t err = esp_netif_napt_enable(s_ap_netif); err != ESP_OK) {
       ESP_LOGE(TAG, "Failed to enable NAT: %s", esp_err_to_name(err));
-      this->fail_bridge_();
+      this->disable_ap_();
     }
 #endif
 
@@ -1471,8 +1524,8 @@ bool WiFiComponent::wifi_ap_ip_config_(const optional<ManualIP> &manual_ip) {
 #endif
 
 #ifdef USE_WIFI_AP_WISP
-  // Offer resolvers through DHCP: the configured ones, otherwise the station's. Without them the server would
-  // offer the AP's own address, so a failure fails the setup and it is tried again.
+  // Offer resolvers through DHCP: the configured ones, otherwise the station's (with a portal, the AP's own
+  // address while there is none). A failure fails the setup and it is tried again.
   uint8_t dns_offer = 1;
   err =
       esp_netif_dhcps_option(s_ap_netif, ESP_NETIF_OP_SET, ESP_NETIF_DOMAIN_NAME_SERVER, &dns_offer, sizeof(dns_offer));
@@ -1652,7 +1705,7 @@ static constexpr uint32_t AP_DNS[] = {
 };
 #endif
 
-static uint32_t ap_dns_to_offer(size_t i) {
+static uint32_t upstream_dns(size_t i) {
 #ifdef USE_WIFI_AP_WISP_STATIC_DNS
   return i < std::size(AP_DNS) ? AP_DNS[i] : 0;
 #else
@@ -1660,14 +1713,45 @@ static uint32_t ap_dns_to_offer(size_t i) {
 #endif
 }
 
-bool WiFiComponent::ap_dns_known_() { return ap_dns_to_offer(0) != 0; }
+static uint32_t ap_dns_to_offer(size_t i, [[maybe_unused]] bool own) {
+#ifdef USE_WIFI_AP_WISP_PORTAL
+  if (own) {
+    esp_netif_ip_info_t ip{};
+    if (s_ap_netif != nullptr && esp_netif_get_ip_info(s_ap_netif, &ip) == ESP_OK)
+      return ip.ip.addr;
+    ESP_LOGW(TAG, "Failed to read the AP address to offer as resolver");
+    return 0;
+  }
+  // A slot the upstream leaves empty repeats the primary, so the AP's own address is replaced there too
+  const uint32_t addr = upstream_dns(i);
+  return addr != 0 ? addr : upstream_dns(0);
+#else
+  return upstream_dns(i);
+#endif
+}
+
+bool WiFiComponent::ap_dns_known_() { return upstream_dns(0) != 0; }
+
+#ifdef USE_WIFI_AP_WISP_PORTAL
+bool WiFiComponent::offer_own_dns_() {
+  return !this->ap_dns_known_() || (this->has_sta() && this->is_ap_portal_active_());
+}
+#endif
 
 bool WiFiComponent::write_ap_dns_() {
+#ifdef USE_WIFI_AP_WISP_PORTAL
+  const bool own = this->offer_own_dns_();
+  this->ap_offers_own_dns_ = own;
+#else
+  const bool own = false;
+#endif
   bool ok = true;
   for (size_t i = 0; i < AP_DNS_COUNT; i++) {
-    const uint32_t addr = ap_dns_to_offer(i);
-    if (addr == 0)
+    const uint32_t addr = ap_dns_to_offer(i, own);
+    if (addr == 0) {
+      ok = ok && !own;  // the AP's own address could not be read
       continue;
+    }
     esp_netif_dns_info_t info{};
     info.ip.type = ESP_IPADDR_TYPE_V4;
     info.ip.u_addr.ip4.addr = addr;
@@ -1685,28 +1769,65 @@ bool WiFiComponent::write_ap_dns_() {
 #ifndef USE_WIFI_AP_WISP_STATIC_DNS
 void WiFiComponent::apply_ap_dns_() {
   if (!this->ap_setup_)
-    return;  // loop() brings the bridge up once the upstream has a resolver, and its setup writes them
+    return;  // loop() brings the AP up, and its setup writes the resolvers
   // The DHCP server holds what it offers, so there is nothing to cache; a failed update is noticed again with the
-  // next lease. A resolver the station lost stays offered: set_dns_info rejects an empty address.
+  // next lease. A resolver the station lost stays offered (set_dns_info rejects an empty address), or with a
+  // portal gives way to the AP's own address.
+#ifdef USE_WIFI_AP_WISP_PORTAL
+  const bool own = this->offer_own_dns_();
+#else
+  const bool own = false;
+#endif
   bool changed = false;
   for (size_t i = 0; i < AP_DNS_COUNT && !changed; i++) {
-    const uint32_t addr = ap_dns_to_offer(i);
+    const uint32_t addr = ap_dns_to_offer(i, own);
     esp_netif_dns_info_t current{};
+    // A missing own address goes through the setup too, which then fails and restarts the AP
     changed =
-        addr != 0 && (esp_netif_get_dns_info(s_ap_netif, static_cast<esp_netif_dns_type_t>(i), &current) != ESP_OK ||
-                      current.ip.u_addr.ip4.addr != addr);
+        (addr == 0 && own) ||
+        (addr != 0 && (esp_netif_get_dns_info(s_ap_netif, static_cast<esp_netif_dns_type_t>(i), &current) != ESP_OK ||
+                       current.ip.u_addr.ip4.addr != addr));
   }
   if (!changed)
     return;
+#ifdef USE_WIFI_AP_WISP_PORTAL
+  // Clients rejoin whenever the offer switches between the AP's own address and the upstream's resolver
+  const bool offered_own = this->ap_offers_own_dns_;
+#endif
   // The IP setup programs the DHCP server from scratch without touching the soft AP, so clients stay joined
 #ifdef USE_WIFI_MANUAL_IP
   const bool ok = this->wifi_ap_ip_config_(this->ap_.get_manual_ip());
 #else
   const bool ok = this->wifi_ap_ip_config_({});
 #endif
-  if (!ok)
-    this->fail_bridge_();
+  if (!ok) {
+    this->disable_ap_();
+    return;
+  }
+#ifdef USE_WIFI_AP_WISP_PORTAL
+  if (offered_own != this->ap_offers_own_dns_)
+    this->drop_ap_clients_();
+#endif
 }
+
+#ifdef USE_WIFI_AP_WISP_PORTAL
+void WiFiComponent::drop_ap_clients_(uint8_t attempt) {
+  static constexpr uint8_t MAX_ATTEMPTS = 5;
+  if (!this->ap_setup_)
+    return;
+  esp_err_t err = esp_wifi_deauth_sta(0);
+  if (err == ESP_OK)
+    return;
+  if (attempt + 1 >= MAX_ATTEMPTS) {
+    ESP_LOGW(TAG, "Failed to drop AP clients so they pick up the new resolver: %s; restarting AP",
+             esp_err_to_name(err));
+    this->disable_ap_();  // loop() starts it again, and the clients rejoin
+    return;
+  }
+  ESP_LOGW(TAG, "Failed to drop AP clients so they pick up the new resolver: %s; retrying", esp_err_to_name(err));
+  this->set_timeout(AP_DEAUTH_RETRY_TIMEOUT_ID, 1000, [this, attempt]() { this->drop_ap_clients_(attempt + 1); });
+}
+#endif
 #endif  // USE_WIFI_AP_WISP_STATIC_DNS
 #endif  // USE_WIFI_AP_WISP
 

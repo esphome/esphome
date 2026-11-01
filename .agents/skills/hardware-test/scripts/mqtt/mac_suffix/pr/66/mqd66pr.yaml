@@ -1,0 +1,7 @@
+substitutions: {name: mqd66pr, suffix: "false"}
+esp8266:
+  board: d1_mini
+packages: {mq: !include ../../mq-common.yaml}
+mqtt:
+  broker: !secret broker_ip
+  reboot_timeout: 0s

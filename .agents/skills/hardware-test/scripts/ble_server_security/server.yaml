@@ -1,0 +1,85 @@
+# Classic ESP32 devkit as the secure GATT server. run.sh passes name, io (none or display_yes_no),
+# auth (bond or sc_mitm_bond) and idf (recommended, or a version such as 5.5.5) with -s.
+# Needs esp32_ble_server security from #17562 (read_encrypt, numeric comparison); build it with SERVER_TREE.
+esphome:
+  name: ${name}
+
+esp32:
+  board: esp32dev
+  framework:
+    type: esp-idf
+    version: ${idf}
+
+logger:
+  level: DEBUG
+
+wifi:
+  ssid: !secret wifi_ssid
+  password: !secret wifi_password
+
+api:
+  reboot_timeout: 0s
+
+ota:
+  - platform: esphome
+
+esp32_ble:
+  io_capability: ${io}
+  auth_req_mode: ${auth}
+
+esp32_ble_server:
+  id: srv
+  on_connect:
+    - logger.log: "SRV client connected"
+  on_disconnect:
+    - logger.log: "SRV client disconnected"
+  on_numeric_comparison_request:
+    - logger.log:
+        format: "SRV numeric comparison %06u"
+        args: ["(unsigned) passkey"]
+    - ble_server.numeric_comparison_reply:
+        id: srv
+        address: !lambda return address;
+        accept: true
+  services:
+    - uuid: "180F"
+      characteristics:
+        - uuid: "2A19"
+          read: true
+          read_encrypt: true
+          value:
+            data: "99.9"
+    - uuid: 5ec50000-0000-4000-8000-00000000f000
+      characteristics:
+        - uuid: 5ec50000-0000-4000-8000-00000000f001
+          read: true
+          value:
+            data: "open"
+        - uuid: 5ec50000-0000-4000-8000-00000000f002
+          write: true
+          write_encrypt: true
+          on_write:
+            - lambda: 'ESP_LOGI("SRV", "secure write received: %s", std::string(x.begin(), x.end()).c_str());'
+        - uuid: 5ec50000-0000-4000-8000-00000000f004
+          read: true
+          read_encrypt_mitm: true
+          value:
+            data: "mitm"
+        - uuid: 5ec50000-0000-4000-8000-00000000f003
+          id: secure_notify
+          read: true
+          read_encrypt: true
+          notify: true
+          value:
+            data: "n0"
+
+interval:
+  - interval: 2s
+    then:
+      - lambda: |-
+          static int n = 0;
+          char buf[12];
+          snprintf(buf, sizeof(buf), "n%d", ++n);
+          id(secure_notify)->set_value((const uint8_t *) buf, strlen(buf));
+      - ble_server.characteristic.notify:
+          id: secure_notify

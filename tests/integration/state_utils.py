@@ -595,8 +595,8 @@ class SensorStateCollector:
 class SensorTracker:
     """Data-driven sensor state tracker with expected-value futures.
 
-    Tracks sensor and binary sensor state updates and resolves futures when
-    they report specific expected values. Eliminates per-sensor future
+    Tracks sensor, binary sensor and text sensor state updates and resolves
+    futures when they report specific expected values. Eliminates per-sensor future
     boilerplate.
 
     Usage::
@@ -608,11 +608,19 @@ class SensorTracker:
     """
 
     def __init__(self, sensor_names: list[str]) -> None:
-        self.sensor_states: dict[str, list[float]] = {name: [] for name in sensor_names}
+        self.sensor_states: dict[str, list[float | bool | str]] = {
+            name: [] for name in sensor_names
+        }
         self.key_to_sensor: dict[int, str] = {}
         self._expectations: dict[str, list[tuple[object, asyncio.Future]]] = {}
 
     _ANY = object()  # Sentinel: match any value
+
+    def map_entities(self, entities: list[EntityInfo]) -> None:
+        """Map the tracked names to the keys of ``entities``."""
+        self.key_to_sensor.update(
+            build_key_to_entity_mapping(entities, list(self.sensor_states))
+        )
 
     def expect(self, name: str, value: object) -> asyncio.Future:
         """Register an expected value for *name* and return a future for it."""
@@ -638,7 +646,7 @@ class SensorTracker:
                 connect-time states so they cannot satisfy a later phase.
         """
         if (
-            not isinstance(state, (SensorState, BinarySensorState))
+            not isinstance(state, (SensorState, BinarySensorState, TextSensorState))
             or state.missing_state
         ):
             return
@@ -708,9 +716,7 @@ class SensorTracker:
                 satisfy a later phase.
         """
         entities, _ = await client.list_entities_services()
-        self.key_to_sensor.update(
-            build_key_to_entity_mapping(entities, list(self.sensor_states.keys()))
-        )
+        self.map_entities(entities)
         initial_state_helper = InitialStateHelper(entities)
         client.subscribe_states(initial_state_helper.on_state_wrapper(self.on_state))
         await initial_state_helper.wait_for_initial_states()
