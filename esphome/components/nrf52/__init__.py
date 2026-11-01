@@ -213,6 +213,12 @@ SERIAL_DFU_BOOTLOADERS = (
     BOOTLOADER_NRF,
 )
 BOOTLOADERS = [*SERIAL_DFU_BOOTLOADERS, BOOTLOADER_MCUBOOT]
+ADAFRUIT_BOOTLOADERS = (
+    BOOTLOADER_ADAFRUIT,
+    BOOTLOADER_ADAFRUIT_NRF52_SD132,
+    BOOTLOADER_ADAFRUIT_NRF52_SD140_V6,
+    BOOTLOADER_ADAFRUIT_NRF52_SD140_V7,
+)
 
 
 _validate_toolchain = cv.toolchain_enum(_TOOLCHAINS)
@@ -462,6 +468,8 @@ async def to_code(config: ConfigType) -> None:
         if (len(bootloader)) > 3:
             sd_version = bootloader[3][1:]
             cg.add_define("USE_SOFTDEVICE_VERSION", int(sd_version))
+    if config[KEY_BOOTLOADER] in ADAFRUIT_BOOTLOADERS:
+        cg.add_define("USE_BOOTLOADER_ADAFRUIT")
 
     zephyr_setup_preferences()
     zephyr_to_code(config)
