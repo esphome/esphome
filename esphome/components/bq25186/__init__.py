@@ -3,6 +3,7 @@ from dataclasses import dataclass, field
 from typing import Any
 
 from esphome import automation
+from esphome.automation import parent_ref
 import esphome.codegen as cg
 from esphome.components import i2c
 import esphome.config_validation as cv
@@ -69,6 +70,8 @@ BQ25186_CHILD_SCHEMA = cv.Schema(
     {cv.GenerateID(CONF_BQ25186_ID): cv.use_id(BQ25186Component)}
 )
 BQ25186StatusRegisters = bq25186_ns.class_("BQ25186StatusRegisters")
+# Bit set for each field value that reads as on: a single bit is on when it is 1
+BIT_SET = 0b10
 
 
 @dataclass
@@ -92,10 +95,7 @@ def _get_data() -> BQ25186Data:
     return CORE.data[DOMAIN]
 
 
-def add_status_statement(
-    hub: cg.MockObj, statement: str, *, text: bool = False
-) -> None:
-    """Add a statement to the function that publishes hub's status entities from `status`."""
+def _add_statement(hub: cg.MockObj, statement: str, text: bool) -> None:
     data = _get_data()
     if data.emitted:
         raise ValueError(
@@ -105,6 +105,36 @@ def add_status_statement(
         CORE.add_job(_emit_status_publishers)
     publisher = data.publishers.setdefault(str(hub), _StatusPublisher(hub))
     (publisher.text if text else publisher.binary).append(statement)
+
+
+def _state_expression(reg: int, shift: int, mask: int, match: int) -> str:
+    """The C++ expression for whether the field reads as on."""
+    value = f"(status[{reg}] >> {shift}) & {mask:#04x}"
+    if mask == 0x01 and match == BIT_SET:
+        return value
+    return f"({match:#06b} >> ({value})) & 1"
+
+
+def add_binary_status(
+    hub: cg.MockObj, var: cg.MockObj, reg: int, shift: int, mask: int, match: int
+) -> None:
+    """Publish whether field (status[reg] >> shift) & mask is on, as a bit of match."""
+    state = _state_expression(reg, shift, mask, match)
+    _add_statement(hub, f"{parent_ref(var)}->publish_state({state});", text=False)
+
+
+def add_text_status(
+    hub: cg.MockObj, var: cg.MockObj, reg: int, shift: int, first: int
+) -> None:
+    """Publish status string first + the two-bit field at status[reg] >> shift, on change."""
+    last = f"esphome__{var}__last"  # 0xFF so the first poll publishes
+    _add_statement(
+        hub,
+        f"static uint8_t {last} = 0xFF;\n"
+        f"bq25186::publish_status_text({parent_ref(var)}, {last}, "
+        f"status[{reg}] >> {shift}, {first});",
+        text=True,
+    )
 
 
 @coroutine_with_priority(CoroPriority.FINAL)

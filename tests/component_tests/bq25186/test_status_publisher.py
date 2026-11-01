@@ -4,7 +4,7 @@ from collections.abc import Callable
 from pathlib import Path
 import re
 
-from esphome.components.bq25186.binary_sensor import _state_expression
+from esphome.components.bq25186 import _state_expression
 
 from .status_datasheet import BINARY_SENSORS, TEXT_SENSORS, field_value, status_strings
 

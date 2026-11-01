@@ -1,4 +1,3 @@
-from esphome.automation import parent_ref
 import esphome.codegen as cg
 from esphome.components import binary_sensor
 import esphome.config_validation as cv
@@ -10,39 +9,36 @@ from esphome.const import (
 )
 from esphome.types import ConfigType
 
-from . import BQ25186_CHILD_SCHEMA, CONF_BQ25186_ID, add_status_statement
+from . import BIT_SET, BQ25186_CHILD_SCHEMA, CONF_BQ25186_ID, add_binary_status
 
 DEPENDENCIES = ["bq25186"]
 
 REG_STAT0 = 0
 REG_STAT1 = 1
 REG_FLAG0 = 2
-# Bit set for each field value that reads as on: a single bit is on when it is 1
-_BIT_SET = 0b10
-
 # (key, status register, bit shift, field mask, on-values bitmap, device class)
 _FIELDS = (
-    ("ts", REG_STAT0, 7, 0x01, _BIT_SET, DEVICE_CLASS_OPENING),
+    ("ts", REG_STAT0, 7, 0x01, BIT_SET, DEVICE_CLASS_OPENING),
     ("charging", REG_STAT0, 5, 0x03, 0b0110, DEVICE_CLASS_BATTERY_CHARGING),
     ("charge_done", REG_STAT0, 5, 0x03, 0b1000, cv.UNDEFINED),
-    ("ilim", REG_STAT0, 4, 0x01, _BIT_SET, DEVICE_CLASS_RUNNING),
-    ("vdppm", REG_STAT0, 3, 0x01, _BIT_SET, DEVICE_CLASS_RUNNING),
-    ("vindpm", REG_STAT0, 2, 0x01, _BIT_SET, DEVICE_CLASS_RUNNING),
-    ("thermreg", REG_STAT0, 1, 0x01, _BIT_SET, DEVICE_CLASS_RUNNING),
-    ("power_good", REG_STAT0, 0, 0x01, _BIT_SET, DEVICE_CLASS_PLUG),
-    ("vin_ovp", REG_STAT1, 7, 0x01, _BIT_SET, DEVICE_CLASS_RUNNING),
-    ("battery_uvlo", REG_STAT1, 6, 0x01, _BIT_SET, DEVICE_CLASS_RUNNING),
-    ("safety_timer_flag", REG_STAT1, 2, 0x01, _BIT_SET, cv.UNDEFINED),
-    ("wake1_flag", REG_STAT1, 1, 0x01, _BIT_SET, cv.UNDEFINED),
-    ("wake2_flag", REG_STAT1, 0, 0x01, _BIT_SET, cv.UNDEFINED),
-    ("ts_flag", REG_FLAG0, 7, 0x01, _BIT_SET, cv.UNDEFINED),
-    ("ilim_flag", REG_FLAG0, 6, 0x01, _BIT_SET, cv.UNDEFINED),
-    ("vdppm_flag", REG_FLAG0, 5, 0x01, _BIT_SET, cv.UNDEFINED),
-    ("vindpm_flag", REG_FLAG0, 4, 0x01, _BIT_SET, cv.UNDEFINED),
-    ("thermreg_flag", REG_FLAG0, 3, 0x01, _BIT_SET, cv.UNDEFINED),
-    ("vin_ovp_flag", REG_FLAG0, 2, 0x01, _BIT_SET, cv.UNDEFINED),
-    ("battery_uvlo_flag", REG_FLAG0, 1, 0x01, _BIT_SET, cv.UNDEFINED),
-    ("battery_ocp_flag", REG_FLAG0, 0, 0x01, _BIT_SET, cv.UNDEFINED),
+    ("ilim", REG_STAT0, 4, 0x01, BIT_SET, DEVICE_CLASS_RUNNING),
+    ("vdppm", REG_STAT0, 3, 0x01, BIT_SET, DEVICE_CLASS_RUNNING),
+    ("vindpm", REG_STAT0, 2, 0x01, BIT_SET, DEVICE_CLASS_RUNNING),
+    ("thermreg", REG_STAT0, 1, 0x01, BIT_SET, DEVICE_CLASS_RUNNING),
+    ("power_good", REG_STAT0, 0, 0x01, BIT_SET, DEVICE_CLASS_PLUG),
+    ("vin_ovp", REG_STAT1, 7, 0x01, BIT_SET, DEVICE_CLASS_RUNNING),
+    ("battery_uvlo", REG_STAT1, 6, 0x01, BIT_SET, DEVICE_CLASS_RUNNING),
+    ("safety_timer_flag", REG_STAT1, 2, 0x01, BIT_SET, cv.UNDEFINED),
+    ("wake1_flag", REG_STAT1, 1, 0x01, BIT_SET, cv.UNDEFINED),
+    ("wake2_flag", REG_STAT1, 0, 0x01, BIT_SET, cv.UNDEFINED),
+    ("ts_flag", REG_FLAG0, 7, 0x01, BIT_SET, cv.UNDEFINED),
+    ("ilim_flag", REG_FLAG0, 6, 0x01, BIT_SET, cv.UNDEFINED),
+    ("vdppm_flag", REG_FLAG0, 5, 0x01, BIT_SET, cv.UNDEFINED),
+    ("vindpm_flag", REG_FLAG0, 4, 0x01, BIT_SET, cv.UNDEFINED),
+    ("thermreg_flag", REG_FLAG0, 3, 0x01, BIT_SET, cv.UNDEFINED),
+    ("vin_ovp_flag", REG_FLAG0, 2, 0x01, BIT_SET, cv.UNDEFINED),
+    ("battery_uvlo_flag", REG_FLAG0, 1, 0x01, BIT_SET, cv.UNDEFINED),
+    ("battery_ocp_flag", REG_FLAG0, 0, 0x01, BIT_SET, cv.UNDEFINED),
 )
 
 
@@ -59,19 +55,9 @@ CONFIG_SCHEMA = cv.All(
 )
 
 
-def _state_expression(reg: int, shift: int, mask: int, match: int) -> str:
-    """The C++ expression for whether the field reads as on."""
-    value = f"(status[{reg}] >> {shift}) & {mask:#04x}"
-    if mask == 0x01 and match == _BIT_SET:
-        return value
-    return f"({match:#06b} >> ({value})) & 1"
-
-
 async def to_code(config: ConfigType) -> None:
     hub = await cg.get_variable(config[CONF_BQ25186_ID])
     sensors = binary_sensor.sub_binary_sensors(config)
     for key, reg, shift, mask, match, _ in _FIELDS:
-        if (var := await sensors(key, None)) is None:
-            continue
-        state = _state_expression(reg, shift, mask, match)
-        add_status_statement(hub, f"{parent_ref(var)}->publish_state({state});")
+        if (var := await sensors(key, None)) is not None:
+            add_binary_status(hub, var, reg, shift, mask, match)

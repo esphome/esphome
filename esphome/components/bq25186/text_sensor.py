@@ -1,10 +1,9 @@
-from esphome.automation import parent_ref
 import esphome.codegen as cg
 from esphome.components import text_sensor
 import esphome.config_validation as cv
 from esphome.types import ConfigType
 
-from . import BQ25186_CHILD_SCHEMA, CONF_BQ25186_ID, add_status_statement
+from . import BQ25186_CHILD_SCHEMA, CONF_BQ25186_ID, add_text_status
 
 DEPENDENCIES = ["bq25186"]
 
@@ -29,14 +28,5 @@ async def to_code(config: ConfigType) -> None:
     hub = await cg.get_variable(config[CONF_BQ25186_ID])
     sensors = text_sensor.sub_text_sensors(config)
     for key, reg, shift, first in _FIELDS:
-        if (var := await sensors(key, None)) is None:
-            continue
-        # 0xFF so the first poll publishes
-        last = f"esphome__{var}__last"
-        add_status_statement(
-            hub,
-            f"static uint8_t {last} = 0xFF;\n"
-            f"bq25186::publish_status_text({parent_ref(var)}, {last}, "
-            f"status[{reg}] >> {shift}, {first});",
-            text=True,
-        )
+        if (var := await sensors(key, None)) is not None:
+            add_text_status(hub, var, reg, shift, first)
