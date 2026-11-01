@@ -2,6 +2,7 @@
 
 from pathlib import Path
 import shutil
+import sys
 
 import pytest
 
@@ -176,8 +177,15 @@ def test_board_yml_targets(tmp_path: Path) -> None:
     ]
 
 
-@pytest.mark.skipif(shutil.which("cpp") is None, reason="needs the C preprocessor")
-def test_load_boards_reads_enabled_cdc_acm_nodes(tmp_path: Path) -> None:
+# The generator runs on Linux (CI and developer machines) with the GNU C preprocessor; the
+# macOS cpp is a traditional-mode preprocessor and Windows has no /dev/null
+@pytest.mark.skipif(
+    sys.platform != "linux" or shutil.which("cpp") is None,
+    reason="needs Linux with the GNU C preprocessor",
+)
+def test_load_boards_reads_enabled_cdc_acm_nodes(
+    tmp_path: Path, capsys: pytest.CaptureFixture[str]
+) -> None:
     zephyr = tmp_path / "zephyr"
     board = zephyr / "boards" / "seeed" / "xiao_ble"
     _write(
@@ -194,7 +202,10 @@ def test_load_boards_reads_enabled_cdc_acm_nodes(tmp_path: Path) -> None:
     )
     _write(broken / "broken.dts", "/dts-v1/;\n/ { x = &missing; };\n")
 
-    assert load_boards([zephyr]) == {
+    loaded = load_boards([zephyr])
+    skipped = capsys.readouterr().err
+    assert "Skipping broken" in skipped
+    assert loaded == {
         "xiao_ble": BoardInfo(
             "XIAO BLE",
             "NRF52840",
@@ -203,7 +214,7 @@ def test_load_boards_reads_enabled_cdc_acm_nodes(tmp_path: Path) -> None:
                 "/soc/usbd@40027000/old_spelling",
             ),
         )
-    }
+    }, skipped
 
 
 def test_render_and_replace() -> None:
