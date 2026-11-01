@@ -122,7 +122,7 @@ class BLEServer final : public Component, public Parented<ESP32BLE> {
   void release_advertising_();
 
   int8_t find_client_index_(uint16_t conn_id) const;
-  void add_client_(uint16_t conn_id, const esp_bd_addr_t address);
+  void add_client_(const esp_ble_gatts_cb_param_t::gatts_connect_evt_param &connect);
 #ifdef USE_ESP32_BLE_SERVER_SECURITY
   bool is_client_address_(const esp_bd_addr_t address) const;
 #endif

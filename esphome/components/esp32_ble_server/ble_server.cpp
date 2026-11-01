@@ -191,7 +191,7 @@ void BLEServer::gatts_event_handler(esp_gatts_cb_event_t event, esp_gatt_if_t ga
   switch (event) {
     case ESP_GATTS_CONNECT_EVT: {
       ESP_LOGD(TAG, "BLE Client connected");
-      this->add_client_(param->connect.conn_id, param->connect.remote_bda);
+      this->add_client_(param->connect);
       // Resume advertising so additional clients can discover and connect
       if (this->client_count_ < this->max_clients_) {
         this->parent_->advertising_refresh();
@@ -228,16 +228,23 @@ int8_t BLEServer::find_client_index_(uint16_t conn_id) const {
   return -1;
 }
 
-void BLEServer::add_client_(uint16_t conn_id, const esp_bd_addr_t address) {
+void BLEServer::add_client_(const esp_ble_gatts_cb_param_t::gatts_connect_evt_param &connect) {
   // Check if already in list
-  if (this->find_client_index_(conn_id) >= 0)
+  if (this->find_client_index_(connect.conn_id) >= 0)
     return;
   // Add if there's space
   if (this->client_count_ < USE_ESP32_BLE_MAX_CONNECTIONS) {
 #ifdef USE_ESP32_BLE_SERVER_SECURITY
-    memcpy(this->client_addresses_[this->client_count_], address, sizeof(esp_bd_addr_t));
+    // Links this device opened as a central (link_role 0) are reported here too; their pairing
+    // belongs to ble_client, so a zero address keeps them out of the security handler
+    auto &address = this->client_addresses_[this->client_count_];
+    if (connect.link_role == 1) {
+      memcpy(address, connect.remote_bda, sizeof(esp_bd_addr_t));
+    } else {
+      memset(address, 0, sizeof(esp_bd_addr_t));
+    }
 #endif
-    this->clients_[this->client_count_++] = conn_id;
+    this->clients_[this->client_count_++] = connect.conn_id;
   } else {
     // This should never happen since max clients is known at compile time
     ESP_LOGE(TAG, "Client array full");
