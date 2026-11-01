@@ -74,6 +74,15 @@ class BSSIDWiFiInfo final : public Component, public text_sensor::TextSensor, pu
   // WiFiConnectStateListener interface
   void on_wifi_connect_state(StringRef ssid, std::span<const uint8_t, 6> bssid) override;
 };
+
+class ChannelWiFiInfo final : public Component, public text_sensor::TextSensor, public wifi::WiFiConnectStateListener {
+ public:
+  void setup() override;
+  void dump_config() override;
+
+  // WiFiConnectStateListener interface
+  void on_wifi_connect_state(StringRef ssid, std::span<const uint8_t, 6> bssid) override;
+};
 #endif  // USE_WIFI_CONNECT_STATE_LISTENERS
 
 #ifdef USE_WIFI_POWER_SAVE_LISTENERS

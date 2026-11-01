@@ -137,6 +137,21 @@ void BSSIDWiFiInfo::on_wifi_connect_state(StringRef ssid, std::span<const uint8_
   this->publish_state(buf);
 }
 
+/******************
+ * ChannelWiFiInfo
+ *****************/
+
+void ChannelWiFiInfo::setup() { wifi::global_wifi_component->add_connect_state_listener(this); }
+
+void ChannelWiFiInfo::dump_config() { LOG_TEXT_SENSOR("", "Channel", this); }
+
+void ChannelWiFiInfo::on_wifi_connect_state(StringRef ssid, std::span<const uint8_t, 6> bssid) {
+  char buf[UINT32_MAX_STR_SIZE] = "unknown";
+  if (mac_address_is_valid(bssid.data()))
+    uint32_to_str(buf, wifi::global_wifi_component->get_wifi_channel());
+  this->publish_state(buf);
+}
+
 #endif  // USE_WIFI_CONNECT_STATE_LISTENERS
 
 #ifdef USE_WIFI_POWER_SAVE_LISTENERS

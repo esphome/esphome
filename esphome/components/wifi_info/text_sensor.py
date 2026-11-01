@@ -3,6 +3,7 @@ from esphome.components import text_sensor, wifi
 import esphome.config_validation as cv
 from esphome.const import (
     CONF_BSSID,
+    CONF_CHANNEL,
     CONF_DNS_ADDRESS,
     CONF_IP_ADDRESS,
     CONF_MAC_ADDRESS,
@@ -26,6 +27,9 @@ ScanResultsWiFiInfo = wifi_info_ns.class_(
 SSIDWiFiInfo = wifi_info_ns.class_("SSIDWiFiInfo", text_sensor.TextSensor, cg.Component)
 BSSIDWiFiInfo = wifi_info_ns.class_(
     "BSSIDWiFiInfo", text_sensor.TextSensor, cg.Component
+)
+ChannelWiFiInfo = wifi_info_ns.class_(
+    "ChannelWiFiInfo", text_sensor.TextSensor, cg.Component
 )
 MacAddressWifiInfo = wifi_info_ns.class_(
     "MacAddressWifiInfo", text_sensor.TextSensor, cg.Component
@@ -58,6 +62,9 @@ CONFIG_SCHEMA = cv.Schema(
         cv.Optional(CONF_BSSID): text_sensor.text_sensor_schema(
             BSSIDWiFiInfo, entity_category=ENTITY_CATEGORY_DIAGNOSTIC
         ),
+        cv.Optional(CONF_CHANNEL): text_sensor.text_sensor_schema(
+            ChannelWiFiInfo, entity_category=ENTITY_CATEGORY_DIAGNOSTIC
+        ),
         cv.Optional(CONF_MAC_ADDRESS): text_sensor.text_sensor_schema(
             MacAddressWifiInfo, entity_category=ENTITY_CATEGORY_DIAGNOSTIC
         ),
@@ -83,8 +90,8 @@ async def to_code(config: ConfigType) -> None:
     # Request specific WiFi listeners based on which sensors are configured
     # Each sensor needs its own listener slot - call request for EACH sensor
 
-    # SSID and BSSID use WiFiConnectStateListener
-    for key in (CONF_SSID, CONF_BSSID):
+    # SSID, BSSID and channel use WiFiConnectStateListener
+    for key in (CONF_SSID, CONF_BSSID, CONF_CHANNEL):
         if key in config:
             wifi.request_wifi_connect_state_listener()
 
@@ -104,6 +111,7 @@ async def to_code(config: ConfigType) -> None:
 
     await setup_conf(config, CONF_SSID)
     await setup_conf(config, CONF_BSSID)
+    await setup_conf(config, CONF_CHANNEL)
     await setup_conf(config, CONF_MAC_ADDRESS)
     await setup_conf(config, CONF_SCAN_RESULTS)
     await setup_conf(config, CONF_DNS_ADDRESS)
