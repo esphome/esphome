@@ -1,0 +1,91 @@
+---
+# Every status entity on one hub
+esphome:
+  name: test
+
+esp32:
+  board: esp32dev
+
+i2c:
+  - id: i2c_bus
+    scl: GPIO16
+    sda: GPIO17
+
+bq25186:
+  - id: charger
+    i2c_id: i2c_bus
+
+binary_sensor:
+  - platform: bq25186
+    ts:
+      id: bs_ts
+      name: ts
+    charging:
+      id: bs_charging
+      name: charging
+    charge_done:
+      id: bs_charge_done
+      name: charge_done
+    ilim:
+      id: bs_ilim
+      name: ilim
+    vdppm:
+      id: bs_vdppm
+      name: vdppm
+    vindpm:
+      id: bs_vindpm
+      name: vindpm
+    thermreg:
+      id: bs_thermreg
+      name: thermreg
+    power_good:
+      id: bs_power_good
+      name: power_good
+    vin_ovp:
+      id: bs_vin_ovp
+      name: vin_ovp
+    battery_uvlo:
+      id: bs_battery_uvlo
+      name: battery_uvlo
+    safety_timer_flag:
+      id: bs_safety_timer_flag
+      name: safety_timer_flag
+    wake1_flag:
+      id: bs_wake1_flag
+      name: wake1_flag
+    wake2_flag:
+      id: bs_wake2_flag
+      name: wake2_flag
+    ts_flag:
+      id: bs_ts_flag
+      name: ts_flag
+    ilim_flag:
+      id: bs_ilim_flag
+      name: ilim_flag
+    vdppm_flag:
+      id: bs_vdppm_flag
+      name: vdppm_flag
+    vindpm_flag:
+      id: bs_vindpm_flag
+      name: vindpm_flag
+    thermreg_flag:
+      id: bs_thermreg_flag
+      name: thermreg_flag
+    vin_ovp_flag:
+      id: bs_vin_ovp_flag
+      name: vin_ovp_flag
+    battery_uvlo_flag:
+      id: bs_battery_uvlo_flag
+      name: battery_uvlo_flag
+    battery_ocp_flag:
+      id: bs_battery_ocp_flag
+      name: battery_ocp_flag
+
+text_sensor:
+  - platform: bq25186
+    charge_status:
+      id: tx_charge_status
+      name: charge_status
+    ts_status:
+      id: tx_ts_status
+      name: ts_status
