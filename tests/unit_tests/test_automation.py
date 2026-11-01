@@ -31,7 +31,6 @@ from esphome.automation import (
     NotCondition,
     OrCondition,
     RepeatAction,
-    ResumeComponentAction,
     StatelessLambdaCondition,
     TriggerForwarder,
     TriggerOnFalseForwarder,
@@ -92,7 +91,15 @@ from esphome.const import (
     CONF_TYPE_ID,
     CONF_UPDATE_INTERVAL,
 )
-from esphome.core import CORE, ID, KEY_CORE, KEY_TARGET_PLATFORM, EsphomeError, Lambda
+from esphome.core import (
+    CORE,
+    ID,
+    KEY_CORE,
+    KEY_TARGET_PLATFORM,
+    EsphomeError,
+    Lambda,
+    TimePeriodMilliseconds,
+)
 from esphome.cpp_generator import LambdaExpression, MockObj, RawExpression
 from esphome.schema_extractors import SCHEMA_EXTRACT
 from esphome.types import ConfigType
@@ -1184,6 +1191,52 @@ async def test_apply_condition_lambda_by_value(
 
 
 @pytest.mark.asyncio
+async def test_apply_lambda_modifying_its_arg(
+    registries: tuple[Registry, Registry], mock_cg: MockCodegen
+) -> None:
+    """How a field lambda that modifies its trigger arg is rendered."""
+    fields = (
+        ApplyField("kp", "set_kp", cg.float_),
+        ApplyField("ki", "set_ki", cg.float_),
+    )
+    config = {"kp": Lambda("x *= 2;\nreturn x;"), "ki": Lambda("return x *= 2;")}
+    await _run_apply_action(registries, fields, config, args=[(cg.int32, "x")])
+    text = _squash(_apply_definition(mock_cg))
+    assert text.startswith(
+        "static void esphome__obj_1__fn(const std::remove_cvref_t<int32_t> & x) {"
+    )
+    assert (
+        f"::{PARENT_OBJ}->set_kp([](const std::remove_cvref_t<int32_t> & x) -> float "
+        "{ x *= 2; return x; }(x));"
+    ) in text
+    assert f"::{PARENT_OBJ}->set_ki(static_cast<float>(x *= 2));" in text
+
+
+@pytest.mark.asyncio
+async def test_apply_condition_lambda_modifying_its_arg(
+    registries: tuple[Registry, Registry], mock_cg: MockCodegen
+) -> None:
+    """How a condition lambda that modifies its trigger arg is rendered."""
+    check = ApplyCall("state == {}", (("state", cg.float_),))
+    await _run_apply_condition(
+        registries,
+        check,
+        {"state": Lambda("x *= 2;\nreturn x;")},
+        args=[(cg.float_, "x")],
+    )
+    assert (
+        f"return ::{PARENT_OBJ}->state == [](const std::remove_cvref_t<float> & x) "
+        "-> float { x *= 2; return x; }(x);"
+    ) in _squash(_apply_definition(mock_cg))
+    await _run_apply_condition(
+        registries, check, {"state": Lambda("return x *= 2;")}, args=[(cg.float_, "x")]
+    )
+    assert f"return ::{PARENT_OBJ}->state == static_cast<float>(x *= 2);" in _squash(
+        _apply_definition(mock_cg)
+    )
+
+
+@pytest.mark.asyncio
 async def test_apply_call_keys(
     registries: tuple[Registry, Registry], mock_cg: MockCodegen
 ) -> None:
@@ -1788,6 +1841,36 @@ async def test_trigger_callback_filter_names_parent(mock_cg: MockCodegen) -> Non
 
 
 @pytest.mark.asyncio
+@pytest.mark.parametrize(
+    ("body", "expected"),
+    [
+        (
+            "x *= 2;\nreturn x;",
+            (
+                "if (!(x == [](const std::remove_cvref_t<float> & x) -> float "
+                "{ x *= 2; return x; }(x))) return;"
+            ),
+        ),
+        ("return x *= 2;", "if (!(x == static_cast<float>(x *= 2))) return;"),
+    ],
+)
+async def test_trigger_callback_filter_lambda_modifying_its_arg(
+    mock_cg: MockCodegen, body: str, expected: str
+) -> None:
+    """How a filter lambda that modifies the callback's arg is rendered."""
+    text = _squash(
+        await build_trigger_callback(
+            [(cg.float_, "x")],
+            {**TRIGGER_CONF, "level": Lambda(body)},
+            [(cg.float_, "x")],
+            when=ApplyCall("x == {}", (("level", cg.float_),)),
+        )
+    )
+    assert text.startswith("[](const std::remove_cvref_t<float> & x) -> void {")
+    assert expected in text
+
+
+@pytest.mark.asyncio
 async def test_build_callback_automations_when_names_parent(
     mock_cg: MockCodegen,
 ) -> None:
@@ -2285,22 +2368,90 @@ async def test_wait_until_action_timeout_is_optional(with_timeout: bool) -> None
     assert ("wait->set_timeout_value(" in CORE.cpp_main_section) == with_timeout
 
 
-@pytest.mark.asyncio
-@pytest.mark.parametrize("with_interval", [True, False])
-async def test_component_resume_action_update_interval_is_optional(
-    with_interval: bool,
-) -> None:
+def _component_action(name: str, body: ConfigType | None = None) -> ConfigType:
+    """Config for a ``component.*`` action on ``comp``, typed as the registry declares it."""
+    return {
+        name: {CONF_ID: ID("comp", type=cg.PollingComponent), **(body or {})},
+        CONF_TYPE_ID: ID(
+            "act",
+            is_declaration=True,
+            type=ACTION_REGISTRY[name].type_id,
+            is_manual=False,
+        ),
+    }
+
+
+@pytest.fixture
+def polling_component() -> None:
     CORE.config = {}
     cg.new_Pvariable(ID("comp", is_declaration=True, type=cg.PollingComponent))
-    body: ConfigType = {CONF_ID: ID("comp", type=cg.PollingComponent)}
-    if with_interval:
-        body[CONF_UPDATE_INTERVAL] = 250
-    config: ConfigType = {
-        "component.resume": body,
-        CONF_TYPE_ID: ID("resume", is_declaration=True, type=ResumeComponentAction),
-    }
-    await build_action(config, TEMPLATE_ARG, [])
-    assert ("resume->set_update_interval(" in CORE.cpp_main_section) == with_interval
+
+
+@pytest.mark.asyncio
+@pytest.mark.usefixtures("polling_component")
+@pytest.mark.parametrize(
+    "name",
+    ["component.update", "component.suspend", "component.resume"],
+)
+async def test_component_action_codegen(name: str) -> None:
+    """Each action is an object constructed with the component, with no interval set."""
+    await build_action(_component_action(name), TEMPLATE_ARG, [])
+
+    class_name = str(ACTION_REGISTRY[name].type_id)
+    assert f"new(act) {class_name}<>(comp);" in CORE.cpp_main_section
+    assert "set_update_interval" not in CORE.cpp_main_section
+
+
+@pytest.mark.asyncio
+@pytest.mark.usefixtures("polling_component")
+async def test_component_resume_constant_interval_codegen() -> None:
+    await build_action(
+        _component_action(
+            "component.resume",
+            {CONF_UPDATE_INTERVAL: TimePeriodMilliseconds(milliseconds=250)},
+        ),
+        TEMPLATE_ARG,
+        [],
+    )
+
+    assert (
+        "act->set_update_interval([]() -> uint32_t {\n    return 250;\n});"
+    ) in CORE.cpp_main_section
+
+
+@pytest.mark.asyncio
+@pytest.mark.usefixtures("polling_component")
+async def test_component_resume_interval_lambda_codegen() -> None:
+    """A templated interval is a lambda over the trigger args."""
+    await build_action(
+        _component_action(
+            "component.resume", {CONF_UPDATE_INTERVAL: Lambda("return x * 1000;")}
+        ),
+        cg.TemplateArguments(cg.uint32),
+        [(cg.uint32, "x")],
+    )
+
+    main = CORE.cpp_main_section
+    assert "new(act) ResumeComponentAction<uint32_t>(comp);" in main
+    assert (
+        "act->set_update_interval([](uint32_t x) -> uint32_t {\n"
+        "    return x * 1000;\n"
+        "});"
+    ) in main
+
+
+@pytest.mark.asyncio
+@pytest.mark.usefixtures("polling_component")
+@pytest.mark.parametrize("body", ["x *= 1000; return x;", "return x *= 1000;"])
+async def test_component_resume_interval_lambda_takes_args_by_value(body: str) -> None:
+    """The user's interval lambda gets the trigger args by value, so it may modify them."""
+    await build_action(
+        _component_action("component.resume", {CONF_UPDATE_INTERVAL: Lambda(body)}),
+        cg.TemplateArguments(cg.uint32),
+        [(cg.uint32, "x")],
+    )
+
+    assert f"[](uint32_t x) -> uint32_t {{\n    {body}\n}}" in CORE.cpp_main_section
 
 
 COMPONENT_ID = ID("comp", type=cg.Component)
