@@ -14,6 +14,10 @@ class PublishingHub {
   }
 
   HUB_PUBLISHER(value, int)
+
+  bool claim(uint32_t id) { return this->claim_publisher_ != nullptr && this->claim_publisher_(id); }
+
+  HUB_PUBLISHER_RETURNING(bool, claim, uint32_t)
 };
 
 static int published = 0;  // NOLINT(cppcoreguidelines-avoid-non-const-global-variables)
@@ -26,6 +30,21 @@ TEST(HubPublisher, StartsUnsetAndCallsTheFunctionOnceSet) {
   hub.set_value_publisher(record);
   EXPECT_TRUE(hub.publish(7));
   EXPECT_EQ(published, 7);
+}
+
+// The shape cg.HubFunction emits for a bool function
+static bool claim_seven(uint32_t esphome__arg_id) {
+  bool esphome__found = false;
+  (esphome__found |= esphome__arg_id == 7);
+  return esphome__found;
+}
+
+TEST(HubPublisher, BoolPublisherReturnsWhetherAnyItemClaimed) {
+  PublishingHub hub;
+  EXPECT_FALSE(hub.claim(7));
+  hub.set_claim_publisher(claim_seven);
+  EXPECT_TRUE(hub.claim(7));
+  EXPECT_FALSE(hub.claim(8));
 }
 
 }  // namespace esphome::testing
