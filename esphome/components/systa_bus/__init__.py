@@ -1,13 +1,8 @@
-from collections.abc import Callable
-import logging
-
 import esphome.codegen as cg
 from esphome.components import uart
 import esphome.config_validation as cv
-from esphome.const import CONF_ID, CONF_SETUP_PRIORITY
+from esphome.cpp_generator import MockObj
 from esphome.types import ConfigType
-
-_LOGGER = logging.getLogger(__name__)
 
 CODEOWNERS = ["@Mat931"]
 DOMAIN = "systa_bus"
@@ -33,54 +28,13 @@ FINAL_VALIDATE_SCHEMA = uart.final_validate_device_schema(
     "systa_bus", baud_rate=9600, require_rx=True
 )
 
-# Children publish from each SystaSolar Aqua sensor data frame
-AQUA_PUBLISHER = cg.HubFunction(
-    "aqua",
-    cg.void,
-    [(cg.std_ns.class_("span").template(cg.uint8.operator("const")), "message")],
-    define="USE_SYSTA_BUS_AQUA_PUBLISHER",
-)
-MESSAGE = AQUA_PUBLISHER.param("message")
-# Children's dump_config lines, logged under the bus's tag
-DUMP_PUBLISHER = cg.HubFunction(
-    "dump",
-    cg.void,
-    [(cg.const_char_ptr, "tag")],
-    define="USE_SYSTA_BUS_AQUA_PUBLISHER",
-)
-DUMP_TAG = DUMP_PUBLISHER.param("tag")
+_request_listener_slot = cg.slot_counter("SYSTA_BUS_LISTENER_COUNT")
 
 
-def _warn_ignored_keys(platform: str) -> Callable[[ConfigType], ConfigType]:
-    # Remove before 2027.5.0
-    def validator(config: ConfigType) -> ConfigType:
-        for key in (CONF_ID, CONF_SETUP_PRIORITY):
-            if key in config:
-                _LOGGER.warning(
-                    "[systa_bus] '%s' on the %s platform has no effect and is deprecated. "
-                    "Will be removed in 2027.5.0",
-                    key,
-                    platform,
-                )
-        return config
-
-    return validator
-
-
-def child_schema(platform: str, schema: dict) -> cv.All:
-    """A model schema for a child platform; old configs may still set id and setup_priority."""
-    return cv.All(
-        cv.Schema(
-            {
-                cv.GenerateID(CONF_SYSTA_BUS_ID): cv.use_id(SystaBus),
-                # Remove before 2027.5.0
-                cv.Optional(CONF_ID): cv.All(cv.string, cv.validate_id_name),
-                cv.Optional(CONF_SETUP_PRIORITY): cv.float_,
-                **schema,
-            }
-        ),
-        _warn_ignored_keys(platform),
-    )
+async def register_systa_bus_listener(systa_bus: MockObj, var: MockObj) -> None:
+    """Register a listener with its bus and count it for the compile-time listener storage."""
+    _request_listener_slot(str(systa_bus))
+    cg.add(systa_bus.register_listener(var))
 
 
 async def to_code(config: ConfigType) -> None:
