@@ -21,6 +21,9 @@ class RtttlParserAccess {
   static char at(const Rtttl &p, size_t pos) { return p.song_at_(pos); }
   static void set_running(Rtttl &p) { p.state_ = State::RUNNING; }
   static int16_t sine(uint32_t phase) { return Rtttl::sine_sample(phase); }
+  static int16_t fade(int16_t value, uint32_t from_start, uint32_t to_end) {
+    return Rtttl::fade_sample(value, from_start, to_end);
+  }
 };
 
 using Access = RtttlParserAccess;
@@ -44,6 +47,25 @@ TEST(RtttlSine, HitsTheQuarterPointsOfTheWave) {
   EXPECT_NEAR(Access::sine(0xC0000000), -INT16_MAX, 1);
   EXPECT_NEAR(Access::sine(0xFFFFFFFF), 0, 1);
 }
+
+TEST(RtttlFade, FirstAndLastSamplesOfANoteAreSilent) {
+  EXPECT_EQ(Access::fade(INT16_MAX, 0, 1000), 0);
+  EXPECT_EQ(Access::fade(INT16_MIN, 1000, 0), 0);
+}
+
+TEST(RtttlFade, RampsAcrossTheFade) {
+  EXPECT_EQ(Access::fade(3200, 16, 1000), 1600);
+  EXPECT_EQ(Access::fade(3200, 1000, 16), 1600);
+  EXPECT_EQ(Access::fade(-3200, 16, 1000), -1600);
+  EXPECT_EQ(Access::fade(3200, 31, 1000), 3100);
+}
+
+TEST(RtttlFade, LeavesTheMiddleOfANoteUnchanged) {
+  EXPECT_EQ(Access::fade(INT16_MAX, 32, 32), INT16_MAX);
+  EXPECT_EQ(Access::fade(INT16_MIN, 1000, 1000), INT16_MIN);
+}
+
+TEST(RtttlFade, UsesTheNearerEndOfAVeryShortNote) { EXPECT_EQ(Access::fade(3200, 16, 8), 800); }
 
 TEST(RtttlParser, StaticSongParsesTheHeader) {
   Rtttl player;
