@@ -148,17 +148,17 @@ void Mk2PVRouter::loop() {
 }
 
 void Mk2PVRouter::publish_value_(const char *tag, const char *val) {
-#ifdef USE_MK2PVROUTER_VALUE_FN
-  if (this->value_fn_ != nullptr)
-    this->value_fn_(tag, val);
+#ifdef USE_MK2PVROUTER_VALUE_PUBLISHER
+  if (this->value_publisher_ != nullptr)
+    this->value_publisher_(tag, val);
 #endif
 }
 
 void Mk2PVRouter::dump_config() {
   ESP_LOGCONFIG(TAG, "Mk2PVRouter:");
-#ifdef USE_MK2PVROUTER_VALUE_FN
-  if (this->dump_fn_ != nullptr)
-    this->dump_fn_();
+#ifdef USE_MK2PVROUTER_VALUE_PUBLISHER
+  if (this->dump_publisher_ != nullptr)
+    this->dump_publisher_(TAG);
 #endif
 }
 
