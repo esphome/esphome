@@ -437,13 +437,13 @@ def test_hub_function_one_function_per_hub_in_add_order() -> None:
     ch.CORE.flush_tasks()
     assert _after_includes() == [
         (
-            "static void esphome__hub_a__status_fn(const hub::Regs & status) {\n"
-            "  x->publish_state(status[0]);\n"
-            "  z->publish_state(status[2]);\n}"
+            "static void esphome__hub_a__status_fn(const hub::Regs & esphome__arg_status) {\n"
+            "  x->publish_state(esphome__arg_status[0]);\n"
+            "  z->publish_state(esphome__arg_status[2]);\n}"
         ),
         (
-            "static void esphome__hub_b__status_fn(const hub::Regs & status) {\n"
-            "  y->publish_state(status[1]);\n}"
+            "static void esphome__hub_b__status_fn(const hub::Regs & esphome__arg_status) {\n"
+            "  y->publish_state(esphome__arg_status[1]);\n}"
         ),
     ]
     assert _main() == [
@@ -472,8 +472,8 @@ def test_hub_functions_on_one_hub_stay_apart() -> None:
     release.add(hub, cg.MockObj("off")(release.param("key")))
     ch.CORE.flush_tasks()
     assert _after_includes() == [
-        "static void esphome__keys__press_fn(uint8_t key) {\n  on(key);\n}",
-        "static void esphome__keys__release_fn(uint8_t key) {\n  off(key);\n}",
+        "static void esphome__keys__press_fn(uint8_t esphome__arg_key) {\n  on(esphome__arg_key);\n}",
+        "static void esphome__keys__release_fn(uint8_t esphome__arg_key) {\n  off(esphome__arg_key);\n}",
     ]
     assert _main() == [
         "keys->set_press(esphome__keys__press_fn);",
@@ -489,11 +489,11 @@ def test_hub_function_bool_returns_whether_any_item_was_true() -> None:
     ch.CORE.flush_tasks()
     assert _after_includes() == [
         (
-            "static bool esphome__reader__claim_fn(uint32_t id) {\n"
-            "  bool any = false;\n"
-            "  (any |= card_a->process(id));\n"
-            "  (any |= card_b->process(id));\n"
-            "  return any;\n}"
+            "static bool esphome__reader__claim_fn(uint32_t esphome__arg_id) {\n"
+            "  bool esphome__found = false;\n"
+            "  (esphome__found |= card_a->process(esphome__arg_id));\n"
+            "  (esphome__found |= card_b->process(esphome__arg_id));\n"
+            "  return esphome__found;\n}"
         )
     ]
 
@@ -501,6 +501,21 @@ def test_hub_function_bool_returns_whether_any_item_was_true() -> None:
 def test_hub_function_rejects_other_return_types() -> None:
     with pytest.raises(ValueError, match="void or bool"):
         ch.HubFunction("value_fn", ct.int32, [], setter="set_value")
+
+
+def test_hub_function_items_cannot_be_hidden_by_their_names() -> None:
+    """Parameters and the bool result are prefixed, so entity ids like status or any stay visible."""
+    fn = ch.HubFunction("claim_fn", ct.bool_, [(ct.bool_, "any")], setter="set_claim")
+    fn.add(cg.MockObj("reader", "->"), cg.MockObj("any", "->").process(fn.param("any")))
+    ch.CORE.flush_tasks()
+    assert _after_includes() == [
+        (
+            "static bool esphome__reader__claim_fn(bool esphome__arg_any) {\n"
+            "  bool esphome__found = false;\n"
+            "  (esphome__found |= any->process(esphome__arg_any));\n"
+            "  return esphome__found;\n}"
+        )
+    ]
 
 
 def test_hub_function_param_must_exist() -> None:
