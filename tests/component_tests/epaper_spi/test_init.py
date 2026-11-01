@@ -8,6 +8,7 @@ from typing import Any
 import pytest
 
 from esphome import config_validation as cv
+from esphome.components.const import CONF_HOLD_STATE
 from esphome.components.epaper_spi.display import (
     CONFIG_SCHEMA,
     FINAL_VALIDATE_SCHEMA,
@@ -19,6 +20,7 @@ from esphome.components.esp32 import (
     VARIANT_ESP32,
     VARIANT_ESP32S3,
 )
+from esphome.components.esp8266 import gpio as esp8266_gpio  # noqa: F401  registers the pin schema
 from esphome.const import (
     CONF_BUSY_PIN,
     CONF_CS_PIN,
@@ -886,6 +888,127 @@ def test_full_update_next_action_code_generation(
     main_cpp = generate_main(component_config_path("full_update_next_test.yaml"))
 
     assert "epaper_display->request_full_update();" in main_cpp
+
+
+def test_sleep_state_code_generation(
+    generate_main: Callable[[str | Path], str],
+    component_config_path: Callable[[str], Path],
+) -> None:
+    """partial_update_after_deep_sleep gives the display a sleep state slot in RTC memory."""
+    main_cpp = generate_main(component_config_path("resume_after_deep_sleep_test.yaml"))
+
+    assert "epaper_display->set_sleep_state_hash(" in main_cpp
+
+
+def test_no_sleep_state_by_default(
+    generate_main: Callable[[str | Path], str],
+    component_config_path: Callable[[str], Path],
+) -> None:
+    """By default every wake refreshes fully and nothing is kept across the sleep."""
+    main_cpp = generate_main(component_config_path("full_update_next_test.yaml"))
+
+    assert "set_sleep_state_hash(" not in main_cpp
+
+
+def test_partial_update_after_deep_sleep_needs_partial_updates(
+    set_core_config: SetCoreConfigCallable,
+    set_component_config: Callable[[str, Any], None],
+) -> None:
+    """partial_update_after_deep_sleep is pointless without partial updates."""
+    set_core_config(
+        PlatformFramework.ESP32_IDF,
+        platform_data={KEY_BOARD: "esp32dev", KEY_VARIANT: VARIANT_ESP32},
+    )
+
+    set_component_config("spi", {"id": "spi_bus", "clk_pin": 18, "mosi_pin": 19})
+
+    with pytest.raises(cv.Invalid, match="full_update_every"):
+        run_schema_validation(
+            {
+                "id": "test_display",
+                "model": "ssd1681",
+                "dc_pin": 21,
+                "reset_pin": 23,
+                "partial_update_after_deep_sleep": "panel",
+            }
+        )
+
+
+def test_partial_update_after_deep_sleep_holds_the_enable_pins(
+    set_core_config: SetCoreConfigCallable,
+    set_component_config: Callable[[str, Any], None],
+) -> None:
+    """With the panel keeping its image, its enable pins hold their level through the deep sleep."""
+    set_core_config(
+        PlatformFramework.ESP32_IDF,
+        platform_data={KEY_BOARD: "esp32dev", KEY_VARIANT: VARIANT_ESP32},
+    )
+
+    set_component_config("spi", {"id": "spi_bus", "clk_pin": 18, "mosi_pin": 19})
+
+    base = {
+        "id": "test_display",
+        "model": "ssd1681",
+        "dc_pin": 21,
+        "reset_pin": 23,
+        "enable_pin": [{"number": 25, "inverted": True}, 26],
+        "full_update_every": 20,
+    }
+    config = run_schema_validation(base)
+    assert not any(pin[CONF_HOLD_STATE] for pin in config[CONF_ENABLE_PIN])
+
+    config = run_schema_validation({**base, "partial_update_after_deep_sleep": "panel"})
+    assert all(pin[CONF_HOLD_STATE] for pin in config[CONF_ENABLE_PIN])
+
+
+def test_partial_update_after_deep_sleep_rejects_esp8266_enable_pins(
+    set_core_config: SetCoreConfigCallable,
+    set_component_config: Callable[[str, Any], None],
+) -> None:
+    """The ESP8266 cannot keep a panel powered through an enable pin while it sleeps."""
+    set_core_config(
+        PlatformFramework.ESP8266_ARDUINO, platform_data={KEY_BOARD: "d1_mini"}
+    )
+
+    set_component_config("spi", {"id": "spi_bus", "clk_pin": 14, "mosi_pin": 13})
+
+    base = {
+        "id": "test_display",
+        "model": "ssd1681",
+        "dc_pin": 4,
+        "reset_pin": 2,
+        "full_update_every": 20,
+        "partial_update_after_deep_sleep": "panel",
+    }
+    run_schema_validation(base)
+
+    with pytest.raises(cv.Invalid, match="cannot hold the enable pins"):
+        run_schema_validation({**base, "enable_pin": 5})
+
+
+def test_partial_update_after_deep_sleep_needs_a_model_that_supports_it(
+    set_core_config: SetCoreConfigCallable,
+    set_component_config: Callable[[str, Any], None],
+) -> None:
+    """Models whose driver cannot resume after a deep sleep reject the option."""
+    set_core_config(
+        PlatformFramework.ESP32_IDF,
+        platform_data={KEY_BOARD: "esp32dev", KEY_VARIANT: VARIANT_ESP32},
+    )
+
+    set_component_config("spi", {"id": "spi_bus", "clk_pin": 18, "mosi_pin": 19})
+
+    with pytest.raises(cv.Invalid, match="does not support"):
+        run_schema_validation(
+            {
+                "id": "test_display",
+                "model": "ssd1683",
+                "dc_pin": 21,
+                "dimensions": {"width": 200, "height": 200},
+                "full_update_every": 20,
+                "partial_update_after_deep_sleep": "panel",
+            }
+        )
 
 
 def test_is_updating_condition_code_generation(
