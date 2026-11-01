@@ -260,7 +260,8 @@ class HubFunction:
         self._name = name
         self._return_type = return_type
         self._returns_bool = str(return_type) == "bool"
-        self._parameters = parameters
+        # Prefixed, so a parameter cannot hide an entity id the items name
+        self._parameters = [(type_, f"esphome__arg_{arg}") for type_, arg in parameters]
         self._setter = setter
         self._define = define
 
@@ -272,9 +273,10 @@ class HubFunction:
 
     def param(self, name: str) -> MockObj:
         """The parameter ``name``, for use in the items."""
-        if name not in (param for _, param in self._parameters):
+        arg = f"esphome__arg_{name}"
+        if arg not in (param for _, param in self._parameters):
             raise ValueError(f"HubFunction '{self._name}' has no parameter '{name}'")
-        return MockObj(name)
+        return MockObj(arg)
 
     def add(self, hub: MockObj, item: Expression | Statement) -> None:
         """Append ``item`` to the function of ``hub``, a plain variable such as ``cg.get_variable``'s."""
@@ -299,7 +301,7 @@ class HubFunction:
     def _body(self, items: list[Expression | Statement]) -> list[Statement]:
         if not self._returns_bool:
             return [statement(item) for item in items]
-        any_ = MockObj("any")
+        any_ = MockObj("esphome__found")
         return [
             statement(AssignmentExpression(self._return_type, "", any_, False)),
             *(statement(BinOpExpression(any_, "|=", item)) for item in items),
@@ -315,7 +317,9 @@ class HubFunction:
         for hub, items in state.hubs.values():
             name = f"esphome__{hub}__{self._name}"
             if name in names:
-                raise ValueError(f"HubFunction: two functions named {name}")
+                raise ValueError(
+                    f"HubFunction: two functions named {name} (setter {self._setter})"
+                )
             names.add(name)
             fn = static_function(
                 name, self._return_type, self._parameters, self._body(items)
