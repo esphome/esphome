@@ -4,6 +4,8 @@ from collections.abc import Callable
 from pathlib import Path
 import re
 
+from esphome.components.bq25186 import _state_expression
+
 from .status_datasheet import BINARY_SENSORS, TEXT_SENSORS, field_value, status_strings
 
 PARAMS = "const bq25186::BQ25186StatusRegisters & status"
@@ -72,3 +74,17 @@ def test_status_publishers(generate_main: Callable[[str], str]) -> None:
     assert [(m[1].lower(), m[2], m[3]) for m in CPP_TEXT.finditer(cpp)] == [
         (t[1], t[2], t[3]) for _, t in text
     ]
+
+
+def test_single_bit_shortcut_needs_a_one_bit_field() -> None:
+    """A wider field whose match looks like a single bit keeps the bitmap form."""
+    for mask, match in ((0x01, 0b10), (0x01, 0b01), (0x03, 0b10), (0x03, 0b0110)):
+        expr = _state_expression(0, 2, mask, match)
+        for value in range(256):
+            status = [value]
+            result = eval(expr, {"__builtins__": {}}, {"status": status})  # noqa: S307
+            assert (result != 0) == bool((match >> ((value >> 2) & mask)) & 1), (
+                mask,
+                match,
+                value,
+            )
