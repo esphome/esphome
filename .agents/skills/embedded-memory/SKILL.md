@@ -62,11 +62,13 @@ APIs.
    known at compile time, so it should never be a `std::vector`. Use `cg.slot_list()` with the `SLOT_LIST`
    macro: each call reserves a slot for that hub and returns the register call (for `cg.add()` or a `sub_*`
    setter). After every `to_code` has run, the define holds the largest count any one hub needs, so every
-   hub of a `MULTI_CONF` component fits. Declare it in the hub component's `__init__.py`: whenever that
-   component is in the build the define exists, as 0 when nothing registered, and a list of 0 takes no space.
+   hub of a `MULTI_CONF` component fits. Pass the hub component's `DOMAIN`: whenever that component is in
+   the build the define exists, as 0 when nothing registered, and a list of 0 takes no space.
    ```python
    # hub component's __init__.py
-   register_listener = cg.slot_list("MY_COMPONENT_LISTENER_COUNT", "register_listener")
+   register_listener = cg.slot_list(
+       "MY_COMPONENT_LISTENER_COUNT", "register_listener", DOMAIN
+   )
 
 
    # a platform of the hub
