@@ -1,0 +1,622 @@
+number:
+  - platform: toptronic
+    name: Normal-Raumtemperatur Heizbetrieb (1)
+    device_type: FW
+    function_group: 1
+    function_number: 0
+    datapoint: 3051
+    type: S16
+    min_value: 100
+    max_value: 300
+    step: 5
+    decimal: 1
+    unit_of_measurement: "\xB0C"
+    icon: mdi:temperature-celsius
+    device_class: temperature
+  - platform: toptronic
+    name: Spar-Raumtemperatur Heizbetrieb (1)
+    device_type: FW
+    function_group: 1
+    function_number: 0
+    datapoint: 3053
+    type: S16
+    min_value: 50
+    max_value: 200
+    step: 5
+    decimal: 1
+    unit_of_measurement: "\xB0C"
+    icon: mdi:temperature-celsius
+    device_class: temperature
+  - platform: toptronic
+    name: Normal-Raumtemperatur Heizbetrieb (2)
+    device_type: FW
+    function_group: 1
+    function_number: 1
+    datapoint: 3051
+    type: S16
+    min_value: 100
+    max_value: 300
+    step: 5
+    decimal: 1
+    unit_of_measurement: "\xB0C"
+    icon: mdi:temperature-celsius
+    device_class: temperature
+  - platform: toptronic
+    name: Spar-Raumtemperatur Heizbetrieb (2)
+    device_type: FW
+    function_group: 1
+    function_number: 1
+    datapoint: 3053
+    type: S16
+    min_value: 50
+    max_value: 200
+    step: 5
+    decimal: 1
+    unit_of_measurement: "\xB0C"
+    icon: mdi:temperature-celsius
+    device_class: temperature
+  - platform: toptronic
+    name: Normal-Raumtemperatur Heizbetrieb (3)
+    device_type: FW
+    function_group: 1
+    function_number: 2
+    datapoint: 3051
+    type: S16
+    min_value: 100
+    max_value: 300
+    step: 5
+    decimal: 1
+    unit_of_measurement: "\xB0C"
+    icon: mdi:temperature-celsius
+    device_class: temperature
+  - platform: toptronic
+    name: Spar-Raumtemperatur Heizbetrieb (3)
+    device_type: FW
+    function_group: 1
+    function_number: 2
+    datapoint: 3053
+    type: S16
+    min_value: 50
+    max_value: 200
+    step: 5
+    decimal: 1
+    unit_of_measurement: "\xB0C"
+    icon: mdi:temperature-celsius
+    device_class: temperature
+  - platform: toptronic
+    name: Normal-Raumtemperatur Heizbetrieb (4)
+    device_type: FW
+    function_group: 1
+    function_number: 3
+    datapoint: 3051
+    type: S16
+    min_value: 100
+    max_value: 300
+    step: 5
+    decimal: 1
+    unit_of_measurement: "\xB0C"
+    icon: mdi:temperature-celsius
+    device_class: temperature
+  - platform: toptronic
+    name: Spar-Raumtemperatur Heizbetrieb (4)
+    device_type: FW
+    function_group: 1
+    function_number: 3
+    datapoint: 3053
+    type: S16
+    min_value: 50
+    max_value: 200
+    step: 5
+    decimal: 1
+    unit_of_measurement: "\xB0C"
+    icon: mdi:temperature-celsius
+    device_class: temperature
+  - platform: toptronic
+    name: Normal-Raumtemperatur Heizbetrieb (5)
+    device_type: FW
+    function_group: 1
+    function_number: 4
+    datapoint: 3051
+    type: S16
+    min_value: 100
+    max_value: 300
+    step: 5
+    decimal: 1
+    unit_of_measurement: "\xB0C"
+    icon: mdi:temperature-celsius
+    device_class: temperature
+  - platform: toptronic
+    name: Spar-Raumtemperatur Heizbetrieb (5)
+    device_type: FW
+    function_group: 1
+    function_number: 4
+    datapoint: 3053
+    type: S16
+    min_value: 50
+    max_value: 200
+    step: 5
+    decimal: 1
+    unit_of_measurement: "\xB0C"
+    icon: mdi:temperature-celsius
+    device_class: temperature
+  - platform: toptronic
+    name: Raum-Soll (1)
+    device_type: FW
+    function_group: 1
+    function_number: 0
+    datapoint: 1001
+    type: S16
+    min_value: 100
+    max_value: 300
+    step: 5
+    decimal: 1
+    unit_of_measurement: "\xB0C"
+    icon: mdi:temperature-celsius
+    device_class: temperature
+  - platform: toptronic
+    name: Raum-Soll (2)
+    device_type: FW
+    function_group: 1
+    function_number: 1
+    datapoint: 1001
+    type: S16
+    min_value: 100
+    max_value: 300
+    step: 5
+    decimal: 1
+    unit_of_measurement: "\xB0C"
+    icon: mdi:temperature-celsius
+    device_class: temperature
+  - platform: toptronic
+    name: Raum-Soll (3)
+    device_type: FW
+    function_group: 1
+    function_number: 2
+    datapoint: 1001
+    type: S16
+    min_value: 100
+    max_value: 300
+    step: 5
+    decimal: 1
+    unit_of_measurement: "\xB0C"
+    icon: mdi:temperature-celsius
+    device_class: temperature
+  - platform: toptronic
+    name: Raum-Soll (4)
+    device_type: FW
+    function_group: 1
+    function_number: 3
+    datapoint: 1001
+    type: S16
+    min_value: 100
+    max_value: 300
+    step: 5
+    decimal: 1
+    unit_of_measurement: "\xB0C"
+    icon: mdi:temperature-celsius
+    device_class: temperature
+  - platform: toptronic
+    name: Raum-Soll (5)
+    device_type: FW
+    function_group: 1
+    function_number: 4
+    datapoint: 1001
+    type: S16
+    min_value: 100
+    max_value: 300
+    step: 5
+    decimal: 1
+    unit_of_measurement: "\xB0C"
+    icon: mdi:temperature-celsius
+    device_class: temperature
+  - platform: toptronic
+    name: Normal-Warmwassertemperatur (1)
+    device_type: FW
+    function_group: 2
+    function_number: 0
+    datapoint: 5051
+    type: S16
+    min_value: 100
+    max_value: 700
+    step: 10
+    decimal: 1
+    unit_of_measurement: "\xB0C"
+    icon: mdi:temperature-celsius
+    device_class: temperature
+  - platform: toptronic
+    name: Spar-Warmwassertemperatur (1)
+    device_type: FW
+    function_group: 2
+    function_number: 0
+    datapoint: 5086
+    type: U8
+    min_value: 10
+    max_value: 70
+    step: 1
+    decimal: 0
+    unit_of_measurement: "\xB0C"
+    icon: mdi:temperature-celsius
+    device_class: temperature
+  - platform: toptronic
+    name: Normal-Warmwassertemperatur (2)
+    device_type: FW
+    function_group: 2
+    function_number: 1
+    datapoint: 5051
+    type: S16
+    min_value: 100
+    max_value: 700
+    step: 10
+    decimal: 1
+    unit_of_measurement: "\xB0C"
+    icon: mdi:temperature-celsius
+    device_class: temperature
+  - platform: toptronic
+    name: Spar-Warmwassertemperatur (2)
+    device_type: FW
+    function_group: 2
+    function_number: 1
+    datapoint: 5086
+    type: U8
+    min_value: 10
+    max_value: 70
+    step: 1
+    decimal: 0
+    unit_of_measurement: "\xB0C"
+    icon: mdi:temperature-celsius
+    device_class: temperature
+  - platform: toptronic
+    name: Normal-Warmwassertemperatur (3)
+    device_type: FW
+    function_group: 2
+    function_number: 2
+    datapoint: 5051
+    type: S16
+    min_value: 100
+    max_value: 700
+    step: 10
+    decimal: 1
+    unit_of_measurement: "\xB0C"
+    icon: mdi:temperature-celsius
+    device_class: temperature
+  - platform: toptronic
+    name: Spar-Warmwassertemperatur (3)
+    device_type: FW
+    function_group: 2
+    function_number: 2
+    datapoint: 5086
+    type: U8
+    min_value: 10
+    max_value: 70
+    step: 1
+    decimal: 0
+    unit_of_measurement: "\xB0C"
+    icon: mdi:temperature-celsius
+    device_class: temperature
+  - platform: toptronic
+    name: Normal-Warmwassertemperatur (4)
+    device_type: FW
+    function_group: 2
+    function_number: 3
+    datapoint: 5051
+    type: S16
+    min_value: 100
+    max_value: 700
+    step: 10
+    decimal: 1
+    unit_of_measurement: "\xB0C"
+    icon: mdi:temperature-celsius
+    device_class: temperature
+  - platform: toptronic
+    name: Spar-Warmwassertemperatur (4)
+    device_type: FW
+    function_group: 2
+    function_number: 3
+    datapoint: 5086
+    type: U8
+    min_value: 10
+    max_value: 70
+    step: 1
+    decimal: 0
+    unit_of_measurement: "\xB0C"
+    icon: mdi:temperature-celsius
+    device_class: temperature
+  - platform: toptronic
+    name: Normal-Warmwassertemperatur (5)
+    device_type: FW
+    function_group: 2
+    function_number: 4
+    datapoint: 5051
+    type: S16
+    min_value: 100
+    max_value: 700
+    step: 10
+    decimal: 1
+    unit_of_measurement: "\xB0C"
+    icon: mdi:temperature-celsius
+    device_class: temperature
+  - platform: toptronic
+    name: Spar-Warmwassertemperatur (5)
+    device_type: FW
+    function_group: 2
+    function_number: 4
+    datapoint: 5086
+    type: U8
+    min_value: 10
+    max_value: 70
+    step: 1
+    decimal: 0
+    unit_of_measurement: "\xB0C"
+    icon: mdi:temperature-celsius
+    device_class: temperature
+  - platform: toptronic
+    name: Vorlauf Soll Konstantanforderung (1)
+    device_type: FW
+    function_group: 1
+    function_number: 0
+    datapoint: 7036
+    type: S16
+    min_value: 0
+    max_value: 1500
+    step: 1
+    decimal: 1
+    unit_of_measurement: "\xB0C"
+    icon: mdi:temperature-celsius
+    device_class: temperature
+  - platform: toptronic
+    name: Vorlauf Soll Konstantanforderung (2)
+    device_type: FW
+    function_group: 1
+    function_number: 1
+    datapoint: 7036
+    type: S16
+    min_value: 0
+    max_value: 1500
+    step: 1
+    decimal: 1
+    unit_of_measurement: "\xB0C"
+    icon: mdi:temperature-celsius
+    device_class: temperature
+  - platform: toptronic
+    name: Vorlauf Soll Konstantanforderung (3)
+    device_type: FW
+    function_group: 1
+    function_number: 2
+    datapoint: 7036
+    type: S16
+    min_value: 0
+    max_value: 1500
+    step: 1
+    decimal: 1
+    unit_of_measurement: "\xB0C"
+    icon: mdi:temperature-celsius
+    device_class: temperature
+  - platform: toptronic
+    name: Vorlauf Soll Konstantanforderung (4)
+    device_type: FW
+    function_group: 1
+    function_number: 3
+    datapoint: 7036
+    type: S16
+    min_value: 0
+    max_value: 1500
+    step: 1
+    decimal: 1
+    unit_of_measurement: "\xB0C"
+    icon: mdi:temperature-celsius
+    device_class: temperature
+  - platform: toptronic
+    name: Vorlauf Soll Konstantanforderung (5)
+    device_type: FW
+    function_group: 1
+    function_number: 4
+    datapoint: 7036
+    type: S16
+    min_value: 0
+    max_value: 1500
+    step: 1
+    decimal: 1
+    unit_of_measurement: "\xB0C"
+    icon: mdi:temperature-celsius
+    device_class: temperature
+select:
+  - platform: toptronic
+    name: Betriebswahl Heizung (1)
+    device_type: FW
+    function_group: 1
+    function_number: 0
+    datapoint: 3050
+    options:
+      - Standby
+      - Woche 1
+      - Woche 2
+      - Konstant
+      - Sparbetrieb
+      - Handbetrieb Heizen
+      - "Handbetrieb K\xFChlen"
+    values:
+      - 0
+      - 1
+      - 2
+      - 4
+      - 5
+      - 7
+      - 8
+  - platform: toptronic
+    name: Betriebswahl Heizung (2)
+    device_type: FW
+    function_group: 1
+    function_number: 1
+    datapoint: 3050
+    options:
+      - Standby
+      - Woche 1
+      - Woche 2
+      - Konstant
+      - Sparbetrieb
+      - Handbetrieb Heizen
+      - "Handbetrieb K\xFChlen"
+    values:
+      - 0
+      - 1
+      - 2
+      - 4
+      - 5
+      - 7
+      - 8
+  - platform: toptronic
+    name: Betriebswahl Heizung (3)
+    device_type: FW
+    function_group: 1
+    function_number: 2
+    datapoint: 3050
+    options:
+      - Standby
+      - Woche 1
+      - Woche 2
+      - Konstant
+      - Sparbetrieb
+      - Handbetrieb Heizen
+      - "Handbetrieb K\xFChlen"
+    values:
+      - 0
+      - 1
+      - 2
+      - 4
+      - 5
+      - 7
+      - 8
+  - platform: toptronic
+    name: Betriebswahl Heizung (4)
+    device_type: FW
+    function_group: 1
+    function_number: 3
+    datapoint: 3050
+    options:
+      - Standby
+      - Woche 1
+      - Woche 2
+      - Konstant
+      - Sparbetrieb
+      - Handbetrieb Heizen
+      - "Handbetrieb K\xFChlen"
+    values:
+      - 0
+      - 1
+      - 2
+      - 4
+      - 5
+      - 7
+      - 8
+  - platform: toptronic
+    name: Betriebswahl Heizung (5)
+    device_type: FW
+    function_group: 1
+    function_number: 4
+    datapoint: 3050
+    options:
+      - Standby
+      - Woche 1
+      - Woche 2
+      - Konstant
+      - Sparbetrieb
+      - Handbetrieb Heizen
+      - "Handbetrieb K\xFChlen"
+    values:
+      - 0
+      - 1
+      - 2
+      - 4
+      - 5
+      - 7
+      - 8
+  - platform: toptronic
+    name: Betriebswahl Warmwasser (1)
+    device_type: FW
+    function_group: 2
+    function_number: 0
+    datapoint: 5050
+    options:
+      - Standby
+      - Woche 1
+      - Woche 2
+      - Konstant
+      - Sparbetrieb
+    values:
+      - 0
+      - 1
+      - 2
+      - 4
+      - 6
+  - platform: toptronic
+    name: Betriebswahl Warmwasser (2)
+    device_type: FW
+    function_group: 2
+    function_number: 1
+    datapoint: 5050
+    options:
+      - Standby
+      - Woche 1
+      - Woche 2
+      - Konstant
+      - Sparbetrieb
+    values:
+      - 0
+      - 1
+      - 2
+      - 4
+      - 6
+  - platform: toptronic
+    name: Betriebswahl Warmwasser (3)
+    device_type: FW
+    function_group: 2
+    function_number: 2
+    datapoint: 5050
+    options:
+      - Standby
+      - Woche 1
+      - Woche 2
+      - Konstant
+      - Sparbetrieb
+    values:
+      - 0
+      - 1
+      - 2
+      - 4
+      - 6
+  - platform: toptronic
+    name: Betriebswahl Warmwasser (4)
+    device_type: FW
+    function_group: 2
+    function_number: 3
+    datapoint: 5050
+    options:
+      - Standby
+      - Woche 1
+      - Woche 2
+      - Konstant
+      - Sparbetrieb
+    values:
+      - 0
+      - 1
+      - 2
+      - 4
+      - 6
+  - platform: toptronic
+    name: Betriebswahl Warmwasser (5)
+    device_type: FW
+    function_group: 2
+    function_number: 4
+    datapoint: 5050
+    options:
+      - Standby
+      - Woche 1
+      - Woche 2
+      - Konstant
+      - Sparbetrieb
+    values:
+      - 0
+      - 1
+      - 2
+      - 4
+      - 6
