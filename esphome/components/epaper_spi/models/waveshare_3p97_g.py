@@ -1,22 +1,15 @@
 import esphome.config_validation as cv
-from esphome.const import (
-    CONF_BUSY_PIN,
-    CONF_INVERTED,
-    CONF_RESET_DURATION,
-    CONF_RESET_PIN,
-)
+from esphome.const import CONF_BUSY_PIN, CONF_INVERTED, CONF_RESET_DURATION
 from esphome.types import ConfigType
 
-from . import EpaperModel
+from .jd79660 import JD79660
 
 
-class Waveshare3P97InG(EpaperModel):
-    source_files = ("epaper_waveshare_3p97_g.cpp",)
+class Waveshare3P97InG(JD79660):
+    source_files = ("epaper_spi_jd79660.cpp", "epaper_waveshare_3p97_g.cpp")
 
-    def option(self, name, fallback=cv.UNDEFINED) -> cv.Optional | cv.Required:
-        if name in (CONF_BUSY_PIN, CONF_RESET_PIN):
-            return cv.Required(name)
-        return super().option(name, fallback)
+    def get_constructor_args(self, config: ConfigType) -> tuple:
+        return ()
 
     def validate_config(self, config: ConfigType) -> ConfigType:
         if not config[CONF_BUSY_PIN][CONF_INVERTED]:

@@ -21,9 +21,10 @@ namespace esphome::epaper_spi {
  * - Partial transfer (transfer only changed window): No. Maybe possible by HW.
  * - Partial refresh (refresh only changed window): No. Likely HW limit.
  *
- * @internal \c final saves few bytes by devirtualization. Remove \c final when subclassing.
+ * Panels that need extra steps around the shared 4-color framebuffer and transfer
+ * subclass this and override only the state steps that differ.
  */
-class EPaperJD79660 final : public EPaperBase {
+class EPaperJD79660 : public EPaperBase {
  public:
   EPaperJD79660(const char *name, uint16_t width, uint16_t height, const uint8_t *init_sequence,
                 size_t init_sequence_length, const uint8_t *fast_update, uint16_t fast_update_length)
