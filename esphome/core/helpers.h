@@ -419,11 +419,9 @@ template<typename T, size_t N> using SlotList = std::conditional_t<N == 0, Empty
   template<size_t SLOT_LIST_COUNT = (count)> \
     requires(SLOT_LIST_COUNT > 0)
 
-/// Declare a registration list sized at code generation: a protected `SlotList<type *, count> member` and a
-/// public `register_fn(type *)` that appends to it. `count` is the define of the matching `cg.slot_list()`,
-/// which is 0 when nothing registers; the list then takes no space, loops over it compile to nothing, and a
-/// call to `register_fn` that code generation did not reserve fails to compile.
-/// Use it in a public section: it ends on `public:`.
+/// Declare a protected `SlotList<type *, count>` member and a public `register_fn(type *)` that appends to it.
+/// `count` is the define of the matching `cg.slot_list()`. At 0 the list takes no space and a `register_fn`
+/// call fails to compile. Use it in a public section: it ends on `public:`.
 #define SLOT_LIST(type, member, register_fn, count) \
  protected: \
   [[no_unique_address]] SlotList<type *, count> member; /* NOLINT(bugprone-macro-parentheses) */ \
