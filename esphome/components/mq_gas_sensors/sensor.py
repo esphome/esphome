@@ -1,0 +1,689 @@
+"""``mq_gas_sensors`` - ESPHome sensor platform for MQ gas sensors.
+
+One entry configures one MQ sensor (see ``coefficients.py`` for the supported
+types). The analog signal comes either from an existing voltage sampler
+(``voltage:``, e.g. an ``adc`` sensor) or from a pin that this component owns
+(``pin:``, which creates a hidden internal ``adc`` sensor with the requested
+attenuation).
+"""
+
+import logging
+import math
+
+import esphome.codegen as cg
+from esphome.components import sensor, text_sensor, voltage_sampler
+from esphome.components.adc import ATTENUATION_MODES, DOMAIN as ADC_DOMAIN
+from esphome.components.esp32 import VARIANT_ESP32S31, get_esp32_variant
+import esphome.config_validation as cv
+from esphome.const import (
+    CONF_ATTENUATION,
+    CONF_CALIBRATION,
+    CONF_DELAY,
+    CONF_ID,
+    CONF_INTERNAL,
+    CONF_NAME,
+    CONF_PIN,
+    CONF_PLATFORM,
+    CONF_RAW,
+    CONF_UPDATE_INTERVAL,
+    CONF_VOLTAGE,
+    CONF_VOLTAGE_DIVIDER,
+    STATE_CLASS_MEASUREMENT,
+    UNIT_PARTS_PER_MILLION,
+)
+from esphome.core import CORE
+import esphome.final_validate as fv
+from esphome.types import ConfigType
+
+from . import (
+    ADC_LIMIT_MARGIN_V,
+    CONF_ADC_ATTENUATION,
+    CONF_ADC_INPUT_MAX,
+    CONF_ADC_PIN_MAX,
+    CONF_ADC_SAMPLES,
+    CONF_COEFFICIENT_A,
+    CONF_COEFFICIENT_B,
+    CONF_CORRECTION_FACTOR,
+    CONF_GAS,
+    CONF_LOG_PPM,
+    CONF_LOG_SENSOR,
+    CONF_MAX_PPM,
+    CONF_MIN_PPM,
+    CONF_R0,
+    CONF_R1,
+    CONF_R2,
+    CONF_RATIO_IN_CLEAN_AIR,
+    CONF_RATIO_MODE,
+    CONF_RATIO_SENSOR,
+    CONF_REGRESSION_METHOD,
+    CONF_RL,
+    CONF_RS_SENSOR,
+    CONF_SAMPLE_COUNT,
+    CONF_SAMPLE_INTERVAL,
+    CONF_SENSOR_TYPE,
+    CONF_VCC,
+    CONF_VOLTAGE_MULTIPLIER,
+    CONF_VOLTAGE_SENSOR,
+    ESP32_ADC_INPUT_MAX_V,
+    ESP32_ADC_PIN_MAX_V,
+    ESP8266_ADC_INPUT_MAX_V,
+    RATIO_MODES,
+    REGRESSION_METHODS,
+    MQGasSensor,
+    esp32_attenuation_input_max,
+    esp32_attenuation_range_is_known,
+)
+from .coefficients import (
+    SENSOR_TYPES,
+    ResolvedSensor,
+    label_for,
+    normalize_gas,
+    normalize_type,
+    requires_coefficients,
+    resolve_sensor,
+    sensor_types,
+)
+
+_LOGGER = logging.getLogger(__name__)
+
+
+def _auto_load(config: ConfigType | None) -> list[str]:
+    """Load every platform the configuration actually uses.
+
+    ``adc`` is only needed for a ``pin:`` source, where the internal sampler is
+    built, and ``text_sensor`` only for the ``log_sensor:`` mirror, whose C++ code
+    is compiled in behind ``USE_MQ_GAS_SENSORS_LOG_SENSOR``.
+    """
+    loaded = ["sensor", "voltage_sampler"]
+    if config is not None:
+        if CONF_PIN in config:
+            loaded.append("adc")
+        if config.get(CONF_LOG_SENSOR) is not None:
+            loaded.append("text_sensor")
+    return loaded
+
+
+AUTO_LOAD = _auto_load
+
+#: Attenuation of the internal ADC of a ``pin:`` configuration when
+#: ``adc_attenuation:`` is not written: the widest range, which is also what the
+#: divider guard measures against.
+DEFAULT_ADC_ATTENUATION = "12db"
+
+#: The ESP32-S31 ADC supports a single attenuation level, so the widest range of
+#: the other ESP32 variants is not available there.
+_ESP32_S31_ATTENUATION = "0db"
+
+MIN_SAMPLE_INTERVAL_MS = 16
+
+MAX_SAMPLE_COUNT = 16
+
+#: At most this many analog-to-digital conversions per reading once the internal
+#: ADC's own averaging is multiplied in: every ``sample()`` of an owned ``adc``
+#: runs its whole ``adc_samples:`` burst inside the same loop pass as the reading.
+MAX_CONVERSIONS_PER_READING = 64
+
+
+def validate_sensor_type(value: str) -> str:
+    key = normalize_type(value)
+    if key not in SENSOR_TYPES:
+        raise cv.Invalid(
+            f"'{value}' is not a supported MQ sensor type, expected one of: "
+            f"{', '.join(sensor_types())}"
+        )
+    return key
+
+
+def validate_gas(value: str) -> str:
+    if not (gas := normalize_gas(value)):
+        raise cv.Invalid(
+            "gas must not be empty - omit it to use the default gas of the type"
+        )
+    return gas
+
+
+def validate_finite(value: float) -> float:
+    """Reject a non-finite number, which the firmware cannot evaluate.
+
+    ``clamp_a()`` / ``clamp_b()`` turn a non-finite coefficient into 0, which
+    drops the curve without a word, and a non-finite correction factor makes
+    every ratio unknown.
+    """
+    if not math.isfinite(value):
+        raise cv.Invalid(f"must be a finite number, got {value}")
+    return value
+
+
+#: Floats the firmware can evaluate. ``positive_not_null_float`` already rejects
+#: NaN but accepts infinity, which turns every derived value into zero or infinity.
+positive_finite_float = cv.All(cv.positive_not_null_float, validate_finite)
+finite_float = cv.All(cv.float_, validate_finite)
+
+
+#: Private key under which the configuration of the generated, internal ``adc``
+#: sensor is kept. It has to live inside the validated config (and not in
+#: ``CORE.data``) so that ESPHome's ID pass sees the declared component ID.
+_KEY_GENERATED_ADC = "_generated_adc"
+
+
+def _default_adc_attenuation() -> str:
+    """Attenuation of the owned ADC when ``adc_attenuation:`` is not written."""
+    if CORE.is_esp32 and get_esp32_variant() == VARIANT_ESP32S31:
+        return _ESP32_S31_ATTENUATION
+    return DEFAULT_ADC_ATTENUATION
+
+
+def _build_internal_adc(config: ConfigType) -> ConfigType:
+    """Validate the hidden ``adc`` entry of a ``pin:`` configuration.
+
+    The ADC platform's own schema is used, so `pin:` accepts exactly what a
+    ``sensor: - platform: adc`` entry accepts (pin validation, attenuation,
+    multisampling, ...). It has to run during config validation - not in
+    ``to_code()`` - because ESPHome's validators rely on the config path context,
+    which only exists while validating.
+    """
+    from esphome.components.adc import sensor as adc_sensor
+
+    # A suffix a YAML id is unlikely to use: the generated id must not collide with
+    # one the user wrote, which would read as an "ID ... redefined" error.
+    adc_id = f"{config[CONF_ID].id}_internal_adc"
+    adc_config: ConfigType = {
+        CONF_ID: adc_id,
+        CONF_PIN: config[CONF_PIN],
+        CONF_NAME: f"{adc_id} voltage",
+        CONF_INTERNAL: True,
+        CONF_RAW: False,
+        adc_sensor.CONF_SAMPLING_MODE: "avg",
+        CONF_UPDATE_INTERVAL: "never",
+    }
+    if (samples := config.get(CONF_ADC_SAMPLES)) is not None:
+        adc_config[adc_sensor.CONF_SAMPLES] = samples
+    if (attenuation := config.get(CONF_ADC_ATTENUATION)) is not None:
+        adc_config[CONF_ATTENUATION] = attenuation
+    elif CORE.is_esp32:
+        # The owned ADC of an ESP32 keeps the widest range unless the YAML asks
+        # for another one - the same default the divider guard assumes.
+        adc_config[CONF_ATTENUATION] = _default_adc_attenuation()
+
+    return adc_sensor.CONFIG_SCHEMA(adc_config)
+
+
+DIVIDER_SCHEMA = cv.Schema(
+    {
+        cv.Required(CONF_R1): positive_finite_float,
+        cv.Required(CONF_R2): positive_finite_float,
+    }
+)
+
+
+def _voltage_multiplier(config: ConfigType) -> float:
+    """Inverse of the divider ratio, derived from the wiring if possible.
+
+    ``voltage_divider: {r1: 10.0, r2: 20.0}`` (kOhm, r1 in series with the sensor
+    output, r2 to ground) documents the hardware and yields ``(r1 + r2) / r2`` =
+    1.5 for the recommended 10k/20k. ``voltage_multiplier:`` stays available as
+    the low-level escape hatch; it also covers a directly connected sensor (1.0)
+    or a sampler with a wider input range, e.g. an ADS1115.
+    """
+    divider = config.get(CONF_VOLTAGE_DIVIDER)
+    if divider is not None:
+        return (divider[CONF_R1] + divider[CONF_R2]) / divider[CONF_R2]
+    return float(config.get(CONF_VOLTAGE_MULTIPLIER, 1.0))
+
+
+CALIBRATION_SCHEMA = cv.Schema(
+    {
+        cv.Optional(CONF_DELAY, default="60s"): cv.positive_time_period_milliseconds,
+        cv.Optional(CONF_SAMPLE_COUNT, default=50): cv.int_range(min=1, max=1000),
+        cv.Optional(CONF_SAMPLE_INTERVAL, default="20ms"): cv.All(
+            cv.positive_time_period_milliseconds,
+            cv.Range(min=cv.TimePeriod(milliseconds=MIN_SAMPLE_INTERVAL_MS)),
+        ),
+    }
+)
+
+
+def _validate_coefficients(label: str, method: str, a: float, b: float) -> None:
+    """Reject a coefficient pair the regression cannot evaluate (log10 of a <= 0, 1/b)."""
+    if method == "exponential":
+        usable = a > 0
+        need = "'coefficient_a:' > 0"
+    elif method == "inverse":
+        usable = a > 0 and b != 0
+        need = "'coefficient_a:' > 0 and a non-zero 'coefficient_b:'"
+    else:
+        usable = a != 0
+        need = "a non-zero 'coefficient_a:'"
+    if not usable:
+        raise cv.Invalid(
+            f"{label} with 'regression_method: {method}' needs {need}, got "
+            f"coefficient_a={a:g}, coefficient_b={b:g} - set 'coefficient_a:' and "
+            f"'coefficient_b:' for this method or drop 'regression_method:'"
+        )
+
+
+def _adc_input_max(attenuation: str) -> tuple[float, bool]:
+    """Measuring range of the internal ADC at an attenuation, for this target.
+
+    The second value says whether the range comes from a table row for the target.
+    It does not for an ESP32 variant the attenuation table has no entry for, where
+    the narrowest known range is only a safe guess and a declared
+    ``adc_input_max:`` is authoritative.
+
+    The attenuation only describes the range on ESP32: A0 of the ESP8266 is a
+    fixed 0 - 1.0 V input and the other targets use the recommended maximum input
+    voltage.
+    """
+    if CORE.is_esp32:
+        variant = get_esp32_variant()
+        return (
+            esp32_attenuation_input_max(variant, attenuation),
+            esp32_attenuation_range_is_known(variant),
+        )
+    if CORE.is_esp8266:
+        return ESP8266_ADC_INPUT_MAX_V, True
+    return ESP32_ADC_INPUT_MAX_V, True
+
+
+def _check_adc_range(
+    config: ConfigType, vcc: float, input_max: float, pin_max: float
+) -> None:
+    """Refuse a wiring that puts more on the ADC pin than it survives or measures.
+
+    The sensor output can reach ``vcc`` and the divider maps that onto the ADC
+    pin, so ``vcc`` divided by the multiplier is the largest voltage the pin ever
+    sees.
+    """
+    expected_max = vcc / _voltage_multiplier(config)
+    if expected_max > pin_max + ADC_LIMIT_MARGIN_V:
+        raise cv.Invalid(
+            f"the sensor output can reach {vcc:.2f} V and the configured "
+            f"divider maps that to {expected_max:.2f} V on the ADC pin, above "
+            f"'adc_pin_max' ({pin_max:.2f} V) - that can damage the pin. Use "
+            f"'voltage_divider: {{r1: 10.0, r2: 20.0}}' (-> 1.5) or "
+            f"'{{r1: 10.0, r2: 10.0}}' (-> 2.0), or set 'adc_pin_max' to your "
+            f"sampler's limit (6.144 for an ADS1115)"
+        )
+    if expected_max > input_max + ADC_LIMIT_MARGIN_V:
+        raise cv.Invalid(
+            f"the sensor output can reach {vcc:.2f} V and the configured "
+            f"wiring maps that to {expected_max:.2f} V at the ADC input, above the "
+            f"{input_max:.2f} V measuring range of the sampler - raise 'r1'/'r2', "
+            "or declare 'adc_input_max:' for a sampler with a wider range"
+        )
+
+
+def _effective_input_max(
+    label: str, config: ConfigType, known_max: float, known: bool
+) -> float:
+    """Range the divider is checked against.
+
+    A declared ``adc_input_max:`` describes a sampler whose range the
+    configuration otherwise cannot, but it cannot widen an ADC past what its
+    attenuation measures: above that voltage the conversion flattens, so the
+    reading silently stops tracking the sensor.
+    """
+    declared = config.get(CONF_ADC_INPUT_MAX)
+    if declared is None:
+        return known_max
+    if not known or declared <= known_max:
+        return float(declared)
+    _LOGGER.warning(
+        "%s: 'adc_input_max: %.2f' is above the %.2f V the ADC measures at its "
+        "attenuation - the divider is checked against %.2f V, and conversions "
+        "above it flatten",
+        label,
+        declared,
+        known_max,
+        known_max,
+    )
+    return known_max
+
+
+def _resolve_sensor(config: ConfigType) -> ResolvedSensor:
+    """Resolve the curve of the entry.
+
+    The one place that lists the configuration keys the coefficients are taken
+    from, used by the validator and by the code generation alike, so the two
+    cannot drift apart.
+    """
+    return resolve_sensor(
+        config[CONF_SENSOR_TYPE],
+        config.get(CONF_GAS),
+        a=config.get(CONF_COEFFICIENT_A),
+        b=config.get(CONF_COEFFICIENT_B),
+        method=config.get(CONF_REGRESSION_METHOD),
+        ratio_in_clean_air=config.get(CONF_RATIO_IN_CLEAN_AIR),
+        rl=config.get(CONF_RL),
+        vcc=config.get(CONF_VCC),
+        min_ppm=config.get(CONF_MIN_PPM),
+        max_ppm=config.get(CONF_MAX_PPM),
+    )
+
+
+def _validate_config(config: ConfigType) -> ConfigType:
+    """Cross-check the coefficients and the wiring at compile time."""
+    type_key = config[CONF_SENSOR_TYPE]
+    label = label_for(type_key)
+
+    if CONF_VOLTAGE in config:
+        for key in (CONF_ADC_ATTENUATION, CONF_ADC_SAMPLES):
+            if key in config:
+                raise cv.Invalid(
+                    f"'{key}:' configures the internal ADC of a 'pin:' sensor and has "
+                    "no effect with 'voltage:' - configure the sampler itself instead"
+                )
+
+    try:
+        resolved = _resolve_sensor(config)
+    except ValueError as err:
+        raise cv.Invalid(str(err)) from err
+
+    _validate_coefficients(resolved.label, resolved.method, resolved.a, resolved.b)
+
+    if CONF_CALIBRATION in config and resolved.ratio_in_clean_air <= 0.0:
+        raise cv.Invalid(
+            f"{resolved.label} has no published RS/R0 in clean air - set '{CONF_RATIO_IN_CLEAN_AIR}:'"
+        )
+
+    # The device clamps `a` / `b` to what it can evaluate (see `MQ_MAX_A`), so a
+    # user supplied value outside that range must not be applied silently.
+    for key, given, evaluated in (
+        (CONF_COEFFICIENT_A, config.get(CONF_COEFFICIENT_A), resolved.a),
+        (CONF_COEFFICIENT_B, config.get(CONF_COEFFICIENT_B), resolved.b),
+    ):
+        if given is not None and given != evaluated:
+            _LOGGER.warning(
+                "%s: '%s: %g' is outside the range the firmware evaluates and is "
+                "clamped to %g - the curve it uses differs from the one you wrote",
+                label,
+                key,
+                given,
+                evaluated,
+            )
+
+    # The ratio the firmware evaluates in clean air: `r0_from_clean_air()` sets
+    # R0 = RS_air / ratio_in_clean_air in either mode, so `r0_rs` reads back its
+    # inverse. Without a published ratio only a calibration could need one, and
+    # that is rejected above, so there is nothing to check here.
+    clean_air_ratio = resolved.ratio_in_clean_air
+    if clean_air_ratio > 0.0 and config[CONF_RATIO_MODE] == "r0_rs":
+        clean_air_ratio = 1.0 / clean_air_ratio
+    correction_factor = float(config[CONF_CORRECTION_FACTOR])
+    corrected_ratio = clean_air_ratio + correction_factor
+    if clean_air_ratio > 0.0 >= corrected_ratio:
+        raise cv.Invalid(
+            f"'correction_factor: {correction_factor:g}' moves the clean air ratio of "
+            f"{label} ({clean_air_ratio:g} against 'ratio_mode: {config[CONF_RATIO_MODE]}') "
+            f"to {corrected_ratio:g} - clean air would no longer be "
+            "inside the range the curve describes"
+        )
+
+    if resolved.max_ppm <= resolved.min_ppm:
+        raise cv.Invalid(
+            f"max_ppm ({resolved.max_ppm}) must be greater than "
+            f"min_ppm ({resolved.min_ppm})"
+        )
+
+    if requires_coefficients(type_key):
+        _LOGGER.warning(
+            "%s has no built-in coefficients in the reference library - make sure the "
+            "'coefficient_a:'/'coefficient_b:' values you supplied match your sensor "
+            "and target gas",
+            label,
+        )
+
+    # ADC range guard: the sensor output can reach VCC and the divider maps that
+    # onto the ADC pin.  Only meaningful when this component owns the pin, or when
+    # the limits were declared for an external sampler (e.g. an ADS1115); the
+    # sampler `voltage:` reads from is checked in `_final_validate_voltage_source()`
+    # below, where its configuration can be looked up.
+    if CONF_PIN in config or CONF_ADC_INPUT_MAX in config or CONF_ADC_PIN_MAX in config:
+        if CONF_PIN in config:
+            # The configured attenuation sets the measuring range of the internal ADC.
+            input_max, known = _adc_input_max(
+                config.get(CONF_ADC_ATTENUATION, _default_adc_attenuation())
+            )
+        else:
+            # Without `pin:` the sampler is only known at final validation; here the
+            # declared value is all there is to check the divider against.
+            input_max, known = ESP32_ADC_INPUT_MAX_V, False
+        _check_adc_range(
+            config,
+            resolved.vcc,
+            _effective_input_max(label, config, input_max, known),
+            float(config.get(CONF_ADC_PIN_MAX, ESP32_ADC_PIN_MAX_V)),
+        )
+
+    if CONF_PIN in config:
+        config[_KEY_GENERATED_ADC] = _build_internal_adc(config)
+
+        # Every `sample()` of the owned ADC averages `adc_samples:` conversions, and
+        # `sample_count` of those run back to back inside one pass of the main loop.
+        adc_samples = config.get(CONF_ADC_SAMPLES, 1)
+        conversions = config[CONF_SAMPLE_COUNT] * adc_samples
+        if conversions > MAX_CONVERSIONS_PER_READING:
+            raise cv.Invalid(
+                f"'sample_count: {config[CONF_SAMPLE_COUNT]}' with 'adc_samples: "
+                f"{adc_samples}' samples the analog output {conversions} times per "
+                f"reading, and the conversions run back to back inside one pass of "
+                f"the main loop - at most {MAX_CONVERSIONS_PER_READING} are allowed, "
+                "lower 'sample_count:' or 'adc_samples:'"
+            )
+
+    return config
+
+
+def _final_validate_voltage_source(config: ConfigType) -> ConfigType:
+    """Check the sampler `voltage:` reads from and the wiring that feeds it.
+
+    ``voltage:`` names another component's sensor, so what it reads from is only
+    known once the whole configuration is validated - that is what final validation
+    is for.  An internal ``adc`` sensor carries the attenuation its measuring range
+    follows, so the same range and burst checks as for an owned ``pin:`` run against
+    it, and one set to output raw counts is refused outright; any other sampler has a
+    range of its own that has to be declared with ``adc_input_max:``.
+    """
+    if CONF_VOLTAGE not in config:
+        return config
+
+    from esphome.components.adc import sensor as adc_sensor
+
+    sampler = fv.get_declaring_config(config[CONF_VOLTAGE])
+    if sampler.get(CONF_PLATFORM) != ADC_DOMAIN:
+        # A declared range is what `_validate_config` checked the divider against;
+        # without one, nothing here says what an external sampler measures.
+        if CONF_ADC_INPUT_MAX not in config:
+            _LOGGER.warning(
+                "%s: 'voltage:' reads from another sampler, whose input range cannot "
+                "be deduced from the configuration - declare 'adc_input_max:' (and "
+                "'adc_pin_max:' when it takes more) so the wiring is checked against it",
+                label_for(config[CONF_SENSOR_TYPE]),
+            )
+        return config
+
+    if sampler.get(CONF_RAW):
+        # The `sample()` of such a sensor returns ADC counts, not volts, so every
+        # reading would be a number of counts taken for a voltage.
+        raise cv.Invalid(
+            "'voltage:' reads from an internal ADC sensor that outputs raw counts "
+            "('raw: true') - remove 'raw:' from it, it cannot be used as a voltage "
+            "source"
+        )
+
+    # The sampler runs its own `samples:` conversions inside every `sample()`, and
+    # `sample_count` of those run back to back in one pass of the main loop.
+    samples = sampler.get(adc_sensor.CONF_SAMPLES, 1)
+    conversions = config[CONF_SAMPLE_COUNT] * samples
+    if conversions > MAX_CONVERSIONS_PER_READING:
+        raise cv.Invalid(
+            f"'sample_count: {config[CONF_SAMPLE_COUNT]}' with the 'samples: "
+            f"{samples}' of the ADC sensor 'voltage:' reads from samples the analog "
+            f"output {conversions} times per reading, and those conversions run back "
+            f"to back inside one pass of the main loop - at most "
+            f"{MAX_CONVERSIONS_PER_READING} are allowed, lower 'sample_count:' or "
+            "the sampler's 'samples:'"
+        )
+
+    input_max, known = _adc_input_max(
+        sampler.get(CONF_ATTENUATION, adc_sensor.DEFAULT_ATTENUATION)
+    )
+    _check_adc_range(
+        config,
+        float(config[CONF_VCC]),
+        _effective_input_max(
+            label_for(config[CONF_SENSOR_TYPE]), config, input_max, known
+        ),
+        float(config.get(CONF_ADC_PIN_MAX, ESP32_ADC_PIN_MAX_V)),
+    )
+    return config
+
+
+FINAL_VALIDATE_SCHEMA = _final_validate_voltage_source
+
+
+def _validate_esp32_attenuation(value: str) -> str:
+    """Reject an attenuation the ADC of this ESP32 variant does not have."""
+    if (
+        CORE.is_esp32
+        and get_esp32_variant() == VARIANT_ESP32S31
+        and value != _ESP32_S31_ATTENUATION
+    ):
+        raise cv.Invalid(
+            f"'adc_attenuation: {value}' is not available on ESP32-S31, whose "
+            "ADC has a single attenuation - remove 'adc_attenuation:' or set "
+            f"'adc_attenuation: {_ESP32_S31_ATTENUATION}'"
+        )
+    return value
+
+
+CONFIG_SCHEMA = cv.All(
+    sensor.sensor_schema(
+        MQGasSensor,
+        unit_of_measurement=UNIT_PARTS_PER_MILLION,
+        accuracy_decimals=1,
+        state_class=STATE_CLASS_MEASUREMENT,
+        icon="mdi:molecule",
+    )
+    .extend(
+        {
+            cv.Required(CONF_SENSOR_TYPE): cv.All(cv.string, validate_sensor_type),
+            cv.Optional(CONF_GAS): cv.All(cv.string, validate_gas),
+            cv.Optional(CONF_VOLTAGE): cv.use_id(voltage_sampler.VoltageSampler),
+            cv.Optional(CONF_PIN): cv.valid,
+            cv.Optional(CONF_ADC_ATTENUATION): cv.All(
+                cv.only_on_esp32,
+                cv.one_of(*ATTENUATION_MODES, lower=True),
+                _validate_esp32_attenuation,
+            ),
+            cv.Optional(CONF_ADC_SAMPLES): cv.int_range(min=1, max=255),
+            cv.Optional(CONF_VOLTAGE_MULTIPLIER): positive_finite_float,
+            cv.Optional(CONF_VOLTAGE_DIVIDER): DIVIDER_SCHEMA,
+            cv.Optional(CONF_ADC_INPUT_MAX): positive_finite_float,
+            cv.Optional(CONF_ADC_PIN_MAX): positive_finite_float,
+            cv.Optional(CONF_VCC, default=5.0): positive_finite_float,
+            cv.Optional(CONF_RL, default=10.0): positive_finite_float,
+            cv.Optional(CONF_R0): positive_finite_float,
+            cv.Optional(CONF_COEFFICIENT_A): finite_float,
+            cv.Optional(CONF_COEFFICIENT_B): finite_float,
+            cv.Optional(CONF_REGRESSION_METHOD): cv.one_of(
+                *REGRESSION_METHODS, lower=True
+            ),
+            cv.Optional(CONF_RATIO_MODE, default="rs_r0"): cv.one_of(
+                *RATIO_MODES, lower=True
+            ),
+            cv.Optional(CONF_RATIO_IN_CLEAN_AIR): positive_finite_float,
+            cv.Optional(CONF_SAMPLE_COUNT, default=2): cv.int_range(
+                min=1, max=MAX_SAMPLE_COUNT
+            ),
+            cv.Optional(CONF_MIN_PPM): finite_float,
+            cv.Optional(CONF_MAX_PPM): positive_finite_float,
+            cv.Optional(CONF_CORRECTION_FACTOR, default=0.0): finite_float,
+            cv.Optional(CONF_CALIBRATION): CALIBRATION_SCHEMA,
+            cv.Optional(CONF_RATIO_SENSOR): cv.use_id(sensor.Sensor),
+            cv.Optional(CONF_RS_SENSOR): cv.use_id(sensor.Sensor),
+            cv.Optional(CONF_VOLTAGE_SENSOR): cv.use_id(sensor.Sensor),
+            cv.Optional(CONF_LOG_SENSOR): cv.use_id(text_sensor.TextSensor),
+            cv.Optional(CONF_LOG_PPM, default=False): cv.boolean,
+        }
+    )
+    .extend(cv.polling_component_schema("60s")),
+    cv.has_exactly_one_key(CONF_VOLTAGE, CONF_PIN),
+    cv.has_at_most_one_key(CONF_VOLTAGE_DIVIDER, CONF_VOLTAGE_MULTIPLIER),
+    cv.has_exactly_one_key(CONF_R0, CONF_CALIBRATION),
+    _validate_config,
+)
+
+
+async def _create_internal_adc(config: ConfigType):
+    """Instantiate the hidden, internal ``adc`` sensor used by ``pin:`` configurations.
+
+    The entry was validated by :func:`_build_internal_adc`, here the ADC platform's
+    own ``to_code`` is reused so attenuation, sampling count, calibration and
+    platform specifics behave exactly like a hand written
+    ``sensor: - platform: adc`` entry.
+    """
+    from esphome.components.adc import sensor as adc_sensor
+
+    adc_config = config.get(_KEY_GENERATED_ADC)
+    if adc_config is None:  # pragma: no cover - would be a bug in this component
+        raise ValueError(
+            f"internal adc sensor for '{config[CONF_ID].id}' was not generated, "
+            "the 'pin:' configuration could not be validated"
+        )
+
+    await adc_sensor.to_code(adc_config)
+    return await cg.get_variable(adc_config[CONF_ID])
+
+
+async def to_code(config: ConfigType) -> None:
+    resolved = _resolve_sensor(config)
+
+    if (source_id := config.get(CONF_VOLTAGE)) is not None:
+        source = await cg.get_variable(source_id)
+    else:
+        source = await _create_internal_adc(config)
+    var = await sensor.new_sensor(config, source)
+    await cg.register_component(var, config)
+
+    cg.add(var.set_type(resolved.label))
+    cg.add(var.set_gas(resolved.gas))
+    cg.add(var.set_a(resolved.a))
+    cg.add(var.set_b(resolved.b))
+    cg.add(var.set_regression_method(REGRESSION_METHODS[resolved.method]))
+    cg.add(var.set_ratio_mode(RATIO_MODES[config[CONF_RATIO_MODE]]))
+    cg.add(var.set_rl(resolved.rl))
+    cg.add(var.set_vcc(resolved.vcc))
+    cg.add(var.set_ratio_in_clean_air(resolved.ratio_in_clean_air))
+    cg.add(var.set_min_ppm(resolved.min_ppm))
+    cg.add(var.set_max_ppm(resolved.max_ppm))
+    cg.add(var.set_voltage_multiplier(_voltage_multiplier(config)))
+    cg.add(var.set_samples(config[CONF_SAMPLE_COUNT]))
+    cg.add(var.set_correction_factor(config[CONF_CORRECTION_FACTOR]))
+
+    if (r0 := config.get(CONF_R0)) is not None:
+        cg.add(var.set_r0(r0))
+    elif (calibration := config.get(CONF_CALIBRATION)) is not None:
+        cg.add(
+            var.set_calibration(
+                calibration[CONF_DELAY],
+                calibration[CONF_SAMPLE_COUNT],
+                calibration[CONF_SAMPLE_INTERVAL],
+            )
+        )
+
+    cg.add(var.set_log_ppm(config[CONF_LOG_PPM]))
+
+    # The mirror is the only user of `text_sensor` here, so the member, its header
+    # and the publish call are only compiled in when it is configured.
+    if CONF_LOG_SENSOR in config:
+        cg.add_define("USE_MQ_GAS_SENSORS_LOG_SENSOR")
+
+    for key, setter in (
+        (CONF_RATIO_SENSOR, var.set_ratio_sensor),
+        (CONF_RS_SENSOR, var.set_rs_sensor),
+        (CONF_VOLTAGE_SENSOR, var.set_voltage_sensor),
+        (CONF_LOG_SENSOR, var.set_log_sensor),
+    ):
+        if (target := config.get(key)) is not None:
+            cg.add(setter(await cg.get_variable(target)))
