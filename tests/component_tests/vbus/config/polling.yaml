@@ -1,0 +1,40 @@
+esphome:
+  name: vbus-polling-codegen
+host:
+logger:
+uart:
+  - id: test_uart
+    port: /dev/null
+    baud_rate: 9600
+  - id: other_uart
+    port: /dev/null
+    baud_rate: 9600
+vbus:
+  - id: test_bus
+    uart_id: test_uart
+    transmit:
+      destination: 0x2211
+      transactions:
+        polling:
+          value_ids: [1, 2, 3]
+          rx_value_ids: [3]
+          on_value:
+            - delay: 10ms
+            - lambda: ESP_LOGI("value", "%u %u", value_id, value);
+          on_result:
+            - lambda: |-
+                ESP_LOGI("queue", "%u %u %u %u %u", grant_id, command, value_id, value,
+                         static_cast<unsigned>(status));
+  - id: legacy_bus
+    uart_id: other_uart
+button:
+  - platform: template
+    name: Queued
+    on_press:
+      - vbus.queue_read:
+          id: test_bus
+          value_id: 2
+      - vbus.queue_write:
+          id: test_bus
+          value_id: 2
+          value: 123
