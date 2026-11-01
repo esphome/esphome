@@ -74,6 +74,9 @@ WKBASE_SCHEMA = cv.Schema(
 ).extend(cv.COMPONENT_SCHEMA)
 
 
+_register_channel = cg.slot_list("WEIKAI_CHANNEL_COUNT", "register_channel", DOMAIN)
+
+
 async def register_weikai(var: MockObj, config: ConfigType) -> None:
     """Register an weikai device with the given config."""
     cg.add(var.set_crystal(config[CONF_CRYSTAL]))
@@ -83,6 +86,7 @@ async def register_weikai(var: MockObj, config: ConfigType) -> None:
         chan = cg.new_Pvariable(uart_elem[CONF_ID])
         cg.add(chan.set_channel_name(str(uart_elem[CONF_ID])))
         cg.add(chan.set_parent(var))
+        cg.add(_register_channel(var, chan))
         cg.add(chan.set_channel(uart_elem[CONF_CHANNEL]))
         cg.add(chan.set_baud_rate(uart_elem[CONF_BAUD_RATE]))
         cg.add(chan.set_stop_bits(uart_elem[CONF_STOP_BITS]))

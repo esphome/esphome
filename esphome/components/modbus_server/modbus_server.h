@@ -5,9 +5,9 @@
 #include "esphome/components/modbus/modbus.h"
 #include "esphome/components/modbus/modbus_helpers.h"
 #include "esphome/core/automation.h"
+#include "esphome/core/helpers.h"
 
 #include <utility>
-#include <vector>
 
 namespace esphome::modbus_server {
 
@@ -125,10 +125,8 @@ class ModbusServer final : public Component, public modbus::ModbusServerDevice {
  public:
   void dump_config() override;
 
-  /// Registers a server register with the controller. Called by esphomes code generator
-  void add_server_register(ServerRegister *server_register) { server_registers_.push_back(server_register); }
-  /// Registers a server bit with the controller. Called by esphomes code generator
-  void add_server_bit(ServerBit *server_bit) { server_bits_.push_back(server_bit); }
+  SLOT_LIST(ServerRegister, server_registers_, add_server_register, MODBUS_SERVER_REGISTER_COUNT)
+  SLOT_LIST(ServerBit, server_bits_, add_server_bit, MODBUS_SERVER_BIT_COUNT)
   /// called when a modbus request (function code 0x03 or 0x04) was parsed without errors
   modbus::ResponseStatus on_read_registers(uint16_t start_address, uint16_t number_of_registers,
                                            modbus::RegisterValues &registers) final;
@@ -151,10 +149,6 @@ class ModbusServer final : public Component, public modbus::ModbusServerDevice {
   ServerRegister *find_containing_register_(uint32_t address) const;
   /// Find the registered bit at address, or nullptr if none is.
   ServerBit *find_bit_(uint16_t address) const;
-  /// Collection of all server registers for this component
-  std::vector<ServerRegister *> server_registers_{};
-  /// Collection of all server bits (coils/discrete inputs) for this component
-  std::vector<ServerBit *> server_bits_{};
   /// Server courtesy response
   ServerCourtesyResponse server_courtesy_response_{
       .enabled = false, .register_last_address = 0xFFFF, .register_value = 0};

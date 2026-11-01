@@ -238,9 +238,9 @@ class USBUartComponent : public usb_host::USBClient {
   void setup() override;
   void loop() override;
   void dump_config() override;
-  std::vector<USBUartChannelBase *> get_channels() { return this->channels_; }
+  const auto &get_channels() const { return this->channels_; }
 
-  void add_channel(USBUartChannelBase *channel) { this->channels_.push_back(channel); }
+  SLOT_LIST(USBUartChannelBase, channels_, add_channel, USB_UART_CHANNEL_COUNT)
 
   virtual void start_input(USBUartChannelBase *channel);
   void start_output(USBUartChannelBase *channel);
@@ -295,8 +295,6 @@ class USBUartComponent : public usb_host::USBClient {
   // The device is only usable once the config machine has applied every channel's line
   // settings, so the connected report waits for run_config_machine_() to finish the init
   bool reports_connection_itself() const override { return true; }
-
-  std::vector<USBUartChannelBase *> channels_{};
 
   // Config state machine
   USBUartChannelBase *cfg_single_{nullptr};  // non-null: single-channel run (RELOAD or MODEM)

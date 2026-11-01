@@ -185,6 +185,9 @@ EFFECTIVE_HIGH_VOLTAGE = {
 }
 
 
+register_touch_pad = cg.slot_list("ESP32_TOUCH_PAD_COUNT", "register_touch_pad", DOMAIN)
+
+
 def validate_touch_pad(value: Any) -> int:
     value = gpio.gpio_pin_number_validator(value)
     variant = get_esp32_variant()

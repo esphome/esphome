@@ -2,6 +2,7 @@
 
 #include "esphome/core/automation.h"
 #include "esphome/core/component.h"
+#include "esphome/core/helpers.h"
 #include "esphome/core/optional.h"
 
 #include <cinttypes>
@@ -107,7 +108,7 @@ class Canbus : public Component {
   void set_max_frames_per_loop(uint32_t max_frames_per_loop) { this->max_frames_per_loop_ = max_frames_per_loop; }
   virtual CanStatus get_status() { return {}; }
 
-  void add_trigger(CanbusTrigger *trigger);
+  SLOT_LIST(CanbusTrigger, triggers_, add_trigger, CANBUS_TRIGGER_COUNT)
   /**
    * Add a callback to be called when a CAN message is received. All received messages
    * are passed to the callback without filtering.
@@ -122,7 +123,6 @@ class Canbus : public Component {
 
  protected:
   template<typename... Ts> friend class CanbusSendAction;
-  std::vector<CanbusTrigger *> triggers_{};
   uint32_t can_id_;
   uint32_t max_frames_per_loop_{50};  // Keep in sync with DEFAULT_MAX_FRAMES_PER_LOOP in __init__.py
   CanSpeed bit_rate_{CAN_125KBPS};    // Keep in sync with DEFAULT_BIT_RATE in __init__.py
@@ -184,22 +184,18 @@ template<typename... Ts> class CanbusSendAction final : public Action<Ts...>, pu
   bool remote_transmission_request_{false};
 };
 
-class CanbusTrigger final : public Trigger<std::vector<uint8_t>, uint32_t, bool>, public Component {
+class CanbusTrigger final : public Trigger<std::vector<uint8_t>, uint32_t, bool> {
   friend class Canbus;
 
  public:
-  explicit CanbusTrigger(Canbus *parent, const std::uint32_t can_id, const std::uint32_t can_id_mask,
-                         const bool use_extended_id)
-      : parent_(parent), can_id_(can_id), can_id_mask_(can_id_mask), use_extended_id_(use_extended_id) {};
+  explicit CanbusTrigger(const std::uint32_t can_id, const std::uint32_t can_id_mask, const bool use_extended_id)
+      : can_id_(can_id), can_id_mask_(can_id_mask), use_extended_id_(use_extended_id) {};
 
   void set_remote_transmission_request(bool remote_transmission_request) {
     this->remote_transmission_request_ = remote_transmission_request;
   }
 
-  void setup() override { this->parent_->add_trigger(this); }
-
  protected:
-  Canbus *parent_;
   uint32_t can_id_;
   uint32_t can_id_mask_;
   bool use_extended_id_;

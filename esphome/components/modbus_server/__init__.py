@@ -152,6 +152,12 @@ def _final_validate(config: ConfigType) -> None:
 FINAL_VALIDATE_SCHEMA = _final_validate
 
 
+_add_server_register = cg.slot_list(
+    "MODBUS_SERVER_REGISTER_COUNT", "add_server_register", DOMAIN
+)
+_add_server_bit = cg.slot_list("MODBUS_SERVER_BIT_COUNT", "add_server_bit", DOMAIN)
+
+
 async def to_code(config: ConfigType) -> None:
     var = cg.new_Pvariable(config[CONF_ID])
     if server_courtesy_response := config.get(CONF_COURTESY_RESPONSE):
@@ -200,7 +206,7 @@ async def to_code(config: ConfigType) -> None:
                 )
             if server_register[CONF_ALLOW_PARTIAL_READ]:
                 cg.add(server_register_var.set_allow_partial_read(True))
-            cg.add(var.add_server_register(server_register_var))
+            cg.add(_add_server_register(var, server_register_var))
     for server_bit in config.get(CONF_BITS, []):
         server_bit_var = cg.new_Pvariable(server_bit[CONF_ID], server_bit[CONF_ADDRESS])
         cg.add(
@@ -222,6 +228,6 @@ async def to_code(config: ConfigType) -> None:
                     )
                 )
             )
-        cg.add(var.add_server_bit(server_bit_var))
+        cg.add(_add_server_bit(var, server_bit_var))
     await cg.register_component(var, config)
     return await modbus.register_modbus_server_device(var, config)

@@ -3,6 +3,7 @@
 #include "esphome/core/component.h"
 #include "esphome/core/hal.h"
 #include "esphome/core/automation.h"
+#include "esphome/core/helpers.h"
 #include "esphome/components/binary_sensor/binary_sensor.h"
 
 #include <vector>
@@ -21,9 +22,9 @@ class RC522 : public PollingComponent {
 
   void loop() override;
 
-  void register_tag(RC522BinarySensor *tag) { this->binary_sensors_.push_back(tag); }
-  void register_ontag_trigger(RC522Trigger *trig) { this->triggers_ontag_.push_back(trig); }
-  void register_ontagremoved_trigger(RC522Trigger *trig) { this->triggers_ontagremoved_.push_back(trig); }
+  SLOT_LIST(RC522BinarySensor, binary_sensors_, register_tag, RC522_BINARY_SENSOR_COUNT)
+  SLOT_LIST(RC522Trigger, triggers_ontag_, register_ontag_trigger, RC522_ON_TAG_TRIGGER_COUNT)
+  SLOT_LIST(RC522Trigger, triggers_ontagremoved_, register_ontagremoved_trigger, RC522_ON_TAG_REMOVED_TRIGGER_COUNT)
 
   void set_reset_pin(GPIOPin *reset) { this->reset_pin_ = reset; }
 
@@ -240,9 +241,6 @@ class RC522 : public PollingComponent {
   GPIOPin *reset_pin_{nullptr};
   uint8_t reset_count_{0};
   uint32_t reset_timeout_{0};
-  std::vector<RC522BinarySensor *> binary_sensors_;
-  std::vector<RC522Trigger *> triggers_ontag_;
-  std::vector<RC522Trigger *> triggers_ontagremoved_;
   std::vector<uint8_t> current_uid_;
 };
 

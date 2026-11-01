@@ -4,7 +4,14 @@ from esphome.components import binary_sensor
 import esphome.config_validation as cv
 from esphome.const import CONF_COMPONENT_ID, CONF_ID, CONF_PAGE_ID, CONF_STATE
 
-from .. import CONF_NEXTION_ID, CONF_PUBLISH_STATE, CONF_SEND_TO_NEXTION, nextion_ns
+from .. import (
+    CONF_NEXTION_ID,
+    CONF_PUBLISH_STATE,
+    CONF_SEND_TO_NEXTION,
+    nextion_ns,
+    register_binarysensor_component,
+    register_touch_component,
+)
 from ..base_component import (
     CONF_COMPONENT_NAME,
     CONF_VARIABLE_NAME,
@@ -44,13 +51,13 @@ async def to_code(config):
     await cg.register_component(var, config)
 
     if config.keys() >= {CONF_PAGE_ID, CONF_COMPONENT_ID}:
-        cg.add(hub.register_touch_component(var))
+        cg.add(register_touch_component(hub, var))
         cg.add(var.set_component_id(config[CONF_COMPONENT_ID]))
         cg.add(var.set_page_id(config[CONF_PAGE_ID]))
 
     if CONF_COMPONENT_NAME in config or CONF_VARIABLE_NAME in config:
         await setup_component_core_(var, config, ".val")
-        cg.add(hub.register_binarysensor_component(var))
+        cg.add(register_binarysensor_component(hub, var))
 
 
 automation.register_apply_action(
