@@ -12,6 +12,7 @@
 namespace esphome::pid {
 
 class PIDClimate final : public climate::Climate, public Component {
+  SUB_SENSOR(temperature)
   SUB_SENSOR(humidity)
 
  public:
@@ -19,7 +20,6 @@ class PIDClimate final : public climate::Climate, public Component {
   void setup() override;
   void dump_config() override;
 
-  void set_sensor(sensor::Sensor *sensor) { sensor_ = sensor; }
   void set_cool_output(output::FloatOutput *cool_output) { cool_output_ = cool_output; }
   void set_heat_output(output::FloatOutput *heat_output) { heat_output_ = heat_output; }
   void set_kp(float kp) { controller_.kp_ = kp; }
@@ -97,8 +97,6 @@ class PIDClimate final : public climate::Climate, public Component {
 
   void write_output_(float value);
 
-  /// The sensor used for getting the current temperature
-  sensor::Sensor *sensor_;
   output::FloatOutput *cool_output_{nullptr};
   output::FloatOutput *heat_output_{nullptr};
   PIDController controller_;
