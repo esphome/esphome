@@ -189,38 +189,26 @@ drive a state when the restore mode is disabled. A hub that applies its switches
 reads `sw->get_initial_write_state()`, which already applies `inverted`.
 
 **Entities that each watch a register field:** when every field (register, shift, mask, match) is known at
-build time, generate the decoding (see `bq25186`). Each platform passes each entity's field to the hub's
-codegen, a `CoroPriority.FINAL` job emits one `cg.static_function` per hub with the constants as literals, and
-the hub stores a single function pointer; the entities stay plain `BinarySensor`/`TextSensor`. A binary sensor
-tests its field value against an on-values bitmap (`match`); a one-bit field that is on when set reads the bit:
+build time, generate the decoding with `cg.HubFunction` (see `bq25186`): the hub's `__init__.py` declares it once,
+each platform adds one item per entity built from codegen expressions, and code generation writes one function per
+hub that the hub calls through a single nullptr-checked pointer; the entities stay plain `BinarySensor`/`TextSensor`.
+A binary sensor tests its field value against an on-values bitmap (`match`); a one-bit field reads the bit:
 ```python
-# Platform file; add_binary_status and set_status_publisher are bq25186's own helpers, not shared ones
-if (var := await sensors(key, None)) is not None:
-    add_binary_status(hub, var, reg, shift, mask, match)
-
-
-# bq25186/__init__.py: statements are built from codegen expressions, not C++ text
-_STATUS = cg.MockObj("status")  # the generated function's parameter
-
-
-def _state_expression(reg: int, shift: int, mask: int, match: int) -> cg.MockObj:
-    value = (_STATUS[reg] >> shift) & HexIntLiteral(mask)
-    if mask == 0x01 and match == BIT_SET:
-        return value
-    return (cg.MockObj(f"{match:#06b}") >> value) & 1
-
-
-# add_binary_status
-state = _state_expression(reg, shift, mask, match)
-_add_statement(hub, cg.statement(parent_ref(var).publish_state(state)), text=False)
-
-
-# FINAL job, per hub; binary sensors publish before text sensors
-statements = [*publisher.binary, *publisher.text]
-fn = cg.static_function(
-    f"esphome__{publisher.hub}__status_fn", cg.void, params, statements
+# hub __init__.py
+STATUS_PUBLISHER = cg.HubFunction(
+    "status_fn",
+    cg.void,
+    [(BQ25186StatusRegisters.const_ref(), "status")],
+    setter="set_status_publisher",
+    define="USE_BQ25186_STATUS_PUBLISHER",
 )
-cg.add(publisher.hub.set_status_publisher(fn))
+STATUS = STATUS_PUBLISHER.param("status")
+
+# platform to_code, per configured entity
+value = (STATUS[reg] >> shift) & mask
+if mask != 0x01 or match != 0b10:  # 0b10: a one-bit field that is on when set
+    value = (cg.MockObj(f"{match:#06b}") >> value) & 1
+STATUS_PUBLISHER.add(hub, parent_ref(var).publish_state(value))
 ```
 Store a field description per entity (a struct in a `StaticVector` sized by `cg.slot_counter`) only when the
 field is chosen at run time, as in `sen6x`, where the status bit depends on the variant read in `setup()`.
