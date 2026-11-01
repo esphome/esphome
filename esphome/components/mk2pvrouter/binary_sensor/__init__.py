@@ -1,27 +1,28 @@
+from esphome.automation import parent_ref
 import esphome.codegen as cg
 from esphome.components import binary_sensor
-from esphome.const import CONF_ID, CONF_TAG
+from esphome.const import CONF_TAG
 from esphome.types import ConfigType
 
 from .. import (
     CONF_MK2PVROUTER_ID,
+    DUMP,
     MK2PVROUTER_LISTENER_SCHEMA,
+    TAG,
+    VAL,
+    VALUE,
     mk2pvrouter_ns,
-    register_mk2pvrouter_listener,
 )
 
-Mk2PVRouterBinarySensor = mk2pvrouter_ns.class_(
-    "Mk2PVRouterBinarySensor", binary_sensor.BinarySensor, cg.Component
-)
-
-CONFIG_SCHEMA = binary_sensor.binary_sensor_schema(Mk2PVRouterBinarySensor).extend(
-    MK2PVROUTER_LISTENER_SCHEMA
-)
+CONFIG_SCHEMA = binary_sensor.binary_sensor_schema().extend(MK2PVROUTER_LISTENER_SCHEMA)
 
 
 async def to_code(config: ConfigType) -> None:
-    var = cg.new_Pvariable(config[CONF_ID], config[CONF_TAG])
-    await cg.register_component(var, config)
-    await binary_sensor.register_binary_sensor(var, config)
+    var = await binary_sensor.new_binary_sensor(config)
     mk2pvrouter = await cg.get_variable(config[CONF_MK2PVROUTER_ID])
-    await register_mk2pvrouter_listener(mk2pvrouter, var)
+    tag = config[CONF_TAG]
+    VALUE.add(
+        mk2pvrouter,
+        mk2pvrouter_ns.publish_binary_sensor_value(parent_ref(var), tag, TAG, VAL),
+    )
+    DUMP.add(mk2pvrouter, mk2pvrouter_ns.dump_binary_sensor(parent_ref(var), tag))

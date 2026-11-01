@@ -1,5 +1,6 @@
 #include <gtest/gtest.h>
 
+#include <cstring>
 #include <string>
 
 #include "esphome/components/mk2pvrouter/mk2pvrouter.h"
@@ -11,21 +12,27 @@ namespace {
 // The parser works on raw frame bytes; the groups below are written as text for readability.
 const uint8_t *as_bytes(const char *str) { return reinterpret_cast<const uint8_t *>(str); }
 
-class TestListener final : public Mk2PVRouterListener {
- public:
-  explicit TestListener(const char *tag) : Mk2PVRouterListener(tag) {}
-  void publish_val(const char *val) override {
-    this->published_ = true;
-    this->last_val_ = val;
-  }
-
+struct TestListener {
+  const char *tag;
   bool published_{false};
   std::string last_val_;
 };
 
+// Stands in for the generated function; records values for the running test's listener tag
+TestListener *active_listener = nullptr;
+void record_value(const char *tag, const char *val) {
+  if (strcmp(tag, active_listener->tag) != 0)
+    return;
+  active_listener->published_ = true;
+  active_listener->last_val_ = val;
+}
+
 class Mk2PVRouterTest : public ::testing::Test {
  protected:
-  void SetUp() override { this->sut_.register_mk2pvrouter_listener(&this->listener_); }
+  void SetUp() override {
+    active_listener = &this->listener_;
+    this->sut_.set_value_fn(record_value);
+  }
 
   // Feeds one "tag<TAB>value<TAB>crc" literal, as the frame parser does after END_FRAME.
   template<size_t N> void process_(const char (&group)[N]) {
@@ -36,11 +43,6 @@ class Mk2PVRouterTest : public ::testing::Test {
   TestListener listener_{"P1"};
 };
 }  // namespace
-
-TEST(Mk2PVRouterListenerTest, GetTagReturnsConstructorTag) {
-  TestListener listener("P1");
-  EXPECT_STREQ(listener.get_tag(), "P1");
-}
 
 TEST_F(Mk2PVRouterTest, CalculateCrcMatchesKnownGroup) {
   // "P1\t1234\t" sums to 0x3D ('=') per the mk2pvrouter CRC algorithm.
