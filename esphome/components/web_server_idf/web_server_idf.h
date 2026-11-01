@@ -45,6 +45,8 @@ class AsyncWebParameter {
 class AsyncWebServerRequest;
 
 class AsyncWebServerResponse {
+  friend class AsyncWebServerRequest;
+
  public:
   AsyncWebServerResponse(const AsyncWebServerRequest *req) : req_(req) {}
   virtual ~AsyncWebServerResponse() {}
@@ -57,6 +59,8 @@ class AsyncWebServerResponse {
 
  protected:
   const AsyncWebServerRequest *req_;
+  // Bit i set: this response set default header i itself, so it is not sent at send time
+  uint8_t replaced_defaults_{0};
 };
 
 class AsyncWebServerResponseEmpty : public AsyncWebServerResponse {
@@ -132,9 +136,7 @@ class AsyncWebServerRequest {
   void redirect(const char *url);
   void redirect(const std::string &url) { this->redirect(url.c_str()); }
 
-  inline void ESPHOME_ALWAYS_INLINE send(AsyncWebServerResponse *response) {
-    httpd_resp_send(*this, response->get_content_data(), response->get_content_size());
-  }
+  void send(AsyncWebServerResponse *response);
   inline void ESPHOME_ALWAYS_INLINE send(int code, const char *content_type = nullptr, const char *content = nullptr) {
     this->init_response_(nullptr, code, content_type);
     if (content) {
@@ -458,9 +460,11 @@ struct HttpHeader {
 
 class DefaultHeaders {
   friend class AsyncWebServerRequest;
+  friend class AsyncWebServerResponse;
 #ifdef USE_WEBSERVER
   friend class AsyncEventSourceResponse;
 #endif
+  static_assert(WEB_SERVER_DEFAULT_HEADERS_COUNT <= 8, "AsyncWebServerResponse::replaced_defaults_ holds 8 bits");
 
  public:
   // NOLINTNEXTLINE(readability-identifier-naming)
@@ -472,6 +476,9 @@ class DefaultHeaders {
  protected:
   // Stack-allocated, no reallocation machinery. Count defined in web_server_base where headers are added.
   StaticVector<HttpHeader, WEB_SERVER_DEFAULT_HEADERS_COUNT> headers_;
+
+  /// Set every default header on the response except those whose bit is set in skip_mask.
+  void apply_(httpd_req_t *req, uint8_t skip_mask = 0) const;
 };
 
 }  // namespace web_server_idf
