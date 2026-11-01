@@ -27,21 +27,13 @@ static float tp96_battery(uint16_t voltage) {
   return clamp(level, 0.0f, 100.0f);
 }
 
-static bool parse_tp972(const uint8_t *data, size_t data_size, ParseResult &result) {
-  if (data_size != 23) {
-    ESP_LOGVV(TAG, "TP972 payload size %u != 23", static_cast<unsigned>(data_size));
-    return false;
-  }
-  // TODO: both temperatures are °F + 54 and the internal one is a float; fixed in a follow-up
-  result.external_temperature = static_cast<float>(encode_value_le<uint16_t>(data + 1)) - 54.0f;
-  result.battery_level = tp96_battery(encode_value_le<uint16_t>(data + 3));
-  result.temperature = static_cast<float>(encode_value_le<uint32_t>(data + 9)) - 54.0f;
-  return true;
-}
+// TP97x temperatures are °F offset by 54
+static float tp97_celsius(float raw) { return fahrenheit_to_celsius(raw - 54.0f); }
 
+// Some probes append 6 bytes of the base station MAC to the 7-byte frame
 static bool parse_tp96(const uint8_t *data, size_t data_size, ParseResult &result) {
-  if (data_size != 7) {
-    ESP_LOGVV(TAG, "TP96 payload size %u != 7", static_cast<unsigned>(data_size));
+  if (data_size != 7 && data_size != 13) {
+    ESP_LOGVV(TAG, "Probe payload size %u not supported", static_cast<unsigned>(data_size));
     return false;
   }
   // Temperatures are offset by 30 °C
@@ -51,15 +43,30 @@ static bool parse_tp96(const uint8_t *data, size_t data_size, ParseResult &resul
   return true;
 }
 
+// TP97x also sends the TP96 frame
+static bool parse_tp97(const uint8_t *data, size_t data_size, ParseResult &result) {
+  if (data_size != 23)
+    return parse_tp96(data, data_size, result);
+  result.external_temperature = tp97_celsius(encode_value_le<uint16_t>(data + 1));
+  result.battery_level = tp96_battery(encode_value_le<uint16_t>(data + 3));
+  // Probe tip, a float
+  result.temperature = tp97_celsius(bit_cast<float>(encode_value_le<uint32_t>(data + 5)));
+  return true;
+}
+
 static bool parse_tp3(const uint8_t *data, size_t data_size, ParseResult &result) {
+  // Battery bits: low, half, full, unknown
+  static constexpr float BATTERY_LEVELS[] = {1.0f, 50.0f, 100.0f, NAN};
   if (data_size < 6) {
     ESP_LOGVV(TAG, "TP3 payload size %u < 6", static_cast<unsigned>(data_size));
     return false;
   }
-  result.temperature = static_cast<float>(encode_value_le<int16_t>(data + 1)) * 0.1f;
-  result.humidity = static_cast<float>(data[3]);
-  // Two battery bits, 50 % per step
-  result.battery_level = static_cast<float>(data[4] & 0x3) * 50.0f;
+  // Temperature and humidity all 0xFF: no reading
+  if (data[1] != 0xFF || data[2] != 0xFF || data[3] != 0xFF) {
+    result.temperature = static_cast<float>(encode_value_le<int16_t>(data + 1)) * 0.1f;
+    result.humidity = static_cast<float>(data[3]);
+  }
+  result.battery_level = BATTERY_LEVELS[data[4] & 0x3];
   return true;
 }
 
@@ -69,7 +76,7 @@ struct DeviceParserMapping {
 };
 
 static constexpr DeviceParserMapping DEVICE_PARSER_MAP[] = {
-    {"TP972", parse_tp972}, {"TP970", parse_tp96}, {"TP96", parse_tp96}, {"TP3", parse_tp3}};
+    {"TP972", parse_tp97}, {"TP970", parse_tp97}, {"TP96", parse_tp96}, {"TP3", parse_tp3}};
 
 static DeviceParser find_device_parser(StringRef device_name) {
   for (const auto &mapping : DEVICE_PARSER_MAP) {
