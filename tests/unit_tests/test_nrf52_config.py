@@ -5,10 +5,8 @@ from collections.abc import Generator
 import pytest
 
 from esphome.components.nrf52 import (
-    BOOTLOADERS,
     _default_self_reset_pin,
     _detect_bootloader,
-    _uses_serial_dfu,
     _validate_open_dfu_toolchain,
     set_core_data,
 )
@@ -126,14 +124,3 @@ def test_other_boards_get_no_reset_pin() -> None:
         {"board": "adafruit_itsybitsy_nrf52840", "dfu": {}}
     )
     assert "reset_pin" not in config["dfu"]
-
-
-def test_every_adafruit_and_the_nrf_bootloader_use_serial_dfu() -> None:
-    serial = [bootloader for bootloader in BOOTLOADERS if _uses_serial_dfu(bootloader)]
-    assert serial == [
-        "adafruit",
-        "adafruit_nrf52_sd132",
-        "adafruit_nrf52_sd140_v6",
-        "adafruit_nrf52_sd140_v7",
-        "nrf",
-    ]

@@ -210,23 +210,16 @@ def set_framework(config: ConfigType) -> ConfigType:
     )(config)
 
 
-BOOTLOADERS = [
+# Bootloaders flashed over USB serial DFU: the Adafruit ones with adafruit-nrfutil, the factory Open
+# DFU bootloader with Nordic's nrfutil; mcuboot uses mcumgr instead
+SERIAL_DFU_BOOTLOADERS = (
     BOOTLOADER_ADAFRUIT,
     BOOTLOADER_ADAFRUIT_NRF52_SD132,
     BOOTLOADER_ADAFRUIT_NRF52_SD140_V6,
     BOOTLOADER_ADAFRUIT_NRF52_SD140_V7,
     BOOTLOADER_NRF,
-    BOOTLOADER_MCUBOOT,
-]
-
-
-def _uses_serial_dfu(bootloader: str) -> bool:
-    """Return True for a bootloader flashed over USB serial DFU.
-
-    Every Adafruit bootloader (their names start with "adafruit") uses adafruit-nrfutil and the
-    factory Open DFU bootloader uses Nordic's nrfutil; mcuboot uses mcumgr instead.
-    """
-    return bootloader.startswith(BOOTLOADER_ADAFRUIT) or bootloader == BOOTLOADER_NRF
+)
+BOOTLOADERS = [*SERIAL_DFU_BOOTLOADERS, BOOTLOADER_MCUBOOT]
 
 
 _validate_toolchain = cv.toolchain_enum(_TOOLCHAINS)
@@ -821,7 +814,7 @@ def upload_program(config: ConfigType, args, host: str) -> bool:
             if result != 0:
                 raise EsphomeError(f"Upload failed with result: {result}")
             return True
-        elif not _uses_serial_dfu(bootloader):
+        elif bootloader not in SERIAL_DFU_BOOTLOADERS:
             raise EsphomeError(
                 f"Serial upload is not implemented for the {bootloader} bootloader"
             )
@@ -1439,7 +1432,7 @@ def run_compile(args, config: ConfigType) -> bool:
     # The serial DFU package follows the hex it is made from; a package from another bootloader's
     # build would otherwise be offered for download with this one
     dfu_package = build_dir / DFU_PACKAGE
-    if not _uses_serial_dfu(bootloader):
+    if bootloader not in SERIAL_DFU_BOOTLOADERS:
         dfu_package.unlink(missing_ok=True)
     elif bootloader == BOOTLOADER_NRF:
         # The factory Open DFU bootloader speaks Nordic's Secure DFU protocol, which only Nordic's own
