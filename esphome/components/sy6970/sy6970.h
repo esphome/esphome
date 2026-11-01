@@ -3,6 +3,8 @@
 #include "esphome/components/i2c/i2c.h"
 #include "esphome/core/component.h"
 #include "esphome/core/defines.h"
+#include "esphome/core/helpers.h"
+#include "esphome/core/progmem.h"
 
 namespace esphome::sy6970 {
 
@@ -80,60 +82,11 @@ inline bool is_charging(uint8_t charge_status) {
   return charge_status == CHARGE_STATUS_PRE_CHARGE || charge_status == CHARGE_STATUS_FAST_CHARGE;
 }
 
-inline const char *bus_status_to_string(uint8_t status) {
-  switch (status) {
-    case BUS_STATUS_NO_INPUT:
-      return "No Input";
-    case BUS_STATUS_USB_SDP:
-      return "USB SDP";
-    case BUS_STATUS_USB_CDP:
-      return "USB CDP";
-    case BUS_STATUS_USB_DCP:
-      return "USB DCP";
-    case BUS_STATUS_HVDCP:
-      return "HVDCP";
-    case BUS_STATUS_ADAPTER:
-      return "Adapter";
-    case BUS_STATUS_NO_STD_ADAPTER:
-      return "Non-Standard Adapter";
-    case BUS_STATUS_OTG:
-      return "OTG";
-    default:
-      return "Unknown";
-  }
-}
-
-inline const char *charge_status_to_string(uint8_t status) {
-  switch (status) {
-    case CHARGE_STATUS_NOT_CHARGING:
-      return "Not Charging";
-    case CHARGE_STATUS_PRE_CHARGE:
-      return "Pre-charge";
-    case CHARGE_STATUS_FAST_CHARGE:
-      return "Fast Charge";
-    case CHARGE_STATUS_CHARGE_DONE:
-      return "Charge Done";
-    default:
-      return "Unknown";
-  }
-}
-
-inline const char *ntc_status_to_string(uint8_t status) {
-  switch (status) {
-    case 0:
-      return "Normal";
-    case 2:
-      return "Warm";
-    case 3:
-      return "Cool";
-    case 5:
-      return "Cold";
-    case 6:
-      return "Hot";
-    default:
-      return "Unknown";
-  }
-}
+// Indexed by status value; the last string is the fallback
+PROGMEM_STRING_TABLE(BusStatusStrings, "No Input", "USB SDP", "USB CDP", "USB DCP", "HVDCP", "Adapter",
+                     "Non-Standard Adapter", "OTG", "Unknown");
+PROGMEM_STRING_TABLE(ChargeStatusStrings, "Not Charging", "Pre-charge", "Fast Charge", "Charge Done", "Unknown");
+PROGMEM_STRING_TABLE(NtcStatusStrings, "Normal", "Unknown", "Warm", "Cool", "Unknown", "Cold", "Hot", "Unknown");
 
 class SY6970Component final : public PollingComponent, public i2c::I2CDevice {
  public:
@@ -153,8 +106,7 @@ class SY6970Component final : public PollingComponent, public i2c::I2CDevice {
   void update() override;
 
 #ifdef USE_SY6970_DATA_PUBLISHER
-  /// Generated function that publishes the child entities from the registers read on each update.
-  void set_data_publisher(void (*fn)(const SY6970Data &data)) { this->data_publisher_ = fn; }
+  HUB_PUBLISHER(data, const SY6970Data &)
 #endif
 
   // Configuration methods to be called from lambdas
@@ -176,9 +128,6 @@ class SY6970Component final : public PollingComponent, public i2c::I2CDevice {
   bool update_register_(uint8_t reg, uint8_t mask, uint8_t value);
 
   SY6970Data data_{};
-#ifdef USE_SY6970_DATA_PUBLISHER
-  void (*data_publisher_)(const SY6970Data &data){nullptr};
-#endif
 
   // Configuration values to set during setup()
   bool led_enabled_;

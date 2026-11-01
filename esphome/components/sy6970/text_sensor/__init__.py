@@ -29,11 +29,18 @@ CONFIG_SCHEMA = cv.Schema(
     }
 )
 
+
+def _status_string(table: str, index: cg.MockObj) -> cg.MockObj:
+    """The string at ``index`` in the hub's PROGMEM_STRING_TABLE ``table``."""
+    strings = sy6970_ns.namespace(table)
+    return strings.get_progmem_str(index, strings.LAST_INDEX)
+
+
 STATES = {
-    CONF_BUS_STATUS: sy6970_ns.bus_status_to_string(BUS_STATUS),
-    CONF_CHARGE_STATUS: sy6970_ns.charge_status_to_string(CHARGE_STATUS),
-    CONF_NTC_STATUS: sy6970_ns.ntc_status_to_string(
-        REGISTERS[sy6970_ns.SY6970_REG_FAULT] & 0x07
+    CONF_BUS_STATUS: _status_string("BusStatusStrings", BUS_STATUS),
+    CONF_CHARGE_STATUS: _status_string("ChargeStatusStrings", CHARGE_STATUS),
+    CONF_NTC_STATUS: _status_string(
+        "NtcStatusStrings", REGISTERS[sy6970_ns.SY6970_REG_FAULT] & 0x07
     ),
 }
 
