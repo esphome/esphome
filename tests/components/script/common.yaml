@@ -29,6 +29,28 @@ esphome:
           then:
             - logger.log: a script is running
       - script.execute: my_script_stops_itself
+      - delay:
+          minutes: 1
+          seconds: 2
+          milliseconds: 3
+      - delay:
+          hours: 1
+      - if:
+          all:
+            - script.is_running: my_script
+            - lambda: return true;
+          then:
+            - logger.log: all conditions true
+      - wait_until:
+          condition:
+            not:
+              script.is_running: my_script
+          timeout: !lambda return 2000;
+      - wait_until:
+          condition:
+            not:
+              script.is_running: my_script
+          timeout: 500ms
       - choose:
           - if:
               script.is_running: my_script

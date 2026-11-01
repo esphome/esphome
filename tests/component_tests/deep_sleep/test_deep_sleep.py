@@ -2,6 +2,7 @@
 
 from collections.abc import Callable
 from pathlib import Path
+import re
 
 import pytest
 
@@ -141,7 +142,7 @@ def test_deep_sleep_bk72xx_wakeup_pin_mode_without_wakeup_pin_rejected(
     set_core_config(PlatformFramework.BK72XX_ARDUINO)
     config = {deep_sleep.CONF_WAKEUP_PIN_MODE: "KEEP_AWAKE"}
     with pytest.raises(cv.Invalid, match="requires 'wakeup_pin'"):
-        deep_sleep.validate_config(config)
+        deep_sleep.CONFIG_SCHEMA(config)
 
 
 def test_deep_sleep_esp32_wakeup_pin_mode_without_wakeup_pin_rejected(
@@ -151,7 +152,7 @@ def test_deep_sleep_esp32_wakeup_pin_mode_without_wakeup_pin_rejected(
     set_core_config(PlatformFramework.ESP32_IDF)
     config = {deep_sleep.CONF_WAKEUP_PIN_MODE: "KEEP_AWAKE"}
     with pytest.raises(cv.Invalid, match="requires 'wakeup_pin'"):
-        deep_sleep.validate_config(config)
+        deep_sleep.CONFIG_SCHEMA(config)
 
 
 @pytest.mark.parametrize(
@@ -218,3 +219,82 @@ def test_deep_sleep_esp32_wakeup_pin_mode_at_both_levels_rejected(
     with pytest.raises(cv.Invalid, match="not both") as exc:
         deep_sleep.validate_config(config)
     assert exc.value.path == [CONF_WAKEUP_PIN, 0, deep_sleep.CONF_WAKEUP_PIN_MODE]
+
+
+ENTER_YAML = "tests/component_tests/deep_sleep/test_deep_sleep_enter.yaml"
+
+
+def test_deep_sleep_enter_without_duration(
+    generate_main: Callable[[str | Path], str],
+) -> None:
+    """A bare deep_sleep.enter only begins a manual sleep with the configured duration."""
+    main_cpp = generate_main(ENTER_YAML)
+
+    assert (
+        "new(deep_sleep_enterdeepsleepaction_id) "
+        "deep_sleep::EnterDeepSleepAction<>(deepsleep);\n"
+        "new(automation_id) Automation<>(sleep_now);"
+    ) in main_cpp
+
+
+def test_deep_sleep_enter_constant_duration(
+    generate_main: Callable[[str | Path], str],
+) -> None:
+    """A constant sleep_duration is set in milliseconds."""
+    main_cpp = generate_main(ENTER_YAML)
+
+    assert (
+        "deep_sleep_enterdeepsleepaction_id_2->set_sleep_duration([]() -> uint32_t {\n"
+        "    return 3600000;\n"
+        "});"
+    ) in main_cpp
+
+
+def test_deep_sleep_enter_lambda_duration(
+    generate_main: Callable[[str | Path], str],
+) -> None:
+    """A lambda sleep_duration is computed from the script parameters."""
+    main_cpp = generate_main(ENTER_YAML)
+
+    assert re.search(
+        r"new\(deep_sleep_enterdeepsleepaction_id_3\) "
+        r"deep_sleep::EnterDeepSleepAction<uint32_t>\(deepsleep\);\n"
+        r"deep_sleep_enterdeepsleepaction_id_3->set_sleep_duration\("
+        r"\[\]\(uint32_t seconds\) -> uint32_t \{\n(?:    #line [^\n]*\n)?"
+        r"    return seconds \* 1000;\n",
+        main_cpp,
+    )
+
+
+@pytest.mark.parametrize(
+    ("action_id", "body"),
+    [
+        ("deep_sleep_enterdeepsleepaction_id_4", "seconds *= 1000; return seconds;"),
+        ("deep_sleep_enterdeepsleepaction_id_5", "return seconds *= 1000;"),
+    ],
+)
+def test_deep_sleep_enter_lambda_takes_args_by_value(
+    generate_main: Callable[[str | Path], str], action_id: str, body: str
+) -> None:
+    """The sleep_duration lambda gets the script parameters by value, so it may modify them."""
+    main_cpp = generate_main(ENTER_YAML)
+
+    assert re.search(
+        action_id + r"->set_sleep_duration\("
+        r"\[\]\(uint32_t seconds\) -> uint32_t \{\n(?:    #line [^\n]*\n)?    "
+        + re.escape(body)
+        + "\n",
+        main_cpp,
+    )
+
+
+def test_deep_sleep_enter_until(
+    generate_main: Callable[[str | Path], str],
+) -> None:
+    """The until and time_id keys set the wake time of day and the clock to read it from."""
+    main_cpp = generate_main(ENTER_YAML)
+
+    assert (
+        "deep_sleep_enterdeepsleepaction_id_6->set_until(6, 30, 0);\n"
+        "deep_sleep_enterdeepsleepaction_id_6->set_time(sntp_time);"
+    ) in main_cpp

@@ -2,11 +2,12 @@
 
 from __future__ import annotations
 
-import asyncio
 import re
 
 import pytest
 
+from .log_utils import LineWaiter
+from .state_utils import require_service
 from .types import APIClientConnectedFactory, RunCompiledFunction
 
 # Bounds in the fixture: above 0, below 10, both inclusive. A NaN state is never in range.
@@ -32,27 +33,23 @@ async def test_in_range_conditions(
     api_client_connected: APIClientConnectedFactory,
 ) -> None:
     """Each in_range condition gives the same result for sensors and numbers."""
-    loop = asyncio.get_running_loop()
-    results: dict[tuple[str, str, str], int] = {}
-    done = loop.create_future()
-
-    def check_output(line: str) -> None:
-        if match := RESULT_RE.search(line):
-            label, entity, condition, value = match.groups()
-            results[(label, entity, condition)] = int(value)
-        elif "INRANGE done" in line and not done.done():
-            done.set_result(True)
+    waiter = LineWaiter()
 
     async with (
-        run_compiled(yaml_config, line_callback=check_output),
+        run_compiled(yaml_config, line_callback=waiter.callback),
         api_client_connected() as client,
     ):
         _, services = await client.list_entities_services()
-        service = next((s for s in services if s.name == "run_cases"), None)
-        assert service is not None, "run_cases action not found"
+        service = require_service(services, "run_cases")
         await client.execute_service(service, {})
-        await asyncio.wait_for(done, timeout=10.0)
+        await waiter.wait_for("INRANGE done", timeout=10.0)
 
+    # Key: (label, entity, condition); a repeated result keeps the last value
+    results = {
+        match.groups()[:3]: int(match[4])
+        for line in waiter.lines
+        if (match := RESULT_RE.search(line))
+    }
     expected = {
         (label, entity, condition): row[index]
         for label, row in EXPECTED.items()

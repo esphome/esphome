@@ -30,8 +30,8 @@ float AddressableLight::frame_ma_(float *slack_ma) const {
   uint32_t lit[4]{};
   const int32_t count = this->size();
   for (int32_t i = 0; i < count; i++) {
-    const auto view = this->get_view_internal(i);
-    const uint8_t levels[4] = {view.get_red_raw(), view.get_green_raw(), view.get_blue_raw(), view.get_white_raw()};
+    const Color raw_color = this->get(i).get_raw();
+    const uint8_t levels[4] = {raw_color.r, raw_color.g, raw_color.b, raw_color.w};
     for (size_t channel = 0; channel < 4; channel++) {
       sums[channel] += levels[channel];
       lit[channel] += levels[channel] != 0;
@@ -110,9 +110,9 @@ void AddressableLight::limit_power_() {
     map[level] = rescale_level(level, scale, previous);
   uint32_t sums[4]{};
   for (auto view : *this) {
-    const uint8_t r = map[view.get_red_raw()], g = map[view.get_green_raw()], b = map[view.get_blue_raw()],
-                  w = map[view.get_white_raw()];
-    view.set_raw(r, g, b, w);
+    const Color raw_color = view.get_raw();
+    const uint8_t r = map[raw_color.r], g = map[raw_color.g], b = map[raw_color.b], w = map[raw_color.w];
+    view.set_raw(Color{r, g, b, w});
     sums[0] += r;
     sums[1] += g;
     sums[2] += b;
@@ -132,12 +132,11 @@ void AddressableLight::call_setup() {
 
 #ifdef ESPHOME_LOG_HAS_VERY_VERBOSE
   this->set_interval(5000, [this]() {
-    const char *name = this->state_parent_ == nullptr ? "" : this->state_parent_->get_name().c_str();
+    const char *name = this->state_parent_ == nullptr ? "" : LOG_STR_ARG(this->state_parent_->get_log_name());
     ESP_LOGVV(TAG, "Addressable Light '%s' (effect_active=%s)", name, YESNO(this->effect_active_));
     for (int i = 0; i < this->size(); i++) {
-      auto color = this->get(i);
-      ESP_LOGVV(TAG, "  [%2d] Color: R=%3u G=%3u B=%3u W=%3u", i, color.get_red_raw(), color.get_green_raw(),
-                color.get_blue_raw(), color.get_white_raw());
+      const Color raw_color = this->get(i).get_raw();
+      ESP_LOGVV(TAG, "  [%2d] Color: R=%3u G=%3u B=%3u W=%3u", i, raw_color.r, raw_color.g, raw_color.b, raw_color.w);
     }
     ESP_LOGVV(TAG, " ");
   });
@@ -265,16 +264,17 @@ optional<LightColorValues> AddressableLightTransformer::apply() {
       uint8_t b = subtract_scaled_difference(this->target_color_.blue, start.blue, remaining);
       uint8_t w = subtract_scaled_difference(this->target_color_.white, start.white, remaining);
       for (auto led : this->light_) {
-        led.set_rgbw(r, g, b, w);
+        led.set(Color{r, g, b, w});
       }
     } else {
       int32_t scale =
           int32_t(256.f * std::max((1.f - smoothed_progress) / (1.f - this->last_transition_progress_), 0.f));
       for (auto led : this->light_) {
-        led.set_rgbw(subtract_scaled_difference(this->target_color_.red, led.get_red(), scale),
-                     subtract_scaled_difference(this->target_color_.green, led.get_green(), scale),
-                     subtract_scaled_difference(this->target_color_.blue, led.get_blue(), scale),
-                     subtract_scaled_difference(this->target_color_.white, led.get_white(), scale));
+        const Color color = led.get();
+        led.set(Color{subtract_scaled_difference(this->target_color_.red, color.red, scale),
+                      subtract_scaled_difference(this->target_color_.green, color.green, scale),
+                      subtract_scaled_difference(this->target_color_.blue, color.blue, scale),
+                      subtract_scaled_difference(this->target_color_.white, color.white, scale)});
       }
     }
     this->last_transition_progress_ = smoothed_progress;

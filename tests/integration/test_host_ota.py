@@ -11,15 +11,20 @@ import asyncio
 import base64
 from collections.abc import Generator
 from contextlib import contextmanager
-from dataclasses import dataclass
+from dataclasses import dataclass, field
 import functools
+import logging
 from pathlib import Path
+import re
+import shutil
 import socket
+import time
 import zlib
 
 import pytest
 
 from esphome import espota2
+from esphome.helpers import ProgressBar
 
 from .conftest import run_binary, wait_and_connect_api_client
 from .const import (
@@ -31,7 +36,11 @@ from .const import (
     ZERO_PSK,
 )
 from .host_prefs import force_safe_mode
+from .log_utils import LineWaiter
+from .state_utils import assert_device_name
 from .types import APIClientConnectedFactory, CompileFunction, ConfigWriter
+
+_LOGGER = logging.getLogger(__name__)
 
 DEVICE_NAME = "host-ota-test"
 API_KEY = "AAECAwQFBgcICQoLDA0ODxAREhMUFRYXGBkaGxwdHh8="
@@ -79,6 +88,10 @@ def _udp_mode(
             real_ack(self, data)
 
     with monkeypatch.context() as m:
+        # Loopback answers in about a millisecond; resend lost datagrams
+        # sooner so the loss runs do not dominate the test time
+        m.setattr(espota2, "UDP_RESEND_INITIAL", 0.05)
+        m.setattr(espota2, "UDP_RESEND_MIN", 0.02)
         if force:
             m.setattr(espota2, "UDP_SLOW_EXCHANGE", -1.0)
         if blocked:
@@ -130,9 +143,10 @@ async def _build(
     write_yaml_config: ConfigWriter,
     compile_esphome: CompileFunction,
     reserved_tcp_port: tuple[int, socket.socket],
-) -> tuple[int, int, Path]:
+) -> tuple[int, int, Path, Path]:
     """Reserve an OTA port, compile the fixture with it, and release both
-    ports right before the binary is started."""
+    ports right before the binary is started. Returns the stripped binary to
+    run and upload, then the unstripped build for crash backtraces."""
     api_port, api_socket = reserved_tcp_port
     with _reserve_port() as (ota_port, ota_socket):
         config_path = await write_yaml_config(
@@ -141,7 +155,23 @@ async def _build(
         binary_path = await compile_esphome(config_path)
         api_socket.close()
         ota_socket.close()
-    return api_port, ota_port, binary_path
+    return api_port, ota_port, await _strip_debug(binary_path), binary_path
+
+
+async def _strip_debug(binary_path: Path) -> Path:
+    """A debug re-run builds with -g; every upload sends the image, so drop the
+    debug info (GNU and Apple strip both take -S)."""
+    if (strip := shutil.which("strip")) is None:
+        _LOGGER.warning(
+            "strip not found; uploading the unstripped binary, which is much slower"
+        )
+        return binary_path
+    stripped = binary_path.with_name(f"{binary_path.name}.stripped")
+    proc = await asyncio.create_subprocess_exec(
+        strip, "-S", "-o", str(stripped), str(binary_path)
+    )
+    assert await proc.wait() == 0, "strip failed"
+    return stripped
 
 
 async def _run_ota(
@@ -167,6 +197,11 @@ async def _run_ota(
     return rc
 
 
+REBOOTED = "Rebooting safely"
+INFLATED = re.compile(r"Inflated .* bytes from ")
+CORRUPT_STREAM = re.compile(r"Inflate err|Inflate overrun|End update err")
+
+
 @dataclass
 class _Device:
     """A running host binary and the checks every successful OTA repeats:
@@ -175,25 +210,23 @@ class _Device:
     api_port: int
     ota_port: int
     binary_path: Path
+    symbols_path: Path
     proc: asyncio.subprocess.Process | None = None
-    reboots: int = 0
-    inflates: int = 0
-
-    def __post_init__(self) -> None:
-        self._rebooted = asyncio.Event()
+    waiter: LineWaiter = field(default_factory=LineWaiter)
 
     def on_log(self, line: str) -> None:
-        if "Rebooting safely" in line:
-            self.reboots += 1
-            self._rebooted.set()
-        if "Inflated " in line and " bytes from " in line:
-            self.inflates += 1
+        self.waiter.callback(line)
+
+    @property
+    def reboots(self) -> int:
+        return self.waiter.count(REBOOTED)
+
+    @property
+    def inflates(self) -> int:
+        return self.waiter.count(INFLATED)
 
     async def wait_reboot(self, count: int, timeout: float = 10.0) -> None:
-        async with asyncio.timeout(timeout):
-            while self.reboots < count:
-                self._rebooted.clear()
-                await self._rebooted.wait()
+        await self.waiter.wait_count(REBOOTED, count, timeout, "device did not reboot")
 
     async def ota(
         self,
@@ -273,26 +306,22 @@ async def test_host_ota_self_update(
             yaml_config, write_yaml_config, compile_esphome, reserved_tcp_port
         )
     )
-    staged = asyncio.Event()
-
-    def on_log(line: str) -> None:
-        if "OTA staged at" in line:
-            staged.set()
-        dev.on_log(line)
-
-    async with run_binary(dev.binary_path, line_callback=on_log) as (proc, _lines):
+    async with run_binary(
+        dev.binary_path, symbols_path=dev.symbols_path, line_callback=dev.on_log
+    ) as (
+        proc,
+        _lines,
+    ):
         dev.proc = proc
         await _wait_for_port(LOCALHOST, dev.api_port, PORT_WAIT_TIMEOUT)
         async with wait_and_connect_api_client(port=dev.api_port) as client:
-            info_before = await client.device_info()
-            assert info_before.name == DEVICE_NAME
+            info_before = await assert_device_name(client, DEVICE_NAME)
 
         await dev.ota(None, None, "espota2 reported failure")
-        assert staged.is_set()
+        assert dev.waiter.count("OTA staged at")
 
         async with wait_and_connect_api_client(port=dev.api_port) as client:
-            info_after = await client.device_info()
-            assert info_after.name == info_before.name
+            await assert_device_name(client, info_before.name)
 
         # Second OTA: catches FD_CLOEXEC regressions (EADDRINUSE on rebind).
         await dev.ota(None, None, "second OTA failed -- listener leaked across execv")
@@ -313,23 +342,17 @@ async def test_host_ota_deflate(
             yaml_config, write_yaml_config, compile_esphome, reserved_tcp_port
         )
     )
-    errors: list[str] = []
-
-    def on_log(line: str) -> None:
-        # A corrupt stream is caught by the decoder, by the size check or by
-        # the MD5 at the end, depending on where the damage lands
-        if any(
-            text in line
-            for text in ("Inflate err", "Inflate overrun", "End update err")
-        ):
-            errors.append(line)
-        dev.on_log(line)
 
     def overlong_compress(data: bytes, *args: object, **kwargs: object) -> bytes:
         """A stream that inflates past the size the client announced."""
         return _REAL_COMPRESS(data + bytes(8192), *args, **kwargs)
 
-    async with run_binary(dev.binary_path, line_callback=on_log) as (proc, _lines):
+    async with run_binary(
+        dev.binary_path, symbols_path=dev.symbols_path, line_callback=dev.on_log
+    ) as (
+        proc,
+        _lines,
+    ):
         dev.proc = proc
         await _wait_for_port(LOCALHOST, dev.api_port, PORT_WAIT_TIMEOUT)
 
@@ -347,14 +370,18 @@ async def test_host_ota_deflate(
         with monkeypatch.context() as m:
             m.setattr(zlib, "compress", _corrupt_compress)
             await dev.refused_ota(None, None, "corrupt deflate stream was accepted")
-        assert errors, "device did not report the corrupt stream"
+        # A corrupt stream is caught by the decoder, by the size check or by
+        # the MD5 at the end, depending on where the damage lands
+        assert dev.waiter.count(CORRUPT_STREAM), (
+            "device did not report the corrupt stream"
+        )
 
         # So does a stream that inflates past the announced image size
-        errors.clear()
+        overruns = dev.waiter.count("Inflate overrun")
         with monkeypatch.context() as m:
             m.setattr(zlib, "compress", overlong_compress)
             await dev.refused_ota(None, None, "overlong deflate stream was accepted")
-        assert any("Inflate overrun" in line for line in errors), (
+        assert dev.waiter.count("Inflate overrun") > overruns, (
             "device wrote past the announced size"
         )
 
@@ -403,7 +430,9 @@ async def test_host_ota_encrypted(
             yaml_config, write_yaml_config, compile_esphome, reserved_tcp_port
         )
     )
-    async with run_binary(dev.binary_path, line_callback=dev.on_log) as (proc, lines):
+    async with run_binary(
+        dev.binary_path, symbols_path=dev.symbols_path, line_callback=dev.on_log
+    ) as (proc, lines):
         dev.proc = proc
         await _wait_for_port(LOCALHOST, dev.api_port, PORT_WAIT_TIMEOUT)
         await asyncio.get_running_loop().run_in_executor(
@@ -439,7 +468,9 @@ async def test_host_ota_encrypted_safe_mode(
     )
     # The api port never opens in safe mode, so wait for the log line instead
     force_safe_mode(DEVICE_NAME)
-    async with run_binary(dev.binary_path, line_callback=dev.on_log) as (proc, lines):
+    async with run_binary(
+        dev.binary_path, symbols_path=dev.symbols_path, line_callback=dev.on_log
+    ) as (proc, lines):
         dev.proc = proc
         await _wait_for_line(lines, "SAFE MODE IS ACTIVE", PORT_WAIT_TIMEOUT)
         await _wait_for_port(LOCALHOST, dev.ota_port, PORT_WAIT_TIMEOUT)
@@ -466,7 +497,9 @@ async def test_host_ota_api_key_offer_with_password(
             yaml_config, write_yaml_config, compile_esphome, reserved_tcp_port
         )
     )
-    async with run_binary(dev.binary_path, line_callback=dev.on_log) as (proc, lines):
+    async with run_binary(
+        dev.binary_path, symbols_path=dev.symbols_path, line_callback=dev.on_log
+    ) as (proc, lines):
         dev.proc = proc
         await _wait_for_port(LOCALHOST, dev.api_port, PORT_WAIT_TIMEOUT)
         await _wait_for_line(lines, "Encryption: offered")
@@ -516,7 +549,9 @@ async def test_host_ota_provisioned_api_key(
             yaml_config, write_yaml_config, compile_esphome, reserved_tcp_port
         )
     )
-    async with run_binary(dev.binary_path, line_callback=dev.on_log) as (proc, lines):
+    async with run_binary(
+        dev.binary_path, symbols_path=dev.symbols_path, line_callback=dev.on_log
+    ) as (proc, lines):
         dev.proc = proc
         await _wait_for_port(LOCALHOST, dev.api_port, PORT_WAIT_TIMEOUT)
         await _wait_for_line(lines, "once the api key is provisioned")
@@ -551,7 +586,9 @@ async def test_host_ota_provisioned_api_key_safe_mode(
             yaml_config, write_yaml_config, compile_esphome, reserved_tcp_port
         )
     )
-    async with run_binary(dev.binary_path, line_callback=dev.on_log) as (proc, _lines):
+    async with run_binary(
+        dev.binary_path, symbols_path=dev.symbols_path, line_callback=dev.on_log
+    ) as (proc, _lines):
         dev.proc = proc
         await _wait_for_port(LOCALHOST, dev.api_port, PORT_WAIT_TIMEOUT)
         await _provision_key(dev, api_client_connected)
@@ -560,7 +597,9 @@ async def test_host_ota_provisioned_api_key_safe_mode(
     # exits, so safe mode takes a second start
     force_safe_mode(DEVICE_NAME)
     key = PROVISIONING_PSK.decode()
-    async with run_binary(dev.binary_path, line_callback=dev.on_log) as (proc, lines):
+    async with run_binary(
+        dev.binary_path, symbols_path=dev.symbols_path, line_callback=dev.on_log
+    ) as (proc, lines):
         dev.proc = proc
         await _wait_for_line(lines, "SAFE MODE IS ACTIVE", PORT_WAIT_TIMEOUT)
         await _wait_for_port(LOCALHOST, dev.ota_port, PORT_WAIT_TIMEOUT)
@@ -592,7 +631,10 @@ async def test_host_ota_rejects_garbage(
     bogus_path = integration_test_dir / "bogus.bin"
     bogus_path.write_bytes(b"NOT-AN-EXECUTABLE-AT-ALL" * 8)
 
-    async with run_binary(dev.binary_path) as (proc, _lines):
+    async with run_binary(dev.binary_path, symbols_path=dev.symbols_path) as (
+        proc,
+        _lines,
+    ):
         dev.proc = proc
         await _wait_for_port(LOCALHOST, dev.api_port, PORT_WAIT_TIMEOUT)
         pid_before = proc.pid
@@ -603,5 +645,92 @@ async def test_host_ota_rejects_garbage(
         assert proc.pid == pid_before
 
         async with wait_and_connect_api_client(port=dev.api_port) as client:
-            info = await client.device_info()
-            assert info.name == DEVICE_NAME
+            await assert_device_name(client, DEVICE_NAME)
+
+
+class _SlowProgressBar(ProgressBar):
+    """Pauses once mid upload, longer than the device's progress interval, so
+    the device reports progress at least once."""
+
+    _paused = False
+
+    def update(self, progress: float) -> None:
+        if progress >= 0.5 and not self._paused:
+            self._paused = True
+            time.sleep(1.5)
+        super().update(progress)
+
+
+AUTOMATION_LINE = re.compile(r"AUTOMATION ([^\x1b]+)")
+# Pinned on purpose: both on_state_change automations run before on_begin, in config order
+BEGIN_LINES = ["state 1", "second state 1", "begin"]
+
+
+def _progress_values(lines: list[str]) -> list[float]:
+    """Each progress report is both state automations, then on_progress."""
+    assert len(lines) % 3 == 0, lines
+    values: list[float] = []
+    for i in range(0, len(lines), 3):
+        assert lines[i : i + 2] == ["state 2", "second state 2"], lines
+        values.append(float(lines[i + 2].removeprefix("progress ")))
+    return values
+
+
+@pytest.mark.asyncio
+async def test_host_ota_automations(
+    yaml_config: str,
+    write_yaml_config: ConfigWriter,
+    compile_esphome: CompileFunction,
+    reserved_tcp_port: tuple[int, socket.socket],
+    integration_test_dir: Path,
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    """Each on_* automation fires for its state with its argument, and every
+    automation on one key fires."""
+    dev = _Device(
+        *await _build(
+            yaml_config, write_yaml_config, compile_esphome, reserved_tcp_port
+        )
+    )
+    bogus_path = integration_test_dir / "bogus.bin"
+    bogus_path.write_bytes(b"NOT-AN-EXECUTABLE-AT-ALL" * 8)
+
+    def automation_lines() -> list[str]:
+        return [
+            match.group(1)
+            for line in dev.waiter.lines
+            if (match := AUTOMATION_LINE.search(line))
+        ]
+
+    async with run_binary(
+        dev.binary_path, symbols_path=dev.symbols_path, line_callback=dev.on_log
+    ) as (proc, _lines):
+        dev.proc = proc
+        await _wait_for_port(LOCALHOST, dev.api_port, PORT_WAIT_TIMEOUT)
+
+        # A rejected image: begin, then error with the response code
+        rc = await _run_ota(dev.ota_port, None, bogus_path, None)
+        assert rc == 1
+        await dev.waiter.wait_count(
+            "AUTOMATION error", 1, 5.0, "error automation did not fire"
+        )
+        lines = automation_lines()
+        assert lines[:3] == BEGIN_LINES
+        assert lines[-3:] == [
+            "state 4",
+            "second state 4",
+            f"error {espota2.RESPONSE_ERROR_UPDATE_END}",
+        ]
+        assert all(0.0 < v <= 100.0 for v in _progress_values(lines[3:-3]))
+
+        # A good image: begin, progress, end, then the reboot
+        dev.waiter.lines.clear()
+        with monkeypatch.context() as m:
+            m.setattr(espota2, "ProgressBar", _SlowProgressBar)
+            await dev.ota(None, None, "espota2 reported failure")
+        lines = automation_lines()
+        assert lines[:3] == BEGIN_LINES
+        assert lines[-3:] == ["state 0", "second state 0", "end"]
+        values = _progress_values(lines[3:-3])
+        assert any(0.0 < v < 100.0 for v in values), "no progress mid upload"
+        assert "abort" not in lines

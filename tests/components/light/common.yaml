@@ -116,6 +116,35 @@ esphome:
       - light.control:
           id: test_monochromatic_light
           state: on
+      - light.turn_on:
+          id: test_rgbww_light
+          color_mode: RGB_COLD_WARM_WHITE
+          color_brightness: 80%
+          cold_white: 60%
+          warm_white: 40%
+      - light.turn_on:
+          id: test_rgbww_light
+          color_mode: COLD_WARM_WHITE
+          cold_white: !lambda return 0.3f;
+          warm_white: !lambda return 0.7f;
+          color_brightness: !lambda return 0.5f;
+      - light.control:
+          id: test_rgbww_light
+          state: !lambda return true;
+      - light.control:
+          id: test_rgbw_light
+          color_mode: RGB_WHITE
+          brightness: 70%
+          red: 10%
+          green: 20%
+          blue: 30%
+          white: 50%
+          color_brightness: 60%
+          transition_length: 400ms
+      - light.control:
+          id: test_rgbw_light
+          white: !lambda return 0.4f;
+          brightness: !lambda return 0.9f;
       # flash_length and a turn_off with its own transition
       - light.turn_on:
           id: test_rgb_light
@@ -126,6 +155,33 @@ esphome:
       - light.turn_off:
           id: test_rgb_light
           transition_length: 300ms
+      - light.turn_off:
+          id: test_rgb_light
+          state: false
+          transition_length: !lambda return 200;
+      - light.turn_on:
+          id: test_rgb_light
+          red: !lambda return 0.2f;
+          green: !lambda return 0.4f;
+          blue: !lambda return 0.6f;
+          transition_length: !lambda return 350;
+      - light.turn_on:
+          id: test_cwww_light
+          color_temperature: 300 mireds
+      - light.turn_on:
+          id: test_cwww_light
+          color_temperature: !lambda return 250.0f;
+      - light.control:
+          id: test_rgbww_light
+          cold_white: !lambda return 0.6f;
+          warm_white: !lambda return 0.2f;
+      - light.control:
+          id: test_monochromatic_light
+          effect: !lambda return "My Flicker";
+      - light.dim_relative:
+          id: test_monochromatic_light
+          relative_brightness: !lambda return 0.1f;
+          transition_length: !lambda return 150;
       # Test static effect name resolution at codegen time
       - light.turn_on:
           id: test_monochromatic_light
@@ -145,6 +201,10 @@ esphome:
       - light.turn_on:
           id: test_monochromatic_light
           effect: !lambda 'return "Strobe";'
+      # Inlined lambda returning a StringRef, the shape an api action string variable takes (issue #21327)
+      - light.turn_on:
+          id: test_monochromatic_light
+          effect: !lambda 'return light::EFFECT_NONE_REF;'
       # Test effect lambda with non-empty args (repeat passes uint32_t iteration)
       - repeat:
           count: 3
@@ -196,6 +256,15 @@ esphome:
       - light.addressable_set:
           id: test_addressable_transition
           color: 0x223344
+      - light.addressable_set:
+          id: test_addressable_transition
+          range_from: !lambda return 1;
+          range_to: !lambda return 3;
+          red: !lambda return 0.5f;
+          green: !lambda return 0.25f;
+          blue: !lambda return 0.75f;
+          color_brightness: 50%
+          white: 20%
 
 # Exercise light actions inside a trigger with non-empty Ts (number on_value
 # passes float).
@@ -211,6 +280,17 @@ number:
         - light.turn_on:
             id: test_monochromatic_light
             brightness: !lambda "return x / 100.0f;"
+
+# The lambdas get the script parameter by value, so they may modify it.
+script:
+  - id: test_dim_relative_script
+    parameters:
+      step: float
+    then:
+      - light.dim_relative:
+          id: test_monochromatic_light
+          relative_brightness: !lambda "step *= 0.5f; return step;"
+          transition_length: !lambda "return step *= 100.0f;"
 
 output:
   - platform: template
@@ -284,6 +364,9 @@ light:
     gamma_correct: 2.8
     transition_state_publish_interval: 200ms
     default_transition_length: 2s
+    initial_state:
+      state: true
+      effect: My Flicker
     effects:
       - strobe:
       - flicker:
@@ -300,7 +383,7 @@ light:
             if (state == 4)
               state = 0;
             if (initial_run) {
-              ESP_LOGD("custom_effect", "Effect %s started", it.get_name().c_str());
+              ESP_LOGD("custom_effect", "Effect %s started", LOG_STR_ARG(it.get_log_name()));
             }
       - pulse:
           transition_length: 10s
