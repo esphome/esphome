@@ -78,6 +78,25 @@ TEST(JpegGrayscale, DecodesToGrayscale) {
     EXPECT_NEAR(data[i], JPEG_GRAY_PIXELS[i], TOLERANCE) << "pixel " << i;
 }
 
+// Scaled down, the grayscale path writes blocks of the buffer rather than whole rows. 12 x 6 is not a JPEGDEC scale
+// of 16 x 8, so the decode stays 1:1 and the scaling is the boundary tables' work, as it is for RGB565.
+TEST(JpegGrayscale, ScaledDecodeMatchesTheColourPath) {
+  RuntimeImage gray(JPEG, image::IMAGE_TYPE_GRAYSCALE, image::TRANSPARENCY_OPAQUE, nullptr, false, 12, 6);
+  RuntimeImage colour(JPEG, image::IMAGE_TYPE_RGB, image::TRANSPARENCY_OPAQUE, nullptr, false, 12, 6);
+  ASSERT_TRUE(decode(gray));
+  ASSERT_TRUE(decode(colour));
+  ASSERT_EQ(gray.get_width(), 12);
+  ASSERT_EQ(gray.get_height(), 6);
+  const uint8_t *gray_data = gray.get_data_start();
+  const uint8_t *colour_data = colour.get_data_start();
+  for (int i = 0; i < 12 * 6; i++) {
+    // The colour path goes through draw(), which weighs the pixel itself; the two must pick the same source pixel
+    const uint8_t *pixel = colour_data + i * 3;  // blue, green, red
+    const auto expected = static_cast<uint8_t>((54 * pixel[2] + 183 * pixel[1] + 19 * pixel[0]) >> 8);
+    EXPECT_NEAR(gray_data[i], expected, TOLERANCE) << "pixel " << i;
+  }
+}
+
 }  // namespace esphome::runtime_image::testing
 
 #endif  // USE_RUNTIME_IMAGE_JPEG

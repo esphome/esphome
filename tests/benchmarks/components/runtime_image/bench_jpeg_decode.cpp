@@ -56,6 +56,17 @@ BENCHMARK(JpegDecode_Rgb565_Half);
 static void JpegDecode_Rgb565_Double(benchmark::State &state) { run(state, image::IMAGE_TYPE_RGB565, 192, 192); }
 BENCHMARK(JpegDecode_Rgb565_Double);
 
+// --- JPEG into a grayscale image: same size, half size and double size ---
+
+static void JpegDecode_Grayscale_Native(benchmark::State &state) { run(state, image::IMAGE_TYPE_GRAYSCALE, 96, 96); }
+BENCHMARK(JpegDecode_Grayscale_Native);
+
+static void JpegDecode_Grayscale_Half(benchmark::State &state) { run(state, image::IMAGE_TYPE_GRAYSCALE, 48, 48); }
+BENCHMARK(JpegDecode_Grayscale_Half);
+
+static void JpegDecode_Grayscale_Double(benchmark::State &state) { run(state, image::IMAGE_TYPE_GRAYSCALE, 192, 192); }
+BENCHMARK(JpegDecode_Grayscale_Double);
+
 // --- JPEG into an RGB image at the same size, the generic per-pixel path for reference ---
 
 static void JpegDecode_Rgb_Native(benchmark::State &state) { run(state, image::IMAGE_TYPE_RGB, 96, 96); }
