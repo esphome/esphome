@@ -8,7 +8,7 @@ def test_children_publish_through_generated_functions(
     generate_main: Callable[[str | Path], str],
     component_config_path: Callable[[str], Path],
 ) -> None:
-    main_cpp = generate_main(component_config_path("mk2pvrouter.yaml"))
+    main_cpp = generate_main(component_config_path("hub_function.yaml"))
 
     # Tags are upper-cased and voltage gets the x0.01 correction
     assert (
@@ -27,10 +27,16 @@ def test_children_publish_through_generated_functions(
         'mk2pvrouter::publish_text_sensor_value(::status, "S_MC", '
         "esphome__arg_tag, esphome__arg_val);\n"
     ) in main_cpp
-    assert "router->set_value_fn(esphome__router__value_fn);" in main_cpp
+    assert "router->set_value_publisher(esphome__router__value_fn);" in main_cpp
 
     assert (
-        "static void esphome__router__dump_fn() {\n"
-        '  mk2pvrouter::dump_sensor(::power, "P");\n'
+        "static void esphome__router__dump_fn(const char * esphome__arg_tag) {\n"
+        '  mk2pvrouter::dump_sensor(esphome__arg_tag, ::power, "P");\n'
     ) in main_cpp
-    assert "router->set_dump_fn(esphome__router__dump_fn);" in main_cpp
+    assert (
+        'mk2pvrouter::dump_binary_sensor(esphome__arg_tag, ::relay, "R2");\n'
+    ) in main_cpp
+    assert (
+        'mk2pvrouter::dump_text_sensor(esphome__arg_tag, ::status, "S_MC");\n'
+    ) in main_cpp
+    assert "router->set_dump_publisher(esphome__router__dump_fn);" in main_cpp
