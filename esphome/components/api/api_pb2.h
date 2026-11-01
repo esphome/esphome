@@ -4102,6 +4102,7 @@ class UsbDeviceDescriptor final : public ProtoMessage {
   uint32_t interface_number{0};
   uint32_t interface_class{0};
   uint32_t port_number{0};
+  StringRef interface_description{nullptr, 0};  // null until set, encode only
   static uint8_t *encode_msg(const void *self, uint8_t *pos PROTO_ENCODE_DEBUG_PARAM);
   uint8_t *encode(ProtoWriteBuffer &buffer PROTO_ENCODE_DEBUG_PARAM) const {
     return encode_msg(this, buffer.get_pos() PROTO_ENCODE_DEBUG_ARG);

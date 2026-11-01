@@ -2975,6 +2975,7 @@ const char *UsbDeviceDescriptor::dump_to(DumpBuffer &out) const {
   dump_field(out, ESPHOME_PSTR("interface_number"), this->interface_number);
   dump_field(out, ESPHOME_PSTR("interface_class"), this->interface_class);
   dump_field(out, ESPHOME_PSTR("port_number"), this->port_number);
+  dump_field(out, ESPHOME_PSTR("interface_description"), this->interface_description);
   return out.c_str();
 }
 const char *SerialProxyIdentity::dump_to(DumpBuffer &out) const {
