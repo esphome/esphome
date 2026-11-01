@@ -279,11 +279,9 @@ void Ecocomfort2Hub::on_oper_(const uint8_t *data, uint16_t len) {
   this->mode_ = data[0];
   this->speed_ = data[1];
   ESP_LOGD(TAG, "[%s] C_OPER: mode=0x%02x, speed=0x%02x", this->parent_->address_str(), this->mode_, this->speed_);
-#ifdef ECOCOMFORT2_CHILD_COUNT
   for (auto *child : this->children_) {
     child->on_status();
   }
-#endif
 }
 
 // C_STATE: bytes 0-1 the mode and speed the unit runs; byte 1 also has the boost flag (0x40) and the advanced
@@ -604,13 +602,6 @@ void Ecocomfort2Hub::write_select(SelectSetting setting, size_t index) {
 }
 #endif
 #endif  // USE_ECOCOMFORT2_SETTINGS
-
-#ifdef ECOCOMFORT2_CHILD_COUNT
-void Ecocomfort2Hub::register_child(Ecocomfort2Client *obj) {
-  this->children_.push_back(obj);
-  obj->set_parent(this);
-}
-#endif
 
 }  // namespace esphome::ecocomfort2
 

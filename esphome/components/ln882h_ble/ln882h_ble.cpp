@@ -343,10 +343,8 @@ void LN882HBLE::loop() {
   if (report != nullptr) {
     this->reject_diagnosis_done_ = true;
     do {
-#ifdef LN882H_BLE_SCAN_LISTENER_COUNT
       for (auto *listener : this->scan_listeners_)
         listener->on_scan_report(*report);
-#endif
       this->report_pool_.release(report);
     } while ((report = this->report_queue_.pop()) != nullptr);
   }

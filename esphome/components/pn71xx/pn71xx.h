@@ -174,12 +174,9 @@ class PN71xx : public nfc::Nfcc, public Component {
   void set_polling_on();
   bool polling_enabled() { return this->polling_enabled_; }
 
-#ifdef PN71XX_ON_TAG_TRIGGER_COUNT
-  void register_ontag_trigger(nfc::NfcOnTagTrigger *trig) { this->triggers_ontag_.push_back(trig); }
-#endif
-#ifdef PN71XX_ON_TAG_REMOVED_TRIGGER_COUNT
-  void register_ontagremoved_trigger(nfc::NfcOnTagTrigger *trig) { this->triggers_ontagremoved_.push_back(trig); }
-#endif
+  SLOT_LIST(nfc::NfcOnTagTrigger, triggers_ontag_, register_ontag_trigger, PN71XX_ON_TAG_TRIGGER_COUNT)
+  SLOT_LIST(nfc::NfcOnTagTrigger, triggers_ontagremoved_, register_ontagremoved_trigger,
+            PN71XX_ON_TAG_REMOVED_TRIGGER_COUNT)
 
   template<typename F> void add_on_emulated_tag_scan_callback(F &&callback) {
     this->on_emulated_tag_scan_callback_.add(std::forward<F>(callback));
@@ -300,12 +297,6 @@ class PN71xx : public nfc::Nfcc, public Component {
 
   StaticVector<DiscoveredEndpoint, MAX_DISCOVERED_ENDPOINTS> discovered_endpoint_;
   FixedVector<uint8_t> card_emulation_ndef_;  // encoded emulation message; empty when none is set
-#ifdef PN71XX_ON_TAG_TRIGGER_COUNT
-  StaticVector<nfc::NfcOnTagTrigger *, PN71XX_ON_TAG_TRIGGER_COUNT> triggers_ontag_;
-#endif
-#ifdef PN71XX_ON_TAG_REMOVED_TRIGGER_COUNT
-  StaticVector<nfc::NfcOnTagTrigger *, PN71XX_ON_TAG_REMOVED_TRIGGER_COUNT> triggers_ontagremoved_;
-#endif
   std::shared_ptr<nfc::NdefMessage> next_task_message_to_write_;
 
   GPIOPin *irq_pin_{nullptr};
