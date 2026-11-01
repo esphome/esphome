@@ -5,8 +5,10 @@
 
 namespace esphome::speaker {
 
-/// How long an announcement's raw buffer must stay unchanged below the start threshold before playback starts
-static constexpr uint32_t ANNOUNCEMENT_STALL_START_MS = 250;
+/// How long an announcement's raw buffer must stay unchanged below the start threshold before playback starts.
+/// Longer than ordinary network gaps, which a stream that is barely faster than real time cannot recover from once
+/// it starts with a small reserve; a paused speech reply stays silent for seconds.
+static constexpr uint32_t ANNOUNCEMENT_STALL_START_MS = 1500;
 
 /// Decides when buffered audio starts playing. Everything waits for the full start threshold while data keeps
 /// arriving; an announcement whose stream pauses below it (a spoken intro before a long reply) plays what it has.

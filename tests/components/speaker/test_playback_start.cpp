@@ -30,6 +30,14 @@ TEST(PlaybackStart, ArrivingDataKeepsTheFullReserve) {
   }
 }
 
+TEST(PlaybackStart, NetworkGapDoesNotStartAnAnnouncement) {
+  // A 900 ms gap in a stream barely faster than real time; starting there plays choppy
+  PlaybackStartGate gate;
+  EXPECT_FALSE(gate.ready(true, 20000, INITIAL_BYTES, 0));
+  EXPECT_FALSE(gate.ready(true, 20000, INITIAL_BYTES, 900));
+  EXPECT_FALSE(gate.ready(true, 21000, INITIAL_BYTES, 950));
+}
+
 TEST(PlaybackStart, StalledMediaWaitsForTheThreshold) {
   PlaybackStartGate gate;
   EXPECT_FALSE(gate.ready(false, 42799, INITIAL_BYTES, 0));
