@@ -181,7 +181,11 @@ static constexpr uint32_t ADAFRUIT_BOOTLOADER_MIN_VERSION = 0x000B00;  // 0.11.0
 void Logger::dump_bootloader_() {
   // NOLINTNEXTLINE(clang-analyzer-core.FixedAddressDereference) -- NRF_TIMER2 is MMIO at a fixed address
   const uint32_t version = NRF_TIMER2->CC[0];
-  if (version < ADAFRUIT_BOOTLOADER_MIN_VERSION) {
+  if (version == 0) {
+    // Releases too old to pass their version leave the register at its reset value
+    ESP_LOGW(TAG, "Adafruit_nRF52_Bootloader version unknown (too old to report it). "
+                  "Please update it to 0.11.0 or newer.");
+  } else if (version < ADAFRUIT_BOOTLOADER_MIN_VERSION) {
     ESP_LOGW(TAG, "Adafruit_nRF52_Bootloader %u.%u.%u has known stability issues. Please update it to 0.11.0 or newer.",
              static_cast<unsigned>((version >> 16) & 0xFF), static_cast<unsigned>((version >> 8) & 0xFF),
              static_cast<unsigned>(version & 0xFF));

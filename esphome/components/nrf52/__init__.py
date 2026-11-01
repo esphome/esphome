@@ -203,22 +203,16 @@ def set_framework(config: ConfigType) -> ConfigType:
     )(config)
 
 
-# Bootloaders flashed over USB serial DFU: the Adafruit ones with adafruit-nrfutil, the factory Open
-# DFU bootloader with Nordic's nrfutil; mcuboot uses mcumgr instead
-SERIAL_DFU_BOOTLOADERS = (
-    BOOTLOADER_ADAFRUIT,
-    BOOTLOADER_ADAFRUIT_NRF52_SD132,
-    BOOTLOADER_ADAFRUIT_NRF52_SD140_V6,
-    BOOTLOADER_ADAFRUIT_NRF52_SD140_V7,
-    BOOTLOADER_NRF,
-)
-BOOTLOADERS = [*SERIAL_DFU_BOOTLOADERS, BOOTLOADER_MCUBOOT]
 ADAFRUIT_BOOTLOADERS = (
     BOOTLOADER_ADAFRUIT,
     BOOTLOADER_ADAFRUIT_NRF52_SD132,
     BOOTLOADER_ADAFRUIT_NRF52_SD140_V6,
     BOOTLOADER_ADAFRUIT_NRF52_SD140_V7,
 )
+# Bootloaders flashed over USB serial DFU: the Adafruit ones with adafruit-nrfutil, the factory Open
+# DFU bootloader with Nordic's nrfutil; mcuboot uses mcumgr instead
+SERIAL_DFU_BOOTLOADERS = (*ADAFRUIT_BOOTLOADERS, BOOTLOADER_NRF)
+BOOTLOADERS = [*SERIAL_DFU_BOOTLOADERS, BOOTLOADER_MCUBOOT]
 
 
 _validate_toolchain = cv.toolchain_enum(_TOOLCHAINS)
