@@ -60,6 +60,8 @@ def consume_sockets(
 ) -> Callable[[MutableMapping], MutableMapping]:
     """Register socket usage for a component.
 
+    On nRF52 the TCP stack is only built when a component registers a TCP socket.
+
     Args:
         value: Number of sockets needed by the component
         consumer: Name of the component consuming the sockets
@@ -126,6 +128,19 @@ def get_socket_counts() -> SocketCounts:
     )
     return SocketCounts(
         tcp, udp, tcp_listen, tcp_details, udp_details, tcp_listen_details
+    )
+
+
+def needs_tcp() -> bool:
+    """True when a component registered a TCP or listening socket, or loads async_tcp.
+
+    async_tcp is TCP only but leaves socket registration to its users.
+    Valid from code generation on, once every component has validated.
+    """
+    return bool(
+        CORE.data.get(KEY_SOCKET_CONSUMERS_TCP)
+        or CORE.data.get(KEY_SOCKET_CONSUMERS_TCP_LISTEN)
+        or "async_tcp" in CORE.loaded_integrations
     )
 
 
