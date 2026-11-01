@@ -1,12 +1,7 @@
 import esphome.codegen as cg
 from esphome.components import sensor
 import esphome.config_validation as cv
-from esphome.const import (
-    CONF_TYPE,
-    ICON_LIGHTBULB,
-    STATE_CLASS_MEASUREMENT,
-    UNIT_PERCENT,
-)
+from esphome.const import CONF_TYPE, ICON_LIGHTBULB
 from esphome.types import ConfigType
 
 from . import APDS9960, CONF_APDS9960_ID
@@ -16,10 +11,7 @@ DEPENDENCIES = ["apds9960"]
 TYPES = ["clear", "red", "green", "blue", "proximity"]
 
 CONFIG_SCHEMA = sensor.sensor_schema(
-    unit_of_measurement=UNIT_PERCENT,
-    icon=ICON_LIGHTBULB,
-    accuracy_decimals=1,
-    state_class=STATE_CLASS_MEASUREMENT,
+    kind=sensor.PERCENT, icon=ICON_LIGHTBULB, accuracy_decimals=1
 ).extend(
     {
         cv.Required(CONF_TYPE): cv.one_of(*TYPES, lower=True),

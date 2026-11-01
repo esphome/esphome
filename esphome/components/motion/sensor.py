@@ -62,10 +62,7 @@ def _gyro_sensor_schema() -> cv.Schema:
 
 def _level_sensor_schema() -> cv.Schema:
     return sensor.sensor_schema(
-        unit_of_measurement=UNIT_DEGREES,
-        icon=ICON_SEESAW,
-        accuracy_decimals=2,
-        state_class=STATE_CLASS_MEASUREMENT,
+        kind=sensor.ANGLE, icon=ICON_SEESAW, accuracy_decimals=2
     ).extend(SENSOR_SCHEMA)
 
 

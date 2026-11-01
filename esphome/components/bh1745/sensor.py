@@ -11,12 +11,10 @@ import esphome.config_validation as cv
 from esphome.const import (
     CONF_COLOR_TEMPERATURE,
     CONF_ILLUMINANCE,
-    DEVICE_CLASS_ILLUMINANCE,
     ICON_LIGHTBULB,
     ICON_THERMOMETER,
     STATE_CLASS_MEASUREMENT,
     UNIT_KELVIN,
-    UNIT_LUX,
 )
 from esphome.types import ConfigType
 
@@ -39,11 +37,7 @@ CONFIG_SCHEMA = cv.Schema(
         cv.Optional(CONF_BLUE_CHANNEL): color_channel_schema,
         cv.Optional(CONF_CLEAR_CHANNEL): color_channel_schema,
         cv.Optional(CONF_ILLUMINANCE): sensor.sensor_schema(
-            unit_of_measurement=UNIT_LUX,
-            icon=ICON_LIGHTBULB,
-            accuracy_decimals=1,
-            device_class=DEVICE_CLASS_ILLUMINANCE,
-            state_class=STATE_CLASS_MEASUREMENT,
+            kind=sensor.ILLUMINANCE, icon=ICON_LIGHTBULB, accuracy_decimals=1
         ),
         cv.Optional(CONF_COLOR_TEMPERATURE): sensor.sensor_schema(
             unit_of_measurement=UNIT_KELVIN,

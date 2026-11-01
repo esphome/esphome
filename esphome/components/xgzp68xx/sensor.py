@@ -7,9 +7,7 @@ from esphome.const import (
     CONF_TEMPERATURE,
     CONF_VARIANT,
     DEVICE_CLASS_PRESSURE,
-    DEVICE_CLASS_TEMPERATURE,
     STATE_CLASS_MEASUREMENT,
-    UNIT_CELSIUS,
     UNIT_PASCAL,
 )
 from esphome.types import ConfigType
@@ -59,12 +57,7 @@ pressure_pa = cv.float_with_unit("pressure", "(Pa)", optional_unit=True)
 
 
 def _temperature_schema() -> cv.Schema:
-    return sensor.sensor_schema(
-        unit_of_measurement=UNIT_CELSIUS,
-        accuracy_decimals=1,
-        device_class=DEVICE_CLASS_TEMPERATURE,
-        state_class=STATE_CLASS_MEASUREMENT,
-    )
+    return sensor.sensor_schema(kind=sensor.TEMPERATURE)
 
 
 def _pressure_schema(oversampling: cv.Optional, options: dict) -> cv.Schema:

@@ -8,12 +8,8 @@ from esphome.const import (
     CONF_BATTERY_VOLTAGE,
     CONF_ID,
     CONF_RATE,
-    DEVICE_CLASS_BATTERY,
-    DEVICE_CLASS_VOLTAGE,
     ENTITY_CATEGORY_DIAGNOSTIC,
     STATE_CLASS_MEASUREMENT,
-    UNIT_PERCENT,
-    UNIT_VOLT,
 )
 from esphome.types import ConfigType
 
@@ -32,17 +28,13 @@ CONFIG_SCHEMA = (
         {
             cv.GenerateID(): cv.declare_id(MAX17048Component),
             cv.Optional(CONF_BATTERY_VOLTAGE): sensor.sensor_schema(
-                unit_of_measurement=UNIT_VOLT,
+                kind=sensor.VOLTAGE,
                 accuracy_decimals=3,
-                device_class=DEVICE_CLASS_VOLTAGE,
-                state_class=STATE_CLASS_MEASUREMENT,
                 entity_category=ENTITY_CATEGORY_DIAGNOSTIC,
             ),
             cv.Optional(CONF_BATTERY_LEVEL): sensor.sensor_schema(
-                unit_of_measurement=UNIT_PERCENT,
+                kind=sensor.BATTERY,
                 accuracy_decimals=2,
-                device_class=DEVICE_CLASS_BATTERY,
-                state_class=STATE_CLASS_MEASUREMENT,
                 entity_category=ENTITY_CATEGORY_DIAGNOSTIC,
             ),
             cv.Optional(CONF_RATE): sensor.sensor_schema(

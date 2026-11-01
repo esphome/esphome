@@ -2,13 +2,7 @@ from esphome import automation
 import esphome.codegen as cg
 from esphome.components import binary_sensor, sensor
 import esphome.config_validation as cv
-from esphome.const import (
-    DEVICE_CLASS_DURATION,
-    STATE_CLASS_MEASUREMENT,
-    STATE_CLASS_TOTAL_INCREASING,
-    UNIT_HOUR,
-    UNIT_PERCENT,
-)
+from esphome.const import DEVICE_CLASS_DURATION, STATE_CLASS_TOTAL_INCREASING, UNIT_HOUR
 from esphome.types import ConfigType
 
 CONF_MAX_LIFETIME = "max_lifetime"
@@ -27,11 +21,7 @@ FilterLifetime = filter_lifetime_ns.class_(
 
 CONFIG_SCHEMA = cv.All(
     sensor.sensor_schema(
-        FilterLifetime,
-        unit_of_measurement=UNIT_PERCENT,
-        accuracy_decimals=2,
-        icon="mdi:air-filter",
-        state_class=STATE_CLASS_MEASUREMENT,
+        FilterLifetime, kind=sensor.PERCENT, accuracy_decimals=2, icon="mdi:air-filter"
     )
     .extend(
         {

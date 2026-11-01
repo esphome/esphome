@@ -9,13 +9,9 @@ from esphome.const import (
     CONF_RADON,
     CONF_RADON_LONG_TERM,
     CONF_TVOC,
-    DEVICE_CLASS_CARBON_DIOXIDE,
-    DEVICE_CLASS_ILLUMINANCE,
     ICON_RADIOACTIVE,
     STATE_CLASS_MEASUREMENT,
     UNIT_BECQUEREL_PER_CUBIC_METER,
-    UNIT_LUX,
-    UNIT_PARTS_PER_MILLION,
 )
 from esphome.types import ConfigType
 
@@ -59,17 +55,9 @@ CONFIG_SCHEMA = cv.All(
                 accuracy_decimals=0,
                 state_class=STATE_CLASS_MEASUREMENT,
             ),
-            cv.Optional(CONF_CO2): sensor.sensor_schema(
-                unit_of_measurement=UNIT_PARTS_PER_MILLION,
-                accuracy_decimals=0,
-                device_class=DEVICE_CLASS_CARBON_DIOXIDE,
-                state_class=STATE_CLASS_MEASUREMENT,
-            ),
+            cv.Optional(CONF_CO2): sensor.sensor_schema(kind=sensor.CARBON_DIOXIDE),
             cv.Optional(CONF_ILLUMINANCE): sensor.sensor_schema(
-                unit_of_measurement=UNIT_LUX,
-                accuracy_decimals=0,
-                device_class=DEVICE_CLASS_ILLUMINANCE,
-                state_class=STATE_CLASS_MEASUREMENT,
+                kind=sensor.ILLUMINANCE
             ),
             cv.Optional(CONF_DEVICE_TYPE, default="WAVE_PLUS"): cv.enum(
                 DEVICE_TYPES, upper=True

@@ -1,20 +1,7 @@
 import esphome.codegen as cg
 from esphome.components import sensor
 import esphome.config_validation as cv
-from esphome.const import (
-    CONF_ENERGY,
-    CONF_MAX_CURRENT,
-    CONF_POWER,
-    DEVICE_CLASS_DURATION,
-    DEVICE_CLASS_ENERGY,
-    DEVICE_CLASS_POWER,
-    STATE_CLASS_MEASUREMENT,
-    STATE_CLASS_TOTAL_INCREASING,
-    UNIT_AMPERE,
-    UNIT_KILOWATT,
-    UNIT_KILOWATT_HOURS,
-    UNIT_MINUTE,
-)
+from esphome.const import CONF_ENERGY, CONF_MAX_CURRENT, CONF_POWER, UNIT_AMPERE
 from esphome.types import ConfigType
 
 from . import CONF_DELTA_WALLBOX_ID, DeltaWallbox
@@ -35,23 +22,12 @@ CONFIG_SCHEMA = cv.Schema(
             accuracy_decimals=1,
         ),
         cv.Optional(CONF_POWER): sensor.sensor_schema(
-            unit_of_measurement=UNIT_KILOWATT,
-            accuracy_decimals=2,
-            device_class=DEVICE_CLASS_POWER,
-            state_class=STATE_CLASS_MEASUREMENT,
+            kind=sensor.POWER_KW, accuracy_decimals=2
         ),
         cv.Optional(CONF_ENERGY): sensor.sensor_schema(
-            unit_of_measurement=UNIT_KILOWATT_HOURS,
-            accuracy_decimals=2,
-            device_class=DEVICE_CLASS_ENERGY,
-            state_class=STATE_CLASS_TOTAL_INCREASING,
+            kind=sensor.ENERGY_KWH, accuracy_decimals=2
         ),
-        cv.Optional(CONF_CHARGING_TIME): sensor.sensor_schema(
-            unit_of_measurement=UNIT_MINUTE,
-            accuracy_decimals=0,
-            device_class=DEVICE_CLASS_DURATION,
-            state_class=STATE_CLASS_MEASUREMENT,
-        ),
+        cv.Optional(CONF_CHARGING_TIME): sensor.sensor_schema(kind=sensor.DURATION_MIN),
     }
 )
 

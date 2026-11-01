@@ -9,11 +9,9 @@ from esphome.const import (
     CONF_RESOLUTION,
     CONF_TEMPERATURE,
     CONF_TEMPERATURE_COMPENSATION,
-    DEVICE_CLASS_TEMPERATURE,
     ICON_MAGNET,
     ICON_THERMOMETER,
     STATE_CLASS_MEASUREMENT,
-    UNIT_CELSIUS,
     UNIT_MICROTESLA,
 )
 from esphome.types import ConfigType
@@ -105,11 +103,7 @@ CONFIG_SCHEMA = cv.All(
             cv.Optional(CONF_TEMPERATURE_COMPENSATION, default=False): bool,
             cv.Optional(CONF_HALLCONF, default=0xC): cv.one_of(0xC, 0x0),
             cv.Optional(CONF_TEMPERATURE): sensor.sensor_schema(
-                unit_of_measurement=UNIT_CELSIUS,
-                accuracy_decimals=1,
-                icon=ICON_THERMOMETER,
-                device_class=DEVICE_CLASS_TEMPERATURE,
-                state_class=STATE_CLASS_MEASUREMENT,
+                kind=sensor.TEMPERATURE, icon=ICON_THERMOMETER
             ).extend(
                 cv.Schema(
                     {

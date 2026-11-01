@@ -9,12 +9,8 @@ from esphome.const import (
     CONF_MODEL,
     CONF_STATUS,
     CONF_TEMPERATURE,
-    DEVICE_CLASS_HUMIDITY,
-    DEVICE_CLASS_TEMPERATURE,
     STATE_CLASS_MEASUREMENT,
-    UNIT_CELSIUS,
     UNIT_EMPTY,
-    UNIT_PERCENT,
 )
 from esphome.types import ConfigType
 
@@ -35,17 +31,9 @@ CONFIG_SCHEMA = (
         {
             cv.GenerateID(): cv.declare_id(HTU21DComponent),
             cv.Optional(CONF_TEMPERATURE): sensor.sensor_schema(
-                unit_of_measurement=UNIT_CELSIUS,
-                accuracy_decimals=1,
-                device_class=DEVICE_CLASS_TEMPERATURE,
-                state_class=STATE_CLASS_MEASUREMENT,
+                kind=sensor.TEMPERATURE
             ),
-            cv.Optional(CONF_HUMIDITY): sensor.sensor_schema(
-                unit_of_measurement=UNIT_PERCENT,
-                accuracy_decimals=1,
-                device_class=DEVICE_CLASS_HUMIDITY,
-                state_class=STATE_CLASS_MEASUREMENT,
-            ),
+            cv.Optional(CONF_HUMIDITY): sensor.sensor_schema(kind=sensor.HUMIDITY),
             cv.Optional(CONF_HEATER): sensor.sensor_schema(
                 unit_of_measurement=UNIT_EMPTY,
                 accuracy_decimals=1,

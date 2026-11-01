@@ -1,12 +1,7 @@
 import esphome.codegen as cg
 from esphome.components import sensor
 import esphome.config_validation as cv
-from esphome.const import (
-    CONF_TYPE,
-    ICON_WEATHER_SUNSET,
-    STATE_CLASS_MEASUREMENT,
-    UNIT_DEGREES,
-)
+from esphome.const import CONF_TYPE, ICON_WEATHER_SUNSET
 from esphome.types import ConfigType
 
 from .. import CONF_SUN_ID, Sun, sun_ns
@@ -19,11 +14,7 @@ TYPES = SensorType.options("elevation", "azimuth", prefix="SUN_SENSOR_")
 
 CONFIG_SCHEMA = (
     sensor.sensor_schema(
-        SunSensor,
-        unit_of_measurement=UNIT_DEGREES,
-        icon=ICON_WEATHER_SUNSET,
-        accuracy_decimals=1,
-        state_class=STATE_CLASS_MEASUREMENT,
+        SunSensor, kind=sensor.ANGLE, icon=ICON_WEATHER_SUNSET, accuracy_decimals=1
     )
     .extend(
         {

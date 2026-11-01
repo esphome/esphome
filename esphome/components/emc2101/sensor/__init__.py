@@ -6,11 +6,8 @@ from esphome.const import (
     CONF_ID,
     CONF_INTERNAL_TEMPERATURE,
     CONF_SPEED,
-    DEVICE_CLASS_TEMPERATURE,
     ICON_PERCENT,
     STATE_CLASS_MEASUREMENT,
-    UNIT_CELSIUS,
-    UNIT_PERCENT,
     UNIT_REVOLUTIONS_PER_MINUTE,
 )
 from esphome.types import ConfigType
@@ -27,16 +24,10 @@ CONFIG_SCHEMA = EMC2101_COMPONENT_SCHEMA.extend(
     {
         cv.GenerateID(): cv.declare_id(EMC2101Sensor),
         cv.Optional(CONF_INTERNAL_TEMPERATURE): sensor.sensor_schema(
-            unit_of_measurement=UNIT_CELSIUS,
-            accuracy_decimals=0,
-            device_class=DEVICE_CLASS_TEMPERATURE,
-            state_class=STATE_CLASS_MEASUREMENT,
+            kind=sensor.TEMPERATURE, accuracy_decimals=0
         ),
         cv.Optional(CONF_EXTERNAL_TEMPERATURE): sensor.sensor_schema(
-            unit_of_measurement=UNIT_CELSIUS,
-            accuracy_decimals=3,
-            device_class=DEVICE_CLASS_TEMPERATURE,
-            state_class=STATE_CLASS_MEASUREMENT,
+            kind=sensor.TEMPERATURE, accuracy_decimals=3
         ),
         cv.Optional(CONF_SPEED): sensor.sensor_schema(
             unit_of_measurement=UNIT_REVOLUTIONS_PER_MINUTE,
@@ -45,10 +36,7 @@ CONFIG_SCHEMA = EMC2101_COMPONENT_SCHEMA.extend(
             icon="mdi:fan",
         ),
         cv.Optional(CONF_DUTY_CYCLE): sensor.sensor_schema(
-            unit_of_measurement=UNIT_PERCENT,
-            accuracy_decimals=2,
-            state_class=STATE_CLASS_MEASUREMENT,
-            icon=ICON_PERCENT,
+            kind=sensor.PERCENT, accuracy_decimals=2, icon=ICON_PERCENT
         ),
     }
 ).extend(cv.polling_component_schema("60s"))

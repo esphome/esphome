@@ -20,21 +20,12 @@ from esphome.const import (
     CONF_REVERSE_ACTIVE_ENERGY,
     CONF_VOLTAGE,
     CONF_VOLTAGE_GAIN,
-    DEVICE_CLASS_APPARENT_POWER,
-    DEVICE_CLASS_CURRENT,
     DEVICE_CLASS_ENERGY,
-    DEVICE_CLASS_POWER,
     DEVICE_CLASS_POWER_FACTOR,
-    DEVICE_CLASS_VOLTAGE,
     STATE_CLASS_MEASUREMENT,
     STATE_CLASS_TOTAL_INCREASING,
-    UNIT_AMPERE,
     UNIT_PERCENT,
-    UNIT_VOLT,
-    UNIT_VOLT_AMPS,
     UNIT_VOLT_AMPS_REACTIVE_HOURS,
-    UNIT_WATT,
-    UNIT_WATT_HOURS,
 )
 from esphome.cpp_generator import MockObj
 from esphome.types import ConfigType
@@ -72,12 +63,7 @@ NEUTRAL_CHANNEL_SCHEMA = cv.Schema(
         cv.GenerateID(): cv.declare_id(NeutralChannel),
         cv.Optional(CONF_NAME): cv.string_strict,
         cv.Required(CONF_CURRENT): cv.maybe_simple_value(
-            sensor.sensor_schema(
-                unit_of_measurement=UNIT_AMPERE,
-                accuracy_decimals=2,
-                device_class=DEVICE_CLASS_CURRENT,
-                state_class=STATE_CLASS_MEASUREMENT,
-            ),
+            sensor.sensor_schema(kind=sensor.CURRENT, accuracy_decimals=2),
             key=CONF_NAME,
         ),
         cv.Required(CONF_CALIBRATION): cv.Schema(
@@ -93,39 +79,19 @@ POWER_CHANNEL_SCHEMA = cv.Schema(
         cv.GenerateID(): cv.declare_id(PowerChannel),
         cv.Optional(CONF_NAME): cv.string_strict,
         cv.Optional(CONF_VOLTAGE): cv.maybe_simple_value(
-            sensor.sensor_schema(
-                unit_of_measurement=UNIT_VOLT,
-                accuracy_decimals=1,
-                device_class=DEVICE_CLASS_VOLTAGE,
-                state_class=STATE_CLASS_MEASUREMENT,
-            ),
+            sensor.sensor_schema(kind=sensor.VOLTAGE, accuracy_decimals=1),
             key=CONF_NAME,
         ),
         cv.Optional(CONF_CURRENT): cv.maybe_simple_value(
-            sensor.sensor_schema(
-                unit_of_measurement=UNIT_AMPERE,
-                accuracy_decimals=2,
-                device_class=DEVICE_CLASS_CURRENT,
-                state_class=STATE_CLASS_MEASUREMENT,
-            ),
+            sensor.sensor_schema(kind=sensor.CURRENT, accuracy_decimals=2),
             key=CONF_NAME,
         ),
         cv.Optional(CONF_ACTIVE_POWER): cv.maybe_simple_value(
-            sensor.sensor_schema(
-                unit_of_measurement=UNIT_WATT,
-                accuracy_decimals=1,
-                device_class=DEVICE_CLASS_POWER,
-                state_class=STATE_CLASS_MEASUREMENT,
-            ),
+            sensor.sensor_schema(kind=sensor.POWER, accuracy_decimals=1),
             key=CONF_NAME,
         ),
         cv.Optional(CONF_APPARENT_POWER): cv.maybe_simple_value(
-            sensor.sensor_schema(
-                unit_of_measurement=UNIT_VOLT_AMPS,
-                accuracy_decimals=1,
-                device_class=DEVICE_CLASS_APPARENT_POWER,
-                state_class=STATE_CLASS_MEASUREMENT,
-            ),
+            sensor.sensor_schema(kind=sensor.APPARENT_POWER, accuracy_decimals=1),
             key=CONF_NAME,
         ),
         cv.Optional(CONF_POWER_FACTOR): cv.maybe_simple_value(
@@ -138,12 +104,7 @@ POWER_CHANNEL_SCHEMA = cv.Schema(
             key=CONF_NAME,
         ),
         cv.Optional(CONF_FORWARD_ACTIVE_ENERGY): cv.maybe_simple_value(
-            sensor.sensor_schema(
-                unit_of_measurement=UNIT_WATT_HOURS,
-                accuracy_decimals=2,
-                device_class=DEVICE_CLASS_ENERGY,
-                state_class=STATE_CLASS_TOTAL_INCREASING,
-            ),
+            sensor.sensor_schema(kind=sensor.ENERGY_WH, accuracy_decimals=2),
             key=CONF_NAME,
         ),
         cv.Optional(CONF_REVERSE_ACTIVE_ENERGY): cv.maybe_simple_value(

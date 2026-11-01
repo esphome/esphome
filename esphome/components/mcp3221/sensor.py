@@ -1,13 +1,7 @@
 import esphome.codegen as cg
 from esphome.components import i2c, sensor, voltage_sampler
 import esphome.config_validation as cv
-from esphome.const import (
-    CONF_REFERENCE_VOLTAGE,
-    DEVICE_CLASS_VOLTAGE,
-    ICON_SCALE,
-    STATE_CLASS_MEASUREMENT,
-    UNIT_VOLT,
-)
+from esphome.const import CONF_REFERENCE_VOLTAGE
 from esphome.types import ConfigType
 
 AUTO_LOAD = ["voltage_sampler"]
@@ -25,14 +19,7 @@ MCP3221Sensor = mcp3221_ns.class_(
 
 
 CONFIG_SCHEMA = (
-    sensor.sensor_schema(
-        MCP3221Sensor,
-        icon=ICON_SCALE,
-        accuracy_decimals=2,
-        state_class=STATE_CLASS_MEASUREMENT,
-        device_class=DEVICE_CLASS_VOLTAGE,
-        unit_of_measurement=UNIT_VOLT,
-    )
+    sensor.sensor_schema(MCP3221Sensor, kind=sensor.VOLTAGE, accuracy_decimals=2)
     .extend(
         {
             cv.Optional(CONF_REFERENCE_VOLTAGE, default="3.3V"): cv.voltage,

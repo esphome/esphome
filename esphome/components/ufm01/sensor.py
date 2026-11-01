@@ -4,12 +4,10 @@ import esphome.config_validation as cv
 from esphome.const import (
     CONF_FLOW,
     CONF_TEMPERATURE,
-    DEVICE_CLASS_TEMPERATURE,
     DEVICE_CLASS_VOLUME_FLOW_RATE,
     DEVICE_CLASS_WATER,
     STATE_CLASS_MEASUREMENT,
     STATE_CLASS_TOTAL_INCREASING,
-    UNIT_CELSIUS,
     UNIT_CUBIC_METER_PER_HOUR,
     UNIT_LITRE,
 )
@@ -38,11 +36,7 @@ CONFIG_SCHEMA = cv.Schema(
             icon="mdi:waves-arrow-right",
         ),
         cv.Optional(CONF_TEMPERATURE): sensor.sensor_schema(
-            unit_of_measurement=UNIT_CELSIUS,
-            accuracy_decimals=2,
-            device_class=DEVICE_CLASS_TEMPERATURE,
-            state_class=STATE_CLASS_MEASUREMENT,
-            icon="mdi:thermometer-water",
+            kind=sensor.TEMPERATURE, accuracy_decimals=2, icon="mdi:thermometer-water"
         ),
     }
 )

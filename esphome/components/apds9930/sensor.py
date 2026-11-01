@@ -2,12 +2,7 @@ import esphome.codegen as cg
 from esphome.components import i2c, sensor
 from esphome.components.const import UNIT_COUNTS
 import esphome.config_validation as cv
-from esphome.const import (
-    CONF_ILLUMINANCE,
-    DEVICE_CLASS_ILLUMINANCE,
-    STATE_CLASS_MEASUREMENT,
-    UNIT_LUX,
-)
+from esphome.const import CONF_ILLUMINANCE, STATE_CLASS_MEASUREMENT
 from esphome.types import ConfigType
 
 DEPENDENCIES = ["i2c"]
@@ -40,10 +35,7 @@ CONFIG_SCHEMA = (
                 AMBIENT_LEVELS, lower=True
             ),
             cv.Optional(CONF_ILLUMINANCE): sensor.sensor_schema(
-                unit_of_measurement=UNIT_LUX,
-                accuracy_decimals=1,
-                device_class=DEVICE_CLASS_ILLUMINANCE,
-                state_class=STATE_CLASS_MEASUREMENT,
+                kind=sensor.ILLUMINANCE, accuracy_decimals=1
             ),
             cv.Optional(CONF_PROXIMITY): sensor.sensor_schema(
                 unit_of_measurement=UNIT_COUNTS,

@@ -14,11 +14,7 @@ from esphome.const import (
     CONF_PRESSURE,
     CONF_TEMPERATURE,
     CONF_TX_POWER,
-    DEVICE_CLASS_HUMIDITY,
-    DEVICE_CLASS_PRESSURE,
     DEVICE_CLASS_SIGNAL_STRENGTH,
-    DEVICE_CLASS_TEMPERATURE,
-    DEVICE_CLASS_VOLTAGE,
     ENTITY_CATEGORY_DIAGNOSTIC,
     ICON_ACCELERATION,
     ICON_ACCELERATION_X,
@@ -26,12 +22,8 @@ from esphome.const import (
     ICON_ACCELERATION_Z,
     ICON_GAUGE,
     STATE_CLASS_MEASUREMENT,
-    UNIT_CELSIUS,
     UNIT_DECIBEL_MILLIWATT,
     UNIT_G,
-    UNIT_HECTOPASCAL,
-    UNIT_PERCENT,
-    UNIT_VOLT,
 )
 from esphome.types import ConfigType
 
@@ -49,22 +41,13 @@ CONFIG_SCHEMA = cv.All(
             cv.GenerateID(): cv.declare_id(RuuviTag),
             cv.Required(CONF_MAC_ADDRESS): cv.mac_address,
             cv.Optional(CONF_TEMPERATURE): sensor.sensor_schema(
-                unit_of_measurement=UNIT_CELSIUS,
-                accuracy_decimals=2,
-                device_class=DEVICE_CLASS_TEMPERATURE,
-                state_class=STATE_CLASS_MEASUREMENT,
+                kind=sensor.TEMPERATURE, accuracy_decimals=2
             ),
             cv.Optional(CONF_HUMIDITY): sensor.sensor_schema(
-                unit_of_measurement=UNIT_PERCENT,
-                accuracy_decimals=2,
-                device_class=DEVICE_CLASS_HUMIDITY,
-                state_class=STATE_CLASS_MEASUREMENT,
+                kind=sensor.HUMIDITY, accuracy_decimals=2
             ),
             cv.Optional(CONF_PRESSURE): sensor.sensor_schema(
-                unit_of_measurement=UNIT_HECTOPASCAL,
-                accuracy_decimals=2,
-                device_class=DEVICE_CLASS_PRESSURE,
-                state_class=STATE_CLASS_MEASUREMENT,
+                kind=sensor.PRESSURE, accuracy_decimals=2
             ),
             cv.Optional(CONF_ACCELERATION): sensor.sensor_schema(
                 unit_of_measurement=UNIT_G,
@@ -91,10 +74,8 @@ CONFIG_SCHEMA = cv.All(
                 state_class=STATE_CLASS_MEASUREMENT,
             ),
             cv.Optional(CONF_BATTERY_VOLTAGE): sensor.sensor_schema(
-                unit_of_measurement=UNIT_VOLT,
+                kind=sensor.VOLTAGE,
                 accuracy_decimals=3,
-                device_class=DEVICE_CLASS_VOLTAGE,
-                state_class=STATE_CLASS_MEASUREMENT,
                 entity_category=ENTITY_CATEGORY_DIAGNOSTIC,
             ),
             cv.Optional(CONF_TX_POWER): sensor.sensor_schema(
