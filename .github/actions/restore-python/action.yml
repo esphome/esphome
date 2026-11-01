@@ -17,12 +17,12 @@ runs:
   steps:
     - name: Set up Python ${{ inputs.python-version }}
       id: python
-      uses: actions/setup-python@6d4fd22b20465ccc0f7354476588e8df7c9ca0e0 # v7.1.0
+      uses: actions/setup-python@v7.1.0
       with:
         python-version: ${{ inputs.python-version }}
     - name: Restore Python virtual environment
       id: cache-venv
-      uses: actions/cache/restore@55cc8345863c7cc4c66a329aec7e433d2d1c52a9 # v6.1.0
+      uses: actions/cache/restore@v6.1.0
       with:
         path: venv
         # yamllint disable-line rule:line-length
@@ -32,7 +32,7 @@ runs:
       # detects the activated venv via ``VIRTUAL_ENV`` so the venv layout
       # downstream jobs rely on is preserved.
       if: steps.cache-venv.outputs.cache-hit != 'true'
-      uses: astral-sh/setup-uv@07a047e608db84b3d8c06cd9a7c7dcc9c355c18e # v10.3.2
+      uses: astral-sh/setup-uv@v10.3.2
       with:
         enable-cache: true
         # Pull request saves land in per-PR scopes nothing else can

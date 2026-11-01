@@ -1,0 +1,26 @@
+name: verify-lockfile
+
+on:
+  pull_request:
+  push:
+    branches:
+      - main
+
+permissions:
+  contents: read
+
+jobs:
+  verify:
+    name: Verify actions lockfile
+    runs-on: ubuntu-latest
+    env:
+      GH_TOKEN: ${{ github.token }}
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v7.0.1
+        with:
+          persist-credentials: false
+      - name: Install gh-actions-lock
+        run: gh extension install github/gh-actions-lock --pin v0.4.0
+      - name: Verify lockfile
+        run: gh actions-lock --verify
