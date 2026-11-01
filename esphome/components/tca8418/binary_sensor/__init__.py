@@ -137,12 +137,7 @@ FINAL_VALIDATE_SCHEMA = _final_validate
 async def to_code(config: ConfigType) -> None:
     var = await binary_sensor.new_binary_sensor(config)
     keypad = await cg.get_variable(config[CONF_KEYPAD_ID])
+    key_code = config[CONF_KEY_CODE]
     KEY_PUBLISHER.add(
-        keypad,
-        tca8418_ns.publish_key(
-            parent_ref(var),
-            KEY,
-            config[CONF_KEY_CODE],
-            PRESSED,
-        ),
+        keypad, tca8418_ns.publish_key(parent_ref(var), KEY, key_code, PRESSED)
     )

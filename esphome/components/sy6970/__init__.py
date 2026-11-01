@@ -1,3 +1,6 @@
+from collections.abc import Callable
+
+from esphome.automation import parent_ref
 import esphome.codegen as cg
 from esphome.components import i2c
 import esphome.config_validation as cv
@@ -84,3 +87,12 @@ async def to_code(config: ConfigType) -> None:
         config[CONF_ENABLE_ADC],
         config[CONF_I2C_WATCHDOG_TIMEOUT],
     )
+
+
+async def publish_children(
+    hub: cg.MockObj, sub_entities: Callable, states: dict[str, cg.MockObj]
+) -> None:
+    """Create each configured child and publish its state from the hub's data function."""
+    for key, state in states.items():
+        if (var := await sub_entities(key, None)) is not None:
+            DATA_PUBLISHER.add(hub, parent_ref(var).publish_state(state))

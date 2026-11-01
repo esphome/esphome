@@ -39,10 +39,12 @@ def _check(expr: str, reg: int, bits: int, expected: list[int]) -> None:
         assert result == expected[field_value(value, bits)], (expr, value)
 
 
-def test_status_publishers(generate_main: Callable[[str], str]) -> None:
-    """Every generated decode matches the datasheet; one function per hub with entities,
-    items in config order (charger_a's text block comes first)."""
-    main_cpp = generate_main("tests/component_tests/bq25186/test_bq25186_status.yaml")
+def test_status_publishers(
+    generate_main: Callable[[str | Path], str],
+    component_config_path: Callable[[str], Path],
+) -> None:
+    """Every decode matches the datasheet; one function per hub with entities, items in config order."""
+    main_cpp = generate_main(component_config_path("hub_function.yaml"))
     body = _body(main_cpp, "charger_a")
     n_text = 2 * len(TEXT_SENSORS)
     pairs = zip(body[0:n_text:2], body[1:n_text:2], strict=True)
@@ -67,7 +69,7 @@ def test_status_publishers(generate_main: Callable[[str], str]) -> None:
         assert f"{hub}->set_status_publisher(esphome__{hub}__status_fn);" in main_cpp
     assert "charger_c->set_status_publisher" not in main_cpp
 
-    # The C++ tests run a copy of this function, with the parameter named plain status; it must decode the same way
+    # The C++ tests run a copy of this function (parameter named status); it must decode the same
     cpp = CPP_TEST.read_text().replace("status[", "esphome__arg_status[")
     assert [(m[1].lower(), m[2]) for m in CPP_BINARY.finditer(cpp)] == [
         (m[1], m[2]) for m in binary
