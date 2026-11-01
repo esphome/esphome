@@ -406,11 +406,18 @@ template<typename T> class EmptyList {
   static constexpr size_t size() { return 0; }
   static constexpr bool empty() { return true; }
   [[noreturn]] T &operator[](size_t /*i*/) const { __builtin_trap(); }
+  // Only reachable from a register method that SLOT_LIST_REQUIRES keeps out of 0-count builds
   void push_back(const T & /*value*/) {}
 };
 
 /// A `StaticVector<T, N>` sized at code generation, or an `EmptyList<T>` when `N` is 0.
 template<typename T, size_t N> using SlotList = std::conditional_t<N == 0, EmptyList<T>, StaticVector<T, N>>;
+
+/// Put before a hand-written register method of a `SlotList` sized by `count`, so that a registration code
+/// generation did not count fails to compile.
+#define SLOT_LIST_REQUIRES(count) \
+  template<size_t SLOT_LIST_COUNT = (count)> \
+    requires(SLOT_LIST_COUNT > 0)
 
 /// Declare a registration list sized at code generation: a protected `SlotList<type *, count> member` and a
 /// public `register_fn(type *)` that appends to it. `count` is the define of the matching `cg.slot_list()`,
@@ -422,11 +429,8 @@ template<typename T, size_t N> using SlotList = std::conditional_t<N == 0, Empty
   [[no_unique_address]] SlotList<type *, count> member; /* NOLINT(bugprone-macro-parentheses) */ \
 \
  public: \
-  template<size_t SLOT_LIST_COUNT = (count)> \
-    requires(SLOT_LIST_COUNT > 0) \
-  void register_fn(type *item) { /* NOLINT(bugprone-macro-parentheses) */ \
-    this->member.push_back(item); \
-  }
+  SLOT_LIST_REQUIRES(count) \
+  void register_fn(type *item) { /* NOLINT(bugprone-macro-parentheses) */ this->member.push_back(item); }
 
 /// Fixed-size circular buffer with FIFO semantics and iteration support.
 ///
