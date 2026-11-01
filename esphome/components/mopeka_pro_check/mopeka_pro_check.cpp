@@ -61,10 +61,7 @@ bool MopekaProCheck::parse_device(const ble_device_base::ESPBTDevice &device) {
   }
 
   // Get battery level first
-  if (this->battery_level_sensor_ != nullptr) {
-    uint8_t level = this->parse_battery_level_(manu_data.data);
-    this->battery_level_sensor_->publish_state(level);
-  }
+  PUBLISH_STATE(this->battery_level_sensor_, this->parse_battery_level_(manu_data.data));
 
   // Get the quality value
   SensorReadQuality quality_value = this->parse_read_quality_(manu_data.data);
@@ -107,10 +104,7 @@ bool MopekaProCheck::parse_device(const ble_device_base::ESPBTDevice &device) {
   }
 
   // Get temperature of sensor
-  if (this->temperature_sensor_ != nullptr) {
-    int8_t temp_in_c = this->parse_temperature_(manu_data.data);
-    this->temperature_sensor_->publish_state(temp_in_c);
-  }
+  PUBLISH_STATE(this->temperature_sensor_, this->parse_temperature_(manu_data.data));
 
   return true;
 }
