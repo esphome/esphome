@@ -61,8 +61,8 @@ static constexpr std::array<SingleBit, 19> SINGLE_BITS{{
     {BATTERY_OCP_FLAG, BQ25186_REG_FLAG0, 0x01},
 }};
 
-// A copy of the function code generation emits for a hub with every status entity, binary block first;
-// tests/component_tests/bq25186/test_hub_function.py checks it decodes like the generated code
+// Copy of the generated function for a hub with every status entity, binary block first;
+// tests/component_tests/bq25186/test_hub_function.py checks it against the generated code
 struct StatusEntities {
   std::array<binary_sensor::BinarySensor, BINARY_COUNT> binary;
   std::array<text_sensor::TextSensor, TEXT_COUNT> text;
@@ -152,7 +152,6 @@ TEST_F(BQ25186StatusTest, ChargingAndChargeDoneDecodeTheChargeStatus) {
     this->poll_(static_cast<uint8_t>(value << 5));
     EXPECT_EQ(this->binary_(CHARGING).state, CHARGING_ON[value]);
     EXPECT_EQ(this->binary_(CHARGE_DONE).state, DONE_ON[value]);
-    // The neighbouring bits do not change the decode
     this->poll_(static_cast<uint8_t>((value << 5) | 0x9F));
     EXPECT_EQ(this->binary_(CHARGING).state, CHARGING_ON[value]);
     EXPECT_EQ(this->binary_(CHARGE_DONE).state, DONE_ON[value]);
