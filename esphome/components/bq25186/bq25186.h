@@ -70,7 +70,6 @@ class BQ25186Component : public PollingComponent, public i2c::I2CDevice {
   }
   bool apply_config(const BQ25186ConfigRegisters &regs);
 #ifdef USE_BQ25186_STATUS_PUBLISHER
-  /// The generated function that publishes this hub's status entities
   HUB_PUBLISHER(status, const BQ25186StatusRegisters &)
 #endif
 #ifdef USE_BQ25186_PG_GPO

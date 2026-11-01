@@ -6,7 +6,7 @@ from pathlib import Path
 REG = "esphome__arg_data.registers"
 STATUS = f"{REG}[sy6970::SY6970_REG_STATUS]"
 
-# Every child, in config order, with the decode the old listener classes did
+# Every child, in config order, with its register decode
 EXPECTED_BODY = [
     f"::vbus_connected->publish_state(((({STATUS} >> 5) & 7) != sy6970::BUS_STATUS_NO_INPUT));",
     f"::charging->publish_state(sy6970::is_charging((({STATUS} >> 3) & 3)));",

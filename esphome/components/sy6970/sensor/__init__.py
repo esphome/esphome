@@ -1,4 +1,3 @@
-from esphome.automation import parent_ref
 import esphome.codegen as cg
 from esphome.components import sensor
 import esphome.config_validation as cv
@@ -12,7 +11,7 @@ from esphome.const import (
 )
 from esphome.types import ConfigType
 
-from .. import CONF_SY6970_ID, DATA_PUBLISHER, REGISTERS, SY6970Component, sy6970_ns
+from .. import CONF_SY6970_ID, REGISTERS, SY6970Component, publish_children, sy6970_ns
 
 DEPENDENCIES = ["sy6970"]
 
@@ -114,7 +113,4 @@ CONFIG_SCHEMA = cv.Schema(
 async def to_code(config: ConfigType) -> None:
     hub = await cg.get_variable(config[CONF_SY6970_ID])
 
-    sensors = sensor.sub_sensors(config)
-    for key, state in STATES.items():
-        if var := await sensors(key, None):
-            DATA_PUBLISHER.add(hub, parent_ref(var).publish_state(state))
+    await publish_children(hub, sensor.sub_sensors(config), STATES)

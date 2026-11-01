@@ -58,8 +58,11 @@ APIs.
    Use `cg.add_define("MAX_SERVICES", count)` to set the size from Python configuration.
 
    **Listener and child-entity registration lists are the most common case, and the most commonly
-   missed.** A `register_*()` method called once per child at code generation time has a count that is
-   known at compile time, so it should never be a `std::vector`. Use `cg.slot_counter()`: it returns a
+   missed.** When the hub only forwards data to its children and each child's handling is known at build
+   time, keep no list at all: use `cg.HubFunction` (see the component-codegen skill). When the hub must
+   store the children (it iterates them for other reasons, or picks fields at run time), a `register_*()`
+   method called once per child at code generation time has a count that is known at compile time, so it
+   should never be a `std::vector`. Use `cg.slot_counter()`: it returns a
    function that each consumer calls once per slot it will occupy, and after every `to_code` has run it
    emits the define with the final count. When nothing registers, no define is emitted and the storage plus
    its registration method compile out entirely.
