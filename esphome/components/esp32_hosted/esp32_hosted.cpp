@@ -1,6 +1,6 @@
 #include "esp32_hosted.h"
 
-#ifdef USE_ESP32
+#if defined(USE_ESP32_VARIANT_ESP32H2) || defined(USE_ESP32_VARIANT_ESP32P4)
 
 #include "esphome/core/log.h"
 
@@ -30,14 +30,14 @@ void ESP32Hosted::setup() {
     this->mark_failed(LOG_STR("Could not create the event loop"));
     return;
   }
-  err = esp_event_handler_register(ESP_HOSTED_EVENT, ESP_EVENT_ANY_ID, ESP32Hosted::event_handler_, this);
+  err = esp_event_handler_register(ESP_HOSTED_EVENT, ESP_EVENT_ANY_ID, ESP32Hosted::event_handler, this);
   if (err != ESP_OK) {
     ESP_LOGE(TAG, "Event handler: %s", esp_err_to_name(err));
     this->mark_failed(LOG_STR("Could not register for link events"));
     return;
   }
   // The link usually comes up before setup(), so its event is gone. A task finds out without blocking the loop.
-  if (xTaskCreate(ESP32Hosted::initial_state_task_, "hosted_link", INITIAL_STATE_TASK_STACK_SIZE, this,
+  if (xTaskCreate(ESP32Hosted::initial_state_task, "hosted_link", INITIAL_STATE_TASK_STACK_SIZE, this,
                   INITIAL_STATE_TASK_PRIORITY, nullptr) != pdPASS) {
     ESP_LOGW(TAG, "Could not start the initial state task, waiting for link events");
   }
@@ -65,7 +65,7 @@ void ESP32Hosted::set_link_state_(bool linked) {
   this->enable_loop_soon_any_context();
 }
 
-void ESP32Hosted::event_handler_(void *arg, esp_event_base_t event_base, int32_t event_id, void *event_data) {
+void ESP32Hosted::event_handler(void *arg, esp_event_base_t event_base, int32_t event_id, void *event_data) {
   auto *hosted = static_cast<ESP32Hosted *>(arg);
   switch (event_id) {
     case ESP_HOSTED_EVENT_TRANSPORT_UP:
@@ -81,7 +81,7 @@ void ESP32Hosted::event_handler_(void *arg, esp_event_base_t event_base, int32_t
   }
 }
 
-void ESP32Hosted::initial_state_task_(void *arg) {
+void ESP32Hosted::initial_state_task(void *arg) {
   auto *hosted = static_cast<ESP32Hosted *>(arg);
   const TickType_t start = xTaskGetTickCount();
   // Returns at once when the link is up and waits while the bring-up runs
@@ -101,4 +101,4 @@ void ESP32Hosted::initial_state_task_(void *arg) {
 
 }  // namespace esphome::esp32_hosted
 
-#endif  // USE_ESP32
+#endif

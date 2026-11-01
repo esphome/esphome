@@ -2,7 +2,7 @@
 
 #include "esphome/core/defines.h"
 
-#ifdef USE_ESP32
+#if defined(USE_ESP32_VARIANT_ESP32H2) || defined(USE_ESP32_VARIANT_ESP32P4)
 
 #include "esphome/core/component.h"
 #include "esphome/core/helpers.h"
@@ -35,8 +35,8 @@ class ESP32Hosted : public Component {
   template<typename F> void add_on_link_callback(F &&callback) { this->link_callback_.add(std::forward<F>(callback)); }
 
  protected:
-  static void event_handler_(void *arg, esp_event_base_t event_base, int32_t event_id, void *event_data);
-  static void initial_state_task_(void *arg);
+  static void event_handler(void *arg, esp_event_base_t event_base, int32_t event_id, void *event_data);
+  static void initial_state_task(void *arg);
   /// Safe from any task. The main loop reports the change.
   void set_link_state_(bool linked);
 
@@ -48,4 +48,4 @@ class ESP32Hosted : public Component {
 
 }  // namespace esphome::esp32_hosted
 
-#endif  // USE_ESP32
+#endif
