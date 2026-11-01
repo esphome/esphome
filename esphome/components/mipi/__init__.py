@@ -298,10 +298,22 @@ def model_schema_extractor(
                 )
             if isinstance(schema, vol.Schema):
                 # The resolved schema pins ``model`` to the representative; expose
-                # the full model list so the dumped enum offers every model.
-                schema = schema.extend(
-                    {cv.Required(CONF_MODEL): cv.one_of(*names, upper=True)}
+                # the full model list so the dumped enum offers every model, keeping
+                # the key optional where the schema defaults it.
+                marker = next(
+                    (
+                        k
+                        for k in schema.schema
+                        if isinstance(k, vol.Marker) and k.schema == CONF_MODEL
+                    ),
+                    None,
                 )
+                model_key = (
+                    cv.Optional(CONF_MODEL, default=marker.default())
+                    if isinstance(marker, vol.Optional)
+                    else cv.Required(CONF_MODEL)
+                )
+                schema = schema.extend({model_key: cv.one_of(*names, upper=True)})
             return schema
 
         return wrapper
