@@ -39,10 +39,13 @@ def _check(expr: str, reg: int, bits: int, expected: list[int]) -> None:
         assert result == expected[field_value(value, bits)], (expr, value)
 
 
-def test_status_publishers(generate_main: Callable[[str], str]) -> None:
+def test_status_publishers(
+    generate_main: Callable[[str | Path], str],
+    component_config_path: Callable[[str], Path],
+) -> None:
     """Every generated decode matches the datasheet; one function per hub with entities,
     items in config order (charger_a's text block comes first)."""
-    main_cpp = generate_main("tests/component_tests/bq25186/test_bq25186_status.yaml")
+    main_cpp = generate_main(component_config_path("hub_function.yaml"))
     body = _body(main_cpp, "charger_a")
     n_text = 2 * len(TEXT_SENSORS)
     pairs = zip(body[0:n_text:2], body[1:n_text:2], strict=True)
