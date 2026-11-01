@@ -3,6 +3,7 @@
 #include <vector>
 #include "esphome/components/sensor/sensor.h"
 #include "esphome/core/color.h"
+#include "esphome/core/helpers.h"
 #include "esphome/core/string_ref.h"
 #include "esphome/core/component.h"
 

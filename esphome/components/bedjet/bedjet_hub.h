@@ -13,6 +13,7 @@
 
 #ifdef USE_TIME
 #include "esphome/components/time/real_time_clock.h"
+#include "esphome/core/helpers.h"
 #include "esphome/core/time.h"
 #endif
 

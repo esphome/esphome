@@ -7,12 +7,9 @@
 #include "esphome/components/display/display_color_utils.h"
 #include "esphome/components/uart/uart.h"
 #include "esphome/core/defines.h"
+#include "esphome/core/helpers.h"
 #include "esphome/core/string_ref.h"
 #include "esphome/core/time.h"
-
-#ifdef USE_NEXTION_WAVEFORM
-#include "esphome/core/helpers.h"
-#endif  // USE_NEXTION_WAVEFORM
 
 #include "nextion_base.h"
 #include "nextion_component.h"
