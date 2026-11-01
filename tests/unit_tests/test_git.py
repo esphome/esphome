@@ -982,56 +982,145 @@ def test_clone_or_update_clones_missing_repo(
     assert len(clone_calls) > 0
 
 
+_PRIVATE_HINT = (
+    "Could not clone https://github.com/test/repo: the repository does not exist, "
+    "or it is private and needs a username and password. Check the owner and "
+    "repository name in the source."
+)
+_CREDENTIALS_HINT = (
+    "Could not clone https://***@github.com/test/repo: the repository does not "
+    "exist, or the username and password used cannot access it. Check the owner "
+    "and repository name in the source, and the credentials."
+)
+
+
 @pytest.mark.parametrize(
-    "stderr",
+    ("url", "username", "password", "stderr", "expected"),
     [
         (
-            "fatal: could not read Username for 'https://github.com': "
-            "No such device or address"
+            "https://github.com/test/repo",
+            None,
+            None,
+            (
+                b"fatal: could not read Username for 'https://github.com': "
+                b"No such device or address\n"
+            ),
+            _PRIVATE_HINT,
         ),
         (
-            "fatal: could not read Username for 'https://github.com': "
-            "terminal prompts disabled"
+            "https://github.com/test/repo",
+            None,
+            None,
+            (
+                b"fatal: could not read Username for 'https://github.com': "
+                b"terminal prompts disabled\n"
+            ),
+            _PRIVATE_HINT,
         ),
         (
-            "remote: Repository not found.\n"
-            "fatal: repository 'https://github.com/test/repo/' not found"
+            "https://github.com/test/repo",
+            None,
+            None,
+            (
+                b"remote: Repository not found.\n"
+                b"fatal: repository 'https://github.com/test/repo/' not found\n"
+            ),
+            _PRIVATE_HINT,
         ),
-        "fatal: repository 'https://github.com/test/repo/' not found",
-        "fatal: Authentication failed for 'https://github.com/test/repo/'",
         (
-            "fatal: could not read Password for 'https://user@github.com': "
-            "terminal prompts disabled"
+            "https://github.com/test/repo",
+            None,
+            None,
+            b"fatal: repository 'https://github.com/test/repo/' not found\n",
+            _PRIVATE_HINT,
+        ),
+        (
+            "https://github.com/test/repo",
+            None,
+            None,
+            b"fatal: Authentication failed for 'https://github.com/test/repo/'\n",
+            _PRIVATE_HINT,
+        ),
+        (
+            "https://github.com/test/repo",
+            None,
+            None,
+            (
+                b"fatal: could not read Password for 'https://user@github.com': "
+                b"terminal prompts disabled\n"
+            ),
+            _PRIVATE_HINT,
+        ),
+        (
+            "https://github.com/test/repo",
+            "user",
+            "secret",
+            (
+                b"fatal: Authentication failed for "
+                b"'https://user:secret@github.com/test/repo/'\n"
+            ),
+            _CREDENTIALS_HINT.replace("https://***@", "https://"),
+        ),
+        (
+            "https://user:secret@github.com/test/repo",
+            None,
+            None,
+            (
+                b"fatal: Authentication failed for "
+                b"'https://user:secret@github.com/test/repo/'\n"
+            ),
+            _CREDENTIALS_HINT,
+        ),
+        (
+            "git@github.com:test/repo.git",
+            None,
+            None,
+            (
+                b"ERROR: Repository not found.\n"
+                b"fatal: Could not read from remote repository.\n"
+            ),
+            (
+                "Could not clone git@github.com:test/repo.git: the repository does not "
+                "exist, or the SSH key used cannot access it. Check the owner and "
+                "repository name in the source, and the key."
+            ),
         ),
     ],
 )
 def test_clone_or_update_explains_missing_repository(
-    tmp_path: Path, mock_run_git_command: Mock, stderr: str
+    tmp_path: Path,
+    mock_subprocess_run: Mock,
+    url: str,
+    username: str | None,
+    password: str | None,
+    stderr: bytes,
+    expected: str,
 ) -> None:
     """A clone of a repository git cannot see names the URL and the likely cause."""
     CORE.config_path = tmp_path / "test.yaml"
-    url = "https://github.com/test/repo"
     repo_dir = _compute_repo_dir(url, None, "test")
 
-    def fail_clone(cmd: list[str], **kwargs: Any) -> str:
+    def fail_clone(cmd: list[str], **kwargs: Any) -> Mock:
         # Leave a partial clone behind, as git does.
-        repo_dir.mkdir(parents=True)
-        raise GitCommandError(
-            stderr.splitlines()[-1].removeprefix("fatal: "), stderr=stderr
-        )
+        _simulate_cloned_repo(repo_dir)
+        return _git_failure(stderr)
 
-    mock_run_git_command.side_effect = fail_clone
+    mock_subprocess_run.side_effect = fail_clone
 
     with pytest.raises(GitCommandError) as exc_info:
-        git.clone_or_update(url=url, ref=None, refresh=None, domain="test")
+        git.clone_or_update(
+            url=url,
+            ref=None,
+            refresh=None,
+            domain="test",
+            username=username,
+            password=password,
+        )
 
     message = str(exc_info.value)
-    assert message.startswith(
-        f"Could not clone {url}: the repository does not exist, or it is private "
-        "and needs a username and password. Check the owner and repository name "
-        "in the source."
-    )
-    assert exc_info.value.stderr == stderr
+    assert message.split(" Git reported: ", maxsplit=1)[0] == expected
+    assert "secret" not in message
+    assert exc_info.value.stderr == stderr.decode()
     assert not repo_dir.exists()
 
 
@@ -1051,72 +1140,6 @@ def test_clone_or_update_keeps_other_clone_errors(
         )
 
     assert str(exc_info.value) == "couldn't find remote ref refs/heads/nope"
-
-
-@pytest.mark.parametrize(
-    ("url", "username", "password"),
-    [
-        ("https://github.com/test/repo", "user", "secret"),
-        ("https://user:secret@github.com/test/repo", None, None),
-    ],
-)
-def test_clone_or_update_explains_refused_credentials(
-    tmp_path: Path,
-    mock_run_git_command: Mock,
-    url: str,
-    username: str | None,
-    password: str | None,
-) -> None:
-    """With credentials sent, the error points at them and never shows the password."""
-    CORE.config_path = tmp_path / "test.yaml"
-    stderr = (
-        "fatal: Authentication failed for 'https://user:secret@github.com/test/repo/'"
-    )
-    mock_run_git_command.side_effect = GitCommandError(
-        stderr.removeprefix("fatal: "), stderr=stderr
-    )
-
-    with pytest.raises(GitCommandError) as exc_info:
-        git.clone_or_update(
-            url=url,
-            ref=None,
-            refresh=None,
-            domain="test",
-            username=username,
-            password=password,
-        )
-
-    message = str(exc_info.value)
-    assert "secret" not in message
-    assert "the username and password used cannot access it" in message
-    assert message.split(" Git reported: ", maxsplit=1)[0].endswith(
-        "in the source, and the credentials."
-    )
-    assert "needs a username and password" not in message
-
-
-def test_clone_or_update_explains_missing_ssh_repository(
-    tmp_path: Path, mock_run_git_command: Mock
-) -> None:
-    """Over SSH the error does not ask for a username and password."""
-    CORE.config_path = tmp_path / "test.yaml"
-    url = "git@github.com:test/repo.git"
-    stderr = (
-        "ERROR: Repository not found.\nfatal: Could not read from remote repository."
-    )
-    mock_run_git_command.side_effect = GitCommandError(
-        "Could not read from remote repository.", stderr=stderr
-    )
-
-    with pytest.raises(GitCommandError) as exc_info:
-        git.clone_or_update(url=url, ref=None, refresh=None, domain="test")
-
-    message = str(exc_info.value)
-    assert message.startswith(
-        f"Could not clone {url}: the repository does not exist, or the SSH key used "
-        "cannot access it. Check the owner and repository name in the source, and "
-        "the key."
-    )
 
 
 def test_clone_or_update_with_none_refresh_always_updates(

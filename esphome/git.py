@@ -179,18 +179,16 @@ def _explain_clone_failure(
     if not _MISSING_REPOSITORY_RE.search(err.stderr):
         return None
     if not url.startswith(("http://", "https://")):
-        hint = "the SSH key used cannot access it. Check {} in the source, and the key"
+        cause, check_also = "the SSH key used cannot access it", ", and the key"
     elif URL_USERINFO_RE.search(url):
-        hint = (
-            "the username and password used cannot access it. Check {} in the "
-            "source, and the credentials"
-        )
+        cause = "the username and password used cannot access it"
+        check_also = ", and the credentials"
     else:
-        hint = "it is private and needs a username and password. Check {} in the source"
+        cause, check_also = "it is private and needs a username and password", ""
     return GitCommandError(
         f"Could not clone {_redact_url_credentials(original_url)}: the repository "
-        f"does not exist, or {hint.format('the owner and repository name')}. "
-        f"Git reported: {_redact_url_credentials(str(err))}",
+        f"does not exist, or {cause}. Check the owner and repository name in the "
+        f"source{check_also}. Git reported: {_redact_url_credentials(str(err))}",
         stderr=err.stderr,
     )
 
@@ -780,11 +778,9 @@ def _clone_or_update_locked(
             try:
                 run_git_command(cmd, network=True, retry_cleanup=repo_dir)
             except GitCommandError as err:
-                if (
-                    explained := _explain_clone_failure(err, url, original_url)
-                ) is None:
-                    raise
-                raise explained from err
+                if explained := _explain_clone_failure(err, url, original_url):
+                    raise explained from err
+                raise
 
             if ref is not None:
                 # We need to fetch the PR branch first, otherwise git will complain
