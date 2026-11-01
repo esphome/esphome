@@ -907,6 +907,61 @@ TEST_F(NoiseStreamTest, AnIdleResponderPreparesTheSpareKey) {
   EXPECT_FALSE(client.up(this->client_link_));
   EXPECT_FALSE(has_spare_ephemeral());
 }
+
+#ifndef USE_API
+/// What a failed try leaves behind. The key generation cannot fail on the host, so the tests empty the slot.
+static void empty_spare_slot() { std::memset(spare_ephemeral, 0, sizeof(spare_ephemeral)); }
+
+TEST_F(NoiseStreamTest, AFailedSpareKeyTryIsNotRepeatedInEveryPass) {
+  static constexpr uint32_t START_MS = 1000;
+  static constexpr uint32_t LOOP_PASS_MS = 16;
+  // The first wait is the link's interval of 5 s, 20% shorter at most and 20% longer at most
+  static constexpr uint32_t SHORTEST_WAIT_MS = 4000;
+  static constexpr uint32_t LONGEST_WAIT_MS = 6000;
+  NoiseStream server(this->key_.data(), false);
+  this->server_link_.close();
+  empty_spare_slot();
+  at(START_MS);
+  EXPECT_FALSE(server.up(this->server_link_));
+  ASSERT_TRUE(has_spare_ephemeral());
+  empty_spare_slot();
+
+  // No new try in the next pass, nor in the last one before the shortest wait runs out
+  at(START_MS + LOOP_PASS_MS);
+  EXPECT_FALSE(server.up(this->server_link_));
+  EXPECT_FALSE(has_spare_ephemeral());
+  at(START_MS + SHORTEST_WAIT_MS - LOOP_PASS_MS);
+  EXPECT_FALSE(server.up(this->server_link_));
+  EXPECT_FALSE(has_spare_ephemeral());
+  // A listener retries on the link's clock, which this wait leaves alone
+  EXPECT_EQ(this->server_link_.attempts_, 0);
+
+  // The next try comes once the longest wait has passed
+  at(START_MS + LONGEST_WAIT_MS);
+  EXPECT_FALSE(server.up(this->server_link_));
+  EXPECT_TRUE(has_spare_ephemeral());
+  empty_spare_slot();
+}
+
+TEST_F(NoiseStreamTest, ASpareKeyWaitHoldsNoPeerBack) {
+  NoiseStream client(this->key_.data(), true);
+  NoiseStream server(this->key_.data(), false);
+  this->server_link_.close();
+  empty_spare_slot();
+  // This idle pass tries and starts the wait
+  EXPECT_FALSE(server.up(this->server_link_));
+  this->server_link_.reconnect();
+  this->pump_(client, server);
+  ASSERT_TRUE(client.ready());
+  ASSERT_TRUE(server.ready());
+  // The handshake took the key and ended the wait, so the next idle pass makes a new one
+  ASSERT_FALSE(has_spare_ephemeral());
+  this->server_link_.close();
+  EXPECT_FALSE(server.up(this->server_link_));
+  EXPECT_TRUE(has_spare_ephemeral());
+  empty_spare_slot();
+}
+#endif
 #endif
 
 }  // namespace esphome::noise::testing
