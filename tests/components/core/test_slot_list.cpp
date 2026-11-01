@@ -49,7 +49,6 @@ TEST(SlotListTest, DropsRegistrationsPastCapacity) {
 
 TEST(SlotListTest, StorageIsTheCodegenCountOfPointers) { EXPECT_EQ(sizeof(Hub), sizeof(StaticVector<Listener *, 2>)); }
 
-// A registration code generation did not count fails to compile instead of being dropped
 // A hand-written register method over a SlotList of entries
 template<size_t N> class EntryHub {
  public:
@@ -61,6 +60,7 @@ template<size_t N> class EntryHub {
   [[no_unique_address]] SlotList<int, N> entries_;
 };
 
+// A registration code generation did not count fails to compile instead of being dropped
 template<typename H>
 concept CanAddEntry = requires(H hub) { hub.add_entry(1); };
 static_assert(CanAddEntry<EntryHub<2>>);
