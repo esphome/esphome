@@ -157,7 +157,7 @@ class NoiseStream {
 
   template<typename Link> bool up_slow_(Link &link) {
     if (this->state_ == State::STATE_IDLE) {
-      if (this->holding_()) {
+      if (this->initiator_ && this->holding_()) {
         // A loop pass longer than the link's interval let it connect before the hold ran out
         link.close();
         link.note_attempt();
@@ -272,23 +272,26 @@ class NoiseStream {
       this->reset();
     }
     if (this->hold_ms_ != 0) {
-      // The link retries one interval after its last attempt, so the hold keeps that clock at now
-      if (this->holding_()) {
-        link.note_attempt();
-      } else {
+      if (!this->holding_()) {
         this->hold_ms_ = 0;
+      } else if (this->initiator_) {
+        // The link retries one interval after its last attempt, so the hold keeps that clock at now
+        link.note_attempt();
       }
     }
 #if defined(USE_NOISE_SPARE_EPHEMERAL) && !defined(USE_API)
     // With the api, APIServer::loop refills it under its connect grace
-    if (!this->initiator_ && !has_spare_ephemeral()) {
+    if (!this->initiator_ && this->hold_ms_ == 0 && !has_spare_ephemeral()) {
       // Generating the key pair cannot be split across loop passes
       UnavoidableBlockingScope scope;
       prepare_spare_ephemeral();
+      // A try that fails leaves the slot empty, so the next one waits as after a failed handshake
+      this->started_ms_ = App.get_loop_component_start_time();
+      this->hold_ms_ = this->next_retry_wait_(link.reconnect_interval());
     }
 #endif
   }
-  /// An initiator's hold after a failed handshake has not run out.
+  /// A hold has not run out: an initiator's after a failed handshake, a responder's after a try at the spare key.
   bool holding_() const { return App.get_loop_component_start_time() - this->started_ms_ < this->hold_ms_; }
   const LogString *start_();
   bool timed_out_() const;
@@ -321,11 +324,11 @@ class NoiseStream {
   NoiseCipherState *send_{nullptr};
   NoiseCipherState *recv_{nullptr};
   const char *tag_{"noise"};
-  // Start of the handshake, or of an initiator's retry hold after a failed one.
+  // Start of the handshake or of a hold.
   uint32_t started_ms_{0};
-  // Hold time past the link's own interval; 0 when no hold runs.
+  // Hold time, for an initiator past the link's own interval; 0 when no hold runs.
   uint32_t hold_ms_{0};
-  // Backoff for the next failed handshake; 0 starts at the link's interval.
+  // Backoff for the next hold; 0 starts at the link's interval.
   uint32_t backoff_ms_{0};
   // rx_ holds the frame being read, then its plaintext at [plain_off_, plain_end_).
   uint16_t rx_have_{0};
