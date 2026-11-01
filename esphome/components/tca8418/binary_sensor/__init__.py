@@ -1,3 +1,4 @@
+from esphome.automation import parent_ref
 import esphome.codegen as cg
 from esphome.components import binary_sensor
 from esphome.components.const import CONF_COLUMNS, CONF_KEYS, CONF_ROWS
@@ -11,22 +12,20 @@ from .. import (
     CONF_KEYPAD_ID,
     GPI_KEY_MAX,
     GPI_KEY_MIN,
+    KEY,
+    KEY_PUBLISHER,
     MATRIX_COLUMNS,
     MATRIX_KEY_MAX,
+    PRESSED,
     TCA8418Component,
     _ascii_string,
     _matrix_key,
-    register_listener,
     tca8418_ns,
 )
 
 DEPENDENCIES = ["tca8418"]
 
 CONF_KEY_CODE = "key_code"
-
-TCA8418BinarySensor = tca8418_ns.class_(
-    "TCA8418BinarySensor", binary_sensor.BinarySensorInitiallyOff
-)
 
 
 def _key_code(value: int) -> int:
@@ -42,7 +41,7 @@ def _key_code(value: int) -> int:
 _POSITION_MSG = f"'{CONF_ROW}' and '{CONF_COL}' must be given together"
 
 CONFIG_SCHEMA = cv.All(
-    binary_sensor.binary_sensor_schema(TCA8418BinarySensor).extend(
+    binary_sensor.binary_sensor_schema(binary_sensor.BinarySensorInitiallyOff).extend(
         {
             cv.GenerateID(CONF_KEYPAD_ID): cv.use_id(TCA8418Component),
             cv.Inclusive(CONF_ROW, "position", msg=_POSITION_MSG): cv.int_range(
@@ -136,6 +135,9 @@ FINAL_VALIDATE_SCHEMA = _final_validate
 
 
 async def to_code(config: ConfigType) -> None:
-    var = await binary_sensor.new_binary_sensor(config, config[CONF_KEY_CODE])
+    var = await binary_sensor.new_binary_sensor(config)
     keypad = await cg.get_variable(config[CONF_KEYPAD_ID])
-    await register_listener(keypad, var)
+    key_code = config[CONF_KEY_CODE]
+    KEY_PUBLISHER.add(
+        keypad, tca8418_ns.publish_key(parent_ref(var), KEY, key_code, PRESSED)
+    )

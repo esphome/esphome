@@ -125,10 +125,10 @@ void SY6970Component::update() {
     return;
   }
 
-  // Notify all listeners with the new data
-  for (auto *listener : this->listeners_) {
-    listener->on_data(this->data_);
-  }
+#ifdef USE_SY6970_DATA_PUBLISHER
+  if (this->data_publisher_ != nullptr)
+    this->data_publisher_(this->data_);
+#endif
 }
 
 void SY6970Component::set_input_current_limit(uint16_t milliamps) {
