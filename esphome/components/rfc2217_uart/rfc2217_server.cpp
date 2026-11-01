@@ -55,7 +55,7 @@ void Rfc2217Server::on_link(bool up) {
     this->restore_line_();
   }
   // The driver kept whatever arrived while the link was down.
-  this->discard_serial_();
+  this->discard_available();
 }
 
 void Rfc2217Server::deliver(const uint8_t *data, size_t len) {
@@ -80,30 +80,16 @@ void Rfc2217Server::write_serial_() {
 }
 
 void Rfc2217Server::read_serial_() {
-  uint8_t raw[READ_CHUNK];
-  uint8_t out[2 * READ_CHUNK];
-  while (true) {
-    // Every byte may double.
-    const size_t want = std::min({this->available(), this->tcp_->available_for_write() / 2, READ_CHUNK});
-    if (want == 0 || !this->read_array(raw, want)) {
-      return;
-    }
+  // Every byte may double, so a chunk goes only with twice its size of room in the link.
+  if (this->tcp_->available_for_write() < 2 * READ_CHUNK) {
+    return;
+  }
+  this->read_available_chunks<READ_CHUNK>([this](const uint8_t *raw, size_t len) {
+    uint8_t out[2 * READ_CHUNK];
     size_t used = 0;
-    this->write_tcp_(out, telnet_escape(raw, want, out, sizeof(out), &used));
-  }
-}
-
-void Rfc2217Server::discard_serial_() {
-  // Drain exactly what is buffered; later bytes are live.
-  uint8_t dump[READ_CHUNK];
-  size_t left = this->available();
-  while (left != 0) {
-    const size_t n = std::min(left, sizeof(dump));
-    if (!this->read_array(dump, n)) {
-      return;
-    }
-    left -= n;
-  }
+    this->write_tcp_(out, telnet_escape(raw, len, out, sizeof(out), &used));
+    return this->tcp_->available_for_write() >= 2 * READ_CHUNK;
+  });
 }
 
 Rfc2217Server::Line Rfc2217Server::line_() const {
@@ -296,7 +282,7 @@ void Rfc2217Server::on_command(uint8_t code, const uint8_t *value, size_t len) {
       }
       // 1 purges the bytes from the UART for the client, 2 those for the UART not yet written.
       if (v & 1) {
-        this->discard_serial_();
+        this->discard_available();
       }
       if (v & 2) {
         this->to_serial_len_ = 0;

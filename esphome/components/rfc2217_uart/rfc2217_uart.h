@@ -157,7 +157,6 @@ class Rfc2217Server : public Rfc2217Base, public uart::UARTDevice {
   bool tx_idle_();
   void write_serial_();
   void read_serial_();
-  void discard_serial_();
   size_t payload_room() override { return TO_SERIAL_SIZE - this->to_serial_len_; }
   void deliver(const uint8_t *data, size_t len) override;
   void on_command(uint8_t code, const uint8_t *value, size_t len) override;

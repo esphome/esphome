@@ -392,6 +392,58 @@ TEST(Rfc2217Server, AllUartBytesMoveInOnePass) {
   EXPECT_EQ(serial.rx_n_, 0u);
 }
 
+TEST(Rfc2217Server, UartBytesWaitForRoomInTheLink) {
+  // A chunk is 128 bytes and every byte may double.
+  static constexpr size_t ROOM_FOR_ONE_CHUNK = 256;
+  Pipe pipe;
+  FakeSerial serial;
+  Server server(&pipe, &serial);
+  accept(pipe, server);
+  pipe.room_ = ROOM_FOR_ONE_CHUNK - 1;
+  const uint8_t data[] = {0x41, 0x42};
+  serial.feed(data, sizeof(data));
+  server.loop();
+  EXPECT_EQ(pipe.n_, 0u);
+  EXPECT_EQ(serial.rx_n_, sizeof(data));
+  pipe.room_ = ROOM_FOR_ONE_CHUNK;
+  server.loop();
+  expect_only(pipe, data);
+  EXPECT_EQ(serial.rx_n_, 0u);
+}
+
+TEST(Rfc2217Server, DoubledUartBytesStopAtTheRoomOfTheLink) {
+  // A link whose room shrinks by what is written, as the real one does until it sends.
+  class FillingPipe : public Pipe {
+   public:
+    void write_array(const uint8_t *data, size_t len) override {
+      Pipe::write_array(data, len);
+      this->room_ -= len;
+    }
+  };
+  static constexpr size_t ROOM = 1024;
+  // Half of the room, as every byte goes out doubled.
+  static constexpr size_t BYTES_THAT_FIT = ROOM / 2;
+  static constexpr size_t BYTES_LEFT = 100;
+  FillingPipe pipe;
+  FakeSerial serial;
+  Server server(&pipe, &serial);
+  accept(pipe, server);
+  pipe.room_ = ROOM;
+  // Erased flash reads as nothing but 0xFF.
+  uint8_t data[BYTES_THAT_FIT + BYTES_LEFT];
+  std::memset(data, 0xFF, sizeof(data));
+  serial.feed(data, sizeof(data));
+  server.loop();
+  EXPECT_EQ(pipe.n_, ROOM);
+  EXPECT_EQ(serial.rx_n_, BYTES_LEFT);
+  // The link sent it all: the rest follows.
+  pipe.clear();
+  pipe.room_ = ROOM;
+  server.loop();
+  EXPECT_EQ(pipe.n_, 2 * BYTES_LEFT);
+  EXPECT_EQ(serial.rx_n_, 0u);
+}
+
 TEST(Rfc2217Server, WritesArePacedToTheUartRoom) {
   Pipe pipe;
   FakeSerial serial;
