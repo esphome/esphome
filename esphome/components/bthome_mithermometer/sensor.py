@@ -73,8 +73,8 @@ async def to_code(config: ConfigType) -> None:
     await setup_bthome_mithermometer(var, config)
 
     sensors = sensor.sub_sensors(config)
-    await sensors(CONF_TEMPERATURE, var.set_temperature)
-    await sensors(CONF_HUMIDITY, var.set_humidity)
-    await sensors(CONF_BATTERY_LEVEL, var.set_battery_level)
-    await sensors(CONF_BATTERY_VOLTAGE, var.set_battery_voltage)
-    await sensors(CONF_SIGNAL_STRENGTH, var.set_signal_strength)
+    await sensors(CONF_TEMPERATURE, var.set_temperature_sensor)
+    await sensors(CONF_HUMIDITY, var.set_humidity_sensor)
+    await sensors(CONF_BATTERY_LEVEL, var.set_battery_level_sensor)
+    await sensors(CONF_BATTERY_VOLTAGE, var.set_battery_voltage_sensor)
+    await sensors(CONF_SIGNAL_STRENGTH, var.set_signal_strength_sensor)

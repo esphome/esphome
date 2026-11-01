@@ -8,6 +8,7 @@ logger:
 
 host:
   mac_address: "62:23:45:AF:B3:DD"
+  use_address: 10.0.0.1
 
 esphome:
   on_boot:

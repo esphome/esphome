@@ -28,12 +28,15 @@ from esphome.const import (
 )
 from esphome.core import CORE, ID, KEY_CONTROLLER_REGISTRY_CONTROLLERS, config
 from esphome.core.config import (
+    CONF_LOOP_INTERVAL,
     CONF_RELATION,
     CONF_SUSPEND_LOOP,
+    DEFAULT_LOOP_INTERVAL,
     DEVICE_RELATIONS,
     SBOM_SCHEMA,
     SHARED_DEVICE_RELATION_DEFINES,
     Area,
+    get_loop_interval,
     make_app_name_cpp,
     preload_core_config,
     valid_include,
@@ -41,6 +44,7 @@ from esphome.core.config import (
     validate_area_config,
     validate_hostname,
 )
+import esphome.final_validate as fv
 
 from .common import load_config_from_fixture, load_config_from_yaml
 
@@ -207,15 +211,19 @@ async def test_app_is_default_initialized(
 @pytest.mark.asyncio
 @pytest.mark.parametrize(
     ("toolchain", "expected"),
-    [(Toolchain.PLATFORMIO, True), (Toolchain.ESP_IDF, False)],
+    [
+        (Toolchain.PLATFORMIO, True),
+        (Toolchain.ESP_IDF, False),
+        (Toolchain.SDK_NRF, False),
+    ],
 )
-async def test_no_exceptions_flag_skipped_on_native_idf(
+async def test_no_exceptions_flag_skipped_on_native_cmake_builds(
     yaml_file: Callable[[str], Path],
     toolchain: Toolchain,
     expected: bool,
 ) -> None:
-    """Native ESP-IDF drops -fno-exceptions from build_flags and sets it
-    itself, so core does not add it there."""
+    """Native ESP-IDF and Zephyr drop -fno-exceptions from build_flags and
+    set it themselves, so core does not add it there."""
     result = load_config_from_fixture(yaml_file, "valid_area_device.yaml", FIXTURES_DIR)
     assert result is not None
     CORE.toolchain = toolchain
@@ -319,6 +327,22 @@ def test_loop_interval_warn_esp32(
         "wake every 2400ms. Raise esp32.watchdog_timeout to sleep longer."
         in caplog.text
     )
+
+
+@pytest.mark.parametrize(
+    ("esphome_config", "expected_ms"),
+    [
+        ({}, DEFAULT_LOOP_INTERVAL.total_milliseconds),
+        ({CONF_LOOP_INTERVAL: cv.positive_time_period_milliseconds("100ms")}, 100),
+    ],
+)
+def test_get_loop_interval(esphome_config: dict[str, Any], expected_ms: int) -> None:
+    """The configured loop_interval, or Application's default when none is set."""
+    token = fv.full_config.set({CONF_ESPHOME: esphome_config})
+    try:
+        assert get_loop_interval().total_milliseconds == expected_ms
+    finally:
+        fv.full_config.reset(token)
 
 
 @pytest.mark.parametrize(
