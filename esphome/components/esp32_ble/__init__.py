@@ -18,6 +18,7 @@ from esphome.components.const import CONF_USE_PSRAM
 from esphome.components.esp32 import (
     ROM_SSCANF_VARIANTS,
     add_idf_sdkconfig_option,
+    add_src_cmake,
     const,
     get_esp32_variant,
     idf_version,
@@ -295,6 +296,19 @@ __all__ = [
 
 NO_BLUETOOTH_VARIANTS = [const.VARIANT_ESP32S2]
 
+# Give bluedroid_hex_wraps.cpp Bluedroid's private headers so its ESP-IDF drift
+# checks compile; the bt target's include dirs are read at generate time. Only
+# the native ESP-IDF toolchain generates src/CMakeLists.txt.
+BLUEDROID_HEADERS_CMAKE = """\
+idf_component_get_property(esphome_bt_lib bt COMPONENT_LIB)
+set_source_files_properties(
+    "${CMAKE_CURRENT_SOURCE_DIR}/esphome/components/esp32_ble/bluedroid_hex_wraps.cpp"
+    PROPERTIES
+        INCLUDE_DIRECTORIES "$<TARGET_PROPERTY:${esphome_bt_lib},INCLUDE_DIRECTORIES>"
+        COMPILE_DEFINITIONS USE_ESP32_BLE_BLUEDROID_HEADERS
+)
+"""
+
 esp32_ble_ns = cg.esphome_ns.namespace("esp32_ble")
 ESP32BLE = esp32_ble_ns.class_("ESP32BLE", cg.Component)
 
@@ -557,6 +571,7 @@ async def to_code(config: ConfigType) -> None:
             cg.add_build_flag(f"-Wl,--wrap={symbol}")
             # libsrc.a is scanned before libbt.a, so pull the wrap in explicitly
             cg.add_build_flag(f"-Wl,--undefined=__wrap_{symbol}")
+        add_src_cmake(BLUEDROID_HEADERS_CMAKE)
 
     # When PSRAM and BT are used together, Bluedroid should prefer SPIRAM for
     # heap allocations and use dynamic (heap-based) environment memory tables

@@ -7,6 +7,8 @@ from pathlib import Path
 
 import pytest
 
+from esphome.components.esp32.const import KEY_ESP32, KEY_SRC_CMAKE
+from esphome.components.esp32_ble import BLUEDROID_HEADERS_CMAKE
 from esphome.core import CORE
 
 _WRAP_FLAGS = {
@@ -48,3 +50,5 @@ def test_wraps_only_on_newlib_idf_without_rom_sscanf(
     assert CORE.build_flags & _WRAP_FLAGS == (_WRAP_FLAGS if expected else set())
     defines = {define.name for define in CORE.defines}
     assert ("USE_ESP32_BLE_BLUEDROID_HEX_WRAPS" in defines) is expected
+    # The drift checks need Bluedroid's private headers
+    assert (BLUEDROID_HEADERS_CMAKE in CORE.data[KEY_ESP32][KEY_SRC_CMAKE]) is expected
