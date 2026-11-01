@@ -573,9 +573,9 @@ async def to_code(config):
         cg.add(var.set_task_stack_in_psram(True))
         psram.request_external_task_stack()
 
-    esp32.add_idf_component(name="espressif/esp-tflite-micro", ref="1.3.3~1")
+    esp32.add_idf_component(name="espressif/esp-tflite-micro", ref="1.4.1")
     # Pin esp-nn for stable future builds (esp-tflite-micro depends on esp-nn)
-    esp32.add_idf_component(name="espressif/esp-nn", ref="1.1.2")
+    esp32.add_idf_component(name="espressif/esp-nn", ref="1.4.2")
 
     esp32.add_idf_component(name="esphome/esp-micro-speech-features", ref="1.2.3")
 
