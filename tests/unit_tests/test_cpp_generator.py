@@ -986,6 +986,32 @@ def test_static_function_declares_early_and_defines_after_includes() -> None:
     ]
 
 
+def test_static_function_declaration_sink() -> None:
+    declarations: list[cg.Statement] = []
+    cg.static_function(
+        "esphome__act__fn", ct.void, [], ["return;"], declarations.append
+    )
+    assert [str(st) for st in declarations] == ["static void esphome__act__fn();"]
+    assert CORE.global_statements == []
+
+
+def test_late_pvariable_is_created_where_declared() -> None:
+    """A late variable is registered at once and emitted in its place, like new_Pvariable."""
+    id_ = ID("late", is_declaration=True, type=ct.esphome_ns.class_("Late"))
+    late = cg.LatePvariable(id_)
+    assert CORE.variables[id_] is late.var
+    CORE.add_global(cg.RawStatement("int after;"))
+    cg.add(cg.RawStatement("after();"))
+    late.global_slot.add(cg.RawStatement("int before_late;"))
+    late.define(ct.esphome_ns.class_("Final"), cg.TemplateArguments(ct.int32), 5)
+    assert str(id_.type) == "Final<int32_t>"
+    globals_ = CORE.cpp_global_section
+    assert globals_.index("Final<int32_t> *const late") < globals_.index("int after;")
+    main = CORE.cpp_main_section
+    assert main.index("new(late) Final<int32_t>(5);") < main.index("after();")
+    assert cg.is_static_pointer(late.var)
+
+
 def test_add_global_after_includes_rejects_non_statements() -> None:
     with pytest.raises(ValueError, match="must be expression or statement"):
         CORE.add_global_after_includes("not a statement")

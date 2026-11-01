@@ -1,3 +1,5 @@
+from collections.abc import Callable
+from dataclasses import dataclass, field
 from typing import Any
 
 from esphome import automation
@@ -12,12 +14,14 @@ from esphome.types import ConfigType
 CODEOWNERS = ["@esphome/core"]
 DOMAIN = "script"
 script_ns = cg.esphome_ns.namespace("script")
-Script = script_ns.class_("Script", automation.Trigger.template())
+Script = script_ns.class_("Script")
+AutomationScript = script_ns.class_(
+    "AutomationScript", Script, automation.Trigger.template()
+)
+FunctionBody = script_ns.class_("FunctionBody", Script)
+FunctionScript = script_ns.class_("FunctionScript", Script)
+FunctionPointerScript = script_ns.class_("FunctionPointerScript", Script)
 ScriptWaitAction = script_ns.class_("ScriptWaitAction", automation.Action, cg.Component)
-SingleScript = script_ns.class_("SingleScript", Script)
-RestartScript = script_ns.class_("RestartScript", Script)
-QueueingScript = script_ns.class_("QueueingScript", Script, cg.Component)
-ParallelScript = script_ns.class_("ParallelScript", Script)
 
 CONF_SINGLE = "single"
 CONF_QUEUED = "queued"
@@ -25,12 +29,38 @@ CONF_PARALLEL = "parallel"
 CONF_MAX_RUNS = "max_runs"
 CONF_SCRIPT_STOP = "script.stop"
 
-SCRIPT_MODES = {
-    CONF_SINGLE: SingleScript,
-    CONF_RESTART: RestartScript,
-    CONF_QUEUED: QueueingScript,
-    CONF_PARALLEL: ParallelScript,
+
+def _mode(
+    name: str, *parents: cg.MockObjClass
+) -> tuple[cg.MockObjClass, cg.MockObjClass]:
+    """The class of a mode with an Automation, and its template on the class that runs."""
+    return (
+        script_ns.class_(f"{name}Script", AutomationScript, *parents),
+        script_ns.class_(f"{name}Mode", Script, *parents),
+    )
+
+
+MODES = {
+    CONF_SINGLE: _mode("Single"),
+    CONF_RESTART: _mode("Restart"),
+    CONF_QUEUED: _mode("Queueing", cg.Component),
+    CONF_PARALLEL: _mode("Parallel"),
 }
+SCRIPT_MODES = {mode: classes[0] for mode, classes in MODES.items()}
+
+
+@dataclass
+class ScriptData:
+    # By script id: the class script.wait is templated on, or the script.wait actions to
+    # create once the script's class is known
+    waits: dict[str, cg.MockObj | list[Callable[[cg.MockObj], None]]] = field(
+        default_factory=dict
+    )
+
+
+def _data() -> ScriptData:
+    return CORE.data.setdefault(DOMAIN, ScriptData())
+
 
 PARAMETER_TYPE_TRANSLATIONS = {
     "string": "std::string",
@@ -98,9 +128,23 @@ def parameters_to_template(args):
 
 def validate_parameter_name(value):
     value = cv.string(value)
-    if value != CONF_ID:
-        return value
-    raise cv.Invalid(f"Script's parameter name cannot be {CONF_ID}")
+    if value == CONF_ID:
+        raise cv.Invalid(f"Script's parameter name cannot be {CONF_ID}")
+    return value
+
+
+def validate_parameter_names(value: Any) -> Any:
+    """Reject reserved parameter names here: as dict keys of a schema they would only be
+    reported as "extra keys not allowed"."""
+    if isinstance(value, dict):
+        for name in value:
+            # Generated C++ code names its own variables like this
+            if str(name).startswith("esphome__"):
+                raise cv.Invalid(
+                    "Names starting with 'esphome__' are reserved for generated code",
+                    path=[name],
+                )
+    return value
 
 
 ALLOWED_PARAM_TYPE_CHARSET = set("abcdefghijklmnopqrstuvwxyz0123456789_:*&[]<>")
@@ -170,10 +214,9 @@ CONFIG_SCHEMA = cv.All(
                 *SCRIPT_MODES, lower=True
             ),
             cv.Optional(CONF_MAX_RUNS): cv.int_range(min=0, max=100),
-            cv.Optional(CONF_PARAMETERS, default={}): cv.Schema(
-                {
-                    validate_parameter_name: validate_parameter_type,
-                }
+            cv.Optional(CONF_PARAMETERS, default={}): cv.All(
+                validate_parameter_names,
+                cv.Schema({validate_parameter_name: validate_parameter_type}),
             ),
             cv.Optional(CONF_ON_STOP): automation.validate_automation(single=True),
         },
@@ -183,28 +226,56 @@ CONFIG_SCHEMA = cv.All(
 
 
 async def to_code(config):
-    # Register all variables first, so that scripts can use other scripts
-    triggers = []
+    # Register all variables first, so that scripts can use other scripts. Each is created
+    # once its actions are built, which decides its class, in the place it was declared.
+    waits = _data().waits
+    scripts = []
     for conf in config:
         template, func_args = parameters_to_template(conf[CONF_PARAMETERS])
-        trigger = cg.new_Pvariable(conf[CONF_ID], template)
+        id_ = conf[CONF_ID].copy()
+        id_.type = id_.type.template(template)
+        late = cg.LatePvariable(id_)
+        waits[id_.id] = []
+        script = late.var
         # Add a human-readable name to the script
-        cg.add(trigger.set_name(cg.LogStringLiteral(conf[CONF_ID].id)))
+        cg.add(script.set_name(cg.LogStringLiteral(id_.id)))
 
         if CONF_MAX_RUNS in conf:
-            cg.add(trigger.set_max_runs(conf[CONF_MAX_RUNS]))
+            cg.add(script.set_max_runs(conf[CONF_MAX_RUNS]))
 
-        if conf[CONF_MODE] == CONF_QUEUED:
-            await cg.register_component(trigger, conf)
+        if queued := conf[CONF_MODE] == CONF_QUEUED:
+            await cg.register_component(script, conf)
 
-        triggers.append((trigger, func_args, conf))
+        scripts.append((late, template, func_args, conf, queued))
 
     if any(CONF_ON_STOP in conf for conf in config):
         cg.add_define("USE_SCRIPT_ON_STOP")
-    for trigger, func_args, conf in triggers:
-        await automation.build_automation(trigger, func_args, conf)
+    for late, template, func_args, conf, queued in scripts:
+        # The class or its constructor names the function, so it is declared in the script's place
+        fn = await automation.build_automation_or_run_function(
+            late.var, func_args, conf, late.global_slot.add
+        )
+        script_class = wait_class = late.id.type
+        ctor_args = []
+        if fn is not None:
+            wait_class = MODES[conf[CONF_MODE]][1].template(
+                FunctionBody.template(template), *template
+            )
+            if queued:
+                # One class for all of them: a per-script class would also copy the
+                # Component vtable, which costs more flash than the pointer's RAM
+                script_class = FunctionPointerScript.template(wait_class, *template)
+                ctor_args = [fn]
+            else:
+                script_class = FunctionScript.template(wait_class, fn, *template)
+        late.define(script_class, *ctor_args)
+        for create_wait in waits[late.id.id]:
+            create_wait(wait_class)
+        waits[late.id.id] = wait_class
         if (stop_conf := conf.get(CONF_ON_STOP)) is not None:
-            await automation.build_automation(trigger.get_stop_trigger(), [], stop_conf)
+            await automation.build_automation(
+                late.var.get_stop_trigger(), [], stop_conf
+            )
 
 
 @automation.register_action(
@@ -291,8 +362,25 @@ automation.register_apply_action(
 )
 async def script_wait_action_to_code(config, action_id, template_arg, args):
     full_id, paren = await cg.get_variable_with_full_id(config[CONF_ID])
-    template_arg = cg.TemplateArguments(full_id.type, *template_arg)
-    var = cg.new_Pvariable(action_id, template_arg, paren)
+    script_waits = _data().waits[full_id.id]
+    pending = isinstance(script_waits, list)
+    # Created where it is built, once the class of the script it waits for is known
+    id_ = action_id.copy()
+    id_.type = id_.type.template(
+        full_id.type if pending else script_waits, *template_arg
+    )
+    late = cg.LatePvariable(id_)
+
+    def create(script_class: cg.MockObj) -> None:
+        late.define(
+            action_id.type, cg.TemplateArguments(script_class, *template_arg), paren
+        )
+
+    if pending:
+        script_waits.append(create)
+    else:
+        create(script_waits)
+    var = late.var
     await cg.register_component(var, {})
     return var
 
