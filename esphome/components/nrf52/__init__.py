@@ -426,12 +426,12 @@ async def to_code(config: ConfigType) -> None:
     board_id = short_board_name(config[CONF_BOARD])
     # Zephyr is a preemptive RTOS: BLE, Thread, USB and workqueue callbacks
     # run in other threads, so the scheduler must be thread-safe.
-    if board_id == "bbc_microbit":
-        # micro:bit v1 is an nRF51822 (Cortex-M0, ARMv6-M) without LDREX/STREX;
+    if get_current_board_info().get("variant", "").startswith("NRF51"):
+        # nRF51 (Cortex-M0, ARMv6-M, such as the micro:bit v1) has no LDREX/STREX;
         # std::atomic RMW would need libatomic, so use k_mutex-based locking.
         cg.add_define(ThreadModel.MULTI_NO_ATOMICS)
     else:
-        # nRF52 (Cortex-M4) has LDREX/STREX
+        # nRF52 (Cortex-M4) and nRF54 have LDREX/STREX
         cg.add_define(ThreadModel.MULTI_ATOMICS)
     if CORE.using_toolchain_platformio:
         cg.add_platformio_option("board", config[CONF_BOARD])
