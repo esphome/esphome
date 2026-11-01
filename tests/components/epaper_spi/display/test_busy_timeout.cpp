@@ -103,6 +103,7 @@ class WaveshareBusyFlow : public ::testing::Test {
     this->panel_.*WaveshareAccess::DELEGATE = &this->bus_;
     this->panel_.set_dc_pin(&this->dc_);
     this->panel_.set_busy_pin(&this->busy_);
+    this->panel_.set_reset_pin(&this->reset_);
   }
 
   void TearDown() override { this->transition_(EPaperState::IDLE); }
@@ -127,6 +128,10 @@ TEST_F(WaveshareBusyFlow, InitialisationStartsBeforeBusyAndWaitsAfterEachCommand
   this->busy_.busy = true;
   this->transition_(EPaperState::RESET);
   this->step_();
+  ASSERT_EQ(this->state_(), EPaperState::RESET_END);
+  this->step_();
+  ASSERT_EQ(this->state_(), EPaperState::RESET_END);
+  this->step_();
   ASSERT_EQ(this->state_(), EPaperState::INITIALISE);
   ASSERT_FALSE(this->waiting_());
   this->step_();
@@ -148,7 +153,6 @@ TEST_F(WaveshareBusyFlow, InitialisationStartsBeforeBusyAndWaitsAfterEachCommand
 }
 
 TEST_F(WaveshareBusyFlow, HardwareResetCompletionSkipsTheInitialBusyWait) {
-  this->panel_.set_reset_pin(&this->reset_);
   this->busy_.busy = true;
   this->transition_(EPaperState::RESET);
   this->step_();

@@ -1,5 +1,10 @@
 import esphome.config_validation as cv
-from esphome.const import CONF_BUSY_PIN, CONF_INVERTED
+from esphome.const import (
+    CONF_BUSY_PIN,
+    CONF_INVERTED,
+    CONF_RESET_DURATION,
+    CONF_RESET_PIN,
+)
 from esphome.types import ConfigType
 
 from . import EpaperModel
@@ -9,7 +14,7 @@ class Waveshare3P97InG(EpaperModel):
     source_files = ("epaper_waveshare_3p97_g.cpp",)
 
     def option(self, name, fallback=cv.UNDEFINED) -> cv.Optional | cv.Required:
-        if name == CONF_BUSY_PIN:
+        if name in (CONF_BUSY_PIN, CONF_RESET_PIN):
             return cv.Required(name)
         return super().option(name, fallback)
 
@@ -20,9 +25,18 @@ class Waveshare3P97InG(EpaperModel):
                 "replace the bare GPIO with {number: GPIOxx, inverted: true}",
                 path=[CONF_BUSY_PIN, CONF_INVERTED],
             )
+        if CONF_RESET_DURATION in config:
+            raise cv.Invalid(
+                f"{self.name} uses a fixed 200 ms reset settle; "
+                f"remove {CONF_RESET_DURATION}",
+                path=[CONF_RESET_DURATION],
+            )
         return config
 
 
+# The panel only wakes from deep sleep with a hardware reset, so reset_pin is
+# required. The reset settle is fixed at 200 ms per the vendor sample.
+#
 # Vendor init derived from the Waveshare 3.97inch E-Paper Display (G) sample.
 # The 0x61 payload is deliberately 800x680; it must not be derived from the
 # logical 800x480 display dimensions.

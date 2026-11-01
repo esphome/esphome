@@ -28,10 +28,7 @@ void EPaperWaveshare3P97InG::fill(Color color) {
 
   const auto pixel_color = static_cast<uint8_t>(color_to_native(color));
   this->buffer_.fill(pixel_color | (pixel_color << 2) | (pixel_color << 4) | (pixel_color << 6));
-  this->x_low_ = 0;
-  this->y_low_ = 0;
-  this->x_high_ = this->width_;
-  this->y_high_ = this->height_;
+  this->mark_all_drawn_();
 }
 
 void HOT EPaperWaveshare3P97InG::draw_pixel_at(int x, int y, Color color) {
@@ -47,27 +44,20 @@ void HOT EPaperWaveshare3P97InG::draw_pixel_at(int x, int y, Color color) {
 }
 
 bool EPaperWaveshare3P97InG::reset() {
-  if (this->reset_pin_ == nullptr) {
-    this->step_ = Step::INIT_SEQUENCE;
-    // No reset pulse was sent, so the panel is still busy; skip the wait before the init sequence
-    this->skip_next_idle_wait_();
-    return true;
-  }
-
   if (this->state_ == EPaperState::RESET)
     this->step_ = Step::RESET_HIGH;
 
   switch (this->step_) {
     case Step::RESET_HIGH:
       this->reset_pin_->digital_write(true);
-      this->reset_duration_ = 200;
+      this->reset_duration_ = RESET_SETTLE_MS;
       this->step_ = Step::RESET_LOW;
       return false;
     case Step::RESET_LOW:
       this->reset_pin_->digital_write(false);
       delay(2);
       this->reset_pin_->digital_write(true);
-      this->reset_duration_ = 200;
+      this->reset_duration_ = RESET_SETTLE_MS;
       this->step_ = Step::RESET_SETTLE;
       return false;
     case Step::RESET_SETTLE:
