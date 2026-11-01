@@ -119,6 +119,7 @@
 #define USE_I2S_AUDIO_SPDIF_MODE
 #define USE_IMAGE
 #define USE_IMPROV_BLE_STATE_CALLBACK
+#define USE_INA226_ALERT
 #define USE_INA3221_ALERT_LIMITS
 #define USE_INA3221_SUMMATION
 #define USE_INFRARED
@@ -844,7 +845,6 @@
 #define USE_SERIAL_PROXY_HOST_UART
 // Host only: the uart arm would shadow the native logger UART arms in other envs
 #define USE_IMPROV_SERIAL_UART
-#define USE_INA226_ALERT
 #define USE_SOCKET_IMPL_BSD_SOCKETS
 #define USE_ESPHOME_TASK_LOG_BUFFER
 #define ESPHOME_TASK_LOG_BUFFER_SIZE 64
