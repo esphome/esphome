@@ -35,7 +35,6 @@ _ESP32_WP_PIN_DISABLED = 0xEE
 
 _UF2_MAGIC_HEAD = struct.pack("<2I", 0x0A324655, 0x9E5D5157)
 _UF2_FLAG_FAMILY_ID = 0x2000
-_UF2_FAMILY_RTL8710B = 0x22E0D6FC
 # LibreTiny family IDs (families.json in libretiny-eu/libretiny)
 _UF2_FAMILIES = {
     0xAFE81D49: PLATFORM_BK72XX,  # BK7231Q
@@ -44,7 +43,7 @@ _UF2_FAMILIES = {
     0x159AC324: PLATFORM_BK72XX,  # BK7238
     0x6A82CC42: PLATFORM_BK72XX,  # BK7251
     0xA38090A8: PLATFORM_LN882X,  # LN882H
-    _UF2_FAMILY_RTL8710B: PLATFORM_RTL87XX,
+    0x22E0D6FC: PLATFORM_RTL87XX,  # RTL8710B
     0xE08F7564: PLATFORM_RTL87XX,  # RTL8720C
 }
 
@@ -79,21 +78,6 @@ _FACTORY_PARTITION_TABLE_OFFSET = 0x8000
 _FACTORY_APP_OFFSET = 0x10000
 
 
-def _uf2_family(image: bytes) -> int | None:
-    """The family ID of a UF2 image, or None when it is not one or has none."""
-    if len(image) < 32 or image[:8] != _UF2_MAGIC_HEAD:
-        return None
-    (flags,) = struct.unpack_from("<I", image, 8)
-    if not flags & _UF2_FLAG_FAMILY_ID:
-        return None
-    return struct.unpack_from("<I", image, 28)[0]
-
-
-def is_rtl8710b_image(image: bytes) -> bool:
-    """Whether the image is a LibreTiny UF2 for the RTL8710B (AmebaZ)."""
-    return _uf2_family(image) == _UF2_FAMILY_RTL8710B
-
-
 def is_partition_table(image: bytes) -> bool:
     """Whether the image starts with an ESP32 partition table entry."""
     return image[:2] == _ESP_PARTITION_MAGIC_BYTES
@@ -122,8 +106,10 @@ def detect_platform(image: bytes) -> str | None:
     if is_partition_table(image):
         return PLATFORM_ESP32
     if len(image) >= 32 and image[:8] == _UF2_MAGIC_HEAD:
-        family = _uf2_family(image)
-        return None if family is None else _UF2_FAMILIES.get(family)
+        (flags,) = struct.unpack_from("<I", image, 8)
+        if not flags & _UF2_FLAG_FAMILY_ID:
+            return None
+        return _UF2_FAMILIES.get(struct.unpack_from("<I", image, 28)[0])
     if (
         len(image) >= _RP2040_BOOT2_SIZE + 4
         and _crc32_mpeg2(image[:_RP2040_BOOT2_SIZE])

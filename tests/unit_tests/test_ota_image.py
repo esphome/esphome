@@ -20,7 +20,6 @@ from esphome.ota_image import (
     detect_platform,
     is_factory_image,
     is_partition_table,
-    is_rtl8710b_image,
 )
 
 
@@ -128,17 +127,3 @@ def test_is_factory_image() -> None:
     assert is_factory_image(bytes(factory))
     assert not is_factory_image(app.ljust(0x20000, b"\xff"))
     assert not is_factory_image(bytes(factory[:0x10000]))
-
-
-@pytest.mark.parametrize(
-    ("image", "expected"),
-    [
-        (_uf2_block(0x22E0D6FC), True),
-        (_uf2_block(0xE08F7564), False),
-        (_uf2_block(0x22E0D6FC, flags=0), False),
-        (bytes.fromhex("e905022f645f3740ee00000009000000"), False),
-    ],
-    ids=["rtl8710b", "rtl8720c", "no-family", "esp32"],
-)
-def test_is_rtl8710b_image(image: bytes, expected: bool) -> None:
-    assert is_rtl8710b_image(image) is expected

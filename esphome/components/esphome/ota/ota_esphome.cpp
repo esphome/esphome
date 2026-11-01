@@ -197,6 +197,9 @@ void ESPHomeOTAComponent::loop() {
   this->handle_handshake_();
 }
 
+// Deflate for an RTL8710B image: 2026.10 firmware does not know this bit, and
+// there LibreTiny corrupts a deflate upload into OTA2 (esphome#22012)
+static constexpr uint8_t CLIENT_FEATURE_SUPPORTS_DEFLATE_RTL8710B = 0x40;
 static constexpr uint8_t CLIENT_FEATURE_SUPPORTS_COMPRESSION = 0x01;
 static constexpr uint8_t CLIENT_FEATURE_SUPPORTS_SHA256_AUTH = 0x02;
 static constexpr uint8_t CLIENT_FEATURE_SUPPORTS_EXTENDED_PROTOCOL = 0x04;
@@ -205,9 +208,6 @@ static constexpr uint8_t CLIENT_FEATURE_SUPPORTS_DEFLATE = 0x10;
 #ifdef ESPHOME_OTA_UDP
 static constexpr uint8_t CLIENT_FEATURE_SUPPORTS_UDP = 0x20;
 #endif
-// Deflate for an RTL8710B image: 2026.10 firmware does not know this bit, and
-// there LibreTiny corrupts a deflate upload into OTA2 (esphome#22012)
-static constexpr uint8_t CLIENT_FEATURE_SUPPORTS_DEFLATE_RTL8710B = 0x40;
 // Noise needs the extended protocol: the prologue binds the 2-byte feature ack
 static constexpr uint8_t CLIENT_NOISE_FEATURES =
     CLIENT_FEATURE_SUPPORTS_NOISE | CLIENT_FEATURE_SUPPORTS_EXTENDED_PROTOCOL;

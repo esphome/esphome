@@ -27,7 +27,6 @@ from esphome.const import (
 )
 from esphome.core import EsphomeError
 from esphome.helpers import ProgressBar, resolve_ip_address
-from esphome.ota_image import is_rtl8710b_image
 from esphome.types import ConfigType
 
 # The esphome OTA platform's default port on each target platform
@@ -94,9 +93,6 @@ CLIENT_FEATURE_SUPPORTS_EXTENDED_PROTOCOL = 0x04
 CLIENT_FEATURE_SUPPORTS_NOISE = 0x08
 CLIENT_FEATURE_SUPPORTS_DEFLATE = 0x10
 CLIENT_FEATURE_SUPPORTS_UDP = 0x20
-# Sent instead of CLIENT_FEATURE_SUPPORTS_DEFLATE for an RTL8710B image: 2026.10
-# firmware does not know it, and there LibreTiny corrupts a deflate upload
-CLIENT_FEATURE_SUPPORTS_DEFLATE_RTL8710B = 0x40
 SERVER_FEATURE_SUPPORTS_COMPRESSION = 0x01
 SERVER_FEATURE_SUPPORTS_PARTITION_ACCESS = 0x02
 SERVER_FEATURE_SUPPORTS_NOISE = 0x04
@@ -106,6 +102,32 @@ SERVER_FEATURE_SUPPORTS_UDP = 0x10
 
 # Wire constant: the deflate bit promises a 4 KB window (OTA_INFLATE_WINDOW_SIZE)
 DEFLATE_WINDOW_BITS = 12
+
+# Asks for deflate in place of CLIENT_FEATURE_SUPPORTS_DEFLATE for an RTL8710B
+# image. 2026.10 firmware does not know it: there an upstream issue corrupts a
+# deflate upload into OTA2 and makes it the boot image (esphome#22012)
+CLIENT_FEATURE_SUPPORTS_DEFLATE_RTL8710B = 0x40
+_UF2_MAGIC_HEAD = (0x0A324655).to_bytes(4, "little") + (0x9E5D5157).to_bytes(
+    4, "little"
+)
+_UF2_FAMILY_RTL8710B = 0x22E0D6FC
+RTL8710B_DEFLATE_NOTICE = (
+    "Uploading uncompressed, so this OTA takes longer: on RTL8710B, the "
+    "firmware on the device cannot take a compressed upload safely because of "
+    "an upstream issue (https://github.com/esphome/esphome/issues/22012). Once "
+    "this update is installed, later OTAs are compressed again."
+)
+
+
+def _is_rtl8710b_image(image: bytes) -> bool:
+    """Whether the image is a LibreTiny UF2 for the RTL8710B (AmebaZ)."""
+    return (
+        len(image) >= 32
+        and image[:8] == _UF2_MAGIC_HEAD
+        and image[9] & 0x20 != 0  # family ID present (flag 0x2000)
+        and int.from_bytes(image[28:32], "little") == _UF2_FAMILY_RTL8710B
+    )
+
 
 NOISE_FRAME_INDICATOR = 0x01
 NOISE_HANDSHAKE_OK = 0x00
@@ -373,14 +395,6 @@ PLAINTEXT_FALLBACK_NOTICE = (
     "A device with an api encryption key offers encryption after this "
     "install; add 'encryption:' under 'ota: platform: esphome' to require it. "
     "This plaintext fallback is removed in 2027.3.0."
-)
-
-
-RTL8710B_DEFLATE_NOTICE = (
-    "Uploading uncompressed, so this OTA takes longer: on RTL8710B, the "
-    "firmware on the device cannot take a compressed upload safely because of "
-    "a LibreTiny bug (https://github.com/esphome/esphome/issues/22012). Once "
-    "this update is installed, later OTAs are compressed again."
 )
 
 
@@ -1013,7 +1027,7 @@ def _negotiate_session(
     noise_psk: str | None,
     plaintext_fallback: bool = False,
     allow_plaintext_upload: bool = False,
-    deflate_feature: int = CLIENT_FEATURE_SUPPORTS_DEFLATE,
+    rtl8710b: bool = False,
 ) -> tuple[socket.socket | NoiseSocketWrapper, int, int, bool, float]:
     """Negotiate through the Noise handshake; returns the socket to go on with
     (wrapped once encrypted), version, features, extended and the slowest
@@ -1037,9 +1051,12 @@ def _negotiate_session(
         CLIENT_FEATURE_SUPPORTS_COMPRESSION
         | CLIENT_FEATURE_SUPPORTS_SHA256_AUTH
         | CLIENT_FEATURE_SUPPORTS_EXTENDED_PROTOCOL
+        | CLIENT_FEATURE_SUPPORTS_DEFLATE
         | CLIENT_FEATURE_SUPPORTS_UDP
-        | deflate_feature
     )
+    if rtl8710b:
+        features_to_send &= ~CLIENT_FEATURE_SUPPORTS_DEFLATE
+        features_to_send |= CLIENT_FEATURE_SUPPORTS_DEFLATE_RTL8710B
     if noise_psk:
         features_to_send |= CLIENT_FEATURE_SUPPORTS_NOISE
     exchange_start = time.monotonic()
@@ -1142,18 +1159,12 @@ def perform_ota(
     file_contents = file_handle.read()
     file_size = len(file_contents)
     _LOGGER.info("Uploading %s (%s bytes)", filename, file_size)
+    rtl8710b = _is_rtl8710b_image(file_contents)
 
-    rtl8710b = is_rtl8710b_image(file_contents)
     # sock may become a Noise wrapper or a UDP channel; UDP needs the peer
     tcp_sock = sock
     sock, version, features, extended_proto, slowest_exchange = _negotiate_session(
-        sock,
-        noise_psk,
-        plaintext_fallback,
-        allow_plaintext_upload,
-        CLIENT_FEATURE_SUPPORTS_DEFLATE_RTL8710B
-        if rtl8710b
-        else CLIENT_FEATURE_SUPPORTS_DEFLATE,
+        sock, noise_psk, plaintext_fallback, allow_plaintext_upload, rtl8710b
     )
     _LOGGER.info("Connection established; device supports OTA version %s", version)
     if isinstance(sock, NoiseSocketWrapper):
