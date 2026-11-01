@@ -6,7 +6,7 @@ from typing import NamedTuple, TypedDict
 import esphome.codegen as cg
 import esphome.config_validation as cv
 from esphome.const import CONF_BOARD, KEY_CORE, KEY_FRAMEWORK_VERSION
-from esphome.core import CORE, CoroPriority, coroutine_with_priority
+from esphome.core import CORE, CoroPriority, EsphomeError, coroutine_with_priority
 from esphome.helpers import copy_file_if_changed, write_file_if_changed
 from esphome.types import ConfigType
 from esphome.writer import clean_cmake_cache
@@ -20,6 +20,7 @@ from .const import (
     KEY_PM_STATIC,
     KEY_PRJ_CONF,
     KEY_SYSBUILD,
+    KEY_SYSBUILD_CONF,
     KEY_ZEPHYR,
     zephyr_ns,
 )
@@ -47,6 +48,10 @@ class HexValue:
 
 
 PrjConfValueType = bool | str | int | HexValue
+
+FLASH_SECTOR_SIZE = 0x1000
+# Far below any ESPHome image; a smaller slot means the flash map is wrong
+MIN_MCUBOOT_SLOT_SIZE = 0x10000
 
 
 class Section:
@@ -87,6 +92,7 @@ class ZephyrData(TypedDict):
     overlay_builder: list[Callable[[], str]]
     # CDC ACM port number -> components that use it
     cdc_acm_users: dict[int, list[CdcAcmUser]]
+    sysbuild_conf: dict[str, tuple[PrjConfValueType, bool]]
 
 
 def zephyr_set_core_data(config: ConfigType) -> None:
@@ -106,6 +112,7 @@ def zephyr_set_core_data(config: ConfigType) -> None:
         # config says `bootloader: mcuboot`, so the image can be smaller. This was
         # the default behaviour in SDK 2.6.1.
         sysbuild=False,
+        sysbuild_conf={},
     )
 
 
@@ -120,21 +127,34 @@ def zephyr_add_prj_conf(
     image: str = "",
 ) -> None:
     """Set an zephyr prj conf value."""
-    if not name.startswith("CONFIG_"):
-        name = "CONFIG_" + name
-    if image not in zephyr_data()[KEY_PRJ_CONF]:
-        zephyr_data()[KEY_PRJ_CONF][image] = {}
-    prj_conf = zephyr_data()[KEY_PRJ_CONF][image]
-    if name not in prj_conf:
-        prj_conf[name] = (value, required)
+    _add_conf(
+        zephyr_data()[KEY_PRJ_CONF].setdefault(image, {}),
+        "CONFIG_",
+        name,
+        value,
+        required,
+    )
+
+
+def _add_conf(
+    conf: dict[str, tuple[PrjConfValueType, bool]],
+    prefix: str,
+    name: str,
+    value: PrjConfValueType,
+    required: bool,
+) -> None:
+    if not name.startswith(prefix):
+        name = prefix + name
+    if name not in conf:
+        conf[name] = (value, required)
         return
-    old_value, old_required = prj_conf[name]
+    old_value, old_required = conf[name]
     if old_value != value and old_required:
         raise ValueError(
             f"{name} already set with value '{old_value}', cannot set again to '{value}'"
         )
     if required:
-        prj_conf[name] = (value, required)
+        conf[name] = (value, required)
 
 
 def zephyr_add_overlay(content: str, image: str = "") -> None:
@@ -289,6 +309,70 @@ def zephyr_add_pm_static(sections: list[Section]) -> None:
     zephyr_data()[KEY_PM_STATIC].extend(sections)
 
 
+def zephyr_mcuboot_slot_size(slot0_start: int) -> int:
+    """Size of two equal MCUboot image slots from slot0_start up to the lowest
+    Partition Manager section reserved above it, aligned down to a flash sector."""
+    sections = zephyr_data()[KEY_PM_STATIC]
+    if straddle := next(
+        (s for s in sections if s.address < slot0_start < s.end_address), None
+    ):
+        raise EsphomeError(
+            f"'{straddle.name}' overlaps the MCUboot image slots at {slot0_start:#x}"
+        )
+    above = [s for s in sections if s.address >= slot0_start]
+    if not above:
+        raise EsphomeError(
+            f"No flash section is reserved above {slot0_start:#x} to bound the MCUboot image slots"
+        )
+    limit = min(above, key=lambda s: s.address)
+    slot_size = (
+        (limit.address - slot0_start) // 2 // FLASH_SECTOR_SIZE * FLASH_SECTOR_SIZE
+    )
+    if slot_size < MIN_MCUBOOT_SLOT_SIZE:
+        raise EsphomeError(
+            f"'{limit.name}' at {limit.address:#x} leaves MCUboot image slots of "
+            f"{slot_size:#x} bytes, too small for an image"
+        )
+    return slot_size
+
+
+def zephyr_mcuboot_slots_overlay(slot0_start: int, slot_size: int) -> str:
+    """Devicetree nodes for the two MCUboot image slots."""
+    slot1_start = slot0_start + slot_size
+    return f"""
+        &flash0 {{
+            partitions {{
+                compatible = "fixed-partitions";
+                #address-cells = <1>;
+                #size-cells = <1>;
+                slot0_partition: partition@{slot0_start:x} {{
+                    reg = <{slot0_start:#x} {slot_size:#x}>;
+                }};
+                slot1_partition: partition@{slot1_start:x} {{
+                    reg = <{slot1_start:#x} {slot_size:#x}>;
+                }};
+            }};
+        }};
+    """
+
+
+def zephyr_enable_sysbuild() -> None:
+    """Build with sysbuild, which adds the MCUboot image."""
+    zephyr_data()[KEY_SYSBUILD] = True
+    _add_conf(
+        zephyr_data()[KEY_SYSBUILD_CONF], "SB_CONFIG_", "BOOTLOADER_MCUBOOT", True, True
+    )
+
+
+def zephyr_add_sysbuild_conf(name: str, value: PrjConfValueType) -> None:
+    """Set a sysbuild Kconfig option (zephyr/sysbuild.conf) and enable sysbuild.
+
+    Sysbuild forces these into each image, overriding the image's own fragment.
+    """
+    zephyr_enable_sysbuild()
+    _add_conf(zephyr_data()[KEY_SYSBUILD_CONF], "SB_CONFIG_", name, value, True)
+
+
 def _write_file_if_changed_or_remove_when_empty(path: Path, content: str) -> bool:
     """Write content to path, or remove a stale file when content is empty.
 
@@ -362,7 +446,10 @@ def copy_files() -> None:
 
     sysbuild_conf = ""
     if zephyr_data()[KEY_SYSBUILD]:
-        sysbuild_conf = "SB_CONFIG_BOOTLOADER_MCUBOOT=y\n"
+        sysbuild_conf = "".join(
+            f"{name}={_format_prj_conf_val(value)}\n"
+            for name, (value, _) in sorted(zephyr_data()[KEY_SYSBUILD_CONF].items())
+        )
     changed |= _write_file_if_changed_or_remove_when_empty(
         CORE.relative_build_path("zephyr/sysbuild.conf"), sysbuild_conf
     )

@@ -509,7 +509,11 @@ def _state_client(*images: SimpleNamespace) -> SimpleNamespace:
 
 def _slot(hash_: bytes, active: bool, pending: bool) -> SimpleNamespace:
     return SimpleNamespace(
-        hash=hash_, active=active, pending=pending, confirmed=active, slot=0
+        hash=hash_,
+        active=active,
+        pending=pending,
+        confirmed=active,
+        slot=0 if active else 1,
     )
 
 
@@ -546,5 +550,36 @@ def test_upload_keeps_the_same_pending_image(
             client, "/dev/ttyACM0", Path("firmware.bin"), b"new", False
         )
     )
-    # Image states, mark for test, reset; no upload
-    assert client.request.await_count == 3
+    # Image states, image states again, mark for test, reset; no upload
+    assert client.request.await_count == 4
+
+
+def test_upload_to_mcuboot_serial_recovery_is_not_marked(
+    monkeypatch: pytest.MonkeyPatch, smp_ok: None, tmp_path: Path
+) -> None:
+    """Serial recovery writes slot 0 directly; its state write would fail with ENOENT."""
+    monkeypatch.setattr(ota, "RESET_DELAY", 0)
+    firmware = tmp_path / "app_update.bin"
+    firmware.write_bytes(b"image")
+    in_slot0 = SimpleNamespace(
+        hash=b"new", active=False, pending=False, confirmed=False, slot=0
+    )
+    states = iter([[], [in_slot0]])
+    sent: list[type] = []
+
+    async def request(req, timeout_s=None):
+        sent.append(type(req))
+        if isinstance(req, ImageStatesRead):
+            return SimpleNamespace(images=next(states))
+        return SimpleNamespace()
+
+    async def upload(image):
+        yield len(image)
+
+    client = SimpleNamespace(request=request, upload=upload)
+    asyncio.run(
+        ota._smpmgr_upload_connected(  # pylint: disable=protected-access
+            client, "/dev/ttyACM0", firmware, b"new", False
+        )
+    )
+    assert sent == [ImageStatesRead, ImageStatesRead, ota.ResetWrite]

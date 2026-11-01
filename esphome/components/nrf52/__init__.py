@@ -13,13 +13,18 @@ from esphome.build_helpers.ccache import resolve_ccache_path
 import esphome.codegen as cg
 from esphome.components import network
 from esphome.components.zephyr import (
+    FLASH_SECTOR_SIZE,
+    PrjConfValueType,
     Section,
     add_extra_script,
     copy_files as zephyr_copy_files,
     zephyr_add_overlay,
     zephyr_add_pm_static,
     zephyr_add_prj_conf,
+    zephyr_add_sysbuild_conf,
     zephyr_data,
+    zephyr_mcuboot_slot_size,
+    zephyr_mcuboot_slots_overlay,
     zephyr_set_core_data,
     zephyr_setup_preferences,
     zephyr_to_code,
@@ -71,7 +76,15 @@ from esphome.helpers import rmtree, write_file_if_changed
 from esphome.storage_json import StorageJSON
 from esphome.types import ConfigType
 
-from .boards import BOARDS_ZEPHYR, BOOTLOADER_CONFIG, SELF_RESET_PINS
+from .boards import (
+    BOARDS_ZEPHYR,
+    BOOTLOADER_CONFIG,
+    KEY_MCUBOOT_FLASH_MAP,
+    MCUBOOT_PARTITION_SIZE,
+    MCUBOOT_SECTIONS,
+    NRF52840_FLASH_SIZE,
+    SELF_RESET_PINS,
+)
 from .const import (
     BOOTLOADER_ADAFRUIT,
     BOOTLOADER_ADAFRUIT_NRF52_SD132,
@@ -80,7 +93,6 @@ from .const import (
     BOOTLOADER_NRF,
     CONF_TRANSPORT,
     CONF_UDP,
-    FLASH_SECTOR_SIZE,
     SMP_UDP_PORT,
 )
 from .framework import (
@@ -88,6 +100,7 @@ from .framework import (
     ensure_nordic_nrfutil,
     get_build_env,
     get_build_paths,
+    include_west_project,
     setup_platformio_python_env,
     toolchain_tool,
     wanted_west_projects,
@@ -137,8 +150,10 @@ def set_core_data(config: ConfigType) -> ConfigType:
     CORE.data[KEY_CORE][KEY_TARGET_PLATFORM] = PLATFORM_NRF52
     CORE.data[KEY_CORE][KEY_TARGET_FRAMEWORK] = KEY_ZEPHYR
 
-    if config[KEY_BOOTLOADER] in BOOTLOADER_CONFIG:
-        sections = BOOTLOADER_CONFIG[config[KEY_BOOTLOADER]]
+    sections = BOOTLOADER_CONFIG.get(config[KEY_BOOTLOADER])
+    if mcuboot_replaces_factory_bootloader(config):
+        sections = MCUBOOT_SECTIONS
+    if sections:
         if CORE.testing_mode:
             sections = _testing_mode_sections(sections)
         zephyr_add_pm_static(sections)
@@ -149,7 +164,6 @@ def set_core_data(config: ConfigType) -> ConfigType:
 # In testing mode, fake a larger flash to allow linking grouped component
 # tests. The nRF52840 has 1 MB and a mcumgr OTA config halves the app slot,
 # which an openthread config alone fills; CI images are never flashed.
-NRF52840_FLASH_SIZE = 0x100000
 TESTING_FLASH_SIZE = 0x400000
 
 
@@ -229,6 +243,8 @@ def _detect_bootloader(config: ConfigType) -> ConfigType:
     if board in BOARDS_ZEPHYR and KEY_BOOTLOADER in BOARDS_ZEPHYR[board]:
         # this board have bootloaders config available
         bootloaders = BOARDS_ZEPHYR[board][KEY_BOOTLOADER]
+        if BOARDS_ZEPHYR[board].get(KEY_MCUBOOT_FLASH_MAP):
+            bootloaders = [*bootloaders, BOOTLOADER_MCUBOOT]
 
     if KEY_BOOTLOADER not in config:
         if bootloaders:
@@ -347,6 +363,34 @@ def _validate_open_dfu_toolchain(config: ConfigType) -> None:
         )
 
 
+def _drop_unsupported_rollback(config: ConfigType, advanced: ConfigType) -> bool:
+    """Whether OTA rollback can work. An explicit setting without MCUboot is dropped
+    for older configs; on overwrite-only MCUboot it is rejected."""
+    # Rollback confirms a freshly flashed image through MCUboot, which is either
+    # the bootloader or, for zephyr_mcumgr, a second stage after it.
+    mcuboot = (
+        config[KEY_BOOTLOADER] == BOOTLOADER_MCUBOOT
+        or "zephyr_mcumgr" in CORE.loaded_integrations
+    )
+    if not advanced.get(CONF_ENABLE_OTA_ROLLBACK):
+        return mcuboot and not mcuboot_replaces_factory_bootloader(config)
+    if not mcuboot:
+        # Older configs set it explicitly; it never had an effect without MCUboot
+        _LOGGER.warning(
+            "'%s' requires MCUboot, which the '%s' bootloader does not have; ignoring it",
+            CONF_ENABLE_OTA_ROLLBACK,
+            config[KEY_BOOTLOADER],
+        )
+        advanced[CONF_ENABLE_OTA_ROLLBACK] = False
+        return False
+    if mcuboot_replaces_factory_bootloader(config):
+        raise cv.Invalid(
+            f"'{CONF_ENABLE_OTA_ROLLBACK}' is not supported: MCUboot on {config[CONF_BOARD]} "
+            "only overwrites the old image and cannot roll back to it"
+        )
+    return True
+
+
 def _final_validate(config):
 
     # Remove before 2027.2.0
@@ -359,6 +403,15 @@ def _final_validate(config):
 
     if CONF_DFU in config:
         _validate_mcumgr(config)
+    if mcuboot_replaces_factory_bootloader(config) and CORE.data[KEY_CORE][
+        KEY_FRAMEWORK_VERSION
+    ] < cv.Version(2, 9, 2):
+        # Older SDKs ignore the sysbuild settings and build no bootloader at all
+        raise cv.Invalid(
+            f"'{BOOTLOADER_MCUBOOT}' requires nRF Connect SDK 2.9.2 or newer. "
+            "Use 'toolchain: sdk-nrf', or set 'framework: version:' to 2.9.2 "
+            "or later."
+        )
     if config[KEY_BOOTLOADER] == BOOTLOADER_ADAFRUIT:
         _LOGGER.warning(
             "Selected generic Adafruit bootloader. The board might crash. Consider settings `bootloader:`"
@@ -374,21 +427,8 @@ def _final_validate(config):
             "Set 'libc_nano: false' under 'framework:' to use the full newlib."
         )
 
-    # Rollback confirms a freshly flashed image through MCUboot, which is either
-    # the bootloader or, for zephyr_mcumgr, a second stage after it.
-    mcuboot = (
-        config[KEY_BOOTLOADER] == BOOTLOADER_MCUBOOT
-        or "zephyr_mcumgr" in CORE.loaded_integrations
-    )
-    if advanced.get(CONF_ENABLE_OTA_ROLLBACK) and not mcuboot:
-        # Older configs set it explicitly; it never had an effect without MCUboot
-        _LOGGER.warning(
-            "'%s' requires MCUboot, which the '%s' bootloader does not have; ignoring it",
-            CONF_ENABLE_OTA_ROLLBACK,
-            config[KEY_BOOTLOADER],
-        )
-        advanced[CONF_ENABLE_OTA_ROLLBACK] = False
-    if advanced.setdefault(CONF_ENABLE_OTA_ROLLBACK, mcuboot):
+    can_roll_back = _drop_unsupported_rollback(config, advanced)
+    if advanced.setdefault(CONF_ENABLE_OTA_ROLLBACK, can_roll_back):
         # "disabled: false" means safe mode *is* enabled.
         safe_mode_config = full_config.get(CONF_SAFE_MODE, {CONF_DISABLED: True})
         safe_mode_enabled = not safe_mode_config[CONF_DISABLED]
@@ -405,6 +445,116 @@ def _final_validate(config):
 
 
 FINAL_VALIDATE_SCHEMA = _final_validate
+
+
+def mcuboot_replaces_factory_bootloader(config: ConfigType) -> bool:
+    """MCUboot replaces the board's factory bootloader with the MCUBOOT_SECTIONS map.
+
+    Boards without a bootloader table use the MCUboot layout of their own devicetree.
+    """
+    return config[KEY_BOOTLOADER] == BOOTLOADER_MCUBOOT and BOARDS_ZEPHYR.get(
+        config[CONF_BOARD], {}
+    ).get(KEY_MCUBOOT_FLASH_MAP, False)
+
+
+# Kconfig for the MCUboot image when it replaces the factory bootloader
+MCUBOOT_PRJ_CONF: dict[str, PrjConfValueType] = {
+    # The board defconfig builds a UF2 for the Adafruit bootloader
+    "BUILD_OUTPUT_UF2": False,
+    "CONSOLE": False,
+    "UART_CONSOLE": False,
+    "LOG": False,
+    "PRINTK": False,
+    "HW_CC3XX": False,
+    # Serial recovery over USB CDC ACM. It is entered when the primary slot holds
+    # no valid image, or by any MCUmgr command within the wait after a reset.
+    "MCUBOOT_SERIAL": True,
+    "BOOT_SERIAL_ENTRANCE_GPIO": False,
+    "BOOT_SERIAL_CDC_ACM": True,
+    "USB_DEVICE_INITIALIZE_AT_BOOT": False,
+    "BOOT_SERIAL_UNALIGNED_BUFFER_SIZE": 32,
+    "BOOT_MAX_LINE_INPUT_LEN": 512,
+    "BOOT_LINE_BUFS": 2,
+    "BOOT_SERIAL_MAX_RECEIVE_SIZE": 512,
+    "BOOT_SERIAL_WAIT_FOR_DFU": True,
+    # Busy waits on every boot: long enough for the host to enumerate the port
+    "BOOT_SERIAL_WAIT_FOR_DFU_TIMEOUT": 2000,
+    "BOOT_SERIAL_NO_APPLICATION": True,
+    # Image state, slot info and hashes, so a board that does not boot can be inspected
+    "BOOT_SERIAL_IMG_GRP_HASH": True,
+    "BOOT_SERIAL_IMG_GRP_IMAGE_STATE": True,
+    "BOOT_SERIAL_IMG_GRP_SLOT_INFO": True,
+    "MCUBOOT_SERIAL_DIRECT_IMAGE_UPLOAD": True,
+    # Unused board peripherals: external QSPI flash; uart0 is disabled in the overlay
+    "NORDIC_QSPI_NOR": False,
+    # Footprint
+    "MCUBOOT_CLEANUP_UNUSABLE_SECONDARY": False,
+    "TIMESLICING": False,
+    "TIMEOUT_64BIT": False,
+    "MINIMAL_LIBC_TIME": False,
+    "ZCBOR_MAX_STR_LEN": 96,
+    "USB_NRFX_EVT_QUEUE_SIZE": 8,
+    "USB_CDC_ACM_RINGBUF_SIZE": 256,
+    "CBPRINTF_REDUCED_INTEGRAL": True,
+}
+
+# Serial recovery uses its own CDC ACM node, as boards name theirs differently
+MCUBOOT_OVERLAY = """
+    / {
+        chosen {
+            zephyr,cdc-acm-uart = &mcuboot_cdc_acm;
+            zephyr,uart-mcumgr = &mcuboot_cdc_acm;
+        };
+    };
+    &zephyr_udc0 {
+        status = "okay";
+        mcuboot_cdc_acm: mcuboot_cdc_acm {
+            compatible = "zephyr,cdc-acm-uart";
+        };
+    };
+    &uart0 {
+        status = "disabled";
+    };
+"""
+
+
+def _mcuboot_to_code() -> None:
+    """MCUboot at 0x0 in place of the factory bootloader, built even without OTA."""
+    zephyr_add_prj_conf("BOOTLOADER_MCUBOOT", True)
+    # No Adafruit bootloader is left to take a UF2
+    zephyr_add_prj_conf("BUILD_OUTPUT_UF2", False)
+    # The SDK's sample signing key is public, so only the image hash is checked
+    zephyr_add_sysbuild_conf("BOOT_SIGNATURE_TYPE_NONE", True)
+    # No swap, so no revert state that can get stuck (fixed only in MCUboot 2.2.0); no rollback either
+    zephyr_add_sysbuild_conf("MCUBOOT_MODE_OVERWRITE_ONLY", True)
+    for name, value in MCUBOOT_PRJ_CONF.items():
+        zephyr_add_prj_conf(name, value, image="mcuboot")
+    # Not required: the zephyr_mcumgr status LED turns it back on
+    zephyr_add_prj_conf("GPIO", False, False, image="mcuboot")
+    zephyr_add_overlay(MCUBOOT_OVERLAY, image="mcuboot")
+    # Serial recovery selects ZCBOR, which is not fetched by default
+    include_west_project("zcbor")
+    CORE.add_job(_mcuboot_slots_to_code)
+
+
+def _mcuboot_slots() -> None:
+    """Size the image slots below the lowest section reserved above them
+    (zephyr_coredump or settings_storage). The Partition Manager fills the
+    primary slot into the remaining gap; both images need the slot nodes."""
+    slot_size = zephyr_mcuboot_slot_size(MCUBOOT_PARTITION_SIZE)
+    slot1_start = MCUBOOT_PARTITION_SIZE + slot_size
+    zephyr_add_pm_static(
+        [Section("mcuboot_secondary", slot1_start, slot_size, "flash_primary")]
+    )
+    slots_overlay = zephyr_mcuboot_slots_overlay(MCUBOOT_PARTITION_SIZE, slot_size)
+    zephyr_add_overlay(slots_overlay, image="mcuboot")
+    zephyr_add_overlay(slots_overlay)
+
+
+# After zephyr_coredump (DIAGNOSTICS) has reserved its partition
+@coroutine_with_priority(CoroPriority.OTA_UPDATES)
+async def _mcuboot_slots_to_code() -> None:
+    _mcuboot_slots()
 
 
 @coroutine_with_priority(CoroPriority.PLATFORM)
@@ -455,6 +605,8 @@ async def to_code(config: ConfigType) -> None:
 
     if config[KEY_BOOTLOADER] == BOOTLOADER_MCUBOOT:
         cg.add_define("USE_BOOTLOADER_MCUBOOT")
+        if mcuboot_replaces_factory_bootloader(config):
+            _mcuboot_to_code()
     elif "_sd" in config[KEY_BOOTLOADER]:
         bootloader = config[KEY_BOOTLOADER].split("_")
         sd_id = bootloader[2][2:]
