@@ -231,6 +231,8 @@ def slot_list(define: str, register: str, domain: str) -> Callable[..., Expressi
 
     `domain` is the hub component's DOMAIN: whenever it is in the build, `define`
     is emitted, as 0 when nothing registered, so the C++ side needs no `#ifdef`.
+    Call it in the hub package's `__init__.py`, which is always imported when the
+    hub is built; a platform module may not be, and the define would be missing.
     """
     if _SLOT_LIST_DOMAINS.setdefault(define, domain) != domain:
         raise ValueError(
