@@ -165,8 +165,9 @@ def _include_dirs(roots: Iterable[Path]) -> list[Path]:
 
 
 def _is_okay(node: dtlib.Node) -> bool:
+    """A node is enabled without a status property or with "okay" (or the older "ok")."""
     status = node.props.get("status")
-    return status is None or status.to_string() == "okay"
+    return status is None or status.to_string() in ("okay", "ok")
 
 
 def read_board(target: BoardTarget, roots: list[Path]) -> BoardInfo:

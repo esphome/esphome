@@ -32,6 +32,18 @@ DTS = """\
 \t\t\t\tcompatible = "zephyr,cdc-acm-uart";
 \t\t\t\tstatus = "disabled";
 \t\t\t};
+\t\t\told_spelling: old_spelling {
+\t\t\t\tcompatible = "zephyr,cdc-acm-uart";
+\t\t\t\tstatus = "ok";
+\t\t\t};
+\t\t};
+\t\t/* Enabled itself, but under a disabled USB controller */
+\t\tusbd2: usbd@50000000 {
+\t\t\tstatus = "disabled";
+\t\t\tunder_disabled: under_disabled {
+\t\t\t\tcompatible = "zephyr,cdc-acm-uart";
+\t\t\t\tstatus = "okay";
+\t\t\t};
 \t\t};
 \t};
 };
@@ -185,7 +197,12 @@ def test_load_boards_reads_enabled_cdc_acm_nodes(tmp_path: Path) -> None:
 
     assert load_boards([zephyr]) == {
         "xiao_ble": BoardInfo(
-            "nrf52840", "nrf52", ("/soc/usbd@40027000/board_cdc_acm_uart",)
+            "nrf52840",
+            "nrf52",
+            (
+                "/soc/usbd@40027000/board_cdc_acm_uart",
+                "/soc/usbd@40027000/old_spelling",
+            ),
         )
     }
 
