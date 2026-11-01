@@ -343,9 +343,10 @@ async def test_host_ota_deflate_rtl8710b_bit(
     )
     monkeypatch.setattr(espota2, "_is_rtl8710b_image", lambda image: True)
 
-    async with run_binary(
-        dev.binary_path, symbols_path=dev.symbols_path, line_callback=dev.on_log
-    ) as (proc, _lines):
+    async with run_binary(dev.binary_path, line_callback=dev.on_log) as (
+        proc,
+        _lines,
+    ):
         dev.proc = proc
         await _wait_for_port(LOCALHOST, dev.api_port, PORT_WAIT_TIMEOUT)
         await dev.ota(None, None, "RTL8710B deflate upload failed")
