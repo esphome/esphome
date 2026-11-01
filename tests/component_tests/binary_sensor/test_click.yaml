@@ -21,7 +21,9 @@ binary_sensor:
           - delay: 1s
           - logger.log: a long click done
     on_double_click:
-      - min_length: 20ms
+      # Named like the callback parameter, which must not hide it
+      - trigger_id: state
+        min_length: 20ms
         max_length: 400ms
         then:
           - logger.log: a double click

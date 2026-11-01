@@ -1,16 +1,15 @@
 #include <gtest/gtest.h>
-#include <memory>
+#include <functional>
+#include <utility>
 
 #include "esphome/components/binary_sensor/automation.h"
 #include "esphome/components/binary_sensor/binary_sensor.h"
 #include "esphome/components/binary_sensor/filter.h"
-#include "esphome/core/automation.h"
-#include "esphome/core/base_automation.h"
 #include "esphome/core/hal.h"
 
 namespace esphome::binary_sensor::testing {
 
-// The triggers read the real millis(), so every wait is at least 80 ms away from a window edge
+// The click detectors read the real millis(), so every wait is at least 80 ms away from a window edge
 static constexpr uint32_t MIN_MS = 100;
 static constexpr uint32_t MAX_MS = 300;
 static constexpr uint32_t SHORT_MS = 20;
@@ -24,18 +23,24 @@ class ClickTriggerTest : public ::testing::Test {
   void SetUp() override {
     fired = 0;
     this->sensor_.publish_state(false);
-    this->automation_.add_action(&this->action_);
   }
 
   // As codegen builds on_click and on_double_click
   void add_click_(uint32_t min_length = MIN_MS, uint32_t max_length = MAX_MS, BinarySensor *sensor = nullptr) {
-    this->click_ = std::make_unique<ClickTrigger>(sensor != nullptr ? sensor : &this->sensor_, min_length, max_length);
-    this->click_->set_automation_parent(&this->automation_);
+    this->watch_(this->click_, min_length, max_length, sensor != nullptr ? *sensor : this->sensor_);
   }
-  void add_double_click_() {
-    this->double_click_ = std::make_unique<DoubleClickTrigger>(&this->sensor_, MIN_MS, MAX_MS);
-    this->double_click_->set_automation_parent(&this->automation_);
+  void add_double_click_(std::function<void()> on_fire = count_fire) {
+    this->watch_(this->double_click_, MIN_MS, MAX_MS, this->sensor_, std::move(on_fire));
   }
+  template<typename D>
+  void watch_(D &detector, uint32_t min_length, uint32_t max_length, BinarySensor &sensor,
+              std::function<void()> on_fire = count_fire) {
+    sensor.add_on_state_callback([&detector, min_length, max_length, on_fire = std::move(on_fire)](bool state) {
+      if (detector.check(state, min_length, max_length))
+        on_fire();
+    });
+  }
+  static void count_fire() { fired++; }
 
   void press_for_(uint32_t length) {
     this->sensor_.publish_state(true);
@@ -44,10 +49,8 @@ class ClickTriggerTest : public ::testing::Test {
   }
 
   BinarySensor sensor_;
-  StatelessLambdaAction<> action_{[]() { fired++; }};
-  Automation<> automation_;
-  std::unique_ptr<ClickTrigger> click_;
-  std::unique_ptr<DoubleClickTrigger> double_click_;
+  ClickDetector click_;
+  DoubleClickDetector double_click_;
 };
 
 TEST(ClickMatchInterval, BoundsAreInclusive) {
@@ -196,6 +199,25 @@ TEST_F(ClickTriggerTest, DoubleClickDoesNotFireTwiceWithoutReset) {
   delay(INSIDE_MS);
   this->sensor_.publish_state(true);
   EXPECT_EQ(fired, 1);
+}
+
+TEST_F(ClickTriggerTest, DoubleClickKeepsPressPublishedByItsActions) {
+  // The times reset before the actions run, so a press the first action publishes is kept
+  this->add_double_click_([this]() {
+    if (++fired == 1) {
+      this->sensor_.publish_state(false);
+      this->sensor_.publish_state(true);
+    }
+  });
+  this->press_for_(INSIDE_MS);
+  delay(INSIDE_MS);
+  this->sensor_.publish_state(true);
+  EXPECT_EQ(fired, 1);
+  delay(INSIDE_MS);
+  this->sensor_.publish_state(false);
+  delay(INSIDE_MS);
+  this->sensor_.publish_state(true);
+  EXPECT_EQ(fired, 2);
 }
 
 }  // namespace esphome::binary_sensor::testing

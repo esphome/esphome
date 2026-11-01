@@ -133,10 +133,8 @@ BinarySensorInitiallyOff = binary_sensor_ns.class_(
 BinarySensorPtr = BinarySensor.operator("ptr")
 
 # Triggers
-ClickTrigger = binary_sensor_ns.class_("ClickTrigger", automation.Trigger.template())
-DoubleClickTrigger = binary_sensor_ns.class_(
-    "DoubleClickTrigger", automation.Trigger.template()
-)
+ClickDetector = binary_sensor_ns.class_("ClickDetector")
+DoubleClickDetector = binary_sensor_ns.class_("DoubleClickDetector")
 MultiClickTrigger = binary_sensor_ns.class_(
     "MultiClickTrigger", automation.Trigger.template(), cg.Component
 )
@@ -426,6 +424,23 @@ def validate_click_timing(value):
     return value
 
 
+def _click_automation_schema(detector: MockObjClass) -> cv.All:
+    return cv.All(
+        automation.validate_automation(
+            {
+                cv.GenerateID(CONF_TRIGGER_ID): cv.declare_id(detector),
+                cv.Optional(
+                    CONF_MIN_LENGTH, default="50ms"
+                ): cv.positive_time_period_milliseconds,
+                cv.Optional(
+                    CONF_MAX_LENGTH, default="350ms"
+                ): cv.positive_time_period_milliseconds,
+            }
+        ),
+        validate_click_timing,
+    )
+
+
 def validate_publish_initial_state(value):
     value = cv.boolean(value)
     _LOGGER.warning(
@@ -458,35 +473,9 @@ _BINARY_SENSOR_SCHEMA = (
             ): validate_filters,
             cv.Optional(CONF_ON_PRESS): automation.validate_automation({}),
             cv.Optional(CONF_ON_RELEASE): automation.validate_automation({}),
-            cv.Optional(CONF_ON_CLICK): cv.All(
-                automation.validate_automation(
-                    {
-                        cv.GenerateID(CONF_TRIGGER_ID): cv.declare_id(ClickTrigger),
-                        cv.Optional(
-                            CONF_MIN_LENGTH, default="50ms"
-                        ): cv.positive_time_period_milliseconds,
-                        cv.Optional(
-                            CONF_MAX_LENGTH, default="350ms"
-                        ): cv.positive_time_period_milliseconds,
-                    }
-                ),
-                validate_click_timing,
-            ),
-            cv.Optional(CONF_ON_DOUBLE_CLICK): cv.All(
-                automation.validate_automation(
-                    {
-                        cv.GenerateID(CONF_TRIGGER_ID): cv.declare_id(
-                            DoubleClickTrigger
-                        ),
-                        cv.Optional(
-                            CONF_MIN_LENGTH, default="50ms"
-                        ): cv.positive_time_period_milliseconds,
-                        cv.Optional(
-                            CONF_MAX_LENGTH, default="350ms"
-                        ): cv.positive_time_period_milliseconds,
-                    }
-                ),
-                validate_click_timing,
+            cv.Optional(CONF_ON_CLICK): _click_automation_schema(ClickDetector),
+            cv.Optional(CONF_ON_DOUBLE_CLICK): _click_automation_schema(
+                DoubleClickDetector
             ),
             cv.Optional(CONF_ON_MULTI_CLICK): automation.validate_automation(
                 {
@@ -540,6 +529,11 @@ def binary_sensor_schema(
     return _BINARY_SENSOR_SCHEMA.extend(schema)
 
 
+_CLICK_DETECTORS = (
+    (CONF_ON_CLICK, ClickDetector),
+    (CONF_ON_DOUBLE_CLICK, DoubleClickDetector),
+)
+
 _CALLBACK_AUTOMATIONS = (
     automation.CallbackAutomation(
         CONF_ON_PRESS,
@@ -562,31 +556,39 @@ _CALLBACK_AUTOMATIONS = (
         "add_full_state_callback",
         [(cg.optional.template(bool), "x_previous"), (cg.optional.template(bool), "x")],
     ),
+    *(
+        automation.CallbackAutomation(
+            conf_key,
+            "add_on_state_callback",
+            params=[(bool, "state")],
+            forward=[],
+            when=automation.ApplyCall(
+                "{}->check(state, {}, {})",
+                (
+                    (CONF_TRIGGER_ID, detector.operator("ptr")),
+                    (CONF_MIN_LENGTH, cg.uint32),
+                    (CONF_MAX_LENGTH, cg.uint32),
+                ),
+            ),
+        )
+        for conf_key, detector in _CLICK_DETECTORS
+    ),
 )
 
 
 @coroutine_with_priority(CoroPriority.AUTOMATION)
 async def _build_binary_sensor_automations(var, config):
+    # The detectors must exist before the automations that name them are built
+    if clicks := [c for key, _ in _CLICK_DETECTORS for c in config.get(key, ())]:
+        cg.add_define("USE_BINARY_SENSOR_CLICK_TRIGGER")
+    for conf in clicks:
+        cg.new_Pvariable(conf[CONF_TRIGGER_ID])
     await automation.build_callback_automations(var, config, _CALLBACK_AUTOMATIONS)
 
-    if config.get(CONF_ON_CLICK) or config.get(CONF_ON_DOUBLE_CLICK):
-        cg.add_define("USE_BINARY_SENSOR_CLICK_TRIGGER")
     if config.get(CONF_ON_MULTI_CLICK):
         cg.add_define("USE_BINARY_SENSOR_MULTI_CLICK_TRIGGER")
     if config.get(CONF_ON_RAW_VALUE):
         cg.add_define("USE_BINARY_SENSOR_RAW_CALLBACK")
-
-    for conf in config.get(CONF_ON_CLICK, []):
-        trigger = cg.new_Pvariable(
-            conf[CONF_TRIGGER_ID], var, conf[CONF_MIN_LENGTH], conf[CONF_MAX_LENGTH]
-        )
-        await automation.build_automation(trigger, [], conf)
-
-    for conf in config.get(CONF_ON_DOUBLE_CLICK, []):
-        trigger = cg.new_Pvariable(
-            conf[CONF_TRIGGER_ID], var, conf[CONF_MIN_LENGTH], conf[CONF_MAX_LENGTH]
-        )
-        await automation.build_automation(trigger, [], conf)
 
     for conf in config.get(CONF_ON_MULTI_CLICK, []):
         timings = [
