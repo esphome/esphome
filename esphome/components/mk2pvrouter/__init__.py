@@ -63,7 +63,7 @@ VALUE_PUBLISHER = cg.HubFunction(
 )
 TAG = VALUE_PUBLISHER.param("tag")
 VAL = VALUE_PUBLISHER.param("val")
-# Children's dump_config lines, logged under the hub's tag
+# Children's dump_config lines under the hub's tag; add with a VALUE_PUBLISHER item, whose define it uses
 DUMP_PUBLISHER = cg.HubFunction(
     "dump",
     cg.void,

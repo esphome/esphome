@@ -41,7 +41,7 @@ AQUA_PUBLISHER = cg.HubFunction(
     define="USE_SYSTA_BUS_AQUA_PUBLISHER",
 )
 MESSAGE = AQUA_PUBLISHER.param("message")
-# Children's dump_config lines, logged under the bus's tag
+# Children's dump_config lines under the bus's tag; add with an AQUA_PUBLISHER item, whose define it uses
 DUMP_PUBLISHER = cg.HubFunction(
     "dump",
     cg.void,
