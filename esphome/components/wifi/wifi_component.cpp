@@ -1746,10 +1746,11 @@ void WiFiComponent::check_scanning_finished() {
   if (!found_match) {
     ESP_LOGW(TAG, "No matching network found");
     // No scan results matched our configured networks - transition directly to hidden mode
-    // Don't call retry_connect() since we never attempted a connection (no BSSID to penalize)
     this->transition_to_phase_(WiFiRetryPhase::RETRY_HIDDEN);
-    // If no hidden networks to try, skip connection attempt (will be handled on next loop)
+    // No hidden network left: retry now instead of waiting out the scan timeout. With
+    // selected_sta_index_ at -1, retry_connect() penalizes no BSSID.
     if (this->selected_sta_index_ == -1) {
+      this->retry_connect();
       return;
     }
     // Now start connection attempt in hidden mode
