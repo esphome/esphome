@@ -397,19 +397,8 @@ template<typename T, size_t N> class StaticVector {
   operator std::span<const T>() const { return std::span<const T>(data_.data(), count_); }
 };
 
-/// Declare a registration list sized at code generation: a protected `StaticVector<type *, count> member`
-/// and a public `register_fn(type *)` that appends to it. `count` is the define of the matching
-/// `cg.slot_list()`; wrap the macro in `#ifdef count` so the list compiles out when nothing registers.
-/// Use it in a public section: it ends on `public:`.
-#define SLOT_LIST(type, member, register_fn, count) \
- protected: \
-  StaticVector<type *, count> member; /* NOLINT(bugprone-macro-parentheses) */ \
-\
- public: \
-  void register_fn(type *item) { this->member.push_back(item); } /* NOLINT(bugprone-macro-parentheses) */
-
-/// A list that is always empty, with the read interface of `StaticVector`. Unlike `std::array<T, 0>` it
-/// takes no space as a `[[no_unique_address]]` member.
+/// A list that is always empty, with the interface of `StaticVector`. Unlike `std::array<T, 0>` it takes no
+/// space as a `[[no_unique_address]]` member.
 template<typename T> class EmptyList {
  public:
   static constexpr T *begin() { return nullptr; }
@@ -417,15 +406,22 @@ template<typename T> class EmptyList {
   static constexpr size_t size() { return 0; }
   static constexpr bool empty() { return true; }
   [[noreturn]] T &operator[](size_t /*i*/) const { __builtin_trap(); }
+  void push_back(const T & /*value*/) {}
 };
 
-/// The `#else` of a `SLOT_LIST`: an always-empty `member`, so code that walks it compiles to nothing without
-/// an `#ifdef` of its own. Use it in a public section, like `SLOT_LIST`.
-#define SLOT_LIST_EMPTY(type, member) \
+/// A `StaticVector<T, N>` sized at code generation, or an `EmptyList<T>` when `N` is 0.
+template<typename T, size_t N> using SlotList = std::conditional_t<N == 0, EmptyList<T>, StaticVector<T, N>>;
+
+/// Declare a registration list sized at code generation: a protected `SlotList<type *, count> member` and a
+/// public `register_fn(type *)` that appends to it. `count` is the define of the matching `cg.slot_list()`,
+/// which is 0 when nothing registers; the list then takes no space and loops over it compile to nothing.
+/// Use it in a public section: it ends on `public:`.
+#define SLOT_LIST(type, member, register_fn, count) \
  protected: \
-  [[no_unique_address]] EmptyList<type *> member; /* NOLINT(bugprone-macro-parentheses) */ \
+  [[no_unique_address]] SlotList<type *, count> member; /* NOLINT(bugprone-macro-parentheses) */ \
 \
- public:
+ public: \
+  void register_fn(type *item) { this->member.push_back(item); } /* NOLINT(bugprone-macro-parentheses) */
 
 /// Fixed-size circular buffer with FIFO semantics and iteration support.
 ///
