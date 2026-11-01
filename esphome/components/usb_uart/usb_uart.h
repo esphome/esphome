@@ -238,7 +238,7 @@ class USBUartComponent : public usb_host::USBClient {
   void setup() override;
   void loop() override;
   void dump_config() override;
-  const SlotList<USBUartChannelBase *, USB_UART_CHANNEL_COUNT> &get_channels() const { return this->channels_; }
+  const auto &get_channels() const { return this->channels_; }
 
   SLOT_LIST(USBUartChannelBase, channels_, add_channel, USB_UART_CHANNEL_COUNT)
 

@@ -76,6 +76,7 @@ class KamstrupKMPComponent final : public PollingComponent, public uart::UARTDev
   void dump_config() override;
   void update() override;
   void loop() override;
+  SLOT_LIST_REQUIRES(KAMSTRUP_KMP_CUSTOM_SENSOR_COUNT)
   void add_custom_sensor(sensor::Sensor *sensor, uint16_t command) {
     this->custom_sensors_.push_back({sensor, command});
   }

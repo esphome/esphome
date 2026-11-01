@@ -8,7 +8,6 @@
 #include "esphome/core/helpers.h"
 
 #include <utility>
-#include <vector>
 
 namespace esphome::modbus_server {
 

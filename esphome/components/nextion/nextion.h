@@ -1,7 +1,6 @@
 #pragma once
 
 #include <list>
-#include <vector>
 
 #include "esphome/components/display/display.h"
 #include "esphome/components/display/display_color_utils.h"

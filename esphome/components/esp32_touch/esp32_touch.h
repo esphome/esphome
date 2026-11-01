@@ -6,8 +6,6 @@
 #include "esphome/core/helpers.h"
 #include "esphome/components/binary_sensor/binary_sensor.h"
 
-#include <vector>
-
 #include <driver/touch_sens.h>
 #include <freertos/FreeRTOS.h>
 #include <freertos/queue.h>
