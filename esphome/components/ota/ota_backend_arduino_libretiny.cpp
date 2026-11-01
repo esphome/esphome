@@ -106,7 +106,7 @@ void ArduinoLibreTinyOTABackend::abort() {
   // A dual-slot bootloader can boot a written image LibreTiny never marked
   // (RTL8720C boots the valid image with the higher serial number), so
   // invalidate it. LN882H's lt_ota_switch() ignores revert, and BK72xx has no
-  // mark to undo, so single-slot chips rely on the held-back last block.
+  // mark to undo, so single-slot chips rely on the held-back last byte.
   if (this->wrote_ && lt_ota_get_type() == OTA_TYPE_DUAL && !lt_ota_switch(/* revert= */ true)) {
     ESP_LOGE(TAG, "Revert failed");
   }
