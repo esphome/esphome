@@ -188,9 +188,20 @@ Restore an owned or standalone switch in `setup()` with `sw->restore()`, or `res
 drive a state when the restore mode is disabled. A hub that applies its switches' restored states itself
 reads `sw->get_initial_write_state()`, which already applies `inverted`.
 
-**Entities that each watch a register field:** one class taking register, shift, mask and match from a
-Python tuple table, in typed `StaticVector`s sized by `cg.slot_counter`; not a template per bit, not a
-virtual listener base (a second vptr per entity).
+**Entities that each watch a register field:** when every field (register, shift, mask, match) is known at
+build time, generate the decoding (see `bq25186`, from #22091). Each platform hands the hub's codegen one
+statement per entity, a `CoroPriority.FINAL` job emits one `cg.static_function` per hub with the constants as
+literals, and the hub stores a single function pointer; the entities stay plain `BinarySensor`/`TextSensor`.
+```python
+value = f"(status[{reg}] >> {shift}) & {mask:#04x}"
+add_status_statement(hub, f"{parent_ref(var)}->publish_state({value});")
+# FINAL job, per hub:
+fn = cg.static_function(f"esphome__{hub}__status_fn", cg.void, params, statements)
+cg.add(hub.set_status_publisher(fn))
+```
+Store a field description per entity (a struct in a `StaticVector` sized by `cg.slot_counter`) only when the
+field is chosen at run time, as in `sen6x`, where the status bit depends on the variant read in `setup()`.
+Never a template per bit or a virtual listener base (a second vptr per entity).
 
 ## Other helpers
 
