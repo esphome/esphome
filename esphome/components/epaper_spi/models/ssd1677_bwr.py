@@ -27,7 +27,11 @@ GATE_COUNT = 680
 class SSD1677BWR(EpaperModel):
     """EpaperModel class for Black/White/Red displays using the SSD1677 controller."""
 
-    source_files = ("epaper_weact_3c.cpp", "epaper_spi_ssd1677_bwr.cpp")
+    source_files = (
+        "epaper_spi_bwr.cpp",
+        "epaper_weact_3c.cpp",
+        "epaper_spi_ssd1677_bwr.cpp",
+    )
 
     def __init__(self, name: str, **defaults: object) -> None:
         defaults.setdefault(CONF_OFFSET_HEIGHT, 0)

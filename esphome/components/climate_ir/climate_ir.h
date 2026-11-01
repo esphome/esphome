@@ -21,6 +21,8 @@ class ClimateIR : public Component,
                   public climate::Climate,
                   public remote_base::RemoteReceiverListener,
                   public remote_base::RemoteTransmittable {
+  SUB_SENSOR(humidity)
+
  public:
   ClimateIR(float minimum_temperature, float maximum_temperature, float temperature_step = 1.0f,
             bool supports_dry = false, bool supports_fan_only = false,
@@ -47,7 +49,6 @@ class ClimateIR : public Component,
     this->set_mode_supported_(climate::CLIMATE_MODE_HEAT_COOL, supports_heat_cool);
   }
   void set_sensor(sensor::Sensor *sensor) { this->sensor_ = sensor; }
-  void set_humidity_sensor(sensor::Sensor *sensor) { this->humidity_sensor_ = sensor; }
 
  protected:
   float minimum_temperature_, maximum_temperature_, temperature_step_;
@@ -59,6 +60,10 @@ class ClimateIR : public Component,
 
   /// Transmit via IR the state of this climate controller.
   virtual void transmit_state() = 0;
+
+  /// setup() with the restored state already loaded, for subclasses that read it first. Load it only once:
+  /// every restore_state_() call takes a new preference slot on some platforms.
+  void setup_(optional<climate::ClimateDeviceRestoreState> restore);
 
   // Dummy implement on_receive so implementation is optional for inheritors
   bool on_receive(remote_base::RemoteReceiveData data) override { return false; };
@@ -80,7 +85,6 @@ class ClimateIR : public Component,
   climate::ClimatePresetMask presets_{};
 
   sensor::Sensor *sensor_{nullptr};
-  sensor::Sensor *humidity_sensor_{nullptr};
 };
 
 }  // namespace esphome::climate_ir

@@ -1,0 +1,31 @@
+time:
+  - platform: rx8111
+    id: timestamp_rtc
+    i2c_id: i2c_bus
+    address: 0x33
+    event_enabled: false
+    event_level: high
+    evin_filter: 2
+    evin_pull: pulldown_500k
+    update_interval: never
+  - platform: rx8111
+    id: buffered_rtc
+    i2c_id: i2c_bus
+    address: 0x34
+  - platform: rx8111
+    id: overwrite_rtc
+    i2c_id: i2c_bus
+    address: 0x35
+
+text_sensor:
+  - platform: rx8111
+    rx8111_id: timestamp_rtc
+    name: Latest event timestamp
+  - platform: rx8111
+    rx8111_id: buffered_rtc
+    name: Buffered event timestamp
+    timestamp_record_mode: stop_when_full
+  - platform: rx8111
+    rx8111_id: overwrite_rtc
+    name: Overwritten event timestamp
+    timestamp_record_mode: overwrite

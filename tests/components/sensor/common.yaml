@@ -5,6 +5,10 @@ sensor:
     id: source_sensor
     lambda: return 42.0;
     update_interval: 1s
+    on_raw_value:
+      - logger.log:
+          format: "Raw value %.1f"
+          args: [x]
     on_value:
       - sensor.template.publish:
           id: sensor_publish_target
@@ -272,3 +276,11 @@ sensor:
       - rh_correction:
           sensor_id: source_sensor
           temperature_offset: !lambda return -10.0;
+
+  - platform: copy
+    source_id: source_sensor
+    name: "Delta Filter Number Baseline"
+    filters:
+      - delta:
+          max_value: 3
+          baseline: 20.0
