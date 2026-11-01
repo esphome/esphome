@@ -997,7 +997,12 @@ def test_clone_or_update_clones_missing_repo(
             "remote: Repository not found.\n"
             "fatal: repository 'https://github.com/test/repo/' not found"
         ),
+        "fatal: repository 'https://github.com/test/repo/' not found",
         "fatal: Authentication failed for 'https://github.com/test/repo/'",
+        (
+            "fatal: could not read Password for 'https://user@github.com': "
+            "terminal prompts disabled"
+        ),
     ],
 )
 def test_clone_or_update_explains_missing_repository(
@@ -1083,8 +1088,10 @@ def test_clone_or_update_explains_refused_credentials(
 
     message = str(exc_info.value)
     assert "secret" not in message
-    assert "the credentials used cannot access it" in message
-    assert "and the credentials in the source" in message
+    assert "the username and password used cannot access it" in message
+    assert message.split(" Git reported: ", maxsplit=1)[0].endswith(
+        "in the source, and the credentials."
+    )
     assert "needs a username and password" not in message
 
 
@@ -1105,8 +1112,11 @@ def test_clone_or_update_explains_missing_ssh_repository(
         git.clone_or_update(url=url, ref=None, refresh=None, domain="test")
 
     message = str(exc_info.value)
-    assert message.startswith(f"Could not clone {url}: the repository does not exist")
-    assert "the credentials used cannot access it" in message
+    assert message.startswith(
+        f"Could not clone {url}: the repository does not exist, or the SSH key used "
+        "cannot access it. Check the owner and repository name in the source, and "
+        "the key."
+    )
 
 
 def test_clone_or_update_with_none_refresh_always_updates(

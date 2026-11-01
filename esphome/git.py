@@ -167,6 +167,34 @@ def _redact_url_credentials(text: str) -> str:
     return URL_USERINFO_RE.sub("://***@", text)
 
 
+def _explain_clone_failure(
+    err: GitCommandError, url: str, original_url: str
+) -> GitCommandError | None:
+    """Return a clearer error for a clone of a repository git cannot see.
+
+    ``url`` is the URL git was given, with any credentials inserted, and
+    ``original_url`` the one from the config. Returns ``None`` for any other
+    failure, so the caller re-raises git's own error.
+    """
+    if not _MISSING_REPOSITORY_RE.search(err.stderr):
+        return None
+    if not url.startswith(("http://", "https://")):
+        hint = "the SSH key used cannot access it. Check {} in the source, and the key"
+    elif URL_USERINFO_RE.search(url):
+        hint = (
+            "the username and password used cannot access it. Check {} in the "
+            "source, and the credentials"
+        )
+    else:
+        hint = "it is private and needs a username and password. Check {} in the source"
+    return GitCommandError(
+        f"Could not clone {_redact_url_credentials(original_url)}: the repository "
+        f"does not exist, or {hint.format('the owner and repository name')}. "
+        f"Git reported: {_redact_url_credentials(str(err))}",
+        stderr=err.stderr,
+    )
+
+
 def strip_url_credentials(url: str) -> str:
     """Return ``url`` without its userinfo (``user:token@``), for URLs that are published."""
     parsed = urllib.parse.urlsplit(url)
@@ -752,23 +780,11 @@ def _clone_or_update_locked(
             try:
                 run_git_command(cmd, network=True, retry_cleanup=repo_dir)
             except GitCommandError as err:
-                if not _MISSING_REPOSITORY_RE.search(err.stderr):
+                if (
+                    explained := _explain_clone_failure(err, url, original_url)
+                ) is None:
                     raise
-                # Asking for a username and password only helps over HTTPS
-                # when none was sent; otherwise the ones used were refused.
-                sent_credentials = URL_USERINFO_RE.search(url) is not None
-                if url.startswith(("http://", "https://")) and not sent_credentials:
-                    access = "it is private and needs a username and password"
-                    check = "the owner and repository name"
-                else:
-                    access = "the credentials used cannot access it"
-                    check = "the owner and repository name, and the credentials"
-                raise GitCommandError(
-                    f"Could not clone {_redact_url_credentials(original_url)}: the "
-                    f"repository does not exist, or {access}. Check {check} in "
-                    f"the source. Git reported: {_redact_url_credentials(str(err))}",
-                    stderr=err.stderr,
-                ) from err
+                raise explained from err
 
             if ref is not None:
                 # We need to fetch the PR branch first, otherwise git will complain
