@@ -20,6 +20,9 @@ enum SHT4XHEATERTIME : uint16_t { SHT4X_HEATERTIME_LONG = 1100, SHT4X_HEATERTIME
 class SHT4XComponent final : public PollingComponent, public sensirion_common::SensirionI2CDevice {
   SUB_SENSOR(temp)
   SUB_SENSOR(humidity)
+#ifdef USE_TEXT_SENSOR
+  SUB_TEXT_SENSOR(serial_number)
+#endif
 
  public:
   void setup() override;
@@ -30,12 +33,6 @@ class SHT4XComponent final : public PollingComponent, public sensirion_common::S
   void set_heater_power_value(SHT4XHEATERPOWER heater_power) { this->heater_power_ = heater_power; };
   void set_heater_time_value(SHT4XHEATERTIME heater_time) { this->heater_time_ = heater_time; };
   void set_heater_duty_value(float duty_cycle) { this->duty_cycle_ = duty_cycle; };
-
-#ifdef USE_TEXT_SENSOR
-  void set_serial_number_sensor(text_sensor::TextSensor *serial_number_sensor) {
-    this->serial_number_sensor_ = serial_number_sensor;
-  }
-#endif
 
  protected:
   SHT4XPRECISION precision_;
@@ -48,10 +45,6 @@ class SHT4XComponent final : public PollingComponent, public sensirion_common::S
   uint32_t heater_interval_{0};
   uint32_t last_heater_millis_{0};
   uint32_t serial_number_;
-
-#ifdef USE_TEXT_SENSOR
-  text_sensor::TextSensor *serial_number_sensor_{nullptr};
-#endif
 };
 
 }  // namespace esphome::sht4x

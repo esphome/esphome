@@ -28,10 +28,10 @@ void SHT4XComponent::read_serial_number_() {
   this->serial_number_ = (uint32_t(buffer[0]) << 16) | (uint32_t(buffer[1]));
   ESP_LOGD(TAG, "Serial number: %08" PRIx32, this->serial_number_);
 #ifdef USE_TEXT_SENSOR
-  if (this->serial_number_sensor_ != nullptr) {
+  if (this->serial_number_text_sensor_ != nullptr) {
     char serial_number[9];
     snprintf(serial_number, sizeof(serial_number), "%08" PRIx32, this->serial_number_);
-    this->serial_number_sensor_->publish_state(serial_number);
+    this->serial_number_text_sensor_->publish_state(serial_number);
   }
 #endif
 }
@@ -96,13 +96,11 @@ void SHT4XComponent::update() {
     uint16_t buffer[2];
 
     // Read measurement
-    if (!this->read_data(buffer, 2)) {
-      this->status_set_warning(LOG_STR(ESP_LOG_MSG_COMM_FAIL));
+    if (!this->status_comm_result(this->read_data(buffer, 2))) {
       // Using ESP_LOGW to force the warning to be printed
       ESP_LOGW(TAG, "Sensor read failed");
       return;
     }
-    this->status_clear_warning();
 
     // Evaluate and publish measurements
     if (this->temp_sensor_ != nullptr) {

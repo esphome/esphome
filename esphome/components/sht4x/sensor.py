@@ -1,9 +1,9 @@
 import esphome.codegen as cg
 from esphome.components import i2c, sensirion_common, sensor, text_sensor
+from esphome.components.const import CONF_SERIAL_NUMBER
 import esphome.config_validation as cv
 from esphome.const import (
     CONF_HUMIDITY,
-    CONF_ID,
     CONF_TEMPERATURE,
     DEVICE_CLASS_HUMIDITY,
     DEVICE_CLASS_TEMPERATURE,
@@ -15,12 +15,6 @@ from esphome.const import (
     UNIT_PERCENT,
 )
 from esphome.types import ConfigType
-
-try:
-    from esphome.components.const import CONF_SERIAL_NUMBER
-except ImportError:
-    # ESPHome 2026.10 does not yet provide this shared constant.
-    CONF_SERIAL_NUMBER = "serial_number"
 
 CODEOWNERS = ["@sjtrny"]
 DEPENDENCIES = ["i2c"]
@@ -40,26 +34,21 @@ SHT4XComponent = sht4x_ns.class_(
 
 CONF_PRECISION = "precision"
 SHT4XPRECISION = sht4x_ns.enum("SHT4XPRECISION")
-PRECISION_OPTIONS = {
-    "High": SHT4XPRECISION.SHT4X_PRECISION_HIGH,
-    "Med": SHT4XPRECISION.SHT4X_PRECISION_MED,
-    "Low": SHT4XPRECISION.SHT4X_PRECISION_LOW,
-}
+PRECISION_OPTIONS = SHT4XPRECISION.options(
+    "High", "Med", "Low", prefix="SHT4X_PRECISION_"
+)
 
 CONF_HEATER_POWER = "heater_power"
 SHT4XHEATERPOWER = sht4x_ns.enum("SHT4XHEATERPOWER")
-HEATER_POWER_OPTIONS = {
-    "High": SHT4XHEATERPOWER.SHT4X_HEATERPOWER_HIGH,
-    "Med": SHT4XHEATERPOWER.SHT4X_HEATERPOWER_MED,
-    "Low": SHT4XHEATERPOWER.SHT4X_HEATERPOWER_LOW,
-}
+HEATER_POWER_OPTIONS = SHT4XHEATERPOWER.options(
+    "High", "Med", "Low", prefix="SHT4X_HEATERPOWER_"
+)
 
 CONF_HEATER_TIME = "heater_time"
 SHT4XHEATERTIME = sht4x_ns.enum("SHT4XHEATERTIME")
-HEATER_TIME_OPTIONS = {
-    "Long": SHT4XHEATERTIME.SHT4X_HEATERTIME_LONG,
-    "Short": SHT4XHEATERTIME.SHT4X_HEATERTIME_SHORT,
-}
+HEATER_TIME_OPTIONS = SHT4XHEATERTIME.options(
+    "Long", "Short", prefix="SHT4X_HEATERTIME_"
+)
 
 CONF_HEATER_MAX_DUTY = "heater_max_duty"
 
@@ -105,9 +94,7 @@ TYPES = {
 
 
 async def to_code(config: ConfigType) -> None:
-    var = cg.new_Pvariable(config[CONF_ID])
-    await cg.register_component(var, config)
-    await i2c.register_i2c_device(var, config)
+    var = await i2c.new_i2c_component(config)
 
     cg.add(var.set_precision_value(config[CONF_PRECISION]))
     cg.add(var.set_heater_power_value(config[CONF_HEATER_POWER]))
@@ -120,4 +107,4 @@ async def to_code(config: ConfigType) -> None:
             cg.add(getattr(var, funcName)(sens))
 
     text_sensors = text_sensor.sub_text_sensors(config)
-    await text_sensors(CONF_SERIAL_NUMBER, var.set_serial_number_sensor)
+    await text_sensors(CONF_SERIAL_NUMBER, var.set_serial_number_text_sensor)
