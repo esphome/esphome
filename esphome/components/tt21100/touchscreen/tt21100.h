@@ -3,18 +3,16 @@
 #include "esphome/components/i2c/i2c.h"
 #include "esphome/components/touchscreen/touchscreen.h"
 #include "esphome/core/component.h"
+#include "esphome/core/defines.h"
 #include "esphome/core/hal.h"
-
-#include <vector>
+#ifdef TT21100_BUTTON_COUNT
+#include "esphome/components/binary_sensor/binary_sensor.h"
+#include "esphome/core/helpers.h"
+#endif
 
 namespace esphome::tt21100 {
 
 using namespace touchscreen;
-
-class TT21100ButtonListener {
- public:
-  virtual void update_button(uint8_t index, uint16_t state) = 0;
-};
 
 class TT21100Touchscreen final : public Touchscreen, public i2c::I2CDevice {
  public:
@@ -25,7 +23,12 @@ class TT21100Touchscreen final : public Touchscreen, public i2c::I2CDevice {
   void set_interrupt_pin(InternalGPIOPin *pin) { this->interrupt_pin_ = pin; }
   void set_reset_pin(GPIOPin *pin) { this->reset_pin_ = pin; }
 
-  void register_button_listener(TT21100ButtonListener *listener) { this->button_listeners_.push_back(listener); }
+#ifdef TT21100_BUTTON_COUNT
+  /// Code generation adds the buttons sorted by index, so a report publishes its keys in index order.
+  void add_button_binary_sensor(binary_sensor::BinarySensor *sensor, uint8_t index) {
+    this->buttons_.push_back({sensor, index});
+  }
+#endif
 
  protected:
   void update_touches() override;
@@ -33,7 +36,13 @@ class TT21100Touchscreen final : public Touchscreen, public i2c::I2CDevice {
   InternalGPIOPin *interrupt_pin_;
   GPIOPin *reset_pin_{nullptr};
 
-  std::vector<TT21100ButtonListener *> button_listeners_;
+#ifdef TT21100_BUTTON_COUNT
+  struct ButtonSensor {
+    binary_sensor::BinarySensor *sensor;
+    uint8_t index;
+  };
+  StaticVector<ButtonSensor, TT21100_BUTTON_COUNT> buttons_;
+#endif
 };
 
 }  // namespace esphome::tt21100

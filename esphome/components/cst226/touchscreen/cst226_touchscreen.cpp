@@ -5,6 +5,10 @@ namespace esphome::cst226 {
 ESPHOME_LOG_TAG(TAG, "cst226.touchscreen");
 
 void CST226Touchscreen::setup() {
+#ifdef CST226_BUTTON_COUNT
+  for (auto *button : this->buttons_)
+    button->publish_initial_state(false);
+#endif
   if (this->reset_pin_ != nullptr) {
     pulse_reset(this->reset_pin_, {.high_before_ms = 5, .low_ms = 5});
     this->set_timeout(30, [this] { this->continue_setup_(); });
@@ -88,11 +92,13 @@ void CST226Touchscreen::continue_setup_() {
   this->setup_complete_ = true;
 }
 void CST226Touchscreen::update_button_state_(bool state) {
+#ifdef CST226_BUTTON_COUNT
   if (this->button_touched_ == state)
     return;
   this->button_touched_ = state;
-  for (auto *listener : this->button_listeners_)
-    listener->update_button(state);
+  for (auto *button : this->buttons_)
+    button->publish_state(state);
+#endif
 }
 
 void CST226Touchscreen::dump_config() {
@@ -100,6 +106,10 @@ void CST226Touchscreen::dump_config() {
   LOG_I2C_DEVICE(this);
   LOG_PIN("  Interrupt Pin: ", this->interrupt_pin_);
   LOG_PIN("  Reset Pin: ", this->reset_pin_);
+#ifdef CST226_BUTTON_COUNT
+  for (auto *button : this->buttons_)
+    LOG_BINARY_SENSOR("  ", "Button", button);
+#endif
 }
 
 }  // namespace esphome::cst226

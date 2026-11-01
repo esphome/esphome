@@ -14,7 +14,6 @@ TT21100Touchscreen = tt21100_ns.class_(
     touchscreen.Touchscreen,
     i2c.I2CDevice,
 )
-TT21100ButtonListener = tt21100_ns.class_("TT21100ButtonListener")
 
 CONFIG_SCHEMA = touchscreen.TOUCHSCREEN_SCHEMA.extend(
     cv.Schema(

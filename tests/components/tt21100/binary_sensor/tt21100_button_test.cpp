@@ -1,8 +1,10 @@
 #include <gtest/gtest.h>
 
+#include <algorithm>
+#include <utility>
 #include <vector>
 
-#include "esphome/components/tt21100/binary_sensor/tt21100_button.h"
+#include "esphome/components/binary_sensor/binary_sensor.h"
 #include "esphome/components/tt21100/touchscreen/tt21100.h"
 #include "esphome/core/application.h"
 #include "../common.h"
@@ -23,16 +25,15 @@ class TT21100ButtonTest : public ::testing::Test {
     new (&App) Application();
   }
 
-  void add_button_(TT21100Button &button, uint8_t index) {
-    button.set_parent(&this->hub_);
-    button.set_index(index);
-    this->buttons_.push_back(&button);
-  }
+  void add_button_(binary_sensor::BinarySensor &button, uint8_t index) { this->buttons_.emplace_back(&button, index); }
 
+  // Adds the buttons sorted by index, stable within one, as code generation does
   void setup_() {
+    std::stable_sort(this->buttons_.begin(), this->buttons_.end(),
+                     [](const auto &a, const auto &b) { return a.second < b.second; });
+    for (auto &[button, index] : this->buttons_)
+      this->hub_.add_button_binary_sensor(button, index);
     this->hub_.setup();
-    for (auto *button : this->buttons_)
-      button->setup();
   }
 
   void signals_(uint16_t s0, uint16_t s1, uint16_t s2, uint16_t s3) {
@@ -43,11 +44,11 @@ class TT21100ButtonTest : public ::testing::Test {
 
   ReportBus bus_;
   TT21100Touchscreen hub_;
-  std::vector<TT21100Button *> buttons_;
+  std::vector<std::pair<binary_sensor::BinarySensor *, uint8_t>> buttons_;
 };
 
 TEST_F(TT21100ButtonTest, SetupPublishesOff) {
-  TT21100Button button;
+  binary_sensor::BinarySensor button;
   this->add_button_(button, 0);
   std::vector<optional<bool>> published;
   button.add_full_state_callback([&published](optional<bool>, optional<bool> state) { published.push_back(state); });
@@ -59,9 +60,9 @@ TEST_F(TT21100ButtonTest, SetupPublishesOff) {
 }
 
 TEST_F(TT21100ButtonTest, EachButtonFollowsItsSignal) {
-  TT21100Button key0;
-  TT21100Button key1;
-  TT21100Button key3;
+  binary_sensor::BinarySensor key0;
+  binary_sensor::BinarySensor key1;
+  binary_sensor::BinarySensor key3;
   this->add_button_(key0, 0);
   this->add_button_(key1, 1);
   this->add_button_(key3, 3);
@@ -83,9 +84,9 @@ TEST_F(TT21100ButtonTest, EachButtonFollowsItsSignal) {
 }
 
 TEST_F(TT21100ButtonTest, KeysPublishInIndexOrder) {
-  TT21100Button key3;
-  TT21100Button key0;
-  TT21100Button key0_again;
+  binary_sensor::BinarySensor key3;
+  binary_sensor::BinarySensor key0;
+  binary_sensor::BinarySensor key0_again;
   this->add_button_(key3, 3);
   this->add_button_(key0, 0);
   this->add_button_(key0_again, 0);
@@ -100,8 +101,8 @@ TEST_F(TT21100ButtonTest, KeysPublishInIndexOrder) {
 }
 
 TEST_F(TT21100ButtonTest, ButtonsSharingAnIndexBothFollowIt) {
-  TT21100Button first;
-  TT21100Button second;
+  binary_sensor::BinarySensor first;
+  binary_sensor::BinarySensor second;
   this->add_button_(first, 2);
   this->add_button_(second, 2);
   this->setup_();

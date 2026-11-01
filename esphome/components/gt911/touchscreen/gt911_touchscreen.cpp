@@ -30,6 +30,10 @@ static constexpr uint32_t RESET_LOW_MS = 10;
 static constexpr uint32_t RESET_SETTLE_MS = 5 + 50 + 1;
 
 void GT911Touchscreen::setup() {
+#ifdef GT911_BUTTON_COUNT
+  for (auto &button : this->buttons_)
+    button.sensor->publish_initial_state(false);
+#endif
   if (this->reset_pin_ != nullptr) {
     this->reset_pin_->setup();
     this->reset_pin_->digital_write(false);
@@ -144,14 +148,14 @@ void GT911Touchscreen::update_touches() {
     uint16_t y = encode_uint16(data[i][4], data[i][3]);
     this->add_raw_touch_position_(id, x, y);
   }
+#ifdef GT911_BUTTON_COUNT
   auto keys = data[num_of_touches][0] & ((1 << MAX_BUTTONS) - 1);
   if (keys != this->button_state_) {
     this->button_state_ = keys;
-    for (size_t i = 0; i != MAX_BUTTONS; i++) {
-      for (auto *listener : this->button_listeners_)
-        listener->update_button(i, (keys & (1 << i)) != 0);
-    }
+    for (auto &button : this->buttons_)
+      button.sensor->publish_state((keys & (1 << button.index)) != 0);
   }
+#endif
 }
 
 void GT911Touchscreen::dump_config() {
@@ -159,6 +163,12 @@ void GT911Touchscreen::dump_config() {
   LOG_I2C_DEVICE(this);
   LOG_PIN("  Interrupt Pin: ", this->interrupt_pin_);
   LOG_PIN("  Reset Pin: ", this->reset_pin_);
+#ifdef GT911_BUTTON_COUNT
+  for (auto &button : this->buttons_) {
+    LOG_BINARY_SENSOR("  ", "Button", button.sensor);
+    ESP_LOGCONFIG(TAG, "    Index: %u", button.index);
+  }
+#endif
 }
 
 }  // namespace esphome::gt911

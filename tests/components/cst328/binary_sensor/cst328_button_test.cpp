@@ -2,7 +2,7 @@
 
 #include <vector>
 
-#include "esphome/components/cst328/binary_sensor/cst328_button.h"
+#include "esphome/components/binary_sensor/binary_sensor.h"
 #include "esphome/components/cst328/touchscreen/cst328_touchscreen.h"
 #include "esphome/core/application.h"
 #include "esphome/core/hal.h"
@@ -26,16 +26,9 @@ class CST328ButtonTest : public ::testing::Test {
     new (&App) Application();
   }
 
-  void add_button_(CST328Button &button) {
-    button.set_parent(&this->hub_);
-    this->buttons_.push_back(&button);
-  }
+  void add_button_(binary_sensor::BinarySensor &button) { this->hub_.add_button_binary_sensor(&button); }
 
-  void setup_() {
-    this->hub_.setup();
-    for (auto *button : this->buttons_)
-      button->setup();
-  }
+  void setup_() { this->hub_.setup(); }
 
   void touch_(uint8_t fingers) {
     this->bus_.set_finger_count(fingers);
@@ -54,11 +47,10 @@ class CST328ButtonTest : public ::testing::Test {
 
   RegisterBus bus_;
   CST328Touchscreen hub_;
-  std::vector<CST328Button *> buttons_;
 };
 
 TEST_F(CST328ButtonTest, SetupPublishesOff) {
-  CST328Button button;
+  binary_sensor::BinarySensor button;
   this->add_button_(button);
   std::vector<optional<bool>> published;
   button.add_full_state_callback([&published](optional<bool>, optional<bool> state) { published.push_back(state); });
@@ -72,7 +64,7 @@ TEST_F(CST328ButtonTest, SetupPublishesOff) {
 TEST_F(CST328ButtonTest, ResetPinSetupPublishesOffBeforeItFinishes) {
   FakePin reset;
   this->hub_.set_reset_pin(&reset);
-  CST328Button button;
+  binary_sensor::BinarySensor button;
   this->add_button_(button);
   this->setup_();
   ASSERT_TRUE(button.has_state());
@@ -87,7 +79,7 @@ TEST_F(CST328ButtonTest, ResetPinSetupPublishesOffBeforeItFinishes) {
 
 TEST_F(CST328ButtonTest, SetupPublishesOffWhenTheHubFails) {
   this->bus_.registers.clear();
-  CST328Button button;
+  binary_sensor::BinarySensor button;
   this->add_button_(button);
   this->setup_();
   EXPECT_TRUE(this->hub_.is_failed());
@@ -96,7 +88,7 @@ TEST_F(CST328ButtonTest, SetupPublishesOffWhenTheHubFails) {
 }
 
 TEST_F(CST328ButtonTest, FingerCountDrivesState) {
-  CST328Button button;
+  binary_sensor::BinarySensor button;
   this->add_button_(button);
   this->setup_();
   std::vector<bool> states;
@@ -117,8 +109,8 @@ TEST_F(CST328ButtonTest, FingerCountDrivesState) {
 }
 
 TEST_F(CST328ButtonTest, EveryButtonOfAHubFollowsTheTouch) {
-  CST328Button first;
-  CST328Button second;
+  binary_sensor::BinarySensor first;
+  binary_sensor::BinarySensor second;
   this->add_button_(first);
   this->add_button_(second);
   this->setup_();
