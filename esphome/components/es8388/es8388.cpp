@@ -142,7 +142,7 @@ void ES8388::setup() {
 void ES8388::dump_config() {
   ESP_LOGCONFIG(TAG, "ES8388 Audio Codec:");
   LOG_I2C_DEVICE(this);
-  ESP_LOGCONFIG(TAG, "  Mic gain: %u dB (ADC PGA gain: 0x%02X)", (this->mic_gain_ & 0x0F) * 3, this->mic_gain_);
+  ESP_LOGCONFIG(TAG, "  Mic gain: %u dB", (this->mic_gain_ & 0x0F) * 3);
 #ifdef USE_ES8388_SELECT
   LOG_SELECT("  ", "DAC Output", this->dac_output_select_);
   LOG_SELECT("  ", "ADC Input Mic", this->adc_input_mic_select_);

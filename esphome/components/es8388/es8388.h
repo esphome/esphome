@@ -25,7 +25,7 @@ enum AdcInputMicLine : uint8_t {
   ADC_INPUT_MIC_DIFFERENCE,
 };
 
-/// @brief ADC PGA gain for microphone recording, per ES8388 datasheet reg 0x09.
+/// ADC PGA gain (reg 0x09): the same 3 dB step in both channel nibbles
 enum ES8388MicGain : uint8_t {
   ES8388_MIC_GAIN_0DB = 0x00,
   ES8388_MIC_GAIN_3DB = 0x11,
@@ -81,8 +81,6 @@ class ES8388 final : public audio_dac::AudioDac, public Component, public i2c::I
   bool set_dac_output(DacOutputLine line);
   bool set_adc_input_mic(AdcInputMicLine line);
 
-  /// @brief Sets the ADC PGA gain applied in setup().
-  /// @param gain The gain to apply to both ADC channels.
   void set_mic_gain(ES8388MicGain gain) { this->mic_gain_ = gain; }
 
 #ifdef USE_ES8388_SELECT
