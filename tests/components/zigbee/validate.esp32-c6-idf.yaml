@@ -34,3 +34,13 @@ sensor:
     unit_of_measurement: hPa
     device_class: atmospheric_pressure
     cluster: device_class
+  - platform: template
+    name: "battery2"
+    device_class: battery
+    cluster: power_config
+    endpoint: 2
+  - platform: template
+    name: "battery2 voltage"
+    device_class: voltage
+    cluster: power_config
+    endpoint: 2

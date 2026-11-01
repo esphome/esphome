@@ -1155,7 +1155,11 @@ _ZIGBEE_ENTITY_CLASSES = {
         "ZigbeeBinarySensor",
         ["generic", "device_class"],
     ),
-    "sensor": (CONF_ZIGBEE_SENSOR, "ZigbeeSensor", ["generic", "device_class"]),
+    "sensor": (
+        CONF_ZIGBEE_SENSOR,
+        "ZigbeeSensor",
+        ["generic", "device_class", "power_config"],
+    ),
     "switch": (CONF_ZIGBEE_SWITCH, "ZigbeeSwitch", ["generic", "on_off"]),
     "number": (CONF_ZIGBEE_NUMBER, "ZigbeeNumber", ["generic"]),
 }
