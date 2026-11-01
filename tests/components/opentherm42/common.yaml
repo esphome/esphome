@@ -1,0 +1,10 @@
+api:
+wifi:
+  ap:
+    ssid: "Thermostat"
+    password: "MySecretThemostat"
+
+opentherm42:
+  id: my_opentherm42
+  in_pin: 4
+  out_pin: 5
