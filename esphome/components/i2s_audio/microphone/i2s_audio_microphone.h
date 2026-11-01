@@ -60,9 +60,6 @@ class I2SAudioMicrophone final : public I2SAudioIn, public microphone::Microphon
   /// @return True if successful, false otherwise
   bool read_dma_buffer_size_();
 
-  /// @brief Removes DC independently from each channel, retaining filter history between buffers.
-  void fix_dc_offset_(std::vector<uint8_t> &data);
-
   size_t read_(uint8_t *buf, size_t len, uint32_t timeout_ms);
 
   /// @brief Sets the Microphone ``audio_stream_info_`` member variable to the configured I2S settings.

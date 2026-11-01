@@ -8,6 +8,7 @@
 #include <cstddef>
 #include <cstdint>
 #include <limits>
+#include <numbers>
 
 namespace esphome::i2s_audio {
 
@@ -17,7 +18,7 @@ class DCOffsetFilter {
   void reset(uint32_t sample_rate) {
     // A 20 Hz pole gives the same settling time at every sample rate. Normalize the
     // feedforward coefficient to keep unity gain at Nyquist: b = (1 + a) / 2.
-    const double pole = std::exp(-2.0 * 3.14159265358979323846 * 20.0 / sample_rate);
+    const double pole = std::exp(-2.0 * std::numbers::pi * 20.0 / sample_rate);
     this->feedforward_ = static_cast<int32_t>(std::lround((1.0 + pole) * 0.5 * COEFFICIENT_SCALE));
     this->feedback_ = static_cast<int32_t>(2 * static_cast<int64_t>(this->feedforward_) - COEFFICIENT_SCALE);
     this->states_ = {};
@@ -27,6 +28,10 @@ class DCOffsetFilter {
   void process(uint8_t *data, size_t size, const audio::AudioStreamInfo &stream_info) {
     const size_t bytes_per_sample = stream_info.samples_to_bytes(1);
     const size_t channels = stream_info.get_channels();
+    // Only mono and stereo streams have channel histories; leave other formats unchanged.
+    if (channels == 0 || channels > this->states_.size()) {
+      return;
+    }
     const size_t frames = stream_info.bytes_to_frames(size);
     for (size_t frame = 0; frame < frames; ++frame) {
       for (size_t channel = 0; channel < channels; ++channel) {

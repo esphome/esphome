@@ -361,7 +361,7 @@ void I2SAudioMicrophone::mic_task(void *params) {
 
         samples.resize(bytes_read);
         if (this_microphone->correct_dc_offset_) {
-          this_microphone->fix_dc_offset_(samples);
+          this_microphone->dc_offset_filter_.process(samples.data(), samples.size(), stream_info);
         }
         this_microphone->publish_audio_(samples, stream_info, capture_time_us);
       } else {
@@ -394,10 +394,6 @@ bool IRAM_ATTR I2SAudioMicrophone::i2s_on_recv_q_ovf_cb(i2s_chan_handle_t handle
   this_microphone->dma_buffers_dropped_.store(this_microphone->dma_buffers_dropped_.load(std::memory_order_relaxed) + 1,
                                               std::memory_order_relaxed);
   return false;
-}
-
-void I2SAudioMicrophone::fix_dc_offset_(std::vector<uint8_t> &data) {
-  this->dc_offset_filter_.process(data.data(), data.size(), this->audio_stream_info_);
 }
 
 size_t I2SAudioMicrophone::read_(uint8_t *buf, size_t len, uint32_t timeout_ms) {

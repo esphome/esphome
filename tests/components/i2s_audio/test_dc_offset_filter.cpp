@@ -53,7 +53,7 @@ TEST(DCOffsetFilter, PreservesPassbandGain) {
       const double output = audio::unpack_audio_sample_to_q31(data.data() + 4 * frame, 4) / double(AMPLITUDE);
       energy += output * output;
     }
-    EXPECT_NEAR(std::sqrt(energy / (rate / 2) * 2), 1.0, 0.001);
+    EXPECT_NEAR(std::sqrt(energy / (rate / 2.0) * 2.0), 1.0, 0.001);
   }
 }
 
@@ -79,6 +79,32 @@ TEST(DCOffsetFilter, StereoChannelsMatchIndependentMonoFilters) {
               audio::unpack_audio_sample_to_q31(left.data() + 4 * frame, 4));
     EXPECT_EQ(audio::unpack_audio_sample_to_q31(stereo.data() + 8 * frame + 4, 4),
               audio::unpack_audio_sample_to_q31(right.data() + 4 * frame, 4));
+  }
+}
+
+TEST(DCOffsetFilter, UnsupportedChannelsLeaveDataAndHistoryUnchanged) {
+  for (uint8_t channels : {0, 3, 255}) {
+    SCOPED_TRACE(channels);
+    audio::AudioStreamInfo mono_info(32, 1, 16000);
+    audio::AudioStreamInfo unsupported_info(32, channels, 16000);
+    DCOffsetFilter filter, reference;
+    filter.reset(16000);
+    reference.reset(16000);
+    auto initial = constant_pcm(mono_info, 100, AMPLITUDE);
+    auto reference_initial = initial;
+    filter.process(initial.data(), initial.size(), mono_info);
+    reference.process(reference_initial.data(), reference_initial.size(), mono_info);
+
+    auto unsupported = constant_pcm(mono_info, 255, -AMPLITUDE);
+    const auto original = unsupported;
+    filter.process(unsupported.data(), unsupported.size(), unsupported_info);
+    EXPECT_EQ(unsupported, original);
+
+    auto continuation = constant_pcm(mono_info, 100, AMPLITUDE);
+    auto expected = continuation;
+    filter.process(continuation.data(), continuation.size(), mono_info);
+    reference.process(expected.data(), expected.size(), mono_info);
+    EXPECT_EQ(continuation, expected);
   }
 }
 
