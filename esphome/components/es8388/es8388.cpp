@@ -60,15 +60,15 @@ static constexpr i2c::I2CRegValue ES8388_INIT[] PROGMEM = {
     {ES8388_ADCCONTROL9, 0x00},
     //@nightDav
     // ALC Config (as recommended by ES8388 user guide for voice recording)
-    // Reg 0x12 = 0xe2 (ALC enable, PGA Max. Gain=23.5dB, Min. Gain=0dB)
+    // Reg 0x12 = 0xe2 (ALC stereo, max gain +17.5dB, min gain 0dB)
     {ES8388_ADCCONTROL10, 0xe2},
-    // Reg 0x13 = 0xa0 (ALC Target=-1.5dB, ALC Hold time =0 mS)
+    // Reg 0x13 = 0xa0 (ALC target = -1.5dB, hold time = 0ms)
     {ES8388_ADCCONTROL11, 0xa0},
-    // Reg 0x14 = 0x12(Decay time =820uS , Attack time = 416 uS)
+    // Reg 0x14 = 0x12 (decay time = 820us, attack time = 416us)
     {ES8388_ADCCONTROL12, 0x12},
-    // Reg 0x15 = 0x06(ALC mode)
+    // Reg 0x15 = 0x06 (ALC mode, window size = 96 samples)
     {ES8388_ADCCONTROL13, 0x06},
-    // Reg 0x16 = 0xc3(nose gate = -40.5dB, NGG = 0x01(mute ADC))
+    // Reg 0x16 = 0xc3 (noise gate = -40.5dBFS, NGG = 0x01 (mute ADC output), enabled)
     {ES8388_ADCCONTROL14, 0xc3},
     // Power on ADC
     {ES8388_DACCONTROL21, 0x80},
