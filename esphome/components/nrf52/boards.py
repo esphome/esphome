@@ -131,6 +131,9 @@ BOARDS = {
             "i2c": [
                 "i2c0",
             ],
+            "uart": [
+                "/soc/uart@40002000",
+            ],
         },
         "96b_nitrogen": {
             "name": "Nitrogen",
@@ -138,10 +141,16 @@ BOARDS = {
             "i2c": [
                 "i2c0",
             ],
+            "uart": [
+                "/soc/uart@40002000",
+            ],
         },
         "acn52832": {
             "name": "acn52832",
             "variant": "NRF52832",
+            "uart": [
+                "/soc/uart@40002000",
+            ],
         },
         "adafruit_feather_nrf52840": {
             "name": "Feather nRF52840 (Express, Sense)",
@@ -149,12 +158,18 @@ BOARDS = {
             "i2c": [
                 "i2c0",
             ],
+            "uart": [
+                "/soc/uart@40002000",
+            ],
         },
         "adafruit_feather_nrf52840/nrf52840/sense": {
             "name": "Feather nRF52840 (Express, Sense)",
             "variant": "NRF52840",
             "i2c": [
                 "i2c0",
+            ],
+            "uart": [
+                "/soc/uart@40002000",
             ],
         },
         "adafruit_feather_nrf52840/nrf52840/sense/uf2": {
@@ -166,6 +181,9 @@ BOARDS = {
             "i2c": [
                 "i2c0",
             ],
+            "uart": [
+                "/soc/uart@40002000",
+            ],
         },
         "adafruit_feather_nrf52840/nrf52840/uf2": {
             "name": "Feather nRF52840 (Express, Sense)",
@@ -175,6 +193,9 @@ BOARDS = {
             ],
             "i2c": [
                 "i2c0",
+            ],
+            "uart": [
+                "/soc/uart@40002000",
             ],
         },
         "adafruit_itsybitsy": {
@@ -194,6 +215,9 @@ BOARDS = {
                 "i2c0",
                 "i2c1",
             ],
+            "uart": [
+                "/soc/uart@40002000",
+            ],
         },
         "arduino_nano_33_ble/nrf52840/sense": {
             "name": "Arduino Nano 33 BLE (Sense)",
@@ -201,6 +225,9 @@ BOARDS = {
             "i2c": [
                 "i2c0",
                 "i2c1",
+            ],
+            "uart": [
+                "/soc/uart@40002000",
             ],
         },
         "arduino_nicla_sense_me": {
@@ -210,12 +237,18 @@ BOARDS = {
                 "i2c0",
                 "i2c1",
             ],
+            "uart": [
+                "/soc/uart@40002000",
+            ],
         },
         "bbc_microbit": {
             "name": "micro:bit",
             "variant": "NRF51822",
             "i2c": [
                 "i2c0",
+            ],
+            "uart": [
+                "/soc/uart@40002000",
             ],
         },
         "bbc_microbit_v2": {
@@ -224,12 +257,18 @@ BOARDS = {
             "i2c": [
                 "i2c0",
             ],
+            "uart": [
+                "/soc/uart@40002000",
+            ],
         },
         "bl652_dvk": {
             "name": "BL652 DVK",
             "variant": "NRF52832",
             "i2c": [
                 "i2c0",
+            ],
+            "uart": [
+                "/soc/uart@40002000",
             ],
         },
         "bl653_dvk": {
@@ -238,12 +277,18 @@ BOARDS = {
             "i2c": [
                 "i2c0",
             ],
+            "uart": [
+                "/soc/uart@40002000",
+            ],
         },
         "bl654_dvk": {
             "name": "BL654 DVK",
             "variant": "NRF52840",
             "i2c": [
                 "i2c0",
+            ],
+            "uart": [
+                "/soc/uart@40002000",
             ],
         },
         "bl654_dvk/nrf52840/pa": {
@@ -252,12 +297,18 @@ BOARDS = {
             "i2c": [
                 "i2c0",
             ],
+            "uart": [
+                "/soc/uart@40002000",
+            ],
         },
         "bl654_sensor_board": {
             "name": "BL654 Sensor Board",
             "variant": "NRF52840",
             "i2c": [
                 "i2c0",
+            ],
+            "uart": [
+                "/soc/uart@40002000",
             ],
         },
         "bl654_usb": {
@@ -273,12 +324,18 @@ BOARDS = {
             "i2c": [
                 "i2c0",
             ],
+            "uart": [
+                "/soc/uart@40002000",
+            ],
         },
         "bt510": {
             "name": "Sentrius BT510 Sensor",
             "variant": "NRF52840",
             "i2c": [
                 "i2c0",
+            ],
+            "uart": [
+                "/soc/uart@40002000",
             ],
         },
         "bt610": {
@@ -287,6 +344,10 @@ BOARDS = {
             "i2c": [
                 "i2c0",
             ],
+            "uart": [
+                "/soc/uart@40002000",
+                "/soc/uart@40028000",
+            ],
         },
         "bytesensi_l": {
             "name": "byteSENSI-L",
@@ -294,12 +355,19 @@ BOARDS = {
             "i2c": [
                 "i2c0",
             ],
+            "uart": [
+                "/soc/uart@40002000",
+            ],
         },
         "contextualelectronics_abc": {
             "name": "Advanced BLE Cell",
             "variant": "NRF52840",
             "i2c": [
                 "i2c0",
+            ],
+            "uart": [
+                "/soc/uart@40002000",
+                "/soc/uart@40028000",
             ],
         },
         "croxel_cx1825": {
@@ -325,6 +393,9 @@ BOARDS = {
             "i2c": [
                 "i2c0",
             ],
+            "uart": [
+                "/soc/uart@40002000",
+            ],
         },
         "degu_evk": {
             "name": "Degu Evaluation Kit",
@@ -336,10 +407,16 @@ BOARDS = {
                 "i2c0",
                 "i2c1",
             ],
+            "uart": [
+                "/soc/uart@40002000",
+            ],
         },
         "ebyte_e73_tbb": {
             "name": "E73-TBB",
             "variant": "NRF52832",
+            "uart": [
+                "/soc/uart@40002000",
+            ],
         },
         "holyiot_yj16019": {
             "name": "YJ-16019",
@@ -351,6 +428,10 @@ BOARDS = {
             "i2c": [
                 "i2c0",
             ],
+            "uart": [
+                "/soc/uart@40002000",
+                "/soc/uart@40028000",
+            ],
         },
         "micromod": {
             "name": "MicroMod board Processor",
@@ -359,12 +440,19 @@ BOARDS = {
                 "i2c0",
                 "i2c1",
             ],
+            "uart": [
+                "/soc/uart@40002000",
+                "/soc/uart@40028000",
+            ],
         },
         "nrf21540dk": {
             "name": "nRF21540 DK",
             "variant": "NRF52840",
             "i2c": [
                 "i2c0",
+            ],
+            "uart": [
+                "/soc/uart@40002000",
             ],
         },
         "nrf51_ble400": {
@@ -373,16 +461,25 @@ BOARDS = {
             "i2c": [
                 "i2c0",
             ],
+            "uart": [
+                "/soc/uart@40002000",
+            ],
         },
         "nrf51_blenano": {
             "name": "Redbear Labs Nano",
             "variant": "NRF51822",
+            "uart": [
+                "/soc/uart@40002000",
+            ],
         },
         "nrf51_vbluno51": {
             "name": "nRF51-VBLUno51",
             "variant": "NRF51822",
             "i2c": [
                 "i2c0",
+            ],
+            "uart": [
+                "/soc/uart@40002000",
             ],
         },
         "nrf51dk": {
@@ -391,18 +488,30 @@ BOARDS = {
             "i2c": [
                 "i2c0",
             ],
+            "uart": [
+                "/soc/uart@40002000",
+            ],
         },
         "nrf51dongle": {
             "name": "nRF51 Dongle",
             "variant": "NRF51822",
+            "uart": [
+                "/soc/uart@40002000",
+            ],
         },
         "nrf52810dmouse": {
             "name": "nrf52810dmouse",
             "variant": "NRF52810",
+            "uart": [
+                "/soc/uart@40002000",
+            ],
         },
         "nrf52820dongle": {
             "name": "nrf52820dongle",
             "variant": "NRF52820",
+            "uart": [
+                "/soc/uart@40002000",
+            ],
         },
         "nrf52832_mdk": {
             "name": "nRF52832-mdk",
@@ -411,12 +520,18 @@ BOARDS = {
                 "i2c0",
                 "i2c1",
             ],
+            "uart": [
+                "/soc/uart@40002000",
+            ],
         },
         "nrf52833dk/nrf52820": {
             "name": "nRF52833 DK",
             "variant": "NRF52820",
             "i2c": [
                 "i2c0",
+            ],
+            "uart": [
+                "/soc/uart@40002000",
             ],
         },
         "nrf52833dk/nrf52833": {
@@ -425,16 +540,25 @@ BOARDS = {
             "i2c": [
                 "i2c0",
             ],
+            "uart": [
+                "/soc/uart@40002000",
+            ],
         },
         "nrf52833dongle": {
             "name": "nrf52833dongle",
             "variant": "NRF52833",
+            "uart": [
+                "/soc/uart@40002000",
+            ],
         },
         "nrf52840_blip": {
             "name": "Labs Blip",
             "variant": "NRF52840",
             "i2c": [
                 "i2c0",
+            ],
+            "uart": [
+                "/soc/uart@40002000",
             ],
         },
         "nrf52840_mdk": {
@@ -444,16 +568,25 @@ BOARDS = {
                 "i2c0",
                 "i2c1",
             ],
+            "uart": [
+                "/soc/uart@40002000",
+            ],
         },
         "nrf52840_mdk_usb_dongle": {
             "name": "nRF52840 MDK USB Dongle",
             "variant": "NRF52840",
+            "uart": [
+                "/soc/uart@40002000",
+            ],
         },
         "nrf52840_papyr": {
             "name": "Labs Papyr",
             "variant": "NRF52840",
             "i2c": [
                 "i2c0",
+            ],
+            "uart": [
+                "/soc/uart@40002000",
             ],
         },
         "nrf52840dk/nrf52811": {
@@ -462,12 +595,18 @@ BOARDS = {
             "i2c": [
                 "i2c0",
             ],
+            "uart": [
+                "/soc/uart@40002000",
+            ],
         },
         "nrf52840dk/nrf52840": {
             "name": "nRF52840 DK",
             "variant": "NRF52840",
             "i2c": [
                 "i2c0",
+            ],
+            "uart": [
+                "/soc/uart@40002000",
             ],
         },
         "nrf52840dongle": {
@@ -479,6 +618,9 @@ BOARDS = {
             "i2c": [
                 "i2c0",
             ],
+            "uart": [
+                "/soc/uart@40002000",
+            ],
         },
         "nrf52840gmouse": {
             "name": "nrf52840gmouse",
@@ -487,10 +629,16 @@ BOARDS = {
                 "i2c0",
                 "i2c1",
             ],
+            "uart": [
+                "/soc/uart@40002000",
+            ],
         },
         "nrf52_adafruit_feather": {
             "name": "nRF52 Adafruit Feather",
             "variant": "NRF52832",
+            "uart": [
+                "/soc/uart@40002000",
+            ],
         },
         "nrf52_blenano2": {
             "name": "Redbear Labs Nano v2",
@@ -498,16 +646,25 @@ BOARDS = {
             "i2c": [
                 "i2c0",
             ],
+            "uart": [
+                "/soc/uart@40002000",
+            ],
         },
         "nrf52_sparkfun": {
             "name": "nRF52832 breakout",
             "variant": "NRF52832",
+            "uart": [
+                "/soc/uart@40002000",
+            ],
         },
         "nrf52_vbluno52": {
             "name": "nRF52-VBLUno52",
             "variant": "NRF52832",
             "i2c": [
                 "i2c0",
+            ],
+            "uart": [
+                "/soc/uart@40002000",
             ],
         },
         "nrf52dk/nrf52805": {
@@ -516,12 +673,18 @@ BOARDS = {
             "i2c": [
                 "i2c0",
             ],
+            "uart": [
+                "/soc/uart@40002000",
+            ],
         },
         "nrf52dk/nrf52810": {
             "name": "nRF52 DK",
             "variant": "NRF52810",
             "i2c": [
                 "i2c0",
+            ],
+            "uart": [
+                "/soc/uart@40002000",
             ],
         },
         "nrf52dk/nrf52832": {
@@ -530,38 +693,65 @@ BOARDS = {
             "i2c": [
                 "i2c0",
             ],
+            "uart": [
+                "/soc/uart@40002000",
+            ],
         },
         "nrf52dmouse": {
             "name": "nrf52dmouse",
             "variant": "NRF52832",
+            "uart": [
+                "/soc/uart@40002000",
+            ],
         },
         "nrf52kbd": {
             "name": "nrf52kbd",
             "variant": "NRF52832",
+            "uart": [
+                "/soc/uart@40002000",
+            ],
         },
         "nrf54h20dk/nrf54h20/cpuapp": {
             "name": "nRF54H20 DK",
             "variant": "NRF54H20",
+            "uart": [
+                "/soc/peripheral@5f000000/uart@9d5000",
+            ],
         },
         "nrf54h20dk/nrf54h20/cpuflpr": {
             "name": "nRF54H20 DK",
             "variant": "NRF54H20",
+            "uart": [
+                "/soc/peripheral@5f000000/uart@8e6000",
+            ],
         },
         "nrf54h20dk/nrf54h20/cpuflpr/xip": {
             "name": "nRF54H20 DK",
             "variant": "NRF54H20",
+            "uart": [
+                "/soc/peripheral@5f000000/uart@8e6000",
+            ],
         },
         "nrf54h20dk/nrf54h20/cpuppr": {
             "name": "nRF54H20 DK",
             "variant": "NRF54H20",
+            "uart": [
+                "/soc/peripheral@5f000000/uart@9c6000",
+            ],
         },
         "nrf54h20dk/nrf54h20/cpuppr/xip": {
             "name": "nRF54H20 DK",
             "variant": "NRF54H20",
+            "uart": [
+                "/soc/peripheral@5f000000/uart@9c6000",
+            ],
         },
         "nrf54h20dk/nrf54h20/cpurad": {
             "name": "nRF54H20 DK",
             "variant": "NRF54H20",
+            "uart": [
+                "/soc/peripheral@5f000000/uart@9c6000",
+            ],
         },
         "nrf54l15bsim/nrf54l15/cpuapp": {
             "name": "nRF54L15 simulated boards (BabbleSim)",
@@ -570,40 +760,68 @@ BOARDS = {
         "nrf54l15dk/nrf54l05/cpuapp": {
             "name": "nRF54L15 DK",
             "variant": "NRF54L05",
+            "uart": [
+                "/soc/peripheral@50000000/uart@c6000",
+            ],
         },
         "nrf54l15dk/nrf54l10/cpuapp": {
             "name": "nRF54L15 DK",
             "variant": "NRF54L10",
+            "uart": [
+                "/soc/peripheral@50000000/uart@c6000",
+            ],
         },
         "nrf54l15dk/nrf54l15/cpuapp": {
             "name": "nRF54L15 DK",
             "variant": "NRF54L15",
+            "uart": [
+                "/soc/peripheral@50000000/uart@c6000",
+            ],
         },
         "nrf54l15dk/nrf54l15/cpuapp/ns": {
             "name": "nRF54L15 DK",
             "variant": "NRF54L15",
+            "uart": [
+                "/soc/peripheral@40000000/uart@c6000",
+            ],
         },
         "nrf54l15dk/nrf54l15/cpuflpr": {
             "name": "nRF54L15 DK",
             "variant": "NRF54L15",
+            "uart": [
+                "/soc/peripheral@50000000/uart@104000",
+            ],
         },
         "nrf54l15dk/nrf54l15/cpuflpr/xip": {
             "name": "nRF54L15 DK",
             "variant": "NRF54L15",
+            "uart": [
+                "/soc/peripheral@50000000/uart@104000",
+            ],
         },
         "nrf54l20pdk/nrf54l20/cpuapp": {
             "name": "nRF54L20 PDK",
             "variant": "NRF54L20",
+            "uart": [
+                "/soc/peripheral@50000000/uart@c6000",
+            ],
         },
         "nrf9160dk/nrf52840": {
             "name": "nRF9160 DK",
             "variant": "NRF52840",
+            "uart": [
+                "/soc/uart@40002000",
+            ],
         },
         "pan1770_evb": {
             "name": "PAN1770 Evaluation Board",
             "variant": "NRF52840",
             "i2c": [
                 "i2c0",
+            ],
+            "uart": [
+                "/soc/uart@40002000",
+                "/soc/uart@40028000",
             ],
         },
         "pan1780_evb": {
@@ -612,12 +830,19 @@ BOARDS = {
             "i2c": [
                 "i2c0",
             ],
+            "uart": [
+                "/soc/uart@40002000",
+                "/soc/uart@40028000",
+            ],
         },
         "pan1781_evb": {
             "name": "PAN1781 Evaluation Board",
             "variant": "NRF52820",
             "i2c": [
                 "i2c0",
+            ],
+            "uart": [
+                "/soc/uart@40002000",
             ],
         },
         "pan1782_evb": {
@@ -626,12 +851,19 @@ BOARDS = {
             "i2c": [
                 "i2c0",
             ],
+            "uart": [
+                "/soc/uart@40002000",
+            ],
         },
         "particle_argon": {
             "name": "Argon",
             "variant": "NRF52840",
             "i2c": [
                 "i2c0",
+            ],
+            "uart": [
+                "/soc/uart@40002000",
+                "/soc/uart@40028000",
             ],
         },
         "particle_boron": {
@@ -641,12 +873,19 @@ BOARDS = {
                 "i2c0",
                 "i2c1",
             ],
+            "uart": [
+                "/soc/uart@40002000",
+                "/soc/uart@40028000",
+            ],
         },
         "particle_xenon": {
             "name": "Xenon",
             "variant": "NRF52840",
             "i2c": [
                 "i2c0",
+            ],
+            "uart": [
+                "/soc/uart@40002000",
             ],
         },
         "pinetime_devkit0": {
@@ -655,6 +894,9 @@ BOARDS = {
             "i2c": [
                 "i2c0",
             ],
+            "uart": [
+                "/soc/uart@40002000",
+            ],
         },
         "pinnacle_100_dvk": {
             "name": "Pinnacle 100 DVK",
@@ -662,16 +904,27 @@ BOARDS = {
             "i2c": [
                 "i2c0",
             ],
+            "uart": [
+                "/soc/uart@40002000",
+                "/soc/uart@40028000",
+            ],
         },
         "qemu_cortex_m0": {
             "name": "QEMU Emulation for ARM Cortex-M0",
             "variant": "NRF51822",
+            "uart": [
+                "/soc/uart@40002000",
+            ],
         },
         "rak4631": {
             "name": "RAK4631",
             "variant": "NRF52840",
             "i2c": [
                 "i2c0",
+            ],
+            "uart": [
+                "/soc/uart@40002000",
+                "/soc/uart@40028000",
             ],
         },
         "rak5010": {
@@ -680,12 +933,20 @@ BOARDS = {
             "i2c": [
                 "i2c1",
             ],
+            "uart": [
+                "/soc/uart@40002000",
+                "/soc/uart@40028000",
+            ],
         },
         "raytac_mdbt50q_db_33": {
             "name": "MDBT50Q-DB-33",
             "variant": "NRF52833",
             "i2c": [
                 "i2c0",
+            ],
+            "uart": [
+                "/soc/uart@40002000",
+                "/soc/uart@40028000",
             ],
         },
         "raytac_mdbt50q_db_40": {
@@ -694,12 +955,20 @@ BOARDS = {
             "i2c": [
                 "i2c0",
             ],
+            "uart": [
+                "/soc/uart@40002000",
+                "/soc/uart@40028000",
+            ],
         },
         "reel_board": {
             "name": "reel board",
             "variant": "NRF52840",
             "i2c": [
                 "i2c0",
+            ],
+            "uart": [
+                "/soc/uart@40002000",
+                "/soc/uart@40028000",
             ],
         },
         "rm1xx_dvk": {
@@ -708,10 +977,16 @@ BOARDS = {
             "i2c": [
                 "i2c0",
             ],
+            "uart": [
+                "/soc/uart@40002000",
+            ],
         },
         "ruuvi_ruuvitag": {
             "name": "RuuviTag",
             "variant": "NRF52832",
+            "uart": [
+                "/soc/uart@40002000",
+            ],
         },
         "thingy52": {
             "name": "Thingy:52",
@@ -720,16 +995,25 @@ BOARDS = {
                 "i2c0",
                 "i2c1",
             ],
+            "uart": [
+                "/soc/uart@40002000",
+            ],
         },
         "thingy91/nrf52840": {
             "name": "thingy91",
             "variant": "NRF52840",
+            "uart": [
+                "/soc/uart@40002000",
+            ],
         },
         "ubx_bmd300eval": {
             "name": "EVK-BMD-30/35: BMD-300-EVAL, BMD-301-EVAL, and BMD-350-EVAL",
             "variant": "NRF52832",
             "i2c": [
                 "i2c0",
+            ],
+            "uart": [
+                "/soc/uart@40002000",
             ],
         },
         "ubx_bmd330eval": {
@@ -738,12 +1022,19 @@ BOARDS = {
             "i2c": [
                 "i2c0",
             ],
+            "uart": [
+                "/soc/uart@40002000",
+            ],
         },
         "ubx_bmd340eval": {
             "name": "EVK-BMD-34/38: BMD-340-EVAL and BMD-341-EVAL",
             "variant": "NRF52840",
             "i2c": [
                 "i2c0",
+            ],
+            "uart": [
+                "/soc/uart@40002000",
+                "/soc/uart@40028000",
             ],
         },
         "ubx_bmd345eval": {
@@ -752,6 +1043,9 @@ BOARDS = {
             "i2c": [
                 "i2c0",
             ],
+            "uart": [
+                "/soc/uart@40002000",
+            ],
         },
         "ubx_bmd360eval": {
             "name": "EVK-BMD-360: BMD-360-EVAL",
@@ -759,16 +1053,25 @@ BOARDS = {
             "i2c": [
                 "i2c0",
             ],
+            "uart": [
+                "/soc/uart@40002000",
+            ],
         },
         "ubx_bmd380eval": {
             "name": "EVK-BMD-34/48: BMD-380-EVAL",
             "variant": "NRF52840",
+            "uart": [
+                "/soc/uart@40002000",
+            ],
         },
         "ubx_evkannab1": {
             "name": "EVK-ANNA-B11x",
             "variant": "NRF52832",
             "i2c": [
                 "i2c0",
+            ],
+            "uart": [
+                "/soc/uart@40002000",
             ],
         },
         "ubx_evkninab1": {
@@ -777,12 +1080,18 @@ BOARDS = {
             "i2c": [
                 "i2c0",
             ],
+            "uart": [
+                "/soc/uart@40002000",
+            ],
         },
         "ubx_evkninab3": {
             "name": "EVK-NINA-B3",
             "variant": "NRF52840",
             "i2c": [
                 "i2c0",
+            ],
+            "uart": [
+                "/soc/uart@40002000",
             ],
         },
         "ubx_evkninab4": {
@@ -791,6 +1100,9 @@ BOARDS = {
             "i2c": [
                 "i2c0",
             ],
+            "uart": [
+                "/soc/uart@40002000",
+            ],
         },
         "we_ophelia1ev": {
             "name": "Ophelia-I EV NRF52805",
@@ -798,14 +1110,23 @@ BOARDS = {
             "i2c": [
                 "i2c0",
             ],
+            "uart": [
+                "/soc/uart@40002000",
+            ],
         },
         "we_proteus2ev": {
             "name": "Proteus-II-EV",
             "variant": "NRF52832",
+            "uart": [
+                "/soc/uart@40002000",
+            ],
         },
         "we_proteus3ev": {
             "name": "Proteus-III-EV",
             "variant": "NRF52840",
+            "uart": [
+                "/soc/uart@40002000",
+            ],
         },
         "xiao_ble": {
             "name": "XIAO BLE (Sense)",
@@ -815,6 +1136,9 @@ BOARDS = {
             ],
             "i2c": [
                 "i2c1",
+            ],
+            "uart": [
+                "/soc/uart@40002000",
             ],
         },
         "xiao_ble/nrf52840/sense": {
@@ -827,6 +1151,9 @@ BOARDS = {
                 "i2c0",
                 "i2c1",
             ],
+            "uart": [
+                "/soc/uart@40002000",
+            ],
         },
     },
     "3.2.0": {
@@ -836,6 +1163,9 @@ BOARDS = {
             "i2c": [
                 "i2c0",
             ],
+            "uart": [
+                "/soc/uart@40002000",
+            ],
         },
         "96b_nitrogen": {
             "name": "Nitrogen",
@@ -843,10 +1173,16 @@ BOARDS = {
             "i2c": [
                 "i2c0",
             ],
+            "uart": [
+                "/soc/uart@40002000",
+            ],
         },
         "acn52832": {
             "name": "acn52832",
             "variant": "NRF52832",
+            "uart": [
+                "/soc/uart@40002000",
+            ],
         },
         "adafruit_feather_nrf52840": {
             "name": "Feather nRF52840 (Express, Sense)",
@@ -854,12 +1190,18 @@ BOARDS = {
             "i2c": [
                 "i2c0",
             ],
+            "uart": [
+                "/soc/uart@40002000",
+            ],
         },
         "adafruit_feather_nrf52840/nrf52840/sense": {
             "name": "Feather nRF52840 (Express, Sense)",
             "variant": "NRF52840",
             "i2c": [
                 "i2c0",
+            ],
+            "uart": [
+                "/soc/uart@40002000",
             ],
         },
         "adafruit_feather_nrf52840/nrf52840/sense/uf2": {
@@ -871,6 +1213,9 @@ BOARDS = {
             "i2c": [
                 "i2c0",
             ],
+            "uart": [
+                "/soc/uart@40002000",
+            ],
         },
         "adafruit_feather_nrf52840/nrf52840/uf2": {
             "name": "Feather nRF52840 (Express, Sense)",
@@ -880,6 +1225,9 @@ BOARDS = {
             ],
             "i2c": [
                 "i2c0",
+            ],
+            "uart": [
+                "/soc/uart@40002000",
             ],
         },
         "adafruit_itsybitsy": {
@@ -899,6 +1247,9 @@ BOARDS = {
                 "i2c0",
                 "i2c1",
             ],
+            "uart": [
+                "/soc/uart@40002000",
+            ],
         },
         "arduino_nano_33_ble/nrf52840/sense": {
             "name": "Arduino Nano 33 BLE (Sense)",
@@ -906,6 +1257,9 @@ BOARDS = {
             "i2c": [
                 "i2c0",
                 "i2c1",
+            ],
+            "uart": [
+                "/soc/uart@40002000",
             ],
         },
         "arduino_nicla_sense_me": {
@@ -915,12 +1269,18 @@ BOARDS = {
                 "i2c0",
                 "i2c1",
             ],
+            "uart": [
+                "/soc/uart@40002000",
+            ],
         },
         "bbc_microbit": {
             "name": "micro:bit",
             "variant": "NRF51822",
             "i2c": [
                 "i2c0",
+            ],
+            "uart": [
+                "/soc/uart@40002000",
             ],
         },
         "bbc_microbit_v2": {
@@ -929,52 +1289,88 @@ BOARDS = {
             "i2c": [
                 "i2c0",
             ],
+            "uart": [
+                "/soc/uart@40002000",
+            ],
         },
         "bl54l15_dvk/nrf54l10/cpuapp": {
             "name": "BL54L15 DVK",
             "variant": "NRF54L10",
+            "uart": [
+                "/soc/peripheral@50000000/uart@c6000",
+            ],
         },
         "bl54l15_dvk/nrf54l10/cpuapp/ns": {
             "name": "BL54L15 DVK",
             "variant": "NRF54L10",
+            "uart": [
+                "/soc/peripheral@40000000/uart@c6000",
+            ],
         },
         "bl54l15_dvk/nrf54l15/cpuapp": {
             "name": "BL54L15 DVK",
             "variant": "NRF54L15",
+            "uart": [
+                "/soc/peripheral@50000000/uart@c6000",
+            ],
         },
         "bl54l15_dvk/nrf54l15/cpuapp/ns": {
             "name": "BL54L15 DVK",
             "variant": "NRF54L15",
+            "uart": [
+                "/soc/peripheral@40000000/uart@c6000",
+            ],
         },
         "bl54l15_dvk/nrf54l15/cpuflpr": {
             "name": "BL54L15 DVK",
             "variant": "NRF54L15",
+            "uart": [
+                "/soc/peripheral@50000000/uart@104000",
+            ],
         },
         "bl54l15_dvk/nrf54l15/cpuflpr/xip": {
             "name": "BL54L15 DVK",
             "variant": "NRF54L15",
+            "uart": [
+                "/soc/peripheral@50000000/uart@104000",
+            ],
         },
         "bl54l15u_dvk/nrf54l15/cpuapp": {
             "name": "BL54L15u DVK",
             "variant": "NRF54L15",
+            "uart": [
+                "/soc/peripheral@50000000/uart@c6000",
+            ],
         },
         "bl54l15u_dvk/nrf54l15/cpuapp/ns": {
             "name": "BL54L15u DVK",
             "variant": "NRF54L15",
+            "uart": [
+                "/soc/peripheral@40000000/uart@c6000",
+            ],
         },
         "bl54l15u_dvk/nrf54l15/cpuflpr": {
             "name": "BL54L15u DVK",
             "variant": "NRF54L15",
+            "uart": [
+                "/soc/peripheral@50000000/uart@104000",
+            ],
         },
         "bl54l15u_dvk/nrf54l15/cpuflpr/xip": {
             "name": "BL54L15u DVK",
             "variant": "NRF54L15",
+            "uart": [
+                "/soc/peripheral@50000000/uart@104000",
+            ],
         },
         "bl652_dvk": {
             "name": "BL652 DVK",
             "variant": "NRF52832",
             "i2c": [
                 "i2c0",
+            ],
+            "uart": [
+                "/soc/uart@40002000",
             ],
         },
         "bl653_dvk": {
@@ -983,12 +1379,18 @@ BOARDS = {
             "i2c": [
                 "i2c0",
             ],
+            "uart": [
+                "/soc/uart@40002000",
+            ],
         },
         "bl654_dvk": {
             "name": "BL654 DVK",
             "variant": "NRF52840",
             "i2c": [
                 "i2c0",
+            ],
+            "uart": [
+                "/soc/uart@40002000",
             ],
         },
         "bl654_dvk/nrf52840/pa": {
@@ -997,12 +1399,18 @@ BOARDS = {
             "i2c": [
                 "i2c0",
             ],
+            "uart": [
+                "/soc/uart@40002000",
+            ],
         },
         "bl654_sensor_board": {
             "name": "BL654 Sensor Board",
             "variant": "NRF52840",
             "i2c": [
                 "i2c0",
+            ],
+            "uart": [
+                "/soc/uart@40002000",
             ],
         },
         "bl654_usb": {
@@ -1025,12 +1433,18 @@ BOARDS = {
             "i2c": [
                 "i2c0",
             ],
+            "uart": [
+                "/soc/uart@40002000",
+            ],
         },
         "bt510": {
             "name": "Sentrius BT510 Sensor",
             "variant": "NRF52840",
             "i2c": [
                 "i2c0",
+            ],
+            "uart": [
+                "/soc/uart@40002000",
             ],
         },
         "bt610": {
@@ -1039,6 +1453,10 @@ BOARDS = {
             "i2c": [
                 "i2c0",
             ],
+            "uart": [
+                "/soc/uart@40002000",
+                "/soc/uart@40028000",
+            ],
         },
         "bytesensi_l": {
             "name": "byteSENSI-L",
@@ -1046,12 +1464,19 @@ BOARDS = {
             "i2c": [
                 "i2c0",
             ],
+            "uart": [
+                "/soc/uart@40002000",
+            ],
         },
         "contextualelectronics_abc": {
             "name": "Advanced BLE Cell",
             "variant": "NRF52840",
             "i2c": [
                 "i2c0",
+            ],
+            "uart": [
+                "/soc/uart@40002000",
+                "/soc/uart@40028000",
             ],
         },
         "croxel_cx1825": {
@@ -1077,12 +1502,18 @@ BOARDS = {
             "i2c": [
                 "i2c0",
             ],
+            "uart": [
+                "/soc/uart@40002000",
+            ],
         },
         "decawave_dwm3001cdk": {
             "name": "Decawave DWM3001CDK",
             "variant": "NRF52833",
             "i2c": [
                 "i2c0",
+            ],
+            "uart": [
+                "/soc/uart@40002000",
             ],
         },
         "degu_evk": {
@@ -1095,10 +1526,16 @@ BOARDS = {
                 "i2c0",
                 "i2c1",
             ],
+            "uart": [
+                "/soc/uart@40002000",
+            ],
         },
         "ebyte_e73_tbb": {
             "name": "E73-TBB",
             "variant": "NRF52832",
+            "uart": [
+                "/soc/uart@40002000",
+            ],
         },
         "holyiot_yj16019": {
             "name": "YJ-16019",
@@ -1114,6 +1551,10 @@ BOARDS = {
             "i2c": [
                 "i2c0",
             ],
+            "uart": [
+                "/soc/uart@40002000",
+                "/soc/uart@40028000",
+            ],
         },
         "micromod": {
             "name": "MicroMod board Processor",
@@ -1122,12 +1563,19 @@ BOARDS = {
                 "i2c0",
                 "i2c1",
             ],
+            "uart": [
+                "/soc/uart@40002000",
+                "/soc/uart@40028000",
+            ],
         },
         "nrf21540dk": {
             "name": "nRF21540 DK",
             "variant": "NRF52840",
             "i2c": [
                 "i2c0",
+            ],
+            "uart": [
+                "/soc/uart@40002000",
             ],
         },
         "nrf51_ble400": {
@@ -1136,16 +1584,25 @@ BOARDS = {
             "i2c": [
                 "i2c0",
             ],
+            "uart": [
+                "/soc/uart@40002000",
+            ],
         },
         "nrf51_blenano": {
             "name": "Redbear Labs Nano",
             "variant": "NRF51822",
+            "uart": [
+                "/soc/uart@40002000",
+            ],
         },
         "nrf51_vbluno51": {
             "name": "nRF51-VBLUno51",
             "variant": "NRF51822",
             "i2c": [
                 "i2c0",
+            ],
+            "uart": [
+                "/soc/uart@40002000",
             ],
         },
         "nrf51dk": {
@@ -1154,14 +1611,23 @@ BOARDS = {
             "i2c": [
                 "i2c0",
             ],
+            "uart": [
+                "/soc/uart@40002000",
+            ],
         },
         "nrf51dongle": {
             "name": "nRF51 Dongle",
             "variant": "NRF51822",
+            "uart": [
+                "/soc/uart@40002000",
+            ],
         },
         "nrf52820dongle": {
             "name": "nrf52820dongle",
             "variant": "NRF52820",
+            "uart": [
+                "/soc/uart@40002000",
+            ],
         },
         "nrf52832_mdk": {
             "name": "nRF52832-mdk",
@@ -1170,12 +1636,18 @@ BOARDS = {
                 "i2c0",
                 "i2c1",
             ],
+            "uart": [
+                "/soc/uart@40002000",
+            ],
         },
         "nrf52833dk/nrf52820": {
             "name": "nRF52833 DK",
             "variant": "NRF52820",
             "i2c": [
                 "i2c0",
+            ],
+            "uart": [
+                "/soc/uart@40002000",
             ],
         },
         "nrf52833dk/nrf52833": {
@@ -1184,16 +1656,25 @@ BOARDS = {
             "i2c": [
                 "i2c0",
             ],
+            "uart": [
+                "/soc/uart@40002000",
+            ],
         },
         "nrf52833dongle": {
             "name": "nrf52833dongle",
             "variant": "NRF52833",
+            "uart": [
+                "/soc/uart@40002000",
+            ],
         },
         "nrf52840_blip": {
             "name": "Labs Blip",
             "variant": "NRF52840",
             "i2c": [
                 "i2c0",
+            ],
+            "uart": [
+                "/soc/uart@40002000",
             ],
         },
         "nrf52840_mdk": {
@@ -1203,12 +1684,18 @@ BOARDS = {
                 "i2c0",
                 "i2c1",
             ],
+            "uart": [
+                "/soc/uart@40002000",
+            ],
         },
         "nrf52840_mdk_usb_dongle": {
             "name": "nRF52840 MDK USB Dongle",
             "variant": "NRF52840",
             "cdc_acm": [
                 "/soc/usbd@40027000/board_cdc_acm_uart",
+            ],
+            "uart": [
+                "/soc/uart@40002000",
             ],
         },
         "nrf52840_papyr": {
@@ -1217,6 +1704,9 @@ BOARDS = {
             "i2c": [
                 "i2c0",
             ],
+            "uart": [
+                "/soc/uart@40002000",
+            ],
         },
         "nrf52840dk/nrf52811": {
             "name": "nRF52840 DK",
@@ -1224,12 +1714,18 @@ BOARDS = {
             "i2c": [
                 "i2c0",
             ],
+            "uart": [
+                "/soc/uart@40002000",
+            ],
         },
         "nrf52840dk/nrf52840": {
             "name": "nRF52840 DK",
             "variant": "NRF52840",
             "i2c": [
                 "i2c0",
+            ],
+            "uart": [
+                "/soc/uart@40002000",
             ],
         },
         "nrf52840dongle": {
@@ -1241,6 +1737,9 @@ BOARDS = {
             "i2c": [
                 "i2c0",
             ],
+            "uart": [
+                "/soc/uart@40002000",
+            ],
         },
         "nrf52840dongle/nrf52840/bare": {
             "name": "nRF52840 Dongle",
@@ -1251,6 +1750,9 @@ BOARDS = {
             "i2c": [
                 "i2c0",
             ],
+            "uart": [
+                "/soc/uart@40002000",
+            ],
         },
         "nrf52840gmouse": {
             "name": "nrf52840gmouse",
@@ -1259,10 +1761,16 @@ BOARDS = {
                 "i2c0",
                 "i2c1",
             ],
+            "uart": [
+                "/soc/uart@40002000",
+            ],
         },
         "nrf52_adafruit_feather": {
             "name": "nRF52 Adafruit Feather",
             "variant": "NRF52832",
+            "uart": [
+                "/soc/uart@40002000",
+            ],
         },
         "nrf52_blenano2": {
             "name": "Redbear Labs Nano v2",
@@ -1270,16 +1778,25 @@ BOARDS = {
             "i2c": [
                 "i2c0",
             ],
+            "uart": [
+                "/soc/uart@40002000",
+            ],
         },
         "nrf52_sparkfun": {
             "name": "nRF52832 breakout",
             "variant": "NRF52832",
+            "uart": [
+                "/soc/uart@40002000",
+            ],
         },
         "nrf52_vbluno52": {
             "name": "nRF52-VBLUno52",
             "variant": "NRF52832",
             "i2c": [
                 "i2c0",
+            ],
+            "uart": [
+                "/soc/uart@40002000",
             ],
         },
         "nrf52dk/nrf52805": {
@@ -1288,12 +1805,18 @@ BOARDS = {
             "i2c": [
                 "i2c0",
             ],
+            "uart": [
+                "/soc/uart@40002000",
+            ],
         },
         "nrf52dk/nrf52810": {
             "name": "nRF52 DK",
             "variant": "NRF52810",
             "i2c": [
                 "i2c0",
+            ],
+            "uart": [
+                "/soc/uart@40002000",
             ],
         },
         "nrf52dk/nrf52832": {
@@ -1302,120 +1825,208 @@ BOARDS = {
             "i2c": [
                 "i2c0",
             ],
+            "uart": [
+                "/soc/uart@40002000",
+            ],
         },
         "nrf52dmouse": {
             "name": "nrf52dmouse",
             "variant": "NRF52832",
+            "uart": [
+                "/soc/uart@40002000",
+            ],
         },
         "nrf52kbd": {
             "name": "nrf52kbd",
             "variant": "NRF52832",
+            "uart": [
+                "/soc/uart@40002000",
+            ],
         },
         "nrf54h20dk/nrf54h20/cpuapp": {
             "name": "nRF54H20 DK",
             "variant": "NRF54H20",
+            "uart": [
+                "/soc/peripheral@5f000000/uart@9d5000",
+            ],
         },
         "nrf54h20dk/nrf54h20/cpuflpr": {
             "name": "nRF54H20 DK",
             "variant": "NRF54H20",
+            "uart": [
+                "/soc/peripheral@5f000000/uart@8e6000",
+            ],
         },
         "nrf54h20dk/nrf54h20/cpuflpr/xip": {
             "name": "nRF54H20 DK",
             "variant": "NRF54H20",
+            "uart": [
+                "/soc/peripheral@5f000000/uart@8e6000",
+            ],
         },
         "nrf54h20dk/nrf54h20/cpuppr": {
             "name": "nRF54H20 DK",
             "variant": "NRF54H20",
+            "uart": [
+                "/soc/peripheral@5f000000/uart@9c6000",
+            ],
         },
         "nrf54h20dk/nrf54h20/cpuppr/xip": {
             "name": "nRF54H20 DK",
             "variant": "NRF54H20",
+            "uart": [
+                "/soc/peripheral@5f000000/uart@9c6000",
+            ],
         },
         "nrf54h20dk/nrf54h20/cpurad": {
             "name": "nRF54H20 DK",
             "variant": "NRF54H20",
+            "uart": [
+                "/soc/peripheral@5f000000/uart@9c6000",
+            ],
         },
         "nrf54l15bsim/nrf54l15/cpuapp": {
             "name": "nRF54L15 simulated boards (BabbleSim)",
             "variant": "NRF54L15",
+            "uart": [
+                "/soc/peripheral@50000000/uart@c6000",
+            ],
         },
         "nrf54l15dk/nrf54l05/cpuapp": {
             "name": "nRF54L15 DK",
             "variant": "NRF54L05",
+            "uart": [
+                "/soc/peripheral@50000000/uart@c6000",
+            ],
         },
         "nrf54l15dk/nrf54l10/cpuapp": {
             "name": "nRF54L15 DK",
             "variant": "NRF54L10",
+            "uart": [
+                "/soc/peripheral@50000000/uart@c6000",
+            ],
         },
         "nrf54l15dk/nrf54l10/cpuapp/ns": {
             "name": "nRF54L15 DK",
             "variant": "NRF54L10",
+            "uart": [
+                "/soc/peripheral@40000000/uart@c6000",
+            ],
         },
         "nrf54l15dk/nrf54l15/cpuapp": {
             "name": "nRF54L15 DK",
             "variant": "NRF54L15",
+            "uart": [
+                "/soc/peripheral@50000000/uart@c6000",
+            ],
         },
         "nrf54l15dk/nrf54l15/cpuapp/ns": {
             "name": "nRF54L15 DK",
             "variant": "NRF54L15",
+            "uart": [
+                "/soc/peripheral@40000000/uart@c6000",
+            ],
         },
         "nrf54l15dk/nrf54l15/cpuflpr": {
             "name": "nRF54L15 DK",
             "variant": "NRF54L15",
+            "uart": [
+                "/soc/peripheral@50000000/uart@104000",
+            ],
         },
         "nrf54l15dk/nrf54l15/cpuflpr/xip": {
             "name": "nRF54L15 DK",
             "variant": "NRF54L15",
+            "uart": [
+                "/soc/peripheral@50000000/uart@104000",
+            ],
         },
         "nrf54lm20bsim/nrf54lm20a/cpuapp": {
             "name": "nRF54LM20 simulated boards (BabbleSim)",
             "variant": "NRF54LM20A",
+            "uart": [
+                "/soc/peripheral@50000000/uart@c6000",
+            ],
         },
         "nrf54lm20dk/nrf54lm20a/cpuapp": {
             "name": "nRF54LM20 DK",
             "variant": "NRF54LM20A",
+            "uart": [
+                "/soc/peripheral@50000000/uart@c6000",
+            ],
         },
         "nrf54lm20dk/nrf54lm20a/cpuapp/ns": {
             "name": "nRF54LM20 DK",
             "variant": "NRF54LM20A",
+            "uart": [
+                "/soc/peripheral@40000000/uart@c6000",
+            ],
         },
         "nrf54lm20dk/nrf54lm20a/cpuflpr": {
             "name": "nRF54LM20 DK",
             "variant": "NRF54LM20A",
+            "uart": [
+                "/soc/peripheral@50000000/uart@104000",
+            ],
         },
         "nrf54ls05dk/nrf54ls05b/cpuapp": {
             "name": "nRF54LS05B DK",
             "variant": "NRF54LS05B",
+            "uart": [
+                "/soc/peripheral@40000000/uart@c6000",
+            ],
         },
         "nrf54lv10dk/nrf54lv10a/cpuapp": {
             "name": "nRF54LV10 DK",
             "variant": "NRF54LV10A",
+            "uart": [
+                "/soc/peripheral@50000000/uart@104000",
+            ],
         },
         "nrf54lv10dk/nrf54lv10a/cpuapp/ns": {
             "name": "nRF54LV10 DK",
             "variant": "NRF54LV10A",
+            "uart": [
+                "/soc/peripheral@40000000/uart@104000",
+            ],
         },
         "nrf54lv10dk/nrf54lv10a/cpuflpr": {
             "name": "nRF54LV10 DK",
             "variant": "NRF54LV10A",
+            "uart": [
+                "/soc/peripheral@50000000/uart@c6000",
+            ],
         },
         "nrf9160dk/nrf52840": {
             "name": "nRF9160 DK",
             "variant": "NRF52840",
+            "uart": [
+                "/soc/uart@40002000",
+            ],
         },
         "ophelia4ev/nrf54l15/cpuapp": {
             "name": "Ophelia-IV DK",
             "variant": "NRF54L15",
+            "uart": [
+                "/soc/peripheral@50000000/uart@c6000",
+            ],
         },
         "ophelia4ev/nrf54l15/cpuflpr": {
             "name": "Ophelia-IV DK",
             "variant": "NRF54L15",
+            "uart": [
+                "/soc/peripheral@50000000/uart@104000",
+            ],
         },
         "pan1770_evb": {
             "name": "PAN1770 Evaluation Board",
             "variant": "NRF52840",
             "i2c": [
                 "i2c0",
+            ],
+            "uart": [
+                "/soc/uart@40002000",
+                "/soc/uart@40028000",
             ],
         },
         "pan1780_evb": {
@@ -1424,12 +2035,19 @@ BOARDS = {
             "i2c": [
                 "i2c0",
             ],
+            "uart": [
+                "/soc/uart@40002000",
+                "/soc/uart@40028000",
+            ],
         },
         "pan1781_evb": {
             "name": "PAN1781 Evaluation Board",
             "variant": "NRF52820",
             "i2c": [
                 "i2c0",
+            ],
+            "uart": [
+                "/soc/uart@40002000",
             ],
         },
         "pan1782_evb": {
@@ -1438,28 +2056,47 @@ BOARDS = {
             "i2c": [
                 "i2c0",
             ],
+            "uart": [
+                "/soc/uart@40002000",
+            ],
         },
         "panb611evb/nrf54l15/cpuapp": {
             "name": "PAN B611 Evaluation Board",
             "variant": "NRF54L15",
+            "uart": [
+                "/soc/peripheral@50000000/uart@104000",
+            ],
         },
         "panb611evb/nrf54l15/cpuapp/ns": {
             "name": "PAN B611 Evaluation Board",
             "variant": "NRF54L15",
+            "uart": [
+                "/soc/peripheral@40000000/uart@104000",
+            ],
         },
         "panb611evb/nrf54l15/cpuflpr": {
             "name": "PAN B611 Evaluation Board",
             "variant": "NRF54L15",
+            "uart": [
+                "/soc/peripheral@50000000/uart@c6000",
+            ],
         },
         "panb611evb/nrf54l15/cpuflpr/xip": {
             "name": "PAN B611 Evaluation Board",
             "variant": "NRF54L15",
+            "uart": [
+                "/soc/peripheral@50000000/uart@c6000",
+            ],
         },
         "particle_argon": {
             "name": "Argon",
             "variant": "NRF52840",
             "i2c": [
                 "i2c0",
+            ],
+            "uart": [
+                "/soc/uart@40002000",
+                "/soc/uart@40028000",
             ],
         },
         "particle_boron": {
@@ -1469,12 +2106,19 @@ BOARDS = {
                 "i2c0",
                 "i2c1",
             ],
+            "uart": [
+                "/soc/uart@40002000",
+                "/soc/uart@40028000",
+            ],
         },
         "particle_xenon": {
             "name": "Xenon",
             "variant": "NRF52840",
             "i2c": [
                 "i2c0",
+            ],
+            "uart": [
+                "/soc/uart@40002000",
             ],
         },
         "pinetime_devkit0": {
@@ -1483,12 +2127,19 @@ BOARDS = {
             "i2c": [
                 "i2c0",
             ],
+            "uart": [
+                "/soc/uart@40002000",
+            ],
         },
         "pinnacle_100_dvk": {
             "name": "Pinnacle 100 DVK",
             "variant": "NRF52840",
             "i2c": [
                 "i2c0",
+            ],
+            "uart": [
+                "/soc/uart@40002000",
+                "/soc/uart@40028000",
             ],
         },
         "promicro_nrf52840": {
@@ -1501,6 +2152,9 @@ BOARDS = {
                 "i2c0",
                 "i2c1",
             ],
+            "uart": [
+                "/soc/uart@40002000",
+            ],
         },
         "promicro_nrf52840/nrf52840/uf2": {
             "name": "Pro Micro nRF52840",
@@ -1512,10 +2166,16 @@ BOARDS = {
                 "i2c0",
                 "i2c1",
             ],
+            "uart": [
+                "/soc/uart@40002000",
+            ],
         },
         "qemu_cortex_m0": {
             "name": "QEMU Emulation for ARM Cortex-M0",
             "variant": "NRF51822",
+            "uart": [
+                "/soc/uart@40002000",
+            ],
         },
         "quill_nrf52840_mesh": {
             "name": "Quill nRF52840 Mesh",
@@ -1526,12 +2186,19 @@ BOARDS = {
             "i2c": [
                 "i2c0",
             ],
+            "uart": [
+                "/soc/uart@40002000",
+            ],
         },
         "rak4631": {
             "name": "RAK4631",
             "variant": "NRF52840",
             "i2c": [
                 "i2c0",
+            ],
+            "uart": [
+                "/soc/uart@40002000",
+                "/soc/uart@40028000",
             ],
         },
         "rak5010": {
@@ -1540,28 +2207,47 @@ BOARDS = {
             "i2c": [
                 "i2c1",
             ],
+            "uart": [
+                "/soc/uart@40002000",
+                "/soc/uart@40028000",
+            ],
         },
         "raytac_an54l15q_db/nrf54l15/cpuapp": {
             "name": "AN54L15Q-DB",
             "variant": "NRF54L15",
+            "uart": [
+                "/soc/peripheral@50000000/uart@c6000",
+            ],
         },
         "raytac_an54l15q_db/nrf54l15/cpuapp/ns": {
             "name": "AN54L15Q-DB",
             "variant": "NRF54L15",
+            "uart": [
+                "/soc/peripheral@40000000/uart@c6000",
+            ],
         },
         "raytac_an54l15q_db/nrf54l15/cpuflpr": {
             "name": "AN54L15Q-DB",
             "variant": "NRF54L15",
+            "uart": [
+                "/soc/peripheral@50000000/uart@104000",
+            ],
         },
         "raytac_an54l15q_db/nrf54l15/cpuflpr/xip": {
             "name": "AN54L15Q-DB",
             "variant": "NRF54L15",
+            "uart": [
+                "/soc/peripheral@50000000/uart@104000",
+            ],
         },
         "raytac_mdbt50q_cx_40_dongle": {
             "name": "MDBT50Q-CX-40 Dongle",
             "variant": "NRF52840",
             "cdc_acm": [
                 "/soc/usbd@40027000/board_cdc_acm_uart",
+            ],
+            "uart": [
+                "/soc/uart@40002000",
             ],
         },
         "raytac_mdbt50q_db_33": {
@@ -1570,12 +2256,20 @@ BOARDS = {
             "i2c": [
                 "i2c0",
             ],
+            "uart": [
+                "/soc/uart@40002000",
+                "/soc/uart@40028000",
+            ],
         },
         "raytac_mdbt50q_db_40": {
             "name": "MDBT50Q-DB-40",
             "variant": "NRF52840",
             "i2c": [
                 "i2c0",
+            ],
+            "uart": [
+                "/soc/uart@40002000",
+                "/soc/uart@40028000",
             ],
         },
         "reel_board": {
@@ -1584,6 +2278,10 @@ BOARDS = {
             "i2c": [
                 "i2c0",
             ],
+            "uart": [
+                "/soc/uart@40002000",
+                "/soc/uart@40028000",
+            ],
         },
         "rm1xx_dvk": {
             "name": "RM1xx DVK",
@@ -1591,10 +2289,16 @@ BOARDS = {
             "i2c": [
                 "i2c0",
             ],
+            "uart": [
+                "/soc/uart@40002000",
+            ],
         },
         "ruuvi_ruuvitag": {
             "name": "RuuviTag",
             "variant": "NRF52832",
+            "uart": [
+                "/soc/uart@40002000",
+            ],
         },
         "thingy52": {
             "name": "Thingy:52",
@@ -1603,16 +2307,25 @@ BOARDS = {
                 "i2c0",
                 "i2c1",
             ],
+            "uart": [
+                "/soc/uart@40002000",
+            ],
         },
         "thingy91/nrf52840": {
             "name": "thingy91",
             "variant": "NRF52840",
+            "uart": [
+                "/soc/uart@40002000",
+            ],
         },
         "ubx_bmd300eval": {
             "name": "EVK-BMD-30/35: BMD-300-EVAL, BMD-301-EVAL, and BMD-350-EVAL",
             "variant": "NRF52832",
             "i2c": [
                 "i2c0",
+            ],
+            "uart": [
+                "/soc/uart@40002000",
             ],
         },
         "ubx_bmd330eval": {
@@ -1621,12 +2334,19 @@ BOARDS = {
             "i2c": [
                 "i2c0",
             ],
+            "uart": [
+                "/soc/uart@40002000",
+            ],
         },
         "ubx_bmd340eval": {
             "name": "EVK-BMD-34/38: BMD-340-EVAL and BMD-341-EVAL",
             "variant": "NRF52840",
             "i2c": [
                 "i2c0",
+            ],
+            "uart": [
+                "/soc/uart@40002000",
+                "/soc/uart@40028000",
             ],
         },
         "ubx_bmd345eval": {
@@ -1635,6 +2355,9 @@ BOARDS = {
             "i2c": [
                 "i2c0",
             ],
+            "uart": [
+                "/soc/uart@40002000",
+            ],
         },
         "ubx_bmd360eval": {
             "name": "EVK-BMD-360: BMD-360-EVAL",
@@ -1642,16 +2365,25 @@ BOARDS = {
             "i2c": [
                 "i2c0",
             ],
+            "uart": [
+                "/soc/uart@40002000",
+            ],
         },
         "ubx_bmd380eval": {
             "name": "EVK-BMD-34/48: BMD-380-EVAL",
             "variant": "NRF52840",
+            "uart": [
+                "/soc/uart@40002000",
+            ],
         },
         "ubx_evkannab1": {
             "name": "EVK-ANNA-B11x",
             "variant": "NRF52832",
             "i2c": [
                 "i2c0",
+            ],
+            "uart": [
+                "/soc/uart@40002000",
             ],
         },
         "ubx_evkninab1": {
@@ -1660,12 +2392,18 @@ BOARDS = {
             "i2c": [
                 "i2c0",
             ],
+            "uart": [
+                "/soc/uart@40002000",
+            ],
         },
         "ubx_evkninab3": {
             "name": "EVK-NINA-B3",
             "variant": "NRF52840",
             "i2c": [
                 "i2c0",
+            ],
+            "uart": [
+                "/soc/uart@40002000",
             ],
         },
         "ubx_evkninab4": {
@@ -1674,6 +2412,9 @@ BOARDS = {
             "i2c": [
                 "i2c0",
             ],
+            "uart": [
+                "/soc/uart@40002000",
+            ],
         },
         "we_ophelia1ev": {
             "name": "Ophelia-I EV NRF52805",
@@ -1681,20 +2422,32 @@ BOARDS = {
             "i2c": [
                 "i2c0",
             ],
+            "uart": [
+                "/soc/uart@40002000",
+            ],
         },
         "we_proteus2ev": {
             "name": "Proteus-II-EV",
             "variant": "NRF52832",
+            "uart": [
+                "/soc/uart@40002000",
+            ],
         },
         "we_proteus3ev": {
             "name": "Proteus-III-EV",
             "variant": "NRF52840",
+            "uart": [
+                "/soc/uart@40002000",
+            ],
         },
         "wio_wm1110_dev_kit": {
             "name": "Wio-WM1110 Dev Kit",
             "variant": "NRF52840",
             "i2c": [
                 "i2c0",
+            ],
+            "uart": [
+                "/soc/uart@40002000",
             ],
         },
         "xiao_ble": {
@@ -1705,6 +2458,9 @@ BOARDS = {
             ],
             "i2c": [
                 "i2c1",
+            ],
+            "uart": [
+                "/soc/uart@40002000",
             ],
         },
         "xiao_ble/nrf52840/sense": {
@@ -1717,6 +2473,9 @@ BOARDS = {
                 "i2c0",
                 "i2c1",
             ],
+            "uart": [
+                "/soc/uart@40002000",
+            ],
         },
         "xiao_nrf54l15/nrf54l15/cpuapp": {
             "name": "XIAO NRF54L15",
@@ -1724,6 +2483,10 @@ BOARDS = {
             "i2c": [
                 "i2c22",
                 "i2c30",
+            ],
+            "uart": [
+                "/soc/peripheral@50000000/uart@c6000",
+                "/soc/peripheral@50000000/uart@c7000",
             ],
         },
         "xiao_nrf54l15/nrf54l15/cpuflpr": {
@@ -1738,6 +2501,9 @@ BOARDS = {
             "i2c": [
                 "i2c0",
             ],
+            "uart": [
+                "/soc/uart@40002000",
+            ],
         },
         "96b_nitrogen": {
             "name": "Nitrogen",
@@ -1745,10 +2511,16 @@ BOARDS = {
             "i2c": [
                 "i2c0",
             ],
+            "uart": [
+                "/soc/uart@40002000",
+            ],
         },
         "acn52832": {
             "name": "acn52832",
             "variant": "NRF52832",
+            "uart": [
+                "/soc/uart@40002000",
+            ],
         },
         "adafruit_feather_nrf52840": {
             "name": "Feather nRF52840 (Express, Sense)",
@@ -1756,12 +2528,18 @@ BOARDS = {
             "i2c": [
                 "i2c0",
             ],
+            "uart": [
+                "/soc/uart@40002000",
+            ],
         },
         "adafruit_feather_nrf52840/nrf52840/sense": {
             "name": "Feather nRF52840 (Express, Sense)",
             "variant": "NRF52840",
             "i2c": [
                 "i2c0",
+            ],
+            "uart": [
+                "/soc/uart@40002000",
             ],
         },
         "adafruit_feather_nrf52840/nrf52840/sense/uf2": {
@@ -1773,6 +2551,9 @@ BOARDS = {
             "i2c": [
                 "i2c0",
             ],
+            "uart": [
+                "/soc/uart@40002000",
+            ],
         },
         "adafruit_feather_nrf52840/nrf52840/uf2": {
             "name": "Feather nRF52840 (Express, Sense)",
@@ -1782,6 +2563,9 @@ BOARDS = {
             ],
             "i2c": [
                 "i2c0",
+            ],
+            "uart": [
+                "/soc/uart@40002000",
             ],
         },
         "adafruit_itsybitsy": {
@@ -1801,6 +2585,9 @@ BOARDS = {
                 "i2c0",
                 "i2c1",
             ],
+            "uart": [
+                "/soc/uart@40002000",
+            ],
         },
         "arduino_nano_33_ble/nrf52840/sense": {
             "name": "Arduino Nano 33 BLE (Sense)",
@@ -1808,6 +2595,9 @@ BOARDS = {
             "i2c": [
                 "i2c0",
                 "i2c1",
+            ],
+            "uart": [
+                "/soc/uart@40002000",
             ],
         },
         "arduino_nicla_sense_me": {
@@ -1817,12 +2607,18 @@ BOARDS = {
                 "i2c0",
                 "i2c1",
             ],
+            "uart": [
+                "/soc/uart@40002000",
+            ],
         },
         "bbc_microbit": {
             "name": "micro:bit",
             "variant": "NRF51822",
             "i2c": [
                 "i2c0",
+            ],
+            "uart": [
+                "/soc/uart@40002000",
             ],
         },
         "bbc_microbit_v2": {
@@ -1831,52 +2627,88 @@ BOARDS = {
             "i2c": [
                 "i2c0",
             ],
+            "uart": [
+                "/soc/uart@40002000",
+            ],
         },
         "bl54l15_dvk/nrf54l10/cpuapp": {
             "name": "BL54L15 DVK",
             "variant": "NRF54L10",
+            "uart": [
+                "/soc/peripheral@50000000/uart@c6000",
+            ],
         },
         "bl54l15_dvk/nrf54l10/cpuapp/ns": {
             "name": "BL54L15 DVK",
             "variant": "NRF54L10",
+            "uart": [
+                "/soc/peripheral@40000000/uart@c6000",
+            ],
         },
         "bl54l15_dvk/nrf54l15/cpuapp": {
             "name": "BL54L15 DVK",
             "variant": "NRF54L15",
+            "uart": [
+                "/soc/peripheral@50000000/uart@c6000",
+            ],
         },
         "bl54l15_dvk/nrf54l15/cpuapp/ns": {
             "name": "BL54L15 DVK",
             "variant": "NRF54L15",
+            "uart": [
+                "/soc/peripheral@40000000/uart@c6000",
+            ],
         },
         "bl54l15_dvk/nrf54l15/cpuflpr": {
             "name": "BL54L15 DVK",
             "variant": "NRF54L15",
+            "uart": [
+                "/soc/peripheral@50000000/uart@104000",
+            ],
         },
         "bl54l15_dvk/nrf54l15/cpuflpr/xip": {
             "name": "BL54L15 DVK",
             "variant": "NRF54L15",
+            "uart": [
+                "/soc/peripheral@50000000/uart@104000",
+            ],
         },
         "bl54l15u_dvk/nrf54l15/cpuapp": {
             "name": "BL54L15u DVK",
             "variant": "NRF54L15",
+            "uart": [
+                "/soc/peripheral@50000000/uart@c6000",
+            ],
         },
         "bl54l15u_dvk/nrf54l15/cpuapp/ns": {
             "name": "BL54L15u DVK",
             "variant": "NRF54L15",
+            "uart": [
+                "/soc/peripheral@40000000/uart@c6000",
+            ],
         },
         "bl54l15u_dvk/nrf54l15/cpuflpr": {
             "name": "BL54L15u DVK",
             "variant": "NRF54L15",
+            "uart": [
+                "/soc/peripheral@50000000/uart@104000",
+            ],
         },
         "bl54l15u_dvk/nrf54l15/cpuflpr/xip": {
             "name": "BL54L15u DVK",
             "variant": "NRF54L15",
+            "uart": [
+                "/soc/peripheral@50000000/uart@104000",
+            ],
         },
         "bl652_dvk": {
             "name": "BL652 DVK",
             "variant": "NRF52832",
             "i2c": [
                 "i2c0",
+            ],
+            "uart": [
+                "/soc/uart@40002000",
             ],
         },
         "bl653_dvk": {
@@ -1885,12 +2717,18 @@ BOARDS = {
             "i2c": [
                 "i2c0",
             ],
+            "uart": [
+                "/soc/uart@40002000",
+            ],
         },
         "bl654_dvk": {
             "name": "BL654 DVK",
             "variant": "NRF52840",
             "i2c": [
                 "i2c0",
+            ],
+            "uart": [
+                "/soc/uart@40002000",
             ],
         },
         "bl654_dvk/nrf52840/pa": {
@@ -1899,12 +2737,18 @@ BOARDS = {
             "i2c": [
                 "i2c0",
             ],
+            "uart": [
+                "/soc/uart@40002000",
+            ],
         },
         "bl654_sensor_board": {
             "name": "BL654 Sensor Board",
             "variant": "NRF52840",
             "i2c": [
                 "i2c0",
+            ],
+            "uart": [
+                "/soc/uart@40002000",
             ],
         },
         "bl654_usb": {
@@ -1927,12 +2771,18 @@ BOARDS = {
             "i2c": [
                 "i2c0",
             ],
+            "uart": [
+                "/soc/uart@40002000",
+            ],
         },
         "bt510": {
             "name": "Sentrius BT510 Sensor",
             "variant": "NRF52840",
             "i2c": [
                 "i2c0",
+            ],
+            "uart": [
+                "/soc/uart@40002000",
             ],
         },
         "bt610": {
@@ -1941,6 +2791,10 @@ BOARDS = {
             "i2c": [
                 "i2c0",
             ],
+            "uart": [
+                "/soc/uart@40002000",
+                "/soc/uart@40028000",
+            ],
         },
         "bytesensi_l": {
             "name": "byteSENSI-L",
@@ -1948,12 +2802,19 @@ BOARDS = {
             "i2c": [
                 "i2c0",
             ],
+            "uart": [
+                "/soc/uart@40002000",
+            ],
         },
         "contextualelectronics_abc": {
             "name": "Advanced BLE Cell",
             "variant": "NRF52840",
             "i2c": [
                 "i2c0",
+            ],
+            "uart": [
+                "/soc/uart@40002000",
+                "/soc/uart@40028000",
             ],
         },
         "croxel_cx1825": {
@@ -1979,12 +2840,18 @@ BOARDS = {
             "i2c": [
                 "i2c0",
             ],
+            "uart": [
+                "/soc/uart@40002000",
+            ],
         },
         "decawave_dwm3001cdk": {
             "name": "Decawave DWM3001CDK",
             "variant": "NRF52833",
             "i2c": [
                 "i2c0",
+            ],
+            "uart": [
+                "/soc/uart@40002000",
             ],
         },
         "degu_evk": {
@@ -1997,10 +2864,16 @@ BOARDS = {
                 "i2c0",
                 "i2c1",
             ],
+            "uart": [
+                "/soc/uart@40002000",
+            ],
         },
         "ebyte_e73_tbb": {
             "name": "E73-TBB",
             "variant": "NRF52832",
+            "uart": [
+                "/soc/uart@40002000",
+            ],
         },
         "holyiot_21014": {
             "name": "21014 Module",
@@ -2009,6 +2882,9 @@ BOARDS = {
         "holyiot_25008/nrf54l15/cpuapp": {
             "name": "HOLYIOT 25008",
             "variant": "NRF54L15",
+            "uart": [
+                "/soc/peripheral@50000000/uart@c6000",
+            ],
         },
         "holyiot_yj16019": {
             "name": "YJ-16019",
@@ -2024,6 +2900,10 @@ BOARDS = {
             "i2c": [
                 "i2c0",
             ],
+            "uart": [
+                "/soc/uart@40002000",
+                "/soc/uart@40028000",
+            ],
         },
         "micromod": {
             "name": "MicroMod board Processor",
@@ -2032,12 +2912,19 @@ BOARDS = {
                 "i2c0",
                 "i2c1",
             ],
+            "uart": [
+                "/soc/uart@40002000",
+                "/soc/uart@40028000",
+            ],
         },
         "nrf21540dk": {
             "name": "nRF21540 DK",
             "variant": "NRF52840",
             "i2c": [
                 "i2c0",
+            ],
+            "uart": [
+                "/soc/uart@40002000",
             ],
         },
         "nrf51_ble400": {
@@ -2046,16 +2933,25 @@ BOARDS = {
             "i2c": [
                 "i2c0",
             ],
+            "uart": [
+                "/soc/uart@40002000",
+            ],
         },
         "nrf51_blenano": {
             "name": "Redbear Labs Nano",
             "variant": "NRF51822",
+            "uart": [
+                "/soc/uart@40002000",
+            ],
         },
         "nrf51_vbluno51": {
             "name": "nRF51-VBLUno51",
             "variant": "NRF51822",
             "i2c": [
                 "i2c0",
+            ],
+            "uart": [
+                "/soc/uart@40002000",
             ],
         },
         "nrf51dk": {
@@ -2064,14 +2960,23 @@ BOARDS = {
             "i2c": [
                 "i2c0",
             ],
+            "uart": [
+                "/soc/uart@40002000",
+            ],
         },
         "nrf51dongle": {
             "name": "nRF51 Dongle",
             "variant": "NRF51822",
+            "uart": [
+                "/soc/uart@40002000",
+            ],
         },
         "nrf52820dongle": {
             "name": "nRF52820 Dongle",
             "variant": "NRF52820",
+            "uart": [
+                "/soc/uart@40002000",
+            ],
         },
         "nrf52832_mdk": {
             "name": "nRF52832-mdk",
@@ -2080,12 +2985,18 @@ BOARDS = {
                 "i2c0",
                 "i2c1",
             ],
+            "uart": [
+                "/soc/uart@40002000",
+            ],
         },
         "nrf52833dk/nrf52820": {
             "name": "nRF52833 DK",
             "variant": "NRF52820",
             "i2c": [
                 "i2c0",
+            ],
+            "uart": [
+                "/soc/uart@40002000",
             ],
         },
         "nrf52833dk/nrf52833": {
@@ -2094,16 +3005,25 @@ BOARDS = {
             "i2c": [
                 "i2c0",
             ],
+            "uart": [
+                "/soc/uart@40002000",
+            ],
         },
         "nrf52833dongle": {
             "name": "nRF52833 Dongle",
             "variant": "NRF52833",
+            "uart": [
+                "/soc/uart@40002000",
+            ],
         },
         "nrf52840_blip": {
             "name": "Labs Blip",
             "variant": "NRF52840",
             "i2c": [
                 "i2c0",
+            ],
+            "uart": [
+                "/soc/uart@40002000",
             ],
         },
         "nrf52840_mdk": {
@@ -2113,12 +3033,18 @@ BOARDS = {
                 "i2c0",
                 "i2c1",
             ],
+            "uart": [
+                "/soc/uart@40002000",
+            ],
         },
         "nrf52840_mdk_usb_dongle": {
             "name": "nRF52840 MDK USB Dongle",
             "variant": "NRF52840",
             "cdc_acm": [
                 "/soc/usbd@40027000/board_cdc_acm_uart",
+            ],
+            "uart": [
+                "/soc/uart@40002000",
             ],
         },
         "nrf52840_papyr": {
@@ -2127,6 +3053,9 @@ BOARDS = {
             "i2c": [
                 "i2c0",
             ],
+            "uart": [
+                "/soc/uart@40002000",
+            ],
         },
         "nrf52840dk/nrf52811": {
             "name": "nRF52840 DK",
@@ -2134,12 +3063,18 @@ BOARDS = {
             "i2c": [
                 "i2c0",
             ],
+            "uart": [
+                "/soc/uart@40002000",
+            ],
         },
         "nrf52840dk/nrf52840": {
             "name": "nRF52840 DK",
             "variant": "NRF52840",
             "i2c": [
                 "i2c0",
+            ],
+            "uart": [
+                "/soc/uart@40002000",
             ],
         },
         "nrf52840dongle": {
@@ -2151,6 +3086,9 @@ BOARDS = {
             "i2c": [
                 "i2c0",
             ],
+            "uart": [
+                "/soc/uart@40002000",
+            ],
         },
         "nrf52840dongle/nrf52840/bare": {
             "name": "nRF52840 Dongle",
@@ -2161,6 +3099,9 @@ BOARDS = {
             "i2c": [
                 "i2c0",
             ],
+            "uart": [
+                "/soc/uart@40002000",
+            ],
         },
         "nrf52840gmouse": {
             "name": "nRF52840 Gaming Mouse",
@@ -2169,10 +3110,16 @@ BOARDS = {
                 "i2c0",
                 "i2c1",
             ],
+            "uart": [
+                "/soc/uart@40002000",
+            ],
         },
         "nrf52_adafruit_feather": {
             "name": "nRF52 Adafruit Feather",
             "variant": "NRF52832",
+            "uart": [
+                "/soc/uart@40002000",
+            ],
         },
         "nrf52_blenano2": {
             "name": "Redbear Labs Nano v2",
@@ -2180,16 +3127,25 @@ BOARDS = {
             "i2c": [
                 "i2c0",
             ],
+            "uart": [
+                "/soc/uart@40002000",
+            ],
         },
         "nrf52_sparkfun": {
             "name": "nRF52832 breakout",
             "variant": "NRF52832",
+            "uart": [
+                "/soc/uart@40002000",
+            ],
         },
         "nrf52_vbluno52": {
             "name": "nRF52-VBLUno52",
             "variant": "NRF52832",
             "i2c": [
                 "i2c0",
+            ],
+            "uart": [
+                "/soc/uart@40002000",
             ],
         },
         "nrf52dk/nrf52805": {
@@ -2198,12 +3154,18 @@ BOARDS = {
             "i2c": [
                 "i2c0",
             ],
+            "uart": [
+                "/soc/uart@40002000",
+            ],
         },
         "nrf52dk/nrf52810": {
             "name": "nRF52 DK",
             "variant": "NRF52810",
             "i2c": [
                 "i2c0",
+            ],
+            "uart": [
+                "/soc/uart@40002000",
             ],
         },
         "nrf52dk/nrf52832": {
@@ -2212,78 +3174,135 @@ BOARDS = {
             "i2c": [
                 "i2c0",
             ],
+            "uart": [
+                "/soc/uart@40002000",
+            ],
         },
         "nrf52dmouse": {
             "name": "nRF52 Desktop Mouse",
             "variant": "NRF52832",
+            "uart": [
+                "/soc/uart@40002000",
+            ],
         },
         "nrf52kbd": {
             "name": "nRF52 Keyboard",
             "variant": "NRF52832",
+            "uart": [
+                "/soc/uart@40002000",
+            ],
         },
         "nrf54h20dk/nrf54h20/cpuapp": {
             "name": "nRF54H20 DK",
             "variant": "NRF54H20",
+            "uart": [
+                "/soc/peripheral@5f000000/uart@9d5000",
+            ],
         },
         "nrf54h20dk/nrf54h20/cpuflpr": {
             "name": "nRF54H20 DK",
             "variant": "NRF54H20",
+            "uart": [
+                "/soc/peripheral@5f000000/uart@8e6000",
+            ],
         },
         "nrf54h20dk/nrf54h20/cpuflpr/xip": {
             "name": "nRF54H20 DK",
             "variant": "NRF54H20",
+            "uart": [
+                "/soc/peripheral@5f000000/uart@8e6000",
+            ],
         },
         "nrf54h20dk/nrf54h20/cpuppr": {
             "name": "nRF54H20 DK",
             "variant": "NRF54H20",
+            "uart": [
+                "/soc/peripheral@5f000000/uart@9c6000",
+            ],
         },
         "nrf54h20dk/nrf54h20/cpuppr/xip": {
             "name": "nRF54H20 DK",
             "variant": "NRF54H20",
+            "uart": [
+                "/soc/peripheral@5f000000/uart@9c6000",
+            ],
         },
         "nrf54h20dk/nrf54h20/cpurad": {
             "name": "nRF54H20 DK",
             "variant": "NRF54H20",
+            "uart": [
+                "/soc/peripheral@5f000000/uart@9c6000",
+            ],
         },
         "nrf54l15bsim/nrf54l15/cpuapp": {
             "name": "nRF54L15 simulated boards (BabbleSim)",
             "variant": "NRF54L15",
+            "uart": [
+                "/soc/peripheral@50000000/uart@c6000",
+            ],
         },
         "nrf54l15dk/nrf54l05/cpuapp": {
             "name": "nRF54L15 DK",
             "variant": "NRF54L05",
+            "uart": [
+                "/soc/peripheral@50000000/uart@c6000",
+            ],
         },
         "nrf54l15dk/nrf54l05/cpuflpr": {
             "name": "nRF54L15 DK",
             "variant": "NRF54L05",
+            "uart": [
+                "/soc/peripheral@50000000/uart@104000",
+            ],
         },
         "nrf54l15dk/nrf54l10/cpuapp": {
             "name": "nRF54L15 DK",
             "variant": "NRF54L10",
+            "uart": [
+                "/soc/peripheral@50000000/uart@c6000",
+            ],
         },
         "nrf54l15dk/nrf54l10/cpuapp/ns": {
             "name": "nRF54L15 DK",
             "variant": "NRF54L10",
+            "uart": [
+                "/soc/peripheral@40000000/uart@c6000",
+            ],
         },
         "nrf54l15dk/nrf54l10/cpuflpr": {
             "name": "nRF54L15 DK",
             "variant": "NRF54L10",
+            "uart": [
+                "/soc/peripheral@50000000/uart@104000",
+            ],
         },
         "nrf54l15dk/nrf54l15/cpuapp": {
             "name": "nRF54L15 DK",
             "variant": "NRF54L15",
+            "uart": [
+                "/soc/peripheral@50000000/uart@c6000",
+            ],
         },
         "nrf54l15dk/nrf54l15/cpuapp/ns": {
             "name": "nRF54L15 DK",
             "variant": "NRF54L15",
+            "uart": [
+                "/soc/peripheral@40000000/uart@c6000",
+            ],
         },
         "nrf54l15dk/nrf54l15/cpuflpr": {
             "name": "nRF54L15 DK",
             "variant": "NRF54L15",
+            "uart": [
+                "/soc/peripheral@50000000/uart@104000",
+            ],
         },
         "nrf54l15dk/nrf54l15/cpuflpr/xip": {
             "name": "nRF54L15 DK",
             "variant": "NRF54L15",
+            "uart": [
+                "/soc/peripheral@50000000/uart@104000",
+            ],
         },
         "nrf54l15tag/nrf54l15/cpuapp": {
             "name": "nRF54L15 TAG",
@@ -2310,42 +3329,72 @@ BOARDS = {
         "nrf54lc10dk/nrf54lc10a/cpuapp": {
             "name": "nRF54LC10 DK",
             "variant": "NRF54LC10A",
+            "uart": [
+                "/soc/peripheral@50000000/uart@104000",
+            ],
         },
         "nrf54lc10dk/nrf54lc10a/cpuapp/ns": {
             "name": "nRF54LC10 DK",
             "variant": "NRF54LC10A",
+            "uart": [
+                "/soc/peripheral@40000000/uart@104000",
+            ],
         },
         "nrf54lc10dk/nrf54lc10a/cpuflpr": {
             "name": "nRF54LC10 DK",
             "variant": "NRF54LC10A",
+            "uart": [
+                "/soc/peripheral@50000000/uart@c6000",
+            ],
         },
         "nrf54lm20bsim/nrf54lm20a/cpuapp": {
             "name": "nRF54LM20 simulated boards (BabbleSim)",
             "variant": "NRF54LM20A",
+            "uart": [
+                "/soc/peripheral@50000000/uart@c6000",
+            ],
         },
         "nrf54lm20dk/nrf54lm20a/cpuapp": {
             "name": "nRF54LM20 DK",
             "variant": "NRF54LM20A",
+            "uart": [
+                "/soc/peripheral@50000000/uart@c6000",
+            ],
         },
         "nrf54lm20dk/nrf54lm20a/cpuapp/ns": {
             "name": "nRF54LM20 DK",
             "variant": "NRF54LM20A",
+            "uart": [
+                "/soc/peripheral@40000000/uart@c6000",
+            ],
         },
         "nrf54lm20dk/nrf54lm20a/cpuflpr": {
             "name": "nRF54LM20 DK",
             "variant": "NRF54LM20A",
+            "uart": [
+                "/soc/peripheral@50000000/uart@104000",
+            ],
         },
         "nrf54lm20dk/nrf54lm20b/cpuapp": {
             "name": "nRF54LM20 DK",
             "variant": "NRF54LM20B",
+            "uart": [
+                "/soc/peripheral@50000000/uart@c6000",
+            ],
         },
         "nrf54lm20dk/nrf54lm20b/cpuapp/ns": {
             "name": "nRF54LM20 DK",
             "variant": "NRF54LM20B",
+            "uart": [
+                "/soc/peripheral@40000000/uart@c6000",
+            ],
         },
         "nrf54lm20dk/nrf54lm20b/cpuflpr": {
             "name": "nRF54LM20 DK",
             "variant": "NRF54LM20B",
+            "uart": [
+                "/soc/peripheral@50000000/uart@104000",
+            ],
         },
         "nrf54lm20dongle/nrf54lm20b/cpuapp": {
             "name": "nRF54LM20 Dongle",
@@ -2356,6 +3405,9 @@ BOARDS = {
             ],
             "i2c": [
                 "i2c21",
+            ],
+            "uart": [
+                "/soc/peripheral@50000000/uart@c6000",
             ],
         },
         "nrf54lm20dongle/nrf54lm20b/cpuapp/ns": {
@@ -2368,42 +3420,72 @@ BOARDS = {
             "i2c": [
                 "i2c21",
             ],
+            "uart": [
+                "/soc/peripheral@40000000/uart@c6000",
+            ],
         },
         "nrf54lm20dongle/nrf54lm20b/cpuflpr": {
             "name": "nRF54LM20 Dongle",
             "variant": "NRF54LM20B",
+            "uart": [
+                "/soc/peripheral@50000000/uart@104000",
+            ],
         },
         "nrf54ls05dk/nrf54ls05a/cpuapp": {
             "name": "nRF54LS05B DK",
             "variant": "NRF54LS05A",
+            "uart": [
+                "/soc/peripheral@40000000/uart@c6000",
+            ],
         },
         "nrf54ls05dk/nrf54ls05b/cpuapp": {
             "name": "nRF54LS05B DK",
             "variant": "NRF54LS05B",
+            "uart": [
+                "/soc/peripheral@40000000/uart@c6000",
+            ],
         },
         "nrf54lv10dk/nrf54lv10a/cpuapp": {
             "name": "nRF54LV10 DK",
             "variant": "NRF54LV10A",
+            "uart": [
+                "/soc/peripheral@50000000/uart@104000",
+            ],
         },
         "nrf54lv10dk/nrf54lv10a/cpuapp/ns": {
             "name": "nRF54LV10 DK",
             "variant": "NRF54LV10A",
+            "uart": [
+                "/soc/peripheral@40000000/uart@104000",
+            ],
         },
         "nrf54lv10dk/nrf54lv10a/cpuflpr": {
             "name": "nRF54LV10 DK",
             "variant": "NRF54LV10A",
+            "uart": [
+                "/soc/peripheral@50000000/uart@c6000",
+            ],
         },
         "nrf9160dk/nrf52840": {
             "name": "nRF9160 DK",
             "variant": "NRF52840",
+            "uart": [
+                "/soc/uart@40002000",
+            ],
         },
         "ophelia4ev/nrf54l15/cpuapp": {
             "name": "Ophelia-IV DK",
             "variant": "NRF54L15",
+            "uart": [
+                "/soc/peripheral@50000000/uart@c6000",
+            ],
         },
         "ophelia4ev/nrf54l15/cpuflpr": {
             "name": "Ophelia-IV DK",
             "variant": "NRF54L15",
+            "uart": [
+                "/soc/peripheral@50000000/uart@104000",
+            ],
         },
         "p2d": {
             "name": "Pebble 2 Duo",
@@ -2412,12 +3494,19 @@ BOARDS = {
                 "i2c0",
                 "i2c1",
             ],
+            "uart": [
+                "/soc/uart@40002000",
+            ],
         },
         "pan1770_evb": {
             "name": "PAN1770 Evaluation Board",
             "variant": "NRF52840",
             "i2c": [
                 "i2c0",
+            ],
+            "uart": [
+                "/soc/uart@40002000",
+                "/soc/uart@40028000",
             ],
         },
         "pan1780_evb": {
@@ -2426,12 +3515,19 @@ BOARDS = {
             "i2c": [
                 "i2c0",
             ],
+            "uart": [
+                "/soc/uart@40002000",
+                "/soc/uart@40028000",
+            ],
         },
         "pan1781_evb": {
             "name": "PAN1781 Evaluation Board",
             "variant": "NRF52820",
             "i2c": [
                 "i2c0",
+            ],
+            "uart": [
+                "/soc/uart@40002000",
             ],
         },
         "pan1782_evb": {
@@ -2440,28 +3536,47 @@ BOARDS = {
             "i2c": [
                 "i2c0",
             ],
+            "uart": [
+                "/soc/uart@40002000",
+            ],
         },
         "panb611evb/nrf54l15/cpuapp": {
             "name": "PAN B611 Evaluation Board",
             "variant": "NRF54L15",
+            "uart": [
+                "/soc/peripheral@50000000/uart@104000",
+            ],
         },
         "panb611evb/nrf54l15/cpuapp/ns": {
             "name": "PAN B611 Evaluation Board",
             "variant": "NRF54L15",
+            "uart": [
+                "/soc/peripheral@40000000/uart@104000",
+            ],
         },
         "panb611evb/nrf54l15/cpuflpr": {
             "name": "PAN B611 Evaluation Board",
             "variant": "NRF54L15",
+            "uart": [
+                "/soc/peripheral@50000000/uart@c6000",
+            ],
         },
         "panb611evb/nrf54l15/cpuflpr/xip": {
             "name": "PAN B611 Evaluation Board",
             "variant": "NRF54L15",
+            "uart": [
+                "/soc/peripheral@50000000/uart@c6000",
+            ],
         },
         "particle_argon": {
             "name": "Argon",
             "variant": "NRF52840",
             "i2c": [
                 "i2c0",
+            ],
+            "uart": [
+                "/soc/uart@40002000",
+                "/soc/uart@40028000",
             ],
         },
         "particle_boron": {
@@ -2471,12 +3586,19 @@ BOARDS = {
                 "i2c0",
                 "i2c1",
             ],
+            "uart": [
+                "/soc/uart@40002000",
+                "/soc/uart@40028000",
+            ],
         },
         "particle_xenon": {
             "name": "Xenon",
             "variant": "NRF52840",
             "i2c": [
                 "i2c0",
+            ],
+            "uart": [
+                "/soc/uart@40002000",
             ],
         },
         "pinetime_devkit0": {
@@ -2485,12 +3607,19 @@ BOARDS = {
             "i2c": [
                 "i2c0",
             ],
+            "uart": [
+                "/soc/uart@40002000",
+            ],
         },
         "pinnacle_100_dvk": {
             "name": "Pinnacle 100 DVK",
             "variant": "NRF52840",
             "i2c": [
                 "i2c0",
+            ],
+            "uart": [
+                "/soc/uart@40002000",
+                "/soc/uart@40028000",
             ],
         },
         "promicro_nrf52840": {
@@ -2503,6 +3632,9 @@ BOARDS = {
                 "i2c0",
                 "i2c1",
             ],
+            "uart": [
+                "/soc/uart@40002000",
+            ],
         },
         "promicro_nrf52840/nrf52840/uf2": {
             "name": "Pro Micro nRF52840",
@@ -2514,10 +3646,16 @@ BOARDS = {
                 "i2c0",
                 "i2c1",
             ],
+            "uart": [
+                "/soc/uart@40002000",
+            ],
         },
         "qemu_cortex_m0": {
             "name": "QEMU Emulation for ARM Cortex-M0",
             "variant": "NRF51822",
+            "uart": [
+                "/soc/uart@40002000",
+            ],
         },
         "quill_nrf52840_mesh": {
             "name": "Quill nRF52840 Mesh",
@@ -2528,12 +3666,19 @@ BOARDS = {
             "i2c": [
                 "i2c0",
             ],
+            "uart": [
+                "/soc/uart@40002000",
+            ],
         },
         "rak4631": {
             "name": "RAK4631",
             "variant": "NRF52840",
             "i2c": [
                 "i2c0",
+            ],
+            "uart": [
+                "/soc/uart@40002000",
+                "/soc/uart@40028000",
             ],
         },
         "rak5010": {
@@ -2542,28 +3687,47 @@ BOARDS = {
             "i2c": [
                 "i2c1",
             ],
+            "uart": [
+                "/soc/uart@40002000",
+                "/soc/uart@40028000",
+            ],
         },
         "raytac_an54lq_db_15/nrf54l15/cpuapp": {
             "name": "AN54LQ-DB-15",
             "variant": "NRF54L15",
+            "uart": [
+                "/soc/peripheral@50000000/uart@c6000",
+            ],
         },
         "raytac_an54lq_db_15/nrf54l15/cpuapp/ns": {
             "name": "AN54LQ-DB-15",
             "variant": "NRF54L15",
+            "uart": [
+                "/soc/peripheral@40000000/uart@c6000",
+            ],
         },
         "raytac_an54lq_db_15/nrf54l15/cpuflpr": {
             "name": "AN54LQ-DB-15",
             "variant": "NRF54L15",
+            "uart": [
+                "/soc/peripheral@50000000/uart@104000",
+            ],
         },
         "raytac_an54lq_db_15/nrf54l15/cpuflpr/xip": {
             "name": "AN54LQ-DB-15",
             "variant": "NRF54L15",
+            "uart": [
+                "/soc/peripheral@50000000/uart@104000",
+            ],
         },
         "raytac_mdbt50q_cx_40_dongle": {
             "name": "MDBT50Q-CX-40 Dongle",
             "variant": "NRF52840",
             "cdc_acm": [
                 "/soc/usbd@40027000/board_cdc_acm_uart",
+            ],
+            "uart": [
+                "/soc/uart@40002000",
             ],
         },
         "raytac_mdbt50q_db_33": {
@@ -2572,12 +3736,20 @@ BOARDS = {
             "i2c": [
                 "i2c0",
             ],
+            "uart": [
+                "/soc/uart@40002000",
+                "/soc/uart@40028000",
+            ],
         },
         "raytac_mdbt50q_db_40": {
             "name": "MDBT50Q-DB-40",
             "variant": "NRF52840",
             "i2c": [
                 "i2c0",
+            ],
+            "uart": [
+                "/soc/uart@40002000",
+                "/soc/uart@40028000",
             ],
         },
         "reel_board": {
@@ -2586,6 +3758,10 @@ BOARDS = {
             "i2c": [
                 "i2c0",
             ],
+            "uart": [
+                "/soc/uart@40002000",
+                "/soc/uart@40028000",
+            ],
         },
         "rm1xx_dvk": {
             "name": "RM1xx DVK",
@@ -2593,10 +3769,16 @@ BOARDS = {
             "i2c": [
                 "i2c0",
             ],
+            "uart": [
+                "/soc/uart@40002000",
+            ],
         },
         "ruuvi_ruuvitag": {
             "name": "RuuviTag",
             "variant": "NRF52832",
+            "uart": [
+                "/soc/uart@40002000",
+            ],
         },
         "thingy52": {
             "name": "Thingy:52",
@@ -2605,16 +3787,25 @@ BOARDS = {
                 "i2c0",
                 "i2c1",
             ],
+            "uart": [
+                "/soc/uart@40002000",
+            ],
         },
         "thingy91/nrf52840": {
             "name": "Thingy:91",
             "variant": "NRF52840",
+            "uart": [
+                "/soc/uart@40002000",
+            ],
         },
         "ubx_bmd300eval": {
             "name": "EVK-BMD-30/35: BMD-300-EVAL, BMD-301-EVAL, and BMD-350-EVAL",
             "variant": "NRF52832",
             "i2c": [
                 "i2c0",
+            ],
+            "uart": [
+                "/soc/uart@40002000",
             ],
         },
         "ubx_bmd330eval": {
@@ -2623,12 +3814,19 @@ BOARDS = {
             "i2c": [
                 "i2c0",
             ],
+            "uart": [
+                "/soc/uart@40002000",
+            ],
         },
         "ubx_bmd340eval": {
             "name": "EVK-BMD-34/38: BMD-340-EVAL and BMD-341-EVAL",
             "variant": "NRF52840",
             "i2c": [
                 "i2c0",
+            ],
+            "uart": [
+                "/soc/uart@40002000",
+                "/soc/uart@40028000",
             ],
         },
         "ubx_bmd345eval": {
@@ -2637,6 +3835,9 @@ BOARDS = {
             "i2c": [
                 "i2c0",
             ],
+            "uart": [
+                "/soc/uart@40002000",
+            ],
         },
         "ubx_bmd360eval": {
             "name": "EVK-BMD-360: BMD-360-EVAL",
@@ -2644,16 +3845,25 @@ BOARDS = {
             "i2c": [
                 "i2c0",
             ],
+            "uart": [
+                "/soc/uart@40002000",
+            ],
         },
         "ubx_bmd380eval": {
             "name": "EVK-BMD-34/48: BMD-380-EVAL",
             "variant": "NRF52840",
+            "uart": [
+                "/soc/uart@40002000",
+            ],
         },
         "ubx_evkannab1": {
             "name": "EVK-ANNA-B11x",
             "variant": "NRF52832",
             "i2c": [
                 "i2c0",
+            ],
+            "uart": [
+                "/soc/uart@40002000",
             ],
         },
         "ubx_evkninab1": {
@@ -2662,12 +3872,18 @@ BOARDS = {
             "i2c": [
                 "i2c0",
             ],
+            "uart": [
+                "/soc/uart@40002000",
+            ],
         },
         "ubx_evkninab3": {
             "name": "EVK-NINA-B3",
             "variant": "NRF52840",
             "i2c": [
                 "i2c0",
+            ],
+            "uart": [
+                "/soc/uart@40002000",
             ],
         },
         "ubx_evkninab4": {
@@ -2676,42 +3892,72 @@ BOARDS = {
             "i2c": [
                 "i2c0",
             ],
+            "uart": [
+                "/soc/uart@40002000",
+            ],
         },
         "ubx_evknorab2/nrf54l05/cpuapp": {
             "name": "EVK-NORA-B2",
             "variant": "NRF54L05",
+            "uart": [
+                "/soc/peripheral@50000000/uart@c6000",
+            ],
         },
         "ubx_evknorab2/nrf54l05/cpuflpr": {
             "name": "EVK-NORA-B2",
             "variant": "NRF54L05",
+            "uart": [
+                "/soc/peripheral@50000000/uart@104000",
+            ],
         },
         "ubx_evknorab2/nrf54l10/cpuapp": {
             "name": "EVK-NORA-B2",
             "variant": "NRF54L10",
+            "uart": [
+                "/soc/peripheral@50000000/uart@c6000",
+            ],
         },
         "ubx_evknorab2/nrf54l10/cpuapp/ns": {
             "name": "EVK-NORA-B2",
             "variant": "NRF54L10",
+            "uart": [
+                "/soc/peripheral@40000000/uart@c6000",
+            ],
         },
         "ubx_evknorab2/nrf54l10/cpuflpr": {
             "name": "EVK-NORA-B2",
             "variant": "NRF54L10",
+            "uart": [
+                "/soc/peripheral@50000000/uart@104000",
+            ],
         },
         "ubx_evknorab2/nrf54l15/cpuapp": {
             "name": "EVK-NORA-B2",
             "variant": "NRF54L15",
+            "uart": [
+                "/soc/peripheral@50000000/uart@c6000",
+            ],
         },
         "ubx_evknorab2/nrf54l15/cpuapp/ns": {
             "name": "EVK-NORA-B2",
             "variant": "NRF54L15",
+            "uart": [
+                "/soc/peripheral@40000000/uart@c6000",
+            ],
         },
         "ubx_evknorab2/nrf54l15/cpuflpr": {
             "name": "EVK-NORA-B2",
             "variant": "NRF54L15",
+            "uart": [
+                "/soc/peripheral@50000000/uart@104000",
+            ],
         },
         "ubx_evknorab2/nrf54l15/cpuflpr/xip": {
             "name": "EVK-NORA-B2",
             "variant": "NRF54L15",
+            "uart": [
+                "/soc/peripheral@50000000/uart@104000",
+            ],
         },
         "we_ophelia1ev": {
             "name": "Ophelia-I EV NRF52805",
@@ -2719,20 +3965,32 @@ BOARDS = {
             "i2c": [
                 "i2c0",
             ],
+            "uart": [
+                "/soc/uart@40002000",
+            ],
         },
         "we_proteus2ev": {
             "name": "Proteus-II-EV",
             "variant": "NRF52832",
+            "uart": [
+                "/soc/uart@40002000",
+            ],
         },
         "we_proteus3ev": {
             "name": "Proteus-III-EV",
             "variant": "NRF52840",
+            "uart": [
+                "/soc/uart@40002000",
+            ],
         },
         "wio_wm1110_dev_kit": {
             "name": "Wio-WM1110 Dev Kit",
             "variant": "NRF52840",
             "i2c": [
                 "i2c0",
+            ],
+            "uart": [
+                "/soc/uart@40002000",
             ],
         },
         "xiao_ble": {
@@ -2743,6 +4001,9 @@ BOARDS = {
             ],
             "i2c": [
                 "i2c1",
+            ],
+            "uart": [
+                "/soc/uart@40002000",
             ],
         },
         "xiao_ble/nrf52840/sense": {
@@ -2755,6 +4016,9 @@ BOARDS = {
                 "i2c0",
                 "i2c1",
             ],
+            "uart": [
+                "/soc/uart@40002000",
+            ],
         },
         "xiao_nrf54l15/nrf54l15/cpuapp": {
             "name": "XIAO NRF54L15",
@@ -2762,6 +4026,10 @@ BOARDS = {
             "i2c": [
                 "i2c22",
                 "i2c30",
+            ],
+            "uart": [
+                "/soc/peripheral@50000000/uart@c6000",
+                "/soc/peripheral@50000000/uart@c7000",
             ],
         },
         "xiao_nrf54l15/nrf54l15/cpuflpr": {

@@ -421,9 +421,6 @@ async def to_code(config: ConfigType) -> None:
     cg.add_build_flag("-DUSE_NRF52")
     cg.add_define("ESPHOME_BOARD", config[CONF_BOARD])
     cg.add_define("ESPHOME_VARIANT", "NRF52")
-    # Board-specific settings look the board up by its short name; west and PlatformIO
-    # get config[CONF_BOARD] as written
-    board_id = short_board_name(config[CONF_BOARD])
     # Zephyr is a preemptive RTOS: BLE, Thread, USB and workqueue callbacks
     # run in other threads, so the scheduler must be thread-safe.
     if get_current_board_info().get("variant", "").startswith("NRF51"):
@@ -539,18 +536,12 @@ async def to_code(config: ConfigType) -> None:
                 };
             """
         )
-    if board_id == "nrf52840dongle":
-        # The board DTS enables uart0 on edge GPIOs (P0.17, P0.22, P0.24) although nothing is wired to it
-        zephyr_add_overlay(
-            """
-                &uart0 {
-                    status = "disabled";
-                };
-            """
-        )
-    # Some boards add their own CDC ACM port. ESPHome adds the ports its components use
-    # (cdc_acm_uartN), so the board's one would be an extra serial port.
-    for path in get_current_board_info().get("cdc_acm", []):
+    # Disable the serial ports the board enables on its own: CDC ACM ports (ESPHome adds the
+    # ports its components use as cdc_acm_uartN, so the board's one would be an extra port) and
+    # UARTs, which would otherwise start and drive their pins once anything enables SERIAL. A
+    # component that uses a UART sets it back to okay.
+    board_info = get_current_board_info()
+    for path in (*board_info.get("cdc_acm", []), *board_info.get("uart", [])):
         zephyr_add_overlay(
             f"""
                 &{{{path}}} {{

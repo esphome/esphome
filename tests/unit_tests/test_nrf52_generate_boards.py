@@ -54,6 +54,16 @@ DTS = """\
 \t\t\tcompatible = "nordic,nrf-twim";
 \t\t\tstatus = "disabled";
 \t\t};
+\t\tuart1: uart@40028000 {
+\t\t\tcompatible = "nordic,nrf-uarte";
+\t\t};
+\t\tuart0: uart@40002000 {
+\t\t\tcompatible = "nordic,nrf-uart";
+\t\t};
+\t\tuart2: uart@40030000 {
+\t\t\tcompatible = "nordic,nrf-uarte";
+\t\t\tstatus = "disabled";
+\t\t};
 \t\t/* Enabled itself, but under a disabled USB controller */
 \t\tusbd2: usbd@50000000 {
 \t\t\tstatus = "disabled";
@@ -229,6 +239,7 @@ def test_load_boards_reads_enabled_cdc_acm_nodes(
                 "/soc/usbd@40027000/old_spelling",
             ),
             ("i2c0", "i2c1"),
+            ("/soc/uart@40002000", "/soc/uart@40028000"),
         )
     }, skipped
 
@@ -236,7 +247,11 @@ def test_load_boards_reads_enabled_cdc_acm_nodes(
 def test_render_and_replace() -> None:
     generated = render(
         {
-            "3.2.0": {"b": BoardInfo('Say "B"', "NRF52840", ("/soc/cdc",), ("i2c1",))},
+            "3.2.0": {
+                "b": BoardInfo(
+                    'Say "B"', "NRF52840", ("/soc/cdc",), ("i2c1",), ("/soc/uart",)
+                )
+            },
             "2.9.2": {"a": BoardInfo("A", "NRF54L15", ())},
         }
     )
@@ -250,6 +265,7 @@ def test_render_and_replace() -> None:
                 "variant": "NRF52840",
                 "cdc_acm": ["/soc/cdc"],
                 "i2c": ["i2c1"],
+                "uart": ["/soc/uart"],
             }
         },
     }
@@ -273,6 +289,7 @@ def test_boards_py_is_formatted_as_generated() -> None:
                 info["variant"],
                 tuple(info.get("cdc_acm", ())),
                 tuple(info.get("i2c", ())),
+                tuple(info.get("uart", ())),
             )
             for name, info in board_infos.items()
         }

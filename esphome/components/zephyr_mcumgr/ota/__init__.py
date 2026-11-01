@@ -213,7 +213,7 @@ async def to_code(config: ConfigType) -> None:
             zephyr_add_prj_conf("MCUMGR_TRANSPORT_NETBUF_SIZE", udp_mtu)
     if CONF_HARDWARE_UART in transport:
         zephyr_add_prj_conf("SERIAL", True)
-        uart_name = UARTS[transport[CONF_HARDWARE_UART]][0]
+        uart_name, cdc_acm_id = UARTS[transport[CONF_HARDWARE_UART]]
         zephyr_add_prj_conf("MCUMGR_TRANSPORT_UART", True)
         zephyr_add_prj_conf("BASE64", True)
         zephyr_add_prj_conf("CONSOLE", True)
@@ -226,6 +226,9 @@ async def to_code(config: ConfigType) -> None:
                 }};
                 """
         )
+        if cdc_acm_id < 0:
+            # The platform disables the UARTs the board enables until a component uses one
+            zephyr_add_overlay(f"""&{uart_name} {{ status = "okay"; }};""")
     if CONF_STATUS in config:
         pin_conf = config[CONF_STATUS][CONF_PIN]
         pin_num = pin_conf[CONF_NUMBER]

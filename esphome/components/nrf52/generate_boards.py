@@ -23,6 +23,8 @@ import yaml
 CDC_ACM_COMPATIBLE = "zephyr,cdc-acm-uart"
 # I2C controllers (TWIM, and the older TWI on nRF51/nRF52)
 I2C_COMPATIBLES = ("nordic,nrf-twim", "nordic,nrf-twi")
+# UARTs (UARTE, and the older UART on nRF51/nRF52)
+UART_COMPATIBLES = ("nordic,nrf-uarte", "nordic,nrf-uart")
 # The SoC label of an I2C controller, which ESPHome also uses for its pinctrl node names
 I2C_LABEL_RE = re.compile(r"i2c\d+")
 NORDIC_FAMILY = "nordic_nrf"
@@ -61,6 +63,8 @@ class BoardInfo:
     cdc_acm: tuple[str, ...]
     # Labels of the I2C controllers the board enables, by address
     i2c: tuple[str, ...] = ()
+    # Paths of the UARTs the board enables, by address
+    uart: tuple[str, ...] = ()
 
 
 @dataclass(frozen=True)
@@ -214,13 +218,18 @@ def read_board(target: BoardTarget, roots: list[Path]) -> BoardInfo:
     cdc_acm = tuple(node.path for node in _enabled_nodes(tree, (CDC_ACM_COMPATIBLE,)))
     i2c = tuple(
         label
-        for node in sorted(
-            _enabled_nodes(tree, I2C_COMPATIBLES), key=lambda n: int(n.unit_addr, 16)
-        )
+        for node in _by_address(_enabled_nodes(tree, I2C_COMPATIBLES))
         for label in node.labels
         if I2C_LABEL_RE.fullmatch(label)
     )
-    return BoardInfo(target.full_name, target.variant, cdc_acm, i2c)
+    uart = tuple(
+        node.path for node in _by_address(_enabled_nodes(tree, UART_COMPATIBLES))
+    )
+    return BoardInfo(target.full_name, target.variant, cdc_acm, i2c, uart)
+
+
+def _by_address(nodes: list[dtlib.Node]) -> list[dtlib.Node]:
+    return sorted(nodes, key=lambda node: int(node.unit_addr, 16))
 
 
 def _enabled_nodes(tree: dtlib.DT, compatibles: tuple[str, ...]) -> list[dtlib.Node]:
@@ -279,6 +288,10 @@ def render(versions: dict[str, dict[str, BoardInfo]]) -> str:
             if info.i2c:
                 lines.append('            "i2c": [')
                 lines.extend(f'                "{label}",' for label in info.i2c)
+                lines.append("            ],")
+            if info.uart:
+                lines.append('            "uart": [')
+                lines.extend(f'                "{path}",' for path in info.uart)
                 lines.append("            ],")
             lines.append("        },")
         lines.append("    },")
