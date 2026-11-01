@@ -75,6 +75,33 @@ SERVER_FEATURE_SUPPORTS_DEFLATE = 0x08
 # Wire constant: the deflate bit promises a 4 KB window (OTA_INFLATE_WINDOW_SIZE)
 DEFLATE_WINDOW_BITS = 12
 
+# Asks for deflate in place of CLIENT_FEATURE_SUPPORTS_DEFLATE for an RTL8710B
+# image. 2026.10 firmware does not know it: there an upstream issue corrupts a
+# deflate upload into OTA2 and makes it the boot image (esphome#22012)
+CLIENT_FEATURE_SUPPORTS_DEFLATE_RTL8710B = 0x40
+_UF2_MAGIC_HEAD = (0x0A324655).to_bytes(4, "little") + (0x9E5D5157).to_bytes(
+    4, "little"
+)
+_UF2_FAMILY_RTL8710B = 0x22E0D6FC
+RTL8710B_DEFLATE_NOTICE = (
+    "Uploading uncompressed, so this OTA takes longer: the device did not accept "
+    "a compressed upload. On RTL8710B this is expected while it runs ESPHome "
+    "2026.10, because of an upstream issue "
+    "(https://github.com/esphome/esphome/issues/22012); once this update is "
+    "installed, later OTAs are compressed again."
+)
+
+
+def _is_rtl8710b_image(image: bytes) -> bool:
+    """Whether the image is a LibreTiny UF2 for the RTL8710B (AmebaZ)."""
+    return (
+        len(image) >= 32
+        and image[:8] == _UF2_MAGIC_HEAD
+        and int.from_bytes(image[8:12], "little") & 0x2000 != 0
+        and int.from_bytes(image[28:32], "little") == _UF2_FAMILY_RTL8710B
+    )
+
+
 NOISE_FRAME_INDICATOR = 0x01
 NOISE_HANDSHAKE_OK = 0x00
 # The device decrypts frames in its transfer buffer (OTA_BUFFER_SIZE, sized
@@ -564,6 +591,7 @@ def perform_ota(
     file_contents = file_handle.read()
     file_size = len(file_contents)
     _LOGGER.info("Uploading %s (%s bytes)", filename, file_size)
+    rtl8710b = _is_rtl8710b_image(file_contents)
 
     # Enable nodelay, we need it for phase 1
     sock.setsockopt(socket.IPPROTO_TCP, socket.TCP_NODELAY, 1)
@@ -584,6 +612,9 @@ def perform_ota(
         | CLIENT_FEATURE_SUPPORTS_EXTENDED_PROTOCOL
         | CLIENT_FEATURE_SUPPORTS_DEFLATE
     )
+    if rtl8710b:
+        features_to_send &= ~CLIENT_FEATURE_SUPPORTS_DEFLATE
+        features_to_send |= CLIENT_FEATURE_SUPPORTS_DEFLATE_RTL8710B
     if noise_psk:
         features_to_send |= CLIENT_FEATURE_SUPPORTS_NOISE
     send_check(sock, features_to_send, "features")
@@ -686,6 +717,8 @@ def perform_ota(
             )
 
     deflate = bool(extended_proto and features & SERVER_FEATURE_SUPPORTS_DEFLATE)
+    if rtl8710b and not deflate:
+        _LOGGER.warning(RTL8710B_DEFLATE_NOTICE)
     if deflate:
         import zlib
 
