@@ -3,6 +3,7 @@ import configparser
 from contextlib import contextmanager
 from dataclasses import dataclass, field
 import hashlib
+import json
 import logging
 import os
 from pathlib import Path
@@ -29,6 +30,9 @@ from esphome.framework_helpers import (
 _LOGGER = logging.getLogger(__name__)
 
 _REQUIREMENTS = Path(__file__).parent / "requirements.txt"
+# Run with the SDK's Python at installation, for SDK versions boards.py has no data for
+_GENERATE_BOARDS = Path(__file__).parent / "generate_boards.py"
+_BOARD_DATA_FILE = "esphome_boards.json"
 TOOLCHAIN_VERSION = "0.17.4"
 # Zephyr SDK used by nRF Connect SDK 3.4.0 and newer.
 _TOOLCHAIN_VERSION_NCS_3_4_0 = "1.0.1"
@@ -699,6 +703,61 @@ def _check_and_install(version: str) -> None:
     if not (_get_toolchain_path(toolchain_version) / ".ready").exists():
         with _install_lock(f"toolchain-{toolchain_version}"):
             _install_toolchain()
+
+    # Needs the toolchain's preprocessor, so it comes last
+    _generate_board_data(env_python_path, framework_path, version)
+
+
+def _generator_hash() -> str:
+    return hashlib.sha256(_GENERATE_BOARDS.read_bytes()).hexdigest()
+
+
+def load_installed_board_data(framework_version: cv.Version) -> dict[str, dict] | None:
+    """Return the board data read from the installed SDK of framework_version.
+
+    None when that SDK is not installed yet, the data could not be read, or it was read by an
+    older generate_boards.py.
+    """
+    version = f"v{framework_version.major}.{framework_version.minor}.{framework_version.patch}"
+    path = _get_framework_path(version) / _BOARD_DATA_FILE
+    try:
+        data = json.loads(path.read_text(encoding="utf-8"))
+    except (OSError, ValueError):
+        return None
+    if not isinstance(data, dict) or data.get("generator") != _generator_hash():
+        return None
+    return data.get("boards")
+
+
+def _generate_board_data(
+    env_python_path: Path, framework_path: Path, version: str
+) -> None:
+    """Read the board device trees of the installed SDK into _BOARD_DATA_FILE."""
+    if (
+        load_installed_board_data(CORE.data[KEY_CORE][KEY_FRAMEWORK_VERSION])
+        is not None
+    ):
+        return
+    _LOGGER.info("Reading the board device trees of nRF Connect SDK %s ...", version)
+    cmd = [
+        str(env_python_path),
+        str(_GENERATE_BOARDS),
+        "--cpp",
+        str(toolchain_tool("cpp")),
+        "--generator",
+        _generator_hash(),
+        "--json",
+        str(framework_path / _BOARD_DATA_FILE),
+        str(framework_path / "zephyr"),
+        str(framework_path / "nrf"),
+    ]
+    devicetree = framework_path / "zephyr" / "scripts" / "dts" / "python-devicetree"
+    if not run_command_ok(cmd, env={"PYTHONPATH": str(devicetree / "src")}):
+        _LOGGER.warning(
+            "Can't read the board device trees of nRF Connect SDK %s; board-specific "
+            "settings use the data of the default SDK version",
+            version,
+        )
 
 
 # Nordic's nrfutil launcher, one static binary per host; its commands are installed from Nordic's

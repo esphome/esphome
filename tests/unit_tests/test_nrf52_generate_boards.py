@@ -298,22 +298,43 @@ def test_boards_py_is_formatted_as_generated() -> None:
     assert render(versions) == generated
 
 
+DEFAULT_BOARDS = {"2.9.2": {"b": {"variant": "DEFAULT"}}}
+INSTALLED_BOARDS = {"b": {"variant": "INSTALLED"}}
+
+
 @pytest.mark.parametrize(
-    ("framework", "expected"),
-    [("2.6.1", "2.9.2"), ("2.9.2", "2.9.2"), ("3.1.0", "2.9.2"), ("9.0.0", "3.4.0")],
+    ("framework", "toolchain", "installed", "expected"),
+    [
+        # The default version always comes from boards.py
+        ("2.9.2", "sdk-nrf", INSTALLED_BOARDS, "DEFAULT"),
+        # Another version uses the data read when its SDK was installed
+        ("3.2.0", "sdk-nrf", INSTALLED_BOARDS, "INSTALLED"),
+        # ... or the default version's until it is installed
+        ("3.2.0", "sdk-nrf", None, "DEFAULT"),
+        # PlatformIO installs its SDK itself, so it keeps the default version's
+        ("2.6.1", "platformio", INSTALLED_BOARDS, "DEFAULT"),
+    ],
 )
-def test_get_board_info_picks_sdk_version(
-    monkeypatch: pytest.MonkeyPatch, framework: str, expected: str
+def test_get_board_info_picks_the_data(
+    monkeypatch: pytest.MonkeyPatch,
+    framework: str,
+    toolchain: str,
+    installed: dict | None,
+    expected: str,
 ) -> None:
+    monkeypatch.setattr(boards, "BOARDS", DEFAULT_BOARDS)
     monkeypatch.setattr(
-        boards,
-        "BOARDS",
-        {v: {"b": {"variant": v}} for v in ("3.4.0", "2.9.2", "3.2.0")},
+        type(CORE),
+        "using_toolchain_sdk_nrf",
+        property(lambda _: toolchain == "sdk-nrf"),
     )
-    assert boards.get_board_info(cv.Version.parse(framework), "b") == {
-        "variant": expected
-    }
-    assert boards.get_board_info(cv.Version.parse(framework), "unknown") is None
+    monkeypatch.setattr(
+        "esphome.components.nrf52.framework.load_installed_board_data",
+        lambda _version: installed,
+    )
+    version = cv.Version.parse(framework)
+    assert boards.get_board_info(version, "b") == {"variant": expected}
+    assert boards.get_board_info(version, "unknown") is None
 
 
 @pytest.mark.parametrize(

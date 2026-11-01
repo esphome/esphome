@@ -3,11 +3,18 @@
 Each board's device tree is run through the C preprocessor and parsed with Zephyr's devicetree
 library, the same steps a firmware build takes.
 
-Usage: python esphome/components/nrf52/generate_boards.py <sdk-version>=<zephyr-path>[,<nrf-path>] ...
+script/generate-nrf52-boards.py writes the data of the default SDK version into boards.py. For
+any other version, the SDK installation runs this file as a script with the SDK's own Python
+and the toolchain's preprocessor, and caches the data as JSON next to the SDK:
+
+    python generate_boards.py --cpp <cpp> --json <out.json> <zephyr-path> [<nrf-path>]
+
+This file therefore uses only the standard library, PyYAML and devicetree.
 """
 
 from __future__ import annotations
 
+import argparse
 from collections.abc import Iterable, Iterator
 from dataclasses import dataclass
 import json
@@ -16,6 +23,7 @@ import re
 import subprocess
 import sys
 import tempfile
+from typing import Any
 
 from devicetree import dtlib
 import yaml
@@ -28,6 +36,11 @@ UART_COMPATIBLES = ("nordic,nrf-uarte", "nordic,nrf-uart")
 # The SoC label of an I2C controller, which ESPHome also uses for its pinctrl node names
 I2C_LABEL_RE = re.compile(r"i2c\d+")
 NORDIC_FAMILY = "nordic_nrf"
+# The SoC line of an old-layout <board>_defconfig, such as CONFIG_SOC_NRF52840_QIAA=y or
+# CONFIG_SOC_NRF54L15_ENGA_CPUAPP=y
+DEFCONFIG_SOC_RE = re.compile(
+    r"^CONFIG_SOC_(NRF\d+(?:[A-Z]\d+)?)(?:_\w+)?=y$", re.MULTILINE
+)
 # SoC series to list boards for: nrf51, nrf52 and every nrf54 series (nrf54l, nrf54h)
 SERIES_PREFIXES = ("nrf51", "nrf52", "nrf54")
 # Searched in each devicetree root, in this order, followed by dts/<arch> for every
@@ -157,13 +170,37 @@ def _board_yml_targets(
                 )
 
 
+def _hwmv1_targets(board_dir: Path) -> Iterator[BoardTarget]:
+    """Yield the targets of a board directory in the old layout (hardware model v1).
+
+    SDK 2.6.1 (Zephyr 3.5) has no board.yml: each target has a <target>.dts and a
+    <target>_defconfig that selects the SoC, and its name is in <target>.yaml.
+    """
+    for dts in sorted(board_dir.glob("*.dts")):
+        defconfig = board_dir / f"{dts.stem}_defconfig"
+        if not defconfig.is_file():
+            continue
+        match = DEFCONFIG_SOC_RE.search(defconfig.read_text(encoding="utf-8"))
+        if match is None or not match.group(1).lower().startswith(SERIES_PREFIXES):
+            continue
+        full_name = dts.stem
+        if (target_yaml := board_dir / f"{dts.stem}.yaml").is_file():
+            data = yaml.safe_load(target_yaml.read_text(encoding="utf-8")) or {}
+            full_name = data.get("name", full_name)
+        yield BoardTarget(dts.stem, full_name, match.group(1), dts)
+
+
 def find_targets(
     boards_dir: Path, nordic_socs: dict[str, NordicSoc]
 ) -> list[BoardTarget]:
     """Find the Nordic board targets under the boards directory of a board root."""
     targets: list[BoardTarget] = []
-    for board_yml in sorted(boards_dir.glob("**/board.yml")):
+    board_ymls = sorted(boards_dir.glob("**/board.yml"))
+    for board_yml in board_ymls:
         targets.extend(_board_yml_targets(board_yml, nordic_socs))
+    if not board_ymls:
+        for board_dir in sorted(p for p in boards_dir.glob("arm/*") if p.is_dir()):
+            targets.extend(_hwmv1_targets(board_dir))
     return targets
 
 
@@ -191,14 +228,14 @@ def _is_okay(node: dtlib.Node) -> bool:
     return status is None or status.to_string() in ("okay", "ok")
 
 
-def read_board(target: BoardTarget, roots: list[Path]) -> BoardInfo:
+def read_board(target: BoardTarget, roots: list[Path], cpp: str = "cpp") -> BoardInfo:
     """Preprocess and parse the board device tree and pick out the data ESPHome uses.
 
     Raises ValueError when the device tree does not preprocess or parse.
     """
     with tempfile.TemporaryDirectory() as tempdir:
         preprocessed = Path(tempdir) / "board.dts"
-        command = ["cpp", "-x", "assembler-with-cpp", "-nostdinc", "-undef", "-P"]
+        command = [cpp, "-x", "assembler-with-cpp", "-nostdinc", "-undef", "-P"]
         command.append("-D__DTS__")
         # The board directory is a devicetree root too, so <board>/dts is searched
         for include_dir in _include_dirs([target.dts.parent, *roots]):
@@ -249,14 +286,14 @@ def _parents(node: dtlib.Node) -> Iterator[dtlib.Node]:
         yield node
 
 
-def load_boards(roots: list[Path]) -> dict[str, BoardInfo]:
+def load_boards(roots: list[Path], cpp: str = "cpp") -> dict[str, BoardInfo]:
     """Read every Nordic board of one SDK version. roots[0] is the Zephyr tree."""
     nordic_socs = load_socs(roots)
     boards: dict[str, BoardInfo] = {}
     for root in roots:
         for target in find_targets(root / "boards", nordic_socs):
             try:
-                info = read_board(target, roots)
+                info = read_board(target, roots, cpp)
             except ValueError as err:
                 # The build would fail on such a target too, so it cannot be used anyway
                 print(f"Skipping {target.name}: {err}", file=sys.stderr)
@@ -312,12 +349,30 @@ def replace_generated(content: str, generated: str) -> str:
     return head + generated
 
 
+def board_dict(info: BoardInfo) -> dict[str, Any]:
+    """Return the data of one board as BOARDS in boards.py holds it."""
+    data: dict[str, Any] = {"name": info.name, "variant": info.variant}
+    for key in ("cdc_acm", "i2c", "uart"):
+        if value := getattr(info, key):
+            data[key] = list(value)
+    return data
+
+
 def main() -> None:
-    versions: dict[str, dict[str, BoardInfo]] = {}
-    for argument in sys.argv[1:]:
-        version, paths = argument.split("=", 1)
-        versions[version] = load_boards([Path(p) for p in paths.split(",")])
-    sys.stdout.write(render(versions))
+    parser = argparse.ArgumentParser(description=__doc__)
+    parser.add_argument("--cpp", default="cpp", help="C preprocessor to run")
+    parser.add_argument("--json", type=Path, required=True, help="file to write")
+    parser.add_argument(
+        "--generator", default="", help="stored with the data, to tell when to redo it"
+    )
+    parser.add_argument("roots", type=Path, nargs="+", help="Zephyr tree, then sdk-nrf")
+    args = parser.parse_args()
+    boards = load_boards(args.roots, args.cpp)
+    data = {
+        "generator": args.generator,
+        "boards": {name: board_dict(info) for name, info in sorted(boards.items())},
+    }
+    args.json.write_text(json.dumps(data, indent=1), encoding="utf-8")
 
 
 if __name__ == "__main__":

@@ -1,8 +1,9 @@
 #!/usr/bin/env python3
 """Update the generated board data in esphome/components/nrf52/boards.py.
 
-For each nRF Connect SDK version below, the board files of that SDK and of the Zephyr
-version it uses are fetched and every board device tree for a Nordic SoC is read.
+The board files of the default nRF Connect SDK version and of the Zephyr version it uses are
+fetched and every board device tree for a Nordic SoC is read. Other SDK versions get their data
+when ESPHome installs them.
 """
 
 from __future__ import annotations
@@ -15,6 +16,7 @@ import tempfile
 
 import yaml
 
+from esphome.components.nrf52 import RECOMMENDED_SDK_NRF_VERSION
 from esphome.components.nrf52.generate_boards import (
     BoardInfo,
     load_boards,
@@ -23,9 +25,7 @@ from esphome.components.nrf52.generate_boards import (
 )
 from esphome.helpers import write_file_if_changed
 
-# nRF Connect SDK versions to read the boards of. Code that uses the data picks the newest
-# version that is not newer than the configured framework version.
-SDK_VERSIONS = ("2.9.2", "3.2.0", "3.4.0")
+SDK_VERSIONS = (RECOMMENDED_SDK_NRF_VERSION,)
 SDK_NRF_REPO = "https://github.com/nrfconnect/sdk-nrf"
 # Only what the device trees and their includes need
 SPARSE_PATHS = ("/west.yml", "/boards/", "/dts/", "/include/", "/soc/**/soc.yml")

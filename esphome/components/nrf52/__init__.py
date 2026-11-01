@@ -77,6 +77,7 @@ from .boards import (
     BOOTLOADER_CONFIG,
     SELF_RESET_PINS,
     get_current_board_info,
+    is_default_sdk_version,
     short_board_name,
 )
 from .const import (
@@ -95,6 +96,7 @@ from .framework import (
     ensure_nordic_nrfutil,
     get_build_env,
     get_build_paths,
+    load_installed_board_data,
     setup_platformio_python_env,
     toolchain_tool,
     wanted_west_projects,
@@ -421,6 +423,15 @@ async def to_code(config: ConfigType) -> None:
     cg.add_build_flag("-DUSE_NRF52")
     cg.add_define("ESPHOME_BOARD", config[CONF_BOARD])
     cg.add_define("ESPHOME_VARIANT", "NRF52")
+    framework_ver: cv.Version = CORE.data[KEY_CORE][KEY_FRAMEWORK_VERSION]
+    if (
+        CORE.using_toolchain_sdk_nrf
+        and not is_default_sdk_version(framework_ver)
+        and load_installed_board_data(framework_ver) is None
+    ):
+        # The board data of a non-default SDK version is read when it is installed, and the
+        # board-specific settings below need it
+        check_and_install()
     # Zephyr is a preemptive RTOS: BLE, Thread, USB and workqueue callbacks
     # run in other threads, so the scheduler must be thread-safe.
     if get_current_board_info().get("variant", "").startswith("NRF51"):
@@ -485,7 +496,6 @@ async def to_code(config: ConfigType) -> None:
 
     if dfu_config := config.get(CONF_DFU):
         CORE.add_job(_dfu_to_code, dfu_config)
-    framework_ver: cv.Version = CORE.data[KEY_CORE][KEY_FRAMEWORK_VERSION]
     if CONF_DCDC in config:
         if framework_ver < cv.Version(2, 9, 2):
             zephyr_add_prj_conf("BOARD_ENABLE_DCDC", config[CONF_DCDC])
