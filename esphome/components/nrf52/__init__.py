@@ -16,11 +16,11 @@ from esphome.components.zephyr import (
     Section,
     add_extra_script,
     copy_files as zephyr_copy_files,
-    zephyr_add_board_cdc_acm_node,
     zephyr_add_overlay,
     zephyr_add_pm_static,
     zephyr_add_prj_conf,
     zephyr_data,
+    zephyr_require_cdc_acm,
     zephyr_set_core_data,
     zephyr_setup_preferences,
     zephyr_to_code,
@@ -552,10 +552,17 @@ async def to_code(config: ConfigType) -> None:
                 };
             """
         )
-    # Some boards add their own CDC ACM port, which ESPHome replaces with its own ports
+    # Some boards add their own CDC ACM port. ESPHome adds the ports its components use
+    # (cdc_acm_uartN), so the board's one would be an extra serial port.
     if board_info := get_board_info(framework_ver, config[CONF_BOARD]):
         for path in board_info.get("cdc_acm", []):
-            zephyr_add_board_cdc_acm_node(path)
+            zephyr_add_overlay(
+                f"""
+                    &{{{path}}} {{
+                        status = "disabled";
+                    }};
+                """
+            )
     zephyr_add_prj_conf("REBOOT", True)
 
     # some boards enable USB and UART by default.
@@ -578,11 +585,9 @@ async def _dfu_to_code(dfu_config):
     var = cg.new_Pvariable(dfu_config[CONF_ID])
     await cg.add_pin(var.set_reset_pin, dfu_config.get(CONF_RESET_PIN))
 
-    # DFU uses cdc rate callback to enter bootloader which was disabled explicitly to save power.
-    zephyr_add_prj_conf("USB_DEVICE_STACK", True)
-    zephyr_add_prj_conf("USB_CDC_ACM", True)
+    # DFU enters the bootloader on the 1200 baud touch, seen through the CDC ACM rate callback
+    zephyr_require_cdc_acm()
     zephyr_add_prj_conf("CDC_ACM_DTE_RATE_CALLBACK_SUPPORT", True)
-    zephyr_add_prj_conf("SERIAL", True)
     await cg.register_component(var, dfu_config)
 
 

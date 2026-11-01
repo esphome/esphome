@@ -87,8 +87,8 @@ class ZephyrData(TypedDict):
     overlay_builder: list[Callable[[], str]]
     # CDC ACM port number -> components that use it
     cdc_acm_users: dict[int, list[CdcAcmUser]]
-    # Paths of CDC ACM nodes that the board device tree adds on its own
-    board_cdc_acm_nodes: list[str]
+    # A CDC ACM port is needed even if no component claims one (nrf52 dfu)
+    cdc_acm_required: bool
 
 
 def zephyr_set_core_data(config: ConfigType) -> None:
@@ -101,7 +101,7 @@ def zephyr_set_core_data(config: ConfigType) -> None:
         },  # set empty to make sure that overlay is cleared after config change
         overlay_builder=[],
         cdc_acm_users={},
-        board_cdc_acm_nodes=[],
+        cdc_acm_required=False,
         extra_build_files={},
         pm_static=[],
         kconfig="",
@@ -253,21 +253,22 @@ def zephyr_claim_cdc_acm(
     users.append(new)
 
 
-def zephyr_add_board_cdc_acm_node(path: str) -> None:
-    """Register a CDC ACM node that the board device tree already defines, by its path.
+def zephyr_require_cdc_acm() -> None:
+    """Make sure at least one CDC ACM port exists, without claiming one.
 
-    The node is disabled when a port is claimed with zephyr_claim_cdc_acm(), so the
-    device shows only the cdc_acm_uartN ports that ESPHome adds, not an extra one.
+    For code that only watches the port settings (the 1200 baud touch of nrf52 dfu)
+    and so can share any port with any user. Port 0 is added when no component
+    claims a port with zephyr_claim_cdc_acm().
     """
-    nodes = zephyr_data()["board_cdc_acm_nodes"]
-    if path not in nodes:
-        nodes.append(path)
+    zephyr_data()["cdc_acm_required"] = True
 
 
 def _cdc_acm_add_ports() -> None:
     """Set up every CDC ACM port claimed with zephyr_claim_cdc_acm()."""
-    users = zephyr_data()["cdc_acm_users"]
-    if not users:
+    ids = sorted(zephyr_data()["cdc_acm_users"])
+    if not ids and zephyr_data()["cdc_acm_required"]:
+        ids = [0]
+    if not ids:
         return
     framework_ver: cv.Version = CORE.data[KEY_CORE][KEY_FRAMEWORK_VERSION]
     if CORE.is_nrf52 and framework_ver >= cv.Version(3, 2, 0):
@@ -280,25 +281,17 @@ def _cdc_acm_add_ports() -> None:
     zephyr_add_prj_conf("USB_DEVICE_REMOTE_WAKEUP", False)
     # prevent logging when buffer is full
     zephyr_add_prj_conf("USB_CDC_ACM_LOG_LEVEL_WRN", True)
-    # Disable the board's own nodes first; a board node can have the same name as
-    # one of ours, so ours set the status back to okay
-    board_nodes = "".join(
-        f"""
-            &{{{path}}} {{
-                status = "disabled";
-            }};"""
-        for path in zephyr_data()["board_cdc_acm_nodes"]
-    )
+    # The platform may have disabled a board node with the same name as one of ours
     nodes = "".join(
         f"""
                 cdc_acm_uart{id}: cdc_acm_uart{id} {{
                     compatible = "zephyr,cdc-acm-uart";
                     status = "okay";
                 }};"""
-        for id in sorted(users)
+        for id in ids
     )
     zephyr_add_overlay(
-        f"""{board_nodes}
+        f"""
             &zephyr_udc0 {{{nodes}
             }};
         """
