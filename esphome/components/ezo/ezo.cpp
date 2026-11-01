@@ -43,6 +43,8 @@ static EzoCommandType reply_type(EzoCommandId id) {
 
 static constexpr uint32_t LONG_DELAY_MS = 900;  // reads and calibration points
 static constexpr uint32_t COMMAND_DELAY_MS = 300;
+// reply_due_ is 16 bits, compared as a signed difference
+static_assert(LONG_DELAY_MS < INT16_MAX && COMMAND_DELAY_MS < INT16_MAX);
 static constexpr size_t MAX_REPLY_LENGTH = 52;
 
 static uint32_t reply_delay_ms(EzoCommandId id) {
@@ -90,33 +92,7 @@ void EZOSensor::send_next_() {
     return;
   }
 
-  const EzoCommand &command = this->queue_.front();
-  const EzoCommandId id = command.id;
-  char text[EZO_MAX_COMMAND_LENGTH + 1];
-  size_t length;
-  if (id == EzoCommandId::EZO_COMMAND_ID_CUSTOM) {
-    length = command.text_length;
-    const size_t first = std::min<size_t>(length, EZO_CUSTOM_TEXT_SIZE - this->custom_text_start_);
-    memcpy(text, this->custom_text_ + this->custom_text_start_, first);
-    memcpy(text + first, this->custom_text_, length - first);
-    text[length] = '\0';
-  } else {
-    length = render_command(id, command.value, text);
-  }
-  ESP_LOGVV(TAG, "Sending command \"%s\"", text);
-  this->write(reinterpret_cast<const uint8_t *>(text), length);
-
-  if (id == EzoCommandId::EZO_COMMAND_ID_SLEEP || id == EzoCommandId::EZO_COMMAND_ID_I2C) {
-    // No reply; each queued address change applies its own target
-    if (id == EzoCommandId::EZO_COMMAND_ID_I2C)
-      this->address_ = static_cast<uint8_t>(command.value);
-    this->queue_.pop();
-    this->state_ = EzoState::EZO_STATE_IDLE;
-    return;
-  }
-
-  this->state_ = EzoState::EZO_STATE_SENT_QUEUED;
-  this->reply_due_ = now + reply_delay_ms(id);
+  send_queued_fn(this, now);
 }
 
 void EZOSensor::finish_command_() {
@@ -127,7 +103,6 @@ void EZOSensor::finish_command_() {
   const EzoCommand &command = this->queue_.front();
   if (command.id == EzoCommandId::EZO_COMMAND_ID_CUSTOM) {
     this->custom_text_start_ = (this->custom_text_start_ + command.text_length) % EZO_CUSTOM_TEXT_SIZE;
-    this->custom_text_used_ -= command.text_length;
   }
   this->queue_.pop();
   this->state_ = EzoState::EZO_STATE_IDLE;
@@ -139,7 +114,7 @@ void EZOSensor::loop() {
     return;
   }
 
-  if (static_cast<int32_t>(App.get_loop_component_start_time() - this->reply_due_) < 0)
+  if (static_cast<int16_t>(App.get_loop_component_start_time() - this->reply_due_) < 0)
     return;
 
   // Response code, then up to 52 characters (the largest documented reply, EZO-RGB), then a terminator
@@ -161,7 +136,9 @@ void EZOSensor::loop() {
       ESP_LOGE(TAG, "device returned a syntax error");
       break;
     case 254:
-      return;  // keep waiting
+      // Still busy: re-armed so it never ages out of the 16-bit window
+      this->reply_due_ = App.get_loop_component_start_time();
+      return;
     case 255:
       ESP_LOGE(TAG, "device returned no data");
       break;
@@ -222,14 +199,42 @@ void EZOSensor::loop() {
     callback->call(std::string(text));
 }
 
+void EZOSensor::send_queued(EZOSensor *self, uint32_t now) {
+  const EzoCommand &command = self->queue_.front();
+  const EzoCommandId id = command.id;
+  char text[EZO_MAX_COMMAND_LENGTH + 1];
+  size_t length;
+  if (id == EzoCommandId::EZO_COMMAND_ID_CUSTOM) {
+    length = command.text_length;
+    const size_t first = std::min<size_t>(length, EZO_CUSTOM_TEXT_SIZE - self->custom_text_start_);
+    memcpy(text, self->custom_text_ + self->custom_text_start_, first);
+    memcpy(text + first, self->custom_text_, length - first);
+    text[length] = '\0';
+  } else {
+    length = render_command(id, command.value, text);
+  }
+  ESP_LOGVV(TAG, "Sending command \"%s\"", text);
+  self->write(reinterpret_cast<const uint8_t *>(text), length);
+
+  if (id == EzoCommandId::EZO_COMMAND_ID_SLEEP || id == EzoCommandId::EZO_COMMAND_ID_I2C) {
+    // No reply; each queued address change applies its own target
+    if (id == EzoCommandId::EZO_COMMAND_ID_I2C)
+      self->address_ = static_cast<uint8_t>(command.value);
+    self->queue_.pop();
+    self->state_ = EzoState::EZO_STATE_IDLE;
+    return;
+  }
+
+  self->state_ = EzoState::EZO_STATE_SENT_QUEUED;
+  self->reply_due_ = now + reply_delay_ms(id);
+}
+
 void EZOSensor::add_command_(EzoCommandId id, float value) {
-  if (!this->queue_.push(EzoCommand{id, {value}})) {
+  if (!this->enqueue_(EzoCommand{id, {value}})) {
     ESP_LOGW(
         TAG, "Command queue full, dropped \"%s\"",
         LOG_STR_ARG(EzoCommandTextStrings::get_log_str(static_cast<uint8_t>(id), EzoCommandTextStrings::LAST_INDEX)));
-    return;
   }
-  this->enable_loop();
 }
 
 void EZOSensor::set_address(uint8_t address) {
@@ -298,20 +303,23 @@ void EZOSensor::send_custom(const std::string &to_send) {
              static_cast<unsigned>(EZO_MAX_COMMAND_LENGTH));
     return;
   }
-  if (this->queue_.size() >= EZO_COMMAND_QUEUE_SIZE || this->custom_text_used_ + length > EZO_CUSTOM_TEXT_SIZE) {
-    ESP_LOGW(TAG, "Command queue full, dropped \"%s\"", to_send.c_str());
-    return;
+  size_t used = 0;
+  for (const EzoCommand &command : this->queue_) {
+    if (command.id == EzoCommandId::EZO_COMMAND_ID_CUSTOM)
+      used += command.text_length;
   }
-  // Append after the queued texts, wrapping around the end of the ring
-  const size_t end = (this->custom_text_start_ + this->custom_text_used_) % EZO_CUSTOM_TEXT_SIZE;
-  const size_t first = std::min(length, EZO_CUSTOM_TEXT_SIZE - end);
-  memcpy(this->custom_text_ + end, to_send.data(), first);
-  memcpy(this->custom_text_, to_send.data() + first, length - first);
-  this->custom_text_used_ += length;
-  EzoCommand command{EzoCommandId::EZO_COMMAND_ID_CUSTOM, {}};
-  command.text_length = length;
-  this->queue_.push(command);
-  this->enable_loop();
+  if (used + length <= EZO_CUSTOM_TEXT_SIZE) {
+    // Append after the queued texts, wrapping around the end of the ring; unread if the queue is full
+    const size_t end = (this->custom_text_start_ + used) % EZO_CUSTOM_TEXT_SIZE;
+    const size_t first = std::min(length, EZO_CUSTOM_TEXT_SIZE - end);
+    memcpy(this->custom_text_ + end, to_send.data(), first);
+    memcpy(this->custom_text_, to_send.data() + first, length - first);
+    EzoCommand command{EzoCommandId::EZO_COMMAND_ID_CUSTOM, {}};
+    command.text_length = length;
+    if (this->enqueue_(command))
+      return;
+  }
+  ESP_LOGW(TAG, "Command queue full, dropped \"%s\"", to_send.c_str());
 }
 
 }  // namespace esphome::ezo
