@@ -21,6 +21,7 @@ static const uint32_t CONNECTION_TIMEOUT_MS = 5000;
 static const uint8_t MAX_FETCHING_HEADER_ATTEMPTS = 6;
 
 static const size_t HTTP_STREAM_BUFFER_SIZE = 2048;
+// esp_http_client_read() blocks until it fills the request; small requests deliver a phrase tail before a pause ends
 static constexpr size_t HTTP_READ_MAX_BYTES = 1024;
 static constexpr int HTTP_BODY_TIMEOUT_MS = 100;
 
@@ -211,6 +212,7 @@ esp_err_t AudioReader::start(const std::string &uri, AudioFileType &file_type) {
 
   this->output_transfer_buffer_ = AudioSinkTransferBuffer::create(this->buffer_size_);
   if (this->output_transfer_buffer_ == nullptr) {
+    this->cleanup_connection_();
     return ESP_ERR_NO_MEM;
   }
 
