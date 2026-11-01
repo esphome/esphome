@@ -426,6 +426,7 @@ void AudioPipeline::decode_task(void *params) {
 
       bool has_stream_info = false;
       bool started_playback = false;
+      PlaybackStartGate start_gate;
 
       size_t initial_bytes_to_buffer = 0;
 
@@ -520,7 +521,7 @@ void AudioPipeline::decode_task(void *params) {
           // Verify enough data is available before starting playback
           std::shared_ptr<ring_buffer::RingBuffer> temp_ring_buffer = this_pipeline->raw_file_ring_buffer_.lock();
           if (temp_ring_buffer != nullptr &&
-              playback_start_ready(is_announcement, temp_ring_buffer->available(), initial_bytes_to_buffer)) {
+              start_gate.ready(is_announcement, temp_ring_buffer->available(), initial_bytes_to_buffer, millis())) {
             started_playback = true;
           }
         }

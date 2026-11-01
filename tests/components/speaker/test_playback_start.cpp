@@ -4,30 +4,42 @@
 
 namespace esphome::speaker::testing {
 
-TEST(PlaybackStart, AnnouncementUsesQuarterOfAdjustedFlacThreshold) {
-  constexpr size_t media_initial_bytes = 48000;
-  EXPECT_FALSE(playback_start_ready(true, 0, media_initial_bytes));
-  EXPECT_FALSE(playback_start_ready(true, 11999, media_initial_bytes));
-  EXPECT_TRUE(playback_start_ready(true, 12000, media_initial_bytes));
-  EXPECT_TRUE(playback_start_ready(true, 42799, media_initial_bytes));
+static constexpr size_t INITIAL_BYTES = 48000;
+
+TEST(PlaybackStart, FullThresholdStartsAnyStream) {
+  PlaybackStartGate media;
+  EXPECT_FALSE(media.ready(false, 47999, INITIAL_BYTES, 0));
+  EXPECT_TRUE(media.ready(false, 48000, INITIAL_BYTES, 1));
+  PlaybackStartGate announcement;
+  EXPECT_TRUE(announcement.ready(true, 48000, INITIAL_BYTES, 0));
 }
 
-TEST(PlaybackStart, MediaRetainsFullRawThreshold) {
-  constexpr size_t media_initial_bytes = 48000;
-  EXPECT_FALSE(playback_start_ready(false, 12000, media_initial_bytes));
-  EXPECT_FALSE(playback_start_ready(false, 47999, media_initial_bytes));
-  EXPECT_TRUE(playback_start_ready(false, 48000, media_initial_bytes));
-  EXPECT_TRUE(playback_start_ready(false, 0, 0));
+TEST(PlaybackStart, StalledAnnouncementStartsBelowThreshold) {
+  PlaybackStartGate gate;
+  EXPECT_FALSE(gate.ready(true, 42799, INITIAL_BYTES, 1000));
+  EXPECT_FALSE(gate.ready(true, 42799, INITIAL_BYTES, 1000 + ANNOUNCEMENT_STALL_START_MS - 1));
+  EXPECT_TRUE(gate.ready(true, 42799, INITIAL_BYTES, 1000 + ANNOUNCEMENT_STALL_START_MS));
 }
 
-TEST(PlaybackStart, AnnouncementThresholdScalesWithFormat) {
-  // These inputs are already adjusted for codec compression and ring capacity by the pipeline.
-  EXPECT_FALSE(playback_start_ready(true, 23999, 96000));  // WAV
-  EXPECT_TRUE(playback_start_ready(true, 24000, 96000));
-  EXPECT_FALSE(playback_start_ready(true, 2999, 12000));  // MP3 or Opus
-  EXPECT_TRUE(playback_start_ready(true, 3000, 12000));
-  EXPECT_FALSE(playback_start_ready(true, 2249, 9000));  // Ring-capacity-limited estimate
-  EXPECT_TRUE(playback_start_ready(true, 2250, 9000));
+TEST(PlaybackStart, ArrivingDataKeepsTheFullReserve) {
+  PlaybackStartGate gate;
+  uint32_t now = 0;
+  for (size_t bytes = 1000; bytes < INITIAL_BYTES; bytes += 1000) {
+    EXPECT_FALSE(gate.ready(true, bytes, INITIAL_BYTES, now));
+    now += ANNOUNCEMENT_STALL_START_MS - 1;
+  }
+}
+
+TEST(PlaybackStart, StalledMediaWaitsForTheThreshold) {
+  PlaybackStartGate gate;
+  EXPECT_FALSE(gate.ready(false, 42799, INITIAL_BYTES, 0));
+  EXPECT_FALSE(gate.ready(false, 42799, INITIAL_BYTES, 10000));
+}
+
+TEST(PlaybackStart, EmptyBufferNeverStartsEarly) {
+  PlaybackStartGate gate;
+  EXPECT_FALSE(gate.ready(true, 0, INITIAL_BYTES, 0));
+  EXPECT_FALSE(gate.ready(true, 0, INITIAL_BYTES, 10000));
 }
 
 }  // namespace esphome::speaker::testing

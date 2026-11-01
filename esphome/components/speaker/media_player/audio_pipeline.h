@@ -68,12 +68,14 @@ class AudioPipeline final {
 
   /// @brief Starts an audio pipeline given a media url
   /// @param uri media file url
-  /// @param is_announcement True for an announcement, which starts after a shorter raw buffering threshold
+  /// @param is_announcement True for an announcement, which also starts when its stream pauses before the
+  /// start threshold
   void start_url(const std::string &uri, bool is_announcement = false);
 
   /// @brief Starts an audio pipeline given a AudioFile pointer
   /// @param audio_file pointer to an AudioFile object
-  /// @param is_announcement True for an announcement, which starts after a shorter raw buffering threshold
+  /// @param is_announcement True for an announcement, which also starts when its stream pauses before the
+  /// start threshold
   void start_file(const audio::AudioFile *audio_file, bool is_announcement = false);
 
   /// @brief Stops the pipeline. Sends a stop signal to each task (if running) and clears the ring buffers.
