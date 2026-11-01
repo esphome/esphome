@@ -26,6 +26,8 @@ from esphome.framework_helpers import (
     str_to_lst_of_str,
 )
 
+from .const import VARIANT_NRF52
+
 _LOGGER = logging.getLogger(__name__)
 
 _REQUIREMENTS = Path(__file__).parent / "requirements.txt"
@@ -403,12 +405,22 @@ _WEST_PROJECTS_FILE = ".west_projects"
 @dataclass
 class _Nrf52Data:
     west_projects: set[str] = field(default_factory=lambda: set(DEFAULT_WEST_PROJECTS))
+    variant: str = VARIANT_NRF52
 
 
 def _get_data() -> _Nrf52Data:
     if _KEY_NRF52 not in CORE.data:
         CORE.data[_KEY_NRF52] = _Nrf52Data()
     return CORE.data[_KEY_NRF52]
+
+
+def set_nrf52_variant(variant: str) -> None:
+    _get_data().variant = variant
+
+
+def get_nrf52_variant() -> str:
+    """The chip variant; NRF52 until the nrf52 config is validated."""
+    return _get_data().variant
 
 
 def include_west_project(name: str) -> None:

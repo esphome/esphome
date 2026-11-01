@@ -92,6 +92,8 @@ UART_SELECTION_ESP8266 = [UART0, UART0_SWAP, UART1]
 UART_SELECTION_RP2040 = [USB_CDC, UART0, UART1]
 
 UART_SELECTION_NRF52 = [USB_CDC, UART0]
+# nRF54L has no USB; its UARTs are named after their devicetree nodes
+UART_SELECTION_NRF54L = ["UART00", "UART20", "UART21", "UART22", "UART30"]
 
 HARDWARE_UART_TO_UART_SELECTION = {
     UART0: logger_ns.UART_SELECTION_UART0,
@@ -101,6 +103,8 @@ HARDWARE_UART_TO_UART_SELECTION = {
     USB_CDC: logger_ns.UART_SELECTION_USB_CDC,
     USB_SERIAL_JTAG: logger_ns.UART_SELECTION_USB_SERIAL_JTAG,
     DEFAULT: logger_ns.UART_SELECTION_DEFAULT,
+    # Zephyr opens the UART by its devicetree node; the enum only marks a hardware UART
+    **dict.fromkeys(UART_SELECTION_NRF54L, logger_ns.UART_SELECTION_UART0),
 }
 
 HARDWARE_UART_TO_SERIAL = {
@@ -217,8 +221,17 @@ def uart_selection(value: Any) -> str:
     if CORE.is_host:
         raise cv.Invalid("Uart selection not valid for host platform")
     if CORE.is_nrf52:
+        if _is_nrf54l():
+            return cv.one_of(*UART_SELECTION_NRF54L, upper=True)(value)
         return cv.one_of(*UART_SELECTION_NRF52, upper=True)(value)
     raise NotImplementedError
+
+
+def _is_nrf54l() -> bool:
+    from esphome.components.nrf52.const import VARIANT_NRF54L
+    from esphome.components.nrf52.framework import get_nrf52_variant
+
+    return get_nrf52_variant() == VARIANT_NRF54L
 
 
 def validate_local_no_higher_than_global(config: ConfigType) -> ConfigType:
@@ -385,6 +398,7 @@ CONFIG_SCHEMA = cv.All(
                 ln882x=DEFAULT,
                 rtl87xx=DEFAULT,
                 nrf52=USB_CDC,
+                nrf52_54l="UART20",
             ): cv.All(
                 cv.only_on(
                     [
@@ -657,11 +671,12 @@ async def _late_logger_init(config: ConfigType) -> None:
         zephyr_add_prj_conf("THREAD_LOCAL_STORAGE", True)
         if has_serial_logging:
             zephyr_add_prj_conf("SERIAL", True)
-            if config[CONF_HARDWARE_UART] == UART0:
-                zephyr_add_overlay("""&uart0 { status = "okay";};""")
-            if config[CONF_HARDWARE_UART] == UART1:
-                zephyr_add_overlay("""&uart1 { status = "okay";};""")
-            if config[CONF_HARDWARE_UART] == USB_CDC:
+            if config[CONF_HARDWARE_UART] != USB_CDC:
+                # Each hardware UART option names a devicetree node: UART0 is uart0, UART20 is uart20
+                node = config[CONF_HARDWARE_UART].lower()
+                zephyr_add_overlay(f"""&{node} {{ status = "okay";}};""")
+                cg.add_define("USE_LOGGER_UART_NODE", cg.RawExpression(node))
+            else:
                 cg.add_define("USE_LOGGER_UART_SELECTION_USB_CDC")
                 zephyr_add_prj_conf("UART_LINE_CTRL", True)
 

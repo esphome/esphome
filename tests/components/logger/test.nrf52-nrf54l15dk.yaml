@@ -1,0 +1,3 @@
+logger:
+  level: DEBUG
+  hardware_uart: UART30

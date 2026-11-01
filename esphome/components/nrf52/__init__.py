@@ -46,6 +46,7 @@ from esphome.const import (
     CONF_RESET_PIN,
     CONF_SAFE_MODE,
     CONF_TOOLCHAIN,
+    CONF_VARIANT,
     CONF_VERSION,
     CONF_VOLTAGE,
     KEY_CORE,
@@ -82,12 +83,17 @@ from .const import (
     CONF_UDP,
     FLASH_SECTOR_SIZE,
     SMP_UDP_PORT,
+    VARIANT_NRF52,
+    VARIANT_NRF54L,
+    VARIANTS,
 )
 from .framework import (
     check_and_install,
     ensure_nordic_nrfutil,
     get_build_env,
     get_build_paths,
+    include_west_project,
+    set_nrf52_variant,
     setup_platformio_python_env,
     toolchain_tool,
     wanted_west_projects,
@@ -284,6 +290,32 @@ def _dfu_schema(value: bool | ConfigType) -> ConfigType:
     return _DFU_SCHEMA(value)
 
 
+def _detect_variant(config: ConfigType) -> ConfigType:
+    """Take the variant from the SoC in the board qualifiers, e.g. nrf54l15dk/nrf54l15/cpuapp."""
+    board_variant = VARIANT_NRF54L if "/nrf54l" in config[CONF_BOARD].lower() else None
+    variant = config.get(CONF_VARIANT)
+    if variant is None:
+        variant = board_variant or VARIANT_NRF52
+    elif board_variant is not None and variant != board_variant:
+        raise cv.Invalid(
+            f"Option '{CONF_VARIANT}' ({variant}) does not match the selected "
+            f"board '{config[CONF_BOARD]}' ({board_variant}).",
+            path=[CONF_VARIANT],
+        )
+    set_nrf52_variant(variant)
+    return {**config, CONF_VARIANT: variant}
+
+
+def _validate_nrf54l(config: ConfigType) -> ConfigType:
+    if config[CONF_VARIANT] != VARIANT_NRF54L:
+        return config
+    # These options drive nRF52 hardware (USB, REG0, REG1 DC/DC) that nRF54L does not have
+    for key in (CONF_DFU, CONF_DCDC, CONF_REG0):
+        if key in config:
+            raise cv.Invalid(f"'{key}' is not supported on nRF54L", path=[key])
+    return config
+
+
 CONFIG_SCHEMA = cv.All(
     _detect_bootloader,
     set_core_data,
@@ -293,6 +325,7 @@ CONFIG_SCHEMA = cv.All(
                 cv.string_strict, cv.ByteLength(max=BOARD_MAX_LENGTH)
             ),
             cv.Optional(KEY_BOOTLOADER): cv.one_of(*BOOTLOADERS, lower=True),
+            cv.Optional(CONF_VARIANT): cv.one_of(*VARIANTS, upper=True),
             cv.Optional(CONF_DFU): _dfu_schema,
             cv.Optional(CONF_DCDC): cv.boolean,
             cv.Optional(CONF_REG0): cv.Schema(
@@ -325,6 +358,8 @@ CONFIG_SCHEMA = cv.All(
         }
     ),
     _default_self_reset_pin,
+    _detect_variant,
+    _validate_nrf54l,
     _resolve_toolchain,
     set_framework,
     network.require_ipv6(PLATFORM_NRF52),
@@ -430,7 +465,26 @@ async def to_code(config: ConfigType) -> None:
     """Convert the configuration to code."""
     cg.add_build_flag("-DUSE_NRF52")
     cg.add_define("ESPHOME_BOARD", config[CONF_BOARD])
-    cg.add_define("ESPHOME_VARIANT", "NRF52")
+    variant = config[CONF_VARIANT]
+    cg.add_build_flag(f"-DUSE_NRF52_VARIANT_{variant}")
+    cg.add_define("ESPHOME_VARIANT", variant)
+    if variant == VARIANT_NRF54L:
+        # The entropy driver runs on the CRACEN crypto unit, which needs Nordic's PSA crypto
+        include_west_project("mbedtls")
+        include_west_project("oberon-psa-crypto")
+        # Boards leave the watchdog disabled and don't all alias it
+        zephyr_add_overlay(
+            """
+                / {
+                    aliases {
+                        watchdog0 = &wdt31;
+                    };
+                };
+                &wdt31 {
+                    status = "okay";
+                };
+            """
+        )
     # Zephyr is a preemptive RTOS: BLE, Thread, USB and workqueue callbacks
     # run in other threads, so the scheduler must be thread-safe.
     if config[CONF_BOARD] == "bbc_microbit":
@@ -1104,6 +1158,8 @@ _PCH_CMAKE_LINES = [
     'list(TRANSFORM esphome_pch_headers REPLACE "(.+)" "$<$<COMPILE_LANGUAGE:CXX>:\\\\1>")',
     "target_precompile_headers(app PRIVATE ${esphome_pch_headers})",
 ]
+# The west projects the build directory was configured with
+_WEST_PROJECTS_STAMP = ".esphome_west_projects"
 # Where CMake puts the .gch of the app, below its binary dir
 _PCH_SUM_PATH = "CMakeFiles/app.dir/cmake_pch.hxx.gch.sum"
 
@@ -1340,11 +1396,23 @@ def run_compile(args, config: ConfigType) -> bool:
     # caches Kconfig/devicetree state that survives a plain cmake re-run.
     # West can't do the wipe — its pristine modes only recognize a build dir
     # by reading ZEPHYR_BASE from the very cache that was dropped.
+    # The CMake cache also keeps the Zephyr modules it found first, so a newly
+    # fetched west project needs a pristine build too.
+    projects = ",".join(sorted(wanted_west_projects()))
+    projects_stamp = build_dir / _WEST_PROJECTS_STAMP
+    projects_changed = (
+        projects_stamp.is_file()
+        and projects_stamp.read_text(encoding="utf-8") != projects
+    )
     if (
-        cmake_lists_changed or not (build_dir / "CMakeCache.txt").is_file()
+        cmake_lists_changed
+        or projects_changed
+        or not (build_dir / "CMakeCache.txt").is_file()
     ) and build_dir.is_dir():
         _LOGGER.info("Build inputs changed, cleaning %s", build_dir)
         rmtree(build_dir)
+    build_dir.mkdir(parents=True, exist_ok=True)
+    projects_stamp.write_text(projects, encoding="utf-8")
 
     # SDK 3.4.0+ no longer generates merged.hex; drop one left by an older SDK
     # build so it is never packaged or offered for download.

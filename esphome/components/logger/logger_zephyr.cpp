@@ -73,12 +73,12 @@ void Logger::pre_setup() {
   if (this->baud_rate_ > 0) {
     static const struct device *uart_dev = nullptr;
     switch (this->uart_) {
-      case UART_SELECTION_UART0:  // NOLINT(bugprone-branch-clone)
-        uart_dev = DEVICE_DT_GET_OR_NULL(DT_NODELABEL(uart0));
-        break;
+#ifdef USE_LOGGER_UART_NODE
+      case UART_SELECTION_UART0:
       case UART_SELECTION_UART1:
-        uart_dev = DEVICE_DT_GET_OR_NULL(DT_NODELABEL(uart1));
+        uart_dev = DEVICE_DT_GET_OR_NULL(DT_NODELABEL(USE_LOGGER_UART_NODE));
         break;
+#endif
 #ifdef USE_LOGGER_USB_CDC
       case UART_SELECTION_USB_CDC:
 #ifdef CONFIG_USB_DEVICE_STACK
@@ -89,6 +89,8 @@ void Logger::pre_setup() {
 #endif
         break;
 #endif
+      default:
+        break;
     }
     if (device_is_ready(uart_dev)) {
       this->uart_dev_ = uart_dev;
@@ -141,10 +143,11 @@ void HOT Logger::write_msg_(const char *msg, uint16_t len) {
 
 const LogString *Logger::get_uart_selection_() {
   switch (this->uart_) {
+#ifdef USE_LOGGER_UART_NODE
     case UART_SELECTION_UART0:
-      return LOG_STR("UART0");
     case UART_SELECTION_UART1:
-      return LOG_STR("UART1");
+      return LOG_STR(STRINGIFY(USE_LOGGER_UART_NODE));
+#endif
 #ifdef USE_LOGGER_USB_CDC
     case UART_SELECTION_USB_CDC:
       return LOG_STR("USB_CDC");
