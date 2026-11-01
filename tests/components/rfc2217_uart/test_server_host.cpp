@@ -466,14 +466,18 @@ TEST(Rfc2217Server, UnknownRoomIsPacedToTheLine) {
   accept(pipe, server);
   serial.room_ = SIZE_MAX;
   App.set_loop_interval(16);
-  { LoopBlockingGuard dispatch{nullptr, nullptr, 1000}; }
+  {
+    LoopBlockingGuard dispatch{nullptr, nullptr, 1000};
+  }
   uint8_t data[40];
   std::memset(data, 0x41, sizeof(data));
   pipe.feed(data, sizeof(data));
   server.loop();
   // 9600 baud at 10 bits per byte for one 16 ms loop interval.
   EXPECT_EQ(serial.n_, 15u);
-  { LoopBlockingGuard dispatch{nullptr, nullptr, 0}; }
+  {
+    LoopBlockingGuard dispatch{nullptr, nullptr, 0};
+  }
 }
 
 TEST(Rfc2217Server, CommandWaitsForRoomForItsAnswer) {
