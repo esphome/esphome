@@ -234,6 +234,23 @@ class _HubFunctionState:
     emitted: bool = False
 
 
+@dataclass
+class _HubFunctionData:
+    """One run's state for every HubFunction, keyed by the instance, plus the names emitted."""
+
+    states: dict["HubFunction", _HubFunctionState] = field(default_factory=dict)
+    names: set[str] = field(default_factory=set)
+
+
+def _hub_function_data() -> _HubFunctionData:
+    return CORE.data.setdefault(_HUB_FUNCTION_DOMAIN, _HubFunctionData())
+
+
+def _arg(name: str) -> str:
+    # Prefixed, so a parameter cannot hide an entity id the items name
+    return f"esphome__arg_{name}"
+
+
 class HubFunction:
     """One generated function per hub, built from items its child entities add.
 
@@ -244,7 +261,8 @@ class HubFunction:
     ``define`` is emitted once. A hub without items gets no call and keeps a ``nullptr``.
 
     ``void``: each item is a statement, or an expression run as one. ``bool``: each item is a
-    ``bool`` expression; all run in order and the function returns whether any was true.
+    ``bool`` expression; every item runs in order (no short-circuit) and the function returns
+    whether any was true.
     """
 
     def __init__(
@@ -260,8 +278,7 @@ class HubFunction:
         self._name = name
         self._return_type = return_type
         self._returns_bool = str(return_type) == "bool"
-        # Prefixed, so a parameter cannot hide an entity id the items name
-        self._parameters = [(type_, f"esphome__arg_{arg}") for type_, arg in parameters]
+        self._parameters = [(type_, _arg(arg)) for type_, arg in parameters]
         self._define = define
 
         @coroutine_with_priority(CoroPriority.FINAL)
@@ -272,7 +289,7 @@ class HubFunction:
 
     def param(self, name: str) -> MockObj:
         """The parameter ``name``, for use in the items."""
-        arg = f"esphome__arg_{name}"
+        arg = _arg(name)
         if arg not in (param for _, param in self._parameters):
             raise ValueError(f"HubFunction '{self._name}' has no parameter '{name}'")
         return MockObj(arg)
@@ -293,9 +310,7 @@ class HubFunction:
 
     def _state(self) -> _HubFunctionState:
         # Keyed by the instance, which lives for the process; CORE.data clears between runs
-        return CORE.data.setdefault(_HUB_FUNCTION_DOMAIN, {}).setdefault(
-            self, _HubFunctionState()
-        )
+        return _hub_function_data().states.setdefault(self, _HubFunctionState())
 
     def _body(self, items: list[Expression | Statement]) -> list[Statement]:
         if not self._returns_bool:
@@ -312,7 +327,7 @@ class HubFunction:
         state.emitted = True
         if self._define is not None:
             add_define(self._define)
-        names: set[str] = CORE.data.setdefault(f"{_HUB_FUNCTION_DOMAIN}_names", set())
+        names = _hub_function_data().names
         for hub, items in state.hubs.values():
             name = f"esphome__{hub}__{self._name}_fn"
             if name in names:
