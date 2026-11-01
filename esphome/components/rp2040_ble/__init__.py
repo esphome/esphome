@@ -79,8 +79,6 @@ def _final_validate(config: ConfigType) -> None:
 FINAL_VALIDATE_SCHEMA = _final_validate
 
 
-# Once per registered scan listener; sizes the controller's StaticVector
-# listener storage.
 register_scan_listener = cg.slot_list(
     "RP2040_BLE_SCAN_LISTENER_COUNT", "register_scan_listener", DOMAIN
 )

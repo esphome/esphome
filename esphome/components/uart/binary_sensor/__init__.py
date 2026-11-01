@@ -18,9 +18,8 @@ UARTBinarySensorHub = uart_ns.class_(
     "UARTBinarySensorHub", uart.UARTDevice, cg.Component
 )
 
-_add_event_matcher = cg.slot_list(
-    "UART_BINARY_SENSOR_COUNT", "add_event_matcher", DOMAIN
-)
+# Every sensor on a bus is one matcher of that bus's hub; the define is the largest hub
+_request_matcher_slot = cg.slot_counter("UART_BINARY_SENSOR_COUNT")
 
 CONFIG_SCHEMA = (
     # Initially off, so the first sequence after boot is an OFF to ON edge for on_press
@@ -93,11 +92,9 @@ async def to_code(config: ConfigType) -> None:
     hub = await _hub_for(config)
     var = await binary_sensor.new_binary_sensor(config)
     data = config[CONF_DATA]
+    _request_matcher_slot(str(hub))
     cg.add(
-        _add_event_matcher(
-            hub,
-            var,
-            automation.progmem_bytes("uart_binary_sensor_data", data),
-            len(data),
+        hub.add_event_matcher(
+            var, automation.progmem_bytes("uart_binary_sensor_data", data), len(data)
         )
     )

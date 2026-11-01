@@ -42,6 +42,7 @@ class Duco : public uart::UARTDevice, public Component {
 
   void set_disable_crc(bool disable_crc) { this->disable_crc_ = disable_crc; }
 
+  SLOT_LIST_REQUIRES(DUCO_DEVICE_COUNT)
   void register_device(DucoDevice *device) { this->pending_.push_back({device, 0, 0, false}); }
 
   /// Forget device's open request, for a device that will not send again.
