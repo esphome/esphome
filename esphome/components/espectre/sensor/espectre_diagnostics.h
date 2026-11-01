@@ -20,7 +20,10 @@ class DiagnosticsUpdater final : public PollingComponent {
   SUB_SENSOR(generator_rate)
   SUB_SENSOR(traffic_tx_rate)
   SUB_SENSOR(traffic_rx_rate)
+  SUB_SENSOR(csi_callback_rate)
   SUB_SENSOR(csi_accepted_rate)
+  SUB_SENSOR(csi_missing_slot_rate)
+  SUB_SENSOR(csi_excess_rate)
   SUB_SENSOR(csi_occupancy)
 
  protected:
