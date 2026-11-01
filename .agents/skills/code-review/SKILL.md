@@ -30,8 +30,8 @@ performance nit, because it fragments a small shared heap. Flag:
   `StaticVector<T, N>` when a `push_back` API is needed) or fixed at runtime
   init (use `FixedVector<T>`).
 - Listener / child-entity registration lists stored as `std::vector`; these have
-  a compile-time-known count and should use `cg.slot_counter()` plus
-  `StaticVector`.
+  a compile-time-known count and should use `cg.slot_list()` plus
+  `SLOT_LIST` (or `cg.slot_counter()` plus `StaticVector`).
 - `std::vector<uint8_t>` for a byte buffer that never grows: prefer
   `std::unique_ptr<uint8_t[]>` or `std::array`.
 - `std::map` / `std::set` / `std::unordered_map` for small datasets (1-16

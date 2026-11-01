@@ -12,6 +12,7 @@ import pytest
 
 from esphome import const, cpp_helpers as ch
 from esphome.core import CoroPriority, coroutine_with_priority
+from esphome.cpp_generator import MockObj
 from esphome.cpp_helpers import ComponentSourcePool, register_component_source
 
 
@@ -403,3 +404,33 @@ async def test_register_component_without_module_has_no_source(
     assert await ch.register_component(var, {}) is var
 
     app_mock.register_component_.assert_called_once_with(var)
+
+
+def test_slot_list_sizes_for_the_busiest_hub() -> None:
+    """Hubs with 3, 1 and 0 children: the define is 3 (the max, not the sum or the
+    first hub's count) and each call targets only its own hub."""
+    register_item = ch.slot_list("TEST_SLOT_LIST_COUNT", "register_listener")
+    hub_a = MockObj("hub_a", "->")
+    hub_b = MockObj("hub_b", "->")
+    calls = [
+        register_item(hub_b, MockObj("listener_b1"), 7),
+        register_item(hub_a, MockObj("listener_a1")),
+        register_item(hub_a, MockObj("listener_a2")),
+        register_item(hub_a, MockObj("listener_a3")),
+    ]
+    assert [str(c) for c in calls] == [
+        "hub_b->register_listener(listener_b1, 7)",
+        "hub_a->register_listener(listener_a1)",
+        "hub_a->register_listener(listener_a2)",
+        "hub_a->register_listener(listener_a3)",
+    ]
+    assert ch.get_slot_count("TEST_SLOT_LIST_COUNT") == 3
+    ch.CORE.flush_tasks()
+    assert _define_value("TEST_SLOT_LIST_COUNT") == "3"
+
+
+def test_slot_list_without_registrations_emits_nothing() -> None:
+    """No registrations, no define: the guarded SLOT_LIST compiles out."""
+    ch.slot_list("TEST_SLOT_LIST_UNUSED", "register_listener")
+    ch.CORE.flush_tasks()
+    assert _define_value("TEST_SLOT_LIST_UNUSED") is None

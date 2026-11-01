@@ -216,6 +216,24 @@ def slot_counter(define: str) -> Callable[..., None]:
     return request_slot
 
 
+def slot_list(define: str, register: str) -> Callable[..., Expression]:
+    """Create the codegen side of a `SLOT_LIST` (esphome/core/helpers.h), or of a
+    hand-written register method that fills a `StaticVector` sized by `define`.
+
+    `register_item(hub, *args)` reserves one slot for `hub` and returns the
+    `hub->register(args...)` call for `cg.add()`, or for a `sub_*` setter.
+    Slots are counted per hub, so `define` is the largest list any one hub of a
+    `MULTI_CONF` component needs; other requests for `define` must be keyed too.
+    """
+    request_slot = slot_counter(define)
+
+    def register_item(hub: MockObj, *args: Any) -> Expression:
+        request_slot(str(hub))
+        return getattr(hub, register)(*args)
+
+    return register_item
+
+
 async def gpio_pin_expression(conf):
     """Generate an expression for the given pin option.
 

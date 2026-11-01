@@ -397,6 +397,36 @@ template<typename T, size_t N> class StaticVector {
   operator std::span<const T>() const { return std::span<const T>(data_.data(), count_); }
 };
 
+/// Declare a registration list sized at code generation: a protected `StaticVector<type *, count> member`
+/// and a public `register_fn(type *)` that appends to it. `count` is the define of the matching
+/// `cg.slot_list()`; wrap the macro in `#ifdef count` so the list compiles out when nothing registers.
+/// Use it in a public section: it ends on `public:`.
+#define SLOT_LIST(type, member, register_fn, count) \
+ protected: \
+  StaticVector<type *, count> member; \
+\
+ public: \
+  void register_fn(type *item) { this->member.push_back(item); }
+
+/// A list that is always empty, with the read interface of `StaticVector`. Unlike `std::array<T, 0>` it
+/// takes no space as a `[[no_unique_address]]` member.
+template<typename T> class EmptyList {
+ public:
+  static constexpr T *begin() { return nullptr; }
+  static constexpr T *end() { return nullptr; }
+  static constexpr size_t size() { return 0; }
+  static constexpr bool empty() { return true; }
+  [[noreturn]] T &operator[](size_t /*i*/) const { __builtin_trap(); }
+};
+
+/// The `#else` of a `SLOT_LIST`: an always-empty `member`, so code that walks it compiles to nothing without
+/// an `#ifdef` of its own. Use it in a public section, like `SLOT_LIST`.
+#define SLOT_LIST_EMPTY(type, member) \
+ protected: \
+  [[no_unique_address]] EmptyList<type *> member; \
+\
+ public:
+
 /// Fixed-size circular buffer with FIFO semantics and iteration support.
 ///
 /// A tiny ring buffer that avoids dynamic allocations from std::deque/std::queue

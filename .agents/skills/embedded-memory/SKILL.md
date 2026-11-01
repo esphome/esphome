@@ -1,6 +1,6 @@
 ---
 name: embedded-memory
-description: Choose ESPHome C++ containers and storage that avoid heap use and fragmentation on microcontrollers - std::array, StaticVector with cg.slot_counter, FixedVector, std::unique_ptr byte buffers, StringRef, RAMAllocator, and what to avoid (std::vector growth, std::map, std::deque, std::string, new (std::nothrow)). Use when adding or changing C++ members, containers, buffers, strings or registration lists, or when reducing RAM or flash use.
+description: Choose ESPHome C++ containers and storage that avoid heap use and fragmentation on microcontrollers - std::array, StaticVector with cg.slot_list/SLOT_LIST, FixedVector, std::unique_ptr byte buffers, StringRef, RAMAllocator, and what to avoid (std::vector growth, std::map, std::deque, std::string, new (std::nothrow)). Use when adding or changing C++ members, containers, buffers, strings or registration lists, or when reducing RAM or flash use.
 ---
 
 # Memory on embedded targets
@@ -59,31 +59,36 @@ APIs.
 
    **Listener and child-entity registration lists are the most common case, and the most commonly
    missed.** A `register_*()` method called once per child at code generation time has a count that is
-   known at compile time, so it should never be a `std::vector`. Use `cg.slot_counter()`: it returns a
-   function that each consumer calls once per slot it will occupy, and after every `to_code` has run it
-   emits the define with the final count. When nothing registers, no define is emitted and the storage plus
+   known at compile time, so it should never be a `std::vector`. Use `cg.slot_list()` with the `SLOT_LIST`
+   macro: each call reserves a slot for that hub and returns the register call (for `cg.add()` or a `sub_*`
+   setter). After every `to_code` has run, the define holds the largest count any one hub needs, so every
+   hub of a `MULTI_CONF` component fits. When nothing registers, no define is emitted and the storage plus
    its registration method compile out entirely.
    ```python
    # hub component's __init__.py
-   _request_listener_slot = cg.slot_counter("MY_COMPONENT_LISTENER_COUNT")
+   _register_listener = cg.slot_list("MY_COMPONENT_LISTENER_COUNT", "register_listener")
 
 
-   async def register_listener(hub: MockObj, var: MockObj) -> None:
-       _request_listener_slot()
-       cg.add(hub.register_listener(var))
+   async def to_code(config: ConfigType) -> None:
+       ...
+       hub = await cg.get_variable(config[CONF_MY_COMPONENT_ID])
+       cg.add(_register_listener(hub, var))
    ```
-   When several instances each own a list declared at the same size (one per hub of a `MULTI_CONF`
-   component), pass the owning object as the key, `_request_listener_slot(str(hub))`; the define is then
-   the largest count any one key requested instead of the total.
    ```cpp
+   class MyComponent : public Component {
+    public:
    #ifdef MY_COMPONENT_LISTENER_COUNT
-     void register_listener(MyComponentListener *listener);
-   #endif
-    protected:
-   #ifdef MY_COMPONENT_LISTENER_COUNT
-     StaticVector<MyComponentListener *, MY_COMPONENT_LISTENER_COUNT> listeners_;
+     SLOT_LIST(MyComponentListener, listeners_, register_listener, MY_COMPONENT_LISTENER_COUNT)
+   #else
+     SLOT_LIST_EMPTY(MyComponentListener, listeners_)
    #endif
    ```
+   Both macros go in a public section. `SLOT_LIST_EMPTY` is an always-empty list that takes no space, so
+   loops over `listeners_` compile to nothing without their own `#ifdef`; older lists leave out the `#else`
+   and guard each loop instead. When registering takes more than a `push_back` (a struct entry), keep a
+   hand-written method and `StaticVector`, still registered through `cg.slot_list()`. Use `cg.slot_counter()`
+   with the hub as the key, `_request_slot(str(hub))`, only when the C++ side adds itself to the list (from
+   its own `setup()`, say), so codegen emits no register call.
    Request slots from `to_code`, not from a job that runs after `CoroPriority.FINAL`; a late request
    raises rather than silently undercounting.
 
