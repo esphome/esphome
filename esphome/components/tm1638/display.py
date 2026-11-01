@@ -21,12 +21,12 @@ TM1638ComponentRef = TM1638Component.operator("ref")
 
 # Publishes the key binary sensors from the key bitmask read on each loop
 KEYS_PUBLISHER = cg.HubFunction(
-    "keys_fn",
+    "keys",
     cg.void,
     [(cg.uint8, "keys")],
-    setter="set_keys_publisher",
     define="USE_TM1638_KEYS_PUBLISHER",
 )
+KEYS = KEYS_PUBLISHER.param("keys")
 
 
 CONFIG_SCHEMA = display.BASIC_DISPLAY_SCHEMA.extend(
