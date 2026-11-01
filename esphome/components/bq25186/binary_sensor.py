@@ -1,5 +1,4 @@
-from functools import partial
-
+from esphome.automation import parent_ref
 import esphome.codegen as cg
 from esphome.components import binary_sensor
 import esphome.config_validation as cv
@@ -9,15 +8,12 @@ from esphome.const import (
     DEVICE_CLASS_PLUG,
     DEVICE_CLASS_RUNNING,
 )
+from esphome.cpp_generator import HexIntLiteral
 from esphome.types import ConfigType
 
-from . import BQ25186_CHILD_SCHEMA, CONF_BQ25186_ID, bq25186_ns, register_binary_sensor
+from . import BQ25186_CHILD_SCHEMA, CONF_BQ25186_ID, STATUS, STATUS_PUBLISHER
 
 DEPENDENCIES = ["bq25186"]
-
-BQ25186BinarySensor = bq25186_ns.class_(
-    "BQ25186BinarySensor", binary_sensor.BinarySensor
-)
 
 REG_STAT0 = 0
 REG_STAT1 = 1
@@ -51,11 +47,19 @@ _FIELDS = (
 )
 
 
+def _state_expression(reg: int, shift: int, mask: int, match: int) -> cg.MockObj:
+    """Whether the field (status[reg] >> shift) & mask reads as on, as a bit of match."""
+    value = (STATUS[reg] >> shift) & HexIntLiteral(mask)
+    if mask == 0x01 and match == _BIT_SET:
+        return value
+    return (cg.MockObj(f"{match:#06b}") >> value) & 1
+
+
 CONFIG_SCHEMA = cv.All(
     BQ25186_CHILD_SCHEMA.extend(
         {
             cv.Optional(key): binary_sensor.binary_sensor_schema(
-                BQ25186BinarySensor, device_class=device_class
+                device_class=device_class
             )
             for key, *_, device_class in _FIELDS
         }
@@ -68,6 +72,6 @@ async def to_code(config: ConfigType) -> None:
     hub = await cg.get_variable(config[CONF_BQ25186_ID])
     sensors = binary_sensor.sub_binary_sensors(config)
     for key, reg, shift, mask, match, _ in _FIELDS:
-        await sensors(
-            key, partial(register_binary_sensor, hub), reg, shift, mask, match
-        )
+        if (var := await sensors(key, None)) is not None:
+            state = _state_expression(reg, shift, mask, match)
+            STATUS_PUBLISHER.add(hub, parent_ref(var).publish_state(state))

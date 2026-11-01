@@ -66,19 +66,14 @@ BQ25186Component = bq25186_ns.class_(
 BQ25186_CHILD_SCHEMA = cv.Schema(
     {cv.GenerateID(CONF_BQ25186_ID): cv.use_id(BQ25186Component)}
 )
-_request_binary_sensor_slot = cg.slot_counter("BQ25186_BINARY_SENSOR_COUNT")
-_request_text_sensor_slot = cg.slot_counter("BQ25186_TEXT_SENSOR_COUNT")
-
-
-def register_binary_sensor(hub: cg.MockObj, var: cg.MockObj) -> cg.Expression:
-    _request_binary_sensor_slot(str(hub))
-    return hub.register_binary_sensor(var)
-
-
-def register_text_sensor(hub: cg.MockObj, var: cg.MockObj) -> cg.Expression:
-    _request_text_sensor_slot(str(hub))
-    return hub.register_text_sensor(var)
-
+BQ25186StatusRegisters = bq25186_ns.class_("BQ25186StatusRegisters")
+STATUS_PUBLISHER = cg.HubFunction(
+    "status",
+    cg.void,
+    [(BQ25186StatusRegisters.const_ref(), "status")],
+    define="USE_BQ25186_STATUS_PUBLISHER",
+)
+STATUS = STATUS_PUBLISHER.param("status")
 
 REG_VBAT_CTRL = 0x03
 REG_ICHG_CTRL = 0x04
