@@ -78,16 +78,8 @@ void Canbus::loop() {
                can_message.can_id, can_message.can_data_length_code);
     }
 
-    std::vector<uint8_t> data;
-
-    // show data received
-    for (int i = 0; i < std::min(can_message.can_data_length_code, CAN_MAX_DATA_LENGTH); i++) {
-      ESP_LOGV(TAG, "  can_message.data[%d]=%02x", i, can_message.data[i]);
-      data.push_back(can_message.data[i]);
-    }
-
-    this->callback_manager_(can_message.can_id, can_message.use_extended_id, can_message.remote_transmission_request,
-                            data);
+    ESP_LOGV_HEX(TAG, can_message.data, can_message.payload_length(), CAN_MAX_DATA_LENGTH, "  data=%s");
+    this->frame_callbacks_.call(can_message);
   }
 
   if (message_counter == this->max_frames_per_loop_) {
