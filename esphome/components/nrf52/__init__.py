@@ -347,6 +347,23 @@ def _validate_open_dfu_toolchain(config: ConfigType) -> None:
         )
 
 
+def _warn_old_framework_version(config: ConfigType) -> None:
+    # The PlatformIO toolchain already warns that it is deprecated as a whole
+    if CORE.using_toolchain_platformio:
+        return
+    if (version := config[CONF_FRAMEWORK].get(CONF_VERSION)) is None:
+        return
+    # Remove before 2027.5.0
+    if cv.Version.parse(cv.version_number(version)) < cv.Version(2, 9, 2):
+        _LOGGER.warning(
+            "nRF52 framework version %s is deprecated and will be removed in ESPHome 2027.5.0. "
+            "Please use version 2.9.2 or newer, or remove 'version:' under 'framework:' "
+            "to use the recommended version (%s).",
+            version,
+            RECOMMENDED_SDK_NRF_VERSION,
+        )
+
+
 def _final_validate(config):
 
     # Remove before 2027.2.0
@@ -355,6 +372,7 @@ def _final_validate(config):
             "The 'platformio' toolchain for nRF52 is deprecated and will be removed in ESPHome 2027.2.0. "
             "Please use 'toolchain: sdk-nrf' instead."
         )
+    _warn_old_framework_version(config)
     _validate_open_dfu_toolchain(config)
 
     if CONF_DFU in config:
