@@ -1,0 +1,47 @@
+packages:
+  matter_network: !include common.yaml
+
+matter:
+  vendor_id: 0xFFF1
+  product_id: 0x8000
+  setup_code: "20202021"
+  discriminator: 0x0F0F
+  vendor_name: ESPHome
+  product_name: Matter Test
+  node_label: Matter Test Device
+  hardware_version_string: rev-a
+  software_version_string: test-1.0
+
+switch:
+  - platform: template
+    name: Matter Test Switch
+    optimistic: true
+
+binary_sensor:
+  - platform: template
+    name: Matter Test Contact
+    device_class: door
+    lambda: return false;
+
+sensor:
+  - platform: template
+    name: Matter Test Temperature
+    device_class: temperature
+    unit_of_measurement: "°C"
+    lambda: return 22.5;
+
+# Exercise BOTH `button: platform: matter` actions so the compile test
+# covers open_commissioning_window (with `timeout:`) and factory_reset
+# (which must reject `timeout:`) — see button/__init__.py.
+button:
+  - platform: template
+    name: Matter Test Button
+  - platform: matter
+    id: open_pairing_window
+    name: Matter Open Pairing
+    action: open_commissioning_window
+    timeout: 300s
+  - platform: matter
+    id: matter_factory_reset
+    name: Matter Factory Reset
+    action: factory_reset
