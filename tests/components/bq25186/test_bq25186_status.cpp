@@ -1,0 +1,235 @@
+#include "common.h"
+#include "esphome/components/bq25186/bq25186_binary_sensor.h"
+#include "esphome/components/bq25186/bq25186_text_sensor.h"
+
+#include <memory>
+#include <string>
+#include <vector>
+
+namespace esphome::bq25186::testing {
+
+// One entry per binary_sensor.py _FIELDS row, in its order: what code generation passes for each sensor
+struct BinaryField {
+  uint8_t reg;
+  uint8_t shift;
+  uint8_t mask;
+  uint8_t match;
+};
+static constexpr std::array<BinaryField, 21> BINARY_FIELDS{{
+    {0, 7, 0x01, 0b10}, {0, 5, 0x03, 0b0110}, {0, 5, 0x03, 0b1000}, {0, 4, 0x01, 0b10}, {0, 3, 0x01, 0b10},
+    {0, 2, 0x01, 0b10}, {0, 1, 0x01, 0b10},   {0, 0, 0x01, 0b10},   {1, 7, 0x01, 0b10}, {1, 6, 0x01, 0b10},
+    {1, 2, 0x01, 0b10}, {1, 1, 0x01, 0b10},   {1, 0, 0x01, 0b10},   {2, 7, 0x01, 0b10}, {2, 6, 0x01, 0b10},
+    {2, 5, 0x01, 0b10}, {2, 4, 0x01, 0b10},   {2, 3, 0x01, 0b10},   {2, 2, 0x01, 0b10}, {2, 1, 0x01, 0b10},
+    {2, 0, 0x01, 0b10},
+}};
+
+enum BinaryIndex : uint8_t {
+  TS,
+  CHARGING,
+  CHARGE_DONE,
+  ILIM,
+  VDPPM,
+  VINDPM,
+  THERMREG,
+  POWER_GOOD,
+  VIN_OVP,
+  BATTERY_UVLO,
+  SAFETY_TIMER_FLAG,
+  WAKE1_FLAG,
+  WAKE2_FLAG,
+  TS_FLAG,
+  ILIM_FLAG,
+  VDPPM_FLAG,
+  VINDPM_FLAG,
+  THERMREG_FLAG,
+  VIN_OVP_FLAG,
+  BATTERY_UVLO_FLAG,
+  BATTERY_OCP_FLAG,
+  BINARY_COUNT,
+};
+enum TextIndex : uint8_t { CHARGE_STATUS, TS_STATUS, TEXT_COUNT };
+
+// The register and bit each single-bit sensor reads, from the datasheet
+struct SingleBit {
+  BinaryIndex sensor;
+  uint8_t reg;
+  uint8_t bit;
+};
+static constexpr std::array<SingleBit, 19> SINGLE_BITS{{
+    {TS, BQ25186_REG_STAT0, 0x80},
+    {ILIM, BQ25186_REG_STAT0, 0x10},
+    {VDPPM, BQ25186_REG_STAT0, 0x08},
+    {VINDPM, BQ25186_REG_STAT0, 0x04},
+    {THERMREG, BQ25186_REG_STAT0, 0x02},
+    {POWER_GOOD, BQ25186_REG_STAT0, 0x01},
+    {VIN_OVP, BQ25186_REG_STAT1, 0x80},
+    {BATTERY_UVLO, BQ25186_REG_STAT1, 0x40},
+    {SAFETY_TIMER_FLAG, BQ25186_REG_STAT1, 0x04},
+    {WAKE1_FLAG, BQ25186_REG_STAT1, 0x02},
+    {WAKE2_FLAG, BQ25186_REG_STAT1, 0x01},
+    {TS_FLAG, BQ25186_REG_FLAG0, 0x80},
+    {ILIM_FLAG, BQ25186_REG_FLAG0, 0x40},
+    {VDPPM_FLAG, BQ25186_REG_FLAG0, 0x20},
+    {VINDPM_FLAG, BQ25186_REG_FLAG0, 0x10},
+    {THERMREG_FLAG, BQ25186_REG_FLAG0, 0x08},
+    {VIN_OVP_FLAG, BQ25186_REG_FLAG0, 0x04},
+    {BATTERY_UVLO_FLAG, BQ25186_REG_FLAG0, 0x02},
+    {BATTERY_OCP_FLAG, BQ25186_REG_FLAG0, 0x01},
+}};
+
+class BQ25186StatusTest : public ::testing::Test {
+ protected:
+  void SetUp() override {
+    this->hub_.set_i2c_bus(&this->bus_);
+    this->hub_.set_i2c_address(ADDRESS);
+    for (size_t i = 0; i < BINARY_COUNT; i++) {
+      const BinaryField &f = BINARY_FIELDS[i];
+      this->binary_sensors_[i] = std::make_unique<BQ25186BinarySensor>(f.reg, f.shift, f.mask, f.match);
+      this->hub_.register_binary_sensor(this->binary_sensors_[i].get());
+    }
+    this->text_sensors_[CHARGE_STATUS] = std::make_unique<BQ25186TextSensor>(0, 5, 0);
+    this->text_sensors_[TS_STATUS] = std::make_unique<BQ25186TextSensor>(1, 3, 4);
+    for (auto &sensor : this->text_sensors_)
+      this->hub_.register_text_sensor(sensor.get());
+  }
+
+  binary_sensor::BinarySensor &binary_(size_t index) { return *this->binary_sensors_[index]; }
+  text_sensor::TextSensor &text_(size_t index) { return *this->text_sensors_[index]; }
+
+  void poll_(uint8_t stat0, uint8_t stat1 = 0, uint8_t flag0 = 0) {
+    this->bus_.registers[BQ25186_REG_STAT0] = stat0;
+    this->bus_.registers[BQ25186_REG_STAT1] = stat1;
+    this->bus_.registers[BQ25186_REG_FLAG0] = flag0;
+    this->hub_.update();
+  }
+
+  RegisterBus bus_;
+  BQ25186Component hub_;
+  std::array<std::unique_ptr<BQ25186BinarySensor>, BINARY_COUNT> binary_sensors_;
+  std::array<std::unique_ptr<BQ25186TextSensor>, TEXT_COUNT> text_sensors_;
+};
+
+TEST_F(BQ25186StatusTest, EachSingleBitSensorReadsOnlyItsBit) {
+  for (const SingleBit &field : SINGLE_BITS) {
+    std::array<uint8_t, 3> regs{};
+    regs[field.reg] = field.bit;
+    this->poll_(regs[0], regs[1], regs[2]);
+    for (size_t i = 0; i < BINARY_COUNT; i++) {
+      SCOPED_TRACE(i);
+      EXPECT_TRUE(this->binary_(i).has_state());
+      EXPECT_EQ(this->binary_(i).state, i == field.sensor);
+    }
+  }
+}
+
+TEST_F(BQ25186StatusTest, SingleBitSensorsIgnoreTheOtherBits) {
+  for (const SingleBit &field : SINGLE_BITS) {
+    std::array<uint8_t, 3> regs{0xFF, 0xFF, 0xFF};
+    regs[field.reg] = static_cast<uint8_t>(~field.bit);
+    this->poll_(regs[0], regs[1], regs[2]);
+    SCOPED_TRACE(field.sensor);
+    EXPECT_FALSE(this->binary_(field.sensor).state);
+  }
+}
+
+TEST_F(BQ25186StatusTest, ChargingAndChargeDoneDecodeTheChargeStatus) {
+  // STAT0[6:5]: not charging, constant current, constant voltage, done
+  static constexpr std::array<bool, 4> CHARGING_ON{false, true, true, false};
+  static constexpr std::array<bool, 4> DONE_ON{false, false, false, true};
+  for (uint8_t value = 0; value < 4; value++) {
+    SCOPED_TRACE(value);
+    this->poll_(static_cast<uint8_t>(value << 5));
+    EXPECT_EQ(this->binary_(CHARGING).state, CHARGING_ON[value]);
+    EXPECT_EQ(this->binary_(CHARGE_DONE).state, DONE_ON[value]);
+    // The neighbouring bits do not change the decode
+    this->poll_(static_cast<uint8_t>((value << 5) | 0x9F));
+    EXPECT_EQ(this->binary_(CHARGING).state, CHARGING_ON[value]);
+    EXPECT_EQ(this->binary_(CHARGE_DONE).state, DONE_ON[value]);
+  }
+}
+
+TEST_F(BQ25186StatusTest, ChargeStatusText) {
+  static constexpr std::array<const char *, 4> NAMES{"Not Charging", "Constant Current", "Constant Voltage",
+                                                     "Charge Done/Disabled"};
+  for (uint8_t value = 0; value < 4; value++) {
+    this->poll_(static_cast<uint8_t>((value << 5) | 0x9F), 0xFF, 0xFF);
+    EXPECT_EQ(this->text_(CHARGE_STATUS).state, NAMES[value]);
+  }
+}
+
+TEST_F(BQ25186StatusTest, TsStatusText) {
+  static constexpr std::array<const char *, 4> NAMES{"Normal", "Hot/Cold (Charging Suspended)",
+                                                     "Cool (Current Reduced)", "Warm (Voltage Reduced)"};
+  for (uint8_t value = 0; value < 4; value++) {
+    this->poll_(0xFF, static_cast<uint8_t>((value << 3) | 0xE7), 0xFF);
+    EXPECT_EQ(this->text_(TS_STATUS).state, NAMES[value]);
+  }
+}
+
+TEST_F(BQ25186StatusTest, FirstPollPublishesTextForValueZero) {
+  int published = 0;
+  this->text_(CHARGE_STATUS).add_on_state_callback([&published](const std::string &) { published++; });
+  this->poll_(0);
+  EXPECT_EQ(published, 1);
+  EXPECT_EQ(this->text_(CHARGE_STATUS).state, "Not Charging");
+}
+
+TEST_F(BQ25186StatusTest, TextPublishesOnlyWhenTheFieldChanges) {
+  int charge = 0;
+  int ts = 0;
+  this->text_(CHARGE_STATUS).add_on_state_callback([&charge](const std::string &) { charge++; });
+  this->text_(TS_STATUS).add_on_state_callback([&ts](const std::string &) { ts++; });
+  this->poll_(0x20, 0x08);
+  EXPECT_EQ(charge, 1);
+  EXPECT_EQ(ts, 1);
+  // Other bits change, the fields do not
+  this->poll_(0x3F, 0xE7 | 0x08, 0xFF);
+  EXPECT_EQ(charge, 1);
+  EXPECT_EQ(ts, 1);
+  this->poll_(0x40, 0x08);
+  EXPECT_EQ(charge, 2);
+  EXPECT_EQ(ts, 1);
+  this->poll_(0x40, 0x10);
+  EXPECT_EQ(charge, 2);
+  EXPECT_EQ(ts, 2);
+}
+
+TEST_F(BQ25186StatusTest, BinarySensorsPublishEveryPoll) {
+  std::array<int, BINARY_COUNT> published{};
+  for (size_t i = 0; i < BINARY_COUNT; i++)
+    this->binary_(i).add_on_raw_state_callback([&published, i](bool) { published[i]++; });
+  this->poll_(0);
+  this->poll_(0);
+  this->poll_(0xFF, 0xFF, 0xFF);
+  for (size_t i = 0; i < BINARY_COUNT; i++) {
+    SCOPED_TRACE(i);
+    EXPECT_EQ(published[i], 3);
+  }
+}
+
+TEST_F(BQ25186StatusTest, BinarySensorsPublishBeforeTextSensorsInFieldOrder) {
+  std::vector<std::string> order;
+  for (size_t i = 0; i < BINARY_COUNT; i++)
+    this->binary_(i).add_on_raw_state_callback([&order, i](bool) { order.push_back("b" + std::to_string(i)); });
+  for (size_t i = 0; i < TEXT_COUNT; i++)
+    this->text_(i).add_on_state_callback(
+        [&order, i](const std::string &) { order.push_back("t" + std::to_string(i)); });
+  this->poll_(0);
+  std::vector<std::string> expected;
+  for (size_t i = 0; i < BINARY_COUNT; i++)
+    expected.push_back("b" + std::to_string(i));
+  for (size_t i = 0; i < TEXT_COUNT; i++)
+    expected.push_back("t" + std::to_string(i));
+  EXPECT_EQ(order, expected);
+}
+
+TEST_F(BQ25186StatusTest, FailedReadPublishesNothing) {
+  this->bus_.fail_reads = true;
+  this->poll_(0xFF, 0xFF, 0xFF);
+  for (size_t i = 0; i < BINARY_COUNT; i++)
+    EXPECT_FALSE(this->binary_(i).has_state());
+  for (size_t i = 0; i < TEXT_COUNT; i++)
+    EXPECT_FALSE(this->text_(i).has_state());
+}
+
+}  // namespace esphome::bq25186::testing
