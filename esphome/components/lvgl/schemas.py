@@ -123,7 +123,12 @@ def _validate_text(value):
             return TIME_TEXT_SCHEMA(value)
         if CONF_MAPPING in value:
             return MAPPING_TEXT_SCHEMA(value)
-        return PRINTF_TEXT_SCHEMA(value)
+        if CONF_FORMAT in value or not any(
+            k in value for k in cv.LAMBDA_SHORTHAND_KEYS
+        ):
+            # The printf form, or a dict that is not the lambda shorthand either:
+            # the printf schema then reports the missing `format:` key
+            return PRINTF_TEXT_SCHEMA(value)
 
     return cv.templatable(cv.string)(value)
 

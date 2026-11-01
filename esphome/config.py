@@ -1107,13 +1107,26 @@ class IDPassValidationStep(ConfigValidationStep):
                         error += f" These IDs look similar: {matches_s}."
                     result.add_str_error(error, path)
                     continue
-                if not isinstance(match.type, MockObjClass) or not isinstance(
-                    id.type, MockObjClass
-                ):
+                if not isinstance(match.type, MockObjClass):  # pragma: no cover
+                    # Defensive: cv.declare_id() always supplies a MockObjClass
                     continue
-                if not match.type.inherits_from(id.type):
+                if id.type is None:
+                    # Untyped, e.g. an id parsed from a hand-written lambda
+                    continue
+                # A single type, or a tuple of alternatives from `entity_state:`
+                allowed_types = id.type if isinstance(id.type, tuple) else (id.type,)
+                if not all(
+                    isinstance(t, MockObjClass) for t in allowed_types
+                ):  # pragma: no cover
+                    # Defensive: all sources of these types supply MockObjClass
+                    continue
+                if not any(match.type.inherits_from(t) for t in allowed_types):
+                    if isinstance(id.type, tuple):
+                        problem = "has no state usable with 'entity_state:'"
+                    else:
+                        problem = f"doesn't inherit from {id.type}"
                     result.add_str_error(
-                        f"ID '{id.id}' of type {match.type} doesn't inherit from {id.type}. "
+                        f"ID '{id.id}' of type {match.type} {problem}. "
                         "Please double check your ID is pointing to the correct value",
                         path,
                     )

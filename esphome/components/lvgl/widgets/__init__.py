@@ -58,6 +58,7 @@ from ..lv_validation import lv_int
 from ..lvcode import (
     LocalVariable,
     add_line_marks,
+    get_lambda_context_args,
     lv,
     lv_add,
     lv_assign,
@@ -752,14 +753,24 @@ async def set_obj_properties(w: Widget, config):
             continue
         if isinstance(value, cv.Lambda):
             value = call_lambda(
-                await cg.process_lambda(value, [], capture="=", return_type=cg.bool_)
+                await cg.process_lambda(
+                    value,
+                    get_lambda_context_args(),
+                    capture="=",
+                    return_type=cg.bool_,
+                )
             )
         w.set_flag(flag, value)
 
     for key, value in config.get(CONF_STATE, {}).items():
         if isinstance(value, cv.Lambda):
             value = call_lambda(
-                await cg.process_lambda(value, [], capture="=", return_type=cg.bool_)
+                await cg.process_lambda(
+                    value,
+                    get_lambda_context_args(),
+                    capture="=",
+                    return_type=cg.bool_,
+                )
             )
         state = getattr(LV_STATE, key.upper())
         w.set_state(state, value)
