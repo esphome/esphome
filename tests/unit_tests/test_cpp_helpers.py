@@ -410,11 +410,7 @@ _REGS = cg.esphome_ns.namespace("hub").class_("Regs")
 
 def _status_function(define: str | None = "USE_HUB_STATUS") -> ch.HubFunction:
     return ch.HubFunction(
-        "status_fn",
-        ct.void,
-        [(_REGS.const_ref(), "status")],
-        setter="set_status_publisher",
-        define=define,
+        "status", ct.void, [(_REGS.const_ref(), "status")], define=define
     )
 
 
@@ -463,10 +459,8 @@ def test_hub_function_without_items_emits_nothing() -> None:
 
 def test_hub_functions_on_one_hub_stay_apart() -> None:
     """Two functions on one hub, such as press and release, keep their own items."""
-    press = ch.HubFunction("press_fn", ct.void, [(ct.uint8, "key")], setter="set_press")
-    release = ch.HubFunction(
-        "release_fn", ct.void, [(ct.uint8, "key")], setter="set_release"
-    )
+    press = ch.HubFunction("press", ct.void, [(ct.uint8, "key")])
+    release = ch.HubFunction("release", ct.void, [(ct.uint8, "key")])
     hub = cg.MockObj("keys", "->")
     press.add(hub, cg.MockObj("on")(press.param("key")))
     release.add(hub, cg.MockObj("off")(release.param("key")))
@@ -476,13 +470,13 @@ def test_hub_functions_on_one_hub_stay_apart() -> None:
         "static void esphome__keys__release_fn(uint8_t esphome__arg_key) {\n  off(esphome__arg_key);\n}",
     ]
     assert _main() == [
-        "keys->set_press(esphome__keys__press_fn);",
-        "keys->set_release(esphome__keys__release_fn);",
+        "keys->set_press_publisher(esphome__keys__press_fn);",
+        "keys->set_release_publisher(esphome__keys__release_fn);",
     ]
 
 
 def test_hub_function_bool_returns_whether_any_item_was_true() -> None:
-    fn = ch.HubFunction("claim_fn", ct.bool_, [(ct.uint32, "id")], setter="set_claim")
+    fn = ch.HubFunction("claim", ct.bool_, [(ct.uint32, "id")])
     hub = cg.MockObj("reader", "->")
     fn.add(hub, cg.MockObj("card_a", "->").process(fn.param("id")))
     fn.add(hub, cg.MockObj("card_b", "->").process(fn.param("id")))
@@ -500,12 +494,12 @@ def test_hub_function_bool_returns_whether_any_item_was_true() -> None:
 
 def test_hub_function_rejects_other_return_types() -> None:
     with pytest.raises(ValueError, match="void or bool"):
-        ch.HubFunction("value_fn", ct.int32, [], setter="set_value")
+        ch.HubFunction("value", ct.int32, [])
 
 
 def test_hub_function_items_cannot_be_hidden_by_their_names() -> None:
     """Parameters and the bool result are prefixed, so entity ids like status or any stay visible."""
-    fn = ch.HubFunction("claim_fn", ct.bool_, [(ct.bool_, "any")], setter="set_claim")
+    fn = ch.HubFunction("claim", ct.bool_, [(ct.bool_, "any")])
     fn.add(cg.MockObj("reader", "->"), cg.MockObj("any", "->").process(fn.param("any")))
     ch.CORE.flush_tasks()
     assert _after_includes() == [
@@ -552,7 +546,7 @@ def test_hub_function_emits_again_in_the_next_run() -> None:
 
 
 def test_hub_function_bool_rejects_statements() -> None:
-    fn = ch.HubFunction("claim_fn", ct.bool_, [(ct.uint32, "id")], setter="set_claim")
+    fn = ch.HubFunction("claim", ct.bool_, [(ct.uint32, "id")])
     with pytest.raises(ValueError, match="takes bool expressions"):
         fn.add(cg.MockObj("reader", "->"), cg.statement(cg.MockObj("f")()))
 
