@@ -7,8 +7,6 @@ Supported models:
 The busy pin of these displays is low while busy, so configure it with ``inverted: true``.
 """
 
-from typing import Any
-
 import esphome.config_validation as cv
 from esphome.const import CONF_DIMENSIONS
 from esphome.types import ConfigType
@@ -22,10 +20,8 @@ MAX_GATES = 296
 class UC8151(EpaperModel):
     """EpaperModel class for black/white/red displays using the UC8151D controller."""
 
+    class_name = "EPaperWaveshareBWR"
     source_files = ("epaper_waveshare_bwr.cpp",)
-
-    def __init__(self, name: str, **defaults: Any) -> None:
-        super().__init__(name, "EPaperWaveshareBWR", **defaults)
 
     def validate_config(self, config: ConfigType) -> ConfigType:
         width, height = self.get_dimensions(config)

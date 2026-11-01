@@ -2,13 +2,11 @@ from . import EpaperModel
 
 
 class WaveshareB(EpaperModel):
+    class_name = "EpaperWaveshareB"
     source_files = (
         "epaper_waveshare_b.cpp",
         "epaper_weact_3c.cpp",
     )
-
-    def __init__(self, name, **defaults):
-        super().__init__(name, "EpaperWaveshareB", **defaults)
 
     def get_init_sequence(self, config):
         _, height = self.get_dimensions(config)
