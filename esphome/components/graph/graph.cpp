@@ -49,7 +49,7 @@ void HistoryData::take_sample(float data) {
 void GraphTrace::init(Graph *g) {
   ESP_LOGI(TAG, "Init trace for sensor %s", this->name_);
   this->data_.init(g->get_width());
-  sensor_->add_on_state_callback([this](float state) { this->data_.take_sample(state); });
+  this->source_sensor_->add_on_state_callback([this](float state) { this->data_.take_sample(state); });
   this->data_.set_update_time_ms(g->get_duration() * 1000 / g->get_width());
 }
 
@@ -234,10 +234,12 @@ void GraphLegend::init(Graph *g) {
     if (this->values_ != VALUE_POSITION_TYPE_NONE) {
       char valstr[VALUE_ACCURACY_MAX_LEN];
       if (this->units_) {
-        value_accuracy_with_uom_to_buf(valstr, trace->sensor_->get_state(), trace->sensor_->get_accuracy_decimals(),
-                                       trace->sensor_->get_unit_of_measurement_ref());
+        value_accuracy_with_uom_to_buf(valstr, trace->source_sensor_->get_state(),
+                                       trace->source_sensor_->get_accuracy_decimals(),
+                                       trace->source_sensor_->get_unit_of_measurement_ref());
       } else {
-        value_accuracy_to_buf(valstr, trace->sensor_->get_state(), trace->sensor_->get_accuracy_decimals());
+        value_accuracy_to_buf(valstr, trace->source_sensor_->get_state(),
+                              trace->source_sensor_->get_accuracy_decimals());
       }
       this->font_value_->measure(valstr, &fw, &fos, &fbl, &fh);
       if (fw > valw)
@@ -372,10 +374,12 @@ void Graph::draw_legend(display::Display *buff, uint16_t x_offset, uint16_t y_of
       int yv = y + legend_->yv_;
       char valstr[VALUE_ACCURACY_MAX_LEN];
       if (legend_->units_) {
-        value_accuracy_with_uom_to_buf(valstr, trace->sensor_->get_state(), trace->sensor_->get_accuracy_decimals(),
-                                       trace->sensor_->get_unit_of_measurement_ref());
+        value_accuracy_with_uom_to_buf(valstr, trace->source_sensor_->get_state(),
+                                       trace->source_sensor_->get_accuracy_decimals(),
+                                       trace->source_sensor_->get_unit_of_measurement_ref());
       } else {
-        value_accuracy_to_buf(valstr, trace->sensor_->get_state(), trace->sensor_->get_accuracy_decimals());
+        value_accuracy_to_buf(valstr, trace->source_sensor_->get_state(),
+                              trace->source_sensor_->get_accuracy_decimals());
       }
       buff->printf(xv, yv, legend_->font_value_, trace->get_line_color(), TextAlign::TOP_CENTER, "%s", valstr);
       ESP_LOGV(TAG, "    value: %s", valstr);

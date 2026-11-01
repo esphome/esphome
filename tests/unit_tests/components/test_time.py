@@ -1,5 +1,6 @@
 """Tests for time component cron expression parsing."""
 
+from collections.abc import Callable
 import errno
 import subprocess
 import sys
@@ -7,7 +8,14 @@ from unittest.mock import MagicMock, patch
 
 import pytest
 
-from esphome.components.time import _load_tzdata, _parse_cron_part, validate_tz
+from esphome.components.time import (
+    _load_tzdata,
+    _parse_cron_part,
+    validate_cron_days_of_week,
+    validate_cron_hours,
+    validate_tz,
+)
+import esphome.config_validation as cv
 
 
 def test_star_slash_seconds() -> None:
@@ -83,8 +91,70 @@ def test_range() -> None:
     assert _parse_cron_part("1-5", 0, 59, {}) == {1, 2, 3, 4, 5}
 
 
+@pytest.mark.parametrize(
+    ("validator", "value", "expected"),
+    [
+        (validate_cron_hours, "22-2", [0, 1, 2, 22, 23]),
+        # Sunday is 1
+        (validate_cron_days_of_week, "SAT-MON", [1, 2, 7]),
+        (validate_cron_days_of_week, "SAT-SUN", [1, 7]),
+    ],
+)
+def test_wrapping_range(
+    validator: Callable[[str], list[int]], value: str, expected: list[int]
+) -> None:
+    assert validator(value) == expected
+
+
+@pytest.mark.parametrize(
+    ("validator", "value"),
+    [(validate_cron_hours, "24-2"), (validate_cron_days_of_week, "SAT-0")],
+)
+def test_range_endpoint_out_of_bounds(
+    validator: Callable[[str], list[int]], value: str
+) -> None:
+    with pytest.raises(cv.Invalid, match="out of range"):
+        validator(value)
+
+
 def test_single_value() -> None:
     assert _parse_cron_part("30", 0, 59, {}) == {30}
+
+
+@pytest.mark.parametrize(
+    ("validator", "value", "expected"),
+    [
+        (validate_cron_hours, "*/6", [0, 6, 12, 18]),
+        (validate_cron_hours, "/8", [0, 8, 16]),
+        (validate_cron_hours, "5/7", [5, 12, 19]),
+        (validate_cron_hours, "23/100", [23]),
+        # Sunday is 1
+        (validate_cron_days_of_week, "MON/2", [2, 4, 6]),
+        (validate_cron_days_of_week, "?/3", [1, 4, 7]),
+    ],
+)
+def test_step_valid(
+    validator: Callable[[str], list[int]], value: str, expected: list[int]
+) -> None:
+    assert validator(value) == expected
+
+
+@pytest.mark.parametrize(
+    ("validator", "value", "match"),
+    [
+        (validate_cron_hours, "*/0", "repeat must be at least 1, got 0"),
+        (validate_cron_hours, "5/-5", "repeat must be at least 1, got -5"),
+        (validate_cron_hours, "24/1", "offset 24 is out of range"),
+        (validate_cron_hours, "70/5", "offset 70 is out of range"),
+        (validate_cron_days_of_week, "0/2", "offset 0 is out of range"),
+        (validate_cron_days_of_week, "8/1", "offset 8 is out of range"),
+    ],
+)
+def test_step_invalid(
+    validator: Callable[[str], list[int]], value: str, match: str
+) -> None:
+    with pytest.raises(cv.Invalid, match=match):
+        validator(value)
 
 
 def _mock_resources_with_error(error: Exception) -> MagicMock:

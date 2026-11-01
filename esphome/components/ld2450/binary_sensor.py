@@ -15,13 +15,7 @@ from esphome.const import (
 )
 from esphome.types import ConfigType
 
-from . import (  # noqa: F401  pylint: disable=unused-import
-    CONF_LD2450_ID,
-    CONF_POLYGON_ZONE_ID,
-    CONF_POLYGON_ZONES,
-    FILTER_SOURCE_FILES,
-    LD2450Component,
-)
+from . import CONF_LD2450_ID, CONF_POLYGON_ZONE_ID, CONF_POLYGON_ZONES, LD2450Component
 from .text import PolygonZone
 
 DEPENDENCIES = ["ld2450"]

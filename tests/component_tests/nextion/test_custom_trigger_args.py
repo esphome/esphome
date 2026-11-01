@@ -10,5 +10,9 @@ def test_generated_automation_types(
 ) -> None:
     main_cpp = generate_main(component_config_path("custom_triggers.yaml"))
 
-    assert "Automation<StringRef, StringRef>" in main_cpp
+    # A synchronous automation is a direct function that needs no Automation
+    assert (
+        "const std::remove_cvref_t<StringRef> & key, "
+        "const std::remove_cvref_t<StringRef> & value" in main_cpp
+    )
     assert "Automation<std::string, std::string>" in main_cpp

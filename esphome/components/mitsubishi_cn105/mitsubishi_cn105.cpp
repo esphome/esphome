@@ -31,6 +31,9 @@ static constexpr uint8_t STATUS_MSG_OPERATING_STATUS = 0x06;
 static constexpr uint8_t PACKET_TYPE_WRITE_SETTINGS_REQUEST = 0x41;
 static constexpr uint8_t PACKET_TYPE_WRITE_SETTINGS_RESPONSE = 0x61;
 
+// After a power-off or a mode change that ends the run, 0x06 is read this often while the unit winds down.
+static constexpr uint32_t WIND_DOWN_READ_INTERVAL_MS = 10000;
+
 static constexpr uint8_t checksum(const uint8_t *bytes, size_t length) {
   return static_cast<uint8_t>(0xFC - sum_bytes(bytes, length));
 }
@@ -62,7 +65,8 @@ bool MitsubishiCN105::update() {
         this->status_update_wait_credit_ms_ =
             std::min(this->update_interval_ms_, get_loop_time_ms() - this->operation_start_ms_);
         this->set_state_(State::APPLYING_SETTINGS);
-        return false;
+        // Publishes a hold started by the write
+        return this->take_status_changed_();
       }
       if (this->has_timed_out_(this->update_interval_ms_)) {
         this->set_state_(State::UPDATING_STATUS);
@@ -79,6 +83,7 @@ bool MitsubishiCN105::update() {
         if (this->state_ == State::UPDATING_STATUS && this->current_status_msg_type_ == STATUS_MSG_OPERATING_STATUS) {
           if (++this->operating_status_misses_ >= OPERATING_STATUS_MAX_MISSES) {
             ESP_LOGI(TAG, "No operating status response, climate action stays idle");
+            this->wind_down_reads_ = 0;
           }
           this->frame_parser_.reset();
           this->set_state_(State::STATUS_UPDATED);
@@ -181,7 +186,7 @@ void MitsubishiCN105::did_transition_(State to) {
           this->last_telemetry_update_ms_ = get_loop_time_ms();
           this->has_telemetry_update_ = true;
           this->telemetry_refresh_ = TelemetryRefresh::TELEMETRY_REFRESH_NONE;
-        } else {
+        } else if (this->telemetry_refresh_ == TelemetryRefresh::TELEMETRY_REFRESH_REQUESTED) {
           this->telemetry_refresh_ = TelemetryRefresh::TELEMETRY_REFRESH_SPENT;
         }
       }
@@ -218,9 +223,7 @@ void MitsubishiCN105::did_transition_(State to) {
 }
 
 bool MitsubishiCN105::should_request_telemetry_() const {
-  return this->is_telemetry_polling_enabled() &&
-         (this->telemetry_refresh_ == TelemetryRefresh::TELEMETRY_REFRESH_REQUESTED ||
-          this->is_telemetry_interval_elapsed_());
+  return this->is_telemetry_polling_enabled() && (this->is_refresh_due_() || this->is_telemetry_interval_elapsed_());
 }
 
 bool MitsubishiCN105::is_telemetry_interval_elapsed_() const {
@@ -229,14 +232,91 @@ bool MitsubishiCN105::is_telemetry_interval_elapsed_() const {
 }
 
 bool MitsubishiCN105::is_early_telemetry_refresh_() const {
-  return this->telemetry_refresh_ == TelemetryRefresh::TELEMETRY_REFRESH_REQUESTED &&
-         !this->is_telemetry_interval_elapsed_();
+  return this->is_refresh_due_() && !this->is_telemetry_interval_elapsed_();
+}
+
+// An early 0x06 read after a mode or power change, or the next read while the unit winds down.
+bool MitsubishiCN105::is_refresh_due_() const {
+  return this->telemetry_refresh_ == TelemetryRefresh::TELEMETRY_REFRESH_REQUESTED ||
+         (this->wind_down_reads_ != 0 && (get_loop_time_ms() - this->wind_down_read_ms_) >= WIND_DOWN_READ_INTERVAL_MS);
+}
+
+// A switch keeps the run going when the new mode drives it the same way: AUTO keeps any direction, and HEAT or COOL
+// continue a run of that direction. A run in AUTO of unknown direction counts as continuing.
+static constexpr bool continues_run(MitsubishiCN105::Mode from, MitsubishiCN105::Mode to,
+                                    MitsubishiCN105::RunDirection direction) {
+  using Mode = MitsubishiCN105::Mode;
+  using RunDirection = MitsubishiCN105::RunDirection;
+  if (to == Mode::AUTO) {
+    return direction != RunDirection::RUN_DIRECTION_NONE;
+  }
+  const RunDirection implied = to == Mode::HEAT   ? RunDirection::RUN_DIRECTION_HEATING
+                               : to == Mode::COOL ? RunDirection::RUN_DIRECTION_COOLING
+                                                  : RunDirection::RUN_DIRECTION_NONE;
+  return implied != RunDirection::RUN_DIRECTION_NONE &&
+         (direction == implied || (from == Mode::AUTO && direction == RunDirection::RUN_DIRECTION_NONE));
+}
+
+// The unit keeps reporting "running" while it winds down from a run that a power-off or a mode change ended.
+// A change during a hold neither restarts nor ends it, since operating is already false.
+bool MitsubishiCN105::hold_if_run_ended_(bool was_on, Mode was_mode) {
+  if (!this->status_.operating || !was_on || this->is_operating_status_unsupported_()) {
+    return false;
+  }
+  if (this->status_.power_on &&
+      (was_mode == this->status_.mode || continues_run(was_mode, this->status_.mode, this->run_direction_))) {
+    return false;
+  }
+  this->status_.operating = false;
+  this->wind_down_reads_ = 1;
+  // The first read is due right away
+  this->wind_down_read_ms_ = get_loop_time_ms() - WIND_DOWN_READ_INTERVAL_MS;
+  return true;
+}
+
+// Called before a local power or mode change, so a change reverted before it is sent does not start a hold.
+void MitsubishiCN105::save_unsent_power_and_mode_() {
+  if (!this->pending_updates_.contains(PropertyId::POWER) && !this->pending_updates_.contains(PropertyId::MODE)) {
+    this->unsent_from_power_on_ = this->status_.power_on;
+    this->unsent_from_mode_ = this->status_.mode;
+  }
+}
+
+// AUTO keeps the direction of a run, and infers it from room vs. target temperature only when the run starts: a run
+// that starts at a tie stays without a direction, as the unit may still be overshooting either way.
+void MitsubishiCN105::update_run_direction_(bool was_operating) {
+  if (!this->status_.power_on || !this->status_.operating) {
+    this->run_direction_ = RunDirection::RUN_DIRECTION_NONE;
+    return;
+  }
+  switch (this->status_.mode) {
+    case Mode::HEAT:
+      this->run_direction_ = RunDirection::RUN_DIRECTION_HEATING;
+      break;
+    case Mode::COOL:
+      this->run_direction_ = RunDirection::RUN_DIRECTION_COOLING;
+      break;
+    case Mode::AUTO:
+      if (this->run_direction_ != RunDirection::RUN_DIRECTION_NONE || was_operating) {
+        break;
+      }
+      if (this->status_.room_temperature > this->status_.target_temperature) {
+        this->run_direction_ = RunDirection::RUN_DIRECTION_COOLING;
+      } else if (this->status_.room_temperature < this->status_.target_temperature) {
+        this->run_direction_ = RunDirection::RUN_DIRECTION_HEATING;
+      }
+      break;
+    default:
+      this->run_direction_ = RunDirection::RUN_DIRECTION_NONE;
+      break;
+  }
 }
 
 // A mode or power change makes the operating status stale, so read it again without waiting for the interval.
+// A wind-down hold has its own reads.
 void MitsubishiCN105::request_telemetry_refresh_() {
   if (this->telemetry_refresh_ == TelemetryRefresh::TELEMETRY_REFRESH_NONE &&
-      !this->is_operating_status_unsupported_()) {
+      !this->is_operating_status_unsupported_() && this->wind_down_reads_ == 0) {
     this->telemetry_refresh_ = TelemetryRefresh::TELEMETRY_REFRESH_REQUESTED;
   }
 }
@@ -307,8 +387,10 @@ bool MitsubishiCN105::process_status_packet_(const uint8_t *payload, size_t len)
 
   const bool power_or_mode_changed = previous.power_on != this->status_.power_on || previous.mode != this->status_.mode;
   if (power_or_mode_changed) {
+    this->hold_if_run_ended_(previous.power_on, previous.mode);
     this->request_telemetry_refresh_();
   }
+  this->update_run_direction_(previous.operating);
 
   if (msg_type == this->current_status_msg_type_) {
     this->set_state_(State::STATUS_UPDATED);
@@ -329,7 +411,7 @@ bool MitsubishiCN105::process_status_packet_(const uint8_t *payload, size_t len)
 }
 
 bool MitsubishiCN105::parse_status_payload_(uint8_t msg_type, const uint8_t *payload, size_t len) {
-  Property::Decoder decoder{std::span{payload, len}, this->property_context_, this->pending_updates_};
+  Property::Decoder<UpdateFlags> decoder{std::span{payload, len}, this->property_context_, this->pending_updates_};
   switch (msg_type) {
     case STATUS_MSG_SETTINGS:
       if (!decoder.decode_settings(this->status_)) {
@@ -351,6 +433,15 @@ bool MitsubishiCN105::parse_status_payload_(uint8_t msg_type, const uint8_t *pay
         return false;
       }
       this->operating_status_misses_ = 0;
+      // The hold ends at the first "stopped" report, or after WIND_DOWN_HELD_READS reads
+      if (this->wind_down_reads_ != 0 && this->status_.operating && this->wind_down_reads_ <= WIND_DOWN_HELD_READS) {
+        ESP_LOGV(TAG, "Ignoring running report during wind-down");
+        this->status_.operating = false;
+        this->wind_down_reads_++;
+        this->wind_down_read_ms_ = get_loop_time_ms();
+      } else {
+        this->wind_down_reads_ = 0;
+      }
       return true;
 
     default:
@@ -381,6 +472,7 @@ void MitsubishiCN105::set_remote_temperature_half_deg_(uint8_t temperature_half_
 }
 
 void MitsubishiCN105::set_power(bool power_on) {
+  this->save_unsent_power_and_mode_();
   this->status_.power_on = power_on;
   this->pending_updates_.set(Property::Power::ID);
 }
@@ -395,6 +487,7 @@ void MitsubishiCN105::set_target_temperature(float target_temperature) {
 }
 
 void MitsubishiCN105::set_mode(Mode mode) {
+  this->save_unsent_power_and_mode_();
   if (!Property::Mode::validate_and_set(mode, this->status_, this->pending_updates_)) {
     ESP_LOGD(TAG, "Ignoring invalid mode: %u", static_cast<uint8_t>(mode));
   }
@@ -420,10 +513,13 @@ void MitsubishiCN105::set_wide_vane_mode(WideVaneMode wide_vane_mode) {
 
 void MitsubishiCN105::apply_settings_() {
   std::array<uint8_t, REQUEST_PAYLOAD_LEN> payload{};
-  Property::Encoder encoder{payload.data(), this->property_context_, this->pending_updates_};
+  Property::Encoder<UpdateFlags> encoder{payload.data(), this->property_context_, this->pending_updates_};
   if (this->pending_updates_.contains(PropertyId::POWER) || this->pending_updates_.contains(PropertyId::MODE)) {
+    this->status_changed_ |= this->hold_if_run_ended_(this->unsent_from_power_on_, this->unsent_from_mode_);
     this->request_telemetry_refresh_();
   }
+  // Local changes reach the hold and the run direction only once they are sent; they never start a run
+  this->update_run_direction_(this->status_.operating);
 
   // Apply all other pending settings first; handle REMOTE_TEMPERATURE last
   if (this->pending_updates_.contains_only(Property::Temperature::Remote::ID)) {

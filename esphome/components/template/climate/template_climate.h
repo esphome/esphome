@@ -16,6 +16,12 @@ enum class TemplateClimateRestoreMode {
 };
 
 class TemplateClimate final : public climate::Climate, public Component {
+#ifdef USE_SENSOR
+  // Codegen adds the matching feature flags, so the configuration alone decides them.
+  SUB_SENSOR(temperature)
+  SUB_SENSOR(humidity)
+#endif
+
  public:
   void setup() override;
   void dump_config() override;
@@ -29,12 +35,6 @@ class TemplateClimate final : public climate::Climate, public Component {
     this->traits_.set_visual_min_temperature(celsius_to(climate::ClimateTraits::DEFAULT_VISUAL_MIN_TEMPERATURE, unit));
     this->traits_.set_visual_max_temperature(celsius_to(climate::ClimateTraits::DEFAULT_VISUAL_MAX_TEMPERATURE, unit));
   }
-
-#ifdef USE_SENSOR
-  // The matching feature flag is added from codegen, so the configuration alone decides it.
-  void set_sensor(sensor::Sensor *sensor) { this->sensor_ = sensor; }
-  void set_humidity_sensor(sensor::Sensor *sensor) { this->humidity_sensor_ = sensor; }
-#endif
 
   void add_supported_mode(climate::ClimateMode mode) { this->traits_.add_supported_mode(mode); }
   void add_supported_fan_mode(climate::ClimateFanMode mode) { this->traits_.add_supported_fan_mode(mode); }
@@ -77,11 +77,6 @@ class TemplateClimate final : public climate::Climate, public Component {
   climate::ClimateTraits traits_;
   bool optimistic_{false};
   TemplateClimateRestoreMode restore_mode_{TemplateClimateRestoreMode::TEMPLATE_CLIMATE_RESTORE_MODE_NO_RESTORE};
-
-#ifdef USE_SENSOR
-  sensor::Sensor *sensor_{nullptr};
-  sensor::Sensor *humidity_sensor_{nullptr};
-#endif
 
   Trigger<climate::ClimateMode> set_mode_trigger_;
   Trigger<float> set_target_temperature_trigger_;
