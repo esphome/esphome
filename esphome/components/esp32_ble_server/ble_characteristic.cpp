@@ -17,7 +17,8 @@ BLECharacteristic::~BLECharacteristic() {
   }
 }
 
-BLECharacteristic::BLECharacteristic(const ESPBTUUID uuid, uint32_t properties) : uuid_(uuid) {
+BLECharacteristic::BLECharacteristic(const ESPBTUUID uuid, uint32_t properties, esp_gatt_perm_t permissions)
+    : uuid_(uuid), permissions_(permissions) {
   this->properties_ = (esp_gatt_char_prop_t) 0;
 
   this->set_broadcast_property((properties & PROPERTY_BROADCAST) != 0);
@@ -181,6 +182,11 @@ void BLECharacteristic::set_write_no_response_property(bool value) {
 void BLECharacteristic::gatts_event_handler(esp_gatts_cb_event_t event, esp_gatt_if_t gatts_if,
                                             esp_ble_gatts_cb_param_t *param) {
   switch (event) {
+    case ESP_GATTS_DISCONNECT_EVT: {
+      // A later connection can get the same id; it subscribes again with its own security
+      this->remove_client_from_notify_list_(param->disconnect.conn_id);
+      break;
+    }
     case ESP_GATTS_ADD_CHAR_EVT: {
       if (this->uuid_ == ESPBTUUID::from_uuid(param->add_char.char_uuid)) {
         this->handle_ = param->add_char.attr_handle;

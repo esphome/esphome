@@ -134,8 +134,7 @@ void Tx20Component::decode_and_publish_() {
       if (tx20_sf == tx20_sc) {
         tx20_wind_speed_kmh = float(tx20_sc) * 0.36f;
         ESP_LOGV(TAG, "WindSpeed %f", tx20_wind_speed_kmh);
-        if (this->wind_speed_sensor_ != nullptr)
-          this->wind_speed_sensor_->publish_state(tx20_wind_speed_kmh);
+        PUBLISH_STATE(this->wind_speed_sensor_, tx20_wind_speed_kmh);
         value_set = true;
       }
       if (tx20_se == tx20_sb) {
@@ -143,8 +142,7 @@ void Tx20Component::decode_and_publish_() {
         if (tx20_wind_direction < DirectionStrings::COUNT)
           this->wind_direction_index_ = tx20_wind_direction;
         ESP_LOGV(TAG, "WindDirection %d", tx20_wind_direction);
-        if (this->wind_direction_degrees_sensor_ != nullptr)
-          this->wind_direction_degrees_sensor_->publish_state(float(tx20_wind_direction) * 22.5f);
+        PUBLISH_STATE(this->wind_direction_degrees_sensor_, float(tx20_wind_direction) * 22.5f);
         value_set = true;
       }
       if (!value_set) {
