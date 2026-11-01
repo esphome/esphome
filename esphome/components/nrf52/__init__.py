@@ -203,15 +203,15 @@ def set_framework(config: ConfigType) -> ConfigType:
     )(config)
 
 
-# Bootloaders flashed over USB serial DFU: the Adafruit ones with adafruit-nrfutil, the factory Open
-# DFU bootloader with Nordic's nrfutil; mcuboot uses mcumgr instead
-SERIAL_DFU_BOOTLOADERS = (
+ADAFRUIT_BOOTLOADERS = (
     BOOTLOADER_ADAFRUIT,
     BOOTLOADER_ADAFRUIT_NRF52_SD132,
     BOOTLOADER_ADAFRUIT_NRF52_SD140_V6,
     BOOTLOADER_ADAFRUIT_NRF52_SD140_V7,
-    BOOTLOADER_NRF,
 )
+# Bootloaders flashed over USB serial DFU: the Adafruit ones with adafruit-nrfutil, the factory Open
+# DFU bootloader with Nordic's nrfutil; mcuboot uses mcumgr instead
+SERIAL_DFU_BOOTLOADERS = (*ADAFRUIT_BOOTLOADERS, BOOTLOADER_NRF)
 BOOTLOADERS = [*SERIAL_DFU_BOOTLOADERS, BOOTLOADER_MCUBOOT]
 
 
@@ -462,6 +462,8 @@ async def to_code(config: ConfigType) -> None:
         if (len(bootloader)) > 3:
             sd_version = bootloader[3][1:]
             cg.add_define("USE_SOFTDEVICE_VERSION", int(sd_version))
+    if config[KEY_BOOTLOADER] in ADAFRUIT_BOOTLOADERS:
+        cg.add_define("USE_BOOTLOADER_ADAFRUIT")
 
     zephyr_setup_preferences()
     zephyr_to_code(config)
