@@ -106,10 +106,11 @@ class HistoryData {
 };
 
 class GraphTrace final {
+  SUB_SENSOR(source)
+
  public:
   void init(Graph *g);
   void set_name(const char *name) { this->name_ = name; }
-  void set_sensor(sensor::Sensor *sensor) { sensor_ = sensor; }
   uint8_t get_line_thickness() { return this->line_thickness_; }
   void set_line_thickness(uint8_t val) { this->line_thickness_ = val; }
   enum LineType get_line_type() { return this->line_type_; }
@@ -122,7 +123,6 @@ class GraphTrace final {
   const HistoryData *get_tracedata() { return &data_; }
 
  protected:
-  sensor::Sensor *sensor_{nullptr};
   const char *name_{""};
   uint8_t line_thickness_{3};
   enum LineType line_type_ { LINE_TYPE_SOLID };
