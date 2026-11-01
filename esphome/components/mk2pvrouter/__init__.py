@@ -55,14 +55,13 @@ def final_validate(config: ConfigType) -> None:
 FINAL_VALIDATE_SCHEMA = final_validate
 
 
-_register_mk2pvrouter_listener = cg.slot_list(
-    "MK2PVROUTER_LISTENER_COUNT", "register_mk2pvrouter_listener"
-)
+_request_listener_slot = cg.slot_counter("MK2PVROUTER_LISTENER_COUNT")
 
 
 async def register_mk2pvrouter_listener(mk2pvrouter: MockObj, var: MockObj) -> None:
-    """Register a listener with its hub."""
-    cg.add(_register_mk2pvrouter_listener(mk2pvrouter, var))
+    """Register a listener with its hub and count it for the compile-time buffer size."""
+    _request_listener_slot()
+    cg.add(mk2pvrouter.register_mk2pvrouter_listener(var))
 
 
 async def to_code(config: ConfigType) -> None:

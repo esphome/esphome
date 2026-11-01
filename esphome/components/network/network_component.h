@@ -43,8 +43,9 @@ class NetworkComponent final : public Component {
   /// The first connected interface in network: priority order; NONE while none is connected.
   NetworkInterface get_active_interface() const { return this->active_interface_; }
 #ifdef NETWORK_ACTIVE_INTERFACE_LISTENER_COUNT
-  SLOT_LIST(ActiveInterfaceListener, active_interface_listeners_, add_active_interface_listener,
-            NETWORK_ACTIVE_INTERFACE_LISTENER_COUNT)
+  void add_active_interface_listener(ActiveInterfaceListener *listener) {
+    this->active_interface_listeners_.push_back(listener);
+  }
 #endif
 
  protected:
@@ -54,6 +55,9 @@ class NetworkComponent final : public Component {
   // Last netif this component made the default; avoids redundant esp_netif calls.
   esp_netif_t *default_netif_{nullptr};
   uint32_t last_route_check_{0};
+#ifdef NETWORK_ACTIVE_INTERFACE_LISTENER_COUNT
+  StaticVector<ActiveInterfaceListener *, NETWORK_ACTIVE_INTERFACE_LISTENER_COUNT> active_interface_listeners_;
+#endif
   NetworkInterface active_interface_{NetworkInterface::NETWORK_INTERFACE_NONE};
 #endif
 };

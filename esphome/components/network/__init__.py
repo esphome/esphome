@@ -114,8 +114,8 @@ if (
 network_ns = cg.esphome_ns.namespace("network")
 NetworkComponent = network_ns.class_("NetworkComponent", cg.Component)
 
-_add_active_interface_listener = cg.slot_list(
-    "NETWORK_ACTIVE_INTERFACE_LISTENER_COUNT", "add_active_interface_listener"
+_request_active_interface_listener_slot = cg.slot_counter(
+    "NETWORK_ACTIVE_INTERFACE_LISTENER_COUNT"
 )
 
 
@@ -138,8 +138,9 @@ async def register_active_interface_listener(listener: cg.MockObj) -> bool:
     """
     if not has_active_interface():
         return False
+    _request_active_interface_listener_slot()
     network = await cg.get_variable(CORE.config[DOMAIN][CONF_ID])
-    cg.add(_add_active_interface_listener(network, listener))
+    cg.add(network.add_active_interface_listener(listener))
     return True
 
 

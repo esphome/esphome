@@ -35,13 +35,16 @@ class SystaBus : public uart::UARTDevice, public Component {
   void loop() override;
 
 #ifdef SYSTA_BUS_LISTENER_COUNT
-  SLOT_LIST(SystaBusListener, listeners_, register_listener, SYSTA_BUS_LISTENER_COUNT)
+  void register_listener(SystaBusListener *listener) { this->listeners_.push_back(listener); }
 #endif
 
  protected:
   void handle_byte_(uint8_t c);
   void resync_();
 
+#ifdef SYSTA_BUS_LISTENER_COUNT
+  StaticVector<SystaBusListener *, SYSTA_BUS_LISTENER_COUNT> listeners_;
+#endif
   StaticVector<uint8_t, MAX_MESSAGE_SIZE> buffer_;
 };
 

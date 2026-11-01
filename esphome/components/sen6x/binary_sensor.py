@@ -28,9 +28,7 @@ _STATUS_KINDS = (
     (CONF_PM_ERROR, Sen6xStatus.SEN6X_STATUS_PM_ERROR),
 )
 
-_add_status_binary_sensor = cg.slot_list(
-    "SEN6X_STATUS_SENSOR_COUNT", "add_status_binary_sensor"
-)
+_request_status_slot = cg.slot_counter("SEN6X_STATUS_SENSOR_COUNT")
 
 _STATUS_SCHEMA = binary_sensor.binary_sensor_schema(
     device_class=DEVICE_CLASS_PROBLEM,
@@ -51,4 +49,5 @@ async def to_code(config: ConfigType) -> None:
         if (conf := config.get(key)) is None:
             continue
         sens = await binary_sensor.new_binary_sensor(conf)
-        cg.add(_add_status_binary_sensor(hub, sens, status))
+        _request_status_slot(str(hub))
+        cg.add(hub.add_status_binary_sensor(sens, status))

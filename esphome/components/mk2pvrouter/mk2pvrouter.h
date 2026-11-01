@@ -36,7 +36,7 @@ class Mk2PVRouterListener {
 class Mk2PVRouter : public Component, public uart::UARTDevice {
  public:
 #ifdef MK2PVROUTER_LISTENER_COUNT
-  SLOT_LIST(Mk2PVRouterListener, mk2pvrouter_listeners_, register_mk2pvrouter_listener, MK2PVROUTER_LISTENER_COUNT)
+  void register_mk2pvrouter_listener(Mk2PVRouterListener *listener);
 #endif
   void loop() override;
   void dump_config() override;
@@ -50,6 +50,9 @@ class Mk2PVRouter : public Component, public uart::UARTDevice {
     END_FRAME_RECEIVED,
   };
 
+#ifdef MK2PVROUTER_LISTENER_COUNT
+  StaticVector<Mk2PVRouterListener *, MK2PVROUTER_LISTENER_COUNT> mk2pvrouter_listeners_;
+#endif
   uint16_t buf_index_{0};
   State state_{State::WAITING_FOR_START};
   char tag_[MAX_TAG_SIZE];
