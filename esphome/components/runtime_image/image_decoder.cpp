@@ -25,14 +25,13 @@ void ImageDecoder::prepare_draw_(int width, int height) {
   this->draw_width_ = width;
   this->draw_height_ = height;
   // A transparent image needs the per-pixel path, which applies the transparency rules
-  if (this->image_->has_transparency()) {
-    this->direct_bpp_ = 0;
-  } else if (this->image_->get_type() == image::IMAGE_TYPE_RGB565) {
-    this->direct_bpp_ = 2;
-  } else if (this->image_->get_type() == image::IMAGE_TYPE_GRAYSCALE) {
-    this->direct_bpp_ = 1;
-  } else {
-    this->direct_bpp_ = 0;
+  this->direct_bpp_ = 0;
+  if (!this->image_->has_transparency()) {
+    if (this->image_->get_type() == image::IMAGE_TYPE_RGB565) {
+      this->direct_bpp_ = 2;
+    } else if (this->image_->get_type() == image::IMAGE_TYPE_GRAYSCALE) {
+      this->direct_bpp_ = 1;
+    }
   }
   if (this->direct_bpp_ == 0)
     return;
