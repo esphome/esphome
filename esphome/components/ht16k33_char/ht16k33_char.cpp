@@ -120,9 +120,12 @@ void HT16K33CharDisplay::send_(uint8_t command) {
 
 uint8_t HT16K33CharDisplay::find_segments_(uint32_t codepoint) const {
 #ifdef USE_HT16K33_CHAR_GLYPH_OVERRIDES
-  for (const uint32_t *entry = this->glyph_overrides_; *entry != 0; entry++) {
-    if ((*entry & 0xFFFF) == codepoint)
-      return *entry >> 16;
+  // The define is global; a display without add_characters has no table
+  if (this->glyph_overrides_ != nullptr) {
+    for (const uint32_t *entry = this->glyph_overrides_; *entry != 0; entry++) {
+      if ((*entry & 0xFFFF) == codepoint)
+        return *entry >> 16;
+    }
   }
 #endif
   if (codepoint < ' ' || codepoint > '~')

@@ -13,3 +13,9 @@ display:
     lambda: |-
       it.print("12:34");
       it.printf(5, "%d°", 21);
+  # No add_characters, beside one that has them
+  - platform: ht16k33_char
+    device: ADAFRUIT_7_SEG_.56IN
+    address: 0x72
+    lambda: |-
+      it.print("1234");
