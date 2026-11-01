@@ -178,7 +178,7 @@ class LD2450Component : public Component, public uart::UARTDevice {
   void set_zone_moving_target_count_sensor(uint8_t zone, sensor::Sensor *s);
 #endif
 #ifdef LD2450_POLYGON_ZONE_COUNT
-  SLOT_LIST(PolygonZone, polygon_zones_, register_polygon_zone, LD2450_POLYGON_ZONE_COUNT)
+  void register_polygon_zone(PolygonZone *zone) { this->polygon_zones_.push_back(zone); }
 #endif
   void reset_radar_zone();
   void set_radar_zone(int32_t zone_type, int32_t zone1_x1, int32_t zone1_y1, int32_t zone1_x2, int32_t zone1_y2,
@@ -262,6 +262,10 @@ class LD2450Component : public Component, public uart::UARTDevice {
 #ifdef USE_LD2450_TARGET_XY
   // Publishes a target's position as "x,y" text, so both values always come from the same radar frame
   std::array<text_sensor::TextSensor *, MAX_TARGETS> target_xy_text_sensors_{};
+#endif
+
+#ifdef LD2450_POLYGON_ZONE_COUNT
+  StaticVector<PolygonZone *, LD2450_POLYGON_ZONE_COUNT> polygon_zones_;
 #endif
 
   LazyCallbackManager<void()> data_callback_;
