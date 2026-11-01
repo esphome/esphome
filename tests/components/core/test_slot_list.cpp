@@ -50,6 +50,22 @@ TEST(SlotListTest, DropsRegistrationsPastCapacity) {
 TEST(SlotListTest, StorageIsTheCodegenCountOfPointers) { EXPECT_EQ(sizeof(Hub), sizeof(StaticVector<Listener *, 2>)); }
 
 // A registration code generation did not count fails to compile instead of being dropped
+// A hand-written register method over a SlotList of entries
+template<size_t N> class EntryHub {
+ public:
+  SLOT_LIST_REQUIRES(N)
+  void add_entry(int value) { this->entries_.push_back(value); }
+  size_t size() const { return this->entries_.size(); }
+
+ protected:
+  [[no_unique_address]] SlotList<int, N> entries_;
+};
+
+template<typename H>
+concept CanAddEntry = requires(H hub) { hub.add_entry(1); };
+static_assert(CanAddEntry<EntryHub<2>>);
+static_assert(!CanAddEntry<EntryHub<0>>);
+
 template<typename H>
 concept CanRegisterListener = requires(H hub, Listener *listener) { hub.register_listener(listener); };
 static_assert(CanRegisterListener<Hub>);
