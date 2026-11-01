@@ -19,6 +19,20 @@ struct NVSData {
   SmallInlineBuffer<8> data;  // Most prefs fit in 8 bytes (covers fan, cover, select, etc.)
 };
 
+static constexpr size_t KEY_NAME_MAX_SIZE = UINT32_MAX_STR_SIZE + 2;
+static_assert(KEY_NAME_MAX_SIZE <= NVS_KEY_NAME_MAX_SIZE);
+
+static char *key_name_format_unterminated(char *key_name, uint32_t key) {
+  return uint32_to_str_unchecked(key_name, key);
+}
+
+// Encode the length of a value stored as a u64 into the key name (len <= 8).
+static void key_name_terminate_with_value_length(char *key_name_end, size_t len) {
+  key_name_end[0] = ':';
+  key_name_end[1] = '0' + len;
+  key_name_end[2] = '\0';
+}
+
 static std::vector<NVSData> s_pending_save;  // NOLINT(cppcoreguidelines-avoid-non-const-global-variables)
 
 // RTC memory backend for preferences requested with in_flash=false. Survives deep sleep and
@@ -106,26 +120,42 @@ bool ESP32PreferenceBackend::load(uint8_t *data, size_t len) {
     }
   }
 
-  char key_str[UINT32_MAX_STR_SIZE];
-  uint32_to_str(key_str, this->key);
-  size_t actual_len;
-  esp_err_t err = nvs_get_blob(this->nvs_handle, key_str, nullptr, &actual_len);
-  if (err != 0) {
-    ESP_LOGV(TAG, "nvs_get_blob('%s'): %s - the key might not be set yet", key_str, esp_err_to_name(err));
-    return false;
+  // Try to load the value as a u64 if it fits (encode length into the key string).
+  esp_err_t err;
+  char key_name[KEY_NAME_MAX_SIZE];
+  char *const key_name_end = key_name_format_unterminated(key_name, this->key);
+  if (len <= 8) {
+    uint64_t value;
+    key_name_terminate_with_value_length(key_name_end, len);
+    err = nvs_get_u64(this->nvs_handle, key_name, &value);
+    if (err == ESP_OK) {
+      ESP_LOGVV(TAG, "nvs_get_u64('%s'): ESP_OK, value=0x%08" PRIx64, key_name, value);
+      memcpy(data, &value, len);
+      return true;
+    }
+    ESP_LOGVV(TAG, "nvs_get_u64('%s'): %s", key_name, esp_err_to_name(err));
+    if (err != ESP_ERR_NVS_NOT_FOUND) {
+      return false;
+    }
   }
-  if (actual_len != len) {
-    ESP_LOGVV(TAG, "NVS length does not match (%zu!=%zu)", actual_len, len);
-    return false;
+
+  // Fall back to loading the value as a blob.
+  size_t current_len;
+  key_name_end[0] = '\0';
+  err = nvs_get_blob(this->nvs_handle, key_name, nullptr, &current_len);
+  if (err == ESP_OK) {
+    if (current_len != len) {
+      ESP_LOGVV(TAG, "nvs_get_blob('%s'): ESP_OK, length mismatch (%zu!=%zu)", key_name, current_len, len);
+      return false;
+    }
+    err = nvs_get_blob(this->nvs_handle, key_name, data, &current_len);
   }
-  err = nvs_get_blob(this->nvs_handle, key_str, data, &len);
-  if (err != 0) {
-    ESP_LOGV(TAG, "nvs_get_blob('%s') failed: %s", key_str, esp_err_to_name(err));
-    return false;
-  } else {
-    ESP_LOGVV(TAG, "nvs_get_blob: key: %s, len: %zu", key_str, len);
+  if (err == ESP_OK) {
+    ESP_LOGVV(TAG, "nvs_get_blob('%s'): ESP_OK, length=%zu", key_name, len);
+    return true;
   }
-  return true;
+  ESP_LOGV(TAG, "nvs_get_blob('%s'): %s - the key might not be set yet", key_name, esp_err_to_name(err));
+  return false;
 }
 
 void ESP32Preferences::open() {
@@ -226,25 +256,107 @@ bool ESP32Preferences::sync() {
   esp_err_t last_err = ESP_OK;
   uint32_t last_key = 0;
 
-  for (const auto &save : s_pending_save) {
-    char key_str[UINT32_MAX_STR_SIZE];
-    uint32_to_str(key_str, save.key);
-    ESP_LOGVV(TAG, "Checking if NVS data %s has changed", key_str);
-    if (this->is_changed_(this->nvs_handle, save, key_str)) {
-      esp_err_t err = nvs_set_blob(this->nvs_handle, key_str, save.data.data(), save.data.size());
-      ESP_LOGV(TAG, "sync: key: %s, len: %zu", key_str, save.data.size());
-      if (err != 0) {
-        ESP_LOGV(TAG, "nvs_set_blob('%s', len=%zu) failed: %s", key_str, save.data.size(), esp_err_to_name(err));
-        failed++;
-        last_err = err;
-        last_key = save.key;
-        continue;
+  for (const NVSData &save : s_pending_save) {
+    const uint32_t key = save.key;
+    const uint8_t *const data = save.data.data();
+    const size_t len = save.data.size();
+    ESP_LOGVV(TAG, "Checking if NVS data %" PRIu32 " has changed", key);
+
+    // Try to load the value as a u64 if it fits (encode length into the key string).
+    esp_err_t err;
+    size_t current_len;
+    char key_name[KEY_NAME_MAX_SIZE];
+    char *key_name_end = key_name_format_unterminated(key_name, key);
+    if (len <= 8) {
+      uint64_t value;
+      key_name_terminate_with_value_length(key_name_end, len);
+      err = nvs_get_u64(this->nvs_handle, key_name, &value);
+      if (err == ESP_OK) {
+        ESP_LOGVV(TAG, "nvs_get_u64('%s'): ESP_OK, value=0x%08" PRIx64, key_name, value);
+        if (memcmp(data, &value, len) == 0) {
+          goto done_cached;  // NOLINT(cppcoreguidelines-avoid-goto)
+        }
+      } else {
+        ESP_LOGVV(TAG, "nvs_get_u64('%s'): %s", key_name, esp_err_to_name(err));
+        // Check whether the value was previously stored as a blob then erase the previous value if it changed.
+        key_name_end[0] = '\0';
+        err = nvs_get_blob(this->nvs_handle, key_name, nullptr, &current_len);
+        if (err == ESP_OK) {
+          if (current_len != len) {
+            ESP_LOGVV(TAG, "nvs_get_blob('%s'): ESP_OK, length mismatch (%zu!=%zu)", key_name, current_len, len);
+          } else {
+            err = nvs_get_blob(this->nvs_handle, key_name, &value, &current_len);
+            if (err == ESP_OK) {
+              ESP_LOGVV(TAG, "nvs_get_blob('%s'): ESP_OK, length=%zu", key_name, len);
+              if (memcmp(data, &value, len) == 0) {
+                goto done_cached;  // NOLINT(cppcoreguidelines-avoid-goto)
+              }
+            }
+          }
+        }
+        if (err != ESP_OK) {
+          ESP_LOGVV(TAG, "nvs_get_blob('%s'): %s", key_name, esp_err_to_name(err));
+        } else {
+          err = nvs_erase_key(this->nvs_handle, key_name);
+          ESP_LOGVV(TAG, "nvs_erase_key('%s'): %s", key_name, esp_err_to_name(err));
+          if (err != ESP_OK) {
+            goto done_error;  // NOLINT(cppcoreguidelines-avoid-goto)
+          }
+        }
       }
-      written++;
-    } else {
-      ESP_LOGV(TAG, "NVS data not changed skipping %" PRIu32 "  len=%zu", save.key, save.data.size());
-      cached++;
+
+      // Write the new value as a u64.
+      key_name_terminate_with_value_length(key_name_end, len);
+      value = 0;
+      memcpy(&value, data, len);
+      err = nvs_set_u64(this->nvs_handle, key_name, value);
+      ESP_LOGVV(TAG, "nvs_set_u64('%s'): %s", key_name, esp_err_to_name(err));
+      if (err == ESP_OK) {
+        goto done_written;  // NOLINT(cppcoreguidelines-avoid-goto)
+      }
+      goto done_error;  // NOLINT(cppcoreguidelines-avoid-goto)
     }
+
+    // Fall back to storing the value as a blob.
+    key_name_end[0] = '\0';
+    err = nvs_get_blob(this->nvs_handle, key_name, nullptr, &current_len);
+    if (err == ESP_OK) {
+      if (current_len != len) {
+        ESP_LOGVV(TAG, "nvs_get_blob('%s'): ESP_OK, length mismatch (%zu!=%zu)", key_name, current_len, len);
+      } else {
+        SmallBufferWithHeapFallback<256> current_value(len);
+        err = nvs_get_blob(this->nvs_handle, key_name, current_value.get(), &current_len);
+        if (err == ESP_OK) {
+          ESP_LOGVV(TAG, "nvs_get_blob('%s'): ESP_OK, length=%zu", key_name, len);
+          if (memcmp(data, current_value.get(), len) == 0) {
+            goto done_cached;  // NOLINT(cppcoreguidelines-avoid-goto)
+          }
+        }
+      }
+    }
+    if (err != ESP_OK) {
+      ESP_LOGVV(TAG, "nvs_get_blob('%s'): %s", key_name, esp_err_to_name(err));
+    }
+    err = nvs_set_blob(this->nvs_handle, key_name, data, len);
+    ESP_LOGVV(TAG, "nvs_set_blob('%s'): %s", key_name, esp_err_to_name(err));
+    if (err == ESP_OK) {
+      goto done_written;  // NOLINT(cppcoreguidelines-avoid-goto)
+    }
+
+  done_error:
+    failed++;
+    last_err = err;
+    last_key = key;
+    continue;
+
+  done_written:
+    ESP_LOGV(TAG, "NVS changed: key=%" PRIu32 ", length=%zu", key, len);
+    written++;
+    continue;
+
+  done_cached:
+    ESP_LOGV(TAG, "NVS unchanged: key=%" PRIu32 ", length=%zu", key, len);
+    cached++;
   }
   s_pending_save.clear();
 
@@ -267,27 +379,6 @@ bool ESP32Preferences::sync() {
   }
 
   return failed == 0;
-}
-
-bool ESP32Preferences::is_changed_(uint32_t nvs_handle, const NVSData &to_save, const char *key_str) {
-  size_t actual_len;
-  esp_err_t err = nvs_get_blob(nvs_handle, key_str, nullptr, &actual_len);
-  if (err != 0) {
-    ESP_LOGV(TAG, "nvs_get_blob('%s'): %s - the key might not be set yet", key_str, esp_err_to_name(err));
-    return true;
-  }
-  // Check size first before allocating memory
-  if (actual_len != to_save.data.size()) {
-    return true;
-  }
-  // Most preferences are small, use stack buffer with heap fallback for large ones
-  SmallBufferWithHeapFallback<256> stored_data(actual_len);
-  err = nvs_get_blob(nvs_handle, key_str, stored_data.get(), &actual_len);
-  if (err != 0) {
-    ESP_LOGV(TAG, "nvs_get_blob('%s') failed: %s", key_str, esp_err_to_name(err));
-    return true;
-  }
-  return memcmp(to_save.data.data(), stored_data.get(), to_save.data.size()) != 0;
 }
 
 bool ESP32Preferences::reset() {
