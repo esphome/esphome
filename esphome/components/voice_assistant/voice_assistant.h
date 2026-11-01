@@ -180,6 +180,27 @@ class VoiceAssistant final : public Component {
   const Configuration &get_configuration();
 
   bool is_running() const { return this->state_ != State::IDLE; }
+#ifdef USE_VOICE_ASSISTANT_MICROPHONE_BUFFER_STATE
+  /// Returns the minimum free bytes per microphone channel. Storage held by an audio source is not free.
+  /// Returns 0 outside STREAMING_MICROPHONE or if a configured ring buffer is absent.
+  /// Call only from the main loop. Each ring query is thread-safe, but the result does not reserve space.
+  /// A producer must coordinate concurrent writes before it uses this snapshot to admit audio.
+  size_t get_microphone_buffer_free() const {
+    if (this->state_ != State::STREAMING_MICROPHONE)
+      return 0;
+    auto ring_buffer = this->ring_buffer_.lock();
+    if (ring_buffer == nullptr)
+      return 0;
+    size_t free = ring_buffer->free();
+    if (this->mic_source2_ != nullptr) {
+      auto ring_buffer2 = this->ring_buffer2_.lock();
+      if (ring_buffer2 == nullptr)
+        return 0;
+      free = std::min(free, ring_buffer2->free());
+    }
+    return free;
+  }
+#endif
   void set_continuous(bool continuous) { this->continuous_ = continuous; }
   bool is_continuous() const { return this->continuous_; }
   /// The voice_assistant.is_running condition: a pipeline is running or continuous mode keeps one coming.
