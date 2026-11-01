@@ -535,7 +535,9 @@ class FollowEntity:
 
     def __call__(self, entity: MockObj, source: MockObj, *args: SafeExpType) -> None:
         """Make ``entity`` publish every state of ``source``; ``args`` precede the callback."""
-        publish = f"{parent_ref(entity).publish_state(RawExpression(self.value))};"
+        publish = cg.statement(
+            parent_ref(entity).publish_state(RawExpression(self.value))
+        )
         callback = LambdaExpression(
             [publish], list(self.params), capture="", return_type=cg.void
         )

@@ -4,7 +4,6 @@
 #include <memory>
 #include <vector>
 #include "esphome/components/packet_interface/xxtea_encryption.h"
-#include "esphome/core/application.h"
 
 namespace esphome::packet_interface::encryption_testing {
 
@@ -74,21 +73,7 @@ struct Peer {
   std::vector<Packet> received;
 };
 
-// Each test replaces App with a fresh one
-class XxteaEncryptionTest : public ::testing::Test {
- protected:
-  void SetUp() override {
-    App.~Application();
-    new (&App) Application();
-    static char name[] = "xxtea-tests";
-    static char friendly_name[] = "";
-    App.pre_setup(name, sizeof(name) - 1, friendly_name, 0);
-  }
-  void TearDown() override {
-    App.~Application();
-    new (&App) Application();  // later tests and the test listener use App
-  }
-};
+class XxteaEncryptionTest : public ::testing::Test {};
 
 TEST_F(XxteaEncryptionTest, MaxPacketSizeAllowsForTrailerAndWords) {
   Peer a;

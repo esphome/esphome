@@ -6,7 +6,6 @@
 #include <cmath>
 #include <utility>
 #include <vector>
-#include "esphome/components/host/preferences.h"
 #include "esphome/components/ms8607/ms8607.h"
 #include "esphome/core/application.h"
 #include "esphome/core/hal.h"
@@ -115,20 +114,17 @@ class MS8607LifecycleTest : public ::testing::Test {
   sensor::Sensor humidity_;
 
   void SetUp() override {
-    new (&App) Application;
-    App.pre_setup("ms8607-lifecycle-tests", 22, "MS8607 tests", 12);
-    host::setup_preferences();
     this->chip_.set_i2c_bus(&this->bus_);
     this->chip_.set_i2c_address(PT_ADDRESS);
     this->humidity_device_.set_i2c_bus(&this->bus_);
     this->humidity_device_.set_i2c_address(H_ADDRESS);
   }
 
+  // Drop the chip's pending timeouts so none outlives it into a later test
   void TearDown() override {
     for (uint32_t id = 0; id < 5; ++id)
       App.scheduler.cancel_timeout(&this->chip_, id);
     App.scheduler.call(millis());
-    App.~Application();
   }
 
   static void run_timers(uint32_t duration) {
