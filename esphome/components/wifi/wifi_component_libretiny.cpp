@@ -478,6 +478,12 @@ void WiFiComponent::wifi_process_event_(LTWiFiEvent *event) {
     case ESPHOME_EVENT_ID_WIFI_SCAN_DONE: {
       auto &it = event->data.scan_done;
       ESP_LOGV(TAG, "Scan done: status=%" PRIu32 " number=%u scan_id=%u", it.status, it.number, it.scan_id);
+#ifdef USE_RTL87XX
+      // The driver also reports the scan inside each join; taking that one would clear the results the
+      // retry phases are working from, so only a scan this component started counts
+      if (this->state_ != WIFI_COMPONENT_STATE_STA_SCANNING && !this->is_roaming_scan_active())
+        break;
+#endif
       this->wifi_scan_done_callback_();
       break;
     }
