@@ -115,6 +115,8 @@ esphome/components/bq25186/* @Rapsssito
 esphome/components/bq27220/* @rggammon
 esphome/components/bq76972/* @limpkin
 esphome/components/bridge/* @kbx81
+esphome/components/bthome/* @jpeletier
+esphome/components/bthome/sensor/* @jpeletier
 esphome/components/bthome_mithermometer/* @nagyrobi
 esphome/components/button/* @esphome/core
 esphome/components/bytebuffer/* @clydebarrow
