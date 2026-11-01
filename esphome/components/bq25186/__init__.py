@@ -10,6 +10,11 @@ import esphome.config_validation as cv
 from esphome.const import CONF_ID, CONF_UPDATE_INTERVAL, CONF_WATCHDOG
 from esphome.core import CORE, ID, CoroPriority, EsphomeError, Lambda, TimePeriod
 from esphome.coroutine import coroutine_with_priority
+from esphome.cpp_generator import (
+    AssignmentExpression,
+    HexIntLiteral,
+    VariableDeclarationExpression,
+)
 import esphome.final_validate as fv
 from esphome.types import ConfigType, TemplateArgsType
 
@@ -72,6 +77,8 @@ BQ25186_CHILD_SCHEMA = cv.Schema(
 BQ25186StatusRegisters = bq25186_ns.class_("BQ25186StatusRegisters")
 # Bit set for each field value that reads as on: a single bit is on when it is 1
 BIT_SET = 0b10
+# The generated status function's parameter
+_STATUS = cg.MockObj("status")
 
 
 @dataclass
@@ -79,8 +86,8 @@ class _StatusPublisher:
     """The statements of one hub's generated status function."""
 
     hub: cg.MockObj
-    binary: list[str] = field(default_factory=list)
-    text: list[str] = field(default_factory=list)
+    binary: list[cg.Statement] = field(default_factory=list)
+    text: list[cg.Statement] = field(default_factory=list)
 
 
 @dataclass
@@ -95,7 +102,7 @@ def _get_data() -> BQ25186Data:
     return CORE.data[DOMAIN]
 
 
-def _add_statement(hub: cg.MockObj, statement: str, text: bool) -> None:
+def _add_statement(hub: cg.MockObj, statement: cg.Statement, text: bool) -> None:
     data = _get_data()
     if data.emitted:
         raise ValueError(
@@ -107,12 +114,12 @@ def _add_statement(hub: cg.MockObj, statement: str, text: bool) -> None:
     (publisher.text if text else publisher.binary).append(statement)
 
 
-def _state_expression(reg: int, shift: int, mask: int, match: int) -> str:
-    """The C++ expression for whether the field reads as on."""
-    value = f"(status[{reg}] >> {shift}) & {mask:#04x}"
+def _state_expression(reg: int, shift: int, mask: int, match: int) -> cg.MockObj:
+    """Whether the field reads as on."""
+    value = (_STATUS[reg] >> shift) & HexIntLiteral(mask)
     if mask == 0x01 and match == BIT_SET:
         return value
-    return f"({match:#06b} >> ({value})) & 1"
+    return (cg.MockObj(f"{match:#06b}") >> value) & 1
 
 
 def add_binary_status(
@@ -120,21 +127,27 @@ def add_binary_status(
 ) -> None:
     """Publish whether field (status[reg] >> shift) & mask is on, as a bit of match."""
     state = _state_expression(reg, shift, mask, match)
-    _add_statement(hub, f"{parent_ref(var)}->publish_state({state});", text=False)
+    _add_statement(hub, cg.statement(parent_ref(var).publish_state(state)), text=False)
 
 
 def add_text_status(
     hub: cg.MockObj, var: cg.MockObj, reg: int, shift: int, first: int
 ) -> None:
     """Publish status string first + the two-bit field at status[reg] >> shift, on change."""
-    last = f"esphome__{var}__last"  # 0xFF so the first poll publishes
+    last = cg.MockObj(f"esphome__{var}__last")
+    # 0xFF so the first poll publishes
+    declaration = VariableDeclarationExpression(cg.uint8, "", last, static=True)
     _add_statement(
         hub,
-        f"static uint8_t {last} = 0xFF;\n"
-        f"bq25186::publish_status_text({parent_ref(var)}, {last}, "
-        f"status[{reg}] >> {shift}, {first});",
+        cg.statement(
+            AssignmentExpression(None, None, declaration, HexIntLiteral(0xFF))
+        ),
         text=True,
     )
+    call = bq25186_ns.publish_status_text(
+        parent_ref(var), last, _STATUS[reg] >> shift, first
+    )
+    _add_statement(hub, cg.statement(call), text=True)
 
 
 @coroutine_with_priority(CoroPriority.FINAL)
@@ -142,7 +155,7 @@ async def _emit_status_publishers() -> None:
     data = _get_data()
     data.emitted = True
     cg.add_define("USE_BQ25186_STATUS_PUBLISHER")
-    params = [(BQ25186StatusRegisters.operator("const").operator("ref"), "status")]
+    params = [(BQ25186StatusRegisters.operator("const").operator("ref"), str(_STATUS))]
     for publisher in data.publishers.values():
         # Binary sensors publish before text sensors, as they always have
         fn = cg.static_function(

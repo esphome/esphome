@@ -793,7 +793,7 @@ def static_function(
     name: str,
     return_type: SafeExpType,
     parameters: TemplateArgsType,
-    body: list[str],
+    body: list[str | Statement],
 ) -> RawExpression:
     """Emit ``static <return_type> <name>(parameters) { body }`` at global scope and return an
     expression naming it, for use as a template argument or a function pointer.
@@ -807,7 +807,7 @@ def static_function(
     )
     add_global(RawStatement(f"{signature};"))
     add_global_after_includes(
-        RawStatement(f"{signature} {{\n{indent(chr(10).join(body))}\n}}")
+        RawStatement(f"{signature} {{\n{indent(chr(10).join(map(str, body)))}\n}}")
     )
     return RawExpression(name)
 
