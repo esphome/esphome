@@ -1,1 +1,2 @@
 nrf52:
+  variant: NRF54L

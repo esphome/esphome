@@ -73,7 +73,7 @@ void Logger::pre_setup() {
   if (this->baud_rate_ > 0) {
     static const struct device *uart_dev = nullptr;
     switch (this->uart_) {
-#ifdef USE_NRF54L
+#ifdef USE_NRF52_VARIANT_NRF54L
       case UART_SELECTION_UART0:  // NOLINT(bugprone-branch-clone)
         uart_dev = DEVICE_DT_GET_OR_NULL(DT_NODELABEL(uart20));
         break;

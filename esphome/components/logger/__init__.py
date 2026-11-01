@@ -226,10 +226,10 @@ def uart_selection(value: Any) -> str:
 
 
 def _is_nrf54l() -> bool:
-    from esphome.components.nrf52.boards import is_nrf54l
-    from esphome.components.zephyr import zephyr_data
+    from esphome.components.nrf52.const import VARIANT_NRF54L
+    from esphome.components.nrf52.framework import get_nrf52_variant
 
-    return is_nrf54l(zephyr_data()["board"])
+    return get_nrf52_variant() == VARIANT_NRF54L
 
 
 def validate_local_no_higher_than_global(config: ConfigType) -> ConfigType:
@@ -396,7 +396,7 @@ CONFIG_SCHEMA = cv.All(
                 ln882x=DEFAULT,
                 rtl87xx=DEFAULT,
                 nrf52=USB_CDC,
-                nrf52_nrf54l=UART0,
+                nrf52_54l=UART0,
             ): cv.All(
                 cv.only_on(
                     [

@@ -2322,7 +2322,9 @@ class SplitDefault(Optional):
     :data:`esp32.VARIANT_*` constants (``ESP32C3`` → ``c3``). For RP2 the
     variant strips just ``RP`` (``RP2040`` → ``2040``, ``RP2350`` → ``2350``)
     so kwargs read naturally — `rp2_2040=...` is the override for the
-    Pico / Pico W and `rp2_2350=...` is the override for the Pico 2.
+    Pico / Pico W and `rp2_2350=...` is the override for the Pico 2. For
+    nRF52 the variant strips ``NRF`` (``NRF54L`` → ``54l``), so `nrf52_54l=...`
+    is the override for nRF54L boards.
     """
 
     def __init__(self, key, **kwargs):
@@ -2362,13 +2364,10 @@ class SplitDefault(Optional):
                 keys += _get_default_key(variant)
             keys += _get_default_key(framework)
         elif CORE.is_nrf52:
-            from esphome.components.nrf52.boards import is_nrf54l
-            from esphome.components.zephyr.const import KEY_ZEPHYR
+            from esphome.components.nrf52.framework import get_nrf52_variant
 
-            # nrf52_nrf54l=... is the override for nRF54L boards
-            board = CORE.data.get(KEY_ZEPHYR, {}).get("board")
-            if board and is_nrf54l(board):
-                keys += _get_default_key("nrf54l")
+            # Strip the "NRF" prefix like RP2 does: nrf52_54l=... is the nRF54L override
+            keys += _get_default_key(get_nrf52_variant().removeprefix("NRF").lower())
         keys += _get_default_key()
         for key in keys:
             if self._defaults.get(key) is not None:

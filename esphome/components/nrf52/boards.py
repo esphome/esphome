@@ -73,8 +73,3 @@ BOOTLOADER_CONFIG = {
         Section("open_bootloader", 0xE0000, 0x20000, "flash_primary"),
     ],
 }
-
-
-def is_nrf54l(board: str) -> bool:
-    """nRF54L boards name the SoC in the board qualifiers, e.g. nrf54l15dk/nrf54l15/cpuapp."""
-    return "/nrf54l" in board.lower()
