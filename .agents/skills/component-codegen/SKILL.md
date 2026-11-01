@@ -189,7 +189,7 @@ drive a state when the restore mode is disabled. A hub that applies its switches
 reads `sw->get_initial_write_state()`, which already applies `inverted`.
 
 **Entities that each watch a register field:** one class taking register, shift, mask and match from a
-Python tuple table, in typed `StaticVector`s sized by `cg.slot_counter`; not a template per bit, not a
+Python tuple table, in typed `SlotList`s sized by `cg.slot_list`; not a template per bit, not a
 virtual listener base (a second vptr per entity).
 
 ## Other helpers

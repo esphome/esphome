@@ -496,3 +496,10 @@ def test_slot_list_outside_a_component_package_raises() -> None:
             module="esphome.components.pn532.binary_sensor",
             package=False,
         )
+
+
+def test_slot_list_declared_twice_raises() -> None:
+    """Two components claiming one define would emit it for the wrong one."""
+    _declare_slot_list("TEST_SLOT_LIST_TWICE")
+    with pytest.raises(ValueError, match="already declared"):
+        _declare_slot_list("TEST_SLOT_LIST_TWICE", module="esphome.components.rc522")
