@@ -13,8 +13,7 @@ namespace {
 
 class Server : public Rfc2217Server {
  public:
-  Server(Pipe *pipe, FakeSerial *serial) {
-    this->set_tcp_uart(pipe);
+  Server(Pipe *pipe, FakeSerial *serial) : Rfc2217Server(pipe) {
     this->set_uart_parent(serial);
     this->setup();
   }
@@ -36,8 +35,7 @@ class Server : public Rfc2217Server {
 // The real reload_serial(): a host UART cannot change its line.
 class PlainServer : public Rfc2217Server {
  public:
-  PlainServer(Pipe *pipe, FakeSerial *serial) {
-    this->set_tcp_uart(pipe);
+  PlainServer(Pipe *pipe, FakeSerial *serial) : Rfc2217Server(pipe) {
     this->set_uart_parent(serial);
     this->setup();
   }

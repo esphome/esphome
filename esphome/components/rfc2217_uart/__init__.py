@@ -52,8 +52,8 @@ FINAL_VALIDATE_SCHEMA = _final_validate
 
 
 async def to_code(config: ConfigType) -> None:
-    var = await uart.new_uart_component(config)
-    cg.add(var.set_tcp_uart(await cg.get_variable(config[CONF_TCP_UART_ID])))
+    tcp = await cg.get_variable(config[CONF_TCP_UART_ID])
+    var = await uart.new_uart_component(config, tcp)
     # A hardware UART on ESP32 changes its line without a driver reinstall.
     full_id, _ = await cg.get_variable_with_full_id(config[CONF_UART_ID])
     if isinstance(full_id.type, MockObjClass) and full_id.type.inherits_from(

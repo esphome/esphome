@@ -24,7 +24,7 @@ inline uint8_t to_rfc_parity(uart::UARTParityOptions parity) {
 /// Telnet with the COM-PORT option on a tcp_uart: option negotiation, escaping and RFC 2217 flow control.
 class Rfc2217Base : public Component {
  public:
-  void set_tcp_uart(tcp_uart::TcpUart *tcp) { this->tcp_ = tcp; }
+  explicit Rfc2217Base(tcp_uart::TcpUart *tcp) : tcp_(tcp) {}
   float get_setup_priority() const override { return setup_priority::AFTER_WIFI; }
 
  protected:
@@ -65,7 +65,7 @@ class Rfc2217Base : public Component {
   virtual void on_command(uint8_t code, const uint8_t *value, size_t len) = 0;
   virtual void on_link(bool up) = 0;
 
-  tcp_uart::TcpUart *tcp_{nullptr};
+  tcp_uart::TcpUart *tcp_;
   TelnetDecoder decoder_;
   // us_ is this side's option, him_ the peer's.
   OptionState us_[2]{};
@@ -83,7 +83,7 @@ class Rfc2217Base : public Component {
 /// RFC 2217 access server for a hardware UART.
 class Rfc2217Server : public Rfc2217Base, public uart::UARTDevice {
  public:
-  Rfc2217Server() { this->server_ = true; }
+  explicit Rfc2217Server(tcp_uart::TcpUart *tcp) : Rfc2217Base(tcp) { this->server_ = true; }
 #ifdef USE_ESP32
   /// The UART is an IDFUARTComponent.
   void set_idf_uart(bool idf_uart) { this->idf_uart_ = idf_uart; }

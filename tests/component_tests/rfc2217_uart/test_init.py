@@ -136,6 +136,6 @@ def test_role_and_uart_id_are_required() -> None:
 
 def test_esp32_hardware_uart_changes_its_line_in_place(generate_main) -> None:
     main_cpp = generate_main(f"{DIR}/test_rfc2217_uart.yaml")
-    assert "port_server->set_tcp_uart(inbound);" in main_cpp
+    assert "rfc2217_uart::Rfc2217Server(inbound);" in main_cpp
     assert "port_server->set_uart_parent(serial_bus);" in main_cpp
     assert "port_server->set_idf_uart(true);" in main_cpp
