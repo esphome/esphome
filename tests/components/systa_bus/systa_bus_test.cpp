@@ -1,7 +1,6 @@
 #include <gtest/gtest.h>
 
 #include <cstdint>
-#include <span>
 #include <vector>
 
 #include "common.h"
@@ -10,15 +9,13 @@ namespace esphome::systa_bus::testing {
 
 namespace {
 
-struct TestListener {
+class TestListener final : public SystaBusListener {
+ public:
+  void handle_message(std::span<const uint8_t> message) override {
+    this->messages.emplace_back(message.begin(), message.end());
+  }
   std::vector<std::vector<uint8_t>> messages;
 };
-
-// Stands in for the generated function; records into the running test's listener
-TestListener *active_listener = nullptr;
-void record_message(std::span<const uint8_t> message) {
-  active_listener->messages.emplace_back(message.begin(), message.end());
-}
 
 void put_i16be(std::vector<uint8_t> &frame, size_t offset, int16_t value) {
   frame[offset] = static_cast<uint8_t>(static_cast<uint16_t>(value) >> 8);
@@ -46,8 +43,7 @@ class SystaBusTest : public ::testing::Test {
  protected:
   void SetUp() override {
     this->bus_.set_uart_parent(&this->uart_);
-    active_listener = &this->listener_;
-    this->bus_.set_aqua_publisher(record_message);
+    this->bus_.register_listener(&this->listener_);
   }
   void feed_(const std::vector<uint8_t> &bytes) {
     this->uart_.push_rx(bytes);
