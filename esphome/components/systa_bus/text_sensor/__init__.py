@@ -19,8 +19,10 @@ from .. import (
 
 CONFIG_SCHEMA = cv.typed_schema(
     {
-        CONF_SYSTASOLAR_AQUA: cv.Schema(
+        # id and setup_priority are kept for old configs; they no longer do anything
+        CONF_SYSTASOLAR_AQUA: cv.COMPONENT_SCHEMA.extend(
             {
+                cv.GenerateID(): cv.declare_id(cg.Component),
                 cv.GenerateID(CONF_SYSTA_BUS_ID): cv.use_id(SystaBus),
                 cv.Optional(CONF_ERROR_CODE): text_sensor.text_sensor_schema(),
             }
