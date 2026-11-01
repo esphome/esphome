@@ -250,7 +250,7 @@ async def emit_empty_slot_lists() -> None:
     # components and platforms; C++ unit tests have no MULTI_CONF hub entry and set the define
     built = {name.rpartition(".")[2] for name, _ in iter_components(CORE.config)}
     # leave a define set by hand (a test manifest override) alone
-    done = state.emitted | state.counts.keys() | {d.name for d in CORE.defines}
+    done = state.counts.keys() | {d.name for d in CORE.defines}
     for define, domain in _SLOT_LIST_DOMAINS.items():
         if domain in built and define not in done:
             state.emitted.add(define)
