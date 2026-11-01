@@ -1,0 +1,42 @@
+sensor:
+  - platform: bthome
+    source_id: bthome_remote_plain
+    type: BATTERY_PCT
+    name: "Remote Battery"
+  - platform: bthome
+    source_id: bthome_remote_plain
+    type: TEMPERATURE_C_E2
+    name: "Remote Temperature"
+  - platform: bthome
+    source_id: bthome_remote_plain
+    type: SIGNAL_STRENGTH
+    name: "Remote Signal Strength"
+
+binary_sensor:
+  - platform: bthome
+    source_id: bthome_remote_plain
+    type: MOTION_DETECTED
+    name: "Remote Motion"
+  - platform: bthome
+    source_id: bthome_remote_plain
+    type: DOOR_OPEN
+    name: "Remote Door"
+
+text_sensor:
+  - platform: bthome
+    source_id: bthome_remote_plain
+    type: TEXT
+    name: "Remote Text"
+  - platform: bthome
+    source_id: bthome_remote_plain
+    type: RAW
+    name: "Remote Raw"
+    on_raw_data:
+      - lambda: |-
+          ESP_LOGD("bthome_test", "Raw data: %u bytes, first 0x%02X", (unsigned) x.size(),
+                   x.empty() ? 0 : x[0]);
+
+bthome:
+  remote_devices:
+    - id: bthome_remote_plain
+      mac_address: 11:22:33:44:55:66
