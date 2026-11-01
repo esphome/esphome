@@ -281,6 +281,17 @@ number:
             id: test_monochromatic_light
             brightness: !lambda "return x / 100.0f;"
 
+# The lambdas get the script parameter by value, so they may modify it.
+script:
+  - id: test_dim_relative_script
+    parameters:
+      step: float
+    then:
+      - light.dim_relative:
+          id: test_monochromatic_light
+          relative_brightness: !lambda "step *= 0.5f; return step;"
+          transition_length: !lambda "return step *= 100.0f;"
+
 output:
   - platform: template
     id: light_test_restore_state_keep
