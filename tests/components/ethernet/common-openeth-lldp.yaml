@@ -1,0 +1,9 @@
+ethernet:
+  type: OPENETH
+  lldp:
+    port: "test-port"
+    system_name: "test-system"
+    system_description: "test-description"
+    tx_fast_count: 4
+    tx_interval: 30
+    tx_hold: 4
