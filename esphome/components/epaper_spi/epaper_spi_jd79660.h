@@ -97,7 +97,7 @@ class EPaperJD79660 : public EPaperBase {
 
   /** State machine constants for \a step_ */
   enum class FSMState : uint8_t {
-    NONE = 0,  //!< Initial/default value: Unused
+    NONE = 0,  //!< Initial/default value: no active step
 
     /* Reset state steps */
     RESET_STEP0_H,
@@ -107,6 +107,7 @@ class EPaperJD79660 : public EPaperBase {
     /* Init state steps */
     INIT_STEP0_REGULARINIT,
     INIT_STEP1_FASTINIT,
+    INIT_STEP2_POWERON,  //!< Extra power-on step for subclasses with a vendor sequence
   };
 
   /** Wait time (millisec) for first reset phase: High

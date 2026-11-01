@@ -12,49 +12,31 @@ void EPaperWaveshare3P97InG::fill(Color color) {
 }
 
 bool EPaperWaveshare3P97InG::reset() {
-  if (this->state_ == EPaperState::RESET)
-    this->step_ = Step::RESET_HIGH;
-
-  switch (this->step_) {
-    case Step::RESET_HIGH:
-      this->reset_pin_->digital_write(true);
-      this->reset_duration_ = RESET_SETTLE_MS;
-      this->step_ = Step::RESET_LOW;
-      return false;
-    case Step::RESET_LOW:
-      this->reset_pin_->digital_write(false);
-      delay(2);
-      this->reset_pin_->digital_write(true);
-      this->reset_duration_ = RESET_SETTLE_MS;
-      this->step_ = Step::RESET_SETTLE;
-      return false;
-    case Step::RESET_SETTLE:
-      this->step_ = Step::INIT_SEQUENCE;
-      // The panel stays busy after reset; start the init sequence without waiting for idle
-      this->skip_next_idle_wait_();
-      return true;
-    default:
-      this->mark_failed(LOG_STR("Invalid reset state"));
-      return true;
+  // The parent checks for idle after reset, but this panel is still busy until the init sequence has run
+  if (this->state_ == EPaperState::RESET_END && this->step_ == FSMState::RESET_STEP2_IDLECHECK) {
+    this->step_ = FSMState::INIT_STEP0_REGULARINIT;
+    this->skip_next_idle_wait_();
+    return true;
   }
+  return EPaperJD79660::reset();
 }
 
 bool EPaperWaveshare3P97InG::initialise([[maybe_unused]] bool partial) {
   switch (this->step_) {
-    case Step::INIT_SEQUENCE:
+    case FSMState::INIT_STEP0_REGULARINIT:
       this->send_init_sequence_(this->init_sequence_, this->init_sequence_length_);
       this->delay_until_ = millis() + 100;
       this->wait_for_idle_(true);
-      this->step_ = Step::POWER_ON;
+      this->step_ = FSMState::INIT_STEP2_POWERON;
       return false;
-    case Step::POWER_ON:
+    case FSMState::INIT_STEP2_POWERON:
       this->command(0x04);
       this->delay_until_ = millis() + 100;
       this->wait_for_idle_(true);
-      this->step_ = Step::INIT_DONE;
+      this->step_ = FSMState::NONE;
       return false;
-    case Step::INIT_DONE:
-      this->step_ = Step::NONE;
+    case FSMState::NONE:
+      // The power-on wait finished; the init sequence is complete
       return true;
     default:
       this->mark_failed(LOG_STR("Invalid initialise state"));

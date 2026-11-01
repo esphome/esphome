@@ -13,25 +13,10 @@ class EPaperWaveshare3P97InG final : public EPaperJD79660 {
   void fill(Color color) override;
 
  protected:
-  // Settle time after each reset edge, as in the vendor sample
-  static constexpr uint16_t RESET_SETTLE_MS = 200;
-
   bool reset() override;
   bool initialise(bool partial) override;
   void refresh_screen(bool partial) override;
   void power_off() override;
-
-  enum class Step : uint8_t {
-    NONE,
-    RESET_HIGH,
-    RESET_LOW,
-    RESET_SETTLE,
-    INIT_SEQUENCE,
-    POWER_ON,
-    INIT_DONE,
-  };
-
-  Step step_{Step::NONE};
 };
 
 }  // namespace esphome::epaper_spi
