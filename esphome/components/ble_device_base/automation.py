@@ -6,7 +6,15 @@ from typing import Any
 from esphome import automation
 import esphome.codegen as cg
 import esphome.config_validation as cv
-from esphome.const import CONF_MAC_ADDRESS, CONF_TRIGGER_ID
+from esphome.const import (
+    CONF_MAC_ADDRESS,
+    CONF_MANUFACTURER_ID,
+    CONF_ON_BLE_ADVERTISE,
+    CONF_ON_BLE_MANUFACTURER_DATA_ADVERTISE,
+    CONF_ON_BLE_SERVICE_DATA_ADVERTISE,
+    CONF_SERVICE_UUID,
+    CONF_TRIGGER_ID,
+)
 from esphome.cpp_generator import MockObjClass
 from esphome.types import ConfigType
 
@@ -18,6 +26,7 @@ from . import (
     as_hex,
     as_reversed_hex_array,
     ble_device_base_ns,
+    bt_uuid,
 )
 
 adv_data_t = cg.std_vector.template(cg.uint8)
@@ -51,20 +60,15 @@ _UUID_WIDTHS = {
 }
 
 
-def uuid_trigger_schema(
-    trigger_class: MockObjClass, extra: dict[Any, Any] | None = None
+def _uuid_trigger_schema(
+    trigger_class: MockObjClass, uuid_key: str
 ) -> Callable[[Any], Any]:
-    """Schema for a UUID-filtered trigger — pairs with uuid_trigger_to_code().
-
-    `extra` carries the required UUID key (a cv marker, so a dict rather than
-    **kwargs); the optional single-mac filter is what uuid_trigger_to_code()
-    reads back.
-    """
+    """Schema for a UUID-filtered trigger — pairs with _uuid_trigger_to_code()."""
     return automation.validate_automation(
         {
             cv.GenerateID(CONF_TRIGGER_ID): cv.declare_id(trigger_class),
             cv.Optional(CONF_MAC_ADDRESS): cv.mac_address,
-            **(extra or {}),
+            cv.Required(uuid_key): bt_uuid,
         }
     )
 
@@ -80,12 +84,12 @@ def _filter_mac(value: Any) -> Any:
 MAC_FILTER_LIST = cv.ensure_list(_filter_mac)
 
 
-def advertise_trigger_schema(trigger_class: MockObjClass) -> Callable[[Any], Any]:
+def _advertise_trigger_schema() -> Callable[[Any], Any]:
     """on_ble_advertise schema: multi-mac list filter, unlike the single-mac
-    uuid_trigger_schema() — pairs with advertise_trigger_to_code()."""
+    _uuid_trigger_schema() — pairs with _advertise_trigger_to_code()."""
     return automation.validate_automation(
         {
-            cv.GenerateID(CONF_TRIGGER_ID): cv.declare_id(trigger_class),
+            cv.GenerateID(CONF_TRIGGER_ID): cv.declare_id(ESPBTAdvertiseTrigger),
             cv.Optional(CONF_MAC_ADDRESS): MAC_FILTER_LIST,
         }
     )
@@ -112,7 +116,7 @@ def mac_filter_table(macs: list) -> cg.MockObj:
     )
 
 
-async def advertise_trigger_to_code(conf: ConfigType, var: cg.MockObj) -> None:
+async def _advertise_trigger_to_code(conf: ConfigType, var: cg.MockObj) -> None:
     """Build an on_ble_advertise trigger (optional multi-mac filter)."""
     trigger = cg.new_Pvariable(conf[CONF_TRIGGER_ID], var)
     if macs := conf.get(CONF_MAC_ADDRESS):
@@ -128,7 +132,7 @@ async def scan_end_trigger_to_code(conf: ConfigType, var: cg.MockObj) -> None:
     _count_listener()
 
 
-async def uuid_trigger_to_code(
+async def _uuid_trigger_to_code(
     conf: ConfigType, var: cg.MockObj, key: str, setter_prefix: str
 ) -> None:
     """Build a UUID-filtered advertise trigger.
@@ -145,3 +149,34 @@ async def uuid_trigger_to_code(
         cg.add(trigger.set_address(mac.as_hex))
     await automation.build_automation(trigger, [(adv_data_t_const_ref, "x")], conf)
     _count_listener()
+
+
+# (trigger key, uuid key, setter prefix) of the UUID-filtered advertise triggers.
+_UUID_TRIGGERS = (
+    (CONF_ON_BLE_SERVICE_DATA_ADVERTISE, CONF_SERVICE_UUID, "set_service_uuid"),
+    (
+        CONF_ON_BLE_MANUFACTURER_DATA_ADVERTISE,
+        CONF_MANUFACTURER_ID,
+        "set_manufacturer_uuid",
+    ),
+)
+
+# Advertise trigger keys shared by every tracker; pairs with advertise_triggers_to_code().
+ADVERTISE_TRIGGERS_SCHEMA = {
+    cv.Optional(CONF_ON_BLE_ADVERTISE): _advertise_trigger_schema(),
+    cv.Optional(CONF_ON_BLE_SERVICE_DATA_ADVERTISE): _uuid_trigger_schema(
+        BLEServiceDataAdvertiseTrigger, CONF_SERVICE_UUID
+    ),
+    cv.Optional(CONF_ON_BLE_MANUFACTURER_DATA_ADVERTISE): _uuid_trigger_schema(
+        BLEManufacturerDataAdvertiseTrigger, CONF_MANUFACTURER_ID
+    ),
+}
+
+
+async def advertise_triggers_to_code(config: ConfigType, var: cg.MockObj) -> None:
+    """Build every ADVERTISE_TRIGGERS_SCHEMA trigger in a tracker config on hub `var`."""
+    for conf in config.get(CONF_ON_BLE_ADVERTISE, []):
+        await _advertise_trigger_to_code(conf, var)
+    for trigger_key, uuid_key, setter_prefix in _UUID_TRIGGERS:
+        for conf in config.get(trigger_key, []):
+            await _uuid_trigger_to_code(conf, var, uuid_key, setter_prefix)
