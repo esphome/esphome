@@ -1,5 +1,4 @@
 from collections.abc import Callable
-from dataclasses import dataclass, field
 from typing import Any
 
 from esphome import automation
@@ -8,8 +7,7 @@ import esphome.codegen as cg
 from esphome.components import i2c
 import esphome.config_validation as cv
 from esphome.const import CONF_ID, CONF_UPDATE_INTERVAL, CONF_WATCHDOG
-from esphome.core import CORE, ID, CoroPriority, EsphomeError, Lambda, TimePeriod
-from esphome.coroutine import coroutine_with_priority
+from esphome.core import CORE, ID, EsphomeError, Lambda, TimePeriod
 from esphome.cpp_generator import (
     AssignmentExpression,
     HexIntLiteral,
@@ -77,41 +75,14 @@ BQ25186_CHILD_SCHEMA = cv.Schema(
 BQ25186StatusRegisters = bq25186_ns.class_("BQ25186StatusRegisters")
 # Bit set for each field value that reads as on: a single bit is on when it is 1
 BIT_SET = 0b10
-# The generated status function's parameter
-_STATUS = cg.MockObj("status")
-
-
-@dataclass
-class _StatusPublisher:
-    """The statements of one hub's generated status function."""
-
-    hub: cg.MockObj
-    binary: list[cg.Statement] = field(default_factory=list)
-    text: list[cg.Statement] = field(default_factory=list)
-
-
-@dataclass
-class BQ25186Data:
-    publishers: dict[str, _StatusPublisher] = field(default_factory=dict)
-    emitted: bool = False
-
-
-def _get_data() -> BQ25186Data:
-    if DOMAIN not in CORE.data:
-        CORE.data[DOMAIN] = BQ25186Data()
-    return CORE.data[DOMAIN]
-
-
-def _add_statement(hub: cg.MockObj, statement: cg.Statement, text: bool) -> None:
-    data = _get_data()
-    if data.emitted:
-        raise ValueError(
-            f"{hub}: status statement added after the publishers were emitted"
-        )
-    if not data.publishers:
-        CORE.add_job(_emit_status_publishers)
-    publisher = data.publishers.setdefault(str(hub), _StatusPublisher(hub))
-    (publisher.text if text else publisher.binary).append(statement)
+STATUS_PUBLISHER = cg.HubFunction(
+    "status_fn",
+    cg.void,
+    [(BQ25186StatusRegisters.const_ref(), "status")],
+    setter="set_status_publisher",
+    define="USE_BQ25186_STATUS_PUBLISHER",
+)
+_STATUS = STATUS_PUBLISHER.param("status")
 
 
 def _state_expression(reg: int, shift: int, mask: int, match: int) -> cg.MockObj:
@@ -127,7 +98,7 @@ def add_binary_status(
 ) -> None:
     """Publish whether field (status[reg] >> shift) & mask is on, as a bit of match."""
     state = _state_expression(reg, shift, mask, match)
-    _add_statement(hub, cg.statement(parent_ref(var).publish_state(state)), text=False)
+    STATUS_PUBLISHER.add(hub, parent_ref(var).publish_state(state))
 
 
 def add_text_status(
@@ -137,34 +108,15 @@ def add_text_status(
     last = cg.MockObj(f"esphome__{var}__last")
     # 0xFF so the first poll publishes
     declaration = VariableDeclarationExpression(cg.uint8, "", last, static=True)
-    _add_statement(
+    STATUS_PUBLISHER.add(
+        hub, AssignmentExpression(None, None, declaration, HexIntLiteral(0xFF))
+    )
+    STATUS_PUBLISHER.add(
         hub,
-        cg.statement(
-            AssignmentExpression(None, None, declaration, HexIntLiteral(0xFF))
+        bq25186_ns.publish_status_text(
+            parent_ref(var), last, _STATUS[reg] >> shift, first
         ),
-        text=True,
     )
-    call = bq25186_ns.publish_status_text(
-        parent_ref(var), last, _STATUS[reg] >> shift, first
-    )
-    _add_statement(hub, cg.statement(call), text=True)
-
-
-@coroutine_with_priority(CoroPriority.FINAL)
-async def _emit_status_publishers() -> None:
-    data = _get_data()
-    data.emitted = True
-    cg.add_define("USE_BQ25186_STATUS_PUBLISHER")
-    params = [(BQ25186StatusRegisters.operator("const").operator("ref"), str(_STATUS))]
-    for publisher in data.publishers.values():
-        # Binary sensors publish before text sensors, as they always have
-        fn = cg.static_function(
-            f"esphome__{publisher.hub}__status_fn",
-            cg.void,
-            params,
-            [*publisher.binary, *publisher.text],
-        )
-        cg.add(publisher.hub.set_status_publisher(fn))
 
 
 REG_VBAT_CTRL = 0x03

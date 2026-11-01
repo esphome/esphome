@@ -41,23 +41,24 @@ def _check(expr: str, reg: int, bits: int, expected: list[int]) -> None:
 
 def test_status_publishers(generate_main: Callable[[str], str]) -> None:
     """Every generated decode matches the datasheet; one function per hub with entities,
-    binary sensors in block and field order, then text sensors."""
+    items in config order (charger_a's text block comes first)."""
     main_cpp = generate_main("tests/component_tests/bq25186/test_bq25186_status.yaml")
     body = _body(main_cpp, "charger_a")
-    binary = [m for line in body if (m := BINARY.fullmatch(line))]
-    assert [m[1] for m in binary] == list(BINARY_SENSORS)
-    for match in binary:
-        reg, bits, on_values = BINARY_SENSORS[match[1]]
-        _check(f"({match[2]}) != 0", reg, bits, [v in on_values for v in range(4)])
-    strings = status_strings()
-    pairs = list(zip(body[len(binary) :: 2], body[len(binary) + 1 :: 2], strict=True))
+    n_text = 2 * len(TEXT_SENSORS)
+    pairs = zip(body[0:n_text:2], body[1:n_text:2], strict=True)
     text = [(LAST.fullmatch(last), TEXT.fullmatch(call)) for last, call in pairs]
     assert [(m[1], t[1]) for m, t in text] == [(key, key) for key in TEXT_SENSORS]
+    strings = status_strings()
     for _, call in text:
         reg, bits, states = TEXT_SENSORS[call[1]]
         # publish_status_text keeps the two low bits
         expected = [strings.index(state) for state in states]
         _check(f"{call[3]} + (({call[2]}) & 0x03)", reg, bits, expected)
+    binary = [BINARY.fullmatch(line) for line in body[n_text:]]
+    assert [m[1] for m in binary] == list(BINARY_SENSORS)
+    for match in binary:
+        reg, bits, on_values = BINARY_SENSORS[match[1]]
+        _check(f"({match[2]}) != 0", reg, bits, [v in on_values for v in range(4)])
     assert _body(main_cpp, "charger_b") == [
         "static uint8_t esphome__b_ts_status__last = 0xFF;",
         "bq25186::publish_status_text(::b_ts_status, esphome__b_ts_status__last, (status[1] >> 3), 4);",

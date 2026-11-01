@@ -61,7 +61,7 @@ static constexpr std::array<SingleBit, 19> SINGLE_BITS{{
     {BATTERY_OCP_FLAG, BQ25186_REG_FLAG0, 0x01},
 }};
 
-// A copy of the function code generation emits for a hub with every status entity;
+// A copy of the function code generation emits for a hub with every status entity, binary block first;
 // tests/component_tests/bq25186/test_status_publisher.py checks it decodes like the generated code
 struct StatusEntities {
   std::array<binary_sensor::BinarySensor, BINARY_COUNT> binary;
