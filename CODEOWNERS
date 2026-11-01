@@ -436,6 +436,7 @@ esphome/components/modbus_controller/switch/* @martgras
 esphome/components/modbus_controller/text_sensor/* @martgras
 esphome/components/modbus_monitor/* @Bascht74
 esphome/components/modbus_server/* @exciton
+esphome/components/modbus_tcp_uart/* @Bascht74
 esphome/components/modem/* @oarcher
 esphome/components/mopeka_ble/* @Fabian-Schmidt @spbrogan
 esphome/components/mopeka_pro_check/* @spbrogan
