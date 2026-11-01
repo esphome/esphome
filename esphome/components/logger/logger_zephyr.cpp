@@ -189,7 +189,7 @@ void Logger::dump_bootloader_() {
     snprintf(version_buf, sizeof(version_buf), "%u.%u.%u", static_cast<unsigned>((version >> 16) & 0xFF),
              static_cast<unsigned>((version >> 8) & 0xFF), static_cast<unsigned>(version & 0xFF));
   }
-  ESP_LOGW(TAG, "Adafruit_nRF52_Bootloader %s has known stability issues. Please update it to 0.11.0 or newer.",
+  ESP_LOGW(TAG, "Adafruit_nRF52_Bootloader version %s has known stability issues. Please update it to 0.11.0 or newer.",
            version_buf);
 }
 #endif
