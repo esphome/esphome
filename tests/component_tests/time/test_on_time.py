@@ -6,17 +6,32 @@ from typing import Any
 
 import pytest
 
-from esphome.components.time import CRON_KEYS, TIME_SCHEMA
+from esphome.components.time import (
+    CRON_KEYS,
+    DAYS_OF_MONTH_FIELD,
+    DAYS_OF_WEEK_FIELD,
+    HOURS_FIELD,
+    MINUTES_FIELD,
+    MONTHS_FIELD,
+    SECONDS_FIELD,
+    TIME_SCHEMA,
+    CronField,
+    cron_field_check,
+    on_time_check,
+)
 import esphome.config_validation as cv
 from esphome.const import (
     CONF_AT,
     CONF_CRON,
     CONF_DAYS_OF_MONTH,
     CONF_DAYS_OF_WEEK,
+    CONF_HOUR,
     CONF_HOURS,
+    CONF_MINUTE,
     CONF_MINUTES,
     CONF_MONTHS,
     CONF_ON_TIME,
+    CONF_SECOND,
     CONF_SECONDS,
     CONF_THEN,
     CONF_TIMEZONE,
@@ -138,63 +153,46 @@ def test_on_time_schedule_rejected(
         TIME_SCHEMA({CONF_TIMEZONE: "UTC0", CONF_ON_TIME: [{**entry, CONF_THEN: []}]})
 
 
-ALL_MINUTES = ", ".join(map(str, range(60)))
-ALL_HOURS = ", ".join(map(str, range(24)))
-ALL_DOM = ", ".join(map(str, range(1, 32)))
-ALL_MONTHS_CPP = ", ".join(map(str, range(1, 13)))
-
-
-def _cron_lines(
-    var: str,
-    seconds: str = "0",
-    minutes: str = ALL_MINUTES,
-    hours: str = ALL_HOURS,
-    days_of_month: str = ALL_DOM,
-    months: str = ALL_MONTHS_CPP,
-    days_of_week: str = "1, 2, 3, 4, 5, 6, 7",
-) -> str:
+def _on_time_lines(automation: str, check: str) -> str:
     return "\n".join(
         [
-            f"new({var}) time::CronTrigger(sntp_time);",
-            f"{var}->add_seconds({{{seconds}}});",
-            f"{var}->add_minutes({{{minutes}}});",
-            f"{var}->add_hours({{{hours}}});",
-            f"{var}->add_days_of_month({{{days_of_month}}});",
-            f"{var}->add_months({{{months}}});",
-            f"{var}->add_days_of_week({{{days_of_week}}});",
+            "sntp_time->add_on_time_callback([](const std::remove_cvref_t<ESPTime> & x) -> void {",
+            f"    if (!({check}))",
+            "      return;",
+            f"    ::{automation}->trigger();",
         ]
     )
 
 
 # One entry per on_time automation in config/on_time_fields.yaml, in order.
 EXPECTED_ON_TIME_CODE = [
-    _cron_lines(
-        "time_crontrigger_id", minutes="0, 5, 10, 15, 20, 25, 30, 35, 40, 45, 50, 55"
+    _on_time_lines(
+        "automation_id", "x.second == 0 && ((0x84210842108421ULL >> x.minute) & 1)"
     ),
-    _cron_lines(
-        "time_crontrigger_id_2", minutes="30", hours="7", days_of_week="2, 3, 4, 5, 6"
+    _on_time_lines(
+        "automation_id_2",
+        "x.second == 0 && x.minute == 30 && x.hour == 7"
+        " && ((0x7cU >> x.day_of_week) & 1)",
     ),
-    _cron_lines("time_crontrigger_id_3", minutes="30", hours="7"),
-    _cron_lines(
-        "time_crontrigger_id_4",
-        minutes="0",
-        hours="8, 9, 10, 11, 12, 13, 14, 15, 16, 17",
+    _on_time_lines("automation_id_3", "x.second == 0 && x.minute == 30 && x.hour == 7"),
+    _on_time_lines(
+        "automation_id_4",
+        "x.second == 0 && x.minute == 0 && ((0x3ff00U >> x.hour) & 1)",
     ),
-    _cron_lines(
-        "time_crontrigger_id_5",
-        minutes="0",
-        hours="12",
-        days_of_month="1, 15",
-        months="1, 7",
+    _on_time_lines(
+        "automation_id_5",
+        "x.second == 0 && x.minute == 0 && x.hour == 12"
+        " && ((0x8002U >> x.day_of_month) & 1) && ((0x82U >> x.month) & 1)",
     ),
-    _cron_lines(
-        "time_crontrigger_id_6",
-        minutes="0",
-        hours="0",
-        days_of_month="1, 8, 15, 22, 29",
+    _on_time_lines(
+        "automation_id_6",
+        "x.second == 0 && x.minute == 0 && x.hour == 0"
+        " && ((0x20408102U >> x.day_of_month) & 1)",
     ),
-    _cron_lines("time_crontrigger_id_7", seconds="0, 15, 30, 45, 60"),
-    _cron_lines("time_crontrigger_id_8", days_of_week="1, 7"),
+    _on_time_lines("automation_id_7", "((0x1000200040008001ULL >> x.second) & 1)"),
+    _on_time_lines(
+        "automation_id_8", "x.second == 0 && ((0x82U >> x.day_of_week) & 1)"
+    ),
 ]
 
 
@@ -209,3 +207,87 @@ def test_on_time_generated_code(
         found = main_cpp.find(expected, position)
         assert found != -1, f"missing or out of order:\n{expected}"
         position = found + len(expected)
+    assert main_cpp.count("sntp_time->start_on_time_checks();") == 1
+    assert main_cpp.find("sntp_time->start_on_time_checks();", position) != -1
+
+
+@pytest.mark.parametrize(
+    ("field", "values", "check"),
+    [
+        (SECONDS_FIELD, list(range(61)), None),
+        (DAYS_OF_WEEK_FIELD, list(range(1, 8)), None),
+        (SECONDS_FIELD, [], "false"),
+        (MINUTES_FIELD, [30], "x.minute == 30"),
+        (DAYS_OF_MONTH_FIELD, [31], "x.day_of_month == 31"),
+        # a 0-60 field takes a 64-bit mask even when every listed value is below 32
+        (SECONDS_FIELD, [0, 1], "((0x3ULL >> x.second) & 1)"),
+        (MINUTES_FIELD, [0, 59], "((0x800000000000001ULL >> x.minute) & 1)"),
+        (HOURS_FIELD, [8, 17], "((0x20100U >> x.hour) & 1)"),
+        (DAYS_OF_MONTH_FIELD, [1, 31], "((0x80000002U >> x.day_of_month) & 1)"),
+        (MONTHS_FIELD, [1, 7], "((0x82U >> x.month) & 1)"),
+        (DAYS_OF_WEEK_FIELD, [2, 3, 4, 5, 6], "((0x7cU >> x.day_of_week) & 1)"),
+    ],
+)
+def test_cron_field_check(
+    field: CronField, values: list[int], check: str | None
+) -> None:
+    assert cron_field_check(field, values) == check
+
+
+def test_empty_field_validates_and_generates(
+    set_core_config: SetCoreConfigCallable,
+) -> None:
+    set_core_config(PlatformFramework.ESP32_IDF)
+    config = TIME_SCHEMA(
+        {CONF_TIMEZONE: "UTC0", CONF_ON_TIME: [{CONF_SECONDS: [], CONF_THEN: []}]}
+    )
+    assert on_time_check(config[CONF_ON_TIME][0]) == "false"
+
+
+def test_list_values_are_deduplicated_ints(
+    set_core_config: SetCoreConfigCallable,
+) -> None:
+    """``true``/``false`` in a list have always meant 1/0; the check must be valid C++."""
+    set_core_config(PlatformFramework.ESP32_IDF)
+    config = TIME_SCHEMA(
+        {
+            CONF_TIMEZONE: "UTC0",
+            CONF_ON_TIME: [{CONF_SECONDS: [True, False, True], CONF_THEN: []}],
+        }
+    )
+    seconds = config[CONF_ON_TIME][0][CONF_SECONDS]
+    assert seconds == [0, 1]
+    assert all(type(value) is int for value in seconds)
+
+
+def test_at_dict_values_are_ints(set_core_config: SetCoreConfigCallable) -> None:
+    """The dict form of ``at`` takes the same path, so ``hour: true`` is checked as 1."""
+    set_core_config(PlatformFramework.ESP32_IDF)
+    config = TIME_SCHEMA(
+        {
+            CONF_TIMEZONE: "UTC0",
+            CONF_ON_TIME: [
+                {
+                    CONF_AT: {CONF_HOUR: True, CONF_MINUTE: 0, CONF_SECOND: 0},
+                    CONF_THEN: [],
+                }
+            ],
+        }
+    )
+    assert on_time_check(config[CONF_ON_TIME][0]) == (
+        "x.second == 0 && x.minute == 0 && x.hour == 1"
+    )
+
+
+def test_every_second_schedule_has_no_check(
+    set_core_config: SetCoreConfigCallable,
+) -> None:
+    """A schedule covering every field's full range fires every second, with no check."""
+    set_core_config(PlatformFramework.ESP32_IDF)
+    config = TIME_SCHEMA(
+        {
+            CONF_TIMEZONE: "UTC0",
+            CONF_ON_TIME: [{CONF_CRON: "* * * * * *", CONF_THEN: []}],
+        }
+    )
+    assert on_time_check(config[CONF_ON_TIME][0]) is None
