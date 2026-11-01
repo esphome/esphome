@@ -3,8 +3,9 @@
 #include "esphome/core/component.h"
 #include "esphome/components/sensor/sensor.h"
 #include "esphome/components/i2c/i2c.h"
+#include "esphome/core/helpers.h"
 #include "esphome/core/log.h"
-#include <deque>
+#include <string>
 
 namespace esphome::ezo {
 
@@ -22,14 +23,49 @@ enum EzoCommandType : uint8_t {
   EZO_CUSTOM
 };
 
-enum EzoCalibrationType : uint8_t { EZO_CAL_LOW = 0, EZO_CAL_MID = 1, EZO_CAL_HIGH = 2 };
+/// Longest command text, without the terminator. The longest documented command is the datasheet's
+/// "Import, 59 6F 75 20 61 72" (25). Longer custom commands are dropped.
+static constexpr size_t EZO_MAX_COMMAND_LENGTH = 25;
+/// Total command slots, including the one in flight. The periodic read does not take a slot.
+static constexpr uint8_t EZO_COMMAND_QUEUE_SIZE = 8;
+/// Bytes shared by the texts of all queued custom commands, stored back to back without terminators.
+static constexpr uint8_t EZO_CUSTOM_TEXT_SIZE = 64;
 
-class EzoCommand {
- public:
-  std::string command;
-  uint16_t delay_ms = 0;
-  bool command_sent = false;
-  EzoCommandType command_type;
+/// Each built-in command; the text is rendered only when it is sent. The order matches the tables in ezo.cpp.
+enum class EzoCommandId : uint8_t {
+  EZO_COMMAND_ID_DEVICE_INFORMATION,
+  EZO_COMMAND_ID_SLEEP,
+  EZO_COMMAND_ID_SLOPE,
+  EZO_COMMAND_ID_T_GET,
+  EZO_COMMAND_ID_CAL_GET,
+  EZO_COMMAND_ID_CAL_CLEAR,
+  EZO_COMMAND_ID_LED_GET,
+  EZO_COMMAND_ID_LED_OFF,
+  EZO_COMMAND_ID_LED_ON,
+  EZO_COMMAND_ID_READ,     // READ to CAL_GENERIC wait 900 ms for the reply
+  EZO_COMMAND_ID_CAL_LOW,  // CAL_LOW to I2C send their value
+  EZO_COMMAND_ID_CAL_MID,
+  EZO_COMMAND_ID_CAL_HIGH,
+  EZO_COMMAND_ID_CAL_GENERIC,
+  EZO_COMMAND_ID_T_SET,
+  EZO_COMMAND_ID_I2C,
+  EZO_COMMAND_ID_CUSTOM,  // the text is in EZOSensor::custom_text_
+};
+
+struct __attribute__((packed)) EzoCommand {
+  EzoCommandId id;
+  union __attribute__((packed)) {
+    float value;          // CAL_* and T_SET value, or the I2C address
+    uint8_t text_length;  // CUSTOM: length of its text in EZOSensor::custom_text_
+  };
+};
+static_assert(sizeof(EzoCommand) == 5, "a queue slot holds the command id and one float");
+
+enum class EzoState : uint8_t {
+  EZO_STATE_IDLE,
+  EZO_STATE_IDLE_AFTER_READ,  // a pending read waits for one queued command first
+  EZO_STATE_SENT_QUEUED,      // the queue's front command is waiting for its reply
+  EZO_STATE_SENT_READ,
 };
 
 /// This class implements support for the EZO circuits in i2c mode
@@ -85,21 +121,26 @@ class EZOSensor final : public sensor::Sensor, public PollingComponent, public i
   template<typename F> void add_custom_callback(F &&callback) { this->custom_callback_.add(std::forward<F>(callback)); }
 
  protected:
-  std::deque<std::unique_ptr<EzoCommand>> commands_;
-  int new_address_;
+  void add_command_(EzoCommandId id, float value = 0.0f);
+  void send_next_();
+  void finish_command_();
 
-  void add_command_(const char *command, EzoCommandType command_type, uint16_t delay_ms = 300);
-
-  void set_calibration_point_(EzoCalibrationType type, float value);
-
-  CallbackManager<void(std::string)> device_infomation_callback_{};
-  CallbackManager<void(std::string)> calibration_callback_{};
-  CallbackManager<void(std::string)> slope_callback_{};
-  CallbackManager<void(std::string)> t_callback_{};
-  CallbackManager<void(std::string)> custom_callback_{};
+  CallbackManager<void(const std::string &)> device_infomation_callback_{};
+  CallbackManager<void(const std::string &)> calibration_callback_{};
+  CallbackManager<void(const std::string &)> slope_callback_{};
+  CallbackManager<void(const std::string &)> t_callback_{};
+  CallbackManager<void(const std::string &)> custom_callback_{};
   CallbackManager<void(bool)> led_callback_{};
 
-  uint32_t start_time_ = 0;
+  /// Queued commands; the front one stays in place while it is in flight. The periodic read is not queued.
+  StaticRingBuffer<EzoCommand, EZO_COMMAND_QUEUE_SIZE> queue_;
+  uint32_t reply_due_{0};  // when the reply to the command in flight can be read
+  EzoState state_{EzoState::EZO_STATE_IDLE};
+  bool read_pending_{false};  // a periodic read was requested and is not yet sent
+  /// Ring of queued custom texts in queue order; the oldest starts at custom_text_start_.
+  uint8_t custom_text_start_{0};
+  uint8_t custom_text_used_{0};
+  char custom_text_[EZO_CUSTOM_TEXT_SIZE];
 };
 
 }  // namespace esphome::ezo
