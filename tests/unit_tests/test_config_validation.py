@@ -387,6 +387,35 @@ def test_icon__invalid():
         cv.icon("foo")
 
 
+@pytest.mark.parametrize("value", ["mdi:home\n", "mdi:home\r"])
+def test_icon__invalid_trailing_newline(value):
+    with pytest.raises(Invalid, match="Icons must match the format "):
+        cv.icon(value)
+
+
+def test_hostname__valid():
+    assert cv.hostname("my-device") == "my-device"
+    assert cv.hostname("My-Device-01") == "My-Device-01"
+
+
+@pytest.mark.parametrize(
+    "value",
+    [
+        "",
+        "a" * 64,
+        "my_device",
+        "my.device",
+        "my device",
+        "my-device\n",
+        "my-device\r",
+        "my-device ",
+    ],
+)
+def test_hostname__invalid(value):
+    with pytest.raises(Invalid, match="Invalid hostname"):
+        cv.hostname(value)
+
+
 def test_icon__max_length():
     """Test that icons exceeding 63 bytes are rejected."""
     # Exactly 63 bytes should pass
