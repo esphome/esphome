@@ -366,6 +366,16 @@ async def test_host_ota_deflate(
             await dev.ota(None, None, "uncompressed upload failed")
         assert dev.inflates == 1, "device inflated without a client offer"
 
+        # The deflate offer an RTL8710B image goes with is served compressed
+        with monkeypatch.context() as m:
+            m.setattr(
+                espota2,
+                "CLIENT_FEATURE_SUPPORTS_DEFLATE",
+                espota2.CLIENT_FEATURE_SUPPORTS_DEFLATE_RTL8710B,
+            )
+            await dev.ota(None, None, "RTL8710B deflate upload failed")
+        assert dev.inflates == 2, "device ignored the RTL8710B deflate offer"
+
         # A corrupt stream fails the upload and leaves the device running
         with monkeypatch.context() as m:
             m.setattr(zlib, "compress", _corrupt_compress)
@@ -387,7 +397,7 @@ async def test_host_ota_deflate(
 
         # and it still takes a good upload afterwards
         await dev.ota(None, None, "upload after a rejected stream failed")
-        assert dev.inflates == 2
+        assert dev.inflates == 3
 
         # Localhost is clean, so the client stays on TCP
         with _udp_mode(monkeypatch, force=False) as used:
@@ -398,7 +408,7 @@ async def test_host_ota_deflate(
         with _udp_mode(monkeypatch, loss=0.2) as used:
             await dev.ota(None, None, "UDP upload with loss failed")
         assert used == [True], "the upload did not use UDP"
-        assert dev.inflates == 4
+        assert dev.inflates == 5
 
         # Blocked UDP falls back to TCP
         with _udp_mode(monkeypatch, blocked=True) as used:

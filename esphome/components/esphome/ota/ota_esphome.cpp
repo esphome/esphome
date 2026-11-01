@@ -205,6 +205,9 @@ static constexpr uint8_t CLIENT_FEATURE_SUPPORTS_DEFLATE = 0x10;
 #ifdef ESPHOME_OTA_UDP
 static constexpr uint8_t CLIENT_FEATURE_SUPPORTS_UDP = 0x20;
 #endif
+// Deflate for an RTL8710B image: 2026.10 firmware does not know this bit, and
+// there LibreTiny corrupts a deflate upload into OTA2 (esphome#22012)
+static constexpr uint8_t CLIENT_FEATURE_SUPPORTS_DEFLATE_RTL8710B = 0x40;
 // Noise needs the extended protocol: the prologue binds the 2-byte feature ack
 static constexpr uint8_t CLIENT_NOISE_FEATURES =
     CLIENT_FEATURE_SUPPORTS_NOISE | CLIENT_FEATURE_SUPPORTS_EXTENDED_PROTOCOL;
@@ -369,7 +372,7 @@ void ESPHomeOTAComponent::handle_handshake_() {
 #endif
 #ifdef USE_OTA_DEFLATE
         // Offered only once the session memory is in hand; else uncompressed
-        if ((this->ota_features_ & CLIENT_FEATURE_SUPPORTS_DEFLATE) != 0) {
+        if ((this->ota_features_ & (CLIENT_FEATURE_SUPPORTS_DEFLATE | CLIENT_FEATURE_SUPPORTS_DEFLATE_RTL8710B)) != 0) {
           // Value initialized: a corrupt stream that back references the
           // window before it is filled then copies zeros, never stale memory.
           // Default placement, PSRAM first where present: the session lives for one

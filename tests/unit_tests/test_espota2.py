@@ -1611,6 +1611,53 @@ def test_perform_ota_with_deflate(mock_socket: Mock, server_features: int) -> No
     assert sent[5] == hashlib.md5(original_content).hexdigest().encode()
 
 
+def _rtl8710b_image() -> bytes:
+    header = struct.pack(
+        "<8I", 0x0A324655, 0x9E5D5157, 0x2000, 0, 256, 0, 1, 0x22E0D6FC
+    )
+    return header + b"firmware" * 100
+
+
+@pytest.mark.usefixtures("mock_time")
+def test_perform_ota_rtl8710b_deflate_with_fixed_firmware(
+    mock_socket: Mock, caplog: pytest.LogCaptureFixture
+) -> None:
+    """An RTL8710B image asks for deflate with the bit only fixed firmware knows."""
+    original_content = _rtl8710b_image()
+    mock_socket.recv.side_effect = (
+        _no_auth_handshake(
+            espota2.OTA_VERSION_2_0, espota2.SERVER_FEATURE_SUPPORTS_DEFLATE
+        )
+        + _UPLOAD_TAIL
+    )
+
+    espota2.perform_ota(mock_socket, None, io.BytesIO(original_content), "test.uf2")
+
+    sent = [c[0][0] for c in mock_socket.sendall.call_args_list]
+    assert sent[1][0] & espota2.CLIENT_FEATURE_SUPPORTS_DEFLATE_RTL8710B
+    assert not sent[1][0] & espota2.CLIENT_FEATURE_SUPPORTS_DEFLATE
+    assert zlib.decompress(sent[6], -espota2.DEFLATE_WINDOW_BITS) == original_content
+    assert espota2.RTL8710B_DEFLATE_NOTICE not in caplog.text
+
+
+@pytest.mark.usefixtures("mock_time")
+def test_perform_ota_rtl8710b_uncompressed_with_old_firmware(
+    mock_socket: Mock, caplog: pytest.LogCaptureFixture
+) -> None:
+    """2026.10 firmware does not know the RTL8710B bit, so the image goes as it is."""
+    original_content = _rtl8710b_image()
+    mock_socket.recv.side_effect = (
+        _no_auth_handshake(espota2.OTA_VERSION_2_0, 0) + _UPLOAD_TAIL
+    )
+
+    espota2.perform_ota(mock_socket, None, io.BytesIO(original_content), "test.uf2")
+
+    sent = [c[0][0] for c in mock_socket.sendall.call_args_list]
+    assert not sent[1][0] & espota2.CLIENT_FEATURE_SUPPORTS_DEFLATE
+    assert original_content in sent
+    assert espota2.RTL8710B_DEFLATE_NOTICE in caplog.text
+
+
 class _LossyUdpDevice:
     """The device side of the UDP channel (ota_esphome_udp.cpp) on a lossy link."""
 
