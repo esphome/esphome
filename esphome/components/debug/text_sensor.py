@@ -9,7 +9,7 @@ from esphome.const import (
 )
 from esphome.types import ConfigType
 
-from . import CONF_DEBUG_ID, FILTER_SOURCE_FILES, DebugComponent  # noqa: F401  pylint: disable=unused-import
+from . import CONF_DEBUG_ID, DebugComponent
 
 DEPENDENCIES = ["debug"]
 
@@ -34,5 +34,5 @@ async def to_code(config: ConfigType) -> None:
     hub = await cg.get_variable(config[CONF_DEBUG_ID])
 
     text_sensors = text_sensor.sub_text_sensors(config)
-    await text_sensors(CONF_DEVICE, hub.set_device_info_sensor)
-    await text_sensors(CONF_RESET_REASON, hub.set_reset_reason_sensor)
+    await text_sensors(CONF_DEVICE, hub.set_device_info_text_sensor)
+    await text_sensors(CONF_RESET_REASON, hub.set_reset_reason_text_sensor)

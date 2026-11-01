@@ -66,6 +66,11 @@ struct BME680CalibrationData {
 };
 
 class BME680Component final : public PollingComponent, public i2c::I2CDevice {
+  SUB_SENSOR(temperature)
+  SUB_SENSOR(pressure)
+  SUB_SENSOR(humidity)
+  SUB_SENSOR(gas_resistance)
+
  public:
   /// Set the temperature oversampling value. Defaults to 16X.
   void set_temperature_oversampling(BME680Oversampling temperature_oversampling);
@@ -75,13 +80,6 @@ class BME680Component final : public PollingComponent, public i2c::I2CDevice {
   void set_humidity_oversampling(BME680Oversampling humidity_oversampling);
   /// Set the IIR Filter value. Defaults to no IIR Filter.
   void set_iir_filter(BME680IIRFilter iir_filter) { this->iir_filter_ = iir_filter; }
-
-  void set_temperature_sensor(sensor::Sensor *temperature_sensor) { temperature_sensor_ = temperature_sensor; }
-  void set_pressure_sensor(sensor::Sensor *pressure_sensor) { pressure_sensor_ = pressure_sensor; }
-  void set_humidity_sensor(sensor::Sensor *humidity_sensor) { humidity_sensor_ = humidity_sensor; }
-  void set_gas_resistance_sensor(sensor::Sensor *gas_resistance_sensor) {
-    gas_resistance_sensor_ = gas_resistance_sensor;
-  }
 
   /** Set how the internal heater should operate.
    *
@@ -128,11 +126,6 @@ class BME680Component final : public PollingComponent, public i2c::I2CDevice {
   BME680IIRFilter iir_filter_{BME680_IIR_FILTER_OFF};
   uint16_t heater_temperature_{320};
   uint16_t heater_duration_{150};
-
-  sensor::Sensor *temperature_sensor_{nullptr};
-  sensor::Sensor *pressure_sensor_{nullptr};
-  sensor::Sensor *humidity_sensor_{nullptr};
-  sensor::Sensor *gas_resistance_sensor_{nullptr};
 };
 
 }  // namespace esphome::bme680

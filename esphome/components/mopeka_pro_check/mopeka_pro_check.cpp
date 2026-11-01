@@ -61,16 +61,11 @@ bool MopekaProCheck::parse_device(const ble_device_base::ESPBTDevice &device) {
   }
 
   // Get battery level first
-  if (this->battery_level_sensor_ != nullptr) {
-    uint8_t level = this->parse_battery_level_(manu_data.data);
-    this->battery_level_sensor_->publish_state(level);
-  }
+  PUBLISH_STATE(this->battery_level_sensor_, this->parse_battery_level_(manu_data.data));
 
   // Get the quality value
   SensorReadQuality quality_value = this->parse_read_quality_(manu_data.data);
-  if (this->signal_quality_sensor_ != nullptr) {
-    this->signal_quality_sensor_->publish_state(static_cast<int>(quality_value));
-  }
+  PUBLISH_STATE(this->signal_quality_sensor_, static_cast<int>(quality_value));
 
   // Determine if we have a good enough quality of read to report level and distance
   // sensors.  This sensor is reported regardless of distance or level sensors being enabled
@@ -82,9 +77,7 @@ bool MopekaProCheck::parse_device(const ble_device_base::ESPBTDevice &device) {
     this->ignored_read_count_ = 0;
   }
   // Report number of contiguous ignored reads if sensor defined
-  if (this->ignored_reads_sensor_ != nullptr) {
-    this->ignored_reads_sensor_->publish_state(this->ignored_read_count_);
-  }
+  PUBLISH_STATE(this->ignored_reads_sensor_, this->ignored_read_count_);
 
   // Get distance and level if either are sensors
   if ((this->distance_sensor_ != nullptr) || (this->level_sensor_ != nullptr)) {
@@ -95,9 +88,7 @@ bool MopekaProCheck::parse_device(const ble_device_base::ESPBTDevice &device) {
     // if the ignored_read_count is zero.
     if (this->ignored_read_count_ == 0) {
       // update distance sensor
-      if (this->distance_sensor_ != nullptr) {
-        this->distance_sensor_->publish_state(distance_value);
-      }
+      PUBLISH_STATE(this->distance_sensor_, distance_value);
 
       // update level sensor
       if (this->level_sensor_ != nullptr) {
@@ -113,10 +104,7 @@ bool MopekaProCheck::parse_device(const ble_device_base::ESPBTDevice &device) {
   }
 
   // Get temperature of sensor
-  if (this->temperature_sensor_ != nullptr) {
-    int8_t temp_in_c = this->parse_temperature_(manu_data.data);
-    this->temperature_sensor_->publish_state(temp_in_c);
-  }
+  PUBLISH_STATE(this->temperature_sensor_, this->parse_temperature_(manu_data.data));
 
   return true;
 }
