@@ -133,14 +133,16 @@ TEST_F(SpeakerSourceStop, StopReachesASourceThatHasNotStartedYet) {
 
 TEST_F(SpeakerSourceStop, StopOfAStartingSourceThatGoesIdleLater) {
   this->play("http://a");
-  // An error before PLAYING keeps the source pending; the player only acts on PLAYING and IDLE
+  // An error before PLAYING advances the playlist past the source but keeps it pending, so the stop still reaches it
   this->report(MediaSourceState::ERROR);
+  EXPECT_EQ(this->playlist_advances(), 1);
 
   this->command(media_player::MEDIA_PLAYER_COMMAND_STOP);
   EXPECT_EQ(this->source_.commands, std::vector<MediaSourceCommand>{MediaSourceCommand::STOP});
 
+  // Neither the stop nor the IDLE it causes advances the playlist again
   this->report(MediaSourceState::IDLE);
-  EXPECT_EQ(this->playlist_advances(), 0);
+  EXPECT_EQ(this->playlist_advances(), 1);
   EXPECT_EQ(this->source_.played, std::vector<std::string>{"http://a"});
   EXPECT_EQ(this->player_.state, media_player::MEDIA_PLAYER_STATE_IDLE);
 }
@@ -177,6 +179,22 @@ TEST_F(SpeakerSourceStop, StopOfASourceWithItsOwnPlaylistEndsPlayback) {
   this->report(MediaSourceState::IDLE);
   EXPECT_EQ(this->playlist_advances(), 0);
   EXPECT_EQ(this->player_.state, media_player::MEDIA_PLAYER_STATE_IDLE);
+}
+
+TEST_F(SpeakerSourceStop, AnErrorBeforePlayingDoesNotHoldBackLaterItems) {
+  this->source_.idle_on_stop = true;
+  this->enqueue("http://a");
+  ASSERT_EQ(this->source_.played, std::vector<std::string>{"http://a"});
+
+  // The source cannot open the first item and fails before it reports PLAYING
+  this->report(MediaSourceState::ERROR);
+  EXPECT_EQ(this->playlist_advances(), 1);
+
+  // An item enqueued after the failure plays instead of waiting behind it
+  this->enqueue("http://b");
+  EXPECT_EQ(this->source_.played, (std::vector<std::string>{"http://a", "http://b"}));
+  EXPECT_EQ(this->source_.commands, std::vector<MediaSourceCommand>{MediaSourceCommand::STOP});
+  EXPECT_EQ(this->playlist_advances(), 1);
 }
 
 TEST_F(SpeakerSourceStop, NaturalEndAdvancesThePlaylist) {
