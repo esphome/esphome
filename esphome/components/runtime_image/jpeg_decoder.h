@@ -34,6 +34,7 @@ class JpegDecoder : public ImageDecoder {
   /// JPEGDEC decodes the image at 1/get_scale() of its size: 1, 2, 4 or 8
   int get_scale() const { return this->scale_; }
   void draw_rgb565(int x, int y, int w, int h, const uint8_t *pixels);
+  void draw_gray(int x, int y, int w, int h, const uint8_t *pixels);
 
  protected:
   /// Set up an opened image for decoding. Returns 0, or a DecodeError.

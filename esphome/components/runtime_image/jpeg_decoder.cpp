@@ -8,6 +8,8 @@
 #include "esphome/core/helpers.h"
 #include "esphome/core/log.h"
 
+#include <cstring>
+
 #ifdef USE_ESP_IDF
 #include "esp_task_wdt.h"
 #endif
@@ -51,6 +53,40 @@ void JpegDecoder::draw_rgb565(int x, int y, int w, int h, const uint8_t *pixels)
   }
 }
 
+void JpegDecoder::draw_gray(int x, int y, int w, int h, const uint8_t *pixels) {
+  if (pixels == nullptr) {
+    return;
+  }
+  uint8_t *const buffer = this->image_buffer_();
+  const uint32_t buffer_width = this->image_->get_buffer_width();
+  const bool unscaled = this->draw_width_ == static_cast<int>(buffer_width) && x >= 0 && x + w <= this->draw_width_;
+  for (int source_y = 0; source_y < h; source_y++) {
+    const int absolute_y = y + source_y;
+    if (absolute_y < 0 || absolute_y >= this->draw_height_) {
+      continue;
+    }
+    const uint16_t y1 = this->y_boundaries_[absolute_y];
+    const uint16_t y2 = this->y_boundaries_[absolute_y + 1];
+    const uint8_t *const row = pixels + static_cast<size_t>(source_y) * w;
+    // At 1:1 a source row is a buffer row, which is the common case for a panel-sized image
+    if (unscaled && y2 == y1 + 1) {
+      std::memcpy(buffer + static_cast<size_t>(y1) * buffer_width + x, row, w);
+      continue;
+    }
+    for (int source_x = 0; source_x < w; source_x++) {
+      const int absolute_x = x + source_x;
+      if (absolute_x < 0 || absolute_x >= this->draw_width_) {
+        continue;
+      }
+      const uint16_t x1 = this->x_boundaries_[absolute_x];
+      const uint16_t x2 = this->x_boundaries_[absolute_x + 1];
+      for (uint16_t destination_y = y1; destination_y < y2; destination_y++) {
+        std::memset(buffer + destination_y * buffer_width + x1, row[source_x], x2 - x1);
+      }
+    }
+  }
+}
+
 // Some very big images take too long to decode, so feed the watchdog as the decode goes
 // to avoid crashing if the executing task has a watchdog enabled.
 static void feed_watchdog() {
@@ -81,6 +117,10 @@ static int draw_callback(JPEGDRAW *jpeg) {
   if (decoder->uses_direct_rgb565()) {
     decoder->draw_rgb565(jpeg->x, jpeg->y, jpeg->iWidth, jpeg->iHeight,
                          reinterpret_cast<const uint8_t *>(jpeg->pPixels));
+    return 1;
+  }
+  if (decoder->uses_direct_gray()) {
+    decoder->draw_gray(jpeg->x, jpeg->y, jpeg->iWidth, jpeg->iHeight, reinterpret_cast<const uint8_t *>(jpeg->pPixels));
     return 1;
   }
   size_t position = 0;
@@ -180,10 +220,13 @@ int JpegDecoder::start_() {
     ESP_LOGD(TAG, "Decoding at 1/%d size, %d x %d", this->scale_, decoded_width, decoded_height);
   }
   this->prepare_draw_(decoded_width, decoded_height);
-  if (this->direct_rgb565_) {
+  if (this->uses_direct_rgb565()) {
     // JPEGDEC's RGB565_BIG_ENDIAN output is not byte swapped on every build (the x86 host build
     // returns little-endian words for it), so the byte order is applied in draw_rgb565 instead
     this->jpeg_->setPixelType(RGB565_LITTLE_ENDIAN);
+  } else if (this->uses_direct_gray()) {
+    // JPEGDEC emits 8-bit gray natively, so the image's storage needs no conversion at all
+    this->jpeg_->setPixelType(EIGHT_BIT_GRAYSCALE);
   } else {
     this->jpeg_->setPixelType(RGB8888);
   }
