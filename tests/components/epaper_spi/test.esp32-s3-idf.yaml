@@ -287,6 +287,58 @@ display:
       allow_other_uses: true
       number: GPIO4
 
+  # Good Display GDEY0213B74 2.13" mono e-paper (122x250, SSD1680)
+  - platform: epaper_spi
+    spi_id: spi_bus
+    model: goodisplay-gdey0213b74-2.13
+    full_update_every: 5
+    cs_pin:
+      allow_other_uses: true
+      number: GPIO5
+    dc_pin:
+      allow_other_uses: true
+      number: GPIO17
+    reset_pin:
+      allow_other_uses: true
+      number: GPIO16
+    busy_pin:
+      allow_other_uses: true
+      number: GPIO4
+
+  # Seeed 0213BN-B74, the label name of the GDEY0213B74 panel
+  - platform: epaper_spi
+    spi_id: spi_bus
+    model: 0213BN-B74
+    cs_pin:
+      allow_other_uses: true
+      number: GPIO5
+    dc_pin:
+      allow_other_uses: true
+      number: GPIO17
+    reset_pin:
+      allow_other_uses: true
+      number: GPIO16
+    busy_pin:
+      allow_other_uses: true
+      number: GPIO4
+
+  # LilyGO TTGO T5 2.13" B74 board (GDEY0213B74 panel)
+  - platform: epaper_spi
+    spi_id: spi_bus
+    model: ttgo-t5-2.13in-b74
+    cs_pin:
+      allow_other_uses: true
+      number: GPIO5
+    dc_pin:
+      allow_other_uses: true
+      number: GPIO17
+    reset_pin:
+      allow_other_uses: true
+      number: GPIO16
+    busy_pin:
+      allow_other_uses: true
+      number: GPIO4
+
   # Waveshare 1.54" V2 mono e-paper (200x200, SSD1681)
   - platform: epaper_spi
     spi_id: spi_bus

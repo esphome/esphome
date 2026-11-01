@@ -404,6 +404,33 @@ def test_ssd1681_defaults_and_driver_class(
         assert model.get_dimensions(config) == (200, 200)
 
 
+def test_gdey0213b74_defaults_and_driver_class(
+    set_core_config: SetCoreConfigCallable,
+    set_component_config: Callable[[str, Any], None],
+) -> None:
+    """The GDEY0213B74 models default to 122x250 and use the SSD1683 driver class."""
+    set_core_config(
+        PlatformFramework.ESP32_IDF,
+        platform_data={KEY_BOARD: "esp32dev", KEY_VARIANT: VARIANT_ESP32},
+    )
+
+    set_component_config("spi", {"id": "spi_bus", "clk_pin": 18, "mosi_pin": 19})
+
+    for name in ("goodisplay-gdey0213b74-2.13", "0213BN-B74", "ttgo-t5-2.13in-b74"):
+        model = MODELS[name.upper()]
+        assert model.class_name == "EPaperSSD1683"
+        config = run_schema_validation(
+            {
+                "id": "test_display",
+                "model": name,
+                "dc_pin": 21,
+                "reset_pin": 23,
+                "full_update_every": 5,
+            }
+        )
+        assert model.get_dimensions(config) == (122, 250)
+
+
 def test_ssd1681_needs_reset_pin(
     set_core_config: SetCoreConfigCallable,
     set_component_config: Callable[[str, Any], None],

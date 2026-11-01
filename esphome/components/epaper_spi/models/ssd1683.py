@@ -31,3 +31,17 @@ goodisplay_gdey042t81 = ssd1683.extend(
     width=400,
     height=300,
 )
+
+# Good Display GDEY0213B74, 2.13" mono 122x250, SSD1680; also sold by Seeed as 0213BN-B74.
+# Replaces the waveshare_epaper model 2.13in-ttgo-b74.
+goodisplay_gdey0213b74 = ssd1683.extend(
+    "goodisplay-gdey0213b74-2.13",
+    width=122,
+    height=250,
+)
+
+# Name printed on the panel's label as sold by Seeed
+goodisplay_gdey0213b74.extend("0213bn-b74")
+
+# LilyGO TTGO T5 2.13" board with the GDEY0213B74 panel
+goodisplay_gdey0213b74.extend("ttgo-t5-2.13in-b74")
