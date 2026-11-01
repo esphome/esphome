@@ -188,11 +188,20 @@ Restore an owned or standalone switch in `setup()` with `sw->restore()`, or `res
 drive a state when the restore mode is disabled. A hub that applies its switches' restored states itself
 reads `sw->get_initial_write_state()`, which already applies `inverted`.
 
+**A hub that forwards data to its children:** when what each child does with the data is known at build time
+(decode a register field, match a key or tag, publish a value), declare a `cg.HubFunction` once in the hub's
+`__init__.py` and have each platform add one item per entity, built from codegen expressions. Code generation writes
+one function per hub; the hub declares `HUB_PUBLISHER(<name>, args...)` (place it in a public section; it ends on
+`public:`) and calls the pointer when it is not null. The children stay plain entities, with no listener class or
+list. A child that lost a `Component` base keeps its dump lines through a second hub function (`"dump"`, a
+`const char *` tag parameter) that the hub's `dump_config()` calls.
+
 **Entities that each watch a register field:** when every field (register, shift, mask, match) is known at
 build time, generate the decoding with `cg.HubFunction` (see `bq25186`): the hub's `__init__.py` declares it once,
 each platform adds one item per entity built from codegen expressions, and code generation writes one function per
 hub that the hub calls through a single nullptr-checked pointer; the entities stay plain `BinarySensor`/`TextSensor`.
-A binary sensor tests its field value against an on-values bitmap (`match`); a one-bit field reads the bit:
+A binary sensor tests its field value against an on-values bitmap (`match`); a one-bit field reads the bit
+(simplified from bq25186's `_state_expression`):
 ```python
 # hub __init__.py
 STATUS_PUBLISHER = cg.HubFunction(
