@@ -1343,6 +1343,10 @@ class MockObjClass(MockObj):
             return True
         return any(str(parent) == str(other) for parent in self._parents)
 
+    def const_ref(self) -> MockObj:
+        """``const T &``, for a parameter that takes this type by reference."""
+        return self.operator("const").operator("ref")
+
     def template(self, *args: SafeExpType) -> "MockObjClass":
         if len(args) != 1 or not isinstance(args[0], TemplateArguments):
             args = TemplateArguments(*args)
