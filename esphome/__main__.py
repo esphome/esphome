@@ -2347,6 +2347,12 @@ def command_analyze_memory(args: ArgsProtocol, config: ConfigType) -> int:
     return 0
 
 
+def command_rotate_key(args: ArgsProtocol, config: ConfigType) -> int | None:
+    from esphome.cli.rotate_key import command_rotate_key as run
+
+    return run(args, config)
+
+
 def command_rename(args: ArgsProtocol, config: ConfigType) -> int | None:
     from esphome.cli.rename import command_rename as run
 
@@ -2373,6 +2379,7 @@ POST_CONFIG_ACTIONS = {
     "clean-mqtt": command_clean_mqtt,
     "idedata": command_idedata,
     "rename": command_rename,
+    "rotate-key": command_rotate_key,
     "discover": command_discover,
     "analyze-memory": command_analyze_memory,
     "bundle": command_bundle,
@@ -2795,6 +2802,37 @@ def parse_args(argv):
         "configuration", help="Your YAML configuration file.", nargs=1
     )
     parser_rename.add_argument("name", help="The new name for the device.", type=str)
+
+    parser_rotate_key = subparsers.add_parser(
+        "rotate-key",
+        help=(
+            "Change the OTA encryption key over the air: write a new key to the "
+            "yaml, build with it, upload with the current key, confirm."
+        ),
+        parents=[mqtt_options],
+    )
+    parser_rotate_key.add_argument(
+        "configuration", help="Your YAML configuration file.", nargs=1
+    )
+    parser_rotate_key.add_argument(
+        "--device",
+        action="append",
+        help=ARGUMENT_HELP_DEVICE,
+    )
+    parser_rotate_key.add_argument(
+        "--prompt-new-key",
+        action="store_true",
+        help=(
+            "Ask for the new key instead of generating one; read without echo, "
+            "or as one line from stdin when that is not a terminal."
+        ),
+    )
+    parser_rotate_key.add_argument(
+        "-y",
+        "--yes",
+        action="store_true",
+        help="Do not ask for confirmation when the api encryption key changes too.",
+    )
 
     parser_analyze_memory = subparsers.add_parser(
         "analyze-memory",
