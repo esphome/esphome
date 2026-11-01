@@ -339,10 +339,50 @@ def esp32_copy_ota_bin(source, target, env):
     print(f"Copied firmware to {new_file_name}")
 
 
+def secure_pad_app_image(env):
+    """
+    Pad the app image the way ESP-IDF's own build does when apps are signed.
+
+    ESP-IDF's esptool_py/project_include.cmake passes --secure-pad-v2 to
+    elf2image for an RSA or ECDSA V2 signed app, and --secure-pad for a Secure
+    Boot V1 one, unless CONFIG_SECURE_BOOT_ALLOW_SHORT_APP_PARTITION is set. The
+    padding ends the image on a 64 KB flash MMU page boundary, so the signature
+    sector and anything written after it are never mapped with the app.
+    PlatformIO's elf2image flags do not include it, so its image stops
+    wherever the app ends.
+    """
+    project_dir = pathlib.Path(env.subst("$PROJECT_DIR"))
+    pioenv = env.subst("$PIOENV")
+    sdkconfig = _parse_sdkconfig(project_dir / f"sdkconfig.{pioenv}")
+
+    if sdkconfig.get("CONFIG_SECURE_BOOT_ALLOW_SHORT_APP_PARTITION") == "y":
+        return
+    if sdkconfig.get("CONFIG_SECURE_SIGNED_APPS_ECDSA_SCHEME") == "y":
+        pad = "--secure-pad"
+    elif (
+        sdkconfig.get("CONFIG_SECURE_SIGNED_APPS_RSA_SCHEME") == "y"
+        or sdkconfig.get("CONFIG_SECURE_SIGNED_APPS_ECDSA_V2_SCHEME") == "y"
+    ):
+        pad = "--secure-pad-v2"
+    else:
+        return
+
+    # ELF2BINCMD reads ELF2BINFLAGS when the image is built. The bootloader's
+    # environment is a clone made earlier, so its image stays unpadded, as
+    # under ESP-IDF.
+    if "ELF2BINFLAGS" not in env:
+        print(f"Warning: {pad} not applied: this platform has no ELF2BINFLAGS")
+        return
+    env.Append(ELF2BINFLAGS=[pad])
+
+
 # Generate V1 ECDSA verification key files before build starts.
 # Workaround for PlatformIO not executing CMake custom commands that extract
 # the public key and generate the .S assembly file for Secure Boot V1.
 _generate_v1_verification_key(env)  # noqa: F821
+
+# Pad a signed app's image as ESP-IDF's own build does, before it is signed.
+secure_pad_app_image(env)  # noqa: F821
 
 # Run signing first, then merge, then ota copy
 env.AddPostAction("$BUILD_DIR/${PROGNAME}.bin", sign_firmware)  # noqa: F821
