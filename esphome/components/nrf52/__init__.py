@@ -593,7 +593,7 @@ def copy_files() -> None:
 
     if CORE.using_toolchain_platformio and (
         zephyr_data()[KEY_BOOTLOADER] == BOOTLOADER_MCUBOOT
-        or short_board_name(zephyr_data()[KEY_BOARD]) == "xiao_ble"
+        or zephyr_data()[KEY_BOARD] == "xiao_ble"
     ):
         write_file_if_changed(
             CORE.relative_build_path(f"boards/{zephyr_data()[KEY_BOARD]}.json"),
