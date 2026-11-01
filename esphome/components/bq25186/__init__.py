@@ -1,4 +1,5 @@
 from collections.abc import Callable
+from dataclasses import dataclass, field
 from typing import Any
 
 from esphome import automation
@@ -6,7 +7,8 @@ import esphome.codegen as cg
 from esphome.components import i2c
 import esphome.config_validation as cv
 from esphome.const import CONF_ID, CONF_UPDATE_INTERVAL, CONF_WATCHDOG
-from esphome.core import CORE, ID, EsphomeError, Lambda, TimePeriod
+from esphome.core import CORE, ID, CoroPriority, EsphomeError, Lambda, TimePeriod
+from esphome.coroutine import coroutine_with_priority
 import esphome.final_validate as fv
 from esphome.types import ConfigType, TemplateArgsType
 
@@ -66,18 +68,60 @@ BQ25186Component = bq25186_ns.class_(
 BQ25186_CHILD_SCHEMA = cv.Schema(
     {cv.GenerateID(CONF_BQ25186_ID): cv.use_id(BQ25186Component)}
 )
-_request_binary_sensor_slot = cg.slot_counter("BQ25186_BINARY_SENSOR_COUNT")
-_request_text_sensor_slot = cg.slot_counter("BQ25186_TEXT_SENSOR_COUNT")
+BQ25186StatusRegisters = bq25186_ns.class_("BQ25186StatusRegisters")
 
 
-def register_binary_sensor(hub: cg.MockObj, var: cg.MockObj) -> cg.Expression:
-    _request_binary_sensor_slot(str(hub))
-    return hub.register_binary_sensor(var)
+@dataclass
+class _StatusPublisher:
+    """The statements of one hub's generated status function."""
+
+    hub: cg.MockObj
+    binary: list[str] = field(default_factory=list)
+    text: list[str] = field(default_factory=list)
 
 
-def register_text_sensor(hub: cg.MockObj, var: cg.MockObj) -> cg.Expression:
-    _request_text_sensor_slot(str(hub))
-    return hub.register_text_sensor(var)
+@dataclass
+class BQ25186Data:
+    publishers: dict[str, _StatusPublisher] = field(default_factory=dict)
+    emitted: bool = False
+
+
+def _get_data() -> BQ25186Data:
+    if DOMAIN not in CORE.data:
+        CORE.data[DOMAIN] = BQ25186Data()
+    return CORE.data[DOMAIN]
+
+
+def add_status_statement(
+    hub: cg.MockObj, statement: str, *, text: bool = False
+) -> None:
+    """Add a statement to the function that publishes hub's status entities from `status`."""
+    data = _get_data()
+    if data.emitted:
+        raise ValueError(
+            f"{hub}: status statement added after the publishers were emitted"
+        )
+    if not data.publishers:
+        CORE.add_job(_emit_status_publishers)
+    publisher = data.publishers.setdefault(str(hub), _StatusPublisher(hub))
+    (publisher.text if text else publisher.binary).append(statement)
+
+
+@coroutine_with_priority(CoroPriority.FINAL)
+async def _emit_status_publishers() -> None:
+    data = _get_data()
+    data.emitted = True
+    cg.add_define("USE_BQ25186_STATUS_PUBLISHER")
+    params = [(BQ25186StatusRegisters.operator("const").operator("ref"), "status")]
+    for publisher in data.publishers.values():
+        # Binary sensors publish before text sensors, as they always have
+        fn = cg.static_function(
+            f"esphome__{publisher.hub}__status_fn",
+            cg.void,
+            params,
+            [*publisher.binary, *publisher.text],
+        )
+        cg.add(publisher.hub.set_status_publisher(fn))
 
 
 REG_VBAT_CTRL = 0x03
