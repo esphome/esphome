@@ -60,6 +60,7 @@ from esphome.core import (
     TimePeriodMilliseconds,
     coroutine_with_priority,
 )
+from esphome.cpp_helpers import emit_empty_slot_lists
 import esphome.final_validate as fv
 from esphome.helpers import (
     copy_file_if_changed,
@@ -916,6 +917,7 @@ async def to_code(config: ConfigType) -> None:
     )
 
     CORE.add_job(_add_platform_defines)
+    CORE.add_job(emit_empty_slot_lists)
     CORE.add_job(_add_controller_registry_dispatch)
     CORE.add_job(_add_looping_components)
 

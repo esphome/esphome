@@ -406,10 +406,32 @@ async def test_register_component_without_module_has_no_source(
     app_mock.register_component_.assert_called_once_with(var)
 
 
+def _declare_slot_list(
+    define: str, module: str = "esphome.components.testhub", package: bool = True
+) -> Callable[..., Any]:
+    """Call cg.slot_list() as if from the module `module` (a package __init__ when `package`)."""
+    module_globals: dict[str, Any] = {"__name__": module, "slot_list": ch.slot_list}
+    if package:
+        module_globals["__path__"] = []
+    exec(f"register_item = slot_list({define!r}, 'register_listener')", module_globals)
+    return module_globals["register_item"]
+
+
+@pytest.fixture(autouse=True)
+def _isolated_slot_list_owners(monkeypatch: pytest.MonkeyPatch) -> None:
+    monkeypatch.setattr(ch, "_SLOT_LIST_OWNERS", {})
+
+
+def _emit_slot_lists() -> None:
+    ch.CORE.add_job(ch.emit_empty_slot_lists)
+    ch.CORE.flush_tasks()
+
+
 def test_slot_list_sizes_for_the_busiest_hub() -> None:
     """Hubs with 3, 1 and 0 children: the define is 3 (the max, not the sum or the
     first hub's count) and each call targets only its own hub."""
-    register_item = ch.slot_list("TEST_SLOT_LIST_COUNT", "register_listener")
+    ch.CORE.loaded_integrations.add("testhub")
+    register_item = _declare_slot_list("TEST_SLOT_LIST_COUNT")
     hub_a = MockObj("hub_a", "->")
     hub_b = MockObj("hub_b", "->")
     calls = [
@@ -425,12 +447,45 @@ def test_slot_list_sizes_for_the_busiest_hub() -> None:
         "hub_a->register_listener(listener_a3)",
     ]
     assert ch.get_slot_count("TEST_SLOT_LIST_COUNT") == 3
-    ch.CORE.flush_tasks()
+    _emit_slot_lists()
     assert _define_value("TEST_SLOT_LIST_COUNT") == "3"
 
 
-def test_slot_list_without_registrations_emits_nothing() -> None:
-    """No registrations, no define: the guarded SLOT_LIST compiles out."""
-    ch.slot_list("TEST_SLOT_LIST_UNUSED", "register_listener")
-    ch.CORE.flush_tasks()
+def test_slot_list_without_registrations_emits_zero() -> None:
+    """A hub in the build that nothing registered into still gets its define, as 0."""
+    ch.CORE.loaded_integrations.add("testhub")
+    _declare_slot_list("TEST_SLOT_LIST_EMPTY")
+    _emit_slot_lists()
+    assert _define_value("TEST_SLOT_LIST_EMPTY") == "0"
+
+
+def test_slot_list_of_a_component_not_in_the_build_emits_nothing() -> None:
+    _declare_slot_list("TEST_SLOT_LIST_UNUSED", module="esphome.components.otherhub")
+    ch.CORE.loaded_integrations.add("testhub")
+    _emit_slot_lists()
     assert _define_value("TEST_SLOT_LIST_UNUSED") is None
+
+
+def test_slot_list_of_a_platform_package_follows_the_platform() -> None:
+    """A hub that lives in a platform package (uart/binary_sensor) is in the build
+    only with that platform."""
+    _declare_slot_list(
+        "TEST_SLOT_LIST_PLATFORM", module="esphome.components.uart.binary_sensor"
+    )
+    ch.CORE.loaded_integrations.add("uart")
+    _emit_slot_lists()
+    assert _define_value("TEST_SLOT_LIST_PLATFORM") is None
+    ch.CORE.loaded_platforms.add("binary_sensor/uart")
+    _emit_slot_lists()
+    assert _define_value("TEST_SLOT_LIST_PLATFORM") == "0"
+
+
+def test_slot_list_outside_a_component_package_raises() -> None:
+    """A platform module like pn532/binary_sensor.py is not imported when the
+    platform is unused, so its define could go missing."""
+    with pytest.raises(ValueError, match="__init__.py"):
+        _declare_slot_list(
+            "TEST_SLOT_LIST_BAD",
+            module="esphome.components.pn532.binary_sensor",
+            package=False,
+        )

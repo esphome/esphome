@@ -15,9 +15,10 @@ class Hub {
   Listener *at(size_t i) const { return this->listeners_[i]; }
 };
 
+// A count of 0 is what code generation emits for a hub nothing registered into
 class EmptyHub {
  public:
-  SLOT_LIST_EMPTY(Listener, listeners_)
+  SLOT_LIST(Listener, listeners_, register_listener, 0)
   size_t walk() const {
     size_t n = 0;
     for (auto *listener : this->listeners_)
@@ -49,8 +50,10 @@ TEST(SlotListTest, DropsRegistrationsPastCapacity) {
 
 TEST(SlotListTest, StorageIsTheCodegenCountOfPointers) { EXPECT_EQ(sizeof(Hub), sizeof(StaticVector<Listener *, 2>)); }
 
-TEST(SlotListTest, EmptyListWalksNothingAndTakesNoSpace) {
+TEST(SlotListTest, ZeroCountWalksNothingAndTakesNoSpace) {
   EmptyHub hub;
+  Listener a{1};
+  hub.register_listener(&a);
   EXPECT_EQ(hub.walk(), 0u);
   EXPECT_EQ(sizeof(EmptyHub), sizeof(uint32_t));
 }
