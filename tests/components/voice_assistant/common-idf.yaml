@@ -1,4 +1,6 @@
 esphome:
+  build_flags:
+    - -DUSE_VOICE_ASSISTANT_MICROPHONE_BUFFER_STATE
   on_boot:
     then:
       - voice_assistant.start
@@ -7,6 +9,10 @@ esphome:
           silence_detection: false
       - voice_assistant.start_continuous
       - voice_assistant.stop
+      - lambda: |-
+          const auto *assistant = id(va_id);
+          ESP_LOGD("voice_assistant_test", "Microphone buffer free: %u",
+                   static_cast<unsigned>(assistant->get_microphone_buffer_free()));
 
 wifi:
   ssid: MySSID
@@ -45,6 +51,7 @@ speaker:
     i2s_dout_pin: ${i2s_dout_pin}
 
 voice_assistant:
+  id: va_id
   microphone:
     - microphone: va_mic_id_external
       gain_factor: 4
