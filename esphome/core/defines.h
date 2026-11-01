@@ -475,6 +475,9 @@
 
 // ESP32-specific feature flags
 #ifdef USE_ESP32
+#if defined(USE_ESP_IDF) && defined(USE_ESP32_VARIANT_ESP32)
+#define USE_DSP_DECIMATOR
+#endif
 #define USE_ESP32_CRASH_HANDLER
 #define USE_ESP32_VASPRINTF_STUB
 #define USE_MQTT_IDF_ENQUEUE
