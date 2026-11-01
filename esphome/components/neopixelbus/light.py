@@ -1,5 +1,3 @@
-import logging
-
 from esphome import pins
 import esphome.codegen as cg
 from esphome.components import light
@@ -36,8 +34,6 @@ from ._methods import (
     METHODS,
 )
 from .const import CHIP_TYPES, CONF_ASYNC, CONF_BUS, ONE_WIRE_CHIPS
-
-_LOGGER = logging.getLogger(__name__)
 
 neopixelbus_ns = cg.esphome_ns.namespace("neopixelbus")
 NeoPixelBusLightOutputBase = neopixelbus_ns.class_(
@@ -139,13 +135,12 @@ def _validate(config):
     return config
 
 
-def _warn_esp32_deprecated(config: ConfigType) -> ConfigType:
+def _reject_esp32(config: ConfigType) -> ConfigType:
     if CORE.is_esp32:
-        _LOGGER.warning(
-            "'neopixelbus' on ESP32 is deprecated. The upstream library "
-            "(makuna/NeoPixelBus) is no longer actively maintained. Migrate "
-            "to 'esp32_rmt_led_strip'. Removal is targeted for 2027.1 but "
-            "may happen sooner once ESPHome moves to ESP-IDF 6."
+        raise cv.Invalid(
+            "'neopixelbus' is no longer supported on ESP32. Use the "
+            "'esp32_rmt_led_strip' light platform instead: "
+            "https://esphome.io/components/light/esp32_rmt_led_strip/"
         )
     return config
 
@@ -183,18 +178,10 @@ def _validate_method(value):
 
 
 CONFIG_SCHEMA = cv.All(
-    cv.only_with_framework(
-        frameworks=Framework.ARDUINO,
-        suggestions={
-            Framework.ESP_IDF: (
-                "esp32_rmt_led_strip",
-                "light/esp32_rmt_led_strip",
-            )
-        },
-    ),
+    _reject_esp32,
+    cv.only_with_framework(frameworks=Framework.ARDUINO),
     cv.require_framework_version(
         esp8266_arduino=cv.Version(2, 4, 0),
-        esp32_arduino=cv.Version(0, 0, 0),
     ),
     light.ADDRESSABLE_LIGHT_SCHEMA.extend(
         {
@@ -211,7 +198,6 @@ CONFIG_SCHEMA = cv.All(
     ).extend(cv.COMPONENT_SCHEMA),
     _choose_default_method,
     _validate,
-    _warn_esp32_deprecated,
 )
 
 
