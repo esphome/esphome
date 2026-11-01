@@ -8,8 +8,9 @@ REG = "esphome__arg_data.registers"
 
 def test_children_publish_through_hub_function(
     generate_main: Callable[[str | Path], str],
+    component_config_path: Callable[[str], Path],
 ) -> None:
-    main_cpp = generate_main("tests/component_tests/sy6970/test_sy6970.yaml")
+    main_cpp = generate_main(component_config_path("hub_function.yaml"))
 
     assert (
         "static void esphome__charger__data_fn("
@@ -37,8 +38,9 @@ def test_children_publish_through_hub_function(
         "* sy6970::PRE_CHG_STEP_MA)));"
     ) in main_cpp
     assert (
-        "::ntc_status->publish_state(sy6970::ntc_status_to_string("
-        f"({REG}[sy6970::SY6970_REG_FAULT] & 7)));"
+        "::ntc_status->publish_state(sy6970::NtcStatusStrings::get_progmem_str("
+        f"({REG}[sy6970::SY6970_REG_FAULT] & 7), "
+        "sy6970::NtcStatusStrings::LAST_INDEX));"
     ) in main_cpp
     # Unconfigured children add nothing
     assert "charge_done" not in main_cpp

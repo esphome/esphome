@@ -32,13 +32,13 @@ I2C_WATCHDOG_TIMEOUTS = I2CWatchdogTimeout.options(
 
 # Publishes the child entities from the registers read on each update
 DATA_PUBLISHER = cg.HubFunction(
-    "data_fn",
+    "data",
     cg.void,
-    [(SY6970Data.operator("const").operator("ref"), "data")],
-    setter="set_data_publisher",
+    [(SY6970Data.const_ref(), "data")],
     define="USE_SY6970_DATA_PUBLISHER",
 )
-REGISTERS = DATA_PUBLISHER.param("data").registers
+DATA = DATA_PUBLISHER.param("data")
+REGISTERS = DATA.registers
 STATUS_REGISTER = REGISTERS[sy6970_ns.SY6970_REG_STATUS]
 BUS_STATUS = (STATUS_REGISTER >> 5) & 0x07
 CHARGE_STATUS = (STATUS_REGISTER >> 3) & 0x03
