@@ -195,7 +195,7 @@ class Rfc2217Server : public Rfc2217Base, public uart::UARTDevice {
 /// RFC 2217 client: a UART whose line settings go to the access server.
 class Rfc2217Client : public uart::VirtualUARTComponent, public Rfc2217Base {
  public:
-  Rfc2217Client() : VirtualUARTComponent(RX_SIZE) {}
+  explicit Rfc2217Client(tcp_uart::TcpUart *tcp) : VirtualUARTComponent(RX_SIZE), Rfc2217Base(tcp) {}
 
   void loop() override {
     if (this->tcp_->is_connected() != this->link_was_up_) {

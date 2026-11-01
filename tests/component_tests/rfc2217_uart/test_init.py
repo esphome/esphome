@@ -191,7 +191,7 @@ def test_each_role_rejects_the_other_roles_keys(conf: ConfigType) -> None:
 
 def test_client_sends_its_line_settings(generate_main) -> None:
     main_cpp = generate_main(f"{DIR}/test_client.yaml")
-    assert "remote_port->set_tcp_uart(remote_link);" in main_cpp
+    assert "rfc2217_uart::Rfc2217Client(remote_link);" in main_cpp
     assert "remote_port->set_baud_rate(19200);" in main_cpp
     assert "remote_port->set_data_bits(7);" in main_cpp
     assert "remote_port->set_stop_bits(2);" in main_cpp

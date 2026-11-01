@@ -13,8 +13,7 @@ namespace {
 
 class Client : public Rfc2217Client {
  public:
-  explicit Client(Pipe *pipe) {
-    this->set_tcp_uart(pipe);
+  explicit Client(Pipe *pipe) : Rfc2217Client(pipe) {
     this->set_baud_rate(9600);
     this->set_data_bits(8);
     this->set_parity(uart::UART_CONFIG_PARITY_NONE);
