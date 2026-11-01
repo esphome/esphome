@@ -1,0 +1,209 @@
+esphome:
+  name: test-script-synchronous
+
+host:
+
+api:
+  actions:
+    - action: run_single
+      then:
+        - globals.set:
+            id: depth
+            value: "0"
+        - script.execute: single_script
+    - action: run_restart
+      then:
+        - globals.set:
+            id: depth
+            value: "0"
+        - script.execute: restart_script
+    - action: run_queued
+      then:
+        - script.execute:
+            id: queued_script
+            n: 1
+    - action: run_parallel
+      then:
+        - script.execute:
+            id: parallel_script
+            n: 1
+    - action: run_params
+      variables:
+        value: int
+        label: string
+      then:
+        - script.execute:
+            id: params_script
+            x: !lambda return value;
+            s: !lambda return label;
+    - action: run_stop
+      then:
+        - script.execute: stop_script
+    - action: run_wait
+      then:
+        - script.execute: sync_script
+        - script.wait: sync_script
+        - logger.log: "WAIT done"
+    - action: run_outside
+      then:
+        - script.execute: sync_script
+        - if:
+            condition:
+              script.is_running: sync_script
+            then:
+              - logger.log: "OUTSIDE running"
+            else:
+              - logger.log: "OUTSIDE idle"
+    - action: run_recursive
+      then:
+        - script.execute:
+            id: recursive_script
+            n: 3
+
+logger:
+  level: DEBUG
+
+globals:
+  - id: depth
+    type: int
+
+script:
+  # Executing a running single script from its own body is refused with a warning
+  - id: single_script
+    then:
+      - logger.log: "SINGLE start"
+      - if:
+          condition:
+            lambda: return id(depth)++ == 0;
+          then:
+            - script.execute: single_script
+      - logger.log: "SINGLE end"
+
+  # Executing a running restart script from its own body stops the outer run
+  - id: restart_script
+    mode: restart
+    on_stop:
+      - logger.log: "RESTART on_stop"
+    then:
+      - logger.log: "RESTART start"
+      - if:
+          condition:
+            lambda: return id(depth)++ == 0;
+          then:
+            - script.execute: restart_script
+      - logger.log: "RESTART end"
+
+  # max_runs counts the running instance and the queued ones
+  - id: queued_script
+    mode: queued
+    max_runs: 2
+    parameters:
+      n: int
+    then:
+      - logger.log:
+          format: "QUEUED run %d"
+          args: [n]
+      - if:
+          condition:
+            lambda: return n == 1;
+          then:
+            - script.execute:
+                id: queued_script
+                n: 2
+            - script.execute:
+                id: queued_script
+                n: 3
+
+  # Runs nested in the body count against max_runs
+  - id: parallel_script
+    mode: parallel
+    max_runs: 2
+    parameters:
+      n: int
+    then:
+      - logger.log:
+          format: "PARALLEL run %d"
+          args: [n]
+      - if:
+          condition:
+            lambda: return n < 3;
+          then:
+            - script.execute:
+                id: parallel_script
+                n: !lambda return n + 1;
+      - logger.log:
+          format: "PARALLEL end %d"
+          args: [n]
+
+  # Lambdas get the parameters by value, so each one can change its own copy
+  - id: params_script
+    parameters:
+      x: int
+      s: string
+    then:
+      - lambda: |-
+          x *= 2;
+          ESP_LOGI("test", "PARAMS lambda %d %s", x, s.c_str());
+      - logger.log:
+          format: "PARAMS again %d %s"
+          args: [x *= 2, s.c_str()]
+      - script.execute:
+          id: params_sink
+          label: first
+          y: !lambda return x *= 2;
+      - script.execute:
+          id: params_sink
+          label: second
+          y: !lambda |-
+            x *= 2;
+            return x;
+
+  - id: params_sink
+    parameters:
+      label: string
+      y: int
+    then:
+      - logger.log:
+          format: "PARAMS %s %d"
+          args: [label.c_str(), y]
+
+  - id: stop_script
+    on_stop:
+      - logger.log: "STOP on_stop"
+    then:
+      - logger.log: "STOP start"
+      - script.stop
+      - logger.log: "STOP not reached"
+
+  # Runs a script that waits for this one, which is running until its body ends
+  - id: sync_script
+    then:
+      - logger.log: "SYNC start"
+      - if:
+          condition:
+            script.is_running: sync_script
+          then:
+            - logger.log: "SYNC running inside"
+      - script.execute: waiter_script
+      - logger.log: "SYNC end"
+
+  - id: waiter_script
+    then:
+      - script.wait: sync_script
+      - logger.log: "WAITER done"
+
+  - id: recursive_script
+    mode: parallel
+    parameters:
+      n: int
+    then:
+      - if:
+          condition:
+            lambda: return n > 0;
+          then:
+            - script.execute:
+                id: recursive_script
+                n: !lambda return n - 1;
+      - logger.log:
+          format: "RECURSIVE %d"
+          args: [n]

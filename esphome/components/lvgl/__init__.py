@@ -30,6 +30,7 @@ from esphome.components.image import (
     get_image_metadata,
 )
 from esphome.components.psram import DOMAIN as PSRAM_DOMAIN
+from esphome.components.zephyr import zephyr_add_prj_conf_min
 import esphome.config_validation as cv
 from esphome.const import (
     CONF_BUFFER_SIZE,
@@ -339,10 +340,10 @@ def final_validation(config_list):
 
 def lv_conf_path_flag(lv_conf_h_file: Path) -> str:
     """The ``-DLV_CONF_PATH`` build flag, decoded identically by the shell
-    lexers (PlatformIO, host, ESP8266, and ESP-IDF before it quotes each
-    token for CMake) and the raw quoted CMake argument (Zephyr)."""
-    # forward slashes for Windows, then escape what shlex or a quoted CMake
-    # argument would not pass through literally
+    lexers of every build (ESP-IDF and Zephyr then quote each token for
+    CMake)."""
+    # forward slashes for Windows, then escape what shlex would not pass
+    # through literally
     path = re.sub(r"[^\w/.:+=,-]", r"\\\g<0>", Path(lv_conf_h_file).as_posix())
     return f'-DLV_CONF_PATH=\\"{path}\\"'
 
@@ -371,6 +372,10 @@ async def to_code(configs):
     else:
         df.add_define("LV_DRAW_BUF_ALIGN", "1")
         cg.add_library("lvgl/lvgl", LVGL_VERSION)
+        if CORE.using_zephyr:
+            # LVGL draws from the main thread, and its 2 KB default overflows while
+            # rendering
+            zephyr_add_prj_conf_min("MAIN_STACK_SIZE", 4096)
     df.add_define("LV_DRAW_BUF_STRIDE_ALIGN", "1")
     df.add_define("LV_USE_DRAW_SW", "1")
     # LVGL 9.6 rejects 0 here unless tiled rendering is disabled
@@ -414,7 +419,7 @@ async def to_code(configs):
         "LV_COLOR_CHROMA_KEY",
         await lvalid.lv_color.process(config_0[df.CONF_TRANSPARENCY_KEY]),
     )
-    if not CORE.using_toolchain_esp_idf:
+    if not (CORE.using_toolchain_esp_idf or CORE.using_toolchain_sdk_nrf):
         cg.add_build_flag("-Isrc")
 
     cg.add_global(lvgl_ns.using)

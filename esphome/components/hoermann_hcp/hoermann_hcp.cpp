@@ -562,8 +562,7 @@ void HoermannHcp::on_light_reg_(uint16_t value) {
   const bool actuator_error = (value & 0x3000) != 0;
 #ifdef USE_BINARY_SENSOR
   // Unknown until first reported, then kept like the other entities here while the bus is quiet.
-  if (this->actuator_error_binary_sensor_ != nullptr)
-    this->actuator_error_binary_sensor_->publish_state(actuator_error);
+  PUBLISH_STATE(this->actuator_error_binary_sensor_, actuator_error);
 #endif
   if (this->actuator_error_ == actuator_error)
     return;

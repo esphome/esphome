@@ -8,7 +8,19 @@ sx1509:
       key_columns: 2
       keys: abcd
       on_key:
-        - lambda: ESP_LOGD("test", "got key '%c'", x);
+        - then:
+            - lambda: ESP_LOGD("test", "got key '%c'", x);
+        - then:
+            - lambda: ESP_LOGD("test", "second key '%c'", x);
+  - id: sx1509_hub_second
+    i2c_id: i2c_bus
+    address: 0x3F
+    keypad:
+      key_rows: 2
+      key_columns: 2
+      keys: wxyz
+      on_key:
+        - lambda: ESP_LOGD("test", "second hub key '%c'", x);
 
 binary_sensor:
   - platform: gpio

@@ -28,6 +28,22 @@ esphome:
 
 api:
 
+# Field lambdas get the script parameters by value, so they may modify them
+script:
+  - id: ha_by_value
+    parameters:
+      level: int
+    then:
+      - homeassistant.action:
+          action: light.turn_on
+          data:
+            doubled: !lambda "level *= 2; return level;"
+            tripled: !lambda "return level *= 3;"
+      - homeassistant.event:
+          event: esphome.level
+          data:
+            doubled: !lambda "level *= 2; return level;"
+
 switch:
   - platform: homeassistant
     entity_id: automation.my_cool_automation

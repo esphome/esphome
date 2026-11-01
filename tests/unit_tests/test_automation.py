@@ -8,30 +8,41 @@ from unittest.mock import AsyncMock, MagicMock, call, patch
 import pytest
 
 from esphome.automation import (
+    _COLLECTED_ACTION,
     ACTION_REGISTRY,
     CONF_CHOICE_ID,
     CONF_CHOOSE,
     IN_RANGE_CHECK,
     IN_RANGE_DEFAULTS,
+    Action,
+    AndCondition,
     ApplyAction,
     ApplyBytes,
     ApplyCall,
     ApplyCondition,
     ApplyField,
+    Automation,
     CallbackAutomation,
+    DelayAction,
     ForCondition,
+    IfAction,
     LambdaAction,
     LambdaCondition,
     NotCondition,
+    OrCondition,
     RepeatAction,
-    ResumeComponentAction,
     StatelessLambdaCondition,
     TriggerForwarder,
     TriggerOnFalseForwarder,
     TriggerOnTrueForwarder,
     WaitUntilAction,
+    WhileAction,
+    XorCondition,
     _shadow_iteration,
+    apply_action_builder,
+    apply_statements_action,
     build_action,
+    build_action_list,
     build_callback_automation,
     build_callback_automations,
     build_condition,
@@ -51,6 +62,7 @@ from esphome.automation import (
     register_apply_condition,
     register_bare_action,
     register_bare_condition,
+    register_condition,
     register_parented_action,
     register_parented_condition,
     register_simple_action,
@@ -79,7 +91,15 @@ from esphome.const import (
     CONF_TYPE_ID,
     CONF_UPDATE_INTERVAL,
 )
-from esphome.core import CORE, ID, KEY_CORE, KEY_TARGET_PLATFORM, EsphomeError, Lambda
+from esphome.core import (
+    CORE,
+    ID,
+    KEY_CORE,
+    KEY_TARGET_PLATFORM,
+    EsphomeError,
+    Lambda,
+    TimePeriodMilliseconds,
+)
 from esphome.cpp_generator import LambdaExpression, MockObj, RawExpression
 from esphome.schema_extractors import SCHEMA_EXTRACT
 from esphome.types import ConfigType
@@ -1128,6 +1148,52 @@ async def test_apply_lambdas(
 
 
 @pytest.mark.asyncio
+async def test_apply_lambda_modifying_its_arg(
+    registries: tuple[Registry, Registry], mock_cg: MockCodegen
+) -> None:
+    """How a field lambda that modifies its trigger arg is rendered."""
+    fields = (
+        ApplyField("kp", "set_kp", cg.float_),
+        ApplyField("ki", "set_ki", cg.float_),
+    )
+    config = {"kp": Lambda("x *= 2;\nreturn x;"), "ki": Lambda("return x *= 2;")}
+    await _run_apply_action(registries, fields, config, args=[(cg.int32, "x")])
+    text = _squash(_apply_definition(mock_cg))
+    assert text.startswith(
+        "static void esphome__obj_1__fn(const std::remove_cvref_t<int32_t> & x) {"
+    )
+    assert (
+        f"::{PARENT_OBJ}->set_kp([](const std::remove_cvref_t<int32_t> & x) -> float "
+        "{ x *= 2; return x; }(x));"
+    ) in text
+    assert f"::{PARENT_OBJ}->set_ki(static_cast<float>(x *= 2));" in text
+
+
+@pytest.mark.asyncio
+async def test_apply_condition_lambda_modifying_its_arg(
+    registries: tuple[Registry, Registry], mock_cg: MockCodegen
+) -> None:
+    """How a condition lambda that modifies its trigger arg is rendered."""
+    check = ApplyCall("state == {}", (("state", cg.float_),))
+    await _run_apply_condition(
+        registries,
+        check,
+        {"state": Lambda("x *= 2;\nreturn x;")},
+        args=[(cg.float_, "x")],
+    )
+    assert (
+        f"return ::{PARENT_OBJ}->state == [](const std::remove_cvref_t<float> & x) "
+        "-> float { x *= 2; return x; }(x);"
+    ) in _squash(_apply_definition(mock_cg))
+    await _run_apply_condition(
+        registries, check, {"state": Lambda("return x *= 2;")}, args=[(cg.float_, "x")]
+    )
+    assert f"return ::{PARENT_OBJ}->state == static_cast<float>(x *= 2);" in _squash(
+        _apply_definition(mock_cg)
+    )
+
+
+@pytest.mark.asyncio
 async def test_apply_call_keys(
     registries: tuple[Registry, Registry], mock_cg: MockCodegen
 ) -> None:
@@ -1715,6 +1781,36 @@ async def test_trigger_callback_filter_names_parent(mock_cg: MockCodegen) -> Non
 
 
 @pytest.mark.asyncio
+@pytest.mark.parametrize(
+    ("body", "expected"),
+    [
+        (
+            "x *= 2;\nreturn x;",
+            (
+                "if (!(x == [](const std::remove_cvref_t<float> & x) -> float "
+                "{ x *= 2; return x; }(x))) return;"
+            ),
+        ),
+        ("return x *= 2;", "if (!(x == static_cast<float>(x *= 2))) return;"),
+    ],
+)
+async def test_trigger_callback_filter_lambda_modifying_its_arg(
+    mock_cg: MockCodegen, body: str, expected: str
+) -> None:
+    """How a filter lambda that modifies the callback's arg is rendered."""
+    text = _squash(
+        await build_trigger_callback(
+            [(cg.float_, "x")],
+            {**TRIGGER_CONF, "level": Lambda(body)},
+            [(cg.float_, "x")],
+            when=ApplyCall("x == {}", (("level", cg.float_),)),
+        )
+    )
+    assert text.startswith("[](const std::remove_cvref_t<float> & x) -> void {")
+    assert expected in text
+
+
+@pytest.mark.asyncio
 async def test_build_callback_automations_when_names_parent(
     mock_cg: MockCodegen,
 ) -> None:
@@ -1750,7 +1846,7 @@ async def test_build_parent_callback_automation(mock_cg: MockCodegen) -> None:
 
 @pytest.mark.asyncio
 async def test_build_callback_automation_lambda(mock_cg: MockCodegen) -> None:
-    """Reshaping keywords switch the registration to the lambda; forwarder cannot join them."""
+    """Reshaping keywords switch the registration to the lambda."""
     parent = MockObj("sel", "->")
     await build_callback_automation(
         parent,
@@ -1764,15 +1860,26 @@ async def test_build_callback_automation_lambda(mock_cg: MockCodegen) -> None:
         "sel->add_cb([](const std::remove_cvref_t<size_t> & index) -> void { "
         f"::{NEW_OBJ}->trigger(::sel->option_at(index), index); }})"
     )
-    with pytest.raises(ValueError, match="forwarder"):
-        await build_callback_automation(
-            parent,
-            "add_cb",
-            [],
-            TRIGGER_CONF,
-            forwarder=TriggerOnTrueForwarder,
-            when="x",
-        )
+
+
+@pytest.mark.asyncio
+async def test_build_callback_automation_forwarder_with_filter(
+    mock_cg: MockCodegen,
+) -> None:
+    """When objects are needed, a forwarder given with a filter is the one registered."""
+    await build_callback_automation(
+        MockObj("parent", "->"),
+        "add_cb",
+        [],
+        TRIGGER_CONF,
+        forwarder=TriggerOnTrueForwarder,
+        params=[(cg.bool_, "state")],
+        forward=[],
+        when="state",
+    )
+    assert str(mock_cg.add.call_args.args[0]) == (
+        f"parent->add_cb(TriggerOnTrueForwarder{{{NEW_OBJ}}})"
+    )
 
 
 @pytest.mark.asyncio
@@ -2201,19 +2308,1027 @@ async def test_wait_until_action_timeout_is_optional(with_timeout: bool) -> None
     assert ("wait->set_timeout_value(" in CORE.cpp_main_section) == with_timeout
 
 
-@pytest.mark.asyncio
-@pytest.mark.parametrize("with_interval", [True, False])
-async def test_component_resume_action_update_interval_is_optional(
-    with_interval: bool,
-) -> None:
+def _component_action(name: str, body: ConfigType | None = None) -> ConfigType:
+    """Config for a ``component.*`` action on ``comp``, typed as the registry declares it."""
+    return {
+        name: {CONF_ID: ID("comp", type=cg.PollingComponent), **(body or {})},
+        CONF_TYPE_ID: ID(
+            "act",
+            is_declaration=True,
+            type=ACTION_REGISTRY[name].type_id,
+            is_manual=False,
+        ),
+    }
+
+
+@pytest.fixture
+def polling_component() -> None:
     CORE.config = {}
     cg.new_Pvariable(ID("comp", is_declaration=True, type=cg.PollingComponent))
-    body: ConfigType = {CONF_ID: ID("comp", type=cg.PollingComponent)}
-    if with_interval:
-        body[CONF_UPDATE_INTERVAL] = 250
-    config: ConfigType = {
-        "component.resume": body,
-        CONF_TYPE_ID: ID("resume", is_declaration=True, type=ResumeComponentAction),
+
+
+@pytest.mark.asyncio
+@pytest.mark.usefixtures("polling_component")
+@pytest.mark.parametrize(
+    "name",
+    ["component.update", "component.suspend", "component.resume"],
+)
+async def test_component_action_codegen(name: str) -> None:
+    """Each action is an object constructed with the component, with no interval set."""
+    await build_action(_component_action(name), TEMPLATE_ARG, [])
+
+    class_name = str(ACTION_REGISTRY[name].type_id)
+    assert f"new(act) {class_name}<>(comp);" in CORE.cpp_main_section
+    assert "set_update_interval" not in CORE.cpp_main_section
+
+
+@pytest.mark.asyncio
+@pytest.mark.usefixtures("polling_component")
+async def test_component_resume_constant_interval_codegen() -> None:
+    await build_action(
+        _component_action(
+            "component.resume",
+            {CONF_UPDATE_INTERVAL: TimePeriodMilliseconds(milliseconds=250)},
+        ),
+        TEMPLATE_ARG,
+        [],
+    )
+
+    assert (
+        "act->set_update_interval([]() -> uint32_t {\n    return 250;\n});"
+    ) in CORE.cpp_main_section
+
+
+@pytest.mark.asyncio
+@pytest.mark.usefixtures("polling_component")
+async def test_component_resume_interval_lambda_codegen() -> None:
+    """A templated interval is a lambda over the trigger args."""
+    await build_action(
+        _component_action(
+            "component.resume", {CONF_UPDATE_INTERVAL: Lambda("return x * 1000;")}
+        ),
+        cg.TemplateArguments(cg.uint32),
+        [(cg.uint32, "x")],
+    )
+
+    main = CORE.cpp_main_section
+    assert "new(act) ResumeComponentAction<uint32_t>(comp);" in main
+    assert (
+        "act->set_update_interval([](uint32_t x) -> uint32_t {\n"
+        "    return x * 1000;\n"
+        "});"
+    ) in main
+
+
+@pytest.mark.asyncio
+@pytest.mark.usefixtures("polling_component")
+@pytest.mark.parametrize("body", ["x *= 1000; return x;", "return x *= 1000;"])
+async def test_component_resume_interval_lambda_takes_args_by_value(body: str) -> None:
+    """The user's interval lambda gets the trigger args by value, so it may modify them."""
+    await build_action(
+        _component_action("component.resume", {CONF_UPDATE_INTERVAL: Lambda(body)}),
+        cg.TemplateArguments(cg.uint32),
+        [(cg.uint32, "x")],
+    )
+
+    assert f"[](uint32_t x) -> uint32_t {{\n    {body}\n}}" in CORE.cpp_main_section
+
+
+COMPONENT_ID = ID("comp", type=cg.Component)
+
+
+def _action(name: str, id_: str, is_manual: bool = False) -> ConfigType:
+    """Config for an action taking the component id; ``id_`` names the action object."""
+    return {
+        name: {CONF_ID: COMPONENT_ID},
+        CONF_TYPE_ID: ID(
+            id_, is_declaration=True, type=ApplyAction, is_manual=is_manual
+        ),
     }
-    await build_action(config, TEMPLATE_ARG, [])
-    assert ("resume->set_update_interval(" in CORE.cpp_main_section) == with_interval
+
+
+def _lambda_action(id_: str, body: str) -> ConfigType:
+    return {
+        "lambda": Lambda(body),
+        CONF_TYPE_ID: ID(id_, is_declaration=True, type=LambdaAction, is_manual=False),
+    }
+
+
+@pytest.fixture
+def apply_actions() -> Generator[None]:
+    """Declare the component and register apply actions ``my.a`` to ``my.c``."""
+    CORE.config = {}
+    cg.new_Pvariable(ID("comp", is_declaration=True, type=cg.Component))
+    schema = {cv.Required(CONF_ID): cv.use_id(cg.Component)}
+    actions = Registry()
+    actions.update(ACTION_REGISTRY)
+    with patch("esphome.automation.ACTION_REGISTRY", actions):
+        for name in ("a", "b", "c"):
+            register_apply_action(f"my.{name}", schema, ApplyCall(f"do_{name}()"))
+        yield
+
+
+@pytest.mark.asyncio
+@pytest.mark.usefixtures("apply_actions")
+async def test_build_action_list_merges_adjacent_actions() -> None:
+    """Adjacent inline actions become one object, with a stop check between the actions."""
+    config = [_action("my.a", "act_a"), _action("my.b", "act_b")]
+
+    result = await build_action_list(config, TEMPLATE_ARG, [])
+
+    assert len(result) == 1
+    assert "new(act_a) ApplyRunAction<esphome__act_a__fn>();" in CORE.cpp_main_section
+    assert "act_b" not in CORE.cpp_main_section
+    text = CORE.cpp_global_section
+    assert "void esphome__act_a__fn(const int & esphome__running)" in text
+    assert "esphome__act_b__fn" not in text
+    assert text.index("::comp->do_a();") < text.index("if (!esphome__running)")
+    assert text.index("if (!esphome__running)") < text.index("::comp->do_b();")
+    assert text.count("if (!esphome__running)") == 1
+
+
+@pytest.mark.asyncio
+@pytest.mark.usefixtures("apply_actions")
+async def test_build_action_list_single_action_is_unchanged() -> None:
+    """A lone apply action keeps its plain ApplyAction and no stop check."""
+    result = await build_action_list([_action("my.a", "act_a")], TEMPLATE_ARG, [])
+
+    assert len(result) == 1
+    assert "new(act_a) ApplyAction<esphome__act_a__fn>();" in CORE.cpp_main_section
+    assert "esphome__running" not in CORE.cpp_global_section
+
+
+@pytest.mark.asyncio
+@pytest.mark.usefixtures("apply_actions")
+async def test_build_action_list_single_lambda_is_unchanged() -> None:
+    """A lone lambda keeps the StatelessLambdaAction that shares one vtable."""
+    config = [_lambda_action("act_l", "do_it();")]
+
+    result = await build_action_list(config, TEMPLATE_ARG, [])
+
+    assert len(result) == 1
+    assert "new(act_l) StatelessLambdaAction<>(" in CORE.cpp_main_section
+    assert "esphome__running" not in CORE.cpp_global_section
+
+
+@pytest.mark.asyncio
+@pytest.mark.usefixtures("apply_actions")
+async def test_build_action_list_merges_lambda_as_immediate_call() -> None:
+    """A lambda keeps its scope and argument copy; a leading one must not type the object."""
+    config = [_lambda_action("act_l", "x += 1;\nreturn;"), _action("my.a", "act_a")]
+    args = [(cg.int_, "x")]
+
+    result = await build_action_list(config, cg.TemplateArguments(cg.int_), args)
+
+    assert len(result) == 1
+    assert "new(act_l) ApplyRunAction<esphome__act_l__fn, int>();" in (
+        CORE.cpp_main_section
+    )
+    text = CORE.cpp_global_section
+    assert "const std::remove_cvref_t<int> & x" in text
+    assert "[](int x) -> void {" in text
+    assert "}(x);" in text
+
+
+@pytest.mark.asyncio
+@pytest.mark.usefixtures("apply_actions")
+async def test_build_action_list_object_action_ends_a_run() -> None:
+    """An action with its own class splits the runs on either side of it."""
+    delay = {
+        "delay": 100,
+        CONF_TYPE_ID: ID("act_d", is_declaration=True, type=DelayAction),
+    }
+    config = [
+        _action("my.a", "act_a"),
+        _action("my.b", "act_b"),
+        delay,
+        _action("my.c", "act_c"),
+    ]
+
+    result = await build_action_list(config, TEMPLATE_ARG, [])
+
+    assert [str(action) for action in result] == ["act_a", "act_d", "act_c"]
+    text = CORE.cpp_main_section
+    assert "new(act_a) ApplyRunAction<esphome__act_a__fn>();" in text
+    assert "new(act_c) ApplyAction<esphome__act_c__fn>();" in text
+
+
+@pytest.mark.asyncio
+@pytest.mark.usefixtures("apply_actions")
+async def test_build_action_list_manual_type_id_keeps_its_object() -> None:
+    """A lambda can reach an action by a manual type_id, so it stays a separate object."""
+    config = [
+        _action("my.a", "act_a"),
+        _action("my.b", "act_b"),
+        _action("my.c", "act_c", is_manual=True),
+    ]
+
+    result = await build_action_list(config, TEMPLATE_ARG, [])
+
+    assert [str(action) for action in result] == ["act_a", "act_c"]
+    assert "new(act_c) ApplyAction<esphome__act_c__fn>();" in CORE.cpp_main_section
+
+
+@pytest.mark.asyncio
+@pytest.mark.usefixtures("apply_actions")
+async def test_build_action_list_keeps_wrapper_side_effects() -> None:
+    """A builder that wraps an apply builder still runs, and its action still merges."""
+    builder = apply_action_builder(
+        "my.wrapped",
+        {cv.Required(CONF_ID): cv.use_id(cg.Component)},
+        ApplyCall("do_wrapped()"),
+    )
+
+    @register_action("my.wrapped", ApplyAction, {}, synchronous=True)
+    async def wrapped_to_code(
+        config: ConfigType,
+        action_id: ID,
+        template_arg: cg.TemplateArguments,
+        args: list[tuple[object, str]],
+    ) -> MockObj:
+        cg.add_define("USE_MY_WRAPPED")
+        return await builder(config, action_id, template_arg, args)
+
+    config = [_action("my.wrapped", "act_w"), _action("my.a", "act_a")]
+
+    result = await build_action_list(config, TEMPLATE_ARG, [])
+
+    assert len(result) == 1
+    assert any(define.name == "USE_MY_WRAPPED" for define in CORE.defines)
+    assert "::comp->do_wrapped();" in CORE.cpp_global_section
+
+
+def _inline_condition(id_: str = "cond") -> ConfigType:
+    return {
+        "lambda": Lambda("return true;"),
+        CONF_TYPE_ID: ID(
+            id_, is_declaration=True, type=LambdaCondition, is_manual=False
+        ),
+    }
+
+
+def _if_action(*then: ConfigType, condition: ConfigType | None = None) -> ConfigType:
+    return {
+        "if": {
+            CONF_CONDITION: condition or _inline_condition(),
+            CONF_THEN: list(then),
+        },
+        CONF_TYPE_ID: ID("act_if", is_declaration=True, type=IfAction, is_manual=False),
+    }
+
+
+@pytest.mark.asyncio
+@pytest.mark.usefixtures("apply_actions")
+async def test_build_action_list_rejects_a_dropped_collected_action() -> None:
+    """A wrapper that returns another object would lose the collected action without a trace."""
+    builder = apply_action_builder(
+        "my.wrapped",
+        {cv.Required(CONF_ID): cv.use_id(cg.Component)},
+        ApplyCall("do_wrapped()"),
+    )
+
+    @register_action("my.wrapped", ApplyAction, {}, synchronous=True)
+    async def wrapped_to_code(
+        config: ConfigType,
+        action_id: ID,
+        template_arg: cg.TemplateArguments,
+        args: list[tuple[object, str]],
+    ) -> MockObj:
+        await builder(config, action_id, template_arg, args)
+        return MockObj("something_else", "->")
+
+    with pytest.raises(
+        EsphomeError, match=r"'my\.wrapped' \(act_w\) must return the result"
+    ):
+        await build_action_list([_action("my.wrapped", "act_w")], TEMPLATE_ARG, [])
+
+
+@pytest.mark.asyncio
+@pytest.mark.usefixtures("apply_actions")
+async def test_build_action_list_rejects_using_the_collected_result() -> None:
+    """A wrapper that uses the result fails here, not later as an undeclared name in C++."""
+    builder = apply_action_builder(
+        "my.wrapped",
+        {cv.Required(CONF_ID): cv.use_id(cg.Component)},
+        ApplyCall("do_wrapped()"),
+    )
+
+    @register_action("my.wrapped", ApplyAction, {}, synchronous=True)
+    async def wrapped_to_code(
+        config: ConfigType,
+        action_id: ID,
+        template_arg: cg.TemplateArguments,
+        args: list[tuple[object, str]],
+    ) -> MockObj:
+        var = await builder(config, action_id, template_arg, args)
+        cg.add(var.set_x(1))
+        return var
+
+    with pytest.raises(EsphomeError, match=r"'my\.wrapped' \(act_w\) used the result"):
+        await build_action_list([_action("my.wrapped", "act_w")], TEMPLATE_ARG, [])
+
+
+@pytest.mark.asyncio
+@pytest.mark.usefixtures("apply_actions")
+async def test_build_action_list_rejects_building_an_action_twice() -> None:
+    """The second build would otherwise replace the first without a trace."""
+    builder = apply_action_builder(
+        "my.wrapped",
+        {cv.Required(CONF_ID): cv.use_id(cg.Component)},
+        ApplyCall("do_wrapped()"),
+    )
+
+    @register_action("my.wrapped", ApplyAction, {}, synchronous=True)
+    async def wrapped_to_code(
+        config: ConfigType,
+        action_id: ID,
+        template_arg: cg.TemplateArguments,
+        args: list[tuple[object, str]],
+    ) -> MockObj:
+        await builder(config, action_id, template_arg, args)
+        return await builder(config, action_id, template_arg, args)
+
+    with pytest.raises(
+        EsphomeError, match=r"'my\.wrapped' \(act_w\) built its action twice"
+    ):
+        await build_action_list([_action("my.wrapped", "act_w")], TEMPLATE_ARG, [])
+
+
+@pytest.mark.parametrize(
+    "use",
+    [str, lambda result: result(), lambda result: result.set_x],
+    ids=["str", "call", "attribute"],
+)
+def test_collected_result_cannot_be_used(use: Callable[[MockObj], object]) -> None:
+    with pytest.raises(EsphomeError, match="The builder of an action used the result"):
+        use(_COLLECTED_ACTION)
+
+
+def test_collected_result_leaves_python_protocols_alone() -> None:
+    """Python probes for dunder methods and expects them to be missing."""
+    assert not hasattr(_COLLECTED_ACTION, "__wrapped__")
+
+
+@pytest.mark.asyncio
+@pytest.mark.usefixtures("apply_actions")
+async def test_build_action_list_inline_if_is_control_flow() -> None:
+    """An all-inline ``if`` merges with its neighbours and checks for a stop after the condition."""
+    config = [
+        _action("my.c", "act_c"),
+        _if_action(_action("my.a", "act_a"), _action("my.b", "act_b")),
+    ]
+
+    result = await build_action_list(config, TEMPLATE_ARG, [])
+
+    assert [str(action) for action in result] == ["act_c"]
+    main = CORE.cpp_main_section
+    assert "new(act_c) ApplyRunAction<esphome__act_c__fn>();" in main
+    assert "IfAction" not in main
+    assert "Condition" not in main
+    text = CORE.cpp_global_section
+    assert "const bool esphome__condition = ([]() -> bool {" in text
+    # Between the two outer actions, after the condition and between the two branch actions
+    assert text.count("if (!esphome__running)") == 3
+
+
+@pytest.mark.asyncio
+@pytest.mark.usefixtures("apply_actions")
+async def test_build_action_list_single_inline_if_has_stop_checks() -> None:
+    """Alone, control flow still needs a run object, because its condition can stop it."""
+    result = await build_action_list(
+        [_if_action(_action("my.a", "act_a"))], TEMPLATE_ARG, []
+    )
+
+    assert [str(action) for action in result] == ["act_if"]
+    assert "new(act_if) ApplyRunAction<esphome__act_if__fn>();" in (
+        CORE.cpp_main_section
+    )
+
+
+@pytest.mark.asyncio
+@pytest.mark.usefixtures("apply_actions")
+async def test_build_action_list_if_with_object_branch_keeps_objects() -> None:
+    """An ``if`` with a deferring action keeps its object and condition."""
+    delay = {
+        "delay": 100,
+        CONF_TYPE_ID: ID("act_d", is_declaration=True, type=DelayAction),
+    }
+    config = [_if_action(_action("my.a", "act_a"), _action("my.b", "act_b"), delay)]
+
+    result = await build_action_list(config, TEMPLATE_ARG, [])
+
+    assert [str(action) for action in result] == ["act_if"]
+    text = CORE.cpp_main_section
+    assert "new(cond) StatelessLambdaCondition<>(" in text
+    assert "new(act_a) ApplyRunAction<esphome__act_a__fn>();" in text
+    assert "act_if->add_then_action(act_a);" in text
+    assert "act_if->add_then_action(act_d);" in text
+    assert "act_if->finish_then();" in text
+
+
+@pytest.mark.asyncio
+@pytest.mark.usefixtures("apply_actions")
+@pytest.mark.parametrize(
+    ("key", "type_", "expected"),
+    [
+        ("and", AndCondition, ") && ("),
+        ("or", OrCondition, ") || ("),
+    ],
+    ids=["and", "or"],
+)
+async def test_inline_condition_group_operators(
+    key: str, type_: cg.MockObjClass, expected: str
+) -> None:
+    """Each condition group becomes its operator."""
+    group = {
+        key: [_inline_condition("c_1"), _inline_condition("c_2")],
+        CONF_TYPE_ID: ID("group", is_declaration=True, type=type_, is_manual=False),
+    }
+    config = [_if_action(_action("my.a", "act_a"), condition=group)]
+
+    await build_action_list(config, TEMPLATE_ARG, [])
+
+    assert expected in _squash(CORE.cpp_global_section)
+    assert "Condition" not in CORE.cpp_main_section
+
+
+@pytest.mark.asyncio
+@pytest.mark.usefixtures("apply_actions")
+async def test_xor_of_several_stays_an_object() -> None:
+    """C++ does not define the order of ``+`` operands, and xor evaluates in order."""
+    group = {
+        "xor": [_inline_condition("c_1"), _inline_condition("c_2")],
+        CONF_TYPE_ID: ID(
+            "group", is_declaration=True, type=XorCondition, is_manual=False
+        ),
+    }
+
+    await build_action_list(
+        [_if_action(_action("my.a", "act_a"), condition=group)], TEMPLATE_ARG, []
+    )
+
+    assert "new(group) XorCondition<2>(c_1, c_2);" in CORE.cpp_main_section
+    assert "::group->check()" in CORE.cpp_global_section
+
+
+@pytest.mark.asyncio
+@pytest.mark.usefixtures("apply_actions")
+async def test_xor_of_one_is_that_condition() -> None:
+    group = {
+        "xor": [_inline_condition("c_1")],
+        CONF_TYPE_ID: ID(
+            "group", is_declaration=True, type=XorCondition, is_manual=False
+        ),
+    }
+
+    await build_action_list(
+        [_if_action(_action("my.a", "act_a"), condition=group)], TEMPLATE_ARG, []
+    )
+
+    assert "Condition" not in CORE.cpp_main_section
+
+
+@pytest.mark.asyncio
+@pytest.mark.usefixtures("apply_actions")
+async def test_new_lambda_pvariable_keeps_other_stateless_classes() -> None:
+    """A builder using its own stateless class keeps that object, and ends the run."""
+    my_action = cg.esphome_ns.class_("MyStatelessAction", Action)
+
+    @register_action("my.stateless", my_action, {}, synchronous=True)
+    async def stateless_to_code(
+        config: ConfigType,
+        action_id: ID,
+        template_arg: cg.TemplateArguments,
+        args: list[tuple[object, str]],
+    ) -> MockObj:
+        lambda_ = await cg.process_lambda(Lambda("do_it();"), args, return_type=cg.void)
+        return new_lambda_pvariable(action_id, lambda_, my_action, template_arg)
+
+    config = [
+        {
+            "my.stateless": {},
+            CONF_TYPE_ID: ID(
+                "act_m", is_declaration=True, type=my_action, is_manual=False
+            ),
+        }
+    ]
+
+    result = await build_action_list(config, TEMPLATE_ARG, [])
+
+    assert [str(action) for action in result] == ["act_m"]
+    assert "new(act_m) MyStatelessAction<>(" in CORE.cpp_main_section
+
+
+@pytest.mark.asyncio
+@pytest.mark.usefixtures("apply_actions")
+async def test_condition_builder_must_return_collected_condition() -> None:
+    """A condition builder that drops what it collected fails during code generation."""
+    builder_schema = {cv.Required(CONF_ID): cv.use_id(cg.Component)}
+    conditions = Registry()
+    with patch("esphome.automation.CONDITION_REGISTRY", conditions):
+        register_apply_condition("my.real", builder_schema, "is_ready()")
+        real = conditions["my.real"].fun
+
+        @register_condition("my.drops", ApplyCondition, builder_schema)
+        async def drops_to_code(
+            config: ConfigType,
+            condition_id: ID,
+            template_arg: cg.TemplateArguments,
+            args: list[tuple[object, str]],
+        ) -> MockObj:
+            await real(config, condition_id, template_arg, args)
+            return MockObj("something_else", "->")
+
+        condition = {
+            "my.drops": {CONF_ID: COMPONENT_ID},
+            CONF_TYPE_ID: ID(
+                "cond", is_declaration=True, type=ApplyCondition, is_manual=False
+            ),
+        }
+
+        with pytest.raises(
+            EsphomeError, match=r"'my\.drops' \(cond\) must return the result"
+        ):
+            await build_action_list(
+                [_if_action(_action("my.a", "act_a"), condition=condition)],
+                TEMPLATE_ARG,
+                [],
+            )
+
+
+@pytest.mark.asyncio
+@pytest.mark.usefixtures("apply_actions")
+@pytest.mark.parametrize(
+    "statements",
+    [
+        ["first();", "return second();"],
+        ["first(); return second();"],
+        ["ok = check();"],
+        ["return check()"],
+        [],
+    ],
+    ids=["two_entries", "two_in_one", "not_a_return", "no_semicolon", "empty"],
+)
+async def test_condition_must_generate_one_return_statement(
+    statements: list[str],
+) -> None:
+    """Anything else cannot become an expression, and could still compile as one."""
+    conditions = Registry()
+    with patch("esphome.automation.CONDITION_REGISTRY", conditions):
+
+        @register_condition("my.bad", ApplyCondition, {})
+        async def bad_to_code(
+            config: ConfigType,
+            condition_id: ID,
+            template_arg: cg.TemplateArguments,
+            args: list[tuple[object, str]],
+        ) -> MockObj:
+            return apply_statements_action(condition_id, template_arg, args, statements)
+
+        condition = {
+            "my.bad": {},
+            CONF_TYPE_ID: ID(
+                "cond", is_declaration=True, type=ApplyCondition, is_manual=False
+            ),
+        }
+
+        with pytest.raises(
+            EsphomeError, match=r"'my\.bad' \(cond\) must generate one 'return"
+        ):
+            await build_action_list(
+                [_if_action(_action("my.a", "act_a"), condition=condition)],
+                TEMPLATE_ARG,
+                [],
+            )
+
+
+@pytest.mark.asyncio
+async def test_condition_group_outside_control_flow_is_an_object() -> None:
+    """A group built on its own, as ``wait_until`` does, stays an object with its children."""
+    CORE.config = {}
+    group = {
+        "and": [_inline_condition("c_1"), _inline_condition("c_2")],
+        CONF_TYPE_ID: ID(
+            "group", is_declaration=True, type=AndCondition, is_manual=False
+        ),
+    }
+
+    result = await build_condition(group, TEMPLATE_ARG, [])
+
+    assert str(result) == "group"
+    assert "new(group) AndCondition<2>(c_1, c_2);" in CORE.cpp_main_section
+
+
+@pytest.mark.asyncio
+@pytest.mark.usefixtures("apply_actions")
+async def test_empty_condition_group_is_called_through_its_object() -> None:
+    """An empty group has no expression to join, so ``if`` calls its object."""
+    group = {
+        "or": [],
+        CONF_TYPE_ID: ID(
+            "group", is_declaration=True, type=OrCondition, is_manual=False
+        ),
+    }
+
+    await build_action_list(
+        [_if_action(_action("my.a", "act_a"), condition=group)], TEMPLATE_ARG, []
+    )
+
+    assert "new(group) OrCondition<0>();" in CORE.cpp_main_section
+    assert "::group->check()" in CORE.cpp_global_section
+
+
+@pytest.mark.asyncio
+@pytest.mark.usefixtures("apply_actions")
+async def test_inline_not_condition() -> None:
+    """``not`` negates its child without an object."""
+    negated = {
+        "not": _inline_condition("inner"),
+        CONF_TYPE_ID: ID(
+            "neg", is_declaration=True, type=NotCondition, is_manual=False
+        ),
+    }
+    config = [_if_action(_action("my.a", "act_a"), condition=negated)]
+
+    await build_action_list(config, TEMPLATE_ARG, [])
+
+    assert "(!([]() -> bool {" in CORE.cpp_global_section
+    assert "new(neg)" not in CORE.cpp_main_section
+    assert "new(inner)" not in CORE.cpp_main_section
+
+
+@pytest.mark.asyncio
+@pytest.mark.usefixtures("apply_actions")
+async def test_not_condition_is_an_object_when_its_if_keeps_one() -> None:
+    """A deferring action in the branch makes the collected ``not`` and its child emit objects."""
+    negated = {
+        "not": _inline_condition("inner"),
+        CONF_TYPE_ID: ID(
+            "neg", is_declaration=True, type=NotCondition, is_manual=False
+        ),
+    }
+    config = [_if_action(_delay("act_d"), condition=negated)]
+
+    await build_action_list(config, TEMPLATE_ARG, [])
+
+    main = CORE.cpp_main_section
+    assert "new(inner) StatelessLambdaCondition<>(" in main
+    assert "new(neg) NotCondition<>(inner);" in main
+    assert "new(act_if) IfAction<false>(neg);" in main
+
+
+@pytest.mark.asyncio
+@pytest.mark.usefixtures("apply_actions")
+async def test_inline_while_checks_condition_and_stops() -> None:
+    config = [
+        {
+            "while": {
+                CONF_CONDITION: _inline_condition(),
+                CONF_THEN: [_action("my.a", "act_a")],
+            },
+            CONF_TYPE_ID: ID(
+                "act_w", is_declaration=True, type=WhileAction, is_manual=False
+            ),
+        }
+    ]
+
+    result = await build_action_list(config, TEMPLATE_ARG, [])
+
+    assert [str(action) for action in result] == ["act_w"]
+    assert "WhileAction" not in CORE.cpp_main_section
+    text = CORE.cpp_global_section
+    assert "while (true) {" in text
+    assert "if (!esphome__condition)\n" in text
+    assert text.count("if (!esphome__running)") == 2
+
+
+@pytest.mark.asyncio
+@pytest.mark.usefixtures("apply_actions")
+async def test_inline_while_with_empty_body_keeps_its_object() -> None:
+    """An empty body exits a WhileAction at once, which a C++ loop would not do."""
+    config = [
+        {
+            "while": {CONF_CONDITION: _inline_condition(), CONF_THEN: []},
+            CONF_TYPE_ID: ID(
+                "act_w", is_declaration=True, type=WhileAction, is_manual=False
+            ),
+        }
+    ]
+
+    await build_action_list(config, TEMPLATE_ARG, [])
+
+    assert "new(act_w) WhileAction<>(" in CORE.cpp_main_section
+
+
+@pytest.mark.asyncio
+@pytest.mark.usefixtures("apply_actions")
+async def test_inline_repeat_rereads_count_and_aliases_outer_iteration() -> None:
+    """The count is in the loop condition, and an outer iteration keeps its value."""
+    config = [
+        {
+            "repeat": {
+                CONF_COUNT: 3,
+                CONF_THEN: [_lambda_action("act_l", "use(iteration_1);")],
+            },
+            CONF_TYPE_ID: ID(
+                "act_r", is_declaration=True, type=RepeatAction, is_manual=False
+            ),
+        }
+    ]
+    args = [(cg.uint32, "iteration")]
+
+    result = await build_action_list(config, cg.TemplateArguments(cg.uint32), args)
+
+    assert [str(action) for action in result] == ["act_r"]
+    assert "RepeatAction" not in CORE.cpp_main_section
+    text = CORE.cpp_global_section
+    assert "const auto &iteration_1 = iteration;" in text
+    assert "esphome__iteration < [](uint32_t iteration) -> uint32_t {" in text
+    assert "const uint32_t iteration = esphome__iteration;" in text
+    assert text.index("iteration_1 = iteration") < text.index("for (uint32_t")
+
+
+@pytest.mark.asyncio
+@pytest.mark.usefixtures("apply_actions")
+async def test_inline_if_with_manual_condition_id_calls_the_object() -> None:
+    """A lambda can reach a condition by a manual id, so it keeps its object."""
+    condition = {
+        "lambda": Lambda("return true;"),
+        CONF_TYPE_ID: ID(
+            "my_cond", is_declaration=True, type=LambdaCondition, is_manual=True
+        ),
+    }
+
+    await build_action_list(
+        [_if_action(_action("my.a", "act_a"), condition=condition)], TEMPLATE_ARG, []
+    )
+
+    assert "new(my_cond) StatelessLambdaCondition<>(" in CORE.cpp_main_section
+    assert "::my_cond->check()" in CORE.cpp_global_section
+
+
+@pytest.mark.asyncio
+@pytest.mark.usefixtures("apply_actions")
+async def test_callback_automation_inline_if_drops_stop_checks() -> None:
+    """Nothing can stop a direct automation, so its control flow has no stop checks."""
+    conf = _automation_conf(
+        _if_action(_action("my.a", "act_a"), _action("my.b", "act_b"))
+    )
+
+    await build_callback_automation(CALLBACK_PARENT, "add_cb", [], conf)
+
+    assert "Action" not in CORE.cpp_main_section
+    text = CORE.cpp_global_section
+    assert "if (esphome__condition) {" in text
+    assert "esphome__running" not in text
+
+
+def _choose_action(*choices: ConfigType) -> ConfigType:
+    return {
+        CONF_CHOOSE: list(choices),
+        CONF_TYPE_ID: ID("act_ch", is_declaration=True, type=IfAction, is_manual=False),
+    }
+
+
+def _choice(id_: str, *then: ConfigType, is_manual: bool = False) -> ConfigType:
+    return {
+        "if": _inline_condition(f"cond_{id_}"),
+        CONF_THEN: list(then),
+        CONF_CHOICE_ID: ID(
+            id_, is_declaration=True, type=IfAction, is_manual=is_manual
+        ),
+    }
+
+
+@pytest.mark.asyncio
+@pytest.mark.usefixtures("apply_actions")
+async def test_inline_choose_is_nested_if_else() -> None:
+    config = [
+        _choose_action(
+            _choice("ch_a", _action("my.a", "act_a")),
+            _choice("ch_b", _action("my.b", "act_b")),
+            {
+                CONF_ELSE: [_action("my.c", "act_c")],
+                CONF_CHOICE_ID: ID("ch_c", is_declaration=True, is_manual=False),
+            },
+        )
+    ]
+
+    result = await build_action_list(config, TEMPLATE_ARG, [])
+
+    assert [str(action) for action in result] == ["act_ch"]
+    assert "IfAction" not in CORE.cpp_main_section
+    text = CORE.cpp_global_section
+    assert text.index("::comp->do_a();") < text.index("} else {")
+    assert text.index("::comp->do_a();") < text.index("::comp->do_b();")
+    assert text.index("::comp->do_b();") < text.index("::comp->do_c();")
+    assert text.count("} else {") == 2
+
+
+@pytest.mark.asyncio
+@pytest.mark.usefixtures("apply_actions")
+async def test_choose_manual_choice_id_keeps_objects() -> None:
+    """A lambda can reach a choice by a manual id, so the chain stays objects."""
+    config = [
+        _choose_action(
+            _choice("ch_a", _action("my.a", "act_a")),
+            _choice("ch_b", _action("my.b", "act_b"), is_manual=True),
+        )
+    ]
+
+    await build_action_list(config, TEMPLATE_ARG, [])
+
+    main = CORE.cpp_main_section
+    assert "new(ch_b) IfAction<false>(" in main
+    assert "new(act_ch) IfAction<true>(" in main
+
+
+def _automation_conf(*then: ConfigType, is_manual: bool = False) -> ConfigType:
+    return {
+        CONF_THEN: list(then),
+        CONF_AUTOMATION_ID: ID(
+            "auto", is_declaration=True, type=Automation, is_manual=is_manual
+        ),
+    }
+
+
+def _delay(id_: str) -> ConfigType:
+    return {
+        "delay": 100,
+        CONF_TYPE_ID: ID(id_, is_declaration=True, type=DelayAction),
+    }
+
+
+CALLBACK_PARENT = MockObj("parent", "->")
+
+
+@pytest.mark.asyncio
+@pytest.mark.parametrize("forwarder", [TriggerOnTrueForwarder, TriggerOnFalseForwarder])
+async def test_callback_automation_core_forwarder_rejects_args(
+    forwarder: MockObj,
+) -> None:
+    """These forwarders call an Automation<>, so arguments would only fail in the C++ build."""
+    conf = _automation_conf()
+
+    with pytest.raises(ValueError, match="no arguments"):
+        await build_callback_automation(
+            CALLBACK_PARENT, "add_cb", [(cg.bool_, "x")], conf, forwarder=forwarder
+        )
+
+
+@pytest.mark.asyncio
+@pytest.mark.usefixtures("apply_actions")
+async def test_callback_automation_all_inline_has_no_objects() -> None:
+    """A callback runs an all-inline automation directly, with no objects or stop checks."""
+    conf = _automation_conf(_action("my.a", "act_a"), _action("my.b", "act_b"))
+
+    await build_callback_automation(CALLBACK_PARENT, "add_cb", [(cg.bool_, "x")], conf)
+
+    main = CORE.cpp_main_section
+    assert "Automation" not in main
+    assert "Action" not in main
+    assert "parent->add_cb([](const std::remove_cvref_t<bool> & x) -> void {" in main
+    assert "esphome__act_a__fn(x);" in main
+    text = CORE.cpp_global_section
+    assert "::comp->do_a();" in text
+    assert "::comp->do_b();" in text
+    assert "esphome__running" not in text
+
+
+@pytest.mark.asyncio
+@pytest.mark.usefixtures("apply_actions")
+@pytest.mark.parametrize(
+    ("forwarder", "check"),
+    [
+        (TriggerOnTrueForwarder, "if (!(state))"),
+        (TriggerOnFalseForwarder, "if (!(!state))"),
+    ],
+)
+async def test_callback_automation_core_forwarder_becomes_filter(
+    forwarder: MockObj, check: str
+) -> None:
+    """The on-true and on-false forwarders turn into the same filter in the lambda."""
+    conf = _automation_conf(_action("my.a", "act_a"))
+
+    await build_callback_automation(
+        CALLBACK_PARENT, "add_cb", [], conf, forwarder=forwarder
+    )
+
+    main = CORE.cpp_main_section
+    assert "Forwarder" not in main
+    assert "Automation" not in main
+    assert check in main
+    assert "esphome__act_a__fn();" in main
+
+
+@pytest.mark.asyncio
+@pytest.mark.usefixtures("apply_actions")
+async def test_callback_automation_unknown_forwarder_keeps_objects() -> None:
+    """A forwarder alone may filter in ways codegen cannot see, so it is kept."""
+    forwarder = cg.esphome_ns.class_("MyForwarder")
+    conf = _automation_conf(_action("my.a", "act_a"))
+
+    await build_callback_automation(
+        CALLBACK_PARENT, "add_cb", [], conf, forwarder=forwarder
+    )
+
+    main = CORE.cpp_main_section
+    assert "new(auto) Automation<>();" in main
+    assert "new(act_a) ApplyAction<esphome__act_a__fn>();" in main
+    assert "parent->add_cb(MyForwarder{auto})" in main
+
+
+@pytest.mark.asyncio
+@pytest.mark.usefixtures("apply_actions")
+async def test_callback_automation_manual_id_keeps_objects() -> None:
+    """A lambda can reach an automation by a manual id, so it needs its objects."""
+    conf = _automation_conf(_action("my.a", "act_a"), is_manual=True)
+
+    await build_callback_automation(CALLBACK_PARENT, "add_cb", [], conf)
+
+    main = CORE.cpp_main_section
+    assert "new(auto) Automation<>();" in main
+    assert "parent->add_cb(TriggerForwarder<>{auto})" in main
+
+
+@pytest.mark.asyncio
+@pytest.mark.usefixtures("apply_actions")
+async def test_callback_automation_with_object_action_keeps_objects() -> None:
+    """A deferring action needs the chain, so the inline actions stay objects around it."""
+    conf = _automation_conf(
+        _action("my.a", "act_a"), _delay("act_d"), _action("my.b", "act_b")
+    )
+
+    await build_callback_automation(CALLBACK_PARENT, "add_cb", [], conf)
+
+    main = CORE.cpp_main_section
+    assert "new(auto) Automation<>();" in main
+    assert "auto->add_action(act_a);" in main
+    assert "auto->add_action(act_d);" in main
+    assert "auto->add_action(act_b);" in main
+    assert "parent->add_cb(TriggerForwarder<>{auto})" in main
+
+
+@pytest.mark.asyncio
+@pytest.mark.usefixtures("apply_actions")
+async def test_trigger_callback_all_inline_is_direct() -> None:
+    """Direct callers of build_trigger_callback get the direct call too."""
+    conf = _automation_conf(_action("my.a", "act_a"), _action("my.b", "act_b"))
+
+    callback = await build_trigger_callback(
+        [(cg.int_, "x")], conf, [(cg.int_, "index")], forward=["index + 1"]
+    )
+
+    assert "esphome__act_a__fn(index + 1);" in str(callback)
+    assert "Automation" not in CORE.cpp_main_section
+
+
+@pytest.fixture
+def statements_action() -> Generator[None]:
+    """Register ``my.statements``, a builder that generates its own statements."""
+
+    @register_action("my.statements", ApplyAction, {}, synchronous=True)
+    async def statements_to_code(
+        config: ConfigType,
+        action_id: ID,
+        template_arg: cg.TemplateArguments,
+        args: list[tuple[object, str]],
+    ) -> MockObj:
+        return apply_statements_action(
+            action_id, template_arg, args, ["auto esphome__v = x;", "use(esphome__v);"]
+        )
+
+    yield
+
+
+@pytest.mark.asyncio
+@pytest.mark.usefixtures("apply_actions", "statements_action")
+async def test_apply_statements_action_alone_is_an_apply_action() -> None:
+    """Alone, it is a plain ApplyAction taking the arguments by const reference."""
+    config = [_action("my.statements", "act_s")]
+
+    result = await build_action_list(
+        config, cg.TemplateArguments(cg.int_), [(cg.int_, "x")]
+    )
+
+    assert [str(action) for action in result] == ["act_s"]
+    assert "new(act_s) ApplyAction<esphome__act_s__fn, int>();" in CORE.cpp_main_section
+    text = CORE.cpp_global_section
+    assert "esphome__act_s__fn(const std::remove_cvref_t<int> & x)" in text
+    assert "use(esphome__v);" in text
+
+
+@pytest.mark.asyncio
+@pytest.mark.usefixtures("apply_actions", "statements_action")
+async def test_apply_statements_action_merges_with_neighbours() -> None:
+    """Next to another inline action, its statements join the merged function."""
+    config = [_action("my.statements", "act_s"), _action("my.a", "act_a")]
+
+    result = await build_action_list(
+        config, cg.TemplateArguments(cg.int_), [(cg.int_, "x")]
+    )
+
+    assert [str(action) for action in result] == ["act_s"]
+    assert "ApplyRunAction<esphome__act_s__fn, int>" in CORE.cpp_main_section
+    text = CORE.cpp_global_section
+    assert text.index("use(esphome__v);") < text.index("::comp->do_a();")

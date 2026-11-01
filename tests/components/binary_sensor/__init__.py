@@ -1,11 +1,11 @@
-import esphome.codegen as cg
-from esphome.types import ConfigType
-from tests.testing_helpers import ComponentManifestOverride
+from tests.testing_helpers import ComponentManifestOverride, add_defines_to_code
 
 
 def override_manifest(manifest: ComponentManifestOverride) -> None:
-    async def to_code_testing(config: ConfigType) -> None:
-        # filter.cpp only compiles with the define the real to_code emits for configured filters
-        cg.add_define("USE_BINARY_SENSOR_FILTER")
-
-    manifest.to_code = to_code_testing
+    # filter.cpp and automation.cpp only compile with the defines the real to_code emits
+    add_defines_to_code(
+        manifest,
+        "USE_BINARY_SENSOR_FILTER",
+        "USE_BINARY_SENSOR_RAW_CALLBACK",
+        "USE_BINARY_SENSOR_CLICK_TRIGGER",
+    )

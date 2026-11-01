@@ -535,7 +535,9 @@ class FollowEntity:
 
     def __call__(self, entity: MockObj, source: MockObj, *args: SafeExpType) -> None:
         """Make ``entity`` publish every state of ``source``; ``args`` precede the callback."""
-        publish = f"{parent_ref(entity).publish_state(RawExpression(self.value))};"
+        publish = cg.statement(
+            parent_ref(entity).publish_state(RawExpression(self.value))
+        )
         callback = LambdaExpression(
             [publish], list(self.params), capture="", return_type=cg.void
         )
@@ -868,13 +870,18 @@ def setup_entity_temperature_unit(var: MockObj, config: ConfigType) -> None:
         add(var.set_temperature_unit(TEMPERATURE_UNITS[unit]))
 
 
-def entity_duplicate_validator(platform: str) -> Callable[[ConfigType], ConfigType]:
+def entity_duplicate_validator(
+    platform: str, key_namespace: str | None = None
+) -> Callable[[ConfigType], ConfigType]:
     """Create a validator function to check for duplicate entity names.
 
     This validator is meant to be used with schema.add_extra() for entity base schemas.
 
     Args:
         platform: The platform name (e.g., "sensor", "binary_sensor")
+        key_namespace: Scope in which entity keys must be unique; defaults to the
+            platform. Platforms whose API messages identify an entity by key alone
+            must share one.
 
     Returns:
         A validator function that checks for duplicate names
@@ -913,7 +920,7 @@ def entity_duplicate_validator(platform: str) -> Callable[[ConfigType], ConfigTy
         # key that routes state to API clients. This rejects names that sanitize to the
         # same object_id, and also two different object_ids whose 32-bit hashes collide.
         name_hash = fnv1_hash(name_key)
-        unique_key = (device_id, platform, name_hash)
+        unique_key = (device_id, key_namespace or platform, name_hash)
         if unique_key in CORE.unique_ids:
             # Get the existing entity metadata
             existing = CORE.unique_ids[unique_key]
@@ -936,6 +943,13 @@ def entity_duplicate_validator(platform: str) -> Callable[[ConfigType], ConfigTy
                 conflict_msg += f" (id: {existing_id})"
             if existing_component != "unknown":
                 conflict_msg += f" from component '{existing_component}'"
+
+            existing_platform = existing.get("platform", platform)
+            scope = (
+                "within its platform"
+                if existing_platform == platform
+                else f"across the {existing_platform} and {platform} platforms"
+            )
 
             # Distinguish names that sanitize to the same object_id from a genuine
             # 32-bit hash collision between two different object_ids
@@ -964,7 +978,7 @@ def entity_duplicate_validator(platform: str) -> Callable[[ConfigType], ConfigTy
                 raise cv.Invalid(
                     f"Duplicate {platform} entity with name '{entity_name}' found{device_prefix}. "
                     f"{conflict_msg}. "
-                    "Each entity on a device must have a unique name within its platform."
+                    f"Each entity on a device must have a unique name {scope}."
                     f"{collision_msg}"
                 )
 

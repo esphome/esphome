@@ -8,7 +8,9 @@ import esphome.codegen as cg
 from esphome.components.const import CONF_ROLE
 from esphome.config_helpers import filter_source_files_from_defines
 import esphome.config_validation as cv
+from esphome.const import CONF_TIMEOUT
 from esphome.core import CORE, ID
+from esphome.core.config import CONF_LOOP_INTERVAL, get_loop_interval
 from esphome.types import ConfigType
 
 _LOGGER = logging.getLogger(__name__)
@@ -127,6 +129,15 @@ def get_socket_counts() -> SocketCounts:
     )
 
 
+def zephyr_poll_max(counts: SocketCounts) -> int:
+    """Zephyr poll table size: the socket budget with the usual minimums."""
+    return (
+        max(counts.tcp, MIN_TCP_SOCKETS)
+        + max(counts.udp, MIN_UDP_SOCKETS)
+        + max(counts.tcp_listen, MIN_TCP_LISTEN_SOCKETS)
+    )
+
+
 def require_wake_loop_threadsafe() -> None:
     """Deprecated: wake loop support is now always available on all platforms.
 
@@ -227,6 +238,22 @@ def consume_role_sockets(component: str) -> Callable[[ConfigType], ConfigType]:
     return validator
 
 
+def final_validate_idle_timeout(config: ConfigType) -> ConfigType:
+    """A link timeout of 0s is off; any other value lasts at least one loop pass."""
+    timeout = config[CONF_TIMEOUT]
+    if timeout.total_milliseconds == 0:
+        return config
+    loop_interval = get_loop_interval()
+    if timeout.total_milliseconds < loop_interval.total_milliseconds:
+        raise cv.Invalid(
+            f"{CONF_TIMEOUT} of {timeout} must be at least one main loop pass "
+            f"({CONF_LOOP_INTERVAL} of {loop_interval}). Use 0s to turn the "
+            "timeout off.",
+            path=[CONF_TIMEOUT],
+        )
+    return config
+
+
 CONFIG_SCHEMA = cv.Schema(
     {
         cv.SplitDefault(
@@ -263,6 +290,11 @@ async def to_code(config: ConfigType) -> None:
 
             zephyr_add_prj_conf("NET_SOCKETS", True)
             zephyr_add_prj_conf("POSIX_API", True)
+            # Zephyr's default of 3 poll entries is too few once API, OTA, mDNS and UDP
+            # run together
+            zephyr_add_prj_conf(
+                "NET_SOCKETS_POLL_MAX", zephyr_poll_max(get_socket_counts())
+            )
     # ESP32 and LibreTiny both have LwIP >= 2.1.3 with lwip_socket_dbg_get_socket()
     # and FreeRTOS task notifications — enable fast select to bypass lwip_select().
     # Only when not using lwip_tcp, which does not provide select() support.
