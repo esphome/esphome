@@ -64,13 +64,13 @@ void LIS3DHComponent::setup() {
 
 #ifdef USE_LIS3DH_TAP
 void LIS3DHComponent::loop() {
-  const uint32_t now = App.get_loop_component_start_time();
-  this->check_pending_tap_(now);
+  // Only one trigger is allowed with an interrupt pin, so no single tap is ever held here.
+  // The pad polarity is the chip-wide one set by the motion interrupt's active_high.
   if (this->tap_interrupt_pin_->digital_read() != this->interrupt_active_high_) {
     this->last_tap_src_ = 0;
     return;
   }
-  this->read_tap_(now);
+  this->read_tap_(App.get_loop_component_start_time());
 }
 
 void LIS3DHComponent::check_pending_tap_(uint32_t now) {
@@ -192,7 +192,7 @@ void LIS3DHComponent::set_tap_threshold(float threshold_g) {
   const uint16_t lsb_mg = progmem_read_uint16(&THRESHOLD_LSB_MG[this->range_]);
   const int32_t steps = static_cast<int32_t>(std::lround(threshold_g * 1000.0f / lsb_mg));
   this->tap_threshold_ = (uint8_t) std::clamp<int32_t>(steps, 1, LIS3DH_CLICK_THS_MAX);
-  if (this->tap_axes_cfg_ == 0 || !this->is_in_loop_state())
+  if (this->tap_axes_cfg_ == 0 || !this->is_ready())
     return;
   if (!this->write_byte(LIS3DH_REG_CLICK_THS, this->tap_threshold_)) {
     this->status_set_warning(LOG_STR("Failed to set tap threshold"));

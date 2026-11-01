@@ -32,6 +32,9 @@ motion:
         - logger.log:
             format: "Double tap on axis %u, %s side"
             args: ["axis", 'negative ? "negative" : "positive"']
+        - lis3dh.set_tap_threshold:
+            id: lis3dh_main
+            threshold: 0.8g
 
   # A second device covering the other side of each option: low power mode with
   # the rate that only exists there, routed to INT2, active low, unlatched, and
