@@ -1,0 +1,119 @@
+#include <gtest/gtest.h>
+
+#include <cstring>
+
+#include "esphome/components/modbus_tcp_uart/mbap.h"
+
+#ifdef USE_HOST
+
+namespace esphome::modbus_tcp_uart::testing {
+namespace {
+
+TEST(MbapTest, RoundTrip) {
+  const uint8_t pdu[] = {0x03, 0x00, 0x00, 0x00, 0x01};
+  uint8_t frame[16];
+  size_t n = write_mbap(frame, sizeof(frame), 0x1234, 0x11, pdu, sizeof(pdu));
+  ASSERT_EQ(n, 7u + sizeof(pdu));
+
+  Mbap out;
+  size_t used = 0;
+  ASSERT_EQ(take_mbap(frame, n, &out, &used), MbapTake::FRAME);
+  EXPECT_EQ(used, n);
+  EXPECT_EQ(out.txn, 0x1234);
+  EXPECT_EQ(out.unit, 0x11);
+  EXPECT_EQ(out.pdu_len, sizeof(pdu));
+  EXPECT_EQ(std::memcmp(out.pdu, pdu, sizeof(pdu)), 0);
+}
+
+TEST(MbapTest, ShortBufferNeedsMore) {
+  uint8_t frame[8] = {};
+  Mbap out;
+  size_t used = 99;
+  EXPECT_EQ(take_mbap(frame, 6, &out, &used), MbapTake::NEED_MORE);
+  EXPECT_EQ(used, 0u);
+
+  uint8_t short_body[8] = {0x00, 0x01, 0x00, 0x00, 0x00, 0x05, 0x11, 0x03};
+  used = 99;
+  EXPECT_EQ(take_mbap(short_body, sizeof(short_body), &out, &used), MbapTake::NEED_MORE);
+  EXPECT_EQ(used, 0u);
+}
+
+TEST(MbapTest, RejectsALengthOutsideTheSpec) {
+  Mbap out;
+  size_t used = 99;
+  uint8_t too_small[7] = {0x00, 0x01, 0x00, 0x00, 0x00, 0x01, 0x11};
+  EXPECT_EQ(take_mbap(too_small, sizeof(too_small), &out, &used), MbapTake::BAD);
+  EXPECT_EQ(used, 1u);
+
+  uint8_t too_big[7] = {0x00, 0x01, 0x00, 0x00, 0x00, 0xFF, 0x11};
+  used = 0;
+  EXPECT_EQ(take_mbap(too_big, sizeof(too_big), &out, &used), MbapTake::BAD);
+  EXPECT_EQ(used, 1u);
+}
+
+TEST(MbapTest, RtuCrc) {
+  const uint8_t frame[] = {0x01, 0x03, 0x00, 0x00, 0x00, 0x01, 0x84, 0x0A};
+  EXPECT_TRUE(rtu_crc_ok(frame, sizeof(frame)));
+  EXPECT_FALSE(rtu_crc_ok(frame, 3));
+  EXPECT_FALSE(rtu_crc_ok(frame, sizeof(frame) - 1));
+}
+
+TEST(MbapTest, WriteRtuAddsUnitAndCrc) {
+  const uint8_t pdu[] = {0x03, 0x00, 0x00, 0x00, 0x01};
+  uint8_t frame[16];
+  ASSERT_EQ(write_rtu(frame, 0x01, pdu, sizeof(pdu)), sizeof(pdu) + 3);
+  const uint8_t want[] = {0x01, 0x03, 0x00, 0x00, 0x00, 0x01, 0x84, 0x0A};
+  EXPECT_EQ(std::memcmp(frame, want, sizeof(want)), 0);
+  EXPECT_TRUE(rtu_crc_ok(frame, sizeof(want)));
+}
+
+TEST(MbapTest, BadProtocolDropsOneByte) {
+  uint8_t frame[8] = {0, 1, 0, 1, 0, 2, 1, 3};
+  Mbap out;
+  size_t used = 0;
+  EXPECT_EQ(take_mbap(frame, sizeof(frame), &out, &used), MbapTake::BAD);
+  EXPECT_EQ(used, 1u);
+}
+
+TEST(MbapTest, WriteRejectsAnEmptyPdu) {
+  uint8_t frame[8];
+  EXPECT_EQ(write_mbap(frame, sizeof(frame), 1, 1, frame, 0), 0u);
+}
+
+TEST(MbapTest, TakeRtuUsesTheLengthOfTheFunctionCode) {
+  // 01 03 02 12 34 B5 33: a reply to a one-register read, then the start of the next frame.
+  const uint8_t two[] = {0x01, 0x03, 0x02, 0x12, 0x34, 0xB5, 0x33, 0x01, 0x03};
+  size_t len = 0;
+  EXPECT_EQ(take_rtu(two, 1, true, &len), RtuTake::NEED_MORE);
+  EXPECT_EQ(take_rtu(two, 6, true, &len), RtuTake::NEED_MORE);
+  ASSERT_EQ(take_rtu(two, sizeof(two), true, &len), RtuTake::FRAME);
+  EXPECT_EQ(len, 7u);
+  // The same bytes as a request: function 3 asks for 8 bytes, and the CRC does not match there.
+  EXPECT_EQ(take_rtu(two, sizeof(two), false, &len), RtuTake::BAD);
+}
+
+TEST(MbapTest, TakeRtuFindsAnExceptionReply) {
+  uint8_t frame[5] = {0x04, 0x83, 0x02};
+  const uint16_t crc = crc16(frame, 3);
+  frame[3] = crc & 0xFF;
+  frame[4] = crc >> 8;
+  size_t len = 0;
+  ASSERT_EQ(take_rtu(frame, sizeof(frame), true, &len), RtuTake::FRAME);
+  EXPECT_EQ(len, 5u);
+}
+
+TEST(MbapTest, TakeRtuEndsAnUnknownFunctionAtItsCrc) {
+  uint8_t frame[7] = {0x01, 0x41, 0xAA, 0xBB, 0, 0, 0x99};
+  const uint16_t crc = crc16(frame, 4);
+  frame[4] = crc & 0xFF;
+  frame[5] = crc >> 8;
+  size_t len = 0;
+  EXPECT_EQ(take_rtu(frame, 5, false, &len), RtuTake::NEED_MORE);
+  ASSERT_EQ(take_rtu(frame, sizeof(frame), false, &len), RtuTake::FRAME);
+  EXPECT_EQ(len, 6u);
+}
+
+}  // namespace
+}  // namespace esphome::modbus_tcp_uart::testing
+
+#endif  // USE_HOST
