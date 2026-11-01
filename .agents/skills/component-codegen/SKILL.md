@@ -199,12 +199,20 @@ if (var := await sensors(key, None)) is not None:
     add_binary_status(hub, var, reg, shift, mask, match)
 
 
-# bq25186/__init__.py
-def _state_expression(reg: int, shift: int, mask: int, match: int) -> str:
-    value = f"(status[{reg}] >> {shift}) & {mask:#04x}"
+# bq25186/__init__.py: statements are built from codegen expressions, not C++ text
+_STATUS = cg.MockObj("status")  # the generated function's parameter
+
+
+def _state_expression(reg: int, shift: int, mask: int, match: int) -> cg.MockObj:
+    value = (_STATUS[reg] >> shift) & HexIntLiteral(mask)
     if mask == 0x01 and match == BIT_SET:
         return value
-    return f"({match:#06b} >> ({value})) & 1"
+    return (cg.MockObj(f"{match:#06b}") >> value) & 1
+
+
+# add_binary_status
+state = _state_expression(reg, shift, mask, match)
+_add_statement(hub, cg.statement(parent_ref(var).publish_state(state)), text=False)
 
 
 # FINAL job, per hub; binary sensors publish before text sensors
