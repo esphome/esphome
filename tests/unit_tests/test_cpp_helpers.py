@@ -406,24 +406,13 @@ async def test_register_component_without_module_has_no_source(
     app_mock.register_component_.assert_called_once_with(var)
 
 
-def _declare_slot_list(
-    define: str, module: str = "esphome.components.wiegand", package: bool = True
-) -> Callable[..., Any]:
-    """Call cg.slot_list() as if from the module `module` (a package __init__ when `package`)."""
-    module_globals: dict[str, Any] = {"__name__": module, "slot_list": ch.slot_list}
-    if package:
-        module_globals["__path__"] = []
-    exec(f"register_item = slot_list({define!r}, 'register_listener')", module_globals)
-    return module_globals["register_item"]
-
-
 @pytest.fixture(autouse=True)
-def _isolated_slot_list_owners(monkeypatch: pytest.MonkeyPatch) -> None:
-    monkeypatch.setattr(ch, "_SLOT_LIST_OWNERS", {})
+def _isolated_slot_list_domains(monkeypatch: pytest.MonkeyPatch) -> None:
+    monkeypatch.setattr(ch, "_SLOT_LIST_DOMAINS", {})
 
 
-def _emit_slot_lists(config: dict[str, Any]) -> None:
-    ch.CORE.config = config
+def _emit_slot_lists(*loaded: str) -> None:
+    ch.CORE.loaded_integrations.update(loaded)
     ch.CORE.add_job(ch.emit_empty_slot_lists)
     ch.CORE.flush_tasks()
 
@@ -431,7 +420,7 @@ def _emit_slot_lists(config: dict[str, Any]) -> None:
 def test_slot_list_sizes_for_the_busiest_hub() -> None:
     """Hubs with 3, 1 and 0 children: the define is 3 (the max, not the sum or the
     first hub's count) and each call targets only its own hub."""
-    register_item = _declare_slot_list("TEST_SLOT_LIST_COUNT")
+    register_item = ch.slot_list("TEST_SLOT_LIST_COUNT", "register_listener", "hub")
     hub_a = MockObj("hub_a", "->")
     hub_b = MockObj("hub_b", "->")
     calls = [
@@ -447,59 +436,35 @@ def test_slot_list_sizes_for_the_busiest_hub() -> None:
         "hub_a->register_listener(listener_a3)",
     ]
     assert ch.get_slot_count("TEST_SLOT_LIST_COUNT") == 3
-    _emit_slot_lists({"wiegand": []})
+    _emit_slot_lists("hub")
     assert _define_value("TEST_SLOT_LIST_COUNT") == "3"
 
 
 def test_slot_list_without_registrations_emits_zero() -> None:
-    """A hub whose sources are in the build but that nothing registered into still
-    gets its define, as 0."""
-    _declare_slot_list("TEST_SLOT_LIST_EMPTY")
-    _emit_slot_lists({"wiegand": []})
+    """A hub in the build that nothing registered into still gets its define, as 0."""
+    ch.slot_list("TEST_SLOT_LIST_EMPTY", "register_listener", "hub")
+    _emit_slot_lists("hub")
     assert _define_value("TEST_SLOT_LIST_EMPTY") == "0"
 
 
+def test_slot_list_of_a_domain_not_in_the_build_emits_nothing() -> None:
+    ch.slot_list("TEST_SLOT_LIST_UNUSED", "register_listener", "other_hub")
+    _emit_slot_lists("hub")
+    assert _define_value("TEST_SLOT_LIST_UNUSED") is None
+
+
 def test_slot_list_keeps_a_define_set_by_hand() -> None:
-    _declare_slot_list("TEST_SLOT_LIST_MANUAL")
+    ch.slot_list("TEST_SLOT_LIST_MANUAL", "register_listener", "hub")
     ch.add_define("TEST_SLOT_LIST_MANUAL", 3)
-    _emit_slot_lists({"wiegand": []})
+    _emit_slot_lists("hub")
     values = [
         str(d.value) for d in ch.CORE.defines if d.name == "TEST_SLOT_LIST_MANUAL"
     ]
     assert values == ["3"]
 
 
-def test_slot_list_of_a_component_not_in_the_build_emits_nothing() -> None:
-    _declare_slot_list("TEST_SLOT_LIST_UNUSED", module="esphome.components.rc522")
-    _emit_slot_lists({"wiegand": []})
-    assert _define_value("TEST_SLOT_LIST_UNUSED") is None
-
-
-def test_slot_list_of_a_platform_package_follows_the_platform() -> None:
-    """A hub that lives in a platform package (uart/binary_sensor) is in the build
-    only with that platform."""
-    _declare_slot_list(
-        "TEST_SLOT_LIST_PLATFORM", module="esphome.components.uart.binary_sensor"
-    )
-    _emit_slot_lists({"uart": []})
-    assert _define_value("TEST_SLOT_LIST_PLATFORM") is None
-    _emit_slot_lists({"uart": [], "binary_sensor": [{"platform": "uart"}]})
-    assert _define_value("TEST_SLOT_LIST_PLATFORM") == "0"
-
-
-def test_slot_list_outside_a_component_package_raises() -> None:
-    """A platform module like pn532/binary_sensor.py is not imported when the
-    platform is unused, so its define could go missing."""
-    with pytest.raises(ValueError, match="__init__.py"):
-        _declare_slot_list(
-            "TEST_SLOT_LIST_BAD",
-            module="esphome.components.pn532.binary_sensor",
-            package=False,
-        )
-
-
-def test_slot_list_declared_twice_raises() -> None:
+def test_slot_list_declared_for_two_domains_raises() -> None:
     """Two components claiming one define would emit it for the wrong one."""
-    _declare_slot_list("TEST_SLOT_LIST_TWICE")
-    with pytest.raises(ValueError, match="already declared"):
-        _declare_slot_list("TEST_SLOT_LIST_TWICE", module="esphome.components.rc522")
+    ch.slot_list("TEST_SLOT_LIST_TWICE", "register_listener", "hub")
+    with pytest.raises(ValueError, match="already belongs to hub"):
+        ch.slot_list("TEST_SLOT_LIST_TWICE", "register_listener", "other_hub")
