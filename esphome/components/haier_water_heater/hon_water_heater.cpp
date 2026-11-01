@@ -279,7 +279,8 @@ void HonWaterHeater::publish_status_(const Status &status) {
   PUBLISH_STATE(this->target_temperature_sensor_, status.target_temperature);
   PUBLISH_STATE(this->estimated_heating_time_sensor_, status.estimated_heating_time);
   // Three segments of available hot water, published as 0, 33, 66 or 100 percent.
-  PUBLISH_STATE(this->available_water_sensor_, status.available_water <= 3 ? status.available_water * 100 / 3 : NAN);
+  PUBLISH_STATE(this->available_water_sensor_,
+                status.available_water <= 3 ? static_cast<uint8_t>(status.available_water * 100 / 3) : NAN);
 #endif
 #ifdef USE_BINARY_SENSOR
   PUBLISH_STATE(this->power_binary_sensor_, status.powered);
