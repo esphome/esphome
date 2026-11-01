@@ -12,4 +12,4 @@ wifi:
 web_server:
   allowed_origins:
     - https://app.esphome.io
-    - "*"
+    - http://other.local:8080
