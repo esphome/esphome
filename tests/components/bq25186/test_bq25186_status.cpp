@@ -8,7 +8,8 @@
 
 namespace esphome::bq25186::testing {
 
-// One entry per binary_sensor.py _FIELDS row, in its order: what code generation passes for each sensor
+// One entry per binary_sensor.py _FIELDS row, in its order: what code generation passes for each sensor.
+// tests/component_tests/bq25186/test_status_fields.py checks _FIELDS against the datasheet.
 struct BinaryField {
   uint8_t reg;
   uint8_t shift;
@@ -217,6 +218,7 @@ TEST_F(BQ25186StatusTest, BinarySensorsPublishBeforeTextSensorsInFieldOrder) {
     this->text_(i).add_on_state_callback([&order, i](const std::string &) { order.push_back(TEXT_BASE + i); });
   this->poll_(0);
   std::vector<size_t> expected;
+  expected.reserve(BINARY_COUNT + TEXT_COUNT);
   for (size_t i = 0; i < BINARY_COUNT; i++)
     expected.push_back(i);
   for (size_t i = 0; i < TEXT_COUNT; i++)
