@@ -20,6 +20,8 @@ import yaml
 
 CDC_ACM_COMPATIBLE = "zephyr,cdc-acm-uart"
 NORDIC_FAMILY = "nordic_nrf"
+# SoC series to list boards for: nrf51, nrf52 and every nrf54 series (nrf54l, nrf54h)
+SERIES_PREFIXES = ("nrf51", "nrf52", "nrf54")
 # Searched in each devicetree root, in this order, followed by dts/<arch> for every
 # architecture and then dts (cmake/modules/pre_dt.cmake). Missing directories are skipped
 # as the build does.
@@ -58,7 +60,7 @@ class NordicSoc:
 
 
 def load_socs(roots: Iterable[Path]) -> dict[str, NordicSoc]:
-    """Read the Nordic SoCs and their CPU clusters from the soc.yml files of each root."""
+    """Read the Nordic SoCs of SERIES_PREFIXES and their CPU clusters from soc.yml files."""
     socs: dict[str, NordicSoc] = {}
     for root in roots:
         for soc_yml in sorted((root / "soc").glob("**/soc.yml")):
@@ -67,6 +69,8 @@ def load_socs(roots: Iterable[Path]) -> dict[str, NordicSoc]:
                 if family["name"] != NORDIC_FAMILY:
                     continue
                 for series in family.get("series", []):
+                    if not series["name"].startswith(SERIES_PREFIXES):
+                        continue
                     for soc in series.get("socs", []):
                         clusters = tuple(c["name"] for c in soc.get("cpuclusters", []))
                         socs[soc["name"]] = NordicSoc(series["name"], clusters)

@@ -56,6 +56,12 @@ family:
             cpuclusters:
               - name: cpuapp
               - name: cpunet
+      - name: nrf54l
+        socs:
+          - name: nrf54l15
+            cpuclusters:
+              - name: cpuapp
+              - name: cpuflpr
       - name: nrf91
         socs:
           - name: nrf9160
@@ -75,8 +81,7 @@ def _socs(tmp_path: Path) -> dict[str, NordicSoc]:
 def test_load_socs(tmp_path: Path) -> None:
     assert _socs(tmp_path) == {
         "nrf52840": NordicSoc("nrf52", ()),
-        "nrf5340": NordicSoc("nrf53", ("cpuapp", "cpunet")),
-        "nrf9160": NordicSoc("nrf91", ()),
+        "nrf54l15": NordicSoc("nrf54l", ("cpuapp", "cpuflpr")),
     }
 
 
@@ -101,14 +106,21 @@ def test_board_yml_targets(tmp_path: Path) -> None:
         _write(multi / f"nrf9160dk_{name}.dts", "")
     _write(multi / "nrf9160dk_nrf52840_0_14_0.overlay", "")
     _write(multi / "nrf9160dk_nrf52840_0_7_0.overlay", "")
-    clusters = tmp_path / "boards" / "nordic" / "nrf5340dk"
+    clusters = tmp_path / "boards" / "nordic" / "nrf54l15dk"
     _write(
         clusters / "board.yml",
-        "board:\n  name: nrf5340dk\n  socs:\n  - name: nrf5340\n"
+        "board:\n  name: nrf54l15dk\n  socs:\n  - name: nrf54l15\n"
         "    variants:\n    - name: ns\n      cpucluster: cpuapp\n",
     )
-    for name in ("cpuapp", "cpuapp_ns", "cpunet"):
-        _write(clusters / f"nrf5340dk_nrf5340_{name}.dts", "")
+    for name in ("cpuapp", "cpuapp_ns", "cpuflpr"):
+        _write(clusters / f"nrf54l15dk_nrf54l15_{name}.dts", "")
+    # Series that are not listed
+    excluded = tmp_path / "boards" / "nordic" / "nrf5340dk"
+    _write(
+        excluded / "board.yml",
+        "board:\n  name: nrf5340dk\n  socs:\n  - name: nrf5340\n",
+    )
+    _write(excluded / "nrf5340dk_nrf5340_cpuapp.dts", "")
     other = tmp_path / "boards" / "st" / "nucleo"
     _write(
         other / "board.yml", "board:\n  name: nucleo\n  socs:\n  - name: stm32f401\n"
@@ -120,31 +132,22 @@ def test_board_yml_targets(tmp_path: Path) -> None:
 
     assert find_targets(tmp_path / "boards", socs) == [
         target(
-            "nrf5340dk/nrf5340/cpuapp",
-            "nrf5340",
-            "nrf53",
-            clusters / "nrf5340dk_nrf5340_cpuapp.dts",
+            "nrf54l15dk/nrf54l15/cpuapp",
+            "nrf54l15",
+            "nrf54l",
+            clusters / "nrf54l15dk_nrf54l15_cpuapp.dts",
         ),
         target(
-            "nrf5340dk/nrf5340/cpuapp/ns",
-            "nrf5340",
-            "nrf53",
-            clusters / "nrf5340dk_nrf5340_cpuapp_ns.dts",
+            "nrf54l15dk/nrf54l15/cpuapp/ns",
+            "nrf54l15",
+            "nrf54l",
+            clusters / "nrf54l15dk_nrf54l15_cpuapp_ns.dts",
         ),
         target(
-            "nrf5340dk/nrf5340/cpunet",
-            "nrf5340",
-            "nrf53",
-            clusters / "nrf5340dk_nrf5340_cpunet.dts",
-        ),
-        target(
-            "nrf9160dk/nrf9160", "nrf9160", "nrf91", multi / "nrf9160dk_nrf9160.dts"
-        ),
-        target(
-            "nrf9160dk/nrf9160/ns",
-            "nrf9160",
-            "nrf91",
-            multi / "nrf9160dk_nrf9160_ns.dts",
+            "nrf54l15dk/nrf54l15/cpuflpr",
+            "nrf54l15",
+            "nrf54l",
+            clusters / "nrf54l15dk_nrf54l15_cpuflpr.dts",
         ),
         target(
             "nrf9160dk/nrf52840",
@@ -175,7 +178,9 @@ def test_load_boards_reads_enabled_cdc_acm_nodes(tmp_path: Path) -> None:
     _write(zephyr / "dts" / "arm" / "soc.dtsi", "/dts-v1/;\n/ { soc { }; };\n")
     _socs(zephyr)
     broken = zephyr / "boards" / "nordic" / "broken"
-    _write(broken / "board.yml", "board:\n  name: broken\n  socs:\n  - name: nrf9160\n")
+    _write(
+        broken / "board.yml", "board:\n  name: broken\n  socs:\n  - name: nrf52840\n"
+    )
     _write(broken / "broken.dts", "/dts-v1/;\n/ { x = &missing; };\n")
 
     assert load_boards([zephyr]) == {
@@ -189,13 +194,13 @@ def test_render_and_replace() -> None:
     generated = render(
         {
             "3.2.0": {"b": BoardInfo("nrf52840", "nrf52", ("/soc/usbd/cdc",))},
-            "2.9.2": {"a": BoardInfo("nrf5340", "nrf53", ())},
+            "2.9.2": {"a": BoardInfo("nrf54l15", "nrf54l", ())},
         }
     )
     namespace: dict = {}
     exec(generated, namespace)  # noqa: S102
     assert namespace["BOARDS"] == {
-        "2.9.2": {"a": {"soc": "nrf5340", "series": "nrf53"}},
+        "2.9.2": {"a": {"soc": "nrf54l15", "series": "nrf54l"}},
         "3.2.0": {
             "b": {"soc": "nrf52840", "series": "nrf52", "cdc_acm": ["/soc/usbd/cdc"]}
         },
