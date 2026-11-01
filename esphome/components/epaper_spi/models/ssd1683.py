@@ -39,3 +39,6 @@ goodisplay_gdey029t94 = ssd1683.extend(
     width=128,
     height=296,
 )
+
+# Name printed on the panel's label as sold by Seeed
+goodisplay_gdey029t94.extend("029bn-t94-d2")

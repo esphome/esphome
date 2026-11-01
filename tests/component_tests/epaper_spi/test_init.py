@@ -419,6 +419,7 @@ def test_ssd1683_named_models(
     for name, dimensions in (
         ("goodisplay-gdey042t81-4.2", (400, 300)),
         ("goodisplay-gdey029t94-2.9", (128, 296)),
+        ("029BN-T94-D2", (128, 296)),
     ):
         model = MODELS[name.upper()]
         assert model.class_name == "EPaperSSD1683"

@@ -305,6 +305,23 @@ display:
       allow_other_uses: true
       number: GPIO4
 
+  # Seeed 029BN-T94-D2, the GDEY029T94 panel under its label name
+  - platform: epaper_spi
+    spi_id: spi_bus
+    model: 029BN-T94-D2
+    cs_pin:
+      allow_other_uses: true
+      number: GPIO5
+    dc_pin:
+      allow_other_uses: true
+      number: GPIO17
+    reset_pin:
+      allow_other_uses: true
+      number: GPIO16
+    busy_pin:
+      allow_other_uses: true
+      number: GPIO4
+
   # Waveshare 1.54" V2 mono e-paper (200x200, SSD1681)
   - platform: epaper_spi
     spi_id: spi_bus
