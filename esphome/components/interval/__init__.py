@@ -18,14 +18,25 @@ DelayedIntervalCallback = interval_ns.class_(
     "DelayedIntervalCallback", IntervalCallback
 )
 
+
+# Held as uint32_t milliseconds, where UINT32_MAX is SCHEDULER_DONT_RUN (never run)
+_MAX_PERIOD_MS = 2**32 - 2
+
+
+def _uint32_milliseconds() -> cv.All:
+    """Built per key, so the language schema keeps the time period type."""
+    return cv.All(
+        cv.positive_time_period_milliseconds,
+        cv.Range(max=cv.TimePeriod(milliseconds=_MAX_PERIOD_MS)),
+    )
+
+
 CONFIG_SCHEMA = automation.validate_automation(
     cv.Schema(
         {
             cv.GenerateID(): cv.declare_id(IntervalTrigger),
-            cv.Optional(
-                CONF_STARTUP_DELAY, default="0s"
-            ): cv.positive_time_period_milliseconds,
-            cv.Required(CONF_INTERVAL): cv.positive_time_period_milliseconds,
+            cv.Optional(CONF_STARTUP_DELAY, default="0s"): _uint32_milliseconds(),
+            cv.Required(CONF_INTERVAL): _uint32_milliseconds(),
         }
     ).extend(cv.COMPONENT_SCHEMA)
 )
@@ -33,8 +44,7 @@ CONFIG_SCHEMA = automation.validate_automation(
 
 async def to_code(config: list[ConfigType]) -> None:
     for conf in config:
-        # Cut to 32 bits, as the uint32_t setter always did
-        if startup_delay := conf[CONF_STARTUP_DELAY].total_milliseconds & 0xFFFFFFFF:
+        if startup_delay := conf[CONF_STARTUP_DELAY].total_milliseconds:
             component_class, template_args = DelayedIntervalCallback, [startup_delay]
         else:
             component_class, template_args = IntervalCallback, []
