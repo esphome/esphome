@@ -820,6 +820,7 @@ def generate_cpp_contents(config: ConfigType) -> None:
         if component.to_code is not None:
             coro = _wrap_to_code(name, component, yaml_util)
             CORE.add_job(coro, conf)
+    # after every to_code, so it sees each slot request
     CORE.add_job(emit_empty_slot_lists)
 
     CORE.flush_tasks()

@@ -411,8 +411,8 @@ def _isolated_slot_list_domains(monkeypatch: pytest.MonkeyPatch) -> None:
     monkeypatch.setattr(ch, "_SLOT_LIST_DOMAINS", {})
 
 
-def _emit_slot_lists(*loaded: str) -> None:
-    ch.CORE.loaded_integrations.update(loaded)
+def _emit_slot_lists(config: dict[str, Any]) -> None:
+    ch.CORE.config = config
     ch.CORE.add_job(ch.emit_empty_slot_lists)
     ch.CORE.flush_tasks()
 
@@ -420,7 +420,7 @@ def _emit_slot_lists(*loaded: str) -> None:
 def test_slot_list_sizes_for_the_busiest_hub() -> None:
     """Hubs with 3, 1 and 0 children: the define is 3 (the max, not the sum or the
     first hub's count) and each call targets only its own hub."""
-    register_item = ch.slot_list("TEST_SLOT_LIST_COUNT", "register_listener", "hub")
+    register_item = ch.slot_list("TEST_SLOT_LIST_COUNT", "register_listener", "wiegand")
     hub_a = MockObj("hub_a", "->")
     hub_b = MockObj("hub_b", "->")
     calls = [
@@ -436,27 +436,34 @@ def test_slot_list_sizes_for_the_busiest_hub() -> None:
         "hub_a->register_listener(listener_a3)",
     ]
     assert ch.get_slot_count("TEST_SLOT_LIST_COUNT") == 3
-    _emit_slot_lists("hub")
+    _emit_slot_lists({"wiegand": []})
     assert _define_value("TEST_SLOT_LIST_COUNT") == "3"
 
 
 def test_slot_list_without_registrations_emits_zero() -> None:
     """A hub in the build that nothing registered into still gets its define, as 0."""
-    ch.slot_list("TEST_SLOT_LIST_EMPTY", "register_listener", "hub")
-    _emit_slot_lists("hub")
+    ch.slot_list("TEST_SLOT_LIST_EMPTY", "register_listener", "wiegand")
+    _emit_slot_lists({"wiegand": []})
     assert _define_value("TEST_SLOT_LIST_EMPTY") == "0"
 
 
 def test_slot_list_of_a_domain_not_in_the_build_emits_nothing() -> None:
-    ch.slot_list("TEST_SLOT_LIST_UNUSED", "register_listener", "other_hub")
-    _emit_slot_lists("hub")
+    ch.slot_list("TEST_SLOT_LIST_UNUSED", "register_listener", "rc522")
+    _emit_slot_lists({"wiegand": []})
     assert _define_value("TEST_SLOT_LIST_UNUSED") is None
 
 
+def test_slot_list_of_a_platform_domain_follows_the_platform() -> None:
+    """A hub that is a platform (display: - platform: nextion) is built with it."""
+    ch.slot_list("TEST_SLOT_LIST_PLATFORM", "register_listener", "uart")
+    _emit_slot_lists({"binary_sensor": [{"platform": "uart"}]})
+    assert _define_value("TEST_SLOT_LIST_PLATFORM") == "0"
+
+
 def test_slot_list_keeps_a_define_set_by_hand() -> None:
-    ch.slot_list("TEST_SLOT_LIST_MANUAL", "register_listener", "hub")
+    ch.slot_list("TEST_SLOT_LIST_MANUAL", "register_listener", "wiegand")
     ch.add_define("TEST_SLOT_LIST_MANUAL", 3)
-    _emit_slot_lists("hub")
+    _emit_slot_lists({"wiegand": []})
     values = [
         str(d.value) for d in ch.CORE.defines if d.name == "TEST_SLOT_LIST_MANUAL"
     ]
@@ -465,6 +472,6 @@ def test_slot_list_keeps_a_define_set_by_hand() -> None:
 
 def test_slot_list_declared_for_two_domains_raises() -> None:
     """Two components claiming one define would emit it for the wrong one."""
-    ch.slot_list("TEST_SLOT_LIST_TWICE", "register_listener", "hub")
-    with pytest.raises(ValueError, match="already belongs to hub"):
-        ch.slot_list("TEST_SLOT_LIST_TWICE", "register_listener", "other_hub")
+    ch.slot_list("TEST_SLOT_LIST_TWICE", "register_listener", "wiegand")
+    with pytest.raises(ValueError, match="already belongs to wiegand"):
+        ch.slot_list("TEST_SLOT_LIST_TWICE", "register_listener", "rc522")

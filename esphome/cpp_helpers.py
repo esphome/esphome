@@ -227,7 +227,7 @@ def slot_list(define: str, register: str, domain: str) -> Callable[..., Expressi
     `register_item(hub, *args)` reserves one slot for `hub` and returns the
     `hub->register(args...)` call for `cg.add()`, or for a `sub_*` setter.
     Slots are counted per hub, so `define` is the largest list any one hub of a
-    `MULTI_CONF` component needs; other requests for `define` must be keyed too.
+    `MULTI_CONF` component needs; don't also call `slot_counter(define)` without a key.
 
     `domain` is the hub component's DOMAIN: whenever it is in the build, `define`
     is emitted, as 0 when nothing registered, so the C++ side needs no `#ifdef`.
@@ -249,11 +249,15 @@ def slot_list(define: str, register: str, domain: str) -> Callable[..., Expressi
 async def emit_empty_slot_lists() -> None:
     """Emit 0 for each `cg.slot_list()` define of a component in this build that
     nothing registered into."""
+    from esphome.config import iter_components
+
     state = _get_slot_counter_state()
+    # the domains whose sources are copied into the build: components and platforms
+    built = {name.rpartition(".")[2] for name, _ in iter_components(CORE.config)}
     # a define set by hand, such as by a test manifest override, is left alone
     done = state.emitted | state.counts.keys() | {d.name for d in CORE.defines}
     for define, domain in _SLOT_LIST_DOMAINS.items():
-        if domain in CORE.loaded_integrations and define not in done:
+        if domain in built and define not in done:
             state.emitted.add(define)
             add_define(define, 0)
 

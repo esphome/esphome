@@ -31,6 +31,7 @@ class GPS final : public PollingComponent, public uart::UARTDevice {
   SUB_SENSOR(hdop)
 
  public:
+  SLOT_LIST_REQUIRES(GPS_LISTENER_COUNT)
   void register_listener(GPSListener *listener) {
     listener->parent_ = this;
     this->listeners_.push_back(listener);
