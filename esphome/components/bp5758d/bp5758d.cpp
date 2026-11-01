@@ -112,14 +112,14 @@ uint8_t BP5758D::correct_current_level_bits_(uint8_t current) {
   return current + 34;
 }
 
-void BP5758D::set_channel_value_(uint8_t channel, uint16_t value) {
+void BP5758D::write_channel(uint8_t channel, float state, uint8_t current) {
+  auto value = static_cast<uint16_t>(state * 0x3FF);
   if (this->pwm_amounts_[channel] != value) {
     this->update_ = true;
   }
   this->pwm_amounts_[channel] = value;
+  this->channel_current_[channel] = current;
 }
-
-void BP5758D::set_channel_current_(uint8_t channel, uint8_t current) { this->channel_current_[channel] = current; }
 
 void BP5758D::write_bit_(bool value) {
   this->data_pin_->digital_write(value);
