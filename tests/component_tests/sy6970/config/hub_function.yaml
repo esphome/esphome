@@ -22,13 +22,25 @@ binary_sensor:
     charging:
       name: Charging
       id: charging
+    charge_done:
+      name: Charge Done
+      id: charge_done
 
 sensor:
   - platform: sy6970
     sy6970_id: charger
+    vbus_voltage:
+      name: VBUS Voltage
+      id: vbus_voltage
     battery_voltage:
       name: Battery Voltage
       id: battery_voltage
+    system_voltage:
+      name: System Voltage
+      id: system_voltage
+    charge_current:
+      name: Charge Current
+      id: charge_current
     precharge_current:
       name: Precharge Current
       id: precharge_current
@@ -36,6 +48,12 @@ sensor:
 text_sensor:
   - platform: sy6970
     sy6970_id: charger
+    bus_status:
+      name: Bus Status
+      id: bus_status
+    charge_status:
+      name: Charge Status
+      id: charge_status
     ntc_status:
       name: NTC Status
       id: ntc_status
