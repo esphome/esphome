@@ -82,7 +82,9 @@ class MotionComponent : public PollingComponent {
   /// and persist that base when `save` is set.
   void clear_calibration(bool save = false);
 
-  template<typename F> void add_listener(F &&cb) { this->motion_data_callback_.add(std::forward<F>(cb)); }
+#ifdef USE_MOTION_DATA_PUBLISHER
+  void set_data_publisher(void (*fn)(const MotionData &)) { this->data_publisher_ = fn; }
+#endif
 
  protected:
   // platforms must implement this method to update raw data.
@@ -104,7 +106,9 @@ class MotionComponent : public PollingComponent {
     output[2] = input[X_AXIS] * this->matrix_[6] + input[Y_AXIS] * this->matrix_[7] + input[Z_AXIS] * this->matrix_[8];
   }
 
-  LazyCallbackManager<void(MotionData const &)> motion_data_callback_{};
+#ifdef USE_MOTION_DATA_PUBLISHER
+  void (*data_publisher_)(const MotionData &){nullptr};
+#endif
   uint32_t pref_key_{0};
   uint32_t base_hash_{0};  // hash of base_matrix_, captured in setup()
   ESPPreferenceObject pref_{};

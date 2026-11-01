@@ -965,8 +965,12 @@ def mock_binary_sensor_codegen():
         ) as mock_reg_comp,
         patch("esphome.components.motion.binary_sensor.cg.add", mock_add),
         patch("esphome.cpp_helpers.add", mock_add),
+        patch(
+            "esphome.components.motion.binary_sensor.DATA_PUBLISHER"
+        ) as mock_publisher,
     ):
         yield {
+            "publisher": mock_publisher,
             "get_variable": mock_get_var,
             "new_Pvariable": mock_new_pvar,
             "register_binary_sensor": mock_reg_bin,
@@ -992,6 +996,11 @@ async def test_binary_sensor_to_code(mock_binary_sensor_codegen):
         "my_motion_component"
     )
     mock_binary_sensor_codegen["new_Pvariable"].assert_called_once()
+    mock_binary_sensor_codegen["publisher"].add.assert_called_once()
+    assert (
+        mock_binary_sensor_codegen["publisher"].add.call_args.args[0]
+        is mock_binary_sensor_codegen["parent"]
+    )
     mock_binary_sensor_codegen["register_binary_sensor"].assert_called_once_with(
         mock_binary_sensor_codegen["var"], config
     )
@@ -1051,8 +1060,10 @@ def mock_event_codegen():
         patch(
             "esphome.components.motion.event.cg.add",
         ) as mock_add,
+        patch("esphome.components.motion.event.DATA_PUBLISHER") as mock_publisher,
     ):
         yield {
+            "publisher": mock_publisher,
             "get_variable": mock_get_var,
             "new_Pvariable": mock_new_pvar,
             "register_event": mock_reg_event,
@@ -1075,8 +1086,11 @@ async def test_event_to_code(mock_event_codegen):
     }
     await event_to_code(config)
     mock_event_codegen["get_variable"].assert_called_once_with("my_motion_component")
-    mock_event_codegen["new_Pvariable"].assert_called_once_with(
-        "my_event_id", mock_event_codegen["parent"]
+    mock_event_codegen["new_Pvariable"].assert_called_once_with("my_event_id")
+    mock_event_codegen["publisher"].add.assert_called_once()
+    assert (
+        mock_event_codegen["publisher"].add.call_args.args[0]
+        is mock_event_codegen["parent"]
     )
     mock_event_codegen["register_event"].assert_called_once_with(
         mock_event_codegen["var"], config, event_types=["shake"]
