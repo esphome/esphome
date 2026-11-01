@@ -5,7 +5,7 @@ import esphome.config_validation as cv
 from esphome.const import CONF_KEY
 from esphome.types import ConfigType
 
-from ..display import CONF_TM1638_ID, KEYS_PUBLISHER, TM1638Component, tm1638_ns
+from ..display import CONF_TM1638_ID, KEYS, KEYS_PUBLISHER, TM1638Component, tm1638_ns
 
 CONFIG_SCHEMA = binary_sensor.binary_sensor_schema().extend(
     {
@@ -20,7 +20,5 @@ async def to_code(config: ConfigType) -> None:
     hub = await cg.get_variable(config[CONF_TM1638_ID])
     KEYS_PUBLISHER.add(
         hub,
-        tm1638_ns.publish_key(
-            parent_ref(var), KEYS_PUBLISHER.param("keys"), config[CONF_KEY]
-        ),
+        tm1638_ns.publish_key(parent_ref(var), KEYS, config[CONF_KEY]),
     )

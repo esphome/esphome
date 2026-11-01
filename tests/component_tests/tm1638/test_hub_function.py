@@ -6,8 +6,9 @@ from pathlib import Path
 
 def test_keys_publish_through_hub_function(
     generate_main: Callable[[str | Path], str],
+    component_config_path: Callable[[str], Path],
 ) -> None:
-    main_cpp = generate_main("tests/component_tests/tm1638/test_tm1638.yaml")
+    main_cpp = generate_main(component_config_path("hub_function.yaml"))
 
     assert (
         "static void esphome__panel__keys_fn(uint8_t esphome__arg_keys) {\n"
