@@ -38,18 +38,6 @@ BOARDS_ZEPHYR = {
     "nrf52840dongle": {KEY_BOOTLOADER: [BOOTLOADER_NRF]},
 }
 
-# Labels of the CDC ACM nodes that board device trees add on their own, as
-# (label before SDK 3.2.0, label from SDK 3.2.0). From SDK 3.2.0 these boards include
-# boards/common/usb/cdc_acm_serial.dtsi. ESPHome disables them and adds its own
-# cdc_acm_uartN nodes; without that the device shows an extra serial port.
-BOARD_CDC_ACM_NODES: dict[str, tuple[str, str]] = {
-    "xiao_ble": ("usb_cdc_acm_uart", "board_cdc_acm_uart"),
-    "adafruit_itsybitsy": ("cdc_acm_uart0", "board_cdc_acm_uart"),
-    "adafruit_itsybitsy_nrf52840": ("cdc_acm_uart0", "board_cdc_acm_uart"),
-    "nrf52840dongle": ("cdc_acm_uart", "board_cdc_acm_uart"),
-    "nrf52840dongle_nrf52840": ("cdc_acm_uart", "board_cdc_acm_uart"),
-}
-
 # Boards with a GPIO wired to their RESET pin: driving it low is a pin reset, which the factory
 # bootloader takes as its cue to stay in DFU mode (Nordic's own USB DFU trigger does the same)
 SELF_RESET_PINS = {
