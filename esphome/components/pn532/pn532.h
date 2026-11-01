@@ -73,16 +73,10 @@ class PN532 : public PollingComponent {
   void loop() override;
   void on_powerdown() override { powerdown(); }
 
-#ifdef PN532_BINARY_SENSOR_COUNT
   SLOT_LIST(PN532BinarySensor, binary_sensors_, register_tag, PN532_BINARY_SENSOR_COUNT)
-#endif
-#ifdef PN532_ON_TAG_TRIGGER_COUNT
   SLOT_LIST(nfc::NfcOnTagTrigger, triggers_ontag_, register_ontag_trigger, PN532_ON_TAG_TRIGGER_COUNT)
-#endif
-#ifdef PN532_ON_TAG_REMOVED_TRIGGER_COUNT
   SLOT_LIST(nfc::NfcOnTagTrigger, triggers_ontagremoved_, register_ontagremoved_trigger,
             PN532_ON_TAG_REMOVED_TRIGGER_COUNT)
-#endif
 
   template<typename F> void add_on_finished_write_callback(F &&callback) {
     this->on_finished_write_callback_.add(std::forward<F>(callback));

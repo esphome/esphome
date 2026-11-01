@@ -79,12 +79,9 @@ class RP2040BLE final : public Component {
   /// power-up).
   void get_mac_msb_first(uint8_t out[MAC_ADDRESS_SIZE]) const;
 
-#ifdef RP2040_BLE_SCAN_LISTENER_COUNT
   /// Register a consumer for scan reports (delivered on the main loop via loop()).
-  /// Storage is codegen-sized: the consumer's codegen requests a slot via
-  /// request_scan_listener_slot(), which emits RP2040_BLE_SCAN_LISTENER_COUNT.
+  /// Codegen only: each consumer registers through register_scan_listener() in __init__.py.
   SLOT_LIST(BLEScanListener, scan_listeners_, register_scan_listener, RP2040_BLE_SCAN_LISTENER_COUNT)
-#endif
 
   /// Start a controller scan; active sends scan requests and receives scan
   /// responses as separate reports. Interval/window are in BLE units

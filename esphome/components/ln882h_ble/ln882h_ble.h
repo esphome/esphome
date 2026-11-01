@@ -88,12 +88,9 @@ class LN882HBLE final : public Component {
   /// (the bk72xx sibling exposes the same accessor).
   void get_mac_lsb_first(uint8_t out[6]) const;
 
-#ifdef LN882H_BLE_SCAN_LISTENER_COUNT
   /// Register a consumer for scan reports (delivered on the main task via loop()).
-  /// Storage is codegen-sized: the consumer's codegen requests a slot via
-  /// request_scan_listener_slot(), which emits LN882H_BLE_SCAN_LISTENER_COUNT.
+  /// Codegen only: each consumer registers through register_scan_listener() in __init__.py.
   SLOT_LIST(BLEScanListener, scan_listeners_, register_scan_listener, LN882H_BLE_SCAN_LISTENER_COUNT)
-#endif
 
   /// Start the controller scan. Interval/window are in BLE units (0.625 ms);
   /// active enables scan requests on the 1M PHY. Enables the stack first if

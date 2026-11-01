@@ -85,12 +85,9 @@ class BK72xxBLE final : public Component {
   /// Controller BLE address, least-significant octet first (BLE convention).
   void get_mac_lsb_first(uint8_t out[MAC_ADDRESS_SIZE]) const;
 
-#ifdef BK72XX_BLE_SCAN_LISTENER_COUNT
   /// Register a consumer for scan reports (delivered on the main task via loop()).
-  /// Storage is codegen-sized: the consumer's codegen requests a slot via
-  /// request_scan_listener_slot(), which emits BK72XX_BLE_SCAN_LISTENER_COUNT.
+  /// Codegen only: each consumer registers through register_scan_listener() in __init__.py.
   SLOT_LIST(BLEScanListener, scan_listeners_, register_scan_listener, BK72XX_BLE_SCAN_LISTENER_COUNT)
-#endif
 
   /// Request a scan (interval/window in 0.625 ms BLE units); enables the
   /// stack first if needed. PENDING until the scan is observed running —

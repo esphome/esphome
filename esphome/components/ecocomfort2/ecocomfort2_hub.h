@@ -106,9 +106,7 @@ class Ecocomfort2Hub : public esphome::ble_client::BLEClientNode, public Polling
                            esp_ble_gattc_cb_param_t *param) override;
   void gap_event_handler(esp_gap_ble_cb_event_t event, esp_ble_gap_cb_param_t *param) override;
 
-#ifdef ECOCOMFORT2_CHILD_COUNT
   void register_child(Ecocomfort2Client *obj);
-#endif
 #ifdef USE_TIME
   /// Keeps the unit's clock in step with this time source while connected.
   void set_time(time::RealTimeClock *time) { this->time_ = time; }
@@ -182,9 +180,7 @@ class Ecocomfort2Hub : public esphome::ble_client::BLEClientNode, public Polling
   void publish_offsets_();
 #endif
 
-#ifdef ECOCOMFORT2_CHILD_COUNT
-  StaticVector<Ecocomfort2Client *, ECOCOMFORT2_CHILD_COUNT> children_;
-#endif
+  [[no_unique_address]] SlotList<Ecocomfort2Client *, ECOCOMFORT2_CHILD_COUNT> children_;
 #ifdef USE_TIME
   time::RealTimeClock *time_{nullptr};
 #endif
