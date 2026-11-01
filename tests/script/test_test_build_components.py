@@ -1,6 +1,7 @@
 """Unit tests for script/test_build_components.py logging helpers."""
 
 from pathlib import Path
+import struct
 import sys
 
 import pytest
@@ -412,3 +413,47 @@ def test_components_unknown_component_fails_with_flag(
     )
     assert rc == 1
     assert "No components found matching" in capsys.readouterr().out
+
+
+def _write_elf(path: Path, symbols: dict[str, int]) -> None:
+    """Write a minimal ELF32 LE file whose symtab defines ``symbols`` (name -> shndx)."""
+    strtab = b"\0"
+    syms = b"\0" * 16
+    for name, shndx in symbols.items():
+        syms += struct.pack("<IIIBBH", len(strtab), 0, 0, 0, 0, shndx)
+        strtab += name.encode() + b"\0"
+    header = bytearray(52)
+    header[:6] = b"\x7fELF\x01\x01"
+    struct.pack_into("<I", header, 0x20, 52 + len(syms) + len(strtab))
+    struct.pack_into("<HH", header, 0x2E, 40, 3)
+    shdrs = b"\0" * 40
+    shdrs += struct.pack("<IIIIIIIIII", 0, 2, 0, 0, 52, len(syms), 2, 0, 4, 16)
+    shdrs += struct.pack(
+        "<IIIIIIIIII", 0, 3, 0, 0, 52 + len(syms), len(strtab), 0, 0, 1, 0
+    )
+    path.write_bytes(bytes(header) + syms + strtab + shdrs)
+
+
+@pytest.mark.parametrize(
+    ("symbols", "expected"),
+    [
+        pytest.param({"__wrap_string_to_bdaddr": 1}, 0, id="wrapped"),
+        pytest.param(
+            {"__wrap_string_to_bdaddr": 1, "__ssvfscanf_r": 1}, 1, id="engine_linked"
+        ),
+        pytest.param({"__wrap_string_to_bdaddr": 1, "sscanf": 0xFFF1}, 0, id="rom"),
+        pytest.param({"sscanf": 1}, 0, id="no_wraps"),
+    ],
+)
+def test_check_scanf_engine_absent(
+    tmp_path: Path, symbols: dict[str, int], expected: int
+) -> None:
+    """A build with the Bluedroid sscanf wraps fails when scanf is still linked."""
+    elf = tmp_path / ".esphome" / "build" / "componenttestesp32idf" / "build"
+    elf.mkdir(parents=True)
+    _write_elf(elf / "firmware.elf", symbols)
+    base_file = tmp_path / "base.yaml"
+    base_file.write_text("esphome:\n  name: componenttestesp32idf\n")
+
+    assert tbc.check_scanf_engine_absent(tmp_path, base_file, "compile") == expected
+    assert tbc.check_scanf_engine_absent(tmp_path, base_file, "config") == 0
