@@ -11,6 +11,21 @@ namespace esphome::esp32 {
 static_assert(GPIO_NUM_MAX <= 256, "gpio_num_t has too many values for uint8_t");
 static_assert(GPIO_DRIVE_CAP_MAX <= 4, "gpio_drive_cap_t has too many values for 2-bit field");
 
+#ifdef CONFIG_FREERTOS_USE_TICKLESS_IDLE
+struct ISRFuncArg {
+  gpio_num_t pin;
+  int rtc_pin;
+  gpio_int_type_t type;
+#ifdef CONFIG_PM_POWER_DOWN_PERIPHERAL_IN_LIGHT_SLEEP
+  bool level;
+  bool wake_level;
+  ISRFuncArg *next;
+#endif
+  void (*func)(void *);
+  void *arg;
+};
+#endif
+
 class ESP32InternalGPIOPin final : public GPIOPin {
  public:
   void set_pin(gpio_num_t pin) { this->pin_ = static_cast<uint8_t>(pin); }
@@ -49,9 +64,8 @@ class ESP32InternalGPIOPin final : public GPIOPin {
 
  protected:
   void attach_interrupt_(void (*func)(void *), void *arg, gpio::InterruptType type) const;
-
-  // Memory layout: 8 bytes total on 32-bit systems
-  // - 3 bytes for members below
+  // Memory layout: 8 bytes total on 32-bit systems, 12 bytes if sleep is enabled
+  // - 3 (or 7) bytes for members below
   // - 1 byte padding for alignment
   // - 4 bytes for vtable pointer
   uint8_t pin_;          // GPIO pin number (0-255, actual max ~54 on ESP32)
@@ -61,6 +75,9 @@ class ESP32InternalGPIOPin final : public GPIOPin {
     uint8_t drive_strength : 2;  // Drive strength 0-3 (2 bits)
     uint8_t reserved : 5;        // Reserved for future use (5 bits)
   } pin_flags_{};                // Total: 1 byte
+#ifdef CONFIG_FREERTOS_USE_TICKLESS_IDLE
+  mutable ISRFuncArg *isr_func_arg_{nullptr};  // Edge emulation state, reused on every attach
+#endif
   // NOLINTNEXTLINE(cppcoreguidelines-avoid-non-const-global-variables)
   static bool isr_service_installed;
 };

@@ -3,6 +3,10 @@
 # their headers register for the tidy translation unit (these are normally set at
 # codegen via add_idf_sdkconfig_option, which the stub tidy build skips).
 
+# peripheral powerdown on variants with TOP_PD
+CONFIG_PM_POWER_DOWN_PERIPHERAL_IN_LIGHT_SLEEP=y
+CONFIG_PM_LIGHT_SLEEP_CALLBACKS=y
+
 # openthread (only the C6/H2 variants have the 802.15.4 radio)
 CONFIG_IEEE802154_ENABLED=y
 CONFIG_OPENTHREAD_ENABLED=y
