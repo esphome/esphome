@@ -189,12 +189,15 @@ drive a state when the restore mode is disabled. A hub that applies its switches
 reads `sw->get_initial_write_state()`, which already applies `inverted`.
 
 **Entities that each watch a register field:** when every field (register, shift, mask, match) is known at
-build time, generate the decoding (see `bq25186`, from #22091). Each platform hands the hub's codegen one
-statement per entity, a `CoroPriority.FINAL` job emits one `cg.static_function` per hub with the constants as
-literals, and the hub stores a single function pointer; the entities stay plain `BinarySensor`/`TextSensor`.
+build time, generate the decoding (see `bq25186`). Each platform hands the hub's codegen one statement per
+entity, a `CoroPriority.FINAL` job emits one `cg.static_function` per hub with the constants as literals, and
+the hub stores a single function pointer; the entities stay plain `BinarySensor`/`TextSensor`. A binary sensor
+whose field has several values tests the value against an on-values bitmap (`match`):
 ```python
 value = f"(status[{reg}] >> {shift}) & {mask:#04x}"
-add_status_statement(hub, f"{parent_ref(var)}->publish_state({value});")
+state = f"({match:#04x} >> ({value})) & 1"
+# add_status_statement and set_status_publisher are bq25186's own helpers, not shared ones
+add_status_statement(hub, f"{parent_ref(var)}->publish_state({state});")
 # FINAL job, per hub:
 fn = cg.static_function(f"esphome__{hub}__status_fn", cg.void, params, statements)
 cg.add(hub.set_status_publisher(fn))
