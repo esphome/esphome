@@ -4,12 +4,13 @@
 #include "esphome/core/component.h"
 #include "esphome/core/defines.h"
 #include "esphome/core/hal.h"
+#include "esphome/core/helpers.h"
 #include "esphome/core/time.h"
 #include "esphome/components/display/display.h"
 
 namespace esphome::tm1638 {
 
-/// Publish whether `key` is pressed in the `keys` bitmask on `sensor`, only when it changed.
+// A template on the sensor type keeps binary_sensor.h out of this hub header
 template<typename T> inline void publish_key(T *sensor, uint8_t keys, uint8_t key) {
   bool pressed = keys & (1 << key);
   if (pressed != sensor->state)
@@ -35,8 +36,7 @@ class TM1638Component final : public PollingComponent {
   void set_stb_pin(GPIOPin *pin) { this->stb_pin_ = pin; }
 
 #ifdef USE_TM1638_KEYS_PUBLISHER
-  /// Generated function that publishes the key binary sensors from the key bitmask.
-  void set_keys_publisher(void (*fn)(uint8_t keys)) { this->keys_publisher_ = fn; }
+  HUB_PUBLISHER(keys, uint8_t)
 #endif
 
   /// Evaluate the printf-format and print the result at the given position.
@@ -74,9 +74,6 @@ class TM1638Component final : public PollingComponent {
   GPIOPin *dio_pin_;
   uint8_t buffer_[8]{};
   tm1638_writer_t writer_{};
-#ifdef USE_TM1638_KEYS_PUBLISHER
-  void (*keys_publisher_)(uint8_t keys){nullptr};
-#endif
 };
 
 }  // namespace esphome::tm1638
