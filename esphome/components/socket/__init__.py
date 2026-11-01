@@ -129,6 +129,15 @@ def get_socket_counts() -> SocketCounts:
     )
 
 
+def zephyr_poll_max(counts: SocketCounts) -> int:
+    """Zephyr poll table size: the socket budget with the usual minimums."""
+    return (
+        max(counts.tcp, MIN_TCP_SOCKETS)
+        + max(counts.udp, MIN_UDP_SOCKETS)
+        + max(counts.tcp_listen, MIN_TCP_LISTEN_SOCKETS)
+    )
+
+
 def require_wake_loop_threadsafe() -> None:
     """Deprecated: wake loop support is now always available on all platforms.
 
@@ -282,14 +291,10 @@ async def to_code(config: ConfigType) -> None:
             zephyr_add_prj_conf("NET_SOCKETS", True)
             zephyr_add_prj_conf("POSIX_API", True)
             # Zephyr's default of 3 poll entries is too few once API, OTA, mDNS and UDP
-            # run together; size it from the socket budget with the usual minimums
-            counts = get_socket_counts()
-            poll_max = (
-                max(counts.tcp, MIN_TCP_SOCKETS)
-                + max(counts.udp, MIN_UDP_SOCKETS)
-                + max(counts.tcp_listen, MIN_TCP_LISTEN_SOCKETS)
+            # run together
+            zephyr_add_prj_conf(
+                "NET_SOCKETS_POLL_MAX", zephyr_poll_max(get_socket_counts())
             )
-            zephyr_add_prj_conf("NET_SOCKETS_POLL_MAX", poll_max)
     # ESP32 and LibreTiny both have LwIP >= 2.1.3 with lwip_socket_dbg_get_socket()
     # and FreeRTOS task notifications — enable fast select to bypass lwip_select().
     # Only when not using lwip_tcp, which does not provide select() support.
