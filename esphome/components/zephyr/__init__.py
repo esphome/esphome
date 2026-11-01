@@ -87,6 +87,8 @@ class ZephyrData(TypedDict):
     overlay_builder: list[Callable[[], str]]
     # CDC ACM port number -> components that use it
     cdc_acm_users: dict[int, list[CdcAcmUser]]
+    # Labels of CDC ACM nodes that the board device tree adds on its own
+    board_cdc_acm_nodes: list[str]
 
 
 def zephyr_set_core_data(config: ConfigType) -> None:
@@ -99,6 +101,7 @@ def zephyr_set_core_data(config: ConfigType) -> None:
         },  # set empty to make sure that overlay is cleared after config change
         overlay_builder=[],
         cdc_acm_users={},
+        board_cdc_acm_nodes=[],
         extra_build_files={},
         pm_static=[],
         kconfig="",
@@ -250,6 +253,17 @@ def zephyr_claim_cdc_acm(
     users.append(new)
 
 
+def zephyr_add_board_cdc_acm_node(label: str) -> None:
+    """Register a CDC ACM node that the board device tree already defines.
+
+    The node is disabled when a port is claimed with zephyr_claim_cdc_acm(), so the
+    device shows only the cdc_acm_uartN ports that ESPHome adds, not an extra one.
+    """
+    nodes = zephyr_data()["board_cdc_acm_nodes"]
+    if label not in nodes:
+        nodes.append(label)
+
+
 def _cdc_acm_add_ports() -> None:
     """Set up every CDC ACM port claimed with zephyr_claim_cdc_acm()."""
     users = zephyr_data()["cdc_acm_users"]
@@ -266,15 +280,25 @@ def _cdc_acm_add_ports() -> None:
     zephyr_add_prj_conf("USB_DEVICE_REMOTE_WAKEUP", False)
     # prevent logging when buffer is full
     zephyr_add_prj_conf("USB_CDC_ACM_LOG_LEVEL_WRN", True)
+    # Disable the board's own nodes first; a board node can have the same name as
+    # one of ours, so ours set the status back to okay
+    board_nodes = "".join(
+        f"""
+            &{label} {{
+                status = "disabled";
+            }};"""
+        for label in zephyr_data()["board_cdc_acm_nodes"]
+    )
     nodes = "".join(
         f"""
                 cdc_acm_uart{id}: cdc_acm_uart{id} {{
                     compatible = "zephyr,cdc-acm-uart";
+                    status = "okay";
                 }};"""
         for id in sorted(users)
     )
     zephyr_add_overlay(
-        f"""
+        f"""{board_nodes}
             &zephyr_udc0 {{{nodes}
             }};
         """

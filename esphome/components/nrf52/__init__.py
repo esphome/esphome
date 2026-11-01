@@ -16,6 +16,7 @@ from esphome.components.zephyr import (
     Section,
     add_extra_script,
     copy_files as zephyr_copy_files,
+    zephyr_add_board_cdc_acm_node,
     zephyr_add_overlay,
     zephyr_add_pm_static,
     zephyr_add_prj_conf,
@@ -71,7 +72,12 @@ from esphome.helpers import rmtree, write_file_if_changed
 from esphome.storage_json import StorageJSON
 from esphome.types import ConfigType
 
-from .boards import BOARDS_ZEPHYR, BOOTLOADER_CONFIG, SELF_RESET_PINS
+from .boards import (
+    BOARD_CDC_ACM_NODES,
+    BOARDS_ZEPHYR,
+    BOOTLOADER_CONFIG,
+    SELF_RESET_PINS,
+)
 from .const import (
     BOOTLOADER_ADAFRUIT,
     BOOTLOADER_ADAFRUIT_NRF52_SD132,
@@ -536,6 +542,12 @@ async def to_code(config: ConfigType) -> None:
                     status = "disabled";
                 };
             """
+        )
+    # Board names can carry a qualifier, such as xiao_ble/nrf52840/sense
+    if cdc_acm_nodes := BOARD_CDC_ACM_NODES.get(config[CONF_BOARD].split("/")[0]):
+        legacy_label, label = cdc_acm_nodes
+        zephyr_add_board_cdc_acm_node(
+            label if framework_ver >= cv.Version(3, 2, 0) else legacy_label
         )
     zephyr_add_prj_conf("REBOOT", True)
 
