@@ -9,6 +9,7 @@ import os
 from pathlib import Path
 import subprocess
 import sys
+import traceback
 
 from helpers import get_all_dependencies, has_cpp_unit_tests, root_path as _root_path
 import yaml
@@ -423,7 +424,8 @@ def compile_and_get_binary(
             print(f"Error compiling {label} for {', '.join(components)}")
             return exit_code, None
     except Exception as e:  # noqa: BLE001
-        print(f"Error compiling {label} for {', '.join(components)}: {e}")
+        print(f"Error compiling {label} for {', '.join(components)}: {e!r}")
+        traceback.print_exc()
         return EXIT_COMPILE_ERROR, None
 
     # After a successful compilation, locate the executable:
