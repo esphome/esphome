@@ -30,11 +30,12 @@ from esphome.types import ConfigType
 
 from .. import (
     CONF_MK2PVROUTER_ID,
-    DUMP,
-    MK2PVROUTER_LISTENER_SCHEMA,
+    DUMP_PUBLISHER,
+    DUMP_TAG,
+    MK2PVROUTER_CHILD_SCHEMA,
     TAG,
     VAL,
-    VALUE,
+    VALUE_PUBLISHER,
     mk2pvrouter_ns,
 )
 
@@ -112,7 +113,7 @@ CONFIG_SCHEMA = cv.All(
     sensor.sensor_schema(
         accuracy_decimals=0,
         state_class=STATE_CLASS_MEASUREMENT,
-    ).extend(MK2PVROUTER_LISTENER_SCHEMA),
+    ).extend(MK2PVROUTER_CHILD_SCHEMA),
 )
 
 
@@ -122,10 +123,12 @@ async def to_code(config: ConfigType) -> None:
     var = await sensor.new_sensor(config)
     mk2pvrouter = await cg.get_variable(config[CONF_MK2PVROUTER_ID])
     scale_centi = kind is not None and kind.scale_centi
-    VALUE.add(
+    VALUE_PUBLISHER.add(
         mk2pvrouter,
         mk2pvrouter_ns.publish_sensor_value(
             parent_ref(var), tag, scale_centi, TAG, VAL
         ),
     )
-    DUMP.add(mk2pvrouter, mk2pvrouter_ns.dump_sensor(parent_ref(var), tag))
+    DUMP_PUBLISHER.add(
+        mk2pvrouter, mk2pvrouter_ns.dump_sensor(DUMP_TAG, parent_ref(var), tag)
+    )

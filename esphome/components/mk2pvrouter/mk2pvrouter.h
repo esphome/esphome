@@ -23,9 +23,10 @@ static constexpr uint16_t MAX_BUF_SIZE = 256;  // Full frame with all features e
 // Reads frames via UART, validates their CRC, and publishes tag/value pairs to the child entities.
 class Mk2PVRouter : public Component, public uart::UARTDevice {
  public:
-#ifdef USE_MK2PVROUTER_VALUE_FN
-  void set_value_fn(void (*fn)(const char *, const char *)) { this->value_fn_ = fn; }
-  void set_dump_fn(void (*fn)()) { this->dump_fn_ = fn; }
+#ifdef USE_MK2PVROUTER_VALUE_PUBLISHER
+  // Generated from the child entities; null when this hub has none
+  HUB_PUBLISHER(value, const char *, const char *)
+  HUB_PUBLISHER(dump, const char *)
 #endif
   void loop() override;
   void dump_config() override;
@@ -39,11 +40,6 @@ class Mk2PVRouter : public Component, public uart::UARTDevice {
     END_FRAME_RECEIVED,
   };
 
-#ifdef USE_MK2PVROUTER_VALUE_FN
-  // Generated from the child entities; null when this hub has none
-  void (*value_fn_)(const char *, const char *){nullptr};
-  void (*dump_fn_)(){nullptr};
-#endif
   uint16_t buf_index_{0};
   State state_{State::WAITING_FOR_START};
   char tag_[MAX_TAG_SIZE];

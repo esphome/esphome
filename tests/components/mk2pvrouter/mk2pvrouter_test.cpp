@@ -1,6 +1,5 @@
 #include <gtest/gtest.h>
 
-#include <cstring>
 #include <string>
 
 #include "esphome/components/mk2pvrouter/mk2pvrouter.h"
@@ -12,26 +11,20 @@ namespace {
 // The parser works on raw frame bytes; the groups below are written as text for readability.
 const uint8_t *as_bytes(const char *str) { return reinterpret_cast<const uint8_t *>(str); }
 
-struct TestListener {
-  const char *tag;
-  bool published_{false};
-  std::string last_val_;
+// Stands in for the generated function: the last tag/value the hub published
+struct Published {
+  bool any{false};
+  std::string tag;
+  std::string val;
 };
-
-// Stands in for the generated function; records values for the running test's listener tag
-TestListener *active_listener = nullptr;
-void record_value(const char *tag, const char *val) {
-  if (strcmp(tag, active_listener->tag) != 0)
-    return;
-  active_listener->published_ = true;
-  active_listener->last_val_ = val;
-}
+Published published;
+void record_value(const char *tag, const char *val) { published = {true, tag, val}; }
 
 class Mk2PVRouterTest : public ::testing::Test {
  protected:
   void SetUp() override {
-    active_listener = &this->listener_;
-    this->sut_.set_value_fn(record_value);
+    published = {};
+    this->sut_.set_value_publisher(record_value);
   }
 
   // Feeds one "tag<TAB>value<TAB>crc" literal, as the frame parser does after END_FRAME.
@@ -40,7 +33,6 @@ class Mk2PVRouterTest : public ::testing::Test {
   }
 
   TestableMk2PVRouter sut_;
-  TestListener listener_{"P1"};
 };
 }  // namespace
 
@@ -65,24 +57,25 @@ TEST_F(Mk2PVRouterTest, CheckCrcRejectsEmptyGroup) {
   EXPECT_FALSE(this->sut_.check_crc_(as_bytes(grp), as_bytes(grp)));
 }
 
-TEST_F(Mk2PVRouterTest, ProcessGroupPublishesValidGroupToMatchingListener) {
+TEST_F(Mk2PVRouterTest, ProcessGroupPublishesValidGroup) {
   this->process_("P1\t1234\t=");
-  EXPECT_TRUE(this->listener_.published_);
-  EXPECT_EQ(this->listener_.last_val_, "1234");
+  EXPECT_TRUE(published.any);
+  EXPECT_EQ(published.tag, "P1");
+  EXPECT_EQ(published.val, "1234");
 }
 
 TEST_F(Mk2PVRouterTest, ProcessGroupDropsGroupWithBadCrc) {
   this->process_("P1\t1234\t!");
-  EXPECT_FALSE(this->listener_.published_);
+  EXPECT_FALSE(published.any);
 }
 
 TEST_F(Mk2PVRouterTest, ProcessGroupDropsGroupMissingValue) {
   // "P1\t" sums to 0x2A ('*'), so the CRC passes, but there is no second TAB for the value.
   this->process_("P1\t*");
-  EXPECT_FALSE(this->listener_.published_);
+  EXPECT_FALSE(published.any);
 }
 
-TEST_F(Mk2PVRouterTest, LoopParsesFullFrameAndPublishesToListener) {
+TEST_F(Mk2PVRouterTest, LoopParsesFullFrameAndPublishes) {
   MockUARTComponent uart;
   this->sut_.set_uart_parent(&uart);
 
@@ -100,8 +93,9 @@ TEST_F(Mk2PVRouterTest, LoopParsesFullFrameAndPublishesToListener) {
   this->sut_.loop();  // Parse the buffered groups and publish them.
   EXPECT_EQ(this->sut_.state_, TestableMk2PVRouter::State::WAITING_FOR_START);
   EXPECT_EQ(this->sut_.buf_index_, 0);
-  EXPECT_TRUE(this->listener_.published_);
-  EXPECT_EQ(this->listener_.last_val_, "1234");
+  EXPECT_TRUE(published.any);
+  EXPECT_EQ(published.tag, "P1");
+  EXPECT_EQ(published.val, "1234");
 }
 
 TEST_F(Mk2PVRouterTest, LoopIgnoresBytesBeforeStartFrame) {
