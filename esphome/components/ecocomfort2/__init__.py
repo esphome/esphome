@@ -45,6 +45,7 @@ _register_child = cg.slot_list("ECOCOMFORT2_CHILD_COUNT", "register_child")
 
 async def register_ecocomfort2_child(var: MockObj, config: ConfigType) -> None:
     parent = await cg.get_variable(config[CONF_ECOCOMFORT2_ID])
+    await cg.register_parented(var, parent)
     cg.add(_register_child(parent, var))
 
 

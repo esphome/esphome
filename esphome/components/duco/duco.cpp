@@ -102,7 +102,7 @@ void Duco::finalize_message_() {
     ESP_LOGV(TAG, "CRC check failed, ignored: %04X != %04X", computed_crc, remote_crc);
   }
 
-#if DUCO_DEVICE_COUNT
+#if DUCO_DEVICE_COUNT  // no device, no answer to match: skip parsing and the log below
   // The box first acknowledges a request with function + 1, then answers with function + 2
   const DucoMessage message{raw[2], raw + 3, static_cast<uint8_t>(length - 2)};
   for (auto &pending : this->pending_) {

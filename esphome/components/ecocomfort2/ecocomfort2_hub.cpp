@@ -603,11 +603,6 @@ void Ecocomfort2Hub::write_select(SelectSetting setting, size_t index) {
 #endif
 #endif  // USE_ECOCOMFORT2_SETTINGS
 
-void Ecocomfort2Hub::register_child(Ecocomfort2Client *obj) {
-  this->children_.push_back(obj);
-  obj->set_parent(this);
-}
-
 }  // namespace esphome::ecocomfort2
 
 #endif  // USE_ESP32

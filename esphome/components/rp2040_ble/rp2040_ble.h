@@ -80,7 +80,6 @@ class RP2040BLE final : public Component {
   void get_mac_msb_first(uint8_t out[MAC_ADDRESS_SIZE]) const;
 
   /// Register a consumer for scan reports (delivered on the main loop via loop()).
-  /// Codegen only: each consumer registers through register_scan_listener() in __init__.py.
   SLOT_LIST(BLEScanListener, scan_listeners_, register_scan_listener, RP2040_BLE_SCAN_LISTENER_COUNT)
 
   /// Start a controller scan; active sends scan requests and receives scan
