@@ -1,6 +1,5 @@
 #include "rtttl.h"
 #include <algorithm>
-#include <cmath>
 #include <cstring>
 #include <limits>
 #include "esphome/core/hal.h"
@@ -28,14 +27,18 @@ static constexpr uint8_t NOTES_COUNT = static_cast<uint8_t>(sizeof(NOTES) / size
 
 static constexpr uint8_t REPEATING_NOTE_GAP_MS = 10;
 
+// The first quarter of a sine wave at full scale: round(32767 * sin(i * pi / 128))
+static constexpr uint8_t QUARTER_SINE_BITS = 6;
+static constexpr uint16_t QUARTER_SINE[(1 << QUARTER_SINE_BITS) + 1] PROGMEM = {
+    0,     804,   1608,  2410,  3212,  4011,  4808,  5602,  6393,  7179,  7962,  8739,  9512,
+    10278, 11039, 11793, 12539, 13279, 14010, 14732, 15446, 16151, 16846, 17530, 18204, 18868,
+    19519, 20159, 20787, 21403, 22005, 22594, 23170, 23731, 24279, 24811, 25329, 25832, 26319,
+    26790, 27245, 27683, 28105, 28510, 28898, 29268, 29621, 29956, 30273, 30571, 30852, 31113,
+    31356, 31580, 31785, 31971, 32137, 32285, 32412, 32521, 32609, 32678, 32728, 32757, 32767};
+
 #ifdef USE_SPEAKER
 static constexpr uint16_t SAMPLE_BUFFER_SIZE = 2048;
 static constexpr uint16_t SAMPLE_RATE = 16000;
-
-inline double deg2rad(double degrees) {
-  static constexpr double PI_ON_180 = M_PI / 180.0;
-  return degrees * PI_ON_180;
-}
 #endif  // USE_SPEAKER
 
 #if ESPHOME_LOG_LEVEL >= ESPHOME_LOG_LEVEL_VERBOSE
@@ -123,13 +126,12 @@ void Rtttl::loop() {
     if (this->samples_sent_ != this->samples_count_) {
       int16_t sample[SAMPLE_BUFFER_SIZE];
       uint16_t sample_index = 0;
-      double rem = 0.0;
 
       while (sample_index < SAMPLE_BUFFER_SIZE && this->samples_sent_ < this->samples_count_) {
         // Try and send out the remainder of the existing note, one per `loop()`
-        if (this->samples_per_wave_ != 0 && this->samples_sent_ >= this->samples_gap_) {  // Play note
-          rem = ((this->samples_sent_ << 10) % this->samples_per_wave_) * (360.0 / this->samples_per_wave_);
-          sample[sample_index] = INT16_MAX * sin(deg2rad(rem));
+        if (this->phase_step_ != 0 && this->samples_sent_ >= this->samples_gap_) {  // Play note
+          // The multiplication wraps at exactly one full cycle of the phase
+          sample[sample_index] = sine_sample(this->samples_sent_ * this->phase_step_);
         } else {
           sample[sample_index] = 0;
         }
@@ -243,7 +245,7 @@ void Rtttl::loop() {
   if (this->speaker_ != nullptr) {
     this->samples_sent_ = 0;
     this->samples_gap_ = 0;
-    this->samples_per_wave_ = 0;
+    this->phase_step_ = 0;
     this->samples_count_ = (SAMPLE_RATE * this->note_duration_) / 1000;
     if (need_note_gap) {
       this->samples_gap_ = (SAMPLE_RATE * REPEATING_NOTE_GAP_MS) / 1000;
@@ -251,19 +253,33 @@ void Rtttl::loop() {
     if (this->output_freq_ != 0) {
       // Make sure there is enough samples to add a full last sinus.
       uint32_t samples_wish = this->samples_count_;
-      this->samples_per_wave_ = (SAMPLE_RATE << 10) / this->output_freq_;
+      const uint32_t samples_per_wave = (SAMPLE_RATE << 10) / this->output_freq_;
 
-      uint16_t division = ((this->samples_count_ << 10) / this->samples_per_wave_) + 1;
+      uint16_t division = ((this->samples_count_ << 10) / samples_per_wave) + 1;
 
-      this->samples_count_ = (division * this->samples_per_wave_) >> 10;
+      this->samples_count_ = (division * samples_per_wave) >> 10;
+      this->phase_step_ = (static_cast<uint64_t>(this->output_freq_) << 32) / SAMPLE_RATE;
       ESP_LOGVV(TAG, "Calc play time: wish: %" PRIu32 " gets: %" PRIu32 " (div: %d spw: %" PRIu32 ")", samples_wish,
-                this->samples_count_, division, this->samples_per_wave_);
+                this->samples_count_, division, samples_per_wave);
     }
     // Convert from frequency in Hz to high and low samples in fixed point
   }
 #endif  // USE_SPEAKER
 
   this->last_note_start_time_ = millis();
+}
+
+int16_t Rtttl::sine_sample(uint32_t phase) {
+  static constexpr uint8_t QUARTER_BITS = 30;
+  static constexpr uint32_t QUARTER_MASK = (1UL << QUARTER_BITS) - 1;
+  // The second and fourth quarters of the wave read the table backwards
+  const uint32_t position = ((phase >> QUARTER_BITS) & 1) != 0 ? ~phase & QUARTER_MASK : phase & QUARTER_MASK;
+  const uint8_t index = position >> (QUARTER_BITS - QUARTER_SINE_BITS);
+  const int32_t fraction = (position >> (QUARTER_BITS - QUARTER_SINE_BITS - 16)) & 0xFFFF;
+  const int32_t low = progmem_read_uint16(&QUARTER_SINE[index]);
+  const int32_t high = progmem_read_uint16(&QUARTER_SINE[index + 1]);
+  const int32_t value = low + (((high - low) * fraction) >> 16);
+  return static_cast<int16_t>((phase >> 31) != 0 ? -value : value);
 }
 
 void Rtttl::play(std::string rtttl) {
