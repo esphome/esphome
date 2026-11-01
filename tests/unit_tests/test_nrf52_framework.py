@@ -2,6 +2,7 @@
 
 import errno
 import hashlib
+import json
 import os
 from pathlib import Path
 import sys
@@ -26,6 +27,7 @@ from esphome.components.nrf52.framework import (
     get_build_env,
     get_sdk_nrf_tools_path,
     include_west_project,
+    load_installed_board_data,
     setup_platformio_python_env,
     wanted_west_projects,
 )
@@ -122,6 +124,8 @@ def mock_nrf52_ops():
             return_value="https://example.com/tc.tar.xz",
         ) as mock_download,
         patch("esphome.framework_helpers.archive_extract_all") as mock_extract,
+        # Tested on its own below
+        patch("esphome.components.nrf52.framework._generate_board_data"),
     ):
         yield SimpleNamespace(
             rmdir=mock_rmdir,
@@ -1319,3 +1323,65 @@ def test_patch_gen_defines_warns_when_the_anchor_is_gone(
     with caplog.at_level("WARNING"):
         framework._patch_gen_defines_dts_path(tmp_path)
     assert "gen_defines.py no longer matches" in caplog.text
+
+
+# ---------------------------------------------------------------------------
+# Board data read from an installed SDK
+# ---------------------------------------------------------------------------
+
+
+def _write_board_data(framework: Path, generator: str) -> None:
+    (framework / "esphome_boards.json").write_text(
+        json.dumps({"generator": generator, "boards": {"b": {"variant": "NRF52840"}}}),
+        encoding="utf-8",
+    )
+
+
+def test_installed_board_data_is_read(nrf52_dirs: SimpleNamespace) -> None:
+    _write_board_data(nrf52_dirs.framework, framework._generator_hash())
+    data = load_installed_board_data(Version.parse(_TEST_SDK_VERSION))
+    assert data is not None
+    assert data["boards"] == {"b": {"variant": "NRF52840"}}
+
+
+@pytest.mark.parametrize("contents", [None, "not json", "old"])
+def test_missing_or_stale_board_data_is_ignored(
+    nrf52_dirs: SimpleNamespace, contents: str | None
+) -> None:
+    if contents == "old":
+        _write_board_data(nrf52_dirs.framework, "an older generate_boards.py")
+    elif contents is not None:
+        (nrf52_dirs.framework / "esphome_boards.json").write_text(contents)
+    assert load_installed_board_data(Version.parse(_TEST_SDK_VERSION)) is None
+
+
+def test_board_data_is_generated_with_the_sdk_python_and_toolchain(
+    nrf52_dirs: SimpleNamespace,
+) -> None:
+    with patch(
+        "esphome.components.nrf52.framework.run_command_ok", return_value=True
+    ) as run:
+        framework._generate_board_data(
+            Path("/penv/python"), nrf52_dirs.framework, f"v{_TEST_SDK_VERSION}"
+        )
+    cmd = run.call_args.args[0]
+    assert cmd[0] == "/penv/python"
+    assert cmd[1].endswith("generate_boards.py")
+    assert cmd[cmd.index("--cpp") + 1].endswith("arm-zephyr-eabi-cpp")
+    assert cmd[cmd.index("--generator") + 1] == framework._generator_hash()
+    assert cmd[-2:] == [
+        str(nrf52_dirs.framework / "zephyr"),
+        str(nrf52_dirs.framework / "nrf"),
+    ]
+    assert run.call_args.kwargs["env"]["PYTHONPATH"].endswith("python-devicetree/src")
+
+
+def test_current_board_data_is_not_generated_again(
+    nrf52_dirs: SimpleNamespace,
+) -> None:
+    _write_board_data(nrf52_dirs.framework, framework._generator_hash())
+    with patch("esphome.components.nrf52.framework.run_command_ok") as run:
+        framework._generate_board_data(
+            Path("/penv/python"), nrf52_dirs.framework, f"v{_TEST_SDK_VERSION}"
+        )
+    run.assert_not_called()

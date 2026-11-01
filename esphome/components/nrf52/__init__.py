@@ -20,6 +20,7 @@ from esphome.components.zephyr import (
     zephyr_add_pm_static,
     zephyr_add_prj_conf,
     zephyr_data,
+    zephyr_require_cdc_acm,
     zephyr_set_core_data,
     zephyr_setup_preferences,
     zephyr_to_code,
@@ -71,7 +72,14 @@ from esphome.helpers import rmtree, write_file_if_changed
 from esphome.storage_json import StorageJSON
 from esphome.types import ConfigType
 
-from .boards import BOARDS_ZEPHYR, BOOTLOADER_CONFIG, SELF_RESET_PINS
+from .boards import (
+    BOARDS_ZEPHYR,
+    BOOTLOADER_CONFIG,
+    SELF_RESET_PINS,
+    get_current_board_info,
+    is_default_sdk_version,
+    short_board_name,
+)
 from .const import (
     BOOTLOADER_ADAFRUIT,
     BOOTLOADER_ADAFRUIT_NRF52_SD132,
@@ -88,6 +96,7 @@ from .framework import (
     ensure_nordic_nrfutil,
     get_build_env,
     get_build_paths,
+    load_installed_board_data,
     setup_platformio_python_env,
     toolchain_tool,
     wanted_west_projects,
@@ -225,10 +234,11 @@ def _detect_bootloader(config: ConfigType) -> ConfigType:
     if CONF_BOARD not in config:
         raise cv.Invalid("'board' is a required option for [nrf52].")
     board = config[CONF_BOARD]
+    board_id = short_board_name(board)
 
-    if board in BOARDS_ZEPHYR and KEY_BOOTLOADER in BOARDS_ZEPHYR[board]:
+    if board_id in BOARDS_ZEPHYR and KEY_BOOTLOADER in BOARDS_ZEPHYR[board_id]:
         # this board have bootloaders config available
-        bootloaders = BOARDS_ZEPHYR[board][KEY_BOOTLOADER]
+        bootloaders = BOARDS_ZEPHYR[board_id][KEY_BOOTLOADER]
 
     if KEY_BOOTLOADER not in config:
         if bootloaders:
@@ -268,7 +278,7 @@ def _default_self_reset_pin(config: ConfigType) -> ConfigType:
     # The factory bootloader ignores the retained register the touch sets, so a board with a GPIO
     # wired to RESET resets itself through that pin
     dfu = config.get(CONF_DFU)
-    number = SELF_RESET_PINS.get(config[CONF_BOARD])
+    number = SELF_RESET_PINS.get(short_board_name(config[CONF_BOARD]))
     if dfu is not None and number and CONF_RESET_PIN not in dfu:
         dfu[CONF_RESET_PIN] = pins.gpio_output_pin_schema(
             {CONF_NUMBER: number, CONF_INVERTED: True}
@@ -431,14 +441,23 @@ async def to_code(config: ConfigType) -> None:
     cg.add_build_flag("-DUSE_NRF52")
     cg.add_define("ESPHOME_BOARD", config[CONF_BOARD])
     cg.add_define("ESPHOME_VARIANT", "NRF52")
+    framework_ver: cv.Version = CORE.data[KEY_CORE][KEY_FRAMEWORK_VERSION]
+    if (
+        CORE.using_toolchain_sdk_nrf
+        and not is_default_sdk_version(framework_ver)
+        and load_installed_board_data(framework_ver) is None
+    ):
+        # The board data of a non-default SDK version is read when it is installed, and the
+        # board-specific settings below need it
+        check_and_install()
     # Zephyr is a preemptive RTOS: BLE, Thread, USB and workqueue callbacks
     # run in other threads, so the scheduler must be thread-safe.
-    if config[CONF_BOARD] == "bbc_microbit":
-        # micro:bit v1 is an nRF51822 (Cortex-M0, ARMv6-M) without LDREX/STREX;
+    if get_current_board_info().get("variant", "").startswith("NRF51"):
+        # nRF51 (Cortex-M0, ARMv6-M, such as the micro:bit v1) has no LDREX/STREX;
         # std::atomic RMW would need libatomic, so use k_mutex-based locking.
         cg.add_define(ThreadModel.MULTI_NO_ATOMICS)
     else:
-        # nRF52 (Cortex-M4) has LDREX/STREX
+        # nRF52 (Cortex-M4) and nRF54 have LDREX/STREX
         cg.add_define(ThreadModel.MULTI_ATOMICS)
     if CORE.using_toolchain_platformio:
         cg.add_platformio_option("board", config[CONF_BOARD])
@@ -497,7 +516,6 @@ async def to_code(config: ConfigType) -> None:
 
     if dfu_config := config.get(CONF_DFU):
         CORE.add_job(_dfu_to_code, dfu_config)
-    framework_ver: cv.Version = CORE.data[KEY_CORE][KEY_FRAMEWORK_VERSION]
     if CONF_DCDC in config:
         if framework_ver < cv.Version(2, 9, 2):
             zephyr_add_prj_conf("BOARD_ENABLE_DCDC", config[CONF_DCDC])
@@ -548,13 +566,17 @@ async def to_code(config: ConfigType) -> None:
                 };
             """
         )
-    if config[CONF_BOARD] == "nrf52840dongle":
-        # The board DTS enables uart0 on edge GPIOs (P0.17, P0.22, P0.24) although nothing is wired to it
+    # Disable the serial ports the board enables on its own: CDC ACM ports (ESPHome adds the
+    # ports its components use as cdc_acm_uartN, so the board's one would be an extra port) and
+    # UARTs, which would otherwise start and drive their pins once anything enables SERIAL. A
+    # component that uses a UART sets it back to okay.
+    board_info = get_current_board_info()
+    for path in (*board_info.get("cdc_acm", []), *board_info.get("uart", [])):
         zephyr_add_overlay(
-            """
-                &uart0 {
+            f"""
+                &{{{path}}} {{
                     status = "disabled";
-                };
+                }};
             """
         )
     zephyr_add_prj_conf("REBOOT", True)
@@ -579,11 +601,9 @@ async def _dfu_to_code(dfu_config):
     var = cg.new_Pvariable(dfu_config[CONF_ID])
     await cg.add_pin(var.set_reset_pin, dfu_config.get(CONF_RESET_PIN))
 
-    # DFU uses cdc rate callback to enter bootloader which was disabled explicitly to save power.
-    zephyr_add_prj_conf("USB_DEVICE_STACK", True)
-    zephyr_add_prj_conf("USB_CDC_ACM", True)
+    # DFU enters the bootloader on the 1200 baud touch, seen through the CDC ACM rate callback
+    zephyr_require_cdc_acm()
     zephyr_add_prj_conf("CDC_ACM_DTE_RATE_CALLBACK_SUPPORT", True)
-    zephyr_add_prj_conf("SERIAL", True)
     await cg.register_component(var, dfu_config)
 
 

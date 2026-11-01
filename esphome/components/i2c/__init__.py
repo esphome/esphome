@@ -27,12 +27,7 @@ from esphome.components.esp32.gpio_esp32_c5 import esp32_c5_validate_lp_i2c
 from esphome.components.esp32.gpio_esp32_c6 import esp32_c6_validate_lp_i2c
 from esphome.components.esp32.gpio_esp32_p4 import esp32_p4_validate_lp_i2c
 from esphome.components.esp32.gpio_esp32_s31 import esp32_s31_validate_lp_i2c
-from esphome.components.zephyr import (
-    zephyr_add_overlay,
-    zephyr_add_prj_conf,
-    zephyr_data,
-)
-from esphome.components.zephyr.const import KEY_BOARD
+from esphome.components.zephyr import zephyr_add_overlay, zephyr_add_prj_conf
 from esphome.config_helpers import filter_source_files_from_platform
 import esphome.config_validation as cv
 from esphome.const import (
@@ -333,9 +328,10 @@ async def to_code(config: ConfigType) -> None:
         cg.add(var.set_scan(config[CONF_SCAN]))
     elif CORE.using_zephyr:
         zephyr_add_prj_conf("I2C", True)
-        i2c = "i2c0"
-        if zephyr_data()[KEY_BOARD] == "xiao_ble":
-            i2c = "i2c1"
+        from esphome.components.nrf52.boards import get_current_board_info
+
+        # Move the pins of the first I2C controller the board enables
+        i2c = next(iter(get_current_board_info().get("i2c", [])), "i2c0")
         zephyr_add_overlay(
             f"""
                 &pinctrl {{
