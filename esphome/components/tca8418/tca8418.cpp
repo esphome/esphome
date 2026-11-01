@@ -126,14 +126,9 @@ uint8_t TCA8418Component::key_char_(uint8_t key) const {
 void TCA8418Component::dispatch_(uint8_t key, bool pressed) {
   ESP_LOGV(TAG, "Key %u %s", key, pressed ? LOG_STR_LITERAL("pressed") : LOG_STR_LITERAL("released"));
 
-#ifdef TCA8418_LISTENER_COUNT
-  for (auto *listener : this->listeners_) {
-    if (pressed) {
-      listener->key_pressed(key);
-    } else {
-      listener->key_released(key);
-    }
-  }
+#ifdef USE_TCA8418_KEY_PUBLISHER
+  if (this->key_publisher_ != nullptr)
+    this->key_publisher_(key, pressed);
 #endif
 
   if (!pressed)
