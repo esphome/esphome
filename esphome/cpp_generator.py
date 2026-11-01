@@ -789,14 +789,13 @@ def new_Pvariable(id_: ID, *args: SafeExpType) -> "MockObj":
     return Pvariable(id_, rhs)
 
 
-def static_function(
+def declare_static_function(
     name: str,
     return_type: SafeExpType,
     parameters: TemplateArgsType,
-    body: list[str],
-) -> RawExpression:
-    """Emit ``static <return_type> <name>(parameters) { body }`` at global scope and return an
-    expression naming it, for use as a template argument or a function pointer.
+) -> Callable[[list[str]], RawExpression]:
+    """Declare ``static <return_type> <name>(parameters)`` now and return the function that
+    emits its body, for a caller that names the function before the body is known.
 
     The declaration goes with the other globals, so a template argument can name the function
     at once; the body goes after the user includes, where every id and everything those
@@ -806,10 +805,26 @@ def static_function(
         f"static {safe_exp(return_type)} {name}({ParameterListExpression(*parameters)})"
     )
     add_global(RawStatement(f"{signature};"))
-    add_global_after_includes(
-        RawStatement(f"{signature} {{\n{indent(chr(10).join(body))}\n}}")
-    )
-    return RawExpression(name)
+
+    def define(body: list[str]) -> RawExpression:
+        add_global_after_includes(
+            RawStatement(f"{signature} {{\n{indent(chr(10).join(body))}\n}}")
+        )
+        return RawExpression(name)
+
+    return define
+
+
+def static_function(
+    name: str,
+    return_type: SafeExpType,
+    parameters: TemplateArgsType,
+    body: list[str],
+) -> RawExpression:
+    """Emit ``static <return_type> <name>(parameters) { body }`` at global scope and return an
+    expression naming it, for use as a template argument or a function pointer.
+    """
+    return declare_static_function(name, return_type, parameters)(body)
 
 
 def add(expression: Expression | Statement, prepend: bool = False):
