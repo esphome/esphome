@@ -23,7 +23,7 @@ void EPaperBase::setup() {
     this->mark_failed(LOG_STR("Failed to initialise buffer"));
     return;
   }
-  this->setup_pins_();
+  this->setup_pins();
   this->spi_setup();
 }
 
@@ -71,7 +71,7 @@ void EPaperBase::reset_bounds_() {
   this->y_high_ = 0;
 }
 
-void EPaperBase::setup_pins_() const {
+void EPaperBase::setup_pins() const {
   for (auto *pin : this->enable_pins_) {
     pin->setup();
     pin->digital_write(true);
