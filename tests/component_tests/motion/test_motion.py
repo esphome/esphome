@@ -3,7 +3,7 @@
 from __future__ import annotations
 
 import math
-from unittest.mock import AsyncMock, MagicMock, patch
+from unittest.mock import ANY, AsyncMock, MagicMock, patch
 
 import pytest
 from voluptuous import Invalid, MultipleInvalid
@@ -996,10 +996,8 @@ async def test_binary_sensor_to_code(mock_binary_sensor_codegen):
         "my_motion_component"
     )
     mock_binary_sensor_codegen["new_Pvariable"].assert_called_once()
-    mock_binary_sensor_codegen["publisher"].add.assert_called_once()
-    assert (
-        mock_binary_sensor_codegen["publisher"].add.call_args.args[0]
-        is mock_binary_sensor_codegen["parent"]
+    mock_binary_sensor_codegen["publisher"].add.assert_called_once_with(
+        mock_binary_sensor_codegen["parent"], ANY
     )
     mock_binary_sensor_codegen["register_binary_sensor"].assert_called_once_with(
         mock_binary_sensor_codegen["var"], config
@@ -1087,10 +1085,8 @@ async def test_event_to_code(mock_event_codegen):
     await event_to_code(config)
     mock_event_codegen["get_variable"].assert_called_once_with("my_motion_component")
     mock_event_codegen["new_Pvariable"].assert_called_once_with("my_event_id")
-    mock_event_codegen["publisher"].add.assert_called_once()
-    assert (
-        mock_event_codegen["publisher"].add.call_args.args[0]
-        is mock_event_codegen["parent"]
+    mock_event_codegen["publisher"].add.assert_called_once_with(
+        mock_event_codegen["parent"], ANY
     )
     mock_event_codegen["register_event"].assert_called_once_with(
         mock_event_codegen["var"], config, event_types=["shake"]

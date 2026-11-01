@@ -1,8 +1,5 @@
 #  YAML config keys
-from __future__ import annotations
-
 import math
-from typing import TYPE_CHECKING
 
 from esphome.automation import parent_ref
 import esphome.codegen as cg
@@ -32,9 +29,6 @@ from . import (
     get_motion_config,
     motion_ns,
 )
-
-if TYPE_CHECKING:
-    from esphome.cpp_generator import MockObj
 
 CONF_PITCH = "pitch"
 CONF_ROLL = "roll"
@@ -134,7 +128,7 @@ def _final_validate(config: dict) -> None:
 FINAL_VALIDATE_SCHEMA = _final_validate
 
 
-def build_sensor_expr(sensor_type: str, data: MockObj, config: dict) -> MockObj:
+def build_sensor_expr(sensor_type: str, data: cg.MockObj, config: dict) -> cg.MockObj:
     """Build the C++ expression for a motion sensor type."""
 
     # Note that <numbers> is included via this component's header file.
