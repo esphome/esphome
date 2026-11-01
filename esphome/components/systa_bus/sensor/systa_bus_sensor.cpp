@@ -10,7 +10,7 @@ static int16_t get_i16be(std::span<const uint8_t> message, size_t start) {
   return encode_value<int16_t>(&message[start]);
 }
 
-void SystaSolarAquaSensor::dump_config() {
+void SystaSolarAquaSensor::dump_child_config() {
   ESP_LOGCONFIG(TAG, "SystaSolar Aqua:");
   LOG_SENSOR("  ", "Temperature TSA", this->temperature_tsa_sensor_);
   LOG_SENSOR("  ", "Temperature TSE", this->temperature_tse_sensor_);
