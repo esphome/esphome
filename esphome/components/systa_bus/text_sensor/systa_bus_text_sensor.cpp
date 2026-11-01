@@ -15,8 +15,8 @@ void publish_aqua_error_code(text_sensor::TextSensor *sensor, std::span<const ui
   sensor->publish_state(buf, static_cast<size_t>(len));
 }
 
-void dump_aqua_error_code(const char *tag, text_sensor::TextSensor *sensor) {
-  text_sensor::log_text_sensor(tag, "  ", LOG_STR_LITERAL("Error code"), sensor);
+void dump_aqua_error_code(const char *log_tag, text_sensor::TextSensor *sensor) {
+  text_sensor::log_text_sensor(log_tag, "  ", LOG_STR_LITERAL("Error code"), sensor);
 }
 
 }  // namespace esphome::systa_bus

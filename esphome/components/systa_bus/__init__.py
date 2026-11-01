@@ -45,9 +45,9 @@ MESSAGE = AQUA_PUBLISHER.param("message")
 DUMP_PUBLISHER = cg.HubFunction(
     "dump",
     cg.void,
-    [(cg.const_char_ptr, "tag")],
+    [(cg.const_char_ptr, "log_tag")],
 )
-DUMP_TAG = DUMP_PUBLISHER.param("tag")
+DUMP_TAG = DUMP_PUBLISHER.param("log_tag")
 
 
 def _warn_ignored_keys(platform: str) -> Callable[[ConfigType], ConfigType]:

@@ -14,6 +14,6 @@ enum class AquaSensor : uint8_t {
   AQUA_SENSOR_PUMP_SPEED,
 };
 
-void dump_aqua_sensor(const char *tag, sensor::Sensor *sensor, AquaSensor which);
+void dump_aqua_sensor(const char *log_tag, sensor::Sensor *sensor, AquaSensor which);
 
 }  // namespace esphome::systa_bus

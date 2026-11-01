@@ -11,9 +11,9 @@ void publish_binary_sensor_value(binary_sensor::BinarySensor *sensor, const char
   sensor->publish_state(strcmp(val, "0") != 0);
 }
 
-void dump_binary_sensor(const char *tag, binary_sensor::BinarySensor *sensor, const char *own_tag) {
-  binary_sensor::log_binary_sensor(tag, "  ", LOG_STR_LITERAL("Mk2PVRouter Binary Sensor"), sensor);
-  ESP_LOGCONFIG(tag, "  Tag: %s", own_tag);
+void dump_binary_sensor(const char *log_tag, binary_sensor::BinarySensor *sensor, const char *own_tag) {
+  binary_sensor::log_binary_sensor(log_tag, "  ", LOG_STR_LITERAL("Mk2PVRouter Binary Sensor"), sensor);
+  ESP_LOGCONFIG(log_tag, "  Tag: %s", own_tag);
 }
 
 }  // namespace esphome::mk2pvrouter

@@ -25,12 +25,12 @@ def test_children_publish_through_generated_functions(
     assert "bus->set_aqua_publisher(esphome__bus__aqua_fn);" in main_cpp
 
     assert (
-        "static void esphome__bus__dump_fn(const char * esphome__arg_tag) {\n"
-        "  systa_bus::dump_aqua_sensor(esphome__arg_tag, ::tsa, "
+        "static void esphome__bus__dump_fn(const char * esphome__arg_log_tag) {\n"
+        "  systa_bus::dump_aqua_sensor(esphome__arg_log_tag, ::tsa, "
         "systa_bus::AquaSensor::AQUA_SENSOR_TEMPERATURE_TSA);\n"
-        "  systa_bus::dump_aqua_sensor(esphome__arg_tag, ::pump, "
+        "  systa_bus::dump_aqua_sensor(esphome__arg_log_tag, ::pump, "
         "systa_bus::AquaSensor::AQUA_SENSOR_PUMP_SPEED);\n"
-        "  systa_bus::dump_aqua_error_code(esphome__arg_tag, ::error_code);\n"
+        "  systa_bus::dump_aqua_error_code(esphome__arg_log_tag, ::error_code);\n"
         "}"
     ) in main_cpp
     assert "bus->set_dump_publisher(esphome__bus__dump_fn);" in main_cpp

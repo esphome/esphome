@@ -23,9 +23,9 @@ void publish_sensor_value(sensor::Sensor *sensor, const char *own_tag, bool scal
   sensor->publish_state(value);
 }
 
-void dump_sensor(const char *tag, sensor::Sensor *sensor, const char *own_tag) {
-  sensor::log_sensor(tag, "  ", LOG_STR_LITERAL("Mk2PVRouter Sensor"), sensor);
-  ESP_LOGCONFIG(tag, "  Tag: %s", own_tag);
+void dump_sensor(const char *log_tag, sensor::Sensor *sensor, const char *own_tag) {
+  sensor::log_sensor(log_tag, "  ", LOG_STR_LITERAL("Mk2PVRouter Sensor"), sensor);
+  ESP_LOGCONFIG(log_tag, "  Tag: %s", own_tag);
 }
 
 }  // namespace esphome::mk2pvrouter

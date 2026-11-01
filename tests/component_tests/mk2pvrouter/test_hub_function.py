@@ -30,13 +30,13 @@ def test_children_publish_through_generated_functions(
     assert "router->set_value_publisher(esphome__router__value_fn);" in main_cpp
 
     assert (
-        "static void esphome__router__dump_fn(const char * esphome__arg_tag) {\n"
-        '  mk2pvrouter::dump_sensor(esphome__arg_tag, ::power, "P");\n'
+        "static void esphome__router__dump_fn(const char * esphome__arg_log_tag) {\n"
+        '  mk2pvrouter::dump_sensor(esphome__arg_log_tag, ::power, "P");\n'
     ) in main_cpp
     assert (
-        'mk2pvrouter::dump_binary_sensor(esphome__arg_tag, ::relay, "R2");\n'
+        'mk2pvrouter::dump_binary_sensor(esphome__arg_log_tag, ::relay, "R2");\n'
     ) in main_cpp
     assert (
-        'mk2pvrouter::dump_text_sensor(esphome__arg_tag, ::status, "S_MC");\n'
+        'mk2pvrouter::dump_text_sensor(esphome__arg_log_tag, ::status, "S_MC");\n'
     ) in main_cpp
     assert "router->set_dump_publisher(esphome__router__dump_fn);" in main_cpp

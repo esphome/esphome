@@ -67,9 +67,9 @@ VAL = VALUE_PUBLISHER.param("val")
 DUMP_PUBLISHER = cg.HubFunction(
     "dump",
     cg.void,
-    [(cg.const_char_ptr, "tag")],
+    [(cg.const_char_ptr, "log_tag")],
 )
-DUMP_TAG = DUMP_PUBLISHER.param("tag")
+DUMP_TAG = DUMP_PUBLISHER.param("log_tag")
 
 
 async def to_code(config: ConfigType) -> None:

@@ -10,9 +10,9 @@ void publish_text_sensor_value(text_sensor::TextSensor *sensor, const char *own_
   sensor->publish_state(val);
 }
 
-void dump_text_sensor(const char *tag, text_sensor::TextSensor *sensor, const char *own_tag) {
-  text_sensor::log_text_sensor(tag, "  ", LOG_STR_LITERAL("Mk2PVRouter Text Sensor"), sensor);
-  ESP_LOGCONFIG(tag, "  Tag: %s", own_tag);
+void dump_text_sensor(const char *log_tag, text_sensor::TextSensor *sensor, const char *own_tag) {
+  text_sensor::log_text_sensor(log_tag, "  ", LOG_STR_LITERAL("Mk2PVRouter Text Sensor"), sensor);
+  ESP_LOGCONFIG(log_tag, "  Tag: %s", own_tag);
 }
 
 }  // namespace esphome::mk2pvrouter
