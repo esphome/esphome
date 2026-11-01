@@ -7,6 +7,7 @@ import pytest
 
 from esphome.components.nrf52 import boards
 from esphome.components.nrf52.generate_boards import (
+    END_MARKER,
     GENERATED_MARKER,
     BoardInfo,
     BoardTarget,
@@ -139,40 +140,37 @@ def test_board_yml_targets(tmp_path: Path) -> None:
     )
     _write(other / "nucleo.dts", "")
 
-    def target(name: str, soc: str, series: str, dts: Path, *overlays: Path):
-        return BoardTarget(name, soc, series, dts, overlays)
+    def target(name: str, mcu: str, dts: Path, *overlays: Path) -> BoardTarget:
+        # Without a full_name in board.yml the board name is used
+        full_name = name.split("/", maxsplit=1)[0]
+        return BoardTarget(name, full_name, mcu, dts, overlays)
 
     assert find_targets(tmp_path / "boards", socs) == [
         target(
             "nrf54l15dk/nrf54l15/cpuapp",
             "nrf54l15",
-            "nrf54l",
             clusters / "nrf54l15dk_nrf54l15_cpuapp.dts",
         ),
         target(
             "nrf54l15dk/nrf54l15/cpuapp/ns",
             "nrf54l15",
-            "nrf54l",
             clusters / "nrf54l15dk_nrf54l15_cpuapp_ns.dts",
         ),
         target(
             "nrf54l15dk/nrf54l15/cpuflpr",
             "nrf54l15",
-            "nrf54l",
             clusters / "nrf54l15dk_nrf54l15_cpuflpr.dts",
         ),
         target(
             "nrf9160dk/nrf52840",
             "nrf52840",
-            "nrf52",
             multi / "nrf9160dk_nrf52840.dts",
             multi / "nrf9160dk_nrf52840_0_14_0.overlay",
         ),
-        target("xiao_ble", "nrf52840", "nrf52", board / "xiao_ble.dts"),
+        target("xiao_ble", "nrf52840", board / "xiao_ble.dts"),
         target(
             "xiao_ble/nrf52840/sense",
             "nrf52840",
-            "nrf52",
             board / "xiao_ble_nrf52840_sense.dts",
         ),
     ]
@@ -183,7 +181,8 @@ def test_load_boards_reads_enabled_cdc_acm_nodes(tmp_path: Path) -> None:
     zephyr = tmp_path / "zephyr"
     board = zephyr / "boards" / "seeed" / "xiao_ble"
     _write(
-        board / "board.yml", "board:\n  name: xiao_ble\n  socs:\n  - name: nrf52840\n"
+        board / "board.yml",
+        "board:\n  name: xiao_ble\n  full_name: XIAO BLE\n  socs:\n  - name: nrf52840\n",
     )
     _write(board / "xiao_ble.dts", DTS)
     # Found through the dts/<arch> include directory, as in a build
@@ -197,8 +196,8 @@ def test_load_boards_reads_enabled_cdc_acm_nodes(tmp_path: Path) -> None:
 
     assert load_boards([zephyr]) == {
         "xiao_ble": BoardInfo(
+            "XIAO BLE",
             "nrf52840",
-            "nrf52",
             (
                 "/soc/usbd@40027000/board_cdc_acm_uart",
                 "/soc/usbd@40027000/old_spelling",
@@ -210,23 +209,29 @@ def test_load_boards_reads_enabled_cdc_acm_nodes(tmp_path: Path) -> None:
 def test_render_and_replace() -> None:
     generated = render(
         {
-            "3.2.0": {"b": BoardInfo("nrf52840", "nrf52", ("/soc/usbd/cdc",))},
-            "2.9.2": {"a": BoardInfo("nrf54l15", "nrf54l", ())},
+            "3.2.0": {"b": BoardInfo('Say "B"', "nrf52840", ("/soc/cdc",))},
+            "2.9.2": {"a": BoardInfo("A", "nrf54l15", ())},
         }
     )
     namespace: dict = {}
     exec(generated, namespace)  # noqa: S102
     assert namespace["BOARDS"] == {
-        "2.9.2": {"a": {"soc": "nrf54l15", "series": "nrf54l"}},
+        "2.9.2": {"a": {"name": "A", "mcu": "nrf54l15"}},
         "3.2.0": {
-            "b": {"soc": "nrf52840", "series": "nrf52", "cdc_acm": ["/soc/usbd/cdc"]}
+            "b": {
+                "name": 'Say "B"',
+                "mcu": "nrf52840",
+                "cdc_acm": ["/soc/cdc"],
+            }
         },
     }
     assert list(namespace["BOARDS"]) == ["2.9.2", "3.2.0"]
 
-    content = f"KEEP = 1\n\n{GENERATED_MARKER}\nOLD = 1\n"
+    assert generated.startswith(GENERATED_MARKER)
+    assert generated.endswith(f"}}\n{END_MARKER}\n")
+    content = f"KEEP = 1\n\n{GENERATED_MARKER}OLD = 1\n{END_MARKER}\n"
     assert replace_generated(content, generated) == f"KEEP = 1\n\n{generated}"
-    with pytest.raises(ValueError, match="DO NOT EDIT"):
+    with pytest.raises(ValueError, match="BOARDS generated"):
         replace_generated("KEEP = 1\n", generated)
 
 
@@ -235,7 +240,11 @@ def test_boards_py_is_formatted_as_generated() -> None:
     generated = content[content.index(GENERATED_MARKER) :]
     versions = {
         version: {
-            name: BoardInfo(info["soc"], info["series"], tuple(info.get("cdc_acm", ())))
+            name: BoardInfo(
+                info["name"],
+                info["mcu"],
+                tuple(info.get("cdc_acm", ())),
+            )
             for name, info in board_infos.items()
         }
         for version, board_infos in boards.BOARDS.items()
@@ -247,13 +256,13 @@ def test_boards_py_is_formatted_as_generated() -> None:
     ("framework", "expected"),
     [("2.6.1", "2.9.2"), ("2.9.2", "2.9.2"), ("3.1.0", "2.9.2"), ("9.0.0", "3.4.0")],
 )
-def test_get_board_picks_sdk_version(
+def test_get_board_info_picks_sdk_version(
     monkeypatch: pytest.MonkeyPatch, framework: str, expected: str
 ) -> None:
     monkeypatch.setattr(
         boards,
         "BOARDS",
-        {v: {"b": {"soc": v}} for v in ("3.4.0", "2.9.2", "3.2.0")},
+        {v: {"b": {"mcu": v}} for v in ("3.4.0", "2.9.2", "3.2.0")},
     )
-    assert boards.get_board(cv.Version.parse(framework), "b") == {"soc": expected}
-    assert boards.get_board(cv.Version.parse(framework), "unknown") is None
+    assert boards.get_board_info(cv.Version.parse(framework), "b") == {"mcu": expected}
+    assert boards.get_board_info(cv.Version.parse(framework), "unknown") is None
