@@ -4,7 +4,13 @@ from esphome.components import sensor
 import esphome.config_validation as cv
 from esphome.const import CONF_COMPONENT_ID, CONF_ID, CONF_STATE
 
-from .. import CONF_NEXTION_ID, CONF_PUBLISH_STATE, CONF_SEND_TO_NEXTION, nextion_ns
+from .. import (
+    CONF_NEXTION_ID,
+    CONF_PUBLISH_STATE,
+    CONF_SEND_TO_NEXTION,
+    nextion_ns,
+    register_sensor_component,
+)
 from ..base_component import (
     CONF_COMPONENT_NAME,
     CONF_PRECISION,
@@ -55,18 +61,13 @@ CONFIG_SCHEMA = cv.All(
 )
 
 
-_register_sensor_component = cg.slot_list(
-    "NEXTION_SENSOR_COUNT", "register_sensor_component"
-)
-
-
 async def to_code(config):
     hub = await cg.get_variable(config[CONF_NEXTION_ID])
     var = cg.new_Pvariable(config[CONF_ID], hub)
     await cg.register_component(var, config)
     await sensor.register_sensor(var, config)
 
-    cg.add(_register_sensor_component(hub, var))
+    cg.add(register_sensor_component(hub, var))
 
     await setup_component_core_(var, config, ".val")
 

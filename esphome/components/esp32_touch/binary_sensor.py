@@ -4,7 +4,12 @@ import esphome.config_validation as cv
 from esphome.const import CONF_ID, CONF_PIN, CONF_THRESHOLD
 from esphome.types import ConfigType
 
-from . import ESP32TouchComponent, esp32_touch_ns, validate_touch_pad
+from . import (
+    ESP32TouchComponent,
+    esp32_touch_ns,
+    register_touch_pad,
+    validate_touch_pad,
+)
 
 DEPENDENCIES = ["esp32_touch", "esp32"]
 
@@ -25,9 +30,6 @@ CONFIG_SCHEMA = binary_sensor.binary_sensor_schema(ESP32TouchBinarySensor).exten
 )
 
 
-_register_touch_pad = cg.slot_list("ESP32_TOUCH_PAD_COUNT", "register_touch_pad")
-
-
 async def to_code(config: ConfigType) -> None:
     hub = await cg.get_variable(config[CONF_ESP32_TOUCH_ID])
     var = cg.new_Pvariable(
@@ -37,4 +39,4 @@ async def to_code(config: ConfigType) -> None:
         config[CONF_WAKEUP_THRESHOLD],
     )
     await binary_sensor.register_binary_sensor(var, config)
-    cg.add(_register_touch_pad(hub, var))
+    cg.add(register_touch_pad(hub, var))

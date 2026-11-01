@@ -1049,31 +1049,11 @@ class Nextion final : public NextionBase, public PollingComponent, public uart::
 
   // ========== INTERNAL METHODS ==========
   // (In most use cases you won't need these)
-#ifdef NEXTION_TOUCH_COUNT
   SLOT_LIST(NextionComponentBase, touch_, register_touch_component, NEXTION_TOUCH_COUNT)
-#else
-  SLOT_LIST_EMPTY(NextionComponentBase, touch_)
-#endif
-#ifdef NEXTION_SWITCH_COUNT
   SLOT_LIST(NextionComponentBase, switchtype_, register_switch_component, NEXTION_SWITCH_COUNT)
-#else
-  SLOT_LIST_EMPTY(NextionComponentBase, switchtype_)
-#endif
-#ifdef NEXTION_BINARY_SENSOR_COUNT
   SLOT_LIST(NextionComponentBase, binarysensortype_, register_binarysensor_component, NEXTION_BINARY_SENSOR_COUNT)
-#else
-  SLOT_LIST_EMPTY(NextionComponentBase, binarysensortype_)
-#endif
-#ifdef NEXTION_SENSOR_COUNT
   SLOT_LIST(NextionComponentBase, sensortype_, register_sensor_component, NEXTION_SENSOR_COUNT)
-#else
-  SLOT_LIST_EMPTY(NextionComponentBase, sensortype_)
-#endif
-#ifdef NEXTION_TEXT_SENSOR_COUNT
   SLOT_LIST(NextionComponentBase, textsensortype_, register_textsensor_component, NEXTION_TEXT_SENSOR_COUNT)
-#else
-  SLOT_LIST_EMPTY(NextionComponentBase, textsensortype_)
-#endif
 
   void setup() override;
   void set_brightness(float brightness) { this->brightness_ = brightness; }

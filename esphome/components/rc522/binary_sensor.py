@@ -7,7 +7,7 @@ from esphome.const import CONF_UID
 from esphome.core import HexInt
 from esphome.types import ConfigType
 
-from . import CONF_RC522_ID, RC522, rc522_ns
+from . import CONF_RC522_ID, RC522, rc522_ns, register_tag
 
 DEPENDENCIES = ["rc522"]
 
@@ -42,13 +42,10 @@ CONFIG_SCHEMA = binary_sensor.binary_sensor_schema(RC522BinarySensor).extend(
 )
 
 
-_register_tag = cg.slot_list("RC522_BINARY_SENSOR_COUNT", "register_tag")
-
-
 async def to_code(config: ConfigType) -> None:
     var = await binary_sensor.new_binary_sensor(config)
 
     hub = await cg.get_variable(config[CONF_RC522_ID])
-    cg.add(_register_tag(hub, var))
+    cg.add(register_tag(hub, var))
     addr = [HexInt(int(x, 16)) for x in config[CONF_UID].split("-")]
     cg.add(var.set_uid(addr))

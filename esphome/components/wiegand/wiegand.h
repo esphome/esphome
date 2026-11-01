@@ -36,21 +36,9 @@ class Wiegand final : public key_provider::KeyProvider, public Component {
 
   void set_d0_pin(InternalGPIOPin *pin) { this->d0_pin_ = pin; };
   void set_d1_pin(InternalGPIOPin *pin) { this->d1_pin_ = pin; };
-#ifdef WIEGAND_TAG_TRIGGER_COUNT
   SLOT_LIST(WiegandTagTrigger, tag_triggers_, register_tag_trigger, WIEGAND_TAG_TRIGGER_COUNT)
-#else
-  SLOT_LIST_EMPTY(WiegandTagTrigger, tag_triggers_)
-#endif
-#ifdef WIEGAND_RAW_TRIGGER_COUNT
   SLOT_LIST(WiegandRawTrigger, raw_triggers_, register_raw_trigger, WIEGAND_RAW_TRIGGER_COUNT)
-#else
-  SLOT_LIST_EMPTY(WiegandRawTrigger, raw_triggers_)
-#endif
-#ifdef WIEGAND_KEY_TRIGGER_COUNT
   SLOT_LIST(WiegandKeyTrigger, key_triggers_, register_key_trigger, WIEGAND_KEY_TRIGGER_COUNT)
-#else
-  SLOT_LIST_EMPTY(WiegandKeyTrigger, key_triggers_)
-#endif
 
  protected:
   InternalGPIOPin *d0_pin_;

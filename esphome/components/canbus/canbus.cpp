@@ -56,7 +56,6 @@ canbus::Error Canbus::send_data(uint32_t can_id, bool use_extended_id, bool remo
   return error;
 }
 
-#ifdef CANBUS_TRIGGER_COUNT
 void Canbus::add_trigger(CanbusTrigger *trigger) {
   if (trigger->use_extended_id_) {
     ESP_LOGVV(TAG, "add trigger for extended canid=0x%08" PRIx32, trigger->can_id_);
@@ -65,7 +64,6 @@ void Canbus::add_trigger(CanbusTrigger *trigger) {
   }
   this->triggers_.push_back(trigger);
 };
-#endif
 
 void Canbus::loop() {
   uint32_t now = App.get_loop_component_start_time();

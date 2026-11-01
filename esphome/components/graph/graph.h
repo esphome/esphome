@@ -153,11 +153,7 @@ class Graph final : public Component {
   void set_grid_x(float val) { this->gridspacing_x_ = val; }
   void set_grid_y(float val) { this->gridspacing_y_ = val; }
   void set_border(bool val) { this->border_ = val; }
-#ifdef GRAPH_TRACE_COUNT
   SLOT_LIST(GraphTrace, traces_, add_trace, GRAPH_TRACE_COUNT)
-#else
-  SLOT_LIST_EMPTY(GraphTrace, traces_)
-#endif
   void add_legend(GraphLegend *legend) {
     this->legend_ = legend;
     legend->init(this);

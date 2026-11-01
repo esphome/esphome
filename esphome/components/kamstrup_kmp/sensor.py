@@ -24,6 +24,8 @@ from esphome.const import (
 )
 from esphome.types import ConfigType
 
+from . import add_custom_sensor
+
 CODEOWNERS = ["@cfeenstra1024"]
 DEPENDENCIES = ["uart"]
 
@@ -111,11 +113,6 @@ FINAL_VALIDATE_SCHEMA = uart.final_validate_device_schema(
 )
 
 
-_add_custom_sensor = cg.slot_list(
-    "KAMSTRUP_KMP_CUSTOM_SENSOR_COUNT", "add_custom_sensor"
-)
-
-
 async def to_code(config: ConfigType) -> None:
     var = await uart.new_uart_component(config)
 
@@ -139,4 +136,4 @@ async def to_code(config: ConfigType) -> None:
     if CONF_CUSTOM in config:
         for conf in config[CONF_CUSTOM]:
             sens = await sensor.new_sensor(conf)
-            cg.add(_add_custom_sensor(var, sens, conf[CONF_COMMAND]))
+            cg.add(add_custom_sensor(var, sens, conf[CONF_COMMAND]))

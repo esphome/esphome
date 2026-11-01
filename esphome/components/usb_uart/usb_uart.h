@@ -240,11 +240,7 @@ class USBUartComponent : public usb_host::USBClient {
   void dump_config() override;
   std::vector<USBUartChannelBase *> get_channels() { return {this->channels_.begin(), this->channels_.end()}; }
 
-#ifdef USB_UART_CHANNEL_COUNT
   SLOT_LIST(USBUartChannelBase, channels_, add_channel, USB_UART_CHANNEL_COUNT)
-#else
-  SLOT_LIST_EMPTY(USBUartChannelBase, channels_)
-#endif
 
   virtual void start_input(USBUartChannelBase *channel);
   void start_output(USBUartChannelBase *channel);

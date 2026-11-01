@@ -49,6 +49,9 @@ _register_ontagremoved_trigger = cg.slot_list(
 )
 
 
+register_tag = cg.slot_list("RC522_BINARY_SENSOR_COUNT", "register_tag")
+
+
 async def setup_rc522(var: MockObj, config: ConfigType) -> None:
     await cg.register_component(var, config)
 

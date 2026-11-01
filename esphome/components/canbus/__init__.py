@@ -119,7 +119,7 @@ CANBUS_SCHEMA = cv.Schema(
 CANBUS_SCHEMA.add_extra(validate_id)
 
 
-_request_trigger_slot = cg.slot_counter("CANBUS_TRIGGER_COUNT")
+_add_trigger = cg.slot_list("CANBUS_TRIGGER_COUNT", "add_trigger")
 
 
 async def setup_canbus_core_(var: MockObj, config: ConfigType) -> None:
@@ -136,11 +136,10 @@ async def setup_canbus_core_(var: MockObj, config: ConfigType) -> None:
         can_id = conf[CONF_CAN_ID]
         can_id_mask = conf[CONF_CAN_ID_MASK]
         ext_id = conf[CONF_USE_EXTENDED_ID]
-        # The trigger adds itself to the bus in setup()
-        _request_trigger_slot(str(var))
         trigger = cg.new_Pvariable(
             conf[CONF_TRIGGER_ID], var, can_id, can_id_mask, ext_id
         )
+        cg.add(_add_trigger(var, trigger))
         if CONF_REMOTE_TRANSMISSION_REQUEST in conf:
             cg.add(
                 trigger.set_remote_transmission_request(

@@ -4,7 +4,13 @@ from esphome.components import text_sensor
 import esphome.config_validation as cv
 from esphome.const import CONF_ID, CONF_STATE
 
-from .. import CONF_NEXTION_ID, CONF_PUBLISH_STATE, CONF_SEND_TO_NEXTION, nextion_ns
+from .. import (
+    CONF_NEXTION_ID,
+    CONF_PUBLISH_STATE,
+    CONF_SEND_TO_NEXTION,
+    nextion_ns,
+    register_textsensor_component,
+)
 from ..base_component import CONFIG_TEXT_COMPONENT_SCHEMA, setup_component_core_
 
 CODEOWNERS = ["@senexcrenshaw"]
@@ -20,18 +26,13 @@ CONFIG_SCHEMA = (
 )
 
 
-_register_textsensor_component = cg.slot_list(
-    "NEXTION_TEXT_SENSOR_COUNT", "register_textsensor_component"
-)
-
-
 async def to_code(config):
     hub = await cg.get_variable(config[CONF_NEXTION_ID])
     var = cg.new_Pvariable(config[CONF_ID], hub)
     await text_sensor.register_text_sensor(var, config)
     await cg.register_component(var, config)
 
-    cg.add(_register_textsensor_component(hub, var))
+    cg.add(register_textsensor_component(hub, var))
 
     await setup_component_core_(var, config, ".txt")
 

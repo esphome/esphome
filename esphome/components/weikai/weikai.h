@@ -147,11 +147,7 @@ class WeikaiComponent : public Component {
 
   bool page1() { return page1_; }
 
-#ifdef WEIKAI_CHANNEL_COUNT
   SLOT_LIST(WeikaiChannel, children_, register_channel, WEIKAI_CHANNEL_COUNT)
-#else
-  SLOT_LIST_EMPTY(WeikaiChannel, children_)
-#endif
 
   /// @brief Factory method to create a Register object
   /// @param reg address of the register

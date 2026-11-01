@@ -21,21 +21,9 @@ class RC522 : public PollingComponent {
 
   void loop() override;
 
-#ifdef RC522_BINARY_SENSOR_COUNT
   SLOT_LIST(RC522BinarySensor, binary_sensors_, register_tag, RC522_BINARY_SENSOR_COUNT)
-#else
-  SLOT_LIST_EMPTY(RC522BinarySensor, binary_sensors_)
-#endif
-#ifdef RC522_ON_TAG_TRIGGER_COUNT
   SLOT_LIST(RC522Trigger, triggers_ontag_, register_ontag_trigger, RC522_ON_TAG_TRIGGER_COUNT)
-#else
-  SLOT_LIST_EMPTY(RC522Trigger, triggers_ontag_)
-#endif
-#ifdef RC522_ON_TAG_REMOVED_TRIGGER_COUNT
   SLOT_LIST(RC522Trigger, triggers_ontagremoved_, register_ontagremoved_trigger, RC522_ON_TAG_REMOVED_TRIGGER_COUNT)
-#else
-  SLOT_LIST_EMPTY(RC522Trigger, triggers_ontagremoved_)
-#endif
 
   void set_reset_pin(GPIOPin *reset) { this->reset_pin_ = reset; }
 

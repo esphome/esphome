@@ -28,11 +28,7 @@ class ESP32TouchBinarySensor;
 
 class ESP32TouchComponent final : public Component {
  public:
-#ifdef ESP32_TOUCH_PAD_COUNT
   SLOT_LIST(ESP32TouchBinarySensor, children_, register_touch_pad, ESP32_TOUCH_PAD_COUNT)
-#else
-  SLOT_LIST_EMPTY(ESP32TouchBinarySensor, children_)
-#endif
 
   void set_setup_mode(bool setup_mode) { this->setup_mode_ = setup_mode; }
   void set_meas_interval_us(float meas_interval_us) { this->meas_interval_us_ = meas_interval_us; }
