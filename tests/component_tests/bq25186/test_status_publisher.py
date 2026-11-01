@@ -8,7 +8,7 @@ from esphome.components.bq25186 import _state_expression
 
 from .status_datasheet import BINARY_SENSORS, TEXT_SENSORS, field_value, status_strings
 
-PARAMS = "const bq25186::BQ25186StatusRegisters & status"
+PARAMS = "const bq25186::BQ25186StatusRegisters & esphome__arg_status"
 BINARY = re.compile(r"::bs_(\w+)->publish_state\((.*)\);")
 LAST = re.compile(r"static uint8_t esphome__tx_(\w+)__last = 0xFF;")
 TEXT = re.compile(
@@ -35,7 +35,7 @@ def _check(expr: str, reg: int, bits: int, expected: list[int]) -> None:
     for value in range(256):
         status = [0] * 3
         status[reg] = value
-        result = eval(code, {"__builtins__": {}}, {"status": status})  # noqa: S307
+        result = eval(code, {"__builtins__": {}}, {"esphome__arg_status": status})  # noqa: S307
         assert result == expected[field_value(value, bits)], (expr, value)
 
 
@@ -61,7 +61,7 @@ def test_status_publishers(generate_main: Callable[[str], str]) -> None:
         _check(f"({match[2]}) != 0", reg, bits, [v in on_values for v in range(4)])
     assert _body(main_cpp, "charger_b") == [
         "static uint8_t esphome__b_ts_status__last = 0xFF;",
-        "bq25186::publish_status_text(::b_ts_status, esphome__b_ts_status__last, (status[1] >> 3), 4);",
+        "bq25186::publish_status_text(::b_ts_status, esphome__b_ts_status__last, (esphome__arg_status[1] >> 3), 4);",
     ]
     for hub in ("charger_a", "charger_b"):
         assert f"{hub}->set_status_publisher(esphome__{hub}__status_fn);" in main_cpp
@@ -83,7 +83,7 @@ def test_single_bit_shortcut_needs_a_one_bit_field() -> None:
         expr = str(_state_expression(0, 2, mask, match))
         for value in range(256):
             status = [value]
-            result = eval(expr, {"__builtins__": {}}, {"status": status})  # noqa: S307
+            result = eval(expr, {"__builtins__": {}}, {"esphome__arg_status": status})  # noqa: S307
             assert (result != 0) == bool((match >> ((value >> 2) & mask)) & 1), (
                 mask,
                 match,
