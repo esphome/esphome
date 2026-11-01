@@ -1,4 +1,5 @@
 #include "pid_climate.h"
+#include "esphome/core/hal.h"
 #include "esphome/core/log.h"
 
 namespace esphome::pid {
@@ -37,7 +38,9 @@ void PIDClimate::setup() {
   }
 
   // restore set points
-  auto restore = this->restore_state_();
+  optional<climate::ClimateDeviceRestoreState> restore;
+  if (this->on_boot_restore_from_ == OnBootRestoreFrom::ON_BOOT_RESTORE_FROM_MEMORY)
+    restore = this->restore_state_();
   if (restore.has_value()) {
     restore->to_call(this).perform();
   } else {
@@ -51,8 +54,32 @@ void PIDClimate::setup() {
     }
     this->target_temperature = this->default_target_temperature_;
   }
+  this->setup_complete_ = true;
+
+  if (restore.has_value())
+    return;
+  // Selected directly rather than through a call, so on_control automations do not run at boot.
+  bool selected = false;
+  if (this->default_custom_preset_ != nullptr) {
+    selected = this->select_custom_preset_(StringRef(this->default_custom_preset_));
+  } else if (this->default_preset_ != climate::CLIMATE_PRESET_NONE) {
+    selected = this->select_preset_(this->default_preset_);
+  }
+  if (selected)
+    this->preset_change_callback_.call();
 }
 void PIDClimate::control(const climate::ClimateCall &call) {
+  auto previous_preset = this->preset;
+  auto previous_custom_preset = this->get_custom_preset();
+  float previous_target = this->target_temperature;
+
+  // A target in the same call wins over the preset's, so a restore keeps the saved target.
+  bool preset_selected = false;
+  if (call.has_custom_preset()) {
+    preset_selected = this->select_custom_preset_(call.get_custom_preset());
+  } else if (call.get_preset().has_value()) {
+    preset_selected = this->select_preset_(*call.get_preset());
+  }
   auto call_mode = call.get_mode();
   if (call_mode.has_value())
     this->mode = *call_mode;
@@ -65,6 +92,12 @@ void PIDClimate::control(const climate::ClimateCall &call) {
     this->write_output_(0.0f);
 
   this->publish_state();
+
+  // After publish_state(), so automations see the state the whole call produced.
+  bool changed = this->preset != previous_preset || this->get_custom_preset() != previous_custom_preset ||
+                 this->target_temperature != previous_target;
+  if (preset_selected && changed && this->setup_complete_)
+    this->preset_change_callback_.call();
 }
 climate::ClimateTraits PIDClimate::traits() {
   auto traits = climate::ClimateTraits();
@@ -81,7 +114,43 @@ climate::ClimateTraits PIDClimate::traits() {
   if (supports_heat_() && supports_cool_())
     traits.add_supported_mode(climate::CLIMATE_MODE_HEAT_COOL);
 
+  // Custom presets are stored on the Climate base class and added by get_traits()
+  for (uint8_t i = 0; i < this->preset_count_; i++)
+    traits.add_supported_preset(this->preset_entry_(i).preset);
+
   return traits;
+}
+PIDPresetEntry PIDClimate::preset_entry_(uint8_t index) const {
+  PIDPresetEntry entry;
+  progmem_memcpy(&entry, &this->preset_config_[index], sizeof(entry));
+  return entry;
+}
+PIDCustomPresetEntry PIDClimate::custom_preset_entry_(uint8_t index) const {
+  PIDCustomPresetEntry entry;
+  progmem_memcpy(&entry, &this->custom_preset_config_[index], sizeof(entry));
+  return entry;
+}
+bool PIDClimate::select_preset_(climate::ClimatePreset preset) {
+  for (uint8_t i = 0; i < this->preset_count_; i++) {
+    auto entry = this->preset_entry_(i);
+    if (entry.preset == preset) {
+      this->set_preset_(entry.preset);
+      this->target_temperature = entry.target_temperature;
+      return true;
+    }
+  }
+  return false;
+}
+bool PIDClimate::select_custom_preset_(StringRef name) {
+  for (uint8_t i = 0; i < this->custom_preset_count_; i++) {
+    auto entry = this->custom_preset_entry_(i);
+    if (name == entry.name) {
+      this->set_custom_preset_(entry.name);
+      this->target_temperature = entry.target_temperature;
+      return true;
+    }
+  }
+  return false;
 }
 void PIDClimate::dump_config() {
   LOG_CLIMATE("", "PID Climate", this);
@@ -99,6 +168,16 @@ void PIDClimate::dump_config() {
                   "output samples: %d",
                   controller_.threshold_low_, controller_.threshold_high_, controller_.kp_multiplier_,
                   controller_.ki_multiplier_, controller_.kd_multiplier_, controller_.deadband_output_samples_);
+  }
+
+  for (uint8_t i = 0; i < this->preset_count_; i++) {
+    auto entry = this->preset_entry_(i);
+    ESP_LOGCONFIG(TAG, "  Preset %s: %.1f°C", LOG_STR_ARG(climate::climate_preset_to_string(entry.preset)),
+                  entry.target_temperature);
+  }
+  for (uint8_t i = 0; i < this->custom_preset_count_; i++) {
+    auto entry = this->custom_preset_entry_(i);
+    ESP_LOGCONFIG(TAG, "  Preset %s: %.1f°C", entry.name, entry.target_temperature);
   }
 
   if (this->autotuner_ != nullptr) {

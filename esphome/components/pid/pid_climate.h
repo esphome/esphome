@@ -11,6 +11,21 @@
 
 namespace esphome::pid {
 
+enum class OnBootRestoreFrom : uint8_t {
+  ON_BOOT_RESTORE_FROM_MEMORY = 0,
+  ON_BOOT_RESTORE_FROM_DEFAULT_PRESET = 1,
+};
+
+struct PIDPresetEntry {
+  climate::ClimatePreset preset;
+  float target_temperature;
+};
+
+struct PIDCustomPresetEntry {
+  const char *name;
+  float target_temperature;
+};
+
 class PIDClimate final : public climate::Climate, public Component {
  public:
   PIDClimate() = default;
@@ -78,6 +93,25 @@ class PIDClimate final : public climate::Climate, public Component {
   void set_default_target_temperature(float default_target_temperature) {
     default_target_temperature_ = default_target_temperature;
   }
+  /// `presets` is a PROGMEM table that outlives the climate.
+  void set_preset_config(const PIDPresetEntry *presets, uint8_t count) {
+    this->preset_config_ = presets;
+    this->preset_count_ = count;
+  }
+  /// `presets` is a PROGMEM table that outlives the climate.
+  void set_custom_preset_config(const PIDCustomPresetEntry *presets, uint8_t count) {
+    this->custom_preset_config_ = presets;
+    this->custom_preset_count_ = count;
+  }
+  void set_default_preset(climate::ClimatePreset preset) { this->default_preset_ = preset; }
+  /// `preset` must outlive the climate.
+  void set_default_preset(const char *preset) { this->default_custom_preset_ = preset; }
+  void set_on_boot_restore_from(OnBootRestoreFrom on_boot_restore_from) {
+    this->on_boot_restore_from_ = on_boot_restore_from;
+  }
+  template<typename F> void add_on_preset_change_callback(F &&callback) {
+    this->preset_change_callback_.add(std::forward<F>(callback));
+  }
   void start_autotune(std::unique_ptr<PIDAutotuner> &&autotune);
   /// Build a tuner from the climate.pid.autotune settings and start it.
   void start_autotune(float noiseband, float positive_output, float negative_output);
@@ -96,6 +130,12 @@ class PIDClimate final : public climate::Climate, public Component {
 
   void write_output_(float value);
 
+  PIDPresetEntry preset_entry_(uint8_t index) const;
+  PIDCustomPresetEntry custom_preset_entry_(uint8_t index) const;
+  /// Make a configured preset active and set its target; false if it is not configured.
+  bool select_preset_(climate::ClimatePreset preset);
+  bool select_custom_preset_(StringRef name);
+
   /// The sensor used for getting the current temperature
   sensor::Sensor *sensor_;
   /// The sensor used for getting the current humidity
@@ -108,7 +148,17 @@ class PIDClimate final : public climate::Climate, public Component {
   CallbackManager<void()> pid_computed_callback_;
   float default_target_temperature_;
   std::unique_ptr<PIDAutotuner> autotuner_;
+  LazyCallbackManager<void()> preset_change_callback_{};
+  const PIDPresetEntry *preset_config_{nullptr};
+  const PIDCustomPresetEntry *custom_preset_config_{nullptr};
+  const char *default_custom_preset_{nullptr};
   bool do_publish_ = false;
+  /// A restore during setup() must not fire preset_change, as in the thermostat platform.
+  bool setup_complete_{false};
+  uint8_t preset_count_{0};
+  uint8_t custom_preset_count_{0};
+  climate::ClimatePreset default_preset_{climate::CLIMATE_PRESET_NONE};
+  OnBootRestoreFrom on_boot_restore_from_{OnBootRestoreFrom::ON_BOOT_RESTORE_FROM_MEMORY};
 };
 
 }  // namespace esphome::pid
