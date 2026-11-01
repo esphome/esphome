@@ -1,0 +1,52 @@
+---
+esphome:
+  name: test
+
+esp32:
+  board: esp32dev
+
+i2c:
+  - id: i2c_bus
+    scl: GPIO16
+    sda: GPIO17
+
+bq25186:
+  - id: charger_a
+    i2c_id: i2c_bus
+  - id: charger_b
+    i2c_id: i2c_bus
+    address: 0x6B
+  - id: charger_c
+    i2c_id: i2c_bus
+    address: 0x6C
+
+# The text block comes first; its sensors still publish after the binary sensors
+text_sensor:
+  - platform: bq25186
+    bq25186_id: charger_a
+    charge_status:
+      id: a_charge_status
+      name: A Charge Status
+    ts_status:
+      id: a_ts_status
+      name: A TS Status
+  - platform: bq25186
+    bq25186_id: charger_b
+    ts_status:
+      id: b_ts_status
+      name: B TS Status
+
+binary_sensor:
+  - platform: bq25186
+    bq25186_id: charger_a
+    ts:
+      id: a_ts
+      name: A TS Open
+    charging:
+      id: a_charging
+      name: A Charging
+  - platform: bq25186
+    bq25186_id: charger_a
+    battery_ocp_flag:
+      id: a_battery_ocp_flag
+      name: A Battery OCP Flag

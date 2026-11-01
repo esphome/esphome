@@ -1,27 +1,10 @@
 #include "common.h"
-#include "esphome/components/bq25186/bq25186_binary_sensor.h"
-#include "esphome/components/bq25186/bq25186_text_sensor.h"
+#include "esphome/components/binary_sensor/binary_sensor.h"
 
-#include <memory>
 #include <string>
 #include <vector>
 
 namespace esphome::bq25186::testing {
-
-// One entry per binary_sensor.py _FIELDS row, in its order: what code generation passes for each sensor
-struct BinaryField {
-  uint8_t reg;
-  uint8_t shift;
-  uint8_t mask;
-  uint8_t match;
-};
-static constexpr std::array<BinaryField, 21> BINARY_FIELDS{{
-    {0, 7, 0x01, 0b10}, {0, 5, 0x03, 0b0110}, {0, 5, 0x03, 0b1000}, {0, 4, 0x01, 0b10}, {0, 3, 0x01, 0b10},
-    {0, 2, 0x01, 0b10}, {0, 1, 0x01, 0b10},   {0, 0, 0x01, 0b10},   {1, 7, 0x01, 0b10}, {1, 6, 0x01, 0b10},
-    {1, 2, 0x01, 0b10}, {1, 1, 0x01, 0b10},   {1, 0, 0x01, 0b10},   {2, 7, 0x01, 0b10}, {2, 6, 0x01, 0b10},
-    {2, 5, 0x01, 0b10}, {2, 4, 0x01, 0b10},   {2, 3, 0x01, 0b10},   {2, 2, 0x01, 0b10}, {2, 1, 0x01, 0b10},
-    {2, 0, 0x01, 0b10},
-}};
 
 enum BinaryIndex : uint8_t {
   TS,
@@ -77,24 +60,51 @@ static constexpr std::array<SingleBit, 19> SINGLE_BITS{{
     {BATTERY_OCP_FLAG, BQ25186_REG_FLAG0, 0x01},
 }};
 
+// What code generation emits for a hub with every status entity, in the same order
+struct StatusEntities {
+  std::array<binary_sensor::BinarySensor, BINARY_COUNT> binary;
+  std::array<text_sensor::TextSensor, TEXT_COUNT> text;
+  uint8_t charge_status_last{0xFF};
+  uint8_t ts_status_last{0xFF};
+};
+static StatusEntities *entities = nullptr;  // NOLINT(cppcoreguidelines-avoid-non-const-global-variables)
+static void publish_status(const BQ25186StatusRegisters &status) {
+  entities->binary[TS].publish_state((status[0] >> 7) & 0x01);
+  entities->binary[CHARGING].publish_state((0b0110 >> ((status[0] >> 5) & 0x03)) & 1);
+  entities->binary[CHARGE_DONE].publish_state((0b1000 >> ((status[0] >> 5) & 0x03)) & 1);
+  entities->binary[ILIM].publish_state((status[0] >> 4) & 0x01);
+  entities->binary[VDPPM].publish_state((status[0] >> 3) & 0x01);
+  entities->binary[VINDPM].publish_state((status[0] >> 2) & 0x01);
+  entities->binary[THERMREG].publish_state((status[0] >> 1) & 0x01);
+  entities->binary[POWER_GOOD].publish_state((status[0] >> 0) & 0x01);
+  entities->binary[VIN_OVP].publish_state((status[1] >> 7) & 0x01);
+  entities->binary[BATTERY_UVLO].publish_state((status[1] >> 6) & 0x01);
+  entities->binary[SAFETY_TIMER_FLAG].publish_state((status[1] >> 2) & 0x01);
+  entities->binary[WAKE1_FLAG].publish_state((status[1] >> 1) & 0x01);
+  entities->binary[WAKE2_FLAG].publish_state((status[1] >> 0) & 0x01);
+  entities->binary[TS_FLAG].publish_state((status[2] >> 7) & 0x01);
+  entities->binary[ILIM_FLAG].publish_state((status[2] >> 6) & 0x01);
+  entities->binary[VDPPM_FLAG].publish_state((status[2] >> 5) & 0x01);
+  entities->binary[VINDPM_FLAG].publish_state((status[2] >> 4) & 0x01);
+  entities->binary[THERMREG_FLAG].publish_state((status[2] >> 3) & 0x01);
+  entities->binary[VIN_OVP_FLAG].publish_state((status[2] >> 2) & 0x01);
+  entities->binary[BATTERY_UVLO_FLAG].publish_state((status[2] >> 1) & 0x01);
+  entities->binary[BATTERY_OCP_FLAG].publish_state((status[2] >> 0) & 0x01);
+  publish_status_text(&entities->text[CHARGE_STATUS], entities->charge_status_last, (status[0] >> 5) & 0x03, 0);
+  publish_status_text(&entities->text[TS_STATUS], entities->ts_status_last, (status[1] >> 3) & 0x03, 4);
+}
+
 class BQ25186StatusTest : public ::testing::Test {
  protected:
   void SetUp() override {
     this->hub_.set_i2c_bus(&this->bus_);
     this->hub_.set_i2c_address(ADDRESS);
-    for (size_t i = 0; i < BINARY_COUNT; i++) {
-      const BinaryField &f = BINARY_FIELDS[i];
-      this->binary_sensors_[i] = std::make_unique<BQ25186BinarySensor>(f.reg, f.shift, f.mask, f.match);
-      this->hub_.register_binary_sensor(this->binary_sensors_[i].get());
-    }
-    this->text_sensors_[CHARGE_STATUS] = std::make_unique<BQ25186TextSensor>(0, 5, 0);
-    this->text_sensors_[TS_STATUS] = std::make_unique<BQ25186TextSensor>(1, 3, 4);
-    for (auto &sensor : this->text_sensors_)
-      this->hub_.register_text_sensor(sensor.get());
+    this->hub_.set_status_publisher(publish_status);
+    entities = &this->entities_;
   }
 
-  binary_sensor::BinarySensor &binary_(size_t index) { return *this->binary_sensors_[index]; }
-  text_sensor::TextSensor &text_(size_t index) { return *this->text_sensors_[index]; }
+  binary_sensor::BinarySensor &binary_(size_t index) { return this->entities_.binary[index]; }
+  text_sensor::TextSensor &text_(size_t index) { return this->entities_.text[index]; }
 
   void poll_(uint8_t stat0, uint8_t stat1 = 0, uint8_t flag0 = 0) {
     this->bus_.registers[BQ25186_REG_STAT0] = stat0;
@@ -105,8 +115,7 @@ class BQ25186StatusTest : public ::testing::Test {
 
   RegisterBus bus_;
   BQ25186Component hub_;
-  std::array<std::unique_ptr<BQ25186BinarySensor>, BINARY_COUNT> binary_sensors_;
-  std::array<std::unique_ptr<BQ25186TextSensor>, TEXT_COUNT> text_sensors_;
+  StatusEntities entities_;
 };
 
 TEST_F(BQ25186StatusTest, EachSingleBitSensorReadsOnlyItsBit) {
