@@ -29,6 +29,9 @@ uint16_t Millis64Impl::millis_major{0};
 uint64_t Millis64Impl::compute(uint32_t now) {
   // Half the 32-bit range - used to detect rollovers vs normal time progression
   static constexpr uint32_t HALF_MAX_UINT32 = std::numeric_limits<uint32_t>::max() / 2;
+  // Define a safe window around the rollover point (10 seconds)
+  // This covers any reasonable scheduler delays or thread preemption
+  static constexpr uint32_t ROLLOVER_WINDOW = 10000;  // 10 seconds in milliseconds
 
   // State variables for rollover tracking - static to persist across calls
 #ifdef ESPHOME_THREAD_MULTI_ATOMICS
@@ -77,14 +80,12 @@ uint64_t Millis64Impl::compute(uint32_t now) {
   uint16_t major = __atomic_load_n(&millis_major, __ATOMIC_RELAXED);
   uint32_t last = __atomic_load_n(&last_millis, __ATOMIC_RELAXED);
 
-  // Define a safe window around the rollover point (10 seconds)
-  // This covers any reasonable scheduler delays or thread preemption
-  static constexpr uint32_t ROLLOVER_WINDOW = 10000;  // 10 seconds in milliseconds
-
   // Check if we're near the rollover boundary (close to std::numeric_limits<uint32_t>::max() or just past 0)
-  bool near_rollover = (last > (std::numeric_limits<uint32_t>::max() - ROLLOVER_WINDOW)) || (now < ROLLOVER_WINDOW);
+  bool near_rollover = (last > (std::numeric_limits<uint32_t>::max() - ROLLOVER_WINDOW)) ||
+                       (now > (std::numeric_limits<uint32_t>::max() - ROLLOVER_WINDOW)) || (now < ROLLOVER_WINDOW);
+  bool stale = now > last && (now - last) > HALF_MAX_UINT32;
 
-  if (near_rollover || (now < last && (last - now) > HALF_MAX_UINT32)) {
+  if (near_rollover || stale || (now < last && (last - now) > HALF_MAX_UINT32)) {
     // Near rollover or detected a rollover - need lock for safety
     LockGuard guard{lock};
     // Re-read both values with lock held. last_millis can be updated
@@ -104,6 +105,8 @@ uint64_t Millis64Impl::compute(uint32_t now) {
 #ifdef ESPHOME_DEBUG_SCHEDULER
       ESP_LOGD(TAG, "Detected true 32-bit rollover at %" PRIu32 "ms (was %" PRIu32 ")", now, last);
 #endif /* ESPHOME_DEBUG_SCHEDULER */
+    } else if (major > 0 && now > last && (now - last) > HALF_MAX_UINT32) {
+      return now + (static_cast<uint64_t>(major - 1) << 32);
     }
     // Update last_millis while holding lock
     __atomic_store_n(&last_millis, now, __ATOMIC_RELAXED);
@@ -126,7 +129,7 @@ uint64_t Millis64Impl::compute(uint32_t now) {
   // Uses atomic operations with acquire/release semantics to ensure coherent
   // reads of millis_major and last_millis across cores. Features:
   // 1. Epoch-coherency retry loop to handle concurrent updates
-  // 2. Lock only taken for actual rollover detection and update
+  // 2. Lock only taken for rollover detection and update, and in the seconds before a rollover
   // 3. Lock-free CAS updates for normal forward time progression
   // 4. Memory ordering ensures cores see consistent time values
 
@@ -140,29 +143,37 @@ uint64_t Millis64Impl::compute(uint32_t now) {
      * corresponding increment.
      */
     uint32_t last = last_millis.load(std::memory_order_acquire);
+    bool stale = false;
 
-    // If we might be near a rollover (large backwards jump), take the lock
-    // This ensures rollover detection and last_millis update are atomic together
-    if (now < last && (last - now) > HALF_MAX_UINT32) {
-      // Potential rollover - need lock for atomic rollover detection + update
-      LockGuard guard{lock};
+    // Take the lock for a possible rollover (large backwards jump), so rollover detection and the
+    // last_millis update are atomic together. Also take it in the seconds before a rollover: the
+    // thread counting it bumps millis_major before it stores last_millis, and only the lock gives a
+    // value read just before the wrap a matching pair.
+    const bool before_rollover = last > std::numeric_limits<uint32_t>::max() - ROLLOVER_WINDOW ||
+                                 now > std::numeric_limits<uint32_t>::max() - ROLLOVER_WINDOW;
+    const bool locked = before_rollover || (now < last && (last - now) > HALF_MAX_UINT32);
+    if (locked) {
+      lock.lock();
       // Re-read with lock held; mutex already provides ordering
       last = last_millis.load(std::memory_order_relaxed);
+      major = millis_major.load(std::memory_order_relaxed);
+    }
 
-      if (now < last && (last - now) > HALF_MAX_UINT32) {
-        // True rollover detected (happens every ~49.7 days)
-        millis_major.fetch_add(1, std::memory_order_relaxed);
-        major++;
+    if (locked && now < last && (last - now) > HALF_MAX_UINT32) {
+      // True rollover detected (happens every ~49.7 days)
+      millis_major.fetch_add(1, std::memory_order_relaxed);
+      major++;
 #ifdef ESPHOME_DEBUG_SCHEDULER
-        ESP_LOGD(TAG, "Detected true 32-bit rollover at %" PRIu32 "ms (was %" PRIu32 ")", now, last);
+      ESP_LOGD(TAG, "Detected true 32-bit rollover at %" PRIu32 "ms (was %" PRIu32 ")", now, last);
 #endif /* ESPHOME_DEBUG_SCHEDULER */
-      }
       /*
        * Update last_millis while holding the lock to prevent races.
        * Publish the new low-word *after* bumping millis_major (done above)
        * so readers never see a mismatched pair.
        */
       last_millis.store(now, std::memory_order_release);
+    } else if (major > 0 && now > last && (now - last) > HALF_MAX_UINT32) {
+      stale = true;
     } else {
       // Normal case: Try lock-free update, but only allow forward movement within same epoch
       // This prevents accidentally moving backwards across a rollover boundary
@@ -176,9 +187,16 @@ uint64_t Millis64Impl::compute(uint32_t now) {
         // last is automatically updated by compare_exchange_weak if it fails
       }
     }
+    if (locked) {
+      lock.unlock();
+    }
     uint16_t major_end = millis_major.load(std::memory_order_relaxed);
-    if (major_end == major)
+    if (major_end == major) {
+      if (stale) {
+        return now + (static_cast<uint64_t>(major - 1) << 32);
+      }
       return now + (static_cast<uint64_t>(major) << 32);
+    }
   }
   // Unreachable - the loop always returns when major_end == major
   __builtin_unreachable();
