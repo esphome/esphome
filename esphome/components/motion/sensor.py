@@ -1,5 +1,8 @@
 #  YAML config keys
+from __future__ import annotations
+
 import math
+from typing import TYPE_CHECKING
 
 from esphome.automation import parent_ref
 import esphome.codegen as cg
@@ -15,7 +18,6 @@ from esphome.const import (
     UNIT_DEGREES,
     UNIT_G,
 )
-from esphome.cpp_generator import MockObj
 from esphome.cpp_types import std_ns
 from esphome.types import ConfigType
 
@@ -30,6 +32,9 @@ from . import (
     get_motion_config,
     motion_ns,
 )
+
+if TYPE_CHECKING:
+    from esphome.cpp_generator import MockObj
 
 CONF_PITCH = "pitch"
 CONF_ROLL = "roll"

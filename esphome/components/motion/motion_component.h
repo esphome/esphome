@@ -83,7 +83,7 @@ class MotionComponent : public PollingComponent {
   void clear_calibration(bool save = false);
 
 #ifdef USE_MOTION_DATA_PUBLISHER
-  void set_data_publisher(void (*fn)(const MotionData &)) { this->data_publisher_ = fn; }
+  HUB_PUBLISHER(data, const MotionData &)
 #endif
 
  protected:
@@ -106,9 +106,6 @@ class MotionComponent : public PollingComponent {
     output[2] = input[X_AXIS] * this->matrix_[6] + input[Y_AXIS] * this->matrix_[7] + input[Z_AXIS] * this->matrix_[8];
   }
 
-#ifdef USE_MOTION_DATA_PUBLISHER
-  void (*data_publisher_)(const MotionData &){nullptr};
-#endif
   uint32_t pref_key_{0};
   uint32_t base_hash_{0};  // hash of base_matrix_, captured in setup()
   ESPPreferenceObject pref_{};
