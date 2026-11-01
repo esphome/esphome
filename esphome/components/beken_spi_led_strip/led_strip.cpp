@@ -62,6 +62,13 @@ struct SpiData {
 
 static SpiData *spi_data = nullptr;  // NOLINT(cppcoreguidelines-avoid-non-const-global-variables)
 
+// BDK 3.0.78 makes REG_WRITE a statement expression that yields the volatile assignment,
+// a deprecated volatile read under clang
+static inline void reg_write(uint32_t addr, uint32_t value) {
+  // NOLINTNEXTLINE(performance-no-int-to-ptr) - MMIO register at a fixed address
+  *reinterpret_cast<volatile uint32_t *>(addr) = value;
+}
+
 static void set_spi_ctrl_register(uint32_t bit, bool val) {
   uint32_t value = REG_READ(SPI_CTRL);
   if (val == 0) {
@@ -69,7 +76,7 @@ static void set_spi_ctrl_register(uint32_t bit, bool val) {
   } else if (val == 1) {
     value |= bit;
   }
-  REG_WRITE(SPI_CTRL, value);
+  reg_write(SPI_CTRL, value);
 }
 
 #ifdef BEKEN_SPI_IS_N_LIKE
@@ -80,7 +87,7 @@ static void set_spi_config_register(uint32_t bit, bool val) {
   } else if (val == 1) {
     value |= bit;
   }
-  REG_WRITE(SPI_CONFIG, value);
+  reg_write(SPI_CONFIG, value);
 }
 #endif
 
@@ -136,7 +143,7 @@ static void spi_set_clock(uint32_t max_hz) {
   param = REG_READ(SPI_CTRL);
   param &= ~(SPI_CKR_MASK << SPI_CKR_POSI);
   param |= (div << SPI_CKR_POSI);
-  REG_WRITE(SPI_CTRL, param);
+  reg_write(SPI_CTRL, param);
 #ifdef BEKEN_SPI_IS_N_LIKE
   const int divisor = div;
 #else
@@ -152,33 +159,19 @@ void spi_dma_tx_finish_callback(unsigned int param) {
 }
 
 void BekenSPILEDStripLightOutput::setup() {
-  size_t buffer_size = this->get_buffer_size_();
-  size_t dma_buffer_size = (buffer_size * 8) + (2 * 64);
-
   RAMAllocator<uint8_t> allocator;
-  this->buf_ = allocator.allocate(buffer_size);
-  if (this->buf_ == nullptr) {
-    ESP_LOGE(TAG, "Cannot allocate LED buffer!");
-    this->mark_failed();
+  if (!this->internal_accessor_.allocate(allocator, this->num_leds_)) {
+    this->mark_failed(LOG_STR(ESP_LOG_MSG_ALLOC_FAIL));
     return;
   }
 
-  this->effect_data_ = allocator.allocate(this->num_leds_);
-  if (this->effect_data_ == nullptr) {
-    ESP_LOGE(TAG, "Cannot allocate effect data!");
-    this->mark_failed();
-    return;
-  }
-
+  const size_t dma_buffer_size = (this->get_buffer_size_() * 8) + (2 * 64);
   this->dma_buf_ = allocator.allocate(dma_buffer_size);
   if (this->dma_buf_ == nullptr) {
-    ESP_LOGE(TAG, "Cannot allocate DMA buffer!");
-    this->mark_failed();
+    this->mark_failed(LOG_STR(ESP_LOG_MSG_ALLOC_FAIL));
     return;
   }
 
-  memset(this->buf_, 0, buffer_size);
-  memset(this->effect_data_, 0, this->num_leds_);
   memset(this->dma_buf_, 0, dma_buffer_size);
 
   uint32_t value = PCLK_POSI_SPI;
@@ -188,22 +181,19 @@ void BekenSPILEDStripLightOutput::setup() {
   sddev_control(ICU_DEV_NAME, CMD_CLK_PWR_UP, &value);
 
   if (spi_data != nullptr) {
-    ESP_LOGE(TAG, "SPI device already initialized!");
-    this->mark_failed();
+    this->mark_failed(LOG_STR("SPI already initialized"));
     return;
   }
 
   spi_data = (SpiData *) calloc(1, sizeof(SpiData));  // NOLINT(cppcoreguidelines-no-malloc)
   if (spi_data == nullptr) {
-    ESP_LOGE(TAG, "Cannot allocate spi_data!");
-    this->mark_failed();
+    this->mark_failed(LOG_STR(ESP_LOG_MSG_ALLOC_FAIL));
     return;
   }
 
   spi_data->dma_tx_semaphore = xSemaphoreCreateBinary();
   if (spi_data->dma_tx_semaphore == nullptr) {
-    ESP_LOGE(TAG, "TX Semaphore init faild!");
-    this->mark_failed();
+    this->mark_failed(LOG_STR("TX semaphore init failed"));
     return;
   }
 
@@ -229,7 +219,7 @@ void BekenSPILEDStripLightOutput::setup() {
   value = REG_READ(SPI_CTRL);
   value &= ~CTRL_NSSMD_3;
   value |= (1 << 17);
-  REG_WRITE(SPI_CTRL, value);
+  reg_write(SPI_CTRL, value);
 
 #ifdef BEKEN_SPI_IS_N_LIKE
   value = GFUNC_MODE_SPI_DMA;
@@ -279,11 +269,13 @@ void BekenSPILEDStripLightOutput::setup() {
   value = REG_READ(SPI_CONFIG);
   value &= ~(0xFFF << 8);
   value |= ((dma_buffer_size & 0xFFF) << 8);
-  REG_WRITE(SPI_CONFIG, value);
+  reg_write(SPI_CONFIG, value);
 #else
   // T-like variants: No transfer-length register. The SPI controller shifts out
   // everything the DMA writes into SPI_DAT.
 #endif
+
+  this->accessor_ = &this->internal_accessor_;
 }
 
 void BekenSPILEDStripLightOutput::set_led_params(uint8_t bit0, uint8_t bit1, uint32_t spi_frequency) {
@@ -293,14 +285,9 @@ void BekenSPILEDStripLightOutput::set_led_params(uint8_t bit0, uint8_t bit1, uin
 }
 
 void BekenSPILEDStripLightOutput::write_state(light::LightState *state) {
-  // protect from refreshing too often
   uint32_t now = micros();
-  if (this->max_refresh_rate_.has_value() && *this->max_refresh_rate_ != 0 &&
-      (now - this->last_refresh_) < *this->max_refresh_rate_) {
-    // try again next loop iteration, so that this change won't get lost
-    this->schedule_show();
+  if (this->throttle_show_(now, this->last_refresh_, this->max_refresh_rate_))
     return;
-  }
   this->last_refresh_ = now;
   this->mark_shown_();
 
@@ -349,7 +336,7 @@ void BekenSPILEDStripLightOutput::write_state(light::LightState *state) {
 
   size_t buffer_size = this->get_buffer_size_();
   size_t size = 0;
-  uint8_t *psrc = this->buf_;
+  uint8_t *psrc = this->internal_accessor_.color_data;
   uint8_t *pdest = this->dma_buf_ + 64;
   // The 64 byte padding is a workaround for a SPI DMA bug where the
   // output doesn't exactly start at the beginning of dma_buf_
@@ -369,17 +356,6 @@ void BekenSPILEDStripLightOutput::write_state(light::LightState *state) {
   this->status_clear_warning();
 }
 
-light::ESPColorView BekenSPILEDStripLightOutput::get_view_internal(int32_t index) const {
-  const light::ChannelColors &colors = this->channel_colors_;
-  uint8_t *led = this->buf_ + (index * colors.bytes_per_led());
-  return {led + colors.r,
-          led + colors.g,
-          led + colors.b,
-          colors.has_white() ? led + colors.w : nullptr,
-          &this->effect_data_[index],
-          &this->correction_};
-}
-
 void BekenSPILEDStripLightOutput::dump_config() {
   ESP_LOGCONFIG(TAG,
                 "Beken SPI LED Strip:\n"
@@ -390,7 +366,8 @@ void BekenSPILEDStripLightOutput::dump_config() {
                 "  Channel colors: %s\n"
                 "  Max refresh rate: %" PRIu32 "\n"
                 "  Number of LEDs: %u",
-                this->channel_colors_.to_string(channel_colors), this->max_refresh_rate_.value_or(0), this->num_leds_);
+                this->internal_accessor_.channel_colors.to_string(channel_colors), this->max_refresh_rate_,
+                this->num_leds_);
 }
 
 float BekenSPILEDStripLightOutput::get_setup_priority() const { return setup_priority::HARDWARE; }

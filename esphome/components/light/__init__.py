@@ -5,7 +5,7 @@ import logging
 
 import esphome.automation as auto
 import esphome.codegen as cg
-from esphome.components import mqtt, power_supply, web_server
+from esphome.components import power_supply
 from esphome.components.const import CONF_CHANNEL_COLORS, CONF_IS_WRGB
 from esphome.config_helpers import filter_source_files_from_defines
 import esphome.config_validation as cv
@@ -35,7 +35,6 @@ from esphome.const import (
     CONF_STATE,
     CONF_TRIGGER_ID,
     CONF_WARM_WHITE_COLOR_TEMPERATURE,
-    CONF_WEB_SERVER,
 )
 from esphome.core import (
     CORE,
@@ -44,10 +43,12 @@ from esphome.core import (
     EsphomeError,
     HexInt,
     coroutine_with_priority,
+    entity_helpers,
 )
 from esphome.core.entity_helpers import (
     RESTORE_STATE_NONE,
     entity_duplicate_validator,
+    mqtt_component_class,
     queue_entity_register,
     setup_entity,
 )
@@ -248,19 +249,10 @@ def validate_channel_colors(value: str) -> str:
     return value
 
 
-def channel_colors_struct(value: str) -> cg.StructInitializer:
+def channel_colors_struct(value: str) -> cg.MockObj:
     """Build the C++ `light::ChannelColors` for a validated channel order string."""
-    return cg.StructInitializer(
-        ChannelColors,
-        ("r", value.index("R")),
-        ("g", value.index("G")),
-        ("b", value.index("B")),
-        (
-            "w",
-            value.index("W")
-            if "W" in value
-            else cg.RawExpression(f"{ChannelColors}::NO_WHITE"),
-        ),
+    return ChannelColors(
+        *(value.index(channel) for channel in "RGBW" if channel in value)
     )
 
 
@@ -380,8 +372,7 @@ def _final_validate(config: ConfigType) -> None:
 
     for ref in refs:
         try:
-            light_path = fconf.get_path_for_id(ref.light_id)[:-1]
-            light_config = fconf.get_config_for_path(light_path)
+            light_config = fv.get_declaring_config(ref.light_id, fconf)
         except KeyError:
             # Light ID not found — ID validation will have already reported this
             continue
@@ -398,8 +389,7 @@ def _final_validate(config: ConfigType) -> None:
 
     for ref in cycle_refs:
         try:
-            light_path = fconf.get_path_for_id(ref.light_id)[:-1]
-            light_config = fconf.get_config_for_path(light_path)
+            light_config = fv.get_declaring_config(ref.light_id, fconf)
         except KeyError:
             continue
 
@@ -428,14 +418,14 @@ INITIAL_STATE_SCHEMA = LIGHT_STATE_SCHEMA.extend(
 )
 
 LIGHT_SCHEMA = (
-    cv.ENTITY_BASE_SCHEMA.extend(web_server.WEBSERVER_SORTING_SCHEMA)
+    cv.ENTITY_BASE_SCHEMA.extend(entity_helpers.WEBSERVER_SORTING_SCHEMA)
     .extend(cv.MQTT_COMMAND_COMPONENT_SCHEMA)
     .extend(
         {
             cv.GenerateID(): cv.declare_id(LightState),
             cv.GenerateID(CONF_GAMMA_TABLE_ID): cv.declare_id(GammaTable),
             cv.OnlyWith(CONF_MQTT_ID, "mqtt"): cv.declare_id(
-                mqtt.MQTTJSONLightComponent
+                mqtt_component_class("MQTTJSONLightComponent")
             ),
             cv.Exclusive(CONF_RESTORE_MODE, "restore"): cv.one_of(
                 *LEGACY_RESTORE_MODES, upper=True, space="_"
@@ -722,12 +712,7 @@ async def setup_light_core_(light_var, config, output_var):
         if (max_current_ma := power_estimation.get(CONF_MAX_CURRENT_MA)) is not None:
             cg.add(output_var.set_max_current_ma(max_current_ma))
 
-    if (mqtt_id := config.get(CONF_MQTT_ID)) is not None:
-        mqtt_ = cg.new_Pvariable(mqtt_id, light_var)
-        await mqtt.register_mqtt_component(mqtt_, config)
-
-    if web_server_config := config.get(CONF_WEB_SERVER):
-        await web_server.add_entity_config(light_var, web_server_config)
+    await entity_helpers.setup_entity_integrations(light_var, config)
 
 
 async def register_light(output_var, config):

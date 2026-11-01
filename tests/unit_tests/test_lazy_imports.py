@@ -19,6 +19,8 @@ from pathlib import Path
 import subprocess
 import sys
 
+import pytest
+
 # Modules that must only load for the commands that actually use them
 # (compile/config validation, shell completion), never from a bare
 # ``import esphome.__main__``.
@@ -90,6 +92,22 @@ def _leaked_heavy_modules(module: str, extra: tuple[str, ...] = ()) -> str:
         check=True,
     )
     return result.stdout.strip()
+
+
+def test_main_module_does_not_query_the_os_version() -> None:
+    """``import esphome.__main__`` must not call ``platform.uname()`` (or ``system()``, which uses it).
+
+    On Windows they query WMI and fall back to running ``ver`` (importing
+    subprocess) when that fails, so the stdlib leak check below went flaky.
+    """
+    check = (
+        "import platform\n"
+        "def fail(*args, **kwargs):\n"
+        "    raise AssertionError('platform queried at import time')\n"
+        "platform.uname = fail\n"
+        "import esphome.__main__"
+    )
+    subprocess.run([sys.executable, "-c", check], check=True)
 
 
 def test_main_module_does_not_import_heavy_modules() -> None:
@@ -218,23 +236,53 @@ def test_api_client_does_not_import_heavy_modules() -> None:
     )
 
 
-def test_binary_sensor_does_not_import_integrations() -> None:
+# Packages a domain needs for its own schema; cheap and never an integration
+_ENTITY_COMPONENT_DEPENDENCIES = {
+    "infrared": ("esphome.components.ir_rf_base",),
+    "light": ("esphome.components.power_supply", "esphome.components.const.css_colors"),
+    "radio_frequency": ("esphome.components.ir_rf_base",),
+}
+
+
+def _entity_components() -> list[str]:
+    """Every platform component that registers entities, found from source."""
+    components = Path(__file__).parents[2] / "esphome" / "components"
+    return sorted(
+        init.parent.name
+        for init in components.glob("*/__init__.py")
+        if "IS_PLATFORM_COMPONENT = True" in (text := init.read_text(encoding="utf-8"))
+        and ("setup_entity(" in text or "queue_entity_register(" in text)
+    )
+
+
+def test_entity_component_tables_match_discovery() -> None:
+    """Catch stale table entries and a discovery that silently finds nothing."""
+    found = set(_entity_components())
+    stale = _ENTITY_COMPONENT_DEPENDENCIES.keys() - found
+    assert not stale, f"not discovered as entity components: {sorted(stale)}"
+
+
+@pytest.mark.parametrize("component", _entity_components())
+def test_entity_component_does_not_import_integrations(component: str) -> None:
     """An entity component must not drag in its optional integrations.
 
-    binary_sensor's mqtt/web_server/zigbee schema fragments live in
+    The mqtt/web_server/zigbee schema fragments live in
     ``esphome.core.entity_helpers``; the integration packages (and the
     esp32/logger chains mqtt and zigbee pull in) must only load when the
     user's config actually uses them.
     """
+    own = f"esphome.components.{component}"
     allowed = (
         "esphome.components",
-        "esphome.components.binary_sensor",
+        own,
         "esphome.components.const",
+        *_ENTITY_COMPONENT_DEPENDENCIES.get(component, ()),
     )
     check = (
-        "import sys; import esphome.components.binary_sensor; "
+        f"import sys; import {own}; "
         f"leaked = [m for m in sys.modules "
-        f"if m.startswith('esphome.components') and m not in {allowed!r}]; "
+        f"if m.startswith('esphome.components') and m not in {allowed!r} "
+        f"and not m.startswith('{own}.')]; "
         "print(','.join(leaked))"
     )
     result = subprocess.run(
@@ -245,7 +293,7 @@ def test_binary_sensor_does_not_import_integrations() -> None:
     )
     leaked = result.stdout.strip()
     assert not leaked, (
-        f"esphome.components.binary_sensor imports integration packages at "
+        f"esphome.components.{component} imports integration packages at "
         f"top level: {leaked}. Keep the shared schema fragments in "
         "esphome.core.entity_helpers and import the integration inside "
         "to_code instead."

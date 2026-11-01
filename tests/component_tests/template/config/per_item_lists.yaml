@@ -41,6 +41,7 @@ text_sensor:
 interval:
   - interval: 10s
     then:
+      # The delays keep these actions as objects with lists
       - if:
           condition:
             and:
@@ -49,14 +50,18 @@ interval:
           then:
             - lambda: id(counter) += 1;
             - logger.log: even
+            - delay: 1ms
           else:
             - logger.log: odd
+            - delay: 1ms
       - repeat:
           count: 2
           then:
             - logger.log: again
+            - delay: 1ms
       - while:
           condition:
             lambda: return id(counter) < 3;
           then:
             - lambda: id(counter) += 1;
+            - delay: 1ms

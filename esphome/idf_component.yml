@@ -2,7 +2,7 @@ dependencies:
   bblanchon/arduinojson:
     version: "7.4.3"
   esphome/dlms_parser:
-    version: 2.2.0
+    version: 2.2.2
   esphome/esp-audio-libs:
     version: 4.1.0
   esphome/esp-micro-speech-features:
@@ -25,6 +25,8 @@ dependencies:
     version: 1.1.2
   espressif/esp32-camera:
     version: 2.1.7
+  espressif/esp_modem:
+    version: 2.1.0
   espressif/mdns:
     version: 1.14.0
   espressif/esp_wifi_remote:
@@ -50,7 +52,7 @@ dependencies:
   zorxx/multipart-parser:
     version: 1.0.1
   espressif/lan867x:
-    version: "2.0.0"
+    version: "2.1.0"
     rules:
       - if: "target in [esp32, esp32p4]"
   espressif/esp-zigbee-lib:
@@ -58,31 +60,31 @@ dependencies:
     rules:
       - if: "target in [esp32h2, esp32c5, esp32c6]"
   espressif/lan87xx:
-    version: "1.0.0"
+    version: "1.1.0"
     rules:
       - if: "idf_version >=6.0.0 && target in [esp32, esp32p4]"
   espressif/rtl8201:
-    version: "1.0.1"
+    version: "1.1.0"
     rules:
       - if: "idf_version >=6.0.0 && target in [esp32, esp32p4]"
   espressif/dp83848:
-    version: "1.0.0"
+    version: "1.1.0"
     rules:
       - if: "idf_version >=6.0.0 && target in [esp32, esp32p4]"
   espressif/ip101:
-    version: "1.0.0"
+    version: "1.1.0"
     rules:
       - if: "idf_version >=6.0.0 && target in [esp32, esp32p4]"
   espressif/ksz80xx:
-    version: "1.0.0"
+    version: "1.1.0"
     rules:
       - if: "idf_version >=6.0.0 && target in [esp32, esp32p4]"
   espressif/w5500:
-    version: "1.0.1"
+    version: "2.0.1"
     rules:
       - if: "idf_version >=6.0.0"
   espressif/dm9051:
-    version: "1.1.0"
+    version: "1.1.1"
     rules:
       - if: "idf_version >=6.0.0"
   espressif/ksz8851snl:
@@ -91,7 +93,7 @@ dependencies:
       - if: "idf_version >=6.0.0"
   # Keep in sync with esphome/components/ethernet/__init__.py
   espressif/ch390:
-    version: "0.3.0"
+    version: "0.4.1"
   espressif/esp_tinyusb:
     version: "2.2.1"
     rules:
