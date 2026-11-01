@@ -1,0 +1,102 @@
+esphome:
+  name: canbus-on-frame-test
+  on_boot:
+    priority: -100
+    then:
+      - canbus.send:
+          can_id: 0x100
+          data: [0x01]
+      - canbus.send:
+          can_id: 0x100
+          use_extended_id: true
+          data: [0x02]
+      - canbus.send:
+          can_id: 0x125
+          data: [0x03]
+      - canbus.send:
+          can_id: 0x135
+          data: [0x04]
+      - canbus.send:
+          can_id: 0x125
+          use_extended_id: true
+          data: [0x05]
+      - canbus.send:
+          can_id: 0x200
+          remote_transmission_request: true
+          data: []
+      - canbus.send:
+          can_id: 0x200
+          data: [0x07, 0x77]
+      - canbus.send:
+          can_id: 0x1ABCDE42
+          use_extended_id: true
+          data: [0x08]
+      - canbus.send:
+          can_id: 0x1ABCDF42
+          use_extended_id: true
+          data: [0x09]
+      - canbus.send:
+          can_id: 0x7FF
+          data: [0xAA]
+
+host:
+api:
+logger:
+  level: DEBUG
+
+external_components:
+  - source:
+      type: local
+      path: EXTERNAL_COMPONENT_PATH
+
+canbus:
+  - platform: canbus_mock
+    id: mock_can
+    can_id: 0x10
+    on_frame:
+      - can_id: 0x100
+        then:
+          - lambda: |-
+              ESP_LOGI("can_test", "on_frame std_100 id=0x%" PRIX32 " rtr=%d len=%u first=0x%02X", can_id,
+                       remote_transmission_request, (unsigned) x.size(), x.empty() ? 0 : x[0]);
+      - can_id: 0x100
+        use_extended_id: true
+        then:
+          - lambda: |-
+              ESP_LOGI("can_test", "on_frame ext_100 id=0x%" PRIX32 " rtr=%d len=%u first=0x%02X", can_id,
+                       remote_transmission_request, (unsigned) x.size(), x.empty() ? 0 : x[0]);
+      - can_id: 0x120
+        can_id_mask: 0x7F0
+        then:
+          - lambda: |-
+              ESP_LOGI("can_test", "on_frame std_12x id=0x%" PRIX32 " rtr=%d len=%u first=0x%02X", can_id,
+                       remote_transmission_request, (unsigned) x.size(), x.empty() ? 0 : x[0]);
+      - can_id: 0x200
+        remote_transmission_request: true
+        then:
+          - lambda: |-
+              ESP_LOGI("can_test", "on_frame rtr_200 id=0x%" PRIX32 " rtr=%d len=%u first=0x%02X", can_id,
+                       remote_transmission_request, (unsigned) x.size(), x.empty() ? 0 : x[0]);
+      - can_id: 0x200
+        remote_transmission_request: false
+        then:
+          - lambda: |-
+              ESP_LOGI("can_test", "on_frame data_200 id=0x%" PRIX32 " rtr=%d len=%u first=0x%02X", can_id,
+                       remote_transmission_request, (unsigned) x.size(), x.empty() ? 0 : x[0]);
+      - can_id: 0x200
+        then:
+          - lambda: |-
+              ESP_LOGI("can_test", "on_frame any_200 id=0x%" PRIX32 " rtr=%d len=%u first=0x%02X", can_id,
+                       remote_transmission_request, (unsigned) x.size(), x.empty() ? 0 : x[0]);
+      - can_id: 0x1ABCDE00
+        can_id_mask: 0x1FFFFF00
+        use_extended_id: true
+        then:
+          - lambda: |-
+              ESP_LOGI("can_test", "on_frame ext_masked id=0x%" PRIX32 " rtr=%d len=%u first=0x%02X", can_id,
+                       remote_transmission_request, (unsigned) x.size(), x.empty() ? 0 : x[0]);
+      - can_id: 0x7FF
+        then:
+          - lambda: |-
+              ESP_LOGI("can_test", "on_frame done id=0x%" PRIX32 " rtr=%d len=%u first=0x%02X", can_id,
+                       remote_transmission_request, (unsigned) x.size(), x.empty() ? 0 : x[0]);
