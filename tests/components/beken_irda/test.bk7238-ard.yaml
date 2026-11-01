@@ -1,0 +1,5 @@
+bk72xx:
+  board: generic-bk7238
+
+packages:
+  beken_irda: !include common.yaml

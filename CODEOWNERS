@@ -73,6 +73,7 @@ esphome/components/bedjet/* @jhansche
 esphome/components/bedjet/climate/* @jhansche
 esphome/components/bedjet/fan/* @jhansche
 esphome/components/bedjet/sensor/* @javawizard @jhansche
+esphome/components/beken_irda/* @bbbert
 esphome/components/beken_spi_led_strip/* @Mat931
 esphome/components/bh1745/* @latonita
 esphome/components/bh1750/* @OttoWinter

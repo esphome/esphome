@@ -1,5 +1,3 @@
-from typing import Any
-
 from esphome import pins
 import esphome.codegen as cg
 from esphome.components import esp32, esp32_rmt, remote_base
@@ -28,38 +26,13 @@ from esphome.types import ConfigType
 CONF_FILTER_SYMBOLS = "filter_symbols"
 CONF_RECEIVE_SYMBOLS = "receive_symbols"
 
+# The tolerance schema and validator moved to remote_base; keep the old names importable here.
+TOLERANCE_SCHEMA = remote_base.TOLERANCE_SCHEMA
+validate_tolerance = remote_base.validate_tolerance
+
 AUTO_LOAD = ["remote_base"]
 DOMAIN = "remote_receiver"
 remote_receiver_ns = cg.esphome_ns.namespace("remote_receiver")
-remote_base_ns = cg.esphome_ns.namespace("remote_base")
-
-ToleranceMode = remote_base_ns.enum("ToleranceMode")
-
-TYPE_PERCENTAGE = "percentage"
-TYPE_TIME = "time"
-
-TOLERANCE_MODE = {
-    TYPE_PERCENTAGE: ToleranceMode.TOLERANCE_MODE_PERCENTAGE,
-    TYPE_TIME: ToleranceMode.TOLERANCE_MODE_TIME,
-}
-
-TOLERANCE_SCHEMA = cv.typed_schema(
-    {
-        TYPE_PERCENTAGE: cv.Schema(
-            {cv.Required(CONF_VALUE): cv.All(cv.percentage_int, cv.uint32_t)}
-        ),
-        TYPE_TIME: cv.Schema(
-            {
-                cv.Required(CONF_VALUE): cv.All(
-                    cv.positive_time_period_microseconds,
-                    cv.Range(max=TimePeriod(microseconds=4294967295)),
-                )
-            }
-        ),
-    },
-    lower=True,
-    enum=TOLERANCE_MODE,
-)
 
 RemoteReceiverComponent = remote_receiver_ns.class_(
     "RemoteReceiverComponent", remote_base.RemoteReceiverBase, cg.Component
@@ -82,29 +55,6 @@ def validate_config(config: ConfigType) -> ConfigType:
     return config
 
 
-def validate_tolerance(value: Any) -> ConfigType:
-    if isinstance(value, dict):
-        return TOLERANCE_SCHEMA(value)
-
-    if "%" in str(value):
-        type_ = TYPE_PERCENTAGE
-    else:
-        try:
-            cv.positive_time_period_microseconds(value)
-            type_ = TYPE_TIME
-        except cv.Invalid as exc:
-            raise cv.Invalid(
-                "Tolerance must be a percentage or time. Configurations made before 2024.5.0 treated the value as a percentage."
-            ) from exc
-
-    return TOLERANCE_SCHEMA(
-        {
-            CONF_VALUE: value,
-            CONF_TYPE: type_,
-        }
-    )
-
-
 MULTI_CONF = True
 CONFIG_SCHEMA = remote_base.validate_triggers(
     cv.Schema(
@@ -112,7 +62,7 @@ CONFIG_SCHEMA = remote_base.validate_triggers(
             cv.GenerateID(): cv.declare_id(RemoteReceiverComponent),
             cv.Required(CONF_PIN): cv.All(pins.internal_gpio_input_pin_schema),
             cv.Optional(CONF_DUMP, default=[]): remote_base.validate_dumpers,
-            cv.Optional(CONF_TOLERANCE, default="25%"): validate_tolerance,
+            cv.Optional(CONF_TOLERANCE, default="25%"): remote_base.validate_tolerance,
             # pulse ring targets hold one 4 byte entry per pulse; 4000b keeps their 1000 pulses
             cv.SplitDefault(
                 CONF_BUFFER_SIZE,

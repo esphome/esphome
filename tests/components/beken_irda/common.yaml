@@ -1,0 +1,15 @@
+beken_irda:
+  id: irda_rx
+  pin: P26
+  mode: timer
+  dump: nec
+  on_nec:
+    then:
+      - logger.log:
+          format: "NEC address=0x%04X command=0x%04X"
+          args: [x.address, x.command]
+  on_raw:
+    then:
+      - logger.log:
+          format: "Raw frame with %d durations"
+          args: [x.size()]
