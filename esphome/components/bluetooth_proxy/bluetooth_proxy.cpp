@@ -744,10 +744,8 @@ void BluetoothProxy::disconnect_all_connections_() {
 #endif
 
 void BluetoothProxy::subscribe_api_connection(api::APIConnection *api_connection, uint32_t flags) {
-  [[maybe_unused]] bool replaced = false;
   if (api_connection != this->api_connection_) {
     if (this->api_connection_ != nullptr) {
-      replaced = true;
       // A previous subscriber still holds the slot. This is almost always a
       // stale connection from a client that dropped without a clean disconnect
       // and has not yet hit the keepalive timeout; rejecting the new
@@ -762,15 +760,13 @@ void BluetoothProxy::subscribe_api_connection(api::APIConnection *api_connection
     // Stale retry latches belong to the previous subscriber's session; a
     // re-subscribe by the current one keeps what it is still owed.
     this->reset_owed_replies_();
-  }
-  this->api_connection_ = api_connection;
+    this->api_connection_ = api_connection;
 #ifdef USE_BLUETOOTH_PROXY_CONNECTIONS
-  if (replaced) {
-    // The replaced client no longer gets these links' events; free them so idle-only
+    // Held links belong to a client that no longer gets their events; free them so idle-only
     // advertisers are seen again. After the swap, so a sync slot free reports to the new client.
     this->disconnect_all_connections_();
-  }
 #endif
+  }
 #ifdef USE_BLE_SCANNER_STATE_CALLBACK
   // get_scanner_state() is part of the push-hub surface (see BLEHubContract).
   this->send_scanner_state_(this->hub_->get_scanner_state());
