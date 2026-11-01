@@ -72,6 +72,9 @@ async def test_api_event_order_backpressure(
             # The client stops reading here, so the device console tells when "first" fired
             await client.send_message(api_pb2.ExecuteServiceRequest(key=action_key))
             await waiter.wait_for("first fired", timeout=10)
+            assert not any("fill timed out" in line for line in waiter.lines), (
+                "the client's receive window never closed while the overflow buffer held data"
+            )
 
             # The client reads again while the action still runs.
             # On a timeout the asserts below show which event is missing
