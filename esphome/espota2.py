@@ -125,7 +125,7 @@ def _is_rtl8710b_image(image: bytes) -> bool:
     return (
         len(image) >= 32
         and image[:8] == _UF2_MAGIC_HEAD
-        and image[9] & 0x20 != 0  # family ID present (flag 0x2000)
+        and int.from_bytes(image[8:12], "little") & 0x2000 != 0
         and int.from_bytes(image[28:32], "little") == _UF2_FAMILY_RTL8710B
     )
 

@@ -43,15 +43,12 @@ OTAResponseTypes ArduinoLibreTinyOTABackend::begin(size_t image_size, OTAType ot
 }
 
 void ArduinoLibreTinyOTABackend::set_update_md5(const char *md5) {
-  // Compared in end() before the last byte is written, since LibreTiny marks
-  // the image bootable before it compares its own MD5
+  // Checked in end()
   this->md5_set_ = parse_hex(md5, this->expected_md5_, 16);
 }
 
 bool ArduinoLibreTinyOTABackend::feed_(const uint8_t *data, size_t len) {
   while (len != 0) {
-    // Below a full UF2 block LibreTiny copies into its own buffer; given a full
-    // block it patches the caller's memory in place when writing OTA2
     const size_t chunk = std::min(len, MAX_FEED);
     if (Update.write(data, chunk) != chunk) {
       ESP_LOGE(TAG, "Write error: %d", Update.getError());
