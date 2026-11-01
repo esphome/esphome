@@ -238,9 +238,9 @@ class HubFunction:
     """One generated function per hub, built from items its child entities add.
 
     Declare it once at module level and call ``add`` from ``to_code``. At FINAL priority each
-    hub with items gets ``static <return_type> esphome__<hub>__<name>(<parameters>)``, passed
-    to ``hub.<setter>()``; ``define`` is emitted once. A hub without items gets no call, so the
-    C++ pointer defaults to ``nullptr`` and is checked before use.
+    hub with items gets ``static <return_type> esphome__<hub>__<name>_fn(<parameters>)``, passed
+    to ``hub.set_<name>_publisher()``, which ``HUB_PUBLISHER(<name>, ...)`` declares in C++;
+    ``define`` is emitted once. A hub without items gets no call and keeps a ``nullptr``.
 
     ``void``: each item is a statement, or an expression run as one. ``bool``: each item is a
     ``bool`` expression; all run in order and the function returns whether any was true.
@@ -252,7 +252,6 @@ class HubFunction:
         return_type: MockObj,
         parameters: TemplateArgsType,
         *,
-        setter: str,
         define: str | None = None,
     ) -> None:
         if str(return_type) not in ("void", "bool"):
@@ -262,7 +261,6 @@ class HubFunction:
         self._returns_bool = str(return_type) == "bool"
         # Prefixed, so a parameter cannot hide an entity id the items name
         self._parameters = [(type_, f"esphome__arg_{arg}") for type_, arg in parameters]
-        self._setter = setter
         self._define = define
 
         @coroutine_with_priority(CoroPriority.FINAL)
@@ -315,16 +313,14 @@ class HubFunction:
             add_define(self._define)
         names: set[str] = CORE.data.setdefault(f"{_HUB_FUNCTION_DOMAIN}_names", set())
         for hub, items in state.hubs.values():
-            name = f"esphome__{hub}__{self._name}"
+            name = f"esphome__{hub}__{self._name}_fn"
             if name in names:
-                raise ValueError(
-                    f"HubFunction: two functions named {name} (setter {self._setter})"
-                )
+                raise ValueError(f"HubFunction: two functions named {name}")
             names.add(name)
             fn = static_function(
                 name, self._return_type, self._parameters, self._body(items)
             )
-            add(getattr(hub, self._setter)(fn))
+            add(getattr(hub, f"set_{self._name}_publisher")(fn))
 
 
 async def gpio_pin_expression(conf):
