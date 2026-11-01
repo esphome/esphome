@@ -2,6 +2,7 @@
 #ifdef USE_LIBRETINY
 #include "ota_backend.h"
 
+#include "esphome/components/md5/md5.h"
 #include "esphome/core/defines.h"
 
 namespace esphome::ota {
@@ -16,7 +17,22 @@ class ArduinoLibreTinyOTABackend final {
   static constexpr bool supports_compression() { return false; }
 
  private:
+  // LibreTiny uses a full 512-byte UF2 block in place, and patches it there
+  // when writing the OTA2 slot, so it never gets more than one byte less
+  static constexpr size_t MAX_FEED = 511;
+
+  bool feed_(const uint8_t *data, size_t len);
+
+  md5::MD5Digest md5_{};
+  uint8_t expected_md5_[16];
+  // The last byte is held back until end() has checked the MD5: lt_ota_end(),
+  // which Update.abort() runs too, marks the image bootable once every block is
+  // written.
+  uint8_t pending_{0};
+  bool has_pending_{false};
   bool md5_set_{false};
+  bool md5_parsed_{false};
+  bool wrote_{false};
 };
 
 std::unique_ptr<ArduinoLibreTinyOTABackend> make_ota_backend();
