@@ -47,7 +47,7 @@ class SystaBusTest : public ::testing::Test {
   void SetUp() override {
     this->bus_.set_uart_parent(&this->uart_);
     active_listener = &this->listener_;
-    this->bus_.set_aqua_sensor_data_fn(record_message);
+    this->bus_.set_aqua_publisher(record_message);
   }
   void feed_(const std::vector<uint8_t> &bytes) {
     this->uart_.push_rx(bytes);
