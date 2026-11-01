@@ -559,10 +559,15 @@ TEST_F(NoiseStreamTest, TheHandshakeTimeoutCountsFromTheStart) {
 }
 
 TEST_F(NoiseStreamTest, TheRetryWaitDoublesUpToTheCapWithJitter) {
+  static constexpr uint32_t INTERVAL_MS = 5000;
+  // Longer than the cap of 300 s
+  static constexpr uint32_t LONG_INTERVAL_MS = 400000;
+  // 400000 - 400000 / 5: the jitter takes at most 20% off
+  static constexpr uint32_t LONG_INTERVAL_SHORTEST_WAIT_MS = 320000;
   StreamProbe client(this->key_.data(), true);
-  uint32_t backoff = 5000;
+  uint32_t backoff = INTERVAL_MS;
   for (int i = 0; i < 10; i++) {
-    uint32_t wait = client.next_wait(5000);
+    uint32_t wait = client.next_wait(INTERVAL_MS);
     EXPECT_GE(wait, backoff - backoff / 5) << i;
     EXPECT_LE(wait, backoff + backoff / 5) << i;
     backoff = std::min(backoff * 2, StreamProbe::BACKOFF_MAX);
@@ -571,7 +576,7 @@ TEST_F(NoiseStreamTest, TheRetryWaitDoublesUpToTheCapWithJitter) {
   uint32_t low = UINT32_MAX;
   uint32_t high = 0;
   for (int i = 0; i < 200; i++) {
-    uint32_t wait = client.next_wait(5000);
+    uint32_t wait = client.next_wait(INTERVAL_MS);
     low = std::min(low, wait);
     high = std::max(high, wait);
   }
@@ -579,10 +584,10 @@ TEST_F(NoiseStreamTest, TheRetryWaitDoublesUpToTheCapWithJitter) {
   EXPECT_LT(low, StreamProbe::BACKOFF_MAX);
   EXPECT_GT(high, StreamProbe::BACKOFF_MAX);
   EXPECT_LE(high, StreamProbe::BACKOFF_MAX + StreamProbe::BACKOFF_MAX / 5);
-  // A configured interval over the cap is never shortened
+  // A configured interval over the cap is at most 20% shorter
   StreamProbe slow(this->key_.data(), true);
   for (int i = 0; i < 3; i++) {
-    EXPECT_GE(slow.next_wait(400000), 320000u);
+    EXPECT_GE(slow.next_wait(LONG_INTERVAL_MS), LONG_INTERVAL_SHORTEST_WAIT_MS);
   }
 }
 
