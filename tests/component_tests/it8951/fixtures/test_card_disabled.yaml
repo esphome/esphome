@@ -1,0 +1,21 @@
+esphome:
+  name: it8951-test-card-disabled
+
+esp32:
+  board: esp32-s3-devkitc-1
+  framework:
+    type: esp-idf
+
+psram:
+  mode: octal
+
+spi:
+  clk_pin: 7
+  mosi_pin: 9
+  miso_pin: 8
+
+display:
+  - platform: it8951
+    id: epaper_display
+    model: seeed-reterminal-e1003
+    show_test_card: false

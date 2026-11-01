@@ -43,3 +43,33 @@ def test_reterminal_e1003_enable_pin_used_elsewhere(
     assert len(pin_ids) == 1
     assert f"{pin_ids[0]}->set_pin(::GPIO_NUM_11);" in main_cpp
     assert "logic_supply->set_pin(" in main_cpp
+
+
+def test_test_card_defaults_on_without_writer(
+    generate_main: Callable[[str | Path], str],
+    component_fixture_path: Callable[[str], Path],
+) -> None:
+    """A display with nothing to draw shows the test card by default."""
+    main_cpp = generate_main(component_fixture_path("test_card_default.yaml"))
+
+    assert "epaper_display->show_test_card();" in main_cpp
+
+
+def test_test_card_explicitly_disabled(
+    generate_main: Callable[[str | Path], str],
+    component_fixture_path: Callable[[str], Path],
+) -> None:
+    """An explicit show_test_card: false is not overridden."""
+    main_cpp = generate_main(component_fixture_path("test_card_disabled.yaml"))
+
+    assert "show_test_card();" not in main_cpp
+
+
+def test_test_card_not_forced_when_never_updated(
+    generate_main: Callable[[str | Path], str],
+    component_fixture_path: Callable[[str], Path],
+) -> None:
+    """With update_interval: never the content comes from elsewhere; no test card clears it."""
+    main_cpp = generate_main(component_fixture_path("test_card_never.yaml"))
+
+    assert "show_test_card();" not in main_cpp
