@@ -89,12 +89,12 @@ FINAL_VALIDATE_SCHEMA = _final_validate
 
 
 async def to_code(config: ConfigType) -> None:
-    var = cg.new_Pvariable(config[CONF_ID])
-    await cg.register_component(var, config)
-    cg.add(var.set_tcp_uart(await cg.get_variable(config[CONF_TCP_UART_ID])))
+    tcp = await cg.get_variable(config[CONF_TCP_UART_ID])
     if config[CONF_ROLE] == "client":
         cg.add_define("USE_RFC2217_UART_CLIENT")
         uart.require_virtual_uart()
+        var = cg.new_Pvariable(config[CONF_ID], tcp)
+        await cg.register_component(var, config)
         cg.add(var.set_baud_rate(config[CONF_BAUD_RATE]))
         cg.add(var.set_data_bits(config[CONF_DATA_BITS]))
         cg.add(var.set_stop_bits(config[CONF_STOP_BITS]))
@@ -104,7 +104,7 @@ async def to_code(config: ConfigType) -> None:
             cg.add_global(uart.uart_ns.using)
             await uart.debug_to_code(debug, var)
         return
-    await uart.register_uart_device(var, config)
+    var = await uart.new_uart_component(config, tcp)
     # A hardware UART on ESP32 changes its line without a driver reinstall.
     full_id, _ = await cg.get_variable_with_full_id(config[CONF_UART_ID])
     if isinstance(full_id.type, MockObjClass) and full_id.type.inherits_from(
