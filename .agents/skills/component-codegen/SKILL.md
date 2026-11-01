@@ -189,18 +189,30 @@ drive a state when the restore mode is disabled. A hub that applies its switches
 reads `sw->get_initial_write_state()`, which already applies `inverted`.
 
 **Entities that each watch a register field:** when every field (register, shift, mask, match) is known at
-build time, generate the decoding (see `bq25186`). Each platform hands the hub's codegen one statement per
-entity, a `CoroPriority.FINAL` job emits one `cg.static_function` per hub with the constants as literals, and
+build time, generate the decoding (see `bq25186`). Each platform passes each entity's field to the hub's
+codegen, a `CoroPriority.FINAL` job emits one `cg.static_function` per hub with the constants as literals, and
 the hub stores a single function pointer; the entities stay plain `BinarySensor`/`TextSensor`. A binary sensor
-whose field has several values tests the value against an on-values bitmap (`match`):
+tests its field value against an on-values bitmap (`match`); a one-bit field that is on when set reads the bit:
 ```python
-value = f"(status[{reg}] >> {shift}) & {mask:#04x}"
-state = f"({match:#04x} >> ({value})) & 1"
-# add_status_statement and set_status_publisher are bq25186's own helpers, not shared ones
-add_status_statement(hub, f"{parent_ref(var)}->publish_state({state});")
-# FINAL job, per hub:
-fn = cg.static_function(f"esphome__{hub}__status_fn", cg.void, params, statements)
-cg.add(hub.set_status_publisher(fn))
+# Platform file; add_binary_status and set_status_publisher are bq25186's own helpers, not shared ones
+if (var := await sensors(key, None)) is not None:
+    add_binary_status(hub, var, reg, shift, mask, match)
+
+
+# bq25186/__init__.py
+def _state_expression(reg: int, shift: int, mask: int, match: int) -> str:
+    value = f"(status[{reg}] >> {shift}) & {mask:#04x}"
+    if mask == 0x01 and match == BIT_SET:
+        return value
+    return f"({match:#06b} >> ({value})) & 1"
+
+
+# FINAL job, per hub; binary sensors publish before text sensors
+statements = [*publisher.binary, *publisher.text]
+fn = cg.static_function(
+    f"esphome__{publisher.hub}__status_fn", cg.void, params, statements
+)
+cg.add(publisher.hub.set_status_publisher(fn))
 ```
 Store a field description per entity (a struct in a `StaticVector` sized by `cg.slot_counter`) only when the
 field is chosen at run time, as in `sen6x`, where the status bit depends on the variant read in `setup()`.
