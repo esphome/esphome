@@ -3,15 +3,17 @@
 from collections.abc import Callable
 from pathlib import Path
 
+import pytest
+
 
 def test_children_publish_through_generated_functions(
     generate_main: Callable[[str | Path], str],
     component_config_path: Callable[[str], Path],
 ) -> None:
-    main_cpp = generate_main(component_config_path("systa_bus.yaml"))
+    main_cpp = generate_main(component_config_path("hub_function.yaml"))
 
     assert (
-        "static void esphome__bus__aqua_sensor_data_fn("
+        "static void esphome__bus__aqua_fn("
         "std::span<const uint8_t> esphome__arg_message) {\n"
         "  ::tsa->publish_state("
         "systa_bus::aqua_temperature(esphome__arg_message, 4));\n"
@@ -19,13 +21,36 @@ def test_children_publish_through_generated_functions(
         "  systa_bus::publish_aqua_error_code(::error_code, esphome__arg_message);\n"
         "}"
     ) in main_cpp
-    assert (
-        "bus->set_aqua_sensor_data_fn(esphome__bus__aqua_sensor_data_fn);" in main_cpp
-    )
+    assert "bus->set_aqua_publisher(esphome__bus__aqua_fn);" in main_cpp
 
     assert (
         "static void esphome__bus__dump_fn(const char * esphome__arg_tag) {\n"
-        '  sensor::log_sensor(esphome__arg_tag, "  ", '
-        'LOG_STR_LITERAL("Temperature TSA"), ::tsa);\n'
+        "  systa_bus::dump_aqua_sensor(esphome__arg_tag, ::tsa, "
+        "systa_bus::AquaSensor::AQUA_SENSOR_TEMPERATURE_TSA);\n"
+        "  systa_bus::dump_aqua_sensor(esphome__arg_tag, ::pump, "
+        "systa_bus::AquaSensor::AQUA_SENSOR_PUMP_SPEED);\n"
+        "  systa_bus::dump_aqua_error_code(esphome__arg_tag, ::error_code);\n"
+        "}"
     ) in main_cpp
-    assert "bus->set_dump_fn(esphome__bus__dump_fn);" in main_cpp
+    assert "bus->set_dump_publisher(esphome__bus__dump_fn);" in main_cpp
+
+
+def test_platform_id_and_setup_priority_are_deprecated(
+    generate_main: Callable[[str | Path], str],
+    component_config_path: Callable[[str], Path],
+    caplog: pytest.LogCaptureFixture,
+) -> None:
+    main_cpp = generate_main(component_config_path("hub_function.yaml"))
+
+    for key in ("id", "setup_priority"):
+        assert (
+            f"[systa_bus] '{key}' on the sensor platform has no effect and is "
+            "deprecated. Will be removed in 2027.5.0"
+        ) in caplog.text
+    # Only the sensor platform sets them in the test config
+    assert "text_sensor platform" not in caplog.text
+    # No variable is created for the ignored id
+    code = [
+        line for line in main_cpp.splitlines() if not line.lstrip().startswith("//")
+    ]
+    assert not any("aqua_sensors" in line for line in code)

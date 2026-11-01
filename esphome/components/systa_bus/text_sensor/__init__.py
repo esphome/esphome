@@ -7,25 +7,21 @@ from esphome.const import CONF_MODEL
 from esphome.types import ConfigType
 
 from .. import (
-    AQUA_SENSOR_DATA,
+    AQUA_PUBLISHER,
     CONF_SYSTA_BUS_ID,
     CONF_SYSTASOLAR_AQUA,
-    DUMP,
+    DUMP_PUBLISHER,
     DUMP_TAG,
     MESSAGE,
-    SystaBus,
+    child_schema,
     systa_bus_ns,
 )
 
 CONFIG_SCHEMA = cv.typed_schema(
     {
-        # id and setup_priority are kept for old configs; they no longer do anything
-        CONF_SYSTASOLAR_AQUA: cv.COMPONENT_SCHEMA.extend(
-            {
-                cv.GenerateID(): cv.declare_id(cg.Component),
-                cv.GenerateID(CONF_SYSTA_BUS_ID): cv.use_id(SystaBus),
-                cv.Optional(CONF_ERROR_CODE): text_sensor.text_sensor_schema(),
-            }
+        CONF_SYSTASOLAR_AQUA: child_schema(
+            "text_sensor",
+            {cv.Optional(CONF_ERROR_CODE): text_sensor.text_sensor_schema()},
         ),
     },
     key=CONF_MODEL,
@@ -40,12 +36,9 @@ async def to_code(config: ConfigType) -> None:
     text_sensors = text_sensor.sub_text_sensors(config)
     if (var := await text_sensors(CONF_ERROR_CODE, None)) is None:
         return
-    AQUA_SENSOR_DATA.add(
+    AQUA_PUBLISHER.add(
         systa_bus, systa_bus_ns.publish_aqua_error_code(parent_ref(var), MESSAGE)
     )
-    DUMP.add(
-        systa_bus,
-        text_sensor.text_sensor_ns.log_text_sensor(
-            DUMP_TAG, "  ", cg.MockObj("LOG_STR_LITERAL")("Error code"), parent_ref(var)
-        ),
+    DUMP_PUBLISHER.add(
+        systa_bus, systa_bus_ns.dump_aqua_error_code(DUMP_TAG, parent_ref(var))
     )
