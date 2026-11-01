@@ -125,12 +125,13 @@ LISTENER_COUNT_DEFINE = "REMOTE_BASE_LISTENER_COUNT"
 DUMPER_COUNT_DEFINE = "REMOTE_BASE_DUMPER_COUNT"
 
 
-_register_listener = cg.slot_list(LISTENER_COUNT_DEFINE, "register_listener")
+_request_listener_slot = cg.slot_counter(LISTENER_COUNT_DEFINE)
 _request_dumper_slot = cg.slot_counter(DUMPER_COUNT_DEFINE)
 
 
 def add_listener(receiver: MockObj, listener: MockObj) -> None:
-    cg.add(_register_listener(receiver, listener))
+    _request_listener_slot(str(receiver))
+    cg.add(receiver.register_listener(listener))
 
 
 @dataclass

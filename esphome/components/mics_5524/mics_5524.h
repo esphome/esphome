@@ -48,7 +48,7 @@ class MiCS5524Component : public PollingComponent {
   void dump_config() override;
 
 #ifdef MICS_5524_GAS_COUNT
-  SLOT_LIST(MiCS5524GasSensor, gases_, register_gas_sensor, MICS_5524_GAS_COUNT)
+  void register_gas_sensor(MiCS5524GasSensor *gas) { this->gases_.push_back(gas); }
 #endif
 
   void set_conversion(micsmath::ConversionModel conversion) { this->conversion_ = conversion; }
@@ -123,6 +123,11 @@ class MiCS5524Component : public PollingComponent {
 
   uint32_t preference_key_{0};
   ESPPreferenceObject reference_pref_;
+
+  // Sized by code generation; the host unit tests run none, so the list compiles out there.
+#ifdef MICS_5524_GAS_COUNT
+  StaticVector<MiCS5524GasSensor *, MICS_5524_GAS_COUNT> gases_;
+#endif
 
   micsmath::ConversionModel conversion_{micsmath::CONVERSION_MODEL_DFROBOT};
   uint8_t samples_{4};

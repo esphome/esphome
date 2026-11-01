@@ -1,6 +1,7 @@
 from collections.abc import Awaitable, Callable, Hashable
 from dataclasses import dataclass, field
 import logging
+import sys
 from typing import Any
 
 from esphome.const import (
@@ -216,15 +217,38 @@ def slot_counter(define: str) -> Callable[..., None]:
     return request_slot
 
 
+# Define of every cg.slot_list() -> the component package that declared it. Filled at
+# import time like the action registry, so it holds no per-run state.
+_SLOT_LIST_OWNERS: dict[str, str] = {}
+
+
+def _owner_loaded(owner: str) -> bool:
+    """Whether the component package `owner` (`x` or a platform package `x.y`) is in this build."""
+    component, _, platform = owner.partition(".")
+    if platform:
+        return f"{platform}/{component}" in CORE.loaded_platforms
+    return component in CORE.loaded_integrations
+
+
 def slot_list(define: str, register: str) -> Callable[..., Expression]:
-    """Create the codegen side of a `SLOT_LIST` (esphome/core/helpers.h), or of a
-    hand-written register method that fills a `StaticVector` sized by `define`.
+    """Create the codegen side of a `SLOT_LIST` (esphome/core/helpers.h).
 
     `register_item(hub, *args)` reserves one slot for `hub` and returns the
     `hub->register(args...)` call for `cg.add()`, or for a `sub_*` setter.
     Slots are counted per hub, so `define` is the largest list any one hub of a
     `MULTI_CONF` component needs; other requests for `define` must be keyed too.
+
+    Call it in the hub component's `__init__.py`: whenever that component is in the
+    build, `define` is emitted, as 0 when nothing registered, so the C++ side needs
+    no `#ifdef`.
     """
+    caller = sys._getframe(1).f_globals
+    module = caller.get("__name__", "")
+    if not module.startswith("esphome.components.") or "__path__" not in caller:
+        raise ValueError(
+            f"cg.slot_list('{define}') must be called in a component's __init__.py, not {module}"
+        )
+    _SLOT_LIST_OWNERS[define] = module.removeprefix("esphome.components.")
     request_slot = slot_counter(define)
 
     def register_item(hub: MockObj, *args: Any) -> Expression:
@@ -232,6 +256,21 @@ def slot_list(define: str, register: str) -> Callable[..., Expression]:
         return getattr(hub, register)(*args)
 
     return register_item
+
+
+@coroutine_with_priority(CoroPriority.FINAL)
+async def emit_empty_slot_lists() -> None:
+    """Emit 0 for each `cg.slot_list()` define of a component in this build that
+    nothing registered into."""
+    state = _get_slot_counter_state()
+    for define, owner in _SLOT_LIST_OWNERS.items():
+        if (
+            define not in state.counts
+            and define not in state.emitted
+            and _owner_loaded(owner)
+        ):
+            state.emitted.add(define)
+            add_define(define, 0)
 
 
 async def gpio_pin_expression(conf):

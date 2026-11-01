@@ -16,11 +16,13 @@ DOMAIN = "tca8418"
 AUTO_LOAD = ["key_provider", "gpio_expander"]
 MULTI_CONF = True
 
-_register_listener = cg.slot_list("TCA8418_LISTENER_COUNT", "register_listener")
+# Each keypad keeps its listeners in a fixed size list; the define is the largest count any one keypad needs
+_request_listener_slot = cg.slot_counter("TCA8418_LISTENER_COUNT")
 
 
 async def register_listener(keypad: cg.MockObj, var: cg.MockObj) -> None:
-    cg.add(_register_listener(keypad, var))
+    _request_listener_slot(str(keypad))
+    cg.add(keypad.register_listener(var))
 
 
 CONF_GPI_EVENTS = "gpi_events"

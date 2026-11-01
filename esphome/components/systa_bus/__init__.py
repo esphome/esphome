@@ -28,12 +28,13 @@ FINAL_VALIDATE_SCHEMA = uart.final_validate_device_schema(
     "systa_bus", baud_rate=9600, require_rx=True
 )
 
-_register_listener = cg.slot_list("SYSTA_BUS_LISTENER_COUNT", "register_listener")
+_request_listener_slot = cg.slot_counter("SYSTA_BUS_LISTENER_COUNT")
 
 
 async def register_systa_bus_listener(systa_bus: MockObj, var: MockObj) -> None:
-    """Register a listener with its bus."""
-    cg.add(_register_listener(systa_bus, var))
+    """Register a listener with its bus and count it for the compile-time listener storage."""
+    _request_listener_slot(str(systa_bus))
+    cg.add(systa_bus.register_listener(var))
 
 
 async def to_code(config: ConfigType) -> None:

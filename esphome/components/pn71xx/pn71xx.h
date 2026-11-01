@@ -174,13 +174,9 @@ class PN71xx : public nfc::Nfcc, public Component {
   void set_polling_on();
   bool polling_enabled() { return this->polling_enabled_; }
 
-#ifdef PN71XX_ON_TAG_TRIGGER_COUNT
   SLOT_LIST(nfc::NfcOnTagTrigger, triggers_ontag_, register_ontag_trigger, PN71XX_ON_TAG_TRIGGER_COUNT)
-#endif
-#ifdef PN71XX_ON_TAG_REMOVED_TRIGGER_COUNT
   SLOT_LIST(nfc::NfcOnTagTrigger, triggers_ontagremoved_, register_ontagremoved_trigger,
             PN71XX_ON_TAG_REMOVED_TRIGGER_COUNT)
-#endif
 
   template<typename F> void add_on_emulated_tag_scan_callback(F &&callback) {
     this->on_emulated_tag_scan_callback_.add(std::forward<F>(callback));

@@ -29,7 +29,7 @@ PylontechBattery = pylontech_ns.class_("PylontechBattery")
 
 CV_NUM_BATTERIES = cv.int_range(1, 16)
 
-_register_listener = cg.slot_list("PYLONTECH_LISTENER_COUNT", "register_listener")
+_request_listener_slot = cg.slot_counter("PYLONTECH_LISTENER_COUNT")
 _request_battery_slot = cg.slot_counter("PYLONTECH_BATTERY_COUNT")
 _request_cell_battery_slot = cg.slot_counter("PYLONTECH_CELL_BATTERY_COUNT")
 
@@ -56,6 +56,7 @@ async def register_listener(
     """
     hub = await cg.get_variable(config[CONF_PYLONTECH_ID])
     hub_key = str(hub)
+    _request_listener_slot(hub_key)
     data = _get_data()
     key = (hub_key, config[CONF_BATTERY])
     if key not in data.batteries:
@@ -65,7 +66,7 @@ async def register_listener(
         data.cell_batteries.add(key)
         _request_cell_battery_slot(hub_key)
         cg.add(hub.add_cell_battery(config[CONF_BATTERY]))
-    cg.add(_register_listener(hub, listener))
+    cg.add(hub.register_listener(listener))
 
 
 PYLONTECH_COMPONENT_SCHEMA = cv.Schema(

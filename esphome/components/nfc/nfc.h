@@ -84,7 +84,10 @@ class NfcTagListener {
 class Nfcc {
  public:
 #ifdef NFC_TAG_LISTENER_COUNT
-  SLOT_LIST(NfcTagListener, tag_listeners_, register_listener, NFC_TAG_LISTENER_COUNT)
+  void register_listener(NfcTagListener *listener) { this->tag_listeners_.push_back(listener); }
+
+ protected:
+  StaticVector<NfcTagListener *, NFC_TAG_LISTENER_COUNT> tag_listeners_;
 #endif
 };
 

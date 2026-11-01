@@ -31,12 +31,10 @@ class GPS final : public PollingComponent, public uart::UARTDevice {
   SUB_SENSOR(hdop)
 
  public:
-#ifdef GPS_LISTENER_COUNT
   void register_listener(GPSListener *listener) {
     listener->parent_ = this;
     this->listeners_.push_back(listener);
   }
-#endif
   float get_setup_priority() const override { return setup_priority::HARDWARE; }
 
   void dump_config() override;
@@ -56,9 +54,7 @@ class GPS final : public PollingComponent, public uart::UARTDevice {
   bool has_time_{false};
 
   TinyGPSPlus tiny_gps_;
-#ifdef GPS_LISTENER_COUNT
-  StaticVector<GPSListener *, GPS_LISTENER_COUNT> listeners_;
-#endif
+  [[no_unique_address]] SlotList<GPSListener *, GPS_LISTENER_COUNT> listeners_;
 };
 
 }  // namespace esphome::gps

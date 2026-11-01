@@ -62,33 +62,31 @@ APIs.
    known at compile time, so it should never be a `std::vector`. Use `cg.slot_list()` with the `SLOT_LIST`
    macro: each call reserves a slot for that hub and returns the register call (for `cg.add()` or a `sub_*`
    setter). After every `to_code` has run, the define holds the largest count any one hub needs, so every
-   hub of a `MULTI_CONF` component fits. When nothing registers, no define is emitted and the storage plus
-   its registration method compile out entirely.
+   hub of a `MULTI_CONF` component fits. Declare it in the hub component's `__init__.py`: whenever that
+   component is in the build the define exists, as 0 when nothing registered, and a list of 0 takes no space.
    ```python
    # hub component's __init__.py
-   _register_listener = cg.slot_list("MY_COMPONENT_LISTENER_COUNT", "register_listener")
+   register_listener = cg.slot_list("MY_COMPONENT_LISTENER_COUNT", "register_listener")
 
 
+   # a platform of the hub
    async def to_code(config: ConfigType) -> None:
        ...
        hub = await cg.get_variable(config[CONF_MY_COMPONENT_ID])
-       cg.add(_register_listener(hub, var))
+       cg.add(register_listener(hub, var))
    ```
    ```cpp
    class MyComponent : public Component {
     public:
-   #ifdef MY_COMPONENT_LISTENER_COUNT
      SLOT_LIST(MyComponentListener, listeners_, register_listener, MY_COMPONENT_LISTENER_COUNT)
-   #else
-     SLOT_LIST_EMPTY(MyComponentListener, listeners_)
-   #endif
    ```
-   Both macros go in a public section. `SLOT_LIST_EMPTY` is an always-empty list that takes no space, so
-   loops over `listeners_` compile to nothing without their own `#ifdef`; older lists leave out the `#else`
-   and guard each loop instead. When registering takes more than a `push_back` (a struct entry), keep a
-   hand-written method and `StaticVector`, still registered through `cg.slot_list()`. Use `cg.slot_counter()`
-   with the hub as the key, `_request_slot(str(hub))`, only when the C++ side adds itself to the list (from
-   its own `setup()`, say), so codegen emits no register call.
+   No `#ifdef` around the macro or the loops that walk the list: with a count of 0 they compile to nothing.
+   Keep an `#if MY_COMPONENT_LISTENER_COUNT` only around code that needs a registered child's own component
+   (its headers, its entity type). When registering takes more than a `push_back` (a struct entry), keep a
+   hand-written method over a `SlotList<Entry, MY_COMPONENT_LISTENER_COUNT>` member, still registered through
+   `cg.slot_list()`. Use `cg.slot_counter()` with the hub as the key, `_request_slot(str(hub))`, when the C++
+   side adds itself to the list (from its own `setup()`, say) or when the define gates more than the list;
+   that define is absent when nothing requested a slot, so its storage sits behind `#ifdef`.
    Request slots from `to_code`, not from a job that runs after `CoroPriority.FINAL`; a late request
    raises rather than silently undercounting.
 

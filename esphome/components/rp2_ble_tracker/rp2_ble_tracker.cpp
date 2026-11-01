@@ -19,9 +19,6 @@ static constexpr uint32_t SCAN_START_RETRY_MS = 1000;
 static constexpr float BLE_SCAN_UNIT_MS = 0.625f;
 
 void RP2BLETracker::setup() {
-  // Receive the controller's scan reports; the controller queues them from the
-  // BTstack packet handler (IRQ) and delivers here on the main loop.
-  this->parent_->register_scan_listener(this);
   // Merged (and unmerged) frames go to the shared dispatcher; scan_continuous_
   // is read at each delivery to decide unclaimed-device logging.
   this->merger_.bind(&this->dispatcher_, &this->scan_continuous_, TAG);

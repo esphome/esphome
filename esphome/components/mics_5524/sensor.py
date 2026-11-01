@@ -1,6 +1,5 @@
 """MiCS-5524 sensor platform: one entry per module, one sub-sensor per configured gas."""
 
-from functools import partial
 import logging
 
 from esphome import automation, pins
@@ -89,7 +88,7 @@ MIN_SAMPLE_INTERVAL_MS = 16
 # Conversions per reading run back to back inside one loop pass.
 MAX_SAMPLE_COUNT = 16
 
-_register_gas_sensor = cg.slot_list("MICS_5524_GAS_COUNT", "register_gas_sensor")
+_request_gas_slot = cg.slot_counter("MICS_5524_GAS_COUNT")
 
 # The generated adc entry lives in the validated config so the ID pass sees its ID.
 _KEY_GENERATED_ADC = "_generated_adc"
@@ -452,9 +451,10 @@ async def to_code(config: ConfigType) -> None:
         if gas_key not in config:
             continue
         resolved = _resolve_gas(gas_key, config)
+        _request_gas_slot(str(var))
         await sensors(
             gas_key,
-            partial(_register_gas_sensor, var),
+            var.register_gas_sensor,
             resolved.p0,
             resolved.p1,
             resolved.min_ppm,

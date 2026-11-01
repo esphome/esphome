@@ -42,9 +42,7 @@ class Duco : public uart::UARTDevice, public Component {
 
   void set_disable_crc(bool disable_crc) { this->disable_crc_ = disable_crc; }
 
-#ifdef DUCO_DEVICE_COUNT
   void register_device(DucoDevice *device) { this->pending_.push_back({device, 0, 0, false}); }
-#endif
 
   /// Forget device's open request, for a device that will not send again.
   void close_request(DucoDevice *device);
@@ -60,15 +58,11 @@ class Duco : public uart::UARTDevice, public Component {
 
   bool parse_byte_(uint8_t byte);
   void reset_frame_();
-#ifdef DUCO_DEVICE_COUNT
   void update_warning_();  // warn while any device's previous request went unanswered
-#endif
   void finalize_message_();
   uint8_t next_id_();
 
-#ifdef DUCO_DEVICE_COUNT
-  StaticVector<DucoPendingRequest, DUCO_DEVICE_COUNT> pending_;
-#endif
+  [[no_unique_address]] SlotList<DucoPendingRequest, DUCO_DEVICE_COUNT> pending_;
   std::array<uint8_t, MAX_FRAME_SIZE> rx_buffer_{};
   uint32_t last_byte_{0};
   uint8_t rx_size_{0};
