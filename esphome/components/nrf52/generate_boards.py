@@ -11,7 +11,6 @@ from __future__ import annotations
 from collections.abc import Iterable, Iterator
 from dataclasses import dataclass
 from pathlib import Path
-import re
 import subprocess
 import sys
 import tempfile
@@ -19,8 +18,6 @@ import tempfile
 from devicetree import dtlib
 import yaml
 
-# The SoC line of a hardware model v1 <board>_defconfig, such as CONFIG_SOC_NRF52840_QIAA=y
-DEFCONFIG_SOC_RE = re.compile(r"^CONFIG_SOC_(NRF52\d+)_\w+=y$", re.MULTILINE)
 CDC_ACM_COMPATIBLE = "zephyr,cdc-acm-uart"
 # Searched in each devicetree root, in this order (cmake/modules/pre_dt.cmake). dts/vendor is
 # new in Zephyr 4.x; missing directories are skipped as the build does.
@@ -54,8 +51,8 @@ class BoardInfo:
     cdc_acm: tuple[str, ...]
 
 
-def _hwmv2_targets(board_yml: Path) -> Iterator[BoardTarget]:
-    """Yield the nRF52 targets of a board.yml (hardware model v2, Zephyr 3.7 and newer)."""
+def _board_yml_targets(board_yml: Path) -> Iterator[BoardTarget]:
+    """Yield the nRF52 targets of a board.yml."""
     data = yaml.safe_load(board_yml.read_text(encoding="utf-8"))
     boards = data.get("boards") or [data["board"]]
     for board in boards:
@@ -80,28 +77,12 @@ def _hwmv2_targets(board_yml: Path) -> Iterator[BoardTarget]:
                     yield BoardTarget(target, soc_name, dts)
 
 
-def _hwmv1_targets(board_dir: Path) -> Iterator[BoardTarget]:
-    """Yield the nRF52 targets of a board directory (hardware model v1, before Zephyr 3.7).
-
-    Each target has a <target>.dts and a <target>_defconfig that selects the SoC.
-    """
-    for dts in sorted(board_dir.glob("*.dts")):
-        defconfig = board_dir / f"{dts.stem}_defconfig"
-        if not defconfig.is_file():
-            continue
-        if match := DEFCONFIG_SOC_RE.search(defconfig.read_text(encoding="utf-8")):
-            yield BoardTarget(dts.stem, match.group(1).lower(), dts)
-
-
 def find_targets(boards_dir: Path) -> list[BoardTarget]:
     """Find the nRF52 board targets under the boards directory of a board root."""
     targets: list[BoardTarget] = []
     board_ymls = sorted(boards_dir.glob("**/board.yml"))
     for board_yml in board_ymls:
-        targets.extend(_hwmv2_targets(board_yml))
-    if not board_ymls:
-        for board_dir in sorted(p for p in boards_dir.glob("arm/*") if p.is_dir()):
-            targets.extend(_hwmv1_targets(board_dir))
+        targets.extend(_board_yml_targets(board_yml))
     return targets
 
 

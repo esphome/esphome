@@ -41,7 +41,7 @@ def _write(path: Path, content: str) -> None:
     path.write_text(content, encoding="utf-8")
 
 
-def test_hwmv2_targets(tmp_path: Path) -> None:
+def test_board_yml_targets(tmp_path: Path) -> None:
     board = tmp_path / "boards" / "seeed" / "xiao_ble"
     _write(
         board / "board.yml",
@@ -66,19 +66,6 @@ def test_hwmv2_targets(tmp_path: Path) -> None:
             "nrf52840",
             board / "xiao_ble_nrf52840_sense.dts",
         ),
-    ]
-
-
-def test_hwmv1_targets(tmp_path: Path) -> None:
-    board = tmp_path / "boards" / "arm" / "xiao_ble"
-    _write(board / "xiao_ble.dts", "")
-    _write(board / "xiao_ble_defconfig", "CONFIG_SOC_NRF52840_QIAA=y\n")
-    other = tmp_path / "boards" / "arm" / "nucleo"
-    _write(other / "nucleo.dts", "")
-    _write(other / "nucleo_defconfig", "CONFIG_SOC_STM32F401XE=y\n")
-
-    assert find_targets(tmp_path / "boards") == [
-        BoardTarget("xiao_ble", "nrf52840", board / "xiao_ble.dts")
     ]
 
 
@@ -134,7 +121,7 @@ def test_boards_py_is_formatted_as_generated() -> None:
 
 @pytest.mark.parametrize(
     ("framework", "expected"),
-    [("2.0.0", "2.6.1"), ("2.9.2", "2.9.2"), ("3.1.0", "2.9.2"), ("9.0.0", "3.4.0")],
+    [("2.6.1", "2.9.2"), ("2.9.2", "2.9.2"), ("3.1.0", "2.9.2"), ("9.0.0", "3.4.0")],
 )
 def test_get_board_picks_sdk_version(
     monkeypatch: pytest.MonkeyPatch, framework: str, expected: str
@@ -142,7 +129,7 @@ def test_get_board_picks_sdk_version(
     monkeypatch.setattr(
         boards,
         "BOARDS",
-        {v: {"b": {"soc": v}} for v in ("3.4.0", "2.6.1", "2.9.2", "3.2.0")},
+        {v: {"b": {"soc": v}} for v in ("3.4.0", "2.9.2", "3.2.0")},
     )
     assert boards.get_board(cv.Version.parse(framework), "b") == {"soc": expected}
     assert boards.get_board(cv.Version.parse(framework), "unknown") is None

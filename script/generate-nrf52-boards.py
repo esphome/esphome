@@ -25,7 +25,7 @@ from esphome.helpers import write_file_if_changed
 
 # nRF Connect SDK versions to read the boards of. Code that uses the data picks the newest
 # version that is not newer than the configured framework version.
-SDK_VERSIONS = ("2.6.1", "2.9.2", "3.2.0", "3.4.0")
+SDK_VERSIONS = ("2.9.2", "3.2.0", "3.4.0")
 SDK_NRF_REPO = "https://github.com/nrfconnect/sdk-nrf"
 # Only what the device trees and their includes need
 SPARSE_PATHS = ("/west.yml", "/boards/", "/dts/", "/include/")
