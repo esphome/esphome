@@ -292,6 +292,9 @@ AudioReaderState AudioReader::http_read_() {
 
       delay(READ_WRITE_TIMEOUT_MS);
     }
+  } else {
+    // A full buffer means the consumer is behind, not that the server went quiet
+    this->last_data_read_ms_ = millis();
   }
 
   return AudioReaderState::READING;
