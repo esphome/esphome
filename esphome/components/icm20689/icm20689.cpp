@@ -111,11 +111,13 @@ bool ICM20689Component::update_data(motion::MotionData &data) {
   data.angular_rate[motion::Y_AXIS] = encode_value<int16_t>(&raw_data[10]) * gyro_factor;
   data.angular_rate[motion::Z_AXIS] = encode_value<int16_t>(&raw_data[12]) * gyro_factor;
 
-  if (!this->temperature_callback_.empty()) {
+#ifdef USE_MOTION_TEMPERATURE_PUBLISHER
+  if (this->temperature_publisher_ != nullptr) {
     // Datasheet formula: temperature (°C) = raw / 326.8 + 25.
     const float temperature = encode_value<int16_t>(&raw_data[6]) / 326.8f + 25.0f;
-    this->temperature_callback_.call(temperature);
+    this->temperature_publisher_(temperature);
   }
+#endif
 
   return true;
 }

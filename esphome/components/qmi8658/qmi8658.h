@@ -94,7 +94,6 @@ class QMI8658Component : public motion::MotionComponent, public i2c::I2CDevice {
   void set_accel_odr(QMI8658AccelODR o) { this->accel_odr_ = o; }
   void set_gyro_range(QMI8658GyroRange r) { this->gyro_range_ = r; }
   void set_gyro_odr(QMI8658GyroODR o) { this->gyro_odr_ = o; }
-  template<typename F> void add_temperature_listener(F &&cb) { this->temperature_callback_.add(std::forward<F>(cb)); }
 
  protected:
   bool update_data(motion::MotionData &data) override;
@@ -104,8 +103,6 @@ class QMI8658Component : public motion::MotionComponent, public i2c::I2CDevice {
   QMI8658AccelODR accel_odr_{QMI8658_ACCEL_ODR_1000};
   QMI8658GyroRange gyro_range_{QMI8658_GYRO_RANGE_2048};
   QMI8658GyroODR gyro_odr_{QMI8658_GYRO_ODR_1000};
-
-  LazyCallbackManager<void(float)> temperature_callback_{};
 };
 
 }  // namespace esphome::qmi8658

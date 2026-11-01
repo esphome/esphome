@@ -3,13 +3,27 @@ import logging
 import re
 
 from esphome import automation
+from esphome.automation import parent_ref
 import esphome.codegen as cg
+from esphome.components.sensor import new_sensor, sensor_schema
 import esphome.config_validation as cv
-from esphome.const import CONF_ID, CONF_ON_ERROR, CONF_ON_SUCCESS, CONF_UPDATE_INTERVAL
+from esphome.const import (
+    CONF_ID,
+    CONF_ON_ERROR,
+    CONF_ON_SUCCESS,
+    CONF_TEMPERATURE,
+    CONF_TYPE,
+    CONF_UPDATE_INTERVAL,
+    DEVICE_CLASS_TEMPERATURE,
+    ICON_THERMOMETER,
+    STATE_CLASS_MEASUREMENT,
+    UNIT_CELSIUS,
+)
 from esphome.core import ID
 from esphome.cpp_generator import MockObj, MockObjClass
 import esphome.final_validate as fv
 from esphome.helpers import fnv1_hash_object_id
+from esphome.types import ConfigType
 
 _LOGGER = logging.getLogger(__name__)
 
@@ -43,6 +57,43 @@ DATA_PUBLISHER = cg.HubFunction(
     define="USE_MOTION_DATA_PUBLISHER",
 )
 DATA = DATA_PUBLISHER.param("data")
+
+# Each IMU's on-chip temperature sensor adds its publish of a new reading
+TEMPERATURE_PUBLISHER = cg.HubFunction(
+    "temperature",
+    cg.void,
+    [(cg.float_, "temperature")],
+    define="USE_MOTION_TEMPERATURE_PUBLISHER",
+)
+TEMPERATURE = TEMPERATURE_PUBLISHER.param("temperature")
+
+
+def temperature_sensor_schema(
+    hub_id_key: str,
+    hub_class: MockObjClass,
+    *,
+    accuracy_decimals: int = 2,
+    type_key: bool = True,
+) -> cv.Schema:
+    """Schema of an IMU temperature sensor; `type_key` adds the optional `type: temperature`."""
+    schema = sensor_schema(
+        unit_of_measurement=UNIT_CELSIUS,
+        icon=ICON_THERMOMETER,
+        accuracy_decimals=accuracy_decimals,
+        state_class=STATE_CLASS_MEASUREMENT,
+        device_class=DEVICE_CLASS_TEMPERATURE,
+    ).extend({cv.GenerateID(hub_id_key): cv.use_id(hub_class)})
+    if type_key:
+        schema = schema.extend({cv.Optional(CONF_TYPE): cv.one_of(CONF_TEMPERATURE)})
+    return schema
+
+
+async def temperature_sensor_to_code(config: ConfigType, hub_id_key: str) -> None:
+    """Create an IMU temperature sensor and publish it from its hub's readings."""
+    var = await new_sensor(config)
+    hub = await cg.get_variable(config[hub_id_key])
+    TEMPERATURE_PUBLISHER.add(hub, parent_ref(var).publish_state(TEMPERATURE))
+
 
 SENSOR_SCHEMA = cv.Schema(
     {

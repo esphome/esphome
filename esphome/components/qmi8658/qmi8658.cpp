@@ -116,11 +116,13 @@ bool QMI8658Component::update_data(motion::MotionData &data) {
   data.angular_rate[motion::Y_AXIS] = raw_y * scale;
   data.angular_rate[motion::Z_AXIS] = raw_z * scale;
 
-  if (this->temperature_callback_.empty())
+#ifdef USE_MOTION_TEMPERATURE_PUBLISHER
+  if (this->temperature_publisher_ == nullptr)
     return true;
   // Temperature: signed 16-bit, °C = raw / 256
   int16_t raw_t = encode_value_le<int16_t>(&raw_data[TEMP_OFFS]);
-  this->temperature_callback_.call(raw_t / 256.0f);
+  this->temperature_publisher_(raw_t / 256.0f);
+#endif
   return true;
 }
 
