@@ -152,7 +152,6 @@ TEST_F(BQ25186StatusTest, ChargingAndChargeDoneDecodeTheChargeStatus) {
     this->poll_(static_cast<uint8_t>(value << 5));
     EXPECT_EQ(this->binary_(CHARGING).state, CHARGING_ON[value]);
     EXPECT_EQ(this->binary_(CHARGE_DONE).state, DONE_ON[value]);
-    // The neighbouring bits do not change the decode
     this->poll_(static_cast<uint8_t>((value << 5) | 0x9F));
     EXPECT_EQ(this->binary_(CHARGING).state, CHARGING_ON[value]);
     EXPECT_EQ(this->binary_(CHARGE_DONE).state, DONE_ON[value]);
