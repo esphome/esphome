@@ -1059,3 +1059,38 @@ button:
       - remote_transmitter.transmit_raw:
           code: [1000, -1000]
           carrier_frequency: !lambda return 38000;
+
+script:
+  # The lambdas modify their by-value argument
+  - id: remote_transmitter_send_scaled
+    parameters:
+      x: int
+    then:
+      - remote_transmitter.transmit_raw:
+          code: !lambda |-
+            x *= 2;
+            return {x, -1000};
+          carrier_frequency: !lambda return x *= 1000;
+          repeat:
+            times: !lambda return x *= 1;
+            wait_time: !lambda x *= 3; return x;
+      - remote_transmitter.transmit_rc_switch_raw:
+          code: !lambda x *= 1; return std::string(x, '1');
+      - remote_transmitter.transmit_rc_switch_type_a:
+          group: !lambda x *= 1; return std::string("11001");
+          device: !lambda return std::string(x *= 1, '0');
+          state: !lambda return (x *= 1) > 0;
+      - remote_transmitter.transmit_rc_switch_type_b:
+          address: !lambda x *= 2; return x;
+          channel: !lambda return x *= 1;
+          state: !lambda return x > 0;
+          protocol: !lambda x *= 1; return remote_base::rc_switch_protocol(x);
+      - remote_transmitter.transmit_rc_switch_type_c:
+          family: !lambda x *= 1; return std::string("a");
+          group: !lambda return x *= 1;
+          device: !lambda x += 1; return x;
+          state: !lambda return x > 0;
+      - remote_transmitter.transmit_rc_switch_type_d:
+          group: !lambda x *= 1; return std::string("a");
+          device: !lambda return x *= 1;
+          state: !lambda x *= 1; return true;

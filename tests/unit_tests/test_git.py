@@ -982,6 +982,166 @@ def test_clone_or_update_clones_missing_repo(
     assert len(clone_calls) > 0
 
 
+_PRIVATE_HINT = (
+    "Could not clone https://github.com/test/repo: the repository does not exist, "
+    "or it is private and needs a username and password. Check the owner and "
+    "repository name in the source."
+)
+_CREDENTIALS_HINT = (
+    "Could not clone https://***@github.com/test/repo: the repository does not "
+    "exist, or the username and password used cannot access it. Check the owner "
+    "and repository name in the source, and the credentials."
+)
+
+
+@pytest.mark.parametrize(
+    ("url", "username", "password", "stderr", "expected"),
+    [
+        (
+            "https://github.com/test/repo",
+            None,
+            None,
+            (
+                b"fatal: could not read Username for 'https://github.com': "
+                b"No such device or address\n"
+            ),
+            _PRIVATE_HINT,
+        ),
+        (
+            "https://github.com/test/repo",
+            None,
+            None,
+            (
+                b"fatal: could not read Username for 'https://github.com': "
+                b"terminal prompts disabled\n"
+            ),
+            _PRIVATE_HINT,
+        ),
+        (
+            "https://github.com/test/repo",
+            None,
+            None,
+            (
+                b"remote: Repository not found.\n"
+                b"fatal: repository 'https://github.com/test/repo/' not found\n"
+            ),
+            _PRIVATE_HINT,
+        ),
+        (
+            "https://github.com/test/repo",
+            None,
+            None,
+            b"fatal: repository 'https://github.com/test/repo/' not found\n",
+            _PRIVATE_HINT,
+        ),
+        (
+            "https://github.com/test/repo",
+            None,
+            None,
+            b"fatal: Authentication failed for 'https://github.com/test/repo/'\n",
+            _PRIVATE_HINT,
+        ),
+        (
+            "https://github.com/test/repo",
+            None,
+            None,
+            (
+                b"fatal: could not read Password for 'https://user@github.com': "
+                b"terminal prompts disabled\n"
+            ),
+            _PRIVATE_HINT,
+        ),
+        (
+            "https://github.com/test/repo",
+            "user",
+            "secret",
+            (
+                b"fatal: Authentication failed for "
+                b"'https://user:secret@github.com/test/repo/'\n"
+            ),
+            _CREDENTIALS_HINT.replace("https://***@", "https://"),
+        ),
+        (
+            "https://user:secret@github.com/test/repo",
+            None,
+            None,
+            (
+                b"fatal: Authentication failed for "
+                b"'https://user:secret@github.com/test/repo/'\n"
+            ),
+            _CREDENTIALS_HINT,
+        ),
+        (
+            "git@github.com:test/repo.git",
+            None,
+            None,
+            (
+                b"ERROR: Repository not found.\n"
+                b"fatal: Could not read from remote repository.\n"
+            ),
+            (
+                "Could not clone git@github.com:test/repo.git: the repository does not "
+                "exist, or the SSH key used cannot access it. Check the owner and "
+                "repository name in the source, and the key."
+            ),
+        ),
+    ],
+)
+def test_clone_or_update_explains_missing_repository(
+    tmp_path: Path,
+    mock_subprocess_run: Mock,
+    url: str,
+    username: str | None,
+    password: str | None,
+    stderr: bytes,
+    expected: str,
+) -> None:
+    """A clone of a repository git cannot see names the URL and the likely cause."""
+    CORE.config_path = tmp_path / "test.yaml"
+    repo_dir = _compute_repo_dir(url, None, "test")
+
+    def fail_clone(cmd: list[str], **kwargs: Any) -> Mock:
+        # Leave a partial clone behind, as git does.
+        _simulate_cloned_repo(repo_dir)
+        return _git_failure(stderr)
+
+    mock_subprocess_run.side_effect = fail_clone
+
+    with pytest.raises(GitCommandError) as exc_info:
+        git.clone_or_update(
+            url=url,
+            ref=None,
+            refresh=None,
+            domain="test",
+            username=username,
+            password=password,
+        )
+
+    message = str(exc_info.value)
+    assert message.split(" Git reported: ", maxsplit=1)[0] == expected
+    assert "secret" not in message
+    assert exc_info.value.stderr == stderr.decode()
+    assert not repo_dir.exists()
+
+
+def test_clone_or_update_keeps_other_clone_errors(
+    tmp_path: Path, mock_run_git_command: Mock
+) -> None:
+    """Clone failures unrelated to a missing repository keep git's message."""
+    CORE.config_path = tmp_path / "test.yaml"
+    stderr = "fatal: couldn't find remote ref refs/heads/nope"
+    mock_run_git_command.side_effect = GitCommandError(
+        "couldn't find remote ref refs/heads/nope", stderr=stderr
+    )
+
+    with pytest.raises(GitCommandError) as exc_info:
+        git.clone_or_update(
+            url="https://github.com/test/repo", ref=None, refresh=None, domain="test"
+        )
+
+    assert str(exc_info.value) == "couldn't find remote ref refs/heads/nope"
+
+
 def test_clone_or_update_with_none_refresh_always_updates(
     tmp_path: Path, mock_run_git_command: Mock
 ) -> None:

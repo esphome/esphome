@@ -1,8 +1,6 @@
 from esphome.components import binary_sensor, remote_base
 from esphome.types import ConfigType
 
-from . import FILTER_SOURCE_FILES  # noqa: F401  pylint: disable=unused-import
-
 DEPENDENCIES = ["remote_receiver"]
 
 CONFIG_SCHEMA = remote_base.validate_binary_sensor
