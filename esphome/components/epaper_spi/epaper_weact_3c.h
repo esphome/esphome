@@ -19,7 +19,7 @@ class EPaperWeAct3C : public EPaperBWR {
       : EPaperBWR(name, width, height, init_sequence, init_sequence_length, invert_red, /*red_sets_black=*/true) {}
 
  protected:
-  void set_window_();
+  virtual void set_window();
   void refresh_screen(bool partial) override;
   void power_on() override;
   void power_off() override;

@@ -694,6 +694,67 @@ def _gdey029z95_config(**overrides: Any) -> ConfigType:
     return config
 
 
+def test_waveshare_7p5in_hd_b_uses_the_ssd1677_bwr_driver() -> None:
+    """The 7.5" HD (B) uses EPaperSSD1677BWR, and its 528 rows are the last of the controller's 680 gates."""
+    model = MODELS["WAVESHARE-7.5IN-HD-B"]
+
+    assert model.class_name == "EPaperSSD1677BWR"
+    assert model.get_dimensions({}) == (880, 528)
+    assert model.get_constructor_args({}) == (152,)
+    assert model.get_init_sequence({}) == (
+        (0x0C, 0xAE, 0xC7, 0xC3, 0xC0, 0x40),
+        (0x01, 0xA7, 0x02, 0x01),
+        (0x11, 0x01),
+        (0x3C, 0x01),
+        (0x18, 0x80),
+    )
+
+
+@pytest.mark.parametrize(
+    ("dimensions", "error"),
+    [
+        ({"width": 880, "height": 528}, None),
+        (
+            {"width": 880, "height": 528, "offset_height": 153},
+            "must not exceed 680 gates",
+        ),
+        ({"width": 880, "height": 680, "offset_height": 0}, None),
+        (
+            {"width": 880, "height": 681, "offset_height": 0},
+            "must not exceed 680 gates",
+        ),
+        ({"width": 960, "height": 528}, None),
+        ({"width": 968, "height": 528}, "must not exceed 960 sources"),
+    ],
+)
+def test_waveshare_7p5in_hd_b_dimensions_must_fit_the_controller(
+    set_core_config: SetCoreConfigCallable,
+    set_component_config: Callable[[str, Any], None],
+    dimensions: dict[str, int],
+    error: str | None,
+) -> None:
+    """The SSD1677 has 960 sources for the width and 680 gates for offset_height plus the height."""
+    set_core_config(
+        PlatformFramework.ESP32_IDF,
+        platform_data={KEY_BOARD: "esp32dev", KEY_VARIANT: VARIANT_ESP32},
+    )
+    set_component_config("spi", {"id": "spi_bus", "clk_pin": 18, "mosi_pin": 19})
+    config = {
+        "id": "test_display",
+        "model": "waveshare-7.5in-hd-b",
+        "dc_pin": 21,
+        "reset_pin": 22,
+        "busy_pin": 23,
+        "dimensions": dimensions,
+    }
+
+    if error is None:
+        run_schema_validation(config)
+    else:
+        with pytest.raises(cv.Invalid, match=error):
+            run_schema_validation(config)
+
+
 def test_gdey029z95_uses_the_good_display_driver() -> None:
     """The GDEY029Z95 uses EPaperGoodDisplay3C with the WeAct init sequence."""
     model = MODELS[GDEY029Z95.upper()]
