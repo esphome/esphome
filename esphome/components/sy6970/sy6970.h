@@ -82,10 +82,10 @@ inline bool is_charging(uint8_t charge_status) {
   return charge_status == CHARGE_STATUS_PRE_CHARGE || charge_status == CHARGE_STATUS_FAST_CHARGE;
 }
 
-// Indexed by status value; the last string is the fallback
+// Indexed by status value; every value of the masked field has a string
 PROGMEM_STRING_TABLE(BusStatusStrings, "No Input", "USB SDP", "USB CDP", "USB DCP", "HVDCP", "Adapter",
-                     "Non-Standard Adapter", "OTG", "Unknown");
-PROGMEM_STRING_TABLE(ChargeStatusStrings, "Not Charging", "Pre-charge", "Fast Charge", "Charge Done", "Unknown");
+                     "Non-Standard Adapter", "OTG");
+PROGMEM_STRING_TABLE(ChargeStatusStrings, "Not Charging", "Pre-charge", "Fast Charge", "Charge Done");
 PROGMEM_STRING_TABLE(NtcStatusStrings, "Normal", "Unknown", "Warm", "Cool", "Unknown", "Cold", "Hot", "Unknown");
 
 class SY6970Component final : public PollingComponent, public i2c::I2CDevice {
