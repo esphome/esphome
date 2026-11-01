@@ -227,6 +227,7 @@ TEST_F(BQ25186StatusTest, BinarySensorsPublishBeforeTextSensorsInFieldOrder) {
     this->text_(i).add_on_state_callback([&order, i](const std::string &) { order.push_back(TEXT_BASE + i); });
   this->poll_(0);
   std::vector<size_t> expected;
+  expected.reserve(BINARY_COUNT + TEXT_COUNT);
   for (size_t i = 0; i < BINARY_COUNT; i++)
     expected.push_back(i);
   for (size_t i = 0; i < TEXT_COUNT; i++)
