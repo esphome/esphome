@@ -1,4 +1,7 @@
 #include <gtest/gtest.h>
+#include <cstring>
+#include <vector>
+
 #include "esphome/components/fujitsu_general/fujitsu_general.h"
 
 namespace esphome::fujitsu_general::testing {
@@ -249,6 +252,104 @@ TEST(FujitsuGeneralCaptureTest, DecodesEveryCapturedFrame) {
               frame.fan_mode);
     EXPECT_EQ(decode_swing_mode(get_nibble(frame.bytes, FUJITSU_GENERAL_SWING_NIBBLE)), frame.swing_mode);
   }
+}
+
+// Transmissions, read back from the timings the component hands the transmitter.
+
+namespace {
+
+// Records the last transmission instead of sending it
+class CapturingTransmitter : public remote_base::RemoteTransmitterBase {
+ public:
+  CapturingTransmitter() : RemoteTransmitterBase(nullptr) {}
+  int sends{0};
+  remote_base::RawTimings last;
+
+ protected:
+  void send_internal(uint32_t, uint32_t) override {
+    this->sends++;
+    this->last = this->temp_.get_data();
+  }
+};
+
+// The off command is a util message that transmit_state() sends; the .cpp keeps its code private.
+constexpr uint8_t MESSAGE_TYPE_OFF = 0x02;
+
+// The bytes of a transmission: a header mark and space, then a mark and a short or long space per
+// bit, least significant bit first, then a trailer mark and space.
+std::vector<uint8_t> bytes_of(const remote_base::RawTimings &timings) {
+  std::vector<uint8_t> bytes((timings.size() - 4) / 16);
+  for (size_t bit = 0; bit < bytes.size() * 8; bit++) {
+    if (-timings[3 + 2 * bit] > 800)
+      bytes[bit / 8] |= 1 << (bit % 8);
+  }
+  return bytes;
+}
+
+std::vector<uint8_t> util_frame(uint8_t command) {
+  return {0x14, 0x63, 0x00, 0x10, 0x10, command, static_cast<uint8_t>(255 - command)};
+}
+
+std::vector<uint8_t> captured(const char *label) {
+  for (const auto &frame : CAPTURED_FRAMES) {
+    if (strcmp(frame.label, label) == 0)
+      return {std::begin(frame.bytes), std::end(frame.bytes)};
+  }
+  return {};
+}
+
+struct Fixture {
+  FujitsuGeneralClimate sut;
+  CapturingTransmitter transmitter;
+
+  // 16 degrees with everything else at its first value, so the state frames match the captures.
+  Fixture() {
+    this->sut.set_transmitter(&this->transmitter);
+    this->sut.target_temperature = 16;
+    this->sut.fan_mode = climate::CLIMATE_FAN_AUTO;
+    this->sut.swing_mode = climate::CLIMATE_SWING_OFF;
+  }
+
+  // Transmits the state the way a climate call does
+  void send_mode(climate::ClimateMode mode) { this->sut.make_call().set_mode(mode).perform(); }
+
+  std::vector<uint8_t> sent() const { return bytes_of(this->transmitter.last); }
+};
+
+}  // namespace
+
+TEST(FujitsuGeneralTransmitTest, UtilCommandsSendASevenByteFrameAndLeaveTheStateAlone) {
+  Fixture f;
+  f.send_mode(climate::CLIMATE_MODE_HEAT);
+  ASSERT_EQ(f.sent(), captured("on at 16"));
+
+  for (uint8_t command : {FUJITSU_GENERAL_MESSAGE_TYPE_ECONOMY, FUJITSU_GENERAL_MESSAGE_TYPE_NUDGE_VERTICAL,
+                          FUJITSU_GENERAL_MESSAGE_TYPE_NUDGE_HORIZONTAL}) {
+    SCOPED_TRACE(static_cast<int>(command));
+    f.sut.transmit_util(command);
+    EXPECT_EQ(f.sent(), util_frame(command));
+    EXPECT_EQ(f.sut.mode, climate::CLIMATE_MODE_HEAT);
+    EXPECT_FLOAT_EQ(f.sut.target_temperature, 16);
+  }
+
+  // The unit is still on, so the next state frame carries no power-on flag
+  f.send_mode(climate::CLIMATE_MODE_HEAT);
+  EXPECT_EQ(f.sent(), captured("down to 16"));
+  EXPECT_EQ(f.transmitter.sends, 5);
+}
+
+TEST(FujitsuGeneralTransmitTest, OffIsAUtilFrameAndTheNextStateFrameTurnsTheUnitOn) {
+  Fixture f;
+  f.send_mode(climate::CLIMATE_MODE_HEAT);
+  f.send_mode(climate::CLIMATE_MODE_HEAT);
+  ASSERT_EQ(f.sent(), captured("down to 16"));
+
+  f.send_mode(climate::CLIMATE_MODE_OFF);
+  EXPECT_EQ(f.sent(), util_frame(MESSAGE_TYPE_OFF));
+  EXPECT_EQ(f.sut.mode, climate::CLIMATE_MODE_OFF);
+
+  f.send_mode(climate::CLIMATE_MODE_HEAT);
+  EXPECT_EQ(f.sent(), captured("on at 16"));
 }
 
 }  // namespace esphome::fujitsu_general::testing
