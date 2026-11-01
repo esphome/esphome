@@ -1,7 +1,6 @@
 import esphome.codegen as cg
 from esphome.components import uart
 import esphome.config_validation as cv
-from esphome.cpp_generator import MockObj
 from esphome.types import ConfigType
 
 CODEOWNERS = ["@Mat931"]
@@ -28,13 +27,24 @@ FINAL_VALIDATE_SCHEMA = uart.final_validate_device_schema(
     "systa_bus", baud_rate=9600, require_rx=True
 )
 
-_request_listener_slot = cg.slot_counter("SYSTA_BUS_LISTENER_COUNT")
-
-
-async def register_systa_bus_listener(systa_bus: MockObj, var: MockObj) -> None:
-    """Register a listener with its bus and count it for the compile-time listener storage."""
-    _request_listener_slot(str(systa_bus))
-    cg.add(systa_bus.register_listener(var))
+# Children publish from each SystaSolar Aqua sensor data frame
+AQUA_SENSOR_DATA = cg.HubFunction(
+    "aqua_sensor_data_fn",
+    cg.void,
+    [(cg.std_ns.class_("span").template(cg.uint8.operator("const")), "message")],
+    setter="set_aqua_sensor_data_fn",
+    define="USE_SYSTA_BUS_AQUA_SENSOR_DATA",
+)
+MESSAGE = AQUA_SENSOR_DATA.param("message")
+# Children's dump_config lines, logged under the bus's tag
+DUMP = cg.HubFunction(
+    "dump_fn",
+    cg.void,
+    [(cg.const_char_ptr, "tag")],
+    setter="set_dump_fn",
+    define="USE_SYSTA_BUS_AQUA_SENSOR_DATA",
+)
+DUMP_TAG = DUMP.param("tag")
 
 
 async def to_code(config: ConfigType) -> None:

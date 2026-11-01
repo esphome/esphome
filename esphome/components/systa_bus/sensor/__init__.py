@@ -1,8 +1,8 @@
+from esphome.automation import parent_ref
 import esphome.codegen as cg
 from esphome.components import sensor
 import esphome.config_validation as cv
 from esphome.const import (
-    CONF_ID,
     CONF_MODEL,
     DEVICE_CLASS_TEMPERATURE,
     ICON_PERCENT,
@@ -14,14 +14,15 @@ from esphome.const import (
 from esphome.types import ConfigType
 
 from .. import (
+    AQUA_SENSOR_DATA,
     CONF_SYSTA_BUS_ID,
     CONF_SYSTASOLAR_AQUA,
+    DUMP,
+    DUMP_TAG,
+    MESSAGE,
     SystaBus,
-    register_systa_bus_listener,
     systa_bus_ns,
 )
-
-SystaSolarAquaSensor = systa_bus_ns.class_("SystaSolarAquaSensor", cg.Component)
 
 CONF_TEMPERATURE_TSA = "temperature_tsa"
 CONF_TEMPERATURE_TSE = "temperature_tse"
@@ -54,11 +55,31 @@ MODEL_SENSORS = {
     },
 }
 
+# Aqua sensor data: config key -> (dump name, value decoded from the message)
+_AQUA_VALUES = {
+    CONF_TEMPERATURE_TSA: (
+        "Temperature TSA",
+        systa_bus_ns.aqua_temperature(MESSAGE, 4),
+    ),
+    CONF_TEMPERATURE_TSE: (
+        "Temperature TSE",
+        systa_bus_ns.aqua_temperature(MESSAGE, 6),
+    ),
+    CONF_TEMPERATURE_TWU: (
+        "Temperature TWU",
+        systa_bus_ns.aqua_temperature(MESSAGE, 8),
+    ),
+    CONF_TEMPERATURE_TW2: (
+        "Temperature TW2",
+        systa_bus_ns.aqua_temperature(MESSAGE, 10),
+    ),
+    CONF_PUMP_SPEED: ("Pump Speed", MESSAGE[12]),
+}
+
 CONFIG_SCHEMA = cv.typed_schema(
     {
-        CONF_SYSTASOLAR_AQUA: cv.COMPONENT_SCHEMA.extend(
+        CONF_SYSTASOLAR_AQUA: cv.Schema(
             {
-                cv.GenerateID(): cv.declare_id(SystaSolarAquaSensor),
                 cv.GenerateID(CONF_SYSTA_BUS_ID): cv.use_id(SystaBus),
                 **{
                     cv.Optional(key): schema
@@ -74,16 +95,16 @@ CONFIG_SCHEMA = cv.typed_schema(
 
 
 async def to_code(config: ConfigType) -> None:
-    var = cg.new_Pvariable(config[CONF_ID])
-    await cg.register_component(var, config)
-
+    systa_bus = await cg.get_variable(config[CONF_SYSTA_BUS_ID])
     # The schema only lets a model's own keys through, so unconfigured ones are skipped here
     sensors = sensor.sub_sensors(config)
-    await sensors(CONF_TEMPERATURE_TSA, var.set_temperature_tsa_sensor)
-    await sensors(CONF_TEMPERATURE_TSE, var.set_temperature_tse_sensor)
-    await sensors(CONF_TEMPERATURE_TWU, var.set_temperature_twu_sensor)
-    await sensors(CONF_TEMPERATURE_TW2, var.set_temperature_tw2_sensor)
-    await sensors(CONF_PUMP_SPEED, var.set_pump_speed_sensor)
-
-    systa_bus = await cg.get_variable(config[CONF_SYSTA_BUS_ID])
-    await register_systa_bus_listener(systa_bus, var)
+    for key, (name, value) in _AQUA_VALUES.items():
+        if (var := await sensors(key, None)) is None:
+            continue
+        AQUA_SENSOR_DATA.add(systa_bus, parent_ref(var).publish_state(value))
+        DUMP.add(
+            systa_bus,
+            sensor.sensor_ns.log_sensor(
+                DUMP_TAG, "  ", cg.MockObj("LOG_STR_LITERAL")(name), parent_ref(var)
+            ),
+        )
