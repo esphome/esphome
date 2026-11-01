@@ -16,6 +16,9 @@ systa_bus:
 sensor:
   - platform: systa_bus
     model: systasolar_aqua
+    # Old configs may still set these; they are accepted and ignored
+    id: aqua_sensors
+    setup_priority: 600
     temperature_tsa:
       id: tsa
       name: TSA
