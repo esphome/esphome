@@ -628,6 +628,12 @@ class TestEsphomeCore:
 
         assert target.address == "test-device.local"
 
+    def test_address__host(self, target):
+        target.config = {}
+        target.config[const.PLATFORM_HOST] = {const.CONF_USE_ADDRESS: "10.0.0.100"}
+
+        assert target.address == "10.0.0.100"
+
     def test_is_esp32(self, target):
         target.data[const.KEY_CORE] = {const.KEY_TARGET_PLATFORM: "esp32"}
 

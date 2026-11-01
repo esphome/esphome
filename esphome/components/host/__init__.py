@@ -5,6 +5,7 @@ from esphome.components import network
 import esphome.config_validation as cv
 from esphome.const import (
     CONF_MAC_ADDRESS,
+    CONF_USE_ADDRESS,
     KEY_CORE,
     KEY_FRAMEWORK_VERSION,
     KEY_TARGET_FRAMEWORK,
@@ -27,6 +28,12 @@ DOMAIN = "host"
 IS_TARGET_PLATFORM = True
 
 
+def _default_use_address(config: ConfigType) -> ConfigType:
+    if CONF_USE_ADDRESS not in config:
+        config[CONF_USE_ADDRESS] = f"{CORE.name}.local"
+    return config
+
+
 def set_core_data(config: ConfigType) -> ConfigType:
     CORE.data[KEY_HOST] = {}
     CORE.data[KEY_CORE][KEY_TARGET_PLATFORM] = PLATFORM_HOST
@@ -39,8 +46,10 @@ CONFIG_SCHEMA = cv.All(
     cv.Schema(
         {
             cv.Optional(CONF_MAC_ADDRESS, default="98:35:69:ab:f6:79"): cv.mac_address,
+            cv.Optional(CONF_USE_ADDRESS): cv.string_strict,
         }
     ),
+    _default_use_address,
     # The host builds with the machine's own compiler through ninja; there
     # is no PlatformIO backend, so a CLI --toolchain must name this one
     cv.resolve_toolchain("host", (Toolchain.HOST,), Toolchain.HOST),
