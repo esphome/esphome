@@ -1094,3 +1094,13 @@ script:
           group: !lambda x *= 1; return std::string("a");
           device: !lambda return x *= 1;
           state: !lambda x *= 1; return true;
+  # Field lambdas take the script arguments by value, so they may modify them
+  - id: remote_transmitter_nec_lambda_args
+    parameters:
+      x: int
+    then:
+      - remote_transmitter.transmit_nec:
+          address: !lambda "x *= 2; return x;"
+          command: !lambda "return x *= 2;"
+          repeat:
+            times: !lambda "return x *= 2;"
