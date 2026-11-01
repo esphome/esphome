@@ -19,7 +19,7 @@ ACCELERATION_G = cv.All(cv.float_with_unit("acceleration", "(g|G)?"), cv.positiv
 
 CONFIG_SCHEMA = {}
 
-# Out-of-range values are clamped on the device to the steps the range allows.
+# Clamped on the device to the steps the range allows
 automation.register_apply_action(
     "lis3dh.set_tap_threshold",
     cv.Schema(

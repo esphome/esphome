@@ -10,14 +10,13 @@ namespace esphome::lis3dh {
 
 ESPHOME_LOG_TAG(TAG, "lis3dh");
 
-// How often CLICK_SRC is read when no interrupt pin is configured. LIR_Click stays clear,
-// so CLICK_SRC is not latched: on hardware its SCLICK, DCLICK and IA bits stayed set for
-// about 50 ms per event, and as little as 15 ms. A slower poll misses taps, which is why
-// polling runs from the scheduler rather than loop() (held to the 16 ms loop interval).
+#ifdef USE_LIS3DH_TAP
+// Unlatched CLICK_SRC bits stay set for as little as 15 ms, so poll faster than the 16 ms loop
 static constexpr uint32_t TAP_POLL_INTERVAL_MS = 10;
 
-// Interrupt and click threshold LSB in mg, indexed by range.
+// Click threshold LSB in mg, indexed by range
 static const uint16_t THRESHOLD_LSB_MG[] PROGMEM = {16, 32, 62, 186};
+#endif
 
 // g per LSB of the left-justified 16-bit sample, indexed by range. The same in every
 // operating mode, since the chip leaves the unused low bits at zero.
@@ -48,19 +47,22 @@ void LIS3DHComponent::setup() {
     this->mark_failed(LOG_STR("Failed to configure sensor"));
     return;
   }
-  // loop() only watches the tap interrupt pin. Without one, CLICK_SRC is polled from the
-  // scheduler, which keeps its interval even when the component loop runs less often.
-  if (this->tap_axes_cfg_ == 0 || this->tap_interrupt_pin_ == nullptr)
+#ifdef USE_LIS3DH_TAP
+  // loop() only watches the tap interrupt pin; without one, CLICK_SRC is polled
+  if (this->tap_axes_cfg_ == 0 || this->tap_interrupt_pin_ == nullptr) {
     this->disable_loop();
-  if (this->tap_axes_cfg_ != 0 && this->tap_interrupt_pin_ == nullptr) {
-    this->set_interval(TAP_POLL_INTERVAL_MS, [this]() {
-      const uint32_t now = millis();
-      this->check_pending_tap_(now);
-      this->read_tap_(now);
-    });
+    if (this->tap_axes_cfg_ != 0) {
+      this->set_interval(TAP_POLL_INTERVAL_MS, [this]() {
+        const uint32_t now = millis();
+        this->check_pending_tap_(now);
+        this->read_tap_(now);
+      });
+    }
   }
+#endif
 }
 
+#ifdef USE_LIS3DH_TAP
 void LIS3DHComponent::loop() {
   const uint32_t now = App.get_loop_component_start_time();
   this->check_pending_tap_(now);
@@ -72,12 +74,12 @@ void LIS3DHComponent::loop() {
 }
 
 void LIS3DHComponent::check_pending_tap_(uint32_t now) {
-  // The second tap would have been read by now; report the held single.
   if (this->tap_pending_ && now - this->tap_pending_since_ >= this->tap_double_wait_ms_ + TAP_POLL_INTERVAL_MS) {
     this->tap_pending_ = false;
     this->tap_callback_.call(this->tap_pending_axis_, this->tap_pending_negative_);
   }
 }
+#endif
 
 bool LIS3DHComponent::setup_accelerometer_() {
   // CTRL_REG1: output data rate, low-power flag and axis enable.
@@ -108,8 +110,10 @@ bool LIS3DHComponent::setup_interrupt_() {
   // from the threshold comparison. The output data registers stay unfiltered
   // (FDS = 0), so acceleration / pitch / roll still report the full gravity vector.
   uint8_t ctrl_reg2 = this->interrupt_high_pass_ ? LIS3DH_CTRL_REG2_HP_IA1 : 0x00;
+#ifdef USE_LIS3DH_TAP
   if (this->tap_axes_cfg_ != 0 && this->tap_high_pass_)
     ctrl_reg2 |= LIS3DH_CTRL_REG2_HPCLICK;
+#endif
   if (!this->write_byte(LIS3DH_REG_CTRL_REG2, ctrl_reg2))
     return false;
 
@@ -133,7 +137,8 @@ bool LIS3DHComponent::setup_interrupt_() {
       ctrl_reg6 |= LIS3DH_CTRL_REG6_I2_IA1;
     }
   }
-  // The click detector drives a pad only when an interrupt pin watches it; polling needs no routing.
+#ifdef USE_LIS3DH_TAP
+  // Route clicks to a pad only when a pin watches it
   if (this->tap_axes_cfg_ != 0 && this->tap_interrupt_pin_ != nullptr) {
     if (this->tap_pad_ == LIS3DH_INT_PIN_INT1) {
       ctrl_reg3 |= LIS3DH_CTRL_REG3_I1_CLICK;
@@ -141,6 +146,7 @@ bool LIS3DHComponent::setup_interrupt_() {
       ctrl_reg6 |= LIS3DH_CTRL_REG6_I2_CLICK;
     }
   }
+#endif
   if (!this->write_byte(LIS3DH_REG_CTRL_REG3, ctrl_reg3) || !this->write_byte(LIS3DH_REG_CTRL_REG6, ctrl_reg6))
     return false;
   if (this->interrupt_axes_cfg_ == 0)
@@ -160,41 +166,35 @@ bool LIS3DHComponent::setup_interrupt_() {
 }
 
 bool LIS3DHComponent::setup_tap_() {
-  // Like the motion interrupt, this also runs when tap detection is off, to clear a
-  // configuration left behind by earlier firmware.
-  if (this->tap_axes_cfg_ == 0)
-    return this->write_byte(LIS3DH_REG_CLICK_CFG, 0x00);
-
-  if (this->tap_interrupt_pin_ != nullptr)
-    this->tap_interrupt_pin_->setup();
-
-  // Enable the axes last, so the detector never runs with half-written settings.
-  if (!this->write_tap_threshold_() || !this->write_byte(LIS3DH_REG_TIME_LIMIT, this->tap_time_limit_) ||
-      !this->write_byte(LIS3DH_REG_TIME_LATENCY, this->tap_latency_) ||
-      !this->write_byte(LIS3DH_REG_TIME_WINDOW, this->tap_window_) ||
-      !this->write_byte(LIS3DH_REG_CLICK_CFG, this->tap_axes_cfg_))
-    return false;
-
-  // Clear anything detected while the settings were being written.
-  uint8_t src = 0;
-  this->read_byte(LIS3DH_REG_CLICK_SRC, &src);
-  return true;
+#ifdef USE_LIS3DH_TAP
+  if (this->tap_axes_cfg_ != 0) {
+    if (this->tap_interrupt_pin_ != nullptr)
+      this->tap_interrupt_pin_->setup();
+    // CLICK_THS through TIME_WINDOW in one burst. LIR_Click (CLICK_THS bit 7) stays clear: latching
+    // makes a polled CLICK_SRC read reset the double-tap state machine.
+    const uint8_t timing[] = {this->tap_threshold_, this->tap_time_limit_, this->tap_latency_, this->tap_window_};
+    // Axes last, so the detector never runs with half-written settings
+    if (!this->write_bytes(LIS3DH_REG_CLICK_THS | LIS3DH_AUTO_INCREMENT, timing, sizeof(timing)) ||
+        !this->write_byte(LIS3DH_REG_CLICK_CFG, this->tap_axes_cfg_))
+      return false;
+    // Clear anything detected while the settings were written
+    uint8_t src = 0;
+    this->read_byte(LIS3DH_REG_CLICK_SRC, &src);
+    return true;
+  }
+#endif
+  // Also runs with tap detection off, to clear a configuration left by earlier firmware
+  return this->write_byte(LIS3DH_REG_CLICK_CFG, 0x00);
 }
 
-bool LIS3DHComponent::write_tap_threshold_() {
-  // LIR_Click (bit 7) stays clear: with it set, reading CLICK_SRC while polling resets the
-  // double-tap state machine, so double taps never register and IA is never raised.
-  return this->write_byte(LIS3DH_REG_CLICK_THS, this->tap_threshold_);
-}
-
+#ifdef USE_LIS3DH_TAP
 void LIS3DHComponent::set_tap_threshold(float threshold_g) {
   const uint16_t lsb_mg = progmem_read_uint16(&THRESHOLD_LSB_MG[this->range_]);
-  // At least one step, so the detector does not fire on noise.
   const int32_t steps = static_cast<int32_t>(std::lround(threshold_g * 1000.0f / lsb_mg));
   this->tap_threshold_ = (uint8_t) std::clamp<int32_t>(steps, 1, LIS3DH_CLICK_THS_MAX);
   if (this->tap_axes_cfg_ == 0 || !this->is_in_loop_state())
     return;
-  if (!this->write_tap_threshold_()) {
+  if (!this->write_byte(LIS3DH_REG_CLICK_THS, this->tap_threshold_)) {
     this->status_set_warning(LOG_STR("Failed to set tap threshold"));
     return;
   }
@@ -207,8 +207,7 @@ void LIS3DHComponent::read_tap_(uint32_t now) {
     this->status_set_warning(LOG_STR("Failed to read tap status"));
     return;
   }
-  // LIR_Click is clear, so CLICK_SRC is live rather than latched and a bit can still be
-  // set on the next read. Only bits that have just turned on count as new events.
+  // CLICK_SRC is not latched, so act only on bits that just rose
   const uint8_t rising = src & ~this->last_tap_src_;
   this->last_tap_src_ = src;
   if (rising == 0)
@@ -217,16 +216,15 @@ void LIS3DHComponent::read_tap_(uint32_t now) {
 
   uint8_t axis;
   bool negative;
+  this->resolve_tap_axis_(src, axis, negative);
   if ((this->tap_axes_cfg_ & LIS3DH_CLICK_CFG_SINGLE) && (this->tap_axes_cfg_ & LIS3DH_CLICK_CFG_DOUBLE)) {
-    // With both enabled the chip raises IA only for a double tap. A single tap shows SCLICK
-    // without IA, as does the first tap of a double, so hold it until the double-tap
-    // window has passed.
+    // Both enabled: IA means a double tap, and a lone SCLICK is held until the window passes
     if ((rising & LIS3DH_CLICK_SRC_IA) && (src & LIS3DH_CLICK_SRC_DCLICK)) {
       this->tap_pending_ = false;
-      this->resolve_tap_axis_(src, axis, negative);
       this->double_tap_callback_.call(axis, negative);
     } else if ((rising & LIS3DH_CLICK_SRC_SCLICK) && !this->tap_pending_) {
-      this->resolve_tap_axis_(src, this->tap_pending_axis_, this->tap_pending_negative_);
+      this->tap_pending_axis_ = axis;
+      this->tap_pending_negative_ = negative;
       this->tap_pending_since_ = now;
       this->tap_pending_ = true;
     }
@@ -235,7 +233,6 @@ void LIS3DHComponent::read_tap_(uint32_t now) {
 
   if ((rising & LIS3DH_CLICK_SRC_IA) == 0)
     return;
-  this->resolve_tap_axis_(src, axis, negative);
   if (src & LIS3DH_CLICK_SRC_SCLICK)
     this->tap_callback_.call(axis, negative);
   if (src & LIS3DH_CLICK_SRC_DCLICK)
@@ -243,8 +240,7 @@ void LIS3DHComponent::read_tap_(uint32_t now) {
 }
 
 void LIS3DHComponent::resolve_tap_axis_(uint8_t src, uint8_t &axis, bool &negative) const {
-  // Report the tap in the axis_map frame, so it matches the acceleration sensors. The base
-  // matrix is used so that level calibration does not change which axis is reported.
+  // In the axis_map frame; the base matrix, so level calibration does not move it
   const uint8_t chip_axis = (src & LIS3DH_CLICK_SRC_X) ? 0 : (src & LIS3DH_CLICK_SRC_Y) ? 1 : 2;
   axis = 0;
   float weight = 0.0f;
@@ -257,6 +253,7 @@ void LIS3DHComponent::resolve_tap_axis_(uint8_t src, uint8_t &axis, bool &negati
   }
   negative = ((src & LIS3DH_CLICK_SRC_SIGN) != 0) != (weight < 0.0f);
 }
+#endif
 
 void LIS3DHComponent::dump_config() {
   ESP_LOGCONFIG(TAG, "LIS3DH:");
@@ -281,6 +278,7 @@ void LIS3DHComponent::dump_config() {
                   this->interrupt_latched_ ? LOG_STR_LITERAL(", latched") : LOG_STR_LITERAL(""),
                   this->interrupt_threshold_, this->interrupt_duration_);
   }
+#ifdef USE_LIS3DH_TAP
   if (this->tap_axes_cfg_ != 0) {
     ESP_LOGCONFIG(TAG,
                   "  Tap detection: %s\n"
@@ -292,6 +290,7 @@ void LIS3DHComponent::dump_config() {
                   this->tap_threshold_, this->tap_time_limit_, this->tap_latency_, this->tap_window_);
     LOG_PIN("    Interrupt pin: ", this->tap_interrupt_pin_);
   }
+#endif
   MotionComponent::dump_config();
 }
 

@@ -51,8 +51,7 @@ motion:
       latched: false
       active_high: false
       high_pass_filter: true
-    # Double tap only on INT1 (the motion interrupt uses INT2), read only when the
-    # interrupt pin is asserted.
+    # Double tap through the INT1 pin (motion uses INT2)
     tap:
       threshold: 2g
       time_limit: 20ms

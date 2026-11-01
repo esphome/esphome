@@ -7,6 +7,9 @@ from esphome.components import i2c
 from esphome.components.const import (
     CONF_ACCELEROMETER_ODR,
     CONF_ACCELEROMETER_RANGE,
+    CONF_ON_DOUBLE_TAP,
+    CONF_ON_TAP,
+    CONF_TAP,
     CONF_WINDOW,
 )
 from esphome.components.motion import AXES, motion_schema, new_motion_component
@@ -29,11 +32,8 @@ CONF_AXES = "axes"
 CONF_LATCHED = "latched"
 CONF_ACTIVE_HIGH = "active_high"
 CONF_HIGH_PASS_FILTER = "high_pass_filter"
-CONF_TAP = "tap"
 CONF_TIME_LIMIT = "time_limit"
 CONF_LATENCY = "latency"
-CONF_ON_TAP = "on_tap"
-CONF_ON_DOUBLE_TAP = "on_double_tap"
 
 # Enum values must match the C++ enums.
 LIS3DHRange = lis3dh_ns.enum("LIS3DHRange")
@@ -82,8 +82,7 @@ INTERRUPT_PIN_OPTIONS = LIS3DHInterruptPin.options(
 # INT1_CFG high-event bit per axis.
 INT_CFG_HIGH_EVENT = {"x": 0x02, "y": 0x08, "z": 0x20}
 
-# Interrupt and tap threshold LSB in mg, per range. INT1_THS and CLICK_THS
-# hold seven bits.
+# INT1_THS and CLICK_THS LSB in mg, per range; both are 7-bit registers.
 THRESHOLD_LSB_MG = {"2G": 16, "4G": 32, "8G": 62, "16G": 186}
 THRESHOLD_MAX_REG = 0x7F
 
@@ -95,8 +94,6 @@ TIME_WINDOW_MAX_REG = 0xFF
 # A tap lasts a few milliseconds; at lower data rates most taps fall between samples.
 TAP_MIN_RECOMMENDED_ODR_HZ = 400
 
-# Automations get the tapped axis (0 = x, 1 = y, 2 = z, after axis_map) and
-# whether the tap was on the negative side of it.
 _TAP_ARGS = [(cg.uint8, "axis"), (bool, "negative")]
 _TAP_CALLBACK_AUTOMATIONS = (
     automation.CallbackAutomation(CONF_ON_TAP, "add_on_tap_callback", _TAP_ARGS),
@@ -131,9 +128,7 @@ INTERRUPT_SCHEMA = cv.Schema(
         cv.Optional(CONF_PIN, default="INT1"): cv.enum(
             INTERRUPT_PIN_OPTIONS, upper=True
         ),
-        cv.Optional(CONF_THRESHOLD, default="1.1g"): cv.All(
-            cv.float_with_unit("acceleration", "(g|G)?"), cv.positive_float
-        ),
+        cv.Optional(CONF_THRESHOLD, default="1.1g"): ACCELERATION_G,
         cv.Optional(CONF_DURATION, default="0ms"): cv.positive_time_period_milliseconds,
         cv.Optional(CONF_AXES, default=AXES): _axes,
         cv.Optional(CONF_LATCHED, default=True): cv.boolean,
@@ -142,10 +137,7 @@ INTERRUPT_SCHEMA = cv.Schema(
     }
 )
 
-# Defaults are 10 / 20 / 100 samples at 400Hz. How hard a tap reads depends on the
-# enclosure, so the threshold can also be changed at run time. The high-pass filter
-# is on by default: without it gravity counts towards the threshold, so the axis
-# facing down stays over it at rest and is reported on every tap.
+# High-pass on by default: without it gravity holds the down axis over the threshold.
 TAP_SCHEMA = cv.All(
     cv.Schema(
         {
@@ -191,17 +183,20 @@ def _validate_odr_mode(config: ConfigType) -> ConfigType:
     return config
 
 
-def _validate_interrupt(config: ConfigType) -> ConfigType:
-    if (interrupt := config.get(CONF_INTERRUPT)) is None:
-        return config
-    range_key = config[CONF_ACCELEROMETER_RANGE]
-    threshold = interrupt[CONF_THRESHOLD]
+def _check_threshold(threshold: float, range_key: str, block: str) -> None:
     max_g = THRESHOLD_MAX_REG * THRESHOLD_LSB_MG[range_key] / 1000
     if threshold > max_g:
         raise cv.Invalid(
             f"'threshold' can be at most {max_g:g}g with 'accelerometer_range: {range_key}'",
-            path=[CONF_INTERRUPT, CONF_THRESHOLD],
+            path=[block, CONF_THRESHOLD],
         )
+
+
+def _validate_interrupt(config: ConfigType) -> ConfigType:
+    if (interrupt := config.get(CONF_INTERRUPT)) is None:
+        return config
+    threshold = interrupt[CONF_THRESHOLD]
+    _check_threshold(threshold, config[CONF_ACCELEROMETER_RANGE], CONF_INTERRUPT)
     if not interrupt[CONF_HIGH_PASS_FILTER] and threshold <= 1.0:
         _LOGGER.warning(
             "lis3dh: a threshold of %sg or less includes gravity and may keep the interrupt "
@@ -222,13 +217,7 @@ def _validate_interrupt(config: ConfigType) -> ConfigType:
 def _validate_tap(config: ConfigType) -> ConfigType:
     if (tap := config.get(CONF_TAP)) is None:
         return config
-    range_key = config[CONF_ACCELEROMETER_RANGE]
-    max_g = THRESHOLD_MAX_REG * THRESHOLD_LSB_MG[range_key] / 1000
-    if tap[CONF_THRESHOLD] > max_g:
-        raise cv.Invalid(
-            f"'threshold' can be at most {max_g:g}g with 'accelerometer_range: {range_key}'",
-            path=[CONF_TAP, CONF_THRESHOLD],
-        )
+    _check_threshold(tap[CONF_THRESHOLD], config[CONF_ACCELEROMETER_RANGE], CONF_TAP)
     odr_key = config[CONF_ACCELEROMETER_ODR]
     times = [(CONF_TIME_LIMIT, TIME_LIMIT_MAX_REG)]
     if CONF_ON_DOUBLE_TAP in tap:
@@ -251,8 +240,6 @@ def _validate_tap(config: ConfigType) -> ConfigType:
                 path=[CONF_TAP, key],
             )
     if CONF_INTERRUPT_PIN in tap and CONF_ON_TAP in tap and CONF_ON_DOUBLE_TAP in tap:
-        # With both enabled the chip raises its interrupt only for double taps, so single
-        # taps would never be read.
         raise cv.Invalid(
             "'interrupt_pin' can't be used with both 'on_tap' and 'on_double_tap'; "
             "remove it to poll instead",
@@ -331,6 +318,7 @@ async def to_code(config: ConfigType) -> None:
         )
 
     if (tap := config.get(CONF_TAP)) is not None:
+        cg.add_define("USE_LIS3DH_TAP")
         odr_key = config[CONF_ACCELEROMETER_ODR]
         axes_cfg = 0
         for axis in tap[CONF_AXES]:
@@ -345,7 +333,8 @@ async def to_code(config: ConfigType) -> None:
         cg.add(
             var.set_tap(
                 axes_cfg,
-                min(time_limit, TIME_LIMIT_MAX_REG),
+                time_limit,
+                # Validated only with on_double_tap; unused otherwise
                 min(latency, TIME_LATENCY_MAX_REG),
                 min(window, TIME_WINDOW_MAX_REG),
                 tap[CONF_HIGH_PASS_FILTER],
