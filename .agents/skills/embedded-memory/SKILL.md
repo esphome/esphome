@@ -85,12 +85,11 @@ APIs.
    No `#ifdef` around the macro or the loops that walk the list: with a count of 0 they compile to nothing.
    Keep an `#if MY_COMPONENT_LISTENER_COUNT` only around code that needs a registered child's own component
    (its headers, its entity type). When registering takes more than a `push_back` (a struct entry), keep a
-   hand-written method, preceded by `SLOT_LIST_REQUIRES(MY_COMPONENT_LISTENER_COUNT)`, over a
-   `[[no_unique_address]] SlotList<Entry, MY_COMPONENT_LISTENER_COUNT>` member (the attribute keeps an empty
-   list free), still registered through
-   `cg.slot_list()`. Use `cg.slot_counter()` with the hub as the key, `_request_slot(str(hub))`, when the C++
-   side adds itself to the list (from its own `setup()`, say) or when the define gates more than the list;
-   that define is absent when nothing requested a slot, so its storage sits behind `#ifdef`.
+   hand-written method behind `SLOT_LIST_REQUIRES(count)` over a `[[no_unique_address]] SlotList<Entry, count>`
+   member, still registered with `cg.slot_list()`; the attribute keeps an empty list free. Use
+   `cg.slot_counter()` with the hub as the key, `_request_slot(str(hub))`, when the C++ side adds itself to
+   the list (from its own `setup()`, say) or when the define gates more than the list; that define is absent
+   when nothing requested a slot, so its storage sits behind `#ifdef`.
    Request slots from `to_code`, not from a job that runs after `CoroPriority.FINAL`; a late request
    raises rather than silently undercounting.
 

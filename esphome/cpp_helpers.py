@@ -253,6 +253,7 @@ async def emit_empty_slot_lists() -> None:
 
     state = _get_slot_counter_state()
     # the domains whose sources are copied into the build: components and platforms
+    # (a MULTI_CONF hub has no config entry in the C++ unit-test harness, so its test sets the define)
     built = {name.rpartition(".")[2] for name, _ in iter_components(CORE.config)}
     # a define set by hand, such as by a test manifest override, is left alone
     done = state.emitted | state.counts.keys() | {d.name for d in CORE.defines}
