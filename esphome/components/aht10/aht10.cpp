@@ -120,10 +120,7 @@ void AHT10Component::read_data_() {
   uint32_t raw_temperature = encode_uint24(data[3] & 0xF, data[4], data[5]);
   uint32_t raw_humidity = encode_uint24(data[1], data[2], data[3]) >> 4;
 
-  if (this->temperature_sensor_ != nullptr) {
-    float temperature = ((200.0f * static_cast<float>(raw_temperature)) / AHT10_DIVISOR) - 50.0f;
-    this->temperature_sensor_->publish_state(temperature);
-  }
+  PUBLISH_STATE(this->temperature_sensor_, ((200.0f * static_cast<float>(raw_temperature)) / AHT10_DIVISOR) - 50.0f);
   if (this->humidity_sensor_ != nullptr) {
     float humidity = raw_humidity == 0 ? NAN : static_cast<float>(raw_humidity) * 100.0f / AHT10_DIVISOR;
     if (std::isnan(humidity)) {

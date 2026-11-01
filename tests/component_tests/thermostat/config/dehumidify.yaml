@@ -1,0 +1,31 @@
+---
+esphome:
+  name: test
+
+logger:
+
+esp32:
+  board: esp32dev
+
+sensor:
+  - platform: template
+    id: temp_sensor
+    lambda: return 21.0;
+
+climate:
+  - platform: thermostat
+    id: thermo
+    name: Thermo
+    sensor: temp_sensor
+    humidity_sensor: temp_sensor
+    min_idle_time: 30s
+    min_cooling_off_time: 300s
+    min_cooling_run_time: 300s
+    idle_action:
+      - logger.log: idle
+    cool_action:
+      - logger.log: cool
+    humidity_control_dehumidify_action:
+      - logger.log: dehumidify
+    humidity_control_off_action:
+      - logger.log: humidity off

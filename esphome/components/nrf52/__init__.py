@@ -203,15 +203,15 @@ def set_framework(config: ConfigType) -> ConfigType:
     )(config)
 
 
-# Bootloaders flashed over USB serial DFU: the Adafruit ones with adafruit-nrfutil, the factory Open
-# DFU bootloader with Nordic's nrfutil; mcuboot uses mcumgr instead
-SERIAL_DFU_BOOTLOADERS = (
+ADAFRUIT_BOOTLOADERS = (
     BOOTLOADER_ADAFRUIT,
     BOOTLOADER_ADAFRUIT_NRF52_SD132,
     BOOTLOADER_ADAFRUIT_NRF52_SD140_V6,
     BOOTLOADER_ADAFRUIT_NRF52_SD140_V7,
-    BOOTLOADER_NRF,
 )
+# Bootloaders flashed over USB serial DFU: the Adafruit ones with adafruit-nrfutil, the factory Open
+# DFU bootloader with Nordic's nrfutil; mcuboot uses mcumgr instead
+SERIAL_DFU_BOOTLOADERS = (*ADAFRUIT_BOOTLOADERS, BOOTLOADER_NRF)
 BOOTLOADERS = [*SERIAL_DFU_BOOTLOADERS, BOOTLOADER_MCUBOOT]
 
 
@@ -347,6 +347,23 @@ def _validate_open_dfu_toolchain(config: ConfigType) -> None:
         )
 
 
+def _warn_old_framework_version(config: ConfigType) -> None:
+    # The PlatformIO toolchain already warns that it is deprecated as a whole
+    if CORE.using_toolchain_platformio:
+        return
+    if (version := config[CONF_FRAMEWORK].get(CONF_VERSION)) is None:
+        return
+    # Remove before 2027.5.0
+    if cv.Version.parse(cv.version_number(version)) < cv.Version(2, 9, 2):
+        _LOGGER.warning(
+            "nRF52 framework version %s is deprecated and will be removed in ESPHome 2027.5.0. "
+            "Please use version 2.9.2 or newer, or remove 'version:' under 'framework:' "
+            "to use the recommended version (%s).",
+            version,
+            RECOMMENDED_SDK_NRF_VERSION,
+        )
+
+
 def _final_validate(config):
 
     # Remove before 2027.2.0
@@ -355,6 +372,7 @@ def _final_validate(config):
             "The 'platformio' toolchain for nRF52 is deprecated and will be removed in ESPHome 2027.2.0. "
             "Please use 'toolchain: sdk-nrf' instead."
         )
+    _warn_old_framework_version(config)
     _validate_open_dfu_toolchain(config)
 
     if CONF_DFU in config:
@@ -462,6 +480,8 @@ async def to_code(config: ConfigType) -> None:
         if (len(bootloader)) > 3:
             sd_version = bootloader[3][1:]
             cg.add_define("USE_SOFTDEVICE_VERSION", int(sd_version))
+    if config[KEY_BOOTLOADER] in ADAFRUIT_BOOTLOADERS:
+        cg.add_define("USE_BOOTLOADER_ADAFRUIT")
 
     zephyr_setup_preferences()
     zephyr_to_code(config)
@@ -1130,9 +1150,11 @@ def _generate_cmake_lists(pch_on: bool) -> bool:
     # modules and discover them through EXTRA_ZEPHYR_MODULES (a CMake list, set
     # before find_package(Zephyr) so the modules are picked up). Only
     # framework-agnostic libraries actually compile under Zephyr.
-    from esphome.components.zephyr.library import generate_zephyr_modules
+    from esphome.components.zephyr.library import DEFINES_VAR, generate_zephyr_modules
 
     module_dirs = generate_zephyr_modules(list(CORE.platformio_libraries.values()))
+    defines = [flag for flag in compile_flags if flag.startswith("-D")]
+    options = [flag for flag in compile_flags if not flag.startswith("-D")]
 
     lines = [
         "cmake_minimum_required(VERSION 3.20.0)",
@@ -1144,6 +1166,9 @@ def _generate_cmake_lists(pch_on: bool) -> bool:
     if module_dirs:
         modules = ";".join(str(d).replace("\\", "/") for d in module_dirs)
         lines += [f'set(EXTRA_ZEPHYR_MODULES "{modules}")', ""]
+        if defines:
+            escaped = ";".join(cmake_escape(flag) for flag in defines)
+            lines += [f'set({DEFINES_VAR} "{escaped}")', ""]
 
     lines += [
         "find_package(Zephyr REQUIRED)",
@@ -1156,8 +1181,6 @@ def _generate_cmake_lists(pch_on: bool) -> bool:
         'target_include_directories(app PRIVATE "${CMAKE_CURRENT_LIST_DIR}/../src")',
     ]
 
-    defines = [flag for flag in compile_flags if flag.startswith("-D")]
-    options = [flag for flag in compile_flags if not flag.startswith("-D")]
     if defines:
         lines += [
             "",

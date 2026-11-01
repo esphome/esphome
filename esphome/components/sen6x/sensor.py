@@ -333,7 +333,7 @@ async def to_code(config: ConfigType) -> None:
         if (pressure := co2_cfg.get(CONF_AMBIENT_PRESSURE_COMPENSATION)) is not None:
             cg.add(var.set_ambient_pressure_compensation(pressure))
         await cg.add_variable(
-            var.set_ambient_pressure_source,
+            var.set_ambient_pressure_source_sensor,
             co2_cfg.get(CONF_AMBIENT_PRESSURE_COMPENSATION_SOURCE),
         )
 
