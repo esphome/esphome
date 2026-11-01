@@ -59,12 +59,19 @@ CONFIG_SCHEMA = cv.All(
 )
 
 
+def _state_expression(reg: int, shift: int, mask: int, match: int) -> str:
+    """The C++ expression for whether the field reads as on."""
+    value = f"(status[{reg}] >> {shift}) & {mask:#04x}"
+    if mask == 0x01 and match == _BIT_SET:
+        return value
+    return f"({match:#06b} >> ({value})) & 1"
+
+
 async def to_code(config: ConfigType) -> None:
     hub = await cg.get_variable(config[CONF_BQ25186_ID])
     sensors = binary_sensor.sub_binary_sensors(config)
     for key, reg, shift, mask, match, _ in _FIELDS:
         if (var := await sensors(key, None)) is None:
             continue
-        value = f"(status[{reg}] >> {shift}) & {mask:#04x}"
-        state = value if match == _BIT_SET else f"({match:#06b} >> ({value})) & 1"
+        state = _state_expression(reg, shift, mask, match)
         add_status_statement(hub, f"{parent_ref(var)}->publish_state({state});")
