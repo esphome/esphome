@@ -546,6 +546,20 @@ template<typename... Ts> class Condition {
   }
 };
 
+/// The bounds of an on_value_range trigger; a NaN bound is not checked.
+struct ValueRange {
+  float min;
+  float max;
+  /// Whether x is in range; with both bounds NaN the previous result is kept.
+  bool contains(float x, bool previous) const {
+    if (std::isnan(this->min))
+      return std::isnan(this->max) ? previous : x <= this->max;
+    if (std::isnan(this->max))
+      return x >= this->min;
+    return this->min <= x && x <= this->max;
+  }
+};
+
 template<typename... Ts> class Automation;
 
 template<typename... Ts> class Trigger {
