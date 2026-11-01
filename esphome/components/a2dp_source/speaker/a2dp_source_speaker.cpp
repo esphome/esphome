@@ -43,6 +43,26 @@ static bool profile_initialized = false;
 static std::atomic<bool> classic_profile_ready{false};
 static constexpr size_t PCM_BUFFER_BYTES = 32768;
 static constexpr uint8_t MAX_CONNECT_ATTEMPTS = 3;
+#ifdef USE_ESP32_BLE_TRACKER
+static bool scan_continuous_before_a2dp = false;  // NOLINT(cppcoreguidelines-avoid-non-const-global-variables)
+static bool scan_continuous_saved = false;        // NOLINT(cppcoreguidelines-avoid-non-const-global-variables)
+
+static void pause_ble_scan(esp32_ble_tracker::ESP32BLETracker *tracker) {
+  if (!scan_continuous_saved) {
+    scan_continuous_before_a2dp = tracker->get_scan_continuous();
+    scan_continuous_saved = true;
+  }
+  tracker->stop_scan();
+}
+
+static void resume_ble_scan(esp32_ble_tracker::ESP32BLETracker *tracker) {
+  if (scan_continuous_saved) {
+    tracker->set_scan_continuous(scan_continuous_before_a2dp);
+    scan_continuous_saved = false;
+  }
+  tracker->start_scan();
+}
+#endif
 
 struct DiscoveredDevice {
   uint8_t address[6];
@@ -389,7 +409,7 @@ bool A2DPSourceSpeaker::pair_incoming(const char *address) {
   this->incoming_pairing_.store(true);
 #ifdef USE_ESP32_BLE_TRACKER
   if (auto *tracker = esp32_ble_tracker::global_esp32_ble_tracker) {
-    tracker->stop_scan();
+    pause_ble_scan(tracker);
     this->scanner_paused_for_connect_ = true;
   }
 #endif
@@ -750,7 +770,7 @@ void A2DPSourceSpeaker::loop() {
         static_cast<int32_t>(now - this->acl_disconnected_ms_.load()) >= 5000))) {
     auto *tracker = esp32_ble_tracker::global_esp32_ble_tracker;
     if (tracker != nullptr && tracker->get_scanner_state() == esp32_ble_tracker::ScannerState::IDLE) {
-      tracker->start_scan();
+      resume_ble_scan(tracker);
       this->scanner_paused_for_connect_ = false;
       ESP_LOGD(COEX_TAG, "BLE scan resumed after A2DP transition");
     }
@@ -829,11 +849,11 @@ void A2DPSourceSpeaker::loop() {
           if (!this->scanner_paused_for_connect_) {
             ESP_LOGD(COEX_TAG, "Pausing BLE scan for A2DP connection");
           }
-          tracker->stop_scan();
+          pause_ble_scan(tracker);
           this->scanner_paused_for_connect_ = true;
         } else if (scanner_state == esp32_ble_tracker::ScannerState::STARTING &&
                    !this->scanner_stop_starting_requested_) {
-          tracker->stop_scan();
+          pause_ble_scan(tracker);
           this->scanner_stop_starting_requested_ = true;
           this->scanner_paused_for_connect_ = true;
         }
