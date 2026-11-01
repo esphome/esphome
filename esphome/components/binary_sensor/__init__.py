@@ -165,6 +165,15 @@ def register_filter(name, filter_type, schema):
     return FILTER_REGISTRY.register(name, filter_type, schema)
 
 
+ApplyFilter = binary_sensor_ns.class_("ApplyFilter", Filter)
+APPLY_FILTER = automation.ApplyFilterDomain(
+    FILTER_REGISTRY,
+    ApplyFilter,
+    cg.optional.template(cg.bool_),
+    ((Filter.operator("ptr"), "filter"), (cg.bool_, "x")),
+)
+
+
 @register_filter("invert", InvertFilter, {})
 async def invert_filter_to_code(config, filter_id):
     return cg.new_Pvariable(filter_id)

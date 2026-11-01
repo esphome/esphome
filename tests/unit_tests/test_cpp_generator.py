@@ -161,6 +161,23 @@ class TestParameterListExpression:
 
 
 class TestLambdaExpression:
+    def test_body_lines(self) -> None:
+        """The body as function statements: the #line mark before it and the reset after."""
+        plain = cg.LambdaExpression(("return x;",), ((float, "x"),), "")
+        assert plain.body_lines == ["return x;"]
+
+        source = DocumentLocation("cfg.yaml", 4, 0)
+        marked = cg.LambdaExpression(("return x;",), ((float, "x"),), "", source=source)
+        assert marked.body_lines == [
+            source.as_line_directive,
+            "return x;",
+            LINE_DIRECTIVE_RESET,
+        ]
+        assert str(marked) == (
+            f"[](float x) {{\n  {source.as_line_directive}\n  return x;\n"
+            f"  {LINE_DIRECTIVE_RESET}\n}}"
+        )
+
     def test_str__no_return(self):
         target = cg.LambdaExpression(
             (
@@ -984,6 +1001,83 @@ def test_static_function_declares_early_and_defines_after_includes() -> None:
     assert [str(st) for st in CORE.global_statements_after_includes] == [
         "static void esphome__act__fn(int32_t x) {\n  return;\n}"
     ]
+
+
+class TestSharedStaticFunction:
+    @pytest.fixture(autouse=True)
+    def _config(self) -> None:
+        CORE.config = {}
+
+    def test_identical_functions_share_one(self) -> None:
+        a = cg.shared_static_function(
+            "fn_a", ct.bool_, [(ct.float_, "x")], ["return x > 1;"]
+        )
+        b = cg.shared_static_function(
+            "fn_b", ct.bool_, [(ct.float_, "x")], ["return x > 1;"]
+        )
+        c = cg.shared_static_function(
+            "fn_c", ct.bool_, [(ct.float_, "x")], ["return x > 2;"]
+        )
+        assert a is b
+        assert str(a) == "fn_a"
+        assert str(c) == "fn_c"
+        assert [str(st) for st in CORE.global_statements] == [
+            "static bool fn_a(float x);",
+            "static bool fn_c(float x);",
+        ]
+        assert len(CORE.global_statements_after_includes) == 2
+
+    @pytest.mark.parametrize(
+        ("return_type", "params"),
+        (
+            (ct.bool_, [(ct.float_, "y")]),
+            (ct.bool_, [(ct.int32, "x")]),
+            (ct.bool_, [(ct.float_, "x"), (ct.float_, "y")]),
+            (ct.int32, [(ct.float_, "x")]),
+        ),
+    )
+    def test_different_signatures_are_separate(
+        self, return_type: cg.MockObjClass, params: list[tuple[cg.MockObjClass, str]]
+    ) -> None:
+        a = cg.shared_static_function(
+            "fn_a", ct.bool_, [(ct.float_, "x")], ["return 1;"]
+        )
+        b = cg.shared_static_function("fn_b", return_type, params, ["return 1;"])
+        assert str(a) == "fn_a"
+        assert str(b) == "fn_b"
+        assert len(CORE.global_statements_after_includes) == 2
+
+    def test_same_text_split_differently_shares(self) -> None:
+        a = cg.shared_static_function("fn_a", ct.int32, [], ["int n = 1;", "return n;"])
+        b = cg.shared_static_function("fn_b", ct.int32, [], ["int n = 1;\nreturn n;"])
+        assert a is b
+
+    def test_share_false_always_emits_a_new_function(self) -> None:
+        body = ["static int n = 0;", "return ++n;"]
+        a = cg.shared_static_function("fn_a", ct.int32, [], body)
+        b = cg.shared_static_function("fn_b", ct.int32, [], body, share=False)
+        c = cg.shared_static_function("fn_c", ct.int32, [], body, share=False)
+        d = cg.shared_static_function("fn_d", ct.int32, [], body)
+        assert [str(f) for f in (a, b, c, d)] == ["fn_a", "fn_b", "fn_c", "fn_a"]
+        assert len(CORE.global_statements_after_includes) == 3
+
+    def test_share_false_with_one_name_gets_unique_names(self) -> None:
+        a = cg.shared_static_function("fn", ct.void, [], ["return;"], share=False)
+        b = cg.shared_static_function("fn", ct.void, [], ["return;"], share=False)
+        assert [str(a), str(b)] == ["fn", "fn_2"]
+
+    def test_one_name_different_bodies_gets_unique_names(self) -> None:
+        a = cg.shared_static_function("fn", ct.int32, [], ["return 1;"])
+        b = cg.shared_static_function("fn", ct.int32, [], ["return 2;"])
+        assert [str(a), str(b)] == ["fn", "fn_2"]
+        assert [str(st) for st in CORE.global_statements] == [
+            "static int32_t fn();",
+            "static int32_t fn_2();",
+        ]
+
+    def test_name_avoids_config_ids(self) -> None:
+        CORE.config = {"sensor": [{"id": ID("fn", is_declaration=True)}]}
+        assert str(cg.shared_static_function("fn", ct.void, [], ["return;"])) == "fn_2"
 
 
 def test_add_global_after_includes_rejects_non_statements() -> None:

@@ -1,5 +1,6 @@
 import abc
 from collections.abc import Callable
+from dataclasses import dataclass, field
 import inspect
 import math
 import re
@@ -215,18 +216,24 @@ class LambdaExpression(Expression):
         if self.return_type is not None:
             cpp += f" -> {self.return_type}"
         cpp += " {\n"
-        body = f"{self.content}\n"
-        if self.source is not None:
-            body = f"{self.source.as_line_directive}\n{body}"
-        # A #line in the body, the source's or lvgl's own marks, needs the reset after it
-        if "#line " in body:
-            body += f"{LINE_DIRECTIVE_RESET}\n"
-        cpp += f"{body}}}"
+        cpp += "".join(f"{line}\n" for line in self.body_lines)
+        cpp += "}"
         return indent_all_but_first_and_last(cpp)
 
     @property
     def content(self):
         return "".join(str(part) for part in self.parts)
+
+    @property
+    def body_lines(self) -> list[str]:
+        """The body with its source line mark, as the statements of a function."""
+        lines = [self.content]
+        if self.source is not None:
+            lines.insert(0, self.source.as_line_directive)
+        # A #line in the body, the source's or lvgl's own marks, needs the reset after it
+        if any("#line " in line for line in lines):
+            lines.append(LINE_DIRECTIVE_RESET)
+        return lines
 
 
 # pylint: disable=abstract-method
@@ -810,6 +817,47 @@ def static_function(
         RawStatement(f"{signature} {{\n{indent(chr(10).join(body))}\n}}")
     )
     return RawExpression(name)
+
+
+@dataclass
+class SharedStaticFunctions:
+    """Functions emitted by ``shared_static_function``, by signature and body."""
+
+    functions: dict[tuple[str, str, str], RawExpression] = field(default_factory=dict)
+
+
+def shared_static_function(
+    name: str,
+    return_type: SafeExpType,
+    parameters: TemplateArgsType,
+    body: list[str],
+    *,
+    share: bool = True,
+) -> RawExpression:
+    """Emit ``static_function`` once per distinct return type, parameters and body; later
+    calls reuse the first one. ``name`` is made unique like ``shared_progmem_array`` names.
+
+    GCC already folds identical plain static functions; the saving is the template
+    instantiations on them (e.g. ``ApplyFilter<fn>``, ``ApplyAction<fn>``) collapsing into one.
+    ``share=False`` always emits a new function, for a body with user lambda code that may
+    keep ``static`` state.
+    """
+    data: SharedStaticFunctions = CORE.data.setdefault(
+        "shared_static_function", SharedStaticFunctions()
+    )
+    key = (
+        str(safe_exp(return_type)),
+        str(ParameterListExpression(*parameters)),
+        "\n".join(body),
+    )
+    if share and (fn := data.functions.get(key)) is not None:
+        return fn
+    id_ = unique_global_id(name, None)
+    fn = static_function(id_.id, return_type, parameters, body)
+    CORE.register_variable(id_, fn)
+    if share:
+        data.functions[key] = fn
+    return fn
 
 
 def add(expression: Expression | Statement, prepend: bool = False):
