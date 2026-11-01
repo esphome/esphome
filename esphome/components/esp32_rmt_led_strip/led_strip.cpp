@@ -105,8 +105,7 @@ void ESP32RMTLEDStripLightOutput::setup() {
   channel.flags.with_dma = this->use_dma_;
   channel.intr_priority = 0;
   if (rmt_new_tx_channel(&channel, &this->channel_) != ESP_OK) {
-    ESP_LOGE(TAG, "Channel creation failed");
-    this->mark_failed();
+    this->mark_failed(LOG_STR("Channel creation failed"));
     return;
   }
 
@@ -117,23 +116,20 @@ void ESP32RMTLEDStripLightOutput::setup() {
   encoder.arg = &this->params_;
   encoder.min_chunk_size = RMT_SYMBOLS_PER_BYTE;
   if (rmt_new_simple_encoder(&encoder, &this->encoder_) != ESP_OK) {
-    ESP_LOGE(TAG, "Encoder creation failed");
-    this->mark_failed();
+    this->mark_failed(LOG_STR("Encoder creation failed"));
     return;
   }
 #else
   rmt_copy_encoder_config_t encoder;
   memset(&encoder, 0, sizeof(encoder));
   if (rmt_new_copy_encoder(&encoder, &this->encoder_) != ESP_OK) {
-    ESP_LOGE(TAG, "Encoder creation failed");
-    this->mark_failed();
+    this->mark_failed(LOG_STR("Encoder creation failed"));
     return;
   }
 #endif
 
   if (rmt_enable(this->channel_) != ESP_OK) {
-    ESP_LOGE(TAG, "Enabling channel failed");
-    this->mark_failed();
+    this->mark_failed(LOG_STR("Enable channel failed"));
     return;
   }
 
