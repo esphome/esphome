@@ -137,13 +137,11 @@ void PN532::loop() {
 
   if (!success) {
     // Something failed
-#if PN532_ON_TAG_REMOVED_TRIGGER_COUNT
-    if (!this->current_uid_.empty()) {
+    if (!this->triggers_ontagremoved_.empty() && !this->current_uid_.empty()) {
       auto tag = make_unique<nfc::NfcTag>(this->current_uid_);
       for (auto *trigger : this->triggers_ontagremoved_)
         trigger->process(tag);
     }
-#endif
     this->current_uid_ = {};
     this->turn_off_rf_();
     return;
@@ -152,13 +150,11 @@ void PN532::loop() {
   uint8_t num_targets = read.empty() ? 0 : read[0];
   if (num_targets != 1) {
     // no tags found or too many
-#if PN532_ON_TAG_REMOVED_TRIGGER_COUNT
-    if (!this->current_uid_.empty()) {
+    if (!this->triggers_ontagremoved_.empty() && !this->current_uid_.empty()) {
       auto tag = make_unique<nfc::NfcTag>(this->current_uid_);
       for (auto *trigger : this->triggers_ontagremoved_)
         trigger->process(tag);
     }
-#endif
     this->current_uid_ = {};
     this->turn_off_rf_();
     return;
