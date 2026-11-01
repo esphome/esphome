@@ -69,18 +69,8 @@ void ESP32RMTLEDStripLightOutput::setup() {
   size_t buffer_size = this->get_buffer_size_();
 
   RAMAllocator<uint8_t> allocator(this->use_psram_ ? 0 : RAMAllocator<uint8_t>::ALLOC_INTERNAL);
-  this->buf_ = allocator.allocate(buffer_size);
-  if (this->buf_ == nullptr) {
-    ESP_LOGE(TAG, "Cannot allocate LED buffer!");
-    this->mark_failed();
-    return;
-  }
-  memset(this->buf_, 0, buffer_size);
-
-  this->effect_data_ = allocator.allocate(this->num_leds_);
-  if (this->effect_data_ == nullptr) {
-    ESP_LOGE(TAG, "Cannot allocate effect data!");
-    this->mark_failed();
+  if (!this->internal_accessor_.allocate(allocator, this->num_leds_)) {
+    this->mark_failed(LOG_STR(ESP_LOG_MSG_ALLOC_FAIL));
     return;
   }
 
@@ -146,6 +136,8 @@ void ESP32RMTLEDStripLightOutput::setup() {
     this->mark_failed();
     return;
   }
+
+  this->accessor_ = &this->internal_accessor_;
 }
 
 void ESP32RMTLEDStripLightOutput::set_led_params(uint32_t bit0_high, uint32_t bit0_low, uint32_t bit1_high,
@@ -186,13 +178,13 @@ void ESP32RMTLEDStripLightOutput::write_state(light::LightState *state) {
   ESP_LOGVV(TAG, "Writing RGB values to bus");
 
 #if ESP_IDF_VERSION >= ESP_IDF_VERSION_VAL(5, 3, 0)
-  memcpy(this->rmt_buf_, this->buf_, this->get_buffer_size_());
+  memcpy(this->rmt_buf_, this->internal_accessor_.color_data, this->get_buffer_size_());
 #else
   size_t buffer_size = this->get_buffer_size_();
 
   size_t size = 0;
   size_t len = 0;
-  uint8_t *psrc = this->buf_;
+  uint8_t *psrc = this->internal_accessor_.color_data;
   rmt_symbol_word_t *pdest = this->rmt_buf_;
   while (size < buffer_size) {
     uint8_t b = *psrc;
@@ -241,7 +233,8 @@ void ESP32RMTLEDStripLightOutput::dump_config() {
                 "  Channel colors: %s\n"
                 "  Max refresh rate: %" PRIu32 "\n"
                 "  Number of LEDs: %u",
-                this->channel_colors_.to_string(channel_colors), this->max_refresh_rate_, this->num_leds_);
+                this->internal_accessor_.channel_colors.to_string(channel_colors), this->max_refresh_rate_,
+                this->num_leds_);
 }
 
 float ESP32RMTLEDStripLightOutput::get_setup_priority() const { return setup_priority::HARDWARE; }
