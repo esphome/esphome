@@ -165,7 +165,7 @@ void SX1509Component::setup_led_driver(uint8_t pin) {
   this->update_register(REG_CLOCK, (1 << 6) | (1 << 5), 1 << 6);
 
   // Linear mode for banks A (bit 3) and B (bit 7); LED driver clock ClkX of all IOs (bits 6:4)
-  this->update_register(REG_MISC, (1 << 7) | (1 << 3) | 0x70, 0x70);
+  this->update_register(REG_MISC, (1 << 7) | (1 << 3) | 0x70, this->led_driver_frequency_);
 
   this->read_byte_16(REG_LED_DRIVER_ENABLE_B, &temp_word);
   temp_word |= (1 << pin);
