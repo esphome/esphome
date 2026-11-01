@@ -205,6 +205,11 @@ PSRAM_XIP_VARIANTS = {
 # neither, so the engine is already in the image and the wrap saves nothing.
 ROM_VSNPRINTF_WITHOUT_VASPRINTF_VARIANTS = {VARIANT_ESP32C6}
 
+# Variants whose ROM exports sscanf for the newlib format in use
+# (esp32c6.rom.newlib-normal.ld). The ESP32-C2 ROM only has it in the nano
+# format, which ESPHome turns off.
+ROM_SSCANF_VARIANTS = {VARIANT_ESP32C6}
+
 # NVS encryption (HMAC peripheral scheme) is only available on variants that
 # expose the HMAC peripheral (SOC_HMAC_SUPPORTED in soc_caps.h). The original
 # ESP32 and ESP32-C2 do not have it. New variants with an HMAC peripheral
