@@ -582,8 +582,13 @@ def _permissions(read: str | None, write: str | None) -> cg.RawExpression:
 
 
 def characteristic_permissions(char_conf: ConfigType) -> cg.RawExpression:
+    """Only the configured directions are permitted; the stack checks these, not the properties."""
     read, write = _encryption_levels(char_conf)
-    return _permissions(_READ_PERMS[read], _WRITE_PERMS[write])
+    writable = char_conf[CONF_WRITE] or char_conf[CONF_WRITE_NO_RESPONSE]
+    return _permissions(
+        _READ_PERMS[read] if char_conf[CONF_READ] else None,
+        _WRITE_PERMS[write] if writable else None,
+    )
 
 
 def descriptor_permissions(

@@ -233,12 +233,28 @@ def test_encrypted_permissions() -> None:
 
 def test_open_permissions() -> None:
     char_perms, desc_perms = _permissions({"read": True, "indicate": True})
-    assert char_perms == "ESP_GATT_PERM_READ | ESP_GATT_PERM_WRITE"
+    assert char_perms == "ESP_GATT_PERM_READ"
     assert desc_perms == {
         0x2904: "static_cast<esp_gatt_perm_t>(ESP_GATT_PERM_READ | ESP_GATT_PERM_WRITE)",
         CUD_DESCRIPTOR_UUID: "static_cast<esp_gatt_perm_t>(ESP_GATT_PERM_READ)",
         CCCD_DESCRIPTOR_UUID: "static_cast<esp_gatt_perm_t>(ESP_GATT_PERM_READ | ESP_GATT_PERM_WRITE)",
     }
+
+
+@pytest.mark.parametrize(
+    ("properties", "expected"),
+    [
+        ({"write": True, "write_encrypt": True}, "ESP_GATT_PERM_WRITE_ENCRYPTED"),
+        ({"write_no_response": True}, "ESP_GATT_PERM_WRITE"),
+        ({"read": True, "read_encrypt": True}, "ESP_GATT_PERM_READ_ENCRYPTED"),
+        ({"notify": True}, "0"),
+    ],
+)
+def test_permissions_only_for_configured_directions(
+    properties: dict[str, bool], expected: str
+) -> None:
+    char_perms, _ = _permissions(properties)
+    assert char_perms == expected
 
 
 @pytest.mark.parametrize(
