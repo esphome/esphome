@@ -36,6 +36,29 @@ inline ledc_mode_t get_speed_mode(uint8_t channel) { return channel < 8 ? LEDC_H
 inline ledc_mode_t get_speed_mode(uint8_t) { return LEDC_LOW_SPEED_MODE; }
 #endif
 
+#if defined(USE_LEDC_DITHERING) || !defined(SOC_LEDC_SUPPORT_FADE_STOP)
+static inline ledc_dev_t *ledc_get_hw() {
+#if ESP_IDF_VERSION >= ESP_IDF_VERSION_VAL(6, 1, 0)
+  return LEDC_LL_GET_HW(0);
+#else
+  return LEDC_LL_GET_HW();
+#endif
+}
+#endif
+
+#ifdef USE_LEDC_DITHERING
+static void ledc_set_duty_fixed_point(ledc_mode_t speed_mode, ledc_channel_t chan_num, uint32_t duty) {
+  auto *hw = ledc_get_hw();
+  // Match each target's ledc_ll_set_duty_int_part(), but retain the four fractional bits.
+#if defined(USE_ESP32_VARIANT_ESP32C5) || defined(USE_ESP32_VARIANT_ESP32C61) || defined(USE_ESP32_VARIANT_ESP32P4) || \
+    defined(USE_ESP32_VARIANT_ESP32S31)
+  hw->channel_group[speed_mode].channel[chan_num].duty_init.duty = duty;
+#else
+  hw->channel_group[speed_mode].channel[chan_num].duty.duty = duty;
+#endif
+}
+#endif
+
 #if !defined(SOC_LEDC_SUPPORT_FADE_STOP)
 // Classic ESP32 (currently the only target without SOC_LEDC_SUPPORT_FADE_STOP) can block in
 // ledc_ll_set_duty_start() while duty_start is set. We check the same conf1.duty_start bit here
@@ -53,11 +76,7 @@ static_assert(
     "re-evaluate for this target");
 
 static bool ledc_duty_update_pending(ledc_mode_t speed_mode, ledc_channel_t chan_num) {
-#if ESP_IDF_VERSION >= ESP_IDF_VERSION_VAL(6, 1, 0)
-  auto *hw = LEDC_LL_GET_HW(0);
-#else
-  auto *hw = LEDC_LL_GET_HW();
-#endif
+  auto *hw = ledc_get_hw();
   return hw->channel_group[speed_mode].channel[chan_num].conf1.duty_start != 0;
 }
 #endif
@@ -138,7 +157,11 @@ void LEDCOutput::write_state(float state) {
 void LEDCOutput::loop() { this->write_duty_(); }
 
 void LEDCOutput::write_duty_() {
-  const uint32_t max_duty = (uint32_t(1) << this->bit_depth_) - 1;
+  uint8_t fractional_bits = 0;
+#ifdef USE_LEDC_DITHERING
+  fractional_bits = this->dithering_ ? 4 : 0;
+#endif
+  const uint32_t max_duty = ((uint32_t(1) << this->bit_depth_) - 1) << fractional_bits;
   const float duty_rounded = roundf(this->duty_ * max_duty);
   auto duty = static_cast<uint32_t>(duty_rounded);
   if (duty == this->last_duty_) {
@@ -164,7 +187,13 @@ void LEDCOutput::write_duty_() {
 #endif
     // Zero takes this path too, not ledc_stop(): the update applies at the next PWM cycle,
     // so the last servo pulse is not truncated into what the servo reads as a new position.
-    err = ledc_set_duty_with_hpoint(speed_mode, chan_num, duty, hpoint);
+    err = ledc_set_duty_with_hpoint(speed_mode, chan_num, duty >> fractional_bits, hpoint);
+#ifdef USE_LEDC_DITHERING
+    if (err == ESP_OK && this->dithering_) {
+      // IDF's integer setter clears the fractional bits. Restore them before latching the update.
+      ledc_set_duty_fixed_point(speed_mode, chan_num, duty);
+    }
+#endif
     if (err == ESP_OK)
       err = ledc_update_duty(speed_mode, chan_num);
   }
@@ -245,6 +274,9 @@ void LEDCOutput::dump_config() {
                 "  Phase angle: %.1f°\n"
                 "  Bit depth: %u",
                 this->channel_, this->frequency_, this->phase_angle_, this->bit_depth_);
+#ifdef USE_LEDC_DITHERING
+  ESP_LOGCONFIG(TAG, "  Hardware dithering: %u fractional bits", this->dithering_ ? 4 : 0);
+#endif
   LOG_PIN("  Pin ", this->pin_);
   ESP_LOGV(TAG,
            "  Max frequency for bit depth: %f\n"
