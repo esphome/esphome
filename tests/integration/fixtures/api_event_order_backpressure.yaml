@@ -17,16 +17,21 @@ api:
             auto *client = sndbuf_pin::api_log_client();
             const std::string padding(250, 'x');
             const uint32_t start = millis();
+            bool full = false;
             while (client != nullptr && millis() - start < 5000) {
               const bool window_closed = sndbuf_pin::api_peer_window_closed();
               if (client->try_to_clear_buffer(false)) {
                 ESP_LOGD("fill", "fill line %s", padding.c_str());
               } else if (window_closed) {
+                full = true;
                 break;
               } else {
                 delay(1);
               }
             }
+            // The api drops this line while the pipe is blocked; the test reads it from the console
+            if (!full)
+              ESP_LOGE("fill", "fill timed out");
             // The test checks that this line was dropped, which means the overflow buffer still holds data
             ESP_LOGD("fill", "last fill line");
         # So this event waits in the batch

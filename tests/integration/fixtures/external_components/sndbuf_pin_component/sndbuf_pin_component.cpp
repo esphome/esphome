@@ -4,13 +4,14 @@
 #include <sys/socket.h>
 #include <cerrno>
 
-#ifdef __linux__
+#include "esphome/components/api/api_server.h"
+#include "esphome/core/log.h"
+
+// Host only: clang-tidy also checks this file for ESP32, which has no Linux socket headers
+#if defined(USE_HOST) && defined(__linux__)
 #include <linux/sockios.h>
 #include <sys/ioctl.h>
 #endif
-
-#include "esphome/components/api/api_server.h"
-#include "esphome/core/log.h"
 
 namespace esphome::sndbuf_pin {
 
@@ -65,8 +66,8 @@ api::APIConnection *api_log_client() {
   return nullptr;
 }
 
-#ifdef __linux__
 bool api_peer_window_closed() {
+#if defined(USE_HOST) && defined(__linux__)
   for (int fd = FIRST_USER_FD; fd < MAX_FD_SCAN; fd++) {
     struct sockaddr_in addr{};
     socklen_t addr_len = sizeof(addr);
@@ -83,8 +84,9 @@ bool api_peer_window_closed() {
       return false;
     return not_sent > 0 && queued == not_sent;
   }
+#endif
+  // Unknown elsewhere: a fill loop waiting on this times out and says so
   return false;
 }
-#endif
 
 }  // namespace esphome::sndbuf_pin
