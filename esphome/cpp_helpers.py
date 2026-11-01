@@ -252,17 +252,10 @@ def _arg(name: str) -> str:
 
 
 class HubFunction:
-    """One generated function per hub, built from items its child entities add.
-
-    Declare it once at module level and call ``add`` from ``to_code``. At FINAL priority each
-    hub with items gets ``static <return_type> esphome__<hub>__<name>_fn(<parameters>)``, passed
-    to ``hub.set_<name>_publisher()``, which ``HUB_PUBLISHER(<name>, ...)`` declares in C++
-    (``HUB_PUBLISHER_RETURNING(bool, <name>, ...)`` for a ``bool`` function);
-    ``define`` is emitted once. A hub without items gets no call and keeps a ``nullptr``.
-
-    ``void``: each item is a statement, or an expression run as one. ``bool``: each item is a
-    ``bool`` expression; every item runs in order (no short-circuit) and the function returns
-    whether any was true.
+    """One generated function per hub, ``esphome__<hub>__<name>_fn``, built from the items its children
+    ``add`` in ``to_code`` and passed to the ``set_<name>_publisher()`` that ``HUB_PUBLISHER`` declares.
+    A hub without items keeps ``nullptr``. ``void`` items are statements or expressions; ``bool`` items
+    are expressions that all run (no short-circuit), and the function returns whether any was true.
     """
 
     def __init__(
