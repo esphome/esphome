@@ -32,11 +32,11 @@ TEST(HubPublisher, StartsUnsetAndCallsTheFunctionOnceSet) {
   EXPECT_EQ(published, 7);
 }
 
-// The shape cg.HubFunction emits for a bool function
-static bool claim_seven(uint32_t esphome__arg_id) {
-  bool esphome__found = false;
-  (esphome__found |= esphome__arg_id == 7);
-  return esphome__found;
+// The shape cg.HubFunction emits for a bool function (it names these esphome__arg_id and esphome__found)
+static bool claim_seven(uint32_t id) {
+  bool found = false;
+  (found |= id == 7);
+  return found;
 }
 
 TEST(HubPublisher, BoolPublisherReturnsWhetherAnyItemClaimed) {

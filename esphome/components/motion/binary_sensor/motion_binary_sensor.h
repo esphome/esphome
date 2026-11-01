@@ -19,6 +19,8 @@ class MotionBinarySensor : public Component, public binary_sensor::BinarySensor 
 
   void setup() override;
   void dump_config() override;
+  // Set up before the hub's first update, so the initial false never overwrites motion data
+  float get_setup_priority() const override { return setup_priority::HARDWARE; }
 
   void set_threshold(float threshold) { this->threshold_ = threshold; }
   void set_duration(uint32_t duration) { this->duration_ = duration; }
