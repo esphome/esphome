@@ -17,12 +17,9 @@ CONFIG_SCHEMA = binary_sensor.binary_sensor_schema(TTP229BSFChannel).extend(
 )
 
 
-_register_channel = cg.slot_list("TTP229_BSF_CHANNEL_COUNT", "register_channel")
-
-
 async def to_code(config: ConfigType) -> None:
     var = await binary_sensor.new_binary_sensor(config)
 
     cg.add(var.set_channel(config[CONF_CHANNEL]))
     hub = await cg.get_variable(config[CONF_TTP229_ID])
-    cg.add(_register_channel(hub, var))
+    cg.add(hub.register_channel(var))

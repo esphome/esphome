@@ -37,11 +37,7 @@ class CAP1188Channel final : public binary_sensor::BinarySensor {
 
 class CAP1188Component final : public Component, public i2c::I2CDevice {
  public:
-#ifdef CAP1188_CHANNEL_COUNT
-  SLOT_LIST(CAP1188Channel, channels_, register_channel, CAP1188_CHANNEL_COUNT)
-#else
-  SLOT_LIST_EMPTY(CAP1188Channel, channels_)
-#endif
+  void register_channel(CAP1188Channel *channel) { this->channels_.push_back(channel); }
   void set_touch_threshold(uint8_t touch_threshold) { this->touch_threshold_ = touch_threshold; };
   void set_allow_multiple_touches(bool allow_multiple_touches) {
     this->allow_multiple_touches_ = allow_multiple_touches ? 0x41 : 0x80;
@@ -54,6 +50,7 @@ class CAP1188Component final : public Component, public i2c::I2CDevice {
  protected:
   void finish_setup_();
 
+  std::vector<CAP1188Channel *> channels_{};
   uint8_t touch_threshold_{0x20};
   uint8_t allow_multiple_touches_{0x80};
 

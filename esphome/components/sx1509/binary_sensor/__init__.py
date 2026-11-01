@@ -19,14 +19,9 @@ CONFIG_SCHEMA = binary_sensor.binary_sensor_schema(SX1509BinarySensor).extend(
 )
 
 
-_register_keypad_binary_sensor = cg.slot_list(
-    "SX1509_KEYPAD_BINARY_SENSOR_COUNT", "register_keypad_binary_sensor"
-)
-
-
 async def to_code(config: ConfigType) -> None:
     var = await binary_sensor.new_binary_sensor(config)
     hub = await cg.get_variable(config[CONF_SX1509_ID])
     cg.add(var.set_row_col(config[CONF_ROW], config[CONF_COL]))
 
-    cg.add(_register_keypad_binary_sensor(hub, var))
+    cg.add(hub.register_keypad_binary_sensor(var))

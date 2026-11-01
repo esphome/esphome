@@ -60,11 +60,7 @@ class MPR121Channel {
 
 class MPR121Component final : public Component, public i2c::I2CDevice {
  public:
-#ifdef MPR121_CHANNEL_COUNT
-  SLOT_LIST(MPR121Channel, channels_, register_channel, MPR121_CHANNEL_COUNT)
-#else
-  SLOT_LIST_EMPTY(MPR121Channel, channels_)
-#endif
+  void register_channel(MPR121Channel *channel) { this->channels_.push_back(channel); }
   void set_touch_debounce(uint8_t debounce);
   void set_release_debounce(uint8_t debounce);
   void set_touch_threshold(uint8_t touch_threshold) { this->touch_threshold_ = touch_threshold; };
@@ -84,6 +80,7 @@ class MPR121Component final : public Component, public i2c::I2CDevice {
   void pin_mode(uint8_t pin, gpio::Flags flags);
 
  protected:
+  std::vector<MPR121Channel *> channels_{};
   uint8_t debounce_{0};
   uint8_t touch_threshold_{};
   uint8_t release_threshold_{};

@@ -49,9 +49,6 @@ _CALLBACK_AUTOMATIONS = (
 )
 
 
-register_sml_listener = cg.slot_list("SML_LISTENER_COUNT", "register_sml_listener")
-
-
 async def to_code(config: ConfigType) -> None:
     var = await uart.new_uart_component(config)
     await automation.build_callback_automations(var, config, _CALLBACK_AUTOMATIONS)

@@ -59,9 +59,6 @@ CONFIG_SCHEMA = (
 )
 
 
-add_listener = cg.slot_list("SY6970_LISTENER_COUNT", "add_listener")
-
-
 async def to_code(config: ConfigType) -> None:
     await i2c.new_i2c_component(
         config,

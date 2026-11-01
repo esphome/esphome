@@ -17,20 +17,14 @@ class RDM6300Component final : public Component, public uart::UARTDevice {
  public:
   void loop() override;
 
-#ifdef RDM6300_CARD_COUNT
-  SLOT_LIST(RDM6300BinarySensor, cards_, register_card, RDM6300_CARD_COUNT)
-#else
-  SLOT_LIST_EMPTY(RDM6300BinarySensor, cards_)
-#endif
-#ifdef RDM6300_TRIGGER_COUNT
-  SLOT_LIST(RDM6300Trigger, triggers_, register_trigger, RDM6300_TRIGGER_COUNT)
-#else
-  SLOT_LIST_EMPTY(RDM6300Trigger, triggers_)
-#endif
+  void register_card(RDM6300BinarySensor *obj) { this->cards_.push_back(obj); }
+  void register_trigger(RDM6300Trigger *trig) { this->triggers_.push_back(trig); }
 
  protected:
   int8_t read_state_{-1};
   uint8_t buffer_[6]{};
+  std::vector<RDM6300BinarySensor *> cards_;
+  std::vector<RDM6300Trigger *> triggers_;
   uint32_t last_id_{0};
 };
 

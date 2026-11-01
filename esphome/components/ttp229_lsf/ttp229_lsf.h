@@ -19,14 +19,13 @@ class TTP229Channel final : public binary_sensor::BinarySensor {
 
 class TTP229LSFComponent final : public Component, public i2c::I2CDevice {
  public:
-#ifdef TTP229_LSF_CHANNEL_COUNT
-  SLOT_LIST(TTP229Channel, channels_, register_channel, TTP229_LSF_CHANNEL_COUNT)
-#else
-  SLOT_LIST_EMPTY(TTP229Channel, channels_)
-#endif
+  void register_channel(TTP229Channel *channel) { this->channels_.push_back(channel); }
   void setup() override;
   void dump_config() override;
   void loop() override;
+
+ protected:
+  std::vector<TTP229Channel *> channels_{};
 };
 
 }  // namespace esphome::ttp229_lsf

@@ -4,15 +4,7 @@ import esphome.config_validation as cv
 from esphome.const import CONF_FORMAT
 from esphome.types import ConfigType
 
-from .. import (
-    CONF_OBIS_CODE,
-    CONF_SERVER_ID,
-    CONF_SML_ID,
-    Sml,
-    obis_code,
-    register_sml_listener,
-    sml_ns,
-)
+from .. import CONF_OBIS_CODE, CONF_SERVER_ID, CONF_SML_ID, Sml, obis_code, sml_ns
 
 AUTO_LOAD = ["sml"]
 
@@ -51,4 +43,4 @@ async def to_code(config: ConfigType) -> None:
     )
     await cg.register_component(var, config)
     sml = await cg.get_variable(config[CONF_SML_ID])
-    cg.add(register_sml_listener(sml, var))
+    cg.add(sml.register_sml_listener(var))

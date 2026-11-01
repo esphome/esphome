@@ -25,9 +25,6 @@ CONFIG_SCHEMA = binary_sensor.binary_sensor_schema(MPR121BinarySensor).extend(
 )
 
 
-_register_channel = cg.slot_list("MPR121_CHANNEL_COUNT", "register_channel")
-
-
 async def to_code(config: ConfigType) -> None:
     var = await binary_sensor.new_binary_sensor(config)
     hub = await cg.get_variable(config[CONF_MPR121_ID])
@@ -37,4 +34,4 @@ async def to_code(config: ConfigType) -> None:
     cg.add_optional(var.set_touch_threshold, config.get(CONF_TOUCH_THRESHOLD))
     cg.add_optional(var.set_release_threshold, config.get(CONF_RELEASE_THRESHOLD))
 
-    cg.add(_register_channel(hub, var))
+    cg.add(hub.register_channel(var))

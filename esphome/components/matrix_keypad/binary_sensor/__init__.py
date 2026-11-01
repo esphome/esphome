@@ -41,9 +41,6 @@ CONFIG_SCHEMA = cv.All(
 )
 
 
-_register_listener = cg.slot_list("MATRIX_KEYPAD_LISTENER_COUNT", "register_listener")
-
-
 async def to_code(config: ConfigType) -> None:
     if CONF_KEY in config:
         var = cg.new_Pvariable(config[CONF_ID], config[CONF_KEY][0])
@@ -51,4 +48,4 @@ async def to_code(config: ConfigType) -> None:
         var = cg.new_Pvariable(config[CONF_ID], config[CONF_ROW], config[CONF_COL])
     await binary_sensor.register_binary_sensor(var, config)
     matrix_keypad = await cg.get_variable(config[CONF_KEYPAD_ID])
-    cg.add(_register_listener(matrix_keypad, var))
+    cg.add(matrix_keypad.register_listener(var))

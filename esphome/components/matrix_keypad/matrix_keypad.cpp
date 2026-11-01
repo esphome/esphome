@@ -105,4 +105,8 @@ void MatrixKeypad::dump_config() {
   }
 }
 
+void MatrixKeypad::register_listener(MatrixKeypadListener *listener) { this->listeners_.push_back(listener); }
+
+void MatrixKeypad::register_key_trigger(MatrixKeyTrigger *trig) { this->key_triggers_.push_back(trig); }
+
 }  // namespace esphome::matrix_keypad

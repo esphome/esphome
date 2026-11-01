@@ -17,12 +17,9 @@ CONFIG_SCHEMA = binary_sensor.binary_sensor_schema(CAP1188Channel).extend(
 )
 
 
-_register_channel = cg.slot_list("CAP1188_CHANNEL_COUNT", "register_channel")
-
-
 async def to_code(config: ConfigType) -> None:
     var = await binary_sensor.new_binary_sensor(config)
     hub = await cg.get_variable(config[CONF_CAP1188_ID])
     cg.add(var.set_channel(config[CONF_CHANNEL]))
 
-    cg.add(_register_channel(hub, var))
+    cg.add(hub.register_channel(var))

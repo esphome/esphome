@@ -18,12 +18,9 @@ CONFIG_SCHEMA = binary_sensor.binary_sensor_schema(TM1637Key).extend(
 )
 
 
-_add_tm1637_key = cg.slot_list("TM1637_KEY_COUNT", "add_tm1637_key")
-
-
 async def to_code(config: ConfigType) -> None:
     var = cg.new_Pvariable(config[CONF_ID])
     await binary_sensor.register_binary_sensor(var, config)
     cg.add(var.set_keycode(config[CONF_KEY]))
     hub = await cg.get_variable(config[CONF_TM1637_ID])
-    cg.add(_add_tm1637_key(hub, var))
+    cg.add(hub.add_tm1637_key(var))

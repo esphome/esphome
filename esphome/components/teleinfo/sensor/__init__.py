@@ -37,13 +37,7 @@ from esphome.const import (
 )
 from esphome.types import ConfigType
 
-from .. import (
-    CONF_TAG_NAME,
-    CONF_TELEINFO_ID,
-    TELEINFO_LISTENER_SCHEMA,
-    register_teleinfo_listener,
-    teleinfo_ns,
-)
+from .. import CONF_TAG_NAME, CONF_TELEINFO_ID, TELEINFO_LISTENER_SCHEMA, teleinfo_ns
 
 _LOGGER = logging.getLogger(__name__)
 
@@ -211,4 +205,4 @@ async def to_code(config: ConfigType) -> None:
     await sensor.register_sensor(var, config)
 
     teleinfo = await cg.get_variable(config[CONF_TELEINFO_ID])
-    cg.add(register_teleinfo_listener(teleinfo, var))
+    cg.add(teleinfo.register_teleinfo_listener(var))

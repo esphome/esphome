@@ -38,8 +38,5 @@ FINAL_VALIDATE_SCHEMA = uart.final_validate_device_schema(
 )
 
 
-register_listener = cg.slot_list("VBUS_LISTENER_COUNT", "register_listener")
-
-
 async def to_code(config: ConfigType) -> None:
     await uart.new_uart_component(config)
