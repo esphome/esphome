@@ -216,12 +216,12 @@ def slot_counter(define: str) -> Callable[..., None]:
     return request_slot
 
 
-# Define of every cg.slot_list() -> the component package that declared it. Filled at
+# Define of every cg.slot_list() -> the domain of the hub that owns it. Filled at
 # import time like the action registry, so it holds no per-run state.
-_SLOT_LIST_OWNERS: dict[str, str] = {}
+_SLOT_LIST_DOMAINS: dict[str, str] = {}
 
 
-def slot_list(define: str, register: str) -> Callable[..., Expression]:
+def slot_list(define: str, register: str, domain: str) -> Callable[..., Expression]:
     """Create the codegen side of a `SLOT_LIST` (esphome/core/helpers.h).
 
     `register_item(hub, *args)` reserves one slot for `hub` and returns the
@@ -229,21 +229,12 @@ def slot_list(define: str, register: str) -> Callable[..., Expression]:
     Slots are counted per hub, so `define` is the largest list any one hub of a
     `MULTI_CONF` component needs; other requests for `define` must be keyed too.
 
-    Call it in the hub component's `__init__.py`: whenever that component is in the
-    build, `define` is emitted, as 0 when nothing registered, so the C++ side needs
-    no `#ifdef`.
+    `domain` is the hub component's DOMAIN: whenever it is in the build, `define`
+    is emitted, as 0 when nothing registered, so the C++ side needs no `#ifdef`.
     """
-    import inspect
-
-    caller = inspect.currentframe().f_back.f_globals
-    module = caller.get("__name__", "")
-    if not module.startswith("esphome.components.") or "__path__" not in caller:
+    if _SLOT_LIST_DOMAINS.setdefault(define, domain) != domain:
         raise ValueError(
-            f"cg.slot_list('{define}') must be called in a component's __init__.py, not {module}"
-        )
-    if _SLOT_LIST_OWNERS.setdefault(define, module) != module:
-        raise ValueError(
-            f"cg.slot_list('{define}') is already declared in {_SLOT_LIST_OWNERS[define]}"
+            f"cg.slot_list('{define}') already belongs to {_SLOT_LIST_DOMAINS[define]}"
         )
     request_slot = slot_counter(define)
 
@@ -256,16 +247,13 @@ def slot_list(define: str, register: str) -> Callable[..., Expression]:
 
 @coroutine_with_priority(CoroPriority.FINAL)
 async def emit_empty_slot_lists() -> None:
-    """Emit 0 for each `cg.slot_list()` define whose component sources are in this
-    build and that nothing registered into."""
-    from esphome.config import iter_components
-
+    """Emit 0 for each `cg.slot_list()` define of a component in this build that
+    nothing registered into."""
     state = _get_slot_counter_state()
-    built = {component.package for _, component in iter_components(CORE.config)}
     # a define set by hand, such as by a test manifest override, is left alone
     done = state.emitted | state.counts.keys() | {d.name for d in CORE.defines}
-    for define, owner in _SLOT_LIST_OWNERS.items():
-        if owner in built and define not in done:
+    for define, domain in _SLOT_LIST_DOMAINS.items():
+        if domain in CORE.loaded_integrations and define not in done:
             state.emitted.add(define)
             add_define(define, 0)
 

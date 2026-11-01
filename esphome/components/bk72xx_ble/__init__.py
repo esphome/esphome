@@ -76,7 +76,7 @@ CONFIG_SCHEMA = cv.Schema(
 # Once per registered scan listener; sizes the controller's StaticVector
 # listener storage.
 register_scan_listener = cg.slot_list(
-    "BK72XX_BLE_SCAN_LISTENER_COUNT", "register_scan_listener"
+    "BK72XX_BLE_SCAN_LISTENER_COUNT", "register_scan_listener", DOMAIN
 )
 
 

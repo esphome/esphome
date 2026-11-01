@@ -42,7 +42,7 @@ GPSListener = gps_ns.class_("GPSListener")
 
 MULTI_CONF = True
 
-_register_listener = cg.slot_list("GPS_LISTENER_COUNT", "register_listener")
+_register_listener = cg.slot_list("GPS_LISTENER_COUNT", "register_listener", DOMAIN)
 
 
 async def register_listener(hub: MockObj, var: MockObj) -> None:

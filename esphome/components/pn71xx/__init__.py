@@ -119,10 +119,10 @@ _CALLBACK_AUTOMATIONS = (
 
 
 _register_ontag_trigger = cg.slot_list(
-    "PN71XX_ON_TAG_TRIGGER_COUNT", "register_ontag_trigger"
+    "PN71XX_ON_TAG_TRIGGER_COUNT", "register_ontag_trigger", DOMAIN
 )
 _register_ontagremoved_trigger = cg.slot_list(
-    "PN71XX_ON_TAG_REMOVED_TRIGGER_COUNT", "register_ontagremoved_trigger"
+    "PN71XX_ON_TAG_REMOVED_TRIGGER_COUNT", "register_ontagremoved_trigger", DOMAIN
 )
 
 

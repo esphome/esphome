@@ -47,12 +47,12 @@ def CONFIG_SCHEMA(conf: ConfigType) -> None:
         )
 
 
-register_tag = cg.slot_list("PN532_BINARY_SENSOR_COUNT", "register_tag")
+register_tag = cg.slot_list("PN532_BINARY_SENSOR_COUNT", "register_tag", DOMAIN)
 _register_ontag_trigger = cg.slot_list(
-    "PN532_ON_TAG_TRIGGER_COUNT", "register_ontag_trigger"
+    "PN532_ON_TAG_TRIGGER_COUNT", "register_ontag_trigger", DOMAIN
 )
 _register_ontagremoved_trigger = cg.slot_list(
-    "PN532_ON_TAG_REMOVED_TRIGGER_COUNT", "register_ontagremoved_trigger"
+    "PN532_ON_TAG_REMOVED_TRIGGER_COUNT", "register_ontagremoved_trigger", DOMAIN
 )
 
 _CALLBACK_AUTOMATIONS = (
