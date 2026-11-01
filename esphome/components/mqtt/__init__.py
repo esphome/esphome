@@ -83,8 +83,8 @@ from esphome.const import (
     Framework,
     PlatformFramework,
 )
-from esphome.core import CORE, CoroPriority, coroutine_with_priority
-from esphome.cpp_generator import MockObjClass
+from esphome.core import CORE, ID, CoroPriority, Lambda, coroutine_with_priority
+from esphome.cpp_generator import MockObj, MockObjClass
 import esphome.final_validate as fv
 from esphome.helpers import sanitize, snake_case
 from esphome.mqtt_topics import (
@@ -92,7 +92,7 @@ from esphome.mqtt_topics import (
     per_board_suffix,
     prefix_gets_mac_suffix,
 )
-from esphome.types import ConfigType
+from esphome.types import ConfigType, TemplateArgsType
 
 DEPENDENCIES = ["network"]
 DOMAIN = "mqtt"
@@ -165,7 +165,6 @@ def _topic_source(topic: str) -> cg.MockObj:
 MQTTMessage = mqtt_ns.struct("MQTTMessage")
 MQTTClientDisconnectReason = mqtt_ns.enum("MQTTClientDisconnectReason")
 MQTTClientComponent = mqtt_ns.class_("MQTTClientComponent", cg.Component)
-MQTTPublishJsonAction = mqtt_ns.class_("MQTTPublishJsonAction", automation.Action)
 MQTTComponent = mqtt_ns.class_("MQTTComponent", cg.Component)
 
 # A topic the firmware builds from a suffix, unless the config key replaces the whole topic
@@ -854,24 +853,43 @@ MQTT_PUBLISH_JSON_ACTION_SCHEMA = cv.Schema(
 
 @automation.register_action(
     "mqtt.publish_json",
-    MQTTPublishJsonAction,
+    automation.ApplyAction,
     MQTT_PUBLISH_JSON_ACTION_SCHEMA,
     synchronous=True,
 )
-async def mqtt_publish_json_action_to_code(config, action_id, template_arg, args):
-    paren = await cg.get_variable(config[CONF_ID])
-    var = cg.new_Pvariable(action_id, template_arg, paren)
-    template_ = await cg.templatable(config[CONF_TOPIC], args, cg.std_string)
-    cg.add(var.set_topic(template_))
-
-    args_ = args + [(cg.JsonObject, "root")]
-    lambda_ = await cg.process_lambda(config[CONF_PAYLOAD], args_, return_type=cg.void)
-    cg.add(var.set_payload(lambda_))
-    template_ = await cg.templatable(config[CONF_QOS], args, cg.uint8)
-    cg.add(var.set_qos(template_))
-    template_ = await cg.templatable(config[CONF_RETAIN], args, cg.bool_)
-    cg.add(var.set_retain(template_))
-    return var
+async def mqtt_publish_json_action_to_code(
+    config: ConfigType,
+    action_id: ID,
+    template_arg: cg.TemplateArguments,
+    args: TemplateArgsType,
+) -> MockObj:
+    parent = await automation.apply_parent(config)
+    # Lambdas are called in order before the publish, with the trigger args by value
+    statements: list[str] = []
+    values: dict[str, str] = {}
+    for key, type_, const_fn in (
+        (CONF_TOPIC, cg.std_string, automation.flash_string),
+        (CONF_QOS, cg.uint8, None),
+        (CONF_RETAIN, cg.bool_, None),
+    ):
+        if not isinstance(value := config[key], Lambda):
+            values[key] = (
+                const_fn(config, value) if const_fn else str(cg.safe_exp(value))
+            )
+            continue
+        statements.append(
+            await automation.bind_lambda(value, args, type_, f"esphome__{key}")
+        )
+        values[key] = f"esphome__{key}"
+    payload = await cg.process_lambda(
+        config[CONF_PAYLOAD], [*args, (cg.JsonObject, "root")], return_type=cg.void
+    )
+    statements.append(
+        f"{parent}->publish_json({values[CONF_TOPIC]}, [&]({cg.JsonObject} root) {{ "
+        f"{automation.immediate_lambda_call(payload)}; }}, "
+        f"{values[CONF_QOS]}, {values[CONF_RETAIN]});"
+    )
+    return automation.apply_statements_action(action_id, template_arg, args, statements)
 
 
 def get_default_topic_for(data, component_type, name, suffix):

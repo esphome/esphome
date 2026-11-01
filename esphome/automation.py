@@ -619,8 +619,18 @@ def parent_ref(var: MockObj) -> MockObj:
     return MockObj(f"::{var}", "->")
 
 
-async def _apply_parent(config: ConfigType, id_key: str = CONF_ID) -> str:
+async def apply_parent(config: ConfigType, id_key: str = CONF_ID) -> str:
+    """The object ``config[id_key]`` names, as ``parent_ref`` spells it."""
     return str(parent_ref(await cg.get_variable(config[id_key])))
+
+
+async def bind_lambda(
+    value: Lambda, args: TemplateArgsType, return_type: SafeExpType, name: str
+) -> str:
+    """``const <return_type> <name> = <value>(args...);``, a statement of its own so the
+    order of evaluation is fixed; the lambda keeps the trigger args by value and is never reduced."""
+    lambda_ = await cg.process_lambda(value, args, return_type=return_type)
+    return f"const {return_type} {name} = {immediate_lambda_call(lambda_)};"
 
 
 def _apply_lambda_args(args: TemplateArgsType) -> TemplateArgsType:
@@ -779,7 +789,7 @@ def apply_action_builder(
         template_arg: cg.TemplateArguments,
         args: TemplateArgsType,
     ) -> MockObj:
-        parent = await _apply_parent(config, id_key)
+        parent = await apply_parent(config, id_key)
         lambda_args = _apply_lambda_args(args)
         receiver = "apply_call." if call else f"{parent}->"
         statements: list[str] = []
@@ -834,14 +844,12 @@ async def _render_bytes(
         return f"{receiver}{target.format(data, parent=parent)};"
 
     if isinstance(value, Lambda):
-        inner = await cg.process_lambda(
-            value, args, return_type=cg.std_vector.template(cg.uint8)
+        bind = await bind_lambda(
+            value, args, cg.std_vector.template(cg.uint8), "esphome__bytes"
         )
-        # Never reduced into the outer function, whose own parameters are const
-        call = CallExpression(inner, *[cg.MockObj(name) for _, name in args])
         return [
             "{",
-            f"  const std::vector<uint8_t> esphome__bytes = {call};",
+            f"  {bind}",
             f"  {send(spec.target, 'esphome__bytes.data(), esphome__bytes.size()')}",
             "}",
         ]
@@ -920,7 +928,7 @@ def register_apply_condition(
     ) -> MockObj:
         if defaults:
             config = {**defaults, **config}
-        parent = await _apply_parent(config, id_key)
+        parent = await apply_parent(config, id_key)
         lambda_args = _apply_lambda_args(args)
         values = _apply_values(config, members)
         check = await _render_check(
