@@ -112,10 +112,11 @@ _UF2_MAGIC_HEAD = (0x0A324655).to_bytes(4, "little") + (0x9E5D5157).to_bytes(
 )
 _UF2_FAMILY_RTL8710B = 0x22E0D6FC
 RTL8710B_DEFLATE_NOTICE = (
-    "Uploading uncompressed, so this OTA takes longer: on RTL8710B, the "
-    "firmware on the device cannot take a compressed upload safely because of "
-    "an upstream issue (https://github.com/esphome/esphome/issues/22012). Once "
-    "this update is installed, later OTAs are compressed again."
+    "Uploading uncompressed, so this OTA takes longer: the device did not accept "
+    "a compressed upload. On RTL8710B this is expected while it runs ESPHome "
+    "2026.10, because of an upstream issue "
+    "(https://github.com/esphome/esphome/issues/22012); once this update is "
+    "installed, later OTAs are compressed again."
 )
 
 
