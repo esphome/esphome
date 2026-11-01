@@ -241,7 +241,10 @@ def slot_list(define: str, register: str) -> Callable[..., Expression]:
         raise ValueError(
             f"cg.slot_list('{define}') must be called in a component's __init__.py, not {module}"
         )
-    _SLOT_LIST_OWNERS[define] = module
+    if _SLOT_LIST_OWNERS.setdefault(define, module) != module:
+        raise ValueError(
+            f"cg.slot_list('{define}') is already declared in {_SLOT_LIST_OWNERS[define]}"
+        )
     request_slot = slot_counter(define)
 
     def register_item(hub: MockObj, *args: Any) -> Expression:

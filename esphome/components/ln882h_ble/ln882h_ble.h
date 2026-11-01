@@ -89,7 +89,6 @@ class LN882HBLE final : public Component {
   void get_mac_lsb_first(uint8_t out[6]) const;
 
   /// Register a consumer for scan reports (delivered on the main task via loop()).
-  /// Codegen only: each consumer registers through register_scan_listener() in __init__.py.
   SLOT_LIST(BLEScanListener, scan_listeners_, register_scan_listener, LN882H_BLE_SCAN_LISTENER_COUNT)
 
   /// Start the controller scan. Interval/window are in BLE units (0.625 ms);

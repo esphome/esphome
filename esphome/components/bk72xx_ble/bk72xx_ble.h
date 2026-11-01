@@ -86,7 +86,6 @@ class BK72xxBLE final : public Component {
   void get_mac_lsb_first(uint8_t out[MAC_ADDRESS_SIZE]) const;
 
   /// Register a consumer for scan reports (delivered on the main task via loop()).
-  /// Codegen only: each consumer registers through register_scan_listener() in __init__.py.
   SLOT_LIST(BLEScanListener, scan_listeners_, register_scan_listener, BK72XX_BLE_SCAN_LISTENER_COUNT)
 
   /// Request a scan (interval/window in 0.625 ms BLE units); enables the

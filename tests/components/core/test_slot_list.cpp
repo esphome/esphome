@@ -10,7 +10,6 @@ struct Listener {
 class Hub {
  public:
   SLOT_LIST(Listener, listeners_, register_listener, 2)
-  // The macro ends in a public section.
   size_t size() const { return this->listeners_.size(); }
   Listener *at(size_t i) const { return this->listeners_[i]; }
 };
@@ -50,10 +49,14 @@ TEST(SlotListTest, DropsRegistrationsPastCapacity) {
 
 TEST(SlotListTest, StorageIsTheCodegenCountOfPointers) { EXPECT_EQ(sizeof(Hub), sizeof(StaticVector<Listener *, 2>)); }
 
+// A registration code generation did not count fails to compile instead of being dropped
+template<typename H>
+concept CanRegisterListener = requires(H hub, Listener *listener) { hub.register_listener(listener); };
+static_assert(CanRegisterListener<Hub>);
+static_assert(!CanRegisterListener<EmptyHub>);
+
 TEST(SlotListTest, ZeroCountWalksNothingAndTakesNoSpace) {
   EmptyHub hub;
-  Listener a{1};
-  hub.register_listener(&a);
   EXPECT_EQ(hub.walk(), 0u);
   EXPECT_EQ(sizeof(EmptyHub), sizeof(uint32_t));
 }
