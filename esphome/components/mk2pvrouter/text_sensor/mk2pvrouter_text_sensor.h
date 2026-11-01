@@ -5,8 +5,11 @@
 
 namespace esphome::mk2pvrouter {
 
-// Publishes `val` verbatim when `tag` is `own_tag`
-void publish_text_sensor_value(text_sensor::TextSensor *sensor, const char *own_tag, const char *tag, const char *val);
-void dump_text_sensor(const char *tag, text_sensor::TextSensor *sensor, const char *own_tag);
+class Mk2PVRouterTextSensor final : public Mk2PVRouterListener, public text_sensor::TextSensor, public Component {
+ public:
+  explicit Mk2PVRouterTextSensor(const char *tag);
+  void publish_val(const char *val) override;
+  void dump_config() override;
+};
 
 }  // namespace esphome::mk2pvrouter

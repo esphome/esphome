@@ -148,18 +148,21 @@ void Mk2PVRouter::loop() {
 }
 
 void Mk2PVRouter::publish_value_(const char *tag, const char *val) {
-#ifdef USE_MK2PVROUTER_VALUE_PUBLISHER
-  if (this->value_publisher_ != nullptr)
-    this->value_publisher_(tag, val);
+#ifdef MK2PVROUTER_LISTENER_COUNT
+  for (auto *element : this->mk2pvrouter_listeners_) {
+    if (strcmp(tag, element->get_tag()) != 0)
+      continue;
+    element->publish_val(val);
+  }
 #endif
 }
 
-void Mk2PVRouter::dump_config() {
-  ESP_LOGCONFIG(TAG, "Mk2PVRouter:");
-#ifdef USE_MK2PVROUTER_VALUE_PUBLISHER
-  if (this->dump_publisher_ != nullptr)
-    this->dump_publisher_(TAG);
-#endif
+void Mk2PVRouter::dump_config() { ESP_LOGCONFIG(TAG, "Mk2PVRouter:"); }
+
+#ifdef MK2PVROUTER_LISTENER_COUNT
+void Mk2PVRouter::register_mk2pvrouter_listener(Mk2PVRouterListener *listener) {
+  this->mk2pvrouter_listeners_.push_back(listener);
 }
+#endif
 
 }  // namespace esphome::mk2pvrouter
