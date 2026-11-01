@@ -67,8 +67,8 @@ def test_status_publishers(generate_main: Callable[[str], str]) -> None:
         assert f"{hub}->set_status_publisher(esphome__{hub}__status_fn);" in main_cpp
     assert "charger_c->set_status_publisher" not in main_cpp
 
-    # The C++ tests run a copy of this function; it must decode the same way
-    cpp = CPP_TEST.read_text()
+    # The C++ tests run a copy of this function, with the parameter named plain status; it must decode the same way
+    cpp = CPP_TEST.read_text().replace("status[", "esphome__arg_status[")
     assert [(m[1].lower(), m[2]) for m in CPP_BINARY.finditer(cpp)] == [
         (m[1], m[2]) for m in binary
     ]
