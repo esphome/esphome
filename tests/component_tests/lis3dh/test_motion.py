@@ -13,6 +13,7 @@ from esphome.components.lis3dh.motion import (
     CONF_HIGH_PASS_FILTER,
     CONF_INTERRUPT,
     CONF_INTERRUPT_PIN,
+    CONF_INVERTED,
     CONF_LATENCY,
     CONF_ON_DOUBLE_TAP,
     CONF_ON_TAP,
@@ -156,6 +157,9 @@ def test_threshold_without_gravity_problem_is_silent(
     assert caplog.text == ""
 
 
+_PIN = {"number": 15, CONF_INVERTED: False}
+
+
 def _tap_config(
     odr_key: str = "400HZ",
     threshold_g: float = 0.6,
@@ -227,7 +231,7 @@ def test_double_tap_times_are_ignored_without_double_tap() -> None:
 def test_interrupt_pin_with_both_triggers_is_rejected() -> None:
     """With both enabled the chip raises the interrupt only for double taps."""
     config = _tap_config(
-        triggers=(CONF_ON_TAP, CONF_ON_DOUBLE_TAP), **{CONF_INTERRUPT_PIN: 15}
+        triggers=(CONF_ON_TAP, CONF_ON_DOUBLE_TAP), **{CONF_INTERRUPT_PIN: _PIN}
     )
     with pytest.raises(cv.Invalid, match="can't be used with both"):
         _validate_tap(config)
@@ -236,13 +240,20 @@ def test_interrupt_pin_with_both_triggers_is_rejected() -> None:
 @pytest.mark.parametrize("trigger", [CONF_ON_TAP, CONF_ON_DOUBLE_TAP])
 def test_interrupt_pin_with_one_trigger_is_accepted(trigger: str) -> None:
     """Either trigger alone can be read from the interrupt pin."""
-    config = _tap_config(triggers=(trigger,), **{CONF_INTERRUPT_PIN: 15})
+    config = _tap_config(triggers=(trigger,), **{CONF_INTERRUPT_PIN: _PIN})
     assert _validate_tap(config) is config
+
+
+def test_inverted_tap_pin_is_rejected() -> None:
+    """The pad polarity comes from the motion interrupt, so inverting the pin breaks it."""
+    config = _tap_config(**{CONF_INTERRUPT_PIN: {"number": 15, CONF_INVERTED: True}})
+    with pytest.raises(cv.Invalid, match="'inverted' is not supported"):
+        _validate_tap(config)
 
 
 def test_tap_on_motion_interrupt_pad_is_rejected() -> None:
     """Tap and motion cannot share a pad when the tap pad is watched."""
-    config = _tap_config(**{CONF_INTERRUPT_PIN: 15})
+    config = _tap_config(**{CONF_INTERRUPT_PIN: _PIN})
     config[CONF_INTERRUPT] = {CONF_PIN: "INT1"}
     with pytest.raises(cv.Invalid, match="already uses INT1"):
         _validate_tap(config)

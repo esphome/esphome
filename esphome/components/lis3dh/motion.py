@@ -18,6 +18,7 @@ from esphome.const import (
     CONF_DURATION,
     CONF_INTERRUPT,
     CONF_INTERRUPT_PIN,
+    CONF_INVERTED,
     CONF_PIN,
     CONF_THRESHOLD,
 )
@@ -244,6 +245,13 @@ def _validate_tap(config: ConfigType) -> ConfigType:
             "'interrupt_pin' can't be used with both 'on_tap' and 'on_double_tap'; "
             "remove it to poll instead",
             path=[CONF_TAP, CONF_INTERRUPT_PIN],
+        )
+    if (pin := tap.get(CONF_INTERRUPT_PIN)) is not None and pin[CONF_INVERTED]:
+        # The pad polarity comes from the motion interrupt's active_high
+        raise cv.Invalid(
+            "'inverted' is not supported on the tap 'interrupt_pin'; "
+            "set 'active_high' in the 'interrupt' block instead",
+            path=[CONF_TAP, CONF_INTERRUPT_PIN, CONF_INVERTED],
         )
     if (
         CONF_INTERRUPT_PIN in tap
