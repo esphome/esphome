@@ -68,8 +68,9 @@ void SX1509Component::loop() {
       return;
     this->last_key_ = key;
     ESP_LOGV(TAG, "row %d, col %d, key '%c'", row, col, key);
-    for (auto &trigger : this->key_triggers_)
-      trigger->trigger(key);
+#ifdef SX1509_ON_KEY_COUNT
+    this->key_automations_.trigger(key);
+#endif
     this->send_key_(key);
   }
 }

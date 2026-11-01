@@ -230,24 +230,28 @@ void RC522::loop() {
 
       this->current_uid_ = rfid_uid;
 
-      for (auto *trigger : this->triggers_ontag_)
-        trigger->process(rfid_uid);
-
+#if ESPHOME_LOG_LEVEL >= ESPHOME_LOG_LEVEL_DEBUG || defined(RC522_ON_TAG_COUNT)
+      char uid_buf[format_hex_pretty_size(RC522_MAX_UID_SIZE)];
+      format_hex_pretty_to(uid_buf, rfid_uid.data(), rfid_uid.size(), '-');
+#endif
+#ifdef RC522_ON_TAG_COUNT
+      this->tag_automations_.trigger(uid_buf);
+#endif
       if (report) {
-        char uid_buf[format_hex_pretty_size(RC522_MAX_UID_SIZE)];
-        ESP_LOGD(TAG, "Found new tag '%s'", format_hex_pretty_to(uid_buf, rfid_uid.data(), rfid_uid.size(), '-'));
+        ESP_LOGD(TAG, "Found new tag '%s'", uid_buf);
       }
       break;
     }
     case STATE_DONE: {
       if (!this->current_uid_.empty()) {
-#if ESPHOME_LOG_LEVEL >= ESPHOME_LOG_LEVEL_VERBOSE
+#if ESPHOME_LOG_LEVEL >= ESPHOME_LOG_LEVEL_VERBOSE || defined(RC522_ON_TAG_REMOVED_COUNT)
         char uid_buf[format_hex_pretty_size(RC522_MAX_UID_SIZE)];
-        ESP_LOGV(TAG, "Tag '%s' removed",
-                 format_hex_pretty_to(uid_buf, this->current_uid_.data(), this->current_uid_.size(), '-'));
+        format_hex_pretty_to(uid_buf, this->current_uid_.data(), this->current_uid_.size(), '-');
+        ESP_LOGV(TAG, "Tag '%s' removed", uid_buf);
 #endif
-        for (auto *trigger : this->triggers_ontagremoved_)
-          trigger->process(this->current_uid_);
+#ifdef RC522_ON_TAG_REMOVED_COUNT
+        this->tag_removed_automations_.trigger(uid_buf);
+#endif
       }
       this->current_uid_ = {};
       state_ = STATE_INIT;
@@ -483,9 +487,4 @@ bool RC522BinarySensor::process(std::vector<uint8_t> &data) {
   this->found_ = result;
   return result;
 }
-void RC522Trigger::process(std::vector<uint8_t> &data) {
-  char uid_buf[format_hex_pretty_size(RC522_MAX_UID_SIZE)];
-  this->trigger(format_hex_pretty_to(uid_buf, data.data(), data.size(), '-'));
-}
-
 }  // namespace esphome::rc522
