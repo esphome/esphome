@@ -635,10 +635,8 @@ void BluetoothProxy::loop() {
 #endif
 
   if (!api::global_api_server->is_connected() || this->api_connection_ == nullptr) {
-#ifdef USE_BLUETOOTH_PROXY_CONNECTIONS
     // The API subscriber is gone: tear down any connections it left behind.
     this->disconnect_all_connections_();
-#endif
     return;
   }
 
@@ -731,17 +729,16 @@ void BluetoothProxy::reset_owed_replies_() {
 #endif
 }
 
-#ifdef USE_BLUETOOTH_PROXY_CONNECTIONS
 void BluetoothProxy::disconnect_all_connections_() {
-  // disconnect() on an idle or already-disconnecting slot is a no-op.
+#ifdef USE_BLUETOOTH_PROXY_CONNECTIONS
   for (uint8_t i = 0; i < this->connection_count_; i++) {
     auto *connection = this->connections_[i];
     if (connection->get_address() != 0) {
       connection->disconnect();
     }
   }
-}
 #endif
+}
 
 void BluetoothProxy::subscribe_api_connection(api::APIConnection *api_connection, uint32_t flags) {
   if (api_connection != this->api_connection_) {
@@ -761,11 +758,9 @@ void BluetoothProxy::subscribe_api_connection(api::APIConnection *api_connection
     // re-subscribe by the current one keeps what it is still owed.
     this->reset_owed_replies_();
     this->api_connection_ = api_connection;
-#ifdef USE_BLUETOOTH_PROXY_CONNECTIONS
     // Held links belong to a client that no longer gets their events; free them so idle-only
     // advertisers are seen again. After the swap, so a sync slot free reports to the new client.
     this->disconnect_all_connections_();
-#endif
   }
 #ifdef USE_BLE_SCANNER_STATE_CALLBACK
   // get_scanner_state() is part of the push-hub surface (see BLEHubContract).

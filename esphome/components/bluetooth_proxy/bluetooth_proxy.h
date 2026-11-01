@@ -328,9 +328,9 @@ class BluetoothProxy final : public Component {
   /// Drops state only, never sends: api_connection_ is the departing
   /// subscriber on subscribe and nullptr on unsubscribe.
   void reset_owed_replies_();
-#ifdef USE_BLUETOOTH_PROXY_CONNECTIONS
-  /// Tear down every held link; idempotent, safe to call each loop.
+  /// Tear down every held link; repeat calls are no-ops.
   void disconnect_all_connections_();
+#ifdef USE_BLUETOOTH_PROXY_CONNECTIONS
   /// Report a reply we deliberately do not latch, so no drop is silent.
   void log_reply_dropped_(const char *what, uint64_t address);
   /// A latched reply's leading edge; the drain's re-refusals stay quiet.
