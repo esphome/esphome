@@ -14,6 +14,9 @@
 #ifdef USE_LOGGER_EARLY_MESSAGE
 #include <esphome/components/zephyr/reset_reason.h>
 #endif
+#ifdef USE_BOOTLOADER_ADAFRUIT
+#include <nrf.h>
+#endif
 
 namespace esphome::logger {
 
@@ -170,6 +173,21 @@ static const char *reason_to_str(unsigned int reason, char *buf) {
       return buf;
   }
 }
+
+#ifdef USE_BOOTLOADER_ADAFRUIT
+// The Adafruit bootloader passes its version to the app as 0x00MMmmpp (major, minor, patch)
+static constexpr uint32_t ADAFRUIT_BOOTLOADER_MIN_VERSION = 0x000B00;  // 0.11.0
+
+void Logger::dump_bootloader_() {
+  // NOLINTNEXTLINE(clang-analyzer-core.FixedAddressDereference) -- NRF_TIMER2 is MMIO at a fixed address
+  const uint32_t version = NRF_TIMER2->CC[0];
+  if (version < ADAFRUIT_BOOTLOADER_MIN_VERSION) {
+    ESP_LOGW(TAG, "Adafruit bootloader %u.%u.%u has known stability issues. Please update it to 0.11.0 or newer.",
+             static_cast<unsigned>((version >> 16) & 0xFF), static_cast<unsigned>((version >> 8) & 0xFF),
+             static_cast<unsigned>(version & 0xFF));
+  }
+}
+#endif
 
 void Logger::dump_crash_() {
   ESP_LOGD(TAG, "Crash buffer address %p", &crash_buf);

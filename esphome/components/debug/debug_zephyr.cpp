@@ -18,8 +18,6 @@ namespace esphome::debug {
 ESPHOME_LOG_TAG(TAG, "debug");
 constexpr std::uintptr_t MBR_PARAM_PAGE_ADDR = 0xFFC;
 constexpr std::uintptr_t MBR_BOOTLOADER_ADDR = 0xFF8;
-// Version is encoded as 0x00MMmmpp (major, minor, patch)
-constexpr uint32_t ADAFRUIT_BOOTLOADER_RECOMMENDED_VERSION = 0x000B00;  // 0.11.0
 
 static inline uint32_t read_mem_u32(uintptr_t addr) {
   // NOLINTNEXTLINE(performance-no-int-to-ptr,clang-analyzer-core.FixedAddressDereference)
@@ -380,11 +378,6 @@ size_t DebugComponent::get_device_info_(std::span<char, DEVICE_INFO_BUFFER_SIZE>
 #else
   ESP_LOGD(TAG, "  Bootloader: Adafruit, version %u.%u.%u", (BOOTLOADER_VERSION_REGISTER >> 16) & 0xFF,
            (BOOTLOADER_VERSION_REGISTER >> 8) & 0xFF, BOOTLOADER_VERSION_REGISTER & 0xFF);
-#ifdef USE_BOOTLOADER_ADAFRUIT
-  if (BOOTLOADER_VERSION_REGISTER < ADAFRUIT_BOOTLOADER_RECOMMENDED_VERSION) {
-    ESP_LOGW(TAG, "Adafruit bootloader older than 0.11.0 has known stability issues. Please update the bootloader.");
-  }
-#endif
   ESP_LOGD(TAG, "  MBR bootloader addr 0x%08x, UICR bootloader addr 0x%08x", read_mem_u32(MBR_BOOTLOADER_ADDR),
            NRF_UICR->NRFFW[0]);
   ESP_LOGD(TAG, "  MBR param page addr 0x%08x, UICR param page addr 0x%08x", read_mem_u32(MBR_PARAM_PAGE_ADDR),
