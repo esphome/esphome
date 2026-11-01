@@ -1,27 +1,31 @@
+from esphome.automation import parent_ref
 import esphome.codegen as cg
 from esphome.components import text_sensor
-from esphome.const import CONF_ID, CONF_TAG
+from esphome.const import CONF_TAG
 from esphome.types import ConfigType
 
 from .. import (
     CONF_MK2PVROUTER_ID,
-    MK2PVROUTER_LISTENER_SCHEMA,
+    DUMP_PUBLISHER,
+    DUMP_TAG,
+    MK2PVROUTER_CHILD_SCHEMA,
+    TAG,
+    VAL,
+    VALUE_PUBLISHER,
     mk2pvrouter_ns,
-    register_mk2pvrouter_listener,
 )
 
-Mk2PVRouterTextSensor = mk2pvrouter_ns.class_(
-    "Mk2PVRouterTextSensor", text_sensor.TextSensor, cg.Component
-)
-
-CONFIG_SCHEMA = text_sensor.text_sensor_schema(Mk2PVRouterTextSensor).extend(
-    MK2PVROUTER_LISTENER_SCHEMA
-)
+CONFIG_SCHEMA = text_sensor.text_sensor_schema().extend(MK2PVROUTER_CHILD_SCHEMA)
 
 
 async def to_code(config: ConfigType) -> None:
-    var = cg.new_Pvariable(config[CONF_ID], config[CONF_TAG])
-    await cg.register_component(var, config)
-    await text_sensor.register_text_sensor(var, config)
+    var = await text_sensor.new_text_sensor(config)
     mk2pvrouter = await cg.get_variable(config[CONF_MK2PVROUTER_ID])
-    await register_mk2pvrouter_listener(mk2pvrouter, var)
+    tag = config[CONF_TAG]
+    VALUE_PUBLISHER.add(
+        mk2pvrouter,
+        mk2pvrouter_ns.publish_text_sensor_value(parent_ref(var), tag, TAG, VAL),
+    )
+    DUMP_PUBLISHER.add(
+        mk2pvrouter, mk2pvrouter_ns.dump_text_sensor(DUMP_TAG, parent_ref(var), tag)
+    )

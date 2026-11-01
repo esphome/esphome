@@ -5,11 +5,9 @@
 
 namespace esphome::mk2pvrouter {
 
-class Mk2PVRouterBinarySensor final : public Mk2PVRouterListener, public binary_sensor::BinarySensor, public Component {
- public:
-  explicit Mk2PVRouterBinarySensor(const char *tag);
-  void publish_val(const char *val) override;
-  void dump_config() override;
-};
+// Publishes whether `val` is not "0" when `tag` is `own_tag`
+void publish_binary_sensor_value(binary_sensor::BinarySensor *sensor, const char *own_tag, const char *tag,
+                                 const char *val);
+void dump_binary_sensor(const char *tag, binary_sensor::BinarySensor *sensor, const char *own_tag);
 
 }  // namespace esphome::mk2pvrouter

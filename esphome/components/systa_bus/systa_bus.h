@@ -23,28 +23,26 @@ static constexpr size_t MAX_MESSAGE_SIZE = (MESSAGE_TYPE_AQUA_SENSOR_DATA & 0xff
 
 inline uint16_t get_message_type(std::span<const uint8_t> message) { return encode_uint16(message[0], message[1]); }
 
-class SystaBusListener {
- public:
-  // Called with every frame that passed the checksum; listeners pick their message type
-  virtual void handle_message(std::span<const uint8_t> message) = 0;
-};
+// Big-endian int16 in 0.1 degrees at `start` of an Aqua sensor data message
+inline float aqua_temperature(std::span<const uint8_t> message, size_t start) {
+  return encode_value<int16_t>(&message[start]) * 0.1f;
+}
 
 class SystaBus : public uart::UARTDevice, public Component {
  public:
   void dump_config() override;
   void loop() override;
 
-#ifdef SYSTA_BUS_LISTENER_COUNT
-  void register_listener(SystaBusListener *listener) { this->listeners_.push_back(listener); }
+#ifdef USE_SYSTA_BUS_AQUA_PUBLISHER
+  // Generated from the child entities; null when this bus has none
+  HUB_PUBLISHER(aqua, std::span<const uint8_t>)
+  HUB_PUBLISHER(dump, const char *)
 #endif
 
  protected:
   void handle_byte_(uint8_t c);
   void resync_();
 
-#ifdef SYSTA_BUS_LISTENER_COUNT
-  StaticVector<SystaBusListener *, SYSTA_BUS_LISTENER_COUNT> listeners_;
-#endif
   StaticVector<uint8_t, MAX_MESSAGE_SIZE> buffer_;
 };
 
