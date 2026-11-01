@@ -459,6 +459,16 @@ def test_slot_list_without_registrations_emits_zero() -> None:
     assert _define_value("TEST_SLOT_LIST_EMPTY") == "0"
 
 
+def test_slot_list_keeps_a_define_set_by_hand() -> None:
+    _declare_slot_list("TEST_SLOT_LIST_MANUAL")
+    ch.add_define("TEST_SLOT_LIST_MANUAL", 3)
+    _emit_slot_lists({"wiegand": []})
+    values = [
+        str(d.value) for d in ch.CORE.defines if d.name == "TEST_SLOT_LIST_MANUAL"
+    ]
+    assert values == ["3"]
+
+
 def test_slot_list_of_a_component_not_in_the_build_emits_nothing() -> None:
     _declare_slot_list("TEST_SLOT_LIST_UNUSED", module="esphome.components.rc522")
     _emit_slot_lists({"wiegand": []})

@@ -259,12 +259,10 @@ async def emit_empty_slot_lists() -> None:
 
     state = _get_slot_counter_state()
     built = {component.package for _, component in iter_components(CORE.config)}
+    # a define set by hand, such as by a test manifest override, is left alone
+    done = state.emitted | state.counts.keys() | {d.name for d in CORE.defines}
     for define, owner in _SLOT_LIST_OWNERS.items():
-        if (
-            owner in built
-            and define not in state.counts
-            and define not in state.emitted
-        ):
+        if owner in built and define not in done:
             state.emitted.add(define)
             add_define(define, 0)
 
