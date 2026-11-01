@@ -1,6 +1,7 @@
 #  YAML config keys
 import math
 
+from esphome.automation import parent_ref
 import esphome.codegen as cg
 from esphome.components import sensor
 import esphome.config_validation as cv
@@ -14,21 +15,20 @@ from esphome.const import (
     UNIT_DEGREES,
     UNIT_G,
 )
-from esphome.cpp_generator import MockObj
 from esphome.cpp_types import std_ns
 from esphome.types import ConfigType
 
 from . import (
     AXES,
     CONF_MOTION_ID,
+    DATA,
+    DATA_PUBLISHER,
     KEY_ACCELEROMETER,
     KEY_GYROSCOPE,
     SENSOR_SCHEMA,
     get_motion_config,
     motion_ns,
 )
-
-MotionData = motion_ns.class_("MotionData")
 
 CONF_PITCH = "pitch"
 CONF_ROLL = "roll"
@@ -128,7 +128,7 @@ def _final_validate(config: dict) -> None:
 FINAL_VALIDATE_SCHEMA = _final_validate
 
 
-def build_sensor_expr(sensor_type: str, data: MockObj, config: dict) -> MockObj:
+def build_sensor_expr(sensor_type: str, data: cg.MockObj, config: dict) -> cg.MockObj:
     """Build the C++ expression for a motion sensor type."""
 
     # Note that <numbers> is included via this component's header file.
@@ -156,10 +156,5 @@ async def to_code(config: ConfigType) -> None:
     sensor_type = config[CONF_TYPE]
     var = await sensor.new_sensor(config)
     parent = await cg.get_variable(config[CONF_MOTION_ID])
-    data = MockObj("data")
-    expr = build_sensor_expr(sensor_type, data, config)
-    value_lambda = await cg.process_lambda(
-        var.publish_state(expr),
-        [(MotionData.operator("const").operator("ref"), str(data))],
-    )
-    cg.add(parent.add_listener(value_lambda))
+    expr = build_sensor_expr(sensor_type, DATA, config)
+    DATA_PUBLISHER.add(parent, parent_ref(var).publish_state(expr))

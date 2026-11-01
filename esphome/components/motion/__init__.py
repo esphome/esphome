@@ -21,6 +21,7 @@ IS_PLATFORM_COMPONENT = True
 #  C++ namespace / class
 motion_ns = cg.esphome_ns.namespace("motion")
 MotionComponent = motion_ns.class_("MotionComponent", cg.PollingComponent)
+MotionData = motion_ns.class_("MotionData")
 
 AXES = ["x", "y", "z"]
 
@@ -33,6 +34,15 @@ CalibrateHeadingAction = motion_ns.class_("CalibrateHeadingAction", automation.A
 
 KEY_ACCELEROMETER = "accelerometer"
 KEY_GYROSCOPE = "gyroscope"
+
+# Each motion sensor, binary sensor and event adds its handling of a new sample
+DATA_PUBLISHER = cg.HubFunction(
+    "data",
+    cg.void,
+    [(MotionData.const_ref(), "data")],
+    define="USE_MOTION_DATA_PUBLISHER",
+)
+DATA = DATA_PUBLISHER.param("data")
 
 SENSOR_SCHEMA = cv.Schema(
     {
