@@ -791,6 +791,11 @@ class EsphomeCore:
         if CONF_OPENTHREAD in self.config:
             return f"{self.name}.local"
 
+        if PLATFORM_HOST in self.config:
+            return self.config[PLATFORM_HOST].get(
+                CONF_USE_ADDRESS, f"{self.name}.local"
+            )
+
         return None
 
     @property
