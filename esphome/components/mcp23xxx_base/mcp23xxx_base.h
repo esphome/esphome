@@ -10,8 +10,8 @@ enum MCP23XXXInterruptMode : uint8_t { MCP23XXX_NO_INTERRUPT = 0, MCP23XXX_CHANG
 
 template<uint8_t N> class MCP23XXXBase : public gpio_expander::CachedGpioExpanderComponent<uint8_t, N> {
  public:
-  virtual void pin_mode(uint8_t pin, gpio::Flags flags);
-  virtual void pin_interrupt_mode(uint8_t pin, MCP23XXXInterruptMode interrupt_mode);
+  virtual void pin_mode(uint8_t pin, gpio::Flags flags) = 0;
+  virtual void pin_interrupt_mode(uint8_t pin, MCP23XXXInterruptMode interrupt_mode) = 0;
 
   void set_open_drain_ints(const bool value) { this->open_drain_ints_ = value; }
   InternalGPIOPin *get_interrupt_pin() const { return this->interrupt_pin_; }
