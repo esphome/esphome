@@ -268,6 +268,8 @@ CONF_ADVERTISING_CYCLE_TIME = "advertising_cycle_time"
 CONF_DISABLE_BT_LOGS = "disable_bt_logs"
 CONF_CONNECTION_TIMEOUT = "connection_timeout"
 CONF_MAX_NOTIFICATIONS = "max_notifications"
+CONF_CLASSIC_BT = "classic_bt"
+CONF_CLASSIC_MAX_ACL_CONNECTIONS = "classic_max_acl_connections"
 
 # BLE connection limits
 # ESP-IDF CONFIG_BT_ACL_CONNECTIONS has range 1-9, default 4
@@ -356,6 +358,8 @@ CONFIG_SCHEMA = cv.Schema(
             cv.positive_int,
             cv.Range(min=1, max=64),
         ),
+        cv.Optional(CONF_CLASSIC_BT, default=False): cv.boolean,
+        cv.Optional(CONF_CLASSIC_MAX_ACL_CONNECTIONS): cv.int_range(min=1, max=7),
         cv.Optional(CONF_MAX_CONNECTIONS, default=DEFAULT_MAX_CONNECTIONS): cv.All(
             cv.positive_int, cv.Range(min=1, max=IDF_MAX_CONNECTIONS)
         ),
@@ -443,8 +447,24 @@ def validate_connection_slots(max_connections: int) -> None:
     )
 
 
+def validate_classic_bt_target(path: list[str] | None = None) -> None:
+    """Validate the controller target for Classic users during final validation."""
+    if get_esp32_variant() != const.VARIANT_ESP32 or CORE.using_arduino:
+        raise cv.Invalid(
+            "Bluetooth Classic requires the original ESP32 with ESP-IDF",
+            path=path,
+        )
+
+
 def final_validation(config: ConfigType) -> None:
     validate_variant(config)
+    if config[CONF_CLASSIC_BT]:
+        validate_classic_bt_target(path=[CONF_CLASSIC_BT])
+    if not config[CONF_CLASSIC_BT] and CONF_CLASSIC_MAX_ACL_CONNECTIONS in config:
+        raise cv.Invalid(
+            "classic_max_acl_connections requires classic_bt: true",
+            path=[CONF_CLASSIC_MAX_ACL_CONNECTIONS],
+        )
     if (name := config.get(CONF_NAME)) is not None:
         full_config = fv.full_config.get()
         max_length = 20
@@ -517,6 +537,20 @@ def final_validation(config: ConfigType) -> None:
 FINAL_VALIDATE_SCHEMA = final_validation
 
 
+def request_classic_bt() -> None:
+    """Enable Classic alongside BLE for components that need BR/EDR."""
+    validate_classic_bt_target()
+
+    cg.add_define("USE_ESP32_BLE_CLASSIC_BT")
+    add_idf_sdkconfig_option("CONFIG_BTDM_CTRL_MODE_BTDM", True)
+    add_idf_sdkconfig_option("CONFIG_BT_CLASSIC_ENABLED", True)
+    add_idf_sdkconfig_option(
+        "CONFIG_BTDM_CTRL_BR_EDR_MAX_ACL_CONN",
+        CORE.config[DOMAIN].get(CONF_CLASSIC_MAX_ACL_CONNECTIONS, 1),
+    )
+    add_idf_sdkconfig_option("CONFIG_BTDM_CTRL_BR_EDR_MAX_SYNC_CONN", 0)
+
+
 async def to_code(config: ConfigType) -> None:
     var = cg.new_Pvariable(config[CONF_ID])
     cg.add(var.set_enable_on_boot(config[CONF_ENABLE_ON_BOOT]))
@@ -542,6 +576,9 @@ async def to_code(config: ConfigType) -> None:
     cg.add_define("USE_ESP32_BLE_MAX_CONNECTIONS", max_connections)
 
     request_bluetooth()
+
+    if config[CONF_CLASSIC_BT]:
+        request_classic_bt()
 
     # When PSRAM and BT are used together, Bluedroid should prefer SPIRAM for
     # heap allocations and use dynamic (heap-based) environment memory tables
