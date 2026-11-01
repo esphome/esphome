@@ -81,14 +81,15 @@ void Rfc2217Server::write_serial_() {
 
 void Rfc2217Server::read_serial_() {
   // Every byte may double, so a chunk goes only with twice its size of room in the link.
-  if (this->tcp_->available_for_write() < 2 * READ_CHUNK) {
+  static constexpr size_t CHUNK = 64;
+  if (this->tcp_->available_for_write() < 2 * CHUNK) {
     return;
   }
-  this->read_available_chunks<READ_CHUNK>([this](const uint8_t *raw, size_t len) {
-    uint8_t out[2 * READ_CHUNK];
+  this->read_available_chunks<CHUNK>([this](const uint8_t *raw, size_t len) {
+    uint8_t out[2 * CHUNK];
     size_t used = 0;
     this->write_tcp_(out, telnet_escape(raw, len, out, sizeof(out), &used));
-    return this->tcp_->available_for_write() >= 2 * READ_CHUNK;
+    return this->tcp_->available_for_write() >= 2 * CHUNK;
   });
 }
 

@@ -391,8 +391,8 @@ TEST(Rfc2217Server, AllUartBytesMoveInOnePass) {
 }
 
 TEST(Rfc2217Server, UartBytesWaitForRoomInTheLink) {
-  // A chunk is 128 bytes and every byte may double.
-  static constexpr size_t ROOM_FOR_ONE_CHUNK = 256;
+  // A chunk is 64 bytes and every byte may double.
+  static constexpr size_t ROOM_FOR_ONE_CHUNK = 128;
   Pipe pipe;
   FakeSerial serial;
   Server server(&pipe, &serial);
