@@ -40,6 +40,7 @@ void MainControlUnitHub::update() {
 }
 
 void MainControlUnitHub::write_state(switch_::Switch *sw, bool state) {
+  ESP_LOGD(TAG, "Write state called for switch: %p, state: %s", sw, TRUEFALSE(state));
   if (sw != nullptr) {
     if (sw == this->main_switch_switch_) {
       bool current_state = this->hs_key_state_ > 0;
@@ -71,6 +72,7 @@ bool MainControlUnitHub::decode(const char *key, const char *value) {
     i++;
   if (i == std::size(KEY_NAMES))
     return false;
+  ESP_LOGD(TAG, "Handled key: %s, value: %s", key, value);
   switch (static_cast<Key>(i)) {
     case Key::KEY_TEMP_IN: {
       float temp_in_state = DeviceDecoders::decode_float(value);

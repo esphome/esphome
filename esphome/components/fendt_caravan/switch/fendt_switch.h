@@ -9,9 +9,7 @@ namespace esphome::fendt_caravan {
 class FendtSwitch : public switch_::Switch, public Parented<FendtCaravanHubBase> {
  public:
  protected:
-  void write_state(bool state) override { this->state_callback_.call(state); }
-
- private:
+  void write_state(bool state) override { this->parent_->write_state(this, state); }
 };
 
 }  // namespace esphome::fendt_caravan

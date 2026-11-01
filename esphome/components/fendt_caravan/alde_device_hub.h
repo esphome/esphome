@@ -29,7 +29,6 @@ class AldeDeviceHub : public FendtCaravanHubBase, public sensor::Sensor, public 
  public:
   void setup() override;
   void dump_config() override;
-  void update() override;
 
   SUB_BINARY_SENSOR(alde_status);
   SUB_CLIMATE(alde);
@@ -38,7 +37,7 @@ class AldeDeviceHub : public FendtCaravanHubBase, public sensor::Sensor, public 
   SUB_SWITCH(alde_water_heater_boost);
   SUB_SELECT(alde_heater_electricity);
   SUB_SWITCH(alde_heater_gas);
-  void write_state(switch_::Switch *sw, bool state) override {};
+  void write_state(switch_::Switch *sw, bool state) override;
 
  protected:
   bool decode(const char *key, const char *value) override;

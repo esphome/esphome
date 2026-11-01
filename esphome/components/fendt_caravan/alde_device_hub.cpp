@@ -18,45 +18,15 @@ static constexpr const char *KEY_NAMES[] = {
 };
 
 void AldeDeviceHub::setup() {
-  /*   auto *alde_available = new Variable<bool>("HEATER_AVAILABLE", DeviceDecoders::decode_bool);
-    this->add_variable(alde_available);
-
-    auto *heater_status = new Variable<bool>("HEATER_ONOFF", DeviceDecoders::decode_bool,
-    Commands::update_toggle<bool>); this->add_variable(heater_status); if (this->alde_heater_switch_) {
-      this->alde_heater_switch_->add_on_state_callback([this, heater_status](bool state) {
-        if (heater_status->get_value() != state) {
-          heater_status->set_value(state);
-          this->parent_->send_command(heater_status->get_command());
-        }
-      });
-    }
-    auto *heater_temp = new Variable<float>("HEATER_TEMP", DeviceDecoders::decode_temperature,
-    Commands::update_temp_10); this->add_variable(heater_temp); if (this->alde_climate_) {
-      this->alde_climate_->add_on_control_callback([this, heater_temp](climate::ClimateCall &call) {
-        if (call.get_target_temperature().has_value()) {
-          float target_temp = call.get_target_temperature().value();
-          heater_temp->set_value(target_temp);
-          this->parent_->send_command(heater_temp->get_command());
-        }
-      });
-    }
-
-    auto *heater_water = new Variable<bool>("HEATER_WATER", DeviceDecoders::decode_bool, Commands::update_toggle<bool>);
-    this->add_variable(heater_water);
-    if (this->alde_water_heater_switch_) {
-      this->alde_water_heater_switch_->add_on_state_callback([this, heater_water](bool state) {
-        if (heater_water->get_value() != state) {
-          heater_water->set_value(state);
-          this->parent_->send_command(heater_water->get_command());
-        }
-      });
-    }
-
-    auto *heater_water_temp = new Variable<bool>(
-        "HEATER_WATER_TEMP", [](const std::string &data) { return DeviceDecoders::decode_temperature(data) == 65.0f; },
-        Commands::update_toggle<bool>);
-    this->add_variable(heater_water_temp);
-
+  if (this->alde_climate_) {
+    this->alde_climate_->add_on_control_callback([this](climate::ClimateCall &call) {
+      if (call.get_target_temperature().has_value()) {
+        float target_temp = call.get_target_temperature().value();
+        this->parent_->send_command(Commands::update_temp_10("HEATER_TEMP", target_temp));
+      }
+    });
+  }
+  /*
     auto *heater_el =
         new Variable<std::string>("HEATER_EL", DeviceDecoders::decode_heater_el, Commands::update_heater_el);
     this->add_variable(heater_el);
@@ -88,7 +58,22 @@ void AldeDeviceHub::dump_config() {
   LOG_SWITCH(TAG, "  Heater Gas", this->alde_heater_gas_switch_);
 }
 
-void AldeDeviceHub::update() {}
+void AldeDeviceHub::write_state(switch_::Switch *sw, bool state) {
+  ESP_LOGD(TAG, "Write state called for switch: %p, state: %s", sw, TRUEFALSE(state));
+  if (sw == this->alde_heater_switch_) {
+    std::string cmd = Commands::update_toggle("HEATER_ONOFF");
+    this->parent_->send_command(cmd);
+  } else if (sw == this->alde_water_heater_switch_) {
+    std::string cmd = Commands::update_toggle("HEATER_WATER");
+    this->parent_->send_command(cmd);
+  } else if (sw == this->alde_water_heater_boost_switch_) {
+    std::string cmd = Commands::update_toggle("HEATER_WATER_TEMP");
+    this->parent_->send_command(cmd);
+  } else if (sw == this->alde_heater_gas_switch_) {
+    std::string cmd = Commands::update_run("HEATER_GAS");
+    this->parent_->send_command(cmd);
+  }
+}
 
 bool AldeDeviceHub::decode(const char *key, const char *value) {
   size_t i = 0;
@@ -125,9 +110,9 @@ bool AldeDeviceHub::decode(const char *key, const char *value) {
       break;
     }
     case Key::KEY_HEATER_WATER_TEMP: {
-      bool alde_heater_water_temp = DeviceDecoders::decode_bool(value);
+      float alde_heater_water_temp = DeviceDecoders::decode_float(value);
       if (this->alde_water_heater_boost_switch_)
-        this->alde_water_heater_boost_switch_->publish_state(alde_heater_water_temp);
+        this->alde_water_heater_boost_switch_->publish_state(alde_heater_water_temp == 65.0f);
       break;
     }
     case Key::KEY_HEATER_GAS: {
