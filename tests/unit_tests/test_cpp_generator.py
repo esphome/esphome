@@ -996,6 +996,11 @@ def test_static_function_accepts_statements() -> None:
     ]
 
 
+def test_const_ref_renders_const_reference() -> None:
+    regs = cg.MockObj("hub", "::").class_("Regs")
+    assert str(regs.const_ref()) == "const hub::Regs &"
+
+
 def test_add_global_after_includes_rejects_non_statements() -> None:
     with pytest.raises(ValueError, match="must be expression or statement"):
         CORE.add_global_after_includes("not a statement")

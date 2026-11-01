@@ -21,7 +21,7 @@ bq25186:
     address: 0x6C
 
 # charger_a has every status entity, charger_b one, charger_c none.
-# The text block comes first; its sensors still publish after the binary sensors
+# Items publish in config order, so these text sensors come first
 text_sensor:
   - platform: bq25186
     bq25186_id: charger_a
