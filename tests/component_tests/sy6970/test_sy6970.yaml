@@ -1,0 +1,41 @@
+esphome:
+  name: test
+
+esp32:
+  board: esp32dev
+
+i2c:
+  sda: GPIO21
+  scl: GPIO22
+
+sy6970:
+  - id: charger
+  - id: idle_charger
+    address: 0x6B
+
+binary_sensor:
+  - platform: sy6970
+    sy6970_id: charger
+    vbus_connected:
+      name: VBUS Connected
+      id: vbus_connected
+    charging:
+      name: Charging
+      id: charging
+
+sensor:
+  - platform: sy6970
+    sy6970_id: charger
+    battery_voltage:
+      name: Battery Voltage
+      id: battery_voltage
+    precharge_current:
+      name: Precharge Current
+      id: precharge_current
+
+text_sensor:
+  - platform: sy6970
+    sy6970_id: charger
+    ntc_status:
+      name: NTC Status
+      id: ntc_status

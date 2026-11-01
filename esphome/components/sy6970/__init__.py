@@ -22,13 +22,26 @@ sy6970_ns = cg.esphome_ns.namespace("sy6970")
 SY6970Component = sy6970_ns.class_(
     "SY6970Component", cg.PollingComponent, i2c.I2CDevice
 )
-SY6970Listener = sy6970_ns.class_("SY6970Listener")
+SY6970Data = sy6970_ns.struct("SY6970Data")
 I2CWatchdogTimeout = sy6970_ns.enum("I2CWatchdogTimeout")
 
 # REG07[5:4]; the component kicks the watchdog itself, so the chip's 40S default can stay on
 I2C_WATCHDOG_TIMEOUTS = I2CWatchdogTimeout.options(
     "DISABLED", "40S", "80S", "160S", prefix="I2C_WATCHDOG_"
 )
+
+# Publishes the child entities from the registers read on each update
+DATA_PUBLISHER = cg.HubFunction(
+    "data_fn",
+    cg.void,
+    [(SY6970Data.operator("const").operator("ref"), "data")],
+    setter="set_data_publisher",
+    define="USE_SY6970_DATA_PUBLISHER",
+)
+REGISTERS = DATA_PUBLISHER.param("data").registers
+STATUS_REGISTER = REGISTERS[sy6970_ns.SY6970_REG_STATUS]
+BUS_STATUS = (STATUS_REGISTER >> 5) & 0x07
+CHARGE_STATUS = (STATUS_REGISTER >> 3) & 0x03
 
 CONFIG_SCHEMA = (
     cv.Schema(
