@@ -34,7 +34,6 @@ class SystaBus : public uart::UARTDevice, public Component {
   void loop() override;
 
 #ifdef USE_SYSTA_BUS_AQUA_PUBLISHER
-  // Generated from the child entities; null when this bus has none
   HUB_PUBLISHER(aqua, std::span<const uint8_t>)
   HUB_PUBLISHER(dump, const char *)
 #endif

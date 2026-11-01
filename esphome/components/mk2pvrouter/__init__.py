@@ -68,7 +68,6 @@ DUMP_PUBLISHER = cg.HubFunction(
     "dump",
     cg.void,
     [(cg.const_char_ptr, "tag")],
-    define="USE_MK2PVROUTER_VALUE_PUBLISHER",
 )
 DUMP_TAG = DUMP_PUBLISHER.param("tag")
 

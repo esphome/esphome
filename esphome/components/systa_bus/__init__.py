@@ -37,7 +37,7 @@ FINAL_VALIDATE_SCHEMA = uart.final_validate_device_schema(
 AQUA_PUBLISHER = cg.HubFunction(
     "aqua",
     cg.void,
-    [(cg.std_ns.class_("span").template(cg.uint8.operator("const")), "message")],
+    [(cg.std_span.template(cg.uint8.operator("const")), "message")],
     define="USE_SYSTA_BUS_AQUA_PUBLISHER",
 )
 MESSAGE = AQUA_PUBLISHER.param("message")
@@ -46,7 +46,6 @@ DUMP_PUBLISHER = cg.HubFunction(
     "dump",
     cg.void,
     [(cg.const_char_ptr, "tag")],
-    define="USE_SYSTA_BUS_AQUA_PUBLISHER",
 )
 DUMP_TAG = DUMP_PUBLISHER.param("tag")
 

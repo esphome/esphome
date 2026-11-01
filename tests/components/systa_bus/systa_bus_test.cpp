@@ -10,14 +10,14 @@ namespace esphome::systa_bus::testing {
 
 namespace {
 
-struct TestListener {
+struct Recorder {
   std::vector<std::vector<uint8_t>> messages;
 };
 
-// Stands in for the generated function; records into the running test's listener
-TestListener *active_listener = nullptr;
+// Stands in for the generated function; records into the running test's recorder
+Recorder *active_recorder = nullptr;
 void record_message(std::span<const uint8_t> message) {
-  active_listener->messages.emplace_back(message.begin(), message.end());
+  active_recorder->messages.emplace_back(message.begin(), message.end());
 }
 
 void put_i16be(std::vector<uint8_t> &frame, size_t offset, int16_t value) {
@@ -46,7 +46,7 @@ class SystaBusTest : public ::testing::Test {
  protected:
   void SetUp() override {
     this->bus_.set_uart_parent(&this->uart_);
-    active_listener = &this->listener_;
+    active_recorder = &this->recorder_;
     this->bus_.set_aqua_publisher(record_message);
   }
   void feed_(const std::vector<uint8_t> &bytes) {
@@ -56,7 +56,7 @@ class SystaBusTest : public ::testing::Test {
 
   MockUARTComponent uart_;
   SystaBus bus_;
-  TestListener listener_;
+  Recorder recorder_;
 };
 
 const std::vector<uint8_t> FRAME_A = aqua_frame(512, 301, -15, 700, 60);
@@ -66,24 +66,24 @@ const std::vector<uint8_t> FRAME_B = aqua_frame(513, 302, -14, 701, 61);
 
 TEST_F(SystaBusTest, DecodesAValidFrame) {
   this->feed_(FRAME_A);
-  ASSERT_EQ(this->listener_.messages.size(), 1u);
-  EXPECT_EQ(this->listener_.messages[0], FRAME_A);
+  ASSERT_EQ(this->recorder_.messages.size(), 1u);
+  EXPECT_EQ(this->recorder_.messages[0], FRAME_A);
 }
 
 TEST_F(SystaBusTest, IgnoresGarbageBeforeAFrame) {
   std::vector<uint8_t> bytes = {0x00, 0x16, 0x42, 0xfc};  // includes a stray start byte
   bytes.insert(bytes.end(), FRAME_A.begin(), FRAME_A.end());
   this->feed_(bytes);
-  ASSERT_EQ(this->listener_.messages.size(), 1u);
-  EXPECT_EQ(this->listener_.messages[0], FRAME_A);
+  ASSERT_EQ(this->recorder_.messages.size(), 1u);
+  EXPECT_EQ(this->recorder_.messages[0], FRAME_A);
 }
 
 TEST_F(SystaBusTest, SkipsAnUnknownMessageType) {
   std::vector<uint8_t> bytes = {START_BYTE, 0x1a, 0x01, 0x02, 0x03};
   bytes.insert(bytes.end(), FRAME_A.begin(), FRAME_A.end());
   this->feed_(bytes);
-  ASSERT_EQ(this->listener_.messages.size(), 1u);
-  EXPECT_EQ(this->listener_.messages[0], FRAME_A);
+  ASSERT_EQ(this->recorder_.messages.size(), 1u);
+  EXPECT_EQ(this->recorder_.messages[0], FRAME_A);
 }
 
 TEST_F(SystaBusTest, RejectsACorruptedByte) {
@@ -92,8 +92,8 @@ TEST_F(SystaBusTest, RejectsACorruptedByte) {
   std::vector<uint8_t> bytes = bad;
   bytes.insert(bytes.end(), FRAME_B.begin(), FRAME_B.end());
   this->feed_(bytes);
-  ASSERT_EQ(this->listener_.messages.size(), 1u);
-  EXPECT_EQ(this->listener_.messages[0], FRAME_B);
+  ASSERT_EQ(this->recorder_.messages.size(), 1u);
+  EXPECT_EQ(this->recorder_.messages[0], FRAME_B);
 }
 
 // A frame that lost a byte swallows the start byte of the next frame; the parser must still find that frame.
@@ -103,27 +103,27 @@ TEST_F(SystaBusTest, RecoversTheFrameAfterADroppedByte) {
   std::vector<uint8_t> bytes = truncated;
   bytes.insert(bytes.end(), FRAME_B.begin(), FRAME_B.end());
   this->feed_(bytes);
-  ASSERT_EQ(this->listener_.messages.size(), 1u);
-  EXPECT_EQ(this->listener_.messages[0], FRAME_B);
+  ASSERT_EQ(this->recorder_.messages.size(), 1u);
+  EXPECT_EQ(this->recorder_.messages[0], FRAME_B);
 }
 
 TEST_F(SystaBusTest, DecodesFramesSplitAcrossLoops) {
   std::vector<uint8_t> first(FRAME_A.begin(), FRAME_A.begin() + 10);
   std::vector<uint8_t> second(FRAME_A.begin() + 10, FRAME_A.end());
   this->feed_(first);
-  EXPECT_TRUE(this->listener_.messages.empty());
+  EXPECT_TRUE(this->recorder_.messages.empty());
   this->feed_(second);
-  ASSERT_EQ(this->listener_.messages.size(), 1u);
-  EXPECT_EQ(this->listener_.messages[0], FRAME_A);
+  ASSERT_EQ(this->recorder_.messages.size(), 1u);
+  EXPECT_EQ(this->recorder_.messages[0], FRAME_A);
 }
 
 TEST_F(SystaBusTest, DecodesBackToBackFrames) {
   std::vector<uint8_t> bytes = FRAME_A;
   bytes.insert(bytes.end(), FRAME_B.begin(), FRAME_B.end());
   this->feed_(bytes);
-  ASSERT_EQ(this->listener_.messages.size(), 2u);
-  EXPECT_EQ(this->listener_.messages[0], FRAME_A);
-  EXPECT_EQ(this->listener_.messages[1], FRAME_B);
+  ASSERT_EQ(this->recorder_.messages.size(), 2u);
+  EXPECT_EQ(this->recorder_.messages[0], FRAME_A);
+  EXPECT_EQ(this->recorder_.messages[1], FRAME_B);
 }
 
 }  // namespace esphome::systa_bus::testing

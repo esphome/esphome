@@ -24,7 +24,6 @@ static constexpr uint16_t MAX_BUF_SIZE = 256;  // Full frame with all features e
 class Mk2PVRouter : public Component, public uart::UARTDevice {
  public:
 #ifdef USE_MK2PVROUTER_VALUE_PUBLISHER
-  // Generated from the child entities; null when this hub has none
   HUB_PUBLISHER(value, const char *, const char *)
   HUB_PUBLISHER(dump, const char *)
 #endif
