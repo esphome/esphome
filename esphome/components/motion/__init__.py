@@ -49,10 +49,9 @@ ACCELERATION_G = cv.All(cv.float_with_unit("acceleration", "(g|G)?"), cv.positiv
 
 # Each motion sensor, binary sensor and event adds its handling of a new sample
 DATA_PUBLISHER = cg.HubFunction(
-    "data_publisher",
+    "data",
     cg.void,
     [(MotionData.const_ref(), "data")],
-    setter="set_data_publisher",
     define="USE_MOTION_DATA_PUBLISHER",
 )
 DATA = DATA_PUBLISHER.param("data")
