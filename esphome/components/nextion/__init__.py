@@ -25,17 +25,17 @@ FILTER_SOURCE_FILES = filter_source_files_from_platform(
 )
 
 register_sensor_component = cg.slot_list(
-    "NEXTION_SENSOR_COUNT", "register_sensor_component"
+    "NEXTION_SENSOR_COUNT", "register_sensor_component", DOMAIN
 )
 register_textsensor_component = cg.slot_list(
-    "NEXTION_TEXT_SENSOR_COUNT", "register_textsensor_component"
+    "NEXTION_TEXT_SENSOR_COUNT", "register_textsensor_component", DOMAIN
 )
 register_switch_component = cg.slot_list(
-    "NEXTION_SWITCH_COUNT", "register_switch_component"
+    "NEXTION_SWITCH_COUNT", "register_switch_component", DOMAIN
 )
 register_touch_component = cg.slot_list(
-    "NEXTION_TOUCH_COUNT", "register_touch_component"
+    "NEXTION_TOUCH_COUNT", "register_touch_component", DOMAIN
 )
 register_binarysensor_component = cg.slot_list(
-    "NEXTION_BINARY_SENSOR_COUNT", "register_binarysensor_component"
+    "NEXTION_BINARY_SENSOR_COUNT", "register_binarysensor_component", DOMAIN
 )

@@ -118,7 +118,7 @@ CANBUS_SCHEMA = cv.Schema(
 CANBUS_SCHEMA.add_extra(validate_id)
 
 
-_add_trigger = cg.slot_list("CANBUS_TRIGGER_COUNT", "add_trigger")
+_add_trigger = cg.slot_list("CANBUS_TRIGGER_COUNT", "add_trigger", DOMAIN)
 
 
 async def setup_canbus_core_(var: MockObj, config: ConfigType) -> None:

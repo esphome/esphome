@@ -54,13 +54,13 @@ CONFIG_SCHEMA = cv.Schema(
 
 
 _register_tag_trigger = cg.slot_list(
-    "WIEGAND_TAG_TRIGGER_COUNT", "register_tag_trigger"
+    "WIEGAND_TAG_TRIGGER_COUNT", "register_tag_trigger", DOMAIN
 )
 _register_raw_trigger = cg.slot_list(
-    "WIEGAND_RAW_TRIGGER_COUNT", "register_raw_trigger"
+    "WIEGAND_RAW_TRIGGER_COUNT", "register_raw_trigger", DOMAIN
 )
 _register_key_trigger = cg.slot_list(
-    "WIEGAND_KEY_TRIGGER_COUNT", "register_key_trigger"
+    "WIEGAND_KEY_TRIGGER_COUNT", "register_key_trigger", DOMAIN
 )
 
 

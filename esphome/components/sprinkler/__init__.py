@@ -497,7 +497,9 @@ automation.register_simple_action(
 )
 
 
-_add_controller = cg.slot_list("SPRINKLER_OTHER_CONTROLLER_COUNT", "add_controller")
+_add_controller = cg.slot_list(
+    "SPRINKLER_OTHER_CONTROLLER_COUNT", "add_controller", DOMAIN
+)
 
 
 async def to_code(config):

@@ -143,7 +143,7 @@ CONFIG_SCHEMA = cv.All(
 )
 
 
-_add_trace = cg.slot_list("GRAPH_TRACE_COUNT", "add_trace")
+_add_trace = cg.slot_list("GRAPH_TRACE_COUNT", "add_trace", DOMAIN)
 
 
 async def to_code(config: ConfigType) -> None:

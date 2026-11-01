@@ -74,7 +74,7 @@ WKBASE_SCHEMA = cv.Schema(
 ).extend(cv.COMPONENT_SCHEMA)
 
 
-_register_channel = cg.slot_list("WEIKAI_CHANNEL_COUNT", "register_channel")
+_register_channel = cg.slot_list("WEIKAI_CHANNEL_COUNT", "register_channel", DOMAIN)
 
 
 async def register_weikai(var: MockObj, config: ConfigType) -> None:

@@ -239,7 +239,7 @@ CONFIG_SCHEMA = cv.ensure_list(
 )
 
 
-_add_channel = cg.slot_list("USB_UART_CHANNEL_COUNT", "add_channel")
+_add_channel = cg.slot_list("USB_UART_CHANNEL_COUNT", "add_channel", DOMAIN)
 
 
 async def to_code(config: list[ConfigType]) -> None:

@@ -153,9 +153,9 @@ FINAL_VALIDATE_SCHEMA = _final_validate
 
 
 _add_server_register = cg.slot_list(
-    "MODBUS_SERVER_REGISTER_COUNT", "add_server_register"
+    "MODBUS_SERVER_REGISTER_COUNT", "add_server_register", DOMAIN
 )
-_add_server_bit = cg.slot_list("MODBUS_SERVER_BIT_COUNT", "add_server_bit")
+_add_server_bit = cg.slot_list("MODBUS_SERVER_BIT_COUNT", "add_server_bit", DOMAIN)
 
 
 async def to_code(config: ConfigType) -> None:

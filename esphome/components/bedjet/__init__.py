@@ -35,7 +35,7 @@ BEDJET_CLIENT_SCHEMA = cv.Schema(
 )
 
 
-_register_child = cg.slot_list("BEDJET_CHILD_COUNT", "register_child")
+_register_child = cg.slot_list("BEDJET_CHILD_COUNT", "register_child", DOMAIN)
 
 
 async def register_bedjet_child(var: MockObj, config: ConfigType) -> None:
