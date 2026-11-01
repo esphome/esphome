@@ -18,7 +18,9 @@ UARTBinarySensorHub = uart_ns.class_(
     "UARTBinarySensorHub", uart.UARTDevice, cg.Component
 )
 
-_add_event_matcher = cg.slot_list("UART_BINARY_SENSOR_COUNT", "add_event_matcher")
+_add_event_matcher = cg.slot_list(
+    "UART_BINARY_SENSOR_COUNT", "add_event_matcher", DOMAIN
+)
 
 CONFIG_SCHEMA = (
     # Initially off, so the first sequence after boot is an OFF to ON edge for on_press

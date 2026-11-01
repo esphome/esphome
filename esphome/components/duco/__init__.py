@@ -60,7 +60,7 @@ FINAL_VALIDATE_SCHEMA = uart.final_validate_device_schema(
 )
 
 
-_register_device = cg.slot_list("DUCO_DEVICE_COUNT", "register_device")
+_register_device = cg.slot_list("DUCO_DEVICE_COUNT", "register_device", DOMAIN)
 
 
 async def register_duco_device(var: cg.MockObj, config: ConfigType, hub_id: ID) -> None:
