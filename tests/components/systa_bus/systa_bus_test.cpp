@@ -15,7 +15,7 @@ struct Recorder {
 };
 
 // Stands in for the generated function; records into the running test's recorder
-Recorder *active_recorder = nullptr;
+Recorder *active_recorder = nullptr;  // NOLINT(cppcoreguidelines-avoid-non-const-global-variables)
 void record_message(std::span<const uint8_t> message) {
   active_recorder->messages.emplace_back(message.begin(), message.end());
 }

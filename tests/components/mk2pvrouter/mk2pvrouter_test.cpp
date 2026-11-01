@@ -17,7 +17,7 @@ struct Published {
   std::string tag;
   std::string val;
 };
-Published published;
+Published published;  // NOLINT(cppcoreguidelines-avoid-non-const-global-variables)
 void record_value(const char *tag, const char *val) { published = {true, tag, val}; }
 
 class Mk2PVRouterTest : public ::testing::Test {
