@@ -204,6 +204,41 @@ def test_board_yml_targets(tmp_path: Path) -> None:
 
 # The generator runs on Linux (CI and developer machines) with the GNU C preprocessor; the
 # macOS cpp is a traditional-mode preprocessor and Windows has no /dev/null
+def test_old_layout_targets(tmp_path: Path) -> None:
+    """SDK 2.6.1 boards have no board.yml; the SoC comes from the defconfig."""
+    board = tmp_path / "boards" / "arm" / "xiao_ble"
+    _write(board / "xiao_ble.dts", "")
+    _write(
+        board / "xiao_ble_defconfig",
+        "CONFIG_SOC_SERIES_NRF52X=y\nCONFIG_SOC_NRF52840_QIAA=y\n",
+    )
+    _write(board / "xiao_ble.yaml", "identifier: xiao_ble\nname: XIAO BLE\n")
+    nrf54 = tmp_path / "boards" / "arm" / "nrf54l15pdk"
+    _write(nrf54 / "nrf54l15pdk_nrf54l15_cpuapp.dts", "")
+    _write(
+        nrf54 / "nrf54l15pdk_nrf54l15_cpuapp_defconfig",
+        "CONFIG_SOC_NRF54L15_ENGA_CPUAPP=y\n",
+    )
+    # Series that are not listed, and a .dts without a defconfig
+    other = tmp_path / "boards" / "arm" / "nrf5340dk_nrf5340"
+    _write(other / "nrf5340dk_nrf5340_cpuapp.dts", "")
+    _write(
+        other / "nrf5340dk_nrf5340_cpuapp_defconfig",
+        "CONFIG_SOC_NRF5340_CPUAPP_QKAA=y\n",
+    )
+    _write(board / "xiao_ble_overlay.dts", "")
+
+    assert find_targets(tmp_path / "boards", {}) == [
+        BoardTarget(
+            "nrf54l15pdk_nrf54l15_cpuapp",
+            "nrf54l15pdk_nrf54l15_cpuapp",
+            "NRF54L15",
+            nrf54 / "nrf54l15pdk_nrf54l15_cpuapp.dts",
+        ),
+        BoardTarget("xiao_ble", "XIAO BLE", "NRF52840", board / "xiao_ble.dts"),
+    ]
+
+
 @pytest.mark.skipif(
     sys.platform != "linux" or shutil.which("cpp") is None,
     reason="needs Linux with the GNU C preprocessor",
