@@ -784,12 +784,17 @@ class EsphomeCore:
         priority = self.config.get("network", {}).get(CONF_PRIORITY, [])
         wifi_first = bool(priority) and priority[0]["interface"] == CONF_WIFI
         first = (CONF_WIFI, "modem") if wifi_first else ("modem", CONF_WIFI)
-        for network_type in (*first, CONF_ETHERNET, CONF_OPENTHREAD, PLATFORM_HOST):
+        for network_type in (*first, CONF_ETHERNET, CONF_OPENTHREAD):
             if network_type in self.config:
                 return self.config[network_type][CONF_USE_ADDRESS]
 
         if CONF_OPENTHREAD in self.config:
             return f"{self.name}.local"
+
+        if PLATFORM_HOST in self.config:
+            return self.config[PLATFORM_HOST].get(
+                CONF_USE_ADDRESS, f"{self.name}.local"
+            )
 
         return None
 

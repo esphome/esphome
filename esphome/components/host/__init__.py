@@ -28,12 +28,6 @@ DOMAIN = "host"
 IS_TARGET_PLATFORM = True
 
 
-def _default_use_address(config: ConfigType) -> ConfigType:
-    if CONF_USE_ADDRESS not in config:
-        config[CONF_USE_ADDRESS] = f"{CORE.name}.local"
-    return config
-
-
 def set_core_data(config: ConfigType) -> ConfigType:
     CORE.data[KEY_HOST] = {}
     CORE.data[KEY_CORE][KEY_TARGET_PLATFORM] = PLATFORM_HOST
@@ -49,7 +43,6 @@ CONFIG_SCHEMA = cv.All(
             cv.Optional(CONF_USE_ADDRESS): cv.string_strict,
         }
     ),
-    _default_use_address,
     # The host builds with the machine's own compiler through ninja; there
     # is no PlatformIO backend, so a CLI --toolchain must name this one
     cv.resolve_toolchain("host", (Toolchain.HOST,), Toolchain.HOST),
