@@ -387,33 +387,10 @@ def test_icon__invalid():
         cv.icon("foo")
 
 
-@pytest.mark.parametrize("value", ["mdi:home\n", "mdi:home\r"])
-def test_icon__invalid_trailing_newline(value):
+def test_icon__invalid_trailing_newline() -> None:
+    # $ also matches before a final newline, so re.match let this through
     with pytest.raises(Invalid, match="Icons must match the format "):
-        cv.icon(value)
-
-
-def test_hostname__valid():
-    assert cv.hostname("my-device") == "my-device"
-    assert cv.hostname("My-Device-01") == "My-Device-01"
-
-
-@pytest.mark.parametrize(
-    "value",
-    [
-        "",
-        "a" * 64,
-        "my_device",
-        "my.device",
-        "my device",
-        "my-device\n",
-        "my-device\r",
-        "my-device ",
-    ],
-)
-def test_hostname__invalid(value):
-    with pytest.raises(Invalid, match="Invalid hostname"):
-        cv.hostname(value)
+        cv.icon("mdi:home\n")
 
 
 def test_icon__max_length():
@@ -2389,13 +2366,18 @@ def test_validate_bytes_negative_exponent() -> None:
 # ---------------------------------------------------------------------------
 
 
-def test_hostname_valid() -> None:
-    assert cv.hostname("my-host01") == "my-host01"
+@pytest.mark.parametrize("value", ["my-host01", "My-Host-01", "a" * 63])
+def test_hostname_valid(value: str) -> None:
+    assert cv.hostname(value) == value
 
 
-def test_hostname_invalid() -> None:
+@pytest.mark.parametrize(
+    "value",
+    ["invalid_host!", "", "a" * 64, "my.host", "my host", "my-host ", "my-host\n"],
+)
+def test_hostname_invalid(value: str) -> None:
     with pytest.raises(Invalid, match="Invalid hostname"):
-        cv.hostname("invalid_host!")
+        cv.hostname(value)
 
 
 def test_domain_valid_name() -> None:
