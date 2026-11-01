@@ -37,6 +37,8 @@ class UDPComponent final : public Component {
   void set_omr_source() { this->poll_pending_ |= POLL_SRC_BIND; }
 #endif
   template<typename F> void add_listener(F &&listener) { this->packet_listeners_.add(std::forward<F>(listener)); }
+  /// The sender of the packet being passed to the listeners; valid only during a listener call.
+  const sockaddr *get_rx_source() const { return this->rx_source_; }
   void setup() override;
   void loop() override;
   void dump_config() override;
@@ -75,6 +77,7 @@ class UDPComponent final : public Component {
   FixedVector<SockaddrEntry> sockaddrs_{};
   const char *const *addresses_{nullptr};
   const char *listen_address_{nullptr};
+  const sockaddr *rx_source_{nullptr};
 #ifdef USE_SOCKET_IPV6
   uint32_t mcast_ifindex_{0};
 #endif

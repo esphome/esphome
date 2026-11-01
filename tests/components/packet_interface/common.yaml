@@ -4,6 +4,9 @@ wifi:
 
 udp:
   - id: packet_interface_udp
+  - id: packet_interface_udp_peer
+    port: 18512
+    addresses: ["192.168.1.60"]
 
 packet_interface:
   - platform: uart
@@ -45,6 +48,12 @@ packet_interface:
     reliability:
     fragmentation:
     session:
+  # Sends to one unicast address, so the link provides addressing
+  - platform: udp
+    id: packet_interface_udp_peer_link
+    udp_id: packet_interface_udp_peer
+    reliability:
+    session:
 
 sensor:
   - platform: template
@@ -58,5 +67,9 @@ packet_transport:
       - packet_interface_sensor
   - platform: packet_interface
     packet_interface: packet_interface_network
+    sensors:
+      - packet_interface_sensor
+  - platform: packet_interface
+    packet_interface: packet_interface_udp_peer_link
     sensors:
       - packet_interface_sensor

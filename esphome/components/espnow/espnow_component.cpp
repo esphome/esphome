@@ -24,7 +24,7 @@ ESPHOME_LOG_TAG(TAG, "espnow");
 
 ESPNowComponent *global_esp_now = nullptr;  // NOLINT(cppcoreguidelines-avoid-non-const-global-variables)
 
-static const LogString *espnow_error_to_str(esp_err_t error) {
+const LogString *espnow_error_to_str(esp_err_t error) {
   switch (error) {
     case ESP_ERR_ESPNOW_FAILED:
       return LOG_STR("ESPNow is in fail mode");
