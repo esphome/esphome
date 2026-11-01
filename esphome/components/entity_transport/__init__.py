@@ -10,7 +10,7 @@ from esphome.components.const import CONF_PROVIDER, CONF_REMOTE_ID
 from esphome.components.packet_interface import (
     CONF_PACKET_INTERFACE,
     final_validate_interface,
-    interface_layers,
+    interface_has_layer,
 )
 from esphome.components.packet_interface.layers import CONF_SESSION
 from esphome.components.sensor import Sensor
@@ -102,11 +102,13 @@ CONFIG_SCHEMA = cv.Schema(
 
 def _final_validate(config: ConfigType) -> ConfigType:
     """With a session layer, which clears the states when the peer is lost, nothing would refresh an unchanged state."""
-    layers = interface_layers(config[CONF_PACKET_INTERFACE])
-    if CONF_TIMEOUT in config and layers is not None and CONF_SESSION in layers:
+    if CONF_TIMEOUT in config and interface_has_layer(
+        config[CONF_PACKET_INTERFACE], CONF_SESSION
+    ):
         raise cv.Invalid(
-            f"Not allowed with a '{CONF_SESSION}' layer, which already clears the states when the other device "
-            "cannot be reached; unchanged states may never be sent again, so they would time out on a working link",
+            f"Not allowed with a '{CONF_SESSION}' layer, or a link that does its job, which already clears the "
+            "states when the other device cannot be reached; unchanged states may never be sent again, so they "
+            "would time out on a working link",
             path=[CONF_TIMEOUT],
         )
     return config
