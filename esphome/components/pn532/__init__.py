@@ -47,9 +47,11 @@ def CONFIG_SCHEMA(conf: ConfigType) -> None:
         )
 
 
-_request_ontag_trigger_slot = cg.slot_counter("PN532_ON_TAG_TRIGGER_COUNT")
-_request_ontagremoved_trigger_slot = cg.slot_counter(
-    "PN532_ON_TAG_REMOVED_TRIGGER_COUNT"
+_register_ontag_trigger = cg.slot_list(
+    "PN532_ON_TAG_TRIGGER_COUNT", "register_ontag_trigger"
+)
+_register_ontagremoved_trigger = cg.slot_list(
+    "PN532_ON_TAG_REMOVED_TRIGGER_COUNT", "register_ontagremoved_trigger"
 )
 
 _CALLBACK_AUTOMATIONS = (
@@ -64,16 +66,14 @@ async def setup_pn532(var: MockObj, config: ConfigType) -> None:
 
     for conf in config.get(CONF_ON_TAG, []):
         trigger = cg.new_Pvariable(conf[CONF_TRIGGER_ID])
-        _request_ontag_trigger_slot(str(var))
-        cg.add(var.register_ontag_trigger(trigger))
+        cg.add(_register_ontag_trigger(var, trigger))
         await automation.build_automation(
             trigger, [(cg.std_string, "x"), (nfc.NfcTagConstRef, "tag")], conf
         )
 
     for conf in config.get(CONF_ON_TAG_REMOVED, []):
         trigger = cg.new_Pvariable(conf[CONF_TRIGGER_ID])
-        _request_ontagremoved_trigger_slot(str(var))
-        cg.add(var.register_ontagremoved_trigger(trigger))
+        cg.add(_register_ontagremoved_trigger(var, trigger))
         await automation.build_automation(
             trigger, [(cg.std_string, "x"), (nfc.NfcTagConstRef, "tag")], conf
         )

@@ -38,7 +38,9 @@ POLYGON_SAVED_BYTES = 94
 
 PolygonZone = ld2450_ns.class_("PolygonZone", text.Text)
 
-_request_polygon_zone_slot = cg.slot_counter("LD2450_POLYGON_ZONE_COUNT")
+_register_polygon_zone = cg.slot_list(
+    "LD2450_POLYGON_ZONE_COUNT", "register_polygon_zone"
+)
 
 
 def _require_manual_id(config: ConfigType) -> ConfigType:
@@ -115,5 +117,4 @@ async def to_code(config: ConfigType) -> None:
         zone = await text.new_text(
             zone_conf, max_length=POLYGON_MAX_LENGTH, pattern=POLYGON_PATTERN
         )
-        _request_polygon_zone_slot(str(hub))
-        cg.add(hub.register_polygon_zone(zone))
+        cg.add(_register_polygon_zone(hub, zone))

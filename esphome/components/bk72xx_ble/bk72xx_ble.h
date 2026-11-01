@@ -89,7 +89,7 @@ class BK72xxBLE final : public Component {
   /// Register a consumer for scan reports (delivered on the main task via loop()).
   /// Storage is codegen-sized: the consumer's codegen requests a slot via
   /// request_scan_listener_slot(), which emits BK72XX_BLE_SCAN_LISTENER_COUNT.
-  void register_scan_listener(BLEScanListener *listener) { this->scan_listeners_.push_back(listener); }
+  SLOT_LIST(BLEScanListener, scan_listeners_, register_scan_listener, BK72XX_BLE_SCAN_LISTENER_COUNT)
 #endif
 
   /// Request a scan (interval/window in 0.625 ms BLE units); enables the
@@ -120,11 +120,6 @@ class BK72xxBLE final : public Component {
   void reset_teardown_episode_();
   void release_activity_(BdkActivityState state);
 
-#ifdef BK72XX_BLE_SCAN_LISTENER_COUNT
-  // Codegen-sized: no heap allocation, no std::vector template instantiation —
-  // the same StaticVector pattern as the tracker's ble_device_base listeners.
-  StaticVector<BLEScanListener *, BK72XX_BLE_SCAN_LISTENER_COUNT> scan_listeners_;
-#endif
   // Report ring: the BDK notice callback (BLE task) allocates a report from the
   // pool, fills it and pushes the pointer; loop() pops, dispatches and releases.
   // Lock-free SPSC, zero allocation at steady state — the esp32_ble pattern.

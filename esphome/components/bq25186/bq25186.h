@@ -53,10 +53,10 @@ class BQ25186Component : public PollingComponent, public i2c::I2CDevice {
   }
   bool apply_config(const BQ25186ConfigRegisters &regs);
 #ifdef BQ25186_BINARY_SENSOR_COUNT
-  void register_binary_sensor(BQ25186BinarySensor *sensor) { this->binary_sensors_.push_back(sensor); }
+  SLOT_LIST(BQ25186BinarySensor, binary_sensors_, register_binary_sensor, BQ25186_BINARY_SENSOR_COUNT)
 #endif
 #ifdef BQ25186_TEXT_SENSOR_COUNT
-  void register_text_sensor(BQ25186TextSensor *sensor) { this->text_sensors_.push_back(sensor); }
+  SLOT_LIST(BQ25186TextSensor, text_sensors_, register_text_sensor, BQ25186_TEXT_SENSOR_COUNT)
 #endif
 #ifdef USE_BQ25186_PG_GPO
   /// The /PG/GPO pin is put in general purpose output mode when a switch drives it
@@ -78,12 +78,6 @@ class BQ25186Component : public PollingComponent, public i2c::I2CDevice {
   void check_pg_gpo_(const BQ25186StatusRegisters &status, bool &pending);
 #endif
 
-#ifdef BQ25186_BINARY_SENSOR_COUNT
-  StaticVector<BQ25186BinarySensor *, BQ25186_BINARY_SENSOR_COUNT> binary_sensors_;
-#endif
-#ifdef BQ25186_TEXT_SENSOR_COUNT
-  StaticVector<BQ25186TextSensor *, BQ25186_TEXT_SENSOR_COUNT> text_sensors_;
-#endif
   BQ25186ConfigRegisters regs_{};  // the configuration last applied, written again after a chip reset
   bool configure_on_boot_{false};
   bool configured_{false};  // regs_ went to the chip at least once

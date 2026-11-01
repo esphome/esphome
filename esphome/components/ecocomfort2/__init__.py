@@ -40,13 +40,12 @@ ECOCOMFORT2_CLIENT_SCHEMA = cv.Schema(
     }
 )
 
-_request_child_slot = cg.slot_counter("ECOCOMFORT2_CHILD_COUNT")
+_register_child = cg.slot_list("ECOCOMFORT2_CHILD_COUNT", "register_child")
 
 
 async def register_ecocomfort2_child(var: MockObj, config: ConfigType) -> None:
     parent = await cg.get_variable(config[CONF_ECOCOMFORT2_ID])
-    _request_child_slot(str(parent))
-    cg.add(parent.register_child(var))
+    cg.add(_register_child(parent, var))
 
 
 async def to_code(config: ConfigType) -> None:

@@ -54,7 +54,7 @@ class TCA8418Component : public key_provider::KeyProvider, public Component, pub
   void set_interrupt_pin(InternalGPIOPin *pin) { this->interrupt_pin_ = pin; }
 
 #ifdef TCA8418_LISTENER_COUNT
-  void register_listener(TCA8418Listener *listener) { this->listeners_.push_back(listener); }
+  SLOT_LIST(TCA8418Listener, listeners_, register_listener, TCA8418_LISTENER_COUNT)
 #endif
 
   /// Wakes the loop so queued events are read. Runs in interrupt context.
@@ -73,9 +73,6 @@ class TCA8418Component : public key_provider::KeyProvider, public Component, pub
   const uint8_t *keys_{nullptr};  // PROGMEM, indexed by key number - 1
   InternalGPIOPin *interrupt_pin_{nullptr};
   uint32_t last_poll_{0};
-#ifdef TCA8418_LISTENER_COUNT
-  StaticVector<TCA8418Listener *, TCA8418_LISTENER_COUNT> listeners_;
-#endif
   uint8_t rows_{0};
   uint8_t columns_{0};
   uint8_t keys_size_{0};

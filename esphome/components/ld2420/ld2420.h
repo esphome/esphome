@@ -101,7 +101,7 @@ class LD2420Component final : public Component, public uart::UARTDevice {
   SUB_BUTTON(factory_reset)
 #endif
 #ifdef LD2420_LISTENER_COUNT
-  void register_listener(LD2420Listener *listener) { this->listeners_.push_back(listener); }
+  SLOT_LIST(LD2420Listener, listeners_, register_listener, LD2420_LISTENER_COUNT)
 #endif
 
   void send_module_restart();
@@ -183,9 +183,6 @@ class LD2420Component final : public Component, public uart::UARTDevice {
   bool presence_{false};
   bool calibration_{false};
   CmdReplyT cmd_reply_;
-#ifdef LD2420_LISTENER_COUNT
-  StaticVector<LD2420Listener *, LD2420_LISTENER_COUNT> listeners_;
-#endif
 
   // clang-tidy compiles the host tests without USE_HOST, so the friend is unconditional
   friend class testing::LD2420OperatingModeTest;

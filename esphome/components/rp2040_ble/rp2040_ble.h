@@ -83,7 +83,7 @@ class RP2040BLE final : public Component {
   /// Register a consumer for scan reports (delivered on the main loop via loop()).
   /// Storage is codegen-sized: the consumer's codegen requests a slot via
   /// request_scan_listener_slot(), which emits RP2040_BLE_SCAN_LISTENER_COUNT.
-  void register_scan_listener(BLEScanListener *listener) { this->scan_listeners_.push_back(listener); }
+  SLOT_LIST(BLEScanListener, scan_listeners_, register_scan_listener, RP2040_BLE_SCAN_LISTENER_COUNT)
 #endif
 
   /// Start a controller scan; active sends scan requests and receives scan
@@ -118,11 +118,6 @@ class RP2040BLE final : public Component {
   void enqueue_scan_report_(const uint8_t *mac_lsb_first, int8_t rssi, uint8_t addr_type, uint8_t adv_event_type,
                             const uint8_t *data, uint16_t data_len);
 
-#ifdef RP2040_BLE_SCAN_LISTENER_COUNT
-  // Codegen-sized: no heap allocation, no std::vector template instantiation —
-  // the same StaticVector pattern as the tracker's ble_device_base listeners.
-  StaticVector<BLEScanListener *, RP2040_BLE_SCAN_LISTENER_COUNT> scan_listeners_;
-#endif
   // Report ring: the BTstack packet handler (async-context IRQ) allocates a
   // report from the pool, fills it and pushes the pointer; loop() pops,
   // dispatches and releases. Lock-free SPSC — the esp32_ble/bk72xx_ble pattern.

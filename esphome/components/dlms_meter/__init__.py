@@ -55,24 +55,23 @@ def to_obis_id_struct(value: list[int]) -> cg.Expression:
     return ObisId(*value)
 
 
-_request_sensor_slot = cg.slot_counter("DLMS_MAX_SENSORS")
-_request_text_sensor_slot = cg.slot_counter("DLMS_MAX_TEXT_SENSORS")
-_request_binary_sensor_slot = cg.slot_counter("DLMS_MAX_BINARY_SENSORS")
+_register_sensor = cg.slot_list("DLMS_MAX_SENSORS", "register_sensor")
+_register_text_sensor = cg.slot_list("DLMS_MAX_TEXT_SENSORS", "register_text_sensor")
+_register_binary_sensor = cg.slot_list(
+    "DLMS_MAX_BINARY_SENSORS", "register_binary_sensor"
+)
 
 
 def register_sensor(hub: MockObj, obis: list[int], var: MockObj) -> None:
-    _request_sensor_slot(str(hub))
-    cg.add(hub.register_sensor(to_obis_id_struct(obis), var))
+    cg.add(_register_sensor(hub, to_obis_id_struct(obis), var))
 
 
 def register_text_sensor(hub: MockObj, obis: list[int], var: MockObj) -> None:
-    _request_text_sensor_slot(str(hub))
-    cg.add(hub.register_text_sensor(to_obis_id_struct(obis), var))
+    cg.add(_register_text_sensor(hub, to_obis_id_struct(obis), var))
 
 
 def register_binary_sensor(hub: MockObj, obis: list[int], var: MockObj) -> None:
-    _request_binary_sensor_slot(str(hub))
-    cg.add(hub.register_binary_sensor(to_obis_id_struct(obis), var))
+    cg.add(_register_binary_sensor(hub, to_obis_id_struct(obis), var))
 
 
 def custom_pattern_dict(value: Any) -> ConfigType:

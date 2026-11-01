@@ -42,13 +42,12 @@ GPSListener = gps_ns.class_("GPSListener")
 
 MULTI_CONF = True
 
-_request_listener_slot = cg.slot_counter("GPS_LISTENER_COUNT")
+_register_listener = cg.slot_list("GPS_LISTENER_COUNT", "register_listener")
 
 
 async def register_listener(hub: MockObj, var: MockObj) -> None:
-    """Register a listener with its GPS and count it for the compile-time list size."""
-    _request_listener_slot(str(hub))
-    cg.add(hub.register_listener(var))
+    """Register a listener with its GPS."""
+    cg.add(_register_listener(hub, var))
 
 
 CONFIG_SCHEMA = cv.All(

@@ -79,7 +79,7 @@ def _get_required_features() -> set[BLEFeatures]:
 # registered listener or client.
 CLIENT_COUNT_DEFINE = "ESPHOME_ESP32_BLE_TRACKER_CLIENT_COUNT"
 _request_listener_slot = cg.slot_counter("ESPHOME_ESP32_BLE_TRACKER_LISTENER_COUNT")
-_request_client_slot = cg.slot_counter(CLIENT_COUNT_DEFINE)
+_register_client = cg.slot_list(CLIENT_COUNT_DEFINE, "register_client")
 
 
 def register_ble_features(features: set[BLEFeatures]) -> None:
@@ -525,10 +525,7 @@ async def register_ble_device(
 
 async def register_client(var: cg.SafeExpType, config: ConfigType) -> cg.SafeExpType:
     register_ble_features({BLEFeatures.ESP_BT_DEVICE})
-    _request_client_slot()
-    paren = await cg.get_variable(config[CONF_ESP32_BLE_ID])
-    cg.add(paren.register_client(var))
-    return var
+    return await register_raw_client(var, config)
 
 
 async def register_raw_client(
@@ -539,7 +536,6 @@ async def register_raw_client(
     This does NOT register the ESP_BT_DEVICE feature, meaning ESPBTDevice
     will not be compiled in if this is the only registration method used.
     """
-    _request_client_slot()
     paren = await cg.get_variable(config[CONF_ESP32_BLE_ID])
-    cg.add(paren.register_client(var))
+    cg.add(_register_client(paren, var))
     return var

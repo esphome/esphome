@@ -58,7 +58,7 @@ CONFIG_SCHEMA = cv.All(
 )
 
 
-_request_listener_slot = cg.slot_counter("NFC_TAG_LISTENER_COUNT")
+_register_listener = cg.slot_list("NFC_TAG_LISTENER_COUNT", "register_listener")
 
 
 async def to_code(config: ConfigType) -> None:
@@ -66,8 +66,7 @@ async def to_code(config: ConfigType) -> None:
     await cg.register_component(var, config)
 
     hub = await cg.get_variable(config[CONF_NFCC_ID])
-    _request_listener_slot(str(hub))
-    cg.add(hub.register_listener(var))
+    cg.add(_register_listener(hub, var))
     cg.add_optional(var.set_ndef_match_string, config.get(CONF_NDEF_CONTAINS))
     if CONF_TAG_ID in config:
         cg.add(var.set_tag_name(config[CONF_TAG_ID]))

@@ -60,7 +60,7 @@ FINAL_VALIDATE_SCHEMA = uart.final_validate_device_schema(
 )
 
 
-_request_device_slot = cg.slot_counter("DUCO_DEVICE_COUNT")
+_register_device = cg.slot_list("DUCO_DEVICE_COUNT", "register_device")
 
 
 async def register_duco_device(var: cg.MockObj, config: ConfigType, hub_id: ID) -> None:
@@ -68,8 +68,7 @@ async def register_duco_device(var: cg.MockObj, config: ConfigType, hub_id: ID) 
     await cg.register_component(var, config)
     hub = await cg.get_variable(hub_id)
     await cg.register_parented(var, hub)
-    _request_device_slot(str(hub_id))
-    cg.add(hub.register_device(var))
+    cg.add(_register_device(hub, var))
 
 
 async def to_code(config: ConfigType) -> None:
