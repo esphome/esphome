@@ -10,11 +10,12 @@ enum class Key : uint8_t {
   KEY_HEATER_TEMP,
   KEY_HEATER_WATER,
   KEY_HEATER_WATER_TEMP,
+  KEY_HEATER_EL,
   KEY_HEATER_GAS,
 };
 
 static constexpr const char *KEY_NAMES[] = {
-    "HEATER_AVAILABLE", "HEATER_ONOFF", "HEATER_TEMP", "HEATER_WATER", "HEATER_WATER_TEMP", "HEATER_GAS",
+    "HEATER_AVAILABLE", "HEATER_ONOFF", "HEATER_TEMP", "HEATER_WATER", "HEATER_WATER_TEMP", "HEATER_EL", "HEATER_GAS",
 };
 
 void AldeDeviceHub::setup() {
@@ -26,25 +27,14 @@ void AldeDeviceHub::setup() {
       }
     });
   }
-  /*
-    auto *heater_el =
-        new Variable<std::string>("HEATER_EL", DeviceDecoders::decode_heater_el, Commands::update_heater_el);
-    this->add_variable(heater_el);
-
-    if (this->alde_heater_electricity_select_) {
-      this->alde_heater_electricity_select_->add_on_state_callback([this, heater_el](size_t state) {
-        ESP_LOGV(TAG, "Current: %s, sate: %d", heater_el->get_value().c_str(), state);
-        auto index = this->alde_heater_electricity_select_->index_of(heater_el->get_value());
-        if (index.has_value() && index.value() != state) {
-          heater_el->set_value(this->alde_heater_electricity_select_->at(state).value());
-          this->parent_->send_command(heater_el->get_command());
-        }
-      });
-    }
-
-    auto *heater_gas = new Variable<bool>("HEATER_GAS", DeviceDecoders::decode_bool, Commands::update_toggle<bool>);
-    this->add_variable(heater_gas);
-   */
+  if (this->alde_heater_electricity_select_) {
+    this->alde_heater_electricity_select_->add_on_state_callback([this](size_t state) {
+      ESP_LOGV(TAG, "Heater electricity select state: %d", state);
+      std::string cmd =
+          Commands::update_heater_el("HEATER_EL", this->alde_heater_electricity_select_->at(state).value());
+      this->parent_->send_command(cmd);
+    });
+  }
 }
 
 void AldeDeviceHub::dump_config() {
@@ -113,6 +103,11 @@ bool AldeDeviceHub::decode(const char *key, const char *value) {
       float alde_heater_water_temp = DeviceDecoders::decode_float(value);
       if (this->alde_water_heater_boost_switch_)
         this->alde_water_heater_boost_switch_->publish_state(alde_heater_water_temp == 65.0f);
+      break;
+    }
+    case Key::KEY_HEATER_EL: {
+      if (this->alde_heater_electricity_select_)
+        this->alde_heater_electricity_select_->publish_state(value);
       break;
     }
     case Key::KEY_HEATER_GAS: {
