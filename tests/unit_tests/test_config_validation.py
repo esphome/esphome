@@ -387,6 +387,12 @@ def test_icon__invalid():
         cv.icon("foo")
 
 
+def test_icon__invalid_trailing_newline() -> None:
+    # $ also matches before a final newline, so re.match let this through
+    with pytest.raises(Invalid, match="Icons must match the format "):
+        cv.icon("mdi:home\n")
+
+
 def test_icon__max_length():
     """Test that icons exceeding 63 bytes are rejected."""
     # Exactly 63 bytes should pass
@@ -2360,13 +2366,18 @@ def test_validate_bytes_negative_exponent() -> None:
 # ---------------------------------------------------------------------------
 
 
-def test_hostname_valid() -> None:
-    assert cv.hostname("my-host01") == "my-host01"
+@pytest.mark.parametrize("value", ["my-host01", "My-Host-01", "a" * 63])
+def test_hostname_valid(value: str) -> None:
+    assert cv.hostname(value) == value
 
 
-def test_hostname_invalid() -> None:
+@pytest.mark.parametrize(
+    "value",
+    ["invalid_host!", "", "a" * 64, "my.host", "my host", "my-host ", "my-host\n"],
+)
+def test_hostname_invalid(value: str) -> None:
     with pytest.raises(Invalid, match="Invalid hostname"):
-        cv.hostname("invalid_host!")
+        cv.hostname(value)
 
 
 def test_domain_valid_name() -> None:
