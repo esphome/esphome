@@ -15,16 +15,6 @@ namespace esphome::ota {
 
 ESPHOME_LOG_TAG(TAG, "ota");
 
-// A dual-slot bootloader can boot a written image without LibreTiny marking it
-// active (RTL8720C picks the valid image with the higher serial number), so a
-// failed update invalidates it. Single-slot chips only apply a download that
-// LibreTiny marked, and LN882H's lt_ota_switch() ignores revert, so skip them.
-static void revert_new_image() {
-  if (lt_ota_get_type() == OTA_TYPE_DUAL && !lt_ota_switch(/* revert= */ true)) {
-    ESP_LOGE(TAG, "Revert failed");
-  }
-}
-
 std::unique_ptr<ArduinoLibreTinyOTABackend> make_ota_backend() { return make_unique<ArduinoLibreTinyOTABackend>(); }
 
 OTAResponseTypes ArduinoLibreTinyOTABackend::begin(size_t image_size, OTAType ota_type) {
@@ -66,6 +56,7 @@ bool ArduinoLibreTinyOTABackend::write_block_() {
     return false;
   }
   this->block_len_ = 0;
+  this->wrote_ = true;
   return true;
 }
 
@@ -89,14 +80,11 @@ OTAResponseTypes ArduinoLibreTinyOTABackend::end() {
     this->md5_.calculate();
     if (!this->md5_.equals_bytes(this->expected_md5_)) {
       ESP_LOGE(TAG, "MD5 mismatch");
-      revert_new_image();
       return OTA_RESPONSE_ERROR_MD5_MISMATCH;
     }
   }
-  if (this->block_len_ != 0 && !this->write_block_()) {
-    revert_new_image();
+  if (!this->write_block_())
     return OTA_RESPONSE_ERROR_WRITING_FLASH;
-  }
   // Use strict validation (false) when MD5 is set, lenient validation (true) when no MD5
   // This matches the behavior of the old web_server OTA implementation
   if (Update.end(!this->md5_set_)) {
@@ -106,15 +94,21 @@ OTAResponseTypes ArduinoLibreTinyOTABackend::end() {
 
   uint8_t error = Update.getError();
   ESP_LOGE(TAG, "End error: %d", error);
-  revert_new_image();
 
   return OTA_RESPONSE_ERROR_UPDATE_END;
 }
 
 void ArduinoLibreTinyOTABackend::abort() {
-  if (!this->lock_.is_held())  // refused in begin()
+  if (!this->lock_.is_held())  // refused in begin(), or end() succeeded
     return;
   Update.abort();
+  // A dual-slot bootloader can boot a written image LibreTiny never marked
+  // (RTL8720C boots the valid image with the higher serial number), so
+  // invalidate it. LN882H's lt_ota_switch() ignores revert, and BK72xx has no
+  // mark to undo, so single-slot chips rely on the held-back last block.
+  if (this->wrote_ && lt_ota_get_type() == OTA_TYPE_DUAL && !lt_ota_switch(/* revert= */ true)) {
+    ESP_LOGE(TAG, "Revert failed");
+  }
 }
 
 }  // namespace esphome::ota

@@ -26,11 +26,13 @@ class ArduinoLibreTinyOTABackend final {
   UpdateLock lock_;
   md5::MD5Digest md5_{};
   uint8_t expected_md5_[16];
-  // The last block is held back until end(), so a failed MD5 check leaves
-  // the image incomplete and LibreTiny does not mark it bootable.
+  // The last block is held back until end() has checked the MD5: lt_ota_end(),
+  // which Update.abort() runs too, marks the image bootable once every block is
+  // written. LN882H cannot revert that mark, so this is its only guard.
   uint8_t block_[BLOCK_SIZE];
   size_t block_len_{0};
   bool md5_set_{false};
+  bool wrote_{false};
 };
 
 std::unique_ptr<ArduinoLibreTinyOTABackend> make_ota_backend();
