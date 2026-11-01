@@ -26,7 +26,7 @@ from esphome.const import (
 )
 from esphome.core import CORE
 from esphome.core.config import BOARD_MAX_LENGTH
-from esphome.helpers import copy_file_if_changed
+from esphome.helpers import copy_file_if_changed, write_file
 from esphome.platformio.toolchain import copy_ccache_script
 from esphome.storage_json import StorageJSON
 
@@ -44,7 +44,9 @@ from .const import (
     FAMILY_BK7238,
     FAMILY_COMPONENT,
     FAMILY_FRIENDLY,
+    FAMILY_LN882H,
     FAMILY_RTL8710B,
+    FAMILY_RTL8720C,
     KEY_BOARD,
     KEY_COMPONENT,
     KEY_COMPONENT_DATA,
@@ -57,6 +59,11 @@ from .const import (
 )
 
 _LOGGER = logging.getLogger(__name__)
+# Fault handlers the crash handler wraps (BK7238, BK7231N)
+BK_TRAP_HANDLERS = ("bk_trap_udef", "bk_trap_pabt", "bk_trap_dabt")
+# Families with a crash handler; the RTL8720C and LN882H install it at run time (no wraps).
+CRASH_HANDLER_FAMILIES = (FAMILY_BK7231N, FAMILY_BK7238, FAMILY_LN882H, FAMILY_RTL8720C)
+
 CODEOWNERS = ["@kuba2k2"]
 AUTO_LOAD = ["preferences"]
 DOMAIN = "libretiny"
@@ -551,6 +558,14 @@ async def component_to_code(config):
     # RAM-executable output section and prints a post-link placement summary.
     if FAMILY_COMPONENT[config[CONF_FAMILY]] != COMPONENT_BK72XX:
         cg.add_platformio_option("extra_scripts", ["pre:patch_linker.py"])
+    if config[CONF_FAMILY] in CRASH_HANDLER_FAMILIES:
+        # Crash handler (crash_handler.cpp)
+        cg.add_define("USE_LIBRETINY_CRASH_HANDLER")
+        cg.add_define("USE_CRASH_HANDLER")
+    if config[CONF_FAMILY] in (FAMILY_BK7231N, FAMILY_BK7238):
+        for trap in BK_TRAP_HANDLERS:
+            cg.add_build_flag(f"-Wl,--wrap={trap}")
+        cg.add_platformio_option("extra_scripts", ["pre:patch_noinit.py"])
     # Match the 1-byte enums of the LN882H SDK's prebuilt WiFi library.
     if FAMILY_COMPONENT[config[CONF_FAMILY]] == COMPONENT_LN882X:
         cg.add_build_unflag("-fno-short-enums")
@@ -646,6 +661,26 @@ async def component_to_code(config):
     await cg.register_component(var, config)
 
 
+# Called by the OTA upload through the platforms' ota_image hook
+def device_ota_image(firmware: Path) -> Path:
+    """The file to send for an app update: the UF2 without the images the
+    device skips, written next to the build output, or ``firmware`` itself
+    when there is nothing to drop."""
+    from .ota_uf2 import device_ota_uf2
+
+    data = firmware.read_bytes()
+    if (trimmed := device_ota_uf2(data)) is None:
+        return firmware
+    image = CORE.relative_pioenvs_path(CORE.name, "firmware.ota.uf2")
+    write_file(image, trimmed)
+    _LOGGER.info(
+        "Sending the images this device writes: %s of %s bytes",
+        len(trimmed),
+        len(data),
+    )
+    return image
+
+
 # Called by writer.py
 def copy_files() -> None:
     script_dir = Path(__file__).parent
@@ -657,5 +692,9 @@ def copy_files() -> None:
     copy_file_if_changed(
         script_dir / "scons_dont_inherit.py.script",
         CORE.relative_build_path("scons_dont_inherit.py"),
+    )
+    copy_file_if_changed(
+        script_dir / "patch_noinit.py.script",
+        CORE.relative_build_path("patch_noinit.py"),
     )
     copy_ccache_script()

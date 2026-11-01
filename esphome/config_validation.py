@@ -575,8 +575,7 @@ class SensitiveValidator:
     def __call__(self, value: typing.Any) -> typing.Any:
         validated = self.inner(value)
         # Already-tagged values are returned as-is so nested cv.sensitive is
-        # idempotent; bool is an int subclass and must stay bool. Other types
-        # (e.g. lambdas) pass through unmasked.
+        # idempotent; bool is an int subclass and must stay bool.
         if isinstance(validated, (Sensitive, bool)):
             return validated
         if isinstance(validated, str):
@@ -585,6 +584,9 @@ class SensitiveValidator:
             return (SensitiveHexInt if isinstance(validated, HexInt) else SensitiveInt)(
                 validated
             )
+        if isinstance(validated, Lambda):
+            # Marked, not masked: the dumper keeps the lambda representer.
+            return add_class_to_obj(validated, Sensitive)
         return validated
 
     def __repr__(self) -> str:
@@ -1639,7 +1641,10 @@ def color_temperature(value):
     try:
         val = _color_temperature_mireds(value)
     except Invalid:
-        val = 1000000.0 / _color_temperature_kelvin(value)
+        kelvin = _color_temperature_kelvin(value)
+        if kelvin == 0:
+            raise Invalid("Color temperature cannot be 0 K") from None
+        val = 1000000.0 / kelvin
     if val < 0:
         raise Invalid("Color temperature cannot be negative")
     return val
@@ -1707,8 +1712,10 @@ def ssid(value):
     value = string_strict(value)
     if not value:
         raise Invalid("SSID can't be empty.")
-    if len(value) > 32:
-        raise Invalid("SSID can't be longer than 32 characters")
+    # 802.11 limits the SSID to 32 octets, and the C++ components compare the
+    # UTF-8 byte length against that limit, so measure bytes here as well
+    if (size := len(value.encode("utf-8"))) > 32:
+        raise Invalid(f"SSID can't be longer than 32 bytes (got {size} bytes in UTF-8)")
     return value
 
 
@@ -1938,10 +1945,10 @@ def _parse_percentage(value: object) -> float:
     return float(value)
 
 
-def percentage_int(value):
-    if isinstance(value, str) and value.endswith("%"):
-        value = int(value[:-1].rstrip())
-    return value
+def percentage_int(value: object) -> int:
+    if isinstance(value, str):
+        return int_(value.strip().removesuffix("%"))
+    return int_(value)
 
 
 def invalid(message):
@@ -2153,7 +2160,7 @@ def dimensions(value):
         raise Invalid(
             "Dimensions must be a string (WIDTHxHEIGHT). Got a number instead, try quoting the value."
         )
-    match = re.match(r"\s*([0-9]+)\s*[xX]\s*([0-9]+)\s*", value)
+    match = re.fullmatch(r"\s*([0-9]+)\s*[xX]\s*([0-9]+)\s*", value)
     if not match:
         raise Invalid(
             f"Invalid value '{value}' for dimensions. Only WIDTHxHEIGHT is allowed."
@@ -2231,7 +2238,10 @@ def entity_id(value):
     value = string_strict(value).lower()
     if value.count(".") != 1:
         raise Invalid("Entity ID must have exactly one dot in it")
-    for x in value.split("."):
+    parts = value.split(".")
+    if not all(parts):
+        raise Invalid("Entity ID must be of the form '<domain>.<object_id>'")
+    for x in parts:
         for c in x:
             if c not in ENTITY_ID_CHARACTERS:
                 raise Invalid(f"Invalid character for entity ID: {c}")
@@ -2742,8 +2752,13 @@ def url(value):
     raise Invalid("Expected a file scheme or a URL scheme with host")
 
 
-def git_ref(value):
-    if re.match(r"[a-zA-Z0-9_./-]+", value) is None:
+# Characters git never allows in a branch or tag name (git check-ref-format)
+GIT_REF_PATTERN = r"[^\s~^:?*\[\\]+"
+
+
+def git_ref(value: typing.Any) -> str:
+    value = string_strict(value)
+    if re.fullmatch(GIT_REF_PATTERN, value) is None:
         raise Invalid("Not a valid git ref")
     return value
 
@@ -2998,9 +3013,8 @@ def validate_source_shorthand(value):
     except Invalid:
         pass
     # Regex for GitHub repo name with optional branch/tag
-    # Note: git allows other branch/tag names as well, but never seen them used before
-    m = re.match(
-        r"github://(?:([a-zA-Z0-9\-]+)/([a-zA-Z0-9\-\._]+)(?:@([a-zA-Z0-9\-_.\./]+))?|pr#([0-9]+))",
+    m = re.fullmatch(
+        rf"github://(?:([a-zA-Z0-9\-]+)/([a-zA-Z0-9\-\._]+)(?:@({GIT_REF_PATTERN}))?|pr#([0-9]+))",
         value,
     )
     if m is None:

@@ -4,7 +4,6 @@
 
 #include <algorithm>
 #include <cstring>
-#include <vector>
 
 // AES-CCM backend for encrypted-payload (bindkey) decryption:
 //   - ESP32 + ESP-IDF >= 6.0 -> PSA crypto (psa_aead_decrypt), hardware-backed.
@@ -175,10 +174,6 @@ bool parse_xiaomi_message(const uint8_t *message, size_t size, XiaomiParseResult
   return success;
 }
 
-bool parse_xiaomi_message(const std::vector<uint8_t> &message, XiaomiParseResult &result) {
-  return parse_xiaomi_message(message.data(), message.size(), result);
-}
-
 optional<XiaomiParseResult> parse_xiaomi_header(const uint8_t *raw, size_t size) {
   XiaomiParseResult result;
   if (size < 5) {
@@ -192,7 +187,6 @@ optional<XiaomiParseResult> parse_xiaomi_header(const uint8_t *raw, size_t size)
     return {};
   }
 
-  result.is_duplicate = false;
   result.raw_offset = (raw[0] & 0x20) ? 12 : 11;
 
   const uint16_t device_uuid = encode_uint16(raw[3], raw[2]);
@@ -223,7 +217,8 @@ optional<XiaomiParseResult> parse_xiaomi_header(const uint8_t *raw, size_t size)
   } else if (device_uuid == 0x045b) {  // rectangular body, e-ink display
     result.type = XiaomiParseResult::TYPE_LYWSD02;
     result.name = "LYWSD02";
-  } else if (device_uuid == 0x2542) {  // rectangular body, e-ink display — with bindkeys
+  } else if (device_uuid == 0x2542 ||  // rectangular body, e-ink display — with bindkeys
+             device_uuid == 0x16e4) {  // same, hardware revision F3_A1 (firmware 2.0.1_0060)
     result.type = XiaomiParseResult::TYPE_LYWSD02MMC;
     result.name = "LYWSD02MMC";
     if (size == 19)
@@ -272,23 +267,6 @@ optional<XiaomiParseResult> parse_xiaomi_header(const uint8_t *raw, size_t size)
   }
 
   return result;
-}
-
-optional<XiaomiParseResult> parse_xiaomi_header(const ble_device_base::ServiceData &service_data) {
-  if (!service_data.uuid.contains(0x95, 0xFE)) {
-    ESP_LOGVV(TAG, "parse_xiaomi_header(): no service data UUID magic bytes.");
-    return {};
-  }
-  const auto &raw = service_data.data;
-  if (raw.size() < 5 || !(raw[0] & 0x40))
-    return {};
-  static uint8_t last_frame_count = 0;
-  if (last_frame_count == raw[4]) {
-    ESP_LOGVV(TAG, "parse_xiaomi_header(): duplicate data packet received (%d).", static_cast<int>(last_frame_count));
-    return {};
-  }
-  last_frame_count = raw[4];
-  return parse_xiaomi_header(raw.data(), raw.size());
 }
 
 bool decrypt_xiaomi_payload(uint8_t *raw, size_t size, const uint8_t *bindkey, uint64_t address) {
@@ -398,11 +376,8 @@ bool decrypt_xiaomi_payload(uint8_t *raw, size_t size, const uint8_t *bindkey, u
   return true;
 }
 
-bool decrypt_xiaomi_payload(std::vector<uint8_t> &raw, const uint8_t *bindkey, const uint64_t &address) {
-  return decrypt_xiaomi_payload(raw.data(), raw.size(), bindkey, address);
-}
-
-void report_xiaomi_results(const XiaomiParseResult &result, const char *address) {
+#if ESPHOME_LOG_LEVEL >= ESPHOME_LOG_LEVEL_DEBUG
+static void report_xiaomi_results(const XiaomiParseResult &result, const char *address) {
   ESP_LOGD(TAG, "Got Xiaomi %s (%s):", result.name, address);
 
   if (result.temperature.has_value()) {
@@ -439,15 +414,7 @@ void report_xiaomi_results(const XiaomiParseResult &result, const char *address)
     ESP_LOGD(TAG, "  Button: %s", *result.button_press ? LOG_STR_LITERAL("pressed") : LOG_STR_LITERAL(""));
   }
 }
-
-bool report_xiaomi_results(const optional<XiaomiParseResult> &result, const char *address) {
-  if (!result.has_value()) {
-    ESP_LOGVV(TAG, "report_xiaomi_results(): no results available.");
-    return false;
-  }
-  report_xiaomi_results(*result, address);
-  return true;
-}
+#endif
 
 bool XiaomiDevice::parse_xiaomi_device_(const ble_device_base::ESPBTDevice &device, const uint8_t *bindkey) {
   if (device.address_uint64() != this->address_)

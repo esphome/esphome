@@ -29,23 +29,12 @@ void MR60BHA2Component::dump_config() {
 
 // main loop
 void MR60BHA2Component::loop() {
-  // Read all available bytes in batches to reduce UART call overhead.
-  size_t avail = this->available();
-  uint8_t buf[64];
-  while (avail > 0) {
-    size_t to_read = std::min(avail, sizeof(buf));
-    if (!this->read_array(buf, to_read)) {
-      break;
+  this->read_available([this](uint8_t b) {
+    this->rx_message_.push_back(b);
+    if (!this->validate_message_()) {
+      this->rx_message_.clear();
     }
-    avail -= to_read;
-
-    for (size_t i = 0; i < to_read; i++) {
-      this->rx_message_.push_back(buf[i]);
-      if (!this->validate_message_()) {
-        this->rx_message_.clear();
-      }
-    }
-  }
+  });
 }
 
 /**
@@ -155,14 +144,10 @@ void MR60BHA2Component::process_frame_(uint16_t frame_id, uint16_t frame_type, c
         this->has_target_binary_sensor_->publish_state(has_target_int);
 #ifdef USE_SENSOR
         if (has_target_int == 0) {
-          if (this->breath_rate_sensor_ != nullptr)
-            this->breath_rate_sensor_->publish_state(0.0);
-          if (this->heart_rate_sensor_ != nullptr)
-            this->heart_rate_sensor_->publish_state(0.0);
-          if (this->distance_sensor_ != nullptr)
-            this->distance_sensor_->publish_state(0.0);
-          if (this->num_targets_sensor_ != nullptr)
-            this->num_targets_sensor_->publish_state(0);
+          PUBLISH_STATE(this->breath_rate_sensor_, 0.0);
+          PUBLISH_STATE(this->heart_rate_sensor_, 0.0);
+          PUBLISH_STATE(this->distance_sensor_, 0.0);
+          PUBLISH_STATE(this->num_targets_sensor_, 0);
         }
 #endif
       }
