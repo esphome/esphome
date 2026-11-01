@@ -1,7 +1,6 @@
 from collections.abc import Awaitable, Callable, Hashable
 from dataclasses import dataclass, field
 import logging
-import sys
 from typing import Any
 
 from esphome.const import (
@@ -242,7 +241,9 @@ def slot_list(define: str, register: str) -> Callable[..., Expression]:
     build, `define` is emitted, as 0 when nothing registered, so the C++ side needs
     no `#ifdef`.
     """
-    caller = sys._getframe(1).f_globals
+    import inspect
+
+    caller = inspect.currentframe().f_back.f_globals
     module = caller.get("__name__", "")
     if not module.startswith("esphome.components.") or "__path__" not in caller:
         raise ValueError(

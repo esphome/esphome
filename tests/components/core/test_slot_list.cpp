@@ -23,7 +23,7 @@ class EmptyHub {
     size_t n = 0;
     for (auto *listener : this->listeners_)
       n += listener->id;
-    return n + this->listeners_.size();
+    return n;
   }
   uint32_t value{0};
 };
