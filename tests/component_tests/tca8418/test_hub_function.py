@@ -6,8 +6,9 @@ from pathlib import Path
 
 def test_binary_sensors_publish_through_hub_function(
     generate_main: Callable[[str | Path], str],
+    component_config_path: Callable[[str], Path],
 ) -> None:
-    main_cpp = generate_main("tests/component_tests/tca8418/test_tca8418.yaml")
+    main_cpp = generate_main(component_config_path("hub_function.yaml"))
 
     assert (
         "static void esphome__keypad__key_fn(uint8_t esphome__arg_key, "
