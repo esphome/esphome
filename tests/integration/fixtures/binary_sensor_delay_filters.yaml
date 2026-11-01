@@ -1,0 +1,160 @@
+esphome:
+  name: test-binary-delay-filters
+
+host:
+api:
+logger:
+  level: DEBUG
+
+binary_sensor:
+  - platform: template
+    name: "Source"
+    id: source
+    trigger_on_initial_state: true
+    on_state:
+      - logger.log:
+          format: "SRC %s @%u"
+          args: ['x ? "ON" : "OFF"', 'millis()']
+
+  - platform: template
+    id: x
+
+  - platform: copy
+    source_id: source
+    id: on_off_single
+    internal: true
+    trigger_on_initial_state: true
+    filters:
+      - delayed_on_off: 100ms
+    on_state:
+      - logger.log:
+          format: "OUT %s=%s @%u"
+          args: ['"on_off_single"', 'x ? "ON" : "OFF"', 'millis()']
+
+  - platform: copy
+    source_id: source
+    id: on_off_split
+    internal: true
+    trigger_on_initial_state: true
+    filters:
+      - delayed_on_off:
+          time_on: 100ms
+          time_off: 300ms
+    on_state:
+      - logger.log:
+          format: "OUT %s=%s @%u"
+          args: ['"on_off_split"', 'x ? "ON" : "OFF"', 'millis()']
+
+  - platform: copy
+    source_id: source
+    id: on_off_lambda
+    internal: true
+    trigger_on_initial_state: true
+    filters:
+      - delayed_on_off:
+          time_on: !lambda return 100;
+          time_off: !lambda |-
+            uint32_t delay = 300;
+            return delay;
+    on_state:
+      - logger.log:
+          format: "OUT %s=%s @%u"
+          args: ['"on_off_lambda"', 'x ? "ON" : "OFF"', 'millis()']
+
+  - platform: copy
+    source_id: source
+    id: on_off_id_x
+    internal: true
+    trigger_on_initial_state: true
+    filters:
+      - delayed_on_off: !lambda 'return id(x).state ? 100 : 300;'
+    on_state:
+      - logger.log:
+          format: "OUT %s=%s @%u"
+          args: ['"on_off_id_x"', 'x ? "ON" : "OFF"', 'millis()']
+
+  - platform: copy
+    source_id: source
+    id: delayed_on
+    internal: true
+    trigger_on_initial_state: true
+    filters:
+      - delayed_on: 100ms
+    on_state:
+      - logger.log:
+          format: "OUT %s=%s @%u"
+          args: ['"delayed_on"', 'x ? "ON" : "OFF"', 'millis()']
+
+  - platform: copy
+    source_id: source
+    id: delayed_on_lambda
+    internal: true
+    trigger_on_initial_state: true
+    filters:
+      - delayed_on: !lambda return 100;
+    on_state:
+      - logger.log:
+          format: "OUT %s=%s @%u"
+          args: ['"delayed_on_lambda"', 'x ? "ON" : "OFF"', 'millis()']
+
+  - platform: copy
+    source_id: source
+    id: delayed_off
+    internal: true
+    trigger_on_initial_state: true
+    filters:
+      - delayed_off: 100ms
+    on_state:
+      - logger.log:
+          format: "OUT %s=%s @%u"
+          args: ['"delayed_off"', 'x ? "ON" : "OFF"', 'millis()']
+
+  - platform: copy
+    source_id: source
+    id: lambda_filter
+    internal: true
+    trigger_on_initial_state: true
+    filters:
+      - lambda: |-
+            static int count = 0;
+            if (++count == 2)
+              return {};
+            return !x;
+    on_state:
+      - logger.log:
+          format: "OUT %s=%s @%u"
+          args: ['"lambda_filter"', 'x ? "ON" : "OFF"', 'millis()']
+
+button:
+  - platform: template
+    name: "Run Filters"
+    id: run_filters
+    on_press:
+      - binary_sensor.template.publish:
+          id: x
+          state: ON
+      - binary_sensor.template.publish:
+          id: source
+          state: ON
+      - delay: 30ms
+      - binary_sensor.template.publish:
+          id: source
+          state: OFF
+      - delay: 30ms
+      - binary_sensor.template.publish:
+          id: source
+          state: ON
+      - delay: 500ms
+      - binary_sensor.template.publish:
+          id: source
+          state: OFF
+      - delay: 150ms
+      - binary_sensor.template.publish:
+          id: source
+          state: ON
+      - delay: 500ms
+      - binary_sensor.template.publish:
+          id: source
+          state: OFF
+      - delay: 500ms
+      - logger.log: "FILTERS DONE"

@@ -93,7 +93,7 @@ async def to_code(config: ConfigType) -> None:
     await cg.register_component(var, config)
     await sensor.register_sensor(var, config)
 
-    await cg.add_variable(var.set_sensor, config[CONF_SENSOR])
+    await cg.add_variable(var.set_source_sensor, config[CONF_SENSOR])
     cg.add(var.set_time(config[CONF_TIME_UNIT]))
     cg.add(var.set_method(config[CONF_INTEGRATION_METHOD]))
     cg.add(var.set_restore(config[CONF_RESTORE]))
