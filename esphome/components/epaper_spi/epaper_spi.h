@@ -134,6 +134,7 @@ class EPaperBase : public Display,
   virtual bool initialise(bool partial);
   void send_init_sequence_(const uint8_t *sequence, size_t length);
   void wait_for_idle_(bool should_wait);
+  void skip_next_idle_wait_() { this->next_idle_wait_ = false; }
   void abandon_update_();
   bool init_buffer_(size_t buffer_length);
   // Allocates the copy of the previous frame; only drivers that diff against it (needs_previous_frame) call this
@@ -228,6 +229,8 @@ class EPaperBase : public Display,
   GPIOPin *reset_pin_{};
   std::vector<GPIOPin *> enable_pins_{};
   bool waiting_for_idle_{};
+  // Cleared by skip_next_idle_wait_() to affect the next state entry only
+  bool next_idle_wait_{true};
   HighFrequencyLoopRequester high_frequency_loop_;
   uint32_t delay_until_{};  // timestamp until which to delay processing
   uint16_t next_delay_{};   // milliseconds to delay before next state

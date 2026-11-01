@@ -346,7 +346,8 @@ void EPaperBase::set_state_(EPaperState state, uint16_t delay) {
     delay = this->next_delay_;
   this->next_delay_ = 0;
   this->delay_until_ = millis() + delay;
-  this->wait_for_idle_(state > EPaperState::SHOULD_WAIT);
+  this->wait_for_idle_(state > EPaperState::SHOULD_WAIT && this->next_idle_wait_);
+  this->next_idle_wait_ = true;
   ESP_LOGV(TAG, "Enter state %s, delay %u, wait_for_idle=%s", LOG_STR_ARG(this->epaper_state_to_string_()), delay,
            TRUEFALSE(this->waiting_for_idle_));
   // Each step of an update otherwise waits for the next loop iteration; loop() slows down again for long waits
