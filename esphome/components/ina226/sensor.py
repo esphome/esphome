@@ -24,6 +24,7 @@ from esphome.const import (
     UNIT_VOLT,
     UNIT_WATT,
 )
+from esphome.cpp_generator import MockObj
 from esphome.types import ConfigType
 
 DEPENDENCIES = ["i2c"]
@@ -240,8 +241,20 @@ CLEAR_ALERT_ACTION_SCHEMA = maybe_simple_id(
 )
 
 
-automation.register_apply_action(
+_clear_alert_builder = automation.apply_action_builder(
     "ina226.clear_alert",
     CLEAR_ALERT_ACTION_SCHEMA,
     automation.ApplyCall("clear_alert_flag()"),
 )
+
+
+@automation.register_action(
+    "ina226.clear_alert",
+    automation.ApplyAction,
+    CLEAR_ALERT_ACTION_SCHEMA,
+    synchronous=True,
+)
+async def clear_alert_to_code(*args: Any, **kwargs: Any) -> MockObj:
+    # clear_alert_flag() is compiled in with the alert code
+    cg.add_define("USE_INA226_ALERT")
+    return await _clear_alert_builder(*args, **kwargs)

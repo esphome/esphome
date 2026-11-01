@@ -63,9 +63,8 @@ class INA226Component final : public PollingComponent, public i2c::I2CDevice {
     this->alert_limit_ = limit;
     this->alert_mask_ = mask;
   }
-#endif
-
   void clear_alert_flag();
+#endif
 
  protected:
   float shunt_resistance_ohm_;

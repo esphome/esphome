@@ -32,8 +32,10 @@ static const uint8_t INA226_REGISTER_BUS_VOLTAGE = 0x02;
 static const uint8_t INA226_REGISTER_POWER = 0x03;
 static const uint8_t INA226_REGISTER_CURRENT = 0x04;
 static const uint8_t INA226_REGISTER_CALIBRATION = 0x05;
+#ifdef USE_INA226_ALERT
 static constexpr uint8_t INA226_REGISTER_MASK_ENABLE = 0x06;
 static constexpr uint8_t INA226_REGISTER_ALERT_LIMIT = 0x07;
+#endif
 
 static const uint16_t INA226_ADC_TIMES[] = {140, 204, 332, 588, 1100, 2116, 4156, 8244};
 static const uint16_t INA226_ADC_AVG_SAMPLES[] = {1, 4, 16, 64, 128, 256, 512, 1024};
@@ -166,6 +168,7 @@ void INA226Component::update() {
   this->status_clear_warning();
 }
 
+#ifdef USE_INA226_ALERT
 void INA226Component::clear_alert_flag() {
   // Reading MASK_ENABLE releases a latched alert
   uint16_t mask_reg;
@@ -173,5 +176,6 @@ void INA226Component::clear_alert_flag() {
     ESP_LOGW(TAG, "Failed to clear alert flag");
   }
 }
+#endif
 
 }  // namespace esphome::ina226
