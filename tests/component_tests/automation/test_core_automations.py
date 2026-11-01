@@ -6,6 +6,8 @@ import re
 
 import pytest
 
+from tests.component_tests.helpers import constructed, function_body
+
 CONFIG = "core_automations.yaml"
 
 
@@ -15,12 +17,6 @@ def main_cpp(
     component_config_path: Callable[[str], Path],
 ) -> str:
     return generate_main(component_config_path(CONFIG))
-
-
-def _constructed(main_cpp: str, var: str) -> str:
-    match = re.search(rf"new\({var}\) ([^;]+);", main_cpp)
-    assert match is not None, var
-    return match.group(1)
 
 
 def _automation_of(main_cpp: str, trigger: str) -> str:
@@ -48,17 +44,11 @@ def test_core_automations_registration_order(main_cpp: str) -> None:
     ]
 
 
-def _function_body(main_cpp: str, name: str) -> str:
-    match = re.search(rf"static void {name}\(\) \{{(.*?)\n\}}\n", main_cpp, re.DOTALL)
-    assert match is not None, name
-    return match.group(1)
-
-
 def _delayed_automation(main_cpp: str, function: str) -> str:
     """The Automation that ``function`` triggers, checked to hold a delay; found through the
     function rather than an id counter."""
     match = re.fullmatch(
-        r"\n  ::(\w+)->trigger\(\);", _function_body(main_cpp, function)
+        r"\n  ::(\w+)->trigger\(\);", function_body(main_cpp, function)
     )
     assert match is not None, function
     automation = match.group(1)
@@ -72,27 +62,25 @@ def test_on_boot_inline_priorities(main_cpp: str) -> None:
 
     The priority is the float's bit pattern: 0x44480000 is 800.0f, 0x44160000 is 600.0f.
     """
-    assert _constructed(main_cpp, "startuptrigger_id") == (
+    assert constructed(main_cpp, "startuptrigger_id") == (
         "StartupCallback<esphome__startuptrigger_id__fn, 0x44480000u>()"
     )
-    assert _constructed(main_cpp, "startuptrigger_id_2") == (
+    assert constructed(main_cpp, "startuptrigger_id_2") == (
         "StartupCallback<esphome__startuptrigger_id_2__fn, 0x44160000u>()"
     )
     assert "Automation<>(startuptrigger_id" not in main_cpp
     # Both actions of the first block run in the one function, with no stop checks
-    body = _function_body(main_cpp, "esphome__startuptrigger_id__fn")
+    body = function_body(main_cpp, "esphome__startuptrigger_id__fn")
     assert "boot high" in body
     assert "boot high lambda" in body
     assert "esphome__running" not in body
     assert "Automation" not in body
-    assert "boot default" in _function_body(
-        main_cpp, "esphome__startuptrigger_id_2__fn"
-    )
+    assert "boot default" in function_body(main_cpp, "esphome__startuptrigger_id_2__fn")
 
 
 def test_on_boot_delay_triggers_automation(main_cpp: str) -> None:
     """A delay keeps the Automation of separate actions, which the function triggers."""
-    assert _constructed(main_cpp, "startuptrigger_id_3") == (
+    assert constructed(main_cpp, "startuptrigger_id_3") == (
         "StartupCallback<esphome__startuptrigger_id_3__fn, 0xC2C80000u>()"
     )
     _delayed_automation(main_cpp, "esphome__startuptrigger_id_3__fn")
@@ -100,19 +88,19 @@ def test_on_boot_delay_triggers_automation(main_cpp: str) -> None:
 
 def test_on_boot_manual_trigger_id_keeps_trigger(main_cpp: str) -> None:
     """A trigger_id set by hand can be used from lambdas, so the Trigger stays."""
-    assert _constructed(main_cpp, "manual_boot") == "StartupTrigger(250.5f)"
+    assert constructed(main_cpp, "manual_boot") == "StartupTrigger(250.5f)"
     _automation_of(main_cpp, "manual_boot")
 
 
 def test_on_shutdown_priorities(main_cpp: str) -> None:
     """on_shutdown calls its function at its priority; a delay keeps the Automation."""
-    assert _constructed(main_cpp, "shutdowntrigger_id") == (
+    assert constructed(main_cpp, "shutdowntrigger_id") == (
         "ShutdownCallback<esphome__shutdowntrigger_id__fn, 0x442F0000u>()"
     )
-    assert "shutdown inline" in _function_body(
+    assert "shutdown inline" in function_body(
         main_cpp, "esphome__shutdowntrigger_id__fn"
     )
-    assert _constructed(main_cpp, "shutdowntrigger_id_2") == (
+    assert constructed(main_cpp, "shutdowntrigger_id_2") == (
         "ShutdownCallback<esphome__shutdowntrigger_id_2__fn, 0x44160000u>()"
     )
     _delayed_automation(main_cpp, "esphome__shutdowntrigger_id_2__fn")
@@ -120,12 +108,12 @@ def test_on_shutdown_priorities(main_cpp: str) -> None:
 
 def test_on_loop(main_cpp: str) -> None:
     """on_loop calls its function each loop; a delay keeps the Automation."""
-    assert _constructed(main_cpp, "looptrigger_id") == (
+    assert constructed(main_cpp, "looptrigger_id") == (
         "LoopCallback<esphome__looptrigger_id__fn>()"
     )
-    assert "loop inline" in _function_body(main_cpp, "esphome__looptrigger_id__fn")
+    assert "loop inline" in function_body(main_cpp, "esphome__looptrigger_id__fn")
     assert "HasLoopOverride<LoopCallback<esphome__looptrigger_id__fn>>" in main_cpp
-    assert _constructed(main_cpp, "looptrigger_id_2") == (
+    assert constructed(main_cpp, "looptrigger_id_2") == (
         "LoopCallback<esphome__looptrigger_id_2__fn>()"
     )
     _delayed_automation(main_cpp, "esphome__looptrigger_id_2__fn")
