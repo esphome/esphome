@@ -7,6 +7,7 @@ from esphome.components import i2c
 from esphome.components.const import (
     CONF_ACCELEROMETER_ODR,
     CONF_ACCELEROMETER_RANGE,
+    CONF_ACTIVE_HIGH,
     CONF_ON_DOUBLE_TAP,
     CONF_ON_TAP,
     CONF_TAP,
@@ -31,7 +32,6 @@ _LOGGER = logging.getLogger(__name__)
 CONF_OPERATING_MODE = "operating_mode"
 CONF_AXES = "axes"
 CONF_LATCHED = "latched"
-CONF_ACTIVE_HIGH = "active_high"
 CONF_HIGH_PASS_FILTER = "high_pass_filter"
 CONF_TIME_LIMIT = "time_limit"
 CONF_LATENCY = "latency"
