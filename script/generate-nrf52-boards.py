@@ -20,6 +20,9 @@ from esphome.components.nrf52 import RECOMMENDED_SDK_NRF_VERSION
 from esphome.components.nrf52.generate_boards import (
     BoardInfo,
     load_boards,
+    load_deprecated,
+    load_single_soc_boards,
+    load_socs,
     render,
     replace_generated,
 )
@@ -62,22 +65,37 @@ def zephyr_project(west_yml: Path) -> tuple[str, str]:
     raise ValueError(f"{west_yml} has no zephyr project")
 
 
-def load_version(version: str, tempdir: Path) -> dict[str, BoardInfo]:
+def load_version(
+    version: str, tempdir: Path
+) -> tuple[dict[str, BoardInfo], dict[str, str], dict[str, str]]:
     nrf = tempdir / f"nrf-{version}"
     fetch(SDK_NRF_REPO, f"v{version}", nrf)
     zephyr = tempdir / f"zephyr-{version}"
     fetch(*zephyr_project(nrf / "west.yml"), zephyr)
-    return load_boards([zephyr, nrf])
+    roots = [zephyr, nrf]
+    boards = load_boards(roots)
+    return (
+        boards,
+        load_deprecated(roots, boards),
+        load_single_soc_boards(roots, load_socs(roots)),
+    )
 
 
 def main(check: bool) -> None:
     with tempfile.TemporaryDirectory() as tempdir:
-        versions = {
+        loaded = {
             version: load_version(version, Path(tempdir)) for version in SDK_VERSIONS
         }
 
     existing_content = boards_file_path.read_text(encoding="utf-8")
-    content = replace_generated(existing_content, render(versions))
+    content = replace_generated(
+        existing_content,
+        render(
+            {version: data[0] for version, data in loaded.items()},
+            {version: data[1] for version, data in loaded.items()},
+            {version: data[2] for version, data in loaded.items()},
+        ),
+    )
 
     if check:
         if existing_content != content:

@@ -15,6 +15,8 @@ from esphome.components.nrf52.generate_boards import (
     NordicSoc,
     find_targets,
     load_boards,
+    load_deprecated,
+    load_single_soc_boards,
     load_socs,
     render,
     replace_generated,
@@ -204,6 +206,38 @@ def test_board_yml_targets(tmp_path: Path) -> None:
 
 # The generator runs on Linux (CI and developer machines) with the GNU C preprocessor; the
 # macOS cpp is a traditional-mode preprocessor and Windows has no /dev/null
+def test_load_deprecated_keeps_renames_to_listed_boards(tmp_path: Path) -> None:
+    _write(
+        tmp_path / "boards" / "deprecated.cmake",
+        "set(xiao_ble_sense_DEPRECATED\n    xiao_ble/nrf52840/sense\n)\n"
+        "set(old_dk_DEPRECATED nrf9160dk@0.7.0)\n"
+        "set(nucleo_f401_DEPRECATED\n    nucleo/stm32f401xe\n)\n",
+    )
+    listed = {
+        "xiao_ble/nrf52840/sense": BoardInfo("XIAO", "NRF52840", ()),
+        "nrf9160dk/nrf52840": BoardInfo("DK", "NRF52840", ()),
+    }
+    assert load_deprecated([tmp_path], listed) == {
+        "xiao_ble_sense": "xiao_ble/nrf52840/sense",
+        "old_dk": "nrf9160dk@0.7.0",
+    }
+
+
+def test_load_single_soc_boards(tmp_path: Path) -> None:
+    socs = _socs(tmp_path)
+    for name, board_socs in (
+        ("xiao_ble", ["nrf52840"]),
+        ("nrf9160dk", ["nrf9160", "nrf52840"]),
+        ("nucleo", ["stm32f401"]),
+    ):
+        yml = "".join(f"  - name: {soc}\n" for soc in board_socs)
+        _write(
+            tmp_path / "boards" / name / "board.yml",
+            f"board:\n  name: {name}\n  socs:\n{yml}",
+        )
+    assert load_single_soc_boards([tmp_path], socs) == {"xiao_ble": "nrf52840"}
+
+
 def test_old_layout_targets(tmp_path: Path) -> None:
     """SDK 2.6.1 boards have no board.yml; the SoC comes from the defconfig."""
     board = tmp_path / "boards" / "arm" / "xiao_ble"
@@ -288,7 +322,9 @@ def test_render_and_replace() -> None:
                 )
             },
             "2.9.2": {"a": BoardInfo("A", "NRF54L15", ())},
-        }
+        },
+        {"2.9.2": {"old_a": "a"}},
+        {"2.9.2": {"a": "nrf54l15"}},
     )
     namespace: dict = {}
     exec(generated, namespace)  # noqa: S102
@@ -305,6 +341,8 @@ def test_render_and_replace() -> None:
         },
     }
     assert list(namespace["BOARDS"]) == ["2.9.2", "3.2.0"]
+    assert namespace["DEPRECATED_BOARDS"] == {"2.9.2": {"old_a": "a"}}
+    assert namespace["SINGLE_SOC_BOARDS"] == {"2.9.2": {"a": "nrf54l15"}}
 
     assert generated.startswith(GENERATED_MARKER)
     assert generated.endswith(f"}}\n{END_MARKER}\n")
@@ -330,11 +368,14 @@ def test_boards_py_is_formatted_as_generated() -> None:
         }
         for version, board_infos in boards.BOARDS.items()
     }
-    assert render(versions) == generated
+    assert (
+        render(versions, boards.DEPRECATED_BOARDS, boards.SINGLE_SOC_BOARDS)
+        == generated
+    )
 
 
 DEFAULT_BOARDS = {"2.9.2": {"b": {"variant": "DEFAULT"}}}
-INSTALLED_BOARDS = {"b": {"variant": "INSTALLED"}}
+INSTALLED_BOARDS = {"boards": {"b": {"variant": "INSTALLED"}}}
 
 
 @pytest.mark.parametrize(
@@ -372,34 +413,57 @@ def test_get_board_info_picks_the_data(
     assert boards.get_board_info(version, "unknown") is None
 
 
+TARGETS = {
+    "xiao_ble": {"variant": "NRF52840"},
+    "xiao_ble/nrf52840/sense": {"variant": "NRF52840"},
+    "nrf54h20dk/nrf54h20/cpuppr/xip": {"variant": "NRF54H20"},
+    "nrf54l15dk/nrf54l15/cpuapp": {"variant": "NRF54L15"},
+    "nrf9160dk/nrf52840": {"variant": "NRF52840"},
+}
+RENAMES = {"xiao_ble_sense": "xiao_ble/nrf52840/sense", "old_dk": "nrf9160dk@0.7.0"}
+SINGLE_SOC = {"xiao_ble": "nrf52840", "nrf54h20dk": "nrf54h20"}
+
+
 @pytest.mark.parametrize(
     ("board", "expected"),
     [
-        ("xiao_ble/nrf52840", "xiao_ble"),
-        ("xiao_ble/NRF52840", "xiao_ble"),
         ("xiao_ble", "xiao_ble"),
-        ("xiao_ble/nrf52840/sense", "xiao_ble/nrf52840/sense"),
-        # Wrong SoC for the board
+        ("xiao_ble/nrf52840", "xiao_ble"),
+        # The revision is dropped
+        ("xiao_ble@1.0.0", "xiao_ble"),
+        ("xiao_ble@1.0.0/nrf52840/sense", "xiao_ble/nrf52840/sense"),
+        # A single-SoC board can leave the SoC out
+        ("xiao_ble//sense", "xiao_ble/nrf52840/sense"),
+        ("nrf54h20dk//cpuppr/xip", "nrf54h20dk/nrf54h20/cpuppr/xip"),
+        # ... but a board with several SoCs cannot (nrf54l15dk also has nRF54L05 and L10)
+        ("nrf54l15dk//cpuapp", "nrf54l15dk//cpuapp"),
+        ("nrf9160dk//x", "nrf9160dk//x"),
+        ("nrf9160dk", "nrf9160dk"),
+        # Renamed boards in deprecated.cmake
+        ("xiao_ble_sense", "xiao_ble/nrf52840/sense"),
+        ("old_dk/nrf52840", "old_dk/nrf52840"),
+        ("old_dk", "nrf9160dk"),
+        # Zephyr board names are case sensitive
+        ("xiao_ble/NRF52840", "xiao_ble/NRF52840"),
         ("xiao_ble/nrf52832", "xiao_ble/nrf52832"),
-        # Listed with its SoC, as it has more than one
-        ("nrf9160dk/nrf52840", "nrf9160dk/nrf52840"),
         ("unknown/nrf52840", "unknown/nrf52840"),
+        ("not@a@target", "not@a@target"),
     ],
 )
-def test_short_board_name(
-    monkeypatch: pytest.MonkeyPatch, board: str, expected: str
-) -> None:
-    monkeypatch.setattr(
-        boards,
-        "BOARDS",
-        {
-            "2.9.2": {
-                "xiao_ble": {"variant": "NRF52840"},
-                "xiao_ble/nrf52840/sense": {"variant": "NRF52840"},
-                "nrf9160dk/nrf52840": {"variant": "NRF52840"},
-            }
-        },
-    )
+def test_board_key(board: str, expected: str) -> None:
+    assert boards.board_key(board, TARGETS, RENAMES, SINGLE_SOC) == expected
+
+
+@pytest.mark.parametrize(
+    ("board", "expected"),
+    [
+        # SDK 2.6.1 names, still used with the PlatformIO toolchain
+        ("adafruit_itsybitsy_nrf52840", "adafruit_itsybitsy"),
+        ("nrf52840dongle_nrf52840", "nrf52840dongle"),
+        ("xiao_ble/nrf52840", "xiao_ble"),
+    ],
+)
+def test_short_board_name_with_the_default_sdk_data(board: str, expected: str) -> None:
     assert boards.short_board_name(board) == expected
 
 

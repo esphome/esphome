@@ -713,7 +713,7 @@ def _generator_hash() -> str:
 
 
 def load_installed_board_data(framework_version: cv.Version) -> dict[str, dict] | None:
-    """Return the board data read from the installed SDK of framework_version.
+    """Return the board data ("boards") and renames ("deprecated") of the installed SDK.
 
     None when that SDK is not installed yet, the data could not be read, or it was read by an
     older generate_boards.py.
@@ -726,7 +726,7 @@ def load_installed_board_data(framework_version: cv.Version) -> dict[str, dict] 
         return None
     if not isinstance(data, dict) or data.get("generator") != _generator_hash():
         return None
-    return data.get("boards")
+    return data
 
 
 def _generate_board_data(

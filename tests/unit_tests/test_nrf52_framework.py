@@ -1339,9 +1339,9 @@ def _write_board_data(framework: Path, generator: str) -> None:
 
 def test_installed_board_data_is_read(nrf52_dirs: SimpleNamespace) -> None:
     _write_board_data(nrf52_dirs.framework, framework._generator_hash())
-    assert load_installed_board_data(Version.parse(_TEST_SDK_VERSION)) == {
-        "b": {"variant": "NRF52840"}
-    }
+    data = load_installed_board_data(Version.parse(_TEST_SDK_VERSION))
+    assert data is not None
+    assert data["boards"] == {"b": {"variant": "NRF52840"}}
 
 
 @pytest.mark.parametrize("contents", [None, "not json", "old"])

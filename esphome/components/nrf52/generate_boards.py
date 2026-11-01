@@ -41,6 +41,8 @@ NORDIC_FAMILY = "nordic_nrf"
 DEFCONFIG_SOC_RE = re.compile(
     r"^CONFIG_SOC_(NRF\d+(?:[A-Z]\d+)?)(?:_\w+)?=y$", re.MULTILINE
 )
+# A board rename in boards/deprecated.cmake: set(<old name>_DEPRECATED <new board target>)
+DEPRECATED_RE = re.compile(r"set\(\s*(\S+)_DEPRECATED\s+(\S+)\s*\)")
 # SoC series to list boards for: nrf51, nrf52 and every nrf54 series (nrf54l, nrf54h)
 SERIES_PREFIXES = ("nrf51", "nrf52", "nrf54")
 # Searched in each devicetree root, in this order, followed by dts/<arch> for every
@@ -190,6 +192,24 @@ def _hwmv1_targets(board_dir: Path) -> Iterator[BoardTarget]:
         yield BoardTarget(dts.stem, full_name, match.group(1), dts)
 
 
+def load_single_soc_boards(
+    roots: list[Path], nordic_socs: dict[str, NordicSoc]
+) -> dict[str, str]:
+    """Return the SoC of each board.yml board that has exactly one SoC, a listed Nordic one.
+
+    On such a board Zephyr lets the SoC be left out of the board target.
+    """
+    single: dict[str, str] = {}
+    for root in roots:
+        for board_yml in sorted((root / "boards").glob("**/board.yml")):
+            data = yaml.safe_load(board_yml.read_text(encoding="utf-8"))
+            for board in data.get("boards") or [data["board"]]:
+                socs = [soc["name"] for soc in board.get("socs", [])]
+                if len(socs) == 1 and socs[0] in nordic_socs:
+                    single[board["name"]] = socs[0]
+    return single
+
+
 def find_targets(
     boards_dir: Path, nordic_socs: dict[str, NordicSoc]
 ) -> list[BoardTarget]:
@@ -303,7 +323,28 @@ def load_boards(roots: list[Path], cpp: str = "cpp") -> dict[str, BoardInfo]:
     return boards
 
 
-def render(versions: dict[str, dict[str, BoardInfo]]) -> str:
+def load_deprecated(roots: list[Path], boards: dict[str, BoardInfo]) -> dict[str, str]:
+    """Read the board renames of boards/deprecated.cmake that lead to one of the boards."""
+    names = {target.split("/")[0] for target in boards}
+    deprecated: dict[str, str] = {}
+    for root in roots:
+        path = root / "boards" / "deprecated.cmake"
+        if not path.is_file():
+            continue
+        renames = DEPRECATED_RE.findall(path.read_text(encoding="utf-8"))
+        deprecated.update(
+            (old, new)
+            for old, new in renames
+            if re.split(r"[@/]", new, maxsplit=1)[0] in names
+        )
+    return deprecated
+
+
+def render(
+    versions: dict[str, dict[str, BoardInfo]],
+    deprecated: dict[str, dict[str, str]],
+    single_soc: dict[str, dict[str, str]],
+) -> str:
     """Render the generated part of boards.py, from GENERATED_MARKER to END_MARKER."""
     lines = [
         GENERATED_MARKER,
@@ -331,6 +372,28 @@ def render(versions: dict[str, dict[str, BoardInfo]]) -> str:
                 lines.extend(f'                "{path}",' for path in info.uart)
                 lines.append("            ],")
             lines.append("        },")
+        lines.append("    },")
+    lines.append("}")
+    lines.append(
+        "# nRF Connect SDK version -> old board name -> board target (deprecated.cmake)"
+    )
+    lines.append("DEPRECATED_BOARDS = {")
+    for version, renames in sorted(
+        deprecated.items(), key=lambda v: _version_key(v[0])
+    ):
+        lines.append(f'    "{version}": {{')
+        lines.extend(
+            f'        "{old}": "{new}",' for old, new in sorted(renames.items())
+        )
+        lines.append("    },")
+    lines.append("}")
+    lines.append("# nRF Connect SDK version -> board with a single SoC -> that SoC")
+    lines.append("SINGLE_SOC_BOARDS = {")
+    for version, socs in sorted(single_soc.items(), key=lambda v: _version_key(v[0])):
+        lines.append(f'    "{version}": {{')
+        lines.extend(
+            f'        "{name}": "{soc}",' for name, soc in sorted(socs.items())
+        )
         lines.append("    },")
     lines.append("}")
     lines.append(END_MARKER)
@@ -371,6 +434,8 @@ def main() -> None:
     data = {
         "generator": args.generator,
         "boards": {name: board_dict(info) for name, info in sorted(boards.items())},
+        "deprecated": load_deprecated(args.roots, boards),
+        "single_soc": load_single_soc_boards(args.roots, load_socs(args.roots)),
     }
     args.json.write_text(json.dumps(data, indent=1), encoding="utf-8")
 
