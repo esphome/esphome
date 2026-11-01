@@ -188,9 +188,37 @@ Restore an owned or standalone switch in `setup()` with `sw->restore()`, or `res
 drive a state when the restore mode is disabled. A hub that applies its switches' restored states itself
 reads `sw->get_initial_write_state()`, which already applies `inverted`.
 
-**Entities that each watch a register field:** one class taking register, shift, mask and match from a
-Python tuple table, in typed `StaticVector`s sized by `cg.slot_counter`; not a template per bit, not a
-virtual listener base (a second vptr per entity).
+**A hub that forwards data to its children:** when what each child does with the data is known at build time
+(decode a register field, match a key or tag, publish a value), declare a `cg.HubFunction` once in the hub's
+`__init__.py` and have each platform add one item per entity, built from codegen expressions. Code generation writes
+one function per hub. Pass `define=` and put the hub's `HUB_PUBLISHER(<name>, args...)` (in a public section; it
+ends on `public:`) and its call under that `#ifdef`; call the pointer only when it is not null. The children stay
+plain entities, with no listener class or list. A child that lost a `Component` base keeps its dump lines through
+a second hub function (`"dump"`, a `const char *` tag parameter, no define of its own) that the hub's
+`dump_config()` calls inside the value function's `#ifdef`; every child adds to both.
+
+**Entities that each watch a register field:** when every field (register, shift, mask, match) is known at
+build time, use the rule above (see `bq25186`). A binary sensor tests its field value against an on-values
+bitmap (`match`); a one-bit field reads the bit (simplified from bq25186's `_state_expression`):
+```python
+# hub __init__.py
+STATUS_PUBLISHER = cg.HubFunction(
+    "status",  # esphome__<hub>__status_fn, passed to HUB_PUBLISHER(status, ...)'s setter
+    cg.void,
+    [(BQ25186StatusRegisters.const_ref(), "status")],
+    define="USE_BQ25186_STATUS_PUBLISHER",
+)
+STATUS = STATUS_PUBLISHER.param("status")
+
+# platform to_code, per configured entity
+value = (STATUS[reg] >> shift) & mask
+if mask != 0x01 or match != 0b10:  # 0b10: a one-bit field that is on when set
+    value = (cg.MockObj(f"{match:#06b}") >> value) & 1
+STATUS_PUBLISHER.add(hub, parent_ref(var).publish_state(value))
+```
+Store a field description per entity (a struct in a `StaticVector` sized by `cg.slot_counter`) only when the
+field is chosen at run time, as in `sen6x`, where the status bit depends on the variant read in `setup()`.
+Never a template per bit or a virtual listener base (a second vptr per entity).
 
 ## Other helpers
 
