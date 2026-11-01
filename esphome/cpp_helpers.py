@@ -226,7 +226,7 @@ _HUB_FUNCTION_DOMAIN = "hub_function"
 
 @dataclass
 class _HubFunctionState:
-    """One run's items per hub, keyed by the hub's id."""
+    """One run's items per hub (keyed by ``str(hub)``) for one HubFunction."""
 
     hubs: dict[str, tuple[MockObj, list[Expression | Statement]]] = field(
         default_factory=dict
@@ -237,13 +237,13 @@ class _HubFunctionState:
 class HubFunction:
     """One generated function per hub, built from items its child entities add.
 
-    Declare it once at module level. At FINAL priority each hub that got items gets
-    ``static <return_type> esphome__<hub>__<name>(<parameters>)``, passed to
-    ``hub.<setter>()``, and ``define`` is emitted once. A hub without items gets nothing.
+    Declare it once at module level and call ``add`` from ``to_code``. At FINAL priority each
+    hub with items gets ``static <return_type> esphome__<hub>__<name>(<parameters>)``, passed
+    to ``hub.<setter>()``; ``define`` is emitted once. A hub without items gets no call, so the
+    C++ pointer defaults to ``nullptr`` and is checked before use.
 
-    With a ``void`` return each item is a statement or an expression run as one. With a
-    ``bool`` return each item is a ``bool`` expression; every one is evaluated, in order, and the function returns whether
-    any was true (a hub that logs data no child claimed, for example).
+    ``void``: each item is a statement, or an expression run as one. ``bool``: each item is a
+    ``bool`` expression; all run in order and the function returns whether any was true.
     """
 
     def __init__(
@@ -259,6 +259,7 @@ class HubFunction:
             raise ValueError(f"HubFunction '{name}' returns void or bool")
         self._name = name
         self._return_type = return_type
+        self._returns_bool = str(return_type) == "bool"
         self._parameters = parameters
         self._setter = setter
         self._define = define
@@ -276,7 +277,9 @@ class HubFunction:
         return MockObj(name)
 
     def add(self, hub: MockObj, item: Expression | Statement) -> None:
-        """Append ``item`` to ``hub``'s function; call from ``to_code``."""
+        """Append ``item`` to the function of ``hub``, a plain variable such as ``cg.get_variable``'s."""
+        if self._returns_bool and isinstance(item, Statement):
+            raise ValueError(f"HubFunction '{self._name}' takes bool expressions")
         state = self._state()
         if state.emitted:
             raise ValueError(
@@ -293,8 +296,8 @@ class HubFunction:
             self, _HubFunctionState()
         )
 
-    def _body(self, items: list[Expression | Statement]) -> list[str | Statement]:
-        if str(self._return_type) == "void":
+    def _body(self, items: list[Expression | Statement]) -> list[Statement]:
+        if not self._returns_bool:
             return [statement(item) for item in items]
         any_ = MockObj("any")
         return [
@@ -308,12 +311,14 @@ class HubFunction:
         state.emitted = True
         if self._define is not None:
             add_define(self._define)
+        names: set[str] = CORE.data.setdefault(f"{_HUB_FUNCTION_DOMAIN}_names", set())
         for hub, items in state.hubs.values():
+            name = f"esphome__{hub}__{self._name}"
+            if name in names:
+                raise ValueError(f"HubFunction: two functions named {name}")
+            names.add(name)
             fn = static_function(
-                f"esphome__{hub}__{self._name}",
-                self._return_type,
-                self._parameters,
-                self._body(items),
+                name, self._return_type, self._parameters, self._body(items)
             )
             add(getattr(hub, self._setter)(fn))
 

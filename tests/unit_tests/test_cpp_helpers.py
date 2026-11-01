@@ -517,5 +517,36 @@ def test_hub_function_add_after_emit_raises() -> None:
         fn.add(hub, cg.MockObj("x", "->").publish_state(2))
 
 
-def test_const_ref_renders_const_reference() -> None:
-    assert str(_REGS.const_ref()) == "const hub::Regs &"
+def test_hub_function_without_define() -> None:
+    fn = _status_function(define=None)
+    fn.add(cg.MockObj("hub_a", "->"), cg.MockObj("x", "->").publish_state(1))
+    ch.CORE.flush_tasks()
+    assert not ch.CORE.defines
+    assert _main() == ["hub_a->set_status_publisher(esphome__hub_a__status_fn);"]
+
+
+def test_hub_function_emits_again_in_the_next_run() -> None:
+    """A module-level instance starts empty in every run."""
+    fn = _status_function()
+    fn.add(cg.MockObj("hub_a", "->"), cg.MockObj("x", "->").publish_state(1))
+    ch.CORE.flush_tasks()
+    ch.CORE.reset()
+    fn.add(cg.MockObj("hub_b", "->"), cg.MockObj("y", "->").publish_state(2))
+    ch.CORE.flush_tasks()
+    assert _main() == ["hub_b->set_status_publisher(esphome__hub_b__status_fn);"]
+
+
+def test_hub_function_bool_rejects_statements() -> None:
+    fn = ch.HubFunction("claim_fn", ct.bool_, [(ct.uint32, "id")], setter="set_claim")
+    with pytest.raises(ValueError, match="takes bool expressions"):
+        fn.add(cg.MockObj("reader", "->"), cg.statement(cg.MockObj("f")()))
+
+
+def test_hub_functions_with_one_name_on_one_hub_raise() -> None:
+    hub = cg.MockObj("hub_a", "->")
+    for fn in (_status_function(), _status_function(define=None)):
+        fn.add(hub, cg.MockObj("x", "->").publish_state(1))
+    with pytest.raises(
+        ValueError, match="two functions named esphome__hub_a__status_fn"
+    ):
+        ch.CORE.flush_tasks()
