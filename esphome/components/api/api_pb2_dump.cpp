@@ -1127,6 +1127,13 @@ const char *ZWaveProxyCapabilities::dump_to(DumpBuffer &out) const {
   return out.c_str();
 }
 #endif
+#ifdef USE_STORE_YAML
+const char *StoreYamlCapabilities::dump_to(DumpBuffer &out) const {
+  MessageDumpHelper helper(out, ESPHOME_PSTR("StoreYamlCapabilities"));
+  dump_field(out, ESPHOME_PSTR("supported"), this->supported);
+  return out.c_str();
+}
+#endif
 #ifdef USE_API_WIZARD
 const char *WizardCapabilities::dump_to(DumpBuffer &out) const {
   MessageDumpHelper helper(out, ESPHOME_PSTR("WizardCapabilities"));
@@ -1174,6 +1181,11 @@ const char *DeviceCapabilitiesResponse::dump_to(DumpBuffer &out) const {
 #ifdef USE_SENDSPIN
   out.append(2, ' ').append_p(ESPHOME_PSTR("sendspin")).append(": ");
   this->sendspin.dump_to(out);
+  out.append("\n");
+#endif
+#ifdef USE_STORE_YAML
+  out.append(2, ' ').append_p(ESPHOME_PSTR("store_yaml")).append(": ");
+  this->store_yaml.dump_to(out);
   out.append("\n");
 #endif
   return out.c_str();
@@ -3013,6 +3025,15 @@ const char *SendspinPairingTokenResponse::dump_to(DumpBuffer &out) const {
   MessageDumpHelper helper(out, ESPHOME_PSTR("SendspinPairingTokenResponse"));
   dump_field(out, ESPHOME_PSTR("status"), static_cast<enums::SendspinPairingTokenStatus>(this->status));
   dump_field(out, ESPHOME_PSTR("token"), this->token);
+  return out.c_str();
+}
+#endif
+#ifdef USE_STORE_YAML
+const char *GetYamlResponse::dump_to(DumpBuffer &out) const {
+  MessageDumpHelper helper(out, ESPHOME_PSTR("GetYamlResponse"));
+  dump_progmem_bytes_field(out, ESPHOME_PSTR("data"), this->data, this->data_len);
+  dump_field(out, ESPHOME_PSTR("done"), this->done);
+  dump_field(out, ESPHOME_PSTR("total_size"), this->total_size);
   return out.c_str();
 }
 #endif
