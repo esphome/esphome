@@ -41,15 +41,13 @@ RC522_SCHEMA = cv.Schema(
 ).extend(cv.polling_component_schema("1s"))
 
 
+register_tag = cg.slot_list("RC522_BINARY_SENSOR_COUNT", "register_tag")
 _register_ontag_trigger = cg.slot_list(
     "RC522_ON_TAG_TRIGGER_COUNT", "register_ontag_trigger"
 )
 _register_ontagremoved_trigger = cg.slot_list(
     "RC522_ON_TAG_REMOVED_TRIGGER_COUNT", "register_ontagremoved_trigger"
 )
-
-
-register_tag = cg.slot_list("RC522_BINARY_SENSOR_COUNT", "register_tag")
 
 
 async def setup_rc522(var: MockObj, config: ConfigType) -> None:

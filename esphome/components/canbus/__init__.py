@@ -52,7 +52,6 @@ CanbusComponent = canbus_ns.class_("CanbusComponent", cg.Component)
 CanbusTrigger = canbus_ns.class_(
     "CanbusTrigger",
     automation.Trigger.template(cg.std_vector.template(cg.uint8), cg.uint32),
-    cg.Component,
 )
 CanSpeed = canbus_ns.enum("CAN_SPEED")
 
@@ -136,9 +135,7 @@ async def setup_canbus_core_(var: MockObj, config: ConfigType) -> None:
         can_id = conf[CONF_CAN_ID]
         can_id_mask = conf[CONF_CAN_ID_MASK]
         ext_id = conf[CONF_USE_EXTENDED_ID]
-        trigger = cg.new_Pvariable(
-            conf[CONF_TRIGGER_ID], var, can_id, can_id_mask, ext_id
-        )
+        trigger = cg.new_Pvariable(conf[CONF_TRIGGER_ID], can_id, can_id_mask, ext_id)
         cg.add(_add_trigger(var, trigger))
         if CONF_REMOTE_TRANSMISSION_REQUEST in conf:
             cg.add(
@@ -146,7 +143,6 @@ async def setup_canbus_core_(var: MockObj, config: ConfigType) -> None:
                     conf[CONF_REMOTE_TRANSMISSION_REQUEST]
                 )
             )
-        await cg.register_component(trigger, conf)
         await automation.build_automation(
             trigger,
             [
