@@ -1681,6 +1681,23 @@ async def test_templatable_bytes_lambda_payload() -> None:
 
 
 @pytest.mark.asyncio
+async def test_templatable_bytes_lambda_return_type() -> None:
+    CORE.config = {}
+    var = MockObj("act", "->")
+    await templatable_bytes(
+        Lambda("return {0x01};"),
+        [],
+        var.set_code_template,
+        var.set_code_static,
+        "payload",
+        return_type=MockObj("ns::Buffer"),
+    )
+    text = CORE.cpp_main_section
+    assert "-> ns::Buffer" in text
+    assert "std::vector" not in text
+
+
+@pytest.mark.asyncio
 async def test_templatable_bytes_rejects_oversized_payload() -> None:
     CORE.config = {}
     var = MockObj("act", "->")
