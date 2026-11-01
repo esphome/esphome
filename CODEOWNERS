@@ -121,6 +121,7 @@ esphome/components/bytebuffer/* @clydebarrow
 esphome/components/camera/* @bdraco @DT-art1
 esphome/components/camera_encoder/* @DT-art1
 esphome/components/canbus/* @danielschramm @mvturnho
+esphome/components/canopen/* @kj4dxk
 esphome/components/cap1188/* @mreditor97
 esphome/components/captive_portal/* @esphome/core
 esphome/components/cc1101/* @gabest11 @lygris
@@ -131,6 +132,7 @@ esphome/components/cdc_acm_uart/bridge/* @kbx81
 esphome/components/ch422g/* @clydebarrow @jesterret
 esphome/components/ch423/* @dwmw2
 esphome/components/chsc6x/* @kkosik20
+esphome/components/cia402/* @kj4dxk
 esphome/components/climate/* @esphome/core
 esphome/components/climate_ir/* @glmnet
 esphome/components/cm1106/* @andrewjswan
@@ -673,6 +675,7 @@ esphome/components/tm1638/* @skykingjwc
 esphome/components/tm1651/* @mrtoy-me
 esphome/components/tmc2209/* @remcom
 esphome/components/tmc22xx/* @remcom
+esphome/components/tmcm1240/* @kj4dxk
 esphome/components/tmp102/* @timsavage
 esphome/components/tmp1075/* @sybrenstuvel
 esphome/components/tmp117/* @Azimath
