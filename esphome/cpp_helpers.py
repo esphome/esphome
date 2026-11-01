@@ -221,14 +221,6 @@ def slot_counter(define: str) -> Callable[..., None]:
 _SLOT_LIST_OWNERS: dict[str, str] = {}
 
 
-def _owner_loaded(owner: str) -> bool:
-    """Whether the component package `owner` (`x` or a platform package `x.y`) is in this build."""
-    component, _, platform = owner.partition(".")
-    if platform:
-        return f"{platform}/{component}" in CORE.loaded_platforms
-    return component in CORE.loaded_integrations
-
-
 def slot_list(define: str, register: str) -> Callable[..., Expression]:
     """Create the codegen side of a `SLOT_LIST` (esphome/core/helpers.h).
 
@@ -249,7 +241,7 @@ def slot_list(define: str, register: str) -> Callable[..., Expression]:
         raise ValueError(
             f"cg.slot_list('{define}') must be called in a component's __init__.py, not {module}"
         )
-    _SLOT_LIST_OWNERS[define] = module.removeprefix("esphome.components.")
+    _SLOT_LIST_OWNERS[define] = module
     request_slot = slot_counter(define)
 
     def register_item(hub: MockObj, *args: Any) -> Expression:
@@ -261,14 +253,17 @@ def slot_list(define: str, register: str) -> Callable[..., Expression]:
 
 @coroutine_with_priority(CoroPriority.FINAL)
 async def emit_empty_slot_lists() -> None:
-    """Emit 0 for each `cg.slot_list()` define of a component in this build that
-    nothing registered into."""
+    """Emit 0 for each `cg.slot_list()` define whose component sources are in this
+    build and that nothing registered into."""
+    from esphome.config import iter_components
+
     state = _get_slot_counter_state()
+    built = {component.package for _, component in iter_components(CORE.config)}
     for define, owner in _SLOT_LIST_OWNERS.items():
         if (
-            define not in state.counts
+            owner in built
+            and define not in state.counts
             and define not in state.emitted
-            and _owner_loaded(owner)
         ):
             state.emitted.add(define)
             add_define(define, 0)

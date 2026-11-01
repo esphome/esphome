@@ -407,7 +407,7 @@ async def test_register_component_without_module_has_no_source(
 
 
 def _declare_slot_list(
-    define: str, module: str = "esphome.components.testhub", package: bool = True
+    define: str, module: str = "esphome.components.wiegand", package: bool = True
 ) -> Callable[..., Any]:
     """Call cg.slot_list() as if from the module `module` (a package __init__ when `package`)."""
     module_globals: dict[str, Any] = {"__name__": module, "slot_list": ch.slot_list}
@@ -422,7 +422,8 @@ def _isolated_slot_list_owners(monkeypatch: pytest.MonkeyPatch) -> None:
     monkeypatch.setattr(ch, "_SLOT_LIST_OWNERS", {})
 
 
-def _emit_slot_lists() -> None:
+def _emit_slot_lists(config: dict[str, Any]) -> None:
+    ch.CORE.config = config
     ch.CORE.add_job(ch.emit_empty_slot_lists)
     ch.CORE.flush_tasks()
 
@@ -430,7 +431,6 @@ def _emit_slot_lists() -> None:
 def test_slot_list_sizes_for_the_busiest_hub() -> None:
     """Hubs with 3, 1 and 0 children: the define is 3 (the max, not the sum or the
     first hub's count) and each call targets only its own hub."""
-    ch.CORE.loaded_integrations.add("testhub")
     register_item = _declare_slot_list("TEST_SLOT_LIST_COUNT")
     hub_a = MockObj("hub_a", "->")
     hub_b = MockObj("hub_b", "->")
@@ -447,22 +447,21 @@ def test_slot_list_sizes_for_the_busiest_hub() -> None:
         "hub_a->register_listener(listener_a3)",
     ]
     assert ch.get_slot_count("TEST_SLOT_LIST_COUNT") == 3
-    _emit_slot_lists()
+    _emit_slot_lists({"wiegand": []})
     assert _define_value("TEST_SLOT_LIST_COUNT") == "3"
 
 
 def test_slot_list_without_registrations_emits_zero() -> None:
-    """A hub in the build that nothing registered into still gets its define, as 0."""
-    ch.CORE.loaded_integrations.add("testhub")
+    """A hub whose sources are in the build but that nothing registered into still
+    gets its define, as 0."""
     _declare_slot_list("TEST_SLOT_LIST_EMPTY")
-    _emit_slot_lists()
+    _emit_slot_lists({"wiegand": []})
     assert _define_value("TEST_SLOT_LIST_EMPTY") == "0"
 
 
 def test_slot_list_of_a_component_not_in_the_build_emits_nothing() -> None:
-    _declare_slot_list("TEST_SLOT_LIST_UNUSED", module="esphome.components.otherhub")
-    ch.CORE.loaded_integrations.add("testhub")
-    _emit_slot_lists()
+    _declare_slot_list("TEST_SLOT_LIST_UNUSED", module="esphome.components.rc522")
+    _emit_slot_lists({"wiegand": []})
     assert _define_value("TEST_SLOT_LIST_UNUSED") is None
 
 
@@ -472,11 +471,9 @@ def test_slot_list_of_a_platform_package_follows_the_platform() -> None:
     _declare_slot_list(
         "TEST_SLOT_LIST_PLATFORM", module="esphome.components.uart.binary_sensor"
     )
-    ch.CORE.loaded_integrations.add("uart")
-    _emit_slot_lists()
+    _emit_slot_lists({"uart": []})
     assert _define_value("TEST_SLOT_LIST_PLATFORM") is None
-    ch.CORE.loaded_platforms.add("binary_sensor/uart")
-    _emit_slot_lists()
+    _emit_slot_lists({"uart": [], "binary_sensor": [{"platform": "uart"}]})
     assert _define_value("TEST_SLOT_LIST_PLATFORM") == "0"
 
 
