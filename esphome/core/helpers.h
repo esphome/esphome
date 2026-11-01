@@ -403,10 +403,10 @@ template<typename T, size_t N> class StaticVector {
 /// Use it in a public section: it ends on `public:`.
 #define SLOT_LIST(type, member, register_fn, count) \
  protected: \
-  StaticVector<type *, count> member; \
+  StaticVector<type *, count> member; /* NOLINT(bugprone-macro-parentheses) */ \
 \
  public: \
-  void register_fn(type *item) { this->member.push_back(item); }
+  void register_fn(type *item) { this->member.push_back(item); } /* NOLINT(bugprone-macro-parentheses) */
 
 /// A list that is always empty, with the read interface of `StaticVector`. Unlike `std::array<T, 0>` it
 /// takes no space as a `[[no_unique_address]]` member.
@@ -423,7 +423,7 @@ template<typename T> class EmptyList {
 /// an `#ifdef` of its own. Use it in a public section, like `SLOT_LIST`.
 #define SLOT_LIST_EMPTY(type, member) \
  protected: \
-  [[no_unique_address]] EmptyList<type *> member; \
+  [[no_unique_address]] EmptyList<type *> member; /* NOLINT(bugprone-macro-parentheses) */ \
 \
  public:
 
