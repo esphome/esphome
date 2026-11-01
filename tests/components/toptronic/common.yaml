@@ -1,0 +1,14 @@
+toptronic:
+  - id: tt_hv
+    canbus_id: canbus_toptronic
+    device_type: HV
+    device_addr: 8
+
+sensor:
+  - platform: toptronic
+    toptronic_id: tt_hv
+    name: Hand-written test sensor
+    function_group: 50
+    function_number: 0
+    datapoint: 40652
+    type: U16
