@@ -1,22 +1,27 @@
 #include "systa_bus_text_sensor.h"
 #include "esphome/core/log.h"
 
-#include <cstdio>
-
 namespace esphome::systa_bus {
 
-void publish_aqua_error_code(text_sensor::TextSensor *sensor, std::span<const uint8_t> message) {
-  if (message[15] == 0) {
-    sensor->publish_state("--");
-    return;
-  }
-  char buf[4];
-  int len = snprintf(buf, sizeof(buf), "%02d", message[15]);
-  sensor->publish_state(buf, static_cast<size_t>(len));
+ESPHOME_LOG_TAG(TAG, "systa_bus.text_sensor");
+
+void SystaSolarAquaTextSensor::dump_config() {
+  ESP_LOGCONFIG(TAG, "SystaSolar Aqua:");
+  LOG_TEXT_SENSOR("  ", "Error code", this->error_code_text_sensor_);
 }
 
-void dump_aqua_error_code(const char *tag, text_sensor::TextSensor *sensor) {
-  text_sensor::log_text_sensor(tag, "  ", LOG_STR_LITERAL("Error code"), sensor);
+void SystaSolarAquaTextSensor::handle_message(std::span<const uint8_t> message) {
+  if (get_message_type(message) == MESSAGE_TYPE_AQUA_SENSOR_DATA) {
+    if (this->error_code_text_sensor_ != nullptr) {
+      if (message[15] == 0) {
+        this->error_code_text_sensor_->publish_state("--");
+      } else {
+        char buf[4];
+        int len = snprintf(buf, sizeof(buf), "%02d", message[15]);
+        this->error_code_text_sensor_->publish_state(buf, static_cast<size_t>(len));
+      }
+    }
+  }
 }
 
 }  // namespace esphome::systa_bus

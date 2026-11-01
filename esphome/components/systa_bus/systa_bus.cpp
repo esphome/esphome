@@ -8,15 +8,7 @@ namespace esphome::systa_bus {
 
 ESPHOME_LOG_TAG(TAG, "systa_bus");
 
-void SystaBus::dump_config() {
-  ESP_LOGCONFIG(TAG, "SystaBus:");
-#ifdef USE_SYSTA_BUS_AQUA_PUBLISHER
-  if (this->dump_publisher_ != nullptr) {
-    ESP_LOGCONFIG(TAG, "SystaSolar Aqua:");
-    this->dump_publisher_(TAG);
-  }
-#endif
-}
+void SystaBus::dump_config() { ESP_LOGCONFIG(TAG, "SystaBus:"); }
 
 static bool checksum(std::span<const uint8_t> data) { return sum_bytes(data.data(), data.size()) == 0; }
 
@@ -50,9 +42,9 @@ void SystaBus::handle_byte_(uint8_t c) {
     this->resync_();
     return;
   }
-#ifdef USE_SYSTA_BUS_AQUA_PUBLISHER
-  if (this->aqua_publisher_ != nullptr && get_message_type(this->buffer_) == MESSAGE_TYPE_AQUA_SENSOR_DATA)
-    this->aqua_publisher_(this->buffer_);
+#ifdef SYSTA_BUS_LISTENER_COUNT
+  for (auto *listener : this->listeners_)
+    listener->handle_message(this->buffer_);
 #endif
   this->buffer_.clear();
 }

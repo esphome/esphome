@@ -1,19 +1,22 @@
 #pragma once
 
+#include "../systa_bus.h"
 #include "esphome/components/sensor/sensor.h"
 
-#include <cstdint>
+#include <span>
 
 namespace esphome::systa_bus {
 
-enum class AquaSensor : uint8_t {
-  AQUA_SENSOR_TEMPERATURE_TSA,
-  AQUA_SENSOR_TEMPERATURE_TSE,
-  AQUA_SENSOR_TEMPERATURE_TWU,
-  AQUA_SENSOR_TEMPERATURE_TW2,
-  AQUA_SENSOR_PUMP_SPEED,
-};
+class SystaSolarAquaSensor : public SystaBusListener, public Component {
+  SUB_SENSOR(temperature_tsa)
+  SUB_SENSOR(temperature_tse)
+  SUB_SENSOR(temperature_twu)
+  SUB_SENSOR(temperature_tw2)
+  SUB_SENSOR(pump_speed)
 
-void dump_aqua_sensor(const char *tag, sensor::Sensor *sensor, AquaSensor which);
+ public:
+  void dump_config() override;
+  void handle_message(std::span<const uint8_t> message) override;
+};
 
 }  // namespace esphome::systa_bus
