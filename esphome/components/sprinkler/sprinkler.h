@@ -184,7 +184,7 @@ class Sprinkler final : public Component {
   /// add a valve to the controller
   void add_valve(SprinklerControllerSwitch *valve_sw, SprinklerControllerSwitch *enable_sw = nullptr);
 
-  /// add another controller to the controller so it can check if pumps/main valves are in use
+  // Other controllers, to check if pumps/main valves are in use
   SLOT_LIST(Sprinkler, other_controllers_, add_controller, SPRINKLER_OTHER_CONTROLLER_COUNT)
 
   /// configure important controller switches

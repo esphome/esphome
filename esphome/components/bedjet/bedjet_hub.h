@@ -91,7 +91,6 @@ class BedJetHub final : public esphome::ble_client::BLEClientNode, public Pollin
   bool has_status() { return this->codec_->has_status(); }
   const BedjetStatusPacket *get_status_packet() const { return this->codec_->get_status_packet(); }
 
-  /** Register a `BedJetClient` child component. */
   SLOT_LIST(BedJetClient, children_, register_child, BEDJET_CHILD_COUNT)
 
   /** Set the status timeout.

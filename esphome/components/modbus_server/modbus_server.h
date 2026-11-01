@@ -125,9 +125,7 @@ class ModbusServer final : public Component, public modbus::ModbusServerDevice {
  public:
   void dump_config() override;
 
-  /// Registers a server register with the controller. Called by esphomes code generator
   SLOT_LIST(ServerRegister, server_registers_, add_server_register, MODBUS_SERVER_REGISTER_COUNT)
-  /// Registers a server bit with the controller. Called by esphomes code generator
   SLOT_LIST(ServerBit, server_bits_, add_server_bit, MODBUS_SERVER_BIT_COUNT)
   /// called when a modbus request (function code 0x03 or 0x04) was parsed without errors
   modbus::ResponseStatus on_read_registers(uint16_t start_address, uint16_t number_of_registers,
