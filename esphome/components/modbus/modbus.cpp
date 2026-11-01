@@ -331,6 +331,15 @@ bool ModbusServerHub::parse_modbus_client_frame_() {
   const std::span<const uint8_t> pdu(pdu_buffer, pdu_len);
   const std::span<const uint8_t> data = pdu.subspan(1);  // after the function code
   this->clear_rx_buffer_(LOG_STR("parse succeeded"), false, frame_length);
+  // A request to a peer: set the expectation before on_request, so a reply its handler sends with
+  // send_response is matched.
+  if (address != BROADCAST_ADDRESS && this->find_device_(address) == nullptr) {
+    this->expecting_peer_response_ = address;
+#ifdef USE_MODBUS_SEND_RESPONSE
+    this->peer_function_code_ = function_code;
+#endif
+    ESP_LOGV(TAG, "Request to peer %" PRIu8 " received", address);
+  }
 #ifdef MODBUS_ON_REQUEST_COUNT
   // Before a device here answers, so the monitor sees the bus in order.
   this->request_callback_.call(address, pdu);
@@ -409,7 +418,12 @@ void ModbusServerHub::process_modbus_server_frame(uint8_t address, std::span<con
     ESP_LOGE(TAG, "Unexpected response from address %" PRIu8 ", which is mapped to this device.", address);
   }
 
-  if (this->expecting_peer_response_ == address) {
+  const bool expected = this->expecting_peer_response_ == address;
+  // If an unexpected response is received, we can't trust that a correct response will follow (it shouldn't).
+  // Reset before on_response, so a send_response from there finds the request already answered.
+  this->expecting_peer_response_ = 0;
+
+  if (expected) {
     ESP_LOGV(TAG, "Expected response from peer %" PRIu8 " received", address);
 #ifdef MODBUS_ON_RESPONSE_COUNT
     if (helpers::pdu_function_code(pdu) == this->request_[0]) {
@@ -422,10 +436,6 @@ void ModbusServerHub::process_modbus_server_frame(uint8_t address, std::span<con
   } else {
     ESP_LOGV(TAG, "Unexpected response from peer %" PRIu8 " received", address);
   }
-
-  // This always resets, even if the address doesn't match.
-  // If an unexpected response is received, we can't trust that a correct response will follow (it shouldn't).
-  this->expecting_peer_response_ = 0;
 }
 
 ModbusServerDevice *ModbusServerHub::find_device_(uint8_t address) {
@@ -636,11 +646,8 @@ bool ModbusServerHub::build_or_reject_read_response_(uint8_t address, uint8_t fu
 void ModbusServerHub::process_modbus_client_frame_(uint8_t address, uint8_t function_code,
                                                    std::span<const uint8_t> data) {
   ModbusServerDevice *device = this->find_device_(address);
-  if (device == nullptr) {
-    this->expecting_peer_response_ = address;
-    ESP_LOGV(TAG, "Request to peer %" PRIu8 " received", address);
-    return;
-  }
+  if (device == nullptr)
+    return;  // a peer's request: parse_modbus_client_frame_ has set the expectation
 
   ResponseStatus status;
   uint8_t response_buffer[modbus::MAX_RAW_SIZE];
@@ -935,6 +942,24 @@ bool ModbusServerHub::rejected_(uint8_t address, uint8_t function_code, Response
   this->send_exception_(address, function_code, status.value());
   return true;
 }
+
+#ifdef USE_MODBUS_SEND_RESPONSE
+void ModbusServerHub::send_response(uint8_t address, std::span<const uint8_t> pdu) {
+  // The request stays open until the next frame on the bus, not for a set time, so a late reply can still answer a
+  // newer request with the same address and function code.
+  if (pdu.empty() || address == BROADCAST_ADDRESS || this->expecting_peer_response_ != address) {
+    ESP_LOGW(TAG, "Dropped response to %" PRIu8 ": no open request for this address", address);
+    return;
+  }
+  if (helpers::pdu_function_code(pdu) != this->peer_function_code_) {
+    ESP_LOGW(TAG, "Dropped response to %" PRIu8 ": function code 0x%02X, the open request has 0x%02X", address, pdu[0],
+             this->peer_function_code_);
+    return;
+  }
+  this->expecting_peer_response_ = 0;
+  this->send_response_(address, pdu[0], pdu.data() + 1, pdu.size() - 1);
+}
+#endif
 
 void ModbusServerHub::send_exception_(uint8_t address, uint8_t function_code, ExceptionCode exception_code) {
   uint8_t raw_frame[3];
