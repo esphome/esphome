@@ -71,7 +71,7 @@ class BQ25186Component : public PollingComponent, public i2c::I2CDevice {
   bool apply_config(const BQ25186ConfigRegisters &regs);
 #ifdef USE_BQ25186_STATUS_PUBLISHER
   /// The generated function that publishes this hub's status entities
-  void set_status_publisher(void (*publisher)(const BQ25186StatusRegisters &)) { this->status_publisher_ = publisher; }
+  HUB_PUBLISHER(status, const BQ25186StatusRegisters &)
 #endif
 #ifdef USE_BQ25186_PG_GPO
   /// The /PG/GPO pin is put in general purpose output mode when a switch drives it
@@ -93,9 +93,6 @@ class BQ25186Component : public PollingComponent, public i2c::I2CDevice {
   void check_pg_gpo_(const BQ25186StatusRegisters &status, bool &pending);
 #endif
 
-#ifdef USE_BQ25186_STATUS_PUBLISHER
-  void (*status_publisher_)(const BQ25186StatusRegisters &){nullptr};
-#endif
   BQ25186ConfigRegisters regs_{};  // the configuration last applied, written again after a chip reset
   bool configure_on_boot_{false};
   bool configured_{false};  // regs_ went to the chip at least once

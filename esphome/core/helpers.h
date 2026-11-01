@@ -58,6 +58,15 @@
 #define ESPHOME_ALWAYS_INLINE __attribute__((always_inline))
 #define PACKED __attribute__((packed))
 
+/// Declares the `<name>_publisher_` function pointer and `set_<name>_publisher()` that a cg.HubFunction named
+/// `<name>` fills; the pointer stays nullptr when no child added an item, so check it before calling.
+#define HUB_PUBLISHER(name, ...) \
+ protected: \
+  void (*name##_publisher_)(__VA_ARGS__){nullptr}; \
+\
+ public: \
+  void set_##name##_publisher(void (*publisher)(__VA_ARGS__)) { this->name##_publisher_ = publisher; }
+
 namespace esphome {
 
 // Forward declaration to avoid circular dependency with string_ref.h

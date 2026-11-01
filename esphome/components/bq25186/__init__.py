@@ -76,10 +76,9 @@ BQ25186StatusRegisters = bq25186_ns.class_("BQ25186StatusRegisters")
 # Bit set for each field value that reads as on: a single bit is on when it is 1
 BIT_SET = 0b10
 STATUS_PUBLISHER = cg.HubFunction(
-    "status_fn",
+    "status",
     cg.void,
     [(BQ25186StatusRegisters.const_ref(), "status")],
-    setter="set_status_publisher",
     define="USE_BQ25186_STATUS_PUBLISHER",
 )
 _STATUS = STATUS_PUBLISHER.param("status")
