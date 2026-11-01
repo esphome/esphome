@@ -67,3 +67,20 @@ refusal prints no `Connecting to` line, and an image that slips through cannot r
 `firmware.factory.bin` slipped through on 2026-10-27 (its bootloader header at offset 0 looks like an app), the device
 reported `OTA successful` and its bootloader rejected the slot at boot; send the board its proper app image afterwards.
 A factory image has the partition table magic `AA 50` at 0x8000 and the app at 0x10000.
+
+## OTA automations on two OTA platforms (#21903)
+
+`scripts/ota_automations/ota-automations-common.yaml` (a package) puts `esphome` and `web_server` OTA in one config,
+each with all six automations (`on_begin`, `on_progress`, `on_end`, `on_abort`, `on_error`, `on_state_change`)
+logging a platform tag and the argument. `run.sh esp32|esp8266 LABEL` builds, flashes by serial, and runs four cases
+under one capture: a native upload, a native upload whose uploader is SIGKILLed after the first progress fire, a
+web_server upload of a random 64 KB file and a web_server upload of the real image. `summ.py OUT_DIR` prints each
+case's fires in order with progress collapsed to a count; diff dev against the PR.
+
+- `web_server: ota: false` removes `/update` (404), so leave it out when the web platform is under test.
+- A killed native uploader ends in `state 4` and `error 255`, not `abort`. `on_abort` only comes from a web upload
+  cut on the network. On ESP8266 those happen by themselves (1 in 4 uploads on dev), so count them on both builds with
+  `webrep.sh IP IMAGE COUNT` before blaming the PR.
+- A random file through web_server gives `error 128` on the ESP32 and `error 132` on the ESP8266.
+- A SIGTERM to the uploader lets it finish the transfer; use SIGKILL for the native error path.
+- Results: https://github.com/esphome/esphome/pull/21903#issuecomment-6516529409
