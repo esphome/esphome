@@ -207,3 +207,8 @@ on_ira211:
     - logger.log:
         format: "on_ira211: %u %.1f"
         args: ["static_cast<uint8_t>(x.command)", "x.get_temperature()"]
+on_cardin_s438:
+  then:
+    - logger.log:
+        format: "on_cardin_s438: %u %u"
+        args: ["x.code", "x.channel"]

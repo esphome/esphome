@@ -1,6 +1,6 @@
 from collections.abc import Iterator
 
-from esphome import automation
+from esphome import automation, preferences
 import esphome.codegen as cg
 from esphome.components import logger, network, socket
 from esphome.components.const import CONF_VERIFY_SSL
@@ -87,6 +87,11 @@ from esphome.core import CORE, CoroPriority, coroutine_with_priority
 from esphome.cpp_generator import MockObjClass
 import esphome.final_validate as fv
 from esphome.helpers import sanitize, snake_case
+from esphome.mqtt_topics import (
+    DEFAULT_TOPIC_SUFFIXES,
+    per_board_suffix,
+    prefix_gets_mac_suffix,
+)
 from esphome.types import ConfigType
 
 DEPENDENCIES = ["network"]
@@ -102,6 +107,7 @@ def AUTO_LOAD():
 CONF_TLS = "tls"
 CONF_IDF_SEND_ASYNC = "idf_send_async"
 CONF_WAIT_FOR_CONNECTION = "wait_for_connection"
+CONF_PERSIST_SUBSCRIPTIONS = "persist_subscriptions"
 CONF_TRANSPORT = "transport"
 CONF_WS_PATH = "ws_path"
 
@@ -266,6 +272,31 @@ def _validate_transport(value: str) -> str:
     return value
 
 
+# (config key, extra fields when defaulted from the topic prefix, (setter, disabler))
+_MESSAGES = (
+    (
+        CONF_BIRTH_MESSAGE,
+        {CONF_PAYLOAD: "online"},
+        lambda var: (var.set_birth_message, var.disable_birth_message),
+    ),
+    (
+        CONF_WILL_MESSAGE,
+        {CONF_PAYLOAD: "offline"},
+        lambda var: (var.set_last_will, var.disable_last_will),
+    ),
+    (
+        CONF_SHUTDOWN_MESSAGE,
+        {CONF_PAYLOAD: "offline"},
+        lambda var: (var.set_shutdown_message, var.disable_shutdown_message),
+    ),
+    (
+        CONF_LOG_TOPIC,
+        {},
+        lambda var: (var.set_log_message_template, var.disable_log_message),
+    ),
+)
+
+
 def validate_config(value):
     if (
         value.get(CONF_TRANSPORT) not in (MQTT_TRANSPORT_WS, MQTT_TRANSPORT_WSS)
@@ -274,51 +305,29 @@ def validate_config(value):
         raise cv.Invalid(
             f"'{CONF_WS_PATH}' is only valid when 'transport' is 'ws' or 'wss'"
         )
+    if value.get(CONF_PERSIST_SUBSCRIPTIONS) and value.get(CONF_CLEAN_SESSION):
+        raise cv.Invalid(
+            f"'{CONF_PERSIST_SUBSCRIPTIONS}' requires '{CONF_CLEAN_SESSION}: false'"
+        )
 
     # Populate default fields
     out = value.copy()
     topic_prefix = value[CONF_TOPIC_PREFIX]
     # If the topic prefix is not null and these messages are not configured, then set them to the default
     # If the topic prefix is null and these messages are not configured, then set them to null
-    if CONF_BIRTH_MESSAGE not in value:
-        if topic_prefix != "":
-            out[CONF_BIRTH_MESSAGE] = {
-                CONF_TOPIC: f"{topic_prefix}/status",
-                CONF_PAYLOAD: "online",
+    for key, extra, _ in _MESSAGES:
+        if key in value:
+            continue
+        out[key] = (
+            {}
+            if topic_prefix == ""
+            else {
+                CONF_TOPIC: f"{topic_prefix}{DEFAULT_TOPIC_SUFFIXES[key]}",
+                **extra,
                 CONF_QOS: 0,
                 CONF_RETAIN: True,
             }
-        else:
-            out[CONF_BIRTH_MESSAGE] = {}
-    if CONF_WILL_MESSAGE not in value:
-        if topic_prefix != "":
-            out[CONF_WILL_MESSAGE] = {
-                CONF_TOPIC: f"{topic_prefix}/status",
-                CONF_PAYLOAD: "offline",
-                CONF_QOS: 0,
-                CONF_RETAIN: True,
-            }
-        else:
-            out[CONF_WILL_MESSAGE] = {}
-    if CONF_SHUTDOWN_MESSAGE not in value:
-        if topic_prefix != "":
-            out[CONF_SHUTDOWN_MESSAGE] = {
-                CONF_TOPIC: f"{topic_prefix}/status",
-                CONF_PAYLOAD: "offline",
-                CONF_QOS: 0,
-                CONF_RETAIN: True,
-            }
-        else:
-            out[CONF_SHUTDOWN_MESSAGE] = {}
-    if CONF_LOG_TOPIC not in value:
-        if topic_prefix != "":
-            out[CONF_LOG_TOPIC] = {
-                CONF_TOPIC: f"{topic_prefix}/debug",
-                CONF_QOS: 0,
-                CONF_RETAIN: True,
-            }
-        else:
-            out[CONF_LOG_TOPIC] = {}
+        )
     return out
 
 
@@ -390,6 +399,7 @@ CONFIG_SCHEMA = cv.All(
             cv.Optional(CONF_USERNAME, default=""): cv.string,
             cv.Optional(CONF_PASSWORD, default=""): cv.sensitive(),
             cv.Optional(CONF_CLEAN_SESSION, default=False): cv.boolean,
+            cv.Optional(CONF_PERSIST_SUBSCRIPTIONS, default=False): cv.boolean,
             cv.Optional(CONF_CLIENT_ID): cv.string,
             cv.Optional(
                 CONF_TRANSPORT, default=MQTT_TRANSPORT_TCP
@@ -558,7 +568,7 @@ def _subscriptions(config: ConfigType) -> Iterator[tuple[tuple[str, ...], ...]]:
         for device in esphome_config.get(CONF_DEVICES, [])
     }
     topic_prefix = config[CONF_TOPIC_PREFIX]
-    if mac_suffix and topic_prefix == CORE.name:
+    if prefix_gets_mac_suffix(topic_prefix, CORE.name, mac_suffix):
         topic_prefix += MAC_SUFFIX
     # Entities can sit at any depth (a platform can declare its own switches), so find them by mqtt_id
     for id_, path in iter_ids(full_config):
@@ -607,12 +617,14 @@ def _validate_topic_lengths(config: ConfigType) -> ConfigType:
 FINAL_VALIDATE_SCHEMA = _validate_topic_lengths
 
 
-def exp_mqtt_message(config):
+def exp_mqtt_message(
+    config: ConfigType | None, topic: cg.MockObj | None = None
+) -> cg.Expression:
     if config is None:
         return cg.optional(cg.TemplateArguments(MQTTMessage))
     return cg.StructInitializer(
         MQTTMessage,
-        ("topic", config[CONF_TOPIC]),
+        ("topic", config[CONF_TOPIC] if topic is None else topic),
         ("payload", config.get(CONF_PAYLOAD, "")),
         ("qos", config[CONF_QOS]),
         ("retain", config[CONF_RETAIN]),
@@ -660,6 +672,10 @@ async def to_code(config):
     cg.add(var.set_username(config[CONF_USERNAME]))
     cg.add(var.set_password(config[CONF_PASSWORD]))
     cg.add(var.set_clean_session(config[CONF_CLEAN_SESSION]))
+    if config[CONF_PERSIST_SUBSCRIPTIONS]:
+        cg.add_define("USE_MQTT_SESSION_PERSISTENCE")
+        # The session fingerprint, a uint32_t kept in RTC memory
+        preferences.reserve_preferences(1, 4, in_flash=False)
     cg.add_optional(var.set_client_id, config.get(CONF_CLIENT_ID))
 
     discovery = config[CONF_DISCOVERY]
@@ -696,37 +712,33 @@ async def to_code(config):
             )
         )
 
-    cg.add(var.set_topic_prefix(config[CONF_TOPIC_PREFIX], CORE.name))
+    topic_prefix = config[CONF_TOPIC_PREFIX]
+    # The MAC suffix is only known at runtime, so the prefix and the topics defaulted from it
+    # are built from App.get_name(); topics written out by hand stay literal
+    mac_suffix = CORE.config[CONF_ESPHOME].get(CONF_NAME_ADD_MAC_SUFFIX, False)
+    mac_prefix = prefix_gets_mac_suffix(topic_prefix, CORE.name, mac_suffix)
+    cg.add(var.set_topic_prefix(cg.App.get_name() if mac_prefix else topic_prefix))
 
     if config[CONF_USE_ABBREVIATIONS]:
         cg.add_define("USE_MQTT_ABBREVIATIONS")
 
-    birth_message = config[CONF_BIRTH_MESSAGE]
-    if not birth_message:
-        cg.add(var.disable_birth_message())
-    else:
-        cg.add(var.set_birth_message(exp_mqtt_message(birth_message)))
-    will_message = config[CONF_WILL_MESSAGE]
-    if not will_message:
-        cg.add(var.disable_last_will())
-    else:
-        cg.add(var.set_last_will(exp_mqtt_message(will_message)))
-    shutdown_message = config[CONF_SHUTDOWN_MESSAGE]
-    if not shutdown_message:
-        cg.add(var.disable_shutdown_message())
-    else:
-        cg.add(var.set_shutdown_message(exp_mqtt_message(shutdown_message)))
+    for key, _, methods in _MESSAGES:
+        set_message, disable_message = methods(var)
+        if not (message := config[key]):
+            cg.add(disable_message())
+            continue
+        topic = (
+            cg.App.get_name() + suffix
+            if (suffix := per_board_suffix(config, key, CORE.name, mac_suffix))
+            else None
+        )
+        cg.add(set_message(exp_mqtt_message(message, topic)))
 
-    log_topic = config[CONF_LOG_TOPIC]
-    if not log_topic:
-        cg.add(var.disable_log_message())
-    else:
-        cg.add(var.set_log_message_template(exp_mqtt_message(log_topic)))
+    if log_topic := config[CONF_LOG_TOPIC]:
         # Request a log listener slot only when log topic is enabled
         logger.request_log_listener()
-
-        if CONF_LEVEL in log_topic:
-            cg.add(var.set_log_level(logger.LOG_LEVELS[log_topic[CONF_LEVEL]]))
+        if (level := log_topic.get(CONF_LEVEL)) is not None:
+            cg.add(var.set_log_level(logger.LOG_LEVELS[level]))
 
     cg.add(var.set_keep_alive(config[CONF_KEEPALIVE]))
 

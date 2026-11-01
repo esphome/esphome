@@ -71,10 +71,6 @@ class TMP102Test : public ::testing::Test {
   unsigned publications_{0};
 
   void SetUp() override {
-    // The test main keeps App alive; this test replaces it with a fresh one it owns
-    App.~Application();
-    new (&App) Application();
-    App.pre_setup("tmp102-regression-tests", 23, "TMP102 tests", 12);
     host::setup_preferences();
     host::host_preferences->reset();
     this->chip_.set_i2c_bus(&this->bus_);
@@ -90,12 +86,10 @@ class TMP102Test : public ::testing::Test {
     }
   }
 
+  // Drop the chip's pending read so it does not outlive the chip into a later test
   void TearDown() override {
     App.scheduler.cancel_timeout(&this->chip_, uint32_t{0});
     App.scheduler.call(millis());
-    host::host_preferences->reset();
-    App.~Application();
-    new (&App) Application();  // later tests and the test listener use App
   }
 
   static void run_timers(uint32_t duration) {
