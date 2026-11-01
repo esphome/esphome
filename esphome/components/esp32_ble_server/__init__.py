@@ -208,9 +208,16 @@ VALUE_TYPES = {
 
 
 def validate_char_encrypt(char_config: ConfigType) -> ConfigType:
+    # Without read, the read level protects only the subscription (the CCCD write)
     for key in (CONF_READ_ENCRYPT, CONF_READ_ENCRYPT_MITM):
-        if char_config[key] and not char_config[CONF_READ]:
-            raise cv.Invalid(f"{key} requires the {CONF_READ} property")
+        if char_config[key] and not (
+            char_config[CONF_READ]
+            or char_config[CONF_NOTIFY]
+            or char_config[CONF_INDICATE]
+        ):
+            raise cv.Invalid(
+                f"{key} requires the {CONF_READ}, {CONF_NOTIFY} or {CONF_INDICATE} property"
+            )
     for key in (CONF_WRITE_ENCRYPT, CONF_WRITE_ENCRYPT_MITM):
         if (
             char_config[key]

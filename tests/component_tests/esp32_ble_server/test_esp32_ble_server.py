@@ -257,12 +257,24 @@ def test_permissions_only_for_configured_directions(
     assert char_perms == expected
 
 
+@pytest.mark.parametrize("access", ["notify", "indicate"])
+def test_encrypted_subscription_without_read(access: str) -> None:
+    char_perms, desc_perms = _permissions({access: True, "read_encrypt_mitm": True})
+    assert char_perms == "0"
+    assert desc_perms[CCCD_DESCRIPTOR_UUID] == (
+        "static_cast<esp_gatt_perm_t>(ESP_GATT_PERM_READ_ENC_MITM | ESP_GATT_PERM_WRITE_ENC_MITM)"
+    )
+
+
 @pytest.mark.parametrize(
     ("properties", "message"),
     [
-        ({"read_encrypt": True}, "read_encrypt requires the read property"),
+        ({"read_encrypt": True}, "read_encrypt requires the read, notify or indicate"),
         ({"write_encrypt": True}, "write_encrypt requires the write"),
-        ({"read_encrypt_mitm": True}, "read_encrypt_mitm requires the read property"),
+        (
+            {"read_encrypt_mitm": True},
+            "read_encrypt_mitm requires the read, notify or indicate",
+        ),
         ({"write_encrypt_mitm": True}, "write_encrypt_mitm requires the write"),
     ],
 )
