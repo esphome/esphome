@@ -19,7 +19,10 @@ from esphome.components.nrf52.generate_boards import (
     render,
     replace_generated,
 )
+from esphome.components.zephyr.const import KEY_BOARD, KEY_ZEPHYR
 import esphome.config_validation as cv
+from esphome.const import KEY_CORE, KEY_FRAMEWORK_VERSION
+from esphome.core import CORE
 
 DTS = """\
 #include <soc.dtsi>
@@ -38,6 +41,18 @@ DTS = """\
 \t\t\t\tcompatible = "zephyr,cdc-acm-uart";
 \t\t\t\tstatus = "ok";
 \t\t\t};
+\t\t};
+\t\t/* Listed by address, not by the order they are written in */
+\t\ti2c1: arduino_i2c: i2c@40004000 {
+\t\t\tcompatible = "nordic,nrf-twi";
+\t\t\tstatus = "okay";
+\t\t};
+\t\ti2c0: i2c@40003000 {
+\t\t\tcompatible = "nordic,nrf-twim";
+\t\t};
+\t\ti2c2: i2c@40005000 {
+\t\t\tcompatible = "nordic,nrf-twim";
+\t\t\tstatus = "disabled";
 \t\t};
 \t\t/* Enabled itself, but under a disabled USB controller */
 \t\tusbd2: usbd@50000000 {
@@ -213,6 +228,7 @@ def test_load_boards_reads_enabled_cdc_acm_nodes(
                 "/soc/usbd@40027000/board_cdc_acm_uart",
                 "/soc/usbd@40027000/old_spelling",
             ),
+            ("i2c0", "i2c1"),
         )
     }, skipped
 
@@ -220,7 +236,7 @@ def test_load_boards_reads_enabled_cdc_acm_nodes(
 def test_render_and_replace() -> None:
     generated = render(
         {
-            "3.2.0": {"b": BoardInfo('Say "B"', "NRF52840", ("/soc/cdc",))},
+            "3.2.0": {"b": BoardInfo('Say "B"', "NRF52840", ("/soc/cdc",), ("i2c1",))},
             "2.9.2": {"a": BoardInfo("A", "NRF54L15", ())},
         }
     )
@@ -233,6 +249,7 @@ def test_render_and_replace() -> None:
                 "name": 'Say "B"',
                 "variant": "NRF52840",
                 "cdc_acm": ["/soc/cdc"],
+                "i2c": ["i2c1"],
             }
         },
     }
@@ -255,6 +272,7 @@ def test_boards_py_is_formatted_as_generated() -> None:
                 info["name"],
                 info["variant"],
                 tuple(info.get("cdc_acm", ())),
+                tuple(info.get("i2c", ())),
             )
             for name, info in board_infos.items()
         }
@@ -310,3 +328,18 @@ def test_short_board_name(
         },
     )
     assert boards.short_board_name(board) == expected
+
+
+@pytest.mark.parametrize(
+    ("board", "i2c"),
+    [
+        ("xiao_ble", ["i2c1"]),
+        ("xiao_ble/nrf52840", ["i2c1"]),
+        ("xiao_ble/nrf52840/sense", ["i2c0", "i2c1"]),
+        ("unknown", None),
+    ],
+)
+def test_get_current_board_info(board: str, i2c: list[str] | None) -> None:
+    CORE.data[KEY_CORE] = {KEY_FRAMEWORK_VERSION: cv.Version(2, 9, 2)}
+    CORE.data[KEY_ZEPHYR] = {KEY_BOARD: board}
+    assert boards.get_current_board_info().get("i2c") == i2c

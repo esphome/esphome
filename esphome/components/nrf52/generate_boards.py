@@ -12,6 +12,7 @@ from collections.abc import Iterable, Iterator
 from dataclasses import dataclass
 import json
 from pathlib import Path
+import re
 import subprocess
 import sys
 import tempfile
@@ -20,6 +21,10 @@ from devicetree import dtlib
 import yaml
 
 CDC_ACM_COMPATIBLE = "zephyr,cdc-acm-uart"
+# I2C controllers (TWIM, and the older TWI on nRF51/nRF52)
+I2C_COMPATIBLES = ("nordic,nrf-twim", "nordic,nrf-twi")
+# The SoC label of an I2C controller, which ESPHome also uses for its pinctrl node names
+I2C_LABEL_RE = re.compile(r"i2c\d+")
 NORDIC_FAMILY = "nordic_nrf"
 # SoC series to list boards for: nrf51, nrf52 and every nrf54 series (nrf54l, nrf54h)
 SERIES_PREFIXES = ("nrf51", "nrf52", "nrf54")
@@ -54,6 +59,8 @@ class BoardInfo:
     variant: str
     # Paths of the CDC ACM nodes the board enables on its own
     cdc_acm: tuple[str, ...]
+    # Labels of the I2C controllers the board enables, by address
+    i2c: tuple[str, ...] = ()
 
 
 @dataclass(frozen=True)
@@ -204,15 +211,28 @@ def read_board(target: BoardTarget, roots: list[Path]) -> BoardInfo:
         except dtlib.DTError as err:
             raise ValueError(f"{target.dts}: {err}") from err
 
-    cdc_acm = tuple(
-        node.path
+    cdc_acm = tuple(node.path for node in _enabled_nodes(tree, (CDC_ACM_COMPATIBLE,)))
+    i2c = tuple(
+        label
+        for node in sorted(
+            _enabled_nodes(tree, I2C_COMPATIBLES), key=lambda n: int(n.unit_addr, 16)
+        )
+        for label in node.labels
+        if I2C_LABEL_RE.fullmatch(label)
+    )
+    return BoardInfo(target.full_name, target.variant, cdc_acm, i2c)
+
+
+def _enabled_nodes(tree: dtlib.DT, compatibles: tuple[str, ...]) -> list[dtlib.Node]:
+    """Return the nodes with one of the compatibles that are enabled, with every parent."""
+    return [
+        node
         for node in tree.node_iter()
         if "compatible" in node.props
-        and CDC_ACM_COMPATIBLE in node.props["compatible"].to_strings()
+        and any(c in compatibles for c in node.props["compatible"].to_strings())
         and _is_okay(node)
         and all(_is_okay(parent) for parent in _parents(node))
-    )
-    return BoardInfo(target.full_name, target.variant, cdc_acm)
+    ]
 
 
 def _parents(node: dtlib.Node) -> Iterator[dtlib.Node]:
@@ -255,6 +275,10 @@ def render(versions: dict[str, dict[str, BoardInfo]]) -> str:
             if info.cdc_acm:
                 lines.append('            "cdc_acm": [')
                 lines.extend(f'                "{path}",' for path in info.cdc_acm)
+                lines.append("            ],")
+            if info.i2c:
+                lines.append('            "i2c": [')
+                lines.extend(f'                "{label}",' for label in info.i2c)
                 lines.append("            ],")
             lines.append("        },")
         lines.append("    },")

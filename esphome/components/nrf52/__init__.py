@@ -76,7 +76,7 @@ from .boards import (
     BOARDS_ZEPHYR,
     BOOTLOADER_CONFIG,
     SELF_RESET_PINS,
-    get_board_info,
+    get_current_board_info,
     short_board_name,
 )
 from .const import (
@@ -550,15 +550,14 @@ async def to_code(config: ConfigType) -> None:
         )
     # Some boards add their own CDC ACM port. ESPHome adds the ports its components use
     # (cdc_acm_uartN), so the board's one would be an extra serial port.
-    if board_info := get_board_info(framework_ver, board_id):
-        for path in board_info.get("cdc_acm", []):
-            zephyr_add_overlay(
-                f"""
-                    &{{{path}}} {{
-                        status = "disabled";
-                    }};
-                """
-            )
+    for path in get_current_board_info().get("cdc_acm", []):
+        zephyr_add_overlay(
+            f"""
+                &{{{path}}} {{
+                    status = "disabled";
+                }};
+            """
+        )
     zephyr_add_prj_conf("REBOOT", True)
 
     # some boards enable USB and UART by default.
