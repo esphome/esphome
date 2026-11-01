@@ -38,8 +38,7 @@ from esphome.const import (
     PLATFORM_NRF52,
     PlatformFramework,
 )
-from esphome.core import CORE, ID
-from esphome.cpp_generator import MockObj, TemplateArgsType
+from esphome.core import CORE
 from esphome.types import ConfigType
 
 WAKEUP_PINS = {
@@ -229,7 +228,6 @@ def _validate_sleep_duration(value: core.TimePeriod) -> core.TimePeriod:
 
 deep_sleep_ns = cg.esphome_ns.namespace("deep_sleep")
 DeepSleepComponent = deep_sleep_ns.class_("DeepSleepComponent", cg.Component)
-EnterDeepSleepAction = deep_sleep_ns.class_("EnterDeepSleepAction", automation.Action)
 
 WakeupPinMode = deep_sleep_ns.enum("WakeupPinMode")
 WAKEUP_PIN_MODES = WakeupPinMode.options(
@@ -463,31 +461,23 @@ DEEP_SLEEP_ENTER_SCHEMA = cv.All(
 )
 
 
-@automation.register_action(
+automation.register_apply_action(
     "deep_sleep.enter",
-    EnterDeepSleepAction,
     DEEP_SLEEP_ENTER_SCHEMA,
-    synchronous=True,
+    automation.ApplyField(
+        CONF_SLEEP_DURATION, "set_sleep_duration", cg.uint32, by_value=True
+    ),
+    automation.ApplyCall(
+        "set_sleep_until({}, {}, {}, {})",
+        (
+            (CONF_TIME_ID, time.RealTimeClock),
+            ((CONF_UNTIL, CONF_HOUR), cg.uint8),
+            ((CONF_UNTIL, CONF_MINUTE), cg.uint8),
+            ((CONF_UNTIL, CONF_SECOND), cg.uint8),
+        ),
+    ),
+    automation.ApplyCall("begin_sleep(true)"),
 )
-async def deep_sleep_enter_to_code(
-    config: ConfigType,
-    action_id: ID,
-    template_arg: cg.TemplateArguments,
-    args: TemplateArgsType,
-) -> MockObj:
-    paren = await cg.get_variable(config[CONF_ID])
-    var = cg.new_Pvariable(action_id, template_arg, paren)
-    if CONF_SLEEP_DURATION in config:
-        template_ = await cg.templatable(config[CONF_SLEEP_DURATION], args, cg.uint32)
-        cg.add(var.set_sleep_duration(template_))
-
-    if CONF_UNTIL in config:
-        until = config[CONF_UNTIL]
-        cg.add(var.set_until(until[CONF_HOUR], until[CONF_MINUTE], until[CONF_SECOND]))
-
-        await cg.add_variable(var.set_time, config[CONF_TIME_ID])
-
-    return var
 
 
 for _name, _call in (

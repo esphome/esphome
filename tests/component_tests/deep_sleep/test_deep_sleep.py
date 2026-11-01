@@ -231,59 +231,73 @@ def test_deep_sleep_enter_without_duration(
     main_cpp = generate_main(ENTER_YAML)
 
     assert (
-        "new(deep_sleep_enterdeepsleepaction_id) "
-        "deep_sleep::EnterDeepSleepAction<>(deepsleep);\n"
-        "new(automation_id) Automation<>(sleep_now);"
+        "static void esphome__applyaction_id__fn() {\n"
+        "  ::deepsleep->begin_sleep(true);\n"
+        "}\n"
     ) in main_cpp
+    assert "new(applyaction_id) ApplyAction<esphome__applyaction_id__fn>();" in main_cpp
+    assert "EnterDeepSleepAction" not in main_cpp
 
 
 def test_deep_sleep_enter_constant_duration(
     generate_main: Callable[[str | Path], str],
 ) -> None:
-    """A constant sleep_duration is set in milliseconds."""
+    """A constant sleep_duration is set in milliseconds before the sleep begins."""
     main_cpp = generate_main(ENTER_YAML)
 
     assert (
-        "deep_sleep_enterdeepsleepaction_id_2->set_sleep_duration([]() -> uint32_t {\n"
-        "    return 3600000;\n"
-        "});"
+        "static void esphome__applyaction_id_2__fn() {\n"
+        "  ::deepsleep->set_sleep_duration(3600000);\n"
+        "  ::deepsleep->begin_sleep(true);\n"
+        "}\n"
     ) in main_cpp
 
 
 def test_deep_sleep_enter_lambda_duration(
     generate_main: Callable[[str | Path], str],
 ) -> None:
-    """A lambda sleep_duration is computed from the script parameters."""
+    """A lambda sleep_duration is computed from the script parameters before the sleep begins."""
     main_cpp = generate_main(ENTER_YAML)
 
     assert re.search(
-        r"new\(deep_sleep_enterdeepsleepaction_id_3\) "
-        r"deep_sleep::EnterDeepSleepAction<uint32_t>\(deepsleep\);\n"
-        r"deep_sleep_enterdeepsleepaction_id_3->set_sleep_duration\("
-        r"\[\]\(uint32_t seconds\) -> uint32_t \{\n(?:    #line [^\n]*\n)?"
-        r"    return seconds \* 1000;\n",
+        r"static void esphome__applyaction_id_3__fn\("
+        r"const std::remove_cvref_t<uint32_t> & seconds\) \{\n"
+        r"  ::deepsleep->set_sleep_duration\(\[\]\(uint32_t seconds\) -> uint32_t \{\n"
+        r"(?:    #line [^\n]*\n)?"
+        r"    return seconds \* 1000;\n"
+        r"(?:    // ESPHOME_LINE_DIRECTIVE_RESET\n)?"
+        r"  \}\(seconds\)\);\n"
+        r"  ::deepsleep->begin_sleep\(true\);\n"
+        r"\}\n",
         main_cpp,
     )
 
 
 @pytest.mark.parametrize(
-    ("action_id", "body"),
+    ("fn_id", "body"),
     [
-        ("deep_sleep_enterdeepsleepaction_id_4", "seconds *= 1000; return seconds;"),
-        ("deep_sleep_enterdeepsleepaction_id_5", "return seconds *= 1000;"),
+        ("applyaction_id_4", "seconds *= 1000; return seconds;"),
+        ("applyaction_id_5", "return seconds *= 1000;"),
     ],
 )
 def test_deep_sleep_enter_lambda_takes_args_by_value(
-    generate_main: Callable[[str | Path], str], action_id: str, body: str
+    generate_main: Callable[[str | Path], str], fn_id: str, body: str
 ) -> None:
-    """The sleep_duration lambda gets the script parameters by value, so it may modify them."""
+    """The sleep_duration lambda gets the script parameters by value, so it may modify them.
+
+    It is called rather than reduced, so even a single return modifies only its own copy.
+    """
     main_cpp = generate_main(ENTER_YAML)
 
     assert re.search(
-        action_id + r"->set_sleep_duration\("
-        r"\[\]\(uint32_t seconds\) -> uint32_t \{\n(?:    #line [^\n]*\n)?    "
+        r"static void esphome__"
+        + fn_id
+        + r"__fn\(const std::remove_cvref_t<uint32_t> & seconds\) \{\n"
+        r"  ::deepsleep->set_sleep_duration\(\[\]\(uint32_t seconds\) -> uint32_t \{\n"
+        r"(?:    #line [^\n]*\n)?    "
         + re.escape(body)
-        + "\n",
+        + r"\n(?:    // ESPHOME_LINE_DIRECTIVE_RESET\n)?  \}\(seconds\)\);\n"
+        r"  ::deepsleep->begin_sleep\(true\);\n\}\n",
         main_cpp,
     )
 
@@ -295,6 +309,29 @@ def test_deep_sleep_enter_until(
     main_cpp = generate_main(ENTER_YAML)
 
     assert (
-        "deep_sleep_enterdeepsleepaction_id_6->set_until(6, 30, 0);\n"
-        "deep_sleep_enterdeepsleepaction_id_6->set_time(sntp_time);"
+        "static void esphome__applyaction_id_6__fn() {\n"
+        "  ::deepsleep->set_sleep_until(::sntp_time, 6, 30, 0);\n"
+        "  ::deepsleep->begin_sleep(true);\n"
+        "}\n"
     ) in main_cpp
+
+
+def test_deep_sleep_enter_merges_with_adjacent_actions(
+    generate_main: Callable[[str | Path], str],
+) -> None:
+    """deep_sleep.enter shares one generated function with the actions around it."""
+    main_cpp = generate_main(ENTER_YAML)
+
+    start = main_cpp.index(
+        "static void esphome__applyaction_id_7__fn(const int & esphome__running) {"
+    )
+    body = main_cpp[start : main_cpp.index("\n}\n", start)]
+    assert (
+        body.index("::deepsleep->allow_deep_sleep();")
+        < body.index("::deepsleep->begin_sleep(true);")
+        < body.index("::deepsleep->prevent_deep_sleep();")
+    )
+    assert (
+        "new(applyaction_id_7) ApplyRunAction<esphome__applyaction_id_7__fn>();"
+        in main_cpp
+    )

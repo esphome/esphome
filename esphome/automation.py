@@ -460,11 +460,13 @@ class ApplyCall:
     path into nested sections. ``target`` and a plain ``str`` ``type_`` (raw C++ type text) may
     name the parent object as ``{parent}``. ``const_fn(config, value)`` renders a constant's argument text; a lambda or an
     id bypasses it. The statement is skipped when none of its keys is set, always emitted when it
-    has no keys, and a partial set is a config error.
+    has no keys, and a partial set is a config error. With ``by_value`` a lambda gets the trigger
+    args by value and is always called, never reduced, so its body may modify them.
     """
 
     target: str
     args: tuple[tuple[Any, ...], ...] = ()
+    by_value: bool = False
 
     def __post_init__(self) -> None:
         fields = [
@@ -507,17 +509,20 @@ class ApplyField:
     instance. ``const_fn(config, value)`` renders a constant's argument text when ``cg.safe_exp``
     is not the right spelling, or the value depends on another entity's config, such as the unit
     a climate reports in; a lambda or an id bypasses it, so the target must also take a plain
-    ``type_``. An absent key emits nothing.
+    ``type_``. An absent key emits nothing. ``by_value`` is as for ``ApplyCall``.
     """
 
     conf_key: str | tuple[str, ...]
     target: str
     type_: SafeExpType
     const_fn: Callable[[ConfigType, Any], str] | None = None
+    by_value: bool = False
 
     def call(self) -> ApplyCall:
         target = self.target if "{}" in self.target else f"{self.target}({{}})"
-        return ApplyCall(target, ((self.conf_key, self.type_, self.const_fn),))
+        return ApplyCall(
+            target, ((self.conf_key, self.type_, self.const_fn),), self.by_value
+        )
 
 
 def _in_range_low(config: ConfigType, value: float) -> str:
@@ -691,11 +696,12 @@ async def _render_values(
     parent: str | None,
     lambda_args: TemplateArgsType,
     compare: bool = False,
+    by_value_args: TemplateArgsType | None = None,
 ) -> list[str]:
     """Render the argument text of one statement; every key must be present.
 
     ``compare``: an inlined lambda expression is parenthesized so it binds as a whole
-    beside an operator.
+    beside an operator. ``by_value_args``: a lambda takes these and is always called.
     """
     if any(value is None for value in values):
         keys = [key for key, _, _ in members]
@@ -705,8 +711,11 @@ async def _render_values(
         if isinstance(value, Lambda):
             if isinstance(type_, str):
                 type_ = cg.RawExpression(type_.format(parent=parent))
-            inner = await cg.process_lambda(value, lambda_args, return_type=type_)
-            expr = call_lambda(inner)
+            by_value = by_value_args is not None
+            inner = await cg.process_lambda(
+                value, by_value_args if by_value else lambda_args, return_type=type_
+            )
+            expr = immediate_lambda_call(inner) if by_value else call_lambda(inner)
             bare = compare and isinstance(expr, cg.RawExpression)
             exprs.append(f"({expr})" if bare else str(expr))
         elif isinstance(value, ID):
@@ -759,7 +768,9 @@ def apply_action_builder(
     """
     # An action stores the value, so a std::string constant stays in flash on ESP8266.
     _check_key_in_schema(name, schema, id_key)
-    statements_spec: list[ApplyBytes | tuple[str, list[tuple[Any, Any, Any]]]] = []
+    statements_spec: list[
+        ApplyBytes | tuple[str, list[tuple[Any, Any, Any]], bool]
+    ] = []
     for f in fields:
         if isinstance(f, ApplyBytes):
             _check_key_in_schema(name, schema, f.conf_key)
@@ -769,7 +780,7 @@ def apply_action_builder(
         members = _default_std_string(c.members, flash_string)
         for conf_key, _, _ in members:
             _check_key_in_schema(name, schema, conf_key)
-        statements_spec.append((c.target, members))
+        statements_spec.append((c.target, members, c.by_value))
     # Named like the generated function, so it cannot clash with an SDK symbol
     table_name = f"esphome__{name.replace('.', '_')}__bytes"
 
@@ -791,12 +802,19 @@ def apply_action_builder(
                     )
                 )
                 continue
-            target, members = spec
+            target, members, by_value = spec
             values = _apply_values(config, members)
             if not _apply_call_active(members, values):
                 continue
             exprs = await _render_values(
-                name, target, members, values, config, parent, lambda_args
+                name,
+                target,
+                members,
+                values,
+                config,
+                parent,
+                lambda_args,
+                by_value_args=args if by_value else None,
             )
             statements.append(f"{receiver}{target.format(*exprs, parent=parent)};")
         if call:
@@ -838,7 +856,7 @@ async def _render_bytes(
             value, args, return_type=cg.std_vector.template(cg.uint8)
         )
         # Never reduced into the outer function, whose own parameters are const
-        call = CallExpression(inner, *[cg.MockObj(name) for _, name in args])
+        call = immediate_lambda_call(inner)
         return [
             "{",
             f"  const std::vector<uint8_t> esphome__bytes = {call};",
@@ -881,10 +899,19 @@ async def _render_check(
     config: ConfigType,
     parent: str | None,
     lambda_args: TemplateArgsType,
+    by_value_args: TemplateArgsType | None = None,
 ) -> str:
     """Render a boolean check with ``values`` compared against config."""
     exprs = await _render_values(
-        name, target, members, values, config, parent, lambda_args, compare=True
+        name,
+        target,
+        members,
+        values,
+        config,
+        parent,
+        lambda_args,
+        compare=True,
+        by_value_args=by_value_args,
     )
     return target.format(*exprs, parent=parent)
 
@@ -924,7 +951,14 @@ def register_apply_condition(
         lambda_args = _apply_lambda_args(args)
         values = _apply_values(config, members)
         check = await _render_check(
-            name, call.target, members, values, config, parent, lambda_args
+            name,
+            call.target,
+            members,
+            values,
+            config,
+            parent,
+            lambda_args,
+            by_value_args=args if call.by_value else None,
         )
         return _apply_function(
             condition_id,
@@ -1993,6 +2027,7 @@ async def _trigger_callback(
                 config,
                 None if parent is None else str(parent_ref(parent)),
                 lambda_args,
+                by_value_args=params if call.by_value else None,
             )
             statements.append(f"if (!({check}))\n  return;")
     if forward is None:

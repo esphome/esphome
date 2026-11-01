@@ -1185,6 +1185,49 @@ async def test_apply_lambdas(
 
 
 @pytest.mark.asyncio
+async def test_apply_lambdas_by_value(
+    registries: tuple[Registry, Registry], mock_cg: MockCodegen
+) -> None:
+    """With by_value a lambda takes the trigger args by value and is called, never reduced."""
+    fields = (
+        ApplyField("kp", "set_kp", cg.float_, by_value=True),
+        ApplyCall(
+            "set_range({}, {})",
+            (("low", cg.float_), ("high", cg.float_)),
+            by_value=True,
+        ),
+    )
+    config = {
+        "kp": Lambda("return x *= 2;"),
+        "low": Lambda("x += 1; return x;"),
+        "high": 1.0,
+    }
+    await _run_apply_action(registries, fields, config, args=[(cg.int32, "x")])
+    text = _apply_definition(mock_cg)
+    assert text.startswith(
+        "static void esphome__obj_1__fn(const std::remove_cvref_t<int32_t> & x) {"
+    )
+    assert f"::{PARENT_OBJ}->set_kp([](int32_t x) -> float {{" in text
+    assert f"::{PARENT_OBJ}->set_range([](int32_t x) -> float {{" in text
+    assert text.count("}(x)") == 2
+    assert "static_cast" not in text
+
+
+@pytest.mark.asyncio
+async def test_apply_condition_lambda_by_value(
+    registries: tuple[Registry, Registry], mock_cg: MockCodegen
+) -> None:
+    """A by_value condition lambda takes the trigger args by value and is called."""
+    check = ApplyCall("state == {}", (("state", cg.float_),), by_value=True)
+    await _run_apply_condition(
+        registries, check, {"state": Lambda("return x *= 2;")}, args=[(cg.int32, "x")]
+    )
+    text = _apply_definition(mock_cg)
+    assert f"return ::{PARENT_OBJ}->state == [](int32_t x) -> float {{" in text
+    assert "}(x);" in text
+
+
+@pytest.mark.asyncio
 async def test_apply_lambda_modifying_its_arg(
     registries: tuple[Registry, Registry], mock_cg: MockCodegen
 ) -> None:
@@ -1779,6 +1822,23 @@ async def test_trigger_callback_reshapes_and_filters(mock_cg: MockCodegen) -> No
         )
     )
     assert "if (" not in text
+
+
+@pytest.mark.asyncio
+async def test_trigger_callback_filter_lambda_by_value(mock_cg: MockCodegen) -> None:
+    """A by_value filter lambda takes the callback parameters by value and is called."""
+    when = ApplyCall("state == {}", (("state", cg.int_),), by_value=True)
+    text = _squash(
+        await build_trigger_callback(
+            [],
+            {**TRIGGER_CONF, "state": Lambda("return x *= 2;")},
+            [(cg.int_, "x")],
+            forward=[],
+            when=when,
+        )
+    )
+    assert "if (!(state == [](int x) -> int {" in text
+    assert "}(x))) return;" in text
 
 
 @pytest.mark.asyncio
