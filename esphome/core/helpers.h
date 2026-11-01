@@ -1891,7 +1891,8 @@ template<typename... Ts> struct Callback<void(Ts...)> {
       // (e.g. void(&)(int)), &callable would point at machine code, not a pointer variable.
       DecayF decayed = std::forward<F>(callable);
       __builtin_memcpy(&cb.ctx_, &decayed, sizeof(DecayF));
-      cb.fn_ = [](void *c, Ts... args) {
+      // Ts... must match fn_ exactly, so a by-value argument cannot become a const reference here
+      cb.fn_ = [](void *c, Ts... args) {  // NOLINT(performance-unnecessary-value-param)
         alignas(DecayF) char buf[sizeof(DecayF)];
         __builtin_memcpy(buf, &c, sizeof(DecayF));
         (*std::launder(reinterpret_cast<DecayF *>(buf)))(args...);
@@ -1902,7 +1903,10 @@ template<typename... Ts> struct Callback<void(Ts...)> {
       // Intentionally never freed: callbacks in ESPHome are registered during setup()
       // and live for device lifetime. Same lifetime as the previous std::function approach.
       auto *stored = new DecayF(std::forward<F>(callable));
-      return {[](void *c, Ts... args) { (*static_cast<DecayF *>(c))(args...); }, static_cast<void *>(stored)};
+      return {[](void *c, Ts... args) {  // NOLINT(performance-unnecessary-value-param)
+                (*static_cast<DecayF *>(c))(args...);
+              },
+              static_cast<void *>(stored)};
     }
   }
 
