@@ -4,6 +4,11 @@
 #include <sys/socket.h>
 #include <cerrno>
 
+#ifdef __linux__
+#include <linux/sockios.h>
+#include <sys/ioctl.h>
+#endif
+
 #include "esphome/components/api/api_server.h"
 #include "esphome/core/log.h"
 
@@ -51,5 +56,35 @@ void SndbufPinComponent::setup() {
     this->mark_failed();
   }
 }
+
+api::APIConnection *api_log_client() {
+  for (const auto &conn : api::global_api_server->active_clients()) {
+    if (conn->get_log_subscription_level() > 0)
+      return conn.get();
+  }
+  return nullptr;
+}
+
+#ifdef __linux__
+bool api_peer_window_closed() {
+  for (int fd = FIRST_USER_FD; fd < MAX_FD_SCAN; fd++) {
+    struct sockaddr_in addr{};
+    socklen_t addr_len = sizeof(addr);
+    if (::getsockname(fd, reinterpret_cast<struct sockaddr *>(&addr), &addr_len) != 0 ||
+        ntohs(addr.sin_port) != api::global_api_server->get_port())
+      continue;
+    // Skips the listener: only the accepted client socket has a peer
+    addr_len = sizeof(addr);
+    if (::getpeername(fd, reinterpret_cast<struct sockaddr *>(&addr), &addr_len) != 0)
+      continue;
+    int queued = 0;
+    int not_sent = 0;
+    if (::ioctl(fd, SIOCOUTQ, &queued) != 0 || ::ioctl(fd, SIOCOUTQNSD, &not_sent) != 0)
+      return false;
+    return not_sent > 0 && queued == not_sent;
+  }
+  return false;
+}
+#endif
 
 }  // namespace esphome::sndbuf_pin
