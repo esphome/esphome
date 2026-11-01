@@ -60,7 +60,8 @@ static constexpr std::array<SingleBit, 19> SINGLE_BITS{{
     {BATTERY_OCP_FLAG, BQ25186_REG_FLAG0, 0x01},
 }};
 
-// What code generation emits for a hub with every status entity, in the same order
+// A copy of the function code generation emits for a hub with every status entity;
+// tests/component_tests/bq25186/test_status_publisher.py pins the generated text
 struct StatusEntities {
   std::array<binary_sensor::BinarySensor, BINARY_COUNT> binary;
   std::array<text_sensor::TextSensor, TEXT_COUNT> text;
@@ -90,8 +91,8 @@ static void publish_status(const BQ25186StatusRegisters &status) {
   entities->binary[VIN_OVP_FLAG].publish_state((status[2] >> 2) & 0x01);
   entities->binary[BATTERY_UVLO_FLAG].publish_state((status[2] >> 1) & 0x01);
   entities->binary[BATTERY_OCP_FLAG].publish_state((status[2] >> 0) & 0x01);
-  publish_status_text(&entities->text[CHARGE_STATUS], entities->charge_status_last, (status[0] >> 5) & 0x03, 0);
-  publish_status_text(&entities->text[TS_STATUS], entities->ts_status_last, (status[1] >> 3) & 0x03, 4);
+  publish_status_text(&entities->text[CHARGE_STATUS], entities->charge_status_last, status[0] >> 5, 0);
+  publish_status_text(&entities->text[TS_STATUS], entities->ts_status_last, status[1] >> 3, 4);
 }
 
 class BQ25186StatusTest : public ::testing::Test {

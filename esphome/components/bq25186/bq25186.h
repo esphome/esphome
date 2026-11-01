@@ -48,8 +48,9 @@ PROGMEM_STRING_TABLE(BQ25186StatusStrings, "Not Charging", "Constant Current", "
                      "Charge Done/Disabled", "Normal", "Hot/Cold (Charging Suspended)", "Cool (Current Reduced)",
                      "Warm (Voltage Reduced)");
 
-/// Publish a two-bit status field as the string at `first + value`, only when it differs from `last`
+/// Publish the two-bit field in the low bits of `value` as string `first + field`, only when it differs from `last`
 inline void publish_status_text(text_sensor::TextSensor *sensor, uint8_t &last, uint8_t value, uint8_t first) {
+  value &= 0x03;
   if (value == last)
     return;
   last = value;

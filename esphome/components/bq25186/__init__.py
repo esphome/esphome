@@ -73,31 +73,48 @@ BQ25186StatusRegisters = bq25186_ns.class_("BQ25186StatusRegisters")
 
 @dataclass
 class _StatusPublisher:
-    """The statements of one hub's generated status function; binary sensors publish first."""
+    """The statements of one hub's generated status function."""
 
     hub: cg.MockObj
     binary: list[str] = field(default_factory=list)
     text: list[str] = field(default_factory=list)
 
 
-def _status_publishers() -> dict[str, _StatusPublisher]:
-    return CORE.data.setdefault(DOMAIN, {})
+@dataclass
+class BQ25186Data:
+    publishers: dict[str, _StatusPublisher] = field(default_factory=dict)
+    emitted: bool = False
 
 
-def add_status_statement(hub: cg.MockObj, statement: str, text: bool = False) -> None:
+def _get_data() -> BQ25186Data:
+    if DOMAIN not in CORE.data:
+        CORE.data[DOMAIN] = BQ25186Data()
+    return CORE.data[DOMAIN]
+
+
+def add_status_statement(
+    hub: cg.MockObj, statement: str, *, text: bool = False
+) -> None:
     """Add a statement to the function that publishes hub's status entities from `status`."""
-    publishers = _status_publishers()
-    if not publishers:
+    data = _get_data()
+    if data.emitted:
+        raise ValueError(
+            f"{hub}: status statement added after the publishers were emitted"
+        )
+    if not data.publishers:
         CORE.add_job(_emit_status_publishers)
-    publisher = publishers.setdefault(str(hub), _StatusPublisher(hub))
+    publisher = data.publishers.setdefault(str(hub), _StatusPublisher(hub))
     (publisher.text if text else publisher.binary).append(statement)
 
 
 @coroutine_with_priority(CoroPriority.FINAL)
 async def _emit_status_publishers() -> None:
+    data = _get_data()
+    data.emitted = True
     cg.add_define("USE_BQ25186_STATUS_PUBLISHER")
     params = [(BQ25186StatusRegisters.operator("const").operator("ref"), "status")]
-    for publisher in _status_publishers().values():
+    for publisher in data.publishers.values():
+        # Binary sensors publish before text sensors, as they always have
         fn = cg.static_function(
             f"esphome__{publisher.hub}__status_fn",
             cg.void,

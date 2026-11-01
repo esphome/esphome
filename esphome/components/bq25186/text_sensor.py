@@ -31,12 +31,12 @@ async def to_code(config: ConfigType) -> None:
     for key, reg, shift, first in _FIELDS:
         if (var := await sensors(key, None)) is None:
             continue
-        # The field value last published; 0xFF so the first poll publishes
+        # 0xFF so the first poll publishes
         last = f"esphome__{var}__last"
         add_status_statement(
             hub,
             f"static uint8_t {last} = 0xFF;\n"
             f"bq25186::publish_status_text({parent_ref(var)}, {last}, "
-            f"(status[{reg}] >> {shift}) & 0x03, {first});",
+            f"status[{reg}] >> {shift}, {first});",
             text=True,
         )
