@@ -49,16 +49,14 @@ async def to_code(config: ConfigType) -> None:
     await cg.add_variable(var.set_green, config[CONF_GREEN])
     await cg.add_variable(var.set_blue, config[CONF_BLUE])
     await cg.add_variable(var.set_cold_white, config[CONF_COLD_WHITE])
-    if CONF_COLD_WHITE_COLOR_TEMPERATURE in config:
-        cg.add(
-            var.set_cold_white_temperature(config[CONF_COLD_WHITE_COLOR_TEMPERATURE])
-        )
+    cg.add_optional(
+        var.set_cold_white_temperature, config.get(CONF_COLD_WHITE_COLOR_TEMPERATURE)
+    )
 
     await cg.add_variable(var.set_warm_white, config[CONF_WARM_WHITE])
-    if CONF_WARM_WHITE_COLOR_TEMPERATURE in config:
-        cg.add(
-            var.set_warm_white_temperature(config[CONF_WARM_WHITE_COLOR_TEMPERATURE])
-        )
+    cg.add_optional(
+        var.set_warm_white_temperature, config.get(CONF_WARM_WHITE_COLOR_TEMPERATURE)
+    )
 
     cg.add(var.set_constant_brightness(config[CONF_CONSTANT_BRIGHTNESS]))
     cg.add(var.set_color_interlock(config[CONF_COLOR_INTERLOCK]))

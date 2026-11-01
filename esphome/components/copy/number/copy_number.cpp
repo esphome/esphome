@@ -6,20 +6,20 @@ namespace esphome::copy {
 ESPHOME_LOG_TAG(TAG, "copy.number");
 
 void CopyNumber::setup() {
-  source_->add_on_state_callback([this](float value) { this->publish_state(value); });
+  this->source_number_->add_on_state_callback([this](float value) { this->publish_state(value); });
 
-  traits.set_min_value(source_->traits.get_min_value());
-  traits.set_max_value(source_->traits.get_max_value());
-  traits.set_step(source_->traits.get_step());
+  traits.set_min_value(this->source_number_->traits.get_min_value());
+  traits.set_max_value(this->source_number_->traits.get_max_value());
+  traits.set_step(this->source_number_->traits.get_step());
 
-  if (source_->has_state())
-    this->publish_state(source_->state);
+  if (this->source_number_->has_state())
+    this->publish_state(this->source_number_->state);
 }
 
 void CopyNumber::dump_config() { LOG_NUMBER("", "Copy Number", this); }
 
 void CopyNumber::control(float value) {
-  auto call2 = source_->make_call();
+  auto call2 = this->source_number_->make_call();
   call2.set_value(value);
   call2.perform();
 }
