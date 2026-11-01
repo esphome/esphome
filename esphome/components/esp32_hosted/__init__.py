@@ -3,6 +3,7 @@ import os
 from pathlib import Path
 
 from esphome import pins
+import esphome.codegen as cg
 from esphome.components import esp32
 from esphome.components.const import CONF_SLOT, CONF_USE_PSRAM
 import esphome.config_validation as cv
@@ -10,6 +11,7 @@ from esphome.const import (
     CONF_CLK_PIN,
     CONF_CS_PIN,
     CONF_FREQUENCY,
+    CONF_ID,
     CONF_MISO_PIN,
     CONF_MOSI_PIN,
     CONF_RESET_PIN,
@@ -41,6 +43,9 @@ CONF_HANDSHAKE_PIN = "handshake_pin"
 CONF_SDIO_FREQUENCY = "sdio_frequency"
 CONF_SPI_MODE = "spi_mode"
 
+esp32_hosted_ns = cg.esphome_ns.namespace("esp32_hosted")
+ESP32Hosted = esp32_hosted_ns.class_("ESP32Hosted", cg.Component)
+
 # ESP-NOW-over-hosted shim (esp_now_hosted.cpp). esp-hosted proxies esp_wifi.h
 # but not esp_now.h (espressif/esp-hosted-mcu#19), and esp_wifi_remote injects
 # the esp_now.h header on the ESP32-P4 host with no implementation, leaving the
@@ -63,12 +68,13 @@ _MAX_CUSTOM_MSG_HANDLERS = 8
 # Shared fields for both transport modes
 BASE_SCHEMA = cv.Schema(
     {
+        cv.GenerateID(): cv.declare_id(ESP32Hosted),
         cv.Required(CONF_VARIANT): cv.one_of(*esp32.VARIANTS, upper=True),
         cv.Optional(CONF_ACTIVE_HIGH): cv.boolean,
         cv.Required(CONF_RESET_PIN): pins.internal_gpio_output_pin_number,
         cv.Optional(CONF_USE_PSRAM, default=False): cv.boolean,
     }
-)
+).extend(cv.COMPONENT_SCHEMA)
 
 SDIO_SCHEMA = BASE_SCHEMA.extend(
     {
@@ -260,6 +266,8 @@ def _configure_spi(config: ConfigType) -> None:
 
 
 async def to_code(config: ConfigType) -> None:
+    var = cg.new_Pvariable(config[CONF_ID])
+    await cg.register_component(var, config)
     add_define("USE_ESP32_HOSTED")
     # The board choice defaults to an Espressif dev board, which locks every
     # pin's Kconfig range to that board and silently drops other values
