@@ -10,9 +10,11 @@ ESPHOME_LOG_TAG(TAG, "systa_bus");
 
 void SystaBus::dump_config() {
   ESP_LOGCONFIG(TAG, "SystaBus:");
-#ifdef USE_SYSTA_BUS_AQUA_SENSOR_DATA
-  if (this->dump_fn_ != nullptr)
-    this->dump_fn_(TAG);
+#ifdef USE_SYSTA_BUS_AQUA_PUBLISHER
+  if (this->dump_publisher_ != nullptr) {
+    ESP_LOGCONFIG(TAG, "SystaSolar Aqua:");
+    this->dump_publisher_(TAG);
+  }
 #endif
 }
 
@@ -48,9 +50,9 @@ void SystaBus::handle_byte_(uint8_t c) {
     this->resync_();
     return;
   }
-#ifdef USE_SYSTA_BUS_AQUA_SENSOR_DATA
-  if (this->aqua_sensor_data_fn_ != nullptr && get_message_type(this->buffer_) == MESSAGE_TYPE_AQUA_SENSOR_DATA)
-    this->aqua_sensor_data_fn_(this->buffer_);
+#ifdef USE_SYSTA_BUS_AQUA_PUBLISHER
+  if (this->aqua_publisher_ != nullptr && get_message_type(this->buffer_) == MESSAGE_TYPE_AQUA_SENSOR_DATA)
+    this->aqua_publisher_(this->buffer_);
 #endif
   this->buffer_.clear();
 }

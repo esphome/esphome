@@ -23,25 +23,26 @@ static constexpr size_t MAX_MESSAGE_SIZE = (MESSAGE_TYPE_AQUA_SENSOR_DATA & 0xff
 
 inline uint16_t get_message_type(std::span<const uint8_t> message) { return encode_uint16(message[0], message[1]); }
 
+// Big-endian int16 in 0.1 degrees at `start` of an Aqua sensor data message
+inline float aqua_temperature(std::span<const uint8_t> message, size_t start) {
+  return encode_value<int16_t>(&message[start]) * 0.1f;
+}
+
 class SystaBus : public uart::UARTDevice, public Component {
  public:
   void dump_config() override;
   void loop() override;
 
-#ifdef USE_SYSTA_BUS_AQUA_SENSOR_DATA
-  void set_aqua_sensor_data_fn(void (*fn)(std::span<const uint8_t>)) { this->aqua_sensor_data_fn_ = fn; }
-  void set_dump_fn(void (*fn)(const char *)) { this->dump_fn_ = fn; }
+#ifdef USE_SYSTA_BUS_AQUA_PUBLISHER
+  // Generated from the child entities; null when this bus has none
+  HUB_PUBLISHER(aqua, std::span<const uint8_t>)
+  HUB_PUBLISHER(dump, const char *)
 #endif
 
  protected:
   void handle_byte_(uint8_t c);
   void resync_();
 
-#ifdef USE_SYSTA_BUS_AQUA_SENSOR_DATA
-  // Generated from the child entities; null when this bus has none
-  void (*aqua_sensor_data_fn_)(std::span<const uint8_t>){nullptr};
-  void (*dump_fn_)(const char *){nullptr};
-#endif
   StaticVector<uint8_t, MAX_MESSAGE_SIZE> buffer_;
 };
 

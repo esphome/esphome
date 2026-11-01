@@ -1,0 +1,21 @@
+# Config only: the deprecated platform id and setup_priority keys are still accepted
+packages:
+  uart: !include ../../test_build_components/common/uart/esp8266-ard.yaml
+
+systa_bus:
+
+sensor:
+  - platform: systa_bus
+    model: systasolar_aqua
+    id: aqua_sensors
+    setup_priority: 600
+    temperature_tsa:
+      name: TSA
+
+text_sensor:
+  - platform: systa_bus
+    model: systasolar_aqua
+    id: aqua_text_sensors
+    setup_priority: 600
+    error_code:
+      name: Error Code

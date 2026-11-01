@@ -1,16 +1,19 @@
 #pragma once
 
-#include "../systa_bus.h"
 #include "esphome/components/sensor/sensor.h"
-#include "esphome/core/helpers.h"
 
-#include <span>
+#include <cstdint>
 
 namespace esphome::systa_bus {
 
-// Big-endian int16 in 0.1 degrees at `start` of an Aqua sensor data message
-inline float aqua_temperature(std::span<const uint8_t> message, size_t start) {
-  return encode_value<int16_t>(&message[start]) * 0.1f;
-}
+enum class AquaSensor : uint8_t {
+  AQUA_SENSOR_TEMPERATURE_TSA,
+  AQUA_SENSOR_TEMPERATURE_TSE,
+  AQUA_SENSOR_TEMPERATURE_TWU,
+  AQUA_SENSOR_TEMPERATURE_TW2,
+  AQUA_SENSOR_PUMP_SPEED,
+};
+
+void dump_aqua_sensor(const char *tag, sensor::Sensor *sensor, AquaSensor which);
 
 }  // namespace esphome::systa_bus
