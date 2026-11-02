@@ -451,6 +451,14 @@ async def to_code(config: ConfigType) -> None:
         # The entropy driver runs on the CRACEN crypto unit, which needs Nordic's PSA crypto
         include_west_project("mbedtls")
         include_west_project("oberon-psa-crypto")
+        # The board aliases watchdog0 to wdt31 but leaves it disabled
+        zephyr_add_overlay(
+            """
+                &wdt31 {
+                    status = "okay";
+                };
+            """
+        )
     # Zephyr is a preemptive RTOS: BLE, Thread, USB and workqueue callbacks
     # run in other threads, so the scheduler must be thread-safe.
     if config[CONF_BOARD] == "bbc_microbit":
