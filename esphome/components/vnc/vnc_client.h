@@ -30,6 +30,8 @@ enum class VncState : uint8_t {
   VNC_STATE_IDLE,
   VNC_STATE_HANDSHAKE,
   VNC_STATE_RUNNING,
+  VNC_STATE_STOPPED,
+  VNC_STATE_AUTH_FAILED,
 };
 
 enum class VncStep : uint8_t {
@@ -37,6 +39,9 @@ enum class VncStep : uint8_t {
   VNC_STEP_SECURITY_COUNT,
   VNC_STEP_SECURITY_LIST,
   VNC_STEP_SECURITY_TYPE_33,
+#ifdef USE_VNC_AUTH
+  VNC_STEP_CHALLENGE,
+#endif
   VNC_STEP_SECURITY_RESULT,
   VNC_STEP_REASON_LENGTH,
   VNC_STEP_REASON,
@@ -62,6 +67,8 @@ enum class VncParse : uint8_t {
 enum class VncFailure : uint8_t {
   VNC_FAILURE_TRANSIENT,
   VNC_FAILURE_CONFIG,
+  VNC_FAILURE_AUTH,
+  VNC_FAILURE_AUTH_AMBIGUOUS,
 };
 
 /// RFB (VNC) client that draws the remote framebuffer into a display.
@@ -80,6 +87,10 @@ class VncClient : public Component
   void set_update_delay(uint32_t ms) { this->update_delay_ms_ = ms; }
   void set_max_update_delay(uint32_t ms) { this->max_update_delay_ms_ = ms; }
   void set_pixel_format(VncPixelFormat format) { this->pixel_format_ = format; }
+#ifdef USE_VNC_AUTH
+  /// 8 bytes, already bit-reversed for VNC, may live in PROGMEM.
+  void set_auth_key(const uint8_t *key) { this->auth_key_ = key; }
+#endif
 #ifdef USE_VNC_TOUCHSCREEN
   void register_touchscreen(touchscreen::Touchscreen *touchscreen) {
     touchscreen->register_listener(this);
@@ -97,6 +108,10 @@ class VncClient : public Component
   float get_setup_priority() const override { return setup_priority::AFTER_WIFI; }
 
   bool is_connected() const { return this->state_ == VncState::VNC_STATE_RUNNING; }
+  /// Retry now, also after an authentication failure or disconnect().
+  void connect();
+  /// Close the session and stop retrying until connect().
+  void disconnect();
   /// Ask the server for the whole screen again.
   void refresh();
 
@@ -132,6 +147,14 @@ class VncClient : public Component
   void pace_(uint32_t now);
   bool start_session_(uint32_t now);
   bool send_client_init_();
+  bool select_security_(uint8_t type);
+  bool has_auth_key_() const {
+#ifdef USE_VNC_AUTH
+    return this->auth_key_ != nullptr;
+#else
+    return false;
+#endif
+  }
   void frame_done_();
   void rect_done_();
   void next_tile_();
@@ -161,10 +184,15 @@ class VncClient : public Component
   VncFailure lost_failure_() const;
   void session_lost_(uint32_t now);
   void session_end_(uint32_t now, VncFailure failure, const LogString *reason);
+  void schedule_retry_(uint32_t now, VncFailure failure, const LogString *reason, bool was_running);
   void reset_session_();
+  void clear_link_warning_();
 
   display::Display *display_;
   socket::TcpClientLink link_;
+#ifdef USE_VNC_AUTH
+  const uint8_t *auth_key_{nullptr};
+#endif
   LazyCallbackManager<void()> connect_callback_;
   LazyCallbackManager<void()> disconnect_callback_;
   HighFrequencyLoopRequester high_freq_;
@@ -231,6 +259,9 @@ class VncClient : public Component
   uint8_t subrects_left_{0};
   uint8_t bpp_{2};
   uint8_t minor_{8};
+#ifdef USE_VNC_AUTH
+  uint8_t sec_type_{0};
+#endif
   uint8_t sec_count_{0};
   uint8_t text_len_{0};  // clamped to MAX_TEXT_LEN
   // The display rotation the cached tiles were drawn at, in quarter turns.
@@ -245,6 +276,11 @@ class VncClient : public Component
   VncFailure reason_failure_{VncFailure::VNC_FAILURE_TRANSIENT};
 
   bool rx_pending_{false};
+#ifdef USE_VNC_AUTH
+  // Set by the one retry after a drop left the password's fate unknown; hold_ms_ is then the wait before it
+  bool auth_retried_{false};
+  bool auth_hold_{false};  // hold_ms_ is the wait after an unanswered password, which survives a network drop
+#endif
   bool in_update_{false};
   bool request_outstanding_{false};
   bool refresh_pending_{false};

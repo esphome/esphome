@@ -90,7 +90,7 @@ class HitachiClimate final : public climate_ir::ClimateIR {
   /// Mildew proof keeps the fan running after power off to dry the unit
   void set_mildew_proof(bool on);
 #ifdef USE_SWITCH
-  void set_mildew_proof_switch(switch_::Switch *sw) { this->mildew_proof_switch_ = sw; }
+  SUB_SWITCH(mildew_proof)
 #endif
 
   void setup() override;
@@ -101,9 +101,6 @@ class HitachiClimate final : public climate_ir::ClimateIR {
                                                     0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x01, 0x00, 0x01, 0x00,
                                                     0x80, 0x00, 0x03, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00};
   uint8_t previous_temp_{27};
-#ifdef USE_SWITCH
-  switch_::Switch *mildew_proof_switch_{nullptr};
-#endif
   // Transmit via IR the state of this climate controller.
   void transmit_state() override;
   // The frame with the button byte the remote sends for this change

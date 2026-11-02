@@ -69,9 +69,7 @@ void LTR390Component::read_als_() {
     this->light_sensor_->publish_state(lux);
   }
 
-  if (this->als_sensor_ != nullptr) {
-    this->als_sensor_->publish_state(als);
-  }
+  PUBLISH_STATE(this->als_sensor_, als);
 }
 
 void LTR390Component::read_uvs_() {
@@ -87,9 +85,7 @@ void LTR390Component::read_uvs_() {
     this->uvi_sensor_->publish_state((uv / sensitivity_uv) * this->wfac_);
   }
 
-  if (this->uv_sensor_ != nullptr) {
-    this->uv_sensor_->publish_state(uv);
-  }
+  PUBLISH_STATE(this->uv_sensor_, uv);
 }
 
 void LTR390Component::standby_() {

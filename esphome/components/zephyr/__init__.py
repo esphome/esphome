@@ -12,7 +12,6 @@ from esphome.types import ConfigType
 from esphome.writer import clean_cmake_cache
 
 from .const import (
-    CONF_CDC_ACM,
     KEY_BOOTLOADER,
     KEY_EXTRA_BUILD_FILES,
     KEY_KCONFIG,
@@ -138,6 +137,20 @@ def zephyr_add_prj_conf(
         prj_conf[name] = (value, required)
 
 
+def zephyr_add_prj_conf_min(name: str, value: int, image: str = "") -> None:
+    """Require a numeric zephyr prj conf value of at least ``value``.
+
+    For sizes several components ask for, such as the main stack: the largest
+    request wins instead of two different requests failing the build.
+    """
+    if not name.startswith("CONFIG_"):
+        name = "CONFIG_" + name
+    prj_conf = zephyr_data()[KEY_PRJ_CONF].setdefault(image, {})
+    if name in prj_conf:
+        value = max(value, prj_conf[name][0])
+    prj_conf[name] = (value, True)
+
+
 def zephyr_add_overlay(content: str, image: str = "") -> None:
     data = zephyr_data()
     if image not in data[KEY_OVERLAY]:
@@ -186,20 +199,14 @@ def zephyr_to_code(config: ConfigType) -> None:
     # <err> os:   Illegal load of EXC_RETURN into PC
     zephyr_add_prj_conf("MAIN_STACK_SIZE", 2048, required=False)
 
-    CORE.add_job(_cdc_acm_to_code, config)
+    CORE.add_job(_cdc_acm_to_code)
 
 
 @coroutine_with_priority(CoroPriority.FINAL)
-async def _cdc_acm_to_code(config: ConfigType) -> None:
+async def _cdc_acm_to_code() -> None:
     # Runs last so these required options override the optional defaults that
     # platforms (nrf52) set during their own to_code
     _cdc_acm_add_ports()
-    need_cdc_cb = zephyr_data()[KEY_PRJ_CONF][""].get(
-        "CONFIG_CDC_ACM_DTE_RATE_CALLBACK_SUPPORT", (False,)
-    )[0]
-    if need_cdc_cb:
-        var = cg.new_Pvariable(config[CONF_CDC_ACM])
-        await cg.register_component(var, {})
 
 
 def zephyr_setup_preferences() -> None:

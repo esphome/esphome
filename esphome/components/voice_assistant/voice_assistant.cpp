@@ -828,6 +828,11 @@ void VoiceAssistant::on_event(const api::VoiceAssistantEventResponse &msg) {
       this->defer([this]() { this->listening_trigger_.trigger(); });
       break;
     case api::enums::VOICE_ASSISTANT_STT_END: {
+      // Providers that detect the end of speech themselves send no STT_VAD_END, so stop the microphone here
+      // if that event didn't already
+      if (this->state_ == State::STREAMING_MICROPHONE) {
+        this->set_state_(State::STOP_MICROPHONE, State::AWAITING_RESPONSE);
+      }
       std::string text;
       for (const auto &arg : msg.data) {
         if (arg.name == "text") {

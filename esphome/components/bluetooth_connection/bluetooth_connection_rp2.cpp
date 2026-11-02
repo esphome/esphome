@@ -11,7 +11,6 @@
 #include <BluetoothLock.h>
 
 #include <cstring>
-#include <new>
 
 namespace esphome::bluetooth_connection {
 
@@ -747,13 +746,11 @@ int RP2GattClient::discover_services() {
     // to the API client (mirrors Bluedroid's own per-connection GATT DB
     // lifetime on esp32). Checked: a fragmented heap must surface as a
     // stack error the proxy can report, not a device reset.
-    RAMAllocator<ServiceArena> allocator(RAMAllocator<ServiceArena>::ALLOC_INTERNAL);
-    this->arena_ = allocator.allocate(1);
+    this->arena_ = RAMAllocator<ServiceArena>(RAMAllocator<ServiceArena>::ALLOC_INTERNAL).make_unique();
     if (this->arena_ == nullptr) {
       ESP_LOGE(TAG, "[%u] Service table allocation failed", this->engine_index_);
       return ble_device_base::GATT_ERR_NO_MEMORY;
     }
-    new (this->arena_) ServiceArena();
   }
   this->service_count_ = 0;
   this->char_count_ = 0;
@@ -899,10 +896,7 @@ void RP2GattClient::release_services() {
     // Under BluetoothLock so a discovery result landing in the BTstack
     // context cannot write into the arena mid-free.
     BluetoothLock lock;
-    RAMAllocator<ServiceArena> allocator(RAMAllocator<ServiceArena>::ALLOC_INTERNAL);
-    this->arena_->~ServiceArena();
-    allocator.deallocate(this->arena_, 1);
-    this->arena_ = nullptr;
+    this->arena_.reset();
   }
   this->service_count_ = 0;
   this->char_count_ = 0;

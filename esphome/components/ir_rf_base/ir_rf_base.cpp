@@ -113,7 +113,8 @@ bool IrRfEntity::transmit_raw_(const IrRfCallData &call, uint32_t carrier_freque
 
 bool IrRfEntity::on_receive(remote_base::RemoteReceiveData data) {
 #if defined(USE_API) && defined(USE_IR_RF)
-  if (api::global_api_server != nullptr) {
+  // Internal entities are not listed to API clients, and their key may match a listed one
+  if (api::global_api_server != nullptr && !this->is_internal()) {
 #ifdef USE_DEVICES
     uint32_t device_id = this->get_device_id();
 #else

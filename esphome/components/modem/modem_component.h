@@ -86,6 +86,10 @@ using DceFactory = std::unique_ptr<esp_modem::DCE> (*)(const esp_modem::dce_conf
                                                        esp_netif_t *);
 
 class ModemComponent : public Component {
+#ifdef USE_MODEM_URC
+  SUB_TEXT_SENSOR(urc)
+#endif
+
  public:
   ModemComponent(InternalGPIOPin *tx_pin, InternalGPIOPin *rx_pin, const char *model, DceFactory factory,
                  const char *apn);
@@ -109,9 +113,6 @@ class ModemComponent : public Component {
     this->init_at_commands_ = cmds;
     this->init_at_count_ = count;
   }
-#ifdef USE_MODEM_URC
-  void set_urc_text_sensor(text_sensor::TextSensor *urc_text_sensor) { this->urc_text_sensor_ = urc_text_sensor; }
-#endif
   template<typename F> void add_on_state_callback(F &&callback) {
     this->on_state_callback_.add(std::forward<F>(callback));
   }
@@ -217,7 +218,6 @@ class ModemComponent : public Component {
   const char *apn_;
   const char *const *init_at_commands_{nullptr};  // static array from code generation
 #ifdef USE_MODEM_URC
-  text_sensor::TextSensor *urc_text_sensor_{nullptr};
   const char *urc_line_{nullptr};  // the line urc_pending_ hands to loop(), inside urc_reader_
 #endif
   std::unique_ptr<esp_modem::DCE> dce_;

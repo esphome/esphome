@@ -149,10 +149,8 @@ void FUSB302B::publish_state_(PdState state) {
 
 void FUSB302B::publish_contract_(PackedContract contract) {
 #ifdef USE_SENSOR
-  if (this->voltage_sensor_ != nullptr)
-    this->voltage_sensor_->publish_state(contract.voltage());
-  if (this->current_sensor_ != nullptr)
-    this->current_sensor_->publish_state(contract.current());
+  PUBLISH_STATE(this->voltage_sensor_, contract.voltage());
+  PUBLISH_STATE(this->current_sensor_, contract.current());
 #endif
 #ifdef USE_TEXT_SENSOR
   if (this->contract_text_sensor_ != nullptr) {

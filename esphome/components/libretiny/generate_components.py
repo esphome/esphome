@@ -156,6 +156,7 @@ COMPONENT_CODEOWNERS = {
 # Extra imports per component; the CLI looks up process_stacktrace on the platform package.
 COMPONENT_EXTRA_IMPORTS = {
     "bk72xx": "from esphome.stacktrace import process_crash_handler_line as process_stacktrace  # noqa: F401",
+    "ln882x": "from esphome.stacktrace import process_crash_handler_line as process_stacktrace  # noqa: F401",
     "rtl87xx": "from esphome.stacktrace import process_crash_handler_line as process_stacktrace  # noqa: F401",
 }
 

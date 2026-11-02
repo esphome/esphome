@@ -31,6 +31,17 @@ struct AllowedIP {
 
 /// Main Wireguard component class.
 class Wireguard final : public PollingComponent {
+#ifdef USE_BINARY_SENSOR
+  SUB_BINARY_SENSOR(status)
+  SUB_BINARY_SENSOR(enabled)
+#endif
+#ifdef USE_SENSOR
+  SUB_SENSOR(handshake)
+#endif
+#ifdef USE_TEXT_SENSOR
+  SUB_TEXT_SENSOR(address)
+#endif
+
  public:
   void setup() override;
   void loop() override;
@@ -63,19 +74,6 @@ class Wireguard final : public PollingComponent {
   void set_keepalive(const uint16_t seconds) { this->keepalive_ = seconds; }
   void set_reboot_timeout(const uint32_t seconds) { this->reboot_timeout_ = seconds; }
   void set_srctime(time::RealTimeClock *srctime) { this->srctime_ = srctime; }
-
-#ifdef USE_BINARY_SENSOR
-  void set_status_sensor(binary_sensor::BinarySensor *sensor) { this->status_sensor_ = sensor; }
-  void set_enabled_sensor(binary_sensor::BinarySensor *sensor) { this->enabled_sensor_ = sensor; }
-#endif
-
-#ifdef USE_SENSOR
-  void set_handshake_sensor(sensor::Sensor *sensor) { this->handshake_sensor_ = sensor; }
-#endif
-
-#ifdef USE_TEXT_SENSOR
-  void set_address_sensor(text_sensor::TextSensor *sensor) { this->address_sensor_ = sensor; }
-#endif
 
   /// Block the setup step until peer is connected.
   void disable_auto_proceed() { this->proceed_allowed_ = false; }
@@ -110,19 +108,6 @@ class Wireguard final : public PollingComponent {
   uint32_t reboot_timeout_;
 
   time::RealTimeClock *srctime_;
-
-#ifdef USE_BINARY_SENSOR
-  binary_sensor::BinarySensor *status_sensor_ = nullptr;
-  binary_sensor::BinarySensor *enabled_sensor_ = nullptr;
-#endif
-
-#ifdef USE_SENSOR
-  sensor::Sensor *handshake_sensor_ = nullptr;
-#endif
-
-#ifdef USE_TEXT_SENSOR
-  text_sensor::TextSensor *address_sensor_ = nullptr;
-#endif
 
   /// Set to false to block the setup step until peer is connected.
   bool proceed_allowed_ = true;

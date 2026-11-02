@@ -1,9 +1,6 @@
 #include <gtest/gtest.h>
 
-#include <new>
-
 #include "esphome/components/i2c/i2c.h"
-#include "esphome/core/application.h"
 #include "esphome/core/component.h"
 
 namespace esphome::i2c::testing {
@@ -33,12 +30,6 @@ class ChipDevice : public Component, public I2CDevice {};
 class I2CChipIdTest : public ::testing::Test {
  protected:
   void SetUp() override {
-    // The test main keeps App alive; this test replaces it with a fresh one it owns
-    App.~Application();
-    new (&App) Application();
-    static char name[] = "i2c-chip-id-tests";
-    static char friendly_name[] = "I2C chip ID tests";
-    App.pre_setup(name, sizeof(name) - 1, friendly_name, sizeof(friendly_name) - 1);
     this->device_.set_i2c_bus(&this->bus_);
     this->device_.set_i2c_address(0x40);
   }

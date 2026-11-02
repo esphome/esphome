@@ -54,3 +54,16 @@ over syslog and fails when a case did not reach the end of its stream.
   to `dest`); after that lands, remove the `dest_limit` line.
 
 Results: https://github.com/esphome/esphome/issues/21639#issuecomment-6409786224
+
+## Upload without a configuration (#21738)
+
+`esphome upload --file IMAGE --device IP` with no YAML picks the OTA port from the image header and takes the password
+from `--ota-password` or `ESPHOME_OTA_PASSWORD` and the key from `ESPHOME_OTA_KEY`. Test each chip family with its own
+current image (`build/firmware.ota.bin` for ESP-IDF, `.pioenvs/<name>/firmware.bin` for ESP8266, `firmware.uf2` for
+LibreTiny) and check the build over the API; switch one board between two builds to show a new image lands.
+
+Point every case that should be refused before connecting at an unroutable address (192.0.2.1), never at a board: a
+refusal prints no `Connecting to` line, and an image that slips through cannot reach a device. An ESP32-S3
+`firmware.factory.bin` slipped through on 2026-10-27 (its bootloader header at offset 0 looks like an app), the device
+reported `OTA successful` and its bootloader rejected the slot at boot; send the board its proper app image afterwards.
+A factory image has the partition table magic `AA 50` at 0x8000 and the app at 0x10000.

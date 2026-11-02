@@ -10,18 +10,16 @@ ESPHOME_LOG_TAG(TAG, "am43");
 
 void Am43::dump_config() {
   ESP_LOGCONFIG(TAG, "AM43");
-  LOG_SENSOR(" ", "Battery", this->battery_);
-  LOG_SENSOR(" ", "Illuminance", this->illuminance_);
+  LOG_SENSOR(" ", "Battery", this->battery_sensor_);
+  LOG_SENSOR(" ", "Illuminance", this->illuminance_sensor_);
 }
 
 void Am43::gattc_event_handler(esp_gattc_cb_event_t event, esp_gatt_if_t gattc_if, esp_ble_gattc_cb_param_t *param) {
   switch (event) {
     case ESP_GATTC_DISCONNECT_EVT: {
       this->node_state = espbt::ClientState::IDLE;
-      if (this->battery_ != nullptr)
-        this->battery_->publish_state(NAN);
-      if (this->illuminance_ != nullptr)
-        this->illuminance_->publish_state(NAN);
+      PUBLISH_STATE(this->battery_sensor_, NAN);
+      PUBLISH_STATE(this->illuminance_sensor_, NAN);
       break;
     }
     case ESP_GATTC_SEARCH_CMPL_EVT: {
@@ -48,17 +46,18 @@ void Am43::gattc_event_handler(esp_gattc_cb_event_t event, esp_gatt_if_t gattc_i
       Am43Decoder decoder;
       decoder.decode(param->notify.value, param->notify.value_len);
 
-      if (this->battery_ != nullptr && decoder.has_battery_level() && millis() - this->last_battery_update_ > 10000) {
-        this->battery_->publish_state(decoder.battery_level_);
+      if (this->battery_sensor_ != nullptr && decoder.has_battery_level() &&
+          millis() - this->last_battery_update_ > 10000) {
+        this->battery_sensor_->publish_state(decoder.battery_level_);
         this->last_battery_update_ = millis();
       }
 
-      if (this->illuminance_ != nullptr && decoder.has_light_level()) {
-        this->illuminance_->publish_state(decoder.light_level_);
+      if (this->illuminance_sensor_ != nullptr && decoder.has_light_level()) {
+        this->illuminance_sensor_->publish_state(decoder.light_level_);
       }
 
       if (this->current_sensor_ > 0) {
-        if (this->illuminance_ != nullptr)
+        if (this->illuminance_sensor_ != nullptr)
           this->write_packet_(Am43Encoder::get_light_level_request());
         this->current_sensor_ = 0;
       }
@@ -75,7 +74,7 @@ void Am43::update() {
     return;
   }
   if (this->current_sensor_ == 0) {
-    if (this->battery_ != nullptr)
+    if (this->battery_sensor_ != nullptr)
       this->write_packet_(Am43Encoder::get_battery_level_request());
     this->current_sensor_++;
   }

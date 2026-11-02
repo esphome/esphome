@@ -16,5 +16,3 @@ KEY_BOARD: Final = "board"
 KEY_SYSBUILD: Final = "sysbuild"
 
 zephyr_ns = cg.esphome_ns.namespace("zephyr")
-CdcAcm = zephyr_ns.class_("CdcAcm", cg.Component)
-CONF_CDC_ACM = "cdc_acm"
