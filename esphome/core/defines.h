@@ -99,6 +99,7 @@
 #define USE_ESP32_HOSTED_HTTP_UPDATE
 #define USE_ESP_NOW_HOSTED
 #define USE_EVENT
+#define USE_EVENT_DATA
 #define USE_EZSP_PROXY_TAP
 #define USE_FAN
 #define USE_FONT
