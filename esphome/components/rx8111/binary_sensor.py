@@ -26,16 +26,7 @@ STATUS_SENSORS: dict[str, str | None] = {
     "evin": None,
 }
 StatusSensor = rx8111_ns.enum("StatusSensor")
-STATUS_SENSOR_SLOTS = StatusSensor.options(
-    "vlf",
-    "alarm_flag",
-    "timer_flag",
-    "xst",
-    "event_flag",
-    "battery_low",
-    "evin",
-    prefix="STATUS_SENSOR_",
-)
+STATUS_SENSOR_SLOTS = StatusSensor.options(*STATUS_SENSORS, prefix="STATUS_SENSOR_")
 
 CONFIG_SCHEMA = cv.All(
     cv.Schema(
