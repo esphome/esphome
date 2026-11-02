@@ -53,7 +53,8 @@ WhirlpoolClimate::WhirlpoolClimate()
 
 void WhirlpoolClimate::transmit_state() {
   this->last_transmit_time_ = millis();  // setting the time of the last transmission.
-  uint8_t remote_state[WHIRLPOOL_STATE_LENGTH] = {0};
+  uint8_t remote_state[WHIRLPOOL_STATE_LENGTH];
+  memset(remote_state, 0, sizeof(remote_state));
   remote_state[0] = 0x83;
   remote_state[1] = 0x06;
   remote_state[6] = 0x80;
@@ -224,7 +225,8 @@ bool WhirlpoolClimate::on_receive(remote_base::RemoteReceiveData data) {
     return false;
   }
 
-  uint8_t remote_state[WHIRLPOOL_STATE_LENGTH] = {0};
+  uint8_t remote_state[WHIRLPOOL_STATE_LENGTH];
+  memset(remote_state, 0, sizeof(remote_state));
   bool skip_footer = false;
   // Read all bytes.
   for (int i = 0; i < WHIRLPOOL_STATE_LENGTH; i++) {
