@@ -119,7 +119,7 @@ static int draw_callback(JPEGDRAW *jpeg) {
                          reinterpret_cast<const uint8_t *>(jpeg->pPixels));
     return 1;
   }
-  if (decoder->uses_direct_gray()) {
+  if (decoder->uses_gray_output()) {
     decoder->draw_gray(jpeg->x, jpeg->y, jpeg->iWidth, jpeg->iHeight, reinterpret_cast<const uint8_t *>(jpeg->pPixels));
     return 1;
   }
@@ -220,11 +220,14 @@ int JpegDecoder::start_() {
     ESP_LOGD(TAG, "Decoding at 1/%d size, %d x %d", this->scale_, decoded_width, decoded_height);
   }
   this->prepare_draw_(decoded_width, decoded_height);
+  // Only a single-channel JPEG: for a colour one JPEGDEC's gray is the JPEG's own luma, weighted differently from the
+  // other formats, so its RGB8888 goes through draw() instead, which still writes the buffer directly
+  this->gray_output_ = this->uses_direct_gray() && this->jpeg_->getBpp() == 8;
   if (this->uses_direct_rgb565()) {
     // JPEGDEC's RGB565_BIG_ENDIAN output is not byte swapped on every build (the x86 host build
     // returns little-endian words for it), so the byte order is applied in draw_rgb565 instead
     this->jpeg_->setPixelType(RGB565_LITTLE_ENDIAN);
-  } else if (this->uses_direct_gray()) {
+  } else if (this->gray_output_) {
     // JPEGDEC emits 8-bit gray natively, so the image's storage needs no conversion at all
     this->jpeg_->setPixelType(EIGHT_BIT_GRAYSCALE);
   } else {

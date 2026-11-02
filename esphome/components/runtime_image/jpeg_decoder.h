@@ -35,6 +35,8 @@ class JpegDecoder : public ImageDecoder {
   int get_scale() const { return this->scale_; }
   void draw_rgb565(int x, int y, int w, int h, const uint8_t *pixels);
   void draw_gray(int x, int y, int w, int h, const uint8_t *pixels);
+  /// JPEGDEC hands over its own 8-bit gray, which draw_gray() copies straight into the buffer
+  bool uses_gray_output() const { return this->gray_output_; }
 
  protected:
   /// Set up an opened image for decoding. Returns 0, or a DecodeError.
@@ -53,6 +55,7 @@ class JpegDecoder : public ImageDecoder {
   int scale_{1};                   // JPEGDEC decodes at 1/scale_ of the image size
   DecodeSource *source_{nullptr};  // Set while a begin_source() decode is in progress
   bool source_failed_{false};
+  bool gray_output_{false};
 };
 
 }  // namespace esphome::runtime_image

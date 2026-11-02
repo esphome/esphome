@@ -32,9 +32,10 @@ static bool decode(BenchImage &img, std::vector<uint8_t> &buffer) {
   return img.end_decode();
 }
 
-static void run(benchmark::State &state, image::ImageType type, int width, int height) {
+static void run(benchmark::State &state, image::ImageType type, int width, int height, const uint8_t *jpeg = JPEG_96X96,
+                size_t size = JPEG_96X96_SIZE) {
   BenchImage img(type, width, height);
-  std::vector<uint8_t> buffer(JPEG_96X96, JPEG_96X96 + JPEG_96X96_SIZE);
+  std::vector<uint8_t> buffer(jpeg, jpeg + size);
   for (auto _ : state) {
     if (!decode(img, buffer)) {
       state.SkipWithError("decode failed");
@@ -56,16 +57,27 @@ BENCHMARK(JpegDecode_Rgb565_Half);
 static void JpegDecode_Rgb565_Double(benchmark::State &state) { run(state, image::IMAGE_TYPE_RGB565, 192, 192); }
 BENCHMARK(JpegDecode_Rgb565_Double);
 
-// --- JPEG into a grayscale image: same size, half size and double size ---
+// --- Grayscale JPEG into a grayscale image: same size, half size and double size ---
 
-static void JpegDecode_Grayscale_Native(benchmark::State &state) { run(state, image::IMAGE_TYPE_GRAYSCALE, 96, 96); }
+static void gray(benchmark::State &state, int width, int height) {
+  run(state, image::IMAGE_TYPE_GRAYSCALE, width, height, JPEG_96X96_GRAY, JPEG_96X96_GRAY_SIZE);
+}
+
+static void JpegDecode_Grayscale_Native(benchmark::State &state) { gray(state, 96, 96); }
 BENCHMARK(JpegDecode_Grayscale_Native);
 
-static void JpegDecode_Grayscale_Half(benchmark::State &state) { run(state, image::IMAGE_TYPE_GRAYSCALE, 48, 48); }
+static void JpegDecode_Grayscale_Half(benchmark::State &state) { gray(state, 48, 48); }
 BENCHMARK(JpegDecode_Grayscale_Half);
 
-static void JpegDecode_Grayscale_Double(benchmark::State &state) { run(state, image::IMAGE_TYPE_GRAYSCALE, 192, 192); }
+static void JpegDecode_Grayscale_Double(benchmark::State &state) { gray(state, 192, 192); }
 BENCHMARK(JpegDecode_Grayscale_Double);
+
+// --- Colour JPEG into a grayscale image, which goes through JPEGDEC's RGB8888 output ---
+
+static void JpegDecode_Grayscale_FromColour(benchmark::State &state) {
+  run(state, image::IMAGE_TYPE_GRAYSCALE, 96, 96);
+}
+BENCHMARK(JpegDecode_Grayscale_FromColour);
 
 // --- JPEG into an RGB image at the same size, the generic per-pixel path for reference ---
 
