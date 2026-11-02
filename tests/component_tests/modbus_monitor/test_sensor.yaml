@@ -1,0 +1,59 @@
+---
+esphome:
+  name: test
+
+logger:
+
+esp32:
+  board: nodemcu-32s
+
+uart:
+  - id: uart_a
+    rx_pin: GPIO16
+    baud_rate: 9600
+  - id: uart_b
+    rx_pin: GPIO19
+    baud_rate: 9600
+
+modbus:
+  - id: hub_a
+    uart_id: uart_a
+    role: server
+  - id: hub_b
+    uart_id: uart_b
+    role: server
+
+# A second on_response user on hub_a, next to the sensors' decoder.
+modbus_monitor:
+  - modbus_id: hub_a
+    on_response:
+      - logger.log: "exchange"
+
+# Three sensors on hub_a, one on hub_b. hub_b_register_100 has the same address and register as
+# hub_a_register_100, so only the hub tells them apart.
+sensor:
+  - platform: modbus_monitor
+    id: hub_a_register_100
+    modbus_id: hub_a
+    address: 1
+    register: 100
+    name: "Hub A register 100"
+  - platform: modbus_monitor
+    id: hub_a_register_101
+    modbus_id: hub_a
+    address: 1
+    register: 101
+    value_type: S_WORD
+    name: "Hub A register 101 signed"
+  - platform: modbus_monitor
+    id: hub_a_register_102
+    modbus_id: hub_a
+    address: 1
+    register: 102
+    name: "Hub A register 102"
+  - platform: modbus_monitor
+    id: hub_b_register_100
+    modbus_id: hub_b
+    address: 1
+    register: 100
+    name: "Hub B register 100"
