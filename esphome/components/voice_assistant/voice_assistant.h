@@ -42,6 +42,7 @@ enum VoiceAssistantFeature : uint32_t {
   FEATURE_ANNOUNCE = 1 << 4,
   FEATURE_START_CONVERSATION = 1 << 5,
   FEATURE_MULTI_CHANNEL_AUDIO = 1 << 6,
+  FEATURE_WAKE_WORD_AUDIO = 1 << 7,
 };
 
 enum class State : uint8_t {
@@ -88,6 +89,16 @@ struct WakeWord {
   std::string wake_word;
   std::vector<std::string> trained_languages;
 };
+
+#ifdef USE_VOICE_ASSISTANT_WAKE_WORD_AUDIO
+struct WakeWordDetection {
+  std::string id;
+  float probability;
+  float probability_cutoff;
+  // 0 once used
+  uint32_t detected_at{0};
+};
+#endif
 
 struct Configuration {
   std::vector<WakeWord> available_wake_words;
@@ -149,6 +160,9 @@ class VoiceAssistant final : public Component {
     if (this->mic_source2_ != nullptr) {
       flags |= VoiceAssistantFeature::FEATURE_MULTI_CHANNEL_AUDIO;
     }
+#ifdef USE_VOICE_ASSISTANT_WAKE_WORD_AUDIO
+    flags |= VoiceAssistantFeature::FEATURE_WAKE_WORD_AUDIO;
+#endif
 #ifdef USE_SPEAKER
     if (this->speaker_ != nullptr) {
       flags |= VoiceAssistantFeature::FEATURE_SPEAKER;
@@ -187,6 +201,20 @@ class VoiceAssistant final : public Component {
 
   void set_use_wake_word(bool use_wake_word) { this->use_wake_word_ = use_wake_word; }
 
+#ifdef USE_VOICE_ASSISTANT_WAKE_WORD_AUDIO
+  void set_wake_word_audio(uint32_t buffer_duration_ms, uint32_t timeout_ms) {
+    this->wake_word_audio_buffer_duration_ = buffer_duration_ms;
+    this->wake_word_audio_timeout_ = timeout_ms;
+  }
+#endif
+  bool is_wake_word_audio_active() const {
+#ifdef USE_VOICE_ASSISTANT_WAKE_WORD_AUDIO
+    return this->wake_word_audio_requested_ && (this->api_client_ != nullptr);
+#else
+    return false;
+#endif
+  }
+
   void set_noise_suppression_level(uint8_t noise_suppression_level) {
     this->noise_suppression_level_ = noise_suppression_level;
   }
@@ -209,6 +237,7 @@ class VoiceAssistant final : public Component {
   Trigger<> *get_tts_stream_end_trigger() { return &this->tts_stream_end_trigger_; }
 #endif
   Trigger<> *get_wake_word_detected_trigger() { return &this->wake_word_detected_trigger_; }
+  Trigger<> *get_wake_word_rejected_trigger() { return &this->wake_word_rejected_trigger_; }
   Trigger<std::string> *get_stt_end_trigger() { return &this->stt_end_trigger_; }
   Trigger<std::string> *get_tts_end_trigger() { return &this->tts_end_trigger_; }
   Trigger<std::string> *get_tts_start_trigger() { return &this->tts_start_trigger_; }
@@ -218,7 +247,7 @@ class VoiceAssistant final : public Component {
   Trigger<> *get_client_connected_trigger() { return &this->client_connected_trigger_; }
   Trigger<> *get_client_disconnected_trigger() { return &this->client_disconnected_trigger_; }
 
-  void client_subscription(api::APIConnection *client, bool subscribe);
+  void client_subscription(api::APIConnection *client, bool subscribe, uint32_t flags = 0);
   api::APIConnection *get_api_connection() const { return this->api_client_; }
 
   void set_wake_word(const std::string &wake_word) { this->wake_word_ = wake_word; }
@@ -233,8 +262,15 @@ class VoiceAssistant final : public Component {
 
  protected:
   bool allocate_buffers_();
-  void clear_buffers_();
+  void clear_buffers_(bool clear_microphone_audio = true);
   void deallocate_buffers_();
+  size_t ring_buffer_size_() const;
+
+#ifdef USE_VOICE_ASSISTANT_WAKE_WORD_AUDIO
+  void update_wake_word_audio_();
+  void clear_wake_word_verdict_();
+  void end_wake_word_audio_stream_();
+#endif
 
   void set_state_(State state);
   void set_state_(State state, State desired_state);
@@ -268,6 +304,7 @@ class VoiceAssistant final : public Component {
 #endif
   Trigger<std::string> intent_progress_trigger_;
   Trigger<> wake_word_detected_trigger_;
+  Trigger<> wake_word_rejected_trigger_;
   Trigger<std::string> stt_end_trigger_;
   Trigger<std::string> tts_end_trigger_;
   Trigger<std::string> tts_start_trigger_;
@@ -332,6 +369,12 @@ class VoiceAssistant final : public Component {
   micro_wake_word::MicroWakeWord *micro_wake_word_{nullptr};
 #endif
 
+#ifdef USE_VOICE_ASSISTANT_WAKE_WORD_AUDIO
+  WakeWordDetection detection_{};
+  uint32_t wake_word_audio_buffer_duration_{0};
+  uint32_t wake_word_audio_timeout_{0};
+#endif
+
   // 1 byte members grouped at the end so they share padding instead of each taking a word
   State state_{State::IDLE};
   State desired_state_{State::IDLE};
@@ -354,6 +397,12 @@ class VoiceAssistant final : public Component {
   bool silence_detection_;
   bool continue_conversation_{false};
   bool udp_socket_running_{false};
+#ifdef USE_VOICE_ASSISTANT_WAKE_WORD_AUDIO
+  bool wake_word_audio_requested_{false};
+  bool wake_word_audio_buffering_{false};
+  bool start_with_detection_{false};
+  bool streaming_before_response_{false};
+#endif
 };
 
 extern VoiceAssistant *global_voice_assistant;  // NOLINT(cppcoreguidelines-avoid-non-const-global-variables)

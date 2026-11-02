@@ -68,6 +68,11 @@ class MicroWakeWord final : public Component
 
   Trigger<std::string> *get_wake_word_detected_trigger() { return &this->wake_word_detected_trigger_; }
 
+  /// The event's string pointers are only valid during the call.
+  template<typename F> void add_on_wake_word_detected_callback(F &&callback) {
+    this->wake_word_detected_callback_.add(std::forward<F>(callback));
+  }
+
   void add_wake_word_model(WakeWordModel *model);
 
   /// @brief Adds a runtime-downloaded wake word model. Must be called from the main loop.
@@ -102,6 +107,14 @@ class MicroWakeWord final : public Component
 
   // Intended for the voice assistant component to fetch VAD status
   bool get_vad_state() { return this->vad_state_; }
+
+  void set_vad_enabled(bool enabled) {
+    if (enabled) {
+      this->vad_model_->enable();
+    } else {
+      this->vad_model_->disable();
+    }
+  }
 #endif
 
   // Intended for the voice assistant component to access which wake words are available
@@ -111,6 +124,7 @@ class MicroWakeWord final : public Component
  protected:
   microphone::MicrophoneSource *microphone_source_{nullptr};
   Trigger<std::string> wake_word_detected_trigger_;
+  LazyCallbackManager<void(const DetectionEvent &)> wake_word_detected_callback_;
   State state_{State::STOPPED};
 
   std::weak_ptr<ring_buffer::RingBuffer> ring_buffer_;

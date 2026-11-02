@@ -1316,7 +1316,7 @@ bool APIConnection::check_voice_assistant_api_connection_() const {
 
 void APIConnection::on_subscribe_voice_assistant_request(const SubscribeVoiceAssistantRequest &msg) {
   if (voice_assistant::global_voice_assistant != nullptr) {
-    voice_assistant::global_voice_assistant->client_subscription(this, msg.subscribe);
+    voice_assistant::global_voice_assistant->client_subscription(this, msg.subscribe, msg.flags);
   }
 }
 void APIConnection::on_voice_assistant_response(const VoiceAssistantResponse &msg) {
