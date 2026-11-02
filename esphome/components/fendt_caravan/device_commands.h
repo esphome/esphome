@@ -14,9 +14,7 @@ class Commands {
   }
   static std::string update_run(const std::string &name, bool value = true) {
     std::string ret_value;
-    if (name == "HS_KEY") {
-      ret_value = "net-" + name;
-    } else if (name == "HS_KEY_LONG") {
+    if (name == "HS_KEY" || name == "HS_KEY_LONG") {
       ret_value = "net-" + name;
     } else {
       ret_value = std::string("cmd-run:") + name;
