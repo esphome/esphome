@@ -19,6 +19,32 @@ struct NVSData {
   SmallInlineBuffer<8> data;  // Most prefs fit in 8 bytes (covers fan, cover, select, etc.)
 };
 
+// The NVS namespace for ESPHome's preferences.
+static constexpr const char ESPHOME_NAMESPACE[] = "esphome";
+
+// Key that stores the preferences metadata.
+static constexpr const char METADATA_KEY[] = "metadata";
+
+// The original preferences format.
+// All values are stored in NVS as blobs.
+static constexpr uint8_t FORMAT_V1 = 1;
+
+// Only values larger than 8 bytes are stored in NVS as blobs; other values are stored in NVS as u64.
+// The key name encodes the actual length of the value.
+static constexpr uint8_t FORMAT_V2 = 2;
+
+// The most recently supported format.
+// Preferences will be erased on a downgrade when the stored format version is greater than this value.
+static constexpr uint8_t FORMAT_LATEST_SUPPORTED = FORMAT_V2;
+
+union Metadata {
+  struct {
+    uint8_t format;
+    uint8_t reserved[7];
+  };
+  uint64_t raw;
+};
+
 static constexpr size_t KEY_NAME_MAX_SIZE = UINT32_MAX_STR_SIZE + 2;
 static_assert(KEY_NAME_MAX_SIZE <= NVS_KEY_NAME_MAX_SIZE);
 
@@ -32,6 +58,9 @@ static void key_name_terminate_with_value_length(char *key_name_end, size_t len)
   key_name_end[1] = '0' + len;
   key_name_end[2] = '\0';
 }
+
+// The preference format, zero when preferences are not initialized.
+uint8_t s_format{0};
 
 static std::vector<NVSData> s_pending_save;  // NOLINT(cppcoreguidelines-avoid-non-const-global-variables)
 
@@ -120,26 +149,25 @@ bool ESP32PreferenceBackend::load(uint8_t *data, size_t len) {
     }
   }
 
-  // Try to load the value as a u64 if it fits (encode length into the key string).
   esp_err_t err;
   char key_name[KEY_NAME_MAX_SIZE];
   char *const key_name_end = key_name_format_unterminated(key_name, this->key);
-  if (len <= 8) {
-    uint64_t value;
+
+  // Format V2: Load a small value as u64 with the length encoded in the key name.
+  if (s_format >= FORMAT_V2 && len <= 8) {
+    uint64_t value = 0;
     key_name_terminate_with_value_length(key_name_end, len);
     err = nvs_get_u64(this->nvs_handle, key_name, &value);
     if (err == ESP_OK) {
-      ESP_LOGVV(TAG, "nvs_get_u64('%s'): ESP_OK, value=0x%08" PRIx64, key_name, value);
+      ESP_LOGVV(TAG, "nvs_get_u64('%s'): ESP_OK, value=0x%" PRIx64, key_name, value);
       memcpy(data, &value, len);
       return true;
     }
-    ESP_LOGVV(TAG, "nvs_get_u64('%s'): %s", key_name, esp_err_to_name(err));
-    if (err != ESP_ERR_NVS_NOT_FOUND) {
-      return false;
-    }
+    ESP_LOGV(TAG, "nvs_get_u64('%s'): %s", key_name, esp_err_to_name(err));
+    return false;
   }
 
-  // Fall back to loading the value as a blob.
+  // Load a value as a blob.
   size_t current_len;
   key_name_end[0] = '\0';
   err = nvs_get_blob(this->nvs_handle, key_name, nullptr, &current_len);
@@ -154,7 +182,7 @@ bool ESP32PreferenceBackend::load(uint8_t *data, size_t len) {
     ESP_LOGVV(TAG, "nvs_get_blob('%s'): ESP_OK, length=%zu", key_name, len);
     return true;
   }
-  ESP_LOGV(TAG, "nvs_get_blob('%s'): %s - the key might not be set yet", key_name, esp_err_to_name(err));
+  ESP_LOGV(TAG, "nvs_get_blob('%s'): %s", key_name, esp_err_to_name(err));
   return false;
 }
 
@@ -163,19 +191,55 @@ void ESP32Preferences::open() {
   // must be deferred. See s_open_err and make_preference() below.
   // Components that need NVS check nvs_handle instead of initializing it again.
   nvs_flash_init();
-  esp_err_t err = nvs_open("esphome", NVS_READWRITE, &this->nvs_handle);
-  if (err == 0)
-    return;
 
-  s_open_err = err;
-  nvs_flash_deinit();
-  nvs_flash_erase();
-  nvs_flash_init();
-
-  err = nvs_open("esphome", NVS_READWRITE, &this->nvs_handle);
-  if (err != 0) {
-    this->nvs_handle = 0;
+  Metadata metadata{};
+  bool write_metadata = false;
+  this->nvs_handle = 0;
+  esp_err_t err = nvs_open(ESPHOME_NAMESPACE, NVS_READWRITE, &this->nvs_handle);
+  if (err == ESP_OK) {
+    err = nvs_get_u64(this->nvs_handle, METADATA_KEY, &metadata.raw);
+    if (err == ESP_OK) {
+      if (metadata.format < FORMAT_V1 || metadata.format > FORMAT_LATEST_SUPPORTED) {
+        err = ESP_ERR_NOT_SUPPORTED;
+      }
+    } else if (err == ESP_ERR_NVS_NOT_FOUND) {
+      nvs_iterator_t it{};
+      err = nvs_entry_find_in_handle(this->nvs_handle, NVS_TYPE_ANY, &it);
+      nvs_release_iterator(it);
+      if (err == ESP_OK) {
+        // NVS is not empty: assume the original format.
+        metadata.format = FORMAT_V1;
+      } else if (err == ESP_ERR_NVS_NOT_FOUND) {
+        // NVS is empty: adopt the latest format.
+        metadata.format = FORMAT_LATEST_SUPPORTED;
+        write_metadata = true;
+        err = ESP_OK;
+      }
+    }
   }
+  if (err != ESP_OK) {
+    s_open_err = err;
+    nvs_close(this->nvs_handle);
+    nvs_flash_deinit();
+    nvs_flash_erase();
+    nvs_flash_init();
+    err = nvs_open(ESPHOME_NAMESPACE, NVS_READWRITE, &this->nvs_handle);
+    if (err != ESP_OK)
+      return;
+    metadata.format = FORMAT_V2;
+    write_metadata = true;
+  }
+  if (write_metadata) {
+    err = nvs_set_u64(this->nvs_handle, METADATA_KEY, metadata.raw);
+    if (err != ESP_OK) {
+      // NVS is in a pretty bad state if we can't even write the metadata so consider it unavailable.
+      s_open_err = err;
+      nvs_close(this->nvs_handle);
+      this->nvs_handle = 0;
+      return;
+    }
+  }
+  s_format = metadata.format;
 }
 
 ESPPreferenceObject ESP32Preferences::make_preference(size_t length, uint32_t type, bool in_flash) {
@@ -201,9 +265,9 @@ ESPPreferenceObject ESP32Preferences::make_preference(size_t length, uint32_t ty
 ESPPreferenceObject ESP32Preferences::make_preference(size_t length, uint32_t type) {
   if (s_open_err != ESP_OK) {
     if (this->nvs_handle == 0) {
-      ESP_LOGW(TAG, "nvs_open failed: %s - NVS unavailable", esp_err_to_name(s_open_err));
+      ESP_LOGW(TAG, "Open failed: %s - NVS unavailable", esp_err_to_name(s_open_err));
     } else {
-      ESP_LOGW(TAG, "nvs_open failed: %s - erased NVS", esp_err_to_name(s_open_err));
+      ESP_LOGW(TAG, "Open failed: %s - erased NVS", esp_err_to_name(s_open_err));
     }
     s_open_err = ESP_OK;
   }
@@ -262,62 +326,33 @@ bool ESP32Preferences::sync() {
     const size_t len = save.data.size();
     ESP_LOGVV(TAG, "Checking if NVS data %" PRIu32 " has changed", key);
 
-    // Try to load the value as a u64 if it fits (encode length into the key string).
     esp_err_t err;
-    size_t current_len;
     char key_name[KEY_NAME_MAX_SIZE];
-    char *key_name_end = key_name_format_unterminated(key_name, key);
-    if (len <= 8) {
-      uint64_t value;
+    char *const key_name_end = key_name_format_unterminated(key_name, key);
+
+    // Format V2: Store a small value as u64 with the length encoded in the key name.
+    if (s_format >= FORMAT_V2 && len <= 8) {
+      uint64_t value = 0;
       key_name_terminate_with_value_length(key_name_end, len);
       err = nvs_get_u64(this->nvs_handle, key_name, &value);
       if (err == ESP_OK) {
-        ESP_LOGVV(TAG, "nvs_get_u64('%s'): ESP_OK, value=0x%08" PRIx64, key_name, value);
+        ESP_LOGVV(TAG, "nvs_get_u64('%s'): ESP_OK, value=0x%" PRIx64, key_name, value);
         if (memcmp(data, &value, len) == 0) {
           goto done_cached;  // NOLINT(cppcoreguidelines-avoid-goto)
         }
-      } else {
-        ESP_LOGVV(TAG, "nvs_get_u64('%s'): %s", key_name, esp_err_to_name(err));
-        // Check whether the value was previously stored as a blob then erase the previous value if it changed.
-        key_name_end[0] = '\0';
-        err = nvs_get_blob(this->nvs_handle, key_name, nullptr, &current_len);
-        if (err == ESP_OK) {
-          if (current_len != len) {
-            ESP_LOGVV(TAG, "nvs_get_blob('%s'): ESP_OK, length mismatch (%zu!=%zu)", key_name, current_len, len);
-          } else {
-            err = nvs_get_blob(this->nvs_handle, key_name, &value, &current_len);
-            if (err == ESP_OK) {
-              ESP_LOGVV(TAG, "nvs_get_blob('%s'): ESP_OK, length=%zu", key_name, len);
-              if (memcmp(data, &value, len) == 0) {
-                goto done_cached;  // NOLINT(cppcoreguidelines-avoid-goto)
-              }
-            }
-          }
-        }
-        if (err != ESP_OK) {
-          ESP_LOGVV(TAG, "nvs_get_blob('%s'): %s", key_name, esp_err_to_name(err));
-        } else {
-          err = nvs_erase_key(this->nvs_handle, key_name);
-          ESP_LOGVV(TAG, "nvs_erase_key('%s'): %s", key_name, esp_err_to_name(err));
-          if (err != ESP_OK) {
-            goto done_error;  // NOLINT(cppcoreguidelines-avoid-goto)
-          }
-        }
       }
-
-      // Write the new value as a u64.
-      key_name_terminate_with_value_length(key_name_end, len);
-      value = 0;
+      ESP_LOGVV(TAG, "nvs_get_u64('%s'): %s", key_name, esp_err_to_name(err));
       memcpy(&value, data, len);
       err = nvs_set_u64(this->nvs_handle, key_name, value);
-      ESP_LOGVV(TAG, "nvs_set_u64('%s'): %s", key_name, esp_err_to_name(err));
+      ESP_LOGVV(TAG, "nvs_set_u64('%s'): %s, value=0x%" PRIx64, key_name, esp_err_to_name(err), value);
       if (err == ESP_OK) {
         goto done_written;  // NOLINT(cppcoreguidelines-avoid-goto)
       }
       goto done_error;  // NOLINT(cppcoreguidelines-avoid-goto)
     }
 
-    // Fall back to storing the value as a blob.
+    // Store a value as a blob.
+    size_t current_len;
     key_name_end[0] = '\0';
     err = nvs_get_blob(this->nvs_handle, key_name, nullptr, &current_len);
     if (err == ESP_OK) {
@@ -338,7 +373,7 @@ bool ESP32Preferences::sync() {
       ESP_LOGVV(TAG, "nvs_get_blob('%s'): %s", key_name, esp_err_to_name(err));
     }
     err = nvs_set_blob(this->nvs_handle, key_name, data, len);
-    ESP_LOGVV(TAG, "nvs_set_blob('%s'): %s", key_name, esp_err_to_name(err));
+    ESP_LOGVV(TAG, "nvs_set_blob('%s'): %s, length=%zu", key_name, esp_err_to_name(err), len);
     if (err == ESP_OK) {
       goto done_written;  // NOLINT(cppcoreguidelines-avoid-goto)
     }
