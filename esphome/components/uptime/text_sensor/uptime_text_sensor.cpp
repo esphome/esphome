@@ -8,12 +8,21 @@ namespace esphome::uptime {
 
 ESPHOME_LOG_TAG(TAG, "uptime.sensor");
 
+static size_t append_flash_str(char *buf, size_t buf_size, size_t pos, const char *str) {
+#ifdef USE_ESP8266
+  return buf_append_str_p(buf, buf_size, pos, str);
+#else
+  return buf_append_str(buf, buf_size, pos, str);
+#endif
+}
+
 static void append_unit(char *buf, size_t buf_size, size_t &pos, const char *separator, unsigned value,
                         const char *label) {
   if (pos > 0) {
-    pos = buf_append_printf(buf, buf_size, pos, "%s", separator);
+    pos = append_flash_str(buf, buf_size, pos, separator);
   }
-  pos = buf_append_printf(buf, buf_size, pos, "%u%s", value, label);
+  pos = buf_append_printf(buf, buf_size, pos, "%u", value);
+  pos = append_flash_str(buf, buf_size, pos, label);
 }
 
 void UptimeTextSensor::setup() { this->update(); }
@@ -21,6 +30,7 @@ void UptimeTextSensor::setup() { this->update(); }
 void UptimeTextSensor::update() { this->publish_uptime(static_cast<uint32_t>(millis_64() / 1000)); }
 
 void UptimeTextSensor::publish_uptime(uint32_t uptime) {
+  const UptimeFormat *format = this->format_;
   unsigned interval = this->get_update_interval() / 1000;
 
   // Calculate all time units
@@ -38,7 +48,7 @@ void UptimeTextSensor::publish_uptime(uint32_t uptime) {
   bool hours_enabled = interval < 12 * 3600;
 
   // Show from highest non-zero unit (or all in expand mode) down to smallest enabled
-  bool show_days = this->expand_ || days > 0;
+  bool show_days = progmem_read_byte(&format->expand) || days > 0;
   bool show_hours = hours_enabled && (show_days || hours > 0);
   bool show_minutes = minutes_enabled && (show_hours || minutes > 0);
   bool show_seconds = seconds_enabled && (show_minutes || seconds > 0);
@@ -63,13 +73,13 @@ void UptimeTextSensor::publish_uptime(uint32_t uptime) {
   buf[0] = '\0';  // Initialize for empty case
 
   if (show_days)
-    append_unit(buf, sizeof(buf), pos, this->separator_, days, this->days_text_);
+    append_unit(buf, sizeof(buf), pos, format->separator, days, format->days);
   if (show_hours)
-    append_unit(buf, sizeof(buf), pos, this->separator_, hours, this->hours_text_);
+    append_unit(buf, sizeof(buf), pos, format->separator, hours, format->hours);
   if (show_minutes)
-    append_unit(buf, sizeof(buf), pos, this->separator_, minutes, this->minutes_text_);
+    append_unit(buf, sizeof(buf), pos, format->separator, minutes, format->minutes);
   if (show_seconds)
-    append_unit(buf, sizeof(buf), pos, this->separator_, seconds, this->seconds_text_);
+    append_unit(buf, sizeof(buf), pos, format->separator, seconds, format->seconds);
 
   this->publish_state(buf, pos);
 }
