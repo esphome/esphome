@@ -1,0 +1,28 @@
+---
+esphome:
+  name: test
+
+esp32:
+  board: esp32dev
+
+output:
+  - platform: gpio
+    id: relay
+    pin: GPIO4
+
+button:
+  - platform: output
+    id: pulse_a
+    name: Pulse A
+    output: relay
+    duration: 500ms
+  - platform: output
+    id: pulse_b
+    name: Pulse B
+    output: relay
+    duration: 500ms
+  - platform: output
+    id: pulse_long
+    name: Pulse Long
+    output: relay
+    duration: 2s

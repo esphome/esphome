@@ -1,4 +1,5 @@
 #include "cm1106.h"
+#include "esphome/core/helpers.h"
 #include "esphome/core/log.h"
 
 #include <cinttypes>
@@ -17,11 +18,7 @@ static constexpr uint8_t C_M1106_CMD_SET_ABC_STATUS_RESPONSE[4] = {0x16, 0x01, 0
 static constexpr uint8_t CM1106_ABC_FLAG_ENABLE = 0x0;
 static constexpr uint8_t CM1106_ABC_FLAG_DISABLE = 0x2;
 uint8_t cm1106_checksum(const uint8_t *response, size_t len) {
-  uint8_t crc = 0;
-  for (size_t i = 0; i < len - 1; i++) {
-    crc -= response[i];
-  }
-  return crc;
+  return static_cast<uint8_t>(-sum_bytes(response, len - 1));
 }
 
 void CM1106Component::setup() {
@@ -45,7 +42,10 @@ void CM1106Component::update() {
   }
 
   if (response[0] != 0x16 || response[1] != 0x05 || response[2] != 0x01) {
-    ESP_LOGW(TAG, "Unexpected response: %02X %02X %02X %02X", response[0], response[1], response[2], response[3]);
+#if ESPHOME_LOG_LEVEL >= ESPHOME_LOG_LEVEL_WARN
+    char hex_buf[format_hex_pretty_size(4)];
+    ESP_LOGW(TAG, "Unexpected response: %s", format_hex_pretty_to(hex_buf, response, 4, ' '));
+#endif
     this->status_set_warning();
     return;
   }
@@ -57,7 +57,7 @@ void CM1106Component::update() {
     return;
   }
 
-  const uint16_t ppm = response[3] << 8 | response[4];
+  const uint16_t ppm = encode_uint16(response[3], response[4]);
   const uint8_t status = response[5];
   if (status & 0x1) {
     ESP_LOGW(TAG, "Preheating; CO₂=%uppm", ppm);
@@ -104,7 +104,10 @@ bool CM1106Component::send_command_expect_ack_(const uint8_t *command, size_t co
     return false;
   }
   if (!this->status_comm_result(memcmp(response, ack, sizeof(response)) == 0)) {
-    ESP_LOGW(TAG, "Unexpected response: %02X %02X %02X %02X", response[0], response[1], response[2], response[3]);
+#if ESPHOME_LOG_LEVEL >= ESPHOME_LOG_LEVEL_WARN
+    char hex_buf[format_hex_pretty_size(4)];
+    ESP_LOGW(TAG, "Unexpected response: %s", format_hex_pretty_to(hex_buf, response, 4, ' '));
+#endif
     return false;
   }
   return true;
