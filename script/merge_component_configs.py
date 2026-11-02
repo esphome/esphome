@@ -428,9 +428,11 @@ def merge_component_configs(
 
     # Remove esphome section since it will be provided by the wrapper file
     # The wrapper file includes this merged config via packages and provides
-    # the proper esphome: section with name, platform, etc.
-    if "esphome" in merged_config_data:
-        del merged_config_data["esphome"]
+    # the proper esphome: section with name, platform, etc. Build flags are
+    # kept because a test may rely on them.
+    esphome_section = merged_config_data.pop("esphome", None) or {}
+    if build_flags := esphome_section.get("build_flags"):
+        merged_config_data["esphome"] = {"build_flags": build_flags}
 
     # Write merged config
     output_file.parent.mkdir(parents=True, exist_ok=True)
