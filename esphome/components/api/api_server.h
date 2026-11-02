@@ -241,6 +241,8 @@ class APIServer final : public Component
     Callback<void(StringRef)> callback;
     bool once;
   };
+  // The extra list is grown with a byte copy
+  static_assert(std::is_trivially_copyable_v<HomeAssistantStateSubscription>);
 
   /// For internal components: entity_id and attribute must live as long as the server.
   /// A [this] lambda is stored inline, without std::function or heap.
@@ -251,7 +253,7 @@ class APIServer final : public Component
     this->add_state_subscription_(entity_id, attribute, Callback<void(StringRef)>::create(std::forward<F>(f)), true);
   }
 
-  // std::string overload with StringRef callback (for custom_api_device.h with zero-allocation callback)
+  // std::string overloads (for custom_api_device.h); the strings and callback are copied to the heap
   void subscribe_home_assistant_state(std::string entity_id, optional<std::string> attribute,
                                       std::function<void(StringRef)> &&f);
   void get_home_assistant_state(std::string entity_id, optional<std::string> attribute,
@@ -263,6 +265,45 @@ class APIServer final : public Component
   void get_home_assistant_state(std::string entity_id, optional<std::string> attribute,
                                 std::function<void(const std::string &)> &&f);
 
+  /// Call every subscription that matches a state from Home Assistant; state must be null-terminated
+  ESPHOME_ALWAYS_INLINE void dispatch_home_assistant_state(const HomeAssistantStateResponse &msg) {
+    // Counted subscriptions first, then the extra ones. A callback may subscribe, which can move
+    // extra_state_subs_, so the position is re-anchored after each callback.
+    bool in_extra = true;
+    const HomeAssistantStateSubscription *base = this->extra_state_subs_;
+    const HomeAssistantStateSubscription *end = base + this->extra_state_sub_count_;
+#ifdef HOMEASSISTANT_STATE_SUBSCRIPTION_COUNT
+    in_extra = false;
+    base = this->state_subs_.begin();
+    end = this->state_subs_.end();
+#endif
+    for (const HomeAssistantStateSubscription *it = base;; ++it) {
+      if (it == end) {
+        if (in_extra)
+          return;
+        in_extra = true;
+        it = base = this->extra_state_subs_;
+        end = base + this->extra_state_sub_count_;
+        if (it == end)
+          return;
+      }
+      // A subscription without an attribute only takes states without one
+      if (msg.entity_id != it->entity_id ||
+          (it->attribute != nullptr ? msg.attribute != it->attribute : !msg.attribute.empty()))
+        continue;
+      const size_t pos = it - base;
+      it->callback.call(msg.state);
+#ifdef HOMEASSISTANT_STATE_SUBSCRIPTION_COUNT
+      if (!in_extra) {
+        end = this->state_subs_.end();
+        continue;
+      }
+#endif
+      base = this->extra_state_subs_;
+      it = base + pos;
+      end = base + this->extra_state_sub_count_;
+    }
+  }
   /// The subscription at index in the order they are sent, or nullptr past the last one.
   /// Adding a subscription can move the list, so do not keep the pointer across one.
   const HomeAssistantStateSubscription *get_state_sub(size_t index) const;
@@ -319,8 +360,6 @@ class APIServer final : public Component
   void add_state_subscription_(const char *entity_id, const char *attribute, Callback<void(StringRef)> callback,
                                bool once);
   void add_extra_state_subscription_(const HomeAssistantStateSubscription &sub);
-  // Its state handler walks the subscription lists directly
-  friend class APIConnection;
 #endif  // USE_API_HOMEASSISTANT_STATES
   // No explicit close() needed — listen sockets have no active connections on
   // failure/shutdown. Destructor handles fd cleanup (close or abort per platform).
