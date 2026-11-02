@@ -5,26 +5,21 @@ namespace esphome::remote_base {
 
 ESPHOME_LOG_TAG(TAG, "remote.toto");
 
-static constexpr uint32_t PREAMBLE_HIGH_US = 6200;
-static constexpr uint32_t PREAMBLE_LOW_US = 2800;
-static constexpr uint32_t BIT_HIGH_US = 550;
-static constexpr uint32_t BIT_ONE_LOW_US = 1700;
-static constexpr uint32_t BIT_ZERO_LOW_US = 550;
-static constexpr uint32_t TOTO_HEADER = 0x2008;
+static constexpr uint32_t PREAMBLE_HIGH_US = 6000;
+static constexpr uint32_t PREAMBLE_LOW_US = 3000;
+static constexpr uint32_t BIT_HIGH_US = 600;
+static constexpr uint32_t BIT_ONE_LOW_US = 1667;
+static constexpr uint32_t BIT_ZERO_LOW_US = 520;
+static constexpr uint16_t TOTO_HEADER = 0x0802;
 
-void TotoProtocol::encode(RemoteTransmitData *dst, const TotoData &data) {
-  uint32_t payload = 0;
-
-  payload = data.rc_code_1 << 20;
-  payload |= data.rc_code_2 << 16;
-  payload |= data.command << 8;
-  payload |= ((payload & 0xFF0000) >> 16) ^ ((payload & 0x00FF00) >> 8);
-
+void TotoProtocol::encode(RemoteTransmitData *dst, const TotoData &code) {
+  uint8_t checksum = ((code & 0xFF00) >> 8) ^ (code & 0x00FF);
+  uint32_t payload = code | (checksum << 16);
   dst->reserve(80);
   dst->set_carrier_frequency(38000);
   dst->item(PREAMBLE_HIGH_US, PREAMBLE_LOW_US);
 
-  for (uint32_t mask = 1UL << 14; mask; mask >>= 1) {
+  for (uint16_t mask = 1UL; mask <= (1UL << 14); mask <<= 1) {
     if (TOTO_HEADER & mask) {
       dst->item(BIT_HIGH_US, BIT_ONE_LOW_US);
     } else {
@@ -32,7 +27,7 @@ void TotoProtocol::encode(RemoteTransmitData *dst, const TotoData &data) {
     }
   }
 
-  for (uint32_t mask = 1UL << 23; mask; mask >>= 1) {
+  for (uint32_t mask = 1UL; mask <= (1UL << 23); mask <<= 1) {
     if (payload & mask) {
       dst->item(BIT_HIGH_US, BIT_ONE_LOW_US);
     } else {
@@ -46,21 +41,14 @@ optional<TotoData> TotoProtocol::decode(RemoteReceiveData src) {
   uint16_t header = 0;
   uint32_t payload = 0;
 
-  TotoData data{
-      .rc_code_1 = 0,
-      .rc_code_2 = 0,
-      .command = 0,
-  };
-
   if (!src.expect_item(PREAMBLE_HIGH_US, PREAMBLE_LOW_US)) {
     return {};
   }
 
-  for (uint32_t mask = 1UL << 14; mask; mask >>= 1) {
+  for (uint32_t mask = 1UL; mask <= (1UL << 14); mask <<= 1) {
     if (src.expect_item(BIT_HIGH_US, BIT_ONE_LOW_US)) {
       header |= mask;
     } else if (src.expect_item(BIT_HIGH_US, BIT_ZERO_LOW_US)) {
-      header &= ~mask;
     } else {
       return {};
     }
@@ -70,29 +58,21 @@ optional<TotoData> TotoProtocol::decode(RemoteReceiveData src) {
     return {};
   }
 
-  for (uint32_t mask = 1UL << 23; mask; mask >>= 1) {
+  for (uint32_t mask = 1UL; mask <= (1UL << 23); mask <<= 1) {
     if (src.expect_item(BIT_HIGH_US, BIT_ONE_LOW_US)) {
       payload |= mask;
     } else if (src.expect_item(BIT_HIGH_US, BIT_ZERO_LOW_US)) {
-      payload &= ~mask;
     } else {
       return {};
     }
   }
 
-  if ((((payload & 0xFF0000) >> 16) ^ ((payload & 0x00FF00) >> 8)) != (payload & 0x0000FF)) {
+  if (((payload & 0xFF0000) >> 16) != (((payload & 0x00FF00) >> 8) ^ (payload & 0x0000FF))) {
     return {};
   }
 
-  data.rc_code_1 = (payload & 0xF00000) >> 20;
-  data.rc_code_2 = (payload & 0x0F0000) >> 16;
-  data.command = (payload & 0x00FF00) >> 8;
-
-  return data;
+  return payload & 0xffff;
 }
-void TotoProtocol::dump(const TotoData &data) {
-  ESP_LOGI(TAG, "Received Toto data: rc_code_1=0x%01X, rc_code_2=0x%01X, command=0x%02X", data.rc_code_1,
-           data.rc_code_2, data.command);
-}
+void TotoProtocol::dump(const TotoData &code) { ESP_LOGI(TAG, "Received Toto code 0x%04X", code); }
 
 }  // namespace esphome::remote_base

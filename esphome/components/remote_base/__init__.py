@@ -2864,25 +2864,14 @@ register_protocol_action(
 
 TOTO_SCHEMA = cv.Schema(
     {
-        cv.Optional(CONF_RC_CODE_1, default=0): cv.hex_int_range(0, 0xF),
-        cv.Optional(CONF_RC_CODE_2, default=0): cv.hex_int_range(0, 0xF),
-        cv.Required(CONF_COMMAND): cv.hex_uint8_t,
+        cv.Required(CONF_CODE): cv.hex_uint16_t,
     }
 )
 
 
 @register_binary_sensor("toto", TotoBinarySensor, TOTO_SCHEMA)
 def toto_binary_sensor(var, config):
-    cg.add(
-        var.set_data(
-            cg.StructInitializer(
-                TotoData,
-                ("rc_code_1", config[CONF_RC_CODE_1]),
-                ("rc_code_2", config[CONF_RC_CODE_2]),
-                ("command", config[CONF_COMMAND]),
-            )
-        )
-    )
+    cg.add(var.set_data(config[CONF_CODE]))
 
 
 @register_trigger("toto", TotoTrigger, TotoData)
@@ -2906,9 +2895,7 @@ register_protocol_action(
     "toto",
     "Toto",
     TOTO_SCHEMA,
-    (CONF_RC_CODE_1, "rc_code_1", cg.uint8),
-    (CONF_RC_CODE_2, "rc_code_2", cg.uint8),
-    (CONF_COMMAND, "command", cg.uint8),
+    automation.ApplyField(CONF_CODE, "data = {}", cg.uint16),
     validate=_toto_default_repeat,
 )
 
