@@ -64,20 +64,21 @@ void RP2040PIOLEDStripLightOutput::setup() {
   }
 
   // Configure the state machine's PIO, and start it
-  this->sm_ = pio_claim_unused_sm(this->pio_, true);
-  if (this->sm_ < 0) {
-    // in theory this code should never be reached
+  int sm = pio_claim_unused_sm(this->pio_, false);
+  if (sm < 0) {
     this->mark_failed(LOG_STR("Failed to claim PIO state machine"));
     return;
   }
+  this->sm_ = sm;
 
   // Initalize the DMA channel (Note: There are 12 DMA channels and 8 state machines so we won't run out)
 
-  this->dma_chan_ = dma_claim_unused_channel(true);
-  if (this->dma_chan_ < 0) {
+  int dma_chan = dma_claim_unused_channel(false);
+  if (dma_chan < 0) {
     this->mark_failed(LOG_STR("Failed to claim DMA channel"));
     return;
   }
+  this->dma_chan_ = dma_chan;
 
   // Mark the DMA channel as active
   RP2040PIOLEDStripLightOutput::dma_chan_active[this->dma_chan_] = true;
