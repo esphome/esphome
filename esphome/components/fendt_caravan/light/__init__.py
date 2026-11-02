@@ -87,8 +87,9 @@ async def to_code(config):
     var = cg.new_Pvariable(config[CONF_OUTPUT_ID])
     await light.register_light(var, config)
     await cg.register_parented(var, parent)
+    state = await cg.get_variable(config[CONF_ID])
     cg.add(var.set_variable_name(config[CONF_VARIABLE_NAME]))
     if config.get(CONF_LIGHT_TYPE) == "switch":
-        cg.add(parent.add_binary_lightoutput(config[CONF_VARIABLE_NAME], var))
+        cg.add(parent.set_binary_light_state(config[CONF_VARIABLE_NAME], state))
     if config.get(CONF_LIGHT_TYPE) == "dimmable":
-        cg.add(parent.add_float_lightoutput(config[CONF_VARIABLE_NAME], var))
+        cg.add(parent.set_float_light_state(config[CONF_VARIABLE_NAME], state))

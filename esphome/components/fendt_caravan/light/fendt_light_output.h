@@ -17,14 +17,13 @@ class FendtLightOutput : public light::LightOutput, public Component, public Par
     traits.set_supported_color_modes({this->color_mode_});
     return traits;
   }
-
   void set_variable_name(const std::string &var_name) { this->variable_name_ = var_name; }
   void setup_state(light::LightState *state) override = 0;
   void write_state(light::LightState *state) override = 0;
+  light::LightState *get_light_state() { return this->light_state_; }
 
  protected:
   light::LightState *light_state_{nullptr};
-  // Variable<int> *variable_{nullptr};
   std::string variable_name_{};
 
  private:
