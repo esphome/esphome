@@ -91,6 +91,7 @@ from .framework import (
     get_build_env,
     get_build_paths,
     get_nrf52_variant,
+    include_west_project,
     set_nrf52_variant,
     setup_platformio_python_env,
     toolchain_tool,
@@ -446,6 +447,10 @@ async def to_code(config: ConfigType) -> None:
     variant = get_nrf52_variant()
     cg.add_define("ESPHOME_VARIANT", variant)
     cg.add_build_flag(f"-DUSE_NRF52_VARIANT_{variant}")
+    if variant == VARIANT_NRF54LM20:
+        # The entropy driver runs on the CRACEN crypto unit, which needs Nordic's PSA crypto
+        include_west_project("mbedtls")
+        include_west_project("oberon-psa-crypto")
     # Zephyr is a preemptive RTOS: BLE, Thread, USB and workqueue callbacks
     # run in other threads, so the scheduler must be thread-safe.
     if config[CONF_BOARD] == "bbc_microbit":
