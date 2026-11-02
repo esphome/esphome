@@ -56,9 +56,10 @@ void JpegDecoder::draw_rgb565(int x, int y, int w, int h, const uint8_t *pixels)
 static void feed_watchdog() {
 #ifdef USE_ESP32_TASK_WDT
   // Only a task the watchdog watches may feed it
-  if (esp_task_wdt_status(nullptr) == ESP_OK)
+  if (esp_task_wdt_status(nullptr) != ESP_OK)
+    return;
 #endif
-    App.feed_wdt();
+  App.feed_wdt();
 }
 
 /**

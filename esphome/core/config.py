@@ -45,9 +45,7 @@ from esphome.const import (
     CONF_TRIGGER_ID,
     CONF_URL,
     CONF_VERSION,
-    CONF_WATCHDOG_TIMEOUT,
     KEY_CORE,
-    PLATFORM_ESP32,
     PLATFORM_HOST,
     PLATFORM_RP2,
     PlatformFramework,
@@ -227,9 +225,9 @@ def validate_loop_interval(config: ConfigType) -> ConfigType:
         # max_loop interval is calculated from WDT_FEED_INTERVAL_MS. Make sure to align with application.h
         max_loop = 600  # 2 * 300ms default for other platforms
         if CORE.is_esp32:
-            wdt_ms = fv.full_config.get()[PLATFORM_ESP32][
-                CONF_WATCHDOG_TIMEOUT
-            ].total_milliseconds
+            from esphome.components.esp32 import task_wdt_timeout_ms
+
+            wdt_ms = task_wdt_timeout_ms()
             if wdt_ms == 0:
                 # Task watchdog disabled: the loop sleep is not capped
                 return config

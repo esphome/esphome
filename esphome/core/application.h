@@ -272,8 +272,8 @@ class Application {
 
   /// Feed the task watchdog. Cold entry — callers without a millis()
   /// timestamp in hand. Out of line to keep call sites tiny.
-#if defined(USE_ESP32) && !defined(USE_ESP32_TASK_WDT)
-  // watchdog_timeout: 0s leaves no watchdog to feed
+#if defined(USE_ESP32) && !defined(USE_ESP32_TASK_WDT) && !defined(USE_STATUS_LED)
+  // watchdog_timeout: 0s leaves no watchdog to feed, and no status LED needs the call
   void feed_wdt() {}
 #else
   void feed_wdt();

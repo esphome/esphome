@@ -235,7 +235,7 @@ void Application::process_dump_config_() {
   this->dump_config_at_++;
 }
 
-#if !defined(USE_ESP32) || defined(USE_ESP32_TASK_WDT)
+#if !defined(USE_ESP32) || defined(USE_ESP32_TASK_WDT) || defined(USE_STATUS_LED)
 void Application::feed_wdt() {
   // Cold entry: callers without a millis() timestamp in hand. Fetches the
   // time and defers to the hot path.
