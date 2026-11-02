@@ -198,7 +198,7 @@ void TM1637Display::stop_() {
 }
 
 void TM1637Display::display() {
-  ESP_LOGVV(TAG, "Display %02X%02X%02X%02X", buffer_[0], buffer_[1], buffer_[2], buffer_[3]);
+  ESP_LOGVV_HEX(TAG, this->buffer_, 4, 4, "Display %s");
 
   // Write DATA CMND
   this->start_();
