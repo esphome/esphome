@@ -267,42 +267,28 @@ class APIServer final : public Component
 
   /// Call every subscription that matches a state from Home Assistant; state must be null-terminated
   ESPHOME_ALWAYS_INLINE void dispatch_home_assistant_state(const HomeAssistantStateResponse &msg) {
-    // Counted subscriptions first, then the extra ones. A callback may subscribe, which can move
-    // extra_state_subs_, so the position is re-anchored after each callback.
+    // Counted subscriptions first, then the extra ones
 #ifdef HOMEASSISTANT_STATE_SUBSCRIPTION_COUNT
-    bool in_extra = false;
-    const HomeAssistantStateSubscription *base = this->state_subs_.begin();
-    const HomeAssistantStateSubscription *end = this->state_subs_.end();
+    bool extra = false;
 #else
-    bool in_extra = true;
-    const HomeAssistantStateSubscription *base = this->extra_state_subs_;
-    const HomeAssistantStateSubscription *end = base + this->extra_state_sub_count_;
+    bool extra = true;
 #endif
-    for (const HomeAssistantStateSubscription *it = base;; ++it) {
-      if (it == end) {
-        if (in_extra)
-          return;
-        in_extra = true;
-        it = base = this->extra_state_subs_;
-        end = base + this->extra_state_sub_count_;
-        if (it == end)
-          return;
+    for (;; extra = true) {
+      std::span<const HomeAssistantStateSubscription> subs = this->state_sub_list_(extra);
+      for (const auto *it = subs.data(), *end = it + subs.size(); it != end; ++it) {
+        // A subscription without an attribute only takes states without one
+        if (msg.entity_id != it->entity_id ||
+            (it->attribute != nullptr ? msg.attribute != it->attribute : !msg.attribute.empty()))
+          continue;
+        const size_t pos = it - subs.data();
+        it->callback.call(msg.state);
+        // A callback may subscribe, which can move or grow the list
+        subs = this->state_sub_list_(extra);
+        it = subs.data() + pos;
+        end = subs.data() + subs.size();
       }
-      // A subscription without an attribute only takes states without one
-      if (msg.entity_id != it->entity_id ||
-          (it->attribute != nullptr ? msg.attribute != it->attribute : !msg.attribute.empty()))
-        continue;
-      const size_t pos = it - base;
-      it->callback.call(msg.state);
-#ifdef HOMEASSISTANT_STATE_SUBSCRIPTION_COUNT
-      if (!in_extra) {
-        end = this->state_subs_.end();
-        continue;
-      }
-#endif
-      base = this->extra_state_subs_;
-      it = base + pos;
-      end = base + this->extra_state_sub_count_;
+      if (extra)
+        return;
     }
   }
   /// The subscription at index in the order they are sent, or nullptr past the last one.
@@ -361,6 +347,14 @@ class APIServer final : public Component
   void add_state_subscription_(const char *entity_id, const char *attribute, Callback<void(StringRef)> callback,
                                bool once);
   void add_extra_state_subscription_(const HomeAssistantStateSubscription &sub);
+  // The counted subscriptions, or the extra ones
+  ESPHOME_ALWAYS_INLINE std::span<const HomeAssistantStateSubscription> state_sub_list_(bool extra) const {
+#ifdef HOMEASSISTANT_STATE_SUBSCRIPTION_COUNT
+    if (!extra)
+      return this->state_subs_;
+#endif
+    return {this->extra_state_subs_, this->extra_state_sub_count_};
+  }
 #endif  // USE_API_HOMEASSISTANT_STATES
   // No explicit close() needed — listen sockets have no active connections on
   // failure/shutdown. Destructor handles fd cleanup (close or abort per platform).
