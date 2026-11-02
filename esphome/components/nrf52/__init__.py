@@ -105,7 +105,7 @@ _LOGGER = logging.getLogger(__name__)
 # Default framework versions per toolchain. The sdk-nrf one also keys the CI
 # sdk-nrf install cache and pins the clang-tidy project's SDK.
 RECOMMENDED_PLATFORMIO_VERSION = "2.6.1-b"
-RECOMMENDED_SDK_NRF_VERSION = "2.9.2"
+RECOMMENDED_SDK_NRF_VERSION = "3.4.1"
 
 FAKE_BOARD_MANIFEST = """
 {
