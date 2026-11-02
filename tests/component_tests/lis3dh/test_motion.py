@@ -6,13 +6,11 @@ import logging
 
 import pytest
 
-from esphome.components.lis3dh import KEY_TAP_THRESHOLD_IDS
 from esphome.components.lis3dh.motion import (
     CONF_ACCELEROMETER_ODR,
     CONF_ACCELEROMETER_RANGE,
     CONF_DURATION,
     CONF_HIGH_PASS_FILTER,
-    CONF_ID,
     CONF_INTERRUPT,
     CONF_INTERRUPT_PIN,
     CONF_INVERTED,
@@ -26,14 +24,14 @@ from esphome.components.lis3dh.motion import (
     CONF_TIME_LIMIT,
     CONF_WINDOW,
     _duration_register,
-    _final_validate,
+    _tap_hold_ms,
     _threshold_register,
     _validate_interrupt,
     _validate_odr_mode,
     _validate_tap,
 )
 import esphome.config_validation as cv
-from esphome.core import CORE, ID, TimePeriod
+from esphome.core import TimePeriod
 
 
 def _interrupt_config(
@@ -284,22 +282,18 @@ def test_tap_at_400hz_is_silent(caplog: pytest.LogCaptureFixture) -> None:
     assert caplog.text == ""
 
 
-@pytest.mark.parametrize("has_tap", [True, False])
-def test_set_tap_threshold_needs_tap_block(
-    has_tap: bool, monkeypatch: pytest.MonkeyPatch
+@pytest.mark.parametrize(
+    ("samples", "odr_key", "expected_ms"),
+    [
+        # 25ms + 50ms + 250ms at 400Hz: 10 + 20 + 100 samples
+        ((10, 20, 100), "400HZ", 325),
+        # Rounded samples, not the configured times: 1 sample at 1344Hz is 0.744ms
+        ((1, 1, 1), "1344HZ", 3),
+        ((127, 255, 255), "1HZ", 637000),
+    ],
+)
+def test_tap_hold_covers_time_limit(
+    samples: tuple[int, int, int], odr_key: str, expected_ms: int
 ) -> None:
-    """The threshold setter is compiled out without a tap block."""
-    monkeypatch.setitem(CORE.data, KEY_TAP_THRESHOLD_IDS, {"accel"})
-    config = _tap_config() if has_tap else {}
-    config[CONF_ID] = ID("accel")
-    if has_tap:
-        assert _final_validate(config) is config
-    else:
-        with pytest.raises(cv.Invalid, match="needs a 'tap' block"):
-            _final_validate(config)
-
-
-def test_sensor_without_tap_and_unreferenced_is_accepted() -> None:
-    """A sensor no threshold action targets needs no tap block."""
-    config = {CONF_ID: ID("other")}
-    assert _final_validate(config) is config
+    """The single-tap hold includes time_limit and is computed from register values."""
+    assert _tap_hold_ms(*samples, odr_key) == expected_ms

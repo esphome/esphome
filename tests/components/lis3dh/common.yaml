@@ -32,7 +32,7 @@ motion:
         - logger.log:
             format: "Double tap on axis %u, %s side"
             args: ["axis", 'negative ? "negative" : "positive"']
-        - lis3dh.set_tap_threshold:
+        - motion.set_tap_threshold:
             id: lis3dh_main
             threshold: 0.8g
 
@@ -65,10 +65,10 @@ motion:
       pin: INT1
       interrupt_pin: ${tap_interrupt_pin}
       on_double_tap:
-        - lis3dh.set_tap_threshold:
+        - motion.set_tap_threshold:
             id: lis3dh_low_power
             threshold: 2.5g
-        - lis3dh.set_tap_threshold:
+        - motion.set_tap_threshold:
             id: lis3dh_low_power
             threshold: !lambda "return 1.5f;"
 

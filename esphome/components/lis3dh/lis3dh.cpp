@@ -11,9 +11,6 @@ namespace esphome::lis3dh {
 ESPHOME_LOG_TAG(TAG, "lis3dh");
 
 #ifdef USE_LIS3DH_TAP
-// Unlatched CLICK_SRC bits stay set for as little as 15 ms, so poll faster than the 16 ms loop
-static constexpr uint32_t TAP_POLL_INTERVAL_MS = 10;
-
 // Click threshold LSB in mg, indexed by range
 static const uint16_t THRESHOLD_LSB_MG[] PROGMEM = {16, 32, 62, 186};
 #endif
@@ -52,10 +49,11 @@ void LIS3DHComponent::setup() {
   if (this->tap_axes_cfg_ == 0 || this->tap_interrupt_pin_ == nullptr) {
     this->disable_loop();
     if (this->tap_axes_cfg_ != 0) {
-      this->set_interval(TAP_POLL_INTERVAL_MS, [this]() {
+      this->set_interval(LIS3DH_TAP_POLL_INTERVAL_MS, [this]() {
         const uint32_t now = millis();
-        this->check_pending_tap_(now);
+        // Read first, so a double tap seen now drops the held single
         this->read_tap_(now);
+        this->release_held_tap_(now);
       });
     }
   }
@@ -71,13 +69,6 @@ void LIS3DHComponent::loop() {
     return;
   }
   this->read_tap_(App.get_loop_component_start_time());
-}
-
-void LIS3DHComponent::check_pending_tap_(uint32_t now) {
-  if (this->tap_pending_ && now - this->tap_pending_since_ >= this->tap_double_wait_ms_ + TAP_POLL_INTERVAL_MS) {
-    this->tap_pending_ = false;
-    this->tap_callback_.call(this->tap_pending_axis_, this->tap_pending_negative_);
-  }
 }
 #endif
 
@@ -214,19 +205,16 @@ void LIS3DHComponent::read_tap_(uint32_t now) {
     return;
   ESP_LOGV(TAG, "CLICK_SRC: 0x%02X", src);
 
-  uint8_t axis;
-  bool negative;
-  this->resolve_tap_axis_(src, axis, negative);
+  const uint8_t chip_axis = (src & LIS3DH_CLICK_SRC_X)   ? motion::X_AXIS
+                            : (src & LIS3DH_CLICK_SRC_Y) ? motion::Y_AXIS
+                                                         : motion::Z_AXIS;
+  const bool chip_negative = (src & LIS3DH_CLICK_SRC_SIGN) != 0;
   if ((this->tap_axes_cfg_ & LIS3DH_CLICK_CFG_SINGLE) && (this->tap_axes_cfg_ & LIS3DH_CLICK_CFG_DOUBLE)) {
     // Both enabled: IA means a double tap, and a lone SCLICK is held until the window passes
     if ((rising & LIS3DH_CLICK_SRC_IA) && (src & LIS3DH_CLICK_SRC_DCLICK)) {
-      this->tap_pending_ = false;
-      this->double_tap_callback_.call(axis, negative);
-    } else if ((rising & LIS3DH_CLICK_SRC_SCLICK) && !this->tap_pending_) {
-      this->tap_pending_axis_ = axis;
-      this->tap_pending_negative_ = negative;
-      this->tap_pending_since_ = now;
-      this->tap_pending_ = true;
+      this->report_double_tap_(chip_axis, chip_negative);
+    } else if (rising & LIS3DH_CLICK_SRC_SCLICK) {
+      this->hold_tap_(chip_axis, chip_negative, now);
     }
     return;
   }
@@ -234,24 +222,9 @@ void LIS3DHComponent::read_tap_(uint32_t now) {
   if ((rising & LIS3DH_CLICK_SRC_IA) == 0)
     return;
   if (src & LIS3DH_CLICK_SRC_SCLICK)
-    this->tap_callback_.call(axis, negative);
+    this->report_tap_(chip_axis, chip_negative);
   if (src & LIS3DH_CLICK_SRC_DCLICK)
-    this->double_tap_callback_.call(axis, negative);
-}
-
-void LIS3DHComponent::resolve_tap_axis_(uint8_t src, uint8_t &axis, bool &negative) const {
-  // In the axis_map frame; the base matrix, so level calibration does not move it
-  const uint8_t chip_axis = (src & LIS3DH_CLICK_SRC_X) ? 0 : (src & LIS3DH_CLICK_SRC_Y) ? 1 : 2;
-  axis = 0;
-  float weight = 0.0f;
-  for (uint8_t i = 0; i < 3; i++) {
-    const float w = this->base_matrix_[i * 3 + chip_axis];
-    if (std::fabs(w) > std::fabs(weight)) {
-      weight = w;
-      axis = i;
-    }
-  }
-  negative = ((src & LIS3DH_CLICK_SRC_SIGN) != 0) != (weight < 0.0f);
+    this->report_double_tap_(chip_axis, chip_negative);
 }
 #endif
 

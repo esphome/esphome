@@ -1,7 +1,7 @@
 import logging
 import math
 
-from esphome import automation, pins
+from esphome import pins
 import esphome.codegen as cg
 from esphome.components import i2c
 from esphome.components.const import (
@@ -19,22 +19,22 @@ from esphome.components.motion import (
     CONF_AXES,
     motion_schema,
     new_motion_component,
+    setup_tap,
+    tap_schema,
     validate_axes,
 )
 import esphome.config_validation as cv
 from esphome.const import (
     CONF_DURATION,
-    CONF_ID,
     CONF_INTERRUPT,
     CONF_INTERRUPT_PIN,
     CONF_INVERTED,
     CONF_PIN,
     CONF_THRESHOLD,
 )
-from esphome.core import CORE
 from esphome.types import ConfigType
 
-from . import ACCELERATION_G, KEY_TAP_THRESHOLD_IDS, LIS3DHComponent, lis3dh_ns
+from . import LIS3DHComponent, lis3dh_ns
 
 _LOGGER = logging.getLogger(__name__)
 
@@ -103,14 +103,6 @@ TIME_WINDOW_MAX_REG = 0xFF
 # A tap lasts a few milliseconds; at lower data rates most taps fall between samples.
 TAP_MIN_RECOMMENDED_ODR_HZ = 400
 
-_TAP_ARGS = [(cg.uint8, "axis"), (bool, "negative")]
-_TAP_CALLBACK_AUTOMATIONS = (
-    automation.CallbackAutomation(CONF_ON_TAP, "add_on_tap_callback", _TAP_ARGS),
-    automation.CallbackAutomation(
-        CONF_ON_DOUBLE_TAP, "add_on_double_tap_callback", _TAP_ARGS
-    ),
-)
-
 
 def _threshold_register(threshold_g: float, range_key: str) -> int:
     """Return INT1_THS for a threshold in g: nearest step, at least 1 so the pad is not held asserted."""
@@ -138,31 +130,26 @@ INTERRUPT_SCHEMA = cv.Schema(
 )
 
 # High-pass on by default: without it gravity holds the down axis over the threshold.
-TAP_SCHEMA = cv.All(
-    cv.Schema(
-        {
-            cv.Optional(CONF_THRESHOLD, default="0.6g"): ACCELERATION_G,
-            cv.Optional(
-                CONF_TIME_LIMIT, default="25ms"
-            ): cv.positive_time_period_milliseconds,
-            cv.Optional(
-                CONF_LATENCY, default="50ms"
-            ): cv.positive_time_period_milliseconds,
-            cv.Optional(
-                CONF_WINDOW, default="250ms"
-            ): cv.positive_time_period_milliseconds,
-            cv.Optional(CONF_AXES, default=AXES): _axes,
-            cv.Optional(CONF_HIGH_PASS_FILTER, default=True): cv.boolean,
-            cv.Optional(CONF_INTERRUPT_PIN): pins.gpio_input_pin_schema,
-            cv.Optional(CONF_PIN, default="INT1"): cv.enum(
-                INTERRUPT_PIN_OPTIONS, upper=True
-            ),
-            cv.Optional(CONF_ON_TAP): automation.validate_automation({}),
-            cv.Optional(CONF_ON_DOUBLE_TAP): automation.validate_automation({}),
-        }
-    ),
-    cv.has_at_least_one_key(CONF_ON_TAP, CONF_ON_DOUBLE_TAP),
+TAP_SCHEMA = tap_schema(
+    "0.6g",
+    {
+        cv.Optional(
+            CONF_TIME_LIMIT, default="25ms"
+        ): cv.positive_time_period_milliseconds,
+        cv.Optional(CONF_LATENCY, default="50ms"): cv.positive_time_period_milliseconds,
+        cv.Optional(CONF_WINDOW, default="250ms"): cv.positive_time_period_milliseconds,
+        cv.Optional(CONF_HIGH_PASS_FILTER, default=True): cv.boolean,
+        cv.Optional(CONF_INTERRUPT_PIN): pins.gpio_input_pin_schema,
+        cv.Optional(CONF_PIN, default="INT1"): cv.enum(
+            INTERRUPT_PIN_OPTIONS, upper=True
+        ),
+    },
 )
+
+
+def _tap_hold_ms(time_limit: int, latency: int, window: int, odr_key: str) -> int:
+    """How long to hold a single tap: a second tap can start latency + window in and last time_limit."""
+    return math.ceil((time_limit + latency + window) * 1000 / ODR_HZ[odr_key])
 
 
 def _validate_odr_mode(config: ConfigType) -> ConfigType:
@@ -294,20 +281,6 @@ CONFIG_SCHEMA = cv.All(
 )
 
 
-def _final_validate(config: ConfigType) -> ConfigType:
-    if CONF_TAP not in config and config[CONF_ID].id in CORE.data.get(
-        KEY_TAP_THRESHOLD_IDS, ()
-    ):
-        raise cv.Invalid(
-            "'lis3dh.set_tap_threshold' needs a 'tap' block on this sensor",
-            path=[CONF_ID],
-        )
-    return config
-
-
-FINAL_VALIDATE_SCHEMA = _final_validate
-
-
 async def to_code(config: ConfigType) -> None:
     var = await new_motion_component(config)
     await i2c.register_i2c_device(var, config)
@@ -351,20 +324,20 @@ async def to_code(config: ConfigType) -> None:
             _duration_register(tap[key].total_milliseconds, odr_key)
             for key in (CONF_TIME_LIMIT, CONF_LATENCY, CONF_WINDOW)
         )
+        # Validated only with on_double_tap; unused otherwise
+        latency = min(latency, TIME_LATENCY_MAX_REG)
+        window = min(window, TIME_WINDOW_MAX_REG)
         cg.add(
             var.set_tap(
                 axes_cfg,
                 time_limit,
-                # Validated only with on_double_tap; unused otherwise
-                min(latency, TIME_LATENCY_MAX_REG),
-                min(window, TIME_WINDOW_MAX_REG),
+                latency,
+                window,
                 tap[CONF_HIGH_PASS_FILTER],
-                tap[CONF_LATENCY].total_milliseconds
-                + tap[CONF_WINDOW].total_milliseconds,
+                _tap_hold_ms(time_limit, latency, window, odr_key),
             )
         )
-        cg.add(var.set_tap_threshold(tap[CONF_THRESHOLD]))
         if (pin_config := tap.get(CONF_INTERRUPT_PIN)) is not None:
             pin = await cg.gpio_pin_expression(pin_config)
             cg.add(var.set_tap_interrupt(pin, tap[CONF_PIN]))
-        await automation.build_callback_automations(var, tap, _TAP_CALLBACK_AUTOMATIONS)
+        await setup_tap(var, tap)

@@ -69,6 +69,11 @@ static constexpr uint8_t LIS3DH_CLICK_SRC_IA = 0x40;
 static constexpr uint8_t LIS3DH_TEMP_CFG_ADC_EN = 0x80;
 static constexpr uint8_t LIS3DH_TEMP_CFG_TEMP_EN = 0x40;
 
+#ifdef USE_LIS3DH_TAP
+// Unlatched CLICK_SRC bits stay set for as little as 15 ms, so poll faster than the 16 ms loop
+static constexpr uint32_t LIS3DH_TAP_POLL_INTERVAL_MS = 10;
+#endif
+
 // The temperature sensor is uncalibrated and reports relative changes only,
 // so this fixed reference is just a rough starting point for the °C output.
 static constexpr float LIS3DH_TEMP_REFERENCE_C = 25.0f;
@@ -133,23 +138,21 @@ class LIS3DHComponent : public motion::MotionComponent, public i2c::I2CDevice {
   }
 
 #ifdef USE_LIS3DH_TAP
-  // Times in samples; double_tap_wait_ms (latency + window) holds a single tap back when double taps are enabled.
+  // Times in samples; hold_ms holds a single tap back when double taps are enabled
   void set_tap(uint8_t axes_cfg, uint8_t time_limit, uint8_t latency, uint8_t window, bool high_pass,
-               uint16_t double_tap_wait_ms) {
+               uint32_t hold_ms) {
     this->tap_axes_cfg_ = axes_cfg;
     this->tap_time_limit_ = time_limit;
     this->tap_latency_ = latency;
     this->tap_window_ = window;
     this->tap_high_pass_ = high_pass;
-    this->tap_double_wait_ms_ = double_tap_wait_ms;
+    this->tap_hold_ms_ = hold_ms + LIS3DH_TAP_POLL_INTERVAL_MS;
   }
   void set_tap_interrupt(GPIOPin *pin, LIS3DHInterruptPin pad) {
     this->tap_interrupt_pin_ = pin;
     this->tap_pad_ = pad;
   }
-  void set_tap_threshold(float threshold_g);
-  template<typename F> void add_on_tap_callback(F &&cb) { this->tap_callback_.add(std::forward<F>(cb)); }
-  template<typename F> void add_on_double_tap_callback(F &&cb) { this->double_tap_callback_.add(std::forward<F>(cb)); }
+  void set_tap_threshold(float threshold_g) override;
 #endif
 
   template<typename F> void add_temperature_listener(F &&cb) { this->temperature_callback_.add(std::forward<F>(cb)); }
@@ -162,8 +165,6 @@ class LIS3DHComponent : public motion::MotionComponent, public i2c::I2CDevice {
   bool setup_tap_();
 #ifdef USE_LIS3DH_TAP
   void read_tap_(uint32_t now);
-  void check_pending_tap_(uint32_t now);
-  void resolve_tap_axis_(uint8_t src, uint8_t &axis, bool &negative) const;
 #endif
   bool publish_temperature_();
 
@@ -185,8 +186,6 @@ class LIS3DHComponent : public motion::MotionComponent, public i2c::I2CDevice {
 #ifdef USE_LIS3DH_TAP
   // A zero CLICK_CFG mask means this instance has tap detection off.
   GPIOPin *tap_interrupt_pin_{nullptr};
-  uint32_t tap_pending_since_{0};
-  uint16_t tap_double_wait_ms_{0};
   LIS3DHInterruptPin tap_pad_{LIS3DH_INT_PIN_INT1};
   uint8_t tap_axes_cfg_{0};
   uint8_t tap_threshold_{1};
@@ -194,14 +193,7 @@ class LIS3DHComponent : public motion::MotionComponent, public i2c::I2CDevice {
   uint8_t tap_latency_{0};
   uint8_t tap_window_{0};
   uint8_t last_tap_src_{0};
-  uint8_t tap_pending_axis_{0};
   bool tap_high_pass_{true};
-  // A single tap held until the double-tap window passes
-  bool tap_pending_{false};
-  bool tap_pending_negative_{false};
-  // (axis after axis_map, negative side)
-  LazyCallbackManager<void(uint8_t, bool)> tap_callback_{};
-  LazyCallbackManager<void(uint8_t, bool)> double_tap_callback_{};
 #endif
 };
 
