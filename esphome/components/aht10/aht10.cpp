@@ -65,9 +65,8 @@ void AHT10Component::setup() {
       return;
     }
   }
-  if (!this->setup_comm_result(
-          (data & 0x68) == 0x08,
-          LOG_STR("Initialization failed")))  // Bit[6:5] = 0b00, NORMAL mode and Bit[3] = 0b1, CALIBRATED
+  // Bit[6:5] = 0b00, NORMAL mode and Bit[3] = 0b1, CALIBRATED
+  if (!this->setup_comm_result((data & 0x68) == 0x08, LOG_STR("Initialization failed")))
     return;
 }
 

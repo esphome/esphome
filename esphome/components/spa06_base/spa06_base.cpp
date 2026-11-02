@@ -124,10 +124,10 @@ void SPA06Component::setup() {
 
   // 7. Write measurement settings
   // This function sets background measurement mode without FIFO
-  if (!write_measurement_settings_(this->pressure_sensor_ ? MeasCrtl::MEASCRTL_BG_BOTH : MeasCrtl::MEASCRTL_BG_TEMP)) {
-    this->mark_failed(LOG_STR("Measurement settings write fail"));
+  if (!this->setup_comm_result(
+          write_measurement_settings_(this->pressure_sensor_ ? MeasCrtl::MEASCRTL_BG_BOTH : MeasCrtl::MEASCRTL_BG_TEMP),
+          LOG_STR("Measurement settings write fail")))
     return;
-  }
 }
 
 bool SPA06Component::write_temperature_settings_(Oversampling oversampling, SampleRate rate) {

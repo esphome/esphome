@@ -117,8 +117,8 @@ void BMI270Component::setup() {
 
   // 8. Re-enable advanced power save (optional; keeps current low between reads)
   // Disabled here for simplicity – leave in performance mode
-  if (!this->setup_comm_result(
-          this->write_byte(BMI270_REG_PWR_CONF, BMI270_PWR_CONF_FIFO_SELF_WAKEUP)))  // bit1 = fifo_self_wakeup
+  // bit1 = fifo_self_wakeup
+  if (!this->setup_comm_result(this->write_byte(BMI270_REG_PWR_CONF, BMI270_PWR_CONF_FIFO_SELF_WAKEUP)))
     return;
 
   // 9. Optionally bring up whatever is wired to the aux interface.

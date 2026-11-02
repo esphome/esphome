@@ -25,17 +25,13 @@ void TCS34725Component::setup() {
     this->mark_failed(LOG_STR(ESP_LOG_MSG_COMM_FAIL));
     return;
   }
-  if (this->write_config_register_(TCS34725_REGISTER_ENABLE, 0x01) !=
-      i2c::ERROR_OK) {  // Power on (internal oscillator on)
-    this->mark_failed(LOG_STR(ESP_LOG_MSG_COMM_FAIL));
+  // Power on (internal oscillator on)
+  if (!this->setup_comm_result(this->write_config_register_(TCS34725_REGISTER_ENABLE, 0x01) == i2c::ERROR_OK))
     return;
-  }
   delay(3);
-  if (this->write_config_register_(TCS34725_REGISTER_ENABLE, 0x03) !=
-      i2c::ERROR_OK) {  // Power on (internal oscillator on) + RGBC ADC Enable
-    this->mark_failed(LOG_STR(ESP_LOG_MSG_COMM_FAIL));
+  // Power on (internal oscillator on) + RGBC ADC Enable
+  if (!this->setup_comm_result(this->write_config_register_(TCS34725_REGISTER_ENABLE, 0x03) == i2c::ERROR_OK))
     return;
-  }
 }
 
 void TCS34725Component::dump_config() {

@@ -140,8 +140,10 @@ static const LogString *fault_name(uint8_t reg, uint8_t bit) {
 }
 
 void TAS2780::setup() {
-  if (!this->setup_comm_result(this->init_()))
+  if (!this->init_()) {
+    this->mark_failed();
     return;
+  }
   this->write_mode_ctrl_(TAS2780_MODE_CTRL_MODE_SFTW_SHTDWN);
 }
 

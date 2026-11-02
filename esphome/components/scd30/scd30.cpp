@@ -79,10 +79,9 @@ void SCD30Component::setup() {
   delay(30);
 #endif
 
-  if (!this->write_command(SCD30_CMD_AUTOMATIC_SELF_CALIBRATION, enable_asc_ ? 1 : 0)) {
-    this->mark_failed(LOG_STR("Error setting automatic self calibration"));
+  if (!this->setup_comm_result(this->write_command(SCD30_CMD_AUTOMATIC_SELF_CALIBRATION, enable_asc_ ? 1 : 0),
+                               LOG_STR("Error setting automatic self calibration")))
     return;
-  }
 #ifdef USE_ESP32
   delay(30);
 #endif

@@ -59,10 +59,9 @@ void SCD4XComponent::setup() {
           return;
       }
 
-      if (!this->write_command(SCD4X_CMD_AUTOMATIC_SELF_CALIBRATION, this->enable_asc_ ? 1 : 0)) {
-        this->mark_failed(LOG_STR("Error setting automatic self calibration"));
+      if (!this->setup_comm_result(this->write_command(SCD4X_CMD_AUTOMATIC_SELF_CALIBRATION, this->enable_asc_ ? 1 : 0),
+                                   LOG_STR("Error setting automatic self calibration")))
         return;
-      }
 
       this->initialized_ = true;
       // Finally start sensor measurements
