@@ -1,20 +1,26 @@
 from esphome import pins
 import esphome.codegen as cg
 from esphome.components import uart
+from esphome.components.ld600x import (
+    LD600XComponent,
+    ld600x_hub_schema,
+    request_model_sizes,
+    uart_final_validate,
+)
 import esphome.config_validation as cv
-from esphome.const import CONF_PLATFORM, CONF_WAKEUP_PIN
-import esphome.final_validate as fv
+from esphome.const import CONF_WAKEUP_PIN
 from esphome.types import ConfigType
 
-from .const import CONF_AREA_CONFIG, CONF_AUTO_WAKE, CONF_LD6002B_ID, CONF_WAKEUP_PULSE
+from .const import CONF_AUTO_WAKE, CONF_WAKEUP_PULSE
 
+AUTO_LOAD = ["ld600x"]
 CODEOWNERS = ["@hepter"]
 DEPENDENCIES = ["uart"]
 DOMAIN = "ld6002b"
 MULTI_CONF = True
 
 ld6002b_ns = cg.esphome_ns.namespace("ld6002b")
-LD6002BComponent = ld6002b_ns.class_("LD6002BComponent", cg.Component, uart.UARTDevice)
+LD6002BComponent = ld6002b_ns.class_("LD6002BComponent", LD600XComponent)
 
 
 def _validate_wakeup_options(config: ConfigType) -> ConfigType:
@@ -37,66 +43,26 @@ def _validate_wakeup_options(config: ConfigType) -> ConfigType:
 
 CONFIG_SCHEMA = cv.All(
     _validate_wakeup_options,
-    cv.Schema(
+    ld600x_hub_schema(LD6002BComponent).extend(
         {
-            cv.GenerateID(): cv.declare_id(LD6002BComponent),
             cv.Optional(CONF_WAKEUP_PIN): pins.gpio_output_pin_schema,
             cv.Optional(
                 CONF_WAKEUP_PULSE, default="50ms"
             ): cv.positive_time_period_milliseconds,
             cv.Optional(CONF_AUTO_WAKE, default=True): cv.boolean,
         }
-    )
-    .extend(uart.UART_DEVICE_SCHEMA)
-    .extend(cv.COMPONENT_SCHEMA),
+    ),
 )
 
-FINAL_VALIDATE_SCHEMA = uart.final_validate_device_schema(
-    "ld6002b",
-    baud_rate=115200,
-    require_tx=True,
-    require_rx=True,
-    data_bits=8,
-    parity="NONE",
-    stop_bits=1,
-)
+FINAL_VALIDATE_SCHEMA = uart_final_validate("ld6002b")
 
 
 async def to_code(config: ConfigType) -> None:
     var = await uart.new_uart_component(config)
+    request_model_sizes(var, area_kinds=2)
 
     await cg.add_pin(var.set_wakeup_pin, config.get(CONF_WAKEUP_PIN))
 
     cg.add(var.set_wakeup_pulse_ms(config[CONF_WAKEUP_PULSE].total_milliseconds))
 
     cg.add(var.set_auto_wake(config[CONF_AUTO_WAKE]))
-
-
-def validate_unique_settings(domain: str, config: ConfigType) -> None:
-    """Reject a setting set in two platform blocks of one hub, which keeps one entity per setting."""
-    hub_id = config[CONF_LD6002B_ID]
-    entries = [
-        entry
-        for entry in fv.full_config.get().get(domain, [])
-        if entry.get(CONF_PLATFORM) == DOMAIN and entry.get(CONF_LD6002B_ID) == hub_id
-    ]
-    for key, value in config.items():
-        if key in (CONF_PLATFORM, CONF_LD6002B_ID):
-            continue
-        # area_config groups six settings, so each one is checked on its own
-        for path in (
-            [[key, sub] for sub in value] if key == CONF_AREA_CONFIG else [[key]]
-        ):
-            if sum(_has_path(entry, path) for entry in entries) > 1:
-                raise cv.Invalid(
-                    f"{'.'.join(path)} is already set for this ld6002b in another {domain} block",
-                    path=path,
-                )
-
-
-def _has_path(entry: ConfigType, path: list[str]) -> bool:
-    for key in path:
-        if key not in entry:
-            return False
-        entry = entry[key]
-    return True

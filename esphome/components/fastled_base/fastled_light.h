@@ -215,20 +215,13 @@ class FastLEDLightOutput final : public light::AddressableLight {
   void write_state(light::LightState *state) override;
   float get_setup_priority() const override { return setup_priority::HARDWARE; }
 
-  void clear_effect_data() override {
-    for (int i = 0; i < this->size(); i++)
-      this->effect_data_[i] = 0;
-  }
+  void clear_effect_data() override { this->internal_accessor_.clear_effect_data(this->size()); }
 
  protected:
-  light::ESPColorView get_view_internal(int32_t index) const override {
-    return {&this->leds_[index].r,      &this->leds_[index].g, &this->leds_[index].b, nullptr,
-            &this->effect_data_[index], &this->correction_};
-  }
-
+  light::CorrectedBufferColorAccessor internal_accessor_{
+      nullptr, nullptr, {offsetof(CRGB, r), offsetof(CRGB, g), offsetof(CRGB, b)}, &this->correction_};
   CLEDController *controller_{nullptr};
   CRGB *leds_{nullptr};
-  uint8_t *effect_data_{nullptr};
   int num_leds_{0};
   uint32_t last_refresh_{0};
   optional<uint32_t> max_refresh_rate_{};

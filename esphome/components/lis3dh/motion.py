@@ -3,7 +3,11 @@ import math
 
 import esphome.codegen as cg
 from esphome.components import i2c
-from esphome.components.const import CONF_ACCELEROMETER_ODR, CONF_ACCELEROMETER_RANGE
+from esphome.components.const import (
+    CONF_ACCELEROMETER_ODR,
+    CONF_ACCELEROMETER_RANGE,
+    CONF_ACTIVE_HIGH,
+)
 from esphome.components.motion import AXES, motion_schema, new_motion_component
 import esphome.config_validation as cv
 from esphome.const import CONF_DURATION, CONF_INTERRUPT, CONF_PIN, CONF_THRESHOLD
@@ -16,7 +20,6 @@ _LOGGER = logging.getLogger(__name__)
 CONF_OPERATING_MODE = "operating_mode"
 CONF_AXES = "axes"
 CONF_LATCHED = "latched"
-CONF_ACTIVE_HIGH = "active_high"
 CONF_HIGH_PASS_FILTER = "high_pass_filter"
 
 # Enum values must match the C++ enums.

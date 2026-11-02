@@ -13,8 +13,6 @@ CST816Touchscreen = cst816_ns.class_(
     i2c.I2CDevice,
 )
 
-CST816ButtonListener = cst816_ns.class_("CST816ButtonListener")
-
 CONF_SKIP_PROBE = "skip_probe"
 CONFIG_SCHEMA = touchscreen.TOUCHSCREEN_SCHEMA.extend(
     {

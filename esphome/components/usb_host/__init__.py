@@ -1,5 +1,6 @@
 import itertools
 import logging
+from typing import NamedTuple
 
 import esphome.codegen as cg
 from esphome.components.const import CONF_MANUFACTURER, CONF_MAX_PACKET_SIZE
@@ -125,22 +126,54 @@ def _final_validate(config: ConfigType) -> ConfigType:
 FINAL_VALIDATE_SCHEMA = _final_validate
 
 
-# S2/S3 full-speed controller: 200 usable 4-byte FIFO lines (EPINFO takes the rest of 256) shared by RX,
-# non-periodic TX and periodic TX
-FIFO_VARIANTS = (VARIANT_ESP32S2, VARIANT_ESP32S3)
-FIFO_LINES = 200
+class FifoGeometry(NamedTuple):
+    """FIFO lines of the USB host controller usb_host_install() picks on a variant."""
+
+    # Nominal depth ESP-IDF scales its splits by, picked from the PHY type: 256 on full-speed, 1024 on high-speed
+    depth: int
+    # GHWCFG3 depth: the lines left for RX, NPTX and PTX once EPINFO takes 4 per endpoint direction
+    usable: int
+    # Largest bulk OUT packet at the controller's speed; ESP-IDF rejects bulk endpoints larger than NPTX
+    bulk_mps: int
+
+    @property
+    def nptx(self) -> int:
+        """NPTX lines of a custom split: one bulk packet."""
+        return self.bulk_mps // FIFO_LINE_BYTES
+
+    @property
+    def ptx_min(self) -> int:
+        return self.depth // 8
+
+    @property
+    def rx_min(self) -> int:
+        return self.depth // 8 + FIFO_RX_STATUS_LINES
+
+    def bias_split(self, bias: str | None) -> tuple[int, int, int]:
+        """(RX, NPTX, PTX) lines ESP-IDF picks for a CONFIG_USB_HOST_HW_BUFFER_BIAS_* option."""
+        nptx = self.depth // 16
+        if bias == "CONFIG_USB_HOST_HW_BUFFER_BIAS_IN":
+            return self.usable - nptx - self.ptx_min, nptx, self.ptx_min
+        if bias == "CONFIG_USB_HOST_HW_BUFFER_BIAS_PERIODIC_OUT":
+            return self.rx_min, nptx, self.usable - nptx - self.rx_min
+        nptx = self.depth // 4
+        return self.usable - nptx - self.ptx_min, nptx, self.ptx_min
+
+
 FIFO_LINE_BYTES = 4
 FIFO_RX_STATUS_LINES = 2
-# (RX, NPTX, PTX) lines ESP-IDF picks for each CONFIG_USB_HOST_HW_BUFFER_BIAS_* option
-FIFO_BIAS_SPLITS = {
-    "CONFIG_USB_HOST_HW_BUFFER_BIAS_IN": (152, 16, 32),
-    "CONFIG_USB_HOST_HW_BUFFER_BIAS_PERIODIC_OUT": (34, 16, 150),
+FIFO_BIAS_OPTIONS = (
+    "CONFIG_USB_HOST_HW_BUFFER_BIAS_IN",
+    "CONFIG_USB_HOST_HW_BUFFER_BIAS_PERIODIC_OUT",
+)
+# usb_host_install() takes the high-speed controller on the P4 and the only one elsewhere
+FIFO_GEOMETRY = {
+    # Full-speed: 256 lines, 7 endpoints
+    VARIANT_ESP32S2: FifoGeometry(depth=256, usable=200, bulk_mps=64),
+    VARIANT_ESP32S3: FifoGeometry(depth=256, usable=200, bulk_mps=64),
+    # High-speed: 1024 lines, 16 endpoints
+    VARIANT_ESP32P4: FifoGeometry(depth=1024, usable=896, bulk_mps=512),
 }
-FIFO_BALANCED_SPLIT = (104, 64, 32)
-# Custom split: 64-byte control/bulk, at least 128 bytes each way
-FIFO_NPTX_LINES = 16
-FIFO_PTX_MIN_LINES = 32
-FIFO_RX_MIN_LINES = 32 + FIFO_RX_STATUS_LINES
 # usb_host_config_t::fifo_settings_custom; USB host is not reliable on older releases
 FIFO_CUSTOM_MIN_IDF = cv.Version(5, 5, 0)
 KEY_PERIODIC_FIFO = "periodic_fifo"
@@ -160,19 +193,21 @@ def _fifo_lines(size: int) -> int:
 def _bias_option() -> str | None:
     framework = fv.full_config.get().get("esp32", {}).get(CONF_FRAMEWORK, {})
     options = framework.get("sdkconfig_options", {})
-    return next((o for o in FIFO_BIAS_SPLITS if options.get(o) in ("y", True)), None)
+    return next((o for o in FIFO_BIAS_OPTIONS if options.get(o) in ("y", True)), None)
 
 
 def fifo_split() -> tuple[int, int, int] | None:
     """(RX, NPTX, PTX) lines for the requests, or None when the default split fits them."""
     requested = CORE.data.get(DOMAIN, {}).get(KEY_PERIODIC_FIFO)
-    if requested is None or get_esp32_variant() not in FIFO_VARIANTS:
+    if requested is None:
+        return None
+    if (geometry := FIFO_GEOMETRY.get(get_esp32_variant())) is None:
         return None
     in_bytes, out_bytes = requested
     rx = _fifo_lines(in_bytes) + FIFO_RX_STATUS_LINES
     ptx = _fifo_lines(out_bytes)
     bias = _bias_option()
-    default_rx, _, default_ptx = FIFO_BIAS_SPLITS[bias] if bias else FIFO_BALANCED_SPLIT
+    default_rx, _, default_ptx = geometry.bias_split(bias)
     if rx <= default_rx and ptx <= default_ptx:
         return None
     if bias:
@@ -180,13 +215,13 @@ def fifo_split() -> tuple[int, int, int] | None:
             f"The requested USB packets don't fit the FIFO split {bias} selects; remove it from "
             "sdkconfig_options so usb_host can size the FIFO"
         )
-    rx = max(FIFO_RX_MIN_LINES, rx)
-    ptx = max(FIFO_PTX_MIN_LINES, ptx)
-    spare = FIFO_LINES - FIFO_NPTX_LINES - rx - ptx
+    rx = max(geometry.rx_min, rx)
+    ptx = max(geometry.ptx_min, ptx)
+    spare = geometry.usable - geometry.nptx - rx - ptx
     if spare < 0:
         raise cv.Invalid(
-            f"The requested USB packets need {(rx + ptx + FIFO_NPTX_LINES) * FIFO_LINE_BYTES} bytes of USB FIFO, "
-            f"but the {get_esp32_variant()} has {FIFO_LINES * FIFO_LINE_BYTES} usable"
+            f"The requested USB packets need {(rx + ptx + geometry.nptx) * FIFO_LINE_BYTES} bytes of USB FIFO, "
+            f"but the {get_esp32_variant()} has {geometry.usable * FIFO_LINE_BYTES} usable"
         )
     # Devices may declare a larger max packet size, so the requested directions share the rest
     if in_bytes and out_bytes:
@@ -196,7 +231,7 @@ def fifo_split() -> tuple[int, int, int] | None:
         ptx += spare
     else:
         rx += spare
-    return rx, FIFO_NPTX_LINES, ptx
+    return rx, geometry.nptx, ptx
 
 
 def _reconcile_fifo() -> None:

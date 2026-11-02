@@ -130,9 +130,8 @@ bool BQ76972Component::write_subcommand_(uint16_t subcommand, const uint8_t *dat
     return false;
 
   // Inverted 8-bit sum of 0x3E, 0x3F and the data; length counts 0x3E, 0x3F, 0x60, 0x61 and the data
-  uint8_t sum = static_cast<uint8_t>(subcommand & 0xFF) + static_cast<uint8_t>(subcommand >> 8);
-  for (size_t i = 0; i < len; ++i)
-    sum += data[i];
+  const uint8_t sum =
+      sum_bytes(data, len, static_cast<uint8_t>(subcommand & 0xFF) + static_cast<uint8_t>(subcommand >> 8));
   const uint8_t tail[2] = {static_cast<uint8_t>(~sum), static_cast<uint8_t>(4 + len)};
   return this->write_block_(BQ76972_REG_CHECKSUM, tail, 2);
 }

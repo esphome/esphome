@@ -135,7 +135,7 @@ async def to_code(config: ConfigType) -> None:
 
     cg.add(var.set_wifi_timeout(config[CONF_WIFI_TIMEOUT]))
 
-    await cg.add_variable(var.set_authorizer, config.get(CONF_AUTHORIZER))
+    await cg.add_variable(var.set_authorizer_binary_sensor, config.get(CONF_AUTHORIZER))
     await cg.add_variable(var.set_status_indicator, config.get(CONF_STATUS_INDICATOR))
 
     if any(config.get(entry.conf_key) for entry in _CALLBACK_AUTOMATIONS):

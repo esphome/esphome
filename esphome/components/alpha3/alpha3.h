@@ -32,26 +32,21 @@ static const int16_t GENI_RESPONSE_MOTOR_POWER_OFFSET = 16;  // not sure
 static const int16_t GENI_RESPONSE_MOTOR_SPEED_OFFSET = 20;
 
 class Alpha3 final : public esphome::ble_client::BLEClientNode, public PollingComponent {
+  SUB_SENSOR(flow)
+  SUB_SENSOR(head)
+  SUB_SENSOR(power)
+  SUB_SENSOR(current)
+  SUB_SENSOR(speed)
+  SUB_SENSOR(voltage)
+
  public:
   void setup() override;
   void update() override;
   void gattc_event_handler(esp_gattc_cb_event_t event, esp_gatt_if_t gattc_if,
                            esp_ble_gattc_cb_param_t *param) override;
   void dump_config() override;
-  void set_flow_sensor(sensor::Sensor *sensor) { this->flow_sensor_ = sensor; }
-  void set_head_sensor(sensor::Sensor *sensor) { this->head_sensor_ = sensor; }
-  void set_power_sensor(sensor::Sensor *sensor) { this->power_sensor_ = sensor; }
-  void set_current_sensor(sensor::Sensor *sensor) { this->current_sensor_ = sensor; }
-  void set_speed_sensor(sensor::Sensor *sensor) { this->speed_sensor_ = sensor; }
-  void set_voltage_sensor(sensor::Sensor *sensor) { this->voltage_sensor_ = sensor; }
 
  protected:
-  sensor::Sensor *flow_sensor_{nullptr};
-  sensor::Sensor *head_sensor_{nullptr};
-  sensor::Sensor *power_sensor_{nullptr};
-  sensor::Sensor *current_sensor_{nullptr};
-  sensor::Sensor *speed_sensor_{nullptr};
-  sensor::Sensor *voltage_sensor_{nullptr};
   uint16_t geni_handle_;
   int16_t response_length_;
   int16_t response_offset_;

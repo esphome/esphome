@@ -515,3 +515,22 @@ alarm_control_panel:
     name: Alarm Control Panel
     binary_sensors:
       - input: some_binary_sensor
+
+script:
+  - id: publish_json_by_value
+    parameters:
+      x: int
+    then:
+      # The user lambdas may modify their by-value argument
+      - mqtt.publish_json:
+          topic: !lambda "x *= 2; return to_string(x);"
+          payload: |-
+            x *= 2;
+            root["x"] = x;
+          qos: !lambda "x *= 0; return x;"
+          retain: !lambda "x *= 2; return x > 0;"
+      - mqtt.publish_json:
+          topic: !lambda "return to_string(x *= 2);"
+          payload: root["x"] = x *= 2;
+          qos: !lambda "return x *= 0;"
+          retain: !lambda "return (x *= 2) > 0;"

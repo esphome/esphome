@@ -60,9 +60,12 @@ void MAX9611Component::update() {
     ESP_LOGW(TAG, "Update failed");
     return;
   }
-  uint16_t csa_register = ((register_map_[CSA_DATA_BYTE_MSB_ADRR] << 8) | (register_map_[CSA_DATA_BYTE_LSB_ADRR])) >> 4;
-  uint16_t rs_register = ((register_map_[RS_DATA_BYTE_MSB_ADRR] << 8) | (register_map_[RS_DATA_BYTE_LSB_ADRR])) >> 4;
-  uint16_t t_register = ((register_map_[TEMP_DATA_BYTE_MSB_ADRR] << 8) | (register_map_[TEMP_DATA_BYTE_LSB_ADRR])) >> 7;
+  uint16_t csa_register =
+      encode_uint16(this->register_map_[CSA_DATA_BYTE_MSB_ADRR], this->register_map_[CSA_DATA_BYTE_LSB_ADRR]) >> 4;
+  uint16_t rs_register =
+      encode_uint16(this->register_map_[RS_DATA_BYTE_MSB_ADRR], this->register_map_[RS_DATA_BYTE_LSB_ADRR]) >> 4;
+  uint16_t t_register =
+      encode_uint16(this->register_map_[TEMP_DATA_BYTE_MSB_ADRR], this->register_map_[TEMP_DATA_BYTE_LSB_ADRR]) >> 7;
   float voltage = rs_register * VOUT_LSB;
   float shunt_voltage = (csa_register * gain_to_lsb(gain_)) / MICRO_VOLTS_PER_VOLT;
   float temp = sign_extend<9>(t_register) * TEMP_LSB;

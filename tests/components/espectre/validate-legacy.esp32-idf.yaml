@@ -1,0 +1,10 @@
+wifi:
+  ssid: MySSID
+  password: password1
+
+espectre:
+
+# The select configured directly on the platform, before the detection algorithm select existed.
+select:
+  - platform: espectre
+    name: CSI Traffic Source

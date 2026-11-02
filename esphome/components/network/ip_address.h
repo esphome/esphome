@@ -54,7 +54,6 @@ using ip4_addr_t = in_addr;
 #ifdef USE_ZEPHYR
 #include <zephyr/net/net_ip.h>
 #include <zephyr/net/socket.h>
-#include <zephyr/posix/arpa/inet.h>
 #ifndef CONFIG_NET_IPV6
 #error "Zephyr builds need CONFIG_NET_IPV6"
 #endif
@@ -64,12 +63,12 @@ static inline int ipaddr_aton(const char *cp, ip_addr_t *addr) {
   // Dual-stack: a plain IPv4 literal must still parse -- store it as a v4-mapped
   // IPv6 address (::ffff:a.b.c.d), matching the 4-octet constructor below.
   struct in_addr addr4;
-  if (inet_pton(AF_INET, cp, &addr4) == 1) {
+  if (net_addr_pton(AF_INET, cp, &addr4) == 0) {
     net_ipv6_addr_create_v4_mapped(&addr4, addr);
     return 1;
   }
 #endif /* CONFIG_NET_IPV4 */
-  return inet_pton(AF_INET6, cp, addr) == 1 ? 1 : 0;
+  return net_addr_pton(AF_INET6, cp, addr) == 0 ? 1 : 0;
 }
 #endif /* USE_ZEPHYR */
 
@@ -90,7 +89,7 @@ namespace esphome::network {
 /// Buffer size for IP address string (IPv6 max: 39 chars + null)
 static constexpr size_t IP_ADDRESS_BUFFER_SIZE =
 #if defined(USE_ZEPHYR)
-    // Mainline Zephyr's inet_ntop() (net_addr_ntop() in subsys/net/ip/utils.c) never checks
+    // Mainline Zephyr's net_addr_ntop() (subsys/net/ip/utils.c) never checks
     // its size argument, so an undersized buffer overflows instead of failing cleanly. Size
     // for the worst case: an IPv4-mapped IPv6 address needs up to INET6_ADDRSTRLEN (46).
     46;
@@ -155,12 +154,12 @@ struct IPAddress {
     if (this->is_ip4()) {
       struct in_addr addr4{};
       addr4.s_addr = ip_addr_.s6_addr32[3];
-      if (inet_ntop(AF_INET, &addr4, buf, IP_ADDRESS_BUFFER_SIZE) == nullptr)
+      if (net_addr_ntop(AF_INET, &addr4, buf, IP_ADDRESS_BUFFER_SIZE) == nullptr)
         buf[0] = '\0';
       return buf;
     }
 #endif /* CONFIG_NET_IPV4 */
-    if (inet_ntop(AF_INET6, &ip_addr_, buf, IP_ADDRESS_BUFFER_SIZE) == nullptr)
+    if (net_addr_ntop(AF_INET6, &ip_addr_, buf, IP_ADDRESS_BUFFER_SIZE) == nullptr)
       buf[0] = '\0';
     return buf;
   }

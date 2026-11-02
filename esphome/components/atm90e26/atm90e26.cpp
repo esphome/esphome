@@ -1,6 +1,7 @@
 #include "atm90e26.h"
 #include "atm90e26_reg.h"
 #include "esphome/core/log.h"
+#include "esphome/core/helpers.h"
 
 namespace esphome::atm90e26 {
 
@@ -138,7 +139,7 @@ uint16_t ATM90E26Component::read16_(uint8_t a_register) {
   this->read_array(data, 2);
   this->disable();
 
-  output = (uint16_t(data[0] & 0xFF) << 8) | (data[1] & 0xFF);
+  output = encode_uint16(data[0], data[1]);
   ESP_LOGVV(TAG, "read16_ 0x%04X output 0x%04X", a_register, output);
   return output;
 }

@@ -50,12 +50,7 @@ class PDPioneerData {
   const uint8_t &operator[](size_t idx) const { return this->data_[idx]; }
 
  protected:
-  uint8_t checksum_() const {
-    uint8_t cs = this->is_odd_burst() ? 15 : 0;
-    for (uint8_t idx = 0; idx < OFFSET_CS; idx++)
-      cs += this->data_[idx];
-    return cs;
-  }
+  uint8_t checksum_() const { return sum_bytes(this->data_.data(), OFFSET_CS, this->is_odd_burst() ? 15 : 0); }
 
   std::array<uint8_t, FRAME_SIZE> data_{};
 };

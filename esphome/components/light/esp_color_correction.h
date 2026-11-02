@@ -39,41 +39,49 @@ class ESPColorCorrection {
   uint8_t get_power_brightness() const { return this->power_brightness_; }
 #endif
   void set_gamma_table(const uint16_t *table) { this->gamma_table_ = table; }
+
   inline Color color_correct(Color color) const ESPHOME_ALWAYS_INLINE {
     // corrected = (uncorrected * max_brightness * local_brightness) ^ gamma
     return Color(this->color_correct_red(color.red), this->color_correct_green(color.green),
                  this->color_correct_blue(color.blue), this->color_correct_white(color.white));
   }
   inline uint8_t color_correct_red(uint8_t red) const ESPHOME_ALWAYS_INLINE {
-    return this->color_correct_channel_(red, this->max_brightness_.red);
+    return this->color_correct_channel(COLOR_CHANNEL_R, red);
   }
   inline uint8_t color_correct_green(uint8_t green) const ESPHOME_ALWAYS_INLINE {
-    return this->color_correct_channel_(green, this->max_brightness_.green);
+    return this->color_correct_channel(COLOR_CHANNEL_G, green);
   }
   inline uint8_t color_correct_blue(uint8_t blue) const ESPHOME_ALWAYS_INLINE {
-    return this->color_correct_channel_(blue, this->max_brightness_.blue);
+    return this->color_correct_channel(COLOR_CHANNEL_B, blue);
   }
   inline uint8_t color_correct_white(uint8_t white) const ESPHOME_ALWAYS_INLINE {
-    return this->color_correct_channel_(white, this->max_brightness_.white);
+    return this->color_correct_channel(COLOR_CHANNEL_W, white);
   }
-  Color color_uncorrect(Color color) const;
-  inline uint8_t color_uncorrect_red(uint8_t red) const ESPHOME_ALWAYS_INLINE {
-    return this->color_uncorrect_channel_(red, this->max_brightness_.red);
-  }
-  inline uint8_t color_uncorrect_green(uint8_t green) const ESPHOME_ALWAYS_INLINE {
-    return this->color_uncorrect_channel_(green, this->max_brightness_.green);
-  }
-  inline uint8_t color_uncorrect_blue(uint8_t blue) const ESPHOME_ALWAYS_INLINE {
-    return this->color_uncorrect_channel_(blue, this->max_brightness_.blue);
-  }
-  inline uint8_t color_uncorrect_white(uint8_t white) const ESPHOME_ALWAYS_INLINE {
-    return this->color_uncorrect_channel_(white, this->max_brightness_.white);
+  inline uint8_t color_correct_channel(uint8_t channel, uint8_t value) const ESPHOME_ALWAYS_INLINE {
+    return this->limit_(
+        this->gamma_correct_(esp_scale8_twice(value, this->max_brightness_[channel], this->local_brightness_)));
   }
 
- protected:
-  inline uint8_t color_correct_channel_(uint8_t value, uint8_t max_brightness) const ESPHOME_ALWAYS_INLINE {
-    return this->limit_(this->gamma_correct_(esp_scale8_twice(value, max_brightness, this->local_brightness_)));
+  inline Color color_uncorrect(Color raw_color) const {
+    // uncorrected = corrected^(1/gamma) / (max_brightness * local_brightness)
+    return Color(this->color_uncorrect_red(raw_color.red), this->color_uncorrect_green(raw_color.green),
+                 this->color_uncorrect_blue(raw_color.blue), this->color_uncorrect_white(raw_color.white));
   }
+  inline uint8_t color_uncorrect_red(uint8_t raw_red) const ESPHOME_ALWAYS_INLINE {
+    return this->color_uncorrect_channel(COLOR_CHANNEL_R, raw_red);
+  }
+  inline uint8_t color_uncorrect_green(uint8_t raw_green) const ESPHOME_ALWAYS_INLINE {
+    return this->color_uncorrect_channel(COLOR_CHANNEL_G, raw_green);
+  }
+  inline uint8_t color_uncorrect_blue(uint8_t raw_blue) const ESPHOME_ALWAYS_INLINE {
+    return this->color_uncorrect_channel(COLOR_CHANNEL_B, raw_blue);
+  }
+  inline uint8_t color_uncorrect_white(uint8_t raw_white) const ESPHOME_ALWAYS_INLINE {
+    return this->color_uncorrect_channel(COLOR_CHANNEL_W, raw_white);
+  }
+  uint8_t color_uncorrect_channel(uint8_t channel, uint8_t raw_value) const;
+
+ protected:
   // The limit on a gamma-corrected level; rounded up, so a lit channel stays lit
   inline uint8_t limit_(uint8_t res) const ESPHOME_ALWAYS_INLINE {
 #ifdef USE_LIGHT_POWER_ESTIMATION
@@ -88,9 +96,6 @@ class ESPColorCorrection {
   uint8_t uncorrect_level_(uint8_t value) const;
   /// Reverse gamma: binary search the forward PROGMEM table
   uint8_t gamma_uncorrect_(uint8_t value) const;
-  /// Shared body of color_uncorrect_{red,green,blue,white}. Kept out-of-line
-  /// to avoid duplicating two 16-bit divides at every call site.
-  uint8_t color_uncorrect_channel_(uint8_t value, uint8_t max_brightness) const;
 
   const uint16_t *gamma_table_{nullptr};
   Color max_brightness_{255, 255, 255, 255};

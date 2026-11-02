@@ -12,6 +12,7 @@ namespace esphome::light::testing {
 namespace {
 
 constexpr ChannelColors GRB{1, 0, 2, ChannelColors::NO_WHITE};
+constexpr ChannelColors GRBX{1, 0, 2, ChannelColors::RESERVED_WHITE};
 constexpr ChannelColors GRBW{1, 0, 2, 3};
 
 // Exposes the protected strip helpers
@@ -22,14 +23,28 @@ class HelperStrip : public AddressableLight {
   LightTraits get_traits() override { return {}; }
   void write_state(LightState *state) override {}
   using AddressableLight::throttle_show_;
-
- protected:
-  ESPColorView get_view_internal(int32_t index) const override {
-    return GRB.view(nullptr, nullptr, index, &this->correction_);
-  }
 };
 
 }  // namespace
+
+TEST(LedStripHelpers, HasWhite) {
+  EXPECT_FALSE(GRB.has_white());
+  EXPECT_FALSE(GRBX.has_white());
+  EXPECT_TRUE(GRBW.has_white());
+}
+
+TEST(LedStripHelpers, BytesPerLed) {
+  EXPECT_EQ(3, GRB.bytes_per_led());
+  EXPECT_EQ(4, GRBX.bytes_per_led());
+  EXPECT_EQ(4, GRBW.bytes_per_led());
+}
+
+TEST(LedStripHelpers, ToString) {
+  char buf[5];
+  EXPECT_STREQ("GRB", GRB.to_string(buf));
+  EXPECT_STREQ("GRBX", GRBX.to_string(buf));
+  EXPECT_STREQ("GRBW", GRBW.to_string(buf));
+}
 
 TEST(LedStripHelpers, TraitsFollowTheWhiteChannel) {
   const auto rgb = GRB.traits().get_supported_color_modes();
@@ -41,36 +56,67 @@ TEST(LedStripHelpers, TraitsFollowTheWhiteChannel) {
   EXPECT_EQ(rgbw.size(), 2u);
 }
 
-TEST(LedStripHelpers, ViewWritesTheChannelOrder) {
-  ESPColorCorrection correction;
-  std::array<uint8_t, 8> buf{};
-  std::array<uint8_t, 2> effect{};
-  GRBW.view(buf.data(), effect.data(), 1, &correction) = Color(10, 20, 30, 40);
-  GRBW.view(buf.data(), effect.data(), 1, &correction).set_effect_data(7);
-  EXPECT_EQ(buf, (std::array<uint8_t, 8>{0, 0, 0, 0, 20, 10, 30, 40}));
-  EXPECT_EQ(effect[1], 7);
-
-  std::array<uint8_t, 6> rgb_buf{};
-  auto view = GRB.view(rgb_buf.data(), effect.data(), 1, &correction);
-  view = Color(10, 20, 30, 40);
-  EXPECT_EQ(rgb_buf, (std::array<uint8_t, 6>{0, 0, 0, 20, 10, 30}));
-  EXPECT_EQ(view.get_white_raw(), 0);
+TEST(LedStripHelpers, GetSetRGBColors) {
+  std::array<uint8_t, 9> buf{};
+  GRB.set(buf.data(), 1, Color(10, 20, 30, 40));
+  EXPECT_EQ(buf, (std::array<uint8_t, 9>{0, 0, 0, 20, 10, 30, 0, 0, 0}));
+  EXPECT_EQ(Color(10, 20, 30, 0).raw_32, GRB.get(buf.data(), 1).raw_32);
+  EXPECT_EQ(GRB.get_channel(buf.data(), 1, COLOR_CHANNEL_R), 10);
+  EXPECT_EQ(GRB.get_channel(buf.data(), 1, COLOR_CHANNEL_G), 20);
+  EXPECT_EQ(GRB.get_channel(buf.data(), 1, COLOR_CHANNEL_B), 30);
+  EXPECT_EQ(GRB.get_channel(buf.data(), 1, COLOR_CHANNEL_W), 0);
+  GRB.set_channel(buf.data(), 1, COLOR_CHANNEL_R, 11);
+  GRB.set_channel(buf.data(), 1, COLOR_CHANNEL_G, 21);
+  GRB.set_channel(buf.data(), 1, COLOR_CHANNEL_B, 31);
+  GRB.set_channel(buf.data(), 1, COLOR_CHANNEL_W, 41);
+  EXPECT_EQ(Color(11, 21, 31, 0).raw_32, GRB.get(buf.data(), 1).raw_32);
+  EXPECT_EQ(GRB.get_channel(buf.data(), 1, COLOR_CHANNEL_R), 11);
+  EXPECT_EQ(GRB.get_channel(buf.data(), 1, COLOR_CHANNEL_G), 21);
+  EXPECT_EQ(GRB.get_channel(buf.data(), 1, COLOR_CHANNEL_B), 31);
+  EXPECT_EQ(GRB.get_channel(buf.data(), 1, COLOR_CHANNEL_W), 0);
+  EXPECT_EQ(buf, (std::array<uint8_t, 9>{0, 0, 0, 21, 11, 31, 0, 0, 0}));
 }
 
-TEST(LedStripHelpers, ViewFallsBackToScratchBeforeSetup) {
-  ESPColorCorrection correction;
-  std::array<uint8_t, 4> buf{};
-  // Any index is safe without a buffer, as is a buffer without effect data
-  GRBW.view(nullptr, nullptr, 1000, &correction) = Color(1, 2, 3, 4);
-  auto scratch = GRBW.view(nullptr, nullptr, 1000, &correction);
-  scratch.set_effect_data(5);
-  EXPECT_EQ(scratch.get_effect_data(), 0);
-  GRBW.view(buf.data(), nullptr, 0, &correction) = Color(1, 2, 3, 4);
-  EXPECT_EQ(buf, (std::array<uint8_t, 4>{}));
-  // Effect data without a buffer is left alone too
-  std::array<uint8_t, 4> effect{};
-  GRBW.view(nullptr, effect.data(), 3, &correction).set_effect_data(5);
-  EXPECT_EQ(effect, (std::array<uint8_t, 4>{}));
+TEST(LedStripHelpers, GetSetRGBXColors) {
+  std::array<uint8_t, 12> buf{};
+  GRBX.set(buf.data(), 1, Color(10, 20, 30, 40));
+  EXPECT_EQ(buf, (std::array<uint8_t, 12>{0, 0, 0, 0, 20, 10, 30, 0, 0, 0, 0, 0}));
+  EXPECT_EQ(Color(10, 20, 30, 0).raw_32, GRBX.get(buf.data(), 1).raw_32);
+  EXPECT_EQ(GRBX.get_channel(buf.data(), 1, COLOR_CHANNEL_R), 10);
+  EXPECT_EQ(GRBX.get_channel(buf.data(), 1, COLOR_CHANNEL_G), 20);
+  EXPECT_EQ(GRBX.get_channel(buf.data(), 1, COLOR_CHANNEL_B), 30);
+  EXPECT_EQ(GRBX.get_channel(buf.data(), 1, COLOR_CHANNEL_W), 0);
+  GRBX.set_channel(buf.data(), 1, COLOR_CHANNEL_R, 11);
+  GRBX.set_channel(buf.data(), 1, COLOR_CHANNEL_G, 21);
+  GRBX.set_channel(buf.data(), 1, COLOR_CHANNEL_B, 31);
+  GRBX.set_channel(buf.data(), 1, COLOR_CHANNEL_W, 41);
+  EXPECT_EQ(Color(11, 21, 31, 0).raw_32, GRBX.get(buf.data(), 1).raw_32);
+  EXPECT_EQ(GRBX.get_channel(buf.data(), 1, COLOR_CHANNEL_R), 11);
+  EXPECT_EQ(GRBX.get_channel(buf.data(), 1, COLOR_CHANNEL_G), 21);
+  EXPECT_EQ(GRBX.get_channel(buf.data(), 1, COLOR_CHANNEL_B), 31);
+  EXPECT_EQ(GRBX.get_channel(buf.data(), 1, COLOR_CHANNEL_W), 0);
+  EXPECT_EQ(buf, (std::array<uint8_t, 12>{0, 0, 0, 0, 21, 11, 31, 0, 0, 0, 0, 0}));
+}
+
+TEST(LedStripHelpers, GetSetRGBWColors) {
+  std::array<uint8_t, 12> buf{};
+  GRBW.set(buf.data(), 1, Color(10, 20, 30, 40));
+  EXPECT_EQ(buf, (std::array<uint8_t, 12>{0, 0, 0, 0, 20, 10, 30, 40, 0, 0, 0, 0}));
+  EXPECT_EQ(Color(10, 20, 30, 40).raw_32, GRBW.get(buf.data(), 1).raw_32);
+  EXPECT_EQ(GRBW.get_channel(buf.data(), 1, COLOR_CHANNEL_R), 10);
+  EXPECT_EQ(GRBW.get_channel(buf.data(), 1, COLOR_CHANNEL_G), 20);
+  EXPECT_EQ(GRBW.get_channel(buf.data(), 1, COLOR_CHANNEL_B), 30);
+  EXPECT_EQ(GRBW.get_channel(buf.data(), 1, COLOR_CHANNEL_W), 40);
+  GRBW.set_channel(buf.data(), 1, COLOR_CHANNEL_R, 11);
+  GRBW.set_channel(buf.data(), 1, COLOR_CHANNEL_G, 21);
+  GRBW.set_channel(buf.data(), 1, COLOR_CHANNEL_B, 31);
+  GRBW.set_channel(buf.data(), 1, COLOR_CHANNEL_W, 41);
+  EXPECT_EQ(Color(11, 21, 31, 41).raw_32, GRBW.get(buf.data(), 1).raw_32);
+  EXPECT_EQ(GRBW.get_channel(buf.data(), 1, COLOR_CHANNEL_R), 11);
+  EXPECT_EQ(GRBW.get_channel(buf.data(), 1, COLOR_CHANNEL_G), 21);
+  EXPECT_EQ(GRBW.get_channel(buf.data(), 1, COLOR_CHANNEL_B), 31);
+  EXPECT_EQ(GRBW.get_channel(buf.data(), 1, COLOR_CHANNEL_W), 41);
+  EXPECT_EQ(buf, (std::array<uint8_t, 12>{0, 0, 0, 0, 21, 11, 31, 41, 0, 0, 0, 0}));
 }
 
 TEST(LedStripHelpers, ThrottleShowHoldsTheFrame) {

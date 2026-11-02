@@ -55,12 +55,28 @@ enum VerticalVaneMode : uint8_t {
   VERTICAL_VANE_MODE_UNKNOWN = static_cast<uint8_t>(MitsubishiCN105::VaneMode::UNKNOWN),
 };
 
+enum HorizontalVaneMode : uint8_t {
+  HORIZONTAL_VANE_MODE_POSITION_1 = static_cast<uint8_t>(MitsubishiCN105::WideVaneMode::POSITION_1),  // far left
+  HORIZONTAL_VANE_MODE_POSITION_2 = static_cast<uint8_t>(MitsubishiCN105::WideVaneMode::POSITION_2),  // left
+  HORIZONTAL_VANE_MODE_POSITION_3 = static_cast<uint8_t>(MitsubishiCN105::WideVaneMode::POSITION_3),  // center
+  HORIZONTAL_VANE_MODE_POSITION_4 = static_cast<uint8_t>(MitsubishiCN105::WideVaneMode::POSITION_4),  // right
+  HORIZONTAL_VANE_MODE_POSITION_5 = static_cast<uint8_t>(MitsubishiCN105::WideVaneMode::POSITION_5),  // far right
+  HORIZONTAL_VANE_MODE_SPLIT = static_cast<uint8_t>(MitsubishiCN105::WideVaneMode::SPLIT),            // left and right
+  HORIZONTAL_VANE_MODE_SWING = static_cast<uint8_t>(MitsubishiCN105::WideVaneMode::SWING),
+  HORIZONTAL_VANE_MODE_UNKNOWN = static_cast<uint8_t>(MitsubishiCN105::WideVaneMode::UNKNOWN),
+};
+
 struct VaneState {
   struct Vertical {
     VerticalVaneMode direction;
   };
 
+  struct Horizontal {
+    HorizontalVaneMode direction;
+  };
+
   Vertical vertical;
+  Horizontal horizontal;
 };
 
 class MitsubishiCN105Component;
@@ -74,9 +90,18 @@ struct VaneCall {
     std::optional<VerticalVaneMode> direction_;
   };
 
+  struct Horizontal {
+    void set_direction(HorizontalVaneMode direction) { this->direction_ = direction; }
+    const std::optional<HorizontalVaneMode> &get_direction() const { return this->direction_; }
+
+   protected:
+    std::optional<HorizontalVaneMode> direction_;
+  };
+
   explicit VaneCall(MitsubishiCN105Component *parent) : parent_(parent) {}
 
   Vertical vertical;
+  Horizontal horizontal;
 
   void perform();
 
@@ -110,6 +135,7 @@ class MitsubishiCN105Component final : public Component, public uart::UARTDevice
   const MitsubishiCN105::Status &status() const { return this->hp_.status(); }
   bool is_status_initialized() const { return this->hp_.is_status_initialized(); }
   bool is_telemetry_polling_enabled() const { return this->hp_.is_telemetry_polling_enabled(); }
+  MitsubishiCN105::RunDirection run_direction() const { return this->hp_.run_direction(); }
   const TemperatureMapping &get_temperature_mapping() const { return this->temperature_mapping_; }
 
   template<typename F> void add_on_status_callback(F &&callback) {
@@ -158,6 +184,7 @@ class MitsubishiCN105Component final : public Component, public uart::UARTDevice
     this->status_callback_.call();
     this->vane_state_callback_.call(VaneState{
         .vertical = {.direction = static_cast<VerticalVaneMode>(this->status().vane_mode)},
+        .horizontal = {.direction = static_cast<HorizontalVaneMode>(this->status().wide_vane_mode)},
     });
   }
 

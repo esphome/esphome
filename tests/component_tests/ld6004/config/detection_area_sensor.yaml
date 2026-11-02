@@ -1,0 +1,8 @@
+packages:
+  base: !include base.yaml
+
+sensor:
+  - platform: ld6004
+    detection_area_0:
+      x_min:
+        name: Detection X Min

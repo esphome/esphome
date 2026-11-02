@@ -591,6 +591,11 @@ lvgl:
             text_letter_space: -4
             text_line_space: -4
         - container:
+            id: scrollable_container
+            scrollable: true
+            width: 50
+            height: 50
+        - container:
             align: center
             anim_duration: 1s
             arc_opa: COVER
@@ -1347,7 +1352,7 @@ lvgl:
                     start_angle: !lambda return (int)((float)rand() / RAND_MAX * 100);
                     end_angle: !lambda return (int)((float)rand() / RAND_MAX * 100);
                     rotation: !lambda return (int)((float)rand() / RAND_MAX * 100);
-                    change_rate: !lambda return (uint)((float)rand() / RAND_MAX * 100);
+                    change_rate: !lambda return (uint32_t)((float)rand() / RAND_MAX * 100);
                     mode: NORMAL
         - bar:
             id: bar_id

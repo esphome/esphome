@@ -1,0 +1,29 @@
+packages:
+  lvgl_package: !include lvgl-package.yaml
+  spi: !include ../../test_build_components/common/spi/nrf52.yaml
+  i2c: !include ../../test_build_components/common/i2c/nrf52.yaml
+  lvgl: !include common.yaml
+
+# No network on this board, so a clock chip stands in for SNTP
+time:
+  - platform: ds1307
+    id: sntp_time
+
+display:
+  - platform: mipi_spi
+    spi_id: spi_bus
+    model: st7789v
+    id: tft_display
+    dimensions:
+      width: 240
+      height: 320
+    data_rate: 8MHz
+    cs_pin: P0.28
+    dc_pin: P0.29
+    reset_pin: P1.03
+    auto_clear_enabled: false
+    update_interval: never
+
+lvgl:
+  displays: tft_display
+  buffer_size: 12%

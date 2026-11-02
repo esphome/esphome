@@ -6,15 +6,14 @@
 namespace esphome::copy {
 
 class CopyNumber final : public number::Number, public Component {
+  SUB_NUMBER(source)
+
  public:
-  void set_source(number::Number *source) { source_ = source; }
   void setup() override;
   void dump_config() override;
 
  protected:
   void control(float value) override;
-
-  number::Number *source_;
 };
 
 }  // namespace esphome::copy
