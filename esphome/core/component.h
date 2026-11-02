@@ -233,9 +233,10 @@ class Component {
     return this->setup_comm_result(ok, LOG_STR(ESP_LOG_MSG_COMM_FAIL));
   }
   bool ESPHOME_ALWAYS_INLINE setup_comm_result(bool ok, const LogString *message) {
-    if (!ok)
-      this->mark_failed(message);
-    return ok;
+    if (ok)
+      return true;
+    this->mark_failed(message);
+    return false;
   }
 
   /** Disable this component's loop. The loop() method will no longer be called.
