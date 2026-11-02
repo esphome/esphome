@@ -118,22 +118,18 @@ void DallasTemperatureSensor::setup() {
 }
 
 bool DallasTemperatureSensor::check_scratch_pad_() {
-  bool chksum_validity = (crc8(this->scratch_pad_, 8) == this->scratch_pad_[8]);
+  const uint8_t crc = crc8(this->scratch_pad_, 8);
+  const bool chksum_validity = (crc == this->scratch_pad_[8]);
 
-#if ESPHOME_LOG_LEVEL >= ESPHOME_LOG_LEVEL_VERY_VERBOSE
+#if ESPHOME_LOG_LEVEL >= ESPHOME_LOG_LEVEL_DEBUG
   char hex_buf[format_hex_pretty_size(sizeof(this->scratch_pad_))];
-  ESP_LOGVV(TAG, "Scratch pad: %s (%02X)",
-            format_hex_pretty_to(hex_buf, this->scratch_pad_, sizeof(this->scratch_pad_), '.'),
-            crc8(this->scratch_pad_, 8));
+  if (ESPHOME_LOG_LEVEL >= ESPHOME_LOG_LEVEL_VERY_VERBOSE || !chksum_validity)
+    format_hex_pretty_to(hex_buf, this->scratch_pad_, sizeof(this->scratch_pad_), '.');
 #endif
+  ESP_LOGVV(TAG, "Scratch pad: %s (%02X)", hex_buf, crc);
   if (!chksum_validity) {
     this->status_set_warning(LOG_STR("scratch pad checksum invalid"));
-#if ESPHOME_LOG_LEVEL >= ESPHOME_LOG_LEVEL_DEBUG
-    char hex_buf[format_hex_pretty_size(sizeof(this->scratch_pad_))];
-    ESP_LOGD(TAG, "Scratch pad: %s (%02X)",
-             format_hex_pretty_to(hex_buf, this->scratch_pad_, sizeof(this->scratch_pad_), '.'),
-             crc8(this->scratch_pad_, 8));
-#endif
+    ESP_LOGD(TAG, "Scratch pad: %s (%02X)", hex_buf, crc);
   }
   return chksum_validity;
 }
