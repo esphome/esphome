@@ -44,7 +44,7 @@ def test_interval_registration_order_and_source(main_cpp: str) -> None:
 
 
 def test_interval_update_interval_and_startup_delay(main_cpp: str) -> None:
-    """Every interval gets its update interval; the startup delay is set on each."""
+    """Every interval gets its update interval; only a non-zero startup delay is built in."""
     for var, interval, delay in (
         ("interval_intervaltrigger_id", 1000, 0),
         ("interval_intervaltrigger_id_2", 2000, 5000),
@@ -53,7 +53,13 @@ def test_interval_update_interval_and_startup_delay(main_cpp: str) -> None:
         ("interval_intervaltrigger_id_4", 5000, 0),
     ):
         assert f"{var}->set_update_interval({interval});" in main_cpp
-        assert f"{var}->set_startup_delay({delay});" in main_cpp
+        expected = (
+            f"interval::DelayedIntervalTrigger({delay})"
+            if delay
+            else "interval::IntervalTrigger()"
+        )
+        assert _constructed(main_cpp, var) == expected
+    assert "set_startup_delay" not in main_cpp
 
 
 def test_interval_setup_priority_override(main_cpp: str) -> None:
@@ -67,8 +73,14 @@ def test_interval_setup_priority_override(main_cpp: str) -> None:
 
 def test_interval_inline_actions(main_cpp: str) -> None:
     """All-inline intervals build an IntervalTrigger with an Automation of actions."""
-    for var in ("interval_intervaltrigger_id", "interval_intervaltrigger_id_2"):
-        assert _constructed(main_cpp, var) == "interval::IntervalTrigger()"
+    assert (
+        _constructed(main_cpp, "interval_intervaltrigger_id")
+        == "interval::IntervalTrigger()"
+    )
+    assert (
+        _constructed(main_cpp, "interval_intervaltrigger_id_2")
+        == "interval::DelayedIntervalTrigger(5000)"
+    )
     assert "new(automation_id) Automation<>(interval_intervaltrigger_id);" in main_cpp
     assert "automation_id->add_action(lambdaaction_id);" in main_cpp
     assert (
@@ -89,9 +101,14 @@ def test_interval_delay_keeps_automation(main_cpp: str) -> None:
 
 
 def test_interval_manual_id_keeps_trigger(main_cpp: str) -> None:
-    """An id set by hand can be used from lambdas and component actions as an IntervalTrigger."""
-    assert _constructed(main_cpp, "named_interval") == "interval::IntervalTrigger()"
-    assert "static interval::IntervalTrigger *const named_interval = " in main_cpp
+    """An id set by hand can be used from lambdas and component actions as its trigger."""
+    assert (
+        _constructed(main_cpp, "named_interval")
+        == "interval::DelayedIntervalTrigger(3000)"
+    )
+    assert (
+        "static interval::DelayedIntervalTrigger *const named_interval = " in main_cpp
+    )
     assert "new(automation_id_4) Automation<>(named_interval);" in main_cpp
 
 
@@ -111,4 +128,5 @@ def test_interval_registered_before_its_actions_are_built(main_cpp: str) -> None
 
 def test_interval_looping_count(main_cpp: str) -> None:
     """Intervals do not loop; the looping component count names their class."""
-    assert "(5 * HasLoopOverride<interval::IntervalTrigger>::value)" in main_cpp
+    assert "(3 * HasLoopOverride<interval::IntervalTrigger>::value)" in main_cpp
+    assert "(2 * HasLoopOverride<interval::DelayedIntervalTrigger>::value)" in main_cpp
