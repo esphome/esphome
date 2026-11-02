@@ -277,6 +277,9 @@ class APIConnection final : public APIServerConnectionBase {
 #ifdef USE_API_WIZARD
   void on_device_wizard_request();
 #endif
+#ifdef USE_CRASH_REPORT
+  void on_crash_report_request();
+#endif
 #ifdef USE_API_WIZARD_INPUTS
   void on_wizard_input_set_request(const WizardInputSetRequest &msg);
 #endif
