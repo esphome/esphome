@@ -36,10 +36,8 @@ const uint32_t MAXIMUM_STORAGE_DIFF = 50;
 void SGP30Component::setup() {
   // Serial Number identification
   uint16_t raw_serial_number[3];
-  if (!this->get_register(SGP30_CMD_GET_SERIAL_ID, raw_serial_number, 3)) {
-    this->mark_failed(LOG_STR(ESP_LOG_MSG_COMM_FAIL));
+  if (!this->setup_comm_result(this->get_register(SGP30_CMD_GET_SERIAL_ID, raw_serial_number, 3)))
     return;
-  }
   this->serial_number_ = (static_cast<uint64_t>(raw_serial_number[0]) << 32) |
                          (static_cast<uint64_t>(raw_serial_number[1]) << 16) |
                          static_cast<uint64_t>(raw_serial_number[2]);
@@ -47,10 +45,8 @@ void SGP30Component::setup() {
 
   // Featureset identification for future use
   uint16_t raw_featureset;
-  if (!this->get_register(SGP30_CMD_GET_FEATURESET, raw_featureset)) {
-    this->mark_failed(LOG_STR(ESP_LOG_MSG_COMM_FAIL));
+  if (!this->setup_comm_result(this->get_register(SGP30_CMD_GET_FEATURESET, raw_featureset)))
     return;
-  }
   this->featureset_ = raw_featureset;
   if (uint16_t(this->featureset_ >> 12) != 0x0) {
     if (uint16_t(this->featureset_ >> 12) == 0x1) {
@@ -64,10 +60,8 @@ void SGP30Component::setup() {
   ESP_LOGV(TAG, "Product version: 0x%0X", uint16_t(this->featureset_ & 0x1FF));
 
   // Sensor initialization
-  if (!this->write_command(SGP30_CMD_IAQ_INIT)) {
-    this->mark_failed(LOG_STR("Measurement initialization failed"));
+  if (!this->setup_comm_result(this->write_command(SGP30_CMD_IAQ_INIT), LOG_STR("Measurement initialization failed")))
     return;
-  }
 
   // Hash with config hash, version, and serial number
   // This ensures the baseline storage is cleared after OTA

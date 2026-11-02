@@ -281,10 +281,8 @@ bool QMP6988Component::calculate_pressure_() {
 }
 
 void QMP6988Component::setup() {
-  if (!this->device_check_()) {
-    this->mark_failed(LOG_STR(ESP_LOG_MSG_COMM_FAIL));
+  if (!this->setup_comm_result(this->device_check_()))
     return;
-  }
 
   this->software_reset_();
   this->get_calibration_data_();

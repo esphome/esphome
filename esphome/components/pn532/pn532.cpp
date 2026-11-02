@@ -20,10 +20,9 @@ void PN532::setup() {
   // Get version data
   if (!this->write_command_({PN532_COMMAND_VERSION_DATA})) {
     ESP_LOGW(TAG, "Error sending version command, trying again");
-    if (!this->write_command_({PN532_COMMAND_VERSION_DATA})) {
-      this->mark_failed(LOG_STR("Error sending version command"));
+    if (!this->setup_comm_result(this->write_command_({PN532_COMMAND_VERSION_DATA}),
+                                 LOG_STR("Error sending version command")))
       return;
-    }
   }
 
   PN532Frame version_data;
@@ -45,10 +44,9 @@ void PN532::setup() {
   }
 
   PN532Frame wakeup_result;
-  if (!this->read_response(PN532_COMMAND_SAMCONFIGURATION, wakeup_result)) {
-    this->mark_failed(LOG_STR("Wake Up command failed"));
+  if (!this->setup_comm_result(this->read_response(PN532_COMMAND_SAMCONFIGURATION, wakeup_result),
+                               LOG_STR("Wake Up command failed")))
     return;
-  }
 
   // Set up SAM (secure access module)
   uint8_t sam_timeout = std::min<uint8_t>(255u, this->update_interval_ / 50);

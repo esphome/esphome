@@ -51,10 +51,8 @@ void FUSB302B::task_func(void *arg) { static_cast<FUSB302B *>(arg)->run_task_();
 
 void FUSB302B::setup() {
   uint8_t device_id = 0;
-  if (!this->read_byte(FUSB_DEVICE_ID, &device_id)) {
-    this->mark_failed(LOG_STR(ESP_LOG_MSG_COMM_FAIL));
+  if (!this->setup_comm_result(this->read_byte(FUSB_DEVICE_ID, &device_id)))
     return;
-  }
   const uint8_t version = device_id & FUSB_DEVICE_ID_VERSION_MASK;
   if (version != FUSB_DEVICE_ID_VERSION_A && version != FUSB_DEVICE_ID_VERSION_B) {
     ESP_LOGE(TAG, "Unknown device ID 0x%02X", device_id);
@@ -62,10 +60,8 @@ void FUSB302B::setup() {
     return;
   }
   ESP_LOGD(TAG, "Device ID 0x%02X (product %u, revision %u)", device_id, (device_id >> 2) & 0x3, device_id & 0x3);
-  if (!this->init_chip_()) {
-    this->mark_failed(LOG_STR("Initialization failed"));
+  if (!this->setup_comm_result(this->init_chip_(), LOG_STR("Initialization failed")))
     return;
-  }
 
   this->interrupt_pin_->setup();
   // The task must exist before the interrupt is attached, since the ISR notifies it

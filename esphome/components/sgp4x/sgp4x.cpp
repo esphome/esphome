@@ -12,10 +12,9 @@ ESPHOME_LOG_TAG(TAG, "sgp4x");
 void SGP4xComponent::setup() {
   // Serial Number identification
   uint16_t raw_serial_number[3];
-  if (!this->get_register(SGP4X_CMD_GET_SERIAL_ID, raw_serial_number, 3, 1)) {
-    this->mark_failed(LOG_STR("Get serial number failed"));
+  if (!this->setup_comm_result(this->get_register(SGP4X_CMD_GET_SERIAL_ID, raw_serial_number, 3, 1),
+                               LOG_STR("Get serial number failed")))
     return;
-  }
   this->serial_number_ = (uint64_t(raw_serial_number[0]) << 32) | (uint64_t(raw_serial_number[1]) << 16) |
                          (uint64_t(raw_serial_number[2]));
   ESP_LOGD(TAG, "Serial number: %" PRIu64, this->serial_number_);

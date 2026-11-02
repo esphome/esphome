@@ -23,10 +23,9 @@ uint8_t cm1106_checksum(const uint8_t *response, size_t len) {
 
 void CM1106Component::setup() {
   uint8_t response[8] = {0};
-  if (!this->cm1106_write_command_(C_M1106_CMD_GET_CO2, sizeof(C_M1106_CMD_GET_CO2), response, sizeof(response))) {
-    this->mark_failed(LOG_STR(ESP_LOG_MSG_COMM_FAIL));
+  if (!this->setup_comm_result(
+          this->cm1106_write_command_(C_M1106_CMD_GET_CO2, sizeof(C_M1106_CMD_GET_CO2), response, sizeof(response))))
     return;
-  }
 
   if (this->abc_boot_logic_ != CM1106_ABC_NONE) {
     this->abc_set_(this->abc_boot_logic_ == CM1106_ABC_ENABLED);

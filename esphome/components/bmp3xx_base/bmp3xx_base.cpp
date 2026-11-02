@@ -50,10 +50,8 @@ void BMP3XXComponent::setup() {
     return;
   }
 
-  if (!read_byte(BMP388_CHIP_ID, &this->chip_id_.reg)) {
-    this->mark_failed(LOG_STR(ESP_LOG_MSG_COMM_FAIL));
+  if (!this->setup_comm_result(read_byte(BMP388_CHIP_ID, &this->chip_id_.reg)))
     return;
-  }
   ESP_LOGCONFIG(TAG, "Chip %s Id 0x%X", LOG_STR_ARG(chip_type_to_str(this->chip_id_.reg)), this->chip_id_.reg);
 
   if (chip_id_.reg != BMP388_ID && chip_id_.reg != BMP390_ID) {
@@ -63,10 +61,10 @@ void BMP3XXComponent::setup() {
   // set sensor in sleep mode
   stop_conversion();
   // Read the calibration parameters into the params structure
-  if (!read_bytes(BMP388_TRIM_PARAMS, (uint8_t *) &compensation_params_, sizeof(compensation_params_))) {
-    this->mark_failed(LOG_STR("Can't read calibration data"));
+  if (!this->setup_comm_result(
+          read_bytes(BMP388_TRIM_PARAMS, (uint8_t *) &compensation_params_, sizeof(compensation_params_)),
+          LOG_STR("Can't read calibration data")))
     return;
-  }
   compensation_float_params_.param_T1 =
       (float) compensation_params_.param_T1 / powf(2.0f, -8.0f);  // Calculate the floating point trim parameters
   compensation_float_params_.param_T2 = (float) compensation_params_.param_T2 / powf(2.0f, 30.0f);

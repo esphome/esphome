@@ -8,10 +8,8 @@ ESPHOME_LOG_TAG(TAG, "xl9535");
 void XL9535Component::setup() {
   // Check to see if the device can read from the register
   uint8_t port = 0;
-  if (this->read_register(XL9535_INPUT_PORT_0_REGISTER, &port, 1) != i2c::ERROR_OK) {
-    this->mark_failed(LOG_STR(ESP_LOG_MSG_COMM_FAIL));
+  if (!this->setup_comm_result(this->read_register(XL9535_INPUT_PORT_0_REGISTER, &port, 1) == i2c::ERROR_OK))
     return;
-  }
 }
 
 void XL9535Component::dump_config() {

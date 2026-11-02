@@ -31,11 +31,8 @@ void PCM5122::setup() {
 
   // Ignore clock halt detection; enable clock divider autoset
   optional<uint8_t> err_detect = this->read_byte(PCM5122_REG_ERROR_DETECT);
-  if (!err_detect.has_value()) {
-    ESP_LOGE(TAG, "Failed to read ERROR_DETECT");
-    this->mark_failed();
+  if (!this->setup_comm_result(err_detect.has_value(), LOG_STR("Failed to read ERROR_DETECT")))
     return;
-  }
   uint8_t err_detect_val = err_detect.value();
   err_detect_val |= PCM5122_ERROR_DETECT_IGNORE_CLKHALT;
   err_detect_val &= ~PCM5122_ERROR_DETECT_DISABLE_DIV_AUTOSET;
@@ -57,28 +54,18 @@ void PCM5122::setup() {
   }
   this->reg(PCM5122_REG_AUDIO_FORMAT) = PCM5122_AUDIO_FORMAT_I2S | alen;
 
-  if (!this->write_channel_mix_()) {
-    this->mark_failed();
+  if (!this->setup_comm_result(this->write_channel_mix_()))
     return;
-  }
 
-  if (!this->write_analog_gain_()) {
-    this->mark_failed();
+  if (!this->setup_comm_result(this->write_analog_gain_()))
     return;
-  }
 
   // PLL reference clock: BCK
-  if (!this->select_page_(0)) {
-    ESP_LOGE(TAG, "Write failed");
-    this->mark_failed();
+  if (!this->setup_comm_result(this->select_page_(0), LOG_STR("Write failed")))
     return;
-  }
   optional<uint8_t> pll_ref = this->read_byte(PCM5122_REG_PLL_REF);
-  if (!pll_ref.has_value()) {
-    ESP_LOGE(TAG, "Failed to read PLL_REF");
-    this->mark_failed();
+  if (!this->setup_comm_result(pll_ref.has_value(), LOG_STR("Failed to read PLL_REF")))
     return;
-  }
   uint8_t pll_ref_val = pll_ref.value();
   pll_ref_val &= ~PCM5122_PLL_REF_MASK;
   pll_ref_val |= PCM5122_PLL_REF_SOURCE_BCK;

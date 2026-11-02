@@ -32,10 +32,8 @@ void DHT12Component::update() {
 }
 void DHT12Component::setup() {
   uint8_t data[5];
-  if (!this->read_data_(data)) {
-    this->mark_failed(LOG_STR(ESP_LOG_MSG_COMM_FAIL));
+  if (!this->setup_comm_result(this->read_data_(data)))
     return;
-  }
 }
 void DHT12Component::dump_config() {
   ESP_LOGD(TAG, "DHT12:");

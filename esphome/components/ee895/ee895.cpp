@@ -23,10 +23,8 @@ void EE895Component::setup() {
   this->read(serial_number, 20);
 
   crc16_check = (serial_number[19] << 8) + serial_number[18];
-  if (crc16_check != calc_crc16_(serial_number, 18)) {
-    this->mark_failed(LOG_STR("CRC check failed"));
+  if (!this->setup_comm_result(crc16_check == calc_crc16_(serial_number, 18), LOG_STR("CRC check failed")))
     return;
-  }
 #if ESPHOME_LOG_LEVEL >= ESPHOME_LOG_LEVEL_VERBOSE
   char serial_hex[format_hex_size(EE895_SERIAL_NUMBER_SIZE)];
 #endif

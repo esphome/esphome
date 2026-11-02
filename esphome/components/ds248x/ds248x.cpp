@@ -31,11 +31,8 @@ void DS248xComponent::setup() {
   }
 
   // Configure device
-  if (!this->device_configure_()) {
-    ESP_LOGE(TAG, "DS248x configuration failed!");
-    this->mark_failed();
+  if (!this->setup_comm_result(this->device_configure_(), LOG_STR("DS248x configuration failed!")))
     return;
-  }
 
   // Reset to Channel 0
   this->select_channel(0);
