@@ -196,6 +196,7 @@ class TestUploadProgramJlink:
             str(CORE.relative_pioenvs_path(CORE.name)),
             "--commander",
             str(commander),
+            "--reset",
         ]
 
     def test_jlink_not_installed_raises(self, setup_core: Path, tmp_path: Path) -> None:

@@ -97,6 +97,8 @@ def upload_using_jlink() -> None:
         str(CORE.relative_pioenvs_path(CORE.name)),
         "--commander",
         str(commander),
+        # The runner only resumes the halted CPU unless asked to reset
+        "--reset",
     ]
     if not run_command_ok(
         west_cmd, env=env, stream_output=True, cwd=str(paths["framework_path"])
