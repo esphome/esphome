@@ -21,7 +21,7 @@ from . import EpaperModel
 class WeActBWR(EpaperModel):
     """Base EpaperModel class for WeAct Black/White/Red displays using SSD1683 controller."""
 
-    source_files = ("epaper_weact_3c.cpp",)
+    source_files = ("epaper_spi_bwr.cpp", "epaper_weact_3c.cpp")
 
     def __init__(
         self, name: str, class_name: str = "EPaperWeAct3C", **defaults: object
@@ -88,7 +88,11 @@ weact_4p2in3c = WeActBWR(
 class GoodDisplayBWR(WeActBWR):
     """Good Display Black/White/Red displays using SSD1680 controller."""
 
-    source_files = ("epaper_weact_3c.cpp", "epaper_goodisplay_3c.cpp")
+    source_files = (
+        "epaper_spi_bwr.cpp",
+        "epaper_weact_3c.cpp",
+        "epaper_goodisplay_3c.cpp",
+    )
 
     def __init__(self, name: str, **defaults: object) -> None:
         super().__init__(name, "EPaperGoodDisplay3C", **defaults)

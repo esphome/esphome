@@ -30,8 +30,8 @@ async def test_api_custom_services(
         # List services
         _, services = await client.list_entities_services()
 
-        # Should have 6 services: 3 YAML + 3 CustomAPIDevice
-        assert len(services) == 6, f"Expected 6 services, found {len(services)}"
+        # Should have 9 services: 6 YAML + 3 CustomAPIDevice
+        assert len(services) == 9, f"Expected 9 services, found {len(services)}"
 
         # Find our services
         yaml_service = require_service(services, "test_yaml_service")
@@ -84,6 +84,43 @@ async def test_api_custom_services(
             },
         )
         await waiter.wait_for("YAML service many args: 42, 3.14, 1, hello", timeout=5.0)
+
+        # YAML service with array arguments
+        yaml_arrays_service = require_service(services, "test_yaml_service_arrays")
+        assert [arg.type for arg in yaml_arrays_service.args] == [
+            UserServiceArgType.BOOL_ARRAY,
+            UserServiceArgType.INT_ARRAY,
+            UserServiceArgType.FLOAT_ARRAY,
+            UserServiceArgType.STRING_ARRAY,
+        ]
+        await client.execute_service(
+            yaml_arrays_service,
+            {
+                "bool_arr": [True, False],
+                "int_arr": [7, -8, 9],
+                "float_arr": [2.5],
+                "string_arr": ["ab", "cd"],
+            },
+        )
+        await waiter.wait_for(
+            "YAML service arrays: 1 0, 7 -8 9, 2.5, ab cd", timeout=5.0
+        )
+
+        # Arguments survive a delay
+        await client.execute_service(
+            require_service(services, "test_yaml_service_delay"),
+            {"name": "late", "int_arr": [4, 5]},
+        )
+        await waiter.wait_for("YAML service delay before", timeout=5.0)
+        await waiter.wait_for("YAML service delay after: late 2 5", timeout=5.0)
+
+        # A lambda's change to an argument stays in that lambda
+        await client.execute_service(
+            require_service(services, "test_yaml_service_by_value"), {"x": 5}
+        )
+        await waiter.wait_for("YAML service by value first: 10", timeout=5.0)
+        await waiter.wait_for("YAML service by value second: 15", timeout=5.0)
+        await waiter.wait_for("YAML service by value last: 5", timeout=5.0)
 
         # Test simple CustomAPIDevice service
         await client.execute_service(custom_service, {})
