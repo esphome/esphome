@@ -48,12 +48,16 @@ void RP2040PIOLEDStripLightOutput::setup() {
     this->mark_failed(LOG_STR("Too many instances of PIO program"));
     return;
   }
-  loaded.strips++;
 
   // Strips with the same program on the same PIO share one copy of it in instruction memory
   uint offset = 0;
   for (uint8_t i = 0; i < NUM_PIO_STATE_MACHINES; i++) {
     if (loaded.program[i] == nullptr) {
+      // The SDK panics when instruction memory is full
+      if (!pio_can_add_program(this->pio_, this->program_)) {
+        this->mark_failed(LOG_STR("No PIO instruction memory left"));
+        return;
+      }
       offset = pio_add_program(this->pio_, this->program_);
       loaded.program[i] = this->program_;
       loaded.offset[i] = offset;
@@ -64,6 +68,7 @@ void RP2040PIOLEDStripLightOutput::setup() {
       break;
     }
   }
+  loaded.strips++;
 
   // Configure the state machine's PIO, and start it
   this->sm_ = pio_claim_unused_sm(this->pio_, true);
