@@ -10,8 +10,9 @@ from esphome.const import (
     UNIT_CELSIUS,
     UNIT_VOLT,
 )
+from esphome.types import ConfigType
 
-from .. import CONF_BQ25820_ID, BQ25820BaseSchema, bq25820_ns
+from .. import CONF_BQ25820_ID, BQ25820BaseSchema
 
 DEPENDENCIES = ["bq25820"]
 
@@ -22,52 +23,40 @@ CONF_IBAT = "ibat"
 CONF_IAC = "iac"
 CONF_TEMP_IN_C = "temp_in_c"
 
-BQ25820VbatSensor = bq25820_ns.class_("BQ25820VbatSensor", sensor.Sensor)
-BQ25820VsysSensor = bq25820_ns.class_("BQ25820VsysSensor", sensor.Sensor)
-BQ25820VacSensor = bq25820_ns.class_("BQ25820VacSensor", sensor.Sensor)
-BQ25820IbatSensor = bq25820_ns.class_("BQ25820IbatSensor", sensor.Sensor)
-BQ25820IacSensor = bq25820_ns.class_("BQ25820IacSensor", sensor.Sensor)
-BQ25820TempSensor = bq25820_ns.class_("BQ25820TempSensor", sensor.Sensor)
 
 CONFIG_SCHEMA = cv.Schema(
     {
         cv.Optional(CONF_VBAT): sensor.sensor_schema(
-            BQ25820VbatSensor,
             unit_of_measurement=UNIT_VOLT,
             accuracy_decimals=2,
             device_class=DEVICE_CLASS_VOLTAGE,
             state_class=STATE_CLASS_MEASUREMENT,
         ),
         cv.Optional(CONF_VSYS): sensor.sensor_schema(
-            BQ25820VsysSensor,
             unit_of_measurement=UNIT_VOLT,
             accuracy_decimals=2,
             device_class=DEVICE_CLASS_VOLTAGE,
             state_class=STATE_CLASS_MEASUREMENT,
         ),
         cv.Optional(CONF_VAC): sensor.sensor_schema(
-            BQ25820VacSensor,
             unit_of_measurement=UNIT_VOLT,
             accuracy_decimals=2,
             device_class=DEVICE_CLASS_VOLTAGE,
             state_class=STATE_CLASS_MEASUREMENT,
         ),
         cv.Optional(CONF_IBAT): sensor.sensor_schema(
-            BQ25820IbatSensor,
             unit_of_measurement=UNIT_AMPERE,
             accuracy_decimals=3,
             device_class=DEVICE_CLASS_CURRENT,
             state_class=STATE_CLASS_MEASUREMENT,
         ),
         cv.Optional(CONF_IAC): sensor.sensor_schema(
-            BQ25820IacSensor,
             unit_of_measurement=UNIT_AMPERE,
             accuracy_decimals=3,
             device_class=DEVICE_CLASS_CURRENT,
             state_class=STATE_CLASS_MEASUREMENT,
         ),
         cv.Optional(CONF_TEMP_IN_C): sensor.sensor_schema(
-            BQ25820TempSensor,
             unit_of_measurement=UNIT_CELSIUS,
             accuracy_decimals=1,
             device_class=DEVICE_CLASS_TEMPERATURE,
@@ -77,9 +66,12 @@ CONFIG_SCHEMA = cv.Schema(
 ).extend(BQ25820BaseSchema)
 
 
-async def to_code(config):
-    parent = await cg.get_variable(config[CONF_BQ25820_ID])
-    for key in (CONF_VBAT, CONF_VSYS, CONF_VAC, CONF_IBAT, CONF_IAC, CONF_TEMP_IN_C):
-        if (conf := config.get(key)) is not None:
-            sens = await sensor.new_sensor(conf)
-            cg.add(parent.add_listener(sens))
+async def to_code(config: ConfigType) -> None:
+    hub = await cg.get_variable(config[CONF_BQ25820_ID])
+    sensors = sensor.sub_sensors(config)
+    await sensors(CONF_VBAT, hub.set_vbat_sensor)
+    await sensors(CONF_VSYS, hub.set_vsys_sensor)
+    await sensors(CONF_VAC, hub.set_vac_sensor)
+    await sensors(CONF_IBAT, hub.set_ibat_sensor)
+    await sensors(CONF_IAC, hub.set_iac_sensor)
+    await sensors(CONF_TEMP_IN_C, hub.set_temp_in_c_sensor)

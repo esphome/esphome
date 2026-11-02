@@ -15,7 +15,7 @@ bq25820:
   charge_current: 3A
   bat_sns_res: 5mΩ
   ac_sns_res: 2mΩ
-  watchdog: false
+  watchdog: true
   charge_voltage: 1.536V
   input_current_limit: 8A
   input_voltage_limit: 40V

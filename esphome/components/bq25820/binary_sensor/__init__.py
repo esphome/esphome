@@ -1,9 +1,15 @@
 import esphome.codegen as cg
 from esphome.components import binary_sensor
 import esphome.config_validation as cv
-from esphome.const import DEVICE_CLASS_BATTERY, DEVICE_CLASS_PLUG, DEVICE_CLASS_POWER
+from esphome.const import (
+    DEVICE_CLASS_BATTERY,
+    DEVICE_CLASS_BATTERY_CHARGING,
+    DEVICE_CLASS_POWER,
+    DEVICE_CLASS_PROBLEM,
+)
+from esphome.types import ConfigType
 
-from .. import CONF_BQ25820_ID, BQ25820BaseSchema, bq25820_ns
+from .. import CONF_BQ25820_ID, BQ25820BaseSchema
 
 DEPENDENCIES = ["bq25820"]
 
@@ -20,105 +26,61 @@ CONF_THERMAL_SHUTDOWN = "thermal_shutdown"
 CONF_CHARGE_SAFETY_TIMER = "charge_safety_timer"
 CONF_DRV_SUPPLY_INVALID = "drv_supply_invalid"
 
-BQ25820ChargingBinarySensor = bq25820_ns.class_(
-    "BQ25820ChargingBinarySensor", binary_sensor.BinarySensor
-)
-BQ25820ChargedBinarySensor = bq25820_ns.class_(
-    "BQ25820ChargedBinarySensor", binary_sensor.BinarySensor
-)
-BQ25820LowBatteryBinarySensor = bq25820_ns.class_(
-    "BQ25820LowBatteryBinarySensor", binary_sensor.BinarySensor
-)
-BQ25820PgBinarySensor = bq25820_ns.class_(
-    "BQ25820PgBinarySensor", binary_sensor.BinarySensor
-)
-BQ25820ReverseBinarySensor = bq25820_ns.class_(
-    "BQ25820ReverseBinarySensor", binary_sensor.BinarySensor
-)
-BQ25820VacUvBinarySensor = bq25820_ns.class_(
-    "BQ25820VacUvBinarySensor", binary_sensor.BinarySensor
-)
-BQ25820VacOvBinarySensor = bq25820_ns.class_(
-    "BQ25820VacOvBinarySensor", binary_sensor.BinarySensor
-)
-BQ25820IbatOcBinarySensor = bq25820_ns.class_(
-    "BQ25820IbatOcBinarySensor", binary_sensor.BinarySensor
-)
-BQ25820VbatOvBinarySensor = bq25820_ns.class_(
-    "BQ25820VbatOvBinarySensor", binary_sensor.BinarySensor
-)
-BQ25820ThermalShutdownBinarySensor = bq25820_ns.class_(
-    "BQ25820ThermalShutdownBinarySensor", binary_sensor.BinarySensor
-)
-BQ25820ChargeSafetyTimerBinarySensor = bq25820_ns.class_(
-    "BQ25820ChargeSafetyTimerBinarySensor", binary_sensor.BinarySensor
-)
-BQ25820DrvSupplyInvalidBinarySensor = bq25820_ns.class_(
-    "BQ25820DrvSupplyInvalidBinarySensor", binary_sensor.BinarySensor
-)
 
 CONFIG_SCHEMA = cv.Schema(
     {
         cv.Optional(CONF_CHARGING): binary_sensor.binary_sensor_schema(
-            BQ25820ChargingBinarySensor,
-            device_class=DEVICE_CLASS_POWER,
+            device_class=DEVICE_CLASS_BATTERY_CHARGING,
         ),
-        cv.Optional(CONF_CHARGED): binary_sensor.binary_sensor_schema(
-            BQ25820ChargedBinarySensor,
-            device_class=DEVICE_CLASS_POWER,
-        ),
+        cv.Optional(CONF_CHARGED): binary_sensor.binary_sensor_schema(),
         cv.Optional(CONF_LOW_BATTERY): binary_sensor.binary_sensor_schema(
-            BQ25820LowBatteryBinarySensor,
             device_class=DEVICE_CLASS_BATTERY,
         ),
         cv.Optional(CONF_PG): binary_sensor.binary_sensor_schema(
-            BQ25820PgBinarySensor,
-            device_class=DEVICE_CLASS_PLUG,
+            device_class=DEVICE_CLASS_POWER,
         ),
-        cv.Optional(CONF_REVERSE): binary_sensor.binary_sensor_schema(
-            BQ25820ReverseBinarySensor,
-        ),
+        cv.Optional(CONF_REVERSE): binary_sensor.binary_sensor_schema(),
         cv.Optional(CONF_VAC_UNDERVOLTAGE): binary_sensor.binary_sensor_schema(
-            BQ25820VacUvBinarySensor,
+            device_class=DEVICE_CLASS_PROBLEM,
         ),
         cv.Optional(CONF_VAC_OVERVOLTAGE): binary_sensor.binary_sensor_schema(
-            BQ25820VacOvBinarySensor,
+            device_class=DEVICE_CLASS_PROBLEM,
         ),
         cv.Optional(CONF_IBAT_OVERCURRENT): binary_sensor.binary_sensor_schema(
-            BQ25820IbatOcBinarySensor,
+            device_class=DEVICE_CLASS_PROBLEM,
         ),
         cv.Optional(CONF_VBAT_OVERVOLTAGE): binary_sensor.binary_sensor_schema(
-            BQ25820VbatOvBinarySensor,
+            device_class=DEVICE_CLASS_PROBLEM,
         ),
         cv.Optional(CONF_THERMAL_SHUTDOWN): binary_sensor.binary_sensor_schema(
-            BQ25820ThermalShutdownBinarySensor,
+            device_class=DEVICE_CLASS_PROBLEM,
         ),
         cv.Optional(CONF_CHARGE_SAFETY_TIMER): binary_sensor.binary_sensor_schema(
-            BQ25820ChargeSafetyTimerBinarySensor,
+            device_class=DEVICE_CLASS_PROBLEM,
         ),
         cv.Optional(CONF_DRV_SUPPLY_INVALID): binary_sensor.binary_sensor_schema(
-            BQ25820DrvSupplyInvalidBinarySensor,
+            device_class=DEVICE_CLASS_PROBLEM,
         ),
     }
 ).extend(BQ25820BaseSchema)
 
 
-async def to_code(config):
-    parent = await cg.get_variable(config[CONF_BQ25820_ID])
-    for key in (
-        CONF_CHARGING,
-        CONF_CHARGED,
-        CONF_LOW_BATTERY,
-        CONF_PG,
-        CONF_REVERSE,
-        CONF_VAC_UNDERVOLTAGE,
-        CONF_VAC_OVERVOLTAGE,
-        CONF_IBAT_OVERCURRENT,
-        CONF_VBAT_OVERVOLTAGE,
-        CONF_THERMAL_SHUTDOWN,
-        CONF_CHARGE_SAFETY_TIMER,
-        CONF_DRV_SUPPLY_INVALID,
-    ):
-        if (conf := config.get(key)) is not None:
-            sens = await binary_sensor.new_binary_sensor(conf)
-            cg.add(parent.add_listener(sens))
+async def to_code(config: ConfigType) -> None:
+    hub = await cg.get_variable(config[CONF_BQ25820_ID])
+    binary_sensors = binary_sensor.sub_binary_sensors(config)
+    await binary_sensors(CONF_CHARGING, hub.set_charging_binary_sensor)
+    await binary_sensors(CONF_CHARGED, hub.set_charged_binary_sensor)
+    await binary_sensors(CONF_LOW_BATTERY, hub.set_low_battery_binary_sensor)
+    await binary_sensors(CONF_PG, hub.set_pg_binary_sensor)
+    await binary_sensors(CONF_REVERSE, hub.set_reverse_binary_sensor)
+    await binary_sensors(CONF_VAC_UNDERVOLTAGE, hub.set_vac_undervoltage_binary_sensor)
+    await binary_sensors(CONF_VAC_OVERVOLTAGE, hub.set_vac_overvoltage_binary_sensor)
+    await binary_sensors(CONF_IBAT_OVERCURRENT, hub.set_ibat_overcurrent_binary_sensor)
+    await binary_sensors(CONF_VBAT_OVERVOLTAGE, hub.set_vbat_overvoltage_binary_sensor)
+    await binary_sensors(CONF_THERMAL_SHUTDOWN, hub.set_thermal_shutdown_binary_sensor)
+    await binary_sensors(
+        CONF_CHARGE_SAFETY_TIMER, hub.set_charge_safety_timer_binary_sensor
+    )
+    await binary_sensors(
+        CONF_DRV_SUPPLY_INVALID, hub.set_drv_supply_invalid_binary_sensor
+    )

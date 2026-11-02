@@ -8,6 +8,7 @@ from esphome.components.const import (
 )
 import esphome.config_validation as cv
 from esphome.const import CONF_ID, CONF_WATCHDOG
+from esphome.types import ConfigType
 
 CODEOWNERS = ["@beforeyouknowit"]
 DEPENDENCIES = ["i2c"]
@@ -22,7 +23,7 @@ BQ25820Component = bq25820_ns.class_(
 CONF_BQ25820_ID = "bq25820_id"
 BQ25820BaseSchema = cv.Schema(
     {
-        cv.Required(CONF_BQ25820_ID): cv.use_id(BQ25820Component),
+        cv.GenerateID(CONF_BQ25820_ID): cv.use_id(BQ25820Component),
     }
 )
 
@@ -44,60 +45,66 @@ CONF_TS_T2 = "ts_t2"
 CONF_TS_T3 = "ts_t3"
 CONF_TS_T5 = "ts_t5"
 
+CHARGE_TIMER_CHOICES = {"5h": 0, "8h": 1, "12h": 2, "24h": 3}
+TOPOFF_TIMER_CHOICES = {"disabled": 0, "15m": 1, "30m": 2, "45m": 3}
+MPPT_SWEEP_TIMER_CHOICES = {"3m": 0, "10m": 1, "15m": 2, "20m": 3}
+# Register code is the index; T5, T3, T2, T1 fill the threshold byte from the top
+TS_THRESHOLDS = (
+    (CONF_TS_T5, (50, 55, 60, 65), 6),
+    (CONF_TS_T3, (40, 45, 50, 55), 4),
+    (CONF_TS_T2, (5, 10, 15, 20), 2),
+    (CONF_TS_T1, (-10, -5, 0, 5), 0),
+)
 
-def validate_sense_resistance(value):
-    """Shunt resistance in milliohms, e.g. '5mΩ'.
+# The current limits step 250 uV across the sense resistor: 50 mA with the
+# 5 mOhm battery reference shunt, 125 mA with the 2 mOhm input one
+CURRENT_LIMIT_STEP_MV = 0.25
+# (key, sense resistor key, lowest code, highest code)
+CURRENT_LIMITS = (
+    (CONF_CHARGE_CURRENT, CONF_BAT_SNS_RES, 8, 400),
+    (CONF_PRECHARGE_CURRENT, CONF_BAT_SNS_RES, 5, 200),
+    (CONF_INPUT_CURRENT_LIMIT, CONF_AC_SNS_RES, 8, 400),
+)
 
-    The current ADCs step 10 mV (IBAT) and 4 mV (IAC) per LSB, which
-    round to zero above 10 mΩ.
-    """
+
+def validate_sense_resistance(value: object) -> float:
+    """Shunt resistance in milliohms, e.g. '5mΩ'."""
     milliohms = cv.resistance(value) * 1000
     if not 0.01 <= milliohms <= 10:
         raise cv.Invalid(f"Sense resistance must be 0.01-10 mΩ, got {milliohms} mΩ")
     return milliohms
 
 
-def _choice_to_code(mapping):
-    """Map a string choice such as '12h' to its register code."""
-
-    def validator(value):
-        if isinstance(value, str) and value.lower() in mapping:
-            return mapping[value.lower()]
-        raise cv.Invalid(f"Expected one of: {', '.join(mapping)}")
-
-    return validator
+def _current_code(current: float, milliohms: float) -> int:
+    return round(current * milliohms / CURRENT_LIMIT_STEP_MV)
 
 
-def _temp_to_code(temps):
-    """Map a temperature such as '5C' to its 2-bit register code."""
-
-    def validator(value):
-        temp = cv.temperature(value)
-        for code, choice in enumerate(temps):
-            if temp == choice:
-                return code
-        raise cv.Invalid(f"Expected one of: {', '.join(f'{t}C' for t in temps)}")
-
-    return validator
-
-
-CHARGE_TIMER_CHOICES = {"5h": 0, "8h": 1, "12h": 2, "24h": 3}
-TOPOFF_TIMER_CHOICES = {"disabled": 0, "15m": 1, "30m": 2, "45m": 3}
-MPPT_SWEEP_TIMER_CHOICES = {"3m": 0, "10m": 1, "15m": 2, "20m": 3}
-TS_T1_CHOICES = [-10, -5, 0, 5]
-TS_T2_CHOICES = [5, 10, 15, 20]
-TS_T3_CHOICES = [40, 45, 50, 55]
-TS_T5_CHOICES = [50, 55, 60, 65]
+def _validate_current_limits(config: ConfigType) -> ConfigType:
+    """The charger regulates the voltage across the shunt, so the range depends on it."""
+    for key, shunt_key, low, high in CURRENT_LIMITS:
+        if (current := config.get(key)) is None:
+            continue
+        milliohms = config[shunt_key]
+        if not low <= _current_code(current, milliohms) <= high:
+            step = CURRENT_LIMIT_STEP_MV / milliohms
+            raise cv.Invalid(
+                f"Must be {low * step:g}-{high * step:g} A with a "
+                f"{milliohms:g} mΩ {shunt_key}",
+                path=[key],
+            )
+    return config
 
 
-BQ25820_SCHEMA = (
+def _ts_threshold(choices: tuple[int, ...]) -> cv.All:
+    return cv.All(cv.temperature, cv.one_of(*choices, float=True))
+
+
+CONFIG_SCHEMA = cv.All(
     cv.Schema(
         {
             cv.GenerateID(): cv.declare_id(BQ25820Component),
-            # 0 leaves ICHG_REG at its power-on-reset value (ICHG pin / 5 A)
-            cv.Optional(CONF_CHARGE_CURRENT, default=0): cv.All(
-                cv.current, cv.float_range(min=0, max=20)
-            ),
+            # Left out, ICHG_REG keeps its reset value and the ICHG pin sets the current
+            cv.Optional(CONF_CHARGE_CURRENT): cv.current,
             cv.Optional(CONF_BAT_SNS_RES, default="5mΩ"): validate_sense_resistance,
             cv.Optional(CONF_AC_SNS_RES, default="2mΩ"): validate_sense_resistance,
             cv.Optional(CONF_WATCHDOG, default=False): cv.boolean,
@@ -106,82 +113,81 @@ BQ25820_SCHEMA = (
             cv.Optional(CONF_CHARGE_VOLTAGE, default="1.536V"): cv.All(
                 cv.voltage, cv.float_range(min=1.504, max=1.566)
             ),
-            cv.Optional(CONF_INPUT_CURRENT_LIMIT, default="50A"): cv.All(
-                cv.current, cv.float_range(min=1, max=50)
-            ),
+            cv.Optional(CONF_INPUT_CURRENT_LIMIT): cv.current,
             cv.Optional(CONF_INPUT_VOLTAGE_LIMIT, default="4.4V"): cv.All(
                 cv.voltage, cv.float_range(min=4.4, max=65)
             ),
-            cv.Optional(CONF_PRECHARGE_CURRENT, default="4A"): cv.All(
-                cv.current, cv.float_range(min=0.25, max=10)
-            ),
+            cv.Optional(CONF_PRECHARGE_CURRENT): cv.current,
             cv.Optional(CONF_REVERSE_SYSTEM_VOLTAGE, default="5V"): cv.All(
                 cv.voltage, cv.float_range(min=3.3, max=65)
             ),
             cv.Optional(CONF_CHARGE_ENABLED, default=True): cv.boolean,
             cv.Optional(CONF_HIZ_ENABLED, default=False): cv.boolean,
-            cv.Optional(CONF_CHARGE_TIMER, default="8h"): _choice_to_code(
-                CHARGE_TIMER_CHOICES
+            cv.Optional(CONF_CHARGE_TIMER, default="8h"): cv.enum(
+                CHARGE_TIMER_CHOICES, lower=True
             ),
-            cv.Optional(CONF_TOPOFF_TIMER, default="disabled"): _choice_to_code(
-                TOPOFF_TIMER_CHOICES
+            cv.Optional(CONF_TOPOFF_TIMER, default="disabled"): cv.enum(
+                TOPOFF_TIMER_CHOICES, lower=True
             ),
             cv.Optional(CONF_IDEAL_DIODE, default=False): cv.boolean,
             cv.Optional(CONF_MPPT_ENABLED, default=False): cv.boolean,
-            cv.Optional(CONF_MPPT_SWEEP_TIMER, default="3m"): _choice_to_code(
-                MPPT_SWEEP_TIMER_CHOICES
+            cv.Optional(CONF_MPPT_SWEEP_TIMER, default="3m"): cv.enum(
+                MPPT_SWEEP_TIMER_CHOICES, lower=True
             ),
             cv.Optional(CONF_FORCE_MPPT_SWEEP, default=False): cv.boolean,
             cv.Optional(CONF_TEMP_EN, default=True): cv.boolean,
-            cv.Optional(CONF_TS_T1, default="0C"): _temp_to_code(TS_T1_CHOICES),
-            cv.Optional(CONF_TS_T2, default="10C"): _temp_to_code(TS_T2_CHOICES),
-            cv.Optional(CONF_TS_T3, default="45C"): _temp_to_code(TS_T3_CHOICES),
-            cv.Optional(CONF_TS_T5, default="50C"): _temp_to_code(TS_T5_CHOICES),
+            cv.Optional(CONF_TS_T1, default="0C"): _ts_threshold(TS_THRESHOLDS[3][1]),
+            cv.Optional(CONF_TS_T2, default="10C"): _ts_threshold(TS_THRESHOLDS[2][1]),
+            cv.Optional(CONF_TS_T3, default="45C"): _ts_threshold(TS_THRESHOLDS[1][1]),
+            cv.Optional(CONF_TS_T5, default="50C"): _ts_threshold(TS_THRESHOLDS[0][1]),
         }
     )
-    .extend(cv.COMPONENT_SCHEMA)
-    .extend(cv.polling_component_schema("500ms"))
-    .extend(i2c.i2c_device_schema(0x6B))
+    .extend(cv.polling_component_schema("60s"))
+    .extend(i2c.i2c_device_schema(0x6B)),
+    _validate_current_limits,
 )
 
-CONFIG_SCHEMA = BQ25820_SCHEMA
 
-
-async def to_code(config):
+async def to_code(config: ConfigType) -> None:
     var = cg.new_Pvariable(config[CONF_ID])
     await cg.register_component(var, config)
     await i2c.register_i2c_device(var, config)
-    cg.add(var.set_charge_current_ma(round(config[CONF_CHARGE_CURRENT] * 1000)))
-    cg.add(var.set_bat_sns_res_mohm(config[CONF_BAT_SNS_RES]))
-    cg.add(var.set_ac_sns_res_mohm(config[CONF_AC_SNS_RES]))
-    cg.add(var.set_watchdog_enabled(config[CONF_WATCHDOG]))
-    cg.add(var.set_charge_voltage_mv(round(config[CONF_CHARGE_VOLTAGE] * 1000)))
+
+    bat_sns_res = config[CONF_BAT_SNS_RES]
+    ac_sns_res = config[CONF_AC_SNS_RES]
+    cg.add(var.set_bat_sns_res_mohm(bat_sns_res))
+    cg.add(var.set_ac_sns_res_mohm(ac_sns_res))
+    if (current := config.get(CONF_CHARGE_CURRENT)) is not None:
+        cg.add(var.set_charge_current_code(_current_code(current, bat_sns_res)))
+    if (current := config.get(CONF_PRECHARGE_CURRENT)) is not None:
+        cg.add(var.set_precharge_current_code(_current_code(current, bat_sns_res)))
+    if (current := config.get(CONF_INPUT_CURRENT_LIMIT)) is not None:
+        cg.add(var.set_input_current_limit_code(_current_code(current, ac_sns_res)))
+    # 2 mV steps from 1.504 V; 20 mV steps from 0 V
     cg.add(
-        var.set_input_current_limit_ma(round(config[CONF_INPUT_CURRENT_LIMIT] * 1000))
-    )
-    cg.add(
-        var.set_input_voltage_limit_mv(round(config[CONF_INPUT_VOLTAGE_LIMIT] * 1000))
-    )
-    cg.add(var.set_precharge_current_ma(round(config[CONF_PRECHARGE_CURRENT] * 1000)))
-    cg.add(
-        var.set_reverse_system_voltage_mv(
-            round(config[CONF_REVERSE_SYSTEM_VOLTAGE] * 1000)
+        var.set_charge_voltage_code(
+            round((config[CONF_CHARGE_VOLTAGE] - 1.504) / 0.002)
         )
     )
+    cg.add(
+        var.set_input_voltage_limit_code(round(config[CONF_INPUT_VOLTAGE_LIMIT] / 0.02))
+    )
+    cg.add(
+        var.set_reverse_system_voltage_code(
+            round(config[CONF_REVERSE_SYSTEM_VOLTAGE] / 0.02)
+        )
+    )
+    cg.add(var.set_charge_timer(config[CONF_CHARGE_TIMER]))
+    cg.add(var.set_topoff_timer(config[CONF_TOPOFF_TIMER]))
+    cg.add(var.set_mppt_sweep_timer(config[CONF_MPPT_SWEEP_TIMER]))
+    ts_thresholds = 0
+    for key, choices, shift in TS_THRESHOLDS:
+        ts_thresholds |= choices.index(config[key]) << shift
+    cg.add(var.set_ts_thresholds(ts_thresholds))
+    cg.add(var.set_watchdog_enabled(config[CONF_WATCHDOG]))
     cg.add(var.set_charge_enabled(config[CONF_CHARGE_ENABLED]))
     cg.add(var.set_hiz_enabled(config[CONF_HIZ_ENABLED]))
-    cg.add(var.set_charge_timer_code(config[CONF_CHARGE_TIMER]))
-    cg.add(var.set_topoff_timer_code(config[CONF_TOPOFF_TIMER]))
     cg.add(var.set_ideal_diode_enabled(config[CONF_IDEAL_DIODE]))
     cg.add(var.set_mppt_enabled(config[CONF_MPPT_ENABLED]))
-    cg.add(var.set_mppt_sweep_timer_code(config[CONF_MPPT_SWEEP_TIMER]))
     cg.add(var.set_force_mppt_sweep(config[CONF_FORCE_MPPT_SWEEP]))
     cg.add(var.set_temp_enabled(config[CONF_TEMP_EN]))
-    cg.add(
-        var.set_ts_thresholds(
-            config[CONF_TS_T1],
-            config[CONF_TS_T2],
-            config[CONF_TS_T3],
-            config[CONF_TS_T5],
-        )
-    )
