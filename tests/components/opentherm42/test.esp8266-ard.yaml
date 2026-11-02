@@ -1,0 +1,2 @@
+packages:
+  opentherm42: !include common.yaml
