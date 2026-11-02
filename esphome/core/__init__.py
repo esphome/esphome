@@ -31,7 +31,6 @@ from esphome.const import (
     PLATFORM_NRF52,
     PLATFORM_RP2,
     PLATFORM_RTL87XX,
-    PLATFORM_ZEPHYR,
     ErrorFormat,
     Toolchain,
 )
@@ -1016,10 +1015,6 @@ class EsphomeCore:
         return self.target_platform == PLATFORM_NRF52
 
     @property
-    def is_zephyr(self):
-        return self.target_platform == PLATFORM_ZEPHYR
-
-    @property
     def is_host(self):
         return self.target_platform == PLATFORM_HOST
 
@@ -1042,6 +1037,10 @@ class EsphomeCore:
     @property
     def using_toolchain_sdk_nrf(self):
         return self.toolchain == Toolchain.SDK_NRF
+
+    @property
+    def using_toolchain_sdk_zephyr(self):
+        return self.toolchain == Toolchain.SDK_ZEPHYR
 
     @property
     def using_toolchain_arduino(self):
