@@ -111,6 +111,8 @@ _LOGGER = logging.getLogger(__name__)
 # sdk-nrf install cache and pins the clang-tidy project's SDK.
 RECOMMENDED_PLATFORMIO_VERSION = "2.6.1-b"
 RECOMMENDED_SDK_NRF_VERSION = "2.9.2"
+# The sdk-nrf version an SoC needs; it is the default and the minimum for that SoC
+REQUIRED_SDK_NRF_VERSIONS = {VARIANT_NRF54LM20: "3.4.1"}
 
 FAKE_BOARD_MANIFEST = """
 {
@@ -187,13 +189,35 @@ _TOOLCHAINS = (Toolchain.PLATFORMIO, Toolchain.SDK_NRF)
 _resolve_toolchain = cv.resolve_toolchain("nRF52", _TOOLCHAINS, Toolchain.SDK_NRF)
 
 
-def set_framework(config: ConfigType) -> ConfigType:
-    if CONF_VERSION not in config[CONF_FRAMEWORK]:
-        default_version = (
-            RECOMMENDED_PLATFORMIO_VERSION
-            if CORE.using_toolchain_platformio
-            else RECOMMENDED_SDK_NRF_VERSION
+def _check_required_sdk_version(config: ConfigType, required: str) -> None:
+    if CORE.using_toolchain_platformio:
+        raise cv.Invalid(
+            f"{get_nrf52_variant()} needs sdk-nrf {required}, which the "
+            f"'{Toolchain.PLATFORMIO}' toolchain does not have; use the "
+            f"'{Toolchain.SDK_NRF}' toolchain",
+            path=[CONF_TOOLCHAIN],
         )
+    if (version := config[CONF_FRAMEWORK].get(CONF_VERSION)) is not None and (
+        cv.Version.parse(cv.version_number(version)) < cv.Version.parse(required)
+    ):
+        raise cv.Invalid(
+            f"{get_nrf52_variant()} needs sdk-nrf {required} or newer, "
+            f"or remove 'version:' to use it",
+            path=[CONF_FRAMEWORK, CONF_VERSION],
+        )
+
+
+def set_framework(config: ConfigType) -> ConfigType:
+    required = REQUIRED_SDK_NRF_VERSIONS.get(get_nrf52_variant())
+    if required is not None:
+        _check_required_sdk_version(config, required)
+    if CONF_VERSION not in config[CONF_FRAMEWORK]:
+        if required is not None:
+            default_version = required
+        elif CORE.using_toolchain_platformio:
+            default_version = RECOMMENDED_PLATFORMIO_VERSION
+        else:
+            default_version = RECOMMENDED_SDK_NRF_VERSION
         config = {
             **config,
             CONF_FRAMEWORK: {**config[CONF_FRAMEWORK], CONF_VERSION: default_version},

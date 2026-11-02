@@ -4,8 +4,6 @@ esphome:
 
 nrf52:
   board: nrf54lm20dk/nrf54lm20a/cpuapp
-  framework:
-    version: 3.4.1
 
 logger:
   level: VERY_VERBOSE
