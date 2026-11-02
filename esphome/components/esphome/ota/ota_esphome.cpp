@@ -292,8 +292,11 @@ void ESPHomeOTAComponent::handle_handshake_() {
 
       // Validate magic bytes
       if (memcmp(this->handshake_buf_, MAGIC_BYTES, sizeof(MAGIC_BYTES)) != 0) {
-        ESP_LOGW(TAG, "Magic bytes mismatch! 0x%02X-0x%02X-0x%02X-0x%02X-0x%02X", this->handshake_buf_[0],
-                 this->handshake_buf_[1], this->handshake_buf_[2], this->handshake_buf_[3], this->handshake_buf_[4]);
+#if ESPHOME_LOG_LEVEL >= ESPHOME_LOG_LEVEL_WARN
+        char hex_buf[format_hex_pretty_size(HANDSHAKE_BUF_SIZE)];
+        ESP_LOGW(TAG, "Magic bytes mismatch! %s",
+                 format_hex_pretty_to(hex_buf, this->handshake_buf_, HANDSHAKE_BUF_SIZE, '-'));
+#endif
         this->send_error_and_cleanup_(ota::OTA_RESPONSE_ERROR_MAGIC);
         return;
       }
