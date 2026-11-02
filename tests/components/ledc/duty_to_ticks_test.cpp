@@ -4,6 +4,13 @@
 
 namespace esphome::ledc::testing {
 
+TEST(LedcDutyToTicksTest, FullScaleIsOnePastTheHighestLevel) {
+  EXPECT_EQ(full_scale_ticks(8, 0), 256U);
+  EXPECT_EQ(full_scale_ticks(8, 4), 4096U);
+  EXPECT_EQ(duty_to_ticks(1.0f, 8, 0), full_scale_ticks(8, 0));
+  EXPECT_EQ(duty_to_ticks(1.0f, 8, 4), full_scale_ticks(8, 4));
+}
+
 TEST(LedcDutyToTicksTest, ScalesAgainstThePwmPeriod) {
   EXPECT_EQ(duty_to_ticks(0.0f, 8, 0), 0U);
   EXPECT_EQ(duty_to_ticks(0.5f, 8, 0), 128U);
