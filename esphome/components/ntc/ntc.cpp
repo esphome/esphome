@@ -6,9 +6,9 @@ namespace esphome::ntc {
 ESPHOME_LOG_TAG(TAG, "ntc");
 
 void NTC::setup() {
-  this->sensor_->add_on_state_callback([this](float value) { this->process_(value); });
-  if (this->sensor_->has_state())
-    this->process_(this->sensor_->state);
+  this->source_sensor_->add_on_state_callback([this](float value) { this->process_(value); });
+  if (this->source_sensor_->has_state())
+    this->process_(this->source_sensor_->state);
 }
 void NTC::dump_config() { LOG_SENSOR("", "NTC Sensor", this); }
 void NTC::process_(float value) {
