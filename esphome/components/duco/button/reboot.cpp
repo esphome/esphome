@@ -12,7 +12,13 @@ void DucoReboot::press_action() {
     return;
   }
 
-  this->parent_->send(nullptr, 0x04, {0x00});
+  if (this->address_ == 0) {
+    this->parent_->send(nullptr, 0x04, {0x00});
+  } else {
+    for (uint8_t i = 0; i < 11; i++) {
+      this->parent_->send(nullptr, FUNCTION_NODE_DATA, {0x08, this->address_});
+    }
+  }
 }
 
 }  // namespace esphome::duco
