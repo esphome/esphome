@@ -27,6 +27,17 @@ CONF_CHARGE_SAFETY_TIMER = "charge_safety_timer"
 CONF_DRV_SUPPLY_INVALID = "drv_supply_invalid"
 
 
+_FAULT_KEYS = (
+    CONF_VAC_UNDERVOLTAGE,
+    CONF_VAC_OVERVOLTAGE,
+    CONF_IBAT_OVERCURRENT,
+    CONF_VBAT_OVERVOLTAGE,
+    CONF_THERMAL_SHUTDOWN,
+    CONF_CHARGE_SAFETY_TIMER,
+    CONF_DRV_SUPPLY_INVALID,
+)
+_FAULT_SCHEMA = binary_sensor.binary_sensor_schema(device_class=DEVICE_CLASS_PROBLEM)
+
 CONFIG_SCHEMA = cv.Schema(
     {
         cv.Optional(CONF_CHARGING): binary_sensor.binary_sensor_schema(
@@ -40,27 +51,7 @@ CONFIG_SCHEMA = cv.Schema(
             device_class=DEVICE_CLASS_POWER,
         ),
         cv.Optional(CONF_REVERSE): binary_sensor.binary_sensor_schema(),
-        cv.Optional(CONF_VAC_UNDERVOLTAGE): binary_sensor.binary_sensor_schema(
-            device_class=DEVICE_CLASS_PROBLEM,
-        ),
-        cv.Optional(CONF_VAC_OVERVOLTAGE): binary_sensor.binary_sensor_schema(
-            device_class=DEVICE_CLASS_PROBLEM,
-        ),
-        cv.Optional(CONF_IBAT_OVERCURRENT): binary_sensor.binary_sensor_schema(
-            device_class=DEVICE_CLASS_PROBLEM,
-        ),
-        cv.Optional(CONF_VBAT_OVERVOLTAGE): binary_sensor.binary_sensor_schema(
-            device_class=DEVICE_CLASS_PROBLEM,
-        ),
-        cv.Optional(CONF_THERMAL_SHUTDOWN): binary_sensor.binary_sensor_schema(
-            device_class=DEVICE_CLASS_PROBLEM,
-        ),
-        cv.Optional(CONF_CHARGE_SAFETY_TIMER): binary_sensor.binary_sensor_schema(
-            device_class=DEVICE_CLASS_PROBLEM,
-        ),
-        cv.Optional(CONF_DRV_SUPPLY_INVALID): binary_sensor.binary_sensor_schema(
-            device_class=DEVICE_CLASS_PROBLEM,
-        ),
+        **{cv.Optional(key): _FAULT_SCHEMA for key in _FAULT_KEYS},
     }
 ).extend(BQ25820BaseSchema)
 

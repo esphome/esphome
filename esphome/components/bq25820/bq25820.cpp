@@ -1,6 +1,7 @@
 #include "bq25820.h"
 
 #include <cmath>
+#include <iterator>
 
 #include "esphome/core/log.h"
 #include "esphome/core/progmem.h"
@@ -31,13 +32,12 @@ static constexpr uint8_t PART_INFORMATION = 0x1A;
 
 // Charger control (0x17)
 static constexpr uint8_t WD_RST = 0x20;
-static constexpr uint8_t EN_HIZ = 0x04;
-static constexpr uint8_t EN_CHG = 0x01;
 // Power path control (0x19)
 static constexpr uint8_t REG_RST = 0x80;
 static constexpr uint8_t EN_BATFET_IDEAL_DIODE = 0x04;
 // MPPT control (0x1A)
 static constexpr uint8_t FORCE_SWEEP = 0x80;
+static constexpr uint8_t EN_MPPT = 0x01;
 // ADC control (0x2B): ADC_EN set, ADC_RATE cleared for continuous conversion
 static constexpr uint8_t ADC_EN_RATE_MASK = 0xC0;
 static constexpr uint8_t ADC_EN = 0x80;
@@ -45,12 +45,10 @@ static constexpr uint8_t ADC_EN = 0x80;
 // The watchdog is set to 40 s; feed it well before it expires
 static constexpr uint32_t WATCHDOG_FEED_INTERVAL_MS = 15000;
 
-// The current ADCs step 10 uV (IBAT) and 4 uV (IAC) across the sense resistor
-static constexpr float IBAT_ADC_STEP_MV = 0.010f;
-static constexpr float IAC_ADC_STEP_MV = 0.004f;
 static constexpr float VOLTAGE_ADC_STEP_V = 0.002f;
-// The current limits step 250 uV across the sense resistor
-static constexpr float CURRENT_LIMIT_STEP_MV = 0.25f;
+// A current limit step is 250 uV across the sense resistor: 25 IBAT or 62.5 IAC ADC steps
+static constexpr float CHARGE_LIMIT_ADC_STEPS = 25.0f;
+static constexpr float INPUT_LIMIT_ADC_STEPS = 62.5f;
 
 // TS pin NTC: 10k to PGND with a 10k reference resistor, B = 3435
 static constexpr float NTC_R0_OHM = 10000.0f;
@@ -61,6 +59,7 @@ static constexpr float NTC_B = 3435.0f;
 static constexpr uint8_t CHARGE_STAT_NOT_CHARGING = 0;
 static constexpr uint8_t CHARGE_STAT_TRICKLE = 1;
 static constexpr uint8_t CHARGE_STAT_PRECHARGE = 2;
+static constexpr uint8_t CHARGE_STAT_RESERVED = 5;
 static constexpr uint8_t CHARGE_STAT_DONE = 7;
 
 #ifdef USE_TEXT_SENSOR
@@ -88,28 +87,29 @@ void BQ25820Component::setup() {
   if (this->force_mppt_sweep_)
     this->update_register(REG_MPPT_CONTROL, FORCE_SWEEP, FORCE_SWEEP);
 
-  if (this->watchdog_enabled_) {
+  if (this->watchdog_enabled_()) {
     this->set_interval(WATCHDOG_FEED_INTERVAL_MS,
-                       [this]() { this->update_register(REG_CHARGER_CONTROL, WD_RST, WD_RST); });
+                       [this]() { this->write_byte(REG_CHARGER_CONTROL, this->charger_control_ | WD_RST); });
   }
 }
 
 void BQ25820Component::dump_config() {
   ESP_LOGCONFIG(TAG,
                 "BQ25820:\n"
-                "  Battery sense resistor: %.2f mOhm\n"
-                "  Input sense resistor: %.2f mOhm\n"
                 "  Watchdog: %s\n"
                 "  MPPT: %s",
-                this->bat_sns_res_mohm_, this->ac_sns_res_mohm_, YESNO(this->watchdog_enabled_),
-                YESNO(this->mppt_enabled_));
+                YESNO(this->watchdog_enabled_()), YESNO(this->mppt_control_ & EN_MPPT));
   if (this->charge_current_code_ != 0) {
     ESP_LOGCONFIG(TAG, "  Charge current: %.2f A",
-                  this->charge_current_code_ * CURRENT_LIMIT_STEP_MV / this->bat_sns_res_mohm_);
+                  this->charge_current_code_ * CHARGE_LIMIT_ADC_STEPS * this->ibat_scale_);
+  }
+  if (this->precharge_current_code_ != 0) {
+    ESP_LOGCONFIG(TAG, "  Precharge current: %.2f A",
+                  this->precharge_current_code_ * CHARGE_LIMIT_ADC_STEPS * this->ibat_scale_);
   }
   if (this->input_current_limit_code_ != 0) {
     ESP_LOGCONFIG(TAG, "  Input current limit: %.2f A",
-                  this->input_current_limit_code_ * CURRENT_LIMIT_STEP_MV / this->ac_sns_res_mohm_);
+                  this->input_current_limit_code_ * INPUT_LIMIT_ADC_STEPS * this->iac_scale_);
   }
   LOG_I2C_DEVICE(this);
   LOG_UPDATE_INTERVAL(this);
@@ -154,16 +154,13 @@ bool BQ25820Component::write_config_registers_() {
   ok &= this->write_byte_16_le(REG_INPUT_VOLTAGE_LIMIT, this->input_voltage_limit_code_ << 2);
   ok &= this->write_byte_16_le(REG_REVERSE_MODE_VOLTAGE_LIMIT, this->reverse_system_voltage_code_ << 2);
   ok &= this->update_register(REG_CHARGE_VOLTAGE_LIMIT, 0x1F, this->charge_voltage_code_);
-  // TOPOFF_TMR[7:6], WATCHDOG[5:4] (01b = 40 s), EN_CHG_TMR, CHG_TMR[2:1]
-  ok &= this->update_register(
-      REG_TIMER_CONTROL, 0xFE,
-      (this->topoff_timer_ << 6) | (this->watchdog_enabled_ ? 0x10 : 0x00) | 0x08 | (this->charge_timer_ << 1));
-  ok &= this->update_register(REG_CHARGER_CONTROL, EN_HIZ | EN_CHG,
-                              (this->hiz_enabled_ ? EN_HIZ : 0) | (this->charge_enabled_ ? EN_CHG : 0));
+  // Everything but EN_TMR2X
+  ok &= this->update_register(REG_TIMER_CONTROL, 0xFE, this->timer_control_);
+  ok &= this->write_byte(REG_CHARGER_CONTROL, this->charger_control_);
   ok &= this->update_register(REG_POWER_PATH_CONTROL, EN_BATFET_IDEAL_DIODE,
                               this->ideal_diode_enabled_ ? EN_BATFET_IDEAL_DIODE : 0);
   // FULL_SWEEP_TMR[2:1], EN_MPPT
-  ok &= this->update_register(REG_MPPT_CONTROL, 0x07, (this->mppt_sweep_timer_ << 1) | (this->mppt_enabled_ ? 1 : 0));
+  ok &= this->update_register(REG_MPPT_CONTROL, 0x07, this->mppt_control_);
   ok &= this->write_byte(REG_TS_THRESHOLD_CONTROL, this->ts_thresholds_);
   // EN_TS
   ok &= this->update_register(REG_TS_REGION_CONTROL, 0x01, this->temp_enabled_ ? 1 : 0);
@@ -181,7 +178,7 @@ void BQ25820Component::update() {
     return;
 
   // WD_STAT: the watchdog expired and reset the configuration
-  if (!this->config_written_ || (this->watchdog_enabled_ && (status[0] & 0x08) != 0))
+  if (!this->config_written_ || (this->watchdog_enabled_() && (status[0] & 0x08) != 0))
     this->config_written_ = this->write_config_registers_();
 
   this->publish_status_(status);
@@ -193,39 +190,29 @@ void BQ25820Component::publish_status_(const uint8_t *status) {
   [[maybe_unused]] const uint8_t ts_stat = (status[1] >> 4) & 0x07;
 #ifdef USE_BINARY_SENSOR
   const uint8_t fault = status[3];
-  if (this->charging_binary_sensor_ != nullptr)
-    this->charging_binary_sensor_->publish_state(charge_stat != CHARGE_STAT_NOT_CHARGING &&
-                                                 charge_stat != CHARGE_STAT_DONE);
-  if (this->charged_binary_sensor_ != nullptr)
-    this->charged_binary_sensor_->publish_state(charge_stat == CHARGE_STAT_DONE);
+  auto publish = [](binary_sensor::BinarySensor *sensor, bool state) {
+    if (sensor != nullptr)
+      sensor->publish_state(state);
+  };
+  publish(this->charging_binary_sensor_, charge_stat != CHARGE_STAT_NOT_CHARGING && charge_stat != CHARGE_STAT_DONE);
+  publish(this->charged_binary_sensor_, charge_stat == CHARGE_STAT_DONE);
   // Trickle and precharge both mean the battery is below VBAT_LOWV
-  if (this->low_battery_binary_sensor_ != nullptr)
-    this->low_battery_binary_sensor_->publish_state(charge_stat == CHARGE_STAT_TRICKLE ||
-                                                    charge_stat == CHARGE_STAT_PRECHARGE);
-  if (this->pg_binary_sensor_ != nullptr)
-    this->pg_binary_sensor_->publish_state(status[1] & 0x80);
-  if (this->reverse_binary_sensor_ != nullptr)
-    this->reverse_binary_sensor_->publish_state(status[2] & 0x04);
-  if (this->vac_undervoltage_binary_sensor_ != nullptr)
-    this->vac_undervoltage_binary_sensor_->publish_state(fault & 0x80);
-  if (this->vac_overvoltage_binary_sensor_ != nullptr)
-    this->vac_overvoltage_binary_sensor_->publish_state(fault & 0x40);
-  if (this->ibat_overcurrent_binary_sensor_ != nullptr)
-    this->ibat_overcurrent_binary_sensor_->publish_state(fault & 0x20);
-  if (this->vbat_overvoltage_binary_sensor_ != nullptr)
-    this->vbat_overvoltage_binary_sensor_->publish_state(fault & 0x10);
-  if (this->thermal_shutdown_binary_sensor_ != nullptr)
-    this->thermal_shutdown_binary_sensor_->publish_state(fault & 0x08);
-  if (this->charge_safety_timer_binary_sensor_ != nullptr)
-    this->charge_safety_timer_binary_sensor_->publish_state(fault & 0x04);
-  if (this->drv_supply_invalid_binary_sensor_ != nullptr)
-    this->drv_supply_invalid_binary_sensor_->publish_state(fault & 0x02);
+  publish(this->low_battery_binary_sensor_, charge_stat == CHARGE_STAT_TRICKLE || charge_stat == CHARGE_STAT_PRECHARGE);
+  publish(this->pg_binary_sensor_, status[1] & 0x80);
+  publish(this->reverse_binary_sensor_, status[2] & 0x04);
+  publish(this->vac_undervoltage_binary_sensor_, fault & 0x80);
+  publish(this->vac_overvoltage_binary_sensor_, fault & 0x40);
+  publish(this->ibat_overcurrent_binary_sensor_, fault & 0x20);
+  publish(this->vbat_overvoltage_binary_sensor_, fault & 0x10);
+  publish(this->thermal_shutdown_binary_sensor_, fault & 0x08);
+  publish(this->charge_safety_timer_binary_sensor_, fault & 0x04);
+  publish(this->drv_supply_invalid_binary_sensor_, fault & 0x02);
 #endif
 #ifdef USE_TEXT_SENSOR
   if (this->charge_status_text_sensor_ != nullptr && charge_stat != this->last_charge_stat_) {
     this->last_charge_stat_ = charge_stat;
     this->charge_status_text_sensor_->publish_state(
-        ChargeStatusStrings::get_progmem_str(charge_stat, ChargeStatusStrings::LAST_INDEX));
+        ChargeStatusStrings::get_progmem_str(charge_stat, CHARGE_STAT_RESERVED));
   }
   if (this->temp_status_text_sensor_ != nullptr && ts_stat != this->last_ts_stat_) {
     this->last_ts_stat_ = ts_stat;
@@ -239,13 +226,13 @@ void BQ25820Component::publish_adc_() {
 #ifdef USE_SENSOR
   // IAC, IBAT, VAC, VBAT, VSYS and TS ADCs (0x2D-0x38)
   int16_t adc[6];
-  if (!this->status_comm_result(this->read_bytes_16_le(REG_IAC_ADC, adc, 6)))
+  if (!this->status_comm_result(this->read_bytes_16_le(REG_IAC_ADC, adc, std::size(adc))))
     return;
   if (this->iac_sensor_ != nullptr)
-    this->iac_sensor_->publish_state(adc[0] * IAC_ADC_STEP_MV / this->ac_sns_res_mohm_);
+    this->iac_sensor_->publish_state(adc[0] * this->iac_scale_);
   // Positive while charging
   if (this->ibat_sensor_ != nullptr)
-    this->ibat_sensor_->publish_state(adc[1] * IBAT_ADC_STEP_MV / this->bat_sns_res_mohm_);
+    this->ibat_sensor_->publish_state(adc[1] * this->ibat_scale_);
   if (this->vac_sensor_ != nullptr)
     this->vac_sensor_->publish_state(static_cast<uint16_t>(adc[2]) * VOLTAGE_ADC_STEP_V);
   if (this->vbat_sensor_ != nullptr)

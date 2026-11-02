@@ -48,17 +48,23 @@ CONF_TS_T5 = "ts_t5"
 CHARGE_TIMER_CHOICES = {"5h": 0, "8h": 1, "12h": 2, "24h": 3}
 TOPOFF_TIMER_CHOICES = {"disabled": 0, "15m": 1, "30m": 2, "45m": 3}
 MPPT_SWEEP_TIMER_CHOICES = {"3m": 0, "10m": 1, "15m": 2, "20m": 3}
-# Register code is the index; T5, T3, T2, T1 fill the threshold byte from the top
+# (key, choices, default, shift): the register code is the index of the choice
 TS_THRESHOLDS = (
-    (CONF_TS_T5, (50, 55, 60, 65), 6),
-    (CONF_TS_T3, (40, 45, 50, 55), 4),
-    (CONF_TS_T2, (5, 10, 15, 20), 2),
-    (CONF_TS_T1, (-10, -5, 0, 5), 0),
+    (CONF_TS_T1, (-10, -5, 0, 5), "0C", 0),
+    (CONF_TS_T2, (5, 10, 15, 20), "10C", 2),
+    (CONF_TS_T3, (40, 45, 50, 55), "45C", 4),
+    (CONF_TS_T5, (50, 55, 60, 65), "50C", 6),
 )
 
 # The current limits step 250 uV across the sense resistor: 50 mA with the
 # 5 mOhm battery reference shunt, 125 mA with the 2 mOhm input one
 CURRENT_LIMIT_STEP_MV = 0.25
+# The current ADCs step 10 uV (IBAT) and 4 uV (IAC) across the sense resistor
+IBAT_ADC_STEP_MV = 0.010
+IAC_ADC_STEP_MV = 0.004
+# Charger control bits the component does not set, at their reset values:
+# VRECHG 97.6% and EN_CHG_BIT_RESET_BEHAVIOR
+CHARGER_CONTROL_DEFAULTS = 0xC8
 # (key, sense resistor key, lowest code, highest code)
 CURRENT_LIMITS = (
     (CONF_CHARGE_CURRENT, CONF_BAT_SNS_RES, 8, 400),
@@ -136,10 +142,10 @@ CONFIG_SCHEMA = cv.All(
             ),
             cv.Optional(CONF_FORCE_MPPT_SWEEP, default=False): cv.boolean,
             cv.Optional(CONF_TEMP_EN, default=True): cv.boolean,
-            cv.Optional(CONF_TS_T1, default="0C"): _ts_threshold(TS_THRESHOLDS[3][1]),
-            cv.Optional(CONF_TS_T2, default="10C"): _ts_threshold(TS_THRESHOLDS[2][1]),
-            cv.Optional(CONF_TS_T3, default="45C"): _ts_threshold(TS_THRESHOLDS[1][1]),
-            cv.Optional(CONF_TS_T5, default="50C"): _ts_threshold(TS_THRESHOLDS[0][1]),
+            **{
+                cv.Optional(key, default=default): _ts_threshold(choices)
+                for key, choices, default, _ in TS_THRESHOLDS
+            },
         }
     )
     .extend(cv.polling_component_schema("60s"))
@@ -155,8 +161,9 @@ async def to_code(config: ConfigType) -> None:
 
     bat_sns_res = config[CONF_BAT_SNS_RES]
     ac_sns_res = config[CONF_AC_SNS_RES]
-    cg.add(var.set_bat_sns_res_mohm(bat_sns_res))
-    cg.add(var.set_ac_sns_res_mohm(ac_sns_res))
+    # Amps per ADC step
+    cg.add(var.set_ibat_scale(IBAT_ADC_STEP_MV / bat_sns_res))
+    cg.add(var.set_iac_scale(IAC_ADC_STEP_MV / ac_sns_res))
     if (current := config.get(CONF_CHARGE_CURRENT)) is not None:
         cg.add(var.set_charge_current_code(_current_code(current, bat_sns_res)))
     if (current := config.get(CONF_PRECHARGE_CURRENT)) is not None:
@@ -177,17 +184,34 @@ async def to_code(config: ConfigType) -> None:
             round(config[CONF_REVERSE_SYSTEM_VOLTAGE] / 0.02)
         )
     )
-    cg.add(var.set_charge_timer(config[CONF_CHARGE_TIMER]))
-    cg.add(var.set_topoff_timer(config[CONF_TOPOFF_TIMER]))
-    cg.add(var.set_mppt_sweep_timer(config[CONF_MPPT_SWEEP_TIMER]))
+    # TOPOFF_TMR[7:6], WATCHDOG[5:4] (01b = 40 s), EN_CHG_TMR, CHG_TMR[2:1]
+    cg.add(
+        var.set_timer_control(
+            TOPOFF_TIMER_CHOICES[config[CONF_TOPOFF_TIMER]] << 6
+            | (0x10 if config[CONF_WATCHDOG] else 0)
+            | 0x08
+            | CHARGE_TIMER_CHOICES[config[CONF_CHARGE_TIMER]] << 1
+        )
+    )
+    # EN_HIZ, EN_CHG
+    cg.add(
+        var.set_charger_control(
+            CHARGER_CONTROL_DEFAULTS
+            | (0x04 if config[CONF_HIZ_ENABLED] else 0)
+            | (0x01 if config[CONF_CHARGE_ENABLED] else 0)
+        )
+    )
+    # FULL_SWEEP_TMR[2:1], EN_MPPT
+    cg.add(
+        var.set_mppt_control(
+            MPPT_SWEEP_TIMER_CHOICES[config[CONF_MPPT_SWEEP_TIMER]] << 1
+            | (0x01 if config[CONF_MPPT_ENABLED] else 0)
+        )
+    )
     ts_thresholds = 0
-    for key, choices, shift in TS_THRESHOLDS:
+    for key, choices, _, shift in TS_THRESHOLDS:
         ts_thresholds |= choices.index(config[key]) << shift
     cg.add(var.set_ts_thresholds(ts_thresholds))
-    cg.add(var.set_watchdog_enabled(config[CONF_WATCHDOG]))
-    cg.add(var.set_charge_enabled(config[CONF_CHARGE_ENABLED]))
-    cg.add(var.set_hiz_enabled(config[CONF_HIZ_ENABLED]))
     cg.add(var.set_ideal_diode_enabled(config[CONF_IDEAL_DIODE]))
-    cg.add(var.set_mppt_enabled(config[CONF_MPPT_ENABLED]))
     cg.add(var.set_force_mppt_sweep(config[CONF_FORCE_MPPT_SWEEP]))
     cg.add(var.set_temp_enabled(config[CONF_TEMP_EN]))
