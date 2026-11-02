@@ -91,6 +91,8 @@ void BQ25820Component::setup() {
     this->set_interval(WATCHDOG_FEED_INTERVAL_MS,
                        [this]() { this->write_byte(REG_CHARGER_CONTROL, this->charger_control_ | WD_RST); });
   }
+
+  this->update();
 }
 
 void BQ25820Component::dump_config() {
