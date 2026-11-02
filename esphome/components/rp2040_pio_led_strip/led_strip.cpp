@@ -71,10 +71,10 @@ void RP2040PIOLEDStripLightOutput::setup() {
   }
   this->sm_ = sm;
 
-  // Initalize the DMA channel (Note: There are 12 DMA channels and 8 state machines so we won't run out)
-
+  // Other code may already hold every DMA channel
   int dma_chan = dma_claim_unused_channel(false);
   if (dma_chan < 0) {
+    pio_sm_unclaim(this->pio_, this->sm_);
     this->mark_failed(LOG_STR("Failed to claim DMA channel"));
     return;
   }
