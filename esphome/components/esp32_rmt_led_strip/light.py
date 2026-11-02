@@ -123,6 +123,8 @@ CONFIG_SCHEMA = cv.All(
     ),
 )
 
+FINAL_VALIDATE_SCHEMA = esp32_rmt.validate_symbol_budget
+
 
 async def to_code(config: ConfigType) -> None:
     # Re-enable ESP-IDF's RMT driver (excluded by default to save compile time)

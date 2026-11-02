@@ -122,7 +122,12 @@ def _validate_non_blocking(config: ConfigType) -> None:
         config[CONF_NON_BLOCKING] = True
 
 
-FINAL_VALIDATE_SCHEMA = _validate_non_blocking
+def _final_validate(config: ConfigType) -> ConfigType:
+    _validate_non_blocking(config)
+    return esp32_rmt.validate_symbol_budget(config)
+
+
+FINAL_VALIDATE_SCHEMA = _final_validate
 
 DIGITAL_WRITE_ACTION_SCHEMA = cv.maybe_simple_value(
     {
