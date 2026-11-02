@@ -77,7 +77,7 @@ CONF_RELATION = "relation"
 CONF_SBOM = "sbom"
 CONF_SUPPLIER = "supplier"
 CONF_SUSPEND_LOOP = "suspend_loop"
-CONF_FRIENDLY_NAME_MAC_SUFFIX_SEPARATOR = "friendly_name_mac_suffix_separator"
+CONF_FRIENDLY_NAME_SEPARATOR = "friendly_name_separator"
 
 # Application::loop_interval_ when loop_interval is not set. Make sure to align with application.h
 DEFAULT_LOOP_INTERVAL = TimePeriodMilliseconds(milliseconds=16)
@@ -162,19 +162,6 @@ def validate_hostname(config):
             "as it can cause problems with some DHCP and local name services. "
             "For more information, see https://esphome.io/guides/faq/#why-shouldnt-i-use-underscores-in-my-device-name",
             config[CONF_NAME],
-        )
-    return config
-
-
-def validate_friendly_name_mac_suffix_separator(config: ConfigType) -> ConfigType:
-    if (
-        CONF_FRIENDLY_NAME_MAC_SUFFIX_SEPARATOR in config
-        and not config[CONF_NAME_ADD_MAC_SUFFIX]
-    ):
-        raise cv.Invalid(
-            f"'{CONF_FRIENDLY_NAME_MAC_SUFFIX_SEPARATOR}' requires "
-            f"'{CONF_NAME_ADD_MAC_SUFFIX}' to be enabled",
-            path=[CONF_FRIENDLY_NAME_MAC_SUFFIX_SEPARATOR],
         )
     return config
 
@@ -462,7 +449,7 @@ CONFIG_SCHEMA = cv.All(
                 CONF_LIBRARIES, default=[], visibility=cv.Visibility.YAML_ONLY
             ): cv.ensure_list(cv.string_strict),
             cv.Optional(CONF_NAME_ADD_MAC_SUFFIX, default=False): cv.boolean,
-            cv.Optional(CONF_FRIENDLY_NAME_MAC_SUFFIX_SEPARATOR): cv.All(
+            cv.Optional(CONF_FRIENDLY_NAME_SEPARATOR): cv.All(
                 cv.string_no_slash, cv.ByteLength(max=3)
             ),
             cv.Optional(CONF_MERGE_WARNINGS, default=True): cv.boolean,
@@ -517,7 +504,6 @@ CONFIG_SCHEMA = cv.All(
         }
     ),
     validate_hostname,
-    validate_friendly_name_mac_suffix_separator,
 )
 
 
@@ -919,7 +905,7 @@ async def to_code(config: ConfigType) -> None:
     friendly_expr, friendly_len = _emit_app_name(
         friendly_name,
         _APP_FRIENDLY_NAME_BUF_VAR,
-        config.get(CONF_FRIENDLY_NAME_MAC_SUFFIX_SEPARATOR, _APP_FRIENDLY_NAME_MAC_SEP),
+        config.get(CONF_FRIENDLY_NAME_SEPARATOR, _APP_FRIENDLY_NAME_MAC_SEP),
     )
     if name_add_mac_suffix:
         cg.add_define("ESPHOME_NAME_ADD_MAC_SUFFIX")

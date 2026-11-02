@@ -28,7 +28,7 @@ from esphome.const import (
 )
 from esphome.core import CORE, ID, KEY_CONTROLLER_REGISTRY_CONTROLLERS, config
 from esphome.core.config import (
-    CONF_FRIENDLY_NAME_MAC_SUFFIX_SEPARATOR,
+    CONF_FRIENDLY_NAME_SEPARATOR,
     CONF_LOOP_INTERVAL,
     CONF_RELATION,
     CONF_SUSPEND_LOOP,
@@ -43,7 +43,6 @@ from esphome.core.config import (
     valid_include,
     valid_project_name,
     validate_area_config,
-    validate_friendly_name_mac_suffix_separator,
     validate_hostname,
 )
 import esphome.final_validate as fv
@@ -1688,11 +1687,11 @@ def test_make_app_name_cpp_mac_suffix_space_sep() -> None:
     ("separator_line", "expected"),
     [
         ("", "my device XXXXXX"),
-        ('  friendly_name_mac_suffix_separator: "-"\n', "my device-XXXXXX"),
-        ('  friendly_name_mac_suffix_separator: ""\n', "my deviceXXXXXX"),
+        ('  friendly_name_separator: "-"\n', "my device-XXXXXX"),
+        ('  friendly_name_separator: ""\n', "my deviceXXXXXX"),
     ],
 )
-async def test_friendly_name_mac_suffix_separator(
+async def test_friendly_name_separator(
     yaml_file: Callable[[str], Path], separator_line: str, expected: str
 ) -> None:
     """The friendly name joins the MAC suffix with a space unless told otherwise."""
@@ -1715,17 +1714,34 @@ async def test_friendly_name_mac_suffix_separator(
     assert 'static char esphome_app_name_buf[] = "my-device-XXXXXX";' in statements
 
 
-def test_friendly_name_mac_suffix_separator_requires_mac_suffix() -> None:
-    """The separator means nothing without the MAC suffix, so it is refused."""
-    config = {
-        CONF_NAME: "my-device",
-        CONF_NAME_ADD_MAC_SUFFIX: False,
-        CONF_FRIENDLY_NAME_MAC_SUFFIX_SEPARATOR: "-",
-    }
-    with pytest.raises(cv.Invalid, match="requires 'name_add_mac_suffix'"):
-        validate_friendly_name_mac_suffix_separator(config)
-    config[CONF_NAME_ADD_MAC_SUFFIX] = True
-    assert validate_friendly_name_mac_suffix_separator(config) == config
+@pytest.mark.asyncio
+async def test_friendly_name_separator_without_mac_suffix(
+    yaml_file: Callable[[str], Path],
+) -> None:
+    """Without the MAC suffix the separator is ignored, as when a device is adopted."""
+    result = load_config_from_yaml(
+        yaml_file,
+        "esphome:\n"
+        "  name: my-device\n"
+        "  friendly_name: my device\n"
+        "  name_add_mac_suffix: false\n"
+        '  friendly_name_separator: "-"\n'
+        "host:\n",
+    )
+    assert result is not None
+    assert result[CONF_ESPHOME][CONF_FRIENDLY_NAME_SEPARATOR] == "-"
+
+    with patch("esphome.core.config.cg") as mock_cg:
+        mock_cg.RawStatement.side_effect = lambda *args, **kwargs: MagicMock()
+        mock_cg.RawExpression.side_effect = lambda *args, **kwargs: MagicMock()
+        await config.to_code(result[CONF_ESPHOME])
+
+    assert not [
+        c
+        for c in mock_cg.RawStatement.call_args_list
+        if "esphome_app_friendly_name_buf" in c.args[0]
+    ]
+    assert '"my device"' in [c.args[0] for c in mock_cg.RawExpression.call_args_list]
 
 
 def test_make_app_name_cpp_non_ascii_utf8_length() -> None:
