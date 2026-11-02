@@ -56,7 +56,7 @@ async def to_code(config: ConfigType) -> None:
         "uptime_format",
         UptimeFormat,
         cg.ArrayInitializer(
-            cg.StructInitializer(UptimeFormat, *labels, ("expand", fmt[CONF_EXPAND]))
+            cg.StructInitializer(UptimeFormat, *labels, (CONF_EXPAND, fmt[CONF_EXPAND]))
         ),
     )
     var = cg.new_Pvariable(config[CONF_ID], format_table)
