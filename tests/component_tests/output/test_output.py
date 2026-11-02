@@ -12,11 +12,21 @@ from esphome.components import output
 from esphome.components.lp5562 import output as lp5562_output
 from esphome.components.mcp4461 import output as mcp4461_output
 from esphome.components.mcp4728 import output as mcp4728_output
+from esphome.components.my9231 import output as my9231_output
 from esphome.components.pca9685 import output as pca9685_output
 from esphome.components.sm2135 import output as sm2135_output
+from esphome.components.sm16716 import output as sm16716_output
 from esphome.config import Config, read_config
-from esphome.const import CONF_CHANNEL, CONF_PIN, CONF_PLATFORM, PlatformFramework
+from esphome.const import (
+    CONF_CHANNEL,
+    CONF_ID,
+    CONF_NUM_CHANNELS,
+    CONF_PIN,
+    CONF_PLATFORM,
+    PlatformFramework,
+)
 from esphome.core import CORE, ID
+from esphome.types import ConfigType
 
 from ..types import SetCoreConfigCallable
 
@@ -94,6 +104,86 @@ def test_hub_channel_must_be_unique(
         module.FINAL_VALIDATE_SCHEMA(entry)
     with pytest.raises(cv.Invalid, match=f"Channel '{channel}' of 'a' is already used"):
         module.FINAL_VALIDATE_SCHEMA(entries[3])
+
+
+def _hub_config(
+    platform: str, hub_key: str, hub: ConfigType | None, *channels: int
+) -> tuple[list[ConfigType], Config]:
+    """One output of platform per channel on hub 'a', declared with the hub dict if given."""
+    full = Config()
+    if hub is not None:
+        hub_id = ID("a", is_declaration=True)
+        full[platform] = [{CONF_ID: hub_id, **hub}]
+        full.declare_ids.append((hub_id, [platform, 0, CONF_ID]))
+    full["output"] = _entries(platform, hub_key, *(("a", c) for c in channels))
+    return full["output"], full
+
+
+_FAKE_VALIDATE = output.final_validate_unique_channel(
+    platform="fake", hub_key="fake_id", channel_count=lambda hub: hub["channels"]
+)
+
+
+@pytest.mark.parametrize(
+    ("validate", "platform", "hub_key", "hub", "count"),
+    [
+        pytest.param(_FAKE_VALIDATE, "fake", "fake_id", {"channels": 4}, 4, id="fake"),
+        pytest.param(
+            my9231_output.FINAL_VALIDATE_SCHEMA,
+            "my9231",
+            "my9231_id",
+            {CONF_NUM_CHANNELS: 6},
+            6,
+            id="my9231",
+        ),
+        pytest.param(
+            sm16716_output.FINAL_VALIDATE_SCHEMA,
+            "sm16716",
+            "sm16716_id",
+            {CONF_NUM_CHANNELS: 3},
+            3,
+            id="sm16716",
+        ),
+    ],
+)
+def test_hub_channel_count(
+    set_core_config: SetCoreConfigCallable,
+    validate: Callable[[ConfigType], ConfigType],
+    platform: str,
+    hub_key: str,
+    hub: ConfigType,
+    count: int,
+) -> None:
+    """The hub's last channel is accepted; its channel count is past the end."""
+    entries, full = _hub_config(platform, hub_key, hub, count - 1, count)
+    set_core_config(PlatformFramework.ESP32_IDF, full_config=full)
+    assert validate(entries[0]) is entries[0]
+    with pytest.raises(
+        cv.Invalid,
+        match=f"Channel must be less than {count}, the number of channels of 'a'",
+    ) as err:
+        validate(entries[1])
+    assert err.value.path == [CONF_CHANNEL]
+
+
+def test_channel_count_keeps_duplicate_check(
+    set_core_config: SetCoreConfigCallable,
+) -> None:
+    """In-range channels are still checked for duplicates."""
+    entries, full = _hub_config("fake", "fake_id", {"channels": 4}, 1, 1)
+    set_core_config(PlatformFramework.ESP32_IDF, full_config=full)
+    with pytest.raises(cv.Invalid, match="Channel '1' of 'a' is already used"):
+        _FAKE_VALIDATE(entries[1])
+
+
+def test_no_channel_count_skips_hub_lookup(
+    set_core_config: SetCoreConfigCallable,
+) -> None:
+    """Without channel_count the hub is never looked up, so an undeclared hub is fine."""
+    entries, full = _hub_config("fake", "fake_id", None, 1000)
+    set_core_config(PlatformFramework.ESP32_IDF, full_config=full)
+    validate = output.final_validate_unique_channel(platform="fake", hub_key="fake_id")
+    assert validate(entries[0]) is entries[0]
 
 
 def test_output_button_presses_through_shared_helper(

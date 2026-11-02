@@ -162,8 +162,8 @@ class SettleFilter : public Filter {
  protected:
   void reset() override;
 
+  bool steady_{true};  // Before delay_ so it fills the Filter base's tail padding
   TemplatableFn<uint32_t> delay_{};
-  bool steady_{true};
 };
 
 }  // namespace esphome::binary_sensor
