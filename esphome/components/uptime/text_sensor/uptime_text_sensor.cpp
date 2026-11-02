@@ -18,8 +18,8 @@ static void append_unit(char *buf, size_t buf_size, size_t &pos, const char *sep
 
 void UptimeTextSensor::setup() { this->update(); }
 
-void UptimeTextSensor::update() {
-  uint32_t uptime = static_cast<uint32_t>(millis_64() / 1000);
+// Inlined into update(), so firmware has no extra function
+ESPHOME_ALWAYS_INLINE inline void UptimeTextSensor::publish_uptime_(uint32_t uptime) {
   unsigned interval = this->get_update_interval() / 1000;
 
   // Calculate all time units
@@ -72,6 +72,9 @@ void UptimeTextSensor::update() {
 
   this->publish_state(buf, pos);
 }
+
+void UptimeTextSensor::update() { this->publish_uptime_(static_cast<uint32_t>(millis_64() / 1000)); }
+void UptimeTextSensor::publish_uptime(uint32_t uptime) { this->publish_uptime_(uptime); }
 
 float UptimeTextSensor::get_setup_priority() const { return setup_priority::HARDWARE; }
 void UptimeTextSensor::dump_config() { LOG_TEXT_SENSOR("", "Uptime Text Sensor", this); }
