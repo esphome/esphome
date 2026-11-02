@@ -27,7 +27,8 @@ from esphome.types import ConfigType
         ("NRF54LM20DK/NRF54LM20A/CPUAPP", VARIANT_NRF54LM20),
         ("xiao_ble", VARIANT_NRF52840),
         ("adafruit_feather_nrf52840", VARIANT_NRF52840),
-        ("nrf54lm20dk", VARIANT_NRF52840),
+        ("nrf54lm20dk", VARIANT_NRF54LM20),
+        ("nrf54lm20dk/nrf54lm20b/cpuapp", VARIANT_NRF54LM20),
     ],
 )
 def test_board_variant(board: str, variant: str) -> None:

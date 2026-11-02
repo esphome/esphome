@@ -142,7 +142,7 @@ FAKE_BOARD_MANIFEST = """
 
 def _board_variant(board: str) -> str:
     """Take the SoC from the board qualifiers, e.g. nrf54lm20dk/nrf54lm20a/cpuapp."""
-    qualifiers = board.lower().split("/")
+    qualifiers = BOARD_ALIASES.get(board, board).lower().split("/")
     if len(qualifiers) > 1 and qualifiers[1].startswith("nrf54lm20"):
         return VARIANT_NRF54LM20
     return VARIANT_NRF52840
