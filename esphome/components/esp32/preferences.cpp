@@ -60,7 +60,7 @@ static void key_name_terminate_with_value_length(char *key_name_end, size_t len)
 }
 
 // The preference format, zero when preferences are not initialized.
-uint8_t s_format{0};
+static uint8_t s_format{0};  // NOLINT(cppcoreguidelines-avoid-non-const-global-variables)
 
 static std::vector<NVSData> s_pending_save;  // NOLINT(cppcoreguidelines-avoid-non-const-global-variables)
 
@@ -193,7 +193,7 @@ void ESP32Preferences::open() {
   nvs_flash_init();
 
   Metadata metadata{};
-  bool write_metadata = false;
+  bool adopt_latest_format = false;
   this->nvs_handle = 0;
   esp_err_t err = nvs_open(ESPHOME_NAMESPACE, NVS_READWRITE, &this->nvs_handle);
   if (err == ESP_OK) {
@@ -211,25 +211,33 @@ void ESP32Preferences::open() {
         metadata.format = FORMAT_V1;
       } else if (err == ESP_ERR_NVS_NOT_FOUND) {
         // NVS is empty: adopt the latest format.
-        metadata.format = FORMAT_LATEST_SUPPORTED;
-        write_metadata = true;
+        adopt_latest_format = true;
         err = ESP_OK;
       }
     }
+    if (err != ESP_OK) {
+      // Try to resolve the error by erasing just the ESPHome namespace within NVS.
+      s_open_err = err;
+      err = nvs_erase_all(this->nvs_handle);
+      adopt_latest_format = true;
+    }
+  } else {
+    s_open_err = err;
   }
   if (err != ESP_OK) {
-    s_open_err = err;
+    // For unrecoverable errors, erase the entire NVS partition including other namespaces.
     nvs_close(this->nvs_handle);
+    this->nvs_handle = 0;
     nvs_flash_deinit();
     nvs_flash_erase();
     nvs_flash_init();
     err = nvs_open(ESPHOME_NAMESPACE, NVS_READWRITE, &this->nvs_handle);
     if (err != ESP_OK)
       return;
-    metadata.format = FORMAT_V2;
-    write_metadata = true;
+    adopt_latest_format = true;
   }
-  if (write_metadata) {
+  if (adopt_latest_format) {
+    metadata.format = FORMAT_LATEST_SUPPORTED;
     err = nvs_set_u64(this->nvs_handle, METADATA_KEY, metadata.raw);
     if (err != ESP_OK) {
       // NVS is in a pretty bad state if we can't even write the metadata so consider it unavailable.
