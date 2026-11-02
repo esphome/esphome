@@ -17,14 +17,12 @@ from esphome.const import (
     CONF_TIMEOUT,
     CONF_URL,
     CONF_WATCHDOG_TIMEOUT,
-    PLATFORM_ESP32,
     PLATFORM_HOST,
     PlatformFramework,
     __version__,
 )
 from esphome.core import CORE, ID, Lambda, TimePeriodMilliseconds
 from esphome.cpp_generator import MockObj, TemplateArgsType
-import esphome.final_validate as fv
 from esphome.helpers import IS_MACOS
 from esphome.types import ConfigType
 
@@ -105,16 +103,18 @@ def default_watchdog_timeout(config: ConfigType) -> None:
 
     The default never goes below the platform task watchdog, so a user who
     widened `esp32.watchdog_timeout` keeps that window during requests.
+    When the task watchdog is disabled, the request watchdog cannot be set.
     """
-    if not CORE.is_esp32 or CONF_WATCHDOG_TIMEOUT in config:
+    if not CORE.is_esp32:
+        return
+    esp32.validate_task_wdt_enabled(config, CONF_WATCHDOG_TIMEOUT)
+    platform_ms = esp32.task_wdt_timeout_ms()
+    if platform_ms == 0 or CONF_WATCHDOG_TIMEOUT in config:
         return
     derived_ms = (
         config[CONF_TIMEOUT].total_milliseconds * WATCHDOG_TIMEOUT_MULTIPLIER
         + WATCHDOG_TIMEOUT_MARGIN_MS
     )
-    platform_ms = fv.full_config.get()[PLATFORM_ESP32][
-        CONF_WATCHDOG_TIMEOUT
-    ].total_milliseconds
     config[CONF_WATCHDOG_TIMEOUT] = TimePeriodMilliseconds(
         milliseconds=max(derived_ms, platform_ms)
     )

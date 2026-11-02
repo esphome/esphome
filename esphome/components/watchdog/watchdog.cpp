@@ -35,7 +35,7 @@ WatchdogManager::~WatchdogManager() {
 
 void WatchdogManager::set_timeout_(uint32_t timeout_ms) {
   ESP_LOGV(TAG, "Adjusting WDT to %" PRIu32 "ms", timeout_ms);
-#ifdef USE_ESP32
+#ifdef USE_ESP32_TASK_WDT
   esp_task_wdt_config_t wdt_config = {
       .timeout_ms = timeout_ms,
       .idle_core_mask = 0,
@@ -51,7 +51,7 @@ void WatchdogManager::set_timeout_(uint32_t timeout_ms) {
   wdt_config.trigger_panic = true;
 #endif
   esp_task_wdt_reconfigure(&wdt_config);
-#endif  // USE_ESP32
+#endif  // USE_ESP32_TASK_WDT
 
 #ifdef USE_RP2
   watchdog_enable(timeout_ms, true);
@@ -61,9 +61,9 @@ void WatchdogManager::set_timeout_(uint32_t timeout_ms) {
 uint32_t WatchdogManager::get_timeout_() {
   uint32_t timeout_ms = 0;
 
-#ifdef USE_ESP32
+#ifdef USE_ESP32_TASK_WDT
   timeout_ms = (uint32_t) CONFIG_ESP_TASK_WDT_TIMEOUT_S * 1000;
-#endif  // USE_ESP32
+#endif  // USE_ESP32_TASK_WDT
 
 #ifdef USE_RP2
   timeout_ms = watchdog_get_count() / 1000;

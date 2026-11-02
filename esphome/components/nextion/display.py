@@ -10,6 +10,7 @@ from esphome.const import (
     PLATFORM_ESP8266,
 )
 from esphome.core import CORE, TimePeriod
+from esphome.types import ConfigType
 
 from . import Nextion, nextion_ref
 from .base_component import (
@@ -145,6 +146,14 @@ CONFIG_SCHEMA = cv.All(
     ),
     _validate_tft_upload,
 )
+
+
+def _final_validate(config: ConfigType) -> None:
+    if CORE.is_esp32:
+        esp32.validate_task_wdt_enabled(config, CONF_TFT_UPLOAD_WATCHDOG_TIMEOUT)
+
+
+FINAL_VALIDATE_SCHEMA = _final_validate
 
 
 automation.register_apply_action(

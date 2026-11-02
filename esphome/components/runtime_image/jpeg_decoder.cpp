@@ -8,7 +8,7 @@
 #include "esphome/core/helpers.h"
 #include "esphome/core/log.h"
 
-#ifdef USE_ESP_IDF
+#ifdef USE_ESP32_TASK_WDT
 #include "esp_task_wdt.h"
 #endif
 
@@ -54,13 +54,15 @@ void JpegDecoder::draw_rgb565(int x, int y, int w, int h, const uint8_t *pixels)
 // Some very big images take too long to decode, so feed the watchdog as the decode goes
 // to avoid crashing if the executing task has a watchdog enabled.
 static void feed_watchdog() {
-#ifdef USE_ESP_IDF
-  if (esp_task_wdt_status(nullptr) == ESP_OK) {
+#ifdef USE_ESP32_TASK_WDT
+  // Only a task the watchdog watches may feed it
+  if (esp_task_wdt_status(nullptr) != ESP_OK)
+    return;
+#elif defined(USE_ESP32)
+  // No watchdog to feed, and a decode off the loop task must not run the status LED
+  return;
 #endif
-    App.feed_wdt();
-#ifdef USE_ESP_IDF
-  }
-#endif
+  App.feed_wdt();
 }
 
 /**
