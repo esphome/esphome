@@ -87,7 +87,7 @@ helper; `AGENTS.md` section 4 and the `component-codegen` skill have the detail.
 | button/switch/number/select C++ class that only calls the hub | `ApplyButton`, `ApplySwitch`, `ApplyNumber`, `ApplySelect` with `apply=` |
 | action or condition class that only forwards to the parent | `register_apply_action` / `register_apply_condition` |
 | enum-to-string `switch` returning literals | `PROGMEM_STRING_TABLE` with `get_log_str` / `get_progmem_str` |
-| `if (x := config.get(CONF_X)) is not None: cg.add(var.set_x(x))` | `cg.add_optional(var.set_x, config.get(CONF_X))` |
+| `if (x := config.get(CONF_X)) is not None: cg.add(var.set_x(x))` | `cg.add_optional(var.set_x, config.get(CONF_X))`, when the setter takes the value unchanged |
 
 ## Python conventions
 
