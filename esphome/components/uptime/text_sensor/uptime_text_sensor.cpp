@@ -18,8 +18,9 @@ static void append_unit(char *buf, size_t buf_size, size_t &pos, const char *sep
 
 void UptimeTextSensor::setup() { this->update(); }
 
-void UptimeTextSensor::update() {
-  uint32_t uptime = static_cast<uint32_t>(millis_64() / 1000);
+void UptimeTextSensor::update() { this->publish_uptime(static_cast<uint32_t>(millis_64() / 1000)); }
+
+void UptimeTextSensor::publish_uptime(uint32_t uptime) {
   unsigned interval = this->get_update_interval() / 1000;
 
   // Calculate all time units
