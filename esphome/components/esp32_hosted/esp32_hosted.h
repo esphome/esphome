@@ -2,7 +2,7 @@
 
 #include "esphome/core/defines.h"
 
-#if defined(USE_ESP32_VARIANT_ESP32H2) || defined(USE_ESP32_VARIANT_ESP32P4)
+#ifdef USE_ESP32_HOSTED
 
 #include "esphome/core/component.h"
 #include "esphome/core/helpers.h"
@@ -35,13 +35,19 @@ class ESP32Hosted : public Component {
   template<typename F> void add_on_link_callback(F &&callback) { this->link_callback_.add(std::forward<F>(callback)); }
 
  protected:
+  enum class LinkState : uint8_t {
+    LINK_STATE_UNKNOWN,  // No event yet, so the initial state task may still set it
+    LINK_STATE_DOWN,
+    LINK_STATE_UP,
+  };
+
   static void event_handler(void *arg, esp_event_base_t event_base, int32_t event_id, void *event_data);
   static void initial_state_task(void *arg);
   /// Safe from any task. The main loop reports the change.
-  void set_link_state_(bool linked);
+  void set_link_state_(LinkState state);
 
   // Written by esp_hosted's event task and the initial state task, read by the main loop
-  std::atomic<bool> link_state_{false};
+  std::atomic<LinkState> link_state_{LinkState::LINK_STATE_UNKNOWN};
   bool linked_{false};
   LazyCallbackManager<void(bool)> link_callback_;
 };

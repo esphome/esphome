@@ -1,6 +1,6 @@
 #include "esp32_hosted.h"
 
-#if defined(USE_ESP32_VARIANT_ESP32H2) || defined(USE_ESP32_VARIANT_ESP32P4)
+#ifdef USE_ESP32_HOSTED
 
 #include "esphome/core/log.h"
 
@@ -46,7 +46,7 @@ void ESP32Hosted::setup() {
 void ESP32Hosted::loop() {
   // Only a link change enables the loop
   this->disable_loop();
-  const bool linked = this->link_state_.load(std::memory_order_acquire);
+  const bool linked = this->link_state_.load(std::memory_order_acquire) == LinkState::LINK_STATE_UP;
   if (linked == this->linked_)
     return;
   this->linked_ = linked;
@@ -60,8 +60,8 @@ void ESP32Hosted::loop() {
 
 void ESP32Hosted::dump_config() { ESP_LOGCONFIG(TAG, "ESP32 Hosted:\n  Linked: %s", YESNO(this->linked_)); }
 
-void ESP32Hosted::set_link_state_(bool linked) {
-  this->link_state_.store(linked, std::memory_order_release);
+void ESP32Hosted::set_link_state_(LinkState state) {
+  this->link_state_.store(state, std::memory_order_release);
   this->enable_loop_soon_any_context();
 }
 
@@ -69,12 +69,12 @@ void ESP32Hosted::event_handler(void *arg, esp_event_base_t event_base, int32_t 
   auto *hosted = static_cast<ESP32Hosted *>(arg);
   switch (event_id) {
     case ESP_HOSTED_EVENT_TRANSPORT_UP:
-      hosted->set_link_state_(true);
+      hosted->set_link_state_(LinkState::LINK_STATE_UP);
       break;
     // esp_hosted restarts the device after a failure unless that is turned off in its configuration
     case ESP_HOSTED_EVENT_TRANSPORT_FAILURE:
     case ESP_HOSTED_EVENT_TRANSPORT_DOWN:
-      hosted->set_link_state_(false);
+      hosted->set_link_state_(LinkState::LINK_STATE_DOWN);
       break;
     default:
       break;
@@ -88,7 +88,11 @@ void ESP32Hosted::initial_state_task(void *arg) {
   while (true) {
     const int err = esp_hosted_connect_to_slave();  // NOLINT
     if (err == 0) {
-      hosted->set_link_state_(true);
+      // An event that arrived meanwhile is newer than this answer, so only an unknown state is replaced
+      auto expected = LinkState::LINK_STATE_UNKNOWN;
+      if (hosted->link_state_.compare_exchange_strong(expected, LinkState::LINK_STATE_UP, std::memory_order_release,
+                                                      std::memory_order_relaxed))
+        hosted->enable_loop_soon_any_context();
       break;
     }
     // esp_hosted is still initialising, or the bring-up took longer than its own wait. Anything else is a failure.
