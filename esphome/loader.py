@@ -180,11 +180,17 @@ class ComponentManifest:
         constructed with ``recursive_sources=True`` also descend into non-subpackage
         subdirectories (subdirectories without an ``__init__.py``), so core code can
         live under ``esphome/core/<group>/`` without every component paying the cost.
+
+        A module platform (``a4988/stepper.py``) shares its component's directory, so
+        without its own ``FILTER_SOURCE_FILES`` it uses the component's.
         """
         ret: list[FileResource] = []
 
-        # Get filter function for source files
         filter_source_files_func = getattr(self.module, "FILTER_SOURCE_FILES", None)
+        if filter_source_files_func is None and self.module.__name__ != self.package:
+            filter_source_files_func = getattr(
+                sys.modules[self.package], "FILTER_SOURCE_FILES", None
+            )
 
         # Get list of files to exclude
         excluded_files = (
