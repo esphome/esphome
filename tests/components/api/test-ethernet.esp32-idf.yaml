@@ -1,0 +1,3 @@
+packages:
+  api: !include common.yaml
+  ethernet: !include ../../components/ethernet/common-lan8720.yaml
