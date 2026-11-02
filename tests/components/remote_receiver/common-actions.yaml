@@ -185,8 +185,8 @@ on_mirage:
 on_toto:
   then:
     - logger.log:
-        format: "on_toto: %u %u %u"
-        args: ["x.rc_code_1", "x.rc_code_2", "x.command"]
+        format: "on_toto: %u"
+        args: ["x"]
 on_aok:
   then:
     - logger.log:
