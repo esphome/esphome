@@ -648,37 +648,6 @@ void APIServer::get_home_assistant_state(std::string entity_id, optional<std::st
   this->add_extra_state_subscription_(
       make_owned_state_subscription(std::move(entity_id), std::move(attribute), std::move(f), true));
 }
-
-static ESPHOME_ALWAYS_INLINE inline void dispatch_state(const APIServer::HomeAssistantStateSubscription &sub,
-                                                        StringRef entity_id, StringRef attribute, StringRef state) {
-  if (entity_id != sub.entity_id)
-    return;
-  // A subscription without an attribute only takes states without one
-  if (sub.attribute != nullptr ? attribute != sub.attribute : !attribute.empty())
-    return;
-  sub.callback.call(state);
-}
-
-void APIServer::dispatch_home_assistant_state(StringRef entity_id, StringRef attribute, StringRef state) {
-  // Sizes are re-read each step: a callback may subscribe, which can move extra_state_subs_
-#ifdef HOMEASSISTANT_STATE_SUBSCRIPTION_COUNT
-  for (size_t i = 0; i < this->state_subs_.size(); i++)
-    dispatch_state(this->state_subs_[i], entity_id, attribute, state);
-#endif
-  for (size_t i = 0; i < this->extra_state_sub_count_; i++)
-    dispatch_state(this->extra_state_subs_[i], entity_id, attribute, state);
-}
-
-const APIServer::HomeAssistantStateSubscription *APIServer::get_state_sub(size_t index) const {
-#ifdef HOMEASSISTANT_STATE_SUBSCRIPTION_COUNT
-  if (index < this->state_subs_.size())
-    return &this->state_subs_[index];
-  index -= this->state_subs_.size();
-#endif
-  if (index < this->extra_state_sub_count_)
-    return &this->extra_state_subs_[index];
-  return nullptr;
-}
 #endif
 
 #ifdef USE_API_NOISE
