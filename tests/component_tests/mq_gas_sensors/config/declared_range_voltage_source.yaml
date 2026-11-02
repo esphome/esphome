@@ -1,5 +1,6 @@
-# Config-only fixture: a declared `adc_input_max:` cannot widen the range of the
-# sampler `voltage:` reads from past what its attenuation measures.
+# Config-only fixture: a declared `adc_input_max:` is what the divider is checked
+# against, even above the range the attenuation of the sampler `voltage:` reads
+# from measures (the top of the reading flattens there).
 esphome:
   name: test
 
