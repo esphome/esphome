@@ -651,14 +651,12 @@ void APIServer::get_home_assistant_state(std::string entity_id, optional<std::st
 }
 
 const APIServer::HomeAssistantStateSubscription *APIServer::get_state_sub(size_t index) const {
-#ifdef HOMEASSISTANT_STATE_SUBSCRIPTION_COUNT
-  if (index < this->state_subs_.size())
-    return &this->state_subs_[index];
-  index -= this->state_subs_.size();
-#endif
-  if (index < this->extra_state_sub_count_)
-    return &this->extra_state_subs_[index];
-  return nullptr;
+  std::span<const HomeAssistantStateSubscription> counted = this->state_sub_list_(false);
+  if (index < counted.size())
+    return &counted[index];
+  index -= counted.size();
+  std::span<const HomeAssistantStateSubscription> extra = this->state_sub_list_(true);
+  return index < extra.size() ? &extra[index] : nullptr;
 }
 #endif
 

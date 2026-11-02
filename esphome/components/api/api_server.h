@@ -268,11 +268,7 @@ class APIServer final : public Component
   /// Call every subscription that matches a state from Home Assistant; state must be null-terminated
   ESPHOME_ALWAYS_INLINE void dispatch_home_assistant_state(const HomeAssistantStateResponse &msg) {
     // Counted subscriptions first, then the extra ones
-#ifdef HOMEASSISTANT_STATE_SUBSCRIPTION_COUNT
-    bool extra = false;
-#else
-    bool extra = true;
-#endif
+    bool extra = this->state_sub_list_(false).empty();
     for (;; extra = true) {
       std::span<const HomeAssistantStateSubscription> subs = this->state_sub_list_(extra);
       for (const auto *it = subs.data(), *end = it + subs.size(); it != end; ++it) {
@@ -347,13 +343,15 @@ class APIServer final : public Component
   void add_state_subscription_(const char *entity_id, const char *attribute, Callback<void(StringRef)> callback,
                                bool once);
   void add_extra_state_subscription_(const HomeAssistantStateSubscription &sub);
-  // The counted subscriptions, or the extra ones
+  // The counted subscriptions (none without a count), or the extra ones
   ESPHOME_ALWAYS_INLINE std::span<const HomeAssistantStateSubscription> state_sub_list_(bool extra) const {
+    if (extra)
+      return {this->extra_state_subs_, this->extra_state_sub_count_};
 #ifdef HOMEASSISTANT_STATE_SUBSCRIPTION_COUNT
-    if (!extra)
-      return this->state_subs_;
+    return this->state_subs_;
+#else
+    return {};
 #endif
-    return {this->extra_state_subs_, this->extra_state_sub_count_};
   }
 #endif  // USE_API_HOMEASSISTANT_STATES
   // No explicit close() needed — listen sockets have no active connections on
