@@ -239,7 +239,7 @@ class TestUploadProgramJlink:
             ),
             patch("esphome.components.nrf52.jlink.get_build_env", return_value={}),
             patch("esphome.components.nrf52.jlink.run_command_ok", return_value=False),
-            pytest.raises(EsphomeError, match="J-Link flash failed"),
+            pytest.raises(EsphomeError, match="J-Link could not flash the device"),
         ):
             upload_program(config={}, args=None, host="JLINK")
 

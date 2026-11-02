@@ -101,4 +101,9 @@ def upload_using_jlink() -> None:
     if not run_command_ok(
         west_cmd, env=env, stream_output=True, cwd=str(paths["framework_path"])
     ):
-        raise EsphomeError("nRF52 J-Link flash failed")
+        raise EsphomeError(
+            "J-Link could not flash the device; the J-Link output above says why. "
+            "Check that the board is powered and connected through its debugger "
+            "USB port (the IMCU port on Nordic DKs). If the output says the chip "
+            "is protected, it must be erased (recovered) once before flashing."
+        )
