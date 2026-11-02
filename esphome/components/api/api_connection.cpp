@@ -2169,18 +2169,19 @@ void APIConnection::on_home_assistant_state_response(const HomeAssistantStateRes
     const_cast<char *>(msg.state.c_str())[msg.state.size()] = '\0';
   }
 
-  for (auto &it : this->parent_->get_state_subs()) {
-    if (msg.entity_id != it.entity_id) {
+  const APIServer::HomeAssistantStateSubscription *it;
+  for (size_t i = 0; (it = this->parent_->get_state_sub(i)) != nullptr; i++) {
+    if (msg.entity_id != it->entity_id) {
       continue;
     }
 
     // If subscriber has attribute filter (non-null), message attribute must match it;
     // if subscriber has no filter (nullptr), message must have no attribute.
-    if (it.attribute != nullptr ? msg.attribute != it.attribute : !msg.attribute.empty()) {
+    if (it->attribute != nullptr ? msg.attribute != it->attribute : !msg.attribute.empty()) {
       continue;
     }
 
-    it.callback(msg.state);
+    it->callback.call(msg.state);
   }
 }
 #endif
@@ -2778,30 +2779,29 @@ uint16_t APIConnection::try_send_ping_request(EntityBase *entity, APIConnection 
 
 #ifdef USE_API_HOMEASSISTANT_STATES
 void APIConnection::process_state_subscriptions_() {
-  const auto &subs = this->parent_->get_state_subs();
-  if (this->state_subs_at_ >= static_cast<int>(subs.size())) {
+  const auto *it = this->parent_->get_state_sub(this->state_subs_at_);
+  if (it == nullptr) {
     this->state_subs_at_ = -1;
     return;
   }
-
-  const auto &it = subs[this->state_subs_at_];
 #ifdef USE_API_WIZARD_LINKED_INPUTS
   // An entity id that is not set yet (a wizard input) has nothing to subscribe to; it is sent once it is set
-  if (it.entity_id[0] == '\0') {
+  if (it->entity_id[0] == '\0') {
     this->state_subs_at_++;
     return;
   }
 #endif
-  SubscribeHomeAssistantStateResponse resp;
-  resp.entity_id = StringRef(it.entity_id);
-
-  // Avoid string copy by using the const char* pointer if it exists
-  resp.attribute = it.attribute != nullptr ? StringRef(it.attribute) : StringRef("");
-
-  resp.once = it.once;
-  if (this->send_message(resp)) {
+  if (this->send_state_subscription_(it->entity_id, it->attribute, it->once)) {
     this->state_subs_at_++;
   }
+}
+
+bool APIConnection::send_state_subscription_(const char *entity_id, const char *attribute, bool once) {
+  SubscribeHomeAssistantStateResponse resp;
+  resp.entity_id = StringRef(entity_id);
+  resp.attribute = StringRef::from_maybe_nullptr(attribute);
+  resp.once = once;
+  return this->send_message(resp);
 }
 #endif  // USE_API_HOMEASSISTANT_STATES
 

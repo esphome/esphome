@@ -423,6 +423,7 @@ class APIConnection final : public APIServerConnectionBase {
 
 #ifdef USE_API_HOMEASSISTANT_STATES
   void process_state_subscriptions_();
+  bool send_state_subscription_(const char *entity_id, const char *attribute, bool once);
 #endif
 
   // Non-template buffer management for send_message

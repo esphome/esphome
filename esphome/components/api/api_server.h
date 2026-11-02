@@ -236,20 +236,20 @@ class APIServer final : public Component
 
 #ifdef USE_API_HOMEASSISTANT_STATES
   struct HomeAssistantStateSubscription {
-    const char *entity_id;  // Pointer to flash (internal) or heap (external)
-    const char *attribute;  // Pointer to flash or nullptr (nullptr means no attribute)
-    std::function<void(StringRef)> callback;
+    const char *entity_id;  // Flash, a wizard input buffer, or the strings of an owned subscription
+    const char *attribute;  // nullptr means no attribute
+    Callback<void(StringRef)> callback;
     bool once;
-
-    // Dynamic storage for external components using std::string API (custom_api_device.h)
-    // These are only allocated when using the std::string overload (nullptr for const char* overload)
-    std::unique_ptr<std::string> entity_id_dynamic_storage;
-    std::unique_ptr<std::string> attribute_dynamic_storage;
   };
 
-  // New const char* overload (for internal components - zero allocation)
-  void subscribe_home_assistant_state(const char *entity_id, const char *attribute, std::function<void(StringRef)> &&f);
-  void get_home_assistant_state(const char *entity_id, const char *attribute, std::function<void(StringRef)> &&f);
+  /// For internal components: entity_id and attribute must live as long as the server.
+  /// A [this] lambda is stored inline, without std::function or heap.
+  template<typename F> void subscribe_home_assistant_state(const char *entity_id, const char *attribute, F &&f) {
+    this->add_state_subscription_(entity_id, attribute, Callback<void(StringRef)>::create(std::forward<F>(f)), false);
+  }
+  template<typename F> void get_home_assistant_state(const char *entity_id, const char *attribute, F &&f) {
+    this->add_state_subscription_(entity_id, attribute, Callback<void(StringRef)>::create(std::forward<F>(f)), true);
+  }
 
   // std::string overload with StringRef callback (for custom_api_device.h with zero-allocation callback)
   void subscribe_home_assistant_state(std::string entity_id, optional<std::string> attribute,
@@ -263,7 +263,8 @@ class APIServer final : public Component
   void get_home_assistant_state(std::string entity_id, optional<std::string> attribute,
                                 std::function<void(const std::string &)> &&f);
 
-  const std::vector<HomeAssistantStateSubscription> &get_state_subs() const;
+  /// The subscription at index in the order they are sent, or nullptr past the last one
+  const HomeAssistantStateSubscription *get_state_sub(size_t index) const;
 #endif
 #ifdef USE_API_USER_DEFINED_ACTIONS
   const std::vector<UserServiceDescriptor *> &get_user_services() const { return this->user_services_; }
@@ -314,14 +315,9 @@ class APIServer final : public Component
 #endif  // USE_API_NOISE_PSK_FROM_YAML
 #endif  // USE_API_NOISE
 #ifdef USE_API_HOMEASSISTANT_STATES
-  // Helper methods to reduce code duplication
-  void add_state_subscription_(const char *entity_id, const char *attribute, std::function<void(StringRef)> &&f,
+  void add_state_subscription_(const char *entity_id, const char *attribute, Callback<void(StringRef)> callback,
                                bool once);
-  void add_state_subscription_(std::string entity_id, optional<std::string> attribute,
-                               std::function<void(StringRef)> &&f, bool once);
-  // Legacy helper: wraps std::string callback and delegates to StringRef version
-  void add_state_subscription_(std::string entity_id, optional<std::string> attribute,
-                               std::function<void(const std::string &)> &&f, bool once);
+  void add_extra_state_subscription_(const HomeAssistantStateSubscription &sub);
 #endif  // USE_API_HOMEASSISTANT_STATES
   // No explicit close() needed — listen sockets have no active connections on
   // failure/shutdown. Destructor handles fd cleanup (close or abort per platform).
@@ -354,7 +350,14 @@ class APIServer final : public Component
   // since the buffer would almost always reallocate on first use.
   APIBuffer shared_write_buffer_;
 #ifdef USE_API_HOMEASSISTANT_STATES
-  std::vector<HomeAssistantStateSubscription> state_subs_;
+#ifdef HOMEASSISTANT_STATE_SUBSCRIPTION_COUNT
+  // The homeassistant entities' subscriptions, counted at build time
+  StaticVector<HomeAssistantStateSubscription, HOMEASSISTANT_STATE_SUBSCRIPTION_COUNT> state_subs_;
+#endif
+  // Every other subscription (CustomAPIDevice, or beyond the count), sent after state_subs_. Grown to fit
+  // during setup, never freed.
+  HomeAssistantStateSubscription *extra_state_subs_{nullptr};
+  uint16_t extra_state_sub_count_{0};
 #endif
 #ifdef USE_API_USER_DEFINED_ACTIONS
   std::vector<UserServiceDescriptor *> user_services_;

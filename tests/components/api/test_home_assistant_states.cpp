@@ -152,14 +152,40 @@ class HomeAssistantStatesTest : public ::testing::Test {
     EXPECT_EQ(buffer[strlen(state)], '\0');
   }
 
+  // Take every slot of the build-time count, so later subscriptions go to the heap list
+  std::vector<SentSubscription> fill_counted_slots_() {
+    for (size_t i = 0; i < HOMEASSISTANT_STATE_SUBSCRIPTION_COUNT; i++)
+      this->server_->subscribe_home_assistant_state("sensor.counted", nullptr, [](StringRef) {});
+    return std::vector<SentSubscription>(HOMEASSISTANT_STATE_SUBSCRIPTION_COUNT, {"sensor.counted", "", false});
+  }
+
+#ifdef USE_API_WIZARD_LINKED_INPUTS
+  void check_wizard_resend_(std::vector<SentSubscription> expected) {
+    // A wizard input's entity id lives in a RAM buffer that is empty until the wizard sets it
+    static char buffer[WIZARD_ENTITY_ID_BUFFER_SIZE] = "";
+    std::string seen;
+    this->server_->subscribe_home_assistant_state(buffer, nullptr, [&](StringRef state) { seen = state.str(); });
+    this->server_->subscribe_home_assistant_state("sensor.fixed", nullptr, [](StringRef) {});
+
+    expected.push_back({"sensor.fixed", "", false});
+    EXPECT_EQ(this->request_subscriptions_(), expected);
+
+    strcpy(buffer, "sensor.chosen");
+    this->connection_->resend_state_subscriptions(buffer);
+    EXPECT_EQ(this->read_sent_(), (std::vector<SentSubscription>{{"sensor.chosen", "", false}}));
+
+    this->deliver_("sensor.chosen", "", "on");
+    EXPECT_EQ(seen, "on");
+    buffer[0] = '\0';
+  }
+#endif
+
   std::unique_ptr<APIServer> server_;
   std::unique_ptr<APIConnection> connection_;
   int peer_fd_{-1};
 };
 
-TEST_F(HomeAssistantStatesTest, NothingSubscribedSendsNothing) {
-  EXPECT_TRUE(this->request_subscriptions_().empty());
-}
+TEST_F(HomeAssistantStatesTest, NothingSubscribedSendsNothing) { EXPECT_TRUE(this->request_subscriptions_().empty()); }
 
 TEST_F(HomeAssistantStatesTest, SubscriptionsAreSentInRegistrationOrder) {
   auto noop = [](StringRef) {};
@@ -334,6 +360,35 @@ TEST_F(HomeAssistantStatesTest, InternalAndCustomAPIDeviceSubscriptionsAreAllSen
   EXPECT_EQ(device.seen, (std::vector<std::string>{"state:x"}));
 }
 
+TEST_F(HomeAssistantStatesTest, CountedSubscriptionsAreSentFirst) {
+  // The rest (CustomAPIDevice ones and any past the count) follow in registration order
+  TestDevice device;
+  device.subscribe_homeassistant_state(&TestDevice::on_state, "sensor.custom");
+  auto expected = this->fill_counted_slots_();
+  this->server_->subscribe_home_assistant_state("sensor.past_count", nullptr, [](StringRef) {});
+  expected.push_back({"sensor.custom", "", false});
+  expected.push_back({"sensor.past_count", "", false});
+  EXPECT_EQ(this->request_subscriptions_(), expected);
+}
+
+TEST_F(HomeAssistantStatesTest, SubscribingFromACallbackIsSafe) {
+  // Past the count, so the new entries grow the heap list while it is being walked
+  this->fill_counted_slots_();
+  std::vector<std::string> seen;
+  this->server_->subscribe_home_assistant_state("sensor.a", nullptr, [&](StringRef state) {
+    seen.push_back("first:" + state.str());
+    if (seen.size() == 1) {
+      for (int i = 0; i < 8; i++)
+        this->server_->subscribe_home_assistant_state("sensor.other", nullptr, [](StringRef) {});
+      this->server_->subscribe_home_assistant_state("sensor.a", nullptr,
+                                                    [&](StringRef state) { seen.push_back("late:" + state.str()); });
+    }
+  });
+  this->deliver_("sensor.a", "", "1");
+  this->deliver_("sensor.a", "", "2");
+  EXPECT_EQ(seen, (std::vector<std::string>{"first:1", "late:1", "first:2", "late:2"}));
+}
+
 TEST_F(HomeAssistantStatesTest, MemberCallbacksSeeTheirObject) {
   struct Holder {
     std::string last;
@@ -348,22 +403,10 @@ TEST_F(HomeAssistantStatesTest, MemberCallbacksSeeTheirObject) {
 }
 
 #ifdef USE_API_WIZARD_LINKED_INPUTS
-TEST_F(HomeAssistantStatesTest, WizardEntityIdIsSentOnceItIsSet) {
-  // A wizard input's entity id lives in a RAM buffer that is empty until the wizard sets it
-  static char buffer[WIZARD_ENTITY_ID_BUFFER_SIZE] = "";
-  std::string seen;
-  this->server_->subscribe_home_assistant_state(buffer, nullptr, [&](StringRef state) { seen = state.str(); });
-  this->server_->subscribe_home_assistant_state("sensor.fixed", nullptr, [](StringRef) {});
+TEST_F(HomeAssistantStatesTest, WizardEntityIdIsSentOnceItIsSet) { this->check_wizard_resend_({}); }
 
-  EXPECT_EQ(this->request_subscriptions_(), (std::vector<SentSubscription>{{"sensor.fixed", "", false}}));
-
-  strcpy(buffer, "sensor.chosen");
-  this->connection_->resend_state_subscriptions(buffer);
-  EXPECT_EQ(this->read_sent_(), (std::vector<SentSubscription>{{"sensor.chosen", "", false}}));
-
-  this->deliver_("sensor.chosen", "", "on");
-  EXPECT_EQ(seen, "on");
-  buffer[0] = '\0';
+TEST_F(HomeAssistantStatesTest, WizardEntityIdPastTheCountIsSentOnceItIsSet) {
+  this->check_wizard_resend_(this->fill_counted_slots_());
 }
 #endif
 

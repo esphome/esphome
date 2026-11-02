@@ -107,14 +107,11 @@ void APIConnection::on_wizard_input_set_request(const WizardInputSetRequest &msg
 void APIConnection::resend_state_subscriptions(const char *entity_id) {
   if (!this->flags_.home_assistant_states)
     return;
-  for (const auto &it : this->parent_->get_state_subs()) {
-    if (it.entity_id != entity_id)
+  const APIServer::HomeAssistantStateSubscription *it;
+  for (size_t i = 0; (it = this->parent_->get_state_sub(i)) != nullptr; i++) {
+    if (it->entity_id != entity_id)
       continue;
-    SubscribeHomeAssistantStateResponse resp;
-    resp.entity_id = StringRef(it.entity_id);
-    resp.attribute = it.attribute != nullptr ? StringRef(it.attribute) : StringRef("");
-    resp.once = it.once;
-    if (!this->send_message(resp)) {
+    if (!this->send_state_subscription_(it->entity_id, it->attribute, it->once)) {
       // Could not send now: send every subscription again from the loop
       this->state_subs_at_ = 0;
       return;
