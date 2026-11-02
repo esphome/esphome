@@ -50,6 +50,15 @@ TEST(UptimeTextSensorTest, HoursDroppedFrom12hInterval) {
   EXPECT_EQ(publish(sensor, 12 * HOUR, DAY + HOUR + MINUTE + 1), "1d");
 }
 
+TEST(UptimeTextSensorTest, NeverIntervalShowsDaysOnly) {
+  auto sensor = make_default();
+  sensor.set_update_interval(SCHEDULER_DONT_RUN);
+  sensor.publish_uptime(5);
+  EXPECT_EQ(sensor.get_state(), "0d");
+  sensor.publish_uptime(3 * DAY + HOUR + MINUTE + 1);
+  EXPECT_EQ(sensor.get_state(), "3d");
+}
+
 TEST(UptimeTextSensorTest, ShowsSmallestEnabledUnitWhenAllShownUnitsAreZero) {
   auto sensor = make_default();
   EXPECT_EQ(publish(sensor, 30, 5), "0m");
