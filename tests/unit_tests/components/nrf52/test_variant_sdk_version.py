@@ -9,7 +9,13 @@ from esphome.components import nrf52
 from esphome.components.nrf52.const import VARIANT_NRF54LM20, VARIANT_NRF52840
 from esphome.components.nrf52.framework import get_nrf52_variant, set_nrf52_variant
 import esphome.config_validation as cv
-from esphome.const import CONF_FRAMEWORK, CONF_VERSION, KEY_CORE, KEY_FRAMEWORK_VERSION
+from esphome.const import (
+    CONF_BOARD,
+    CONF_FRAMEWORK,
+    CONF_VERSION,
+    KEY_CORE,
+    KEY_FRAMEWORK_VERSION,
+)
 from esphome.core import CORE, EsphomeCore
 from esphome.types import ConfigType
 
@@ -84,3 +90,16 @@ def test_nrf54lm20_rejects_platformio(platformio: PropertyMock) -> None:
     set_nrf52_variant(VARIANT_NRF54LM20)
     with pytest.raises(cv.Invalid, match="is not supported by PlatformIO"):
         _set_framework(None)
+
+
+@pytest.mark.parametrize(
+    ("board", "resolved"),
+    [
+        ("nrf54lm20dk", "nrf54lm20dk/nrf54lm20a/cpuapp"),
+        ("nrf54lm20dk/nrf54lm20b/cpuapp", "nrf54lm20dk/nrf54lm20b/cpuapp"),
+        ("xiao_ble", "xiao_ble"),
+    ],
+)
+def test_resolve_board_alias(board: str, resolved: str) -> None:
+    config = nrf52._resolve_board_alias({CONF_BOARD: board})
+    assert config[CONF_BOARD] == resolved

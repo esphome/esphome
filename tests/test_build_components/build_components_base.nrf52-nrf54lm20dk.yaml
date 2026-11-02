@@ -3,7 +3,7 @@ esphome:
   friendly_name: $component_name
 
 nrf52:
-  board: nrf54lm20dk/nrf54lm20a/cpuapp
+  board: nrf54lm20dk
 
 logger:
   level: VERY_VERBOSE
