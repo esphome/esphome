@@ -172,14 +172,14 @@ class TestUploadProgramJlink:
 
         with (
             patch(
-                "esphome.components.nrf52.find_jlink_commander",
+                "esphome.components.nrf52.jlink.find_jlink_commander",
                 return_value=commander,
             ),
-            patch("esphome.components.nrf52.check_and_install"),
-            patch("esphome.components.nrf52.get_build_paths", return_value=paths),
-            patch("esphome.components.nrf52.get_build_env", return_value={}),
+            patch("esphome.components.nrf52.jlink.check_and_install"),
+            patch("esphome.components.nrf52.jlink.get_build_paths", return_value=paths),
+            patch("esphome.components.nrf52.jlink.get_build_env", return_value={}),
             patch(
-                "esphome.components.nrf52.run_command_ok", return_value=True
+                "esphome.components.nrf52.jlink.run_command_ok", return_value=True
             ) as mock_run,
         ):
             assert upload_program(config={}, args=None, host="JLINK") is True
@@ -205,8 +205,10 @@ class TestUploadProgramJlink:
         _setup_nrf52_core(build_path=tmp_path / "build")
 
         with (
-            patch("esphome.components.nrf52.find_jlink_commander", return_value=None),
-            patch("esphome.components.nrf52.run_command_ok") as mock_run,
+            patch(
+                "esphome.components.nrf52.jlink.find_jlink_commander", return_value=None
+            ),
+            patch("esphome.components.nrf52.jlink.run_command_ok") as mock_run,
             pytest.raises(EsphomeError, match="J-Link software was not found"),
         ):
             upload_program(config={}, args=None, host="JLINK")
@@ -227,16 +229,16 @@ class TestUploadProgramJlink:
 
         with (
             patch(
-                "esphome.components.nrf52.find_jlink_commander",
+                "esphome.components.nrf52.jlink.find_jlink_commander",
                 return_value=tmp_path / "JLinkExe",
             ),
-            patch("esphome.components.nrf52.check_and_install"),
+            patch("esphome.components.nrf52.jlink.check_and_install"),
             patch(
-                "esphome.components.nrf52.get_build_paths",
+                "esphome.components.nrf52.jlink.get_build_paths",
                 return_value=_make_paths(tmp_path),
             ),
-            patch("esphome.components.nrf52.get_build_env", return_value={}),
-            patch("esphome.components.nrf52.run_command_ok", return_value=False),
+            patch("esphome.components.nrf52.jlink.get_build_env", return_value={}),
+            patch("esphome.components.nrf52.jlink.run_command_ok", return_value=False),
             pytest.raises(EsphomeError, match="J-Link flash failed"),
         ):
             upload_program(config={}, args=None, host="JLINK")

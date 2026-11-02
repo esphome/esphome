@@ -88,7 +88,6 @@ from .const import (
 from .framework import (
     check_and_install,
     ensure_nordic_nrfutil,
-    find_jlink_commander,
     get_build_env,
     get_build_paths,
     get_nrf52_variant,
@@ -101,6 +100,7 @@ from .framework import (
 
 # force import gpio to register pin schema
 from .gpio import nrf52_pin_to_code  # noqa: F401
+from .jlink import upload_using_jlink
 
 CODEOWNERS = ["@tomaszduda23"]
 AUTO_LOAD = ["zephyr", "preferences"]
@@ -837,36 +837,6 @@ def _enter_open_dfu(host: str) -> str:
     )
 
 
-def _upload_using_jlink() -> None:
-    """Flash over SWD with a SEGGER J-Link probe, such as the one built into Nordic DKs."""
-    if CORE.using_toolchain_platformio:
-        raise EsphomeError("J-Link upload needs the 'sdk-nrf' toolchain")
-    if (commander := find_jlink_commander()) is None:
-        raise EsphomeError(
-            "SEGGER J-Link software was not found. Install the J-Link Software and "
-            "Documentation Pack from https://www.segger.com/downloads/jlink/ and try again."
-        )
-    check_and_install()
-    paths = get_build_paths()
-    env = get_build_env(resolve_ccache_path())  # west flash may rebuild
-    west_cmd = [
-        str(paths["python_executable"]),
-        "-m",
-        "west",
-        "flash",
-        "--runner",
-        "jlink",
-        "-d",
-        str(CORE.relative_pioenvs_path(CORE.name)),
-        "--commander",
-        str(commander),
-    ]
-    if not run_command_ok(
-        west_cmd, env=env, stream_output=True, cwd=str(paths["framework_path"])
-    ):
-        raise EsphomeError("nRF52 J-Link flash failed")
-
-
 def has_network_ota(config: ConfigType) -> bool:
     """True when zephyr_mcumgr OTA listens on UDP."""
     return any(
@@ -947,7 +917,7 @@ def upload_program(config: ConfigType, args, host: str) -> bool:
             return True
 
     if host == "JLINK":
-        _upload_using_jlink()
+        upload_using_jlink()
         return True
 
     if host == "PYOCD":

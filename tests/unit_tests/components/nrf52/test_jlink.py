@@ -5,8 +5,8 @@ from unittest.mock import patch
 
 import pytest
 
-from esphome.components.nrf52 import framework
-from esphome.components.nrf52.framework import find_jlink_commander
+from esphome.components.nrf52 import jlink
+from esphome.components.nrf52.jlink import find_jlink_commander
 
 
 def _install(
@@ -23,9 +23,9 @@ def _install(
 @pytest.fixture
 def linux(tmp_path: Path):
     with (
-        patch.object(framework.sys, "platform", "linux"),
-        patch.dict(framework._JLINK_INSTALL_DIRS, {"linux": (tmp_path / "opt",)}),
-        patch.object(framework.shutil, "which", return_value=None) as which,
+        patch.object(jlink.sys, "platform", "linux"),
+        patch.dict(jlink._JLINK_INSTALL_DIRS, {"linux": (tmp_path / "opt",)}),
+        patch.object(jlink.shutil, "which", return_value=None) as which,
     ):
         yield which
 
@@ -80,10 +80,10 @@ def test_windows_ignores_path(tmp_path: Path) -> None:
     """The JDK's jlink.exe on PATH must not be taken for SEGGER's JLink.exe."""
     registry = _install(tmp_path / "reg", exe="JLink.exe", library="JLink_x64.dll")
     with (
-        patch.object(framework.sys, "platform", "win32"),
-        patch.dict(framework._JLINK_INSTALL_DIRS, {"win32": (tmp_path / "pf",)}),
-        patch.object(framework, "_jlink_from_windows_registry", return_value=registry),
-        patch.object(framework.shutil, "which") as which,
+        patch.object(jlink.sys, "platform", "win32"),
+        patch.dict(jlink._JLINK_INSTALL_DIRS, {"win32": (tmp_path / "pf",)}),
+        patch.object(jlink, "_jlink_from_windows_registry", return_value=registry),
+        patch.object(jlink.shutil, "which") as which,
     ):
         assert find_jlink_commander() == registry
     which.assert_not_called()
