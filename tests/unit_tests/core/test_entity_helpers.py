@@ -1711,6 +1711,16 @@ _SELECT_APPLY = entity_helpers.ApplyEntity(
             "after",
             "::hub->set_mode(index, options_);\nentity->publish_state(index);",
         ),
+        (
+            "set_mode(option)",
+            "on_success",
+            (
+                "const char *option = entity->option_at(index);\n"
+                "static_assert(std::is_same_v<decltype(::hub->set_mode(option)), bool>, "
+                '"publish=\\"on_success\\" needs a hub call that returns bool");\n'
+                "if (::hub->set_mode(option)) { entity->publish_state(index); }"
+            ),
+        ),
     ],
 )
 async def test_sub_entities_apply_locals(
@@ -1880,6 +1890,43 @@ async def test_sub_entities_apply_momentary(
     """A momentary switch publishes off first and acts only when turned on."""
     sub = _apply_sub([], {"r": _apply_conf("r_sw")}, parent=parent)
     await sub("r", None, apply=apply, publish="momentary")
+    assert apply_functions[0][2] == body
+
+
+@pytest.mark.asyncio
+@pytest.mark.parametrize(
+    ("parent", "apply", "body"),
+    [
+        (
+            _HUB,
+            "write_level(state)",
+            (
+                "static_assert(std::is_same_v<decltype(::hub->write_level(state)), bool>, "
+                '"publish=\\"on_success\\" needs a hub call that returns bool");\n'
+                "if (::hub->write_level(state)) { entity->publish_state(state); }"
+            ),
+        ),
+        (
+            None,
+            "chip::write_level(state)",
+            (
+                "static_assert(std::is_same_v<decltype(chip::write_level(state)), bool>, "
+                '"publish=\\"on_success\\" needs a hub call that returns bool");\n'
+                "if (chip::write_level(state)) { entity->publish_state(state); }"
+            ),
+        ),
+    ],
+)
+async def test_sub_entities_apply_on_success(
+    setup_test_environment: list[str],
+    apply_functions: list[tuple[str, str, str]],
+    parent: MockObj | None,
+    apply: str,
+    body: str,
+) -> None:
+    """publish="on_success" publishes only when the hub call returns true."""
+    sub = _apply_sub([], {"k": _apply_conf("k_sw")}, parent=parent)
+    await sub("k", None, apply=apply, publish="on_success")
     assert apply_functions[0][2] == body
 
 
@@ -2091,6 +2138,41 @@ def test_follow_entity_hub_callback(setup_test_environment: list[str]) -> None:
             "    ::dst->publish_state(x == 3);\n})"
         )
     ]
+
+
+def test_entity_duplicate_validator_shared_key_namespace() -> None:
+    """Platforms that share a key namespace reject each other's names."""
+    infrared_validator = entity_duplicate_validator("infrared", key_namespace="ir_rf")
+    rf_validator = entity_duplicate_validator("radio_frequency", key_namespace="ir_rf")
+
+    config1 = {CONF_NAME: "Receiver"}
+    assert infrared_validator(config1) == config1
+    assert ("", "ir_rf", fnv1_hash("receiver")) in CORE.unique_ids
+
+    with pytest.raises(
+        Invalid,
+        match=r"Duplicate radio_frequency entity with name 'Receiver' found.*"
+        r"unique name across the infrared and radio_frequency platforms",
+    ):
+        rf_validator({CONF_NAME: "Receiver"})
+
+
+def test_entity_ir_rf_shared_key_yaml_validation(
+    yaml_file: Callable[[str], str], capsys: pytest.CaptureFixture[str]
+) -> None:
+    """Test that an infrared and a radio_frequency entity cannot share a name."""
+    result = load_config_from_fixture(
+        yaml_file, "entity_ir_rf_shared_key.yaml", FIXTURES_DIR
+    )
+    assert result is None
+
+    captured = capsys.readouterr()
+    assert "entity with name 'Receiver' found" in captured.out
+    assert re.search(
+        r"across the (infrared and radio_frequency|radio_frequency and infrared) "
+        r"platforms",
+        captured.out,
+    )
 
 
 def test_entity_duplicate_validator_without_name() -> None:

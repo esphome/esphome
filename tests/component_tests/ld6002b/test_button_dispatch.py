@@ -29,24 +29,25 @@ def _fn_body(main_cpp: str, fn: str) -> str:
     ("fn", "type_expr", "hub"),
     [
         # Two blocks on hub_a: each named after its first button, chain ends in the fallback.
+        # The wake button is the model's own, so this block casts every type to uint8_t.
         (
             "esphome__a_get_delay__button_fn",
             (
-                "entity == ::a_get_delay ? ld6002b::ButtonType::GET_DELAY : "
-                "entity == ::a_get_sensitivity ? ld6002b::ButtonType::GET_SENSITIVITY : "
-                "ld6002b::ButtonType::WAKE"
+                "entity == ::a_get_delay ? static_cast<uint8_t>(ld600x::BUTTON_GET_DELAY) : "
+                "entity == ::a_get_sensitivity ? static_cast<uint8_t>(ld600x::BUTTON_GET_SENSITIVITY) : "
+                "static_cast<uint8_t>(ld6002b::BUTTON_WAKE)"
             ),
             "hub_a",
         ),
         (
             "esphome__a_get_z_range__button_fn",
-            "ld6002b::ButtonType::GET_Z_RANGE",
+            "ld600x::BUTTON_GET_Z_RANGE",
             "hub_a",
         ),
         # A single button on a second hub: no chain, its own hub.
         (
             "esphome__b_get_installation__button_fn",
-            "ld6002b::ButtonType::GET_INSTALLATION",
+            "ld600x::BUTTON_GET_INSTALLATION",
             "hub_b",
         ),
     ],

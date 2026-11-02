@@ -3,25 +3,27 @@
 #include "esphome/components/runtime_image/jpeg_decoder.h"
 #include "esphome/components/runtime_image/runtime_image.h"
 
+#include <utility>
+
 #ifdef USE_RUNTIME_IMAGE_JPEG
 
 namespace esphome::runtime_image::testing {
 
-// A decoder whose JPEGDEC state is missing, as when its allocation fails. The state is handed back before the base
-// destructor runs, so the teardown stays with JpegDecoder.
+// A decoder whose JPEGDEC state is missing, as when its allocation fails. The state moves to state_, which frees it.
 class StatelessJpegDecoder : public JpegDecoder {
  public:
-  explicit StatelessJpegDecoder(RuntimeImage *image) : JpegDecoder(image), state_(this->jpeg_) {
-    this->jpeg_ = nullptr;
-  }
-  ~StatelessJpegDecoder() override { this->jpeg_ = this->state_; }
+  explicit StatelessJpegDecoder(RuntimeImage *image) : JpegDecoder(image), state_(std::move(this->jpeg_)) {}
 
  protected:
-  JPEGDEC *state_;
+  RAMUniquePtr<JPEGDEC> state_;
 };
 
 // The ~18 KB of JPEGDEC state lives in its own allocation, so it can come from PSRAM
 TEST(JpegOutOfMemory, DecoderStateIsAllocatedSeparately) { EXPECT_LT(sizeof(JpegDecoder), sizeof(JPEGDEC) / 4); }
+
+// The coefficient buffer of a progressive image comes from JPEG_MALLOC, fixed when JPEGDEC is built, so these tests
+// cannot make it fail. JPEGDEC's prog_test.cpp covers it: without room for every coefficient the image is drawn
+// from the DC only, and without room for even that decodeBegin() fails with JPEG_ERROR_MEMORY.
 
 TEST(JpegOutOfMemory, MissingStateFailsWithoutStartingASession) {
   RuntimeImage img(JPEG, image::IMAGE_TYPE_RGB565, image::TRANSPARENCY_OPAQUE);

@@ -349,7 +349,7 @@ void AS734XComponent::dump_config() {
   LOG_SENSOR("  ", "PPFD", this->ppfd_sensor_);
   LOG_SENSOR("  ", "Color temperature", this->color_temperature_sensor_);
 #ifdef USE_AS734X_RGB
-  LOG_TEXT_SENSOR("  ", "RGB hex", this->rgb_hex_sensor_);
+  LOG_TEXT_SENSOR("  ", "RGB hex", this->rgb_hex_text_sensor_);
 #endif
 }
 
@@ -554,9 +554,7 @@ void AS734XComponent::publish_basic_counts_() {
   // BANDS the near infrared channel legitimately sits well above the visible bands.
   const float scale = 1.0f / this->normalization_divisor_();
   for (uint8_t band = 0; band < NUM_BANDS; band++) {
-    if (this->basic_counts_sensors_[band] != nullptr) {
-      this->basic_counts_sensors_[band]->publish_state(this->basic_counts_[band] * scale);
-    }
+    PUBLISH_STATE(this->basic_counts_sensors_[band], this->basic_counts_[band] * scale);
   }
 }
 
@@ -585,18 +583,10 @@ void AS734XComponent::publish_light_metrics_() {
 
   ESP_LOGV(TAG, "Photopic irradiance %.4f, PAR %.4f, PPFD %.4f, illuminance %.2f lx", irradiance_photopic,
            irradiance_par, ppfd, illuminance);
-  if (this->illuminance_sensor_ != nullptr) {
-    this->illuminance_sensor_->publish_state(illuminance);
-  }
-  if (this->irradiance_photopic_sensor_ != nullptr) {
-    this->irradiance_photopic_sensor_->publish_state(irradiance_photopic);
-  }
-  if (this->irradiance_par_sensor_ != nullptr) {
-    this->irradiance_par_sensor_->publish_state(irradiance_par);
-  }
-  if (this->ppfd_sensor_ != nullptr) {
-    this->ppfd_sensor_->publish_state(ppfd);
-  }
+  PUBLISH_STATE(this->illuminance_sensor_, illuminance);
+  PUBLISH_STATE(this->irradiance_photopic_sensor_, irradiance_photopic);
+  PUBLISH_STATE(this->irradiance_par_sensor_, irradiance_par);
+  PUBLISH_STATE(this->ppfd_sensor_, ppfd);
 }
 
 void AS734XComponent::publish_color_() {
@@ -616,12 +606,10 @@ void AS734XComponent::publish_color_() {
 
   const float color_temperature = tristimulus_to_cct(tri_x, tri_y, tri_z);
   ESP_LOGV(TAG, "XYZ %.4f, %.4f, %.4f -> CCT %.0f K", tri_x, tri_y, tri_z, color_temperature);
-  if (this->color_temperature_sensor_ != nullptr) {
-    this->color_temperature_sensor_->publish_state(color_temperature);
-  }
+  PUBLISH_STATE(this->color_temperature_sensor_, color_temperature);
 
 #ifdef USE_AS734X_RGB
-  if (this->rgb_hex_sensor_ == nullptr) {
+  if (this->rgb_hex_text_sensor_ == nullptr) {
     return;
   }
   // Convert to chromaticity first, so the colour describes the hue rather than the brightness.
@@ -633,16 +621,14 @@ void AS734XComponent::publish_color_() {
     tristimulus_to_rgb(tri_x / sum, tri_y / sum, tri_z / sum, rgb[0], rgb[1], rgb[2]);
     format_hex_to(rgb_hex, rgb, sizeof(rgb));
   }
-  this->rgb_hex_sensor_->publish_state(rgb_hex);
+  this->rgb_hex_text_sensor_->publish_state(rgb_hex);
 #endif
 }
 
 void AS734XComponent::publish_measurement_() {
   this->calculate_basic_counts_();
   for (uint8_t band = 0; band < NUM_BANDS; band++) {
-    if (this->sensors_[band] != nullptr) {
-      this->sensors_[band]->publish_state(this->raw_counts_[band]);
-    }
+    PUBLISH_STATE(this->sensors_[band], this->raw_counts_[band]);
   }
   this->publish_basic_counts_();
   this->publish_light_metrics_();

@@ -177,7 +177,8 @@ async def to_code(config):
 uses `button.ApplyButton` (`switch.ApplySwitch`, `number.ApplyNumber`, `select.ApplySelect`) in its schema
 and `apply=` on the `sub_*` call. The body is a call on the hub with `entity` and `state`, `value` or
 `index`/`option` in scope; on a switch, number or select `publish="before"` or `"after"` publishes the
-state. `publish="momentary"` is only for legacy action switches (restart, factory reset): it publishes off
+state, and `publish="on_success"` publishes only when the hub call returns true (a write the device can
+refuse). `publish="momentary"` is only for legacy action switches (restart, factory reset): it publishes off
 and runs the body only when turned on. Never use it for a new entity; an action is a button.
 ```python
 switches = switch.sub_switches(config, parent=hub)

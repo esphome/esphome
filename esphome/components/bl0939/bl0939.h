@@ -77,15 +77,17 @@ union DataPacket {  // NOLINT(altera-struct-pack-align)
 
 class BL0939 final : public PollingComponent, public uart::UARTDevice {
  public:
-  void set_voltage_sensor(sensor::Sensor *voltage_sensor) { voltage_sensor_ = voltage_sensor; }
-  void set_current_sensor_1(sensor::Sensor *current_sensor_1) { current_sensor_1_ = current_sensor_1; }
-  void set_current_sensor_2(sensor::Sensor *current_sensor_2) { current_sensor_2_ = current_sensor_2; }
-  void set_power_sensor_1(sensor::Sensor *power_sensor_1) { power_sensor_1_ = power_sensor_1; }
-  void set_power_sensor_2(sensor::Sensor *power_sensor_2) { power_sensor_2_ = power_sensor_2; }
-  void set_energy_sensor_1(sensor::Sensor *energy_sensor_1) { energy_sensor_1_ = energy_sensor_1; }
-  void set_energy_sensor_2(sensor::Sensor *energy_sensor_2) { energy_sensor_2_ = energy_sensor_2; }
-  void set_energy_sensor_sum(sensor::Sensor *energy_sensor_sum) { energy_sensor_sum_ = energy_sensor_sum; }
-  void set_internal_temperature_sensor(sensor::Sensor *sensor) { this->internal_temperature_sensor_ = sensor; }
+  SUB_SENSOR(voltage)
+  SUB_SENSOR(current_1)
+  SUB_SENSOR(current_2)
+  // NB This may be negative as the circuits is seemingly able to measure
+  // power in both directions
+  SUB_SENSOR(power_1)
+  SUB_SENSOR(power_2)
+  SUB_SENSOR(energy_1)
+  SUB_SENSOR(energy_2)
+  SUB_SENSOR(energy_sum)
+  SUB_SENSOR(internal_temperature)
   // Inline so a constant mode from codegen folds down to plain stores.
   void set_mode(BL0939Mode mode) {
     this->mode_ = mode;
@@ -103,18 +105,6 @@ class BL0939 final : public PollingComponent, public uart::UARTDevice {
   void dump_config() override;
 
  protected:
-  sensor::Sensor *voltage_sensor_{nullptr};
-  sensor::Sensor *current_sensor_1_{nullptr};
-  sensor::Sensor *current_sensor_2_{nullptr};
-  // NB This may be negative as the circuits is seemingly able to measure
-  // power in both directions
-  sensor::Sensor *power_sensor_1_{nullptr};
-  sensor::Sensor *power_sensor_2_{nullptr};
-  sensor::Sensor *energy_sensor_1_{nullptr};
-  sensor::Sensor *energy_sensor_2_{nullptr};
-  sensor::Sensor *energy_sensor_sum_{nullptr};
-  sensor::Sensor *internal_temperature_sensor_{nullptr};
-
   // Divide by this to turn into Watt
   float power_reference_ = BL0939_PREF;
   // Divide by this to turn into Volt

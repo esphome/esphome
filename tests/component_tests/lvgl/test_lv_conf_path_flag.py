@@ -1,9 +1,8 @@
 """The ``-DLV_CONF_PATH`` build flag carries a path. PlatformIO, the host
-build and the native ESP8266 build shell-lex build flags; the ESP-IDF build
-shell-lexes them and then quotes each token as a CMake argument; the Zephyr
-build writes each flag into a quoted CMake argument as is. All must decode it
-to one ``-DLV_CONF_PATH="..."`` argument, including when the project path
-contains a space."""
+build and the native ESP8266 build shell-lex build flags; the ESP-IDF and
+Zephyr builds shell-lex them and then quote each token as a CMake argument.
+All must decode it to one ``-DLV_CONF_PATH="..."`` argument, including when
+the project path contains a space."""
 
 from __future__ import annotations
 
@@ -13,8 +12,8 @@ import shlex
 
 import pytest
 
-from esphome.build_gen.espidf import _cmake_args
 from esphome.components.lvgl import lv_conf_path_flag
+from esphome.framework_helpers import quote_cmake_args
 from esphome.platformio.library import lex_build_flags
 
 
@@ -39,8 +38,7 @@ def test_flag_is_one_argument_everywhere(build_path: str) -> None:
     expected = f'-DLV_CONF_PATH="{lv_conf_h_file.as_posix()}"'
 
     assert shlex.split(flag) == [expected]
-    assert _cmake_quoted_argument(flag) == expected
     assert [
         _cmake_quoted_argument(arg.removeprefix('"').removesuffix('"'))
-        for arg in _cmake_args(lex_build_flags([flag], "lvgl"))
+        for arg in quote_cmake_args(lex_build_flags([flag], "lvgl"))
     ] == [expected]

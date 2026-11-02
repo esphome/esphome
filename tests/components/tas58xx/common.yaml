@@ -26,6 +26,12 @@ esphome:
         id: tas58xx_amp
     - tas58xx.activate: tas58xx_amp_2
 
+select:
+  - platform: tas58xx
+    tas58xx_id: tas58xx_amp
+    mixer_mode:
+      name: Mixer Mode
+
 binary_sensor:
   - platform: tas58xx
     tas58xx_id: tas58xx_amp

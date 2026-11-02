@@ -1,0 +1,63 @@
+esphome:
+  name: uart-mock-ld2450-link-never
+
+host:
+api:
+  batch_delay: 0ms  # Disable batching to receive all state updates
+logger:
+  level: DEBUG
+
+external_components:
+  - source:
+      type: local
+      path: EXTERNAL_COMPONENT_PATH
+
+# Dummy uart entry to satisfy ld2450's DEPENDENCIES = ["uart"]
+# The actual UART bus used is the uart_mock component below
+uart:
+  baud_rate: 115200
+  port: /dev/null
+
+# A radar that never sends a frame, as one left at the wrong baud rate; commands are acknowledged
+uart_mock:
+  id: mock_uart
+  baud_rate: 256000
+  responses:
+    # Generic ACK for any command
+    - expect_tx: [0x04, 0x03, 0x02, 0x01]
+      inject_rx:
+        [
+          0xFD, 0xFC, 0xFB, 0xFA,
+          0x04, 0x00,
+          0xFF, 0x01,
+          0x00, 0x00,
+          0x04, 0x03, 0x02, 0x01,
+        ]
+
+ld2450:
+  id: ld2450_dev
+  uart_id: mock_uart
+  link_timeout: 1s
+
+binary_sensor:
+  - platform: ld2450
+    ld2450_id: ld2450_dev
+    connected:
+      name: "Radar Link"
+    has_target:
+      name: "Has Target"
+
+button:
+  - platform: template
+    name: "Send Frame"
+    on_press:
+      - uart_mock.inject_rx:
+          id: mock_uart
+          data:
+            [
+              0xAA, 0xFF, 0x03, 0x00,
+              0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00,
+              0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00,
+              0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00,
+              0x55, 0xCC,
+            ]

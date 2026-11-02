@@ -8,7 +8,7 @@ esp32:
     components:
       - espressif/mdns^1.8.2
       - name: espressif/button
-        ref: 4.1.5
+        ref: 4.2.3
     advanced:
       enable_idf_experimental_features: yes
       disable_debug_stubs: true

@@ -11,6 +11,9 @@
 #ifdef USE_BINARY_SENSOR
 #include "esphome/components/binary_sensor/binary_sensor.h"
 #endif
+#ifdef USE_SELECT
+#include "esphome/components/select/select.h"
+#endif
 #ifdef USE_SWITCH
 #include "esphome/components/switch/switch.h"
 #endif
@@ -146,6 +149,12 @@ class TAS58xx : public audio_dac::AudioDac, public PollingComponent, public i2c:
   void set_volume_min_db(float volume_min_db) { this->volume_min_db_ = volume_min_db; }
   void set_volume_max_db(float volume_max_db) { this->volume_max_db_ = volume_max_db; }
 
+#ifdef USE_SELECT
+  SUB_SELECT(mixer_mode)
+  /// Change input mixer; except if invalid for dac_mode. Written immediately if playing, otherwise when audio starts
+  void apply_mixer_mode(MixerMode mixer_mode);
+#endif
+
 #ifdef USE_BINARY_SENSOR
   SUB_BINARY_SENSOR(have_fault)
   void set_fault_binary_sensor(FaultSensor fault, binary_sensor::BinarySensor *sensor) {
@@ -174,6 +183,14 @@ class TAS58xx : public audio_dac::AudioDac, public PollingComponent, public i2c:
   bool write_volume_();
   bool write_mixer_();
   bool read_faults_();
+  /// Read POWER_STATE, masked to device state; false if read failed
+  bool read_power_state_(uint8_t &power_state);
+  /// Write DSP settings not written since last reset; call only while DSP is writable
+  void write_dsp_();
+#ifdef USE_SELECT
+  /// Show current mixer mode on mixer mode select
+  void publish_mixer_mode_();
+#endif
 
   const ModelInfo *model_;
   GPIOPin *enable_pin_{nullptr};
@@ -191,7 +208,7 @@ class TAS58xx : public audio_dac::AudioDac, public PollingComponent, public i2c:
   Modulation modulation_{MODULATION_BD_MODE};
   uint8_t ctrl_state_{0};
   uint8_t power_state_{0xFF};  // Last POWER_STATE seen by update(), 0xFF until the first read
-  bool mixer_written_{false};  // Mixer written since the last reset
+  bool mixer_written_{false};  // False while mixer write is pending
 };
 
 }  // namespace esphome::tas58xx

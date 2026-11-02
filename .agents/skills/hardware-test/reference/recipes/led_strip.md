@@ -8,3 +8,7 @@
 - On the ESP32-S3 give each RMT strip `rmt_symbols: 48`, or the first channel takes all 192 symbols.
 - A board with a few WS2812 on a pin already defined as a light can be extended with `id: !extend <light id>` to
   add effects; restore its own config afterwards.
+- Loop cost of a strip (#19337): give each strip an `addressable_lambda` effect with `update_interval: 0ms` that
+  changes every pixel, and add `runtime_stats: log_interval: 30s`; compare the main loop and light times per pass,
+  leaving out the first period after boot. The strips need no LEDs attached. A classic ESP32 has 512 RMT symbols in
+  all, so three strips need `rmt_symbols: 128` each.

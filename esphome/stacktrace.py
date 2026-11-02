@@ -152,7 +152,7 @@ def _addr2line(tool: str, elf: Path, addr: str) -> str:
 def process_crash_handler_line(
     config: ConfigType, line: str, backtrace_state: bool
 ) -> bool:
-    """Decode a crash handler report with addr2line; the process_stacktrace hook of rp2, bk72xx and rtl87xx."""
+    """Decode a crash handler report with addr2line; the process_stacktrace hook of rp2, bk72xx, rtl87xx and ln882x."""
     if CRASH_HANDLER_RE.search(line):
         _LOGGER.error("Crash detected - decoding addresses")
         return True

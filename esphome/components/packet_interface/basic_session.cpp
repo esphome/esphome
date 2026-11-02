@@ -32,8 +32,8 @@ void BasicSession::setup() {
   }
   this->boot_id_ = random_uint32();
 #ifdef USE_BINARY_SENSOR
-  if (this->connected_sensor_ != nullptr)
-    this->connected_sensor_->publish_initial_state(false);
+  if (this->connected_binary_sensor_ != nullptr)
+    this->connected_binary_sensor_->publish_initial_state(false);
 #endif
   this->lower_->add_packet_interface_listener(
       [this](const PacketBuffer &data, const PacketMetaData &meta_data) { this->receive_(data, meta_data); });
@@ -50,7 +50,7 @@ void BasicSession::dump_config() {
                 "  Timeout: %" PRIu32 "ms",
                 this->name_, this->max_packet_size_, this->keep_alive_ms_, this->timeout_ms_);
 #ifdef USE_BINARY_SENSOR
-  LOG_BINARY_SENSOR("  ", "Connected", this->connected_sensor_);
+  LOG_BINARY_SENSOR("  ", "Connected", this->connected_binary_sensor_);
 #endif
 }
 
@@ -82,8 +82,7 @@ void BasicSession::set_connected_(bool connected) {
   this->connected_ = connected;
   ESP_LOGD(TAG, "%s: Session %s", this->name_, connected ? LOG_STR_LITERAL("connected") : LOG_STR_LITERAL("lost"));
 #ifdef USE_BINARY_SENSOR
-  if (this->connected_sensor_ != nullptr)
-    this->connected_sensor_->publish_state(connected);
+  PUBLISH_STATE(this->connected_binary_sensor_, connected);
 #endif
   this->session_callback_.call(connected);
 }

@@ -232,8 +232,11 @@ file does, and it is the authority when they disagree. The most useful starting 
     *   **Bus helpers:** UART drains with `read_available(on_byte)` and `discard_available()`, text lines with
         `LineReader<N>`, fixed-length binary frames with `FrameReader<N, HEADER...>`; I2C has `update_register`,
         `write_registers` (PROGMEM `I2CRegValue` table), `check_chip_id` and `read_bytes_16_le`.
-        `if (!this->status_comm_result(ok)) return;` sets or clears the warning. A child sensor that skips repeated
-        values is `SUB_SENSOR_WITH_DEDUP(name, type)`.
+        `if (!this->status_comm_result(ok)) return;` sets or clears the warning.
+    *   **A hub's pointer to a child entity** comes from `SUB_SENSOR(name)`, `SUB_BINARY_SENSOR`, `SUB_TEXT_SENSOR`,
+        `SUB_SWITCH`, `SUB_NUMBER`, `SUB_SELECT` or `SUB_BUTTON`, which declare the `set_<name>_<type>()` setter and
+        the `<name>_<type>_` member (`SUB_SWITCH(turbo)` gives `set_turbo_switch()`); do not write the pair by hand.
+        A child sensor that skips repeated values is `SUB_SENSOR_WITH_DEDUP(name, type)`.
     *   **An unset float is `NAN`**, not `optional<float>`; the optional costs 4 to 8 bytes of padding per member.
     *   **`PollingComponent` first runs `update()`** after a random share of the interval; call `this->update()` at the
         end of `setup()` when the entities need a state at boot.

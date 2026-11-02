@@ -1,0 +1,19 @@
+esphome:
+  name: test
+
+esp8266:
+  board: d1_mini_lite
+
+sensor:
+  - platform: template
+    id: s_1
+    filters:
+      - delta:
+          max_value: 3
+          baseline: 20.0
+      - delta:
+          max_value: 3
+          baseline: 0
+      - delta:
+          max_value: 3
+          baseline: !lambda return x * 2.0f;

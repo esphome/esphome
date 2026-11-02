@@ -61,7 +61,7 @@ async def to_code(config: ConfigType) -> None:
     var = await i2c.new_i2c_component(config)
 
     sensors = sensor.sub_sensors(config)
-    await sensors(CONF_TEMPERATURE, var.set_temp_sensor)
+    await sensors(CONF_TEMPERATURE, var.set_temperature_sensor)
     await sensors(CONF_HUMIDITY, var.set_humidity_sensor)
 
     cg.add(var.set_power_mode(config[CONF_POWER_MODE]))

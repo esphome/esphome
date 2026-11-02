@@ -77,8 +77,8 @@ async def to_code(config: ConfigType) -> None:
     xiaomi_ble.setup_xiaomi_device(var, config)
 
     sensors = sensor.sub_sensors(config)
-    await sensors(CONF_IDLE_TIME, var.set_idle_time)
-    await sensors(CONF_BATTERY_LEVEL, var.set_battery_level)
-    await sensors(CONF_ILLUMINANCE, var.set_illuminance)
+    await sensors(CONF_IDLE_TIME, var.set_idle_time_sensor)
+    await sensors(CONF_BATTERY_LEVEL, var.set_battery_level_sensor)
+    await sensors(CONF_ILLUMINANCE, var.set_illuminance_sensor)
     binary_sensors = binary_sensor.sub_binary_sensors(config)
-    await binary_sensors(CONF_LIGHT, var.set_light)
+    await binary_sensors(CONF_LIGHT, var.set_light_binary_sensor)
