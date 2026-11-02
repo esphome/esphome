@@ -94,17 +94,9 @@ void SHT4XComponent::update() {
     }
 
     // Evaluate and publish measurements
-    if (this->temp_sensor_ != nullptr) {
-      // Temp is contained in the first result word
-      float temp = TEMPERATURE_OFFSET + TEMPERATURE_SPAN * static_cast<float>(buffer[0]) / RAW_MAX;
-      this->temp_sensor_->publish_state(temp);
-    }
-
-    if (this->humidity_sensor_ != nullptr) {
-      // Relative humidity is in the second result word
-      float rh = HUMIDITY_OFFSET + HUMIDITY_SPAN * static_cast<float>(buffer[1]) / RAW_MAX;
-      this->humidity_sensor_->publish_state(rh);
-    }
+    // Temperature is in the first result word, relative humidity in the second
+    PUBLISH_STATE(this->temp_sensor_, TEMPERATURE_OFFSET + TEMPERATURE_SPAN * static_cast<float>(buffer[0]) / RAW_MAX);
+    PUBLISH_STATE(this->humidity_sensor_, HUMIDITY_OFFSET + HUMIDITY_SPAN * static_cast<float>(buffer[1]) / RAW_MAX);
 
     // Fire heater after measurement to maximize cooldown time before the next reading.
     // The heater command produces a measurement that we don't need (datasheet 4.9).
