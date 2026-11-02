@@ -318,26 +318,27 @@ def _effective_input_max(
 ) -> float:
     """Range the divider is checked against.
 
-    A declared ``adc_input_max:`` describes a sampler whose range the
-    configuration otherwise cannot, but it cannot widen an ADC past what its
-    attenuation measures: above that voltage the conversion flattens, so the
-    reading silently stops tracking the sensor.
+    A declared ``adc_input_max:`` is authoritative, the same rule the merged
+    ``mics_5524`` component follows: it describes the sampler the wiring feeds,
+    which the configuration cannot otherwise know. It does not change what an
+    internal ADC measures at its attenuation, so a declaration above that range
+    is reported - the conversion flattens at the top of the scale there - and
+    still used, because only the owner of the wiring can weigh that trade-off.
     """
     declared = config.get(CONF_ADC_INPUT_MAX)
     if declared is None:
         return known_max
-    if not known or declared <= known_max:
-        return float(declared)
-    _LOGGER.warning(
-        "%s: 'adc_input_max: %.2f' is above the %.2f V the ADC measures at its "
-        "attenuation - the divider is checked against %.2f V, and conversions "
-        "above it flatten",
-        label,
-        declared,
-        known_max,
-        known_max,
-    )
-    return known_max
+    if known and declared > known_max:
+        _LOGGER.warning(
+            "%s: 'adc_input_max: %.2f' is above the %.2f V the ADC measures at "
+            "its attenuation - the divider is checked against the declared "
+            "range, and conversions above %.2f V flatten",
+            label,
+            declared,
+            known_max,
+            known_max,
+        )
+    return float(declared)
 
 
 def _resolve_sensor(config: ConfigType) -> ResolvedSensor:

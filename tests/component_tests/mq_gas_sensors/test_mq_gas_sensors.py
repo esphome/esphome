@@ -494,11 +494,11 @@ def test_esp32_s31_owned_adc_uses_its_only_attenuation(
         CONFIG_SCHEMA({**base, "name": "MQ-8 at 12 dB", "adc_attenuation": "12db"})
 
 
-def test_declared_range_above_the_owned_adc_is_capped(
+def test_declared_range_above_the_owned_adc_is_reported(
     set_core_config: SetCoreConfigCallable,
     caplog: pytest.LogCaptureFixture,
 ) -> None:
-    """A declared `adc_input_max:` cannot widen the range of an owned ADC."""
+    """A declared `adc_input_max:` is authoritative, and reported above the range."""
     set_core_config(PlatformFramework.ESP32_IDF, platform_data=ESP32_PLATFORM_DATA)
     base = {
         "id": "mq8",
@@ -512,15 +512,16 @@ def test_declared_range_above_the_owned_adc_is_capped(
     }
     # 5 V through the 10k/20k divider is 3.33 V: below the declared 3.34 V, above
     # the 2.45 V a 12 dB classic ESP32 measures, so the top of the reading clips.
-    with (
-        caplog.at_level("WARNING"),
-        pytest.raises(cv.Invalid, match="above the 2.45 V"),
-    ):
-        CONFIG_SCHEMA({**base, "voltage_divider": {"r1": 10.0, "r2": 20.0}})
+    # The declaration is what the wiring is checked against, so it is accepted.
+    with caplog.at_level("WARNING"):
+        assert (
+            CONFIG_SCHEMA({**base, "voltage_divider": {"r1": 10.0, "r2": 20.0}})
+            is not None
+        )
     assert "'adc_input_max: 3.34' is above the 2.45 V" in caplog.text
 
-    # A divider that stays inside the range is accepted, and the capped
-    # declaration is still reported.
+    # A divider that stays inside the range is accepted as well, and the
+    # declaration is still reported: it is what the divider is measured against.
     caplog.clear()
     with caplog.at_level("WARNING"):
         CONFIG_SCHEMA(
@@ -594,17 +595,17 @@ def test_voltage_source_range_is_checked(
     assert "above the 1.75 V measuring range of the sampler" in captured.out
 
 
-def test_declared_range_cannot_widen_the_sampler(
+def test_declared_range_is_authoritative_for_a_voltage_source(
     component_config_path: Callable[[str], Path],
     capsys: pytest.CaptureFixture[str],
     caplog: pytest.LogCaptureFixture,
 ) -> None:
-    """A declared `adc_input_max:` is capped at the sampler's attenuation range."""
+    """A declared `adc_input_max:` is what a `voltage:` sampler is checked against."""
     CORE.config_path = component_config_path("declared_range_voltage_source.yaml")
     with caplog.at_level("WARNING"):
-        assert read_config({}) is None
+        assert read_config({}) is not None
     captured = capsys.readouterr()
-    assert "above the 1.75 V measuring range of the sampler" in captured.out
+    assert "above the 1.75 V measuring range of the sampler" not in captured.out
     assert "'adc_input_max: 3.34' is above the 1.75 V" in caplog.text
 
 
