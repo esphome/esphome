@@ -142,13 +142,7 @@ void WhirlpoolClimate::transmit_state() {
   remote_state[13] = xor_bytes(&remote_state[2], 11, remote_state[13]);
   remote_state[20] = xor_bytes(&remote_state[14], 6, remote_state[20]);
 
-  ESP_LOGV(TAG,
-           "Sending: %02X %02X %02X %02X   %02X %02X %02X %02X   %02X %02X %02X %02X   %02X %02X %02X %02X   %02X %02X "
-           "%02X %02X   %02X",
-           remote_state[0], remote_state[1], remote_state[2], remote_state[3], remote_state[4], remote_state[5],
-           remote_state[6], remote_state[7], remote_state[8], remote_state[9], remote_state[10], remote_state[11],
-           remote_state[12], remote_state[13], remote_state[14], remote_state[15], remote_state[16], remote_state[17],
-           remote_state[18], remote_state[19], remote_state[20]);
+  ESP_LOGV_HEX(TAG, remote_state, WHIRLPOOL_STATE_LENGTH, WHIRLPOOL_STATE_LENGTH, "Sending: %s");
 
   // Send code
   auto transmit = this->transmitter_->transmit();
@@ -262,14 +256,7 @@ bool WhirlpoolClimate::on_receive(remote_base::RemoteReceiveData data) {
     return false;
   }
 
-  ESP_LOGV(
-      TAG,
-      "Received: %02X %02X %02X %02X   %02X %02X %02X %02X   %02X %02X %02X %02X   %02X %02X %02X %02X   %02X %02X "
-      "%02X %02X   %02X",
-      remote_state[0], remote_state[1], remote_state[2], remote_state[3], remote_state[4], remote_state[5],
-      remote_state[6], remote_state[7], remote_state[8], remote_state[9], remote_state[10], remote_state[11],
-      remote_state[12], remote_state[13], remote_state[14], remote_state[15], remote_state[16], remote_state[17],
-      remote_state[18], remote_state[19], remote_state[20]);
+  ESP_LOGV_HEX(TAG, remote_state, WHIRLPOOL_STATE_LENGTH, WHIRLPOOL_STATE_LENGTH, "Received: %s");
 
   // verify header remote code
   if (remote_state[0] != 0x83 || remote_state[1] != 0x06)
