@@ -14,7 +14,8 @@ def test_nec_field_lambdas_get_the_script_args(
     main_cpp = generate_main(component_config_path("nec_lambda_args.yaml"))
     (body,) = protocol_call_bodies(main_cpp)
     assert re.search(
-        r"static void esphome__\w+__fn\(const std::remove_cvref_t<int> & x\) \{",
+        r"static void esphome__\w+__fn\(const int & esphome__running, "
+        r"const std::remove_cvref_t<int> & x\) \{",
         main_cpp,
     )
     assert (
