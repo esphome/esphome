@@ -1,0 +1,39 @@
+esphome:
+  name: test
+
+esp32:
+  board: nodemcu-32s
+
+wifi:
+  ssid: MySSID
+  password: password1
+
+api:
+  encryption:
+    key: "ZmVkY2JhOTg3NjU0MzIxMGZlZGNiYTk4NzY1NDMyMTA="
+  actions:
+    - action: set_link_key
+      variables:
+        key: string
+      then:
+        - uart_tcp.set_encryption_key:
+            id: bridge
+            key: !lambda return key;
+
+# A bare block takes the api key, which the api context already covers
+ota:
+  - platform: esphome
+    encryption:
+
+uart:
+  - id: uart_bus
+    tx_pin: 4
+    rx_pin: 5
+    baud_rate: 9600
+
+uart_tcp:
+  - id: bridge
+    uart_id: uart_bus
+    role: server
+    port: 8899
+    encryption:
