@@ -38,8 +38,7 @@ void RP2040PIOLEDStripLightOutput::setup() {
 
   // Select PIO instance to use (0 or 1)
   if (this->pio_ == nullptr) {
-    ESP_LOGE(TAG, "Failed to claim PIO instance");
-    this->mark_failed();
+    this->mark_failed(LOG_STR("Failed to claim PIO instance"));
     return;
   }
 
@@ -48,8 +47,7 @@ void RP2040PIOLEDStripLightOutput::setup() {
   uint offset = 0;
 
   if (RP2040PIOLEDStripLightOutput::num_instance[this->pio_ == pio0 ? 0 : 1] >= 4) {
-    ESP_LOGE(TAG, "Too many instances of PIO program");
-    this->mark_failed();
+    this->mark_failed(LOG_STR("Too many instances of PIO program"));
     return;
   }
   // keep track of how many instances of the PIO program are running on each PIO
@@ -69,8 +67,7 @@ void RP2040PIOLEDStripLightOutput::setup() {
   this->sm_ = pio_claim_unused_sm(this->pio_, true);
   if (this->sm_ < 0) {
     // in theory this code should never be reached
-    ESP_LOGE(TAG, "Failed to claim PIO state machine");
-    this->mark_failed();
+    this->mark_failed(LOG_STR("Failed to claim PIO state machine"));
     return;
   }
 
@@ -78,8 +75,7 @@ void RP2040PIOLEDStripLightOutput::setup() {
 
   this->dma_chan_ = dma_claim_unused_channel(true);
   if (this->dma_chan_ < 0) {
-    ESP_LOGE(TAG, "Failed to claim DMA channel");
-    this->mark_failed();
+    this->mark_failed(LOG_STR("Failed to claim DMA channel"));
     return;
   }
 

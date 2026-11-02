@@ -4,28 +4,23 @@
 namespace esphome::spi_led_strip {
 
 constexpr size_t COLOR_DATA_OFFSET = 5;
+constexpr size_t BUFFER_PADDING = 8;
 
-SpiLedStrip::SpiLedStrip(uint16_t num_leds) {
-  this->num_leds_ = num_leds;
+SpiLedStrip::SpiLedStrip(uint16_t num_leds) : buffer_size_(num_leds * 4 + BUFFER_PADDING), num_leds_(num_leds) {}
+void SpiLedStrip::setup() {
   RAMAllocator<uint8_t> allocator;
-  this->buffer_size_ = num_leds * 4 + 8;
-  uint8_t *buf = allocator.allocate(this->buffer_size_ + num_leds);
+  uint8_t *buf = allocator.allocate(this->buffer_size_ + this->num_leds_);
   if (buf == nullptr) {
-    ESP_LOGE(TAG, "Failed to allocate buffer of size %u", this->buffer_size_ + num_leds);
+    this->mark_failed(LOG_STR(ESP_LOG_MSG_ALLOC_FAIL));
     return;
   }
   memset(buf, 0xFF, this->buffer_size_);
   memset(buf, 0, 4);
   this->internal_accessor_.color_data = buf + COLOR_DATA_OFFSET;
   this->internal_accessor_.effect_data = buf + this->buffer_size_;
-  memset(this->internal_accessor_.effect_data, 0, num_leds);
+  this->internal_accessor_.clear_effect_data(this->num_leds_);
   this->accessor_ = &this->internal_accessor_;
-}
-void SpiLedStrip::setup() {
-  if (this->internal_accessor_.effect_data == nullptr || this->internal_accessor_.color_data == nullptr) {
-    this->mark_failed();
-    return;
-  }
+
   this->spi_setup();
 }
 light::LightTraits SpiLedStrip::get_traits() {
