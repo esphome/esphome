@@ -50,9 +50,15 @@ static SentSubscription decode_subscription(const uint8_t *pos, const uint8_t *e
   SentSubscription sub;
   while (pos < end) {
     uint32_t tag, value;
-    EXPECT_TRUE(read_varint(pos, end, tag));
-    EXPECT_TRUE(read_varint(pos, end, value));
+    if (!read_varint(pos, end, tag) || !read_varint(pos, end, value)) {
+      ADD_FAILURE() << "Truncated field";
+      break;
+    }
     if ((tag & 0x7) == 2) {
+      if (value > static_cast<size_t>(end - pos)) {
+        ADD_FAILURE() << "Field length " << value << " runs past the payload";
+        break;
+      }
       std::string text(reinterpret_cast<const char *>(pos), value);
       pos += value;
       if (tag >> 3 == 1) {
@@ -129,11 +135,12 @@ class HomeAssistantStatesTest : public ::testing::Test {
     const uint8_t *end = pos + data.size();
     while (pos < end) {
       // Plaintext frame: a zero byte, the payload size and the message type as varints, then the payload
-      EXPECT_EQ(*pos++, 0);
       uint32_t size, type;
-      EXPECT_TRUE(read_varint(pos, end, size));
-      EXPECT_TRUE(read_varint(pos, end, type));
-      EXPECT_LE(pos + size, end);
+      if (*pos++ != 0 || !read_varint(pos, end, size) || !read_varint(pos, end, type) ||
+          size > static_cast<size_t>(end - pos)) {
+        ADD_FAILURE() << "Malformed frame";
+        break;
+      }
       if (type == SubscribeHomeAssistantStateResponse::MESSAGE_TYPE)
         sent.push_back(decode_subscription(pos, pos + size));
       pos += size;
@@ -141,15 +148,17 @@ class HomeAssistantStatesTest : public ::testing::Test {
     return sent;
   }
 
-  // Deliver a state from Home Assistant; the connection writes a terminator after the state, as it does in rx_buf_
+  // Deliver a state from Home Assistant; the connection writes a terminator after a non-empty state, as in rx_buf_
   void deliver_(const char *entity_id, const char *attribute, const char *state) {
+    size_t len = strlen(state);
     std::string buffer = std::string(state) + "#";
     HomeAssistantStateResponse msg;
     msg.entity_id = StringRef(entity_id);
     msg.attribute = StringRef(attribute);
-    msg.state = StringRef(buffer.data(), strlen(state));
+    msg.state = StringRef(buffer.data(), len);
     this->connection_->on_home_assistant_state_response(msg);
-    EXPECT_EQ(buffer[strlen(state)], '\0');
+    if (len > 0)
+      EXPECT_EQ(buffer[len], '\0');
   }
 
   std::unique_ptr<APIServer> server_;
@@ -234,6 +243,14 @@ TEST_F(HomeAssistantStatesTest, StateIsTerminatedForTheCallback) {
   this->server_->subscribe_home_assistant_state("sensor.a", nullptr, [&](StringRef state) { seen = state.c_str(); });
   this->deliver_("sensor.a", "", "12.5");
   EXPECT_EQ(seen, "12.5");
+}
+
+TEST_F(HomeAssistantStatesTest, EmptyStateIsDelivered) {
+  std::vector<std::string> seen;
+  this->server_->subscribe_home_assistant_state("sensor.a", nullptr,
+                                                [&](StringRef state) { seen.push_back(state.str()); });
+  this->deliver_("sensor.a", "", "");
+  EXPECT_EQ(seen, (std::vector<std::string>{""}));
 }
 
 TEST_F(HomeAssistantStatesTest, GetIsCalledForEveryMatchingState) {
