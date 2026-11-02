@@ -69,8 +69,8 @@ class MCP251XFD : public canbus::Canbus,
 
   bool reset_();
   bool configure_clock_();
-  bool set_mode_(CanMode mode);
-  bool wait_for_register_(uint16_t address, uint8_t mask, uint8_t expected);
+  bool set_mode_(CanMode mode, uint16_t timeout_ms = 100);
+  bool wait_for_register_(uint16_t address, uint8_t mask, uint8_t expected, uint16_t timeout_ms = 100);
   bool read_registers_(uint16_t address, uint8_t *data, size_t length);
   bool read_register_(uint16_t address, uint32_t &value);
   bool should_log_fault_(uint32_t now);

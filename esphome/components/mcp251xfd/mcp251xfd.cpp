@@ -137,8 +137,14 @@ void MCP251XFD::dump_config() {
 }
 
 bool MCP251XFD::reset_() {
-  if (!this->set_mode_(CanMode::CAN_MODE_CONFIGURATION))
-    return false;
+  // Configuration mode waits for the bus to become idle after transmission or reception.
+  // A full 8-byte CAN 2.0B frame at 10 kbps takes up to about 16 ms and a 64-byte CAN FD frame
+  // at 125 kbps without bit rate switching takes about 6 ms. Slower rates need more time.
+  // A stuck dominant bus, repeated errors or an SPI failure can prevent the mode change.
+  // Resetting before the bus is idle can interrupt a frame and cause errors on the CAN bus.
+  if (!this->set_mode_(CanMode::CAN_MODE_CONFIGURATION, 250)) {
+    ESP_LOGW(TAG, "Could not confirm Configuration mode before reset, resetting anyway");
+  }
 
   const std::array<uint8_t, 2> command{INSTRUCTION_RESET, 0};
   this->enable();
@@ -156,8 +162,8 @@ bool MCP251XFD::configure_clock_() {
   return this->wait_for_register_(REG_OSC + 1, ready, ready);
 }
 
-bool MCP251XFD::wait_for_register_(uint16_t address, uint8_t mask, uint8_t expected) {
-  for (uint8_t attempt = 0; attempt < 100; attempt++) {
+bool MCP251XFD::wait_for_register_(uint16_t address, uint8_t mask, uint8_t expected, uint16_t timeout_ms) {
+  for (uint16_t attempt = 0; attempt < timeout_ms; attempt++) {
     uint8_t value;
     if (!this->read_registers_(address, &value, 1))
       return false;
@@ -169,14 +175,14 @@ bool MCP251XFD::wait_for_register_(uint16_t address, uint8_t mask, uint8_t expec
   return false;
 }
 
-bool MCP251XFD::set_mode_(CanMode mode) {
+bool MCP251XFD::set_mode_(CanMode mode, uint16_t timeout_ms) {
   uint8_t control;
   if (!this->read_registers_(REG_CON + 3, &control, 1)) {
     return false;
   }
   this->write_byte_(REG_CON + 3, (control & ~CON_MODE_MASK) | static_cast<uint8_t>(mode));
   return this->wait_for_register_(REG_CON + 2, CON_MODE_MASK << CON_MODE_SHIFT,
-                                  static_cast<uint8_t>(mode) << CON_MODE_SHIFT);
+                                  static_cast<uint8_t>(mode) << CON_MODE_SHIFT, timeout_ms);
 }
 
 bool MCP251XFD::read_registers_(uint16_t address, uint8_t *data, size_t length) {
