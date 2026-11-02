@@ -1,6 +1,4 @@
 esphome:
-  build_flags:
-    - -DUSE_VOICE_ASSISTANT_MICROPHONE_BUFFER_STATE
   on_boot:
     then:
       - voice_assistant.start
