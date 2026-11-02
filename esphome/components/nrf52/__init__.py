@@ -83,6 +83,7 @@ from .const import (
     FLASH_SECTOR_SIZE,
     SMP_UDP_PORT,
     VARIANT_NRF54LM20,
+    VARIANT_NRF51822,
     VARIANT_NRF52840,
 )
 from .framework import (
@@ -142,6 +143,8 @@ FAKE_BOARD_MANIFEST = """
 
 def _board_variant(board: str) -> str:
     """Take the SoC from the board qualifiers, e.g. nrf54lm20dk/nrf54lm20a/cpuapp."""
+    if board == "bbc_microbit":
+        return VARIANT_NRF51822
     qualifiers = BOARD_ALIASES.get(board, board).lower().split("/")
     if len(qualifiers) > 1 and qualifiers[1].startswith("nrf54lm20"):
         return VARIANT_NRF54LM20
@@ -490,8 +493,8 @@ async def to_code(config: ConfigType) -> None:
         )
     # Zephyr is a preemptive RTOS: BLE, Thread, USB and workqueue callbacks
     # run in other threads, so the scheduler must be thread-safe.
-    if config[CONF_BOARD] == "bbc_microbit":
-        # micro:bit v1 is an nRF51822 (Cortex-M0, ARMv6-M) without LDREX/STREX;
+    if variant == VARIANT_NRF51822:
+        # nRF51822 (micro:bit v1) is a Cortex-M0 (ARMv6-M) without LDREX/STREX;
         # std::atomic RMW would need libatomic, so use k_mutex-based locking.
         cg.add_define(ThreadModel.MULTI_NO_ATOMICS)
     else:

@@ -6,7 +6,11 @@ from unittest.mock import PropertyMock, patch
 import pytest
 
 from esphome.components import nrf52
-from esphome.components.nrf52.const import VARIANT_NRF54LM20, VARIANT_NRF52840
+from esphome.components.nrf52.const import (
+    VARIANT_NRF54LM20,
+    VARIANT_NRF51822,
+    VARIANT_NRF52840,
+)
 from esphome.components.nrf52.framework import get_nrf52_variant, set_nrf52_variant
 import esphome.config_validation as cv
 from esphome.const import (
@@ -26,6 +30,7 @@ from esphome.types import ConfigType
         ("nrf54lm20dk/nrf54lm20a/cpuapp", VARIANT_NRF54LM20),
         ("NRF54LM20DK/NRF54LM20A/CPUAPP", VARIANT_NRF54LM20),
         ("xiao_ble", VARIANT_NRF52840),
+        ("bbc_microbit", VARIANT_NRF51822),
         ("adafruit_feather_nrf52840", VARIANT_NRF52840),
         ("nrf54lm20dk", VARIANT_NRF54LM20),
         ("nrf54lm20dk/nrf54lm20b/cpuapp", VARIANT_NRF54LM20),
