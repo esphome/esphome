@@ -82,12 +82,16 @@ from .const import (
     CONF_UDP,
     FLASH_SECTOR_SIZE,
     SMP_UDP_PORT,
+    VARIANT_NRF52,
+    VARIANT_NRF54LM20,
 )
 from .framework import (
     check_and_install,
     ensure_nordic_nrfutil,
     get_build_env,
     get_build_paths,
+    get_nrf52_variant,
+    set_nrf52_variant,
     setup_platformio_python_env,
     toolchain_tool,
     wanted_west_projects,
@@ -132,8 +136,17 @@ FAKE_BOARD_MANIFEST = """
 """
 
 
+def _board_variant(board: str) -> str:
+    """Take the SoC from the board qualifiers, e.g. nrf54lm20dk/nrf54lm20a/cpuapp."""
+    qualifiers = board.lower().split("/")
+    if len(qualifiers) > 1 and qualifiers[1].startswith("nrf54lm20"):
+        return VARIANT_NRF54LM20
+    return VARIANT_NRF52
+
+
 def set_core_data(config: ConfigType) -> ConfigType:
     zephyr_set_core_data(config)
+    set_nrf52_variant(_board_variant(config[CONF_BOARD]))
     CORE.data[KEY_CORE][KEY_TARGET_PLATFORM] = PLATFORM_NRF52
     CORE.data[KEY_CORE][KEY_TARGET_FRAMEWORK] = KEY_ZEPHYR
 
@@ -430,7 +443,9 @@ async def to_code(config: ConfigType) -> None:
     """Convert the configuration to code."""
     cg.add_build_flag("-DUSE_NRF52")
     cg.add_define("ESPHOME_BOARD", config[CONF_BOARD])
-    cg.add_define("ESPHOME_VARIANT", "NRF52")
+    variant = get_nrf52_variant()
+    cg.add_define("ESPHOME_VARIANT", variant)
+    cg.add_build_flag(f"-DUSE_NRF52_VARIANT_{variant}")
     # Zephyr is a preemptive RTOS: BLE, Thread, USB and workqueue callbacks
     # run in other threads, so the scheduler must be thread-safe.
     if config[CONF_BOARD] == "bbc_microbit":
