@@ -34,33 +34,21 @@ class PMSA003IComponent final : public PollingComponent, public i2c::I2CDevice {
 
   void set_standard_units(bool standard_units) { this->standard_units_ = standard_units; }
 
-  void set_pm_1_0_sensor(sensor::Sensor *pm_1_0) { this->pm_1_0_sensor_ = pm_1_0; }
-  void set_pm_2_5_sensor(sensor::Sensor *pm_2_5) { this->pm_2_5_sensor_ = pm_2_5; }
-  void set_pm_10_0_sensor(sensor::Sensor *pm_10_0) { this->pm_10_0_sensor_ = pm_10_0; }
-
-  void set_pmc_0_3_sensor(sensor::Sensor *pmc_0_3) { this->pmc_0_3_sensor_ = pmc_0_3; }
-  void set_pmc_0_5_sensor(sensor::Sensor *pmc_0_5) { this->pmc_0_5_sensor_ = pmc_0_5; }
-  void set_pmc_1_0_sensor(sensor::Sensor *pmc_1_0) { this->pmc_1_0_sensor_ = pmc_1_0; }
-  void set_pmc_2_5_sensor(sensor::Sensor *pmc_2_5) { this->pmc_2_5_sensor_ = pmc_2_5; }
-  void set_pmc_5_0_sensor(sensor::Sensor *pmc_5_0) { this->pmc_5_0_sensor_ = pmc_5_0; }
-  void set_pmc_10_0_sensor(sensor::Sensor *pmc_10_0) { this->pmc_10_0_sensor_ = pmc_10_0; }
-
  protected:
   void poll_until_ready_or_timeout_(uint32_t start_time);
   bool read_data_(PM25AQIData *data);
 
   bool standard_units_;
 
-  sensor::Sensor *pm_1_0_sensor_{nullptr};
-  sensor::Sensor *pm_2_5_sensor_{nullptr};
-  sensor::Sensor *pm_10_0_sensor_{nullptr};
-
-  sensor::Sensor *pmc_0_3_sensor_{nullptr};
-  sensor::Sensor *pmc_0_5_sensor_{nullptr};
-  sensor::Sensor *pmc_1_0_sensor_{nullptr};
-  sensor::Sensor *pmc_2_5_sensor_{nullptr};
-  sensor::Sensor *pmc_5_0_sensor_{nullptr};
-  sensor::Sensor *pmc_10_0_sensor_{nullptr};
+  SUB_SENSOR(pm_1_0)
+  SUB_SENSOR(pm_2_5)
+  SUB_SENSOR(pm_10_0)
+  SUB_SENSOR(pmc_0_3)
+  SUB_SENSOR(pmc_0_5)
+  SUB_SENSOR(pmc_1_0)
+  SUB_SENSOR(pmc_2_5)
+  SUB_SENSOR(pmc_5_0)
+  SUB_SENSOR(pmc_10_0)
 };
 
 }  // namespace esphome::pmsa003i

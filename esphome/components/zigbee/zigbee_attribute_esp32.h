@@ -53,6 +53,7 @@ class ZigbeeAttribute final : public Component {
   template<typename T> void set_attr(const T &value);
   uint8_t attr_type() { return attr_type_; }
   void set_report(ZigbeeReportT report);
+  void report();
 
   template<typename F> void add_on_value_callback(F &&callback) { on_value_callback_.add(std::forward<F>(callback)); }
   void on_value(ezb_zcl_attribute_t attribute) {

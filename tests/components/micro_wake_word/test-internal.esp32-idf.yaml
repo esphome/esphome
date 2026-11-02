@@ -1,0 +1,10 @@
+substitutions:
+  mic_din_pin: GPIO36
+
+packages:
+  i2s_audio: !include ../../test_build_components/common/i2s_audio/esp32-idf.yaml
+  micro_wake_word: !include common.yaml
+
+micro_wake_word:
+  prefer_internal_ram: true
+  ring_buffer_duration: 800ms

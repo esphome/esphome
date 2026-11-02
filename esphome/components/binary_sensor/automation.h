@@ -1,7 +1,7 @@
 #pragma once
 
-#include <array>
 #include <cinttypes>
+#include <type_traits>
 #include <utility>
 
 #include "esphome/core/component.h"
@@ -13,10 +13,14 @@
 namespace esphome::binary_sensor {
 
 struct MultiClickTriggerEvent {
-  bool state;
+  uint32_t state;  // Not bool: all-word fields allow aligned loads from PROGMEM on ESP8266
   uint32_t min_length;
   uint32_t max_length;
 };
+// Read straight from PROGMEM; a byte-sized field would fault on ESP8266.
+static_assert(std::is_same_v<decltype(MultiClickTriggerEvent::state), uint32_t> &&
+                  sizeof(MultiClickTriggerEvent) == 3 * sizeof(uint32_t),
+              "MultiClickTriggerEvent fields must all be uint32_t");
 
 bool match_interval(uint32_t min_length, uint32_t max_length, uint32_t length);
 
@@ -70,10 +74,11 @@ class DoubleClickTrigger final : public Trigger<> {
   uint32_t max_length_;  /// Maximum length of click. 0 means no maximum.
 };
 
-/// Non-template base for MultiClickTrigger (keeps large method bodies out of the header).
-class MultiClickTriggerBase : public Trigger<>, public Component {
+class MultiClickTrigger final : public Trigger<>, public Component {
  public:
-  explicit MultiClickTriggerBase(BinarySensor *parent) : parent_(parent) {}
+  /// `timing` is a codegen PROGMEM table shared by triggers with the same timing.
+  MultiClickTrigger(BinarySensor *parent, const MultiClickTriggerEvent *timing, uint8_t timing_count)
+      : parent_(parent), timing_(timing), timing_count_(timing_count) {}
 
   void setup() override {
     this->last_state_ = this->parent_->get_state_default(false);
@@ -85,8 +90,8 @@ class MultiClickTriggerBase : public Trigger<>, public Component {
   void set_invalid_cooldown(uint32_t invalid_cooldown) { this->invalid_cooldown_ = invalid_cooldown; }
 
   void cancel();
-  MultiClickTriggerBase(const MultiClickTriggerBase &) = delete;
-  MultiClickTriggerBase &operator=(const MultiClickTriggerBase &) = delete;
+  MultiClickTrigger(const MultiClickTrigger &) = delete;
+  MultiClickTrigger &operator=(const MultiClickTrigger &) = delete;
 
  protected:
   void on_state_(bool state);
@@ -96,28 +101,13 @@ class MultiClickTriggerBase : public Trigger<>, public Component {
   void trigger_();
 
   BinarySensor *parent_;
-  const MultiClickTriggerEvent *timing_{nullptr};
-  uint32_t invalid_cooldown_{1000};
-  optional<size_t> at_index_{};
-  uint8_t timing_count_{0};
+  const MultiClickTriggerEvent *timing_;
+  uint32_t invalid_cooldown_{1000};  // Must match DEFAULT_INVALID_COOLDOWN_MS in __init__.py
+  uint8_t timing_count_;
+  uint8_t at_index_{0};  // 0: not matching, otherwise the index of the next timing event
   bool last_state_{false};
   bool is_in_cooldown_{false};
   bool is_valid_{false};
-};
-
-/// Template wrapper that provides inline std::array storage for timing events.
-/// N is set by code generation to match the exact number of timing events configured in YAML.
-template<size_t N> class MultiClickTrigger final : public MultiClickTriggerBase {
- public:
-  MultiClickTrigger(BinarySensor *parent, std::initializer_list<MultiClickTriggerEvent> timing)
-      : MultiClickTriggerBase(parent) {
-    init_array_from(this->timing_storage_, timing);
-    this->timing_ = this->timing_storage_.data();
-    this->timing_count_ = N;
-  }
-
- protected:
-  std::array<MultiClickTriggerEvent, N> timing_storage_{};
 };
 
 }  // namespace esphome::binary_sensor

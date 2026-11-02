@@ -7,8 +7,15 @@ from typing import Any
 
 import pytest
 
-from esphome.components.micro_wake_word import LOCAL_SCHEMA
+from esphome.components.micro_wake_word import (
+    CONF_RING_BUFFER_DURATION,
+    CONFIG_SCHEMA,
+    LOCAL_SCHEMA,
+)
+import esphome.config_validation as cv
+from esphome.const import PlatformFramework
 from esphome.core import CORE
+from tests.component_tests.types import SetCoreConfigCallable
 
 MANIFEST: dict[str, Any] = {
     "type": "micro",
@@ -25,6 +32,34 @@ MANIFEST: dict[str, Any] = {
         "minimum_esphome_version": "2024.7.0",
     },
 }
+
+
+def test_ring_buffer_duration_is_absent_by_default(
+    set_core_config: SetCoreConfigCallable,
+) -> None:
+    set_core_config(PlatformFramework.ESP32_IDF)
+    assert CONF_RING_BUFFER_DURATION not in CONFIG_SCHEMA({})
+
+
+@pytest.mark.parametrize(
+    ("duration", "expected_ms"),
+    [("120ms", 120), ("400ms", 400), ("800ms", 800), ("1s", 1000)],
+)
+def test_ring_buffer_duration_is_configurable(
+    duration: str, expected_ms: int, set_core_config: SetCoreConfigCallable
+) -> None:
+    set_core_config(PlatformFramework.ESP32_IDF)
+    config = CONFIG_SCHEMA({CONF_RING_BUFFER_DURATION: duration})
+    assert config[CONF_RING_BUFFER_DURATION].total_milliseconds == expected_ms
+
+
+@pytest.mark.parametrize("duration", ["119ms", "1001ms", "0ms"])
+def test_ring_buffer_duration_schema_rejects_out_of_range(
+    duration: str, set_core_config: SetCoreConfigCallable
+) -> None:
+    set_core_config(PlatformFramework.ESP32_IDF)
+    with pytest.raises(cv.Invalid):
+        CONFIG_SCHEMA({CONF_RING_BUFFER_DURATION: duration})
 
 
 def _registered_files() -> list[Path]:

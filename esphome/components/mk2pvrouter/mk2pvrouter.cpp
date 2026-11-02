@@ -19,8 +19,8 @@ constexpr uint8_t CRC_OFFSET = 0x20;
 // Extracts a TAB-delimited field from [buf_start, buf_end) into dest.
 // Returns the field length, or 0 if no TAB was found, or the (uncopied) field
 // length if it's >= max_len.
-static size_t get_field(char *dest, const char *buf_start, const char *buf_end, size_t max_len) {
-  const auto *const field_end = static_cast<const char *>(memchr(buf_start, TAB, buf_end - buf_start));
+static size_t get_field(char *dest, const uint8_t *buf_start, const uint8_t *buf_end, size_t max_len) {
+  const auto *const field_end = static_cast<const uint8_t *>(memchr(buf_start, TAB, buf_end - buf_start));
   if (!field_end)
     return 0;
   const size_t len = field_end - buf_start;
@@ -34,20 +34,13 @@ static size_t get_field(char *dest, const char *buf_start, const char *buf_end, 
   return len;
 }
 
-// Calculates the CRC (checksum) for a given group of characters.
-uint8_t Mk2PVRouter::calculate_crc_(const char *grp, size_t grp_len) {
-  uint8_t crc_tmp{0};
-  const auto effective_len = grp_len - CRC_SUFFIX_LEN;
-  for (size_t i = 0; i < effective_len; i++) {
-    crc_tmp += grp[i];
-  }
-  crc_tmp &= CRC_MASK;
-  crc_tmp += CRC_OFFSET;
-  return crc_tmp;
+// Calculates the CRC (checksum) for a given group of bytes.
+uint8_t Mk2PVRouter::calculate_crc_(const uint8_t *grp, size_t grp_len) {
+  return (sum_bytes(grp, grp_len - CRC_SUFFIX_LEN) & CRC_MASK) + CRC_OFFSET;
 }
 
 // Verifies the CRC of a group against its trailing CRC byte.
-bool Mk2PVRouter::check_crc_(const char *grp, const char *grp_end) {
+bool Mk2PVRouter::check_crc_(const uint8_t *grp, const uint8_t *grp_end) {
   const auto grp_len = grp_end - grp;
   if (grp_len < static_cast<std::ptrdiff_t>(CRC_SUFFIX_LEN)) {
     ESP_LOGE(TAG, "Empty or too short group");
@@ -65,7 +58,7 @@ bool Mk2PVRouter::check_crc_(const char *grp, const char *grp_end) {
 }
 
 // Validates, parses, and publishes a single tag/value group.
-void Mk2PVRouter::process_group_(const char *grp, const char *grp_end) {
+void Mk2PVRouter::process_group_(const uint8_t *grp, const uint8_t *grp_end) {
   if (!this->check_crc_(grp, grp_end))
     return;
 
@@ -90,9 +83,9 @@ bool Mk2PVRouter::read_chars_until_(bool drop, uint8_t c) {
   size_t j{0};
 
   while (this->available() > 0 && j++ < MAX_ITERATIONS) {
-    const auto received = this->read();
-    if (received < 0)
-      continue;
+    uint8_t received;
+    if (!this->read_byte(&received))
+      break;
     if (received == c)
       return true;
     if (drop)
@@ -134,10 +127,10 @@ void Mk2PVRouter::loop() {
 
       // Each group: 0xa(LF) | Tag | 0x9(TAB) | Data | 0x9(TAB) | CRC | 0xd(CR)
       // CRC is computed over "Tag | TAB | Data | TAB".
-      while ((buf_finger = static_cast<char *>(memchr(buf_finger, LINE_FEED, buf_end - buf_finger))) != nullptr) {
+      while ((buf_finger = static_cast<uint8_t *>(memchr(buf_finger, LINE_FEED, buf_end - buf_finger))) != nullptr) {
         ++buf_finger;  // Skip LF to the start of the group.
 
-        auto *const grp_end = static_cast<char *>(memchr(buf_finger, CARRIAGE_RETURN, buf_end - buf_finger));
+        auto *const grp_end = static_cast<uint8_t *>(memchr(buf_finger, CARRIAGE_RETURN, buf_end - buf_finger));
         if (!grp_end) {
           ESP_LOGE(TAG, "No group found");
           break;

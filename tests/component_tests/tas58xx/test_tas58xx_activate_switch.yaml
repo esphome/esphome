@@ -1,0 +1,27 @@
+esphome:
+  name: test
+
+esp32:
+  board: esp32dev
+
+i2c:
+  id: i2c_bus
+  sda: 21
+  scl: 22
+
+audio_dac:
+  - platform: tas58xx
+    model: tas5805m
+    id: amp_with_switch
+    ignore_enable_pin_warning: true
+  - platform: tas58xx
+    model: tas5825m
+    id: amp_without_switch
+    ignore_enable_pin_warning: true
+
+switch:
+  - platform: tas58xx
+    tas58xx_id: amp_with_switch
+    activate:
+      id: activate
+      name: Amplifier

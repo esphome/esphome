@@ -24,10 +24,7 @@ DEPENDENCIES = ["spi"]
 
 cs5460a_ns = cg.esphome_ns.namespace("cs5460a")
 CS5460APGAGain = cs5460a_ns.enum("CS5460APGAGain")
-PGA_GAIN_OPTIONS = {
-    "10X": CS5460APGAGain.CS5460A_PGA_GAIN_10X,
-    "50X": CS5460APGAGain.CS5460A_PGA_GAIN_50X,
-}
+PGA_GAIN_OPTIONS = CS5460APGAGain.options("10X", "50X", prefix="CS5460A_PGA_GAIN_")
 
 CS5460AComponent = cs5460a_ns.class_("CS5460AComponent", spi.SPIDevice, cg.Component)
 
@@ -106,9 +103,7 @@ CONFIG_SCHEMA = cv.All(
 
 
 async def to_code(config: ConfigType) -> None:
-    var = cg.new_Pvariable(config[CONF_ID])
-    await cg.register_component(var, config)
-    await spi.register_spi_device(var, config)
+    var = await spi.new_spi_component(config)
 
     cg.add(var.set_samples(config[CONF_SAMPLES]))
     cg.add(var.set_phase_offset(config[CONF_PHASE_OFFSET]))

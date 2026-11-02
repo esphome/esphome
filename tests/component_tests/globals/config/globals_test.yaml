@@ -14,3 +14,7 @@ globals:
   - id: my_global_bool
     type: bool
     initial_value: "true"
+  - id: my_restoring_int
+    type: int
+    restore_value: true
+    initial_value: "8"

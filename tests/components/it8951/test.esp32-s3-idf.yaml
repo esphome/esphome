@@ -108,3 +108,6 @@ interval:
           id: m5epd_display
           mode: A2
       - it8951.update: m5epd_display
+      - it8951.update:
+          id: m5epd_display
+          mode: !lambda return it8951::UPDATE_MODE_GL16;

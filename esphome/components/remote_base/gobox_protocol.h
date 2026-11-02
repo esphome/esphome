@@ -38,15 +38,4 @@ class GoboxProtocol : public RemoteProtocol<GoboxData> {
 
 DECLARE_REMOTE_PROTOCOL(Gobox)
 
-template<typename... Ts> class GoboxAction : public RemoteTransmitterActionBase<Ts...> {
- public:
-  TEMPLATABLE_VALUE(uint64_t, code);
-
-  void encode(RemoteTransmitData *dst, Ts... x) override {
-    GoboxData data{};
-    data.code = this->code_.value(x...);
-    GoboxProtocol().encode(dst, data);
-  }
-};
-
 }  // namespace esphome::remote_base

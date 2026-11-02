@@ -46,7 +46,27 @@ void MDNSComponent::start_polling_window_() {
 }
 #endif
 
+#ifdef USE_MDNS_DYNAMIC_NETWORK_TXT
+ESPHOME_LOG_TAG(TAG, "mdns");
+
+bool MDNSComponent::publish_network_txt_(const char *network) {
+  // LEAmDNS replaces the value of an existing key; announce() sends the change
+  if (!MDNS.addServiceTxt("esphomelib", "tcp", "network", network)) {
+    ESP_LOGW(TAG, "Failed to update network TXT");
+    return false;
+  }
+  MDNS.announce();
+  this->start_polling_window_();
+  return true;
+}
+#endif
+
 void MDNSComponent::setup() {
+#ifdef USE_MDNS_DYNAMIC_NETWORK_TXT
+  // No-op until the first IP-up event registers the services
+  this->set_interval(NETWORK_TXT_CHECK_INTERVAL_MS,
+                     [this]() { this->update_network_txt_(this->connected_network_()); });
+#endif
   // arduino-pico stubs out LwipIntf::stateUpCB (the netif status callback LEAmDNS uses
   // on ESP8266 for auto-restart), so we must drive begin()/notifyAPChange() from our
   // own IP state listener. Both WiFi and Ethernet have the same listener signature —

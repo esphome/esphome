@@ -9,15 +9,16 @@ ESPHOME_LOG_TAG(TAG, "binary_sensor");
 
 // Function implementation of LOG_BINARY_SENSOR macro to reduce code size
 void log_binary_sensor(const char *tag, const char *prefix, const char *type, BinarySensor *obj) {
-  if (obj == nullptr) {
+  if (!log_entity_header(tag, prefix, type, obj)) {
     return;
   }
-
-  ESP_LOGCONFIG(tag, "%s%s '%s'", prefix, type, obj->get_name().c_str());
   LOG_ENTITY_DEVICE_CLASS(tag, prefix, *obj);
 }
 
 void BinarySensor::publish_state(bool new_state) {
+#ifdef USE_BINARY_SENSOR_RAW_CALLBACK
+  this->raw_callback_.call(new_state);
+#endif
 #ifdef USE_BINARY_SENSOR_FILTER
   if (this->filter_list_ == nullptr) {
 #endif
@@ -33,12 +34,19 @@ void BinarySensor::publish_initial_state(bool new_state) {
   this->publish_state(new_state);
 }
 bool BinarySensor::set_new_state(const optional<bool> &new_state) {
+#ifdef USE_BINARY_SENSOR_FILTER
+  // An unknown state drops each filter's pending output and last value, so the next value is not dropped as a repeat
+  if (!new_state.has_value()) {
+    for (Filter *filter = this->filter_list_; filter != nullptr; filter = filter->next_)
+      filter->reset();
+  }
+#endif
   if (StatefulEntityBase::set_new_state(new_state)) {
     // weirdly, this file could be compiled even without USE_BINARY_SENSOR defined
 #if defined(USE_BINARY_SENSOR) && defined(USE_CONTROLLER_REGISTRY)
     ControllerRegistry::notify_binary_sensor_update(this);
 #endif
-    ESP_LOGV(TAG, "'%s' >> %s", this->get_name().c_str(), ONOFFMAYBE(new_state));
+    ESP_LOGV(TAG, "'%s' >> %s", LOG_STR_ARG(this->get_log_name()), ONOFFMAYBE(new_state));
     return true;
   }
   return false;

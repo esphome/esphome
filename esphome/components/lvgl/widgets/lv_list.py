@@ -20,6 +20,7 @@ from esphome.schema_extractors import SCHEMA_EXTRACT, schema_extractor
 from ..automation import action_to_code
 from ..defines import (
     CONF_ALIGN_TO,
+    CONF_CLICKABLE,
     CONF_MAIN,
     CONF_PAD_ROW,
     CONF_SCROLLBAR,
@@ -441,7 +442,7 @@ async def _wire_dynamic_triggers(w: Widget, config: dict) -> None:
     for event, conf in {
         event: conf for event, conf in config.items() if event in LV_EVENT_TRIGGERS
     }.items():
-        w.add_flag("LV_OBJ_FLAG_CLICKABLE")
+        w.set_flag(CONF_CLICKABLE, True)
         await add_trigger(
             conf[0], event_target, event, attach_obj=w.obj, user_data=user_data
         )

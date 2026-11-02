@@ -173,7 +173,7 @@ class RP2GattClient final : public Component,
 
   // Group 1: containers / large storage
   ble_device_base::GattClientListener *listener_{nullptr};
-  ServiceArena *arena_{nullptr};
+  RAMUniquePtr<ServiceArena> arena_;
   esphome::LockFreeQueue<RP2GattEvent, RP2_GATT_EVENT_QUEUE_SIZE> event_queue_;
   esphome::EventPool<RP2GattEvent, RP2_GATT_EVENT_QUEUE_SIZE - 1> event_pool_;
   esphome::LockFreeQueue<RP2GattNotifyEvent, RP2_GATT_NOTIFY_QUEUE_SIZE> notify_queue_;

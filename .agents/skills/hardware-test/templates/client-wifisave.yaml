@@ -1,0 +1,77 @@
+# Package for the client board: it joins the device under test's AP (priority 10), posts
+# `bogus_saves` bogus /wifisave requests `save_interval` apart, then posts the real credentials once.
+# Include from a per-run yaml that holds the platform block and the substitutions (example-client.yaml);
+# real_ssid and real_psk come from the scratch directory's secrets.yaml and must be URL safe.
+# Set bogus_saves to 1 for a plain provisioning check. Log lines the driver script counts:
+#   "bogus save N", "bogus save status 200", "posting the real credentials", "real save status 200"
+# The hammer is a single-mode script, so a reconnect to the AP (the device under test rebooted) does not
+# start a second series on top of the first.
+substitutions:
+  ap_password: hwtestpass
+  bogus_saves: "15"
+  save_interval: 3s
+  bogus_ssid: hwtest-no-such-network
+  bogus_psk: nosuchpassword
+
+esphome:
+  name: ${name}
+
+logger:
+  level: DEBUG
+
+http_request:
+  id: http
+  verify_ssl: false
+  timeout: 10s
+
+wifi:
+  id: wifi_id
+  networks:
+    - ssid: ${ap_ssid}
+      password: ${ap_password}
+      priority: 10
+    - ssid: ${real_ssid}
+      password: ${real_psk}
+  on_connect:
+    - lambda: |-
+        char b[40];
+        ESP_LOGI("test", "connected, ip %s", id(wifi_id).get_ip_addresses()[0].str_to(b));
+    - if:
+        condition:
+          lambda: |-
+            char b[40];
+            return strncmp(id(wifi_id).get_ip_addresses()[0].str_to(b), "192.168.4.", 10) == 0;
+        then:
+          - script.execute: hammer
+
+script:
+  - id: hammer
+    mode: single
+    then:
+      - delay: 3s
+      - logger.log: "hammering /wifisave with bogus credentials"
+      - repeat:
+          count: ${bogus_saves}
+          then:
+            - lambda: ESP_LOGI("test", "bogus save %u", (unsigned) iteration + 1);
+            - http_request.get:
+                url: "http://192.168.4.1/wifisave?ssid=${bogus_ssid}&psk=${bogus_psk}"
+                capture_response: true
+                on_response:
+                  - lambda: ESP_LOGI("test", "bogus save status %d", response->status_code);
+                on_error:
+                  - lambda: ESP_LOGW("test", "bogus save status -1");
+            - delay: ${save_interval}
+      - logger.log: "posting the real credentials"
+      - http_request.get:
+          url: "http://192.168.4.1/wifisave?ssid=${real_ssid}&psk=${real_psk}"
+          capture_response: true
+          on_response:
+            - lambda: ESP_LOGI("test", "real save status %d", response->status_code);
+          on_error:
+            - lambda: ESP_LOGW("test", "real save status -1");
+
+interval:
+  - interval: 5s
+    then:
+      - lambda: ESP_LOGI("test", "alive %u s", (unsigned) (millis() / 1000));

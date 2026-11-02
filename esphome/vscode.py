@@ -7,17 +7,11 @@ import sys
 import traceback
 from typing import Any
 
-from esphome.config import Config, _format_vol_invalid, validate_config
+from esphome.config import _format_vol_invalid, get_invalid_range, validate_config
 import esphome.config_validation as cv
 from esphome.const import __version__ as ESPHOME_VERSION
 from esphome.core import CORE, DocumentRange, EsphomeError
 from esphome.yaml_util import parse_yaml
-
-
-def _get_invalid_range(res: Config, invalid: cv.Invalid) -> DocumentRange | None:
-    return res.get_deepest_document_range_for_path(
-        invalid.path, invalid.error_message == "extra keys not allowed"
-    )
 
 
 def _dump_range(range: DocumentRange | None) -> dict | None:
@@ -155,8 +149,9 @@ def read_config(args):
         else:
             for err in res.errors:
                 try:
-                    range_ = _get_invalid_range(res, err)
+                    range_ = get_invalid_range(res, err)
                     vs.add_validation_error(range_, _format_vol_invalid(err, res))
                 except Exception:  # noqa: BLE001  # pylint: disable=broad-except
-                    continue
+                    # Report the error without a range rather than drop it
+                    vs.add_validation_error(None, str(err))
         print(vs.dump())

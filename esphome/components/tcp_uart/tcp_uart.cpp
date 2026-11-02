@@ -17,13 +17,11 @@ void TcpUart::setup() {
 #ifdef USE_SOCKET_TCP_LISTENER
   this->listener_.begin(TAG);
 #endif
-  if (this->connected_sensor_ != nullptr) {
-    this->connected_sensor_->publish_state(false);
-  }
+#ifdef USE_BINARY_SENSOR
+  PUBLISH_STATE(this->connected_binary_sensor_, false);
+#endif
 #ifdef USE_SENSOR
-  if (this->disconnects_sensor_ != nullptr) {
-    this->disconnects_sensor_->publish_state(0);
-  }
+  PUBLISH_STATE(this->disconnects_sensor_, 0);
 #endif
 }
 
@@ -38,7 +36,9 @@ void TcpUart::dump_config() {
 #ifdef USE_SOCKET_TCP_LISTENER
   this->listener_.dump_config();
 #endif
-  LOG_BINARY_SENSOR("  ", "Connected", this->connected_sensor_);
+#ifdef USE_BINARY_SENSOR
+  LOG_BINARY_SENSOR("  ", "Connected", this->connected_binary_sensor_);
+#endif
 #ifdef USE_SENSOR
   LOG_SENSOR("  ", "Disconnects", this->disconnects_sensor_);
 #endif
@@ -58,9 +58,9 @@ void TcpUart::sync_link_() {
     // Unread bytes of the last session stay readable while down, never into the next one.
     this->rx_start_ = this->rx_end_ = 0;
   }
-  if (this->connected_sensor_ != nullptr) {
-    this->connected_sensor_->publish_state(up);
-  }
+#ifdef USE_BINARY_SENSOR
+  PUBLISH_STATE(this->connected_binary_sensor_, up);
+#endif
 #ifdef USE_SENSOR
   // Only edges get here, so down is the falling edge.
   if (!up && this->disconnects_sensor_ != nullptr) {

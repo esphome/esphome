@@ -95,16 +95,9 @@ void ImprovSerialComponent::write_data_(const uint8_t *data, const size_t size) 
   const uint8_t header_checksum_len = there_is_data ? TX_BUFFER_SIZE - 3 : TX_BUFFER_SIZE - 2;
   // Only transmit the full buffer length if there is no data (only state/error byte is provided in this case)
   const uint8_t header_tx_len = there_is_data ? TX_BUFFER_SIZE - 3 : TX_BUFFER_SIZE;
-  // Calculate checksum for message
-  uint8_t checksum = 0;
-  for (uint8_t i = 0; i < header_checksum_len; i++) {
-    checksum += this->tx_header_[i];
-  }
+  uint8_t checksum = sum_bytes(this->tx_header_, header_checksum_len);
   if (there_is_data) {
-    // Include data in checksum
-    for (size_t i = 0; i < size; i++) {
-      checksum += data[i];
-    }
+    checksum = sum_bytes(data, size, checksum);
   }
   this->tx_header_[TX_CHECKSUM_IDX] = checksum;
 

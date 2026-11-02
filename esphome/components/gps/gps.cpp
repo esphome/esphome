@@ -19,33 +19,19 @@ void GPS::dump_config() {
 }
 
 void GPS::update() {
-  if (this->latitude_sensor_ != nullptr) {
-    this->latitude_sensor_->publish_state(this->latitude_);
-  }
+  PUBLISH_STATE(this->latitude_sensor_, this->latitude_);
 
-  if (this->longitude_sensor_ != nullptr) {
-    this->longitude_sensor_->publish_state(this->longitude_);
-  }
+  PUBLISH_STATE(this->longitude_sensor_, this->longitude_);
 
-  if (this->speed_sensor_ != nullptr) {
-    this->speed_sensor_->publish_state(this->speed_);
-  }
+  PUBLISH_STATE(this->speed_sensor_, this->speed_);
 
-  if (this->course_sensor_ != nullptr) {
-    this->course_sensor_->publish_state(this->course_);
-  }
+  PUBLISH_STATE(this->course_sensor_, this->course_);
 
-  if (this->altitude_sensor_ != nullptr) {
-    this->altitude_sensor_->publish_state(this->altitude_);
-  }
+  PUBLISH_STATE(this->altitude_sensor_, this->altitude_);
 
-  if (this->satellites_sensor_ != nullptr) {
-    this->satellites_sensor_->publish_state(this->satellites_);
-  }
+  PUBLISH_STATE(this->satellites_sensor_, this->satellites_);
 
-  if (this->hdop_sensor_ != nullptr) {
-    this->hdop_sensor_->publish_state(this->hdop_);
-  }
+  PUBLISH_STATE(this->hdop_sensor_, this->hdop_);
 }
 
 void GPS::loop() {
@@ -84,9 +70,11 @@ void GPS::loop() {
       ESP_LOGV(TAG, "HDOP: %.3f", this->hdop_);
     }
 
+#ifdef GPS_LISTENER_COUNT
     for (auto *listener : this->listeners_) {
       listener->on_update(this->tiny_gps_);
     }
+#endif
   }
 }
 

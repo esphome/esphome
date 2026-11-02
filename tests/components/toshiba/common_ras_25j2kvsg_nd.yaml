@@ -1,0 +1,50 @@
+climate:
+  - platform: toshiba
+    id: toshiba_ras_25j2kvsg_nd
+    name: RAS-25J2KVSG-ND Climate
+    model: RAS-25J2KVSG-ND
+    transmitter_id: xmitr
+    receiver_id: rcvr
+  - platform: toshiba
+    name: Generic Climate alongside RAS-25J2KVSG-ND
+    model: GENERIC
+    transmitter_id: xmitr
+
+select:
+  - platform: toshiba
+    toshiba_id: toshiba_ras_25j2kvsg_nd
+    power_selection:
+      name: Toshiba Power Selection
+      id: toshiba_power_selection
+
+esphome:
+  on_boot:
+    then:
+      - climate.control:
+          id: toshiba_ras_25j2kvsg_nd
+          mode: HEAT
+          target_temperature: 24
+          custom_fan_mode: Low+
+          preset: BOOST
+      - climate.control:
+          id: toshiba_ras_25j2kvsg_nd
+          custom_fan_mode: Medium+
+          custom_preset: Fireplace 1
+      - climate.control:
+          id: toshiba_ras_25j2kvsg_nd
+          custom_preset: Frost protection
+          target_temperature: 5
+      - climate.control:
+          id: toshiba_ras_25j2kvsg_nd
+          custom_preset: HADA Care
+          target_temperature: 24
+      - climate.control:
+          id: toshiba_ras_25j2kvsg_nd
+          custom_preset: Sleep 1h
+      - climate.control:
+          id: toshiba_ras_25j2kvsg_nd
+          preset: NONE
+      - select.set:
+          id: toshiba_power_selection
+          option: Silent 1
+      - toshiba.step_vane: toshiba_ras_25j2kvsg_nd

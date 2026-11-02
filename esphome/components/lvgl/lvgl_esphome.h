@@ -82,7 +82,10 @@ inline void lv_style_set_text_font(lv_style_t *style, const font::Font *font) {
 #ifdef USE_IMAGE
 #ifdef USE_LVGL_IMAGE
 // Shortcut / overload, so that the source of an image widget can easily be updated from within a lambda.
-inline void lv_image_set_src(lv_obj_t *obj, image::Image *image) { ::lv_image_set_src(obj, image->get_lv_image_dsc()); }
+inline void lv_image_set_src(lv_obj_t *obj, image::Image *image) {
+  ::lv_image_set_src(obj, image->get_lv_image_dsc());
+  image->add_lvgl_widget(obj);
+}
 
 inline void lv_obj_set_style_bitmap_mask_src(lv_obj_t *obj, image::Image *image, lv_style_selector_t selector) {
   ::lv_obj_set_style_bitmap_mask_src(obj, image->get_lv_image_dsc(), selector);
@@ -142,6 +145,12 @@ lv_obj_t *lv_list_get_row_for_remove(lv_obj_t *list, int index);
 
 lv_color_t lv_grad_calculate_color(const lv_grad_dsc_t *dsc, int32_t pos);
 #endif  // USE_LVGL_GRADIENT
+
+#ifdef USE_LVGL_MENU
+// True if `e` is a click on `menu`'s back button while already at the root page -- the one
+// case LVGL's own docs say the app must handle itself (there is no default behavior).
+bool lv_menu_back_button_is_root_click(lv_obj_t *menu, lv_event_t *e);
+#endif  // USE_LVGL_MENU
 
 // Parent class for things that wrap an LVGL object
 class LvCompound {
@@ -214,7 +223,7 @@ enum class Orientation : uint8_t {
 };
 
 class LvglComponent final : public PollingComponent {
-  constexpr static const char *const TAG = "lvgl";
+  constexpr static const char *const TAG = "lvgl";  // NOLINT: lvgl does not build for ESP8266
 
  public:
   LvglComponent(std::vector<display::Display *> displays, float buffer_frac, bool full_refresh, int draw_rounding,
@@ -268,6 +277,9 @@ class LvglComponent final : public PollingComponent {
                            void *user_data = nullptr);
   static void add_event_cb(lv_obj_t *obj, event_callback_t callback, lv_event_code_t event1, lv_event_code_t event2,
                            lv_event_code_t event3, void *user_data = nullptr);
+
+  // Set or clear LV_OBJ_FLAG_LAYOUT_2, LV_OBJ_FLAG_WIDGET_1 or LV_OBJ_FLAG_WIDGET_2, which have no setter in LVGL 9.6
+  static void lv_obj_set_custom_flag(lv_obj_t *obj, lv_obj_flag_t flag, bool value);
 
   // change the state of a widget and fire an event if changed (only needed for CHECKED)
 

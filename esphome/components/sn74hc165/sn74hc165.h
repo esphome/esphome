@@ -45,7 +45,7 @@ class SN74HC165GPIOPin final : public GPIOPin, public Parented<SN74HC165Componen
   void setup() override {}
   void pin_mode(gpio::Flags flags) override {}
   bool digital_read() override;
-  void digital_write(bool value) override{};
+  void digital_write(bool value) override {};
   size_t dump_summary(char *buffer, size_t len) const override;
 
   void set_pin(uint16_t pin) { pin_ = pin; }

@@ -41,8 +41,7 @@ async def new_fastled_light(config: ConfigType) -> MockObj:
     var = cg.new_Pvariable(config[CONF_OUTPUT_ID])
     await cg.register_component(var, config)
 
-    if CONF_MAX_REFRESH_RATE in config:
-        cg.add(var.set_max_refresh_rate(config[CONF_MAX_REFRESH_RATE]))
+    cg.add_optional(var.set_max_refresh_rate, config.get(CONF_MAX_REFRESH_RATE))
 
     if CORE.is_esp32:
         from esphome.components.esp32 import add_idf_component

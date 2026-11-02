@@ -1,0 +1,26 @@
+i2s_audio:
+  - id: i2s_duplex_bus
+    i2s_bclk_pin: ${i2s_bclk_pin}
+    i2s_lrclk_pin: ${i2s_lrclk_pin}
+    i2s_mclk_pin: ${i2s_mclk_pin}
+    full_duplex: true
+
+microphone:
+  - platform: i2s_audio
+    id: duplex_mic
+    i2s_audio_id: i2s_duplex_bus
+    i2s_din_pin: ${i2s_din_pin}
+    adc_type: external
+    sample_rate: 48000
+    bits_per_sample: 32bit
+    channel: stereo
+
+speaker:
+  - platform: i2s_audio
+    id: duplex_speaker
+    i2s_audio_id: i2s_duplex_bus
+    i2s_dout_pin: ${i2s_dout_pin}
+    dac_type: external
+    sample_rate: 48000
+    bits_per_sample: 32bit
+    channel: stereo

@@ -1,0 +1,105 @@
+esphome:
+  name: uart-mock-pylontech-test
+
+host:
+api:
+  batch_delay: 0ms  # Disable batching to receive all state updates
+logger:
+  level: VERBOSE
+
+external_components:
+  - source:
+      type: local
+      path: EXTERNAL_COMPONENT_PATH
+
+# Dummy uart entry to satisfy pylontech's DEPENDENCIES = ["uart"]
+# The actual UART bus used is the uart_mock component below
+uart:
+  baud_rate: 115200
+  port: /dev/null
+
+uart_mock:
+  id: mock_uart
+  baud_rate: 115200
+  rx_buffer_size: 1024
+  auto_start: false
+
+pylontech:
+  id: pylontech0
+  uart_id: mock_uart
+
+sensor:
+  - platform: pylontech
+    pylontech_id: pylontech0
+    battery: 1
+    voltage:
+      name: "Bat1 Voltage"
+    current:
+      name: "Bat1 Current"
+    temperature:
+      name: "Bat1 Temperature"
+    temperature_low:
+      name: "Bat1 Temperature Low"
+    temperature_high:
+      name: "Bat1 Temperature High"
+    voltage_low:
+      name: "Bat1 Voltage Low"
+    voltage_high:
+      name: "Bat1 Voltage High"
+    coulomb:
+      name: "Bat1 Coulomb"
+    mos_temperature:
+      name: "Bat1 MOS Temperature"
+  - platform: pylontech
+    pylontech_id: pylontech0
+    battery: 2
+    voltage:
+      name: "Bat2 Voltage"
+    current:
+      name: "Bat2 Current"
+    temperature_high:
+      name: "Bat2 Temperature High"
+    coulomb:
+      name: "Bat2 Coulomb"
+
+text_sensor:
+  - platform: pylontech
+    pylontech_id: pylontech0
+    battery: 1
+    base_state:
+      name: "Bat1 Base State"
+  - platform: pylontech
+    pylontech_id: pylontech0
+    battery: 2
+    base_state:
+      name: "Bat2 Base State"
+
+button:
+  - platform: template
+    name: "Start Scenario"
+    id: start_scenario_btn
+    on_press:
+      # Phase 1: older firmware header and two battery lines
+      - uart_mock.inject_rx:
+          id: mock_uart
+          data: "pwr\r\n@\r\nPower Volt   Curr   Tempr  Tlow   Thigh  Vlow   Vhigh  Base.St  Volt.St  Curr.St  Temp.St  Coulomb  Time                 B.V.St   B.T.St   MosTempr M.T.St\r\n1     50548  8910   25000  24200  25000  3368   3371   Charge   Normal   Normal   Normal   97%      2021-06-30 20:49:45  Normal  Normal  22700    Normal\r\n2     46012  -1255  9100   5300   5500   3047   3091   SysError Low      Normal   Normal   4%       2025-11-28 17:56:33  Low      Normal  7800     Normal\r\n$$\r\n"
+      - delay: 300ms
+      # Phase 2: garbage bytes, ending a line
+      - uart_mock.inject_rx:
+          id: mock_uart
+          data: [0xDE, 0xAD, 0xBE, 0xEF, 0x00, 0xFF, 0x0D, 0x0A]
+      - delay: 100ms
+      # Phase 3: truncated battery line; must not publish
+      - uart_mock.inject_rx:
+          id: mock_uart
+          data: "1     49000  0      17000\r\n"
+      - delay: 100ms
+      # Phase 4: line over the 199 character limit; dropped with a warning
+      - uart_mock.inject_rx:
+          id: mock_uart
+          data: "XXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXX\r\n"
+      - delay: 100ms
+      # Phase 5 (recovery): newer firmware header, also over the limit, then its data lines
+      - uart_mock.inject_rx:
+          id: mock_uart
+          data: "Power Volt Curr Tempr Tlow Tlow.Id Thigh Thigh.Id Vlow Vlow.Id Vhigh Vhigh.Id Base.St Volt.St Curr.St Temp.St Coulomb Time                B.V.St B.T.St MosTempr M.T.St SysAlarm.St                                        Extra.St\r\n1     49405 0   17600 13700 8      14500 0        3293 2       3294   0       Idle    Normal  Normal  Normal  60%     2025-12-05 00:53:41 Normal Normal 16600    Normal Normal\r\n2     48100 -2500 16900 13200 3      14100 1        3201 4       3215   9       Dischg  Normal  Normal  Normal  42%     2025-12-05 00:53:41 Normal Normal 15800    Normal Normal\r\n$$\r\n"

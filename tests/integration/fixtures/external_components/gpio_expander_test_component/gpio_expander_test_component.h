@@ -12,7 +12,7 @@ class GPIOExpanderTestComponent : public Component, public esphome::gpio_expande
  protected:
   bool digital_read_hw(uint8_t pin) override;
   bool digital_read_cache(uint8_t pin) override;
-  void digital_write_hw(uint8_t pin, bool value) override{};
+  void digital_write_hw(uint8_t pin, bool value) override {};
 };
 
 }  // namespace esphome::gpio_expander_test_component

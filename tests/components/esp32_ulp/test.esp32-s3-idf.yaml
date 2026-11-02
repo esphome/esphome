@@ -1,0 +1,2 @@
+packages:
+  esp32_ulp: !include common.yaml

@@ -4,6 +4,7 @@ from esphome.components.mipi import (
     GMCTRP1,
     IDMOFF,
     IFMODE,
+    MODE_BGR,
     PWCTR1,
     PWCTR2,
     SETEXTC,
@@ -11,7 +12,7 @@ from esphome.components.mipi import (
     DriverChip,
 )
 
-from .ili import ILI9341, ST7789V
+from .ili import ILI9341, ST7735, ST7789V
 
 # fmt: off
 DriverChip(
@@ -54,6 +55,8 @@ ILI9341.extend(
 
 GC9107 = ST7789V.extend(
     "GC9107",
+    native_width=132,
+    native_height=130,
     width=128,
     height=128,
     offset_width=2,
@@ -65,6 +68,35 @@ GC9107 = ST7789V.extend(
 GC9107.extend(
     "M5STACK-ATOMS3R-GC9107",
     data_rate="40MHz",
+    invert_colors=True,
+    reset_pin=48,
+    dc_pin=42,
+    cs_pin=14,
+    requires={"psram"},
+)
+
+GC9107.extend(
+    "M5STACK-ATOMS3",
+    data_rate="40MHz",
+    invert_colors=True,
+    reset_pin=34,
+    dc_pin=33,
+    cs_pin=15,
+)
+
+# M5Stack AtomS3R (ST7735 revision - May 14, 2026+)
+ST7735.extend(
+    "M5STACK-ATOMS3R-ST7735",
+    native_width=132,
+    native_height=132,
+    width=128,
+    height=128,
+    offset_width=2,
+    offset_height=1,
+    pad_width=2,
+    pad_height=3,
+    data_rate="40MHz",
+    color_order=MODE_BGR,
     invert_colors=True,
     reset_pin=48,
     dc_pin=42,

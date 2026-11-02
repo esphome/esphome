@@ -1,6 +1,8 @@
 #pragma once
 
 #include "light_color_values.h"
+#include "esphome/core/helpers.h"
+#include "esphome/core/string_ref.h"
 
 namespace esphome {
 
@@ -133,6 +135,8 @@ class LightCall {
   LightCall &set_effect(const std::string &effect) { return this->set_effect(effect.data(), effect.size()); }
   /// Set the effect of the light by its name (const char * overload to resolve ambiguity).
   LightCall &set_effect(const char *effect) { return this->set_effect(effect, strlen(effect)); }
+  /// Set the effect of the light by its name (StringRef overload to resolve ambiguity, zero-copy).
+  LightCall &set_effect(StringRef effect) { return this->set_effect(effect.c_str(), effect.size()); }
   /// Set the effect of the light by its name and length (zero-copy from API).
   LightCall &set_effect(const char *effect, size_t len);
   /// Set the effect of the light by its internal index number (only for internal use).
@@ -226,13 +230,7 @@ class LightCall {
   inline bool get_save_() { return (this->flags_ & FLAG_SAVE) != 0; }
 
   // Helper to set flag - defaults to true for common case
-  void set_flag_(FieldFlags flag, bool value = true) ESPHOME_ALWAYS_INLINE {
-    if (value) {
-      this->flags_ |= flag;
-    } else {
-      this->flags_ &= ~flag;
-    }
-  }
+  void set_flag_(FieldFlags flag, bool value = true) ESPHOME_ALWAYS_INLINE { assign_bits(this->flags_, flag, value); }
 
   // Helper to clear flag - reduces code size for common case
   void clear_flag_(FieldFlags flag) ESPHOME_ALWAYS_INLINE { this->flags_ &= ~flag; }

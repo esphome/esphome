@@ -2,6 +2,7 @@
 #include <cmath>
 #include <cstdio>
 #include <cstring>
+#include <limits>
 #include <span>
 #include <string>
 
@@ -64,6 +65,67 @@ TEST(ValueAccuracyToBuf, ThreeDecimals) {
   EXPECT_EQ(va_to_string(0.0f, 3), "0.000");
 }
 
+TEST(ValueAccuracyToBuf, FourDecimals) {
+  EXPECT_EQ(va_to_string(0.0f, 4), "0.0000");
+  EXPECT_EQ(va_to_string(0.0001f, 4), "0.0001");
+  EXPECT_EQ(va_to_string(0.0030f, 4), "0.0030");
+  EXPECT_EQ(va_to_string(-0.0008f, 4), "-0.0008");
+  EXPECT_EQ(va_to_string(23.456f, 4), va_reference(23.456f, 4));
+}
+
+TEST(ValueAccuracyToBuf, FourDecimalPidSteps) {
+  for (int step = 0; step <= 30; step++) {
+    float value = step * 0.0001f;
+    EXPECT_EQ(va_to_string(value, 4), va_reference(value, 4)) << "step=" << step;
+  }
+}
+
+TEST(ValueAccuracyToBuf, FourDecimalRoundingBoundaries) {
+  for (int step = -1000; step <= 1000; step++) {
+    float midpoint = static_cast<float>((step + 0.5) / 10000.0);
+    for (float value : {std::nextafter(midpoint, -INFINITY), midpoint, std::nextafter(midpoint, INFINITY)}) {
+      EXPECT_EQ(va_to_string(value, 4), va_reference(value, 4)) << "value=" << value;
+    }
+  }
+  for (float value : {0.03125f, -0.03125f, 0.09375f, -0.09375f, 0.99995f, -0.99995f}) {
+    EXPECT_EQ(va_to_string(value, 4), va_reference(value, 4));
+  }
+}
+
+TEST(ValueAccuracyToBuf, FourDecimalUint32Boundary) {
+  float limit = static_cast<float>(UINT32_MAX) / 10000;
+  for (float value : {std::nextafter(limit, 0.0f), limit, std::nextafter(limit, INFINITY), 1.0e6f,
+                      std::numeric_limits<float>::max()}) {
+    EXPECT_EQ(va_to_string(value, 4), va_reference(value, 4));
+    EXPECT_EQ(va_to_string(-value, 4), va_reference(-value, 4));
+  }
+}
+
+TEST(ValueAccuracyToBuf, FourDecimalSpecialValuesAndFallback) {
+  for (float value : {-0.0f, -0.00001f, NAN, INFINITY, -INFINITY}) {
+    EXPECT_EQ(va_to_string(value, 4), va_reference(value, 4));
+  }
+  EXPECT_EQ(va_to_string(0.00001f, 5), "0.00001");
+  EXPECT_EQ(va_to_string(-0.00001f, 5), "-0.00001");
+}
+
+TEST(ValueAccuracyToBuf, FourDecimalBufferAndLength) {
+  struct {
+    char before{'B'};
+    char buffer[VALUE_ACCURACY_MAX_LEN];
+    char after{'A'};
+  } guarded;
+  for (float value : {0.0f, -0.0f, 0.0001f, -0.0030f, 429496.0f, 1.0e6f}) {
+    size_t len = value_accuracy_to_buf(std::span<char, VALUE_ACCURACY_MAX_LEN>(guarded.buffer), value, 4);
+    EXPECT_EQ(guarded.before, 'B');
+    EXPECT_EQ(guarded.after, 'A');
+    ASSERT_LT(len, VALUE_ACCURACY_MAX_LEN);
+    EXPECT_EQ(guarded.buffer[len], '\0');
+    EXPECT_EQ(strlen(guarded.buffer), len);
+    EXPECT_EQ(std::string(guarded.buffer, len), va_reference(value, 4));
+  }
+}
+
 // --- Negative values ---
 
 TEST(ValueAccuracyToBuf, NegativeValues) {
@@ -121,7 +183,7 @@ TEST(ValueAccuracyToBuf, Rounding) {
 
 TEST(ValueAccuracyToBuf, MatchesSnprintf) {
   float test_values[] = {0.0f, 1.0f, -1.0f, 23.456f, -23.456f, 100.0f, 0.1f, 0.01f, 99.99f, 1013.25f, -40.0f};
-  int8_t test_accuracies[] = {0, 1, 2, 3};
+  int8_t test_accuracies[] = {0, 1, 2, 3, 4};
 
   for (float value : test_values) {
     for (int8_t acc : test_accuracies) {
@@ -223,7 +285,7 @@ TEST(ValueAccuracyWithUomToBuf, NearBufferLimitTruncates) {
 TEST(ValueAccuracyWithUomToBuf, MatchesSnprintf) {
   const char *units[] = {"°C", "hPa", "%", "W", "kWh", "m/s"};
   float values[] = {0.0f, 23.456f, -40.0f, 1013.25f, 100.0f};
-  int8_t accs[] = {0, 1, 2, 3};
+  int8_t accs[] = {0, 1, 2, 3, 4};
   for (const char *u : units) {
     for (float v : values) {
       for (int8_t a : accs) {

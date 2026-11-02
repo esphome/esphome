@@ -11,11 +11,16 @@ audio_dac:
   - platform: es8388
     i2c_id: i2c_bus
     id: es8388_parent
+    mic_gain: 21DB
 
 select:
   - platform: es8388
     es8388_id: es8388_parent
     dac_output:
       name: "DAC Output"
+      id: es8388_test_dac_output_select
+      initial_option: BOTH
     adc_input_mic:
       name: "ADC Input MIC"
+      id: es8388_test_adc_input_mic_select
+      initial_option: LINE2

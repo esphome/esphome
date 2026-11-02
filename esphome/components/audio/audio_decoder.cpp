@@ -188,7 +188,7 @@ AudioDecoderState AudioDecoder::decode(bool stop_gracefully) {
 
     // Expose the next chunk of file data. Every decoder buffers internally and consumes only what it
     // processed, so the source does not need to accumulate or stitch chunks across fill() calls.
-    this->input_buffer_->fill(pdMS_TO_TICKS(READ_WRITE_TIMEOUT_MS), false);
+    this->input_buffer_->fill(pdMS_TO_TICKS(READ_WRITE_TIMEOUT_MS));
 
     const size_t available_before_decode = this->input_buffer_->available();
 

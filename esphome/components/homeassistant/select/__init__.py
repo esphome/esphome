@@ -13,6 +13,7 @@ from .. import (
 
 CODEOWNERS = ["@jesserockz"]
 DEPENDENCIES = ["api"]
+AUTO_LOAD = ["homeassistant"]
 
 CONF_MAX_OPTIONS = "max_options"
 CONF_OPTIONS_BUFFER_SIZE = "options_buffer_size"
@@ -54,4 +55,5 @@ async def to_code(config: ConfigType) -> None:
         options=[],
     )
     await cg.register_component(var, config)
-    setup_home_assistant_entity(var, config)
+    # 1 state + options fetch in HomeassistantSelect::setup()
+    setup_home_assistant_entity(var, config, state_subscription_count=2)

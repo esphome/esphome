@@ -1,4 +1,7 @@
 #include <gtest/gtest.h>
+
+#include <vector>
+
 #include "esphome/components/climate/climate.h"
 
 namespace esphome::climate::testing {
@@ -68,6 +71,37 @@ TEST(ClimateRestoreStateTest, KeepsRestoringTheOtherFieldsWhenTheModeIsDropped) 
   EXPECT_FLOAT_EQ(climate.target_temperature, 21.0f);
   // Compared as an optional: this asserts both that the fan mode was restored and what it holds.
   EXPECT_EQ(climate.fan_mode, CLIMATE_FAN_HIGH);
+}
+
+static constexpr const char *const FAN_TABLE[] = {"Turbo", "Silent"};
+
+TEST(ClimateCustomModesTest, StaticTableIsViewedNotCopied) {
+  TestClimate climate;
+  climate.set_supported_custom_fan_modes_static(FAN_TABLE, 2);
+  auto traits = climate.get_traits();
+  ASSERT_EQ(traits.get_supported_custom_fan_modes().size(), 2u);
+  EXPECT_EQ(traits.get_supported_custom_fan_modes().data(), FAN_TABLE);
+  EXPECT_TRUE(traits.get_supports_fan_modes());
+  EXPECT_TRUE(traits.supports_custom_fan_mode("Silent"));
+  EXPECT_FALSE(traits.supports_custom_fan_mode("Quiet"));
+}
+
+TEST(ClimateCustomModesTest, RuntimeListsAreCopiedAndReplaced) {
+  TestClimate climate;
+  std::vector<const char *> presets{"Eco", "Sleep"};
+  climate.set_supported_custom_presets(presets);
+  presets[0] = "Changed";  // the climate keeps its own copy
+  EXPECT_STREQ(climate.get_traits().get_supported_custom_presets()[0], "Eco");
+  climate.set_supported_custom_presets({"Night"});  // frees the previous copy
+  ASSERT_EQ(climate.get_traits().get_supported_custom_presets().size(), 1u);
+  EXPECT_STREQ(climate.get_traits().get_supported_custom_presets()[0], "Night");
+}
+
+TEST(ClimateCustomModesTest, TraitsWithoutAClimateHaveEmptyLists) {
+  ClimateTraits traits;
+  EXPECT_TRUE(traits.get_supported_custom_fan_modes().empty());
+  EXPECT_TRUE(traits.get_supported_custom_presets().empty());
+  EXPECT_FALSE(traits.supports_custom_preset("Eco"));
 }
 
 }  // namespace esphome::climate::testing

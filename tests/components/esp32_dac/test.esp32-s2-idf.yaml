@@ -1,0 +1,5 @@
+substitutions:
+  dac_pin: 17
+
+packages:
+  esp32_dac: !include common.yaml

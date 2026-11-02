@@ -55,12 +55,8 @@ async def to_code(config: ConfigType) -> None:
     var = cg.new_Pvariable(config[CONF_ID])
     await cg.register_component(var, config)
 
-    if display_config := config.get(CONF_DISPLAY):
-        drawing_display = await cg.get_variable(display_config)
-        cg.add(var.set_display(drawing_display))
-
-    menu_font = await cg.get_variable(config[CONF_FONT])
-    cg.add(var.set_font(menu_font))
+    await cg.add_variable(var.set_display, config.get(CONF_DISPLAY))
+    await cg.add_variable(var.set_font, config[CONF_FONT])
 
     if (menu_item_value_config := config.get(CONF_MENU_ITEM_VALUE, None)) is not None:
         if isinstance(menu_item_value_config, core.Lambda):
@@ -73,13 +69,8 @@ async def to_code(config: ConfigType) -> None:
         else:
             cg.add(var.set_menu_item_value(menu_item_value_config))
 
-    if foreground_color_config := config.get(CONF_FOREGROUND_COLOR):
-        foreground_color = await cg.get_variable(foreground_color_config)
-        cg.add(var.set_foreground_color(foreground_color))
-
-    if background_color_config := config.get(CONF_BACKGROUND_COLOR):
-        background_color = await cg.get_variable(background_color_config)
-        cg.add(var.set_background_color(background_color))
+    await cg.add_variable(var.set_foreground_color, config.get(CONF_FOREGROUND_COLOR))
+    await cg.add_variable(var.set_background_color, config.get(CONF_BACKGROUND_COLOR))
 
     for conf in config.get(CONF_ON_REDRAW, []):
         await automation.build_callback_automation(

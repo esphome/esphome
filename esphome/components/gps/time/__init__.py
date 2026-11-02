@@ -4,7 +4,7 @@ import esphome.config_validation as cv
 from esphome.const import CONF_ID
 from esphome.types import ConfigType
 
-from .. import CONF_GPS_ID, GPS, GPSListener, gps_ns
+from .. import CONF_GPS_ID, GPS, GPSListener, gps_ns, register_listener
 
 DEPENDENCIES = ["gps"]
 
@@ -26,4 +26,4 @@ async def to_code(config: ConfigType) -> None:
     await cg.register_component(var, config)
 
     paren = await cg.get_variable(config[CONF_GPS_ID])
-    cg.add(paren.register_listener(var))
+    await register_listener(paren, var)

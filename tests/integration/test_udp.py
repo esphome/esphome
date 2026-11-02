@@ -11,6 +11,8 @@ import socket
 
 import pytest
 
+from .log_utils import LineWaiter
+from .state_utils import assert_device_name, require_service
 from .types import APIClientConnectedFactory, RunCompiledFunction
 
 
@@ -109,13 +111,7 @@ async def test_udp_send_receive(
     api_client_connected: APIClientConnectedFactory,
 ) -> None:
     """Test UDP component can send and receive messages."""
-    log_lines: list[str] = []
-    receive_event = asyncio.Event()
-
-    def on_log_line(line: str) -> None:
-        log_lines.append(line)
-        if "Received UDP:" in line:
-            receive_event.set()
+    waiter = LineWaiter()
 
     async with udp_listener() as (broadcast_port, receiver):
         listen_port = _get_free_udp_port()
@@ -123,24 +119,17 @@ async def test_udp_send_receive(
         config = config.replace("UDP_BROADCAST_PORT_PLACEHOLDER", str(broadcast_port))
 
         async with (
-            run_compiled(config, line_callback=on_log_line),
+            run_compiled(config, line_callback=waiter.callback),
             api_client_connected() as client,
         ):
             # Verify device is running
-            device_info = await client.device_info()
-            assert device_info is not None
-            assert device_info.name == "udp-test"
+            await assert_device_name(client, "udp-test")
 
             # Get services
             _, services = await client.list_entities_services()
 
             # Test sending string message
-            send_message_service = next(
-                (s for s in services if s.name == "send_udp_message"), None
-            )
-            assert send_message_service is not None, (
-                "send_udp_message service not found"
-            )
+            send_message_service = require_service(services, "send_udp_message")
 
             await client.execute_service(send_message_service, {})
 
@@ -153,10 +142,7 @@ async def test_udp_send_receive(
                 )
 
             # Test sending bytes
-            send_bytes_service = next(
-                (s for s in services if s.name == "send_udp_bytes"), None
-            )
-            assert send_bytes_service is not None, "send_udp_bytes service not found"
+            send_bytes_service = require_service(services, "send_udp_bytes")
 
             await client.execute_service(send_bytes_service, {})
 
@@ -173,7 +159,7 @@ async def test_udp_send_receive(
 
             # Verify dump_config logged all configured addresses
             # This tests that FixedVector<const char*> stores addresses correctly
-            log_text = "\n".join(log_lines)
+            log_text = "\n".join(waiter.lines)
             assert "Address: 127.0.0.1" in log_text, (
                 f"Address 127.0.0.1 not found in dump_config. Log: {log_text[-2000:]}"
             )
@@ -189,10 +175,4 @@ async def test_udp_send_receive(
             finally:
                 send_sock.close()
 
-            try:
-                await asyncio.wait_for(receive_event.wait(), timeout=5.0)
-            except TimeoutError:
-                pytest.fail(
-                    f"on_receive did not fire. Expected 'Received UDP:' in logs. "
-                    f"Last log lines: {log_lines[-20:]}"
-                )
+            await waiter.wait_for("Received UDP:", timeout=5.0)

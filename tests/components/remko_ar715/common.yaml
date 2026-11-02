@@ -1,0 +1,3 @@
+climate:
+  - platform: remko_ar715
+    name: Test RemkoAr715

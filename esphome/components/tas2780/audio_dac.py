@@ -4,7 +4,7 @@ import esphome.codegen as cg
 from esphome.components import i2c
 from esphome.components.audio_dac import AudioDac
 import esphome.config_validation as cv
-from esphome.const import CONF_CHANNEL, CONF_ID, CONF_POWER_MODE
+from esphome.const import CONF_CHANNEL, CONF_POWER_MODE
 from esphome.types import ConfigType
 
 DEPENDENCIES = ["i2c"]
@@ -97,9 +97,7 @@ automation.register_apply_action(
 
 
 async def to_code(config: ConfigType) -> None:
-    var = cg.new_Pvariable(config[CONF_ID])
-    await cg.register_component(var, config)
-    await i2c.register_i2c_device(var, config)
+    var = await i2c.new_i2c_component(config)
 
     cg.add(var.set_amp_level(config[CONF_AMP_LEVEL]))
     cg.add(var.set_power_mode(config[CONF_POWER_MODE]))

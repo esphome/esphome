@@ -38,6 +38,8 @@ uint16_t LibreTinyUARTComponent::get_config() {
     case UART_CONFIG_PARITY_ODD:
       config |= SERIAL_PARITY_ODD;
       break;
+    default:
+      break;
   }
 
   config |= (this->data_bits_ - 4) << 8;

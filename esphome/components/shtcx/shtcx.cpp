@@ -29,8 +29,7 @@ void SHTCXComponent::setup() {
 
   uint16_t device_id_register;
   if (!this->write_command(SHTCX_COMMAND_READ_ID_REGISTER) || !this->read_data(&device_id_register, 1)) {
-    ESP_LOGE(TAG, ESP_LOG_MSG_COMM_FAIL);
-    this->mark_failed();
+    this->mark_failed(LOG_STR(ESP_LOG_MSG_COMM_FAIL));
     return;
   }
 
@@ -53,9 +52,6 @@ void SHTCXComponent::dump_config() {
                 "  Model: %s (%04x)",
                 LOG_STR_ARG(shtcx_type_to_string(this->type_)), this->sensor_id_);
   LOG_I2C_DEVICE(this);
-  if (this->is_failed()) {
-    ESP_LOGE(TAG, ESP_LOG_MSG_COMM_FAIL);
-  }
   LOG_UPDATE_INTERVAL(this);
 
   LOG_SENSOR("  ", "Temperature", this->temperature_sensor_);
@@ -72,10 +68,8 @@ void SHTCXComponent::update() {
   }
   if (!this->write_command(SHTCX_COMMAND_POLLING_H)) {
     ESP_LOGE(TAG, "Polling failed");
-    if (this->temperature_sensor_ != nullptr)
-      this->temperature_sensor_->publish_state(NAN);
-    if (this->humidity_sensor_ != nullptr)
-      this->humidity_sensor_->publish_state(NAN);
+    PUBLISH_STATE(this->temperature_sensor_, NAN);
+    PUBLISH_STATE(this->humidity_sensor_, NAN);
     this->status_set_warning();
     return;
   }
@@ -85,16 +79,13 @@ void SHTCXComponent::update() {
     float humidity = NAN;
     uint16_t raw_data[2];
     if (!this->read_data(raw_data, 2)) {
-      ESP_LOGE(TAG, ESP_LOG_MSG_COMM_FAIL);
-      this->status_set_warning();
+      this->status_set_warning(LOG_STR(ESP_LOG_MSG_COMM_FAIL));
     } else {
       temperature = 175.0f * float(raw_data[0]) / 65536.0f - 45.0f;
       humidity = 100.0f * float(raw_data[1]) / 65536.0f;
     }
-    if (this->temperature_sensor_ != nullptr)
-      this->temperature_sensor_->publish_state(temperature);
-    if (this->humidity_sensor_ != nullptr)
-      this->humidity_sensor_->publish_state(humidity);
+    PUBLISH_STATE(this->temperature_sensor_, temperature);
+    PUBLISH_STATE(this->humidity_sensor_, humidity);
     this->status_clear_warning();
     if (this->type_ != SHTCX_TYPE_SHTC1) {
       this->sleep();

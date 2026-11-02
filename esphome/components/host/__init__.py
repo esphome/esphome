@@ -1,9 +1,11 @@
 import sys
 
 import esphome.codegen as cg
+from esphome.components import network
 import esphome.config_validation as cv
 from esphome.const import (
     CONF_MAC_ADDRESS,
+    CONF_USE_ADDRESS,
     KEY_CORE,
     KEY_FRAMEWORK_VERSION,
     KEY_TARGET_FRAMEWORK,
@@ -13,6 +15,7 @@ from esphome.const import (
     Toolchain,
 )
 from esphome.core import CORE, EsphomeError
+from esphome.storage_json import StorageJSON
 from esphome.types import ConfigType
 
 from .const import KEY_HOST
@@ -38,12 +41,14 @@ CONFIG_SCHEMA = cv.All(
     cv.Schema(
         {
             cv.Optional(CONF_MAC_ADDRESS, default="98:35:69:ab:f6:79"): cv.mac_address,
+            cv.Optional(CONF_USE_ADDRESS): cv.string_strict,
         }
     ),
     # The host builds with the machine's own compiler through ninja; there
     # is no PlatformIO backend, so a CLI --toolchain must name this one
     cv.resolve_toolchain("host", (Toolchain.HOST,), Toolchain.HOST),
     set_core_data,
+    network.require_ipv4(PLATFORM_HOST),
 )
 
 
@@ -57,6 +62,22 @@ async def to_code(config: ConfigType) -> None:
     cg.add_define("ESPHOME_BOARD", "host")
     cg.add_define("ESPHOME_VARIANT", "HOST")
     cg.add_define(ThreadModel.MULTI_ATOMICS)
+
+
+def get_download_types(storage_json: StorageJSON) -> list[dict[str, str]]:
+    """Download entries for a built host program; same contract as
+    ``esp32.get_download_types`` (title / description / file / download)."""
+    if storage_json.firmware_bin_path is None:
+        return []
+    return [
+        {
+            "title": "Executable",
+            "description": "Native program for the machine this was built on; "
+            "copy it to the host and run it.",
+            "file": "program",
+            "download": storage_json.name,
+        }
+    ]
 
 
 # Called by __main__.compile_program; True means this platform built the

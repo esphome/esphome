@@ -76,13 +76,6 @@ void RC522::initialize_() {
 
 void RC522::dump_config() {
   ESP_LOGCONFIG(TAG, "RC522:");
-  switch (this->error_code_) {
-    case NONE:
-      break;
-    case RESET_FAILED:
-      ESP_LOGE(TAG, "Reset command failed");
-      break;
-  }
 
   LOG_PIN("  RESET Pin: ", this->reset_pin_);
 
@@ -293,9 +286,7 @@ void RC522::pcd_reset_() {
   }
 
   if (--reset_count_ == 0) {
-    ESP_LOGE(TAG, "Unable to reset");
-    this->error_code_ = RESET_FAILED;
-    mark_failed();
+    this->mark_failed(LOG_STR("Reset command failed"));
   }
 }
 

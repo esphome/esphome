@@ -43,7 +43,6 @@ SYNC_TARGETS: tuple[SyncTarget, ...] = (
     SyncTarget(
         "ruff", "requirements_test.txt", "https://github.com/astral-sh/ruff-pre-commit"
     ),
-    SyncTarget("flake8", "requirements_test.txt", "https://github.com/PyCQA/flake8"),
     SyncTarget(
         "pyupgrade", "requirements_test.txt", "https://github.com/asottile/pyupgrade"
     ),

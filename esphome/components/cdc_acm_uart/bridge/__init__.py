@@ -2,6 +2,7 @@ from esphome import pins
 import esphome.codegen as cg
 from esphome.components import esp32, uart, usb_cdc_acm
 from esphome.components.bridge import DOMAIN as BRIDGE_DOMAIN
+from esphome.components.const import CONF_DTR_PIN, CONF_RTS_PIN
 from esphome.components.esp32 import VARIANT_ESP32P4, VARIANT_ESP32S2, VARIANT_ESP32S3
 import esphome.config_validation as cv
 from esphome.const import CONF_DEBUG, CONF_ID, CONF_UART_ID
@@ -11,8 +12,6 @@ from esphome.types import ConfigType
 CODEOWNERS = ["@kbx81"]
 DEPENDENCIES = ["tinyusb", "uart", "usb_cdc_acm"]
 
-CONF_DTR_PIN = "dtr_pin"
-CONF_RTS_PIN = "rts_pin"
 CONF_USB_CDC_ACM_ID = "usb_cdc_acm_id"
 
 cdc_acm_uart_ns = cg.esphome_ns.namespace("cdc_acm_uart")
@@ -93,9 +92,5 @@ async def to_code(config: ConfigType) -> None:
     var = cg.new_Pvariable(config[CONF_ID], uart_component, usb_cdc)
     await cg.register_component(var, config)
 
-    if dtr_pin_config := config.get(CONF_DTR_PIN):
-        dtr_pin = await cg.gpio_pin_expression(dtr_pin_config)
-        cg.add(var.set_dtr_pin(dtr_pin))
-    if rts_pin_config := config.get(CONF_RTS_PIN):
-        rts_pin = await cg.gpio_pin_expression(rts_pin_config)
-        cg.add(var.set_rts_pin(rts_pin))
+    await cg.add_pin(var.set_dtr_pin, config.get(CONF_DTR_PIN))
+    await cg.add_pin(var.set_rts_pin, config.get(CONF_RTS_PIN))

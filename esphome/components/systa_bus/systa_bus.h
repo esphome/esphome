@@ -14,7 +14,8 @@ static constexpr uint8_t START_BYTE = 0xfc;
 static constexpr uint8_t FRAME_OVERHEAD = 3;  // start byte, length, checksum
 
 // SystaSolar Aqua sensor data, 25 bytes: [0..1] type, [2..3] not decoded, big-endian int16 in 0.1 degrees at
-// [4..5] TSA, [6..7] TSE, [8..9] TWU and [10..11] TW2, pump speed in percent at [12], [13..23] not decoded.
+// [4..5] TSA, [6..7] TSE, [8..9] TWU and [10..11] TW2, pump speed in percent at [12], [13..14] not decoded,
+// [15] error code (zero for no error), [16..23] not decoded.
 static constexpr uint16_t MESSAGE_TYPE_AQUA_SENSOR_DATA = 0xfc16;
 
 // The bus only buffers known message types, so the buffer is sized by the longest of them

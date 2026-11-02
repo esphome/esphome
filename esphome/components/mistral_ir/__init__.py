@@ -1,0 +1,1 @@
+DOMAIN = "mistral_ir"

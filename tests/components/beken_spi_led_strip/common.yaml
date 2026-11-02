@@ -1,0 +1,7 @@
+light:
+  - platform: beken_spi_led_strip
+    channel_colors: GRB
+    pin: P16
+    num_leds: 30
+    chipset: ws2812
+    name: "My Light"

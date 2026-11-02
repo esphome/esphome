@@ -1,0 +1,26 @@
+esphome:
+  name: api-cover-toggle-test
+host:
+api:
+logger:
+  level: DEBUG
+
+cover:
+  - platform: template
+    name: "Toggle Cover"
+    id: toggle_cover
+    toggle_action:
+      - cover.template.publish:
+          id: toggle_cover
+          position: 0.5
+    stop_action:
+      - cover.template.publish:
+          id: toggle_cover
+          position: 0.25
+  - platform: template
+    name: "Plain Cover"
+    id: plain_cover
+    stop_action:
+      - cover.template.publish:
+          id: plain_cover
+          position: 0.25

@@ -13,6 +13,7 @@ microphone:
 micro_wake_word:
   microphone: echo_microphone
   task_stack_in_psram: true
+  vad:
   on_wake_word_detected:
     - logger.log: "Wake word detected"
     - micro_wake_word.stop:

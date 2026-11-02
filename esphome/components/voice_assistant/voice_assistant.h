@@ -193,6 +193,7 @@ class VoiceAssistant final : public Component {
   void set_auto_gain(uint8_t auto_gain) { this->auto_gain_ = auto_gain; }
   void set_volume_multiplier(float volume_multiplier) { this->volume_multiplier_ = volume_multiplier; }
   void set_conversation_timeout(uint32_t conversation_timeout) { this->conversation_timeout_ = conversation_timeout; }
+  void set_tts_playback_start_timeout(uint32_t timeout) { this->tts_playback_start_timeout_ = timeout; }
   void reset_conversation_id();
 
   Trigger<> *get_intent_end_trigger() { return &this->intent_end_trigger_; }
@@ -237,6 +238,10 @@ class VoiceAssistant final : public Component {
 
   void set_state_(State state);
   void set_state_(State state, State desired_state);
+  /// Move to state, or only make it the desired state while the microphone is still stopping
+  void set_state_after_mic_stop_(State state);
+  /// Stop a playing or queued response and tell Home Assistant when the TTS stream is still open
+  void cancel_response_();
   bool start_udp_socket_();
   void signal_stop_();
   void start_playback_timeout_();
@@ -318,6 +323,8 @@ class VoiceAssistant final : public Component {
 
   float volume_multiplier_;
   uint32_t conversation_timeout_;
+  // Keep in sync with TTS_PLAYBACK_START_TIMEOUT_DEFAULT in __init__.py.
+  uint32_t tts_playback_start_timeout_{2000};
 
   Configuration config_{};
 

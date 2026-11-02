@@ -5,6 +5,7 @@ canbus:
     tx_pin: 5
     can_id: 4
     bit_rate: 50kbps
+    max_frames_per_loop: 100
     on_frame:
       - can_id: 500
         then:
@@ -68,3 +69,7 @@ button:
       - canbus.send: !lambda |-
           uint8_t val = (uint8_t)id(canbus_test_number).state;
           return std::vector<uint8_t>{0xAA, val, 0xBB};
+      - canbus.send:
+          can_id: 0x123
+          remote_transmission_request: true
+          data: []

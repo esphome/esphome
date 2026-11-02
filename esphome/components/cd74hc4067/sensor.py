@@ -53,5 +53,4 @@ async def to_code(config: ConfigType) -> None:
     await cg.register_component(var, config)
     cg.add(var.set_pin(config[CONF_NUMBER]))
 
-    sens = await cg.get_variable(config[CONF_SENSOR])
-    cg.add(var.set_source(sens))
+    await cg.add_variable(var.set_source, config[CONF_SENSOR])

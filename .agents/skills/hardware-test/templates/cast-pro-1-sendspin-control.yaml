@@ -1,0 +1,27 @@
+# CAST PRO-1 control for the sendspin sync comparison: Apollo's current package, DEBUG logging as on the S3.
+esphome:
+  name: "cast-pro-1-dut"
+  friendly_name: CAST PRO-1 test
+  project:
+    name: "ApolloAutomation.CAST_PRO-1"
+    version: ${version}
+
+packages:
+  core: !include Core.yaml
+
+wifi:
+  ssid: !secret wifi_ssid
+  password: !secret wifi_password
+  enable_on_boot: false
+
+logger:
+  level: DEBUG
+
+api:
+  encryption:
+    key: !secret api_key
+
+sendspin:
+  manufacturer: Apollo
+  model: CAST PRO-1 control
+  unpaired_access: true

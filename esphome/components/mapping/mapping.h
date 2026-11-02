@@ -19,7 +19,7 @@ using alloc_string_t = std::basic_string<char, std::char_traits<char>, RAMAlloca
  * @tparam V The type of the value in the mapping. Should be a basic type or pointer.
  */
 
-static const char *const TAG = "mapping";
+ESPHOME_LOG_TAG(TAG, "mapping");
 
 template<typename K, typename V> class Mapping {
  public:

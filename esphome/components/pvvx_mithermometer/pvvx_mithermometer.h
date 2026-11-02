@@ -17,24 +17,20 @@ struct ParseResult {
 };
 
 class PVVXMiThermometer final : public Component, public ble_device_base::ESPBTDeviceListener {
+  SUB_SENSOR(temperature)
+  SUB_SENSOR(humidity)
+  SUB_SENSOR(battery_level)
+  SUB_SENSOR(battery_voltage)
+  SUB_SENSOR(signal_strength)
+
  public:
   void set_address(uint64_t address) { address_ = address; };
 
   bool parse_device(const ble_device_base::ESPBTDevice &device) override;
   void dump_config() override;
-  void set_temperature(sensor::Sensor *temperature) { temperature_ = temperature; }
-  void set_humidity(sensor::Sensor *humidity) { humidity_ = humidity; }
-  void set_battery_level(sensor::Sensor *battery_level) { battery_level_ = battery_level; }
-  void set_battery_voltage(sensor::Sensor *battery_voltage) { battery_voltage_ = battery_voltage; }
-  void set_signal_strength(sensor::Sensor *signal_strength) { signal_strength_ = signal_strength; }
 
  protected:
   uint64_t address_;
-  sensor::Sensor *temperature_{nullptr};
-  sensor::Sensor *humidity_{nullptr};
-  sensor::Sensor *battery_level_{nullptr};
-  sensor::Sensor *battery_voltage_{nullptr};
-  sensor::Sensor *signal_strength_{nullptr};
 
   uint8_t last_frame_count_{0};
 

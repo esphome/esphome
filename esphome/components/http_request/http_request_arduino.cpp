@@ -10,6 +10,7 @@
 #include "esphome/core/application.h"
 #include "esphome/core/defines.h"
 #include "esphome/core/log.h"
+#include "esphome/core/progmem.h"
 
 // Include BearSSL error constants for TLS failure diagnostics
 #ifdef USE_ESP8266
@@ -26,7 +27,8 @@ static constexpr int ESP8266_SSL_ERR_OOM = -1000;
 
 std::shared_ptr<HttpContainer> HttpRequestArduino::perform(const char *url, const char *method, const std::string &body,
                                                            const std::vector<Header> &request_headers,
-                                                           const std::vector<std::string> &lower_case_collect_headers) {
+                                                           const std::vector<std::string> &lower_case_collect_headers,
+                                                           uint32_t timeout_ms) {
   if (!network::is_connected()) {
     this->status_momentary_error(1000);
     ESP_LOGW(TAG, "HTTP Request failed; Not connected to network");
@@ -38,10 +40,12 @@ std::shared_ptr<HttpContainer> HttpRequestArduino::perform(const char *url, cons
 
   const uint32_t start = millis();
 
-  bool secure = strstr(url, "https:") != nullptr;
+  // Only the scheme counts; "https:" later in the URL (a query string) does not make it secure
+  bool secure = ESPHOME_strncasecmp_P(url, ESPHOME_PSTR("https:"), 6) == 0;
   container->set_secure(secure);
+  container->set_watchdog_timeout(this->get_watchdog_timeout(timeout_ms));
 
-  watchdog::WatchdogManager wdm(this->get_watchdog_timeout());
+  watchdog::WatchdogManager wdm(container->get_watchdog_timeout());
 
   if (this->follow_redirects_) {
     container->client_.setFollowRedirects(HTTPC_FORCE_FOLLOW_REDIRECTS);
@@ -90,7 +94,7 @@ std::shared_ptr<HttpContainer> HttpRequestArduino::perform(const char *url, cons
   }
 
   container->client_.setReuse(true);
-  container->client_.setTimeout(this->timeout_);
+  container->client_.setTimeout(timeout_ms);
 
   if (this->useragent_ != nullptr) {
     container->client_.setUserAgent(this->useragent_);
@@ -203,7 +207,7 @@ std::shared_ptr<HttpContainer> HttpRequestArduino::perform(const char *url, cons
 // and sets content_length = bytes_read_ so is_read_complete() returns true.
 int HttpContainerArduino::read(uint8_t *buf, size_t max_len) {
   const uint32_t start = millis();
-  watchdog::WatchdogManager wdm(this->parent_->get_watchdog_timeout());
+  watchdog::WatchdogManager wdm(this->get_watchdog_timeout());
 
   WiFiClient *stream_ptr = this->client_.getStreamPtr();
   if (stream_ptr == nullptr) {
@@ -398,7 +402,7 @@ int HttpContainerArduino::read_chunked_(uint8_t *buf, size_t max_len, WiFiClient
 }
 
 void HttpContainerArduino::end() {
-  watchdog::WatchdogManager wdm(this->parent_->get_watchdog_timeout());
+  watchdog::WatchdogManager wdm(this->get_watchdog_timeout());
   this->client_.end();
 }
 

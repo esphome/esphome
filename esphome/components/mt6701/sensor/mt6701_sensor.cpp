@@ -1,0 +1,22 @@
+#include "mt6701_sensor.h"
+#include "esphome/core/log.h"
+
+namespace esphome::mt6701 {
+
+ESPHOME_LOG_TAG(TAG, "mt6701.sensor");
+
+void MT6701Sensor::update() {
+  if (!this->parent_->read_encoder())
+    return;
+
+  this->publish_state(this->parent_->get_angle_degrees());
+  PUBLISH_STATE(this->raw_count_sensor_, this->parent_->get_count());
+}
+
+void MT6701Sensor::dump_config() {
+  LOG_SENSOR("", "MT6701 Sensor", this);
+  LOG_UPDATE_INTERVAL(this);
+  LOG_SENSOR("  ", "Raw Count", this->raw_count_sensor_);
+}
+
+}  // namespace esphome::mt6701

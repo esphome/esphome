@@ -1,4 +1,5 @@
 #include "dallas_temp.h"
+#include "esphome/core/helpers.h"
 #include "esphome/core/log.h"
 
 namespace esphome::dallas_temp {
@@ -53,7 +54,7 @@ void DallasTemperatureSensor::update() {
     }
 
     float tempc = this->get_temp_c_();
-    ESP_LOGD(TAG, "'%s': Got Temperature=%f°C", this->get_name().c_str(), tempc);
+    ESP_LOGD(TAG, "'%s': Got Temperature=%f°C", LOG_STR_ARG(this->get_log_name()), tempc);
     this->publish_state(tempc);
   });
 }
@@ -65,7 +66,7 @@ bool DallasTemperatureSensor::read_scratch_pad_() {
       i = this->bus_->read8();
     }
   } else {
-    ESP_LOGW(TAG, "'%s' - reading scratch pad failed bus reset", this->get_name().c_str());
+    ESP_LOGW(TAG, "'%s' - reading scratch pad failed bus reset", LOG_STR_ARG(this->get_log_name()));
     this->status_set_warning(LOG_STR("bus reset failed"));
   }
   return success;
@@ -136,7 +137,7 @@ bool DallasTemperatureSensor::check_scratch_pad_() {
 }
 
 float DallasTemperatureSensor::get_temp_c_() {
-  int16_t temp = (this->scratch_pad_[1] << 8) | this->scratch_pad_[0];
+  int16_t temp = encode_value_le<int16_t>(this->scratch_pad_);
   if ((this->address_ & 0xff) == DALLAS_MODEL_DS18S20) {
     if (this->scratch_pad_[7] == 0) {
       return NAN;

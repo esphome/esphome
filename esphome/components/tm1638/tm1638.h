@@ -13,7 +13,7 @@ namespace esphome::tm1638 {
 
 class KeyListener {
  public:
-  virtual void keys_update(uint8_t keys){};
+  virtual void keys_update(uint8_t keys) {};
 };
 
 class TM1638Component;

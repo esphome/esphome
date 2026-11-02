@@ -1,0 +1,19 @@
+esphome:
+  name: mt6701-modes-test
+
+esp32:
+  board: esp32dev
+  framework:
+    type: esp-idf
+
+i2c:
+  - id: i2c_bus
+    sda: GPIO21
+    scl: GPIO22
+
+mt6701_i2c:
+  id: encoder_hub
+  i2c_id: i2c_bus
+  output_mode: ABZ
+  out_pin:
+    mode: ANALOG

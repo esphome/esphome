@@ -27,13 +27,7 @@ audio_ns = cg.esphome_ns.namespace("audio")
 
 AudioFile = audio_ns.struct("AudioFile")
 AudioFileType = audio_ns.enum("AudioFileType", is_class=True)
-AUDIO_FILE_TYPE_ENUM = {
-    "NONE": AudioFileType.NONE,
-    "WAV": AudioFileType.WAV,
-    "MP3": AudioFileType.MP3,
-    "FLAC": AudioFileType.FLAC,
-    "OPUS": AudioFileType.OPUS,
-}
+AUDIO_FILE_TYPE_ENUM = AudioFileType.options("NONE", "WAV", "MP3", "FLAC", "OPUS")
 
 MEMORY_PSRAM = "psram"
 MEMORY_INTERNAL = "internal"
@@ -338,7 +332,7 @@ async def to_code(config: ConfigType) -> None:
     # HTTPS streams verify the server against the root certificate bundle
     require_certificate_bundle()
 
-    add_idf_component(name="esphome/esp-audio-libs", ref="4.0.1")
+    add_idf_component(name="esphome/esp-audio-libs", ref="4.1.0")
 
     data = _get_data()
 
@@ -391,7 +385,7 @@ async def to_code(config: ConfigType) -> None:
     # Adds a define and IDF component for legacy `audio_decoder.cpp`.
     if data.flac_support:
         cg.add_define("USE_AUDIO_FLAC_SUPPORT")
-        add_idf_component(name="esphome/micro-flac", ref="0.2.0")
+        add_idf_component(name="esphome/micro-flac", ref="0.3.0")
         _emit_memory_pair(
             data.flac.buffer_memory,
             "CONFIG_MICRO_FLAC_PREFER_PSRAM",

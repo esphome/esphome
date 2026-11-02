@@ -1,0 +1,57 @@
+substitutions:
+  name: wispcli
+  ap_ssid: wisp-bridge
+
+esphome:
+  name: ${name}
+
+esp8266:
+  board: d1_mini
+
+logger:
+  level: DEBUG
+
+wifi:
+  ssid: ${ap_ssid}
+  password: !secret wisp_psk
+  power_save_mode: none
+  reboot_timeout: 0s
+
+http_request:
+  esp8266_disable_ssl_support: true
+  timeout: 8s
+
+time:
+  - platform: sntp
+    id: sntp_time
+    on_time_sync:
+      - logger.log:
+          format: "SNTP synced"
+          level: INFO
+
+interval:
+  - interval: 15s
+    then:
+      - http_request.get:
+          url: !secret lan_http
+          capture_response: true
+          on_response:
+            - logger.log:
+                format: "LAN GET status %d body %s"
+                args: ["response->status_code", "body.c_str()"]
+                level: INFO
+          on_error:
+            - logger.log:
+                format: "LAN GET failed"
+                level: WARN
+      - http_request.get:
+          url: http://example.com/
+          on_response:
+            - logger.log:
+                format: "WAN GET status %d"
+                args: ["response->status_code"]
+                level: INFO
+          on_error:
+            - logger.log:
+                format: "WAN GET failed"
+                level: WARN

@@ -2,3 +2,7 @@ climate:
   - platform: daikin_brc
     name: Daikin_brc Climate
     transmitter_id: xmitr
+  - platform: daikin_brc
+    name: Daikin_brc Climate Unit 2
+    transmitter_id: xmitr
+    sub_unit: 1

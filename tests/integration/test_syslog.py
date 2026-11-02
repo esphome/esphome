@@ -13,7 +13,9 @@ from typing import TypedDict
 
 import pytest
 
+from .state_utils import assert_device_name, require_service
 from .types import APIClientConnectedFactory, RunCompiledFunction
+from .wait_utils import wait_or_fail
 
 
 class ParsedSyslogMessage(TypedDict):
@@ -67,10 +69,6 @@ class SyslogReceiver:
         for pattern, event in self._waiters:
             if pattern.search(msg):
                 event.set()
-
-    async def wait_for_messages(self, timeout: float = 10.0) -> None:
-        """Wait for at least one message to be received."""
-        await asyncio.wait_for(self.message_received.wait(), timeout=timeout)
 
     async def wait_for_pattern(self, pattern: str, timeout: float = 5.0) -> str:
         """Wait for a message matching the pattern."""
@@ -172,15 +170,14 @@ async def test_syslog(
 
         async with run_compiled(config), api_client_connected() as client:
             # Verify device is running
-            device_info = await client.device_info()
-            assert device_info is not None
-            assert device_info.name == "syslog-test"
+            await assert_device_name(client, "syslog-test")
 
             # Wait for syslog messages (ESPHome logs during startup)
-            try:
-                await receiver.wait_for_messages(timeout=10.0)
-            except TimeoutError:
-                pytest.fail("No syslog messages received within timeout")
+            await wait_or_fail(
+                receiver.message_received,
+                10.0,
+                "No syslog messages received within timeout",
+            )
 
             # Give it a moment to collect more messages
             await asyncio.sleep(0.5)
@@ -253,10 +250,7 @@ async def test_syslog(
 
             # Test message truncation - call service that logs a very long message
             _, services = await client.list_entities_services()
-            log_service = next(
-                (s for s in services if s.name == "log_long_message"), None
-            )
-            assert log_service is not None, "log_long_message service not found"
+            log_service = require_service(services, "log_long_message")
 
             # Call the service to trigger a long log message
             await client.execute_service(log_service, {})
@@ -279,10 +273,7 @@ async def test_syslog(
             )
 
             # Test short message - should arrive complete (not truncated)
-            short_service = next(
-                (s for s in services if s.name == "log_short_message"), None
-            )
-            assert short_service is not None, "log_short_message service not found"
+            short_service = require_service(services, "log_short_message")
 
             await client.execute_service(short_service, {})
 

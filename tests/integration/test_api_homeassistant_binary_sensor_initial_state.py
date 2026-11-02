@@ -8,6 +8,7 @@ import pytest
 
 from .log_utils import LineWaiter
 from .types import APIClientConnectedFactory, RunCompiledFunction
+from .wait_utils import wait_or_fail
 
 ENTITIES = (
     "binary_sensor.initial_on",
@@ -40,10 +41,13 @@ async def test_api_homeassistant_binary_sensor_initial_state(
         api_client_connected() as client,
     ):
         client.subscribe_home_assistant_states(on_state_sub)
-        try:
-            await asyncio.wait_for(all_subscribed, timeout=5.0)
-        except TimeoutError:
-            pytest.fail(f"never subscribed: {set(ENTITIES) - subscribed}")
+        await wait_or_fail(
+            all_subscribed,
+            5.0,
+            "never subscribed",
+            expected=ENTITIES,
+            subscribed=subscribed,
+        )
 
         # First state from HA
         client.send_home_assistant_state("binary_sensor.initial_on", "", "on")

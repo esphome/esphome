@@ -22,7 +22,7 @@ CONF_BLANK_ON_START = "blank_on_start"
     "WLED",
     {
         cv.Optional(CONF_PORT, default=21324): cv.port,
-        cv.Optional(CONF_SYNC_GROUP_MASK, default=0): cv.int_range(min=0, max=255),
+        cv.Optional(CONF_SYNC_GROUP_MASK, default=0): cv.uint8_t,
         cv.Optional(CONF_BLANK_ON_START, default=True): cv.boolean,
     },
 )

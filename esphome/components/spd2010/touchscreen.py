@@ -27,7 +27,5 @@ async def to_code(config: ConfigType) -> None:
     var = cg.new_Pvariable(config[CONF_ID])
     await touchscreen.register_touchscreen(var, config)
     await i2c.register_i2c_device(var, config)
-    if interrupt_pin := config.get(CONF_INTERRUPT_PIN):
-        cg.add(var.set_interrupt_pin(await cg.gpio_pin_expression(interrupt_pin)))
-    if reset_pin := config.get(CONF_RESET_PIN):
-        cg.add(var.set_reset_pin(await cg.gpio_pin_expression(reset_pin)))
+    await cg.add_pin(var.set_interrupt_pin, config.get(CONF_INTERRUPT_PIN))
+    await cg.add_pin(var.set_reset_pin, config.get(CONF_RESET_PIN))

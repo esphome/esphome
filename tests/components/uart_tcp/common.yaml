@@ -10,7 +10,15 @@ uart_tcp:
     allowed_ips:
       - 192.168.1.10
       - 192.168.1.0/24
+
+binary_sensor:
+  - platform: uart_tcp
+    uart_tcp_id: bridge
     connected:
       name: UART TCP Connected
+
+sensor:
+  - platform: uart_tcp
+    uart_tcp_id: bridge
     disconnects:
       name: UART TCP Disconnects

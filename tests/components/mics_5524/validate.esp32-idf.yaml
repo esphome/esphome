@@ -1,0 +1,23 @@
+# Config-only test: the external voltage sampler path and the PPM range options.
+sensor:
+  - platform: adc
+    id: mics_5524_adc
+    name: MiCS-5524 AO
+    pin: GPIO35
+
+  - platform: mics_5524
+    id: mics_5524_module
+    voltage: mics_5524_adc
+    voltage_multiplier: 1.5
+    air_reference: 3.6
+    vcc: 5.0
+    sample_count: 2
+    warmup_time: 30s
+    carbon_monoxide:
+      name: MiCS-5524 CO
+      max_ppm: 1000.0
+    hydrogen:
+      name: MiCS-5524 H2
+    ammonia:
+      name: MiCS-5524 NH3
+      max_ppm: 300.0

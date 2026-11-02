@@ -17,6 +17,7 @@ import pytest
 
 from .conftest import run_binary_and_wait_for_port
 from .const import KEY_ACTIVATION_DELAY, LOCALHOST, PROVISIONING_PSK, ZERO_PSK
+from .state_utils import assert_device_name
 from .types import (
     APIClientConnectedFactory,
     CompileFunction,
@@ -76,8 +77,7 @@ async def test_api_zero_psk_provisioning(
         # The unprovisioned device accepts the all-zeros PSK; the handshake's
         # ephemeral-ephemeral DH encrypts everything that follows
         async with api_client_connected(noise_psk=ZERO_PSK) as client:
-            device_info = await client.device_info()
-            assert device_info.name == "zero-psk-provision-test"
+            device_info = await assert_device_name(client, "zero-psk-provision-test")
             assert device_info.api_encryption_supported is True
             assert device_info.api_encryption_provisionable is True
 
@@ -88,8 +88,7 @@ async def test_api_zero_psk_provisioning(
 
         # The new key now works, and the device is no longer provisionable
         async with api_client_connected(noise_psk=NEW_KEY.decode()) as client:
-            device_info = await client.device_info()
-            assert device_info.name == "zero-psk-provision-test"
+            device_info = await assert_device_name(client, "zero-psk-provision-test")
             assert device_info.api_encryption_provisionable is False
 
         # The zero PSK no longer works
@@ -126,8 +125,7 @@ async def test_api_zero_psk_provisioning_plaintext(
     log_lines: list[str] = []
     async with run_compiled(yaml_config, line_callback=log_lines.append):
         async with api_client_connected() as client:
-            device_info = await client.device_info()
-            assert device_info.name == "zero-psk-plaintext-test"
+            await assert_device_name(client, "zero-psk-plaintext-test")
 
             assert await client.noise_encryption_set_key(NEW_KEY) is True
 
@@ -138,7 +136,7 @@ async def test_api_zero_psk_provisioning_plaintext(
 
         # The new key works; the zero PSK does not
         async with api_client_connected(noise_psk=NEW_KEY.decode()) as client:
-            assert (await client.device_info()).name == "zero-psk-plaintext-test"
+            await assert_device_name(client, "zero-psk-plaintext-test")
 
         with pytest.raises(InvalidEncryptionKeyAPIError):
             async with api_client_connected(noise_psk=ZERO_PSK, timeout=5) as client:

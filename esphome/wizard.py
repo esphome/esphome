@@ -1,4 +1,3 @@
-import base64
 from pathlib import Path
 import secrets
 import string
@@ -7,6 +6,7 @@ import unicodedata
 
 import voluptuous as vol
 
+from esphome.components.noise import generate_encryption_key
 import esphome.config_validation as cv
 from esphome.const import ALLOWED_NAME_CHARS, ENV_QUICKWIZARD
 from esphome.core import CORE
@@ -516,9 +516,7 @@ def wizard(path: Path) -> int:
         safe_print()
         sleep(0.5)
 
-        # Generate encryption key (32 bytes, base64 encoded) for secure API communication
-        noise_psk = secrets.token_bytes(32)
-        api_encryption_key = base64.b64encode(noise_psk).decode()
+        api_encryption_key = generate_encryption_key()
 
         safe_print(
             "For secure API communication, I've generated a random encryption key."

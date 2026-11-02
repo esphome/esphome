@@ -50,12 +50,6 @@ class APDS9306 final : public sensor::Sensor, public PollingComponent, public i2
   void set_ambient_light_gain(AmbientLightGain gain) { this->gain_ = gain; }
 
  protected:
-  enum ErrorCode {
-    NONE = 0,
-    COMMUNICATION_FAILED,
-    WRONG_ID,
-  } error_code_{NONE};
-
   MeasurementBitWidth bit_width_;
   MeasurementRate measurement_rate_;
   AmbientLightGain gain_;

@@ -1,0 +1,24 @@
+esphome:
+  name: openthread-border-router
+
+esp32:
+  board: esp32-c6-devkitc-1
+  framework:
+    type: esp-idf
+
+network:
+  enable_ipv6: true
+
+wifi:
+  ssid: test
+  password: password
+
+openthread:
+  border_router: {}
+  network_name: TestNetwork
+  channel: 15
+  network_key: 0x00112233445566778899AABBCCDDEEFF
+  pan_id: 0x0123
+  ext_pan_id: 0x00000000000000AB
+  pskc: 0x000000000000000000000000000000CD
+  mesh_local_prefix: fd00:db8:a0:0::/64

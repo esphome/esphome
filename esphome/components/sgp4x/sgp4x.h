@@ -59,28 +59,19 @@ class SGP4xComponent;
 class SGP4xComponent final : public PollingComponent,
                              public sensor::Sensor,
                              public sensirion_common::SensirionI2CDevice {
-  enum ErrorCode {
-    COMMUNICATION_FAILED,
-    MEASUREMENT_INIT_FAILED,
-    INVALID_ID,
-    UNSUPPORTED_ID,
-    SERIAL_NUMBER_IDENTIFICATION_FAILED,
-    SELF_TEST_FAILED,
-    UNKNOWN
-  } error_code_{UNKNOWN};
-
  public:
   // SGP4xComponent()  {};
-  void set_humidity_sensor(sensor::Sensor *humidity) { humidity_sensor_ = humidity; }
-  void set_temperature_sensor(sensor::Sensor *temperature) { temperature_sensor_ = temperature; }
+  // Input sensors for humidity and temperature compensation
+  SUB_SENSOR(humidity)
+  SUB_SENSOR(temperature)
 
   void setup() override;
   void update() override;
   void take_sample();
   void dump_config() override;
   void set_store_baseline(bool store_baseline) { store_baseline_ = store_baseline; }
-  void set_voc_sensor(sensor::Sensor *voc_sensor) { voc_sensor_ = voc_sensor; }
-  void set_nox_sensor(sensor::Sensor *nox_sensor) { nox_sensor_ = nox_sensor; }
+  SUB_SENSOR(voc)
+  SUB_SENSOR(nox)
   void set_voc_algorithm_tuning(uint16_t index_offset, uint16_t learning_time_offset_hours,
                                 uint16_t learning_time_gain_hours, uint16_t gating_max_duration_minutes,
                                 uint16_t std_initial, uint16_t gain_factor) {
@@ -99,9 +90,6 @@ class SGP4xComponent final : public PollingComponent,
  protected:
   void self_test_();
 
-  /// Input sensor for humidity and temperature compensation.
-  sensor::Sensor *humidity_sensor_{nullptr};
-  sensor::Sensor *temperature_sensor_{nullptr};
   int16_t sensirion_init_sensors_();
 
   void update_gas_indices_();
@@ -114,14 +102,12 @@ class SGP4xComponent final : public PollingComponent,
 
   bool self_test_complete_;
 
-  sensor::Sensor *voc_sensor_{nullptr};
   VOCGasIndexAlgorithm voc_algorithm_;
   optional<GasTuning> voc_tuning_params_;
   float voc_state0_;
   float voc_state1_;
   int32_t voc_index_ = 0;
 
-  sensor::Sensor *nox_sensor_{nullptr};
   int32_t nox_index_ = 0;
   NOxGasIndexAlgorithm nox_algorithm_;
   optional<GasTuning> nox_tuning_params_;

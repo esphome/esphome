@@ -74,3 +74,19 @@ def test_populate_dependency_config_populates_defaults() -> None:
         register_platform_fn=lambda domain: None,
     )
     assert config["ok"] == {"default": 1}
+
+
+def test_load_component_yaml_configs_extends_lists(tmp_path: Path) -> None:
+    """Several directories can each add entries to one platform component."""
+    (tmp_path / "first").mkdir()
+    (tmp_path / "first" / "benchmark.yaml").write_text(
+        "uart:\n  port: /dev/a\npacket_interface:\n  - platform: uart\n"
+    )
+    (tmp_path / "second").mkdir()
+    (tmp_path / "second" / "benchmark.yaml").write_text(
+        "uart:\n  port: /dev/b\npacket_interface:\n  - platform: udp\n"
+    )
+    merged = build_helpers.load_component_yaml_configs(["first", "second"], tmp_path)
+    assert merged["packet_interface"] == [{"platform": "uart"}, {"platform": "udp"}]
+    # Other values are taken from the first directory that sets them
+    assert merged["uart"] == {"port": "/dev/a"}

@@ -1,0 +1,3 @@
+# The hub alone, without the sensors and binary sensor that process_frame_() guards
+seeed_mr60bha2:
+  id: my_seeed_mr60bha2_minimal

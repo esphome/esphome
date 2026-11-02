@@ -49,5 +49,10 @@ const LogString *Logger::get_uart_selection_() {
   }
 }
 
+#ifdef USE_CRASH_HANDLER
+bool crash_log_pending() { return rp2::crash_handler_has_data(); }
+void log_crash_to_client() { rp2::crash_handler_log(); }
+#endif
+
 }  // namespace esphome::logger
 #endif  // USE_RP2

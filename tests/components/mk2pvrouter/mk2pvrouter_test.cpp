@@ -8,6 +8,9 @@
 namespace esphome::mk2pvrouter::testing {
 
 namespace {
+// The parser works on raw frame bytes; the groups below are written as text for readability.
+const uint8_t *as_bytes(const char *str) { return reinterpret_cast<const uint8_t *>(str); }
+
 class TestListener final : public Mk2PVRouterListener {
  public:
   explicit TestListener(const char *tag) : Mk2PVRouterListener(tag) {}
@@ -25,7 +28,9 @@ class Mk2PVRouterTest : public ::testing::Test {
   void SetUp() override { this->sut_.register_mk2pvrouter_listener(&this->listener_); }
 
   // Feeds one "tag<TAB>value<TAB>crc" literal, as the frame parser does after END_FRAME.
-  template<size_t N> void process_(const char (&group)[N]) { this->sut_.process_group_(group, group + N - 1); }
+  template<size_t N> void process_(const char (&group)[N]) {
+    this->sut_.process_group_(as_bytes(group), as_bytes(group) + N - 1);
+  }
 
   TestableMk2PVRouter sut_;
   TestListener listener_{"P1"};
@@ -40,22 +45,22 @@ TEST(Mk2PVRouterListenerTest, GetTagReturnsConstructorTag) {
 TEST_F(Mk2PVRouterTest, CalculateCrcMatchesKnownGroup) {
   // "P1\t1234\t" sums to 0x3D ('=') per the mk2pvrouter CRC algorithm.
   const char grp[] = "P1\t1234\t=";
-  EXPECT_EQ(this->sut_.calculate_crc_(grp, sizeof(grp) - 1), '=');
+  EXPECT_EQ(this->sut_.calculate_crc_(as_bytes(grp), sizeof(grp) - 1), '=');
 }
 
 TEST_F(Mk2PVRouterTest, CheckCrcAcceptsMatchingCrc) {
   const char grp[] = "P1\t1234\t=";
-  EXPECT_TRUE(this->sut_.check_crc_(grp, grp + sizeof(grp) - 1));
+  EXPECT_TRUE(this->sut_.check_crc_(as_bytes(grp), as_bytes(grp) + sizeof(grp) - 1));
 }
 
 TEST_F(Mk2PVRouterTest, CheckCrcRejectsMismatchedCrc) {
   const char grp[] = "P1\t1234\t!";
-  EXPECT_FALSE(this->sut_.check_crc_(grp, grp + sizeof(grp) - 1));
+  EXPECT_FALSE(this->sut_.check_crc_(as_bytes(grp), as_bytes(grp) + sizeof(grp) - 1));
 }
 
 TEST_F(Mk2PVRouterTest, CheckCrcRejectsEmptyGroup) {
   const char grp[] = "";
-  EXPECT_FALSE(this->sut_.check_crc_(grp, grp));
+  EXPECT_FALSE(this->sut_.check_crc_(as_bytes(grp), as_bytes(grp)));
 }
 
 TEST_F(Mk2PVRouterTest, ProcessGroupPublishesValidGroupToMatchingListener) {

@@ -4,6 +4,5 @@ substitutions:
   flow_control_pin: GPIO26
 
 packages:
+  selec_meter: !include common.yaml
   modbus: !include ../../test_build_components/common/modbus/esp32-idf.yaml
-
-<<: !include common.yaml

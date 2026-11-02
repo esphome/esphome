@@ -30,10 +30,10 @@ void AQISensor::dump_config() {
   ESP_LOGCONFIG(TAG, "  Extended Range: %s",
                 this->extended_range_ ? LOG_STR_LITERAL("enabled") : LOG_STR_LITERAL("disabled"));
   if (this->pm_2_5_sensor_ != nullptr) {
-    ESP_LOGCONFIG(TAG, "  PM2.5 Sensor: '%s'", this->pm_2_5_sensor_->get_name().c_str());
+    ESP_LOGCONFIG(TAG, "  PM2.5 Sensor: '%s'", LOG_STR_ARG(this->pm_2_5_sensor_->get_log_name()));
   }
   if (this->pm_10_0_sensor_ != nullptr) {
-    ESP_LOGCONFIG(TAG, "  PM10 Sensor: '%s'", this->pm_10_0_sensor_->get_name().c_str());
+    ESP_LOGCONFIG(TAG, "  PM10 Sensor: '%s'", LOG_STR_ARG(this->pm_10_0_sensor_->get_log_name()));
   }
   LOG_SENSOR("  ", "AQI", this);
 }

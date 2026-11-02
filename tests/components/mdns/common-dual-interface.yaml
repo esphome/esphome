@@ -1,0 +1,9 @@
+# wifi and ethernet together: the _esphomelib "network" TXT value follows
+# the connected interface, so the update path is compiled.
+wifi:
+  ssid: MySSID
+  password: password1
+
+api:
+
+mdns:

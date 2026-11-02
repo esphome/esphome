@@ -43,8 +43,7 @@ async def to_code(config: ConfigType) -> None:
     var = cg.new_Pvariable(config[CONF_ID])
     await cg.register_component(var, config)
 
-    out = await cg.get_variable(config[CONF_OUTPUT])
-    cg.add(var.set_output(out))
+    await cg.add_variable(var.set_output, config[CONF_OUTPUT])
     cg.add(var.set_min_level(config[CONF_MIN_LEVEL]))
     cg.add(var.set_idle_level(config[CONF_IDLE_LEVEL]))
     cg.add(var.set_max_level(config[CONF_MAX_LEVEL]))

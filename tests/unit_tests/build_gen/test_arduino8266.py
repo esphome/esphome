@@ -62,8 +62,6 @@ def _setup_core(tmp_path: Path) -> Generator[None]:
         "build_src_flags": "-include esphome/components/esp8266/throw_stubs.h",
     }
     yield
-    # CORE.reset() (the suite-wide autouse fixture) does not clear this flag
-    CORE.testing_mode = False
 
 
 def _set_flags(*flags: str) -> None:

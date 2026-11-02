@@ -143,12 +143,7 @@ RP2040PIOLEDStripLightOutput = rp2040_pio_led_strip_ns.class_(
 
 Chipset = rp2040_pio_led_strip_ns.enum("Chipset")
 
-CHIPSETS = {
-    "WS2812": Chipset.CHIPSET_WS2812,
-    "WS2812B": Chipset.CHIPSET_WS2812B,
-    "SK6812": Chipset.CHIPSET_SK6812,
-    "SM16703": Chipset.CHIPSET_SM16703,
-}
+CHIPSETS = Chipset.options("WS2812", "WS2812B", "SK6812", "SM16703", prefix="CHIPSET_")
 
 
 @dataclass

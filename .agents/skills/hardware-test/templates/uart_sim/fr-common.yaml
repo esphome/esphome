@@ -1,0 +1,35 @@
+esp32:
+  board: esp32dev
+  framework:
+    type: esp-idf
+
+esphome:
+  includes:
+    - sim.hpp
+
+logger:
+  level: VERBOSE
+  logs:
+    component: DEBUG
+    api.service: DEBUG
+    api.connection: DEBUG
+    scheduler: DEBUG
+    sensor: DEBUG
+
+wifi:
+  ssid: !secret wifi_ssid
+  password: !secret wifi_password
+  power_save_mode: none
+
+api:
+  reboot_timeout: 0s
+
+debug:
+  update_interval: 10s
+
+sensor:
+  - platform: debug
+    free:
+      name: Heap Free
+    loop_time:
+      name: Loop Time

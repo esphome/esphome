@@ -1,0 +1,23 @@
+---
+esphome:
+  name: tmp102-test
+
+esp32:
+  board: esp32dev
+
+i2c:
+  sda: GPIO21
+  scl: GPIO22
+
+sensor:
+  - platform: tmp102
+    id: parent_sensor
+    name: Temperature
+
+text_sensor:
+  - platform: tmp102
+    tmp102_id: parent_sensor
+    name: First Status
+  - platform: tmp102
+    tmp102_id: parent_sensor
+    name: Second Status

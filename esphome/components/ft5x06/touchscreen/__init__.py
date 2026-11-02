@@ -7,7 +7,6 @@ from esphome.types import ConfigType
 
 from .. import ft5x06_ns
 
-FT5x06ButtonListener = ft5x06_ns.class_("FT5x06ButtonListener")
 FT5x06Touchscreen = ft5x06_ns.class_(
     "FT5x06Touchscreen",
     touchscreen.Touchscreen,
@@ -28,6 +27,4 @@ async def to_code(config: ConfigType) -> None:
     await i2c.register_i2c_device(var, config)
     await touchscreen.register_touchscreen(var, config)
 
-    if interrupt_pin := config.get(CONF_INTERRUPT_PIN):
-        pin = await cg.gpio_pin_expression(interrupt_pin)
-        cg.add(var.set_interrupt_pin(pin))
+    await cg.add_pin(var.set_interrupt_pin, config.get(CONF_INTERRUPT_PIN))

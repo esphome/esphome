@@ -1,0 +1,51 @@
+esphome:
+  name: test
+
+esp32:
+  board: esp32dev
+
+sensor:
+  - platform: template
+    id: fo_single
+    lambda: return 1.0;
+    filters:
+      - filter_out: 85.0
+  - platform: template
+    id: fo_list_a
+    lambda: return 1.0;
+    filters:
+      - filter_out: [0.0, 85.0]
+  - platform: template
+    id: fo_list_b
+    lambda: return 1.0;
+    filters:
+      - filter_out: [0.0, 85.0]
+  - platform: template
+    id: fo_lambda
+    lambda: return 1.0;
+    filters:
+      - filter_out: !lambda return 42.0;
+  - platform: template
+    id: twp
+    lambda: return 1.0;
+    filters:
+      - throttle_with_priority:
+          timeout: 1s
+          value: [0.0, 85.0]
+  - platform: template
+    id: twp_nan
+    lambda: return 1.0;
+    filters:
+      - throttle_with_priority: 1s
+  - platform: template
+    id: fo_stateful_a
+    lambda: return 1.0;
+    filters:
+      - filter_out: &stateful !lambda |-
+          static float n = 0;
+          return ++n;
+  - platform: template
+    id: fo_stateful_b
+    lambda: return 1.0;
+    filters:
+      - filter_out: *stateful

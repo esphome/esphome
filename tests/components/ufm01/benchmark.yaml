@@ -1,0 +1,29 @@
+# Defines USE_SENSOR; the tests attach their own instances
+sensor:
+  - platform: template
+    id: bench_flow
+    name: "Flow"
+  - platform: template
+    id: bench_temperature
+    name: "Temperature"
+
+# Defines USE_TEXT_SENSOR
+text_sensor:
+  - platform: template
+    id: bench_meter_id
+    name: "Meter ID"
+  - platform: template
+    id: bench_software_version
+    name: "Software version"
+
+# One instance so __init__.py's to_code runs and emits the feature defines
+uart:
+  - id: uart_bus
+    baud_rate: 2400
+    parity: EVEN
+    stop_bits: 1
+    port: /dev/null
+
+ufm01:
+  - id: ufm01_bench
+    uart_id: uart_bus

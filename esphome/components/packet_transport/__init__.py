@@ -7,6 +7,7 @@ from typing import Any
 
 import esphome.codegen as cg
 from esphome.components.binary_sensor import BinarySensor
+from esphome.components.const import CONF_PROVIDER, CONF_REMOTE_ID
 from esphome.components.sensor import Sensor
 import esphome.config_validation as cv
 from esphome.const import (
@@ -34,9 +35,7 @@ IS_PLATFORM_COMPONENT = True
 DOMAIN = "packet_transport"
 CONF_BROADCAST = "broadcast"
 CONF_BROADCAST_ID = "broadcast_id"
-CONF_PROVIDER = "provider"
 CONF_PROVIDERS = "providers"
-CONF_REMOTE_ID = "remote_id"
 CONF_PING_PONG_ENABLE = "ping_pong_enable"
 CONF_PING_PONG_RECYCLE_TIME = "ping_pong_recycle_time"
 CONF_ROLLING_CODE_ENABLE = "rolling_code_enable"
@@ -206,8 +205,10 @@ async def register_packet_transport(var: MockObj, config: ConfigType) -> set[str
     return providers
 
 
-async def new_packet_transport(config: ConfigType) -> tuple[MockObj, set[str]]:
-    var = cg.new_Pvariable(config[CONF_ID])
+async def new_packet_transport(
+    config: ConfigType, *args: Any
+) -> tuple[MockObj, set[str]]:
+    var = cg.new_Pvariable(config[CONF_ID], *args)
     cg.add(var.set_platform_name(config[CONF_PLATFORM]))
     providers = await register_packet_transport(var, config)
     return var, providers

@@ -2,4 +2,6 @@
 omit =
     esphome/components/*
     esphome/analyze_memory/*
+    esphome/espidf/get_idf_tool_paths.py
+    esphome/espidf/get_idf_version.py
     tests/integration/*

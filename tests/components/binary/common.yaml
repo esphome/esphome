@@ -1,0 +1,17 @@
+output:
+  - platform: gpio
+    id: binary_fan_output
+    pin: ${fan_pin}
+  - platform: gpio
+    id: binary_light_output
+    pin: ${light_pin}
+
+fan:
+  - platform: binary
+    name: Binary Fan
+    output: binary_fan_output
+
+light:
+  - platform: binary
+    name: Binary Light
+    output: binary_light_output

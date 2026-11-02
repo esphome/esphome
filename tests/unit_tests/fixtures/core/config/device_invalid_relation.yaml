@@ -1,0 +1,8 @@
+esphome:
+  name: test-device-invalid-relation
+  devices:
+    - id: test_device
+      name: Test Device
+      relation: parent
+
+host:

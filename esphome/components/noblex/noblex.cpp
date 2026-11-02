@@ -254,6 +254,8 @@ bool NoblexClimate::on_receive(remote_base::RemoteReceiveData data) {
       case IRNoblexMode::IR_NOBLEX_MODE_HEAT:
         this->mode = climate::CLIMATE_MODE_HEAT;
         break;
+      default:
+        break;
     }
   }
 

@@ -16,6 +16,7 @@ from esphome.types import ConfigType
 DEPENDENCIES = ["wifi"]
 
 wifi_info_ns = cg.esphome_ns.namespace("wifi_info")
+_request_ip_sensor_slot = cg.slot_counter("WIFI_INFO_IP_SENSOR_COUNT")
 IPAddressWiFiInfo = wifi_info_ns.class_(
     "IPAddressWiFiInfo", text_sensor.TextSensor, cg.Component
 )
@@ -110,7 +111,10 @@ async def to_code(config: ConfigType) -> None:
     if conf := config.get(CONF_IP_ADDRESS):
         wifi_info = await text_sensor.new_text_sensor(config[CONF_IP_ADDRESS])
         await cg.register_component(wifi_info, config[CONF_IP_ADDRESS])
-        for x in range(5):
-            if sensor_conf := conf.get(f"address_{x}"):
-                sens = await text_sensor.new_text_sensor(sensor_conf)
-                cg.add(wifi_info.add_ip_sensors(x, sens))
+        indexes = [x for x in range(5) if f"address_{x}" in conf]
+        # One shared array size: the largest highest index of any entry, so add_ip_sensors(x) stays in range
+        for _ in range(max(indexes, default=-1) + 1):
+            _request_ip_sensor_slot(str(wifi_info))
+        for x in indexes:
+            sens = await text_sensor.new_text_sensor(conf[f"address_{x}"])
+            cg.add(wifi_info.add_ip_sensors(x, sens))

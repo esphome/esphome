@@ -188,6 +188,8 @@ def load_component_yaml_configs(components: list[str], tests_dir: Path) -> dict:
 
     The ``esphome:`` key is special: its sub-keys are merged into the
     existing esphome config (e.g. to add ``areas:`` or ``devices:``).
+    A list, such as the entries of a platform component, is extended, so
+    several directories can each add their own entries to one key.
     Keys already present in the base config (e.g. ``host:``, ``logger:``)
     are protected by ``setdefault`` in the caller.
 
@@ -212,6 +214,9 @@ def load_component_yaml_configs(components: list[str], tests_dir: Path) -> dict:
                     esphome_extra = merged.setdefault(ESPHOME_KEY, {})
                     for sub_key, sub_value in value.items():
                         esphome_extra.setdefault(sub_key, sub_value)
+                    continue
+                if isinstance(value, list) and isinstance(merged.get(key), list):
+                    merged[key] = merged[key] + value
                     continue
                 merged.setdefault(key, value)
     return merged
@@ -285,10 +290,15 @@ def load_test_manifest_overrides(
     defines ``override_manifest(manifest)``, it is called to customise
     the override (e.g. ``manifest.enable_codegen()``).
     """
+    wrapped: dict[str, ComponentManifestOverride] = {}
     for comp_name in components:
-        override = _wrap_manifest(comp_name)
+        # tests/components/core and tests/components/esphome both override the
+        # "esphome" core manifest, so they share one wrapper
+        manifest_name = ESPHOME_KEY if comp_name == "core" else comp_name
+        override = wrapped.get(manifest_name) or _wrap_manifest(manifest_name)
         if override is None:
             continue
+        wrapped[manifest_name] = override
 
         if "." in comp_name:
             domain, component = comp_name.split(".", maxsplit=1)
@@ -314,6 +324,25 @@ def load_test_manifest_overrides(
 
 # Type alias for manifest override loaders
 ManifestOverrideLoader = Callable[[list[str]], None]
+
+
+def resolve_dependencies_with_overrides(
+    components: list[str], manifest_override_loader: ManifestOverrideLoader
+) -> list[str]:
+    """Return the components and all their dependencies, with overrides applied.
+
+    Overrides are applied before each dependency search, so dependencies added by
+    any override_manifest(), including one of a component found only as a
+    dependency, are included. The loader is called again with components it has
+    already seen, so it must apply each override only once.
+    """
+    resolved = sorted(components)
+    while True:
+        manifest_override_loader(resolved)
+        expanded = sorted(get_all_dependencies(set(resolved)))
+        if expanded == resolved:
+            return resolved
+        resolved = expanded
 
 
 def compile_and_get_binary(
@@ -356,18 +385,11 @@ def compile_and_get_binary(
         else:
             config.setdefault(key, value)
 
-    # Apply manifest overrides before dependency resolution so that any
-    # dependency additions made by override_manifest() are picked up.
-    manifest_override_loader(components)
-
     # Obtain possible dependencies BEFORE validate_config, because
     # get_all_dependencies calls CORE.reset() which clears build_path.
-    components_with_dependencies: list[str] = sorted(
-        get_all_dependencies(set(components))
+    components_with_dependencies = resolve_dependencies_with_overrides(
+        components, manifest_override_loader
     )
-
-    # Apply overrides for any transitively discovered dependencies.
-    manifest_override_loader(components_with_dependencies)
 
     CORE.config_path = tests_dir / "dummy.yaml"
     CORE.dashboard = None

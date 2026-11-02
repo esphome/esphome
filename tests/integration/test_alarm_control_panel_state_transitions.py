@@ -3,7 +3,6 @@
 from __future__ import annotations
 
 import asyncio
-import re
 
 import aioesphomeapi
 from aioesphomeapi import (
@@ -15,7 +14,12 @@ from aioesphomeapi import (
 )
 import pytest
 
-from .state_utils import InitialStateHelper
+from .log_utils import LineWaiter
+from .state_utils import (
+    require_entity,
+    require_only_entity,
+    subscribe_after_initial_states,
+)
 from .types import APIClientConnectedFactory, RunCompiledFunction
 
 
@@ -49,52 +53,24 @@ async def test_alarm_control_panel_state_transitions(
     loop = asyncio.get_running_loop()
 
     # Track log messages for callback verification
-    log_lines: list[str] = []
-    chime_future: asyncio.Future[bool] = loop.create_future()
-    ready_futures: list[asyncio.Future[bool]] = []
-    cleared_future: asyncio.Future[bool] = loop.create_future()
-
-    # Patterns to match log output from callbacks
-    chime_pattern = re.compile(r"Chime activated")
-    ready_pattern = re.compile(r"Sensors ready state changed")
-    cleared_pattern = re.compile(r"Alarm cleared")
-
-    def on_log_line(line: str) -> None:
-        log_lines.append(line)
-        if not chime_future.done() and chime_pattern.search(line):
-            chime_future.set_result(True)
-        if ready_pattern.search(line):
-            # Create new future for each ready event
-            for fut in ready_futures:
-                if not fut.done():
-                    fut.set_result(True)
-                    break
-        if not cleared_future.done() and cleared_pattern.search(line):
-            cleared_future.set_result(True)
+    waiter = LineWaiter()
+    chime_future = waiter.expect("Chime activated")
+    cleared_future = waiter.expect("Alarm cleared")
+    ready_text = "Sensors ready state changed"
 
     async with (
-        run_compiled(yaml_config, line_callback=on_log_line),
+        run_compiled(yaml_config, line_callback=waiter.callback),
         api_client_connected() as client,
     ):
         entities, _ = await client.list_entities_services()
 
-        # Find entities
-        alarm_info: AlarmControlPanelInfo | None = None
-        door_switch_info: SwitchInfo | None = None
-        chime_switch_info: SwitchInfo | None = None
-
-        for entity in entities:
-            if isinstance(entity, AlarmControlPanelInfo):
-                alarm_info = entity
-            elif isinstance(entity, SwitchInfo):
-                if entity.name == "Door Sensor Switch":
-                    door_switch_info = entity
-                elif entity.name == "Chime Sensor Switch":
-                    chime_switch_info = entity
-
-        assert alarm_info is not None, "Alarm control panel not found"
-        assert door_switch_info is not None, "Door sensor switch not found"
-        assert chime_switch_info is not None, "Chime sensor switch not found"
+        alarm_info = require_only_entity(entities, AlarmControlPanelInfo)
+        door_switch_info = require_entity(
+            entities, "door_sensor_switch", SwitchInfo, exact=True
+        )
+        chime_switch_info = require_entity(
+            entities, "chime_sensor_switch", SwitchInfo, exact=True
+        )
 
         # Track state changes
         states_received: list[AlarmControlPanelState] = []
@@ -108,15 +84,11 @@ async def test_alarm_control_panel_state_transitions(
                 states_received.append(state.state)
                 state_event.set()
 
-        # Use InitialStateHelper to handle initial state broadcast
-        initial_state_helper = InitialStateHelper(entities)
-        client.subscribe_states(initial_state_helper.on_state_wrapper(on_state))
-
         # Wait for initial states from all entities
-        await initial_state_helper.wait_for_initial_states()
+        sub = await subscribe_after_initial_states(client, entities, on_state=on_state)
 
         # Verify alarm panel started in DISARMED state
-        initial_alarm_state = initial_state_helper.initial_states.get(alarm_info.key)
+        initial_alarm_state = sub.initial_states.get(alarm_info.key)
         assert initial_alarm_state is not None, "No initial alarm state received"
         assert isinstance(initial_alarm_state, AlarmControlPanelEntityState)
         assert initial_alarm_state.state == AlarmControlPanelState.DISARMED
@@ -202,7 +174,7 @@ async def test_alarm_control_panel_state_transitions(
         )
         await wait_for_state(AlarmControlPanelState.DISARMED)
 
-        # Verify basic state sequence (initial DISARMED is handled by InitialStateHelper)
+        # Verify basic state sequence (initial DISARMED is swallowed on subscribe)
         expected_states = [
             AlarmControlPanelState.ARMING,  # Arm away
             AlarmControlPanelState.ARMED_AWAY,
@@ -249,10 +221,7 @@ async def test_alarm_control_panel_state_transitions(
         await wait_for_state(AlarmControlPanelState.ARMED_AWAY, timeout=2.0)
 
         # Verify on_cleared was logged
-        try:
-            await asyncio.wait_for(cleared_future, timeout=1.0)
-        except TimeoutError:
-            pytest.fail(f"on_cleared callback not fired. Log lines: {log_lines[-20:]}")
+        await waiter.wait(cleared_future, 1.0, "on_cleared callback not fired")
 
         # Disarm
         client.alarm_control_panel_command(
@@ -275,76 +244,62 @@ async def test_alarm_control_panel_state_transitions(
         # We must wait for this BEFORE creating the close future, otherwise
         # the open event's log can arrive late and resolve the close future,
         # causing the test to proceed before the chime close is processed.
-        ready_after_chime_open: asyncio.Future[bool] = loop.create_future()
-        ready_futures.append(ready_after_chime_open)
+        ready_after_chime_open = waiter.expect(ready_text)
 
         # We're currently DISARMED - open the chime sensor
         client.switch_command(chime_switch_info.key, True)
 
         # Wait for chime callback to be logged
-        try:
-            await asyncio.wait_for(chime_future, timeout=2.0)
-        except TimeoutError:
-            pytest.fail(f"on_chime callback not fired. Log lines: {log_lines[-20:]}")
+        await waiter.wait(chime_future, 2.0, "on_chime callback not fired")
 
         # Wait for the on_ready from the chime sensor opening
-        try:
-            await asyncio.wait_for(ready_after_chime_open, timeout=2.0)
-        except TimeoutError:
-            pytest.fail(
-                f"on_ready callback not fired when chime sensor opened. "
-                f"Log lines: {log_lines[-20:]}"
-            )
+        await waiter.wait(
+            ready_after_chime_open,
+            2.0,
+            "on_ready callback not fired when chime sensor opened",
+        )
 
         # Now create the future for the close event and close the sensor.
         # Since we waited for the open event above, the close event's
         # on_ready log cannot be confused with the open event's.
-        ready_after_chime_close: asyncio.Future[bool] = loop.create_future()
-        ready_futures.append(ready_after_chime_close)
+        ready_after_chime_close = waiter.expect(ready_text)
 
         client.switch_command(chime_switch_info.key, False)
 
         # Wait for alarm to become ready again (chime sensor closed)
-        try:
-            await asyncio.wait_for(ready_after_chime_close, timeout=2.0)
-        except TimeoutError:
-            pytest.fail(
-                f"on_ready callback not fired when chime sensor closed. "
-                f"Log lines: {log_lines[-20:]}"
-            )
+        await waiter.wait(
+            ready_after_chime_close,
+            2.0,
+            "on_ready callback not fired when chime sensor closed",
+        )
 
         # ===== Test ready state changes =====
         # Now the alarm is confirmed ready. Opening/closing door sensor
         # should trigger on_ready callbacks.
 
-        # Set up futures for door sensor state changes
-        ready_future_1: asyncio.Future[bool] = loop.create_future()
-        ready_future_2: asyncio.Future[bool] = loop.create_future()
-        ready_futures.extend([ready_future_1, ready_future_2])
+        # Set up the future for the door sensor opening
+        ready_future_1 = waiter.expect(ready_text)
 
         # Open door sensor (makes alarm not ready)
         client.switch_command(door_switch_info.key, True)
 
         # Wait for first on_ready callback (not ready)
-        try:
-            await asyncio.wait_for(ready_future_1, timeout=2.0)
-        except TimeoutError:
-            pytest.fail(
-                f"on_ready callback not fired when sensor opened. "
-                f"Log lines: {log_lines[-20:]}"
-            )
+        await waiter.wait(
+            ready_future_1,
+            2.0,
+            "on_ready callback not fired when sensor opened",
+        )
+        ready_future_2 = waiter.expect(ready_text)
 
         # Close door sensor (makes alarm ready again)
         client.switch_command(door_switch_info.key, False)
 
         # Wait for second on_ready callback (ready)
-        try:
-            await asyncio.wait_for(ready_future_2, timeout=2.0)
-        except TimeoutError:
-            pytest.fail(
-                f"on_ready callback not fired when sensor closed. "
-                f"Log lines: {log_lines[-20:]}"
-            )
+        await waiter.wait(
+            ready_future_2,
+            2.0,
+            "on_ready callback not fired when sensor closed",
+        )
 
         # Final state should still be DISARMED
         assert states_received[-1] == AlarmControlPanelState.DISARMED

@@ -30,7 +30,7 @@ void SHT4XComponent::read_serial_number_() {
 void SHT4XComponent::setup() {
   auto err = this->write(nullptr, 0);
   if (err != i2c::ERROR_OK) {
-    this->mark_failed();
+    this->mark_failed(LOG_STR(ESP_LOG_MSG_COMM_FAIL));
     return;
   }
 
@@ -70,9 +70,6 @@ void SHT4XComponent::dump_config() {
                 this->serial_number_);
 
   LOG_I2C_DEVICE(this);
-  if (this->is_failed()) {
-    ESP_LOGE(TAG, ESP_LOG_MSG_COMM_FAIL);
-  }
   if (this->serial_number_ == 0) {
     ESP_LOGW(TAG, "Get serial number failed");
   }
@@ -90,27 +87,16 @@ void SHT4XComponent::update() {
     uint16_t buffer[2];
 
     // Read measurement
-    if (!this->read_data(buffer, 2)) {
+    if (!this->status_comm_result(this->read_data(buffer, 2))) {
       // Using ESP_LOGW to force the warning to be printed
       ESP_LOGW(TAG, "Sensor read failed");
-      this->status_set_warning();
       return;
     }
 
-    this->status_clear_warning();
-
     // Evaluate and publish measurements
-    if (this->temp_sensor_ != nullptr) {
-      // Temp is contained in the first result word
-      float temp = TEMPERATURE_OFFSET + TEMPERATURE_SPAN * static_cast<float>(buffer[0]) / RAW_MAX;
-      this->temp_sensor_->publish_state(temp);
-    }
-
-    if (this->humidity_sensor_ != nullptr) {
-      // Relative humidity is in the second result word
-      float rh = HUMIDITY_OFFSET + HUMIDITY_SPAN * static_cast<float>(buffer[1]) / RAW_MAX;
-      this->humidity_sensor_->publish_state(rh);
-    }
+    // Temperature is in the first result word, relative humidity in the second
+    PUBLISH_STATE(this->temp_sensor_, TEMPERATURE_OFFSET + TEMPERATURE_SPAN * static_cast<float>(buffer[0]) / RAW_MAX);
+    PUBLISH_STATE(this->humidity_sensor_, HUMIDITY_OFFSET + HUMIDITY_SPAN * static_cast<float>(buffer[1]) / RAW_MAX);
 
     // Fire heater after measurement to maximize cooldown time before the next reading.
     // The heater command produces a measurement that we don't need (datasheet 4.9).

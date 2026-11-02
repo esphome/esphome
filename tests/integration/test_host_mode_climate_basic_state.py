@@ -12,7 +12,7 @@ from aioesphomeapi import (
 )
 import pytest
 
-from .state_utils import wait_for_state
+from .state_utils import require_only_entity, wait_for_state
 from .types import APIClientConnectedFactory, RunCompiledFunction
 
 
@@ -25,9 +25,7 @@ async def test_host_mode_climate_basic_state(
     """Test basic climate state reporting."""
     async with run_compiled(yaml_config), api_client_connected() as client:
         entities, _ = await client.list_entities_services()
-        climate_infos = [e for e in entities if isinstance(e, ClimateInfo)]
-        assert len(climate_infos) >= 1, "Expected at least 1 climate entity"
-        test_climate = climate_infos[0]
+        test_climate = require_only_entity(entities, ClimateInfo)
 
         # The thermostat publishes multiple states during setup as the
         # temperature/humidity sensors come online. Wait for the state to
@@ -47,7 +45,8 @@ async def test_host_mode_climate_basic_state(
                 and state.target_humidity == 20.0
             )
 
-        try:
-            await wait_for_state(client, is_default_state)
-        except TimeoutError:
-            pytest.fail("Climate did not converge to expected default state")
+        await wait_for_state(
+            client,
+            is_default_state,
+            msg="Climate did not converge to expected default state",
+        )

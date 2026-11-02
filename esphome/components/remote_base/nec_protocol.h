@@ -21,19 +21,4 @@ class NECProtocol : public RemoteProtocol<NECData> {
 
 DECLARE_REMOTE_PROTOCOL(NEC)
 
-template<typename... Ts> class NECAction : public RemoteTransmitterActionBase<Ts...> {
- public:
-  TEMPLATABLE_VALUE(uint16_t, address)
-  TEMPLATABLE_VALUE(uint16_t, command)
-  TEMPLATABLE_VALUE(uint16_t, command_repeats)
-
-  void encode(RemoteTransmitData *dst, Ts... x) override {
-    NECData data{};
-    data.address = this->address_.value(x...);
-    data.command = this->command_.value(x...);
-    data.command_repeats = this->command_repeats_.value(x...);
-    NECProtocol().encode(dst, data);
-  }
-};
-
 }  // namespace esphome::remote_base

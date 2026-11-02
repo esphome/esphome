@@ -23,11 +23,6 @@ async def to_code(config: ConfigType) -> None:
     await cg.register_component(var, config)
     await stepper.register_stepper(var, config)
 
-    step_pin = await cg.gpio_pin_expression(config[CONF_STEP_PIN])
-    cg.add(var.set_step_pin(step_pin))
-    dir_pin = await cg.gpio_pin_expression(config[CONF_DIR_PIN])
-    cg.add(var.set_dir_pin(dir_pin))
-
-    if sleep_pin_config := config.get(CONF_SLEEP_PIN):
-        sleep_pin = await cg.gpio_pin_expression(sleep_pin_config)
-        cg.add(var.set_sleep_pin(sleep_pin))
+    await cg.add_pin(var.set_step_pin, config[CONF_STEP_PIN])
+    await cg.add_pin(var.set_dir_pin, config[CONF_DIR_PIN])
+    await cg.add_pin(var.set_sleep_pin, config.get(CONF_SLEEP_PIN))

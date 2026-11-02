@@ -22,13 +22,6 @@ class GroveGasMultichannelV2Component final : public PollingComponent, public i2
   void dump_config() override;
 
  protected:
-  enum ErrorCode {
-    UNKNOWN,
-    COMMUNICATION_FAILED,
-    APP_INVALID,
-    APP_START_FAILED,
-  } error_code_{UNKNOWN};
-
   bool read_sensor_(uint8_t address, sensor::Sensor *sensor);
 };
 

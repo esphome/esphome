@@ -37,4 +37,5 @@ async def to_code(config: ConfigType) -> None:
     cg.add_define("USE_API_HOMEASSISTANT_SERVICES")
     var = await button.new_button(config)
     await cg.register_component(var, config)
-    setup_home_assistant_entity(var, config)
+    # Button only calls services, does not subscribe to state
+    setup_home_assistant_entity(var, config, state_subscription_count=0)

@@ -30,8 +30,7 @@ static constexpr uint8_t STATE_REG_OVERFLOW_MASK = 0xF;
 static constexpr uint8_t PACKET_LENGTH = 24;
 
 void HLW8032Component::loop() {
-  while (this->available()) {
-    uint8_t data = this->read();
+  this->read_available([this](uint8_t data) {
     if (!this->header_found_) {
       if ((data == STATE_REG_CORRECTION_FUNC_NORMAL) || (data == STATE_REG_CORRECTION_FUNC_FAIL) ||
           (data & STATE_REG_CORRECTION_MASK) == STATE_REG_CORRECTION_MASK) {
@@ -57,7 +56,7 @@ void HLW8032Component::loop() {
         memset(this->raw_data_, 0, PACKET_LENGTH);
       }
     }
-  }
+  });
 }
 
 uint32_t HLW8032Component::read_uint24_(uint8_t offset) {
@@ -135,25 +134,19 @@ void HLW8032Component::parse_data_() {
   if (have_voltage && voltage_reg) {
     voltage = float(voltage_parameter) * this->voltage_divider_ / float(voltage_reg);
   }
-  if (this->voltage_sensor_ != nullptr) {
-    this->voltage_sensor_->publish_state(voltage);
-  }
+  PUBLISH_STATE(this->voltage_sensor_, voltage);
 
   float power = 0.0f;
   if (have_power && power_reg && !power_cycle_exceeds_range) {
     power = (float(power_parameter) / float(power_reg)) * this->voltage_divider_ * current_multiplier;
   }
-  if (this->power_sensor_ != nullptr) {
-    this->power_sensor_->publish_state(power);
-  }
+  PUBLISH_STATE(this->power_sensor_, power);
 
   float current = 0.0f;
   if (have_current && current_reg) {
     current = float(current_parameter) * current_multiplier / float(current_reg);
   }
-  if (this->current_sensor_ != nullptr) {
-    this->current_sensor_->publish_state(current);
-  }
+  PUBLISH_STATE(this->current_sensor_, current);
 
   float pf = NAN;
   const float apparent_power = voltage * current;
@@ -171,12 +164,8 @@ void HLW8032Component::parse_data_() {
       }
     }
   }
-  if (this->apparent_power_sensor_ != nullptr) {
-    this->apparent_power_sensor_->publish_state(apparent_power);
-  }
-  if (this->power_factor_sensor_ != nullptr) {
-    this->power_factor_sensor_->publish_state(pf);
-  }
+  PUBLISH_STATE(this->apparent_power_sensor_, apparent_power);
+  PUBLISH_STATE(this->power_factor_sensor_, pf);
 }
 
 void HLW8032Component::dump_config() {

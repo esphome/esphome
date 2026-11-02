@@ -13,7 +13,6 @@ from esphome.const import (
     CONF_FULL_SPECTRUM_COUNTS,
     CONF_GAIN,
     CONF_GLASS_ATTENUATION_FACTOR,
-    CONF_ID,
     CONF_INTEGRATION_TIME,
     CONF_NAME,
     CONF_REPEAT,
@@ -134,12 +133,8 @@ CONFIG_SCHEMA = cv.All(
                 CONF_PS_COOLDOWN, default="5s"
             ): cv.positive_time_period_seconds,
             cv.Optional(CONF_PS_GAIN, default="16X"): cv.enum(PS_GAINS, upper=True),
-            cv.Optional(CONF_PS_HIGH_THRESHOLD, default=65535): cv.int_range(
-                min=0, max=65535
-            ),
-            cv.Optional(CONF_PS_LOW_THRESHOLD, default=0): cv.int_range(
-                min=0, max=65535
-            ),
+            cv.Optional(CONF_PS_HIGH_THRESHOLD, default=65535): cv.uint16_t,
+            cv.Optional(CONF_PS_LOW_THRESHOLD, default=0): cv.uint16_t,
             cv.Optional(CONF_ON_PS_HIGH_THRESHOLD): automation.validate_automation({}),
             cv.Optional(CONF_ON_PS_LOW_THRESHOLD): automation.validate_automation({}),
             cv.Optional(CONF_AMBIENT_LIGHT): cv.maybe_simple_value(
@@ -215,9 +210,7 @@ _CALLBACK_AUTOMATIONS = (
 
 
 async def to_code(config: ConfigType) -> None:
-    var = cg.new_Pvariable(config[CONF_ID])
-    await cg.register_component(var, config)
-    await i2c.register_i2c_device(var, config)
+    var = await i2c.new_i2c_component(config)
 
     sensors = sensor.sub_sensors(config)
     await sensors(CONF_AMBIENT_LIGHT, var.set_ambient_light_sensor)

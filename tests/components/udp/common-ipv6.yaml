@@ -1,0 +1,20 @@
+network:
+  enable_ipv6: true
+
+udp:
+  - id: my_udp_v6
+    listen_address: ff12::cafe
+    addresses:
+      - "ff12::cafe"
+      - "2001:db8::1"
+    on_receive:
+      - udp.write:
+          id: my_udp_v6
+          data: "pong"
+  # Default listen address: a dual-stack socket on IPv6 builds
+  - id: my_udp_dual_stack
+    port: 18512
+    on_receive:
+      - logger.log:
+          format: "Received %zu bytes"
+          args: [data.size()]

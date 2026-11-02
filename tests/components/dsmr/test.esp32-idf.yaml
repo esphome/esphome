@@ -12,6 +12,66 @@ sensor:
       name: "Energy Consumed Luxembourg. OBIS: 1-0:1.8.0"
     energy_delivered_tariff1:
       name: "Energy Consumed Tariff 1. OBIS: 1-0:1.8.1"
+    energy_delivered_ch:
+      name: "Energy Consumed (CH). OBIS: 1-1:1.8.0"
+    energy_returned_ch:
+      name: "Energy Produced (CH). OBIS: 1-1:2.8.0"
+    total_imported_energy_ch:
+      name: "Reactive Energy Imported (CH). OBIS: 1-1:3.8.0"
+    total_exported_energy_ch:
+      name: "Reactive Energy Exported (CH). OBIS: 1-1:4.8.0"
+    reactive_energy_q1_ch:
+      name: "Reactive Energy Q1 (CH). OBIS: 1-1:5.8.0"
+    reactive_energy_q1_tariff1_ch:
+      name: "Reactive Energy Q1 Tariff 1 (CH). OBIS: 1-1:5.8.1"
+    reactive_energy_q1_tariff2_ch:
+      name: "Reactive Energy Q1 Tariff 2 (CH). OBIS: 1-1:5.8.2"
+    reactive_energy_q2_ch:
+      name: "Reactive Energy Q2 (CH). OBIS: 1-1:6.8.0"
+    reactive_energy_q2_tariff1_ch:
+      name: "Reactive Energy Q2 Tariff 1 (CH). OBIS: 1-1:6.8.1"
+    reactive_energy_q2_tariff2_ch:
+      name: "Reactive Energy Q2 Tariff 2 (CH). OBIS: 1-1:6.8.2"
+    reactive_energy_q3_ch:
+      name: "Reactive Energy Q3 (CH). OBIS: 1-1:7.8.0"
+    reactive_energy_q3_tariff1_ch:
+      name: "Reactive Energy Q3 Tariff 1 (CH). OBIS: 1-1:7.8.1"
+    reactive_energy_q3_tariff2_ch:
+      name: "Reactive Energy Q3 Tariff 2 (CH). OBIS: 1-1:7.8.2"
+    reactive_energy_q4_ch:
+      name: "Reactive Energy Q4 (CH). OBIS: 1-1:8.8.0"
+    reactive_energy_q4_tariff1_ch:
+      name: "Reactive Energy Q4 Tariff 1 (CH). OBIS: 1-1:8.8.1"
+    reactive_energy_q4_tariff2_ch:
+      name: "Reactive Energy Q4 Tariff 2 (CH). OBIS: 1-1:8.8.2"
+    power_delivered_l1_ch:
+      name: "Power Consumed L1 (CH). OBIS: 1-1:21.7.0"
+    power_delivered_l2_ch:
+      name: "Power Consumed L2 (CH). OBIS: 1-1:41.7.0"
+    power_delivered_l3_ch:
+      name: "Power Consumed L3 (CH). OBIS: 1-1:61.7.0"
+    power_returned_l1_ch:
+      name: "Power Produced L1 (CH). OBIS: 1-1:22.7.0"
+    power_returned_l2_ch:
+      name: "Power Produced L2 (CH). OBIS: 1-1:42.7.0"
+    power_returned_l3_ch:
+      name: "Power Produced L3 (CH). OBIS: 1-1:62.7.0"
+    reactive_power_delivered_l1_ch:
+      name: "Reactive Power Consumed L1 (CH). OBIS: 1-1:23.7.0"
+    reactive_power_delivered_l2_ch:
+      name: "Reactive Power Consumed L2 (CH). OBIS: 1-1:43.7.0"
+    reactive_power_delivered_l3_ch:
+      name: "Reactive Power Consumed L3 (CH). OBIS: 1-1:63.7.0"
+    reactive_power_returned_l1_ch:
+      name: "Reactive Power Produced L1 (CH). OBIS: 1-1:24.7.0"
+    reactive_power_returned_l2_ch:
+      name: "Reactive Power Produced L2 (CH). OBIS: 1-1:44.7.0"
+    reactive_power_returned_l3_ch:
+      name: "Reactive Power Produced L3 (CH). OBIS: 1-1:64.7.0"
+    maximum_power_delivered_ch:
+      name: "Maximum Power Consumed (CH). OBIS: 1-1:1.6.0"
+    maximum_power_returned_ch:
+      name: "Maximum Power Produced (CH). OBIS: 1-1:2.6.0"
 
 text_sensor:
   - platform: dsmr

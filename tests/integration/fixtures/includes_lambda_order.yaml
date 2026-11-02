@@ -1,0 +1,27 @@
+esphome:
+  name: includes-lambda-order
+  includes:
+    - INCLUDES_PATH/lambda_order.h
+  on_boot:
+    # An apply action value is rendered at file scope.
+    - globals.set:
+        id: header_value
+        value: !lambda return HEADER_CONSTANT;
+
+host:
+api:
+logger:
+
+globals:
+  - id: header_value
+    type: int
+    initial_value: "0"
+
+sensor:
+  - platform: template
+    name: Header Value
+    update_interval: 100ms
+    lambda: return header_reads_global();
+    filters:
+      # A lambda in a flash table.
+      - filter_out: !lambda return HEADER_CONSTANT - 1;

@@ -246,7 +246,7 @@ static void ble_scan_callback(void *param) {
   memcpy(slot->data, info->data, slot->data_len);
 
   s_ble->push_scan_report(slot);
-}
+}  // NOLINT(clang-analyzer-unix.Malloc) the slot is a pool entry handed to push_scan_report(), not a leak
 
 BLEScanReport *LN882HBLE::allocate_scan_report() {
   BLEScanReport *slot = this->report_pool_.allocate();
@@ -287,6 +287,7 @@ void LN882HBLE::enable() {
     return;
   this->state_ = BLEComponentState::ENABLING;
 
+  // NOLINTNEXTLINE(performance-no-int-to-ptr) - MMIO register at a fixed address
   *reinterpret_cast<volatile uint32_t *>(BLE_COEX_PTI_REG_ADDR) = BLE_COEX_PTI_ENABLE_ALL;
   soc_module_clk_gate_enable(CLK_G_BLE);
 

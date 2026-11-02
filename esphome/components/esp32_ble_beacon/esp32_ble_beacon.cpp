@@ -10,7 +10,6 @@
 #include <esp_gap_ble_api.h>
 #include <freertos/FreeRTOS.h>
 #include <freertos/task.h>
-#include <nvs_flash.h>
 #include <cstring>
 
 #include "esphome/core/hal.h"

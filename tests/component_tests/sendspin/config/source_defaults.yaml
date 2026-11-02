@@ -1,0 +1,35 @@
+esphome:
+  name: test
+
+esp32:
+  board: esp32dev
+  framework:
+    type: esp-idf
+
+wifi:
+  ap:
+
+i2s_audio:
+  - id: i2s_bus
+    i2s_lrclk_pin: GPIO4
+    i2s_bclk_pin: GPIO5
+
+microphone:
+  - platform: i2s_audio
+    id: mic
+    i2s_din_pin: GPIO39
+    adc_type: external
+    sample_rate: 16000
+
+sendspin:
+  source:
+    microphone: mic
+
+interval:
+  - interval: 10s
+    then:
+      - if:
+          condition:
+            sendspin.source.is_streaming:
+          then:
+            - delay: 1ms

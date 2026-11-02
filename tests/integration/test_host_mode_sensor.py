@@ -9,6 +9,7 @@ from aioesphomeapi import EntityState
 import pytest
 
 from .types import APIClientConnectedFactory, RunCompiledFunction
+from .wait_utils import wait_or_fail
 
 
 @pytest.mark.asyncio
@@ -38,13 +39,12 @@ async def test_host_mode_with_sensor(
         client.subscribe_states(on_state)
 
         # Wait for sensor with specific value (42.0) with timeout
-        try:
-            test_sensor_state = await asyncio.wait_for(sensor_future, timeout=5.0)
-        except TimeoutError:
-            pytest.fail(
-                f"Sensor with value 42.0 not received within 5 seconds. "
-                f"Received states: {list(states.values())}"
-            )
+        test_sensor_state = await wait_or_fail(
+            sensor_future,
+            5.0,
+            "Sensor with value 42.0 not received within 5 seconds",
+            states=states,
+        )
 
         # Verify the sensor state
         assert test_sensor_state.state == 42.0

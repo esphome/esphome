@@ -17,6 +17,7 @@ from unittest.mock import Mock, patch
 
 import pytest
 
+from esphome import yaml_util
 from esphome.core import CORE
 from esphome.espidf import toolchain
 
@@ -47,6 +48,19 @@ def reset_core():
     """Reset CORE after each test."""
     yield
     CORE.reset()
+    CORE.testing_mode = False  # reset() leaves it, so a test enabling it would leak
+
+
+@pytest.fixture(autouse=True)
+def clear_yaml_secrets() -> Generator[None]:
+    """Isolate the yaml_util secrets registry between tests."""
+    yaml_util._SECRET_VALUES.clear()
+    yaml_util._SECRET_CACHE.clear()
+    yaml_util._LOADED_SECRET_NAMES.clear()
+    yield
+    yaml_util._SECRET_VALUES.clear()
+    yaml_util._SECRET_CACHE.clear()
+    yaml_util._LOADED_SECRET_NAMES.clear()
 
 
 @pytest.fixture
@@ -197,6 +211,17 @@ def _default_pch_knobs(monkeypatch: pytest.MonkeyPatch) -> None:
     """The knob changes what the generators emit: no ambient value, and on,
     so the Windows runner asks no compiler."""
     monkeypatch.setenv("ESPHOME_PCH_ENABLE", "1")
+
+
+@pytest.fixture(autouse=True)
+def _no_ambient_ccache(monkeypatch: pytest.MonkeyPatch) -> None:
+    """The ccache on this machine does not decide the pch, and no cached
+    ccache probe crosses tests."""
+    from esphome.build_helpers import ccache, pch
+
+    monkeypatch.setattr(pch, "ccache_breaks_pch", lambda: False)
+    ccache._ccache_probe.cache_clear()
+    ccache._ccache_too_old_for_pch.cache_clear()
 
 
 @pytest.fixture

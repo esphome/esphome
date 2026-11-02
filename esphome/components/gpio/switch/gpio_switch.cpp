@@ -28,7 +28,7 @@ void GPIOSwitch::dump_config() {
     for (auto *lock : this->interlock_) {
       if (lock == this)
         continue;
-      ESP_LOGCONFIG(TAG, "    %s", lock->get_name().c_str());
+      ESP_LOGCONFIG(TAG, "    %s", LOG_STR_ARG(lock->get_log_name()));
     }
   }
 #endif
@@ -66,9 +66,5 @@ void GPIOSwitch::write_state(bool state) {
   this->pin_->digital_write(state);
   this->publish_state(state);
 }
-
-#ifdef USE_GPIO_SWITCH_INTERLOCK
-void GPIOSwitch::set_interlock(const std::initializer_list<Switch *> &interlock) { this->interlock_ = interlock; }
-#endif
 
 }  // namespace esphome::gpio

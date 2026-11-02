@@ -8,6 +8,16 @@ pcf8574:
     address: 0x22
     pcf8575: false
     interrupt_pin: ${interrupt_pin}
+    reset: true
+  - id: pcf8574_preserved
+    i2c_id: i2c_bus
+    address: 0x23
+    reset: false
+  - id: pcf8575_preserved
+    i2c_id: i2c_bus
+    address: 0x24
+    pcf8575: true
+    reset: false
 
 binary_sensor:
   - platform: gpio
@@ -18,6 +28,18 @@ binary_sensor:
       number: 1
       mode: INPUT
       inverted: true
+  - platform: gpio
+    id: pcf8574_preserved_input
+    pin:
+      pcf8574: pcf8574_preserved
+      number: 1
+      mode: INPUT
+  - platform: gpio
+    id: pcf8575_preserved_input
+    pin:
+      pcf8574: pcf8575_preserved
+      number: 15
+      mode: INPUT
 
 output:
   - platform: gpio
@@ -27,3 +49,13 @@ output:
       number: 0
       mode: OUTPUT
       inverted: false
+  - platform: gpio
+    id: pcf8574_preserved_output
+    pin:
+      pcf8574: pcf8574_preserved
+      number: 0
+  - platform: gpio
+    id: pcf8575_preserved_output
+    pin:
+      pcf8574: pcf8575_preserved
+      number: 8

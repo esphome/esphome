@@ -8,7 +8,7 @@
 
 namespace esphome::cst9220 {
 
-static const char *const TAG = "cst9220.touchscreen";
+ESPHOME_LOG_TAG(TAG, "cst9220.touchscreen");
 
 // The CST92xx family uses 16-bit (big-endian) register addresses.
 static const uint16_t REG_TOUCH_DATA = 0xD000;  // touch report
