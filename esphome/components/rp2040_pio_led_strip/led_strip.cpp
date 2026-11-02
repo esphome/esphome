@@ -42,25 +42,27 @@ void RP2040PIOLEDStripLightOutput::setup() {
     return;
   }
 
-  // if there are multiple strips, we can reuse the same PIO program and save space
-  // but there are only 4 state machines on each PIO so we can only have 4 strips per PIO
-  uint offset = 0;
-
-  if (RP2040PIOLEDStripLightOutput::num_instance[this->pio_ == pio0 ? 0 : 1] >= 4) {
+  // There are only 4 state machines on each PIO, so at most 4 strips per PIO
+  auto &loaded = RP2040PIOLEDStripLightOutput::loaded_programs[pio_get_index(this->pio_)];
+  if (loaded.strips >= NUM_PIO_STATE_MACHINES) {
     this->mark_failed(LOG_STR("Too many instances of PIO program"));
     return;
   }
-  // keep track of how many instances of the PIO program are running on each PIO
-  RP2040PIOLEDStripLightOutput::num_instance[this->pio_ == pio0 ? 0 : 1]++;
+  loaded.strips++;
 
-  // if there are multiple strips of the same chipset, we can reuse the same PIO program and save space
-  if (RP2040PIOLEDStripLightOutput::conf_count[this->chipset_]) {
-    offset = RP2040PIOLEDStripLightOutput::chipset_offsets[this->chipset_];
-  } else {
-    // Load the assembled program into the PIO and get its location in the PIO's instruction memory and save it
-    offset = pio_add_program(this->pio_, this->program_);
-    RP2040PIOLEDStripLightOutput::chipset_offsets[this->chipset_] = offset;
-    RP2040PIOLEDStripLightOutput::conf_count[this->chipset_] = true;
+  // Strips with the same program on the same PIO share one copy of it in instruction memory
+  uint offset = 0;
+  for (uint8_t i = 0; i < NUM_PIO_STATE_MACHINES; i++) {
+    if (loaded.program[i] == nullptr) {
+      offset = pio_add_program(this->pio_, this->program_);
+      loaded.program[i] = this->program_;
+      loaded.offset[i] = offset;
+      break;
+    }
+    if (loaded.program[i] == this->program_) {
+      offset = loaded.offset[i];
+      break;
+    }
   }
 
   // Configure the state machine's PIO, and start it
