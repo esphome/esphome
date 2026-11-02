@@ -1,8 +1,10 @@
 """Flashing over SWD with a SEGGER J-Link probe, such as the one built into Nordic DKs."""
 
 from collections.abc import Iterator
+import logging
 import os
 from pathlib import Path
+import re
 import shutil
 import sys
 
@@ -11,6 +13,8 @@ from esphome.core import CORE, EsphomeError
 from esphome.framework_helpers import run_command_ok
 
 from .framework import check_and_install, get_build_env, get_build_paths
+
+_LOGGER = logging.getLogger(__name__)
 
 # Where SEGGER's installers put the J-Link tools when they are not on PATH
 _JLINK_INSTALL_DIRS = {
@@ -44,6 +48,12 @@ _JLINK_LIBRARY_GLOBS = {
 }
 
 
+def _jlink_version_key(commander: Path) -> tuple[int, str]:
+    """Sort key for a versioned install folder, e.g. JLink_V812a -> (812, "a")."""
+    match = re.fullmatch(r"JLink_V(\d+)(\w*)", commander.parent.name)
+    return (int(match[1]), match[2]) if match else (-1, "")
+
+
 def _jlink_commander_candidates(platform_key: str) -> Iterator[Path]:
     if platform_key == "win32":
         # PATH is not searched: the JDK's jlink.exe has the same name on a
@@ -58,7 +68,9 @@ def _jlink_commander_candidates(platform_key: str) -> Iterator[Path]:
     for base in _JLINK_INSTALL_DIRS.get(platform_key, ()):
         # "JLink" is the unversioned link the Linux packages create; then the newest version
         yield base / "JLink" / exe
-        yield from sorted(base.glob(f"JLink_V*/{exe}"), reverse=True)
+        yield from sorted(
+            base.glob(f"JLink_V*/{exe}"), key=_jlink_version_key, reverse=True
+        )
 
 
 def find_jlink_commander() -> Path | None:
@@ -71,6 +83,11 @@ def find_jlink_commander() -> Path | None:
         # The runner resolves links and loads the library next to the real file
         if any(candidate.resolve().parent.glob(library)):
             return candidate
+        _LOGGER.warning(
+            "Skipping %s: the J-Link library (%s) is not next to it",
+            candidate,
+            library,
+        )
     return None
 
 

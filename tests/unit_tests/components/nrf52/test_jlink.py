@@ -59,9 +59,27 @@ def test_newest_versioned_install(tmp_path: Path) -> None:
 
 
 @pytest.mark.usefixtures("linux")
-def test_commander_without_library_is_skipped(tmp_path: Path) -> None:
-    _install(tmp_path / "opt" / "JLink", library=None)
+def test_newest_version_compares_numbers(tmp_path: Path) -> None:
+    _install(tmp_path / "opt" / "JLink_V812")
+    _install(tmp_path / "opt" / "JLink_V924")
+    newest = _install(tmp_path / "opt" / "JLink_V1000")
+    assert find_jlink_commander() == newest
+
+
+@pytest.mark.usefixtures("linux")
+def test_newest_version_compares_suffix(tmp_path: Path) -> None:
+    _install(tmp_path / "opt" / "JLink_V924")
+    newest = _install(tmp_path / "opt" / "JLink_V924a")
+    assert find_jlink_commander() == newest
+
+
+@pytest.mark.usefixtures("linux")
+def test_commander_without_library_is_skipped(
+    tmp_path: Path, caplog: pytest.LogCaptureFixture
+) -> None:
+    commander = _install(tmp_path / "opt" / "JLink", library=None)
     assert find_jlink_commander() is None
+    assert f"Skipping {commander}" in caplog.text
 
 
 @pytest.mark.usefixtures("linux")
