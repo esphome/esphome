@@ -61,6 +61,8 @@ static void control_time(Duco *parent, text::Text *text, const std::string &valu
   parent->send(nullptr, FUNCTION_PARAMETER,
                {NIGHTBOOST_ADDRESS, parameter, NIGHTBOOST_GROUP, static_cast<uint8_t>(minutes & 0xFF),
                 static_cast<uint8_t>(minutes >> 8), 0x00, 0x00});
+  // Update state immediately
+  text->publish_state(value);
 }
 
 void DucoNightboostTimeStart::update() {

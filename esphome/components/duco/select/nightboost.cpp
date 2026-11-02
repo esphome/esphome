@@ -41,6 +41,8 @@ void DucoNightboost::control(size_t index) {
   this->parent_->send(nullptr, FUNCTION_PARAMETER,
                       {NIGHTBOOST_ADDRESS, NIGHTBOOST_PARAMETER, NIGHTBOOST_GROUP, NIGHTBOOST_CODES[index], 0x00,
                        0x00, 0x00});
+  // Update state immediately
+  this->publish_state(index);
 }
 
 static void publish_month(select::Select *select, const DucoMessage &message) {
@@ -58,6 +60,8 @@ static void control_month(Duco *parent, select::Select *select, size_t index, ui
 
   parent->send(nullptr, FUNCTION_PARAMETER,
                {NIGHTBOOST_ADDRESS, parameter, NIGHTBOOST_GROUP, static_cast<uint8_t>(index + 1), 0x00, 0x00, 0x00});
+  // Update state immediately
+  select->publish_state(index);
 }
 
 void DucoNightboostMonthStart::update() {

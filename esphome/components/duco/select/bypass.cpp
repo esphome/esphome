@@ -40,6 +40,8 @@ void DucoBypassControl::control(size_t index) {
 
   this->parent_->send(nullptr, FUNCTION_PARAMETER,
                       {BYPASS_ADDRESS, BYPASS_PARAMETER, BYPASS_GROUP, BYPASS_CODES[index], 0x00, 0x00, 0x00});
+  // Update state immediately
+  this->publish_state(index);
 }
 
 void DucoBypassAdaptiveControl::update() {
@@ -70,6 +72,8 @@ void DucoBypassAdaptiveControl::control(size_t index) {
   this->parent_->send(nullptr, FUNCTION_PARAMETER,
                       {BYPASS_ADDRESS, ADAPTIVE_BYPASS_PARAMETER, BYPASS_GROUP, ADAPTIVE_BYPASS_CODES[index], 0x00,
                        0x00, 0x00});
+  // Update state immediately
+  this->publish_state(index);
 }
 
 }  // namespace esphome::duco

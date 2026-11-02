@@ -39,6 +39,8 @@ void DucoFrostHeater::control(size_t index) {
   this->parent_->send(nullptr, FUNCTION_PARAMETER,
                       {FROST_HEATER_ADDRESS, FROST_HEATER_PARAMETER, FROST_HEATER_GROUP, FROST_HEATER_CODES[index],
                        0x00, 0x00, 0x00});
+  // Update state immediately
+  this->publish_state(index);
 }
 
 }  // namespace esphome::duco

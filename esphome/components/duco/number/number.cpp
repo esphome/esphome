@@ -20,6 +20,8 @@ void DucoComfortTemperature::control(float value) {
   const auto tenths = static_cast<uint8_t>(lroundf(value * 10.0f));
   this->parent_->send(this, FUNCTION_PARAMETER,
                       {0x01, this->address_, GROUP_COMFORT_TEMPERATURE, tenths, 0x00, 0x00, 0x00});
+  // Update state immediately
+  this->publish_state(value);
 }
 
 }  // namespace esphome::duco

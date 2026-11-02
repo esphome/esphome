@@ -40,6 +40,8 @@ void DucoTimeFilter::control(size_t index) {
   this->parent_->send(nullptr, FUNCTION_PARAMETER,
                       {0x01, TIME_FILTER_ADDRESS, TIME_FILTER_GROUP, static_cast<uint8_t>(days & 0xFF),
                        static_cast<uint8_t>(days >> 8), 0x00, 0x00});
+  // Update state immediately
+  this->publish_state(index);
 }
 
 }  // namespace esphome::duco

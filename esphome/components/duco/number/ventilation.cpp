@@ -29,6 +29,8 @@ static void control_ventilation(Duco *parent, number::Number *number, uint8_t ty
 
   const auto percentage = static_cast<uint8_t>(lroundf(value));
   parent->send(nullptr, FUNCTION_VENTILATION, {VENTILATION_ADDRESS, VENTILATION_BOX, type, 0x00, percentage});
+  // Update state immediately
+  number->publish_state(value);
 }
 
 void DucoBoxVentilationMin::update() {

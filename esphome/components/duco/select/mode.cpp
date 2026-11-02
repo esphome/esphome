@@ -40,8 +40,9 @@ void DucoSelect::receive_response(const DucoMessage &message) {
 }
 
 void DucoSelect::control(size_t index) {
-  // The next update reads the new mode back
   this->parent_->send(nullptr, FUNCTION_NODE, {0x04, this->address_, progmem_read_byte(&MODE_CODES[index])});
+  // Update state immediately
+  this->publish_state(index);
 }
 
 }  // namespace esphome::duco

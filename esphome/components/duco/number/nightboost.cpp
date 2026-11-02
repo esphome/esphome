@@ -31,6 +31,8 @@ void DucoNightboostTemperature::control(float value) {
   const auto temperature = static_cast<uint8_t>(lroundf(value));
   this->parent_->send(nullptr, FUNCTION_PARAMETER,
                       {0x01, NIGHTBOOST_TEMPERATURE_PARAMETER, NIGHTBOOST_GROUP, temperature, 0x00, 0x00, 0x00});
+  // Update state immediately
+  this->publish_state(value);
 }
 
 void DucoNightboostMax::update() {
@@ -52,6 +54,8 @@ void DucoNightboostMax::control(float value) {
   const auto percentage = static_cast<uint8_t>(lroundf(value));
   this->parent_->send(nullptr, FUNCTION_PARAMETER,
                       {0x00, NIGHTBOOST_MAX_PARAMETER, NIGHTBOOST_GROUP, percentage, 0x00, 0x00, 0x00});
+  // Update state immediately
+  this->publish_state(value);
 }
 
 }  // namespace esphome::duco

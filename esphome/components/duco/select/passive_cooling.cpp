@@ -39,6 +39,8 @@ void DucoPassiveCooling::control(size_t index) {
   this->parent_->send(nullptr, FUNCTION_PARAMETER,
                       {PASSIVE_COOLING_ADDRESS, PASSIVE_COOLING_PARAMETER, PASSIVE_COOLING_GROUP,
                        PASSIVE_COOLING_CODES[index], 0x00, 0x00, 0x00});
+  // Update state immediately
+  this->publish_state(index);
 }
 
 }  // namespace esphome::duco

@@ -6,6 +6,7 @@ void DucoDangerousControls::setup() { this->publish_state(this->parent_->allows_
 
 void DucoDangerousControls::write_state(bool state) {
   this->parent_->set_allow_dangerous_controls(state);
+  // Update state immediately
   this->publish_state(state);
 }
 
