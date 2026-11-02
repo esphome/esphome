@@ -3716,6 +3716,9 @@ uint8_t *EventResponse::encode_msg(const void *self, uint8_t *__restrict__ pos P
     pos = ProtoEncode::encode_sub_message(pos PROTO_ENCODE_DEBUG_ARG, 4, msg.values[i]);
   }
 #endif
+#ifdef USE_EVENT_DATA
+  pos = ProtoEncode::encode_bool(pos PROTO_ENCODE_DEBUG_ARG, 5, msg.values_dropped);
+#endif
   return pos;
 }
 uint32_t EventResponse::calc_size_msg(const void *self) {
@@ -3730,6 +3733,9 @@ uint32_t EventResponse::calc_size_msg(const void *self) {
   for (uint16_t i = 0; i < msg.values_len; i++) {
     size += ProtoSize::calc_message_force(1, msg.values[i].calculate_size());
   }
+#endif
+#ifdef USE_EVENT_DATA
+  size += ProtoSize::calc_bool(1, msg.values_dropped);
 #endif
   return size;
 }

@@ -1585,8 +1585,9 @@ uint16_t APIConnection::try_send_event_response(event::Event *event, uint8_t aux
 #ifdef USE_EVENT_DATA
   const event::EventData data = event->get_last_event_data();
   if (data.size() != 0 && (aux_data_index & DeferredBatch::AUX_DATA_EVENT_STALE) != 0) {
-    // Its values belong to a newer event, so it goes out with its type only
+    // Its values belong to a newer event, so it goes out without them
     aux_data_index &= ~DeferredBatch::AUX_DATA_EVENT_STALE;
+    resp.values_dropped = true;
   } else {
     for (uint8_t i = 0; i < data.size(); i++) {
       if (!data.has(i))

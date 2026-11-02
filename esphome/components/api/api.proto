@@ -2627,6 +2627,8 @@ message EventResponse {
   uint32 device_id = 3 [(field_ifdef) = "USE_DEVICES"];
   // The values this event set, each with the index of its variable
   repeated EventVariableValue values = 4 [(field_ifdef) = "USE_EVENT_DATA", (fixed_array_with_length_define) = "ESPHOME_EVENT_MAX_VARIABLES"];
+  // A newer event replaced the values of this event, if it had any, before it was sent
+  bool values_dropped = 5 [(field_ifdef) = "USE_EVENT_DATA"];
 }
 
 // ==================== VALVE ====================

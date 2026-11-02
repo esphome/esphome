@@ -2730,6 +2730,9 @@ const char *EventResponse::dump_to(DumpBuffer &out) const {
     out.append("\n");
   }
 #endif
+#ifdef USE_EVENT_DATA
+  dump_field(out, ESPHOME_PSTR("values_dropped"), this->values_dropped);
+#endif
   return out.c_str();
 }
 #endif

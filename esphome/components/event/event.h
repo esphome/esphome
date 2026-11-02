@@ -104,6 +104,8 @@ class Event : public EntityBase {
   void set_event_types_copy_(const char *const *event_types, size_t count);
 #ifdef USE_EVENT_DATA
   void store_data_(const char *event_type, std::initializer_list<EventArg> args);
+  // The newest queued API event then goes out without values and without values_dropped.
+  // That is accepted, as changing the types at run time is rare.
   void clear_data_() {
     if (this->data_ != nullptr)
       this->data_->present = 0;

@@ -3547,9 +3547,9 @@ class EventResponse final : public StateResponseProtoMessage {
  public:
   static constexpr uint16_t MESSAGE_TYPE = 108;
 #ifdef USE_EVENT_DATA
-  static constexpr uint8_t ESTIMATED_SIZE = 154;
+  static constexpr uint8_t ESTIMATED_SIZE = 156;
 #else
-  static constexpr uint8_t ESTIMATED_SIZE = 18;
+  static constexpr uint8_t ESTIMATED_SIZE = 20;
 #endif
 #ifdef HAS_PROTO_MESSAGE_DUMP
   const LogString *message_name() const override { return LOG_STR("event_response"); }
@@ -3558,6 +3558,9 @@ class EventResponse final : public StateResponseProtoMessage {
 #ifdef USE_EVENT_DATA
   std::array<EventVariableValue, ESPHOME_EVENT_MAX_VARIABLES> values{};
   uint16_t values_len{0};
+#endif
+#ifdef USE_EVENT_DATA
+  bool values_dropped{false};
 #endif
   static uint8_t *encode_msg(const void *self, uint8_t *pos PROTO_ENCODE_DEBUG_PARAM);
   uint8_t *encode(ProtoWriteBuffer &buffer PROTO_ENCODE_DEBUG_PARAM) const {

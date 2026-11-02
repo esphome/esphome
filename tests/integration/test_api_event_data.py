@@ -19,7 +19,7 @@ EVENT = MESSAGE_TYPE_OF[api_pb2.EventResponse]
 
 # The installed client library does not know the new fields yet, so they are read by number
 INFO_KEY, INFO_VARIABLES = 2, 11
-EVENT_KEY, EVENT_TYPE, EVENT_VALUES = 1, 2, 4
+EVENT_KEY, EVENT_TYPE, EVENT_VALUES, EVENT_VALUES_DROPPED = 1, 2, 4, 5
 # EventVariableType, and the field of EventVariableValue that holds each type
 BOOL, INT, FLOAT, STRING = 0, 1, 2, 3
 VALUE_FIELD = {BOOL: 2, INT: 3, FLOAT: 4, STRING: 5}
@@ -144,7 +144,7 @@ async def test_api_event_data_backlog(
 
     The device keeps the values of the last event only. The client stops reading, the dial
     fires 10000 times, and the events the socket cannot take wait in the queue. Only the newest
-    of them still owns its values, so the older ones arrive with their type only.
+    of them still owns its values, so the older ones arrive with values_dropped set.
     """
     waiter = LineWaiter()
     async with run_compiled(yaml_config, line_callback=waiter.callback):
@@ -166,6 +166,10 @@ async def test_api_event_data_backlog(
                 values_of(payload, DIAL_VARIABLES).get("count")
                 for payload in raw.frames(EVENT)
             ]
+            dropped = [
+                bool(decode_fields(payload).get(EVENT_VALUES_DROPPED))
+                for payload in raw.frames(EVENT)
+            ]
 
     assert len(counts) == DIAL_EVENTS
     wrong = [
@@ -180,5 +184,7 @@ async def test_api_event_data_backlog(
     sent = counts.index(None)
     queued = DIAL_EVENTS - sent
     assert counts == [*range(1, sent + 1), *[None] * (queued - 1), DIAL_EVENTS]
+    # Exactly the events without values carry the flag
+    assert dropped == [count is None for count in counts]
     # One warning for the whole backlog, not one for each of the thousands of events
     assert sum(STALE_LOG in line for line in waiter.lines) == 1
