@@ -209,26 +209,26 @@ void MotionComponent::resolve_tap_axis_(uint8_t chip_axis, bool chip_negative, u
   negative = chip_negative != (weight < 0.0f);
 }
 
-void MotionComponent::report_tap_(uint8_t chip_axis, bool negative) {
+void MotionComponent::report_tap_(uint8_t chip_axis, bool chip_negative) {
   uint8_t axis;
-  bool neg;
-  this->resolve_tap_axis_(chip_axis, negative, axis, neg);
-  this->tap_callback_.call(axis, neg);
+  bool negative;
+  this->resolve_tap_axis_(chip_axis, chip_negative, axis, negative);
+  this->tap_callback_.call(axis, negative);
 }
 
-void MotionComponent::report_double_tap_(uint8_t chip_axis, bool negative) {
+void MotionComponent::report_double_tap_(uint8_t chip_axis, bool chip_negative) {
   this->tap_held_ = false;
   uint8_t axis;
-  bool neg;
-  this->resolve_tap_axis_(chip_axis, negative, axis, neg);
-  this->double_tap_callback_.call(axis, neg);
+  bool negative;
+  this->resolve_tap_axis_(chip_axis, chip_negative, axis, negative);
+  this->double_tap_callback_.call(axis, negative);
 }
 
-void MotionComponent::hold_tap_(uint8_t chip_axis, bool negative, uint32_t now) {
+void MotionComponent::hold_tap_(uint8_t chip_axis, bool chip_negative, uint32_t now) {
   if (this->tap_held_)
     return;
   this->tap_held_axis_ = chip_axis;
-  this->tap_held_negative_ = negative;
+  this->tap_held_negative_ = chip_negative;
   this->tap_held_since_ = now;
   this->tap_held_ = true;
 }

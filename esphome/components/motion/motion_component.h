@@ -98,11 +98,11 @@ class MotionComponent : public PollingComponent {
 
 #ifdef USE_MOTION_TAP
   // chip_axis is the sensor's own axis; it is reported in the axis_map frame
-  void report_tap_(uint8_t chip_axis, bool negative);
+  void report_tap_(uint8_t chip_axis, bool chip_negative);
   // Also drops a single tap held by hold_tap_()
-  void report_double_tap_(uint8_t chip_axis, bool negative);
+  void report_double_tap_(uint8_t chip_axis, bool chip_negative);
   // For chips that report the first tap of a double as a single: hold it for tap_hold_ms_
-  void hold_tap_(uint8_t chip_axis, bool negative, uint32_t now);
+  void hold_tap_(uint8_t chip_axis, bool chip_negative, uint32_t now);
   // Reports a held single tap once tap_hold_ms_ has passed with no double tap
   void release_held_tap_(uint32_t now);
 #endif
