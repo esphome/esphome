@@ -44,16 +44,11 @@ def _uses_sdk_ng_1_toolchain() -> bool:
     return CORE.data[KEY_CORE][KEY_FRAMEWORK_VERSION] >= cv.Version(3, 4, 0)
 
 
-def toolchain_version_for(framework_version: cv.Version) -> str:
-    """Return the Zephyr SDK toolchain version an sdk-nrf version needs."""
-    if framework_version >= cv.Version(3, 4, 0):
-        return _TOOLCHAIN_VERSION_NCS_3_4_0
-    return TOOLCHAIN_VERSION
-
-
 def _get_toolchain_version() -> str:
     """Return the Zephyr SDK toolchain version for the current framework."""
-    return toolchain_version_for(CORE.data[KEY_CORE][KEY_FRAMEWORK_VERSION])
+    if _uses_sdk_ng_1_toolchain():
+        return _TOOLCHAIN_VERSION_NCS_3_4_0
+    return TOOLCHAIN_VERSION
 
 
 # Packages the PlatformIO toolchain's Zephyr build script needs beyond west
