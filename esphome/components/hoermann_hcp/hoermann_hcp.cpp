@@ -243,12 +243,14 @@ modbus::ResponseStatus HoermannHcp::on_read_holding_registers(uint16_t start_add
       break;
     case 5:
       // Bus scan (the bus controller discovering us, typically at startup).
+      // Respond like an official HCP2 IoT gateway (i.e. KNX & Loxone).
+      // Answer with the same connect-accept code (0x2E) and feature bits.
       ESP_LOGD(TAG, "Bus scan received from bus controller");
       registers.push_back(counter);
-      registers.push_back(static_cast<uint16_t>(0x0005 | command));
-      registers.push_back(0x0430);
-      registers.push_back(0x10FF);
-      registers.push_back(0xA845);
+      registers.push_back(static_cast<uint16_t>(0x002E | command));
+      registers.push_back(0x0520);  // buf[3] 0x20: drive commands
+      registers.push_back(0x0800);  // buf[4] 0x08 (accessory)
+      registers.push_back(0x0000);
       break;
     default:
       ESP_LOGW(TAG, "Unknown read request (read %u registers)", number_of_registers);
