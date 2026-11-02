@@ -589,7 +589,8 @@ void APIServer::handle_action_response(uint32_t call_id, bool success, StringRef
 void APIServer::add_state_subscription_(const char *entity_id, const char *attribute,
                                         Callback<void(StringRef)> callback, bool once) {
 #ifdef HOMEASSISTANT_STATE_SUBSCRIPTION_COUNT
-  if (this->state_subs_.size() < HOMEASSISTANT_STATE_SUBSCRIPTION_COUNT) {
+  static constexpr size_t counted_slots = HOMEASSISTANT_STATE_SUBSCRIPTION_COUNT;
+  if (this->state_subs_.size() < counted_slots) {
     this->state_subs_.push_back({entity_id, attribute, callback, once});
     return;
   }
@@ -647,6 +648,17 @@ void APIServer::get_home_assistant_state(std::string entity_id, optional<std::st
                                          std::function<void(const std::string &)> &&f) {
   this->add_extra_state_subscription_(
       make_owned_state_subscription(std::move(entity_id), std::move(attribute), std::move(f), true));
+}
+
+const APIServer::HomeAssistantStateSubscription *APIServer::get_state_sub(size_t index) const {
+#ifdef HOMEASSISTANT_STATE_SUBSCRIPTION_COUNT
+  if (index < this->state_subs_.size())
+    return &this->state_subs_[index];
+  index -= this->state_subs_.size();
+#endif
+  if (index < this->extra_state_sub_count_)
+    return &this->extra_state_subs_[index];
+  return nullptr;
 }
 #endif
 

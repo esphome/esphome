@@ -263,17 +263,9 @@ class APIServer final : public Component
   void get_home_assistant_state(std::string entity_id, optional<std::string> attribute,
                                 std::function<void(const std::string &)> &&f);
 
-  /// The subscription at index in the order they are sent, or nullptr past the last one
-  const HomeAssistantStateSubscription *get_state_sub(size_t index) const {
-#ifdef HOMEASSISTANT_STATE_SUBSCRIPTION_COUNT
-    if (index < this->state_subs_.size())
-      return &this->state_subs_[index];
-    index -= this->state_subs_.size();
-#endif
-    if (index < this->extra_state_sub_count_)
-      return &this->extra_state_subs_[index];
-    return nullptr;
-  }
+  /// The subscription at index in the order they are sent, or nullptr past the last one.
+  /// Adding a subscription can move the list, so do not keep the pointer across one.
+  const HomeAssistantStateSubscription *get_state_sub(size_t index) const;
 #endif
 #ifdef USE_API_USER_DEFINED_ACTIONS
   const std::vector<UserServiceDescriptor *> &get_user_services() const { return this->user_services_; }
@@ -327,6 +319,8 @@ class APIServer final : public Component
   void add_state_subscription_(const char *entity_id, const char *attribute, Callback<void(StringRef)> callback,
                                bool once);
   void add_extra_state_subscription_(const HomeAssistantStateSubscription &sub);
+  // Its state handler walks the subscription lists directly
+  friend class APIConnection;
 #endif  // USE_API_HOMEASSISTANT_STATES
   // No explicit close() needed — listen sockets have no active connections on
   // failure/shutdown. Destructor handles fd cleanup (close or abort per platform).

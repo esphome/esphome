@@ -2169,19 +2169,46 @@ void APIConnection::on_home_assistant_state_response(const HomeAssistantStateRes
     const_cast<char *>(msg.state.c_str())[msg.state.size()] = '\0';
   }
 
-  const APIServer::HomeAssistantStateSubscription *it;
-  for (size_t i = 0; (it = this->parent_->get_state_sub(i)) != nullptr; i++) {
-    if (msg.entity_id != it->entity_id) {
+  using Sub = APIServer::HomeAssistantStateSubscription;
+  APIServer *server = this->parent_;
+  // Counted subscriptions first, then the extra ones. A callback may subscribe, which can move
+  // extra_state_subs_, so the end is read again and the position re-anchored after each callback.
+  bool in_extra = true;
+  const Sub *it = server->extra_state_subs_;
+  const Sub *end = it + server->extra_state_sub_count_;
+#ifdef HOMEASSISTANT_STATE_SUBSCRIPTION_COUNT
+  in_extra = false;
+  it = server->state_subs_.begin();
+  end = server->state_subs_.end();
+#endif
+  for (;;) {
+    if (it == end) {
+      if (in_extra)
+        return;
+      in_extra = true;
+      it = server->extra_state_subs_;
+      end = it + server->extra_state_sub_count_;
       continue;
     }
-
-    // If subscriber has attribute filter (non-null), message attribute must match it;
-    // if subscriber has no filter (nullptr), message must have no attribute.
-    if (it->attribute != nullptr ? msg.attribute != it->attribute : !msg.attribute.empty()) {
+    // A subscription without an attribute only takes states without one
+    if (msg.entity_id != it->entity_id ||
+        (it->attribute != nullptr ? msg.attribute != it->attribute : !msg.attribute.empty())) {
+      ++it;
       continue;
     }
-
-    it->callback.call(msg.state);
+    const Sub *base = server->extra_state_subs_;
+    const uint16_t count = server->extra_state_sub_count_;
+    (it++)->callback.call(msg.state);
+#ifdef HOMEASSISTANT_STATE_SUBSCRIPTION_COUNT
+    if (!in_extra) {
+      end = server->state_subs_.end();
+      continue;
+    }
+#endif
+    if (server->extra_state_sub_count_ != count) {
+      it = server->extra_state_subs_ + (it - base);
+      end = server->extra_state_subs_ + server->extra_state_sub_count_;
+    }
   }
 }
 #endif
