@@ -1,0 +1,20 @@
+packages:
+  i2c: !include ../../test_build_components/common/i2c/esp32-p4-idf.yaml
+  csi_camera: !include common.yaml
+
+esphome:
+  name: csi-camera-modes-test
+
+esp32:
+  board: esp32-p4-evboard
+  variant: ESP32P4
+  framework:
+    type: esp-idf
+
+logger:
+
+csi_camera:
+  width: 800
+  height: 800
+  fps: 50
+  raw_format: raw8

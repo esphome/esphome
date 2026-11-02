@@ -1,0 +1,7 @@
+psram:
+  ignore_not_found: false
+
+csi_camera:
+  id: csi_cam
+  address: 0x36
+  power_down_pin: 27

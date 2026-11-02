@@ -1,0 +1,22 @@
+packages:
+  i2c: !include ../../test_build_components/common/i2c/esp32-p4-idf.yaml
+  csi_camera: !include common.yaml
+
+esphome:
+  name: csi-camera-base-test
+
+esp32:
+  board: esp32-p4-evboard
+  variant: ESP32P4
+  framework:
+    type: esp-idf
+
+logger:
+
+csi_camera:
+  frame_buffer_count: 4
+  brightness: 0
+  contrast: 1.0
+  saturation: 1.5
+  horizontal_mirror: false
+  vertical_flip: false
