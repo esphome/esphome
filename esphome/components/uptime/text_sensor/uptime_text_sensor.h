@@ -23,6 +23,7 @@ class UptimeTextSensor final : public text_sensor::TextSensor, public PollingCom
   explicit UptimeTextSensor(const UptimeFormat *format) : format_(format) {}
   void update() override;
   /// Publish uptime (in seconds) as text, keeping only the units the update interval can resolve.
+  /// For tests; firmware only calls update().
   void publish_uptime(uint32_t uptime);
   void dump_config() override;
   void setup() override;
@@ -30,6 +31,8 @@ class UptimeTextSensor final : public text_sensor::TextSensor, public PollingCom
   float get_setup_priority() const override;
 
  protected:
+  void publish_uptime_(uint32_t uptime);
+
   const UptimeFormat *format_;
 };
 
