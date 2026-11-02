@@ -47,8 +47,14 @@ def test_text_variables_reach_the_codegen(
         'dial->trigger("clock_wise", {{0, 3}, {1, "start"}, {2, "a1b2"}});' in main_cpp
     )
     # A text is a view into the data block, unless the automation waits
-    assert "Automation<StringRef, int32_t, StringRef, StringRef>" in main_cpp
-    assert "Automation<StringRef, int32_t, std::string, std::string>" in main_cpp
+    assert (
+        "[](StringRef event_type, int32_t steps, StringRef action, StringRef code)"
+        in main_cpp
+    )
+    assert (
+        "[](StringRef event_type, int32_t steps, std::string action, std::string code)"
+        in main_cpp
+    )
 
 
 def test_trigger_waits_for_register_event(
