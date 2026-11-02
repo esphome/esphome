@@ -414,6 +414,23 @@ def test_spd2010_expander_default_generation(
     assert "mipi_spi_mipispi_id->set_reset_pin(pca9554_pca9554gpiopin_id);" in main_cpp
 
 
+def test_sensecap_watcher_generation(
+    generate_main: Callable[[str | Path], str],
+    component_fixture_path: Callable[[str], Path],
+) -> None:
+    """The Watcher model needs no expander, sets CS 45 and resets by software."""
+    main_cpp = generate_main(component_fixture_path("spd2010_sensecap_watcher.yaml"))
+
+    assert "pca9554" not in main_cpp
+    assert "set_reset_pin" not in main_cpp
+    assert "set_pin(::GPIO_NUM_45);" in main_cpp
+    assert (
+        "mipi_spi_mipispi_id->set_cs_pin(esp32_esp32internalgpiopin_id_2);" in main_cpp
+    )
+    # SWRESET ({1, 0}) is prepended because there is no reset pin.
+    assert _init_sequence(main_cpp).startswith("{1, 0, 20, 255,")
+
+
 def test_spd2010_default_reset_requires_expander() -> None:
     """A registered pin schema alone cannot satisfy the default expander reference."""
     result = validate_config(
