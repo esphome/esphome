@@ -2,6 +2,7 @@ from dataclasses import dataclass, field
 
 from esphome import pins
 import esphome.codegen as cg
+from esphome.components.const import CONF_KEEP_ALIVE
 from esphome.components.esp32 import (
     add_idf_sdkconfig_option,
     get_esp32_variant,
@@ -51,7 +52,6 @@ CONF_I2S_LRCLK_PIN = "i2s_lrclk_pin"
 
 CONF_I2S_AUDIO_ID = "i2s_audio_id"
 CONF_FULL_DUPLEX = "full_duplex"
-CONF_KEEP_ALIVE = "keep_alive"
 CONF_I2S_COMM_FMT = "i2s_comm_fmt"
 CONF_SPDIF_MODE = "spdif_mode"
 

@@ -1,6 +1,7 @@
 from esphome import pins
 import esphome.codegen as cg
 from esphome.components import audio, esp32, speaker
+from esphome.components.const import CONF_KEEP_ALIVE
 from esphome.components.microphone import DOMAIN as MICROPHONE_DOMAIN
 from esphome.config_helpers import filter_source_files_from_defines
 import esphome.config_validation as cv
@@ -49,7 +50,6 @@ I2SAudioSpeakerBase = i2s_audio_ns.class_(
 I2SAudioSpeaker = i2s_audio_ns.class_("I2SAudioSpeaker", I2SAudioSpeakerBase)
 
 CONF_DAC_TYPE = "dac_type"
-CONF_KEEP_ALIVE = "keep_alive"
 
 I2SAudioSpeakerBase = i2s_audio_ns.class_(
     "I2SAudioSpeakerBase", cg.Component, speaker.Speaker, I2SAudioOut

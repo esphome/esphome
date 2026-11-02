@@ -2,6 +2,7 @@
 
 import esphome.codegen as cg
 from esphome.components import binary_sensor
+from esphome.components.const import CONF_KEEP_ALIVE
 import esphome.config_validation as cv
 from esphome.const import (
     CONF_BINARY_SENSOR,
@@ -14,8 +15,6 @@ from esphome.cpp_generator import MockObj
 from esphome.types import ConfigType
 
 from . import SESSION, PacketInterface, packet_interface_ns
-
-CONF_KEEP_ALIVE = "keep_alive"
 
 BasicSession = packet_interface_ns.class_("BasicSession", PacketInterface)
 

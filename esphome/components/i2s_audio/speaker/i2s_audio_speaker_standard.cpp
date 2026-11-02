@@ -426,15 +426,13 @@ bool I2SAudioSpeaker::supports_audio_stream(const audio::AudioStreamInfo &stream
 #ifdef USE_I2S_AUDIO_FULL_DUPLEX
   if (this->parent_->is_full_duplex()) {
     const auto required = this->full_duplex_stream_info_();
-    if (stream_info.get_sample_rate() != required.get_sample_rate() ||
-        stream_info.get_channels() != required.get_channels()) {
-      return false;
-    }
+    const bool matching_format = stream_info.get_sample_rate() == required.get_sample_rate() &&
+                                 stream_info.get_channels() == required.get_channels();
 #ifdef USE_ESP32_VARIANT_ESP32
     // This target converts every stream to the configured slot's memory width.
-    return true;
+    return matching_format;
 #else
-    return stream_info.get_bits_per_sample() >= required.get_bits_per_sample();
+    return matching_format && stream_info.get_bits_per_sample() >= required.get_bits_per_sample();
 #endif
   }
 #endif
