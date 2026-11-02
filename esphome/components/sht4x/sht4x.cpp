@@ -28,7 +28,7 @@ void SHT4XComponent::read_serial_number_() {
   ESP_LOGD(TAG, "Serial number: %08" PRIx32, this->serial_number_);
 #ifdef USE_TEXT_SENSOR
   if (this->serial_number_text_sensor_ != nullptr) {
-    char serial_number[9];
+    char serial_number[format_hex_size(sizeof(this->serial_number_))];
     format_hex_to(serial_number, this->serial_number_);
     this->serial_number_text_sensor_->publish_state(serial_number);
   }

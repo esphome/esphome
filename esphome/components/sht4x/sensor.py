@@ -20,7 +20,7 @@ CODEOWNERS = ["@sjtrny"]
 DEPENDENCIES = ["i2c"]
 
 
-def AUTO_LOAD(config: ConfigType) -> list[str]:
+def AUTO_LOAD(config: ConfigType | None) -> list[str]:
     if not config or CONF_SERIAL_NUMBER in config:
         return ["sensirion_common", "text_sensor"]
     return ["sensirion_common"]
