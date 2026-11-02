@@ -60,9 +60,9 @@ async def to_code(config: ConfigType) -> None:
     var = await i2c.new_i2c_component(config)
 
     sensors = sensor.sub_sensors(config)
-    await sensors(CONF_TVOC, var.set_tvoc)
-    await sensors(CONF_VERSION, var.set_version)
-    await sensors(CONF_RESISTANCE, var.set_resistance)
+    await sensors(CONF_TVOC, var.set_tvoc_sensor)
+    await sensors(CONF_VERSION, var.set_version_sensor)
+    await sensors(CONF_RESISTANCE, var.set_resistance_sensor)
 
 
 AGS10_NEW_I2C_ADDRESS_SCHEMA = cv.maybe_simple_value(

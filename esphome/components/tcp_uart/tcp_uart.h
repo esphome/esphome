@@ -20,18 +20,19 @@ namespace esphome::tcp_uart {
 
 /// TCP client or server presented as a UART. Bytes are copied unchanged.
 class TcpUart : public uart::UARTComponent, public Component {
+#ifdef USE_BINARY_SENSOR
+  SUB_BINARY_SENSOR(connected)
+#endif
+#ifdef USE_SENSOR
+  SUB_SENSOR(disconnects)
+#endif
+
  public:
   TcpUart() { this->rx_buffer_size_ = RX_BUFFER_SIZE; }
 
   void set_host(const char *host) { this->link_.set_host(host); }
   void set_port(uint16_t port) { this->link_.set_port(port); }
   void set_reconnect_interval(uint32_t ms) { this->link_.set_reconnect_interval(ms); }
-#ifdef USE_BINARY_SENSOR
-  void set_connected_sensor(binary_sensor::BinarySensor *sensor) { this->connected_sensor_ = sensor; }
-#endif
-#ifdef USE_SENSOR
-  void set_disconnects_sensor(sensor::Sensor *sensor) { this->disconnects_sensor_ = sensor; }
-#endif
 #ifdef USE_SOCKET_TCP_LISTENER
   void set_server(bool server) { this->server_ = server; }
 #ifdef USE_SOCKET_IPV4_ALLOW
@@ -69,11 +70,7 @@ class TcpUart : public uart::UARTComponent, public Component {
 #ifdef USE_SOCKET_TCP_LISTENER
   socket::TcpListener listener_;
 #endif
-#ifdef USE_BINARY_SENSOR
-  binary_sensor::BinarySensor *connected_sensor_{nullptr};
-#endif
 #ifdef USE_SENSOR
-  sensor::Sensor *disconnects_sensor_{nullptr};
   uint32_t disconnects_{0};
 #endif
   uint32_t last_drop_log_ms_{0};

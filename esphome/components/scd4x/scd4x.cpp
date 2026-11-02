@@ -104,9 +104,9 @@ void SCD4XComponent::dump_config() {
                 "  Measurement mode: %s\n"
                 "  Temperature offset: %.2f °C",
                 ONOFF(this->enable_asc_), measurement_mode_str, this->temperature_offset_);
-  if (this->ambient_pressure_source_ != nullptr) {
+  if (this->ambient_pressure_source_sensor_ != nullptr) {
     ESP_LOGCONFIG(TAG, "  Dynamic ambient pressure compensation using '%s'",
-                  LOG_STR_ARG(this->ambient_pressure_source_->get_log_name()));
+                  LOG_STR_ARG(this->ambient_pressure_source_sensor_->get_log_name()));
   } else {
     if (this->ambient_pressure_) {
       ESP_LOGCONFIG(TAG,
@@ -131,8 +131,8 @@ void SCD4XComponent::update() {
     return;
   }
 
-  if (this->ambient_pressure_source_ != nullptr) {
-    float pressure = this->ambient_pressure_source_->state;
+  if (this->ambient_pressure_source_sensor_ != nullptr) {
+    float pressure = this->ambient_pressure_source_sensor_->state;
     if (!std::isnan(pressure)) {
       this->set_ambient_pressure_compensation(pressure);
     }
@@ -170,8 +170,7 @@ void SCD4XComponent::update() {
       this->status_set_warning();
       return;
     }
-    if (this->co2_sensor_ != nullptr)
-      this->co2_sensor_->publish_state(raw_data[0]);
+    PUBLISH_STATE(this->co2_sensor_, raw_data[0]);
 
     if (this->temperature_sensor_ != nullptr) {
       const float temperature = -45.0f + (175.0f * (raw_data[1])) / (1 << 16);

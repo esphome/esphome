@@ -66,5 +66,5 @@ async def build_basic_session(config: ConfigType, lower: MockObj) -> MockObj:
     cg.add(var.set_session_timeout(config[CONF_TIMEOUT]))
     await cg.register_component(var, config)
     binary_sensors = binary_sensor.sub_binary_sensors(config)
-    await binary_sensors(CONF_BINARY_SENSOR, var.set_connected_sensor)
+    await binary_sensors(CONF_BINARY_SENSOR, var.set_connected_binary_sensor)
     return var

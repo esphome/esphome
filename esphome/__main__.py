@@ -477,13 +477,20 @@ def has_api() -> bool:
 def has_ota() -> bool:
     """Check if any network OTA upload is available.
 
-    True if the config exposes either ``platform: esphome`` (native API
-    OTA) or ``platform: web_server`` (HTTP OTA). Both reach the device
-    over the same network stack, so the OTA discovery path treats them
-    interchangeably; ``upload_program`` picks the actual transport based
-    on ``--ota-platform`` and what's configured.
+    True if the config exposes ``platform: esphome`` (native API OTA),
+    ``platform: web_server`` (HTTP OTA), or a network OTA that the target
+    platform uploads to itself (nRF52 SMP over UDP). The OTA discovery path
+    treats them interchangeably; ``upload_program`` picks the actual transport.
     """
-    return has_native_ota() or has_web_server_ota()
+    return has_native_ota() or has_web_server_ota() or has_platform_network_ota()
+
+
+def has_platform_network_ota() -> bool:
+    """Check if the target platform's ``has_network_ota`` hook reports a network OTA."""
+    if (target := CORE.target_platform) is None:
+        return False
+    hook = platform_hooks.get_platform_hook(target, "has_network_ota")
+    return hook is not None and hook(CORE.config)
 
 
 def has_native_ota() -> bool:

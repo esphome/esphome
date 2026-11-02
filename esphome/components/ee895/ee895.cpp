@@ -24,8 +24,7 @@ void EE895Component::setup() {
 
   crc16_check = (serial_number[19] << 8) + serial_number[18];
   if (crc16_check != calc_crc16_(serial_number, 18)) {
-    this->error_code_ = CRC_CHECK_FAILED;
-    this->mark_failed();
+    this->mark_failed(LOG_STR("CRC check failed"));
     return;
   }
 #if ESPHOME_LOG_LEVEL >= ESPHOME_LOG_LEVEL_VERBOSE
@@ -37,17 +36,6 @@ void EE895Component::setup() {
 void EE895Component::dump_config() {
   ESP_LOGCONFIG(TAG, "EE895:");
   LOG_I2C_DEVICE(this);
-  switch (this->error_code_) {
-    case COMMUNICATION_FAILED:
-      ESP_LOGE(TAG, ESP_LOG_MSG_COMM_FAIL);
-      break;
-    case CRC_CHECK_FAILED:
-      ESP_LOGE(TAG, "The crc check failed");
-      break;
-    case NONE:
-    default:
-      break;
-  }
   LOG_UPDATE_INTERVAL(this);
   LOG_SENSOR("  ", "Temperature", this->temperature_sensor_);
   LOG_SENSOR("  ", "CO2", this->co2_sensor_);
@@ -65,12 +53,9 @@ void EE895Component::update() {
     write_command_(PRESSURE_ADDRESS, 2);
     float pressure = read_float_();
     ESP_LOGD(TAG, "Got temperature=%.1f°C co2=%.0fppm pressure=%.1f%mbar", temperature, co2, pressure);
-    if (this->temperature_sensor_ != nullptr)
-      this->temperature_sensor_->publish_state(temperature);
-    if (this->co2_sensor_ != nullptr)
-      this->co2_sensor_->publish_state(co2);
-    if (this->pressure_sensor_ != nullptr)
-      this->pressure_sensor_->publish_state(pressure);
+    PUBLISH_STATE(this->temperature_sensor_, temperature);
+    PUBLISH_STATE(this->co2_sensor_, co2);
+    PUBLISH_STATE(this->pressure_sensor_, pressure);
     this->status_clear_warning();
   });
 }
@@ -95,8 +80,7 @@ float EE895Component::read_float_() {
   this->read(i2c_response, 8);
   crc16_check = (i2c_response[7] << 8) + i2c_response[6];
   if (crc16_check != calc_crc16_(i2c_response, 6)) {
-    this->error_code_ = CRC_CHECK_FAILED;
-    this->status_set_warning();
+    this->status_set_warning(LOG_STR("CRC check failed"));
     return 0;
   }
   uint32_t x = encode_uint32(i2c_response[4], i2c_response[5], i2c_response[2], i2c_response[3]);

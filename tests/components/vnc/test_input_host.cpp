@@ -510,9 +510,6 @@ static uint16_t mapped(int raw, int raw_max, int size) {
 class VncTouchscreen : public VncInput {
  protected:
   void SetUp() override {
-    // The test main does not construct App; the touchscreen defers its listener calls to the scheduler.
-    static const bool APP_CONSTRUCTED = (new (&App) Application(), true);
-    (void) APP_CONSTRUCTED;
     this->begin(960, 540, 960, 540);
     this->ts_.set_calibration(0, 960, 0, 540);
     this->ts_.attach(this->d_.get());

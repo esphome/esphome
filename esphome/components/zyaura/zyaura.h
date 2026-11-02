@@ -61,9 +61,9 @@ class ZyAuraSensor final : public PollingComponent {
  public:
   void set_pin_clock(InternalGPIOPin *pin) { pin_clock_ = pin; }
   void set_pin_data(InternalGPIOPin *pin) { pin_data_ = pin; }
-  void set_co2_sensor(sensor::Sensor *co2_sensor) { co2_sensor_ = co2_sensor; }
-  void set_temperature_sensor(sensor::Sensor *temperature_sensor) { temperature_sensor_ = temperature_sensor; }
-  void set_humidity_sensor(sensor::Sensor *humidity_sensor) { humidity_sensor_ = humidity_sensor; }
+  SUB_SENSOR(co2)
+  SUB_SENSOR(temperature)
+  SUB_SENSOR(humidity)
 
   void setup() override { this->store_.setup(this->pin_clock_, this->pin_data_); }
   void dump_config() override;
@@ -73,9 +73,6 @@ class ZyAuraSensor final : public PollingComponent {
   ZaSensorStore store_;
   InternalGPIOPin *pin_clock_;
   InternalGPIOPin *pin_data_;
-  sensor::Sensor *co2_sensor_{nullptr};
-  sensor::Sensor *temperature_sensor_{nullptr};
-  sensor::Sensor *humidity_sensor_{nullptr};
 
   bool publish_state_(ZaDataType data_type, sensor::Sensor *sensor, uint16_t *data_value);
 };

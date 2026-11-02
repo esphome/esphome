@@ -41,8 +41,7 @@ bool M5Stack4Relay::set_relay(uint8_t channel, bool on) {
     return false;
   this->relays_ = value;
 #ifdef USE_SWITCH
-  if (this->switches_[channel] != nullptr)
-    this->switches_[channel]->publish_state(on);
+  PUBLISH_STATE(this->switches_[channel], on);
 #endif
   return true;
 }

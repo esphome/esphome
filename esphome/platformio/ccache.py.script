@@ -22,11 +22,27 @@ if os.environ.get("ESPHOME_CCACHE_ENABLE") == "1" and (
 ):
     original_spawn = env["SPAWN"]
 
+    def is_compile(args: list[str]) -> bool:
+        if "-c" in args:
+            return True
+        # A command line over the platform's length limit (8191 on Windows)
+        # arrives as @file with every flag inside (PlatformIO's piomaxlen.py);
+        # SCons quotes the whole argument when the path has a space
+        for arg in args:
+            arg = arg.strip('"')
+            if arg.startswith("@"):
+                try:
+                    with open(arg[1:].strip('"'), encoding="utf-8") as f:
+                        return "-c" in f.read().split()
+                except (OSError, ValueError):
+                    return False
+        return False
+
     def ccache_spawn(sh, escape, cmd, args, child_env):
         # Only wrap compile steps (gcc/g++ with -c); linking, archiving and
         # the other tools gain nothing from ccache.
         prog = os.path.basename(cmd).removesuffix(".exe")
-        if prog.endswith(("gcc", "g++")) and "-c" in args:
+        if prog.endswith(("gcc", "g++")) and is_compile(args):
             cmd = ccache_path
             args = [escape(ccache_path), *args]
         return original_spawn(sh, escape, cmd, args, child_env)

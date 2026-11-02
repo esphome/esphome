@@ -212,17 +212,14 @@ void MR60FDA2Component::process_frame_() {
   switch (this->current_frame_type_) {
     case IS_FALL_TYPE_BUFFER:
 #ifdef USE_BINARY_SENSOR
-      if (this->fall_detected_binary_sensor_ != nullptr) {
-        this->fall_detected_binary_sensor_->publish_state(this->current_frame_buf_[LEN_TO_HEAD_CKSUM]);
-      }
+      PUBLISH_STATE(this->fall_detected_binary_sensor_, this->current_frame_buf_[LEN_TO_HEAD_CKSUM]);
 #endif
       this->current_frame_locate_ = LOCATE_FRAME_HEADER;
       break;
 
     case PEOPLE_EXIST_TYPE_BUFFER:
 #ifdef USE_BINARY_SENSOR
-      if (this->people_exist_binary_sensor_ != nullptr)
-        this->people_exist_binary_sensor_->publish_state(this->current_frame_buf_[LEN_TO_HEAD_CKSUM]);
+      PUBLISH_STATE(this->people_exist_binary_sensor_, this->current_frame_buf_[LEN_TO_HEAD_CKSUM]);
 #endif
       this->current_frame_locate_ = LOCATE_FRAME_HEADER;
       break;

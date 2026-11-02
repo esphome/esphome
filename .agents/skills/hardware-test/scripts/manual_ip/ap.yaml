@@ -1,0 +1,36 @@
+# AP manual IP: the only network is missing, so the fallback AP starts after 10 s on 10.42.7.1.
+substitutions:
+  name: mip-ap
+  plat: esp32
+
+esphome:
+  name: ${name}
+
+packages:
+  plat: !include plat-${plat}.yaml
+
+logger:
+  level: VERBOSE
+  logs:
+    scheduler: DEBUG
+    component: DEBUG
+
+wifi:
+  networks:
+    - ssid: mip-nowhere
+      password: nowhere123
+      manual_ip:
+        static_ip: 10.9.9.9
+        gateway: 10.9.9.1
+        subnet: 255.255.255.0
+        dns1: 10.9.9.1
+  ap:
+    ssid: mip-ap-test
+    password: mipaptest1
+    ap_timeout: 10s
+    manual_ip:
+      static_ip: 10.42.7.1
+      gateway: 10.42.7.1
+      subnet: 255.255.255.0
+
+captive_portal:

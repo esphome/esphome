@@ -41,8 +41,8 @@ void XiaomiMCCGQ02HL::dump_config() {
                 "  MAC Address: %s",
                 format_mac_addr_upper(mac, mac_buf));
   LOG_BINARY_SENSOR("  ", "Opening", this);
-  LOG_BINARY_SENSOR("  ", "Light", this->light_);
-  LOG_SENSOR("  ", "Battery Level", this->battery_level_);
+  LOG_BINARY_SENSOR("  ", "Light", this->light_binary_sensor_);
+  LOG_SENSOR("  ", "Battery Level", this->battery_level_sensor_);
 }
 
 void XiaomiMCCGQ02HL::set_bindkey(const char *bindkey) { parse_hex(bindkey, this->bindkey_, sizeof(this->bindkey_)); }
@@ -69,10 +69,8 @@ bool XiaomiMCCGQ02HL::parse_device(const ble_device_base::ESPBTDevice &device) {
 
     if (reading.open.has_value())
       this->publish_state(*reading.open);
-    if (reading.light.has_value() && this->light_ != nullptr)
-      this->light_->publish_state(*reading.light);
-    if (reading.battery_level.has_value() && this->battery_level_ != nullptr)
-      this->battery_level_->publish_state(*reading.battery_level);
+    publish_optional(this->light_binary_sensor_, reading.light);
+    publish_optional(this->battery_level_sensor_, reading.battery_level);
     success = true;
   }
   return success;

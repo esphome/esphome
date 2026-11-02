@@ -10,6 +10,14 @@
 namespace esphome::filter_lifetime {
 
 class FilterLifetime : public sensor::Sensor, public PollingComponent {
+  SUB_SENSOR(runtime_hours)
+  SUB_SENSOR(remaining_days)
+  // Input sensors for the running state and speed
+#ifdef USE_BINARY_SENSOR
+  SUB_BINARY_SENSOR(is_on)
+#endif
+  SUB_SENSOR(current_speed)
+
  public:
   void setup() override;
   void update() override;
@@ -19,13 +27,7 @@ class FilterLifetime : public sensor::Sensor, public PollingComponent {
 
   void set_max_lifetime(uint32_t minutes) { this->max_lifetime_minutes_ = minutes; }
   void set_is_on_lambda(bool (*is_on)()) { this->is_on_lambda_ = is_on; }
-#ifdef USE_BINARY_SENSOR
-  void set_is_on_sensor(binary_sensor::BinarySensor *sensor) { this->is_on_sensor_ = sensor; }
-#endif
   void set_current_speed_lambda(float (*speed)()) { this->current_speed_lambda_ = speed; }
-  void set_current_speed_sensor(sensor::Sensor *sensor) { this->current_speed_sensor_ = sensor; }
-  void set_runtime_hours_sensor(sensor::Sensor *sensor) { this->runtime_hours_sensor_ = sensor; }
-  void set_remaining_days_sensor(sensor::Sensor *sensor) { this->remaining_days_sensor_ = sensor; }
 
  protected:
   bool get_is_on_();
@@ -34,12 +36,6 @@ class FilterLifetime : public sensor::Sensor, public PollingComponent {
 
   bool (*is_on_lambda_)(){nullptr};
   float (*current_speed_lambda_)(){nullptr};
-#ifdef USE_BINARY_SENSOR
-  binary_sensor::BinarySensor *is_on_sensor_{nullptr};
-#endif
-  sensor::Sensor *current_speed_sensor_{nullptr};
-  sensor::Sensor *runtime_hours_sensor_{nullptr};
-  sensor::Sensor *remaining_days_sensor_{nullptr};
   ESPPreferenceObject pref_;
   uint32_t max_lifetime_minutes_{0};
   uint32_t last_update_{0};

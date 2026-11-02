@@ -308,30 +308,14 @@ void SEN5XComponent::update() {
                     ? NAN
                     : static_cast<float>(nox_idx) / 10.0f;
 
-    if (this->pm_1_0_sensor_ != nullptr) {
-      this->pm_1_0_sensor_->publish_state(pm_1_0);
-    }
-    if (this->pm_2_5_sensor_ != nullptr) {
-      this->pm_2_5_sensor_->publish_state(pm_2_5);
-    }
-    if (this->pm_4_0_sensor_ != nullptr) {
-      this->pm_4_0_sensor_->publish_state(pm_4_0);
-    }
-    if (this->pm_10_0_sensor_ != nullptr) {
-      this->pm_10_0_sensor_->publish_state(pm_10_0);
-    }
-    if (this->temperature_sensor_ != nullptr) {
-      this->temperature_sensor_->publish_state(temperature);
-    }
-    if (this->humidity_sensor_ != nullptr) {
-      this->humidity_sensor_->publish_state(humidity);
-    }
-    if (this->voc_sensor_ != nullptr) {
-      this->voc_sensor_->publish_state(voc);
-    }
-    if (this->nox_sensor_ != nullptr) {
-      this->nox_sensor_->publish_state(nox);
-    }
+    PUBLISH_STATE(this->pm_1_0_sensor_, pm_1_0);
+    PUBLISH_STATE(this->pm_2_5_sensor_, pm_2_5);
+    PUBLISH_STATE(this->pm_4_0_sensor_, pm_4_0);
+    PUBLISH_STATE(this->pm_10_0_sensor_, pm_10_0);
+    PUBLISH_STATE(this->temperature_sensor_, temperature);
+    PUBLISH_STATE(this->humidity_sensor_, humidity);
+    PUBLISH_STATE(this->voc_sensor_, voc);
+    PUBLISH_STATE(this->nox_sensor_, nox);
 
     if (!this->voc_sensor_ || !this->store_baseline_ ||
         (App.get_loop_component_start_time() - this->voc_baseline_time_) < SHORTEST_BASELINE_STORE_INTERVAL) {

@@ -7,6 +7,7 @@
 
 #include "ft63x6.h"
 #include "esphome/core/log.h"
+#include "esphome/core/helpers.h"
 
 // Registers
 // Reference: https://focuslcds.com/content/FT6236.pdf
@@ -95,13 +96,13 @@ uint16_t FT63X6Touchscreen::read_touch_x_(uint8_t touch) {
   uint8_t read_buf[2];
   read_buf[0] = this->read_byte_(FT63X6_ADDR_TOUCH1_X + (touch * 6));
   read_buf[1] = this->read_byte_(FT63X6_ADDR_TOUCH1_X + 1 + (touch * 6));
-  return ((read_buf[0] & 0x0f) << 8) | read_buf[1];
+  return encode_uint16(read_buf[0] & 0x0f, read_buf[1]);
 }
 uint16_t FT63X6Touchscreen::read_touch_y_(uint8_t touch) {
   uint8_t read_buf[2];
   read_buf[0] = this->read_byte_(FT63X6_ADDR_TOUCH1_Y + (touch * 6));
   read_buf[1] = this->read_byte_(FT63X6_ADDR_TOUCH1_Y + 1 + (touch * 6));
-  return ((read_buf[0] & 0x0f) << 8) | read_buf[1];
+  return encode_uint16(read_buf[0] & 0x0f, read_buf[1]);
 }
 uint8_t FT63X6Touchscreen::read_touch_event_(uint8_t touch) {
   return this->read_byte_(FT63X6_ADDR_TOUCH1_X + (touch * 6)) >> 6;

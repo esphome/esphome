@@ -10,6 +10,8 @@
 namespace esphome::yashima {
 
 class YashimaClimate final : public climate::Climate, public Component {
+  SUB_SENSOR(temperature)
+
  public:
   void setup() override;
   void set_transmitter(remote_transmitter::RemoteTransmitterComponent *transmitter) {
@@ -17,7 +19,6 @@ class YashimaClimate final : public climate::Climate, public Component {
   }
   void set_supports_cool(bool supports_cool) { this->supports_cool_ = supports_cool; }
   void set_supports_heat(bool supports_heat) { this->supports_heat_ = supports_heat; }
-  void set_sensor(sensor::Sensor *sensor) { this->sensor_ = sensor; }
 
  protected:
   /// Override control to change settings of the climate device.
@@ -32,7 +33,6 @@ class YashimaClimate final : public climate::Climate, public Component {
   bool supports_heat_{true};
 
   remote_transmitter::RemoteTransmitterComponent *transmitter_;
-  sensor::Sensor *sensor_{nullptr};
 };
 
 }  // namespace esphome::yashima

@@ -1,0 +1,4 @@
+esp32:
+  board: esp32dev
+  framework:
+    type: esp-idf

@@ -845,6 +845,66 @@ def test_ccache_script_wraps_compiles_with_exported_path() -> None:
     )
 
 
+def test_ccache_script_wraps_compiles_moved_to_a_response_file(
+    tmp_path: Path,
+) -> None:
+    """PlatformIO moves a command line over the Windows length limit into
+    an @file; the -c that marks a compile is then inside that file."""
+    ccache_path = "C:\\ccache\\ccache.exe"
+    scons_env, original_spawn = _load_ccache_script(
+        {"ESPHOME_CCACHE_ENABLE": "1", "ESPHOME_CCACHE_PATH": ccache_path}
+    )
+    spawn = scons_env["SPAWN"]
+
+    compile_rsp = tmp_path / "tmp1.tmp"
+    compile_rsp.write_text('-o main.o -c -I"C:/sdk/include" main.cpp')
+    compile_args = ["arm-none-eabi-g++", f"@{compile_rsp}"]
+    spawn("cmd.exe", _scons_win32_escape, "arm-none-eabi-g++", compile_args, {})
+    original_spawn.assert_called_once_with(
+        "cmd.exe",
+        _scons_win32_escape,
+        ccache_path,
+        [_scons_win32_escape(ccache_path), *compile_args],
+        {},
+    )
+
+    # SCons quotes the whole argument when the file's path has a space
+    original_spawn.reset_mock()
+    spaced_rsp = tmp_path / "Jane Doe" / "tmp3.tmp"
+    spaced_rsp.parent.mkdir()
+    spaced_rsp.write_text("-o main.o -c main.cpp")
+    spaced_args = ["arm-none-eabi-g++", f'"@{spaced_rsp}"']
+    spawn("cmd.exe", _scons_win32_escape, "arm-none-eabi-g++", spaced_args, {})
+    original_spawn.assert_called_once_with(
+        "cmd.exe",
+        _scons_win32_escape,
+        ccache_path,
+        [_scons_win32_escape(ccache_path), *spaced_args],
+        {},
+    )
+
+    # A link moved to a response file still passes through untouched
+    original_spawn.reset_mock()
+    link_rsp = tmp_path / "tmp2.tmp"
+    link_rsp.write_text("-o firmware.elf main.o -lc")
+    link_args = ["arm-none-eabi-g++", f"@{link_rsp}"]
+    spawn("cmd.exe", _scons_win32_escape, "arm-none-eabi-g++", link_args, {})
+    original_spawn.assert_called_once_with(
+        "cmd.exe", _scons_win32_escape, "arm-none-eabi-g++", link_args, {}
+    )
+
+    # An unreadable or undecodable response file is not a compile
+    for bad in (tmp_path / "absent.tmp", tmp_path / "binary.tmp"):
+        original_spawn.reset_mock()
+        if bad.name == "binary.tmp":
+            bad.write_bytes(b"-c \xff\xfe")
+        bad_args = ["arm-none-eabi-g++", f"@{bad}"]
+        spawn("cmd.exe", _scons_win32_escape, "arm-none-eabi-g++", bad_args, {})
+        original_spawn.assert_called_once_with(
+            "cmd.exe", _scons_win32_escape, "arm-none-eabi-g++", bad_args, {}
+        )
+
+
 @pytest.mark.parametrize(
     "env_vars",
     [

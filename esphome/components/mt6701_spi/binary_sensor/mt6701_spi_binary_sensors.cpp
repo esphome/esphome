@@ -14,10 +14,8 @@ void MT6701SPIBinarySensors::loop() {
   if (!this->parent_->read_encoder())
     return;
   const uint8_t status = this->parent_->get_status();
-  if (this->push_button_binary_sensor_ != nullptr)
-    this->push_button_binary_sensor_->publish_state((status & 0x04) != 0);
-  if (this->track_loss_binary_sensor_ != nullptr)
-    this->track_loss_binary_sensor_->publish_state((status & 0x08) != 0);
+  PUBLISH_STATE(this->push_button_binary_sensor_, (status & 0x04) != 0);
+  PUBLISH_STATE(this->track_loss_binary_sensor_, (status & 0x08) != 0);
 }
 
 void MT6701SPIBinarySensors::dump_config() {

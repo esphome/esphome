@@ -4,7 +4,7 @@ from pathlib import Path
 
 from esphome import pins
 from esphome.components import esp32
-from esphome.components.const import CONF_SLOT, CONF_USE_PSRAM
+from esphome.components.const import CONF_ACTIVE_HIGH, CONF_SLOT, CONF_USE_PSRAM
 import esphome.config_validation as cv
 from esphome.const import (
     CONF_CLK_PIN,
@@ -27,7 +27,6 @@ DOMAIN = "esp32_hosted"
 # esp32_ble raises the task watchdog around the remote BT controller bring-up
 AUTO_LOAD = ["watchdog"]
 
-CONF_ACTIVE_HIGH = "active_high"
 CONF_BUS_WIDTH = "bus_width"
 CONF_CMD_PIN = "cmd_pin"
 CONF_D0_PIN = "d0_pin"

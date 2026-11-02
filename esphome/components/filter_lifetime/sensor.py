@@ -72,7 +72,7 @@ async def to_code(config: ConfigType) -> None:
 
     if (is_on := config.get(CONF_IS_ON)) is not None:
         cg.add(var.set_is_on_lambda(await cg.templatable(is_on, [], bool)))
-    await cg.add_variable(var.set_is_on_sensor, config.get(CONF_IS_ON_SENSOR))
+    await cg.add_variable(var.set_is_on_binary_sensor, config.get(CONF_IS_ON_SENSOR))
 
     if (current_speed := config.get(CONF_CURRENT_SPEED)) is not None:
         cg.add(

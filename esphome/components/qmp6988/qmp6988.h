@@ -68,10 +68,10 @@ using qmp6988_data_t = struct Qmp6988Data {
 };
 
 class QMP6988Component final : public PollingComponent, public i2c::I2CDevice {
- public:
-  void set_temperature_sensor(sensor::Sensor *temperature_sensor) { this->temperature_sensor_ = temperature_sensor; }
-  void set_pressure_sensor(sensor::Sensor *pressure_sensor) { this->pressure_sensor_ = pressure_sensor; }
+  SUB_SENSOR(temperature)
+  SUB_SENSOR(pressure)
 
+ public:
   void setup() override;
   void dump_config() override;
   void update() override;
@@ -84,8 +84,6 @@ class QMP6988Component final : public PollingComponent, public i2c::I2CDevice {
 
  protected:
   qmp6988_data_t qmp6988_data_;
-  sensor::Sensor *temperature_sensor_{nullptr};
-  sensor::Sensor *pressure_sensor_{nullptr};
 
   QMP6988Oversampling temperature_oversampling_{QMP6988_OVERSAMPLING_16X};
   QMP6988Oversampling pressure_oversampling_{QMP6988_OVERSAMPLING_16X};

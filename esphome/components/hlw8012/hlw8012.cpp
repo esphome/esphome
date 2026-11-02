@@ -73,21 +73,15 @@ void HLW8012Component::update() {
     if (this->current_mode_) {
       float current = cf1_hz * this->current_multiplier_;
       ESP_LOGV(TAG, "Got power=%.1fW, current=%.1fA", power, current);
-      if (this->current_sensor_ != nullptr) {
-        this->current_sensor_->publish_state(current);
-      }
+      PUBLISH_STATE(this->current_sensor_, current);
     } else {
       float voltage = cf1_hz * this->voltage_multiplier_;
       ESP_LOGV(TAG, "Got power=%.1fW, voltage=%.1fV", power, voltage);
-      if (this->voltage_sensor_ != nullptr) {
-        this->voltage_sensor_->publish_state(voltage);
-      }
+      PUBLISH_STATE(this->voltage_sensor_, voltage);
     }
   }
 
-  if (this->power_sensor_ != nullptr) {
-    this->power_sensor_->publish_state(power);
-  }
+  PUBLISH_STATE(this->power_sensor_, power);
 
   if (this->energy_sensor_ != nullptr) {
     cf_total_pulses_ += raw_cf;

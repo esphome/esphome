@@ -22,7 +22,7 @@ MAX_GATES = 296
 class UC8151(EpaperModel):
     """EpaperModel class for black/white/red displays using the UC8151D controller."""
 
-    source_files = ("epaper_waveshare_bwr.cpp",)
+    source_files = ("epaper_spi_bwr.cpp", "epaper_waveshare_bwr.cpp")
 
     def __init__(self, name: str, **defaults: Any) -> None:
         super().__init__(name, "EPaperWaveshareBWR", **defaults)

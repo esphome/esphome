@@ -1,0 +1,54 @@
+esphome:
+  name: test
+
+esp32:
+  board: esp32dev
+  framework:
+    type: esp-idf
+
+wifi:
+  ssid: "test_ssid"
+  password: "test_password"
+
+logger:
+
+time:
+  - platform: sntp
+    id: sntp_time
+    timezone: UTC0
+    on_time:
+      - seconds: 0
+        minutes: /5
+        then:
+          - logger.log: every_five_minutes
+      - cron: "0 30 7 * * MON-FRI"
+        then:
+          - logger.log: weekday_morning
+      - at: "07:30"
+        then:
+          - logger.log: at_time
+      - seconds: 0
+        minutes: 0
+        hours: 8-17
+        then:
+          - logger.log: working_hours
+      - seconds: 0
+        minutes: 0
+        hours: 12
+        days_of_month: 1,15
+        months: JAN,JUL
+        then:
+          - logger.log: twice_a_year
+      - seconds: 0
+        minutes: 0
+        hours: 0
+        days_of_month: "*/7"
+        then:
+          - logger.log: weekly_by_date
+      - seconds: /15
+        then:
+          - logger.log: quarter_minute
+      - seconds: 0
+        days_of_week: SAT,SUN
+        then:
+          - logger.log: weekend

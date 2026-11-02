@@ -1,6 +1,7 @@
 #include "fingerprint_grow.h"
 #include "esphome/core/gpio.h"
 #include "esphome/core/log.h"
+#include "esphome/core/helpers.h"
 #include <cinttypes>
 
 namespace esphome::fingerprint_grow {
@@ -93,9 +94,7 @@ void FingerprintGrowComponent::setup() {
 
 void FingerprintGrowComponent::enroll_fingerprint(uint16_t finger_id, uint8_t num_buffers) {
   ESP_LOGI(TAG, "Starting enrollment in slot %d", finger_id);
-  if (this->enrolling_binary_sensor_ != nullptr) {
-    this->enrolling_binary_sensor_->publish_state(true);
-  }
+  PUBLISH_STATE(this->enrolling_binary_sensor_, true);
   this->enrollment_slot_ = finger_id;
   this->enrollment_buffers_ = num_buffers;
   this->enrollment_image_ = 1;
@@ -112,9 +111,7 @@ void FingerprintGrowComponent::finish_enrollment(uint8_t result) {
   }
   this->enrollment_image_ = 0;
   this->enrollment_slot_ = ENROLLMENT_SLOT_UNUSED;
-  if (this->enrolling_binary_sensor_ != nullptr) {
-    this->enrolling_binary_sensor_->publish_state(false);
-  }
+  PUBLISH_STATE(this->enrolling_binary_sensor_, false);
   ESP_LOGI(TAG, "Finished enrollment");
 }
 
@@ -130,14 +127,10 @@ void FingerprintGrowComponent::scan_and_match_() {
     switch (this->send_command_()) {
       case OK: {
         ESP_LOGD(TAG, "Fingerprint matched");
-        uint16_t finger_id = ((uint16_t) this->data_[1] << 8) | this->data_[2];
-        uint16_t confidence = ((uint16_t) this->data_[3] << 8) | this->data_[4];
-        if (this->last_finger_id_sensor_ != nullptr) {
-          this->last_finger_id_sensor_->publish_state(finger_id);
-        }
-        if (this->last_confidence_sensor_ != nullptr) {
-          this->last_confidence_sensor_->publish_state(confidence);
-        }
+        uint16_t finger_id = encode_uint16(this->data_[1], this->data_[2]);
+        uint16_t confidence = encode_uint16(this->data_[3], this->data_[4]);
+        PUBLISH_STATE(this->last_finger_id_sensor_, finger_id);
+        PUBLISH_STATE(this->last_confidence_sensor_, confidence);
         this->finger_scan_matched_callback_.call(finger_id, confidence);
         break;
       }
@@ -261,21 +254,14 @@ bool FingerprintGrowComponent::get_parameters_() {
   ESP_LOGD(TAG, "Getting parameters");
   this->data_ = {READ_SYS_PARAM};
   if (this->send_command_() == OK) {
-    ESP_LOGD(TAG, "Got parameters");        // Bear in mind data_[0] is the transfer status,
-    if (this->status_sensor_ != nullptr) {  // the parameters table start at data_[1]
-      this->status_sensor_->publish_state(((uint16_t) this->data_[1] << 8) | this->data_[2]);
-    }
-    this->system_identifier_code_ = ((uint16_t) this->data_[3] << 8) | this->data_[4];
-    this->capacity_ = ((uint16_t) this->data_[5] << 8) | this->data_[6];
-    if (this->capacity_sensor_ != nullptr) {
-      this->capacity_sensor_->publish_state(this->capacity_);
-    }
-    if (this->security_level_sensor_ != nullptr) {
-      this->security_level_sensor_->publish_state(((uint16_t) this->data_[7] << 8) | this->data_[8]);
-    }
-    if (this->enrolling_binary_sensor_ != nullptr) {
-      this->enrolling_binary_sensor_->publish_state(false);
-    }
+    ESP_LOGD(TAG, "Got parameters");
+    // Bear in mind data_[0] is the transfer status, the parameters table start at data_[1]
+    PUBLISH_STATE(this->status_sensor_, encode_uint16(this->data_[1], this->data_[2]));
+    this->system_identifier_code_ = encode_uint16(this->data_[3], this->data_[4]);
+    this->capacity_ = encode_uint16(this->data_[5], this->data_[6]);
+    PUBLISH_STATE(this->capacity_sensor_, this->capacity_);
+    PUBLISH_STATE(this->security_level_sensor_, encode_uint16(this->data_[7], this->data_[8]));
+    PUBLISH_STATE(this->enrolling_binary_sensor_, false);
     this->get_fingerprint_count_();
     return true;
   }
@@ -287,8 +273,7 @@ void FingerprintGrowComponent::get_fingerprint_count_() {
   this->data_ = {TEMPLATE_COUNT};
   if (this->send_command_() == OK) {
     ESP_LOGD(TAG, "Got fingerprint count");
-    if (this->fingerprint_count_sensor_ != nullptr)
-      this->fingerprint_count_sensor_->publish_state(((uint16_t) this->data_[1] << 8) | this->data_[2]);
+    PUBLISH_STATE(this->fingerprint_count_sensor_, encode_uint16(this->data_[1], this->data_[2]));
   }
 }
 

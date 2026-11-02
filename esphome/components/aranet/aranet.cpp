@@ -19,11 +19,6 @@ enum class AranetDeviceType : uint8_t {
   ARANET_DEVICE_TYPE_RADON = 3,
 };
 
-static inline void publish_if_set(sensor::Sensor *sensor, float value) {
-  if (sensor != nullptr)
-    sensor->publish_state(value);
-}
-
 // Aranet does not publish an official advertisement specification. The layout below is corroborated by these
 // independently maintained implementations:
 // https://github.com/Anrijs/Aranet4-Python/blob/master/aranet4/client.py
@@ -89,8 +84,8 @@ bool Aranet::parse_device(const ble_device_base::ESPBTDevice &device) {
     const uint16_t measurement_age = encode_uint16(trailer[5], trailer[4]);
     const uint8_t measurement_counter = trailer[6];
 
-    publish_if_set(this->measurement_age_sensor_, measurement_age);
-    publish_if_set(this->signal_strength_sensor_, device.get_rssi());
+    PUBLISH_STATE(this->measurement_age_sensor_, measurement_age);
+    PUBLISH_STATE(this->signal_strength_sensor_, device.get_rssi());
 
     if (measurement_counter == this->last_measurement_counter_)
       return true;
@@ -102,18 +97,18 @@ bool Aranet::parse_device(const ble_device_base::ESPBTDevice &device) {
     switch (device_type) {
       case AranetDeviceType::ARANET_DEVICE_TYPE_ARANET4: {
         const uint16_t co2 = encode_uint16(data[9], data[8]);
-        publish_if_set(this->co2_sensor_, co2);
-        publish_if_set(this->temperature_sensor_, temperature);
-        publish_if_set(this->pressure_sensor_, pressure);
-        publish_if_set(this->humidity_sensor_, data[14]);
+        PUBLISH_STATE(this->co2_sensor_, co2);
+        PUBLISH_STATE(this->temperature_sensor_, temperature);
+        PUBLISH_STATE(this->pressure_sensor_, pressure);
+        PUBLISH_STATE(this->humidity_sensor_, data[14]);
         ESP_LOGD(TAG, "Aranet4 CO2: %u ppm, temperature: %.1f C, humidity: %u%%, pressure: %.1f hPa", co2, temperature,
                  data[14], pressure);
         break;
       }
       case AranetDeviceType::ARANET_DEVICE_TYPE_ARANET2: {
         const float humidity = encode_uint16(data[15], data[14]) / 10.0f;
-        publish_if_set(this->temperature_sensor_, temperature);
-        publish_if_set(this->humidity_sensor_, humidity);
+        PUBLISH_STATE(this->temperature_sensor_, temperature);
+        PUBLISH_STATE(this->humidity_sensor_, humidity);
         ESP_LOGD(TAG, "Aranet2 temperature: %.1f C, humidity: %.1f%%", temperature, humidity);
         break;
       }
@@ -121,9 +116,9 @@ bool Aranet::parse_device(const ble_device_base::ESPBTDevice &device) {
         const uint32_t radiation_total = encode_uint32(data[9], data[8], data[7], data[6]);
         const uint32_t radiation_duration = encode_uint32(data[13], data[12], data[11], data[10]);
         const uint16_t radiation_rate = encode_uint16(data[15], data[14]);
-        publish_if_set(this->radiation_rate_sensor_, radiation_rate / 1000.0f);
-        publish_if_set(this->radiation_total_sensor_, radiation_total);
-        publish_if_set(this->radiation_duration_sensor_, radiation_duration);
+        PUBLISH_STATE(this->radiation_rate_sensor_, radiation_rate / 1000.0f);
+        PUBLISH_STATE(this->radiation_total_sensor_, radiation_total);
+        PUBLISH_STATE(this->radiation_duration_sensor_, radiation_duration);
         ESP_LOGD(TAG, "Aranet Radiation dose rate: %u nSv/h, total dose: %" PRIu32 " nSv", radiation_rate,
                  radiation_total);
         break;
@@ -131,13 +126,13 @@ bool Aranet::parse_device(const ble_device_base::ESPBTDevice &device) {
       case AranetDeviceType::ARANET_DEVICE_TYPE_RADON: {
         const uint16_t radon = encode_uint16(data[9], data[8]);
         const float humidity = encode_uint16(data[15], data[14]) / 10.0f;
-        publish_if_set(this->radon_sensor_, radon);
+        PUBLISH_STATE(this->radon_sensor_, radon);
         // Aranet Radon One uses zero temperature and humidity to indicate fields not supported by that model.
         if (temperature != 0)
-          publish_if_set(this->temperature_sensor_, temperature);
-        publish_if_set(this->pressure_sensor_, pressure);
+          PUBLISH_STATE(this->temperature_sensor_, temperature);
+        PUBLISH_STATE(this->pressure_sensor_, pressure);
         if (humidity != 0)
-          publish_if_set(this->humidity_sensor_, humidity);
+          PUBLISH_STATE(this->humidity_sensor_, humidity);
         ESP_LOGD(TAG, "Aranet Radon: %u Bq/m3, temperature: %.1f C, humidity: %.1f%%, pressure: %.1f hPa", radon,
                  temperature, humidity, pressure);
         break;
@@ -145,8 +140,8 @@ bool Aranet::parse_device(const ble_device_base::ESPBTDevice &device) {
       default:
         break;
     }
-    publish_if_set(this->battery_level_sensor_, trailer[0]);
-    publish_if_set(this->measurement_interval_sensor_, measurement_interval);
+    PUBLISH_STATE(this->battery_level_sensor_, trailer[0]);
+    PUBLISH_STATE(this->measurement_interval_sensor_, measurement_interval);
 
     return true;
   }

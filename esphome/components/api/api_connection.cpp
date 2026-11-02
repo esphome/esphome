@@ -1587,7 +1587,8 @@ void APIConnection::on_infrared_rf_transmit_raw_timings_request(const InfraredRF
   // Clients on API 1.18+ are told when the frame has left the transmitter; the entity owns that reply
   const bool want_reply = this->client_supports_api_version(1, 18);
   // Dispatch by key: infrared entities are checked first, then radio frequency entities.
-  // The key is unique across all entity instances on a device, so at most one lookup will succeed.
+  // ir_rf_base validation keeps keys unique across both platforms, so at most one lookup succeeds.
+  // Adding the entity's domain to these messages is the agreed long-term fix, welcome as a follow-up.
 #ifdef USE_INFRARED
   ENTITY_COMMAND_LOOKUP(infrared::Infrared, infrared, infrared);
   if (infrared != nullptr) {

@@ -62,27 +62,23 @@ class ADE7953 : public PollingComponent, public sensor::Sensor {
 
   void set_use_acc_energy_regs(bool use_acc_energy_regs) { use_acc_energy_regs_ = use_acc_energy_regs; }
 
-  void set_voltage_sensor(sensor::Sensor *voltage_sensor) { voltage_sensor_ = voltage_sensor; }
-  void set_frequency_sensor(sensor::Sensor *frequency_sensor) { frequency_sensor_ = frequency_sensor; }
+  SUB_SENSOR(voltage)
+  SUB_SENSOR(frequency)
 
-  void set_power_factor_a_sensor(sensor::Sensor *power_factor_a) { power_factor_a_sensor_ = power_factor_a; }
-  void set_power_factor_b_sensor(sensor::Sensor *power_factor_b) { power_factor_b_sensor_ = power_factor_b; }
+  SUB_SENSOR(power_factor_a)
+  SUB_SENSOR(power_factor_b)
 
-  void set_current_a_sensor(sensor::Sensor *current_a_sensor) { current_a_sensor_ = current_a_sensor; }
-  void set_current_b_sensor(sensor::Sensor *current_b_sensor) { current_b_sensor_ = current_b_sensor; }
+  SUB_SENSOR(current_a)
+  SUB_SENSOR(current_b)
 
-  void set_apparent_power_a_sensor(sensor::Sensor *apparent_power_a) { apparent_power_a_sensor_ = apparent_power_a; }
-  void set_apparent_power_b_sensor(sensor::Sensor *apparent_power_b) { apparent_power_b_sensor_ = apparent_power_b; }
+  SUB_SENSOR(apparent_power_a)
+  SUB_SENSOR(apparent_power_b)
 
-  void set_active_power_a_sensor(sensor::Sensor *active_power_a_sensor) {
-    active_power_a_sensor_ = active_power_a_sensor;
-  }
-  void set_active_power_b_sensor(sensor::Sensor *active_power_b_sensor) {
-    active_power_b_sensor_ = active_power_b_sensor;
-  }
+  SUB_SENSOR(active_power_a)
+  SUB_SENSOR(active_power_b)
 
-  void set_reactive_power_a_sensor(sensor::Sensor *reactive_power_a) { reactive_power_a_sensor_ = reactive_power_a; }
-  void set_reactive_power_b_sensor(sensor::Sensor *reactive_power_b) { reactive_power_b_sensor_ = reactive_power_b; }
+  SUB_SENSOR(reactive_power_a)
+  SUB_SENSOR(reactive_power_b)
 
   void setup() override;
 
@@ -93,18 +89,6 @@ class ADE7953 : public PollingComponent, public sensor::Sensor {
  protected:
   InternalGPIOPin *irq_pin_{nullptr};
   bool is_setup_{false};
-  sensor::Sensor *voltage_sensor_{nullptr};
-  sensor::Sensor *frequency_sensor_{nullptr};
-  sensor::Sensor *current_a_sensor_{nullptr};
-  sensor::Sensor *current_b_sensor_{nullptr};
-  sensor::Sensor *apparent_power_a_sensor_{nullptr};
-  sensor::Sensor *apparent_power_b_sensor_{nullptr};
-  sensor::Sensor *active_power_a_sensor_{nullptr};
-  sensor::Sensor *active_power_b_sensor_{nullptr};
-  sensor::Sensor *reactive_power_a_sensor_{nullptr};
-  sensor::Sensor *reactive_power_b_sensor_{nullptr};
-  sensor::Sensor *power_factor_a_sensor_{nullptr};
-  sensor::Sensor *power_factor_b_sensor_{nullptr};
   uint8_t pga_v_;
   uint8_t pga_ia_;
   uint8_t pga_ib_;

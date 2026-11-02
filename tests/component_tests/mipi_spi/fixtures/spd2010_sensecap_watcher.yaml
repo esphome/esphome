@@ -1,0 +1,16 @@
+esphome:
+  name: sensecap-watcher
+
+esp32:
+  variant: esp32s3
+  framework:
+    type: esp-idf
+
+spi:
+  type: quad
+  clk_pin: 7
+  data_pins: [9, 1, 14, 13]
+
+display:
+  - platform: mipi_spi
+    model: SEEED-SENSECAP-WATCHER

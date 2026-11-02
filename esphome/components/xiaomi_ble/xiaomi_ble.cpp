@@ -217,7 +217,8 @@ optional<XiaomiParseResult> parse_xiaomi_header(const uint8_t *raw, size_t size)
   } else if (device_uuid == 0x045b) {  // rectangular body, e-ink display
     result.type = XiaomiParseResult::TYPE_LYWSD02;
     result.name = "LYWSD02";
-  } else if (device_uuid == 0x2542) {  // rectangular body, e-ink display — with bindkeys
+  } else if (device_uuid == 0x2542 ||  // rectangular body, e-ink display — with bindkeys
+             device_uuid == 0x16e4) {  // same, hardware revision F3_A1 (firmware 2.0.1_0060)
     result.type = XiaomiParseResult::TYPE_LYWSD02MMC;
     result.name = "LYWSD02MMC";
     if (size == 19)

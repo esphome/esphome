@@ -17,9 +17,9 @@ void TemplateClimate::setup() {
   // NAN means the sensor went unavailable and is passed through rather than dropped; the second
   // check stops an unavailable sensor re-publishing forever, since NAN never equals NAN.
 #ifdef USE_SENSOR
-  if (this->sensor_ != nullptr) {
-    this->current_temperature = this->sensor_->state;
-    this->sensor_->add_on_state_callback([this](float state) {
+  if (this->temperature_sensor_ != nullptr) {
+    this->current_temperature = this->temperature_sensor_->state;
+    this->temperature_sensor_->add_on_state_callback([this](float state) {
       if (state != this->current_temperature && !(std::isnan(state) && std::isnan(this->current_temperature))) {
         this->current_temperature = state;
         this->publish_state();

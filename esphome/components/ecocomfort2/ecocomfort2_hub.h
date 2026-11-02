@@ -82,6 +82,20 @@ struct SettingsChar {
 
 /** Hub component for Ecocomfort 2.0 VMC via BLE. */
 class Ecocomfort2Hub : public esphome::ble_client::BLEClientNode, public PollingComponent {
+#ifdef USE_SENSOR
+  SUB_SENSOR(temperature)
+  SUB_SENSOR(humidity)
+  SUB_SENSOR(voc)
+  SUB_SENSOR(direction)
+#endif
+#ifdef USE_BINARY_SENSOR
+  SUB_BINARY_SENSOR(connected)
+  SUB_BINARY_SENSOR(boost)
+#endif
+#ifdef USE_TEXT_SENSOR
+  SUB_TEXT_SENSOR(firmware)
+#endif
+
  public:
   void setup() override;
   void update() override;
@@ -94,19 +108,6 @@ class Ecocomfort2Hub : public esphome::ble_client::BLEClientNode, public Polling
 
 #ifdef ECOCOMFORT2_CHILD_COUNT
   void register_child(Ecocomfort2Client *obj);
-#endif
-#ifdef USE_SENSOR
-  void set_temperature_sensor(sensor::Sensor *s) { this->temperature_sensor_ = s; }
-  void set_humidity_sensor(sensor::Sensor *s) { this->humidity_sensor_ = s; }
-  void set_voc_sensor(sensor::Sensor *s) { this->voc_sensor_ = s; }
-  void set_direction_sensor(sensor::Sensor *s) { this->direction_sensor_ = s; }
-#endif
-#ifdef USE_BINARY_SENSOR
-  void set_connected_binary_sensor(binary_sensor::BinarySensor *s) { this->connected_binary_sensor_ = s; }
-  void set_boost_binary_sensor(binary_sensor::BinarySensor *s) { this->boost_binary_sensor_ = s; }
-#endif
-#ifdef USE_TEXT_SENSOR
-  void set_firmware_text_sensor(text_sensor::TextSensor *s) { this->firmware_text_sensor_ = s; }
 #endif
 #ifdef USE_TIME
   /// Keeps the unit's clock in step with this time source while connected.
@@ -183,19 +184,6 @@ class Ecocomfort2Hub : public esphome::ble_client::BLEClientNode, public Polling
 
 #ifdef ECOCOMFORT2_CHILD_COUNT
   StaticVector<Ecocomfort2Client *, ECOCOMFORT2_CHILD_COUNT> children_;
-#endif
-#ifdef USE_SENSOR
-  sensor::Sensor *temperature_sensor_{nullptr};
-  sensor::Sensor *humidity_sensor_{nullptr};
-  sensor::Sensor *voc_sensor_{nullptr};
-  sensor::Sensor *direction_sensor_{nullptr};
-#endif
-#ifdef USE_BINARY_SENSOR
-  binary_sensor::BinarySensor *connected_binary_sensor_{nullptr};
-  binary_sensor::BinarySensor *boost_binary_sensor_{nullptr};
-#endif
-#ifdef USE_TEXT_SENSOR
-  text_sensor::TextSensor *firmware_text_sensor_{nullptr};
 #endif
 #ifdef USE_TIME
   time::RealTimeClock *time_{nullptr};

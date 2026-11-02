@@ -1,0 +1,28 @@
+---
+esphome:
+  name: test
+  on_boot:
+    # The script is declared after this block starts building, so building it waits
+    - priority: 800
+      then:
+        - script.execute: boot_script
+
+esp32:
+  board: nodemcu-32s
+
+logger:
+
+script:
+  - id: boot_script
+    then:
+      - logger.log: script ran
+
+interval:
+  - interval: 1s
+    then:
+      - logger.log: tick
+
+sensor:
+  - platform: template
+    id: some_sensor
+    lambda: return 1.0;

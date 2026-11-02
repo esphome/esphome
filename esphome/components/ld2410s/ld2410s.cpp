@@ -471,9 +471,7 @@ bool LD2410SComponent::handle_parameters_(const uint8_t *values, uint16_t len) {
 #ifdef USE_NUMBER
       // A value a number showed before the module answered is not confirmed
       for (auto *number : this->numbers_) {
-        if (number != nullptr) {
-          number->publish_state(NAN);
-        }
+        PUBLISH_STATE(number, NAN);
       }
 #endif
       return true;
@@ -503,18 +501,14 @@ bool LD2410SComponent::handle_version_(const uint8_t *values, uint16_t len) {
   snprintf(version, sizeof(version), "%u.%u.%u", encode_uint16(v[1], v[0]), encode_uint16(v[3], v[2]),
            encode_uint16(v[5], v[4]));
   ESP_LOGD(TAG, "Firmware %s", version);
-  if (this->version_text_sensor_ != nullptr) {
-    this->version_text_sensor_->publish_state(version);
-  }
+  PUBLISH_STATE(this->version_text_sensor_, version);
   return true;
 }
 #endif
 
 void LD2410SComponent::publish_target_(bool target, uint16_t distance) {
 #ifdef USE_BINARY_SENSOR
-  if (this->target_binary_sensor_ != nullptr) {
-    this->target_binary_sensor_->publish_state(target);
-  }
+  PUBLISH_STATE(this->target_binary_sensor_, target);
 #endif
 #ifdef USE_SENSOR
   // The module keeps reporting the last distance after the target left
@@ -526,9 +520,7 @@ void LD2410SComponent::publish_target_(bool target, uint16_t distance) {
 void LD2410SComponent::publish_parameters_() {
 #ifdef USE_NUMBER
   for (uint8_t i = 0; i < PARAMETER_COUNT; i++) {
-    if (this->numbers_[i] != nullptr) {
-      this->numbers_[i]->publish_state(this->parameters_[i] * PARAMETER_SCALES[i]);
-    }
+    PUBLISH_STATE(this->numbers_[i], this->parameters_[i] * PARAMETER_SCALES[i]);
   }
 #endif
 #ifdef USE_SELECT

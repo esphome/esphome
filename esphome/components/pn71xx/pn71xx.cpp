@@ -1071,7 +1071,7 @@ void PN71xx::card_emu_t4t_get_response_(const std::span<const uint8_t> response,
     ok = true;
   } else if (apdu_starts_with(CARD_EMU_T4T_READ, sizeof(CARD_EMU_T4T_READ)) && apdu_size == 5) {
     // READ BINARY: CLA INS P1 P2 Le, where P1-P2 is the offset
-    const uint16_t offset = (apdu_begin[2] << 8) | apdu_begin[3];
+    const uint16_t offset = encode_uint16(apdu_begin[2], apdu_begin[3]);
     const uint8_t length = apdu_begin[4];
     if (this->ce_state_ == CardEmulationState::CARD_EMU_CC_SELECTED) {
       ESP_LOGVV(TAG, "CARD_EMU_T4T_READ with CARD_EMU_CC_SELECTED");

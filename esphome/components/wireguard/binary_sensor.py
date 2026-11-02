@@ -27,5 +27,5 @@ async def to_code(config):
     hub = await cg.get_variable(config[CONF_WIREGUARD_ID])
 
     binary_sensors = binary_sensor.sub_binary_sensors(config)
-    await binary_sensors(CONF_STATUS, hub.set_status_sensor)
-    await binary_sensors(CONF_ENABLED, hub.set_enabled_sensor)
+    await binary_sensors(CONF_STATUS, hub.set_status_binary_sensor)
+    await binary_sensors(CONF_ENABLED, hub.set_enabled_binary_sensor)

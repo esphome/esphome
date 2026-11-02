@@ -91,22 +91,15 @@ void MPU6886Component::update() {
            "gyro={x=%.3f °/s, y=%.3f °/s, z=%.3f °/s}, temp=%.3f°C",
            accel_x, accel_y, accel_z, gyro_x, gyro_y, gyro_z, temperature);
 
-  if (this->accel_x_sensor_ != nullptr)
-    this->accel_x_sensor_->publish_state(accel_x);
-  if (this->accel_y_sensor_ != nullptr)
-    this->accel_y_sensor_->publish_state(accel_y);
-  if (this->accel_z_sensor_ != nullptr)
-    this->accel_z_sensor_->publish_state(accel_z);
+  PUBLISH_STATE(this->accel_x_sensor_, accel_x);
+  PUBLISH_STATE(this->accel_y_sensor_, accel_y);
+  PUBLISH_STATE(this->accel_z_sensor_, accel_z);
 
-  if (this->temperature_sensor_ != nullptr)
-    this->temperature_sensor_->publish_state(temperature);
+  PUBLISH_STATE(this->temperature_sensor_, temperature);
 
-  if (this->gyro_x_sensor_ != nullptr)
-    this->gyro_x_sensor_->publish_state(gyro_x);
-  if (this->gyro_y_sensor_ != nullptr)
-    this->gyro_y_sensor_->publish_state(gyro_y);
-  if (this->gyro_z_sensor_ != nullptr)
-    this->gyro_z_sensor_->publish_state(gyro_z);
+  PUBLISH_STATE(this->gyro_x_sensor_, gyro_x);
+  PUBLISH_STATE(this->gyro_y_sensor_, gyro_y);
+  PUBLISH_STATE(this->gyro_z_sensor_, gyro_z);
 
   this->status_clear_warning();
 }

@@ -22,20 +22,16 @@ void UponorSmatrixSensor::on_device_data(const UponorSmatrixData *data, size_t d
   for (size_t i = 0; i < data_len; i++) {
     switch (data[i].id) {
       case UPONOR_ID_ROOM_TEMP:
-        if (this->temperature_sensor_ != nullptr)
-          this->temperature_sensor_->publish_state(raw_to_celsius(data[i].value));
+        PUBLISH_STATE(this->temperature_sensor_, raw_to_celsius(data[i].value));
         break;
       case UPONOR_ID_EXTERNAL_TEMP:
-        if (this->external_temperature_sensor_ != nullptr)
-          this->external_temperature_sensor_->publish_state(raw_to_celsius(data[i].value));
+        PUBLISH_STATE(this->external_temperature_sensor_, raw_to_celsius(data[i].value));
         break;
       case UPONOR_ID_HUMIDITY:
-        if (this->humidity_sensor_ != nullptr)
-          this->humidity_sensor_->publish_state(data[i].value & 0x00FF);
+        PUBLISH_STATE(this->humidity_sensor_, data[i].value & 0x00FF);
         break;
       case UPONOR_ID_TARGET_TEMP:
-        if (this->target_temperature_sensor_ != nullptr)
-          this->target_temperature_sensor_->publish_state(raw_to_celsius(data[i].value));
+        PUBLISH_STATE(this->target_temperature_sensor_, raw_to_celsius(data[i].value));
         break;
     }
   }

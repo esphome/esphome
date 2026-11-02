@@ -33,11 +33,25 @@ esp32_ble_tracker:
       then:
         - lambda: !lambda |-
             ESP_LOGD("main", "Length of service data is %zu", x.size());
+    - service_uuid: ABCDABCD
+      mac_address: AC:37:43:77:5F:4C
+      then:
+        - logger.log: "32-bit service data"
+    - service_uuid: 12345678-1234-5678-1234-56789abcdef0
+      then:
+        - logger.log: "128-bit service data"
   on_ble_manufacturer_data_advertise:
     - manufacturer_id: ABCD
       then:
         - lambda: !lambda |-
             ESP_LOGD("main", "Length of manufacturer data is %zu", x.size());
+    - manufacturer_id: ABCDABCD
+      mac_address: AC:37:43:77:5F:4C
+      then:
+        - logger.log: "32-bit manufacturer data"
+    - manufacturer_id: 12345678-1234-5678-1234-56789abcdef0
+      then:
+        - logger.log: "128-bit manufacturer data"
   on_scan_end:
     - then:
         - lambda: |-

@@ -106,10 +106,8 @@ void XDB401Component::read_measurement_() {
 
   ESP_LOGD(TAG, "Got pressure=%.1f Pa, temperature=%.2f°C", pressure, temperature);
 
-  if (this->temperature_sensor_ != nullptr)
-    this->temperature_sensor_->publish_state(temperature);
-  if (this->pressure_sensor_ != nullptr)
-    this->pressure_sensor_->publish_state(pressure);
+  PUBLISH_STATE(this->temperature_sensor_, temperature);
+  PUBLISH_STATE(this->pressure_sensor_, pressure);
 
   this->comm_err_counter_ = 0;
   this->status_clear_warning();

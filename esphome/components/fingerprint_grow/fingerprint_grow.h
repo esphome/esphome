@@ -92,6 +92,14 @@ enum GrowAuraLEDColor {
 };
 
 class FingerprintGrowComponent final : public PollingComponent, public uart::UARTDevice {
+  SUB_SENSOR(fingerprint_count)
+  SUB_SENSOR(status)
+  SUB_SENSOR(capacity)
+  SUB_SENSOR(security_level)
+  SUB_SENSOR(last_finger_id)
+  SUB_SENSOR(last_confidence)
+  SUB_BINARY_SENSOR(enrolling)
+
  public:
   void update() override;
   void setup() override;
@@ -108,23 +116,6 @@ class FingerprintGrowComponent final : public PollingComponent, public uart::UAR
   void set_password(uint32_t password) { this->password_ = password; }
   void set_new_password(uint32_t new_password) { this->new_password_ = new_password; }
   void set_idle_period_to_sleep_ms(uint32_t period_ms) { this->idle_period_to_sleep_ms_ = period_ms; }
-  void set_fingerprint_count_sensor(sensor::Sensor *fingerprint_count_sensor) {
-    this->fingerprint_count_sensor_ = fingerprint_count_sensor;
-  }
-  void set_status_sensor(sensor::Sensor *status_sensor) { this->status_sensor_ = status_sensor; }
-  void set_capacity_sensor(sensor::Sensor *capacity_sensor) { this->capacity_sensor_ = capacity_sensor; }
-  void set_security_level_sensor(sensor::Sensor *security_level_sensor) {
-    this->security_level_sensor_ = security_level_sensor;
-  }
-  void set_last_finger_id_sensor(sensor::Sensor *last_finger_id_sensor) {
-    this->last_finger_id_sensor_ = last_finger_id_sensor;
-  }
-  void set_last_confidence_sensor(sensor::Sensor *last_confidence_sensor) {
-    this->last_confidence_sensor_ = last_confidence_sensor;
-  }
-  void set_enrolling_binary_sensor(binary_sensor::BinarySensor *enrolling_binary_sensor) {
-    this->enrolling_binary_sensor_ = enrolling_binary_sensor;
-  }
   template<typename F> void add_on_finger_scan_start_callback(F &&callback) {
     this->finger_scan_start_callback_.add(std::forward<F>(callback));
   }
@@ -191,13 +182,6 @@ class FingerprintGrowComponent final : public PollingComponent, public uart::UAR
   uint32_t last_aura_led_duration_ = 0;
   uint16_t system_identifier_code_ = 0;
   uint32_t idle_period_to_sleep_ms_ = UINT32_MAX;
-  sensor::Sensor *fingerprint_count_sensor_{nullptr};
-  sensor::Sensor *status_sensor_{nullptr};
-  sensor::Sensor *capacity_sensor_{nullptr};
-  sensor::Sensor *security_level_sensor_{nullptr};
-  sensor::Sensor *last_finger_id_sensor_{nullptr};
-  sensor::Sensor *last_confidence_sensor_{nullptr};
-  binary_sensor::BinarySensor *enrolling_binary_sensor_{nullptr};
   CallbackManager<void()> finger_scan_invalid_callback_;
   CallbackManager<void()> finger_scan_start_callback_;
   CallbackManager<void(uint16_t, uint16_t)> finger_scan_matched_callback_;

@@ -166,14 +166,10 @@ void APDS9960::read_color_data_(uint8_t status) {
 
   ESP_LOGD(TAG, "Got clear=%.1f%% red=%.1f%% green=%.1f%% blue=%.1f%%", clear_perc, red_perc, green_perc, blue_perc);
 #ifdef USE_SENSOR
-  if (this->clear_sensor_ != nullptr)
-    this->clear_sensor_->publish_state(clear_perc);
-  if (this->red_sensor_ != nullptr)
-    this->red_sensor_->publish_state(red_perc);
-  if (this->green_sensor_ != nullptr)
-    this->green_sensor_->publish_state(green_perc);
-  if (this->blue_sensor_ != nullptr)
-    this->blue_sensor_->publish_state(blue_perc);
+  PUBLISH_STATE(this->clear_sensor_, clear_perc);
+  PUBLISH_STATE(this->red_sensor_, red_perc);
+  PUBLISH_STATE(this->green_sensor_, green_perc);
+  PUBLISH_STATE(this->blue_sensor_, blue_perc);
 #endif
 }
 void APDS9960::read_proximity_data_(uint8_t status) {

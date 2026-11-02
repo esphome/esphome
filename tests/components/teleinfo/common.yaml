@@ -16,6 +16,19 @@ button:
           id: test_teleinfo
           update_interval: !lambda return 2500;
 
+script:
+  - id: resume_teleinfo_seconds
+    parameters:
+      seconds: int
+    then:
+      # The interval lambda may modify its by-value argument
+      - component.resume:
+          id: test_teleinfo
+          update_interval: !lambda "seconds *= 1000; return seconds;"
+      - component.resume:
+          id: test_teleinfo
+          update_interval: !lambda "return seconds *= 1000;"
+
 teleinfo:
   id: test_teleinfo
   historical_mode: true

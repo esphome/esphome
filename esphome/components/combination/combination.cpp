@@ -88,9 +88,7 @@ void KalmanCombinationComponent::correct_(float value, float stddev) {
   if (std::isnan(this->state_) || std::isinf(this->variance_)) {
     this->state_ = value;
     this->variance_ = stddev * stddev;
-    if (this->std_dev_sensor_ != nullptr) {
-      this->std_dev_sensor_->publish_state(stddev);
-    }
+    PUBLISH_STATE(this->std_dev_sensor_, stddev);
     return;
   }
 
@@ -113,9 +111,7 @@ void KalmanCombinationComponent::correct_(float value, float stddev) {
   this->variance_ = var;
 
   this->publish_state(mu);
-  if (this->std_dev_sensor_ != nullptr) {
-    this->std_dev_sensor_->publish_state(std::sqrt(var));
-  }
+  PUBLISH_STATE(this->std_dev_sensor_, std::sqrt(var));
 }
 
 void LinearCombinationComponent::setup() {

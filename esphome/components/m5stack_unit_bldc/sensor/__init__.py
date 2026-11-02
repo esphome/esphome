@@ -1,0 +1,39 @@
+import esphome.codegen as cg
+from esphome.components import sensor
+import esphome.config_validation as cv
+from esphome.const import (
+    CONF_FREQUENCY,
+    DEVICE_CLASS_FREQUENCY,
+    ICON_ROTATE_RIGHT,
+    STATE_CLASS_MEASUREMENT,
+    UNIT_HERTZ,
+    UNIT_REVOLUTIONS_PER_MINUTE,
+)
+from esphome.types import ConfigType
+
+from .. import CONF_M5STACK_UNIT_BLDC_ID, M5StackUnitBldc
+
+CONF_RPM = "rpm"
+
+CONFIG_SCHEMA = {
+    cv.GenerateID(CONF_M5STACK_UNIT_BLDC_ID): cv.use_id(M5StackUnitBldc),
+    cv.Optional(CONF_RPM): sensor.sensor_schema(
+        unit_of_measurement=UNIT_REVOLUTIONS_PER_MINUTE,
+        icon=ICON_ROTATE_RIGHT,
+        accuracy_decimals=1,
+        state_class=STATE_CLASS_MEASUREMENT,
+    ),
+    cv.Optional(CONF_FREQUENCY): sensor.sensor_schema(
+        unit_of_measurement=UNIT_HERTZ,
+        accuracy_decimals=1,
+        device_class=DEVICE_CLASS_FREQUENCY,
+        state_class=STATE_CLASS_MEASUREMENT,
+    ),
+}
+
+
+async def to_code(config: ConfigType) -> None:
+    hub = await cg.get_variable(config[CONF_M5STACK_UNIT_BLDC_ID])
+    sensors = sensor.sub_sensors(config)
+    await sensors(CONF_RPM, hub.set_rpm_sensor)
+    await sensors(CONF_FREQUENCY, hub.set_frequency_sensor)

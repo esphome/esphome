@@ -7,22 +7,18 @@
 namespace esphome::ina260 {
 
 class INA260Component final : public PollingComponent, public i2c::I2CDevice {
+  SUB_SENSOR(bus_voltage)
+  SUB_SENSOR(current)
+  SUB_SENSOR(power)
+
  public:
   void setup() override;
   void dump_config() override;
   void update() override;
 
-  void set_bus_voltage_sensor(sensor::Sensor *bus_voltage_sensor) { this->bus_voltage_sensor_ = bus_voltage_sensor; }
-  void set_current_sensor(sensor::Sensor *current_sensor) { this->current_sensor_ = current_sensor; }
-  void set_power_sensor(sensor::Sensor *power_sensor) { this->power_sensor_ = power_sensor; }
-
  protected:
   uint16_t manufacture_id_{0};
   uint16_t device_id_{0};
-
-  sensor::Sensor *bus_voltage_sensor_{nullptr};
-  sensor::Sensor *current_sensor_{nullptr};
-  sensor::Sensor *power_sensor_{nullptr};
 };
 
 }  // namespace esphome::ina260

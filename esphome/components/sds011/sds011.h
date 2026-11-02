@@ -8,14 +8,15 @@
 namespace esphome::sds011 {
 
 class SDS011Component final : public Component, public uart::UARTDevice {
+  SUB_SENSOR(pm_2_5)
+  SUB_SENSOR(pm_10_0)
+
  public:
   SDS011Component() = default;
 
   /// Manually set the rx-only mode. Defaults to false.
   void set_rx_mode_only(bool rx_mode_only) { this->rx_mode_only_ = rx_mode_only; }
 
-  void set_pm_2_5_sensor(sensor::Sensor *pm_2_5_sensor) { pm_2_5_sensor_ = pm_2_5_sensor; }
-  void set_pm_10_0_sensor(sensor::Sensor *pm_10_0_sensor) { pm_10_0_sensor_ = pm_10_0_sensor; }
   void setup() override;
   void dump_config() override;
   void loop() override;
@@ -31,9 +32,6 @@ class SDS011Component final : public Component, public uart::UARTDevice {
   uint16_t get_16_bit_uint_(uint8_t start_index) const {
     return encode_uint16(this->data_[start_index + 1], this->data_[start_index]);
   }
-
-  sensor::Sensor *pm_2_5_sensor_{nullptr};
-  sensor::Sensor *pm_10_0_sensor_{nullptr};
 
   uint8_t data_[10];
   uint8_t data_index_{0};

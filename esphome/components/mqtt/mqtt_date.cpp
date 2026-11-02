@@ -40,7 +40,12 @@ MQTT_COMPONENT_TYPE(MQTTDateComponent, "date")
 const EntityBase *MQTTDateComponent::get_entity() const { return this->date_; }
 
 void MQTTDateComponent::send_discovery(JsonObject root, mqtt::SendDiscoveryConfig &config) {
-  // Nothing extra to add here
+  // Home Assistant sends and expects ISO "YYYY-MM-DD", while state and command payloads here are JSON
+  // NOLINTNEXTLINE(clang-analyzer-cplusplus.NewDeleteLeaks) false positive with ArduinoJson
+  root[MQTT_VALUE_TEMPLATE] =
+      ESPHOME_F("{{ '%04d-%02d-%02d' | format(value_json.year, value_json.month, value_json.day) }}");
+  root[MQTT_COMMAND_TEMPLATE] =
+      ESPHOME_F("{\"year\":{{ value.year }},\"month\":{{ value.month }},\"day\":{{ value.day }}}");
 }
 bool MQTTDateComponent::send_initial_state() {
   if (this->date_->has_state()) {

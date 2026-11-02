@@ -506,8 +506,7 @@ void Sim800LComponent::disconnect() { this->disconnect_pending_ = true; }
 void Sim800LComponent::set_registered_(bool registered) {
   this->registered_ = registered;
 #ifdef USE_BINARY_SENSOR
-  if (this->registered_binary_sensor_ != nullptr)
-    this->registered_binary_sensor_->publish_state(registered);
+  PUBLISH_STATE(this->registered_binary_sensor_, registered);
 #endif
 }
 

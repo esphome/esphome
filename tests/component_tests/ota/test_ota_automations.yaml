@@ -1,0 +1,52 @@
+esphome:
+  name: test-ota-automations
+
+esp32:
+  board: esp32dev
+
+wifi:
+  ssid: MySSID
+  password: password1
+
+logger:
+
+web_server:
+  port: 80
+
+http_request:
+  verify_ssl: false
+
+ota:
+  - platform: esphome
+    id: ota_native
+    on_begin:
+      - logger.log: "native begin"
+    on_progress:
+      - logger.log:
+          format: "native progress %.1f"
+          args: ["x"]
+    on_end:
+      - logger.log: "native end"
+    on_abort:
+      - logger.log: "native abort"
+    on_error:
+      - logger.log:
+          format: "native error %u"
+          args: ["x"]
+    on_state_change:
+      - then:
+          - logger.log:
+              format: "native state %d"
+              args: ["static_cast<int>(state)"]
+      - then:
+          - logger.log: "native second state"
+  - platform: web_server
+    id: ota_web
+    on_begin:
+      - logger.log: "web begin"
+    on_abort:
+      - logger.log: "web abort"
+  - platform: http_request
+    id: ota_http
+    on_end:
+      - logger.log: "http end"

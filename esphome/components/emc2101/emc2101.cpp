@@ -3,6 +3,7 @@
 //  - Official Datasheet: https://ww1.microchip.com/downloads/en/DeviceDoc/2101.pdf
 
 #include "esphome/core/log.h"
+#include "esphome/core/helpers.h"
 #include "emc2101.h"
 
 namespace esphome::emc2101 {
@@ -143,7 +144,7 @@ float Emc2101Component::get_external_temperature() {
   }
 
   // join msb and lsb (5 least significant bits are not used); msb is signed, so read as int16_t
-  int16_t raw = static_cast<int16_t>((msb << 8) | lsb) >> 5;
+  int16_t raw = static_cast<int16_t>(encode_uint16(msb, lsb)) >> 5;
   return raw * 0.125f;
 }
 
@@ -157,7 +158,7 @@ float Emc2101Component::get_speed() {
   }
 
   // calculate RPMs
-  uint16_t tach = msb << 8 | lsb;
+  uint16_t tach = encode_uint16(msb, lsb);
   return tach == 0xFFFF ? 0.0f : 5400000.0f / tach;
 }
 

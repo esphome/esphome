@@ -13,23 +13,16 @@ class TMC2209Sensor : public PollingComponent {
   void update() override;
   void dump_config() override;
 
-  void set_actual_current_sensor(sensor::Sensor *sensor) { this->actual_current_sensor_ = sensor; }
-  void set_stallguard_result_sensor(sensor::Sensor *sensor) { this->stallguard_result_sensor_ = sensor; }
-  void set_motor_load_sensor(sensor::Sensor *sensor) { this->motor_load_sensor_ = sensor; }
-  void set_pwm_scale_sum_sensor(sensor::Sensor *sensor) { this->pwm_scale_sum_sensor_ = sensor; }
-  void set_pwm_scale_auto_sensor(sensor::Sensor *sensor) { this->pwm_scale_auto_sensor_ = sensor; }
-  void set_pwm_ofs_auto_sensor(sensor::Sensor *sensor) { this->pwm_ofs_auto_sensor_ = sensor; }
-  void set_pwm_grad_auto_sensor(sensor::Sensor *sensor) { this->pwm_grad_auto_sensor_ = sensor; }
+  SUB_SENSOR(actual_current)
+  SUB_SENSOR(stallguard_result)
+  SUB_SENSOR(motor_load)
+  SUB_SENSOR(pwm_scale_sum)
+  SUB_SENSOR(pwm_scale_auto)
+  SUB_SENSOR(pwm_ofs_auto)
+  SUB_SENSOR(pwm_grad_auto)
 
  protected:
   TMC2209Stepper *parent_;
-  sensor::Sensor *actual_current_sensor_{nullptr};
-  sensor::Sensor *stallguard_result_sensor_{nullptr};
-  sensor::Sensor *motor_load_sensor_{nullptr};
-  sensor::Sensor *pwm_scale_sum_sensor_{nullptr};
-  sensor::Sensor *pwm_scale_auto_sensor_{nullptr};
-  sensor::Sensor *pwm_ofs_auto_sensor_{nullptr};
-  sensor::Sensor *pwm_grad_auto_sensor_{nullptr};
 };
 
 }  // namespace esphome::tmc2209

@@ -8,10 +8,10 @@ ESPHOME_LOG_TAG(TAG, "atc_mithermometer");
 
 void ATCMiThermometer::dump_config() {
   ESP_LOGCONFIG(TAG, "ATC MiThermometer");
-  LOG_SENSOR("  ", "Temperature", this->temperature_);
-  LOG_SENSOR("  ", "Humidity", this->humidity_);
-  LOG_SENSOR("  ", "Battery Level", this->battery_level_);
-  LOG_SENSOR("  ", "Battery Voltage", this->battery_voltage_);
+  LOG_SENSOR("  ", "Temperature", this->temperature_sensor_);
+  LOG_SENSOR("  ", "Humidity", this->humidity_sensor_);
+  LOG_SENSOR("  ", "Battery Level", this->battery_level_sensor_);
+  LOG_SENSOR("  ", "Battery Voltage", this->battery_voltage_sensor_);
 }
 
 bool ATCMiThermometer::parse_device(const ble_device_base::ESPBTDevice &device) {
@@ -35,18 +35,13 @@ bool ATCMiThermometer::parse_device(const ble_device_base::ESPBTDevice &device) 
     if (!(report_results_(res, addr_str))) {
       continue;
     }
-    if (res->temperature.has_value() && this->temperature_ != nullptr)
-      this->temperature_->publish_state(*res->temperature);
-    if (res->humidity.has_value() && this->humidity_ != nullptr)
-      this->humidity_->publish_state(*res->humidity);
-    if (res->battery_level.has_value() && this->battery_level_ != nullptr)
-      this->battery_level_->publish_state(*res->battery_level);
-    if (res->battery_voltage.has_value() && this->battery_voltage_ != nullptr)
-      this->battery_voltage_->publish_state(*res->battery_voltage);
+    publish_optional(this->temperature_sensor_, res->temperature);
+    publish_optional(this->humidity_sensor_, res->humidity);
+    publish_optional(this->battery_level_sensor_, res->battery_level);
+    publish_optional(this->battery_voltage_sensor_, res->battery_voltage);
     success = true;
   }
-  if (this->signal_strength_ != nullptr)
-    this->signal_strength_->publish_state(device.get_rssi());
+  PUBLISH_STATE(this->signal_strength_sensor_, device.get_rssi());
 
   return success;
 }

@@ -53,8 +53,7 @@ class DfrobotSen0395Component final : public uart::UARTDevice, public Component 
   void set_active(bool active) {
     if (active != active_) {
 #ifdef USE_SWITCH
-      if (this->sensor_active_switch_ != nullptr)
-        this->sensor_active_switch_->publish_state(active);
+      PUBLISH_STATE(this->sensor_active_switch_, active);
 #endif
       active_ = active;
     }
@@ -64,8 +63,7 @@ class DfrobotSen0395Component final : public uart::UARTDevice, public Component 
   void set_led_active(bool active) {
     if (led_active_ != active) {
 #ifdef USE_SWITCH
-      if (this->turn_on_led_switch_ != nullptr)
-        this->turn_on_led_switch_->publish_state(active);
+      PUBLISH_STATE(this->turn_on_led_switch_, active);
 #endif
       led_active_ = active;
     }
@@ -75,8 +73,7 @@ class DfrobotSen0395Component final : public uart::UARTDevice, public Component 
   void set_uart_presence_active(bool active) {
     uart_presence_active_ = active;
 #ifdef USE_SWITCH
-    if (this->presence_via_uart_switch_ != nullptr)
-      this->presence_via_uart_switch_->publish_state(active);
+    PUBLISH_STATE(this->presence_via_uart_switch_, active);
 #endif
   }
   bool is_uart_presence_active() { return uart_presence_active_; }
@@ -84,16 +81,13 @@ class DfrobotSen0395Component final : public uart::UARTDevice, public Component 
   void set_start_after_boot(bool start) {
     start_after_boot_ = start;
 #ifdef USE_SWITCH
-    if (this->start_after_boot_switch_ != nullptr)
-      this->start_after_boot_switch_->publish_state(start);
+    PUBLISH_STATE(this->start_after_boot_switch_, start);
 #endif
   }
   bool does_start_after_boot() { return start_after_boot_; }
 
 #ifdef USE_BINARY_SENSOR
-  void set_detected_binary_sensor(binary_sensor::BinarySensor *detected_binary_sensor) {
-    detected_binary_sensor_ = detected_binary_sensor;
-  }
+  SUB_BINARY_SENSOR(detected)
 #endif
 
   // Commands run one at a time from a queue, at least 1 s apart, so loop() never blocks
@@ -113,10 +107,6 @@ class DfrobotSen0395Component final : public uart::UARTDevice, public Component 
   void format_command(const Command &cmd, char *buf, size_t size) const;
 
  protected:
-#ifdef USE_BINARY_SENSOR
-  binary_sensor::BinarySensor *detected_binary_sensor_{nullptr};
-#endif
-
   bool detected_{false};
   bool active_{false};
   bool led_active_{false};

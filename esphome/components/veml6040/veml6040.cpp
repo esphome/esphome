@@ -70,14 +70,10 @@ void VEML6040Component::update() {
 
   ESP_LOGV(TAG, "Counts: red=%u green=%u blue=%u white=%u", red, green, blue, white);
 
-  if (this->red_sensor_ != nullptr)
-    this->red_sensor_->publish_state(red);
-  if (this->green_sensor_ != nullptr)
-    this->green_sensor_->publish_state(green);
-  if (this->blue_sensor_ != nullptr)
-    this->blue_sensor_->publish_state(blue);
-  if (this->white_sensor_ != nullptr)
-    this->white_sensor_->publish_state(white);
+  PUBLISH_STATE(this->red_sensor_, red);
+  PUBLISH_STATE(this->green_sensor_, green);
+  PUBLISH_STATE(this->blue_sensor_, blue);
+  PUBLISH_STATE(this->white_sensor_, white);
 
   const bool saturated = red == MAX_COUNTS || green == MAX_COUNTS || blue == MAX_COUNTS;
   if (saturated) {

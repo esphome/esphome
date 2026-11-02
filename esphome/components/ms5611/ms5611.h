@@ -7,21 +7,19 @@
 namespace esphome::ms5611 {
 
 class MS5611Component final : public PollingComponent, public i2c::I2CDevice {
+  SUB_SENSOR(temperature)
+  SUB_SENSOR(pressure)
+
  public:
   void setup() override;
   void dump_config() override;
   void update() override;
-
-  void set_temperature_sensor(sensor::Sensor *temperature_sensor) { temperature_sensor_ = temperature_sensor; }
-  void set_pressure_sensor(sensor::Sensor *pressure_sensor) { pressure_sensor_ = pressure_sensor; }
 
  protected:
   void read_temperature_();
   void read_pressure_(uint32_t raw_temperature);
   void calculate_values_(uint32_t raw_temperature, uint32_t raw_pressure);
 
-  sensor::Sensor *temperature_sensor_{nullptr};
-  sensor::Sensor *pressure_sensor_{nullptr};
   uint16_t prom_[6];
 };
 

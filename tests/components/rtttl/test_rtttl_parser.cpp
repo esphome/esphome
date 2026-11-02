@@ -1,5 +1,8 @@
 #include <gtest/gtest.h>
 
+#include <cmath>
+#include <cstdint>
+#include <numbers>
 #include <string>
 
 #include "esphome/components/rtttl/rtttl.h"
@@ -17,11 +20,52 @@ class RtttlParserAccess {
   static size_t position(const Rtttl &p) { return p.position_; }
   static char at(const Rtttl &p, size_t pos) { return p.song_at_(pos); }
   static void set_running(Rtttl &p) { p.state_ = State::RUNNING; }
+  static int16_t sine(uint32_t phase) { return Rtttl::sine_sample(phase); }
+  static int16_t fade(int16_t value, uint32_t from_start, uint32_t to_end) {
+    return Rtttl::fade_sample(value, from_start, to_end);
+  }
 };
 
 using Access = RtttlParserAccess;
 
 static const char SONG[] = "test:d=8,o=5,b=100:c";
+
+// The straight line between table entries strays by up to 2.5 counts; rounding and truncation add up to 1.5 more.
+TEST(RtttlSine, MatchesSineWithinFourCounts) {
+  constexpr uint32_t step = 0x00FFF1C7;  // An arbitrary step that visits every part of the table
+  uint32_t phase = 0;
+  for (uint32_t i = 0; i != 100000; i++, phase += step) {
+    const double expected = INT16_MAX * std::sin(phase * (2.0 * std::numbers::pi / 4294967296.0));
+    ASSERT_NEAR(Access::sine(phase), expected, 4.0) << "phase " << phase;
+  }
+}
+
+TEST(RtttlSine, HitsTheQuarterPointsOfTheWave) {
+  EXPECT_EQ(Access::sine(0), 0);
+  EXPECT_NEAR(Access::sine(0x40000000), INT16_MAX, 1);
+  EXPECT_EQ(Access::sine(0x80000000), 0);
+  EXPECT_NEAR(Access::sine(0xC0000000), -INT16_MAX, 1);
+  EXPECT_NEAR(Access::sine(0xFFFFFFFF), 0, 1);
+}
+
+TEST(RtttlFade, FirstAndLastSamplesOfANoteAreSilent) {
+  EXPECT_EQ(Access::fade(INT16_MAX, 0, 1000), 0);
+  EXPECT_EQ(Access::fade(INT16_MIN, 1000, 0), 0);
+}
+
+TEST(RtttlFade, RampsAcrossTheFade) {
+  EXPECT_EQ(Access::fade(3200, 16, 1000), 1600);
+  EXPECT_EQ(Access::fade(3200, 1000, 16), 1600);
+  EXPECT_EQ(Access::fade(-3200, 16, 1000), -1600);
+  EXPECT_EQ(Access::fade(3200, 31, 1000), 3100);
+}
+
+TEST(RtttlFade, LeavesTheMiddleOfANoteUnchanged) {
+  EXPECT_EQ(Access::fade(INT16_MAX, 32, 32), INT16_MAX);
+  EXPECT_EQ(Access::fade(INT16_MIN, 1000, 1000), INT16_MIN);
+}
+
+TEST(RtttlFade, UsesTheNearerEndOfAVeryShortNote) { EXPECT_EQ(Access::fade(3200, 16, 8), 800); }
 
 TEST(RtttlParser, StaticSongParsesTheHeader) {
   Rtttl player;
