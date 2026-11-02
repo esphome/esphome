@@ -13,8 +13,15 @@ from esphome.components.ble_device_base import (
     as_hex,
     as_reversed_hex_array,
     bt_uuid,
+    validate_passkey,
 )
-from esphome.components.const import CONF_ACCEPT, CONF_ON_NUMERIC_COMPARISON_REQUEST
+from esphome.components.const import (
+    CONF_ACCEPT,
+    CONF_ON_NUMERIC_COMPARISON_REQUEST,
+    CONF_ON_PASSKEY_NOTIFICATION,
+    CONF_ON_PASSKEY_REQUEST,
+    CONF_PASSKEY,
+)
 from esphome.config_helpers import (
     filter_source_files_from_platform,
     frameworks_for_platforms,
@@ -149,9 +156,6 @@ BLERemoveBondAction = ble_client_ns.class_(
     "BLEClientRemoveBondAction", automation.Action
 )
 
-CONF_PASSKEY = "passkey"
-CONF_ON_PASSKEY_REQUEST = "on_passkey_request"
-CONF_ON_PASSKEY_NOTIFICATION = "on_passkey_notification"
 CONF_AUTO_CONNECT = "auto_connect"
 
 MULTI_CONF = True
@@ -391,7 +395,7 @@ BLE_PASSKEY_REPLY_ACTION_SCHEMA = cv.All(
     cv.Schema(
         {
             cv.GenerateID(CONF_ID): cv.use_id(BLEClient),
-            cv.Required(CONF_PASSKEY): cv.templatable(cv.int_range(min=0, max=999999)),
+            cv.Required(CONF_PASSKEY): cv.templatable(validate_passkey),
         }
     ),
 )

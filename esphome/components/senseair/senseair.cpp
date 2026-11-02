@@ -31,14 +31,7 @@ void SenseAirComponent::update() {
              response[8], response[9], response[10], response[11], response[12]);
 
     this->status_set_warning();
-    while (this->available()) {
-      uint8_t b;
-      if (this->read_byte(&b)) {
-        ESP_LOGV(TAG, "    ... %02x", b);
-      } else {
-        ESP_LOGV(TAG, "    ... nothing read");
-      }
-    }
+    this->discard_available();
     return;
   }
 
@@ -121,7 +114,7 @@ void SenseAirComponent::abc_get_period() {
     return;
   }
 
-  const uint16_t hours = (uint16_t(response[3]) << 8) | response[4];
+  const uint16_t hours = encode_uint16(response[3], response[4]);
   ESP_LOGD(TAG, "SenseAir Read ABC Period: %u hours", hours);
 }
 

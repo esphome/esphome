@@ -2,18 +2,20 @@
 
 from collections.abc import Callable
 from pathlib import Path
+import re
 from types import ModuleType
 
 import pytest
 
 from esphome import config_validation as cv
+from esphome.components import output
 from esphome.components.lp5562 import output as lp5562_output
 from esphome.components.mcp4461 import output as mcp4461_output
 from esphome.components.mcp4728 import output as mcp4728_output
 from esphome.components.pca9685 import output as pca9685_output
 from esphome.components.sm2135 import output as sm2135_output
 from esphome.config import Config, read_config
-from esphome.const import CONF_CHANNEL, CONF_PLATFORM, PlatformFramework
+from esphome.const import CONF_CHANNEL, CONF_PIN, CONF_PLATFORM, PlatformFramework
 from esphome.core import CORE, ID
 
 from ..types import SetCoreConfigCallable
@@ -92,3 +94,41 @@ def test_hub_channel_must_be_unique(
         module.FINAL_VALIDATE_SCHEMA(entry)
     with pytest.raises(cv.Invalid, match=f"Channel '{channel}' of 'a' is already used"):
         module.FINAL_VALIDATE_SCHEMA(entries[3])
+
+
+def test_output_button_presses_through_shared_helper(
+    generate_main: Callable[[str | Path], str],
+    component_config_path: Callable[[str], Path],
+) -> None:
+    """Each output button is an ApplyButton calling the helper with its output and duration."""
+    main_cpp = generate_main(component_config_path("output_button.yaml"))
+
+    fns = {
+        button_id: re.search(
+            rf"new\({button_id}\) button::ApplyButton<(\w+)>\(\);", main_cpp
+        ).group(1)
+        for button_id in ("pulse_a", "pulse_b", "pulse_long")
+    }
+    # Equal output and duration share one generated function
+    assert fns["pulse_a"] == fns["pulse_b"] != fns["pulse_long"]
+    for button_id, duration in (("pulse_a", 500), ("pulse_long", 2000)):
+        assert (
+            f"static void {fns[button_id]}(button::Button * entity) {{\n"
+            f"  output::press_output_button(entity, ::relay, {duration});\n}}"
+        ) in main_cpp
+
+
+def test_hub_channel_key_can_be_renamed(set_core_config: SetCoreConfigCallable) -> None:
+    """A hub that names its channel `pin` passes channel_key and gets the same check."""
+    validate = output.final_validate_unique_channel(
+        platform="fake", hub_key="fake_id", channel_key=CONF_PIN
+    )
+    entries = [
+        {CONF_PLATFORM: "fake", "fake_id": ID("a"), CONF_PIN: pin} for pin in (3, 4, 3)
+    ]
+    full = Config()
+    full["output"] = entries
+    set_core_config(PlatformFramework.ESP32_IDF, full_config=full)
+    validate(entries[1])
+    with pytest.raises(cv.Invalid, match="Pin '3' of 'a' is already used"):
+        validate(entries[2])
