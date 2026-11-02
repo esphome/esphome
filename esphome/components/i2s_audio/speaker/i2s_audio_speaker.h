@@ -8,11 +8,14 @@
 #include <freertos/queue.h>
 #include <freertos/FreeRTOS.h>
 
+#include <vector>
+
 #include "esphome/components/audio/audio.h"
 #include "esphome/components/ring_buffer/ring_buffer.h"
 #include "esphome/components/speaker/speaker.h"
 
 #include "esphome/core/component.h"
+#include "esphome/core/automation.h"
 #include "esphome/core/gpio.h"
 #include "esphome/core/helpers.h"
 
@@ -33,6 +36,7 @@ enum SpeakerEventGroupBits : uint32_t {
   TASK_RUNNING = (1 << 11),
   TASK_STOPPING = (1 << 12),
   TASK_STOPPED = (1 << 13),
+  TASK_AUDIO_ENDED = (1 << 14),
 
   ERR_ESP_NO_MEM = (1 << 19),
 
@@ -56,6 +60,10 @@ class I2SAudioSpeakerBase : public I2SAudioOut, public speaker::Speaker, public 
   void set_timeout(uint32_t ms) { this->timeout_ = ms; }
   void set_keep_alive(bool keep_alive) { this->keep_alive_ = keep_alive; }
   void set_dout_pin(uint8_t pin) { this->dout_pin_ = (gpio_num_t) pin; }
+  void add_on_audio_start_trigger(Trigger<> *trigger) { this->audio_start_triggers_.push_back(trigger); }
+  template<typename F> void add_on_audio_end_callback(F &&callback) {
+    this->audio_end_callback_.add(std::forward<F>(callback));
+  }
 
   /// @brief Get the I2S TX channel handle
   i2s_chan_handle_t get_tx_handle() const { return this->tx_handle_; }
@@ -185,6 +193,10 @@ class I2SAudioSpeakerBase : public I2SAudioOut, public speaker::Speaker, public 
 
   TaskHandle_t speaker_task_handle_{nullptr};
   EventGroupHandle_t event_group_{nullptr};
+  std::vector<Trigger<> *> audio_start_triggers_{};
+  LazyCallbackManager<void()> audio_end_callback_{};
+  uint32_t audio_end_started_ms_{0};
+  bool audio_end_waiting_{false};
 
   // Lockstepped DMA buffer queues: i2s_event is outgoing, write_records is incoming
   QueueHandle_t i2s_event_queue_{nullptr};
@@ -214,6 +226,11 @@ class I2SAudioSpeakerBase : public I2SAudioOut, public speaker::Speaker, public 
 
   gpio_num_t dout_pin_;
   i2s_chan_handle_t tx_handle_{nullptr};
+};
+
+class I2SAudioStartTrigger final : public Trigger<> {
+ public:
+  explicit I2SAudioStartTrigger(I2SAudioSpeakerBase *speaker) { speaker->add_on_audio_start_trigger(this); }
 };
 
 }  // namespace esphome::i2s_audio
