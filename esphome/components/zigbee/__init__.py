@@ -65,7 +65,6 @@ from .zigbee_esp32 import (
     validate_switch_esp32,
     zigbee_require_vfs_select,
 )
-from .zigbee_zephyr import zephyr_number, zephyr_switch
 
 _LOGGER = logging.getLogger(__name__)
 
@@ -80,16 +79,8 @@ CONFLICTS_WITH = ["openthread"]
 BASE_SCHEMA = entity_helpers.ZIGBEE_BASE_ENTITY_SCHEMA
 BINARY_SENSOR_SCHEMA = entity_helpers.ZIGBEE_BINARY_SENSOR_SCHEMA
 SENSOR_SCHEMA = entity_helpers.ZIGBEE_SENSOR_SCHEMA
-SWITCH_SCHEMA = (
-    cv.Schema({})
-    .extend(entity_helpers.zigbee_base_entity_schema(["generic", "on_off"]))
-    .extend(zephyr_switch)
-)
-NUMBER_SCHEMA = (
-    cv.Schema({})
-    .extend(entity_helpers.zigbee_base_entity_schema(["generic"]))
-    .extend(zephyr_number)
-)
+SWITCH_SCHEMA = entity_helpers.ZIGBEE_SWITCH_SCHEMA
+NUMBER_SCHEMA = entity_helpers.ZIGBEE_NUMBER_SCHEMA
 
 
 def _validate_router_sleepy(config: ConfigType) -> ConfigType:

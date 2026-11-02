@@ -85,10 +85,10 @@ i2c::ErrorCode TEM3200Component::read_(uint8_t &status, uint16_t &raw_temperatur
   }
 
   // extract top 6 bits of first byte and all bits of second byte for pressure
-  raw_pressure = (((response[0] & 0x3f)) << 8 | response[1]);
+  raw_pressure = encode_uint16(response[0] & 0x3f, response[1]);
 
   // extract all bytes of 3rd byte and top 3 bits of fourth byte for temperature
-  raw_temperature = ((response[2] << 3) | (response[3] & 0xe0) >> 5);
+  raw_temperature = encode_uint16(response[2], response[3]) >> 5;
 
   return i2c::ERROR_OK;
 }
@@ -137,10 +137,8 @@ void TEM3200Component::update() {
 
   ESP_LOGD(TAG, "Got raw pressure=%d, temperature=%.1f°C", raw_pressure, temperature);
 
-  if (this->temperature_sensor_ != nullptr)
-    this->temperature_sensor_->publish_state(temperature);
-  if (this->raw_pressure_sensor_ != nullptr)
-    this->raw_pressure_sensor_->publish_state(raw_pressure);
+  PUBLISH_STATE(this->temperature_sensor_, temperature);
+  PUBLISH_STATE(this->raw_pressure_sensor_, raw_pressure);
 
   this->status_clear_warning();
 }

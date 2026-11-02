@@ -5,6 +5,7 @@ from esphome.const import CONF_PASSWORD, CONF_PIN, CONF_TIME_ID
 from esphome.types import ConfigType
 
 CODEOWNERS = ["@epicRE"]
+AUTO_LOAD = ["number"]
 DEPENDENCIES = ["ble_client"]
 DOMAIN = "delta_wallbox"
 MULTI_CONF = True

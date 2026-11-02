@@ -149,10 +149,10 @@ template<typename T, bool Owning = false> class ConstVector {
 
 /// Owning variant: a codegen table that outlives it, or a heap copy of a runtime list it owns.
 /// Ownership is the top bit of the size; it is not copyable, so a copy can never outlive the owner.
-/// Elements must be whole words so ESP8266 can read a codegen table from flash.
+/// Elements must be whole words: on ESP8266, iterating or indexing a codegen table reads them straight from flash.
 template<typename T> class ConstVector<T, true> {
   static_assert(std::is_trivially_copyable_v<T> && sizeof(T) % sizeof(uint32_t) == 0,
-                "ConstVector elements must be whole words so ESP8266 can read them from flash");
+                "ConstVector elements must be whole words so ESP8266 can index them in flash");
 
  public:
   using value_type = T;
@@ -177,14 +177,13 @@ template<typename T> class ConstVector<T, true> {
     this->data_ = data;
     this->size_ = size;
   }
+  /// Appends count elements into one new heap array this owns; the current list and extra may be codegen tables in
+  /// flash.
+  void append_copy(const T *extra, size_t count) { this->merge_copy_(this->data_, this->size(), extra, count); }
+  /// Like append_copy(), with extra placed in front of the current list.
+  void prepend_copy(const T *extra, size_t count) { this->merge_copy_(extra, count, this->data_, this->size()); }
   /// Copies the list into a heap array this owns, freeing a previous owned copy.
-  void assign_copy(const T *data, size_t size) {
-    auto *table = new T[size];  // NOLINT(cppcoreguidelines-owning-memory)
-    std::copy(data, data + size, table);
-    this->release_();
-    this->data_ = table;
-    this->size_ = size | OWNED_BIT;
-  }
+  void assign_copy(const T *data, size_t size) { this->merge_copy_(data, size, nullptr, 0); }
 
  protected:
   static constexpr size_t OWNED_BIT = size_t{1} << (sizeof(size_t) * 8 - 1);
@@ -192,6 +191,24 @@ template<typename T> class ConstVector<T, true> {
   void release_() {
     if (this->size_ & OWNED_BIT)
       delete[] this->data_;  // NOLINT(cppcoreguidelines-owning-memory)
+  }
+  void merge_copy_(const T *first, size_t first_count, const T *second, size_t second_count) {
+    auto *table = new T[first_count + second_count];  // NOLINT(cppcoreguidelines-owning-memory)
+    copy_items(first, first_count, table);
+    copy_items(second, second_count, table + first_count);
+    this->release_();  // after the copies: first or second may be the current list
+    this->data_ = table;
+    this->size_ = (first_count + second_count) | OWNED_BIT;
+  }
+  // ESP8266: the source may be a table in flash
+  static void copy_items(const T *src, size_t count, T *dst) {
+    if (count == 0)
+      return;
+#ifdef USE_ESP8266
+    memcpy_P(dst, src, count * sizeof(T));
+#else
+    std::copy(src, src + count, dst);
+#endif
   }
 
   const T *data_{nullptr};
@@ -475,7 +492,7 @@ template<typename T, size_t MAX_CAPACITY = std::numeric_limits<uint16_t>::max()>
   class Iterator {
    public:
     Iterator(FixedRingBuffer *buf, index_type pos) : buf_(buf), pos_(pos) {}
-    T &operator*() { return buf_->data_[(buf_->head_ + pos_) % buf_->capacity_]; }
+    T &operator*() { return buf_->data_[buf_->wrap_(static_cast<size_t>(buf_->head_) + pos_)]; }
     Iterator &operator++() {
       ++pos_;
       return *this;
@@ -490,7 +507,7 @@ template<typename T, size_t MAX_CAPACITY = std::numeric_limits<uint16_t>::max()>
   class ConstIterator {
    public:
     ConstIterator(const FixedRingBuffer *buf, index_type pos) : buf_(buf), pos_(pos) {}
-    const T &operator*() const { return buf_->data_[(buf_->head_ + pos_) % buf_->capacity_]; }
+    const T &operator*() const { return buf_->data_[buf_->wrap_(static_cast<size_t>(buf_->head_) + pos_)]; }
     ConstIterator &operator++() {
       ++pos_;
       return *this;
@@ -532,7 +549,7 @@ template<typename T, size_t MAX_CAPACITY = std::numeric_limits<uint16_t>::max()>
     if (this->count_ >= this->capacity_)
       return false;
     this->data_[this->tail_] = value;
-    this->tail_ = (this->tail_ + 1) % this->capacity_;
+    this->tail_ = this->wrap_(static_cast<size_t>(this->tail_) + 1);
     ++this->count_;
     return true;
   }
@@ -540,7 +557,7 @@ template<typename T, size_t MAX_CAPACITY = std::numeric_limits<uint16_t>::max()>
   /// Push a value, overwriting the oldest if full.
   void push_overwrite(const T &value) {
     this->data_[this->tail_] = value;
-    this->tail_ = (this->tail_ + 1) % this->capacity_;
+    this->tail_ = this->wrap_(static_cast<size_t>(this->tail_) + 1);
     if (this->count_ >= this->capacity_) {
       // Buffer full - advance head to drop oldest, count stays at capacity
       this->head_ = this->tail_;
@@ -549,12 +566,40 @@ template<typename T, size_t MAX_CAPACITY = std::numeric_limits<uint16_t>::max()>
     }
   }
 
+  /// Push up to `len` values without overwriting. Returns how many fit.
+  size_t push(const T *data, size_t len) {
+    static_assert(std::is_trivially_copyable<T>::value, "bulk push copies with memcpy");
+    len = std::min<size_t>(len, this->free_space());
+    if (len == 0)
+      return 0;  // data_ may be null, and memcpy with a null pointer is undefined even for 0 bytes
+    const size_t first = std::min<size_t>(len, this->capacity_ - this->tail_);
+    std::memcpy(this->data_ + this->tail_, data, first * sizeof(T));
+    std::memcpy(this->data_, data + first, (len - first) * sizeof(T));
+    this->tail_ = this->wrap_(static_cast<size_t>(this->tail_) + len);
+    this->count_ += len;
+    return len;
+  }
+
   /// Remove the oldest element.
   void pop() {
     if (this->count_ > 0) {
-      this->head_ = (this->head_ + 1) % this->capacity_;
+      this->head_ = this->wrap_(static_cast<size_t>(this->head_) + 1);
       --this->count_;
     }
+  }
+
+  /// Move up to `len` of the oldest values into `out`. Returns how many were copied.
+  size_t pop(T *out, size_t len) {
+    static_assert(std::is_trivially_copyable<T>::value, "bulk pop copies with memcpy");
+    len = std::min<size_t>(len, this->count_);
+    if (len == 0)
+      return 0;
+    const size_t first = std::min<size_t>(len, this->capacity_ - this->head_);
+    std::memcpy(out, this->data_ + this->head_, first * sizeof(T));
+    std::memcpy(out + first, this->data_, (len - first) * sizeof(T));
+    this->head_ = this->wrap_(static_cast<size_t>(this->head_) + len);
+    this->count_ -= len;
+    return len;
   }
 
   T &front() { return this->data_[this->head_]; }
@@ -562,6 +607,7 @@ template<typename T, size_t MAX_CAPACITY = std::numeric_limits<uint16_t>::max()>
   index_type size() const { return this->count_; }
   bool empty() const { return this->count_ == 0; }
   index_type capacity() const { return this->capacity_; }
+  index_type free_space() const { return this->capacity_ - this->count_; }
   bool full() const { return this->count_ == this->capacity_; }
 
   /// Clear all elements (reset to empty, keep capacity)
@@ -577,14 +623,12 @@ template<typename T, size_t MAX_CAPACITY = std::numeric_limits<uint16_t>::max()>
   ConstIterator end() const { return ConstIterator(this, this->count_); }
 
   /// The element `pos` places after the oldest one; the sum is widened so a small index type cannot truncate it
-  const T &operator[](index_type pos) const {
-    size_t index = static_cast<size_t>(this->head_) + pos;
-    if (index >= this->capacity_)
-      index -= this->capacity_;
-    return this->data_[index];
-  }
+  const T &operator[](index_type pos) const { return this->data_[this->wrap_(static_cast<size_t>(this->head_) + pos)]; }
 
  protected:
+  /// Fold an index below 2 * capacity back into the buffer
+  index_type wrap_(size_t index) const { return index >= this->capacity_ ? index - this->capacity_ : index; }
+
   T *data_{nullptr};
   index_type head_{0};
   index_type tail_{0};
@@ -1791,6 +1835,15 @@ enum class TemperatureUnit : uint8_t {
   FAHRENHEIT = 1,
   KELVIN = 2,
 };
+
+/// Convert degrees Celsius into the given unit.
+constexpr float celsius_to(float value, TemperatureUnit unit) {
+  if (unit == TemperatureUnit::FAHRENHEIT)
+    return celsius_to_fahrenheit(value);
+  if (unit == TemperatureUnit::KELVIN)
+    return value + 273.15f;
+  return value;
+}
 
 ///@}
 

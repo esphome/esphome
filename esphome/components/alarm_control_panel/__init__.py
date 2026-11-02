@@ -1,7 +1,6 @@
 from esphome import automation
 from esphome.automation import maybe_simple_id
 import esphome.codegen as cg
-from esphome.components import mqtt, web_server
 import esphome.config_validation as cv
 from esphome.const import (
     CONF_CODE,
@@ -10,11 +9,11 @@ from esphome.const import (
     CONF_ID,
     CONF_MQTT_ID,
     CONF_ON_STATE,
-    CONF_WEB_SERVER,
 )
-from esphome.core import CORE, CoroPriority, coroutine_with_priority
+from esphome.core import CORE, CoroPriority, coroutine_with_priority, entity_helpers
 from esphome.core.entity_helpers import (
     entity_duplicate_validator,
+    mqtt_component_class,
     queue_entity_register,
     setup_entity,
 )
@@ -44,12 +43,12 @@ AlarmControlPanelState = alarm_control_panel_ns.enum("AlarmControlPanelState")
 
 
 _ALARM_CONTROL_PANEL_SCHEMA = (
-    cv.ENTITY_BASE_SCHEMA.extend(web_server.WEBSERVER_SORTING_SCHEMA)
+    cv.ENTITY_BASE_SCHEMA.extend(entity_helpers.WEBSERVER_SORTING_SCHEMA)
     .extend(cv.MQTT_COMMAND_COMPONENT_SCHEMA)
     .extend(
         {
             cv.OnlyWith(CONF_MQTT_ID, "mqtt"): cv.declare_id(
-                mqtt.MQTTAlarmControlPanelComponent
+                mqtt_component_class("MQTTAlarmControlPanelComponent")
             ),
             cv.Optional(CONF_ON_STATE): automation.validate_automation({}),
             cv.Optional(CONF_ON_TRIGGERED): automation.validate_automation({}),
@@ -106,57 +105,32 @@ ALARM_CONTROL_PANEL_CODE_ACTION_SCHEMA = maybe_simple_id(
 ALARM_CONTROL_PANEL_CONDITION_SCHEMA = ALARM_CONTROL_PANEL_ACTION_SCHEMA
 
 
+def _on_state_enter(conf_key: str, state: cg.MockObj) -> automation.CallbackAutomation:
+    return automation.CallbackAutomation(
+        conf_key,
+        "add_on_state_callback",
+        forwarder=StateEnterForwarder.template(state),
+        params=[(AlarmControlPanelState, "state")],
+        forward=[],
+        when=f"state == {state}",
+    )
+
+
 _CALLBACK_AUTOMATIONS = (
     automation.CallbackAutomation(
-        CONF_ON_STATE, "add_on_state_callback", forwarder=StateAnyForwarder
-    ),
-    automation.CallbackAutomation(
-        CONF_ON_TRIGGERED,
+        CONF_ON_STATE,
         "add_on_state_callback",
-        forwarder=StateEnterForwarder.template(
-            AlarmControlPanelState.ACP_STATE_TRIGGERED
-        ),
+        forwarder=StateAnyForwarder,
+        params=[(AlarmControlPanelState, "state")],
+        forward=[],
     ),
-    automation.CallbackAutomation(
-        CONF_ON_ARMING,
-        "add_on_state_callback",
-        forwarder=StateEnterForwarder.template(AlarmControlPanelState.ACP_STATE_ARMING),
-    ),
-    automation.CallbackAutomation(
-        CONF_ON_PENDING,
-        "add_on_state_callback",
-        forwarder=StateEnterForwarder.template(
-            AlarmControlPanelState.ACP_STATE_PENDING
-        ),
-    ),
-    automation.CallbackAutomation(
-        CONF_ON_ARMED_HOME,
-        "add_on_state_callback",
-        forwarder=StateEnterForwarder.template(
-            AlarmControlPanelState.ACP_STATE_ARMED_HOME
-        ),
-    ),
-    automation.CallbackAutomation(
-        CONF_ON_ARMED_NIGHT,
-        "add_on_state_callback",
-        forwarder=StateEnterForwarder.template(
-            AlarmControlPanelState.ACP_STATE_ARMED_NIGHT
-        ),
-    ),
-    automation.CallbackAutomation(
-        CONF_ON_ARMED_AWAY,
-        "add_on_state_callback",
-        forwarder=StateEnterForwarder.template(
-            AlarmControlPanelState.ACP_STATE_ARMED_AWAY
-        ),
-    ),
-    automation.CallbackAutomation(
-        CONF_ON_DISARMED,
-        "add_on_state_callback",
-        forwarder=StateEnterForwarder.template(
-            AlarmControlPanelState.ACP_STATE_DISARMED
-        ),
-    ),
+    _on_state_enter(CONF_ON_TRIGGERED, AlarmControlPanelState.ACP_STATE_TRIGGERED),
+    _on_state_enter(CONF_ON_ARMING, AlarmControlPanelState.ACP_STATE_ARMING),
+    _on_state_enter(CONF_ON_PENDING, AlarmControlPanelState.ACP_STATE_PENDING),
+    _on_state_enter(CONF_ON_ARMED_HOME, AlarmControlPanelState.ACP_STATE_ARMED_HOME),
+    _on_state_enter(CONF_ON_ARMED_NIGHT, AlarmControlPanelState.ACP_STATE_ARMED_NIGHT),
+    _on_state_enter(CONF_ON_ARMED_AWAY, AlarmControlPanelState.ACP_STATE_ARMED_AWAY),
+    _on_state_enter(CONF_ON_DISARMED, AlarmControlPanelState.ACP_STATE_DISARMED),
     automation.CallbackAutomation(CONF_ON_CLEARED, "add_on_cleared_callback"),
     automation.CallbackAutomation(CONF_ON_CHIME, "add_on_chime_callback"),
     automation.CallbackAutomation(CONF_ON_READY, "add_on_ready_callback"),
@@ -166,11 +140,7 @@ _CALLBACK_AUTOMATIONS = (
 @setup_entity("alarm_control_panel")
 async def setup_alarm_control_panel_core_(var, config):
     await automation.build_callback_automations(var, config, _CALLBACK_AUTOMATIONS)
-    if web_server_config := config.get(CONF_WEB_SERVER):
-        await web_server.add_entity_config(var, web_server_config)
-    if mqtt_id := config.get(CONF_MQTT_ID):
-        mqtt_ = cg.new_Pvariable(mqtt_id, var)
-        await mqtt.register_mqtt_component(mqtt_, config)
+    await entity_helpers.setup_entity_integrations(var, config)
 
 
 async def register_alarm_control_panel(var, config):

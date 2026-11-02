@@ -1,6 +1,15 @@
 #include "nextion_component.h"
+#include "esphome/core/progmem.h"
 
 namespace esphome::nextion {
+
+PROGMEM_STRING_TABLE(NextionQueueTypeStrings, "NO_RESULT", "SENSOR", "BINARY_SENSOR", "SWITCH", "TEXT_SENSOR",
+                     "WAVEFORM_SENSOR");
+static_assert(NextionQueueTypeStrings::COUNT == NextionQueueType::WAVEFORM_SENSOR + 1, "queue type names out of sync");
+
+const LogString *NextionComponentBase::get_queue_type_string() const {
+  return NextionQueueTypeStrings::get_log_str(this->get_queue_type(), 0);
+}
 
 void NextionComponent::set_background_color(Color bco) {
   if (this->variable_name_ == this->variable_name_to_send_) {

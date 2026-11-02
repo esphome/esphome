@@ -23,9 +23,17 @@ import re
 import struct
 from typing import Any, Literal, Self
 
+from cryptography.hazmat.primitives.ciphers import Cipher, modes
+
+try:
+    from cryptography.hazmat.decrepit.ciphers.algorithms import TripleDES
+except ImportError:  # cryptography < 43
+    from cryptography.hazmat.primitives.ciphers.algorithms import TripleDES
+
 _LOGGER = logging.getLogger(__name__)
 
 SECURITY_NONE = 1
+SECURITY_VNC_AUTH = 2
 SECURITY_TIGHT = 16
 
 ENCODING_RAW = 0
@@ -44,6 +52,7 @@ HOSTILE_CHUNK = -1
 #: TightVNC closes the connection on a longer ClientCutText.
 MAX_CLIENT_CUT_TEXT = 1 << 20
 
+AUTH_FAILED_REASON = "Authentication failed"
 
 RGB = tuple[int, int, int]
 Encoding = Literal["raw", "hextile", "hextile-raw-tiles", "rich-cursor"]
@@ -108,6 +117,21 @@ RGB565_BE = PixelFormat(16, 16, True, True, 31, 63, 31, 11, 5, 0)
 RGB332 = PixelFormat(8, 8, False, True, 7, 7, 3, 5, 2, 0)
 
 
+def des_ecb(key: bytes, data: bytes) -> bytes:
+    """Single DES in ECB mode, as TripleDES with the 8 byte key repeated."""
+    encryptor = Cipher(TripleDES(key * 3), modes.ECB()).encryptor()
+    return encryptor.update(data) + encryptor.finalize()
+
+
+def vnc_auth_response(password: str, challenge: bytes) -> bytes:
+    """The answer to a VNC authentication challenge.
+
+    The key is the password cut or zero padded to 8 bytes, with the bits of each byte reversed.
+    """
+    key = password.encode()[:8].ljust(8, b"\0")
+    return des_ecb(bytes(int(f"{b:08b}"[::-1], 2) for b in key), challenge)
+
+
 def _string(text: str) -> bytes:
     data = text.encode()
     return struct.pack(">I", len(data)) + data
@@ -137,9 +161,11 @@ class FakeRfbServer:
         width: int,
         height: int,
         *,
+        password: str | None = None,
         version: bytes = b"RFB 003.008\n",
         security_types: list[int] | None = None,
         name: str = "fake rfb",
+        challenge: bytes = bytes(range(16)),
         native_format: PixelFormat = RGB565_LE,
         refuse_with_reason: str | None = None,
         handshake_chunk: int | None = None,
@@ -150,9 +176,11 @@ class FakeRfbServer:
         Args:
             width: Framebuffer width.
             height: Framebuffer height.
+            password: Offer VNC authentication with this password instead of None.
             version: The 12 byte ProtocolVersion the server sends.
-            security_types: The 3.7+ list. Defaults to TightVNC's ``[1, 16]``.
+            security_types: The 3.7+ list. Defaults to TightVNC's ``[1, 16]`` or ``[2, 16]``.
             name: Desktop name in ServerInit.
+            challenge: The 16 byte VNC authentication challenge.
             native_format: Pixel format in ServerInit, used until SetPixelFormat.
             refuse_with_reason: Refuse every connection before authentication with this
                 reason, as TightVNC does after too many failures.
@@ -161,13 +189,18 @@ class FakeRfbServer:
         """
         self.width = width
         self.height = height
+        self.password = password
         self.version = version
         self.security_types = (
             list(security_types)
             if security_types is not None
-            else [SECURITY_NONE, SECURITY_TIGHT]
+            else [
+                SECURITY_NONE if password is None else SECURITY_VNC_AUTH,
+                SECURITY_TIGHT,
+            ]
         )
         self.name = name
+        self.challenge = challenge
         self.native_format = native_format
         self.refuse_with_reason = refuse_with_reason
         self.handshake_chunk = handshake_chunk
@@ -188,6 +221,7 @@ class FakeRfbServer:
         self._port = 0
         self._connections = 0
         self._sessions = 0
+        self._auth_failures = 0
 
     async def __aenter__(self) -> Self:
         """Start on a free loopback port if not started yet."""
@@ -213,6 +247,11 @@ class FakeRfbServer:
     def sessions(self) -> int:
         """Connections that got as far as ServerInit."""
         return self._sessions
+
+    @property
+    def auth_failures(self) -> int:
+        """Wrong VNC authentication responses so far."""
+        return self._auth_failures
 
     @property
     def client_connected(self) -> bool:
@@ -462,6 +501,7 @@ class FakeRfbServer:
     def _summary(self) -> str:
         return (
             f"connections={self._connections}, sessions={self._sessions}, "
+            f"auth_failures={self._auth_failures}, "
             f"pending={[m['type'] for m in self._pending]}, "
             f"protocol_errors={self.protocol_errors}"
         )
@@ -574,7 +614,11 @@ class FakeRfbServer:
                 await self._reply(session, struct.pack(">I", 0) + _string(reason))
                 return False
             chosen = next(
-                (t for t in self.security_types if t == SECURITY_NONE),
+                (
+                    t
+                    for t in self.security_types
+                    if t in (SECURITY_NONE, SECURITY_VNC_AUTH)
+                ),
                 self.security_types[0],
             )
             await self._reply(session, struct.pack(">I", chosen))
@@ -593,7 +637,25 @@ class FakeRfbServer:
             if session.minor >= 8:
                 await self._reply(session, struct.pack(">I", 0))
             return True
+        if chosen == SECURITY_VNC_AUTH:
+            return await self._vnc_auth(session)
         raise _ProtocolError(f"security type {chosen} is not emulated")
+
+    async def _vnc_auth(self, session: _Session) -> bool:
+        await self._reply(session, self.challenge)
+        response = await session.reader.readexactly(16)
+        if self.password is not None and response == vnc_auth_response(
+            self.password, self.challenge
+        ):
+            await self._reply(session, struct.pack(">I", 0))
+            return True
+        self._auth_failures += 1
+        self._bump()
+        failure = struct.pack(">I", 1)
+        if session.minor >= 8:
+            failure += _string(AUTH_FAILED_REASON)
+        await self._reply(session, failure)
+        return False
 
     async def _read_message(self, session: _Session) -> None:
         read = session.reader.readexactly

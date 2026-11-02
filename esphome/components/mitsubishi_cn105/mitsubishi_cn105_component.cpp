@@ -42,6 +42,9 @@ void VaneCall::perform() {
   if (const auto &direction = this->vertical.get_direction(); direction.has_value()) {
     this->parent_->set_vane_mode(static_cast<MitsubishiCN105::VaneMode>(*direction));
   }
+  if (const auto &direction = this->horizontal.get_direction(); direction.has_value()) {
+    this->parent_->set_wide_vane_mode(static_cast<MitsubishiCN105::WideVaneMode>(*direction));
+  }
   this->parent_->publish_status();
 }
 

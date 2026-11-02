@@ -823,6 +823,19 @@ void WiFiComponent::on_powerdown() {
 }
 #endif
 
+#ifdef USE_BK72XX
+void WiFiComponent::on_powerdown() {
+  // Leave the AP so it no longer holds the association when we come back.
+  // Beken reports WL_CONNECTED only once it has an IP; joining or associated is WL_SCAN_COMPLETED
+  const WiFiStatus status = WiFi.status();
+  if (status != WL_CONNECTED && status != WL_SCAN_COMPLETED)
+    return;
+  ESP_LOGD(TAG, "Disconnecting before powerdown");
+  wlan_sta_disconnect();  // not WiFi.disconnect(): it only reports a lost link and sends no deauth
+  delay(100);             // NOLINT: once per reboot or deep sleep, lets the deauth go out
+}
+#endif
+
 bool WiFiComponent::wifi_disconnect_() {
   // Reset state first so disconnect events aren't ignored
   // and wifi_sta_connect_status_() returns IDLE instead of CONNECTING

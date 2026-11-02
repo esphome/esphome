@@ -108,8 +108,7 @@ CONFIG_SCHEMA = cv.Schema(
 
 
 def _final_validate(config: ConfigType) -> ConfigType:
-    full = fv.full_config.get()
-    hub = full.get_config_for_path(full.get_path_for_id(config[CONF_AS734X_ID])[:-1])
+    hub = fv.get_declaring_config(config[CONF_AS734X_ID])
     if hub[CONF_TYPE] != "AS7341":
         return config
     for key in _BAND_KEYS:

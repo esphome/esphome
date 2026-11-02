@@ -12,7 +12,8 @@ mqtt:
   username: debug
   password: debug
   enable_on_boot: false
-  clean_session: True
+  clean_session: false
+  persist_subscriptions: true
   client_id: someclient
   use_abbreviations: false
   discovery: true
@@ -107,6 +108,18 @@ button:
             std::string payload = "Hello";
             return payload;
           qos: !lambda return 1;
+          retain: !lambda return false;
+      - mqtt.publish_json:
+          topic: some/topic/json
+          payload: |-
+            root["key"] = "value";
+          qos: 1
+          retain: true
+      - mqtt.publish_json:
+          topic: !lambda return "some/topic/json/lambda";
+          payload: |-
+            root["key"] = 1;
+          qos: !lambda return 2;
           retain: !lambda return false;
 
 climate:
@@ -502,3 +515,22 @@ alarm_control_panel:
     name: Alarm Control Panel
     binary_sensors:
       - input: some_binary_sensor
+
+script:
+  - id: publish_json_by_value
+    parameters:
+      x: int
+    then:
+      # The user lambdas may modify their by-value argument
+      - mqtt.publish_json:
+          topic: !lambda "x *= 2; return to_string(x);"
+          payload: |-
+            x *= 2;
+            root["x"] = x;
+          qos: !lambda "x *= 0; return x;"
+          retain: !lambda "x *= 2; return x > 0;"
+      - mqtt.publish_json:
+          topic: !lambda "return to_string(x *= 2);"
+          payload: root["x"] = x *= 2;
+          qos: !lambda "return x *= 0;"
+          retain: !lambda "return (x *= 2) > 0;"

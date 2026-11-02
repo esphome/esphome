@@ -20,6 +20,15 @@
 #ifdef USE_TIME
 #include "esphome/components/time/real_time_clock.h"
 #endif
+#ifdef USE_NUMBER
+#include "esphome/components/number/number.h"
+#endif
+#ifdef USE_SWITCH
+#include "esphome/components/switch/switch.h"
+#endif
+#ifdef USE_SELECT
+#include "esphome/components/select/select.h"
+#endif
 
 namespace esphome::ecocomfort2 {
 
@@ -43,8 +52,50 @@ static constexpr uint8_t SPEED_MASK = 0x0F;
 static constexpr uint8_t FLAG_AUTO = 0x10;
 static constexpr uint8_t FLAG_BOOST = 0x40;
 
+// The thresholds come first, in the order of their C_CONFIGURATION bytes
+enum class NumberSetting : uint8_t {
+  NUMBER_SETTING_HUMIDITY_THRESHOLD,
+  NUMBER_SETTING_LUMINOSITY_THRESHOLD,
+  NUMBER_SETTING_VOC_THRESHOLD,
+  NUMBER_SETTING_TEMPERATURE_OFFSET,
+  NUMBER_SETTING_HUMIDITY_OFFSET,
+  NUMBER_SETTING_COUNT,
+};
+enum class SwitchSetting : uint8_t {
+  SWITCH_SETTING_HUMIDITY_ADVANCED,
+  SWITCH_SETTING_VOC_ADVANCED,
+  SWITCH_SETTING_COUNT
+};
+enum class SelectSetting : uint8_t { SELECT_SETTING_SEASON, SELECT_SETTING_FREE_COOLING, SELECT_SETTING_COUNT };
+
+#ifdef USE_ECOCOMFORT2_SETTINGS
+/// One settings characteristic. Only one read is in flight at a time; a write sent meanwhile makes its answer stale.
+struct SettingsChar {
+  uint32_t sent_ms{0};
+  uint16_t handle{0};
+  bool needed : 1 {false};  // An entity uses this characteristic
+  bool known : 1 {false};   // Read since connecting
+  bool in_flight : 1 {false};
+  bool dirty : 1 {false};  // A write followed the read in flight, so its answer is stale
+};
+#endif
+
 /** Hub component for Ecocomfort 2.0 VMC via BLE. */
 class Ecocomfort2Hub : public esphome::ble_client::BLEClientNode, public PollingComponent {
+#ifdef USE_SENSOR
+  SUB_SENSOR(temperature)
+  SUB_SENSOR(humidity)
+  SUB_SENSOR(voc)
+  SUB_SENSOR(direction)
+#endif
+#ifdef USE_BINARY_SENSOR
+  SUB_BINARY_SENSOR(connected)
+  SUB_BINARY_SENSOR(boost)
+#endif
+#ifdef USE_TEXT_SENSOR
+  SUB_TEXT_SENSOR(firmware)
+#endif
+
  public:
   void setup() override;
   void update() override;
@@ -58,23 +109,35 @@ class Ecocomfort2Hub : public esphome::ble_client::BLEClientNode, public Polling
 #ifdef ECOCOMFORT2_CHILD_COUNT
   void register_child(Ecocomfort2Client *obj);
 #endif
-#ifdef USE_SENSOR
-  void set_temperature_sensor(sensor::Sensor *s) { this->temperature_sensor_ = s; }
-  void set_humidity_sensor(sensor::Sensor *s) { this->humidity_sensor_ = s; }
-  void set_voc_sensor(sensor::Sensor *s) { this->voc_sensor_ = s; }
-  void set_direction_sensor(sensor::Sensor *s) { this->direction_sensor_ = s; }
-#endif
-#ifdef USE_BINARY_SENSOR
-  void set_connected_binary_sensor(binary_sensor::BinarySensor *s) { this->connected_binary_sensor_ = s; }
-  void set_boost_binary_sensor(binary_sensor::BinarySensor *s) { this->boost_binary_sensor_ = s; }
-#endif
-#ifdef USE_TEXT_SENSOR
-  void set_firmware_text_sensor(text_sensor::TextSensor *s) { this->firmware_text_sensor_ = s; }
-#endif
 #ifdef USE_TIME
   /// Keeps the unit's clock in step with this time source while connected.
   void set_time(time::RealTimeClock *time) { this->time_ = time; }
 #endif
+#ifdef USE_ECOCOMFORT2_SETTINGS
+  // The writes below publish every entity they affect with the value sent; a refused change publishes nothing
+#ifdef USE_NUMBER
+  void set_number(NumberSetting setting, number::Number *number) {
+    this->numbers_[static_cast<uint8_t>(setting)] = number;
+    (setting < NumberSetting::NUMBER_SETTING_TEMPERATURE_OFFSET ? this->config_char_ : this->advanced_char_).needed =
+        true;
+  }
+  void write_number(NumberSetting setting, float value);
+#endif
+#ifdef USE_SWITCH
+  void set_switch(SwitchSetting setting, switch_::Switch *sw) {
+    this->switches_[static_cast<uint8_t>(setting)] = sw;
+    this->config_char_.needed = true;
+  }
+  void write_switch(SwitchSetting setting, bool state);
+#endif
+#ifdef USE_SELECT
+  void set_select(SelectSetting setting, select::Select *select) {
+    this->selects_[static_cast<uint8_t>(setting)] = select;
+    this->config_char_.needed = true;
+  }
+  void write_select(SelectSetting setting, size_t index);
+#endif
+#endif  // USE_ECOCOMFORT2_SETTINGS
 
   /// True once the link is established and paired.
   bool is_ready() const { return this->node_state == espbt::ClientState::ESTABLISHED && this->parent_->is_paired(); }
@@ -95,7 +158,8 @@ class Ecocomfort2Hub : public esphome::ble_client::BLEClientNode, public Polling
   void on_paired_();
   void set_connected_(bool connected);
   void publish_unknown_();
-  void read_char_(uint16_t handle);
+  bool read_char_(uint16_t handle);
+  bool write_char_(uint16_t handle, uint8_t *data, uint16_t len);
   bool read_ok_(const esp_ble_gattc_cb_param_t *param);
   void on_oper_(const uint8_t *data, uint16_t len);
   void on_state_(const uint8_t *data, uint16_t len);
@@ -103,22 +167,23 @@ class Ecocomfort2Hub : public esphome::ble_client::BLEClientNode, public Polling
 #ifdef USE_TIME
   void sync_clock_();
 #endif
+#ifdef USE_ECOCOMFORT2_SETTINGS
+  void read_settings_();
+  void request_settings_(SettingsChar &settings);
+  bool settings_answer_current_(SettingsChar &settings);
+  bool settings_known_(const SettingsChar &settings);
+  void on_config_(const uint8_t *data, uint16_t len);
+  void on_advanced_(const uint8_t *data, uint16_t len);
+  /// Write one C_CONFIGURATION byte, leaving the others as they are, and keep `stored` as its local copy.
+  void write_config_(uint8_t index, uint8_t value, uint8_t stored);
+  void write_offsets_(int16_t temperature, int16_t humidity);
+  bool write_settings_(SettingsChar &settings, uint8_t *data, uint16_t len);
+  void publish_config_();
+  void publish_offsets_();
+#endif
 
 #ifdef ECOCOMFORT2_CHILD_COUNT
   StaticVector<Ecocomfort2Client *, ECOCOMFORT2_CHILD_COUNT> children_;
-#endif
-#ifdef USE_SENSOR
-  sensor::Sensor *temperature_sensor_{nullptr};
-  sensor::Sensor *humidity_sensor_{nullptr};
-  sensor::Sensor *voc_sensor_{nullptr};
-  sensor::Sensor *direction_sensor_{nullptr};
-#endif
-#ifdef USE_BINARY_SENSOR
-  binary_sensor::BinarySensor *connected_binary_sensor_{nullptr};
-  binary_sensor::BinarySensor *boost_binary_sensor_{nullptr};
-#endif
-#ifdef USE_TEXT_SENSOR
-  text_sensor::TextSensor *firmware_text_sensor_{nullptr};
 #endif
 #ifdef USE_TIME
   time::RealTimeClock *time_{nullptr};
@@ -129,6 +194,23 @@ class Ecocomfort2Hub : public esphome::ble_client::BLEClientNode, public Polling
   uint16_t char_handle_clock_{0};
   uint8_t mode_{OPER_OFF};
   uint8_t speed_{SPEED_OFF};
+#ifdef USE_ECOCOMFORT2_SETTINGS
+#ifdef USE_NUMBER
+  number::Number *numbers_[static_cast<uint8_t>(NumberSetting::NUMBER_SETTING_COUNT)]{};
+#endif
+#ifdef USE_SWITCH
+  switch_::Switch *switches_[static_cast<uint8_t>(SwitchSetting::SWITCH_SETTING_COUNT)]{};
+#endif
+#ifdef USE_SELECT
+  select::Select *selects_[static_cast<uint8_t>(SelectSetting::SELECT_SETTING_COUNT)]{};
+#endif
+  SettingsChar config_char_;
+  SettingsChar advanced_char_;
+  // C_CONFIGURATION bytes 0-4 as last read or written: role, three thresholds, season and free cooling
+  uint8_t config_bytes_[5]{};
+  // C_ADVANCED_SETTINGS temperature and humidity offsets, in hundredths
+  int16_t offsets_[2]{};
+#endif  // USE_ECOCOMFORT2_SETTINGS
 };
 
 }  // namespace esphome::ecocomfort2

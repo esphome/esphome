@@ -59,6 +59,7 @@ from esphome.cpp_helpers import (  # noqa: F401
     add_variable,
     build_registry_entry,
     build_registry_list,
+    build_registry_list_merged,
     extract_registry_entry_config,
     get_slot_count,
     gpio_pin_expression,

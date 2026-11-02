@@ -1,6 +1,6 @@
 from collections.abc import Iterator
 
-from esphome import automation
+from esphome import automation, preferences
 import esphome.codegen as cg
 from esphome.components import logger, network, socket
 from esphome.components.const import CONF_VERIFY_SSL
@@ -107,6 +107,7 @@ def AUTO_LOAD():
 CONF_TLS = "tls"
 CONF_IDF_SEND_ASYNC = "idf_send_async"
 CONF_WAIT_FOR_CONNECTION = "wait_for_connection"
+CONF_PERSIST_SUBSCRIPTIONS = "persist_subscriptions"
 CONF_TRANSPORT = "transport"
 CONF_WS_PATH = "ws_path"
 
@@ -304,6 +305,10 @@ def validate_config(value):
         raise cv.Invalid(
             f"'{CONF_WS_PATH}' is only valid when 'transport' is 'ws' or 'wss'"
         )
+    if value.get(CONF_PERSIST_SUBSCRIPTIONS) and value.get(CONF_CLEAN_SESSION):
+        raise cv.Invalid(
+            f"'{CONF_PERSIST_SUBSCRIPTIONS}' requires '{CONF_CLEAN_SESSION}: false'"
+        )
 
     # Populate default fields
     out = value.copy()
@@ -394,6 +399,7 @@ CONFIG_SCHEMA = cv.All(
             cv.Optional(CONF_USERNAME, default=""): cv.string,
             cv.Optional(CONF_PASSWORD, default=""): cv.sensitive(),
             cv.Optional(CONF_CLEAN_SESSION, default=False): cv.boolean,
+            cv.Optional(CONF_PERSIST_SUBSCRIPTIONS, default=False): cv.boolean,
             cv.Optional(CONF_CLIENT_ID): cv.string,
             cv.Optional(
                 CONF_TRANSPORT, default=MQTT_TRANSPORT_TCP
@@ -666,6 +672,10 @@ async def to_code(config):
     cg.add(var.set_username(config[CONF_USERNAME]))
     cg.add(var.set_password(config[CONF_PASSWORD]))
     cg.add(var.set_clean_session(config[CONF_CLEAN_SESSION]))
+    if config[CONF_PERSIST_SUBSCRIPTIONS]:
+        cg.add_define("USE_MQTT_SESSION_PERSISTENCE")
+        # The session fingerprint, a uint32_t kept in RTC memory
+        preferences.reserve_preferences(1, 4, in_flash=False)
     cg.add_optional(var.set_client_id, config.get(CONF_CLIENT_ID))
 
     discovery = config[CONF_DISCOVERY]

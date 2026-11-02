@@ -42,6 +42,7 @@ ONLINE_IMAGE_SCHEMA = (
             # AUTO (Content-Type detection) is online_image specific; not in the shared registry
             cv.Required(CONF_FORMAT): cv.one_of(*IMAGE_FORMATS, "AUTO", upper=True),
             cv.Optional(CONF_BUFFER_SIZE, default=65536): cv.int_range(256, 65536),
+            cv.Optional(runtime_image.CONF_DOUBLE_BUFFER, default=False): cv.boolean,
             cv.Optional(CONF_REQUEST_HEADERS): cv.All(
                 cv.Schema({cv.string: cv.templatable(cv.string)})
             ),
@@ -141,6 +142,8 @@ async def setup_online_image(config: ConfigType) -> None:
     )
     await cg.register_component(var, config)
     await cg.register_parented(var, config[CONF_HTTP_REQUEST_ID])
+    if settings.double_buffer:
+        cg.add(var.set_double_buffer(True))
 
     for key, value in config.get(CONF_REQUEST_HEADERS, {}).items():
         if isinstance(value, Lambda):

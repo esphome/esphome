@@ -40,19 +40,19 @@ static const uint32_t AUDIO_CHANNEL_STALL_TIMEOUT_MS = 2000;
 VoiceAssistant::VoiceAssistant() { global_voice_assistant = this; }
 
 void VoiceAssistant::setup() {
-  this->mic_source_->add_data_callback([this](const std::vector<uint8_t> &data) {
+  this->mic_source_->add_data_callback([this](const microphone::AudioCapture &capture) {
     std::shared_ptr<ring_buffer::RingBuffer> temp_ring_buffer = this->ring_buffer_.lock();
     if (temp_ring_buffer != nullptr) {
-      temp_ring_buffer->write((void *) data.data(), data.size());
+      temp_ring_buffer->write((void *) capture.data.data(), capture.data.size());
     }
   });
 
   // Second microphone channel
   if (this->mic_source2_ != nullptr) {
-    this->mic_source2_->add_data_callback([this](const std::vector<uint8_t> &data) {
+    this->mic_source2_->add_data_callback([this](const microphone::AudioCapture &capture) {
       std::shared_ptr<ring_buffer::RingBuffer> temp_ring_buffer = this->ring_buffer2_.lock();
       if (temp_ring_buffer != nullptr) {
-        temp_ring_buffer->write((void *) data.data(), data.size());
+        temp_ring_buffer->write((void *) capture.data.data(), capture.data.size());
       }
     });
   }
@@ -828,6 +828,11 @@ void VoiceAssistant::on_event(const api::VoiceAssistantEventResponse &msg) {
       this->defer([this]() { this->listening_trigger_.trigger(); });
       break;
     case api::enums::VOICE_ASSISTANT_STT_END: {
+      // Providers that detect the end of speech themselves send no STT_VAD_END, so stop the microphone here
+      // if that event didn't already
+      if (this->state_ == State::STREAMING_MICROPHONE) {
+        this->set_state_(State::STOP_MICROPHONE, State::AWAITING_RESPONSE);
+      }
       std::string text;
       for (const auto &arg : msg.data) {
         if (arg.name == "text") {

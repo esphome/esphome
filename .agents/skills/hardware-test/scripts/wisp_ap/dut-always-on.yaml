@@ -1,0 +1,16 @@
+substitutions:
+  name: wispdut-aoi
+  framework: esp-idf
+packages:
+  common: !include dut-common.yaml
+wifi:
+  networks:
+    - ssid: !secret wisp_up_ssid
+      password: !secret wisp_up_password
+  post_connect_roaming: false
+  ap:
+    ssid: !secret dut_ap_ssid
+    password: !secret dut_ap_password
+    ap_mode: ALWAYS_ON
+web_server:
+  port: 80

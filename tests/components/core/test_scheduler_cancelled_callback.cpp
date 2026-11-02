@@ -5,6 +5,8 @@
 #include <gtest/gtest.h>
 
 #include <chrono>
+#include <memory>
+#include <string>
 #include <thread>
 
 namespace esphome::core::testing {
@@ -38,6 +40,42 @@ TEST(Scheduler, TimeoutAddedByACancelledCallbackIsVisibleAfterCall) {
   scheduler.call(millis());
   EXPECT_TRUE(fired);
   EXPECT_FALSE(scheduler.next_schedule_in(millis()).has_value());
+  scheduler.trim_freelist();
+}
+
+// A cancelled timeout of a component that has since failed has to be counted as removed when call()
+// reaches it, or the leftover count makes the next few cancellations trigger a full cleanup early.
+TEST(Scheduler, CancelledItemOfFailedComponentIsCountedAsRemoved) {
+  Scheduler scheduler;
+  SchedulerTestComponent healthy;
+  SchedulerTestComponent failing;
+
+  // The healthy item is due first, so cleanup_() stops at it and the cancelled item is only reached in the run loop
+  scheduler.set_timeout(&healthy, "first", 1, []() {});
+  scheduler.set_timeout(&failing, "cancelled", 2, []() {});
+  scheduler.process_to_add();
+  scheduler.cancel_timeout(&failing, "cancelled");
+  failing.mark_failed();
+  std::this_thread::sleep_for(std::chrono::milliseconds(5));
+  scheduler.call(millis());
+
+  // Four cancelled items behind a live one stay below the full cleanup threshold of five, so their callbacks are
+  // released only once they reach the top of the heap
+  auto token = std::make_shared<int>(0);
+  scheduler.set_timeout(&healthy, "keep", 10000, []() {});
+  static constexpr const char *NAMES[] = {"c0", "c1", "c2", "c3"};
+  for (const char *name : NAMES)
+    scheduler.set_timeout(&healthy, name, 20000, [token]() {});
+  scheduler.process_to_add();
+  for (const char *name : NAMES)
+    scheduler.cancel_timeout(&healthy, name);
+  ASSERT_EQ(token.use_count(), 5);
+  scheduler.call(millis());
+  EXPECT_EQ(token.use_count(), 5);
+
+  scheduler.cancel_timeout(&healthy, "keep");
+  scheduler.call(millis());
+  EXPECT_EQ(token.use_count(), 1);
   scheduler.trim_freelist();
 }
 
