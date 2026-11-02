@@ -161,9 +161,20 @@ void LEDCOutput::write_duty_() {
 #ifdef USE_LEDC_DITHERING
   fractional_bits = this->dithering_ ? 4 : 0;
 #endif
-  const uint32_t max_duty = ((uint32_t(1) << this->bit_depth_) - 1) << fractional_bits;
+  const uint32_t max_duty = uint32_t(1) << (this->bit_depth_ + fractional_bits);
   const float duty_rounded = roundf(this->duty_ * max_duty);
   auto duty = static_cast<uint32_t>(duty_rounded);
+#ifdef USE_LEDC_DITHERING
+  if (this->dithering_) {
+    // Fractional values above the last whole tick can wrap the PWM output instead of approaching 100%.
+    const uint32_t highest_pwm = max_duty - (1U << fractional_bits);
+    if (duty > highest_pwm) {
+      const uint32_t distance_to_pwm = duty - highest_pwm;
+      const uint32_t distance_to_full = max_duty - duty;
+      duty = distance_to_pwm < distance_to_full ? highest_pwm : max_duty;
+    }
+  }
+#endif
   if (duty == this->last_duty_) {
     this->status_clear_warning();
     this->disable_loop();
