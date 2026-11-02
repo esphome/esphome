@@ -855,3 +855,65 @@ def _install_toolchain() -> None:
             except OSError as err:
                 _LOGGER.debug("Could not remove %s: %s", leftover, err)
         sentinel.touch()
+
+
+# Where SEGGER's installers put the J-Link tools when they are not on PATH
+_JLINK_INSTALL_DIRS = {
+    "linux": (Path("/opt/SEGGER"),),
+    "darwin": (Path("/Applications/SEGGER"),),
+    "win32": (
+        Path(os.environ.get("PROGRAMFILES", r"C:\Program Files")) / "SEGGER",
+        Path(os.environ.get("PROGRAMFILES(X86)", r"C:\Program Files (x86)")) / "SEGGER",
+    ),
+}
+
+
+def _jlink_from_windows_registry() -> Path | None:
+    try:
+        import winreg  # pylint: disable=import-outside-toplevel,import-error
+
+        with winreg.OpenKeyEx(
+            winreg.HKEY_CURRENT_USER, r"Software\SEGGER\J-Link"
+        ) as key:
+            return Path(winreg.QueryValueEx(key, "InstallPath")[0]) / "JLink.exe"
+    except OSError:
+        return None
+
+
+# The J-Link library that west's jlink runner loads from the commander's directory
+# (JLink_x64.dll or JLinkARM.dll on Windows)
+_JLINK_LIBRARY_GLOBS = {
+    "linux": "libjlinkarm.so",
+    "darwin": "libjlinkarm.dylib",
+    "win32": "JLink*.dll",
+}
+
+
+def _jlink_commander_candidates(platform_key: str) -> Iterator[Path]:
+    if platform_key == "win32":
+        # PATH is not searched: the JDK's jlink.exe has the same name on a
+        # case-insensitive file system
+        exe = "JLink.exe"
+        if (found := _jlink_from_windows_registry()) is not None:
+            yield found
+    else:
+        exe = "JLinkExe"
+        if (found := shutil.which(exe)) is not None:
+            yield Path(found)
+    for base in _JLINK_INSTALL_DIRS.get(platform_key, ()):
+        # "JLink" is the unversioned link the Linux packages create; then the newest version
+        yield base / "JLink" / exe
+        yield from sorted(base.glob(f"JLink_V*/{exe}"), reverse=True)
+
+
+def find_jlink_commander() -> Path | None:
+    """SEGGER's J-Link Commander, or None when the J-Link software is not installed."""
+    platform_key = "linux" if sys.platform.startswith("linux") else sys.platform
+    library = _JLINK_LIBRARY_GLOBS.get(platform_key, "libjlinkarm*")
+    for candidate in _jlink_commander_candidates(platform_key):
+        if not candidate.is_file():
+            continue
+        # The runner resolves links and loads the library next to the real file
+        if any(candidate.resolve().parent.glob(library)):
+            return candidate
+    return None
