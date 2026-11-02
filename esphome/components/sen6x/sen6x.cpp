@@ -370,9 +370,9 @@ void SEN6XComponent::dump_config() {
     if (this->ambient_pressure_ != PRESSURE_UNSET) {
       ESP_LOGCONFIG(TAG, "  Ambient pressure compensation: %u hPa", this->ambient_pressure_);
     }
-    if (this->ambient_pressure_source_ != nullptr) {
+    if (this->ambient_pressure_source_sensor_ != nullptr) {
       ESP_LOGCONFIG(TAG, "  Ambient pressure compensation source: %s",
-                    LOG_STR_ARG(this->ambient_pressure_source_->get_log_name()));
+                    LOG_STR_ARG(this->ambient_pressure_source_sensor_->get_log_name()));
     }
   }
   LOG_SENSOR("  ", "PM  1.0", this->pm_1_0_sensor_);
@@ -411,8 +411,8 @@ void SEN6XComponent::update() {
     return;
   }
 
-  if (this->ambient_pressure_source_ != nullptr && this->co2_sensor_ != nullptr) {
-    this->update_ambient_pressure_compensation_(this->ambient_pressure_source_->state);
+  if (this->ambient_pressure_source_sensor_ != nullptr && this->co2_sensor_ != nullptr) {
+    this->update_ambient_pressure_compensation_(this->ambient_pressure_source_sensor_->state);
   }
 
   set_read_command_and_words(this->sen6x_type_, this->read_cmd_, this->read_words_);

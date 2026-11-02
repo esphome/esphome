@@ -17,6 +17,26 @@ esphome:
 display:
   - platform: epaper_spi
     spi_id: spi_bus
+    model: XSRUPB-7.5in-bwr
+    cs_pin:
+      allow_other_uses: true
+      number: GPIO5
+    dc_pin:
+      allow_other_uses: true
+      number: GPIO17
+    reset_pin:
+      allow_other_uses: true
+      number: GPIO16
+    busy_pin:
+      allow_other_uses: true
+      number: GPIO4
+      inverted: true
+    lambda: |-
+      it.filled_rectangle(0, 0, it.get_width(), it.get_height(), Color::WHITE);
+      it.circle(it.get_width() / 2, it.get_height() / 2, 30, Color::BLACK);
+      it.circle(it.get_width() / 2, it.get_height() / 2, 20, Color(255, 0, 0));
+  - platform: epaper_spi
+    spi_id: spi_bus
     model: spectra-e6
     dimensions:
       width: 800
@@ -254,6 +274,41 @@ display:
   - platform: epaper_spi
     spi_id: spi_bus
     model: goodisplay-gdey042t81-4.2
+    cs_pin:
+      allow_other_uses: true
+      number: GPIO5
+    dc_pin:
+      allow_other_uses: true
+      number: GPIO17
+    reset_pin:
+      allow_other_uses: true
+      number: GPIO16
+    busy_pin:
+      allow_other_uses: true
+      number: GPIO4
+
+  # Good Display GDEY029T94 2.9" mono e-paper (128x296, SSD1680)
+  - platform: epaper_spi
+    spi_id: spi_bus
+    model: goodisplay-gdey029t94-2.9
+    full_update_every: 5
+    cs_pin:
+      allow_other_uses: true
+      number: GPIO5
+    dc_pin:
+      allow_other_uses: true
+      number: GPIO17
+    reset_pin:
+      allow_other_uses: true
+      number: GPIO16
+    busy_pin:
+      allow_other_uses: true
+      number: GPIO4
+
+  # Seeed 029BN-T94-D2, the GDEY029T94 panel under its label name
+  - platform: epaper_spi
+    spi_id: spi_bus
+    model: 029BN-T94-D2
     cs_pin:
       allow_other_uses: true
       number: GPIO5
