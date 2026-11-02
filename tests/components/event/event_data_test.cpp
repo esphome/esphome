@@ -151,6 +151,18 @@ TEST(EventData, GetValueKeepsTheType) {
   EXPECT_EQ(data.get_value(ACTION).string_value, "repeat");
 }
 
+TEST(EventData, GetValueReadsAnUnknownTypeAsEmptyText) {
+  // Codegen writes the EventVariableType numbers 0 to 3, so it never writes type 9
+  static constexpr EventVariable UNKNOWN_TYPE[] = {{"unknown", nullptr, 0, 9}};
+  // Variable 0 has a value (bit 0 of present), which would be "abc" if it were read as text
+  EventDataBlock<4> block{.header = {.present = 1}, .values = {'a', 'b', 'c', 0}};
+  Event event;
+  event.set_data(&block, UNKNOWN_TYPE, 1);
+  const EventValue value = event.get_last_event_data().get_value(0);
+  EXPECT_EQ(value.type, EVENT_VARIABLE_TYPE_STRING);
+  EXPECT_TRUE(value.string_value.empty());
+}
+
 TEST(EventData, ListenersReadTheValuesOfTheEventTheyGet) {
   Dimmer dimmer;
   int32_t seen = 0;

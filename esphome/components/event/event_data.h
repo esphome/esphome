@@ -131,8 +131,10 @@ class EventData {
         std::memcpy(&number, value, sizeof(number));
         return number;
       }
-      default:
+      case EVENT_VARIABLE_TYPE_STRING:
         return StringRef(reinterpret_cast<const char *>(value));
+      default:
+        return StringRef();
     }
   }
   bool get_bool(uint8_t index) const {
