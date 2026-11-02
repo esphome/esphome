@@ -449,9 +449,9 @@ CONFIG_SCHEMA = cv.All(
                 CONF_LIBRARIES, default=[], visibility=cv.Visibility.YAML_ONLY
             ): cv.ensure_list(cv.string_strict),
             cv.Optional(CONF_NAME_ADD_MAC_SUFFIX, default=False): cv.boolean,
-            cv.Optional(CONF_FRIENDLY_NAME_SEPARATOR): cv.All(
-                cv.string_no_slash, cv.ByteLength(max=3)
-            ),
+            cv.Optional(
+                CONF_FRIENDLY_NAME_SEPARATOR, default=_APP_FRIENDLY_NAME_MAC_SEP
+            ): cv.All(cv.string_no_slash, cv.ByteLength(max=3)),
             cv.Optional(CONF_MERGE_WARNINGS, default=True): cv.boolean,
             cv.Optional(
                 CONF_DEBUG_SCHEDULER, default=False, visibility=cv.Visibility.YAML_ONLY
@@ -905,7 +905,7 @@ async def to_code(config: ConfigType) -> None:
     friendly_expr, friendly_len = _emit_app_name(
         friendly_name,
         _APP_FRIENDLY_NAME_BUF_VAR,
-        config.get(CONF_FRIENDLY_NAME_SEPARATOR, _APP_FRIENDLY_NAME_MAC_SEP),
+        config[CONF_FRIENDLY_NAME_SEPARATOR],
     )
     if name_add_mac_suffix:
         cg.add_define("ESPHOME_NAME_ADD_MAC_SUFFIX")
