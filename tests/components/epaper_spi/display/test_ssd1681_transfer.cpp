@@ -20,9 +20,23 @@ class TestableSSD1681 : public EPaperSSD1681 {
     ASSERT_TRUE(this->init_buffer_(this->buffer_length_));
     this->set_full_update_every(full_update_every);
     this->init_sent_frame_(this->buffer_length_);
+    if (full_update_every > 1)
+      this->set_sleep_state_hash(1);  // partial_update_after_deep_sleep: panel
   }
 
   bool has_comparison_frame() const { return this->sent_.is_valid(); }
+  bool panel_holds_image() const { return this->panel_holds_image_; }
+
+  /// What setup() restores after a deep sleep wake when the panel was left holding its image.
+  void restore_after_wake(uint8_t update_count) {
+    this->update_count_ = update_count;
+    this->panel_holds_image_ = true;
+  }
+
+  using EPaperSSD1681::on_powerdown;
+  using EPaperSSD1681::on_safe_shutdown;
+  using EPaperSSD1681::teardown;
+  void abandon() { this->abandon_update_(); }
   EPaperState state() const { return this->state_; }
   void step() { this->process_state_(); }
   uint8_t update_count() const { return this->update_count_; }
@@ -251,6 +265,128 @@ TEST(EPaperSSD1681, ComparisonFrameIsWhatWasSent) {
   display.set_dirty(0, 0, 16, 2);
   EXPECT_TRUE(display.run_update()) << "pixel drawn during the refresh was never sent";
   EXPECT_EQ(bus.data[0x24], (Bytes{0x07}));
+}
+
+/// Before the controller sleeps, an update in flight is finished, so nothing is left for the
+/// controller's deep sleep to interrupt. The core runs on_safe_shutdown() before teardown(), so the
+/// panel must not be put to sleep there. It ends in deep sleep mode 1 with its RAM kept, since every
+/// update ends that way, so nothing more is sent.
+TEST(EPaperSSD1681, TeardownFinishesTheUpdateAndSendsNothingMore) {
+  TestableSSD1681 display(16, 2);
+  RecordingDelegate bus(&display.dc);
+  display.install(&bus, 5);
+
+  display.set_frame({0x0F, 0xF0, 0x3C, 0xC3});
+  display.set_dirty(0, 0, 16, 2);
+  display.run_update_state();
+  ASSERT_EQ(display.state(), EPaperState::RESET);
+  bus.clear();
+
+  display.on_safe_shutdown();
+  EXPECT_TRUE(bus.commands.empty()) << "panel was put to sleep before the update in flight finished";
+  while (!display.teardown()) {
+  }
+  EXPECT_EQ(bus.data[0x24], (Bytes{0x0F, 0xF0, 0x3C, 0xC3})) << "update in flight was not finished";
+  EXPECT_EQ(bus.commands.back(), 0x10) << "something was sent after the deep sleep";
+  EXPECT_TRUE(display.panel_holds_image());
+  const size_t n = bus.commands.size();
+  EXPECT_TRUE(display.teardown()) << "a second teardown should be a no-op";
+  EXPECT_EQ(bus.commands.size(), n);
+}
+
+/// An update abandoned on a busy timeout leaves the panel in an unknown state, so it is not kept.
+TEST(EPaperSSD1681, AbandonedUpdateDoesNotKeepThePanelImage) {
+  TestableSSD1681 display(16, 2);
+  RecordingDelegate bus(&display.dc);
+  display.install(&bus, 5);
+
+  display.set_frame({0x0F, 0xF0, 0x3C, 0xC3});
+  display.set_dirty(0, 0, 16, 2);
+  display.run_update();
+  ASSERT_TRUE(display.panel_holds_image());
+
+  display.set_frame({0x0F, 0xF0, 0x3C, 0x00});
+  display.set_dirty(0, 0, 16, 2);
+  display.run_update_state();
+  display.abandon();
+  EXPECT_FALSE(display.panel_holds_image());
+}
+
+/// If teardown() runs out of time with an update still in flight, the panel is put to sleep at power down.
+TEST(EPaperSSD1681, PowerdownSleepsThePanelWhenTeardownRanOutOfTime) {
+  TestableSSD1681 display(16, 2);
+  RecordingDelegate bus(&display.dc);
+  display.install(&bus, 5);
+
+  display.set_frame({0x0F, 0xF0, 0x3C, 0xC3});
+  display.set_dirty(0, 0, 16, 2);
+  display.run_update_state();
+  bus.clear();
+
+  display.on_safe_shutdown();
+  EXPECT_FALSE(display.teardown());
+  display.on_powerdown();
+  EXPECT_EQ(display.state(), EPaperState::IDLE);
+  ASSERT_FALSE(bus.commands.empty());
+  EXPECT_EQ(bus.commands.back(), 0x10) << "panel was not put to sleep";
+}
+
+/// Without the image kept through the sleep, shutdown puts the panel to sleep at once, as before.
+TEST(EPaperSSD1681, ShutdownSleepsAtOnceWithoutTheOption) {
+  TestableSSD1681 display(16, 2);
+  RecordingDelegate bus(&display.dc);
+  display.install(&bus, 1);
+
+  display.set_frame({0x0F, 0xF0, 0x3C, 0xC3});
+  display.set_dirty(0, 0, 16, 2);
+  display.run_update_state();
+  bus.clear();
+
+  display.on_safe_shutdown();
+  EXPECT_EQ(bus.commands, (Bytes{0x10}));
+  EXPECT_TRUE(display.teardown());
+  EXPECT_EQ(bus.commands, (Bytes{0x10})) << "teardown sent more after the panel was put to sleep";
+}
+
+/// With every update a full one the panel loses its RAM in deep sleep and there is nothing to keep.
+TEST(EPaperSSD1681, NothingKeptWithoutPartialUpdates) {
+  TestableSSD1681 display(16, 2);
+  RecordingDelegate bus(&display.dc);
+  display.install(&bus, 1);
+
+  display.set_frame({0x0F, 0xF0, 0x3C, 0xC3});
+  display.set_dirty(0, 0, 16, 2);
+  display.run_update();
+  EXPECT_FALSE(display.panel_holds_image());
+  bus.clear();
+
+  EXPECT_TRUE(display.teardown());
+  EXPECT_TRUE(bus.commands.empty());
+}
+
+/// After a deep sleep wake with the panel still holding its image, the first update is a partial
+/// one, like any other: hardware reset and init, the changed window of 0x24 only, 0x26 compared
+/// as it is. The comparison frame is not back yet, so the whole drawn area goes out and the next
+/// update can then be compared.
+TEST(EPaperSSD1681, FirstUpdateAfterWakeIsPartial) {
+  TestableSSD1681 display(16, 2);
+  RecordingDelegate bus(&display.dc);
+  display.install(&bus, 5);
+  display.restore_after_wake(3);
+
+  display.set_frame({0x0F, 0xF0, 0x3C, 0xC3});
+  display.set_dirty(0, 0, 16, 2);
+  EXPECT_TRUE(display.run_update());
+  EXPECT_EQ(std::count(bus.commands.begin(), bus.commands.end(), 0x12), 0) << "a software reset was sent";
+  EXPECT_EQ(bus.data[0x24], (Bytes{0x0F, 0xF0, 0x3C, 0xC3}));
+  EXPECT_EQ(bus.data.count(0x26), 0u);
+  EXPECT_EQ(bus.data[0x21], (Bytes{0x00, 0x00}));
+  EXPECT_EQ(display.update_count(), 4);
+  bus.clear();
+
+  display.set_frame({0x0F, 0xF0, 0x3C, 0xC3});
+  display.set_dirty(0, 0, 16, 2);
+  EXPECT_FALSE(display.run_update()) << "comparison frame was not rebuilt by the first update";
 }
 
 }  // namespace esphome::epaper_spi::testing
