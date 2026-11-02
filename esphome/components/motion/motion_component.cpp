@@ -195,6 +195,10 @@ bool MotionComponent::calibrate_heading() {
 }
 
 #ifdef USE_MOTION_TAP
+void MotionComponent::set_tap_threshold(float threshold_g) {
+  ESP_LOGW(TAG, "Tap threshold not supported by this platform");
+}
+
 void MotionComponent::resolve_tap_axis_(uint8_t chip_axis, bool chip_negative, uint8_t &axis, bool &negative) const {
   // The base matrix, so level calibration does not move it
   axis = 0;

@@ -86,7 +86,7 @@ class MotionComponent : public PollingComponent {
 
 #ifdef USE_MOTION_TAP
   /// Platforms with a tap block convert this to chip steps and clamp it.
-  virtual void set_tap_threshold(float threshold_g) {}
+  virtual void set_tap_threshold(float threshold_g);
   // Callback args: (axis after axis_map, negative side)
   template<typename F> void add_on_tap_callback(F &&cb) { this->tap_callback_.add(std::forward<F>(cb)); }
   template<typename F> void add_on_double_tap_callback(F &&cb) { this->double_tap_callback_.add(std::forward<F>(cb)); }
