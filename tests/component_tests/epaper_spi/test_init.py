@@ -462,6 +462,44 @@ def test_ssd1681_needs_reset_pin(
             )
 
 
+@pytest.mark.parametrize(
+    "name", ["goodisplay-gdey0213b74-2.13", "0213BN-B74", "ttgo-t5-2.13in-b74"]
+)
+def test_gdey0213b74_needs_reset_pin(
+    set_core_config: SetCoreConfigCallable,
+    set_component_config: Callable[[str, Any], None],
+    name: str,
+) -> None:
+    """The GDEY0213B74 sleeps after every update and only a hardware reset wakes it, so reset_pin is required."""
+    set_core_config(
+        PlatformFramework.ESP32_IDF,
+        platform_data={KEY_BOARD: "esp32dev", KEY_VARIANT: VARIANT_ESP32},
+    )
+
+    set_component_config("spi", {"id": "spi_bus", "clk_pin": 18, "mosi_pin": 19})
+
+    with pytest.raises(cv.Invalid, match="reset_pin"):
+        run_schema_validation({"id": "test_display", "model": name, "dc_pin": 21})
+
+
+def test_ssd1683_without_reset_pin_still_accepted(
+    set_core_config: SetCoreConfigCallable,
+    set_component_config: Callable[[str, Any], None],
+) -> None:
+    """Models that do not require a reset pin still validate without one."""
+    set_core_config(
+        PlatformFramework.ESP32_IDF,
+        platform_data={KEY_BOARD: "esp32dev", KEY_VARIANT: VARIANT_ESP32},
+    )
+
+    set_component_config("spi", {"id": "spi_bus", "clk_pin": 18, "mosi_pin": 19})
+
+    config = run_schema_validation(
+        {"id": "test_display", "model": "goodisplay-gdey042t81-4.2", "dc_pin": 21}
+    )
+    assert "reset_pin" not in config
+
+
 def test_ssd1681_dimensions_over_controller_limit_rejected(
     set_core_config: SetCoreConfigCallable,
     set_component_config: Callable[[str, Any], None],
