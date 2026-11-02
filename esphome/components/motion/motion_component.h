@@ -84,9 +84,28 @@ class MotionComponent : public PollingComponent {
 
   template<typename F> void add_listener(F &&cb) { this->motion_data_callback_.add(std::forward<F>(cb)); }
 
+#ifdef USE_MOTION_TAP
+  /// Platforms with a tap block convert this to chip steps and clamp it.
+  virtual void set_tap_threshold(float threshold_g) {}
+  // Callback args: (axis after axis_map, negative side)
+  template<typename F> void add_on_tap_callback(F &&cb) { this->tap_callback_.add(std::forward<F>(cb)); }
+  template<typename F> void add_on_double_tap_callback(F &&cb) { this->double_tap_callback_.add(std::forward<F>(cb)); }
+#endif
+
  protected:
   // platforms must implement this method to update raw data.
   virtual bool update_data(MotionData &data) = 0;
+
+#ifdef USE_MOTION_TAP
+  // chip_axis is the sensor's own axis; it is reported in the axis_map frame
+  void report_tap_(uint8_t chip_axis, bool negative);
+  // Also drops a single tap held by hold_tap_()
+  void report_double_tap_(uint8_t chip_axis, bool negative);
+  // For chips that report the first tap of a double as a single: hold it for tap_hold_ms_
+  void hold_tap_(uint8_t chip_axis, bool negative, uint32_t now);
+  // Reports a held single tap once tap_hold_ms_ has passed with no double tap
+  void release_held_tap_(uint32_t now);
+#endif
 
   // for mapping axes
   float matrix_[9]{
@@ -108,6 +127,18 @@ class MotionComponent : public PollingComponent {
   uint32_t pref_key_{0};
   uint32_t base_hash_{0};  // hash of base_matrix_, captured in setup()
   ESPPreferenceObject pref_{};
+
+#ifdef USE_MOTION_TAP
+  void resolve_tap_axis_(uint8_t chip_axis, bool chip_negative, uint8_t &axis, bool &negative) const;
+
+  LazyCallbackManager<void(uint8_t, bool)> tap_callback_{};
+  LazyCallbackManager<void(uint8_t, bool)> double_tap_callback_{};
+  uint32_t tap_hold_ms_{0};
+  uint32_t tap_held_since_{0};
+  uint8_t tap_held_axis_{0};
+  bool tap_held_negative_{false};
+  bool tap_held_{false};
+#endif
 };
 
 // --- Actions ---

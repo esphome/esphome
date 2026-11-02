@@ -194,4 +194,51 @@ bool MotionComponent::calibrate_heading() {
   return true;
 }
 
+#ifdef USE_MOTION_TAP
+void MotionComponent::resolve_tap_axis_(uint8_t chip_axis, bool chip_negative, uint8_t &axis, bool &negative) const {
+  // The base matrix, so level calibration does not move it
+  axis = 0;
+  float weight = 0.0f;
+  for (uint8_t i = 0; i < 3; i++) {
+    const float w = this->base_matrix_[i * 3 + chip_axis];
+    if (std::fabs(w) > std::fabs(weight)) {
+      weight = w;
+      axis = i;
+    }
+  }
+  negative = chip_negative != (weight < 0.0f);
+}
+
+void MotionComponent::report_tap_(uint8_t chip_axis, bool negative) {
+  uint8_t axis;
+  bool neg;
+  this->resolve_tap_axis_(chip_axis, negative, axis, neg);
+  this->tap_callback_.call(axis, neg);
+}
+
+void MotionComponent::report_double_tap_(uint8_t chip_axis, bool negative) {
+  this->tap_held_ = false;
+  uint8_t axis;
+  bool neg;
+  this->resolve_tap_axis_(chip_axis, negative, axis, neg);
+  this->double_tap_callback_.call(axis, neg);
+}
+
+void MotionComponent::hold_tap_(uint8_t chip_axis, bool negative, uint32_t now) {
+  if (this->tap_held_)
+    return;
+  this->tap_held_axis_ = chip_axis;
+  this->tap_held_negative_ = negative;
+  this->tap_held_since_ = now;
+  this->tap_held_ = true;
+}
+
+void MotionComponent::release_held_tap_(uint32_t now) {
+  if (this->tap_held_ && now - this->tap_held_since_ >= this->tap_hold_ms_) {
+    this->tap_held_ = false;
+    this->report_tap_(this->tap_held_axis_, this->tap_held_negative_);
+  }
+}
+#endif
+
 }  // namespace esphome::motion
