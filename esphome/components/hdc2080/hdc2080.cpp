@@ -52,14 +52,8 @@ void HDC2080Component::update() {
     uint8_t raw_data[4];
     if (!this->status_comm_result(this->read_register(REG_TEMPERATURE_LOW, raw_data, 4) == i2c::ERROR_OK))
       return;
-    if (this->temperature_sensor_ != nullptr) {
-      float temp = encode_value_le<uint16_t>(raw_data) * (165.0f / 65536.0f) - 40.5f;
-      this->temperature_sensor_->publish_state(temp);
-    }
-    if (this->humidity_sensor_ != nullptr) {
-      float humidity = encode_value_le<uint16_t>(&raw_data[2]) * (100.0f / 65536.0f);
-      this->humidity_sensor_->publish_state(humidity);
-    }
+    PUBLISH_STATE(this->temperature_sensor_, encode_value_le<uint16_t>(raw_data) * (165.0f / 65536.0f) - 40.5f);
+    PUBLISH_STATE(this->humidity_sensor_, encode_value_le<uint16_t>(&raw_data[2]) * (100.0f / 65536.0f));
   });
 }
 

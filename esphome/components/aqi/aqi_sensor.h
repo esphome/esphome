@@ -7,20 +7,19 @@
 namespace esphome::aqi {
 
 class AQISensor final : public sensor::Sensor, public Component {
+  SUB_SENSOR(pm_2_5)
+  SUB_SENSOR(pm_10_0)
+
  public:
   void setup() override;
   void dump_config() override;
 
-  void set_pm_2_5_sensor(sensor::Sensor *sensor) { this->pm_2_5_sensor_ = sensor; }
-  void set_pm_10_0_sensor(sensor::Sensor *sensor) { this->pm_10_0_sensor_ = sensor; }
   void set_aqi_calculation_type(AQICalculatorType type) { this->aqi_calc_type_ = type; }
   void set_extended_range(bool extended_range) { this->extended_range_ = extended_range; }
 
  protected:
   void calculate_aqi_();
 
-  sensor::Sensor *pm_2_5_sensor_{nullptr};
-  sensor::Sensor *pm_10_0_sensor_{nullptr};
   AQICalculatorType aqi_calc_type_{AQI_TYPE};
   bool extended_range_{false};
   AQICalculatorFactory aqi_calculator_factory_;

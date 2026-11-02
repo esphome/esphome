@@ -3,7 +3,6 @@ from esphome.components import select
 import esphome.config_validation as cv
 from esphome.types import ConfigType
 
-from . import FILTER_SOURCE_FILES  # noqa: F401  pylint: disable=unused-import
 from .climate import ToshibaRas25j2kvsgNdClimate
 
 DEPENDENCIES = ["climate.toshiba"]
