@@ -6,15 +6,14 @@
 namespace esphome::copy {
 
 class CopySwitch final : public switch_::Switch, public Component {
+  SUB_SWITCH(source)
+
  public:
-  void set_source(switch_::Switch *source) { source_ = source; }
   void setup() override;
   void dump_config() override;
 
  protected:
   void write_state(bool state) override;
-
-  switch_::Switch *source_;
 };
 
 }  // namespace esphome::copy
