@@ -137,7 +137,8 @@ void BMP3XXComponent::update() {
   meas_time += 2.02f * oversampling_to_time(this->pressure_oversampling_) + 0.392f;
   meas_time += 0.234f;
   if (!set_mode(FORCED_MODE)) {
-    this->mark_failed(LOG_STR("Failed start forced mode"));
+    ESP_LOGW(TAG, "Failed to start forced mode - skipping update");
+    this->status_set_warning();
     return;
   }
 
