@@ -192,9 +192,7 @@ _resolve_toolchain = cv.resolve_toolchain("nRF52", _TOOLCHAINS, Toolchain.SDK_NR
 def _check_required_sdk_version(config: ConfigType, required: str) -> None:
     if CORE.using_toolchain_platformio:
         raise cv.Invalid(
-            f"{get_nrf52_variant()} needs sdk-nrf {required}, which the "
-            f"'{Toolchain.PLATFORMIO}' toolchain does not have; use the "
-            f"'{Toolchain.SDK_NRF}' toolchain",
+            f"{get_nrf52_variant()} is not supported by PlatformIO",
             path=[CONF_TOOLCHAIN],
         )
     if (version := config[CONF_FRAMEWORK].get(CONF_VERSION)) is not None and (

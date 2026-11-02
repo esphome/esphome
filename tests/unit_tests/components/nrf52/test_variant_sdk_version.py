@@ -82,5 +82,5 @@ def test_nrf54lm20_rejects_older_sdk(version: str) -> None:
 def test_nrf54lm20_rejects_platformio(platformio: PropertyMock) -> None:
     platformio.return_value = True
     set_nrf52_variant(VARIANT_NRF54LM20)
-    with pytest.raises(cv.Invalid, match="toolchain does not have"):
+    with pytest.raises(cv.Invalid, match="is not supported by PlatformIO"):
         _set_framework(None)
