@@ -7,7 +7,7 @@ from esphome.components.const import (
     CONF_PRECHARGE_CURRENT,
 )
 import esphome.config_validation as cv
-from esphome.const import CONF_ID, CONF_WATCHDOG
+from esphome.const import CONF_WATCHDOG
 from esphome.types import ConfigType
 
 CODEOWNERS = ["@beforeyouknowit"]
@@ -26,6 +26,19 @@ BQ25820BaseSchema = cv.Schema(
         cv.GenerateID(CONF_BQ25820_ID): cv.use_id(BQ25820Component),
     }
 )
+_request_binary_sensor_slot = cg.slot_counter("BQ25820_BINARY_SENSOR_COUNT")
+_request_text_sensor_slot = cg.slot_counter("BQ25820_TEXT_SENSOR_COUNT")
+
+
+def register_binary_sensor(hub: cg.MockObj, var: cg.MockObj) -> cg.Expression:
+    _request_binary_sensor_slot(str(hub))
+    return hub.register_binary_sensor(var)
+
+
+def register_text_sensor(hub: cg.MockObj, var: cg.MockObj) -> cg.Expression:
+    _request_text_sensor_slot(str(hub))
+    return hub.register_text_sensor(var)
+
 
 CONF_BAT_SNS_RES = "bat_sns_res"
 CONF_AC_SNS_RES = "ac_sns_res"
@@ -155,9 +168,7 @@ CONFIG_SCHEMA = cv.All(
 
 
 async def to_code(config: ConfigType) -> None:
-    var = cg.new_Pvariable(config[CONF_ID])
-    await cg.register_component(var, config)
-    await i2c.register_i2c_device(var, config)
+    var = await i2c.new_i2c_component(config)
 
     bat_sns_res = config[CONF_BAT_SNS_RES]
     ac_sns_res = config[CONF_AC_SNS_RES]

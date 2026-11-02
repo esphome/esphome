@@ -7,17 +7,20 @@
 #ifdef USE_SENSOR
 #include "esphome/components/sensor/sensor.h"
 #endif
-#ifdef USE_BINARY_SENSOR
-#include "esphome/components/binary_sensor/binary_sensor.h"
-#endif
-#ifdef USE_TEXT_SENSOR
-#include "esphome/components/text_sensor/text_sensor.h"
-#endif
+#include "esphome/core/helpers.h"
+
+#include <array>
 
 namespace esphome::bq25820 {
 
 // WATCHDOG[5:4] in the timer control register
 static constexpr uint8_t TIMER_CONTROL_WATCHDOG = 0x30;
+
+// CHARGER_STATUS_1-3 and FAULT_STATUS (0x21-0x24), read together by every poll
+using BQ25820StatusRegisters = std::array<uint8_t, 4>;
+
+class BQ25820BinarySensor;
+class BQ25820TextSensor;
 
 class BQ25820Component final : public PollingComponent, public i2c::I2CDevice {
  public:
@@ -51,31 +54,24 @@ class BQ25820Component final : public PollingComponent, public i2c::I2CDevice {
   SUB_SENSOR(iac)
   SUB_SENSOR(temp_in_c)
 #endif
-#ifdef USE_BINARY_SENSOR
-  SUB_BINARY_SENSOR(charging)
-  SUB_BINARY_SENSOR(charged)
-  SUB_BINARY_SENSOR(low_battery)
-  SUB_BINARY_SENSOR(pg)
-  SUB_BINARY_SENSOR(reverse)
-  SUB_BINARY_SENSOR(vac_undervoltage)
-  SUB_BINARY_SENSOR(vac_overvoltage)
-  SUB_BINARY_SENSOR(ibat_overcurrent)
-  SUB_BINARY_SENSOR(vbat_overvoltage)
-  SUB_BINARY_SENSOR(thermal_shutdown)
-  SUB_BINARY_SENSOR(charge_safety_timer)
-  SUB_BINARY_SENSOR(drv_supply_invalid)
+#ifdef BQ25820_BINARY_SENSOR_COUNT
+  void register_binary_sensor(BQ25820BinarySensor *sensor) { this->binary_sensors_.push_back(sensor); }
 #endif
-#ifdef USE_TEXT_SENSOR
-  SUB_TEXT_SENSOR(charge_status)
-  SUB_TEXT_SENSOR(temp_status)
+#ifdef BQ25820_TEXT_SENSOR_COUNT
+  void register_text_sensor(BQ25820TextSensor *sensor) { this->text_sensors_.push_back(sensor); }
 #endif
 
  protected:
   bool watchdog_enabled_() const { return (this->timer_control_ & TIMER_CONTROL_WATCHDOG) != 0; }
   bool write_config_registers_();
-  void publish_status_(const uint8_t *status);
   void publish_adc_();
 
+#ifdef BQ25820_BINARY_SENSOR_COUNT
+  StaticVector<BQ25820BinarySensor *, BQ25820_BINARY_SENSOR_COUNT> binary_sensors_;
+#endif
+#ifdef BQ25820_TEXT_SENSOR_COUNT
+  StaticVector<BQ25820TextSensor *, BQ25820_TEXT_SENSOR_COUNT> text_sensors_;
+#endif
   float ibat_scale_{0.002f};
   float iac_scale_{0.002f};
   uint16_t charge_current_code_{0};
@@ -88,10 +84,6 @@ class BQ25820Component final : public PollingComponent, public i2c::I2CDevice {
   uint8_t charger_control_{0};
   uint8_t mppt_control_{0};
   uint8_t ts_thresholds_{0};
-#ifdef USE_TEXT_SENSOR
-  uint8_t last_charge_stat_{0xFF};
-  uint8_t last_ts_stat_{0xFF};
-#endif
   bool ideal_diode_enabled_ : 1 {false};
   bool force_mppt_sweep_ : 1 {false};
   bool temp_enabled_ : 1 {true};

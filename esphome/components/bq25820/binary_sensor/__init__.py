@@ -1,3 +1,5 @@
+from functools import partial
+
 import esphome.codegen as cg
 from esphome.components import binary_sensor
 import esphome.config_validation as cv
@@ -9,69 +11,60 @@ from esphome.const import (
 )
 from esphome.types import ConfigType
 
-from .. import CONF_BQ25820_ID, BQ25820BaseSchema
+from .. import CONF_BQ25820_ID, BQ25820BaseSchema, bq25820_ns, register_binary_sensor
 
 DEPENDENCIES = ["bq25820"]
 
-CONF_CHARGING = "charging"
-CONF_CHARGED = "charged"
-CONF_LOW_BATTERY = "low_battery"
-CONF_PG = "pg"
-CONF_REVERSE = "reverse"
-CONF_VAC_UNDERVOLTAGE = "vac_undervoltage"
-CONF_VAC_OVERVOLTAGE = "vac_overvoltage"
-CONF_IBAT_OVERCURRENT = "ibat_overcurrent"
-CONF_VBAT_OVERVOLTAGE = "vbat_overvoltage"
-CONF_THERMAL_SHUTDOWN = "thermal_shutdown"
-CONF_CHARGE_SAFETY_TIMER = "charge_safety_timer"
-CONF_DRV_SUPPLY_INVALID = "drv_supply_invalid"
-
-
-_FAULT_KEYS = (
-    CONF_VAC_UNDERVOLTAGE,
-    CONF_VAC_OVERVOLTAGE,
-    CONF_IBAT_OVERCURRENT,
-    CONF_VBAT_OVERVOLTAGE,
-    CONF_THERMAL_SHUTDOWN,
-    CONF_CHARGE_SAFETY_TIMER,
-    CONF_DRV_SUPPLY_INVALID,
+BQ25820BinarySensor = bq25820_ns.class_(
+    "BQ25820BinarySensor", binary_sensor.BinarySensor
 )
-_FAULT_SCHEMA = binary_sensor.binary_sensor_schema(device_class=DEVICE_CLASS_PROBLEM)
 
-CONFIG_SCHEMA = cv.Schema(
+# Index into the status read from 0x21
+REG_CHARGER_STATUS_1 = 0
+REG_CHARGER_STATUS_2 = 1
+REG_CHARGER_STATUS_3 = 2
+REG_FAULT_STATUS = 3
+# Bit set for each field value that reads as on: a single bit is on when it is 1
+_BIT_SET = 0b10
+
+# (key, status register, bit shift, field mask, on-values bitmap, device class)
+_FIELDS = (
+    # CHARGE_STAT: trickle to top-off, done, trickle or precharge (below VBAT_LOWV)
+    (
+        "charging",
+        REG_CHARGER_STATUS_1,
+        0,
+        0x07,
+        0b01111110,
+        DEVICE_CLASS_BATTERY_CHARGING,
+    ),
+    ("charged", REG_CHARGER_STATUS_1, 0, 0x07, 0b10000000, cv.UNDEFINED),
+    ("low_battery", REG_CHARGER_STATUS_1, 0, 0x07, 0b00000110, DEVICE_CLASS_BATTERY),
+    ("pg", REG_CHARGER_STATUS_2, 7, 0x01, _BIT_SET, DEVICE_CLASS_POWER),
+    ("reverse", REG_CHARGER_STATUS_3, 2, 0x01, _BIT_SET, cv.UNDEFINED),
+    ("vac_undervoltage", REG_FAULT_STATUS, 7, 0x01, _BIT_SET, DEVICE_CLASS_PROBLEM),
+    ("vac_overvoltage", REG_FAULT_STATUS, 6, 0x01, _BIT_SET, DEVICE_CLASS_PROBLEM),
+    ("ibat_overcurrent", REG_FAULT_STATUS, 5, 0x01, _BIT_SET, DEVICE_CLASS_PROBLEM),
+    ("vbat_overvoltage", REG_FAULT_STATUS, 4, 0x01, _BIT_SET, DEVICE_CLASS_PROBLEM),
+    ("thermal_shutdown", REG_FAULT_STATUS, 3, 0x01, _BIT_SET, DEVICE_CLASS_PROBLEM),
+    ("charge_safety_timer", REG_FAULT_STATUS, 2, 0x01, _BIT_SET, DEVICE_CLASS_PROBLEM),
+    ("drv_supply_invalid", REG_FAULT_STATUS, 1, 0x01, _BIT_SET, DEVICE_CLASS_PROBLEM),
+)
+
+CONFIG_SCHEMA = BQ25820BaseSchema.extend(
     {
-        cv.Optional(CONF_CHARGING): binary_sensor.binary_sensor_schema(
-            device_class=DEVICE_CLASS_BATTERY_CHARGING,
-        ),
-        cv.Optional(CONF_CHARGED): binary_sensor.binary_sensor_schema(),
-        cv.Optional(CONF_LOW_BATTERY): binary_sensor.binary_sensor_schema(
-            device_class=DEVICE_CLASS_BATTERY,
-        ),
-        cv.Optional(CONF_PG): binary_sensor.binary_sensor_schema(
-            device_class=DEVICE_CLASS_POWER,
-        ),
-        cv.Optional(CONF_REVERSE): binary_sensor.binary_sensor_schema(),
-        **{cv.Optional(key): _FAULT_SCHEMA for key in _FAULT_KEYS},
+        cv.Optional(key): binary_sensor.binary_sensor_schema(
+            BQ25820BinarySensor, device_class=device_class
+        )
+        for key, *_, device_class in _FIELDS
     }
-).extend(BQ25820BaseSchema)
+)
 
 
 async def to_code(config: ConfigType) -> None:
     hub = await cg.get_variable(config[CONF_BQ25820_ID])
-    binary_sensors = binary_sensor.sub_binary_sensors(config)
-    await binary_sensors(CONF_CHARGING, hub.set_charging_binary_sensor)
-    await binary_sensors(CONF_CHARGED, hub.set_charged_binary_sensor)
-    await binary_sensors(CONF_LOW_BATTERY, hub.set_low_battery_binary_sensor)
-    await binary_sensors(CONF_PG, hub.set_pg_binary_sensor)
-    await binary_sensors(CONF_REVERSE, hub.set_reverse_binary_sensor)
-    await binary_sensors(CONF_VAC_UNDERVOLTAGE, hub.set_vac_undervoltage_binary_sensor)
-    await binary_sensors(CONF_VAC_OVERVOLTAGE, hub.set_vac_overvoltage_binary_sensor)
-    await binary_sensors(CONF_IBAT_OVERCURRENT, hub.set_ibat_overcurrent_binary_sensor)
-    await binary_sensors(CONF_VBAT_OVERVOLTAGE, hub.set_vbat_overvoltage_binary_sensor)
-    await binary_sensors(CONF_THERMAL_SHUTDOWN, hub.set_thermal_shutdown_binary_sensor)
-    await binary_sensors(
-        CONF_CHARGE_SAFETY_TIMER, hub.set_charge_safety_timer_binary_sensor
-    )
-    await binary_sensors(
-        CONF_DRV_SUPPLY_INVALID, hub.set_drv_supply_invalid_binary_sensor
-    )
+    sensors = binary_sensor.sub_binary_sensors(config)
+    for key, reg, shift, mask, match, _ in _FIELDS:
+        await sensors(
+            key, partial(register_binary_sensor, hub), reg, shift, mask, match
+        )
