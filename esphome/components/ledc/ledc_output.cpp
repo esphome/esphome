@@ -1,4 +1,5 @@
 #include "ledc_output.h"
+#include "ledc_duty.h"
 #include "esphome/core/log.h"
 
 #ifdef USE_ESP32
@@ -162,18 +163,7 @@ void LEDCOutput::write_duty_() {
   fractional_bits = this->dithering_ ? 4 : 0;
 #endif
   const uint32_t max_duty = uint32_t(1) << (this->bit_depth_ + fractional_bits);
-  const float scaled_duty = this->duty_ * max_duty;
-  auto duty = static_cast<uint32_t>(roundf(scaled_duty));
-#ifdef USE_LEDC_DITHERING
-  if (this->dithering_) {
-    // Fractional values above the last whole tick can wrap the PWM output instead of approaching 100%.
-    const uint32_t highest_pwm = max_duty - (1U << fractional_bits);
-    if (duty > highest_pwm) {
-      const uint32_t midpoint = highest_pwm + (1U << (fractional_bits - 1));
-      duty = scaled_duty < midpoint ? highest_pwm : max_duty;
-    }
-  }
-#endif
+  const uint32_t duty = duty_to_ticks(this->duty_, this->bit_depth_, fractional_bits);
   if (duty == this->last_duty_) {
     this->status_clear_warning();
     this->disable_loop();
