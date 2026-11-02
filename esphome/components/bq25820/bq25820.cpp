@@ -70,18 +70,12 @@ void BQ25820Component::setup() {
     return;
   }
 
-  // A failed write is retried from update()
-  this->config_written_ = this->write_config_registers_();
-
-  // Runs one panel sweep at startup
-  if (this->force_mppt_sweep_)
-    this->update_register(REG_MPPT_CONTROL, FORCE_SWEEP, FORCE_SWEEP);
-
   if (this->watchdog_enabled_()) {
     this->set_interval(WATCHDOG_FEED_INTERVAL_MS,
                        [this]() { this->write_byte(REG_CHARGER_CONTROL, this->charger_control_ | WD_RST); });
   }
 
+  // Writes the configuration, and retries it on every poll until it succeeds
   this->update();
 }
 
@@ -123,7 +117,7 @@ void BQ25820Component::dump_config() {
 #endif
 }
 
-// Called from setup() after the register reset, and again after a failed write or a watchdog expiry.
+// Called from update() until it succeeds, and again after a watchdog expiry.
 bool BQ25820Component::write_config_registers_() {
   bool ok = true;
   // 16-bit limits hold their code from bit 2 up
@@ -147,6 +141,11 @@ bool BQ25820Component::write_config_registers_() {
   // EN_TS
   ok &= this->update_register(REG_TS_REGION_CONTROL, 0x01, this->temp_enabled_ ? 1 : 0);
   ok &= this->update_register(REG_ADC_CONTROL, ADC_EN_RATE_MASK, ADC_EN);
+  // One panel sweep at startup, kept pending until it is written
+  if (ok && this->force_mppt_sweep_) {
+    ok = this->update_register(REG_MPPT_CONTROL, FORCE_SWEEP, FORCE_SWEEP);
+    this->force_mppt_sweep_ = !ok;
+  }
   if (!ok) {
     ESP_LOGW(TAG, "Configuration write failed");
   }
@@ -155,12 +154,14 @@ bool BQ25820Component::write_config_registers_() {
 
 void BQ25820Component::update() {
   BQ25820StatusRegisters status;
-  if (!this->status_comm_result(this->read_bytes(REG_CHARGER_STATUS_1, status.data(), status.size())))
-    return;
-
-  // WD_STAT: the watchdog expired and reset the configuration
-  if (!this->config_written_ || (this->watchdog_enabled_() && (status[0] & 0x08) != 0))
+  bool ok = this->read_bytes(REG_CHARGER_STATUS_1, status.data(), status.size());
+  // WD_STAT: the watchdog expired and reset the configuration. Nothing is published until it is written.
+  if (ok && (!this->config_written_ || (this->watchdog_enabled_() && (status[0] & 0x08) != 0))) {
     this->config_written_ = this->write_config_registers_();
+    ok = this->config_written_;
+  }
+  if (!this->status_comm_result(ok))
+    return;
 
 #ifdef BQ25820_BINARY_SENSOR_COUNT
   for (auto *sensor : this->binary_sensors_)
