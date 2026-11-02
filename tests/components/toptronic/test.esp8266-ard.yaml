@@ -1,0 +1,13 @@
+substitutions:
+  cs_pin: GPIO15
+
+canbus:
+  - platform: mcp2515
+    id: canbus_toptronic
+    cs_pin: ${cs_pin}
+    can_id: 0
+    bit_rate: 50kbps
+
+packages:
+  spi: !include ../../test_build_components/common/spi/esp8266-ard.yaml
+  toptronic: !include common.yaml
