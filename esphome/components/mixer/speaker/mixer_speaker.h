@@ -58,6 +58,7 @@ class SourceSpeaker final : public speaker::Speaker, public Component {
   void finish() override;
 
   bool has_buffered_data() const override;
+  bool supports_audio_stream(const audio::AudioStreamInfo &stream_info) const override;
 
   /// @brief Mute state changes are passed to the parent's output speaker
   void set_mute_state(bool mute_state) override;
@@ -142,6 +143,11 @@ class MixerSpeaker final : public Component {
   void set_task_stack_in_psram(bool task_stack_in_psram) { this->task_stack_in_psram_ = task_stack_in_psram; }
 
   speaker::Speaker *get_output_speaker() const { return this->output_speaker_; }
+
+  bool supports_audio_stream(const audio::AudioStreamInfo &stream_info) const {
+    return this->output_speaker_->supports_audio_stream(
+        audio::AudioStreamInfo(this->output_bits_per_sample_, this->output_channels_, stream_info.get_sample_rate()));
+  }
 
   /// @brief Returns the current number of frames in the output pipeline (written but not yet played)
   uint32_t get_frames_in_pipeline() const { return this->frames_in_pipeline_.load(std::memory_order_acquire); }

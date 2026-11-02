@@ -12,11 +12,12 @@ from esphome.components.esp32 import (
 import esphome.config_validation as cv
 from esphome.const import (
     CONF_BITS_PER_SAMPLE,
+    CONF_ID,
     CONF_NUM_CHANNELS,
     CONF_SAMPLE_RATE,
     CONF_SIZE,
 )
-from esphome.core import CORE
+from esphome.core import CORE, ID
 import esphome.final_validate as fv
 from esphome.types import ConfigType
 
@@ -60,6 +61,9 @@ class OpusOptions:
 
 @dataclass
 class AudioData:
+    stream_limit_validators: list[tuple[ID, Callable[[ConfigType], None]]] = field(
+        default_factory=list
+    )
     flac_support: bool = False
     mp3_support: bool = False
     opus_support: bool = False
@@ -222,6 +226,20 @@ def set_stream_limits(
     return set_limits_in_config
 
 
+def register_stream_limits(
+    config: ConfigType, validator: Callable[[ConfigType], None]
+) -> None:
+    """Resolve bus-dependent limits when a consumer validates this audio device."""
+    _get_data().stream_limit_validators.append((config[CONF_ID], validator))
+
+
+def update_stream_limits(config: ConfigType) -> None:
+    """Update limits independently of the order of component final validation."""
+    for device_id, validator in _get_data().stream_limit_validators:
+        if device_id == config[CONF_ID]:
+            validator(config)
+
+
 def final_validate_audio_schema(
     name: str,
     *,
@@ -250,6 +268,7 @@ def final_validate_audio_schema(
     """
 
     def validate_audio_compatiblity(audio_config: ConfigType) -> ConfigType:
+        update_stream_limits(audio_config)
         audio_schema = {}
 
         if bits_per_sample is not cv.UNDEFINED:

@@ -32,6 +32,13 @@ class ResamplerSpeaker final : public Component, public speaker::Speaker {
 
   bool has_buffered_data() const override;
 
+  bool supports_audio_stream(const audio::AudioStreamInfo &stream_info) const override {
+    const uint8_t bits =
+        this->passthrough_bits_per_sample_ ? stream_info.get_bits_per_sample() : this->target_bits_per_sample_;
+    return this->output_speaker_->supports_audio_stream(
+        audio::AudioStreamInfo(bits, stream_info.get_channels(), this->target_sample_rate_));
+  }
+
   /// @brief Mute state changes are passed to the parent's output speaker
   void set_mute_state(bool mute_state) override;
   bool get_mute_state() override { return this->output_speaker_->get_mute_state(); }

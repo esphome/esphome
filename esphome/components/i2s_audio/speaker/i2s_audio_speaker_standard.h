@@ -17,6 +17,7 @@ enum class I2SCommFmt : uint8_t {
 class I2SAudioSpeaker final : public I2SAudioSpeakerBase {
  public:
   void dump_config() override;
+  bool supports_audio_stream(const audio::AudioStreamInfo &stream_info) const override;
 
   void set_i2s_comm_fmt(I2SCommFmt fmt) { this->i2s_comm_fmt_ = fmt; }
 

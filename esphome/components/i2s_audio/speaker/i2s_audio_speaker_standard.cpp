@@ -422,6 +422,25 @@ void I2SAudioSpeaker::run_speaker_task() {
   }
 }
 
+bool I2SAudioSpeaker::supports_audio_stream(const audio::AudioStreamInfo &stream_info) const {
+#ifdef USE_I2S_AUDIO_FULL_DUPLEX
+  if (this->parent_->is_full_duplex()) {
+    const auto required = this->full_duplex_stream_info_();
+    if (stream_info.get_sample_rate() != required.get_sample_rate() ||
+        stream_info.get_channels() != required.get_channels()) {
+      return false;
+    }
+#ifdef USE_ESP32_VARIANT_ESP32
+    // This target converts every stream to the configured slot's memory width.
+    return true;
+#else
+    return stream_info.get_bits_per_sample() >= required.get_bits_per_sample();
+#endif
+  }
+#endif
+  return true;
+}
+
 esp_err_t I2SAudioSpeaker::start_i2s_driver(audio::AudioStreamInfo &audio_stream_info) {
   if ((this->i2s_role_ & I2S_ROLE_SLAVE) && (this->sample_rate_ != audio_stream_info.get_sample_rate())) {  // NOLINT
     // Can't reconfigure I2S bus, so the sample rate must match the configured value
@@ -459,7 +478,7 @@ esp_err_t I2SAudioSpeaker::start_i2s_driver(audio::AudioStreamInfo &audio_stream
   if (this->parent_->is_full_duplex()) {
     // The parent set up the channel once from the configured format, so the stream must produce exactly that
     const audio::AudioStreamInfo required = this->full_duplex_stream_info_();
-    if (this->output_stream_info_ != required) {
+    if (!this->supports_audio_stream(audio_stream_info)) {
       ESP_LOGE(TAG, "Full duplex requires %u-bit, %u channel audio at %" PRIu32 " Hz",
                (unsigned) required.get_bits_per_sample(), (unsigned) required.get_channels(),
                required.get_sample_rate());

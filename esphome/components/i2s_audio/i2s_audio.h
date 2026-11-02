@@ -66,6 +66,7 @@ class I2SAudioComponent final : public Component {
  public:
 #ifdef USE_I2S_AUDIO_FULL_DUPLEX
   void setup() override;
+  void set_keep_alive(bool keep_alive) { this->keep_alive_ = keep_alive; }
 
   void set_audio_in(I2SAudioIn *audio_in) { this->audio_in_ = audio_in; }
   void set_audio_out(I2SAudioOut *audio_out) { this->audio_out_ = audio_out; }
@@ -76,14 +77,14 @@ class I2SAudioComponent final : public Component {
   /// @brief Enables the full duplex RX channel. Main loop only.
   /// @return The enabled RX handle, or nullptr if the channel pair is unavailable
   i2s_chan_handle_t acquire_rx_channel();
-  /// @brief Releases the RX channel; it keeps running while the TX side needs its clocks. Main loop only.
+  /// @brief Releases the RX channel; it keeps running for TX or keep_alive. Main loop only.
   void release_rx_channel();
 
   /// @brief Starts the shared clocks and hands over the full duplex TX channel, still disabled, so the caller
   /// can register callbacks and preload data before enabling it. Main loop only.
   /// @return The TX handle, or nullptr if the channel pair is unavailable or another speaker holds it
   i2s_chan_handle_t acquire_tx_channel();
-  /// @brief Disables the TX channel and stops the shared clocks if the RX side is idle. Only the speaker that
+  /// @brief Disables the TX channel and stops idle clocks unless keep_alive is set. Only the speaker that
   /// acquired the channel may call this. Main loop only.
   void release_tx_channel();
   /// @brief True while another speaker holds the full duplex TX channel
@@ -122,7 +123,7 @@ class I2SAudioComponent final : public Component {
 #ifdef USE_I2S_AUDIO_FULL_DUPLEX
   /// @brief Marks one side active and brings the shared clocks up; undoes the mark if that fails.
   i2s_chan_handle_t acquire_(bool &in_use, i2s_chan_handle_t handle);
-  /// @brief Enables the RX channel while either side is active, since it drives the shared clocks.
+  /// @brief Enables the RX channel while either side is active or keep_alive is set.
   bool update_rx_channel_();
 
   I2SAudioIn *audio_in_{nullptr};
@@ -133,6 +134,7 @@ class I2SAudioComponent final : public Component {
   bool rx_in_use_{false};
   bool tx_in_use_{false};
   bool rx_enabled_{false};
+  bool keep_alive_{false};
 #endif
   int mclk_pin_{I2S_GPIO_UNUSED};
   int bclk_pin_{I2S_GPIO_UNUSED};

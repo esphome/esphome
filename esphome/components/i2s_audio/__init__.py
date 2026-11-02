@@ -51,6 +51,7 @@ CONF_I2S_LRCLK_PIN = "i2s_lrclk_pin"
 
 CONF_I2S_AUDIO_ID = "i2s_audio_id"
 CONF_FULL_DUPLEX = "full_duplex"
+CONF_KEEP_ALIVE = "keep_alive"
 CONF_I2S_COMM_FMT = "i2s_comm_fmt"
 CONF_SPDIF_MODE = "spdif_mode"
 
@@ -227,6 +228,7 @@ CONFIG_SCHEMA = cv.Schema(
         cv.Optional(CONF_I2S_BCLK_PIN): pins.internal_gpio_output_pin_number,
         cv.Optional(CONF_I2S_MCLK_PIN): pins.internal_gpio_output_pin_number,
         cv.Optional(CONF_FULL_DUPLEX, default=False): cv.boolean,
+        cv.Optional(CONF_KEEP_ALIVE, default=False): cv.boolean,
     },
 )
 
@@ -299,6 +301,13 @@ def _validate_full_duplex(bus_id: ID) -> None:
     if microphone.get(CONF_PDM):
         raise cv.Invalid(f"A PDM microphone cannot use a '{CONF_FULL_DUPLEX}' bus")
     for speaker in speakers:
+        if speaker.get(CONF_I2S_COMM_FMT, "stand_i2s") not in (
+            "stand_i2s",
+            "stand_pcm_long",
+            "i2s_msb",
+            "pcm_long",
+        ):
+            raise cv.Invalid("A full_duplex speaker must use Philips I2S framing")
         if speaker.get(CONF_SPDIF_MODE):
             raise cv.Invalid(f"An SPDIF speaker cannot use a '{CONF_FULL_DUPLEX}' bus")
         # Both directions run from the same bit and word clocks
@@ -314,6 +323,12 @@ def _validate_full_duplex(bus_id: ID) -> None:
                     f"The microphone and speaker '{speaker[CONF_ID]}' on '{CONF_FULL_DUPLEX}' bus "
                     f"'{bus_id}' must use the same '{key}'"
                 )
+    if (microphone[CONF_CHANNEL] == CONF_STEREO) != (
+        speakers[0][CONF_CHANNEL] == CONF_STEREO
+    ):
+        raise cv.Invalid(
+            "A full_duplex microphone and speaker must use the same mono/stereo slot layout"
+        )
     # The TX channel is set up once from one speaker's configuration, and the speakers take turns using it
     first = speakers[0]
     for speaker in speakers[1:]:
@@ -338,6 +353,8 @@ def _final_validate(_: ConfigType) -> None:
 
     data = _get_data()
     for config in i2s_audio_configs:
+        if config[CONF_KEEP_ALIVE] and not config[CONF_FULL_DUPLEX]:
+            raise cv.Invalid("'keep_alive' requires 'full_duplex: true' on the I2S bus")
         if config[CONF_FULL_DUPLEX]:
             bus_id = config[CONF_ID]
             _validate_full_duplex(bus_id)
@@ -368,6 +385,7 @@ async def to_code(config: ConfigType) -> None:
     cg.add_optional(var.set_mclk_pin, config.get(CONF_I2S_MCLK_PIN))
     if config[CONF_FULL_DUPLEX]:
         cg.add_define("USE_I2S_AUDIO_FULL_DUPLEX")
+        cg.add(var.set_keep_alive(config[CONF_KEEP_ALIVE]))
 
 
 FILTER_SOURCE_FILES = filter_source_files_from_defines(

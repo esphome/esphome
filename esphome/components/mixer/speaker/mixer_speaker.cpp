@@ -277,6 +277,10 @@ void SourceSpeaker::stop() { this->send_command_(SOURCE_SPEAKER_COMMAND_STOP); }
 
 void SourceSpeaker::finish() { this->send_command_(SOURCE_SPEAKER_COMMAND_FINISH); }
 
+bool SourceSpeaker::supports_audio_stream(const audio::AudioStreamInfo &stream_info) const {
+  return this->parent_->supports_audio_stream(stream_info);
+}
+
 bool SourceSpeaker::has_buffered_data() const {
   return ((this->audio_source_ != nullptr) && this->audio_source_->has_buffered_data());
 }

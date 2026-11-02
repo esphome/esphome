@@ -19,6 +19,7 @@ import esphome.final_validate as fv
 from esphome.types import ConfigType
 
 from .. import (
+    CONF_FULL_DUPLEX,
     CONF_I2S_AUDIO_ID,
     CONF_I2S_COMM_FMT,
     CONF_I2S_DOUT_PIN,
@@ -94,7 +95,22 @@ def _set_num_channels_from_config(config: ConfigType) -> ConfigType:
     return config
 
 
+def _set_duplex_stream_limits(config: ConfigType) -> None:
+    if fv.get_declaring_config(config[CONF_I2S_AUDIO_ID])[CONF_FULL_DUPLEX]:
+        audio.set_stream_limits(
+            min_bits_per_sample=8
+            if esp32.get_esp32_variant() == esp32.VARIANT_ESP32
+            else config[CONF_BITS_PER_SAMPLE],
+            max_bits_per_sample=32,
+            min_channels=config[CONF_NUM_CHANNELS],
+            max_channels=config[CONF_NUM_CHANNELS],
+            min_sample_rate=config[CONF_SAMPLE_RATE],
+            max_sample_rate=config[CONF_SAMPLE_RATE],
+        )(config)
+
+
 def _set_stream_limits(config: ConfigType) -> ConfigType:
+    audio.register_stream_limits(config, _set_duplex_stream_limits)
     if config.get(CONF_SPDIF_MODE, False):
         # SPDIF mode: 16/24/32-bit audio and stereo at configured sample rate
         audio.set_stream_limits(
@@ -215,6 +231,7 @@ CONFIG_SCHEMA = cv.All(
 
 
 def _final_validate(config: ConfigType) -> None:
+    audio.update_stream_limits(config)
     if config[CONF_DAC_TYPE] == "internal":
         raise cv.Invalid(
             "Internal DAC is no longer supported. Use an external I2S DAC instead."

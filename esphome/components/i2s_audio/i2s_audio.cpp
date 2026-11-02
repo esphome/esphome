@@ -40,6 +40,10 @@ void I2SAudioComponent::setup() {
       this->rx_handle_ = nullptr;
     }
     this->mark_failed();
+    return;
+  }
+  if (!this->update_rx_channel_()) {
+    this->mark_failed(LOG_STR("Full duplex clock start failed"));
   }
 }
 
@@ -76,7 +80,7 @@ void I2SAudioComponent::release_tx_channel() {
 }
 
 bool I2SAudioComponent::update_rx_channel_() {
-  const bool needed = this->rx_in_use_ || this->tx_in_use_;
+  const bool needed = this->keep_alive_ || this->rx_in_use_ || this->tx_in_use_;
   if (needed == this->rx_enabled_)
     return true;
 

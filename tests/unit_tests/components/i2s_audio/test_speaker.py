@@ -16,8 +16,8 @@ from esphome.components.i2s_audio.speaker import (
     _validate_esp32_variant,
 )
 import esphome.config_validation as cv
-from esphome.const import CONF_BITS_PER_SAMPLE
-from esphome.core import CORE
+from esphome.const import CONF_BITS_PER_SAMPLE, CONF_ID
+from esphome.core import CORE, ID
 from esphome.types import ConfigType
 
 
@@ -51,5 +51,5 @@ def test_other_variants_accept_all_widths(bits: int) -> None:
 def test_all_variants_accept_8_bit_streams(variant: str) -> None:
     """Every variant accepts 8-bit streams, since the original ESP32 widens them to its slot."""
     CORE.data[KEY_ESP32] = {KEY_VARIANT: variant}
-    config = _set_stream_limits({CONF_I2S_MODE: CONF_PRIMARY})
+    config = _set_stream_limits({CONF_ID: ID("speaker"), CONF_I2S_MODE: CONF_PRIMARY})
     assert config[CONF_MIN_BITS_PER_SAMPLE] == 8
