@@ -1,4 +1,6 @@
-from esphome.const import CONF_DATA_RATE
+import esphome.config_validation as cv
+from esphome.const import CONF_DATA_RATE, CONF_RESET_PIN
+from esphome.types import ConfigType
 
 from . import EpaperModel
 
@@ -13,6 +15,13 @@ class SSD1683(EpaperModel):
         defaults[CONF_DATA_RATE] = data_rate
         defaults.setdefault("partial_update", True)
         super().__init__(name, class_name=class_name, **defaults)
+
+    def validate_config(self, config: ConfigType) -> ConfigType:
+        config = super().validate_config(config)
+        if self.get_default("requires_reset_pin") and CONF_RESET_PIN not in config:
+            # The panel sleeps after every update, and only the hardware reset wakes it
+            raise cv.Invalid(f"{self.name} needs a {CONF_RESET_PIN}")
+        return config
 
     # fmt: off
     def get_init_sequence(self, config: dict):
@@ -42,3 +51,18 @@ goodisplay_gdey029t94 = ssd1683.extend(
 
 # Name printed on the panel's label as sold by Seeed
 goodisplay_gdey029t94.extend("029bn-t94-d2")
+
+# Good Display GDEY0213B74, 2.13" mono 122x250, SSD1680; also sold by Seeed as 0213BN-B74.
+# Replaces the waveshare_epaper model 2.13in-ttgo-b74.
+goodisplay_gdey0213b74 = ssd1683.extend(
+    "goodisplay-gdey0213b74-2.13",
+    width=122,
+    height=250,
+    requires_reset_pin=True,
+)
+
+# Name printed on the panel's label as sold by Seeed
+goodisplay_gdey0213b74.extend("0213bn-b74")
+
+# LilyGO TTGO T5 2.13" board with the GDEY0213B74 panel
+goodisplay_gdey0213b74.extend("ttgo-t5-2.13in-b74")
