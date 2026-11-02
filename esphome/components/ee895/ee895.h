@@ -21,8 +21,6 @@ class EE895Component final : public PollingComponent, public i2c::I2CDevice {
   void write_command_(uint16_t addr, uint16_t reg_cnt);
   float read_float_();
   uint16_t calc_crc16_(const uint8_t buf[], uint8_t len);
-
-  enum ErrorCode { NONE = 0, COMMUNICATION_FAILED, CRC_CHECK_FAILED } error_code_{NONE};
 };
 
 }  // namespace esphome::ee895

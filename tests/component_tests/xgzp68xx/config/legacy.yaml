@@ -1,0 +1,19 @@
+---
+esphome:
+  name: xgzp68xx-test
+
+esp32:
+  board: esp32dev
+
+i2c:
+  sda: GPIO21
+  scl: GPIO22
+
+sensor:
+  - platform: xgzp68xx
+    k_value: 4096
+    temperature:
+      name: Temperature
+    pressure:
+      name: Pressure
+      oversampling: 1024x
