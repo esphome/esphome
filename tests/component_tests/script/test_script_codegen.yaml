@@ -1,0 +1,105 @@
+esphome:
+  name: test
+
+esp32:
+  board: esp32dev
+
+logger:
+
+globals:
+  - id: counter
+    type: int
+
+script:
+  # Inline actions only
+  - id: inline_single
+    then:
+      - logger.log: "INLINE first"
+      - lambda: id(counter) += 1;
+
+  - id: one_action
+    then:
+      - logger.log: "ONE action"
+
+  - id: inline_restart
+    mode: restart
+    on_stop:
+      - logger.log: "RESTART stopped"
+    then:
+      - logger.log: "RESTART run"
+      - script.execute: inline_restart
+
+  - id: inline_queued
+    mode: queued
+    max_runs: 3
+    then:
+      - logger.log: "QUEUED run"
+
+  - id: inline_parallel
+    mode: parallel
+    max_runs: 2
+    then:
+      - logger.log: "PARALLEL run"
+
+  - id: with_params
+    parameters:
+      x: int
+      s: string
+    then:
+      - lambda: |-
+          x *= 2;
+          ESP_LOGI("test", "BY_VALUE %d %s", x, s.c_str());
+      - logger.log:
+          format: "BY_VALUE again %d"
+          args: [x *= 2]
+      - script.execute:
+          id: sink
+          y: !lambda return x *= 2;
+      - script.execute:
+          id: sink
+          y: !lambda |-
+            x *= 2;
+            return x;
+
+  - id: sink
+    parameters:
+      y: int
+    then:
+      - logger.log:
+          format: "SINK %d"
+          args: [y]
+
+  - id: stops_itself
+    then:
+      - logger.log: "STOPS start"
+      - script.stop
+      - logger.log: "STOPS not reached"
+
+  - id: calls_itself
+    mode: parallel
+    parameters:
+      n: int
+    then:
+      - if:
+          condition:
+            lambda: return n > 0;
+          then:
+            - script.execute:
+                id: calls_itself
+                n: !lambda return n - 1;
+
+  # Not all inline
+  - id: with_delay
+    then:
+      - logger.log: "DELAY before"
+      - delay: 1s
+      - logger.log: "DELAY after"
+
+  - id: manual_automation
+    automation_id: manual_automation_id
+    then:
+      - logger.log: "MANUAL"
+
+  - id: waits
+    then:
+      - script.wait: inline_single
