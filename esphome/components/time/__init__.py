@@ -191,8 +191,13 @@ def _parse_cron_part(part, min_value, max_value, special_mapping):
         end_n = _parse_cron_int(
             end, special_mapping, "Number for time range must be integer, got {}"
         )
+        for n in (begin_n, end_n):
+            if not min_value <= n <= max_value:
+                raise cv.Invalid(
+                    f"Range '{part}': {n} is out of range (min={min_value} max={max_value})"
+                )
         if end_n < begin_n:
-            return set(range(end_n, max_value + 1)) | set(range(min_value, begin_n + 1))
+            return set(range(begin_n, max_value + 1)) | set(range(min_value, end_n + 1))
         return set(range(begin_n, end_n + 1))
 
     return {

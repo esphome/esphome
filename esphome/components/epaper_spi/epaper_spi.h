@@ -218,6 +218,7 @@ class EPaperBase : public Display,
   split_buffer::SplitBuffer buffer_{};
   split_buffer::SplitBuffer sent_{};  // the previous frame, kept only by drivers that diff against it
   bool sent_valid_{};                 // sent_ holds a whole frame
+  bool sent_init_failed_{};           // sent_ could not be allocated, so it is not tried again
   size_t sent_count_{};               // bytes recorded into sent_ by the update in progress
   uint32_t shown_hash_{};             // hash of the frame on the panel, to skip an unchanged update
   bool shown_hash_valid_{};           // shown_hash_ holds the hash of a frame whose refresh completed

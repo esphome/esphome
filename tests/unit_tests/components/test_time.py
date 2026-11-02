@@ -91,6 +91,32 @@ def test_range() -> None:
     assert _parse_cron_part("1-5", 0, 59, {}) == {1, 2, 3, 4, 5}
 
 
+@pytest.mark.parametrize(
+    ("validator", "value", "expected"),
+    [
+        (validate_cron_hours, "22-2", [0, 1, 2, 22, 23]),
+        # Sunday is 1
+        (validate_cron_days_of_week, "SAT-MON", [1, 2, 7]),
+        (validate_cron_days_of_week, "SAT-SUN", [1, 7]),
+    ],
+)
+def test_wrapping_range(
+    validator: Callable[[str], list[int]], value: str, expected: list[int]
+) -> None:
+    assert validator(value) == expected
+
+
+@pytest.mark.parametrize(
+    ("validator", "value"),
+    [(validate_cron_hours, "24-2"), (validate_cron_days_of_week, "SAT-0")],
+)
+def test_range_endpoint_out_of_bounds(
+    validator: Callable[[str], list[int]], value: str
+) -> None:
+    with pytest.raises(cv.Invalid, match="out of range"):
+        validator(value)
+
+
 def test_single_value() -> None:
     assert _parse_cron_part("30", 0, 59, {}) == {30}
 
