@@ -1,0 +1,63 @@
+import esphome.codegen as cg
+from esphome.components import select
+import esphome.config_validation as cv
+from esphome.const import (
+    CONF_BAUD_RATE,
+    CONF_ID,
+    ENTITY_CATEGORY_CONFIG,
+    ICON_THERMOMETER,
+)
+from esphome.types import ConfigType
+
+from . import CONF_LD2450_ID, FILTER_SOURCE_FILES, LD2450Component  # noqa: F401  pylint: disable=unused-import
+
+CONF_ZONE_TYPE = "zone_type"
+
+
+CONFIG_SCHEMA = {
+    cv.GenerateID(CONF_ID): cv.declare_id(cg.EntityBase),
+    cv.GenerateID(CONF_LD2450_ID): cv.use_id(LD2450Component),
+    cv.Optional(CONF_BAUD_RATE): select.select_schema(
+        select.ApplySelect,
+        entity_category=ENTITY_CATEGORY_CONFIG,
+        icon=ICON_THERMOMETER,
+    ),
+    cv.Optional(CONF_ZONE_TYPE): select.select_schema(
+        select.ApplySelect,
+        entity_category=ENTITY_CATEGORY_CONFIG,
+        icon=ICON_THERMOMETER,
+    ),
+}
+
+
+async def to_code(config: ConfigType) -> None:
+    hub = await cg.get_variable(config[CONF_LD2450_ID])
+    selects = select.sub_selects(config, parent=hub)
+    # Option lists follow the order of the C++ enums; the hub maps by index
+    await selects(
+        CONF_BAUD_RATE,
+        hub.set_baud_rate_select,
+        options=[
+            "9600",
+            "19200",
+            "38400",
+            "57600",
+            "115200",
+            "230400",
+            "256000",
+            "460800",
+        ],
+        apply="set_baud_rate(static_cast<ld2450::BaudRate>(index + 1))",
+        publish="before",
+    )
+    await selects(
+        CONF_ZONE_TYPE,
+        hub.set_zone_type_select,
+        options=[
+            "Disabled",
+            "Detection",
+            "Filter",
+        ],
+        apply="set_zone_type(static_cast<ld2450::ZoneType>(index))",
+        publish="before",
+    )

@@ -7,12 +7,12 @@ PyYAML==6.0.3
 paho-mqtt==2.1.0
 colorama==0.4.6
 tzlocal==5.4.5    # from time
-tzdata>=2026.5  # from time
+tzdata>=2026.6  # from time
 pyserial==3.5
 platformio==6.2.0
 esptool==5.6.0
 click==8.5.0
-aioesphomeapi==46.24.0
+aioesphomeapi==46.25.0
 aiohappyeyeballs==2.7.1  # Happy Eyeballs for requests downloads; already pulled in by aioesphomeapi
 zeroconf==0.151.5
 puremagic==2.2.0
@@ -31,7 +31,7 @@ smp==4.2.0; platform_system != "Darwin" or platform_machine != "x86_64"
 smp==4.2.0; platform_system == "Darwin" and platform_machine == "x86_64"
 requests==2.34.2
 py7zr==1.1.4
-platformdirs==4.13.6  # native esp-idf toolchain global cache dir
+platformdirs==4.14.0  # native esp-idf toolchain global cache dir
 ninja==1.13.2  # native host and esp8266 arduino toolchain build driver
 filelock==4.2.4  # inter-process locks (PlatformIO cache heal, git clone cache); >=3.32 for FileLock(fallback_to_soft=...), older versions silently drop the kwarg
 
