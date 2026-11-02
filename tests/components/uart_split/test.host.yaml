@@ -1,0 +1,7 @@
+uart:
+  - id: uart_bus
+    baud_rate: 9600
+    port: /dev/ttyS0
+
+packages:
+  uart_split: !include common.yaml
