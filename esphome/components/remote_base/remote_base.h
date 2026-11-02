@@ -337,8 +337,7 @@ class RemoteReceiverDumperBase {
 class RemoteReceiverBase : public RemoteComponentBase {
  public:
   RemoteReceiverBase(InternalGPIOPin *pin) : RemoteComponentBase(pin) {}
-  // Slots are counted at code generation; without one the call fails at compile time with the same message
-  // the runtime check logs
+  // Listener slots are counted at code generation; without one the call fails at compile time
 #ifdef REMOTE_BASE_LISTENER_COUNT
   void register_listener(RemoteReceiverListener *listener);
 #else
@@ -347,6 +346,9 @@ class RemoteReceiverBase : public RemoteComponentBase {
   }
 #endif
 #ifdef REMOTE_BASE_DUMPER_COUNT
+  /// Codegen only (remote_base.add_dumper): the table must outlive this receiver.
+  void set_dumpers(RemoteReceiverDumperBase *const *dumpers, size_t count);
+  /// For C++ registration, also from setup(); each call copies the list to the heap.
   void register_dumper(RemoteReceiverDumperBase *dumper);
 #else
   template<typename T> void register_dumper(T *) {
@@ -359,14 +361,17 @@ class RemoteReceiverBase : public RemoteComponentBase {
   }
 
  protected:
+#ifdef REMOTE_BASE_DUMPER_COUNT
+  void warn_extra_secondaries_();
+#endif
   void call_listeners_dumpers_();
 
 #ifdef REMOTE_BASE_LISTENER_COUNT
   StaticVector<RemoteReceiverListener *, REMOTE_BASE_LISTENER_COUNT> listeners_;
 #endif
 #ifdef REMOTE_BASE_DUMPER_COUNT
-  StaticVector<RemoteReceiverDumperBase *, REMOTE_BASE_DUMPER_COUNT> dumpers_;
-  RemoteReceiverDumperBase *secondary_dumper_{nullptr};  // runs only when no primary dumper matched
+  // The first secondary dumper runs only when no primary dumper matched
+  ConstVector<RemoteReceiverDumperBase *, true> dumpers_;
 #endif
   RawTimings temp_;
   uint32_t tolerance_{25};

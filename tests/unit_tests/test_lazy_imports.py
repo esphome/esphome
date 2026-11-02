@@ -94,6 +94,22 @@ def _leaked_heavy_modules(module: str, extra: tuple[str, ...] = ()) -> str:
     return result.stdout.strip()
 
 
+def test_main_module_does_not_query_the_os_version() -> None:
+    """``import esphome.__main__`` must not call ``platform.uname()`` (or ``system()``, which uses it).
+
+    On Windows they query WMI and fall back to running ``ver`` (importing
+    subprocess) when that fails, so the stdlib leak check below went flaky.
+    """
+    check = (
+        "import platform\n"
+        "def fail(*args, **kwargs):\n"
+        "    raise AssertionError('platform queried at import time')\n"
+        "platform.uname = fail\n"
+        "import esphome.__main__"
+    )
+    subprocess.run([sys.executable, "-c", check], check=True)
+
+
 def test_main_module_does_not_import_heavy_modules() -> None:
     """A bare ``import esphome.__main__`` must not drag in validation/codegen.
 
@@ -220,7 +236,33 @@ def test_api_client_does_not_import_heavy_modules() -> None:
     )
 
 
-@pytest.mark.parametrize("component", ["binary_sensor", "sensor"])
+# Packages a domain needs for its own schema; cheap and never an integration
+_ENTITY_COMPONENT_DEPENDENCIES = {
+    "infrared": ("esphome.components.ir_rf_base",),
+    "light": ("esphome.components.power_supply", "esphome.components.const.css_colors"),
+    "radio_frequency": ("esphome.components.ir_rf_base",),
+}
+
+
+def _entity_components() -> list[str]:
+    """Every platform component that registers entities, found from source."""
+    components = Path(__file__).parents[2] / "esphome" / "components"
+    return sorted(
+        init.parent.name
+        for init in components.glob("*/__init__.py")
+        if "IS_PLATFORM_COMPONENT = True" in (text := init.read_text(encoding="utf-8"))
+        and ("setup_entity(" in text or "queue_entity_register(" in text)
+    )
+
+
+def test_entity_component_tables_match_discovery() -> None:
+    """Catch stale table entries and a discovery that silently finds nothing."""
+    found = set(_entity_components())
+    stale = _ENTITY_COMPONENT_DEPENDENCIES.keys() - found
+    assert not stale, f"not discovered as entity components: {sorted(stale)}"
+
+
+@pytest.mark.parametrize("component", _entity_components())
 def test_entity_component_does_not_import_integrations(component: str) -> None:
     """An entity component must not drag in its optional integrations.
 
@@ -229,15 +271,18 @@ def test_entity_component_does_not_import_integrations(component: str) -> None:
     esp32/logger chains mqtt and zigbee pull in) must only load when the
     user's config actually uses them.
     """
+    own = f"esphome.components.{component}"
     allowed = (
         "esphome.components",
-        f"esphome.components.{component}",
+        own,
         "esphome.components.const",
+        *_ENTITY_COMPONENT_DEPENDENCIES.get(component, ()),
     )
     check = (
-        f"import sys; import esphome.components.{component}; "
+        f"import sys; import {own}; "
         f"leaked = [m for m in sys.modules "
-        f"if m.startswith('esphome.components') and m not in {allowed!r}]; "
+        f"if m.startswith('esphome.components') and m not in {allowed!r} "
+        f"and not m.startswith('{own}.')]; "
         "print(','.join(leaked))"
     )
     result = subprocess.run(

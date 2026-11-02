@@ -1,13 +1,18 @@
 #include "vnc_client.h"
 
 #include "esphome/components/network/util.h"
+#include "esphome/components/unicode/unicode.h"
 #include "esphome/core/application.h"
 #include "esphome/core/hal.h"
 #include "esphome/core/log.h"
 #include "esphome/core/progmem.h"
+#ifdef USE_VNC_AUTH
+#include "vnc_des.h"
+#endif
 
 #include <algorithm>
 #include <cinttypes>
+#include <cstdlib>
 #include <cstring>
 #include <iterator>
 
@@ -21,6 +26,7 @@ static constexpr uint32_t HANDSHAKE_TIMEOUT_MS = 15000;
 static constexpr uint32_t STABLE_SESSION_MS = 60000;
 static constexpr uint32_t MAX_BACKOFF_MS = 60000;
 static constexpr uint32_t CONFIG_RETRY_MS = 300000;
+static constexpr uint32_t AUTH_AMBIGUOUS_HOLD_MS = 60000;
 static constexpr uint32_t HEARTBEAT_MS = 60000;
 static constexpr uint32_t MIN_REQUEST_SPACING_MS = 50;
 // The longest the first refresh waits for a display with a loop to park once after boot.
@@ -53,6 +59,17 @@ static constexpr uint8_t MSG_SET_COLOUR_MAP = 1;
 static constexpr uint8_t MSG_BELL = 2;
 static constexpr uint8_t MSG_SERVER_CUT_TEXT = 3;
 
+#ifdef USE_VNC_INPUT
+static constexpr uint8_t MSG_KEY_EVENT = 4;
+static constexpr uint8_t MSG_POINTER_EVENT = 5;
+
+static constexpr uint32_t KEYSYM_BACKSPACE = 0xFF08;
+static constexpr uint32_t KEYSYM_TAB = 0xFF09;
+static constexpr uint32_t KEYSYM_RETURN = 0xFF0D;
+// X11 encodes a character outside Latin-1 as this prefix plus its code point.
+static constexpr uint32_t KEYSYM_UNICODE = 0x01000000;
+#endif
+
 static inline uint16_t read_be16(const uint8_t *p) { return encode_uint16(p[0], p[1]); }
 static inline uint32_t read_be32(const uint8_t *p) { return encode_uint32(p[0], p[1], p[2], p[3]); }
 static inline void write_be16(uint8_t *p, uint16_t v) {
@@ -77,8 +94,59 @@ static int parse_three_digits(const uint8_t *p) {
   return value;
 }
 
+#ifdef USE_VNC_INPUT
+// Keep in step with _character_keysym() in keysyms.py.
+static uint32_t keysym_for_codepoint(uint32_t cp) {
+  switch (cp) {
+    case '\n':
+      return KEYSYM_RETURN;
+    case '\t':
+      return KEYSYM_TAB;
+    case '\b':
+      return KEYSYM_BACKSPACE;
+    default:
+      break;
+  }
+  if (cp < 0x20 || (cp >= 0x7F && cp < 0xA0)) {
+    return 0;
+  }
+  return cp <= 0xFF ? cp : (KEYSYM_UNICODE | cp);
+}
+#endif
+
+#ifdef USE_VNC_TOUCHSCREEN
+static constexpr uint16_t TOUCH_SLOP_PX = 8;
+
+static bool is_down(const touchscreen::TouchPoint &tp) {
+  // A lifted finger lingers in the list as RELEASED or RELEASING until every finger is up.
+  return (tp.state & (touchscreen::STATE_PRESSED | touchscreen::STATE_UPDATED)) != 0 &&
+         (tp.state & touchscreen::STATE_RELEASING) == 0;
+}
+
+// A first touch at (0, 0) matches a new point's default previous position, so only touch() reports it.
+void VncClient::touch(touchscreen::TouchPoint tp) {
+  if (is_down(tp)) {
+    this->handle_touch_(tp.x, tp.y);
+  }
+}
+
+void VncClient::update(const touchscreen::TouchPoints_t &tpoints) {
+  for (const auto &tp : tpoints) {
+    if (is_down(tp)) {
+      this->handle_touch_(tp.x, tp.y);
+      return;
+    }
+  }
+}
+
+void VncClient::release() { this->handle_release_(); }
+#endif
+
 void VncClient::setup() {
   this->setup_ms_ = App.get_loop_component_start_time();
+#ifdef USE_VNC_INPUT
+  this->last_input_ms_ = this->setup_ms_ - INPUT_BOOST_MS;  // no input yet
+#endif
   this->link_.begin(TAG);
   // Sized for the display now; a rotation changed later swaps the sides but keeps the cell count.
   const uint32_t wanted = static_cast<uint32_t>((this->display_->get_width() + 15) / 16) *
@@ -121,11 +189,22 @@ void VncClient::dump_config() {
                 this->max_update_delay_ms_,
                 LOG_STR_ARG(PixelFormatStrings::get_log_str(static_cast<uint8_t>(this->pixel_format_), 0)),
                 this->hash_capacity_);
+#ifdef USE_VNC_AUTH
+  ESP_LOGCONFIG(TAG, "  Password: %s", this->auth_key_ != nullptr ? LOG_STR_LITERAL("set") : LOG_STR_LITERAL("none"));
+#endif
+#ifdef USE_VNC_TOUCHSCREEN
+  ESP_LOGCONFIG(TAG, "  Touchscreen: %s", this->has_touchscreen_ ? LOG_STR_LITERAL("yes") : LOG_STR_LITERAL("no"));
+#endif
 }
 
 void VncClient::on_shutdown() { this->link_.close(); }
 
 void VncClient::loop() {
+  // Latched by disconnect() or a wrong password until connect()
+  if (this->state_ == VncState::VNC_STATE_STOPPED || this->state_ == VncState::VNC_STATE_AUTH_FAILED) {
+    this->disable_loop();
+    return;
+  }
   const uint32_t now = App.get_loop_component_start_time();
   this->pass_start_ms_ = millis();
   if (this->display_->is_failed()) {
@@ -195,10 +274,15 @@ void VncClient::loop() {
   // A display still starting up (it8951) can go from its start-up straight into a refresh without parking.
   const bool display_starting =
       !this->display_parks_ && this->display_->has_overridden_loop() && now - this->setup_ms_ < DISPLAY_START_MS;
+  uint32_t update_delay = this->update_delay_ms_;
+#ifdef USE_VNC_INPUT
+  if (now - this->last_input_ms_ < INPUT_BOOST_MS) {
+    update_delay = 0;
+  }
+#endif
   // Wait until the screen stops changing, so an animation becomes one refresh showing where it ended.
   if (this->refresh_pending_ && !this->in_update_ && !this->display_busy_ && !display_starting &&
-      (now - this->last_change_ms_ >= this->update_delay_ms_ ||
-       now - this->first_change_ms_ >= this->max_update_delay_ms_)) {
+      (now - this->last_change_ms_ >= update_delay || now - this->first_change_ms_ >= this->max_update_delay_ms_)) {
     // Synchronous displays flush inside update(), so this pass does nothing else.
     this->refresh_pending_ = false;
     this->display_->update();
@@ -207,6 +291,9 @@ void VncClient::loop() {
     this->service_rx_(now);
   }
   if (this->state_ == VncState::VNC_STATE_RUNNING) {
+#ifdef USE_VNC_INPUT
+    this->send_pending_();
+#endif
     // A new session lays the screen out again for the new rotation and redraws all of it.
     if (static_cast<uint8_t>(this->display_->get_rotation() / 90) != this->hash_rotation_) {
       this->fail_(VncFailure::VNC_FAILURE_TRANSIENT, LOG_STR("Display rotation changed"));
@@ -227,11 +314,52 @@ void VncClient::loop() {
   }
 }
 
+void VncClient::connect() {
+  if (this->state_ == VncState::VNC_STATE_HANDSHAKE || this->state_ == VncState::VNC_STATE_RUNNING) {
+    return;
+  }
+  this->backoff_ms_ = 0;
+  this->hold_ms_ = 0;
+#ifdef USE_VNC_AUTH
+  this->auth_retried_ = false;
+  this->auth_hold_ = false;
+#endif
+  this->status_clear_error();
+  this->clear_link_warning_();
+  this->state_ = VncState::VNC_STATE_IDLE;
+  // Start a fresh attempt with its full timeout, even if one is in flight.
+  this->link_.close();
+  this->link_.begin(TAG);
+  this->enable_loop();
+}
+
+void VncClient::disconnect() {
+  if (this->state_ == VncState::VNC_STATE_STOPPED) {
+    return;
+  }
+  const bool was_running = this->state_ == VncState::VNC_STATE_RUNNING;
+  this->link_.close();
+  this->reset_session_();
+  this->state_ = VncState::VNC_STATE_STOPPED;
+  this->clear_link_warning_();
+  ESP_LOGI(TAG, "Disconnected");
+  if (was_running) {
+    this->disconnect_callback_.call();
+  }
+}
+
 void VncClient::connect_step_(uint32_t now) {
   const bool up = network::is_connected();
   if (up && !this->network_was_up_) {
     this->backoff_ms_ = 0;
+#ifdef USE_VNC_AUTH
+    // The wait after an unanswered password protects the server's lockout counter, so it survives a network drop.
+    if (!this->auth_hold_) {
+      this->hold_ms_ = 0;
+    }
+#else
     this->hold_ms_ = 0;
+#endif
   }
   this->network_was_up_ = up;
   if (!up) {
@@ -244,6 +372,13 @@ void VncClient::connect_step_(uint32_t now) {
   // DNS failures, refused connects and connect timeouts all leave no socket and start the link's backoff.
   if (!this->link_.connected() && !this->link_.connecting() && this->link_.in_backoff()) {
     this->session_end_(now, VncFailure::VNC_FAILURE_TRANSIENT, LOG_STR("Cannot reach the server"));
+  }
+}
+
+void VncClient::clear_link_warning_() {
+  // A stuck display keeps its warning through a reconnect
+  if (!this->busy_warned_) {
+    this->status_clear_warning();
   }
 }
 
@@ -263,6 +398,16 @@ void VncClient::reset_session_() {
   this->refresh_pending_ = false;
   this->need_full_ = false;
   this->frame_drawn_ = false;
+#ifdef USE_VNC_AUTH
+  this->sec_type_ = 0;
+#endif
+#ifdef USE_VNC_INPUT
+  this->pending_count_ = 0;
+  this->ptr_buttons_ = 0;
+#endif
+#ifdef USE_VNC_TOUCHSCREEN
+  this->touching_ = false;
+#endif
   this->step_ = VncStep::VNC_STEP_VERSION;
   this->reason_failure_ = VncFailure::VNC_FAILURE_TRANSIENT;
   this->high_freq_.stop();
@@ -280,6 +425,12 @@ VncFailure VncClient::lost_failure_() const {
     if (this->step_ == VncStep::VNC_STEP_REASON_LENGTH || this->step_ == VncStep::VNC_STEP_REASON) {
       return this->reason_failure_;
     }
+#ifdef USE_VNC_AUTH
+    // The server got our password response but never said whether it was right.
+    if (this->step_ == VncStep::VNC_STEP_SECURITY_RESULT && this->sec_type_ == SECURITY_VNC_AUTH) {
+      return VncFailure::VNC_FAILURE_AUTH_AMBIGUOUS;
+    }
+#endif
   }
   return VncFailure::VNC_FAILURE_TRANSIENT;
 }
@@ -297,13 +448,23 @@ VncParse VncClient::fail_(VncFailure failure, const LogString *reason) {
 
 void VncClient::session_end_(uint32_t now, VncFailure failure, const LogString *reason) {
   const bool was_running = this->state_ == VncState::VNC_STATE_RUNNING;
+  this->schedule_retry_(now, failure, reason, was_running);
+  // Last, so a vnc.connect in on_disconnect overrides the wait and the warning set above.
+  if (was_running) {
+    this->disconnect_callback_.call();
+  }
+}
+
+void VncClient::schedule_retry_(uint32_t now, VncFailure failure, const LogString *reason, bool was_running) {
+#ifdef USE_VNC_AUTH
+  this->auth_hold_ = false;
+#endif
   this->reset_session_();
   this->state_ = VncState::VNC_STATE_IDLE;
   this->hold_start_ms_ = now;
   if (was_running) {
     const uint32_t lasted = now - this->session_start_ms_;
     ESP_LOGW(TAG, "%s after %" PRIu32 "s", LOG_STR_ARG(reason), lasted / 1000);
-    this->disconnect_callback_.call();
     this->status_set_warning();
     if (lasted >= STABLE_SESSION_MS) {
       this->backoff_ms_ = 0;
@@ -313,6 +474,34 @@ void VncClient::session_end_(uint32_t now, VncFailure failure, const LogString *
     failure = VncFailure::VNC_FAILURE_TRANSIENT;
   }
   switch (failure) {
+#ifdef USE_VNC_AUTH
+    case VncFailure::VNC_FAILURE_AUTH_AMBIGUOUS:
+      // Only an accepted password, a session that reaches RUNNING, or connect() clears this: a refusal in between
+      // still counts
+      if (!this->auth_retried_) {
+        this->auth_retried_ = true;
+        this->auth_hold_ = true;
+        this->hold_ms_ = AUTH_AMBIGUOUS_HOLD_MS;
+        ESP_LOGW(TAG, "%s before the password was accepted; retrying in %" PRIu32 "s", LOG_STR_ARG(reason),
+                 this->hold_ms_ / 1000);
+        this->status_set_warning();
+        return;
+      }
+      this->auth_retried_ = false;
+      this->state_ = VncState::VNC_STATE_AUTH_FAILED;
+      ESP_LOGE(TAG,
+               "%s after the password twice. Not retrying: on some servers repeated failures lock out every user. "
+               "Check the password and the server, then reboot or call vnc.connect",
+               LOG_STR_ARG(reason));
+      this->status_set_error(LOG_STR("Server dropped the connection after the password twice"));
+      return;
+    case VncFailure::VNC_FAILURE_AUTH:
+      this->state_ = VncState::VNC_STATE_AUTH_FAILED;
+      ESP_LOGE(TAG, "Authentication failed. Not retrying: on some servers repeated failures lock out every user. "
+                    "Fix the password, then reboot or call vnc.connect");
+      this->status_set_error(LOG_STR("Authentication failed"));
+      return;
+#endif
     case VncFailure::VNC_FAILURE_CONFIG:
       this->hold_ms_ = CONFIG_RETRY_MS;
       ESP_LOGE(TAG, "%s; retrying in %" PRIu32 "s", LOG_STR_ARG(reason), this->hold_ms_ / 1000);
@@ -380,6 +569,22 @@ bool VncClient::send_client_init_() {
   return this->send_(&shared, 1);
 }
 
+bool VncClient::select_security_(uint8_t type) {
+#ifdef USE_VNC_AUTH
+  this->sec_type_ = type;
+  if (type == SECURITY_VNC_AUTH) {
+    this->step_ = VncStep::VNC_STEP_CHALLENGE;
+    return true;
+  }
+#endif
+  if (this->minor_ == 8) {
+    this->step_ = VncStep::VNC_STEP_SECURITY_RESULT;
+    return true;
+  }
+  this->step_ = VncStep::VNC_STEP_SERVER_INIT;
+  return this->send_client_init_();
+}
+
 VncParse VncClient::parse_() {
   for (;;) {
     const uint8_t *p = this->rx_ + this->rx_pos_;
@@ -425,10 +630,11 @@ VncParse VncClient::parse_() {
         if (avail < this->sec_count_) {
           return VncParse::VNC_PARSE_MORE;
         }
+        const bool has_key = this->has_auth_key_();
         uint8_t chosen = 0;
         bool wants_password = false;
         for (uint8_t i = 0; i < this->sec_count_; i++) {
-          if (p[i] == SECURITY_NONE) {
+          if (p[i] == SECURITY_NONE || (p[i] == SECURITY_VNC_AUTH && has_key)) {
             chosen = p[i];
             break;
           }
@@ -439,16 +645,8 @@ VncParse VncClient::parse_() {
           return this->fail_(VncFailure::VNC_FAILURE_CONFIG, wants_password ? LOG_STR("The server requires a password")
                                                                             : LOG_STR("No supported security type"));
         }
-        if (!this->send_(&chosen, 1)) {
+        if (!this->send_(&chosen, 1) || !this->select_security_(chosen)) {
           return this->fail_send_();
-        }
-        if (this->minor_ == 8) {
-          this->step_ = VncStep::VNC_STEP_SECURITY_RESULT;
-        } else {
-          if (!this->send_client_init_()) {
-            return this->fail_send_();
-          }
-          this->step_ = VncStep::VNC_STEP_SERVER_INIT;
         }
         break;
       }
@@ -460,11 +658,10 @@ VncParse VncClient::parse_() {
         this->rx_pos_ += 4;
         if (type == 0) {
           this->step_ = VncStep::VNC_STEP_REASON_LENGTH;
-        } else if (type == SECURITY_NONE) {
-          if (!this->send_client_init_()) {
+        } else if (type == SECURITY_NONE || (type == SECURITY_VNC_AUTH && this->has_auth_key_())) {
+          if (!this->select_security_(type)) {
             return this->fail_send_();
           }
-          this->step_ = VncStep::VNC_STEP_SERVER_INIT;
         } else {
           return this->fail_(VncFailure::VNC_FAILURE_CONFIG, type == SECURITY_VNC_AUTH
                                                                  ? LOG_STR("The server requires a password")
@@ -472,6 +669,21 @@ VncParse VncClient::parse_() {
         }
         break;
       }
+#ifdef USE_VNC_AUTH
+      case VncStep::VNC_STEP_CHALLENGE: {
+        if (avail < 16) {
+          return VncParse::VNC_PARSE_MORE;
+        }
+        uint8_t *challenge = this->rx_ + this->rx_pos_;
+        vnc_auth_response(this->auth_key_, challenge);
+        if (!this->send_(challenge, 16)) {
+          return this->fail_send_();
+        }
+        this->rx_pos_ += 16;
+        this->step_ = VncStep::VNC_STEP_SECURITY_RESULT;
+        break;
+      }
+#endif
       case VncStep::VNC_STEP_SECURITY_RESULT: {
         if (avail < 4) {
           return VncParse::VNC_PARSE_MORE;
@@ -479,15 +691,28 @@ VncParse VncClient::parse_() {
         const uint32_t result = read_be32(p);
         this->rx_pos_ += 4;
         if (result == 0) {
+#ifdef USE_VNC_AUTH
+          if (this->sec_type_ == SECURITY_VNC_AUTH)
+            this->auth_retried_ = false;  // the password was accepted
+#endif
           if (!this->send_client_init_()) {
             return this->fail_send_();
           }
           this->step_ = VncStep::VNC_STEP_SERVER_INIT;
           break;
         }
+        // Fixed here, so a drop while the reason arrives cannot turn a wrong password into a retry.
+#ifdef USE_VNC_AUTH
+        this->reason_failure_ =
+            this->sec_type_ == SECURITY_VNC_AUTH ? VncFailure::VNC_FAILURE_AUTH : VncFailure::VNC_FAILURE_CONFIG;
+#else
         this->reason_failure_ = VncFailure::VNC_FAILURE_CONFIG;
-        this->step_ = VncStep::VNC_STEP_REASON_LENGTH;
-        break;
+#endif
+        if (this->minor_ == 8) {
+          this->step_ = VncStep::VNC_STEP_REASON_LENGTH;
+          break;
+        }
+        return this->fail_(this->reason_failure_, LOG_STR("Security handshake failed"));
       }
       case VncStep::VNC_STEP_REASON_LENGTH: {
         if (avail < 4) {
@@ -936,9 +1161,10 @@ bool VncClient::start_session_(uint32_t now) {
   }
   this->state_ = VncState::VNC_STATE_RUNNING;
   this->session_start_ms_ = now;
-  if (!this->busy_warned_) {
-    this->status_clear_warning();  // a stuck display keeps its warning through a reconnect
-  }
+#ifdef USE_VNC_AUTH
+  this->auth_retried_ = false;
+#endif
+  this->clear_link_warning_();
   this->status_clear_error();
   this->connect_callback_.call();
   return true;
@@ -983,5 +1209,145 @@ bool VncClient::send_update_request_(bool incremental, uint32_t now) {
   this->last_request_ms_ = now;
   return true;
 }
+
+#ifdef USE_VNC_INPUT
+bool VncClient::send_key_event_(uint32_t keysym, VncKeyAction action) {
+  // A press is the down and the up event, sent whole or not at all.
+  uint8_t msg[2 * KEY_EVENT_SIZE] = {MSG_KEY_EVENT, static_cast<uint8_t>(action != VncKeyAction::VNC_KEY_ACTION_UP)};
+  msg[KEY_EVENT_SIZE] = MSG_KEY_EVENT;
+  write_be32(msg + 4, keysym);
+  write_be32(msg + KEY_EVENT_SIZE + 4, keysym);
+  return this->send_input_(msg, action == VncKeyAction::VNC_KEY_ACTION_PRESS ? sizeof(msg) : KEY_EVENT_SIZE,
+                           action == VncKeyAction::VNC_KEY_ACTION_UP);
+}
+
+// Input goes out after the releases that are still waiting. A release that does not fit waits for room,
+// because a key or button left down would change every later key and click; other input is dropped.
+bool VncClient::send_input_(const uint8_t *msg, size_t len, bool release) {
+  if (this->send_pending_() && this->send_(msg, len)) {
+    this->note_input_();
+    return true;
+  }
+  if (!release) {
+    return false;
+  }
+  if (this->pending_count_ == MAX_PENDING_RELEASES) {
+    // Losing a release would leave its key or button held on the server
+    this->fail_(VncFailure::VNC_FAILURE_TRANSIENT, LOG_STR("Too many releases waiting for the send buffer"));
+    return false;
+  }
+  std::memcpy(this->pending_[this->pending_count_++], msg, len);
+  return true;
+}
+
+bool VncClient::send_pending_() {
+  while (this->pending_count_ != 0) {
+    const uint8_t *msg = this->pending_[0];
+    if (!this->send_(msg, msg[0] == MSG_POINTER_EVENT ? POINTER_EVENT_SIZE : KEY_EVENT_SIZE)) {
+      return false;
+    }
+    this->note_input_();
+    this->pending_count_--;
+    std::memmove(this->pending_[0], this->pending_[1], this->pending_count_ * sizeof(this->pending_[0]));
+  }
+  return true;
+}
+
+bool VncClient::send_pointer(uint16_t x, uint16_t y, uint8_t buttons) {
+  if (!this->is_connected()) {
+    ESP_LOGV(TAG, "Not connected, pointer event dropped");
+    return false;
+  }
+  x = std::min<uint16_t>(x, this->fb_w_ - 1);
+  y = std::min<uint16_t>(y, this->fb_h_ - 1);
+  uint8_t msg[POINTER_EVENT_SIZE] = {MSG_POINTER_EVENT, buttons};
+  write_be16(msg + 2, x);
+  write_be16(msg + 4, y);
+  const bool release = buttons != this->ptr_buttons_ && (buttons & ~this->ptr_buttons_) == 0;
+  if (!this->send_input_(msg, sizeof(msg), release)) {
+    ESP_LOGW(TAG, "Send buffer full, pointer event dropped");
+    return false;
+  }
+  this->ptr_x_ = x;
+  this->ptr_y_ = y;
+  this->ptr_buttons_ = buttons;
+  return true;
+}
+
+void VncClient::note_input_() { this->last_input_ms_ = App.get_loop_component_start_time(); }
+
+void VncClient::send_key(uint32_t keysym, VncKeyAction action) {
+  if (!this->is_connected()) {
+    ESP_LOGV(TAG, "Not connected, key dropped");
+    return;
+  }
+  if (!this->send_key_event_(keysym, action)) {
+    ESP_LOGW(TAG, "Send buffer full, key dropped");
+  }
+}
+
+void VncClient::type_text(const char *text, size_t len) {
+  if (!this->is_connected()) {
+    ESP_LOGV(TAG, "Not connected, text dropped");
+    return;
+  }
+  size_t typed = 0;
+  for (size_t i = 0; i < len;) {
+    // The decoder reads up to a NUL, so give it only the bytes that belong to this text.
+    char sequence[5] = {};
+    std::memcpy(sequence, text + i, std::min<size_t>(4, len - i));
+    size_t used;
+    const uint32_t cp = unicode::extract_unicode_codepoint(sequence, &used);
+    // A broken sequence or a NUL types nothing; carry on at the next byte.
+    i += used == 0 ? 1 : used;
+    const uint32_t keysym = keysym_for_codepoint(cp);
+    if (keysym == 0) {
+      continue;
+    }
+    if (!this->send_key_event_(keysym, VncKeyAction::VNC_KEY_ACTION_PRESS)) {
+      ESP_LOGW(TAG, "Send buffer full, text cut after %u characters", static_cast<unsigned>(typed));
+      return;
+    }
+    typed++;
+  }
+}
+#endif
+
+#ifdef USE_VNC_TOUCHSCREEN
+void VncClient::handle_touch_(uint16_t x, uint16_t y) {
+  if (!this->is_connected()) {
+    return;
+  }
+  if (!this->touching_) {
+    if (x >= this->vis_w_ || y >= this->vis_h_) {
+      return;
+    }
+    this->press_x_ = x;
+    this->press_y_ = y;
+    this->dragging_ = false;
+    this->touching_ = this->send_pointer(x, y, 1);
+    return;
+  }
+  x = std::min<uint16_t>(x, this->vis_w_ - 1);
+  y = std::min<uint16_t>(y, this->vis_h_ - 1);
+  // Small jitter during a tap would start a text selection in a browser.
+  if (!this->dragging_) {
+    if (std::abs(x - this->press_x_) <= TOUCH_SLOP_PX && std::abs(y - this->press_y_) <= TOUCH_SLOP_PX) {
+      return;
+    }
+    this->dragging_ = true;
+  }
+  if (x != this->ptr_x_ || y != this->ptr_y_) {
+    this->send_pointer(x, y, 1);
+  }
+}
+
+void VncClient::handle_release_() {
+  if (this->touching_) {
+    this->touching_ = false;
+    this->send_pointer(this->ptr_x_, this->ptr_y_, 0);
+  }
+}
+#endif
 
 }  // namespace esphome::vnc

@@ -1,0 +1,13 @@
+esphome:
+  name: sockettest
+
+esp32:
+  board: esp32dev
+
+wifi:
+  ssid: test
+  password: password1
+
+udp:
+  addresses:
+    - 10.0.0.1

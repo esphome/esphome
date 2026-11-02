@@ -38,7 +38,7 @@ class PCF8563Component final : public time::RealTimeClock, public i2c::I2CDevice
       // Seconds register
       uint8_t second : 4;
       uint8_t second_10 : 3;
-      bool clock_int : 1;
+      bool voltage_low : 1;
 
       // Minutes register
       uint8_t minute : 4;

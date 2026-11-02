@@ -1,0 +1,11 @@
+esphome:
+  name: ho66pr
+
+esp8266:
+  board: d1_mini
+
+packages:
+  common: !include ../../ho-common.yaml
+
+http_request:
+  verify_ssl: false

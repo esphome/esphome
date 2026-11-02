@@ -125,7 +125,7 @@ class EPaperBase : public Display,
   bool is_using_partial_update_() const { return this->full_update_every_ > 1; }
   void process_state_();
 
-  const char *epaper_state_to_string_();
+  const LogString *epaper_state_to_string_();
   bool is_idle_() const;
   void setup_pins_() const;
   virtual bool reset();

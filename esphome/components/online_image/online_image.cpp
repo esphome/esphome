@@ -428,9 +428,8 @@ void OnlineImage::finish_download_() {
 
 void OnlineImage::end_connection_() {
   // Abort any in-progress decode; the decoder object is kept warm for the next decode.
-  // Use RuntimeImage::release() directly to avoid recursion with OnlineImage::release().
   if (this->is_decoding()) {
-    RuntimeImage::release();
+    this->abort_decode();
   }
   if (this->downloader_) {
     this->downloader_->end();

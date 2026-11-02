@@ -2,7 +2,8 @@
 
 An ordinary data frame comes first, then two query ACKs. Move thresholds 4, 3, 2, 1
 put the command footer inside the ACK values. Every value must come from the whole
-38 byte frame, not from bytes left by the previous frame.
+38 byte frame, not from bytes left by the previous frame. A version answer cut short between
+the ACKs publishes nothing; the whole one after it does.
 The ACKs are synthetic, built from the layout the component parses, not device captures.
 """
 
@@ -17,6 +18,7 @@ from aioesphomeapi import (
     NumberState,
     SensorInfo,
     SensorState,
+    TextSensorState,
 )
 import pytest
 
@@ -41,6 +43,9 @@ EXPECTED: dict[str, tuple[float, float]] = {
     "g8_move_threshold": (15.0, 48.0),
     "g8_still_threshold": (15.0, 28.0),
 }
+
+# The whole version answer formats as this; the short one must publish nothing
+VERSION_EXPECTED = "2.07.22062416"
 
 # Sensor object_id: value from the data frame
 SENSOR_EXPECTED: dict[str, float] = {
@@ -74,7 +79,12 @@ async def test_uart_mock_ld2410_query_ack(
     data_received = loop.create_future()
     final_received = loop.create_future()
 
+    version_states: list[str] = []
+
     def on_state(state: EntityState) -> None:
+        if isinstance(state, TextSensorState) and not state.missing_state:
+            version_states.append(state.state)
+            return
         if isinstance(state, SensorState) and not state.missing_state:
             if (name := sensor_key_to_name.get(state.key)) is None:
                 return
@@ -143,7 +153,7 @@ async def test_uart_mock_ld2410_query_ack(
         # Each number is published once per ACK: the seed value, then the value under test
         for name, (seed, value) in EXPECTED.items():
             assert number_states[name] == pytest.approx([seed, value]), name
-        # The parser waits past the footer bytes in the values; the log line
-        # comes over stdout, which can trail the API states
-        await waiter.wait_for("[ld2410", "Ack Data incomplete", timeout=2.0)
+        # Only the whole version answer reached the text sensor
+        assert version_states == [VERSION_EXPECTED]
+        # The footer bytes inside the values never ended the frame early, so nothing was rejected
         assert not ack_errors(), f"Unexpected ACK errors: {ack_errors()}"

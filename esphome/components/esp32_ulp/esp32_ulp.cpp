@@ -38,7 +38,7 @@ void ESP32ULP::setup() {
     esp_err_t err = ulp_set_wakeup_period(0, this->wakeup_period_us_);
     if (err != ESP_OK) {
       ESP_LOGE(TAG, "ulp_set_wakeup_period failed: %s", esp_err_to_name(err));
-      this->mark_failed();
+      this->mark_failed(LOG_STR("Wakeup period not set"));
       return;
     }
   }
@@ -48,7 +48,7 @@ void ESP32ULP::setup() {
   if (esp_reset_reason() == ESP_RST_DEEPSLEEP && s_program_loaded) {
     this->loaded_ = true;
   } else if (this->run_on_boot_ && !this->load_and_run()) {
-    this->mark_failed();
+    this->mark_failed(LOG_STR("Program did not start"));
     return;
   }
   if (this->wakeup_from_sleep_) {

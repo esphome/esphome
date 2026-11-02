@@ -14,6 +14,9 @@
 #ifdef USE_LOGGER_EARLY_MESSAGE
 #include <esphome/components/zephyr/reset_reason.h>
 #endif
+#ifdef USE_BOOTLOADER_ADAFRUIT
+#include <nrf.h>
+#endif
 
 namespace esphome::logger {
 
@@ -170,6 +173,31 @@ static const char *reason_to_str(unsigned int reason, char *buf) {
       return buf;
   }
 }
+
+#ifdef USE_BOOTLOADER_ADAFRUIT
+static constexpr unsigned ADAFRUIT_BOOTLOADER_MIN_MAJOR = 0;
+static constexpr unsigned ADAFRUIT_BOOTLOADER_MIN_MINOR = 11;
+static constexpr unsigned ADAFRUIT_BOOTLOADER_MIN_PATCH = 0;
+// Adafruit_nRF52_Bootloader passes its version to the app as 0x00MMmmpp (major, minor, patch)
+static constexpr uint32_t ADAFRUIT_BOOTLOADER_MIN_VERSION =
+    (ADAFRUIT_BOOTLOADER_MIN_MAJOR << 16) | (ADAFRUIT_BOOTLOADER_MIN_MINOR << 8) | ADAFRUIT_BOOTLOADER_MIN_PATCH;
+
+void Logger::dump_bootloader_() {
+  // NOLINTNEXTLINE(clang-analyzer-core.FixedAddressDereference) -- NRF_TIMER2 is MMIO at a fixed address
+  const uint32_t version = NRF_TIMER2->CC[0];
+  if (version >= ADAFRUIT_BOOTLOADER_MIN_VERSION)
+    return;
+  // Releases too old to pass their version leave the register at its reset value
+  char version_buf[sizeof("255.255.255")] = "unknown";
+  if (version != 0) {
+    snprintf(version_buf, sizeof(version_buf), "%u.%u.%u", static_cast<unsigned>((version >> 16) & 0xFF),
+             static_cast<unsigned>((version >> 8) & 0xFF), static_cast<unsigned>(version & 0xFF));
+  }
+  ESP_LOGW(TAG,
+           "Adafruit_nRF52_Bootloader version %s has known stability issues. Please update it to %u.%u.%u or newer.",
+           version_buf, ADAFRUIT_BOOTLOADER_MIN_MAJOR, ADAFRUIT_BOOTLOADER_MIN_MINOR, ADAFRUIT_BOOTLOADER_MIN_PATCH);
+}
+#endif
 
 void Logger::dump_crash_() {
   ESP_LOGD(TAG, "Crash buffer address %p", &crash_buf);

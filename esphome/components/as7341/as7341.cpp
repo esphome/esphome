@@ -240,17 +240,11 @@ bool AS7341Component::write_register_bit(uint8_t address, bool value, uint8_t bi
 }
 
 bool AS7341Component::set_register_bit(uint8_t address, uint8_t bit_position) {
-  uint8_t data;
-  this->read_byte(address, &data);
-  data |= (1 << bit_position);
-  return this->write_byte(address, data);
+  return this->update_register(address, 1 << bit_position, 1 << bit_position);
 }
 
 bool AS7341Component::clear_register_bit(uint8_t address, uint8_t bit_position) {
-  uint8_t data;
-  this->read_byte(address, &data);
-  data &= ~(1 << bit_position);
-  return this->write_byte(address, data);
+  return this->update_register(address, 1 << bit_position, 0);
 }
 
 }  // namespace esphome::as7341

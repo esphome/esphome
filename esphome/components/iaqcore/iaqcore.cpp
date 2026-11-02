@@ -65,31 +65,23 @@ void IAQCore::update() {
     return;
   }
 
-  if (this->co2_ != nullptr) {
-    this->co2_->publish_state(data.co2);
-  }
-  if (this->tvoc_ != nullptr) {
-    this->tvoc_->publish_state(data.tvoc);
-  }
+  PUBLISH_STATE(this->co2_sensor_, data.co2);
+  PUBLISH_STATE(this->tvoc_sensor_, data.tvoc);
 
   this->status_clear_warning();
 }
 
 void IAQCore::publish_nans_() {
-  if (this->co2_ != nullptr) {
-    this->co2_->publish_state(NAN);
-  }
-  if (this->tvoc_ != nullptr) {
-    this->tvoc_->publish_state(NAN);
-  }
+  PUBLISH_STATE(this->co2_sensor_, NAN);
+  PUBLISH_STATE(this->tvoc_sensor_, NAN);
 }
 
 void IAQCore::dump_config() {
   ESP_LOGCONFIG(TAG, "AMS iAQ Core:");
   LOG_I2C_DEVICE(this);
   LOG_UPDATE_INTERVAL(this);
-  LOG_SENSOR("  ", "CO2", this->co2_);
-  LOG_SENSOR("  ", "TVOC", this->tvoc_);
+  LOG_SENSOR("  ", "CO2", this->co2_sensor_);
+  LOG_SENSOR("  ", "TVOC", this->tvoc_sensor_);
 }
 
 }  // namespace esphome::iaqcore

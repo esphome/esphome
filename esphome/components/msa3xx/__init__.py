@@ -1,6 +1,7 @@
 from esphome import automation
 import esphome.codegen as cg
 from esphome.components import i2c
+from esphome.components.const import CONF_ON_DOUBLE_TAP, CONF_ON_TAP
 import esphome.config_validation as cv
 from esphome.const import (
     CONF_CALIBRATION,
@@ -27,10 +28,8 @@ CONF_MSA3XX_ID = "msa3xx_id"
 
 CONF_MIRROR_Z = "mirror_z"
 CONF_ON_ACTIVE = "on_active"
-CONF_ON_DOUBLE_TAP = "on_double_tap"
 CONF_ON_FREEFALL = "on_freefall"
 CONF_ON_ORIENTATION = "on_orientation"
-CONF_ON_TAP = "on_tap"
 
 MODEL_MSA301 = "MSA301"
 MODEL_MSA311 = "MSA311"

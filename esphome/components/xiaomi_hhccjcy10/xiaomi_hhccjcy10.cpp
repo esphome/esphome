@@ -8,11 +8,11 @@ ESPHOME_LOG_TAG(TAG, "xiaomi_hhccjcy10");
 
 void XiaomiHHCCJCY10::dump_config() {
   ESP_LOGCONFIG(TAG, "Xiaomi HHCCJCY10");
-  LOG_SENSOR("  ", "Temperature", this->temperature_);
-  LOG_SENSOR("  ", "Moisture", this->moisture_);
-  LOG_SENSOR("  ", "Conductivity", this->conductivity_);
-  LOG_SENSOR("  ", "Illuminance", this->illuminance_);
-  LOG_SENSOR("  ", "Battery Level", this->battery_level_);
+  LOG_SENSOR("  ", "Temperature", this->temperature_sensor_);
+  LOG_SENSOR("  ", "Moisture", this->moisture_sensor_);
+  LOG_SENSOR("  ", "Conductivity", this->conductivity_sensor_);
+  LOG_SENSOR("  ", "Illuminance", this->illuminance_sensor_);
+  LOG_SENSOR("  ", "Battery Level", this->battery_level_sensor_);
 }
 
 bool XiaomiHHCCJCY10::parse_device(const ble_device_base::ESPBTDevice &device) {
@@ -34,26 +34,14 @@ bool XiaomiHHCCJCY10::parse_device(const ble_device_base::ESPBTDevice &device) {
     }
     const uint8_t *data = service_data.data.data();
 
-    if (this->temperature_ != nullptr) {
-      const int16_t temperature = encode_value<int16_t>(&data[1]);
-      this->temperature_->publish_state((float) temperature / 10.0f);
-    }
+    PUBLISH_STATE(this->temperature_sensor_, encode_value<int16_t>(&data[1]) / 10.0f);
 
-    if (this->moisture_ != nullptr)
-      this->moisture_->publish_state(data[0]);
+    PUBLISH_STATE(this->moisture_sensor_, data[0]);
 
-    if (this->conductivity_ != nullptr) {
-      const uint16_t conductivity = encode_uint16(data[7], data[8]);
-      this->conductivity_->publish_state((float) conductivity);
-    }
+    PUBLISH_STATE(this->conductivity_sensor_, encode_uint16(data[7], data[8]));
+    PUBLISH_STATE(this->illuminance_sensor_, encode_uint24(data[3], data[4], data[5]));
 
-    if (this->illuminance_ != nullptr) {
-      const uint32_t illuminance = encode_uint24(data[3], data[4], data[5]);
-      this->illuminance_->publish_state((float) illuminance);
-    }
-
-    if (this->battery_level_ != nullptr)
-      this->battery_level_->publish_state(data[6]);
+    PUBLISH_STATE(this->battery_level_sensor_, data[6]);
     success = true;
   }
 

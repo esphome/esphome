@@ -44,8 +44,6 @@ static constexpr std::array<uint8_t, 7> GET_SOFTWARE_VERSION = {0xFE, 0xFE, 0x11
 static constexpr size_t FRAME_DEVICE_ID_INDEX = 2;
 static constexpr size_t FRAME_CHECKSUM_INDEX = 30;
 static constexpr size_t FRAME_STOP_INDEX = 31;
-static constexpr uint8_t FRAME_START_BYTE_1 = 0x3C;
-static constexpr uint8_t FRAME_START_BYTE_2 = 0x32;
 static constexpr uint8_t PASSIVE_START_BYTE_2 = 0x64;
 static constexpr uint8_t PASSIVE_START_BYTE_2_WITH_ID = 0x96;
 static constexpr uint8_t FRAME_STOP_BYTE = 0x16;
@@ -105,10 +103,7 @@ static bool bcd_to_digits(const uint8_t *data, size_t len, char *out) {
 static bool validate_software_version_response(const uint8_t data[SOFTWARE_VERSION_RESPONSE_SIZE]) {
   if (data[0] != COMMAND_ACK || data[SOFTWARE_VERSION_STOP_INDEX] != FRAME_STOP_BYTE)
     return false;
-  uint8_t sum = 0;
-  for (size_t i = 1; i < SOFTWARE_VERSION_CHECKSUM_INDEX; ++i)
-    sum += data[i];
-  return data[SOFTWARE_VERSION_CHECKSUM_INDEX] == sum;
+  return data[SOFTWARE_VERSION_CHECKSUM_INDEX] == sum_bytes(data + 1, SOFTWARE_VERSION_CHECKSUM_INDEX - 1);
 }
 
 static bool check_byte(const uint8_t data[FRAME_SIZE], size_t index, uint8_t expected, const char *name) {
@@ -120,9 +115,8 @@ static bool check_byte(const uint8_t data[FRAME_SIZE], size_t index, uint8_t exp
 
 static bool validate_active_frame(const uint8_t data[FRAME_SIZE]) {
   const uint8_t sum = sum_bytes(data, FRAME_CHECKSUM_INDEX);
-  return check_byte(data, 0, FRAME_START_BYTE_1, "start byte 1") &&
-         check_byte(data, 1, FRAME_START_BYTE_2, "start byte 2") &&
-         check_byte(data, FRAME_INDEX_INSTANT_FLOW_FLAG, FRAME_FLAG_INSTANT_FLOW, "instant flow flag") &&
+  // FrameReader already matched the start bytes
+  return check_byte(data, FRAME_INDEX_INSTANT_FLOW_FLAG, FRAME_FLAG_INSTANT_FLOW, "instant flow flag") &&
          check_byte(data, FRAME_INDEX_RESERVED_SECTION, FRAME_FLAG_RESERVED_SECTION, "reserved section flag") &&
          check_byte(data, FRAME_INDEX_TEMP_FLAG, FRAME_FLAG_TEMP, "temperature flag") &&
          check_byte(data, FRAME_CHECKSUM_INDEX, sum, "checksum") &&
@@ -140,10 +134,7 @@ static bool validate_passive_with_id_frame(const uint8_t data[PASSIVE_FRAME_WITH
   if (data[0] != FRAME_START_BYTE_1 || data[1] != PASSIVE_START_BYTE_2_WITH_ID ||
       data[PASSIVE_WITH_ID_STOP_INDEX] != FRAME_STOP_BYTE)
     return false;
-  uint8_t sum = 0;
-  for (size_t i = 0; i < PASSIVE_WITH_ID_CHECKSUM_INDEX; ++i)
-    sum += data[i];
-  return data[PASSIVE_WITH_ID_CHECKSUM_INDEX] == sum;
+  return data[PASSIVE_WITH_ID_CHECKSUM_INDEX] == sum_bytes(data, PASSIVE_WITH_ID_CHECKSUM_INDEX);
 }
 #endif
 
@@ -215,7 +206,7 @@ static bool read_flow_rate_out_of_range(const uint8_t data[FRAME_SIZE]) {
 
 void UFM01Component::flush_rx_() {
   this->discard_available();
-  this->read_index_ = 0;
+  this->active_reader_.reset();
 }
 
 void UFM01Component::send_command_no_wait_(const std::array<uint8_t, 7> &command) {
@@ -321,10 +312,8 @@ void UFM01Component::dump_config() {
 // The binary sensors keep their last state while readings are stale; only flow and temperature go unknown
 void UFM01Component::publish_stale_flow_and_temperature_() {
 #ifdef USE_SENSOR
-  if (this->flow_sensor_ != nullptr)
-    this->flow_sensor_->publish_state(NAN);
-  if (this->temperature_sensor_ != nullptr)
-    this->temperature_sensor_->publish_state(NAN);
+  PUBLISH_STATE(this->flow_sensor_, NAN);
+  PUBLISH_STATE(this->temperature_sensor_, NAN);
 #endif
 }
 
@@ -423,34 +412,27 @@ bool UFM01Component::service_software_version_(uint32_t now) {
 }
 #endif  // USE_UFM01_SOFTWARE_VERSION
 
-void UFM01Component::on_active_frame_(uint8_t data[FRAME_SIZE], uint32_t now) {
+void UFM01Component::on_active_frame_(const uint8_t data[FRAME_SIZE], uint32_t now) {
 #ifdef USE_UFM01_METER_ID
   this->publish_meter_id_from_frame_(data);
 #endif
   bool empty_tube = read_empty_tube(data);
 #ifdef USE_BINARY_SENSOR
-  if (this->ufc_chip_error_binary_sensor_ != nullptr)
-    this->ufc_chip_error_binary_sensor_->publish_state(read_ufc_chip_error(data));
-  if (this->flow_direction_wrong_binary_sensor_ != nullptr)
-    this->flow_direction_wrong_binary_sensor_->publish_state(read_flow_direction_wrong(data));
-  if (this->empty_tube_binary_sensor_ != nullptr)
-    this->empty_tube_binary_sensor_->publish_state(empty_tube);
-  if (this->flow_rate_out_of_range_binary_sensor_ != nullptr)
-    this->flow_rate_out_of_range_binary_sensor_->publish_state(read_flow_rate_out_of_range(data));
+  PUBLISH_STATE(this->ufc_chip_error_binary_sensor_, read_ufc_chip_error(data));
+  PUBLISH_STATE(this->flow_direction_wrong_binary_sensor_, read_flow_direction_wrong(data));
+  PUBLISH_STATE(this->empty_tube_binary_sensor_, empty_tube);
+  PUBLISH_STATE(this->flow_rate_out_of_range_binary_sensor_, read_flow_rate_out_of_range(data));
 #endif
 
 #ifdef USE_SENSOR
   // Total volume remains valid when the tube is dry; flow and temperature are not.
-  if (this->accumulated_flow_sensor_ != nullptr)
-    this->accumulated_flow_sensor_->publish_state(read_accumulated_flow(data));
+  PUBLISH_STATE(this->accumulated_flow_sensor_, read_accumulated_flow(data));
 
   if (empty_tube) {
     this->publish_stale_flow_and_temperature_();
   } else {
-    if (this->flow_sensor_ != nullptr)
-      this->flow_sensor_->publish_state(read_flow(data));
-    if (this->temperature_sensor_ != nullptr)
-      this->temperature_sensor_->publish_state(read_temperature(data));
+    PUBLISH_STATE(this->flow_sensor_, read_flow(data));
+    PUBLISH_STATE(this->temperature_sensor_, read_temperature(data));
   }
 #endif
   this->last_valid_frame_ms_ = now;
@@ -461,40 +443,26 @@ void UFM01Component::on_active_frame_(uint8_t data[FRAME_SIZE], uint32_t now) {
 bool UFM01Component::process_active_stream_(uint32_t now) {
   bool got_valid_frame = false;
 
-  while (this->available()) {
-    if (!this->read_byte(&this->data_[this->read_index_])) {
-      ESP_LOGW(TAG, "unable to read byte");
-      this->read_index_ = 0;
-      continue;
-    }
-    if ((this->read_index_ == 0 && this->data_[0] != FRAME_START_BYTE_1) ||
-        (this->read_index_ == 1 && this->data_[1] != FRAME_START_BYTE_2)) {
-      ESP_LOGD(TAG, "not start of data at %" PRId32 " (is 0x%02X)", this->read_index_, this->data_[this->read_index_]);
-      this->read_index_ = 0;
-      continue;
-    }
-    if (++this->read_index_ < static_cast<int32_t>(FRAME_SIZE))
-      continue;
-
-    if (validate_active_frame(this->data_)) {
-      this->on_active_frame_(this->data_, now);
-      this->read_index_ = 0;
-      got_valid_frame = true;
-      continue;
-    }
-
-    log_hex(this->data_, sizeof(this->data_));
-    ESP_LOGW(TAG, "unable to read data");
-    for (int32_t i = 2;
-         i < static_cast<int32_t>(FRAME_STOP_INDEX) && this->read_index_ == static_cast<int32_t>(FRAME_SIZE); ++i) {
-      if ((this->data_[i] == FRAME_START_BYTE_1) && (this->data_[i + 1] == FRAME_START_BYTE_2)) {
-        for (int32_t j = i; j < static_cast<int32_t>(FRAME_SIZE); ++j)
-          this->data_[j - i] = this->data_[j];
-        this->read_index_ = static_cast<int32_t>(FRAME_SIZE) - i;
+  const bool read_ok = this->read_available([this, now, &got_valid_frame](uint8_t byte) {
+    const uint8_t *frame = this->active_reader_.feed(byte);
+    if (frame == nullptr) {
+      if (this->active_reader_.length() == 0) {
+        ESP_LOGD(TAG, "not start of data (is 0x%02X)", byte);
       }
+      return;
     }
-    if (this->read_index_ == static_cast<int32_t>(FRAME_SIZE))
-      this->read_index_ = 0;
+    if (validate_active_frame(frame)) {
+      this->on_active_frame_(frame, now);
+      got_valid_frame = true;
+      return;
+    }
+    log_hex(frame, FRAME_SIZE);
+    ESP_LOGW(TAG, "unable to read data");
+    this->active_reader_.resync();
+  });
+  if (!read_ok) {
+    ESP_LOGW(TAG, "unable to read byte");
+    this->active_reader_.reset();
   }
 
   return got_valid_frame;
