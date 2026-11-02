@@ -213,8 +213,7 @@ void EzoPMP::read_command_result_() {
         this->is_dosing_flag_ = parsed_third_parameter.value_or(0) == 1;
 
 #ifdef USE_BINARY_SENSOR
-      if (this->is_dosing_binary_sensor_)
-        this->is_dosing_binary_sensor_->publish_state(this->is_dosing_flag_);
+      PUBLISH_STATE(this->is_dosing_binary_sensor_, this->is_dosing_flag_);
 #endif
 
 #ifdef USE_SENSOR
@@ -252,8 +251,7 @@ void EzoPMP::read_command_result_() {
         this->is_paused_flag_ = parsed_second_parameter.value_or(0) == 1;
 
 #ifdef USE_BINARY_SENSOR
-      if (this->is_paused_binary_sensor_)
-        this->is_paused_binary_sensor_->publish_state(this->is_paused_flag_);
+      PUBLISH_STATE(this->is_paused_binary_sensor_, this->is_paused_flag_);
 #endif
       break;
 
@@ -323,8 +321,7 @@ void EzoPMP::read_command_result_() {
     case EZO_PMP_COMMAND_STOP_DOSING:  // Stop (page 62)
       this->is_paused_flag_ = false;
 #ifdef USE_BINARY_SENSOR
-      if (this->is_paused_binary_sensor_)
-        this->is_paused_binary_sensor_->publish_state(this->is_paused_flag_);
+      PUBLISH_STATE(this->is_paused_binary_sensor_, this->is_paused_flag_);
 #endif
 #ifdef USE_TEXT_SENSOR
       publish_dosing_mode(this->dosing_mode_text_sensor_, DOSING_MODE_NONE);

@@ -249,13 +249,8 @@ void BMP581Component::update() {
     // 4) Publish measurements to sensor(s), if applicable //
     /////////////////////////////////////////////////////////
 
-    if (this->temperature_sensor_) {
-      this->temperature_sensor_->publish_state(temperature);
-    }
-
-    if (this->pressure_sensor_) {
-      this->pressure_sensor_->publish_state(pressure);
-    }
+    PUBLISH_STATE(this->temperature_sensor_, temperature);
+    PUBLISH_STATE(this->pressure_sensor_, pressure);
 
     this->status_clear_warning();
   });

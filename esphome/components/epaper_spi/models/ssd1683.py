@@ -32,6 +32,17 @@ goodisplay_gdey042t81 = ssd1683.extend(
     height=300,
 )
 
+# Good Display GDEY029T94, 2.9" mono 128x296 (SSD1680), also sold by Seeed as 029BN-T94-D2.
+# Replaces the waveshare_epaper model gdey029t94.
+goodisplay_gdey029t94 = ssd1683.extend(
+    "goodisplay-gdey029t94-2.9",
+    width=128,
+    height=296,
+)
+
+# Name printed on the panel's label as sold by Seeed
+goodisplay_gdey029t94.extend("029bn-t94-d2")
+
 # Good Display GDEY0213B74, 2.13" mono 122x250, SSD1680; also sold by Seeed as 0213BN-B74.
 # Replaces the waveshare_epaper model 2.13in-ttgo-b74.
 goodisplay_gdey0213b74 = ssd1683.extend(

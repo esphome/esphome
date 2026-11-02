@@ -36,4 +36,4 @@ async def to_code(config: ConfigType) -> None:
     var = await switch.new_switch(config)
     await cg.register_component(var, config)
 
-    await cg.add_variable(var.set_source, config[CONF_SOURCE_ID])
+    await cg.add_variable(var.set_source_switch, config[CONF_SOURCE_ID])

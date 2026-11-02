@@ -46,9 +46,7 @@ void MAX31855Sensor::read_data_() {
   } else {
     ESP_LOGE(TAG, "No data received from MAX31855 (0x%08" PRIX32 "). Check wiring!", mem);
     this->publish_state(NAN);
-    if (this->reference_sensor_) {
-      this->reference_sensor_->publish_state(NAN);
-    }
+    PUBLISH_STATE(this->reference_sensor_, NAN);
     this->status_set_error();
     return;
   }

@@ -40,8 +40,8 @@ std::string MenuItemSelect::get_value_text() const {
   if (this->value_getter_.has_value()) {
     result = this->value_getter_.value()(this);
   } else {
-    if (this->select_var_ != nullptr) {
-      auto option = this->select_var_->current_option();
+    if (this->variable_select_ != nullptr) {
+      auto option = this->variable_select_->current_option();
       result.assign(option.c_str(), option.size());
     }
   }
@@ -52,8 +52,8 @@ std::string MenuItemSelect::get_value_text() const {
 bool MenuItemSelect::select_next() {
   bool changed = false;
 
-  if (this->select_var_ != nullptr) {
-    this->select_var_->make_call().select_next(true).perform();
+  if (this->variable_select_ != nullptr) {
+    this->variable_select_->make_call().select_next(true).perform();
     this->on_value_();
     changed = true;
   }
@@ -64,8 +64,8 @@ bool MenuItemSelect::select_next() {
 bool MenuItemSelect::select_prev() {
   bool changed = false;
 
-  if (this->select_var_ != nullptr) {
-    this->select_var_->make_call().select_previous(true).perform();
+  if (this->variable_select_ != nullptr) {
+    this->variable_select_->make_call().select_previous(true).perform();
     this->on_value_();
     changed = true;
   }
@@ -92,11 +92,11 @@ std::string MenuItemNumber::get_value_text() const {
 bool MenuItemNumber::select_next() {
   bool changed = false;
 
-  if (this->number_var_ != nullptr) {
-    float last = this->number_var_->state;
-    this->number_var_->make_call().number_increment(false).perform();
+  if (this->variable_number_ != nullptr) {
+    float last = this->variable_number_->state;
+    this->variable_number_->make_call().number_increment(false).perform();
 
-    if (this->number_var_->state != last) {
+    if (this->variable_number_->state != last) {
       this->on_value_();
       changed = true;
     }
@@ -108,11 +108,11 @@ bool MenuItemNumber::select_next() {
 bool MenuItemNumber::select_prev() {
   bool changed = false;
 
-  if (this->number_var_ != nullptr) {
-    float last = this->number_var_->state;
-    this->number_var_->make_call().number_decrement(false).perform();
+  if (this->variable_number_ != nullptr) {
+    float last = this->variable_number_->state;
+    this->variable_number_->make_call().number_decrement(false).perform();
 
-    if (this->number_var_->state != last) {
+    if (this->variable_number_->state != last) {
       this->on_value_();
       changed = true;
     }
@@ -124,13 +124,14 @@ bool MenuItemNumber::select_prev() {
 float MenuItemNumber::get_number_value_() const {
   float result = 0.0;
 
-  if (this->number_var_ != nullptr) {
-    if (!this->number_var_->has_state() || this->number_var_->state < this->number_var_->traits.get_min_value()) {
-      result = this->number_var_->traits.get_min_value();
-    } else if (this->number_var_->state > this->number_var_->traits.get_max_value()) {
-      result = this->number_var_->traits.get_max_value();
+  if (this->variable_number_ != nullptr) {
+    if (!this->variable_number_->has_state() ||
+        this->variable_number_->state < this->variable_number_->traits.get_min_value()) {
+      result = this->variable_number_->traits.get_min_value();
+    } else if (this->variable_number_->state > this->variable_number_->traits.get_max_value()) {
+      result = this->variable_number_->traits.get_max_value();
     } else {
-      result = this->number_var_->state;
+      result = this->variable_number_->state;
     }
   }
 
@@ -155,13 +156,15 @@ bool MenuItemSwitch::select_next() { return this->toggle_switch_(); }
 
 bool MenuItemSwitch::select_prev() { return this->toggle_switch_(); }
 
-bool MenuItemSwitch::get_switch_state_() const { return (this->switch_var_ != nullptr && this->switch_var_->state); }
+bool MenuItemSwitch::get_switch_state_() const {
+  return (this->variable_switch_ != nullptr && this->variable_switch_->state);
+}
 
 bool MenuItemSwitch::toggle_switch_() {
   bool changed = false;
 
-  if (this->switch_var_ != nullptr) {
-    this->switch_var_->toggle();
+  if (this->variable_switch_ != nullptr) {
+    this->variable_switch_->toggle();
     this->on_value_();
     changed = true;
   }

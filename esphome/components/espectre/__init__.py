@@ -2,6 +2,7 @@ from ipaddress import IPv4Address
 
 import esphome.codegen as cg
 from esphome.components import esp32, wifi
+from esphome.components.const import CONF_ENABLED, CONF_WINDOW
 from esphome.components.esp32.const import (
     VARIANT_ESP32,
     VARIANT_ESP32C3,
@@ -12,7 +13,7 @@ from esphome.components.esp32.const import (
 )
 from esphome.components.wifi import DOMAIN as WIFI_DOMAIN
 import esphome.config_validation as cv
-from esphome.const import CONF_ID
+from esphome.const import CONF_ID, CONF_THRESHOLD, CONF_WINDOW_SIZE
 from esphome.core import CORE
 from esphome.types import ConfigType
 
@@ -25,9 +26,18 @@ CONF_DETECTION_ALGORITHM = "detection_algorithm"
 CONF_CSI_CAPTURE_PROFILE = "csi_capture_profile"
 CONF_TRAFFIC_GENERATOR_MODE = "traffic_generator_mode"
 CONF_TRAFFIC_GENERATOR_TARGET_IP = "traffic_generator_target_ip"
+CONF_TRAFFIC_GENERATOR_TARGET_MAC = "traffic_generator_target_mac"
+CONF_CSI_SAMPLE_SPACING = "csi_sample_spacing"
 CONF_CSI_TRAFFIC_MULTICAST_GROUP = "csi_traffic_multicast_group"
 CONF_MOTION_ON_HITS = "motion_on_hits"
 CONF_MOTION_OFF_HITS = "motion_off_hits"
+CONF_CSI_TARGET_PPS = "csi_target_pps"
+CONF_EVALUATION_INTERVAL = "evaluation_interval"
+CONF_LOWPASS_FILTER = "lowpass_filter"
+CONF_HAMPEL_FILTER = "hampel_filter"
+CONF_CUTOFF = "cutoff"
+MOTION_HITS_MIN = 1
+MOTION_HITS_MAX = 20
 
 # Fully qualified: a bare espectre:: in main.cpp would clash with the SDK namespace.
 espectre_ns = cg.global_ns.namespace("esphome").namespace("espectre")
@@ -36,10 +46,12 @@ sdk_ns = cg.global_ns.namespace("::espectre")
 DetectionAlgorithm = sdk_ns.enum("DetectionAlgorithm", is_class=True)
 CsiCapturePolicy = sdk_ns.enum("CsiCapturePolicy", is_class=True)
 TrafficGeneratorMode = sdk_ns.enum("TrafficGeneratorMode", is_class=True)
+TemporalCsiSpacing = sdk_ns.enum("TemporalCsiSpacing", is_class=True)
 WifiBandPolicy = sdk_ns.enum("WifiBandPolicy", is_class=True)
 
 DETECTION_ALGORITHMS = DetectionAlgorithm.options("lightweight", "high_accuracy")
 CSI_CAPTURE_PROFILES = CsiCapturePolicy.options("auto", "lltf", "ht_vht")
+CSI_SAMPLE_SPACINGS = TemporalCsiSpacing.options("half_slot", "distinct")
 TRAFFIC_GENERATOR_MODES = {
     "ping": TrafficGeneratorMode.PING,
     "dns": TrafficGeneratorMode.DNS,
@@ -55,6 +67,15 @@ def validate_target_ip(value: str) -> str:
     if first_octet in (0, 127) or first_octet >= 224 or value == "255.255.255.255":
         raise cv.Invalid("ESPectre traffic target must be a unicast IPv4 address")
     return value
+
+
+def validate_target_mac(value: str) -> str:
+    mac = cv.mac_address(value)
+    if mac.parts[0] & 1 or not any(mac.parts):
+        raise cv.Invalid(
+            "ESPectre traffic target must be a nonzero unicast MAC address"
+        )
+    return str(mac).lower()
 
 
 def validate_multicast_group(value: str) -> str:
@@ -83,6 +104,14 @@ def validate_config(config: ConfigType) -> ConfigType:
             "wifi_raw traffic is not supported on ESP32-C6 "
             "or with the ht_vht CSI capture profile"
         )
+    if (
+        CONF_TRAFFIC_GENERATOR_TARGET_MAC in config
+        and "wifi_raw" not in supported_traffic_generator_modes(config)
+    ):
+        raise cv.Invalid(
+            f"{CONF_TRAFFIC_GENERATOR_TARGET_MAC} requires wifi_raw traffic, "
+            "which is not supported on ESP32-C6 or with the ht_vht CSI capture profile"
+        )
     if mode in ("wifi_raw", "external") and CONF_TRAFFIC_GENERATOR_TARGET_IP in config:
         raise cv.Invalid(f"{mode} traffic does not use a target IP address")
     if mode != "external" and CONF_CSI_TRAFFIC_MULTICAST_GROUP in config:
@@ -107,9 +136,47 @@ CONFIG_SCHEMA = cv.All(
                 TRAFFIC_GENERATOR_MODES, lower=True
             ),
             cv.Optional(CONF_TRAFFIC_GENERATOR_TARGET_IP): validate_target_ip,
+            cv.Optional(CONF_TRAFFIC_GENERATOR_TARGET_MAC): validate_target_mac,
+            cv.Optional(CONF_CSI_SAMPLE_SPACING, default="half_slot"): cv.enum(
+                CSI_SAMPLE_SPACINGS, lower=True
+            ),
             cv.Optional(CONF_CSI_TRAFFIC_MULTICAST_GROUP): validate_multicast_group,
-            cv.Optional(CONF_MOTION_ON_HITS): cv.int_range(min=1, max=20),
-            cv.Optional(CONF_MOTION_OFF_HITS): cv.int_range(min=1, max=20),
+            cv.Optional(CONF_MOTION_ON_HITS): cv.int_range(
+                min=MOTION_HITS_MIN, max=MOTION_HITS_MAX
+            ),
+            cv.Optional(CONF_MOTION_OFF_HITS): cv.int_range(
+                min=MOTION_HITS_MIN, max=MOTION_HITS_MAX
+            ),
+            cv.Optional(CONF_WINDOW_SIZE): cv.All(
+                cv.positive_time_period_milliseconds,
+                cv.Range(
+                    min=cv.TimePeriod(milliseconds=1000),
+                    max=cv.TimePeriod(milliseconds=2000),
+                ),
+            ),
+            cv.Optional(CONF_CSI_TARGET_PPS): cv.int_range(min=1, max=500),
+            cv.Optional(CONF_EVALUATION_INTERVAL): cv.All(
+                cv.positive_time_period_milliseconds,
+                cv.Range(
+                    min=cv.TimePeriod(milliseconds=10),
+                    max=cv.TimePeriod(milliseconds=10000),
+                ),
+            ),
+            cv.Optional(CONF_LOWPASS_FILTER): cv.Schema(
+                {
+                    cv.Optional(CONF_ENABLED, default=True): cv.boolean,
+                    cv.Optional(CONF_CUTOFF): cv.All(
+                        cv.frequency, cv.float_range(min=5.0, max=20.0)
+                    ),
+                }
+            ),
+            cv.Optional(CONF_HAMPEL_FILTER): cv.Schema(
+                {
+                    cv.Optional(CONF_ENABLED, default=True): cv.boolean,
+                    cv.Optional(CONF_WINDOW): cv.int_range(min=3, max=11),
+                    cv.Optional(CONF_THRESHOLD): cv.float_range(min=1.0, max=10.0),
+                }
+            ),
         }
     ).extend(cv.COMPONENT_SCHEMA),
     esp32.only_on_variant(
@@ -149,10 +216,25 @@ async def to_code(config: ConfigType) -> None:
     cg.add(var.set_traffic_generator_mode(config[CONF_TRAFFIC_GENERATOR_MODE]))
     if (target_ip := config.get(CONF_TRAFFIC_GENERATOR_TARGET_IP)) is not None:
         cg.add(var.set_traffic_generator_target_ip(target_ip))
+    if (target_mac := config.get(CONF_TRAFFIC_GENERATOR_TARGET_MAC)) is not None:
+        cg.add(var.set_traffic_generator_target_mac(target_mac))
+    cg.add(var.set_csi_sample_spacing(config[CONF_CSI_SAMPLE_SPACING]))
     if (group := config.get(CONF_CSI_TRAFFIC_MULTICAST_GROUP)) is not None:
         cg.add(var.set_csi_traffic_multicast_group(group))
     cg.add_optional(var.set_motion_on_hits, config.get(CONF_MOTION_ON_HITS))
     cg.add_optional(var.set_motion_off_hits, config.get(CONF_MOTION_OFF_HITS))
+    if (window := config.get(CONF_WINDOW_SIZE)) is not None:
+        cg.add(var.set_window_size_ms(window.total_milliseconds))
+    cg.add_optional(var.set_csi_target_pps, config.get(CONF_CSI_TARGET_PPS))
+    if (interval := config.get(CONF_EVALUATION_INTERVAL)) is not None:
+        cg.add(var.set_evaluation_interval_ms(interval.total_milliseconds))
+    if (lowpass := config.get(CONF_LOWPASS_FILTER)) is not None:
+        cg.add(var.set_lowpass_enabled(lowpass[CONF_ENABLED]))
+        cg.add_optional(var.set_lowpass_cutoff, lowpass.get(CONF_CUTOFF))
+    if (hampel := config.get(CONF_HAMPEL_FILTER)) is not None:
+        cg.add(var.set_hampel_enabled(hampel[CONF_ENABLED]))
+        cg.add_optional(var.set_hampel_window, hampel.get(CONF_WINDOW))
+        cg.add_optional(var.set_hampel_threshold, hampel.get(CONF_THRESHOLD))
     if esp32.get_esp32_variant() == VARIANT_ESP32C5:
         band = CORE.config[WIFI_DOMAIN].get(wifi.CONF_BAND_MODE, "AUTO")
         cg.add(
@@ -166,7 +248,7 @@ async def to_code(config: ConfigType) -> None:
         )
 
     wifi.enable_runtime_roaming_suppression()
-    esp32.add_idf_component(name="francescopace/espectre", ref="3.0.0")
+    esp32.add_idf_component(name="francescopace/espectre", ref="3.1.0")
     esp32.add_idf_sdkconfig_option("CONFIG_ESP_WIFI_CSI_ENABLED", True)
     # CSI is reported once per received transmission, so aggregation hides frames from sensing.
     # Disabling TX aggregation also lets the SDK fix the station TX rate (6.5 Mbps on ESP32).
@@ -175,3 +257,5 @@ async def to_code(config: ConfigType) -> None:
     esp32.add_idf_sdkconfig_option("CONFIG_ESP_WIFI_AMPDU_RX_ENABLED", False)
     # Keep the radio awake while disconnected too, matching force_power_save_off().
     esp32.add_idf_sdkconfig_option("CONFIG_ESP_WIFI_STA_DISCONNECTED_PM_ENABLE", False)
+    # External traffic may ping the multicast group; the reply is the uplink.
+    esp32.add_idf_sdkconfig_option("CONFIG_LWIP_MULTICAST_PING", True)

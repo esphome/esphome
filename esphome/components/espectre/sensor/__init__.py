@@ -18,9 +18,13 @@ CONF_DIAGNOSTICS = "diagnostics"
 CONF_GENERATOR_RATE = "generator_rate"
 CONF_TRAFFIC_TX_RATE = "traffic_tx_rate"
 CONF_TRAFFIC_RX_RATE = "traffic_rx_rate"
+CONF_CSI_CALLBACK_RATE = "csi_callback_rate"
 CONF_CSI_ACCEPTED_RATE = "csi_accepted_rate"
+CONF_CSI_MISSING_SLOT_RATE = "csi_missing_slot_rate"
+CONF_CSI_EXCESS_RATE = "csi_excess_rate"
 CONF_CSI_OCCUPANCY = "csi_occupancy"
 UNIT_PACKETS_PER_SECOND = "pps"
+UNIT_SLOTS_PER_SECOND = "slot/s"
 
 DiagnosticsUpdater = espectre_ns.class_("DiagnosticsUpdater", cg.PollingComponent)
 
@@ -38,7 +42,10 @@ DIAGNOSTIC_SENSORS = {
     CONF_GENERATOR_RATE: _diagnostic_schema(UNIT_PACKETS_PER_SECOND, 1),
     CONF_TRAFFIC_TX_RATE: _diagnostic_schema(UNIT_PACKETS_PER_SECOND, 1),
     CONF_TRAFFIC_RX_RATE: _diagnostic_schema(UNIT_PACKETS_PER_SECOND, 1),
+    CONF_CSI_CALLBACK_RATE: _diagnostic_schema(UNIT_PACKETS_PER_SECOND, 1),
     CONF_CSI_ACCEPTED_RATE: _diagnostic_schema(UNIT_PACKETS_PER_SECOND, 1),
+    CONF_CSI_MISSING_SLOT_RATE: _diagnostic_schema(UNIT_SLOTS_PER_SECOND, 1),
+    CONF_CSI_EXCESS_RATE: _diagnostic_schema(UNIT_PACKETS_PER_SECOND, 1),
     CONF_CSI_OCCUPANCY: _diagnostic_schema(UNIT_PERCENT, 0),
 }
 

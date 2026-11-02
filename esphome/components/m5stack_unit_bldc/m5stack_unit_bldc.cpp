@@ -64,12 +64,10 @@ void M5StackUnitBldc::setup() {
   }
   this->current_direction_ = this->initial_direction_;
 #ifdef USE_SELECT
-  if (this->direction_select_ != nullptr)
-    this->direction_select_->publish_state(static_cast<size_t>(this->initial_direction_));
+  PUBLISH_STATE(this->direction_select_, static_cast<size_t>(this->initial_direction_));
 #endif
 #ifdef USE_NUMBER
-  if (this->command_number_ != nullptr)
-    this->command_number_->publish_state(command);
+  PUBLISH_STATE(this->command_number_, command);
 #endif
 
   const uint8_t motor_config[2] = {static_cast<uint8_t>(this->motor_model_), this->pole_pairs_};
@@ -219,8 +217,7 @@ void M5StackUnitBldc::finish_direction_change_() {
              static_cast<unsigned>(DIRECTION_CHANGE_POLL_MS * DIRECTION_CHANGE_MAX_POLLS));
     this->last_command_ = 0;
 #ifdef USE_NUMBER
-    if (this->command_number_ != nullptr)
-      this->command_number_->publish_state(0);
+    PUBLISH_STATE(this->command_number_, 0);
 #endif
     return;
   }

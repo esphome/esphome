@@ -418,7 +418,6 @@ SPD2010.extend(
     "WAVESHARE-ESP32-S3-TOUCH-LCD-1.46",
     cs_pin=21,
     reset_pin={"pca9554": None, "number": 1},
-    requires={"pca9554"},
 )
 
 # The panel reset is wired to the chip reset, so only the software reset is available.

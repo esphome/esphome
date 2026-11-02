@@ -335,7 +335,7 @@ async def to_code(config: ConfigType) -> None:
     await cg.register_component(var, config)
     await climate.register_climate(var, config)
 
-    await cg.add_variable(var.set_sensor, config.get(CONF_SENSOR))
+    await cg.add_variable(var.set_temperature_sensor, config.get(CONF_SENSOR))
     await cg.add_variable(var.set_humidity_sensor, config.get(CONF_HUMIDITY_SENSOR))
 
     for key, flag in (
