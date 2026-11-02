@@ -261,12 +261,14 @@ def validate_sensor_esp32(config: ConfigType) -> ConfigType:
                 }
             ]
         elif dev_class == DEVICE_CLASS_VOLTAGE:
+            if unit is not None:
+                cv.one_of("V", "mV")(unit)
             cl[CONF_ATTRIBUTES] = [
                 {
                     CONF_ATTRIBUTE_ID: 0x0020,
                     CONF_TYPE: "UINT8",
                     CONNECT: True,
-                    SCALE: 10,  # in 100mV
+                    SCALE: 0.01 if unit == "mV" else 10,  # in 100mV
                     ACCESS: ATTR_ACCESS["READ"] | ATTR_ACCESS["REPORT"],  # 5
                 }
             ]
