@@ -31,8 +31,11 @@ void PCM5122::setup() {
 
   // Ignore clock halt detection; enable clock divider autoset
   optional<uint8_t> err_detect = this->read_byte(PCM5122_REG_ERROR_DETECT);
-  if (!this->setup_comm_result(err_detect.has_value(), LOG_STR("Failed to read ERROR_DETECT")))
+  // Hand-written so clang-tidy sees the has_value() check before value()
+  if (!err_detect.has_value()) {
+    this->mark_failed(LOG_STR("Failed to read ERROR_DETECT"));
     return;
+  }
   uint8_t err_detect_val = err_detect.value();
   err_detect_val |= PCM5122_ERROR_DETECT_IGNORE_CLKHALT;
   err_detect_val &= ~PCM5122_ERROR_DETECT_DISABLE_DIV_AUTOSET;
@@ -64,8 +67,11 @@ void PCM5122::setup() {
   if (!this->setup_comm_result(this->select_page_(0), LOG_STR("Write failed")))
     return;
   optional<uint8_t> pll_ref = this->read_byte(PCM5122_REG_PLL_REF);
-  if (!this->setup_comm_result(pll_ref.has_value(), LOG_STR("Failed to read PLL_REF")))
+  // Hand-written so clang-tidy sees the has_value() check before value()
+  if (!pll_ref.has_value()) {
+    this->mark_failed(LOG_STR("Failed to read PLL_REF"));
     return;
+  }
   uint8_t pll_ref_val = pll_ref.value();
   pll_ref_val &= ~PCM5122_PLL_REF_MASK;
   pll_ref_val |= PCM5122_PLL_REF_SOURCE_BCK;
