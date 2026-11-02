@@ -269,13 +269,14 @@ class APIServer final : public Component
   ESPHOME_ALWAYS_INLINE void dispatch_home_assistant_state(const HomeAssistantStateResponse &msg) {
     // Counted subscriptions first, then the extra ones. A callback may subscribe, which can move
     // extra_state_subs_, so the position is re-anchored after each callback.
+#ifdef HOMEASSISTANT_STATE_SUBSCRIPTION_COUNT
+    bool in_extra = false;
+    const HomeAssistantStateSubscription *base = this->state_subs_.begin();
+    const HomeAssistantStateSubscription *end = this->state_subs_.end();
+#else
     bool in_extra = true;
     const HomeAssistantStateSubscription *base = this->extra_state_subs_;
     const HomeAssistantStateSubscription *end = base + this->extra_state_sub_count_;
-#ifdef HOMEASSISTANT_STATE_SUBSCRIPTION_COUNT
-    in_extra = false;
-    base = this->state_subs_.begin();
-    end = this->state_subs_.end();
 #endif
     for (const HomeAssistantStateSubscription *it = base;; ++it) {
       if (it == end) {
