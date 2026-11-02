@@ -148,7 +148,7 @@ class LIS3DHComponent : public motion::MotionComponent, public i2c::I2CDevice {
     this->tap_high_pass_ = high_pass;
     this->tap_hold_ms_ = hold_ms + LIS3DH_TAP_POLL_INTERVAL_MS;
   }
-  void set_tap_interrupt(GPIOPin *pin, LIS3DHInterruptPin pad) {
+  void set_tap_interrupt(InternalGPIOPin *pin, LIS3DHInterruptPin pad) {
     this->tap_interrupt_pin_ = pin;
     this->tap_pad_ = pad;
   }
@@ -165,6 +165,8 @@ class LIS3DHComponent : public motion::MotionComponent, public i2c::I2CDevice {
   bool setup_tap_();
 #ifdef USE_LIS3DH_TAP
   void read_tap_(uint32_t now);
+  // Wakes loop() on the tap pad's edge. Runs in interrupt context.
+  static void tap_interrupt_handler(LIS3DHComponent *arg);
 #endif
   bool publish_temperature_();
 
@@ -185,7 +187,7 @@ class LIS3DHComponent : public motion::MotionComponent, public i2c::I2CDevice {
 
 #ifdef USE_LIS3DH_TAP
   // A zero CLICK_CFG mask means this instance has tap detection off.
-  GPIOPin *tap_interrupt_pin_{nullptr};
+  InternalGPIOPin *tap_interrupt_pin_{nullptr};
   LIS3DHInterruptPin tap_pad_{LIS3DH_INT_PIN_INT1};
   uint8_t tap_axes_cfg_{0};
   uint8_t tap_threshold_{1};

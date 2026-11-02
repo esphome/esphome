@@ -45,7 +45,7 @@ void LIS3DHComponent::setup() {
     return;
   }
 #ifdef USE_LIS3DH_TAP
-  // loop() only watches the tap interrupt pin; without one, CLICK_SRC is polled
+  // loop() runs only while the tap pad is asserted; without a pin, CLICK_SRC is polled
   if (this->tap_axes_cfg_ == 0 || this->tap_interrupt_pin_ == nullptr) {
     this->disable_loop();
     if (this->tap_axes_cfg_ != 0) {
@@ -56,19 +56,24 @@ void LIS3DHComponent::setup() {
         this->release_held_tap_(now);
       });
     }
+  } else if (this->tap_interrupt_pin_->digital_read() != this->interrupt_active_high_) {
+    this->disable_loop();
   }
 #endif
 }
 
 #ifdef USE_LIS3DH_TAP
+void IRAM_ATTR LIS3DHComponent::tap_interrupt_handler(LIS3DHComponent *arg) { arg->enable_loop_soon_any_context(); }
+
 void LIS3DHComponent::loop() {
   // Only one trigger is allowed with an interrupt pin, so no single tap is ever held here.
-  // The pad polarity is the chip-wide one set by the motion interrupt's active_high.
+  // CLICK_SRC isn't latched, so it is read as soon as the pad edge wakes the loop.
+  this->read_tap_(App.get_loop_component_start_time());
+  // The pad polarity is the chip-wide one set by the motion interrupt's active_high
   if (this->tap_interrupt_pin_->digital_read() != this->interrupt_active_high_) {
     this->last_tap_src_ = 0;
-    return;
+    this->disable_loop();
   }
-  this->read_tap_(App.get_loop_component_start_time());
 }
 #endif
 
@@ -159,8 +164,12 @@ bool LIS3DHComponent::setup_interrupt_() {
 bool LIS3DHComponent::setup_tap_() {
 #ifdef USE_LIS3DH_TAP
   if (this->tap_axes_cfg_ != 0) {
-    if (this->tap_interrupt_pin_ != nullptr)
+    if (this->tap_interrupt_pin_ != nullptr) {
       this->tap_interrupt_pin_->setup();
+      this->tap_interrupt_pin_->attach_interrupt(
+          &LIS3DHComponent::tap_interrupt_handler, this,
+          this->interrupt_active_high_ ? gpio::INTERRUPT_RISING_EDGE : gpio::INTERRUPT_FALLING_EDGE);
+    }
     // CLICK_THS through TIME_WINDOW in one burst. LIR_Click (CLICK_THS bit 7) stays clear: latching
     // makes a polled CLICK_SRC read reset the double-tap state machine.
     const uint8_t timing[] = {this->tap_threshold_, this->tap_time_limit_, this->tap_latency_, this->tap_window_};

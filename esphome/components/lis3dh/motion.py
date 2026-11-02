@@ -139,7 +139,7 @@ TAP_SCHEMA = tap_schema(
         cv.Optional(CONF_LATENCY, default="50ms"): cv.positive_time_period_milliseconds,
         cv.Optional(CONF_WINDOW, default="250ms"): cv.positive_time_period_milliseconds,
         cv.Optional(CONF_HIGH_PASS_FILTER, default=True): cv.boolean,
-        cv.Optional(CONF_INTERRUPT_PIN): pins.gpio_input_pin_schema,
+        cv.Optional(CONF_INTERRUPT_PIN): pins.internal_gpio_input_pin_schema,
         cv.Optional(CONF_PIN, default="INT1"): cv.enum(
             INTERRUPT_PIN_OPTIONS, upper=True
         ),
