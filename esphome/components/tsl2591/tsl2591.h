@@ -229,15 +229,15 @@ class TSL2591Component final : public PollingComponent, public i2c::I2CDevice {
   // ========== INTERNAL METHODS ==========
   // (In most use cases you won't need these. They're for ESPHome integration use.)
   /** Used by ESPHome framework. */
-  void set_full_spectrum_sensor(sensor::Sensor *full_spectrum_sensor);
+  SUB_SENSOR(full_spectrum)
   /** Used by ESPHome framework. */
-  void set_actual_gain_sensor(sensor::Sensor *actual_gain_sensor);
+  SUB_SENSOR(actual_gain)
   /** Used by ESPHome framework. */
-  void set_infrared_sensor(sensor::Sensor *infrared_sensor);
+  SUB_SENSOR(infrared)
   /** Used by ESPHome framework. */
-  void set_visible_sensor(sensor::Sensor *visible_sensor) { this->visible_sensor_ = visible_sensor; }
+  SUB_SENSOR(visible)
   /** Used by ESPHome framework. */
-  void set_calculated_lux_sensor(sensor::Sensor *calculated_lux_sensor);
+  SUB_SENSOR(calculated_lux)
   /** Used by ESPHome framework. Does NOT actually set the value on the device. */
   void set_integration_time(TSL2591IntegrationTime integration_time);
   /** Used by ESPHome framework. Does NOT actually set the value on the device. */
@@ -251,11 +251,6 @@ class TSL2591Component final : public PollingComponent, public i2c::I2CDevice {
 
  protected:
   const char *name_;
-  sensor::Sensor *full_spectrum_sensor_{nullptr};
-  sensor::Sensor *infrared_sensor_{nullptr};
-  sensor::Sensor *visible_sensor_{nullptr};
-  sensor::Sensor *calculated_lux_sensor_{nullptr};
-  sensor::Sensor *actual_gain_sensor_{nullptr};
   TSL2591IntegrationTime integration_time_;
   TSL2591ComponentGain component_gain_;
   TSL2591Gain gain_;

@@ -61,8 +61,7 @@ bool ThermoProBLE::parse_device(const ble_device_base::ESPBTDevice &device) {
 
   // publish signal strength
   float signal_strength = float(device.get_rssi());
-  if (this->signal_strength_sensor_ != nullptr)
-    this->signal_strength_sensor_->publish_state(signal_strength);
+  PUBLISH_STATE(this->signal_strength_sensor_, signal_strength);
 
   bool success = false;
   for (auto &service_data : device.get_manufacturer_datas()) {
@@ -85,14 +84,10 @@ bool ThermoProBLE::parse_device(const ble_device_base::ESPBTDevice &device) {
     }
 
     // publish sensor values
-    if (result->temperature.has_value() && this->temperature_sensor_ != nullptr)
-      this->temperature_sensor_->publish_state(*result->temperature);
-    if (result->external_temperature.has_value() && this->external_temperature_sensor_ != nullptr)
-      this->external_temperature_sensor_->publish_state(*result->external_temperature);
-    if (result->humidity.has_value() && this->humidity_sensor_ != nullptr)
-      this->humidity_sensor_->publish_state(*result->humidity);
-    if (result->battery_level.has_value() && this->battery_level_sensor_ != nullptr)
-      this->battery_level_sensor_->publish_state(*result->battery_level);
+    publish_optional(this->temperature_sensor_, result->temperature);
+    publish_optional(this->external_temperature_sensor_, result->external_temperature);
+    publish_optional(this->humidity_sensor_, result->humidity);
+    publish_optional(this->battery_level_sensor_, result->battery_level);
 
     success = true;
   }

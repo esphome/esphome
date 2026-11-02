@@ -32,8 +32,7 @@ void SeeedMultiChannelRelay::setup() {
     return;
   this->channels_ = value;
   for (uint8_t channel = 0; channel != this->switches_.size(); channel++) {
-    if (this->switches_[channel] != nullptr)
-      this->switches_[channel]->publish_state((value >> channel) & 1);
+    PUBLISH_STATE(this->switches_[channel], (value >> channel) & 1);
   }
 #endif
 }
@@ -69,8 +68,7 @@ bool SeeedMultiChannelRelay::set_relay(uint8_t channel, bool on) {
     return false;
   this->channels_ = value;
 #ifdef USE_SWITCH
-  if (this->switches_[channel] != nullptr)
-    this->switches_[channel]->publish_state(on);
+  PUBLISH_STATE(this->switches_[channel], on);
 #endif
   return true;
 }

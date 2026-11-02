@@ -335,9 +335,7 @@ void MS8607Component::read_humidity_(float temperature_float) {
       humidity_percentage + (20 - temperature_float) * MS8607_H_TEMP_COEFFICIENT;
   ESP_LOGD(TAG, "Compensated for temperature, humidity=%.2f%%", compensated_humidity_percentage);
 
-  if (this->humidity_sensor_ != nullptr) {
-    this->humidity_sensor_->publish_state(compensated_humidity_percentage);
-  }
+  PUBLISH_STATE(this->humidity_sensor_, compensated_humidity_percentage);
   this->status_clear_warning();
 }
 
@@ -400,12 +398,8 @@ void MS8607Component::calculate_values_(uint32_t d2_raw_temperature, uint32_t d1
   const float pressure_float = pressure / 100.0f;
   ESP_LOGD(TAG, "Temperature=%0.2f°C, Pressure=%0.2fhPa", temperature_float, pressure_float);
 
-  if (this->temperature_sensor_ != nullptr) {
-    this->temperature_sensor_->publish_state(temperature_float);
-  }
-  if (this->pressure_sensor_ != nullptr) {
-    this->pressure_sensor_->publish_state(pressure_float);  // hPa aka mbar
-  }
+  PUBLISH_STATE(this->temperature_sensor_, temperature_float);
+  PUBLISH_STATE(this->pressure_sensor_, pressure_float);  // hPa aka mbar
   this->status_clear_warning();
 
   if (this->humidity_sensor_ != nullptr) {

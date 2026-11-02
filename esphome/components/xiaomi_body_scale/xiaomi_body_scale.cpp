@@ -87,8 +87,7 @@ void XiaomiBodyScale::publish_s400_(uint32_t packed) {
       this->impedance_high_sensor_->publish_state(impedance / 10.0f);
     this->publish_stabilized_(impedance != 0);
   } else if (impedance != 0) {
-    if (this->impedance_low_sensor_ != nullptr)
-      this->impedance_low_sensor_->publish_state(impedance / 10.0f);
+    PUBLISH_STATE(this->impedance_low_sensor_, impedance / 10.0f);
     this->publish_stabilized_(false);
   } else {
     // Weight without impedance: measurement complete (with socks)
@@ -133,8 +132,7 @@ bool XiaomiBodyScale::parse_device(const ble_device_base::ESPBTDevice &device) {
       ESP_LOGVV(TAG, "Unknown object 0x%04X, length %u", value_type, object[2]);
       continue;
     }
-    if (this->profile_id_sensor_ != nullptr)
-      this->profile_id_sensor_->publish_state(data[0]);
+    PUBLISH_STATE(this->profile_id_sensor_, data[0]);
     return true;
   }
   return false;

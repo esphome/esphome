@@ -88,6 +88,12 @@ Ports are not listed on purpose: they follow the USB hub port and change on ever
 - The AmebaZ2 SDK sets `LWIP_TCPIP_CORE_LOCKING 0`.
 - The `rtw_is_adapter_up` bus fault after `Disabling AP` happens on LibreTiny 1.13.0 and 1.14.0 alike
   (2 of 4 and 3 of 3 runs in #21531); run at least four rounds per build before blaming a PR for it.
+- On a fault the ROM handler (ram_vector_table entries 3 to 7) prints a dump of about 4 KB in 0.4 s and
+  then spins; only the watchdog resets the chip (10 s after `arch_init`, 1 s once the ESPHome crash
+  handler re-arms it). `.ram.bss.noinit*` (`.system_restore_data`) survives that reset. The core has no
+  FPU. For a crash that fires once, guard an `interval` lambda with
+  `!libretiny::crash_handler_has_data()`. For a handler mode (MSP) fault, point vector 16+11 (SDIOD,
+  unused) at a trapping function and set bit 11 in NVIC ISER and ISPR (0xE000E100, 0xE000E200).
 
 ## BK7238, WB3S, CB3S (BK7231N) (LibreTiny bk72xx, CH340, RTS on CEN)
 
@@ -132,6 +138,46 @@ Ports are not listed on purpose: they follow the USB hub port and change on ever
   points at the old one.
 - Callbacks run on the `async_tcp` task and log lines can lose a byte. Wi-Fi connect takes tens of ms;
   radio enable 160 to 278 ms, disable about 200 ms.
+
+## BW12 and other AmebaZ boards (RTL8710BX, LibreTiny rtl87xx)
+
+- On a bare module wired to a plain USB-UART (the bench's BW12), download mode is a hand strap: CEN to
+  GND, TX2 to GND, release CEN, release TX2. Such an adapter does not drive CEN, so neither ltchiptool nor
+  `serial_capture.py --reset` can reset the chip. A development board that wires DTR and RTS to CEN and the
+  download pin enters download mode from the tools, like the BW15 kit; the notes below on baud rates still apply.
+- ltchiptool links at 1.5 Mbaud and reads the system data at 0x9000 at that rate before it writes at
+  115200. A CH340 drops bytes there (`Data read error at 0x9000`, `Timed out waiting for Quiet-Handshake`)
+  and the run gives up without writing. `-B 115200 -b 115200` moves the link to 115200 first and works.
+  Start the command with `-t 120` so it is already polling while the board is strapped.
+- After a failed run the ROM may sit at another baud rate and no longer link; strap again.
+- The device builder frontend's AmebaZ flasher follows ltchiptool (link and system read at 1.5 Mbaud),
+  so it can hit the same read failure on the same adapters.
+- Power the module from the adapter's 5 V pin into its own regulator; the adapter's 3.3 V pin cannot
+  carry the Wi-Fi transmit peaks.
+- Capture with `serial_capture.py --released`. With DTR and RTS asserted on the open port, a software
+  reboot (`App.safe_reboot()`, the restart button) lands in the ROM downloader (`UARTIMG_Download 2`)
+  and stays there until CEN is pulsed. After a flash the chip also waits in the ROM until CEN is pulsed.
+- A full flash takes 50 to 220 s at 115200. While the board is on Wi-Fi, OTA (port 8892) saves the strap,
+  but the board's Wi-Fi latency (one to two seconds a ping) can make the upload time out.
+- `sdk_silent: none` under `framework:` keeps the Wi-Fi driver's join log (`start auth to`, `auth success,
+  start assoc`, `association success`, `sta recv deauth reason code(N)`); LibreTiny mutes it during the
+  connect otherwise. `wifi_get_last_error()` after a failed `WiFi.begin()` gives the SDK's reason
+  (1 no network, 2 connect failed, 3 handshake failed, 6 auth failed); LibreTiny only logs `ret=-1`.
+- Some modules ship with no RF calibration in efuse, only the chip ID and MAC. Dump the logical map with
+  the ROM's `EFUSE_LogicalMap_Read(buf)` (512 bytes): TX power indexes are at 0x10 to 0x1A, crystal trim
+  at 0xC9, MAC at 0x11A; 0xFF means the driver uses its default (trim 0x20). Linking with
+  `-Wl,-wrap,EFUSE_LogicalMap_Read_ACUT` lets a wrapper rewrite blank bytes before the driver parses
+  the map on each radio start. See `recipes/libretiny.md` for the per-boot trial harness used to A/B them.
+- Scan results report WPA2-AES access points as `WPA PSK`: LibreTiny truncates `rtw_security_t` to
+  `uint8_t` before mapping it. Cosmetic. Open networks come out as `WIFI_AUTH_INVALID` (255) on both
+  AmebaZ and AmebaZ2, so `auth != WIFI_AUTH_OPEN` marks them encrypted.
+- After a BSSID plus channel join, LibreTiny's `set_pscan_channel(ch, false)` leaves the driver with no
+  channel to scan, so the next SSID only join fails at once (no `start auth`). Calling
+  `wifi_set_pscan_chan` with channels 1 to 13 and `PSCAN_ENABLE` each before such a join fixes it and
+  keeps the BSSID fast path (BW15 BSSID join median 3.05 s with it, 4.68 s when joining with channel 0).
+- A 4-way handshake that never finishes after association is reported as `RTW_WRONG_PASSWORD` on AmebaZ
+  even with the right password; AmebaZ2 reports a real wrong password as a 4-way handshake timeout.
+- The driver also posts a SCAN_DONE (number 0) inside every join, on AmebaZ2 too.
 
 ## BW16 kit (RTL8720DN, AmebaD)
 

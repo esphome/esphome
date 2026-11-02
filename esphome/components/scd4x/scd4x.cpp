@@ -170,8 +170,7 @@ void SCD4XComponent::update() {
       this->status_set_warning();
       return;
     }
-    if (this->co2_sensor_ != nullptr)
-      this->co2_sensor_->publish_state(raw_data[0]);
+    PUBLISH_STATE(this->co2_sensor_, raw_data[0]);
 
     if (this->temperature_sensor_ != nullptr) {
       const float temperature = -45.0f + (175.0f * (raw_data[1])) / (1 << 16);

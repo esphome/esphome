@@ -15,3 +15,13 @@ API reply and says nothing. On dev the S3 lost 6 of 12; the PR lost 0 of 16.
 and `an.py`, which prints PASS only when every round completed, every peer disconnect came within 3 s and the last
 parameter update the proxy logged before each disconnect had latency=10 (a round without it did not test peripheral
 latency and counts as inconclusive).
+
+Controller build check: ESP-IDF 5.5.6 ships `libbtdm_app.a` byte for byte the same as 5.5.5 for esp32c3 and esp32s3
+(build 51d9dfd). Without hardware:
+
+```bash
+strings -a <idf>/components/bt/controller/lib_esp32c3_family/<chip>/libbtdm_app.a | grep -E '^[0-9a-f]{7}$'
+```
+
+On a board: a button lambda logging `btdm_controller_get_compile_version()` (declared `extern "C"`) over the API,
+since the ESP-IDF init line only reaches the UART.

@@ -98,9 +98,7 @@ void HTU31DComponent::update() {
     temperature *= 165;
     temperature -= 40;
 
-    if (this->temperature_sensor_ != nullptr) {
-      this->temperature_sensor_->publish_state(temperature);
-    }
+    PUBLISH_STATE(this->temperature_sensor_, temperature);
 
     // Calculate humidty value.
     uint16_t raw_hum = encode_uint16(thdata[3], thdata[4]);
@@ -116,9 +114,7 @@ void HTU31DComponent::update() {
     humidity /= 65535.0f;
     humidity *= 100;
 
-    if (this->humidity_sensor_ != nullptr) {
-      this->humidity_sensor_->publish_state(humidity);
-    }
+    PUBLISH_STATE(this->humidity_sensor_, humidity);
 
     ESP_LOGD(TAG, "Got Temperature=%.1f°C Humidity=%.1f%%", temperature, humidity);
     this->status_clear_warning();

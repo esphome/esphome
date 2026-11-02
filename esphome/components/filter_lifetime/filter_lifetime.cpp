@@ -47,10 +47,8 @@ void FilterLifetime::publish_values_() {
   const float max_minutes = this->max_lifetime_minutes_;
   const float remaining_minutes = std::max(0.0f, max_minutes - runtime_minutes);
   this->publish_state(100.0f * remaining_minutes / max_minutes);
-  if (this->runtime_hours_sensor_ != nullptr)
-    this->runtime_hours_sensor_->publish_state(runtime_minutes / 60.0f);
-  if (this->remaining_days_sensor_ != nullptr)
-    this->remaining_days_sensor_->publish_state(remaining_minutes / MINUTES_PER_DAY);
+  PUBLISH_STATE(this->runtime_hours_sensor_, runtime_minutes / 60.0f);
+  PUBLISH_STATE(this->remaining_days_sensor_, remaining_minutes / MINUTES_PER_DAY);
 }
 
 void FilterLifetime::on_shutdown() { this->pref_.save(&this->runtime_seconds_); }

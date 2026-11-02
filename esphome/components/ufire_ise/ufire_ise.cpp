@@ -50,9 +50,7 @@ void UFireISEComponent::update_internal_() {
     temperature = this->external_temperature_sensor_->state;
   }
 
-  if (this->ph_sensor_ != nullptr) {
-    this->ph_sensor_->publish_state(this->measure_ph_(temperature));
-  }
+  PUBLISH_STATE(this->ph_sensor_, this->measure_ph_(temperature));
 }
 
 float UFireISEComponent::measure_temperature_() { return this->read_data_(REGISTER_TEMP); }
