@@ -589,8 +589,8 @@ void APIServer::handle_action_response(uint32_t call_id, bool success, StringRef
 void APIServer::add_state_subscription_(const char *entity_id, const char *attribute,
                                         Callback<void(StringRef)> callback, bool once) {
 #ifdef HOMEASSISTANT_STATE_SUBSCRIPTION_COUNT
-  static constexpr size_t counted_slots = HOMEASSISTANT_STATE_SUBSCRIPTION_COUNT;
-  if (this->state_subs_.size() < counted_slots) {
+  static constexpr size_t COUNTED_SLOTS = HOMEASSISTANT_STATE_SUBSCRIPTION_COUNT;
+  if (this->state_subs_.size() < COUNTED_SLOTS) {
     this->state_subs_.push_back({entity_id, attribute, callback, once});
     return;
   }
