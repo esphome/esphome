@@ -349,6 +349,22 @@ TEST_F(HomeAssistantStatesTest, InternalAndCustomAPIDeviceSubscriptionsAreAllSen
   EXPECT_EQ(device.seen, (std::vector<std::string>{"state:x"}));
 }
 
+TEST_F(HomeAssistantStatesTest, CustomAPIDeviceSubscribedFirst) {
+  TestDevice device;
+  device.subscribe_homeassistant_state(&TestDevice::on_state, "sensor.custom");
+  this->server_->subscribe_home_assistant_state("sensor.1", nullptr, [](StringRef) {});
+  this->server_->subscribe_home_assistant_state("sensor.2", nullptr, [](StringRef) {});
+
+  // Sent in registration order
+  EXPECT_EQ(this->request_subscriptions_(), (std::vector<SentSubscription>{
+                                                {"sensor.custom", "", false},
+                                                {"sensor.1", "", false},
+                                                {"sensor.2", "", false},
+                                            }));
+  this->deliver_("sensor.custom", "", "x");
+  EXPECT_EQ(device.seen, (std::vector<std::string>{"state:x"}));
+}
+
 TEST_F(HomeAssistantStatesTest, MemberCallbacksSeeTheirObject) {
   struct Holder {
     std::string last;
