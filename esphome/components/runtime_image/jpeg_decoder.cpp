@@ -5,9 +5,12 @@
 #include "esphome/components/image/image.h"
 #include "esphome/core/application.h"
 #include "esphome/core/defines.h"
-#include "esphome/core/hal.h"
 #include "esphome/core/helpers.h"
 #include "esphome/core/log.h"
+
+#ifdef USE_ESP32_TASK_WDT
+#include "esp_task_wdt.h"
+#endif
 
 ESPHOME_LOG_TAG(TAG, "image_decoder.jpeg");
 
@@ -51,13 +54,11 @@ void JpegDecoder::draw_rgb565(int x, int y, int w, int h, const uint8_t *pixels)
 // Some very big images take too long to decode, so feed the watchdog as the decode goes
 // to avoid crashing if the executing task has a watchdog enabled.
 static void feed_watchdog() {
-#ifdef USE_ESP_IDF
-  if (task_wdt_watches_current_task()) {
+#ifdef USE_ESP32_TASK_WDT
+  // Only a task the watchdog watches may feed it
+  if (esp_task_wdt_status(nullptr) == ESP_OK)
 #endif
     App.feed_wdt();
-#ifdef USE_ESP_IDF
-  }
-#endif
 }
 
 /**

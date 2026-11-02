@@ -13,12 +13,15 @@
 #include "esphome/components/watchdog/watchdog.h"
 
 #include "esphome/core/application.h"
-#include "esphome/core/hal.h"
 #include "esphome/core/log.h"
 #include "esphome/core/progmem.h"
 
 #if CONFIG_MBEDTLS_CERTIFICATE_BUNDLE
 #include "esp_crt_bundle.h"
+#endif
+
+#ifdef USE_ESP32_TASK_WDT
+#include "esp_task_wdt.h"
 #endif
 
 namespace esphome::http_request {
@@ -468,9 +471,12 @@ void HttpContainerIDF::end() {
 }
 
 void HttpContainerIDF::feed_wdt() {
-  if (task_wdt_watches_current_task()) {
+#ifdef USE_ESP32_TASK_WDT
+  // Tests to see if the executing task has a watchdog timer attached
+  if (esp_task_wdt_status(nullptr) == ESP_OK) {
     App.feed_wdt();
   }
+#endif
 }
 
 }  // namespace esphome::http_request

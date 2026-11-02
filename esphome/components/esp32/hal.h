@@ -51,14 +51,6 @@ __attribute__((always_inline)) inline void arch_feed_wdt() {
   esp_task_wdt_reset();
 #endif
 }
-/// True when the task watchdog watches the calling task, so it may feed it.
-__attribute__((always_inline)) inline bool task_wdt_watches_current_task() {
-#ifdef USE_ESP32_TASK_WDT
-  return esp_task_wdt_status(nullptr) == ESP_OK;
-#else
-  return false;
-#endif
-}
 __attribute__((always_inline)) inline uint32_t arch_get_cpu_cycle_count() { return esp_cpu_get_cycle_count(); }
 
 void arch_init();
