@@ -1,0 +1,13 @@
+m5stack_unit_bldc:
+  i2c_id: i2c_bus
+  id: bldc_hub
+  mode: closed_loop
+  direction: backward
+  model: high_speed
+  pole_pairs: 7
+
+number:
+  - platform: m5stack_unit_bldc
+    m5stack_unit_bldc_id: bldc_hub
+    target_rpm:
+      name: Motor Target RPM
