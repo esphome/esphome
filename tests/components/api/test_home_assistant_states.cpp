@@ -157,9 +157,7 @@ class HomeAssistantStatesTest : public ::testing::Test {
   int peer_fd_{-1};
 };
 
-TEST_F(HomeAssistantStatesTest, NothingSubscribedSendsNothing) {
-  EXPECT_TRUE(this->request_subscriptions_().empty());
-}
+TEST_F(HomeAssistantStatesTest, NothingSubscribedSendsNothing) { EXPECT_TRUE(this->request_subscriptions_().empty()); }
 
 TEST_F(HomeAssistantStatesTest, SubscriptionsAreSentInRegistrationOrder) {
   auto noop = [](StringRef) {};
