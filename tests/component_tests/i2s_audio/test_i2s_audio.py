@@ -52,6 +52,21 @@ def test_full_duplex_generates_code(
     assert "duplex_bus->set_audio_in(duplex_mic);" in main_cpp
     assert "duplex_bus->set_audio_out(duplex_speaker_a);" in main_cpp
     assert "duplex_bus->set_audio_out(duplex_speaker_b);" in main_cpp
+    assert "duplex_bus->set_keep_tx_active(true);" in main_cpp
+    assert "USE_I2S_AUDIO_FULL_DUPLEX" in {define.name for define in CORE.defines}
+
+
+def test_full_duplex_default_does_not_enable_continuous_tx(
+    generate_main: Callable[[str | Path], str],
+) -> None:
+    """The default full-duplex bus does not enable continuous TX."""
+    main_cpp = generate_main(
+        "tests/component_tests/i2s_audio/test_full_duplex_default.yaml"
+    )
+
+    assert "duplex_bus->set_audio_in(duplex_mic);" in main_cpp
+    assert "duplex_bus->set_audio_out(duplex_speaker_a);" in main_cpp
+    assert "set_keep_tx_active" not in main_cpp
     assert "USE_I2S_AUDIO_FULL_DUPLEX" in {define.name for define in CORE.defines}
 
 
