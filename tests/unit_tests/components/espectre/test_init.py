@@ -69,6 +69,13 @@ def test_arduino_framework_version(variant: str) -> None:
             {"csi_traffic_multicast_group": "239.255.0.1"},
             "requires traffic_generator_mode: external",
         ),
+        (
+            {
+                "csi_capture_profile": "ht_vht",
+                "traffic_generator_target_mac": "AA:BB:CC:DD:EE:02",
+            },
+            "requires wifi_raw traffic",
+        ),
     ],
 )
 def test_incompatible_traffic_options(config: ConfigType, message: str) -> None:
@@ -94,6 +101,19 @@ def test_c6_raw_traffic() -> None:
 def test_invalid_traffic_targets(address: str) -> None:
     with pytest.raises(cv.Invalid, match="unicast"):
         espectre.CONFIG_SCHEMA({"traffic_generator_target_ip": address})
+
+
+@pytest.mark.parametrize("address", ["00:00:00:00:00:00", "01:00:5E:00:00:01"])
+def test_invalid_traffic_target_macs(address: str) -> None:
+    with pytest.raises(cv.Invalid, match="unicast MAC"):
+        espectre.CONFIG_SCHEMA({"traffic_generator_target_mac": address})
+
+
+def test_traffic_target_mac_is_lowercase() -> None:
+    config = espectre.CONFIG_SCHEMA(
+        {"traffic_generator_target_mac": "AA:BB:CC:DD:EE:02"}
+    )
+    assert config["traffic_generator_target_mac"] == "aa:bb:cc:dd:ee:02"
 
 
 def test_multicast_group_must_be_multicast() -> None:

@@ -57,5 +57,5 @@ def test_automations_register_state_callbacks(
         assert f"state == {state}" in main_cpp
     assert main_cpp.count("add_on_state_callback(") == 5
     assert "->is_failed()" in main_cpp
-    assert "set_authorizer" in main_cpp
+    assert "set_authorizer_binary_sensor" in main_cpp
     assert "set_status_indicator" in main_cpp
