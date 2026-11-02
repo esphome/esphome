@@ -58,6 +58,9 @@ static void feed_watchdog() {
   // Only a task the watchdog watches may feed it
   if (esp_task_wdt_status(nullptr) != ESP_OK)
     return;
+#elif defined(USE_ESP32)
+  // No watchdog to feed, and a decode off the loop task must not run the status LED
+  return;
 #endif
   App.feed_wdt();
 }

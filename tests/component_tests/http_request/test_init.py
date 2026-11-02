@@ -52,8 +52,10 @@ def test_other_platforms_leave_watchdog_unset(
 
 def test_explicit_watchdog_rejected_when_platform_disabled(
     component_config_path: Callable[[str], Path],
+    capsys: pytest.CaptureFixture[str],
 ) -> None:
     CORE.config_path = component_config_path(
         "test_esp32_platform_disabled_explicit.yaml"
     )
     assert read_config({}) is None
+    assert "Cannot be set when esp32.watchdog_timeout is 0s" in capsys.readouterr().out
