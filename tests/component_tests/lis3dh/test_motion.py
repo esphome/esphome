@@ -223,10 +223,17 @@ def test_tap_time_above_register_is_rejected(
         _validate_tap(config)
 
 
-def test_double_tap_times_are_ignored_without_double_tap() -> None:
-    """The latency and window times only matter for double taps."""
-    config = _tap_config(latency_ms=700, window_ms=700)
+def test_window_is_ignored_without_double_tap() -> None:
+    """The window only matters for double taps."""
+    config = _tap_config(window_ms=700)
     assert _validate_tap(config) is config
+
+
+def test_latency_is_checked_without_double_tap() -> None:
+    """The latency time also sets how long a single click stays asserted."""
+    config = _tap_config(latency_ms=700)
+    with pytest.raises(cv.Invalid, match="'latency' can be at most 637ms"):
+        _validate_tap(config)
 
 
 def test_interrupt_pin_with_both_triggers_is_rejected() -> None:

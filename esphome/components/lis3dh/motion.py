@@ -206,12 +206,13 @@ def _validate_tap(config: ConfigType) -> ConfigType:
         return config
     _check_threshold(tap[CONF_THRESHOLD], config[CONF_ACCELEROMETER_RANGE], CONF_TAP)
     odr_key = config[CONF_ACCELEROMETER_ODR]
-    times = [(CONF_TIME_LIMIT, TIME_LIMIT_MAX_REG)]
+    # latency also sets how long a single click stays asserted
+    times = [
+        (CONF_TIME_LIMIT, TIME_LIMIT_MAX_REG),
+        (CONF_LATENCY, TIME_LATENCY_MAX_REG),
+    ]
     if CONF_ON_DOUBLE_TAP in tap:
-        times += [
-            (CONF_LATENCY, TIME_LATENCY_MAX_REG),
-            (CONF_WINDOW, TIME_WINDOW_MAX_REG),
-        ]
+        times.append((CONF_WINDOW, TIME_WINDOW_MAX_REG))
     for key, max_reg in times:
         samples = _duration_register(tap[key].total_milliseconds, odr_key)
         if samples < 1:
@@ -325,7 +326,6 @@ async def to_code(config: ConfigType) -> None:
             for key in (CONF_TIME_LIMIT, CONF_LATENCY, CONF_WINDOW)
         )
         # Validated only with on_double_tap; unused otherwise
-        latency = min(latency, TIME_LATENCY_MAX_REG)
         window = min(window, TIME_WINDOW_MAX_REG)
         cg.add(
             var.set_tap(
