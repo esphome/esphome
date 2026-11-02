@@ -2169,20 +2169,7 @@ void APIConnection::on_home_assistant_state_response(const HomeAssistantStateRes
     const_cast<char *>(msg.state.c_str())[msg.state.size()] = '\0';
   }
 
-  const APIServer::HomeAssistantStateSubscription *it;
-  for (size_t i = 0; (it = this->parent_->get_state_sub(i)) != nullptr; i++) {
-    if (msg.entity_id != it->entity_id) {
-      continue;
-    }
-
-    // If subscriber has attribute filter (non-null), message attribute must match it;
-    // if subscriber has no filter (nullptr), message must have no attribute.
-    if (it->attribute != nullptr ? msg.attribute != it->attribute : !msg.attribute.empty()) {
-      continue;
-    }
-
-    it->callback.call(msg.state);
-  }
+  this->parent_->dispatch_home_assistant_state(msg.entity_id, msg.attribute, msg.state);
 }
 #endif
 #ifdef USE_API_USER_DEFINED_ACTIONS

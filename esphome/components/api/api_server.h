@@ -263,6 +263,8 @@ class APIServer final : public Component
   void get_home_assistant_state(std::string entity_id, optional<std::string> attribute,
                                 std::function<void(const std::string &)> &&f);
 
+  /// Call every subscription that matches a state from Home Assistant; state must be null-terminated
+  void dispatch_home_assistant_state(StringRef entity_id, StringRef attribute, StringRef state);
   /// The subscription at index in the order they are sent, or nullptr past the last one
   const HomeAssistantStateSubscription *get_state_sub(size_t index) const;
 #endif
