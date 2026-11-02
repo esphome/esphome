@@ -48,9 +48,9 @@ def test_interval_registration_order_and_source(main_cpp: str) -> None:
 
 
 def test_interval_update_interval_and_startup_delay(main_cpp: str) -> None:
-    """Every interval gets its update interval; a non-zero startup delay is a template argument.
+    """Every interval gets its update interval; a non-zero startup delay is built in.
 
-    Only the IntervalTrigger of a hand-set id takes it at run time.
+    It is a template argument, or the DelayedIntervalTrigger constructor's for a hand-set id.
     """
     for var, interval in (
         ("interval_intervaltrigger_id", 1000),
@@ -63,8 +63,11 @@ def test_interval_update_interval_and_startup_delay(main_cpp: str) -> None:
     assert constructed(main_cpp, "interval_intervaltrigger_id_2") == _callback(
         "interval_intervaltrigger_id_2", 5000
     )
-    assert "named_interval->set_startup_delay(3000);" in main_cpp
-    assert main_cpp.count("set_startup_delay") == 1
+    assert (
+        constructed(main_cpp, "named_interval")
+        == "interval::DelayedIntervalTrigger(3000)"
+    )
+    assert "set_startup_delay" not in main_cpp
 
 
 def test_interval_setup_priority_override(main_cpp: str) -> None:
@@ -106,9 +109,14 @@ def test_interval_delay_triggers_automation(main_cpp: str) -> None:
 
 
 def test_interval_manual_id_keeps_trigger(main_cpp: str) -> None:
-    """An id set by hand can be used from lambdas and component actions as an IntervalTrigger."""
-    assert constructed(main_cpp, "named_interval") == "interval::IntervalTrigger()"
-    assert "static interval::IntervalTrigger *const named_interval = " in main_cpp
+    """An id set by hand can be used from lambdas and component actions as its trigger."""
+    assert (
+        constructed(main_cpp, "named_interval")
+        == "interval::DelayedIntervalTrigger(3000)"
+    )
+    assert (
+        "static interval::DelayedIntervalTrigger *const named_interval = " in main_cpp
+    )
     assert "new(automation_id_4) Automation<>(named_interval);" in main_cpp
 
 
@@ -133,4 +141,4 @@ def test_interval_looping_count(main_cpp: str) -> None:
         "(1 * HasLoopOverride<interval::IntervalCallback<"
         "esphome__interval_intervaltrigger_id__fn>>::value)" in main_cpp
     )
-    assert "(1 * HasLoopOverride<interval::IntervalTrigger>::value)" in main_cpp
+    assert "(1 * HasLoopOverride<interval::DelayedIntervalTrigger>::value)" in main_cpp
