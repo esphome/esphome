@@ -1,4 +1,4 @@
-"""The SoC variant taken from the board, and the sdk-nrf version it requires."""
+"""The SoC variant taken from the board, and the oldest sdk-nrf version it supports."""
 
 from collections.abc import Iterator
 from unittest.mock import PropertyMock, patch
@@ -66,7 +66,7 @@ def test_default_sdk_version(variant: str, default: str) -> None:
 
 @pytest.mark.usefixtures("platformio")
 @pytest.mark.parametrize("version", ["3.4.1", "3.5.0"])
-def test_nrf54lm20_accepts_required_or_newer(version: str) -> None:
+def test_nrf54lm20_accepts_minimum_or_newer(version: str) -> None:
     set_nrf52_variant(VARIANT_NRF54LM20)
     assert _set_framework(version)[CONF_FRAMEWORK][CONF_VERSION] == version
 
