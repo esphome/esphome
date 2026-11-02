@@ -237,7 +237,9 @@ class VoiceAssistant final : public Component {
   Trigger<> *get_tts_stream_end_trigger() { return &this->tts_stream_end_trigger_; }
 #endif
   Trigger<> *get_wake_word_detected_trigger() { return &this->wake_word_detected_trigger_; }
+#ifdef USE_VOICE_ASSISTANT_WAKE_WORD_AUDIO
   Trigger<> *get_wake_word_rejected_trigger() { return &this->wake_word_rejected_trigger_; }
+#endif
   Trigger<std::string> *get_stt_end_trigger() { return &this->stt_end_trigger_; }
   Trigger<std::string> *get_tts_end_trigger() { return &this->tts_end_trigger_; }
   Trigger<std::string> *get_tts_start_trigger() { return &this->tts_start_trigger_; }
@@ -304,7 +306,9 @@ class VoiceAssistant final : public Component {
 #endif
   Trigger<std::string> intent_progress_trigger_;
   Trigger<> wake_word_detected_trigger_;
+#ifdef USE_VOICE_ASSISTANT_WAKE_WORD_AUDIO
   Trigger<> wake_word_rejected_trigger_;
+#endif
   Trigger<std::string> stt_end_trigger_;
   Trigger<std::string> tts_end_trigger_;
   Trigger<std::string> tts_start_trigger_;

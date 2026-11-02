@@ -2192,6 +2192,7 @@ message BluetoothScannerSetModeRequest {
 enum VoiceAssistantSubscribeFlag {
   VOICE_ASSISTANT_SUBSCRIBE_NONE = 0;
   VOICE_ASSISTANT_SUBSCRIBE_API_AUDIO = 1;
+  // Not 2 or 4: aioesphomeapi sends API audio as 1 << 2
   VOICE_ASSISTANT_SUBSCRIBE_WAKE_WORD_AUDIO = 8;
 }
 

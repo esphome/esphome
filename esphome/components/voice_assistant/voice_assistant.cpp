@@ -693,6 +693,8 @@ void VoiceAssistant::client_subscription(api::APIConnection *client, bool subscr
   this->wake_word_audio_requested_ = (flags & api::enums::VOICE_ASSISTANT_SUBSCRIBE_WAKE_WORD_AUDIO) != 0;
   ESP_LOGD(TAG, "Wake word audio %s",
            this->wake_word_audio_requested_ ? LOG_STR_LITERAL("requested") : LOG_STR_LITERAL("not requested"));
+  // So is_wake_word_audio_active() reflects a failed allocation in on_client_connected
+  this->update_wake_word_audio_();
 #endif
   this->client_connected_trigger_.trigger();
 }
@@ -967,17 +969,17 @@ void VoiceAssistant::on_event(const api::VoiceAssistantEventResponse &msg) {
       this->defer([this]() { this->wake_word_detected_trigger_.trigger(); });
       break;
     }
+#ifdef USE_VOICE_ASSISTANT_WAKE_WORD_AUDIO
     case api::enums::VOICE_ASSISTANT_WAKE_WORD_REJECTED: {
       ESP_LOGD(TAG, "Wake word rejected");
-#ifdef USE_VOICE_ASSISTANT_WAKE_WORD_AUDIO
       this->clear_wake_word_verdict_();
-#endif
       if ((this->state_ == State::STARTING_PIPELINE) || (this->state_ == State::STREAMING_MICROPHONE)) {
         this->set_state_(State::STOP_MICROPHONE, State::IDLE);
       }
       this->defer([this]() { this->wake_word_rejected_trigger_.trigger(); });
       break;
     }
+#endif
     case api::enums::VOICE_ASSISTANT_STT_START:
       ESP_LOGD(TAG, "STT started");
       this->defer([this]() { this->listening_trigger_.trigger(); });
@@ -1354,8 +1356,10 @@ void VoiceAssistant::update_wake_word_audio_() {
 
   if (active) {
     if (!this->allocate_buffers_()) {
-      this->status_set_error(LOG_STR("Failed to allocate wake word audio buffers"));
-      return;  // Retried on the next loop
+      // Detect wake words without verification rather than retry large allocations every loop
+      ESP_LOGE(TAG, "Not enough memory for wake word audio");
+      this->wake_word_audio_requested_ = false;
+      return;
     }
     this->mic_source_->start();
     if (this->mic_source2_) {
