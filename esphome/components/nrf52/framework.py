@@ -26,7 +26,7 @@ from esphome.framework_helpers import (
     str_to_lst_of_str,
 )
 
-from .const import VARIANT_NRF52
+from .const import VARIANT_NRF52840
 
 _LOGGER = logging.getLogger(__name__)
 
@@ -405,7 +405,7 @@ _WEST_PROJECTS_FILE = ".west_projects"
 @dataclass
 class _Nrf52Data:
     west_projects: set[str] = field(default_factory=lambda: set(DEFAULT_WEST_PROJECTS))
-    variant: str = VARIANT_NRF52
+    variant: str = VARIANT_NRF52840
 
 
 def _get_data() -> _Nrf52Data:
@@ -419,7 +419,7 @@ def set_nrf52_variant(variant: str) -> None:
 
 
 def get_nrf52_variant() -> str:
-    """The SoC variant, taken from the board name; NRF52 until nrf52 is validated."""
+    """The SoC variant, taken from the board name; NRF52840 until nrf52 is validated."""
     return _get_data().variant
 
 

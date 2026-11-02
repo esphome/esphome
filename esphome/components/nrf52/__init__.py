@@ -82,8 +82,8 @@ from .const import (
     CONF_UDP,
     FLASH_SECTOR_SIZE,
     SMP_UDP_PORT,
-    VARIANT_NRF52,
     VARIANT_NRF54LM20,
+    VARIANT_NRF52840,
 )
 from .framework import (
     check_and_install,
@@ -141,7 +141,7 @@ def _board_variant(board: str) -> str:
     qualifiers = board.lower().split("/")
     if len(qualifiers) > 1 and qualifiers[1].startswith("nrf54lm20"):
         return VARIANT_NRF54LM20
-    return VARIANT_NRF52
+    return VARIANT_NRF52840
 
 
 def set_core_data(config: ConfigType) -> ConfigType:
