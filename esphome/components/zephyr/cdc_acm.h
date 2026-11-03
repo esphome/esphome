@@ -18,8 +18,9 @@ class CdcAcm final : public Component {
   /// Call from setup(). Rates set before that, even before boot finished, are delivered too.
   template<typename F> void add_on_rate_callback(F &&callback) { this->rate_callbacks_.add(std::forward<F>(callback)); }
 
-  /// Called by the USB driver, from its own thread, when the host sets a bit rate. Only queues it.
-  static void rate_changed(const device *device, uint32_t rate);
+  /// Called by the USB driver, from its own thread, when the host sets a bit rate on a port. Only queues it;
+  /// loop() reads the rate.
+  static void rate_changed(const device *device);
 
  protected:
   CallbackManager<void(const device *, uint32_t)> rate_callbacks_;

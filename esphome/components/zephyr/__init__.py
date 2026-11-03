@@ -323,6 +323,8 @@ def zephyr_enable_usb_cdc_acm() -> None:
 def zephyr_enable_cdc_acm_rate_callback() -> None:
     """Create zephyr::CdcAcm, which passes the bit rate a USB host sets to the main loop."""
     cg.add_define("USE_ZEPHYR_CDC_ACM_RATE_CALLBACK")
+    # CdcAcm reads the rate with uart_line_ctrl_get()
+    zephyr_add_prj_conf("UART_LINE_CTRL", True)
     # The new stack reports the rate with a USB device message, so it needs no option
     if not zephyr_use_usb_device_next():
         zephyr_add_prj_conf("CDC_ACM_DTE_RATE_CALLBACK_SUPPORT", True)
