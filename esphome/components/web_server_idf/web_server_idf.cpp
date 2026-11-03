@@ -148,7 +148,7 @@ void AsyncWebServer::safe_close_with_shutdown(httpd_handle_t hd, int sockfd) {
   auto *server = static_cast<AsyncWebServer *>(httpd_get_global_user_ctx(hd));
   if (server != nullptr) {
     LockGuard lock(server->close_lock_);
-    if (server->closes_deferred_ && server->deferred_closes_.size() < server->deferred_closes_.capacity()) {
+    if (server->closes_deferred_ && server->deferred_closes_.size() < CONFIG_LWIP_MAX_SOCKETS) {
       server->deferred_closes_.push_back(sockfd);
       return;
     }
