@@ -6,10 +6,12 @@ import re
 
 import pytest
 
-# A synchronous automation is a direct lambda, a deferring one a TriggerForwarder
+# A synchronous automation is a direct lambda (reference types are not wrapped in
+# remove_cvref_t), a deferring one a TriggerForwarder
 CALLBACK_RE = re.compile(
     r"ph_ezo->(add_\w+_callback)\("
-    r"(?:TriggerForwarder<([\w:]+)>|\[\]\(const std::remove_cvref_t<([\w:]+)> &)"
+    r"(?:TriggerForwarder<([\w:]+)>"
+    r"|\[\]\((?:const std::remove_cvref_t<([\w:]+)> &|const ([\w:]+) &))"
 )
 
 
@@ -20,9 +22,9 @@ def callbacks(
 ) -> dict[str, list[tuple[str, str]]]:
     main_cpp = generate_main(component_config_path("ezo_callbacks.yaml"))
     found: dict[str, list[tuple[str, str]]] = {}
-    for method, forwarded, direct in CALLBACK_RE.findall(main_cpp):
+    for method, forwarded, value, reference in CALLBACK_RE.findall(main_cpp):
         path = "forwarder" if forwarded else "direct"
-        found.setdefault(method, []).append((path, forwarded or direct))
+        found.setdefault(method, []).append((path, forwarded or value or reference))
     return found
 
 
