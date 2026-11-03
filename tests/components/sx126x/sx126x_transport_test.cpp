@@ -1,3 +1,5 @@
+#ifdef USE_HOST
+
 #include "sx126x_test_helpers.h"
 #include "esphome/components/sx126x/packet_transport/sx126x_transport.h"
 #include "esphome/components/host/preferences.h"
@@ -16,7 +18,9 @@ class SX126xTransportRetry : public ::testing::TestWithParam<int> {};
 TEST_P(SX126xTransportRetry, SensorAndPingSurviveBusyUntilRadioAcceptsThem) {
   RadioHardware hw;
   hw.configure(true, true);
-  App.pre_setup("radio_test", 10, "", 0);
+  static char app_name[] = "radio_test";
+  static char friendly_name[] = "";
+  App.pre_setup(app_name, sizeof(app_name) - 1, friendly_name, sizeof(friendly_name) - 1);
   host::HostPreferences prefs;
   auto *previous_preferences = global_preferences;
   global_preferences = &prefs;
@@ -81,3 +85,5 @@ TEST_P(SX126xTransportRetry, SensorAndPingSurviveBusyUntilRadioAcceptsThem) {
 INSTANTIATE_TEST_SUITE_P(AsyncTxPendingRxAndStandbyRace, SX126xTransportRetry, ::testing::Values(0, 1, 2));
 
 }  // namespace esphome::sx126x::testing
+
+#endif  // USE_HOST
