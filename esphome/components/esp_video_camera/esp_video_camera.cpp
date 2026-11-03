@@ -4,7 +4,6 @@
 // only against esp_video's V4L2 headers, so it compiles on that variant alone.
 #if defined(USE_ESP_IDF) && defined(USE_ESP32_VARIANT_ESP32P4)
 
-#include "i2c_helper.h"
 #include "esphome/core/application.h"  // App.feed_wdt()
 #include "esphome/core/log.h"
 #include "esphome/core/hal.h"
@@ -21,7 +20,6 @@
 #include <atomic>
 #include <cerrno>
 #include <cstdint>
-#include <cstdio>
 #include <cstring>
 #include <fcntl.h>
 #include <unistd.h>
@@ -223,12 +221,12 @@ const char *esp_video_errno_means(int err) {
 }
 
 // Render a V4L2 fourcc for logging, e.g. V4L2_PIX_FMT_MJPEG -> "MJPG".
-std::string fourcc_to_string(uint32_t fourcc) {
-  std::string out(4, ' ');
+const char *fourcc_to_string(uint32_t fourcc, char (&out)[5]) {
   for (int i = 0; i < 4; i++) {
     char c = (char) ((fourcc >> (8 * i)) & 0xFF);
     out[i] = (c >= 0x20 && c < 0x7F) ? c : '?';
   }
+  out[4] = '\0';
   return out;
 }
 
@@ -334,36 +332,16 @@ void ESPVideoCamera::setup() {
       this->init_ctx_->release();
       this->init_ctx_ = nullptr;
     }
-    this->mark_failed();
+    this->mark_failed(LOG_STR("Camera pipeline init failed"));
     return;
   }
 
-  // The encoder is always present, but it is fed by /dev/video0, which only
-  // exists once a sensor answered on the SCCB bus. Without this check the
-  // component reports itself ready and then never delivers a frame.
-  if (this->is_hw_jpeg_()) {
-    int csi_fd = open(ESP_VIDEO_MIPI_CSI_DEVICE_NAME, O_RDWR | O_NONBLOCK);
-    if (csi_fd < 0) {
-      ESP_LOGE(TAG,
-               "No MIPI-CSI sensor detected: %s is unavailable. Check the sensor wiring and that it "
-               "answers on the configured I2C bus; the drivers built into this firmware are listed "
-               "in the config dump above.",
-               ESP_VIDEO_MIPI_CSI_DEVICE_NAME);
-      this->mark_failed();
-      return;
-    }
-    close(csi_fd);
-  }
-
-  // Never probe a USB camera by opening it. Opening that node is what runs
-  // esp_video's uvc_video_init(), which waits CONFIG_USB_UVC_INIT_TIMEOUT_MS
-  // for a camera to enumerate -- so a probe here pays that wait, closes the
-  // node again, and start_direct_capture_() pays it a second time moments
-  // later. Nothing is learned either way: a camera that is absent now is
-  // expected to be, and loop() retries on a timer regardless.
+  // Never probe a USB camera by opening it: that runs esp_video's
+  // uvc_video_init(), which blocks for CONFIG_USB_UVC_INIT_TIMEOUT_MS, and
+  // loop() retries on a timer regardless.
   if (this->is_uvc_()) {
-    // The device count is the useful half of this: none at all this early is
-    // normal, but it stays at none when the host port is not carrying data.
+    // None at all this early is normal; it stays at none when the host port
+    // carries no data.
     ESP_LOGI(TAG, "Waiting for the USB camera on %s to enumerate (%d USB device(s) so far)", this->device_,
              count_usb_devices());
     this->capture_retry_pending_ = true;
@@ -371,15 +349,24 @@ void ESPVideoCamera::setup() {
     return;
   }
 
-  // A MIPI sensor, by contrast, is either detected by now or never will be, so
-  // its absence is worth failing on rather than retrying forever.
-  int test_fd = open(this->device_, O_RDWR | O_NONBLOCK);
-  if (test_fd < 0) {
-    ESP_LOGE(TAG, "V4L2 device '%s' unavailable (errno=%d: %s)", this->device_, errno, strerror(errno));
-    this->mark_failed();
+  // The encoder is always present, but it is fed by /dev/video0, which only
+  // exists once a sensor answered on the SCCB bus.
+  const char *probe = this->is_hw_jpeg_() ? ESP_VIDEO_MIPI_CSI_DEVICE_NAME : this->device_;
+  int probe_fd = open(probe, O_RDWR | O_NONBLOCK);
+  if (probe_fd < 0) {
+    if (this->is_hw_jpeg_()) {
+      ESP_LOGE(TAG,
+               "%s is unavailable. Check the sensor wiring and that it answers on the configured I2C bus; the "
+               "drivers built into this firmware are listed in the config dump.",
+               probe);
+      this->mark_failed(LOG_STR("No MIPI-CSI sensor detected"));
+    } else {
+      ESP_LOGE(TAG, "V4L2 device '%s' unavailable (errno=%d: %s)", probe, errno, strerror(errno));
+      this->mark_failed(LOG_STR("V4L2 device unavailable"));
+    }
     return;
   }
-  close(test_fd);
+  close(probe_fd);
 
   ESP_LOGI(TAG, "Camera ready on %s", this->device_);
 }
@@ -396,7 +383,7 @@ bool ESPVideoCamera::start_pipeline_init_() {
       ESP_LOGE(TAG, "No I2C bus set");
       return false;
     }
-    const esp_err_t err = get_i2c_bus_handle(this->i2c_bus_, &i2c_handle);
+    const esp_err_t err = i2c_master_get_bus_handle((i2c_port_num_t) this->i2c_bus_->get_port(), &i2c_handle);
     if (err != ESP_OK || i2c_handle == nullptr) {
       ESP_LOGE(TAG, "No ESP-IDF I2C bus on port %d: %s", (int) this->i2c_bus_->get_port(), esp_err_to_name(err));
       return false;
@@ -989,8 +976,9 @@ bool ESPVideoCamera::configure_capture_format_(uint32_t pixelformat) {
     this->capture_width_ = width;
     this->capture_height_ = height;
   }
+  char negotiated_str[5];
   ESP_LOGI(TAG, "Capture resolution: %ux%u (%s)", (unsigned) this->capture_width_, (unsigned) this->capture_height_,
-           fourcc_to_string(negotiated).c_str());
+           fourcc_to_string(negotiated, negotiated_str));
 
   // The pixel format is not negotiable: a fallback would be streamed as a corrupt
   // image rather than reported. JPEG and MJPEG are the same payload here.
@@ -998,8 +986,9 @@ bool ESPVideoCamera::configure_capture_format_(uint32_t pixelformat) {
                          (pixelformat == V4L2_PIX_FMT_MJPEG && negotiated == V4L2_PIX_FMT_JPEG) ||
                          (pixelformat == V4L2_PIX_FMT_JPEG && negotiated == V4L2_PIX_FMT_MJPEG);
   if (!format_ok) {
+    char wanted_str[5];
     ESP_LOGE(TAG, "Device '%s' does not support pixel format %s (negotiated %s instead)", this->device_,
-             fourcc_to_string(pixelformat).c_str(), fourcc_to_string(negotiated).c_str());
+             fourcc_to_string(pixelformat, wanted_str), negotiated_str);
     return false;
   }
 
@@ -1328,35 +1317,23 @@ void ESPVideoCamera::dump_config() {
   // Neither of the next two means anything for a USB camera: it has no sensor
   // clock to generate and is not probed over SCCB.
   if (!this->is_uvc_()) {
-    // The XCLK settings are board-specific and are the first thing to have got
-    // wrong on a sensor that never answers.
-    char generated[40];
-    const char *xclk = "left to the board";
     if (this->xclk_pin_ >= 0) {
-      snprintf(generated, sizeof(generated), "GPIO%d at %u Hz", (int) this->xclk_pin_, (unsigned) this->xclk_freq_);
-      xclk = generated;
+      ESP_LOGCONFIG(TAG, "  XCLK: GPIO%d at %u Hz", this->xclk_pin_, (unsigned) this->xclk_freq_);
+    } else {
+      ESP_LOGCONFIG(TAG, "  XCLK: left to the board");
     }
-    // Which sensor drivers esp_cam_sensor actually built in. esp_video_init()
-    // probes exactly these over SCCB, so when auto-detection comes up empty
-    // this says whether the sensor you are holding is even in the firmware.
-    std::string drivers;
+    // The drivers esp_video_init() probes over SCCB, to tell whether the
+    // sensor on the board is in the firmware at all.
+    ESP_LOGCONFIG(TAG, "  MIPI-CSI drivers:");
 #ifdef CONFIG_CAMERA_SC202CS
-    drivers += " SC202CS(0x36)";
+    ESP_LOGCONFIG(TAG, "    SC202CS (0x36)");
 #endif
 #ifdef CONFIG_CAMERA_OV5647
-    drivers += " OV5647(0x36)";
+    ESP_LOGCONFIG(TAG, "    OV5647 (0x36)");
 #endif
 #ifdef CONFIG_CAMERA_SC2336
-    drivers += " SC2336(0x30)";
+    ESP_LOGCONFIG(TAG, "    SC2336 (0x30)");
 #endif
-    ESP_LOGCONFIG(TAG,
-                  "  XCLK: %s\n"
-                  "  MIPI-CSI drivers:%s",
-                  xclk, drivers.empty() ? LOG_STR_LITERAL(" none") : drivers.c_str());
-  }
-
-  if (this->is_failed()) {
-    ESP_LOGCONFIG(TAG, "  State: FAILED");
   }
 }
 
