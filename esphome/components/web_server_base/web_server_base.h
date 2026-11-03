@@ -168,20 +168,22 @@ class WebServerBase final {
    */
   void add_handler_without_auth(AsyncWebHandler *handler);
 
-  /// On ESP32 a running listener restarts on the new port, which closes open connections. Call from the main
-  /// loop: from an HTTP request handler, the restart would wait for its own task.
+#if defined(USE_ESP32) && defined(USE_WEBSERVER_SSL)
+  /// With HTTPS compiled in, a running listener restarts on the new port, which closes open connections. Call from
+  /// the main loop: from an HTTP request handler, the restart would wait for its own task.
   void set_port(uint16_t port) {
     if (port == this->port_)
       return;
     this->port_ = port;
-#ifdef USE_ESP32
     if (this->server_ != nullptr) {
       this->server_->set_port(port);
       if (this->initialized_ > 0)
         this->server_->begin();  // begin() stops the running listener first
     }
-#endif
   }
+#else
+  void set_port(uint16_t port) { port_ = port; }
+#endif
   uint16_t get_port() const { return port_; }
 
 #if defined(USE_ESP32) && defined(USE_WEBSERVER_SSL)

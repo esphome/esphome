@@ -184,13 +184,18 @@ uint16_t local_port(int fd) {
 // A semaphore, not a task notification: the main loop task already uses notifications to wake itself.
 struct StopRequest {
   httpd_handle_t server;
+  bool ssl;
+  esp_err_t result;
   StaticSemaphore_t done_buffer;
   SemaphoreHandle_t done;
 };
 
+// httpd_ssl_stop() also posts HTTPS_SERVER_EVENT_STOP, to match the start event httpd_ssl_start() posted.
+esp_err_t stop_server(httpd_handle_t server, bool ssl) { return ssl ? httpd_ssl_stop(server) : httpd_stop(server); }
+
 void stop_task(void *arg) {
   auto *request = static_cast<StopRequest *>(arg);
-  httpd_stop(request->server);
+  request->result = stop_server(request->server, request->ssl);
   xSemaphoreGive(request->done);  // the request is not touched after this
   vTaskDelete(nullptr);
 }
@@ -257,27 +262,36 @@ void AsyncWebServer::end() {
     this->shutdown_clients_();
     StopRequest request{};
     request.server = this->server_;
+    request.ssl = this->ssl_running_;
     request.done = xSemaphoreCreateBinaryStatic(&request.done_buffer);
     if (xTaskCreate(stop_task, "httpd_stop", 3072, &request, uxTaskPriorityGet(nullptr), nullptr) == pdPASS) {
       while (xSemaphoreTake(request.done, pdMS_TO_TICKS(100)) != pdTRUE) {
         App.feed_wdt();
       }
     } else {
-      httpd_stop(this->server_);
+      request.result = stop_server(this->server_, request.ssl);
     }
+    if (request.result != ESP_OK) {
+      // The listener is still running; keep its handle so begin() doesn't start a second one beside it.
+      ESP_LOGE(TAG, "Web server failed to stop: %s", esp_err_to_name(request.result));
+      return;
+    }
+    this->ssl_running_ = false;
 #else
     httpd_stop(this->server_);
 #endif
-    this->server_ = nullptr;  // httpd_stop() also frees an HTTPS server's TLS context
-#ifdef USE_WEBSERVER_SSL
-    this->ssl_running_ = false;
-#endif
+    this->server_ = nullptr;  // stopping also frees an HTTPS server's TLS context
   }
 }
 
 void AsyncWebServer::begin() {
   if (this->server_) {
     this->end();
+#ifdef USE_WEBSERVER_SSL
+    if (this->server_) {
+      return;  // the old listener failed to stop
+    }
+#endif
   }
   // Allow room for SerializationBuffer's 640-byte stack buffer and HTTP request handling.
   httpd_config_t config = HTTPD_DEFAULT_CONFIG();

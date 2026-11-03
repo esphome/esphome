@@ -7,15 +7,24 @@ import sys
 import pytest
 
 from esphome import loader
+from esphome.components.esp32 import KEY_BOARD, KEY_VARIANT, VARIANT_ESP32
 from esphome.components.esp32.const import (
     KEY_ESP32,
     KEY_EXCLUDE_COMPONENTS,
     KEY_SDKCONFIG_OPTIONS,
 )
 from esphome.components.socket import KEY_SOCKET_CONSUMERS_TCP
-from esphome.components.web_server_idf import HTTPS_MAX_CONNECTIONS, consume_ssl_sockets
+from esphome.components.web_server_idf import (
+    HTTPS_MAX_CONNECTIONS,
+    consume_ssl_sockets,
+    enable_ssl,
+)
 from esphome.config import read_config
-from esphome.core import CORE
+from esphome.const import PlatformFramework
+from esphome.core import CORE, EsphomeError
+from tests.component_tests.types import SetCoreConfigCallable
+
+ESP32_PLATFORM_DATA = {KEY_BOARD: "esp32dev", KEY_VARIANT: VARIANT_ESP32}
 
 
 @pytest.fixture(autouse=True)
@@ -44,14 +53,35 @@ def test_enable_ssl_sets_up_https(
     )
 
 
-def test_https_sockets_reserved_once() -> None:
+def test_https_sockets_reserved_once(set_core_config: SetCoreConfigCallable) -> None:
     """The listener is shared, so a second component using HTTPS reserves no more connections."""
+    set_core_config(PlatformFramework.ESP32_IDF, platform_data=ESP32_PLATFORM_DATA)
     consume_ssl_sockets({})
     consume_ssl_sockets({})
 
     assert (
         CORE.data[KEY_SOCKET_CONSUMERS_TCP]["web_server_idf"] == HTTPS_MAX_CONNECTIONS
     )
+
+
+def test_https_sockets_not_reserved_off_esp32(
+    set_core_config: SetCoreConfigCallable,
+) -> None:
+    """HTTPS exists only on ESP32, so other platforms reserve no connections for it."""
+    set_core_config(PlatformFramework.RP2040_ARDUINO)
+    consume_ssl_sockets({})
+
+    assert "web_server_idf" not in CORE.data.get(KEY_SOCKET_CONSUMERS_TCP, {})
+
+
+def test_enable_ssl_requires_consume_ssl_sockets(
+    set_core_config: SetCoreConfigCallable,
+) -> None:
+    """Without the schema validator, the connections and the compatibility check would be skipped."""
+    set_core_config(PlatformFramework.ESP32_IDF, platform_data=ESP32_PLATFORM_DATA)
+
+    with pytest.raises(EsphomeError, match="consume_ssl_sockets"):
+        enable_ssl()
 
 
 @pytest.mark.parametrize(

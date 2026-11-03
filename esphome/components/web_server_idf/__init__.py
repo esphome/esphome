@@ -9,7 +9,7 @@ from esphome.components.esp32 import (
 )
 from esphome.config_helpers import filter_source_files_from_defines
 import esphome.config_validation as cv
-from esphome.core import CORE
+from esphome.core import CORE, EsphomeError
 import esphome.final_validate as fv
 from esphome.types import ConfigType
 
@@ -47,7 +47,8 @@ def consume_ssl_sockets(config: ConfigType) -> ConfigType:
     from esphome.components import socket
 
     data = _get_data()
-    if not data.ssl:
+    # HTTPS exists only on ESP32; elsewhere there are no connections to reserve.
+    if CORE.is_esp32 and not data.ssl:
         # The listener is shared, so its connections are reserved once however many components use it.
         socket.consume_sockets(HTTPS_MAX_CONNECTIONS, DOMAIN)(config)
         data.ssl = True
@@ -76,8 +77,13 @@ def enable_ssl() -> None:
     """Compile in HTTPS support for the shared web server.
 
     Components that supply their own certificate at run time call this from
-    their to_code(), then call WebServerBase::set_ssl_credentials().
+    their to_code(), then call WebServerBase::set_ssl_credentials(). The
+    component's schema must include consume_ssl_sockets().
     """
+    if not _get_data().ssl:
+        raise EsphomeError(
+            "web_server_idf.enable_ssl() needs web_server_idf.consume_ssl_sockets() in the calling component's schema"
+        )
     cg.add_define("USE_WEBSERVER_SSL")
     request_tls()
     # ESPHome builds mbedTLS client-only unless a component accepts TLS sessions.
