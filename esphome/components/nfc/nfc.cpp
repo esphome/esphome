@@ -49,7 +49,7 @@ bool decode_mifare_classic_tlv(const std::span<const uint8_t> data, uint32_t &me
   }
   uint8_t idx = static_cast<uint8_t>(i);
   if (idx + 4 <= data.size() && data[idx + 1] == 0xFF) {
-    message_length = ((0xFF & data[idx + 2]) << 8) | (0xFF & data[idx + 3]);
+    message_length = encode_uint16(data[idx + 2], data[idx + 3]);
     message_start_index = idx + MIFARE_CLASSIC_LONG_TLV_SIZE;
   } else if (idx + 2 <= data.size()) {
     message_length = data[idx + 1];

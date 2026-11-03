@@ -59,14 +59,14 @@ enum IIRFilter {
 };
 
 class BMP581Component : public PollingComponent {
+  SUB_SENSOR(temperature)
+  SUB_SENSOR(pressure)
+
  public:
   void dump_config() override;
 
   void setup() override;
   void update() override;
-
-  void set_temperature_sensor(sensor::Sensor *temperature_sensor) { this->temperature_sensor_ = temperature_sensor; }
-  void set_pressure_sensor(sensor::Sensor *pressure_sensor) { this->pressure_sensor_ = pressure_sensor; }
 
   void set_temperature_oversampling_config(Oversampling temperature_oversampling) {
     this->temperature_oversampling_ = temperature_oversampling;
@@ -90,9 +90,6 @@ class BMP581Component : public PollingComponent {
 
   // Interface activation function. Only used for SPI interface; no-op for I2C.
   virtual void activate_interface() {}
-
-  sensor::Sensor *temperature_sensor_{nullptr};
-  sensor::Sensor *pressure_sensor_{nullptr};
 
   Oversampling temperature_oversampling_;
   Oversampling pressure_oversampling_;

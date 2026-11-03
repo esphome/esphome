@@ -45,7 +45,7 @@ void PZEM004T::loop() {
         break;
       }
       case 0xA0: {  // Voltage Response
-        uint16_t int_voltage = (uint16_t(resp[1]) << 8) | (uint16_t(resp[2]) << 0);
+        uint16_t int_voltage = encode_uint16(resp[1], resp[2]);
         float voltage = int_voltage + (resp[3] / 10.0f);
         PUBLISH_STATE(this->voltage_sensor_, voltage);
         ESP_LOGD(TAG, "Got Voltage %.1f V", voltage);
@@ -53,7 +53,7 @@ void PZEM004T::loop() {
         break;
       }
       case 0xA1: {  // Current Response
-        uint16_t int_current = (uint16_t(resp[1]) << 8) | (uint16_t(resp[2]) << 0);
+        uint16_t int_current = encode_uint16(resp[1], resp[2]);
         float current = int_current + (resp[3] / 100.0f);
         PUBLISH_STATE(this->current_sensor_, current);
         ESP_LOGD(TAG, "Got Current %.2f A", current);
@@ -61,7 +61,7 @@ void PZEM004T::loop() {
         break;
       }
       case 0xA2: {  // Active Power Response
-        uint16_t power = (uint16_t(resp[1]) << 8) | (uint16_t(resp[2]) << 0);
+        uint16_t power = encode_uint16(resp[1], resp[2]);
         PUBLISH_STATE(this->power_sensor_, power);
         ESP_LOGD(TAG, "Got Power %u W", power);
         this->write_state_(READ_ENERGY);
@@ -103,9 +103,7 @@ void PZEM004T::write_state_(PZEM004T::PZEM004TReadState state) {
   data[3] = 1;
   data[4] = 1;
   data[5] = 0;
-  data[6] = 0;
-  for (int i = 0; i < 6; i++)
-    data[6] += data[i];
+  data[6] = sum_bytes(data.data(), 6);
 
   this->write_array(data);
   this->read_state_ = state;
