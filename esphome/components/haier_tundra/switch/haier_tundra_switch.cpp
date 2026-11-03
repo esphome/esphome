@@ -8,9 +8,10 @@ ESPHOME_LOG_TAG(TAG, "haier_tundra.switch");
 void HaierTundraSwitch::setup() {
   auto initial = this->get_initial_state_with_restore_mode();
   if (initial.has_value()) {
-    const bool state = initial.value();
-    this->apply_(state, false);
-    this->publish_state(state);
+    // apply_() and publish_state() take the level, which an inverted switch flips
+    const bool level = *initial != this->is_inverted();
+    this->apply_(level, false);
+    this->publish_state(level);
   }
 }
 

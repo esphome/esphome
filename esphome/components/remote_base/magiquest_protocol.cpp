@@ -16,6 +16,11 @@ static constexpr uint32_t MAGIQUEST_ONE_MARK = 2 * MAGIQUEST_UNIT;
 static constexpr uint32_t MAGIQUEST_ONE_SPACE = 2 * MAGIQUEST_UNIT;
 static constexpr uint32_t MAGIQUEST_ZERO_MARK = MAGIQUEST_UNIT;
 static constexpr uint32_t MAGIQUEST_ZERO_SPACE = 3 * MAGIQUEST_UNIT;
+static constexpr BitTimings MAGIQUEST_BIT_TIMINGS{.one_space = MAGIQUEST_ONE_SPACE,
+                                                  .zero_space = MAGIQUEST_ZERO_SPACE,
+                                                  .bit_order = BitOrder::BIT_ORDER_MSB_FIRST,
+                                                  .one_mark = MAGIQUEST_ONE_MARK,
+                                                  .zero_mark = MAGIQUEST_ZERO_MARK};
 
 static bool checksum_is_valid(uint32_t wand_id, uint32_t magnitude_and_checksum) {
   // The frame's six payload bytes, which start at the wand id's top bit, must sum to zero.
@@ -35,21 +40,10 @@ void MagiQuestProtocol::encode(RemoteTransmitData *dst, const MagiQuestData &dat
   // 2 start bits
   dst->item(MAGIQUEST_ZERO_MARK, MAGIQUEST_ZERO_SPACE);
   dst->item(MAGIQUEST_ZERO_MARK, MAGIQUEST_ZERO_SPACE);
-  for (uint32_t mask = 1 << 31; mask; mask >>= 1) {
-    if (data.wand_id & mask) {
-      dst->item(MAGIQUEST_ONE_MARK, MAGIQUEST_ONE_SPACE);
-    } else {
-      dst->item(MAGIQUEST_ZERO_MARK, MAGIQUEST_ZERO_SPACE);
-    }
-  }
-
-  for (uint16_t mask = 1 << 15; mask; mask >>= 1) {
-    if (data.magnitude & mask) {
-      dst->item(MAGIQUEST_ONE_MARK, MAGIQUEST_ONE_SPACE);
-    } else {
-      dst->item(MAGIQUEST_ZERO_MARK, MAGIQUEST_ZERO_SPACE);
-    }
-  }
+  const uint8_t bytes[6] = {static_cast<uint8_t>(data.wand_id >> 24),  static_cast<uint8_t>(data.wand_id >> 16),
+                            static_cast<uint8_t>(data.wand_id >> 8),   static_cast<uint8_t>(data.wand_id),
+                            static_cast<uint8_t>(data.magnitude >> 8), static_cast<uint8_t>(data.magnitude)};
+  dst->item_bytes<MAGIQUEST_BIT_TIMINGS>(bytes, sizeof(bytes));
 
   dst->mark(MAGIQUEST_UNIT);
 }

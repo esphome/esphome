@@ -136,45 +136,23 @@ void DalyBmsComponent::decode_data_(std::vector<uint8_t> data) {
         switch (it[2]) {
 #ifdef USE_SENSOR
           case DALY_REQUEST_BATTERY_LEVEL:
-            if (this->voltage_sensor_) {
-              this->voltage_sensor_->publish_state((float) encode_uint16(it[4], it[5]) / 10);
-            }
-            if (this->current_sensor_) {
-              this->current_sensor_->publish_state(((float) (encode_uint16(it[8], it[9]) - DALY_CURRENT_OFFSET) / 10));
-            }
-            if (this->battery_level_sensor_) {
-              this->battery_level_sensor_->publish_state((float) encode_uint16(it[10], it[11]) / 10);
-            }
+            PUBLISH_STATE(this->voltage_sensor_, (float) encode_uint16(it[4], it[5]) / 10);
+            PUBLISH_STATE(this->current_sensor_, (float) (encode_uint16(it[8], it[9]) - DALY_CURRENT_OFFSET) / 10);
+            PUBLISH_STATE(this->battery_level_sensor_, (float) encode_uint16(it[10], it[11]) / 10);
             break;
 
           case DALY_REQUEST_MIN_MAX_VOLTAGE:
-            if (this->max_cell_voltage_sensor_) {
-              this->max_cell_voltage_sensor_->publish_state((float) encode_uint16(it[4], it[5]) / 1000);
-            }
-            if (this->max_cell_voltage_number_sensor_) {
-              this->max_cell_voltage_number_sensor_->publish_state(it[6]);
-            }
-            if (this->min_cell_voltage_sensor_) {
-              this->min_cell_voltage_sensor_->publish_state((float) encode_uint16(it[7], it[8]) / 1000);
-            }
-            if (this->min_cell_voltage_number_sensor_) {
-              this->min_cell_voltage_number_sensor_->publish_state(it[9]);
-            }
+            PUBLISH_STATE(this->max_cell_voltage_sensor_, (float) encode_uint16(it[4], it[5]) / 1000);
+            PUBLISH_STATE(this->max_cell_voltage_number_sensor_, it[6]);
+            PUBLISH_STATE(this->min_cell_voltage_sensor_, (float) encode_uint16(it[7], it[8]) / 1000);
+            PUBLISH_STATE(this->min_cell_voltage_number_sensor_, it[9]);
             break;
 
           case DALY_REQUEST_MIN_MAX_TEMPERATURE:
-            if (this->max_temperature_sensor_) {
-              this->max_temperature_sensor_->publish_state(it[4] - DALY_TEMPERATURE_OFFSET);
-            }
-            if (this->max_temperature_probe_number_sensor_) {
-              this->max_temperature_probe_number_sensor_->publish_state(it[5]);
-            }
-            if (this->min_temperature_sensor_) {
-              this->min_temperature_sensor_->publish_state(it[6] - DALY_TEMPERATURE_OFFSET);
-            }
-            if (this->min_temperature_probe_number_sensor_) {
-              this->min_temperature_probe_number_sensor_->publish_state(it[7]);
-            }
+            PUBLISH_STATE(this->max_temperature_sensor_, it[4] - DALY_TEMPERATURE_OFFSET);
+            PUBLISH_STATE(this->max_temperature_probe_number_sensor_, it[5]);
+            PUBLISH_STATE(this->min_temperature_sensor_, it[6] - DALY_TEMPERATURE_OFFSET);
+            PUBLISH_STATE(this->min_temperature_probe_number_sensor_, it[7]);
             break;
 #endif
           case DALY_REQUEST_MOS:
@@ -196,106 +174,57 @@ void DalyBmsComponent::decode_data_(std::vector<uint8_t> data) {
             }
 #endif
 #ifdef USE_BINARY_SENSOR
-            if (this->charging_mos_enabled_binary_sensor_) {
-              this->charging_mos_enabled_binary_sensor_->publish_state(it[5]);
-            }
-            if (this->discharging_mos_enabled_binary_sensor_) {
-              this->discharging_mos_enabled_binary_sensor_->publish_state(it[6]);
-            }
+            PUBLISH_STATE(this->charging_mos_enabled_binary_sensor_, it[5]);
+            PUBLISH_STATE(this->discharging_mos_enabled_binary_sensor_, it[6]);
 #endif
 #ifdef USE_SENSOR
-            if (this->remaining_capacity_sensor_) {
-              this->remaining_capacity_sensor_->publish_state((float) encode_uint32(it[8], it[9], it[10], it[11]) /
-                                                              1000);
-            }
+            PUBLISH_STATE(this->remaining_capacity_sensor_, (float) encode_uint32(it[8], it[9], it[10], it[11]) / 1000);
 #endif
             break;
 
 #ifdef USE_SENSOR
           case DALY_REQUEST_STATUS:
-            if (this->cells_number_sensor_) {
-              this->cells_number_sensor_->publish_state(it[4]);
-            }
+            PUBLISH_STATE(this->cells_number_sensor_, it[4]);
             break;
 
           case DALY_REQUEST_TEMPERATURE:
             if (it[4] == 1) {
-              if (this->temperature_1_sensor_) {
-                this->temperature_1_sensor_->publish_state(it[5] - DALY_TEMPERATURE_OFFSET);
-              }
-              if (this->temperature_2_sensor_) {
-                this->temperature_2_sensor_->publish_state(it[6] - DALY_TEMPERATURE_OFFSET);
-              }
+              PUBLISH_STATE(this->temperature_1_sensor_, it[5] - DALY_TEMPERATURE_OFFSET);
+              PUBLISH_STATE(this->temperature_2_sensor_, it[6] - DALY_TEMPERATURE_OFFSET);
             }
             break;
 
           case DALY_REQUEST_CELL_VOLTAGE:
             switch (it[4]) {
               case 1:
-                if (this->cell_1_voltage_sensor_) {
-                  this->cell_1_voltage_sensor_->publish_state((float) encode_uint16(it[5], it[6]) / 1000);
-                }
-                if (this->cell_2_voltage_sensor_) {
-                  this->cell_2_voltage_sensor_->publish_state((float) encode_uint16(it[7], it[8]) / 1000);
-                }
-                if (this->cell_3_voltage_sensor_) {
-                  this->cell_3_voltage_sensor_->publish_state((float) encode_uint16(it[9], it[10]) / 1000);
-                }
+                PUBLISH_STATE(this->cell_1_voltage_sensor_, (float) encode_uint16(it[5], it[6]) / 1000);
+                PUBLISH_STATE(this->cell_2_voltage_sensor_, (float) encode_uint16(it[7], it[8]) / 1000);
+                PUBLISH_STATE(this->cell_3_voltage_sensor_, (float) encode_uint16(it[9], it[10]) / 1000);
                 break;
               case 2:
-                if (this->cell_4_voltage_sensor_) {
-                  this->cell_4_voltage_sensor_->publish_state((float) encode_uint16(it[5], it[6]) / 1000);
-                }
-                if (this->cell_5_voltage_sensor_) {
-                  this->cell_5_voltage_sensor_->publish_state((float) encode_uint16(it[7], it[8]) / 1000);
-                }
-                if (this->cell_6_voltage_sensor_) {
-                  this->cell_6_voltage_sensor_->publish_state((float) encode_uint16(it[9], it[10]) / 1000);
-                }
+                PUBLISH_STATE(this->cell_4_voltage_sensor_, (float) encode_uint16(it[5], it[6]) / 1000);
+                PUBLISH_STATE(this->cell_5_voltage_sensor_, (float) encode_uint16(it[7], it[8]) / 1000);
+                PUBLISH_STATE(this->cell_6_voltage_sensor_, (float) encode_uint16(it[9], it[10]) / 1000);
                 break;
               case 3:
-                if (this->cell_7_voltage_sensor_) {
-                  this->cell_7_voltage_sensor_->publish_state((float) encode_uint16(it[5], it[6]) / 1000);
-                }
-                if (this->cell_8_voltage_sensor_) {
-                  this->cell_8_voltage_sensor_->publish_state((float) encode_uint16(it[7], it[8]) / 1000);
-                }
-                if (this->cell_9_voltage_sensor_) {
-                  this->cell_9_voltage_sensor_->publish_state((float) encode_uint16(it[9], it[10]) / 1000);
-                }
+                PUBLISH_STATE(this->cell_7_voltage_sensor_, (float) encode_uint16(it[5], it[6]) / 1000);
+                PUBLISH_STATE(this->cell_8_voltage_sensor_, (float) encode_uint16(it[7], it[8]) / 1000);
+                PUBLISH_STATE(this->cell_9_voltage_sensor_, (float) encode_uint16(it[9], it[10]) / 1000);
                 break;
               case 4:
-                if (this->cell_10_voltage_sensor_) {
-                  this->cell_10_voltage_sensor_->publish_state((float) encode_uint16(it[5], it[6]) / 1000);
-                }
-                if (this->cell_11_voltage_sensor_) {
-                  this->cell_11_voltage_sensor_->publish_state((float) encode_uint16(it[7], it[8]) / 1000);
-                }
-                if (this->cell_12_voltage_sensor_) {
-                  this->cell_12_voltage_sensor_->publish_state((float) encode_uint16(it[9], it[10]) / 1000);
-                }
+                PUBLISH_STATE(this->cell_10_voltage_sensor_, (float) encode_uint16(it[5], it[6]) / 1000);
+                PUBLISH_STATE(this->cell_11_voltage_sensor_, (float) encode_uint16(it[7], it[8]) / 1000);
+                PUBLISH_STATE(this->cell_12_voltage_sensor_, (float) encode_uint16(it[9], it[10]) / 1000);
                 break;
               case 5:
-                if (this->cell_13_voltage_sensor_) {
-                  this->cell_13_voltage_sensor_->publish_state((float) encode_uint16(it[5], it[6]) / 1000);
-                }
-                if (this->cell_14_voltage_sensor_) {
-                  this->cell_14_voltage_sensor_->publish_state((float) encode_uint16(it[7], it[8]) / 1000);
-                }
-                if (this->cell_15_voltage_sensor_) {
-                  this->cell_15_voltage_sensor_->publish_state((float) encode_uint16(it[9], it[10]) / 1000);
-                }
+                PUBLISH_STATE(this->cell_13_voltage_sensor_, (float) encode_uint16(it[5], it[6]) / 1000);
+                PUBLISH_STATE(this->cell_14_voltage_sensor_, (float) encode_uint16(it[7], it[8]) / 1000);
+                PUBLISH_STATE(this->cell_15_voltage_sensor_, (float) encode_uint16(it[9], it[10]) / 1000);
                 break;
               case 6:
-                if (this->cell_16_voltage_sensor_) {
-                  this->cell_16_voltage_sensor_->publish_state((float) encode_uint16(it[5], it[6]) / 1000);
-                }
-                if (this->cell_17_voltage_sensor_) {
-                  this->cell_17_voltage_sensor_->publish_state((float) encode_uint16(it[7], it[8]) / 1000);
-                }
-                if (this->cell_18_voltage_sensor_) {
-                  this->cell_18_voltage_sensor_->publish_state((float) encode_uint16(it[9], it[10]) / 1000);
-                }
+                PUBLISH_STATE(this->cell_16_voltage_sensor_, (float) encode_uint16(it[5], it[6]) / 1000);
+                PUBLISH_STATE(this->cell_17_voltage_sensor_, (float) encode_uint16(it[7], it[8]) / 1000);
+                PUBLISH_STATE(this->cell_18_voltage_sensor_, (float) encode_uint16(it[9], it[10]) / 1000);
                 break;
             }
             break;

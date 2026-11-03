@@ -144,4 +144,24 @@ void log_pin(const char *tag, const __FlashStringHelper *prefix, GPIOPin *pin);
 void log_pin(const char *tag, const char *prefix, GPIOPin *pin);
 #endif
 
+/// Waveform for pulse_reset(): high, low, then high again. Name the fields at the call site, e.g.
+/// pulse_reset(this->reset_pin_, {.high_before_ms = 1, .low_ms = 10}).
+struct ResetPulse {
+  uint32_t high_before_ms{0};  ///< Drive high this long first; skipped when 0
+  uint32_t low_ms{0};          ///< Hold the pin low (in reset) this long
+  uint32_t high_after_ms{0};   ///< Wait this long after releasing the pin
+};
+
+namespace internal {
+/// Out-of-line body of pulse_reset(); call that instead.
+void pulse_reset_ms(GPIOPin *pin, uint32_t high_before_ms, uint32_t low_ms, uint32_t high_after_ms);
+}  // namespace internal
+
+/// Set up an active-low reset pin and drive it through \p pulse. Blocks for the whole sequence;
+/// does nothing when pin is null. Inline so the fields reach pulse_reset_ms() in registers
+/// (RISC-V would otherwise pass the struct by reference).
+ESPHOME_ALWAYS_INLINE inline void pulse_reset(GPIOPin *pin, ResetPulse pulse) {
+  internal::pulse_reset_ms(pin, pulse.high_before_ms, pulse.low_ms, pulse.high_after_ms);
+}
+
 }  // namespace esphome

@@ -8,17 +8,18 @@ the owning script and report the real threshold (50 ms).
 
 from __future__ import annotations
 
-import asyncio
 import re
 
 import pytest
 
+from .log_utils import LineWaiter
 from .types import APIClientConnectedFactory, RunCompiledFunction
 
 # Matches: "<source> took a long time for an operation (NN ms), max is NN ms"
 WARN_PATTERN = re.compile(
     r"(\S+) took a long time for an operation \((\d+) ms\), max is (\d+) ms"
 )
+WARN_NEEDLE = "took a long time for an operation"
 
 
 @pytest.mark.asyncio
@@ -28,15 +29,10 @@ async def test_scheduler_blocking_warning(
     api_client_connected: APIClientConnectedFactory,
 ) -> None:
     """Deferred blocking work inside a script is attributed to the script, not "<null>"."""
-    loop = asyncio.get_running_loop()
-    warning_future: asyncio.Future[str] = loop.create_future()
-
-    def check_output(line: str) -> None:
-        if WARN_PATTERN.search(line) and not warning_future.done():
-            warning_future.set_result(line)
+    waiter = LineWaiter()
 
     async with (
-        run_compiled(yaml_config, line_callback=check_output),
+        run_compiled(yaml_config, line_callback=waiter.callback),
         api_client_connected() as client,
     ):
         device_info = await client.device_info()
@@ -44,7 +40,7 @@ async def test_scheduler_blocking_warning(
 
         # on_boot runs the script, which defers via delay then busy-blocks > 50 ms in the
         # continuation, tripping the blocking warning.
-        warning_line = await asyncio.wait_for(warning_future, timeout=10.0)
+        warning_line = await waiter.wait_for(WARN_NEEDLE, timeout=10.0)
 
     # Must name the owning script, not "<null>" and not the generic fallback.
     assert "<null>" not in warning_line, (
@@ -69,19 +65,14 @@ async def test_scheduler_blocking_warning_generic_source(
     api_client_connected: APIClientConnectedFactory,
 ) -> None:
     """A delay in a plain (non-script) automation logs the generic label, not a script name."""
-    loop = asyncio.get_running_loop()
-    warning_future: asyncio.Future[str] = loop.create_future()
-
-    def check_output(line: str) -> None:
-        if WARN_PATTERN.search(line) and not warning_future.done():
-            warning_future.set_result(line)
+    waiter = LineWaiter()
 
     async with (
-        run_compiled(yaml_config, line_callback=check_output),
+        run_compiled(yaml_config, line_callback=waiter.callback),
         api_client_connected() as client,
     ):
         assert await client.device_info() is not None
-        warning_line = await asyncio.wait_for(warning_future, timeout=10.0)
+        warning_line = await waiter.wait_for(WARN_NEEDLE, timeout=10.0)
 
     assert "a scheduled task took a long time" in warning_line, (
         f"Non-script deferred work should log the generic label, got: {warning_line}"
@@ -104,17 +95,12 @@ async def test_scheduler_delay_runs_on_failed_component(
     Deferred (SELF_POINTER) scheduler items have no owning component, so the scheduler's
     failed-component skip must not drop them.
     """
-    loop = asyncio.get_running_loop()
-    fired: asyncio.Future[bool] = loop.create_future()
-
-    def check_output(line: str) -> None:
-        if "DELAY_FIRED_AFTER_FAIL" in line and not fired.done():
-            fired.set_result(True)
+    waiter = LineWaiter()
 
     async with (
-        run_compiled(yaml_config, line_callback=check_output),
+        run_compiled(yaml_config, line_callback=waiter.callback),
         api_client_connected() as client,
     ):
         assert await client.device_info() is not None
         # If the failed host component wrongly dropped the delay, this times out.
-        await asyncio.wait_for(fired, timeout=10.0)
+        await waiter.wait_for("DELAY_FIRED_AFTER_FAIL", timeout=10.0)
