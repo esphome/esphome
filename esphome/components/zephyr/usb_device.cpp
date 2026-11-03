@@ -1,17 +1,11 @@
 #if defined(CONFIG_USB_DEVICE_STACK) || defined(CONFIG_USB_DEVICE_STACK_NEXT)
 #include "usb_device.h"
 #include "esphome/core/defines.h"
-#include "esphome/core/log.h"
 
 #ifdef CONFIG_USB_DEVICE_STACK_NEXT
-#include "esphome/core/application.h"
 #include <zephyr/device.h>
-#include <zephyr/drivers/uart.h>
 #include <zephyr/usb/usbd.h>
 #include <initializer_list>
-#ifdef USE_ZEPHYR_CDC_ACM_RATE_CALLBACK
-#include "cdc_acm.h"
-#endif
 #else
 #include <zephyr/usb/usb_device.h>
 #endif
@@ -35,26 +29,6 @@ USBD_DESC_SERIAL_NUMBER_DEFINE(esphome_usbd_sn);
 USBD_CONFIGURATION_DEFINE(esphome_usbd_fs_config, USB_SCD_SELF_POWERED, USB_MAX_POWER, nullptr);
 // NOLINTEND(cppcoreguidelines-avoid-non-const-global-variables)
 
-ESPHOME_LOG_TAG(TAG, "zephyr.usb");
-
-// Runs on the USB device stack's thread or its message work queue, never on the main loop
-static void usbd_msg_callback(usbd_context *const ctx, const usbd_msg *const msg) {
-#ifdef ESPHOME_LOG_HAS_VERBOSE
-  // Logged from the main loop: the work queue stack is too small for the logger
-  const usbd_msg_type type = msg->type;
-  App.scheduler.set_timeout(static_cast<Component *>(nullptr), static_cast<const char *>(nullptr), 0,
-                            [type]() { ESP_LOGV(TAG, "USB message: %s", usbd_msg_type_string(type)); });
-#endif
-#ifdef USE_ZEPHYR_CDC_ACM_RATE_CALLBACK
-  if (msg->type == USBD_MSG_CDC_ACM_LINE_CODING) {
-    uint32_t rate = 0;
-    if (uart_line_ctrl_get(msg->dev, UART_LINE_CTRL_BAUD_RATE, &rate) == 0) {
-      CdcAcm::rate_changed(msg->dev, rate);
-    }
-  }
-#endif
-}
-
 static int usbd_setup() {
   for (usbd_desc_node *desc : {&esphome_usbd_lang, &esphome_usbd_mfr, &esphome_usbd_product, &esphome_usbd_sn}) {
     if (int err = usbd_add_descriptor(&esphome_usbd, desc); err != 0)
@@ -69,8 +43,6 @@ static int usbd_setup() {
   if (int err = usbd_device_set_code_triple(&esphome_usbd, USBD_SPEED_FS, USB_BCC_MISCELLANEOUS, 0x02, 0x01); err != 0)
     return err;
   usbd_self_powered(&esphome_usbd, true);
-  if (int err = usbd_msg_register_cb(&esphome_usbd, usbd_msg_callback); err != 0)
-    return err;
   if (int err = usbd_init(&esphome_usbd); err != 0)
     return err;
   return usbd_enable(&esphome_usbd);

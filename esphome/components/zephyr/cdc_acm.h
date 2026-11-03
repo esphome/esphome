@@ -4,6 +4,9 @@
 
 #include "esphome/core/helpers.h"
 #include <zephyr/device.h>
+#ifdef CONFIG_USB_DEVICE_STACK_NEXT
+#include <array>
+#endif
 
 namespace esphome::zephyr {
 
@@ -14,16 +17,20 @@ class CdcAcm final {
   /// subscriber's setup(); a component that holds setup back with can_proceed() runs the scheduler earlier.
   template<typename F> void add_on_rate_callback(F &&callback) {
     if (this->rate_callbacks_.size() == 0)
-      this->set_driver_callbacks_();
+      this->start_();
     this->rate_callbacks_.add(std::forward<F>(callback));
   }
 
-  /// Called by the USB driver, from its own thread, when the host sets a new bit rate.
-  static void rate_changed(const device *device, uint32_t rate);
-
  protected:
-  void set_driver_callbacks_();
+  void start_();
   CallbackManager<void(const device *, uint32_t)> rate_callbacks_;
+#ifdef CONFIG_USB_DEVICE_STACK_NEXT
+  void poll_rates_();
+  // Last bit rate seen on each zephyr,cdc-acm-uart port, in device tree order
+  std::array<uint32_t, DT_NUM_INST_STATUS_OKAY(zephyr_cdc_acm_uart)> rates_{};
+#else
+  static void rate_changed_(const device *device, uint32_t rate);
+#endif
 };
 
 extern CdcAcm *const global_cdc_acm;
