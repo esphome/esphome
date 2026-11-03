@@ -586,9 +586,7 @@ ModbusCommandItem ModbusCommandItem::create_write_multiple_command(ModbusControl
   };
   uint8_t *p = cmd.payload.init(values.size() * 2);
   for (auto v : values) {
-    auto decoded_value = decode_value(v);
-    *p++ = decoded_value[0];
-    *p++ = decoded_value[1];
+    p = put_be16(p, v);
   }
   return cmd;
 }
@@ -635,10 +633,7 @@ ModbusCommandItem ModbusCommandItem::create_write_single_command(ModbusControlle
     modbusdevice->on_write_register_response(register_type, start_address, data);
   };
 
-  auto decoded_value = decode_value(value);
-  uint8_t *p = cmd.payload.init(2);
-  p[0] = decoded_value[0];
-  p[1] = decoded_value[1];
+  put_be16(cmd.payload.init(2), value);
   return cmd;
 }
 
@@ -673,8 +668,7 @@ ModbusCommandItem ModbusCommandItem::create_custom_command(
   }
   uint8_t *p = cmd.payload.init(values.size() * 2);
   for (auto v : values) {
-    *p++ = (v >> 8) & 0xFF;
-    *p++ = v & 0xFF;
+    p = put_be16(p, v);
   }
 
   return cmd;

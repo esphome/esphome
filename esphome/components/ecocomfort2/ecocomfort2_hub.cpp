@@ -535,9 +535,9 @@ void Ecocomfort2Hub::write_config_(uint8_t index, uint8_t value, uint8_t stored)
 }
 
 void Ecocomfort2Hub::write_offsets_(int16_t temperature, int16_t humidity) {
-  const auto temperature_bytes = decode_value(static_cast<uint16_t>(temperature));
-  const auto humidity_bytes = decode_value(static_cast<uint16_t>(humidity));
-  uint8_t data[4]{temperature_bytes[0], temperature_bytes[1], humidity_bytes[0], humidity_bytes[1]};
+  uint8_t data[4];
+  put_be16(data, temperature);
+  put_be16(data + 2, humidity);
   ESP_LOGD(TAG, "[%s] Writing C_ADVANCED_SETTINGS: offsets %d %d", this->parent_->address_str(), temperature, humidity);
   if (!this->write_settings_(this->advanced_char_, data, sizeof(data)))
     return;
