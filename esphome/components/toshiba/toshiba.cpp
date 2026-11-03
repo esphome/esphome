@@ -777,7 +777,7 @@ void ToshibaClimate::transmit_ras_2819t_() {
 
     uint8_t swing_message[RAS_2819T_MESSAGE_LENGTH];
     put_be16(swing_message, RAS_2819T_SWING_TOGGLE >> 32);
-    put_be32(swing_message + 2, RAS_2819T_SWING_TOGGLE);
+    put_be32(swing_message + 2, static_cast<uint32_t>(RAS_2819T_SWING_TOGGLE));
 
     // Use single packet transmission WITH repeat (like regular commands)
     this->encode_(swing_data, swing_message, RAS_2819T_MESSAGE_LENGTH, 1);
@@ -806,7 +806,7 @@ void ToshibaClimate::transmit_ras_2819t_() {
 
   // Handle OFF mode
   if (this->mode == climate::CLIMATE_MODE_OFF) {
-    put_be32(message1 + 2, RAS_2819T_POWER_OFF_COMMAND);
+    put_be32(message1 + 2, static_cast<uint32_t>(RAS_2819T_POWER_OFF_COMMAND));
     // No second packet for OFF
   } else {
     // Get temperature and fan encoding
