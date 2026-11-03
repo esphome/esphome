@@ -17,11 +17,11 @@ static const uint16_t STS3X_COMMAND_HEATER_DISABLE = 0x3066;
 static const uint16_t STS3X_COMMAND_FETCH_DATA = 0xE000;
 
 void STS3XComponent::setup() {
-  if (!this->setup_comm_result(this->write_command(STS3X_COMMAND_READ_SERIAL_NUMBER)))
+  if (!this->setup_check(this->write_command(STS3X_COMMAND_READ_SERIAL_NUMBER)))
     return;
 
   uint16_t raw_serial_number[2];
-  if (!this->setup_comm_result(this->read_data(raw_serial_number, 1)))
+  if (!this->setup_check(this->read_data(raw_serial_number, 1)))
     return;
   uint32_t serial_number = (uint32_t(raw_serial_number[0]) << 16);
   ESP_LOGV(TAG, "    Serial Number: 0x%08" PRIX32, serial_number);

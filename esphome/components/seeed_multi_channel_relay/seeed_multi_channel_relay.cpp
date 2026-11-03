@@ -11,7 +11,7 @@ static constexpr uint8_t CMD_SAVE_I2C_ADDR = 0x11;
 static constexpr uint8_t CMD_READ_FIRMWARE_VER = 0x13;
 
 void SeeedMultiChannelRelay::setup() {
-  if (!this->setup_comm_result(this->read_byte(CMD_READ_FIRMWARE_VER, &this->firmware_version_)))
+  if (!this->setup_check(this->read_byte(CMD_READ_FIRMWARE_VER, &this->firmware_version_)))
     return;
 #ifdef USE_SWITCH
   // channels_ owns all 8 relays and the board has no read-back: after an ESP-only reboot the board keeps its

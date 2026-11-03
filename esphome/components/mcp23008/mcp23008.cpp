@@ -9,7 +9,7 @@ static constexpr uint8_t IOCON_ODR = 0x04;  // Open-drain output for INT pin
 
 void MCP23008::setup() {
   uint8_t iocon;
-  if (!this->setup_comm_result(this->read_reg(mcp23x08_base::MCP23X08_IOCON, &iocon)))
+  if (!this->setup_check(this->read_reg(mcp23x08_base::MCP23X08_IOCON, &iocon)))
     return;
 
   // Read current output register state

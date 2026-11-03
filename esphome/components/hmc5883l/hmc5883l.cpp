@@ -44,18 +44,18 @@ void HMC5883LComponent::setup() {
   config_a |= this->oversampling_ << 5;
   config_a |= this->datarate_ << 2;
   config_a |= 0b0 << 0;  // Measurement Mode: Normal(high impedance on load)
-  if (!this->setup_comm_result(this->write_byte(HMC5883L_REGISTER_CONFIG_A, config_a)))
+  if (!this->setup_check(this->write_byte(HMC5883L_REGISTER_CONFIG_A, config_a)))
     return;
 
   uint8_t config_b = 0;
   config_b |= this->range_ << 5;
-  if (!this->setup_comm_result(this->write_byte(HMC5883L_REGISTER_CONFIG_B, config_b)))
+  if (!this->setup_check(this->write_byte(HMC5883L_REGISTER_CONFIG_B, config_b)))
     return;
 
   uint8_t mode = 0;
   // Continuous Measurement Mode
   mode |= 0b00;
-  if (!this->setup_comm_result(this->write_byte(HMC5883L_REGISTER_MODE, mode)))
+  if (!this->setup_check(this->write_byte(HMC5883L_REGISTER_MODE, mode)))
     return;
 }
 void HMC5883LComponent::dump_config() {

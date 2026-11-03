@@ -57,14 +57,14 @@ void PCM5122::setup() {
   }
   this->reg(PCM5122_REG_AUDIO_FORMAT) = PCM5122_AUDIO_FORMAT_I2S | alen;
 
-  if (!this->setup_comm_result(this->write_channel_mix_()))
+  if (!this->setup_check(this->write_channel_mix_()))
     return;
 
-  if (!this->setup_comm_result(this->write_analog_gain_()))
+  if (!this->setup_check(this->write_analog_gain_()))
     return;
 
   // PLL reference clock: BCK
-  if (!this->setup_comm_result(this->select_page_(0), LOG_STR("Write failed")))
+  if (!this->setup_check(this->select_page_(0), LOG_STR("Write failed")))
     return;
   optional<uint8_t> pll_ref = this->read_byte(PCM5122_REG_PLL_REF);
   // Hand-written so clang-tidy sees the has_value() check before value()

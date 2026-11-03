@@ -18,7 +18,7 @@ static const uint8_t TCS34725_REGISTER_CRGBDATAL = TCS34725_COMMAND_BIT | 0x14;
 
 void TCS34725Component::setup() {
   uint8_t id;
-  if (!this->setup_comm_result(this->read_register(TCS34725_REGISTER_ID, &id, 1) == i2c::ERROR_OK))
+  if (!this->setup_check(this->read_register(TCS34725_REGISTER_ID, &id, 1) == i2c::ERROR_OK))
     return;
   if (this->write_config_register_(TCS34725_REGISTER_ATIME, this->integration_reg_) != i2c::ERROR_OK ||
       this->write_config_register_(TCS34725_REGISTER_CONTROL, this->gain_reg_) != i2c::ERROR_OK) {
@@ -26,11 +26,11 @@ void TCS34725Component::setup() {
     return;
   }
   // Power on (internal oscillator on)
-  if (!this->setup_comm_result(this->write_config_register_(TCS34725_REGISTER_ENABLE, 0x01) == i2c::ERROR_OK))
+  if (!this->setup_check(this->write_config_register_(TCS34725_REGISTER_ENABLE, 0x01) == i2c::ERROR_OK))
     return;
   delay(3);
   // Power on (internal oscillator on) + RGBC ADC Enable
-  if (!this->setup_comm_result(this->write_config_register_(TCS34725_REGISTER_ENABLE, 0x03) == i2c::ERROR_OK))
+  if (!this->setup_check(this->write_config_register_(TCS34725_REGISTER_ENABLE, 0x03) == i2c::ERROR_OK))
     return;
 }
 

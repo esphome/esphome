@@ -15,7 +15,7 @@ ESPHOME_LOG_TAG(TAG, "rx8025t");
 
 void RX8025TComponent::setup() {
   uint8_t flags;
-  if (!this->setup_comm_result(this->read_flags_(&flags)))
+  if (!this->setup_check(this->read_flags_(&flags)))
     return;
 
   if (flags & RX8025T_FLAG_VLF) {

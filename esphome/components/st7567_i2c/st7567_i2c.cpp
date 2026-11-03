@@ -9,7 +9,7 @@ void I2CST7567::setup() {
   this->init_reset_();
 
   auto err = this->write(nullptr, 0);
-  if (!this->setup_comm_result(err == i2c::ERROR_OK))
+  if (!this->setup_check(err == i2c::ERROR_OK))
     return;
   ST7567::setup();
 }

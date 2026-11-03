@@ -56,7 +56,7 @@ void SY6970Component::setup() {
 
   // Try to read chip ID
   uint8_t reg_value;
-  if (!this->setup_comm_result(this->read_byte(SY6970_REG_DEVICE_ID, &reg_value)))
+  if (!this->setup_check(this->read_byte(SY6970_REG_DEVICE_ID, &reg_value)))
     return;
 
   uint8_t chip_id = reg_value & 0x03;

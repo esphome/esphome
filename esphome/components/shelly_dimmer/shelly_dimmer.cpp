@@ -85,8 +85,8 @@ void ShellyDimmer::handle_firmware() {
 
     this->reset_normal_boot_();
     this->send_command_(SHELLY_DIMMER_PROTO_CMD_VERSION, nullptr, 0);
-    if (!this->setup_comm_result(is_running_configured_version(),
-                                 LOG_STR("STM32 firmware upgrade already performed, but version is still incorrect")))
+    if (!this->setup_check(is_running_configured_version(),
+                           LOG_STR("STM32 firmware upgrade already performed, but version is still incorrect")))
       return;
 #else
     ESP_LOGW(TAG, "Firmware version mismatch, put 'update: true' in the yaml to flash an update.");

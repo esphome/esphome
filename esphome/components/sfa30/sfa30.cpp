@@ -12,8 +12,8 @@ static const uint16_t SFA30_CMD_READ_MEASUREMENT = 0x0327;
 void SFA30Component::setup() {
   // Serial Number identification
   uint16_t raw_device_marking[16];
-  if (!this->setup_comm_result(this->get_register(SFA30_CMD_GET_DEVICE_MARKING, raw_device_marking, 16, 5),
-                               LOG_STR("Unable to read device marking")))
+  if (!this->setup_check(this->get_register(SFA30_CMD_GET_DEVICE_MARKING, raw_device_marking, 16, 5),
+                         LOG_STR("Unable to read device marking")))
     return;
 
   for (size_t i = 0; i < 16; i++) {
@@ -22,8 +22,8 @@ void SFA30Component::setup() {
   }
   ESP_LOGD(TAG, "Device Marking: '%s'", this->device_marking_);
 
-  if (!this->setup_comm_result(this->write_command(SFA30_CMD_START_CONTINUOUS_MEASUREMENTS),
-                               LOG_STR("Error starting measurements")))
+  if (!this->setup_check(this->write_command(SFA30_CMD_START_CONTINUOUS_MEASUREMENTS),
+                         LOG_STR("Error starting measurements")))
     return;
 }
 

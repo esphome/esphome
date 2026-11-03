@@ -18,7 +18,7 @@ static const uint8_t HTU21D_READHEATER_REG_CMD = 0x11;  /**< Read Heater Control
 static const uint8_t HTU21D_REG_HTRE_BIT = 0x02;        /**< Control Register Heater Bit */
 
 void HTU21DComponent::setup() {
-  if (!this->setup_comm_result(this->write_bytes(HTU21D_REGISTER_RESET, nullptr, 0)))
+  if (!this->setup_check(this->write_bytes(HTU21D_REGISTER_RESET, nullptr, 0)))
     return;
 
   // Wait for software reset to complete

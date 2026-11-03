@@ -52,7 +52,7 @@ void PM2005Component::setup() {
     this->measuring_value_index_ = 9;
   }
 
-  if (!this->setup_comm_result(this->read(this->data_buffer_, 12) == i2c::ERROR_OK))
+  if (!this->setup_check(this->read(this->data_buffer_, 12) == i2c::ERROR_OK))
     return;
 }
 

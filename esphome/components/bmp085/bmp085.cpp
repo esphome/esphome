@@ -24,7 +24,7 @@ void BMP085Component::update() {
 }
 void BMP085Component::setup() {
   uint8_t data[22];
-  if (!this->setup_comm_result(this->read_bytes(BMP085_REGISTER_AC1_H, data, 22)))
+  if (!this->setup_check(this->read_bytes(BMP085_REGISTER_AC1_H, data, 22)))
     return;
 
   // Load calibration

@@ -31,7 +31,7 @@ void VEML6040Component::setup() {
   // Auto mode (AF = 0, TRIG = 0) with shutdown bit cleared: the device measures continuously.
   // The high byte of the configuration register is reserved and must be written as zero.
   const uint8_t config[] = {static_cast<uint8_t>(this->integration_time_ << CONFIG_REG_IT_BIT), 0x00};
-  if (!this->setup_comm_result(this->write_register(CONFIG_REG, config, sizeof config) == i2c::ERROR_OK))
+  if (!this->setup_check(this->write_register(CONFIG_REG, config, sizeof config) == i2c::ERROR_OK))
     return;
   // The data registers hold zeros until the first integration period has finished; publish as soon as it has
   this->set_timeout(this->integration_time_ms_(), [this]() {

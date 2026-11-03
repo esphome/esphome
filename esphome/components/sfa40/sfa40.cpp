@@ -40,10 +40,9 @@ static void raw_to_marking(const uint16_t *raw, size_t words, char *out, size_t 
 void SFA40Component::setup() {
   this->write_command(SFA40_CMD_STOP_MEASUREMENT);
   this->set_timeout(25, [this]() {
-    if (!this->setup_comm_result(this->detect_protocol_(), LOG_STR("Protocol detection failed")))
+    if (!this->setup_check(this->detect_protocol_(), LOG_STR("Protocol detection failed")))
       return;
-    if (!this->setup_comm_result(this->write_command(SFA40_CMD_START_MEASUREMENT),
-                                 LOG_STR("Failed to start measurements")))
+    if (!this->setup_check(this->write_command(SFA40_CMD_START_MEASUREMENT), LOG_STR("Failed to start measurements")))
       return;
     this->initialized_ = true;
     ESP_LOGD(TAG, "Measurement started");

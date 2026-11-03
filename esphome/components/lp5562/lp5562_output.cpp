@@ -42,7 +42,7 @@ void LP5562Output::setup() {
   // power up the chip and enable the internal 32 kHz oscillator, see
   // https://github.com/m5stack/M5GFX/blob/b2422cdb4735159209c2097d425c0756505b9a81/src/M5GFX.cpp#L566
   const uint8_t enable = LP5562_ENABLE_CHIP_EN | (this->logarithmic_dimming_ ? LP5562_ENABLE_LOG_EN : 0);
-  if (!this->setup_comm_result(this->write_byte(LP5562_REG_ENABLE, enable)))
+  if (!this->setup_check(this->write_byte(LP5562_REG_ENABLE, enable)))
     return;
   delay(1);
   // use the internal clock, and drive every channel directly from its PWM register instead of the
@@ -53,8 +53,7 @@ void LP5562Output::setup() {
     return;
   }
   for (size_t channel = 0; channel < this->currents_.size(); channel++) {
-    if (!this->setup_comm_result(
-            this->write_byte(progmem_read_byte(&LP5562_REG_CURRENT[channel]), this->currents_[channel])))
+    if (!this->setup_check(this->write_byte(progmem_read_byte(&LP5562_REG_CURRENT[channel]), this->currents_[channel])))
       return;
   }
 }

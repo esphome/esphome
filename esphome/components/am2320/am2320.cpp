@@ -34,7 +34,7 @@ void AM2320Component::setup() {
   uint8_t data[8];
   data[0] = 0;
   data[1] = 4;
-  if (!this->setup_comm_result(this->read_data_(data)))
+  if (!this->setup_check(this->read_data_(data)))
     return;
 }
 void AM2320Component::dump_config() {

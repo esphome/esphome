@@ -71,7 +71,7 @@ void BH1745Component::setup() {
     this->mark_failed(LOG_STR("Wrong part ID"));
     return;
   }
-  if (!this->setup_comm_result(this->write_byte(REG_SYSTEM_CONTROL, SYSTEM_CONTROL_SW_RESET)))
+  if (!this->setup_check(this->write_byte(REG_SYSTEM_CONTROL, SYSTEM_CONTROL_SW_RESET)))
     return;
 
   // Light lost behind glass is scaled back up, as the other light sensors do
@@ -83,7 +83,7 @@ void BH1745Component::setup() {
       // High threshold 0 and low threshold 0xFFFF (low byte first) make the interrupt condition always
       // true, so the INT pin simply follows the enable bit, which drives the breakout's LEDs.
       static constexpr uint8_t THRESHOLDS[4] = {0x00, 0x00, 0xFF, 0xFF};
-      if (!this->setup_comm_result(this->write_bytes(REG_TH_LSB, THRESHOLDS, sizeof(THRESHOLDS))))
+      if (!this->setup_check(this->write_bytes(REG_TH_LSB, THRESHOLDS, sizeof(THRESHOLDS))))
         return;
     }
     // RGBC_EN makes the chip measure continuously; update() reads the latest result.

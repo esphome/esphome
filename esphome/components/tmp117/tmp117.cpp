@@ -24,11 +24,11 @@ void TMP117Component::update() {
   }
 }
 void TMP117Component::setup() {
-  if (!this->setup_comm_result(this->write_config_(this->config_)))
+  if (!this->setup_check(this->write_config_(this->config_)))
     return;
 
   int16_t data;
-  if (!this->setup_comm_result(this->read_data_(&data)))
+  if (!this->setup_check(this->read_data_(&data)))
     return;
 }
 void TMP117Component::dump_config() {

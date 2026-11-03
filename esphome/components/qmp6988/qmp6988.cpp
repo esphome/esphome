@@ -281,7 +281,7 @@ bool QMP6988Component::calculate_pressure_() {
 }
 
 void QMP6988Component::setup() {
-  if (!this->setup_comm_result(this->device_check_()))
+  if (!this->setup_check(this->device_check_()))
     return;
 
   this->software_reset_();

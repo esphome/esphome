@@ -11,7 +11,7 @@ static const uint8_t LCD_DISPLAY_BACKLIGHT_OFF = 0x00;
 
 void PCF8574LCDDisplay::setup() {
   this->backlight_value_ = LCD_DISPLAY_BACKLIGHT_ON;
-  if (!this->setup_comm_result(this->write_bytes(this->backlight_value_, nullptr, 0)))
+  if (!this->setup_check(this->write_bytes(this->backlight_value_, nullptr, 0)))
     return;
 
   LCDDisplay::setup();

@@ -97,11 +97,11 @@ void GT911Touchscreen::setup_internal_() {
         }
       }
     }
-    if (!this->setup_comm_result(err == i2c::ERROR_OK, LOG_STR("Calibration error")))
+    if (!this->setup_check(err == i2c::ERROR_OK, LOG_STR("Calibration error")))
       return;
   }
 
-  if (!this->setup_comm_result(err == i2c::ERROR_OK))
+  if (!this->setup_check(err == i2c::ERROR_OK))
     return;
   this->setup_done_ = true;
 }

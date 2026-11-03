@@ -35,7 +35,7 @@ static const uint8_t INA219_REGISTER_CALIBRATION = 0x05;
 void INA219Component::setup() {
   // Config Register
   // 0bx000000000000000 << 15 RESET Bit (1 -> trigger reset)
-  if (!this->setup_comm_result(this->write_byte_16(INA219_REGISTER_CONFIG, 0x8000)))
+  if (!this->setup_check(this->write_byte_16(INA219_REGISTER_CONFIG, 0x8000)))
     return;
 
   delay(1);
@@ -98,7 +98,7 @@ void INA219Component::setup() {
 
   config |= shunt_gain << 11;
   ESP_LOGCONFIG(TAG, "    Using %dV-Range Shunt Gain=%dmV", bus_32v_range ? 32 : 16, 40 << shunt_gain);
-  if (!this->setup_comm_result(this->write_byte_16(INA219_REGISTER_CONFIG, config)))
+  if (!this->setup_check(this->write_byte_16(INA219_REGISTER_CONFIG, config)))
     return;
 
   auto min_lsb = uint32_t(ceilf(this->max_current_a_ * 1000000.0f / 0x8000));
@@ -117,7 +117,7 @@ void INA219Component::setup() {
   this->calibration_lsb_ = lsb;
   auto calibration = uint32_t(0.04096f / (0.000001f * lsb * this->shunt_resistance_ohm_));
   ESP_LOGV(TAG, "    Using LSB=%" PRIu32 " calibration=%" PRIu32, lsb, calibration);
-  if (!this->setup_comm_result(this->write_byte_16(INA219_REGISTER_CALIBRATION, calibration)))
+  if (!this->setup_check(this->write_byte_16(INA219_REGISTER_CALIBRATION, calibration)))
     return;
 }
 

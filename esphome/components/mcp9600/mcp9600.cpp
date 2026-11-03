@@ -53,7 +53,7 @@ void MCP9600Component::setup() {
   success &= this->write_byte_16(MCP9600_REGISTER_ALERT3_LIMIT, 0x0000);
   success &= this->write_byte_16(MCP9600_REGISTER_ALERT4_LIMIT, 0x0000);
 
-  if (!this->setup_comm_result(success, LOG_STR("Failed to update device configuration")))
+  if (!this->setup_check(success, LOG_STR("Failed to update device configuration")))
     return;
 }
 

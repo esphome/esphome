@@ -71,7 +71,7 @@ const LogString *deemphasis_to_str(DeemphasisMode mode) {
 void ES9038Q2MKatana::setup() {
   if (!this->check_chip_id(this, KATANA_REG_CHIP_ID, KATANA_CHIP_ID))
     return;
-  if (!this->setup_comm_result(this->write_byte(KATANA_REG_RESET, 0x01)))
+  if (!this->setup_check(this->write_byte(KATANA_REG_RESET, 0x01)))
     return;
   delay(RESET_SETTLE_DELAY_MS);
 

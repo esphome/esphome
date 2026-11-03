@@ -7,7 +7,7 @@ ESPHOME_LOG_TAG(TAG, "ttp229_lsf");
 
 void TTP229LSFComponent::setup() {
   uint8_t data[2];
-  if (!this->setup_comm_result(this->read(data, 2) == i2c::ERROR_OK))
+  if (!this->setup_check(this->read(data, 2) == i2c::ERROR_OK))
     return;
 }
 void TTP229LSFComponent::dump_config() {

@@ -72,7 +72,7 @@ bool AM2315C::convert_(uint8_t *data, float &humidity, float &temperature) {
 void AM2315C::setup() {
   // get status
   uint8_t status = 0;
-  if (!this->setup_comm_result(this->read(&status, 1) == i2c::ERROR_OK))
+  if (!this->setup_check(this->read(&status, 1) == i2c::ERROR_OK))
     return;
 
   // reset registers if required, according to the datasheet

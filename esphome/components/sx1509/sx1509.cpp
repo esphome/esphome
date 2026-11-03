@@ -8,14 +8,14 @@ ESPHOME_LOG_TAG(TAG, "sx1509");
 
 void SX1509Component::setup() {
   ESP_LOGV(TAG, "  Resetting devices");
-  if (!this->setup_comm_result(this->write_byte(REG_RESET, 0x12)))
+  if (!this->setup_check(this->write_byte(REG_RESET, 0x12)))
     return;
   this->write_byte(REG_RESET, 0x34);
 
   uint16_t data;
-  if (!this->setup_comm_result(this->read_byte_16(REG_INTERRUPT_MASK_A, &data)))
+  if (!this->setup_check(this->read_byte_16(REG_INTERRUPT_MASK_A, &data)))
     return;
-  if (!this->setup_comm_result(data == 0xFF00, LOG_STR("Unexpected reset value")))
+  if (!this->setup_check(data == 0xFF00, LOG_STR("Unexpected reset value")))
     return;
   clock_(INTERNAL_CLOCK_2MHZ);
   delayMicroseconds(500);

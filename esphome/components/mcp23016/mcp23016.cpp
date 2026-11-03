@@ -14,7 +14,7 @@ void MCP23016::setup() {
   // to the even register (IOCON0) in the same pair. Starting from the odd
   // address gives the correct byte order for 1 << pin mapping:
   // high byte = port 1 (pins 8-15), low byte = port 0 (pins 0-7).
-  if (!this->setup_comm_result(this->read_reg_(MCP23016_IOCON1, &iocon)))
+  if (!this->setup_check(this->read_reg_(MCP23016_IOCON1, &iocon)))
     return;
 
   // Read current output register state

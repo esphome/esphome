@@ -26,7 +26,7 @@ struct SensorData {
 };
 
 void IAQCore::setup() {
-  if (!this->setup_comm_result(this->write(nullptr, 0) == i2c::ERROR_OK))
+  if (!this->setup_check(this->write(nullptr, 0) == i2c::ERROR_OK))
     return;
 }
 

@@ -315,7 +315,7 @@ void AS734XComponent::setup() {
            this->write_byte(AS7343_CHAIN_CMD, 0x46 + (i / len) * 0x10);
     }
   }
-  if (!this->setup_comm_result(ok))
+  if (!this->setup_check(ok))
     return;
   this->disable_loop();
 }

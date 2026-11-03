@@ -87,7 +87,7 @@ void TAS58xx::setup() {
     this->enable_pin_->digital_write(true);
     delay(PDN_TO_I2C_MS);
   }
-  if (!this->setup_comm_result(this->init_()))
+  if (!this->setup_check(this->init_()))
     return;
   this->publish_active_(true);  // init_() leaves the device in play
 #ifdef USE_SELECT

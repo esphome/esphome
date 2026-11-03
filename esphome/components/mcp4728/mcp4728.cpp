@@ -9,7 +9,7 @@ ESPHOME_LOG_TAG(TAG, "mcp4728");
 
 void MCP4728Component::setup() {
   auto err = this->write(nullptr, 0);
-  if (!this->setup_comm_result(err == i2c::ERROR_OK))
+  if (!this->setup_check(err == i2c::ERROR_OK))
     return;
 }
 

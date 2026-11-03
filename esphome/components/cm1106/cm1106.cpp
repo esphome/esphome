@@ -23,7 +23,7 @@ uint8_t cm1106_checksum(const uint8_t *response, size_t len) {
 
 void CM1106Component::setup() {
   uint8_t response[8] = {0};
-  if (!this->setup_comm_result(
+  if (!this->setup_check(
           this->cm1106_write_command_(C_M1106_CMD_GET_CO2, sizeof(C_M1106_CMD_GET_CO2), response, sizeof(response))))
     return;
 

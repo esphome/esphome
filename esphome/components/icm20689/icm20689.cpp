@@ -37,7 +37,7 @@ void ICM20689Component::setup() {
 
   this->spi_setup();
 
-  if (!this->setup_comm_result(this->spi_is_ready(), LOG_STR("SPI device is not ready")))
+  if (!this->setup_check(this->spi_is_ready(), LOG_STR("SPI device is not ready")))
     return;
 
   // Datasheet 4.20: a soft reset must be the first operation after power-up,

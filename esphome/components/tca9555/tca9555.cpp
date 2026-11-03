@@ -16,7 +16,7 @@ namespace esphome::tca9555 {
 ESPHOME_LOG_TAG(TAG, "tca9555");
 
 void TCA9555Component::setup() {
-  if (!this->setup_comm_result(this->read_gpio_modes_()))
+  if (!this->setup_check(this->read_gpio_modes_()))
     return;
   if (!this->read_gpio_outputs_()) {
     this->mark_failed(LOG_STR(ESP_LOG_MSG_COMM_FAIL));

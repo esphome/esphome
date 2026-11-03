@@ -253,11 +253,11 @@ void VL53L1XSensor::setup() {
     this->set_i2c_address(final_address);
   }
 
-  if (!this->setup_comm_result(this->configure_()))
+  if (!this->setup_check(this->configure_()))
     return;
 
   // The ULD ranges once during init to calibrate; loop() finishes that from the first result.
-  if (!this->setup_comm_result(this->start_ranging_()))
+  if (!this->setup_check(this->start_ranging_()))
     return;
   this->measurement_start_ = millis();
 }

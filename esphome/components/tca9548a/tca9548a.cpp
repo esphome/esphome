@@ -103,10 +103,10 @@ void TCA9548AComponent::setup() {
 #ifdef I2C_PORT_FREQUENCY_COUNT
   const bool restored = this->frequency_ == 0 || this->bus_->switch_frequency(original_frequency) == i2c::ERROR_OK;
 #endif
-  if (!this->setup_comm_result(err == i2c::ERROR_OK, LOG_STR("TCA9548A failed")))
+  if (!this->setup_check(err == i2c::ERROR_OK, LOG_STR("TCA9548A failed")))
     return;
 #ifdef I2C_PORT_FREQUENCY_COUNT
-  if (!this->setup_comm_result(restored, LOG_STR("Failed to switch the bus frequency")))
+  if (!this->setup_check(restored, LOG_STR("Failed to switch the bus frequency")))
     return;
 #endif
   ESP_LOGD(TAG, "Channels currently open: %d", status);

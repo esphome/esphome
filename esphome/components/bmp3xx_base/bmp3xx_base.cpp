@@ -50,7 +50,7 @@ void BMP3XXComponent::setup() {
     return;
   }
 
-  if (!this->setup_comm_result(read_byte(BMP388_CHIP_ID, &this->chip_id_.reg)))
+  if (!this->setup_check(read_byte(BMP388_CHIP_ID, &this->chip_id_.reg)))
     return;
   ESP_LOGCONFIG(TAG, "Chip %s Id 0x%X", LOG_STR_ARG(chip_type_to_str(this->chip_id_.reg)), this->chip_id_.reg);
 
@@ -61,7 +61,7 @@ void BMP3XXComponent::setup() {
   // set sensor in sleep mode
   stop_conversion();
   // Read the calibration parameters into the params structure
-  if (!this->setup_comm_result(
+  if (!this->setup_check(
           read_bytes(BMP388_TRIM_PARAMS, (uint8_t *) &compensation_params_, sizeof(compensation_params_)),
           LOG_STR("Can't read calibration data")))
     return;

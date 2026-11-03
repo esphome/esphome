@@ -58,7 +58,7 @@ void ES7243::setup() {
   const bool ok = this->write_byte(REG_MODE_CONFIG, 0x01) && this->write_byte(REG_STATE_CONTROL, 0x00) &&
                   this->write_byte(REG_MUTE_CONTROL, 0x1B) && this->write_byte(REG_SDP_FORMAT, 0x0C) &&
                   this->write_mic_gain_() && this->write_byte(REG_MUTE_CONTROL, 0x13);
-  if (!this->setup_comm_result(ok))
+  if (!this->setup_check(ok))
     return;
   this->setup_complete_ = true;
 }

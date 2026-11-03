@@ -7,7 +7,7 @@ ESPHOME_LOG_TAG(TAG, "ina2xx_i2c");
 
 void INA2XXI2C::setup() {
   auto err = this->write(nullptr, 0);
-  if (!this->setup_comm_result(err == i2c::ERROR_OK))
+  if (!this->setup_check(err == i2c::ERROR_OK))
     return;
   INA2XX::setup();
 }

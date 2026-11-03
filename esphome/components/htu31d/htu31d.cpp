@@ -48,10 +48,10 @@ static const uint8_t HTU31D_DIAGNOSTICS = 0x08;
  * I2C.
  */
 void HTU31DComponent::setup() {
-  if (!this->setup_comm_result(this->reset_()))
+  if (!this->setup_check(this->reset_()))
     return;
 
-  if (!this->setup_comm_result(this->read_serial_num_() != 0))
+  if (!this->setup_check(this->read_serial_num_() != 0))
     return;
 }
 

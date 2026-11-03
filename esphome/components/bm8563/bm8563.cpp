@@ -21,7 +21,7 @@ static constexpr uint8_t CLOCK_1_60_HZ = 0x83;
 static constexpr uint32_t MAX_TIMER_DURATION_S = 255 * 60;
 
 void BM8563::setup() {
-  if (!this->setup_comm_result(this->write_byte_16(CONTROL_STATUS_1_REG, 0)))
+  if (!this->setup_check(this->write_byte_16(CONTROL_STATUS_1_REG, 0)))
     return;
 }
 

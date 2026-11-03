@@ -17,11 +17,11 @@ static const uint8_t TSL2561_REGISTER_DATA_1 = 0x0E;
 
 void TSL2561Sensor::setup() {
   uint8_t id;
-  if (!this->setup_comm_result(this->tsl2561_read_byte(TSL2561_REGISTER_ID, &id)))
+  if (!this->setup_check(this->tsl2561_read_byte(TSL2561_REGISTER_ID, &id)))
     return;
 
   uint8_t timing;
-  if (!this->setup_comm_result(this->tsl2561_read_byte(TSL2561_REGISTER_TIMING, &timing)))
+  if (!this->setup_check(this->tsl2561_read_byte(TSL2561_REGISTER_TIMING, &timing)))
     return;
 
   timing &= ~0b00010000;

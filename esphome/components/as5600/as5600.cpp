@@ -22,7 +22,7 @@ static const uint8_t REGISTER_AGC = 0x1A;        // 8 bytes  / R
 static const uint8_t REGISTER_MAGNITUDE = 0x1B;  // 16 bytes / R
 
 void AS5600Component::setup() {
-  if (!this->setup_comm_result(this->read_byte(REGISTER_STATUS).has_value()))
+  if (!this->setup_check(this->read_byte(REGISTER_STATUS).has_value()))
     return;
 
   // configuration direction pin, if given
@@ -51,7 +51,7 @@ void AS5600Component::setup() {
   // clang-format on
 
   // write config to config register
-  if (!this->setup_comm_result(this->write_byte_16(REGISTER_CONF, config)))
+  if (!this->setup_check(this->write_byte_16(REGISTER_CONF, config)))
     return;
 
   // configure the start position

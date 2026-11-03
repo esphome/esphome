@@ -11,11 +11,10 @@ static constexpr size_t HTE501_SERIAL_NUMBER_SIZE = 7;
 void HTE501Component::setup() {
   uint8_t address[] = {0x70, 0x29};
   uint8_t identification[9];
-  if (!this->setup_comm_result(this->write_read(address, sizeof address, identification, sizeof identification) ==
-                               i2c::ERROR_OK))
+  if (!this->setup_check(this->write_read(address, sizeof address, identification, sizeof identification) ==
+                         i2c::ERROR_OK))
     return;
-  if (!this->setup_comm_result(identification[8] == crc8(identification, 8, 0xFF, 0x31, true),
-                               LOG_STR("CRC check failed")))
+  if (!this->setup_check(identification[8] == crc8(identification, 8, 0xFF, 0x31, true), LOG_STR("CRC check failed")))
     return;
 #if ESPHOME_LOG_LEVEL >= ESPHOME_LOG_LEVEL_VERBOSE
   char serial_hex[format_hex_size(HTE501_SERIAL_NUMBER_SIZE)];

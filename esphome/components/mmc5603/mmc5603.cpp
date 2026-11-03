@@ -37,20 +37,20 @@ void MMC5603Component::setup() {
     return;
 
   // turn on set bit
-  if (!this->setup_comm_result(this->write_byte(MMC56X3_CTRL1_REG, 0x80), LOG_STR("Control 1 failed for set bit")))
+  if (!this->setup_check(this->write_byte(MMC56X3_CTRL1_REG, 0x80), LOG_STR("Control 1 failed for set bit")))
     return;
 
   // turn on set bit
-  if (!this->setup_comm_result(this->write_byte(MMC56X3_CTRL0_REG, 0x08), LOG_STR("Control 0 failed for set bit")))
+  if (!this->setup_check(this->write_byte(MMC56X3_CTRL0_REG, 0x08), LOG_STR("Control 0 failed for set bit")))
     return;
 
-  if (!this->setup_comm_result(this->write_byte(MMC56X3_CTRL0_REG, 0x10)))
+  if (!this->setup_check(this->write_byte(MMC56X3_CTRL0_REG, 0x10)))
     return;
 
   uint8_t ctrl_2 = 0;
 
   ctrl_2 &= ~0x10;  // turn off cmm_en bit
-  if (!this->setup_comm_result(this->write_byte(MMC56X3_CTRL2_REG, ctrl_2)))
+  if (!this->setup_check(this->write_byte(MMC56X3_CTRL2_REG, ctrl_2)))
     return;
 }
 void MMC5603Component::dump_config() {

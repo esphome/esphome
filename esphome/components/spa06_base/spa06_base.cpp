@@ -53,7 +53,7 @@ void SPA06Component::setup() {
   //   7. Write measurement settings (background measurement mode)
 
   // 1. Soft reset
-  if (!this->setup_comm_result(this->soft_reset_(), LOG_STR("Reset failed")))
+  if (!this->setup_check(this->soft_reset_(), LOG_STR("Reset failed")))
     return;
 
   // soft_reset_() internally delays by 3ms to make sure that
@@ -61,7 +61,7 @@ void SPA06Component::setup() {
 
   // 2. Read chip ID
   // TODO: check ID for consistency?
-  if (!this->setup_comm_result(spa_read_byte(SPA06_ID, &this->prod_id_.reg), LOG_STR("Chip ID read failure")))
+  if (!this->setup_check(spa_read_byte(SPA06_ID, &this->prod_id_.reg), LOG_STR("Chip ID read failure")))
     return;
   ESP_LOGV(TAG,
            "Product Info:\n"
@@ -71,14 +71,14 @@ void SPA06Component::setup() {
 
   // 3. Read chip readiness from MEAS_CFG
   //    First check if the sensor reports ready
-  if (!this->setup_comm_result(spa_read_byte(SPA06_MEAS_CFG, &this->meas_.reg), LOG_STR("Sensor status read failure")))
+  if (!this->setup_check(spa_read_byte(SPA06_MEAS_CFG, &this->meas_.reg), LOG_STR("Sensor status read failure")))
     return;
   // Check if the sensor reports coefficients are ready
-  if (!this->setup_comm_result(meas_.bit.coef_ready, LOG_STR("Coefficients not ready")))
+  if (!this->setup_check(meas_.bit.coef_ready, LOG_STR("Coefficients not ready")))
     return;
 
   // 4. Read coefficients
-  if (!this->setup_comm_result(this->read_coefficients_(), LOG_STR("Coefficients read error")))
+  if (!this->setup_check(this->read_coefficients_(), LOG_STR("Coefficients read error")))
     return;
 
   // 5. Configure temperature and pressure sensors
@@ -104,13 +104,13 @@ void SPA06Component::setup() {
   }
 
   // Write temperature settings
-  if (!this->setup_comm_result(write_temperature_settings_(this->temperature_oversampling_, this->temperature_rate_),
-                               LOG_STR("Temperature settings write fail")))
+  if (!this->setup_check(write_temperature_settings_(this->temperature_oversampling_, this->temperature_rate_),
+                         LOG_STR("Temperature settings write fail")))
     return;
 
   // Write pressure settings
-  if (!this->setup_comm_result(write_pressure_settings_(this->pressure_oversampling_, this->pressure_rate_),
-                               LOG_STR("Pressure settings write fail")))
+  if (!this->setup_check(write_pressure_settings_(this->pressure_oversampling_, this->pressure_rate_),
+                         LOG_STR("Pressure settings write fail")))
     return;
   // 6. Write communication settings
   // This call sets the bit shifts for pressure and temperature if
@@ -124,7 +124,7 @@ void SPA06Component::setup() {
 
   // 7. Write measurement settings
   // This function sets background measurement mode without FIFO
-  if (!this->setup_comm_result(
+  if (!this->setup_check(
           write_measurement_settings_(this->pressure_sensor_ ? MeasCrtl::MEASCRTL_BG_BOTH : MeasCrtl::MEASCRTL_BG_TEMP),
           LOG_STR("Measurement settings write fail")))
     return;

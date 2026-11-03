@@ -31,7 +31,7 @@ void DS248xComponent::setup() {
   }
 
   // Configure device
-  if (!this->setup_comm_result(this->device_configure_(), LOG_STR("DS248x configuration failed!")))
+  if (!this->setup_check(this->device_configure_(), LOG_STR("DS248x configuration failed!")))
     return;
 
   // Reset to Channel 0

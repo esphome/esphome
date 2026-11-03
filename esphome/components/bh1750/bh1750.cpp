@@ -64,7 +64,7 @@ MTreg:
 
 void BH1750Sensor::setup() {
   uint8_t turn_on = BH1750_COMMAND_POWER_ON;
-  if (!this->setup_comm_result(this->write(&turn_on, 1) == i2c::ERROR_OK))
+  if (!this->setup_check(this->write(&turn_on, 1) == i2c::ERROR_OK))
     return;
   this->state_ = IDLE;
 }

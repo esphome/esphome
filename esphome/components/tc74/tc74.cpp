@@ -15,7 +15,7 @@ static const uint8_t TC74_DATA_READY_MASK = 0x40;
 // being set does not constitute a failure.
 void TC74Component::setup() {
   uint8_t config_reg;
-  if (!this->setup_comm_result(this->read_register(TC74_REGISTER_CONFIGURATION, &config_reg, 1) == i2c::ERROR_OK))
+  if (!this->setup_check(this->read_register(TC74_REGISTER_CONFIGURATION, &config_reg, 1) == i2c::ERROR_OK))
     return;
   this->data_ready_ = config_reg & TC74_DATA_READY_MASK;
 }

@@ -51,13 +51,13 @@ void AHT10Component::setup() {
       error_code = this->write(AHT10_INITIALIZE_CMD, sizeof(AHT10_INITIALIZE_CMD));
       break;
   }
-  if (!this->setup_comm_result(error_code == i2c::ERROR_OK))
+  if (!this->setup_check(error_code == i2c::ERROR_OK))
     return;
   uint8_t cal_attempts = 0;
   uint8_t data = AHT10_STATUS_BUSY;
   while (data & AHT10_STATUS_BUSY) {
     delay(AHT10_DEFAULT_DELAY);
-    if (!this->setup_comm_result(this->read(&data, 1) == i2c::ERROR_OK))
+    if (!this->setup_check(this->read(&data, 1) == i2c::ERROR_OK))
       return;
     ++cal_attempts;
     if (cal_attempts > AHT10_INIT_ATTEMPTS) {
@@ -66,7 +66,7 @@ void AHT10Component::setup() {
     }
   }
   // Bit[6:5] = 0b00, NORMAL mode and Bit[3] = 0b1, CALIBRATED
-  if (!this->setup_comm_result((data & 0x68) == 0x08, LOG_STR("Initialization failed")))
+  if (!this->setup_check((data & 0x68) == 0x08, LOG_STR("Initialization failed")))
     return;
 }
 
