@@ -33,6 +33,7 @@ extern "C" {
 #include "esp_video_device.h"
 #include "esp_video_ioctl.h"
 #include "linux/videodev2.h"
+#include "driver/gpio.h"
 #include "driver/ledc.h"
 #include "soc/soc_caps.h"       // SOC_LEDC_CHANNEL_NUM
 #include "driver/i2c_master.h"  // i2c_master_bus_handle_t, which the CSI config carries with or without USE_I2C
@@ -410,8 +411,8 @@ bool ESPVideoCamera::start_pipeline_init_() {
   // esp_video_init() only probes for a MIPI sensor when config->csi is set, so
   // leave it NULL for a USB-only board.
   // Start XCLK via LEDC if requested (MIPI sensors need it before init).
-  if (!uvc_only && this->enable_xclk_init_ && this->xclk_pin_ != (gpio_num_t) -1) {
-    const esp_err_t err = init_xclk_ledc(this->xclk_pin_, this->xclk_freq_);
+  if (!uvc_only && this->xclk_pin_ >= 0) {
+    const esp_err_t err = init_xclk_ledc((gpio_num_t) this->xclk_pin_, this->xclk_freq_);
     if (err != ESP_OK) {
       ESP_LOGE(TAG, "Could not generate the sensor clock on GPIO%d at %u Hz: %s", (int) this->xclk_pin_,
                (unsigned) this->xclk_freq_, esp_err_to_name(err));
@@ -1331,7 +1332,7 @@ void ESPVideoCamera::dump_config() {
     // wrong on a sensor that never answers.
     char generated[40];
     const char *xclk = "left to the board";
-    if (this->enable_xclk_init_) {
+    if (this->xclk_pin_ >= 0) {
       snprintf(generated, sizeof(generated), "GPIO%d at %u Hz", (int) this->xclk_pin_, (unsigned) this->xclk_freq_);
       xclk = generated;
     }

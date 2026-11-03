@@ -58,7 +58,6 @@ CONF_MAX_FRAMERATE = "max_framerate"
 CONF_SENSOR_MODEL = "sensor_model"
 CONF_XCLK_PIN = "xclk_pin"
 CONF_XCLK_FREQUENCY = "xclk_frequency"
-CONF_ENABLE_XCLK = "enable_xclk"
 CONF_USB_PERIPHERAL_MAP = "usb_peripheral_map"
 
 # Output formats each supported sensor ships in esp_cam_sensor 2.3.0.
@@ -174,15 +173,6 @@ def _xclk_pin(value):
     return pins.internal_gpio_output_pin_number(value)
 
 
-def _validate_xclk(config):
-    if config[CONF_ENABLE_XCLK] and config.get(CONF_XCLK_PIN, -1) == -1:
-        raise cv.Invalid(
-            "enable_xclk: true needs an xclk_pin: to generate the clock on.",
-            path=[CONF_XCLK_PIN],
-        )
-    return config
-
-
 def _validate_i2c_bus(config):
     if _is_uvc(config[CONF_DEVICE]) or CONF_I2C_ID in config:
         return config
@@ -294,10 +284,9 @@ CONFIG_SCHEMA = cv.All(
             # and defaulting to a pin means every one of those configs is told
             # off for naming a strapping pin it never touches.
             cv.Optional(CONF_XCLK_PIN): _xclk_pin,
-            cv.Optional(CONF_XCLK_FREQUENCY, default=24000000): cv.int_range(
-                min=1000000, max=40000000
+            cv.Optional(CONF_XCLK_FREQUENCY, default="24MHz"): cv.All(
+                cv.frequency, cv.int_range(min=1000000, max=40000000)
             ),
-            cv.Optional(CONF_ENABLE_XCLK, default=False): cv.boolean,
             # The ESP32-P4 has two USB controllers, and a board wires its host
             # connector to one of them. 0 is the target default -- the
             # High-Speed one -- which is right for most boards; a bit mask
@@ -323,7 +312,6 @@ CONFIG_SCHEMA = cv.All(
     # internal RAM can hold.
     cv.requires_component(PSRAM_DOMAIN),
     _validate_i2c_bus,
-    _validate_xclk,
     _validate_resolution_for_sensor,
     # Last, because unlike the others it changes state outside this component:
     # a configuration that is going to be rejected must not have moved the
@@ -384,15 +372,10 @@ async def to_code(config):
     if (i2c_id := config.get(CONF_I2C_ID)) is not None:
         i2c_bus = await cg.get_variable(i2c_id)
         cg.add(var.set_i2c_bus(i2c_bus))
-    cg.add(
-        var.set_xclk_pin(
-            cg.RawExpression(
-                f"static_cast<gpio_num_t>({config.get(CONF_XCLK_PIN, -1)})"
-            )
-        )
-    )
-    cg.add(var.set_xclk_freq(config[CONF_XCLK_FREQUENCY]))
-    cg.add(var.set_enable_xclk_init(config[CONF_ENABLE_XCLK]))
+    # Setting a pin is what turns the clock on; -1 leaves it to the board.
+    if (xclk_pin := config.get(CONF_XCLK_PIN, -1)) >= 0:
+        cg.add(var.set_xclk_pin(xclk_pin))
+        cg.add(var.set_xclk_freq(config[CONF_XCLK_FREQUENCY]))
     cg.add(var.set_usb_peripheral_map(config[CONF_USB_PERIPHERAL_MAP]))
 
     if (resolution := config[CONF_RESOLUTION]) != "auto":

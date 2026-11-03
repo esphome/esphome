@@ -14,8 +14,6 @@
 #include "esphome/components/i2c/i2c.h"
 #endif  // USE_I2C
 
-#include "driver/gpio.h"
-
 #include <atomic>
 #include <memory>
 #include <vector>
@@ -81,9 +79,8 @@ class ESPVideoCamera : public camera::Camera {
 #ifdef USE_I2C
   void set_i2c_bus(i2c::InternalI2CBus *bus) { this->i2c_bus_ = bus; }
 #endif  // USE_I2C
-  void set_xclk_pin(gpio_num_t pin) { this->xclk_pin_ = pin; }
+  void set_xclk_pin(int8_t pin) { this->xclk_pin_ = pin; }
   void set_xclk_freq(uint32_t freq) { this->xclk_freq_ = freq; }
-  void set_enable_xclk_init(bool enable) { this->enable_xclk_init_ = enable; }
   void set_usb_peripheral_map(unsigned map) { this->usb_peripheral_map_ = map; }
 
   // Camera platform configuration ----------------------------------------------
@@ -144,10 +141,9 @@ class ESPVideoCamera : public camera::Camera {
   // Pipeline
 #ifdef USE_I2C
   i2c::InternalI2CBus *i2c_bus_{nullptr};
-#endif  // USE_I2C
-  gpio_num_t xclk_pin_{GPIO_NUM_36};
+#endif                   // USE_I2C
+  int8_t xclk_pin_{-1};  // -1: the board drives the sensor clock
   uint32_t xclk_freq_{24000000};
-  bool enable_xclk_init_{false};
   // Which of the ESP32-P4's two USB controllers the host port hangs off. Zero
   // is the target's default (the High-Speed one), which is right for most
   // boards; a bit mask names a specific controller for those it is not.

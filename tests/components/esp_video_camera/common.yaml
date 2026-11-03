@@ -8,5 +8,7 @@ esp_video_camera:
   # "auto" default) is the other path.
   sensor_model: sc202cs
   resolution: 1600x900
+  xclk_pin: GPIO20
+  xclk_frequency: 20MHz
   jpeg_quality: 80
   max_framerate: 10
