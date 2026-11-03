@@ -68,9 +68,6 @@ class SX1509Component final : public Component,
   bool digital_read_cache(uint8_t pin) override;            // NOLINT(readability-identifier-naming)
   void digital_write_hw(uint8_t pin, bool value) override;  // NOLINT(readability-identifier-naming)
 
-  /// 16-bit version of I2CDevice::update_register() for the B/A register pairs; skips the write after a failed read
-  bool update_register_16_(uint8_t a_register, uint16_t mask, uint16_t value);
-
   uint32_t clk_x_ = 2000000;
   uint8_t frequency_ = 0;
   uint16_t ddr_mask_ = 0x00;
@@ -91,6 +88,8 @@ class SX1509Component final : public Component,
   uint32_t last_loop_timestamp_ = 0;
   const uint32_t min_loop_period_ = 15;  // ms
 
+  /// 16-bit update_register() for the B/A register pairs
+  bool update_register_16_(uint8_t a_register, uint16_t mask, uint16_t value);
   void setup_keypad_();
   void set_debounce_config_(uint8_t config_value);
   void set_debounce_time_(uint8_t time);

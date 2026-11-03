@@ -88,11 +88,14 @@ bool SX1509Component::digital_read_cache(uint8_t pin) {
 }
 
 void SX1509Component::digital_write_hw(uint8_t pin, bool bit_value) {
-  if ((~this->ddr_mask_) & (1 << pin)) {
-    // If the pin is an output, write high/low
-    assign_bits(this->output_state_, 1 << pin, bit_value);
-    // Outputs take the shadow state, inputs keep what was read
-    this->update_register_16_(REG_DATA_B, ~this->ddr_mask_, this->output_state_);
+  const uint16_t bit = 1 << pin;
+  if ((~this->ddr_mask_) & bit) {
+    assign_bits(this->output_state_, bit, bit_value);
+    // Outputs take the shadow state, inputs keep what was read. Unlike update_register_16_(), a failed read
+    // still writes, since every output bit comes from the shadow.
+    uint16_t data = 0;
+    this->read_byte_16(REG_DATA_B, &data);
+    this->write_byte_16(REG_DATA_B, (data & this->ddr_mask_) | (this->output_state_ & ~this->ddr_mask_));
   }
 }
 
@@ -114,10 +117,6 @@ void SX1509Component::pin_mode(uint8_t pin, gpio::Flags flags) {
     } else {
       ESP_LOGD(TAG, "Output Mode for %u", pin);
     }
-
-    // Set direction to output
-    this->ddr_mask_ &= ~bit;
-    this->write_byte_16(REG_DIR_B, this->ddr_mask_);
   } else {
     ESP_LOGD(TAG, "Input Mode for %u", pin);
 
@@ -125,11 +124,10 @@ void SX1509Component::pin_mode(uint8_t pin, gpio::Flags flags) {
     this->update_register_16_(REG_INPUT_DISABLE_B, bit, 0);
     this->update_register_16_(REG_PULL_UP_B, bit, (flags & gpio::FLAG_PULLUP) ? bit : 0);
     this->update_register_16_(REG_PULL_DOWN_B, bit, (flags & gpio::FLAG_PULLDOWN) ? bit : 0);
-
-    // Set direction to input
-    this->ddr_mask_ |= bit;
-    this->write_byte_16(REG_DIR_B, this->ddr_mask_);
   }
+  // A set direction bit makes the pin an input
+  assign_bits(this->ddr_mask_, bit, !(flags & gpio::FLAG_OUTPUT));
+  this->write_byte_16(REG_DIR_B, this->ddr_mask_);
 }
 
 void SX1509Component::setup_led_driver(uint8_t pin) {
