@@ -254,6 +254,9 @@ class AsyncWebServer {
   const char *ssl_certificate_{nullptr};
   const char *ssl_private_key_{nullptr};
   bool ssl_running_{false};
+  uint16_t running_port_{};  // port_ of the running listener; port_ may already hold the next one
+  Mutex close_lock_;         // held by close_fn while closing, and by shutdown_clients_()
+  void shutdown_clients_();
 #endif
   static esp_err_t request_handler(httpd_req_t *r);
   static esp_err_t request_post_handler(httpd_req_t *r);
