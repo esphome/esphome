@@ -164,3 +164,56 @@ TEST(RadioOperation, FailedModeChangeAndColdSleepRequireConfiguration) {
 }
 
 }  // namespace esphome::sx126x::testing
+
+namespace esphome::sx126x::testing {
+TEST(RadioOperation, AsyncContinuationOwnsRadioUntilOneCompletion) {
+  RadioOperation operation;
+  ASSERT_TRUE(operation.configure([]() { return true; }));
+  unsigned restored = 0;
+  auto restore = [&]() {
+    restored++;
+    return true;
+  };
+  EXPECT_EQ(operation.start_transmit([]() { return true; }, restore), SX126xError::NONE);
+  EXPECT_TRUE(operation.is_waiting_for_transmit());
+  EXPECT_FALSE(operation.is_ready());
+  bool prepared_again = false;
+  EXPECT_EQ(operation.start_transmit(
+                [&]() {
+                  prepared_again = true;
+                  return true;
+                },
+                restore),
+            SX126xError::SX126X_ERROR_BUSY);
+  EXPECT_FALSE(prepared_again);
+  EXPECT_EQ(restored, 0u);
+  EXPECT_EQ(operation.finish_transmit(SX126xError::TIMEOUT, restore), SX126xError::TIMEOUT);
+  EXPECT_TRUE(operation.is_ready());
+  EXPECT_EQ(restored, 1u);
+  EXPECT_EQ(operation.finish_transmit(SX126xError::NONE, restore), SX126xError::SX126X_ERROR_NOT_READY);
+  EXPECT_EQ(restored, 1u);
+}
+
+TEST(RadioOperation, AsyncStartAndCompletionFailuresBothRequireRestoration) {
+  for (bool prepared : {false, true}) {
+    RadioOperation operation;
+    ASSERT_TRUE(operation.configure([]() { return true; }));
+    unsigned restored = 0;
+    auto restore = [&]() {
+      restored++;
+      return false;
+    };
+    const auto result = operation.start_transmit([&]() { return prepared; }, restore);
+    EXPECT_EQ(result, prepared ? SX126xError::NONE : SX126xError::SX126X_ERROR_BUSY_TIMEOUT);
+    if (prepared) {
+      EXPECT_EQ(operation.finish_transmit(SX126xError::NONE, restore), SX126xError::SX126X_ERROR_BUSY_TIMEOUT);
+    }
+    EXPECT_EQ(restored, 1u);
+    EXPECT_FALSE(operation.is_ready());
+    EXPECT_FALSE(operation.is_active());
+    EXPECT_EQ(operation.transmit_admission(), SX126xError::SX126X_ERROR_NOT_READY);
+    ASSERT_TRUE(operation.configure([]() { return true; }));
+    EXPECT_TRUE(operation.is_ready());
+  }
+}
+}  // namespace esphome::sx126x::testing

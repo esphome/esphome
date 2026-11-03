@@ -8,7 +8,8 @@ enum class SX126xError {
   INVALID_PARAMS,
   SX126X_ERROR_NOT_READY,
   SX126X_ERROR_BUSY_TIMEOUT,
-  SX126X_ERROR_BUSY
+  SX126X_ERROR_BUSY,
+  SX126X_ERROR_CANCELLED
 };
 
 // Owns readiness across whole radio operations, not individual SPI exchanges.
@@ -56,24 +57,43 @@ class RadioOperation {
     return success;
   }
 
-  // Every return from prepare/wait comes back here before readiness can be restored.
-  // A failed preparation still requires restoration; a failed restoration overrides the TX result.
+  // The blocking runner and asynchronous continuation share admission and restoration.
   template<typename Prepare, typename Wait, typename Restore>
   [[nodiscard]] SX126xError transmit(Prepare &&prepare, Wait &&wait, Restore &&restore) {
+    const auto admission = this->start_transmit(prepare, restore);
+    if (admission != SX126xError::NONE) {
+      return admission;
+    }
+    Attempt waiting(*this, State::STATE_TRANSMITTING);
+    const auto result = this->finish_transmit(wait(), restore);
+    waiting.release();
+    return result;
+  }
+
+  // Preparation is synchronous. Failure always restores here; success retains ownership
+  // until finish_transmit(), so callers cannot re-admit the radio during packet airtime.
+  template<typename Prepare, typename Restore>
+  [[nodiscard]] SX126xError start_transmit(Prepare &&prepare, Restore &&restore) {
     const auto admission = this->transmit_admission();
     if (admission != SX126xError::NONE) {
       return admission;
     }
     Attempt attempt(*this, State::STATE_PREPARING_TX);
-    auto result = SX126xError::SX126X_ERROR_BUSY_TIMEOUT;
-    if (prepare()) {
-      this->state_ = State::STATE_TRANSMITTING;
-      result = wait();
+    if (!prepare()) {
+      return this->restore_(SX126xError::SX126X_ERROR_BUSY_TIMEOUT, restore, attempt);
     }
-    this->state_ = State::STATE_RESTORING;
-    const bool restored = restore();
-    attempt.finish(restored ? State::STATE_IDLE : State::STATE_RECOVERY_REQUIRED);
-    return restored ? result : SX126xError::SX126X_ERROR_BUSY_TIMEOUT;
+    attempt.finish(State::STATE_TRANSMITTING);
+    return SX126xError::NONE;
+  }
+
+  bool is_waiting_for_transmit() const { return this->state_ == State::STATE_TRANSMITTING; }
+
+  template<typename Restore> [[nodiscard]] SX126xError finish_transmit(SX126xError result, Restore &&restore) {
+    if (!this->is_waiting_for_transmit()) {
+      return SX126xError::SX126X_ERROR_NOT_READY;
+    }
+    Attempt attempt(*this, State::STATE_RESTORING);
+    return this->restore_(result, restore, attempt);
   }
 
  private:
@@ -89,7 +109,7 @@ class RadioOperation {
   };
 
   // If the owner itself gains an unexpected early exit, it fails closed.
-  // Fallible hardware restoration belongs in transmit(), where its result is reported.
+  // Fallible hardware restoration belongs in restore_(), where its result is reported.
   class Attempt {
    public:
     Attempt(RadioOperation &owner, State phase, State failure = State::STATE_RECOVERY_REQUIRED)
@@ -105,14 +125,21 @@ class RadioOperation {
     Attempt &operator=(const Attempt &) = delete;
     void finish(State state) {
       this->owner_.state_ = state;
-      this->finished_ = true;
+      this->release();
     }
+    void release() { this->finished_ = true; }
 
    private:
     RadioOperation &owner_;
     State failure_;
     bool finished_{false};
   };
+  template<typename Restore> SX126xError restore_(SX126xError result, Restore &&restore, Attempt &attempt) {
+    this->state_ = State::STATE_RESTORING;
+    const bool restored = restore();
+    attempt.finish(restored ? State::STATE_IDLE : State::STATE_RECOVERY_REQUIRED);
+    return restored ? result : SX126xError::SX126X_ERROR_BUSY_TIMEOUT;
+  }
   State state_{State::STATE_UNCONFIGURED};
 };
 

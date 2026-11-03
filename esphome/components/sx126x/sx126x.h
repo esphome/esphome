@@ -13,6 +13,11 @@ namespace esphome::sx126x {
 
 static constexpr size_t SX126X_MAX_PACKET_SIZE = 255;
 
+class SX126xTransmitListener {
+ public:
+  virtual void on_transmit_complete(SX126xError result) = 0;
+};
+
 class SX126xListener {
  public:
   virtual void on_packet(const std::vector<uint8_t> &packet, float rssi, float snr) = 0;
@@ -94,21 +99,57 @@ class SX126x final : public Component {
   SX126xError transmit_packet(const std::vector<uint8_t> &packet) {
     return this->transmit_packet(packet.data(), packet.size());
   }
+  // Main-loop context only. NONE accepts one operation and promises one completion.
+  // Data is copied into the chip FIFO before return; listener must outlive completion.
+  // Pending RX rejects admission with BUSY, without dispatching callbacks or consuming RX.
+  // Timeout: 1..262143 ms. SPI/BUSY waits are synchronous; airtime is asynchronous.
+  [[nodiscard]] SX126xError start_transmit_async(SX126xTransmitListener *listener, const uint8_t *data, size_t len,
+                                                 uint32_t timeout_ms = 4000);
+  [[nodiscard]] SX126xError start_transmit_async(SX126xTransmitListener *listener, const std::vector<uint8_t> &packet,
+                                                 uint32_t timeout_ms = 4000) {
+    return this->start_transmit_async(listener, packet.data(), packet.size(), timeout_ms);
+  }
+  // Normal completion runs in loop(); cancellation completes synchronously in its caller.
+  // Ownership is released before callbacks, which may start another operation if recovery
+  // succeeded. True accepts cancellation; the completion result reports cleanup failure.
+  bool cancel_transmit_async(SX126xTransmitListener *listener);
+  bool is_transmitting() const;
   void register_listener(SX126xListener *listener) { this->listeners_.push_back(listener); }
   Trigger<std::vector<uint8_t>, float, float> *get_packet_trigger() { return &this->packet_trigger_; }
 
  private:
-  static void gpio_intr(SX126x *arg);
+  static void IRAM_ATTR gpio_intr(SX126x *arg) { arg->enable_loop_soon_any_context(); }
   void call_listeners_(const std::vector<uint8_t> &packet, float rssi, float snr);
+  // Completion data only; RadioOperation owns admission and readiness.
+  struct TxOperation {
+    SX126xTransmitListener *listener{nullptr};
+    uint32_t started_ms{0};
+    uint32_t timeout_ms{0};
+  };
+  // This borrow scope prevents all recursive packet-buffer mutation during delivery.
+  class RxDelivery {
+   public:
+    explicit RxDelivery(bool &active) : active_(active) { this->active_ = true; }
+    ~RxDelivery() { this->active_ = false; }
+    RxDelivery(const RxDelivery &) = delete;
+    RxDelivery &operator=(const RxDelivery &) = delete;
+
+   private:
+    bool &active_;
+  };
+  bool can_change_mode_();
   bool restore_after_transmit_();
+  void poll_transmit_(uint32_t now);
+  void finish_transmit_(SX126xError result);
   RadioOperation operation_;
-  bool prepare_transmit_(const uint8_t *data, size_t len);
-  SX126xError wait_for_transmit_();
+  bool prepare_transmit_(const uint8_t *data, size_t len, uint32_t timeout_ms);
   template<typename Command> void change_mode_(Command &&command, bool retains_configuration = true) {
-    if (this->operation_.change_mode(command, retains_configuration)) {
+    if (this->can_change_mode_() && this->operation_.change_mode(command, retains_configuration)) {
       this->enable_loop();
     }
   }
+  TxOperation tx_;
+  bool rx_dispatching_{false};
   bool command_result_(bool success);
   Sx126xSpiDevice spi_device_;
   Sx126xCommands commands_{this->spi_device_};

@@ -14,6 +14,8 @@ enum class ConfigurationResult {
 // Results describe command exchange; TX completion is a separate IRQ operation.
 class Sx126xCommands {
  public:
+  Sx126xCommands(const Sx126xCommands &) = delete;
+  Sx126xCommands &operator=(const Sx126xCommands &) = delete;
   explicit Sx126xCommands(Sx126xSpiDevice &spi_device) : spi_device_(spi_device) {}
   [[nodiscard]] ConfigurationResult configure(const RadioProfile &profile, std::span<char, 16> version);
   [[nodiscard]] bool set_packet_params(const RadioProfile &profile, uint8_t length);

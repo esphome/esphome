@@ -9,6 +9,9 @@ namespace esphome::sx126x {
 // No raw SPI access escapes. Call only from the main loop; spans are borrowed until return.
 class Sx126xSpiDevice {
  public:
+  Sx126xSpiDevice() = default;
+  Sx126xSpiDevice(const Sx126xSpiDevice &) = delete;
+  Sx126xSpiDevice &operator=(const Sx126xSpiDevice &) = delete;
   void set_spi_parent(spi::SPIComponent *parent) { this->device_.set_spi_parent(parent); }
   void set_cs_pin(GPIOPin *pin) { this->device_.set_cs_pin(pin); }
   void set_data_rate(uint32_t rate) { this->device_.set_data_rate(rate); }

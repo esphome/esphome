@@ -1,4 +1,5 @@
 sx126x:
+  id: sx126x_radio
   dio1_pin: ${dio1_pin}
   cs_pin: ${cs_pin}
   busy_pin: ${busy_pin}
@@ -57,6 +58,25 @@ button:
         # Same bytes as above on purpose: equal payloads share one flash table
         - sx126x.send_packet: [0xC5, 0x51, 0x78, 0x82, 0xB7, 0xF9, 0x9C, 0x5C]
         - sx126x.send_packet: "hello"
+
+  - platform: template
+    name: "SX126x Async Send or Cancel"
+    on_press:
+      - lambda: |-
+          class Listener : public sx126x::SX126xTransmitListener {
+           public:
+            void on_transmit_complete(sx126x::SX126xError result) override {
+              ESP_LOGD("sx126x_test", "Async completion: %d", static_cast<int>(result));
+            }
+          };
+          static Listener listener;
+          if (id(sx126x_radio).is_transmitting()) {
+            id(sx126x_radio).cancel_transmit_async(&listener);
+          } else {
+            const uint8_t data[] = {0x11, 0x22, 0x33};
+            auto result = id(sx126x_radio).start_transmit_async(&listener, data, sizeof(data), 4000);
+            ESP_LOGD("sx126x_test", "Async admission: %d", static_cast<int>(result));
+          }
 
 packet_transport:
   - platform: sx126x

@@ -10,9 +10,8 @@ static constexpr uint32_t RESET_DELAY_HIGH_US = 5000;
 static constexpr uint32_t RESET_DELAY_LOW_US = 2000;
 static constexpr uint32_t TRANSMIT_TIMEOUT_MS = 4000;
 
-void IRAM_ATTR SX126x::gpio_intr(SX126x *arg) { arg->enable_loop_soon_any_context(); }
-
 void SX126x::setup() {
+  this->packet_.reserve(SX126X_MAX_PACKET_SIZE);
   // setup pins
   this->busy_pin_->setup();
   this->rst_pin_->setup();
@@ -27,11 +26,27 @@ void SX126x::setup() {
 
   // configure rf
   if (!this->configure_() && !this->is_failed()) {
-    this->mark_failed(LOG_STR("Wait busy timeout"));
+    this->mark_failed(LOG_STR("Radio configuration failed"));
   }
 }
 
-void SX126x::configure() { this->configure_(); }
+void SX126x::configure() {
+  if (this->operation_.is_active() || this->rx_dispatching_) {
+    ESP_LOGW(TAG, "Radio operation in progress, configuration ignored");
+    return;
+  }
+  this->configure_();
+}
+
+bool SX126x::can_change_mode_() {
+  if (this->operation_.is_ready() && !this->rx_dispatching_) {
+    return true;
+  }
+  ESP_LOGW(TAG, "Radio unavailable, mode change ignored");
+  return false;
+}
+
+bool SX126x::is_transmitting() const { return this->operation_.is_transmitting(); }
 
 bool SX126x::configure_() {
   if (this->is_failed()) {
@@ -57,7 +72,7 @@ bool SX126x::apply_configuration_() {
   delayMicroseconds(RESET_DELAY_HIGH_US);
   const auto result = this->commands_.configure(this->requested_profile_, this->version_);
   if (result == ConfigurationResult::CONFIGURATION_RESULT_UNSUPPORTED) {
-    this->mark_failed(LOG_STR("Unsupported chip version"));
+    this->status_set_warning(LOG_STR("Unsupported chip version"));
     return false;
   }
   if (!this->command_result_(result == ConfigurationResult::CONFIGURATION_RESULT_OK)) {
@@ -70,50 +85,72 @@ bool SX126x::apply_configuration_() {
 size_t SX126x::get_max_packet_size() { return this->active_profile_.max_packet_size(); }
 
 SX126xError SX126x::transmit_packet(const uint8_t *data, size_t len) {
-  // Callers such as a template number's on_value can run before setup() or after a failed setup
+  class Completion : public SX126xTransmitListener {
+   public:
+    void on_transmit_complete(SX126xError result) override {
+      this->result = result;
+      this->done = true;
+    }
+    SX126xError result{SX126xError::NONE};
+    bool done{false};
+  } completion;
+  const auto admitted = this->start_transmit_async(&completion, data, len, TRANSMIT_TIMEOUT_MS);
+  if (admitted != SX126xError::NONE) {
+    return admitted;
+  }
+  while (!completion.done) {
+    App.feed_wdt();
+    this->poll_transmit_(millis());
+  }
+  return completion.result;
+}
+
+SX126xError SX126x::start_transmit_async(SX126xTransmitListener *listener, const uint8_t *data, size_t len,
+                                         uint32_t timeout_ms) {
   if (!this->is_ready()) {
-    ESP_LOGW(TAG, "Radio not ready, packet dropped");
     return SX126xError::SX126X_ERROR_NOT_READY;
   }
   const auto admission = this->operation_.transmit_admission();
   if (admission != SX126xError::NONE) {
     return admission;
   }
-  if (this->active_profile_.payload_length > 0 && this->active_profile_.payload_length != len) {
-    ESP_LOGE(TAG, "Packet size does not match config");
-    return SX126xError::INVALID_PARAMS;
-  }
-  if (data == nullptr || len == 0 || len > this->get_max_packet_size()) {
-    ESP_LOGE(TAG, "Packet size out of range");
+  if (listener == nullptr || data == nullptr || len == 0 || len > this->get_max_packet_size() ||
+      (this->active_profile_.payload_length > 0 && len != this->active_profile_.payload_length) || timeout_ms == 0 ||
+      timeout_ms > 262143) {
     return SX126xError::INVALID_PARAMS;
   }
 
-  const auto result = this->operation_.transmit(
-      [this, data, len]() { return this->command_result_(this->prepare_transmit_(data, len)); },
-      [this]() { return this->wait_for_transmit_(); },
-      [this]() { return this->command_result_(this->restore_after_transmit_()); });
-  if (this->operation_.is_ready()) {
-    this->enable_loop();
-  }
-  return result;
-}
-
-bool SX126x::prepare_transmit_(const uint8_t *data, size_t len) {
-  return this->commands_.standby(STDBY_XOSC) &&
-         (this->active_profile_.payload_length != 0 || this->commands_.set_packet_params(this->active_profile_, len)) &&
-         this->commands_.write_fifo(data, len) && this->commands_.clear_irqs() && this->commands_.transmit();
-}
-
-SX126xError SX126x::wait_for_transmit_() {
-  const uint32_t start = millis();
-  while (!this->dio1_pin_->digital_read()) {
-    App.feed_wdt();
-    if (millis() - start > TRANSMIT_TIMEOUT_MS) {
-      ESP_LOGE(TAG, "Transmit packet failure");
-      return SX126xError::TIMEOUT;
+  // Admission never reads a packet or invokes a callback: borrowed RX data stays stable.
+  if (this->dio1_pin_->digital_read()) {
+    uint16_t status;
+    if (!this->command_result_(this->commands_.read_irq(status))) {
+      return SX126xError::SX126X_ERROR_BUSY_TIMEOUT;
+    }
+    if (status & IRQ_RX_DONE) {
+      this->enable_loop();
+      return SX126xError::SX126X_ERROR_BUSY;
     }
   }
+  this->tx_ = {listener, 0, timeout_ms};
+  const auto result = this->operation_.start_transmit(
+      [this, data, len, timeout_ms]() { return this->command_result_(this->prepare_transmit_(data, len, timeout_ms)); },
+      [this]() { return this->command_result_(this->restore_after_transmit_()); });
+  if (result != SX126xError::NONE) {
+    this->tx_ = {};
+    if (this->operation_.is_ready()) {
+      this->enable_loop();
+    }
+    return result;
+  }
+  this->tx_.started_ms = millis();
+  this->enable_loop();
   return SX126xError::NONE;
+}
+
+bool SX126x::prepare_transmit_(const uint8_t *data, size_t len, uint32_t timeout_ms) {
+  return this->commands_.standby(STDBY_XOSC) && this->commands_.clear_irqs() &&
+         (this->active_profile_.payload_length != 0 || this->commands_.set_packet_params(this->active_profile_, len)) &&
+         this->commands_.write_fifo(data, len) && this->commands_.transmit(timeout_ms);
 }
 
 bool SX126x::restore_after_transmit_() {
@@ -123,7 +160,49 @@ bool SX126x::restore_after_transmit_() {
          (this->active_profile_.rx_start ? this->commands_.receive() : this->commands_.sleep());
 }
 
+void SX126x::finish_transmit_(SX126xError result) {
+  if (!this->operation_.is_waiting_for_transmit()) {
+    return;
+  }
+  result = this->operation_.finish_transmit(
+      result, [this]() { return this->command_result_(this->restore_after_transmit_()); });
+  auto *listener = this->tx_.listener;
+  this->tx_ = {};
+  listener->on_transmit_complete(result);
+}
+
+bool SX126x::cancel_transmit_async(SX126xTransmitListener *listener) {
+  if (!this->operation_.is_waiting_for_transmit() || listener == nullptr || listener != this->tx_.listener) {
+    return false;
+  }
+  this->finish_transmit_(SX126xError::SX126X_ERROR_CANCELLED);
+  return true;
+}
+
+void SX126x::poll_transmit_(uint32_t now) {
+  if (!this->operation_.is_waiting_for_transmit()) {
+    return;
+  }
+  if (this->dio1_pin_->digital_read()) {
+    uint16_t status;
+    if (!this->command_result_(this->commands_.read_irq(status)) ||
+        !this->command_result_(this->commands_.clear_irqs(status))) {
+      this->finish_transmit_(SX126xError::SX126X_ERROR_BUSY_TIMEOUT);
+      return;
+    }
+    if (status & (IRQ_TX_DONE | IRQ_RX_TX_TIMEOUT)) {
+      this->finish_transmit_((status & IRQ_RX_TX_TIMEOUT) ? SX126xError::TIMEOUT : SX126xError::NONE);
+      return;
+    }
+  }
+  // A cached loop tick can precede admission; signed subtraction also handles wraparound.
+  if (static_cast<int32_t>(now - this->tx_.started_ms) >= static_cast<int32_t>(this->tx_.timeout_ms)) {
+    this->finish_transmit_(SX126xError::TIMEOUT);
+  }
+}
+
 void SX126x::call_listeners_(const std::vector<uint8_t> &packet, float rssi, float snr) {
+  RxDelivery delivery(this->rx_dispatching_);
   for (auto &listener : this->listeners_) {
     listener->on_packet(packet, rssi, snr);
   }
@@ -131,7 +210,14 @@ void SX126x::call_listeners_(const std::vector<uint8_t> &packet, float rssi, flo
 }
 
 void SX126x::loop() {
-  if (this->is_failed() || !this->operation_.is_ready()) {
+  if (this->rx_dispatching_ || this->is_failed()) {
+    return;
+  }
+  if (this->operation_.is_waiting_for_transmit()) {
+    this->poll_transmit_(App.get_loop_component_start_time());
+    return;
+  }
+  if (!this->operation_.is_ready()) {
     return;
   }
   if (!this->dio1_pin_->digital_read()) {

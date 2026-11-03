@@ -1,4 +1,4 @@
-# SX126x command transport
+# SX126x implementation
 
 This note describes implementation boundaries for driver maintainers. User-facing
 configuration belongs in esphome.io; C++ borrowing and completion contracts belong
@@ -40,20 +40,22 @@ checked 2026-11-02).
 ## Life of a transmission
 
 After configuration, the radio normally listens or sleeps according to its
-configured policy. A send first validates readiness and the payload. Once admitted,
-`RadioOperation` owns three sub-flows:
+applied profile. A send first validates readiness and the payload. A pending
+received packet rejects admission with BUSY so `loop()` can deliver it first.
+Once admitted, `RadioOperation` owns three sub-flows:
 
-1. **Prepare:** enter standby, set packet parameters, copy the payload into the
-   chip buffer, clear stale event flags and start TX. These are several separate
+1. **Prepare:** enter standby, clear stale event flags, set packet parameters,
+   copy the payload into the chip buffer and start TX. These are several separate
    SPI exchanges, ending with the command that starts transmission.
 2. **Wait:** the chip sends the packet over the air. The radio remains reserved,
-   but SPI is free between exchanges. The blocking caller waits for DIO1 or the
-   software deadline. The chip can transmit or receive, but not both at once.
+   but SPI is free between exchanges. `loop()` checks event flags and the software
+   deadline; TX-done, timeout or cancellation ends the wait. The chip can transmit
+   or receive, but not both at once.
 3. **Restore:** enter standby, clear event flags, restore packet parameters and
    resume configured reception or warm sleep. Only then can the operation finish
    and the result be reported.
 
-The diagram shows a successful blocking transmission. The outer shaded region
+The diagram shows a successful asynchronous transmission. The outer shaded region
 marks `RadioOperation` ownership; the inner regions mark Prepare, Wait and Restore.
 Each loop iteration is a separate `Sx126xSpiDevice::exchange_()` call. Ownership is
 driver state, not a thread lock or a continuously selected SPI device.
@@ -64,8 +66,8 @@ sequenceDiagram
     participant D as SX126x driver
     participant R as Radio chip
 
-    C->>D: Request transmission
-    D->>D: Validate readiness and payload
+    C->>D: start_transmit_async()
+    D->>D: Validate readiness, payload and pending RX
     rect rgba(128, 128, 128, 0.08)
         Note over D,R: RadioOperation boundary begins
         rect rgba(128, 128, 128, 0.12)
@@ -76,12 +78,20 @@ sequenceDiagram
                 D->>R: SPI opcode and parameters / packet bytes
                 D->>R: NSS high: deselect
             end
+            D-->>C: Accepted (payload copied, TX started)
         end
         rect rgba(128, 128, 128, 0.12)
-            Note over D,R: WAIT: radio reserved, SPI free
+            Note over D,R: WAIT: radio reserved, SPI free between exchanges
+            Note over C: ESPHome runs other work
             R->>R: Transmit packet over the air
-            D->>D: Wait for event or deadline
+            D->>D: loop() checks event or deadline
             R-->>D: DIO1 event indication
+            loop Read and clear event flags (separate exchanges)
+                D->>R: NSS low: select
+                D->>D: Check BUSY, wait for low (20 ms limit)
+                D->>R: SPI: read / clear event flags
+                D->>R: NSS high: deselect
+            end
         end
         rect rgba(128, 128, 128, 0.12)
             Note over D,R: RESTORE
@@ -94,12 +104,17 @@ sequenceDiagram
         end
         Note over D,R: RadioOperation boundary ends: restored and ready
     end
-    D-->>C: Return transmission result
+    D-->>C: Completion callback with transmission result
 ```
+
+The early return means the send was accepted, not completed. The caller's payload
+buffer is no longer needed, but its completion listener must remain alive.
+The blocking API starts the same operation and polls until completion instead of
+returning early. It therefore holds up other main-loop work during airtime.
 
 The scopes also define failure handling. If BUSY does not clear, the exchange
 releases NSS without clocking an opcode or data. A failed Prepare skips Wait and
-enters Restore; a Wait timeout also enters Restore. Restoration failure leaves
+enters Restore; a Wait timeout or cancellation also enters Restore. Restoration failure leaves
 the operation in `RecoveryRequired` instead of ready, and successful configuration
 is required before reuse. The restoration result takes precedence over TX success.
 Releasing SPI alone cannot establish that packet settings and reception recovered.
@@ -195,3 +210,76 @@ The separation allows configuration encoders to be tested without ESPHome
 lifecycle policy, and lifecycle tests to assert that incomplete configuration
 never permits normal operations. Existing YAML and send/mode entry points remain
 available; runtime setters now explicitly stage changes until configure succeeds.
+
+## Async continuation of the same operation lifecycle
+
+Async support extends the `RadioOperation` owner already used by the synchronous
+driver. `start_transmit()` either restores a failed preparation or retains
+ownership through packet airtime. `finish_transmit()` uses the same restoration
+path and rejects duplicate completion. The synchronous runner also uses these
+two methods. There is no second readiness flag or component-owned state machine.
+
+Both send APIs use the same admission, command preparation, IRQ interpretation,
+deadline and restoration functions. The blocking API supplies a stack completion
+listener and polls the engine while feeding the watchdog. The async API returns
+after preparation; loop() polls it. No thread, queue or per-send allocation is
+introduced. Each component has one `RadioOperation`, whose state is private:
+
+```text
+Unconfigured -> Configuring -> Idle
+Idle -> ChangingMode -> Idle (or Unconfigured after cold sleep)
+Idle -> PreparingTx -> Transmitting -> Restoring -> Idle
+           failure -> Restoring -> RecoveryRequired (if restoration fails)
+RecoveryRequired -> Configuring -> Idle
+```
+
+Configuration errors return to Unconfigured. Initial setup may also mark the
+ESPHome component failed. Preparing and Restoring are real ownership states;
+public mode/configuration requests cannot interrupt them. Failed mode changes
+also enter RecoveryRequired. Idle means available for a driver-managed operation,
+not the physical chip's mode: the radio may be receiving or sleeping.
+One TxOperation stores only the listener and deadline, not lifecycle state.
+Failed admission owes no completion. Accepted sends
+complete once, after attempted restoration and ownership release. A callback can
+start another send only if the state returned to Idle. RecoveryRequired rejects
+sends until an explicit configure succeeds: a failed standby/cleanup cannot be
+reported as recovered hardware. Cold sleep also requires configure before reuse.
+
+TX-done means success; the radio timeout bit takes precedence if both are set.
+Unrelated IRQs never imply success. The software deadline is checked at loop
+cadence even when DIO1 never signals. SPI and BUSY waits remain bounded synchronous
+work. Cancellation is synchronous in its caller; ordinary async completion occurs
+in loop(), never in the ISR. The header documents listener and payload lifetimes.
+
+## Receive borrowing without recursive dispatch
+
+Only loop() reads packets and invokes receive listeners. Admission may inspect IRQ
+status, but never reads a packet, acknowledges pending RX, or invokes user code.
+Pending RX causes BUSY and keeps the loop enabled, letting the application retry
+after delivery. This also applies to the blocking API. Stale TX IRQs do not block
+admission and are cleared during preparation.
+
+A scoped RxDelivery guard prevents recursive loop calls while listeners and
+on_packet automations borrow the packet. A callback may send an echo if no other
+RX is pending; this copies the payload into the chip FIFO without mutating the
+borrowed buffer. Mode/configuration calls during delivery are rejected. The one
+reusable RX vector reserves 255 bytes during setup, avoiding later growth in the
+driver. Listeners must not retain a borrowed reference after callback return;
+existing automation value-copy behavior is unchanged.
+
+## Reading and extending the implementation
+
+- Add byte framing only in Sx126xCommands, using the complete exchange API.
+- Keep GPIO/SPI selection and BUSY timing exclusively in Sx126xSpiDevice.
+- Put admission, readiness and state transitions in RadioOperation. SX126x owns
+  ESPHome scheduling, warnings and callbacks; command functions report results.
+- Do not add callback dispatch to admission, preparation or restoration.
+- Do not hide fallible radio restoration in a destructor. Destructors release
+  selection/borrowing scopes; explicit restoration reports its hardware result.
+- Test new commands through the GPIO-backed fake chip, including every failure
+  boundary. Test both send entry points when changing operation behavior.
+
+Compared with the earlier review drafts, ownership is per operation rather than
+an implicit combination of listener pointers and booleans. Uncertain restoration
+requires reconfiguration, and pending RX is deferred rather than dispatched from
+inside a send. These are intentional contracts, not hardware validation claims.
