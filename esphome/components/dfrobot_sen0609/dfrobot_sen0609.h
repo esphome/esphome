@@ -7,7 +7,7 @@
 #include "esphome/components/binary_sensor/binary_sensor.h"
 #endif
 #ifdef USE_SENSOR
-#include "esphome/components/sensor/sensor.h"
+#include "esphome/components/sensor/sensor_with_dedup.h"
 #endif
 #ifdef USE_TEXT_SENSOR
 #include "esphome/components/text_sensor/text_sensor.h"
@@ -62,12 +62,6 @@ enum SwitchSetting : uint8_t {
   SWITCH_COUNT,
 };
 
-enum ButtonAction : uint8_t {
-  BUTTON_RESTART,
-  BUTTON_FACTORY_RESET,
-  BUTTON_QUERY_PARAMS,
-};
-
 /// Module parameters; a write or read of each is one command. Pending work runs in this order.
 enum Param : uint8_t {
   PARAM_RUN_APP,
@@ -103,9 +97,9 @@ class DFRobotSEN0609Component final : public Component, public uart::UARTDevice 
   SUB_BINARY_SENSOR(has_target)
 #endif
 #ifdef USE_SENSOR
-  SUB_SENSOR(target_distance)
-  SUB_SENSOR(target_speed)
-  SUB_SENSOR(target_energy)
+  SUB_SENSOR_WITH_DEDUP(target_distance, float)
+  SUB_SENSOR_WITH_DEDUP(target_speed, float)
+  SUB_SENSOR_WITH_DEDUP(target_energy, float)
 #endif
 #ifdef USE_TEXT_SENSOR
   SUB_TEXT_SENSOR(version)
@@ -130,6 +124,8 @@ class DFRobotSEN0609Component final : public Component, public uart::UARTDevice 
 #ifdef USE_NUMBER
   void set_number(NumberSetting setting, number::Number *number) { this->numbers_[setting] = number; }
   void control_number(NumberSetting setting, float value);
+  // Finds the setting by pointer so every number shares one Apply function
+  void control_number(number::Number *number, float value);
 #endif
 #ifdef USE_SWITCH
   void set_switch(SwitchSetting setting, switch_::Switch *sw) { this->switches_[setting] = sw; }
@@ -175,9 +171,6 @@ class DFRobotSEN0609Component final : public Component, public uart::UARTDevice 
 #endif
 #ifdef USE_SENSOR
   void publish_target_(float distance, float speed, float energy);
-  Deduplicator<float> distance_dedup_;
-  Deduplicator<float> speed_dedup_;
-  Deduplicator<float> energy_dedup_;
 #endif
 
 #ifdef USE_NUMBER

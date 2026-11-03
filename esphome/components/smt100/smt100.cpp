@@ -38,25 +38,15 @@ void SMT100Component::loop() {
         return;
       float voltage = (float) strtod(token, nullptr);
 
-      if (this->counts_sensor_ != nullptr) {
-        counts_sensor_->publish_state(counts);
-      }
+      PUBLISH_STATE(this->counts_sensor_, counts);
 
-      if (this->permittivity_sensor_ != nullptr) {
-        permittivity_sensor_->publish_state(permittivity);
-      }
+      PUBLISH_STATE(this->permittivity_sensor_, permittivity);
 
-      if (this->moisture_sensor_ != nullptr) {
-        moisture_sensor_->publish_state(moisture);
-      }
+      PUBLISH_STATE(this->moisture_sensor_, moisture);
 
-      if (this->temperature_sensor_ != nullptr) {
-        temperature_sensor_->publish_state(temperature);
-      }
+      PUBLISH_STATE(this->temperature_sensor_, temperature);
 
-      if (this->voltage_sensor_ != nullptr) {
-        voltage_sensor_->publish_state(voltage);
-      }
+      PUBLISH_STATE(this->voltage_sensor_, voltage);
     }
   });
 }
