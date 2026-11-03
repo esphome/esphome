@@ -128,6 +128,7 @@ def test_legacy_usb_stack_options() -> None:
 
     assert prj_conf["CONFIG_USB_DEVICE_STACK"] is True
     assert prj_conf["CONFIG_USB_CDC_ACM"] is True
+    assert prj_conf["CONFIG_UART_LINE_CTRL"] is True
     assert "CONFIG_USBD_CDC_ACM_CLASS" not in prj_conf
     assert not CORE.data[KEY_ZEPHYR][KEY_OVERLAY_BUILDER]
 
@@ -160,6 +161,5 @@ def test_rate_callback_options(version: cv.Version, legacy_option: bool) -> None
     CORE.data[KEY_ZEPHYR] = {KEY_PRJ_CONF: {}}
     zephyr_enable_cdc_acm_rate_callback()
 
-    prj_conf = CORE.data[KEY_ZEPHYR][KEY_PRJ_CONF][""]
-    assert prj_conf["CONFIG_UART_LINE_CTRL"] == (True, True)
+    prj_conf = CORE.data[KEY_ZEPHYR][KEY_PRJ_CONF].get("", {})
     assert ("CONFIG_CDC_ACM_DTE_RATE_CALLBACK_SUPPORT" in prj_conf) is legacy_option

@@ -16,7 +16,7 @@ CdcAcm *const global_cdc_acm = &cdc_acm_instance;
 
 namespace {
 // USB starts in the logger's pre_setup(), before App is constructed, and the host sets a bit rate as soon as the
-// device enumerates. Calling App.scheduler before App exists stalled USB, so rates are only posted once a component
+// device enumerates. App.scheduler must not be used before App exists, so rates are only posted once a component
 // has asked for them in its setup(); start_() then reports the rates set until that point.
 std::atomic<bool> started{false};  // NOLINT(cppcoreguidelines-avoid-non-const-global-variables)
 #if DT_HAS_COMPAT_STATUS_OKAY(zephyr_cdc_acm_uart)

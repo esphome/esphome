@@ -292,12 +292,12 @@ def _disable_board_cdc_acm_overlay() -> str:
 def zephyr_enable_usb_cdc_acm() -> None:
     """Enable the USB device stack with the CDC ACM class."""
     zephyr_add_prj_conf("SERIAL", True)
+    # DTR (port opened) and the bit rate are read with uart_line_ctrl_get()
+    zephyr_add_prj_conf("UART_LINE_CTRL", True)
     if zephyr_use_usb_device_next():
         zephyr_add_prj_conf("USB_DEVICE_STACK", False)
         zephyr_add_prj_conf("USB_DEVICE_STACK_NEXT", True)
         zephyr_add_prj_conf("USBD_CDC_ACM_CLASS", True)
-        # DTR (port opened) and the bit rate are read with uart_line_ctrl_get()
-        zephyr_add_prj_conf("UART_LINE_CTRL", True)
         # The serial number string descriptor is read from the chip ID
         zephyr_add_prj_conf("HWINFO", True)
         # prevent logging when buffer is full
@@ -320,8 +320,6 @@ def zephyr_enable_usb_cdc_acm() -> None:
 def zephyr_enable_cdc_acm_rate_callback() -> None:
     """Make the bit rate a USB host sets on a CDC ACM port reach zephyr::CdcAcm."""
     cg.add_define("USE_ZEPHYR_CDC_ACM_RATE_CALLBACK")
-    # CdcAcm reads the rate with uart_line_ctrl_get()
-    zephyr_add_prj_conf("UART_LINE_CTRL", True)
     # The new stack reports the rate with a USB device message, so it needs no option
     if not zephyr_use_usb_device_next():
         zephyr_add_prj_conf("CDC_ACM_DTE_RATE_CALLBACK_SUPPORT", True)

@@ -137,7 +137,6 @@ async def to_code(config: ConfigType) -> None:
             cg.add_global(uart_ns.using)
             await debug_to_code(debug, interface)
     if CORE.using_zephyr:
-        zephyr_add_prj_conf("UART_LINE_CTRL", True)
         zephyr_enable_cdc_acm_rate_callback()
         if not zephyr_use_usb_device_next():
             # Every CDC ACM instance (the logger's and any the board tree adds) holds a transfer
