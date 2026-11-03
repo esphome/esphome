@@ -5,7 +5,6 @@ from esphome.const import (
     CONF_BASELINE,
     CONF_ECO2,
     CONF_HUMIDITY,
-    CONF_ID,
     CONF_TEMPERATURE,
     CONF_TVOC,
     CONF_VERSION,
@@ -61,23 +60,16 @@ CONFIG_SCHEMA = (
 
 
 async def to_code(config: ConfigType) -> None:
-    var = cg.new_Pvariable(config[CONF_ID])
-    await cg.register_component(var, config)
-    await i2c.register_i2c_device(var, config)
+    var = await i2c.new_i2c_component(config)
 
     sensors = sensor.sub_sensors(config)
-    await sensors(CONF_ECO2, var.set_co2)
-    await sensors(CONF_TVOC, var.set_tvoc)
+    await sensors(CONF_ECO2, var.set_co2_sensor)
+    await sensors(CONF_TVOC, var.set_tvoc_sensor)
 
     text_sensors = text_sensor.sub_text_sensors(config)
-    await text_sensors(CONF_VERSION, var.set_version)
+    await text_sensors(CONF_VERSION, var.set_version_text_sensor)
 
-    if (baseline := config.get(CONF_BASELINE)) is not None:
-        cg.add(var.set_baseline(baseline))
+    cg.add_optional(var.set_baseline, config.get(CONF_BASELINE))
 
-    if temperature_id := config.get(CONF_TEMPERATURE):
-        sens = await cg.get_variable(temperature_id)
-        cg.add(var.set_temperature(sens))
-    if humidity_id := config.get(CONF_HUMIDITY):
-        sens = await cg.get_variable(humidity_id)
-        cg.add(var.set_humidity(sens))
+    await cg.add_variable(var.set_temperature_sensor, config.get(CONF_TEMPERATURE))
+    await cg.add_variable(var.set_humidity_sensor, config.get(CONF_HUMIDITY))

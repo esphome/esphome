@@ -1,5 +1,6 @@
 #include "max31856.h"
 
+#include "esphome/core/helpers.h"
 #include "esphome/core/log.h"
 #include <cmath>
 
@@ -53,12 +54,8 @@ void MAX31856Sensor::read_thermocouple_temperature_() {
     // Faults have been logged, clear it for next loop
     this->clear_fault_();
   } else {
-    int32_t temp24 = this->read_register24_(MAX31856_LTCBH_REG);
-    if (temp24 & 0x800000) {
-      temp24 |= 0xFF000000;  // fix sign
-    }
-
-    temp24 >>= 5;  // bottom 5 bits are unused
+    // bottom 5 bits are unused
+    const int32_t temp24 = sign_extend<24>(this->read_register24_(MAX31856_LTCBH_REG)) >> 5;
 
     float temp_c = temp24;
     temp_c *= 0.0078125;
@@ -94,28 +91,28 @@ bool MAX31856Sensor::has_fault_() {
   this->status_set_warning();
 
   if ((faults & MAX31856_FAULT_CJRANGE) == MAX31856_FAULT_CJRANGE) {
-    ESP_LOGW(TAG, "Cold Junction Out-of-Range: '%s'", this->name_.c_str());
+    ESP_LOGW(TAG, "Cold Junction Out-of-Range: '%s'", LOG_STR_ARG(this->get_log_name()));
   }
   if ((faults & MAX31856_FAULT_TCRANGE) == MAX31856_FAULT_TCRANGE) {
-    ESP_LOGW(TAG, "Thermocouple Out-of-Range: '%s'", this->name_.c_str());
+    ESP_LOGW(TAG, "Thermocouple Out-of-Range: '%s'", LOG_STR_ARG(this->get_log_name()));
   }
   if ((faults & MAX31856_FAULT_CJHIGH) == MAX31856_FAULT_CJHIGH) {
-    ESP_LOGW(TAG, "Cold-Junction High Fault: '%s'", this->name_.c_str());
+    ESP_LOGW(TAG, "Cold-Junction High Fault: '%s'", LOG_STR_ARG(this->get_log_name()));
   }
   if ((faults & MAX31856_FAULT_CJLOW) == MAX31856_FAULT_CJLOW) {
-    ESP_LOGW(TAG, "Cold-Junction Low Fault: '%s'", this->name_.c_str());
+    ESP_LOGW(TAG, "Cold-Junction Low Fault: '%s'", LOG_STR_ARG(this->get_log_name()));
   }
   if ((faults & MAX31856_FAULT_TCHIGH) == MAX31856_FAULT_TCHIGH) {
-    ESP_LOGW(TAG, "Thermocouple Temperature High Fault: '%s'", this->name_.c_str());
+    ESP_LOGW(TAG, "Thermocouple Temperature High Fault: '%s'", LOG_STR_ARG(this->get_log_name()));
   }
   if ((faults & MAX31856_FAULT_TCLOW) == MAX31856_FAULT_TCLOW) {
-    ESP_LOGW(TAG, "Thermocouple Temperature Low Fault: '%s'", this->name_.c_str());
+    ESP_LOGW(TAG, "Thermocouple Temperature Low Fault: '%s'", LOG_STR_ARG(this->get_log_name()));
   }
   if ((faults & MAX31856_FAULT_OVUV) == MAX31856_FAULT_OVUV) {
-    ESP_LOGW(TAG, "Overvoltage or Undervoltage Input Fault: '%s'", this->name_.c_str());
+    ESP_LOGW(TAG, "Overvoltage or Undervoltage Input Fault: '%s'", LOG_STR_ARG(this->get_log_name()));
   }
   if ((faults & MAX31856_FAULT_OPEN) == MAX31856_FAULT_OPEN) {
-    ESP_LOGW(TAG, "Thermocouple Open-Circuit Fault (possibly not connected): '%s'", this->name_.c_str());
+    ESP_LOGW(TAG, "Thermocouple Open-Circuit Fault (possibly not connected): '%s'", LOG_STR_ARG(this->get_log_name()));
   }
 
   return true;
@@ -195,7 +192,7 @@ uint32_t MAX31856Sensor::read_register24_(uint8_t reg) {
   const uint8_t lsb(this->read_byte());
   ESP_LOGVV(TAG, "read_byte lsb=0x%02X", lsb);
   this->disable();
-  const uint32_t value((msb << 16) | (mid << 8) | lsb);
+  const uint32_t value = encode_uint24(msb, mid, lsb);
   ESP_LOGV(TAG, "read_register_24_ reg=0x%02X: value=0x%06" PRIX32, reg, value);
   return value;
 }

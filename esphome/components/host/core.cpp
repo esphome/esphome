@@ -59,8 +59,8 @@ namespace esphome::host {
 char **get_argv() { return s_argv; }
 
 const std::string &get_exe_path() {
-  static const std::string empty;
-  return s_exe_path != nullptr ? *s_exe_path : empty;
+  static const std::string EMPTY;
+  return s_exe_path != nullptr ? *s_exe_path : EMPTY;
 }
 
 void arm_reexec(const std::string &path) {

@@ -31,21 +31,22 @@ cover::CoverTraits CopyCover::get_traits() {
   traits.set_supports_position(base.get_supports_position());
   traits.set_supports_tilt(base.get_supports_tilt());
   traits.set_supports_toggle(base.get_supports_toggle());
+  traits.set_supports_stop_tilt(base.get_supports_stop_tilt());
   return traits;
 }
 
 void CopyCover::control(const cover::CoverCall &call) {
   auto call2 = source_->make_call();
   call2.set_stop(call.get_stop());
+  call2.set_stop_tilt(call.get_stop_tilt());
   auto tilt = call.get_tilt();
   if (tilt.has_value())
     call2.set_tilt(*tilt);
   auto position = call.get_position();
   if (position.has_value())
     call2.set_position(*position);
-  auto tilt2 = call.get_tilt();
-  if (tilt2.has_value())
-    call2.set_tilt(*tilt2);
+  if (call.get_toggle().has_value())
+    call2.set_command_toggle();
   call2.perform();
 }
 

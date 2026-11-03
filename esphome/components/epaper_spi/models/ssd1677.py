@@ -14,6 +14,11 @@ MONOCHROME = "monochrome"
 
 
 class SSD1677(EpaperModel):
+    source_files = (
+        "epaper_spi_mono.cpp",
+        "epaper_spi_ssd1677.cpp",
+    )
+
     def __init__(
         self,
         name: str,
@@ -116,6 +121,11 @@ seeed_sticky = ssd1677.extend(
 seeed_sticky.extend(
     "seeed-reterminal-sticky-gray4",
     class_name="EPaperSSD1677Gray4",
+    source_files=(
+        "epaper_spi_mono.cpp",
+        "epaper_spi_ssd1677.cpp",
+        "epaper_spi_ssd1677_gray4.cpp",
+    ),
     border_waveform=0x00,
     partial_update=MONOCHROME,
     # each plane byte is built from two whole buffer bytes

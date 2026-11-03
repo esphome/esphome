@@ -9,3 +9,4 @@ ch422g:
 display:
   - platform: mipi_rgb
     model: WAVESHARE-5-1024X600
+    rotation: 90

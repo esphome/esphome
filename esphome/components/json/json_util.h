@@ -4,10 +4,12 @@
 #include <cstddef>
 #include <cstring>
 #include <string>
+#include <utility>
 #include <vector>
 
 #include "esphome/core/defines.h"
 #include "esphome/core/helpers.h"
+#include "esphome/core/progmem.h"
 
 #define ARDUINOJSON_ENABLE_STD_STRING 1  // NOLINT
 
@@ -16,6 +18,17 @@
 #include <ArduinoJson.h>
 
 namespace esphome::json {
+
+// Link a string into the document instead of copying it. Only for a literal, a codegen table
+// entry or a name set once during setup; never a stack buffer or an entity state.
+inline JsonString linked(const char *s) { return JsonString(s, true); }
+inline JsonString linked(const char *s, size_t len) { return JsonString(s, len, true); }
+inline JsonString linked(const std::string &s) { return JsonString(s.c_str(), s.size(), true); }
+JsonString linked(std::string &&) = delete;  // a temporary dies before the document is serialized
+#ifdef USE_ESP8266
+// A PROGMEM string is copied out of flash
+inline ProgmemStr linked(ProgmemStr s) { return s; }
+#endif
 
 /// Buffer for JSON serialization that uses stack allocation for small payloads.
 /// Template parameter STACK_SIZE specifies the stack buffer size (default 512 bytes).
@@ -38,15 +51,15 @@ template<size_t STACK_SIZE = 640> class SerializationBuffer {
   ~SerializationBuffer() { delete[] heap_buffer_; }
 
   // Move constructor - works with same template instantiation
-  SerializationBuffer(SerializationBuffer &&other) noexcept : heap_buffer_(other.heap_buffer_), size_(other.size_) {
+  SerializationBuffer(SerializationBuffer &&other) noexcept
+      : heap_buffer_(std::exchange(other.heap_buffer_, nullptr)), size_(other.size_) {
     if (other.buffer_ == other.stack_buffer_) {
       // Stack buffer - must copy content
       std::memcpy(stack_buffer_, other.stack_buffer_, size_ + 1);
       buffer_ = stack_buffer_;
     } else {
-      // Heap buffer - steal ownership
+      // Heap buffer - ownership was taken above
       buffer_ = heap_buffer_;
-      other.heap_buffer_ = nullptr;
     }
     // Leave moved-from object in valid empty state
     other.stack_buffer_[0] = '\0';
@@ -58,14 +71,13 @@ template<size_t STACK_SIZE = 640> class SerializationBuffer {
   SerializationBuffer &operator=(SerializationBuffer &&other) noexcept {
     if (this != &other) {
       delete[] heap_buffer_;
-      heap_buffer_ = other.heap_buffer_;
+      heap_buffer_ = std::exchange(other.heap_buffer_, nullptr);
       size_ = other.size_;
       if (other.buffer_ == other.stack_buffer_) {
         std::memcpy(stack_buffer_, other.stack_buffer_, size_ + 1);
         buffer_ = stack_buffer_;
       } else {
         buffer_ = heap_buffer_;
-        other.heap_buffer_ = nullptr;
       }
       // Leave moved-from object in valid empty state
       other.stack_buffer_[0] = '\0';

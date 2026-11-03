@@ -10,6 +10,8 @@
 #include "light_state.h"
 #include "light_transformer.h"
 
+#include <cmath>
+
 #ifdef USE_POWER_SUPPLY
 #include "esphome/components/power_supply/power_supply.h"
 #endif
@@ -23,20 +25,38 @@ Color color_from_light_color_values(LightColorValues val);
 /// non-addressable lights.
 class AddressableLightState final : public LightState {
   using LightState::LightState;
+
+ public:
+#ifdef USE_LIGHT_POWER_ESTIMATION
+  float get_estimated_current_ma() const;
+  void loop() override;
+#endif
 };
+
+#ifdef USE_LIGHT_POWER_ESTIMATION
+// Allocated only for a strip with power_estimation configured
+struct PowerEstimation {
+  float ma_per_level[4];
+  float idle_ma_per_led;
+  float max_current_ma{NAN};
+  // Set by call_setup() once size() is known; the budget is what is left for the pixels, NAN for no limit
+  float idle_ma{0.0f};
+  float budget_ma{NAN};
+  // The draw the last pass left in the buffer; a pass that sees it again has nothing new to limit
+  float last_frame_ma{NAN};
+};
+#endif
 
 class AddressableLight : public LightOutput, public Component {
  public:
   virtual int32_t size() const = 0;
-  ESPColorView operator[](int32_t index) const { return this->get_view_internal(interpret_index(index, this->size())); }
-  ESPColorView get(int32_t index) { return this->get_view_internal(interpret_index(index, this->size())); }
+  ESPColorView operator[](int32_t index) const { return ESPColorView(this->accessor_, this->interpret_index_(index)); }
+  inline ESPColorView get(int32_t index) const { return (*this)[index]; }
   virtual void clear_effect_data() = 0;
   ESPRangeView range(int32_t from, int32_t to) {
-    from = interpret_index(from, this->size());
-    to = interpret_index(to, this->size());
-    return ESPRangeView(this, from, to);
+    return ESPRangeView(this->accessor_, this->interpret_index_(from), this->interpret_index_(to));
   }
-  ESPRangeView all() { return ESPRangeView(this, 0, this->size()); }
+  ESPRangeView all() { return ESPRangeView(this->accessor_, 0, this->size()); }
   ESPRangeIterator begin() { return this->all().begin(); }
   ESPRangeIterator end() { return this->all().end(); }
   void shift_left(int32_t amnt) {
@@ -65,6 +85,23 @@ class AddressableLight : public LightOutput, public Component {
     this->correction_.set_max_brightness(
         Color(to_uint8_scale(red), to_uint8_scale(green), to_uint8_scale(blue), to_uint8_scale(white)));
   }
+#ifdef USE_LIGHT_POWER_ESTIMATION
+  // Per-channel draw at full level and idle draw per LED
+  void set_power_estimation(float ma_red, float ma_green, float ma_blue, float ma_white, float idle_ma_per_led) {
+    if (this->power_estimation_ == nullptr)
+      this->power_estimation_ = new PowerEstimation();  // NOLINT(cppcoreguidelines-owning-memory)
+    auto *power = this->power_estimation_;
+    power->ma_per_level[0] = ma_red / 255.0f;
+    power->ma_per_level[1] = ma_green / 255.0f;
+    power->ma_per_level[2] = ma_blue / 255.0f;
+    power->ma_per_level[3] = ma_white / 255.0f;
+    power->idle_ma_per_led = idle_ma_per_led;
+  }
+  // Called after set_power_estimation()
+  void set_max_current_ma(float max_current_ma) { this->power_estimation_->max_current_ma = max_current_ma; }
+  // The draw of the frame in the buffer, NAN without power_estimation
+  float get_estimated_current_ma() const;
+#endif
   void setup_state(LightState *state) override {
 #ifdef USE_LIGHT_GAMMA_LUT
     this->correction_.set_gamma_table(state->get_gamma_table());
@@ -83,10 +120,12 @@ class AddressableLight : public LightOutput, public Component {
  protected:
   friend class AddressableLightTransformer;
 
+  inline int32_t interpret_index_(int32_t index) const { return index < 0 ? this->size() + index : index; }
+
   void mark_shown_() {
 #ifdef USE_POWER_SUPPLY
-    for (const auto &c : *this) {
-      if (c.get_red_raw() > 0 || c.get_green_raw() > 0 || c.get_blue_raw() > 0 || c.get_white_raw() > 0) {
+    for (const auto &view : *this) {
+      if (view.get_raw().is_on()) {
         this->power_.request();
         return;
       }
@@ -94,10 +133,31 @@ class AddressableLight : public LightOutput, public Component {
     this->power_.unrequest();
 #endif
   }
-  virtual ESPColorView get_view_internal(int32_t index) const = 0;
+  // Queues the frame for the next loop and returns true until interval_us has passed since last_us
+  bool throttle_show_(uint32_t now_us, uint32_t last_us, uint32_t interval_us) {
+    if (now_us - last_us >= interval_us)
+      return false;
+    this->schedule_show();
+    return true;
+  }
 
+#ifdef USE_LIGHT_POWER_ESTIMATION
+  friend class AddressableLightState;
+  // Run by the light state before each frame goes out
+  void limit_power_();
+  void setup_power_budget_();
+  // slack_ma, when asked for, is one level's draw for every lit channel: the most the round-up on the way
+  // down can have added to the frame
+  float frame_ma_(float *slack_ma = nullptr) const;
+  float draw_ma_(const uint32_t sums[4]) const;
+#endif
+
+  ESPColorAccessor *accessor_{&NullColorAccessor::instance};
   ESPColorCorrection correction_{};
   LightState *state_parent_{nullptr};
+#ifdef USE_LIGHT_POWER_ESTIMATION
+  PowerEstimation *power_estimation_{nullptr};
+#endif
 #ifdef USE_POWER_SUPPLY
   power_supply::PowerSupplyRequester power_;
 #endif

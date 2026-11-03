@@ -12,7 +12,7 @@ from .defines import (
     STATES,
     LValidator,
     add_lv_use,
-    get_part_state_selector,
+    add_warning,
     get_styles_used,
     get_theme_styles,
     get_theme_update_requests,
@@ -28,7 +28,7 @@ from .schemas import (
     theme_update_schema,
 )
 from .types import ObjUpdateAction, lv_style_t
-from .widgets import collect_parts
+from .widgets import collect_parts, misplaced_obj_properties
 
 
 def has_style_props(config) -> bool:
@@ -77,9 +77,20 @@ class LVStyle:
         return cls.named_styles.setdefault(id_name, LVStyle(id_name))
 
 
+def _warn_misplaced_obj_properties(config: dict, owner: str) -> None:
+    """Warn about widget properties in a style or theme, where they have no effect."""
+    for where, prop in misplaced_obj_properties(config, include_top=True):
+        place = f"{owner} under '{where}'" if where else owner
+        add_warning(
+            f"'{prop}' applies to a widget, not to a style, so setting it in {place} has "
+            f"no effect. Set it on each widget instead."
+        )
+
+
 async def styles_to_code(config):
     """Convert styles to C__ code."""
     for style in config.get(CONF_STYLE_DEFINITIONS, ()):
+        _warn_misplaced_obj_properties(style, f"style '{style[CONF_ID].id}'")
         await create_style(style[CONF_ID].id, style)
 
 
@@ -109,8 +120,8 @@ def _get_theme_style_name(w_name: str, part: str, state: str) -> str:
     return f"_lv_theme_style_{w_name}_{part}_{state}"
 
 
-def get_widget_theme_styles(w_name: str) -> list[tuple[MockObj, MockObj]]:
-    """Return a list of (style variable, part/state name) for all theme styles used by the given widget type."""
+def get_widget_theme_styles(w_name: str) -> list[tuple[MockObj, str, str]]:
+    """Return a list of (style variable, part, state) for all theme styles used by the given widget type."""
     widget_styles = get_widget_theme_style_data()
     if w_name in widget_styles:
         return widget_styles[w_name]
@@ -120,9 +131,7 @@ def get_widget_theme_styles(w_name: str) -> list[tuple[MockObj, MockObj]]:
         for state in STATES + (CONF_DEFAULT,):
             style_name = _get_theme_style_name(w_name, part, state)
             if style_name in theme_styles:
-                style_list.append(
-                    (theme_styles[style_name], get_part_state_selector(part, state))
-                )
+                style_list.append((theme_styles[style_name], part, state))
     widget_styles[w_name] = style_list
     return style_list
 
@@ -137,6 +146,9 @@ async def theme_to_code(config):
     :return:
     """
     theme = config.get(CONF_THEME) or {}
+    for w_name, w_theme in theme.items():
+        if isinstance(w_theme, dict):
+            _warn_misplaced_obj_properties(w_theme, f"the theme for '{w_name}'")
     requests = get_theme_update_requests()
     widget_names = [
         w_name for w_name in WIDGET_TYPES if w_name in theme or w_name in requests

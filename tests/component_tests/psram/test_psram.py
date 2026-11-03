@@ -5,6 +5,9 @@ from typing import Any
 import pytest
 
 from esphome.components.esp32 import (
+    KEY_ESP32,
+    KEY_IDF_VERSION,
+    KEY_SDKCONFIG_OPTIONS,
     KEY_VARIANT,
     VARIANT_ESP32,
     VARIANT_ESP32C2,
@@ -21,6 +24,7 @@ from esphome.components.esp32 import (
 )
 import esphome.config_validation as cv
 from esphome.const import CONF_ESPHOME, PlatformFramework
+from esphome.core import CORE
 from tests.component_tests.types import SetCoreConfigCallable
 
 UNSUPPORTED_PSRAM_VARIANTS = [
@@ -255,3 +259,29 @@ def test_psram_final_validation(
     else:
         # This should not raise an exception
         FINAL_VALIDATE_SCHEMA(validated_config)
+
+
+@pytest.mark.parametrize(
+    ("version", "key"),
+    [
+        (cv.Version(5, 3, 2), "CONFIG_SPIRAM_ALLOW_STACK_EXTERNAL_MEMORY"),
+        (cv.Version(5, 4, 0), "CONFIG_FREERTOS_TASK_CREATE_ALLOW_EXT_MEM"),
+    ],
+)
+def test_external_task_stack_uses_the_kconfig_name_of_the_idf(
+    version: cv.Version, key: str, set_core_config: SetCoreConfigCallable
+) -> None:
+    """ESP-IDF 5.4 renamed the option; the old name is mapped there but reported on every configure."""
+    set_core_config(
+        PlatformFramework.ESP32_IDF,
+        platform_data={
+            KEY_VARIANT: VARIANT_ESP32,
+            KEY_IDF_VERSION: version,
+            KEY_SDKCONFIG_OPTIONS: {},
+        },
+    )
+    from esphome.components.psram import request_external_task_stack
+
+    request_external_task_stack()
+
+    assert CORE.data[KEY_ESP32][KEY_SDKCONFIG_OPTIONS] == {key: True}

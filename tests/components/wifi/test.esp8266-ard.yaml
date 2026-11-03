@@ -2,6 +2,13 @@ wifi:
   min_auth_mode: WPA2
   post_connect_roaming: true
   phy_mode: 11G
+  ap:
+    ssid: Fallback AP
+    password: fallback_password
+    manual_ip:
+      static_ip: 192.168.4.1
+      gateway: 192.168.4.1
+      subnet: 255.255.255.0
 
 packages:
   - !include common.yaml

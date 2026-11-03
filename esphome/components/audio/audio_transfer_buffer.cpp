@@ -20,16 +20,6 @@ std::unique_ptr<AudioSinkTransferBuffer> AudioSinkTransferBuffer::create(size_t 
   return sink_buffer;
 }
 
-std::unique_ptr<AudioSourceTransferBuffer> AudioSourceTransferBuffer::create(size_t buffer_size) {
-  std::unique_ptr<AudioSourceTransferBuffer> source_buffer = make_unique<AudioSourceTransferBuffer>();
-
-  if (!source_buffer->allocate_buffer_(buffer_size)) {
-    return nullptr;
-  }
-
-  return source_buffer;
-}
-
 size_t AudioTransferBuffer::free() const {
   if (this->buffer_size_ == 0) {
     return 0;
@@ -132,27 +122,6 @@ void AudioTransferBuffer::deallocate_buffer_() {
   this->buffer_length_ = 0;
 }
 
-size_t AudioSourceTransferBuffer::transfer_data_from_source(TickType_t ticks_to_wait, bool pre_shift) {
-  if (pre_shift) {
-    // Shift data in buffer to start
-    if (this->buffer_length_ > 0) {
-      std::memmove(this->buffer_, this->data_start_, this->buffer_length_);
-    }
-    this->data_start_ = this->buffer_;
-  }
-
-  size_t bytes_to_read = AudioTransferBuffer::free();
-  size_t bytes_read = 0;
-  if (bytes_to_read > 0) {
-    if (this->ring_buffer_ != nullptr) {
-      bytes_read = this->ring_buffer_->read((void *) this->get_buffer_end(), bytes_to_read, ticks_to_wait);
-    }
-
-    this->increase_buffer_length(bytes_read);
-  }
-  return bytes_read;
-}
-
 size_t AudioSinkTransferBuffer::transfer_data_to_sink(TickType_t ticks_to_wait, bool post_shift) {
   size_t bytes_written = 0;
   if (this->available()) {
@@ -192,9 +161,44 @@ bool AudioSinkTransferBuffer::has_buffered_data() const {
   return (this->available() > 0);
 }
 
+// AudioSourceTransferBuffer is deprecated. Remove before 2027.5.0.
+#pragma GCC diagnostic push
+#pragma GCC diagnostic ignored "-Wdeprecated-declarations"
+std::unique_ptr<AudioSourceTransferBuffer> AudioSourceTransferBuffer::create(size_t buffer_size) {
+  std::unique_ptr<AudioSourceTransferBuffer> source_buffer = make_unique<AudioSourceTransferBuffer>();
+
+  if (!source_buffer->allocate_buffer_(buffer_size)) {
+    return nullptr;
+  }
+
+  return source_buffer;
+}
+
+size_t AudioSourceTransferBuffer::transfer_data_from_source(TickType_t ticks_to_wait, bool pre_shift) {
+  if (pre_shift) {
+    // Shift data in buffer to start
+    if (this->buffer_length_ > 0) {
+      std::memmove(this->buffer_, this->data_start_, this->buffer_length_);
+    }
+    this->data_start_ = this->buffer_;
+  }
+
+  size_t bytes_to_read = AudioTransferBuffer::free();
+  size_t bytes_read = 0;
+  if (bytes_to_read > 0) {
+    if (this->ring_buffer_ != nullptr) {
+      bytes_read = this->ring_buffer_->read((void *) this->get_buffer_end(), bytes_to_read, ticks_to_wait);
+    }
+
+    this->increase_buffer_length(bytes_read);
+  }
+  return bytes_read;
+}
+
 size_t AudioSourceTransferBuffer::free() const { return AudioTransferBuffer::free(); }
 
 bool AudioSourceTransferBuffer::has_buffered_data() const { return AudioTransferBuffer::has_buffered_data(); }
+#pragma GCC diagnostic pop
 
 void ConstAudioSourceBuffer::set_data(const uint8_t *data, size_t length) {
   this->data_start_ = data;
@@ -268,6 +272,23 @@ void RingBufferAudioSource::clear_buffered_data() {
   this->ring_buffer_->reset();
 }
 
+size_t RingBufferAudioSource::expose_padded_partial(size_t frame_bytes) {
+  if (this->current_available_ > 0 || this->queued_length_ > 0) {
+    return 0;
+  }
+  // Moves any trailing bytes still inside a held item into the splice buffer
+  this->release_item_();
+  const size_t real_bytes = this->splice_length_;
+  if (real_bytes == 0 || frame_bytes == 0 || real_bytes % frame_bytes != 0) {
+    return 0;
+  }
+  std::memset(this->splice_buffer_ + real_bytes, 0, this->alignment_bytes_ - real_bytes);
+  this->splice_length_ = 0;
+  this->current_data_ = this->splice_buffer_;
+  this->current_available_ = this->alignment_bytes_;
+  return real_bytes;
+}
+
 bool RingBufferAudioSource::has_buffered_data() const {
   // splice_length_ is deliberately not considered here. It holds an incomplete frame whose completion
   // bytes must still arrive through the ring buffer, which ring_buffer_->available() already reports.
@@ -276,7 +297,7 @@ bool RingBufferAudioSource::has_buffered_data() const {
   return (this->current_available_ > 0) || (this->queued_length_ > 0) || (this->ring_buffer_->available() > 0);
 }
 
-size_t RingBufferAudioSource::fill(TickType_t ticks_to_wait, bool /*pre_shift*/) {
+size_t RingBufferAudioSource::fill(TickType_t ticks_to_wait) {
   if (this->current_available_ > 0) {
     // Caller has not finished consuming the current exposure
     return 0;

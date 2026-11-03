@@ -79,6 +79,11 @@ lvgl:
               - lvgl.animation.start:
                   id: anim_slide
                   lvgl_id: lvgl_0
+      # Sliders only and no complex gradients, so the wheel's gradient set-up must still build
+      - color_picker:
+          id: host_hue_picker
+          width: 200
+          sliders: hue
 
 font:
   - file: "gfonts://Roboto"

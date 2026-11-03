@@ -18,6 +18,12 @@ def _inverted_busy_schema(config):
 class SpectraE6DualCSModel(EpaperModel):
     """Model class for Spectra E6 displays with dual chip-select (primary + secondary)."""
 
+    source_files = (
+        "epaper_spi_4bpp.cpp",
+        "epaper_spi_spectra_e6.cpp",
+        "epaper_spi_spectra_e6_dual_cs.cpp",
+    )
+
     def __init__(self, name, **defaults):
         super().__init__(name, "EPaperSpectraE6DualCS", **defaults)
 

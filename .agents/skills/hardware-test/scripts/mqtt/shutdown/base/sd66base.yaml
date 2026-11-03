@@ -1,0 +1,8 @@
+substitutions: {name: sd66base}
+esphome:
+  name: sd66base
+esp8266:
+  board: d1_mini
+deep_sleep:
+  id: ds
+packages: {c: !include ../sd-common.yaml}

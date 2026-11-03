@@ -733,8 +733,4 @@ async def to_code(config):
         var = await cg.get_variable(sprinkler_controller[CONF_ID])
         for controller_to_add in config:
             if sprinkler_controller[CONF_ID] != controller_to_add[CONF_ID]:
-                cg.add(
-                    var.add_controller(
-                        await cg.get_variable(controller_to_add[CONF_ID])
-                    )
-                )
+                await cg.add_variable(var.add_controller, controller_to_add[CONF_ID])

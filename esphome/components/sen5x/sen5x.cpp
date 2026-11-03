@@ -60,16 +60,14 @@ void SEN5XComponent::setup() {
   this->set_timeout(1000, [this]() {
     // Check if measurement is ready before reading the value
     if (!this->write_command(SEN5X_CMD_GET_DATA_READY_STATUS)) {
-      ESP_LOGE(TAG, "Failed to write data ready status command");
-      this->mark_failed();
+      this->mark_failed(LOG_STR("Failed to write data ready status command"));
       return;
     }
     delay(20);  // per datasheet
 
     uint16_t raw_read_status;
     if (!this->read_data(raw_read_status)) {
-      ESP_LOGE(TAG, "Failed to read data ready status");
-      this->mark_failed();
+      this->mark_failed(LOG_STR("Failed to read data ready status"));
       return;
     }
 
@@ -78,8 +76,7 @@ void SEN5XComponent::setup() {
     if (raw_read_status) {
       ESP_LOGD(TAG, "Data is available; stopping periodic measurement");
       if (!this->write_command(SEN5X_CMD_STOP_MEASUREMENTS)) {
-        ESP_LOGE(TAG, "Failed to stop measurements");
-        this->mark_failed();
+        this->mark_failed(LOG_STR("Failed to stop measurements"));
         return;
       }
       // According to the SEN5x datasheet the sensor will only respond to other commands after waiting 200 ms after
@@ -91,9 +88,7 @@ void SEN5XComponent::setup() {
       // this appears to be all that Sensirion uses for serial numbers, this could change
       uint16_t raw_serial_number[8];
       if (!this->get_register(SEN5X_CMD_GET_SERIAL_NUMBER, raw_serial_number, 8, 20)) {
-        ESP_LOGE(TAG, "Failed to read serial number");
-        this->error_code_ = SERIAL_NUMBER_IDENTIFICATION_FAILED;
-        this->mark_failed();
+        this->mark_failed(LOG_STR("Unable to read serial ID"));
         return;
       }
       const char *serial_number = sensirion_convert_to_string_in_place(raw_serial_number, 8);
@@ -121,8 +116,7 @@ void SEN5XComponent::setup() {
         this->type_ = this->model_override_.value();
       } else if (detected_type == Sen5xType::UNKNOWN) {
         this->type_ = Sen5xType::UNKNOWN;
-        this->error_code_ = PRODUCT_NAME_FAILED;
-        this->mark_failed();
+        this->mark_failed(LOG_STR("Unable to read product name"));
         return;
       } else {
         this->type_ = detected_type;
@@ -147,9 +141,7 @@ void SEN5XComponent::setup() {
       }
 
       if (!this->get_register(SEN5X_CMD_GET_FIRMWARE_VERSION, this->firmware_version_, 20)) {
-        ESP_LOGE(TAG, "Failed to read firmware version");
-        this->error_code_ = FIRMWARE_FAILED;
-        this->mark_failed();
+        this->mark_failed(LOG_STR("Unable to read firmware version"));
         return;
       }
       this->firmware_version_ >>= 8;
@@ -189,9 +181,7 @@ void SEN5XComponent::setup() {
         result = this->write_command(SEN5X_CMD_RHT_ACCELERATION_MODE);
       }
       if (!result) {
-        ESP_LOGE(TAG, "Failed to set rh/t acceleration mode");
-        this->error_code_ = COMMUNICATION_FAILED;
-        this->mark_failed();
+        this->mark_failed(LOG_STR("Failed to set rh/t acceleration mode"));
         return;
       }
       delay(20);
@@ -225,9 +215,7 @@ void SEN5XComponent::setup() {
       }
 
       if (!this->write_command(cmd)) {
-        ESP_LOGE(TAG, "Error starting continuous measurements");
-        this->error_code_ = MEASUREMENT_INIT_FAILED;
-        this->mark_failed();
+        this->mark_failed(LOG_STR("Error starting continuous measurements"));
         return;
       }
       this->initialized_ = true;
@@ -238,28 +226,6 @@ void SEN5XComponent::setup() {
 void SEN5XComponent::dump_config() {
   ESP_LOGCONFIG(TAG, "SEN5X:");
   LOG_I2C_DEVICE(this);
-  if (this->is_failed()) {
-    switch (this->error_code_) {
-      case COMMUNICATION_FAILED:
-        ESP_LOGW(TAG, ESP_LOG_MSG_COMM_FAIL);
-        break;
-      case MEASUREMENT_INIT_FAILED:
-        ESP_LOGW(TAG, "Measurement initialization failed");
-        break;
-      case SERIAL_NUMBER_IDENTIFICATION_FAILED:
-        ESP_LOGW(TAG, "Unable to read serial ID");
-        break;
-      case PRODUCT_NAME_FAILED:
-        ESP_LOGW(TAG, "Unable to read product name");
-        break;
-      case FIRMWARE_FAILED:
-        ESP_LOGW(TAG, "Unable to read firmware version");
-        break;
-      default:
-        ESP_LOGW(TAG, "Unknown setup error");
-        break;
-    }
-  }
   ESP_LOGCONFIG(TAG,
                 "  Type: %s%s\n"
                 "  Firmware version: %d\n"
@@ -342,30 +308,14 @@ void SEN5XComponent::update() {
                     ? NAN
                     : static_cast<float>(nox_idx) / 10.0f;
 
-    if (this->pm_1_0_sensor_ != nullptr) {
-      this->pm_1_0_sensor_->publish_state(pm_1_0);
-    }
-    if (this->pm_2_5_sensor_ != nullptr) {
-      this->pm_2_5_sensor_->publish_state(pm_2_5);
-    }
-    if (this->pm_4_0_sensor_ != nullptr) {
-      this->pm_4_0_sensor_->publish_state(pm_4_0);
-    }
-    if (this->pm_10_0_sensor_ != nullptr) {
-      this->pm_10_0_sensor_->publish_state(pm_10_0);
-    }
-    if (this->temperature_sensor_ != nullptr) {
-      this->temperature_sensor_->publish_state(temperature);
-    }
-    if (this->humidity_sensor_ != nullptr) {
-      this->humidity_sensor_->publish_state(humidity);
-    }
-    if (this->voc_sensor_ != nullptr) {
-      this->voc_sensor_->publish_state(voc);
-    }
-    if (this->nox_sensor_ != nullptr) {
-      this->nox_sensor_->publish_state(nox);
-    }
+    PUBLISH_STATE(this->pm_1_0_sensor_, pm_1_0);
+    PUBLISH_STATE(this->pm_2_5_sensor_, pm_2_5);
+    PUBLISH_STATE(this->pm_4_0_sensor_, pm_4_0);
+    PUBLISH_STATE(this->pm_10_0_sensor_, pm_10_0);
+    PUBLISH_STATE(this->temperature_sensor_, temperature);
+    PUBLISH_STATE(this->humidity_sensor_, humidity);
+    PUBLISH_STATE(this->voc_sensor_, voc);
+    PUBLISH_STATE(this->nox_sensor_, nox);
 
     if (!this->voc_sensor_ || !this->store_baseline_ ||
         (App.get_loop_component_start_time() - this->voc_baseline_time_) < SHORTEST_BASELINE_STORE_INTERVAL) {

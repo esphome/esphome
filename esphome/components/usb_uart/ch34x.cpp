@@ -6,9 +6,24 @@
 
 #include "esphome/components/bytebuffer/bytebuffer.h"
 
+#include <algorithm>
+#include <iterator>
+
 namespace esphome::usb_uart {
 
 using namespace bytebuffer;
+
+static constexpr uint8_t CH341_REQ_MODEM_CTRL = 0xA4;
+// Modem control bits, sent inverted
+static constexpr uint8_t CH341_BIT_DTR = 1 << 5;
+static constexpr uint8_t CH341_BIT_RTS = 1 << 6;
+
+static constexpr uint8_t CH341_REQ_WRITE_REG = 0x9A;
+static constexpr uint8_t CH341_REG_FLOW_CTL = 0x27;
+static constexpr uint8_t CH341_FLOW_CTL_NONE = 0x00;
+static constexpr uint8_t CH341_FLOW_CTL_RTSCTS = 0x01;
+// The single-port chips, which have the flow control register
+static constexpr uint16_t CH341_PIDS[] = {0x5523, 0x7522, 0x7523};
 
 struct CH34xEntry {
   const char *name;
@@ -97,6 +112,12 @@ void USBUartTypeCH34X::dump_config() {
 
 bool USBUartTypeCH34X::config_step(USBUartChannelBase *channel, uint8_t step, bool reload, bool ok,
                                    const uint8_t *response) {
+  // TODO: flow control on the multi-port chips (PIDs 0x55Dx)
+  const bool has_flow_ctl_reg =
+      std::find(std::begin(CH341_PIDS), std::end(CH341_PIDS), this->pid_) != std::end(CH341_PIDS);
+  if (!has_flow_ctl_reg && step >= 1)
+    step++;
+
   uint8_t cmd = 0xA1 + channel->index_;
   if (channel->index_ >= 2)
     cmd += 0xE;
@@ -144,22 +165,33 @@ bool USBUartTypeCH34X::config_step(USBUartChannelBase *channel, uint8_t step, bo
       this->config_transfer_(USB_VENDOR_DEV | usb_host::USB_DIR_OUT, cmd, value, (factor << 8) | divisor);
       return true;
     }
-    case 1:
-      this->config_transfer_(USB_VENDOR_DEV | usb_host::USB_DIR_OUT, cmd + 3, 0x80, 0);
+    case 1: {
+      // Re-applied on every settings change. The chip has no XON/XOFF.
+      const bool rts_cts = channel->flow_control_ == uart::UART_FLOW_CONTROL_RTS_CTS;
+      const uint8_t flow_ctl = rts_cts ? CH341_FLOW_CTL_RTSCTS : CH341_FLOW_CTL_NONE;
+      ESP_LOGD(TAG, "FLOW_CTL: RTS/CTS=%s", ONOFF(rts_cts));
+      this->config_transfer_(USB_VENDOR_DEV | usb_host::USB_DIR_OUT, CH341_REQ_WRITE_REG,
+                             (CH341_REG_FLOW_CTL << 8) | CH341_REG_FLOW_CTL, (flow_ctl << 8) | flow_ctl);
+      return true;
+    }
+    case 2:
+      this->modem_control_transfer(channel);
       return true;
     default:
       return false;
   }
 }
 
-std::vector<CdcEps> USBUartTypeCH34X::parse_descriptors(usb_device_handle_t dev_hdl) {
-  auto result = USBUartTypeCdcAcm::parse_descriptors(dev_hdl);
-  // ch34x doesn't use the interrupt endpoint, and we don't have endpoints to spare
-  for (auto &cdc_dev : result) {
-    cdc_dev.interrupt_interface_number = 0xFF;
-  }
-  return result;
+void USBUartTypeCH34X::modem_control_transfer(USBUartChannelBase *channel) {
+  uint8_t request = CH341_REQ_MODEM_CTRL + channel->index_;
+  if (channel->index_ >= 2)
+    request += 0xE;
+  const uint8_t control = (channel->dtr_ ? CH341_BIT_DTR : 0) | (channel->rts_ ? CH341_BIT_RTS : 0);
+  ESP_LOGD(TAG, "MODEM_CTRL: DTR=%s RTS=%s", ONOFF(channel->dtr_), ONOFF(channel->rts_));
+  // Integer promotion makes this 16 bits wide, as in Linux: 0xFF9F with both lines on
+  this->config_transfer_(USB_VENDOR_DEV | usb_host::USB_DIR_OUT, request, static_cast<uint16_t>(~control), 0);
 }
+
 }  // namespace esphome::usb_uart
 
 #endif  // USE_ESP32_VARIANT_ESP32P4 || USE_ESP32_VARIANT_ESP32S2 || USE_ESP32_VARIANT_ESP32S3 ||

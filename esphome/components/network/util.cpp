@@ -2,9 +2,39 @@
 #include "esphome/core/application.h"
 #include "esphome/core/defines.h"
 #include "esphome/core/helpers.h"
+#include "esphome/core/log.h"
 #ifdef USE_NETWORK
 
 namespace esphome::network {
+
+#if defined(USE_ESP32) && USE_NETWORK_IPV6
+ESPHOME_LOG_TAG(TAG, "network");
+
+void fill_ip6_addresses(esp_netif_t *netif, IPAddresses &addresses) {
+  esp_ip6_addr_t ip6s[CONFIG_LWIP_IPV6_NUM_ADDRESSES];
+  size_t count = esp_netif_get_all_ip6(netif, ip6s);
+  // Slot 0 holds the IPv4 address
+  if (count > addresses.size() - 1) {
+    // Warn once per interface
+    static esp_netif_t *warned[3]{};
+    for (auto &slot : warned) {
+      if (slot == netif) {
+        break;
+      }
+      if (slot == nullptr) {
+        slot = netif;
+        ESP_LOGW(TAG, "%s has %zu IPv6 addresses, only %zu are reported", esp_netif_get_desc(netif), count,
+                 addresses.size() - 1);
+        break;
+      }
+    }
+    count = addresses.size() - 1;
+  }
+  for (size_t i = 0; i < count; i++) {
+    addresses[i + 1] = IPAddress(&ip6s[i]);
+  }
+}
+#endif
 
 // The order of the components is important: WiFi should come after any possible main interfaces (it may be used as
 // an AP that uses a previous interface for NAT).

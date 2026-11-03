@@ -220,8 +220,10 @@ FINAL_VALIDATE_SCHEMA = final_validate
 
 
 async def to_code(config: ConfigType) -> None:
+    # Remove before 2027.5.0
     LOGGER.warning(
-        "The 'ili9xxx' component is deprecated, it is recommended to use 'mipi_spi' instead."
+        "The 'ili9xxx' component is deprecated and will be removed in ESPHome 2027.5.0, "
+        "migrate to 'mipi_spi' instead."
     )
     rhs = MODELS[config[CONF_MODEL]].new()
     var = cg.Pvariable(config[CONF_ID], rhs)

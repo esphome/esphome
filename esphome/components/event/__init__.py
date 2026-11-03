@@ -1,6 +1,5 @@
 from esphome import automation
 import esphome.codegen as cg
-from esphome.components import mqtt, web_server
 import esphome.config_validation as cv
 from esphome.const import (
     CONF_DEVICE_CLASS,
@@ -10,15 +9,15 @@ from esphome.const import (
     CONF_ID,
     CONF_MQTT_ID,
     CONF_ON_EVENT,
-    CONF_WEB_SERVER,
     DEVICE_CLASS_BUTTON,
     DEVICE_CLASS_DOORBELL,
     DEVICE_CLASS_EMPTY,
     DEVICE_CLASS_MOTION,
 )
-from esphome.core import CORE, CoroPriority, coroutine_with_priority
+from esphome.core import CORE, CoroPriority, coroutine_with_priority, entity_helpers
 from esphome.core.entity_helpers import (
     entity_duplicate_validator,
+    mqtt_component_class,
     queue_entity_register,
     setup_device_class,
     setup_entity,
@@ -44,11 +43,13 @@ EventPtr = Event.operator("ptr")
 validate_device_class = cv.one_of(*DEVICE_CLASSES, lower=True, space="_")
 
 _EVENT_SCHEMA = (
-    cv.ENTITY_BASE_SCHEMA.extend(web_server.WEBSERVER_SORTING_SCHEMA)
+    cv.ENTITY_BASE_SCHEMA.extend(entity_helpers.WEBSERVER_SORTING_SCHEMA)
     .extend(cv.MQTT_COMPONENT_SCHEMA)
     .extend(
         {
-            cv.OnlyWith(CONF_MQTT_ID, "mqtt"): cv.declare_id(mqtt.MQTTEventComponent),
+            cv.OnlyWith(CONF_MQTT_ID, "mqtt"): cv.declare_id(
+                mqtt_component_class("MQTTEventComponent")
+            ),
             cv.GenerateID(): cv.declare_id(Event),
             cv.Optional(
                 CONF_DEVICE_CLASS, visibility=cv.Visibility.ADVANCED
@@ -98,16 +99,13 @@ async def setup_event_core_(
 ) -> None:
     await automation.build_callback_automations(var, config, _CALLBACK_AUTOMATIONS)
 
-    cg.add(var.set_event_types(event_types))
+    if event_types:
+        table = cg.shared_progmem_array("event_types", cg.const_char_ptr, event_types)
+        cg.add(var.set_event_types_static(table, len(event_types)))
 
     setup_device_class(config)
 
-    if mqtt_id := config.get(CONF_MQTT_ID):
-        mqtt_ = cg.new_Pvariable(mqtt_id, var)
-        await mqtt.register_mqtt_component(mqtt_, config)
-
-    if web_server_config := config.get(CONF_WEB_SERVER):
-        await web_server.add_entity_config(var, web_server_config)
+    await entity_helpers.setup_entity_integrations(var, config)
 
 
 async def register_event(

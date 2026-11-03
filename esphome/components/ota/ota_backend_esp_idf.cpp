@@ -20,6 +20,8 @@ ESPHOME_LOG_TAG(TAG, "ota");
 std::unique_ptr<IDFOTABackend> make_ota_backend() { return make_unique<IDFOTABackend>(); }
 
 OTAResponseTypes IDFOTABackend::begin(size_t image_size, ota::OTAType ota_type) {
+  if (!this->lock_.try_acquire())
+    return OTA_RESPONSE_ERROR_UPDATE_BUSY;
 #ifdef USE_OTA_PARTITIONS
   this->ota_type_ = ota_type;
   if (this->ota_type_ == ota::OTA_TYPE_UPDATE_PARTITION_TABLE) {
@@ -75,7 +77,8 @@ OTAResponseTypes IDFOTABackend::begin(size_t image_size, ota::OTAType ota_type) 
   // was marked valid at boot (esp32/hal.cpp) or just above under USE_OTA_ROLLBACK.
   // erase_size 0 (!= OTA_WITH_SEQUENTIAL_WRITES) means no erase; erase_ahead_() handles it
   err = esp_ota_resume(this->partition_, 0, 0, &this->update_handle_);
-#if defined(CONFIG_BOOTLOADER_APP_ROLLBACK_ENABLE) && ESP_IDF_VERSION >= ESP_IDF_VERSION_VAL(5, 5, 0)
+#if (defined(CONFIG_BOOTLOADER_APP_ROLLBACK_ENABLE) || defined(CONFIG_BOOTLOADER_APP_ROLLBACK)) && \
+    ESP_IDF_VERSION >= ESP_IDF_VERSION_VAL(5, 5, 0)
   // esp_ota_begin() does this on IDF 5.5+; esp_ota_resume() does not. Prevents
   // booting a half-written slot after a crash mid-OTA. Not available on the
   // 5.3.3/5.4.2 backports, whose esp_ota_begin() did not invalidate either.
@@ -196,7 +199,7 @@ OTAResponseTypes IDFOTABackend::end() {
   // signature, and only re-points boot at an already-installed app -- so it is
   // intentionally not run through the signature verifier below.
   if (this->ota_type_ == ota::OTA_TYPE_UPDATE_PARTITION_TABLE) {
-    return this->update_partition_table();
+    return this->hold_lock_if_ok_(this->update_partition_table_());
   }
   if (!this->is_app_or_bootloader_update_()) {
     return OTA_RESPONSE_ERROR_UNSUPPORTED_OTA_TYPE;
@@ -209,7 +212,7 @@ OTAResponseTypes IDFOTABackend::end() {
   }
 #ifdef USE_OTA_PARTITIONS
   if (this->ota_type_ == ota::OTA_TYPE_UPDATE_BOOTLOADER) {
-    return this->finalize_bootloader_update_(err);
+    return this->hold_lock_if_ok_(this->finalize_bootloader_update_(err));
   }
 #endif
   if (err == ESP_OK) {
@@ -242,7 +245,7 @@ OTAResponseTypes IDFOTABackend::end() {
 #endif
     err = esp_ota_set_boot_partition(this->partition_);
     if (err == ESP_OK) {
-      return OTA_RESPONSE_OK;
+      return this->hold_lock_if_ok_(OTA_RESPONSE_OK);
     }
   }
   if (err == ESP_ERR_OTA_VALIDATE_FAILED) {
@@ -260,6 +263,8 @@ OTAResponseTypes IDFOTABackend::end() {
 }
 
 void IDFOTABackend::abort() {
+  if (!this->lock_.is_held())  // refused in begin()
+    return;
 #ifdef USE_OTA_PARTITIONS
   if (this->partition_table_part_ != nullptr) {
     esp_partition_deregister_external(this->partition_table_part_);

@@ -8,8 +8,7 @@
 
 namespace esphome::bytebuffer {
 
-// The expressions esp32_ble_server emits for typed constant values, and the bytes they produce.
-// Doubles are written as float literals, so they carry float precision.
+// Typed values as ByteBuffer::wrap packs them; esp32_ble_server's value_bytes() is tested against the same bytes.
 TEST(ByteBufferWrapValues, MatchesGeneratedConstants) {
   EXPECT_EQ(ByteBuffer::wrap(uint8_t(18), LITTLE).get_data(), (std::vector<uint8_t>{0x12}));
   EXPECT_EQ(ByteBuffer::wrap(uint16_t(18), LITTLE).get_data(), (std::vector<uint8_t>{0x12, 0x00}));
@@ -24,9 +23,9 @@ TEST(ByteBufferWrapValues, MatchesGeneratedConstants) {
             (std::vector<uint8_t>{0xfe, 0xff, 0xff, 0xff, 0xff, 0xff, 0xff, 0xff}));
   EXPECT_EQ(ByteBuffer::wrap(float(123.1f), BIG).get_data(), (std::vector<uint8_t>{0x42, 0xf6, 0x33, 0x33}));
   EXPECT_EQ(ByteBuffer::wrap(float(0.1f), LITTLE).get_data(), (std::vector<uint8_t>{0xcd, 0xcc, 0xcc, 0x3d}));
-  EXPECT_EQ(ByteBuffer::wrap(double(0.1f), LITTLE).get_data(),
-            (std::vector<uint8_t>{0x00, 0x00, 0x00, 0xa0, 0x99, 0x99, 0xb9, 0x3f}));
-  EXPECT_EQ(ByteBuffer::wrap(double(2.5f), BIG).get_data(),
+  EXPECT_EQ(ByteBuffer::wrap(double(0.1), LITTLE).get_data(),
+            (std::vector<uint8_t>{0x9a, 0x99, 0x99, 0x99, 0x99, 0x99, 0xb9, 0x3f}));
+  EXPECT_EQ(ByteBuffer::wrap(double(2.5), BIG).get_data(),
             (std::vector<uint8_t>{0x40, 0x04, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00}));
 }
 
