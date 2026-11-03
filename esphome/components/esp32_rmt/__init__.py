@@ -306,19 +306,19 @@ def _check_budget(memory: RMTMemory, channels: list[_Channel]) -> list[_Error]:
     orders = _possible_setup_orders(channels, memory.symbols_per_block)
     if not (failures := [f for order in orders if (f := _allocate(memory, order))]):
         return errors
-    if len(failures) == len(orders):
+    fix = ""
+    if len(failures) < len(orders):
+        fix = (
+            f", or set '{CONF_SETUP_PRIORITY}' so they are set up in an order that fits"
+        )
+    if failed := _allocate(memory, channels):
         # Name the components that fail in the config order
-        failed = failures[0]
         problem = "in the order ESPHome sets up these components, {} will not fit"
-        fix = ""
     else:
         failed = [c for c in channels if any(c in f for f in failures)]
         problem = (
             "ESPHome may set up components with the same setup priority in another "
             "order than the config, and then {} will not fit"
-        )
-        fix = (
-            f", or set '{CONF_SETUP_PRIORITY}' so they are set up in an order that fits"
         )
     usage = ", ".join(
         f"'{_label(channel)}' ({'DMA' if channel.dma else channel.symbols})"

@@ -238,6 +238,20 @@ def test_same_priority_warns_when_an_order_does_not_fit(
     )
 
 
+def test_same_priority_fails_in_config_order(run_check: CheckRunner) -> None:
+    """When the config order fails but another fits, the config order failure is not a "may"."""
+    messages = run_check(VARIANT_ESP32C6, _strips(96, 48))
+    assert len(messages) == 1
+    assert (
+        "in the order ESPHome sets up these components, 'strip1' will not fit"
+        in messages[0]
+    )
+    assert (
+        "or set 'setup_priority' so they are set up in an order that fits"
+        in (messages[0])
+    )
+
+
 def test_same_priority_in_every_order_will_not_fit(run_check: CheckRunner) -> None:
     """When no order fits, the component that fails in the config order is named."""
     messages = run_check(VARIANT_ESP32S2, _strips(192, 192))
