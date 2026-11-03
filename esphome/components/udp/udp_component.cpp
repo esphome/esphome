@@ -3,6 +3,9 @@
 #include "esphome/core/log.h"
 #include "esphome/core/application.h"
 #include "esphome/components/network/util.h"
+#ifdef USE_UDP_OMR_SOURCE
+#include "esphome/components/openthread/openthread.h"
+#endif
 #include "udp_component.h"
 
 namespace esphome::udp {
@@ -64,6 +67,11 @@ void UDPComponent::setup() {
     }
 #endif
   }
+#ifdef USE_UDP_OMR_SOURCE
+  // set_omr_source() asked for the bind; without a send socket there is nothing to bind
+  if (this->send_socket_v6_ == nullptr)
+    this->poll_pending_ &= ~POLL_SRC_BIND;
+#endif
   // create listening socket if we either want to subscribe to providers, or need to listen
   // for ping key broadcasts.
   if (this->should_listen_) {
@@ -148,7 +156,7 @@ bool UDPComponent::network_poll_() {
       this->poll_pending_ &= ~POLL_JOIN;
       this->poll_failed_ &= ~POLL_JOIN;
     } else {
-      this->set_poll_warning_(POLL_JOIN, LOG_STR("Failed to join multicast group"));
+      this->set_poll_warning_(POLL_JOIN, LOG_STR("Failed to join multicast group"), errno);
       ok = false;
     }
   }
@@ -163,7 +171,7 @@ bool UDPComponent::network_poll_() {
       this->poll_pending_ &= ~POLL_BIND;
       this->poll_failed_ &= ~POLL_BIND;
     } else {
-      this->set_poll_warning_(POLL_BIND, LOG_STR("Unable to bind socket"));
+      this->set_poll_warning_(POLL_BIND, LOG_STR("Unable to bind socket"), errno);
       ok = false;
     }
   }
@@ -177,8 +185,31 @@ bool UDPComponent::network_poll_() {
       this->poll_pending_ &= ~POLL_MCAST_IF;
       this->poll_failed_ &= ~POLL_MCAST_IF;
     } else {
-      this->set_poll_warning_(POLL_MCAST_IF, LOG_STR("Failed to set IPv6 multicast interface"));
+      this->set_poll_warning_(POLL_MCAST_IF, LOG_STR("Failed to set IPv6 multicast interface"), errno);
       ok = false;
+    }
+  }
+#endif
+#ifdef USE_UDP_OMR_SOURCE
+  if (this->poll_pending_ & POLL_SRC_BIND) {
+    // An unbound socket picks a mesh-local source that global destinations reject; bind the OMR address
+    auto *ot = openthread::global_openthread_component;
+    auto omr = ot != nullptr ? ot->get_omr_address() : std::nullopt;
+    if (!omr.has_value()) {
+      // Nothing failed yet, so there is no errno to report
+      this->set_poll_warning_(POLL_SRC_BIND, LOG_STR("No routable IPv6 source address"), 0);
+      ok = false;
+    } else {
+      struct sockaddr_in6 src{};
+      src.sin6_family = AF_INET6;
+      memcpy(&src.sin6_addr, omr->mFields.m8, sizeof(src.sin6_addr));
+      if (this->send_socket_v6_->bind((struct sockaddr *) &src, sizeof(src)) == 0) {
+        this->poll_pending_ &= ~POLL_SRC_BIND;
+        this->poll_failed_ &= ~POLL_SRC_BIND;
+      } else {
+        this->set_poll_warning_(POLL_SRC_BIND, LOG_STR("Unable to bind the OMR source address"), errno);
+        ok = false;
+      }
     }
   }
 #endif
@@ -191,12 +222,16 @@ bool UDPComponent::network_poll_() {
   return true;
 }
 
-void UDPComponent::set_poll_warning_(PollStep step, const LogString *what) {
+void UDPComponent::set_poll_warning_(PollStep step, const LogString *what, int err) {
   // Log the first failure of each step only; the poll keeps retrying every second
   if (this->poll_failed_ & step)
     return;
   this->poll_failed_ |= step;
-  ESP_LOGW(TAG, "%s. Error %d", LOG_STR_ARG(what), errno);
+  if (err != 0) {
+    ESP_LOGW(TAG, "%s. Error %d", LOG_STR_ARG(what), err);
+  } else {
+    ESP_LOGW(TAG, "%s", LOG_STR_ARG(what));
+  }
   // One warning bit: only a warning raised here is cleared on success, one from setup() stays
   if (!this->status_has_warning()) {
     this->status_set_warning(what);
@@ -258,6 +293,19 @@ bool UDPComponent::send_packet(const uint8_t *data, size_t size) {
       ESP_LOGV(TAG, "Egress interface not set yet, multicast packet dropped");
       continue;
     }
+#ifdef USE_UDP_OMR_SOURCE
+    // Zephyr registers the socket on its first sendto() and bind() then fails with EISCONN, so even
+    // mesh-scope destinations wait for the routable one
+    if (v6 && (this->poll_pending_ & POLL_SRC_BIND)) {
+      if ((this->poll_failed_ & POLL_SEND_HELD) == 0) {
+        this->poll_failed_ |= POLL_SEND_HELD;
+        ESP_LOGW(TAG, "IPv6 sends are held until a Thread border router provides an OMR address. "
+                      "Put mesh-only destinations in a separate udp block to send them without waiting");
+      }
+      ESP_LOGV(TAG, "IPv6 source not bound yet, packet dropped");
+      continue;
+    }
+#endif
     socket::UDPSendSocket *sock = v6 ? this->send_socket_v6_.get() : this->broadcast_socket_.get();
     socklen_t sockaddr_size = v6 ? sizeof(sockaddr_in6) : sizeof(sockaddr_in);
 #else

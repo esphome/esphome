@@ -205,6 +205,11 @@ PSRAM_XIP_VARIANTS = {
 # neither, so the engine is already in the image and the wrap saves nothing.
 ROM_VSNPRINTF_WITHOUT_VASPRINTF_VARIANTS = {VARIANT_ESP32C6}
 
+# Variants whose ROM exports sscanf for the newlib format in use
+# (esp32c6.rom.newlib-normal.ld). The ESP32-C2 ROM only has it in the nano
+# format, which ESPHome turns off.
+ROM_SSCANF_VARIANTS = {VARIANT_ESP32C6}
+
 # NVS encryption (HMAC peripheral scheme) is only available on variants that
 # expose the HMAC peripheral (SOC_HMAC_SUPPORTED in soc_caps.h). The original
 # ESP32 and ESP32-C2 do not have it. New variants with an HMAC peripheral
@@ -3398,9 +3403,17 @@ async def to_code(config):
                 "CONFIG_BOOTLOADER_CACHE_32BIT_ADDR_QUAD_FLASH", True
             )
 
-    # Enable OTA rollback support
-    if advanced[CONF_ENABLE_OTA_ROLLBACK]:
+    # ESP-IDF 6.2 enables app rollback by default with automatic confirmation at
+    # startup and renamed the confirm-by-app option, so there the explicit off is needed
+    rollback = advanced[CONF_ENABLE_OTA_ROLLBACK]
+    if idf_version() >= cv.Version(6, 2, 0):
+        add_idf_sdkconfig_option("CONFIG_BOOTLOADER_APP_ROLLBACK", rollback)
+        add_idf_sdkconfig_option(
+            "CONFIG_BOOTLOADER_APP_ROLLBACK_CONFIRM_BY_APP", rollback
+        )
+    elif rollback:
         add_idf_sdkconfig_option("CONFIG_BOOTLOADER_APP_ROLLBACK_ENABLE", True)
+    if rollback:
         cg.add_define("USE_OTA_ROLLBACK")
 
     # Enable software OTA downgrade protection. Embed the project version into

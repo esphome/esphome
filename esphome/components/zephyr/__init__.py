@@ -137,6 +137,20 @@ def zephyr_add_prj_conf(
         prj_conf[name] = (value, required)
 
 
+def zephyr_add_prj_conf_min(name: str, value: int, image: str = "") -> None:
+    """Require a numeric zephyr prj conf value of at least ``value``.
+
+    For sizes several components ask for, such as the main stack: the largest
+    request wins instead of two different requests failing the build.
+    """
+    if not name.startswith("CONFIG_"):
+        name = "CONFIG_" + name
+    prj_conf = zephyr_data()[KEY_PRJ_CONF].setdefault(image, {})
+    if name in prj_conf:
+        value = max(value, prj_conf[name][0])
+    prj_conf[name] = (value, True)
+
+
 def zephyr_add_overlay(content: str, image: str = "") -> None:
     data = zephyr_data()
     if image not in data[KEY_OVERLAY]:

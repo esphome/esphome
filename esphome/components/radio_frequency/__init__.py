@@ -45,7 +45,7 @@ def radio_frequency_schema(class_: type[cg.MockObjClass]) -> cv.Schema:
             cv.GenerateID(): cv.declare_id(class_),
             cv.Optional(CONF_ON_CONTROL): automation.validate_automation({}),
         }
-    )
+    ).add_extra(ir_rf_base.duplicate_validator(DOMAIN))
 
 
 @setup_entity("radio_frequency")
