@@ -260,10 +260,8 @@ void ENS160Component::send_env_data_() {
   uint16_t h = (uint16_t) (humidity * 512.0f);
 
   uint8_t data[4];
-  data[0] = t & 0xff;
-  data[1] = (t >> 8) & 0xff;
-  data[2] = h & 0xff;
-  data[3] = (h >> 8) & 0xff;
+  put_le16(data, t);
+  put_le16(data + 2, h);
 
   if (!this->write_bytes(ENS160_REG_TEMP_IN, data, 4)) {
     ESP_LOGE(TAG, "Error writing compensation values");

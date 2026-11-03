@@ -11,8 +11,7 @@ void ash_build_ack_frame(uint8_t *output, uint8_t ack_num) {
 
   output[0] = ASH_FLAG_BYTE;
   output[1] = control;
-  output[2] = crc >> 8;
-  output[3] = crc & 0xFF;
+  put_be16(output + 2, crc);
   output[4] = ASH_FLAG_BYTE;
 }
 
