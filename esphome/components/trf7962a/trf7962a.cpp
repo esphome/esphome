@@ -137,11 +137,9 @@ void TRF7962A::loop() {
       if (irq) {
         const uint8_t status = this->read_irq_status_();
         ESP_LOGV(TAG, "IRQ 0x%02X", status);
-        if (status & IRQ_RX_ERRORS) {
-          this->finish_scan_(false);
-        } else if ((status & IRQ_RX) && this->read_response_()) {
+        if ((status & IRQ_RX) && !(status & IRQ_RX_ERRORS) && this->read_response_()) {
           this->finish_scan_(true);
-        } else if (status & IRQ_NO_RESPONSE) {
+        } else if (status & (IRQ_RX_ERRORS | IRQ_NO_RESPONSE)) {
           this->finish_scan_(false);
         }
       } else if (elapsed >= RESPONSE_TIMEOUT_MS) {

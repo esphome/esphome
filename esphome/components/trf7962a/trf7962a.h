@@ -1,11 +1,11 @@
 #pragma once
 
-#include "esphome/components/nfc/nfc.h"
-#include "esphome/components/nfc/nfc_tag.h"
-#include "esphome/components/spi/spi.h"
 #include "esphome/core/component.h"
 #include "esphome/core/hal.h"
 #include "esphome/core/helpers.h"
+#include "esphome/components/nfc/nfc.h"
+#include "esphome/components/nfc/nfc_tag.h"
+#include "esphome/components/spi/spi.h"
 
 #include <algorithm>
 #include <memory>
