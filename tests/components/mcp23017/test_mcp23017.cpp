@@ -47,7 +47,7 @@ class FakeBus : public i2c::I2CBus {
     return i2c::ERROR_OK;
   }
 
-  uint8_t &reg(uint8_t reg) { return this->regs[alias(reg)]; }
+  uint8_t &register_value(uint8_t reg) { return this->regs[alias(reg)]; }
 
   uint8_t regs[0x16]{};
   Writes writes;
@@ -73,8 +73,8 @@ class MCP23017Test : public ::testing::Test {
   InternalGPIOPin int_pin_;
 };
 
-TEST_F(MCP23017Test, SetupBusFailure) {
-  this->bus_.fail = true;
+TEST_F(MCP23017Test, SetupIoconaReadFailure) {
+  this->bus_.fail_read_reg = MCP23X17_IOCONA;
   this->component_.setup();
   EXPECT_TRUE(this->component_.is_failed());
   EXPECT_TRUE(this->bus_.writes.empty());
@@ -110,8 +110,8 @@ TEST_F(MCP23017Test, SetupIoconbWriteFailure) {
 }
 
 TEST_F(MCP23017Test, SetupWithoutFlags) {
-  this->bus_.reg(MCP23X17_IPOLA) = 0xFF;
-  this->bus_.reg(MCP23X17_IPOLB) = 0x0F;
+  this->bus_.register_value(MCP23X17_IPOLA) = 0xFF;
+  this->bus_.register_value(MCP23X17_IPOLB) = 0x0F;
   this->component_.setup();
   EXPECT_FALSE(this->component_.is_failed());
   EXPECT_EQ(sorted(this->bus_.writes), sorted(Writes{{MCP23X17_IPOLA, 0x00}, {MCP23X17_IPOLB, 0x00}}));
@@ -139,7 +139,7 @@ TEST_F(MCP23017Test, SetupInterruptPin) {
 }
 
 TEST_F(MCP23017Test, SetupOpenDrainAndInterruptPin) {
-  this->bus_.reg(MCP23X17_IOCONA) = IOCON_SEQOP;
+  this->bus_.register_value(MCP23X17_IOCONA) = IOCON_SEQOP;
   this->int_pin_.set_inverted(true);  // INT released
   this->component_.set_interrupt_pin(&this->int_pin_);
   this->component_.set_open_drain_ints(true);
@@ -153,11 +153,11 @@ TEST_F(MCP23017Test, SetupOpenDrainAndInterruptPin) {
 }
 
 TEST_F(MCP23017Test, SetupStaleOdrAndMirror) {
-  this->bus_.reg(MCP23X17_IOCONA) = IOCON_SEQOP | IOCON_MIRROR | IOCON_ODR;
+  this->bus_.register_value(MCP23X17_IOCONA) = IOCON_SEQOP | IOCON_MIRROR | IOCON_ODR;
   this->component_.setup();
   EXPECT_FALSE(this->component_.is_failed());
   EXPECT_EQ(sorted(this->bus_.writes), sorted(Writes{{MCP23X17_IPOLA, 0x00}, {MCP23X17_IPOLB, 0x00}}));
-  EXPECT_EQ(this->bus_.reg(MCP23X17_IOCONA), IOCON_SEQOP | IOCON_MIRROR | IOCON_ODR);
+  EXPECT_EQ(this->bus_.register_value(MCP23X17_IOCONA), IOCON_SEQOP | IOCON_MIRROR | IOCON_ODR);
 }
 
 TEST_F(MCP23017Test, ReadWarningClearsAfterSuccessfulRead) {
