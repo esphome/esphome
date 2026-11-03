@@ -16,6 +16,8 @@ def override_manifest(manifest: ComponentManifestOverride) -> None:
         cg.add_define("USE_API_PLAINTEXT")
         # Linked wizard inputs only exist next to homeassistant entities, which need this
         cg.add_define("USE_API_HOMEASSISTANT_STATES")
+        # Fewer than test_home_assistant_states.cpp registers, so some go past it
+        cg.add_define("HOMEASSISTANT_STATE_SUBSCRIPTION_COUNT", 4)
         # test_wizard.cpp supplies the tables that codegen emits for a real build;
         # it is only compiled when api's own tests are, not when api is a dependency
         if any(Path(p) == TESTS_DIR for p in CORE.config[CONF_ESPHOME][CONF_INCLUDES]):
