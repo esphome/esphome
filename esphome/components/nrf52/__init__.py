@@ -25,7 +25,6 @@ from esphome.components.zephyr import (
     zephyr_set_core_data,
     zephyr_setup_preferences,
     zephyr_to_code,
-    zephyr_use_usb_device_next,
 )
 from esphome.components.zephyr.const import (
     BOOTLOADER_MCUBOOT,
@@ -565,9 +564,7 @@ async def to_code(config: ConfigType) -> None:
     # some boards enable USB and UART by default.
     # disable it to prevent extra current consumption.
     zephyr_add_prj_conf("USB_DEVICE_STACK", False, False)
-    if zephyr_use_usb_device_next():
-        # Boards with a USB serial backend enable the new stack by default
-        zephyr_add_prj_conf("USB_DEVICE_STACK_NEXT", False, False)
+    zephyr_add_prj_conf("USB_DEVICE_STACK_NEXT", False, False)
     zephyr_add_prj_conf("SERIAL", False, False)
 
     # disable stuff to make image smaller by default

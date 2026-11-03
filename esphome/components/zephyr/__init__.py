@@ -304,9 +304,6 @@ def zephyr_enable_usb_cdc_acm() -> None:
         zephyr_add_prj_conf("CDC_ACM_SERIAL_INITIALIZE_AT_BOOT", False)
         zephyr_add_overlay_builder(_disable_board_cdc_acm_overlay)
         return
-    framework_ver: cv.Version = CORE.data[KEY_CORE][KEY_FRAMEWORK_VERSION]
-    if CORE.is_nrf52 and framework_ver >= cv.Version(3, 2, 0):
-        zephyr_add_prj_conf("USB_DEVICE_STACK_NEXT", False)
     zephyr_add_prj_conf("USB_DEVICE_STACK", True)
     zephyr_add_prj_conf("USB_CDC_ACM", True)
     # prevent device to go to susspend, without this communication stop working in python

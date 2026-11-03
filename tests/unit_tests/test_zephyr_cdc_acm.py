@@ -126,7 +126,6 @@ def test_legacy_usb_stack_options() -> None:
     prj_conf = _prj_conf_for(PLATFORM_NRF52, cv.Version(3, 2, 0))
 
     assert prj_conf["CONFIG_USB_DEVICE_STACK"] is True
-    assert prj_conf["CONFIG_USB_DEVICE_STACK_NEXT"] is False
     assert prj_conf["CONFIG_USB_CDC_ACM"] is True
     assert "CONFIG_USBD_CDC_ACM_CLASS" not in prj_conf
     assert not CORE.data[KEY_ZEPHYR][KEY_OVERLAY_BUILDER]
