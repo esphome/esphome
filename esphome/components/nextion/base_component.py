@@ -31,6 +31,7 @@ CONF_PRECISION = "precision"
 CONF_SKIP_CONNECTION_HANDSHAKE = "skip_connection_handshake"
 CONF_START_UP_PAGE = "start_up_page"
 CONF_STARTUP_OVERRIDE_MS = "startup_override_ms"
+CONF_TFT_UPLOAD_HTTP_BUFFER_SIZE_TX = "tft_upload_http_buffer_size_tx"
 CONF_TFT_UPLOAD_HTTP_RETRIES = "tft_upload_http_retries"
 CONF_TFT_UPLOAD_HTTP_TIMEOUT = "tft_upload_http_timeout"
 CONF_TFT_UPLOAD_WATCHDOG_TIMEOUT = "tft_upload_watchdog_timeout"
@@ -72,7 +73,7 @@ CONFIG_TEXT_COMPONENT_SCHEMA = CONFIG_BASE_COMPONENT_SCHEMA.extend(
     cv.Schema(
         {
             cv.Required(CONF_COMPONENT_NAME): NextionName,
-            cv.Optional(CONF_FONT_ID): cv.int_range(min=0, max=255),
+            cv.Optional(CONF_FONT_ID): cv.uint8_t,
         }
     )
 )
@@ -89,7 +90,7 @@ CONFIG_BINARY_SENSOR_SCHEMA = CONFIG_BASE_COMPONENT_SCHEMA.extend(
 CONFIG_SENSOR_COMPONENT_SCHEMA = CONFIG_BINARY_SENSOR_SCHEMA.extend(
     cv.Schema(
         {
-            cv.Optional(CONF_FONT_ID): cv.int_range(min=0, max=255),
+            cv.Optional(CONF_FONT_ID): cv.uint8_t,
         }
     )
 )
@@ -116,24 +117,18 @@ async def setup_component_core_(var, config, arg):
             )
         )
 
-    if CONF_BACKGROUND_COLOR in config:
-        color_component = await cg.get_variable(config[CONF_BACKGROUND_COLOR])
-        cg.add(var.set_background_color(color_component))
+    await cg.add_variable(var.set_background_color, config.get(CONF_BACKGROUND_COLOR))
 
-    if CONF_BACKGROUND_PRESSED_COLOR in config:
-        color_component = await cg.get_variable(config[CONF_BACKGROUND_PRESSED_COLOR])
-        cg.add(var.set_background_pressed_color(color_component))
+    await cg.add_variable(
+        var.set_background_pressed_color, config.get(CONF_BACKGROUND_PRESSED_COLOR)
+    )
 
-    if CONF_FOREGROUND_COLOR in config:
-        color_component = await cg.get_variable(config[CONF_FOREGROUND_COLOR])
-        cg.add(var.set_foreground_color(color_component))
+    await cg.add_variable(var.set_foreground_color, config.get(CONF_FOREGROUND_COLOR))
 
-    if CONF_FOREGROUND_PRESSED_COLOR in config:
-        color_component = await cg.get_variable(config[CONF_FOREGROUND_PRESSED_COLOR])
-        cg.add(var.set_foreground_pressed_color(color_component))
+    await cg.add_variable(
+        var.set_foreground_pressed_color, config.get(CONF_FOREGROUND_PRESSED_COLOR)
+    )
 
-    if CONF_FONT_ID in config:
-        cg.add(var.set_font_id(config[CONF_FONT_ID]))
+    cg.add_optional(var.set_font_id, config.get(CONF_FONT_ID))
 
-    if CONF_VISIBLE in config:
-        cg.add(var.set_visible(config[CONF_VISIBLE]))
+    cg.add_optional(var.set_visible, config.get(CONF_VISIBLE))

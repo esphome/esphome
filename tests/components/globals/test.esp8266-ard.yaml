@@ -1,1 +1,3 @@
-<<: !include common.yaml
+packages:
+  globals: !include common.yaml
+  storage: !include storage.yaml

@@ -1,0 +1,17 @@
+esphome:
+  name: test
+
+esp32:
+  board: esp32dev
+
+globals:
+  - id: rtc_int
+    type: int
+    restore_value: true
+    storage: rtc
+    initial_value: "7"
+  - id: flash_string
+    type: std::string
+    restore_value: true
+    storage: flash
+    max_restore_data_length: 15

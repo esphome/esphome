@@ -6,7 +6,6 @@ from esphome.const import (
     CONF_CURRENT,
     CONF_ENERGY,
     CONF_FREQUENCY,
-    CONF_ID,
     CONF_LINE_FREQUENCY,
     CONF_POWER,
     CONF_RESET,
@@ -97,9 +96,7 @@ CONFIG_SCHEMA = (
 
 
 async def to_code(config: ConfigType) -> None:
-    var = cg.new_Pvariable(config[CONF_ID])
-    await cg.register_component(var, config)
-    await uart.register_uart_device(var, config)
+    var = await uart.new_uart_component(config)
 
     sensors = sensor.sub_sensors(config)
     await sensors(CONF_VOLTAGE, var.set_voltage_sensor)

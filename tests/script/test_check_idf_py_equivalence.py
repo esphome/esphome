@@ -156,6 +156,34 @@ def test_check_reports_changed_files_and_rebuilt_outputs(tmp_path: Path) -> None
     ]
 
 
+def test_check_ignores_a_build_always_external_project(tmp_path: Path) -> None:
+    """ESP-IDF's ULP app is an ExternalProject with BUILD_ALWAYS: its step
+    re-runs on every build and ninja re-records its byproducts with the new
+    end time, so a moved mtime on that edge is not work. The same outputs
+    under another edge still are."""
+    tree = _make_tree(tmp_path)
+    build = tree / "build"
+    ulp = (
+        "1\t2\t{t}\tesp-idf/src/ulp_main-prefix/src/ulp_main-stamp/ulp_main-build\tab\n"
+        "1\t2\t{t}\tesp-idf/src/ulp_main/ulp_main.bin\tab\n"
+        "1\t2\t{t}\tesp-idf/src/ulp_main/ulp_main.ld\tab\n"
+    )
+    (build / ".ninja_log").write_text(
+        "# ninja log v7\n1\t2\t10\tesp-idf/a.obj\t0\n"
+        "1\t2\t10\tesp-idf/other.ld\tcd\n" + ulp.format(t=10)
+    )
+
+    def rerun(cmd: list[str]) -> None:
+        if cmd[-1] == "build":
+            (build / ".ninja_log").write_text(
+                "# ninja log v7\n1\t2\t10\tesp-idf/a.obj\t0\n"
+                "3\t4\t20\tesp-idf/other.ld\tcd\n" + ulp.format(t=30)
+            )
+
+    problems, _ = _run_check(tree, rerun)
+    assert problems == ["idf.py rebuilt esp-idf/other.ld"]
+
+
 @pytest.mark.parametrize(
     ("after_build", "problem"),
     [

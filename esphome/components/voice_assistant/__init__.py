@@ -67,16 +67,6 @@ VoiceAssistant = voice_assistant_ns.class_("VoiceAssistant", cg.Component)
 Timer = voice_assistant_ns.struct("Timer")
 
 
-def tts_stream_validate(config: ConfigType) -> ConfigType:
-    if CONF_SPEAKER not in config and (
-        CONF_ON_TTS_STREAM_START in config or CONF_ON_TTS_STREAM_END in config
-    ):
-        raise cv.Invalid(
-            f"{CONF_SPEAKER} is required when using {CONF_ON_TTS_STREAM_START} and/or {CONF_ON_TTS_STREAM_END}"
-        )
-    return config
-
-
 CONFIG_SCHEMA = cv.All(
     cv.Schema(
         {
@@ -178,7 +168,7 @@ CONFIG_SCHEMA = cv.All(
             ),
         }
     ).extend(cv.COMPONENT_SCHEMA),
-    tts_stream_validate,
+    cv.key_requires((CONF_ON_TTS_STREAM_START, CONF_ON_TTS_STREAM_END), CONF_SPEAKER),
 )
 
 FINAL_VALIDATE_SCHEMA = cv.All(
@@ -207,22 +197,13 @@ async def to_code(config: ConfigType) -> None:
         mic_source2 = await microphone.microphone_source_to_code(mic_sources[1])
         cg.add(var.set_microphone_source2(mic_source2))
 
-    if CONF_MICRO_WAKE_WORD in config:
-        mww = await cg.get_variable(config[CONF_MICRO_WAKE_WORD])
-        cg.add(var.set_micro_wake_word(mww))
-
-    if CONF_MEDIA_PLAYER in config:
-        mp = await cg.get_variable(config[CONF_MEDIA_PLAYER])
-        cg.add(var.set_media_player(mp))
-
-    if CONF_SPEAKER in config:
-        spkr = await cg.get_variable(config[CONF_SPEAKER])
-        cg.add(var.set_speaker(spkr))
+    await cg.add_variable(var.set_micro_wake_word, config.get(CONF_MICRO_WAKE_WORD))
+    await cg.add_variable(var.set_media_player, config.get(CONF_MEDIA_PLAYER))
+    await cg.add_variable(var.set_speaker, config.get(CONF_SPEAKER))
 
     cg.add(var.set_use_wake_word(config[CONF_USE_WAKE_WORD]))
 
-    if (vad_threshold := config.get(CONF_VAD_THRESHOLD)) is not None:
-        cg.add(var.set_vad_threshold(vad_threshold))
+    cg.add_optional(var.set_vad_threshold, config.get(CONF_VAD_THRESHOLD))
 
     cg.add(var.set_noise_suppression_level(config[CONF_NOISE_SUPPRESSION_LEVEL]))
     cg.add(var.set_auto_gain(config[CONF_AUTO_GAIN]))

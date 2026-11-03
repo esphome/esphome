@@ -1,0 +1,96 @@
+esphome:
+  name: uart-mock-ld2420-select-mode
+
+host:
+api:
+  batch_delay: 0ms  # Disable batching to receive all state updates
+logger:
+  level: VERBOSE
+
+external_components:
+  - source:
+      type: local
+      path: EXTERNAL_COMPONENT_PATH
+
+# Dummy uart entry to satisfy ld2420's DEPENDENCIES = ["uart"]
+# The actual UART bus used is the uart_mock component below
+uart:
+  baud_rate: 115200
+  port: /dev/null
+
+uart_mock:
+  id: mock_uart
+  baud_rate: 115200
+  auto_start: false
+  responses:
+    # Firmware v2.0.0 (1.5.4 or newer), so setup picks energy reporting
+    - expect_tx:
+        [0xFD, 0xFC, 0xFB, 0xFA, 0x02, 0x00, 0x00, 0x00, 0x04, 0x03, 0x02, 0x01]
+      inject_rx:
+        [
+          0xFD, 0xFC, 0xFB, 0xFA,
+          0x0C, 0x00,
+          0x00, 0x01,
+          0x00, 0x00,
+          0x06, 0x00,
+          0x76, 0x32, 0x2E, 0x30, 0x2E, 0x30,
+          0x04, 0x03, 0x02, 0x01,
+        ]
+
+    # Generic ACK for every other command
+    - expect_tx: [0x04, 0x03, 0x02, 0x01]
+      inject_rx:
+        [
+          0xFD, 0xFC, 0xFB, 0xFA,
+          0x04, 0x00,
+          0xFF, 0x01,
+          0x00, 0x00,
+          0x04, 0x03, 0x02, 0x01,
+        ]
+
+  injections:
+    # Sent after the select switched the module to Simple: "ON Range 0035\r\n" is only
+    # parsed while the component expects simple frames.
+    - delay: 100ms
+      inject_rx:
+        [
+          0x4F, 0x4E, 0x20, 0x52, 0x61, 0x6E, 0x67, 0x65, 0x20,
+          0x30, 0x30, 0x33, 0x35,
+          0x0D, 0x0A,
+        ]
+
+button:
+  - platform: template
+    name: "Start Scenario"
+    on_press:
+      - lambda: 'id(mock_uart).start_scenario();'
+  # A changed timeout gets apply_config_action() past its no-change check
+  - platform: template
+    name: "Apply Changed Config"
+    on_press:
+      - lambda: |-
+          id(ld2420_dev).new_config.timeout++;
+          id(ld2420_dev).apply_config_action();
+  - platform: template
+    name: "Inject Simple Frame"
+    on_press:
+      - lambda: |-
+          // "ON Range 0040\r\n"
+          id(mock_uart).inject_to_rx_buffer(std::vector<uint8_t>{
+              0x4F, 0x4E, 0x20, 0x52, 0x61, 0x6E, 0x67, 0x65, 0x20, 0x30, 0x30, 0x34, 0x30, 0x0D, 0x0A});
+
+ld2420:
+  id: ld2420_dev
+  uart_id: mock_uart
+
+sensor:
+  - platform: ld2420
+    ld2420_id: ld2420_dev
+    moving_distance:
+      name: "Moving Distance"
+
+select:
+  - platform: ld2420
+    ld2420_id: ld2420_dev
+    operating_mode:
+      name: "Operating Mode"

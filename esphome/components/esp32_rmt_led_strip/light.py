@@ -137,8 +137,7 @@ async def to_code(config: ConfigType) -> None:
     if config[CONF_PIN][CONF_INVERTED]:
         cg.add(var.set_inverted(True))
 
-    if CONF_MAX_REFRESH_RATE in config:
-        cg.add(var.set_max_refresh_rate(config[CONF_MAX_REFRESH_RATE]))
+    cg.add_optional(var.set_max_refresh_rate, config.get(CONF_MAX_REFRESH_RATE))
 
     if CONF_CHIPSET in config:
         chipset = CHIPSETS[config[CONF_CHIPSET]]
@@ -169,5 +168,4 @@ async def to_code(config: ConfigType) -> None:
     )
     cg.add(var.set_use_psram(config[CONF_USE_PSRAM]))
     cg.add(var.set_rmt_symbols(config[CONF_RMT_SYMBOLS]))
-    if CONF_USE_DMA in config:
-        cg.add(var.set_use_dma(config[CONF_USE_DMA]))
+    cg.add_optional(var.set_use_dma, config.get(CONF_USE_DMA))

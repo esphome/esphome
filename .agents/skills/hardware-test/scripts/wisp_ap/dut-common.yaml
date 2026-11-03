@@ -1,0 +1,16 @@
+esphome:
+  name: ${name}
+
+esp32:
+  board: esp32dev
+  framework:
+    type: ${framework}
+
+logger:
+  level: DEBUG
+
+api:
+  reboot_timeout: 0s
+
+ota:
+  - platform: esphome

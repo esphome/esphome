@@ -1,0 +1,10 @@
+packages:
+  common: !include common.yaml
+
+mqtt:
+  broker: test.mosquitto.org
+  skip_cert_cn_check: true
+  certificate_authority: |
+    -----BEGIN CERTIFICATE-----
+    MIIBszCCAVoCCQDAAAAAAAAAADAKBggqhkjOPQQDAjAfMR0wGwYDVQQDDBRtcXR0
+    -----END CERTIFICATE-----

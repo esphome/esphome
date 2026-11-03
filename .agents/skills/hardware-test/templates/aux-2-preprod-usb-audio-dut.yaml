@@ -1,0 +1,39 @@
+# Needs packages/aux-2-pre-prod.yaml from NabuCasa/aux-2 at commit 283f2e64 next to this file, with its local
+# external_components source pointed at github://NabuCasa/aux-2@main (see reference/recipes/usb_audio.md).
+# Nabu Casa Connect AUX-2 on the usb_audio PR tree: the Anker S330 on the USB host port as the mixer output.
+packages:
+  core: !include aux-2-pre-prod.yaml
+
+esphome:
+  name: aux-2-usb-dut
+  name_add_mac_suffix: false
+
+wifi:
+  ssid: !secret wifi_ssid
+  password: !secret wifi_password
+
+api:
+  encryption:
+    key: !secret api_key
+
+logger:
+  level: DEBUG
+  baud_rate: 0
+
+sendspin:
+  unpaired_access: true
+
+usb_audio:
+  id: usb_audio_id
+
+speaker:
+  - platform: usb_audio
+    id: usb_speaker
+    usb_audio_id: usb_audio_id
+    sample_rate: 48000
+    bits_per_sample: 24bit
+    num_channels: 2
+    buffer_size: 28800
+    write_timeout: 50ms
+  - id: !extend mixing_speaker
+    output_speaker: usb_speaker

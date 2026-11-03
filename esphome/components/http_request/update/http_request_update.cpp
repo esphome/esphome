@@ -24,12 +24,6 @@ namespace esphome::http_request {
 
 ESPHOME_LOG_TAG(TAG, "http_request.update");
 
-// Wraps UpdateInfo + error for the task→main-loop handoff.
-struct TaskResult {
-  update::UpdateInfo info;
-  const LogString *error_str{nullptr};
-};
-
 static const size_t MAX_READ_SIZE = 256;
 static constexpr uint32_t INITIAL_CHECK_INTERVAL_ID = 0;
 static constexpr uint32_t INITIAL_CHECK_INTERVAL_MS = 10000;
@@ -68,6 +62,37 @@ void HttpRequestUpdate::on_ota_state(ota::OTAState state, float progress, uint8_
   }
 }
 
+void HttpRequestUpdate::set_source_url(const char *source_url, size_t len) {
+  // Copy before releasing, so a caller passing the current URL back in stays valid.
+  char *copy = new char[len + 1];
+  memcpy(copy, source_url, len);
+  copy[len] = '\0';
+  this->release_source_url_();
+  this->source_url_ = copy;
+  this->source_url_owned_ = true;
+}
+
+void HttpRequestUpdate::release_source_url_() {
+  if (this->source_url_owned_)
+    delete[] this->source_url_;
+  this->source_url_owned_ = false;
+}
+
+void HttpRequestUpdate::begin_check_(TaskResult *result) {
+  result->update = this;
+  result->source_url = this->source_url_;
+  result->owns_source_url = this->source_url_owned_;
+  this->source_url_owned_ = false;
+}
+
+void HttpRequestUpdate::end_check_(TaskResult *result) {
+  if (this->source_url_ == result->source_url) {
+    this->source_url_owned_ = result->owns_source_url;
+  } else if (result->owns_source_url) {
+    delete[] result->source_url;  // replaced while the check ran
+  }
+}
+
 void HttpRequestUpdate::update() {
   if (!network::is_connected()) {
     ESP_LOGD(TAG, "Network not connected, skipping update check");
@@ -75,28 +100,37 @@ void HttpRequestUpdate::update() {
   }
   this->cancel_interval(INITIAL_CHECK_INTERVAL_ID);
 #ifdef USE_ESP32
-  if (this->update_task_handle_ != nullptr) {
+  if (this->task_result_ != nullptr) {
     ESP_LOGW(TAG, "Update check already in progress");
     return;
   }
-  xTaskCreate(HttpRequestUpdate::update_task, "update_task", 8192, (void *) this, 1, &this->update_task_handle_);
+#endif
+  // Allocated once per check; every path in the task returns via its single defer, which frees it.
+  auto *result = new TaskResult();
+  this->begin_check_(result);
+#ifdef USE_ESP32
+  this->task_result_ = result;
+  if (xTaskCreate(HttpRequestUpdate::update_task, "update_task", 8192, result, 1, nullptr) != pdPASS) {
+    this->task_result_ = nullptr;
+    this->end_check_(result);
+    delete result;
+  }
 #else
-  this->update_task(this);
+  this->update_task(result);
+  this->end_check_(result);
 #endif
 }
 
 void HttpRequestUpdate::update_task(void *params) {
-  HttpRequestUpdate *this_update = (HttpRequestUpdate *) params;
-
-  // Allocate once — every path below returns via the single defer at the end.
-  // On failure, error_str is set; on success it is nullptr.
-  auto *result = new TaskResult();
+  auto *result = static_cast<TaskResult *>(params);
+  HttpRequestUpdate *this_update = result->update;
   auto *info = &result->info;
+  const char *source_url = result->source_url;
 
-  auto container = this_update->request_parent_->get(this_update->source_url_);
+  auto container = this_update->request_parent_->get(source_url);
 
   if (container == nullptr || container->status_code != HTTP_STATUS_OK) {
-    ESP_LOGE(TAG, "Failed to fetch manifest from %s", this_update->source_url_);
+    ESP_LOGE(TAG, "Failed to fetch manifest from %s", source_url);
     if (container != nullptr)
       container->end();
     result->error_str = LOG_STR("Failed to fetch manifest");
@@ -176,14 +210,14 @@ void HttpRequestUpdate::update_task(void *params) {
     allocator.deallocate(data, content_length);
 
     if (!valid) {
-      ESP_LOGE(TAG, "Failed to parse JSON from %s", this_update->source_url_);
+      ESP_LOGE(TAG, "Failed to parse JSON from %s", source_url);
       result->error_str = LOG_STR("Failed to parse manifest JSON");
       goto defer;  // NOLINT(cppcoreguidelines-avoid-goto)
     }
 
     // Merge source_url_ and firmware_url
     if (!info->firmware_url.empty() && info->firmware_url.find("http") == std::string::npos) {
-      const char *source = this_update->source_url_;
+      const char *source = source_url;
       const size_t source_len = strlen(source);
       size_t prefix_len;
       if (info->firmware_url[0] == '/') {
@@ -215,7 +249,8 @@ defer:
   // Lambda captures only 2 pointers (8 bytes) — fits in std::function SBO on supported toolchains.
   this_update->defer([this_update, result]() {
 #ifdef USE_ESP32
-    this_update->update_task_handle_ = nullptr;
+    this_update->task_result_ = nullptr;
+    this_update->end_check_(result);
 #endif
     if (result->error_str != nullptr) {
       this_update->status_set_error(result->error_str);

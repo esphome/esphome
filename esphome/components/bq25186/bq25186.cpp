@@ -28,13 +28,10 @@ bool BQ25186Component::write_register_(uint8_t reg, uint8_t value) {
 }
 
 bool BQ25186Component::update_register_(uint8_t reg, uint8_t mask, uint8_t value) {
-  uint8_t reg_value;
-  if (!this->read_byte(reg, &reg_value)) {
-    ESP_LOGW(TAG, "Failed to read register 0x%02X", reg);
-    return false;
-  }
-  reg_value = (reg_value & ~mask) | (value & mask);
-  return this->write_register_(reg, reg_value);
+  if (this->update_register(reg, mask, value))
+    return true;
+  ESP_LOGW(TAG, "Failed to update register 0x%02X", reg);
+  return false;
 }
 
 uint8_t BQ25186Component::expected_register_(size_t index) const {
@@ -79,19 +76,9 @@ bool BQ25186Component::apply_config(const BQ25186ConfigRegisters &regs) {
 }
 
 void BQ25186Component::setup() {
-  uint8_t mask_id;
-  if (!this->read_byte(BQ25186_REG_MASK_ID, &mask_id)) {
-    this->mark_failed(LOG_STR(ESP_LOG_MSG_COMM_FAIL));
-    return;
-  }
-
   // Another charger at this address could lay its registers out differently, so do not write into it
-  const uint8_t device_id = mask_id & 0x0F;
-  if (device_id != 0x01) {
-    ESP_LOGE(TAG, "Unexpected device id 0x%X (expected 0x1)", device_id);
-    this->mark_failed(LOG_STR("Not a BQ25186"));
+  if (!this->check_chip_id(this, BQ25186_REG_MASK_ID, 0x01, 0x0F))
     return;
-  }
 
   // A failed write only sets the warning status: the chip has identified itself, so a later
   // apply_configuration may retry
@@ -102,7 +89,7 @@ void BQ25186Component::setup() {
     // The poll below puts the pin in output mode; without a restore mode the switch takes its level from it
     auto initial = this->pg_gpo_switch_->get_initial_state_with_restore_mode();
     if (initial.has_value())
-      this->pg_gpo_switch_->publish_state(*initial);  // the first poll writes it to the pin
+      this->pg_gpo_switch_->publish_state(*initial != this->pg_gpo_switch_->is_inverted());  // the first poll writes it
   }
 #endif
   // The poller first runs after a random share of the interval; the entities get a state now
@@ -122,7 +109,11 @@ void BQ25186Component::check_pg_gpo_(const BQ25186StatusRegisters &status, bool 
   const bool level = (status[BQ25186_REG_SYS_REG] & BQ25186_SYS_REG_PG_GPO_LEVEL) != 0;
   if (!this->pg_gpo_switch_->has_state()) {
     this->pg_gpo_switch_->publish_state(level);
-  } else if (level != this->pg_gpo_switch_->state && !this->write_pg_gpo_level(this->pg_gpo_switch_->state)) {
+    return;
+  }
+  // state is what the switch shows; an inverted switch drives the opposite level
+  const bool wanted = this->pg_gpo_switch_->state != this->pg_gpo_switch_->is_inverted();
+  if (level != wanted && !this->write_pg_gpo_level(wanted)) {
     this->status_set_warning(LOG_STR("PG/GPO level write failed"));
     pending = true;
   }

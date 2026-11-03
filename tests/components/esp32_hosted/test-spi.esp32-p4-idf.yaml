@@ -1,7 +1,6 @@
 esp32_hosted:
   type: spi
   variant: ESP32C6
-  active_high: true
   reset_pin: GPIO15
   handshake_pin: GPIO54
   data_ready_pin: GPIO14

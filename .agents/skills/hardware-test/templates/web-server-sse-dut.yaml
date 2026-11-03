@@ -1,0 +1,136 @@
+# web_server_idf state SSE and HTTPD task stress (#21109, #21038). Add `auth:` with `type: digest` for the HTTPD
+# stack case; the entity endpoints are named after the entities (/sensor/Fast%201, /switch/Toggle/toggle).
+esphome:
+  name: web-server-dut
+
+esp32:
+  board: esp32dev
+  framework:
+    type: esp-idf
+
+logger:
+  level: DEBUG
+
+wifi:
+  ssid: !secret wifi_ssid
+  password: !secret wifi_password
+  power_save_mode: none
+
+api:
+  encryption:
+    key: !secret api_key
+  reboot_timeout: 0s
+
+ota:
+  - platform: esphome
+
+web_server:
+  port: 80
+  version: 3
+
+# Stack and heap probe from the main loop task (loopTask) and the HTTPD task.
+interval:
+  - interval: 5s
+    then:
+      - lambda: |-
+          TaskHandle_t httpd = xTaskGetHandle("httpd");
+          if (httpd == nullptr) {
+            ESP_LOGW("probe", "httpd task not found, loopTask min free stack %u",
+                     (unsigned) uxTaskGetStackHighWaterMark(nullptr));
+            return;
+          }
+          ESP_LOGI("probe", "loopTask min free stack %u, httpd min free stack %u, internal free %u, largest block %u",
+                   (unsigned) uxTaskGetStackHighWaterMark(nullptr), (unsigned) uxTaskGetStackHighWaterMark(httpd),
+                   (unsigned) heap_caps_get_free_size(MALLOC_CAP_INTERNAL),
+                   (unsigned) heap_caps_get_largest_free_block(MALLOC_CAP_INTERNAL));
+
+# Small state events: eight sensors at 200 ms, well under the 1024 byte stack buffer.
+sensor:
+  - platform: template
+    name: Fast 1
+    id: fast1
+    update_interval: 200ms
+    accuracy_decimals: 3
+    lambda: return random_float() * 100.0f;
+  - platform: template
+    name: Fast 2
+    update_interval: 200ms
+    accuracy_decimals: 3
+    lambda: return random_float() * 100.0f;
+  - platform: template
+    name: Fast 3
+    update_interval: 200ms
+    accuracy_decimals: 3
+    lambda: return random_float() * 100.0f;
+  - platform: template
+    name: Fast 4
+    update_interval: 200ms
+    accuracy_decimals: 3
+    lambda: return random_float() * 100.0f;
+  - platform: template
+    name: Fast 5
+    update_interval: 200ms
+    accuracy_decimals: 3
+    lambda: return random_float() * 100.0f;
+  - platform: template
+    name: Fast 6
+    update_interval: 200ms
+    accuracy_decimals: 3
+    lambda: return random_float() * 100.0f;
+  - platform: template
+    name: Fast 7
+    update_interval: 200ms
+    accuracy_decimals: 3
+    lambda: return random_float() * 100.0f;
+  - platform: template
+    name: Fast 8
+    update_interval: 200ms
+    accuracy_decimals: 3
+    lambda: return random_float() * 100.0f;
+
+# Large state events: the text sensor JSON carries the string twice (value and state).
+# mid ~1.3 kB goes to the 2048 byte tail, big ~3.7 kB grows the tail to 4096, huge ~5.7 kB exceeds the
+# 5120 byte JSON room and must be dropped with "State event does not fit".
+text_sensor:
+  - platform: template
+    name: Mid
+    id: mid
+    update_interval: 1s
+    lambda: |-
+      static uint32_t n = 0;
+      std::string s = std::to_string(n++) + ":";
+      s.append(600 - s.size(), 'm');
+      return s;
+  - platform: template
+    name: Big
+    id: big
+    update_interval: 2s
+    lambda: |-
+      static uint32_t n = 0;
+      std::string s = std::to_string(n++) + ":";
+      s.append(1800 - s.size(), 'b');
+      return s;
+  - platform: template
+    name: Huge
+    id: huge
+    update_interval: 7s
+    lambda: |-
+      static uint32_t n = 0;
+      std::string s = std::to_string(n++) + ":";
+      s.append(2800 - s.size(), 'h');
+      return s;
+
+switch:
+  - platform: template
+    name: Toggle
+    optimistic: true
+
+button:
+  - platform: template
+    name: Burst
+    on_press:
+      - lambda: |-
+          for (int i = 0; i < 50; i++) {
+            id(fast1).publish_state(i);
+            id(mid).publish_state(std::string(600, 'x'));
+          }

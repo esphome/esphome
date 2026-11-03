@@ -53,12 +53,9 @@ void HoermannHcpLight::update_from_state_() {
     this->status_set_warning(LOG_STR("bus controller not responding"));
     return;
   }
-  if (!this->parent_->is_light_known()) {
-    // Commands are refused until the door says, so say so rather than looking healthy and doing nothing.
-    this->status_set_warning(LOG_STR("door has not reported the lamp"));
+  // Commands are refused until the door says, so say so rather than looking healthy and doing nothing.
+  if (!this->status_comm_result(this->parent_->is_light_known(), LOG_STR("door has not reported the lamp")))
     return;
-  }
-  this->status_clear_warning();
   const bool heading_on = this->parent_->is_light_heading_on();
   if (this->light_state_->remote_values.is_on() != heading_on)
     this->publish_lamp_state_(heading_on);

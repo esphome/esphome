@@ -1,5 +1,4 @@
 CONF_CORE_OPTIONS = "core_options"
-CONF_DEVICE_TYPE = "device_type"
 CONF_EXT_PAN_ID = "ext_pan_id"
 CONF_FORCE_DATASET = "force_dataset"
 CONF_MDNS_ID = "mdns_id"
@@ -9,6 +8,7 @@ CONF_NETWORK_KEY = "network_key"
 CONF_PAN_ID = "pan_id"
 CONF_POLL_PERIOD = "poll_period"
 CONF_PSKC = "pskc"
+CONF_RCP = "rcp"
 CONF_SRP_ID = "srp_id"
 CONF_TLV = "tlv"
 

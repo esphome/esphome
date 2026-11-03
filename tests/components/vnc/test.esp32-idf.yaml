@@ -1,0 +1,25 @@
+packages:
+  i2c: !include ../../test_build_components/common/i2c/esp32-idf.yaml
+  test_display: !include ../../test_build_components/common/test_display/test_display.yaml
+  vnc: !include common.yaml
+
+wifi:
+  ssid: MySSID
+  password: password1
+
+display:
+  - platform: test_display
+    id: vnc_touch_display
+    dimensions: 320x240
+
+touchscreen:
+  - platform: ft5x06
+    i2c_id: i2c_bus
+    id: vnc_touchscreen
+    display: vnc_touch_display
+
+vnc:
+  - id: vnc_touch_client
+    display_id: vnc_touch_display
+    touchscreen_id: vnc_touchscreen
+    host: 192.0.2.11

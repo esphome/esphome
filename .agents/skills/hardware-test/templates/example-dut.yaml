@@ -1,0 +1,16 @@
+# Device under test for the /wifisave hammer. Copy into a scratch directory, keep the file name equal
+# to `name`, pick one platform block, bump `name` every run.
+substitutions:
+  name: hwtest-dut-1
+  ap_ssid: hwtest-ap
+
+esp8266:
+  board: d1_mini
+
+# esp32: {board: esp32dev, framework: {type: esp-idf}}
+# rtl87xx: {board: bw15}
+# bk72xx: {board: generic-bk7238}   # plus logger: {hardware_uart: UART1}, BK72xx logs on UART2 by default
+# rp2040: {board: rpipico2w}
+
+packages:
+  hwtest: !include dut-fallback-ap.yaml

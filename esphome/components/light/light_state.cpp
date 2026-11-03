@@ -83,15 +83,19 @@ void LightState::setup() {
   call.set_color_temperature_if_supported(recovered.color_temp);
   call.set_cold_white_if_supported(recovered.cold_white);
   call.set_warm_white_if_supported(recovered.warm_white);
-  if (recovered.effect != 0) {
+  if (recovered.state && recovered.effect != 0) {
     call.set_effect(recovered.effect);
   } else {
+#ifdef USE_LIGHT_RESUME_EFFECT
+    // An off light cannot start its effect now; keep it for the first turn-on instead
+    this->previous_effect_index_ = recovered.effect;
+#endif  // USE_LIGHT_RESUME_EFFECT
     call.set_transition_length_if_supported(0);
   }
   call.perform();
 }
 void LightState::dump_config() {
-  ESP_LOGCONFIG(TAG, "Light '%s'", this->get_name().c_str());
+  ESP_LOGCONFIG(TAG, "Light '%s'", LOG_STR_ARG(this->get_log_name()));
   auto traits = this->get_traits();
   if (traits.supports_color_capability(ColorCapability::BRIGHTNESS)) {
 #ifdef USE_LIGHT_GAMMA_LUT
@@ -121,6 +125,11 @@ void LightState::dump_config() {
   }
 }
 void LightState::loop() {
+  this->apply_effect_and_transformer_();
+  this->write_if_pending_();
+}
+
+void LightState::apply_effect_and_transformer_() {
   // Apply effect (if any)
   auto *effect = this->get_active_effect_();
   if (effect != nullptr) {
@@ -171,14 +180,38 @@ void LightState::loop() {
       this->disable_loop_if_idle_();
     }
   }
+}
 
-  // Write state to the light
+void LightState::write_if_pending_() {
   if (this->next_write_) {
     this->next_write_ = false;
     this->output_->write_state(this);
     // Disable loop if idle (no transformer and no effect)
     this->disable_loop_if_idle_();
   }
+}
+
+bool LightState::set_external_state(const LightColorValues &values) {
+  // Either would write its own values over the reported ones
+  if (this->next_write_ || this->transformer_ != nullptr) {
+    return false;
+  }
+  const bool had_effect = this->active_effect_index_ != 0;
+  this->stop_effect_();  // schedules no write, unlike a call that sets effect 0
+  if (!had_effect && values == this->remote_values && values == this->current_values) {
+    return true;  // nothing new to tell
+  }
+  this->current_values = values;
+  this->remote_values = values;
+  // Reached at once, as after an instant call, and told before the publish like there: an
+  // automation run by the publish may change the light again, and its own call reports that
+  if (this->target_state_reached_listeners_) {
+    for (auto *listener : *this->target_state_reached_listeners_) {
+      listener->on_light_target_state_reached();
+    }
+  }
+  this->publish_state();
+  return true;
 }
 
 void LightState::publish_state() {

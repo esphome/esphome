@@ -10,8 +10,7 @@
 namespace esphome::select {
 
 #define LOG_SELECT(prefix, type, obj) \
-  if ((obj) != nullptr) { \
-    ESP_LOGCONFIG(TAG, "%s%s '%s'", prefix, LOG_STR_LITERAL(type), (obj)->get_name().c_str()); \
+  if (log_entity_header(TAG, prefix, LOG_STR_LITERAL(type), (obj))) { \
     LOG_ENTITY_ICON(TAG, prefix, *(obj)); \
   }
 
@@ -110,6 +109,16 @@ class Select : public EntityBase {
   }
 
   LazyCallbackManager<void(size_t)> state_callback_;
+};
+
+/// Calls the codegen-generated Fn(this, index) on a new index; the hub and any publish are baked into Fn.
+template<auto Fn> class ApplySelect final : public Select {
+ public:
+  // Not "= default": placement new would zero-fill .bss that is already zero.
+  ApplySelect() {}
+
+ protected:
+  void control(size_t index) override { Fn(this, index); }
 };
 
 }  // namespace esphome::select

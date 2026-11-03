@@ -129,9 +129,8 @@ AudioResamplerState AudioResampler::resample(bool stop_gracefully, int32_t *ms_d
     delay(READ_WRITE_TIMEOUT_MS);
   }
 
-  // Expose a chunk of the ring buffer's internal storage. pre_shift is ignored by RingBufferAudioSource
-  // (there is no intermediate transfer buffer to compact).
-  this->audio_source_->fill(pdMS_TO_TICKS(READ_WRITE_TIMEOUT_MS), false);
+  // Expose a chunk of the ring buffer's internal storage.
+  this->audio_source_->fill(pdMS_TO_TICKS(READ_WRITE_TIMEOUT_MS));
 
   if (this->audio_source_->available() == 0) {
     // No samples available to process

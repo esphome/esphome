@@ -19,12 +19,9 @@ DOMAIN = "lsm6ds"
 # ── C++ namespace / class ────────────────────────────────────────────────────
 # ── Enum proxies ─────────────────────────────────────────────────────────────
 LSM6DSAccelRange = lsm6ds_ns.enum("LSM6DSAccelRange")
-ACCEL_RANGE_OPTIONS = {
-    "2G": LSM6DSAccelRange.LSM6DS_ACCEL_RANGE_2G,
-    "4G": LSM6DSAccelRange.LSM6DS_ACCEL_RANGE_4G,
-    "8G": LSM6DSAccelRange.LSM6DS_ACCEL_RANGE_8G,
-    "16G": LSM6DSAccelRange.LSM6DS_ACCEL_RANGE_16G,
-}
+ACCEL_RANGE_OPTIONS = LSM6DSAccelRange.options(
+    "2G", "4G", "8G", "16G", prefix="LSM6DS_ACCEL_RANGE_"
+)
 
 LSM6DSAccelODR = lsm6ds_ns.enum("LSM6DSAccelODR")
 ACCEL_ODR_OPTIONS = {

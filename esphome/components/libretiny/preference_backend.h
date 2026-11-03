@@ -1,6 +1,8 @@
 #pragma once
 #ifdef USE_LIBRETINY
 
+#include "esphome/core/defines.h"
+
 #include <cstddef>
 #include <cstdint>
 
@@ -20,6 +22,14 @@ class LibreTinyPreferenceBackend final {
   uint32_t key;
   struct fdb_kvdb *db;
   struct fdb_blob *blob;
+#ifdef USE_LIBRETINY_RTC_PREFERENCES
+  // storage: rtc lives under its own FlashDB name prefix, so the database can drop every rtc entry
+  // at once after a boot that RTC memory would not have survived
+  bool rtc{false};
+  bool is_rtc() const { return this->rtc; }
+#else
+  static constexpr bool is_rtc() { return false; }
+#endif
 };
 
 class LibreTinyPreferences;

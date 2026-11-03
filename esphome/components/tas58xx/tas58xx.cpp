@@ -20,6 +20,7 @@ static constexpr uint8_t TAS58XX_RESET_CTRL = 0x01;
 static constexpr uint8_t TAS58XX_RESET_CTRL_ALL = 0x11;  // Reset DSP/control port and registers
 static constexpr uint8_t TAS58XX_DEVICE_CTRL_1 = 0x02;
 static constexpr uint8_t TAS58XX_DEVICE_CTRL_1_PBTL = (1 << 2);
+static constexpr uint8_t TAS58XX_DEVICE_CTRL_1_1SPW = 0x01;  // DAMP_MOD = 01
 static constexpr uint8_t TAS58XX_DEVICE_CTRL_2 = 0x03;
 static constexpr uint8_t TAS58XX_DEVICE_CTRL_2_MUTE = (1 << 3);
 static constexpr uint8_t TAS58XX_CTRL_STATE_MASK = 0x03;  // DEVICE_CTRL_2 and POWER_STATE
@@ -33,6 +34,9 @@ static constexpr uint8_t TAS58XX_DIG_VOL_0DB = 0x30;
 static constexpr uint8_t TAS58XX_DIG_VOL_MINUS_103DB = 0xFE;
 static constexpr uint8_t TAS58XX_AGAIN = 0x54;  // 0x00 = 0 dB to 0x1F = -15.5 dB in 0.5 dB steps
 static constexpr uint8_t TAS58XX_AGAIN_MINUS_15_5DB = 0x1F;
+static constexpr uint8_t TAS58XX_GPIO_CTRL = 0x60;        // ADR_PIN_CTRL on TAS5805M: output enable, bit n for pin n
+static constexpr uint8_t TAS58XX_GPIO0_SEL = 0x61;        // ADR_PIN_CONFIG on TAS5805M: pin n is selected at 0x61 + n
+static constexpr uint8_t TAS58XX_GPIO_SEL_FAULTZ = 0x0B;  // pin function: FAULTZ output
 static constexpr uint8_t TAS58XX_POWER_STATE = 0x68;
 static constexpr uint8_t TAS58XX_CHAN_FAULT = 0x70;  // GLOBAL_FAULT1, GLOBAL_FAULT2 and OT_WARNING follow
 static constexpr uint8_t TAS58XX_FAULT_REGISTER_COUNT = 4;
@@ -60,6 +64,21 @@ static const LogString *power_state_name(uint8_t state) {
   return LOG_STR("Play");
 }
 
+// DSP coefficients can only be written while I2S clock runs, i.e. in Play (datasheet 7.5.3.1)
+static bool dsp_writable(uint8_t power_state) { return power_state == TAS58XX_CTRL_STATE_PLAY; }
+
+static const LogString *mixer_mode_name(MixerMode mixer_mode) {
+  if (mixer_mode == MIXER_MODE_STEREO_INVERSE)
+    return LOG_STR("Stereo inverse");
+  if (mixer_mode == MIXER_MODE_MONO)
+    return LOG_STR("Mono");
+  if (mixer_mode == MIXER_MODE_LEFT)
+    return LOG_STR("Left");
+  if (mixer_mode == MIXER_MODE_RIGHT)
+    return LOG_STR("Right");
+  return LOG_STR("Stereo");
+}
+
 void TAS58xx::setup() {
   if (this->enable_pin_ != nullptr) {
     this->enable_pin_->setup();
@@ -70,7 +89,13 @@ void TAS58xx::setup() {
   }
   if (!this->init_()) {
     this->mark_failed();
+    return;
   }
+  this->publish_active_(true);  // init_() leaves the device in play
+#ifdef USE_SELECT
+  // After init, so an on_value handler acts on a ready amplifier and init does not undo it
+  this->publish_mixer_mode_();
+#endif
 }
 
 bool TAS58xx::select_book_page_(uint8_t book, uint8_t page) {
@@ -91,20 +116,31 @@ bool TAS58xx::init_() {
   }
   delay(RESET_SETTLE_MS);
 
-  for (uint8_t i = 0; i < this->model_->startup_sequence_length; i++) {
-    const uint8_t *entry = this->model_->startup_sequence[i];
-    if (!this->write_byte(progmem_read_byte(&entry[0]), progmem_read_byte(&entry[1]))) {
+  if (!this->write_registers(this->model_->startup_sequence, this->model_->startup_sequence_length)) {
+    ESP_LOGE(TAG, "I2C write failed during init");
+    return false;
+  }
+
+  // The I2C address is latched at power up, so ADR can now be an output. The pin function is written before the
+  // output enable, so the pin never drives another function.
+  if (this->fault_output_pin_ != FAULT_OUTPUT_NONE) {
+    // The setter is public, so only write this model's pins; YAML only allows the pins of the model
+    if (this->fault_output_pin_ >= this->model_->fault_output_pins) {
+      ESP_LOGW(TAG, "Invalid fault output index %u", this->fault_output_pin_);
+    } else if (!this->write_byte(TAS58XX_GPIO0_SEL + this->fault_output_pin_, TAS58XX_GPIO_SEL_FAULTZ) ||
+               !this->write_byte(TAS58XX_GPIO_CTRL, static_cast<uint8_t>(1 << this->fault_output_pin_))) {
       ESP_LOGE(TAG, "I2C write failed during init");
       return false;
     }
   }
 
-  // Setters are public, so keep the value inside the register range
+  // Setters are public, so keep the values inside the register ranges
   const uint8_t again =
       static_cast<uint8_t>(lroundf(clamp(-this->analog_gain_db_ * 2.0f, 0.0f, float{TAS58XX_AGAIN_MINUS_15_5DB})));
-  if (!this->write_byte(TAS58XX_DEVICE_CTRL_1, this->dac_mode_ == DAC_MODE_PBTL ? TAS58XX_DEVICE_CTRL_1_PBTL : 0) ||
-      !this->write_byte(TAS58XX_AGAIN, again) || !this->write_volume_() ||
-      !this->write_ctrl_state_(TAS58XX_CTRL_STATE_PLAY, this->is_muted_) ||
+  const uint8_t device_ctrl_1 = (this->dac_mode_ == DAC_MODE_PBTL ? TAS58XX_DEVICE_CTRL_1_PBTL : 0) |
+                                (this->modulation_ == MODULATION_1SPW_MODE ? TAS58XX_DEVICE_CTRL_1_1SPW : 0);
+  if (!this->write_byte(TAS58XX_DEVICE_CTRL_1, device_ctrl_1) || !this->write_byte(TAS58XX_AGAIN, again) ||
+      !this->write_volume_() || !this->write_ctrl_state_(TAS58XX_CTRL_STATE_PLAY, this->is_muted_) ||
       !this->write_byte(TAS58XX_FAULT_CLEAR, TAS58XX_FAULT_CLEAR_ANALOG)) {
     ESP_LOGE(TAG, "I2C write failed during init");
     return false;
@@ -136,7 +172,8 @@ void TAS58xx::activate() {
         this->write_ctrl_state_(TAS58XX_CTRL_STATE_HIZ, muted))) {
     return;
   }
-  this->write_ctrl_state_(TAS58XX_CTRL_STATE_PLAY, muted);
+  if (this->write_ctrl_state_(TAS58XX_CTRL_STATE_PLAY, muted))
+    this->publish_active_(true);
 }
 
 void TAS58xx::deactivate() {
@@ -148,7 +185,17 @@ void TAS58xx::deactivate() {
     return;
   }
   // The DSP, and with it the mixer, stays active in deep sleep
-  this->write_ctrl_state_(TAS58XX_CTRL_STATE_DEEP_SLEEP, this->is_muted_);
+  if (this->write_ctrl_state_(TAS58XX_CTRL_STATE_DEEP_SLEEP, this->is_muted_))
+    this->publish_active_(false);
+}
+
+// The activate switch shows whether the device is active (play) or in deep sleep. The state is published here, not
+// by the switch, so it also follows the tas58xx.activate and tas58xx.deactivate actions, and only after the write
+// to the device succeeded.
+void TAS58xx::publish_active_(bool active) {
+#ifdef USE_SWITCH
+  PUBLISH_STATE(this->activate_switch_, active);
+#endif
 }
 
 bool TAS58xx::write_ctrl_state_(uint8_t state, bool muted) {
@@ -193,8 +240,7 @@ bool TAS58xx::read_faults_() {
   this->logged_faults_ = active;
 
 #ifdef USE_BINARY_SENSOR
-  if (this->have_fault_binary_sensor_ != nullptr)
-    this->have_fault_binary_sensor_->publish_state((active & model.fault_error_mask) != 0);
+  PUBLISH_STATE(this->have_fault_binary_sensor_, (active & model.fault_error_mask) != 0);
   for (uint8_t fault = 0; fault < FAULT_SENSOR_COUNT; fault++) {
     const uint8_t bit = model.fault_sensor_bits[fault];
     if (this->fault_binary_sensors_[fault] != nullptr && bit != NO_BIT)
@@ -213,46 +259,48 @@ bool TAS58xx::read_faults_() {
 }
 
 void TAS58xx::on_audio_started() {
-  // DSP coefficients can only be written with a running I2S clock (datasheet 7.5.3.1) and are kept when it stops
-  if (this->is_failed() || this->mixer_written_)
-    return;
-  if (!this->write_mixer_()) {
+  // Speaker calls this once I2S clock runs, so DSP is writable
+  if (!this->is_failed())
+    this->write_dsp_();
+}
+
+bool TAS58xx::read_power_state_(uint8_t &power_state) {
+  if (!this->read_byte(TAS58XX_POWER_STATE, &power_state))
+    return false;
+  power_state &= TAS58XX_CTRL_STATE_MASK;
+  return true;
+}
+
+// DSP keeps its coefficients when clock stops, so each setting is written once after reset
+void TAS58xx::write_dsp_() {
+  if (!this->mixer_written_ && !this->write_mixer_()) {
     ESP_LOGW(TAG, "Failed to write mixer");
   }
 }
 
 void TAS58xx::update() {
-  uint8_t power_state;
-  if (!this->read_faults_() || !this->read_byte(TAS58XX_POWER_STATE, &power_state)) {
-    this->status_set_warning(LOG_STR("Failed to read status"));
+  uint8_t power_state{0};
+  if (!this->status_comm_result(this->read_faults_() && this->read_power_state_(power_state),
+                                LOG_STR("Failed to read status")))
     return;
-  }
-  this->status_clear_warning();
 
-  power_state &= TAS58XX_CTRL_STATE_MASK;
   if (power_state != this->power_state_) {
     ESP_LOGD(TAG, "[0x%02X] Power state: %s", this->address_, LOG_STR_ARG(power_state_name(power_state)));
     this->power_state_ = power_state;
   }
-  // The device only plays with a running I2S clock. Fallback for speakers that do not call on_audio_started();
-  // a failed write is retried on the next update.
-  if (power_state == TAS58XX_CTRL_STATE_PLAY && !this->mixer_written_ && !this->write_mixer_()) {
-    ESP_LOGW(TAG, "Failed to write mixer");
-  }
+  // Fallback for speakers that do not call on_audio_started()
+  if (dsp_writable(power_state))
+    this->write_dsp_();
 }
 
 void TAS58xx::dump_config() {
-  const LogString *mixer_mode;
-  if (this->mixer_mode_ == MIXER_MODE_STEREO_INVERSE) {
-    mixer_mode = LOG_STR("Stereo inverse");
-  } else if (this->mixer_mode_ == MIXER_MODE_MONO) {
-    mixer_mode = LOG_STR("Mono");
-  } else if (this->mixer_mode_ == MIXER_MODE_LEFT) {
-    mixer_mode = LOG_STR("Left");
-  } else if (this->mixer_mode_ == MIXER_MODE_RIGHT) {
-    mixer_mode = LOG_STR("Right");
+  const LogString *fault_output;
+  if (this->fault_output_pin_ == FAULT_OUTPUT_NONE) {
+    fault_output = LOG_STR("None");
+  } else if (this->fault_output_pin_ >= this->model_->fault_output_pins) {
+    fault_output = LOG_STR("Invalid");
   } else {
-    mixer_mode = LOG_STR("Stereo");
+    fault_output = this->model_->fault_output_name(this->fault_output_pin_);
   }
   ESP_LOGCONFIG(TAG,
                 "Audio Amplifier:\n"
@@ -264,16 +312,26 @@ void TAS58xx::dump_config() {
   ESP_LOGCONFIG(TAG,
                 "  Analog Gain: %.1f dB\n"
                 "  DAC Mode: %s\n"
+                "  Modulation: %s\n"
                 "  Mixer Mode: %s\n"
-                "  Volume Range: %.1f dB to %.1f dB",
+                "  Volume Range: %.1f dB to %.1f dB\n"
+                "  Fault Output: %s",
                 this->analog_gain_db_,
                 this->dac_mode_ == DAC_MODE_PBTL ? LOG_STR_LITERAL("PBTL") : LOG_STR_LITERAL("BTL"),
-                LOG_STR_ARG(mixer_mode), this->volume_min_db_, this->volume_max_db_);
+                this->modulation_ == MODULATION_1SPW_MODE ? LOG_STR_LITERAL("1SPW") : LOG_STR_LITERAL("BD"),
+                LOG_STR_ARG(mixer_mode_name(this->mixer_mode_)), this->volume_min_db_, this->volume_max_db_,
+                LOG_STR_ARG(fault_output));
 #ifdef USE_BINARY_SENSOR
   LOG_BINARY_SENSOR("  ", "Any Fault", this->have_fault_binary_sensor_);
   for (auto *sensor : this->fault_binary_sensors_) {
     LOG_BINARY_SENSOR("  ", "Fault", sensor);
   }
+#endif
+#ifdef USE_SWITCH
+  LOG_SWITCH("  ", "Activate", this->activate_switch_);
+#endif
+#ifdef USE_SELECT
+  LOG_SELECT("  ", "Mixer Mode", this->mixer_mode_select_);
 #endif
 }
 
@@ -302,6 +360,33 @@ bool TAS58xx::write_volume_() {
   ESP_LOGV(TAG, "Setting volume to 0x%02X", dig_vol);
   return this->write_byte(TAS58XX_DIG_VOL, dig_vol);
 }
+
+#ifdef USE_SELECT
+void TAS58xx::publish_mixer_mode_() {
+  if (this->mixer_mode_select_ != nullptr) {
+    // Select options start at mono for PBTL
+    const uint8_t first_mode = this->dac_mode_ == DAC_MODE_PBTL ? MIXER_MODE_MONO : MIXER_MODE_STEREO;
+    this->mixer_mode_select_->publish_state(this->mixer_mode_ - first_mode);
+  }
+}
+
+void TAS58xx::apply_mixer_mode(MixerMode mixer_mode) {
+  if (this->is_failed())
+    return;
+  // Stereo modes are invalid for PBTL
+  if (this->dac_mode_ == DAC_MODE_PBTL && mixer_mode < MIXER_MODE_MONO) {
+    ESP_LOGW(TAG, "[0x%02X] Mixer mode %s is not valid for PBTL", this->address_,
+             LOG_STR_ARG(mixer_mode_name(mixer_mode)));
+    return;
+  }
+  this->mixer_mode_ = mixer_mode;
+  this->mixer_written_ = false;
+  this->publish_mixer_mode_();
+  uint8_t power_state;
+  if (this->read_power_state_(power_state) && dsp_writable(power_state))
+    this->write_dsp_();
+}
+#endif
 
 bool TAS58xx::write_mixer_() {
   uint8_t left_to_left = TAS58XX_MIXER_0DB;
@@ -332,6 +417,9 @@ bool TAS58xx::write_mixer_() {
   // Always return to the control port, even after a failed write
   ok = this->select_book_page_(TAS58XX_BOOK_CONTROL, TAS58XX_PAGE_0) && ok;
   this->mixer_written_ = ok;
+  if (ok) {
+    ESP_LOGD(TAG, "[0x%02X] Mixer mode written: %s", this->address_, LOG_STR_ARG(mixer_mode_name(this->mixer_mode_)));
+  }
   return ok;
 }
 

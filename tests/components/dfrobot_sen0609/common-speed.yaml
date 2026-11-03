@@ -1,0 +1,36 @@
+dfrobot_sen0609:
+  id: sen0609_speed
+  model: SEN0610
+  mode: speed_and_distance
+
+binary_sensor:
+  - platform: dfrobot_sen0609
+    dfrobot_sen0609_id: sen0609_speed
+    has_target:
+      name: Target
+
+sensor:
+  - platform: dfrobot_sen0609
+    dfrobot_sen0609_id: sen0609_speed
+    target_distance:
+      name: Target Distance
+    target_speed:
+      name: Target Speed
+    target_energy:
+      name: Target Energy
+
+number:
+  - platform: dfrobot_sen0609
+    dfrobot_sen0609_id: sen0609_speed
+    min_range:
+      name: Minimum Range
+    max_range:
+      name: Maximum Range
+    threshold_factor:
+      name: Threshold Factor
+
+switch:
+  - platform: dfrobot_sen0609
+    dfrobot_sen0609_id: sen0609_speed
+    micro_motion:
+      name: Micro Motion

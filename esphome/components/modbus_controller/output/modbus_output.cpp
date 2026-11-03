@@ -73,16 +73,6 @@ void ModbusFloatOutput::write_state(float value) {
   }
 }
 
-void ModbusFloatOutput::dump_config() {
-  ESP_LOGCONFIG(TAG, "Modbus Float Output:");
-  LOG_FLOAT_OUTPUT(this);
-  ESP_LOGCONFIG(TAG,
-                "  Device start address: 0x%X\n"
-                "  Register count: %d\n"
-                "  Value type: %d",
-                this->start_address, this->entity_count(), static_cast<int>(this->sensor_value_type));
-}
-
 // ModbusBinaryOutput
 void ModbusBinaryOutput::write_state(bool state) {
   this->clear_dispatched_();
@@ -100,11 +90,7 @@ void ModbusBinaryOutput::write_state(bool state) {
     }
     if (!data.empty()) {
       this->warn_write_buffer_deprecated_(LOG_STR("binary output"), this->start_address);
-#if ESPHOME_LOG_LEVEL >= ESPHOME_LOG_LEVEL_VERBOSE
-      char hex_buf[format_hex_pretty_size(MODBUS_OUTPUT_MAX_LOG_BYTES)];
-#endif
-      ESP_LOGV(TAG, "Modbus binary output write raw: %s",
-               format_hex_pretty_to(hex_buf, sizeof(hex_buf), data.data(), data.size()));
+      ESP_LOGV_HEX(TAG, data.data(), data.size(), MODBUS_OUTPUT_MAX_LOG_BYTES, "Modbus binary output write raw: %s");
       // The lambda filled a legacy raw frame (device address + function code + data).
       if (!this->send_raw_frame_deprecated_(data)) {
         ESP_LOGW(TAG, "Modbus output write (address 0x%X) was refused by the hub", this->write_address());
@@ -131,16 +117,6 @@ void ModbusBinaryOutput::write_state(bool state) {
   if (!queued) {
     ESP_LOGW(TAG, "Modbus output write (address 0x%X) was refused by the hub", this->write_address());
   }
-}
-
-void ModbusBinaryOutput::dump_config() {
-  ESP_LOGCONFIG(TAG, "Modbus Binary Output:");
-  LOG_BINARY_OUTPUT(this);
-  ESP_LOGCONFIG(TAG,
-                "  Device start address: 0x%X\n"
-                "  Register count: %d\n"
-                "  Value type: %d",
-                this->start_address, this->entity_count(), static_cast<int>(this->sensor_value_type));
 }
 
 }  // namespace esphome::modbus_controller

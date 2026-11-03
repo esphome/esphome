@@ -1,0 +1,13 @@
+esphome:
+  name: test
+
+esp8266:
+  board: d1_mini
+
+globals:
+  - id: rtc_string
+    type: std::string
+    restore_value: true
+    storage: rtc
+    max_restore_data_length: 15
+    initial_value: '"boot"'

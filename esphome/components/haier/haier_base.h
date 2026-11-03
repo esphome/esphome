@@ -95,7 +95,7 @@ class HaierClimateBase : public esphome::Component,
     SENDING_ALARM_STATUS_REQUEST,
     NUM_PROTOCOL_PHASES
   };
-  const char *phase_to_string_(ProtocolPhases phase);
+  const LogString *phase_to_string_(ProtocolPhases phase);
   virtual void set_handlers() = 0;
   virtual void process_phase(std::chrono::steady_clock::time_point now) = 0;
   virtual haier_protocol::HaierMessage get_control_message() = 0;          // NOLINT(readability-identifier-naming)
@@ -137,7 +137,7 @@ class HaierClimateBase : public esphome::Component,
     esphome::optional<float> target_temperature;
     esphome::optional<esphome::climate::ClimatePreset> preset;
     bool valid;
-    HvacSettings() : valid(false){};
+    HvacSettings() : valid(false) {};
     HvacSettings(const HvacSettings &) = default;
     HvacSettings &operator=(const HvacSettings &) = default;
     void reset();

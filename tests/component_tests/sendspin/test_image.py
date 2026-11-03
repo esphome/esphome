@@ -4,6 +4,8 @@ These cover the rejection branches, which a compile test cannot reach: a
 `test*.yaml` can only assert that a configuration is accepted.
 """
 
+from collections.abc import Callable
+from pathlib import Path
 from typing import Any
 
 import pytest
@@ -120,3 +122,24 @@ def test_display_offset_accepted(
     config = CONFIG_SCHEMA(_slot_config(display_offset=display_offset))
 
     assert config["display_offset"].total_milliseconds == expected_ms
+
+
+@pytest.mark.parametrize(
+    ("config_file", "expected"),
+    [
+        ("image_byte_order_big_endian.yaml", "true"),
+        ("image_byte_order_little_endian.yaml", "false"),
+    ],
+)
+def test_views_get_the_byte_order(
+    generate_main: Callable[[str | Path], str],
+    component_config_path: Callable[[str], Path],
+    config_file: str,
+    expected: str,
+) -> None:
+    """Both views draw the frames the slot decodes, so they must read them in its byte order."""
+    main_cpp = generate_main(component_config_path(config_file))
+
+    views = [line for line in main_cpp.splitlines() if "ArtworkImageView(" in line]
+    assert len(views) == 2
+    assert all(line.endswith(f", {expected});") for line in views), views

@@ -13,19 +13,19 @@ void Select::publish_state(const char *state) {
   if (index.has_value()) {
     this->publish_state(index.value());
   } else {
-    ESP_LOGE(TAG, "'%s': Invalid option %s", this->get_name().c_str(), state);
+    ESP_LOGE(TAG, "'%s': Invalid option %s", LOG_STR_ARG(this->get_log_name()), state);
   }
 }
 
 void Select::publish_state(size_t index) {
   if (!this->has_index(index)) {
-    ESP_LOGE(TAG, "'%s': Invalid index %zu", this->get_name().c_str(), index);
+    ESP_LOGE(TAG, "'%s': Invalid index %zu", LOG_STR_ARG(this->get_log_name()), index);
     return;
   }
   const char *option = this->option_at(index);
   this->set_has_state(true);
   this->active_index_ = index;
-  ESP_LOGV(TAG, "'%s' >> %s (%zu)", this->get_name().c_str(), option, index);
+  ESP_LOGV(TAG, "'%s' >> %s (%zu)", LOG_STR_ARG(this->get_log_name()), option, index);
   this->state_callback_.call(index);
 #if defined(USE_SELECT) && defined(USE_CONTROLLER_REGISTRY)
   ControllerRegistry::notify_select_update(this);

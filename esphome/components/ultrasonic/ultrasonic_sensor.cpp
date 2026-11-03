@@ -60,7 +60,7 @@ void UltrasonicSensorComponent::loop() {
   if (!this->store_.echo_start) {
     uint32_t elapsed = micros() - this->measurement_start_us_;
     if (elapsed >= START_TIMEOUT_US) {
-      ESP_LOGW(TAG, "'%s' - Measurement start timed out", this->name_.c_str());
+      ESP_LOGW(TAG, "'%s' - Measurement start timed out", LOG_STR_ARG(this->get_log_name()));
       this->publish_state(NAN);
       this->measurement_pending_ = false;
       return;
@@ -73,7 +73,8 @@ void UltrasonicSensorComponent::loop() {
       elapsed = micros() - this->store_.echo_start_us;
     }
     if (elapsed >= this->timeout_us_) {
-      ESP_LOGD(TAG, "'%s' - Measurement pulse timed out after %" PRIu32 "us", this->name_.c_str(), elapsed);
+      ESP_LOGD(TAG, "'%s' - Measurement pulse timed out after %" PRIu32 "us", LOG_STR_ARG(this->get_log_name()),
+               elapsed);
       this->publish_state(NAN);
       this->measurement_pending_ = false;
       return;
@@ -84,7 +85,7 @@ void UltrasonicSensorComponent::loop() {
     uint32_t pulse_duration = this->store_.echo_end_us - this->store_.echo_start_us;
     ESP_LOGV(TAG, "Echo took %" PRIu32 "us", pulse_duration);
     float result = UltrasonicSensorComponent::us_to_m(pulse_duration);
-    ESP_LOGD(TAG, "'%s' - Got distance: %.3f m", this->name_.c_str(), result);
+    ESP_LOGD(TAG, "'%s' - Got distance: %.3f m", LOG_STR_ARG(this->get_log_name()), result);
     this->publish_state(result);
     this->measurement_pending_ = false;
     return;

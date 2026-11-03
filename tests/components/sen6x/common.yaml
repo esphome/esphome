@@ -1,9 +1,23 @@
 sensor:
+  - platform: template
+    id: pressure_source
+    name: Pressure Source
+    unit_of_measurement: hPa
   # Test with explicit type parameter
   - platform: sen6x
     id: sen6x_sensor
     type: SEN69C
     i2c_id: i2c_bus
+    startup_delay: 30s
+    temperature_compensation:
+      offset: -2.5
+      normalized_offset_slope: 0.01
+      time_constant: 60
+    temperature_acceleration:
+      k: 25.0
+      p: 15.0
+      t1: 120.0
+      t2: 240.0
     temperature:
       name: Temperature
       accuracy_decimals: 1
@@ -26,6 +40,16 @@ sensor:
       name: PM <10µm Weight concentration
       id: sen6x_pm_10_0
       accuracy_decimals: 1
+    pmc_0_5:
+      name: PM <0.5µm Number concentration
+    pmc_1_0:
+      name: PM <1µm Number concentration
+    pmc_2_5:
+      name: PM <2.5µm Number concentration
+    pmc_4_0:
+      name: PM <4µm Number concentration
+    pmc_10_0:
+      name: PM <10µm Number concentration
     nox_index:
       name: NOx Index
       algorithm_tuning:
@@ -45,9 +69,31 @@ sensor:
         gain_factor: 180
     co2:
       name: Carbon Dioxide
+      automatic_self_calibration: true
+      altitude_compensation: 100
+      ambient_pressure_compensation: 1013
+      ambient_pressure_compensation_source: pressure_source
     formaldehyde:
       name: Formaldehyde
     address: 0x6B
+
+binary_sensor:
+  - platform: sen6x
+    sen6x_id: sen6x_sensor
+    fan_error:
+      name: Fan Error
+    fan_speed_warning:
+      name: Fan Speed Warning
+    rht_error:
+      name: RHT Error
+    gas_error:
+      name: Gas Error
+    co2_error:
+      name: CO2 Error
+    hcho_error:
+      name: HCHO Error
+    pm_error:
+      name: PM Error
 
 button:
   - platform: template

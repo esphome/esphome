@@ -1,0 +1,46 @@
+script:
+  - id: tx_all
+    then:
+      - logger.log: "tx nec"
+      - remote_transmitter.transmit_nec: {address: 0x1234, command: 0x78}
+      - delay: 400ms
+      - logger.log: "tx samsung"
+      - remote_transmitter.transmit_samsung: {data: 0xE0E040BF}
+      - delay: 400ms
+      - logger.log: "tx sony"
+      - remote_transmitter.transmit_sony: {data: 0xA90, nbits: 12}
+      - delay: 400ms
+      - logger.log: "tx lg"
+      - remote_transmitter.transmit_lg: {data: 0x20DF10EF, nbits: 32}
+      - delay: 400ms
+      - logger.log: "tx jvc"
+      - remote_transmitter.transmit_jvc: {data: 0xC5E8}
+      - delay: 400ms
+      - logger.log: "tx panasonic"
+      - remote_transmitter.transmit_panasonic: {address: 0x4004, command: 0x0100BCBD}
+      - delay: 400ms
+      - logger.log: "tx rc5"
+      - remote_transmitter.transmit_rc5: {address: 0x1C, command: 0x05}
+      - delay: 400ms
+      - logger.log: "tx rc6"
+      - remote_transmitter.transmit_rc6: {address: 0x00, command: 0x0C}
+      - delay: 400ms
+      - logger.log: "tx dish"
+      - remote_transmitter.transmit_dish: {address: 1, command: 16}
+      - delay: 400ms
+      - logger.log: "tx coolix"
+      - remote_transmitter.transmit_coolix: {first: 0xB23FE4}
+      - delay: 400ms
+      - logger.log: "tx pioneer"
+      - remote_transmitter.transmit_pioneer: {rc_code_1: 0xA556}
+      - delay: 400ms
+      - logger.log: "tx samsung36"
+      - remote_transmitter.transmit_samsung36: {address: 0x0400, command: 0x000E00FF}
+      - delay: 400ms
+      - logger.log: "tx magiquest"
+      - remote_transmitter.transmit_magiquest: {wand_id: 0x01234567}
+      - delay: 400ms
+      - logger.log: "tx raw"
+      - remote_transmitter.transmit_raw: {code: [3000, -1000, 700, -2900, 1500, -400, 2200, -1700]}
+      - delay: 400ms
+      - logger.log: "tx done"

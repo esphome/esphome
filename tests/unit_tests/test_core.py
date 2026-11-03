@@ -593,6 +593,26 @@ class TestEsphomeCore:
 
         assert target.address == "1.2.3.4"
 
+    @pytest.mark.parametrize(
+        ("priority", "expected"),
+        [
+            (None, "10.0.0.1"),
+            ("ethernet", "10.0.0.1"),
+            ("wifi", "1.2.3.4"),
+        ],
+    )
+    def test_address__modem(
+        self, target: core.EsphomeCore, priority: str | None, expected: str
+    ) -> None:
+        target.config = {
+            const.CONF_WIFI: {const.CONF_USE_ADDRESS: "1.2.3.4"},
+            "modem": {const.CONF_USE_ADDRESS: "10.0.0.1"},
+        }
+        if priority is not None:
+            target.config["network"] = {const.CONF_PRIORITY: [{"interface": priority}]}
+
+        assert target.address == expected
+
     def test_address__ethernet(self, target):
         target.config = {}
         target.config[const.CONF_ETHERNET] = {const.CONF_USE_ADDRESS: "4.3.2.1"}
@@ -604,6 +624,19 @@ class TestEsphomeCore:
         target.config[const.CONF_OPENTHREAD] = {
             const.CONF_USE_ADDRESS: "test-device.local"
         }
+        target.name = "test-device"
+
+        assert target.address == "test-device.local"
+
+    def test_address__host(self, target):
+        target.config = {}
+        target.config[const.PLATFORM_HOST] = {const.CONF_USE_ADDRESS: "10.0.0.100"}
+
+        assert target.address == "10.0.0.100"
+
+    def test_address__host_default(self, target):
+        target.config = {}
+        target.config[const.PLATFORM_HOST] = {}
         target.name = "test-device"
 
         assert target.address == "test-device.local"
@@ -976,7 +1009,7 @@ class TestEsphomeCore:
         target.toolchain = const.Toolchain.PLATFORMIO
         assert target.using_native_toolchain is False
         target.toolchain = const.Toolchain.SDK_NRF
-        assert target.using_native_toolchain is False
+        assert target.using_native_toolchain is True
 
     def test_using_toolchain_host(self, target):
         """The host's only toolchain: the system compiler driven by ninja."""
@@ -1001,20 +1034,24 @@ class TestEsphomeCore:
 
         assert "Wire" in target.platformio_libraries
 
-    def test_add_build_unflag__warns_on_native_idf_toolchain(
-        self, target, caplog: pytest.LogCaptureFixture
+    @pytest.mark.parametrize(
+        "toolchain", [const.Toolchain.ESP_IDF, const.Toolchain.SDK_NRF]
+    )
+    def test_add_build_unflag__warns_on_native_cmake_toolchains(
+        self, target, caplog: pytest.LogCaptureFixture, toolchain: const.Toolchain
     ) -> None:
-        """Build unflags are not consumed by the native IDF build generator,
-        so adding one on that toolchain warns; PlatformIO stays silent."""
+        """Build unflags are not consumed by the native IDF and nRF52 build
+        generators, so adding one on those toolchains warns; PlatformIO stays
+        silent."""
         target.toolchain = const.Toolchain.PLATFORMIO
         target.add_build_unflag("-fno-rtti")
         assert "ignored" not in caplog.text
 
-        target.toolchain = const.Toolchain.ESP_IDF
+        target.toolchain = toolchain
         target.add_build_unflag("-fno-exceptions")
         assert (
             "Build unflag -fno-exceptions is ignored when building with the "
-            "native ESP-IDF toolchain" in caplog.text
+            f"native '{toolchain.value}' toolchain" in caplog.text
         )
         # The unflag is still recorded either way.
         assert target.build_unflags == {"-fno-rtti", "-fno-exceptions"}

@@ -11,7 +11,7 @@ import time
 import pytest
 
 from esphome.core import CORE
-from esphome.log import AnsiFore, AnsiStyle, color, setup_log
+from esphome.log import AnsiFore, AnsiStyle, ESPHomeLogFormatter, color, setup_log
 
 
 class _FakeTty(io.StringIO):
@@ -339,3 +339,87 @@ def test_setup_log_win32_always_imports_colorama(
     monkeypatch.setattr(sys, "stderr", _FakeTty())
     setup_log()
     assert "colorama" in sys.modules
+
+
+def _record(level: int, message: str) -> logging.LogRecord:
+    return logging.LogRecord("esphome", level, __file__, 1, message, None, None)
+
+
+@pytest.mark.parametrize(
+    ("level", "colour"),
+    [
+        (logging.DEBUG, AnsiFore.CYAN),
+        (logging.INFO, AnsiFore.GREEN),
+        (logging.WARNING, AnsiFore.YELLOW),
+        (logging.ERROR, AnsiFore.RED),
+        (logging.CRITICAL, AnsiFore.RED),
+    ],
+)
+def test_formatter_colours_by_level(
+    monkeypatch: pytest.MonkeyPatch, level: int, colour: AnsiFore
+) -> None:
+    monkeypatch.setattr(CORE, "dashboard", False)
+    formatter = ESPHomeLogFormatter(include_timestamp=False)
+
+    result = formatter.format(_record(level, "hello"))
+
+    name = logging.getLevelName(level)
+    assert result == f"{colour.value}{name} hello{AnsiStyle.RESET_ALL.value}"
+
+
+def test_formatter_unknown_level_has_no_colour_prefix(
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    monkeypatch.setattr(CORE, "dashboard", False)
+    formatter = ESPHomeLogFormatter(include_timestamp=False)
+
+    result = formatter.format(_record(25, "hello"))
+
+    assert result == f"Level 25 hello{AnsiStyle.RESET_ALL.value}"
+
+
+def test_formatter_includes_timestamp_when_requested(
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    monkeypatch.setattr(CORE, "dashboard", False)
+    formatter = ESPHomeLogFormatter(include_timestamp=True)
+    record = _record(logging.INFO, "hello")
+
+    result = formatter.format(record)
+
+    assert formatter.formatTime(record) in result
+
+
+def test_formatter_dashboard_escapes_ansi(monkeypatch: pytest.MonkeyPatch) -> None:
+    """The dashboard prints the escape character as literal text."""
+    monkeypatch.setattr(CORE, "dashboard", True)
+    formatter = ESPHomeLogFormatter(include_timestamp=False)
+
+    result = formatter.format(_record(logging.INFO, "hello"))
+
+    assert "\033" not in result
+    assert result.startswith("\\033[32mINFO hello")
+
+
+def test_setup_log_debug_sets_verbose(
+    monkeypatch: pytest.MonkeyPatch, colorama_probe: None
+) -> None:
+    monkeypatch.setattr(CORE, "dashboard", True)
+    logging.getLogger().handlers.clear()
+
+    setup_log(logging.DEBUG)
+
+    assert CORE.verbose is True
+    assert CORE.quiet is False
+
+
+def test_setup_log_critical_sets_quiet(
+    monkeypatch: pytest.MonkeyPatch, colorama_probe: None
+) -> None:
+    monkeypatch.setattr(CORE, "dashboard", True)
+    logging.getLogger().handlers.clear()
+
+    setup_log(logging.CRITICAL)
+
+    assert CORE.quiet is True
+    assert CORE.verbose is False

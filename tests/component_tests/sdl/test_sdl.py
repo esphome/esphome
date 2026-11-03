@@ -45,7 +45,7 @@ def test_headless_accepted() -> None:
 
 def test_headless_rejects_window_options() -> None:
     """Window options are meaningless without a window."""
-    with pytest.raises(cv.Invalid, match="has no effect"):
+    with pytest.raises(cv.Invalid, match="'window_options' is only valid when"):
         CONFIG_SCHEMA(
             _config(headless=True, window_options={"position": {"x": 0, "y": 0}})
         )

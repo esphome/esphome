@@ -1,6 +1,7 @@
 #pragma once
 
 #include <cinttypes>
+#include <memory>
 #include <vector>
 
 #include "esphome/core/component.h"
@@ -164,7 +165,7 @@ class Tuya final : public Component, public uart::UARTDevice {
   int reset_pin_reported_ = -1;
   uint32_t last_command_timestamp_ = 0;
   uint32_t last_rx_char_timestamp_ = 0;
-  std::string product_;
+  std::unique_ptr<char[]> product_;
   std::vector<TuyaDatapointListener> listeners_;
   std::vector<TuyaDatapoint> datapoints_;
   std::vector<uint8_t> rx_message_;
@@ -172,6 +173,7 @@ class Tuya final : public Component, public uart::UARTDevice {
   std::vector<TuyaCommand> command_queue_;
   optional<TuyaCommandType> expected_response_{};
   uint8_t wifi_status_ = -1;
+  bool product_invalid_{false};
   CallbackManager<void()> initialized_callback_{};
 };
 

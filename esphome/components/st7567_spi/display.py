@@ -35,5 +35,4 @@ async def to_code(config: ConfigType) -> None:
     await st7567_base.setup_st7567(var, config)
     await spi.register_spi_device(var, config, write_only=True)
 
-    dc = await cg.gpio_pin_expression(config[CONF_DC_PIN])
-    cg.add(var.set_dc_pin(dc))
+    await cg.add_pin(var.set_dc_pin, config[CONF_DC_PIN])

@@ -54,20 +54,7 @@ void Tuya::setup() {
 }
 
 void Tuya::loop() {
-  // Read all available bytes in batches to reduce UART call overhead.
-  size_t avail = this->available();
-  uint8_t buf[64];
-  while (avail > 0) {
-    size_t to_read = std::min(avail, sizeof(buf));
-    if (!this->read_array(buf, to_read)) {
-      break;
-    }
-    avail -= to_read;
-
-    for (size_t i = 0; i < to_read; i++) {
-      this->handle_char_(buf[i]);
-    }
-  }
+  this->read_available([this](uint8_t b) { this->handle_char_(b); });
   process_command_queue_();
 }
 
@@ -107,7 +94,9 @@ void Tuya::dump_config() {
                   this->reset_pin_reported_);
   }
   LOG_PIN("  Status Pin: ", this->status_pin_);
-  ESP_LOGCONFIG(TAG, "  Product: '%s'", this->product_.c_str());
+  ESP_LOGCONFIG(TAG, "  Product: '%s'",
+                this->product_invalid_ ? LOG_STR_LITERAL(R"({"p":"INVALID"})")
+                                       : (this->product_ ? this->product_.get() : LOG_STR_LITERAL("")));
 #ifdef USE_TIME
   if (this->time_id_ != nullptr) {
     ESP_LOGCONFIG(TAG, "  Force time sync: %s", YESNO(this->force_time_sync_));
@@ -144,7 +133,7 @@ bool Tuya::validate_message_() {
     return true;
   }
 
-  uint16_t length = (uint16_t(data[4]) << 8) | (uint16_t(data[5]));
+  uint16_t length = encode_uint16(data[4], data[5]);
 
   // wait until all data is read
   if (at - 6 < length)
@@ -213,10 +202,12 @@ void Tuya::handle_command_(uint8_t command, uint8_t version, const uint8_t *buff
         }
       }
       if (valid) {
-        this->product_ = std::string(reinterpret_cast<const char *>(buffer), len);
+        this->product_ = std::make_unique<char[]>(len + 1);
+        memcpy(this->product_.get(), buffer, len);
       } else {
-        this->product_ = R"({"p":"INVALID"})";
+        this->product_.reset();
       }
+      this->product_invalid_ = !valid;
       if (this->init_state_ == TuyaInitState::INIT_PRODUCT) {
         this->init_state_ = TuyaInitState::INIT_CONF;
         this->send_empty_command_(TuyaCommandType::CONF_QUERY);
@@ -390,7 +381,7 @@ void Tuya::handle_datapoints_(const uint8_t *buffer, size_t len) {
     datapoint.type = (TuyaDatapointType) buffer[1];
     datapoint.value_uint = 0;
 
-    size_t data_size = (buffer[2] << 8) + buffer[3];
+    size_t data_size = encode_uint16(buffer[2], buffer[3]);
     const uint8_t *data = buffer + 4;
     size_t data_len = len - 4;
     if (data_size > data_len) {

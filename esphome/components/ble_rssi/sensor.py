@@ -79,8 +79,6 @@ async def to_code(config: ConfigType) -> None:
         ibeacon_uuid = ble_device_base.as_reversed_hex_array(ibeacon_uuid)
         cg.add(var.set_ibeacon_uuid(ibeacon_uuid))
 
-        if (ibeacon_major := config.get(CONF_IBEACON_MAJOR)) is not None:
-            cg.add(var.set_ibeacon_major(ibeacon_major))
+        cg.add_optional(var.set_ibeacon_major, config.get(CONF_IBEACON_MAJOR))
 
-        if (ibeacon_minor := config.get(CONF_IBEACON_MINOR)) is not None:
-            cg.add(var.set_ibeacon_minor(ibeacon_minor))
+        cg.add_optional(var.set_ibeacon_minor, config.get(CONF_IBEACON_MINOR))

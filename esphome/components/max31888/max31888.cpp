@@ -66,7 +66,7 @@ void MAX31888Sensor::update() {
       return;
     }
     const float temperature = raw * MAX31888_DEGREES_PER_LSB;
-    ESP_LOGD(TAG, "'%s': Got Temperature=%.3f°C", this->get_name().c_str(), temperature);
+    ESP_LOGD(TAG, "'%s': Got Temperature=%.3f°C", LOG_STR_ARG(this->get_log_name()), temperature);
     this->status_clear_warning();
     this->publish_state(temperature);
   });
@@ -88,7 +88,7 @@ bool MAX31888Sensor::read_temperature_(int16_t &raw) {
     this->status_set_warning(LOG_STR("checksum invalid"));
     return false;
   }
-  raw = static_cast<int16_t>(encode_uint16(frame[3], frame[4]));
+  raw = encode_value<int16_t>(&frame[3]);
   return true;
 }
 

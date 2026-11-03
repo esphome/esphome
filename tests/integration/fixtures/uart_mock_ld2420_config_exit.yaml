@@ -1,0 +1,97 @@
+esphome:
+  name: uart-mock-ld2420-config-exit
+
+host:
+api:
+  batch_delay: 0ms
+logger:
+  level: VERBOSE
+
+external_components:
+  - source:
+      type: local
+      path: EXTERNAL_COMPONENT_PATH
+
+# Dummy uart entry to satisfy ld2420's DEPENDENCIES = ["uart"]
+uart:
+  baud_rate: 115200
+  port: /dev/null
+
+uart_mock:
+  id: mock_uart
+  baud_rate: 115200
+  auto_start: false
+  # Energy reports with distance 100, then 101, more than the 1 s report interval apart.
+  # Each delay counts from the previous injection.
+  injections:
+    - delay: 1200ms
+      inject_rx: [0xF4, 0xF3, 0xF2, 0xF1, 0x23, 0x00, 0x01, 0x64, 0x00,
+                  0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00,
+                  0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00,
+                  0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00,
+                  0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00,
+                  0xF8, 0xF7, 0xF6, 0xF5]
+    - delay: 1500ms
+      inject_rx: [0xF4, 0xF3, 0xF2, 0xF1, 0x23, 0x00, 0x01, 0x65, 0x00,
+                  0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00,
+                  0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00,
+                  0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00,
+                  0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00,
+                  0xF8, 0xF7, 0xF6, 0xF5]
+  on_tx:
+    - then:
+        - lambda: |-
+            // Rebuild command frames however the writes are split, and answer each by its command byte.
+            // Reply to config exit (0xFE): 0 none, 1 failure status, 2 too short, 3 success
+            static constexpr int MODE = EXIT_REPLY_MODE;
+            static std::vector<uint8_t> buf;
+            static int exit_sends = 0;
+            buf.insert(buf.end(), data.begin(), data.end());
+            while (buf.size() >= 6) {
+              if (buf[0] != 0xFD || buf[1] != 0xFC || buf[2] != 0xFB || buf[3] != 0xFA) {
+                buf.erase(buf.begin());
+                continue;
+              }
+              size_t len = buf[4] | (buf[5] << 8);
+              if (buf.size() < len + 10)
+                return;
+              uint8_t cmd = buf[6];
+              size_t params = len >= 2 ? (len - 2) / 2 : 0;
+              buf.erase(buf.begin(), buf.begin() + len + 10);
+              std::vector<uint8_t> body = {cmd, 0x01, 0x00, 0x00};  // reply word, status
+              if (cmd == 0x68) {
+                continue;  // restart has no reply
+              } else if (cmd == 0x00) {
+                body.insert(body.end(), {0x06, 0x00, 0x76, 0x32, 0x2E, 0x30, 0x2E, 0x30});  // "v2.0.0"
+              } else if (cmd == 0x08) {
+                body.insert(body.end(), params * 4, 0x00);
+              } else if (cmd == 0xFE) {
+                ESP_LOGI("ld2420_test", "Config exit sent %d", ++exit_sends);
+                if (MODE == 0)
+                  continue;
+                if (MODE == 1)
+                  body[2] = 0x01;
+                if (MODE == 2)
+                  body.resize(1);
+              }
+              std::vector<uint8_t> reply = {0xFD, 0xFC, 0xFB, 0xFA, static_cast<uint8_t>(body.size()), 0x00};
+              reply.insert(reply.end(), body.begin(), body.end());
+              reply.insert(reply.end(), {0x04, 0x03, 0x02, 0x01});
+              id(mock_uart).inject_to_rx_buffer(reply);
+            }
+
+button:
+  - platform: template
+    name: "Start Scenario"
+    on_press:
+      - lambda: 'id(mock_uart).start_scenario();'
+
+ld2420:
+  id: ld2420_dev
+  uart_id: mock_uart
+
+sensor:
+  - platform: ld2420
+    ld2420_id: ld2420_dev
+    moving_distance:
+      name: "Moving Distance"

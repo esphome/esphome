@@ -1,0 +1,145 @@
+esphome:
+  name: test-script-on-stop-choose
+
+host:
+
+api:
+  actions:
+    - action: run_choose
+      variables:
+        value: int
+      then:
+        - choose:
+            - if:
+                lambda: return value < 10;
+              then:
+                - logger.log:
+                    format: "CHOOSE small %d"
+                    args: [value]
+            - if:
+                lambda: return value < 100;
+              then:
+                - delay: 20ms
+                - logger.log:
+                    format: "CHOOSE medium %d"
+                    args: [value]
+            # Also true for smaller values, but only the first true choice runs
+            - if:
+                lambda: return value < 1000;
+              then:
+                - logger.log:
+                    format: "CHOOSE large %d"
+                    args: [value]
+            - else:
+                - logger.log:
+                    format: "CHOOSE default %d"
+                    args: [value]
+        - logger.log:
+            format: "CHOOSE done %d"
+            args: [value]
+    - action: run_self_stop
+      then:
+        - script.execute: self_stop
+    - action: run_external_stop
+      then:
+        - script.execute: long_script
+        - delay: 50ms
+        - script.stop: long_script
+    - action: run_idle_stop
+      then:
+        - script.stop: long_script
+        - logger.log: "IDLE stop done"
+    - action: run_restart
+      then:
+        - script.execute: restart_script
+        - script.execute: restart_script
+    - action: run_normal
+      then:
+        - script.execute: normal_script
+    - action: run_reenter
+      then:
+        - script.execute: reenter_script
+        - delay: 20ms
+        - script.execute: reenter_script
+    - action: run_parallel_stop
+      then:
+        - script.execute: parallel_script
+        - script.execute: parallel_script
+        - delay: 20ms
+        - script.stop: parallel_script
+        - logger.log: "PARALLEL stop done"
+    - action: run_queued_stop
+      then:
+        - script.execute: queued_script
+        - script.execute: queued_script
+        - delay: 20ms
+        - script.stop: queued_script
+        - delay: 300ms
+        - logger.log: "QUEUED stop done"
+
+logger:
+  level: DEBUG
+
+script:
+  - id: self_stop
+    on_stop:
+      - logger.log: "SELF on_stop"
+    then:
+      - logger.log: "SELF start"
+      - delay: 20ms
+      - if:
+          condition:
+            lambda: return true;
+          then:
+            - script.stop
+      - logger.log: "SELF not reached"
+
+  - id: long_script
+    on_stop:
+      - logger.log: "LONG on_stop"
+    then:
+      - delay: 10s
+      - logger.log: "LONG finished"
+
+  - id: restart_script
+    mode: restart
+    on_stop:
+      - logger.log: "RESTART on_stop"
+    then:
+      - logger.log: "RESTART start"
+      - delay: 50ms
+      - logger.log: "RESTART finished"
+
+  - id: normal_script
+    on_stop:
+      - logger.log: "NORMAL on_stop"
+    then:
+      - logger.log: "NORMAL finished"
+
+  # on_stop executes the same restart script again; only one run may continue
+  - id: reenter_script
+    mode: restart
+    on_stop:
+      - logger.log: "REENTER on_stop"
+      - script.execute: reenter_script
+    then:
+      - logger.log: "REENTER start"
+      - delay: 100ms
+      - logger.log: "REENTER finished"
+
+  - id: parallel_script
+    mode: parallel
+    on_stop:
+      - logger.log: "PARALLEL on_stop"
+    then:
+      - delay: 10s
+      - logger.log: "PARALLEL finished"
+
+  - id: queued_script
+    mode: queued
+    on_stop:
+      - logger.log: "QUEUED on_stop"
+    then:
+      - logger.log: "QUEUED start"
+      - delay: 100ms
+      - logger.log: "QUEUED finished"

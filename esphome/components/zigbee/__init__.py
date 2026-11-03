@@ -26,11 +26,14 @@ from esphome.const import (
     CONF_VERSION,
     __version__ as ESPHOME_VERSION,
 )
-from esphome.core import CORE, CoroPriority, coroutine_with_priority
+from esphome.core import CORE, CoroPriority, coroutine_with_priority, entity_helpers
 import esphome.final_validate as fv
 from esphome.types import ConfigType
 
-from .const import (
+# CONF_CLUSTER, CONF_ENDPOINT, CONF_MAX_EP_NUMBER, CONF_REPORT,
+# CONF_USE_DEVICE_TYPE and REPORT are re-exported for existing consumers of
+# this package's namespace.
+from .const import (  # noqa: F401
     CONF_CLUSTER,
     CONF_ENDPOINT,
     CONF_MAX_EP_NUMBER,
@@ -62,12 +65,6 @@ from .zigbee_esp32 import (
     validate_switch_esp32,
     zigbee_require_vfs_select,
 )
-from .zigbee_zephyr import (
-    zephyr_binary_sensor,
-    zephyr_number,
-    zephyr_sensor,
-    zephyr_switch,
-)
 
 _LOGGER = logging.getLogger(__name__)
 
@@ -77,69 +74,13 @@ DOMAIN = "zigbee"
 CONFLICTS_WITH = ["openthread"]
 
 
-def _check_report_deprecation(value: str) -> str:
-    if str(value).lower() == "coordinator":
-        _LOGGER.warning(
-            "Report option 'coordinator' is deprecated and will be removed in a future release. Use 'default' instead."
-        )
-    return value
-
-
-def _get_base_schema(cluster_options: list[str] | None = None) -> cv.Schema:
-    schema = cv.Schema(
-        {
-            cv.Optional(CONF_REPORT): cv.All(
-                cv.requires_component(DOMAIN),
-                cv.requires_component(ESP32_DOMAIN),
-                _check_report_deprecation,
-                cv.enum(REPORT, lower=True),
-            ),
-            cv.Optional(CONF_ENDPOINT): cv.All(
-                cv.requires_component(DOMAIN),
-                cv.requires_component(ESP32_DOMAIN),
-                cv.int_range(1, CONF_MAX_EP_NUMBER),
-            ),
-            cv.Optional(CONF_USE_DEVICE_TYPE): cv.All(
-                cv.requires_component(DOMAIN),
-                cv.requires_component(ESP32_DOMAIN),
-                cv.boolean,
-            ),
-        }
-    )
-    if cluster_options:
-        schema = cv.Schema(
-            {
-                cv.OnlyWith(
-                    CONF_CLUSTER, ["esp32", "zigbee"], default=cluster_options[0]
-                ): cv.All(
-                    cv.requires_component(DOMAIN),
-                    cv.requires_component(ESP32_DOMAIN),
-                    cv.one_of(*cluster_options, lower=True),
-                ),
-            }
-        ).extend(schema)
-    return schema
-
-
-# set BASE_SCHEMA for CI and backwards compatibility
-BASE_SCHEMA = _get_base_schema()
-
-BINARY_SENSOR_SCHEMA = (
-    cv.Schema({})
-    .extend(_get_base_schema(["generic", "device_class"]))
-    .extend(zephyr_binary_sensor)
-)
-SENSOR_SCHEMA = (
-    cv.Schema({})
-    .extend(_get_base_schema(["generic", "device_class"]))
-    .extend(zephyr_sensor)
-)
-SWITCH_SCHEMA = (
-    cv.Schema({}).extend(_get_base_schema(["generic", "on_off"])).extend(zephyr_switch)
-)
-NUMBER_SCHEMA = (
-    cv.Schema({}).extend(_get_base_schema(["generic"])).extend(zephyr_number)
-)
+# Defined in esphome.core.entity_helpers so entity base schemas can reference
+# them without importing this package; re-exported here for existing consumers.
+BASE_SCHEMA = entity_helpers.ZIGBEE_BASE_ENTITY_SCHEMA
+BINARY_SENSOR_SCHEMA = entity_helpers.ZIGBEE_BINARY_SENSOR_SCHEMA
+SENSOR_SCHEMA = entity_helpers.ZIGBEE_SENSOR_SCHEMA
+SWITCH_SCHEMA = entity_helpers.ZIGBEE_SWITCH_SCHEMA
+NUMBER_SCHEMA = entity_helpers.ZIGBEE_NUMBER_SCHEMA
 
 
 def _validate_router_sleepy(config: ConfigType) -> ConfigType:
@@ -176,9 +117,7 @@ CONFIG_SCHEMA = cv.All(
                 cv.Length(max=31),
                 _validate_ascii,
             ),
-            cv.Optional(CONF_VERSION, default=0): cv.All(
-                cv.int_range(min=0x00, max=0xFF),
-            ),
+            cv.Optional(CONF_VERSION, default=0): cv.uint8_t,
             cv.Optional(CONF_ROUTER, default=False): cv.boolean,
             cv.Optional(CONF_ON_JOIN): automation.validate_automation({}),
             cv.Optional(CONF_ON_START): automation.validate_automation({}),

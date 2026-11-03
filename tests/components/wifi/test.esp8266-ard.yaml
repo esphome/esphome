@@ -2,6 +2,9 @@ wifi:
   min_auth_mode: WPA2
   post_connect_roaming: true
   phy_mode: 11G
+  ap:
+    ssid: Fallback AP
+    password: fallback_password
 
 packages:
   - !include common.yaml

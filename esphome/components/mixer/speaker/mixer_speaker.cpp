@@ -302,7 +302,7 @@ size_t SourceSpeaker::process_data_from_source(std::shared_ptr<audio::RingBuffer
     return 0;
   }
 
-  size_t bytes_read = audio_source->fill(ticks_to_wait, false);
+  size_t bytes_read = audio_source->fill(ticks_to_wait);
 
   uint32_t samples_to_duck = this->audio_stream_info_.bytes_to_samples(bytes_read);
   if (samples_to_duck > 0) {

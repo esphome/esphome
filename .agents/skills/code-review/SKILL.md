@@ -9,11 +9,13 @@ ESPHome parses YAML into C++ firmware for memory-constrained microcontrollers
 (ESP32, ESP8266, RP2040, LibreTiny). Review changes with that in mind: RAM and
 flash are scarce, and code runs unattended for months.
 
-`AGENTS.md` in the repository root is the full contributor guide and the
-authority when it disagrees with this summary. The developer documentation at
-https://developers.esphome.io explains the component lifecycle and the reasoning
-behind these rules. This skill lists the concrete things worth flagging in a
-review; read `AGENTS.md` for the detail behind any item.
+`AGENTS.md` in the repository root is the contributor guide, and the skills it
+lists (`component-codegen`, `config-validation`, `automations`,
+`embedded-memory`, `component-tests`, `breaking-changes`) hold the detail. They
+are the authority when they disagree with this summary. The developer
+documentation at https://developers.esphome.io explains the component lifecycle
+and the reasoning behind these rules. This skill lists the concrete things worth
+flagging in a review; read the matching skill for the detail behind any item.
 
 Only raise findings that the diff actually introduces or changes. Do not ask for
 drive-by cleanup of pre-existing code the PR did not touch.
@@ -76,6 +78,10 @@ performance nit, because it fragments a small shared heap. Flag:
   `if (blah := config.get(CONF_BLAH)) is not None:`.
 - Reuse existing validators from `config_validation.py` (`cv.rename_key`,
   `cv.has_exactly_one_key`, etc.) via `cv.All(...)` instead of hand-rolling.
+- A new or changed validator function that wraps, chooses or builds a schema
+  must be decorated with `@schema_extractor(...)` and handle `SCHEMA_EXTRACT`,
+  or `script/build_language_schema.py` silently drops the keys behind it (see
+  the `config-validation` skill).
 - `esphome/const.py` is frozen: no new `CONF_` constants there. Define them in
   the component's own `.py`, or in `esphome/components/const/__init__.py` when
   shared. The same constant defined in three or more component files fails CI.

@@ -51,5 +51,4 @@ async def to_code(config):
             cg.add(setter(automation.progmem_bytes("uart_data", payload), len(payload)))
     if single_state:
         cg.add(var.set_single_state(True))
-    if CONF_SEND_EVERY in config:
-        cg.add(var.set_send_every(config[CONF_SEND_EVERY]))
+    cg.add_optional(var.set_send_every, config.get(CONF_SEND_EVERY))

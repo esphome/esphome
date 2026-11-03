@@ -1,1 +1,7 @@
-<<: !include common.yaml
+wifi:
+  ap:
+    ssid: Fallback AP
+    password: fallback_password
+
+packages:
+  wifi: !include common.yaml

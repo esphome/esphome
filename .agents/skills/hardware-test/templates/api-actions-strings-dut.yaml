@@ -1,0 +1,28 @@
+esphome:
+  name: ${name}
+
+esp8266:
+  board: d1_mini
+
+wifi:
+  ssid: !secret wifi_ssid
+  password: !secret wifi_password
+  power_save_mode: none
+
+logger:
+  level: DEBUG
+
+api:
+  reboot_timeout: 0s
+  actions:
+    - action: str_action
+      variables:
+        song_str: string
+        notes: string
+        octave: int
+      then:
+        - lambda: |-
+            char s[40], n[40];
+            snprintf(s, sizeof(s), "%.*s", (int) song_str.size(), song_str.c_str());
+            snprintf(n, sizeof(n), "%.*s", (int) notes.size(), notes.c_str());
+            ESP_LOGD("main", "str_action song=%s(%d) notes=%s(%d) octave=%d", s, (int) song_str.size(), n, (int) notes.size(), octave);

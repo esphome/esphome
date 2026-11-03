@@ -89,8 +89,7 @@ async def to_code(config: ConfigType) -> None:
     var = await water_heater.new_water_heater(config)
     await cg.register_component(var, config)
 
-    paren = await cg.get_variable(config[CONF_TUYA_ID])
-    cg.add(var.set_tuya_parent(paren))
+    await cg.add_variable(var.set_tuya_parent, config[CONF_TUYA_ID])
 
     cg.add(var.set_switch_id(config[CONF_SWITCH_DATAPOINT]))
 
@@ -116,5 +115,4 @@ async def to_code(config: ConfigType) -> None:
             if (value := config.get(key)) is not None:
                 cg.add(getattr(var, setter)(value))
 
-    if (supported_modes := config.get(CONF_SUPPORTED_MODES)) is not None:
-        cg.add(var.set_supported_modes(supported_modes))
+    cg.add_optional(var.set_supported_modes, config.get(CONF_SUPPORTED_MODES))

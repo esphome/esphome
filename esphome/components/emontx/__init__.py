@@ -80,13 +80,12 @@ def final_validate(config: ConfigType) -> None:
     full_config = fv.full_config.get()
 
     # Count sensors registered to this hub (IDs are resolved at final_validate stage)
-    hub_id = str(config[CONF_ID])
-    sensor_count = sum(
-        1
-        for s in full_config.get(SENSOR_DOMAIN, [])
-        if s.get("platform") == DOMAIN and str(s.get(CONF_EMONTX_ID)) == hub_id
+    hub_id = config[CONF_ID]
+    _get_data().sensor_counts[str(hub_id)] = len(
+        fv.platform_entries(
+            domain=SENSOR_DOMAIN, platform=DOMAIN, match={CONF_EMONTX_ID: hub_id}
+        )
     )
-    _get_data().sensor_counts[hub_id] = sensor_count
 
     # Ensure UART RX buffer size is large enough to handle data bursts from firmware
     for uart_conf in full_config[UART_DOMAIN]:
@@ -132,6 +131,7 @@ _CALLBACK_AUTOMATIONS = (
 
 async def to_code(config: ConfigType) -> None:
     var = cg.new_Pvariable(config[CONF_ID])
+    cg.add_define("USE_LINE_READER")
 
     # Initialize sensor storage with count from final_validate before any
     # await, so platform to_code() calls always see it initialized

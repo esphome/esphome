@@ -17,8 +17,13 @@
 #include "hal/rtc_io_hal.h"
 #endif
 
-#ifndef SOC_GPIO_SUPPORT_RTC_INDEPENDENT
-#define SOC_GPIO_SUPPORT_RTC_INDEPENDENT 0  // NOLINT
+// some variants don't map rtcio to gpio 1:1
+#if defined(USE_ESP32_VARIANT_ESP32) || defined(USE_ESP32_VARIANT_ESP32H2) || defined(USE_ESP32_VARIANT_ESP32H21)
+#define RTCIO_NEED_MAPPING 1  // NOLINT
+#endif
+
+#if defined(USE_ESP32_VARIANT_ESP32) || (SOC_RTCIO_PIN_COUNT > 0 && defined(USE_GPIO_HOLD))
+#define ISR_PIN_USE_RTC 1  // NOLINT
 #endif
 
 namespace esphome {
@@ -53,9 +58,11 @@ struct ISRPinArg {
 #ifdef USE_GPIO_HOLD
   bool hold;
 #endif
-#if defined(USE_ESP32_VARIANT_ESP32)
+#ifdef ISR_PIN_USE_RTC
   bool use_rtc;
+#ifdef RTCIO_NEED_MAPPING
   int rtc_pin;
+#endif
 #endif
 };
 
@@ -69,17 +76,15 @@ static inline void refresh_hold(const ESP32InternalGPIOPin &pin) {
 static inline void IRAM_ATTR isr_refresh_hold(const ISRPinArg *arg) {
   if (!arg->hold)
     return;
-#if defined(USE_ESP32_VARIANT_ESP32)
+#if defined(ISR_PIN_USE_RTC) && defined(SOC_RTCIO_HOLD_SUPPORTED)
   if (arg->use_rtc) {
+#ifdef RTCIO_NEED_MAPPING
     rtcio_hal_hold_disable(arg->rtc_pin);
     rtcio_hal_hold_enable(arg->rtc_pin);
-    return;
-  }
-#elif defined(USE_ESP32_VARIANT_ESP32S2) || defined(USE_ESP32_VARIANT_ESP32S3)
-  // GPIO0-21 are held from the RTC domain; the digital hold mask is zero for them
-  if (arg->pin < SOC_RTCIO_PIN_COUNT) {
+#else
     rtcio_hal_hold_disable(arg->pin);
     rtcio_hal_hold_enable(arg->pin);
+#endif
     return;
   }
 #endif
@@ -96,10 +101,12 @@ ISRInternalGPIOPin ESP32InternalGPIOPin::to_isr() const {
 #ifdef USE_GPIO_HOLD
   arg->hold = this->get_hold();
 #endif
-#if defined(USE_ESP32_VARIANT_ESP32)
+#ifdef ISR_PIN_USE_RTC
   arg->use_rtc = rtc_gpio_is_valid_gpio(this->get_pin_num());
+#ifdef RTCIO_NEED_MAPPING
   if (arg->use_rtc)
     arg->rtc_pin = rtc_io_number_get(this->get_pin_num());
+#endif
 #endif
   return ISRInternalGPIOPin((void *) arg);
 }
@@ -238,7 +245,7 @@ void IRAM_ATTR ISRInternalGPIOPin::clear_interrupt() {
 
 void IRAM_ATTR ISRInternalGPIOPin::pin_mode(gpio::Flags flags) {
   auto *arg = reinterpret_cast<ISRPinArg *>(arg_);
-  gpio::Flags diff = (gpio::Flags)(flags ^ arg->flags);
+  gpio::Flags diff = (gpio::Flags) (flags ^ arg->flags);
   if (diff & gpio::FLAG_OUTPUT) {
     if (flags & gpio::FLAG_OUTPUT) {
       gpio_hal_output_enable(&GPIO_HAL, arg->pin);
@@ -251,7 +258,8 @@ void IRAM_ATTR ISRInternalGPIOPin::pin_mode(gpio::Flags flags) {
   if (diff & gpio::FLAG_INPUT) {
     if (flags & gpio::FLAG_INPUT) {
       gpio_hal_input_enable(&GPIO_HAL, arg->pin);
-#if defined(USE_ESP32_VARIANT_ESP32)
+#ifdef USE_ESP32_VARIANT_ESP32
+      // Only ESP32 uses the RTC registers for pullup/pulldown
       if (arg->use_rtc) {
         if (flags & gpio::FLAG_PULLUP) {
           rtcio_hal_pullup_enable(arg->rtc_pin);

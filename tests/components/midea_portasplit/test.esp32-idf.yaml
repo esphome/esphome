@@ -1,0 +1,3 @@
+packages:
+  uart: !include ../../test_build_components/common/uart/esp32-idf.yaml
+  midea_portasplit: !include common.yaml

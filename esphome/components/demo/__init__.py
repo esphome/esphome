@@ -18,6 +18,7 @@ from esphome.components import (
     text_sensor,
     valve,
 )
+from esphome.components.const import CONF_BUTTONS
 import esphome.config_validation as cv
 from esphome.const import (
     CONF_ACCURACY_DECIMALS,
@@ -167,7 +168,6 @@ VALVE_TYPES = {
 
 
 CONF_ALARM_CONTROL_PANELS = "alarm_control_panels"
-CONF_BUTTONS = "buttons"
 CONF_CLIMATES = "climates"
 CONF_COVERS = "covers"
 CONF_DATETIMES = "datetimes"

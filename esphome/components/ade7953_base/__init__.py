@@ -169,9 +169,7 @@ ADE7953_CONFIG_SCHEMA = cv.Schema(
 async def register_ade7953(var: MockObj, config: ConfigType) -> None:
     await cg.register_component(var, config)
 
-    if irq_pin_config := config.get(CONF_IRQ_PIN):
-        irq_pin = await cg.gpio_pin_expression(irq_pin_config)
-        cg.add(var.set_irq_pin(irq_pin))
+    await cg.add_pin(var.set_irq_pin, config.get(CONF_IRQ_PIN))
 
     cg.add(var.set_pga_v(PGA_GAINS[config.get(CONF_VOLTAGE_PGA_GAIN)]))
     cg.add(var.set_pga_ia(PGA_GAINS[config.get(CONF_CURRENT_PGA_GAIN_A)]))

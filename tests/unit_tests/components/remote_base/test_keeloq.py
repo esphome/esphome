@@ -12,6 +12,7 @@ from esphome.components.remote_base import (
     _keeloq_suffix_fits,
 )
 import esphome.config_validation as cv
+from esphome.const import CONF_GROUP
 from esphome.core import Lambda
 
 
@@ -43,3 +44,21 @@ def test_transmit_action_checks_the_width() -> None:
     )
     with pytest.raises(cv.Invalid, match="0x100 does not fit in 8 suffix_bits"):
         schema({**base, CONF_SUFFIX: 0x100})
+
+
+def test_group_takes_the_place_of_level_and_suffix() -> None:
+    schema = ACTION_REGISTRY["remote_transmitter.transmit_keeloq"].raw_schema
+    base = {"address": 0x1234500, "code": 0xF94A09F2, CONF_GROUP: 0x0F}
+    assert schema(base)[CONF_GROUP] == 0x0F
+    with pytest.raises(cv.Invalid, match="group cannot be combined with suffix"):
+        schema({**base, CONF_SUFFIX_BITS: 6})
+    with pytest.raises(cv.Invalid, match="group cannot be combined with suffix"):
+        schema({**base, CONF_SUFFIX: 0})
+    with pytest.raises(cv.Invalid, match="remove level"):
+        schema({**base, "level": True})
+
+
+def test_group_is_one_byte() -> None:
+    schema = ACTION_REGISTRY["remote_transmitter.transmit_keeloq"].raw_schema
+    with pytest.raises(cv.Invalid):
+        schema({"address": 0x1, "code": 0x2, CONF_GROUP: 0x100})

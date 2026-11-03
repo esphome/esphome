@@ -83,9 +83,13 @@ static const LogString *filter_bandwidth_to_string(FilterBandwidth bw) {
 
 void LIS2DW12Component::setup() {
   uint8_t who_am_i{0};
-  if (!this->read_byte(static_cast<uint8_t>(RegisterMap::WHO_AM_I), &who_am_i) || who_am_i != LIS2DW12_WHO_AM_I_VALUE) {
+  if (!this->read_byte(static_cast<uint8_t>(RegisterMap::WHO_AM_I), &who_am_i)) {
+    this->mark_failed(LOG_STR(ESP_LOG_MSG_COMM_FAIL));
+    return;
+  }
+  if (who_am_i != LIS2DW12_WHO_AM_I_VALUE) {
     ESP_LOGE(TAG, "WHO_AM_I check failed. Got 0x%02X, expected 0x%02X", who_am_i, LIS2DW12_WHO_AM_I_VALUE);
-    this->mark_failed();
+    this->mark_failed(LOG_STR("Wrong chip ID"));
     return;
   }
 
@@ -171,9 +175,6 @@ bool LIS2DW12Component::configure_registers_() {
 
 void LIS2DW12Component::dump_config() {
   ESP_LOGCONFIG(TAG, "LIS2DW12:");
-  if (this->is_failed()) {
-    ESP_LOGE(TAG, ESP_LOG_MSG_COMM_FAIL);
-  }
   ESP_LOGCONFIG(TAG,
                 "  Power Mode: %s\n"
                 "  Data Rate: %s\n"
@@ -213,9 +214,9 @@ bool LIS2DW12Component::read_acceleration_data_(float &x, float &y, float &z) {
     return false;
   }
 
-  int16_t raw_x = static_cast<int16_t>(encode_uint16(accel_data[1], accel_data[0])) >> this->shift_;
-  int16_t raw_y = static_cast<int16_t>(encode_uint16(accel_data[3], accel_data[2])) >> this->shift_;
-  int16_t raw_z = static_cast<int16_t>(encode_uint16(accel_data[5], accel_data[4])) >> this->shift_;
+  int16_t raw_x = encode_value_le<int16_t>(accel_data) >> this->shift_;
+  int16_t raw_y = encode_value_le<int16_t>(&accel_data[2]) >> this->shift_;
+  int16_t raw_z = encode_value_le<int16_t>(&accel_data[4]) >> this->shift_;
 
   if (this->swap_xy_) {
     std::swap(raw_x, raw_y);
@@ -275,9 +276,7 @@ void LIS2DW12Component::handle_event_(Event event, bool active, uint32_t now, La
     state = false;
   }
 #ifdef USE_BINARY_SENSOR
-  if (this->event_binary_sensors_[event] != nullptr) {
-    this->event_binary_sensors_[event]->publish_state(state);
-  }
+  PUBLISH_STATE(this->event_binary_sensors_[event], state);
 #endif
 }
 
@@ -290,11 +289,8 @@ void LIS2DW12Component::loop() {
 
   // SIXD_SRC and ALL_INT_SRC are adjacent, so one read captures both before any latch clears
   uint8_t regs[2];
-  if (!this->read_bytes(static_cast<uint8_t>(RegisterMap::SIXD_SRC), regs, sizeof(regs))) {
-    this->status_set_warning();
+  if (!this->status_comm_result(this->read_bytes(static_cast<uint8_t>(RegisterMap::SIXD_SRC), regs, sizeof(regs))))
     return;
-  }
-  this->status_clear_warning();
   RegSixdSrc sixd;
   sixd.raw = regs[0];
   RegAllIntSrc src;
@@ -314,24 +310,17 @@ void LIS2DW12Component::loop() {
 }
 
 void LIS2DW12Component::update() {
-  float x, y, z;
-  if (!this->read_acceleration_data_(x, y, z)) {
-    this->status_set_warning();
+  float x{}, y{}, z{};
+  if (!this->status_comm_result(this->read_acceleration_data_(x, y, z)))
     return;
-  }
 
   ESP_LOGV(TAG, "Acceleration: {x = %+1.3f m/s², y = %+1.3f m/s², z = %+1.3f m/s²}", x, y, z);
 
 #ifdef USE_SENSOR
-  if (this->acceleration_x_sensor_ != nullptr)
-    this->acceleration_x_sensor_->publish_state(x);
-  if (this->acceleration_y_sensor_ != nullptr)
-    this->acceleration_y_sensor_->publish_state(y);
-  if (this->acceleration_z_sensor_ != nullptr)
-    this->acceleration_z_sensor_->publish_state(z);
+  PUBLISH_STATE(this->acceleration_x_sensor_, x);
+  PUBLISH_STATE(this->acceleration_y_sensor_, y);
+  PUBLISH_STATE(this->acceleration_z_sensor_, z);
 #endif
-
-  this->status_clear_warning();
 }
 
 void LIS2DW12Component::set_offset(float offset_x, float offset_y, float offset_z) {

@@ -87,7 +87,10 @@ CONFIG_SCHEMA = output.FLOAT_OUTPUT_SCHEMA.extend(
     }
 )
 
-FINAL_VALIDATE_SCHEMA = _validate_nonvolatile
+FINAL_VALIDATE_SCHEMA = cv.All(
+    output.final_validate_unique_channel(platform="mcp4461", hub_key=CONF_MCP4461_ID),
+    _validate_nonvolatile,
+)
 
 
 async def to_code(config: ConfigType) -> None:

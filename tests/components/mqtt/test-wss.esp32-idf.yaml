@@ -1,0 +1,17 @@
+wifi:
+  ssid: MySSID
+  password: password1
+
+mqtt:
+  broker: "broker.example.com"
+  port: 8443
+  username: debug
+  password: debug
+  transport: wss
+  ws_path: /mqtt
+  # No certificate_authority: exercises the IDF CA bundle fallback path
+  topic_prefix: mqttws-test
+
+sensor:
+  - platform: uptime
+    name: Uptime

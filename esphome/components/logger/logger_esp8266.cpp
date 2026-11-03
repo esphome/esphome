@@ -48,6 +48,11 @@ const LogString *Logger::get_uart_selection_() {
 #endif
 }
 
+#ifdef USE_CRASH_HANDLER
+bool crash_log_pending() { return esp8266::crash_handler_has_data(); }
+void log_crash_to_client() { esp8266::crash_handler_log(); }
+#endif
+
 }  // namespace esphome::logger
 
 #if !defined(USE_ESP8266_LOGGER_SERIAL) && !defined(USE_ESP8266_LOGGER_SERIAL1)

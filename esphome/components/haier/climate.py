@@ -3,7 +3,11 @@ import logging
 from esphome import automation
 import esphome.codegen as cg
 from esphome.components import climate, logger, uart
-from esphome.components.climate import ClimateMode, ClimatePreset, ClimateSwingMode
+from esphome.components.climate import (
+    CLIMATE_MODES,
+    CLIMATE_PRESETS,
+    CLIMATE_SWING_MODES,
+)
 from esphome.components.logger import DOMAIN as LOGGER_DOMAIN
 from esphome.components.wifi import DOMAIN as WIFI_DOMAIN
 import esphome.config_validation as cv
@@ -67,58 +71,35 @@ Smartair2Climate = haier_ns.class_("Smartair2Climate", HaierClimateBase)
 CONF_HAIER_ID = "haier_id"
 
 AirflowVerticalDirection = hon_protocol_ns.enum("VerticalSwingMode", True)
-AIRFLOW_VERTICAL_DIRECTION_OPTIONS = {
-    "HEALTH_UP": AirflowVerticalDirection.HEALTH_UP,
-    "MAX_UP": AirflowVerticalDirection.MAX_UP,
-    "UP": AirflowVerticalDirection.UP,
-    "CENTER": AirflowVerticalDirection.CENTER,
-    "DOWN": AirflowVerticalDirection.DOWN,
-    "HEALTH_DOWN": AirflowVerticalDirection.HEALTH_DOWN,
-}
+AIRFLOW_VERTICAL_DIRECTION_OPTIONS = AirflowVerticalDirection.options(
+    "HEALTH_UP", "MAX_UP", "UP", "CENTER", "DOWN", "HEALTH_DOWN"
+)
 
 AirflowHorizontalDirection = hon_protocol_ns.enum("HorizontalSwingMode", True)
-AIRFLOW_HORIZONTAL_DIRECTION_OPTIONS = {
-    "MAX_LEFT": AirflowHorizontalDirection.MAX_LEFT,
-    "LEFT": AirflowHorizontalDirection.LEFT,
-    "CENTER": AirflowHorizontalDirection.CENTER,
-    "RIGHT": AirflowHorizontalDirection.RIGHT,
-    "MAX_RIGHT": AirflowHorizontalDirection.MAX_RIGHT,
-}
+AIRFLOW_HORIZONTAL_DIRECTION_OPTIONS = AirflowHorizontalDirection.options(
+    "MAX_LEFT", "LEFT", "CENTER", "RIGHT", "MAX_RIGHT"
+)
 
 SUPPORTED_SWING_MODES_OPTIONS = {
-    "OFF": ClimateSwingMode.CLIMATE_SWING_OFF,
-    "VERTICAL": ClimateSwingMode.CLIMATE_SWING_VERTICAL,
-    "HORIZONTAL": ClimateSwingMode.CLIMATE_SWING_HORIZONTAL,
-    "BOTH": ClimateSwingMode.CLIMATE_SWING_BOTH,
+    k: CLIMATE_SWING_MODES[k] for k in ("OFF", "VERTICAL", "HORIZONTAL", "BOTH")
 }
 
 SUPPORTED_CLIMATE_MODES_OPTIONS = {
-    "OFF": ClimateMode.CLIMATE_MODE_OFF,  # always available
-    "HEAT_COOL": ClimateMode.CLIMATE_MODE_HEAT_COOL,  # always available
-    "COOL": ClimateMode.CLIMATE_MODE_COOL,
-    "HEAT": ClimateMode.CLIMATE_MODE_HEAT,
-    "DRY": ClimateMode.CLIMATE_MODE_DRY,
-    "FAN_ONLY": ClimateMode.CLIMATE_MODE_FAN_ONLY,
+    k: CLIMATE_MODES[k] for k in ("OFF", "HEAT_COOL", "COOL", "HEAT", "DRY", "FAN_ONLY")
 }
 
 SUPPORTED_CLIMATE_PRESETS_SMARTAIR2_OPTIONS = {
-    "AWAY": ClimatePreset.CLIMATE_PRESET_AWAY,
-    "BOOST": ClimatePreset.CLIMATE_PRESET_BOOST,
-    "COMFORT": ClimatePreset.CLIMATE_PRESET_COMFORT,
+    k: CLIMATE_PRESETS[k] for k in ("AWAY", "BOOST", "COMFORT")
 }
 
 SUPPORTED_CLIMATE_PRESETS_HON_OPTIONS = {
-    "AWAY": ClimatePreset.CLIMATE_PRESET_AWAY,
-    "BOOST": ClimatePreset.CLIMATE_PRESET_BOOST,
-    "SLEEP": ClimatePreset.CLIMATE_PRESET_SLEEP,
+    k: CLIMATE_PRESETS[k] for k in ("AWAY", "BOOST", "SLEEP")
 }
 
 HonControlMethod = haier_ns.enum("HonControlMethod", True)
-SUPPORTED_HON_CONTROL_METHODS = {
-    "MONITOR_ONLY": HonControlMethod.MONITOR_ONLY,
-    "SET_GROUP_PARAMETERS": HonControlMethod.SET_GROUP_PARAMETERS,
-    "SET_SINGLE_PARAMETER": HonControlMethod.SET_SINGLE_PARAMETER,
-}
+SUPPORTED_HON_CONTROL_METHODS = HonControlMethod.options(
+    "MONITOR_ONLY", "SET_GROUP_PARAMETERS", "SET_SINGLE_PARAMETER"
+)
 
 
 def validate_visual(config):
@@ -384,20 +365,14 @@ async def to_code(config):
     await uart.register_uart_device(var, config)
 
     cg.add(var.set_send_wifi(config[CONF_WIFI_SIGNAL]))
-    if CONF_CONTROL_METHOD in config:
-        cg.add(var.set_control_method(config[CONF_CONTROL_METHOD]))
-    if CONF_BEEPER in config:
-        cg.add(var.set_beeper_state(config[CONF_BEEPER]))
-    if CONF_DISPLAY in config:
-        cg.add(var.set_display_state(config[CONF_DISPLAY]))
-    if CONF_SUPPORTED_MODES in config:
-        cg.add(var.set_supported_modes(config[CONF_SUPPORTED_MODES]))
+    cg.add_optional(var.set_control_method, config.get(CONF_CONTROL_METHOD))
+    cg.add_optional(var.set_beeper_state, config.get(CONF_BEEPER))
+    cg.add_optional(var.set_display_state, config.get(CONF_DISPLAY))
+    cg.add_optional(var.set_supported_modes, config.get(CONF_SUPPORTED_MODES))
     if CONF_SUPPORTED_SWING_MODES in config:
         cg.add(var.set_supported_swing_modes(config[CONF_SUPPORTED_SWING_MODES]))
-    if CONF_SUPPORTED_PRESETS in config:
-        cg.add(var.set_supported_presets(config[CONF_SUPPORTED_PRESETS]))
-    if CONF_ANSWER_TIMEOUT in config:
-        cg.add(var.set_answer_timeout(config[CONF_ANSWER_TIMEOUT]))
+    cg.add_optional(var.set_supported_presets, config.get(CONF_SUPPORTED_PRESETS))
+    cg.add_optional(var.set_answer_timeout, config.get(CONF_ANSWER_TIMEOUT))
     if CONF_ALTERNATIVE_SWING_CONTROL in config:
         cg.add(
             var.set_alternative_swing_control(config[CONF_ALTERNATIVE_SWING_CONTROL])

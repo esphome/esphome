@@ -122,10 +122,13 @@ class UpdateLock {
 // The OTA backend method surface. Exactly one backend exists per build,
 // selected in ota_backend_factory.h where this concept is asserted on
 // make_ota_backend()'s return type. Semantics beyond the signatures:
-// - begin: prepare for an image of the given size; ota_type defaults to an
-//   app update, so both call forms must be accepted.
+// - begin: prepare for an image of the given size; 0 means the size is unknown
+//   (web_server upload) and the backend allows the largest image it can take.
+//   ota_type defaults to an app update, so both call forms must be accepted.
 // - set_update_md5: expected digest of the incoming image, hex string.
-// - write: consume the next chunk; end: finalize and mark bootable.
+// - write: consume the next chunk without modifying it; the caller may reuse it
+//   (the deflate OTA window is also back reference history). end: finalize and
+//   mark bootable.
 // - abort: safe to call in any state, including after end().
 // - supports_compression: constexpr, whether a gzip image is stored as is and
 //   inflated at reboot.

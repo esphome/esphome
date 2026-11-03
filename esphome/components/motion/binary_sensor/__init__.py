@@ -24,12 +24,9 @@ MotionBinarySensor = motion_ns.class_(
 
 MotionBinarySensorType = motion_ns.enum("MotionBinarySensorType")
 
-SENSOR_TYPES = {
-    "face_up": MotionBinarySensorType.MOTION_BINARY_SENSOR_FACE_UP,
-    "face_down": MotionBinarySensorType.MOTION_BINARY_SENSOR_FACE_DOWN,
-    "free_fall": MotionBinarySensorType.MOTION_BINARY_SENSOR_FREE_FALL,
-    "moving": MotionBinarySensorType.MOTION_BINARY_SENSOR_MOVING,
-}
+SENSOR_TYPES = MotionBinarySensorType.options(
+    "face_up", "face_down", "free_fall", "moving", prefix="MOTION_BINARY_SENSOR_"
+)
 
 # face_up / face_down configure their threshold as a maximum tilt angle in degrees;
 # the C++ side compares against the cosine of that angle.
@@ -116,5 +113,4 @@ async def to_code(config: ConfigType) -> None:
         # Convert the configured tilt angle (degrees) to the cosine the C++ side expects.
         threshold = round(math.cos(math.radians(threshold)), 6)
     cg.add(var.set_threshold(threshold))
-    if (duration := config.get(CONF_DURATION)) is not None:
-        cg.add(var.set_duration(duration))
+    cg.add_optional(var.set_duration, config.get(CONF_DURATION))

@@ -1,0 +1,21 @@
+st25r_spi:
+  id: st25r_nfcc_spi
+  cs_pin: ${cs_pin}
+  irq_pin: ${irq_pin}
+  reset_pin: ${reset_pin}
+  on_tag:
+    then:
+      - logger.log:
+          format: "Tag %s (%s)"
+          args: [x.c_str(), tag.get_tag_type().c_str()]
+  on_tag_removed:
+    then:
+      - logger.log:
+          format: "Tag removed %s"
+          args: [x.c_str()]
+
+binary_sensor:
+  - platform: nfc
+    nfcc_id: st25r_nfcc_spi
+    name: ST25R NFC Tag
+    uid: 74-10-37-94

@@ -28,7 +28,9 @@ TEST(UnavoidableBlockingScope, ZeroLengthScopeLeavesTheStartAlone) {
   const uint32_t pass_start = millis();
   LoopBlockingGuard guard(nullptr, nullptr, pass_start);
   const uint32_t before = millis();
-  { UnavoidableBlockingScope scope; }
+  {
+    UnavoidableBlockingScope scope;
+  }
   EXPECT_LE(App.get_loop_component_start_time() - pass_start, millis() - before);
 }
 

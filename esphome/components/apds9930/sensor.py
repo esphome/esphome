@@ -3,7 +3,6 @@ from esphome.components import i2c, sensor
 from esphome.components.const import UNIT_COUNTS
 import esphome.config_validation as cv
 from esphome.const import (
-    CONF_ID,
     CONF_ILLUMINANCE,
     DEVICE_CLASS_ILLUMINANCE,
     STATE_CLASS_MEASUREMENT,
@@ -59,9 +58,7 @@ CONFIG_SCHEMA = (
 
 
 async def to_code(config: ConfigType) -> None:
-    var = cg.new_Pvariable(config[CONF_ID])
-    await cg.register_component(var, config)
-    await i2c.register_i2c_device(var, config)
+    var = await i2c.new_i2c_component(config)
     cg.add(var.set_led_drive(config[CONF_LED_DRIVE]))
     cg.add(var.set_proximity_gain(config[CONF_PROXIMITY_GAIN]))
     cg.add(var.set_ambient_gain(config[CONF_AMBIENT_LIGHT_GAIN]))

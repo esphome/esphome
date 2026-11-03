@@ -65,6 +65,9 @@ void APIServer::socket_failed_(const LogString *msg) {
 }
 
 void APIServer::setup() {
+#if defined(USE_API_HOMEASSISTANT_STATES) && defined(HOMEASSISTANT_STATE_SUBSCRIPTION_COUNT)
+  this->state_subs_.reserve(HOMEASSISTANT_STATE_SUBSCRIPTION_COUNT);
+#endif
 #ifdef USE_API_NOISE
   // Always reserve the slot: flash preferences are positional on esp8266, so
   // a yaml key build must keep the layout of a runtime key build
@@ -547,7 +550,7 @@ void APIServer::send_homeassistant_action(const HomeassistantActionRequest &call
     // arrive before the subscription and are lost - warn instead of failing silently.
     ESP_LOGW(TAG, "Home Assistant %s '%.*s' dropped; %s",
              call.is_event ? LOG_STR_LITERAL("event") : LOG_STR_LITERAL("action"),
-             static_cast<int>(call.service.size()), call.service.empty() ? "" : call.service.c_str(),
+             static_cast<int>(call.service.size()), call.service.empty() ? "" : call.service.progmem_ptr(),
              this->is_connected() ? LOG_STR_LITERAL("client has not subscribed to actions (yet)")
                                   : LOG_STR_LITERAL("no client connected"));
   }
@@ -590,7 +593,10 @@ void APIServer::handle_action_response(uint32_t call_id, bool success, StringRef
 void APIServer::add_state_subscription_(const char *entity_id, const char *attribute,
                                         std::function<void(StringRef)> &&f, bool once) {
   this->state_subs_.push_back(HomeAssistantStateSubscription{
-      .entity_id = entity_id, .attribute = attribute, .callback = std::move(f), .once = once,
+      .entity_id = entity_id,
+      .attribute = attribute,
+      .callback = std::move(f),
+      .once = once,
       // entity_id_dynamic_storage and attribute_dynamic_storage remain nullptr (no heap allocation)
   });
 }

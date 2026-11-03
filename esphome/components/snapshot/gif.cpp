@@ -50,9 +50,9 @@ struct BitWriter {
   uint32_t buffer{0};
   unsigned count{0};
 
-  void put(uint32_t code, unsigned size) {
-    this->buffer |= code << this->count;
-    this->count += size;
+  void put(uint32_t value, unsigned bits) {
+    this->buffer |= value << this->count;
+    this->count += bits;
     while (this->count >= 8) {
       this->out.push_back(static_cast<uint8_t>(this->buffer & 0xFF));
       this->buffer >>= 8;

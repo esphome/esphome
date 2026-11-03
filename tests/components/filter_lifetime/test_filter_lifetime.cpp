@@ -39,8 +39,6 @@ class FilterLifetimeTest : public ::testing::Test {
   unsigned publications_{0};
 
   void SetUp() override {
-    new (&App) Application;
-    App.pre_setup("filter-lifetime-tests", 21, "Filter lifetime tests", 21);
     host::setup_preferences();
     host::host_preferences->reset();
     g_is_on = true;
@@ -50,11 +48,6 @@ class FilterLifetimeTest : public ::testing::Test {
       this->last_state_ = value;
       ++this->publications_;
     });
-  }
-
-  void TearDown() override {
-    host::host_preferences->reset();
-    App.~Application();
   }
 
   void attach(FilterLifetime &filter) {
@@ -144,7 +137,7 @@ TEST_F(FilterLifetimeTest, SpeedSensorIsUsedOnceItHasAState) {
 TEST_F(FilterLifetimeTest, IsOnSensorGatesAccumulationOnceItIsOn) {
   binary_sensor::BinarySensor running;
   this->filter_.set_is_on_lambda(nullptr);
-  this->filter_.set_is_on_sensor(&running);
+  this->filter_.set_is_on_binary_sensor(&running);
   this->filter_.setup();
   this->elapse(1000);
   EXPECT_EQ(this->filter_.runtime_seconds_, 0u);

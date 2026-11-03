@@ -7,11 +7,8 @@ ESPHOME_LOG_TAG(TAG, "ds3231.sensor");
 
 void DS3231TemperatureSensor::update() {
   float temperature;
-  if (!this->parent_->read_temperature(temperature)) {
-    this->status_set_warning();
+  if (!this->status_comm_result(this->parent_->read_temperature(temperature)))
     return;
-  }
-  this->status_clear_warning();
   this->publish_state(temperature);
 }
 

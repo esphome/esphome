@@ -8,6 +8,7 @@ import time
 from aioesphomeapi import BinarySensorInfo, BinarySensorState, EntityState
 import pytest
 
+from .state_utils import require_only_entity
 from .types import APIClientConnectedFactory, RunCompiledFunction
 
 
@@ -32,8 +33,7 @@ async def test_batch_delay_zero_rapid_transitions(
 
         # Wait for entity info
         entity_info, _ = await client.list_entities_services()
-        binary_sensors = [e for e in entity_info if isinstance(e, BinarySensorInfo)]
-        assert len(binary_sensors) == 1, "Expected 1 binary sensor"
+        require_only_entity(entity_info, BinarySensorInfo)
 
         # Collect states for 2 seconds
         await asyncio.sleep(2.1)

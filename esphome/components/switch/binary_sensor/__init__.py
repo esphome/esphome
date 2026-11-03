@@ -2,30 +2,22 @@ import esphome.codegen as cg
 from esphome.components import binary_sensor
 import esphome.config_validation as cv
 from esphome.const import CONF_SOURCE_ID
+from esphome.core.entity_helpers import FollowEntity
+from esphome.types import ConfigType
 
-from .. import Switch, switch_ns
+from .. import Switch
 
 CODEOWNERS = ["@ssieb"]
 
-SwitchBinarySensor = switch_ns.class_(
-    "SwitchBinarySensor", binary_sensor.BinarySensor, cg.Component
+_FOLLOW_SWITCH = FollowEntity("add_on_state_callback", ((cg.bool_, "x"),), "x")
+
+CONFIG_SCHEMA = binary_sensor.binary_sensor_schema(binary_sensor.BinarySensor).extend(
+    {
+        cv.Required(CONF_SOURCE_ID): cv.use_id(Switch),
+    }
 )
 
 
-CONFIG_SCHEMA = (
-    binary_sensor.binary_sensor_schema(SwitchBinarySensor)
-    .extend(
-        {
-            cv.Required(CONF_SOURCE_ID): cv.use_id(Switch),
-        }
-    )
-    .extend(cv.COMPONENT_SCHEMA)
-)
-
-
-async def to_code(config):
+async def to_code(config: ConfigType) -> None:
     var = await binary_sensor.new_binary_sensor(config)
-    await cg.register_component(var, config)
-
-    source = await cg.get_variable(config[CONF_SOURCE_ID])
-    cg.add(var.set_source(source))
+    _FOLLOW_SWITCH(var, await cg.get_variable(config[CONF_SOURCE_ID]))

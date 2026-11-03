@@ -6,7 +6,6 @@ from esphome.const import (
     CONF_FLIP_X,
     CONF_ID,
     CONF_INTENSITY,
-    CONF_LAMBDA,
     CONF_NUM_CHIPS,
     CONF_STATE,
 )
@@ -28,16 +27,10 @@ CONF_CHIP_LINES_STYLE = "chip_lines_style"
 
 integration_ns = cg.esphome_ns.namespace("max7219digit")
 ChipLinesStyle = integration_ns.enum("ChipLinesStyle")
-CHIP_LINES_STYLE = {
-    "ZIGZAG": ChipLinesStyle.ZIGZAG,
-    "SNAKE": ChipLinesStyle.SNAKE,
-}
+CHIP_LINES_STYLE = ChipLinesStyle.options("ZIGZAG", "SNAKE")
 
 ScrollMode = integration_ns.enum("ScrollMode")
-SCROLL_MODES = {
-    "CONTINUOUS": ScrollMode.CONTINUOUS,
-    "STOP": ScrollMode.STOP,
-}
+SCROLL_MODES = ScrollMode.options("CONTINUOUS", "STOP")
 
 CHIP_MODES = {
     "0": 0,
@@ -103,11 +96,7 @@ async def to_code(config: ConfigType) -> None:
     cg.add(var.set_reverse(config[CONF_REVERSE_ENABLE]))
     cg.add(var.set_flip_x(config[CONF_FLIP_X]))
 
-    if CONF_LAMBDA in config:
-        lambda_ = await cg.process_lambda(
-            config[CONF_LAMBDA], [(MAX7219ComponentRef, "it")], return_type=cg.void
-        )
-        cg.add(var.set_writer(lambda_))
+    await display.add_writer(var, config, MAX7219ComponentRef)
 
 
 MAX7219_OFF_ACTION_SCHEMA = automation.maybe_simple_id(

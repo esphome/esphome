@@ -140,7 +140,7 @@ i2c::ErrorCode MLX90614Component::read_register_(uint8_t reg, uint16_t &data) {
     return i2c::ERROR_CRC;
   }
 
-  data = encode_uint16(buf[4], buf[3]);
+  data = encode_value_le<uint16_t>(&buf[3]);
   return i2c::ERROR_OK;
 }
 
@@ -174,7 +174,7 @@ void MLX90614Component::update() {
 
     // Bit 15 set means the device flagged the reading as invalid
     const float temperature = (raw & 0x8000) ? NAN : raw * 0.02f - 273.15f;
-    ESP_LOGD(TAG, "'%s': Got temperature=%.1f°C", sensor->get_name().c_str(), temperature);
+    ESP_LOGD(TAG, "'%s': Got temperature=%.1f°C", LOG_STR_ARG(sensor->get_log_name()), temperature);
     sensor->publish_state(temperature);
     return ec;
   };

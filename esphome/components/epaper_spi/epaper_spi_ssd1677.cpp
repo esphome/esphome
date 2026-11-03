@@ -6,21 +6,6 @@
 #include "esphome/core/log.h"
 
 namespace esphome::epaper_spi {
-ESPHOME_LOG_TAG(TAG, "epaper_spi.ssd1677");
-
-void EPaperSSD1677::setup() {
-  EPaperMono::setup();
-  if (!this->is_failed())
-    this->init_comparison_frame_();
-}
-
-void EPaperSSD1677::init_comparison_frame_() {
-  if (!this->is_using_partial_update_())
-    return;
-  if (!this->sent_.init(this->plane_row_length_() * this->height_)) {
-    ESP_LOGW(TAG, "No memory for the comparison frame; partial updates will degrade unchanged areas");
-  }
-}
 
 void EPaperSSD1677::plane_row(size_t y, uint8_t *out) {
   const size_t row_length = this->plane_row_length_();
@@ -58,9 +43,9 @@ bool HOT EPaperSSD1677::transfer_data() {
   // A full update ignores 0x26, and the copy may not hold a real frame yet (first update after
   // boot): send the new frame to both planes.
   const bool send_copy = this->plane_ == 0 && this->update_count_ != 0;
-  // A mono buffer already holds the frame as a RAM plane does, so it can be sent as it is; a deeper
-  // buffer (the four-level model) returns false and packs the plane in plane_row().
-  const bool direct = send_copy || this->buffer_is_mono();
+  // A 1 bit per pixel buffer already holds the frame as a RAM plane does, so it can be sent as it is; a
+  // deeper buffer (the four-level model, 2 bits per pixel) packs the plane in plane_row() instead.
+  const bool direct = send_copy || this->buffer_is_mono_();
   const auto &source = send_copy ? this->sent_ : this->buffer_;
   const size_t row_length = this->plane_row_length_();
   const size_t plane_length = row_length * this->height_;
@@ -82,7 +67,7 @@ bool HOT EPaperSSD1677::transfer_data() {
     }
     this->write_array(data, length);
     if (this->plane_ == 1)
-      this->sent_.write(this->current_data_index_, data, length);
+      this->record_sent_(this->current_data_index_, data, length);
     this->current_data_index_ += length;
     if (this->current_data_index_ != plane_length && millis() - start_time > MAX_TRANSFER_TIME) {
       // Let the main loop run and come back next loop

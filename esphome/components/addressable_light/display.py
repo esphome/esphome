@@ -56,8 +56,4 @@ async def to_code(config: ConfigType) -> None:
         )
         cg.add(var.set_pixel_mapper(pixel_mapper_template_))
 
-    if lambda_config := config.get(CONF_LAMBDA):
-        lambda_ = await cg.process_lambda(
-            lambda_config, [(display.DisplayRef, "it")], return_type=cg.void
-        )
-        cg.add(var.set_writer(lambda_))
+    await display.add_writer(var, config)

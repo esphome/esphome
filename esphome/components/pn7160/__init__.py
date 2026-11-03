@@ -29,10 +29,5 @@ pn71xx.register_is_writing_condition("pn7160.is_writing", PN7160)
 async def setup_pn7160(var: MockObj, config: ConfigType) -> None:
     await pn71xx.setup_pn71xx(var, config)
 
-    if dwl_req_pin_config := config.get(CONF_DWL_REQ_PIN):
-        pin = await cg.gpio_pin_expression(dwl_req_pin_config)
-        cg.add(var.set_dwl_req_pin(pin))
-
-    if wkup_req_pin_config := config.get(CONF_WKUP_REQ_PIN):
-        pin = await cg.gpio_pin_expression(wkup_req_pin_config)
-        cg.add(var.set_wkup_req_pin(pin))
+    await cg.add_pin(var.set_dwl_req_pin, config.get(CONF_DWL_REQ_PIN))
+    await cg.add_pin(var.set_wkup_req_pin, config.get(CONF_WKUP_REQ_PIN))

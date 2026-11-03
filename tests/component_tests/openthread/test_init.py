@@ -15,7 +15,7 @@ from esphome.components.esp32 import (
 from esphome.components.openthread import CONFIG_SCHEMA, OT_HEADER_DIR, OT_HEADER_FILE
 from esphome.components.openthread.const import OPENTHREAD_CONFIG_PREFIX
 import esphome.config_validation as cv
-from esphome.const import PlatformFramework, Toolchain
+from esphome.const import KEY_FRAMEWORK_VERSION, PlatformFramework, Toolchain
 from esphome.core import CORE, HexInt
 from esphome.yaml_util import Sensitive
 from tests.component_tests.types import SetCoreConfigCallable
@@ -42,7 +42,9 @@ def test_credentials_are_sensitive(
     """Thread credentials are tagged for redaction without changing their value
     or the hexadecimal integer type used to build sdkconfig options."""
     set_core_config(
-        PlatformFramework.ESP32_IDF, platform_data={KEY_VARIANT: VARIANT_ESP32C6}
+        PlatformFramework.ESP32_IDF,
+        core_data={KEY_FRAMEWORK_VERSION: cv.Version(5, 5, 5)},
+        platform_data={KEY_VARIANT: VARIANT_ESP32C6},
     )
     validated = CONFIG_SCHEMA(config)
     assert isinstance(validated[field], Sensitive)

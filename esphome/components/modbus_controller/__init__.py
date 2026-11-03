@@ -310,9 +310,7 @@ def migrate_custom_command(config: ConfigType) -> None:
     frame = config.get(CONF_CUSTOM_COMMAND)
     if frame is None:
         return
-    fconf = fv.full_config.get()
-    path = fconf.get_path_for_id(config[CONF_MODBUS_CONTROLLER_ID])[:-1]
-    controller = fconf.get_config_for_path(path)
+    controller = fv.get_declaring_config(config[CONF_MODBUS_CONTROLLER_ID])
     # the controller's DEVICE address (from modbus_device_schema)
     address = controller[CONF_ADDRESS]
     if frame[0] != address:
@@ -342,9 +340,7 @@ def _reject_continuous_write_custom_pdu(config: ConfigType) -> None:
     pdu = config.get(CONF_CUSTOM_PDU)
     if pdu is None or not modbus.is_function_code_write(pdu[0]):
         return
-    fconf = fv.full_config.get()
-    path = fconf.get_path_for_id(config[CONF_MODBUS_CONTROLLER_ID])[:-1]
-    controller = fconf.get_config_for_path(path)
+    controller = fv.get_declaring_config(config[CONF_MODBUS_CONTROLLER_ID])
     if controller.get(CONF_CONTINUOUS) is True:
         raise cv.Invalid(
             f"a '{CONF_CUSTOM_PDU}' with a write function code (0x{pdu[0] & 0x7F:02X}) can't be polled "
@@ -359,9 +355,7 @@ def _reject_broadcastable_custom_pdu(config: ConfigType) -> None:
     pdu = config.get(CONF_CUSTOM_PDU)
     if pdu is None or not modbus.is_function_code_broadcastable(pdu[0]):
         return
-    fconf = fv.full_config.get()
-    path = fconf.get_path_for_id(config[CONF_MODBUS_CONTROLLER_ID])[:-1]
-    controller = fconf.get_config_for_path(path)
+    controller = fv.get_declaring_config(config[CONF_MODBUS_CONTROLLER_ID])
     if (
         controller.get(CONF_ADDRESS) == modbus.BROADCAST_ADDRESS
         and controller.get(modbus.CONF_ALLOW_BROADCAST_READ) is True
@@ -384,9 +378,7 @@ def validate_custom_pdu_item(config: ConfigType) -> None:
 def _reject_write_option_off_broadcast(config: ConfigType) -> None:
     if not any(config.get(key) is True for key in modbus.broadcast_only_option_keys()):
         return
-    fconf = fv.full_config.get()
-    path = fconf.get_path_for_id(config[CONF_MODBUS_CONTROLLER_ID])[:-1]
-    controller = fconf.get_config_for_path(path)
+    controller = fv.get_declaring_config(config[CONF_MODBUS_CONTROLLER_ID])
     if controller.get(CONF_ADDRESS) != modbus.BROADCAST_ADDRESS:
         raise cv.Invalid(
             f"'{modbus.CONF_EXPECT_BROADCAST_WRITE_RESPONSE}' only applies when the "
@@ -451,8 +443,7 @@ async def add_modbus_base_properties(
     lambda_param_type: cg.MockObj = cg.float_,
     lambda_return_type: Any = float,
 ) -> None:
-    if CONF_CUSTOM_PDU in config:
-        cg.add(var.set_custom_pdu(config[CONF_CUSTOM_PDU]))
+    cg.add_optional(var.set_custom_pdu, config.get(CONF_CUSTOM_PDU))
 
     if config[CONF_RESPONSE_SIZE] > 0:
         cg.add(var.set_register_size(config[CONF_RESPONSE_SIZE]))

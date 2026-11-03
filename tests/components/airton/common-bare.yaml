@@ -1,0 +1,13 @@
+# The climate with USE_SWITCH defined by another platform and USE_SELECT not defined at all; the ESP8266 build
+# covers this path and the ESP32 build the full one
+climate:
+  - platform: airton
+    id: airton_bare
+    name: Airton Climate
+    transmitter_id: xmitr
+    receiver_id: rcvr
+
+switch:
+  - platform: template
+    name: Unrelated Switch
+    optimistic: true

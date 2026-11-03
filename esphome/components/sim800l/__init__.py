@@ -2,7 +2,7 @@ from esphome import automation
 import esphome.codegen as cg
 from esphome.components import uart
 import esphome.config_validation as cv
-from esphome.const import CONF_ID, CONF_MESSAGE
+from esphome.const import CONF_MESSAGE
 
 DEPENDENCIES = ["uart"]
 CODEOWNERS = ["@glmnet"]
@@ -18,6 +18,7 @@ CONF_ON_USSD_RECEIVED = "on_ussd_received"
 CONF_ON_INCOMING_CALL = "on_incoming_call"
 CONF_ON_CALL_CONNECTED = "on_call_connected"
 CONF_ON_CALL_DISCONNECTED = "on_call_disconnected"
+CONF_ON_DTMF_RECEIVED = "on_dtmf_received"
 CONF_RECIPIENT = "recipient"
 CONF_USSD = "ussd"
 
@@ -30,6 +31,7 @@ CONFIG_SCHEMA = cv.All(
             cv.Optional(CONF_ON_CALL_CONNECTED): automation.validate_automation({}),
             cv.Optional(CONF_ON_CALL_DISCONNECTED): automation.validate_automation({}),
             cv.Optional(CONF_ON_USSD_RECEIVED): automation.validate_automation({}),
+            cv.Optional(CONF_ON_DTMF_RECEIVED): automation.validate_automation({}),
         }
     )
     .extend(cv.polling_component_schema("5s"))
@@ -62,13 +64,17 @@ _CALLBACK_AUTOMATIONS = (
         "add_on_ussd_received_callback",
         [(cg.std_string, "ussd")],
     ),
+    automation.CallbackAutomation(
+        CONF_ON_DTMF_RECEIVED,
+        "add_on_dtmf_received_callback",
+        [(cg.std_string, "key")],
+    ),
 )
 
 
 async def to_code(config):
-    var = cg.new_Pvariable(config[CONF_ID])
-    await cg.register_component(var, config)
-    await uart.register_uart_device(var, config)
+    cg.add_define("USE_LINE_READER")
+    var = await uart.new_uart_component(config)
 
     await automation.build_callback_automations(var, config, _CALLBACK_AUTOMATIONS)
 

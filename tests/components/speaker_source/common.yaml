@@ -32,9 +32,11 @@ media_player:
     volume_initial: 0.75
     volume_max: 0.95
     volume_min: 0.0
+    announcement_volume: 60%
     announcement_pipeline:
       speaker: announcement_mixer_speaker_id
-      format: FLAC
+      format: MP3
+      bitrate: 48
       num_channels: 1
       sources:
         - announcement_audio_file_source
@@ -55,3 +57,10 @@ media_player:
           id: media_player_id
           pipeline: media
           delay: 500ms
+      - speaker_source.set_playlist_delay:
+          id: media_player_id
+          pipeline: announcement
+          delay: !lambda return 250;
+      - speaker_source.set_announcement_volume:
+          id: media_player_id
+          volume: !lambda return x;

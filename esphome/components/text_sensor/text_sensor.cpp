@@ -9,11 +9,9 @@ namespace esphome::text_sensor {
 ESPHOME_LOG_TAG(TAG, "text_sensor");
 
 void log_text_sensor(const char *tag, const char *prefix, const char *type, TextSensor *obj) {
-  if (obj == nullptr) {
+  if (!log_entity_header(tag, prefix, type, obj)) {
     return;
   }
-
-  ESP_LOGCONFIG(tag, "%s%s '%s'", prefix, type, obj->get_name().c_str());
   LOG_ENTITY_DEVICE_CLASS(tag, prefix, *obj);
   LOG_ENTITY_ICON(tag, prefix, *obj);
 }
@@ -30,7 +28,7 @@ void TextSensor::publish_state(const char *state, size_t len) {
 #ifdef USE_TEXT_SENSOR_FILTER
     this->raw_callback_.call(this->state);
 #endif
-    ESP_LOGV(TAG, "'%s': Received new state %s", this->name_.c_str(), this->state.c_str());
+    ESP_LOGV(TAG, "'%s': Received new state %s", LOG_STR_ARG(this->get_log_name()), this->state.c_str());
     this->notify_frontend_();
 #ifdef USE_TEXT_SENSOR_FILTER
   } else {
@@ -40,11 +38,20 @@ void TextSensor::publish_state(const char *state, size_t len) {
       this->raw_state_.assign(state, len);
     }
     this->raw_callback_.call(this->raw_state_);
-    ESP_LOGV(TAG, "'%s': Received new state %s", this->name_.c_str(), this->raw_state_.c_str());
+    ESP_LOGV(TAG, "'%s': Received new state %s", LOG_STR_ARG(this->get_log_name()), this->raw_state_.c_str());
     this->filter_list_->input(this->raw_state_);
   }
 #endif
 }
+
+#ifdef USE_ESP8266
+void TextSensor::publish_state(ProgmemStr state) {
+  char buf[256];
+  strncpy_P(buf, reinterpret_cast<PGM_P>(state), sizeof(buf));
+  buf[sizeof(buf) - 1] = '\0';
+  this->publish_state(buf);
+}
+#endif
 
 #ifdef USE_TEXT_SENSOR_FILTER
 void TextSensor::add_filter(Filter *filter) {
@@ -97,7 +104,7 @@ void TextSensor::internal_send_state_to_frontend(const char *state, size_t len) 
 
 void TextSensor::notify_frontend_() {
   this->set_has_state(true);
-  ESP_LOGV(TAG, "'%s' >> '%s'", this->name_.c_str(), this->state.c_str());
+  ESP_LOGV(TAG, "'%s' >> '%s'", LOG_STR_ARG(this->get_log_name()), this->state.c_str());
   this->callback_.call(this->state);
 #if defined(USE_TEXT_SENSOR) && defined(USE_CONTROLLER_REGISTRY)
   ControllerRegistry::notify_text_sensor_update(this);

@@ -2,6 +2,12 @@ from . import EpaperModel
 
 
 class WaveshareB(EpaperModel):
+    source_files = (
+        "epaper_spi_bwr.cpp",
+        "epaper_waveshare_b.cpp",
+        "epaper_weact_3c.cpp",
+    )
+
     def __init__(self, name, **defaults):
         super().__init__(name, "EpaperWaveshareB", **defaults)
 

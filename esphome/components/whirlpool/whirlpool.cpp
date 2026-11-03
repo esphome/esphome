@@ -1,4 +1,5 @@
 #include "whirlpool.h"
+#include "esphome/core/helpers.h"
 #include "esphome/core/log.h"
 
 namespace esphome::whirlpool {
@@ -8,13 +9,15 @@ ESPHOME_LOG_TAG(TAG, "whirlpool.climate");
 const uint16_t WHIRLPOOL_HEADER_MARK = 9000;
 const uint16_t WHIRLPOOL_HEADER_SPACE = 4494;
 const uint16_t WHIRLPOOL_BIT_MARK = 572;
-const uint16_t WHIRLPOOL_ONE_SPACE = 1659;
-const uint16_t WHIRLPOOL_ZERO_SPACE = 553;
+static constexpr remote_base::BitTimings WHIRLPOOL_BIT_TIMINGS{
+    .bit_mark = WHIRLPOOL_BIT_MARK, .one_space = 1659, .zero_space = 553};
 const uint32_t WHIRLPOOL_GAP = 7960;
 
 const uint32_t WHIRLPOOL_CARRIER_FREQUENCY = 38000;
 
 const uint8_t WHIRLPOOL_STATE_LENGTH = 21;
+static constexpr uint8_t WHIRLPOOL_FIRST_DIVIDER = 6;
+static constexpr uint8_t WHIRLPOOL_SECOND_DIVIDER = 14;
 
 const uint8_t WHIRLPOOL_HEAT = 0;
 const uint8_t WHIRLPOOL_DRY = 3;
@@ -50,7 +53,8 @@ WhirlpoolClimate::WhirlpoolClimate()
 
 void WhirlpoolClimate::transmit_state() {
   this->last_transmit_time_ = millis();  // setting the time of the last transmission.
-  uint8_t remote_state[WHIRLPOOL_STATE_LENGTH] = {0};
+  uint8_t remote_state[WHIRLPOOL_STATE_LENGTH];
+  memset(remote_state, 0, sizeof(remote_state));
   remote_state[0] = 0x83;
   remote_state[1] = 0x06;
   remote_state[6] = 0x80;
@@ -136,18 +140,10 @@ void WhirlpoolClimate::transmit_state() {
   }
 
   // Checksum
-  for (uint8_t i = 2; i < 13; i++)
-    remote_state[13] ^= remote_state[i];
-  for (uint8_t i = 14; i < 20; i++)
-    remote_state[20] ^= remote_state[i];
+  remote_state[13] = xor_bytes(&remote_state[2], 11, remote_state[13]);
+  remote_state[20] = xor_bytes(&remote_state[14], 6, remote_state[20]);
 
-  ESP_LOGV(TAG,
-           "Sending: %02X %02X %02X %02X   %02X %02X %02X %02X   %02X %02X %02X %02X   %02X %02X %02X %02X   %02X %02X "
-           "%02X %02X   %02X",
-           remote_state[0], remote_state[1], remote_state[2], remote_state[3], remote_state[4], remote_state[5],
-           remote_state[6], remote_state[7], remote_state[8], remote_state[9], remote_state[10], remote_state[11],
-           remote_state[12], remote_state[13], remote_state[14], remote_state[15], remote_state[16], remote_state[17],
-           remote_state[18], remote_state[19], remote_state[20]);
+  ESP_LOGV_HEX(TAG, remote_state, WHIRLPOOL_STATE_LENGTH, WHIRLPOOL_STATE_LENGTH, "Sending: %s");
 
   // Send code
   auto transmit = this->transmitter_->transmit();
@@ -159,19 +155,13 @@ void WhirlpoolClimate::transmit_state() {
   data->mark(WHIRLPOOL_HEADER_MARK);
   data->space(WHIRLPOOL_HEADER_SPACE);
   // Data
-  auto bytes_sent = 0;
-  for (uint8_t i : remote_state) {
-    for (uint8_t j = 0; j < 8; j++) {
-      data->mark(WHIRLPOOL_BIT_MARK);
-      bool bit = i & (1 << j);
-      data->space(bit ? WHIRLPOOL_ONE_SPACE : WHIRLPOOL_ZERO_SPACE);
-    }
-    bytes_sent++;
-    if (bytes_sent == 6 || bytes_sent == 14) {
+  for (uint8_t i = 0; i < WHIRLPOOL_STATE_LENGTH; i++) {
+    if (i == WHIRLPOOL_FIRST_DIVIDER || i == WHIRLPOOL_SECOND_DIVIDER) {
       // Divider
       data->mark(WHIRLPOOL_BIT_MARK);
       data->space(WHIRLPOOL_GAP);
     }
+    data->item_bytes<WHIRLPOOL_BIT_TIMINGS>(remote_state + i, 1);
   }
   // Footer
   data->mark(WHIRLPOOL_BIT_MARK);
@@ -235,33 +225,23 @@ bool WhirlpoolClimate::on_receive(remote_base::RemoteReceiveData data) {
     return false;
   }
 
-  uint8_t remote_state[WHIRLPOOL_STATE_LENGTH] = {0};
+  uint8_t remote_state[WHIRLPOOL_STATE_LENGTH];
+  memset(remote_state, 0, sizeof(remote_state));
   bool skip_footer = false;
   // Read all bytes.
   for (int i = 0; i < WHIRLPOOL_STATE_LENGTH; i++) {
-    // Read bit
-    if (i == 6 || i == 14) {
+    if (i == WHIRLPOOL_FIRST_DIVIDER || i == WHIRLPOOL_SECOND_DIVIDER) {
       if (!data.expect_item(WHIRLPOOL_BIT_MARK, WHIRLPOOL_GAP))
         return false;
     }
-    if (i == 14 && !data.is_valid()) {
+    if (i == WHIRLPOOL_SECOND_DIVIDER && !data.is_valid()) {
       // Remote control only sent 14 bytes, nothing more to read, not even the footer
       ESP_LOGV(TAG, "Remote control only sent %d bytes", i);
       skip_footer = true;
       break;
     }
-
-    for (int j = 0; j < 8; j++) {
-      if (data.expect_item(WHIRLPOOL_BIT_MARK, WHIRLPOOL_ONE_SPACE)) {
-        remote_state[i] |= 1 << j;
-
-      } else if (!data.expect_item(WHIRLPOOL_BIT_MARK, WHIRLPOOL_ZERO_SPACE)) {
-        ESP_LOGV(TAG, "Byte %d bit %d fail", i, j);
-        return false;
-      }
-    }
-
-    ESP_LOGVV(TAG, "Byte %d %02X", i, remote_state[i]);
+    if (!data.expect_bytes<WHIRLPOOL_BIT_TIMINGS>(remote_state + i, 1))
+      return false;
   }
   // Validate footer
   if (!data.expect_mark(WHIRLPOOL_BIT_MARK) && !skip_footer) {
@@ -269,27 +249,16 @@ bool WhirlpoolClimate::on_receive(remote_base::RemoteReceiveData data) {
     return false;
   }
 
-  uint8_t checksum13 = 0;
-  uint8_t checksum20 = 0;
   // Calculate  checksum and compare with signal value.
-  for (uint8_t i = 2; i < 13; i++)
-    checksum13 ^= remote_state[i];
-  for (uint8_t i = 14; i < 20; i++)
-    checksum20 ^= remote_state[i];
+  uint8_t checksum13 = xor_bytes(&remote_state[2], 11);
+  uint8_t checksum20 = xor_bytes(&remote_state[14], 6);
 
   if (checksum13 != remote_state[13] || (!skip_footer && checksum20 != remote_state[20])) {
     ESP_LOGVV(TAG, "Checksum fail");
     return false;
   }
 
-  ESP_LOGV(
-      TAG,
-      "Received: %02X %02X %02X %02X   %02X %02X %02X %02X   %02X %02X %02X %02X   %02X %02X %02X %02X   %02X %02X "
-      "%02X %02X   %02X",
-      remote_state[0], remote_state[1], remote_state[2], remote_state[3], remote_state[4], remote_state[5],
-      remote_state[6], remote_state[7], remote_state[8], remote_state[9], remote_state[10], remote_state[11],
-      remote_state[12], remote_state[13], remote_state[14], remote_state[15], remote_state[16], remote_state[17],
-      remote_state[18], remote_state[19], remote_state[20]);
+  ESP_LOGV_HEX(TAG, remote_state, WHIRLPOOL_STATE_LENGTH, WHIRLPOOL_STATE_LENGTH, "Received: %s");
 
   // verify header remote code
   if (remote_state[0] != 0x83 || remote_state[1] != 0x06)
@@ -328,6 +297,8 @@ bool WhirlpoolClimate::on_receive(remote_base::RemoteReceiveData data) {
         break;
       case WHIRLPOOL_AUTO:
         this->mode = climate::CLIMATE_MODE_HEAT_COOL;
+        break;
+      default:
         break;
     }
   }

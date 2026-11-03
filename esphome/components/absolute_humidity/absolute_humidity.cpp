@@ -10,7 +10,7 @@ void AbsoluteHumidityComponent::setup() {
     this->temperature_ = state;
     this->enable_loop();
   });
-  ESP_LOGD(TAG, "  Added callback for temperature '%s'", this->temperature_sensor_->get_name().c_str());
+  ESP_LOGD(TAG, "  Added callback for temperature '%s'", LOG_STR_ARG(this->temperature_sensor_->get_log_name()));
   // Get initial value
   if (this->temperature_sensor_->has_state()) {
     this->temperature_ = this->temperature_sensor_->get_state();
@@ -20,7 +20,7 @@ void AbsoluteHumidityComponent::setup() {
     this->humidity_ = state;
     this->enable_loop();
   });
-  ESP_LOGD(TAG, "  Added callback for relative humidity '%s'", this->humidity_sensor_->get_name().c_str());
+  ESP_LOGD(TAG, "  Added callback for relative humidity '%s'", LOG_STR_ARG(this->humidity_sensor_->get_log_name()));
   // Get initial value
   if (this->humidity_sensor_->has_state()) {
     this->humidity_ = this->humidity_sensor_->get_state();
@@ -49,7 +49,8 @@ void AbsoluteHumidityComponent::dump_config() {
                 "Sources\n"
                 "  Temperature: '%s'\n"
                 "  Relative Humidity: '%s'",
-                this->temperature_sensor_->get_name().c_str(), this->humidity_sensor_->get_name().c_str());
+                LOG_STR_ARG(this->temperature_sensor_->get_log_name()),
+                LOG_STR_ARG(this->humidity_sensor_->get_log_name()));
 }
 
 void AbsoluteHumidityComponent::loop() {

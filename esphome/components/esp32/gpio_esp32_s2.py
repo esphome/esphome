@@ -1,81 +1,30 @@
-import logging
-from typing import Any
-
-from esphome.components.const import CONF_HOLD_STATE
-import esphome.config_validation as cv
-from esphome.const import (
-    CONF_INPUT,
-    CONF_MODE,
-    CONF_NUMBER,
-    CONF_OUTPUT,
-    CONF_PULLDOWN,
-    CONF_PULLUP,
-)
-from esphome.pins import check_strapping_pin
-
-_ESP32S2_SPI_PSRAM_PINS = {
-    26: "SPICS1",
-    27: "SPIHD",
-    28: "SPIWP",
-    29: "SPICS0",
-    30: "SPICLK",
-    31: "SPIQ",
-    32: "SPID",
-}
-
-_ESP32S2_STRAPPING_PINS = {0, 45, 46}
-
-_LOGGER = logging.getLogger(__name__)
+from .gpio_common import ESP32PinSpec, spi_psram_errors, unusable_errors
 
 
-def esp32_s2_validate_gpio_pin(value: int) -> int:
-    if value < 0 or value > 46:
-        raise cv.Invalid(f"Invalid pin number: {value} (must be 0-46)")
-
-    if value in _ESP32S2_SPI_PSRAM_PINS:
-        raise cv.Invalid(
-            f"This pin cannot be used on ESP32-S2s and is already used by the SPI/PSRAM interface (function: {_ESP32S2_SPI_PSRAM_PINS[value]})"
-        )
-
-    if value in (22, 23, 24, 25):
+def s2_s3_error_pins(variant: str) -> dict[int, str]:
+    """Errors for the flash/PSRAM and missing pins, which S2 and S3 share."""
+    return {
+        **spi_psram_errors(
+            variant,
+            {
+                26: "SPICS1",
+                27: "SPIHD",
+                28: "SPIWP",
+                29: "SPICS0",
+                30: "SPICLK",
+                31: "SPIQ",
+                32: "SPID",
+            },
+        ),
         # These pins are not exposed in GPIO mux (reason unknown)
         # but they're missing from IO_MUX list in datasheet
-        raise cv.Invalid(f"The pin GPIO{value} is not usable on ESP32-S2s.")
+        **unusable_errors(variant, (22, 23, 24, 25)),
+    }
 
-    return value
 
-
-def esp32_s2_validate_supports(value: dict[str, Any]) -> dict[str, Any]:
-    num = value[CONF_NUMBER]
-    mode = value[CONF_MODE]
-    is_input = mode[CONF_INPUT]
-    is_output = mode[CONF_OUTPUT]
-    is_pullup = mode[CONF_PULLUP]
-    is_pulldown = mode[CONF_PULLDOWN]
-
-    if num < 0 or num > 46:
-        raise cv.Invalid(f"Invalid pin number: {num} (must be 0-46)")
-    if is_input:
-        # All ESP32 pins support input mode
-        pass
-    if is_output and num == 46:
-        raise cv.Invalid(
-            f"GPIO{num} does not support output pin mode.",
-            [CONF_MODE, CONF_OUTPUT],
-        )
-    if is_pullup and num == 46:
-        raise cv.Invalid(
-            f"GPIO{num} does not support pullups.", [CONF_MODE, CONF_PULLUP]
-        )
-    if is_pulldown and num == 46:
-        raise cv.Invalid(
-            f"GPIO{num} does not support pulldowns.", [CONF_MODE, CONF_PULLDOWN]
-        )
-    if value.get(CONF_HOLD_STATE) and num == 46:
-        raise cv.Invalid(
-            f"GPIO{num} is input-only and cannot be held.",
-            [CONF_HOLD_STATE],
-        )
-
-    check_strapping_pin(value, _ESP32S2_STRAPPING_PINS, _LOGGER)
-    return value
+ESP32_S2_PIN_SPEC = ESP32PinSpec(
+    max_pin=46,
+    strapping_pins=frozenset({0, 45, 46}),
+    error_pins=s2_s3_error_pins("ESP32-S2"),
+    input_only_pins=frozenset({46}),
+)

@@ -68,32 +68,32 @@ void AdalightLightEffect::apply(light::AddressableLight &it, const Color &curren
     blank_all_leds_(it);
   }
 
-  if (this->available() > 0) {
-    ESP_LOGV(TAG, "Frame: Available (size=%d).", this->available());
+  const size_t avail = this->available();
+  if (avail > 0) {
+    ESP_LOGV(TAG, "Frame: Available (size=%zu).", avail);
   }
 
-  while (this->available() != 0) {
-    uint8_t data;
-    if (!this->read_byte(&data))
-      break;
-    this->frame_.push_back(data);
-    this->last_byte_ = now;
+  this->read_available(
+      [this, &it, now](uint8_t data) {
+        this->frame_.push_back(data);
+        this->last_byte_ = now;
 
-    switch (this->parse_frame_(it)) {
-      case INVALID:
-        ESP_LOGD(TAG, "Frame: Invalid (size=%zu, first=%d).", this->frame_.size(), this->frame_[0]);
-        reset_frame_(it);
-        break;
+        switch (this->parse_frame_(it)) {
+          case INVALID:
+            ESP_LOGD(TAG, "Frame: Invalid (size=%zu, first=%d).", this->frame_.size(), this->frame_[0]);
+            reset_frame_(it);
+            break;
 
-      case PARTIAL:
-        break;
+          case PARTIAL:
+            break;
 
-      case CONSUMED:
-        ESP_LOGV(TAG, "Frame: Consumed (size=%zu).", this->frame_.size());
-        reset_frame_(it);
-        break;
-    }
-  }
+          case CONSUMED:
+            ESP_LOGV(TAG, "Frame: Consumed (size=%zu).", this->frame_.size());
+            reset_frame_(it);
+            break;
+        }
+      },
+      avail);
 }
 
 AdalightLightEffect::Frame AdalightLightEffect::parse_frame_(light::AddressableLight &it) {

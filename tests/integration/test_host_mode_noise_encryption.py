@@ -5,6 +5,7 @@ from __future__ import annotations
 from aioesphomeapi import InvalidEncryptionKeyAPIError
 import pytest
 
+from .state_utils import assert_device_name
 from .types import APIClientConnectedFactory, RunCompiledFunction
 
 # The API key for noise encryption
@@ -25,9 +26,7 @@ async def test_host_mode_noise_encryption(
         api_client_connected(noise_psk=NOISE_KEY) as client,
     ):
         # If we can get device info, the encryption is working
-        device_info = await client.device_info()
-        assert device_info is not None
-        assert device_info.name == "host-noise-test"
+        await assert_device_name(client, "host-noise-test")
 
         # List entities to ensure the encrypted connection is fully functional
         entities = await client.list_entities_services()

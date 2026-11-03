@@ -14,6 +14,7 @@ import pathlib
 import pytest
 
 from .log_utils import LineWaiter
+from .state_utils import assert_device_name
 from .types import APIClientConnectedFactory, RunCompiledFunction
 
 
@@ -73,9 +74,7 @@ async def test_uart_tcp_bridge(
             run_compiled(yaml_config, line_callback=lines.callback),
             api_client_connected() as client,
         ):
-            device_info = await client.device_info()
-            assert device_info is not None
-            assert device_info.name == "uart-tcp-bridge-test"
+            await assert_device_name(client, "uart-tcp-bridge-test")
             await lines.wait_for("Listening on")
 
             # Bytes written before any client connects must never reach one.

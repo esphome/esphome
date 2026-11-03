@@ -1,0 +1,10 @@
+esphome:
+  name: ho32pr
+
+esp32:
+  board: esp32dev
+  framework:
+    type: esp-idf
+
+packages:
+  common: !include ../../ho-common.yaml

@@ -9,6 +9,8 @@ from . import EpaperModel
 
 
 class JD79660(EpaperModel):
+    source_files = ("epaper_spi_jd79660.cpp",)
+
     def __init__(self, name, class_name="EPaperJD79660", fast_update=None, **kwargs):
         # Only a fast_update sequence lets the driver do anything but a full refresh
         kwargs.setdefault("partial_update", fast_update is not None)

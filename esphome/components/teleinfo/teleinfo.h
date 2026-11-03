@@ -18,7 +18,7 @@ static const uint16_t MAX_TIMESTAMP_SIZE = 14;
 class TeleInfoListener {
  public:
   std::string tag;
-  virtual void publish_val(const std::string &val){};
+  virtual void publish_val(const std::string &val) {};
 };
 class TeleInfo final : public PollingComponent, public uart::UARTDevice {
  public:

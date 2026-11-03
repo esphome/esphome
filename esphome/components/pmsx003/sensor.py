@@ -6,7 +6,6 @@ import esphome.config_validation as cv
 from esphome.const import (
     CONF_FORMALDEHYDE,
     CONF_HUMIDITY,
-    CONF_ID,
     CONF_PM_0_3UM,
     CONF_PM_0_5UM,
     CONF_PM_1_0,
@@ -328,9 +327,7 @@ FINAL_VALIDATE_SCHEMA = final_validate
 
 
 async def to_code(config: ConfigType) -> None:
-    var = cg.new_Pvariable(config[CONF_ID])
-    await cg.register_component(var, config)
-    await uart.register_uart_device(var, config)
+    var = await uart.new_uart_component(config)
 
     cg.add(var.set_type(config[CONF_TYPE]))
 

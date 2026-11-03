@@ -129,34 +129,25 @@ async def to_code(config: ConfigType) -> None:
         var.get_open_trigger(), [], config[CONF_OPEN_ACTION]
     )
     cg.add(var.set_open_duration(config[CONF_OPEN_DURATION]))
-    if CONF_OPEN_ENDSTOP in config:
-        bin = await cg.get_variable(config[CONF_OPEN_ENDSTOP])
-        cg.add(var.set_open_endstop(bin))
-    if CONF_OPEN_SENSOR in config:
-        bin = await cg.get_variable(config[CONF_OPEN_SENSOR])
-        cg.add(var.set_open_sensor(bin))
-    if CONF_OPEN_OBSTACLE_SENSOR in config:
-        bin = await cg.get_variable(config[CONF_OPEN_OBSTACLE_SENSOR])
-        cg.add(var.set_open_obstacle_sensor(bin))
+    await cg.add_variable(var.set_open_endstop, config.get(CONF_OPEN_ENDSTOP))
+    await cg.add_variable(var.set_open_sensor, config.get(CONF_OPEN_SENSOR))
+    await cg.add_variable(
+        var.set_open_obstacle_sensor, config.get(CONF_OPEN_OBSTACLE_SENSOR)
+    )
 
     # CLOSE
     await automation.build_automation(
         var.get_close_trigger(), [], config[CONF_CLOSE_ACTION]
     )
     cg.add(var.set_close_duration(config[CONF_CLOSE_DURATION]))
-    if CONF_CLOSE_ENDSTOP in config:
-        bin = await cg.get_variable(config[CONF_CLOSE_ENDSTOP])
-        cg.add(var.set_close_endstop(bin))
-    if CONF_CLOSE_SENSOR in config:
-        bin = await cg.get_variable(config[CONF_CLOSE_SENSOR])
-        cg.add(var.set_close_sensor(bin))
-    if CONF_CLOSE_OBSTACLE_SENSOR in config:
-        bin = await cg.get_variable(config[CONF_CLOSE_OBSTACLE_SENSOR])
-        cg.add(var.set_close_obstacle_sensor(bin))
+    await cg.add_variable(var.set_close_endstop, config.get(CONF_CLOSE_ENDSTOP))
+    await cg.add_variable(var.set_close_sensor, config.get(CONF_CLOSE_SENSOR))
+    await cg.add_variable(
+        var.set_close_obstacle_sensor, config.get(CONF_CLOSE_OBSTACLE_SENSOR)
+    )
 
     # OTHER
-    if CONF_MAX_DURATION in config:
-        cg.add(var.set_max_duration(config[CONF_MAX_DURATION]))
+    cg.add_optional(var.set_max_duration, config.get(CONF_MAX_DURATION))
 
     cg.add(var.set_has_built_in_endstop(config[CONF_HAS_BUILT_IN_ENDSTOP]))
 

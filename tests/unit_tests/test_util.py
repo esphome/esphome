@@ -5,7 +5,7 @@ from __future__ import annotations
 from collections.abc import Callable
 import io
 import logging
-from pathlib import Path
+from pathlib import Path, PurePosixPath
 import subprocess
 import sys
 from typing import Any
@@ -465,6 +465,25 @@ def test_redirect_text_keeps_output_after_an_exotic_break_character(
     redirect.write(f"first{break_char}second\nthird\n")
 
     assert buf.getvalue() == f"first{break_char}second\nthird\n"
+
+
+def test_redirect_text_keeps_the_color_codes_of_a_filtered_line() -> None:
+    """A dropped line still delivers its color codes.
+
+    With ``CLICOLOR_FORCE`` cmake prints a warning in yellow and puts the
+    reset on a line of its own after a blank line. The IDF build filters
+    blank lines, matched without ANSI codes, so the reset used to be dropped
+    and the output after the warning stayed yellow.
+    """
+    redirect, buf = _make_redirect(filter_lines=[r"\s*$"])
+
+    redirect.write(
+        "\x1b[33mCMake Warning at a.cmake:3 (message):\n  w\n\n\x1b[0m\n-- b\n"
+    )
+
+    assert buf.getvalue() == (
+        "\x1b[33mCMake Warning at a.cmake:3 (message):\n  w\n\x1b[0m-- b\n"
+    )
 
 
 def test_redirect_text_treats_crlf_as_one_terminator() -> None:
@@ -1200,3 +1219,146 @@ def test_read_secret_line_empty_pipe(capsys: pytest.CaptureFixture[str]) -> None
         stdin.readline.return_value = ""
         assert util.read_secret_line("Key: ") == ""
     assert capsys.readouterr().err == "Key: "
+
+
+def test_safe_print_dashboard_ignores_unicode_encode_error(
+    capsys: pytest.CaptureFixture[str], monkeypatch: pytest.MonkeyPatch
+) -> None:
+    """A message whose replace() raises UnicodeEncodeError is printed as is."""
+
+    class BadStr(str):
+        __slots__ = ()
+
+        def replace(self, *args: Any, **kwargs: Any) -> str:
+            raise UnicodeEncodeError("ascii", "x", 0, 1, "boom")
+
+    monkeypatch.setattr(CORE, "dashboard", True)
+    util.safe_print(BadStr("hello"))
+    assert capsys.readouterr().out == "hello\n"
+
+
+def test_shlex_quote_accepts_path() -> None:
+    """Path objects are converted to strings before quoting."""
+    assert util.shlex_quote(Path("a b")) == "'a b'"
+    assert util.shlex_quote(Path("plain")) == "plain"
+
+
+def test_redirect_text_delegates_unknown_attributes() -> None:
+    """Attributes RedirectText does not define come from the wrapped stream."""
+    out = io.StringIO()
+    redirect = util.RedirectText(out)
+    assert redirect.getvalue == out.getvalue
+    assert redirect.isatty() is True
+
+
+def test_redirect_text_write_decodes_bytes() -> None:
+    """Bytes written to RedirectText are decoded to str."""
+    out = io.StringIO()
+    redirect = util.RedirectText(out)
+    assert redirect.write(b"bytes\n") == 6  # type: ignore[arg-type]
+    assert out.getvalue() == "bytes\n"
+
+
+def test_run_external_command_reraises_keyboard_interrupt() -> None:
+    """KeyboardInterrupt is propagated and sys.argv is restored."""
+    orig_argv = sys.argv
+
+    def func() -> int:
+        raise KeyboardInterrupt
+
+    with pytest.raises(KeyboardInterrupt):
+        util.run_external_command(func, "cmd")
+    assert sys.argv is orig_argv
+
+
+def test_run_external_command_returns_one_on_exception(
+    caplog: pytest.LogCaptureFixture,
+) -> None:
+    """Unexpected exceptions are logged and turned into exit code 1."""
+
+    def func() -> int:
+        raise ValueError("kaboom")
+
+    with caplog.at_level(logging.ERROR):
+        assert util.run_external_command(func, "cmd") == 1
+    assert "Running command failed: kaboom" in caplog.text
+
+
+def test_run_external_process_capture_stdout() -> None:
+    """capture_stdout pipes the child's stdout and returns it."""
+    with patch("subprocess.run") as mock_run:
+        mock_run.return_value = MagicMock(stdout="captured", returncode=0)
+        result = util.run_external_process("echo", "x", capture_stdout=True)
+    assert result == "captured"
+    assert mock_run.call_args.kwargs["stdout"] == subprocess.PIPE
+
+
+def test_run_external_process_keyboard_interrupt() -> None:
+    """KeyboardInterrupt from subprocess.run is propagated."""
+    with (
+        patch("subprocess.run", side_effect=KeyboardInterrupt),
+        pytest.raises(KeyboardInterrupt),
+    ):
+        util.run_external_process("echo")
+
+
+def test_is_dev_esphome_version(monkeypatch: pytest.MonkeyPatch) -> None:
+    """Dev versions are detected by the 'dev' marker."""
+    monkeypatch.setattr(util.const, "__version__", "2026.1.0-dev")
+    assert util.is_dev_esphome_version() is True
+    monkeypatch.setattr(util.const, "__version__", "2026.1.0")
+    assert util.is_dev_esphome_version() is False
+
+
+def test_ordered_dict_repr_is_plain_dict() -> None:
+    """OrderedDict repr looks like a regular dict."""
+    assert repr(util.OrderedDict([("a", 1), ("b", 2)])) == "{'a': 1, 'b': 2}"
+
+
+@pytest.mark.parametrize("platform", ["linux", "darwin"])
+def test_get_serial_ports(platform: str, monkeypatch: pytest.MonkeyPatch) -> None:
+    """Ports are filtered by VID:PID; by-id platform devices are added on Linux."""
+    comports = [
+        ("", "empty", "VID:PID=1:2"),
+        ("/dev/ttyUSB1", "usb", "VID:PID=1:2"),
+        ("/dev/ttyS0", "builtin", "n/a"),
+    ]
+    # POSIX paths so the strings and sort order do not depend on the host OS
+    by_id = [PurePosixPath("/dev/serial/by-id/b"), PurePosixPath("/dev/serial/by-id/a")]
+    subsystems = {"b": "platform", "a": "usb"}
+
+    def make_device(path: Path) -> MagicMock:
+        return MagicMock(subsystem=subsystems[path.name])
+
+    fake_path = MagicMock()
+    fake_path.exists.return_value = True
+    fake_path.glob.return_value = by_id
+    with (
+        patch("serial.tools.list_ports.comports", return_value=comports),
+        patch("serial.tools.list_ports_linux.SysFS", side_effect=make_device),
+        patch.object(util, "Path", return_value=fake_path),
+    ):
+        # Only after patch() has imported pyserial: it picks its backend from
+        # sys.platform at import time, and the macOS one fails on other hosts
+        monkeypatch.setattr(sys, "platform", platform)
+        ports = util.get_serial_ports()
+
+    paths = [p.path for p in ports]
+    if platform == "linux":
+        assert paths == ["/dev/serial/by-id/b", "/dev/ttyUSB1"]
+        assert ports[0].description == "/"  # info[1] of the last entry ("n/a")
+    else:
+        assert paths == ["/dev/ttyUSB1"]
+        assert ports[0].description == "usb"
+
+
+def test_run_external_process_returns_one_on_exception(
+    caplog: pytest.LogCaptureFixture,
+) -> None:
+    """Unexpected subprocess failures are logged and turned into exit code 1."""
+    with (
+        patch("subprocess.run", side_effect=OSError("no such file")),
+        caplog.at_level(logging.ERROR),
+    ):
+        assert util.run_external_process("missing") == 1
+    assert "Running command failed: no such file" in caplog.text

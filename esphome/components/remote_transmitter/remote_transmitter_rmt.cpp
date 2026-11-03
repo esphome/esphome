@@ -284,14 +284,12 @@ void RemoteTransmitterComponent::send_internal(uint32_t send_times, uint32_t sen
   this->store_.index = offset;
   esp_err_t error = rmt_transmit(this->channel_, this->encoder_, this->rmt_temp_.data(),
                                  this->rmt_temp_.size() * sizeof(rmt_symbol_half_t), &config);
-  if (error != ESP_OK) {
+  if (!this->status_comm_result(error == ESP_OK, nullptr)) {
     ESP_LOGW(TAG, "rmt_transmit failed: %s", esp_err_to_name(error));
-    this->status_set_warning();
     // nothing was queued, so there is no frame to wait for
     this->fire_complete_(false);
     return;
   }
-  this->status_clear_warning();
 
   if (this->non_blocking_) {
     this->set_timeout(COMPLETE_TIMEOUT_ID, total_duration / 1000, [this]() { this->wait_for_rmt_(); });

@@ -33,7 +33,7 @@ void WakeOnLanButton::press_action() {
     return;
   }
   ESP_LOGI(TAG, "Sending Wake-on-LAN Packet");
-  struct sockaddr_storage saddr {};
+  struct sockaddr_storage saddr{};
   auto addr_len =
       socket::set_sockaddr(reinterpret_cast<sockaddr *>(&saddr), sizeof(saddr), "255.255.255.255", this->port_);
   if (addr_len == 0) {

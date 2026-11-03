@@ -1,6 +1,5 @@
 from esphome import automation
 import esphome.codegen as cg
-from esphome.components import mqtt, web_server
 from esphome.config_helpers import filter_source_files_from_defines
 import esphome.config_validation as cv
 from esphome.const import (
@@ -14,16 +13,19 @@ from esphome.const import (
     CONF_ON_RAW_VALUE,
     CONF_ON_VALUE,
     CONF_STATE,
+    CONF_TIMEOUT,
     CONF_TO,
-    CONF_WEB_SERVER,
+    CONF_VALUE,
     DEVICE_CLASS_DATE,
     DEVICE_CLASS_EMPTY,
     DEVICE_CLASS_TIMESTAMP,
 )
-from esphome.core import CORE, ID, CoroPriority, coroutine_with_priority
+from esphome.core import CORE, ID, CoroPriority, coroutine_with_priority, entity_helpers
 from esphome.core.entity_helpers import (
+    FollowEntity,
     SubEntities,
     entity_duplicate_validator,
+    mqtt_component_class,
     queue_entity_register,
     setup_device_class,
     setup_entity,
@@ -59,6 +61,18 @@ AppendFilter = text_sensor_ns.class_("AppendFilter", Filter)
 PrependFilter = text_sensor_ns.class_("PrependFilter", Filter)
 SubstituteFilter = text_sensor_ns.class_("SubstituteFilter", Filter)
 MapFilter = text_sensor_ns.class_("MapFilter", Filter)
+ThrottleFilter = text_sensor_ns.class_("ThrottleFilter", Filter)
+ThrottleWithPriorityFilter = text_sensor_ns.class_(
+    "ThrottleWithPriorityFilter", ThrottleFilter
+)
+TimeoutFilterBase = text_sensor_ns.class_("TimeoutFilterBase", Filter, cg.Component)
+TimeoutFilterLast = text_sensor_ns.class_("TimeoutFilterLast", TimeoutFilterBase)
+TimeoutFilterConfigured = text_sensor_ns.class_(
+    "TimeoutFilterConfigured", TimeoutFilterBase
+)
+TimeoutThrottleFilter = text_sensor_ns.class_(
+    "TimeoutThrottleFilter", TimeoutFilterLast
+)
 Substitution = text_sensor_ns.struct("Substitution")
 
 
@@ -128,14 +142,90 @@ async def substitution_filter_to_code(
     return cg.new_Pvariable(filter_id, _substitution_table(config))
 
 
+@FILTER_REGISTRY.register(
+    "throttle", ThrottleFilter, cv.positive_time_period_milliseconds
+)
+async def throttle_filter_to_code(config: ConfigType, filter_id: ID) -> MockObj:
+    return cg.new_Pvariable(filter_id, config)
+
+
+THROTTLE_WITH_PRIORITY_SCHEMA = cv.maybe_simple_value(
+    {
+        cv.Required(CONF_TIMEOUT): cv.positive_time_period_milliseconds,
+        cv.Optional(CONF_VALUE, default=[]): cv.ensure_list(cv.string),
+    },
+    key=CONF_TIMEOUT,
+)
+
+
+@FILTER_REGISTRY.register(
+    "throttle_with_priority", ThrottleWithPriorityFilter, THROTTLE_WITH_PRIORITY_SCHEMA
+)
+async def throttle_with_priority_filter_to_code(
+    config: ConfigType, filter_id: ID
+) -> MockObj:
+    if not (values := config[CONF_VALUE]):
+        filter_id = filter_id.copy()
+        filter_id.type = ThrottleFilter
+        return cg.new_Pvariable(filter_id, config[CONF_TIMEOUT])
+    return cg.new_Pvariable(filter_id, config[CONF_TIMEOUT], _priority_table(values))
+
+
+def _priority_table(values: list[str]) -> MockObj:
+    """Shared PROGMEM list of priority texts, ended by nullptr; nullptr without any."""
+    if not values:
+        return cg.nullptr
+    return cg.shared_progmem_array(
+        "text_sensor_priorities",
+        cg.const_char_ptr,
+        cg.ArrayInitializer(*values, cg.nullptr),
+    )
+
+
+def timeout_throttle_filters(priority: str, period_ms: int = 1000) -> list[ConfigType]:
+    """Default filters for a text entity: resend the last value after a pause, at most one value a period,
+    `priority` at once. Built as one filter, like sensor.TIMEOUT_THROTTLE_FILTERS."""
+    period = cv.TimePeriod(milliseconds=period_ms)
+    return [
+        {"timeout": {CONF_TIMEOUT: period, CONF_VALUE: "last"}},
+        {"throttle_with_priority": {CONF_TIMEOUT: period, CONF_VALUE: [priority]}},
+    ]
+
+
+TIMEOUT_SCHEMA = cv.maybe_simple_value(
+    {
+        cv.Required(CONF_TIMEOUT): cv.positive_time_period_milliseconds,
+        cv.Optional(CONF_VALUE, default="last"): cv.string,
+    },
+    key=CONF_TIMEOUT,
+)
+
+
+@FILTER_REGISTRY.register("timeout", TimeoutFilterBase, TIMEOUT_SCHEMA)
+async def timeout_filter_to_code(config: ConfigType, filter_id: ID) -> MockObj:
+    filter_id = filter_id.copy()
+    args = [config[CONF_TIMEOUT]]
+    # "last" is a keyword, so a timeout cannot send that literal text
+    if (value := config[CONF_VALUE]) == "last":
+        filter_id.type = TimeoutFilterLast
+    else:
+        filter_id.type = TimeoutFilterConfigured
+        args.append(value)
+    var = cg.new_Pvariable(filter_id, *args)
+    await cg.register_component(var, {})
+    return var
+
+
 validate_device_class = cv.one_of(*DEVICE_CLASSES, lower=True, space="_")
 
 _TEXT_SENSOR_SCHEMA = (
-    cv.ENTITY_BASE_SCHEMA.extend(web_server.WEBSERVER_SORTING_SCHEMA)
+    cv.ENTITY_BASE_SCHEMA.extend(entity_helpers.WEBSERVER_SORTING_SCHEMA)
     .extend(cv.MQTT_COMPONENT_SCHEMA)
     .extend(
         {
-            cv.OnlyWith(CONF_MQTT_ID, "mqtt"): cv.declare_id(mqtt.MQTTTextSensor),
+            cv.OnlyWith(CONF_MQTT_ID, "mqtt"): cv.declare_id(
+                mqtt_component_class("MQTTTextSensor")
+            ),
             cv.GenerateID(): cv.declare_id(TextSensor),
             cv.Optional(
                 CONF_DEVICE_CLASS, visibility=cv.Visibility.ADVANCED
@@ -182,6 +272,32 @@ async def build_filters(config):
     return await cg.build_registry_list(FILTER_REGISTRY, config)
 
 
+def _timeout_throttle_pair(first: ConfigType, second: ConfigType) -> tuple | None:
+    """Period and priority texts of a `timeout` (value `last`) directly followed by a
+    `throttle_with_priority` with the same period, or None."""
+    if (timeout := first.get(CONF_TIMEOUT)) is None or (
+        throttle := second.get("throttle_with_priority")
+    ) is None:
+        return None
+    if timeout[CONF_VALUE] != "last" or timeout[CONF_TIMEOUT] != throttle[CONF_TIMEOUT]:
+        return None
+    return timeout[CONF_TIMEOUT], throttle[CONF_VALUE]
+
+
+def _timeout_throttle_merge(first: ConfigType, second: ConfigType) -> tuple | None:
+    if (pair := _timeout_throttle_pair(first, second)) is None:
+        return None
+    period, values = pair
+    return TimeoutThrottleFilter, [period, _priority_table(values)]
+
+
+async def _build_chain_filters(config: list[ConfigType]) -> list:
+    """Like build_filters, but merges a `timeout` + `throttle_with_priority` pair into one filter."""
+    return await cg.build_registry_list_merged(
+        FILTER_REGISTRY, config, _timeout_throttle_merge
+    )
+
+
 _CALLBACK_AUTOMATIONS = (
     automation.CallbackAutomation(
         CONF_ON_VALUE, "add_on_state_callback", [(cg.std_string, "x")]
@@ -203,18 +319,13 @@ async def setup_text_sensor_core_(var, config):
 
     if config.get(CONF_FILTERS):  # must exist and not be empty
         cg.add_define("USE_TEXT_SENSOR_FILTER")
-        filters = await build_filters(config[CONF_FILTERS])
+        filters = await _build_chain_filters(config[CONF_FILTERS])
         for filter_ in filters:
             cg.add(var.add_filter(filter_))
 
     CORE.add_job(_build_text_sensor_automations, var, config)
 
-    if (mqtt_id := config.get(CONF_MQTT_ID)) is not None:
-        mqtt_ = cg.new_Pvariable(mqtt_id, var)
-        await mqtt.register_mqtt_component(mqtt_, config)
-
-    if web_server_config := config.get(CONF_WEB_SERVER):
-        await web_server.add_entity_config(var, web_server_config)
+    await entity_helpers.setup_entity_integrations(var, config)
 
 
 async def register_text_sensor(var, config):
@@ -236,6 +347,12 @@ def sub_text_sensors(
 ) -> SubEntities:
     """Return a SubEntities bound to new_text_sensor."""
     return SubEntities(new_text_sensor, config, parent)
+
+
+# Makes a plain text sensor follow another text sensor: follow_text_sensor(entity, source)
+follow_text_sensor = FollowEntity(
+    "add_on_state_callback", ((cg.std_string_ref.operator("const"), "x"),), "x"
+)
 
 
 @coroutine_with_priority(CoroPriority.CORE)

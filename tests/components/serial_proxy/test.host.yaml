@@ -1,0 +1,14 @@
+# The host UART drives DTR/RTS itself, which exercises the host modem control path
+network:
+
+api:
+
+uart:
+  - id: uart_bus
+    port: "/dev/ttyS0"
+    baud_rate: 9600
+
+serial_proxy:
+  - id: serial_proxy_1
+    name: Test Serial Port
+    port_type: RS232

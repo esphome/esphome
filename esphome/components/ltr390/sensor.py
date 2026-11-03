@@ -1,3 +1,6 @@
+from collections.abc import Callable
+from typing import Any
+
 import esphome.codegen as cg
 from esphome.components import i2c, sensor
 from esphome.components.const import UNIT_COUNTS
@@ -5,7 +8,6 @@ import esphome.config_validation as cv
 from esphome.const import (
     CONF_AMBIENT_LIGHT,
     CONF_GAIN,
-    CONF_ID,
     CONF_LIGHT,
     CONF_RESOLUTION,
     DEVICE_CLASS_EMPTY,
@@ -50,6 +52,20 @@ RES_OPTIONS = {
     13: LTR390RESOLUTION.LTR390_RESOLUTION_13BIT,
 }
 
+
+def _per_mode(validator: Callable[[Any], Any]) -> Callable[[Any], ConfigType]:
+    """One value for both modes, or one each; always returns the per-mode dict."""
+    return cv.Any(
+        cv.All(validator, lambda value: {CONF_AMBIENT_LIGHT: value, CONF_UV: value}),
+        cv.Schema(
+            {
+                cv.Required(CONF_AMBIENT_LIGHT): validator,
+                cv.Required(CONF_UV): validator,
+            }
+        ),
+    )
+
+
 CONFIG_SCHEMA = cv.All(
     cv.Schema(
         {
@@ -82,24 +98,8 @@ CONFIG_SCHEMA = cv.All(
                 device_class=DEVICE_CLASS_EMPTY,
                 state_class=STATE_CLASS_MEASUREMENT,
             ),
-            cv.Optional(CONF_GAIN, default="X18"): cv.Any(
-                cv.enum(GAIN_OPTIONS),
-                cv.Schema(
-                    {
-                        cv.Required(CONF_AMBIENT_LIGHT): cv.enum(GAIN_OPTIONS),
-                        cv.Required(CONF_UV): cv.enum(GAIN_OPTIONS),
-                    }
-                ),
-            ),
-            cv.Optional(CONF_RESOLUTION, default=20): cv.Any(
-                cv.enum(RES_OPTIONS),
-                cv.Schema(
-                    {
-                        cv.Required(CONF_AMBIENT_LIGHT): cv.enum(RES_OPTIONS),
-                        cv.Required(CONF_UV): cv.enum(RES_OPTIONS),
-                    }
-                ),
-            ),
+            cv.Optional(CONF_GAIN, default="X18"): _per_mode(cv.enum(GAIN_OPTIONS)),
+            cv.Optional(CONF_RESOLUTION, default=20): _per_mode(cv.enum(RES_OPTIONS)),
             cv.Optional(CONF_WINDOW_CORRECTION_FACTOR, default=1.0): cv.float_range(
                 min=1.0
             ),
@@ -110,38 +110,21 @@ CONFIG_SCHEMA = cv.All(
     cv.has_at_least_one_key(CONF_LIGHT, CONF_AMBIENT_LIGHT, CONF_UV_INDEX, CONF_UV),
 )
 
-TYPES = {
-    CONF_LIGHT: "set_light_sensor",
-    CONF_AMBIENT_LIGHT: "set_als_sensor",
-    CONF_UV_INDEX: "set_uvi_sensor",
-    CONF_UV: "set_uv_sensor",
-}
-
 
 async def to_code(config: ConfigType) -> None:
-    var = cg.new_Pvariable(config[CONF_ID])
-    await cg.register_component(var, config)
-    await i2c.register_i2c_device(var, config)
+    var = await i2c.new_i2c_component(config)
 
     cg.add(var.set_wfac_value(config[CONF_WINDOW_CORRECTION_FACTOR]))
 
-    for key, funcName in TYPES.items():
-        if key in config:
-            sens = await sensor.new_sensor(config[key])
-            cg.add(getattr(var, funcName)(sens))
+    sensors = sensor.sub_sensors(config)
+    await sensors(CONF_LIGHT, var.set_light_sensor)
+    await sensors(CONF_AMBIENT_LIGHT, var.set_als_sensor)
+    await sensors(CONF_UV_INDEX, var.set_uvi_sensor)
+    await sensors(CONF_UV, var.set_uv_sensor)
 
-    gain_value = config[CONF_GAIN]
-    if isinstance(gain_value, dict):
-        cg.add(var.set_als_gain_value(gain_value[CONF_AMBIENT_LIGHT]))
-        cg.add(var.set_uv_gain_value(gain_value[CONF_UV]))
-    else:
-        cg.add(var.set_als_gain_value(gain_value))
-        cg.add(var.set_uv_gain_value(gain_value))
-
-    res_value = config[CONF_RESOLUTION]
-    if isinstance(res_value, dict):
-        cg.add(var.set_als_res_value(res_value[CONF_AMBIENT_LIGHT]))
-        cg.add(var.set_uv_res_value(res_value[CONF_UV]))
-    else:
-        cg.add(var.set_als_res_value(res_value))
-        cg.add(var.set_uv_res_value(res_value))
+    gain = config[CONF_GAIN]
+    cg.add(var.set_als_gain_value(gain[CONF_AMBIENT_LIGHT]))
+    cg.add(var.set_uv_gain_value(gain[CONF_UV]))
+    res = config[CONF_RESOLUTION]
+    cg.add(var.set_als_res_value(res[CONF_AMBIENT_LIGHT]))
+    cg.add(var.set_uv_res_value(res[CONF_UV]))

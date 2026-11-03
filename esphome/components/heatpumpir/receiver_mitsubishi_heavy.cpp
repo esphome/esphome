@@ -15,24 +15,15 @@ static constexpr uint8_t MODE_MASK = 0x07;
 static constexpr uint8_t TEMP_MASK = 0x0F;
 static constexpr uint8_t TEMPERATURE_BASE = 17;
 static constexpr uint8_t TEMPERATURE_SHIFT = 4;
+static constexpr remote_base::BitTimings MITSUBISHI_HEAVY_BIT_TIMINGS{.bit_mark = MITSUBISHI_HEAVY_BIT_MARK,
+                                                                      .one_space = MITSUBISHI_HEAVY_ONE_SPACE,
+                                                                      .zero_space = MITSUBISHI_HEAVY_ZERO_SPACE};
 
 static bool read_raw_bytes(remote_base::RemoteReceiveData &data, uint8_t frame[MITSUBISHI_HEAVY_FRAME_LENGTH]) {
   if (!data.expect_item(MITSUBISHI_HEAVY_HDR_MARK, MITSUBISHI_HEAVY_HDR_SPACE))
     return false;
 
-  for (uint8_t i = 0; i < MITSUBISHI_HEAVY_FRAME_LENGTH; i++) {
-    uint8_t byte = 0;
-    for (uint8_t bit = 0; bit < 8; bit++) {
-      if (data.expect_item(MITSUBISHI_HEAVY_BIT_MARK, MITSUBISHI_HEAVY_ONE_SPACE)) {
-        byte |= 1 << bit;
-      } else if (!data.expect_item(MITSUBISHI_HEAVY_BIT_MARK, MITSUBISHI_HEAVY_ZERO_SPACE)) {
-        return false;
-      }
-    }
-    frame[i] = byte;
-  }
-
-  return true;
+  return data.expect_bytes<MITSUBISHI_HEAVY_BIT_TIMINGS>(frame, MITSUBISHI_HEAVY_FRAME_LENGTH);
 }
 
 static bool validate_prefix(const uint8_t frame[MITSUBISHI_HEAVY_FRAME_LENGTH]) {

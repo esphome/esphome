@@ -128,13 +128,11 @@ class HonClimate final : public HaierClimateBase {
 #endif
 #ifdef USE_SELECT
  public:
-  void set_vertical_airflow_select(select::Select *sel) { this->vertical_airflow_select_ = sel; }
-  void set_horizontal_airflow_select(select::Select *sel) { this->horizontal_airflow_select_ = sel; }
+  SUB_SELECT(vertical_airflow)
+  SUB_SELECT(horizontal_airflow)
 
  protected:
   void publish_airflow_selects_();
-  select::Select *vertical_airflow_select_{nullptr};
-  select::Select *horizontal_airflow_select_{nullptr};
 #endif
  public:
   HonClimate();

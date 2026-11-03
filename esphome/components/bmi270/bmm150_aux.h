@@ -61,7 +61,7 @@ struct BMM150Trim {
 // A little-endian 16-bit trim word, addressed by its register
 inline uint16_t bmm150_trim_word(const uint8_t *regs, uint8_t reg) {
   const uint8_t offset = reg - BMM150_REG_TRIM_START;
-  return encode_uint16(regs[offset + 1], regs[offset]);
+  return encode_value_le<uint16_t>(&regs[offset]);
 }
 
 // Decodes the trim registers; `regs` holds the bytes of registers 0x5D onwards (at least 21).

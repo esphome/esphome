@@ -30,6 +30,7 @@ void EPaperJD79660::fill(Color color) {
 
   // We store 4 pixels per byte
   this->buffer_.fill(pixel_color | (pixel_color << 2) | (pixel_color << 4) | (pixel_color << 6));
+  this->drawn_since_hash_ = true;
 }
 
 void HOT EPaperJD79660::draw_pixel_at(int x, int y, Color color) {
@@ -71,9 +72,7 @@ bool EPaperJD79660::reset() {
 
       // As commented on SLEEP_MS_RESET1: Reset pulse must happen within time window.
       // So do not use FSM loop, and avoid other calls/logs during pulse below.
-      this->reset_pin_->digital_write(false);
-      delay(SLEEP_MS_RESET1);
-      this->reset_pin_->digital_write(true);
+      pulse_reset(this->reset_pin_, {.low_ms = SLEEP_MS_RESET1});
 
       this->reset_duration_ = SLEEP_MS_RESET2;
       this->step_ = FSMState::RESET_STEP2_IDLECHECK;

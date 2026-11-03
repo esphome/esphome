@@ -1,0 +1,15 @@
+light:
+  - platform: shelly_dimmer
+    name: Shelly Dimmer Light
+    power:
+      name: Shelly Dimmer Power
+    voltage:
+      name: Shelly Dimmer Voltage
+    current:
+      name: Shelly Dimmer Current
+    max_brightness: 500
+    firmware:
+      version: "51.6"
+      update: true
+    nrst_pin: 13
+    boot0_pin: 14

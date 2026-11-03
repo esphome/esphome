@@ -42,7 +42,53 @@ button:
             md5: 0123456789abcdef0123456789abcdef
             url: http://my.ha.net:8123/local/esphome/firmware.bin
 
+        - ota.http_request.flash:
+            id: http_request_ota
+            md5_url: !lambda 'return std::string("http://my.ha.net:8123/local/esphome/firmware.md5");'
+            username: user
+            password: !lambda 'return std::string("pass");'
+            url: http://my.ha.net:8123/local/esphome/firmware.bin
+
+        - ota.http_request.flash:
+            id: http_request_ota
+            md5: !lambda 'return std::string("0123456789abcdef0123456789abcdef");'
+            username: !lambda 'return std::string("user");'
+            password: pass
+            url: !lambda 'return std::string("http://my.ha.net:8123/local/esphome/firmware.bin");'
+
         - logger.log: "This message should be not displayed (reboot)"
+  # Device firmware switches the manifest from lambdas; every shape below must compile and
+  # the stored URL must outlive the lambda (EverythingSmartHome/everything-presence-one#341).
+  - platform: template
+    name: Switch manifest
+    on_press:
+      then:
+        - lambda: |-
+            id(ota_update).set_source_url("http://my.ha.net:8123/local/esphome/beta-manifest.json");
+            std::string url = "http://my.ha.net:8123/local/esphome/";
+            url += "manifest.json";
+            id(ota_update).set_source_url(url);
+            id(ota_update).set_source_url(url.c_str());
+            id(ota_update).set_source_url(std::string("http://my.ha.net:8123/local/esphome/manifest.json"));
+            ESP_LOGI("test", "Manifest is now %s", id(ota_update).get_source_url());
+        - component.update: ota_update
+  # The OTA component's public setters and getters as lambdas use them; every shape must compile.
+  - platform: template
+    name: Flash from lambda
+    on_press:
+      then:
+        - lambda: |-
+            std::string url = "http://my.ha.net:8123/local/esphome/";
+            url += "firmware.bin";
+            id(http_request_ota).set_md5_url("http://my.ha.net:8123/local/esphome/firmware.md5");
+            id(http_request_ota).set_md5(std::string("0123456789abcdef0123456789abcdef"));
+            id(http_request_ota).set_username("user");
+            id(http_request_ota).set_password(std::string("pass"));
+            id(http_request_ota).set_url(url);
+            id(http_request_ota).set_url(url.c_str());
+            ESP_LOGI("test", "MD5 %s / %s", id(http_request_ota).md5_expected().c_str(),
+                     id(http_request_ota).md5_computed().c_str());
+            id(http_request_ota).flash();
 
 update:
   - platform: http_request

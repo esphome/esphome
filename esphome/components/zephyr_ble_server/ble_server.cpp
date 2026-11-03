@@ -40,8 +40,9 @@ static void advertise(k_work *work) {
       truncate_name_to(name, sizeof(name), app_name.c_str(), app_name.length(),
                        App.is_name_add_mac_suffix_enabled() ? MAC_ADDRESS_SUFFIX_WITH_SEPARATOR_LEN : 0);
   const uint8_t name_type = name_len < app_name.length() ? BT_DATA_NAME_SHORTENED : BT_DATA_NAME_COMPLETE;
+  static constexpr uint8_t FLAGS[] = {BT_LE_AD_GENERAL | BT_LE_AD_NO_BREDR};
   const bt_data ad[] = {
-      BT_DATA_BYTES(BT_DATA_FLAGS, (BT_LE_AD_GENERAL | BT_LE_AD_NO_BREDR)),
+      BT_DATA(BT_DATA_FLAGS, FLAGS, sizeof(FLAGS)),
       BT_DATA(name_type, name, static_cast<uint8_t>(name_len)),
   };
 
@@ -67,7 +68,7 @@ void BLEServer::connected(bt_conn *conn, uint8_t err) {
   }
 #endif
   conn = bt_conn_ref(conn);
-  global_ble_server->defer([conn]() { global_ble_server->conn_ = conn; });
+  global_ble_server->defer([conn]() { global_ble_server->set_conn_(conn); });
 }
 
 void BLEServer::disconnected(bt_conn *conn, uint8_t reason) {
@@ -76,13 +77,28 @@ void BLEServer::disconnected(bt_conn *conn, uint8_t reason) {
   bt_addr_le_to_str(bt_conn_get_dst(conn), addr, sizeof(addr));
 
   ESP_LOGI(TAG, "Disconnected from %s (reason 0x%02x)", addr, reason);
-  global_ble_server->defer([]() {
-    if (global_ble_server->conn_) {
-      bt_conn_unref(global_ble_server->conn_);
+  conn = bt_conn_ref(conn);
+  global_ble_server->defer([conn]() {
+    if (global_ble_server->conn_ == conn) {
+      bt_conn_unref(conn);
       global_ble_server->conn_ = nullptr;
     }
+    bt_conn_unref(conn);
   });
   k_work_submit(&advertise_work);
+}
+
+void BLEServer::set_conn_(bt_conn *conn) {
+  // The disconnect may have run first; deferred callbacks are not ordered on this platform.
+  bt_conn_info info;
+  if (bt_conn_get_info(conn, &info) != 0 || info.state != BT_CONN_STATE_CONNECTED) {
+    bt_conn_unref(conn);
+    return;
+  }
+  if (this->conn_ != nullptr) {
+    bt_conn_unref(this->conn_);
+  }
+  this->conn_ = conn;
 }
 
 #ifdef CONFIG_BT_SMP
@@ -180,7 +196,14 @@ void BLEServer::auth_passkey_confirm(bt_conn *conn, unsigned int passkey) {
   snprintk(passkey_str, 7, "%06u", passkey);
 
   ESP_LOGI(TAG, "Confirm passkey for %s: %s", addr, passkey_str);
-  global_ble_server->defer([passkey]() { global_ble_server->passkey_cb_(passkey); });
+  global_ble_server->defer([passkey]() {
+    if (global_ble_server->passkey_cb_.size() == 0) {
+      ESP_LOGW(TAG, "Nothing answers numeric comparison (safe mode skips the automation), rejecting pairing");
+      global_ble_server->numeric_comparison_reply(false);
+      return;
+    }
+    global_ble_server->passkey_cb_(passkey);
+  });
 }
 
 static void auth_pairing_confirm(bt_conn *conn) {
@@ -255,6 +278,8 @@ static const char *role_str(uint8_t role) {
       return "Central";
     case BT_CONN_ROLE_PERIPHERAL:
       return "Peripheral";
+    default:
+      break;
   }
 
   return "Unknown";

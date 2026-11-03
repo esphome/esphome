@@ -12,7 +12,7 @@ class BMP280SPIComponent final : public esphome::bmp280_base::BMP280Component,
   bool bmp_read_byte(uint8_t a_register, uint8_t *data) override;
   bool bmp_write_byte(uint8_t a_register, uint8_t data) override;
   bool bmp_read_bytes(uint8_t a_register, uint8_t *data, size_t len) override;
-  bool bmp_read_byte_16(uint8_t a_register, uint16_t *data) override;
+  bool bmp_read_byte_16_le(uint8_t a_register, uint16_t *data) override;
 };
 
 }  // namespace esphome::bmp280_spi

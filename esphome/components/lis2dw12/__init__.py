@@ -1,5 +1,6 @@
 from esphome import automation
 import esphome.codegen as cg
+from esphome.components.const import CONF_ON_DOUBLE_TAP, CONF_ON_TAP
 import esphome.config_validation as cv
 from esphome.const import (
     CONF_CALIBRATION,
@@ -24,10 +25,8 @@ CONF_LIS2DW12_ID = "lis2dw12_id"
 
 CONF_MIRROR_Z = "mirror_z"
 CONF_ON_ACTIVE = "on_active"
-CONF_ON_DOUBLE_TAP = "on_double_tap"
 CONF_ON_FREEFALL = "on_freefall"
 CONF_ON_ORIENTATION = "on_orientation"
-CONF_ON_TAP = "on_tap"
 
 CONF_LOW_NOISE = "low_noise"
 CONF_FILTER_BANDWIDTH = "filter_bandwidth"
@@ -37,12 +36,7 @@ lis2dw12_ns = cg.esphome_ns.namespace("lis2dw12")
 LIS2DW12Component = lis2dw12_ns.class_("LIS2DW12Component", cg.PollingComponent)
 
 LIS2DW12Range = lis2dw12_ns.enum("Range", True)
-RANGES = {
-    "2G": LIS2DW12Range.RANGE_2G,
-    "4G": LIS2DW12Range.RANGE_4G,
-    "8G": LIS2DW12Range.RANGE_8G,
-    "16G": LIS2DW12Range.RANGE_16G,
-}
+RANGES = LIS2DW12Range.options("2G", "4G", "8G", "16G", prefix="RANGE_")
 
 LIS2DW12PowerMode = lis2dw12_ns.enum("PowerMode", True)
 POWER_MODES = {
@@ -54,25 +48,23 @@ POWER_MODES = {
 }
 
 LIS2DW12DataRate = lis2dw12_ns.enum("DataRate", True)
-DATA_RATES = {
-    "1.6Hz": LIS2DW12DataRate.RATE_1_6HZ,
-    "12.5Hz": LIS2DW12DataRate.RATE_12_5HZ,
-    "25Hz": LIS2DW12DataRate.RATE_25HZ,
-    "50Hz": LIS2DW12DataRate.RATE_50HZ,
-    "100Hz": LIS2DW12DataRate.RATE_100HZ,
-    "200Hz": LIS2DW12DataRate.RATE_200HZ,
-    "400Hz": LIS2DW12DataRate.RATE_400HZ,
-    "800Hz": LIS2DW12DataRate.RATE_800HZ,
-    "1600Hz": LIS2DW12DataRate.RATE_1600HZ,
-}
+DATA_RATES = LIS2DW12DataRate.options(
+    "1.6Hz",
+    "12.5Hz",
+    "25Hz",
+    "50Hz",
+    "100Hz",
+    "200Hz",
+    "400Hz",
+    "800Hz",
+    "1600Hz",
+    prefix="RATE_",
+)
 
 LIS2DW12FilterBandwidth = lis2dw12_ns.enum("FilterBandwidth", True)
-FILTER_BANDWIDTHS = {
-    "odr_div_2": LIS2DW12FilterBandwidth.BW_ODR_DIV_2,
-    "odr_div_4": LIS2DW12FilterBandwidth.BW_ODR_DIV_4,
-    "odr_div_10": LIS2DW12FilterBandwidth.BW_ODR_DIV_10,
-    "odr_div_20": LIS2DW12FilterBandwidth.BW_ODR_DIV_20,
-}
+FILTER_BANDWIDTHS = LIS2DW12FilterBandwidth.options(
+    "odr_div_2", "odr_div_4", "odr_div_10", "odr_div_20", prefix="BW_"
+)
 
 _CALLBACK_AUTOMATIONS = (
     automation.CallbackAutomation(CONF_ON_TAP, "add_on_tap_callback"),

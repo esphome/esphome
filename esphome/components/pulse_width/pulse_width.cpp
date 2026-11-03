@@ -22,7 +22,7 @@ void PulseWidthSensor::dump_config() {
 }
 void PulseWidthSensor::update() {
   float width = this->store_.get_pulse_width_s();
-  ESP_LOGCONFIG(TAG, "'%s' - Got pulse width %.3f s", this->name_.c_str(), width);
+  ESP_LOGCONFIG(TAG, "'%s' - Got pulse width %.3f s", LOG_STR_ARG(this->get_log_name()), width);
   this->publish_state(width);
 }
 

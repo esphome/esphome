@@ -33,8 +33,8 @@ const uint32_t DELONGHI_IR_FREQUENCY = 38000;
 const uint32_t DELONGHI_HEADER_MARK = 9000;
 const uint32_t DELONGHI_HEADER_SPACE = 4500;
 const uint32_t DELONGHI_BIT_MARK = 465;
-const uint32_t DELONGHI_ONE_SPACE = 1750;
-const uint32_t DELONGHI_ZERO_SPACE = 670;
+static constexpr remote_base::BitTimings DELONGHI_BIT_TIMINGS{
+    .bit_mark = DELONGHI_BIT_MARK, .one_space = 1750, .zero_space = 670};
 
 // State Frame size
 const uint8_t DELONGHI_STATE_FRAME_SIZE = 8;
