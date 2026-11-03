@@ -147,9 +147,11 @@ void AsyncWebServer::end() {
     if (this->ssl_running_) {
       httpd_ssl_stop(this->server_);
       this->ssl_running_ = false;
-    } else
+      this->server_ = nullptr;
+      return;
+    }
 #endif
-      httpd_stop(this->server_);
+    httpd_stop(this->server_);
     this->server_ = nullptr;
   }
 }
@@ -187,9 +189,12 @@ void AsyncWebServer::begin() {
     if (start_err != ESP_OK) {
       ESP_LOGE(TAG, "HTTPS server failed to start: %s", esp_err_to_name(start_err));
     }
-  } else
-#endif
+  } else {
     start_err = httpd_start(&this->server_, &config);
+  }
+#else
+  start_err = httpd_start(&this->server_, &config);
+#endif
   if (start_err == ESP_OK) {
     const httpd_uri_t handler_get = {
         .uri = "",
