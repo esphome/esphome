@@ -471,7 +471,7 @@ template<size_t N> void populate_buffer_with_address(uint8_t (&buffer)[N], uint3
   buffer[1] = static_cast<uint8_t>((address >> 16) & 0xFF);
   buffer[2] = static_cast<uint8_t>((address >> 8) & 0xFF);
   buffer[3] = static_cast<uint8_t>(address & 0xFF);
-  buffer[4] = static_cast<uint8_t>(buffer[0] ^ buffer[1] ^ buffer[2] ^ buffer[3]);
+  buffer[4] = xor_bytes(buffer, 4);
 }
 
 template<typename T> stm32_unique_ptr make_stm32_with_deletor(T ptr) {
@@ -968,7 +968,7 @@ stm32_err_t stm32_crc_memory(const stm32_unique_ptr &stm, const uint32_t address
     if (!stream->read_array(buf, BUFFER_SIZE))
       return STM32_ERR_UNKNOWN;
 
-    if (buf[4] != (buf[0] ^ buf[1] ^ buf[2] ^ buf[3]))
+    if (buf[4] != xor_bytes(buf, 4))
       return STM32_ERR_UNKNOWN;
 
     *crc = (buf[0] << 24) | (buf[1] << 16) | (buf[2] << 8) | buf[3];
