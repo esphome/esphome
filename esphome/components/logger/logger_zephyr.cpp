@@ -72,10 +72,6 @@ void Logger::cdc_loop_() {
 #endif
 
 void Logger::pre_setup() {
-#ifdef USE_LOGGER_USB_CDC
-  // Logged below, once global_logger is set: logging before that dereferences a null pointer
-  int usb_err = 0;
-#endif
 #ifdef CONFIG_SERIAL
   if (this->baud_rate_ > 0) {
     static const struct device *uart_dev = nullptr;
@@ -90,7 +86,7 @@ void Logger::pre_setup() {
       case UART_SELECTION_USB_CDC:
         uart_dev = DEVICE_DT_GET_OR_NULL(DT_NODELABEL(cdc_acm_uart0));
         if (device_is_ready(uart_dev)) {
-          usb_err = zephyr::usb_device_enable();
+          zephyr::usb_device_enable();
         }
         break;
 #endif
@@ -111,11 +107,6 @@ void Logger::pre_setup() {
 #endif
   global_logger = this;
   ESP_LOGI(TAG, "Log initialized");
-#ifdef USE_LOGGER_USB_CDC
-  if (usb_err != 0) {
-    ESP_LOGE(TAG, "USB device setup failed, err %d", usb_err);
-  }
-#endif
 #ifdef USE_LOGGER_EARLY_MESSAGE
   char reason_buffer[zephyr::RESET_REASON_BUFFER_SIZE];
   const char *reset_reason = zephyr::get_reset_reason(std::span<char, zephyr::RESET_REASON_BUFFER_SIZE>(reason_buffer));
