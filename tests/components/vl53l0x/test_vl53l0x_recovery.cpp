@@ -6,6 +6,7 @@
 #include <vector>
 
 #include "esphome/components/vl53l0x/vl53l0x_sensor.h"
+#include "esphome/core/application.h"
 
 namespace esphome::vl53l0x::testing {
 
@@ -69,6 +70,8 @@ class VL53L0XRecoveryTest : public ::testing::Test {
     this->sensor_.set_i2c_bus(&this->bus_);
     this->sensor_.set_i2c_address(ADDRESS);
   }
+  // A momentary warning leaves a timeout on the shared scheduler that would outlive the sensor
+  void TearDown() override { App.scheduler.cancel_timeout(&this->sensor_, InternalSchedulerID::STATUS_WARNING); }
 
   RegisterBus bus_;
   VL53L0XSensor sensor_;
@@ -76,7 +79,11 @@ class VL53L0XRecoveryTest : public ::testing::Test {
 
 TEST_F(VL53L0XRecoveryTest, FailedStatusReadDoesNotFinishMeasurement) {
   this->sensor_.update();
-  // Still ranging, and the status read fails: a failed read used to read as 0, "done"
+  // Still ranging, with a stale result left in the result registers, and the status read fails. A failed
+  // read used to read as 0, "done", so the stale result was published.
+  this->bus_.registers[RESULT_INTERRUPT_STATUS] = 0x07;
+  this->bus_.registers[RESULT_RANGE_MM] = 0x00;
+  this->bus_.registers[RESULT_RANGE_MM + 1] = 0x64;
   this->bus_.fail_reg = SYSRANGE_START;
   this->bus_.fail_count = 1;
   this->bus_.writes.clear();
