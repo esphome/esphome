@@ -1,0 +1,8 @@
+packages:
+  uart: !include ../../test_build_components/common/uart/esp32-idf.yaml
+  midea: !include common-uart_only.yaml
+
+# The MideaUART library includes esp_wifi.h on ESP-IDF
+wifi:
+  ssid: MySSID
+  password: password1

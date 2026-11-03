@@ -104,7 +104,6 @@ class DlmsMeterComponent final : public Component, public uart::UARTDevice {
 
  protected:
   void read_rx_buffer_();
-  void flush_rx_buffer_();
   void process_frame_();
   void on_data_(const dlms_parser::AxdrCapture &capture);
 

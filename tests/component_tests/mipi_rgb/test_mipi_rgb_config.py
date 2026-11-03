@@ -93,12 +93,12 @@ def test_transform_matches_model_support(
 
     from esphome.components.mipi_rgb.display import CONFIG_SCHEMA, MODELS
 
-    # ESP32-8048S070 supports both mirror axes but not swap_xy (RGB displays
+    # The full-height ST7701S supports both mirror axes but not swap_xy (RGB displays
     # never support axis swapping).
-    model = MODELS["ESP32-8048S070"]
+    model = MODELS["ST7701S"]
     assert model.transforms == {CONF_MIRROR_X, CONF_MIRROR_Y}
 
-    base = {"model": "ESP32-8048S070", "data_pins": DATA_PINS, "pclk_pin": 21}
+    base = {"model": "ST7701S", "data_pins": DATA_PINS, "pclk_pin": 21}
     CONFIG_SCHEMA({**base, "transform": {"mirror_x": True, "mirror_y": False}})
 
     # An unsupported axis may be explicitly disabled (a harmless no-op)...
@@ -137,6 +137,35 @@ def test_st7701s_only_supports_mirror_x(
 
     with pytest.raises(cv.Invalid, match="'mirror_y' is not supported by this model"):
         CONFIG_SCHEMA({**base, "transform": {"mirror_x": True, "mirror_y": True}})
+
+
+def test_pure_rgb_model_has_hardware_rotation(
+    set_core_config: SetCoreConfigCallable,
+) -> None:
+    """A model with no init sequence has no command interface, so no transform
+    can be applied in panel silicon (MADCTL).
+
+    The driver itself handles rotation directly in the framebuffer without
+    allocating software rotation buffers, so has_hardware_rotation is True.
+    """
+    _set_s3(set_core_config)
+
+    from esphome.components.mipi_rgb.display import CONFIG_SCHEMA, MODELS
+
+    model = MODELS["ESP32-8048S070"]
+    assert model.initsequence == ()
+    assert model.transforms == set()
+
+    base = {"model": "ESP32-8048S070", "data_pins": DATA_PINS, "pclk_pin": 21}
+    for rotation in (90, 180, 270):
+        config = CONFIG_SCHEMA({**base, "id": f"rot_{rotation}", "rotation": rotation})
+        assert not model.rotation_as_transform(config)
+        metadata = get_display_metadata(config["id"])
+        assert metadata.rotation == rotation
+        assert metadata.has_hardware_rotation
+
+    with pytest.raises(cv.Invalid, match="'mirror_x' is not supported by this model"):
+        CONFIG_SCHEMA({**base, "transform": {"mirror_x": True}})
 
 
 def test_metadata_records_rotation(

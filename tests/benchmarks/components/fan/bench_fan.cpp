@@ -12,7 +12,11 @@ class BenchFan : public fan::Fan {
  public:
   void configure(const char *name) { this->configure_entity_(name, 0x12345678, 0); }
 
-  fan::FanTraits get_traits() override { return this->traits_; }
+  fan::FanTraits get_traits() override {
+    auto traits = this->traits_;
+    this->wire_preset_modes_(traits);
+    return traits;
+  }
 
   fan::FanTraits traits_;
 
@@ -30,7 +34,7 @@ static void setup_fan(BenchFan &fan) {
   fan.traits_.set_supported_speed_count(6);
   fan.traits_.set_direction(true);
   fan.set_restore_mode(fan::FanRestoreMode::NO_RESTORE);
-  fan.traits_.set_supported_preset_modes({
+  fan.set_supported_preset_modes({
       "auto",
       "sleep",
       "nature",

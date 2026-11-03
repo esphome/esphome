@@ -43,10 +43,8 @@ CONFIG_SCHEMA = cv.All(
 async def to_code(config: ConfigType) -> None:
     var = cg.new_Pvariable(config[CONF_ID])
     await cg.register_component(var, config)
-    clk_pin = await cg.gpio_pin_expression(config[CONF_CLK_PIN])
-    cg.add(var.set_clk_pin(clk_pin))
-    dio_pin = await cg.gpio_pin_expression(config[CONF_DIO_PIN])
-    cg.add(var.set_dio_pin(dio_pin))
+    await cg.add_pin(var.set_clk_pin, config[CONF_CLK_PIN])
+    await cg.add_pin(var.set_dio_pin, config[CONF_DIO_PIN])
 
 
 validate_brightness = cv.enum(TM1651_BRIGHTNESS_OPTIONS, int=True)

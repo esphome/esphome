@@ -6,12 +6,10 @@ namespace esphome::pylontech {
 
 ESPHOME_LOG_TAG(TAG, "pylontech.textsensor");
 
-PylontechTextSensor::PylontechTextSensor(int8_t bat_num) { this->bat_num_ = bat_num; }
-
 void PylontechTextSensor::dump_config() {
   ESP_LOGCONFIG(TAG,
                 "Pylontech Text Sensor:\n"
-                " Battery %d",
+                " Battery %u",
                 this->bat_num_);
   LOG_TEXT_SENSOR("  ", "Base state", this->base_state_text_sensor_);
   LOG_TEXT_SENSOR("  ", "Voltage state", this->voltage_state_text_sensor_);
@@ -20,21 +18,10 @@ void PylontechTextSensor::dump_config() {
 }
 
 void PylontechTextSensor::on_line_read(PylontechListener::LineContents *line) {
-  if (this->bat_num_ != line->bat_num) {
-    return;
-  }
-  if (this->base_state_text_sensor_ != nullptr) {
-    this->base_state_text_sensor_->publish_state(line->base_st);
-  }
-  if (this->voltage_state_text_sensor_ != nullptr) {
-    this->voltage_state_text_sensor_->publish_state(line->volt_st);
-  }
-  if (this->current_state_text_sensor_ != nullptr) {
-    this->current_state_text_sensor_->publish_state(line->curr_st);
-  }
-  if (this->temperature_state_text_sensor_ != nullptr) {
-    this->temperature_state_text_sensor_->publish_state(line->temp_st);
-  }
+  PUBLISH_STATE(this->base_state_text_sensor_, line->base_st);
+  PUBLISH_STATE(this->voltage_state_text_sensor_, line->volt_st);
+  PUBLISH_STATE(this->current_state_text_sensor_, line->curr_st);
+  PUBLISH_STATE(this->temperature_state_text_sensor_, line->temp_st);
 }
 
 }  // namespace esphome::pylontech

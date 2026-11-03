@@ -1,6 +1,7 @@
 #pragma once
 
 #include "esphome/core/component.h"
+#include "esphome/core/helpers.h"
 #include "esphome/components/uart/uart.h"
 
 #include "esphome/components/modbus/modbus_definitions.h"
@@ -13,6 +14,7 @@
 #include <vector>
 #include <deque>
 #include <optional>
+#include <utility>
 
 namespace esphome::modbus {
 
@@ -58,6 +60,19 @@ class Modbus : public uart::UARTDevice, public Component {
   virtual bool tx_blocked();
 
   void set_flow_control_pin(GPIOPin *flow_control_pin) { this->flow_control_pin_ = flow_control_pin; }
+#ifdef MODBUS_ON_REQUEST_COUNT
+  /// Every request read (server, before a device answers) or sent (client, retries included); PDU valid in the call.
+  template<typename F> void add_on_request_callback(F &&callback) {
+    this->request_callback_.add(std::forward<F>(callback));
+  }
+#endif
+#ifdef MODBUS_ON_RESPONSE_COUNT
+  /// Every response received (client) or sent or seen (server); PDUs valid during the call. A server pairs a peer's
+  /// reply with the last request by address and function code only.
+  template<typename F> void add_on_response_callback(F &&callback) {
+    this->response_callback_.add(std::forward<F>(callback));
+  }
+#endif
 
  protected:
   void receive_bytes_();
@@ -86,6 +101,13 @@ class Modbus : public uart::UARTDevice, public Component {
   GPIOPin *flow_control_pin_{nullptr};
 
   std::vector<uint8_t> rx_buffer_;
+#ifdef MODBUS_ON_REQUEST_COUNT
+  StaticCallbackManager<MODBUS_ON_REQUEST_COUNT, void(uint8_t, std::span<const uint8_t>)> request_callback_;
+#endif
+#ifdef MODBUS_ON_RESPONSE_COUNT
+  StaticCallbackManager<MODBUS_ON_RESPONSE_COUNT, void(uint8_t, std::span<const uint8_t>, std::span<const uint8_t>)>
+      response_callback_;
+#endif
 };
 
 class ModbusClientDevice;
@@ -360,11 +382,18 @@ class ModbusServerHub : public Modbus {
                                       uint16_t number_of_registers, const RegisterValues &registers,
                                       std::span<uint8_t> response_buffer, uint16_t &response_len);
   void send_raw_(const uint8_t *payload, uint16_t len);
+  // Every reply of this hub goes on the wire here, so on_response sees each one once, exceptions included.
+  bool send_reply_(const ModbusFrame &frame);
   // Sends and logs the exception reply when status holds one; returns true if the request was rejected.
   bool rejected_(uint8_t address, uint8_t function_code, ResponseStatus status);
   void send_exception_(uint8_t address, uint8_t function_code, ExceptionCode exception_code);
   void send_response_(uint8_t address, uint8_t function_code, const uint8_t *payload, uint16_t payload_len);
   uint8_t expecting_peer_response_{0};
+#ifdef MODBUS_ON_RESPONSE_COUNT
+  // The last request, for on_response with its reply from a device here or another one.
+  uint8_t request_len_{0};
+  uint8_t request_[MAX_PDU_SIZE];
+#endif
   std::vector<ModbusServerDevice *> devices_;
 
   // Holds the raw payload of a single reply deferred for sending when tx was blocked at send time.
@@ -436,6 +465,21 @@ class ModbusClientDevice {
 #pragma GCC diagnostic ignored "-Wdeprecated-declarations"
     return this->on_modbus_no_response();
 #pragma GCC diagnostic pop
+  }
+  /// Overloads of the hooks above with the device address of the request first, taken from the request frame, so it
+  /// stays correct after set_address(). The hub calls these; the defaults forward to the hooks above.
+  /// Override one form per hook: overriding an address form drops its forward, so the other form is no longer called.
+  virtual void on_response(uint8_t address, std::span<const uint8_t> request_pdu,
+                           std::span<const uint8_t> response_pdu) {
+    this->on_response(request_pdu, response_pdu);
+  }
+  virtual void on_error(uint8_t address, std::span<const uint8_t> request_pdu, ExceptionCode exception_code) {
+    this->on_error(request_pdu, exception_code);
+  }
+  virtual void on_not_sent(uint8_t address, std::span<const uint8_t> request_pdu) { this->on_not_sent(request_pdu); }
+  virtual void on_sent(uint8_t address, std::span<const uint8_t> request_pdu) { this->on_sent(request_pdu); }
+  virtual bool on_no_response(uint8_t address, std::span<const uint8_t> request_pdu) {
+    return this->on_no_response(request_pdu);
   }
   // Remove before 2027.2.0
   ESPDEPRECATED("Override on_not_sent() instead. Removed in 2027.2.0", "2026.8.0")

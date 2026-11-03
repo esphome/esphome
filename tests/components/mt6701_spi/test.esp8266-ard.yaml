@@ -1,0 +1,6 @@
+substitutions:
+  cs_pin: GPIO15
+
+packages:
+  spi: !include ../../test_build_components/common/spi/esp8266-ard.yaml
+  mt6701_spi: !include common.yaml

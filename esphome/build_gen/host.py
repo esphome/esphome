@@ -240,7 +240,7 @@ def write_project(compilers: HostCompilers, ccache: str | None) -> bool:
 
     lines = [
         *tool_lines(compilers.cc, compilers.cxx, ccache),
-        *compile_rule_lines(),
+        *compile_rule_lines(ccache),
         *pch_rule_lines(),
         "rule link",
         "  command = $cxx -o $out $linkflags @$out.rsp $archives $libdirflags $libflags",

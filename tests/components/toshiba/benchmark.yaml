@@ -1,0 +1,4 @@
+# Registers the climate platform so USE_CLIMATE is defined for the host unit test
+# build. The toshiba, climate_ir and remote_transmitter sources come in through the
+# dependency walk in __init__.py; their code generation is suppressed.
+climate: []

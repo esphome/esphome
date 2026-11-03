@@ -2,7 +2,7 @@
 
 #include "../espnow_component.h"
 
-#ifdef USE_ESP32
+#if defined(USE_ESP32) || defined(USE_ESP8266)
 
 #include "esphome/core/component.h"
 #include "esphome/components/packet_transport/packet_transport.h"
@@ -33,9 +33,8 @@ class ESPNowTransport final : public packet_transport::PacketTransport,
   bool should_send() override;
 
   peer_address_t peer_address_{{0xFF, 0xFF, 0xFF, 0xFF, 0xFF, 0xFF}};
-  std::vector<uint8_t> packet_buffer_;
 };
 
 }  // namespace esphome::espnow
 
-#endif  // USE_ESP32
+#endif  // USE_ESP32 || USE_ESP8266

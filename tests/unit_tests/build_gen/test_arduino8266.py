@@ -62,8 +62,6 @@ def _setup_core(tmp_path: Path) -> Generator[None]:
         "build_src_flags": "-include esphome/components/esp8266/throw_stubs.h",
     }
     yield
-    # CORE.reset() (the suite-wide autouse fixture) does not clear this flag
-    CORE.testing_mode = False
 
 
 def _set_flags(*flags: str) -> None:
@@ -888,8 +886,9 @@ def test_write_project_plain_asm_rule_skips_preprocessor(tmp_path: Path) -> None
     _set_flags()
     content = _write_ninja(paths)
     assert "lowlevel.s.o: asm " in content
+    assert "rule asm\n  command = $cc -x assembler $asflags -c $in -o $out" in content
     assert "rule asm\n  command = $ccache $cc -x assembler $asflags -c $in -o $out" in (
-        content
+        _write_ninja(paths, ccache="/cc/ccache")
     )
 
 

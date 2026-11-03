@@ -4,17 +4,22 @@ from typing import Any
 from esphome import automation, pins
 import esphome.codegen as cg
 from esphome.components import i2c
+from esphome.components.const import CONF_WINDOW
 from esphome.components.esp32 import add_idf_component, add_idf_sdkconfig_option
 from esphome.components.psram import DOMAIN as psram_domain
+from esphome.config_helpers import filter_source_files_from_defines
 import esphome.config_validation as cv
 from esphome.const import (
     CONF_BRIGHTNESS,
     CONF_CONTRAST,
     CONF_DATA_PINS,
     CONF_FREQUENCY,
+    CONF_HEIGHT,
     CONF_I2C,
     CONF_I2C_ID,
     CONF_ID,
+    CONF_OFFSET_X,
+    CONF_OFFSET_Y,
     CONF_PIN,
     CONF_RESET_PIN,
     CONF_RESOLUTION,
@@ -22,12 +27,13 @@ from esphome.const import (
     CONF_SDA,
     CONF_TRIGGER_ID,
     CONF_VSYNC_PIN,
+    CONF_WIDTH,
 )
-from esphome.core import CORE
+from esphome.core import CORE, ID, TimePeriod
 from esphome.core.entity_helpers import setup_entity
 from esphome.cpp_generator import MockObj
 import esphome.final_validate as fv
-from esphome.types import ConfigType
+from esphome.types import ConfigType, TemplateArgsType
 
 _LOGGER = logging.getLogger(__name__)
 
@@ -90,50 +96,42 @@ FRAME_SIZES = {
     "QSXGA": ESP32CameraFrameSize.ESP32_CAMERA_SIZE_2560X1920,
 }
 ESP32CameraPixelFormat = esp32_camera_ns.enum("ESP32CameraPixelFormat")
-PIXEL_FORMATS = {
-    "RGB565": ESP32CameraPixelFormat.ESP32_PIXEL_FORMAT_RGB565,
-    "YUV422": ESP32CameraPixelFormat.ESP32_PIXEL_FORMAT_YUV422,
-    "YUV420": ESP32CameraPixelFormat.ESP32_PIXEL_FORMAT_YUV420,
-    "GRAYSCALE": ESP32CameraPixelFormat.ESP32_PIXEL_FORMAT_GRAYSCALE,
-    "JPEG": ESP32CameraPixelFormat.ESP32_PIXEL_FORMAT_JPEG,
-    "RGB888": ESP32CameraPixelFormat.ESP32_PIXEL_FORMAT_RGB888,
-    "RAW": ESP32CameraPixelFormat.ESP32_PIXEL_FORMAT_RAW,
-    "RGB444": ESP32CameraPixelFormat.ESP32_PIXEL_FORMAT_RGB444,
-    "RGB555": ESP32CameraPixelFormat.ESP32_PIXEL_FORMAT_RGB555,
-}
+PIXEL_FORMATS = ESP32CameraPixelFormat.options(
+    "RGB565",
+    "YUV422",
+    "YUV420",
+    "GRAYSCALE",
+    "JPEG",
+    "RGB888",
+    "RAW",
+    "RGB444",
+    "RGB555",
+    prefix="ESP32_PIXEL_FORMAT_",
+)
 ESP32GainControlMode = esp32_camera_ns.enum("ESP32GainControlMode")
 ENUM_GAIN_CONTROL_MODE = {
     "MANUAL": ESP32GainControlMode.ESP32_GC_MODE_MANU,
     "AUTO": ESP32GainControlMode.ESP32_GC_MODE_AUTO,
 }
 ESP32AgcGainCeiling = esp32_camera_ns.enum("ESP32AgcGainCeiling")
-ENUM_GAIN_CEILING = {
-    "2X": ESP32AgcGainCeiling.ESP32_GAINCEILING_2X,
-    "4X": ESP32AgcGainCeiling.ESP32_GAINCEILING_4X,
-    "8X": ESP32AgcGainCeiling.ESP32_GAINCEILING_8X,
-    "16X": ESP32AgcGainCeiling.ESP32_GAINCEILING_16X,
-    "32X": ESP32AgcGainCeiling.ESP32_GAINCEILING_32X,
-    "64X": ESP32AgcGainCeiling.ESP32_GAINCEILING_64X,
-    "128X": ESP32AgcGainCeiling.ESP32_GAINCEILING_128X,
-}
+ENUM_GAIN_CEILING = ESP32AgcGainCeiling.options(
+    "2X", "4X", "8X", "16X", "32X", "64X", "128X", prefix="ESP32_GAINCEILING_"
+)
 ESP32WhiteBalanceMode = esp32_camera_ns.enum("ESP32WhiteBalanceMode")
-ENUM_WB_MODE = {
-    "AUTO": ESP32WhiteBalanceMode.ESP32_WB_MODE_AUTO,
-    "SUNNY": ESP32WhiteBalanceMode.ESP32_WB_MODE_SUNNY,
-    "CLOUDY": ESP32WhiteBalanceMode.ESP32_WB_MODE_CLOUDY,
-    "OFFICE": ESP32WhiteBalanceMode.ESP32_WB_MODE_OFFICE,
-    "HOME": ESP32WhiteBalanceMode.ESP32_WB_MODE_HOME,
-}
+ENUM_WB_MODE = ESP32WhiteBalanceMode.options(
+    "AUTO", "SUNNY", "CLOUDY", "OFFICE", "HOME", prefix="ESP32_WB_MODE_"
+)
 ESP32SpecialEffect = esp32_camera_ns.enum("ESP32SpecialEffect")
-ENUM_SPECIAL_EFFECT = {
-    "NONE": ESP32SpecialEffect.ESP32_SPECIAL_EFFECT_NONE,
-    "NEGATIVE": ESP32SpecialEffect.ESP32_SPECIAL_EFFECT_NEGATIVE,
-    "GRAYSCALE": ESP32SpecialEffect.ESP32_SPECIAL_EFFECT_GRAYSCALE,
-    "RED_TINT": ESP32SpecialEffect.ESP32_SPECIAL_EFFECT_RED_TINT,
-    "GREEN_TINT": ESP32SpecialEffect.ESP32_SPECIAL_EFFECT_GREEN_TINT,
-    "BLUE_TINT": ESP32SpecialEffect.ESP32_SPECIAL_EFFECT_BLUE_TINT,
-    "SEPIA": ESP32SpecialEffect.ESP32_SPECIAL_EFFECT_SEPIA,
-}
+ENUM_SPECIAL_EFFECT = ESP32SpecialEffect.options(
+    "NONE",
+    "NEGATIVE",
+    "GRAYSCALE",
+    "RED_TINT",
+    "GREEN_TINT",
+    "BLUE_TINT",
+    "SEPIA",
+    prefix="ESP32_SPECIAL_EFFECT_",
+)
 
 camera_fb_location_t = cg.global_ns.enum("camera_fb_location_t")
 ENUM_FB_LOCATION = {
@@ -174,12 +172,27 @@ CONF_IDLE_FRAMERATE = "idle_framerate"
 CONF_FRAME_BUFFER_COUNT = "frame_buffer_count"
 CONF_FRAME_BUFFER_LOCATION = "frame_buffer_location"
 
+# single image capture
+CONF_CAPTURE_DELAY = "capture_delay"
+CONF_ON_CAPTURE_START = "on_capture_start"
+CONF_ON_CAPTURE_END = "on_capture_end"
+
 # stream trigger
 CONF_ON_STREAM_START = "on_stream_start"
 CONF_ON_STREAM_STOP = "on_stream_stop"
 CONF_ON_IMAGE = "on_image"
 
 camera_range_param = cv.int_range(min=-2, max=2)
+
+_WINDOW_VALIDATORS = {
+    CONF_OFFSET_X: cv.int_range(min=0),
+    CONF_OFFSET_Y: cv.int_range(min=0),
+    CONF_WIDTH: cv.int_range(min=1),
+    CONF_HEIGHT: cv.int_range(min=1),
+}
+WINDOW_SCHEMA = cv.Schema(
+    {cv.Required(key): validator for key, validator in _WINDOW_VALIDATORS.items()}
+)
 
 
 def validate_fb_location_(value: Any) -> MockObj:
@@ -285,6 +298,13 @@ CONFIG_SCHEMA = cv.All(
             cv.Optional(
                 CONF_FRAME_BUFFER_LOCATION, default="PSRAM"
             ): validate_fb_location_,
+            cv.Optional(CONF_CAPTURE_DELAY, default="0s"): cv.All(
+                cv.positive_time_period_milliseconds,
+                cv.Range(max=TimePeriod(seconds=3)),
+            ),
+            cv.Optional(CONF_ON_CAPTURE_START): automation.validate_automation({}),
+            cv.Optional(CONF_ON_CAPTURE_END): automation.validate_automation({}),
+            cv.Optional(CONF_WINDOW): WINDOW_SCHEMA,
             cv.Optional(CONF_ON_STREAM_START): automation.validate_automation(
                 {
                     cv.GenerateID(CONF_TRIGGER_ID): cv.declare_id(
@@ -371,6 +391,20 @@ SETTERS = {
 }
 
 
+_CAPTURE_CALLBACK_AUTOMATIONS = (
+    automation.CallbackAutomation(
+        CONF_ON_CAPTURE_START,
+        "add_on_capture_callback",
+        forwarder=automation.TriggerOnTrueForwarder,
+    ),
+    automation.CallbackAutomation(
+        CONF_ON_CAPTURE_END,
+        "add_on_capture_callback",
+        forwarder=automation.TriggerOnFalseForwarder,
+    ),
+)
+
+
 async def to_code(config: ConfigType) -> None:
     cg.add_define("USE_CAMERA")
     var = cg.new_Pvariable(config[CONF_ID])
@@ -384,8 +418,7 @@ async def to_code(config: ConfigType) -> None:
     extclk = config[CONF_EXTERNAL_CLOCK]
     cg.add(var.set_external_clock(extclk[CONF_PIN], extclk[CONF_FREQUENCY]))
     if i2c_id := config.get(CONF_I2C_ID):
-        i2c_hub = await cg.get_variable(i2c_id)
-        cg.add(var.set_i2c_id(i2c_hub))
+        await cg.add_variable(var.set_i2c_id, i2c_id)
     else:
         i2c_pins = config[CONF_I2C_PINS]
         cg.add(var.set_i2c_pins(i2c_pins[CONF_SDA], i2c_pins[CONF_SCL]))
@@ -397,10 +430,29 @@ async def to_code(config: ConfigType) -> None:
     cg.add(var.set_frame_buffer_count(config[CONF_FRAME_BUFFER_COUNT]))
     cg.add(var.set_frame_buffer_location(config[CONF_FRAME_BUFFER_LOCATION]))
     cg.add(var.set_frame_size(config[CONF_RESOLUTION]))
+    capture_delay = config[CONF_CAPTURE_DELAY].total_milliseconds
+    if capture_delay or any(
+        entry.conf_key in config for entry in _CAPTURE_CALLBACK_AUTOMATIONS
+    ):
+        cg.add_define("USE_ESP32_CAMERA_CAPTURE")
+        cg.add(var.set_capture_delay(capture_delay))
+        await automation.build_callback_automations(
+            var, config, _CAPTURE_CALLBACK_AUTOMATIONS
+        )
 
     cg.add_define("USE_CAMERA")
     if config[CONF_JPEG_QUALITY] != 0 and config[CONF_PIXEL_FORMAT] != "JPEG":
         cg.add_define("USE_ESP32_CAMERA_JPEG_CONVERSION")
+    if (window := config.get(CONF_WINDOW)) is not None:
+        cg.add_define("USE_ESP32_CAMERA_WINDOW")
+        cg.add(
+            var.set_initial_window(
+                window[CONF_OFFSET_X],
+                window[CONF_OFFSET_Y],
+                window[CONF_WIDTH],
+                window[CONF_HEIGHT],
+            )
+        )
 
     add_idf_component(name="espressif/esp32-camera", ref="2.1.7")
     add_idf_sdkconfig_option("CONFIG_SCCB_HARDWARE_I2C_DRIVER_NEW", True)
@@ -419,3 +471,72 @@ async def to_code(config: ConfigType) -> None:
         await automation.build_automation(
             trigger, [(ESP32CameraImageData, "image")], conf
         )
+
+
+SET_WINDOW_SCHEMA = cv.Schema(
+    {
+        cv.Required(CONF_ID): cv.use_id(ESP32Camera),
+        **{
+            cv.Required(key): cv.templatable(validator)
+            for key, validator in _WINDOW_VALIDATORS.items()
+        },
+    }
+)
+RESET_WINDOW_SCHEMA = automation.maybe_simple_id(
+    {cv.Required(CONF_ID): cv.use_id(ESP32Camera)}
+)
+_set_window_builder = automation.apply_action_builder(
+    f"{DOMAIN}.set_window",
+    SET_WINDOW_SCHEMA,
+    automation.ApplyCall(
+        "set_window({}, {}, {}, {})",
+        (
+            (CONF_OFFSET_X, cg.int_),
+            (CONF_OFFSET_Y, cg.int_),
+            (CONF_WIDTH, cg.int_),
+            (CONF_HEIGHT, cg.int_),
+        ),
+    ),
+)
+_reset_window_builder = automation.apply_action_builder(
+    f"{DOMAIN}.reset_window",
+    RESET_WINDOW_SCHEMA,
+    automation.ApplyCall("reset_window()"),
+)
+
+
+@automation.register_action(
+    f"{DOMAIN}.set_window",
+    automation.ApplyAction,
+    SET_WINDOW_SCHEMA,
+    synchronous=True,
+)
+async def set_window_to_code(
+    config: ConfigType,
+    action_id: ID,
+    template_arg: cg.TemplateArguments,
+    args: TemplateArgsType,
+) -> MockObj:
+    cg.add_define("USE_ESP32_CAMERA_WINDOW")
+    return await _set_window_builder(config, action_id, template_arg, args)
+
+
+@automation.register_action(
+    f"{DOMAIN}.reset_window",
+    automation.ApplyAction,
+    RESET_WINDOW_SCHEMA,
+    synchronous=True,
+)
+async def reset_window_to_code(
+    config: ConfigType,
+    action_id: ID,
+    template_arg: cg.TemplateArguments,
+    args: TemplateArgsType,
+) -> MockObj:
+    cg.add_define("USE_ESP32_CAMERA_WINDOW")
+    return await _reset_window_builder(config, action_id, template_arg, args)
+
+
+FILTER_SOURCE_FILES = filter_source_files_from_defines(
+    {"esp32_camera_window.cpp": "USE_ESP32_CAMERA_WINDOW"}
+)

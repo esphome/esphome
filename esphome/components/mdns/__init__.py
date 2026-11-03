@@ -1,9 +1,12 @@
 import esphome.codegen as cg
+from esphome.components.const import CONF_BORDER_ROUTER
 from esphome.components.esp32 import add_idf_component, add_idf_sdkconfig_option
 from esphome.config_helpers import filter_source_files_from_platform, get_logger_level
 import esphome.config_validation as cv
 from esphome.const import (
+    CONF_API,
     CONF_DISABLED,
+    CONF_ETHERNET,
     CONF_ID,
     CONF_OPENTHREAD,
     CONF_PORT,
@@ -186,10 +189,16 @@ def enable_mdns_storage() -> None:
     cg.add_define("USE_MDNS_STORE_SERVICES")
 
 
+def _openthread_srp_registers_services() -> bool:
+    """Without border_router, the OpenThread SRP client registers the services instead of mDNS."""
+    openthread_config = CORE.config.get(CONF_OPENTHREAD)
+    return openthread_config is not None and CONF_BORDER_ROUTER not in openthread_config
+
+
 def request_service_enable_disable() -> bool:
     """Request MDNSComponent::set_service_enabled() support.
 
-    ESP32 only, not with OpenThread. Returns True when the
+    ESP32 only, not with the OpenThread SRP client. Returns True when the
     USE_MDNS_SUPPORTS_ENABLE_DISABLE define was added; guard C++ usage with it.
 
     Public API for external components. Do not remove.
@@ -199,7 +208,7 @@ def request_service_enable_disable() -> bool:
         mdns_config is None
         or mdns_config[CONF_DISABLED]
         or not CORE.is_esp32
-        or CONF_OPENTHREAD in CORE.config
+        or _openthread_srp_registers_services()
     ):
         return False
     cg.add_define("USE_MDNS_SUPPORTS_ENABLE_DISABLE")
@@ -284,6 +293,23 @@ async def to_code(config: ConfigType) -> None:
 
     var = cg.new_Pvariable(config[CONF_ID])
     await cg.register_component(var, config)
+
+    # With both wifi and ethernet, the _esphomelib "network" TXT value follows the
+    # connected interface. The OpenThread SRP client registers the services once,
+    # so it keeps the fixed value.
+    if (
+        CONF_API in CORE.config
+        and CONF_WIFI in CORE.config
+        and CONF_ETHERNET in CORE.config
+        and not _openthread_srp_registers_services()
+    ):
+        from esphome.components import network
+
+        cg.add_define("USE_MDNS_DYNAMIC_NETWORK_TXT")
+        # Where the network component tracks the default route (ESP32), follow
+        # it; otherwise mdns checks the connected interface every second.
+        if await network.register_active_interface_listener(var):
+            cg.add_define("USE_MDNS_ACTIVE_INTERFACE_LISTENER")
 
     for service in config[CONF_SERVICES]:
         txt_records = [

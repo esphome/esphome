@@ -29,16 +29,16 @@ static const uint8_t COMMAND_MEASURE_TEMP = 40;
 static const uint8_t COMMAND_MEASURE_MV = 80;
 
 class UFireISEComponent final : public PollingComponent, public i2c::I2CDevice {
+  SUB_SENSOR(temperature)
+  SUB_SENSOR(ph)
+  // Input sensor for temperature compensation
+  SUB_SENSOR(external_temperature)
+
  public:
   void setup() override;
   void update() override;
   void dump_config() override;
 
-  void set_temperature_sensor(sensor::Sensor *temperature_sensor) { this->temperature_sensor_ = temperature_sensor; }
-  void set_temperature_sensor_external(sensor::Sensor *temperature_sensor) {
-    this->temperature_sensor_external_ = temperature_sensor;
-  }
-  void set_ph_sensor(sensor::Sensor *ph_sensor) { this->ph_sensor_ = ph_sensor; }
   void calibrate_probe_low(float solution);
   void calibrate_probe_high(float solution);
   void reset_board();
@@ -51,10 +51,6 @@ class UFireISEComponent final : public PollingComponent, public i2c::I2CDevice {
   float read_data_(uint8_t reg);
   void write_data_(uint8_t reg, float data);
   void update_internal_();
-
-  sensor::Sensor *temperature_sensor_{nullptr};
-  sensor::Sensor *temperature_sensor_external_{nullptr};
-  sensor::Sensor *ph_sensor_{nullptr};
 };
 
 }  // namespace esphome::ufire_ise

@@ -163,9 +163,8 @@ TEST(PN532Mifare, UltralightReadTrimsLastChunk) {
   pn532.responses.push_back(first);
   pn532.responses.push_back(second);
 
-  UltralightReadBuffer data;
-  ASSERT_TRUE(pn532.read_mifare_ultralight_bytes_(4, 20, data));
-  ASSERT_EQ(data.size(), 20u);
+  std::array<uint8_t, 20> data{};
+  ASSERT_TRUE(pn532.read_mifare_ultralight_bytes_(4, data));
   EXPECT_EQ(data[15], 15);
   EXPECT_EQ(data[16], 0x10);
   EXPECT_EQ(data[19], 0x13);
@@ -177,15 +176,14 @@ TEST(PN532Mifare, UltralightReadTrimsLastChunk) {
 
 TEST(PN532Mifare, UltralightReadRejectsBadResponses) {
   FakePN532 pn532;
-  UltralightReadBuffer data;
+  std::array<uint8_t, 16> data{};
   pn532.responses.push_back({0x00, 0x01, 0x02});  // short response
-  EXPECT_FALSE(pn532.read_mifare_ultralight_bytes_(4, 16, data));
+  EXPECT_FALSE(pn532.read_mifare_ultralight_bytes_(4, data));
 
   std::vector<uint8_t> failed(17, 0x00);
   failed[0] = 0x01;  // timeout status
   pn532.responses.push_back(failed);
-  data.clear();
-  EXPECT_FALSE(pn532.read_mifare_ultralight_bytes_(4, 16, data));
+  EXPECT_FALSE(pn532.read_mifare_ultralight_bytes_(4, data));
 }
 
 }  // namespace esphome::pn532

@@ -1,7 +1,6 @@
 import esphome.codegen as cg
 from esphome.components import i2c
 import esphome.config_validation as cv
-from esphome.const import CONF_ID
 from esphome.types import ConfigType
 
 CODEOWNERS = ["@p1ngb4ck"]
@@ -33,12 +32,10 @@ CONFIG_SCHEMA = (
 
 
 async def to_code(config: ConfigType) -> None:
-    var = cg.new_Pvariable(
-        config[CONF_ID],
+    await i2c.new_i2c_component(
+        config,
         config[CONF_DISABLE_WIPER_0],
         config[CONF_DISABLE_WIPER_1],
         config[CONF_DISABLE_WIPER_2],
         config[CONF_DISABLE_WIPER_3],
     )
-    await cg.register_component(var, config)
-    await i2c.register_i2c_device(var, config)

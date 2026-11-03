@@ -1,6 +1,7 @@
 #pragma once
 
 #include <cinttypes>
+#include <memory>
 #include <vector>
 
 #include "esphome/core/component.h"
@@ -113,6 +114,7 @@ class Tuya final : public Component, public uart::UARTDevice {
   TuyaInitState get_init_state();
 #ifdef USE_TIME
   void set_time_id(time::RealTimeClock *time_id) { this->time_id_ = time_id; }
+  void set_force_time_sync(bool force_time_sync) { this->force_time_sync_ = force_time_sync; }
 #endif
   void add_ignore_mcu_update_on_datapoints(uint8_t ignore_mcu_update_on_datapoints) {
     this->ignore_mcu_update_on_datapoints_.push_back(ignore_mcu_update_on_datapoints);
@@ -144,9 +146,13 @@ class Tuya final : public Component, public uart::UARTDevice {
   uint8_t get_wifi_rssi_();
 
 #ifdef USE_TIME
-  void send_local_time_();
+  void register_local_time_sync_callback_();
+  void check_force_time_sync_();
+  void send_local_time_(bool periodic = false);
   void send_gmt_time_();
   time::RealTimeClock *time_id_{nullptr};
+  bool force_time_sync_{false};
+  uint8_t last_force_time_sync_minute_{0xFF};  // 0xFF: no minute seen yet
   bool time_sync_callback_registered_{false};
   bool gmt_time_sync_callback_registered_{false};
 #endif
@@ -159,7 +165,7 @@ class Tuya final : public Component, public uart::UARTDevice {
   int reset_pin_reported_ = -1;
   uint32_t last_command_timestamp_ = 0;
   uint32_t last_rx_char_timestamp_ = 0;
-  std::string product_;
+  std::unique_ptr<char[]> product_;
   std::vector<TuyaDatapointListener> listeners_;
   std::vector<TuyaDatapoint> datapoints_;
   std::vector<uint8_t> rx_message_;
@@ -167,6 +173,7 @@ class Tuya final : public Component, public uart::UARTDevice {
   std::vector<TuyaCommand> command_queue_;
   optional<TuyaCommandType> expected_response_{};
   uint8_t wifi_status_ = -1;
+  bool product_invalid_{false};
   CallbackManager<void()> initialized_callback_{};
 };
 

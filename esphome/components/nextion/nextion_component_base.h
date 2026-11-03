@@ -5,6 +5,10 @@
 #include <vector>
 #include "esphome/core/defines.h"
 
+namespace esphome {
+struct LogString;
+}  // namespace esphome
+
 namespace esphome::nextion {
 
 enum NextionQueueType {
@@ -15,9 +19,6 @@ enum NextionQueueType {
   TEXT_SENSOR = 4,
   WAVEFORM_SENSOR = 5,
 };
-
-static const char *const NEXTION_QUEUE_TYPE_STRINGS[] = {"NO_RESULT", "SENSOR",      "BINARY_SENSOR",
-                                                         "SWITCH",    "TEXT_SENSOR", "WAVEFORM_SENSOR"};
 
 class NextionComponentBase;
 
@@ -39,26 +40,26 @@ class NextionComponentBase {
     this->variable_name_to_send_ = variable_name_to_send.empty() ? variable_name : variable_name_to_send;
   }
 
-  virtual void update_component_settings(){};
-  virtual void update_component_settings(bool force_update){};
+  virtual void update_component_settings() {};
+  virtual void update_component_settings(bool force_update) {};
 
-  virtual void update_component(){};
-  virtual void process_sensor(const std::string &variable_name, int state){};
-  virtual void process_touch(uint8_t page_id, uint8_t component_id, bool on){};
-  virtual void process_text(const std::string &variable_name, const std::string &text_value){};
-  virtual void process_bool(const std::string &variable_name, bool on){};
+  virtual void update_component() {};
+  virtual void process_sensor(const std::string &variable_name, int state) {};
+  virtual void process_touch(uint8_t page_id, uint8_t component_id, bool on) {};
+  virtual void process_text(const std::string &variable_name, const std::string &text_value) {};
+  virtual void process_bool(const std::string &variable_name, bool on) {};
 
-  virtual void set_state(float state){};
-  virtual void set_state(float state, bool publish){};
-  virtual void set_state(float state, bool publish, bool send_to_nextion){};
+  virtual void set_state(float state) {};
+  virtual void set_state(float state, bool publish) {};
+  virtual void set_state(float state, bool publish, bool send_to_nextion) {};
 
-  virtual void set_state(bool state){};
-  virtual void set_state(bool state, bool publish){};
-  virtual void set_state(bool state, bool publish, bool send_to_nextion){};
+  virtual void set_state(bool state) {};
+  virtual void set_state(bool state, bool publish) {};
+  virtual void set_state(bool state, bool publish, bool send_to_nextion) {};
 
   virtual void set_state(const std::string &state) {}
   virtual void set_state(const std::string &state, bool publish) {}
-  virtual void set_state(const std::string &state, bool publish, bool send_to_nextion){};
+  virtual void set_state(const std::string &state, bool publish, bool send_to_nextion) {};
 
   uint8_t get_component_id() const { return this->component_id_; }
   void set_component_id(uint8_t component_id) { this->component_id_ = component_id; }
@@ -82,10 +83,10 @@ class NextionComponentBase {
   const std::string &get_variable_name() const { return this->variable_name_; }
   const std::string &get_variable_name_to_send() const { return this->variable_name_to_send_; }
   virtual NextionQueueType get_queue_type() const { return NextionQueueType::NO_RESULT; }
-  virtual const char *get_queue_type_string() const { return NEXTION_QUEUE_TYPE_STRINGS[this->get_queue_type()]; }
-  virtual void set_state_from_int(int state_value, bool publish, bool send_to_nextion){};
-  virtual void set_state_from_string(const std::string &state_value, bool publish, bool send_to_nextion){};
-  virtual void send_state_to_nextion(){};
+  const LogString *get_queue_type_string() const;
+  virtual void set_state_from_int(int state_value, bool publish, bool send_to_nextion) {};
+  virtual void set_state_from_string(const std::string &state_value, bool publish, bool send_to_nextion) {};
+  virtual void send_state_to_nextion() {};
   bool get_needs_to_send_update() const { return this->needs_to_send_update_; }
 
  protected:
