@@ -1,8 +1,10 @@
 #if defined(CONFIG_USB_DEVICE_STACK) || defined(CONFIG_USB_DEVICE_STACK_NEXT)
 #include "usb_device.h"
 #include "esphome/core/defines.h"
+#include "esphome/core/log.h"
 
 #ifdef CONFIG_USB_DEVICE_STACK_NEXT
+#include "esphome/core/application.h"
 #include <zephyr/device.h>
 #include <zephyr/drivers/uart.h>
 #include <zephyr/usb/usbd.h>
@@ -33,8 +35,16 @@ USBD_DESC_SERIAL_NUMBER_DEFINE(esphome_usbd_sn);
 USBD_CONFIGURATION_DEFINE(esphome_usbd_fs_config, USB_SCD_SELF_POWERED, USB_MAX_POWER, nullptr);
 // NOLINTEND(cppcoreguidelines-avoid-non-const-global-variables)
 
+ESPHOME_LOG_TAG(TAG, "zephyr.usb");
+
 // Runs on the USB device stack's thread or its message work queue, never on the main loop
 static void usbd_msg_callback(usbd_context *const ctx, const usbd_msg *const msg) {
+#ifdef ESPHOME_LOG_HAS_VERBOSE
+  // Logged from the main loop: the work queue stack is too small for the logger
+  const usbd_msg_type type = msg->type;
+  App.scheduler.set_timeout(static_cast<Component *>(nullptr), static_cast<const char *>(nullptr), 0,
+                            [type]() { ESP_LOGV(TAG, "USB message: %s", usbd_msg_type_string(type)); });
+#endif
 #ifdef USE_ZEPHYR_CDC_ACM_RATE_CALLBACK
   if (msg->type == USBD_MSG_CDC_ACM_LINE_CODING) {
     uint32_t rate = 0;

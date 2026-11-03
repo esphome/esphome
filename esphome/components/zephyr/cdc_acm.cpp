@@ -1,6 +1,7 @@
 #include "cdc_acm.h"
 #if defined(USE_ZEPHYR_CDC_ACM_RATE_CALLBACK)
 #include "esphome/core/application.h"
+#include "esphome/core/log.h"
 #include <zephyr/drivers/uart.h>
 #ifndef CONFIG_USB_DEVICE_STACK_NEXT
 #include <zephyr/drivers/uart/cdc_acm.h>
@@ -9,6 +10,8 @@
 #define DEVICE_AND_COMMA(node_id) DEVICE_DT_GET(node_id),
 
 namespace esphome::zephyr {
+
+ESPHOME_LOG_TAG(TAG, "zephyr.cdc_acm");
 
 static CdcAcm cdc_acm_instance;  // NOLINT(cppcoreguidelines-avoid-non-const-global-variables)
 CdcAcm *const global_cdc_acm = &cdc_acm_instance;
@@ -27,8 +30,10 @@ void CdcAcm::set_driver_callbacks_() {
 
 void CdcAcm::rate_changed(const struct device *device, uint32_t rate) {
   // Unnamed, so each rate change is queued in order instead of replacing a pending one
-  App.scheduler.set_timeout(static_cast<Component *>(nullptr), static_cast<const char *>(nullptr), 0,
-                            [device, rate]() { global_cdc_acm->rate_callbacks_.call(device, rate); });
+  App.scheduler.set_timeout(static_cast<Component *>(nullptr), static_cast<const char *>(nullptr), 0, [device, rate]() {
+    ESP_LOGV(TAG, "%s: host set %" PRIu32 " baud", device->name, rate);
+    global_cdc_acm->rate_callbacks_.call(device, rate);
+  });
 }
 
 }  // namespace esphome::zephyr
