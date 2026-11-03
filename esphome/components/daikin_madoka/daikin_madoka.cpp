@@ -332,6 +332,10 @@ bool DaikinMadoka::write_query_(const Query &query) {
   frame[3] = cmd[0];
   frame[4] = cmd[1];
   std::copy(query.args.begin(), query.args.end(), frame.begin() + 1 + MESSAGE_HEADER_SIZE);
+
+  ESP_LOGD(TAG, "Writing query. ID: 0x%04X, len: %zu", query.cmd, msg_len + 1);
+  ESP_LOGVV_HEX(TAG, frame.data(), msg_len + 1, 256, "%s");
+
   esp_err_t err =
       esp_ble_gattc_write_char(this->parent_->get_gattc_if(), this->parent_->get_conn_id(), this->wwr_handle_,
                                msg_len + 1, frame.data(), ESP_GATT_WRITE_TYPE_NO_RSP, ESP_GATT_AUTH_REQ_NONE);
@@ -355,6 +359,9 @@ void DaikinMadoka::parse_cb_(std::span<const uint8_t> msg) {
     ESP_LOGW(TAG, "Discarding message: invalid length");
     return;
   }
+
+  ESP_LOGD(TAG, "Parsing message. ID: 0x%04X, len: %zu", message_function_id(msg), msg.size());
+  ESP_LOGVV_HEX(TAG, msg.data(), msg.size(), 256, "%s");
 
   switch (message_function_id(msg)) {
     case CMD_GET_SETTING_STATUS: {
