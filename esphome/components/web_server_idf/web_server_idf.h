@@ -224,6 +224,19 @@ class AsyncWebServer {
 
   void begin();
   void end();
+  /// Takes effect at the next begin().
+  void set_port(uint16_t port) { this->port_ = port; }
+
+#ifdef USE_WEBSERVER_SSL
+  /// Serve HTTPS with this certificate and private key (PEM, null-terminated). The strings are not copied and
+  /// must stay valid while the server runs. Takes effect at the next begin(); nullptr goes back to plain HTTP.
+  void set_ssl_credentials(const char *certificate, const char *private_key) {
+    this->ssl_certificate_ = certificate;
+    this->ssl_private_key_ = private_key;
+  }
+  /// True while the server is running with TLS.
+  bool is_ssl() const { return this->server_ != nullptr && this->ssl_running_; }
+#endif
 
   // NOLINTNEXTLINE(readability-identifier-naming)
   AsyncWebHandler &addHandler(AsyncWebHandler *handler) {
@@ -236,6 +249,11 @@ class AsyncWebServer {
  protected:
   uint16_t port_{};
   httpd_handle_t server_{};
+#ifdef USE_WEBSERVER_SSL
+  const char *ssl_certificate_{nullptr};
+  const char *ssl_private_key_{nullptr};
+  bool ssl_running_{false};
+#endif
   static esp_err_t request_handler(httpd_req_t *r);
   static esp_err_t request_post_handler(httpd_req_t *r);
   esp_err_t request_handler_(AsyncWebServerRequest *request) const;

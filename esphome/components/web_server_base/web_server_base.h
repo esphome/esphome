@@ -127,6 +127,9 @@ class WebServerBase final {
       return;
     }
     this->server_ = new AsyncWebServer(this->port_);
+#if defined(USE_ESP32) && defined(USE_WEBSERVER_SSL)
+    this->server_->set_ssl_credentials(this->ssl_certificate_, this->ssl_private_key_);
+#endif
     // All content is controlled and created by user - so allowing all origins is fine here.
     // NOTE: Currently 1 header. If more are added, update in __init__.py:
     //   cg.add_define("WEB_SERVER_DEFAULT_HEADERS_COUNT", 1)
@@ -165,12 +168,40 @@ class WebServerBase final {
    */
   void add_handler_without_auth(AsyncWebHandler *handler);
 
-  void set_port(uint16_t port) { port_ = port; }
+  void set_port(uint16_t port) {
+    this->port_ = port;
+#ifdef USE_ESP32
+    // Applied when the listener next starts (set_ssl_credentials() restarts it).
+    if (this->server_ != nullptr)
+      this->server_->set_port(port);
+#endif
+  }
   uint16_t get_port() const { return port_; }
+
+#if defined(USE_ESP32) && defined(USE_WEBSERVER_SSL)
+  /// Serve HTTPS with this certificate and private key (PEM, null-terminated), or plain HTTP again with nullptr.
+  /// The strings are not copied and must stay valid while the server runs. A running listener restarts to apply
+  /// them, which closes open connections.
+  void set_ssl_credentials(const char *certificate, const char *private_key) {
+    this->ssl_certificate_ = certificate;
+    this->ssl_private_key_ = private_key;
+    if (this->server_ == nullptr)
+      return;
+    this->server_->set_ssl_credentials(certificate, private_key);
+    if (this->initialized_ > 0)
+      this->server_->begin();  // begin() stops the running listener first
+  }
+  /// True while the listener is serving HTTPS.
+  bool is_ssl() const { return this->server_ != nullptr && this->server_->is_ssl(); }
+#endif
 
  protected:
   uint8_t initialized_{0};
   uint16_t port_{80};  // Keep in sync with DEFAULT_PORT in web_server/__init__.py
+#if defined(USE_ESP32) && defined(USE_WEBSERVER_SSL)
+  const char *ssl_certificate_{nullptr};
+  const char *ssl_private_key_{nullptr};
+#endif
   AsyncWebServer *server_{nullptr};
   std::vector<AsyncWebHandler *> handlers_;
 #ifdef USE_WEBSERVER_AUTH

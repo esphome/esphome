@@ -20,6 +20,10 @@
 #include "sse_chunk.h"
 #include "web_server_idf.h"
 
+#ifdef USE_WEBSERVER_SSL
+#include <esp_https_server.h>
+#endif
+
 #ifdef USE_WEBSERVER_AUTH_DIGEST
 #include <esp_random.h>
 #include <esp_rom_md5.h>
@@ -139,7 +143,13 @@ void AsyncWebServer::safe_close_with_shutdown(httpd_handle_t hd, int sockfd) {
 
 void AsyncWebServer::end() {
   if (this->server_) {
-    httpd_stop(this->server_);
+#ifdef USE_WEBSERVER_SSL
+    if (this->ssl_running_) {
+      httpd_ssl_stop(this->server_);
+      this->ssl_running_ = false;
+    } else
+#endif
+      httpd_stop(this->server_);
     this->server_ = nullptr;
   }
 }
@@ -160,7 +170,26 @@ void AsyncWebServer::begin() {
   config.lru_purge_enable = true;
   // Use custom close function that shuts down before closing to prevent lwIP race conditions
   config.close_fn = AsyncWebServer::safe_close_with_shutdown;
-  if (httpd_start(&this->server_, &config) == ESP_OK) {
+  esp_err_t start_err;
+#ifdef USE_WEBSERVER_SSL
+  if (this->ssl_certificate_ != nullptr && this->ssl_private_key_ != nullptr) {
+    httpd_ssl_config_t ssl_config = HTTPD_SSL_CONFIG_DEFAULT();
+    // The TLS handshake needs the larger stack of the HTTPS defaults.
+    config.stack_size = std::max(config.stack_size, ssl_config.httpd.stack_size);
+    ssl_config.httpd = config;
+    ssl_config.port_secure = this->port_;
+    ssl_config.servercert = reinterpret_cast<const uint8_t *>(this->ssl_certificate_);
+    ssl_config.servercert_len = strlen(this->ssl_certificate_) + 1;
+    ssl_config.prvtkey_pem = reinterpret_cast<const uint8_t *>(this->ssl_private_key_);
+    ssl_config.prvtkey_len = strlen(this->ssl_private_key_) + 1;
+    start_err = httpd_ssl_start(&this->server_, &ssl_config);
+    this->ssl_running_ = start_err == ESP_OK;
+    if (start_err != ESP_OK)
+      ESP_LOGE(TAG, "HTTPS server failed to start: %s", esp_err_to_name(start_err));
+  } else
+#endif
+    start_err = httpd_start(&this->server_, &config);
+  if (start_err == ESP_OK) {
     const httpd_uri_t handler_get = {
         .uri = "",
         .method = HTTP_GET,
@@ -718,6 +747,14 @@ AsyncEventSource::~AsyncEventSource() {
 }
 
 void AsyncEventSource::handleRequest(AsyncWebServerRequest *request) {
+#ifdef USE_WEBSERVER_SSL
+  // Event streams send from the main loop straight to the socket, which would bypass TLS.
+  // Only an HTTPS server has a global transport context.
+  if (httpd_get_global_transport_ctx(static_cast<httpd_req_t *>(*request)->handle) != nullptr) {
+    request->send(501, "text/plain", "Event streams are not supported over HTTPS");
+    return;
+  }
+#endif
   // Httpd task: set up the live httpd_req_t and park the session; main loop does the rest.
   // NOLINTNEXTLINE(cppcoreguidelines-owning-memory,clang-analyzer-cplusplus.NewDeleteLeaks)
   auto *rsp = new AsyncEventSourceResponse(request, this, this->web_server_);
