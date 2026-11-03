@@ -207,8 +207,9 @@ file does, and it is the authority when they disagree. The most useful starting 
         ```
     *   **Scheduler lambdas capture at most 8 bytes:** `set_timeout`, `set_interval` and `defer` store the lambda
         in a `std::function`, which keeps it inline only when it is at most 8 bytes on 32-bit targets and trivially
-        copyable; anything else is a heap allocation on every call. `[this]` plus one 4-byte value fits. Three or
-        more captures, a member function pointer (8 bytes), a `std::string` or a `std::function` do not: keep that
+        copyable; anything else is a heap allocation each time it is scheduled, which matters for retries, re-armed
+        timeouts and `defer` on a hot path. `[this]` plus one 4-byte value fits. `[this]` plus two 4-byte values,
+        `[this]` plus a member function pointer (8 bytes), a `std::string` or a `std::function` do not: keep that
         state in members and capture `[this]`, or capture a small index instead.
         ```cpp
         // Bad - 12 bytes on 32-bit, allocates on every retry
