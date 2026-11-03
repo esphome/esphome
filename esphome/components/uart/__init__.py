@@ -573,7 +573,18 @@ def final_validate_device_schema(
         if (source_id := _settings_source(uart_id)) is None:
             hub_schema.update(settings_schema)
         elif settings_schema:
-            fv.id_declaration_match_schema(settings_schema)(source_id)
+            try:
+                fv.id_declaration_match_schema(settings_schema)(source_id)
+            except cv.MultipleInvalid as err:
+                # Each error keeps its path at the source UART; a missing key keeps ESPHome's wording.
+                raise cv.MultipleInvalid(
+                    [
+                        e
+                        if isinstance(e, cv.RequiredFieldInvalid)
+                        else cv.Invalid(f"{e.msg} (via {uart_id})", e.path)
+                        for e in err.errors
+                    ]
+                ) from err
         return cv.Schema(hub_schema, extra=cv.ALLOW_EXTRA)(hub_config)
 
     return cv.Schema(
