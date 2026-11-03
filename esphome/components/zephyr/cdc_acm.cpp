@@ -1,5 +1,6 @@
 #include "cdc_acm.h"
 #if defined(USE_ZEPHYR_CDC_ACM_RATE_CALLBACK)
+#include "esphome/core/application.h"
 #include <atomic>
 #include <zephyr/drivers/uart.h>
 #ifndef CONFIG_USB_DEVICE_STACK_NEXT
@@ -51,9 +52,11 @@ void CdcAcm::loop() {
 }
 
 void CdcAcm::rate_changed() {
-  // Runs on the USB driver's thread: heavier work here, like a scheduler call, stalled USB on the new stack
-  if (CdcAcm *cdc_acm = instance.load(std::memory_order_acquire); cdc_acm != nullptr)
-    cdc_acm->enable_loop_soon_any_context();
+  // TEST: post to the main loop with the scheduler from the USB driver's thread
+  App.scheduler.set_timeout(static_cast<Component *>(nullptr), static_cast<const char *>(nullptr), 0, []() {
+    if (CdcAcm *cdc_acm = instance.load(std::memory_order_acquire); cdc_acm != nullptr)
+      cdc_acm->enable_loop();
+  });
 }
 
 }  // namespace esphome::zephyr
