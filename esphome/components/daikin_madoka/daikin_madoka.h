@@ -60,9 +60,7 @@ class DaikinMadoka final : public climate::Climate, public esphome::ble_client::
     });
     traits.set_visual_min_temperature(MIN_TEMP);
     traits.set_visual_max_temperature(MAX_TEMP);
-    // Setpoints go in half degrees; the reported room temperature is whole degrees
-    traits.set_visual_target_temperature_step(0.5f);
-    traits.set_visual_current_temperature_step(1);
+    traits.set_visual_temperature_step(1);
     // control() only takes the low/high pair, so a single setpoint must not be offered in HEAT or COOL
     traits.add_feature_flags(climate::CLIMATE_SUPPORTS_TWO_POINT_TARGET_TEMPERATURE |
                              climate::CLIMATE_REQUIRES_TWO_POINT_TARGET_TEMPERATURE |
