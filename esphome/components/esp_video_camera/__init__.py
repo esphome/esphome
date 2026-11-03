@@ -14,15 +14,19 @@ from esphome.components.esp32 import (
     add_idf_sdkconfig_option,
     only_on_variant,
 )
+from esphome.components.ledc import DOMAIN as LEDC_DOMAIN
 from esphome.components.psram import DOMAIN as PSRAM_DOMAIN
 from esphome.components.usb_host import DOMAIN as USB_HOST_DOMAIN
 import esphome.config_validation as cv
 from esphome.const import (
+    CONF_CHANNEL,
     CONF_DEVICE,
     CONF_FRAMEWORK,
     CONF_I2C_ID,
     CONF_ID,
     CONF_LOG_LEVEL,
+    CONF_OUTPUT,
+    CONF_PLATFORM,
     CONF_RESOLUTION,
     PLATFORM_ESP32,
 )
@@ -304,7 +308,37 @@ def _reject_uvc_beside_usb_host(config):
     return config
 
 
-FINAL_VALIDATE_SCHEMA = cv.All(_warn_about_idf_log_level, _reject_uvc_beside_usb_host)
+# The XCLK generator takes the top LEDC timer and channel; the ledc output
+# component pairs channels onto timers (channel N on timer N / 2), so its
+# channels 6 and 7 share that timer.
+_XCLK_LEDC_CHANNELS = (6, 7)
+
+
+def _reject_ledc_on_xclk_timer(config: ConfigType) -> ConfigType:
+    """Reject ledc outputs that would share the sensor clock's LEDC timer."""
+    if _is_uvc(config[CONF_DEVICE]) or config.get(CONF_XCLK_PIN, -1) < 0:
+        return config
+    outputs = [
+        out
+        for out in fv.full_config.get().get(CONF_OUTPUT, [])
+        if out.get(CONF_PLATFORM) == LEDC_DOMAIN
+    ]
+    # An output without `channel:` takes the next one in declaration order.
+    for index, out in enumerate(outputs):
+        if out.get(CONF_CHANNEL, index) % 8 in _XCLK_LEDC_CHANNELS:
+            raise cv.Invalid(
+                f"ledc output '{out[CONF_ID]}' uses LEDC timer 3, which generates "
+                f"the sensor clock on '{CONF_XCLK_PIN}'. Give it a channel below "
+                f"{_XCLK_LEDC_CHANNELS[0]}, or remove '{CONF_XCLK_PIN}' if the board "
+                "drives the clock itself.",
+                path=[CONF_XCLK_PIN],
+            )
+    return config
+
+
+FINAL_VALIDATE_SCHEMA = cv.All(
+    _warn_about_idf_log_level, _reject_uvc_beside_usb_host, _reject_ledc_on_xclk_timer
+)
 
 
 async def to_code(config):

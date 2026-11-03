@@ -54,6 +54,8 @@ static constexpr uint32_t INIT_POLL_SLICE_MS = 200;
 // Settling time between the host port's 5 V rail coming up and the USB Host
 // Library install; the same delay Espressif's board support code leaves.
 static constexpr uint32_t VBUS_SETTLE_MS = 100;
+// Pause between attempts while the USB host event pump keeps failing.
+static constexpr uint32_t USB_PUMP_RETRY_MS = 100;
 #endif
 
 // Frame buffers are rounded up to this many bytes so that consecutive frames of
@@ -71,6 +73,9 @@ static constexpr uint32_t CAPTURE_DQBUF_POLL_MS = 0;
 // How long the pipeline keeps running after the last consumer went away. Every
 // STREAMON rebuilds the ISP processor and re-converges AE/AWB.
 static constexpr uint32_t CAPTURE_IDLE_TIMEOUT_MS = 5000;
+
+// How long an unanswered single-image request keeps the capture wanted.
+static constexpr uint32_t SNAPSHOT_TIMEOUT_MS = 10000;
 
 // How often deliver_frame_ reports the resolution and frame rate.
 static constexpr uint32_t STATS_INTERVAL_MS = 10000;
@@ -129,6 +134,8 @@ void usb_host_lib_daemon_task(void *param) {
       complained = true;
       ESP_LOGE(TAG, "USB host event pump failed: %s; devices will not enumerate", esp_err_to_name(err));
     }
+    // A failure returns at once; without a pause this priority-10 task starves the main loop.
+    vTaskDelay(pdMS_TO_TICKS(USB_PUMP_RETRY_MS));
   }
 }
 
@@ -167,7 +174,9 @@ esp_err_t init_xclk_ledc(gpio_num_t gpio_num, uint32_t freq_hz) {
   ch_conf.speed_mode = LEDC_LOW_SPEED_MODE;
   ch_conf.channel = XCLK_LEDC_CHANNEL;
   ch_conf.timer_sel = XCLK_LEDC_TIMER;
+#if ESP_IDF_VERSION < ESP_IDF_VERSION_VAL(6, 0, 0)
   ch_conf.intr_type = LEDC_INTR_DISABLE;
+#endif
   ch_conf.gpio_num = gpio_num;
   ch_conf.duty = 1;  // 50 % duty cycle
   ch_conf.hpoint = 0;
@@ -294,9 +303,9 @@ void ESPVideoCamera::setup() {
   if (probe_fd < 0) {
     if (this->is_hw_jpeg_()) {
       ESP_LOGE(TAG,
-               "%s is unavailable. Check the sensor wiring and that it answers on the configured I2C bus; the "
-               "drivers built into this firmware are listed in the config dump.",
-               probe);
+               "%s is unavailable (%s). Check the sensor wiring and that it answers on the configured I2C bus; "
+               "the drivers built into this firmware are listed in the config dump.",
+               probe, strerror(errno));
       this->mark_failed(LOG_STR("No MIPI-CSI sensor detected"));
     } else {
       ESP_LOGE(TAG, "V4L2 device '%s' unavailable (errno=%d: %s)", probe, errno, strerror(errno));
@@ -398,6 +407,7 @@ bool ESPVideoCamera::start_pipeline_init_() {
   auto *ctx = new VideoInitContext();
   ctx->done = xSemaphoreCreateBinary();
   if (ctx->done == nullptr) {
+    ESP_LOGE(TAG, "Could not allocate the esp_video_init semaphore");
     delete ctx;
     return false;
   }
@@ -492,6 +502,16 @@ bool ESPVideoCamera::init_pipeline_() {
 
 void ESPVideoCamera::loop() {
   const uint32_t now = App.get_loop_component_start_time();
+  // A snapshot request survives failed starts so the retry still runs for it,
+  // but is dropped once its requester will have given up.
+  if (this->single_requesters_ == 0) {
+    this->snapshot_pending_since_ms_ = 0;
+  } else if (this->snapshot_pending_since_ms_ == 0) {
+    this->snapshot_pending_since_ms_ = now == 0 ? 1 : now;  // zero means "none pending"
+  } else if ((now - this->snapshot_pending_since_ms_) >= SNAPSHOT_TIMEOUT_MS) {
+    this->single_requesters_ = 0;
+    this->snapshot_pending_since_ms_ = 0;
+  }
   const bool wanted = this->requesters_() != 0;
 
   // Only reachable with UVC; esp_video_init() runs on its own task and is never
@@ -533,19 +553,17 @@ void ESPVideoCamera::loop() {
   } else {
     this->loop_direct_capture_(now);
   }
+  if (!this->streaming_)
+    return;  // the capture failed above and has armed its retry
 
-  // A source that accepted STREAMON but never delivers is otherwise silent,
-  // since an empty queue looks like "no frame yet". Only checked while someone
-  // is watching: deliver_frame_() counts nothing during the idle grace period.
-  if (!wanted) {
-    this->stats_since_ms_ = now;
-  } else if (!this->warned_no_frames_ && this->stats_frames_ == 0 &&
-             (now - this->stats_since_ms_) >= NO_FRAME_WARNING_MS) {
-    this->warned_no_frames_ = true;
+  // A source that stops delivering is otherwise silent, since an empty queue
+  // looks like "no frame yet". Frames are dequeued even while idle, so this is
+  // independent of consumers and of max_framerate.
+  if ((now - this->last_dequeue_ms_) >= NO_FRAME_WARNING_MS) {
     ESP_LOGW(TAG,
-             "Streaming from %s for %us without a single frame; restarting the capture. esp_video reports several "
-             "unrelated failures as EPERM, which is indistinguishable from \"no frame yet\", so a device that has "
-             "really gone can look like this.",
+             "No frame from %s for %us; restarting the capture. esp_video reports several unrelated failures as "
+             "EPERM, which is indistinguishable from \"no frame yet\", so a device that has really gone can look "
+             "like this.",
              this->device_, (unsigned) (NO_FRAME_WARNING_MS / 1000));
     this->stop_capture_();
     this->arm_capture_retry_();
@@ -589,6 +607,7 @@ bool ESPVideoCamera::dequeue_capture_(v4l2_buffer &buf) {
     }
     return false;
   }
+  this->last_dequeue_ms_ = App.get_loop_component_start_time();
   // A buffer this component never mapped still has to go back to the driver;
   // say so once, or it looks like a camera that sends nothing.
   if (buf.index >= (uint32_t) this->num_capture_buffers_ && !this->warned_stray_buffer_) {
@@ -621,6 +640,7 @@ void ESPVideoCamera::deliver_frame_(const uint8_t *data, size_t length, uint32_t
   // Claim pending single-image requests only now that a frame exists for them;
   // exchange() leaves one that arrives mid-copy set for the next frame.
   requesters = (uint8_t) (this->single_requesters_.exchange(0) | this->stream_requesters_);
+  this->snapshot_pending_since_ms_ = 0;
   this->current_image_ = std::make_shared<ESPVideoCameraImage>(std::move(copy), length, requesters);
   for (auto *listener : this->listeners_)
     listener->on_camera_image(this->current_image_);
@@ -644,9 +664,20 @@ void ESPVideoCamera::loop_direct_capture_(uint32_t now) {
     return;
   if (buf.index < (uint32_t) this->num_capture_buffers_ && this->frame_due_(now))
     this->deliver_frame_((const uint8_t *) this->capture_buffers_[buf.index].start, buf.bytesused, now);
-  if (ioctl(this->capture_fd_, VIDIOC_QBUF, &buf) < 0) {
-    ESP_LOGW(TAG, "Capture QBUF failed: %s", strerror(errno));
-  }
+  this->requeue_capture_(buf);
+}
+
+void ESPVideoCamera::requeue_capture_(v4l2_buffer &buf) {
+  if (ioctl(this->capture_fd_, VIDIOC_QBUF, &buf) >= 0)
+    return;
+  // A buffer that is not handed back is lost to the driver; with only
+  // MAX_BUFFERS of them, restart the capture rather than run dry.
+  const int err = errno;
+  if (this->handle_device_gone_(err))
+    return;
+  ESP_LOGW(TAG, "Capture QBUF failed: %s; restarting the capture", strerror(err));
+  this->stop_capture_();
+  this->arm_capture_retry_();
 }
 
 void ESPVideoCamera::loop_jpeg_pipeline_(uint32_t now) {
@@ -745,9 +776,8 @@ void ESPVideoCamera::loop_jpeg_pipeline_(uint32_t now) {
 
   // Return the raw frame to the sensor/ISP device, unless the teardown above
   // already closed it.
-  if (capture_alive && ioctl(this->capture_fd_, VIDIOC_QBUF, &cap_buf) < 0) {
-    ESP_LOGW(TAG, "capture QBUF failed: %s", strerror(errno));
-  }
+  if (capture_alive)
+    this->requeue_capture_(cap_buf);
 }
 
 bool ESPVideoCamera::reset_jpeg_encoder_() {
@@ -923,7 +953,7 @@ bool ESPVideoCamera::start_capture_() {
   this->stats_bytes_ = 0;
   this->logged_qbuf_failure_ = false;
   this->warned_stray_buffer_ = false;
-  this->warned_no_frames_ = false;
+  this->last_dequeue_ms_ = this->stats_since_ms_;
   return true;
 }
 
@@ -1120,9 +1150,6 @@ void ESPVideoCamera::stop_capture_() {
   this->num_capture_buffers_ = 0;
   this->streaming_ = false;
   this->idle_since_ms_ = 0;
-  // A pending snapshot left set would keep the pipeline wanted for ever; the
-  // requester asks again if it still wants one.
-  this->single_requesters_ = 0;
   // Free the last frame's PSRAM; listeners hold their own shared_ptr.
   this->current_image_.reset();
   // Callers that want a retry arm it after this.

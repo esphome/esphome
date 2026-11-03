@@ -119,6 +119,8 @@ class ESPVideoCamera : public camera::Camera {
   // DQBUF one capture buffer. False when there is none: no frame yet, a device
   // that went away (handled), or an error that was logged.
   bool dequeue_capture_(v4l2_buffer &buf);
+  // QBUF a capture buffer back; on failure tear the capture down and arm a retry.
+  void requeue_capture_(v4l2_buffer &buf);
   void arm_capture_retry_();
   // Tear the capture down and arm a retry when `err` means the device is gone
   // (a USB-UVC camera unplugged mid-stream). Returns true when it handled `err`.
@@ -197,10 +199,11 @@ class ESPVideoCamera : public camera::Camera {
   // One-shot: dump the rejected buffer's placement on the first encoder QBUF
   // failure of a capture, not on every frame.
   bool logged_qbuf_failure_{false};
-  // How long a capture may run without producing anything before saying so, and
-  // a one-shot so it is said once per capture rather than every iteration.
+  // How long a capture may go without a dequeued frame before it is restarted.
   static constexpr uint32_t NO_FRAME_WARNING_MS = 5000;
-  bool warned_no_frames_{false};
+  uint32_t last_dequeue_ms_{0};
+  // When the oldest pending single-image request was first seen, or 0 if none.
+  uint32_t snapshot_pending_since_ms_{0};
 
   std::vector<camera::CameraListener *> listeners_;
   std::shared_ptr<ESPVideoCameraImage> current_image_;
