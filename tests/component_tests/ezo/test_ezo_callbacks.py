@@ -22,7 +22,7 @@ def forwarders(
 
 
 def test_custom_callback_types(forwarders: dict[str, list[str]]) -> None:
-    assert forwarders["add_custom_callback"] == ["std::string", "std::string"]
+    assert forwarders["add_custom_callback"] == ["StringRef", "std::string"]
 
 
 @pytest.mark.parametrize(
@@ -35,7 +35,7 @@ def test_custom_callback_types(forwarders: dict[str, list[str]]) -> None:
     ],
 )
 def test_reply_callback_types(forwarders: dict[str, list[str]], method: str) -> None:
-    assert forwarders[method] == ["std::string"]
+    assert forwarders[method] == ["StringRef"]
 
 
 def test_led_callback_type(forwarders: dict[str, list[str]]) -> None:

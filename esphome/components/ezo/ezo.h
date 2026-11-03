@@ -1,6 +1,7 @@
 #pragma once
 
 #include "esphome/core/component.h"
+#include "esphome/core/string_ref.h"
 #include "esphome/components/sensor/sensor.h"
 #include "esphome/components/i2c/i2c.h"
 #include "esphome/core/helpers.h"
@@ -134,11 +135,11 @@ class EZOSensor final : public sensor::Sensor, public PollingComponent, public i
   static void send_queued(EZOSensor *self, uint32_t now);
   void finish_command_();
 
-  CallbackManager<void(const std::string &)> device_infomation_callback_{};
-  CallbackManager<void(const std::string &)> calibration_callback_{};
-  CallbackManager<void(const std::string &)> slope_callback_{};
-  CallbackManager<void(const std::string &)> t_callback_{};
-  CallbackManager<void(const std::string &)> custom_callback_{};
+  CallbackManager<void(StringRef)> device_infomation_callback_{};
+  CallbackManager<void(StringRef)> calibration_callback_{};
+  CallbackManager<void(StringRef)> slope_callback_{};
+  CallbackManager<void(StringRef)> t_callback_{};
+  CallbackManager<void(StringRef)> custom_callback_{};
   CallbackManager<void(bool)> led_callback_{};
 
   /// Set to send_queued on first queue, so poll-only configs do not link it or the command text tables.
