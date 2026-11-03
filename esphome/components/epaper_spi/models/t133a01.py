@@ -10,11 +10,21 @@ Supported models:
 - 13.3in-Spectra-E6: Good Display GDEP133C02 (Waveshare 13.3" HAT+ (E)), no D/C line
 """
 
+from typing import Any
+
 from esphome import pins
 import esphome.codegen as cg
 import esphome.config_validation as cv
-from esphome.const import CONF_CS_PIN, CONF_DC_PIN
+from esphome.const import (
+    CONF_BUSY_PIN,
+    CONF_CS_PIN,
+    CONF_DC_PIN,
+    CONF_DIMENSIONS,
+    CONF_INVERTED,
+    CONF_NUMBER,
+)
 from esphome.cpp_generator import MockObj
+from esphome.types import ConfigType
 
 from . import EpaperModel, ultrachip_resolution
 
@@ -22,6 +32,16 @@ CONF_CS1_PIN = "cs1_pin"
 
 # Placeholder for the resolution command, filled in from the configured dimensions
 _RESOLUTION = (0x61,)
+
+# Must match T133A01_MAX_WIDTH in epaper_spi_t133a01.cpp, which sizes the row buffer
+MAX_WIDTH = 1600
+
+
+def _busy_pin_inverted_by_default(value: Any) -> Any:
+    """The T133A01 busy line is active low, so invert the pin unless the config says otherwise."""
+    if not isinstance(value, dict):
+        value = {CONF_NUMBER: value}
+    return {CONF_INVERTED: True, **value}
 
 
 class T133A01Model(EpaperModel):
@@ -39,6 +59,9 @@ class T133A01Model(EpaperModel):
         # Some panels have no D/C line and frame commands with the chip selects alone
         if name == CONF_DC_PIN:
             fallback = cv.UNDEFINED
+        # The driver drives CS itself, so it is required unless the model provides it
+        elif name == CONF_CS_PIN:
+            fallback = None
         return super().option(name, fallback)
 
     def get_config_options(self) -> dict:
@@ -46,7 +69,20 @@ class T133A01Model(EpaperModel):
         # fallback=None makes it required unless the model provides a default.
         return {
             self.option(CONF_CS1_PIN, fallback=None): pins.gpio_output_pin_schema,
+            # Replaces the shared busy_pin schema
+            self.option(CONF_BUSY_PIN): cv.All(
+                _busy_pin_inverted_by_default, pins.gpio_input_pin_schema
+            ),
         }
+
+    def validate_config(self, config: ConfigType) -> ConfigType:
+        width, _ = self.get_dimensions(config)
+        if width > MAX_WIDTH:
+            raise cv.Invalid(
+                f"{self.name} supports a width of at most {MAX_WIDTH}",
+                path=[CONF_DIMENSIONS],
+            )
+        return config
 
     async def to_code(self, var: MockObj, config: dict) -> dict:
         cs = await cg.gpio_pin_expression(config[CONF_CS_PIN])
@@ -69,6 +105,7 @@ class T133A01Model(EpaperModel):
 t133a01_base = T133A01Model(
     "t133a01",
     minimum_update_interval="30s",
+    width_multiple=4,
     data_rate="10MHz",
     initsequence=(
         (0x74, 0x00, 0x0C, 0x0C, 0xD9, 0xDD, 0xDD, 0x15, 0x15, 0x55),

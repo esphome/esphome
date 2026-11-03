@@ -19,6 +19,9 @@ static constexpr uint8_t T133A01_RED = 0x06;
 static constexpr uint8_t T133A01_YELLOW = 0x0B;
 static constexpr uint8_t T133A01_BLUE = 0x0D;
 
+// Widest panel the row buffer in transfer_data() holds; MAX_WIDTH in models/t133a01.py must match
+static constexpr uint16_t T133A01_MAX_WIDTH = 1600;
+
 // T133A01 register addresses
 static constexpr uint8_t R01_PWR = 0x01;
 static constexpr uint8_t R02_POF = 0x02;
@@ -150,6 +153,10 @@ bool EPaperT133A01::initialise(bool partial) {
       delay(command);
       continue;
     }
+    if (this->init_sequence_length_ - index < num_args) {
+      this->mark_failed(LOG_STR("Malformed init sequence"));
+      return true;
+    }
     this->write_command_(command, sequence + index, num_args, true, !is_cs_only_command(command));
     index += num_args;
     delay(10);
@@ -224,7 +231,7 @@ bool HOT EPaperT133A01::transfer_data() {
   const uint16_t bytes_per_half_row = this->width_ / 4;
   const uint16_t total_rows = this->height_;
   const uint16_t bytes_per_row = this->width_ / 2;
-  uint8_t line_data[400] = {};
+  uint8_t line_data[T133A01_MAX_WIDTH / 4] = {};
 
   size_t half = this->current_data_index_;
 
