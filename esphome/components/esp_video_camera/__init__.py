@@ -375,8 +375,7 @@ async def to_code(config):
         # USB-UVC host driver, aligned with esp_video 2.3.0's own dependency.
         add_idf_component(name="espressif/usb_host_uvc", ref="2.5.*")
 
-    # ENABLE_ISP_PIPELINE_CONTROLLER pulls in esp_ipa and runs the AWB/AE/CCM/gamma
-    # automation; without it the image is unprocessed.
+    # The ISP pipeline controller runs auto white balance and exposure; without it the image is unprocessed.
     for opt in (
         "CONFIG_ESP_VIDEO_ENABLE_MIPI_CSI_VIDEO_DEVICE",
         "CONFIG_ESP_VIDEO_ENABLE_ISP",
@@ -388,34 +387,26 @@ async def to_code(config):
         add_idf_sdkconfig_option(opt, True)
     if uvc:
         add_idf_sdkconfig_option("CONFIG_ESP_VIDEO_ENABLE_USB_UVC_VIDEO_DEVICE", True)
-        # 2048: a UVC configuration descriptor overruns the 256-byte default and
-        # the camera never appears. 500 ms: the enumeration wait blocks whichever
-        # task opened the device, and it is the Kconfig minimum. 0: size the URBs
-        # from the endpoint, since esp_video's fixed 10240 is not a multiple of
-        # any real packet size and a torn isochronous transfer loses the rest of
-        # the microframe.
+        # UVC descriptors overrun the 256-byte default
         add_idf_sdkconfig_option("CONFIG_USB_HOST_CONTROL_TRANSFER_MAX_SIZE", 2048)
+        # The Kconfig minimum; the wait blocks the task that opens the device
         add_idf_sdkconfig_option("CONFIG_USB_UVC_INIT_TIMEOUT_MS", 500)
+        # Size URBs from the endpoint; esp_video's fixed size tears isochronous transfers
         add_idf_sdkconfig_option("CONFIG_USB_UVC_VIDEO_DEVICE_URB_SIZE", 0)
 
-    # Auto-detection walks the esp_cam_sensor_detect_fn section, which only holds
-    # every driver under dynamic linking. Upstream's default, but depended on
-    # here. "MOTOR" is not a typo: the one upstream choice covers sensor and
-    # motor detection together.
+    # Sensor auto-detection only sees every driver with dynamic linking (the upstream option also covers motors).
     add_idf_sdkconfig_option(
         "CONFIG_CAMERA_SENSOR_MOTOR_DETECT_METHOD_DYNAMIC_LINK", True
     )
 
-    # Every driver goes in whatever sensor_model says, so a board that turns out
-    # to carry a different sensor still comes up.
+    # All drivers are built in, so a board with a different sensor than configured still comes up.
     for sensor in _SENSOR_FORMATS:
         add_idf_sdkconfig_option(f"CONFIG_CAMERA_{sensor.upper()}", True)
         add_idf_sdkconfig_option(
             f"CONFIG_CAMERA_{sensor.upper()}_AUTO_DETECT_MIPI_INTERFACE_SENSOR", True
         )
 
-    # A format is only choosable as the boot default once its own
-    # CAMERA_<SENSOR>_MIPI_* symbol has put it in the driver's format table.
+    # A format must be enabled before it can be the boot default.
     if (fmt := _sensor_format_symbol(config)) is not None:
         sensor = config[CONF_SENSOR_MODEL].upper()
         add_idf_sdkconfig_option(f"CONFIG_CAMERA_{sensor}_MIPI_{fmt}", True)
