@@ -3414,6 +3414,7 @@ async def test_new_value_range_trigger(
     assert expected in _apply_definition(mock_cg)
 
 
+@pytest.mark.asyncio
 async def test_build_automation_lists(mock_cg: MockCodegen) -> None:
     """Each automation is added to its parent's list; the count is the busiest parent's."""
     mock_cg.new_pvariable.side_effect = lambda id_, *args: MockObj(str(id_), "->")
