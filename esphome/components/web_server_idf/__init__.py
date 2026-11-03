@@ -8,7 +8,7 @@ from esphome.components.esp32 import (
 )
 from esphome.config_helpers import filter_source_files_from_defines
 import esphome.config_validation as cv
-from esphome.const import CONF_CERTIFICATE, CONF_PORT
+from esphome.const import CONF_CERTIFICATE, CONF_KEY, CONF_PORT
 import esphome.final_validate as fv
 from esphome.types import ConfigType
 
@@ -16,7 +16,6 @@ CODEOWNERS = ["@dentra"]
 DOMAIN = "web_server_idf"
 
 CONF_SSL = "ssl"
-CONF_PRIVATE_KEY = "private_key"
 
 # Components that use the shared server in ways TLS does not support yet:
 # web_server streams events from the main loop straight to the socket, and
@@ -43,7 +42,7 @@ SSL_SCHEMA = cv.Schema(
         ),
         cv.Optional(CONF_PORT, default=443): cv.port,
         cv.Required(CONF_CERTIFICATE): _pem("CERTIFICATE"),
-        cv.Required(CONF_PRIVATE_KEY): cv.sensitive(_pem("")),
+        cv.Required(CONF_KEY): cv.sensitive(_pem("")),
     }
 )
 
@@ -96,7 +95,7 @@ async def to_code(config: ConfigType) -> None:
         enable_ssl()
         base = await cg.get_variable(ssl[web_server_base.CONF_WEB_SERVER_BASE_ID])
         cg.add(base.set_port(ssl[CONF_PORT]))
-        cg.add(base.set_ssl_credentials(ssl[CONF_CERTIFICATE], ssl[CONF_PRIVATE_KEY]))
+        cg.add(base.set_ssl_credentials(ssl[CONF_CERTIFICATE], ssl[CONF_KEY]))
 
 
 # multipart.cpp is fully #ifdef'd on USE_WEBSERVER_OTA (set by the

@@ -184,8 +184,9 @@ void AsyncWebServer::begin() {
     ssl_config.prvtkey_len = strlen(this->ssl_private_key_) + 1;
     start_err = httpd_ssl_start(&this->server_, &ssl_config);
     this->ssl_running_ = start_err == ESP_OK;
-    if (start_err != ESP_OK)
+    if (start_err != ESP_OK) {
       ESP_LOGE(TAG, "HTTPS server failed to start: %s", esp_err_to_name(start_err));
+    }
   } else
 #endif
     start_err = httpd_start(&this->server_, &config);

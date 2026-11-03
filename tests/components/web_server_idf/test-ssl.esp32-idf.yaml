@@ -19,7 +19,7 @@ web_server_idf:
       AiBn6XgNZA8M9FCLsheo80/VePtC6mci/MmzKrsUVHddmwIgUgouxiAVVswudya9
       kedDMCS2/klleJS8/Imr9J05eJ4=
       -----END CERTIFICATE-----
-    private_key: |
+    key: |
       -----BEGIN PRIVATE KEY-----
       MIGHAgEAMBMGByqGSM49AgEGCCqGSM49AwEHBG0wawIBAQQgOWIIXfeG3RJdg0CW
       IRGNs0g7EbJUIzpQtCIUZbJ+jXGhRANCAASUqX7QDmtpdjZAP4DgMjaN4JIO7mYj
