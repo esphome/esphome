@@ -41,6 +41,11 @@ performance nit, because it fragments a small shared heap. Flag:
   literal already lives in flash).
 - `std::string` / `std::to_string` / string-returning helpers on hot paths where
   a buffer or view API exists.
+- A `set_timeout` / `set_interval` / `defer` lambda whose captures exceed 8 bytes
+  on 32-bit or are not trivially copyable (three or more values, a member
+  function pointer, a `std::string`, a `std::function`): `std::function` then
+  heap-allocates on every call. `[this]` plus one 4-byte value fits; ask for the
+  rest to live in members.
 
 ## C++ conventions
 
