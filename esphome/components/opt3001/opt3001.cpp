@@ -32,12 +32,12 @@ opt3001 properties:
 
 */
 
-void OPT3001Sensor::read_result_(const std::function<void(float)> &f) {
+void OPT3001Sensor::read_result_() {
   // ensure the single shot flag is clear, indicating it's done
   uint16_t raw_value;
   if (this->read(reinterpret_cast<uint8_t *>(&raw_value), 2) != i2c::ERROR_OK) {
     ESP_LOGW(TAG, "Reading configuration register failed");
-    f(NAN);
+    this->publish_lx_(NAN);
     return;
   }
   raw_value = i2c::i2ctohs(raw_value);
@@ -45,13 +45,13 @@ void OPT3001Sensor::read_result_(const std::function<void(float)> &f) {
   if ((raw_value & OPT3001_CONFIGURATION_CONVERSION_MODE_MASK) != OPT3001_CONFIGURATION_CONVERSION_MODE_SHUTDOWN) {
     // not ready; wait 10ms and try again
     ESP_LOGW(TAG, "Data not ready; waiting 10ms");
-    this->set_timeout(RESULT_RETRY_TIMEOUT_ID, 10, [this, f]() { read_result_(f); });
+    this->set_timeout(RESULT_RETRY_TIMEOUT_ID, 10, [this]() { this->read_result_(); });
     return;
   }
 
   if (this->read_register(OPT3001_REG_RESULT, reinterpret_cast<uint8_t *>(&raw_value), 2) != i2c::ERROR_OK) {
     ESP_LOGW(TAG, "Reading result register failed");
-    f(NAN);
+    this->publish_lx_(NAN);
     return;
   }
   raw_value = i2c::i2ctohs(raw_value);
@@ -60,27 +60,27 @@ void OPT3001Sensor::read_result_(const std::function<void(float)> &f) {
   uint16_t mantissa = raw_value & 0b111111111111;
 
   double lx = 0.01 * pow(2.0, double(exponent)) * double(mantissa);
-  f(float(lx));
+  this->publish_lx_(float(lx));
 }
 
-void OPT3001Sensor::read_lx_(const std::function<void(float)> &f) {
+void OPT3001Sensor::read_lx_() {
   // turn on (after one-shot sensor automatically powers down)
   uint16_t start_measurement = i2c::htoi2cs(OPT3001_CONFIGURATION_FULL_RANGE_ONE_SHOT);
   if (this->write_register(OPT3001_REG_CONFIGURATION, reinterpret_cast<uint8_t *>(&start_measurement), 2) !=
       i2c::ERROR_OK) {
     ESP_LOGW(TAG, "Triggering one shot measurement failed");
-    f(NAN);
+    this->publish_lx_(NAN);
     return;
   }
 
-  this->set_timeout(READ_TIMEOUT_ID, OPT3001_CONVERSION_TIME_800, [this, f]() {
+  this->set_timeout(READ_TIMEOUT_ID, OPT3001_CONVERSION_TIME_800, [this]() {
     if (this->write(&OPT3001_REG_CONFIGURATION, 1) != i2c::ERROR_OK) {
       ESP_LOGW(TAG, "Starting configuration register read failed");
-      f(NAN);
+      this->publish_lx_(NAN);
       return;
     }
 
-    this->read_result_(f);
+    this->read_result_();
   });
 }
 
@@ -101,16 +101,18 @@ void OPT3001Sensor::update() {
   }
   this->updating_ = true;
 
-  this->read_lx_([this](float val) {
-    this->updating_ = false;
+  this->read_lx_();
+}
 
-    if (!this->status_comm_result(!std::isnan(val))) {
-      this->publish_state(NAN);
-      return;
-    }
-    ESP_LOGD(TAG, "'%s': Illuminance=%.1flx", LOG_STR_ARG(this->get_log_name()), val);
-    this->publish_state(val);
-  });
+void OPT3001Sensor::publish_lx_(float val) {
+  this->updating_ = false;
+
+  if (!this->status_comm_result(!std::isnan(val))) {
+    this->publish_state(NAN);
+    return;
+  }
+  ESP_LOGD(TAG, "'%s': Illuminance=%.1flx", LOG_STR_ARG(this->get_log_name()), val);
+  this->publish_state(val);
 }
 
 }  // namespace esphome::opt3001
