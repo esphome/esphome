@@ -99,8 +99,12 @@ enum class OpType : uint8_t {
                     //    ensures data is ready before this op runs)
   READ_WORD,        // single CS: READ preamble + dummy + read one 16-bit word
                     //   into read_result_. Loop HW_RDY gate ensures data ready.
-  CHECK_LUT_IDLE,   // checks read_result_; if non-zero, re-enqueues read sequence
+  CHECK_LUT_IDLE,   // checks read_result_; re-reads until it has read zero a times in a row
+                    //   (b = the count to restart from after a non-zero read)
   SET_1BPP,         // uses read_result_ to set UP1SR bit 2, enqueues writes
+  BLANK_SAVE,       // BLANK: keep read_result_ as the UP1SR+2 (a = 0) or BGVR (a = 1) value to restore
+  BLANK_ENTER,      // BLANK: 1bpp display mode with both grey levels white (enqueues writes)
+  BLANK_RESTORE,    // BLANK: put UP1SR+2 and BGVR back (enqueues writes)
   XFER_LISAR,       // set image-buffer target address (2× reg write: 4 CS transactions)
   XFER_AREA_CMD,    // single CS: CMD preamble + TCON_LD_IMG_AREA
   XFER_AREA_ARGS,   // single CS: WRITE preamble + 5 area-parameter words
@@ -135,6 +139,7 @@ enum class Phase : uint8_t {
   UPDATE_TRANSFER,  // one LD_IMG_AREA, time-sliced row streaming, one LD_IMG_END
   UPDATE_REFRESH,   // wait LUT idle, optionally enable 1bpp, send DPY_BUF_AREA
   UPDATE_SLEEP,     // direct draw: wait for the waveform to end; optional deep sleep
+  BLANK,            // erase the panel to white without touching image memory
 };
 
 // Controller state machine shared by the buffered and direct-draw classes.
@@ -214,6 +219,12 @@ class IT8951Display : public Display,
   // Present the whole screen from controller image memory, clearing any pause.
   // Nothing is transferred: this shows whatever was last written, which is the
   // point of composing while paused.
+  //
+  // UPDATE_MODE_BLANK instead erases the panel to white with one full-screen
+  // GC16 and leaves image memory, the pause and any pending update alone, so a
+  // frame composed beforehand can be presented next with a fast waveform. It
+  // runs in 1bpp display mode with both grey levels set to white, so every
+  // pixel is driven white whatever image memory holds.
   void refresh_now(UpdateMode mode);
   DisplayType get_display_type() override { return this->grayscale_ ? DISPLAY_TYPE_GRAYSCALE : DISPLAY_TYPE_BINARY; }
   void clear() override { this->fill(Color::WHITE); }
@@ -264,7 +275,9 @@ class IT8951Display : public Display,
   void op_xfer_area_end_();
   bool op_xfer_rows_();  // returns true when current update area fully sent
   void op_dpy_buf_args_();
-  void op_check_lut_idle_();
+  void op_check_lut_idle_(const Op &op);
+  void op_blank_enter_();
+  void op_blank_restore_();
   void op_set_1bpp_();
 
   // --- Phase enqueuers ---
@@ -280,7 +293,11 @@ class IT8951Display : public Display,
   // touching the display engine.
   void enqueue_wake_if_asleep_();
   // Poll LUTAFSR until the display engine has finished every waveform.
-  void enqueue_wait_lut_idle_();
+  // `zero_reads` > 1 requires that many zero reads in a row, 20ms apart, so a
+  // waveform that has not started yet is not taken for one that has finished.
+  void enqueue_wait_lut_idle_(uint8_t zero_reads = 1);
+  // Queue BLANK (see refresh_now) and enter its phase.
+  void start_blank_();
 
   // --- Hooks for the buffered and direct-draw classes ---
   // True when the update about to run has pixel data to stream.
@@ -319,6 +336,12 @@ class IT8951Display : public Display,
   // start_update_ passes a concrete mode.
   bool refresh_paused_{false};
   UpdateMode paused_mode_{UPDATE_MODE_NONE};
+  // A BLANK was requested while another update was running. Kept apart from
+  // update_pending_ so a later request cannot replace it.
+  bool blank_pending_{false};
+  // Register values BLANK changes and puts back.
+  uint16_t blank_saved_up1sr_{0};
+  uint16_t blank_saved_bgvr_{0};
   UpdateMode active_mode_{UPDATE_MODE_NONE};
   uint16_t area_x_{0}, area_y_{0}, area_w_{0}, area_h_{0};
   uint16_t transfer_row_{0};

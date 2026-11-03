@@ -86,6 +86,17 @@ interval:
       - it8951.refresh:
           id: direct_gray
           mode: GC16
+      # Erase the panel to white without touching image memory, then present
+      # the composed frame with a fast waveform.
+      - it8951.refresh:
+          id: direct_gray
+          mode: BLANK
+      - it8951.refresh:
+          id: direct_gray
+          mode: DU
       - it8951.pause: direct_mono
       - it8951.resume: direct_mono
       - it8951.refresh: direct_mono
+      - it8951.refresh:
+          id: direct_mono
+          mode: BLANK

@@ -19,6 +19,9 @@ static constexpr uint32_t MAX_TRANSFER_TIME_MS = 20;
 // its startup handshake) before giving up. Covers the slowest waveform plus the
 // startup clear with margin.
 static constexpr uint32_t FLUSH_WAIT_TIMEOUT_MS = 5000;
+// BLANK calls its waveform finished only after this many zero LUTAFSR reads in
+// a row, 20ms apart, before putting the display registers back.
+static constexpr uint8_t BLANK_IDLE_READS = 4;
 
 // --- Loop / scheduling -------------------------------------------------------
 
@@ -101,10 +104,23 @@ void IT8951Display::process_op_(const Op &op) {
       this->read_result_ = this->spi_read_word_();
       break;
     case OpType::CHECK_LUT_IDLE:
-      this->op_check_lut_idle_();
+      this->op_check_lut_idle_(op);
       break;
     case OpType::SET_1BPP:
       this->op_set_1bpp_();
+      break;
+    case OpType::BLANK_SAVE:
+      if (op.a == 0) {
+        this->blank_saved_up1sr_ = this->read_result_;
+      } else {
+        this->blank_saved_bgvr_ = this->read_result_;
+      }
+      break;
+    case OpType::BLANK_ENTER:
+      this->op_blank_enter_();
+      break;
+    case OpType::BLANK_RESTORE:
+      this->op_blank_restore_();
       break;
     case OpType::XFER_LISAR:
       this->op_xfer_lisar_();
@@ -177,7 +193,9 @@ void IT8951Display::set_phase_(Phase next) {
 void IT8951Display::advance_phase_() {
   switch (this->phase_) {
     case Phase::IDLE:
-      if (this->initialised_ && this->update_pending_) {
+      if (this->initialised_ && this->blank_pending_) {
+        this->start_blank_();
+      } else if (this->initialised_ && this->update_pending_) {
         this->update_pending_ = false;
         this->active_mode_ = this->pending_update_mode_;
         this->update_started_at_ = millis();
@@ -308,6 +326,12 @@ void IT8951Display::advance_phase_() {
       this->set_phase_(Phase::IDLE);
       this->advance_phase_();
       break;
+
+    case Phase::BLANK:
+      ESP_LOGV(TAG, "Blank took %" PRIu32 "ms", millis() - this->update_started_at_);
+      this->set_phase_(Phase::IDLE);
+      this->advance_phase_();
+      break;
   }
 }
 
@@ -433,13 +457,44 @@ void IT8951Display::enqueue_update_transfer_() {
   this->enqueue_(OpType::XFER_ROWS);
 }
 
-void IT8951Display::enqueue_wait_lut_idle_() {
+void IT8951Display::enqueue_wait_lut_idle_(uint8_t zero_reads) {
   // CMD(REG_RD) → WRITE_W(LUTAFSR) → READ_WORD → CHECK_LUT_IDLE, which re-queues
-  // the read until the register reads zero.
+  // the read until the register has read zero `zero_reads` times in a row.
   this->enqueue_(OpType::CMD, TCON_REG_RD);
   this->enqueue_(OpType::WRITE_W, LUTAFSR);
   this->enqueue_(OpType::READ_WORD);
-  this->enqueue_(OpType::CHECK_LUT_IDLE);
+  this->enqueue_(OpType::CHECK_LUT_IDLE, zero_reads, zero_reads);
+}
+
+void IT8951Display::start_blank_() {
+  this->blank_pending_ = false;
+  this->update_started_at_ = millis();
+  // A full-screen GC16 of whatever image memory holds; in 1bpp mode with both
+  // grey levels white, that is white everywhere.
+  this->area_x_ = 0;
+  this->area_y_ = 0;
+  this->area_w_ = this->width_;
+  this->area_h_ = this->height_;
+  this->active_mode_ = UPDATE_MODE_GC16;
+  this->set_phase_(Phase::BLANK);
+  this->enable_loop();
+
+  this->enqueue_wake_if_asleep_();
+  this->enqueue_wait_lut_idle_();
+  this->enqueue_(OpType::CMD, TCON_REG_RD);
+  this->enqueue_(OpType::WRITE_W, static_cast<uint16_t>(UP1SR + 2));
+  this->enqueue_(OpType::READ_WORD);
+  this->enqueue_(OpType::BLANK_SAVE, 0);
+  this->enqueue_(OpType::CMD, TCON_REG_RD);
+  this->enqueue_(OpType::WRITE_W, BGVR);
+  this->enqueue_(OpType::READ_WORD);
+  this->enqueue_(OpType::BLANK_SAVE, 1);
+  this->enqueue_(OpType::BLANK_ENTER);
+  this->enqueue_(OpType::DPY_BUF_CMD);
+  this->enqueue_(OpType::DPY_BUF_ARGS);
+  // The registers must stay as they are until the waveform has really run.
+  this->enqueue_wait_lut_idle_(BLANK_IDLE_READS);
+  this->enqueue_(OpType::BLANK_RESTORE);
 }
 
 void IT8951Display::enqueue_update_refresh_() {
@@ -672,17 +727,47 @@ void IT8951Display::op_dpy_buf_args_() {
   this->spi_write_args_(args, 7);
 }
 
-void IT8951Display::op_check_lut_idle_() {
+void IT8951Display::op_check_lut_idle_(const Op &op) {
   ESP_LOGV(TAG, "Checking LUT idle, read_result_=0x%04X", this->read_result_);
-  // read_result_ holds LUTAFSR value from the preceding READ_WORD op.
+  // read_result_ holds LUTAFSR value from the preceding READ_WORD op. a is the
+  // number of zero reads still needed, b the number to start again from.
+  uint16_t remaining;
+  uint16_t delay_ms;
   if (this->read_result_ != 0) {
-    // LUT still busy — re-enqueue the full read sequence after a short delay.
-    this->prepend_(OpType::CHECK_LUT_IDLE, 0, 0);
-    this->prepend_(OpType::READ_WORD, 0, 0);
-    this->prepend_(OpType::WRITE_W, LUTAFSR, 0);
-    this->prepend_(OpType::CMD, TCON_REG_RD, 0);
-    this->prepend_(OpType::DELAY_MS, 5, 0);
+    // LUT still busy: read again shortly, and restart the zero-read count.
+    remaining = op.b;
+    delay_ms = 5;
+  } else if (op.a > 1) {
+    remaining = static_cast<uint16_t>(op.a - 1);
+    delay_ms = 20;
+  } else {
+    return;
   }
+  // Re-enqueue the full read sequence at the front, in reverse order.
+  this->prepend_(OpType::CHECK_LUT_IDLE, remaining, op.b);
+  this->prepend_(OpType::READ_WORD, 0, 0);
+  this->prepend_(OpType::WRITE_W, LUTAFSR, 0);
+  this->prepend_(OpType::CMD, TCON_REG_RD, 0);
+  this->prepend_(OpType::DELAY_MS, delay_ms, 0);
+}
+
+void IT8951Display::op_blank_enter_() {
+  // 1bpp display mode shows each pixel as one of the two grey levels in BGVR;
+  // with both white, the panel is driven white whatever image memory holds.
+  // Prepended in reverse order so they run before the display command.
+  const uint16_t white = this->invert_colors_ ? 0x0000 : 0xFFFF;
+  this->prepend_(OpType::WRITE_REG, BGVR, white);
+  this->prepend_(OpType::CMD, TCON_REG_WR, 0);
+  this->prepend_(OpType::WRITE_REG, static_cast<uint16_t>(UP1SR + 2),
+                 static_cast<uint16_t>(this->blank_saved_up1sr_ | (1U << 2)));
+  this->prepend_(OpType::CMD, TCON_REG_WR, 0);
+}
+
+void IT8951Display::op_blank_restore_() {
+  this->prepend_(OpType::WRITE_REG, BGVR, this->blank_saved_bgvr_);
+  this->prepend_(OpType::CMD, TCON_REG_WR, 0);
+  this->prepend_(OpType::WRITE_REG, static_cast<uint16_t>(UP1SR + 2), this->blank_saved_up1sr_);
+  this->prepend_(OpType::CMD, TCON_REG_WR, 0);
 }
 
 void IT8951Display::op_set_1bpp_() {
@@ -776,6 +861,10 @@ void IT8951Display::reset_dirty_region_() {
 }
 
 void IT8951Display::set_refresh_paused(bool paused, UpdateMode mode) {
+  if (mode == UPDATE_MODE_BLANK) {
+    ESP_LOGW(TAG, "BLANK can only be used with it8951.refresh");
+    mode = UPDATE_MODE_NONE;
+  }
   if (paused) {
     if (!this->refresh_paused_) {
       this->refresh_paused_ = true;
@@ -799,6 +888,17 @@ void IT8951Display::set_refresh_paused(bool paused, UpdateMode mode) {
 void IT8951Display::refresh_now(UpdateMode mode) {
   if (!this->initialised_)
     return;
+  if (mode == UPDATE_MODE_BLANK) {
+    // Leaves the pause, the paused request and the dirty region alone: they
+    // describe image memory, which BLANK does not touch.
+    if (this->phase_ == Phase::IDLE) {
+      this->start_blank_();
+    } else {
+      this->blank_pending_ = true;
+      this->enable_loop();
+    }
+    return;
+  }
   if (mode == UPDATE_MODE_NONE)
     mode = UPDATE_MODE_GC16;
   // Mark the whole panel dirty so prepare_update_region_ yields a full-screen
@@ -846,6 +946,10 @@ void IT8951Display::update() {
 }
 
 void IT8951Display::update_mode(UpdateMode mode) {
+  if (mode == UPDATE_MODE_BLANK) {
+    ESP_LOGW(TAG, "BLANK can only be used with it8951.refresh");
+    return;
+  }
   if (mode == UPDATE_MODE_NONE) {
     this->update();
     return;
@@ -871,6 +975,7 @@ void IT8951Display::recover_() {
            static_cast<unsigned>(this->phase_));
   this->queue_.clear();
   this->update_pending_ = false;
+  this->blank_pending_ = false;
   this->transfer_row_ = 0;
   this->initialised_ = false;
   this->dev_info_attempts_ = 0;

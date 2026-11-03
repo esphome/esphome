@@ -87,9 +87,20 @@ UPDATE_MODE_OPTIONS = {
     "FULL": UpdateMode.UPDATE_MODE_GC16,
     "DEFAULT": UpdateMode.UPDATE_MODE_NONE,
 }
-# Maps the YAML mode string directly to the C++ UpdateMode enum value, so the
-# config option and the it8951.update action share one validator.
-update_mode = cv.enum(UPDATE_MODE_OPTIONS, upper=True)
+# BLANK erases the panel without touching image memory. It is not a waveform
+# that shows memory, so only it8951.refresh accepts it.
+MODE_BLANK = "BLANK"
+REFRESH_MODE_OPTIONS = {**UPDATE_MODE_OPTIONS, MODE_BLANK: UpdateMode.UPDATE_MODE_BLANK}
+_update_mode_enum = cv.enum(UPDATE_MODE_OPTIONS, upper=True)
+refresh_mode = cv.enum(REFRESH_MODE_OPTIONS, upper=True)
+
+
+def update_mode(value: str) -> str:
+    """Validate a waveform mode that shows image memory (every mode except BLANK)."""
+    if isinstance(value, str) and value.upper() == MODE_BLANK:
+        raise cv.Invalid(f"'{MODE_BLANK}' can only be used with it8951.refresh")
+    return _update_mode_enum(value)
+
 
 # Transform flag values mirror the C++ TRANSFORM_* constants.
 _TRANSFORM_NONE = 0
@@ -495,7 +506,7 @@ automation.register_apply_action(
     automation.maybe_simple_id(
         {
             cv.Required(CONF_ID): cv.use_id(IT8951Display),
-            cv.Optional(CONF_MODE, default="DEFAULT"): cv.templatable(update_mode),
+            cv.Optional(CONF_MODE, default="DEFAULT"): cv.templatable(refresh_mode),
         }
     ),
     automation.ApplyField(CONF_MODE, "refresh_now", UpdateMode),
