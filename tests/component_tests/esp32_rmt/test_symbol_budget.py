@@ -1,4 +1,8 @@
-"""RMT budget check on full configs, with schema defaults and every component's FINAL_VALIDATE_SCHEMA."""
+"""RMT budget check on full configs.
+
+Channel errors come from every component's FINAL_VALIDATE_SCHEMA, the memory warning
+from code generation, which knows the order the components are set up in.
+"""
 
 from collections.abc import Callable
 import logging
@@ -10,6 +14,11 @@ from esphome.config import read_config
 from esphome.core import CORE
 
 Validate = Callable[[str], tuple[bool, list[str]]]
+Generate = Callable[[str], list[str]]
+
+
+def _rmt_lines(lines: list[str]) -> list[str]:
+    return [line.strip() for line in lines if "RMT" in line]
 
 
 @pytest.fixture
@@ -27,28 +36,53 @@ def validate(
         CORE.config_path = component_fixture_path(file_name)
         with caplog.at_level(logging.INFO):
             valid = read_config({}) is not None
-        output = caplog.messages + capsys.readouterr().out.splitlines()
-        return valid, [line.strip() for line in output if "RMT" in line]
+        return valid, _rmt_lines(caplog.messages + capsys.readouterr().out.splitlines())
 
     return run
 
 
-def test_default_strips_on_s2_warn(
-    validate: Validate,
-) -> None:
+@pytest.fixture
+def generate(
+    component_fixture_path: Callable[[str], Path],
+    generate_main: Callable[[str | Path], str],
+    caplog: pytest.LogCaptureFixture,
+) -> Generate:
+    """Validate a fixture and generate its code, return the RMT warnings of each step."""
+
+    def run(file_name: str) -> list[str]:
+        with caplog.at_level(logging.INFO):
+            generate_main(component_fixture_path(file_name))
+        return _rmt_lines(caplog.messages)
+
+    return run
+
+
+def test_validation_does_not_warn(validate: Validate) -> None:
+    """The warning depends on the setup order, so validation alone does not show it."""
+    assert validate("s2_two_default_strips.yaml") == (True, [])
+
+
+def test_default_strips_on_s2_warn(generate: Generate) -> None:
     """Two strips at the default 192 symbols need 6 of the 4 shared S2 blocks."""
-    valid, messages = validate("s2_two_default_strips.yaml")
-    assert valid
+    messages = generate("s2_two_default_strips.yaml")
     assert len(messages) == 1
     assert "'Status LEDs' (192), 'NeoPixel Port' (192)" in messages[0]
     assert "Set 'rmt_symbols: 128'" in messages[0]
 
 
-def test_fitting_strips_and_receiver_on_c6_pass(
-    validate: Validate,
-) -> None:
+def test_fitting_strips_and_receiver_on_c6_pass(generate: Generate) -> None:
     """Two strips at 48 symbols fill the two C6 TX blocks; the receiver uses RX blocks."""
-    assert validate("c6_two_strips_and_receiver_fit.yaml") == (True, [])
+    assert generate("c6_two_strips_and_receiver_fit.yaml") == []
+
+
+def test_large_strip_first_on_c6_warns(generate: Generate) -> None:
+    """96 then 48 symbols on C6 fails on hardware: the second strip gets no channel."""
+    messages = generate("c6_large_strip_first.yaml")
+    assert len(messages) == 1
+    assert "'Strip 1' will not fit: 'Strip 0' (96), 'Strip 1' (48)" in messages[0]
+    assert (
+        "or set 'setup_priority' so the smaller ones are set up first" in (messages[0])
+    )
 
 
 @pytest.mark.parametrize(
@@ -97,18 +131,13 @@ def test_new_variant_gets_its_own_default(
     assert config["light"][0]["rmt_symbols"] == 192
 
 
-def test_strip_is_set_up_before_transmitter(
-    validate: Validate,
-) -> None:
+def test_strip_is_set_up_before_transmitter(generate: Generate) -> None:
     """The order comes from the setup priorities, not from the order in the config."""
-    valid, messages = validate("s3_transmitter_before_strip.yaml")
-    assert valid
+    messages = generate("s3_transmitter_before_strip.yaml")
     assert len(messages) == 1
     assert "'ir' will not fit: 'strip' (192), 'ir' (48)" in messages[0]
 
 
-def test_large_strip_after_small_one_fits(
-    validate: Validate,
-) -> None:
+def test_large_strip_after_small_one_fits(generate: Generate) -> None:
     """Without receivers the second strip can use the RX blocks."""
-    assert validate("s3_small_strip_first.yaml") == (True, [])
+    assert generate("s3_small_strip_first.yaml") == []

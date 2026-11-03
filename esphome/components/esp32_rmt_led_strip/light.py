@@ -138,6 +138,7 @@ async def to_code(config: ConfigType) -> None:
     var = cg.new_Pvariable(config[CONF_OUTPUT_ID])
     await light.register_light(var, config)
     await cg.register_component(var, config)
+    esp32_rmt.register_rmt_channel(config)
 
     cg.add(var.set_num_leds(config[CONF_NUM_LEDS]))
     cg.add(var.set_pin(config[CONF_PIN][CONF_NUMBER]))

@@ -175,6 +175,7 @@ async def to_code(config: ConfigType) -> None:
         var = cg.new_Pvariable(config[CONF_ID], pin)
         cg.add_optional(var.set_non_blocking, config.get(CONF_NON_BLOCKING))
     await cg.register_component(var, config)
+    esp32_rmt.register_rmt_channel(config)
 
     cg.add(var.set_carrier_duty_percent(config[CONF_CARRIER_DUTY_PERCENT]))
 

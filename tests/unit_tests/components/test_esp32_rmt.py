@@ -1,4 +1,8 @@
-"""Tests for the ESP32 RMT channel and memory budget check."""
+"""Tests for the ESP32 RMT channel and memory budget check.
+
+Channel errors come from final validation; the memory warning comes from code
+generation, where the order the components are set up in is known.
+"""
 
 from collections.abc import Callable
 import logging
@@ -42,7 +46,8 @@ import esphome.final_validate as fv
 # Entries of RMT components, by direction
 Config = dict[str, list[dict[str, Any]]]
 
-# Setup priority of the test entries; the same for all, so they are set up in order
+# Setup priority of the test entries; the same for all, so they are set up in the
+# order they are registered
 PRIORITY = 600.0
 
 # Runs the check for a variant against the entries, returns the RMT warnings
@@ -63,7 +68,7 @@ def _set_variant(variant: str, platform: str = PLATFORM_ESP32) -> None:
     CORE.data.pop(esp32_rmt.DOMAIN, None)
 
 
-def _run(config: Config) -> None:
+def _validate(config: Config) -> None:
     """Validate the entries like ESPHome does: all schemas first, then final validation."""
     for direction, entries in config.items():
         for entry in entries:
@@ -73,14 +78,28 @@ def _run(config: Config) -> None:
             esp32_rmt.final_validate_rmt_channels(entry)
 
 
+def _generate(entries: list[dict[str, Any]]) -> None:
+    """Register the entries in this order like their to_code does, then run the jobs."""
+    for entry in entries:
+        esp32_rmt.register_rmt_channel(entry)
+    CORE.flush_tasks()
+
+
+def _rmt_messages(caplog: pytest.LogCaptureFixture) -> list[str]:
+    return [r.getMessage() for r in caplog.records if "RMT" in r.getMessage()]
+
+
 @pytest.fixture
 def run_check(caplog: pytest.LogCaptureFixture) -> CheckRunner:
+    """Validate the entries, then generate code with them registered in config order."""
+
     def run(variant: str, config: Config, platform: str = PLATFORM_ESP32) -> list[str]:
         _set_variant(variant, platform)
         caplog.clear()
         with caplog.at_level(logging.WARNING):
-            _run(config)
-        return [r.getMessage() for r in caplog.records if "RMT" in r.getMessage()]
+            _validate(config)
+            _generate([entry for entries in config.values() for entry in entries])
+        return _rmt_messages(caplog)
 
     return run
 
@@ -222,60 +241,28 @@ def test_order_of_transmitters_decides(
         assert f"'{fails}' will not fit" in messages[0]
 
 
-def test_same_priority_warns_when_an_order_does_not_fit(
-    run_check: CheckRunner,
-) -> None:
-    """C++ may register components of the same priority in another order than the config."""
-    messages = run_check(VARIANT_ESP32S3, _strips(48, 288))
+def test_registration_order_decides(caplog: pytest.LogCaptureFixture) -> None:
+    """Components of the same priority are set up in the order to_code registers them."""
+    _set_variant(VARIANT_ESP32S3)
+    small, large = _strips(48, 288)["TX"]
+    with caplog.at_level(logging.WARNING):
+        _validate({"TX": [small, large]})
+        # Registered the other way round than in the config
+        _generate([large, small])
+    messages = _rmt_messages(caplog)
     assert len(messages) == 1
     assert (
-        "in another order than the config, and then 'strip0' will not fit"
-        in messages[0]
+        "in the order ESPHome sets up these components, 'strip0' will not fit: "
+        "'strip1' (288), 'strip0' (48)" in messages[0]
     )
     assert (
-        "Set 'rmt_symbols: 96' on 'strip1', or set 'setup_priority' so they are set "
-        "up in an order that fits." in messages[0]
+        "Set 'rmt_symbols: 96' on 'strip1', or set 'setup_priority' so the smaller "
+        "ones are set up first." in messages[0]
     )
 
 
-def _run_one_platform(variant: str, *symbols: int) -> None:
-    """Entries of one platform share one validator, like two strips in one light: list."""
-    _set_variant(variant)
-    validate = esp32_rmt.request_rmt_channel("TX", PRIORITY)
-    entries = [_entry(f"strip{i}", value) for i, value in enumerate(symbols)]
-    for entry in entries:
-        validate(entry)
-    for entry in entries:
-        esp32_rmt.final_validate_rmt_channels(entry)
-
-
-def test_one_platform_keeps_config_order(caplog: pytest.LogCaptureFixture) -> None:
-    """C++ registers entries of one platform in config order, so no other order is checked."""
-    with caplog.at_level(logging.WARNING):
-        _run_one_platform(VARIANT_ESP32C6, 48, 96)
-    assert not [r for r in caplog.records if "RMT" in r.getMessage()]
-
-
-def test_one_platform_still_suggests_setup_priority(
-    caplog: pytest.LogCaptureFixture,
-) -> None:
-    """setup_priority can reorder entries of one platform, so it is still suggested."""
-    with caplog.at_level(logging.WARNING):
-        _run_one_platform(VARIANT_ESP32C6, 96, 48)
-    messages = [r.getMessage() for r in caplog.records if "RMT" in r.getMessage()]
-    assert len(messages) == 1
-    assert (
-        "in the order ESPHome sets up these components, 'strip1' will not fit"
-        in (messages[0])
-    )
-    assert (
-        "or set 'setup_priority' so they are set up in an order that fits"
-        in (messages[0])
-    )
-
-
-def test_same_priority_fails_in_config_order(run_check: CheckRunner) -> None:
-    """When the config order fails but another fits, the config order failure is not a "may"."""
+def test_large_strip_first_on_c6_warns(run_check: CheckRunner) -> None:
+    """96 then 48 symbols on C6: the first strip takes both TX channels (hardware tested)."""
     messages = run_check(VARIANT_ESP32C6, _strips(96, 48))
     assert len(messages) == 1
     assert (
@@ -283,13 +270,17 @@ def test_same_priority_fails_in_config_order(run_check: CheckRunner) -> None:
         in messages[0]
     )
     assert (
-        "or set 'setup_priority' so they are set up in an order that fits"
-        in (messages[0])
+        "or set 'setup_priority' so the smaller ones are set up first" in (messages[0])
     )
 
 
-def test_same_priority_in_every_order_will_not_fit(run_check: CheckRunner) -> None:
-    """When no order fits, the component that fails in the config order is named."""
+def test_small_strip_first_on_c6_fits(run_check: CheckRunner) -> None:
+    """48 then 96 symbols on C6: the second strip extends into the RX blocks."""
+    assert not run_check(VARIANT_ESP32C6, _strips(48, 96))
+
+
+def test_no_order_fits(run_check: CheckRunner) -> None:
+    """When no order fits, setup_priority is not suggested."""
     messages = run_check(VARIANT_ESP32S2, _strips(192, 192))
     assert (
         "in the order ESPHome sets up these components, 'strip1' will not"
@@ -500,18 +491,6 @@ def test_error_raised_when_ids_are_copies() -> None:
         )
 
 
-def test_error_raised_from_last_component_without_a_match() -> None:
-    """An error is never dropped, even if no component finds its own id in it."""
-    _set_variant(VARIANT_ESP32C3)
-    for i in range(3):
-        esp32_rmt.request_rmt_channel("TX", PRIORITY)(_entry(f"tx{i}", 48))
-    others = [_entry(f"other{i}", 48) for i in range(3)]
-    esp32_rmt.final_validate_rmt_channels(others[0])
-    esp32_rmt.final_validate_rmt_channels(others[1])
-    with pytest.raises(cv.Invalid, match="ESP32C3 has 2 RMT channels for TX"):
-        esp32_rmt.final_validate_rmt_channels(others[2])
-
-
 @pytest.mark.parametrize(
     ("platform", "variant"),
     [
@@ -536,15 +515,17 @@ def test_not_checked_in_testing_mode(
     assert not run_check(VARIANT_ESP32C3, _strips(96, 96, 96))
 
 
-def test_check_runs_once(
-    run_check: CheckRunner, caplog: pytest.LogCaptureFixture
+def test_warning_comes_from_code_generation(
+    caplog: pytest.LogCaptureFixture,
 ) -> None:
-    """Every RMT component calls the check; it warns once per config."""
-    run_check(VARIANT_ESP32S3, _strips(192, 192))
-    caplog.clear()
+    """Validation alone does not warn; code generation warns once."""
+    _set_variant(VARIANT_ESP32S3)
+    strips = _strips(192, 192)["TX"]
     with caplog.at_level(logging.WARNING):
-        esp32_rmt.final_validate_rmt_channels({})
-    assert not caplog.records
+        _validate({"TX": strips})
+        assert not _rmt_messages(caplog)
+        _generate(strips)
+    assert len(_rmt_messages(caplog)) == 1
 
 
 @pytest.mark.parametrize(

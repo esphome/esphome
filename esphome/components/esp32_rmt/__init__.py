@@ -1,6 +1,5 @@
 from collections.abc import Callable, Iterable
 from dataclasses import dataclass, field
-from itertools import groupby, permutations, product
 import logging
 from typing import Any, Literal
 
@@ -14,6 +13,7 @@ from esphome.const import (
     CONF_USE_DMA,
 )
 from esphome.core import CORE, ID
+from esphome.coroutine import CoroPriority, coroutine_with_priority
 import esphome.final_validate as fv
 from esphome.types import ConfigType
 
@@ -71,7 +71,7 @@ _IDF_ERRORS: dict[str, str] = {
 }
 
 
-@dataclass
+@dataclass(eq=False)
 class _Channel:
     id: ID
     name: str | None
@@ -79,8 +79,8 @@ class _Channel:
     symbols: int
     dma: bool
     setup_priority: float
-    # The request_rmt_channel() call of the channel's platform, whose entries C++ registers in config order
-    platform: object
+    # Set in final validation, where the config path of a generated id is known
+    label: str = ""
 
     def blocks(self, size: int) -> int:
         """Blocks the driver allocates: rmt_symbols rounded up, one for a DMA channel."""
@@ -111,8 +111,8 @@ class ESP32RMTData:
     channels: list[_Channel] = field(default_factory=list)
     checked: bool = False
     errors: list[_Error] = field(default_factory=list)
-    # RMT components whose final validation has run
-    validated: int = 0
+    # IDs of the RMT components in the order code generation registers them
+    registered: list[ID] = field(default_factory=list)
 
 
 def _get_data() -> ESP32RMTData:
@@ -147,9 +147,9 @@ def request_rmt_channel(
     FINAL_VALIDATE_SCHEMA = esp32_rmt.final_validate_rmt_channels in the same component.
     The entry needs an id and rmt_symbols on every variant with RMT; use_dma is optional.
     setup_priority is the component's get_setup_priority() in C++, which creates the
-    channel in setup(); the entry's setup_priority overrides it.
+    channel in setup(); the entry's setup_priority overrides it. Call
+    register_rmt_channel() in to_code.
     """
-    platform = object()
 
     def _validator(config: ConfigType) -> ConfigType:
         if (memory := _get_memory()) is None:
@@ -183,7 +183,6 @@ def request_rmt_channel(
                 symbols,
                 dma,
                 config.get(CONF_SETUP_PRIORITY, setup_priority),
-                platform,
             )
         )
         return config
@@ -192,7 +191,7 @@ def request_rmt_channel(
 
 
 def _labels(channels: list[_Channel]) -> str:
-    return ", ".join(f"'{_label(channel)}'" for channel in channels)
+    return ", ".join(f"'{channel.label}'" for channel in channels)
 
 
 def _check_pool(direction: str, channels: list[_Channel], blocks: int) -> _Error | None:
@@ -218,54 +217,6 @@ def _check_pool(direction: str, channels: list[_Channel], blocks: int) -> _Error
             CONF_USE_DMA,
         )
     return None
-
-
-def _setup_order(channels: list[_Channel]) -> list[_Channel]:
-    """Components are set up by priority, in the order they are in the config when it is
-    the same (a stable sort, like Application::setup())."""
-    return sorted(channels, key=lambda channel: -channel.setup_priority)
-
-
-def _orders_of(
-    channels: list[_Channel], size: int, keep_platform_order: bool
-) -> list[list[_Channel]]:
-    """Every order of the channels that the allocator can tell apart.
-
-    With keep_platform_order, entries of one platform keep their config order, as C++ registers them.
-    """
-    rank = {id(c): i for i, c in enumerate(channels)}
-
-    def keeps_platform_order(order: tuple[_Channel, ...]) -> bool:
-        last: dict[int, int] = {}
-        for c in order:
-            if last.get(id(c.platform), -1) > rank[id(c)]:
-                return False
-            last[id(c.platform)] = rank[id(c)]
-        return True
-
-    orders: dict[tuple[tuple[str, int, bool], ...], list[_Channel]] = {}
-    for order in permutations(channels):
-        if keep_platform_order and not keeps_platform_order(order):
-            continue
-        key = tuple((c.direction, c.blocks(size), c.dma) for c in order)
-        orders.setdefault(key, list(order))
-    return list(orders.values())
-
-
-def _possible_setup_orders(
-    channels: list[_Channel], size: int, keep_platform_order: bool = True
-) -> list[list[_Channel]]:
-    """Every order the channels, given in setup order, may be set up in, that order first.
-
-    Components with the same setup priority are set up in the order C++ registers them,
-    which is not always the config order: one that waits for another component in
-    to_code() is registered later.
-    """
-    groups = [
-        _orders_of(list(group), size, keep_platform_order)
-        for _, group in groupby(channels, key=lambda channel: channel.setup_priority)
-    ]
-    return [[c for order in orders for c in order] for orders in product(*groups)]
 
 
 def _allocate(memory: RMTMemory, channels: list[_Channel]) -> list[_Channel]:
@@ -297,6 +248,18 @@ def _allocate(memory: RMTMemory, channels: list[_Channel]) -> list[_Channel]:
     return failed
 
 
+def _pools(
+    memory: RMTMemory, channels: list[_Channel]
+) -> list[tuple[str, list[_Channel], int]]:
+    """The channel pools of the variant: direction, its channels and its blocks."""
+    if memory.rx_blocks is None:
+        return [("TX/RX", channels, memory.tx_blocks)]
+    return [
+        (direction, [c for c in channels if c.direction == direction], blocks)
+        for direction, blocks in (("TX", memory.tx_blocks), ("RX", memory.rx_blocks))
+    ]
+
+
 def _suggestions(
     memory: RMTMemory, pools: list[tuple[str, list[_Channel], int]]
 ) -> list[str]:
@@ -313,95 +276,83 @@ def _suggestions(
     return suggestions
 
 
-def _check_budget(memory: RMTMemory, channels: list[_Channel]) -> list[_Error]:
-    channels = _setup_order(channels)
-    if memory.rx_blocks is None:
-        pools = [("TX/RX", channels, memory.tx_blocks)]
-    else:
-        pools = [
-            (direction, [c for c in channels if c.direction == direction], blocks)
-            for direction, blocks in (
-                ("TX", memory.tx_blocks),
-                ("RX", memory.rx_blocks),
-            )
-        ]
-    errors = [error for pool in pools if (error := _check_pool(*pool)) is not None]
-    if errors:
-        return errors
-    # The first result is the config order's
-    results = [
-        _allocate(memory, order)
-        for order in _possible_setup_orders(channels, memory.symbols_per_block)
-    ]
-    if not any(results):
-        return []
-    fix = ""
-    # setup_priority can also reorder entries of one platform
-    size = memory.symbols_per_block
-    if not all(results) or not all(
-        _allocate(memory, order)
-        for order in _possible_setup_orders(channels, size, keep_platform_order=False)
-    ):
-        fix = (
-            f", or set '{CONF_SETUP_PRIORITY}' so they are set up in an order that fits"
-        )
-    if failed := results[0]:
-        # Name the components that fail in the config order
-        problem = "in the order ESPHome sets up these components, {} will not fit"
-    else:
-        failed = [c for c in channels if any(c in f for f in results)]
-        problem = (
-            "ESPHome may set up components with the same setup priority in another "
-            "order than the config, and then {} will not fit"
-        )
-    usage = ", ".join(
-        f"'{_label(channel)}' ({'DMA' if channel.dma else channel.symbols})"
-        for channel in channels
-    )
-    _LOGGER.warning(
-        "RMT memory on %s holds %d blocks of %d symbols, but %s: %s. Set %s%s. "
-        "Otherwise ESP-IDF logs %s at boot, and ESPHome logs 'Channel creation failed' "
-        "or 'out of RMT symbol memory'.",
-        esp32.get_esp32_variant(),
-        memory.total_blocks,
-        memory.symbols_per_block,
-        problem.format(_labels(failed)),
-        usage,
-        " and ".join(_suggestions(memory, pools)),
-        fix,
-        " or ".join(sorted({_IDF_ERRORS[channel.direction] for channel in failed})),
-    )
-    return errors
-
-
 def final_validate_rmt_channels(config: ConfigType) -> None:
     """FINAL_VALIDATE_SCHEMA of the components that use request_rmt_channel().
 
-    Fails when the RMT components cannot all get a channel, warns when they request more
-    memory than the chip has. The check runs once; its errors are raised from the first
-    component that causes one, since final validation stops after the first error, and
-    from the last RMT component if none of them matched.
+    Fails when the RMT components cannot all get a channel. The check runs once; its
+    errors are raised together from the first component named in one of them, since
+    final validation stops after the first error. Whether the channels fit in the RMT
+    memory depends on the setup order, which is only known in code generation.
     """
     data = _get_data()
     if not data.checked:
         data.checked = True
+        for channel in data.channels:
+            channel.label = _label(channel)
         # Skip in testing mode, where component grouping merges the RMT components of many tests
         if not CORE.testing_mode and (memory := _get_memory()) is not None:
-            data.errors = _check_budget(memory, data.channels)
-    if not data.errors:
-        return
+            data.errors = [
+                error
+                for pool in _pools(memory, data.channels)
+                if (error := _check_pool(*pool)) is not None
+            ]
     own_id = config.get(CONF_ID)
-    data.validated += 1
-    for error in data.errors:
-        if any(channel.id == own_id for channel in error.channels):
-            # Errors of other components are not shown on this component's key
-            key = error.key if len(data.errors) == 1 else None
-            raise cv.Invalid(
-                "\n".join(error.message for error in data.errors),
-                path=[key] if key else [],
-            )
-    if data.validated >= len(data.channels):
-        raise cv.Invalid("\n".join(error.message for error in data.errors))
+    if not any(c.id == own_id for error in data.errors for c in error.channels):
+        return
+    # Errors of other components are not shown on this component's key
+    key = data.errors[0].key if len(data.errors) == 1 else None
+    raise cv.Invalid(
+        "\n".join(error.message for error in data.errors),
+        path=[key] if key else [],
+    )
+
+
+def register_rmt_channel(config: ConfigType) -> None:
+    """Record the setup order of a component that uses request_rmt_channel().
+
+    Call it in to_code right after cg.register_component(): C++ sets up components of
+    the same priority in the order they are registered.
+    """
+    data = _get_data()
+    if not data.registered:
+        CORE.add_job(_check_memory)
+    data.registered.append(config[CONF_ID])
+
+
+@coroutine_with_priority(CoroPriority.FINAL)
+async def _check_memory() -> None:
+    """Warn when the RMT channels, allocated in setup order, do not fit in the RMT memory."""
+    data = _get_data()
+    if CORE.testing_mode or (memory := _get_memory()) is None:
+        return
+    # Application::setup() sorts the components by priority with a stable sort
+    rank = {channel_id: i for i, channel_id in enumerate(data.registered)}
+    channels = sorted(data.channels, key=lambda c: rank.get(c.id, len(rank)))
+    channels.sort(key=lambda channel: -channel.setup_priority)
+    if not (failed := _allocate(memory, channels)):
+        return
+    fix = ""
+    size = memory.symbols_per_block
+    if not _allocate(memory, sorted(channels, key=lambda c: c.blocks(size))):
+        fix = f", or set '{CONF_SETUP_PRIORITY}' so the smaller ones are set up first"
+    usage = ", ".join(
+        f"'{channel.label}' ({'DMA' if channel.dma else channel.symbols})"
+        for channel in channels
+    )
+    _LOGGER.warning(
+        "RMT memory on %s holds %d blocks of %d symbols, but in the order ESPHome sets "
+        "up these components, %s will not fit: %s. Set %s%s. Otherwise ESP-IDF logs %s "
+        "at boot, and ESPHome logs 'Channel creation failed' or 'out of RMT symbol "
+        "memory'.",
+        esp32.get_esp32_variant(),
+        memory.total_blocks,
+        size,
+        _labels(failed),
+        usage,
+        " and ".join(_suggestions(memory, _pools(memory, channels))),
+        fix,
+        " or ".join(sorted({_IDF_ERRORS[channel.direction] for channel in failed})),
+    )
 
 
 def validate_rmt_not_supported(

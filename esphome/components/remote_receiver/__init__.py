@@ -236,6 +236,7 @@ async def to_code(config: ConfigType) -> None:
     for trigger in triggers:
         remote_base.add_listener(var, trigger)
     await cg.register_component(var, config)
+    esp32_rmt.register_rmt_channel(config)
 
     cg.add(
         var.set_tolerance(
