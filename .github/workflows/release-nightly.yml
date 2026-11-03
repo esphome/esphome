@@ -22,7 +22,7 @@ jobs:
       actions: write  # gh workflow run starts release.yml
     steps:
       - name: Check out the repository
-        uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
+        uses: actions/checkout@v7.0.1
 
       - name: Start the release workflow
         env:
