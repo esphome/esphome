@@ -12,6 +12,8 @@ static constexpr uint8_t IOCON_MASK = IOCON_ODR | IOCON_MIRROR;
 void MCP23017::setup() {
   // Mirror INTA/INTB so either pin fires for changes on any port
   const uint8_t iocon = (this->open_drain_ints_ ? IOCON_ODR : 0) | (this->interrupt_pin_ != nullptr ? IOCON_MIRROR : 0);
+  // In BANK=0 IOCONB is likely the same register as IOCONA. Both are kept until hardware testing shows
+  // the IOCONB update can be dropped.
   if (!this->setup_check(this->update_register(mcp23x17_base::MCP23X17_IOCONA, IOCON_MASK, iocon) &&
                          this->update_register(mcp23x17_base::MCP23X17_IOCONB, IOCON_MASK, iocon)))
     return;
