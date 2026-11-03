@@ -228,10 +228,10 @@ void SpeakerMediaPlayer::watch_media_commands_() {
             this->preparing_announcement_ = false;
             if (media_command.file.has_value()) {
               this->mark_preconnect_stream_pending_();
-              this->announcement_pipeline_->start_file(playlist_item.file.value());
+              this->announcement_pipeline_->start_file(playlist_item.file.value(), playlist_item.is_announcement);
             } else if (media_command.url.has_value()) {
               this->mark_preconnect_stream_pending_();
-              this->announcement_pipeline_->start_url(playlist_item.url.value());
+              this->announcement_pipeline_->start_url(playlist_item.url.value(), playlist_item.is_announcement);
             }
           }
           this->announcement_pipeline_->set_pause_state(false);
@@ -516,10 +516,10 @@ void SpeakerMediaPlayer::loop() {
                                                   this->volume, this->speaker_volume_applier_());
           if (playlist_item.url.has_value()) {
             this->mark_preconnect_stream_pending_();
-            this->announcement_pipeline_->start_url(playlist_item.url.value());
+            this->announcement_pipeline_->start_url(playlist_item.url.value(), playlist_item.is_announcement);
           } else if (playlist_item.file.has_value()) {
             this->mark_preconnect_stream_pending_();
-            this->announcement_pipeline_->start_file(playlist_item.file.value());
+            this->announcement_pipeline_->start_file(playlist_item.file.value(), playlist_item.is_announcement);
           }
 
           if (timeout_ms > 0) {
