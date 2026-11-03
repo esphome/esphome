@@ -36,13 +36,16 @@ sim800l:
   uart_id: mock_uart
   # No polling, so only the injected lines move the state machine
   update_interval: never
+  # Two automations, so two listeners each get the strings
   on_sms_received:
-    - logger.log:
-        format: "on_sms_received A sender=%s message=%s"
-        args: [sender.c_str(), message.c_str()]
-    - logger.log:
-        format: "on_sms_received B sender=%s message=%s"
-        args: [sender.c_str(), message.c_str()]
+    - then:
+        - logger.log:
+            format: "on_sms_received A sender=%s message=%s"
+            args: [sender.c_str(), message.c_str()]
+    - then:
+        - logger.log:
+            format: "on_sms_received B sender=%s message=%s"
+            args: [sender.c_str(), message.c_str()]
   on_incoming_call:
     - logger.log:
         format: "on_incoming_call caller_id=%s"
