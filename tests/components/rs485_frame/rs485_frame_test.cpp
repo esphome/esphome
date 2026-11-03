@@ -16,18 +16,27 @@ class RS485FrameHubProbe : public RS485FrameHub {
   uint16_t crc_for_test(const std::vector<uint8_t> &data, bool include_header) const {
     return this->calculate_crc_(data.data(), data.size(), include_header);
   }
-  void build_frame_for_test(const std::vector<uint8_t> &payload, std::vector<uint8_t> &out) {
-    this->build_frame_(payload, out);
+  std::vector<uint8_t> build_frame_for_test(const std::vector<uint8_t> &payload) const {
+    std::vector<uint8_t> out(payload.size() * 2 + FRAME_OVERHEAD_BYTES);
+    out.resize(this->build_frame_(payload.data(), payload.size(), out.data()));
+    return out;
   }
   void feed_for_test(const std::vector<uint8_t> &bytes) {
     for (uint8_t b : bytes)
       this->handle_rx_byte_(b, 0);
   }
-  const std::vector<uint8_t> &rx_payload_for_test() const { return this->rx_payload_; }
+  std::vector<uint8_t> rx_payload_for_test() const {
+    return {this->rx_payload_.get(), this->rx_payload_.get() + this->rx_payload_len_};
+  }
   size_t queue_depth_for_test() const { return this->tx_queue_count_; }
+  std::vector<uint8_t> queued_frame_for_test(size_t i) const {
+    const size_t index = (this->tx_queue_head_ + i) % this->max_queue_size_;
+    const uint8_t *slot = this->tx_slot_(index);
+    return {slot, slot + this->tx_queue_len_[index]};
+  }
   // Counts the frames delivered to on_frame callbacks.
   void count_frames() {
-    this->add_on_frame_callback([this](const std::vector<uint8_t> &) { this->frames++; });
+    this->add_on_frame_callback([this](std::span<const uint8_t>) { this->frames++; });
   }
   uint32_t frames{0};
 };
@@ -117,10 +126,7 @@ TEST(RS485FrameHubTest, RxFramerRoundTripsBuiltFrames) {
       hub.count_frames();
 
       const std::vector<uint8_t> payload = {0x01, 0x02, 0x10, 0x03, 0x10, 0x10, 0x02};
-      std::vector<uint8_t> frame;
-      frame.reserve(64);
-      hub.build_frame_for_test(payload, frame);
-      hub.feed_for_test(frame);
+      hub.feed_for_test(hub.build_frame_for_test(payload));
 
       EXPECT_EQ(hub.frames, 1u) << "escape " << int(escape_marker) << " type " << type;
       EXPECT_EQ(hub.rx_payload_for_test(), payload);
@@ -159,9 +165,49 @@ TEST(RS485FrameHubTest, QueueFrameFramesAndQueues) {
   EXPECT_TRUE(hub.queue_frame(DATA, sizeof(DATA)));
   EXPECT_EQ(hub.queue_depth_for_test(), 1u);
 
+  EXPECT_EQ(hub.queued_frame_for_test(0), hub.build_frame_for_test({0x01, 0x10, 0x02}));
+
   // replace_latest: a second frame replaces the first.
-  EXPECT_TRUE(hub.queue_raw_frame({0x01, 0x02}, {0x03}));
+  static const uint8_t TYPE[] = {0x01, 0x02};
+  static const uint8_t PAYLOAD[] = {0x03};
+  EXPECT_TRUE(hub.queue_raw_frame(TYPE, PAYLOAD));
   EXPECT_EQ(hub.queue_depth_for_test(), 1u);
+  EXPECT_EQ(hub.queued_frame_for_test(0), hub.build_frame_for_test({0x01, 0x02, 0x03}));
+}
+
+// A max-length payload of DLE bytes doubles in size; framing it in place from the end of its
+// slot must produce the same frame as framing it from a separate buffer.
+TEST(RS485FrameHubTest, QueueFrameFramesWorstCaseInPlace) {
+  for (uint8_t escape_marker : {uint8_t{0x00}, uint8_t{0x10}}) {
+    RS485FrameHubProbe hub;
+    hub.set_framing(0x10, 0x02, 0x03, escape_marker);
+    hub.set_crc_type(CRC_TYPE_SUM16_BIG_ENDIAN);
+    hub.set_max_frame_length(8);
+    hub.setup();
+    static const uint8_t DATA[8] = {0x10, 0x10, 0x10, 0x10, 0x10, 0x10, 0x10, 0x10};
+
+    EXPECT_TRUE(hub.queue_frame(DATA, sizeof(DATA)));
+    const auto expected = hub.build_frame_for_test(std::vector<uint8_t>(DATA, DATA + sizeof(DATA)));
+    EXPECT_EQ(expected.size(), 2 * sizeof(DATA) + 6u);
+    EXPECT_EQ(hub.queued_frame_for_test(0), expected);
+  }
+}
+
+TEST(RS485FrameHubTest, FifoQueueKeepsOrderAndDropsWhenFull) {
+  RS485FrameHubProbe hub;
+  hub.set_crc_type(CRC_TYPE_NONE);
+  hub.set_queue_policy(QUEUE_FIFO);
+  hub.set_max_queue_size(2);
+  hub.setup();
+  static const uint8_t FIRST[] = {0x01, 0x01};
+  static const uint8_t SECOND[] = {0x01, 0x02, 0x10};
+
+  EXPECT_TRUE(hub.queue_frame(FIRST, sizeof(FIRST)));
+  EXPECT_TRUE(hub.queue_frame(SECOND, sizeof(SECOND)));
+  EXPECT_FALSE(hub.queue_frame(FIRST, sizeof(FIRST)));
+  EXPECT_EQ(hub.queue_depth_for_test(), 2u);
+  EXPECT_EQ(hub.queued_frame_for_test(0), hub.build_frame_for_test({0x01, 0x01}));
+  EXPECT_EQ(hub.queued_frame_for_test(1), hub.build_frame_for_test({0x01, 0x02, 0x10}));
 }
 
 TEST(RS485FrameHubTest, QueueFrameDropsOverlongAndSnifferFrames) {
@@ -183,13 +229,10 @@ TEST(RS485FrameHubTest, FrameCallbackReceivesPayload) {
   hub.set_crc_type(CRC_TYPE_XOR8);
   hub.setup();
   std::vector<uint8_t> received;
-  hub.add_on_frame_callback([&](const std::vector<uint8_t> &payload) { received = payload; });
+  hub.add_on_frame_callback([&](std::span<const uint8_t> payload) { received.assign(payload.begin(), payload.end()); });
 
   const std::vector<uint8_t> payload = {0x01, 0x03, 0x41};
-  std::vector<uint8_t> frame;
-  frame.reserve(32);
-  hub.build_frame_for_test(payload, frame);
-  hub.feed_for_test(frame);
+  hub.feed_for_test(hub.build_frame_for_test(payload));
 
   EXPECT_EQ(received, payload);
   static const uint8_t PREFIX[] = {0x01, 0x03};

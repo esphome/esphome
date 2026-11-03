@@ -281,7 +281,13 @@ async def to_code(config: ConfigType) -> None:
     tx = config[CONF_TX]
     gate = tx[CONF_GATE]
     cg.add(var.set_tx_gate_mode(TX_GATE_MODES[gate[CONF_MODE]]))
-    cg.add(var.set_tx_gate_frame_type(gate.get(CONF_FRAME_TYPE, [])))
+    gate_frame_type = gate.get(CONF_FRAME_TYPE, [])
+    cg.add(
+        var.set_tx_gate_frame_type(
+            automation.progmem_bytes(f"{config[CONF_ID]}_frame_type", gate_frame_type),
+            len(gate_frame_type),
+        )
+    )
     cg.add(var.set_tx_gate_delay(gate[CONF_DELAY].total_milliseconds))
     cg.add(var.set_tx_idle_gap(gate[CONF_MIN_SILENCE].total_milliseconds))
     cg.add(var.set_tx_fixed_interval(gate[CONF_INTERVAL].total_milliseconds))
@@ -292,7 +298,7 @@ async def to_code(config: ConfigType) -> None:
     cg.add(var.set_max_frame_length(config[CONF_MAX_FRAME_LENGTH]))
     cg.add(var.set_in_frame_timeout(config[CONF_FRAME_TIMEOUT].total_milliseconds))
 
-    payload_type = cg.std_vector.template(cg.uint8).operator("const").operator("ref")
+    payload_type = cg.std_span.template(cg.uint8.operator("const"))
     for conf in config.get(CONF_ON_FRAME, []):
         checks = [
             f"rs485_frame::frame_has_prefix(payload, "
@@ -309,6 +315,13 @@ async def to_code(config: ConfigType) -> None:
         )
 
 
+def _progmem_span(config: ConfigType, value: list[int]) -> str:
+    if not value:
+        return "{}"
+    table = automation.progmem_bytes(f"{config[CONF_ID]}_send", value)
+    return f"std::span<const uint8_t>({table}, {len(value)})"
+
+
 automation.register_apply_action(
     "rs485_frame.send_frame",
     cv.Schema(
@@ -321,8 +334,8 @@ automation.register_apply_action(
     automation.ApplyCall(
         "queue_raw_frame({}, {})",
         (
-            (CONF_FRAME_TYPE, cg.std_vector.template(cg.uint8)),
-            (CONF_PAYLOAD, cg.std_vector.template(cg.uint8)),
+            (CONF_FRAME_TYPE, cg.std_vector.template(cg.uint8), _progmem_span),
+            (CONF_PAYLOAD, cg.std_vector.template(cg.uint8), _progmem_span),
         ),
     ),
 )
