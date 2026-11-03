@@ -42,7 +42,8 @@ void LPS22Component::dump_config() {
 static constexpr uint32_t INTERVAL_READ = 0;
 
 void LPS22Component::update() {
-  this->update_register(CTRL_REG2, CTRL_REG2_ONE_SHOT_MASK, CTRL_REG2_ONE_SHOT_MASK);
+  if (!this->status_comm_result(this->update_register(CTRL_REG2, CTRL_REG2_ONE_SHOT_MASK, CTRL_REG2_ONE_SHOT_MASK)))
+    return;
   this->read_attempts_remaining_ = READ_ATTEMPTS;
   this->set_interval(INTERVAL_READ, READ_INTERVAL, [this]() { this->try_read_(); });
 }
