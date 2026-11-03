@@ -6,10 +6,12 @@ esp32:
   framework:
     type: esp-idf
 
-# The small strip is set up first, then the large one can extend into the free RX blocks
+# The small strip is set up first, then the large one can extend into the free RX blocks.
+# Both have the same setup priority, so setup_priority fixes their order.
 light:
   - platform: esp32_rmt_led_strip
     id: status_led
+    setup_priority: 801
     chipset: WS2812
     channel_colors: GRB
     pin: GPIO4

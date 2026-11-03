@@ -1,5 +1,6 @@
 from collections.abc import Callable, Iterable
 from dataclasses import dataclass, field
+from itertools import groupby, permutations, product
 import logging
 from typing import Any, Literal
 
@@ -104,6 +105,8 @@ class ESP32RMTData:
     channels: list[_Channel] = field(default_factory=list)
     checked: bool = False
     errors: list[_Error] = field(default_factory=list)
+    # RMT components whose final validation has run
+    validated: int = 0
 
 
 def _get_data() -> ESP32RMTData:
@@ -215,6 +218,31 @@ def _setup_order(channels: list[_Channel]) -> list[_Channel]:
     return sorted(channels, key=lambda channel: -channel.setup_priority)
 
 
+def _orders_of(channels: list[_Channel], size: int) -> list[list[_Channel]]:
+    """Every order of the channels that the allocator can tell apart."""
+    orders: dict[tuple[tuple[str, int, bool], ...], list[_Channel]] = {}
+    for order in permutations(channels):
+        key = tuple((c.direction, c.blocks(size), c.dma) for c in order)
+        orders.setdefault(key, list(order))
+    return list(orders.values())
+
+
+def _possible_setup_orders(channels: list[_Channel], size: int) -> list[list[_Channel]]:
+    """Every order the channels may be set up in, the config order first.
+
+    Components with the same setup priority are set up in the order C++ registers them,
+    which is not always the config order: one that waits for another component in
+    to_code() is registered later.
+    """
+    groups = [
+        _orders_of(list(group), size)
+        for _, group in groupby(
+            _setup_order(channels), key=lambda channel: channel.setup_priority
+        )
+    ]
+    return [[c for order in orders for c in order] for orders in product(*groups)]
+
+
 def _allocate(memory: RMTMemory, channels: list[_Channel]) -> list[_Channel]:
     """Allocate the channels in this order like ESP-IDF and return the ones that fail.
 
@@ -273,22 +301,40 @@ def _check_budget(memory: RMTMemory, channels: list[_Channel]) -> list[_Error]:
             )
         ]
     errors = [error for pool in pools if (error := _check_pool(*pool)) is not None]
-    if errors or not (failed := _allocate(memory, channels)):
+    if errors:
         return errors
+    orders = _possible_setup_orders(channels, memory.symbols_per_block)
+    if not (failures := [f for order in orders if (f := _allocate(memory, order))]):
+        return errors
+    if len(failures) == len(orders):
+        # Name the components that fail in the config order
+        failed = failures[0]
+        problem = "in the order ESPHome sets up these components, {} will not fit"
+        fix = ""
+    else:
+        failed = [c for c in channels if any(c in f for f in failures)]
+        problem = (
+            "ESPHome may set up components with the same setup priority in another "
+            "order than the config, and then {} will not fit"
+        )
+        fix = (
+            f", or set '{CONF_SETUP_PRIORITY}' so they are set up in an order that fits"
+        )
     usage = ", ".join(
         f"'{_label(channel)}' ({'DMA' if channel.dma else channel.symbols})"
         for channel in channels
     )
     _LOGGER.warning(
-        "RMT memory on %s holds %d blocks of %d symbols, but in the order ESPHome sets "
-        "up these components, %s will not fit: %s. Set %s. Otherwise ESP-IDF logs %s at "
-        "boot, and ESPHome logs 'Channel creation failed' or 'out of RMT symbol memory'.",
+        "RMT memory on %s holds %d blocks of %d symbols, but %s: %s. Set %s%s. "
+        "Otherwise ESP-IDF logs %s at boot, and ESPHome logs 'Channel creation failed' "
+        "or 'out of RMT symbol memory'.",
         esp32.get_esp32_variant(),
         memory.tx_blocks + (memory.rx_blocks or 0),
         memory.symbols_per_block,
-        _labels(failed),
+        problem.format(_labels(failed)),
         usage,
         " and ".join(_suggestions(memory, pools)),
+        fix,
         " or ".join(sorted({_IDF_ERRORS[channel.direction] for channel in failed})),
     )
     return errors
@@ -299,7 +345,8 @@ def final_validate_rmt_channels(config: ConfigType) -> None:
 
     Fails when the RMT components cannot all get a channel, warns when they request more
     memory than the chip has. The check runs once; its errors are raised from the first
-    component that causes one, since final validation stops after the first error.
+    component that causes one, since final validation stops after the first error, and
+    from the last RMT component if none of them matched.
     """
     data = _get_data()
     if not data.checked:
@@ -307,15 +354,20 @@ def final_validate_rmt_channels(config: ConfigType) -> None:
         # Skip in testing mode, where component grouping merges the RMT components of many tests
         if not CORE.testing_mode and (memory := _get_memory()) is not None:
             data.errors = _check_budget(memory, data.channels)
+    if not data.errors:
+        return
     own_id = config.get(CONF_ID)
+    data.validated += 1
     for error in data.errors:
-        if any(channel.id is own_id for channel in error.channels):
+        if any(channel.id == own_id for channel in error.channels):
             # Errors of other components are not shown on this component's key
             key = error.key if len(data.errors) == 1 else None
             raise cv.Invalid(
                 "\n".join(error.message for error in data.errors),
                 path=[key] if key else [],
             )
+    if data.validated >= len(data.channels):
+        raise cv.Invalid("\n".join(error.message for error in data.errors))
 
 
 def validate_rmt_not_supported(

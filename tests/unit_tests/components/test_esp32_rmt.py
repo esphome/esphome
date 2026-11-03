@@ -154,10 +154,13 @@ def test_suggestion_skips_components_that_already_fit(run_check: CheckRunner) ->
 
 def test_strip_and_transmitter_share_tx(run_check: CheckRunner) -> None:
     """remote_transmitter and esp32_rmt_led_strip share the TX blocks (esphome#17894)."""
-    config = {"TX": [*_strips(192)["TX"], _entry("ir", 48)]}
-    messages = run_check(VARIANT_ESP32S3, config)
+    ir = _entry("ir", 48, **{CONF_SETUP_PRIORITY: PRIORITY - 1})
+    messages = run_check(VARIANT_ESP32S3, {"TX": [*_strips(192)["TX"], ir]})
     assert len(messages) == 1
-    assert "'ir' will not fit" in messages[0]
+    assert (
+        "in the order ESPHome sets up these components, 'ir' will not fit"
+        in (messages[0])
+    )
     assert "'no free tx channels'" in messages[0]
     assert "no free rx channels" not in messages[0]
 
@@ -210,11 +213,39 @@ def test_order_of_transmitters_decides(
     run_check: CheckRunner, symbols: tuple[int, ...], fails: str | None
 ) -> None:
     """Without receivers TX channels can use the RX blocks; whether they fit depends on order."""
-    messages = run_check(VARIANT_ESP32S3, _strips(*symbols))
+    first, second = _strips(*symbols)["TX"]
+    first[CONF_SETUP_PRIORITY] = PRIORITY + 1
+    messages = run_check(VARIANT_ESP32S3, {"TX": [first, second]})
     if fails is None:
         assert not messages
     else:
         assert f"'{fails}' will not fit" in messages[0]
+
+
+def test_same_priority_warns_when_an_order_does_not_fit(
+    run_check: CheckRunner,
+) -> None:
+    """C++ may register components of the same priority in another order than the config."""
+    messages = run_check(VARIANT_ESP32S3, _strips(48, 288))
+    assert len(messages) == 1
+    assert (
+        "in another order than the config, and then 'strip0' will not fit"
+        in messages[0]
+    )
+    assert (
+        "Set 'rmt_symbols: 96' on 'strip1', or set 'setup_priority' so they are set "
+        "up in an order that fits." in messages[0]
+    )
+
+
+def test_same_priority_in_every_order_will_not_fit(run_check: CheckRunner) -> None:
+    """When no order fits, the component that fails in the config order is named."""
+    messages = run_check(VARIANT_ESP32S2, _strips(192, 192))
+    assert (
+        "in the order ESPHome sets up these components, 'strip1' will not"
+        in (messages[0])
+    )
+    assert "setup_priority" not in messages[0]
 
 
 def test_setup_priority_changes_the_order(run_check: CheckRunner) -> None:
@@ -405,6 +436,30 @@ def test_error_raised_from_a_component_that_causes_it() -> None:
     # Both errors are reported at once, as final validation stops after the first one
     assert "ESP32S3 has 4 RMT channels for TX" in str(error.value)
     assert "Only one RMT RX channel on ESP32S3 supports DMA" in str(error.value)
+
+
+def test_error_raised_when_ids_are_copies() -> None:
+    """IDs are compared by value, so a copied ID still finds its error."""
+    _set_variant(VARIANT_ESP32C3)
+    transmitters = [_entry(f"tx{i}", 48) for i in range(3)]
+    for entry in transmitters:
+        esp32_rmt.request_rmt_channel("TX", PRIORITY)(entry)
+    with pytest.raises(cv.Invalid, match="ESP32C3 has 2 RMT channels for TX"):
+        esp32_rmt.final_validate_rmt_channels(
+            {**transmitters[0], CONF_ID: transmitters[0][CONF_ID].copy()}
+        )
+
+
+def test_error_raised_from_last_component_without_a_match() -> None:
+    """An error is never dropped, even if no component finds its own id in it."""
+    _set_variant(VARIANT_ESP32C3)
+    for i in range(3):
+        esp32_rmt.request_rmt_channel("TX", PRIORITY)(_entry(f"tx{i}", 48))
+    others = [_entry(f"other{i}", 48) for i in range(3)]
+    esp32_rmt.final_validate_rmt_channels(others[0])
+    esp32_rmt.final_validate_rmt_channels(others[1])
+    with pytest.raises(cv.Invalid, match="ESP32C3 has 2 RMT channels for TX"):
+        esp32_rmt.final_validate_rmt_channels(others[2])
 
 
 @pytest.mark.parametrize(
