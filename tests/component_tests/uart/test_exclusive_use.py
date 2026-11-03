@@ -13,6 +13,7 @@ from esphome.const import (
     PlatformFramework,
 )
 from esphome.core import CORE, ID
+import esphome.final_validate as fv
 from esphome.types import ConfigType
 from tests.component_tests.types import SetCoreConfigCallable
 
@@ -46,9 +47,10 @@ def test_ignores_other_uarts_and_other_keys() -> None:
     assert not subtree_references_uart(config, "bus")
 
 
-def test_finds_another_key() -> None:
+def test_finds_any_of_the_keys() -> None:
     config = {"modbus_tcp_uart": [{"tcp_uart_id": ID("bus")}]}
-    assert subtree_references_uart(config, "bus", "tcp_uart_id")
+    assert subtree_references_uart(config, "bus", {"tcp_uart_id"})
+    assert subtree_references_uart(config, "bus", {CONF_UART_ID, "tcp_uart_id"})
     assert not subtree_references_uart(config, "bus")
 
 
@@ -64,6 +66,14 @@ def test_claims_distinct_uarts_and_keys(
     claim_exclusive(_entry("uart_1"), "owner")
     claim_exclusive(_entry("uart_0", "link_id"), "owner", "link_id")
     claim_exclusive(_entry("uart_0"), "other_owner")
+
+
+def test_claims_ignore_the_owner_data(
+    set_core_config: SetCoreConfigCallable,
+) -> None:
+    _set(set_core_config)
+    fv.full_config.get().data["owner"] = {CONF_UART_ID: {"uart_0"}}
+    claim_exclusive(_entry("uart_0"), "owner")
 
 
 def test_rejects_a_second_entry_of_the_owner(

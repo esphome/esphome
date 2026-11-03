@@ -54,11 +54,11 @@ CONFIG_SCHEMA = cv.All(
 def _final_validate(config: ConfigType) -> None:
     # A second reader would split the bytes with this one, and every connect
     # discards what the other reader has not read yet.
-    full_config = fv.full_config.get()
-    data = full_config.data.setdefault(DOMAIN, {})
     uart.claim_exclusive(config, DOMAIN)
 
     if config[CONF_ROLE] == "server":
+        full_config = fv.full_config.get()
+        data = full_config.data.setdefault(DOMAIN, {})
         # Two listeners on one port cannot both serve it. Only uart_tcp and
         # tcp_uart servers are compared here, not other listeners such as api.
         port = config[CONF_PORT]
