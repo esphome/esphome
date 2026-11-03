@@ -25,8 +25,7 @@ static constexpr uint8_t DEFAULT_IOUT = 75;     // per-channel LED current / whi
 // Pack a `0xAA len cmd data 0xBB` packet into buf; returns the packet length.
 static inline size_t build_packet(uint8_t *buf, uint8_t cmd, const uint8_t *data, uint16_t len) {
   buf[0] = PACKET_HEAD;
-  buf[1] = static_cast<uint8_t>(len & 0xFF);
-  buf[2] = static_cast<uint8_t>((len >> 8) & 0xFF);
+  put_le16(buf + 1, len);
   buf[3] = cmd;
   if (data != nullptr && len > 0)
     std::memcpy(buf + PACKET_HEADER_LEN, data, len);
@@ -36,10 +35,8 @@ static inline size_t build_packet(uint8_t *buf, uint8_t cmd, const uint8_t *data
 
 // Fill `total` bytes at buf with a single UNUSED padding packet.
 static inline void pad_unused(uint8_t *buf, size_t total) {
-  const uint16_t len = static_cast<uint16_t>(total - PACKET_STATIC_LEN);
   buf[0] = PACKET_HEAD;
-  buf[1] = static_cast<uint8_t>(len & 0xFF);
-  buf[2] = static_cast<uint8_t>((len >> 8) & 0xFF);
+  put_le16(buf + 1, total - PACKET_STATIC_LEN);
   buf[3] = CMD_UNUSED;
   buf[total - 1] = PACKET_TAIL;
 }
@@ -69,8 +66,7 @@ void Pixoo::setup() {
   std::memset(this->frame_buffer_, 0, this->frame_size_);
   // Pre-build the constant DATA-packet framing; only the RGB888 payload changes per frame.
   this->frame_buffer_[0] = PACKET_HEAD;
-  this->frame_buffer_[1] = static_cast<uint8_t>(this->data_size_ & 0xFF);
-  this->frame_buffer_[2] = static_cast<uint8_t>((this->data_size_ >> 8) & 0xFF);
+  put_le16(this->frame_buffer_ + 1, this->data_size_);
   this->frame_buffer_[3] = CMD_DATA;
   this->frame_buffer_[PACKET_HEADER_LEN + this->data_size_] = PACKET_TAIL;
   pad_unused(this->frame_buffer_ + this->data_size_ + PACKET_STATIC_LEN, DMA_CHUNK);

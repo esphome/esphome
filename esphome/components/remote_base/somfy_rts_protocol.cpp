@@ -35,11 +35,8 @@ void SomfyRtsProtocol::encode(RemoteTransmitData *dst, const SomfyRtsData &data)
     frame[0] = data.key;
     frame[1] = (data.control & 0x0F) << 4;
   }
-  frame[2] = data.rolling_code >> 8;
-  frame[3] = data.rolling_code;
-  frame[4] = data.address >> 16;
-  frame[5] = data.address >> 8;
-  frame[6] = data.address;
+  put_be16(frame + 2, data.rolling_code);
+  put_be24(frame + 4, data.address);
 
   uint8_t crc = 0;
   for (uint8_t data_byte : frame) {
