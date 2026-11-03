@@ -5,14 +5,8 @@ from typing import Any, Literal
 
 from esphome.components import esp32
 import esphome.config_validation as cv
-from esphome.const import (
-    CONF_ID,
-    CONF_NAME,
-    CONF_PLATFORM,
-    CONF_RMT_SYMBOLS,
-    CONF_USE_DMA,
-)
-from esphome.core import CORE
+from esphome.const import CONF_ID, CONF_NAME, CONF_RMT_SYMBOLS, CONF_USE_DMA
+from esphome.core import CORE, ID
 import esphome.final_validate as fv
 from esphome.types import ConfigType
 
@@ -55,18 +49,8 @@ RMT_MEMORY = {
 
 Direction = Literal["TX", "RX"]
 
-
-@dataclass(frozen=True, order=True)
-class _Consumer:
-    domain: str
-    # Empty for a component that is not a platform
-    platform: str
-    direction: Direction
-
-
-# Filled when the RMT components are imported, which happens before final validation
-_CONSUMERS: set[_Consumer] = set()
-
+# ESP-IDF refuses more DMA symbols on a TX channel ("mem_block_symbols can't exceed 2047")
+MAX_TX_DMA_SYMBOLS = 2046
 
 # ESP-IDF's log line for a channel that cannot be allocated
 _IDF_ERRORS = {
@@ -76,23 +60,38 @@ _IDF_ERRORS = {
 }
 
 
-@dataclass(frozen=True)
+@dataclass
 class _Channel:
-    label: str
+    id: ID
+    name: str | None
+    direction: Direction
     symbols: int
     dma: bool
-    entry: ConfigType = field(compare=False, repr=False)
+
+
+def _label(channel: _Channel) -> str:
+    """The name, else the id; an id ESPHome generated is replaced by the config position."""
+    if channel.name:
+        return channel.name
+    if not channel.id.is_manual:
+        path = fv.full_config.get().get_path_for_id(channel.id)
+        if len(path) > 2 and isinstance(path[1], int):
+            return f"{path[0]}[{path[1]}]"
+    return str(channel.id)
 
 
 @dataclass
 class _Error:
     channels: list[_Channel]
     message: str
+    # Config key the error is shown on, None for the component itself
+    key: str | None = None
 
 
 @dataclass
 class ESP32RMTData:
-    budget_checked: bool = False
+    channels: list[_Channel] = field(default_factory=list)
+    checked: bool = False
     errors: list[_Error] = field(default_factory=list)
 
 
@@ -102,31 +101,73 @@ def _get_data() -> ESP32RMTData:
     return CORE.data[DOMAIN]
 
 
-def _channels(domain: str, platform: str) -> list[_Channel]:
-    channels = []
-    for index, entry in enumerate(fv.full_config.get().get(domain, [])):
-        if platform and entry.get(CONF_PLATFORM) != platform:
-            continue
-        if name := entry.get(CONF_NAME):
-            label = name
-        elif entry[CONF_ID].is_manual:
-            label = str(entry[CONF_ID])
-        else:
-            label = f"{domain}[{index}]"
-        channels.append(
-            _Channel(
-                label, entry[CONF_RMT_SYMBOLS], bool(entry.get(CONF_USE_DMA)), entry
+def _get_memory() -> RMTMemory | None:
+    if not CORE.is_esp32:
+        return None
+    return RMT_MEMORY.get(esp32.get_esp32_variant())
+
+
+def _max_blocks(direction: Direction, memory: RMTMemory) -> int:
+    """Blocks one channel can use: a TX channel can extend into the RX blocks behind it."""
+    if memory.rx_blocks is None:
+        return memory.tx_blocks
+    if direction == "TX":
+        return memory.tx_blocks + memory.rx_blocks
+    return memory.rx_blocks
+
+
+def request_rmt_channel(direction: Direction) -> Callable[[ConfigType], ConfigType]:
+    """Return a CONFIG_SCHEMA validator for a component that creates one RMT channel.
+
+    It checks the entry's rmt_symbols against what ESP-IDF accepts, and records the
+    channel so that final_validate_rmt_channels() can check all RMT components together.
+    Add it after the schema, so rmt_symbols has its default, and set
+    FINAL_VALIDATE_SCHEMA = esp32_rmt.final_validate_rmt_channels in the same component.
+    The entry needs an id and rmt_symbols; use_dma is optional.
+    """
+
+    def _validator(config: ConfigType) -> ConfigType:
+        if (memory := _get_memory()) is None or (
+            symbols := config.get(CONF_RMT_SYMBOLS)
+        ) is None:
+            return config
+        variant = esp32.get_esp32_variant()
+        dma = bool(config.get(CONF_USE_DMA))
+        size = memory.symbols_per_block
+        if symbols < size or symbols % 2:
+            raise cv.Invalid(
+                f"Must be an even number and at least {size} on {variant}",
+                path=[CONF_RMT_SYMBOLS],
             )
+        if dma and direction == "TX" and symbols > MAX_TX_DMA_SYMBOLS:
+            raise cv.Invalid(
+                f"Must be at most {MAX_TX_DMA_SYMBOLS} with '{CONF_USE_DMA}'",
+                path=[CONF_RMT_SYMBOLS],
+            )
+        if not dma and symbols > (limit := _max_blocks(direction, memory) * size):
+            raise cv.Invalid(
+                f"Must be at most {limit} on {variant}, the RMT {direction} memory of "
+                "one channel",
+                path=[CONF_RMT_SYMBOLS],
+            )
+        _get_data().channels.append(
+            _Channel(config[CONF_ID], config.get(CONF_NAME), direction, symbols, dma)
         )
-    return channels
+        return config
+
+    return _validator
 
 
 def _labels(channels: list[_Channel]) -> str:
-    return ", ".join(f"'{channel.label}'" for channel in channels)
+    return ", ".join(f"'{_label(channel)}'" for channel in channels)
 
 
 def _check_pool(
-    direction: str, channels: list[_Channel], blocks: int, memory: RMTMemory
+    direction: str,
+    channels: list[_Channel],
+    blocks: int,
+    memory: RMTMemory,
+    idf_errors: str,
 ) -> _Error | None:
     """Return the error if the channels cannot all be allocated, warn if they may not fit."""
     variant = esp32.get_esp32_variant()
@@ -142,6 +183,7 @@ def _check_pool(
             dma,
             f"Only one RMT {direction} channel on {variant} supports DMA, but "
             f"'{CONF_USE_DMA}' is set on {_labels(dma)}",
+            CONF_USE_DMA,
         )
     # The driver rounds rmt_symbols up to whole blocks; a DMA channel always uses one block
     size = memory.symbols_per_block
@@ -151,21 +193,21 @@ def _check_pool(
         return None
     fair = (blocks - len(dma)) // len(others) * size
     usage = ", ".join(
-        f"'{channel.label}' ({'DMA' if channel.dma else channel.symbols})"
+        f"'{_label(channel)}' ({'DMA' if channel.dma else channel.symbols})"
         for channel in channels
     )
     _LOGGER.warning(
         "RMT %s memory on %s holds %d blocks of %d symbols, but these components "
-        "need %d blocks: %s. The ones that do not fit can fail at boot with %s "
-        "('Channel creation failed' or 'out of RMT symbol memory' in the ESPHome log). "
-        "Set '%s: %d' on %s.",
+        "need %d blocks: %s. A component that does not fit may fail at boot: ESP-IDF "
+        "logs %s, and ESPHome logs 'Channel creation failed' or 'out of RMT symbol "
+        "memory'. Set '%s: %d' on %s.",
         direction,
         variant,
         blocks,
         size,
         used,
         usage,
-        _IDF_ERRORS[direction],
+        idf_errors,
         CONF_RMT_SYMBOLS,
         fair,
         _labels([channel for channel in others if channel.symbols > fair]),
@@ -173,59 +215,42 @@ def _check_pool(
     return None
 
 
-def _check_budget() -> list[_Error]:
-    variant = esp32.get_esp32_variant()
-    if (memory := RMT_MEMORY.get(variant)) is None:
-        return []
-    channels: dict[Direction, list[_Channel]] = {"TX": [], "RX": []}
-    for consumer in sorted(_CONSUMERS):
-        channels[consumer.direction] += _channels(consumer.domain, consumer.platform)
-    tx, rx = channels["TX"], channels["RX"]
-    # The driver rejects these when it creates the channel
-    size = memory.symbols_per_block
-    errors: list[_Error | None] = [
-        _Error(
-            [channel],
-            f"'{CONF_RMT_SYMBOLS}' must be even and at least {size} on {variant}, "
-            f"but '{channel.label}' sets {channel.symbols}",
-        )
-        for channel in tx + rx
-        if channel.symbols < size or channel.symbols % 2
-    ]
+def _check_budget(memory: RMTMemory, channels: list[_Channel]) -> list[_Error]:
     if memory.rx_blocks is None:
-        pools = [("TX/RX", tx + rx, memory.tx_blocks)]
+        pools = [("TX/RX", channels, memory.tx_blocks, _IDF_ERRORS["TX/RX"])]
     else:
-        pools = [("TX", tx, memory.tx_blocks), ("RX", rx, memory.rx_blocks)]
-    errors += [_check_pool(*pool, memory) for pool in pools]
+        tx = [channel for channel in channels if channel.direction == "TX"]
+        rx = [channel for channel in channels if channel.direction == "RX"]
+        # A TX channel that overruns its blocks can take RX blocks, so a receiver can fail
+        tx_errors = _IDF_ERRORS["TX/RX" if rx else "TX"]
+        pools = [
+            ("TX", tx, memory.tx_blocks, tx_errors),
+            ("RX", rx, memory.rx_blocks, _IDF_ERRORS["RX"]),
+        ]
+    errors = [_check_pool(*pool[:3], memory, pool[3]) for pool in pools]
     return [error for error in errors if error is not None]
 
 
-def _validate_channels(config: ConfigType) -> None:
-    data = _get_data()
-    if not data.budget_checked:
-        data.budget_checked = True
-        # Skip in testing mode, where component grouping merges the RMT components of many tests
-        if not CORE.testing_mode and CORE.is_esp32:
-            data.errors = _check_budget()
-    if any(
-        channel.entry is config for error in data.errors for channel in error.channels
-    ):
-        raise cv.Invalid("\n".join(error.message for error in data.errors))
+def final_validate_rmt_channels(config: ConfigType) -> None:
+    """FINAL_VALIDATE_SCHEMA of the components that use request_rmt_channel().
 
-
-def final_validate_rmt_channel(
-    direction: Direction, domain: str, platform: str = ""
-) -> Callable[[ConfigType], None]:
-    """Return the FINAL_VALIDATE_SCHEMA of a component that creates one RMT channel per entry.
-
-    domain and platform say where its entries are in the config, for example "light" and
-    "esp32_rmt_led_strip" for a light platform, or only "remote_receiver". Each entry's
-    rmt_symbols and use_dma are counted against the chip's RMT channels and memory together
-    with all other RMT components. The check runs once; its errors are raised from the first
+    Fails when the RMT components cannot all get a channel, warns when they request more
+    memory than the chip has. The check runs once; its errors are raised from the first
     component that causes one, since final validation stops after the first error.
     """
-    _CONSUMERS.add(_Consumer(domain, platform, direction))
-    return _validate_channels
+    data = _get_data()
+    if not data.checked:
+        data.checked = True
+        # Skip in testing mode, where component grouping merges the RMT components of many tests
+        if not CORE.testing_mode and (memory := _get_memory()) is not None:
+            data.errors = _check_budget(memory, data.channels)
+    own_id = config.get(CONF_ID)
+    for error in data.errors:
+        if any(channel.id is own_id for channel in error.channels):
+            raise cv.Invalid(
+                "\n".join(error.message for error in data.errors),
+                path=[error.key] if error.key else [],
+            )
 
 
 def validate_rmt_not_supported(

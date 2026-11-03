@@ -60,3 +60,17 @@ def test_more_components_than_channels_fail(
     valid, messages = validate(file_name)
     assert not valid
     assert any(f"has 2 RMT {direction} channels" in message for message in messages)
+    # Components without a name or id are named by their position in the config
+    domain = file_name.removeprefix("c3_three_").removesuffix("s.yaml")
+    assert any(f"'remote_{domain}[2]'" in message for message in messages)
+
+
+def test_strip_below_one_block_fails(
+    component_fixture_path: Callable[[str], Path],
+    capsys: pytest.CaptureFixture[str],
+) -> None:
+    """The error is shown on rmt_symbols, also for a single component."""
+    CORE.config_path = component_fixture_path("esp32_strip_below_one_block.yaml")
+    assert read_config({}) is None
+    output = capsys.readouterr().out
+    assert "Must be an even number and at least 64 on ESP32" in output

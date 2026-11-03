@@ -84,9 +84,12 @@ CONFIG_SCHEMA = (
                 esp32_c6=48,
                 esp32_c61=cv.UNDEFINED,
                 esp32_h2=48,
+                esp32_h4=48,
+                esp32_h21=48,
                 esp32_p4=48,
                 esp32_s2=64,
                 esp32_s3=48,
+                esp32_s31=48,
             ): cv.All(cv.only_on_esp32, cv.int_range(min=2)),
             cv.Optional(CONF_NON_BLOCKING): _validate_non_blocking_platform,
             cv.Optional(CONF_ON_TRANSMIT): automation.validate_automation(single=True),
@@ -105,6 +108,7 @@ CONFIG_SCHEMA = (
             ]
         )
     )
+    .add_extra(esp32_rmt.request_rmt_channel("TX"))
 )
 
 
@@ -122,12 +126,9 @@ def _validate_non_blocking(config: ConfigType) -> None:
         config[CONF_NON_BLOCKING] = True
 
 
-_validate_rmt_channel = esp32_rmt.final_validate_rmt_channel("TX", DOMAIN)
-
-
 def _final_validate(config: ConfigType) -> None:
     _validate_non_blocking(config)
-    _validate_rmt_channel(config)
+    esp32_rmt.final_validate_rmt_channels(config)
 
 
 FINAL_VALIDATE_SCHEMA = _final_validate
