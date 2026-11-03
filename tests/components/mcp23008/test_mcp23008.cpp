@@ -1,5 +1,6 @@
 #include <gtest/gtest.h>
 
+#include <algorithm>
 #include <utility>
 #include <vector>
 
@@ -12,6 +13,11 @@ using Writes = std::vector<std::pair<uint8_t, uint8_t>>;
 
 static constexpr uint8_t IOCON_SEQOP = 0x20;
 static constexpr uint8_t IOCON_ODR = 0x04;
+
+static Writes sorted(Writes writes) {
+  std::sort(writes.begin(), writes.end());
+  return writes;
+}
 
 class FakeBus : public i2c::I2CBus {
  public:
@@ -56,15 +62,14 @@ class MCP23008Test : public ::testing::Test {
   MCP23008 component_;
 };
 
-TEST_F(MCP23008Test, SetupReadFailureMarksFailedAndWritesNothing) {
+TEST_F(MCP23008Test, SetupBusFailure) {
   this->bus_.fail = true;
   this->component_.setup();
   EXPECT_TRUE(this->component_.is_failed());
   EXPECT_TRUE(this->bus_.writes.empty());
 }
 
-// Current behaviour: a failed IOCON write is ignored.
-TEST_F(MCP23008Test, SetupIgnoresIoconWriteFailure) {
+TEST_F(MCP23008Test, SetupIoconWriteFailure) {
   this->bus_.fail_write_reg = MCP23X08_IOCON;
   this->component_.set_open_drain_ints(true);
   this->component_.setup();
@@ -72,27 +77,27 @@ TEST_F(MCP23008Test, SetupIgnoresIoconWriteFailure) {
   EXPECT_TRUE(this->bus_.writes.empty());
 }
 
-TEST_F(MCP23008Test, SetupWithoutOpenDrainWritesNothing) {
+TEST_F(MCP23008Test, SetupWithoutOpenDrain) {
+  this->bus_.regs[MCP23X08_IOCON] = IOCON_SEQOP;
   this->component_.setup();
-  ASSERT_FALSE(this->component_.is_failed());
-  EXPECT_TRUE(this->bus_.writes.empty());
+  EXPECT_FALSE(this->component_.is_failed());
+  EXPECT_EQ(sorted(this->bus_.writes), sorted(Writes{}));
 }
 
-TEST_F(MCP23008Test, SetupOpenDrainSetsOdrAndKeepsOtherBits) {
+TEST_F(MCP23008Test, SetupOpenDrain) {
   this->bus_.regs[MCP23X08_IOCON] = IOCON_SEQOP;
   this->component_.set_open_drain_ints(true);
   this->component_.setup();
-  ASSERT_FALSE(this->component_.is_failed());
-  EXPECT_EQ(this->bus_.writes, (Writes{{MCP23X08_IOCON, IOCON_SEQOP | IOCON_ODR}}));
+  EXPECT_FALSE(this->component_.is_failed());
+  EXPECT_EQ(sorted(this->bus_.writes), sorted(Writes{{MCP23X08_IOCON, IOCON_SEQOP | IOCON_ODR}}));
 }
 
-// Current behaviour: ODR left by an earlier config stays set until the chip loses power.
-TEST_F(MCP23008Test, SetupLeavesStaleOdrSet) {
-  this->bus_.regs[MCP23X08_IOCON] = IOCON_ODR;
+TEST_F(MCP23008Test, SetupStaleOdr) {
+  this->bus_.regs[MCP23X08_IOCON] = IOCON_SEQOP | IOCON_ODR;
   this->component_.setup();
-  ASSERT_FALSE(this->component_.is_failed());
-  EXPECT_TRUE(this->bus_.writes.empty());
-  EXPECT_EQ(this->bus_.regs[MCP23X08_IOCON], IOCON_ODR);
+  EXPECT_FALSE(this->component_.is_failed());
+  EXPECT_EQ(sorted(this->bus_.writes), sorted(Writes{}));
+  EXPECT_EQ(this->bus_.regs[MCP23X08_IOCON], IOCON_SEQOP | IOCON_ODR);
 }
 
 TEST_F(MCP23008Test, ReadWarningClearsAfterSuccessfulRead) {
