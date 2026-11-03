@@ -4,12 +4,20 @@ import re
 
 from esphome import automation
 import esphome.codegen as cg
+from esphome.components.const import CONF_ON_DOUBLE_TAP, CONF_ON_TAP, CONF_TAP
 import esphome.config_validation as cv
-from esphome.const import CONF_ID, CONF_ON_ERROR, CONF_ON_SUCCESS, CONF_UPDATE_INTERVAL
-from esphome.core import ID
+from esphome.const import (
+    CONF_ID,
+    CONF_ON_ERROR,
+    CONF_ON_SUCCESS,
+    CONF_THRESHOLD,
+    CONF_UPDATE_INTERVAL,
+)
+from esphome.core import CORE, ID
 from esphome.cpp_generator import MockObj, MockObjClass
 import esphome.final_validate as fv
 from esphome.helpers import fnv1_hash_object_id
+from esphome.types import ConfigType
 
 _LOGGER = logging.getLogger(__name__)
 
@@ -24,6 +32,7 @@ MotionComponent = motion_ns.class_("MotionComponent", cg.PollingComponent)
 
 AXES = ["x", "y", "z"]
 
+CONF_AXES = "axes"
 CONF_AXIS_MAP = "axis_map"
 CONF_MOTION_ID = "motion_id"
 CONF_TRANSFORM_MATRIX = "transform_matrix"
@@ -33,6 +42,9 @@ CalibrateHeadingAction = motion_ns.class_("CalibrateHeadingAction", automation.A
 
 KEY_ACCELEROMETER = "accelerometer"
 KEY_GYROSCOPE = "gyroscope"
+KEY_TAP_THRESHOLD_IDS = "motion_tap_threshold_ids"
+
+ACCELERATION_G = cv.All(cv.float_with_unit("acceleration", "(g|G)?"), cv.positive_float)
 
 SENSOR_SCHEMA = cv.Schema(
     {
@@ -81,6 +93,16 @@ def check_has_accelerometer(
             f"The motion device does not measure acceleration, required for {feature_name}",
             path=path,
         )
+
+
+def validate_axes(value: object) -> list[str]:
+    """A list of distinct axes."""
+    value = cv.All(cv.ensure_list(cv.one_of(*AXES, lower=True)), cv.Length(min=1))(
+        value
+    )
+    if len(set(value)) != len(value):
+        raise cv.Invalid("Each axis may be listed only once")
+    return value
 
 
 def _axis_map(config: dict) -> dict:
@@ -197,6 +219,52 @@ async def new_motion_component(config: dict) -> MockObj:
     return var
 
 
+# --- Tap detection ---
+
+_TAP_ARGS = [(cg.uint8, "axis"), (bool, "negative")]
+_TAP_CALLBACK_AUTOMATIONS = (
+    automation.CallbackAutomation(CONF_ON_TAP, "add_on_tap_callback", _TAP_ARGS),
+    automation.CallbackAutomation(
+        CONF_ON_DOUBLE_TAP, "add_on_double_tap_callback", _TAP_ARGS
+    ),
+)
+
+
+def tap_schema(default_threshold: str, extra: dict | None = None) -> cv.All:
+    """The `tap:` block for a platform; `extra` adds the chip's timing and pin options."""
+    schema = cv.Schema(
+        {
+            cv.Optional(CONF_THRESHOLD, default=default_threshold): ACCELERATION_G,
+            cv.Optional(CONF_AXES, default=AXES): validate_axes,
+            cv.Optional(CONF_ON_TAP): automation.validate_automation({}),
+            cv.Optional(CONF_ON_DOUBLE_TAP): automation.validate_automation({}),
+        }
+    )
+    if extra:
+        schema = schema.extend(extra)
+    return cv.All(schema, cv.has_at_least_one_key(CONF_ON_TAP, CONF_ON_DOUBLE_TAP))
+
+
+async def setup_tap(var: MockObj, tap: ConfigType) -> None:
+    """Generate the shared part of a validated `tap:` block."""
+    cg.add_define("USE_MOTION_TAP")
+    cg.add(var.set_tap_threshold(tap[CONF_THRESHOLD]))
+    await automation.build_callback_automations(var, tap, _TAP_CALLBACK_AUTOMATIONS)
+
+
+def _final_validate(config: list[ConfigType]) -> None:
+    ids = CORE.data.get(KEY_TAP_THRESHOLD_IDS, ())
+    for index, conf in enumerate(config):
+        if conf[CONF_ID].id in ids and CONF_TAP not in conf:
+            raise cv.Invalid(
+                "'motion.set_tap_threshold' needs a 'tap' block on this sensor",
+                path=[index, CONF_ID],
+            )
+
+
+FINAL_VALIDATE_SCHEMA = _final_validate
+
+
 # --- Actions ---
 
 CONF_SAVE = "save"
@@ -248,6 +316,26 @@ CLEAR_ACTION_SCHEMA = cv.Schema(
         cv.GenerateID(): cv.use_id(MotionComponent),
         cv.Optional(CONF_SAVE, default=False): cv.boolean,
     }
+)
+
+
+def _tap_threshold_id(value: object) -> ID:
+    # Checked against the target's tap block in final validation
+    value = cv.use_id(MotionComponent)(value)
+    CORE.data.setdefault(KEY_TAP_THRESHOLD_IDS, set()).add(value.id)
+    return value
+
+
+# Clamped on the device to the steps the chip allows
+automation.register_apply_action(
+    "motion.set_tap_threshold",
+    cv.Schema(
+        {
+            cv.Required(CONF_ID): _tap_threshold_id,
+            cv.Required(CONF_THRESHOLD): cv.templatable(ACCELERATION_G),
+        }
+    ),
+    automation.ApplyField(CONF_THRESHOLD, "set_tap_threshold", cg.float_),
 )
 
 
