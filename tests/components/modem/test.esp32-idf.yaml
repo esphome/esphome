@@ -16,6 +16,7 @@ modem:
   init_at:
     - ATI
   reboot_timeout: 5min
+  update_interval: 30s
   on_connect:
     logger.log: "modem connected"
   on_disconnect:
@@ -27,6 +28,15 @@ text_sensor:
   - platform: modem
     urc:
       name: Modem URC
+    network_type:
+      name: Network type
+
+sensor:
+  - platform: modem
+    rssi:
+      name: RSSI
+    ber:
+      name: BER
 
 packages:
   modem: !include common.yaml

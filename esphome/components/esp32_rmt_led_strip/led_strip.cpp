@@ -1,4 +1,5 @@
 #include "led_strip.h"
+#include <algorithm>
 #include <cinttypes>
 
 #ifdef USE_ESP32
@@ -14,6 +15,8 @@ namespace esphome::esp32_rmt_led_strip {
 ESPHOME_LOG_TAG(TAG, "esp32_rmt_led_strip");
 
 static const size_t RMT_SYMBOLS_PER_BYTE = 8;
+// Idle time the line must stay low between frames so the strip latches
+static constexpr uint32_t RESET_GAP_US = 50;
 
 // Query the RMT default clock source frequency. This varies by variant:
 // APB (80MHz) on ESP32/S2/S3/C3, PLL_F80M (80MHz) on C6/P4, XTAL (32MHz) on H2.
@@ -66,18 +69,8 @@ void ESP32RMTLEDStripLightOutput::setup() {
   size_t buffer_size = this->get_buffer_size_();
 
   RAMAllocator<uint8_t> allocator(this->use_psram_ ? 0 : RAMAllocator<uint8_t>::ALLOC_INTERNAL);
-  this->buf_ = allocator.allocate(buffer_size);
-  if (this->buf_ == nullptr) {
-    ESP_LOGE(TAG, "Cannot allocate LED buffer!");
-    this->mark_failed();
-    return;
-  }
-  memset(this->buf_, 0, buffer_size);
-
-  this->effect_data_ = allocator.allocate(this->num_leds_);
-  if (this->effect_data_ == nullptr) {
-    ESP_LOGE(TAG, "Cannot allocate effect data!");
-    this->mark_failed();
+  if (!this->internal_accessor_.allocate(allocator, this->num_leds_)) {
+    this->mark_failed(LOG_STR(ESP_LOG_MSG_ALLOC_FAIL));
     return;
   }
 
@@ -91,10 +84,20 @@ void ESP32RMTLEDStripLightOutput::setup() {
   this->rmt_buf_ = rmt_allocator.allocate(buffer_size * 8 + 1);
 #endif
 
+  const uint32_t resolution_hz = rmt_resolution_hz();
+  // Longest wire time of one frame; write_state() defers instead of blocking until it has elapsed
+  uint32_t bit_ticks = std::max(this->params_.bit0.duration0 + this->params_.bit0.duration1,
+                                this->params_.bit1.duration0 + this->params_.bit1.duration1);
+  uint64_t frame_ticks = (uint64_t) bit_ticks * buffer_size * RMT_SYMBOLS_PER_BYTE + this->params_.reset.duration0 +
+                         this->params_.reset.duration1;
+  this->frame_time_us_ = frame_ticks * 1000000 / resolution_hz + RESET_GAP_US;
+  // Seed with the interval write_state() gates on, so the first frame is not deferred
+  this->last_refresh_ = micros() - std::max(this->frame_time_us_, this->max_refresh_rate_);
+
   rmt_tx_channel_config_t channel;
   memset(&channel, 0, sizeof(channel));
   channel.clk_src = RMT_CLK_SRC_DEFAULT;
-  channel.resolution_hz = rmt_resolution_hz();
+  channel.resolution_hz = resolution_hz;
   channel.gpio_num = gpio_num_t(this->pin_);
   channel.mem_block_symbols = this->rmt_symbols_;
   channel.trans_queue_depth = 1;
@@ -102,8 +105,7 @@ void ESP32RMTLEDStripLightOutput::setup() {
   channel.flags.with_dma = this->use_dma_;
   channel.intr_priority = 0;
   if (rmt_new_tx_channel(&channel, &this->channel_) != ESP_OK) {
-    ESP_LOGE(TAG, "Channel creation failed");
-    this->mark_failed();
+    this->mark_failed(LOG_STR("Channel creation failed"));
     return;
   }
 
@@ -114,25 +116,24 @@ void ESP32RMTLEDStripLightOutput::setup() {
   encoder.arg = &this->params_;
   encoder.min_chunk_size = RMT_SYMBOLS_PER_BYTE;
   if (rmt_new_simple_encoder(&encoder, &this->encoder_) != ESP_OK) {
-    ESP_LOGE(TAG, "Encoder creation failed");
-    this->mark_failed();
+    this->mark_failed(LOG_STR("Encoder creation failed"));
     return;
   }
 #else
   rmt_copy_encoder_config_t encoder;
   memset(&encoder, 0, sizeof(encoder));
   if (rmt_new_copy_encoder(&encoder, &this->encoder_) != ESP_OK) {
-    ESP_LOGE(TAG, "Encoder creation failed");
-    this->mark_failed();
+    this->mark_failed(LOG_STR("Encoder creation failed"));
     return;
   }
 #endif
 
   if (rmt_enable(this->channel_) != ESP_OK) {
-    ESP_LOGE(TAG, "Enabling channel failed");
-    this->mark_failed();
+    this->mark_failed(LOG_STR("Enabling channel failed"));
     return;
   }
+
+  this->accessor_ = &this->internal_accessor_;
 }
 
 void ESP32RMTLEDStripLightOutput::set_led_params(uint32_t bit0_high, uint32_t bit0_low, uint32_t bit1_high,
@@ -157,30 +158,29 @@ void ESP32RMTLEDStripLightOutput::set_led_params(uint32_t bit0_high, uint32_t bi
 }
 
 void ESP32RMTLEDStripLightOutput::write_state(light::LightState *state) {
-  uint32_t now = micros();
-  if (this->throttle_show_(now, this->last_refresh_, this->max_refresh_rate_))
+  // Previous frame still on the wire, inside its reset gap, or refreshing too often: try again next loop
+  if (this->throttle_show_(micros(), this->last_refresh_, std::max(this->frame_time_us_, this->max_refresh_rate_)))
     return;
-  this->last_refresh_ = now;
+
+  // The gate above should always cover the previous frame; never overwrite rmt_buf_ while the RMT still reads it
+  if (rmt_tx_wait_all_done(this->channel_, 0) != ESP_OK) {
+    ESP_LOGE(TAG, "RMT TX still busy");
+    this->status_set_warning();
+    this->schedule_show();
+    return;
+  }
   this->mark_shown_();
 
   ESP_LOGVV(TAG, "Writing RGB values to bus");
 
-  esp_err_t error = rmt_tx_wait_all_done(this->channel_, 1000);
-  if (error != ESP_OK) {
-    ESP_LOGE(TAG, "RMT TX timeout");
-    this->status_set_warning();
-    return;
-  }
-  delayMicroseconds(50);
-
 #if ESP_IDF_VERSION >= ESP_IDF_VERSION_VAL(5, 3, 0)
-  memcpy(this->rmt_buf_, this->buf_, this->get_buffer_size_());
+  memcpy(this->rmt_buf_, this->internal_accessor_.color_data, this->get_buffer_size_());
 #else
   size_t buffer_size = this->get_buffer_size_();
 
   size_t size = 0;
   size_t len = 0;
-  uint8_t *psrc = this->buf_;
+  uint8_t *psrc = this->internal_accessor_.color_data;
   rmt_symbol_word_t *pdest = this->rmt_buf_;
   while (size < buffer_size) {
     uint8_t b = *psrc;
@@ -203,13 +203,19 @@ void ESP32RMTLEDStripLightOutput::write_state(light::LightState *state) {
   rmt_transmit_config_t config;
   memset(&config, 0, sizeof(config));
 #if ESP_IDF_VERSION >= ESP_IDF_VERSION_VAL(5, 3, 0)
-  error = rmt_transmit(this->channel_, this->encoder_, this->rmt_buf_, this->get_buffer_size_(), &config);
+  esp_err_t error = rmt_transmit(this->channel_, this->encoder_, this->rmt_buf_, this->get_buffer_size_(), &config);
 #else
-  error = rmt_transmit(this->channel_, this->encoder_, this->rmt_buf_, len * sizeof(rmt_symbol_word_t), &config);
+  esp_err_t error =
+      rmt_transmit(this->channel_, this->encoder_, this->rmt_buf_, len * sizeof(rmt_symbol_word_t), &config);
 #endif
   if (!this->status_comm_result(error == ESP_OK, nullptr)) {
     ESP_LOGE(TAG, "RMT TX error");
+    // retry next loop iteration so the frame is not lost
+    this->schedule_show();
+    return;
   }
+  // Stamped after the transfer started so the gate above stays conservative
+  this->last_refresh_ = micros();
 }
 
 void ESP32RMTLEDStripLightOutput::dump_config() {
@@ -223,7 +229,8 @@ void ESP32RMTLEDStripLightOutput::dump_config() {
                 "  Channel colors: %s\n"
                 "  Max refresh rate: %" PRIu32 "\n"
                 "  Number of LEDs: %u",
-                this->channel_colors_.to_string(channel_colors), this->max_refresh_rate_, this->num_leds_);
+                this->internal_accessor_.channel_colors.to_string(channel_colors), this->max_refresh_rate_,
+                this->num_leds_);
 }
 
 float ESP32RMTLEDStripLightOutput::get_setup_priority() const { return setup_priority::HARDWARE; }

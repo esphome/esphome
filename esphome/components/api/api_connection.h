@@ -2,6 +2,7 @@
 
 #include "esphome/core/defines.h"
 #ifdef USE_API
+#include "api_deferred_batch.h"
 #include "api_frame_helper.h"
 #ifdef USE_API_NOISE
 #include "api_frame_helper_noise.h"
@@ -20,7 +21,6 @@
 #include "esphome/core/string_ref.h"
 
 #include <functional>
-#include <limits>
 #include <vector>
 
 namespace esphome {
@@ -656,73 +656,6 @@ class APIConnection final : public APIServerConnectionBase {
   // Function pointer type for message encoding
   using MessageCreatorPtr = uint16_t (*)(EntityBase *, APIConnection *, uint32_t remaining_size);
 
-  // Generic batching mechanism for both state updates and entity info
-  struct DeferredBatch {
-    // Sentinel value for unused aux_data_index
-    static constexpr uint8_t AUX_DATA_UNUSED = std::numeric_limits<uint8_t>::max();
-
-    struct BatchItem {
-      EntityBase *entity;                       // 4 bytes - Entity pointer
-      uint16_t message_type;                    // 2 bytes - Message type for protocol and dispatch
-      uint8_t estimated_size;                   // 1 byte - Estimated message size (max 255 bytes)
-      uint8_t aux_data_index{AUX_DATA_UNUSED};  // 1 byte - For events: index into entity's event_types
-    };
-
-    std::vector<BatchItem> items;
-    uint32_t batch_start_time{0};
-
-    // No pre-allocation - log connections never use batching, and for
-    // connections that do, buffers are released after initial sync anyway
-
-    // Add item to the batch (with deduplication)
-    void add_item(EntityBase *entity, uint16_t message_type, uint8_t estimated_size,
-                  uint8_t aux_data_index = AUX_DATA_UNUSED) {
-      // Dedup: O(n) scan but optimized for RAM over performance
-      // Skip deduplication for events - they are edge-triggered, every occurrence matters
-#ifdef USE_EVENT
-      if (message_type != EventResponse::MESSAGE_TYPE)
-#endif
-      {
-        for (const auto &item : this->items) {
-          if (item.entity == entity && item.message_type == message_type)
-            return;  // Already queued
-        }
-      }
-      this->items.push_back({entity, message_type, estimated_size, aux_data_index});
-    }
-    // Add item to the front of the batch (for high priority messages like ping)
-    void add_item_front(EntityBase *entity, uint16_t message_type, uint8_t estimated_size) {
-      // Swap to front avoids expensive vector::insert which shifts all elements
-      this->items.push_back({entity, message_type, estimated_size, AUX_DATA_UNUSED});
-      if (this->items.size() > 1) {
-        std::swap(this->items.front(), this->items.back());
-      }
-    }
-
-    // Clear all items
-    void clear() {
-      items.clear();
-      batch_start_time = 0;
-    }
-
-    // Remove processed items from the front — noinline to keep memmove out of warm callers
-    void remove_front(size_t count) __attribute__((noinline)) { items.erase(items.begin(), items.begin() + count); }
-
-    bool empty() const { return items.empty(); }
-    size_t size() const { return items.size(); }
-    const BatchItem &operator[](size_t index) const { return items[index]; }
-
-    // Release excess capacity - only releases if items already empty
-    void release_buffer() {
-      // Safe to call: batch is processed before release_buffer is called,
-      // and if any items remain (partial processing), we must not clear them.
-      // Use swap trick since shrink_to_fit() is non-binding and may be ignored.
-      if (items.empty()) {
-        std::vector<BatchItem>().swap(items);
-      }
-    }
-  };
-
   // DeferredBatch here (16 bytes, 4-byte aligned)
   DeferredBatch deferred_batch_;
 
@@ -795,6 +728,10 @@ class APIConnection final : public APIServerConnectionBase {
   static constexpr size_t MAX_BATCH_PACKET_SIZE = 1390;  // MTU
 
   bool schedule_batch_();
+  // Sends the batch on the next loop, so a queued event does not wait for batch_delay; queued states go with it
+  void make_batch_due_now_() {
+    this->deferred_batch_.batch_start_time = App.get_loop_component_start_time() - this->get_batch_delay_ms_();
+  }
   void process_batch_();
   void process_batch_multi_(APIBuffer &shared_buf, size_t num_items, uint8_t header_padding, uint8_t footer_size)
       __attribute__((noinline));

@@ -1,6 +1,7 @@
 #include "waveshare_io_ch32v003.h"
 #include "esphome/core/helpers.h"
 #include "esphome/core/log.h"
+#include <algorithm>
 
 namespace esphome::waveshare_io_ch32v003 {
 
@@ -74,11 +75,18 @@ void WaveshareIOCH32V003Component::set_pwm_value(uint8_t value) {
   if (this->is_failed())
     return;
 
-  // PWM limits are enforced at the output component level to protect hardware
-  // based on circuit schematic requirements. This follows the pattern from the
-  // original Waveshare IO library function "void IO_EXTENSION_Pwm_Output(uint8_t Value)".
-
+  // The safe PWM range is enforced by write_pwm_level(), as in the original Waveshare IO
+  // library function "void IO_EXTENSION_Pwm_Output(uint8_t Value)".
   this->status_comm_result(this->write_byte(IO_EXTENSION_PWM_ADDR, value), LOG_STR("Failed to set PWM duty cycle"));
+}
+
+void WaveshareIOCH32V003Component::write_pwm_level(float state, uint8_t min_value, uint8_t max_value) {
+  auto pwm_value = static_cast<uint8_t>(state * 255.0f);
+  uint8_t final_pwm_value = std::clamp(pwm_value, min_value, max_value);
+  if (final_pwm_value != pwm_value) {
+    ESP_LOGVV(TAG, "Clamping PWM value %u to safe range [%u, %u]", pwm_value, min_value, max_value);
+  }
+  this->set_pwm_value(final_pwm_value);
 }
 
 bool WaveshareIOCH32V003Component::write_gpio_modes_() {

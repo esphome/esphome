@@ -46,6 +46,9 @@ class I2SAudioIn : public I2SAudioBase {
  public:
   /// @brief Builds the RX configuration the parent uses to set up a full duplex channel pair.
   virtual void build_full_duplex_config(i2s_std_config_t &std_cfg) = 0;
+  /// @brief Called by the parent on the main loop just before it enables the full duplex RX channel, which clears
+  /// its receive queue. The channel is still disabled, so event callbacks can be registered on it.
+  virtual void full_duplex_rx_enabling(i2s_chan_handle_t rx_handle, uint32_t dma_desc_num) = 0;
 #endif
 };
 
@@ -126,6 +129,7 @@ class I2SAudioComponent final : public Component {
   I2SAudioOut *audio_out_{nullptr};
   i2s_chan_handle_t rx_handle_{nullptr};
   i2s_chan_handle_t tx_handle_{nullptr};
+  uint32_t dma_desc_num_{0};
   bool rx_in_use_{false};
   bool tx_in_use_{false};
   bool rx_enabled_{false};

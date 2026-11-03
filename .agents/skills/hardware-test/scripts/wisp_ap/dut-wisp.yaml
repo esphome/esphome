@@ -1,0 +1,14 @@
+substitutions:
+  name: wispdut-wisp
+  framework: esp-idf
+packages:
+  common: !include dut-common.yaml
+wifi:
+  networks:
+    - ssid: !secret wisp_up_ssid
+      password: !secret wisp_up_password
+  ap:
+    ssid: !secret dut_ap_ssid
+    password: !secret dut_ap_password
+    ap_mode: WISP
+captive_portal:
