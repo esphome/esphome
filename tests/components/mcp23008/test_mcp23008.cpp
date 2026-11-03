@@ -62,8 +62,8 @@ class MCP23008Test : public ::testing::Test {
   MCP23008 component_;
 };
 
-TEST_F(MCP23008Test, SetupBusFailure) {
-  this->bus_.fail = true;
+TEST_F(MCP23008Test, SetupIoconReadFailure) {
+  this->bus_.fail_read_reg = MCP23X08_IOCON;
   this->component_.setup();
   EXPECT_TRUE(this->component_.is_failed());
   EXPECT_TRUE(this->bus_.writes.empty());
