@@ -2,3 +2,7 @@ interval:
   - interval: 1s
     then:
       - logger.log: Tick
+  - interval: 2s
+    startup_delay: 5s
+    then:
+      - logger.log: Tick after startup delay

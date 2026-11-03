@@ -21,3 +21,14 @@ esphome:
             lambda: 'return deep_sleep::woke_from_deep_sleep();'
           then:
             - logger.log: Woke from deep sleep
+
+script:
+  - id: deep_sleep_for_seconds
+    parameters:
+      seconds: uint32_t
+    then:
+      # The lambdas modify their by-value parameter
+      - deep_sleep.enter:
+          sleep_duration: !lambda "seconds *= 1000; return seconds;"
+      - deep_sleep.enter:
+          sleep_duration: !lambda "return seconds *= 1000;"
