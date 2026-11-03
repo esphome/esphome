@@ -16,6 +16,7 @@ class EPaperSpectraE6DualCS : public EPaperSpectraE6 {
   void dump_config() override;
   bool initialise(bool partial) override;
   bool transfer_data() override;
+  void abort_transfer() override;
   void power_on() override;
   void refresh_screen(bool partial) override;
   void power_off() override;

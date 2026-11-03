@@ -192,6 +192,15 @@ bool HOT EPaperSpectraE6DualCS::transfer_data() {
   return true;
 }
 
+void EPaperSpectraE6DualCS::abort_transfer() {
+  // A data stream is open, with one chip select held low, whenever transfer_data() has started sending a half
+  if (this->current_data_index_ == 0)
+    return;
+  this->cs_secondary_->digital_write(true);
+  this->disable();
+  this->transfer_to_secondary_ = false;
+}
+
 void EPaperSpectraE6DualCS::power_on() {
   ESP_LOGD(TAG, "PON → both ICs");
   this->both_command_(CMD_PON);
