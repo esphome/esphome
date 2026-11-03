@@ -9,7 +9,12 @@ ESPHOME_LOG_TAG(TAG, "epaper_spi.mono");
 
 void EPaperMono::setup() {
   EPaperBase::setup();
-  if (!this->is_failed() && this->needs_previous_frame())
+  if (!this->is_failed())
+    this->init_previous_frame_();
+}
+
+void EPaperMono::init_previous_frame_() {
+  if (this->needs_previous_frame() && !this->sent_.is_valid())
     this->init_sent_frame_(this->sent_frame_length());
 }
 
@@ -30,6 +35,7 @@ void EPaperMono::deep_sleep() {
 bool EPaperMono::reset() {
   if (!EPaperBase::reset())
     return false;
+  this->init_previous_frame_();
   if (this->software_reset_)
     this->command(0x12);
   return true;

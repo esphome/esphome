@@ -69,6 +69,26 @@ performance nit, because it fragments a small shared heap. Flag:
   typed as `std::function`, so lightweight forwarders avoid a heap allocation.
 - Two-space indent, `using` over `typedef`, wrap at 120 columns.
 
+## Use the existing helper
+
+New components often hand-write code a helper already covers. Ask for the
+helper; `AGENTS.md` section 4 and the `component-codegen` skill have the detail.
+
+| Seen in the PR | Ask for |
+| --- | --- |
+| `if (this->x_sensor_ != nullptr) this->x_sensor_->publish_state(v);` | `PUBLISH_STATE(this->x_sensor_, v);` (`esphome/core/entity_base.h`) |
+| set warning / `return` / clear warning around a bus result | `if (!this->status_comm_result(ok)) return;` |
+| hand-written `set_x_sensor()` plus `x_sensor_` member | `SUB_SENSOR(x)`, `SUB_BINARY_SENSOR`, `SUB_TEXT_SENSOR`, `SUB_SWITCH`, ... |
+| `if CONF_X in config: s = await sensor.new_sensor(config[CONF_X])` plus setter | `sensors = sensor.sub_sensors(config)` then `await sensors(CONF_X, hub.set_x_sensor)` |
+| hand-written `{"a": MyEnum.MY_ENUM_A, ...}` dict | `MyEnum.options("a", "b", prefix="MY_ENUM_")` |
+| loops on `available()` / `read_byte()` | UART `read_available(on_byte)`, `discard_available()`, `LineReader<N>`, `FrameReader<N, HEADER...>` |
+| hand-rolled CRC, checksum or bit loop | `crc8`, `crc16`, `xor_bytes`, `sum16_bytes`, `encode_uint16`, ... (`esphome/core/helpers.h`) |
+| bare `mark_failed()`, or `ESP_LOGE` then `mark_failed()` | `this->mark_failed(LOG_STR("reason"))` or `LOG_STR(ESP_LOG_MSG_COMM_FAIL)` |
+| button/switch/number/select C++ class that only calls the hub | `ApplyButton`, `ApplySwitch`, `ApplyNumber`, `ApplySelect` with `apply=` |
+| action or condition class that only forwards to the parent | `register_apply_action` / `register_apply_condition` |
+| enum-to-string `switch` returning literals | `PROGMEM_STRING_TABLE` with `get_log_str` / `get_progmem_str` |
+| `if (x := config.get(CONF_X)) is not None: cg.add(var.set_x(x))` | `cg.add_optional(var.set_x, config.get(CONF_X))`, when the setter takes the value unchanged |
+
 ## Python conventions
 
 - Type-annotate every new function signature (params and return), new dataclass
