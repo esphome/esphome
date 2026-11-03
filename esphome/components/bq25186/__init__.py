@@ -4,9 +4,11 @@ from typing import Any
 from esphome import automation
 import esphome.codegen as cg
 from esphome.components import i2c
+from esphome.components.const import CONF_CHARGE_ENABLED, CONF_INPUT_CURRENT_LIMIT
 import esphome.config_validation as cv
 from esphome.const import CONF_ID, CONF_UPDATE_INTERVAL, CONF_WATCHDOG
 from esphome.core import CORE, ID, EsphomeError, Lambda, TimePeriod
+import esphome.final_validate as fv
 from esphome.types import ConfigType, TemplateArgsType
 
 CODEOWNERS = ["@Rapsssito"]
@@ -18,7 +20,6 @@ CONF_BQ25186_ID = "bq25186_id"
 CONF_CONFIGURE_ON_BOOT = "configure_on_boot"
 CONF_BATTERY_REGULATION_VOLTAGE = "battery_regulation_voltage"
 CONF_FAST_CHARGE_CURRENT = "fast_charge_current"
-CONF_CHARGE_ENABLED = "charge_enabled"
 CONF_FLASH_CHARGING_MODE = "flash_charging_mode"
 CONF_PRECHARGE_IS_ITERM = "precharge_is_iterm"
 CONF_TERMINATION_PERCENT = "termination_percent"
@@ -37,7 +38,6 @@ CONF_SAFETY_TIMER = "safety_timer"
 CONF_LONG_PRESS_DURATION = "long_press_duration"
 CONF_HW_RESET_REQUIRES_VIN = "hw_reset_requires_vin"
 CONF_AUTOWAKE = "autowake"
-CONF_INPUT_CURRENT_LIMIT = "input_current_limit"
 CONF_PUSH_BUTTON_LONG_PRESS_ACTION = "push_button_long_press_action"
 CONF_WAKE1_TIMER = "wake1_timer"
 CONF_WAKE2_TIMER = "wake2_timer"
@@ -359,8 +359,7 @@ async def bq25186_configure_to_code(
     parent = await cg.get_variable(config[CONF_ID])
 
     # Options the action leaves out fall back to the component's configuration
-    path = CORE.config.get_path_for_id(config[CONF_ID])[:-1]
-    parent_config = CORE.config.get_config_for_path(path)
+    parent_config = fv.get_declaring_config(config[CONF_ID], CORE.config)
     merged = {**parent_config, **config}
     try:
         _check_watchdog(merged)

@@ -1,5 +1,6 @@
 from collections.abc import Awaitable, Callable
 import importlib.util
+import inspect
 import logging
 from pathlib import Path
 import sys
@@ -362,3 +363,43 @@ def test_add_optional_skips_none(monkeypatch: pytest.MonkeyPatch) -> None:
     assert ch.add_optional(setter, None) is None
     setter.assert_not_called()
     add_mock.assert_not_called()
+
+
+def _register_component_mocks(monkeypatch: pytest.MonkeyPatch) -> tuple[Mock, Mock]:
+    base = Mock()
+    base.__str__ = lambda self: "foo.bar"
+    base.type = Mock()
+    base.type.__str__ = lambda self: "foo::Bar"
+    var = Mock(base=base)
+    app_mock = Mock(register_component_=Mock(return_value=var))
+    monkeypatch.setattr(ch, "App", app_mock)
+    monkeypatch.setattr(ch, "CORE", Mock(component_ids=["foo.bar"], data={}))
+    monkeypatch.setattr(ch, "add", Mock())
+    return var, app_mock
+
+
+@pytest.mark.asyncio
+async def test_register_component_stack_error_warns_and_skips_source(
+    monkeypatch: pytest.MonkeyPatch, caplog: pytest.LogCaptureFixture
+) -> None:
+    var, app_mock = _register_component_mocks(monkeypatch)
+    monkeypatch.setattr(inspect, "stack", Mock(side_effect=IndexError("no stack")))
+
+    with caplog.at_level(logging.WARNING):
+        assert await ch.register_component(var, {}) is var
+
+    assert "Error while finding name of component" in caplog.text
+    app_mock.register_component_.assert_called_once_with(var)
+
+
+@pytest.mark.asyncio
+async def test_register_component_without_module_has_no_source(
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    var, app_mock = _register_component_mocks(monkeypatch)
+    monkeypatch.setattr(inspect, "stack", Mock(return_value=[(None,), (None,)]))
+    monkeypatch.setattr(inspect, "getmodule", lambda _: None)
+
+    assert await ch.register_component(var, {}) is var
+
+    app_mock.register_component_.assert_called_once_with(var)

@@ -1,8 +1,8 @@
 #include "st7305.h"
 
 #include <algorithm>
-#include <cstring>
 
+#include "esphome/core/helpers.h"
 #include "esphome/core/log.h"
 
 namespace esphome::st7305 {
@@ -27,7 +27,6 @@ bool ST7305::init_buffer_() {
     this->mark_failed(LOG_STR("Buffer allocation failed"));
     return false;
   }
-  memset(this->buffer_, 0x00, this->buffer_length_);
   this->clear_dirty_();
   return true;
 }
@@ -191,11 +190,7 @@ void HOT ST7305::draw_absolute_pixel_internal(int x, int y, Color color) {
   // The init sequence enables INVON, so a set bit is white and a clear bit is black.
   uint8_t &value = this->buffer_[index];
   const uint8_t previous = value;
-  if (color.is_on()) {
-    value |= mask;
-  } else {
-    value &= ~mask;
-  }
+  assign_bits(value, mask, color.is_on());
   if (value == previous)
     return;
   this->extend_dirty_(x, y, x, y);

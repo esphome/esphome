@@ -48,7 +48,7 @@ async def to_code(config: ConfigType) -> None:
     await cg.register_component(var, config)
 
     sensors = sensor.sub_sensors(config)
-    await sensors(CONF_CO2, var.set_co2)
-    await sensors(CONF_TVOC, var.set_tvoc)
+    await sensors(CONF_CO2, var.set_co2_sensor)
+    await sensors(CONF_TVOC, var.set_tvoc_sensor)
 
     await i2c.register_i2c_device(var, config)
