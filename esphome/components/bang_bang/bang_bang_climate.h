@@ -17,13 +17,14 @@ struct BangBangClimateTargetTempConfig {
 };
 
 class BangBangClimate final : public climate::Climate, public Component {
+  SUB_SENSOR(temperature)
+  SUB_SENSOR(humidity)
+
  public:
   BangBangClimate();
   void setup() override;
   void dump_config() override;
 
-  void set_sensor(sensor::Sensor *sensor) { this->sensor_ = sensor; }
-  void set_humidity_sensor(sensor::Sensor *humidity_sensor) { this->humidity_sensor_ = humidity_sensor; }
   void set_supports_cool(bool supports_cool) { this->supports_cool_ = supports_cool; }
   void set_supports_heat(bool supports_heat) { this->supports_heat_ = supports_heat; }
   void set_normal_config(const BangBangClimateTargetTempConfig &normal_config);
@@ -46,11 +47,6 @@ class BangBangClimate final : public climate::Climate, public Component {
 
   /// Switch the climate device to the given climate mode.
   void switch_to_action_(climate::ClimateAction action);
-
-  /// The sensor used for getting the current temperature
-  sensor::Sensor *sensor_{nullptr};
-  /// The sensor used for getting the current humidity
-  sensor::Sensor *humidity_sensor_{nullptr};
 
   /** The trigger to call when the controller should switch to idle mode.
    *
