@@ -21,6 +21,12 @@ class TestBSEC2 : public BME68xBSEC2Component {
   void start_idle() { this->disable_loop(); }
 };
 
+std::string format_state(const char *name, float value) {
+  char buf[64];
+  snprintf(buf, sizeof(buf), "%s=%g", name, value);
+  return buf;
+}
+
 bsec_output_t output(uint8_t sensor_id, float signal, uint8_t accuracy = 0) {
   bsec_output_t out{};
   out.sensor_id = sensor_id;
@@ -90,11 +96,7 @@ class BSEC2PublishTest : public ::testing::Test {
 
  private:
   void add_(sensor::Sensor &sensor, const char *name) {
-    sensor.add_on_state_callback([this, name](float value) {
-      char buf[64];
-      snprintf(buf, sizeof(buf), "%s=%g", name, value);
-      this->events.push_back(buf);
-    });
+    sensor.add_on_state_callback([this, name](float value) { this->events.push_back(format_state(name, value)); });
   }
 };
 
@@ -238,14 +240,20 @@ TEST_F(BSEC2PublishTest, ParallelModeFieldsAllGoOutInOrder) {
         output(BSEC_OUTPUT_SENSOR_HEAT_COMPENSATED_TEMPERATURE, 20.0f + f),
         output(BSEC_OUTPUT_SENSOR_HEAT_COMPENSATED_HUMIDITY, 45.0f + f),
     });
-    for (const std::string &state :
-         {"iaq=" + std::to_string(50 + field), "iaq_static=" + std::to_string(40 + field),
-          "co2_equivalent=" + std::to_string(600 + field), "breath_voc_equivalent=" + std::to_string(1 + field),
-          "pressure=" + std::to_string(1000 + field), "gas_resistance=" + std::to_string(120000 + field),
-          "temperature=" + std::to_string(20 + field), "humidity=" + std::to_string(45 + field),
-          "iaq_accuracy=" + std::to_string(field), std::string("iaq_accuracy_text=") + STATES[field]}) {
-      expected.push_back({state});
+    for (const auto &[name, value] : std::initializer_list<std::pair<const char *, float>>{
+             {"iaq", 50 + f},
+             {"iaq_static", 40 + f},
+             {"co2_equivalent", 600 + f},
+             {"breath_voc_equivalent", 1 + f},
+             {"pressure", 1000 + f},
+             {"gas_resistance", 120000 + f},
+             {"temperature", 20 + f},
+             {"humidity", 45 + f},
+             {"iaq_accuracy", f},
+         }) {
+      expected.push_back({format_state(name, value)});
     }
+    expected.push_back({std::string("iaq_accuracy_text=") + STATES[field]});
     expected.push_back({});  // state save opportunity
   }
   expected.push_back({});
@@ -263,7 +271,7 @@ TEST_F(BSEC2PublishTest, FullQueueDropsTheOldestState) {
   auto passes = this->drain();
   ASSERT_EQ(passes.size(), static_cast<size_t>(size) + 1);
   EXPECT_EQ(passes.front(), (std::vector<std::string>{"temperature=1"}));
-  EXPECT_EQ(passes[size - 1], (std::vector<std::string>{"temperature=" + std::to_string(size)}));
+  EXPECT_EQ(passes[size - 1], (std::vector<std::string>{format_state("temperature", size)}));
   EXPECT_TRUE(passes.back().empty());
 }
 
