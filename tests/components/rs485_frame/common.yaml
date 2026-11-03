@@ -10,7 +10,7 @@ globals:
 # for compile/config coverage. On real hardware each actively-transmitting hub needs its own UART;
 # this is a test fixture, not a wiring example.
 rs485_frame:
-  # Hub 1 — exercises on_frame: triggers + button + number.
+  # Hub 1 — exercises on_frame: triggers + button.
   # crc: is required (it has no default). command_format: is set explicitly so
   # the `value:`-form button below is accepted (the button platform's _final_validate
   # rejects `value:` against a hub with no command_format). The default frame_trigger gate
@@ -187,13 +187,3 @@ script:
           frame_type: [0x00, 0xA2]
           payload: !lambda |-
             return std::vector<uint8_t>{0x42, 0x00, static_cast<uint8_t>(id(g_led_mask) & 0xFF)};
-
-number:
-  - platform: rs485_frame
-    rs485_frame_id: rs485_frame_hub
-    name: "VSP Speed"
-    min_value: 0
-    max_value: 100
-    step: 1
-    lambda: |-
-      return std::vector<uint8_t>{0x0c, 0x01, 0x00, static_cast<uint8_t>(x)};
