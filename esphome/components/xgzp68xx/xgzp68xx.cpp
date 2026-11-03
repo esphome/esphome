@@ -16,6 +16,7 @@ static constexpr uint32_t MEASUREMENT_TIMEOUT_ID = 0;
 static const uint8_t CMD_ADDRESS = 0x30;
 static const uint8_t SYSCONFIG_ADDRESS = 0xA5;
 static const uint8_t PCONFIG_ADDRESS = 0xA6;
+static constexpr uint8_t PCONFIG_OVERSAMPLING_MASK = 0x07;
 static const uint8_t READ_COMMAND = 0x0A;
 
 // Indexed by the XGZP68XXOversampling register value, which is not in size order
@@ -27,10 +28,9 @@ PROGMEM_STRING_TABLE(OversamplingStrings, "1024x", "2048x", "4096x", "8192x", "2
 }
 
 void XGZP68XXComponent::update() {
-  // Do we need to change oversampling?
   // A failed write is retried on the next update
   if (this->last_pressure_oversampling_ != this->pressure_oversampling_ &&
-      this->update_register(PCONFIG_ADDRESS, 0x07, this->pressure_oversampling_)) {
+      this->update_register(PCONFIG_ADDRESS, PCONFIG_OVERSAMPLING_MASK, this->pressure_oversampling_)) {
     ESP_LOGD(TAG, "Oversampling set to %s", LOG_STR_ARG(oversampling_to_str(this->pressure_oversampling_)));
     this->last_pressure_oversampling_ = this->pressure_oversampling_;
   }
