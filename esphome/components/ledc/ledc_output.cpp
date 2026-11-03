@@ -1,4 +1,5 @@
 #include "ledc_output.h"
+#include "ledc_duty.h"
 #include "esphome/core/log.h"
 
 #ifdef USE_ESP32
@@ -161,9 +162,8 @@ void LEDCOutput::write_duty_() {
 #ifdef USE_LEDC_DITHERING
   fractional_bits = this->dithering_ ? 4 : 0;
 #endif
-  const uint32_t max_duty = ((uint32_t(1) << this->bit_depth_) - 1) << fractional_bits;
-  const float duty_rounded = roundf(this->duty_ * max_duty);
-  auto duty = static_cast<uint32_t>(duty_rounded);
+  const uint32_t max_duty = full_scale_ticks(this->bit_depth_, fractional_bits);
+  const uint32_t duty = duty_to_ticks(this->duty_, this->bit_depth_, fractional_bits);
   if (duty == this->last_duty_) {
     this->status_clear_warning();
     this->disable_loop();
