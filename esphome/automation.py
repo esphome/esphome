@@ -1933,6 +1933,16 @@ def _options_have_non_synchronous_actions(options: Any) -> bool:
     return False
 
 
+def owning_args(args: TemplateArgsType, conf: ConfigType) -> TemplateArgsType:
+    """Pass std::string instead of StringRef to an automation that defers, as it keeps its arguments."""
+    if not has_non_synchronous_actions(conf):
+        return args
+    return [
+        (cg.std_string if type_ is cg.StringRef else type_, name)
+        for type_, name in args
+    ]
+
+
 def validate_no_deferring_actions(
     context: str, data: str = "the trigger data"
 ) -> Callable[[ConfigType], ConfigType]:
@@ -1979,10 +1989,13 @@ def validate_synchronous_automation(
     )
 
 
-async def _new_automation(
+async def new_automation(
     args: TemplateArgsType, config: ConfigType, *ctor_args: MockObj
 ) -> MockObj:
-    """Create the Automation for ``config`` with its actions."""
+    """Create the ``Automation<args>`` for an ``on_*`` config with its actions.
+
+    For a parent that stores and fires the automation itself; ``build_automation`` attaches it to a trigger.
+    """
     plan = await _build_automation_plan(args, config)
     return _automation_from_plan(plan, args, config, *ctor_args)
 
@@ -2047,7 +2060,7 @@ def _when_call(
 async def build_automation(
     trigger: MockObj, args: TemplateArgsType, config: ConfigType
 ) -> MockObj:
-    return await _new_automation(args, config, trigger)
+    return await new_automation(args, config, trigger)
 
 
 async def build_trigger_callback(
@@ -2206,6 +2219,31 @@ async def build_trigger_automations(
         for conf in config.get(conf_key, []):
             trigger = cg.new_Pvariable(conf[CONF_TRIGGER_ID], *ctor_args)
             await build_automation(trigger, args, conf)
+
+
+@dataclass(frozen=True, slots=True)
+class AutomationList:
+    """Automations a parent keeps in an ``AutomationList<count_define, args...>`` and triggers itself.
+
+    The parent adds each one with ``add_<conf_key>_automation()``. ``count_define`` is the most
+    automations any one parent gets; it is absent when none do.
+    """
+
+    conf_key: str
+    count_define: str
+    args: TemplateArgsType
+
+
+async def build_automation_lists(
+    parent: MockObj, config: ConfigType, entries: tuple[AutomationList, ...]
+) -> None:
+    """Build each entry's automations and add them to the parent's slot-counted list."""
+    for entry in entries:
+        request_slot = cg.slot_counter(entry.count_define)
+        for conf in config.get(entry.conf_key, []):
+            request_slot(str(parent))
+            obj = await new_automation(entry.args, conf)
+            cg.add(getattr(parent, f"add_{entry.conf_key}_automation")(obj))
 
 
 @dataclass(frozen=True, slots=True)

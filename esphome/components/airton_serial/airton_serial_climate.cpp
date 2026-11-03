@@ -256,16 +256,11 @@ void AirtonSerialClimate::handle_ac_(const uint8_t *data) {
 
 void AirtonSerialClimate::publish_settings_() {
 #ifdef USE_SWITCH
-  if (this->display_switch_ != nullptr)
-    this->display_switch_->publish_state((this->flags_ & FLAG_DISPLAY) != 0);
-  if (this->ionizer_switch_ != nullptr)
-    this->ionizer_switch_->publish_state((this->flags_ & FLAG_IONIZER) != 0);
-  if (this->sleep_switch_ != nullptr)
-    this->sleep_switch_->publish_state((this->flags_ & FLAG_SLEEP) != 0);
-  if (this->eco_switch_ != nullptr)
-    this->eco_switch_->publish_state((this->flags_ & FLAG_ECO) != 0);
-  if (this->health_switch_ != nullptr)
-    this->health_switch_->publish_state((this->flags_ & FLAG_HEALTH) != 0);
+  PUBLISH_STATE(this->display_switch_, (this->flags_ & FLAG_DISPLAY) != 0);
+  PUBLISH_STATE(this->ionizer_switch_, (this->flags_ & FLAG_IONIZER) != 0);
+  PUBLISH_STATE(this->sleep_switch_, (this->flags_ & FLAG_SLEEP) != 0);
+  PUBLISH_STATE(this->eco_switch_, (this->flags_ & FLAG_ECO) != 0);
+  PUBLISH_STATE(this->health_switch_, (this->flags_ & FLAG_HEALTH) != 0);
 #endif
 }
 
