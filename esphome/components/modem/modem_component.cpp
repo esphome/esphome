@@ -1121,18 +1121,12 @@ PROGMEM_STRING_TABLE(NetworkModeStrings, "No service", "GSM", "GPRS", "EDGE", "W
 void ModemComponent::publish_readings_([[maybe_unused]] uint8_t rssi, [[maybe_unused]] uint8_t ber,
                                        [[maybe_unused]] uint8_t mode) {
 #ifdef USE_MODEM_SIGNAL
-  if (this->rssi_sensor_ != nullptr) {
-    this->rssi_sensor_->publish_state(rssi <= CSQ_RSSI_MAX ? -113.0f + 2.0f * rssi : NAN);
-  }
-  if (this->ber_sensor_ != nullptr) {
-    this->ber_sensor_->publish_state(ber < std::size(BER_PERCENT) ? BER_PERCENT[ber] : NAN);
-  }
+  PUBLISH_STATE(this->rssi_sensor_, rssi <= CSQ_RSSI_MAX ? -113.0f + 2.0f * rssi : NAN);
+  PUBLISH_STATE(this->ber_sensor_, ber < std::size(BER_PERCENT) ? BER_PERCENT[ber] : NAN);
 #endif
 #ifdef USE_MODEM_NETWORK_TYPE
-  if (this->network_type_text_sensor_ != nullptr) {
-    this->network_type_text_sensor_->publish_state(
-        NetworkModeStrings::get_progmem_str(mode, NetworkModeStrings::LAST_INDEX));
-  }
+  PUBLISH_STATE(this->network_type_text_sensor_,
+                NetworkModeStrings::get_progmem_str(mode, NetworkModeStrings::LAST_INDEX));
 #endif
 }
 #endif

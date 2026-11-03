@@ -206,7 +206,7 @@ void KamstrupKMPComponent::parse_command_message_(uint16_t command, const uint8_
     return;
   }
 
-  uint16_t recv_command = msg[2] << 8 | msg[3];
+  uint16_t recv_command = encode_uint16(msg[2], msg[3]);
   if (recv_command != command) {
     ESP_LOGE(TAG, "Received invalid message (invalid unexpected command received 0x%04X, expected 0x%04X)",
              recv_command, command);

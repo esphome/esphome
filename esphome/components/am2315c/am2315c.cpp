@@ -138,12 +138,8 @@ void AM2315C::update() {
     float temperature = 0.0;
     float humidity = 0.0;
     if (this->convert_(data, humidity, temperature)) {
-      if (this->temperature_sensor_ != nullptr) {
-        this->temperature_sensor_->publish_state(temperature);
-      }
-      if (this->humidity_sensor_ != nullptr) {
-        this->humidity_sensor_->publish_state(humidity);
-      }
+      PUBLISH_STATE(this->temperature_sensor_, temperature);
+      PUBLISH_STATE(this->humidity_sensor_, humidity);
       this->status_clear_warning();
     } else {
       ESP_LOGW(TAG, "CRC failed!");

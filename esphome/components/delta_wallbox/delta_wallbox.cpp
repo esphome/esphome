@@ -102,7 +102,7 @@ static bool verify_crc(const uint8_t *data, size_t len) {
   if (len < EXCEPTION_RESPONSE_LEN)
     return false;
   const uint16_t calculated = crc16(data, static_cast<uint16_t>(len - 2));
-  const uint16_t received = data[len - 2] | (data[len - 1] << 8);
+  const uint16_t received = encode_uint16(data[len - 1], data[len - 2]);
   return calculated == received;
 }
 
@@ -335,7 +335,7 @@ void DeltaWallbox::handle_frame_(const uint8_t *frame, size_t len) {
     }
     case DeltaState::DELTA_STATE_CHECK_PAIRING: {
       if (frame[2] >= REGISTER_BYTE_COUNT) {
-        uint16_t status = (frame[3] << 8) | frame[4];
+        uint16_t status = encode_uint16(frame[3], frame[4]);
         ESP_LOGI(TAG, "Pairing Status Register: 0x%04X", status);
         if (status == PAIRING_STATUS_READY) {
           this->pairing_in_progress_ = false;
@@ -464,13 +464,13 @@ void DeltaWallbox::handle_frame_(const uint8_t *frame, size_t len) {
           this->send_frame_(CMD_GET_ERROR_CODE, sizeof(CMD_GET_ERROR_CODE));
         } else if (byte_count == REGISTER_BYTE_COUNT) {
           // Error status register (0x01B5)
-          uint16_t reg_val = (frame[3] << 8) | frame[4];
+          uint16_t reg_val = encode_uint16(frame[3], frame[4]);
           char hex_str[16];
           snprintf(hex_str, sizeof(hex_str), "%04X", reg_val);
           PUBLISH_STATE(this->error_code_text_sensor_, hex_str);
         }
       } else if (frame[1] == FC_WRITE_SINGLE_REGISTER) {
-        const uint16_t register_addr = (static_cast<uint16_t>(frame[2]) << 8) | frame[3];
+        const uint16_t register_addr = encode_uint16(frame[2], frame[3]);
         if (register_addr == REG_MAX_CURRENT) {
           ESP_LOGI(TAG, "Wallbox max current command acknowledged: %u A", frame[5]);
           PUBLISH_STATE(this->max_current_number_, frame[5]);

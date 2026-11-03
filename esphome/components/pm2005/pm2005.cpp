@@ -86,15 +86,9 @@ void PM2005Component::update() {
   ESP_LOGD(TAG, "PM1.0: %d, PM2.5: %d, PM10: %d, Measuring mode: %s.", pm1, pm25, pm10,
            LOG_STR_ARG(pm2005_get_measuring_mode_string(sensor_measuring_mode)));
 
-  if (this->pm_1_0_sensor_ != nullptr) {
-    this->pm_1_0_sensor_->publish_state(pm1);
-  }
-  if (this->pm_2_5_sensor_ != nullptr) {
-    this->pm_2_5_sensor_->publish_state(pm25);
-  }
-  if (this->pm_10_0_sensor_ != nullptr) {
-    this->pm_10_0_sensor_->publish_state(pm10);
-  }
+  PUBLISH_STATE(this->pm_1_0_sensor_, pm1);
+  PUBLISH_STATE(this->pm_2_5_sensor_, pm25);
+  PUBLISH_STATE(this->pm_10_0_sensor_, pm10);
 
   this->status_clear_warning();
 }

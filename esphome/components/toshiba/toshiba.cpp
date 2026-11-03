@@ -610,7 +610,7 @@ void ToshibaClimate::transmit_rac_pt1411hwru_() {
   message[3] = ~message[2];
   // Byte 4u: Temp
   if (this->model_ == MODEL_RAC_PT1411HWRU_F) {
-    temperature = (temperature * 1.8f) + 32;
+    temperature = celsius_to_fahrenheit(temperature);
     temp_adjd = temperature - TOSHIBA_RAC_PT1411HWRU_TEMP_F_MIN;
   }
 
