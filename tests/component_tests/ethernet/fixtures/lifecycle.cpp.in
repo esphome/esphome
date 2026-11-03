@@ -176,8 +176,10 @@ int main() {
   eth.disable();
   EthernetComponent::eth_event_handler(nullptr, 0, ETHERNET_EVENT_STOP, nullptr);
   start_result = -1;
+  const int stops_before_failed_start = stop_calls;
   eth.enable();
   assert(start_calls == 3 && eth.disabled_ && !eth.is_driver_stopped());
+  assert(stop_calls == stops_before_failed_start + 1);
   const int cleanup_stop_calls = stop_calls;
   eth.enable();
   assert(start_calls == 3 && stop_calls == cleanup_stop_calls);
