@@ -8,7 +8,9 @@ esphome:
           condition:
             modem.enabled:
           then:
-            modem.send_at: "AT+CGSN"
+            - modem.send_at: "AT+CGSN"
+            - modem.send_at:
+                command: !lambda 'return std::string("AT+CSQ");'
           else:
             modem.enable:
       - if:

@@ -50,8 +50,8 @@ async def to_code(config: ConfigType) -> None:
     hub = await cg.get_variable(config[CONF_ID])
 
     binary_sensors = binary_sensor.sub_binary_sensors(config)
-    if await binary_sensors(CONF_MOTION, hub.set_motion):
+    if await binary_sensors(CONF_MOTION, hub.set_motion_binary_sensor):
         cg.add(hub.set_motion_timeout(config[CONF_MOTION][CONF_TIMEOUT]))
-    await binary_sensors(CONF_LIGHT, hub.set_light)
-    if await binary_sensors(CONF_BUTTON, hub.set_button):
+    await binary_sensors(CONF_LIGHT, hub.set_light_binary_sensor)
+    if await binary_sensors(CONF_BUTTON, hub.set_button_binary_sensor):
         cg.add(hub.set_button_timeout(config[CONF_BUTTON][CONF_TIMEOUT]))

@@ -32,9 +32,7 @@ CONFIG_SCHEMA = cv.Schema(
 
 def _final_validate(config: ConfigType) -> None:
     """Validate that the channel is within the parent's channel count."""
-    fconf = fv.full_config.get()
-    path = fconf.get_path_for_id(config[CONF_DS248X_ID])[:-1]
-    parent_config = fconf.get_config_for_path(path)
+    parent_config = fv.get_declaring_config(config[CONF_DS248X_ID])
     channel_count = get_channel_count(parent_config)
     channel = config[CONF_CHANNEL]
 

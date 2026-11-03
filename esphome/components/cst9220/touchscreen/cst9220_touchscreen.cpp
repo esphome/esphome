@@ -10,14 +10,7 @@ static constexpr uint32_t REREAD_TIMEOUT_ID = 1;
 static constexpr uint32_t REREAD_DELAY_MS = 20;
 
 void CST9220Touchscreen::setup() {
-  if (this->reset_pin_ != nullptr) {
-    this->reset_pin_->setup();
-    this->reset_pin_->digital_write(true);
-    delay(5);
-    this->reset_pin_->digital_write(false);
-    delay(10);
-    this->reset_pin_->digital_write(true);
-  }
+  pulse_reset(this->reset_pin_, {.high_before_ms = 5, .low_ms = 10});
   // Wait for the controller to leave its bootloader before talking to it.
   this->set_timeout(30, [this] { this->continue_setup_(); });
 }

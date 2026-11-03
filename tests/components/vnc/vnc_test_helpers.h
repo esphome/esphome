@@ -55,6 +55,9 @@ inline Bytes cat(std::initializer_list<Bytes> parts) {
 
 inline Bytes text(const std::string &s) { return Bytes(s.begin(), s.end()); }
 
+// The bit-reversed key codegen stores for the password "secret12".
+inline constexpr uint8_t SECRET12_KEY[8] = {0xCE, 0xA6, 0xC6, 0x4E, 0xA6, 0x2E, 0x8C, 0x4C};
+
 // ---------------------------------------------------------------------------
 // Displays
 
@@ -255,6 +258,8 @@ class TestVncClient : public VncClient {
   VncState state() const { return this->state_; }
   VncStep step() const { return this->step_; }
   uint32_t hold_ms() const { return this->hold_ms_; }
+  /// The next connect step sees the network come back.
+  void network_dropped() { this->network_was_up_ = false; }
   uint32_t hold_start_ms() const { return this->hold_start_ms_; }
   uint32_t backoff_ms() const { return this->backoff_ms_; }
   bool rx_pending() const { return this->rx_pending_; }
@@ -265,6 +270,8 @@ class TestVncClient : public VncClient {
   uint16_t vis_w() const { return this->vis_w_; }
   uint16_t vis_h() const { return this->vis_h_; }
   uint8_t bpp() const { return this->bpp_; }
+  uint8_t sec_type() const { return this->sec_type_; }
+  bool auth_retried() const { return this->auth_retried_; }
   uint16_t hash_cols() const { return this->hash_cols_; }
   uint16_t hash_rows() const { return this->hash_rows_; }
   uint32_t hash_capacity() const { return this->hash_capacity_; }
@@ -365,6 +372,9 @@ inline Bytes handshake_38(uint16_t w, uint16_t h) {
 inline Bytes fbur(bool incremental, uint16_t w, uint16_t h) {
   return Rfb().u8(3).u8(incremental ? 1 : 0).u16(0).u16(0).u16(w).u16(h).bytes;
 }
+inline Bytes pointer(uint8_t mask, uint16_t x, uint16_t y) { return Rfb().u8(5).u8(mask).u16(x).u16(y).bytes; }
+inline Bytes key(bool down, uint32_t keysym) { return Rfb().u8(4).u8(down ? 1 : 0).u16(0).u32(keysym).bytes; }
+inline Bytes press(uint32_t keysym) { return cat({key(true, keysym), key(false, keysym)}); }
 inline Bytes set_pixel_format_565() { return {0, 0, 0, 0, 16, 16, 0, 1, 0, 31, 0, 63, 0, 31, 11, 5, 0, 0, 0, 0}; }
 inline Bytes set_pixel_format_332() { return {0, 0, 0, 0, 8, 8, 0, 1, 0, 7, 0, 7, 0, 3, 5, 2, 0, 0, 0, 0}; }
 inline Bytes set_encodings() { return {2, 0, 0, 3, 0, 0, 0, 5, 0, 0, 0, 0, 0xFF, 0xFF, 0xFF, 0x11}; }
@@ -527,7 +537,10 @@ class Session {
   void loop(int count = 1) {
     for (int i = 0; i < count; i++) {
       this->pump();
-      this->client.loop();
+      // Like the main loop, skip the client while its loop is disabled.
+      if (!this->client.is_idle()) {
+        this->client.loop();
+      }
     }
   }
   /// Move the virtual clock to an absolute time and run one pass.

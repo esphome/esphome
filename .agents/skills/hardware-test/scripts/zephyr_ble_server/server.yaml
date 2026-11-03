@@ -1,0 +1,27 @@
+# Adafruit ItsyBitsy nRF52840 running zephyr_ble_server (one connection slot). -s name NAME.
+# dfu: true lets the 1200 baud touch enter the UF2 bootloader for the next flash; an app without it needs a
+# double tap on RESET. Logs its own BLE address every 10 s for the client config.
+esphome:
+  name: ${name}
+
+nrf52:
+  board: adafruit_itsybitsy_nrf52840
+  bootloader: adafruit_nrf52_sd140_v6
+  dfu: true
+
+logger:
+  level: DEBUG
+
+zephyr_ble_server:
+
+interval:
+  - interval: 10s
+    then:
+      - lambda: |-
+          bt_addr_le_t addrs[1];
+          size_t count = 1;
+          bt_id_get(addrs, &count);
+          char addr[BT_ADDR_LE_STR_LEN] = "?";
+          if (count > 0)
+            bt_addr_le_to_str(&addrs[0], addr, sizeof(addr));
+          ESP_LOGI("alive", "up %u s, own address %s", (unsigned) (millis() / 1000), addr);

@@ -110,3 +110,7 @@ text_sensor:
     service_uuid: "abcd1234-abcd-1234-abcd-abcd12345678"
     characteristic_uuid: "abcd1239-abcd-1234-abcd-abcd12345678"
     notify: true
+    on_notify:
+      - logger.log:
+          format: "Text notify %s"
+          args: [x.c_str()]

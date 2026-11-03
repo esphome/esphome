@@ -42,9 +42,7 @@ def _final_validate(config: dict[str, Any]) -> None:
 
     # Get the transmitter configuration
     transmitter_id = config[CONF_REMOTE_TRANSMITTER_ID]
-    full_config = fv.full_config.get()
-    transmitter_path = full_config.get_path_for_id(transmitter_id)[:-1]
-    transmitter_config = full_config.get_config_for_path(transmitter_path)
+    transmitter_config = fv.get_declaring_config(transmitter_id)
 
     # Check if carrier_duty_percent set to 0 or 100
     # Note: remote_transmitter schema requires this field and validates 1-100%,

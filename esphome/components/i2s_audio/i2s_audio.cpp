@@ -20,6 +20,7 @@ void I2SAudioComponent::setup() {
   this->audio_out_->build_full_duplex_config(chan_cfg, tx_cfg);
   this->audio_in_->build_full_duplex_config(rx_cfg);
 
+  this->dma_desc_num_ = chan_cfg.dma_desc_num;
   esp_err_t err = i2s_new_channel(&chan_cfg, &this->tx_handle_, &this->rx_handle_);
   if (err == ESP_OK) {
     // The first initialized channel drives the shared clocks. Use RX so the microphone runs on its own.
@@ -79,6 +80,9 @@ bool I2SAudioComponent::update_rx_channel_() {
   if (needed == this->rx_enabled_)
     return true;
 
+  if (needed) {
+    this->audio_in_->full_duplex_rx_enabling(this->rx_handle_, this->dma_desc_num_);
+  }
   esp_err_t err = needed ? i2s_channel_enable(this->rx_handle_) : i2s_channel_disable(this->rx_handle_);
   if (err != ESP_OK) {
     ESP_LOGE(TAG, "Failed to %s RX channel: %s", needed ? LOG_STR_LITERAL("enable") : LOG_STR_LITERAL("disable"),

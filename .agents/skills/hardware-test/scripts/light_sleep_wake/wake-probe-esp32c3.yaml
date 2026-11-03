@@ -1,0 +1,40 @@
+# Any ESP32-C3 with GPIO10 free; drop ESPHome ledc outputs, the C3 shares one LEDC clock across timers.
+esphome:
+  name: wake-probe-esp32c3
+  includes:
+    - wake_probe.hpp
+  on_boot:
+    priority: -100
+    then:
+      - lambda: wakeprobe::start();
+
+esp32:
+  board: esp32-c3-devkitm-1
+  variant: esp32c3
+  framework:
+    type: esp-idf
+    advanced:
+      include_builtin_idf_components:
+        - esp_driver_ledc
+
+logger:
+
+wifi:
+  ssid: !secret wifi_ssid
+  password: !secret wifi_password
+
+api:
+  reboot_timeout: 0s
+
+ota:
+  - platform: esphome
+
+power_management:
+  - platform: esp32_power_management
+    enable_light_sleep: true
+    profiling: true
+
+interval:
+  - interval: 30s
+    then:
+      - lambda: wakeprobe::report();

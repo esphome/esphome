@@ -1,3 +1,5 @@
+import logging
+
 import esphome.codegen as cg
 from esphome.components import i2c, sensor
 from esphome.components.const import UNIT_COUNTS
@@ -10,6 +12,8 @@ from esphome.const import (
     STATE_CLASS_MEASUREMENT,
 )
 from esphome.types import ConfigType
+
+_LOGGER = logging.getLogger(__name__)
 
 CODEOWNERS = ["@mrgnr"]
 DEPENDENCIES = ["i2c"]
@@ -96,6 +100,12 @@ SENSORS = {
 
 
 async def to_code(config: ConfigType) -> None:
+    # Remove before 2027.5.0
+    _LOGGER.warning(
+        "The 'as7341' component is deprecated and will be removed in ESPHome 2027.5.0, migrate to an "
+        "'as734x:' hub with 'type: AS7341' and a 'sensor:' entry with 'platform: as734x' and the bands "
+        "under 'counts:'."
+    )
     var = await i2c.new_i2c_component(config)
 
     cg.add(var.set_gain(config[CONF_GAIN]))

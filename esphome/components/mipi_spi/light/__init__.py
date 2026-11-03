@@ -41,9 +41,7 @@ CONFIG_SCHEMA = cv.All(
 
 
 def _final_validate(config: ConfigType) -> None:
-    full_config = fv.full_config.get()
-    display_path = full_config.get_path_for_id(config[CONF_DISPLAY_ID])[:-1]
-    display_config = full_config.get_config_for_path(display_path)
+    display_config = fv.get_declaring_config(config[CONF_DISPLAY_ID])
     if CONF_BRIGHTNESS not in display_config:
         model = display_config[CONF_MODEL]
         if model == "CUSTOM":

@@ -515,26 +515,14 @@ void LTRAlsPs501Component::apply_lux_calculation_(AlsReadings &data) {
 }
 
 void LTRAlsPs501Component::publish_data_part_1_(AlsReadings &data) {
-  if (this->proximity_counts_sensor_ != nullptr) {
-    this->proximity_counts_sensor_->publish_state(this->ps_readings_);
-  }
-  if (this->ambient_light_sensor_ != nullptr) {
-    this->ambient_light_sensor_->publish_state(data.lux);
-  }
-  if (this->infrared_counts_sensor_ != nullptr) {
-    this->infrared_counts_sensor_->publish_state(data.ch1);
-  }
-  if (this->full_spectrum_counts_sensor_ != nullptr) {
-    this->full_spectrum_counts_sensor_->publish_state(data.ch0);
-  }
+  PUBLISH_STATE(this->proximity_counts_sensor_, this->ps_readings_);
+  PUBLISH_STATE(this->ambient_light_sensor_, data.lux);
+  PUBLISH_STATE(this->infrared_counts_sensor_, data.ch1);
+  PUBLISH_STATE(this->full_spectrum_counts_sensor_, data.ch0);
 }
 
 void LTRAlsPs501Component::publish_data_part_2_(AlsReadings &data) {
-  if (this->actual_gain_sensor_ != nullptr) {
-    this->actual_gain_sensor_->publish_state(get_gain_coeff(data.gain));
-  }
-  if (this->actual_integration_time_sensor_ != nullptr) {
-    this->actual_integration_time_sensor_->publish_state(get_itime_ms(data.integration_time));
-  }
+  PUBLISH_STATE(this->actual_gain_sensor_, get_gain_coeff(data.gain));
+  PUBLISH_STATE(this->actual_integration_time_sensor_, get_itime_ms(data.integration_time));
 }
 }  // namespace esphome::ltr501
