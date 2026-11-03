@@ -228,22 +228,12 @@ void QMP6988Component::write_filter_(QMP6988IIRFilter filter) {
 }
 
 void QMP6988Component::write_oversampling_pressure_(QMP6988Oversampling oversampling_p) {
-  uint8_t data;
-
-  this->read_register(QMP6988_CTRLMEAS_REG, &data, 1);
-  data &= 0xe3;
-  data |= (oversampling_p << 2);
-  this->write_byte(QMP6988_CTRLMEAS_REG, data);
+  this->update_register(QMP6988_CTRLMEAS_REG, 0x1c, oversampling_p << 2);
   delay(10);
 }
 
 void QMP6988Component::write_oversampling_temperature_(QMP6988Oversampling oversampling_t) {
-  uint8_t data;
-
-  this->read_register(QMP6988_CTRLMEAS_REG, &data, 1);
-  data &= 0x1f;
-  data |= (oversampling_t << 5);
-  this->write_byte(QMP6988_CTRLMEAS_REG, data);
+  this->update_register(QMP6988_CTRLMEAS_REG, 0xe0, oversampling_t << 5);
   delay(10);
 }
 
