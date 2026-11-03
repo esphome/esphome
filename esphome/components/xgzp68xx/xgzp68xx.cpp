@@ -28,13 +28,10 @@ PROGMEM_STRING_TABLE(OversamplingStrings, "1024x", "2048x", "4096x", "8192x", "2
 
 void XGZP68XXComponent::update() {
   // Do we need to change oversampling?
-  if (this->last_pressure_oversampling_ != this->pressure_oversampling_) {
-    uint8_t oldconfig = 0;
-    this->read_register(PCONFIG_ADDRESS, &oldconfig, 1);
-    uint8_t newconfig = (oldconfig & 0xf8) | (this->pressure_oversampling_ & 0x7);
-    this->write_register(PCONFIG_ADDRESS, &newconfig, 1);
-    ESP_LOGD(TAG, "oversampling to %s: oldconfig = 0x%x newconfig = 0x%x",
-             LOG_STR_ARG(oversampling_to_str(this->pressure_oversampling_)), oldconfig, newconfig);
+  // A failed write is retried on the next update
+  if (this->last_pressure_oversampling_ != this->pressure_oversampling_ &&
+      this->update_register(PCONFIG_ADDRESS, 0x07, this->pressure_oversampling_)) {
+    ESP_LOGD(TAG, "Oversampling set to %s", LOG_STR_ARG(oversampling_to_str(this->pressure_oversampling_)));
     this->last_pressure_oversampling_ = this->pressure_oversampling_;
   }
 
