@@ -8,6 +8,7 @@
 #include "core/lv_obj_class_private.h"
 #include "core/lv_obj_private.h"
 
+#include <algorithm>
 #include <numeric>
 
 static void *lv_alloc_draw_buf(size_t size, bool internal);
@@ -18,6 +19,9 @@ ESPHOME_LOG_TAG(TAG, "lvgl");
 
 static const size_t MIN_BUFFER_FRAC = 8;     // buffer must be at least 1/8 of the display size
 static const size_t MIN_BUFFER_SIZE = 2048;  // Sensible minimum buffer size
+// Edge of the square tiles used for software rotation by 90 and 270 degrees.
+// 32 RGB565 pixels are 64 bytes, one cache line of the ESP32-S3 PSRAM cache.
+static constexpr lv_coord_t ROTATE_TILE_SIZE = 32;
 
 static const char *const EVENT_NAMES[] = {
     "NONE",
@@ -384,9 +388,18 @@ void LvglComponent::draw_buffer_(const lv_area_t *area, lv_color_data *ptr) {
     {
       switch (this->rotation_) {
         case display::DISPLAY_ROTATION_90_DEGREES:
-          for (lv_coord_t x = height; x-- != 0;) {
-            for (lv_coord_t y = 0; y != width; y++) {
-              dst[y * height_rounded + x] = *ptr++;
+          // Copy in tiles so each destination line gets a run of pixels instead of one scattered pixel,
+          // which is much faster when the rotation buffer is in PSRAM.
+          for (lv_coord_t row_start = 0; row_start < height; row_start += ROTATE_TILE_SIZE) {
+            const lv_coord_t row_end = std::min<lv_coord_t>(row_start + ROTATE_TILE_SIZE, height);
+            for (lv_coord_t col_start = 0; col_start < width; col_start += ROTATE_TILE_SIZE) {
+              const lv_coord_t col_end = std::min<lv_coord_t>(col_start + ROTATE_TILE_SIZE, width);
+              for (lv_coord_t col = col_start; col != col_end; col++) {
+                lv_color_data *line = dst + col * height_rounded + (height - 1);
+                for (lv_coord_t row = row_start; row != row_end; row++) {
+                  line[-row] = ptr[row * width + col];
+                }
+              }
             }
           }
           break;
@@ -400,9 +413,17 @@ void LvglComponent::draw_buffer_(const lv_area_t *area, lv_color_data *ptr) {
           break;
 
         case display::DISPLAY_ROTATION_270_DEGREES:
-          for (lv_coord_t x = 0; x != height; x++) {
-            for (lv_coord_t y = width; y-- != 0;) {
-              dst[y * height_rounded + x] = *ptr++;
+          // Tiled copy, see the 90 degree case.
+          for (lv_coord_t row_start = 0; row_start < height; row_start += ROTATE_TILE_SIZE) {
+            const lv_coord_t row_end = std::min<lv_coord_t>(row_start + ROTATE_TILE_SIZE, height);
+            for (lv_coord_t col_start = 0; col_start < width; col_start += ROTATE_TILE_SIZE) {
+              const lv_coord_t col_end = std::min<lv_coord_t>(col_start + ROTATE_TILE_SIZE, width);
+              for (lv_coord_t col = col_start; col != col_end; col++) {
+                lv_color_data *line = dst + (width - 1 - col) * height_rounded;
+                for (lv_coord_t row = row_start; row != row_end; row++) {
+                  line[row] = ptr[row * width + col];
+                }
+              }
             }
           }
           break;
