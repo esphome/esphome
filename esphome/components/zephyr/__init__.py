@@ -286,6 +286,8 @@ def zephyr_enable_usb_cdc_acm() -> None:
         zephyr_add_prj_conf("UART_LINE_CTRL", True)
         # The serial number string descriptor is read from the chip ID
         zephyr_add_prj_conf("HWINFO", True)
+        # prevent logging when buffer is full
+        zephyr_add_prj_conf("USBD_CDC_ACM_LOG_LEVEL_WRN", True)
         return
     if CORE.is_nrf52 and CORE.data[KEY_CORE][KEY_FRAMEWORK_VERSION] >= cv.Version(
         3, 2, 0
@@ -293,6 +295,11 @@ def zephyr_enable_usb_cdc_acm() -> None:
         zephyr_add_prj_conf("USB_DEVICE_STACK_NEXT", False)
     zephyr_add_prj_conf("USB_DEVICE_STACK", True)
     zephyr_add_prj_conf("USB_CDC_ACM", True)
+    # prevent device to go to susspend, without this communication stop working in python
+    # there should be a way to solve it
+    zephyr_add_prj_conf("USB_DEVICE_REMOTE_WAKEUP", False)
+    # prevent logging when buffer is full
+    zephyr_add_prj_conf("USB_CDC_ACM_LOG_LEVEL_WRN", True)
 
 
 def zephyr_enable_cdc_acm_rate_callback() -> None:
@@ -309,15 +316,6 @@ def _cdc_acm_add_ports() -> None:
     if not users:
         return
     zephyr_enable_usb_cdc_acm()
-    if zephyr_use_usb_device_next():
-        # prevent logging when buffer is full
-        zephyr_add_prj_conf("USBD_CDC_ACM_LOG_LEVEL_WRN", True)
-    else:
-        # prevent device to go to susspend, without this communication stop working in python
-        # there should be a way to solve it
-        zephyr_add_prj_conf("USB_DEVICE_REMOTE_WAKEUP", False)
-        # prevent logging when buffer is full
-        zephyr_add_prj_conf("USB_CDC_ACM_LOG_LEVEL_WRN", True)
     nodes = "".join(
         f"""
                 cdc_acm_uart{id}: cdc_acm_uart{id} {{
