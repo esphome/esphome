@@ -114,8 +114,6 @@ class SX126x final : public Component {
   // succeeded. True accepts cancellation; the completion result reports cleanup failure.
   bool cancel_transmit_async(SX126xTransmitListener *listener);
   bool is_transmitting() const;
-  // A cheap scheduling hint; callers must still handle rejection after this check.
-  bool can_transmit() { return this->is_ready() && this->operation_.is_ready() && !this->dio1_pin_->digital_read(); }
   void register_listener(SX126xListener *listener) { this->listeners_.push_back(listener); }
   Trigger<std::vector<uint8_t>, float, float> *get_packet_trigger() { return &this->packet_trigger_; }
 

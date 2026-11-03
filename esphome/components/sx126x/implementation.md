@@ -275,16 +275,6 @@ reusable RX vector reserves 255 bytes during setup, avoiding later growth in the
 driver. Listeners must not retain a borrowed reference after callback return;
 existing automation value-copy behavior is unchanged.
 
-## Packet transport retries
-
-`can_transmit()` is a scheduling hint, not an admission guarantee. The SX126x
-packet-transport adapter also checks the actual send result. `PacketTransport`
-retains sensor updates and pending pings when `try_send_packet()` rejects them;
-legacy adapters keep their existing `send_packet()` implementation. A split sensor
-update commits only after all packets succeed. A retry can repeat earlier packets
-with current values, without discarding unsent values or adding a packet queue.
-The ping key changes only after its request is sent successfully.
-
 ## Reading and extending the implementation
 
 - Add byte framing only in Sx126xCommands, using the complete exchange API.
