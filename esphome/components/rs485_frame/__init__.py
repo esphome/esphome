@@ -23,7 +23,6 @@ DOC_COMMAND_FORMAT_URL = "https://esphome.io/components/rs485_frame/#command-for
 rs485_frame_ns = cg.esphome_ns.namespace("rs485_frame")
 RS485FrameHub = rs485_frame_ns.class_("RS485FrameHub", cg.Component, uart.UARTDevice)
 
-SensorDecode = rs485_frame_ns.enum("SensorDecode")
 CrcVariant = rs485_frame_ns.enum("CrcVariant")
 CrcType = rs485_frame_ns.enum("CrcType")
 QueuePolicy = rs485_frame_ns.enum("QueuePolicy")
@@ -33,7 +32,6 @@ CONF_RS485_FRAME_ID = "rs485_frame_id"
 CONF_BYTE = "byte"
 CONF_COMMAND_FORMAT = "command_format"
 CONF_CRC = "crc"
-CONF_DECODE = "decode"
 CONF_DLE = "dle"
 CONF_DUMP_FRAMES = "dump_frames"
 CONF_ENDIAN = "endian"
@@ -71,16 +69,6 @@ CRC_TYPES = CrcType.options(
 QUEUE_POLICIES = QueuePolicy.options("replace_latest", "fifo", prefix="QUEUE_")
 TX_GATE_MODES = TxGateMode.options(
     "frame_trigger", "idle_gap", "fixed_delay", prefix="TX_GATE_"
-)
-SENSOR_DECODES = SensorDecode.options(
-    "frames_received",
-    "crc_failures",
-    "commands_sent",
-    "command_drops",
-    "last_keepalive_ms",
-    "queue_depth",
-    "discarded_frames",
-    prefix="SENSOR_DECODE_",
 )
 
 MAX_COMMAND_VALUES = 8

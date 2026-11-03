@@ -15,16 +15,6 @@ static constexpr size_t MAX_FRAME_TYPE_LEN = 8;
 // Framing overhead added to every TX frame: DLE+STX(2) + DLE+ETX(2) + escaped CRC max(4).
 static constexpr size_t FRAME_OVERHEAD_BYTES = 8;
 
-enum SensorDecode {
-  SENSOR_DECODE_FRAMES_RECEIVED,
-  SENSOR_DECODE_CRC_FAILURES,
-  SENSOR_DECODE_COMMANDS_SENT,
-  SENSOR_DECODE_COMMAND_DROPS,
-  SENSOR_DECODE_LAST_KEEPALIVE_MS,
-  SENSOR_DECODE_QUEUE_DEPTH,
-  SENSOR_DECODE_DISCARDED_FRAMES,
-};
-
 enum CrcVariant {
   CRC_HEADER_INCLUSIVE,
   CRC_PAYLOAD_ONLY,
@@ -100,15 +90,6 @@ class RS485FrameHub : public Component, public uart::UARTDevice {
     this->frame_callback_.add(std::forward<F>(callback));
   }
 
-  uint32_t get_frames_received() const { return this->frames_received_; }
-  uint32_t get_crc_failures() const { return this->crc_failures_; }
-  uint32_t get_commands_sent() const { return this->commands_sent_; }
-  uint32_t get_command_drops() const { return this->command_drops_; }
-  uint32_t get_discarded_frames() const { return this->discarded_frames_; }
-  uint32_t get_last_keepalive_ms() const { return this->last_keepalive_ms_; }
-  uint32_t get_queue_depth() const { return this->tx_queue_count_ + (this->tx_start_pending_ ? 1 : 0); }
-  const char *get_last_frame_type() const { return this->last_frame_type_; }
-
  protected:
   void handle_rx_byte_(uint8_t byte, uint32_t now);
   void process_raw_frame_(uint32_t now);
@@ -125,7 +106,7 @@ class RS485FrameHub : public Component, public uart::UARTDevice {
   bool enqueue_frame_();
   void maybe_tx_(uint32_t now);
   void send_next_(uint32_t now);
-  void transmit_(std::vector<uint8_t> &frame, uint32_t now, bool idle);
+  void transmit_(std::vector<uint8_t> &frame, uint32_t now);
   void queue_pop_front_();
   void write_frame_(const std::vector<uint8_t> &frame);
   void log_frame_(const char *dir, const uint8_t *data, size_t len);
@@ -168,16 +149,12 @@ class RS485FrameHub : public Component, public uart::UARTDevice {
   std::unique_ptr<uint8_t[]> raw_frame_;
   size_t raw_len_{0};
   uint32_t last_rx_time_{0};
-  bool last_ka_seen_{false};
-  uint32_t last_ka_time_{0};
-  uint32_t last_keepalive_ms_{0};
   uint32_t last_tx_time_{0};
   // Advanced by RX and our own TX, so an idle keepalive resets the idle_gap timer.
   uint32_t last_activity_time_{0};
   bool has_activity_{false};
   bool has_tx_ever_{false};
   bool tx_start_pending_{false};
-  bool pending_is_idle_{false};
   uint32_t tx_start_at_{0};
   std::vector<uint8_t> pending_tx_frame_;
 
@@ -187,15 +164,6 @@ class RS485FrameHub : public Component, public uart::UARTDevice {
   std::vector<uint8_t> tx_frame_buf_;
   std::unique_ptr<char[]> hex_log_buf_;
   size_t hex_log_buf_size_{0};
-
-  uint32_t frames_received_{0};
-  uint32_t crc_failures_{0};
-  uint32_t commands_sent_{0};
-  uint32_t command_drops_{0};
-  // Frames abandoned mid-receive (overflow or intra-frame timeout), never CRC checked.
-  uint32_t discarded_frames_{0};
-  // First two payload bytes as hex.
-  char last_frame_type_[5]{};
 };
 
 }  // namespace esphome::rs485_frame

@@ -44,7 +44,7 @@ void RS485FrameHub::loop() {
   this->maybe_tx_(now);
   if (this->tx_start_pending_ && now - this->tx_start_at_ < 0x80000000UL) {
     this->tx_start_pending_ = false;
-    this->transmit_(this->pending_tx_frame_, now, this->pending_is_idle_);
+    this->transmit_(this->pending_tx_frame_, now);
   }
 }
 
@@ -85,7 +85,6 @@ bool RS485FrameHub::check_tx_(size_t len) {
   } else {
     return true;
   }
-  this->command_drops_++;
   return false;
 }
 
@@ -111,11 +110,9 @@ bool RS485FrameHub::enqueue_frame_() {
   if (this->queue_policy_ == QUEUE_REPLACE_LATEST) {
     if (this->tx_queue_count_ > 0 || this->tx_start_pending_) {
       ESP_LOGW(TAG, "Replacing pending frame before it was transmitted");
-      this->command_drops_++;
     }
     if (this->tx_start_pending_) {
       std::swap(this->pending_tx_frame_, this->tx_frame_buf_);
-      this->pending_is_idle_ = false;
       return true;
     }
     this->tx_queue_head_ = 0;
@@ -123,7 +120,6 @@ bool RS485FrameHub::enqueue_frame_() {
     this->tx_queue_count_ = 0;
   } else if (this->tx_queue_count_ + (this->tx_start_pending_ ? 1 : 0) >= this->max_queue_size_) {
     ESP_LOGW(TAG, "Frame queue full; dropping frame");
-    this->command_drops_++;
     return false;
   }
   std::swap(this->tx_queue_[this->tx_queue_tail_], this->tx_frame_buf_);
@@ -133,7 +129,6 @@ bool RS485FrameHub::enqueue_frame_() {
 }
 
 void RS485FrameHub::reset_rx_() {
-  this->discarded_frames_++;
   this->in_frame_ = false;
   this->after_dle_ = false;
   this->raw_len_ = 0;
@@ -176,25 +171,15 @@ void RS485FrameHub::handle_rx_byte_(uint8_t byte, uint32_t now) {
 }
 
 void RS485FrameHub::process_raw_frame_(uint32_t now) {
-  if (!this->validate_frame_()) {
-    this->crc_failures_++;
+  if (!this->validate_frame_())
     return;
-  }
-  this->frames_received_++;
-  format_hex_to(this->last_frame_type_, this->rx_payload_.data(), std::min(this->rx_payload_.size(), size_t(2)));
   if (this->dump_frames_)
     this->log_frame_("RX", this->raw_frame_.get(), this->raw_len_);
 
   const auto &gate = this->tx_gate_frame_type_;
   if (!gate.empty() && this->rx_payload_.size() >= gate.size() &&
-      std::equal(gate.begin(), gate.end(), this->rx_payload_.begin())) {
-    if (this->last_ka_seen_)
-      this->last_keepalive_ms_ = now - this->last_ka_time_;
-    this->last_ka_seen_ = true;
-    this->last_ka_time_ = now;
-    if (this->tx_gate_mode_ == TX_GATE_FRAME_TRIGGER)
-      this->send_next_(now);
-  }
+      std::equal(gate.begin(), gate.end(), this->rx_payload_.begin()) && this->tx_gate_mode_ == TX_GATE_FRAME_TRIGGER)
+    this->send_next_(now);
   this->frame_callback_.call(this->rx_payload_);
 }
 
@@ -337,23 +322,19 @@ void RS485FrameHub::send_next_(uint32_t now) {
       this->queue_pop_front_();
     this->tx_start_at_ = now + this->tx_gate_delay_;
     this->tx_start_pending_ = true;
-    this->pending_is_idle_ = idle;
     return;
   }
-  this->transmit_(*frame, now, idle);
+  this->transmit_(*frame, now);
   if (!idle)
     this->queue_pop_front_();
 }
 
-void RS485FrameHub::transmit_(std::vector<uint8_t> &frame, uint32_t now, bool idle) {
+void RS485FrameHub::transmit_(std::vector<uint8_t> &frame, uint32_t now) {
   this->write_frame_(frame);
   this->last_tx_time_ = now;
   this->last_activity_time_ = now;
   this->has_activity_ = true;
   this->has_tx_ever_ = true;
-  if (!idle)
-    this->commands_sent_++;
-  this->pending_is_idle_ = false;
 }
 
 void RS485FrameHub::write_frame_(const std::vector<uint8_t> &frame) {

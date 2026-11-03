@@ -10,7 +10,7 @@ globals:
 # for compile/config coverage. On real hardware each actively-transmitting hub needs its own UART;
 # this is a test fixture, not a wiring example.
 rs485_frame:
-  # Hub 1 — exercises on_frame: triggers + diagnostic sensors + button + number.
+  # Hub 1 — exercises on_frame: triggers + button + number.
   # crc: is required (it has no default). command_format: is set explicitly so
   # the `value:`-form button below is accepted (the button platform's _final_validate
   # rejects `value:` against a hub with no command_format). The default frame_trigger gate
@@ -158,55 +158,6 @@ text_sensor:
   - platform: template
     id: display_text
     name: "Display Text"
-
-  # Diagnostic: most recent validated frame type as 4-hex string. Polled (default 60s);
-  # the explicit update_interval: exercises the override.
-  - platform: rs485_frame
-    rs485_frame_id: rs485_frame_hub
-    name: "Last Frame Type"
-    update_interval: 30s
-
-sensor:
-  # Diagnostic counters. The rs485_frame sensor platform gates its own publishes to
-  # on-change in loop() (sensor::publish_state does not dedupe), so a steady-state bus
-  # produces no repeat API traffic.
-  - platform: rs485_frame
-    rs485_frame_id: rs485_frame_hub
-    name: "Frames Received"
-    decode: frames_received
-
-  - platform: rs485_frame
-    rs485_frame_id: rs485_frame_hub
-    name: "CRC Failures"
-    decode: crc_failures
-
-  - platform: rs485_frame
-    rs485_frame_id: rs485_frame_hub
-    name: "Commands Sent"
-    decode: commands_sent
-
-  - platform: rs485_frame
-    rs485_frame_id: rs485_frame_hub
-    name: "Command Drops"
-    decode: command_drops
-
-  - platform: rs485_frame
-    rs485_frame_id: rs485_frame_hub
-    name: "Last Keepalive ms"
-    decode: last_keepalive_ms
-    # Platform supplies state_class=measurement, unit=ms, device_class=duration. Override
-    # state_class here to confirm explicit values win over the per-decode default.
-    state_class: total
-
-  - platform: rs485_frame
-    rs485_frame_id: rs485_frame_hub
-    name: "Queue Depth"
-    decode: queue_depth
-
-  - platform: rs485_frame
-    rs485_frame_id: rs485_frame_hub
-    name: "Discarded Frames"
-    decode: discarded_frames
 
 button:
   # value: form — encodes via the hub's command_format.

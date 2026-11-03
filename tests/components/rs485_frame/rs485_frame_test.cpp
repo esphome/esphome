@@ -24,6 +24,12 @@ class RS485FrameHubProbe : public RS485FrameHub {
       this->handle_rx_byte_(b, 0);
   }
   const std::vector<uint8_t> &rx_payload_for_test() const { return this->rx_payload_; }
+  size_t queue_depth_for_test() const { return this->tx_queue_count_; }
+  // Counts the frames delivered to on_frame callbacks.
+  void count_frames() {
+    this->add_on_frame_callback([this](const std::vector<uint8_t> &) { this->frames++; });
+  }
+  uint32_t frames{0};
 };
 
 // The hand-rolled CRCs the component used before switching to the helpers.h functions; the
@@ -108,6 +114,7 @@ TEST(RS485FrameHubTest, RxFramerRoundTripsBuiltFrames) {
       hub.set_framing(0x10, 0x02, 0x03, escape_marker);
       hub.set_crc_type(type);
       hub.setup();
+      hub.count_frames();
 
       const std::vector<uint8_t> payload = {0x01, 0x02, 0x10, 0x03, 0x10, 0x10, 0x02};
       std::vector<uint8_t> frame;
@@ -115,8 +122,7 @@ TEST(RS485FrameHubTest, RxFramerRoundTripsBuiltFrames) {
       hub.build_frame_for_test(payload, frame);
       hub.feed_for_test(frame);
 
-      EXPECT_EQ(hub.get_frames_received(), 1u) << "escape " << int(escape_marker) << " type " << type;
-      EXPECT_EQ(hub.get_crc_failures(), 0u);
+      EXPECT_EQ(hub.frames, 1u) << "escape " << int(escape_marker) << " type " << type;
       EXPECT_EQ(hub.rx_payload_for_test(), payload);
     }
   }
@@ -128,16 +134,19 @@ TEST(RS485FrameHubTest, RxFramerRejectsBadCrcAndOverlongFrames) {
   hub.set_crc_type(CRC_TYPE_SUM8);
   hub.set_max_frame_length(8);
   hub.setup();
+  hub.count_frames();
 
   // DLE STX 01 02 crc(wrong) DLE ETX
   hub.feed_for_test({0x10, 0x02, 0x01, 0x02, 0x00, 0x10, 0x03});
-  EXPECT_EQ(hub.get_crc_failures(), 1u);
-  EXPECT_EQ(hub.get_frames_received(), 0u);
+  EXPECT_EQ(hub.frames, 0u);
 
   // Longer than max_frame_length: abandoned mid-receive.
   hub.feed_for_test({0x10, 0x02, 0x01, 0x02, 0x03, 0x04, 0x05, 0x06, 0x07, 0x08, 0x10, 0x03});
-  EXPECT_EQ(hub.get_discarded_frames(), 1u);
-  EXPECT_EQ(hub.get_frames_received(), 0u);
+  EXPECT_EQ(hub.frames, 0u);
+
+  // The framer recovers: a valid frame right after is delivered.
+  hub.feed_for_test({0x10, 0x02, 0x01, 0x02, 0x03, 0x10, 0x03});
+  EXPECT_EQ(hub.frames, 1u);
 }
 
 TEST(RS485FrameHubTest, QueueFrameFramesAndQueues) {
@@ -148,13 +157,11 @@ TEST(RS485FrameHubTest, QueueFrameFramesAndQueues) {
   static const uint8_t DATA[] = {0x01, 0x10, 0x02};
 
   EXPECT_TRUE(hub.queue_frame(DATA, sizeof(DATA)));
-  EXPECT_EQ(hub.get_queue_depth(), 1u);
-  EXPECT_EQ(hub.get_command_drops(), 0u);
+  EXPECT_EQ(hub.queue_depth_for_test(), 1u);
 
-  // replace_latest: a second frame replaces the first and counts a drop.
+  // replace_latest: a second frame replaces the first.
   EXPECT_TRUE(hub.queue_raw_frame({0x01, 0x02}, {0x03}));
-  EXPECT_EQ(hub.get_queue_depth(), 1u);
-  EXPECT_EQ(hub.get_command_drops(), 1u);
+  EXPECT_EQ(hub.queue_depth_for_test(), 1u);
 }
 
 TEST(RS485FrameHubTest, QueueFrameDropsOverlongAndSnifferFrames) {
@@ -164,12 +171,10 @@ TEST(RS485FrameHubTest, QueueFrameDropsOverlongAndSnifferFrames) {
   static const uint8_t DATA[9] = {};
 
   EXPECT_FALSE(hub.queue_frame(DATA, sizeof(DATA)));
-  EXPECT_EQ(hub.get_command_drops(), 1u);
 
   hub.set_sniffer_only(true);
   EXPECT_FALSE(hub.queue_frame(DATA, 2));
-  EXPECT_EQ(hub.get_command_drops(), 2u);
-  EXPECT_EQ(hub.get_queue_depth(), 0u);
+  EXPECT_EQ(hub.queue_depth_for_test(), 0u);
 }
 
 TEST(RS485FrameHubTest, FrameCallbackReceivesPayload) {
