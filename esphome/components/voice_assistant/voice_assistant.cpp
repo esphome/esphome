@@ -429,21 +429,27 @@ void VoiceAssistant::loop() {
       msg.wake_word_phrase = StringRef(this->wake_word_);
 #ifdef USE_VOICE_ASSISTANT_WAKE_WORD_AUDIO
       if (this->wake_word_audio_buffering_) {
-        const size_t target_bytes = this->start_with_detection_ ? this->wake_word_audio_buffer_duration_ *
-                                                                      SAMPLE_RATE_HZ / 1000 * sizeof(int16_t)
-                                                                : 0;
+        const size_t bytes_per_ms = SAMPLE_RATE_HZ / 1000 * sizeof(int16_t);
+        // Audio from after the detection belongs to the command, not the wake word
+        const size_t command_bytes =
+            this->start_with_detection_ ? (millis() - this->detection_.detected_at) * bytes_per_ms : 0;
+        const size_t target_bytes =
+            this->start_with_detection_ ? (this->wake_word_audio_buffer_duration_ * bytes_per_ms) + command_bytes : 0;
         const size_t buffered = trim_audio_source(this->audio_source_.get(), this->ring_buffer_, target_bytes);
         const size_t buffered2 = trim_audio_source(this->audio_source2_.get(), this->ring_buffer2_, target_bytes);
         if (this->start_with_detection_) {
+          const size_t wake_word_bytes = buffered - std::min(buffered, command_bytes);
+          const size_t wake_word_bytes2 = buffered2 - std::min(buffered2, command_bytes);
           msg.wake_word_id = StringRef(this->detection_.id);
-          msg.wake_word_audio_bytes = buffered;
-          msg.wake_word_audio_bytes2 = buffered2;
+          msg.wake_word_audio_bytes = wake_word_bytes;
+          msg.wake_word_audio_bytes2 = wake_word_bytes2;
           msg.wake_word_probability = this->detection_.probability;
           msg.wake_word_probability_cutoff = this->detection_.probability_cutoff;
-          ESP_LOGD(TAG, "Sending %zu/%zu bytes of wake word audio for %s", buffered, buffered2,
+          ESP_LOGD(TAG, "Sending %zu/%zu bytes of wake word audio for %s", wake_word_bytes, wake_word_bytes2,
                    this->detection_.id.c_str());
         }
       }
+      this->detection_.detected_at = 0;
 #endif
 
       // Reset media player state tracking
@@ -848,7 +854,9 @@ void VoiceAssistant::request_start(bool continuous, bool silence_detection) {
 #ifdef USE_VOICE_ASSISTANT_WAKE_WORD_AUDIO
     this->start_with_detection_ = this->wake_word_audio_buffering_ && (this->detection_.detected_at != 0) &&
                                   ((millis() - this->detection_.detected_at) <= WAKE_WORD_DETECTION_MAX_AGE_MS);
-    this->detection_.detected_at = 0;
+    if (!this->start_with_detection_) {
+      this->detection_.detected_at = 0;
+    }
 #endif
 
     this->set_state_(State::START_MICROPHONE, State::START_PIPELINE);
@@ -860,6 +868,7 @@ void VoiceAssistant::request_stop() {
   this->continue_conversation_ = false;
 #ifdef USE_VOICE_ASSISTANT_WAKE_WORD_AUDIO
   this->start_with_detection_ = false;
+  this->detection_.detected_at = 0;
   this->clear_wake_word_verdict_();
 #endif
 
