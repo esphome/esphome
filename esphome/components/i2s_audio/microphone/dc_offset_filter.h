@@ -21,8 +21,9 @@ class DCOffsetFilter {
     // Single precision keeps double-precision exp out of the build; expm1 gives 1 - a accurately with a near 1.
     const float half_one_minus_pole =
         -0.5f * std::expm1(-2.0f * std::numbers::pi_v<float> * 20.0f / static_cast<float>(sample_rate));
-    this->feedforward_ =
-        static_cast<int32_t>(COEFFICIENT_SCALE - static_cast<int64_t>(half_one_minus_pole * COEFFICIENT_SCALE + 0.5f));
+    // Round to nearest in integers: half of (twice the value, truncated, plus one)
+    const int64_t twice = static_cast<int64_t>(half_one_minus_pole * (2 * COEFFICIENT_SCALE));
+    this->feedforward_ = static_cast<int32_t>(COEFFICIENT_SCALE - ((twice + 1) >> 1));
     this->feedback_ = static_cast<int32_t>(2 * static_cast<int64_t>(this->feedforward_) - COEFFICIENT_SCALE);
     this->states_ = {};
   }
