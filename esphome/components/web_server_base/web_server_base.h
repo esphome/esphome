@@ -168,12 +168,18 @@ class WebServerBase final {
    */
   void add_handler_without_auth(AsyncWebHandler *handler);
 
+  /// On ESP32 a running listener restarts on the new port, which closes open connections. Call from the main
+  /// loop: from an HTTP request handler, the restart would wait for its own task.
   void set_port(uint16_t port) {
+    if (port == this->port_)
+      return;
     this->port_ = port;
 #ifdef USE_ESP32
-    // Applied when the listener next starts (set_ssl_credentials() restarts it).
-    if (this->server_ != nullptr)
+    if (this->server_ != nullptr) {
       this->server_->set_port(port);
+      if (this->initialized_ > 0)
+        this->server_->begin();  // begin() stops the running listener first
+    }
 #endif
   }
   uint16_t get_port() const { return port_; }
@@ -181,7 +187,8 @@ class WebServerBase final {
 #if defined(USE_ESP32) && defined(USE_WEBSERVER_SSL)
   /// Serve HTTPS with this certificate and private key (PEM, null-terminated), or plain HTTP again with nullptr.
   /// The strings are not copied and must stay valid while the server runs. A running listener restarts to apply
-  /// them, which closes open connections.
+  /// them, which closes open connections. Call from the main loop: from an HTTP request handler, the restart would
+  /// wait for its own task.
   void set_ssl_credentials(const char *certificate, const char *private_key) {
     this->ssl_certificate_ = certificate;
     this->ssl_private_key_ = private_key;

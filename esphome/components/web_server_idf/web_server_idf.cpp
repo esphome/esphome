@@ -143,16 +143,11 @@ void AsyncWebServer::safe_close_with_shutdown(httpd_handle_t hd, int sockfd) {
 
 void AsyncWebServer::end() {
   if (this->server_) {
-#ifdef USE_WEBSERVER_SSL
-    if (this->ssl_running_) {
-      httpd_ssl_stop(this->server_);
-      this->ssl_running_ = false;
-      this->server_ = nullptr;
-      return;
-    }
-#endif
-    httpd_stop(this->server_);
+    httpd_stop(this->server_);  // also frees an HTTPS server's TLS context
     this->server_ = nullptr;
+#ifdef USE_WEBSERVER_SSL
+    this->ssl_running_ = false;
+#endif
   }
 }
 

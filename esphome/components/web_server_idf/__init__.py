@@ -23,13 +23,11 @@ CONF_SSL = "ssl"
 SSL_INCOMPATIBLE_COMPONENTS = ("web_server", "captive_portal")
 
 
-def _pem(kind: str):
-    marker = f"-----BEGIN {kind}"
-
+def _pem(marker: str):
     def validator(value: object) -> str:
         value = cv.string_strict(value)
         if marker not in value:
-            raise cv.Invalid(f"Expected a PEM block starting with '{marker}-----'")
+            raise cv.Invalid(f"Expected a PEM block containing '{marker}'")
         return value
 
     return validator
@@ -41,8 +39,9 @@ SSL_SCHEMA = cv.Schema(
             web_server_base.WebServerBase
         ),
         cv.Optional(CONF_PORT, default=443): cv.port,
-        cv.Required(CONF_CERTIFICATE): _pem("CERTIFICATE"),
-        cv.Required(CONF_KEY): cv.sensitive(_pem("")),
+        cv.Required(CONF_CERTIFICATE): _pem("-----BEGIN CERTIFICATE-----"),
+        # Every PEM private key form (PKCS#8, EC, RSA, encrypted) ends its header this way.
+        cv.Required(CONF_KEY): cv.sensitive(_pem("PRIVATE KEY-----")),
     }
 )
 
