@@ -181,7 +181,9 @@ class RS485FrameHub : public Component, public uart::UARTDevice {
   // Assemble frame_type + payload into a pre-reserved buffer and queue it. Used by the
   // send_frame action and the raw-form button so neither allocates a per-call vector.
   bool queue_raw_frame(const std::vector<uint8_t> &frame_type, const std::vector<uint8_t> &payload);
+#ifdef RS485_FRAME_TRIGGER_COUNT
   void register_trigger(RS485FrameTrigger *trigger) { this->triggers_.push_back(trigger); }
+#endif
 
   uint32_t get_frames_received() const { return this->frames_received_; }
   uint32_t get_crc_failures() const { return this->crc_failures_; }
@@ -199,13 +201,13 @@ class RS485FrameHub : public Component, public uart::UARTDevice {
   // Counts a frame abandoned mid-receive (never reaches validate_frame_()).
   void record_discard_() { this->discarded_frames_++; }
   bool validate_frame_();
-  uint16_t calculate_crc_(const std::vector<uint8_t> &payload, bool include_header) const;
+  uint16_t calculate_crc_(const uint8_t *data, size_t len, bool include_header) const;
   size_t crc_length_() const;
   /// True when the 2-byte CRC is read/emitted low byte first (CRC-16/MODBUS, sum16 little-endian).
   bool crc_little_endian_() const {
     return this->crc_type_ == CRC_TYPE_CRC16_MODBUS || this->crc_type_ == CRC_TYPE_SUM16_LITTLE_ENDIAN;
   }
-  void escape_dle_(const std::vector<uint8_t> &data, std::vector<uint8_t> &out) const;
+  void append_escaped_(uint8_t byte, std::vector<uint8_t> &out) const;
   void build_frame_(const std::vector<uint8_t> &payload, std::vector<uint8_t> &out);
   void build_key_payload_(const uint32_t *commands, size_t count, uint8_t element_bytes,
                           std::vector<uint8_t> &out) const;
@@ -261,7 +263,9 @@ class RS485FrameHub : public Component, public uart::UARTDevice {
   uint32_t max_frame_length_{128};
   uint32_t in_frame_timeout_ms_{50};
 
-  std::vector<RS485FrameTrigger *> triggers_;
+#ifdef RS485_FRAME_TRIGGER_COUNT
+  StaticVector<RS485FrameTrigger *, RS485_FRAME_TRIGGER_COUNT> triggers_;
+#endif
   // Ring buffer: pre-sized and pre-reserved in setup() to avoid per-frame heap allocation.
   // Slots are swapped with tx_frame_buf_ on enqueue (no copy). Max slot size is
   // max_frame_length_ * 2 + FRAME_OVERHEAD_BYTES (worst case: all payload bytes are DLE and
@@ -279,7 +283,9 @@ class RS485FrameHub : public Component, public uart::UARTDevice {
   // peeking at the previous raw byte) is required for doubling mode, where adjacent DLEs
   // would otherwise be miscounted at frame boundaries.
   bool after_dle_{false};
-  std::vector<uint8_t> raw_frame_;
+  // Raw wire bytes of the frame being received, max_frame_length_ bytes allocated in setup().
+  std::unique_ptr<uint8_t[]> raw_frame_;
+  size_t raw_len_{0};
   uint32_t last_rx_time_{0};
   bool last_ka_seen_{false};
   uint32_t last_ka_time_{0};
@@ -298,11 +304,10 @@ class RS485FrameHub : public Component, public uart::UARTDevice {
   uint32_t tx_start_at_{0};
   std::vector<uint8_t> pending_tx_frame_;  // pre-reserved in setup()
 
-  // Pre-allocated scratch buffers reused each loop to avoid heap churn.
-  std::vector<uint8_t> rx_unescaped_;
+  // Scratch buffers reserved in setup() to their worst case and never grown after that.
+  // rx_payload_ stays a vector because on_frame: lambdas receive it as `payload`.
   std::vector<uint8_t> rx_payload_;
   std::vector<uint8_t> tx_payload_buf_;
-  std::vector<uint8_t> tx_escaped_buf_;
   std::vector<uint8_t> tx_frame_buf_;
   // Holds frame_type + payload concatenated for the two-argument queue_raw_frame(); reserved
   // to max_frame_length_ in setup() so the send_frame action / raw button never allocate.

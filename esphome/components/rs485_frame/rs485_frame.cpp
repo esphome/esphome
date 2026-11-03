@@ -69,8 +69,7 @@ bool RS485FrameTrigger::matches(const std::vector<uint8_t> &payload) const {
 void RS485FrameHub::setup() {
   // Pre-allocate scratch buffers to avoid per-frame heap churn on the main receive path.
   const size_t tx_slot_capacity = this->max_frame_length_ * 2 + FRAME_OVERHEAD_BYTES;
-  this->raw_frame_.reserve(this->max_frame_length_);
-  this->rx_unescaped_.reserve(this->max_frame_length_);
+  this->raw_frame_ = std::make_unique<uint8_t[]>(this->max_frame_length_);
   this->rx_payload_.reserve(this->max_frame_length_);
   // Reserve the worst case any command_format can produce — not just this hub's own
   // configured preamble/value_element_bytes/postamble. A button's command_format override
@@ -85,8 +84,6 @@ void RS485FrameHub::setup() {
   // send_assembly_buf_ holds an assembled frame_type+payload before framing; it can never
   // legitimately exceed max_frame_length_ (queue_raw_frame rejects anything larger).
   this->send_assembly_buf_.reserve(this->max_frame_length_);
-  // tx_escaped_buf_ worst case: every payload byte is DLE and requires an escape byte.
-  this->tx_escaped_buf_.reserve(this->max_frame_length_ * 2);
   this->tx_frame_buf_.reserve(tx_slot_capacity);
   this->pending_tx_frame_.reserve(tx_slot_capacity);
   // Ring buffer: pre-size and pre-reserve each slot so enqueue only swaps, never allocates.
@@ -111,7 +108,7 @@ void RS485FrameHub::loop() {
     this->record_discard_();
     this->in_frame_ = false;
     this->after_dle_ = false;
-    this->raw_frame_.clear();
+    this->raw_len_ = 0;
     // Reset previous_byte_ so a stale DLE before the timeout can't combine with the next STX
     // to spuriously start a new frame on the first byte received after recovery.
     this->previous_byte_ = 0;
@@ -250,24 +247,24 @@ void RS485FrameHub::handle_rx_byte_(uint8_t byte, uint32_t now) {
     if (this->previous_byte_ == this->dle_ && byte == this->stx_) {
       this->in_frame_ = true;
       this->after_dle_ = false;
-      this->raw_frame_.clear();
-      this->raw_frame_.push_back(this->dle_);
-      this->raw_frame_.push_back(this->stx_);
+      this->raw_frame_[0] = this->dle_;
+      this->raw_frame_[1] = this->stx_;
+      this->raw_len_ = 2;
     }
     this->previous_byte_ = byte;
     return;
   }
 
-  if (this->raw_frame_.size() >= this->max_frame_length_) {
+  if (this->raw_len_ >= this->max_frame_length_) {
     ESP_LOGW(TAG, "Frame exceeded max_frame_length");
     this->record_discard_();
     this->in_frame_ = false;
     this->after_dle_ = false;
-    this->raw_frame_.clear();
+    this->raw_len_ = 0;
     this->previous_byte_ = byte;
     return;
   }
-  this->raw_frame_.push_back(byte);
+  this->raw_frame_[this->raw_len_++] = byte;
 
   // Escape-aware terminator detection. Mid-frame, every DLE is resolved by the byte that
   // follows it: DLE+ETX ends the frame, DLE+escape_marker is a stuffed literal DLE
@@ -284,7 +281,7 @@ void RS485FrameHub::handle_rx_byte_(uint8_t byte, uint32_t now) {
     if (byte == this->etx_) {
       this->process_raw_frame_(now);
       this->in_frame_ = false;
-      this->raw_frame_.clear();
+      this->raw_len_ = 0;
     }
   } else if (byte == this->dle_) {
     this->after_dle_ = true;
@@ -309,7 +306,7 @@ void RS485FrameHub::process_raw_frame_(uint32_t now) {
     // that the std::vector-returning hex formatter would incur. Buffer is sized for the
     // worst-case TX frame, which comfortably fits any RX raw_frame_ too. Logs the full wire
     // frame (framing + CRC), matching write_frame_'s TX log below -- "frame" means all bits.
-    format_hex_to(this->hex_log_buf_.get(), this->hex_log_buf_size_, this->raw_frame_.data(), this->raw_frame_.size());
+    format_hex_to(this->hex_log_buf_.get(), this->hex_log_buf_size_, this->raw_frame_.get(), this->raw_len_);
     ESP_LOGD(TAG, "RX %s", this->hex_log_buf_.get());
   }
 
@@ -322,114 +319,83 @@ void RS485FrameHub::process_raw_frame_(uint32_t now) {
       this->send_next_(now);
   }
 
+#ifdef RS485_FRAME_TRIGGER_COUNT
   for (auto *trigger : this->triggers_) {
     if (trigger->matches(this->rx_payload_))
       trigger->trigger(this->rx_payload_);
   }
+#endif
 }
 
 bool RS485FrameHub::validate_frame_() {
-  const auto &frame = this->raw_frame_;
-  // Minimum valid frame: DLE(1)+STX(1) + frame_type(2) + CRC_1byte_min(1) + DLE(1)+ETX(1) = 7
-  // but sum16 (2-byte CRC) gives minimum 8. The constant 6 is the no-CRC minimum and is the
-  // tightest pre-check before crc_length_() is called below.
-  if (frame.size() < 6 || frame[0] != this->dle_ || frame[1] != this->stx_ || frame[frame.size() - 2] != this->dle_ ||
-      frame[frame.size() - 1] != this->etx_)
+  const uint8_t *frame = this->raw_frame_.get();
+  const size_t len = this->raw_len_;
+  // The constant 6 is the no-CRC minimum (DLE STX + 2 frame_type bytes + DLE ETX); the CRC
+  // length is checked after unescaping below.
+  if (len < 6 || frame[0] != this->dle_ || frame[1] != this->stx_ || frame[len - 2] != this->dle_ ||
+      frame[len - 1] != this->etx_)
     return false;
 
-  this->rx_unescaped_.clear();
-  // The frame[] iteration covers bytes between the opening STX (index 1) and the closing
-  // DLE+ETX (last 2 bytes). A DLE inside that range must be followed by escape_marker_;
-  // any other DLE successor is a protocol violation and the frame is rejected.
-  for (size_t i = 2; i + 2 < frame.size(); i++) {
+  // rx_payload_ is what on_frame: triggers and the gate matcher see: the unescaped bytes
+  // between DLE+STX and DLE+ETX, starting with frame_type (payload[0..N-1]) and with the CRC
+  // removed below. Its capacity is max_frame_length_, which len never exceeds.
+  auto &payload = this->rx_payload_;
+  payload.clear();
+  for (size_t i = 2; i + 2 < len; i++) {
     uint8_t b = frame[i];
     if (b == this->dle_) {
-      // i+1 < frame.size()-2 means "DLE has a successor that is not part of the closing
-      // DLE+ETX terminator". A DLE that is the first byte of DLE+ETX is handled by the
-      // framer (loop terminates before reaching it), so reaching here means a DLE is
-      // followed by something that must be escape_marker_ (the escape byte, or DLE itself in
-      // doubling mode). Anything else is invalid.
-      if (i + 1 < frame.size() - 2 && frame[i + 1] == this->escape_marker_) {
-        this->rx_unescaped_.push_back(this->dle_);
+      // A DLE inside the frame must be followed by escape_marker_ (the escape byte, or DLE
+      // itself in doubling mode); anything else is a protocol violation.
+      if (i + 1 < len - 2 && frame[i + 1] == this->escape_marker_) {
+        payload.push_back(this->dle_);
         i++;
         continue;
       }
       return false;
     }
-    this->rx_unescaped_.push_back(b);
+    payload.push_back(b);
   }
-  size_t crc_len = this->crc_length_();
-  if (this->rx_unescaped_.size() < 2 + crc_len)
+  const size_t crc_len = this->crc_length_();
+  if (payload.size() < 2 + crc_len)
     return false;
-
-  // rx_payload_ is what on_frame: triggers and the frame_type_equals_ gate see. It begins
-  // with the frame_type bytes (payload-relative: payload[0..N-1] = frame_type, data starts
-  // at payload[N]) and ends just before the CRC. DLE+STX/DLE+ETX framing is excluded;
-  // escape bytes are unwrapped. This convention is documented for users in the
-  // rs485_frame docs' "Offset convention" section.
-  this->rx_payload_.assign(this->rx_unescaped_.begin(), this->rx_unescaped_.end() - crc_len);
   if (crc_len == 0)
     return true;
 
-  uint16_t received_crc = 0;
+  const uint8_t *crc_bytes = payload.data() + payload.size() - crc_len;
+  uint16_t received_crc;
   if (crc_len == 1) {
-    received_crc = this->rx_unescaped_.back();
+    received_crc = crc_bytes[0];
   } else if (this->crc_little_endian_()) {
-    received_crc =
-        this->rx_unescaped_[this->rx_unescaped_.size() - 2] | (static_cast<uint16_t>(this->rx_unescaped_.back()) << 8);
+    received_crc = encode_uint16(crc_bytes[1], crc_bytes[0]);
   } else {
-    received_crc =
-        (static_cast<uint16_t>(this->rx_unescaped_[this->rx_unescaped_.size() - 2]) << 8) | this->rx_unescaped_.back();
+    received_crc = encode_uint16(crc_bytes[0], crc_bytes[1]);
   }
-  bool header_ok = this->accept_header_crc_ && this->calculate_crc_(this->rx_payload_, true) == received_crc;
-  bool payload_ok = this->accept_payload_crc_ && this->calculate_crc_(this->rx_payload_, false) == received_crc;
+  payload.resize(payload.size() - crc_len);
+  bool header_ok =
+      this->accept_header_crc_ && this->calculate_crc_(payload.data(), payload.size(), true) == received_crc;
+  bool payload_ok =
+      this->accept_payload_crc_ && this->calculate_crc_(payload.data(), payload.size(), false) == received_crc;
   return header_ok || payload_ok;
 }
 
-uint16_t RS485FrameHub::calculate_crc_(const std::vector<uint8_t> &payload, bool include_header) const {
-  if (this->crc_type_ == CRC_TYPE_NONE)
-    return 0;
-
-  if (this->crc_type_ == CRC_TYPE_XOR8) {
-    uint8_t crc = 0;
-    if (include_header) {
-      crc ^= this->dle_;
-      crc ^= this->stx_;
-    }
-    for (auto b : payload)
-      crc ^= b;
-    return crc;
+uint16_t RS485FrameHub::calculate_crc_(const uint8_t *data, size_t len, bool include_header) const {
+  // The header-inclusive variant runs DLE+STX through the same helper first, then the payload.
+  const uint8_t header[2] = {this->dle_, this->stx_};
+  const size_t header_len = include_header ? sizeof(header) : 0;
+  switch (this->crc_type_) {
+    case CRC_TYPE_SUM8:
+      return sum_bytes(data, len, sum_bytes(header, header_len));
+    case CRC_TYPE_SUM16_BIG_ENDIAN:
+    case CRC_TYPE_SUM16_LITTLE_ENDIAN:
+      return sum16_bytes(data, len, sum16_bytes(header, header_len));
+    case CRC_TYPE_XOR8:
+      return xor_bytes(data, len, xor_bytes(header, header_len));
+    case CRC_TYPE_CRC16_MODBUS:
+      return crc16(data, static_cast<uint16_t>(len), crc16(header, static_cast<uint16_t>(header_len)));
+    case CRC_TYPE_NONE:
+      break;
   }
-
-  if (this->crc_type_ == CRC_TYPE_CRC16_MODBUS) {
-    uint16_t crc = 0xFFFF;
-    auto process_byte = [&crc](uint8_t b) {
-      crc ^= b;
-      for (uint8_t i = 0; i < 8; i++) {
-        if (crc & 0x0001) {
-          crc = (crc >> 1) ^ 0xA001;
-        } else {
-          crc >>= 1;
-        }
-      }
-    };
-    if (include_header) {
-      process_byte(this->dle_);
-      process_byte(this->stx_);
-    }
-    for (auto b : payload)
-      process_byte(b);
-    return crc;
-  }
-
-  uint32_t sum = 0;
-  if (include_header) {
-    sum += this->dle_;
-    sum += this->stx_;
-  }
-  for (auto b : payload)
-    sum += b;
-  return this->crc_type_ == CRC_TYPE_SUM8 ? (sum & 0xFF) : (sum & 0xFFFF);
+  return 0;
 }
 
 size_t RS485FrameHub::crc_length_() const {
@@ -448,44 +414,34 @@ size_t RS485FrameHub::crc_length_() const {
   return 2;
 }
 
-void RS485FrameHub::escape_dle_(const std::vector<uint8_t> &data, std::vector<uint8_t> &out) const {
-  out.clear();
-  // Worst case: every byte equals DLE and requires an escape byte → 2× input size.
-  out.reserve(data.size() * 2);
-  for (auto b : data) {
-    out.push_back(b);
-    if (b == this->dle_)
-      out.push_back(this->escape_marker_);
-  }
+void RS485FrameHub::append_escaped_(uint8_t byte, std::vector<uint8_t> &out) const {
+  out.push_back(byte);
+  if (byte == this->dle_)
+    out.push_back(this->escape_marker_);
 }
 
 void RS485FrameHub::build_frame_(const std::vector<uint8_t> &payload, std::vector<uint8_t> &out) {
+  // out is reserved for max_frame_length_ * 2 + FRAME_OVERHEAD_BYTES (every byte escaped) and
+  // callers reject payloads longer than max_frame_length_, so this never reallocates.
   out.clear();
   out.push_back(this->dle_);
   out.push_back(this->stx_);
-  this->escape_dle_(payload, this->tx_escaped_buf_);
-  out.insert(out.end(), this->tx_escaped_buf_.begin(), this->tx_escaped_buf_.end());
+  for (uint8_t b : payload)
+    this->append_escaped_(b, out);
 
   size_t crc_len = this->crc_length_();
   if (crc_len > 0) {
     // CRC is computed over the unescaped payload, then the CRC bytes are escaped like any other
     // payload byte. Computing over escaped bytes is a common DLE-protocol bug; do not change order.
-    uint16_t crc = this->calculate_crc_(payload, this->tx_crc_variant_ == CRC_HEADER_INCLUSIVE);
-    uint8_t crc_bytes[2];
-    size_t ncrc = 0;
+    uint16_t crc = this->calculate_crc_(payload.data(), payload.size(), this->tx_crc_variant_ == CRC_HEADER_INCLUSIVE);
     if (crc_len == 1) {
-      crc_bytes[ncrc++] = crc & 0xFF;
+      this->append_escaped_(crc & 0xFF, out);
     } else if (this->crc_little_endian_()) {
-      crc_bytes[ncrc++] = crc & 0xFF;
-      crc_bytes[ncrc++] = (crc >> 8) & 0xFF;
+      this->append_escaped_(crc & 0xFF, out);
+      this->append_escaped_(crc >> 8, out);
     } else {
-      crc_bytes[ncrc++] = (crc >> 8) & 0xFF;
-      crc_bytes[ncrc++] = crc & 0xFF;
-    }
-    for (size_t i = 0; i < ncrc; i++) {
-      out.push_back(crc_bytes[i]);
-      if (crc_bytes[i] == this->dle_)
-        out.push_back(this->escape_marker_);
+      this->append_escaped_(crc >> 8, out);
+      this->append_escaped_(crc & 0xFF, out);
     }
   }
   out.push_back(this->dle_);

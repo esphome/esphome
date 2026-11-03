@@ -44,6 +44,8 @@ CrcType = rs485_frame_ns.enum("CrcType")
 QueuePolicy = rs485_frame_ns.enum("QueuePolicy")
 TxGateMode = rs485_frame_ns.enum("TxGateMode")
 
+_request_trigger_slot = cg.slot_counter("RS485_FRAME_TRIGGER_COUNT")
+
 CONF_RS485_FRAME_ID = "rs485_frame_id"
 CONF_ENDIAN = "endian"
 CONF_COMMAND_FORMAT = "command_format"
@@ -496,6 +498,7 @@ async def to_code(config):
         # trigger's matches() falls through to its empty-list branch.
         for prefix in conf[CONF_FRAME_TYPE]:
             cg.add(trigger.add_frame_type(prefix))
+        _request_trigger_slot(str(var))
         cg.add(var.register_trigger(trigger))
         await automation.build_automation(
             trigger,
