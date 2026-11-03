@@ -6,7 +6,11 @@ import re
 
 import pytest
 
-FORWARDER_RE = re.compile(r"ph_ezo->(add_\w+_callback)\(TriggerForwarder<([\w:]+)>")
+# A synchronous automation is a direct lambda, a deferring one a TriggerForwarder
+CALLBACK_RE = re.compile(
+    r"ph_ezo->(add_\w+_callback)\("
+    r"(?:TriggerForwarder<([\w:]+)>|\[\]\(const std::remove_cvref_t<([\w:]+)> &)"
+)
 
 
 @pytest.fixture
@@ -16,8 +20,8 @@ def forwarders(
 ) -> dict[str, list[str]]:
     main_cpp = generate_main(component_config_path("ezo_callbacks.yaml"))
     found: dict[str, list[str]] = {}
-    for method, arg_type in FORWARDER_RE.findall(main_cpp):
-        found.setdefault(method, []).append(arg_type)
+    for method, forwarded, direct in CALLBACK_RE.findall(main_cpp):
+        found.setdefault(method, []).append(forwarded or direct)
     return found
 
 
