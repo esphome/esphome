@@ -97,7 +97,9 @@ void USBCDCACMInstance::setup() {
     this->get_parent()->mark_failed();
     return;
   }
-  zephyr::usb_device_enable();
+  if (int err = zephyr::usb_device_enable(); err != 0) {
+    ESP_LOGE(TAG, "USB device setup failed, err %d", err);
+  }
   ring_buf_init(&this->rx_ringbuf_, ESPHOME_CDC_RX_RING_BUFFER_SIZE, this->rx_ringbuf_data_);
   ring_buf_init(&this->tx_ringbuf_, ESPHOME_CDC_TX_RING_BUFFER_SIZE, this->tx_ringbuf_data_);
   // The driver only reports the bit rate; the frame format is fixed on USB

@@ -1,7 +1,6 @@
 #if defined(CONFIG_USB_DEVICE_STACK) || defined(CONFIG_USB_DEVICE_STACK_NEXT)
 #include "usb_device.h"
 #include "esphome/core/defines.h"
-#include "esphome/core/log.h"
 
 #ifdef CONFIG_USB_DEVICE_STACK_NEXT
 #include <zephyr/device.h>
@@ -16,8 +15,6 @@
 #endif
 
 namespace esphome::zephyr {
-
-ESPHOME_LOG_TAG(TAG, "zephyr.usb");
 
 #ifdef CONFIG_USB_DEVICE_STACK_NEXT
 
@@ -69,23 +66,17 @@ static int usbd_setup() {
   return usbd_enable(&esphome_usbd);
 }
 
-void usb_device_enable() {
-  static bool enabled = false;
-  if (enabled)
-    return;
-  enabled = true;
-  if (int err = usbd_setup(); err != 0) {
-    ESP_LOGE(TAG, "USB device setup failed, err %d", err);
-  }
+int usb_device_enable() {
+  static int err = usbd_setup();
+  return err;
 }
 
 #else  // legacy USB device stack
 
-void usb_device_enable() {
-  // Returns -EALREADY when the device is already enabled
-  if (int err = usb_enable(nullptr); err != 0 && err != -EALREADY) {
-    ESP_LOGE(TAG, "USB enable failed, err %d", err);
-  }
+int usb_device_enable() {
+  int err = usb_enable(nullptr);
+  // -EALREADY: an earlier call already enabled the device
+  return err == -EALREADY ? 0 : err;
 }
 
 #endif
