@@ -27,13 +27,13 @@ runs:
         echo "key=$key" >> "$GITHUB_OUTPUT"
     - name: Cache the native toolchain (write on dev)
       if: github.ref == 'refs/heads/dev'
-      uses: actions/cache@55cc8345863c7cc4c66a329aec7e433d2d1c52a9 # v6.1.0
+      uses: actions/cache@v6.1.0
       with:
         path: ${{ env.ESPHOME_ARDUINO8266_PREFIX }}
         key: ${{ runner.os }}-esp8266-native-${{ steps.version.outputs.key }}
     - name: Restore the native toolchain (off dev)
       if: github.ref != 'refs/heads/dev'
-      uses: actions/cache/restore@55cc8345863c7cc4c66a329aec7e433d2d1c52a9 # v6.1.0
+      uses: actions/cache/restore@v6.1.0
       with:
         path: ${{ env.ESPHOME_ARDUINO8266_PREFIX }}
         key: ${{ runner.os }}-esp8266-native-${{ steps.version.outputs.key }}
