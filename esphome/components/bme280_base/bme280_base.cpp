@@ -171,8 +171,6 @@ inline uint8_t oversampling_to_time(BME280Oversampling over_sampling) { return (
 void BME280Component::update() {
   // Enable sensor
   ESP_LOGV(TAG, "Sending conversion request");
-  // ctrl_hum only takes effect on the ctrl_meas write that follows, and restoring it every
-  // cycle keeps the chip's humidity setting matching the one the read helper checks.
   if (!this->write_byte(BME280_REGISTER_CONTROLHUMID, this->humidity_oversampling_ & 0b111)) {
     this->status_set_warning();
     return;
@@ -216,7 +214,6 @@ void BME280Component::update() {
   });
 }
 float BME280Component::read_temperature_(const uint8_t *data, int32_t *t_fine) {
-  // The chip reports 0x80000 for a skipped channel, but an enabled channel can read that too.
   if (this->temperature_oversampling_ == BME280_OVERSAMPLING_NONE) {
     return NAN;
   }

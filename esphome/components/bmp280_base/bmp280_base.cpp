@@ -148,7 +148,6 @@ void BMP280Component::update() {
 }
 
 float BMP280Component::read_temperature_(int32_t *t_fine) {
-  // The chip reports 0x80000 for a skipped channel, but an enabled channel can read that too.
   if (this->temperature_oversampling_ == BMP280_OVERSAMPLING_NONE) {
     return NAN;
   }
