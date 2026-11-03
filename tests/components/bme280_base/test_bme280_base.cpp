@@ -9,6 +9,7 @@
 
 namespace esphome::bme280_base::testing {
 
+static constexpr uint8_t REGISTER_CONTROLHUMID = 0xF2;
 static constexpr uint8_t REGISTER_MEASUREMENTS = 0xF7;
 
 // The datasheet's worked example: adc_T=519888 gives 25.08 C, adc_P=415148 gives 1006.53 hPa.
@@ -33,10 +34,15 @@ class FakeBME280 final : public BME280Component {
   }
 
   std::array<uint8_t, 8> registers{};
+  int ctrl_hum{-1};
 
  protected:
   bool read_byte(uint8_t a_register, uint8_t *data) override { return false; }
-  bool write_byte(uint8_t a_register, uint8_t data) override { return true; }
+  bool write_byte(uint8_t a_register, uint8_t data) override {
+    if (a_register == REGISTER_CONTROLHUMID)
+      this->ctrl_hum = data;
+    return true;
+  }
   bool read_bytes(uint8_t a_register, uint8_t *data, size_t len) override {
     EXPECT_EQ(a_register, REGISTER_MEASUREMENTS);
     EXPECT_EQ(len, this->registers.size());
@@ -90,6 +96,7 @@ TEST(BME280Base, MidpointRawCodesPublishWhenSamplingIsEnabled) {
   ASSERT_TRUE(humidity.has_state());
   EXPECT_TRUE(std::isfinite(humidity.state));
   EXPECT_FALSE(sensor.status_has_warning());
+  EXPECT_EQ(sensor.ctrl_hum, BME280_OVERSAMPLING_1X);
 }
 
 TEST(BME280Base, DisabledChannelsPublishNan) {
@@ -105,8 +112,12 @@ TEST(BME280Base, DisabledChannelsPublishNan) {
   run_update(sensor);
 
   EXPECT_NEAR(temperature.state, 25.08f, 0.01f);
+  ASSERT_TRUE(pressure.has_state());
   EXPECT_TRUE(std::isnan(pressure.state));
+  ASSERT_TRUE(humidity.has_state());
   EXPECT_TRUE(std::isnan(humidity.state));
+  // The skipped humidity channel is written to the chip each cycle, not only in setup().
+  EXPECT_EQ(sensor.ctrl_hum, BME280_OVERSAMPLING_NONE);
 }
 
 TEST(BME280Base, DisabledTemperaturePublishesNothing) {

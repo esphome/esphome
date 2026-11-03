@@ -94,6 +94,7 @@ TEST(BMP280Base, DisabledPressurePublishesNan) {
   run_update(sensor);
 
   EXPECT_NEAR(temperature.state, 25.08f, 0.01f);
+  ASSERT_TRUE(pressure.has_state());
   EXPECT_TRUE(std::isnan(pressure.state));
 }
 
