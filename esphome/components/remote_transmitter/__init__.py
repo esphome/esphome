@@ -108,7 +108,8 @@ CONFIG_SCHEMA = (
             ]
         )
     )
-    .add_extra(esp32_rmt.request_rmt_channel("TX"))
+    # setup_priority::DATA - 1, from RemoteTransmitterComponent::get_setup_priority()
+    .add_extra(esp32_rmt.request_rmt_channel("TX", 599.0))
 )
 
 

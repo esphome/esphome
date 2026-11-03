@@ -204,7 +204,8 @@ CONFIG_SCHEMA = remote_base.validate_triggers(
         )
     )
     .add_extra(validate_config)
-    .add_extra(esp32_rmt.request_rmt_channel("RX"))
+    # setup_priority::DATA, the default of Component::get_setup_priority()
+    .add_extra(esp32_rmt.request_rmt_channel("RX", 600.0))
 )
 
 FINAL_VALIDATE_SCHEMA = esp32_rmt.final_validate_rmt_channels

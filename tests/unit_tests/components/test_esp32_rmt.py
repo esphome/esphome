@@ -29,6 +29,7 @@ from esphome.const import (
     CONF_ID,
     CONF_NAME,
     CONF_RMT_SYMBOLS,
+    CONF_SETUP_PRIORITY,
     CONF_USE_DMA,
     KEY_CORE,
     KEY_TARGET_PLATFORM,
@@ -40,6 +41,9 @@ import esphome.final_validate as fv
 
 # Entries of RMT components, by direction
 Config = dict[str, list[dict[str, Any]]]
+
+# Setup priority of the test entries; the same for all, so they are set up in order
+PRIORITY = 600.0
 
 # Runs the check for a variant against the entries, returns the RMT warnings
 CheckRunner = Callable[..., list[str]]
@@ -63,7 +67,7 @@ def _run(config: Config) -> None:
     """Validate the entries like ESPHome does: all schemas first, then final validation."""
     for direction, entries in config.items():
         for entry in entries:
-            esp32_rmt.request_rmt_channel(direction)(entry)
+            esp32_rmt.request_rmt_channel(direction, PRIORITY)(entry)
     for entries in config.values():
         for entry in entries:
             esp32_rmt.final_validate_rmt_channels(entry)
@@ -129,8 +133,12 @@ def test_warning_names_components_and_suggests_value(run_check: CheckRunner) -> 
     messages = run_check(VARIANT_ESP32S2, {"TX": lights})
     assert len(messages) == 1
     assert "holds 4 blocks of 64 symbols" in messages[0]
-    assert "need 6 blocks: 'Status LEDs' (192), 'NeoPixel Port' (192)" in messages[0]
+    assert (
+        "'NeoPixel Port' will not fit: 'Status LEDs' (192), 'NeoPixel Port' (192)"
+        in (messages[0])
+    )
     assert "Set 'rmt_symbols: 128' on 'Status LEDs', 'NeoPixel Port'." in messages[0]
+    assert "ESP-IDF logs 'no free tx channels' at boot" in messages[0]
 
 
 def test_suggestion_skips_components_that_already_fit(run_check: CheckRunner) -> None:
@@ -149,7 +157,7 @@ def test_strip_and_transmitter_share_tx(run_check: CheckRunner) -> None:
     config = {"TX": [*_strips(192)["TX"], _entry("ir", 48)]}
     messages = run_check(VARIANT_ESP32S3, config)
     assert len(messages) == 1
-    assert "RMT TX memory" in messages[0]
+    assert "'ir' will not fit" in messages[0]
     assert "'no free tx channels'" in messages[0]
     assert "no free rx channels" not in messages[0]
 
@@ -176,12 +184,44 @@ def test_suggestion_skips_component_at_suggested_value(run_check: CheckRunner) -
     assert "Set 'rmt_symbols: 128' on 'strip0', 'strip1', 'strip2'." in messages[0]
 
 
-def test_tx_warning_names_rx_error_with_receivers(run_check: CheckRunner) -> None:
-    """A TX channel that overruns can take RX blocks, so a receiver can be the one that fails."""
-    config = {**_strips(192, 96), "RX": [_entry("rx", 48)]}
+def test_receiver_fails_when_transmitter_takes_rx_blocks(
+    run_check: CheckRunner,
+) -> None:
+    """A TX channel set up first can take the RX blocks, then the receiver fails."""
+    config = {**_strips(384), "RX": [_entry("rx", 48)]}
     messages = run_check(VARIANT_ESP32S3, config)
     assert len(messages) == 1
-    assert "'no free tx channels' or 'no free rx channels'" in messages[0]
+    assert "'rx' will not fit" in messages[0]
+    assert "ESP-IDF logs 'no free rx channels' at boot" in messages[0]
+    assert "no free tx channels" not in messages[0]
+
+
+@pytest.mark.parametrize(
+    ("symbols", "fails"),
+    [
+        # The 48 symbol strip is set up first and takes block 0, the other blocks 1 to 6
+        ((48, 288), None),
+        # The other way round, the 288 symbol strip takes blocks 0 to 5 and with them
+        # every TX channel the 48 symbol strip could start at
+        ((288, 48), "strip1"),
+    ],
+)
+def test_order_of_transmitters_decides(
+    run_check: CheckRunner, symbols: tuple[int, ...], fails: str | None
+) -> None:
+    """Without receivers TX channels can use the RX blocks; whether they fit depends on order."""
+    messages = run_check(VARIANT_ESP32S3, _strips(*symbols))
+    if fails is None:
+        assert not messages
+    else:
+        assert f"'{fails}' will not fit" in messages[0]
+
+
+def test_setup_priority_changes_the_order(run_check: CheckRunner) -> None:
+    """A component's setup_priority moves it ahead of the others."""
+    small = {**_entry("small", 48), CONF_SETUP_PRIORITY: 700.0}
+    # Without the override, the large strip would come first and the small one fail
+    assert not run_check(VARIANT_ESP32S3, {"TX": [_entry("large", 288), small]})
 
 
 def test_receiver_uses_own_rx_blocks(run_check: CheckRunner) -> None:
@@ -201,7 +241,7 @@ def test_receiver_shares_blocks_on_s2(
     messages = run_check(VARIANT_ESP32S2, config)
     assert len(messages) == (1 if with_transmitter else 0)
     if with_transmitter:
-        assert "RMT TX/RX memory" in messages[0]
+        assert "'rx' will not fit" in messages[0]
 
 
 def test_dma_channel_uses_one_block(run_check: CheckRunner) -> None:
@@ -244,7 +284,9 @@ def test_invalid_rmt_symbols_fail(
     """The driver refuses these values when it creates the channel."""
     _set_variant(variant)
     with pytest.raises(cv.Invalid, match=match) as error:
-        esp32_rmt.request_rmt_channel(direction)(_entry("x", symbols, **extra))
+        esp32_rmt.request_rmt_channel(direction, PRIORITY)(
+            _entry("x", symbols, **extra)
+        )
     assert error.value.path == [CONF_RMT_SYMBOLS]
 
 
@@ -260,7 +302,7 @@ def test_symbol_limits_of_every_variant(variant: str) -> None:
     }
     _set_variant(variant)
     for direction, limit in limits.items():
-        check = esp32_rmt.request_rmt_channel(direction)
+        check = esp32_rmt.request_rmt_channel(direction, PRIORITY)
         for symbols in (size, limit):
             check(_entry("ok", symbols))
         for symbols in (size - 2, limit + 2):
@@ -284,7 +326,7 @@ def test_valid_rmt_symbols_pass(
 ) -> None:
     _set_variant(VARIANT_ESP32S3)
     entry = _entry("x", symbols, **extra)
-    assert esp32_rmt.request_rmt_channel(direction)(entry) is entry
+    assert esp32_rmt.request_rmt_channel(direction, PRIORITY)(entry) is entry
 
 
 def test_two_dma_channels_in_one_direction_fail(run_check: CheckRunner) -> None:
@@ -354,9 +396,9 @@ def test_error_raised_from_a_component_that_causes_it() -> None:
         *(_entry(f"rx{i}", 48, **{CONF_USE_DMA: True}) for i in range(2)),
     ]
     for entry in transmitters:
-        esp32_rmt.request_rmt_channel("TX")(entry)
+        esp32_rmt.request_rmt_channel("TX", PRIORITY)(entry)
     for entry in receivers:
-        esp32_rmt.request_rmt_channel("RX")(entry)
+        esp32_rmt.request_rmt_channel("RX", PRIORITY)(entry)
     esp32_rmt.final_validate_rmt_channels(receiver)
     with pytest.raises(cv.Invalid) as error:
         esp32_rmt.final_validate_rmt_channels(transmitters[0])

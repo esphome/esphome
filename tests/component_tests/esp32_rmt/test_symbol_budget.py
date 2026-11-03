@@ -93,3 +93,20 @@ def test_new_variant_gets_its_own_default(
     config = read_config({})
     assert config is not None
     assert config["light"][0]["rmt_symbols"] == 192
+
+
+def test_strip_is_set_up_before_transmitter(
+    validate: Callable[[str], tuple[bool, list[str]]],
+) -> None:
+    """The order comes from the setup priorities, not from the order in the config."""
+    valid, messages = validate("s3_transmitter_before_strip.yaml")
+    assert valid
+    assert len(messages) == 1
+    assert "'ir' will not fit: 'strip' (192), 'ir' (48)" in messages[0]
+
+
+def test_large_strip_after_small_one_fits(
+    validate: Callable[[str], tuple[bool, list[str]]],
+) -> None:
+    """Without receivers the second strip can use the RX blocks."""
+    assert validate("s3_small_strip_first.yaml") == (True, [])

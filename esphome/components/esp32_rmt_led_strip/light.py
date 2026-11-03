@@ -124,7 +124,8 @@ CONFIG_SCHEMA = cv.All(
     light.migrate_channel_colors(
         removed_in="2027.3.0", component="esp32_rmt_led_strip"
     ),
-    esp32_rmt.request_rmt_channel("TX"),
+    # setup_priority::HARDWARE, from ESP32RMTLEDStripLightOutput::get_setup_priority()
+    esp32_rmt.request_rmt_channel("TX", 800.0),
 )
 
 FINAL_VALIDATE_SCHEMA = esp32_rmt.final_validate_rmt_channels

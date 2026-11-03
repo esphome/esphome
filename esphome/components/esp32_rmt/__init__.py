@@ -5,7 +5,13 @@ from typing import Any, Literal
 
 from esphome.components import esp32
 import esphome.config_validation as cv
-from esphome.const import CONF_ID, CONF_NAME, CONF_RMT_SYMBOLS, CONF_USE_DMA
+from esphome.const import (
+    CONF_ID,
+    CONF_NAME,
+    CONF_RMT_SYMBOLS,
+    CONF_SETUP_PRIORITY,
+    CONF_USE_DMA,
+)
 from esphome.core import CORE, ID
 import esphome.final_validate as fv
 from esphome.types import ConfigType
@@ -57,7 +63,6 @@ MAX_TX_DMA_SYMBOLS: int = 2046
 _IDF_ERRORS: dict[str, str] = {
     "TX": "'no free tx channels'",
     "RX": "'no free rx channels'",
-    "TX/RX": "'no free tx channels' or 'no free rx channels'",
 }
 
 
@@ -68,6 +73,11 @@ class _Channel:
     direction: Direction
     symbols: int
     dma: bool
+    setup_priority: float
+
+    def blocks(self, size: int) -> int:
+        """Blocks the driver allocates: rmt_symbols rounded up, one for a DMA channel."""
+        return 1 if self.dma else -(-self.symbols // size)
 
 
 def _label(channel: _Channel) -> str:
@@ -117,7 +127,9 @@ def _max_blocks(direction: Direction, memory: RMTMemory) -> int:
     return memory.rx_blocks
 
 
-def request_rmt_channel(direction: Direction) -> Callable[[ConfigType], ConfigType]:
+def request_rmt_channel(
+    direction: Direction, setup_priority: float
+) -> Callable[[ConfigType], ConfigType]:
     """Return a CONFIG_SCHEMA validator for a component that creates one RMT channel.
 
     It checks the entry's rmt_symbols against what ESP-IDF accepts, and records the
@@ -125,6 +137,8 @@ def request_rmt_channel(direction: Direction) -> Callable[[ConfigType], ConfigTy
     Add it after the schema, so rmt_symbols has its default, and set
     FINAL_VALIDATE_SCHEMA = esp32_rmt.final_validate_rmt_channels in the same component.
     The entry needs an id and rmt_symbols on every variant with RMT; use_dma is optional.
+    setup_priority is the component's get_setup_priority() in C++, which creates the
+    channel in setup(); the entry's setup_priority overrides it.
     """
 
     def _validator(config: ConfigType) -> ConfigType:
@@ -152,7 +166,14 @@ def request_rmt_channel(direction: Direction) -> Callable[[ConfigType], ConfigTy
                 path=[CONF_RMT_SYMBOLS],
             )
         _get_data().channels.append(
-            _Channel(config[CONF_ID], config.get(CONF_NAME), direction, symbols, dma)
+            _Channel(
+                config[CONF_ID],
+                config.get(CONF_NAME),
+                direction,
+                symbols,
+                dma,
+                config.get(CONF_SETUP_PRIORITY, setup_priority),
+            )
         )
         return config
 
@@ -163,14 +184,8 @@ def _labels(channels: list[_Channel]) -> str:
     return ", ".join(f"'{_label(channel)}'" for channel in channels)
 
 
-def _check_pool(
-    direction: str,
-    channels: list[_Channel],
-    blocks: int,
-    memory: RMTMemory,
-    idf_errors: str,
-) -> _Error | None:
-    """Return the error if the channels cannot all be allocated, warn if they may not fit.
+def _check_pool(direction: str, channels: list[_Channel], blocks: int) -> _Error | None:
+    """Return the error if the channels cannot all get a channel.
 
     direction is "TX", "RX", or "TX/RX" for the shared pool of the ESP32 and ESP32-S2.
     """
@@ -191,56 +206,92 @@ def _check_pool(
             f"'{CONF_USE_DMA}' is set on {_labels(dma)}. Keep it on one of them",
             CONF_USE_DMA,
         )
-    # The driver rounds rmt_symbols up to whole blocks; a DMA channel always uses one block
+    return None
+
+
+def _setup_order(channels: list[_Channel]) -> list[_Channel]:
+    """Components are set up by priority, in the order they are in the config when it is
+    the same (a stable sort, like Application::setup())."""
+    return sorted(channels, key=lambda channel: -channel.setup_priority)
+
+
+def _allocate(memory: RMTMemory, channels: list[_Channel]) -> list[_Channel]:
+    """Allocate the channels in this order like ESP-IDF and return the ones that fail.
+
+    The driver gives a channel the first free run of blocks that starts at one of the
+    channels of its direction, and a DMA channel the last channel of its direction.
+    """
     size = memory.symbols_per_block
-    others = [channel for channel in channels if not channel.dma]
-    used = len(dma) + sum(-(-channel.symbols // size) for channel in others)
-    if used <= blocks:
-        return None
-    fair = (blocks - len(dma)) // len(others) * size
+    total = memory.tx_blocks + (memory.rx_blocks or 0)
+    starts = {
+        "TX": range(memory.tx_blocks),
+        # On the ESP32 and ESP32-S2 the RX channels are the same as the TX channels
+        "RX": range(total - (memory.rx_blocks or memory.tx_blocks), total),
+    }
+    # Blocks past the end of the RMT memory count as taken, like in ESP-IDF
+    occupied = ~((1 << total) - 1)
+    failed = []
+    for channel in channels:
+        mask = (1 << channel.blocks(size)) - 1
+        candidates = starts[channel.direction]
+        if channel.dma:
+            candidates = candidates[-1:]
+        start = next((j for j in candidates if not occupied & mask << j), None)
+        if start is None:
+            failed.append(channel)
+        else:
+            occupied |= mask << start
+    return failed
+
+
+def _suggestions(
+    memory: RMTMemory, pools: list[tuple[str, list[_Channel], int]]
+) -> list[str]:
+    """Suggest an rmt_symbols value for the components of each overrun pool."""
+    size = memory.symbols_per_block
+    suggestions = []
+    for _, channels, blocks in pools:
+        if sum(channel.blocks(size) for channel in channels) <= blocks:
+            continue
+        others = [channel for channel in channels if not channel.dma]
+        fair = (blocks - (len(channels) - len(others))) // len(others) * size
+        shrink = [channel for channel in others if channel.symbols > fair]
+        suggestions.append(f"'{CONF_RMT_SYMBOLS}: {fair}' on {_labels(shrink)}")
+    return suggestions
+
+
+def _check_budget(memory: RMTMemory, channels: list[_Channel]) -> list[_Error]:
+    channels = _setup_order(channels)
+    if memory.rx_blocks is None:
+        pools = [("TX/RX", channels, memory.tx_blocks)]
+    else:
+        pools = [
+            (direction, [c for c in channels if c.direction == direction], blocks)
+            for direction, blocks in (
+                ("TX", memory.tx_blocks),
+                ("RX", memory.rx_blocks),
+            )
+        ]
+    errors = [error for pool in pools if (error := _check_pool(*pool)) is not None]
+    if errors or not (failed := _allocate(memory, channels)):
+        return errors
     usage = ", ".join(
         f"'{_label(channel)}' ({'DMA' if channel.dma else channel.symbols})"
         for channel in channels
     )
     _LOGGER.warning(
-        "RMT %s memory on %s holds %d blocks of %d symbols, but these components "
-        "need %d blocks: %s. Set '%s: %d' on %s. Otherwise a component may fail at "
-        "boot: ESP-IDF logs %s, and ESPHome logs 'Channel creation failed' or 'out "
-        "of RMT symbol memory'.",
-        direction,
-        variant,
-        blocks,
-        size,
-        used,
+        "RMT memory on %s holds %d blocks of %d symbols, but in the order ESPHome sets "
+        "up these components, %s will not fit: %s. Set %s. Otherwise ESP-IDF logs %s at "
+        "boot, and ESPHome logs 'Channel creation failed' or 'out of RMT symbol memory'.",
+        esp32.get_esp32_variant(),
+        memory.tx_blocks + (memory.rx_blocks or 0),
+        memory.symbols_per_block,
+        _labels(failed),
         usage,
-        CONF_RMT_SYMBOLS,
-        fair,
-        _labels([channel for channel in others if channel.symbols > fair]),
-        idf_errors,
+        " and ".join(_suggestions(memory, pools)),
+        " or ".join(sorted({_IDF_ERRORS[channel.direction] for channel in failed})),
     )
-    return None
-
-
-def _check_budget(memory: RMTMemory, channels: list[_Channel]) -> list[_Error]:
-    if memory.rx_blocks is None:
-        pools = [("TX/RX", channels, memory.tx_blocks, _IDF_ERRORS["TX/RX"])]
-    else:
-        tx = [channel for channel in channels if channel.direction == "TX"]
-        rx = [channel for channel in channels if channel.direction == "RX"]
-        # A TX channel can extend into the RX blocks. A single one without receivers
-        # always fits, request_rmt_channel() already checked its size. With receivers,
-        # whether it fits depends on the order the channels are created in, and the
-        # receiver can be the one that fails.
-        tx_blocks = memory.tx_blocks
-        if len(tx) == 1 and not rx:
-            tx_blocks += memory.rx_blocks
-        tx_errors = _IDF_ERRORS["TX/RX" if rx else "TX"]
-        pools = [
-            ("TX", tx, tx_blocks, tx_errors),
-            ("RX", rx, memory.rx_blocks, _IDF_ERRORS["RX"]),
-        ]
-    errors = [_check_pool(*pool[:3], memory, pool[3]) for pool in pools]
-    return [error for error in errors if error is not None]
+    return errors
 
 
 def final_validate_rmt_channels(config: ConfigType) -> None:
