@@ -109,9 +109,7 @@ rs485_frame:
         mode: fixed_delay
         interval: 500ms
 
-  # Hub 4 — exercises the idle_command path (send_next_idle_ / build_key_payload_). idle_command
-  # requires a command_format so the value has a defined on-wire encoding; a 1-byte command is
-  # used here. idle_gap gate so the keepalive is emitted after bus silence.
+  # Hub 4 — sum8 CRC with a 1-byte command_format and an idle_gap gate.
   - id: rs485_frame_hub4
     uart_id: uart_bus
     framing:
@@ -126,7 +124,6 @@ rs485_frame:
       gate:
         mode: idle_gap
         min_silence: 20ms
-      idle_command: 0x00
 
   # Hub 6 — sum16_little_endian CRC: compiles the little-endian 2-byte CRC read/emit branch
   # for a sum (the counterpart to sum16_big_endian; same on-wire byte order as crc16_modbus).

@@ -59,7 +59,7 @@ void RS485FrameHub::dump_config() {
                 "  TX idle gap: %" PRIu32 "ms, TX interval: %" PRIu32 "ms\n"
                 "  Queue policy: %s, queue size: %" PRIu32 "\n"
                 "  Max frame length: %" PRIu32 ", frame timeout: %" PRIu32 "ms\n"
-                "  Sniffer only: %s, dump frames: %s, idle frame: %zu bytes",
+                "  Sniffer only: %s, dump frames: %s",
                 this->dle_, this->stx_, this->etx_, this->escape_marker_,
                 LOG_STR_ARG(CrcTypeStrings::get_log_str(this->crc_type_, 0)),
                 LOG_STR_ARG(CrcVariantStrings::get_log_str(this->tx_crc_variant_, 0)), YESNO(this->accept_header_crc_),
@@ -67,7 +67,7 @@ void RS485FrameHub::dump_config() {
                 gate_hex, this->tx_gate_delay_, this->tx_idle_gap_, this->tx_fixed_interval_,
                 LOG_STR_ARG(QueuePolicyStrings::get_log_str(this->queue_policy_, 0)), this->max_queue_size_,
                 this->max_frame_length_, this->in_frame_timeout_ms_, YESNO(this->sniffer_only_),
-                YESNO(this->dump_frames_), this->idle_frame_len_);
+                YESNO(this->dump_frames_));
 }
 
 void RS485FrameHub::set_framing(uint8_t dle, uint8_t stx, uint8_t etx, uint8_t escape_marker) {
@@ -287,8 +287,6 @@ void RS485FrameHub::build_frame_(const std::vector<uint8_t> &payload, std::vecto
 }
 
 void RS485FrameHub::maybe_tx_(uint32_t now) {
-  if (this->sniffer_only_ || this->tx_start_pending_ || (this->tx_queue_count_ == 0 && this->idle_frame_len_ == 0))
-    return;
   if (this->tx_gate_mode_ == TX_GATE_IDLE_GAP && this->has_activity_ &&
       now - this->last_activity_time_ >= this->tx_idle_gap_)
     this->send_next_(now);
@@ -304,29 +302,17 @@ void RS485FrameHub::queue_pop_front_() {
 }
 
 void RS485FrameHub::send_next_(uint32_t now) {
-  if (this->sniffer_only_ || this->tx_start_pending_)
+  if (this->sniffer_only_ || this->tx_start_pending_ || this->tx_queue_count_ == 0)
     return;
-  const bool idle = this->tx_queue_count_ == 0;
-  std::vector<uint8_t> *frame = &this->tx_queue_[this->tx_queue_head_];
-  if (idle) {
-    if (this->idle_frame_len_ == 0)
-      return;
-    this->tx_payload_buf_.resize(this->idle_frame_len_);
-    progmem_memcpy(this->tx_payload_buf_.data(), this->idle_frame_, this->idle_frame_len_);
-    this->build_frame_(this->tx_payload_buf_, this->tx_frame_buf_);
-    frame = &this->tx_frame_buf_;
-  }
+  auto &frame = this->tx_queue_[this->tx_queue_head_];
   if (this->tx_gate_delay_ > 0) {
-    std::swap(this->pending_tx_frame_, *frame);
-    if (!idle)
-      this->queue_pop_front_();
+    std::swap(this->pending_tx_frame_, frame);
     this->tx_start_at_ = now + this->tx_gate_delay_;
     this->tx_start_pending_ = true;
-    return;
+  } else {
+    this->transmit_(frame, now);
   }
-  this->transmit_(*frame, now);
-  if (!idle)
-    this->queue_pop_front_();
+  this->queue_pop_front_();
 }
 
 void RS485FrameHub::transmit_(std::vector<uint8_t> &frame, uint32_t now) {

@@ -59,8 +59,7 @@ rs485_frame:
       gate:
         mode: idle_gap
 
-  # idle_command requires a command_format so the value has a defined encoding. fixed_delay
-  # gate mode (no gate.frame_type needed).
+  # fixed_delay gate mode (no gate.frame_type needed).
   - id: idle_hub
     uart_id: uart_bus
     framing:
@@ -76,7 +75,6 @@ rs485_frame:
       gate:
         mode: fixed_delay
         interval: 250ms
-      idle_command: 0x00
 
 # Buttons exercise all _validate_button + _final_validate branches:
 #   - value: form against a hub that has command_format (cmd_hub)                   -> accepted

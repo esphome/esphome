@@ -72,11 +72,6 @@ class RS485FrameHub : public Component, public uart::UARTDevice {
   void set_tx_fixed_interval(uint32_t interval) { this->tx_fixed_interval_ = interval; }
   void set_queue_policy(QueuePolicy policy) { this->queue_policy_ = policy; }
   void set_max_queue_size(uint32_t size) { this->max_queue_size_ = size; }
-  /// The encoded idle_command payload; data may live in PROGMEM.
-  void set_idle_frame(const uint8_t *data, size_t len) {
-    this->idle_frame_ = data;
-    this->idle_frame_len_ = len;
-  }
   void set_dump_frames(bool dump_frames) { this->dump_frames_ = dump_frames; }
   void set_sniffer_only(bool sniffer_only) { this->sniffer_only_ = sniffer_only; }
   void set_max_frame_length(uint32_t length) { this->max_frame_length_ = length; }
@@ -128,8 +123,6 @@ class RS485FrameHub : public Component, public uart::UARTDevice {
   uint32_t tx_fixed_interval_{100};
   QueuePolicy queue_policy_{QUEUE_REPLACE_LATEST};
   uint32_t max_queue_size_{1};
-  const uint8_t *idle_frame_{nullptr};
-  size_t idle_frame_len_{0};
   bool dump_frames_{false};
   bool sniffer_only_{false};
   uint32_t max_frame_length_{128};
@@ -150,7 +143,7 @@ class RS485FrameHub : public Component, public uart::UARTDevice {
   size_t raw_len_{0};
   uint32_t last_rx_time_{0};
   uint32_t last_tx_time_{0};
-  // Advanced by RX and our own TX, so an idle keepalive resets the idle_gap timer.
+  // Advanced by RX and our own TX.
   uint32_t last_activity_time_{0};
   bool has_activity_{false};
   bool has_tx_ever_{false};

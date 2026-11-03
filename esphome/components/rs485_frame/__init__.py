@@ -41,7 +41,6 @@ CONF_FRAME_TIMEOUT = "frame_timeout"
 CONF_FRAME_TYPE = "frame_type"
 CONF_FRAMING = "framing"
 CONF_GATE = "gate"
-CONF_IDLE_COMMAND = "idle_command"
 CONF_MAX_FRAME_LENGTH = "max_frame_length"
 CONF_MAX_QUEUE_SIZE = "max_queue_size"
 CONF_MIN_SILENCE = "min_silence"
@@ -201,7 +200,6 @@ TX_SCHEMA = cv.Schema(
         cv.Optional(CONF_MAX_QUEUE_SIZE, default=1): cv.int_range(
             min=1, max=MAX_QUEUE_SIZE_UPPER
         ),
-        cv.Optional(CONF_IDLE_COMMAND): validate_u32,
     }
 )
 
@@ -229,11 +227,6 @@ def validate_hub(config: ConfigType) -> ConfigType:
         )
     if tx[CONF_QUEUE_POLICY] == "replace_latest" and tx[CONF_MAX_QUEUE_SIZE] != 1:
         raise cv.Invalid("replace_latest requires max_queue_size: 1")
-    if CONF_IDLE_COMMAND in tx and CONF_COMMAND_FORMAT not in config:
-        raise cv.Invalid(
-            "tx.idle_command requires a command_format: block on the hub (missing) so the "
-            f"value has a defined on-wire encoding. See {DOC_COMMAND_FORMAT_URL}"
-        )
     return config
 
 
@@ -294,10 +287,6 @@ async def to_code(config: ConfigType) -> None:
     cg.add(var.set_tx_fixed_interval(gate[CONF_INTERVAL].total_milliseconds))
     cg.add(var.set_queue_policy(QUEUE_POLICIES[tx[CONF_QUEUE_POLICY]]))
     cg.add(var.set_max_queue_size(tx[CONF_MAX_QUEUE_SIZE]))
-    if (idle := tx.get(CONF_IDLE_COMMAND)) is not None:
-        data = encode_command([idle], config[CONF_COMMAND_FORMAT])
-        table = automation.progmem_bytes(f"{config[CONF_ID]}_idle_frame", data)
-        cg.add(var.set_idle_frame(table, len(data)))
     cg.add(var.set_dump_frames(config[CONF_DUMP_FRAMES]))
     cg.add(var.set_sniffer_only(config[CONF_SNIFFER_ONLY]))
     cg.add(var.set_max_frame_length(config[CONF_MAX_FRAME_LENGTH]))
