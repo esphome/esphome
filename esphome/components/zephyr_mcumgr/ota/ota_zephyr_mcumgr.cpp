@@ -55,9 +55,7 @@ void OTAComponent::setup() {
   this->img_mgmt_callback_.callback = mcumgr_img_mgmt_cb;
   this->img_mgmt_callback_.event_id = MGMT_EVT_OP_IMG_MGMT_ALL;
   mgmt_callback_register(&this->img_mgmt_callback_);
-  if (int err = zephyr::usb_device_enable(); err != 0) {
-    ESP_LOGE(TAG, "USB device setup failed, err %d", err);
-  }
+  zephyr::usb_device_enable();
 // Handle OTA rollback: mark partition valid immediately unless USE_OTA_ROLLBACK is enabled,
 // in which case safe_mode will mark it valid after confirming successful boot.
 #ifndef USE_OTA_ROLLBACK

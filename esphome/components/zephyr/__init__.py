@@ -275,6 +275,11 @@ def zephyr_use_usb_device_next() -> bool:
 
 
 def _disable_board_cdc_acm_overlay() -> str:
+    """Disable the CDC ACM port that boards with a USB serial backend add.
+
+    On boards without that port the overlay adds an empty disabled node, which
+    does nothing, so it is safe on every board.
+    """
     return """
         &zephyr_udc0 {
             board_cdc_acm_uart: board_cdc_acm_uart {
@@ -299,8 +304,7 @@ def zephyr_enable_usb_cdc_acm() -> None:
         zephyr_add_prj_conf("USBD_CDC_ACM_LOG_LEVEL_WRN", True)
         # Boards with a USB serial backend (xiao_ble, feather_nrf52840, ...) start their own USB
         # device at boot with their own CDC ACM port. usb_device.cpp sets up the device instead,
-        # and only the ports ESPHome adds may be on the bus. Naming the board's node here also
-        # works on boards without it: the overlay then adds an empty disabled node.
+        # and only the ports ESPHome adds may be on the bus.
         zephyr_add_prj_conf("CDC_ACM_SERIAL_INITIALIZE_AT_BOOT", False)
         zephyr_add_overlay_builder(_disable_board_cdc_acm_overlay)
         return
