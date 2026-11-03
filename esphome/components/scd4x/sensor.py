@@ -124,7 +124,7 @@ async def to_code(config: ConfigType) -> None:
             cg.add(getattr(var, funcName)(sens))
 
     await cg.add_variable(
-        var.set_ambient_pressure_source,
+        var.set_ambient_pressure_source_sensor,
         config.get(CONF_AMBIENT_PRESSURE_COMPENSATION_SOURCE),
     )
 

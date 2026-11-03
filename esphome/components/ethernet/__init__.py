@@ -175,17 +175,17 @@ class IDFRegistryComponent:
 
 # IDF 6.0 moved per-chip PHY/MAC drivers to the Espressif Component Registry.
 _IDF6_ETHERNET_COMPONENTS: dict[str, IDFRegistryComponent] = {
-    "LAN8720": IDFRegistryComponent("espressif/lan87xx", "1.0.0"),
-    "RTL8201": IDFRegistryComponent("espressif/rtl8201", "1.0.1"),
-    "DP83848": IDFRegistryComponent("espressif/dp83848", "1.0.0"),
-    "IP101": IDFRegistryComponent("espressif/ip101", "1.0.0"),
-    "KSZ8081": IDFRegistryComponent("espressif/ksz80xx", "1.0.0"),
-    "KSZ8081RNA": IDFRegistryComponent("espressif/ksz80xx", "1.0.0"),
-    "W5500": IDFRegistryComponent("espressif/w5500", "1.0.1"),
-    "DM9051": IDFRegistryComponent("espressif/dm9051", "1.1.0"),
-    "ENC28J60": IDFRegistryComponent("espressif/enc28j60", "1.0.1"),
-    "LAN8670": IDFRegistryComponent("espressif/lan867x", "2.0.0"),
-    "CH390": IDFRegistryComponent("espressif/ch390", "0.3.0"),
+    "LAN8720": IDFRegistryComponent("espressif/lan87xx", "1.1.0"),
+    "RTL8201": IDFRegistryComponent("espressif/rtl8201", "1.1.0"),
+    "DP83848": IDFRegistryComponent("espressif/dp83848", "1.1.0"),
+    "IP101": IDFRegistryComponent("espressif/ip101", "1.1.0"),
+    "KSZ8081": IDFRegistryComponent("espressif/ksz80xx", "1.1.0"),
+    "KSZ8081RNA": IDFRegistryComponent("espressif/ksz80xx", "1.1.0"),
+    "W5500": IDFRegistryComponent("espressif/w5500", "2.0.1"),
+    "DM9051": IDFRegistryComponent("espressif/dm9051", "1.1.1"),
+    "ENC28J60": IDFRegistryComponent("espressif/enc28j60", "1.1.0"),
+    "LAN8670": IDFRegistryComponent("espressif/lan867x", "2.1.0"),
+    "CH390": IDFRegistryComponent("espressif/ch390", "0.4.1"),
     "KSZ8851SNL": IDFRegistryComponent("espressif/ksz8851snl", "1.2.0"),
 }
 
