@@ -2,6 +2,8 @@
 
 #include "esphome/core/component.h"
 #include "esphome/core/defines.h"
+#include "esphome/core/finite_set_mask.h"
+#include "esphome/core/helpers.h"
 #include "esphome/core/preferences.h"
 
 #ifdef USE_BSEC2
@@ -15,7 +17,6 @@
 #endif
 
 #include <cinttypes>
-#include <queue>
 
 #include <bsec2.h>
 
@@ -83,6 +84,23 @@ class BME68xBSEC2Component : public Component {
   virtual uint32_t get_hash() = 0;
 
  protected:
+  // States waiting for loop() to publish them, one per pass
+  enum PublishSlot : uint8_t {
+    PUBLISH_SLOT_IAQ,
+    PUBLISH_SLOT_IAQ_STATIC,
+    PUBLISH_SLOT_CO2_EQUIVALENT,
+    PUBLISH_SLOT_BREATH_VOC_EQUIVALENT,
+    PUBLISH_SLOT_PRESSURE,
+    PUBLISH_SLOT_GAS_RESISTANCE,
+    PUBLISH_SLOT_TEMPERATURE,
+    PUBLISH_SLOT_HUMIDITY,
+    // These take pending_accuracy_ instead of a value
+    PUBLISH_SLOT_IAQ_ACCURACY,
+    PUBLISH_SLOT_IAQ_ACCURACY_TEXT,
+    PUBLISH_SLOT_SAVE_STATE,
+    PUBLISH_SLOT_COUNT,
+  };
+
   void set_config_(const uint8_t *config, u_int32_t len);
   float calc_sensor_sample_rate_(SampleRate sample_rate);
   void update_subscription_();
@@ -103,14 +121,21 @@ class BME68xBSEC2Component : public Component {
   void load_state_();
   void save_state_(uint8_t accuracy);
 
-  void queue_push_(std::function<void()> &&f) { this->queue_.push(std::move(f)); }
+  void queue_publish_(PublishSlot slot);
+  void queue_publish_(PublishSlot slot, float value) {
+    this->pending_values_[slot] = value;
+    this->queue_publish_(slot);
+  }
 
   struct bme68x_dev bme68x_;
   bsec_bme_settings_t bsec_settings_;
   bsec_version_t version_;
   struct bme68x_heatr_conf bme68x_heatr_conf_;
 
-  std::queue<std::function<void()>> queue_;
+  // Arrival order; a slot already waiting keeps its place and takes the newer value
+  StaticRingBuffer<PublishSlot, PUBLISH_SLOT_COUNT> pending_;
+  FiniteSetMask<PublishSlot, DefaultBitPolicy<PublishSlot, PUBLISH_SLOT_COUNT>> pending_mask_;
+  float pending_values_[PUBLISH_SLOT_IAQ_ACCURACY];
   ESPPreferenceObject bsec_state_;
 
   uint8_t const *bsec2_configuration_{nullptr};
@@ -137,6 +162,7 @@ class BME68xBSEC2Component : public Component {
 
   uint8_t bsec_instance_[BSEC_INSTANCE_SIZE];
   uint8_t op_mode_;  // operating mode of sensor
+  uint8_t pending_accuracy_{0};
   int8_t bme68x_status_{BME68X_OK};
   bool bsec2_blob_configured_{false};
 };
