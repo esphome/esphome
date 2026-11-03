@@ -140,8 +140,12 @@ class UC8179Gray4(UC8179):
             (0x00, 0x1F),
             # RESOLUTION SETTING (width x height)
             ultrachip_resolution(width, height),
+            # DUAL SPI MODE (disabled)
+            (0x15, 0x00),
             # VCOM AND DATA INTERVAL SETTING
             (0x50, 0x10, 0x07),
+            # TCON SETTING
+            (0x60, 0x22),
             # Register LUTs for partial updates: VCOM, WW, KW, WK, KK, border
             (0x20, *_LUT_VCOM),
             (0x21, *_LUT_NOOP),

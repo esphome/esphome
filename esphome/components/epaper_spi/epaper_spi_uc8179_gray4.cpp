@@ -46,9 +46,9 @@ void EPaperUC8179Gray4::set_gray4_mode_(bool partial) {
   this->set_partial_window_(0, this->width_ - 1, 0, this->height_ - 1);
 }
 
-// A full update sends each level's high bit to DTM1 and its low bit to DTM2. A partial update sends
-// the frame on the panel to DTM1 and the new one to DTM2, as high bits inverted. sent_ keeps the
-// high bits of each frame sent, for the next partial update.
+// White is 0 on the wire, as in Waveshare's EPD_7in5_V2 4-gray sample and the mono driver, so every plane
+// goes out inverted. DTM2 carries the high bits; DTM1 carries the low bits on a full update and the frame
+// on the panel on a partial one. sent_ keeps the high bits of each frame sent, for the next partial update.
 bool HOT EPaperUC8179Gray4::transfer_data() {
   const uint32_t start_time = millis();
   const bool partial = this->is_partial_push_();
@@ -70,18 +70,15 @@ bool HOT EPaperUC8179Gray4::transfer_data() {
         for (size_t i = 0; i != length; i++)
           bytes_to_send[i] = (uint8_t) ~this->sent_[index + i];
       } else {
-        // The high bits go out on DTM1 of a full update and DTM2 of a partial one
-        const bool high_bit = first_plane != partial;
+        const bool high_bit = !first_plane;
         for (size_t i = 0; i != length; i++) {
           const size_t src = 2 * (index + i);
           bytes_to_send[i] = gray4_plane_byte(this->buffer_[src], this->buffer_[src + 1], high_bit);
         }
         if (high_bit)
           this->record_sent_(index, bytes_to_send, length);
-        if (partial) {
-          for (size_t i = 0; i != length; i++)
-            bytes_to_send[i] = (uint8_t) ~bytes_to_send[i];
-        }
+        for (size_t i = 0; i != length; i++)
+          bytes_to_send[i] = (uint8_t) ~bytes_to_send[i];
       }
       this->write_array(bytes_to_send, length);
       this->current_data_index_ += length;

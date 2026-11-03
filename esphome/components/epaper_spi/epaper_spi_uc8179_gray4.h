@@ -19,7 +19,7 @@ namespace esphome::epaper_spi {
  * stay light or stay dark undriven, so unchanged pixels keep their gray level. The frame on the panel
  * is kept in sent_ rather than in controller RAM, so the panel is deep slept after every update.
  */
-class EPaperUC8179Gray4 : public EPaperUC8179 {
+class EPaperUC8179Gray4 final : public EPaperUC8179 {
  public:
   EPaperUC8179Gray4(const char *name, uint16_t width, uint16_t height, const uint8_t *init_sequence,
                     size_t init_sequence_length)
