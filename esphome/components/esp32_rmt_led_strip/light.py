@@ -123,7 +123,9 @@ CONFIG_SCHEMA = cv.All(
     ),
 )
 
-FINAL_VALIDATE_SCHEMA = esp32_rmt.validate_symbol_budget
+FINAL_VALIDATE_SCHEMA = esp32_rmt.final_validate_rmt_channel(
+    "TX", "light", "esp32_rmt_led_strip"
+)
 
 
 async def to_code(config: ConfigType) -> None:

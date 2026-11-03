@@ -1,7 +1,7 @@
 from collections.abc import Callable, Iterable
 from dataclasses import dataclass, field
 import logging
-from typing import Any
+from typing import Any, Literal
 
 from esphome.components import esp32
 import esphome.config_validation as cv
@@ -26,7 +26,11 @@ VARIANTS_NO_RMT = {esp32.VARIANT_ESP32C2, esp32.VARIANT_ESP32C61}
 
 @dataclass(frozen=True)
 class RMTMemory:
-    """RMT channel memory of a variant, from SOC_RMT_* in ESP-IDF soc_caps.h."""
+    """RMT channel memory of a variant.
+
+    From SOC_RMT_MEM_WORDS_PER_CHANNEL in ESP-IDF soc_caps.h and the TX/RX channel counts
+    (SOC_RMT_*_CANDIDATES_PER_GROUP in soc_caps.h up to 5.5, RMT_LL_* in hal/rmt_ll.h from 6.0).
+    """
 
     symbols_per_block: int
     tx_blocks: int
@@ -34,17 +38,34 @@ class RMTMemory:
     rx_blocks: int | None
 
 
-# Variants not listed (for example H4 and H21) have no RMT caps in ESP-IDF yet and are not checked
+# A variant that is not listed is not checked
 RMT_MEMORY = {
     esp32.VARIANT_ESP32: RMTMemory(64, 8, None),
     esp32.VARIANT_ESP32S2: RMTMemory(64, 4, None),
     esp32.VARIANT_ESP32S3: RMTMemory(48, 4, 4),
+    esp32.VARIANT_ESP32S31: RMTMemory(48, 4, 4),
     esp32.VARIANT_ESP32P4: RMTMemory(48, 4, 4),
     esp32.VARIANT_ESP32C3: RMTMemory(48, 2, 2),
     esp32.VARIANT_ESP32C5: RMTMemory(48, 2, 2),
     esp32.VARIANT_ESP32C6: RMTMemory(48, 2, 2),
     esp32.VARIANT_ESP32H2: RMTMemory(48, 2, 2),
+    esp32.VARIANT_ESP32H4: RMTMemory(48, 2, 2),
+    esp32.VARIANT_ESP32H21: RMTMemory(48, 2, 2),
 }
+
+Direction = Literal["TX", "RX"]
+
+
+@dataclass(frozen=True, order=True)
+class _Consumer:
+    domain: str
+    # Empty for a component that is not a platform
+    platform: str
+    direction: Direction
+
+
+# Filled when the RMT components are imported, which happens before final validation
+_CONSUMERS: set[_Consumer] = set()
 
 
 # ESP-IDF's log line for a channel that cannot be allocated
@@ -64,7 +85,7 @@ class _Channel:
 
 
 @dataclass
-class _PoolError:
+class _Error:
     channels: list[_Channel]
     message: str
 
@@ -72,7 +93,7 @@ class _PoolError:
 @dataclass
 class ESP32RMTData:
     budget_checked: bool = False
-    errors: list[_PoolError] = field(default_factory=list)
+    errors: list[_Error] = field(default_factory=list)
 
 
 def _get_data() -> ESP32RMTData:
@@ -81,10 +102,10 @@ def _get_data() -> ESP32RMTData:
     return CORE.data[DOMAIN]
 
 
-def _channels(domain: str, platform: str | None = None) -> list[_Channel]:
+def _channels(domain: str, platform: str) -> list[_Channel]:
     channels = []
     for index, entry in enumerate(fv.full_config.get().get(domain, [])):
-        if platform is not None and entry.get(CONF_PLATFORM) != platform:
+        if platform and entry.get(CONF_PLATFORM) != platform:
             continue
         if name := entry.get(CONF_NAME):
             label = name
@@ -106,18 +127,18 @@ def _labels(channels: list[_Channel]) -> str:
 
 def _check_pool(
     direction: str, channels: list[_Channel], blocks: int, memory: RMTMemory
-) -> _PoolError | None:
+) -> _Error | None:
     """Return the error if the channels cannot all be allocated, warn if they may not fit."""
     variant = esp32.get_esp32_variant()
     if len(channels) > blocks:
-        return _PoolError(
+        return _Error(
             channels,
             f"{variant} has {blocks} RMT {direction} channels, but these "
             f"{len(channels)} components each need one: {_labels(channels)}",
         )
     dma = [channel for channel in channels if channel.dma]
     if len(dma) > 1:
-        return _PoolError(
+        return _Error(
             dma,
             f"Only one RMT {direction} channel on {variant} supports DMA, but "
             f"'{CONF_USE_DMA}' is set on {_labels(dma)}",
@@ -152,27 +173,34 @@ def _check_pool(
     return None
 
 
-def _check_budget() -> list[_PoolError]:
-    if (memory := RMT_MEMORY.get(esp32.get_esp32_variant())) is None:
+def _check_budget() -> list[_Error]:
+    variant = esp32.get_esp32_variant()
+    if (memory := RMT_MEMORY.get(variant)) is None:
         return []
-    tx = _channels("light", "esp32_rmt_led_strip") + _channels("remote_transmitter")
-    rx = _channels("remote_receiver")
+    channels: dict[Direction, list[_Channel]] = {"TX": [], "RX": []}
+    for consumer in sorted(_CONSUMERS):
+        channels[consumer.direction] += _channels(consumer.domain, consumer.platform)
+    tx, rx = channels["TX"], channels["RX"]
+    # The driver rejects these when it creates the channel
+    size = memory.symbols_per_block
+    errors: list[_Error | None] = [
+        _Error(
+            [channel],
+            f"'{CONF_RMT_SYMBOLS}' must be even and at least {size} on {variant}, "
+            f"but '{channel.label}' sets {channel.symbols}",
+        )
+        for channel in tx + rx
+        if channel.symbols < size or channel.symbols % 2
+    ]
     if memory.rx_blocks is None:
         pools = [("TX/RX", tx + rx, memory.tx_blocks)]
     else:
         pools = [("TX", tx, memory.tx_blocks), ("RX", rx, memory.rx_blocks)]
-    errors = [_check_pool(*pool, memory) for pool in pools]
+    errors += [_check_pool(*pool, memory) for pool in pools]
     return [error for error in errors if error is not None]
 
 
-def validate_symbol_budget(config: ConfigType) -> ConfigType:
-    """Final validation: check that all RMT components together fit the chip's RMT channels.
-
-    Fails when components cannot all get a channel, warns when they request more memory than
-    the chip has. Every RMT component calls it from FINAL_VALIDATE_SCHEMA. The check runs
-    once; its errors are raised from the first component that causes one, since final
-    validation stops after the first error.
-    """
+def _validate_channels(config: ConfigType) -> None:
     data = _get_data()
     if not data.budget_checked:
         data.budget_checked = True
@@ -183,7 +211,21 @@ def validate_symbol_budget(config: ConfigType) -> ConfigType:
         channel.entry is config for error in data.errors for channel in error.channels
     ):
         raise cv.Invalid("\n".join(error.message for error in data.errors))
-    return config
+
+
+def final_validate_rmt_channel(
+    direction: Direction, domain: str, platform: str = ""
+) -> Callable[[ConfigType], None]:
+    """Return the FINAL_VALIDATE_SCHEMA of a component that creates one RMT channel per entry.
+
+    domain and platform say where its entries are in the config, for example "light" and
+    "esp32_rmt_led_strip" for a light platform, or only "remote_receiver". Each entry's
+    rmt_symbols and use_dma are counted against the chip's RMT channels and memory together
+    with all other RMT components. The check runs once; its errors are raised from the first
+    component that causes one, since final validation stops after the first error.
+    """
+    _CONSUMERS.add(_Consumer(domain, platform, direction))
+    return _validate_channels
 
 
 def validate_rmt_not_supported(

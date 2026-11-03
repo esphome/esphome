@@ -203,7 +203,7 @@ CONFIG_SCHEMA = remote_base.validate_triggers(
     .add_extra(validate_config)
 )
 
-FINAL_VALIDATE_SCHEMA = esp32_rmt.validate_symbol_budget
+FINAL_VALIDATE_SCHEMA = esp32_rmt.final_validate_rmt_channel("RX", DOMAIN)
 
 
 async def to_code(config: ConfigType) -> None:

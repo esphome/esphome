@@ -122,9 +122,12 @@ def _validate_non_blocking(config: ConfigType) -> None:
         config[CONF_NON_BLOCKING] = True
 
 
-def _final_validate(config: ConfigType) -> ConfigType:
+_validate_rmt_channel = esp32_rmt.final_validate_rmt_channel("TX", DOMAIN)
+
+
+def _final_validate(config: ConfigType) -> None:
     _validate_non_blocking(config)
-    return esp32_rmt.validate_symbol_budget(config)
+    _validate_rmt_channel(config)
 
 
 FINAL_VALIDATE_SCHEMA = _final_validate

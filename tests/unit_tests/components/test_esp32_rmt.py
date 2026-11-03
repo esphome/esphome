@@ -7,7 +7,7 @@ from typing import Any
 
 import pytest
 
-from esphome.components import esp32_rmt
+from esphome.components import esp32_rmt, remote_receiver, remote_transmitter
 from esphome.components.esp32 import (
     KEY_ESP32,
     KEY_VARIANT,
@@ -16,11 +16,16 @@ from esphome.components.esp32 import (
     VARIANT_ESP32C3,
     VARIANT_ESP32C5,
     VARIANT_ESP32C6,
+    VARIANT_ESP32C61,
     VARIANT_ESP32H2,
+    VARIANT_ESP32H4,
+    VARIANT_ESP32H21,
     VARIANT_ESP32P4,
     VARIANT_ESP32S2,
     VARIANT_ESP32S3,
+    VARIANT_ESP32S31,
 )
+from esphome.components.esp32_rmt_led_strip import light as esp32_rmt_led_strip
 import esphome.config_validation as cv
 from esphome.const import (
     CONF_ID,
@@ -41,6 +46,9 @@ Config = dict[str, Any]
 
 # Runs the check for a variant against a full config, returns the RMT warnings
 CheckRunner = Callable[..., list[str]]
+
+# The final validator shared by all RMT components
+validate_channels = esp32_rmt_led_strip.FINAL_VALIDATE_SCHEMA
 
 
 def _strip(name: str, symbols: int, **extra: object) -> Config:
@@ -74,7 +82,7 @@ def run_check(caplog: pytest.LogCaptureFixture) -> Generator[CheckRunner]:
             # Final validation calls the check once for each RMT component, in this order
             for domain in ("light", "remote_transmitter", "remote_receiver"):
                 for entry in config.get(domain, []):
-                    esp32_rmt.validate_symbol_budget(entry)
+                    validate_channels(entry)
         return [r.getMessage() for r in caplog.records if "RMT" in r.getMessage()]
 
     yield run
@@ -99,16 +107,20 @@ def run_check(caplog: pytest.LogCaptureFixture) -> Generator[CheckRunner]:
         (VARIANT_ESP32S3, (96, 96), False),
         (VARIANT_ESP32P4, (192, 192), True),
         (VARIANT_ESP32P4, (48, 48), False),
-        # C3, C5, C6, H2: 2 TX blocks of 48, the default is 96
+        (VARIANT_ESP32S31, (192, 192), True),
+        (VARIANT_ESP32S31, (96, 96), False),
+        # C3, C5, C6, H2, H4, H21: 2 TX blocks of 48, the default is 96
         (VARIANT_ESP32C3, (96,), False),
         (VARIANT_ESP32C3, (96, 96), True),
         (VARIANT_ESP32C5, (96, 96), True),
         (VARIANT_ESP32C6, (96, 96), True),
         (VARIANT_ESP32C6, (48, 48), False),
         (VARIANT_ESP32H2, (48, 48), False),
-        # The driver allocates whole blocks: 49 symbols on S3 take two blocks of 48
-        (VARIANT_ESP32S3, (49, 49), False),
-        (VARIANT_ESP32S3, (49, 49, 48), True),
+        (VARIANT_ESP32H4, (96, 96), True),
+        (VARIANT_ESP32H21, (48, 48), False),
+        # The driver allocates whole blocks: 50 symbols on S3 take two blocks of 48
+        (VARIANT_ESP32S3, (50, 50), False),
+        (VARIANT_ESP32S3, (50, 50, 48), True),
     ],
 )
 def test_strip_memory(
@@ -202,6 +214,30 @@ def test_suggestion_leaves_out_dma_channels(run_check: CheckRunner) -> None:
     assert "Set 'rmt_symbols: 144' on 'other'." in messages[0]
 
 
+@pytest.mark.parametrize(
+    ("variant", "symbols", "match"),
+    [
+        # The original ESP32 has blocks of 64 symbols
+        (
+            VARIANT_ESP32,
+            48,
+            "must be even and at least 64 on ESP32, but 'strip0' sets 48",
+        ),
+        (
+            VARIANT_ESP32S3,
+            97,
+            "must be even and at least 48 on ESP32S3, but 'strip0' sets 97",
+        ),
+    ],
+)
+def test_symbols_below_one_block_or_odd_fail(
+    run_check: CheckRunner, variant: str, symbols: int, match: str
+) -> None:
+    """The driver refuses rmt_symbols that are odd or smaller than one block."""
+    with pytest.raises(cv.Invalid, match=match):
+        run_check(variant, _strips(symbols))
+
+
 def test_two_dma_channels_in_one_direction_fail(run_check: CheckRunner) -> None:
     """Only the last channel of each direction supports DMA."""
     config = {
@@ -259,14 +295,37 @@ def test_error_raised_from_a_component_that_causes_it() -> None:
         {"remote_transmitter": transmitters, "remote_receiver": receivers}
     )
     try:
-        esp32_rmt.validate_symbol_budget(receiver)
+        validate_channels(receiver)
         with pytest.raises(cv.Invalid) as error:
-            esp32_rmt.validate_symbol_budget(transmitters[0])
+            validate_channels(transmitters[0])
     finally:
         fv.full_config.reset(token)
     # Both errors are reported at once, as final validation stops after the first one
     assert "ESP32S3 has 4 RMT TX channels" in str(error.value)
     assert "Only one RMT RX channel on ESP32S3 supports DMA" in str(error.value)
+
+
+def test_rmt_components_are_registered() -> None:
+    """The three RMT components register where their entries are in the config."""
+    assert {
+        esp32_rmt._Consumer("light", "esp32_rmt_led_strip", "TX"),
+        esp32_rmt._Consumer("remote_transmitter", "", "TX"),
+        esp32_rmt._Consumer("remote_receiver", "", "RX"),
+    } <= esp32_rmt._CONSUMERS
+    assert remote_receiver.FINAL_VALIDATE_SCHEMA is validate_channels
+    assert remote_transmitter._validate_rmt_channel is validate_channels
+
+
+def test_external_component_is_counted(
+    run_check: CheckRunner, monkeypatch: pytest.MonkeyPatch
+) -> None:
+    """A component outside ESPHome joins the check by calling final_validate_rmt_channel."""
+    monkeypatch.setattr(esp32_rmt, "_CONSUMERS", set(esp32_rmt._CONSUMERS))
+    esp32_rmt.final_validate_rmt_channel("TX", "my_rmt_component")
+    config = {**_strips(192), "my_rmt_component": [_remote("mine", 96)]}
+    messages = run_check(VARIANT_ESP32S3, config)
+    assert len(messages) == 1
+    assert "need 6 blocks: 'strip0' (192), 'mine' (96)" in messages[0]
 
 
 def test_other_light_platforms_ignored(run_check: CheckRunner) -> None:
@@ -280,7 +339,8 @@ def test_other_light_platforms_ignored(run_check: CheckRunner) -> None:
     [
         (PLATFORM_ESP8266, VARIANT_ESP32S3),
         (PLATFORM_ESP32, VARIANT_ESP32C2),
-        (PLATFORM_ESP32, "ESP32H4"),
+        (PLATFORM_ESP32, VARIANT_ESP32C61),
+        (PLATFORM_ESP32, "ESP32X1"),
     ],
 )
 def test_not_checked_without_rmt_caps(
@@ -305,5 +365,5 @@ def test_check_runs_once(
     run_check(VARIANT_ESP32S3, _strips(192, 192))
     caplog.clear()
     with caplog.at_level(logging.WARNING):
-        esp32_rmt.validate_symbol_budget({})
+        validate_channels({})
     assert not caplog.records
