@@ -7,16 +7,11 @@ ESPHOME_LOG_TAG(TAG, "mcp23017");
 
 static constexpr uint8_t IOCON_MIRROR = 0x40;  // Mirror INTA/INTB pins
 static constexpr uint8_t IOCON_ODR = 0x04;     // Open-drain output for INT pin
+static constexpr uint8_t IOCON_MASK = IOCON_ODR | IOCON_MIRROR;
 
 void MCP23017::setup() {
-  uint8_t iocon = 0;
-  if (this->open_drain_ints_)
-    iocon |= IOCON_ODR;
-  if (this->interrupt_pin_ != nullptr) {
-    // Mirror INTA/INTB so either pin fires for changes on any port
-    iocon |= IOCON_MIRROR;
-  }
-  static constexpr uint8_t IOCON_MASK = IOCON_ODR | IOCON_MIRROR;
+  // Mirror INTA/INTB so either pin fires for changes on any port
+  const uint8_t iocon = (this->open_drain_ints_ ? IOCON_ODR : 0) | (this->interrupt_pin_ != nullptr ? IOCON_MIRROR : 0);
   if (!this->setup_check(this->update_register(mcp23x17_base::MCP23X17_IOCONA, IOCON_MASK, iocon) &&
                          this->update_register(mcp23x17_base::MCP23X17_IOCONB, IOCON_MASK, iocon)))
     return;
