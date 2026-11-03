@@ -2,14 +2,9 @@
 #include "usb_cdc_acm.h"
 #include "esphome/core/application.h"
 #include "esphome/core/log.h"
-#include <zephyr/usb/usb_device.h>
 #include <zephyr/drivers/uart.h>
 #include "esphome/components/zephyr/cdc_acm.h"
-
-// flush() depends on how the legacy cdc_acm driver reports TX state (see uart_tx_process_())
-#ifdef CONFIG_USB_DEVICE_STACK_NEXT
-#error "usb_cdc_acm supports only the legacy USB device stack (CONFIG_USB_DEVICE_STACK_NEXT must be disabled)"
-#endif
+#include "esphome/components/zephyr/usb_device.h"
 
 //==============================================================================
 // USBCDCACMInstance Implementation
@@ -20,14 +15,30 @@ ESPHOME_LOG_TAG(TAG, "usb_cdc_acm");
 static constexpr uint32_t FLUSH_TIMEOUT_MS = 500;
 static constexpr uint32_t LINE_STATE_POLL_MS = 100;
 
+#ifdef CONFIG_USB_DEVICE_STACK_NEXT
+#define TX_FIFO_SIZE_IF_DEVICE(node_id) \
+  if (dev == DEVICE_DT_GET(node_id)) \
+    return DT_PROP(node_id, tx_fifo_size);
+
+/// Size of the driver's own TX buffer, which each port sets in the device tree
+static uint32_t driver_tx_buffer_size(const device *dev) {
+  DT_FOREACH_STATUS_OKAY(zephyr_cdc_acm_uart, TX_FIFO_SIZE_IF_DEVICE)
+  return 0;
+}
+#else
+static uint32_t driver_tx_buffer_size(const device * /*dev*/) { return CONFIG_USB_CDC_ACM_RINGBUF_SIZE; }
+#endif
+
 void USBCDCACMInstance::uart_tx_process_() {
   uint8_t *data;
   uint32_t send_len = ring_buf_get_claim(&this->tx_ringbuf_, &data, UINT32_MAX);
   if (send_len == 0) {
     // Our ring buffer is empty. Here (tx_ready set) cdc_acm reports the free space in its own
-    // TX ring buffer. tx_ready is cleared before each USB transfer and set again when it
-    // completes, so a fully free driver buffer means the host has received everything.
-    if (uart_irq_tx_ready(this->uart_dev_) == CONFIG_USB_CDC_ACM_RINGBUF_SIZE) {
+    // TX ring buffer. On the legacy stack tx_ready is cleared before each USB transfer and set
+    // again when it completes, so a fully free driver buffer means the host has received
+    // everything. The new stack also calls this handler when a transfer completes, but a free
+    // buffer there only means the last packet has been handed to the USB controller.
+    if (static_cast<uint32_t>(uart_irq_tx_ready(this->uart_dev_)) == driver_tx_buffer_size(this->uart_dev_)) {
       this->tx_drained_ = true;
     }
     uart_irq_tx_disable(this->uart_dev_);
@@ -36,9 +47,9 @@ void USBCDCACMInstance::uart_tx_process_() {
   int sent = uart_fifo_fill(this->uart_dev_, data, send_len);
   if (sent <= 0) {
     // No progress: the USB device is suspended (host asleep, hub power save) or not configured.
-    // fill() then returns 0 without clearing tx_ready, and irq_update() always returns 1 for
-    // cdc_acm, so the IRQ handler would loop forever on the cooperative USB work queue and
-    // block the main loop. Disabling TX ends that loop, because irq_is_pending() only reports
+    // On the legacy stack fill() then returns 0 without clearing tx_ready, and irq_update() always
+    // returns 1 for cdc_acm, so the IRQ handler would loop forever on the cooperative USB work
+    // queue and block the main loop. Disabling TX ends that loop, because irq_is_pending() only reports
     // TX while the TX IRQ is enabled. loop() turns it back on while data is waiting.
     ring_buf_get_finish(&this->tx_ringbuf_, 0);
     uart_irq_tx_disable(this->uart_dev_);
@@ -86,13 +97,13 @@ void USBCDCACMInstance::setup() {
     this->get_parent()->mark_failed();
     return;
   }
-  usb_enable(nullptr);
+  zephyr::usb_device_enable();
   ring_buf_init(&this->rx_ringbuf_, ESPHOME_CDC_RX_RING_BUFFER_SIZE, this->rx_ringbuf_data_);
   ring_buf_init(&this->tx_ringbuf_, ESPHOME_CDC_TX_RING_BUFFER_SIZE, this->tx_ringbuf_data_);
   // The driver only reports the bit rate; the frame format is fixed on USB
   this->data_bits_ = 8;
   this->stop_bits_ = 1;
-#if defined(CONFIG_CDC_ACM_DTE_RATE_CALLBACK_SUPPORT)
+#if defined(USE_ZEPHYR_CDC_ACM_RATE_CALLBACK)
   zephyr::global_cdc_acm->add_on_rate_callback([this](const device *dev, uint32_t bit_rate) {
     if (dev == this->uart_dev_) {
       // Queue event for processing in main loop

@@ -3,7 +3,7 @@
 #include "esphome/core/log.h"
 #include "esphome/core/hal.h"
 #include <zephyr/sys/math_extras.h>
-#include <zephyr/usb/usb_device.h>
+#include "esphome/components/zephyr/usb_device.h"
 #include <zephyr/dfu/mcuboot.h>
 
 // It should be from below header but there is problem with internal includes.
@@ -55,8 +55,8 @@ void OTAComponent::setup() {
   this->img_mgmt_callback_.callback = mcumgr_img_mgmt_cb;
   this->img_mgmt_callback_.event_id = MGMT_EVT_OP_IMG_MGMT_ALL;
   mgmt_callback_register(&this->img_mgmt_callback_);
-#ifdef CONFIG_USB_DEVICE_STACK
-  usb_enable(nullptr);
+#if defined(CONFIG_USB_DEVICE_STACK) || defined(CONFIG_USB_DEVICE_STACK_NEXT)
+  zephyr::usb_device_enable();
 #endif
 // Handle OTA rollback: mark partition valid immediately unless USE_OTA_ROLLBACK is enabled,
 // in which case safe_mode will mark it valid after confirming successful boot.

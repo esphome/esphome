@@ -264,22 +264,60 @@ def zephyr_claim_cdc_acm(
     users.append(new)
 
 
+def zephyr_use_usb_device_next() -> bool:
+    """Return True when the build uses the new Zephyr USB device stack.
+
+    The new stack (device_next) is used from nRF Connect SDK 3.4.1, where the
+    legacy stack is deprecated. Older SDKs keep the legacy stack.
+    """
+    return CORE.is_nrf52 and CORE.data[KEY_CORE][KEY_FRAMEWORK_VERSION] >= cv.Version(
+        3, 4, 1
+    )
+
+
+def zephyr_enable_usb_cdc_acm() -> None:
+    """Enable the USB device stack with the CDC ACM class."""
+    zephyr_add_prj_conf("SERIAL", True)
+    if zephyr_use_usb_device_next():
+        zephyr_add_prj_conf("USB_DEVICE_STACK", False)
+        zephyr_add_prj_conf("USB_DEVICE_STACK_NEXT", True)
+        zephyr_add_prj_conf("USBD_CDC_ACM_CLASS", True)
+        # DTR (port opened) and the bit rate are read with uart_line_ctrl_get()
+        zephyr_add_prj_conf("UART_LINE_CTRL", True)
+        # The serial number string descriptor is read from the chip ID
+        zephyr_add_prj_conf("HWINFO", True)
+        return
+    if CORE.is_nrf52 and CORE.data[KEY_CORE][KEY_FRAMEWORK_VERSION] >= cv.Version(
+        3, 2, 0
+    ):
+        zephyr_add_prj_conf("USB_DEVICE_STACK_NEXT", False)
+    zephyr_add_prj_conf("USB_DEVICE_STACK", True)
+    zephyr_add_prj_conf("USB_CDC_ACM", True)
+
+
+def zephyr_enable_cdc_acm_rate_callback() -> None:
+    """Make the bit rate a USB host sets on a CDC ACM port reach zephyr::CdcAcm."""
+    cg.add_define("USE_ZEPHYR_CDC_ACM_RATE_CALLBACK")
+    # The new stack reports the rate with a USB device message, so it needs no option
+    if not zephyr_use_usb_device_next():
+        zephyr_add_prj_conf("CDC_ACM_DTE_RATE_CALLBACK_SUPPORT", True)
+
+
 def _cdc_acm_add_ports() -> None:
     """Set up every CDC ACM port claimed with zephyr_claim_cdc_acm()."""
     users = zephyr_data()["cdc_acm_users"]
     if not users:
         return
-    framework_ver: cv.Version = CORE.data[KEY_CORE][KEY_FRAMEWORK_VERSION]
-    if CORE.is_nrf52 and framework_ver >= cv.Version(3, 2, 0):
-        zephyr_add_prj_conf("CONFIG_USB_DEVICE_STACK_NEXT", False)
-    zephyr_add_prj_conf("USB_DEVICE_STACK", True)
-    zephyr_add_prj_conf("USB_CDC_ACM", True)
-    zephyr_add_prj_conf("SERIAL", True)
-    # prevent device to go to susspend, without this communication stop working in python
-    # there should be a way to solve it
-    zephyr_add_prj_conf("USB_DEVICE_REMOTE_WAKEUP", False)
-    # prevent logging when buffer is full
-    zephyr_add_prj_conf("USB_CDC_ACM_LOG_LEVEL_WRN", True)
+    zephyr_enable_usb_cdc_acm()
+    if zephyr_use_usb_device_next():
+        # prevent logging when buffer is full
+        zephyr_add_prj_conf("USBD_CDC_ACM_LOG_LEVEL_WRN", True)
+    else:
+        # prevent device to go to susspend, without this communication stop working in python
+        # there should be a way to solve it
+        zephyr_add_prj_conf("USB_DEVICE_REMOTE_WAKEUP", False)
+        # prevent logging when buffer is full
+        zephyr_add_prj_conf("USB_CDC_ACM_LOG_LEVEL_WRN", True)
     nodes = "".join(
         f"""
                 cdc_acm_uart{id}: cdc_acm_uart{id} {{

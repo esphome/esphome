@@ -1,5 +1,6 @@
 #pragma once
-#if defined(CONFIG_CDC_ACM_DTE_RATE_CALLBACK_SUPPORT)
+#include "esphome/core/defines.h"
+#if defined(USE_ZEPHYR_CDC_ACM_RATE_CALLBACK)
 
 #include "esphome/core/helpers.h"
 #include <zephyr/device.h>
@@ -17,9 +18,11 @@ class CdcAcm final {
     this->rate_callbacks_.add(std::forward<F>(callback));
   }
 
+  /// Called by the USB driver, from its own thread, when the host sets a new bit rate.
+  static void rate_changed(const device *device, uint32_t rate);
+
  protected:
   void set_driver_callbacks_();
-  static void cdc_dte_rate_callback_(const device *device, uint32_t rate);
   CallbackManager<void(const device *, uint32_t)> rate_callbacks_;
 };
 
