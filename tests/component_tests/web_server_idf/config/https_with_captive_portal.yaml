@@ -13,7 +13,7 @@ wifi:
 external_components:
   - source:
       type: local
-      path: ../../../components/web_server_idf/components
+      path: ../../../test_build_components/common/web_server_https/components
     components: [https_test]
 
 https_test:

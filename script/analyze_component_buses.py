@@ -105,6 +105,7 @@ ISOLATED_COMPONENTS = {
     "tinyusb_keyboard": "Depends on tinyusb which conflicts with usb_host",
     "uart_mux": "Depends on tinyusb which conflicts with usb_host",
     "usb_cdc_acm": "Depends on tinyusb which conflicts with usb_host",
+    "web_server_idf": "Its HTTPS variant (test-ssl) can't be merged with web_server or captive_portal, and grouped runs skip variants",
 }
 
 

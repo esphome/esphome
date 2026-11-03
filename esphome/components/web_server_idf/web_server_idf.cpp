@@ -143,9 +143,40 @@ void AsyncWebServer::safe_close_with_shutdown(httpd_handle_t hd, int sockfd) {
   // Attempt shutdown - ignore errors as socket may already be closed
   shutdown(sockfd, SHUT_RD);
 
+  // While end() interrupts the clients, keep the descriptor allocated so its number can't be reused; end() closes it
+  // once the server has stopped.
+  auto *server = static_cast<AsyncWebServer *>(httpd_get_global_user_ctx(hd));
+  if (server != nullptr) {
+    LockGuard lock(server->close_lock_);
+    if (server->closes_deferred_ && server->deferred_closes_.size() < server->deferred_closes_.capacity()) {
+      server->deferred_closes_.push_back(sockfd);
+      return;
+    }
+  }
+
   // Always close - safe even if socket is already closed by network stack
   close(sockfd);
 }
+
+namespace {
+// Local port of a socket, or 0 if the descriptor is not an open socket.
+uint16_t local_port(int fd) {
+  struct sockaddr_storage addr{};
+  socklen_t len = sizeof(addr);
+  if (getsockname(fd, reinterpret_cast<struct sockaddr *>(&addr), &len) != 0) {
+    return 0;
+  }
+  if (addr.ss_family == AF_INET) {
+    return ntohs(reinterpret_cast<struct sockaddr_in *>(&addr)->sin_port);
+  }
+#if LWIP_IPV6
+  if (addr.ss_family == AF_INET6) {
+    return ntohs(reinterpret_cast<struct sockaddr_in6 *>(&addr)->sin6_port);
+  }
+#endif
+  return 0;
+}
+}  // namespace
 
 #ifdef USE_WEBSERVER_SSL
 namespace {
@@ -186,15 +217,32 @@ void AsyncWebServer::end() {
   if (this->server_) {
     // httpd_stop() waits for the server task, which can be blocked on a client: a TLS handshake or a slow upload
     // would hold the main loop for up to the socket timeout. Shutting the client sockets down first wakes it.
+    // The client list is a snapshot of descriptor numbers, so from here until the server has stopped, close_fn
+    // defers closing: no listed descriptor can be freed and reused by another task. A descriptor closed just before
+    // may still be listed, so only those still bound to this server's port are shut down.
+    {
+      LockGuard lock(this->close_lock_);
+      this->closes_deferred_ = true;
+    }
     int client_fds[CONFIG_LWIP_MAX_SOCKETS];
     size_t client_count = CONFIG_LWIP_MAX_SOCKETS;
     if (httpd_get_client_list(this->server_, &client_count, client_fds) == ESP_OK) {
       for (size_t i = 0; i < client_count; i++) {
-        shutdown(client_fds[i], SHUT_RDWR);
+        if (local_port(client_fds[i]) == this->running_port_) {
+          shutdown(client_fds[i], SHUT_RDWR);
+        }
       }
     }
     httpd_stop(this->server_);  // also frees an HTTPS server's TLS context
     this->server_ = nullptr;
+    {
+      LockGuard lock(this->close_lock_);
+      this->closes_deferred_ = false;
+      for (int fd : this->deferred_closes_) {
+        close(fd);
+      }
+      this->deferred_closes_.clear();
+    }
 #ifdef USE_WEBSERVER_SSL
     this->ssl_running_ = false;
 #endif
@@ -217,9 +265,16 @@ void AsyncWebServer::begin() {
   config.lru_purge_enable = true;
   // Use custom close function that shuts down before closing to prevent lwIP race conditions
   config.close_fn = AsyncWebServer::safe_close_with_shutdown;
+  // Lets close_fn find this server. httpd frees the context on stop unless it has a free function.
+  config.global_user_ctx = this;
+  config.global_user_ctx_free_fn = [](void * /*unused*/) {};
   esp_err_t start_err;
 #ifdef USE_WEBSERVER_SSL
-  if (this->ssl_certificate_ != nullptr && this->ssl_private_key_ != nullptr) {
+  if ((this->ssl_certificate_ == nullptr) != (this->ssl_private_key_ == nullptr)) {
+    ESP_LOGE(TAG, "HTTPS needs both a certificate and a private key");
+    return;
+  }
+  if (this->ssl_certificate_ != nullptr) {
     if (!ssl_credentials_valid(this->ssl_certificate_, this->ssl_private_key_)) {
       ESP_LOGE(TAG, "HTTPS certificate or key is invalid, or the key does not match the certificate");
       return;
@@ -250,6 +305,7 @@ void AsyncWebServer::begin() {
   start_err = httpd_start(&this->server_, &config);
 #endif
   if (start_err == ESP_OK) {
+    this->running_port_ = this->port_;
     const httpd_uri_t handler_get = {
         .uri = "",
         .method = HTTP_GET,

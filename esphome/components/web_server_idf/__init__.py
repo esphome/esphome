@@ -1,3 +1,5 @@
+from dataclasses import dataclass
+
 import esphome.codegen as cg
 from esphome.components.esp32 import (
     include_builtin_idf_component,
@@ -20,11 +22,19 @@ DOMAIN = "web_server_idf"
 # advertised over mDNS as a plain HTTP service.
 SSL_INCOMPATIBLE_COMPONENTS = ("web_server", "captive_portal", "prometheus")
 
-# Set in CORE.data by consume_ssl_sockets() when a component serves HTTPS.
-KEY_SSL = "web_server_idf_ssl"
-
 # ESP-IDF's HTTPS server allows this many open connections; each holds a TLS session.
 HTTPS_MAX_CONNECTIONS = 4
+
+
+@dataclass
+class WebServerIdfData:
+    ssl: bool = False  # a component serves HTTPS (consume_ssl_sockets() was called)
+
+
+def _get_data() -> WebServerIdfData:
+    if DOMAIN not in CORE.data:
+        CORE.data[DOMAIN] = WebServerIdfData()
+    return CORE.data[DOMAIN]
 
 
 def consume_ssl_sockets(config: ConfigType) -> ConfigType:
@@ -36,8 +46,11 @@ def consume_ssl_sockets(config: ConfigType) -> ConfigType:
     """
     from esphome.components import socket
 
-    socket.consume_sockets(HTTPS_MAX_CONNECTIONS, DOMAIN)(config)
-    CORE.data[KEY_SSL] = True
+    data = _get_data()
+    if not data.ssl:
+        # The listener is shared, so its connections are reserved once however many components use it.
+        socket.consume_sockets(HTTPS_MAX_CONNECTIONS, DOMAIN)(config)
+        data.ssl = True
     return config
 
 
@@ -48,7 +61,7 @@ CONFIG_SCHEMA = cv.All(
 
 
 def _final_validate(config: ConfigType) -> None:
-    if not CORE.data.get(KEY_SSL):
+    if not _get_data().ssl:
         return
     full_config = fv.full_config.get()
     for component in SSL_INCOMPATIBLE_COMPONENTS:

@@ -12,6 +12,8 @@ from esphome.components.esp32.const import (
     KEY_EXCLUDE_COMPONENTS,
     KEY_SDKCONFIG_OPTIONS,
 )
+from esphome.components.socket import KEY_SOCKET_CONSUMERS_TCP
+from esphome.components.web_server_idf import HTTPS_MAX_CONNECTIONS, consume_ssl_sockets
 from esphome.config import read_config
 from esphome.core import CORE
 
@@ -29,12 +31,27 @@ def test_enable_ssl_sets_up_https(
     generate_main: Callable[[str | Path], str],
     component_config_path: Callable[[str], Path],
 ) -> None:
-    """A component that calls enable_ssl() compiles HTTPS in."""
+    """A component that calls enable_ssl() compiles HTTPS in, with the server side of TLS."""
     generate_main(component_config_path("https.yaml"))
 
+    sdkconfig = CORE.data[KEY_ESP32][KEY_SDKCONFIG_OPTIONS]
     assert "USE_WEBSERVER_SSL" in {define.name for define in CORE.defines}
-    assert CORE.data[KEY_ESP32][KEY_SDKCONFIG_OPTIONS]["CONFIG_ESP_HTTPS_SERVER_ENABLE"]
+    assert sdkconfig["CONFIG_ESP_HTTPS_SERVER_ENABLE"]
     assert "esp_https_server" not in CORE.data[KEY_ESP32][KEY_EXCLUDE_COMPONENTS]
+    assert not sdkconfig.get("CONFIG_MBEDTLS_TLS_CLIENT_ONLY")
+    assert (
+        CORE.data[KEY_SOCKET_CONSUMERS_TCP]["web_server_idf"] == HTTPS_MAX_CONNECTIONS
+    )
+
+
+def test_https_sockets_reserved_once() -> None:
+    """The listener is shared, so a second component using HTTPS reserves no more connections."""
+    consume_ssl_sockets({})
+    consume_ssl_sockets({})
+
+    assert (
+        CORE.data[KEY_SOCKET_CONSUMERS_TCP]["web_server_idf"] == HTTPS_MAX_CONNECTIONS
+    )
 
 
 @pytest.mark.parametrize(

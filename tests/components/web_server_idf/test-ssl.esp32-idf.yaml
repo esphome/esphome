@@ -4,7 +4,7 @@ packages:
 # HTTPS through the developer API, from a test-only component that supplies its own certificate. The source path is
 # relative to the build directory (tests/test_build_components/build/).
 external_components:
-  - source: ../../components/web_server_idf/components
+  - source: ../common/web_server_https/components
     components: [https_test]
 
 https_test:

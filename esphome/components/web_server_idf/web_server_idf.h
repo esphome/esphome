@@ -250,6 +250,11 @@ class AsyncWebServer {
  protected:
   uint16_t port_{};
   httpd_handle_t server_{};
+  uint16_t running_port_{};  // port_ of the running listener; port_ may already hold the next one
+  // Guards the deferred closes below: while end() interrupts clients, close_fn keeps descriptors allocated.
+  Mutex close_lock_;
+  bool closes_deferred_{false};
+  StaticVector<int, CONFIG_LWIP_MAX_SOCKETS> deferred_closes_;
 #ifdef USE_WEBSERVER_SSL
   const char *ssl_certificate_{nullptr};
   const char *ssl_private_key_{nullptr};
