@@ -22,6 +22,7 @@
 
 #ifdef USE_WEBSERVER_SSL
 #include <esp_https_server.h>
+#include <esp_idf_version.h>
 #include <mbedtls/pk.h>
 #include <mbedtls/x509_crt.h>
 #endif
@@ -148,10 +149,12 @@ void AsyncWebServer::safe_close_with_shutdown(httpd_handle_t hd, int sockfd) {
 
 #ifdef USE_WEBSERVER_SSL
 namespace {
+#if ESP_IDF_VERSION < ESP_IDF_VERSION_VAL(6, 0, 0)
 int ssl_random(void * /*unused*/, unsigned char *buf, size_t len) {
   esp_fill_random(buf, len);
   return 0;
 }
+#endif
 
 // esp_https_server parses the credentials only when a client connects, so check them (and that the key belongs to
 // the certificate) before starting: a bad pair then leaves the server stopped instead of failing every handshake.
@@ -160,11 +163,18 @@ bool ssl_credentials_valid(const char *certificate, const char *private_key) {
   mbedtls_pk_context key;
   mbedtls_x509_crt_init(&crt);
   mbedtls_pk_init(&key);
-  const bool valid = mbedtls_x509_crt_parse(&crt, reinterpret_cast<const unsigned char *>(certificate),
-                                            strlen(certificate) + 1) == 0 &&
-                     mbedtls_pk_parse_key(&key, reinterpret_cast<const unsigned char *>(private_key),
-                                          strlen(private_key) + 1, nullptr, 0, ssl_random, nullptr) == 0 &&
-                     mbedtls_pk_check_pair(&crt.pk, &key, ssl_random, nullptr) == 0;
+  const auto *key_pem = reinterpret_cast<const unsigned char *>(private_key);
+  const size_t key_len = strlen(private_key) + 1;
+  bool valid =
+      mbedtls_x509_crt_parse(&crt, reinterpret_cast<const unsigned char *>(certificate), strlen(certificate) + 1) == 0;
+#if ESP_IDF_VERSION >= ESP_IDF_VERSION_VAL(6, 0, 0)
+  // mbedTLS 4 (ESP-IDF 6) takes its randomness from PSA Crypto instead of an RNG argument.
+  valid = valid && mbedtls_pk_parse_key(&key, key_pem, key_len, nullptr, 0) == 0 &&
+          mbedtls_pk_check_pair(&crt.pk, &key) == 0;
+#else
+  valid = valid && mbedtls_pk_parse_key(&key, key_pem, key_len, nullptr, 0, ssl_random, nullptr) == 0 &&
+          mbedtls_pk_check_pair(&crt.pk, &key, ssl_random, nullptr) == 0;
+#endif
   mbedtls_pk_free(&key);
   mbedtls_x509_crt_free(&crt);
   return valid;
@@ -174,6 +184,15 @@ bool ssl_credentials_valid(const char *certificate, const char *private_key) {
 
 void AsyncWebServer::end() {
   if (this->server_) {
+    // httpd_stop() waits for the server task, which can be blocked on a client: a TLS handshake or a slow upload
+    // would hold the main loop for up to the socket timeout. Shutting the client sockets down first wakes it.
+    int client_fds[CONFIG_LWIP_MAX_SOCKETS];
+    size_t client_count = CONFIG_LWIP_MAX_SOCKETS;
+    if (httpd_get_client_list(this->server_, &client_count, client_fds) == ESP_OK) {
+      for (size_t i = 0; i < client_count; i++) {
+        shutdown(client_fds[i], SHUT_RDWR);
+      }
+    }
     httpd_stop(this->server_);  // also frees an HTTPS server's TLS context
     this->server_ = nullptr;
 #ifdef USE_WEBSERVER_SSL
@@ -222,6 +241,9 @@ void AsyncWebServer::begin() {
       ESP_LOGE(TAG, "HTTPS server failed to start: %s", esp_err_to_name(start_err));
     }
   } else {
+    // With HTTPS compiled in, only the HTTPS connections are reserved, so plain HTTP must not exceed them either.
+    const httpd_ssl_config_t ssl_defaults = HTTPD_SSL_CONFIG_DEFAULT();
+    config.max_open_sockets = std::min(config.max_open_sockets, ssl_defaults.httpd.max_open_sockets);
     start_err = httpd_start(&this->server_, &config);
   }
 #else

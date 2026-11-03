@@ -9,6 +9,7 @@ from esphome.components.esp32 import (
 from esphome.config_helpers import filter_source_files_from_defines
 import esphome.config_validation as cv
 from esphome.const import CONF_CERTIFICATE, CONF_KEY, CONF_PORT
+from esphome.core import CORE
 import esphome.final_validate as fv
 from esphome.types import ConfigType
 
@@ -18,22 +19,35 @@ DOMAIN = "web_server_idf"
 CONF_SSL = "ssl"
 
 # Components that use the shared server in ways TLS does not support yet:
-# web_server streams events from the main loop straight to the socket, and
-# phones check for a captive portal over plain HTTP.
-SSL_INCOMPATIBLE_COMPONENTS = ("web_server", "captive_portal")
+# web_server streams events from the main loop straight to the socket,
+# phones check for a captive portal over plain HTTP, and prometheus is
+# advertised over mDNS as a plain HTTP service.
+SSL_INCOMPATIBLE_COMPONENTS = ("web_server", "captive_portal", "prometheus")
+
+# Set in CORE.data when the configuration can serve HTTPS, from YAML or at run time.
+KEY_SSL = "web_server_idf_ssl"
 
 
 # ESP-IDF's HTTPS server allows this many open connections; each holds a TLS session.
 HTTPS_MAX_CONNECTIONS = 4
 
 
-def _pem(marker: str):
+def _pem(marker: str) -> cv.All:
     def check(value: str) -> str:
         if marker not in value:
             raise cv.Invalid(f"Expected a PEM block containing '{marker}'")
         return value
 
     return cv.All(cv.string_strict, check)
+
+
+def _unencrypted_key(value: str) -> str:
+    # Covers PKCS#8 "ENCRYPTED PRIVATE KEY" and legacy "Proc-Type: 4,ENCRYPTED" keys.
+    if "ENCRYPTED" in value:
+        raise cv.Invalid(
+            "Encrypted private keys are not supported; use an unencrypted key"
+        )
+    return value
 
 
 SSL_SCHEMA = cv.Schema(
@@ -43,8 +57,10 @@ SSL_SCHEMA = cv.Schema(
         ),
         cv.Optional(CONF_PORT, default=443): cv.port,
         cv.Required(CONF_CERTIFICATE): _pem("-----BEGIN CERTIFICATE-----"),
-        # Every PEM private key form (PKCS#8, EC, RSA, encrypted) ends its header this way.
-        cv.Required(CONF_KEY): cv.sensitive(_pem("PRIVATE KEY-----")),
+        # Every unencrypted PEM private key form (PKCS#8, EC, RSA) ends its header this way.
+        cv.Required(CONF_KEY): cv.sensitive(
+            cv.All(_pem("PRIVATE KEY-----"), _unencrypted_key)
+        ),
     }
 )
 
@@ -53,10 +69,13 @@ def consume_ssl_sockets(config: ConfigType) -> ConfigType:
     """Register the client sockets the HTTPS server can hold open.
 
     Components that call enable_ssl() themselves add this to their schema.
+    It also checks the configuration for components that can't share the
+    server with HTTPS.
     """
     from esphome.components import socket
 
     socket.consume_sockets(HTTPS_MAX_CONNECTIONS, DOMAIN)(config)
+    CORE.data[KEY_SSL] = True
     return config
 
 
@@ -78,14 +97,12 @@ CONFIG_SCHEMA = cv.All(
 
 
 def _final_validate(config: ConfigType) -> None:
-    if CONF_SSL not in config:
+    if not CORE.data.get(KEY_SSL):
         return
     full_config = fv.full_config.get()
     for component in SSL_INCOMPATIBLE_COMPONENTS:
         if component in full_config:
-            raise cv.Invalid(
-                f"'{CONF_SSL}' can't be used together with '{component}' yet"
-            )
+            raise cv.Invalid(f"HTTPS can't be used together with '{component}' yet")
 
 
 FINAL_VALIDATE_SCHEMA = _final_validate
