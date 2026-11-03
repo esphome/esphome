@@ -118,7 +118,7 @@ button:
       postamble: [0x00]
 
   # List-mode value: two values encoded back-to-back in one frame. Exercises the
-  # cv.ensure_list(...) schema path and the multi-value queue_command_with_format() call.
+  # cv.ensure_list(...) schema path and the multi-value encoder.
   - platform: rs485_frame
     rs485_frame_id: raw_hub
     name: "Validate Value List"
@@ -130,7 +130,7 @@ button:
       postamble: [0x00]
 
   # List-mode value at the full MAX_COMMAND_VALUES cap. Exercises cv.Length(max=...) at
-  # its boundary and the StaticVector<uint32_t, MAX_COMMAND_VALUES> capacity.
+  # its boundary.
   - platform: rs485_frame
     rs485_frame_id: raw_hub
     name: "Validate Value List Max"
@@ -142,7 +142,7 @@ button:
       postamble: [0x00]
 
   # Lightweight value_element_bytes: override — uses hub's preamble/endian/postamble but
-  # a 1-byte-per-element encoding. Exercises the has_value_element_bytes_override_ path.
+  # a 1-byte-per-element encoding.
   - platform: rs485_frame
     rs485_frame_id: cmd_hub
     name: "Validate Value Element Bytes Override"
