@@ -256,12 +256,9 @@ void ENS160Component::send_env_data_() {
     ESP_LOGV(TAG, "External humidity compensation:    %.1f%%", humidity);
   }
 
-  uint16_t t = (uint16_t) ((temperature + 273.15f) * 64.0f);
-  uint16_t h = (uint16_t) (humidity * 512.0f);
-
   uint8_t data[4];
-  put_le16(data, t);
-  put_le16(data + 2, h);
+  put_le16(data, static_cast<uint16_t>((temperature + 273.15f) * 64.0f));
+  put_le16(data + 2, static_cast<uint16_t>(humidity * 512.0f));
 
   if (!this->write_bytes(ENS160_REG_TEMP_IN, data, 4)) {
     ESP_LOGE(TAG, "Error writing compensation values");

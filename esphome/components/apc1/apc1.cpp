@@ -304,8 +304,7 @@ void APC1Component::send_command_(APC1Command cmd, uint16_t data) {
       0,
       0,
   };
-  uint16_t checksum = sum16_bytes(buf.data(), 5);
-  put_be16(buf.data() + 5, checksum);
+  put_be16(buf.data() + 5, sum16_bytes(buf.data(), 5));
   this->write_array(buf);
 }
 

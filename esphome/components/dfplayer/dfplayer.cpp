@@ -124,8 +124,7 @@ void DFPlayer::play_folder(uint16_t folder, uint16_t file) {
 
 void DFPlayer::send_cmd_(uint8_t cmd, uint16_t argument) {
   uint8_t buffer[10]{0x7e, 0xff, 0x06, cmd, 0x01, (uint8_t) (argument >> 8), (uint8_t) argument, 0x00, 0x00, 0xef};
-  const uint16_t checksum = -sum16_bytes(buffer + 1, 6);
-  put_be16(buffer + 7, checksum);
+  put_be16(buffer + 7, -sum16_bytes(buffer + 1, 6));
 
   this->sent_cmd_ = cmd;
 
