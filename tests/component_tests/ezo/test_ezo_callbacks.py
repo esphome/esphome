@@ -14,19 +14,23 @@ CALLBACK_RE = re.compile(
 
 
 @pytest.fixture
-def forwarders(
+def callbacks(
     generate_main: Callable[[str | Path], str],
     component_config_path: Callable[[str], Path],
-) -> dict[str, list[str]]:
+) -> dict[str, list[tuple[str, str]]]:
     main_cpp = generate_main(component_config_path("ezo_callbacks.yaml"))
-    found: dict[str, list[str]] = {}
+    found: dict[str, list[tuple[str, str]]] = {}
     for method, forwarded, direct in CALLBACK_RE.findall(main_cpp):
-        found.setdefault(method, []).append(forwarded or direct)
+        path = "forwarder" if forwarded else "direct"
+        found.setdefault(method, []).append((path, forwarded or direct))
     return found
 
 
-def test_custom_callback_types(forwarders: dict[str, list[str]]) -> None:
-    assert forwarders["add_custom_callback"] == ["StringRef", "std::string"]
+def test_custom_callback_types(callbacks: dict[str, list[tuple[str, str]]]) -> None:
+    assert callbacks["add_custom_callback"] == [
+        ("direct", "StringRef"),
+        ("forwarder", "std::string"),
+    ]
 
 
 @pytest.mark.parametrize(
@@ -38,9 +42,11 @@ def test_custom_callback_types(forwarders: dict[str, list[str]]) -> None:
         "add_device_infomation_callback",
     ],
 )
-def test_reply_callback_types(forwarders: dict[str, list[str]], method: str) -> None:
-    assert forwarders[method] == ["StringRef"]
+def test_reply_callback_types(
+    callbacks: dict[str, list[tuple[str, str]]], method: str
+) -> None:
+    assert callbacks[method] == [("direct", "StringRef")]
 
 
-def test_led_callback_type(forwarders: dict[str, list[str]]) -> None:
-    assert forwarders["add_led_state_callback"] == ["bool"]
+def test_led_callback_type(callbacks: dict[str, list[tuple[str, str]]]) -> None:
+    assert callbacks["add_led_state_callback"] == [("direct", "bool")]
