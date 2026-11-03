@@ -8,9 +8,7 @@
 #include "esphome/core/log.h"
 #include "esphome/core/hal.h"
 
-// Explicitly, not by luck: every CONFIG_ESP_VIDEO_* test below decides whether
-// a whole block of code exists, and an #if on an undefined macro is false
-// without a word of complaint.
+// Explicitly: an #if on an undefined CONFIG_ESP_VIDEO_* macro is silently false.
 #include <sdkconfig.h>
 
 #include "esp_idf_version.h"   // ESP_IDF_VERSION, for usb_host_config_t::peripheral_map
@@ -49,16 +47,12 @@ ESPHOME_LOG_TAG(TAG, "esp_video_camera");
 
 // How long setup() waits for esp_video_init() on core 0 before giving up.
 static constexpr uint32_t INIT_TIMEOUT_MS = 10000;
-// How much of that wait may pass between two watchdog feeds. Comfortably under
-// any sane CONFIG_ESP_TASK_WDT_TIMEOUT_S (5 s by default in ESPHome), and long
-// enough that the polling costs nothing next to the init it is waiting on.
+// How much of that wait may pass between two watchdog feeds.
 static constexpr uint32_t INIT_POLL_SLICE_MS = 200;
 
 #if CONFIG_ESP_VIDEO_ENABLE_USB_UVC_VIDEO_DEVICE
 // Settling time between the host port's 5 V rail coming up and the USB Host
-// Library being installed. Matches the delay Espressif's own board support code
-// leaves for the port's inrush. Only the USB path has a rail to wait on, so a
-// build without it must not carry this at all.
+// Library install; the same delay Espressif's board support code leaves.
 static constexpr uint32_t VBUS_SETTLE_MS = 100;
 #endif
 
@@ -66,33 +60,23 @@ static constexpr uint32_t VBUS_SETTLE_MS = 100;
 // slightly different sizes reuse the same heap block (see deliver_frame_).
 static constexpr size_t FRAME_ALLOC_GRANULARITY = 4096;
 
-// Upper bound on how long a JPEG encode may hold the main loop (see
-// start_jpeg_pipeline_). Generous next to a real 720p encode, small enough that
-// a wedged encoder cannot trip the task watchdog.
+// Upper bound on how long a JPEG encode may hold the main loop; only a wedged
+// encoder gets near it.
 static constexpr uint32_t JPEG_DQBUF_TIMEOUT_MS = 100;
 
-// The capture device is polled, never waited on: loop() runs in the main task,
-// and the sensor's pace would otherwise cost every other component a full
-// frame period. esp_video treats a zero timeout as a plain queue poll.
+// The capture device is polled, never waited on, so the sensor's pace does not
+// stall the main loop. esp_video treats a zero timeout as a plain queue poll.
 static constexpr uint32_t CAPTURE_DQBUF_POLL_MS = 0;
 
-// How long the pipeline keeps running after the last consumer went away.
-// Every STREAMOFF on the MIPI-CSI device destroys the ISP processor and every
-// STREAMON builds a new one and re-converges AE/AWB, so idling briefly avoids
-// cycling all of that on a browser reconnect or a burst of snapshots.
+// How long the pipeline keeps running after the last consumer went away. Every
+// STREAMON rebuilds the ISP processor and re-converges AE/AWB.
 static constexpr uint32_t CAPTURE_IDLE_TIMEOUT_MS = 5000;
 
-// How often deliver_frame_ reports the resolution and frame rate it is running
-// at. This is the component's only recurring log line.
+// How often deliver_frame_ reports the resolution and frame rate.
 static constexpr uint32_t STATS_INTERVAL_MS = 10000;
 
-// ===========================================================================
-// Pipeline init helpers (run esp_video_init on core 0, optional LEDC XCLK)
-// ===========================================================================
 // Owns the configs esp_video_init() reads, on the heap so they outlive an
-// attempt the component has stopped waiting on. Last party to let go destroys
-// it. Declared in the header, which is why this is not in the anonymous
-// namespace below.
+// attempt the component has stopped waiting on. Last party to let go frees it.
 struct VideoInitContext {
   esp_video_init_csi_config_t csi_config{};
 #if CONFIG_ESP_VIDEO_ENABLE_USB_UVC_VIDEO_DEVICE
@@ -161,18 +145,13 @@ int count_usb_devices() {
 int count_usb_devices() { return -1; }
 #endif
 
-// Which LEDC timer and channel the sensor clock runs on: the top of the range.
-// ESPHome's `ledc` output component hands out channels from the bottom up and
-// derives its timer from the channel, so claiming channel 0 took the one it
-// gives the first light in the configuration. The two components share no
-// allocator and are not worth coupling over a clock pin, so start at the far
-// end, where a clash needs a board using every channel LEDC has.
+// The top LEDC timer and channel: the `ledc` output component allocates from
+// the bottom up, so a clash needs a board using every channel.
 constexpr ledc_timer_t XCLK_LEDC_TIMER = (ledc_timer_t) (LEDC_TIMER_MAX - 1);
 constexpr ledc_channel_t XCLK_LEDC_CHANNEL = (ledc_channel_t) (SOC_LEDC_CHANNEL_NUM - 1);
 
-// Generate the sensor XCLK with LEDC. For MIPI-CSI sensors esp_video_init() does
-// not start XCLK, so non-M5Stack boards must do it before init or the sensor
-// stays silent on I2C.
+// esp_video_init() does not start XCLK, so a board without its own clock must
+// generate it before init or the sensor stays silent on I2C.
 esp_err_t init_xclk_ledc(gpio_num_t gpio_num, uint32_t freq_hz) {
   ledc_timer_config_t timer_conf = {};
   timer_conf.speed_mode = LEDC_LOW_SPEED_MODE;
@@ -195,14 +174,8 @@ esp_err_t init_xclk_ledc(gpio_num_t gpio_num, uint32_t freq_hz) {
   return ledc_channel_config(&ch_conf);
 }
 
-// What a failed esp_video ioctl actually means.
-//
-// esp_video flattens its own error codes onto errno (esp_video_vfs.c) in a way
-// strerror() does not convey: EBUSY is ESP_ERR_INVALID_STATE, ESRCH is
-// ESP_ERR_NOT_SUPPORTED, ENODEV is ESP_ERR_NOT_FOUND, and EPERM is everything
-// it did not classify. Read plainly, a rejected STREAMON says only "Invalid
-// argument", which sends people looking at their YAML for a mistake that is
-// not there.
+// What a failed esp_video ioctl means. esp_video flattens its own error codes
+// onto errno (esp_video_vfs.c), so strerror() alone is misleading.
 const char *esp_video_errno_means(int err) {
   switch (err) {
     case EINVAL:
@@ -234,18 +207,12 @@ const char *fourcc_to_string(uint32_t fourcc, char (&out)[5]) {
 // it is also reported for transient frame errors.
 bool errno_means_device_gone(int err) { return err == ENODEV || err == ENXIO; }
 
-// A DQBUF that came back empty rather than broken. esp_video maps a timed-out
-// queue receive to ESP_FAIL, which esp_err_to_errno() turns into EPERM; on the
-// polled capture device that is simply "no frame yet".
+// A DQBUF that came back empty. esp_video reports a timed-out queue receive as
+// EPERM, which on the polled capture device just means "no frame yet".
 bool errno_means_no_frame(int err) { return err == EAGAIN || err == EPERM; }
 
-// Bound how long VIDIOC_DQBUF may block. O_NONBLOCK does nothing here:
-// esp_video_vfs_open() ignores its flags and the default wait is portMAX_DELAY,
-// which in the main loop means the task watchdog fires.
-//
-// So failing to set it is not a warning: streaming on would hand the main loop
-// an unbounded wait, and the device would take the whole firmware down with it
-// the first time a frame did not arrive.
+// Bound how long VIDIOC_DQBUF may block. esp_video_vfs_open() ignores
+// O_NONBLOCK and the default wait is portMAX_DELAY, so failing this is fatal.
 bool set_dqbuf_timeout(int fd, uint32_t timeout_ms, const char *what) {
   struct timeval timeout;
   timeout.tv_sec = timeout_ms / 1000;
@@ -260,16 +227,10 @@ bool set_dqbuf_timeout(int fd, uint32_t timeout_ms, const char *what) {
 
 }  // namespace
 
-// ===========================================================================
-// ESPVideoCameraImage
-// ===========================================================================
 bool ESPVideoCameraImage::was_requested_by(camera::CameraRequester requester) const {
   return (this->requesters_ & (1 << requester)) != 0;
 }
 
-// ===========================================================================
-// ESPVideoCameraImageReader
-// ===========================================================================
 void ESPVideoCameraImageReader::set_image(std::shared_ptr<camera::CameraImage> image) {
   this->image_ = std::move(image);
   this->offset_ = 0;
@@ -294,30 +255,18 @@ void ESPVideoCameraImageReader::return_image() {
   this->offset_ = 0;
 }
 
-// ===========================================================================
-// ESPVideoCamera — setup / pipeline init
-// ===========================================================================
 void ESPVideoCamera::setup() {
-  // Raising esp32 -> framework -> log_level to DEBUG has esp_video's ISP task
-  // print statistics for every frame, on its own 4 KB stack, which collapses
-  // the frame rate and can overflow that stack. Nothing here can stop it:
-  // ESPHome builds with CONFIG_LOG_TAG_LEVEL_IMPL_NONE, so esp_log_level_set()
-  // is compiled out and one tag cannot be quietened. to_code() warns instead.
-
   if (!this->init_pipeline_()) {
-    // A USB camera that has not enumerated makes esp_video_init() fail as a
-    // whole, and it unwinds everything it had created, so calling it again
-    // later starts from a clean slate. Retry instead of failing the component
-    // for good: that is also what makes plugging the camera in after boot work.
+    // A USB camera that has not enumerated fails esp_video_init(), which unwinds
+    // cleanly, so retry: that is what makes plugging the camera in later work.
     if (this->is_uvc_()) {
       ESP_LOGW(TAG, "Camera pipeline is not up (no USB camera?); will retry every %u s",
                (unsigned) (PIPELINE_RETRY_INTERVAL_MS / 1000));
       this->pipeline_retry_at_ms_ = millis() + PIPELINE_RETRY_INTERVAL_MS;
       return;
     }
-    // Failing the component stops loop(), so nothing will ever poll an attempt
-    // that is still running. Let go of it here; the task frees the context when
-    // esp_video_init() eventually returns.
+    // Nothing polls a still-running attempt once the component fails; the task
+    // frees the context when esp_video_init() returns.
     if (this->init_ctx_ != nullptr) {
       this->init_ctx_->release();
       this->init_ctx_ = nullptr;
@@ -384,9 +333,6 @@ bool ESPVideoCamera::start_pipeline_init_() {
 #endif  // USE_I2C
   }
 
-  // esp_video_init() only probes for a MIPI sensor when config->csi is set, so
-  // leave it NULL for a USB-only board.
-  // Start XCLK via LEDC if requested (MIPI sensors need it before init).
   if (!uvc_only && this->xclk_pin_ >= 0) {
     const esp_err_t err = init_xclk_ledc((gpio_num_t) this->xclk_pin_, this->xclk_freq_);
     if (err != ESP_OK) {
@@ -399,14 +345,8 @@ bool ESPVideoCamera::start_pipeline_init_() {
 
 #if CONFIG_ESP_VIDEO_ENABLE_USB_UVC_VIDEO_DEVICE
   if (uvc_only) {
-    // On boards where the host port's 5 V is switched -- an IO expander pin on
-    // most of them -- that switch is a component of its own, and ESPHome runs
-    // its setup() only microseconds before this one. Let the rail settle before
-    // the host library starts driving bus resets, or the device attached at
-    // boot is reset while its own supply is still ramping and never enumerates.
-    // Espressif's board support code and the M5Stack Tab5 USB host example both
-    // wait here for the same reason.
-    // Once: a retry runs with the rail already up, and has nothing to wait for.
+    // A switched 5 V rail (usually an IO expander pin) comes up just before this
+    // runs; let it settle, once, or the attached device never enumerates.
     if (!this->usb_host_installed_)
       delay(VBUS_SETTLE_MS);
 
@@ -416,15 +356,11 @@ bool ESPVideoCamera::start_pipeline_init_() {
     host_config.skip_phy_setup = false;
     host_config.intr_flags = ESP_INTR_FLAG_LEVEL1;
 #if ESP_IDF_VERSION >= ESP_IDF_VERSION_VAL(5, 4, 0)
-    // The ESP32-P4 has two USB controllers and a board wires its host connector
-    // to one of them. Zero means "the default", which on a High-Speed capable
-    // target is the High-Speed one -- so a board whose host port hangs off the
-    // Full-Speed controller enumerates nothing until this names it instead.
+    // Zero picks the High-Speed controller; a board wired to the Full-Speed one
+    // enumerates nothing until this names it.
     host_config.peripheral_map = this->usb_peripheral_map_;
 #endif
-    // Only on the first attempt: a retry already has the library and the daemon
-    // task this component started, and asking again would earn a warning about
-    // "another component" that would in fact be this one.
+    // Only on the first attempt; a retry already has the library.
     if (!this->usb_host_installed_) {
       esp_err_t host_ret = usb_host_install(&host_config);
       if (host_ret == ESP_OK) {
@@ -443,13 +379,10 @@ bool ESPVideoCamera::start_pipeline_init_() {
         return false;
       }
     }
-    // Ours to pump, and not pumping yet. Tracked apart from the install so that
-    // a task that fails to start is tried again on the next attempt instead of
-    // leaving the library installed with nothing draining its events.
+    // Tracked apart from the install so a pump that failed to start is retried.
     if (this->usb_host_owned_ && !this->usb_pump_started_) {
-      // Priority 10, the same as Espressif's own board support code: nothing
-      // enumerates unless this task keeps draining the library's events, so it
-      // has to outrank the work it is feeding.
+      // Priority 10, as in Espressif's board support code: it has to outrank
+      // the work it feeds.
       if (xTaskCreatePinnedToCore(usb_host_lib_daemon_task, "usb_lib", 4096, nullptr, 10, nullptr, tskNO_AFFINITY) !=
           pdPASS) {
         ESP_LOGE(TAG, "Could not start the USB host event pump; no USB camera will enumerate");
@@ -504,10 +437,8 @@ bool ESPVideoCamera::start_pipeline_init_() {
     return false;
   }
 
-  // With UVC enabled, esp_video_init() spends up to CONFIG_USB_UVC_INIT_TIMEOUT_MS
-  // (10 s by default) waiting for the USB camera to enumerate before it returns.
-  // Allowing only INIT_TIMEOUT_MS would expire in the same instant and fail the
-  // component for a camera that was about to come up.
+  // With UVC, esp_video_init() itself waits up to CONFIG_USB_UVC_INIT_TIMEOUT_MS
+  // for the camera to enumerate.
   uint32_t init_timeout_ms = INIT_TIMEOUT_MS;
 #if CONFIG_ESP_VIDEO_ENABLE_USB_UVC_VIDEO_DEVICE
   if (this->is_uvc_())
@@ -535,9 +466,8 @@ int ESPVideoCamera::poll_pipeline_init_(uint32_t wait_ms) {
     return ok ? 1 : 0;
   }
 
-  // Overrunning the deadline is worth saying, but not worth acting on: the task
-  // still holds the USB stack, and the only thing that could be done about it --
-  // starting another -- would be worse than waiting. It is still running.
+  // Worth saying, not acting on: starting another attempt over one that still
+  // holds the USB stack would be worse than waiting.
   if (!this->init_overrun_logged_ && (int32_t) (millis() - this->init_deadline_ms_) >= 0) {
     this->init_overrun_logged_ = true;
     ESP_LOGE(TAG, "esp_video_init() has not returned yet; still waiting for it");
@@ -548,12 +478,8 @@ int ESPVideoCamera::poll_pipeline_init_(uint32_t wait_ms) {
 bool ESPVideoCamera::init_pipeline_() {
   if (!this->start_pipeline_init_())
     return false;
-  // In slices, feeding the watchdog between them. This runs from setup(), and
-  // the loop task is subscribed to the task watchdog with panic on: nothing
-  // feeds it between one component's setup() and the next. Waiting out the
-  // whole allowance in one call would reboot the device at the watchdog
-  // timeout -- and reboot it on exactly the slow init this code was written to
-  // survive, so the overrun message and the UVC retry below could never run.
+  // In slices, feeding the watchdog between them: nothing else feeds it during
+  // setup(), and the whole allowance is longer than the watchdog timeout.
   int state;
   do {
     // Before the slice, not after, so the settle delay and the USB host install
@@ -564,16 +490,12 @@ bool ESPVideoCamera::init_pipeline_() {
   return state > 0;
 }
 
-// ===========================================================================
-// ESPVideoCamera — streaming / capture
-// ===========================================================================
 void ESPVideoCamera::loop() {
   const uint32_t now = App.get_loop_component_start_time();
   const bool wanted = this->requesters_() != 0;
 
-  // Only reachable with UVC: setup() fails the component outright otherwise.
-  // esp_video_init() runs on its own task and can spend tens of seconds in the
-  // USB stack when no camera is plugged in, so it is never waited for here.
+  // Only reachable with UVC; esp_video_init() runs on its own task and is never
+  // waited for here.
   if (!this->pipeline_ready_) {
     if (this->init_ctx_ != nullptr) {
       if (this->poll_pipeline_init_(0) < 0)
@@ -740,10 +662,8 @@ void ESPVideoCamera::loop_jpeg_pipeline_(uint32_t now) {
 
   bool encoder_broken = false;
   if (wanted && due && cap_buf.index < (uint32_t) this->num_capture_buffers_ && cap_buf.bytesused > 0) {
-    // M2M encode in the order of Espressif's examples/m2m: queue the raw frame on
-    // OUTPUT, dequeue the encoded frame from CAPTURE, only then reclaim OUTPUT.
-    // The encoder releases the input as part of completing the output, so waiting
-    // on OUTPUT first deadlocks.
+    // Queue OUTPUT, dequeue CAPTURE, then reclaim OUTPUT (Espressif's
+    // examples/m2m order); waiting on OUTPUT first deadlocks.
     struct v4l2_buffer out_buf;
     memset(&out_buf, 0, sizeof(out_buf));
     out_buf.type = V4L2_BUF_TYPE_VIDEO_OUTPUT;
@@ -811,10 +731,8 @@ void ESPVideoCamera::loop_jpeg_pipeline_(uint32_t now) {
     }
   }
 
-  // Settle the encoder first. A broken one may still be reading this buffer
-  // through its USERPTR, and handing it back to the sensor now would let CSI
-  // DMA write into it underneath the encoder. STREAMOFF inside
-  // reset_jpeg_encoder_() is what reclaims it.
+  // Settle the encoder first: a broken one may still read this buffer through
+  // its USERPTR while CSI DMA writes into it. The reset's STREAMOFF reclaims it.
   bool capture_alive = true;
   if (encoder_broken && !this->reset_jpeg_encoder_()) {
     ESP_LOGE(TAG, "JPEG encoder is unrecoverable; stopping capture");
@@ -833,8 +751,7 @@ void ESPVideoCamera::loop_jpeg_pipeline_(uint32_t now) {
 }
 
 bool ESPVideoCamera::reset_jpeg_encoder_() {
-  // STREAMOFF hands every queued buffer back to userspace, which is the only way
-  // out once a QBUF/DQBUF has left one stuck inside the driver. It also
+  // STREAMOFF is the only way to get back a buffer stuck in the driver. It also
   // un-queues the encoder's output buffer, so hand that back before restarting.
   this->set_jpeg_streaming_(false);
   if (!this->queue_jpeg_capture_buffer_())
@@ -849,10 +766,8 @@ bool ESPVideoCamera::reset_jpeg_encoder_() {
 
 camera::CameraImageReader *ESPVideoCamera::create_image_reader() { return new ESPVideoCameraImageReader(); }
 
-// The three below deliberately do not touch the pipeline: they run in the
-// caller's task while loop() owns the fds, the mapped buffers and the stream
-// state. All they share with it is the requester masks, which are atomic, and
-// loop() picks the change up on its next iteration.
+// These run in the caller's task and only touch the atomic requester masks;
+// loop() owns the pipeline.
 void ESPVideoCamera::request_image(camera::CameraRequester requester) { this->single_requesters_ |= (1U << requester); }
 
 void ESPVideoCamera::start_stream(camera::CameraRequester requester) {
@@ -872,12 +787,9 @@ bool ESPVideoCamera::configure_capture_format_(uint32_t pixelformat) {
   const uint32_t height = this->height_;
   const bool force_res = width != 0;
 
-  // A MIPI-CSI sensor cannot be resized through V4L2: common_video_set_format()
-  // rejects any size but the sensor's current one, and ENUM_FRAMESIZES reports
-  // only that one. The size is a build-time Kconfig choice driven by
-  // `resolution:` (see __init__.py). USB-UVC devices do resize at runtime.
-  //
-  // On the hardware-JPEG path capture_fd_ is the MIPI-CSI node, not device_.
+  // A MIPI-CSI sensor's size is a build-time Kconfig choice and V4L2 rejects any
+  // other; USB-UVC devices resize at runtime. On the hardware-JPEG path
+  // capture_fd_ is the MIPI-CSI node, not device_.
   const bool device_can_resize = !this->is_hw_jpeg_() && strcmp(this->device_, ESP_VIDEO_MIPI_CSI_DEVICE_NAME) != 0;
 
   struct v4l2_format fmt;
@@ -892,12 +804,8 @@ bool ESPVideoCamera::configure_capture_format_(uint32_t pixelformat) {
   }
   fmt.fmt.pix.field = V4L2_FIELD_NONE;
   if (ioctl(this->capture_fd_, VIDIOC_S_FMT, &fmt) < 0) {
-    // A MIPI sensor rejects any size but its own and keeps streaming the one it
-    // has, so there this is only worth a warning. A USB camera is different:
-    // S_FMT is what picks its stream format and frame interval, and without it
-    // STREAMON has nothing to negotiate with -- "Could not find requested frame
-    // format". Reading a plausible format back afterwards does not mean the
-    // device accepted anything, so do not let that paper over it.
+    // A MIPI sensor keeps streaming its own size, so only warn. On a USB camera
+    // S_FMT picks the stream format, and STREAMON fails without it.
     if (this->is_uvc_()) {
       ESP_LOGE(TAG, "VIDIOC_S_FMT failed on the USB camera (%s); it never agreed a stream format", strerror(errno));
       return false;
@@ -905,9 +813,7 @@ bool ESPVideoCamera::configure_capture_format_(uint32_t pixelformat) {
     ESP_LOGW(TAG, "VIDIOC_S_FMT (best-effort resolution) failed: %s", strerror(errno));
   }
 
-  // Read back the format actually negotiated by the sensor/ISP. A device that
-  // cannot honour the request keeps its own format instead of failing loudly, so
-  // never assume the request went through.
+  // A device that cannot honour the request keeps its own format silently.
   uint32_t negotiated = pixelformat;  // assumed, if the device has no G_FMT
   memset(&fmt, 0, sizeof(fmt));
   fmt.type = V4L2_BUF_TYPE_VIDEO_CAPTURE;
@@ -989,9 +895,8 @@ bool ESPVideoCamera::setup_capture_buffers_() {
       return false;
     }
   }
-  // REQBUFS is allowed to grant fewer buffers than asked for, including none,
-  // and it reports that in req.count rather than as an error. Streaming with an
-  // empty queue gets no frames and says nothing about why.
+  // REQBUFS may grant fewer buffers than asked for, including none, without
+  // reporting an error.
   if (this->num_capture_buffers_ == 0) {
     ESP_LOGE(TAG, "The device granted no capture buffers; there is nothing to stream into");
     return false;
@@ -1059,10 +964,7 @@ bool ESPVideoCamera::start_jpeg_pipeline_() {
     return false;
   int ctype = V4L2_BUF_TYPE_VIDEO_CAPTURE;
   if (ioctl(this->capture_fd_, VIDIOC_STREAMON, &ctype) < 0) {
-    // Everything the CSI and ISP drivers reject here they first log themselves,
-    // under the "csi" and "ISP" tags and at error level, so the line above this
-    // one names the actual check that failed -- the frame size, the lane count,
-    // the ISP clock. Point at it, because this line alone cannot say.
+    // The CSI and ISP drivers log the check that failed just before this.
     ESP_LOGE(TAG, "Could not start the sensor at %ux%u: %s (%s). The csi/ISP error just above says which check failed.",
              (unsigned) this->capture_width_, (unsigned) this->capture_height_, strerror(errno),
              esp_video_errno_means(errno));
@@ -1077,9 +979,8 @@ bool ESPVideoCamera::start_jpeg_pipeline_() {
     return false;
   }
 
-  // ...but bound that wait. A 720p hardware encode takes single-digit
-  // milliseconds, so this only fires when the encoder is wedged -- and the DQBUF
-  // error path then resets its queues (see reset_jpeg_encoder_).
+  // ...but bound that wait; only a wedged encoder hits it, and the DQBUF error
+  // path then resets its queues.
   if (!set_dqbuf_timeout(this->jpeg_fd_, JPEG_DQBUF_TIMEOUT_MS, "JPEG encoder"))
     return false;
 
@@ -1219,18 +1120,12 @@ void ESPVideoCamera::stop_capture_() {
   this->num_capture_buffers_ = 0;
   this->streaming_ = false;
   this->idle_since_ms_ = 0;
-  // A pending snapshot cannot be answered by a capture that no longer exists,
-  // and left set it keeps wanted true for ever, so the pipeline never idles
-  // down and every retry looks like someone is watching. The requester asks
-  // again if it still wants one.
+  // A pending snapshot left set would keep the pipeline wanted for ever; the
+  // requester asks again if it still wants one.
   this->single_requesters_ = 0;
-  // Let go of the last frame. Listeners hold their own shared_ptr, so this
-  // frees nothing early -- but without it the final JPEG of a capture stays in
-  // PSRAM for the life of the device, which at 1080p is a few hundred kilobytes
-  // held for a camera nobody is watching.
+  // Free the last frame's PSRAM; listeners hold their own shared_ptr.
   this->current_image_.reset();
-  // Any pending re-open is re-armed by handle_device_gone_() after this call;
-  // a clean stop must not leave one behind.
+  // Callers that want a retry arm it after this.
   this->capture_retry_pending_ = false;
 }
 

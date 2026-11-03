@@ -9,8 +9,7 @@
 #include "esphome/core/component.h"
 #include "esphome/core/helpers.h"
 #include "esphome/components/camera/camera.h"
-// i2c_id: is optional -- a USB camera is not on a bus -- so a UVC-only build
-// does not have the I2C component in it at all, and must not reach for it.
+// A UVC-only build has no I2C component.
 #ifdef USE_I2C
 #include "esphome/components/i2c/i2c.h"
 #endif  // USE_I2C
@@ -24,8 +23,7 @@ struct v4l2_buffer;
 namespace esphome::esp_video_camera {
 
 /// esp_video_init()'s arguments and result, shared with the core-0 task that
-/// runs it. Defined in the .cpp, which is the only place that has the V4L2
-/// headers its members are built from.
+/// runs it. Defined in the .cpp, which has the V4L2 headers.
 struct VideoInitContext;
 
 /// Which pipeline the configured device needs, resolved at code generation.
@@ -66,10 +64,8 @@ class ESPVideoCameraImageReader : public camera::CameraImageReader {
   size_t offset_{0};
 };
 
-/// Home Assistant camera backed by Espressif's esp_video (V4L2) pipeline. It
-/// captures JPEG frames from either the hardware JPEG encoder fed by an
-/// auto-detected MIPI-CSI sensor ("jpeg"), a USB-UVC camera ("uvc"), or an
-/// explicit /dev/videoN path.
+/// Camera backed by Espressif's esp_video (V4L2) pipeline: a MIPI-CSI sensor
+/// through the hardware JPEG encoder, a USB-UVC camera, or a /dev/videoN path.
 class ESPVideoCamera : public camera::Camera {
  public:
   ESPVideoCamera(const char *device, DeviceType device_type) : device_(device), device_type_(device_type) {}
@@ -109,10 +105,7 @@ class ESPVideoCamera : public camera::Camera {
   /// under way.
   bool start_pipeline_init_();
   /// Wait up to `wait_ms` for that attempt. 1 = the pipeline is up, 0 = it
-  /// failed, -1 = still running, ask again later. A running attempt is never
-  /// abandoned: esp_video_init() can hold the USB stack for tens of seconds
-  /// waiting for a camera, and a second one over the top of it would stack
-  /// tasks on hardware the first is still using.
+  /// failed, -1 = still running. A running attempt is never abandoned.
   int poll_pipeline_init_(uint32_t wait_ms);
   /// Both of the above, waiting as long as the attempt is allowed to take.
   bool init_pipeline_();
@@ -151,28 +144,21 @@ class ESPVideoCamera : public camera::Camera {
   // Pipeline
 #ifdef USE_I2C
   i2c::InternalI2CBus *i2c_bus_{nullptr};
-#endif                   // USE_I2C
-  int8_t xclk_pin_{-1};  // -1: the board drives the sensor clock
+#endif  // USE_I2C
+  // -1: the board drives the sensor clock
+  int8_t xclk_pin_{-1};
   uint32_t xclk_freq_{24000000};
-  // Which of the ESP32-P4's two USB controllers the host port hangs off. Zero
-  // is the target's default (the High-Speed one), which is right for most
-  // boards; a bit mask names a specific controller for those it is not.
+  // USB controller bit mask for the host port; zero is the High-Speed default.
   unsigned usb_peripheral_map_{0};
   bool pipeline_ready_{false};
-  // The init attempt in flight, or null when none is. Non-null is also what
-  // stops a second one being started over it.
+  // The init attempt in flight, or null when none is.
   VideoInitContext *init_ctx_{nullptr};
   uint32_t init_deadline_ms_{0};
   bool init_overrun_logged_{false};
-  // The host port's 5 V rail settles once, and the USB Host Library installs
-  // once. Retries must not pay for either again.
+  // The USB Host Library installs once; retries must not reinstall it.
   bool usb_host_installed_{false};
-  // Whether this component is the one that installed it, and therefore owes it
-  // an event pump. False when another component got there first: the pump is
-  // then theirs.
+  // Whether this component installed it and so owes it an event pump.
   bool usb_host_owned_{false};
-  // Whether that pump is running. Separate from the two above because a pump
-  // that failed to start has to be retried without reinstalling the library.
   bool usb_pump_started_{false};
 
   // Camera platform
@@ -186,10 +172,8 @@ class ESPVideoCamera : public camera::Camera {
 
   // Re-open delay after the capture device disappeared mid-stream.
   static constexpr uint32_t CAPTURE_RETRY_INTERVAL_MS = 2000;
-  // Same, for a USB camera. Opening its node is what runs esp_video's
-  // uvc_video_init(), which blocks for CONFIG_USB_UVC_INIT_TIMEOUT_MS while no
-  // camera is connected -- out of the main loop. A failed open of a MIPI device
-  // returns at once, so only this path has to be spaced out.
+  // Same, for a USB camera: each failed open blocks the main loop for
+  // CONFIG_USB_UVC_INIT_TIMEOUT_MS.
   static constexpr uint32_t UVC_RETRY_INTERVAL_MS = 5000;
   uint32_t capture_retry_interval_ms_() const {
     return this->is_uvc_() ? UVC_RETRY_INTERVAL_MS : CAPTURE_RETRY_INTERVAL_MS;
@@ -197,8 +181,7 @@ class ESPVideoCamera : public camera::Camera {
   bool capture_retry_pending_{false};
   uint32_t capture_retry_at_ms_{0};
   // Retry delay for esp_video_init() itself, which only fails when a USB camera
-  // is absent. Much longer than the capture retry: the call blocks the main task
-  // while the USB stack waits for an enumeration that is not going to happen.
+  // is absent.
   static constexpr uint32_t PIPELINE_RETRY_INTERVAL_MS = 10000;
   uint32_t pipeline_retry_at_ms_{0};
   // When the last consumer went away, or 0 while at least one is present. The
@@ -219,18 +202,14 @@ class ESPVideoCamera : public camera::Camera {
   static constexpr uint32_t NO_FRAME_WARNING_MS = 5000;
   bool warned_no_frames_{false};
 
-  // Consumers (bit masks indexed by camera::CameraRequester). Written from the
-  // requesting task, read by loop() in the main task, hence atomic. Everything
-  // below belongs to loop().
   std::vector<camera::CameraListener *> listeners_;
   std::shared_ptr<ESPVideoCameraImage> current_image_;
+  // Requester bit masks are written from other tasks, hence atomic.
   std::atomic<uint8_t> stream_requesters_{0};
   std::atomic<uint8_t> single_requesters_{0};
 
-  // V4L2 state. A direct source (USB-UVC, or a /dev/videoN already producing
-  // JPEG) uses capture_fd_ + capture_buffers_ only. The hardware-JPEG source
-  // spans two devices: capture_fd_ is the MIPI-CSI/ISP device producing RGB565,
-  // jpeg_fd_ the M2M encoder fed from it and read back as JPEG.
+  // A direct source uses capture_fd_ only. The hardware-JPEG source captures
+  // RGB565 on capture_fd_ and encodes it through the M2M encoder on jpeg_fd_.
   int capture_fd_{-1};
   int jpeg_fd_{-1};
   bool streaming_{false};

@@ -1,12 +1,5 @@
-"""ESP-Video camera platform for ESPHome (ESP32-P4).
-
-Publishes the Espressif esp_video (V4L2) stream to Home Assistant as a native
-``camera`` entity. Works with any auto-detected MIPI-CSI sensor through the
-hardware JPEG encoder, and with USB-UVC cameras.
-
-All Espressif sources are pulled through the IDF component manager (managed
-components) — nothing is vendored.
-"""
+"""ESP32-P4 camera on Espressif's esp_video (V4L2): MIPI-CSI sensors through the
+hardware JPEG encoder, and USB-UVC cameras."""
 
 import logging
 from pathlib import Path
@@ -60,13 +53,9 @@ CONF_XCLK_PIN = "xclk_pin"
 CONF_XCLK_FREQUENCY = "xclk_frequency"
 CONF_USB_PERIPHERAL_MAP = "usb_peripheral_map"
 
-# Output formats each supported sensor ships in esp_cam_sensor 2.3.0.
-#
-# A MIPI sensor's resolution is not negotiable at runtime, so `resolution:` is
-# resolved here into the CAMERA_<SENSOR>_MIPI_DEFAULT_FMT_* Kconfig choice that
-# picks the sensor's boot format. Where one size exists in several variants the
-# entry below is the lowest-bandwidth one; the rest stay reachable through
-# esp32 -> framework -> sdkconfig_options.
+# Output formats each sensor ships in esp_cam_sensor 2.3.0. A MIPI sensor's size
+# is fixed at build time, so `resolution:` picks the CAMERA_<SENSOR>_MIPI_DEFAULT_FMT_*
+# Kconfig choice; where a size has several variants this is the lowest-bandwidth one.
 _SENSOR_FORMATS = {
     "sc202cs": {
         (1280, 720): "RAW8_1280X720_30FPS",
@@ -233,31 +222,15 @@ def _validate_resolution_for_sensor(config: ConfigType) -> ConfigType:
 
 
 def _request_high_performance_networking(config):
-    """A camera is a streaming component, so ask for the streaming defaults.
-
-    A 720p JPEG is 60-100 kB against lwip's default 5744-byte send buffer, and
-    people were writing the lwip and Wi-Fi sizes out by hand in
-    sdkconfig_options to compensate. This is the supported way to ask, and what
-    speaker.media_player and sendspin do for the same reason.
-
-    Headroom rather than a measured fix, though: on an M5Stack Tab5 and a
-    Waveshare board the frame rate is the same with and without it, both
-    sustaining 7-14 Mbit/s. What limits those two is the pipeline, not the link.
-    """
+    """A 720p JPEG is 60-100 kB, far past lwip's default send buffer, so ask for
+    the streaming network defaults like speaker.media_player does."""
     network.require_high_performance_networking()
     return config
 
 
 def _warn_about_idf_log_level(config):
-    """esp_video's ISP task logs per frame at IDF debug level.
-
-    It prints several lines of auto-exposure and denoise statistics for every
-    frame, each formatted on its own 4 KB stack from outside the main task. The
-    frame rate collapses, and the stack can overflow outright. There is nothing
-    the component can do about it at run time -- ESPHome builds with
-    CONFIG_LOG_TAG_LEVEL_IMPL_NONE, so a single tag cannot be quietened -- so
-    say it here, where it can still be changed.
-    """
+    """esp_video's ISP task logs several lines per frame at IDF debug level, on a
+    4 KB stack, and one tag cannot be quietened at run time."""
     framework = fv.full_config.get()[PLATFORM_ESP32].get(CONF_FRAMEWORK, {})
     if (level := framework.get(CONF_LOG_LEVEL)) in ("DEBUG", "VERBOSE"):
         _LOGGER.warning(
@@ -288,17 +261,12 @@ CONFIG_SCHEMA = cv.All(
             cv.Optional(CONF_MAX_FRAMERATE, default=10): cv.float_range(
                 min=0.1, max=60.0
             ),
-            # No default: most ESP32-P4 boards already drive the sensor clock,
-            # and defaulting to a pin means every one of those configs is told
-            # off for naming a strapping pin it never touches.
+            # No default: most ESP32-P4 boards already drive the sensor clock.
             cv.Optional(CONF_XCLK_PIN): _xclk_pin,
             cv.Optional(CONF_XCLK_FREQUENCY, default="24MHz"): cv.All(
                 cv.frequency, cv.int_range(min=1000000, max=40000000)
             ),
-            # The ESP32-P4 has two USB controllers, and a board wires its host
-            # connector to one of them. 0 is the target default -- the
-            # High-Speed one -- which is right for most boards; a bit mask
-            # (0x1, 0x2, ...) names a specific controller for those it is not.
+            # 0 is the High-Speed controller; a bit mask names another.
             cv.Optional(CONF_USB_PERIPHERAL_MAP, default=0): cv.hex_int_range(
                 min=0, max=0xFF
             ),
@@ -306,46 +274,25 @@ CONFIG_SCHEMA = cv.All(
     )
     .extend(cv.ENTITY_BASE_SCHEMA)
     .extend(cv.COMPONENT_SCHEMA),
-    # Platform first. The camera pipeline (MIPI-CSI, ISP, hardware JPEG) is
-    # ESP32-P4 silicon and esp_video 2.3.0 needs ESP-IDF 5.4, so on anything
-    # else every later check is beside the point -- being told to add PSRAM is
-    # a poor way to learn the chip is wrong.
+    # Platform first, so a wrong chip is reported before anything else.
     only_on_variant(supported=[VARIANT_ESP32P4], msg_prefix="esp_video_camera"),
     cv.require_framework_version(
         esp_idf=cv.Version(5, 4, 0),
         extra_message="esp_video_camera requires the esp-idf framework.",
     ),
-    # Frames are copied into PSRAM and the V4L2 buffers themselves are sized for
-    # it: a 1280x720 RGB565 capture buffer alone is 1.8 MB, well past what
-    # internal RAM can hold.
+    # A 1280x720 RGB565 capture buffer alone is 1.8 MB.
     cv.requires_component(PSRAM_DOMAIN),
     _validate_i2c_bus,
     _validate_resolution_for_sensor,
-    # Last, because unlike the others it changes state outside this component:
-    # a configuration that is going to be rejected must not have moved the
-    # network settings on its way out.
+    # Last: it changes network settings, which a rejected config must not do.
     _request_high_performance_networking,
 )
 
 
 def _reject_uvc_beside_usb_host(config):
-    """USB-UVC and the usb_host component cannot both be in one firmware yet.
-
-    esp_video's UVC driver needs usb_host_lib_handle_events() called
-    continuously. On its own this component installs the USB host library and
-    runs a dedicated task for that. When usb_host is present it installs first,
-    so this component steps aside and does not start its task -- and the only
-    remaining pump is usb_host's loop(). But VIDIOC_STREAMON on the UVC node
-    blocks the main loop, so that pump never runs: the device deadlocks and the
-    task watchdog reboots it five seconds later.
-
-    Letting usb_host own the interface is not enough on its own to fix this; a
-    pump that runs in the main loop cannot service a blocking call made from
-    the main loop. Sharing it properly is being worked out separately.
-
-    Only USB camera builds are affected -- a MIPI-CSI camera never touches the
-    USB host, so it is free to sit beside usb_uart and the rest.
-    """
+    """USB-UVC and usb_host cannot share one firmware yet: usb_host pumps USB
+    events from loop(), which a blocking VIDIOC_STREAMON starves into a
+    watchdog reboot. A MIPI-CSI camera never touches the USB host."""
     if _is_uvc(config[CONF_DEVICE]) and USB_HOST_DOMAIN in fv.full_config.get():
         raise cv.Invalid(
             "A USB camera cannot be used in the same configuration as the "
@@ -357,8 +304,6 @@ def _reject_uvc_beside_usb_host(config):
     return config
 
 
-# Both of these read other components' configuration, so they can only run once
-# everything has been validated.
 FINAL_VALIDATE_SCHEMA = cv.All(_warn_about_idf_log_level, _reject_uvc_beside_usb_host)
 
 
