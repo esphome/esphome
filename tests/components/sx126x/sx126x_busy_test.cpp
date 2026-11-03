@@ -468,7 +468,9 @@ TEST(SX126xProfile, RejectsOversizedSyncValueBeforeResetOrSpi) {
   hw.configure(true, true);
   hw.radio.set_sync_value(std::vector<uint8_t>(9, 1));
   hw.clear_trace();
+  const auto reset_writes = hw.rst.writes;
   hw.radio.configure();
+  EXPECT_EQ(hw.rst.writes, reset_writes);
   EXPECT_TRUE(hw.transactions.empty());
   EXPECT_EQ(hw.radio.transmit_packet(hw.packet), SX126xError::SX126X_ERROR_NOT_READY);
   hw.radio.set_sync_value({0x14, 0x24});

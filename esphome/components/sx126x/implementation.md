@@ -44,7 +44,7 @@ applied profile. A send first validates readiness and the payload. A pending
 received packet rejects admission with BUSY so `loop()` can deliver it first.
 Once admitted, `RadioOperation` owns three sub-flows:
 
-1. **Prepare:** enter standby, clear stale event flags, set packet parameters,
+1. **Prepare:** enter standby, recheck RX, clear stale event flags, set packet parameters,
    copy the payload into the chip buffer and start TX. These are several separate
    SPI exchanges, ending with the command that starts transmission.
 2. **Wait:** the chip sends the packet over the air. The radio remains reserved,
@@ -72,6 +72,7 @@ sequenceDiagram
         Note over D,R: RadioOperation boundary begins
         rect rgba(128, 128, 128, 0.12)
             Note over D,R: PREPARE
+            Note over D,R: After standby, recheck RX before clearing flags or writing FIFO
             loop Each preparation command, ending with SetTx
                 D->>R: NSS low: select / wake
                 D->>D: Check BUSY, wait for low (20 ms limit)
@@ -112,6 +113,12 @@ buffer is no longer needed, but its completion listener must remain alive.
 The blocking API starts the same operation and polls until completion instead of
 returning early. It therefore holds up other main-loop work during airtime.
 
+If RX completes before standby, preparation returns BUSY and retains ownership
+in `ReceivePending`. The radio stays in standby with IRQ/FIFO intact. `loop()`
+reads the packet, restores the configured mode and delivers it; read failures
+retry without clearing the packet. There is no TX completion for this rejection.
+Explicit reconfiguration may discard held RX to recover from persistent read failures.
+
 The scopes also define failure handling. If BUSY does not clear, the exchange
 releases NSS without clocking an opcode or data. A failed Prepare skips Wait and
 enters Restore; a Wait timeout or cancellation also enters Restore. Restoration failure leaves
@@ -151,8 +158,7 @@ not confirmation that the chip completed a radio operation.
 Commands abort on BUSY timeout. Initial configuration failure permanently fails
 setup. Runtime reconfiguration invalidates chip readiness before reset; normal
 operations remain blocked until the complete configuration succeeds. Synchronous
-sends clear stale IRQ flags before starting TX. These rules carry forward the
-regressions from the earlier BUSY-fix proposal.
+sends clear stale IRQ flags before starting TX, after checking for pending RX.
 
 `RadioOperation` owns readiness and the complete operation lifecycle. The
 component supplies preparation, waiting and restoration functions to its
@@ -161,7 +167,7 @@ from preparation or waiting always returns control to the runner. A restoration
 function is a required argument, not a cleanup call that each error branch must
 remember. Only this owner can transition to Idle after successful restoration.
 
-Every send exit attempts standby, IRQ clearing, the configured packet parameters
+Every failed or completed TX attempts standby, IRQ clearing, the configured packet parameters
 and RX/sleep mode. If restoration fails, clearing BUSY alone is insufficient:
 operations remain blocked until explicit configuration succeeds. Configuration
 and mode changes use the same owner; reentry during preparation, waiting,
@@ -203,7 +209,7 @@ applied snapshot changes only after every configuration command succeeds.
 Sends, RX interpretation and restoration use the applied snapshot, even if a
 setter has staged a different payload length or RX policy. Sync words use eight
 fixed bytes per profile; snapshots require no allocation. An oversized sync word
-is rejected before reset. Cold sleep invalidates configuration, while warm sleep
+is rejected by YAML validation and again before reset in C++. Cold sleep invalidates configuration, while warm sleep
 retains it. A successful explicit configure is required after cold sleep.
 
 The separation allows configuration encoders to be tested without ESPHome
@@ -216,7 +222,8 @@ available; runtime setters now explicitly stage changes until configure succeeds
 Async support extends the `RadioOperation` owner already used by the synchronous
 driver. `start_transmit()` either restores a failed preparation or retains
 ownership through packet airtime. `finish_transmit()` uses the same restoration
-path and rejects duplicate completion. The synchronous runner also uses these
+path and rejects duplicate completion. Pending RX instead holds the radio until
+`finish_receive()` restores it after the packet is consumed. The synchronous runner uses these
 two methods. There is no second readiness flag or component-owned state machine.
 
 Both send APIs use the same admission, command preparation, IRQ interpretation,
@@ -229,12 +236,13 @@ introduced. Each component has one `RadioOperation`, whose state is private:
 Unconfigured -> Configuring -> Idle
 Idle -> ChangingMode -> Idle (or Unconfigured after cold sleep)
 Idle -> PreparingTx -> Transmitting -> Restoring -> Idle
+                RX -> ReceivePending -> Restoring -> Idle
            failure -> Restoring -> RecoveryRequired (if restoration fails)
 RecoveryRequired -> Configuring -> Idle
 ```
 
 Configuration errors return to Unconfigured. Initial setup may also mark the
-ESPHome component failed. Preparing and Restoring are real ownership states;
+ESPHome component failed. Preparing and Restoring are exclusive ownership states;
 public mode/configuration requests cannot interrupt them. Failed mode changes
 also enter RecoveryRequired. Idle means available for a driver-managed operation,
 not the physical chip's mode: the radio may be receiving or sleeping.
@@ -267,6 +275,16 @@ reusable RX vector reserves 255 bytes during setup, avoiding later growth in the
 driver. Listeners must not retain a borrowed reference after callback return;
 existing automation value-copy behavior is unchanged.
 
+## Packet transport retries
+
+`can_transmit()` is a scheduling hint, not an admission guarantee. The SX126x
+packet-transport adapter also checks the actual send result. `PacketTransport`
+retains sensor updates and pending pings when `try_send_packet()` rejects them;
+legacy adapters keep their existing `send_packet()` implementation. A split sensor
+update commits only after all packets succeed. A retry can repeat earlier packets
+with current values, without discarding unsent values or adding a packet queue.
+The ping key changes only after its request is sent successfully.
+
 ## Reading and extending the implementation
 
 - Add byte framing only in Sx126xCommands, using the complete exchange API.
@@ -278,8 +296,3 @@ existing automation value-copy behavior is unchanged.
   selection/borrowing scopes; explicit restoration reports its hardware result.
 - Test new commands through the GPIO-backed fake chip, including every failure
   boundary. Test both send entry points when changing operation behavior.
-
-Compared with the earlier review drafts, ownership is per operation rather than
-an implicit combination of listener pointers and booleans. Uncertain restoration
-requires reconfiguration, and pending RX is deferred rather than dispatched from
-inside a send. These are intentional contracts, not hardware validation claims.

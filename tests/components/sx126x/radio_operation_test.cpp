@@ -8,8 +8,9 @@ static_assert(!std::is_copy_constructible_v<RadioOperation>);
 static_assert(!std::is_move_constructible_v<RadioOperation>);
 
 template<typename T>
-concept TransmitWithoutRestoration =
-    requires(T &operation) { operation.transmit([]() { return true; }, []() { return SX126xError::NONE; }); };
+concept TransmitWithoutRestoration = requires(T &operation) {
+  operation.transmit([]() { return SX126xError::NONE; }, []() { return SX126xError::NONE; });
+};
 static_assert(!TransmitWithoutRestoration<RadioOperation>);
 
 TEST(RadioOperation, RejectedAdmissionDoesNotRunCallbacks) {
@@ -18,7 +19,7 @@ TEST(RadioOperation, RejectedAdmissionDoesNotRunCallbacks) {
   EXPECT_EQ(operation.transmit(
                 [&]() {
                   called = true;
-                  return true;
+                  return SX126xError::NONE;
                 },
                 [&]() {
                   called = true;
@@ -60,7 +61,7 @@ TEST(RadioOperation, EarlyPreparationFailureStillRestoresExactlyOnce) {
   ASSERT_TRUE(operation.configure([]() { return true; }));
   unsigned restored = 0;
   bool waited = false;
-  EXPECT_EQ(operation.transmit([]() { return false; },
+  EXPECT_EQ(operation.transmit([]() { return SX126xError::SX126X_ERROR_BUSY_TIMEOUT; },
                                [&]() {
                                  waited = true;
                                  return SX126xError::NONE;
@@ -81,7 +82,7 @@ TEST(RadioOperation, EveryWaitResultRestoresAndCleanupFailureBlocksReuse) {
       RadioOperation operation;
       ASSERT_TRUE(operation.configure([]() { return true; }));
       unsigned cleanups = 0;
-      const auto actual = operation.transmit([]() { return true; }, [&]() { return result; },
+      const auto actual = operation.transmit([]() { return SX126xError::NONE; }, [&]() { return result; },
                                              [&]() {
                                                cleanups++;
                                                EXPECT_FALSE(operation.is_ready());
@@ -126,7 +127,7 @@ TEST(RadioOperation, CannotReenterDuringPreparationWaitingOrRestoration) {
     EXPECT_EQ(operation.transmit(
                   [&]() {
                     nested = true;
-                    return true;
+                    return SX126xError::NONE;
                   },
                   []() { return SX126xError::NONE; }, []() { return true; }),
               SX126xError::SX126X_ERROR_BUSY);
@@ -135,7 +136,7 @@ TEST(RadioOperation, CannotReenterDuringPreparationWaitingOrRestoration) {
   EXPECT_EQ(operation.transmit(
                 [&]() {
                   check();
-                  return true;
+                  return SX126xError::NONE;
                 },
                 [&]() {
                   check();
@@ -174,14 +175,14 @@ TEST(RadioOperation, AsyncContinuationOwnsRadioUntilOneCompletion) {
     restored++;
     return true;
   };
-  EXPECT_EQ(operation.start_transmit([]() { return true; }, restore), SX126xError::NONE);
+  EXPECT_EQ(operation.start_transmit([]() { return SX126xError::NONE; }, restore), SX126xError::NONE);
   EXPECT_TRUE(operation.is_waiting_for_transmit());
   EXPECT_FALSE(operation.is_ready());
   bool prepared_again = false;
   EXPECT_EQ(operation.start_transmit(
                 [&]() {
                   prepared_again = true;
-                  return true;
+                  return SX126xError::NONE;
                 },
                 restore),
             SX126xError::SX126X_ERROR_BUSY);
@@ -203,7 +204,8 @@ TEST(RadioOperation, AsyncStartAndCompletionFailuresBothRequireRestoration) {
       restored++;
       return false;
     };
-    const auto result = operation.start_transmit([&]() { return prepared; }, restore);
+    const auto result = operation.start_transmit(
+        [&]() { return prepared ? SX126xError::NONE : SX126xError::SX126X_ERROR_BUSY_TIMEOUT; }, restore);
     EXPECT_EQ(result, prepared ? SX126xError::NONE : SX126xError::SX126X_ERROR_BUSY_TIMEOUT);
     if (prepared) {
       EXPECT_EQ(operation.finish_transmit(SX126xError::NONE, restore), SX126xError::SX126X_ERROR_BUSY_TIMEOUT);
@@ -214,6 +216,31 @@ TEST(RadioOperation, AsyncStartAndCompletionFailuresBothRequireRestoration) {
     EXPECT_EQ(operation.transmit_admission(), SX126xError::SX126X_ERROR_NOT_READY);
     ASSERT_TRUE(operation.configure([]() { return true; }));
     EXPECT_TRUE(operation.is_ready());
+  }
+}
+
+TEST(RadioOperation, PendingReceiveOwnsRadioUntilRestoration) {
+  for (bool restored : {false, true}) {
+    RadioOperation operation;
+    ASSERT_TRUE(operation.configure([]() { return true; }));
+    unsigned cleanups = 0;
+    auto restore = [&]() {
+      cleanups++;
+      return restored;
+    };
+    EXPECT_EQ(operation.start_transmit([]() { return SX126xError::SX126X_ERROR_BUSY; }, restore),
+              SX126xError::SX126X_ERROR_BUSY);
+    EXPECT_TRUE(operation.has_pending_receive());
+    EXPECT_FALSE(operation.is_transmitting());
+    EXPECT_FALSE(operation.is_ready());
+    EXPECT_EQ(cleanups, 0u);
+    EXPECT_EQ(operation.transmit_admission(), SX126xError::SX126X_ERROR_BUSY);
+    EXPECT_FALSE(operation.change_mode([]() { return true; }));
+    EXPECT_EQ(operation.finish_receive(restore), restored ? SX126xError::NONE : SX126xError::SX126X_ERROR_BUSY_TIMEOUT);
+    EXPECT_EQ(operation.is_ready(), restored);
+    EXPECT_EQ(cleanups, 1u);
+    EXPECT_EQ(operation.finish_receive(restore), SX126xError::SX126X_ERROR_NOT_READY);
+    EXPECT_EQ(cleanups, 1u);
   }
 }
 }  // namespace esphome::sx126x::testing

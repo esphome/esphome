@@ -217,7 +217,9 @@ CONFIG_SCHEMA = (
             cv.Required(CONF_RF_SWITCH): cv.boolean,
             cv.Optional(CONF_SHAPING, default="NONE"): cv.enum(SHAPING),
             cv.Optional(CONF_SPREADING_FACTOR, default=7): cv.int_range(min=6, max=12),
-            cv.Optional(CONF_SYNC_VALUE, default=[]): cv.ensure_list(cv.hex_uint8_t),
+            cv.Optional(CONF_SYNC_VALUE, default=[]): cv.All(
+                cv.ensure_list(cv.hex_uint8_t), cv.Length(max=8)
+            ),
             cv.Optional(CONF_TCXO_VOLTAGE, default="NONE"): cv.enum(TCXO_VOLTAGE),
             cv.Optional(CONF_TCXO_DELAY, default="5ms"): cv.All(
                 cv.positive_time_period_microseconds,

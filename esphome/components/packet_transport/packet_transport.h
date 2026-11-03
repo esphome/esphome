@@ -119,17 +119,23 @@ class PacketTransport : public PollingComponent {
  protected:
   // child classes must implement this
   virtual void send_packet(const std::vector<uint8_t> &buf) const = 0;
+  // Backpressure-aware transports return false to retain pending sensor/ping work.
+  // Existing transports keep their send_packet() implementation unchanged.
+  virtual bool try_send_packet(const std::vector<uint8_t> &buf) const {
+    this->send_packet(buf);
+    return true;
+  }
   virtual size_t get_max_packet_size() = 0;
   virtual bool should_send() { return true; }
 
   // to be called by child classes when a data packet is received.
   void process_(std::span<const uint8_t> data);
   void send_data_(bool all);
-  void flush_();
-  void add_data_(uint8_t key, const char *id, float data);
-  void add_data_(uint8_t key, const char *id, uint32_t data);
+  bool flush_();
+  bool add_data_(uint8_t key, const char *id, float data);
+  bool add_data_(uint8_t key, const char *id, uint32_t data);
   void increment_code_();
-  void add_binary_data_(uint8_t key, const char *id, bool data);
+  bool add_binary_data_(uint8_t key, const char *id, bool data);
   void init_data_();
 
   bool updated_{};

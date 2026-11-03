@@ -262,9 +262,13 @@ void PacketTransport::init_data_() {
   }
 }
 
-void PacketTransport::flush_() {
-  if (!this->should_send() || this->data_.empty())
-    return;
+bool PacketTransport::flush_() {
+  if (!this->should_send()) {
+    return false;
+  }
+  if (this->data_.empty()) {
+    return true;
+  }
   auto header_len = round4(this->header_.size());
   auto len = round4(data_.size());
   auto encode_buffer = std::vector<uint8_t>(round4(header_len + len));
@@ -276,55 +280,85 @@ void PacketTransport::flush_() {
   }
   char hex_buf[format_hex_pretty_size(PACKET_MAX_LOG_BYTES)];
   ESP_LOGVV(TAG, "Sending packet %s", format_hex_pretty_to(hex_buf, encode_buffer.data(), encode_buffer.size()));
-  this->send_packet(encode_buffer);
+  return this->try_send_packet(encode_buffer);
 }
 
-void PacketTransport::add_binary_data_(uint8_t key, const char *id, bool data) {
+bool PacketTransport::add_binary_data_(uint8_t key, const char *id, bool data) {
   auto len = 1 + 1 + 1 + strlen(id);
   if (round4(this->header_.size()) + round4(this->data_.size() + len) > this->get_max_packet_size()) {
-    this->flush_();
+    if (!this->flush_()) {
+      return false;
+    }
     this->init_data_();
   }
   add(this->data_, key);
   add(this->data_, (uint8_t) data);
   add(this->data_, id);
+  return true;
 }
-void PacketTransport::add_data_(uint8_t key, const char *id, float data) {
+bool PacketTransport::add_data_(uint8_t key, const char *id, float data) {
   FuData udata{.f32 = data};
-  this->add_data_(key, id, udata.u32);
+  return this->add_data_(key, id, udata.u32);
 }
 
-void PacketTransport::add_data_(uint8_t key, const char *id, uint32_t data) {
+bool PacketTransport::add_data_(uint8_t key, const char *id, uint32_t data) {
   auto len = 4 + 1 + 1 + strlen(id);
   if (round4(this->header_.size()) + round4(this->data_.size() + len) > this->get_max_packet_size()) {
-    this->flush_();
+    if (!this->flush_()) {
+      return false;
+    }
     this->init_data_();
   }
   add(this->data_, key);
   add(this->data_, data);
   add(this->data_, id);
+  return true;
 }
 void PacketTransport::send_data_(bool all) {
-  if (!this->should_send())
+  this->updated_ = true;
+#ifdef USE_SENSOR
+  for (auto &sensor : this->sensors_) {
+    sensor.updated |= all;
+  }
+#endif
+#ifdef USE_BINARY_SENSOR
+  for (auto &sensor : this->binary_sensors_) {
+    sensor.updated |= all;
+  }
+#endif
+  if (!this->should_send()) {
     return;
+  }
   this->init_data_();
 #ifdef USE_SENSOR
   for (auto &sensor : this->sensors_) {
-    if (all || sensor.updated) {
-      sensor.updated = false;
-      this->add_data_(SENSOR_KEY, sensor.id, sensor.sensor->get_state());
+    if (sensor.updated && !this->add_data_(SENSOR_KEY, sensor.id, sensor.sensor->get_state())) {
+      return;
     }
   }
 #endif
 #ifdef USE_BINARY_SENSOR
   for (auto &sensor : this->binary_sensors_) {
-    if (all || sensor.updated) {
-      sensor.updated = false;
-      this->add_binary_data_(BINARY_SENSOR_KEY, sensor.id, sensor.sensor->state);
+    if (sensor.updated && !this->add_binary_data_(BINARY_SENSOR_KEY, sensor.id, sensor.sensor->state)) {
+      return;
     }
   }
 #endif
-  this->flush_();
+  if (!this->flush_()) {
+    return;
+  }
+  // Commit only after every packet succeeds. A retry may repeat earlier packets
+  // in a split update, but it must not discard unsent sensor values.
+#ifdef USE_SENSOR
+  for (auto &sensor : this->sensors_) {
+    sensor.updated = false;
+  }
+#endif
+#ifdef USE_BINARY_SENSOR
+  for (auto &sensor : this->binary_sensors_) {
+    sensor.updated = false;
+  }
+#endif
   this->updated_ = false;
 }
 
@@ -603,14 +637,18 @@ void PacketTransport::loop() {
 }
 
 void PacketTransport::send_ping_pong_request_() {
-  if (!this->ping_pong_enable_ || !this->should_send())
+  if (!this->ping_pong_enable_ || !this->should_send()) {
     return;
-  this->ping_key_ = random_uint32();
+  }
+  const uint32_t key = random_uint32();
   this->ping_header_.clear();
   add(this->ping_header_, MAGIC_PING);
   add(this->ping_header_, this->name_);
-  add(this->ping_header_, this->ping_key_);
-  this->send_packet(this->ping_header_);
+  add(this->ping_header_, key);
+  if (!this->try_send_packet(this->ping_header_)) {
+    return;
+  }
+  this->ping_key_ = key;
   this->resend_ping_key_ = false;
   ESP_LOGV(TAG, "Sent new ping request %08X", (unsigned) this->ping_key_);
 }

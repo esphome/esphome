@@ -13,6 +13,10 @@ void SX126xTransport::setup() {
 
 void SX126xTransport::send_packet(const std::vector<uint8_t> &buf) const { this->parent_->transmit_packet(buf); }
 
+bool SX126xTransport::try_send_packet(const std::vector<uint8_t> &buf) const {
+  return this->parent_->transmit_packet(buf) == SX126xError::NONE;
+}
+
 void SX126xTransport::on_packet(const std::vector<uint8_t> &packet, float rssi, float snr) { this->process_(packet); }
 
 }  // namespace esphome::sx126x

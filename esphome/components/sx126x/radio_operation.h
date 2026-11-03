@@ -23,12 +23,15 @@ class RadioOperation {
   bool is_ready() const { return this->state_ == State::STATE_IDLE; }
   bool is_active() const {
     return this->state_ == State::STATE_CONFIGURING || this->state_ == State::STATE_CHANGING_MODE ||
-           this->is_transmitting();
+           this->is_transmitting() || this->has_pending_receive();
   }
   bool is_transmitting() const {
     return this->state_ == State::STATE_PREPARING_TX || this->state_ == State::STATE_TRANSMITTING ||
            this->state_ == State::STATE_RESTORING;
   }
+  bool has_pending_receive() const { return this->state_ == State::STATE_RECEIVE_PENDING; }
+  // Explicit reconfiguration may discard held RX, including after repeated read failures.
+  bool can_configure() const { return !this->is_active() || this->has_pending_receive(); }
   SX126xError transmit_admission() const {
     if (this->is_ready()) {
       return SX126xError::NONE;
@@ -37,7 +40,7 @@ class RadioOperation {
   }
 
   template<typename Apply> [[nodiscard]] bool configure(Apply &&apply) {
-    if (this->is_active()) {
+    if (!this->can_configure()) {
       return false;
     }
     Attempt attempt(*this, State::STATE_CONFIGURING, State::STATE_UNCONFIGURED);
@@ -70,8 +73,8 @@ class RadioOperation {
     return result;
   }
 
-  // Preparation is synchronous. Failure always restores here; success retains ownership
-  // until finish_transmit(), so callers cannot re-admit the radio during packet airtime.
+  // Preparation returns NONE, BUSY for RX held in standby, or a command failure.
+  // Pending RX retains ownership until finish_receive(); failures restore immediately.
   template<typename Prepare, typename Restore>
   [[nodiscard]] SX126xError start_transmit(Prepare &&prepare, Restore &&restore) {
     const auto admission = this->transmit_admission();
@@ -79,14 +82,28 @@ class RadioOperation {
       return admission;
     }
     Attempt attempt(*this, State::STATE_PREPARING_TX);
-    if (!prepare()) {
-      return this->restore_(SX126xError::SX126X_ERROR_BUSY_TIMEOUT, restore, attempt);
+    const SX126xError prepared = prepare();
+    if (prepared == SX126xError::SX126X_ERROR_BUSY) {
+      attempt.finish(State::STATE_RECEIVE_PENDING);
+      return prepared;
+    }
+    if (prepared != SX126xError::NONE) {
+      return this->restore_(prepared, restore, attempt);
     }
     attempt.finish(State::STATE_TRANSMITTING);
     return SX126xError::NONE;
   }
 
   bool is_waiting_for_transmit() const { return this->state_ == State::STATE_TRANSMITTING; }
+
+  // The caller must consume held RX before restoration can clear IRQs or resume reception.
+  template<typename Restore> [[nodiscard]] SX126xError finish_receive(Restore &&restore) {
+    if (!this->has_pending_receive()) {
+      return SX126xError::SX126X_ERROR_NOT_READY;
+    }
+    Attempt attempt(*this, State::STATE_RESTORING);
+    return this->restore_(SX126xError::NONE, restore, attempt);
+  }
 
   template<typename Restore> [[nodiscard]] SX126xError finish_transmit(SX126xError result, Restore &&restore) {
     if (!this->is_waiting_for_transmit()) {
@@ -103,6 +120,7 @@ class RadioOperation {
     STATE_IDLE,
     STATE_CHANGING_MODE,
     STATE_PREPARING_TX,
+    STATE_RECEIVE_PENDING,
     STATE_TRANSMITTING,
     STATE_RESTORING,
     STATE_RECOVERY_REQUIRED

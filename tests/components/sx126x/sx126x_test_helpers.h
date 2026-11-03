@@ -15,6 +15,7 @@ class TestPin : public GPIOPin {
     return this->on_read ? this->on_read() : this->level;
   }
   void digital_write(bool level) override {
+    this->writes++;
     this->level = level;
     if (this->on_write) {
       this->on_write(level);
@@ -25,6 +26,7 @@ class TestPin : public GPIOPin {
   bool level{false};
   bool internal{false};
   unsigned reads{0};
+  unsigned writes{0};
   std::function<bool()> on_read;
   std::function<void(bool)> on_write;
 };
@@ -93,6 +95,11 @@ class RadioHardware {
       return bit;
     };
     this->dio.on_read = [this]() { return this->irq != 0; };
+    this->rst.on_write = [this](bool high) {
+      if (!high) {
+        this->irq = 0;
+      }
+    };
     this->spi.set_clk(&this->clk);
     this->spi.set_mosi(&this->mosi);
     this->spi.set_miso(&this->miso);

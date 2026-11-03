@@ -114,6 +114,8 @@ class SX126x final : public Component {
   // succeeded. True accepts cancellation; the completion result reports cleanup failure.
   bool cancel_transmit_async(SX126xTransmitListener *listener);
   bool is_transmitting() const;
+  // A cheap scheduling hint; callers must still handle rejection after this check.
+  bool can_transmit() { return this->is_ready() && this->operation_.is_ready() && !this->dio1_pin_->digital_read(); }
   void register_listener(SX126xListener *listener) { this->listeners_.push_back(listener); }
   Trigger<std::vector<uint8_t>, float, float> *get_packet_trigger() { return &this->packet_trigger_; }
 
@@ -142,7 +144,7 @@ class SX126x final : public Component {
   void poll_transmit_(uint32_t now);
   void finish_transmit_(SX126xError result);
   RadioOperation operation_;
-  bool prepare_transmit_(const uint8_t *data, size_t len, uint32_t timeout_ms);
+  SX126xError prepare_transmit_(const uint8_t *data, size_t len, uint32_t timeout_ms);
   template<typename Command> void change_mode_(Command &&command, bool retains_configuration = true) {
     if (this->can_change_mode_() && this->operation_.change_mode(command, retains_configuration)) {
       this->enable_loop();

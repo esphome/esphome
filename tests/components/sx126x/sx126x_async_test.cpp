@@ -456,4 +456,120 @@ TEST(SX126xAsync, FailedAdmissionRestoresReceivePollingWithoutAnotherTransmissio
   EXPECT_EQ(hw.sends, 0u);
 }
 
+TEST_P(SX126xAsyncModes, ReceiveAtStandbyRejectsSendAndSurvivesReadFailure) {
+  const auto [lora, rx, fixed] = GetParam();
+  RadioHardware hw;
+  PacketListener received;
+  TransmitListener tx;
+  hw.configure(lora, rx, fixed);
+  hw.radio.register_listener(&received);
+  hw.clear_trace();
+  auto write = hw.cs.on_write;
+  bool inject = true;
+  hw.cs.on_write = [&](bool high) {
+    write(high);
+    if (high && inject && !hw.transactions.back().empty() && hw.transactions.back()[0] == RADIO_SET_STANDBY) {
+      inject = false;
+      hw.irq = IRQ_RX_DONE;
+    }
+  };
+  EXPECT_EQ(hw.radio.start_transmit_async(&tx, hw.packet), SX126xError::SX126X_ERROR_BUSY);
+  EXPECT_TRUE(tx.results.empty());
+  EXPECT_TRUE(received.packets.empty());
+  EXPECT_FALSE(hw.receiving);
+  EXPECT_FALSE(hw.radio.is_transmitting());
+  EXPECT_EQ(hw.irq, IRQ_RX_DONE);
+  ASSERT_EQ(hw.transactions.size(), 2u);
+  EXPECT_EQ(hw.transactions[0][0], RADIO_SET_STANDBY);
+  EXPECT_EQ(hw.transactions[1][0], RADIO_GET_IRQSTATUS);
+  const auto resets = hw.rst.writes;
+  hw.radio.set_mode_rx();
+  EXPECT_EQ(hw.rst.writes, resets);
+  EXPECT_EQ(hw.transactions.size(), 2u);
+  EXPECT_EQ(hw.radio.transmit_packet(hw.packet), SX126xError::SX126X_ERROR_BUSY);
+  EXPECT_EQ(hw.radio.start_transmit_async(&tx, hw.packet), SX126xError::SX126X_ERROR_BUSY);
+  EXPECT_FALSE(hw.radio.cancel_transmit_async(&tx));
+
+  hw.clear_trace();
+  hw.fail_at = 2;  // Packet metadata read fails after the held IRQ is read.
+  hw.radio.loop();
+  EXPECT_TRUE(received.packets.empty());
+  EXPECT_EQ(hw.irq, IRQ_RX_DONE);
+  EXPECT_FALSE(hw.receiving);
+  hw.clear_trace();
+  hw.radio.loop();
+  hw.radio.loop();
+  ASSERT_EQ(received.packets.size(), 1u);
+  EXPECT_EQ(received.packets[0], hw.packet);
+  EXPECT_EQ(hw.receiving, rx);
+  EXPECT_EQ(hw.sends, 0u);
+  EXPECT_TRUE(tx.results.empty());
+  ASSERT_EQ(hw.radio.start_transmit_async(&tx, hw.packet), SX126xError::NONE);
+  hw.radio.loop();
+  EXPECT_EQ(tx.results, (std::vector<SX126xError>{SX126xError::NONE}));
+}
+
+TEST_P(SX126xAsyncModes, FailedPreparationAndRestorationRequireSuccessfulConfiguration) {
+  const auto [lora, rx, fixed] = GetParam();
+  RadioHardware hw;
+  TransmitListener listener;
+  hw.configure(lora, rx, fixed);
+  hw.clear_trace();
+  const auto busy = hw.busy.on_read;
+  hw.busy.on_read = [&]() { return hw.transactions.size() >= 3 || busy(); };
+  EXPECT_EQ(hw.radio.start_transmit_async(&listener, hw.packet), SX126xError::SX126X_ERROR_BUSY_TIMEOUT);
+  EXPECT_TRUE(listener.results.empty());
+  EXPECT_EQ(hw.sends, 0u);
+  EXPECT_FALSE(hw.radio.is_transmitting());
+  EXPECT_TRUE(hw.cs.level);
+  ASSERT_EQ(hw.transactions.size(), 4u);
+  EXPECT_TRUE(hw.transactions[2].empty());  // Failed preparation.
+  EXPECT_TRUE(hw.transactions[3].empty());  // Failed restoration.
+  hw.clear_trace();
+  hw.busy.on_read = busy;
+  hw.radio.set_mode_rx();
+  hw.radio.loop();
+  EXPECT_EQ(hw.radio.start_transmit_async(&listener, hw.packet), SX126xError::SX126X_ERROR_NOT_READY);
+  EXPECT_EQ(hw.radio.transmit_packet(hw.packet), SX126xError::SX126X_ERROR_NOT_READY);
+  EXPECT_TRUE(hw.transactions.empty());
+  hw.fail_at = 1;
+  hw.radio.configure();
+  EXPECT_EQ(hw.radio.start_transmit_async(&listener, hw.packet), SX126xError::SX126X_ERROR_NOT_READY);
+  hw.clear_trace();
+  hw.radio.configure();
+  EXPECT_EQ(hw.receiving, rx);
+  EXPECT_TRUE(listener.results.empty());
+  ASSERT_EQ(hw.radio.start_transmit_async(&listener, hw.packet), SX126xError::NONE);
+  hw.radio.loop();
+  EXPECT_EQ(listener.results, (std::vector<SX126xError>{SX126xError::NONE}));
+}
+
+TEST(SX126xAsync, ExplicitConfigurationCanRecoverAnUnreadableHeldPacket) {
+  RadioHardware hw;
+  TransmitListener listener;
+  hw.configure(true, true);
+  auto write = hw.cs.on_write;
+  hw.cs.on_write = [&](bool high) {
+    write(high);
+    if (high && !hw.transactions.back().empty() && hw.transactions.back()[0] == RADIO_SET_STANDBY) {
+      hw.irq = IRQ_RX_DONE;
+    }
+  };
+  EXPECT_EQ(hw.radio.start_transmit_async(&listener, hw.packet), SX126xError::SX126X_ERROR_BUSY);
+  hw.cs.on_write = write;
+  hw.busy.on_read = []() { return true; };
+  hw.radio.loop();
+  const auto resets = hw.rst.writes;
+  hw.radio.configure();
+  EXPECT_GT(hw.rst.writes, resets);
+  EXPECT_EQ(hw.radio.start_transmit_async(&listener, hw.packet), SX126xError::SX126X_ERROR_NOT_READY);
+  hw.busy.on_read = []() { return false; };
+  hw.radio.configure();
+  EXPECT_TRUE(hw.receiving);
+  EXPECT_TRUE(listener.results.empty());
+  ASSERT_EQ(hw.radio.start_transmit_async(&listener, hw.packet), SX126xError::NONE);
+  hw.radio.loop();
+  EXPECT_EQ(listener.results, (std::vector<SX126xError>{SX126xError::NONE}));
+}
+
 }  // namespace esphome::sx126x::testing

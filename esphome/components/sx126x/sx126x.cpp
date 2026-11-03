@@ -31,7 +31,7 @@ void SX126x::setup() {
 }
 
 void SX126x::configure() {
-  if (this->operation_.is_active() || this->rx_dispatching_) {
+  if (!this->operation_.can_configure() || this->rx_dispatching_) {
     ESP_LOGW(TAG, "Radio operation in progress, configuration ignored");
     return;
   }
@@ -133,11 +133,11 @@ SX126xError SX126x::start_transmit_async(SX126xTransmitListener *listener, const
   }
   this->tx_ = {listener, 0, timeout_ms};
   const auto result = this->operation_.start_transmit(
-      [this, data, len, timeout_ms]() { return this->command_result_(this->prepare_transmit_(data, len, timeout_ms)); },
+      [this, data, len, timeout_ms]() { return this->prepare_transmit_(data, len, timeout_ms); },
       [this]() { return this->command_result_(this->restore_after_transmit_()); });
   if (result != SX126xError::NONE) {
     this->tx_ = {};
-    if (this->operation_.is_ready()) {
+    if (this->operation_.is_ready() || this->operation_.has_pending_receive()) {
       this->enable_loop();
     }
     return result;
@@ -147,10 +147,21 @@ SX126xError SX126x::start_transmit_async(SX126xTransmitListener *listener, const
   return SX126xError::NONE;
 }
 
-bool SX126x::prepare_transmit_(const uint8_t *data, size_t len, uint32_t timeout_ms) {
-  return this->commands_.standby(STDBY_XOSC) && this->commands_.clear_irqs() &&
-         (this->active_profile_.payload_length != 0 || this->commands_.set_packet_params(this->active_profile_, len)) &&
-         this->commands_.write_fifo(data, len) && this->commands_.transmit(timeout_ms);
+SX126xError SX126x::prepare_transmit_(const uint8_t *data, size_t len, uint32_t timeout_ms) {
+  uint16_t status;
+  if (!this->command_result_(this->commands_.standby(STDBY_XOSC) && this->commands_.read_irq(status))) {
+    return SX126xError::SX126X_ERROR_BUSY_TIMEOUT;
+  }
+  // RX cannot advance in standby. Keep any packet that completed after admission
+  // intact for loop(), before clearing IRQs or overwriting the shared FIFO.
+  if (status & IRQ_RX_DONE) {
+    return SX126xError::SX126X_ERROR_BUSY;
+  }
+  const bool prepared =
+      this->commands_.clear_irqs() &&
+      (this->active_profile_.payload_length != 0 || this->commands_.set_packet_params(this->active_profile_, len)) &&
+      this->commands_.write_fifo(data, len) && this->commands_.transmit(timeout_ms);
+  return this->command_result_(prepared) ? SX126xError::NONE : SX126xError::SX126X_ERROR_BUSY_TIMEOUT;
 }
 
 bool SX126x::restore_after_transmit_() {
@@ -217,10 +228,11 @@ void SX126x::loop() {
     this->poll_transmit_(App.get_loop_component_start_time());
     return;
   }
-  if (!this->operation_.is_ready()) {
+  const bool receive_pending = this->operation_.has_pending_receive();
+  if (!this->operation_.is_ready() && !receive_pending) {
     return;
   }
-  if (!this->dio1_pin_->digital_read()) {
+  if (!receive_pending && !this->dio1_pin_->digital_read()) {
     if (this->dio1_pin_->is_internal()) {
       this->disable_loop();
     }
@@ -228,8 +240,25 @@ void SX126x::loop() {
   }
 
   uint16_t status;
-  if (!this->command_result_(this->commands_.read_irq(status)) ||
-      !this->command_result_(this->commands_.clear_irqs(status))) {
+  if (!this->command_result_(this->commands_.read_irq(status))) {
+    return;
+  }
+  if (receive_pending) {
+    const bool received = (status & IRQ_RX_DONE) && !(status & IRQ_CRC_ERROR);
+    float rssi = 0, snr = 0;
+    if (received &&
+        !this->command_result_(this->commands_.read_packet(this->active_profile_, this->packet_, rssi, snr))) {
+      return;  // Stay in standby with IRQ/FIFO intact so the next loop can retry.
+    }
+    const auto restored =
+        this->operation_.finish_receive([this]() { return this->command_result_(this->restore_after_transmit_()); });
+    (void) restored;  // The owner blocks further operations if restoration failed.
+    if (received) {
+      this->call_listeners_(this->packet_, rssi, snr);
+    }
+    return;
+  }
+  if (!this->command_result_(this->commands_.clear_irqs(status))) {
     return;
   }
   if ((status & IRQ_RX_DONE) && !(status & IRQ_CRC_ERROR)) {
