@@ -85,9 +85,6 @@ void RS485FrameHub::setup() {
   // send_assembly_buf_ holds an assembled frame_type+payload before framing; it can never
   // legitimately exceed max_frame_length_ (queue_raw_frame rejects anything larger).
   this->send_assembly_buf_.reserve(this->max_frame_length_);
-#if defined(USE_RS485_FRAME_SNIFFER_STATS) || defined(USE_RS485_FRAME_RESPONSE_MONITOR)
-  this->tx_stats_payload_buf_.reserve(this->max_frame_length_);
-#endif
   // tx_escaped_buf_ worst case: every payload byte is DLE and requires an escape byte.
   this->tx_escaped_buf_.reserve(this->max_frame_length_ * 2);
   this->tx_frame_buf_.reserve(tx_slot_capacity);
@@ -99,25 +96,10 @@ void RS485FrameHub::setup() {
   // Hex-text log buffer sized to the worst-case TX frame (2 hex chars per byte + NUL).
   this->hex_log_buf_size_ = tx_slot_capacity * 2 + 1;
   this->hex_log_buf_ = std::make_unique<char[]>(this->hex_log_buf_size_);
-
-#ifdef USE_RS485_FRAME_DISCOVERY
-  if (this->discovery_ != nullptr)
-    this->discovery_->setup();
-#endif
 }
 
 void RS485FrameHub::loop() {
   const uint32_t now = App.get_loop_component_start_time();
-
-#ifdef USE_RS485_FRAME_DISCOVERY
-  if (this->discovery_ != nullptr) {
-    // Discovery mode: capture raw bytes for analysis. No framing, no validation, no TX — the
-    // whole point is that the framing/CRC are not yet known.
-    this->read_available([this, now](uint8_t byte) { this->discovery_->feed_byte(byte, now); });
-    this->discovery_->tick(now);
-    return;
-  }
-#endif
 
   this->read_uart_(now);
 
@@ -126,7 +108,7 @@ void RS485FrameHub::loop() {
   // permanently stall reception until the next valid frame terminator arrived.
   if (this->in_frame_ && this->in_frame_timeout_ms_ > 0 && now - this->last_rx_time_ >= this->in_frame_timeout_ms_) {
     ESP_LOGW(TAG, "Intra-frame timeout — resetting receive state");
-    this->record_discard_(now);
+    this->record_discard_();
     this->in_frame_ = false;
     this->after_dle_ = false;
     this->raw_frame_.clear();
@@ -139,21 +121,12 @@ void RS485FrameHub::loop() {
   // Unsigned subtraction wraps correctly so this comparison handles the 49-day millis rollover.
   if (this->tx_start_pending_ && now - this->tx_start_at_ < 0x80000000UL) {
     this->tx_start_pending_ = false;
-    this->write_frame_(this->pending_tx_frame_, now);
+    this->write_frame_(this->pending_tx_frame_);
     this->mark_transmitted_(now);
     if (!this->pending_is_idle_)
       this->commands_sent_++;
     this->pending_is_idle_ = false;
   }
-
-#ifdef USE_RS485_FRAME_SNIFFER_STATS
-  if (this->sniffer_stats_ != nullptr)
-    this->sniffer_stats_->tick(now);
-#endif
-#ifdef USE_RS485_FRAME_RESPONSE_MONITOR
-  if (this->response_monitor_ != nullptr)
-    this->response_monitor_->process_timeouts(now);
-#endif
 }
 
 void RS485FrameHub::dump_config() {
@@ -197,16 +170,6 @@ void RS485FrameHub::dump_config() {
       ESP_LOGCONFIG(TAG, "  Idle command: 0x%08" PRIx32, this->idle_command_);
     }
   }
-#ifdef USE_RS485_FRAME_DISCOVERY
-  if (this->discovery_ != nullptr) {
-    ESP_LOGCONFIG(TAG, "  Discovery: ENABLED (framing/CRC/TX bypassed; passively analyzing raw traffic)");
-  }
-#endif
-#ifdef USE_RS485_FRAME_FRAME_TRACE
-  if (this->frame_trace_ != nullptr) {
-    ESP_LOGCONFIG(TAG, "  Frame trace: ENABLED");
-  }
-#endif
 }
 
 void RS485FrameHub::set_framing(uint8_t dle, uint8_t stx, uint8_t etx, uint8_t escape_marker) {
@@ -275,18 +238,6 @@ bool RS485FrameHub::enqueue_frame_() {
   return true;
 }
 
-// A frame abandoned mid-receive (max_frame_length overflow or intra-frame timeout) never
-// reaches process_raw_frame_'s validate_frame_() call, so it would otherwise be invisible to
-// both crc_failures_ and frame_trace -- this is the shared tap point for both discard sites in
-// read_uart_()/loop(). Called with raw_frame_ still intact; the caller clears it afterwards.
-void RS485FrameHub::record_discard_(uint32_t now) {
-  this->discarded_frames_++;
-#ifdef USE_RS485_FRAME_FRAME_TRACE
-  if (this->frame_trace_ != nullptr)
-    this->frame_trace_->record(this->raw_frame_.data(), this->raw_frame_.size(), /*is_tx=*/false, /*valid=*/false, now);
-#endif
-}
-
 void RS485FrameHub::read_uart_(uint32_t now) {
   this->read_available([this, now](uint8_t byte) { this->handle_rx_byte_(byte, now); });
 }
@@ -309,7 +260,7 @@ void RS485FrameHub::handle_rx_byte_(uint8_t byte, uint32_t now) {
 
   if (this->raw_frame_.size() >= this->max_frame_length_) {
     ESP_LOGW(TAG, "Frame exceeded max_frame_length");
-    this->record_discard_(now);
+    this->record_discard_();
     this->in_frame_ = false;
     this->after_dle_ = false;
     this->raw_frame_.clear();
@@ -346,16 +297,7 @@ void RS485FrameHub::handle_rx_byte_(uint8_t byte, uint32_t now) {
 }
 
 void RS485FrameHub::process_raw_frame_(uint32_t now) {
-  bool valid = this->validate_frame_();
-#ifdef USE_RS485_FRAME_FRAME_TRACE
-  // Tap point for invalid frames: raw_frame_ (the raw, still-stuffed wire bytes) is complete
-  // and correct here regardless of *why* validation failed, unlike the partially-unescaped
-  // rx_unescaped_ scratch buffer -- see frame_trace.h's FrameTraceEntry comment. Caller
-  // clears raw_frame_ only after this function returns, so it's safe to read here either way.
-  if (this->frame_trace_ != nullptr)
-    this->frame_trace_->record(this->raw_frame_.data(), this->raw_frame_.size(), /*is_tx=*/false, valid, now);
-#endif
-  if (!valid) {
+  if (!this->validate_frame_()) {
     this->crc_failures_++;
     return;
   }
@@ -379,15 +321,6 @@ void RS485FrameHub::process_raw_frame_(uint32_t now) {
     if (this->tx_gate_mode_ == TX_GATE_FRAME_TRIGGER)
       this->send_next_(now);
   }
-
-#ifdef USE_RS485_FRAME_SNIFFER_STATS
-  if (this->sniffer_stats_ != nullptr)
-    this->sniffer_stats_->record(this->rx_payload_, now);
-#endif
-#ifdef USE_RS485_FRAME_RESPONSE_MONITOR
-  if (this->response_monitor_ != nullptr)
-    this->response_monitor_->on_frame_received(this->rx_payload_, now);
-#endif
 
   for (auto *trigger : this->triggers_) {
     if (trigger->matches(this->rx_payload_))
@@ -650,7 +583,7 @@ void RS485FrameHub::queue_pop_front_() {
   this->tx_queue_count_--;
 }
 
-void RS485FrameHub::write_frame_(const std::vector<uint8_t> &frame, uint32_t now) {
+void RS485FrameHub::write_frame_(const std::vector<uint8_t> &frame) {
   this->write_array(frame);
 #if defined(USE_ESP8266) || defined(USE_RP2)
   // ESP8266 and RP2040 are Arduino-framework only (no ESP-IDF variant), and their uart
@@ -669,63 +602,7 @@ void RS485FrameHub::write_frame_(const std::vector<uint8_t> &frame, uint32_t now
     format_hex_to(this->hex_log_buf_.get(), this->hex_log_buf_size_, frame.data(), frame.size());
     ESP_LOGD(TAG, "TX %s", this->hex_log_buf_.get());
   }
-#ifdef USE_RS485_FRAME_FRAME_TRACE
-  if (this->frame_trace_ != nullptr)
-    this->frame_trace_->record(frame.data(), frame.size(), /*is_tx=*/true, /*valid=*/true, now);
-#endif
-#if defined(USE_RS485_FRAME_SNIFFER_STATS) || defined(USE_RS485_FRAME_RESPONSE_MONITOR)
-  bool need_tx_payload = false;
-#ifdef USE_RS485_FRAME_SNIFFER_STATS
-  need_tx_payload = need_tx_payload || this->sniffer_stats_ != nullptr;
-#endif
-#ifdef USE_RS485_FRAME_RESPONSE_MONITOR
-  need_tx_payload = need_tx_payload || this->response_monitor_ != nullptr;
-#endif
-  if (need_tx_payload) {
-    this->extract_tx_payload_(frame, this->tx_stats_payload_buf_);
-#ifdef USE_RS485_FRAME_SNIFFER_STATS
-    if (this->sniffer_stats_ != nullptr)
-      this->sniffer_stats_->record_tx(this->tx_stats_payload_buf_, now);
-#endif
-#ifdef USE_RS485_FRAME_RESPONSE_MONITOR
-    if (this->response_monitor_ != nullptr)
-      this->response_monitor_->on_trigger_sent(this->tx_stats_payload_buf_, now);
-#endif
-  }
-#endif
 }
-
-#if defined(USE_RS485_FRAME_SNIFFER_STATS) || defined(USE_RS485_FRAME_RESPONSE_MONITOR)
-void RS485FrameHub::extract_tx_payload_(const std::vector<uint8_t> &frame, std::vector<uint8_t> &out) const {
-  out.clear();
-  if (frame.size() < 4)
-    return;
-  // Same shape as validate_frame_'s unescape loop over raw_frame_: frame[0..1] is DLE+STX,
-  // frame[size-2..size-1] is DLE+ETX, everything between is escaped payload+CRC.
-  for (size_t i = 2; i + 2 < frame.size(); i++) {
-    uint8_t b = frame[i];
-    if (b == this->dle_) {
-      if (i + 1 < frame.size() - 2 && frame[i + 1] == this->escape_marker_) {
-        out.push_back(this->dle_);
-        i++;
-        continue;
-      }
-      // A DLE not followed by escape_marker_ inside a frame we built ourselves means
-      // build_frame_/escape_dle_ disagree with this unescape — should never happen; bail
-      // rather than key the entry on a malformed frame_type.
-      out.clear();
-      return;
-    }
-    out.push_back(b);
-  }
-  size_t crc_len = this->crc_length_();
-  if (out.size() < crc_len) {
-    out.clear();
-    return;
-  }
-  out.resize(out.size() - crc_len);
-}
-#endif
 
 void RS485FrameHub::send_next_(uint32_t now) {
   if (this->sniffer_only_ || this->tx_start_pending_)
@@ -746,7 +623,7 @@ void RS485FrameHub::send_next_(uint32_t now) {
     return;
   }
 
-  this->write_frame_(this->tx_queue_[this->tx_queue_head_], now);
+  this->write_frame_(this->tx_queue_[this->tx_queue_head_]);
   this->queue_pop_front_();
   this->mark_transmitted_(now);
   this->commands_sent_++;
@@ -762,7 +639,7 @@ void RS485FrameHub::send_next_idle_(uint32_t now) {
     this->pending_is_idle_ = true;
     return;
   }
-  this->write_frame_(this->tx_frame_buf_, now);
+  this->write_frame_(this->tx_frame_buf_);
   this->mark_transmitted_(now);
   // Idle keepalives are not counted in commands_sent_ — that counter tracks only real HA commands.
 }

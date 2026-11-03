@@ -5,12 +5,6 @@ globals:
   - id: g_display_text
     type: std::string
     initial_value: '""'
-  - id: g_lights_confirm_count
-    type: uint32_t
-    initial_value: "0"
-  - id: g_lights_failed_count
-    type: uint32_t
-    initial_value: "0"
 
 # NOTE: every hub below shares one UART (uart_bus) so this single config exercises all hub modes
 # for compile/config coverage. On real hardware each actively-transmitting hub needs its own UART;
@@ -39,13 +33,6 @@ rs485_frame:
       postamble: [0x00]
     dump_frames: true
     frame_timeout: 50ms
-    # Non-default size/capture_bytes/include_invalid so CI compiles the FixedVector at a size
-    # other than the schema default, and exercises the reject-path record() call
-    # (include_invalid: true, the default, but set explicitly here for clarity).
-    frame_trace:
-      size: 16
-      capture_bytes: 20
-      include_invalid: true
     on_frame:
       # Decode a 32-bit little-endian bitmask once; push to multiple template sensors.
       - frame_type: [0x01, 0x02]
@@ -84,57 +71,9 @@ rs485_frame:
           - lambda: |-
               if (!payload.empty())
                 id(g_led_mask) = payload[0];
-    # Live trigger -> response confirmation. Exercises button_id: trigger resolution,
-    # named field: references, the changed+bit signature mode (bit: 6 resolves to mask:
-    # 0x40), the text_enum and masked_int modes on a multi-alt entry, and the response_*
-    # sensor decodes below.
-    response_fields:
-      led_mask_01_02:
-        frame_type: [0x01, 0x02]
-        offset: 2
-        length: 4
-        endian: little
-      display_01_03:
-        frame_type: [0x01, 0x03]
-        offset: 2
-        length: 36
-    response_monitor:
-      - name: lights_confirm
-        trigger:
-          button_id: lights_toggle_button
-        window: 200ms
-        signature:
-          - field: led_mask_01_02
-            type: changed
-            bit: 6
-        # on_confirmed:/on_failed: automation triggers, independent of the built-in sensors
-        # above -- exercises the per-entry callback registration/codegen path.
-        on_confirmed:
-          - lambda: |-
-              id(g_lights_confirm_count) += 1;
-        on_failed:
-          - lambda: |-
-              id(g_lights_failed_count) += 1;
-          # Wires the frame_trace dump into a response_monitor failure -- the documented
-          # diagnostics use case (see this feature's own docs section).
-          - rs485_frame.dump_frame_trace: rs485_frame_hub
-      - name: menu_confirm
-        trigger:
-          frame_type: [0x02, 0x10]
-        window: 500ms
-        signature:
-          - field: display_01_03
-            type: text_enum
-            values: ["Auto Control", "Manual Off"]
-          - field: led_mask_01_02
-            type: masked_int
-            mask: 0x40
-            value: 0x40
 
   # Hub 2 — sniffer-only with idle_gap gate and CRC16-Modbus. Exercises a different
   # crc_type, gate mode, queue policy, and the FIFO-with-larger-queue path.
-  # Also exercises sniffer_stats: with an explicit reference_frame_type, so the
-  # USE_RS485_FRAME_SNIFFER_STATS gated code paths are compiled by CI.
   - id: rs485_frame_hub2
     uart_id: uart_bus
     sniffer_only: true
@@ -153,12 +92,6 @@ rs485_frame:
         min_silence: 10ms
       queue_policy: fifo
       max_queue_size: 4
-    sniffer_stats:
-      interval: 10s
-      max_frame_types: 16
-      payload_dump_top: 2
-      reference_frame_type: [0x01, 0x01]
-      ascii_strip_high_bit: true
 
   # Hub 3 — generic raw hub with no command_format: target of the raw-form button and the
   # send_frame action, proving the raw transmit path works without any command_format. XOR8
@@ -194,21 +127,6 @@ rs485_frame:
         mode: idle_gap
         min_silence: 20ms
       idle_command: 0x00
-
-  # Hub 5 — discovery mode: no framing/crc/escape declared (those are what it discovers). The
-  # hub bypasses framing/validation/TX and passively analyzes raw traffic. Compiles the
-  # USE_RS485_FRAME_DISCOVERY code path in CI.
-  #
-  # discovery.baud_sweep: is validated as ESP32/ESP8266-only (runtime UART reconfiguration is
-  # only implemented there), so it is not set here -- this file compiles on rp2040-ard too.
-  # common_baud_sweep.yaml adds it back via !extend for the platforms that support it; see
-  # test.esp32-idf.yaml / test.esp32-ard.yaml / test.esp8266-ard.yaml.
-  - id: rs485_frame_hub5
-    uart_id: uart_bus
-    discovery:
-      interval: 15s
-      idle_gap: 4ms
-      min_framing_confidence: 75
 
   # Hub 6 — sum16_little_endian CRC: compiles the little-endian 2-byte CRC read/emit branch
   # for a sum (the counterpart to sum16_big_endian; same on-wire byte order as crc16_modbus).
@@ -289,24 +207,6 @@ sensor:
     rs485_frame_id: rs485_frame_hub
     name: "Discarded Frames"
     decode: discarded_frames
-
-  - platform: rs485_frame
-    rs485_frame_id: rs485_frame_hub
-    name: "Lights Confirm Success"
-    decode: response_success
-    monitor_id: lights_confirm
-
-  - platform: rs485_frame
-    rs485_frame_id: rs485_frame_hub
-    name: "Lights Confirm Fail"
-    decode: response_fail
-    monitor_id: lights_confirm
-
-  - platform: rs485_frame
-    rs485_frame_id: rs485_frame_hub
-    name: "Lights Confirm Timeout"
-    decode: response_timeout
-    monitor_id: lights_confirm
 
 button:
   # value: form — encodes via the hub's command_format.

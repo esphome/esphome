@@ -6,7 +6,7 @@ on a live bus), flooding the API connection and the HA recorder with state write
 existing change-filter does nothing to reduce (the value genuinely changes every time).
 Fix: RS485FrameSensor becomes a PollingComponent, and each decode: gets a sensible default
 update_interval: -- 60s for the high-rate counters, 1s for decodes that change rarely (CRC
-failures, command drops, response outcomes) so a real occurrence still surfaces promptly.
+failures, command drops) so a real occurrence still surfaces promptly.
 An explicit user update_interval: must not be overridden.
 """
 

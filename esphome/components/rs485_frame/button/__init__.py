@@ -18,7 +18,7 @@ from .. import (
     MAX_COMMAND_VALUES,
     MAX_FRAME_LENGTH_UPPER,
     RS485FrameHub,
-    _resolve_button_trigger,
+    _resolve_button_frame,
     rs485_frame_ns,
     validate_byte,
     validate_frame_type,
@@ -122,12 +122,11 @@ def _final_validate(config):
     # The button's resolved on-wire frame (raw frame_type: + payload:, or command_format's
     # preamble + encoded value(s) + postamble) must fit within the hub's max_frame_length: —
     # otherwise queue_raw_frame()/queue_command_values() silently drops it at runtime, every
-    # time the button is pressed (rs485_frame.cpp). Mirrors _resolve_button_trigger's own
-    # on-wire byte layout so the length checked here is exactly the length the hub will see.
+    # time the button is pressed (rs485_frame.cpp).
     hub_command_format = None
     if CONF_VALUE in config and CONF_COMMAND_FORMAT not in config:
         hub_command_format = hub_config.get(CONF_COMMAND_FORMAT)
-    resolved = _resolve_button_trigger(config, hub_command_format)
+    resolved = _resolve_button_frame(config, hub_command_format)
     max_frame_length = hub_config[CONF_MAX_FRAME_LENGTH]
     if len(resolved) > max_frame_length:
         raise cv.Invalid(

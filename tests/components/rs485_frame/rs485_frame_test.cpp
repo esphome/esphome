@@ -1,13 +1,5 @@
-// Unlike sniffer_stats_test.cpp/response_monitor_test.cpp/frame_trace_test.cpp, this file does
-// NOT #include rs485_frame.cpp directly: that file is not macro-guarded as a whole (unlike the
-// USE_RS485_FRAME_SNIFFER_STATS/RESPONSE_MONITOR/FRAME_TRACE-gated optional modules), so it is
-// always compiled into the test binary's component library already -- doing so again here would
-// duplicate-define every RS485FrameHub method. This test therefore links against that library
-// object and only exercises paths that do not depend on USE_RS485_FRAME_FRAME_TRACE (the harness
-// builds this component's library object with none of those optional macros defined, matching
-// production builds where no hub in the synthesized test config requests those blocks) -- so
-// frame_trace's own recording behavior is covered by frame_trace_test.cpp, and this file covers
-// only the discard counter and the command_format guards that call into it.
+// Links against the component library object (rs485_frame.cpp is always compiled into the test
+// binary), so it covers the discard counter and the command_format guards without a real UART.
 
 #include <gtest/gtest.h>
 
@@ -27,7 +19,7 @@ class RS485FrameHubProbe : public RS485FrameHub {
  public:
   // Mirrors the one piece of RS485FrameHub::setup() that enqueue_frame_() actually needs: a
   // non-empty tx_queue_ ring sized to max_queue_size_. Everything else setup() does (UART
-  // buffer reservations, discovery) is unrelated to the paths under test.
+  // buffer reservations) is unrelated to the paths under test.
   void prepare_queue_for_test() {
     this->tx_queue_.resize(this->max_queue_size_);
     for (auto &slot : this->tx_queue_)
@@ -36,7 +28,7 @@ class RS485FrameHubProbe : public RS485FrameHub {
 
   uint32_t command_drops_for_test() const { return this->command_drops_; }
   uint32_t discarded_frames_for_test() const { return this->discarded_frames_; }
-  void record_discard_for_test(uint32_t now) { this->record_discard_(now); }
+  void record_discard_for_test() { this->record_discard_(); }
   size_t queue_depth_for_test() const { return this->queue_size_(); }
 };
 
@@ -97,8 +89,8 @@ TEST(RS485FrameHubTest, QueueCommandValuesWithElementBytesSucceedsWithCommandFor
 TEST(RS485FrameHubTest, RecordDiscardIncrementsDiscardedFramesCounter) {
   RS485FrameHubProbe hub;
 
-  hub.record_discard_for_test(/*now=*/1000);
-  hub.record_discard_for_test(/*now=*/2000);
+  hub.record_discard_for_test();
+  hub.record_discard_for_test();
 
   EXPECT_EQ(hub.discarded_frames_for_test(), 2u);
 }

@@ -27,9 +27,7 @@ rs485_frame:
       value_element_bytes: 4
       postamble: [0x00]
 
-  # Sniffer-only hub: exempt from the frame_trigger gate.frame_type requirement, and
-  # exercises sniffer_stats: with no explicit reference_frame_type so the default-to-gate
-  # fallback in to_code is reached during config-only validation. crc: type none.
+  # Sniffer-only hub: exempt from the frame_trigger gate.frame_type requirement. crc: type none.
   - id: sniffer_hub
     uart_id: uart_bus
     sniffer_only: true
@@ -42,7 +40,6 @@ rs485_frame:
     tx:
       gate:
         mode: idle_gap
-    sniffer_stats: {}
 
   # Raw-only generic hub with custom (non-default) framing bytes — exercises the framing
   # distinctness validation passing, and is the target of the raw-form button below (no
@@ -80,12 +77,6 @@ rs485_frame:
         mode: fixed_delay
         interval: 250ms
       idle_command: 0x00
-
-  # discovery hub: no framing.escape and no crc: required (those are what it discovers).
-  # Exercises the validate_hub early-return branch and the discovery: defaults.
-  - id: discover_hub
-    uart_id: uart_bus
-    discovery: {}
 
 # Buttons exercise all _validate_button + _final_validate branches:
 #   - value: form against a hub that has command_format (cmd_hub)                   -> accepted
