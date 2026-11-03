@@ -148,16 +148,16 @@ void BMP280Component::update() {
 }
 
 float BMP280Component::read_temperature_(int32_t *t_fine) {
+  // The chip reports 0x80000 for a skipped channel, but an enabled channel can read that too.
+  if (this->temperature_oversampling_ == BMP280_OVERSAMPLING_NONE) {
+    return NAN;
+  }
   uint8_t data[3]{};
   if (!this->bmp_read_bytes(BMP280_REGISTER_TEMPDATA, data, 3))
     return NAN;
   ESP_LOGV(TAG, "Read temperature data, raw: %02X %02X %02X", data[0], data[1], data[2]);
   int32_t adc = encode_uint24(data[0], data[1], data[2]);
   adc >>= 4;
-  if (adc == 0x80000) {
-    // temperature was disabled
-    return NAN;
-  }
 
   const int32_t t1 = this->calibration_.t1;
   const int32_t t2 = this->calibration_.t2;
@@ -172,15 +172,14 @@ float BMP280Component::read_temperature_(int32_t *t_fine) {
 }
 
 float BMP280Component::read_pressure_(int32_t t_fine) {
+  if (this->pressure_oversampling_ == BMP280_OVERSAMPLING_NONE) {
+    return NAN;
+  }
   uint8_t data[3];
   if (!this->bmp_read_bytes(BMP280_REGISTER_PRESSUREDATA, data, 3))
     return NAN;
   int32_t adc = encode_uint24(data[0], data[1], data[2]);
   adc >>= 4;
-  if (adc == 0x80000) {
-    // pressure was disabled
-    return NAN;
-  }
   const int64_t p1 = this->calibration_.p1;
   const int64_t p2 = this->calibration_.p2;
   const int64_t p3 = this->calibration_.p3;
