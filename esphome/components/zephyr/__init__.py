@@ -288,6 +288,20 @@ def zephyr_enable_usb_cdc_acm() -> None:
         zephyr_add_prj_conf("HWINFO", True)
         # prevent logging when buffer is full
         zephyr_add_prj_conf("USBD_CDC_ACM_LOG_LEVEL_WRN", True)
+        # Boards with a USB serial backend (xiao_ble, feather_nrf52840, ...) start their own USB
+        # device at boot with their own CDC ACM port. usb_device.cpp sets up the device instead,
+        # and only the ports ESPHome adds may be on the bus. Naming the board's node here also
+        # works on boards without it: the overlay then adds an empty disabled node.
+        zephyr_add_prj_conf("CDC_ACM_SERIAL_INITIALIZE_AT_BOOT", False)
+        zephyr_add_overlay(
+            """
+                &zephyr_udc0 {
+                    board_cdc_acm_uart: board_cdc_acm_uart {
+                        status = "disabled";
+                    };
+                };
+            """
+        )
         return
     if CORE.is_nrf52 and CORE.data[KEY_CORE][KEY_FRAMEWORK_VERSION] >= cv.Version(
         3, 2, 0

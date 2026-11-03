@@ -118,6 +118,7 @@ def test_legacy_usb_stack_options() -> None:
     assert prj_conf["CONFIG_USB_DEVICE_STACK_NEXT"] is False
     assert prj_conf["CONFIG_USB_CDC_ACM"] is True
     assert "CONFIG_USBD_CDC_ACM_CLASS" not in prj_conf
+    assert "board_cdc_acm_uart" not in CORE.data[KEY_ZEPHYR][KEY_OVERLAY][""]
 
 
 def test_new_usb_stack_options() -> None:
@@ -127,6 +128,9 @@ def test_new_usb_stack_options() -> None:
     assert prj_conf["CONFIG_USB_DEVICE_STACK_NEXT"] is True
     assert prj_conf["CONFIG_USBD_CDC_ACM_CLASS"] is True
     assert prj_conf["CONFIG_UART_LINE_CTRL"] is True
+    # The board's own USB device and CDC ACM port are turned off
+    assert prj_conf["CONFIG_CDC_ACM_SERIAL_INITIALIZE_AT_BOOT"] is False
+    assert "board_cdc_acm_uart" in CORE.data[KEY_ZEPHYR][KEY_OVERLAY][""]
     # Legacy-only options do not exist on the new stack
     assert "CONFIG_USB_CDC_ACM" not in prj_conf
     assert "CONFIG_USB_DEVICE_REMOTE_WAKEUP" not in prj_conf
