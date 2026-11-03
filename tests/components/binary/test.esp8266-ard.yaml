@@ -1,0 +1,6 @@
+substitutions:
+  fan_pin: GPIO12
+  light_pin: GPIO13
+
+packages:
+  binary: !include common.yaml

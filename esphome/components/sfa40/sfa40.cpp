@@ -127,13 +127,9 @@ void SFA40Component::update() {
       }
     }
 
-    if (this->humidity_sensor_ != nullptr) {
-      this->humidity_sensor_->publish_state(clamp(125.0f * static_cast<float>(raw[1]) / 65535.0f - 6.0f, 0.0f, 100.0f));
-    }
+    PUBLISH_STATE(this->humidity_sensor_, clamp(125.0f * static_cast<float>(raw[1]) / 65535.0f - 6.0f, 0.0f, 100.0f));
 
-    if (this->temperature_sensor_ != nullptr) {
-      this->temperature_sensor_->publish_state(175.0f * (static_cast<float>(raw[2]) / 65535.0f) - 45.0f);
-    }
+    PUBLISH_STATE(this->temperature_sensor_, 175.0f * (static_cast<float>(raw[2]) / 65535.0f) - 45.0f);
 
     this->status_clear_warning();
   });

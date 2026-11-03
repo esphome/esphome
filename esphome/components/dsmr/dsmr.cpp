@@ -167,9 +167,7 @@ bool Dsmr::parse_telegram_(const dsmr_parser::DsmrUnencryptedTelegram &telegram)
   this->publish_sensors(data);
 
   // Publish the telegram, after publishing the sensors so it can also trigger action based on latest values
-  if (this->s_telegram_ != nullptr) {
-    this->s_telegram_->publish_state(telegram.full_content().data(), telegram.full_content().size());
-  }
+  PUBLISH_STATE(this->s_telegram_, telegram.full_content().data(), telegram.full_content().size());
   return true;
 }
 

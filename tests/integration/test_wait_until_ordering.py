@@ -9,14 +9,16 @@ LIFO ordering which is incorrect.
 
 from __future__ import annotations
 
-import asyncio
 import re
 
 import pytest
 
+from .log_utils import LineWaiter
 from .state_utils import assert_device_name, require_service
 from .types import APIClientConnectedFactory, RunCompiledFunction
 from .wait_utils import wait_or_fail
+
+COMPLETED_PATTERN = re.compile(r"Completed iteration (\d+)")
 
 
 @pytest.mark.asyncio
@@ -30,34 +32,19 @@ async def test_wait_until_fifo_ordering(
     With the bug (using emplace_front), the order would be 4,3,2,1,0 (LIFO).
     With the fix (using emplace_back), the order should be 0,1,2,3,4 (FIFO).
     """
-    test_complete = asyncio.Event()
+    waiter = LineWaiter()
+    expected_order = [0, 1, 2, 3, 4]
 
-    # Track completion order
-    completed_order = []
-
-    # Patterns to match
-    queuing_pattern = re.compile(r"Queueing iteration (\d+)")
-    completed_pattern = re.compile(r"Completed iteration (\d+)")
-
-    def check_output(line: str) -> None:
-        """Check log output for completion order."""
-        if test_complete.is_set():
-            return
-
-        if mo := queuing_pattern.search(line):
-            iteration = int(mo.group(1))
-
-        elif mo := completed_pattern.search(line):
-            iteration = int(mo.group(1))
-            completed_order.append(iteration)
-
-            # Test completes when all 5 have completed
-            if len(completed_order) == 5:
-                test_complete.set()
+    def completed_order() -> list[int]:
+        return [
+            int(m.group(1))
+            for line in waiter.lines
+            if (m := COMPLETED_PATTERN.search(line))
+        ][: len(expected_order)]
 
     # Run with log monitoring
     async with (
-        run_compiled(yaml_config, line_callback=check_output),
+        run_compiled(yaml_config, line_callback=waiter.callback),
         api_client_connected() as client,
     ):
         # Verify device info
@@ -72,15 +59,14 @@ async def test_wait_until_fifo_ordering(
 
         # Wait for test to complete
         await wait_or_fail(
-            test_complete,
+            waiter.wait_for_each(*(f"Completed iteration {i}" for i in expected_order)),
             5.0,
             "Test timed out. Expected 5 completions",
             completed_order=completed_order,
         )
 
         # Verify FIFO order
-        expected_order = [0, 1, 2, 3, 4]
-        assert completed_order == expected_order, (
-            f"Unexpected order: {completed_order}. "
-            f"Expected FIFO order: {expected_order}"
+        order = completed_order()
+        assert order == expected_order, (
+            f"Unexpected order: {order}. Expected FIFO order: {expected_order}"
         )

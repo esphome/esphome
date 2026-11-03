@@ -108,7 +108,7 @@ bool check_sml_data(const bytes &buffer) {
 
   uint16_t crc_received = (buffer.at(buffer.size() - 2) << 8) | buffer.at(buffer.size() - 1);
   uint16_t crc_calculated = crc16(buffer.data() + 8, buffer.size() - 10, 0x6e23, 0x8408, true, true);
-  crc_calculated = (crc_calculated >> 8) | (crc_calculated << 8);
+  crc_calculated = byteswap(crc_calculated);
   if (crc_received == crc_calculated) {
     ESP_LOGV(TAG, "Checksum verification successful with CRC16/X25.");
     return true;

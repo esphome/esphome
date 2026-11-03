@@ -2,13 +2,11 @@
 
 from __future__ import annotations
 
-import asyncio
-import re
-
 import pytest
 
 from esphome.helpers import fnv1_hash
 
+from .log_utils import LineWaiter
 from .types import APIClientConnectedFactory, RunCompiledFunction
 
 
@@ -19,26 +17,16 @@ async def test_api_action_metadata(
     api_client_connected: APIClientConnectedFactory,
 ) -> None:
     """Action and argument metadata reach the client and the actions still run."""
-    loop = asyncio.get_running_loop()
-    buzzer_called = loop.create_future()
-    plain_called = loop.create_future()
-    buzzer_pattern = re.compile(r"Buzzer: two_short")
-    plain_pattern = re.compile(r"Plain action called")
-
-    def check_output(line: str) -> None:
-        if not buzzer_called.done() and buzzer_pattern.search(line):
-            buzzer_called.set_result(True)
-        elif not plain_called.done() and plain_pattern.search(line):
-            plain_called.set_result(True)
+    waiter = LineWaiter()
 
     async with (
-        run_compiled(yaml_config, line_callback=check_output),
+        run_compiled(yaml_config, line_callback=waiter.callback),
         api_client_connected() as client,
     ):
         _, services = await client.list_entities_services()
 
         by_name = {service.name: service for service in services}
-        assert set(by_name) == {"play_buzzer", "plain_action"}
+        assert set(by_name) == {"play_buzzer", "plain_action", "optional_args_action"}
         # Keys are hashed at codegen time and must match what the client expects
         for name, service in by_name.items():
             assert service.key == fnv1_hash(name), name
@@ -57,9 +45,20 @@ async def test_api_action_metadata(
         assert plain.description == ""
         assert plain.args[0].description == ""
 
+        # Optional flags and defaults, as (optional, default) per argument
+        def flags(service) -> dict[str, tuple[bool, str]]:
+            return {arg.name: (arg.optional, arg.default_value) for arg in service.args}
+
+        assert flags(plain) == {"value": (False, "")}
+        assert flags(by_name["optional_args_action"]) == {
+            "song_str": (True, ""),
+            "octave": (True, "5"),
+            "loud": (True, "true"),
+        }
+
         await client.execute_service(
             buzzer, {"song_str": "two_short:d=4,o=5,b=100:16e6,16e6", "volume": 3}
         )
         await client.execute_service(plain, {"value": 1})
-        await asyncio.wait_for(buzzer_called, timeout=5.0)
-        await asyncio.wait_for(plain_called, timeout=5.0)
+        await waiter.wait_for("Buzzer: two_short", timeout=5.0)
+        await waiter.wait_for("Plain action called", timeout=5.0)

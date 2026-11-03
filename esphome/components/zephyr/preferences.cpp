@@ -115,7 +115,7 @@ int ZephyrPreferences::load_setting(const char *name, size_t len, settings_read_
   auto type = parse_hex<uint32_t>(name);
   if (!type.has_value()) {
     std::string full_name(ESPHOME_SETTINGS_KEY);
-    full_name += "/";
+    full_name += '/';
     full_name += name;
     // Delete unusable keys. Otherwise it will stay in flash forever.
     settings_delete(full_name.c_str());

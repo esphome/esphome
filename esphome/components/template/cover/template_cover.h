@@ -22,6 +22,7 @@ class TemplateCover final : public cover::Cover, public Component {
   Trigger<> *get_open_trigger();
   Trigger<> *get_close_trigger();
   Trigger<> *get_stop_trigger();
+  Trigger<> *get_stop_tilt_trigger();
   Trigger<> *get_toggle_trigger();
   Trigger<float> *get_position_trigger();
   Trigger<float> *get_tilt_trigger();
@@ -30,6 +31,7 @@ class TemplateCover final : public cover::Cover, public Component {
   void set_has_stop(bool has_stop) { this->has_stop_ = has_stop; }
   void set_has_position(bool has_position) { this->has_position_ = has_position; }
   void set_has_tilt(bool has_tilt) { this->has_tilt_ = has_tilt; }
+  void set_has_stop_tilt(bool has_stop_tilt) { this->has_stop_tilt_ = has_stop_tilt; }
   void set_has_toggle(bool has_toggle) { this->has_toggle_ = has_toggle; }
   void set_restore_mode(TemplateCoverRestoreMode restore_mode) { restore_mode_ = restore_mode; }
 
@@ -59,7 +61,9 @@ class TemplateCover final : public cover::Cover, public Component {
   Trigger<float> position_trigger_;
   bool has_position_{false};
   Trigger<float> tilt_trigger_;
+  Trigger<> stop_tilt_trigger_;
   bool has_tilt_{false};
+  bool has_stop_tilt_{false};
 };
 
 }  // namespace esphome::template_

@@ -80,7 +80,7 @@ class SwingModeManager final {
  private:
   climate::ClimateSwingModeMask supported_swing_modes_{};
   MitsubishiCN105::VaneMode last_non_swing_vane_mode_{MitsubishiCN105::VaneMode::AUTO};
-  MitsubishiCN105::WideVaneMode last_non_swing_wide_vane_mode_{MitsubishiCN105::WideVaneMode::CENTER};
+  MitsubishiCN105::WideVaneMode last_non_swing_wide_vane_mode_{MitsubishiCN105::WideVaneMode::POSITION_3};  // center
 };
 
 }  // namespace esphome::mitsubishi_cn105

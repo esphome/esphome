@@ -67,9 +67,9 @@ void AirConditioner::on_status_change() {
   }
   if (need_publish)
     this->publish_state();
-  set_sensor(this->outdoor_sensor_, this->base_.getOutdoorTemp());
+  set_sensor(this->outdoor_temperature_sensor_, this->base_.getOutdoorTemp());
   set_sensor(this->power_sensor_, this->base_.getPowerUsage());
-  set_sensor(this->humidity_sensor_, this->base_.getIndoorHum());
+  set_sensor(this->humidity_setpoint_sensor_, this->base_.getIndoorHum());
 }
 
 void AirConditioner::control(const ClimateCall &call) {
@@ -173,9 +173,8 @@ void AirConditioner::do_follow_me(float temperature, bool use_fahrenheit, bool b
     return;
   }
 
-  // Round and convert temperature to long, then clamp and convert it to uint8_t
-  uint8_t temp_uint8 =
-      static_cast<uint8_t>(esphome::clamp<long>(std::lroundf(temperature), 0L, static_cast<long>(UINT8_MAX)));
+  // Clamp to the uint8_t range before rounding so lroundf never sees an out-of-range value
+  uint8_t temp_uint8 = static_cast<uint8_t>(std::lroundf(esphome::clamp(temperature, 0.0f, 255.0f)));
 
   char temp_symbol = use_fahrenheit ? 'F' : 'C';
   ESP_LOGD(Constants::TAG, "Follow me action called with temperature: %.5f °%c, rounded to: %u °%c", temperature,

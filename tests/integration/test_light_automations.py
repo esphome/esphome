@@ -4,13 +4,11 @@ Tests that on_turn_on, on_turn_off, and on_state triggers work correctly
 with the listener interface pattern.
 """
 
-import asyncio
-
 import pytest
 
+from .log_utils import LineWaiter
 from .state_utils import require_entity
 from .types import APIClientConnectedFactory, RunCompiledFunction
-from .wait_utils import wait_or_fail
 
 
 @pytest.mark.asyncio
@@ -20,76 +18,48 @@ async def test_light_automations(
     api_client_connected: APIClientConnectedFactory,
 ) -> None:
     """Test light on_turn_on, on_turn_off, and on_state triggers."""
-    loop = asyncio.get_running_loop()
-
-    # Futures for log line detection
-    on_turn_on_future: asyncio.Future[bool] = loop.create_future()
-    on_turn_off_future: asyncio.Future[bool] = loop.create_future()
-    on_state_count = 0
-    counting_enabled = False
-    on_state_futures: list[asyncio.Future[bool]] = []
-
-    def create_on_state_future() -> asyncio.Future[bool]:
-        """Create a new future for on_state trigger."""
-        future: asyncio.Future[bool] = loop.create_future()
-        on_state_futures.append(future)
-        return future
-
-    def check_output(line: str) -> None:
-        """Check log output for trigger messages."""
-        nonlocal on_state_count
-        if "TRIGGER: on_turn_on fired" in line:
-            if not on_turn_on_future.done():
-                on_turn_on_future.set_result(True)
-        elif "TRIGGER: on_turn_off fired" in line:
-            if not on_turn_off_future.done():
-                on_turn_off_future.set_result(True)
-        elif "TRIGGER: on_state fired" in line:
-            # Only count on_state after we start testing
-            if counting_enabled:
-                on_state_count += 1
-            # Complete any pending on_state futures
-            for future in on_state_futures:
-                if not future.done():
-                    future.set_result(True)
-                    break
+    waiter = LineWaiter()
+    on_turn_on_future = waiter.expect("TRIGGER: on_turn_on fired")
+    on_turn_off_future = waiter.expect("TRIGGER: on_turn_off fired")
+    on_state_text = "TRIGGER: on_state fired"
 
     async with (
-        run_compiled(yaml_config, line_callback=check_output),
+        run_compiled(yaml_config, line_callback=waiter.callback),
         api_client_connected() as client,
     ):
         # Get entities
         entities = await client.list_entities_services()
         light = require_entity(entities[0], "test_light", exact=True)
 
-        # Start counting on_state events now
-        counting_enabled = True
+        # Count on_state events from now on
+        on_state_before = waiter.count(on_state_text)
 
         # Test 1: Turn light on - should trigger on_turn_on and on_state
-        on_state_future_1 = create_on_state_future()
+        on_state_future_1 = waiter.expect(on_state_text)
         client.light_command(key=light.key, state=True)
 
         # Wait for on_turn_on trigger
-        await wait_or_fail(on_turn_on_future, 5.0, "on_turn_on trigger did not fire")
+        await waiter.wait(on_turn_on_future, 5.0, "on_turn_on trigger did not fire")
 
         # Wait for on_state trigger
-        await wait_or_fail(
+        await waiter.wait(
             on_state_future_1, 5.0, "on_state trigger did not fire after turn on"
         )
 
         # Test 2: Turn light off - should trigger on_turn_off and on_state
-        on_state_future_2 = create_on_state_future()
+        on_state_future_2 = waiter.expect(on_state_text)
         client.light_command(key=light.key, state=False)
 
         # Wait for on_turn_off trigger
-        await wait_or_fail(on_turn_off_future, 5.0, "on_turn_off trigger did not fire")
+        await waiter.wait(on_turn_off_future, 5.0, "on_turn_off trigger did not fire")
 
         # Wait for on_state trigger
-        await wait_or_fail(
+        await waiter.wait(
             on_state_future_2, 5.0, "on_state trigger did not fire after turn off"
         )
 
         # Verify on_state fired exactly twice (once for on, once for off)
+        on_state_count = waiter.count(on_state_text) - on_state_before
         assert on_state_count == 2, (
             f"on_state should have triggered exactly twice, got {on_state_count}"
         )

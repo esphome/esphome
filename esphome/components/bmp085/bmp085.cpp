@@ -30,25 +30,25 @@ void BMP085Component::setup() {
   }
 
   // Load calibration
-  this->calibration_.ac1 = ((data[0] & 0xFF) << 8) | (data[1] & 0xFF);
-  this->calibration_.ac2 = ((data[2] & 0xFF) << 8) | (data[3] & 0xFF);
-  this->calibration_.ac3 = ((data[4] & 0xFF) << 8) | (data[5] & 0xFF);
-  this->calibration_.ac4 = ((data[6] & 0xFF) << 8) | (data[7] & 0xFF);
-  this->calibration_.ac5 = ((data[8] & 0xFF) << 8) | (data[9] & 0xFF);
-  this->calibration_.ac6 = ((data[10] & 0xFF) << 8) | (data[11] & 0xFF);
-  this->calibration_.b1 = ((data[12] & 0xFF) << 8) | (data[13] & 0xFF);
-  this->calibration_.b2 = ((data[14] & 0xFF) << 8) | (data[15] & 0xFF);
-  this->calibration_.mb = ((data[16] & 0xFF) << 8) | (data[17] & 0xFF);
-  this->calibration_.mc = ((data[18] & 0xFF) << 8) | (data[19] & 0xFF);
-  this->calibration_.md = ((data[20] & 0xFF) << 8) | (data[21] & 0xFF);
+  this->calibration_.ac1 = encode_uint16(data[0], data[1]);
+  this->calibration_.ac2 = encode_uint16(data[2], data[3]);
+  this->calibration_.ac3 = encode_uint16(data[4], data[5]);
+  this->calibration_.ac4 = encode_uint16(data[6], data[7]);
+  this->calibration_.ac5 = encode_uint16(data[8], data[9]);
+  this->calibration_.ac6 = encode_uint16(data[10], data[11]);
+  this->calibration_.b1 = encode_uint16(data[12], data[13]);
+  this->calibration_.b2 = encode_uint16(data[14], data[15]);
+  this->calibration_.mb = encode_uint16(data[16], data[17]);
+  this->calibration_.mc = encode_uint16(data[18], data[19]);
+  this->calibration_.md = encode_uint16(data[20], data[21]);
 }
 void BMP085Component::dump_config() {
   ESP_LOGCONFIG(TAG, "BMP085:");
   LOG_I2C_DEVICE(this);
   LOG_UPDATE_INTERVAL(this);
 
-  LOG_SENSOR("  ", "Temperature", this->temperature_);
-  LOG_SENSOR("  ", "Pressure", this->pressure_);
+  LOG_SENSOR("  ", "Temperature", this->temperature_sensor_);
+  LOG_SENSOR("  ", "Pressure", this->pressure_sensor_);
 }
 
 void BMP085Component::read_temperature_() {
@@ -59,7 +59,7 @@ void BMP085Component::read_temperature_() {
     return;
   }
 
-  int32_t ut = ((buffer[0] & 0xFF) << 8) | (buffer[1] & 0xFF);
+  int32_t ut = encode_uint16(buffer[0], buffer[1]);
   if (ut == 0) {
     ESP_LOGW(TAG, "Invalid temperature!");
     this->status_set_warning();
@@ -76,8 +76,7 @@ void BMP085Component::read_temperature_() {
 
   this->calibration_.temp = temp;
   ESP_LOGD(TAG, "Got Temperature=%.1f °C", temp);
-  if (this->temperature_ != nullptr)
-    this->temperature_->publish_state(temp);
+  PUBLISH_STATE(this->temperature_sensor_, temp);
   this->status_clear_warning();
 
   if (!this->set_mode_(BMP085_CONTROL_MODE_PRESSURE_3)) {
@@ -123,8 +122,7 @@ void BMP085Component::read_pressure_() {
 
   ESP_LOGD(TAG, "Got Pressure=%.1f hPa", pressure);
 
-  if (this->pressure_ != nullptr)
-    this->pressure_->publish_state(pressure);
+  PUBLISH_STATE(this->pressure_sensor_, pressure);
   this->status_clear_warning();
 }
 bool BMP085Component::set_mode_(uint8_t mode) {

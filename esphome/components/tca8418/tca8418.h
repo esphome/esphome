@@ -58,7 +58,7 @@ class TCA8418Component : public key_provider::KeyProvider, public Component, pub
 #endif
 
   /// Wakes the loop so queued events are read. Runs in interrupt context.
-  static void IRAM_ATTR interrupt_handler(TCA8418Component *arg);
+  static void interrupt_handler(TCA8418Component *arg);
 
  protected:
   /// Write the matrix / individual-input pin configuration. Returns false on I2C failure.

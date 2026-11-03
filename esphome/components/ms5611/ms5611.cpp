@@ -116,10 +116,8 @@ void MS5611Component::calculate_values_(uint32_t raw_temperature, uint32_t raw_p
   const float pressure = p / 100.0f;
   ESP_LOGD(TAG, "Got temperature=%0.02f°C pressure=%0.01fhPa", temperature, pressure);
 
-  if (this->temperature_sensor_ != nullptr)
-    this->temperature_sensor_->publish_state(temperature);
-  if (this->pressure_sensor_ != nullptr)
-    this->pressure_sensor_->publish_state(pressure);  // hPa
+  PUBLISH_STATE(this->temperature_sensor_, temperature);
+  PUBLISH_STATE(this->pressure_sensor_, pressure);  // hPa
   this->status_clear_warning();
 }
 

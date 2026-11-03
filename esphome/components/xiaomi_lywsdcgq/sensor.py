@@ -1,5 +1,5 @@
 import esphome.codegen as cg
-from esphome.components import ble_device_base, sensor
+from esphome.components import ble_device_base, sensor, xiaomi_ble
 import esphome.config_validation as cv
 from esphome.const import (
     CONF_BATTERY_LEVEL,
@@ -20,7 +20,7 @@ AUTO_LOAD = ["ble_device_base", "xiaomi_ble"]
 
 xiaomi_lywsdcgq_ns = cg.esphome_ns.namespace("xiaomi_lywsdcgq")
 XiaomiLYWSDCGQ = xiaomi_lywsdcgq_ns.class_(
-    "XiaomiLYWSDCGQ", ble_device_base.ESPBTDeviceListener, cg.Component
+    "XiaomiLYWSDCGQ", xiaomi_ble.XiaomiDevice, cg.Component
 )
 
 CONFIG_SCHEMA = cv.All(
@@ -58,9 +58,9 @@ CONFIG_SCHEMA = cv.All(
 async def to_code(config: ConfigType) -> None:
     var = await ble_device_base.new_ble_device_component(config)
 
-    cg.add(var.set_address(config[CONF_MAC_ADDRESS].as_hex))
+    xiaomi_ble.setup_xiaomi_device(var, config)
 
     sensors = sensor.sub_sensors(config)
-    await sensors(CONF_TEMPERATURE, var.set_temperature)
-    await sensors(CONF_HUMIDITY, var.set_humidity)
-    await sensors(CONF_BATTERY_LEVEL, var.set_battery_level)
+    await sensors(CONF_TEMPERATURE, var.set_temperature_sensor)
+    await sensors(CONF_HUMIDITY, var.set_humidity_sensor)
+    await sensors(CONF_BATTERY_LEVEL, var.set_battery_level_sensor)

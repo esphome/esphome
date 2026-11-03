@@ -32,6 +32,7 @@ water_heater::WaterHeaterTraits TemplateWaterHeater::traits() {
   }
 
   traits.set_supports_current_temperature(true);
+  traits.set_temperature_unit(this->temperature_unit_);
   if (this->target_temperature_f_.has_value()) {
     traits.add_feature_flags(water_heater::WATER_HEATER_SUPPORTS_TARGET_TEMPERATURE);
   }

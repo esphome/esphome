@@ -24,8 +24,10 @@ if [ "$RESTART" = restart ]; then
   pid=$(cat "$WORK/mosquitto.pid" 2>/dev/null); [ -n "$pid" ] || { echo "no mosquitto.pid in $WORK, cannot restart the broker"; exit 1; }
   kill "$pid" || { echo "broker PID $pid is not running, nothing to restart"; exit 1; }; sleep 8
   nc -z -w 3 "$B" 1883 && { echo "the old broker still answers on 1883 after the kill"; exit 1; }
-  (cd "$WORK" && mosquitto -c mosquitto-ws.conf > mosquitto.out 2>&1 & echo $! > "$WORK/mosquitto.pid"); sleep 25
-  for port in 1883 9001 9002; do nc -z -w 3 "$B" "$port" || { echo "broker port $port not listening after the restart"; exit 1; }; done
+  # exec so the PID is the broker's own and no shell stays behind holding the caller's output pipe open
+  (cd "$WORK" && exec mosquitto -c mosquitto-ws.conf > mosquitto.out 2>&1 < /dev/null) &
+  echo $! > "$WORK/mosquitto.pid"; sleep 25
+  for port in $(awk '/^listener/ {print $2}' "$WORK/mosquitto-ws.conf"); do nc -z -w 3 "$B" "$port" || { echo "broker port $port not listening after the restart"; exit 1; }; done
   tail -n +$((n1+1)) "$LOG" | grep -a -q "MQTT_EVENT_CONNECTED\|\[mqtt:[0-9]*\]: Connected" || { echo "the device did not reconnect after the broker restart"; exit 1; }
 else
   echo "=== $N: no broker restart (pass 'restart' as the 7th argument for a local broker)"

@@ -19,7 +19,7 @@ PROGMEM_STRING_TABLE(NumberMqttModeStrings, "", "box", "slider");
 MQTTNumberComponent::MQTTNumberComponent(Number *number) : number_(number) {}
 
 void MQTTNumberComponent::setup() {
-  this->subscribe(this->get_command_topic_(), [this](const std::string &topic, const std::string &state) {
+  this->subscribe(this->command_topic_source_(), [this](const std::string &topic, const std::string &state) {
     auto val = parse_number<float>(state);
     if (!val.has_value()) {
       ESP_LOGW(TAG, "Can't convert '%s' to number!", state.c_str());

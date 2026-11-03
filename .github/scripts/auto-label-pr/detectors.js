@@ -272,6 +272,18 @@ async function detectTests(changedFiles) {
   return labels;
 }
 
+// Strategy: API protocol change detection
+// aioesphomeapi carries copies of both files, so every change here needs a sync there
+const API_PROTO_FILES = ['esphome/components/api/api.proto', 'esphome/components/api/api_options.proto'];
+
+async function detectApiProto(changedFiles) {
+  const labels = new Set();
+  if (changedFiles.some(file => API_PROTO_FILES.includes(file))) {
+    labels.add('api.proto');
+  }
+  return labels;
+}
+
 // Strategy: PR Template Checkbox detection
 async function detectPRTemplateCheckboxes(context) {
   const labels = new Set();
@@ -460,6 +472,7 @@ module.exports = {
   detectGitHubActionsChanges,
   detectCodeOwner,
   detectTests,
+  detectApiProto,
   detectPRTemplateCheckboxes,
   detectDeprecatedComponents,
   detectMaintainerAccess,

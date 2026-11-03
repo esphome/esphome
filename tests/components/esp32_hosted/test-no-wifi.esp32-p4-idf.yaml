@@ -2,7 +2,6 @@
 esp32_hosted:
   variant: ESP32C6
   slot: 1
-  active_high: true
   reset_pin: GPIO15
   cmd_pin: GPIO13
   clk_pin: GPIO12

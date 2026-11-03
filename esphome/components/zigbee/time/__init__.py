@@ -6,13 +6,12 @@ from esphome.core import CORE
 from esphome.types import ConfigType
 
 from .. import consume_endpoint
-from ..const import zigbee_ns
+from ..const import ZigbeeComponent, zigbee_ns
 from ..const_esp32 import ROLE
 from ..const_zephyr import CONF_ZIGBEE_ID
 from ..zigbee_ep_esp32 import add_clusters_to_first_ep, get_first_ep_num
 from ..zigbee_zephyr import (
     ZigbeeClusterDesc,
-    ZigbeeComponent,
     get_slot_index,
     zigbee_assign,
     zigbee_new_attr_list,

@@ -88,6 +88,12 @@ button:
       - alarm_control_panel.disarm:
           id: alarmcontrolpanel1
           code: "1234"
+      - alarm_control_panel.disarm:
+          id: alarmcontrolpanel1
+          code: !lambda return std::string("1234");
+      - alarm_control_panel.arm_night:
+          id: alarmcontrolpanel1
+          code: !lambda return std::string("0000");
       - alarm_control_panel.arm_away: alarmcontrolpanel2
       - alarm_control_panel.arm_home: alarmcontrolpanel2
       - alarm_control_panel.arm_night: alarmcontrolpanel2

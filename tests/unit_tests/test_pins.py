@@ -1,13 +1,27 @@
 """Unit tests for esphome/pins.py."""
 
+from collections.abc import Iterator
+import functools
+import logging
 from unittest.mock import AsyncMock, MagicMock, patch
 
 import pytest
 
 from esphome import config_validation as cv, pins
 import esphome.codegen as cg
-from esphome.const import CONF_ADDRESS
-from esphome.core import ID
+from esphome.config import Config, path_context
+from esphome.const import (
+    CONF_ADDRESS,
+    CONF_ALLOW_OTHER_USES,
+    CONF_ID,
+    CONF_IGNORE_STRAPPING_WARNING,
+    CONF_INVERTED,
+    CONF_MODE,
+    CONF_NUMBER,
+    KEY_CORE,
+    KEY_TARGET_PLATFORM,
+)
+from esphome.core import CORE, ID
 from esphome.schema_extractors import SCHEMA_EXTRACT
 
 SomeHub = cg.esphome_ns.class_("SomeHub")
@@ -166,3 +180,345 @@ async def test_new_parented_pin(args: tuple[str, ...]) -> None:
     var.set_inverted.assert_called_once_with(True)
     var.set_flags.assert_called_once()
     assert add.call_count == 3
+
+
+@pytest.fixture
+def registry() -> pins.PinRegistry:
+    reg = pins.PinRegistry()
+    reg.register("hub", lambda conf: conf)(lambda conf: conf)
+    return reg
+
+
+@pytest.fixture
+def pin_path() -> Iterator[None]:
+    CORE.data[KEY_CORE] = {KEY_TARGET_PLATFORM: "esp32"}
+    token = path_context.set(["pin"])
+    try:
+        yield
+    finally:
+        path_context.reset(token)
+
+
+@pytest.mark.usefixtures("pin_path")
+def test_registry_validate_tracks_usage_and_get_count(
+    registry: pins.PinRegistry,
+) -> None:
+    assert registry.get_count("hub", "h1", 4) == 0
+
+    registry.validate({"hub": "h1", CONF_NUMBER: 4}, "hub")
+
+    assert registry.get_count("hub", "h1", 4) == 1
+    assert registry.get_count("hub", "h1", 5) == 0
+
+
+@pytest.mark.usefixtures("pin_path")
+def test_registry_validate_without_number_is_not_tracked(
+    registry: pins.PinRegistry,
+) -> None:
+    assert registry.validate({"hub": "h1"}, "hub") == {"hub": "h1"}
+    assert not registry.pins_used
+
+
+def test_registry_get_to_code(registry: pins.PinRegistry) -> None:
+    to_code = registry["hub"][0]
+
+    assert registry.get_to_code("hub") is to_code
+    assert registry.get_to_code({"hub": "h1"}) is to_code
+
+
+def _final_config(client_id: ID) -> Config:
+    config = Config()
+    config["hub"] = [{CONF_ID: client_id}]
+    config.declare_ids.append((client_id, ["hub", 0, CONF_ID]))
+    return config
+
+
+@pytest.mark.parametrize(
+    ("uses", "allow_others", "testing_mode", "error"),
+    [
+        (2, False, False, "used in multiple places"),
+        (2, True, False, None),
+        (2, False, True, None),
+        (1, False, False, None),
+        (1, True, False, "incorrectly sets allow_other_uses"),
+        (1, True, True, None),
+    ],
+)
+@pytest.mark.usefixtures("pin_path")
+def test_registry_final_validate_reuse_rules(
+    registry: pins.PinRegistry,
+    monkeypatch: pytest.MonkeyPatch,
+    uses: int,
+    allow_others: bool,
+    testing_mode: bool,
+    error: str | None,
+) -> None:
+    client_id = ID("h1", is_declaration=True)
+    extra = {CONF_ALLOW_OTHER_USES: True} if allow_others else {}
+    for _ in range(uses):
+        registry.validate({"hub": client_id, CONF_NUMBER: 4, **extra}, "hub")
+    monkeypatch.setattr(CORE, "testing_mode", testing_mode)
+    config = _final_config(client_id)
+
+    registry.final_validate(config)
+
+    if error is None:
+        assert not config.errors
+    else:
+        assert all(error in str(err) for err in config.errors)
+        assert config.errors
+
+
+@pytest.mark.usefixtures("pin_path")
+def test_registry_final_validate_runs_hook_with_parent_config(
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    hook = MagicMock()
+    registry = pins.PinRegistry()
+    registry.register("hub", lambda conf: conf, hook)(lambda conf: conf)
+    client_id = ID("h1", is_declaration=True)
+    pin = registry.validate({"hub": client_id, CONF_NUMBER: 4}, "hub")
+    config = _final_config(client_id)
+
+    registry.final_validate(config)
+
+    hook.assert_called_once_with(pin, config["hub"][0])
+    assert not config.errors
+
+
+def _validate_at(
+    registry: pins.PinRegistry, path: list, conf: dict, optional: bool = False
+) -> dict:
+    """Validate a hub pin as if it is in the component at ``path``."""
+    token = path_context.set(path)
+    try:
+        validator = functools.partial(registry.validate, key="hub")
+        if optional:
+            validator = registry.optional(validator)
+        return validator(conf)
+    finally:
+        path_context.reset(token)
+
+
+@pytest.mark.usefixtures("pin_path")
+def test_registry_final_validate_removes_optional_pin_used_elsewhere(
+    registry: pins.PinRegistry, caplog: pytest.LogCaptureFixture
+) -> None:
+    """An optional pin also used elsewhere is removed from its config without error."""
+    client_id = ID("h1", is_declaration=True)
+    switch_pin = _validate_at(
+        registry, ["switch", 0], {"hub": client_id, CONF_NUMBER: 2}
+    )
+    kept = _validate_at(
+        registry, ["display", 0], {"hub": client_id, CONF_NUMBER: 6}, optional=True
+    )
+    dropped = _validate_at(
+        registry, ["display", 0], {"hub": client_id, CONF_NUMBER: 2}, optional=True
+    )
+    config = _final_config(client_id)
+    config["switch"] = [{"pin": switch_pin}]
+    config["display"] = [{"enable_pin": [dropped, kept]}]
+
+    with caplog.at_level(logging.INFO):
+        registry.remove_optional_conflicts(config)
+
+    # Removed before final validation, so later checks of pin use don't see it
+    assert config["display"][0]["enable_pin"] == [kept]
+    assert config["switch"][0]["pin"] is switch_pin
+    assert registry.get_count("hub", client_id, 2) == 1
+    assert "hub h1 pin 2 is used elsewhere" in caplog.text
+    registry.final_validate(config)
+    assert not config.errors
+
+
+@pytest.mark.usefixtures("pin_path")
+def test_registry_shares_optional_pin_when_others_allow_it(
+    registry: pins.PinRegistry,
+) -> None:
+    """An optional pin is shared, not removed, when every other use sets allow_other_uses."""
+    client_id = ID("h1", is_declaration=True)
+    switch_pin = _validate_at(
+        registry,
+        ["switch", 0],
+        {"hub": client_id, CONF_NUMBER: 2, CONF_ALLOW_OTHER_USES: True},
+    )
+    optional = _validate_at(
+        registry, ["display", 0], {"hub": client_id, CONF_NUMBER: 2}, optional=True
+    )
+    config = _final_config(client_id)
+    config["switch"] = [{"pin": switch_pin}]
+    config["display"] = [{"enable_pin": [optional]}]
+
+    registry.remove_optional_conflicts(config)
+    registry.final_validate(config)
+
+    assert not config.errors
+    assert config["display"][0]["enable_pin"] == [optional]
+    assert optional[CONF_ALLOW_OTHER_USES] is True
+    assert registry.get_count("hub", client_id, 2) == 2
+
+
+def test_optional_wrapper_is_transparent_to_schema_extraction() -> None:
+    """The schema dumper sees the wrapped validator through the optional() wrapper."""
+    validator = cv.ensure_list(pins.gpio_output_pin_schema)
+
+    assert pins.PIN_SCHEMA_REGISTRY.optional(validator)(SCHEMA_EXTRACT) is validator
+
+
+@pytest.mark.usefixtures("pin_path")
+def test_registry_keeps_optional_pin_missing_from_config(
+    registry: pins.PinRegistry,
+) -> None:
+    """An optional pin that cannot be found in the config is kept, so the conflict is reported."""
+    client_id = ID("h1", is_declaration=True)
+    switch_pin = _validate_at(
+        registry, ["switch", 0], {"hub": client_id, CONF_NUMBER: 2}
+    )
+    optional = _validate_at(
+        registry, ["display", 0], {"hub": client_id, CONF_NUMBER: 2}, optional=True
+    )
+    config = _final_config(client_id)
+    config["switch"] = [{"pin": switch_pin}]
+    config["display"] = [{"enable_pin": [dict(optional)]}]
+
+    registry.remove_optional_conflicts(config)
+    registry.final_validate(config)
+
+    assert registry.get_count("hub", client_id, 2) == 2
+    assert config.errors
+    assert all("used in multiple places" in str(err) for err in config.errors)
+
+
+@pytest.mark.usefixtures("pin_path")
+def test_registry_final_validate_optional_pins_alone(
+    registry: pins.PinRegistry,
+) -> None:
+    """Optional pins only give way to other uses: one is kept, and two still conflict."""
+    client_id = ID("h1", is_declaration=True)
+    single = _validate_at(
+        registry, ["display", 0], {"hub": client_id, CONF_NUMBER: 6}, optional=True
+    )
+    first = _validate_at(
+        registry, ["display", 0], {"hub": client_id, CONF_NUMBER: 2}, optional=True
+    )
+    second = _validate_at(
+        registry, ["display", 1], {"hub": client_id, CONF_NUMBER: 2}, optional=True
+    )
+    config = _final_config(client_id)
+    config["display"] = [{"enable_pin": [first, single]}, {"enable_pin": [second]}]
+
+    registry.remove_optional_conflicts(config)
+    registry.final_validate(config)
+
+    assert config["display"][0]["enable_pin"] == [first, single]
+    assert config["display"][1]["enable_pin"] == [second]
+    assert config.errors
+    assert all("used in multiple places" in str(err) for err in config.errors)
+
+
+@pytest.mark.parametrize(
+    ("mode", "expected"),
+    [
+        ("input", {"input": True}),
+        ("INPUT_PULLUP", {"input": True, "pullup": True}),
+        ("output_open_drain", {"output": True, "open_drain": True}),
+    ],
+)
+def test_set_mode_parses_string_modes(mode: str, expected: dict[str, bool]) -> None:
+    assert pins._set_mode({CONF_NUMBER: 1, CONF_MODE: mode}, {}) == {
+        CONF_NUMBER: 1,
+        CONF_MODE: expected,
+    }
+
+
+def test_set_mode_rejects_unknown_string_mode() -> None:
+    with pytest.raises(cv.Invalid, match="Unknown pin mode bogus"):
+        pins._set_mode({CONF_MODE: "bogus"}, {})
+
+
+def test_set_mode_keeps_dict_mode_and_applies_default() -> None:
+    explicit = {CONF_MODE: {"input": True}}
+    assert pins._set_mode(explicit, {"output": True}) is explicit
+    assert pins._set_mode({}, {"output": True}) == {CONF_MODE: {"output": True}}
+
+
+def test_gpio_flags_expr() -> None:
+    assert str(pins.gpio_flags_expr({"input": False})) == str(cg.gpio_Flags.FLAG_NONE)
+    flags = str(pins.gpio_flags_expr({"input": True, "pullup": True}))
+    assert "FLAG_INPUT" in flags
+    assert "FLAG_PULLUP" in flags
+
+
+def test_gpio_validate_modes() -> None:
+    mode = {"input": True, "output": False}
+    assert pins.gpio_validate_modes(mode) is mode
+    with pytest.raises(cv.Invalid, match="Mode must be input or output"):
+        pins.gpio_validate_modes({"input": False, "output": False})
+
+
+INPUT_MODE = {"input": True}
+
+
+def test_gpio_base_schema_rejects_placeholder_number() -> None:
+    schema = pins.gpio_base_schema(SomeHub, cv.int_)
+
+    with pytest.raises(cv.Invalid, match="placeholder 'GPIOX'"):
+        schema({CONF_NUMBER: "GPIOX", CONF_MODE: INPUT_MODE})
+    assert schema({CONF_NUMBER: 3, CONF_MODE: INPUT_MODE})[CONF_NUMBER] == 3
+
+
+@pytest.mark.parametrize("invertible", [True, False])
+def test_gpio_base_schema_invertible(invertible: bool) -> None:
+    schema = pins.gpio_base_schema(SomeHub, cv.int_, invertible=invertible)
+
+    assert (
+        CONF_INVERTED in schema({CONF_NUMBER: 3, CONF_MODE: INPUT_MODE})
+    ) is invertible
+
+
+def test_check_strapping_pin(caplog: pytest.LogCaptureFixture) -> None:
+    logger = logging.getLogger("test_pins")
+    with caplog.at_level(logging.WARNING, logger="test_pins"):
+        pins.check_strapping_pin({CONF_NUMBER: 2}, {2}, logger)
+        pins.check_strapping_pin(
+            {CONF_NUMBER: 2, CONF_IGNORE_STRAPPING_WARNING: True}, {2}, logger
+        )
+    assert caplog.text.count("GPIO2 is a strapping pin") == 1
+    with pytest.raises(cv.Invalid, match="not a strapping pin"):
+        pins.check_strapping_pin(
+            {CONF_NUMBER: 3, CONF_IGNORE_STRAPPING_WARNING: True}, {2}, logger
+        )
+
+
+def test_optional_pins_removed_between_id_pass_and_final_validation() -> None:
+    """Optional pins are removed once ids are resolved, and before components inspect pin use."""
+    from esphome.config import (
+        FinalValidateValidationStep,
+        IDPassValidationStep,
+        OptionalPinValidationStep,
+    )
+
+    assert (
+        IDPassValidationStep.priority
+        > OptionalPinValidationStep.priority
+        > FinalValidateValidationStep.priority
+    )
+
+
+def test_optional_pin_step_skips_config_with_errors(
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    """Optional pins are only removed when the config has no errors so far."""
+    from esphome.config import OptionalPinValidationStep
+
+    remove = MagicMock()
+    monkeypatch.setattr(pins.PIN_SCHEMA_REGISTRY, "remove_optional_conflicts", remove)
+    config = Config()
+
+    OptionalPinValidationStep().run(config)
+    remove.assert_called_once_with(config)
+
+    remove.reset_mock()
+    config.add_str_error("Invalid", ["display", 0])
+    OptionalPinValidationStep().run(config)
+    remove.assert_not_called()

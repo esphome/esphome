@@ -106,7 +106,7 @@ class ST25R : public PollingComponent, public nfc::Nfcc {
   void finish_scan_();
   void finalize_scan_();
   void remove_tag_();
-  static void IRAM_ATTR isr(ST25R *arg);
+  static void isr(ST25R *arg);
 
   GPIOPin *reset_pin_{nullptr};
   InternalGPIOPin *irq_pin_{nullptr};

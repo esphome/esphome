@@ -8,49 +8,16 @@ ESPHOME_LOG_TAG(TAG, "xiaomi_wx08zm");
 void XiaomiWX08ZM::dump_config() {
   ESP_LOGCONFIG(TAG, "Xiaomi WX08ZM");
   LOG_BINARY_SENSOR("  ", "Mosquito Repellent", this);
-  LOG_SENSOR("  ", "Tablet Resource", this->tablet_);
-  LOG_SENSOR("  ", "Battery Level", this->battery_level_);
+  LOG_SENSOR("  ", "Tablet Resource", this->tablet_sensor_);
+  LOG_SENSOR("  ", "Battery Level", this->battery_level_sensor_);
 }
 
-bool XiaomiWX08ZM::parse_device(const ble_device_base::ESPBTDevice &device) {
-  if (device.address_uint64() != this->address_) {
-    ESP_LOGVV(TAG, "parse_device(): unknown MAC address.");
-    return false;
+void XiaomiWX08ZM::publish_result(const xiaomi_ble::XiaomiParseResult &res) {
+  if (res.is_active.has_value()) {
+    this->publish_state(*res.is_active);
   }
-  char addr_buf[MAC_ADDRESS_PRETTY_BUFFER_SIZE];
-  const char *addr_str = device.address_str_to(addr_buf);
-  ESP_LOGVV(TAG, "parse_device(): MAC address %s found.", addr_str);
-
-  bool success = false;
-  for (auto &service_data : device.get_service_datas()) {
-    auto res = xiaomi_ble::parse_xiaomi_header(service_data);
-    if (!res.has_value()) {
-      continue;
-    }
-    if (res->is_duplicate) {
-      continue;
-    }
-    if (res->has_encryption) {
-      ESP_LOGVV(TAG, "parse_device(): payload decryption is currently not supported on this device.");
-      continue;
-    }
-    if (!(xiaomi_ble::parse_xiaomi_message(service_data.data, *res))) {
-      continue;
-    }
-    if (!(xiaomi_ble::report_xiaomi_results(res, addr_str))) {
-      continue;
-    }
-    if (res->is_active.has_value()) {
-      this->publish_state(*res->is_active);
-    }
-    if (res->tablet.has_value() && this->tablet_ != nullptr)
-      this->tablet_->publish_state(*res->tablet);
-    if (res->battery_level.has_value() && this->battery_level_ != nullptr)
-      this->battery_level_->publish_state(*res->battery_level);
-    success = true;
-  }
-
-  return success;
+  publish_optional(this->tablet_sensor_, res.tablet);
+  publish_optional(this->battery_level_sensor_, res.battery_level);
 }
 
 }  // namespace esphome::xiaomi_wx08zm

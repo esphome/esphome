@@ -1,6 +1,6 @@
 #pragma once
 
-#include "esphome/components/gpio_expander/cached_gpio.h"
+#include "esphome/components/gpio_expander/cached_gpio_component.h"
 #include "esphome/components/gpio_expander/expander_gpio_pin.h"
 #include "esphome/components/i2c/i2c.h"
 #include "esphome/core/component.h"
@@ -8,9 +8,7 @@
 
 namespace esphome::tca9555 {
 
-class TCA9555Component final : public Component,
-                               public i2c::I2CDevice,
-                               public gpio_expander::CachedGpioExpander<uint8_t, 16> {
+class TCA9555Component final : public gpio_expander::CachedGpioExpanderComponent<uint8_t, 16>, public i2c::I2CDevice {
  public:
   TCA9555Component() = default;
 
@@ -18,16 +16,9 @@ class TCA9555Component final : public Component,
   void setup() override;
   void pin_mode(uint8_t pin, gpio::Flags flags);
 
-  float get_setup_priority() const override;
-
   void dump_config() override;
 
-  void loop() override;
-
-  void set_interrupt_pin(InternalGPIOPin *pin) { this->interrupt_pin_ = pin; }
-
  protected:
-  static void IRAM_ATTR gpio_intr(TCA9555Component *arg);
   // Virtual methods from GpioExpander base class — names come from base
   bool digital_read_hw(uint8_t pin) override;               // NOLINT(readability-identifier-naming)
   bool digital_read_cache(uint8_t pin) override;            // NOLINT(readability-identifier-naming)
@@ -43,8 +34,6 @@ class TCA9555Component final : public Component,
   bool read_gpio_modes_();
   bool write_gpio_modes_();
   bool read_gpio_outputs_();
-
-  InternalGPIOPin *interrupt_pin_{nullptr};
 };
 
 using TCA9555GPIOPin = gpio_expander::ExpanderGPIOPin<TCA9555Component>;

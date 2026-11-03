@@ -95,3 +95,24 @@ motion:
       x: y
       y: x
       z: -z
+
+button:
+  - platform: template
+    name: Calibrate Motion
+    on_press:
+      - motion.calibrate_level:
+          id: bmi270_motion
+          save: true
+          on_success:
+            - logger.log: Level calibrated
+          on_error:
+            - logger.log: Level calibration failed
+      - motion.calibrate_heading:
+          id: bmi270_motion
+      - motion.calibrate_heading:
+          id: bmi270_motion
+          save: true
+          on_success:
+            - logger.log: Heading calibrated
+          on_error:
+            - logger.log: Heading calibration failed

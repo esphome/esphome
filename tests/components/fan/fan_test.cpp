@@ -57,4 +57,19 @@ TEST(FanPresetModesTest, TraitsWithoutAFanHaveNoPresets) {
   EXPECT_FALSE(traits.supports_preset_modes());
 }
 
+TEST(FanTraitsTest, SpeedCountKeepsSixteenBits) {
+  FanTraits traits(true, true, false, 65535);
+  EXPECT_EQ(traits.supported_speed_count(), 65535);
+  EXPECT_TRUE(traits.supports_oscillation());
+  EXPECT_TRUE(traits.supports_speed());
+  EXPECT_FALSE(traits.supports_direction());
+  traits.set_supported_speed_count(1);
+  traits.set_direction(true);
+  traits.set_oscillation(false);
+  EXPECT_EQ(traits.supported_speed_count(), 1);
+  EXPECT_TRUE(traits.supports_direction());
+  EXPECT_FALSE(traits.supports_oscillation());
+  EXPECT_TRUE(traits.supports_speed());
+}
+
 }  // namespace esphome::fan::testing

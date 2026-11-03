@@ -1,3 +1,6 @@
+packages:
+  libretiny: !include common.yaml
+
 logger:
   level: VERBOSE
 

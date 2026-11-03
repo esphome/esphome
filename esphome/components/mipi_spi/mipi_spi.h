@@ -151,15 +151,8 @@ class MipiSpi : public display::Display,
       pin->setup();
       pin->digital_write(true);
     }
-    if (this->reset_pin_ != nullptr) {
-      this->reset_pin_->setup();
-      this->reset_pin_->digital_write(true);
-      delay(5);
-      this->reset_pin_->digital_write(false);
-      delay(5);
-      this->reset_pin_->digital_write(true);
-      // required delay after reset is already in the init sequence, don't duplicate
-    }
+    // required delay after reset is already in the init sequence, don't duplicate
+    pulse_reset(this->reset_pin_, {.high_before_ms = 5, .low_ms = 5});
 
     // need to know when the display is ready for SLPOUT command - will be 120ms after reset
     auto when = millis() + 120;
@@ -244,9 +237,9 @@ class MipiSpi : public display::Display,
     char hex_buf[format_hex_pretty_size(MIPI_SPI_MAX_CMD_LOG_BYTES)];
     // Don't spam the log after setup
     if (this->init_sequence_len_ == 0) {
-      esph_log_v(TAG, "Command %02X, length %d, bytes %s", cmd, len, format_hex_pretty_to(hex_buf, bytes, len));
+      esph_log_v(TAG, "Command %02X, length %zu, bytes %s", cmd, len, format_hex_pretty_to(hex_buf, bytes, len));
     } else {
-      esph_log_d(TAG, "Command %02X, length %d, bytes %s", cmd, len, format_hex_pretty_to(hex_buf, bytes, len));
+      esph_log_d(TAG, "Command %02X, length %zu, bytes %s", cmd, len, format_hex_pretty_to(hex_buf, bytes, len));
     }
     if constexpr (BUS_TYPE == BUS_TYPE_QUAD) {
       this->enable();

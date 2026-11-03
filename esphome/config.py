@@ -1136,9 +1136,7 @@ class IDPassValidationStep(ConfigValidationStep):
                         m
                         for m in matches
                         if isinstance(
-                            candidate_conf := result.get_config_for_path(
-                                result.get_path_for_id(m)[:-1]
-                            ),
+                            candidate_conf := fv.get_declaring_config(m, result),
                             dict,
                         )
                         and all(
@@ -1262,6 +1260,18 @@ class CoreFinalValidateStep(ConfigValidationStep):
                 core_config.validate_ids_and_references(result[CONF_ESPHOME])
                 core_config.validate_loop_interval(result[CONF_ESPHOME])
         fv.full_config.reset(token)
+
+
+class OptionalPinValidationStep(ConfigValidationStep):
+    """Remove optional pins that are also used elsewhere"""
+
+    # After the ID pass, and before component final validations which may inspect pin use
+    priority = -15.0
+
+    def run(self, result: Config) -> None:
+        if result.errors:
+            return
+        pins.PIN_SCHEMA_REGISTRY.remove_optional_conflicts(result)
 
 
 class PinUseValidationCheck(ConfigValidationStep):
@@ -1437,6 +1447,7 @@ def validate_config(
     result.add_validation_step(PrefetchRemoteFilesValidationStep())
     result.add_validation_step(IDPassValidationStep())
     result.add_validation_step(CoreFinalValidateStep())
+    result.add_validation_step(OptionalPinValidationStep())
     result.add_validation_step(PinUseValidationCheck())
 
     result.add_validation_step(RemoveReferenceValidationStep())

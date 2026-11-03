@@ -10,6 +10,12 @@ namespace esphome::fujitsu_general {
 constexpr uint8_t FUJITSU_GENERAL_TEMP_MIN = 16;  // Celsius // TODO 16 for heating, 18 for cooling, unsupported in ESPH
 constexpr uint8_t FUJITSU_GENERAL_TEMP_MAX = 30;  // Celsius
 
+// Stateless util commands the button platform sends; OFF is a util message too but changes the
+// climate state, so it stays with transmit_state() in the .cpp
+constexpr uint8_t FUJITSU_GENERAL_MESSAGE_TYPE_ECONOMY = 0x09;
+constexpr uint8_t FUJITSU_GENERAL_MESSAGE_TYPE_NUDGE_VERTICAL = 0x6C;
+constexpr uint8_t FUJITSU_GENERAL_MESSAGE_TYPE_NUDGE_HORIZONTAL = 0x79;
+
 // clang-format off
 /**
  * ```
@@ -82,11 +88,12 @@ class FujitsuGeneralClimate final : public climate_ir::ClimateIR {
                   {climate::CLIMATE_SWING_OFF, climate::CLIMATE_SWING_VERTICAL, climate::CLIMATE_SWING_HORIZONTAL,
                    climate::CLIMATE_SWING_BOTH}) {}
 
+  /// Transmit a util message that does not change the climate state (economy, vane steps)
+  void transmit_util(uint8_t command);
+
  protected:
   /// Transmit via IR the state of this climate controller.
   void transmit_state() override;
-  /// Transmit via IR power off command.
-  void transmit_off_();
 
   /// Parse incoming message
   bool on_receive(remote_base::RemoteReceiveData data) override;

@@ -2,7 +2,6 @@ from collections.abc import Callable
 
 from esphome import automation
 import esphome.codegen as cg
-from esphome.components import mqtt, time, web_server
 import esphome.config_validation as cv
 from esphome.const import (
     CONF_DATE,
@@ -20,12 +19,12 @@ from esphome.const import (
     CONF_TIME_ID,
     CONF_TRIGGER_ID,
     CONF_TYPE,
-    CONF_WEB_SERVER,
     CONF_YEAR,
 )
-from esphome.core import CORE, CoroPriority, coroutine_with_priority
+from esphome.core import CORE, CoroPriority, coroutine_with_priority, entity_helpers
 from esphome.core.entity_helpers import (
     entity_duplicate_validator,
+    mqtt_component_class,
     queue_entity_register,
     setup_entity,
 )
@@ -38,6 +37,10 @@ DOMAIN = "datetime"
 IS_PLATFORM_COMPONENT = True
 
 datetime_ns = cg.esphome_ns.namespace("datetime")
+# Matches time.RealTimeClock by name without importing the time component
+_RealTimeClock = cg.esphome_ns.namespace("time").class_(
+    "RealTimeClock", cg.PollingComponent
+)
 DateTimeBase = datetime_ns.class_("DateTimeBase", cg.EntityBase)
 DateEntity = datetime_ns.class_("DateEntity", DateTimeBase)
 TimeEntity = datetime_ns.class_("TimeEntity", DateTimeBase)
@@ -64,7 +67,7 @@ DATETIME_MODES = [
 def _validate_time_present(config: ConfigType) -> ConfigType:
     config = config.copy()
     if CONF_ON_TIME in config and CONF_TIME_ID not in config:
-        time_id = cv.use_id(time.RealTimeClock)(None)
+        time_id = cv.use_id(_RealTimeClock)(None)
         config[CONF_TIME_ID] = time_id
     return config
 
@@ -73,10 +76,10 @@ _DATETIME_SCHEMA = cv.ENTITY_BASE_SCHEMA.extend(
     cv.Schema(
         {
             cv.Optional(CONF_ON_VALUE): automation.validate_automation({}),
-            cv.Optional(CONF_TIME_ID): cv.use_id(time.RealTimeClock),
+            cv.Optional(CONF_TIME_ID): cv.use_id(_RealTimeClock),
         }
     )
-    .extend(web_server.WEBSERVER_SORTING_SCHEMA)
+    .extend(entity_helpers.WEBSERVER_SORTING_SCHEMA)
     .extend(cv.MQTT_COMMAND_COMPONENT_SCHEMA)
 ).add_extra(_validate_time_present)
 
@@ -87,7 +90,9 @@ def date_schema(class_: MockObjClass) -> cv.Schema:
     schema = cv.Schema(
         {
             cv.GenerateID(): cv.declare_id(class_),
-            cv.OnlyWith(CONF_MQTT_ID, "mqtt"): cv.declare_id(mqtt.MQTTDateComponent),
+            cv.OnlyWith(CONF_MQTT_ID, "mqtt"): cv.declare_id(
+                mqtt_component_class("MQTTDateComponent")
+            ),
             cv.Optional(CONF_TYPE, default="DATE"): cv.one_of("DATE", upper=True),
         }
     )
@@ -98,7 +103,9 @@ def time_schema(class_: MockObjClass) -> cv.Schema:
     schema = cv.Schema(
         {
             cv.GenerateID(): cv.declare_id(class_),
-            cv.OnlyWith(CONF_MQTT_ID, "mqtt"): cv.declare_id(mqtt.MQTTTimeComponent),
+            cv.OnlyWith(CONF_MQTT_ID, "mqtt"): cv.declare_id(
+                mqtt_component_class("MQTTTimeComponent")
+            ),
             cv.Optional(CONF_TYPE, default="TIME"): cv.one_of("TIME", upper=True),
             cv.Optional(CONF_ON_TIME): automation.validate_automation(
                 {
@@ -115,7 +122,7 @@ def datetime_schema(class_: MockObjClass) -> cv.Schema:
         {
             cv.GenerateID(): cv.declare_id(class_),
             cv.OnlyWith(CONF_MQTT_ID, "mqtt"): cv.declare_id(
-                mqtt.MQTTDateTimeComponent
+                mqtt_component_class("MQTTDateTimeComponent")
             ),
             cv.Optional(CONF_TYPE, default="DATETIME"): cv.one_of(
                 "DATETIME", upper=True
@@ -132,11 +139,7 @@ def datetime_schema(class_: MockObjClass) -> cv.Schema:
 
 @setup_entity("datetime")
 async def setup_datetime_core_(var: MockObj, config: ConfigType) -> None:
-    if (mqtt_id := config.get(CONF_MQTT_ID)) is not None:
-        mqtt_ = cg.new_Pvariable(mqtt_id, var)
-        await mqtt.register_mqtt_component(mqtt_, config)
-    if web_server_config := config.get(CONF_WEB_SERVER):
-        await web_server.add_entity_config(var, web_server_config)
+    await entity_helpers.setup_entity_integrations(var, config)
     # The state callback carries nothing; the automation gets the value as an ESPTime.
     for conf in config.get(CONF_ON_VALUE, []):
         await automation.build_callback_automation(

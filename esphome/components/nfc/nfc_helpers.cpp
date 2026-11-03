@@ -28,12 +28,12 @@ std::string get_random_ha_tag_ndef() {
   for (int i = 0; i < 8; i++) {
     uri += ALPHANUM[random_uint32() % (sizeof(ALPHANUM) - 1)];
   }
-  uri += "-";
+  uri += '-';
   for (int j = 0; j < 3; j++) {
     for (int i = 0; i < 4; i++) {
       uri += ALPHANUM[random_uint32() % (sizeof(ALPHANUM) - 1)];
     }
-    uri += "-";
+    uri += '-';
   }
   for (int i = 0; i < 12; i++) {
     uri += ALPHANUM[random_uint32() % (sizeof(ALPHANUM) - 1)];
