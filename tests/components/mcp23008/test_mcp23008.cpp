@@ -58,10 +58,11 @@ TEST_F(MCP23008Test, SetupReadFailureMarksFailedAndWritesNothing) {
   EXPECT_TRUE(this->bus_.writes.empty());
 }
 
-TEST_F(MCP23008Test, SetupWithoutOpenDrainWritesNothing) {
+TEST_F(MCP23008Test, SetupWithoutOpenDrainWritesIoconUnchanged) {
+  this->bus_.regs[MCP23X08_IOCON] = IOCON_SEQOP;
   this->component_.setup();
   ASSERT_FALSE(this->component_.is_failed());
-  EXPECT_TRUE(this->bus_.writes.empty());
+  EXPECT_EQ(this->bus_.writes, (Writes{{MCP23X08_IOCON, IOCON_SEQOP}}));
 }
 
 TEST_F(MCP23008Test, SetupOpenDrainSetsOdrAndKeepsOtherBits) {
@@ -72,13 +73,11 @@ TEST_F(MCP23008Test, SetupOpenDrainSetsOdrAndKeepsOtherBits) {
   EXPECT_EQ(this->bus_.writes, (Writes{{MCP23X08_IOCON, IOCON_SEQOP | IOCON_ODR}}));
 }
 
-// Current behaviour: ODR left by an earlier config stays set until the chip loses power.
-TEST_F(MCP23008Test, SetupLeavesStaleOdrSet) {
-  this->bus_.regs[MCP23X08_IOCON] = IOCON_ODR;
+TEST_F(MCP23008Test, SetupClearsStaleOdr) {
+  this->bus_.regs[MCP23X08_IOCON] = IOCON_SEQOP | IOCON_ODR;
   this->component_.setup();
   ASSERT_FALSE(this->component_.is_failed());
-  EXPECT_TRUE(this->bus_.writes.empty());
-  EXPECT_EQ(this->bus_.regs[MCP23X08_IOCON], IOCON_ODR);
+  EXPECT_EQ(this->bus_.writes, (Writes{{MCP23X08_IOCON, IOCON_SEQOP}}));
 }
 
 TEST_F(MCP23008Test, ReadWarningClearsAfterSuccessfulRead) {
