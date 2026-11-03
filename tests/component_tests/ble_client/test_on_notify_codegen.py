@@ -15,13 +15,14 @@ def test_on_notify_wiring(
 
     assert "notify_sensor->set_enable_notify(true);" in main_cpp
     assert "notify_text->set_enable_notify(true);" in main_cpp
+    # Synchronous automations are generated as direct lambdas
     assert (
-        "notify_sensor->add_on_notify_callback(TriggerForwarder<float>{automation_id});"
-        in main_cpp
+        "notify_sensor->add_on_notify_callback("
+        "[](const std::remove_cvref_t<float> & x) -> void {" in main_cpp
     )
     assert (
         "notify_text->add_on_notify_callback("
-        "TriggerForwarder<std::string>{automation_id_2});" in main_cpp
+        "[](const std::remove_cvref_t<std::string> & x) -> void {" in main_cpp
     )
     # No trigger node is registered on the client for on_notify any more.
     assert main_cpp.count("test_blec->register_ble_node(") == 2
