@@ -19,6 +19,8 @@
 #include <memory>
 #include <vector>
 
+struct v4l2_buffer;
+
 namespace esphome::esp_video_camera {
 
 /// esp_video_init()'s arguments and result, shared with the core-0 task that
@@ -117,24 +119,34 @@ class ESPVideoCamera : public camera::Camera {
   bool start_capture_();
   void stop_capture_();
 
+  uint8_t requesters_() const { return this->single_requesters_ | this->stream_requesters_; }
+  bool frame_due_(uint32_t now) const { return (now - this->last_frame_ms_) >= this->min_interval_ms_; }
   // Copy a finished JPEG frame into PSRAM and hand it to the listeners.
-  void deliver_frame_(const uint8_t *data, size_t length);
+  void deliver_frame_(const uint8_t *data, size_t length, uint32_t now);
+  // DQBUF one capture buffer. False when there is none: no frame yet, a device
+  // that went away (handled), or an error that was logged.
+  bool dequeue_capture_(v4l2_buffer &buf);
+  void arm_capture_retry_();
   // Tear the capture down and arm a retry when `err` means the device is gone
   // (a USB-UVC camera unplugged mid-stream). Returns true when it handled `err`.
   bool handle_device_gone_(int err);
+  // Open a capture node, bound its DQBUF wait, set the format and map buffers.
+  bool open_capture_(const char *path, uint32_t pixelformat);
   bool configure_capture_format_(uint32_t pixelformat);
   bool setup_capture_buffers_();
   // Hardware-JPEG path: capture RGB565 (sensor/ISP) -> JPEG M2M encoder.
   bool start_jpeg_pipeline_();
-  void loop_jpeg_pipeline_();
+  void loop_jpeg_pipeline_(uint32_t now);
   // STREAMOFF/STREAMON both encoder queues to release buffers stuck in the
   // driver after a failed QBUF/DQBUF. Returns false if the encoder is dead.
   bool reset_jpeg_encoder_();
   // Hand the encoder the single MMAP buffer it writes encoded frames into.
   bool queue_jpeg_capture_buffer_();
+  // STREAMON/STREAMOFF both encoder queues. False if a STREAMON failed.
+  bool set_jpeg_streaming_(bool on);
   // Direct path: a source that already delivers JPEG/MJPEG (USB-UVC / device).
   bool start_direct_capture_();
-  void loop_direct_capture_();
+  void loop_direct_capture_(uint32_t now);
 
   // Pipeline
 #ifdef USE_I2C
