@@ -82,8 +82,6 @@ void XPT2046Component::dump_config() {
   LOG_UPDATE_INTERVAL(this);
 }
 
-// float XPT2046Component::get_setup_priority() const { return setup_priority::DATA; }
-
 int16_t XPT2046Component::best_two_avg(int16_t value1, int16_t value2, int16_t value3) {
   int16_t delta_a, delta_b, delta_c;
   int16_t reta = 0;
@@ -112,7 +110,7 @@ int16_t XPT2046Component::read_adc_(uint8_t ctrl) {
 
   this->transfer_array(data, sizeof(data));
 
-  return ((data[1] << 8) | data[2]) >> 3;
+  return encode_uint16(data[1], data[2]) >> 3;
 }
 
 }  // namespace esphome::xpt2046

@@ -1,12 +1,13 @@
 import esphome.codegen as cg
-from esphome.components import i2c, sensirion_common, sensor
+from esphome.components import i2c, sensirion_common, sensor, text_sensor
+from esphome.components.const import CONF_SERIAL_NUMBER
 import esphome.config_validation as cv
 from esphome.const import (
     CONF_HUMIDITY,
-    CONF_ID,
     CONF_TEMPERATURE,
     DEVICE_CLASS_HUMIDITY,
     DEVICE_CLASS_TEMPERATURE,
+    ENTITY_CATEGORY_DIAGNOSTIC,
     ICON_THERMOMETER,
     ICON_WATER_PERCENT,
     STATE_CLASS_MEASUREMENT,
@@ -17,7 +18,13 @@ from esphome.types import ConfigType
 
 CODEOWNERS = ["@sjtrny"]
 DEPENDENCIES = ["i2c"]
-AUTO_LOAD = ["sensirion_common"]
+
+
+def AUTO_LOAD(config: ConfigType | None) -> list[str]:
+    if not config or CONF_SERIAL_NUMBER in config:
+        return ["sensirion_common", "text_sensor"]
+    return ["sensirion_common"]
+
 
 sht4x_ns = cg.esphome_ns.namespace("sht4x")
 
@@ -27,26 +34,21 @@ SHT4XComponent = sht4x_ns.class_(
 
 CONF_PRECISION = "precision"
 SHT4XPRECISION = sht4x_ns.enum("SHT4XPRECISION")
-PRECISION_OPTIONS = {
-    "High": SHT4XPRECISION.SHT4X_PRECISION_HIGH,
-    "Med": SHT4XPRECISION.SHT4X_PRECISION_MED,
-    "Low": SHT4XPRECISION.SHT4X_PRECISION_LOW,
-}
+PRECISION_OPTIONS = SHT4XPRECISION.options(
+    "High", "Med", "Low", prefix="SHT4X_PRECISION_"
+)
 
 CONF_HEATER_POWER = "heater_power"
 SHT4XHEATERPOWER = sht4x_ns.enum("SHT4XHEATERPOWER")
-HEATER_POWER_OPTIONS = {
-    "High": SHT4XHEATERPOWER.SHT4X_HEATERPOWER_HIGH,
-    "Med": SHT4XHEATERPOWER.SHT4X_HEATERPOWER_MED,
-    "Low": SHT4XHEATERPOWER.SHT4X_HEATERPOWER_LOW,
-}
+HEATER_POWER_OPTIONS = SHT4XHEATERPOWER.options(
+    "High", "Med", "Low", prefix="SHT4X_HEATERPOWER_"
+)
 
 CONF_HEATER_TIME = "heater_time"
 SHT4XHEATERTIME = sht4x_ns.enum("SHT4XHEATERTIME")
-HEATER_TIME_OPTIONS = {
-    "Long": SHT4XHEATERTIME.SHT4X_HEATERTIME_LONG,
-    "Short": SHT4XHEATERTIME.SHT4X_HEATERTIME_SHORT,
-}
+HEATER_TIME_OPTIONS = SHT4XHEATERTIME.options(
+    "Long", "Short", prefix="SHT4X_HEATERTIME_"
+)
 
 CONF_HEATER_MAX_DUTY = "heater_max_duty"
 
@@ -67,6 +69,9 @@ CONFIG_SCHEMA = (
                 accuracy_decimals=2,
                 device_class=DEVICE_CLASS_HUMIDITY,
                 state_class=STATE_CLASS_MEASUREMENT,
+            ),
+            cv.Optional(CONF_SERIAL_NUMBER): text_sensor.text_sensor_schema(
+                entity_category=ENTITY_CATEGORY_DIAGNOSTIC,
             ),
             cv.Optional(CONF_PRECISION, default="High"): cv.enum(PRECISION_OPTIONS),
             cv.Optional(CONF_HEATER_POWER, default="High"): cv.enum(
@@ -89,9 +94,7 @@ TYPES = {
 
 
 async def to_code(config: ConfigType) -> None:
-    var = cg.new_Pvariable(config[CONF_ID])
-    await cg.register_component(var, config)
-    await i2c.register_i2c_device(var, config)
+    var = await i2c.new_i2c_component(config)
 
     cg.add(var.set_precision_value(config[CONF_PRECISION]))
     cg.add(var.set_heater_power_value(config[CONF_HEATER_POWER]))
@@ -102,3 +105,6 @@ async def to_code(config: ConfigType) -> None:
         if key in config:
             sens = await sensor.new_sensor(config[key])
             cg.add(getattr(var, funcName)(sens))
+
+    text_sensors = text_sensor.sub_text_sensors(config)
+    await text_sensors(CONF_SERIAL_NUMBER, var.set_serial_number_text_sensor)

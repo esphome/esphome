@@ -4,7 +4,6 @@ import esphome.config_validation as cv
 from esphome.const import (
     CONF_CURRENT,
     CONF_GAIN,
-    CONF_ID,
     CONF_POWER,
     CONF_SHUNT_RESISTANCE,
     CONF_TEMPERATURE,
@@ -72,9 +71,7 @@ CONFIG_SCHEMA = (
 
 
 async def to_code(config: ConfigType) -> None:
-    var = cg.new_Pvariable(config[CONF_ID])
-    await cg.register_component(var, config)
-    await i2c.register_i2c_device(var, config)
+    var = await i2c.new_i2c_component(config)
     cg.add(var.set_current_resistor(config[CONF_SHUNT_RESISTANCE]))
     cg.add(var.set_gain(config[CONF_GAIN]))
     sensors = sensor.sub_sensors(config)

@@ -91,9 +91,9 @@ class ABBWelcomeData {
   }
   uint32_t get_destination_address() const {
     if (this->get_address_length() == 2) {
-      return (this->data_[4] << 8) + this->data_[5];
+      return encode_uint16(this->data_[4], this->data_[5]);
     }
-    return (this->data_[4] << 16) + (this->data_[5] << 8) + this->data_[6];
+    return encode_uint24(this->data_[4], this->data_[5], this->data_[6]);
   }
   void set_source_address(uint32_t address) {
     if (this->get_address_length() == 2) {
@@ -107,9 +107,9 @@ class ABBWelcomeData {
   }
   uint32_t get_source_address() const {
     if (this->get_address_length() == 2) {
-      return (this->data_[6] << 8) + this->data_[7];
+      return encode_uint16(this->data_[6], this->data_[7]);
     }
-    return (this->data_[7] << 16) + (this->data_[8] << 8) + this->data_[9];
+    return encode_uint24(this->data_[7], this->data_[8], this->data_[9]);
   }
   void set_message_id(uint8_t message_id) { this->data_[4 + 2 * this->get_address_length()] = message_id; }
   /// A configured id, which finalize() keeps instead of picking one

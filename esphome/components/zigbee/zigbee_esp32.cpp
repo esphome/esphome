@@ -388,15 +388,6 @@ void ZigbeeComponent::setup() {
   };
   ezb_af_set_node_power_desc(&desc);
 
-  // Finish zigbee data model
-  for (auto &attr_value : this->attr_values_) {
-    ezb_zcl_attr_desc_t attr_desc = attr_value.attr_desc;
-    void *value_p = &attr_value.value;
-    ezb_zcl_attr_desc_set_value(attr_desc, value_p);
-  }
-  // free memory
-  std::vector<AttrValue>().swap(this->attr_values_);
-
   // Start the Zigbee task with priority 1 to ensure main loop can still run even if Zigbee is busy
   xTaskCreate(ezb_task, "Zigbee_main", 4096, NULL, 1, NULL);
   this->disable_loop();  // loop is only needed for processing events, so disable until we join a network
@@ -469,23 +460,6 @@ void ZigbeeComponent::dump_config() {
                   ezb_nwk_get_panid());
     esp_zigbee_lock_release();
   }
-}
-
-bool ZigbeeComponent::string_attr_exists_(uint8_t endpoint_id, uint16_t cluster_id, uint8_t role, uint16_t attr_id) {
-  ezb_af_ep_desc_t ep_desc = ezb_af_device_get_endpoint_desc(this->dev_desc_, endpoint_id);
-  if (ep_desc == NULL) {
-    return false;
-  }
-  ezb_zcl_cluster_desc_t cluster_desc = ezb_af_endpoint_get_cluster_desc(ep_desc, cluster_id, role);
-  if (cluster_desc == NULL) {
-    return false;
-  }
-  if (ezb_zcl_cluster_get_attr_desc(cluster_desc, attr_id, EZB_ZCL_STD_MANUF_CODE) == NULL) {
-    return false;
-  }
-  ESP_LOGW(TAG, "Attribute 0x%04X already exists in endpoint %u cluster 0x%04X. Can't add new value", attr_id,
-           endpoint_id, cluster_id);
-  return true;
 }
 }  // namespace esphome::zigbee
 

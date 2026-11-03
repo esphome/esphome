@@ -27,13 +27,7 @@ audio_ns = cg.esphome_ns.namespace("audio")
 
 AudioFile = audio_ns.struct("AudioFile")
 AudioFileType = audio_ns.enum("AudioFileType", is_class=True)
-AUDIO_FILE_TYPE_ENUM = {
-    "NONE": AudioFileType.NONE,
-    "WAV": AudioFileType.WAV,
-    "MP3": AudioFileType.MP3,
-    "FLAC": AudioFileType.FLAC,
-    "OPUS": AudioFileType.OPUS,
-}
+AUDIO_FILE_TYPE_ENUM = AudioFileType.options("NONE", "WAV", "MP3", "FLAC", "OPUS")
 
 MEMORY_PSRAM = "psram"
 MEMORY_INTERNAL = "internal"

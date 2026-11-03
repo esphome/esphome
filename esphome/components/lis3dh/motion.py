@@ -3,8 +3,19 @@ import math
 
 import esphome.codegen as cg
 from esphome.components import i2c
-from esphome.components.const import CONF_ACCELEROMETER_ODR, CONF_ACCELEROMETER_RANGE
-from esphome.components.motion import AXES, motion_schema, new_motion_component
+from esphome.components.const import (
+    CONF_ACCELEROMETER_ODR,
+    CONF_ACCELEROMETER_RANGE,
+    CONF_ACTIVE_HIGH,
+)
+from esphome.components.motion import (
+    ACCELERATION_G,
+    AXES,
+    CONF_AXES,
+    motion_schema,
+    new_motion_component,
+    validate_axes,
+)
 import esphome.config_validation as cv
 from esphome.const import CONF_DURATION, CONF_INTERRUPT, CONF_PIN, CONF_THRESHOLD
 from esphome.types import ConfigType
@@ -14,34 +25,28 @@ from . import LIS3DHComponent, lis3dh_ns
 _LOGGER = logging.getLogger(__name__)
 
 CONF_OPERATING_MODE = "operating_mode"
-CONF_AXES = "axes"
 CONF_LATCHED = "latched"
-CONF_ACTIVE_HIGH = "active_high"
 CONF_HIGH_PASS_FILTER = "high_pass_filter"
 
 # Enum values must match the C++ enums.
 LIS3DHRange = lis3dh_ns.enum("LIS3DHRange")
-RANGE_OPTIONS = {
-    "2G": LIS3DHRange.LIS3DH_RANGE_2G,
-    "4G": LIS3DHRange.LIS3DH_RANGE_4G,
-    "8G": LIS3DHRange.LIS3DH_RANGE_8G,
-    "16G": LIS3DHRange.LIS3DH_RANGE_16G,
-}
+RANGE_OPTIONS = LIS3DHRange.options("2G", "4G", "8G", "16G", prefix="LIS3DH_RANGE_")
 
 LIS3DHDataRate = lis3dh_ns.enum("LIS3DHDataRate")
-DATA_RATE_OPTIONS = {
-    "1HZ": LIS3DHDataRate.LIS3DH_DATA_RATE_1HZ,
-    "10HZ": LIS3DHDataRate.LIS3DH_DATA_RATE_10HZ,
-    "25HZ": LIS3DHDataRate.LIS3DH_DATA_RATE_25HZ,
-    "50HZ": LIS3DHDataRate.LIS3DH_DATA_RATE_50HZ,
-    "100HZ": LIS3DHDataRate.LIS3DH_DATA_RATE_100HZ,
-    "200HZ": LIS3DHDataRate.LIS3DH_DATA_RATE_200HZ,
-    "400HZ": LIS3DHDataRate.LIS3DH_DATA_RATE_400HZ,
-    # 1620HZ is only available in low-power mode.
-    "1620HZ": LIS3DHDataRate.LIS3DH_DATA_RATE_1620HZ,
-    # 1344HZ in normal / high-resolution mode; 5376HZ in low-power mode.
-    "1344HZ": LIS3DHDataRate.LIS3DH_DATA_RATE_1344HZ,
-}
+# 1620HZ is only available in low-power mode.
+# 1344HZ in normal / high-resolution mode; 5376HZ in low-power mode.
+DATA_RATE_OPTIONS = LIS3DHDataRate.options(
+    "1HZ",
+    "10HZ",
+    "25HZ",
+    "50HZ",
+    "100HZ",
+    "200HZ",
+    "400HZ",
+    "1620HZ",
+    "1344HZ",
+    prefix="LIS3DH_DATA_RATE_",
+)
 
 # Samples per second for each data rate key; INT1_DURATION counts samples.
 ODR_HZ = {
@@ -58,17 +63,14 @@ ODR_HZ = {
 DURATION_MAX_REG = 0x7F
 
 LIS3DHOperatingMode = lis3dh_ns.enum("LIS3DHOperatingMode")
-OPERATING_MODE_OPTIONS = {
-    "LOW_POWER": LIS3DHOperatingMode.LIS3DH_MODE_LOW_POWER,
-    "NORMAL": LIS3DHOperatingMode.LIS3DH_MODE_NORMAL,
-    "HIGH_RESOLUTION": LIS3DHOperatingMode.LIS3DH_MODE_HIGH_RESOLUTION,
-}
+OPERATING_MODE_OPTIONS = LIS3DHOperatingMode.options(
+    "LOW_POWER", "NORMAL", "HIGH_RESOLUTION", prefix="LIS3DH_MODE_"
+)
 
 LIS3DHInterruptPin = lis3dh_ns.enum("LIS3DHInterruptPin")
-INTERRUPT_PIN_OPTIONS = {
-    "INT1": LIS3DHInterruptPin.LIS3DH_INT_PIN_INT1,
-    "INT2": LIS3DHInterruptPin.LIS3DH_INT_PIN_INT2,
-}
+INTERRUPT_PIN_OPTIONS = LIS3DHInterruptPin.options(
+    "INT1", "INT2", prefix="LIS3DH_INT_PIN_"
+)
 
 # INT1_CFG high-event bit per axis.
 INT_CFG_HIGH_EVENT = {"x": 0x02, "y": 0x08, "z": 0x20}
@@ -88,26 +90,15 @@ def _duration_register(duration_ms: int, odr_key: str) -> int:
     return math.floor(duration_ms * ODR_HZ[odr_key] / 1000 + 0.5)
 
 
-def _axes(value: object) -> list[str]:
-    value = cv.All(cv.ensure_list(cv.one_of(*AXES, lower=True)), cv.Length(min=1))(
-        value
-    )
-    if len(set(value)) != len(value):
-        raise cv.Invalid("Each axis may be listed only once")
-    return value
-
-
 # Without high_pass_filter the threshold includes gravity, so it should exceed 1g.
 INTERRUPT_SCHEMA = cv.Schema(
     {
         cv.Optional(CONF_PIN, default="INT1"): cv.enum(
             INTERRUPT_PIN_OPTIONS, upper=True
         ),
-        cv.Optional(CONF_THRESHOLD, default="1.1g"): cv.All(
-            cv.float_with_unit("acceleration", "(g|G)?"), cv.positive_float
-        ),
+        cv.Optional(CONF_THRESHOLD, default="1.1g"): ACCELERATION_G,
         cv.Optional(CONF_DURATION, default="0ms"): cv.positive_time_period_milliseconds,
-        cv.Optional(CONF_AXES, default=AXES): _axes,
+        cv.Optional(CONF_AXES, default=AXES): validate_axes,
         cv.Optional(CONF_LATCHED, default=True): cv.boolean,
         cv.Optional(CONF_ACTIVE_HIGH, default=True): cv.boolean,
         cv.Optional(CONF_HIGH_PASS_FILTER, default=False): cv.boolean,

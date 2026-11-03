@@ -2,7 +2,7 @@ from esphome import pins
 import esphome.codegen as cg
 from esphome.components import display
 import esphome.config_validation as cv
-from esphome.const import CONF_BRIGHTNESS, CONF_LAMBDA, CONF_MODEL, CONF_RESET_PIN
+from esphome.const import CONF_BRIGHTNESS, CONF_MODEL, CONF_RESET_PIN
 from esphome.cpp_generator import MockObj
 from esphome.types import ConfigType
 
@@ -32,12 +32,6 @@ async def setup_sh1122(var: MockObj, config: ConfigType) -> None:
     await display.register_display(var, config)
 
     cg.add(var.set_model(config[CONF_MODEL]))
-    if (reset_pin := config.get(CONF_RESET_PIN)) is not None:
-        reset = await cg.gpio_pin_expression(reset_pin)
-        cg.add(var.set_reset_pin(reset))
+    await cg.add_pin(var.set_reset_pin, config.get(CONF_RESET_PIN))
     cg.add(var.init_brightness(config[CONF_BRIGHTNESS]))
-    if (lambda_config := config.get(CONF_LAMBDA)) is not None:
-        lambda_ = await cg.process_lambda(
-            lambda_config, [(display.DisplayRef, "it")], return_type=cg.void
-        )
-        cg.add(var.set_writer(lambda_))
+    await display.add_writer(var, config)

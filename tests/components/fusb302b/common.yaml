@@ -1,13 +1,8 @@
 fusb302b:
   id: pd
+  i2c_id: i2c_bus
   interrupt_pin: ${interrupt_pin}
   request_voltage: 20
-  contract:
-    name: PD Contract
-  voltage:
-    name: PD Voltage
-  current:
-    name: PD Current
   on_connect:
     - logger.log: "Source attached"
   on_disconnect:
@@ -25,3 +20,17 @@ fusb302b:
     - fusb302b.request_voltage:
         id: pd
         voltage: !lambda "return 9;"
+
+sensor:
+  - platform: fusb302b
+    fusb302b_id: pd
+    voltage:
+      name: PD Voltage
+    current:
+      name: PD Current
+
+text_sensor:
+  - platform: fusb302b
+    fusb302b_id: pd
+    contract:
+      name: PD Contract

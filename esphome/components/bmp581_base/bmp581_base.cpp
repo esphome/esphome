@@ -12,6 +12,7 @@
 
 #include "bmp581_base.h"
 #include "esphome/core/hal.h"
+#include "esphome/core/helpers.h"
 #include "esphome/core/log.h"
 #include "esphome/core/progmem.h"
 
@@ -248,13 +249,8 @@ void BMP581Component::update() {
     // 4) Publish measurements to sensor(s), if applicable //
     /////////////////////////////////////////////////////////
 
-    if (this->temperature_sensor_) {
-      this->temperature_sensor_->publish_state(temperature);
-    }
-
-    if (this->pressure_sensor_) {
-      this->pressure_sensor_->publish_state(pressure);
-    }
+    PUBLISH_STATE(this->temperature_sensor_, temperature);
+    PUBLISH_STATE(this->pressure_sensor_, pressure);
 
     this->status_clear_warning();
   });
@@ -410,7 +406,7 @@ bool BMP581Component::read_temperature_and_pressure_(float &temperature, float &
   temperature = (float) (raw_temp / 65536.0);  // convert measurement to degrees Celsius (page 22 of datasheet)
 
   // pressure MSB is in data[5], LSB is in data[4], XLSB in data[3]
-  int32_t raw_press = (int32_t) data[5] << 16 | (int32_t) data[4] << 8 | (int32_t) data[3];
+  int32_t raw_press = encode_uint24(data[5], data[4], data[3]);
   pressure = (float) (raw_press / 64.0);  // Divide by 2^6=64 for Pa (page 22 of datasheet)
 
   return true;

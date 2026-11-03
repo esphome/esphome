@@ -55,10 +55,8 @@ async def to_code(config):
     )
     await cg.register_component(var, config)
     await sensor.register_sensor(var, config)
-    if (source := config.get(CONF_SENSOR)) is not None:
-        cg.add(var.count_updates_from(await cg.get_variable(source)))
-    if (source := config.get(CONF_BINARY_SENSOR)) is not None:
-        cg.add(var.count_true_from(await cg.get_variable(source)))
+    await cg.add_variable(var.count_updates_from, config.get(CONF_SENSOR))
+    await cg.add_variable(var.count_true_from, config.get(CONF_BINARY_SENSOR))
 
 
 automation.register_apply_action(

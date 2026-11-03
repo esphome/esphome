@@ -7,7 +7,15 @@ tcp_uart:
     host: 192.0.2.10
     port: 502
     reconnect_interval: 10s
+
+binary_sensor:
+  - platform: tcp_uart
+    tcp_uart_id: tcp_uart_1
     connected:
       name: TCP UART Connected
+
+sensor:
+  - platform: tcp_uart
+    tcp_uart_id: tcp_uart_1
     disconnects:
       name: TCP UART Disconnects

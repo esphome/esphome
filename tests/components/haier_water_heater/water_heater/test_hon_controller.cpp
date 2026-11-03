@@ -1,7 +1,6 @@
 #include <gtest/gtest.h>
 #include <array>
 #include <deque>
-#include <new>
 #include <vector>
 
 #include "esphome/components/haier_water_heater/hon_water_heater.h"
@@ -53,9 +52,6 @@ class TestableHeater : public HonWaterHeater {
 class HonControllerTest : public ::testing::Test {
  protected:
   void SetUp() override {
-    // The test runner skips generated setup(), which normally constructs App and its scheduler.
-    static const bool APP_CONSTRUCTED = (new (&App) Application(), true);
-    (void) APP_CONSTRUCTED;
     this->heater_.set_uart_parent(&this->uart_);
     this->heater_.set_network_pending(false);
     this->set_clock_(100);
@@ -174,7 +170,7 @@ TEST_F(HonControllerTest, OffFollowsConfirmedInFlightCommand) {
 
 TEST_F(HonControllerTest, CommunicationTimeoutAndRecovery) {
   binary_sensor::BinarySensor health;
-  this->heater_.set_communication_sensor(&health);
+  this->heater_.set_communication_binary_sensor(&health);
   this->heater_.setup();
   ASSERT_TRUE(health.has_state());
   EXPECT_FALSE(health.state);
@@ -198,7 +194,7 @@ TEST_F(HonControllerTest, CommunicationTimeoutAndRecovery) {
 
 TEST_F(HonControllerTest, ControlFromCommunicationRecoveryIsAccepted) {
   binary_sensor::BinarySensor health;
-  this->heater_.set_communication_sensor(&health);
+  this->heater_.set_communication_binary_sensor(&health);
   health.add_on_state_callback([this](bool state) {
     if (!state)
       return;
@@ -275,7 +271,7 @@ TEST_F(HonControllerTest, UnknownModeRetainsActiveModeAcrossOff) {
 
 TEST_F(HonControllerTest, CustomCommunicationTimeout) {
   binary_sensor::BinarySensor health;
-  this->heater_.set_communication_sensor(&health);
+  this->heater_.set_communication_binary_sensor(&health);
   this->heater_.set_communication_timeout(7500);
   this->heater_.setup();
   this->status_(false);

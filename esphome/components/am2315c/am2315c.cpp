@@ -64,7 +64,7 @@ bool AM2315C::convert_(uint8_t *data, float &humidity, float &temperature) {
   uint32_t raw;
   raw = (data[1] << 12) | (data[2] << 4) | (data[3] >> 4);
   humidity = raw * 9.5367431640625e-5;
-  raw = ((data[3] & 0x0F) << 16) | (data[4] << 8) | data[5];
+  raw = encode_uint24(data[3] & 0x0F, data[4], data[5]);
   temperature = raw * 1.9073486328125e-4 - 50;
   return crc8(data, 6, 0xFF, 0x31, true) == data[6];
 }
@@ -138,12 +138,8 @@ void AM2315C::update() {
     float temperature = 0.0;
     float humidity = 0.0;
     if (this->convert_(data, humidity, temperature)) {
-      if (this->temperature_sensor_ != nullptr) {
-        this->temperature_sensor_->publish_state(temperature);
-      }
-      if (this->humidity_sensor_ != nullptr) {
-        this->humidity_sensor_->publish_state(humidity);
-      }
+      PUBLISH_STATE(this->temperature_sensor_, temperature);
+      PUBLISH_STATE(this->humidity_sensor_, humidity);
       this->status_clear_warning();
     } else {
       ESP_LOGW(TAG, "CRC failed!");

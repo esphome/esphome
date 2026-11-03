@@ -95,21 +95,32 @@ class FakeEncryptedDevice(threading.Thread):
         self.listener = socket.socket(socket.AF_INET, socket.SOCK_STREAM)
         self.listener.bind(("127.0.0.1", 0))
         self.listener.listen(1)
+        # Poll accept() so the thread can stop once the client is done: how
+        # many connections a deadline-bound client makes depends on timing,
+        # so ``connections`` is an upper bound, not a requirement.
+        self.listener.settimeout(0.05)
         self.port = self.listener.getsockname()[1]
+        self._client_done = threading.Event()
 
     def run(self) -> None:
         try:
-            for _ in range(self.connections):
-                sock, _ = self.listener.accept()
+            served = 0
+            while served < self.connections and not self._client_done.is_set():
+                try:
+                    sock, _ = self.listener.accept()
+                except TimeoutError:
+                    continue
                 sock.settimeout(10)
                 with sock:
                     self._serve(sock)
+                served += 1
         except Exception as err:  # noqa: BLE001 - surfaced via join_and_check
             self.error = err
         finally:
             self.listener.close()
 
     def join_and_check(self) -> None:
+        self._client_done.set()
         self.join(timeout=10)
         assert not self.is_alive(), "fake device did not finish"
         if self.error is not None:

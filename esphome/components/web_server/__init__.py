@@ -12,7 +12,11 @@ from esphome.components.json import enable_arena
 from esphome.components.logger import request_log_listener
 from esphome.components.web_server_base import CONF_WEB_SERVER_BASE_ID
 import esphome.config_validation as cv
-from esphome.const import (
+
+# Re-exported so entity components and external components keep importing
+# these from web_server; defined outside this package so entity base
+# schemas do not need to import it.
+from esphome.const import (  # noqa: F401
     CONF_AP,
     CONF_AUTH,
     CONF_COMPRESSION,
@@ -31,6 +35,8 @@ from esphome.const import (
     CONF_OTA,
     CONF_PASSWORD,
     CONF_PORT,
+    CONF_SORTING_GROUP_ID,
+    CONF_SORTING_WEIGHT,
     CONF_STATIC_IP,
     CONF_TYPE,
     CONF_USERNAME,
@@ -46,6 +52,7 @@ from esphome.const import (
     PLATFORM_RTL87XX,
 )
 from esphome.core import CORE, CoroPriority, coroutine_with_priority
+from esphome.core.entity_helpers import WEBSERVER_SORTING_SCHEMA  # noqa: F401
 from esphome.cpp_generator import MockObj
 import esphome.final_validate as fv
 from esphome.types import ConfigType
@@ -72,9 +79,7 @@ DOMAIN = "web_server"
 AUTH_TYPE_BASIC = "basic"
 AUTH_TYPE_DIGEST = "digest"
 
-CONF_SORTING_GROUP_ID = "sorting_group_id"
 CONF_SORTING_GROUPS = "sorting_groups"
-CONF_SORTING_WEIGHT = "sorting_weight"
 CONF_ALLOWED_ORIGINS = "allowed_origins"
 
 # Schema default that also matches the C++ initializer in web_server_base.h; codegen
@@ -130,12 +135,6 @@ def validate_auth_type_deprecated(auth: ConfigType) -> ConfigType:
     return auth
 
 
-def validate_local(config: ConfigType) -> ConfigType:
-    if CONF_LOCAL in config and config[CONF_VERSION] == 1:
-        raise cv.Invalid("'local' is not supported in version 1")
-    return config
-
-
 def validate_ota(config: ConfigType) -> ConfigType:
     # The OTA option only accepts False to explicitly disable OTA for web_server
     # IMPORTANT: Setting ota: false ONLY affects the web_server component
@@ -182,14 +181,6 @@ def validate_private_network_access(config: ConfigType) -> ConfigType:
             f"allowed to reach the device (e.g. 'https://example.com'). '*' allows any origin "
             f"but is not recommended.",
             path=[CONF_ENABLE_PRIVATE_NETWORK_ACCESS],
-        )
-    return config
-
-
-def validate_sorting_groups(config: ConfigType) -> ConfigType:
-    if CONF_SORTING_GROUPS in config and config[CONF_VERSION] != 3:
-        raise cv.Invalid(
-            f"'{CONF_SORTING_GROUPS}' is only supported in 'web_server' version 3"
         )
     return config
 
@@ -248,27 +239,6 @@ sorting_group = {
     cv.Optional(CONF_SORTING_WEIGHT): cv.float_,
 }
 
-WEBSERVER_SORTING_SCHEMA = cv.Schema(
-    {
-        # The per-entity web_server block is cosmetic dashboard ordering —
-        # mark the whole block advanced; the children inherit via the cascade.
-        cv.Optional(CONF_WEB_SERVER, visibility=cv.Visibility.ADVANCED): cv.Schema(
-            {
-                cv.OnlyWith(CONF_WEB_SERVER_ID, "web_server"): cv.use_id(WebServer),
-                cv.Optional(CONF_SORTING_WEIGHT): cv.All(
-                    cv.requires_component(DOMAIN),
-                    cv.float_,
-                ),
-                cv.Optional(CONF_SORTING_GROUP_ID): cv.All(
-                    cv.requires_component(DOMAIN),
-                    cv.use_id(cg.int_),
-                ),
-            }
-        )
-    }
-)
-
-
 CONFIG_SCHEMA = cv.All(
     cv.Schema(
         {
@@ -322,8 +292,8 @@ CONFIG_SCHEMA = cv.All(
     ),
     default_url,
     validate_version_deprecated,
-    validate_local,
-    validate_sorting_groups,
+    cv.only_when(CONF_LOCAL, CONF_VERSION, 1, negate=True),
+    cv.only_when(CONF_SORTING_GROUPS, CONF_VERSION, 3),
     validate_ota,
     validate_private_network_access,
     _consume_web_server_sockets,

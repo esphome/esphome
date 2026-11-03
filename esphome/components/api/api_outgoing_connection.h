@@ -59,8 +59,6 @@ class OutgoingConnectionManager {
   static constexpr uint32_t BACKOFF_MIN_MS = 5000;
   static constexpr uint32_t BACKOFF_MAX_MS = 300000;
   static constexpr uint32_t CONNECT_TIMEOUT_MS = 10000;
-  static constexpr uint32_t CONNECT_POLL_INTERVAL_MS = 250;
-  static constexpr uint32_t NETWORK_RETRY_MS = 500;
   static constexpr uint32_t PRECONDITION_RETRY_MS = 5000;
   // A deep sleep wake window is too short to spend on the delay, so those
   // builds dial out as soon as the target is gone
@@ -104,7 +102,6 @@ class OutgoingConnectionManager {
   uint32_t backoff_{BACKOFF_MIN_MS};
   uint32_t wait_{BOOT_WAIT_MS};
   uint32_t state_ts_{0};
-  uint32_t last_poll_{0};
 
   // Byte-aligned types last
 #ifndef API_OUTGOING_CONNECTION_HOST

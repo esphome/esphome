@@ -1,0 +1,42 @@
+logger:
+
+# No wifi: a cellular-only node must satisfy the api network dependency
+api:
+
+modem:
+  id: atmodem
+  rx_pin: GPIO26
+  tx_pin: GPIO27
+  rts_pin: GPIO25
+  cts_pin: GPIO33
+  baud_rate: 115200
+  model: SIM7600
+  apn: orange
+  pin_code: "0000"
+  init_at:
+    - ATI
+  reboot_timeout: 5min
+  update_interval: 30s
+  on_connect:
+    logger.log: "modem connected"
+  on_disconnect:
+    logger.log: "modem disconnected"
+  on_sync:
+    logger.log: "modem synced - ready for AT commands"
+
+text_sensor:
+  - platform: modem
+    urc:
+      name: Modem URC
+    network_type:
+      name: Network type
+
+sensor:
+  - platform: modem
+    rssi:
+      name: RSSI
+    ber:
+      name: BER
+
+packages:
+  modem: !include common.yaml

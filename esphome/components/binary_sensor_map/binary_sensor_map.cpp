@@ -47,7 +47,7 @@ void BinarySensorMap::process_group_() {
     }
   } else if (this->last_mask_ != 0ULL) {
     // no buttons are pressed and the states have changed since last run, so publish NAN
-    ESP_LOGV(TAG, "'%s' - No binary sensor active, publishing NAN", this->name_.c_str());
+    ESP_LOGV(TAG, "'%s' - No binary sensor active, publishing NAN", LOG_STR_ARG(this->get_log_name()));
     this->publish_state(NAN);
   }
 

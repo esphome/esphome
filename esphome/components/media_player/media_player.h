@@ -77,6 +77,7 @@ struct MediaPlayerSupportedFormat {
   uint32_t num_channels;
   MediaPlayerFormatPurpose purpose;
   uint32_t sample_bytes;
+  uint32_t bitrate;
 };
 
 // Base features always reported for all media players

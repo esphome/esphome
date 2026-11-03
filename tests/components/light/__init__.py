@@ -10,6 +10,8 @@ def override_manifest(manifest: ComponentManifestOverride) -> None:
         cg.add_define("USE_WEBSERVER_PORT", 80)
         # The gamma table and its stored gamma are behind this define
         cg.add_define("USE_LIGHT_GAMMA_LUT")
+        # The current estimate and limit of addressable lights
+        cg.add_define("USE_LIGHT_POWER_ESTIMATION")
 
     manifest.to_code = to_code_testing
     manifest.dependencies = manifest.dependencies + ["json"]

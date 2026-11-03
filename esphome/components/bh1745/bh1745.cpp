@@ -63,15 +63,8 @@ static float calculate_cct(uint16_t red, uint16_t green, uint16_t blue, bool low
 }
 
 void BH1745Component::setup() {
-  uint8_t manufacturer_id;
-  if (!this->read_byte(REG_MANUFACTURER_ID, &manufacturer_id)) {
-    this->mark_failed(LOG_STR(ESP_LOG_MSG_COMM_FAIL));
+  if (!this->check_chip_id(this, REG_MANUFACTURER_ID, MANUFACTURER_ID))
     return;
-  }
-  if (manufacturer_id != MANUFACTURER_ID) {
-    this->mark_failed(LOG_STR("Wrong manufacturer ID"));
-    return;
-  }
   uint8_t system_control;
   if (!this->read_byte(REG_SYSTEM_CONTROL, &system_control) ||
       (system_control & SYSTEM_CONTROL_PART_ID_MASK) != PART_ID) {
@@ -140,35 +133,25 @@ void BH1745Component::update() {
   if ((mode_control2 & MODE_CONTROL2_VALID) == 0)
     return;
 
-  uint8_t buffer[BH1745_CHANNELS * 2];
-  if (!this->read_bytes(REG_RED_DATA_LSB, buffer, sizeof(buffer))) {
-    this->status_set_warning(LOG_STR(ESP_LOG_MSG_COMM_FAIL));
+  uint16_t buffer[BH1745_CHANNELS];
+  if (!this->status_comm_result(this->read_bytes_16_le(REG_RED_DATA_LSB, buffer, BH1745_CHANNELS)))
     return;
-  }
-  this->status_clear_warning();
 
-  // Each channel is sent low byte first.
-  const uint16_t red = encode_uint16(buffer[1], buffer[0]);
-  const uint16_t green = encode_uint16(buffer[3], buffer[2]);
-  const uint16_t blue = encode_uint16(buffer[5], buffer[4]);
-  const uint16_t clear = encode_uint16(buffer[7], buffer[6]);
+  const uint16_t red = buffer[0];
+  const uint16_t green = buffer[1];
+  const uint16_t blue = buffer[2];
+  const uint16_t clear = buffer[3];
   ESP_LOGV(TAG, "Red: %u, Green: %u, Blue: %u, Clear: %u", red, green, blue, clear);
 
-  if (this->red_counts_sensor_ != nullptr)
-    this->red_counts_sensor_->publish_state(red);
-  if (this->green_counts_sensor_ != nullptr)
-    this->green_counts_sensor_->publish_state(green);
-  if (this->blue_counts_sensor_ != nullptr)
-    this->blue_counts_sensor_->publish_state(blue);
-  if (this->clear_counts_sensor_ != nullptr)
-    this->clear_counts_sensor_->publish_state(clear);
+  PUBLISH_STATE(this->red_counts_sensor_, red);
+  PUBLISH_STATE(this->green_counts_sensor_, green);
+  PUBLISH_STATE(this->blue_counts_sensor_, blue);
+  PUBLISH_STATE(this->clear_counts_sensor_, clear);
 
   // The datasheet picks its coefficients by whether clear / green < 0.160 (= 4 / 25).
   const bool low_clear_ratio = static_cast<uint32_t>(clear) * 25 < static_cast<uint32_t>(green) * 4;
-  if (this->illuminance_sensor_ != nullptr)
-    this->illuminance_sensor_->publish_state(calculate_lux(red, green, low_clear_ratio, this->lux_scale_));
-  if (this->color_temperature_sensor_ != nullptr)
-    this->color_temperature_sensor_->publish_state(calculate_cct(red, green, blue, low_clear_ratio));
+  PUBLISH_STATE(this->illuminance_sensor_, calculate_lux(red, green, low_clear_ratio, this->lux_scale_));
+  PUBLISH_STATE(this->color_temperature_sensor_, calculate_cct(red, green, blue, low_clear_ratio));
 }
 
 void BH1745Component::set_interrupt_state(bool on) {

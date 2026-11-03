@@ -5,7 +5,7 @@ import esphome.codegen as cg
 from esphome.components import gpio_expander, i2c, key_provider
 from esphome.components.const import CONF_COLUMNS, CONF_KEYS, CONF_ROWS
 import esphome.config_validation as cv
-from esphome.const import CONF_ID, CONF_INTERRUPT_PIN, CONF_ON_KEY
+from esphome.const import CONF_INTERRUPT_PIN, CONF_ON_KEY
 from esphome.types import ConfigType
 
 _LOGGER = logging.getLogger(__name__)
@@ -131,9 +131,7 @@ CONFIG_SCHEMA = cv.All(
 
 
 async def to_code(config: ConfigType) -> None:
-    var = cg.new_Pvariable(config[CONF_ID])
-    await cg.register_component(var, config)
-    await i2c.register_i2c_device(var, config)
+    var = await i2c.new_i2c_component(config)
 
     if (rows := config.get(CONF_ROWS)) is not None:
         columns = config[CONF_COLUMNS]
@@ -147,8 +145,7 @@ async def to_code(config: ConfigType) -> None:
             array = cg.shared_progmem_array("tca8418_keys", cg.uint8, table)
             cg.add(var.set_keys(array, len(table)))
     cg.add(var.set_gpi_events(config[CONF_GPI_EVENTS]))
-    if (interrupt_pin := config.get(CONF_INTERRUPT_PIN)) is not None:
-        cg.add(var.set_interrupt_pin(await cg.gpio_pin_expression(interrupt_pin)))
+    await cg.add_pin(var.set_interrupt_pin, config.get(CONF_INTERRUPT_PIN))
 
     for conf in config.get(CONF_ON_KEY, []):
         await automation.build_callback_automation(

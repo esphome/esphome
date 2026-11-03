@@ -1,0 +1,20 @@
+esphome:
+  name: scheduler-loop-phase-timeout
+  on_boot:
+    priority: -100
+    then:
+      - lambda: |-
+          App.set_loop_interval(5000);
+
+host:
+api:
+logger:
+  level: INFO
+
+external_components:
+  - source:
+      type: local
+      path: EXTERNAL_COMPONENT_PATH
+    components: [scheduler_loop_phase_component]
+
+scheduler_loop_phase_component:

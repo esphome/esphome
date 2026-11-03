@@ -1,4 +1,5 @@
 #include "ms5611.h"
+#include "esphome/core/helpers.h"
 #include "esphome/core/log.h"
 #include "esphome/core/hal.h"
 
@@ -52,7 +53,7 @@ void MS5611Component::read_temperature_() {
     this->status_set_warning();
     return;
   }
-  const uint32_t raw_temperature = (uint32_t(bytes[0]) << 16) | (uint32_t(bytes[1]) << 8) | (uint32_t(bytes[2]));
+  const uint32_t raw_temperature = encode_uint24(bytes[0], bytes[1], bytes[2]);
 
   // request pressure reading
   if (!this->write_bytes(MS5611_CMD_CONV_D1 + 0x08, nullptr, 0)) {
@@ -68,7 +69,7 @@ void MS5611Component::read_pressure_(uint32_t raw_temperature) {
     this->status_set_warning();
     return;
   }
-  const uint32_t raw_pressure = (uint32_t(bytes[0]) << 16) | (uint32_t(bytes[1]) << 8) | (uint32_t(bytes[2]));
+  const uint32_t raw_pressure = encode_uint24(bytes[0], bytes[1], bytes[2]);
   this->calculate_values_(raw_temperature, raw_pressure);
 }
 
@@ -115,10 +116,8 @@ void MS5611Component::calculate_values_(uint32_t raw_temperature, uint32_t raw_p
   const float pressure = p / 100.0f;
   ESP_LOGD(TAG, "Got temperature=%0.02f°C pressure=%0.01fhPa", temperature, pressure);
 
-  if (this->temperature_sensor_ != nullptr)
-    this->temperature_sensor_->publish_state(temperature);
-  if (this->pressure_sensor_ != nullptr)
-    this->pressure_sensor_->publish_state(pressure);  // hPa
+  PUBLISH_STATE(this->temperature_sensor_, temperature);
+  PUBLISH_STATE(this->pressure_sensor_, pressure);  // hPa
   this->status_clear_warning();
 }
 

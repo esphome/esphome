@@ -982,13 +982,12 @@ void HOT IT8951Display::draw_pixels_internal(int x_start, int y_start, int w, in
       switch (bitness) {
         case COLOR_BITNESS_565: {
           const size_t i = source_idx * 2;
-          color_value = big_endian ? (static_cast<uint32_t>(ptr[i]) << 8) | ptr[i + 1]
-                                   : ptr[i] | (static_cast<uint32_t>(ptr[i + 1]) << 8);
+          color_value = big_endian ? encode_uint16(ptr[i], ptr[i + 1]) : encode_value_le<uint16_t>(&ptr[i]);
           break;
         }
         case COLOR_BITNESS_888: {
           const size_t i = source_idx * 3;
-          color_value = ptr[i] | (static_cast<uint32_t>(ptr[i + 1]) << 8) | (static_cast<uint32_t>(ptr[i + 2]) << 16);
+          color_value = encode_uint24(ptr[i + 2], ptr[i + 1], ptr[i]);
           break;
         }
         default:

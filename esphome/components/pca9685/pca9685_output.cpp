@@ -140,18 +140,16 @@ void PCA9685Output::loop() {
   this->update_ = false;
 }
 
-void PCA9685Output::register_channel(PCA9685Channel *channel) {
-  auto c = channel->channel_;
-  this->min_channel_ = std::min(this->min_channel_, c);
-  this->max_channel_ = std::max(this->max_channel_, c);
-  channel->set_parent(this);
+void PCA9685Output::register_channel(uint8_t channel) {
+  this->min_channel_ = std::min(this->min_channel_, channel);
+  this->max_channel_ = std::max(this->max_channel_, channel);
 }
 
-void PCA9685Channel::write_state(float state) {
-  const uint16_t max_duty = 4096;
-  const float duty_rounded = roundf(state * max_duty);
-  auto duty = static_cast<uint16_t>(duty_rounded);
-  this->parent_->set_channel_value_(this->channel_, duty);
+void PCA9685Output::write_channel(uint8_t channel, float state) {
+  auto value = static_cast<uint16_t>(roundf(state * 4096));
+  if (this->pwm_amounts_[channel] != value)
+    this->update_ = true;
+  this->pwm_amounts_[channel] = value;
 }
 
 }  // namespace esphome::pca9685

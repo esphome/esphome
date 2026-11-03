@@ -1,5 +1,6 @@
 #include "nau7802.h"
 #include <cmath>
+#include "esphome/core/helpers.h"
 #include "esphome/core/log.h"
 #include "esphome/core/hal.h"
 
@@ -226,11 +227,7 @@ int32_t NAU7802Sensor::read_value_(uint8_t start_reg, size_t size) {
   for (size_t i = 0; i < size; i++) {
     result |= data[i] << (size - 1 - i) * 8;
   }
-  // extend sign bit
-  if (result & 0x800000 && size == 3) {
-    result |= 0xFF000000;
-  }
-  return result;
+  return size == 3 ? sign_extend<24>(result) : result;
 }
 
 bool NAU7802Sensor::calibrate_(enum NAU7802CalibrationModes mode) {
@@ -292,18 +289,15 @@ void NAU7802Sensor::loop() {
 }
 
 void NAU7802Sensor::update() {
-  if (!this->is_data_ready_()) {
+  if (!this->status_comm_result(this->is_data_ready_(), nullptr)) {
     ESP_LOGW(TAG, "No measurements ready!");
-    this->status_set_warning();
     return;
   }
-
-  this->status_clear_warning();
 
   // Get the most recent sample to publish
   int32_t result = this->read_value_(ADCO_B2_REG, 3);
 
-  ESP_LOGD(TAG, "'%s': Got value %" PRId32, this->name_.c_str(), result);
+  ESP_LOGD(TAG, "'%s': Got value %" PRId32, LOG_STR_ARG(this->get_log_name()), result);
   this->publish_state(result);
 }
 

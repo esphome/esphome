@@ -15,7 +15,6 @@ from aioesphomeapi import (
     ClimateMode,
     ClimateState,
     EntityInfo,
-    EntityState,
     SwitchInfo,
     SwitchState,
     WaterHeaterInfo,
@@ -24,7 +23,7 @@ from aioesphomeapi import (
 )
 import pytest
 
-from .state_utils import InitialStateHelper, require_entity
+from .state_utils import require_entity, subscribe_after_initial_states
 from .types import APIClientConnectedFactory, RunCompiledFunction
 
 
@@ -41,15 +40,6 @@ async def test_entity_missing_state(
     2. Publishing clears missing_state and reports the published value
     3. A first value that happens to equal the default still publishes
     """
-    loop = asyncio.get_running_loop()
-    futures: dict[int, asyncio.Future[EntityState]] = {}
-
-    def on_state(state: EntityState) -> None:
-        """Resolve the pending future for the entity that changed."""
-        future = futures.get(state.key)
-        if future is not None and not future.done():
-            future.set_result(state)
-
     async with (
         run_compiled(yaml_config),
         api_client_connected() as client,
@@ -75,17 +65,11 @@ async def test_entity_missing_state(
             lambda_water_heater_info,
         ]
 
-        initial_state_helper = InitialStateHelper(entities)
-        client.subscribe_states(initial_state_helper.on_state_wrapper(on_state))
-
-        try:
-            await initial_state_helper.wait_for_initial_states()
-        except TimeoutError:
-            pytest.fail("Timeout waiting for initial states")
+        sub = await subscribe_after_initial_states(client, entities)
 
         # Nothing has published yet, so all of them must report unknown
         for info in stateful:
-            state = initial_state_helper.initial_states.get(info.key)
+            state = sub.initial_states.get(info.key)
             assert state is not None, f"No initial state received for {info.object_id}"
             assert state.missing_state is True, (
                 f"Initial state for {info.object_id} should have "
@@ -93,40 +77,34 @@ async def test_entity_missing_state(
             )
 
         # A configured initial_state must not start out unknown
-        initial_climate_state = initial_state_helper.initial_states.get(
-            initial_climate_info.key
-        )
+        initial_climate_state = sub.initial_states.get(initial_climate_info.key)
         assert isinstance(initial_climate_state, ClimateState)
         assert initial_climate_state.missing_state is False
         assert initial_climate_state.mode is ClimateMode.HEAT
 
         # Publishing a state on each one clears missing_state
-        futures = {info.key: loop.create_future() for info in stateful}
+        waits = {info.key: sub.waiter.next_state(info.key) for info in stateful}
         client.button_command(publish_button.key)
+        published = dict(zip(waits, await asyncio.gather(*waits.values()), strict=True))
 
-        try:
-            await asyncio.wait_for(asyncio.gather(*futures.values()), timeout=5.0)
-        except TimeoutError:
-            pytest.fail("Timeout waiting for published states")
-
-        switch_state = futures[switch_info.key].result()
+        switch_state = published[switch_info.key]
         assert isinstance(switch_state, SwitchState)
         assert switch_state.missing_state is False
         assert switch_state.state is True
 
-        climate_state = futures[climate_info.key].result()
+        climate_state = published[climate_info.key]
         assert isinstance(climate_state, ClimateState)
         assert climate_state.missing_state is False
         assert climate_state.mode is ClimateMode.HEAT
 
-        water_heater_state = futures[water_heater_info.key].result()
+        water_heater_state = published[water_heater_info.key]
         assert isinstance(water_heater_state, WaterHeaterState)
         assert water_heater_state.missing_state is False
         assert water_heater_state.mode is WaterHeaterMode.ECO
 
         # Its first value is OFF, which is also the default the entity starts on,
         # so it only leaves unknown if the first value publishes regardless
-        lambda_state = futures[lambda_water_heater_info.key].result()
+        lambda_state = published[lambda_water_heater_info.key]
         assert isinstance(lambda_state, WaterHeaterState)
         assert lambda_state.missing_state is False
         assert lambda_state.mode is WaterHeaterMode.OFF
