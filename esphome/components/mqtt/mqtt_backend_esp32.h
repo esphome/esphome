@@ -181,8 +181,9 @@ class MQTTBackendESP32 final : public MQTTBackend {
       this->initialize_();
     }
     if (this->is_initalized_ && !this->is_started_) {
-      if (esp_mqtt_client_start(this->handler_.get()) == ESP_OK)
-        this->is_started_ = true;     // track if client is started
+      if (esp_mqtt_client_start(this->handler_.get()) == ESP_OK) {
+        this->is_started_ = true;  // track if mqtt client started
+      }
     }
   }
   void disconnect() final {
