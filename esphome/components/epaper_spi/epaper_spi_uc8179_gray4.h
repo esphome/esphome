@@ -10,8 +10,8 @@ namespace esphome::epaper_spi {
  * 4-gray sample.
  *
  * The framebuffer packs 2 bits per pixel (4 per byte, most significant pixel first). A full update
- * sends each level's high bit to DTM1 (0x10) and its low bit to DTM2 (0x13) and refreshes with the
- * panel's OTP four-level waveform.
+ * sends each level's low bit to DTM1 (0x10) and its high bit to DTM2 (0x13), inverted so white is 0
+ * on the wire, and refreshes with the panel's OTP four-level waveform.
  *
  * With partial updates enabled (full_update_every > 1), a partial update is a black-and-white
  * differential refresh with the register LUTs from the model's init sequence: DTM1 gets the frame
