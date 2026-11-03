@@ -668,6 +668,7 @@ esphome/components/tinyusb/* @kbx81
 esphome/components/tinyusb_keyboard/* @frederikbolding
 esphome/components/tlc5947/* @rnauber
 esphome/components/tlc5971/* @IJIJI
+esphome/components/tlv320dac3100/* @chunckus-aurelius
 esphome/components/tm1621/* @Philippe12
 esphome/components/tm1637/* @glmnet
 esphome/components/tm1638/* @skykingjwc
