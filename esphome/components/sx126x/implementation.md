@@ -174,3 +174,24 @@ Operation tests also verify early returns, reentry rejection and that a send
 cannot be invoked without a restoration function. The owner cannot be copied,
 so its readiness cannot be duplicated independently of the physical radio.
 Host tests and embedded builds do not establish RF or physical-fault behavior.
+
+## Radio vocabulary and applied configuration
+
+`Sx126xCommands` encodes opcodes, register addresses, dummy bytes, packet parameters
+and RX metadata. It sees only complete exchanges on `Sx126xSpiDevice`; it has no
+component lifecycle, warnings, callbacks or raw SPI access. Command results are
+marked `nodiscard`, and configuration distinguishes BUSY from unsupported silicon.
+
+`SX126x` owns reset, component status and the requested/applied `RadioProfile`
+values. Setters stage the requested profile. Reset invalidates readiness; the
+applied snapshot changes only after every configuration command succeeds.
+Sends, RX interpretation and restoration use the applied snapshot, even if a
+setter has staged a different payload length or RX policy. Sync words use eight
+fixed bytes per profile; snapshots require no allocation. An oversized sync word
+is rejected before reset. Cold sleep invalidates configuration, while warm sleep
+retains it. A successful explicit configure is required after cold sleep.
+
+The separation allows configuration encoders to be tested without ESPHome
+lifecycle policy, and lifecycle tests to assert that incomplete configuration
+never permits normal operations. Existing YAML and send/mode entry points remain
+available; runtime setters now explicitly stage changes until configure succeeds.
