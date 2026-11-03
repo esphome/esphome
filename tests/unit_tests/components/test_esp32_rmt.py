@@ -36,6 +36,7 @@ from esphome.const import (
     PLATFORM_ESP8266,
 )
 from esphome.core import CORE, ID
+import esphome.final_validate as fv
 
 # Entries of RMT components, by direction
 Config = dict[str, list[dict[str, Any]]]
@@ -90,7 +91,6 @@ def run_check(caplog: pytest.LogCaptureFixture) -> CheckRunner:
         (VARIANT_ESP32S2, (192,), False),
         (VARIANT_ESP32S2, (192, 192), True),
         (VARIANT_ESP32S2, (128, 128), False),
-        (VARIANT_ESP32S2, (64, 64), False),
         # ESP32-S3 and P4: 4 TX blocks of 48
         (VARIANT_ESP32S3, (192,), False),
         (VARIANT_ESP32S3, (192, 192), True),
@@ -150,7 +150,30 @@ def test_strip_and_transmitter_share_tx(run_check: CheckRunner) -> None:
     messages = run_check(VARIANT_ESP32S3, config)
     assert len(messages) == 1
     assert "RMT TX memory" in messages[0]
-    assert "ESP-IDF logs 'no free tx channels'," in messages[0]
+    assert "'no free tx channels'" in messages[0]
+    assert "no free rx channels" not in messages[0]
+
+
+@pytest.mark.parametrize(
+    ("variant", "symbols"), [(VARIANT_ESP32S3, 384), (VARIANT_ESP32C3, 144)]
+)
+def test_single_transmitter_may_use_rx_blocks(
+    run_check: CheckRunner, variant: str, symbols: int
+) -> None:
+    """Without receivers, one TX channel can extend into the RX blocks and always fits."""
+    assert not run_check(variant, _strips(symbols))
+
+
+def test_suggestion_when_blocks_do_not_divide_evenly(run_check: CheckRunner) -> None:
+    """Three strips share the four S2 blocks: one block each, a whole and even value."""
+    messages = run_check(VARIANT_ESP32S2, _strips(192, 192, 192))
+    assert "Set 'rmt_symbols: 64' on 'strip0', 'strip1', 'strip2'." in messages[0]
+
+
+def test_suggestion_skips_component_at_suggested_value(run_check: CheckRunner) -> None:
+    """A component that already uses the suggested value is not listed."""
+    messages = run_check(VARIANT_ESP32, _strips(192, 192, 192, 128))
+    assert "Set 'rmt_symbols: 128' on 'strip0', 'strip1', 'strip2'." in messages[0]
 
 
 def test_tx_warning_names_rx_error_with_receivers(run_check: CheckRunner) -> None:
@@ -176,7 +199,7 @@ def test_receiver_shares_blocks_on_s2(
     if with_transmitter:
         config["TX"].append(_entry("ir", 64))
     messages = run_check(VARIANT_ESP32S2, config)
-    assert len(messages) == with_transmitter
+    assert len(messages) == (1 if with_transmitter else 0)
     if with_transmitter:
         assert "RMT TX/RX memory" in messages[0]
 
@@ -200,8 +223,8 @@ def test_suggestion_leaves_out_dma_channels(run_check: CheckRunner) -> None:
     ("variant", "direction", "symbols", "extra", "match"),
     [
         # The original ESP32 has blocks of 64 symbols
-        (VARIANT_ESP32, "TX", 48, {}, "even number and at least 64 on ESP32"),
-        (VARIANT_ESP32S3, "RX", 97, {}, "even number and at least 48 on ESP32S3"),
+        (VARIANT_ESP32, "TX", 48, {}, "even number of at least 64 on ESP32,"),
+        (VARIANT_ESP32S3, "RX", 97, {}, "even number of at least 48 on ESP32S3,"),
         # Also with DMA, where rmt_symbols sizes the DMA buffer
         (VARIANT_ESP32S3, "TX", 40, {CONF_USE_DMA: True}, "at least 48"),
         (VARIANT_ESP32S3, "TX", 2048, {CONF_USE_DMA: True}, "at most 2046 with"),
@@ -223,6 +246,26 @@ def test_invalid_rmt_symbols_fail(
     with pytest.raises(cv.Invalid, match=match) as error:
         esp32_rmt.request_rmt_channel(direction)(_entry("x", symbols, **extra))
     assert error.value.path == [CONF_RMT_SYMBOLS]
+
+
+@pytest.mark.parametrize("variant", sorted(esp32_rmt.RMT_MEMORY))
+def test_symbol_limits_of_every_variant(variant: str) -> None:
+    """One block is the minimum; TX can reach the RX blocks, RX only its own blocks."""
+    memory = esp32_rmt.RMT_MEMORY[variant]
+    size = memory.symbols_per_block
+    rx_blocks = memory.rx_blocks or 0
+    limits = {
+        "TX": (memory.tx_blocks + rx_blocks) * size,
+        "RX": (rx_blocks or memory.tx_blocks) * size,
+    }
+    _set_variant(variant)
+    for direction, limit in limits.items():
+        check = esp32_rmt.request_rmt_channel(direction)
+        for symbols in (size, limit):
+            check(_entry("ok", symbols))
+        for symbols in (size - 2, limit + 2):
+            with pytest.raises(cv.Invalid):
+                check(_entry("too_small_or_large", symbols))
 
 
 @pytest.mark.parametrize(
@@ -257,6 +300,17 @@ def test_two_dma_channels_in_one_direction_fail(run_check: CheckRunner) -> None:
     assert error.value.path == [CONF_USE_DMA]
 
 
+def test_combined_errors_are_not_shown_on_use_dma(run_check: CheckRunner) -> None:
+    """With errors of other components joined in, the error is on the component itself."""
+    config = {
+        "TX": [_entry(f"dma{i}", 48, **{CONF_USE_DMA: True}) for i in range(2)],
+        "RX": [_entry(f"rx{i}", 48) for i in range(5)],
+    }
+    with pytest.raises(cv.Invalid, match="supports DMA") as error:
+        run_check(VARIANT_ESP32S3, config)
+    assert error.value.path == []
+
+
 def test_dma_on_tx_and_rx(run_check: CheckRunner) -> None:
     """One DMA channel per direction is fine."""
     config = {
@@ -269,16 +323,16 @@ def test_dma_on_tx_and_rx(run_check: CheckRunner) -> None:
 @pytest.mark.parametrize(
     ("variant", "config", "match"),
     [
-        (VARIANT_ESP32C3, _strips(48, 48, 48), "ESP32C3 has 2 RMT TX channels"),
+        (VARIANT_ESP32C3, _strips(48, 48, 48), "ESP32C3 has 2 RMT channels for TX"),
         (
             VARIANT_ESP32S2,
             {**_strips(64, 64, 64, 64), "RX": [_entry("rx", 64)]},
-            "ESP32S2 has 4 RMT TX/RX channels, but these 5 components",
+            "ESP32S2 has 4 RMT channels shared by TX and RX, but these 5 components",
         ),
         (
             VARIANT_ESP32S3,
             {"RX": [_entry(f"rx{i}", 48) for i in range(5)]},
-            "ESP32S3 has 4 RMT RX channels",
+            "ESP32S3 has 4 RMT channels for RX",
         ),
     ],
 )
@@ -307,7 +361,7 @@ def test_error_raised_from_a_component_that_causes_it() -> None:
     with pytest.raises(cv.Invalid) as error:
         esp32_rmt.final_validate_rmt_channels(transmitters[0])
     # Both errors are reported at once, as final validation stops after the first one
-    assert "ESP32S3 has 4 RMT TX channels" in str(error.value)
+    assert "ESP32S3 has 4 RMT channels for TX" in str(error.value)
     assert "Only one RMT RX channel on ESP32S3 supports DMA" in str(error.value)
 
 
@@ -344,3 +398,29 @@ def test_check_runs_once(
     with caplog.at_level(logging.WARNING):
         esp32_rmt.final_validate_rmt_channels({})
     assert not caplog.records
+
+
+@pytest.mark.parametrize(
+    ("path", "label"),
+    [
+        (["light", 1, CONF_ID], "light[1]"),
+        # A component that is not a list, such as an external one without MULTI_CONF
+        (["my_rmt", CONF_ID], "generated"),
+    ],
+)
+def test_generated_ids_are_named_by_position(
+    run_check: CheckRunner, path: list[str | int], label: str
+) -> None:
+    """A component without a name or manual id is named by where it is in the config."""
+
+    class FullConfig:
+        def get_path_for_id(self, _: ID) -> list[str | int]:
+            return path
+
+    token = fv.full_config.set(FullConfig())
+    try:
+        entry = {**_entry("x", 192), CONF_ID: ID("generated", is_manual=False)}
+        messages = run_check(VARIANT_ESP32S3, {"TX": [entry, _entry("other", 192)]})
+    finally:
+        fv.full_config.reset(token)
+    assert f"'{label}' (192), 'other' (192)" in messages[0]

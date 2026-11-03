@@ -22,3 +22,7 @@ light:
     pin: GPIO2
     num_leds: 32
     rmt_symbols: 48
+
+# Receivers use the RX blocks, so this one does not take TX memory
+remote_receiver:
+  - pin: GPIO4
