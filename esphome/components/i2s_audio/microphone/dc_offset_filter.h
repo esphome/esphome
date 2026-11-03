@@ -18,8 +18,11 @@ class DCOffsetFilter {
   void reset(uint32_t sample_rate) {
     // A 20 Hz pole gives the same settling time at every sample rate. Normalize the
     // feedforward coefficient to keep unity gain at Nyquist: b = (1 + a) / 2.
-    const double pole = std::exp(-2.0 * std::numbers::pi * 20.0 / sample_rate);
-    this->feedforward_ = static_cast<int32_t>(std::lround((1.0 + pole) * 0.5 * COEFFICIENT_SCALE));
+    // Single precision keeps double-precision exp out of the build; expm1 gives 1 - a accurately with a near 1.
+    const float half_one_minus_pole =
+        -0.5f * std::expm1(-2.0f * std::numbers::pi_v<float> * 20.0f / static_cast<float>(sample_rate));
+    this->feedforward_ =
+        static_cast<int32_t>(COEFFICIENT_SCALE - static_cast<int64_t>(half_one_minus_pole * COEFFICIENT_SCALE + 0.5f));
     this->feedback_ = static_cast<int32_t>(2 * static_cast<int64_t>(this->feedforward_) - COEFFICIENT_SCALE);
     this->states_ = {};
   }
