@@ -1,0 +1,32 @@
+wifi:
+  ssid: MySSID
+  password: password1
+
+api:
+
+microphone:
+  - platform: i2s_audio
+    id: va_media_microphone
+    i2s_audio_id: i2s_audio_bus
+    i2s_din_pin: GPIO34
+    adc_type: external
+
+speaker:
+  - platform: i2s_audio
+    id: va_media_speaker
+    i2s_audio_id: i2s_audio_bus
+    i2s_dout_pin: GPIO32
+    dac_type: external
+
+media_player:
+  - platform: speaker
+    id: va_media_player
+    announcement_pipeline:
+      speaker: va_media_speaker
+      format: WAV
+      sample_rate: 16000
+      num_channels: 1
+
+voice_assistant:
+  microphone: va_media_microphone
+  media_player: va_media_player

@@ -484,16 +484,12 @@ void VoiceAssistant::loop() {
         playing = (this->media_player_response_state_ == MediaPlayerResponseState::PLAYING);
 
         if (this->media_player_response_state_ == MediaPlayerResponseState::FINISHED) {
-          this->media_player_response_state_ = MediaPlayerResponseState::IDLE;
+          // Keep completion until the next run so a late TTS_END cannot reopen this response.
           this->cancel_timeout(PLAYBACK_TIMEOUT_ID);
           ESP_LOGD(TAG, "Announcement finished playing");
           this->set_state_(State::RESPONSE_FINISHED, State::RESPONSE_FINISHED);
 
-          api::VoiceAssistantAnnounceFinished msg;
-          msg.success = true;
-          if (!this->api_client_->send_message(msg)) {
-            API_LOG_MSG_DROPPED(TAG, "Announce-finished");
-          }
+          this->send_announce_finished_(true);
           break;
         }
       }
@@ -719,6 +715,27 @@ void VoiceAssistant::request_start(bool continuous, bool silence_detection) {
 void VoiceAssistant::request_stop() {
   this->continuous_ = false;
   this->continue_conversation_ = false;
+#ifdef USE_MEDIA_PLAYER
+  if (this->media_player_ != nullptr) {
+    const bool player_pending = this->media_player_response_state_ == MediaPlayerResponseState::URL_SENT ||
+                                this->media_player_response_state_ == MediaPlayerResponseState::PLAYING;
+    const bool response_pending = this->state_ == State::STREAMING_RESPONSE ||
+                                  this->desired_state_ == State::STREAMING_RESPONSE || player_pending;
+    const bool response_finished = this->media_player_response_state_ == MediaPlayerResponseState::FINISHED;
+    this->cancel_timeout(PLAYBACK_TIMEOUT_ID);
+    // Set this before stopping the player, which may synchronously publish its idle state.
+    this->media_player_response_state_ = MediaPlayerResponseState::ABORTED;
+    if (response_pending) {
+      this->send_announce_finished_(response_finished);
+    }
+    if (player_pending) {
+      this->media_player_->make_call()
+          .set_command(media_player::MEDIA_PLAYER_COMMAND_STOP)
+          .set_announcement(true)
+          .perform();
+    }
+  }
+#endif
 
   switch (this->state_) {
     case State::IDLE:
@@ -759,16 +776,12 @@ void VoiceAssistant::request_stop() {
 
 void VoiceAssistant::cancel_response_() {
 #ifdef USE_MEDIA_PLAYER
-  // Stop any ongoing media player announcement
-  if (this->media_player_ != nullptr) {
-    this->media_player_->make_call()
-        .set_command(media_player::MEDIA_PLAYER_COMMAND_STOP)
-        .set_announcement(true)
-        .perform();
-  }
   if (this->started_streaming_tts_) {
     // Haven't reached the TTS_END stage, so send the stop signal to HA.
     this->signal_stop_();
+  }
+  if (this->media_player_ != nullptr) {
+    this->set_state_after_mic_stop_(State::RESPONSE_FINISHED);
   }
 #endif
 }
@@ -788,21 +801,49 @@ void VoiceAssistant::signal_stop_() {
 
 void VoiceAssistant::start_playback_timeout_() {
   this->set_timeout(PLAYBACK_TIMEOUT_ID, this->tts_playback_start_timeout_, [this]() {
+    bool success = true;
+#ifdef USE_MEDIA_PLAYER
+    if (this->media_player_ != nullptr && this->media_player_response_state_ == MediaPlayerResponseState::URL_SENT) {
+      success = false;
+      this->continue_conversation_ = false;
+      this->media_player_response_state_ = MediaPlayerResponseState::ABORTED;
+      this->media_player_->make_call()
+          .set_command(media_player::MEDIA_PLAYER_COMMAND_STOP)
+          .set_announcement(true)
+          .perform();
+      this->defer([this]() {
+        this->error_trigger_.trigger("tts-start-timeout", "TTS playback did not start before the timeout");
+      });
+    }
+#endif
     this->cancel_timeout(SPEAKER_IDLE_TIMEOUT_ID);
     this->set_state_(State::RESPONSE_FINISHED, State::RESPONSE_FINISHED);
 
-    if (this->api_client_ == nullptr)
-      return;
-    api::VoiceAssistantAnnounceFinished msg;
-    msg.success = true;
-    if (!this->api_client_->send_message(msg)) {
-      API_LOG_MSG_DROPPED(TAG, "Announce-finished");
-    }
+    this->send_announce_finished_(success);
   });
+}
+
+void VoiceAssistant::send_announce_finished_(bool success) {
+  if (this->api_client_ == nullptr)
+    return;
+  api::VoiceAssistantAnnounceFinished msg;
+  msg.success = success;
+  if (!this->api_client_->send_message(msg)) {
+    API_LOG_MSG_DROPPED(TAG, "Announce-finished");
+  }
 }
 
 void VoiceAssistant::on_event(const api::VoiceAssistantEventResponse &msg) {
   ESP_LOGD(TAG, "Event Type: %" PRId32, msg.event_type);
+#ifdef USE_MEDIA_PLAYER
+  if (this->media_player_ != nullptr && this->media_player_response_state_ == MediaPlayerResponseState::ABORTED &&
+      (msg.event_type == api::enums::VOICE_ASSISTANT_TTS_START ||
+       msg.event_type == api::enums::VOICE_ASSISTANT_TTS_END ||
+       msg.event_type == api::enums::VOICE_ASSISTANT_INTENT_PROGRESS ||
+       msg.event_type == api::enums::VOICE_ASSISTANT_INTENT_END)) {
+    return;
+  }
+#endif
   switch (msg.event_type) {
     case api::enums::VOICE_ASSISTANT_RUN_START:
       ESP_LOGD(TAG, "Assist Pipeline running");
@@ -863,10 +904,7 @@ void VoiceAssistant::on_event(const api::VoiceAssistantEventResponse &msg) {
           if ((arg.name == "tts_start_streaming") && (arg.value == "1") && !this->tts_response_url_.empty()) {
             this->media_player_response_state_ = MediaPlayerResponseState::URL_SENT;
 
-            this->media_player_->make_call().set_media_url(this->tts_response_url_).set_announcement(true).perform();
-
             this->started_streaming_tts_ = true;
-            this->start_playback_timeout_();
 
             tts_url_for_trigger = this->tts_response_url_;
             this->tts_response_url_.clear();  // Reset streaming URL
@@ -875,7 +913,21 @@ void VoiceAssistant::on_event(const api::VoiceAssistantEventResponse &msg) {
         }
       }
 #endif
-      this->defer([this, tts_url_for_trigger]() { this->intent_progress_trigger_.trigger(tts_url_for_trigger); });
+      this->defer([this, tts_url_for_trigger]() {
+#ifdef USE_MEDIA_PLAYER
+        if (this->media_player_ != nullptr && this->media_player_response_state_ == MediaPlayerResponseState::ABORTED)
+          return;
+#endif
+        this->intent_progress_trigger_.trigger(tts_url_for_trigger);
+#ifdef USE_MEDIA_PLAYER
+        // Synchronous hook actions may stop the response before it reaches the player.
+        if (this->media_player_ != nullptr && !tts_url_for_trigger.empty() &&
+            this->media_player_response_state_ == MediaPlayerResponseState::URL_SENT) {
+          this->media_player_->make_call().set_media_url(tts_url_for_trigger).set_announcement(true).perform();
+          this->start_playback_timeout_();
+        }
+#endif
+      });
       break;
     }
     case api::enums::VOICE_ASSISTANT_INTENT_END: {
@@ -890,6 +942,10 @@ void VoiceAssistant::on_event(const api::VoiceAssistantEventResponse &msg) {
       break;
     }
     case api::enums::VOICE_ASSISTANT_TTS_START: {
+#ifdef USE_MEDIA_PLAYER
+      if (this->media_player_ != nullptr && this->media_player_response_state_ == MediaPlayerResponseState::FINISHED)
+        break;
+#endif
       std::string text;
       for (const auto &arg : msg.data) {
         if (arg.name == "text") {
@@ -906,6 +962,10 @@ void VoiceAssistant::on_event(const api::VoiceAssistantEventResponse &msg) {
       }
       ESP_LOGD(TAG, "Response: \"%s\"", text.c_str());
       this->defer([this, text]() {
+#ifdef USE_MEDIA_PLAYER
+        if (this->media_player_ != nullptr && this->media_player_response_state_ == MediaPlayerResponseState::ABORTED)
+          return;
+#endif
         this->tts_start_trigger_.trigger(text);
 #ifdef USE_SPEAKER
         if (this->speaker_ != nullptr) {
@@ -916,6 +976,12 @@ void VoiceAssistant::on_event(const api::VoiceAssistantEventResponse &msg) {
       break;
     }
     case api::enums::VOICE_ASSISTANT_TTS_END: {
+#ifdef USE_MEDIA_PLAYER
+      const bool response_finished =
+          this->media_player_ != nullptr && this->media_player_response_state_ == MediaPlayerResponseState::FINISHED;
+#else
+      const bool response_finished = false;
+#endif
       std::string url;
       for (const auto &arg : msg.data) {
         if (arg.name == "url") {
@@ -929,7 +995,10 @@ void VoiceAssistant::on_event(const api::VoiceAssistantEventResponse &msg) {
       ESP_LOGD(TAG, "Response URL: \"%s\"", url.c_str());
       this->defer([this, url]() {
 #ifdef USE_MEDIA_PLAYER
-        if ((this->media_player_ != nullptr) && (!this->started_streaming_tts_)) {
+        if (this->media_player_ != nullptr && this->media_player_response_state_ == MediaPlayerResponseState::ABORTED)
+          return;
+        if ((this->media_player_ != nullptr) && (!this->started_streaming_tts_) &&
+            this->media_player_response_state_ != MediaPlayerResponseState::FINISHED) {
           this->media_player_response_state_ = MediaPlayerResponseState::URL_SENT;
 
           this->media_player_->make_call().set_media_url(url).set_announcement(true).perform();
@@ -941,7 +1010,9 @@ void VoiceAssistant::on_event(const api::VoiceAssistantEventResponse &msg) {
         this->tts_end_trigger_.trigger(url);
       });
       // The intent progress stage may already have moved to streaming response
-      this->set_state_after_mic_stop_(this->local_output_ ? State::STREAMING_RESPONSE : State::IDLE);
+      if (!response_finished) {
+        this->set_state_after_mic_stop_(this->local_output_ ? State::STREAMING_RESPONSE : State::IDLE);
+      }
       break;
     }
     case api::enums::VOICE_ASSISTANT_RUN_END: {
@@ -982,6 +1053,12 @@ void VoiceAssistant::on_event(const api::VoiceAssistantEventResponse &msg) {
         return;
       }
       ESP_LOGE(TAG, "Error: %s - %s", code.c_str(), message.c_str());
+#ifdef USE_MEDIA_PLAYER
+      if (this->media_player_ != nullptr) {
+        this->cancel_timeout(PLAYBACK_TIMEOUT_ID);
+        this->media_player_response_state_ = MediaPlayerResponseState::ABORTED;
+      }
+#endif
       if (this->state_ != State::IDLE) {
         this->signal_stop_();
         this->set_state_(State::STOP_MICROPHONE, State::IDLE);
