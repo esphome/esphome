@@ -5,10 +5,16 @@ import pytest
 from esphome.components.zephyr import (
     CdcAcmUser,
     _cdc_acm_add_ports,
+    _disable_board_cdc_acm_overlay,
     zephyr_claim_cdc_acm,
     zephyr_use_usb_device_next,
 )
-from esphome.components.zephyr.const import KEY_OVERLAY, KEY_PRJ_CONF, KEY_ZEPHYR
+from esphome.components.zephyr.const import (
+    KEY_OVERLAY,
+    KEY_OVERLAY_BUILDER,
+    KEY_PRJ_CONF,
+    KEY_ZEPHYR,
+)
 import esphome.config_validation as cv
 from esphome.const import (
     KEY_CORE,
@@ -83,7 +89,12 @@ def _prj_conf_for(platform: str, version: cv.Version) -> dict[str, object]:
         KEY_TARGET_PLATFORM: platform,
         KEY_FRAMEWORK_VERSION: version,
     }
-    CORE.data[KEY_ZEPHYR] = {"cdc_acm_users": {}, KEY_PRJ_CONF: {}, KEY_OVERLAY: {}}
+    CORE.data[KEY_ZEPHYR] = {
+        "cdc_acm_users": {},
+        KEY_PRJ_CONF: {},
+        KEY_OVERLAY: {},
+        KEY_OVERLAY_BUILDER: [],
+    }
     zephyr_claim_cdc_acm(0, "logger", write_only=True)
     _cdc_acm_add_ports()
     return {
@@ -118,7 +129,7 @@ def test_legacy_usb_stack_options() -> None:
     assert prj_conf["CONFIG_USB_DEVICE_STACK_NEXT"] is False
     assert prj_conf["CONFIG_USB_CDC_ACM"] is True
     assert "CONFIG_USBD_CDC_ACM_CLASS" not in prj_conf
-    assert "board_cdc_acm_uart" not in CORE.data[KEY_ZEPHYR][KEY_OVERLAY][""]
+    assert not CORE.data[KEY_ZEPHYR][KEY_OVERLAY_BUILDER]
 
 
 def test_new_usb_stack_options() -> None:
@@ -130,7 +141,7 @@ def test_new_usb_stack_options() -> None:
     assert prj_conf["CONFIG_UART_LINE_CTRL"] is True
     # The board's own USB device and CDC ACM port are turned off
     assert prj_conf["CONFIG_CDC_ACM_SERIAL_INITIALIZE_AT_BOOT"] is False
-    assert "board_cdc_acm_uart" in CORE.data[KEY_ZEPHYR][KEY_OVERLAY][""]
+    assert _disable_board_cdc_acm_overlay in CORE.data[KEY_ZEPHYR][KEY_OVERLAY_BUILDER]
     # Legacy-only options do not exist on the new stack
     assert "CONFIG_USB_CDC_ACM" not in prj_conf
     assert "CONFIG_USB_DEVICE_REMOTE_WAKEUP" not in prj_conf

@@ -29,7 +29,7 @@ class CdcAcm final {
   // Last bit rate seen on each zephyr,cdc-acm-uart port, in device tree order
   std::array<uint32_t, DT_NUM_INST_STATUS_OKAY(zephyr_cdc_acm_uart)> rates_{};
 #else
-  static void rate_changed_(const device *device, uint32_t rate);
+  static void cdc_dte_rate_callback_(const device *device, uint32_t rate);
 #endif
 };
 

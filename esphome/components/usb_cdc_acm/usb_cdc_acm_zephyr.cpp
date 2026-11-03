@@ -49,8 +49,8 @@ void USBCDCACMInstance::uart_tx_process_() {
     // No progress: the USB device is suspended (host asleep, hub power save) or not configured.
     // On the legacy stack fill() then returns 0 without clearing tx_ready, and irq_update() always
     // returns 1 for cdc_acm, so the IRQ handler would loop forever on the cooperative USB work
-    // queue and block the main loop. Disabling TX ends that loop, because irq_is_pending() only reports
-    // TX while the TX IRQ is enabled. loop() turns it back on while data is waiting.
+    // queue and block the main loop. Disabling TX ends that loop, because irq_is_pending() only
+    // reports TX while the TX IRQ is enabled. loop() turns it back on while data is waiting.
     ring_buf_get_finish(&this->tx_ringbuf_, 0);
     uart_irq_tx_disable(this->uart_dev_);
     this->tx_irq_disabled_ = true;

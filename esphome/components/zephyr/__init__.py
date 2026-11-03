@@ -270,9 +270,18 @@ def zephyr_use_usb_device_next() -> bool:
     The new stack (device_next) is used from nRF Connect SDK 3.4.1, where the
     legacy stack is deprecated. Older SDKs keep the legacy stack.
     """
-    return CORE.is_nrf52 and CORE.data[KEY_CORE][KEY_FRAMEWORK_VERSION] >= cv.Version(
-        3, 4, 1
-    )
+    framework_ver: cv.Version = CORE.data[KEY_CORE][KEY_FRAMEWORK_VERSION]
+    return CORE.is_nrf52 and framework_ver >= cv.Version(3, 4, 1)
+
+
+def _disable_board_cdc_acm_overlay() -> str:
+    return """
+        &zephyr_udc0 {
+            board_cdc_acm_uart: board_cdc_acm_uart {
+                status = "disabled";
+            };
+        };
+    """
 
 
 def zephyr_enable_usb_cdc_acm() -> None:
@@ -293,19 +302,10 @@ def zephyr_enable_usb_cdc_acm() -> None:
         # and only the ports ESPHome adds may be on the bus. Naming the board's node here also
         # works on boards without it: the overlay then adds an empty disabled node.
         zephyr_add_prj_conf("CDC_ACM_SERIAL_INITIALIZE_AT_BOOT", False)
-        zephyr_add_overlay(
-            """
-                &zephyr_udc0 {
-                    board_cdc_acm_uart: board_cdc_acm_uart {
-                        status = "disabled";
-                    };
-                };
-            """
-        )
+        zephyr_add_overlay_builder(_disable_board_cdc_acm_overlay)
         return
-    if CORE.is_nrf52 and CORE.data[KEY_CORE][KEY_FRAMEWORK_VERSION] >= cv.Version(
-        3, 2, 0
-    ):
+    framework_ver: cv.Version = CORE.data[KEY_CORE][KEY_FRAMEWORK_VERSION]
+    if CORE.is_nrf52 and framework_ver >= cv.Version(3, 2, 0):
         zephyr_add_prj_conf("USB_DEVICE_STACK_NEXT", False)
     zephyr_add_prj_conf("USB_DEVICE_STACK", True)
     zephyr_add_prj_conf("USB_CDC_ACM", True)
