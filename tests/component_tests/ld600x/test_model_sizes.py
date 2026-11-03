@@ -23,7 +23,7 @@ def test_requests_keep_the_largest_count() -> None:
     assert defines["LD600X_MAX_TARGETS"] == "3"
 
 
-def test_two_area_kinds_by_default() -> None:
+def test_one_request_sets_its_area_kind_count() -> None:
     request_model_sizes(MockObj("hub"), area_kinds=2)
     CORE.flush_tasks()
     assert _defines()["LD600X_AREA_KINDS"] == "2"
