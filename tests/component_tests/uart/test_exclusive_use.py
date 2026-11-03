@@ -4,7 +4,6 @@ import pytest
 
 from esphome import config_validation as cv
 from esphome.components.uart import claim_exclusive, subtree_references_uart
-from esphome.config import Config
 from esphome.const import (
     CONF_DEBUG,
     CONF_DUMMY_RECEIVER,
@@ -15,6 +14,7 @@ from esphome.const import (
 from esphome.core import CORE, ID
 import esphome.final_validate as fv
 from esphome.types import ConfigType
+from tests.component_tests.helpers import uart_full_config
 from tests.component_tests.types import SetCoreConfigCallable
 
 
@@ -23,14 +23,9 @@ def _set(
     uarts: list[ConfigType] | None = None,
     **domains: list[ConfigType],
 ) -> None:
-    """A full config declaring uart_0 and uart_1, as the ID pass leaves it."""
-    uarts = uarts or [{CONF_ID: ID("uart_0")}, {CONF_ID: ID("uart_1")}]
-    full = Config()
-    full["uart"] = uarts
-    for index, uart_conf in enumerate(uarts):
-        full.declare_ids.append((uart_conf[CONF_ID], ["uart", index, CONF_ID]))
-    full.update(domains)
-    set_core_config(PlatformFramework.ESP32_IDF, full_config=full)
+    set_core_config(
+        PlatformFramework.ESP32_IDF, full_config=uart_full_config(uarts, **domains)
+    )
 
 
 def _entry(uart_id: str, conf_key: str = CONF_UART_ID) -> ConfigType:
@@ -110,10 +105,10 @@ def test_ignores_the_owner_other_uarts_and_other_keys(
 
 
 def test_testing_mode_allows_a_shared_bus(
-    set_core_config: SetCoreConfigCallable, monkeypatch: pytest.MonkeyPatch
+    set_core_config: SetCoreConfigCallable,
 ) -> None:
     # Grouped CI builds put several components on one bus package.
-    monkeypatch.setattr(CORE, "testing_mode", True)
+    CORE.testing_mode = True
     _set(set_core_config, modbus=[_entry("uart_0")])
     claim_exclusive(_entry("uart_0"), "owner")
     with pytest.raises(cv.Invalid, match="already used by another 'owner'"):
