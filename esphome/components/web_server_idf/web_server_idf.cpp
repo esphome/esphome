@@ -14,6 +14,7 @@
 
 #include <mbedtls/base64.h>
 #include <freertos/FreeRTOS.h>
+#include <freertos/semphr.h>
 #include <freertos/task.h>
 
 #include "utils.h"
@@ -143,41 +144,26 @@ void AsyncWebServer::safe_close_with_shutdown(httpd_handle_t hd, int sockfd) {
   // Attempt shutdown - ignore errors as socket may already be closed
   shutdown(sockfd, SHUT_RD);
 
-  // While end() interrupts the clients, keep the descriptor allocated so its number can't be reused; end() closes it
-  // once the server has stopped.
-  auto *server = static_cast<AsyncWebServer *>(httpd_get_global_user_ctx(hd));
-  if (server != nullptr) {
-    LockGuard lock(server->close_lock_);
-    if (server->closes_deferred_ && server->deferred_closes_.size() < CONFIG_LWIP_MAX_SOCKETS) {
-      server->deferred_closes_.push_back(sockfd);
-      return;
-    }
-  }
-
   // Always close - safe even if socket is already closed by network stack
   close(sockfd);
 }
 
 namespace {
-// Local port of a socket, or 0 if the descriptor is not an open socket.
-uint16_t local_port(int fd) {
-  struct sockaddr_storage addr{};
-  socklen_t len = sizeof(addr);
-  if (getsockname(fd, reinterpret_cast<struct sockaddr *>(&addr), &len) != 0) {
-    return 0;
-  }
-  if (addr.ss_family == AF_INET) {
-    return ntohs(reinterpret_cast<struct sockaddr_in *>(&addr)->sin_port);
-  }
-#if LWIP_IPV6
-  if (addr.ss_family == AF_INET6) {
-    return ntohs(reinterpret_cast<struct sockaddr_in6 *>(&addr)->sin6_port);
-  }
-#endif
-  return 0;
+// Runs httpd_stop() for AsyncWebServer::end() on its own task and signals the caller when done.
+// A semaphore, not a task notification: the main loop task already uses notifications to wake itself.
+struct StopRequest {
+  httpd_handle_t server;
+  StaticSemaphore_t done_buffer;
+  SemaphoreHandle_t done;
+};
+
+void stop_task(void *arg) {
+  auto *request = static_cast<StopRequest *>(arg);
+  httpd_stop(request->server);
+  xSemaphoreGive(request->done);  // the request is not touched after this
+  vTaskDelete(nullptr);
 }
 }  // namespace
-
 #ifdef USE_WEBSERVER_SSL
 namespace {
 #if ESP_IDF_VERSION < ESP_IDF_VERSION_VAL(6, 0, 0)
@@ -215,34 +201,20 @@ bool ssl_credentials_valid(const char *certificate, const char *private_key) {
 
 void AsyncWebServer::end() {
   if (this->server_) {
-    // httpd_stop() waits for the server task, which can be blocked on a client: a TLS handshake or a slow upload
-    // would hold the main loop for up to the socket timeout. Shutting the client sockets down first wakes it.
-    // The client list is a snapshot of descriptor numbers, so from here until the server has stopped, close_fn
-    // defers closing: no listed descriptor can be freed and reused by another task. A descriptor closed just before
-    // may still be listed, so only those still bound to this server's port are shut down.
-    {
-      LockGuard lock(this->close_lock_);
-      this->closes_deferred_ = true;
-    }
-    int client_fds[CONFIG_LWIP_MAX_SOCKETS];
-    size_t client_count = CONFIG_LWIP_MAX_SOCKETS;
-    if (httpd_get_client_list(this->server_, &client_count, client_fds) == ESP_OK) {
-      for (size_t i = 0; i < client_count; i++) {
-        if (local_port(client_fds[i]) == this->running_port_) {
-          shutdown(client_fds[i], SHUT_RDWR);
-        }
+    // httpd_stop() waits for the server task to finish with its current client, which a stalled TLS handshake or a
+    // slow upload can hold for up to the socket timeout. Wait for it on a helper task, so the main loop keeps
+    // feeding the task watchdog; without memory for the task, stop directly.
+    StopRequest request{};
+    request.server = this->server_;
+    request.done = xSemaphoreCreateBinaryStatic(&request.done_buffer);
+    if (xTaskCreate(stop_task, "httpd_stop", 3072, &request, uxTaskPriorityGet(nullptr), nullptr) == pdPASS) {
+      while (xSemaphoreTake(request.done, pdMS_TO_TICKS(100)) != pdTRUE) {
+        App.feed_wdt();
       }
+    } else {
+      httpd_stop(this->server_);
     }
-    httpd_stop(this->server_);  // also frees an HTTPS server's TLS context
-    this->server_ = nullptr;
-    {
-      LockGuard lock(this->close_lock_);
-      this->closes_deferred_ = false;
-      for (int fd : this->deferred_closes_) {
-        close(fd);
-      }
-      this->deferred_closes_.clear();
-    }
+    this->server_ = nullptr;  // httpd_stop() also frees an HTTPS server's TLS context
 #ifdef USE_WEBSERVER_SSL
     this->ssl_running_ = false;
 #endif
@@ -265,9 +237,6 @@ void AsyncWebServer::begin() {
   config.lru_purge_enable = true;
   // Use custom close function that shuts down before closing to prevent lwIP race conditions
   config.close_fn = AsyncWebServer::safe_close_with_shutdown;
-  // Lets close_fn find this server. httpd frees the context on stop unless it has a free function.
-  config.global_user_ctx = this;
-  config.global_user_ctx_free_fn = [](void * /*unused*/) {};
   esp_err_t start_err;
 #ifdef USE_WEBSERVER_SSL
   if ((this->ssl_certificate_ == nullptr) != (this->ssl_private_key_ == nullptr)) {
@@ -305,7 +274,6 @@ void AsyncWebServer::begin() {
   start_err = httpd_start(&this->server_, &config);
 #endif
   if (start_err == ESP_OK) {
-    this->running_port_ = this->port_;
     const httpd_uri_t handler_get = {
         .uri = "",
         .method = HTTP_GET,
