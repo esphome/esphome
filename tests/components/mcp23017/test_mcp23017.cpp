@@ -30,6 +30,8 @@ class FakeBus : public i2c::I2CBus {
     if (write_count == 0)
       return i2c::ERROR_OK;
     uint8_t reg = write_buffer[0];
+    if (reg == (write_count > 1 ? this->fail_write_reg : this->fail_read_reg))
+      return i2c::ERROR_TIMEOUT;
     for (size_t i = 1; i < write_count; i++, reg++) {
       this->writes.emplace_back(reg, write_buffer[i]);
       this->regs[alias(reg)] = write_buffer[i];
@@ -44,6 +46,9 @@ class FakeBus : public i2c::I2CBus {
   uint8_t regs[0x16]{};
   Writes writes;
   bool fail{false};
+  // Fail only reads or only writes that start at this register address
+  int fail_read_reg{-1};
+  int fail_write_reg{-1};
 
  protected:
   static uint8_t alias(uint8_t reg) { return reg == MCP23X17_IOCONB ? MCP23X17_IOCONA : reg; }
@@ -67,6 +72,34 @@ TEST_F(MCP23017Test, SetupReadFailureMarksFailedAndWritesNothing) {
   this->component_.setup();
   EXPECT_TRUE(this->component_.is_failed());
   EXPECT_TRUE(this->bus_.writes.empty());
+}
+
+// Current behaviour: setup reads only IOCONA and ignores the result of both IOCON writes.
+TEST_F(MCP23017Test, SetupIgnoresIoconaWriteFailure) {
+  this->bus_.fail_write_reg = MCP23X17_IOCONA;
+  this->component_.set_open_drain_ints(true);
+  this->component_.setup();
+  EXPECT_FALSE(this->component_.is_failed());
+  EXPECT_EQ(this->bus_.writes, (Writes{{MCP23X17_IPOLA, 0x00}, {MCP23X17_IPOLB, 0x00}, {MCP23X17_IOCONB, IOCON_ODR}}));
+}
+
+TEST_F(MCP23017Test, SetupDoesNotReadIoconb) {
+  this->bus_.fail_read_reg = MCP23X17_IOCONB;
+  this->component_.set_open_drain_ints(true);
+  this->component_.setup();
+  EXPECT_FALSE(this->component_.is_failed());
+  EXPECT_EQ(
+      this->bus_.writes,
+      (Writes{
+          {MCP23X17_IPOLA, 0x00}, {MCP23X17_IPOLB, 0x00}, {MCP23X17_IOCONA, IOCON_ODR}, {MCP23X17_IOCONB, IOCON_ODR}}));
+}
+
+TEST_F(MCP23017Test, SetupIgnoresIoconbWriteFailure) {
+  this->bus_.fail_write_reg = MCP23X17_IOCONB;
+  this->component_.set_open_drain_ints(true);
+  this->component_.setup();
+  EXPECT_FALSE(this->component_.is_failed());
+  EXPECT_EQ(this->bus_.writes, (Writes{{MCP23X17_IPOLA, 0x00}, {MCP23X17_IPOLB, 0x00}, {MCP23X17_IOCONA, IOCON_ODR}}));
 }
 
 TEST_F(MCP23017Test, SetupWithoutFlagsOnlyResetsInputPolarity) {
