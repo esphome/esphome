@@ -185,6 +185,19 @@ TEST_F(BSECPublishTest, NewReadingBeforeTheLastWentOut) {
   EXPECT_EQ(this->passes(3), (Passes{{"humidity=41"}, {"temperature=21"}, {}}));
 }
 
+TEST_F(BSECPublishTest, WaitingAccuracyTakesTheNewerReading) {
+  this->attach_all();
+  this->component.set_state_save_interval(0);
+  this->arm({output(BSEC_OUTPUT_IAQ, 30.0f, 1)});
+  EXPECT_EQ(this->pass(), (std::vector<std::string>{"iaq=30"}));
+  this->arm({output(BSEC_OUTPUT_IAQ, 31.0f, 3)});
+  // The accuracy and save slots still waiting go out once, with the newer accuracy; IAQ queues behind them.
+  EXPECT_EQ(this->passes(3), (Passes{{"iaq_accuracy_text=Calibrated"}, {"iaq_accuracy=3"}, {}}));
+  EXPECT_EQ(bsec_double::get_state_calls, 1);
+  EXPECT_EQ(this->passes(2), (Passes{{"iaq=31"}, {}}));
+  EXPECT_EQ(bsec_double::get_state_calls, 1);
+}
+
 }  // namespace
 }  // namespace esphome::bme680_bsec::testing
 #endif  // USE_BSEC

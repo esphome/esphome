@@ -109,9 +109,10 @@ class BME680BSECComponent final : public Component, public i2c::I2CDevice {
       uint8_t accuracy);  // Save the bsec_state_data_ member (volatile memory) to the ESP preferences (storage)
 
   void queue_publish_(PublishSlot slot);
-  void queue_publish_(PublishSlot slot, float value) {
-    this->pending_values_[slot] = value;
-    this->queue_publish_(slot);
+  template<PublishSlot S> void queue_publish_(float value) {
+    static_assert(S < PUBLISH_SLOT_IAQ_ACCURACY_TEXT, "slot has no value");
+    this->pending_values_[S] = value;
+    this->queue_publish_(S);
   }
 
   static uint8_t work_buffer_[BSEC_MAX_WORKBUFFER_SIZE];

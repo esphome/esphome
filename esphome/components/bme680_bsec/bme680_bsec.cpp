@@ -429,29 +429,29 @@ void BME680BSECComponent::publish_(const bsec_output_t *outputs, uint8_t num_out
       case BSEC_OUTPUT_IAQ:
       case BSEC_OUTPUT_STATIC_IAQ:
         this->pending_accuracy_ = std::min<uint8_t>(outputs[i].accuracy, IaqAccuracyStrings::LAST_INDEX);
-        this->queue_publish_(PUBLISH_SLOT_IAQ, signal);
+        this->queue_publish_<PUBLISH_SLOT_IAQ>(signal);
         this->queue_publish_(PUBLISH_SLOT_IAQ_ACCURACY_TEXT);
         this->queue_publish_(PUBLISH_SLOT_IAQ_ACCURACY);
         // Queue up an opportunity to save state
         this->queue_publish_(PUBLISH_SLOT_SAVE_STATE);
         break;
       case BSEC_OUTPUT_CO2_EQUIVALENT:
-        this->queue_publish_(PUBLISH_SLOT_CO2_EQUIVALENT, signal);
+        this->queue_publish_<PUBLISH_SLOT_CO2_EQUIVALENT>(signal);
         break;
       case BSEC_OUTPUT_BREATH_VOC_EQUIVALENT:
-        this->queue_publish_(PUBLISH_SLOT_BREATH_VOC_EQUIVALENT, signal);
+        this->queue_publish_<PUBLISH_SLOT_BREATH_VOC_EQUIVALENT>(signal);
         break;
       case BSEC_OUTPUT_RAW_PRESSURE:
-        this->queue_publish_(PUBLISH_SLOT_PRESSURE, signal / 100.0f);
+        this->queue_publish_<PUBLISH_SLOT_PRESSURE>(signal / 100.0f);
         break;
       case BSEC_OUTPUT_RAW_GAS:
-        this->queue_publish_(PUBLISH_SLOT_GAS_RESISTANCE, signal);
+        this->queue_publish_<PUBLISH_SLOT_GAS_RESISTANCE>(signal);
         break;
       case BSEC_OUTPUT_SENSOR_HEAT_COMPENSATED_TEMPERATURE:
-        this->queue_publish_(PUBLISH_SLOT_TEMPERATURE, signal);
+        this->queue_publish_<PUBLISH_SLOT_TEMPERATURE>(signal);
         break;
       case BSEC_OUTPUT_SENSOR_HEAT_COMPENSATED_HUMIDITY:
-        this->queue_publish_(PUBLISH_SLOT_HUMIDITY, signal);
+        this->queue_publish_<PUBLISH_SLOT_HUMIDITY>(signal);
         break;
     }
   }
