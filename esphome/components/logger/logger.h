@@ -345,6 +345,9 @@ class Logger final : public Component {
 #endif
 #if defined(USE_ZEPHYR)
   void dump_crash_();
+#ifdef USE_BOOTLOADER_ADAFRUIT
+  void dump_bootloader_();
+#endif
   const device *uart_dev_{nullptr};
 #endif
 #if defined(USE_ESP32) || defined(USE_LIBRETINY) || defined(USE_ZEPHYR)
