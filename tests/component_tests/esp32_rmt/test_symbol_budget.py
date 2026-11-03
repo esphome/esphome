@@ -9,13 +9,15 @@ import pytest
 from esphome.config import read_config
 from esphome.core import CORE
 
+Validate = Callable[[str], tuple[bool, list[str]]]
+
 
 @pytest.fixture
 def validate(
     component_fixture_path: Callable[[str], Path],
     caplog: pytest.LogCaptureFixture,
     capsys: pytest.CaptureFixture[str],
-) -> Callable[[str], tuple[bool, list[str]]]:
+) -> Validate:
     """Validate a fixture, return whether it is valid and the RMT warnings and errors.
 
     Warnings are logged, validation errors are printed with the failed config.
@@ -32,7 +34,7 @@ def validate(
 
 
 def test_default_strips_on_s2_warn(
-    validate: Callable[[str], tuple[bool, list[str]]],
+    validate: Validate,
 ) -> None:
     """Two strips at the default 192 symbols need 6 of the 4 shared S2 blocks."""
     valid, messages = validate("s2_two_default_strips.yaml")
@@ -43,7 +45,7 @@ def test_default_strips_on_s2_warn(
 
 
 def test_fitting_strips_and_receiver_on_c6_pass(
-    validate: Callable[[str], tuple[bool, list[str]]],
+    validate: Validate,
 ) -> None:
     """Two strips at 48 symbols fill the two C6 TX blocks; the receiver uses RX blocks."""
     assert validate("c6_two_strips_and_receiver_fit.yaml") == (True, [])
@@ -57,7 +59,7 @@ def test_fitting_strips_and_receiver_on_c6_pass(
     ],
 )
 def test_more_components_than_channels_fail(
-    validate: Callable[[str], tuple[bool, list[str]]],
+    validate: Validate,
     file_name: str,
     domain: str,
     direction: str,
@@ -96,7 +98,7 @@ def test_new_variant_gets_its_own_default(
 
 
 def test_strip_is_set_up_before_transmitter(
-    validate: Callable[[str], tuple[bool, list[str]]],
+    validate: Validate,
 ) -> None:
     """The order comes from the setup priorities, not from the order in the config."""
     valid, messages = validate("s3_transmitter_before_strip.yaml")
@@ -106,7 +108,7 @@ def test_strip_is_set_up_before_transmitter(
 
 
 def test_large_strip_after_small_one_fits(
-    validate: Callable[[str], tuple[bool, list[str]]],
+    validate: Validate,
 ) -> None:
     """Without receivers the second strip can use the RX blocks."""
     assert validate("s3_small_strip_first.yaml") == (True, [])

@@ -38,6 +38,10 @@ class RMTMemory:
     # None when TX and RX channels draw from one pool of tx_blocks (ESP32, ESP32-S2)
     rx_blocks: int | None
 
+    @property
+    def total_blocks(self) -> int:
+        return self.tx_blocks + (self.rx_blocks or 0)
+
 
 # A variant that is not listed is not checked
 RMT_MEMORY: dict[str, RMTMemory] = {
@@ -228,7 +232,7 @@ def _orders_of(channels: list[_Channel], size: int) -> list[list[_Channel]]:
 
 
 def _possible_setup_orders(channels: list[_Channel], size: int) -> list[list[_Channel]]:
-    """Every order the channels may be set up in, the config order first.
+    """Every order the channels, given in setup order, may be set up in, that order first.
 
     Components with the same setup priority are set up in the order C++ registers them,
     which is not always the config order: one that waits for another component in
@@ -236,9 +240,7 @@ def _possible_setup_orders(channels: list[_Channel], size: int) -> list[list[_Ch
     """
     groups = [
         _orders_of(list(group), size)
-        for _, group in groupby(
-            _setup_order(channels), key=lambda channel: channel.setup_priority
-        )
+        for _, group in groupby(channels, key=lambda channel: channel.setup_priority)
     ]
     return [[c for order in orders for c in order] for orders in product(*groups)]
 
@@ -250,7 +252,7 @@ def _allocate(memory: RMTMemory, channels: list[_Channel]) -> list[_Channel]:
     channels of its direction, and a DMA channel the last channel of its direction.
     """
     size = memory.symbols_per_block
-    total = memory.tx_blocks + (memory.rx_blocks or 0)
+    total = memory.total_blocks
     starts = {
         "TX": range(memory.tx_blocks),
         # On the ESP32 and ESP32-S2 the RX channels are the same as the TX channels
@@ -303,19 +305,23 @@ def _check_budget(memory: RMTMemory, channels: list[_Channel]) -> list[_Error]:
     errors = [error for pool in pools if (error := _check_pool(*pool)) is not None]
     if errors:
         return errors
-    orders = _possible_setup_orders(channels, memory.symbols_per_block)
-    if not (failures := [f for order in orders if (f := _allocate(memory, order))]):
-        return errors
+    # The first result is the config order's
+    results = [
+        _allocate(memory, order)
+        for order in _possible_setup_orders(channels, memory.symbols_per_block)
+    ]
+    if not any(results):
+        return []
     fix = ""
-    if len(failures) < len(orders):
+    if not all(results):
         fix = (
             f", or set '{CONF_SETUP_PRIORITY}' so they are set up in an order that fits"
         )
-    if failed := _allocate(memory, channels):
+    if failed := results[0]:
         # Name the components that fail in the config order
         problem = "in the order ESPHome sets up these components, {} will not fit"
     else:
-        failed = [c for c in channels if any(c in f for f in failures)]
+        failed = [c for c in channels if any(c in f for f in results)]
         problem = (
             "ESPHome may set up components with the same setup priority in another "
             "order than the config, and then {} will not fit"
@@ -329,7 +335,7 @@ def _check_budget(memory: RMTMemory, channels: list[_Channel]) -> list[_Error]:
         "Otherwise ESP-IDF logs %s at boot, and ESPHome logs 'Channel creation failed' "
         "or 'out of RMT symbol memory'.",
         esp32.get_esp32_variant(),
-        memory.tx_blocks + (memory.rx_blocks or 0),
+        memory.total_blocks,
         memory.symbols_per_block,
         problem.format(_labels(failed)),
         usage,
