@@ -89,6 +89,14 @@ _SENSOR_FORMATS = {
     },
 }
 
+# Colour tuning files in cfg/, measured against real boards, that replace the
+# sensor's stock JSON. Only applied when sensor_model names that sensor, since
+# the file replaces the tuning for the whole build.
+_SENSOR_TUNING = {"sc202cs": "sc202cs.json"}
+
+# Also pinned in esphome/idf_component.yml for the clang-tidy builds.
+_ESP_VIDEO_VERSION = "2.3.0"
+
 # The SC2356 module (M5Stack Tab5, reTerminal) is SC202CS silicon behind a
 # different part number, and is driven by the SC202CS driver.
 _SENSOR_ALIASES = {"sc2356": "sc202cs"}
@@ -383,9 +391,7 @@ async def to_code(config):
     cg.add(var.set_jpeg_quality(config[CONF_JPEG_QUALITY]))
     cg.add(var.set_min_frame_interval(int(1000 / config[CONF_MAX_FRAMERATE])))
 
-    # Also in esphome/idf_component.yml (keep the versions in step): that entry
-    # covers the clang-tidy builds, this call is what adds it to "src" REQUIRES.
-    add_idf_component(name="espressif/esp_video", ref="2.3.0")
+    add_idf_component(name="espressif/esp_video", ref=_ESP_VIDEO_VERSION)
     if uvc:
         # USB-UVC host driver, aligned with esp_video 2.3.0's own dependency.
         add_idf_component(name="espressif/usb_host_uvc", ref="2.5.*")
@@ -436,25 +442,17 @@ async def to_code(config):
         add_idf_sdkconfig_option(f"CONFIG_CAMERA_{sensor}_MIPI_{fmt}", True)
         add_idf_sdkconfig_option(f"CONFIG_CAMERA_{sensor}_MIPI_DEFAULT_FMT_{fmt}", True)
 
-    # Colour tuning for the SC202CS, which the SC2356 module (M5Stack Tab5,
-    # reTerminal) is the same silicon as. The image processing algorithms read
-    # their gamma, colour matrix and white balance from a JSON file, and the
-    # sensor's stock one renders noticeably less faithful colour than the file
-    # below, which was measured against these boards.
-    #
-    # Only for a configuration that names this sensor. It replaces the tuning
-    # for the whole build, so a board carrying something else must not silently
-    # get an SC202CS colour matrix, and neither should a USB camera.
-    if config.get(CONF_SENSOR_MODEL) == "sc202cs":
-        tuning = "esp_video_camera/sc202cs_ipa.json"
-        add_extra_build_file(tuning, Path(__file__).parent / "cfg" / "sc202cs.json")
+    model = config.get(CONF_SENSOR_MODEL)
+    if (tuning_file := _SENSOR_TUNING.get(model)) is not None:
+        sensor = model.upper()
+        tuning = f"esp_video_camera/{model}_ipa.json"
+        add_extra_build_file(tuning, Path(__file__).parent / "cfg" / tuning_file)
+        prefix = f"CONFIG_CAMERA_{sensor}"
+        add_idf_sdkconfig_option(f"{prefix}_DEFAULT_IPA_JSON_CONFIGURATION_FILE", False)
         add_idf_sdkconfig_option(
-            "CONFIG_CAMERA_SC202CS_DEFAULT_IPA_JSON_CONFIGURATION_FILE", False
+            f"{prefix}_CUSTOMIZED_IPA_JSON_CONFIGURATION_FILE", True
         )
         add_idf_sdkconfig_option(
-            "CONFIG_CAMERA_SC202CS_CUSTOMIZED_IPA_JSON_CONFIGURATION_FILE", True
-        )
-        add_idf_sdkconfig_option(
-            "CONFIG_CAMERA_SC202CS_CUSTOMIZED_IPA_JSON_CONFIGURATION_FILE_PATH",
+            f"{prefix}_CUSTOMIZED_IPA_JSON_CONFIGURATION_FILE_PATH",
             str(CORE.relative_build_path(tuning)),
         )
