@@ -67,9 +67,9 @@ void AirConditioner::on_status_change() {
   }
   if (need_publish)
     this->publish_state();
-  set_sensor(this->outdoor_sensor_, this->base_.getOutdoorTemp());
+  set_sensor(this->outdoor_temperature_sensor_, this->base_.getOutdoorTemp());
   set_sensor(this->power_sensor_, this->base_.getPowerUsage());
-  set_sensor(this->humidity_sensor_, this->base_.getIndoorHum());
+  set_sensor(this->humidity_setpoint_sensor_, this->base_.getIndoorHum());
 }
 
 void AirConditioner::control(const ClimateCall &call) {
