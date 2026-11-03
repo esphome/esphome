@@ -63,6 +63,10 @@ static constexpr uint32_t CMD_GET_TRIGGER = 0x11;
 static constexpr uint32_t CMD_GET_Z_RANGE = 0x12;
 static constexpr uint32_t CMD_INSTALL_TOP = 0x13;
 static constexpr uint32_t CMD_INSTALL_SIDE = 0x14;
+// set_select_value() sends the first command of each run plus the option index.
+static_assert(CMD_SENSITIVITY_MEDIUM == CMD_SENSITIVITY_LOW + 1 && CMD_SENSITIVITY_HIGH == CMD_SENSITIVITY_LOW + 2);
+static_assert(CMD_TRIGGER_MEDIUM == CMD_TRIGGER_SLOW + 1 && CMD_TRIGGER_FAST == CMD_TRIGGER_SLOW + 2);
+static_assert(CMD_INSTALL_SIDE == CMD_INSTALL_TOP + 1);
 static constexpr uint32_t CMD_GET_INSTALLATION = 0x15;
 // Both models answer 0x16 to 0x18 with report 0x0A12; the opcodes stay here for the verbose logs.
 static constexpr uint32_t CMD_LOW_POWER_ON = 0x16;
@@ -941,22 +945,36 @@ bool LD600XComponent::send_control_command_(uint32_t command) {
   return this->queue_command_(TYPE_CONTROL, data, sizeof(data));
 }
 
-void LD600XComponent::send_z_range_() {
-  // One frame carries both bounds, so half a range cannot be written.
-  if (std::isnan(this->z_min_) || std::isnan(this->z_max_)) {
+bool LD600XComponent::send_z_range_(float z_min, float z_max) {
+  // One frame carries both bounds, so half a range cannot be written; the bound is held until the other is known.
+  if (std::isnan(z_min) || std::isnan(z_max)) {
     ESP_LOGW(TAG, "Z range not written, other bound unknown");
-    return;
+    return true;
   }
   // Both bounds are known and crossed; the frame has no way to say that.
-  if (this->z_min_ > this->z_max_) {
+  if (z_min > z_max) {
     ESP_LOGW(TAG, "Z range not written, min above max");
-    return;
+    return false;
   }
   uint8_t data[8];
-  write_f32_le(data, this->z_min_);
-  write_f32_le(data + 4, this->z_max_);
-  this->queue_command_(TYPE_SET_Z_RANGE, data, sizeof(data));
+  write_f32_le(data, z_min);
+  write_f32_le(data + 4, z_max);
+  return this->queue_command_(TYPE_SET_Z_RANGE, data, sizeof(data));
 }
+
+#ifdef USE_NUMBER
+bool LD600XComponent::queue_u32_setting_(uint16_t type, float value) {
+  // NumberCall keeps the value inside the traits' range but does not round it to the step;
+  // the module takes whole numbers only.
+  if (std::floor(value) != value) {
+    ESP_LOGW(TAG, "Invalid number value: %f", value);
+    return false;
+  }
+  uint8_t data[4];
+  write_u32_le(data, static_cast<uint32_t>(value));
+  return this->queue_command_(type, data, sizeof(data));
+}
+#endif
 
 void LD600XComponent::apply_area_config_() {
   if (!this->area_id_set_) {
@@ -1016,19 +1034,23 @@ void LD600XComponent::apply_area_config_() {
 
 #ifdef USE_NUMBER
 // Each setter picks its setting by entity pointer, so the entities share one generated class.
-void LD600XComponent::set_number_value(number::Number *entity, float value) {
-  if (entity == this->hold_delay_number_ || entity == this->low_power_sleep_number_) {
-    uint8_t data[4];
-    write_u32_le(data, static_cast<uint32_t>(value));
-    this->queue_command_(entity == this->hold_delay_number_ ? TYPE_SET_HOLD_DELAY : TYPE_SET_LOW_POWER_SLEEP, data,
-                         sizeof(data));
-  } else if (entity == this->z_min_number_) {
-    this->z_min_ = value;
-    this->send_z_range_();
-  } else if (entity == this->z_max_number_) {
-    this->z_max_ = value;
-    this->send_z_range_();
-  } else if (entity == this->area_x_min_number_) {
+bool LD600XComponent::set_number_value(number::Number *entity, float value) {
+  if (entity == this->hold_delay_number_)
+    return this->queue_u32_setting_(TYPE_SET_HOLD_DELAY, value);
+  if (entity == this->low_power_sleep_number_)
+    return this->queue_u32_setting_(TYPE_SET_LOW_POWER_SLEEP, value);
+  // The z bounds and the area edits are kept here until both bounds or the apply button write them.
+  if (entity == this->z_min_number_ || entity == this->z_max_number_) {
+    const bool is_min = entity == this->z_min_number_;
+    const float z_min = is_min ? value : this->z_min_;
+    const float z_max = is_min ? this->z_max_ : value;
+    if (!this->send_z_range_(z_min, z_max))
+      return false;
+    this->z_min_ = z_min;
+    this->z_max_ = z_max;
+    return true;
+  }
+  if (entity == this->area_x_min_number_) {
     this->area_x_min_ = value;
     this->area_edits_.x_min = value;
   } else if (entity == this->area_x_max_number_) {
@@ -1047,39 +1069,24 @@ void LD600XComponent::set_number_value(number::Number *entity, float value) {
     this->area_z_max_ = value;
     this->area_edits_.z_max = value;
   }
+  return true;
 }
 #endif
 
 #ifdef USE_SELECT
-void LD600XComponent::set_select_value(select::Select *entity, size_t index) {
-  if (entity == this->sensitivity_select_) {
-    if (index == 0) {
-      this->send_control_command_(CMD_SENSITIVITY_LOW);
-    } else if (index == 1) {
-      this->send_control_command_(CMD_SENSITIVITY_MEDIUM);
-    } else if (index == 2) {
-      this->send_control_command_(CMD_SENSITIVITY_HIGH);
-    }
-  } else if (entity == this->trigger_speed_select_) {
-    if (index == 0) {
-      this->send_control_command_(CMD_TRIGGER_SLOW);
-    } else if (index == 1) {
-      this->send_control_command_(CMD_TRIGGER_MEDIUM);
-    } else if (index == 2) {
-      this->send_control_command_(CMD_TRIGGER_FAST);
-    }
-  } else if (entity == this->installation_select_) {
-    if (index == 0) {
-      this->send_control_command_(CMD_INSTALL_TOP);
-    } else if (index == 1) {
-      this->send_control_command_(CMD_INSTALL_SIDE);
-    }
-  } else {  // Only registered entities call this, so the last one needs no compare
-    this->area_id_ = static_cast<uint8_t>(index);
-    this->area_id_set_ = true;
-    this->update_area_numbers_for_id_(this->area_id_);
-    this->save_area_id_pref_(this->area_id_);
-  }
+bool LD600XComponent::set_select_value(select::Select *entity, size_t index) {
+  if (entity == this->sensitivity_select_)
+    return index < 3 && this->send_control_command_(CMD_SENSITIVITY_LOW + index);
+  if (entity == this->trigger_speed_select_)
+    return index < 3 && this->send_control_command_(CMD_TRIGGER_SLOW + index);
+  if (entity == this->installation_select_)
+    return index < 2 && this->send_control_command_(CMD_INSTALL_TOP + index);
+  // Only registered entities call this, so the last one needs no compare
+  this->area_id_ = static_cast<uint8_t>(index);
+  this->area_id_set_ = true;
+  this->update_area_numbers_for_id_(this->area_id_);
+  this->save_area_id_pref_(this->area_id_);
+  return true;
 }
 #endif
 
@@ -1380,10 +1387,11 @@ void LD600XComponent::clear_target_state_() {
 }
 
 #ifdef USE_SWITCH
-void LD600XComponent::set_switch_state(switch_::Switch *entity, bool state) {
+bool LD600XComponent::set_switch_state(switch_::Switch *entity, bool state) {
   if (entity == this->point_cloud_switch_) {
+    if (!this->send_control_command_(state ? CMD_POINT_CLOUD_ON : CMD_POINT_CLOUD_OFF))
+      return false;
     this->point_cloud_enabled_ = state;
-    this->send_control_command_(state ? CMD_POINT_CLOUD_ON : CMD_POINT_CLOUD_OFF);
 #ifdef USE_SENSOR
     // The count only moves while the stream runs, so the last one would stand as
     // a live reading.  The dedup sentinel is cleared with it: the same count is
@@ -1392,13 +1400,15 @@ void LD600XComponent::set_switch_state(switch_::Switch *entity, bool state) {
       this->point_count_sensor_.publish_state_unknown();
 #endif
   } else {  // Only registered entities call this, so the last one needs no compare
+    if (!this->send_control_command_(state ? CMD_TARGET_DISPLAY_ON : CMD_TARGET_DISPLAY_OFF))
+      return false;
     this->target_display_enabled_ = state;
-    this->send_control_command_(state ? CMD_TARGET_DISPLAY_ON : CMD_TARGET_DISPLAY_OFF);
     if (!state) {
       // Every target entity is fed by the reports this just stopped.
       this->clear_target_state_();
     }
   }
+  return true;
 }
 #endif
 

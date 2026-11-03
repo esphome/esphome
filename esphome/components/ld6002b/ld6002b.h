@@ -21,7 +21,7 @@ class LD6002BComponent final : public ld600x::LD600XComponent {
 
 #ifdef USE_SWITCH
   SUB_SWITCH(low_power)
-  void set_switch_state(switch_::Switch *entity, bool state) override;
+  bool set_switch_state(switch_::Switch *entity, bool state) override;
 #endif
 #ifdef USE_BUTTON
   void press_button(uint8_t kind) override;
