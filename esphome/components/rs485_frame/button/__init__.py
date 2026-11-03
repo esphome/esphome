@@ -1,26 +1,25 @@
+from esphome import automation
 import esphome.codegen as cg
 from esphome.components import button
 import esphome.config_validation as cv
-from esphome.const import CONF_PAYLOAD, CONF_VALUE
+from esphome.const import CONF_ID, CONF_PAYLOAD, CONF_VALUE
+from esphome.core import CORE
 import esphome.final_validate as fv
 from esphome.types import ConfigType
 
 from .. import (
     COMMAND_FORMAT_SCHEMA,
     CONF_COMMAND_FORMAT,
-    CONF_ENDIAN,
     CONF_FRAME_TYPE,
     CONF_MAX_FRAME_LENGTH,
-    CONF_POSTAMBLE,
-    CONF_PREAMBLE,
     CONF_RS485_FRAME_ID,
     CONF_VALUE_ELEMENT_BYTES,
     DOC_COMMAND_FORMAT_URL,
+    DOMAIN,
     MAX_COMMAND_VALUES,
     MAX_FRAME_LENGTH_UPPER,
     RS485FrameHub,
-    _resolve_button_frame,
-    rs485_frame_ns,
+    encode_command,
     validate_byte,
     validate_frame_type,
     validate_u32,
@@ -28,66 +27,39 @@ from .. import (
 
 AUTO_LOAD = ["rs485_frame"]
 
-RS485FrameButton = rs485_frame_ns.class_("RS485FrameButton", button.Button)
-
 
 def _validate_button(config: ConfigType) -> ConfigType:
     has_value = CONF_VALUE in config
-    has_frame_type = CONF_FRAME_TYPE in config
-    has_payload = CONF_PAYLOAD in config
-    has_cmd_format = CONF_COMMAND_FORMAT in config
-    has_element_bytes = CONF_VALUE_ELEMENT_BYTES in config
-
-    if has_element_bytes and not has_value:
-        raise cv.Invalid("rs485_frame button: 'value_element_bytes' requires 'value'.")
-    if has_element_bytes and has_cmd_format:
-        raise cv.Invalid(
-            "rs485_frame button: 'value_element_bytes' and 'command_format' both specify "
-            "element byte width — use one or the other, not both."
-        )
-    if has_cmd_format and not has_value:
-        raise cv.Invalid(
-            "rs485_frame button: 'command_format' requires 'value'. "
-            "Per-button command_format is only meaningful with the 'value:' form."
-        )
-    if has_cmd_format and (has_frame_type or has_payload):
-        raise cv.Invalid(
-            "rs485_frame button: 'command_format' cannot be combined with 'frame_type'/'payload'."
-        )
-    if has_value and (has_frame_type or has_payload):
-        raise cv.Invalid(
-            "rs485_frame button: 'value' is mutually exclusive with 'frame_type'/'payload'. "
-            "Use 'value' to encode via the hub's command_format, or use 'frame_type' + "
-            "'payload' to emit a raw frame."
-        )
-    if has_frame_type != has_payload:
+    if (CONF_FRAME_TYPE in config) != (CONF_PAYLOAD in config):
         raise cv.Invalid(
             "rs485_frame button raw form requires both 'frame_type' and 'payload'."
         )
-    if not has_value and not has_frame_type:
+    if has_value == (CONF_FRAME_TYPE in config):
         raise cv.Invalid(
-            "rs485_frame button requires either 'value' or 'frame_type' + 'payload'."
+            "rs485_frame button requires either 'value' or 'frame_type' + 'payload', not both."
+        )
+    if not has_value and (
+        CONF_COMMAND_FORMAT in config or CONF_VALUE_ELEMENT_BYTES in config
+    ):
+        raise cv.Invalid(
+            "rs485_frame button: 'command_format' and 'value_element_bytes' require 'value'."
+        )
+    if CONF_COMMAND_FORMAT in config and CONF_VALUE_ELEMENT_BYTES in config:
+        raise cv.Invalid(
+            "rs485_frame button: use 'value_element_bytes' or 'command_format', not both."
         )
     return config
 
 
 CONFIG_SCHEMA = cv.All(
-    button.button_schema(RS485FrameButton).extend(
+    button.button_schema(button.ApplyButton).extend(
         {
             cv.GenerateID(CONF_RS485_FRAME_ID): cv.use_id(RS485FrameHub),
-            # A single hex value, or a list of up to MAX_COMMAND_VALUES values encoded
-            # back-to-back in one frame. Requires the hub (or button) to have a command_format.
             cv.Optional(CONF_VALUE): cv.All(
                 cv.ensure_list(validate_u32), cv.Length(min=1, max=MAX_COMMAND_VALUES)
             ),
-            # Lightweight per-button override: use this hub's preamble/endian/postamble but a
-            # different element byte width for this one button. Mutually exclusive with
-            # command_format (which provides a full format override including element width).
             cv.Optional(CONF_VALUE_ELEMENT_BYTES): cv.one_of(1, 2, 3, 4, int=True),
             cv.Optional(CONF_FRAME_TYPE): validate_frame_type,
-            # Payload is bounded so a button can never assemble a frame larger than the
-            # widest hub buffer (max_frame_length is capped at MAX_FRAME_LENGTH_UPPER). The
-            # hub also drops at runtime any frame that exceeds its own max_frame_length.
             cv.Optional(CONF_PAYLOAD): cv.All(
                 cv.ensure_list(validate_byte), cv.Length(max=MAX_FRAME_LENGTH_UPPER)
             ),
@@ -98,42 +70,34 @@ CONFIG_SCHEMA = cv.All(
 )
 
 
-def _final_validate(config: ConfigType) -> ConfigType:
-    full_config = fv.full_config.get()
-    hub_path = full_config.get_path_for_id(config[CONF_RS485_FRAME_ID])[:-1]
-    hub_config = full_config.get_config_for_path(hub_path)
+def _resolve_frame(config: ConfigType, hub_config: ConfigType) -> list[int]:
+    """The unframed bytes the button sends."""
+    if CONF_VALUE not in config:
+        return list(config[CONF_FRAME_TYPE]) + list(config[CONF_PAYLOAD])
+    command_format = config.get(
+        CONF_COMMAND_FORMAT, hub_config.get(CONF_COMMAND_FORMAT)
+    )
+    return encode_command(
+        config[CONF_VALUE], command_format, config.get(CONF_VALUE_ELEMENT_BYTES)
+    )
 
-    # The `value:` form requires a command_format somewhere — either on the button itself
-    # (command_format: or value_element_bytes:) or on the hub. If the button supplies its own
-    # full command_format, skip the hub check.
+
+def _final_validate(config: ConfigType) -> ConfigType:
+    hub_config = fv.get_declaring_config(config[CONF_RS485_FRAME_ID])
     if (
         CONF_VALUE in config
         and CONF_COMMAND_FORMAT not in config
         and CONF_COMMAND_FORMAT not in hub_config
     ):
-        # value_element_bytes on the button provides element width but still needs the
-        # hub's preamble/endian/postamble, so the hub must have a command_format.
         raise cv.Invalid(
-            "rs485_frame button 'value' requires the referenced hub to have a "
-            "'command_format:' block (missing on the hub). Add one to the hub, add "
-            "'command_format:' directly to this button, or use the raw 'frame_type' + "
-            f"'payload' form instead. See {DOC_COMMAND_FORMAT_URL}"
+            "rs485_frame button 'value' requires a 'command_format:' block on the button or "
+            f"the referenced hub, or use the raw 'frame_type' + 'payload' form. See {DOC_COMMAND_FORMAT_URL}"
         )
-
-    # The button's resolved on-wire frame (raw frame_type: + payload:, or command_format's
-    # preamble + encoded value(s) + postamble) must fit within the hub's max_frame_length: —
-    # otherwise queue_raw_frame()/queue_command_values() silently drops it at runtime, every
-    # time the button is pressed (rs485_frame.cpp).
-    hub_command_format = None
-    if CONF_VALUE in config and CONF_COMMAND_FORMAT not in config:
-        hub_command_format = hub_config.get(CONF_COMMAND_FORMAT)
-    resolved = _resolve_button_frame(config, hub_command_format)
-    max_frame_length = hub_config[CONF_MAX_FRAME_LENGTH]
-    if len(resolved) > max_frame_length:
+    frame = _resolve_frame(config, hub_config)
+    if len(frame) > (max_len := hub_config[CONF_MAX_FRAME_LENGTH]):
         raise cv.Invalid(
-            f"rs485_frame button resolves to a {len(resolved)}-byte frame, exceeding the "
-            f"referenced hub's max_frame_length: ({max_frame_length}) — the hub would drop "
-            "this frame every time the button is pressed"
+            f"rs485_frame button resolves to a {len(frame)}-byte frame, exceeding the "
+            f"referenced hub's max_frame_length: ({max_len})"
         )
     return config
 
@@ -142,22 +106,11 @@ FINAL_VALIDATE_SCHEMA = _final_validate
 
 
 async def to_code(config: ConfigType) -> None:
-    hub = await cg.get_variable(config[CONF_RS485_FRAME_ID])
-    if CONF_VALUE in config:
-        var = await button.new_button(config, hub, config[CONF_VALUE])
-        if CONF_COMMAND_FORMAT in config:
-            cf = config[CONF_COMMAND_FORMAT]
-            cg.add(
-                var.set_command_format(
-                    cf[CONF_PREAMBLE],
-                    cf[CONF_VALUE_ELEMENT_BYTES],
-                    cf[CONF_ENDIAN] == "big",
-                    cf[CONF_POSTAMBLE],
-                )
-            )
-        elif CONF_VALUE_ELEMENT_BYTES in config:
-            cg.add(var.set_value_element_bytes(config[CONF_VALUE_ELEMENT_BYTES]))
-    else:
-        await button.new_button(
-            config, hub, config[CONF_FRAME_TYPE], config[CONF_PAYLOAD]
-        )
+    hub_id = config[CONF_RS485_FRAME_ID]
+    hub_config = next(c for c in CORE.config[DOMAIN] if c[CONF_ID] == hub_id)
+    frame = _resolve_frame(config, hub_config)
+    table = automation.progmem_bytes(f"{config[CONF_ID]}_frame", frame)
+    hub = await cg.get_variable(hub_id)
+    await button.sub_buttons(config, parent=hub).create(
+        config, None, apply=f"queue_frame({table}, {len(frame)})"
+    )
