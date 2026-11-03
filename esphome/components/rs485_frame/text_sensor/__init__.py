@@ -2,6 +2,7 @@ import esphome.codegen as cg
 from esphome.components import text_sensor
 import esphome.config_validation as cv
 from esphome.const import ENTITY_CATEGORY_DIAGNOSTIC
+from esphome.types import ConfigType
 
 from .. import CONF_RS485_FRAME_ID, RS485FrameHub, rs485_frame_ns
 
@@ -34,7 +35,7 @@ CONFIG_SCHEMA = (
 )
 
 
-async def to_code(config):
+async def to_code(config: ConfigType) -> None:
     var = await text_sensor.new_text_sensor(config)
     await cg.register_component(var, config)
     await cg.register_parented(var, config[CONF_RS485_FRAME_ID])

@@ -2,6 +2,7 @@ import esphome.codegen as cg
 from esphome.components import number
 import esphome.config_validation as cv
 from esphome.const import CONF_LAMBDA, CONF_MAX_VALUE, CONF_MIN_VALUE, CONF_STEP
+from esphome.types import ConfigType
 
 from .. import CONF_RS485_FRAME_ID, RS485FrameHub, rs485_frame_ns
 
@@ -20,7 +21,7 @@ CONFIG_SCHEMA = number.number_schema(RS485FrameNumber).extend(
 )
 
 
-async def to_code(config):
+async def to_code(config: ConfigType) -> None:
     hub = await cg.get_variable(config[CONF_RS485_FRAME_ID])
     var = await number.new_number(
         config,

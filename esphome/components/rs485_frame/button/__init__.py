@@ -3,6 +3,7 @@ from esphome.components import button
 import esphome.config_validation as cv
 from esphome.const import CONF_PAYLOAD, CONF_VALUE
 import esphome.final_validate as fv
+from esphome.types import ConfigType
 
 from .. import (
     COMMAND_FORMAT_SCHEMA,
@@ -30,7 +31,7 @@ AUTO_LOAD = ["rs485_frame"]
 RS485FrameButton = rs485_frame_ns.class_("RS485FrameButton", button.Button)
 
 
-def _validate_button(config):
+def _validate_button(config: ConfigType) -> ConfigType:
     has_value = CONF_VALUE in config
     has_frame_type = CONF_FRAME_TYPE in config
     has_payload = CONF_PAYLOAD in config
@@ -97,7 +98,7 @@ CONFIG_SCHEMA = cv.All(
 )
 
 
-def _final_validate(config):
+def _final_validate(config: ConfigType) -> ConfigType:
     full_config = fv.full_config.get()
     hub_path = full_config.get_path_for_id(config[CONF_RS485_FRAME_ID])[:-1]
     hub_config = full_config.get_config_for_path(hub_path)
@@ -140,7 +141,7 @@ def _final_validate(config):
 FINAL_VALIDATE_SCHEMA = _final_validate
 
 
-async def to_code(config):
+async def to_code(config: ConfigType) -> None:
     hub = await cg.get_variable(config[CONF_RS485_FRAME_ID])
     if CONF_VALUE in config:
         var = await button.new_button(config, hub, config[CONF_VALUE])

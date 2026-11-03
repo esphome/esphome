@@ -16,6 +16,7 @@ from esphome.const import (
     STATE_CLASS_MEASUREMENT,
     STATE_CLASS_TOTAL_INCREASING,
 )
+from esphome.types import ConfigType
 
 from .. import (
     CONF_DECODE,
@@ -28,7 +29,7 @@ from .. import (
 AUTO_LOAD = ["rs485_frame"]
 
 RS485FrameSensor = rs485_frame_ns.class_(
-    "RS485FrameSensor", sensor.Sensor, cg.Component
+    "RS485FrameSensor", sensor.Sensor, cg.PollingComponent
 )
 
 # Per-decode HA-conformant defaults. Counters that monotonically grow (and reset to 0 on
@@ -91,7 +92,7 @@ _DEFAULT_VALIDATORS = {
 }
 
 
-def _apply_decode_defaults(config):
+def _apply_decode_defaults(config: ConfigType) -> ConfigType:
     # Apply the per-decode defaults only for keys the user did not set explicitly. We
     # cannot put these in sensor.sensor_schema(...) because that takes a single fixed
     # default per kwarg; the correct state_class/unit/device_class varies per decode.
@@ -124,7 +125,7 @@ CONFIG_SCHEMA = cv.All(
 )
 
 
-async def to_code(config):
+async def to_code(config: ConfigType) -> None:
     var = await sensor.new_sensor(config)
     await cg.register_component(var, config)
     await cg.register_parented(var, config[CONF_RS485_FRAME_ID])

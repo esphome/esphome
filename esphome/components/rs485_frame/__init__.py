@@ -19,14 +19,6 @@ DEPENDENCIES = ["uart"]
 DOMAIN = "rs485_frame"
 MULTI_CONF = True
 
-# rs485_frame is not merged upstream, so these esphome.io URLs 404 until the docs PR lands too.
-# Deliberate: a personal fork URL baked into a user-facing validation error is friction at merge
-# review time and would need fixing then anyway, while the canonical URL is already correct for
-# the PR's target state and needs no follow-up edit. The 404 window is short-lived and each
-# message already states the fix inline without needing the link. `#framing-escape` and
-# `#command-format` are stable anchors (`<span id="...">`) in the mdx source, not line numbers,
-# so they do not drift as the doc is edited.
-DOC_FRAMING_ESCAPE_URL = "https://esphome.io/components/rs485_frame/#framing-escape"
 DOC_COMMAND_FORMAT_URL = "https://esphome.io/components/rs485_frame/#command-format"
 
 rs485_frame_ns = cg.esphome_ns.namespace("rs485_frame")
@@ -118,20 +110,17 @@ MAX_COMMAND_POSTAMBLE_LEN = 8
 MAX_COMMAND_VALUES = 8
 
 
-def validate_byte(value):
-    value = cv.hex_uint8_t(value)
-    return HexInt(int(value))
+def validate_byte(value: object) -> HexInt:
+    return HexInt(int(cv.hex_uint8_t(value)))
 
 
-def validate_u32(value):
-    value = cv.hex_uint32_t(value)
-    return HexInt(int(value))
+def validate_u32(value: object) -> HexInt:
+    return HexInt(int(cv.hex_uint32_t(value)))
 
 
 # Schema cap matches MAX_FRAME_TYPE_LEN in rs485_frame.h (StaticVector<uint8_t, 8>);
 # the StaticVector::assign() truncates silently past N=8, so the schema must enforce the cap.
-def validate_frame_type(value):
-    return cv.All(cv.ensure_list(validate_byte), cv.Length(max=8))(value)
+validate_frame_type = cv.All(cv.ensure_list(validate_byte), cv.Length(max=8))
 
 
 # Schema cap for the number of frame-type alternates per on_frame: entry. Must agree with
@@ -150,7 +139,7 @@ _validate_frame_type_alt = cv.All(
 )
 
 
-def validate_frame_type_or_list(value):
+def validate_frame_type_or_list(value: object) -> list[list[HexInt]]:
     # on_frame: frame_type accepts either a single prefix ([0x01, 0x03]) or a list of
     # prefixes ([[0x01, 0x03], [0x01, 0x09]]) so one lambda can decode multiple related
     # frame types. Disambiguate by inspecting the first element: a list there means the
@@ -173,7 +162,7 @@ def validate_frame_type_or_list(value):
     return [single]
 
 
-def _validate_command_format_bytes(max_len: int):
+def _validate_command_format_bytes(max_len: int) -> cv.All:
     return cv.All(cv.ensure_list(validate_byte), cv.Length(max=max_len))
 
 
@@ -205,8 +194,7 @@ ESCAPE_MODE_BYTE = "escape_byte"
 ESCAPE_MODE_DOUBLE = "double"
 
 
-def _validate_escape(value):
-    value = ESCAPE_SCHEMA(value)
+def _validate_escape_byte(value: ConfigType) -> ConfigType:
     mode = value[CONF_MODE]
     if mode == ESCAPE_MODE_BYTE and CONF_BYTE not in value:
         raise cv.Invalid(
@@ -221,14 +209,16 @@ def _validate_escape(value):
     return value
 
 
-ESCAPE_SCHEMA = cv.Schema(
-    {
-        # No default: escape mode is a foot-gun, like the framing bytes, so require it.
-        cv.Required(CONF_MODE): cv.one_of(
-            ESCAPE_MODE_BYTE, ESCAPE_MODE_DOUBLE, lower=True
-        ),
-        cv.Optional(CONF_BYTE): validate_byte,
-    }
+ESCAPE_SCHEMA = cv.All(
+    cv.Schema(
+        {
+            cv.Required(CONF_MODE): cv.one_of(
+                ESCAPE_MODE_BYTE, ESCAPE_MODE_DOUBLE, lower=True
+            ),
+            cv.Optional(CONF_BYTE): validate_byte,
+        }
+    ),
+    _validate_escape_byte,
 )
 
 FRAMING_SCHEMA = cv.Schema(
@@ -236,7 +226,8 @@ FRAMING_SCHEMA = cv.Schema(
         cv.Optional(CONF_DLE, default=0x10): validate_byte,
         cv.Optional(CONF_STX, default=0x02): validate_byte,
         cv.Optional(CONF_ETX, default=0x03): validate_byte,
-        cv.Optional(CONF_ESCAPE): _validate_escape,
+        # No default: the wrong escape scheme silently corrupts every frame containing a DLE.
+        cv.Required(CONF_ESCAPE): ESCAPE_SCHEMA,
     }
 )
 
@@ -300,7 +291,7 @@ TX_SCHEMA = cv.Schema(
 )
 
 
-def validate_hub(config):
+def validate_hub(config: ConfigType) -> ConfigType:
     # Framing-byte distinctness. The framer uses DLE as the escape introducer: in-frame,
     # DLE+STX starts a frame, DLE+ETX ends it, and DLE+escape_byte is a literal DLE. If any
     # of DLE/STX/ETX collide, or escape_byte equals STX or ETX, the byte stream is no longer
@@ -314,25 +305,14 @@ def validate_hub(config):
     # In escape_byte mode the marker must differ from stx/etx, otherwise an escaped DLE is
     # indistinguishable from a frame start/end terminator. In double mode the marker is the
     # DLE itself, which is already distinct from stx/etx by the check above.
-    if (
-        (escape := framing.get(CONF_ESCAPE)) is not None
-        and escape[CONF_MODE] == ESCAPE_MODE_BYTE
-        and int(escape[CONF_BYTE]) in (int(stx), int(etx))
+    escape = framing[CONF_ESCAPE]
+    if escape[CONF_MODE] == ESCAPE_MODE_BYTE and int(escape[CONF_BYTE]) in (
+        int(stx),
+        int(etx),
     ):
         raise cv.Invalid(
             "framing.escape.byte must differ from stx and etx; otherwise an escaped DLE "
             "is indistinguishable from a frame start/end terminator"
-        )
-
-    if CONF_ESCAPE not in framing:
-        raise cv.Invalid(
-            "framing.escape is required but missing (set framing.escape.mode to escape_byte "
-            f"or double); it has no default. See {DOC_FRAMING_ESCAPE_URL} for the two escape "
-            "schemes"
-        )
-    if CONF_CRC not in config:
-        raise cv.Invalid(
-            "crc: is required (declare your device's checksum, or type: none)"
         )
 
     gate = config[CONF_TX][CONF_GATE]
@@ -375,9 +355,9 @@ CONFIG_SCHEMA = cv.All(
     cv.Schema(
         {
             cv.GenerateID(): cv.declare_id(RS485FrameHub),
-            cv.Optional(CONF_FRAMING, default={}): FRAMING_SCHEMA,
-            # crc.type has no sensible cross-bus default; validate_hub() requires this block.
-            cv.Optional(CONF_CRC): CRC_SCHEMA,
+            cv.Required(CONF_FRAMING): FRAMING_SCHEMA,
+            # crc.type has no sensible cross-bus default, so the block is required.
+            cv.Required(CONF_CRC): CRC_SCHEMA,
             cv.Optional(CONF_TX, default={}): TX_SCHEMA,
             cv.Optional(CONF_COMMAND_FORMAT): COMMAND_FORMAT_SCHEMA,
             cv.Optional(CONF_DUMP_FRAMES, default=False): cv.boolean,
@@ -432,7 +412,7 @@ def _resolve_button_frame(
     return list(button_config[CONF_FRAME_TYPE]) + list(button_config[CONF_PAYLOAD])
 
 
-async def to_code(config):
+async def to_code(config: ConfigType) -> None:
     var = await uart.new_uart_component(config)
 
     framing = config[CONF_FRAMING]
