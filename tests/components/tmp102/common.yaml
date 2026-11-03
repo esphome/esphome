@@ -16,7 +16,22 @@ sensor:
     temperature_high: 140°C
     temperature_low: 120°C
 
+number:
+  - platform: tmp102
+    tmp102_id: tmp102_extended_temperature
+    temperature_high:
+      name: TMP102 High Threshold
+      restore_value: true
+    temperature_low:
+      name: TMP102 Low Threshold
+      restore_value: false
+
 binary_sensor:
   - platform: tmp102
     tmp102_id: tmp102_extended_temperature
     name: TMP102 Alert
+
+text_sensor:
+  - platform: tmp102
+    tmp102_id: tmp102_extended_temperature
+    name: TMP102 Threshold Status

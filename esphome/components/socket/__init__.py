@@ -8,7 +8,9 @@ import esphome.codegen as cg
 from esphome.components.const import CONF_ROLE
 from esphome.config_helpers import filter_source_files_from_defines
 import esphome.config_validation as cv
+from esphome.const import CONF_TIMEOUT
 from esphome.core import CORE, ID
+from esphome.core.config import CONF_LOOP_INTERVAL, get_loop_interval
 from esphome.types import ConfigType
 
 _LOGGER = logging.getLogger(__name__)
@@ -127,6 +129,15 @@ def get_socket_counts() -> SocketCounts:
     )
 
 
+def zephyr_poll_max(counts: SocketCounts) -> int:
+    """Zephyr poll table size: the socket budget with the usual minimums."""
+    return (
+        max(counts.tcp, MIN_TCP_SOCKETS)
+        + max(counts.udp, MIN_UDP_SOCKETS)
+        + max(counts.tcp_listen, MIN_TCP_LISTEN_SOCKETS)
+    )
+
+
 def require_wake_loop_threadsafe() -> None:
     """Deprecated: wake loop support is now always available on all platforms.
 
@@ -211,14 +222,36 @@ def require_tcp_listener() -> None:
 
 
 def consume_role_sockets(component: str) -> Callable[[ConfigType], ConfigType]:
-    """Socket accounting for a role keyed client or server schema."""
+    """Socket accounting for a role keyed client or server schema.
+
+    Also requires IPv4, since the TCP link and listener helpers are IPv4 only.
+    """
 
     def validator(config: ConfigType) -> ConfigType:
+        from esphome.components import network
+
+        network.require_ipv4(component)(config)
         if config[CONF_ROLE] == "server":
             consume_sockets(1, component, SocketType.TCP_LISTEN)(config)
         return consume_sockets(1, component)(config)
 
     return validator
+
+
+def final_validate_idle_timeout(config: ConfigType) -> ConfigType:
+    """A link timeout of 0s is off; any other value lasts at least one loop pass."""
+    timeout = config[CONF_TIMEOUT]
+    if timeout.total_milliseconds == 0:
+        return config
+    loop_interval = get_loop_interval()
+    if timeout.total_milliseconds < loop_interval.total_milliseconds:
+        raise cv.Invalid(
+            f"{CONF_TIMEOUT} of {timeout} must be at least one main loop pass "
+            f"({CONF_LOOP_INTERVAL} of {loop_interval}). Use 0s to turn the "
+            "timeout off.",
+            path=[CONF_TIMEOUT],
+        )
+    return config
 
 
 CONFIG_SCHEMA = cv.Schema(
@@ -257,6 +290,11 @@ async def to_code(config: ConfigType) -> None:
 
             zephyr_add_prj_conf("NET_SOCKETS", True)
             zephyr_add_prj_conf("POSIX_API", True)
+            # Zephyr's default of 3 poll entries is too few once API, OTA, mDNS and UDP
+            # run together
+            zephyr_add_prj_conf(
+                "NET_SOCKETS_POLL_MAX", zephyr_poll_max(get_socket_counts())
+            )
     # ESP32 and LibreTiny both have LwIP >= 2.1.3 with lwip_socket_dbg_get_socket()
     # and FreeRTOS task notifications — enable fast select to bypass lwip_select().
     # Only when not using lwip_tcp, which does not provide select() support.
@@ -274,6 +312,7 @@ FILTER_SOURCE_FILES = filter_source_files_from_defines(
         "lwip_raw_udp_impl.cpp": "USE_SOCKET_IMPL_LWIP_TCP",
         "bsd_sockets_impl.cpp": "USE_SOCKET_IMPL_BSD_SOCKETS",
         "lwip_sockets_impl.cpp": "USE_SOCKET_IMPL_LWIP_SOCKETS",
+        "ipv4_allow.cpp": "USE_SOCKET_IPV4_ALLOW",
         "ipv4_resolve.cpp": "USE_SOCKET_IPV4_RESOLVE",
         "tcp_client_link.cpp": "USE_SOCKET_TCP_CLIENT_LINK",
         "tcp_listener.cpp": "USE_SOCKET_TCP_LISTENER",

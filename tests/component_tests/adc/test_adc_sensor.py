@@ -30,3 +30,19 @@ def test_adc_regular_pin_is_not_deprecated(
 
     assert "adc_voltage->set_is_temperature();" not in main_cpp
     assert caplog.text.count("`pin: TEMPERATURE` is deprecated") == 1
+
+
+def test_adc_default_setters_are_not_emitted(
+    generate_main: Callable[[str | Path], str],
+) -> None:
+    """Raw, attenuation and sampling mode matching the C++ initializers are skipped."""
+    main_cpp = generate_main("tests/component_tests/adc/test_adc_defaults.yaml")
+
+    assert "adc_defaults->set_output_raw(" not in main_cpp
+    assert "adc_defaults->set_attenuation(" not in main_cpp
+    assert "adc_defaults->set_sampling_mode(" not in main_cpp
+    assert "adc_defaults->set_sample_count(" not in main_cpp
+    assert "adc_custom->set_output_raw(true);" in main_cpp
+    assert "adc_custom->set_attenuation(ADC_ATTEN_DB_6);" in main_cpp
+    assert "adc_custom->set_sampling_mode(adc::SamplingMode::MAX);" in main_cpp
+    assert "adc_custom->set_sample_count(4);" in main_cpp

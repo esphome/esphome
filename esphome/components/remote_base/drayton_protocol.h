@@ -11,10 +11,10 @@ struct DraytonData {
   uint16_t address;
   uint8_t channel;
   uint8_t command;
+  uint8_t data;  // last, so positional initializers written for the legacy layout keep their meaning
 
-  bool operator==(const DraytonData &rhs) const {
-    return address == rhs.address && channel == rhs.channel && command == rhs.command;
-  }
+  // channel/command: legacy split of the same bits, filled on decode, ignored by operator==
+  bool operator==(const DraytonData &rhs) const { return address == rhs.address && data == rhs.data; }
 };
 
 class DraytonProtocol : public RemoteProtocol<DraytonData> {

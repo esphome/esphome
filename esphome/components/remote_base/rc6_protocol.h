@@ -22,23 +22,4 @@ class RC6Protocol : public RemoteProtocol<RC6Data> {
 
 DECLARE_REMOTE_PROTOCOL(RC6)
 
-template<typename... Ts> class RC6Action : public RemoteTransmitterActionBase<Ts...> {
- public:
-  TEMPLATABLE_VALUE(uint8_t, address)
-  TEMPLATABLE_VALUE(uint8_t, command)
-
-  void encode(RemoteTransmitData *dst, Ts... x) {
-    RC6Data data{};
-    data.mode = 0;
-    data.toggle = this->toggle_;
-    data.address = this->address_.value(x...);
-    data.command = this->command_.value(x...);
-    RC6Protocol().encode(dst, data);
-    this->toggle_ = !this->toggle_;
-  }
-
- protected:
-  uint8_t toggle_{0};
-};
-
 }  // namespace esphome::remote_base

@@ -92,7 +92,7 @@ void VL53L0XSensor::setup() {
   uint32_t timeout_start_us = micros();
   while (reg(0x83).get() == 0x00) {
     if (this->timeout_us_ > 0 && (micros() - timeout_start_us > this->timeout_us_)) {
-      ESP_LOGE(TAG, "'%s' - setup timeout", this->name_.c_str());
+      ESP_LOGE(TAG, "'%s' - setup timeout", LOG_STR_ARG(this->get_log_name()));
       this->mark_failed();
       return;
     }
@@ -267,7 +267,7 @@ void VL53L0XSensor::update() {
     this->publish_state(NAN);
     this->status_momentary_warning(5000);
     ESP_LOGW(TAG, "%s - update called before prior reading complete - initiated:%d waiting_for_interrupt:%d",
-             this->name_.c_str(), this->initiated_read_, this->waiting_for_interrupt_);
+             LOG_STR_ARG(this->get_log_name()), this->initiated_read_, this->waiting_for_interrupt_);
     return;
   }
 
@@ -306,13 +306,14 @@ void VL53L0XSensor::loop() {
       this->waiting_for_interrupt_ = false;
 
       if (range_mm >= 8190) {
-        ESP_LOGD(TAG, "'%s' - Distance is out of range, please move the target closer", this->name_.c_str());
+        ESP_LOGD(TAG, "'%s' - Distance is out of range, please move the target closer",
+                 LOG_STR_ARG(this->get_log_name()));
         this->publish_state(NAN);
         return;
       }
 
       float range_m = range_mm / 1e3f;
-      ESP_LOGD(TAG, "'%s' - Got distance %.3f m", this->name_.c_str(), range_m);
+      ESP_LOGD(TAG, "'%s' - Got distance %.3f m", LOG_STR_ARG(this->get_log_name()), range_m);
       this->publish_state(range_m);
     }
   }

@@ -8,7 +8,12 @@ from typing import Any
 import pytest
 
 from esphome import config_validation as cv
-from esphome.components.esp32 import KEY_BOARD, KEY_VARIANT, VARIANT_ESP32S3
+from esphome.components.esp32 import (
+    KEY_BOARD,
+    KEY_VARIANT,
+    VARIANT_ESP32C3,
+    VARIANT_ESP32S3,
+)
 from esphome.components.mipi_rgb.display import CONFIG_SCHEMA, FINAL_VALIDATE_SCHEMA
 
 # Importing pca9554 registers its pin schema with pins.PIN_SCHEMA_REGISTRY so that
@@ -87,3 +92,78 @@ def test_model_requires_psram_and_expander(
                 "spi_id": "spi_bus",
             }
         )
+
+
+def test_model_requires_expander_when_pins_overridden(
+    set_core_config: SetCoreConfigCallable,
+    set_component_config: Any,
+) -> None:
+    """A model with default pins on an expander requires it even when the user config
+    overrides all of those pins, and without the expander being listed in ``requires``."""
+    set_core_config(
+        PlatformFramework.ESP32_IDF,
+        platform_data={KEY_BOARD: "esp32-s3-devkitc-1", KEY_VARIANT: VARIANT_ESP32S3},
+    )
+    set_component_config("psram", True)
+    CORE.raw_config = {"psram": True}
+
+    with pytest.raises(
+        cv.Invalid,
+        match=r"ESP32-S3-TOUCH-LCD-7-800X480 requires component 'ch422g' to be configured",
+    ):
+        _validated(
+            {
+                "model": "ESP32-S3-TOUCH-LCD-7-800X480",
+                "reset_pin": 10,
+                "enable_pin": [11, 12],
+            }
+        )
+
+
+def test_model_requires_expander_with_default_pins(
+    set_core_config: SetCoreConfigCallable,
+    set_component_config: Any,
+) -> None:
+    """The missing expander is reported before the model's default pins on it are validated."""
+    set_core_config(
+        PlatformFramework.ESP32_IDF,
+        platform_data={KEY_BOARD: "esp32-s3-devkitc-1", KEY_VARIANT: VARIANT_ESP32S3},
+    )
+    set_component_config("psram", True)
+    CORE.raw_config = {"psram": True}
+
+    with pytest.raises(
+        cv.Invalid,
+        match=r"ESP32-S3-TOUCH-LCD-7-800X480 requires component 'ch422g' to be configured",
+    ):
+        _validated({"model": "ESP32-S3-TOUCH-LCD-7-800X480"})
+
+
+def test_unsupported_variant_reported_before_requirements(
+    set_core_config: SetCoreConfigCallable,
+) -> None:
+    """On an unsupported chip the variant error is shown, not the missing components."""
+    set_core_config(
+        PlatformFramework.ESP32_IDF,
+        platform_data={KEY_BOARD: "esp32-c3-devkitm-1", KEY_VARIANT: VARIANT_ESP32C3},
+    )
+    CORE.raw_config = {}
+
+    with pytest.raises(
+        cv.Invalid,
+        match=r"This feature is only available on ESP32S3, ESP32P4, ESP32S31",
+    ):
+        _validated({"model": "ESP32-S3-TOUCH-LCD-7-800X480"})
+
+
+def test_expander_that_fails_to_load_is_still_required(
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    """An expander component that exists but fails to load is still counted as required."""
+    from esphome import loader, pins
+    from esphome.components import mipi
+
+    monkeypatch.setattr(pins, "PIN_SCHEMA_REGISTRY", pins.PinRegistry())
+    monkeypatch.setattr(loader, "get_component", lambda key: None)
+    defaults = {"enable_pin": {"xl9535": "hub", "number": 1, "mode": "output"}}
+    assert mipi._pin_expanders(defaults) == {"xl9535"}

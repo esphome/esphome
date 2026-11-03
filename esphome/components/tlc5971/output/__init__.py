@@ -1,29 +1,29 @@
-import esphome.codegen as cg
 from esphome.components import output
 import esphome.config_validation as cv
 from esphome.const import CONF_CHANNEL, CONF_ID
 from esphome.types import ConfigType
 
-from .. import TLC5971, tlc5971_ns
+from .. import TLC5971
 
 DEPENDENCIES = ["tlc5971"]
 
-TLC5971Channel = tlc5971_ns.class_(
-    "TLC5971Channel", output.FloatOutput, cg.Parented.template(TLC5971)
-)
 
 CONF_TLC5971_ID = "tlc5971_id"
 CONFIG_SCHEMA = output.FLOAT_OUTPUT_SCHEMA.extend(
     {
         cv.GenerateID(CONF_TLC5971_ID): cv.use_id(TLC5971),
-        cv.Required(CONF_ID): cv.declare_id(TLC5971Channel),
+        cv.Required(CONF_ID): cv.declare_id(output.ApplyFloatOutput),
         cv.Required(CONF_CHANNEL): cv.uint16_t,
     }
-).extend(cv.COMPONENT_SCHEMA)
+)
+
+
+FINAL_VALIDATE_SCHEMA = output.final_validate_unique_channel(
+    platform="tlc5971", hub_key=CONF_TLC5971_ID
+)
 
 
 async def to_code(config: ConfigType) -> None:
-    var = cg.new_Pvariable(config[CONF_ID])
-    await output.register_output(var, config)
-    await cg.register_parented(var, config[CONF_TLC5971_ID])
-    cg.add(var.set_channel(config[CONF_CHANNEL]))
+    await output.sub_float_outputs(config, parent=config[CONF_TLC5971_ID]).create(
+        config, None, config[CONF_CHANNEL], apply="write_channel(index, state)"
+    )

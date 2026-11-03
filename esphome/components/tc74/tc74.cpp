@@ -16,7 +16,7 @@ static const uint8_t TC74_DATA_READY_MASK = 0x40;
 void TC74Component::setup() {
   uint8_t config_reg;
   if (this->read_register(TC74_REGISTER_CONFIGURATION, &config_reg, 1) != i2c::ERROR_OK) {
-    this->mark_failed();
+    this->mark_failed(LOG_STR(ESP_LOG_MSG_COMM_FAIL));
     return;
   }
   this->data_ready_ = config_reg & TC74_DATA_READY_MASK;
@@ -27,9 +27,6 @@ void TC74Component::update() { this->read_temperature_(); }
 void TC74Component::dump_config() {
   LOG_SENSOR("", "TC74", this);
   LOG_I2C_DEVICE(this);
-  if (this->is_failed()) {
-    ESP_LOGE(TAG, "Connection with TC74 failed!");
-  }
   LOG_UPDATE_INTERVAL(this);
 }
 

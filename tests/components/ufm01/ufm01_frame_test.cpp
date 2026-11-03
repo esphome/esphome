@@ -30,6 +30,15 @@ TEST_F(UFM01Test, InvalidActiveFrameChecksumRejected) {
   EXPECT_EQ(this->ufm01_.last_valid_frame_ms(), 0u);
 }
 
+TEST_F(UFM01Test, RejectedActiveFrameResyncsOnStartBytesInside) {
+  // A cut off frame start makes the first 32 bytes invalid; the real frame starts inside them
+  this->mock_uart_.enqueue({FRAME_START_BYTE_1, FRAME_START_BYTE_2, 0x00, 0x00});
+  this->mock_uart_.enqueue(make_active_frame());
+
+  EXPECT_TRUE(this->ufm01_.process_active_stream());
+  EXPECT_EQ(this->ufm01_.read_index(), 0);
+}
+
 TEST_F(UFM01Test, ValidPassiveFrameReadSuccess) {
   auto frame = make_passive_frame();
   this->mock_uart_.enqueue(frame);

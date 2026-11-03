@@ -8,6 +8,8 @@ text_sensor:
       name: Scan Results
     ip_address:
       name: IP Address
+      address_1:
+        name: IP Address 1
     ssid:
       name: SSID
     bssid:

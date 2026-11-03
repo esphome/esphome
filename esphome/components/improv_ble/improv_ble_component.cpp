@@ -47,8 +47,8 @@ ImprovBLEComponent::ImprovBLEComponent() { global_improv_component = this; }
 
 void ImprovBLEComponent::setup() {
 #ifdef USE_BINARY_SENSOR
-  if (this->authorizer_ != nullptr) {
-    this->authorizer_->add_on_state_callback([this](bool state) {
+  if (this->authorizer_binary_sensor_ != nullptr) {
+    this->authorizer_binary_sensor_->add_on_state_callback([this](bool state) {
       if (state) {
         this->authorized_start_ = millis();
         this->identify_start_ = 0;
@@ -142,7 +142,8 @@ void ImprovBLEComponent::loop() {
       this->set_status_indicator_state_(false);
 
       if (this->should_start_ && this->setup_complete_) {
-        if (this->service_->is_created()) {
+        // A service that an earlier session stopped stays STOPPED and can be started again
+        if (this->service_->is_created() || this->service_->is_stopped()) {
           this->service_->start();
         } else if (this->service_->is_running()) {
           // Start by advertising the device name first BEFORE setting any state
@@ -163,7 +164,7 @@ void ImprovBLEComponent::loop() {
       break;
     case improv::STATE_AWAITING_AUTHORIZATION: {
 #ifdef USE_BINARY_SENSOR
-      if (this->authorizer_ == nullptr ||
+      if (this->authorizer_binary_sensor_ == nullptr ||
           (this->authorized_start_ != 0 && ((now - this->authorized_start_) < this->authorized_duration_))) {
         this->set_state_(improv::STATE_AUTHORIZED);
       } else {
@@ -178,7 +179,7 @@ void ImprovBLEComponent::loop() {
     }
     case improv::STATE_AUTHORIZED: {
 #ifdef USE_BINARY_SENSOR
-      if (this->authorizer_ != nullptr && now - this->authorized_start_ > this->authorized_duration_) {
+      if (this->authorizer_binary_sensor_ != nullptr && now - this->authorized_start_ > this->authorized_duration_) {
         ESP_LOGD(TAG, "Authorization timeout");
         this->set_state_(improv::STATE_AWAITING_AUTHORIZATION);
         return;
@@ -341,7 +342,7 @@ float ImprovBLEComponent::get_setup_priority() const { return setup_priority::AF
 void ImprovBLEComponent::dump_config() {
   ESP_LOGCONFIG(TAG, "Improv BLE:");
 #ifdef USE_BINARY_SENSOR
-  LOG_BINARY_SENSOR("  ", "Authorizer", this->authorizer_);
+  LOG_BINARY_SENSOR("  ", "Authorizer", this->authorizer_binary_sensor_);
 #endif
 #ifdef USE_OUTPUT
   ESP_LOGCONFIG(TAG, "  Status Indicator: '%s'", YESNO(this->status_indicator_ != nullptr));
@@ -353,11 +354,8 @@ void ImprovBLEComponent::process_incoming_data_() {
     return;
   uint8_t length = this->incoming_data_[1];
 
-#if ESPHOME_LOG_LEVEL >= ESPHOME_LOG_LEVEL_VERBOSE
-  char hex_buf[format_hex_pretty_size(IMPROV_MAX_LOG_BYTES)];
-  ESP_LOGV(TAG, "Processing bytes - %s",
-           format_hex_pretty_to(hex_buf, this->incoming_data_.data(), this->incoming_data_.size()));
-#endif
+  ESP_LOGV_HEX(TAG, this->incoming_data_.data(), this->incoming_data_.size(), IMPROV_MAX_LOG_BYTES,
+               "Processing bytes - %s");
   if (this->incoming_data_.size() - 3 == length) {
     this->set_error_(improv::ERROR_NONE);
     improv::ImprovCommand command = improv::parse_improv_data(this->incoming_data_);
@@ -427,7 +425,7 @@ void ImprovBLEComponent::on_wifi_connect_timeout_() {
   this->set_error_(improv::ERROR_UNABLE_TO_CONNECT);
   this->set_state_(improv::STATE_AUTHORIZED);
 #ifdef USE_BINARY_SENSOR
-  if (this->authorizer_ != nullptr)
+  if (this->authorizer_binary_sensor_ != nullptr)
     this->authorized_start_ = millis();
 #endif
   ESP_LOGW(TAG, "Timed out while connecting to Wi-Fi network");
@@ -542,7 +540,7 @@ void ImprovBLEComponent::release_advertising_() {
 improv::State ImprovBLEComponent::get_initial_state_() const {
 #ifdef USE_BINARY_SENSOR
   // If we have an authorizer, start in awaiting authorization state
-  return this->authorizer_ == nullptr ? improv::STATE_AUTHORIZED : improv::STATE_AWAITING_AUTHORIZATION;
+  return this->authorizer_binary_sensor_ == nullptr ? improv::STATE_AUTHORIZED : improv::STATE_AWAITING_AUTHORIZATION;
 #else
   // No binary_sensor support = no authorizer possible, start as authorized
   return improv::STATE_AUTHORIZED;

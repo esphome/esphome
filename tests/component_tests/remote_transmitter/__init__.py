@@ -3,7 +3,7 @@
 import re
 
 _PROTOCOL_CALL_BODY = re.compile(
-    r"auto apply_call = \S+->protocol_call<remote_base::\w+>\(\);\n(.*?)apply_call\.perform\(\);",
+    r"auto apply_call = \S+->(?:protocol|encode)_call<remote_base::\w+>\(\);\n(.*?)apply_call\.perform\(\);",
     re.DOTALL,
 )
 

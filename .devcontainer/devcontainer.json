@@ -28,7 +28,6 @@
         // python
         "ms-python.python",
         "ms-python.pylint",
-        "ms-python.flake8",
         "charliermarsh.ruff",
         "visualstudioexptteam.vscodeintellicode",
         // yaml
@@ -47,9 +46,6 @@
         "python.terminal.activateEnvironment": true,
         "pylint.args": [
           "--rcfile=${workspaceFolder}/pyproject.toml"
-        ],
-        "flake8.args": [
-          "--config=${workspaceFolder}/.flake8"
         ],
         "ruff.configuration": "${workspaceFolder}/pyproject.toml",
         "[python]": {

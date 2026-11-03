@@ -41,11 +41,9 @@ INITIAL_MODES = {
     CONF_VOLTAGE: HLW8012InitialMode.HLW8012_INITIAL_MODE_VOLTAGE,
 }
 
-MODELS = {
-    "HLW8012": HLW8012SensorModels.HLW8012_SENSOR_MODEL_HLW8012,
-    "CSE7759": HLW8012SensorModels.HLW8012_SENSOR_MODEL_CSE7759,
-    "BL0937": HLW8012SensorModels.HLW8012_SENSOR_MODEL_BL0937,
-}
+MODELS = HLW8012SensorModels.options(
+    "HLW8012", "CSE7759", "BL0937", prefix="HLW8012_SENSOR_MODEL_"
+)
 
 CONF_CF1_PIN = "cf1_pin"
 CONF_CF_PIN = "cf_pin"
@@ -100,12 +98,9 @@ async def to_code(config: ConfigType) -> None:
     var = cg.new_Pvariable(config[CONF_ID])
     await cg.register_component(var, config)
 
-    sel = await cg.gpio_pin_expression(config[CONF_SEL_PIN])
-    cg.add(var.set_sel_pin(sel))
-    cf = await cg.gpio_pin_expression(config[CONF_CF_PIN])
-    cg.add(var.set_cf_pin(cf))
-    cf1 = await cg.gpio_pin_expression(config[CONF_CF1_PIN])
-    cg.add(var.set_cf1_pin(cf1))
+    await cg.add_pin(var.set_sel_pin, config[CONF_SEL_PIN])
+    await cg.add_pin(var.set_cf_pin, config[CONF_CF_PIN])
+    await cg.add_pin(var.set_cf1_pin, config[CONF_CF1_PIN])
 
     sensors = sensor.sub_sensors(config)
     await sensors(CONF_VOLTAGE, var.set_voltage_sensor)

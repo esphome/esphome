@@ -86,8 +86,7 @@ async def to_code(config: ConfigType) -> None:
     speakers = config[CONF_OUTPUT_SPEAKERS]
     cg.add(var.set_output_count(len(speakers)))
     for spk_id in speakers:
-        spk = await cg.get_variable(spk_id)
-        cg.add(var.add_output(spk))
+        await cg.add_variable(var.add_output, spk_id)
 
 
 automation.register_apply_action(

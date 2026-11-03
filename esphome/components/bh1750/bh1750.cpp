@@ -65,7 +65,7 @@ MTreg:
 void BH1750Sensor::setup() {
   uint8_t turn_on = BH1750_COMMAND_POWER_ON;
   if (this->write(&turn_on, 1) != i2c::ERROR_OK) {
-    this->mark_failed();
+    this->mark_failed(LOG_STR(ESP_LOG_MSG_COMM_FAIL));
     return;
   }
   this->state_ = IDLE;
@@ -74,9 +74,6 @@ void BH1750Sensor::setup() {
 void BH1750Sensor::dump_config() {
   LOG_SENSOR("", "BH1750", this);
   LOG_I2C_DEVICE(this);
-  if (this->is_failed()) {
-    ESP_LOGE(TAG, ESP_LOG_MSG_COMM_FAIL_FOR, this->get_name().c_str());
-  }
 
   LOG_UPDATE_INTERVAL(this);
 }
@@ -154,7 +151,7 @@ void BH1750Sensor::loop() {
         break;
       }
 
-      ESP_LOGV(TAG, "'%s': Illuminance=%.1flx", this->get_name().c_str(), lx);
+      ESP_LOGV(TAG, "'%s': Illuminance=%.1flx", LOG_STR_ARG(this->get_log_name()), lx);
       this->status_clear_warning();
       this->publish_state(lx);
       this->state_ = IDLE;

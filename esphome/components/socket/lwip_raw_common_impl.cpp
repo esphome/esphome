@@ -81,14 +81,13 @@ bool sockaddr_to_lwip(const struct sockaddr *addr, socklen_t addrlen, ip_addr_t 
 
 bool sockaddr_to_lwip_bind(sa_family_t family, const struct sockaddr *addr, socklen_t addrlen, ip_addr_t *ip,
                            uint16_t *port) {
-  if (!sockaddr_to_lwip(addr, addrlen, ip, port))
-    return false;
+  const bool ok = sockaddr_to_lwip(addr, addrlen, ip, port);
 #if LWIP_IPV6
   // Only promote wildcard binds — a specific address must keep filtering
-  if (family == AF_INET6 && ip_addr_isany_val(*ip))
+  if (ok && family == AF_INET6 && ip_addr_isany_val(*ip))
     IP_SET_TYPE_VAL(*ip, IPADDR_TYPE_ANY);
 #endif
-  return true;
+  return ok;
 }
 
 int lwip_err_to_errno(err_t err) {

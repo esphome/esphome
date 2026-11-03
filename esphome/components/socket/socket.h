@@ -56,6 +56,11 @@ inline constexpr int IP_DOMAIN = AF_INET6;
 inline constexpr int IP_DOMAIN = AF_INET;
 #endif
 
+// IPv6 sockets with multicast membership; the raw lwIP implementation has no IPv6 membership support.
+#if USE_NETWORK_IPV6 && (defined(USE_SOCKET_IMPL_BSD_SOCKETS) || defined(USE_SOCKET_IMPL_LWIP_SOCKETS))
+#define USE_SOCKET_IPV6
+#endif
+
 #ifdef USE_LWIP_FAST_SELECT
 /// Shared ready() helper using cached lwip_sock pointer for direct rcvevent read.
 /// cached_sock == nullptr means the socket is not monitored (monitor_loop was false, fd
@@ -191,16 +196,16 @@ inline socklen_t set_sockaddr(struct sockaddr *addr, socklen_t addrlen, const st
 /// Set a sockaddr to the any address and specified port for the IP version used by socket_ip().
 socklen_t set_sockaddr_any(struct sockaddr *addr, socklen_t addrlen, uint16_t port);
 
-#if defined(USE_SOCKET_IMPL_BSD_SOCKETS) || defined(USE_SOCKET_IMPL_LWIP_SOCKETS)
 /// Join a multicast group on the given socket.
 /// @param sock         The socket to join on
-/// @param ip_address   Null-terminated multicast address string (IPv4 or IPv6)
+/// @param ip_address   Null-terminated multicast address string (IPv4, or IPv6 except on LWIP_TCP)
 /// @param if_index_out If non-null, receives the interface index used (IPv4 always writes 0). For
 ///                      link-local IPv6 groups, the caller must also copy this into sin6_scope_id
 ///                      before bind() -- POSIX requires it, LwIP ignores it.
 /// @return true on success, false on failure (errno set)
-bool join_multicast_group(Socket *sock, const char *ip_address, uint32_t *if_index_out = nullptr);
+bool join_multicast_group(UDPSocket *sock, const char *ip_address, uint32_t *if_index_out = nullptr);
 
+#if defined(USE_SOCKET_IMPL_BSD_SOCKETS) || defined(USE_SOCKET_IMPL_LWIP_SOCKETS)
 #if USE_NETWORK_IPV6
 /// Configure the outgoing IPv6 multicast interface on the given socket.
 /// @param sock        The socket to configure
