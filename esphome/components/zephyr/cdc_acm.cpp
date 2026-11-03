@@ -34,10 +34,11 @@ void CdcAcm::setup() {
     cdc_acm_dte_rate_callback_set(dev, [](const device *, uint32_t) { CdcAcm::rate_changed(); });
   }
 #endif
+  // Report rates the host set during boot, once every component has registered its callback
+  rate_changed();
 }
 
-void CdcAcm::loop() {
-  // Runs once after setup, so rates the host set during boot are reported too
+void CdcAcm::report_rates_() {
 #if DT_HAS_COMPAT_STATUS_OKAY(zephyr_cdc_acm_uart)
   for (size_t i = 0; i < this->rates_.size(); i++) {
     uint32_t rate;
@@ -47,15 +48,13 @@ void CdcAcm::loop() {
     this->rate_callbacks_.call(CDC_DEVICES[i], rate);
   }
 #endif
-  // A rate set after its port was read has already asked for the loop again
-  this->disable_loop();
 }
 
 void CdcAcm::rate_changed() {
   // TEST: post to the main loop with the scheduler from the USB driver's thread
   App.scheduler.set_timeout(static_cast<Component *>(nullptr), static_cast<const char *>(nullptr), 0, []() {
     if (CdcAcm *cdc_acm = instance.load(std::memory_order_acquire); cdc_acm != nullptr)
-      cdc_acm->enable_loop();
+      cdc_acm->report_rates_();
   });
 }
 

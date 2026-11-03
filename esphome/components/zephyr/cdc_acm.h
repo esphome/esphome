@@ -14,17 +14,17 @@ class CdcAcm final : public Component {
  public:
   CdcAcm();
   void setup() override;
-  void loop() override;
 
-  /// Call from setup(). The first loop() after setup reports each port's current rate, so a rate the host set
+  /// Call from setup(). Right after setup each port's current rate is reported, so a rate the host set
   /// during boot is not missed.
   template<typename F> void add_on_rate_callback(F &&callback) { this->rate_callbacks_.add(std::forward<F>(callback)); }
 
-  /// Called by the USB driver, from its own thread, when the host sets a bit rate. Only wakes loop(),
+  /// Called by the USB driver, from its own thread, when the host sets a bit rate. Posts to the main loop,
   /// which reads the rates.
   static void rate_changed();
 
  protected:
+  void report_rates_();
   CallbackManager<void(const device *, uint32_t)> rate_callbacks_;
   // Last bit rate reported for each zephyr,cdc-acm-uart port, in device tree order
   std::array<uint32_t, DT_NUM_INST_STATUS_OKAY(zephyr_cdc_acm_uart)> rates_{};
