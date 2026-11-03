@@ -1,9 +1,12 @@
+from esphome import automation
+from esphome.automation import maybe_simple_id
 import esphome.codegen as cg
 from esphome.components import i2c, sensor
 import esphome.config_validation as cv
 from esphome.const import (
     CONF_BATTERY_LEVEL,
     CONF_BATTERY_VOLTAGE,
+    CONF_ID,
     CONF_RATE,
     DEVICE_CLASS_BATTERY,
     DEVICE_CLASS_VOLTAGE,
@@ -14,6 +17,7 @@ from esphome.const import (
 )
 from esphome.types import ConfigType
 
+AUTO_LOAD = ["max170xx"]
 DEPENDENCIES = ["i2c"]
 
 UNIT_PERCENT_PER_HOUR = "%/h"
@@ -61,3 +65,15 @@ async def to_code(config: ConfigType) -> None:
     await sensors(CONF_BATTERY_VOLTAGE, var.set_battery_voltage_sensor)
     await sensors(CONF_BATTERY_LEVEL, var.set_battery_level_sensor)
     await sensors(CONF_RATE, var.set_rate_sensor)
+
+
+MAX17048_ACTION_SCHEMA = maybe_simple_id(
+    {
+        cv.Required(CONF_ID): cv.use_id(MAX17048Component),
+    }
+)
+
+
+automation.register_apply_action(
+    "max17048.sleep_mode", MAX17048_ACTION_SCHEMA, automation.ApplyCall("sleep_mode()")
+)

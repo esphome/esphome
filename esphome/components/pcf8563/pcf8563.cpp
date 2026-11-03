@@ -30,6 +30,10 @@ void PCF8563Component::read_time() {
     ESP_LOGW(TAG, "RTC halted, not syncing to system clock.");
     return;
   }
+  if (this->pcf8563_.reg.voltage_low) {
+    ESP_LOGW(TAG, "Voltage-low flag set, RTC time may be invalid; not syncing to system clock.");
+    return;
+  }
   ESPTime rtc_time{
       .second = uint8_t(pcf8563_.reg.second + 10 * pcf8563_.reg.second_10),
       .minute = uint8_t(pcf8563_.reg.minute + 10u * pcf8563_.reg.minute_10),
@@ -67,6 +71,7 @@ void PCF8563Component::write_time() {
   pcf8563_.reg.second = now.second % 10;
   pcf8563_.reg.second_10 = now.second / 10;
   pcf8563_.reg.stop = false;
+  this->pcf8563_.reg.voltage_low = false;
 
   this->write_rtc_();
 }
@@ -76,10 +81,10 @@ bool PCF8563Component::read_rtc_() {
     ESP_LOGE(TAG, "Can't read I2C data.");
     return false;
   }
-  ESP_LOGD(TAG, "Read  %0u%0u:%0u%0u:%0u%0u 20%0u%0u-%0u%0u-%0u%0u  STOP:%s CLKOUT:%0u", pcf8563_.reg.hour_10,
+  ESP_LOGD(TAG, "Read  %0u%0u:%0u%0u:%0u%0u 20%0u%0u-%0u%0u-%0u%0u  STOP:%s CLKOUT:%0u VL:%0u", pcf8563_.reg.hour_10,
            pcf8563_.reg.hour, pcf8563_.reg.minute_10, pcf8563_.reg.minute, pcf8563_.reg.second_10, pcf8563_.reg.second,
            pcf8563_.reg.year_10, pcf8563_.reg.year, pcf8563_.reg.month_10, pcf8563_.reg.month, pcf8563_.reg.day_10,
-           pcf8563_.reg.day, ONOFF(!pcf8563_.reg.stop), pcf8563_.reg.clkout_enabled);
+           pcf8563_.reg.day, ONOFF(!pcf8563_.reg.stop), pcf8563_.reg.clkout_enabled, pcf8563_.reg.voltage_low);
 
   return true;
 }

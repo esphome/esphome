@@ -1,11 +1,15 @@
 """Tests for esphome.components.nrf52 upload_program and run_compile."""
 
+import asyncio
 from contextlib import ExitStack
 from pathlib import Path
-from unittest.mock import MagicMock, patch
+import socket
+from types import SimpleNamespace
+from unittest.mock import AsyncMock, MagicMock, patch
 
 import pytest
 
+from esphome.address_cache import AddressCache
 from esphome.components.nrf52.const import (
     BOOTLOADER_ADAFRUIT_NRF52_SD140_V7,
     BOOTLOADER_NRF,
@@ -518,3 +522,364 @@ class TestUploadProgramSerialDfu:
             mock_run.return_value = False
             with pytest.raises(EsphomeError, match="serial DFU upload failed"):
                 upload_program(config={}, args=None, host=host)
+
+
+# ---------------------------------------------------------------------------
+# BLE OTA upload path
+# ---------------------------------------------------------------------------
+
+BLE_MAC = "AA:BB:CC:DD:EE:FF"
+DFU_PACKAGE = object()
+
+
+class TestUploadProgramBle:
+    """The BLE path uses the OTA protocol the firmware was built with."""
+
+    def _run(
+        self,
+        tmp_path: Path,
+        host: str = BLE_MAC,
+        ota_platform: str = "adafruit_ble",
+    ) -> tuple[AsyncMock, AsyncMock, AsyncMock, AsyncMock]:
+        from esphome.components.nrf52 import upload_program
+
+        _setup_nrf52_core(build_path=tmp_path / "build")
+        CORE.config_path = tmp_path / "test.yaml"
+        # The validated config cache skips validation, so nothing is loaded
+        CORE.loaded_integrations = set()
+
+        with (
+            patch(
+                "esphome.components.nrf52.ota.smpmgr_scan",
+                new=AsyncMock(return_value=BLE_MAC),
+            ) as mock_scan,
+            patch(
+                "esphome.components.adafruit_ble.dfu.enter_dfu_mode",
+                new=AsyncMock(return_value="AA:BB:CC:DD:EE:00"),
+            ) as mock_enter,
+            patch(
+                "esphome.components.adafruit_ble.dfu.load_firmware",
+                return_value=DFU_PACKAGE,
+            ),
+            patch(
+                "esphome.components.adafruit_ble.dfu.dfu_upload", new=AsyncMock()
+            ) as mock_dfu,
+            patch(
+                "esphome.components.nrf52._smpmgr_upload", new=AsyncMock()
+            ) as mock_smp,
+        ):
+            config = {"ota": [{"platform": ota_platform}]}
+            assert upload_program(config=config, args=None, host=host) is True
+        return mock_scan, mock_enter, mock_dfu, mock_smp
+
+    @pytest.mark.parametrize("host", [BLE_MAC, "BLE"])
+    def test_adafruit_ble_uploads_to_bootloader(
+        self, setup_core: Path, tmp_path: Path, host: str
+    ) -> None:
+        """The application reboots into the bootloader, which receives the package.
+
+        The choice comes from the config, so it holds on the validated config
+        cache path where loaded_integrations stays empty.
+        """
+        mock_scan, mock_enter, mock_dfu, mock_smp = self._run(tmp_path, host)
+
+        assert mock_scan.await_count == (host == "BLE")
+        mock_enter.assert_awaited_once_with(BLE_MAC)
+        mock_dfu.assert_awaited_once_with("AA:BB:CC:DD:EE:00", DFU_PACKAGE)
+        mock_smp.assert_not_awaited()
+
+    @pytest.mark.parametrize("host", [BLE_MAC, "BLE"])
+    def test_adafruit_ble_checks_package_before_reboot(
+        self, setup_core: Path, tmp_path: Path, host: str
+    ) -> None:
+        """A missing package fails before the device is asked to enter DFU mode."""
+        from esphome.components.nrf52 import upload_program
+
+        _setup_nrf52_core(build_path=tmp_path / "build")
+        CORE.config_path = tmp_path / "test.yaml"
+        with (
+            patch(
+                "esphome.components.nrf52.ota.smpmgr_scan",
+                new=AsyncMock(return_value=BLE_MAC),
+            ) as mock_scan,
+            patch(
+                "esphome.components.adafruit_ble.dfu.enter_dfu_mode", new=AsyncMock()
+            ) as mock_enter,
+            pytest.raises(EsphomeError, match="DFU package not found"),
+        ):
+            upload_program(
+                config={"ota": [{"platform": "adafruit_ble"}]}, args=None, host=host
+            )
+        mock_scan.assert_not_awaited()
+        mock_enter.assert_not_awaited()
+
+    @pytest.mark.parametrize("host", [BLE_MAC, "BLE"])
+    def test_mcumgr_uploads_over_smp(
+        self, setup_core: Path, tmp_path: Path, host: str
+    ) -> None:
+        """Without adafruit_ble the image goes over MCUmgr, on either bootloader."""
+        mock_scan, mock_enter, mock_dfu, mock_smp = self._run(
+            tmp_path, host, "zephyr_mcumgr"
+        )
+
+        assert mock_scan.await_count == (host == "BLE")
+        mock_smp.assert_awaited_once_with(BLE_MAC, None)
+        mock_enter.assert_not_awaited()
+        mock_dfu.assert_not_awaited()
+
+
+class TestUploadProgramUdp:
+    """A network host goes over MCUmgr UDP only when zephyr_mcumgr enables it."""
+
+    def _run(
+        self,
+        tmp_path: Path,
+        host: str,
+        transport: dict,
+        args: object = None,
+        network: dict | None = None,
+    ) -> tuple[bool, AsyncMock]:
+        from esphome.components.nrf52 import upload_program
+
+        _setup_nrf52_core(build_path=tmp_path / "build")
+        CORE.config_path = tmp_path / "test.yaml"
+        config = {"ota": [{"platform": "zephyr_mcumgr", "transport": transport}]}
+        if network is not None:
+            config["network"] = network
+        CORE.config = config
+        with patch(
+            "esphome.components.nrf52._smpmgr_upload", new=AsyncMock()
+        ) as mock_smp:
+            result = upload_program(config=config, args=args, host=host)
+        return result, mock_smp
+
+    @pytest.mark.parametrize(
+        ("host", "network"),
+        [
+            ("fd00::1", None),
+            ("fd00::1", {"enable_ipv4": False}),
+            ("192.168.1.10", {"enable_ipv4": True}),
+        ],
+    )
+    def test_udp_transport_uploads(
+        self, setup_core: Path, tmp_path: Path, host: str, network: dict | None
+    ) -> None:
+        result, mock_smp = self._run(tmp_path, host, {"udp": True}, network=network)
+        assert result is True
+        mock_smp.assert_awaited_once_with(host, None, udp=True)
+
+    def test_ipv4_address_without_ipv4_listener(
+        self, setup_core: Path, tmp_path: Path
+    ) -> None:
+        with pytest.raises(EsphomeError, match="enable_ipv4: true"):
+            self._run(tmp_path, "192.168.1.10", {"udp": True})
+
+    def test_resolves_through_the_address_cache(
+        self, setup_core: Path, tmp_path: Path
+    ) -> None:
+        CORE.address_cache = AddressCache(mdns_cache={"my-device.local": ["fd00::5"]})
+        result, mock_smp = self._run(tmp_path, "my-device.local", {"udp": True})
+        assert result is True
+        mock_smp.assert_awaited_once_with("fd00::5", None, udp=True)
+
+    def test_resolves_every_cached_address(
+        self, setup_core: Path, tmp_path: Path
+    ) -> None:
+        """The CLI passes only the first cached address; the others are kept too."""
+        from esphome.components.nrf52 import _resolve_smp_udp_hosts
+
+        CORE.config = {"openthread": {"use_address": "my-device.local"}}
+        CORE.address_cache = AddressCache(
+            mdns_cache={"my-device.local": ["fd00::5", "fd00::6"]}
+        )
+        assert _resolve_smp_udp_hosts("fd00::5", False) == ["fd00::5", "fd00::6"]
+        # An address the user named on its own is not widened
+        assert _resolve_smp_udp_hosts("fd00::7", False) == ["fd00::7"]
+
+    def test_uploads_the_requested_file(self, setup_core: Path, tmp_path: Path) -> None:
+        args = SimpleNamespace(file="other.bin")
+        result, mock_smp = self._run(tmp_path, "fd00::1", {"udp": True}, args)
+        assert result is True
+        mock_smp.assert_awaited_once_with("fd00::1", "other.bin", udp=True)
+
+    def test_without_udp_transport_falls_through(
+        self, setup_core: Path, tmp_path: Path
+    ) -> None:
+        result, mock_smp = self._run(tmp_path, "192.168.1.10", {"ble": True})
+        assert result is False
+        mock_smp.assert_not_awaited()
+
+
+def test_resolve_keeps_every_address() -> None:
+    """In resolve_ip_address order, IPv4 only when the network enables it."""
+    from esphome.components.nrf52 import _resolve_smp_udp_hosts
+
+    with patch(
+        "esphome.helpers.resolve_ip_address",
+        return_value=[
+            (socket.AF_INET6, 0, 0, "", ("fd00::5", 1337, 0, 0)),
+            (socket.AF_INET6, 0, 0, "", ("fd00::5", 1337, 0, 0)),
+            (socket.AF_INET, 0, 0, "", ("192.168.1.10", 1337)),
+            (socket.AF_INET6, 0, 0, "", ("fe80::1", 1337, 0, 7)),
+        ],
+    ):
+        assert _resolve_smp_udp_hosts("my-device.local", True) == [
+            "fd00::5",
+            "192.168.1.10",
+            "fe80::1%7",
+        ]
+        assert _resolve_smp_udp_hosts("my-device.local", False) == [
+            "fd00::5",
+            "fe80::1%7",
+        ]
+
+
+@pytest.mark.parametrize(
+    ("outcomes", "tried", "error"),
+    [
+        # An address that does not answer is skipped
+        (["unreachable", "ok"], 2, None),
+        # A failure after the device answered is final
+        (["stalled"], 1, "stalled"),
+        (["unreachable", "unreachable"], 2, "no reply"),
+    ],
+)
+def test_udp_upload_tries_the_next_address(
+    setup_core: Path, outcomes: list[str], tried: int, error: str | None
+) -> None:
+    from esphome.components.nrf52 import _upload_over_udp
+    from esphome.components.nrf52.ota_udp import SMPUnreachableError
+
+    effects = {
+        "ok": None,
+        "unreachable": SMPUnreachableError("no reply"),
+        "stalled": EsphomeError("Upload stalled"),
+    }
+    mock_smp = AsyncMock(side_effect=[effects[outcome] for outcome in outcomes])
+    run = _upload_over_udp("my-device.local", ["fd00::5", "fd00::6"], None)
+    with patch("esphome.components.nrf52._smpmgr_upload", new=mock_smp):
+        if error is None:
+            asyncio.run(run)
+        else:
+            with pytest.raises(EsphomeError, match=error):
+                asyncio.run(run)
+    assert [c.args[0] for c in mock_smp.await_args_list] == ["fd00::5", "fd00::6"][
+        :tried
+    ]
+
+
+class TestUploadOverBle:
+    def test_name_scan_miss_hints_at_bootloader_address(
+        self, setup_core: Path, tmp_path: Path
+    ) -> None:
+        """A device stuck in its bootloader does not advertise its name."""
+        from esphome.components.adafruit_ble import dfu
+        from esphome.components.nrf52 import _upload_over_ble
+
+        _setup_nrf52_core(build_path=tmp_path / "build")
+        with (
+            patch("esphome.components.adafruit_ble.dfu.load_firmware"),
+            patch(
+                "esphome.components.nrf52.ota.smpmgr_scan",
+                AsyncMock(side_effect=EsphomeError("BLE device test_device not found")),
+            ),
+            pytest.raises(EsphomeError, match="test_device not found") as err,
+        ):
+            asyncio.run(
+                _upload_over_ble({"ota": [{"platform": "adafruit_ble"}]}, "BLE")
+            )
+        assert str(err.value).endswith(dfu.BOOTLOADER_HINT)
+
+
+@pytest.mark.parametrize("file", [None, "other.bin"])
+def test_smpmgr_upload_sends_the_requested_file(
+    setup_core: Path, tmp_path: Path, file: str | None
+) -> None:
+    """--file replaces the build's app_update.bin."""
+    from esphome.components.nrf52 import _smpmgr_upload
+
+    _setup_nrf52_core(build_path=tmp_path / "build")
+    with patch(
+        "esphome.components.nrf52.ota.smpmgr_upload", new=AsyncMock()
+    ) as mock_upload:
+        asyncio.run(_smpmgr_upload("fd00::1", file, udp=True))
+    expected = (
+        Path(file)
+        if file
+        else CORE.relative_pioenvs_path(CORE.name, "zephyr", "app_update.bin")
+    )
+    mock_upload.assert_awaited_once_with("fd00::1", expected.resolve(), True)
+
+
+ITSYBITSY_PARTITIONS = """\
+mcuboot_primary:
+  address: 0xc000
+  size: 0x61000
+mcuboot_secondary:
+  address: 0x6d000
+  size: 0x61000
+"""
+
+
+SWAP_MOVE = "CONFIG_BOOT_SWAP_USING_MOVE=y\n"
+MAX_SECTORS = "CONFIG_BOOT_MAX_IMG_SECTORS=128\n"
+
+
+def _mcuboot_build(tmp_path: Path, image_size: int, config: str) -> Path:
+    (tmp_path / "partitions.yml").write_text(ITSYBITSY_PARTITIONS)
+    config_path = tmp_path / "mcuboot" / "zephyr" / ".config"
+    config_path.parent.mkdir(parents=True)
+    config_path.write_text(config)
+    image = tmp_path / "zephyr.signed.bin"
+    image.write_bytes(b"\0" * image_size)
+    return image
+
+
+@pytest.mark.parametrize(
+    ("image_size", "config", "error"),
+    [
+        (389_120, SWAP_MOVE + MAX_SECTORS, None),
+        (300_000, SWAP_MOVE + MAX_SECTORS, None),
+        # The ItsyBitsy's 97 sector slot swaps in 95 sectors: 389,120 bytes
+        (
+            392_155,
+            SWAP_MOVE + MAX_SECTORS,
+            "392155 bytes, but MCUboot can only swap in 389120 bytes.*at least 3035",
+        ),
+        (392_155, "CONFIG_BOOT_UPGRADE_ONLY=y\n", None),
+    ],
+)
+def test_mcuboot_swap_limit(
+    tmp_path: Path, image_size: int, config: str, error: str | None
+) -> None:
+    from esphome.components.nrf52 import _check_mcuboot_swap_limit
+
+    image = _mcuboot_build(tmp_path, image_size, config)
+    if error is None:
+        _check_mcuboot_swap_limit(tmp_path, image)
+    else:
+        with pytest.raises(EsphomeError, match=error):
+            _check_mcuboot_swap_limit(tmp_path, image)
+
+
+@pytest.mark.parametrize(
+    ("config", "remove"),
+    [
+        (SWAP_MOVE + MAX_SECTORS, "partitions.yml"),
+        (SWAP_MOVE + MAX_SECTORS, "zephyr.signed.bin"),
+        (SWAP_MOVE, None),
+    ],
+)
+def test_mcuboot_swap_limit_warns_when_it_cannot_check(
+    tmp_path: Path,
+    caplog: pytest.LogCaptureFixture,
+    config: str,
+    remove: str | None,
+) -> None:
+    from esphome.components.nrf52 import _check_mcuboot_swap_limit
+
+    image = _mcuboot_build(tmp_path, 392_155, config)
+    if remove is not None:
+        (tmp_path / remove).unlink()
+    _check_mcuboot_swap_limit(tmp_path, image)
+    assert "Skipping the MCUboot slot size check" in caplog.text

@@ -7,6 +7,7 @@
 
 #include "ft63x6.h"
 #include "esphome/core/log.h"
+#include "esphome/core/helpers.h"
 
 // Registers
 // Reference: https://focuslcds.com/content/FT6236.pdf
@@ -34,10 +35,7 @@ void FT63X6Touchscreen::setup() {
     this->attach_interrupt_(this->interrupt_pin_, gpio::INTERRUPT_ANY_EDGE);
   }
 
-  if (this->reset_pin_ != nullptr) {
-    this->reset_pin_->setup();
-    this->hard_reset_();
-  }
+  pulse_reset(this->reset_pin_, {.low_ms = 10});
 
   // Get touch resolution
   if (this->x_raw_max_ == this->x_raw_min_) {
@@ -55,14 +53,6 @@ void FT63X6Touchscreen::setup() {
   this->write_byte(FT6X36_ADDR_DEVICE_MODE, 0x00);
   this->write_byte(FT6X36_ADDR_THRESHHOLD, this->threshold_);
   this->write_byte(FT6X36_ADDR_TOUCHRATE_ACTIVE, 0x0E);
-}
-
-void FT63X6Touchscreen::hard_reset_() {
-  if (this->reset_pin_ != nullptr) {
-    this->reset_pin_->digital_write(false);
-    delay(10);
-    this->reset_pin_->digital_write(true);
-  }
 }
 
 void FT63X6Touchscreen::dump_config() {
@@ -106,13 +96,13 @@ uint16_t FT63X6Touchscreen::read_touch_x_(uint8_t touch) {
   uint8_t read_buf[2];
   read_buf[0] = this->read_byte_(FT63X6_ADDR_TOUCH1_X + (touch * 6));
   read_buf[1] = this->read_byte_(FT63X6_ADDR_TOUCH1_X + 1 + (touch * 6));
-  return ((read_buf[0] & 0x0f) << 8) | read_buf[1];
+  return encode_uint16(read_buf[0] & 0x0f, read_buf[1]);
 }
 uint16_t FT63X6Touchscreen::read_touch_y_(uint8_t touch) {
   uint8_t read_buf[2];
   read_buf[0] = this->read_byte_(FT63X6_ADDR_TOUCH1_Y + (touch * 6));
   read_buf[1] = this->read_byte_(FT63X6_ADDR_TOUCH1_Y + 1 + (touch * 6));
-  return ((read_buf[0] & 0x0f) << 8) | read_buf[1];
+  return encode_uint16(read_buf[0] & 0x0f, read_buf[1]);
 }
 uint8_t FT63X6Touchscreen::read_touch_event_(uint8_t touch) {
   return this->read_byte_(FT63X6_ADDR_TOUCH1_X + (touch * 6)) >> 6;

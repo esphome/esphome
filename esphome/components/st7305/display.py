@@ -53,6 +53,13 @@ MODELS = DriverChip.get_models()
 DEFAULT_MODEL = "WAVESHARE-400X300"
 
 
+def _model_key(model: DriverChip, key: str) -> cv.Optional | cv.Required:
+    """Default the key from the model, or require it when the model has none."""
+    if model.get_default(key, None) is None:
+        return cv.Required(key)
+    return model.option(key)
+
+
 def _model_schema(model: DriverChip) -> cv.Schema:
     iseqconf = (
         cv.Required(CONF_INIT_SEQUENCE)
@@ -72,12 +79,12 @@ def _model_schema(model: DriverChip) -> cv.Schema:
             {
                 cv.GenerateID(): cv.declare_id(ST7305),
                 cv.Required(CONF_MODEL): cv.one_of(*MODELS, upper=True),
-                model.option(CONF_CS_PIN, cv.UNDEFINED): pins.gpio_output_pin_schema,
-                model.option(CONF_DC_PIN, cv.UNDEFINED): pins.gpio_output_pin_schema,
+                _model_key(model, CONF_CS_PIN): pins.gpio_output_pin_schema,
+                _model_key(model, CONF_DC_PIN): pins.gpio_output_pin_schema,
                 model.option(CONF_RESET_PIN, cv.UNDEFINED): pins.gpio_output_pin_schema,
-                cv.Optional(CONF_WIDTH): cv.int_range(min=8, max=1024),
-                cv.Optional(CONF_HEIGHT): cv.int_range(min=8, max=1024),
-                cv.Optional(CONF_PORTRAIT): cv.boolean,
+                _model_key(model, CONF_WIDTH): cv.int_range(min=8, max=1024),
+                _model_key(model, CONF_HEIGHT): cv.int_range(min=8, max=1024),
+                _model_key(model, CONF_PORTRAIT): cv.boolean,
                 cv.Optional(CONF_COLUMN_START): cv.int_range(min=0, max=255),
                 cv.Optional(CONF_COLUMN_END): cv.int_range(min=0, max=255),
                 cv.Optional(CONF_ROW_START): cv.int_range(min=0, max=255),
@@ -89,23 +96,9 @@ def _model_schema(model: DriverChip) -> cv.Schema:
 
 
 def _resolve(config: ConfigType, model: DriverChip) -> None:
-    """Fill in model defaults and validate the geometry and address window."""
-    if (width := config.get(CONF_WIDTH)) is None:
-        if (width := model.get_default(CONF_WIDTH, None)) is None:
-            raise cv.Invalid("'width' is required for this model", path=[CONF_WIDTH])
-        config[CONF_WIDTH] = width
-    if (height := config.get(CONF_HEIGHT)) is None:
-        if (height := model.get_default(CONF_HEIGHT, None)) is None:
-            raise cv.Invalid("'height' is required for this model", path=[CONF_HEIGHT])
-        config[CONF_HEIGHT] = height
-
-    if config.get(CONF_PORTRAIT) is None:
-        if (default := model.get_default(CONF_PORTRAIT, None)) is None:
-            raise cv.Invalid(
-                "'portrait' is required for this model", path=[CONF_PORTRAIT]
-            )
-        config[CONF_PORTRAIT] = default
-
+    """Derive and validate the address window, and default the init sequence."""
+    width = config[CONF_WIDTH]
+    height = config[CONF_HEIGHT]
     if config[CONF_PORTRAIT]:
         if width % 12 or height % 2:
             raise cv.Invalid(
@@ -151,10 +144,6 @@ def _resolve(config: ConfigType, model: DriverChip) -> None:
 
     if config.get(CONF_INIT_SEQUENCE) is None:
         config[CONF_INIT_SEQUENCE] = model.initsequence
-
-    for key, label in ((CONF_CS_PIN, "cs_pin"), (CONF_DC_PIN, "dc_pin")):
-        if key not in config:
-            raise cv.Invalid(f"'{label}' is required for this model", path=[key])
 
 
 def model_schema(config: ConfigType) -> cv.Schema:

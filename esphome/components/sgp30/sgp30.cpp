@@ -125,10 +125,8 @@ void SGP30Component::read_iaq_baseline_() {
       if (eco2baseline != this->eco2_baseline_ || tvocbaseline != this->tvoc_baseline_) {
         this->eco2_baseline_ = eco2baseline;
         this->tvoc_baseline_ = tvocbaseline;
-        if (this->eco2_sensor_baseline_ != nullptr)
-          this->eco2_sensor_baseline_->publish_state(this->eco2_baseline_);
-        if (this->tvoc_sensor_baseline_ != nullptr)
-          this->tvoc_sensor_baseline_->publish_state(this->tvoc_baseline_);
+        PUBLISH_STATE(this->eco2_baseline_sensor_, this->eco2_baseline_);
+        PUBLISH_STATE(this->tvoc_baseline_sensor_, this->tvoc_baseline_);
 
         // Store baselines after defined interval or if the difference between current and stored baseline becomes too
         // much
@@ -239,8 +237,8 @@ void SGP30Component::dump_config() {
   LOG_UPDATE_INTERVAL(this);
   LOG_SENSOR("  ", "eCO2 sensor", this->eco2_sensor_);
   LOG_SENSOR("  ", "TVOC sensor", this->tvoc_sensor_);
-  LOG_SENSOR("  ", "eCO2 baseline sensor", this->eco2_sensor_baseline_);
-  LOG_SENSOR("  ", "TVOC baseline sensor", this->tvoc_sensor_baseline_);
+  LOG_SENSOR("  ", "eCO2 baseline sensor", this->eco2_baseline_sensor_);
+  LOG_SENSOR("  ", "TVOC baseline sensor", this->tvoc_baseline_sensor_);
   ESP_LOGCONFIG(TAG, "Store baseline: %s", YESNO(this->store_baseline_));
   if (this->humidity_sensor_ != nullptr && this->temperature_sensor_ != nullptr) {
     ESP_LOGCONFIG(TAG, "  Compensation:");
@@ -268,10 +266,8 @@ void SGP30Component::update() {
     float tvoc = (raw_data[1]);
 
     ESP_LOGV(TAG, "eCO2=%.1fppm TVOC=%.1fppb", eco2, tvoc);
-    if (this->eco2_sensor_ != nullptr)
-      this->eco2_sensor_->publish_state(eco2);
-    if (this->tvoc_sensor_ != nullptr)
-      this->tvoc_sensor_->publish_state(tvoc);
+    PUBLISH_STATE(this->eco2_sensor_, eco2);
+    PUBLISH_STATE(this->tvoc_sensor_, tvoc);
 
     this->status_clear_warning();
     this->send_env_data_();

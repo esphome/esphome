@@ -1,6 +1,7 @@
 #include "image.h"
 
 #include <algorithm>
+#include <cstring>
 
 #include "esphome/core/hal.h"
 #include "esphome/core/helpers.h"
@@ -165,6 +166,21 @@ Color Image::get_pixel(int x, int y, const Color color_on, const Color color_off
 }
 #ifdef USE_LVGL
 lv_image_dsc_t *Image::get_lv_image_dsc() {
+  // No pixels yet. A widget keeps this descriptor and reads it on every draw, and LVGL warns on every draw of an image
+  // without data, so give it a transparent pixel instead
+  static constexpr uint8_t TRANSPARENT_PIXEL = 0;
+  if (this->data_start_ == nullptr) {
+    if (this->dsc_.data != &TRANSPARENT_PIXEL) {
+      memset(&this->dsc_, 0, sizeof(this->dsc_));
+      this->dsc_.header.cf = LV_COLOR_FORMAT_A8;
+      this->dsc_.header.w = 1;
+      this->dsc_.header.h = 1;
+      this->dsc_.header.stride = 1;
+      this->dsc_.data_size = 1;
+      this->dsc_.data = &TRANSPARENT_PIXEL;
+    }
+    return &this->dsc_;
+  }
   // lazily construct lvgl image_dsc.
   if (this->dsc_.data != this->data_start_) {
     this->dsc_.data = this->data_start_;

@@ -32,5 +32,5 @@ async def to_code(config: ConfigType) -> None:
 
     cg.add(var.set_supports_cool(config[CONF_SUPPORTS_COOL]))
     cg.add(var.set_supports_heat(config[CONF_SUPPORTS_HEAT]))
-    await cg.add_variable(var.set_sensor, config.get(CONF_SENSOR))
+    await cg.add_variable(var.set_temperature_sensor, config.get(CONF_SENSOR))
     await cg.add_variable(var.set_transmitter, config[CONF_TRANSMITTER_ID])

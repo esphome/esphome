@@ -1,5 +1,6 @@
 import esphome.codegen as cg
 from esphome.components import binary_sensor
+from esphome.components.const import CONF_TAP
 import esphome.config_validation as cv
 from esphome.const import CONF_ACTIVE, CONF_NAME, DEVICE_CLASS_VIBRATION, ICON_VIBRATE
 from esphome.types import ConfigType
@@ -11,7 +12,6 @@ DEPENDENCIES = ["lis2dw12"]
 
 CONF_DOUBLE_TAP = "double_tap"
 CONF_FREEFALL = "freefall"
-CONF_TAP = "tap"
 
 ICON_DOUBLE_TAP = "mdi:gesture-double-tap"
 ICON_FREEFALL = "mdi:parachute"

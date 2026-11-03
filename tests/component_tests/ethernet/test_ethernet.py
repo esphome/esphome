@@ -10,6 +10,7 @@ from esphome.components.esp32 import (
     KEY_VARIANT,
     VARIANT_ESP32,
     VARIANT_ESP32S3,
+    VARIANT_ESP32S31,
 )
 from esphome.components.ethernet import (
     CONF_CLOCK_SPEED,
@@ -100,6 +101,39 @@ def test_ch390_rejects_clock_speed_above_the_datasheet_maximum(
     CORE.name = "ch390-test"
     with pytest.raises(Invalid, match="value must be at most 72000000"):
         CONFIG_SCHEMA({**_CH390_CONFIG, CONF_CLOCK_SPEED: "80MHz"})
+
+
+@pytest.mark.parametrize(
+    ("idf_version", "match"),
+    [
+        (
+            cv.Version(5, 5, 3),
+            r"\(RGMII\) PHY requires ESP-IDF 6\.0\.0 or newer, got 5\.5\.3",
+        ),
+        (cv.Version(6, 0, 0), None),
+    ],
+)
+def test_rgmii_phy_needs_idf_6(
+    set_core_config: SetCoreConfigCallable,
+    idf_version: cv.Version,
+    match: str | None,
+) -> None:
+    """The internal EMAC only drives RGMII from ESP-IDF 6.0 on."""
+    set_core_config(
+        PlatformFramework.ESP32_IDF,
+        platform_data={
+            KEY_BOARD: "esp32-s31-devkitc-1",
+            KEY_VARIANT: VARIANT_ESP32S31,
+            KEY_IDF_VERSION: idf_version,
+        },
+    )
+    CORE.name = "rgmii-test"
+    config = {"type": "GENERIC", "mdc_pin": 23, "mdio_pin": 18}
+    if match is None:
+        CONFIG_SCHEMA(config)
+    else:
+        with pytest.raises(Invalid, match=match):
+            CONFIG_SCHEMA(config)
 
 
 _LAN8720_CONFIG = {"type": "LAN8720", "mdc_pin": 23, "mdio_pin": 18}

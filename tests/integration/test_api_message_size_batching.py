@@ -9,6 +9,7 @@ import pytest
 
 from .state_utils import assert_device_name, require_entity
 from .types import APIClientConnectedFactory, RunCompiledFunction
+from .wait_utils import wait_or_fail
 
 
 @pytest.mark.asyncio
@@ -128,15 +129,13 @@ async def test_api_message_size_batching(
         client.subscribe_states(on_state)
 
         # Wait for states with timeout
-        try:
-            await asyncio.wait_for(states_future, timeout=5.0)
-        except TimeoutError:
-            missing_keys = expected_keys - received_keys
-            pytest.fail(
-                f"Did not receive states from all entities within 5 seconds. "
-                f"Missing keys: {missing_keys}, "
-                f"Received {len(received_keys)} of {len(expected_keys)} expected states"
-            )
+        await wait_or_fail(
+            states_future,
+            5.0,
+            "Did not receive states from all entities",
+            missing_keys=lambda: expected_keys - received_keys,
+            received=lambda: f"{len(received_keys)} of {len(expected_keys)}",
+        )
 
         # Verify we received states from all entities
         assert expected_keys.issubset(received_keys)

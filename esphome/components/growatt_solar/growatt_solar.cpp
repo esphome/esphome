@@ -34,7 +34,7 @@ void GrowattSolar::on_read_input_registers(uint16_t start_address, std::span<con
 
   switch (this->protocol_version_) {
     case RTU: {
-      publish_1_reg_sensor_state(this->inverter_status_, RTU_INVERTER_STATUS, 1);
+      publish_1_reg_sensor_state(this->inverter_status_sensor_, RTU_INVERTER_STATUS, 1);
 
       publish_2_reg_sensor_state(this->pv_active_power_sensor_, RTU_PV_ACTIVE_POWER, ONE_DEC_UNIT);
 
@@ -61,14 +61,14 @@ void GrowattSolar::on_read_input_registers(uint16_t start_address, std::span<con
       publish_1_reg_sensor_state(this->phases_[2].current_sensor_, RTU_PHASE3_CURRENT, ONE_DEC_UNIT);
       publish_2_reg_sensor_state(this->phases_[2].active_power_sensor_, RTU_PHASE3_ACTIVE_POWER, ONE_DEC_UNIT);
 
-      publish_2_reg_sensor_state(this->today_production_, RTU_TODAY_PRODUCTION, ONE_DEC_UNIT);
-      publish_2_reg_sensor_state(this->total_energy_production_, RTU_TOTAL_ENERGY_PRODUCTION, ONE_DEC_UNIT);
+      publish_2_reg_sensor_state(this->today_production_sensor_, RTU_TODAY_PRODUCTION, ONE_DEC_UNIT);
+      publish_2_reg_sensor_state(this->total_energy_production_sensor_, RTU_TOTAL_ENERGY_PRODUCTION, ONE_DEC_UNIT);
 
-      publish_1_reg_sensor_state(this->inverter_module_temp_, RTU_INVERTER_MODULE_TEMP, ONE_DEC_UNIT);
+      publish_1_reg_sensor_state(this->inverter_module_temp_sensor_, RTU_INVERTER_MODULE_TEMP, ONE_DEC_UNIT);
       break;
     }
     case RTU2: {
-      publish_1_reg_sensor_state(this->inverter_status_, RTU2_INVERTER_STATUS, 1);
+      publish_1_reg_sensor_state(this->inverter_status_sensor_, RTU2_INVERTER_STATUS, 1);
 
       publish_2_reg_sensor_state(this->pv_active_power_sensor_, RTU2_PV_ACTIVE_POWER, ONE_DEC_UNIT);
 
@@ -95,10 +95,10 @@ void GrowattSolar::on_read_input_registers(uint16_t start_address, std::span<con
       publish_1_reg_sensor_state(this->phases_[2].current_sensor_, RTU2_PHASE3_CURRENT, ONE_DEC_UNIT);
       publish_2_reg_sensor_state(this->phases_[2].active_power_sensor_, RTU2_PHASE3_ACTIVE_POWER, ONE_DEC_UNIT);
 
-      publish_2_reg_sensor_state(this->today_production_, RTU2_TODAY_PRODUCTION, ONE_DEC_UNIT);
-      publish_2_reg_sensor_state(this->total_energy_production_, RTU2_TOTAL_ENERGY_PRODUCTION, ONE_DEC_UNIT);
+      publish_2_reg_sensor_state(this->today_production_sensor_, RTU2_TODAY_PRODUCTION, ONE_DEC_UNIT);
+      publish_2_reg_sensor_state(this->total_energy_production_sensor_, RTU2_TOTAL_ENERGY_PRODUCTION, ONE_DEC_UNIT);
 
-      publish_1_reg_sensor_state(this->inverter_module_temp_, RTU2_INVERTER_MODULE_TEMP, ONE_DEC_UNIT);
+      publish_1_reg_sensor_state(this->inverter_module_temp_sensor_, RTU2_INVERTER_MODULE_TEMP, ONE_DEC_UNIT);
       break;
     }
   }

@@ -51,9 +51,7 @@ void Wireguard::setup() {
     this->defer([this]() { this->start_connection_(); });  // defer to avoid blocking setup
 
 #ifdef USE_TEXT_SENSOR
-    if (this->address_sensor_ != nullptr) {
-      this->address_sensor_->publish_state(this->address_);
-    }
+    PUBLISH_STATE(this->address_text_sensor_, this->address_);
 #endif
   } else {
     ESP_LOGE(TAG, "Cannot initialize: error code %d", this->wg_initialized_);
@@ -121,9 +119,7 @@ void Wireguard::update() {
   }
 
 #ifdef USE_BINARY_SENSOR
-  if (this->status_sensor_ != nullptr) {
-    this->status_sensor_->publish_state(peer_up);
-  }
+  PUBLISH_STATE(this->status_binary_sensor_, peer_up);
 #endif
 
 #ifdef USE_SENSOR
@@ -199,9 +195,7 @@ void Wireguard::disable() {
 
 void Wireguard::publish_enabled_state() {
 #ifdef USE_BINARY_SENSOR
-  if (this->enabled_sensor_ != nullptr) {
-    this->enabled_sensor_->publish_state(this->enabled_);
-  }
+  PUBLISH_STATE(this->enabled_binary_sensor_, this->enabled_);
 #endif
 }
 

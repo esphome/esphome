@@ -159,12 +159,9 @@ void SCD30Component::update() {
     uint32_float_t humidity{.uint32 = temp_hum_u32};
 
     ESP_LOGD(TAG, "Got CO2=%.2fppm temperature=%.2f°C humidity=%.2f%%", co2.value, temperature.value, humidity.value);
-    if (this->co2_sensor_ != nullptr)
-      this->co2_sensor_->publish_state(co2.value);
-    if (this->temperature_sensor_ != nullptr)
-      this->temperature_sensor_->publish_state(temperature.value);
-    if (this->humidity_sensor_ != nullptr)
-      this->humidity_sensor_->publish_state(humidity.value);
+    PUBLISH_STATE(this->co2_sensor_, co2.value);
+    PUBLISH_STATE(this->temperature_sensor_, temperature.value);
+    PUBLISH_STATE(this->humidity_sensor_, humidity.value);
 
     this->status_clear_warning();
   });

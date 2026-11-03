@@ -2,6 +2,7 @@
 
 #include <cinttypes>
 #include "esphome/core/hal.h"
+#include "esphome/core/helpers.h"
 #include "esphome/core/log.h"
 
 namespace esphome::es8388 {
@@ -21,79 +22,76 @@ ESPHOME_LOG_TAG(TAG, "es8388");
     return false; \
   }
 
+static constexpr i2c::I2CRegValue ES8388_INIT[] PROGMEM = {
+    // I2S worker mode
+    {ES8388_MASTERMODE, 0x00},
+    /* Chip Control and Power Management */
+    {ES8388_CONTROL2, 0x50},
+    // normal all and power up all
+    {ES8388_CHIPPOWER, 0x00},
+    // vmidsel/500k
+    // EnRef=0,Play&Record Mode,(0x17-both of mic&play)
+    {ES8388_CONTROL1, 0x12},
+    // i2s 16 bits
+    {ES8388_DACCONTROL1, 0x18},
+    // sample freq 256
+    // DACFsMode,SINGLE SPEED; DACFsRatio,256
+    {ES8388_DACCONTROL2, 0x02},
+    // 0x00 audio on LIN1&RIN1,  0x09 LIN2&RIN2
+    {ES8388_DACCONTROL16, 0x00},
+    // only left DAC to left mixer enable 0db
+    {ES8388_DACCONTROL17, 0x90},
+    // only right DAC to right mixer enable 0db
+    {ES8388_DACCONTROL20, 0x90},
+    // set internal ADC and DAC use the same LRCK clock, ADC LRCK as internal LRCK
+    {ES8388_DACCONTROL21, 0x80},
+    // vroi=0 - 1.5k VREF to analog output resistance (default)
+    {ES8388_DACCONTROL23, 0x00},
+    // power down adc and line in
+    {ES8388_ADCPOWER, 0xFF},
+    // set to Mono Right
+    {ES8388_ADCCONTROL3, 0x02},
+    // I2S 16 Bits length and I2S serial audio data format
+    {ES8388_ADCCONTROL4, 0x0d},
+    // ADCFsMode,singel SPEED,RATIO=256
+    {ES8388_ADCCONTROL5, 0x02},
+    // ADC Volume
+    {ES8388_ADCCONTROL8, 0x00},
+    {ES8388_ADCCONTROL9, 0x00},
+    //@nightDav
+    // ALC Config (as recommended by ES8388 user guide for voice recording)
+    // Reg 0x12 = 0xe2 (ALC enable, PGA Max. Gain=23.5dB, Min. Gain=0dB)
+    {ES8388_ADCCONTROL10, 0xe2},
+    // Reg 0x13 = 0xa0 (ALC Target=-1.5dB, ALC Hold time =0 mS)
+    {ES8388_ADCCONTROL11, 0xa0},
+    // Reg 0x14 = 0x12(Decay time =820uS , Attack time = 416 uS)
+    {ES8388_ADCCONTROL12, 0x12},
+    // Reg 0x15 = 0x06(ALC mode)
+    {ES8388_ADCCONTROL13, 0x06},
+    // Reg 0x16 = 0xc3(nose gate = -40.5dB, NGG = 0x01(mute ADC))
+    {ES8388_ADCCONTROL14, 0xc3},
+    // Power on ADC
+    {ES8388_DACCONTROL21, 0x80},
+    // Start state machine
+    {ES8388_CHIPPOWER, 0xF0},
+};
+
+static constexpr i2c::I2CRegValue ES8388_UNMUTE[] PROGMEM = {
+    // unmute ADC with fade in
+    {ES8388_ADCCONTROL7, 0x60},
+    // unmute DAC with fade in
+    {ES8388_DACCONTROL3, 0x20},
+    // Power on ADC, Enable LIN&RIN, Power off MICBIAS, set int1lp to low power mode
+    {ES8388_ADCPOWER, 0x09},
+};
+
 void ES8388::setup() {
   // mute DAC
   this->set_mute_state_(true);
 
-  // I2S worker mode
-  ES8388_ERROR_FAILED(this->write_byte(ES8388_MASTERMODE, 0x00));
-
-  /* Chip Control and Power Management */
-  ES8388_ERROR_FAILED(this->write_byte(ES8388_CONTROL2, 0x50));
-  // normal all and power up all
-  ES8388_ERROR_FAILED(this->write_byte(ES8388_CHIPPOWER, 0x00));
-
-  // vmidsel/500k
-  // EnRef=0,Play&Record Mode,(0x17-both of mic&play)
-  ES8388_ERROR_FAILED(this->write_byte(ES8388_CONTROL1, 0x12));
-
-  // i2s 16 bits
-  ES8388_ERROR_FAILED(this->write_byte(ES8388_DACCONTROL1, 0x18));
-  // sample freq 256
-  // DACFsMode,SINGLE SPEED; DACFsRatio,256
-  ES8388_ERROR_FAILED(this->write_byte(ES8388_DACCONTROL2, 0x02));
-  // 0x00 audio on LIN1&RIN1,  0x09 LIN2&RIN2
-  ES8388_ERROR_FAILED(this->write_byte(ES8388_DACCONTROL16, 0x00));
-  // only left DAC to left mixer enable 0db
-  ES8388_ERROR_FAILED(this->write_byte(ES8388_DACCONTROL17, 0x90));
-  // only right DAC to right mixer enable 0db
-  ES8388_ERROR_FAILED(this->write_byte(ES8388_DACCONTROL20, 0x90));
-  // set internal ADC and DAC use the same LRCK clock, ADC LRCK as internal LRCK
-  ES8388_ERROR_FAILED(this->write_byte(ES8388_DACCONTROL21, 0x80));
-  // vroi=0 - 1.5k VREF to analog output resistance (default)
-  ES8388_ERROR_FAILED(this->write_byte(ES8388_DACCONTROL23, 0x00));
-
-  // power down adc and line in
-  ES8388_ERROR_FAILED(this->write_byte(ES8388_ADCPOWER, 0xFF));
-
-  //@nightdav
-  ES8388_ERROR_FAILED(
-      this->write_byte(ES8388_ADCCONTROL1, 0x00));  // +21dB : recommended value for ALC & voice recording
-
-  // set to Mono Right
-  ES8388_ERROR_FAILED(this->write_byte(ES8388_ADCCONTROL3, 0x02));
-
-  // I2S 16 Bits length and I2S serial audio data format
-  ES8388_ERROR_FAILED(this->write_byte(ES8388_ADCCONTROL4, 0x0d));
-  // ADCFsMode,singel SPEED,RATIO=256
-  ES8388_ERROR_FAILED(this->write_byte(ES8388_ADCCONTROL5, 0x02));
-
-  // ADC Volume
-  ES8388_ERROR_FAILED(this->write_byte(ES8388_ADCCONTROL8, 0x00));
-  ES8388_ERROR_FAILED(this->write_byte(ES8388_ADCCONTROL9, 0x00));
-
-  //@nightDav
-  // ALC Config (as recommended by ES8388 user guide for voice recording)
-
-  // Reg 0x12 = 0xe2 (ALC enable, PGA Max. Gain=23.5dB, Min. Gain=0dB)
-  ES8388_ERROR_FAILED(this->write_byte(ES8388_ADCCONTROL10, 0xe2));
-
-  // Reg 0x13 = 0xa0 (ALC Target=-1.5dB, ALC Hold time =0 mS)
-  ES8388_ERROR_FAILED(this->write_byte(ES8388_ADCCONTROL11, 0xa0));
-  // Reg 0x14 = 0x12(Decay time =820uS , Attack time = 416 uS)
-  ES8388_ERROR_FAILED(this->write_byte(ES8388_ADCCONTROL12, 0x12));
-
-  // Reg 0x15 = 0x06(ALC mode)
-  ES8388_ERROR_FAILED(this->write_byte(ES8388_ADCCONTROL13, 0x06));
-
-  // Reg 0x16 = 0xc3(nose gate = -40.5dB, NGG = 0x01(mute ADC))
-  ES8388_ERROR_FAILED(this->write_byte(ES8388_ADCCONTROL14, 0xc3));
-
-  // Power on ADC
-  ES8388_ERROR_FAILED(this->write_byte(ES8388_DACCONTROL21, 0x80));
-
-  // Start state machine
-  ES8388_ERROR_FAILED(this->write_byte(ES8388_CHIPPOWER, 0xF0));
+  ES8388_ERROR_FAILED(this->write_registers(ES8388_INIT));
+  // ADC PGA gain (reg 0x09): MicAmpL in bits 7:4, MicAmpR in bits 3:0, 3 dB per step
+  ES8388_ERROR_FAILED(this->write_byte(ES8388_ADCCONTROL1, this->mic_gain_));
   delay(1);
   ES8388_ERROR_FAILED(this->write_byte(ES8388_CHIPPOWER, 0x00));
 
@@ -103,13 +101,7 @@ void ES8388::setup() {
 
   this->set_mute_state_(false);
 
-  // unmute ADC with fade in
-  ES8388_ERROR_FAILED(this->write_byte(ES8388_ADCCONTROL7, 0x60));
-  // unmute DAC with fade in
-  ES8388_ERROR_FAILED(this->write_byte(ES8388_DACCONTROL3, 0x20));
-
-  // Power on ADC, Enable LIN&RIN, Power off MICBIAS, set int1lp to low power mode
-  ES8388_ERROR_FAILED(this->write_byte(ES8388_ADCPOWER, 0x09));
+  ES8388_ERROR_FAILED(this->write_registers(ES8388_UNMUTE));
 
 #ifdef USE_ES8388_SELECT
   if (this->dac_output_select_ != nullptr) {
@@ -150,9 +142,10 @@ void ES8388::setup() {
 void ES8388::dump_config() {
   ESP_LOGCONFIG(TAG, "ES8388 Audio Codec:");
   LOG_I2C_DEVICE(this);
+  ESP_LOGCONFIG(TAG, "  Mic gain: %u dB", (this->mic_gain_ & 0x0F) * 3);
 #ifdef USE_ES8388_SELECT
-  LOG_SELECT("  ", "DacOutputSelect", this->dac_output_select_);
-  LOG_SELECT("  ", "ADCInputMicSelect", this->adc_input_mic_select_);
+  LOG_SELECT("  ", "DAC Output", this->dac_output_select_);
+  LOG_SELECT("  ", "ADC Input Mic", this->adc_input_mic_select_);
 #endif
 }
 
@@ -173,25 +166,11 @@ float ES8388::volume() {
 }
 
 bool ES8388::set_mute_state_(bool mute_state) {
-  uint8_t value = 0;
-
   this->is_muted_ = mute_state;
 
-  ES8388_ERROR_CHECK(this->read_byte(ES8388_DACCONTROL3, &value));
-  ESP_LOGV(TAG, "Read ES8388_DACCONTROL3: 0x%02X", value);
-
-  // Only toggle the DACMute bit; the other bits of this register hold unrelated
-  // DAC settings that must be preserved. Previously muting overwrote the whole
-  // register with 0x3C and unmuting never cleared the bit, so once muted the DAC
-  // could not be unmuted again.
-  if (mute_state) {
-    value |= ES8388_DACCONTROL3_DAC_MUTE;
-  } else {
-    value &= ~ES8388_DACCONTROL3_DAC_MUTE;
-  }
-
-  ESP_LOGV(TAG, "Setting ES8388_DACCONTROL3 to 0x%02X (muted: %s)", value, YESNO(mute_state));
-  return this->write_byte(ES8388_DACCONTROL3, value);
+  // Only toggle the DACMute bit; the other bits of this register hold unrelated DAC settings
+  return this->update_register(ES8388_DACCONTROL3, ES8388_DACCONTROL3_DAC_MUTE,
+                               mute_state ? ES8388_DACCONTROL3_DAC_MUTE : 0);
 }
 
 // Set dac power output

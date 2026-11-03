@@ -1,0 +1,19 @@
+esphome:
+  name: test
+
+esp32:
+  board: esp32dev
+  framework:
+    type: esp-idf
+
+wifi:
+  ap:
+
+sendspin:
+
+switch:
+  - platform: sendspin
+    type: enabled
+    id: sendspin_enabled
+    name: Sendspin Enabled
+    restore_mode: DISABLED

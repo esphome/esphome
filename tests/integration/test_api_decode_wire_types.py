@@ -25,7 +25,7 @@ from .raw_api_client import (
     encode_varint,
     tag,
 )
-from .state_utils import InitialStateHelper, StateWaiter, require_entity
+from .state_utils import require_entity, subscribe_after_initial_states
 from .types import APIClientConnectedFactory, RunCompiledFunction
 
 SWITCH_COMMAND = MESSAGE_TYPE_OF[api_pb2.SwitchCommandRequest]
@@ -52,12 +52,10 @@ async def test_api_decode_wire_types(
         on, off = tag(2, WIRE_VARINT) + b"\x01", tag(2, WIRE_VARINT) + b"\x00"
 
         switch_states: list[bool] = []
-        waiter = StateWaiter()
 
         def on_state(state: EntityState) -> None:
             if isinstance(state, SwitchState) and state.key == switch.key:
                 switch_states.append(state.state)
-            waiter.on_state(state)
 
         def switch_is(value: bool) -> Callable[[EntityState], bool]:
             return lambda s: (
@@ -69,9 +67,8 @@ async def test_api_decode_wire_types(
                 isinstance(s, NumberState) and s.key == number.key and s.state == value
             )
 
-        initial = InitialStateHelper(entities)
-        client.subscribe_states(initial.on_state_wrapper(on_state))
-        await initial.wait_for_initial_states()
+        sub = await subscribe_after_initial_states(client, entities, on_state=on_state)
+        waiter = sub.waiter
         await raw.connect()
 
         # A well formed command: fixed32 key, varint state

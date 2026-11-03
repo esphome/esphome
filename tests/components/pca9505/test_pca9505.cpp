@@ -69,6 +69,7 @@ class PCA9505Test : public ::testing::Test {
   void SetUp() override {
     this->component_.set_i2c_bus(&this->bus_);
     this->component_.set_i2c_address(FakeBus::ADDRESS);
+    this->int_pin_.set_inverted(true);  // INT released
   }
 
   PCA9505GPIOPin make_pin_(uint8_t number, gpio::Flags flags, bool inverted = false) {

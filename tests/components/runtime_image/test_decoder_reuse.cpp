@@ -3,10 +3,15 @@
 
 #include <algorithm>
 #include <array>
+#include <cstdlib>
 #include <cstring>
+#include <tuple>
+#include <utility>
 #include <vector>
 
+#include "esphome/components/display/display_color_utils.h"
 #include "esphome/components/runtime_image/image_decoder.h"
+#include "esphome/components/runtime_image/jpeg_decoder.h"
 #include "esphome/components/runtime_image/runtime_image.h"
 
 namespace esphome::runtime_image::testing {
@@ -362,6 +367,23 @@ static std::vector<uint8_t> pixel_bytes(TestableRuntimeImage &img) {
   return std::vector<uint8_t>(start, start + img.get_width_stride() * img.get_height());
 }
 
+// Shrinking a PNG keeps the first source pixel of each span, as the JPEG path does: the even rows and columns
+TEST(RuntimeImageDecoder, ShrunkPngKeepsTheFirstPixelOfEachSpan) {
+  TestableRuntimeImage img(PNG, image::IMAGE_TYPE_RGB, false, 2, 2);
+  ASSERT_TRUE(decode_all(img, PNG_RGB, sizeof(PNG_RGB), PNG));
+  ASSERT_EQ(img.get_width(), 2);
+  ASSERT_EQ(img.get_height(), 2);
+  for (int row = 0; row < 2; row++) {
+    for (int col = 0; col < 2; col++) {
+      const Color pixel = img.get_pixel(col, row);
+      const uint8_t *expected = PNG_RGB_EXPECTED[row * 2][col * 2];
+      EXPECT_EQ(pixel.r, expected[0]) << col << "," << row;
+      EXPECT_EQ(pixel.g, expected[1]) << col << "," << row;
+      EXPECT_EQ(pixel.b, expected[2]) << col << "," << row;
+    }
+  }
+}
+
 TEST(RuntimeImageDecoder, JpegDecoderStaysWarmAcrossDecodes) {
   TestableRuntimeImage img(JPEG);
 
@@ -377,6 +399,12 @@ TEST(RuntimeImageDecoder, JpegDecoderStaysWarmAcrossDecodes) {
   EXPECT_EQ(pixel_bytes(img), first_pixels) << "reused decoder must reproduce identical pixels";
 }
 
+// The RGB565 word at (x, y) of a decoded image, in its own byte order
+static uint16_t rgb565_word(const TestableRuntimeImage &img, int x, int y) {
+  const uint8_t *p = img.get_data_start() + (y * img.get_width() + x) * 2;
+  return p[0] | (p[1] << 8);
+}
+
 // JPEGDEC's colour conversion differs by one step between its SIMD and scalar builds, so each
 // channel is checked within one step; the byte order is still exact
 static void expect_rgb565_near(uint16_t actual, uint16_t expected, const char *order, size_t pixel) {
@@ -386,16 +414,12 @@ static void expect_rgb565_near(uint16_t actual, uint16_t expected, const char *o
 }
 
 TEST(RuntimeImageDecoder, JpegDecodesDirectlyToScaledRgb565WithBothByteOrders) {
-  // Halving the 8x8 gradient keeps its even rows and columns. The words are JPEGDEC's output for those
-  // pixels, red in the top five bits: a decode of the fixture with PIL gives (51, 7, 30) for source
-  // pixel (2, 0), which is word 0x3803 here.
-  static const uint16_t EXPECTED[4 * 4] = {
-      0x0000, 0x3803, 0x8008, 0xB80B, 0x0203, 0x3A07, 0x81EC, 0xBA0F,
-      0x03E7, 0x3C0B, 0x83F0, 0xBC13, 0x05EC, 0x3E0F, 0x85F4, 0xBE17,
-  };
+  // Halving the 8x8 gradient makes JPEGDEC decode it at half size, which averages each 2x2 block of pixels
+  TestableRuntimeImage full(JPEG, image::IMAGE_TYPE_RGB565, false, 8, 8);
   TestableRuntimeImage rgb565_little_endian(JPEG, image::IMAGE_TYPE_RGB565, false, 4, 4);
   TestableRuntimeImage rgb565_big_endian(JPEG, image::IMAGE_TYPE_RGB565, true, 4, 4);
 
+  ASSERT_TRUE(decode_all(full, JPEG_GRADIENT, sizeof(JPEG_GRADIENT)));
   ASSERT_TRUE(decode_all(rgb565_little_endian, JPEG_GRADIENT, sizeof(JPEG_GRADIENT)));
   ASSERT_TRUE(decode_all(rgb565_big_endian, JPEG_GRADIENT, sizeof(JPEG_GRADIENT)));
   ASSERT_EQ(rgb565_little_endian.get_width(), 4);
@@ -405,20 +429,89 @@ TEST(RuntimeImageDecoder, JpegDecodesDirectlyToScaledRgb565WithBothByteOrders) {
 
   const uint8_t *little = rgb565_little_endian.get_data_start();
   const uint8_t *big = rgb565_big_endian.get_data_start();
-  for (size_t i = 0; i < 4 * 4; i++) {
-    expect_rgb565_near(little[i * 2] | (little[i * 2 + 1] << 8), EXPECTED[i], "little-endian", i);
-    expect_rgb565_near((big[i * 2] << 8) | big[i * 2 + 1], EXPECTED[i], "big-endian", i);
+  for (int row = 0; row < 4; row++) {
+    for (int col = 0; col < 4; col++) {
+      int red = 0;
+      int green = 0;
+      int blue = 0;
+      for (int dy = 0; dy < 2; dy++) {
+        for (int dx = 0; dx < 2; dx++) {
+          const uint16_t word = rgb565_word(full, col * 2 + dx, row * 2 + dy);
+          red += word >> 11;
+          green += (word >> 5) & 0x3F;
+          blue += word & 0x1F;
+        }
+      }
+      const uint16_t expected = ((red + 2) / 4) << 11 | ((green + 2) / 4) << 5 | (blue + 2) / 4;
+      const size_t i = row * 4 + col;
+      expect_rgb565_near(little[i * 2] | (little[i * 2 + 1] << 8), expected, "little-endian", i);
+      expect_rgb565_near((big[i * 2] << 8) | big[i * 2 + 1], expected, "big-endian", i);
+    }
+  }
+}
+
+// The generic draw() path gets JPEGDEC's half size RGB8888 output. It must match the half size RGB565 decode checked
+// above. A full size RGB8888 decode is no reference: JPEGDEC's x86 SSE code writes it with red and blue swapped.
+TEST(RuntimeImageDecoder, JpegDecodesToScaledRgb) {
+  TestableRuntimeImage rgb565(JPEG, image::IMAGE_TYPE_RGB565, false, 4, 4);
+  TestableRuntimeImage rgb(JPEG, image::IMAGE_TYPE_RGB, false, 4, 4);
+  ASSERT_TRUE(decode_all(rgb565, JPEG_GRADIENT, sizeof(JPEG_GRADIENT)));
+  ASSERT_TRUE(decode_all(rgb, JPEG_GRADIENT, sizeof(JPEG_GRADIENT)));
+  ASSERT_EQ(static_cast<JpegDecoder *>(rgb.decoder())->get_scale(), 2);
+
+  for (int row = 0; row < 4; row++) {
+    for (int col = 0; col < 4; col++) {
+      const uint16_t word = rgb565_word(rgb565, col, row);
+      const Color pixel = rgb.get_pixel(col, row);
+      // RGB565 keeps the top 5 or 6 bits of each channel
+      EXPECT_LE(std::abs(pixel.r - ((word >> 11) << 3)), 8) << "pixel " << col << "," << row << " red";
+      EXPECT_LE(std::abs(pixel.g - (((word >> 5) & 0x3F) << 2)), 4) << "pixel " << col << "," << row << " green";
+      EXPECT_LE(std::abs(pixel.b - ((word & 0x1F) << 3)), 8) << "pixel " << col << "," << row << " blue";
+    }
   }
 }
 
 // Target pixel index each source pixel paints when `source` pixels map onto `target`, the way
-// prepare_rgb565_scaling_ rounds: source n covers targets ceil(n * target / source) up to the next start
+// prepare_draw_ rounds: source n covers targets ceil(n * target / source) up to the next start
 static uint16_t scaled_boundary(int n, int source, int target) { return (n * target + source - 1) / source; }
 
-// The RGB565 word at (x, y) of a decoded image, in its own byte order
-static uint16_t rgb565_word(const TestableRuntimeImage &img, int x, int y) {
-  const uint8_t *p = img.get_data_start() + (y * img.get_width() + x) * 2;
-  return p[0] | (p[1] << 8);
+// Every target pixel of a PNG drawn at a size that is not a whole multiple: enlarged with spans 1 or 2 pixels wide, and
+// shrunk with spans of 0 or 1 pixels
+TEST(RuntimeImageDecoder, ScaledPngPaintsEachSourcePixelOverItsSpan) {
+  // A fixed size keeps the aspect ratio, so both are square
+  for (auto [width, height] : {std::pair{6, 6}, std::pair{3, 3}}) {
+    TestableRuntimeImage img(PNG, image::IMAGE_TYPE_RGB, false, width, height);
+    ASSERT_TRUE(decode_all(img, PNG_RGB, sizeof(PNG_RGB), PNG));
+    ASSERT_EQ(img.get_width(), width);
+    ASSERT_EQ(img.get_height(), height);
+    int painted = 0;
+    for (int m = 0; m < 4; m++) {
+      for (int n = 0; n < 4; n++) {
+        const uint8_t *expected = PNG_RGB_EXPECTED[m][n];
+        for (int y = scaled_boundary(m, 4, height); y < scaled_boundary(m + 1, 4, height); y++) {
+          for (int x = scaled_boundary(n, 4, width); x < scaled_boundary(n + 1, 4, width); x++) {
+            const Color pixel = img.get_pixel(x, y);
+            EXPECT_EQ(pixel.r, expected[0]) << width << "x" << height << " at " << x << "," << y;
+            EXPECT_EQ(pixel.g, expected[1]) << width << "x" << height << " at " << x << "," << y;
+            EXPECT_EQ(pixel.b, expected[2]) << width << "x" << height << " at " << x << "," << y;
+            painted++;
+          }
+        }
+      }
+    }
+    EXPECT_EQ(painted, width * height);
+  }
+}
+
+// JPEGDEC decodes at the smallest of full, 1/2, 1/4 and 1/8 size that still covers the buffer
+TEST(RuntimeImageDecoder, JpegDecodesAtTheSmallestSizeThatCoversTheBuffer) {
+  for (auto [size, scale] :
+       {std::pair{8, 1}, std::pair{5, 1}, std::pair{4, 2}, std::pair{3, 2}, std::pair{2, 4}, std::pair{1, 8}}) {
+    TestableRuntimeImage img(JPEG, image::IMAGE_TYPE_RGB565, false, size, size);
+    ASSERT_TRUE(decode_all(img, JPEG_GRADIENT, sizeof(JPEG_GRADIENT)));
+    EXPECT_EQ(img.get_width(), size);
+    EXPECT_EQ(static_cast<JpegDecoder *>(img.decoder())->get_scale(), scale) << size << "x" << size;
+  }
 }
 
 // Every scaled direct decode must equal the unscaled one sampled through the boundary table,
@@ -427,7 +520,8 @@ TEST(RuntimeImageDecoder, JpegDirectRgb565ScalesBySourcePixelSpans) {
   TestableRuntimeImage full(JPEG, image::IMAGE_TYPE_RGB565, false, 8, 8);
   ASSERT_TRUE(decode_all(full, JPEG_GRADIENT, sizeof(JPEG_GRADIENT)));
 
-  for (int size : {4, 6, 16}) {
+  // Sizes JPEGDEC cannot reach by scaling, so the full size decode is spread over the buffer
+  for (int size : {5, 6, 16}) {
     TestableRuntimeImage scaled(JPEG, image::IMAGE_TYPE_RGB565, false, size, size);
     ASSERT_TRUE(decode_all(scaled, JPEG_GRADIENT, sizeof(JPEG_GRADIENT)));
     ASSERT_EQ(scaled.get_width(), size);
@@ -500,6 +594,154 @@ TEST(RuntimeImageDecoder, SessionFlagsTrackLifecycle) {
   ASSERT_TRUE(img.end_decode());
   EXPECT_FALSE(img.is_decoding()) << "end_decode() must close the session";
   EXPECT_FALSE(img.is_decode_finished()) << "no session means nothing is 'finished'";
+}
+
+// 5x3 QOI whose runs carry on from one row into the next
+static const uint8_t QOI_RUNS[] = {
+    'q',  'o', 'i', 'f', 0, 0, 0, 5, 0, 0, 0, 3, 3, 0,  // header
+    0xFE, 10,  20,  30,                                 // 1 pixel
+    0xC5,                                               // a run of 6
+    0xFE, 200, 100, 50,                                 // 1 pixel
+    0xC6,                                               // a run of 7
+    0,    0,   0,   0,   0, 0, 0, 1,                    // end marker
+};
+
+/// Decode a whole image into img
+static void decode_into(RuntimeImage &img, ImageFormat format, const uint8_t *data, size_t len) {
+  std::vector<uint8_t> buffer(data, data + len);
+  ASSERT_TRUE(img.begin_decode(len, format));
+  size_t offset = 0;
+  while (offset < len) {
+    const int consumed = img.feed_data(buffer.data() + offset, len - offset);
+    ASSERT_GT(consumed, 0);
+    offset += consumed;
+  }
+  ASSERT_TRUE(img.end_decode());
+}
+
+// An opaque RGB565 image is written straight into the buffer. It must hold the same pixels, in the same places, as an
+// RGB image filled through draw_pixel(), at the image's own size and scaled.
+TEST(RuntimeImageDecoder, DirectRgb565MatchesTheGenericPath) {
+  const std::tuple<ImageFormat, const uint8_t *, size_t> images[] = {
+      {BMP, BMP_24BPP, sizeof(BMP_24BPP)},
+      {BMP, BMP_8BPP, sizeof(BMP_8BPP)},
+      {PNG, PNG_RGB, sizeof(PNG_RGB)},
+      {QOI, QOI_RUNS, sizeof(QOI_RUNS)},
+  };
+  for (auto [format, data, len] : images) {
+    for (auto [width, height] : {std::pair{0, 0}, std::pair{7, 5}, std::pair{2, 2}, std::pair{9, 2}}) {
+      RuntimeImage reference(format, image::IMAGE_TYPE_RGB, image::TRANSPARENCY_OPAQUE, nullptr, false, width, height);
+      decode_into(reference, format, data, len);
+      for (bool big_endian : {false, true}) {
+        RuntimeImage img(format, image::IMAGE_TYPE_RGB565, image::TRANSPARENCY_OPAQUE, nullptr, big_endian, width,
+                         height);
+        decode_into(img, format, data, len);
+        ASSERT_EQ(img.get_width(), reference.get_width());
+        ASSERT_EQ(img.get_height(), reference.get_height());
+        const uint8_t *pixels = img.get_data_start();
+        for (int i = 0; i < img.get_width() * img.get_height(); i++) {
+          const Color color = reference.get_pixel(i % img.get_width(), i / img.get_width());
+          const uint16_t expected = display::ColorUtil::color_to_565(color);
+          const uint16_t actual =
+              big_endian ? (pixels[i * 2] << 8 | pixels[i * 2 + 1]) : (pixels[i * 2] | pixels[i * 2 + 1] << 8);
+          EXPECT_EQ(actual, expected) << "image of " << len << " bytes into " << width << "x" << height
+                                      << (big_endian ? " big-endian" : " little-endian") << ", pixel " << i;
+        }
+      }
+    }
+  }
+}
+
+// The runs fill the rows they carry on into
+TEST(RuntimeImageDecoder, QoiRunsCrossRows) {
+  TestableRuntimeImage img(QOI);
+  ASSERT_TRUE(decode_all(img, QOI_RUNS, sizeof(QOI_RUNS)));
+  for (int i = 0; i < 15; i++) {
+    const Color pixel = img.get_pixel(i % 5, i / 5);
+    const bool second = i >= 7;
+    EXPECT_EQ(pixel.r, second ? 200 : 10) << "pixel " << i;
+    EXPECT_EQ(pixel.g, second ? 100 : 20) << "pixel " << i;
+    EXPECT_EQ(pixel.b, second ? 50 : 30) << "pixel " << i;
+  }
+}
+
+// 8x2 1bpp BMP: the top row has its right half set, the bottom row its left half (rows padded to 4 bytes)
+static const uint8_t BMP_1BPP[] = {
+    0x42, 0x4D, 0x46, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x3E, 0x00, 0x00, 0x00, 0x28, 0x00, 0x00, 0x00,
+    0x08, 0x00, 0x00, 0x00, 0x02, 0x00, 0x00, 0x00, 0x01, 0x00, 0x01, 0x00, 0x00, 0x00, 0x00, 0x00, 0x08, 0x00,
+    0x00, 0x00, 0x13, 0x0B, 0x00, 0x00, 0x13, 0x0B, 0x00, 0x00, 0x02, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00,
+    0x00, 0x00, 0x00, 0x00, 0xFF, 0xFF, 0xFF, 0x00, 0xF0, 0x00, 0x00, 0x00, 0x0F, 0x00, 0x00, 0x00,
+};
+
+// BMP has no alpha, so no pixel may come out transparent, whatever transparency the image has
+TEST(RuntimeImageDecoder, BmpPixelsAreOpaque) {
+  const std::pair<const uint8_t *, size_t> images[] = {
+      {BMP_24BPP, sizeof(BMP_24BPP)},
+      {BMP_8BPP, sizeof(BMP_8BPP)},
+      {BMP_1BPP, sizeof(BMP_1BPP)},
+  };
+  for (auto transparency : {image::TRANSPARENCY_ALPHA_CHANNEL, image::TRANSPARENCY_CHROMA_KEY}) {
+    for (auto type : {image::IMAGE_TYPE_RGB, image::IMAGE_TYPE_RGB565}) {
+      for (auto [data, len] : images) {
+        RuntimeImage img(BMP, type, transparency, nullptr, false, 0, 0);
+        decode_into(img, BMP, data, len);
+        for (int y = 0; y < img.get_height(); y++) {
+          for (int x = 0; x < img.get_width(); x++) {
+            EXPECT_EQ(img.get_pixel(x, y).w, 0xFF) << "image of " << len << " bytes, type " << type << ", transparency "
+                                                   << transparency << ", pixel (" << x << "," << y << ")";
+          }
+        }
+      }
+    }
+  }
+}
+
+TEST(RuntimeImageDecoder, Bmp1BppPixels) {
+  TestableRuntimeImage img(BMP, image::TRANSPARENCY_ALPHA_CHANNEL);
+  ASSERT_TRUE(decode_all(img, BMP_1BPP, sizeof(BMP_1BPP)));
+  ASSERT_EQ(img.get_width(), 8);
+  ASSERT_EQ(img.get_height(), 2);
+  for (int x = 0; x < 8; x++) {
+    EXPECT_EQ(img.get_pixel(x, 0).r, x >= 4 ? 0xFF : 0x00) << "pixel (" << x << ",0)";
+    EXPECT_EQ(img.get_pixel(x, 1).r, x < 4 ? 0xFF : 0x00) << "pixel (" << x << ",1)";
+  }
+}
+
+/// Reads a decoder's protected boundary tables
+struct BoundaryTables : ImageDecoder {
+  static size_t x_capacity(const ImageDecoder &decoder) {
+    return (decoder.*(&BoundaryTables::x_boundaries_)).capacity();
+  }
+  static size_t y_capacity(const ImageDecoder &decoder) {
+    return (decoder.*(&BoundaryTables::y_boundaries_)).capacity();
+  }
+  static bool size_valid(const ImageDecoder &decoder) { return decoder.*(&BoundaryTables::size_valid_); }
+  static void prepare_draw(ImageDecoder &decoder, int width, int height) {
+    (decoder.*(&BoundaryTables::prepare_draw_))(width, height);
+  }
+};
+
+// A JPEG decoded at reduced size builds its tables once, for the decoded size, not first for the full size
+TEST(RuntimeImageDecoder, JpegTablesAreBuiltForTheDecodedSize) {
+  TestableRuntimeImage img(JPEG, image::IMAGE_TYPE_RGB565, false, 1, 1);
+  ASSERT_TRUE(decode_all(img, JPEG_GRADIENT, sizeof(JPEG_GRADIENT)));
+  ASSERT_EQ(static_cast<JpegDecoder *>(img.decoder())->get_scale(), 8);
+  EXPECT_EQ(BoundaryTables::x_capacity(*img.decoder()), 2u);
+  EXPECT_EQ(BoundaryTables::y_capacity(*img.decoder()), 2u);
+}
+
+// Without memory for the tables an RGB565 image is drawn pixel by pixel, rather than failing the decode
+TEST(RuntimeImageDecoder, DirectDrawFallsBackWhenTablesCannotBeAllocated) {
+  TestableRuntimeImage img(BMP, image::IMAGE_TYPE_RGB565, false, 0, 0);
+  ASSERT_TRUE(img.begin_decode(sizeof(BMP_24BPP)));
+  BoundaryTables::prepare_draw(*img.decoder(), 3, 2);
+  ASSERT_TRUE(img.decoder()->uses_direct_rgb565());
+  // The x table already fits; a y table of SIZE_MAX entries can never be allocated
+  BoundaryTables::prepare_draw(*img.decoder(), 3, -2);
+  EXPECT_FALSE(img.decoder()->uses_direct_rgb565());
+  EXPECT_TRUE(BoundaryTables::size_valid(*img.decoder())) << "draw() would paint nothing";
+  EXPECT_EQ(BoundaryTables::x_capacity(*img.decoder()), 0u) << "the unused x table must be freed";
+  EXPECT_EQ(BoundaryTables::y_capacity(*img.decoder()), 0u);
 }
 
 }  // namespace esphome::runtime_image::testing

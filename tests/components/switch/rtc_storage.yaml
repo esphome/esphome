@@ -1,0 +1,8 @@
+switch:
+  - platform: template
+    name: "RTC Storage Switch"
+    id: rtc_storage_switch
+    optimistic: true
+    initial_state: ON
+    restore_state:
+      storage: rtc

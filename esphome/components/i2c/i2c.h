@@ -322,8 +322,9 @@ class I2CDevice {
   bool update_register(uint8_t a_register, uint8_t mask, uint8_t value);
 
  protected:
+  I2CBus *bus_{nullptr};  ///< pointer to I2CBus instance
+  // Last so a derived class can place its byte-sized members in the padding after it
   uint8_t address_{0x00};  ///< store the address of the device on the bus
-  I2CBus *bus_{nullptr};   ///< pointer to I2CBus instance
 };
 
 }  // namespace esphome::i2c

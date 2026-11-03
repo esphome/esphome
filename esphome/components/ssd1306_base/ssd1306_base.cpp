@@ -342,11 +342,7 @@ void HOT SSD1306::draw_absolute_pixel_internal(int x, int y, Color color) {
 
   uint16_t pos = x + (y / 8) * this->get_width_internal();
   uint8_t subpos = y & 0x07;
-  if (color.is_on()) {
-    this->buffer_[pos] |= (1 << subpos);
-  } else {
-    this->buffer_[pos] &= ~(1 << subpos);
-  }
+  assign_bits(this->buffer_[pos], 1 << subpos, color.is_on());
 }
 void SSD1306::fill(Color color) {
   // If clipping is active, fall back to base implementation
@@ -359,18 +355,7 @@ void SSD1306::fill(Color color) {
   for (uint32_t i = 0; i < this->get_buffer_length_(); i++)
     this->buffer_[i] = fill;
 }
-void SSD1306::init_reset_() {
-  if (this->reset_pin_ != nullptr) {
-    this->reset_pin_->setup();
-    this->reset_pin_->digital_write(true);
-    delay(1);
-    // Trigger Reset
-    this->reset_pin_->digital_write(false);
-    delay(10);
-    // Wake up
-    this->reset_pin_->digital_write(true);
-  }
-}
+void SSD1306::init_reset_() { pulse_reset(this->reset_pin_, {.high_before_ms = 1, .low_ms = 10}); }
 const LogString *SSD1306::model_str_() {
   return ModelStrings::get_log_str(static_cast<uint8_t>(this->model_), ModelStrings::LAST_INDEX);
 }

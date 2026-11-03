@@ -5,9 +5,18 @@ import re
 
 import pytest
 
+from .log_utils import LineWaiter
 from .state_utils import assert_device_name, require_service
 from .types import APIClientConnectedFactory, RunCompiledFunction
 from .wait_utils import wait_or_fail
+
+NORMAL_COUNT = re.compile(r"Normal items executed: (\d+)")
+REMOVED_COUNT = re.compile(r"Removed items executed: (\d+)")
+
+
+def _last_count(pattern: re.Pattern[str], lines: list[str]) -> int:
+    counts = [int(m.group(1)) for line in lines if (m := pattern.search(line))]
+    return counts[-1] if counts else 0
 
 
 @pytest.mark.asyncio
@@ -24,48 +33,10 @@ async def test_scheduler_removed_item_race(
     3. This causes cancelled timeouts to run when they shouldn't
     """
 
-    loop = asyncio.get_running_loop()
-    test_complete_future: asyncio.Future[bool] = loop.create_future()
-
-    # Track test results
-    test_passed = False
-    removed_executed = 0
-    normal_executed = 0
-
-    # Patterns to match
-    race_pattern = re.compile(r"RACE: .* executed after being cancelled!")
-    passed_pattern = re.compile(r"TEST PASSED")
-    failed_pattern = re.compile(r"TEST FAILED")
-    complete_pattern = re.compile(r"=== Test Complete ===")
-    normal_count_pattern = re.compile(r"Normal items executed: (\d+)")
-    removed_count_pattern = re.compile(r"Removed items executed: (\d+)")
-
-    def check_output(line: str) -> None:
-        """Check log output for test results."""
-        nonlocal test_passed, removed_executed, normal_executed
-
-        if race_pattern.search(line):
-            # Race condition detected - a cancelled item executed
-            test_passed = False
-
-        if passed_pattern.search(line):
-            test_passed = True
-        elif failed_pattern.search(line):
-            test_passed = False
-
-        normal_match = normal_count_pattern.search(line)
-        if normal_match:
-            normal_executed = int(normal_match.group(1))
-
-        removed_match = removed_count_pattern.search(line)
-        if removed_match:
-            removed_executed = int(removed_match.group(1))
-
-        if not test_complete_future.done() and complete_pattern.search(line):
-            test_complete_future.set_result(True)
+    waiter = LineWaiter()
 
     async with (
-        run_compiled(yaml_config, line_callback=check_output),
+        run_compiled(yaml_config, line_callback=waiter.callback),
         api_client_connected() as client,
     ):
         # Verify we can connect
@@ -84,10 +55,15 @@ async def test_scheduler_removed_item_race(
 
         # Wait for test completion
         await wait_or_fail(
-            test_complete_future, 5.0, "Test did not complete within timeout"
+            waiter.wait_for("=== Test Complete ==="),
+            5.0,
+            "Test did not complete within timeout",
         )
 
-        # Verify results
+        # RACE lines come before the verdict, so the verdict alone decides
+        test_passed = any("TEST PASSED" in line for line in waiter.lines)
+        normal_executed = _last_count(NORMAL_COUNT, waiter.lines)
+        removed_executed = _last_count(REMOVED_COUNT, waiter.lines)
         assert test_passed, (
             f"Test failed! Removed items executed: {removed_executed}, "
             f"Normal items executed: {normal_executed}"

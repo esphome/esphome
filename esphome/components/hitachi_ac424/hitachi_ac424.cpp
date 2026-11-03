@@ -1,4 +1,5 @@
 #include "hitachi_ac424.h"
+#include "esphome/core/helpers.h"
 
 namespace esphome::hitachi_ac424 {
 
@@ -14,15 +15,6 @@ void set_bits(uint8_t *const dst, const uint8_t offset, const uint8_t nbits, con
   *dst &= ~(uint8_t) (mask << offset);
   // Merge in the data.
   *dst |= ((data & mask) << offset);
-}
-
-void set_bit(uint8_t *const data, const uint8_t position, const bool on) {
-  uint8_t mask = 1 << position;
-  if (on) {
-    *data |= mask;
-  } else {
-    *data &= ~mask;
-  }
 }
 
 uint8_t *invert_byte_pairs(uint8_t *ptr, const uint16_t length) {
@@ -124,7 +116,7 @@ bool HitachiClimate::get_swing_v_toggle_() { return get_button_() == HITACHI_AC4
 
 void HitachiClimate::set_swing_v_(bool on) {
   set_swing_v_toggle_(on);  // Set the button value.
-  set_bit(&remote_state_[HITACHI_AC424_SWINGV_BYTE], HITACHI_AC424_SWINGV_OFFSET, on);
+  assign_bits(this->remote_state_[HITACHI_AC424_SWINGV_BYTE], 1 << HITACHI_AC424_SWINGV_OFFSET, on);
 }
 
 bool HitachiClimate::get_swing_v_() {
@@ -348,12 +340,7 @@ bool HitachiClimate::on_receive(remote_base::RemoteReceiveData data) {
 }
 
 void HitachiClimate::dump_state_(const char action[], uint8_t state[]) {
-  for (uint16_t i = 0; i < HITACHI_AC424_STATE_LENGTH - 10; i += 10) {
-    ESP_LOGV(TAG, "%s: %02X %02X %02X %02X %02X  %02X %02X %02X %02X %02X", action, state[i + 0], state[i + 1],
-             state[i + 2], state[i + 3], state[i + 4], state[i + 5], state[i + 6], state[i + 7], state[i + 8],
-             state[i + 9]);
-  }
-  ESP_LOGV(TAG, "%s: %02X %02X %02X", action, state[40], state[41], state[42]);
+  ESP_LOGV_HEX(TAG, state, HITACHI_AC424_STATE_LENGTH, HITACHI_AC424_STATE_LENGTH, "%s: %s", action);
 }
 
 }  // namespace esphome::hitachi_ac424

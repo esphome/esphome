@@ -76,6 +76,8 @@ static void log_percent(const LogString *param, float value) {
 void LightCall::perform() {
   const char *name = LOG_STR_ARG(this->parent_->get_log_name());
   LightColorValues v = this->validate_();
+  // Any call counts as newer, even one that changes nothing
+  this->parent_->called_ = true;
   const bool publish = this->get_publish_();
 
   if (publish) {

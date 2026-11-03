@@ -1,0 +1,41 @@
+# Waveshare ESP32-S3-ETH: RTC pins 16 17 and digital pin 43 are free; a round every 15 s.
+esphome:
+  name: gpio-hold-esp32s3
+  includes:
+    - hold_test.hpp
+
+esp32:
+  board: esp32-s3-devkitc-1
+  variant: esp32s3
+  flash_size: 16MB
+  framework:
+    type: esp-idf
+
+logger:
+  hardware_uart: USB_SERIAL_JTAG
+
+wifi:
+  ssid: !secret wifi_ssid
+  password: !secret wifi_password
+
+api:
+  reboot_timeout: 0s
+
+ota:
+  - platform: esphome
+
+# Turns on USE_GPIO_HOLD.
+output:
+  - platform: gpio
+    id: held_out
+    pin:
+      number: GPIO44
+      hold_state: true
+
+interval:
+  - interval: 15s
+    then:
+      - lambda: |-
+          static int round = 0;
+          static const int pins[] = {16, 17, 43};
+          holdtest::run(pins, sizeof(pins) / sizeof(pins[0]), ++round);

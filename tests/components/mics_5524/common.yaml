@@ -25,3 +25,9 @@ sensor:
       max_ppm: 500.0
     hydrogen:
       name: MiCS-5524 H2
+
+button:
+  - platform: template
+    name: MiCS-5524 Calibrate
+    on_press:
+      - mics_5524.request_calibration: mics_5524_module
