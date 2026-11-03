@@ -1315,7 +1315,7 @@ void ESPVideoCamera::dump_config() {
                 "  Name: %s\n"
                 "  Device: %s\n"
                 "  Max framerate: %.1f fps",
-                LOG_STR_ARG(this->get_log_name()), this->device_, this->max_framerate_);
+                LOG_STR_ARG(this->get_log_name()), this->device_, 1000.0f / this->min_interval_ms_);
   if (this->width_ != 0) {
     ESP_LOGCONFIG(TAG, "  Resolution: %ux%u", this->width_, this->height_);
   } else {

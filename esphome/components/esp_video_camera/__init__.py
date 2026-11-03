@@ -381,7 +381,7 @@ async def to_code(config):
     if (resolution := config[CONF_RESOLUTION]) != "auto":
         cg.add(var.set_resolution(*resolution))
     cg.add(var.set_jpeg_quality(config[CONF_JPEG_QUALITY]))
-    cg.add(var.set_max_framerate(config[CONF_MAX_FRAMERATE]))
+    cg.add(var.set_min_frame_interval(int(1000 / config[CONF_MAX_FRAMERATE])))
 
     # Also in esphome/idf_component.yml (keep the versions in step): that entry
     # covers the clang-tidy builds, this call is what adds it to "src" REQUIRES.

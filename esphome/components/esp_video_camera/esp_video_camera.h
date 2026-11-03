@@ -90,10 +90,7 @@ class ESPVideoCamera : public camera::Camera {
     this->height_ = height;
   }
   void set_jpeg_quality(int quality) { this->jpeg_quality_ = quality; }
-  void set_max_framerate(float fps) {
-    this->max_framerate_ = fps;
-    this->min_interval_ms_ = (fps > 0.0f) ? (uint32_t) (1000.0f / fps) : 0;
-  }
+  void set_min_frame_interval(uint32_t interval_ms) { this->min_interval_ms_ = interval_ms; }
 
   // camera::Camera -------------------------------------------------------------
   void add_listener(camera::CameraListener *listener) override { this->listeners_.push_back(listener); }
@@ -171,7 +168,6 @@ class ESPVideoCamera : public camera::Camera {
   uint16_t width_{0};
   uint16_t height_{0};
   int jpeg_quality_{80};  // V4L2 semantics: 1..100, higher is better
-  float max_framerate_{10.0f};
   uint32_t min_interval_ms_{100};
   uint32_t last_frame_ms_{0};
 
