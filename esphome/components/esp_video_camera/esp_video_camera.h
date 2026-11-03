@@ -18,7 +18,7 @@
 #include <memory>
 #include <vector>
 
-struct v4l2_buffer;
+struct v4l2_buffer;  // NOLINT(readability-identifier-naming) - forward decl of the V4L2 buffer type
 
 namespace esphome::esp_video_camera {
 
