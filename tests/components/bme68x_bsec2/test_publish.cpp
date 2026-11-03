@@ -150,6 +150,8 @@ TEST_F(BSEC2PublishTest, KeepsTheOrderBsecReturnsOutputsIn) {
                                {},
                                {},
                            }));
+  // Calibrated, but inside the default 6 h state save interval.
+  EXPECT_EQ(bsec2_double::get_state_calls, 0);
 }
 
 TEST_F(BSEC2PublishTest, NoAccuracyWithoutAnIaqOutput) {
