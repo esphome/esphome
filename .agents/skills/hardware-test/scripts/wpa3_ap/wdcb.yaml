@@ -1,0 +1,13 @@
+# CB3S (BK7231N) DUT, flashed over the air by run.sh
+substitutions:
+  name: wdcb
+  ap_ssid: wd-pmf-ap
+
+packages:
+  common: !include wd-common.yaml
+
+bk72xx:
+  board: cb3s
+
+logger:
+  hardware_uart: UART1

@@ -1,0 +1,26 @@
+---
+esphome:
+  name: test
+
+esp32:
+  board: esp32dev
+
+i2c:
+  - id: i2c_bus
+    scl: GPIO16
+    sda: GPIO17
+
+audio_dac:
+  - platform: pcm5122
+    id: pcm5122_dac
+    i2c_id: i2c_bus
+
+switch:
+  - platform: pcm5122
+    id: sw_standby
+    name: Standby
+    power_mode: standby
+  - platform: pcm5122
+    id: sw_powerdown
+    name: Power Down
+    power_mode: powerdown

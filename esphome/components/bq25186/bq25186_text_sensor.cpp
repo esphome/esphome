@@ -14,11 +14,7 @@ void BQ25186TextSensor::on_status(const BQ25186StatusRegisters &status) {
   if (value == this->last_)
     return;
   this->last_ = value;
-  const ProgmemStr name = StatusStrings::get_progmem_str(this->first_ + value, StatusStrings::LAST_INDEX);
-  char text[32];
-  ESPHOME_strncpy_P(text, reinterpret_cast<ESPHOME_PGM_P>(name), sizeof(text));
-  text[sizeof(text) - 1] = '\0';
-  this->publish_state(text);
+  this->publish_state(StatusStrings::get_progmem_str(this->first_ + value, StatusStrings::LAST_INDEX));
 }
 
 }  // namespace esphome::bq25186

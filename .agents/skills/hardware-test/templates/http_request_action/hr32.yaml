@@ -1,0 +1,7 @@
+# Run file for the PR build; for the base build pass `-s name hr32base` to esphome (or copy it with that name).
+substitutions: {name: hr32pr, bufsize: "32768"}
+esp32:
+  board: esp32dev
+  framework: {type: esp-idf}
+logger:
+packages: {hr: !include hr-common.yaml}

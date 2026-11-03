@@ -43,6 +43,16 @@ esphome:
           id: yard_sprinkler_ctrlr
           valve_number: !lambda return 1;
           run_duration: !lambda return 120;
+      - sprinkler.set_divider:
+          id: yard_sprinkler_ctrlr
+          divider: !lambda return 3;
+      - sprinkler.set_repeat:
+          id: yard_sprinkler_ctrlr
+          repeat: !lambda return 1;
+      - sprinkler.start_single_valve:
+          id: yard_sprinkler_ctrlr
+          valve_number: !lambda return 1;
+          run_duration: !lambda return 240;
 
 switch:
   - platform: template

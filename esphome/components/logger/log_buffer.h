@@ -114,6 +114,23 @@ struct LogBuffer {
     this->finalize_();
   }
 #endif
+  static constexpr uint16_t ANSI_COLOR_LEN = 7;  // "\033[{bold};3{color}m" written by write_header for level != 0
+  static constexpr uint16_t ANSI_RESET_LEN = 4;  // "\033[0m"
+  // Largest replay header: color plus "@4294967295ms "
+  static constexpr uint16_t REPLAY_HEADER_MAX_SIZE = ANSI_COLOR_LEN + 1 + 10 + 3;
+  // Color for level followed by the time since boot, in front of a line replayed from the boot log buffer
+  void write_replay_header(uint8_t level, uint32_t ms) {
+    if (this->pos + REPLAY_HEADER_MAX_SIZE > this->size)
+      return;
+    char *p = this->current_();
+    this->write_ansi_color_(p, level);
+    *p++ = '@';
+    p = uint32_to_str_unchecked(p, ms);
+    *p++ = 'm';
+    *p++ = 's';
+    *p++ = ' ';
+    this->pos = static_cast<uint16_t>(p - this->data);
+  }
   void write_body(const char *text, uint16_t text_length) {
     const uint16_t available = this->remaining_();
     const uint16_t copy_len = (text_length < available) ? text_length : available;
@@ -134,7 +151,6 @@ struct LogBuffer {
     this->data[this->full_() ? this->size - 1 : this->pos] = '\0';
   }
   // Write ANSI reset sequence inline ("\033[0m") - avoids write_() call overhead
-  static constexpr uint16_t ANSI_RESET_LEN = 4;  // "\033[0m"
   void write_ansi_reset_() {
     if (this->remaining_() >= ANSI_RESET_LEN) {
       char *p = this->current_();

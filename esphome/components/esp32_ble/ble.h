@@ -174,6 +174,9 @@ class ESP32BLE final : public Component {
   // Other non-ACTIVE states (e.g. OFF, DISABLED) are currently treated as no-ops.
   void __attribute__((noinline)) loop_handle_state_transition_not_active_();
 
+  uint8_t *conn_param_failed_slot_(const uint8_t *bda);
+  void forget_conn_param_failure_(const uint8_t *bda);
+
   bool ble_setup_();
   bool ble_dismantle_();
   void request_state_(bool enable);
@@ -244,6 +247,8 @@ class ESP32BLE final : public Component {
   esp_ble_io_cap_t io_cap_{ESP_IO_CAP_NONE};          // 1 byte (uint8_t typedef)
   BLEComponentState state_{BLE_COMPONENT_STATE_OFF};  // 1 byte (uint8_t enum)
   bool enable_on_boot_{};                             // 1 byte
+  // Peers already warned about a failed conn param update, one per connection; all-zero is free
+  esp_bd_addr_t conn_param_failed_bdas_[USE_ESP32_BLE_MAX_CONNECTIONS]{};
 #ifdef USE_ESP32_BLE_ADVERTISING
   uint8_t advertising_ref_count_{0};  // 1 byte, number of components requesting advertising
 #endif

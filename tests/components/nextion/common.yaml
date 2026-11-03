@@ -345,3 +345,4 @@ display:
     touch_sleep_timeout: 3
     update_interval: 5s
     wake_up_page: 2
+    skip_connection_handshake: true

@@ -27,7 +27,7 @@ void PolygonZone::dump_config() {
   this->polygon_.format(polygon_s);
   LOG_TEXT("  ", "PolygonZone", this);
   ESP_LOGCONFIG(TAG, "    Polygon: '%s'", polygon_s);
-  LOG_BINARY_SENSOR("    ", "Presence", this->presence_);
+  LOG_BINARY_SENSOR("    ", "Presence", this->presence_binary_sensor_);
 }
 
 void PolygonZone::control(const std::string &value) {
@@ -40,10 +40,12 @@ void PolygonZone::control(const std::string &value) {
     ESP_LOGW(TAG, "'%s': could not save the polygon; keeping the previous one", LOG_STR_ARG(this->get_log_name()));
   } else {
     this->polygon_ = polygon;
+    // A user-made edit is written to flash now, as wall-powered sensors lose power without warning
+    global_preferences->sync();
     // A target seen inside the previous polygon must not keep the new one on
     this->last_inside_ms_ = 0;
     if (this->polygon_.empty())
-      this->presence_->invalidate_state();
+      this->presence_binary_sensor_->invalidate_state();
   }
   // On error this publishes the previous polygon again, so the frontend shows the value in use
   this->publish_polygon_();

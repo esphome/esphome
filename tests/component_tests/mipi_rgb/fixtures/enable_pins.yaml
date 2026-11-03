@@ -1,0 +1,32 @@
+esphome:
+  name: enable-pins-test
+
+esp32:
+  board: esp32-s3-devkitc-1
+  framework:
+    type: esp-idf
+
+psram:
+  mode: octal
+  speed: 80MHz
+
+i2c:
+  sda: 8
+  scl: 9
+
+ch422g:
+  - id: ch422g_hub
+
+# Takes over the model's default backlight enable pin
+switch:
+  - platform: gpio
+    id: backlight
+    pin:
+      ch422g: ch422g_hub
+      number: 2
+
+display:
+  - platform: mipi_rgb
+    id: default_pins
+    model: ESP32-S3-TOUCH-LCD-7-800X480
+    update_interval: never

@@ -15,6 +15,7 @@ from aioesphomeapi import InfraredInfo, RadioFrequencyInfo
 from aioesphomeapi.api_pb2 import InfraredRFTransmitCompleteResponse
 import pytest
 
+from .log_utils import LineWaiter
 from .state_utils import require_entity
 from .types import APIClientConnectedFactory, RunCompiledFunction
 
@@ -25,6 +26,7 @@ REPEAT = 2
 MOCK_EVENT = re.compile(
     r"remote_transmitter_mock[^\]]*\]: (TX|Complete|Overlap)\b.*?seq=(\d+)"
 )
+MOCK_COMPLETE = re.compile(r"remote_transmitter_mock[^\]]*\]: Complete\b.*?seq=\d")
 
 
 @pytest.mark.shared_yaml("ir_rf_transmit_complete")
@@ -53,23 +55,7 @@ async def test_ir_rf_transmit_complete(
     request is answered at once. Two RF entities share a transmitter and each gets its own
     reply; the infrared entity on its own transmitter is answered the same way."""
     loop = asyncio.get_running_loop()
-    events: list[tuple[str, int]] = []
-    all_sent = loop.create_future()
-    all_logged = loop.create_future()
-
-    def line_callback(line: str) -> None:
-        if (match := MOCK_EVENT.search(line)) is None:
-            return
-        events.append((match.group(1), int(match.group(2))))
-        if (
-            match.group(1) == "Complete"
-            and not all_sent.done()
-            and sum(kind == "Complete" for kind, _ in events) == FRAME_COUNT
-        ):
-            all_sent.set_result(None)
-        # the log reader stops with the device, so wait for the last line before asserting on it
-        if len(events) == 2 * (FRAME_COUNT + 1) and not all_logged.done():
-            all_logged.set_result(None)
+    waiter = LineWaiter()
 
     completions: list[InfraredRFTransmitCompleteResponse] = []
     all_replied = loop.create_future()
@@ -88,7 +74,7 @@ async def test_ir_rf_transmit_complete(
             ir_replied.set_result(None)
 
     async with (
-        run_compiled(yaml_config, line_callback=line_callback),
+        run_compiled(yaml_config, line_callback=waiter.callback),
         api_client_connected() as client,
     ):
         entities, _ = await client.list_entities_services()
@@ -107,12 +93,15 @@ async def test_ir_rf_transmit_complete(
             )
 
         await asyncio.wait_for(all_replied, timeout=10)
-        await asyncio.wait_for(all_sent, timeout=10)
+        await waiter.wait_count(MOCK_COMPLETE, FRAME_COUNT, 10, "frames not sent")
 
         # the infrared entity goes through the same path on its own transmitter
         client.infrared_rf_transmit_raw_timings(ir.key, 38000, TIMINGS)
         await asyncio.wait_for(ir_replied, timeout=10)
-        await asyncio.wait_for(all_logged, timeout=10)
+        # the log reader stops with the device, so wait for the last line before asserting on it
+        await waiter.wait_count(
+            MOCK_EVENT, 2 * (FRAME_COUNT + 1), 10, "mock events not logged"
+        )
 
         # A request the entity refuses is answered right away with success false;
         # no timings, so the proxy rejects it before it reaches the transmitter
@@ -122,6 +111,11 @@ async def test_ir_rf_transmit_complete(
     assert [msg.key for msg in completions] == [*keys, ir.key]
     assert refused_msg.key == rf.key
 
+    events = [
+        (m.group(1), int(m.group(2)))
+        for line in waiter.lines
+        if (m := MOCK_EVENT.search(line))
+    ]
     # The mocks saw one frame at a time: every transmit follows the previous completion
     kinds = [kind for kind, _ in events]
     assert kinds == ["TX", "Complete"] * (FRAME_COUNT + 1), events

@@ -7,17 +7,13 @@
 namespace esphome::hdc1080 {
 
 class HDC1080Component final : public PollingComponent, public i2c::I2CDevice {
- public:
-  void set_temperature(sensor::Sensor *temperature) { temperature_ = temperature; }
-  void set_humidity(sensor::Sensor *humidity) { humidity_ = humidity; }
+  SUB_SENSOR(temperature)
+  SUB_SENSOR(humidity)
 
+ public:
   void setup() override;
   void dump_config() override;
   void update() override;
-
- protected:
-  sensor::Sensor *temperature_{nullptr};
-  sensor::Sensor *humidity_{nullptr};
 };
 
 }  // namespace esphome::hdc1080

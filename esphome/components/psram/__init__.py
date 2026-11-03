@@ -115,7 +115,11 @@ def request_external_task_stack() -> None:
     ``to_code`` when the option is enabled. The sdkconfig option only permits external
     stacks; it does not move any stack into PSRAM on its own, so it stays opt-in per task.
     """
-    add_idf_sdkconfig_option("CONFIG_SPIRAM_ALLOW_STACK_EXTERNAL_MEMORY", True)
+    # Renamed in ESP-IDF 5.4; the old name is still mapped there, but each configure reports it
+    if idf_version() >= cv.Version(5, 4, 0):
+        add_idf_sdkconfig_option("CONFIG_FREERTOS_TASK_CREATE_ALLOW_EXT_MEM", True)
+    else:
+        add_idf_sdkconfig_option("CONFIG_SPIRAM_ALLOW_STACK_EXTERNAL_MEMORY", True)
 
 
 def validate_task_stack_in_psram(value: Any) -> bool:

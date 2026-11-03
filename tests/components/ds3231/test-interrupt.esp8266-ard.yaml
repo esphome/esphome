@@ -1,0 +1,7 @@
+substitutions:
+  interrupt_pin: GPIO14
+
+packages:
+  i2c: !include ../../test_build_components/common/i2c/esp8266-ard.yaml
+  ds3231_hub: !include hub-interrupt.yaml
+  ds3231: !include common.yaml

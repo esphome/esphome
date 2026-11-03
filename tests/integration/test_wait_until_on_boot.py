@@ -13,10 +13,10 @@ disable_loop(), undoing the enable_loop() from play_complex(), causing wait_unti
 from __future__ import annotations
 
 import asyncio
-import re
 
 import pytest
 
+from .log_utils import LineWaiter
 from .state_utils import require_service
 from .types import APIClientConnectedFactory, RunCompiledFunction
 from .wait_utils import wait_or_fail
@@ -29,38 +29,14 @@ async def test_wait_until_on_boot(
     api_client_connected: APIClientConnectedFactory,
 ) -> None:
     """Test that wait_until works in on_boot automation with a condition that becomes true later."""
-    loop = asyncio.get_running_loop()
-
-    on_boot_started = False
-    on_boot_completed = False
-
-    on_boot_started_pattern = re.compile(r"on_boot: Starting wait_until test")
-    on_boot_complete_pattern = re.compile(r"on_boot: wait_until completed successfully")
-
-    on_boot_started_future = loop.create_future()
-    on_boot_complete_future = loop.create_future()
-
-    def check_output(line: str) -> None:
-        """Check log output for test progress."""
-        nonlocal on_boot_started, on_boot_completed
-
-        if on_boot_started_pattern.search(line):
-            on_boot_started = True
-            if not on_boot_started_future.done():
-                on_boot_started_future.set_result(True)
-
-        if on_boot_complete_pattern.search(line):
-            on_boot_completed = True
-            if not on_boot_complete_future.done():
-                on_boot_complete_future.set_result(True)
+    waiter = LineWaiter()
 
     async with (
-        run_compiled(yaml_config, line_callback=check_output),
+        run_compiled(yaml_config, line_callback=waiter.callback),
         api_client_connected() as client,
     ):
         # Wait for on_boot to start
-        await asyncio.wait_for(on_boot_started_future, timeout=10.0)
-        assert on_boot_started, "on_boot did not start"
+        await waiter.wait_for("on_boot: Starting wait_until test", timeout=10.0)
 
         # At this point, on_boot is blocked in wait_until waiting for test_flag to become true
         # If the bug exists, wait_until's loop is disabled and it will never complete
@@ -78,12 +54,9 @@ async def test_wait_until_on_boot(
         # If the fix works, wait_until's loop() will check the condition and proceed
         # If the bug exists, wait_until is stuck with disabled loop and will timeout
         await wait_or_fail(
-            on_boot_complete_future,
+            waiter.wait_for("on_boot: wait_until completed successfully"),
             2.0,
             "wait_until in on_boot did not complete within 2s after condition became true. "
             "This indicates the bug where WaitUntilAction::setup() disables the loop "
             "after play_complex() has already enabled it.",
-        )
-        assert on_boot_completed, (
-            "on_boot wait_until did not complete after flag was set"
         )

@@ -41,6 +41,13 @@ enum class ReadState : uint8_t {
 };
 
 class SelecMeter final : public PollingComponent, public modbus::ModbusClientDevice {
+#if defined(USE_SELEC_METER_EM4M) && defined(USE_TEXT_SENSOR)
+  SUB_TEXT_SENSOR(serial_number)
+#endif
+#if defined(USE_SELEC_METER_EM4M) && defined(USE_BINARY_SENSOR)
+  SUB_BINARY_SENSOR(dg_sensing)
+#endif
+
  public:
   SELEC_METER_SENSOR(total_active_energy)
   SELEC_METER_SENSOR(import_active_energy)
@@ -91,12 +98,6 @@ class SelecMeter final : public PollingComponent, public modbus::ModbusClientDev
   // true: registers are word-swapped (LSRF / Mid Little Endian, CDAB byte order)
   // false: registers are in the meter's straightforward order (MSRF / Big Endian, ABCD byte order)
   void set_word_swap(bool word_swap) { this->word_swap_ = word_swap; }
-#if defined(USE_SELEC_METER_EM4M) && defined(USE_TEXT_SENSOR)
-  void set_serial_number_sensor(text_sensor::TextSensor *serial_number) { this->serial_number_sensor_ = serial_number; }
-#endif
-#if defined(USE_SELEC_METER_EM4M) && defined(USE_BINARY_SENSOR)
-  void set_dg_sensing_sensor(binary_sensor::BinarySensor *dg_sensing) { this->dg_sensing_sensor_ = dg_sensing; }
-#endif
 
   void update() override;
 
@@ -168,12 +169,10 @@ class SelecMeter final : public PollingComponent, public modbus::ModbusClientDev
 
   // An optional read stops once its counter reaches MAX_OPTIONAL_READ_FAILURES
 #if defined(USE_SELEC_METER_EM4M) && defined(USE_TEXT_SENSOR)
-  text_sensor::TextSensor *serial_number_sensor_{nullptr};
   // Also set to the limit once the serial number is published, since it never changes
   uint8_t serial_number_failures_{0};
 #endif
 #if defined(USE_SELEC_METER_EM4M) && defined(USE_BINARY_SENSOR)
-  binary_sensor::BinarySensor *dg_sensing_sensor_{nullptr};
   uint8_t dg_sensing_failures_{0};
 #endif
 };

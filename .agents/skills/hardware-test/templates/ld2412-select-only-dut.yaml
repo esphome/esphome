@@ -1,0 +1,57 @@
+substitutions:
+  name: ld2412sel
+
+esphome:
+  name: ${name}
+
+esp32:
+  variant: esp32s3
+  board: esp32-s3-devkitc-1
+  flash_size: 8MB
+  framework:
+    type: esp-idf
+
+logger:
+  level: VERBOSE
+
+api:
+  reboot_timeout: 0s
+
+ota:
+  - platform: esphome
+
+wifi:
+  ssid: !secret wifi_ssid
+  password: !secret wifi_password
+  power_save_mode: none
+
+uart:
+  - id: uart_ld2412
+    tx_pin: GPIO43
+    rx_pin: GPIO44
+    baud_rate: 115200
+    debug:
+      direction: BOTH
+      dummy_receiver: false
+      after:
+        timeout: 10ms
+        bytes: 120
+
+ld2412:
+  id: ld2412_radar
+  uart_id: uart_ld2412
+
+select:
+  - platform: ld2412
+    ld2412_id: ld2412_radar
+    out_pin_level:
+      name: "LD2412 Hardware output pin level"
+
+binary_sensor:
+  - platform: gpio
+    name: "LD2412 Out Pin"
+    pin: GPIO38
+  - platform: ld2412
+    ld2412_id: ld2412_radar
+    has_target:
+      name: "LD2412 Presence"

@@ -2,11 +2,9 @@
 
 from __future__ import annotations
 
-import asyncio
-import re
-
 import pytest
 
+from .log_utils import LineWaiter
 from .state_utils import assert_device_name, require_service
 from .types import APIClientConnectedFactory, RunCompiledFunction
 from .wait_utils import wait_or_fail
@@ -19,34 +17,11 @@ async def test_api_string_lambda(
     api_client_connected: APIClientConnectedFactory,
 ) -> None:
     """Test Home Assistant action lambdas that return different types are sent as strings."""
-    loop = asyncio.get_running_loop()
-
-    # Track log messages for all four service calls
-    string_called_future = loop.create_future()
-    int_called_future = loop.create_future()
-    float_called_future = loop.create_future()
-    char_ptr_called_future = loop.create_future()
-
-    # Patterns to match in logs - confirms the lambdas compiled and executed
-    string_pattern = re.compile(r"Service called with string: STRING_FROM_LAMBDA")
-    int_pattern = re.compile(r"Service called with int: 42")
-    float_pattern = re.compile(r"Service called with float: 3\.14")
-    char_ptr_pattern = re.compile(r"Service called with number for char\* test: 123")
-
-    def check_output(line: str) -> None:
-        """Check log output for expected messages."""
-        if not string_called_future.done() and string_pattern.search(line):
-            string_called_future.set_result(True)
-        if not int_called_future.done() and int_pattern.search(line):
-            int_called_future.set_result(True)
-        if not float_called_future.done() and float_pattern.search(line):
-            float_called_future.set_result(True)
-        if not char_ptr_called_future.done() and char_ptr_pattern.search(line):
-            char_ptr_called_future.set_result(True)
+    waiter = LineWaiter()
 
     # Run with log monitoring
     async with (
-        run_compiled(yaml_config, line_callback=check_output),
+        run_compiled(yaml_config, line_callback=waiter.callback),
         api_client_connected() as client,
     ):
         # Verify device info
@@ -74,15 +49,16 @@ async def test_api_string_lambda(
             char_ptr_service, {"input_number": 123, "input_string": "test_string"}
         )
 
-        # Wait for all service log messages
-        # This confirms the lambdas compiled successfully and executed
+        # Confirms the lambdas compiled and executed
         await wait_or_fail(
-            asyncio.gather(
-                string_called_future,
-                int_called_future,
-                float_called_future,
-                char_ptr_called_future,
+            waiter.wait_for_each(
+                "Service called with string: STRING_FROM_LAMBDA",
+                "Service called with int: 42",
+                "Service called with float: 3.14",
+                "Service called with number for char* test: 123",
+                timeout=10.0,
             ),
             5.0,
-            "One or more service log messages not received - lambda may have failed to compile or execute",
+            "Not every lambda service logged its call",
+            logged=waiter.lines,
         )

@@ -9,6 +9,9 @@
 namespace esphome::current_based {
 
 class CurrentBasedCover final : public cover::Cover, public Component {
+  SUB_SENSOR(open)
+  SUB_SENSOR(close)
+
  public:
   void setup() override;
   void loop() override;
@@ -17,7 +20,6 @@ class CurrentBasedCover final : public cover::Cover, public Component {
   Trigger<> *get_stop_trigger() { return &this->stop_trigger_; }
 
   Trigger<> *get_open_trigger() { return &this->open_trigger_; }
-  void set_open_sensor(sensor::Sensor *open_sensor) { this->open_sensor_ = open_sensor; }
   void set_open_moving_current_threshold(float open_moving_current_threshold) {
     this->open_moving_current_threshold_ = open_moving_current_threshold;
   }
@@ -27,7 +29,6 @@ class CurrentBasedCover final : public cover::Cover, public Component {
   void set_open_duration(uint32_t open_duration) { this->open_duration_ = open_duration; }
 
   Trigger<> *get_close_trigger() { return &this->close_trigger_; }
-  void set_close_sensor(sensor::Sensor *close_sensor) { this->close_sensor_ = close_sensor; }
   void set_close_moving_current_threshold(float close_moving_current_threshold) {
     this->close_moving_current_threshold_ = close_moving_current_threshold;
   }
@@ -64,13 +65,11 @@ class CurrentBasedCover final : public cover::Cover, public Component {
 
   Trigger<> stop_trigger_;
 
-  sensor::Sensor *open_sensor_{nullptr};
   Trigger<> open_trigger_;
   float open_moving_current_threshold_{0.0f};
   float open_obstacle_current_threshold_{FLT_MAX};
   uint32_t open_duration_{0};
 
-  sensor::Sensor *close_sensor_{nullptr};
   Trigger<> close_trigger_;
   float close_moving_current_threshold_{0.0f};
   float close_obstacle_current_threshold_{FLT_MAX};

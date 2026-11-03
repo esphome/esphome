@@ -1,4 +1,5 @@
 #include "seeed_mr60fda2.h"
+#include "esphome/core/hal.h"
 #include "esphome/core/helpers.h"
 #include "esphome/core/log.h"
 
@@ -46,20 +47,7 @@ void MR60FDA2Component::setup() {
 
 // main loop
 void MR60FDA2Component::loop() {
-  // Read all available bytes in batches to reduce UART call overhead.
-  size_t avail = this->available();
-  uint8_t buf[64];
-  while (avail > 0) {
-    size_t to_read = std::min(avail, sizeof(buf));
-    if (!this->read_array(buf, to_read)) {
-      break;
-    }
-    avail -= to_read;
-
-    for (size_t i = 0; i < to_read; i++) {
-      this->split_frame_(buf[i]);  // split data frame
-    }
-  }
+  this->read_available([this](uint8_t b) { this->split_frame_(b); });
 }
 
 // The checksum is the inverted XOR of the bytes
@@ -95,23 +83,10 @@ static uint8_t find_nearest_index(float value, const float *arr, int size) {
 }
 #endif
 
-/**
- * @brief Convert a float value to a byte array.
- *
- * This function converts a float value to a byte array.
- *
- * @param value The float value to convert.
- * @param bytes The byte array to store the converted value.
- */
-static void float_to_bytes(float value, unsigned char *bytes) {
-  union {
-    float float_value;
-    unsigned char byte_array[4];
-  } u;
-
-  u.float_value = value;
-  memcpy(bytes, u.byte_array, 4);
-}
+// Read with 32-bit loads or progmem_memcpy only; the radar takes the floats little-endian
+alignas(4) static const float INSTALL_HEIGHT[7] PROGMEM = {2.4f, 2.5f, 2.6f, 2.7f, 2.8f, 2.9f, 3.0f};
+alignas(4) static const float HEIGHT_THRESHOLD[7] PROGMEM = {0.0f, 0.1f, 0.2f, 0.3f, 0.4f, 0.5f, 0.6f};
+alignas(4) static const float SENSITIVITY[3] PROGMEM = {3, 15, 30};
 
 /**
  * @brief Convert a 32-bit unsigned integer to a byte array.
@@ -237,17 +212,14 @@ void MR60FDA2Component::process_frame_() {
   switch (this->current_frame_type_) {
     case IS_FALL_TYPE_BUFFER:
 #ifdef USE_BINARY_SENSOR
-      if (this->fall_detected_binary_sensor_ != nullptr) {
-        this->fall_detected_binary_sensor_->publish_state(this->current_frame_buf_[LEN_TO_HEAD_CKSUM]);
-      }
+      PUBLISH_STATE(this->fall_detected_binary_sensor_, this->current_frame_buf_[LEN_TO_HEAD_CKSUM]);
 #endif
       this->current_frame_locate_ = LOCATE_FRAME_HEADER;
       break;
 
     case PEOPLE_EXIST_TYPE_BUFFER:
 #ifdef USE_BINARY_SENSOR
-      if (this->people_exist_binary_sensor_ != nullptr)
-        this->people_exist_binary_sensor_->publish_state(this->current_frame_buf_[LEN_TO_HEAD_CKSUM]);
+      PUBLISH_STATE(this->people_exist_binary_sensor_, this->current_frame_buf_[LEN_TO_HEAD_CKSUM]);
 #endif
       this->current_frame_locate_ = LOCATE_FRAME_HEADER;
       break;
@@ -326,7 +298,7 @@ void MR60FDA2Component::set_install_height(uint8_t index) {
   if (index >= std::size(INSTALL_HEIGHT))
     return;
   uint8_t send_data[13] = {0x01, 0x00, 0x00, 0x00, 0x04, 0x0E, 0x04, 0xF0, 0x00, 0x00, 0x00, 0x00, 0x00};
-  float_to_bytes(INSTALL_HEIGHT[index], &send_data[8]);
+  progmem_memcpy(&send_data[8], &INSTALL_HEIGHT[index], 4);
   send_data[12] = calculate_checksum(send_data + 8, 4);
   this->write_array(send_data, 13);
   ESP_LOGV_HEX(TAG, send_data, 13, 13, "SEND INSTALL HEIGHT FRAME: %s");
@@ -336,7 +308,7 @@ void MR60FDA2Component::set_height_threshold(uint8_t index) {
   if (index >= std::size(HEIGHT_THRESHOLD))
     return;
   uint8_t send_data[13] = {0x01, 0x00, 0x00, 0x00, 0x04, 0x0E, 0x08, 0xFC, 0x00, 0x00, 0x00, 0x00, 0x00};
-  float_to_bytes(HEIGHT_THRESHOLD[index], &send_data[8]);
+  progmem_memcpy(&send_data[8], &HEIGHT_THRESHOLD[index], 4);
   send_data[12] = calculate_checksum(send_data + 8, 4);
   this->write_array(send_data, 13);
   ESP_LOGV_HEX(TAG, send_data, 13, 13, "SEND HEIGHT THRESHOLD: %s");

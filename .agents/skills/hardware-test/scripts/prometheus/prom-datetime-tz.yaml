@@ -1,0 +1,10 @@
+# Adds a device time zone (UTC-10, no DST) to prom-datetime.yaml; the zone applies without a time sync.
+substitutions:
+  name: prom-datetime-tz
+
+packages:
+  base: !include prom-datetime.yaml
+
+time:
+  - platform: sntp
+    timezone: HST10

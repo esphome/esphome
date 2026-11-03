@@ -73,16 +73,6 @@ void ModbusFloatOutput::write_state(float value) {
   }
 }
 
-void ModbusFloatOutput::dump_config() {
-  ESP_LOGCONFIG(TAG, "Modbus Float Output:");
-  LOG_FLOAT_OUTPUT(this);
-  ESP_LOGCONFIG(TAG,
-                "  Device start address: 0x%X\n"
-                "  Register count: %d\n"
-                "  Value type: %d",
-                this->start_address, this->entity_count(), static_cast<int>(this->sensor_value_type));
-}
-
 // ModbusBinaryOutput
 void ModbusBinaryOutput::write_state(bool state) {
   this->clear_dispatched_();
@@ -127,16 +117,6 @@ void ModbusBinaryOutput::write_state(bool state) {
   if (!queued) {
     ESP_LOGW(TAG, "Modbus output write (address 0x%X) was refused by the hub", this->write_address());
   }
-}
-
-void ModbusBinaryOutput::dump_config() {
-  ESP_LOGCONFIG(TAG, "Modbus Binary Output:");
-  LOG_BINARY_OUTPUT(this);
-  ESP_LOGCONFIG(TAG,
-                "  Device start address: 0x%X\n"
-                "  Register count: %d\n"
-                "  Value type: %d",
-                this->start_address, this->entity_count(), static_cast<int>(this->sensor_value_type));
 }
 
 }  // namespace esphome::modbus_controller

@@ -21,6 +21,14 @@ esphome:
           id: waveradar
           frequency: 5800MHz
           power_consumption: 91uA
+      - at581x.settings:
+          id: waveradar
+          hw_frontend_reset: !lambda return true;
+          sensing_distance: !lambda return 300;
+          protect_time: !lambda return 1500;
+          trigger_base: !lambda return 600;
+          trigger_keep: !lambda return 12000;
+          stage_gain: !lambda return 4;
       - at581x.reset:
           id: waveradar
 
