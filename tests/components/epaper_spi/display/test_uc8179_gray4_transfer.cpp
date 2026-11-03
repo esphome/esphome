@@ -37,9 +37,29 @@ class TestableUC8179Gray4 : public EPaperUC8179Gray4 {
     }
   }
 
+  /// Holds the busy pin until the panel has been powered on, so the update is abandoned inside initialise().
+  void run_update_abandoned_after_power_on() {
+    this->set_busy_pin(&this->busy);
+    this->busy_timeout_seconds_ = 0;  // abandon as soon as the stuck pin is seen, so the test does not wait
+    this->set_auto_clear(false);
+    this->update();
+    const uint32_t deadline = millis() + 2000;
+    while (!(this->state_ == EPaperState::INITIALISE && this->init_powered_)) {
+      ASSERT_LT(millis(), deadline) << "the panel was never powered on";
+      this->loop();
+    }
+    this->busy.busy = true;
+    while (this->state_ != EPaperState::IDLE) {
+      ASSERT_LT(millis(), deadline) << "the update was not abandoned";
+      this->loop();
+    }
+    this->busy.busy = false;
+  }
+
   using EPaperUC8179Gray4::transfer_data;
 
   RecordingPin dc;
+  SwitchableBusyPin busy;
 };
 
 using Bytes = std::vector<uint8_t>;
@@ -125,6 +145,22 @@ TEST(EPaperUC8179Gray4, FullUpdateSequence) {
   EXPECT_EQ(bus.data[0x50], (Bytes{0xA9, 0x07}));
   EXPECT_EQ(bus.data[0xE5], (Bytes{0x5A}));
   EXPECT_EQ(bus.data[0x07], (Bytes{0xA5}));
+}
+
+/// An update abandoned while waiting after power-on does not stop the next update from powering the panel on.
+TEST(EPaperUC8179Gray4, PowersOnAgainAfterAnAbandonedUpdate) {
+  TestableUC8179Gray4 display(8, 1);
+  RecordingDelegate bus(&display.dc);
+  display.install(&bus);
+
+  display.run_update_abandoned_after_power_on();
+  ASSERT_EQ(bus.commands, (Bytes{0x01, 0x04, 0x02}))
+      << "expected power setting, power on, then the abandon's power off";
+
+  bus.commands.clear();
+  display.run_update();
+
+  EXPECT_EQ(bus.commands, (Bytes{0x01, 0x04, 0x50, 0xE5, 0x92, 0x10, 0x13, 0x12, 0x02, 0x07}));
 }
 
 }  // namespace esphome::epaper_spi::testing

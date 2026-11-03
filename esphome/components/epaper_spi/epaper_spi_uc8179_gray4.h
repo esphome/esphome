@@ -19,6 +19,11 @@ class EPaperUC8179Gray4 : public EPaperGray4<EPaperUC8179> {
   using EPaperGray4::EPaperGray4;
 
  protected:
+  // Each update starts from power-on, including one after an update abandoned between the two initialise() steps
+  bool reset() override {
+    this->init_powered_ = false;
+    return EPaperUC8179::reset();
+  }
   bool initialise(bool partial) override;
   bool transfer_data() override;
   bool init_powered_{false};  // the first step of initialise() has run for this update
