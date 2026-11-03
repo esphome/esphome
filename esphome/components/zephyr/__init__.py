@@ -6,7 +6,7 @@ from typing import NamedTuple, TypedDict
 import esphome.codegen as cg
 import esphome.config_validation as cv
 from esphome.const import CONF_BOARD, KEY_CORE, KEY_FRAMEWORK_VERSION
-from esphome.core import CORE, ID, CoroPriority, coroutine_with_priority
+from esphome.core import CORE, CoroPriority, coroutine_with_priority
 from esphome.helpers import copy_file_if_changed, write_file_if_changed
 from esphome.types import ConfigType
 from esphome.writer import clean_cmake_cache
@@ -87,8 +87,6 @@ class ZephyrData(TypedDict):
     overlay_builder: list[Callable[[], str]]
     # CDC ACM port number -> components that use it
     cdc_acm_users: dict[int, list[CdcAcmUser]]
-    # ID for zephyr::CdcAcm, set by the platform; cleared once it is created
-    cdc_acm_id: ID | None
 
 
 def zephyr_set_core_data(config: ConfigType) -> None:
@@ -101,7 +99,6 @@ def zephyr_set_core_data(config: ConfigType) -> None:
         },  # set empty to make sure that overlay is cleared after config change
         overlay_builder=[],
         cdc_acm_users={},
-        cdc_acm_id=None,
         extra_build_files={},
         pm_static=[],
         kconfig="",
@@ -321,21 +318,13 @@ def zephyr_enable_usb_cdc_acm() -> None:
 
 
 def zephyr_enable_cdc_acm_rate_callback() -> None:
-    """Create zephyr::CdcAcm, which passes the bit rate a USB host sets to the main loop."""
+    """Make the bit rate a USB host sets on a CDC ACM port reach zephyr::CdcAcm."""
     cg.add_define("USE_ZEPHYR_CDC_ACM_RATE_CALLBACK")
     # CdcAcm reads the rate with uart_line_ctrl_get()
     zephyr_add_prj_conf("UART_LINE_CTRL", True)
     # The new stack reports the rate with a USB device message, so it needs no option
     if not zephyr_use_usb_device_next():
         zephyr_add_prj_conf("CDC_ACM_DTE_RATE_CALLBACK_SUPPORT", True)
-    data = zephyr_data()
-    if (cdc_acm_id := data["cdc_acm_id"]) is not None:
-        data["cdc_acm_id"] = None
-        CORE.add_job(_cdc_acm_component_to_code, cdc_acm_id)
-
-
-async def _cdc_acm_component_to_code(cdc_acm_id: ID) -> None:
-    await cg.register_component(cg.new_Pvariable(cdc_acm_id), {})
 
 
 def _cdc_acm_add_ports() -> None:

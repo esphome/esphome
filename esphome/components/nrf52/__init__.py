@@ -28,12 +28,10 @@ from esphome.components.zephyr import (
 )
 from esphome.components.zephyr.const import (
     BOOTLOADER_MCUBOOT,
-    CONF_CDC_ACM_ID,
     KEY_BOARD,
     KEY_BOOTLOADER,
     KEY_SYSBUILD,
     KEY_ZEPHYR,
-    CdcAcm,
 )
 import esphome.config_validation as cv
 from esphome.const import (
@@ -288,10 +286,6 @@ def _dfu_schema(value: bool | ConfigType) -> ConfigType:
     return _DFU_SCHEMA(value)
 
 
-# Internal: keep it out of visual editors. GenerateID takes no visibility argument.
-_CDC_ACM_ID = cv.GenerateID(CONF_CDC_ACM_ID)
-_CDC_ACM_ID.visibility = cv.Visibility.YAML_ONLY
-
 CONFIG_SCHEMA = cv.All(
     _detect_bootloader,
     set_core_data,
@@ -301,7 +295,6 @@ CONFIG_SCHEMA = cv.All(
                 cv.string_strict, cv.ByteLength(max=BOARD_MAX_LENGTH)
             ),
             cv.Optional(KEY_BOOTLOADER): cv.one_of(*BOOTLOADERS, lower=True),
-            _CDC_ACM_ID: cv.declare_id(CdcAcm),
             cv.Optional(CONF_DFU): _dfu_schema,
             cv.Optional(CONF_DCDC): cv.boolean,
             cv.Optional(CONF_REG0): cv.Schema(
@@ -494,7 +487,6 @@ async def to_code(config: ConfigType) -> None:
 
     zephyr_setup_preferences()
     zephyr_to_code(config)
-    zephyr_data()["cdc_acm_id"] = config[CONF_CDC_ACM_ID]
 
     if CORE.testing_mode:
         zephyr_add_overlay(

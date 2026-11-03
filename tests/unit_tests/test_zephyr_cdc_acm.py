@@ -1,7 +1,5 @@
 """Tests for CDC ACM port reservation in the Zephyr component."""
 
-from unittest.mock import patch
-
 import pytest
 
 from esphome.components.zephyr import (
@@ -17,7 +15,6 @@ from esphome.components.zephyr.const import (
     KEY_OVERLAY_BUILDER,
     KEY_PRJ_CONF,
     KEY_ZEPHYR,
-    CdcAcm,
 )
 import esphome.config_validation as cv
 from esphome.const import (
@@ -26,7 +23,7 @@ from esphome.const import (
     KEY_TARGET_PLATFORM,
     PLATFORM_NRF52,
 )
-from esphome.core import CORE, ID
+from esphome.core import CORE
 
 
 @pytest.fixture(autouse=True)
@@ -155,19 +152,14 @@ def test_new_usb_stack_options() -> None:
     ("version", "legacy_option"),
     [(cv.Version(2, 9, 2), True), (cv.Version(3, 4, 1), False)],
 )
-def test_rate_callback_creates_cdc_acm_once(
-    version: cv.Version, legacy_option: bool
-) -> None:
+def test_rate_callback_options(version: cv.Version, legacy_option: bool) -> None:
     CORE.data[KEY_CORE] = {
         KEY_TARGET_PLATFORM: PLATFORM_NRF52,
         KEY_FRAMEWORK_VERSION: version,
     }
-    CORE.data[KEY_ZEPHYR] = {KEY_PRJ_CONF: {}, "cdc_acm_id": ID("cdc_acm", type=CdcAcm)}
-    with patch.object(CORE, "add_job") as add_job:
-        # DFU and usb_cdc_acm both ask for it
-        zephyr_enable_cdc_acm_rate_callback()
-        zephyr_enable_cdc_acm_rate_callback()
+    CORE.data[KEY_ZEPHYR] = {KEY_PRJ_CONF: {}}
+    zephyr_enable_cdc_acm_rate_callback()
 
-    add_job.assert_called_once()
-    prj_conf = CORE.data[KEY_ZEPHYR][KEY_PRJ_CONF].get("", {})
+    prj_conf = CORE.data[KEY_ZEPHYR][KEY_PRJ_CONF][""]
+    assert prj_conf["CONFIG_UART_LINE_CTRL"] == (True, True)
     assert ("CONFIG_CDC_ACM_DTE_RATE_CALLBACK_SUPPORT" in prj_conf) is legacy_option
