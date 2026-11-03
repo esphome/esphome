@@ -181,8 +181,8 @@ TEST_F(BSECPublishTest, NewReadingBeforeTheLastWentOut) {
       output(BSEC_OUTPUT_SENSOR_HEAT_COMPENSATED_TEMPERATURE, 21.0f),
       output(BSEC_OUTPUT_SENSOR_HEAT_COMPENSATED_HUMIDITY, 41.0f),
   });
-  // Both readings go out in full, in arrival order.
-  EXPECT_EQ(this->passes(4), (Passes{{"humidity=40"}, {"temperature=21"}, {"humidity=41"}, {}}));
+  // A state still waiting keeps its place and takes the newer value; the others queue behind it.
+  EXPECT_EQ(this->passes(3), (Passes{{"humidity=41"}, {"temperature=21"}, {}}));
 }
 
 }  // namespace
