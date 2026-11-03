@@ -23,14 +23,17 @@ CONF_SSL = "ssl"
 SSL_INCOMPATIBLE_COMPONENTS = ("web_server", "captive_portal")
 
 
+# ESP-IDF's HTTPS server allows this many open connections; each holds a TLS session.
+HTTPS_MAX_CONNECTIONS = 4
+
+
 def _pem(marker: str):
-    def validator(value: object) -> str:
-        value = cv.string_strict(value)
+    def check(value: str) -> str:
         if marker not in value:
             raise cv.Invalid(f"Expected a PEM block containing '{marker}'")
         return value
 
-    return validator
+    return cv.All(cv.string_strict, check)
 
 
 SSL_SCHEMA = cv.Schema(
@@ -45,6 +48,24 @@ SSL_SCHEMA = cv.Schema(
     }
 )
 
+
+def consume_ssl_sockets(config: ConfigType) -> ConfigType:
+    """Register the client sockets the HTTPS server can hold open.
+
+    Components that call enable_ssl() themselves add this to their schema.
+    """
+    from esphome.components import socket
+
+    socket.consume_sockets(HTTPS_MAX_CONNECTIONS, DOMAIN)(config)
+    return config
+
+
+def _consume_sockets_for_ssl(config: ConfigType) -> ConfigType:
+    if CONF_SSL in config:
+        consume_ssl_sockets(config)
+    return config
+
+
 CONFIG_SCHEMA = cv.All(
     cv.Schema(
         {
@@ -52,6 +73,7 @@ CONFIG_SCHEMA = cv.All(
         }
     ),
     cv.only_on_esp32,
+    _consume_sockets_for_ssl,
 )
 
 

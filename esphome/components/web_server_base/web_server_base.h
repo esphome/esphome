@@ -186,7 +186,8 @@ class WebServerBase final {
 
 #if defined(USE_ESP32) && defined(USE_WEBSERVER_SSL)
   /// Serve HTTPS with this certificate and private key (PEM, null-terminated), or plain HTTP again with nullptr.
-  /// The strings are not copied and must stay valid while the server runs. A running listener restarts to apply
+  /// The strings are not copied and must stay valid until they are replaced or cleared, because every restart
+  /// reuses them. A running listener restarts to apply
   /// them, which closes open connections. Call from the main loop: from an HTTP request handler, the restart would
   /// wait for its own task.
   void set_ssl_credentials(const char *certificate, const char *private_key) {

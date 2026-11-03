@@ -229,7 +229,8 @@ class AsyncWebServer {
 
 #ifdef USE_WEBSERVER_SSL
   /// Serve HTTPS with this certificate and private key (PEM, null-terminated). The strings are not copied and
-  /// must stay valid while the server runs. Takes effect at the next begin(); nullptr goes back to plain HTTP.
+  /// must stay valid until they are replaced or cleared, because every restart reuses them. Takes effect at the
+  /// next begin(); nullptr goes back to plain HTTP.
   void set_ssl_credentials(const char *certificate, const char *private_key) {
     this->ssl_certificate_ = certificate;
     this->ssl_private_key_ = private_key;

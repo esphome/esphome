@@ -22,6 +22,9 @@
 
 #ifdef USE_WEBSERVER_SSL
 #include <esp_https_server.h>
+#include <esp_random.h>
+#include <mbedtls/pk.h>
+#include <mbedtls/x509_crt.h>
 #endif
 
 #ifdef USE_WEBSERVER_AUTH_DIGEST
@@ -141,6 +144,32 @@ void AsyncWebServer::safe_close_with_shutdown(httpd_handle_t hd, int sockfd) {
   close(sockfd);
 }
 
+#ifdef USE_WEBSERVER_SSL
+namespace {
+int ssl_random(void * /*unused*/, unsigned char *buf, size_t len) {
+  esp_fill_random(buf, len);
+  return 0;
+}
+
+// esp_https_server parses the credentials only when a client connects, so check them (and that the key belongs to
+// the certificate) before starting: a bad pair then leaves the server stopped instead of failing every handshake.
+bool ssl_credentials_valid(const char *certificate, const char *private_key) {
+  mbedtls_x509_crt crt;
+  mbedtls_pk_context key;
+  mbedtls_x509_crt_init(&crt);
+  mbedtls_pk_init(&key);
+  const bool valid = mbedtls_x509_crt_parse(&crt, reinterpret_cast<const unsigned char *>(certificate),
+                                            strlen(certificate) + 1) == 0 &&
+                     mbedtls_pk_parse_key(&key, reinterpret_cast<const unsigned char *>(private_key),
+                                          strlen(private_key) + 1, nullptr, 0, ssl_random, nullptr) == 0 &&
+                     mbedtls_pk_check_pair(&crt.pk, &key, ssl_random, nullptr) == 0;
+  mbedtls_pk_free(&key);
+  mbedtls_x509_crt_free(&crt);
+  return valid;
+}
+}  // namespace
+#endif
+
 void AsyncWebServer::end() {
   if (this->server_) {
     httpd_stop(this->server_);  // also frees an HTTPS server's TLS context
@@ -170,9 +199,15 @@ void AsyncWebServer::begin() {
   esp_err_t start_err;
 #ifdef USE_WEBSERVER_SSL
   if (this->ssl_certificate_ != nullptr && this->ssl_private_key_ != nullptr) {
+    if (!ssl_credentials_valid(this->ssl_certificate_, this->ssl_private_key_)) {
+      ESP_LOGE(TAG, "HTTPS certificate or key is invalid, or the key does not match the certificate");
+      return;
+    }
     httpd_ssl_config_t ssl_config = HTTPD_SSL_CONFIG_DEFAULT();
-    // The TLS handshake needs the larger stack of the HTTPS defaults.
+    // The TLS handshake needs the larger stack of the HTTPS defaults, and each TLS session takes memory, so keep
+    // the HTTPS connection limit.
     config.stack_size = std::max(config.stack_size, ssl_config.httpd.stack_size);
+    config.max_open_sockets = ssl_config.httpd.max_open_sockets;
     ssl_config.httpd = config;
     ssl_config.port_secure = this->port_;
     ssl_config.servercert = reinterpret_cast<const uint8_t *>(this->ssl_certificate_);
@@ -751,8 +786,9 @@ void AsyncEventSource::handleRequest(AsyncWebServerRequest *request) {
 #ifdef USE_WEBSERVER_SSL
   // Event streams send from the main loop straight to the socket, which would bypass TLS.
   // Only an HTTPS server has a global transport context.
-  if (httpd_get_global_transport_ctx(static_cast<httpd_req_t *>(*request)->handle) != nullptr) {
-    request->send(501, "text/plain", "Event streams are not supported over HTTPS");
+  httpd_req_t *req = *request;
+  if (httpd_get_global_transport_ctx(req->handle) != nullptr) {
+    httpd_resp_send_err(req, HTTPD_501_METHOD_NOT_IMPLEMENTED, "Event streams are not supported over HTTPS");
     return;
   }
 #endif

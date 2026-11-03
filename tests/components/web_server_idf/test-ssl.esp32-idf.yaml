@@ -1,4 +1,5 @@
-<<: !include common.yaml
+packages:
+  common: !include common.yaml
 
 # HTTPS for components that bring their own handlers. web_server and captive_portal
 # can't be combined with ssl yet, so the shared server comes in on its own here.
