@@ -20,7 +20,10 @@ void DiagnosticsUpdater::update() {
   publish_diagnostic(this->generator_rate_sensor_, sample, &Sample::generator_pps);
   publish_diagnostic(this->traffic_tx_rate_sensor_, sample, &Sample::traffic_tx_pps);
   publish_diagnostic(this->traffic_rx_rate_sensor_, sample, &Sample::traffic_rx_pps);
+  publish_diagnostic(this->csi_callback_rate_sensor_, sample, &Sample::csi_callback_pps);
   publish_diagnostic(this->csi_accepted_rate_sensor_, sample, &Sample::csi_accepted_pps);
+  publish_diagnostic(this->csi_missing_slot_rate_sensor_, sample, &Sample::csi_missing_slots_pps);
+  publish_diagnostic(this->csi_excess_rate_sensor_, sample, &Sample::csi_excess_pps);
   publish_diagnostic(this->csi_occupancy_sensor_, sample, &Sample::csi_occupancy_ratio, 100.0f);
 }
 
@@ -30,7 +33,10 @@ void DiagnosticsUpdater::dump_config() {
   LOG_SENSOR("  ", "Generator rate", this->generator_rate_sensor_);
   LOG_SENSOR("  ", "Traffic TX rate", this->traffic_tx_rate_sensor_);
   LOG_SENSOR("  ", "Traffic RX rate", this->traffic_rx_rate_sensor_);
+  LOG_SENSOR("  ", "CSI callback rate", this->csi_callback_rate_sensor_);
   LOG_SENSOR("  ", "CSI accepted rate", this->csi_accepted_rate_sensor_);
+  LOG_SENSOR("  ", "CSI missing slot rate", this->csi_missing_slot_rate_sensor_);
+  LOG_SENSOR("  ", "CSI excess rate", this->csi_excess_rate_sensor_);
   LOG_SENSOR("  ", "CSI occupancy", this->csi_occupancy_sensor_);
 }
 
