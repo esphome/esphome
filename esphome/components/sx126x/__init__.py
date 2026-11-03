@@ -48,7 +48,7 @@ CONF_WHITENING_ENABLE = "whitening_enable"
 CONF_WHITENING_INITIAL = "whitening_initial"
 
 sx126x_ns = cg.esphome_ns.namespace("sx126x")
-SX126x = sx126x_ns.class_("SX126x", cg.Component, spi.SPIDevice)
+SX126x = sx126x_ns.class_("SX126x", cg.Component)
 SX126xListener = sx126x_ns.class_("SX126xListener")
 SX126xBw = sx126x_ns.enum("SX126xBw")
 SX126xPacketType = sx126x_ns.enum("SX126xPacketType")

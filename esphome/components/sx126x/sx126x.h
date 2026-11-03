@@ -1,6 +1,7 @@
 #pragma once
 
-#include "esphome/components/spi/spi.h"
+#include "sx126x_spi_device.h"
+#include "radio_operation.h"
 #include "esphome/core/automation.h"
 #include "esphome/core/component.h"
 #include "esphome/core/hal.h"
@@ -48,17 +49,27 @@ enum SX126xBw : uint8_t {
   SX126X_BW_500000,
 };
 
-enum class SX126xError { NONE = 0, TIMEOUT, INVALID_PARAMS, SX126X_ERROR_NOT_READY };
-
 class SX126xListener {
  public:
   virtual void on_packet(const std::vector<uint8_t> &packet, float rssi, float snr) = 0;
 };
 
-class SX126x final : public Component,
-                     public spi::SPIDevice<spi::BIT_ORDER_MSB_FIRST, spi::CLOCK_POLARITY_LOW, spi::CLOCK_PHASE_LEADING,
-                                           spi::DATA_RATE_8MHZ> {
+class SX126x final : public Component {
  public:
+  void set_spi_parent(spi::SPIComponent *parent) { this->spi_device_.set_spi_parent(parent); }
+  void set_cs_pin(GPIOPin *pin) {
+    this->cs_pin_ = pin;
+    this->spi_device_.set_cs_pin(pin);
+  }
+  void set_data_rate(uint32_t rate) { this->spi_device_.set_data_rate(rate); }
+  void set_mode(spi::SPIMode mode) { this->spi_device_.set_mode(mode); }
+  void set_bit_order(spi::SPIBitOrder order) { this->spi_device_.set_bit_order(order); }
+  void set_release_device(bool release) { this->spi_device_.set_release_device(release); }
+  void set_write_only(bool write_only) { this->spi_device_.set_write_only(write_only); }
+#ifdef USE_SPI_PSRAM_DMA
+  void set_psram_dma(bool enable) { this->spi_device_.set_psram_dma(enable); }
+#endif
+  void spi_teardown() { this->spi_device_.teardown(); }
   size_t get_max_packet_size();
   float get_setup_priority() const override { return setup_priority::PROCESSOR; }
   void setup() override;
@@ -66,7 +77,10 @@ class SX126x final : public Component,
   void dump_config() override;
   void set_bandwidth(SX126xBw bandwidth) { this->bandwidth_ = bandwidth; }
   void set_bitrate(uint32_t bitrate) { this->bitrate_ = bitrate; }
-  void set_busy_pin(GPIOPin *busy_pin) { this->busy_pin_ = busy_pin; }
+  void set_busy_pin(GPIOPin *busy_pin) {
+    this->busy_pin_ = busy_pin;
+    this->spi_device_.set_busy_pin(busy_pin);
+  }
   void set_coding_rate(uint8_t coding_rate) { this->coding_rate_ = coding_rate; }
   void set_crc_enable(bool crc_enable) { this->crc_enable_ = crc_enable; }
   void set_crc_inverted(bool crc_inverted) { this->crc_inverted_ = crc_inverted; }
@@ -79,10 +93,18 @@ class SX126x final : public Component,
   void set_dio1_pin(GPIOPin *dio1_pin) { this->dio1_pin_ = dio1_pin; }
   void set_frequency(uint32_t frequency) { this->frequency_ = frequency; }
   void set_sx1261(bool sx1261) { this->sx1261_ = sx1261; }
-  void set_mode_rx();
-  void set_mode_tx();
-  void set_mode_standby(SX126xStandbyMode mode);
-  void set_mode_sleep(bool cold = false);
+  void set_mode_rx() {
+    this->change_mode_([this]() { return this->set_mode_rx_(); });
+  }
+  void set_mode_tx() {
+    this->change_mode_([this]() { return this->set_mode_tx_(); });
+  }
+  void set_mode_standby(SX126xStandbyMode mode) {
+    this->change_mode_([this, mode]() { return this->set_mode_standby_(mode); });
+  }
+  void set_mode_sleep(bool cold = false) {
+    this->change_mode_([this, cold]() { return this->set_mode_sleep_(cold); }, !cold);
+  }
   void set_modulation(uint8_t modulation) { this->modulation_ = modulation; }
   void set_pa_power(int8_t power) { this->pa_power_ = power; }
   void set_pa_ramp(uint8_t ramp) { this->pa_ramp_ = ramp; }
@@ -97,7 +119,9 @@ class SX126x final : public Component,
   void set_sync_value(const std::vector<uint8_t> &sync_value) { this->sync_value_ = sync_value; }
   void set_tcxo_voltage(uint8_t tcxo_voltage) { this->tcxo_voltage_ = tcxo_voltage; }
   void set_tcxo_delay(uint32_t tcxo_delay) { this->tcxo_delay_ = tcxo_delay; }
-  void run_image_cal();
+  void run_image_cal() {
+    this->change_mode_([this]() { return this->run_image_cal_(); });
+  }
   void configure();
   SX126xError transmit_packet(const uint8_t *data, size_t len);
   SX126xError transmit_packet(const std::vector<uint8_t> &packet) {
@@ -106,19 +130,35 @@ class SX126x final : public Component,
   void register_listener(SX126xListener *listener) { this->listeners_.push_back(listener); }
   Trigger<std::vector<uint8_t>, float, float> *get_packet_trigger() { return &this->packet_trigger_; }
 
- protected:
+ private:
   static void gpio_intr(SX126x *arg);
-  void configure_fsk_ook_();
-  void configure_lora_();
-  void set_packet_params_(uint8_t payload_length);
-  uint8_t read_fifo_(uint8_t offset, std::vector<uint8_t> &packet);
-  void write_fifo_(uint8_t offset, const uint8_t *data, size_t len);
-  void write_opcode_(uint8_t opcode, uint8_t *data, uint8_t size);
-  uint8_t read_opcode_(uint8_t opcode, uint8_t *data, uint8_t size);
-  void write_register_(uint16_t reg, uint8_t *data, uint8_t size);
-  void read_register_(uint16_t reg, uint8_t *data, uint8_t size);
+  bool set_packet_params_(uint8_t payload_length);
+  bool read_fifo_(uint8_t offset, std::vector<uint8_t> &packet);
+  bool write_fifo_(uint8_t offset, const uint8_t *data, size_t len);
+  bool write_opcode_(uint8_t opcode, uint8_t *data, uint8_t size);
+  bool read_opcode_(uint8_t opcode, uint8_t *data, uint8_t size);
+  bool write_register_(uint16_t reg, uint8_t *data, uint8_t size);
+  bool read_register_(uint16_t reg, uint8_t *data, uint8_t size);
   void call_listeners_(const std::vector<uint8_t> &packet, float rssi, float snr);
-  void wait_busy_();
+  bool restore_after_transmit_();
+  RadioOperation operation_;
+  bool prepare_transmit_(const uint8_t *data, size_t len);
+  SX126xError wait_for_transmit_();
+  template<typename Command> void change_mode_(Command &&command, bool retains_configuration = true) {
+    if (this->operation_.change_mode(command, retains_configuration)) {
+      this->enable_loop();
+    }
+  }
+  bool command_result_(bool success);
+  Sx126xSpiDevice spi_device_;
+  GPIOPin *cs_pin_{nullptr};
+  bool configure_();
+  bool apply_configuration_();
+  bool run_image_cal_();
+  bool set_mode_rx_();
+  bool set_mode_tx_();
+  bool set_mode_standby_(SX126xStandbyMode mode);
+  bool set_mode_sleep_(bool cold = false);
   Trigger<std::vector<uint8_t>, float, float> packet_trigger_;
   std::vector<SX126xListener *> listeners_;
   std::vector<uint8_t> packet_;
@@ -136,7 +176,7 @@ class SX126x final : public Component,
   uint16_t whitening_initial_{0};
   uint16_t preamble_detect_{0};
   uint16_t preamble_size_{0};
-  char version_[16];
+  char version_[16]{};
   SX126xBw bandwidth_{SX126X_BW_125000};
   uint8_t crc_size_{0};
   uint8_t tcxo_voltage_{0};
