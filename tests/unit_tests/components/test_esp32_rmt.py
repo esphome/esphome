@@ -238,6 +238,42 @@ def test_same_priority_warns_when_an_order_does_not_fit(
     )
 
 
+def _run_one_platform(variant: str, *symbols: int) -> None:
+    """Entries of one platform share one validator, like two strips in one light: list."""
+    _set_variant(variant)
+    validate = esp32_rmt.request_rmt_channel("TX", PRIORITY)
+    entries = [_entry(f"strip{i}", value) for i, value in enumerate(symbols)]
+    for entry in entries:
+        validate(entry)
+    for entry in entries:
+        esp32_rmt.final_validate_rmt_channels(entry)
+
+
+def test_one_platform_keeps_config_order(caplog: pytest.LogCaptureFixture) -> None:
+    """C++ registers entries of one platform in config order, so no other order is checked."""
+    with caplog.at_level(logging.WARNING):
+        _run_one_platform(VARIANT_ESP32C6, 48, 96)
+    assert not [r for r in caplog.records if "RMT" in r.getMessage()]
+
+
+def test_one_platform_still_suggests_setup_priority(
+    caplog: pytest.LogCaptureFixture,
+) -> None:
+    """setup_priority can reorder entries of one platform, so it is still suggested."""
+    with caplog.at_level(logging.WARNING):
+        _run_one_platform(VARIANT_ESP32C6, 96, 48)
+    messages = [r.getMessage() for r in caplog.records if "RMT" in r.getMessage()]
+    assert len(messages) == 1
+    assert (
+        "in the order ESPHome sets up these components, 'strip1' will not fit"
+        in (messages[0])
+    )
+    assert (
+        "or set 'setup_priority' so they are set up in an order that fits"
+        in (messages[0])
+    )
+
+
 def test_same_priority_fails_in_config_order(run_check: CheckRunner) -> None:
     """When the config order fails but another fits, the config order failure is not a "may"."""
     messages = run_check(VARIANT_ESP32C6, _strips(96, 48))

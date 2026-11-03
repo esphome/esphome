@@ -79,6 +79,8 @@ class _Channel:
     symbols: int
     dma: bool
     setup_priority: float
+    # The request_rmt_channel() call of the channel's platform, whose entries C++ registers in config order
+    platform: object
 
     def blocks(self, size: int) -> int:
         """Blocks the driver allocates: rmt_symbols rounded up, one for a DMA channel."""
@@ -147,6 +149,7 @@ def request_rmt_channel(
     setup_priority is the component's get_setup_priority() in C++, which creates the
     channel in setup(); the entry's setup_priority overrides it.
     """
+    platform = object()
 
     def _validator(config: ConfigType) -> ConfigType:
         if (memory := _get_memory()) is None:
@@ -180,6 +183,7 @@ def request_rmt_channel(
                 symbols,
                 dma,
                 config.get(CONF_SETUP_PRIORITY, setup_priority),
+                platform,
             )
         )
         return config
@@ -222,16 +226,35 @@ def _setup_order(channels: list[_Channel]) -> list[_Channel]:
     return sorted(channels, key=lambda channel: -channel.setup_priority)
 
 
-def _orders_of(channels: list[_Channel], size: int) -> list[list[_Channel]]:
-    """Every order of the channels that the allocator can tell apart."""
+def _orders_of(
+    channels: list[_Channel], size: int, keep_platform_order: bool
+) -> list[list[_Channel]]:
+    """Every order of the channels that the allocator can tell apart.
+
+    With keep_platform_order, entries of one platform keep their config order, as C++ registers them.
+    """
+    rank = {id(c): i for i, c in enumerate(channels)}
+
+    def keeps_platform_order(order: tuple[_Channel, ...]) -> bool:
+        last: dict[int, int] = {}
+        for c in order:
+            if last.get(id(c.platform), -1) > rank[id(c)]:
+                return False
+            last[id(c.platform)] = rank[id(c)]
+        return True
+
     orders: dict[tuple[tuple[str, int, bool], ...], list[_Channel]] = {}
     for order in permutations(channels):
+        if keep_platform_order and not keeps_platform_order(order):
+            continue
         key = tuple((c.direction, c.blocks(size), c.dma) for c in order)
         orders.setdefault(key, list(order))
     return list(orders.values())
 
 
-def _possible_setup_orders(channels: list[_Channel], size: int) -> list[list[_Channel]]:
+def _possible_setup_orders(
+    channels: list[_Channel], size: int, keep_platform_order: bool = True
+) -> list[list[_Channel]]:
     """Every order the channels, given in setup order, may be set up in, that order first.
 
     Components with the same setup priority are set up in the order C++ registers them,
@@ -239,7 +262,7 @@ def _possible_setup_orders(channels: list[_Channel], size: int) -> list[list[_Ch
     to_code() is registered later.
     """
     groups = [
-        _orders_of(list(group), size)
+        _orders_of(list(group), size, keep_platform_order)
         for _, group in groupby(channels, key=lambda channel: channel.setup_priority)
     ]
     return [[c for order in orders for c in order] for orders in product(*groups)]
@@ -313,7 +336,12 @@ def _check_budget(memory: RMTMemory, channels: list[_Channel]) -> list[_Error]:
     if not any(results):
         return []
     fix = ""
-    if not all(results):
+    # setup_priority can also reorder entries of one platform
+    size = memory.symbols_per_block
+    if not all(results) or not all(
+        _allocate(memory, order)
+        for order in _possible_setup_orders(channels, size, keep_platform_order=False)
+    ):
         fix = (
             f", or set '{CONF_SETUP_PRIORITY}' so they are set up in an order that fits"
         )
