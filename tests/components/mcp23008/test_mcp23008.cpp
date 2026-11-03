@@ -25,6 +25,8 @@ class FakeBus : public i2c::I2CBus {
     if (write_count == 0)
       return i2c::ERROR_OK;
     uint8_t reg = write_buffer[0];
+    if (reg == (write_count > 1 ? this->fail_write_reg : this->fail_read_reg))
+      return i2c::ERROR_TIMEOUT;
     for (size_t i = 1; i < write_count; i++, reg++) {
       this->writes.emplace_back(reg, write_buffer[i]);
       this->regs[reg] = write_buffer[i];
@@ -37,6 +39,9 @@ class FakeBus : public i2c::I2CBus {
   uint8_t regs[0x0B]{};
   Writes writes;
   bool fail{false};
+  // Fail only reads or only writes that start at this register address
+  int fail_read_reg{-1};
+  int fail_write_reg{-1};
 };
 
 class MCP23008Test : public ::testing::Test {
@@ -53,6 +58,14 @@ class MCP23008Test : public ::testing::Test {
 
 TEST_F(MCP23008Test, SetupReadFailureMarksFailedAndWritesNothing) {
   this->bus_.fail = true;
+  this->component_.setup();
+  EXPECT_TRUE(this->component_.is_failed());
+  EXPECT_TRUE(this->bus_.writes.empty());
+}
+
+TEST_F(MCP23008Test, SetupIoconWriteFailureMarksFailed) {
+  this->bus_.fail_write_reg = MCP23X08_IOCON;
+  this->component_.set_open_drain_ints(true);
   this->component_.setup();
   EXPECT_TRUE(this->component_.is_failed());
   EXPECT_TRUE(this->bus_.writes.empty());
