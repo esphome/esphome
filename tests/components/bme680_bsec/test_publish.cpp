@@ -52,7 +52,10 @@ class BSECPublishTest : public ::testing::Test {
   }
 
   // The next loop() pass reads these outputs from BSEC.
-  void arm(const std::vector<bsec_output_t> &outputs) { bsec_double::arm(outputs.data(), outputs.size()); }
+  void arm(const std::vector<bsec_output_t> &outputs) {
+    ASSERT_LE(outputs.size(), BSEC_NUMBER_OUTPUTS);
+    bsec_double::arm(outputs.data(), outputs.size());
+  }
 
   // Runs loop() once and returns what that pass published.
   std::vector<std::string> pass() {

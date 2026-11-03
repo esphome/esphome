@@ -140,7 +140,8 @@ inline bsec_library_return_t bsec_update_subscription(const bsec_sensor_configur
                                                       bsec_sensor_configuration_t *, uint8_t *) {
   return BSEC_OK;
 }
-// Asks for data processing, without a measurement, only while a reading is armed.
+// Asks for data processing, without a measurement, only while a reading is armed. trigger_measurement stays 0, so
+// read_() runs in the same loop() pass; on hardware it runs later from the measurement timeout.
 inline bsec_library_return_t bsec_sensor_control(int64_t, bsec_bme_settings_t *settings) {
   *settings = {};
   if (bsec_double::armed)
