@@ -62,8 +62,8 @@ class VL53L0XSensor final : public sensor::Sensor, public PollingComponent, publ
   bool initiated_read_{false};
   bool waiting_for_interrupt_{false};
   uint8_t stop_variable_{0};
-  // Set when update() finds the measurement still pending; a second such update restarts it
-  bool restart_pending_{false};
+  // Updates that found the measurement still pending; past the grace period the next one restarts it
+  uint8_t pending_updates_{0};
 
   uint32_t timeout_us_{};
 

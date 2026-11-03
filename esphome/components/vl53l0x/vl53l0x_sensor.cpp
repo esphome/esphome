@@ -1,6 +1,7 @@
 #include "vl53l0x_sensor.h"
 #include "esphome/core/log.h"
 
+#include <algorithm>
 #include <cinttypes>
 
 /*
@@ -268,14 +269,16 @@ void VL53L0XSensor::update() {
     this->status_momentary_warning(5000);
     ESP_LOGW(TAG, "%s - update called before prior reading complete - initiated:%d waiting_for_interrupt:%d",
              LOG_STR_ARG(this->get_log_name()), this->initiated_read_, this->waiting_for_interrupt_);
-    // A slow measurement gets one more interval; one still pending after that is stalled, so restart it
-    if (!this->restart_pending_) {
-      this->restart_pending_ = true;
+    // A measurement gets its timing budget plus one more interval; one still pending after that is stalled
+    const uint32_t interval_ms = std::max<uint32_t>(this->get_update_interval(), 1);
+    const uint32_t grace = std::min<uint32_t>(this->measurement_timing_budget_us_ / 1000 / interval_ms + 1, UINT8_MAX);
+    if (this->pending_updates_ < grace) {
+      this->pending_updates_++;
       return;
     }
     reg(0x0B) = 0x01;
   }
-  this->restart_pending_ = false;
+  this->pending_updates_ = 0;
 
   // initiate single shot measurement
   reg(0x80) = 0x01;

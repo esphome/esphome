@@ -130,6 +130,29 @@ TEST_F(VL53L0XRecoveryTest, SlowMeasurementCompletesWithoutRestart) {
   EXPECT_TRUE(this->bus_.wrote(SYSRANGE_START, 0x01));
 }
 
+TEST_F(VL53L0XRecoveryTest, LongTimingBudgetGetsMoreIntervals) {
+  // 300 ms of timing budget at 100 ms per update: the measurement gets four updates before a restart
+  this->sensor_.set_update_interval(100);
+  this->sensor_.set_timing_budget(300000);
+  this->sensor_.update();
+  this->bus_.writes.clear();
+  for (int i = 0; i < 4; i++)
+    this->sensor_.update();
+  EXPECT_FALSE(this->bus_.wrote(SYSTEM_INTERRUPT_CLEAR, 0x01));
+
+  this->bus_.finish_measurement();
+  this->sensor_.loop();
+  EXPECT_FLOAT_EQ(this->sensor_.state, 0.3f);
+
+  // Still pending at the fifth update: stalled, so it restarts
+  this->sensor_.update();
+  this->bus_.registers[SYSRANGE_START] = 0x01;
+  this->bus_.writes.clear();
+  for (int i = 0; i < 5; i++)
+    this->sensor_.update();
+  EXPECT_TRUE(this->bus_.wrote(SYSTEM_INTERRUPT_CLEAR, 0x01));
+}
+
 TEST_F(VL53L0XRecoveryTest, FailedResultReadPublishesNanAndClearsInterrupt) {
   this->sensor_.update();
   this->bus_.finish_measurement();
