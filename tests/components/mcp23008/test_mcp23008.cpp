@@ -1,10 +1,17 @@
 #include <gtest/gtest.h>
 
-#include <cstring>
+#include <utility>
+#include <vector>
 
 #include "esphome/components/mcp23008/mcp23008.h"
 
 namespace esphome::mcp23008::testing {
+
+using mcp23x08_base::MCP23X08_IOCON;
+using Writes = std::vector<std::pair<uint8_t, uint8_t>>;
+
+static constexpr uint8_t IOCON_SEQOP = 0x20;
+static constexpr uint8_t IOCON_ODR = 0x04;
 
 class FakeBus : public i2c::I2CBus {
  public:
@@ -15,11 +22,20 @@ class FakeBus : public i2c::I2CBus {
     EXPECT_EQ(address, ADDRESS);
     if (this->fail)
       return i2c::ERROR_TIMEOUT;
-    if (read_count != 0)
-      std::memset(read_buffer, 0, read_count);
+    if (write_count == 0)
+      return i2c::ERROR_OK;
+    uint8_t reg = write_buffer[0];
+    for (size_t i = 1; i < write_count; i++, reg++) {
+      this->writes.emplace_back(reg, write_buffer[i]);
+      this->regs[reg] = write_buffer[i];
+    }
+    for (size_t i = 0; i < read_count; i++, reg++)
+      read_buffer[i] = this->regs[reg];
     return i2c::ERROR_OK;
   }
 
+  uint8_t regs[0x0B]{};
+  Writes writes;
   bool fail{false};
 };
 
@@ -34,6 +50,36 @@ class MCP23008Test : public ::testing::Test {
   FakeBus bus_;
   MCP23008 component_;
 };
+
+TEST_F(MCP23008Test, SetupReadFailureMarksFailedAndWritesNothing) {
+  this->bus_.fail = true;
+  this->component_.setup();
+  EXPECT_TRUE(this->component_.is_failed());
+  EXPECT_TRUE(this->bus_.writes.empty());
+}
+
+TEST_F(MCP23008Test, SetupWithoutOpenDrainWritesNothing) {
+  this->component_.setup();
+  ASSERT_FALSE(this->component_.is_failed());
+  EXPECT_TRUE(this->bus_.writes.empty());
+}
+
+TEST_F(MCP23008Test, SetupOpenDrainSetsOdrAndKeepsOtherBits) {
+  this->bus_.regs[MCP23X08_IOCON] = IOCON_SEQOP;
+  this->component_.set_open_drain_ints(true);
+  this->component_.setup();
+  ASSERT_FALSE(this->component_.is_failed());
+  EXPECT_EQ(this->bus_.writes, (Writes{{MCP23X08_IOCON, IOCON_SEQOP | IOCON_ODR}}));
+}
+
+// Current behaviour: ODR left by an earlier config stays set until the chip loses power.
+TEST_F(MCP23008Test, SetupLeavesStaleOdrSet) {
+  this->bus_.regs[MCP23X08_IOCON] = IOCON_ODR;
+  this->component_.setup();
+  ASSERT_FALSE(this->component_.is_failed());
+  EXPECT_TRUE(this->bus_.writes.empty());
+  EXPECT_EQ(this->bus_.regs[MCP23X08_IOCON], IOCON_ODR);
+}
 
 TEST_F(MCP23008Test, ReadWarningClearsAfterSuccessfulRead) {
   this->component_.setup();
