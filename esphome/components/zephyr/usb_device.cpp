@@ -2,9 +2,14 @@
 #include "usb_device.h"
 
 #ifdef CONFIG_USB_DEVICE_STACK_NEXT
+#include "esphome/core/defines.h"
 #include <zephyr/device.h>
 #include <zephyr/usb/usbd.h>
 #include <initializer_list>
+#ifdef USE_ZEPHYR_CDC_ACM_RATE_CALLBACK
+#include "cdc_acm.h"
+#include <zephyr/drivers/uart.h>
+#endif
 #else
 #include <zephyr/usb/usb_device.h>
 #endif
@@ -28,6 +33,15 @@ USBD_DESC_SERIAL_NUMBER_DEFINE(esphome_usbd_sn);
 USBD_CONFIGURATION_DEFINE(esphome_usbd_fs_config, USB_SCD_SELF_POWERED, USB_MAX_POWER, nullptr);
 // NOLINTEND(cppcoreguidelines-avoid-non-const-global-variables)
 
+#ifdef USE_ZEPHYR_CDC_ACM_RATE_CALLBACK
+// Runs on the system work queue, which also runs all USB transfers: keep it short
+static void usbd_msg_callback(usbd_context *const /*ctx*/, const usbd_msg *const msg) {
+  uint32_t rate;
+  if (msg->type == USBD_MSG_CDC_ACM_LINE_CODING && uart_line_ctrl_get(msg->dev, UART_LINE_CTRL_BAUD_RATE, &rate) == 0)
+    CdcAcm::rate_changed(msg->dev, rate);
+}
+#endif
+
 static void usbd_setup() {
   for (usbd_desc_node *desc : {&esphome_usbd_lang, &esphome_usbd_mfr, &esphome_usbd_product, &esphome_usbd_sn}) {
     if (usbd_add_descriptor(&esphome_usbd, desc) != 0)
@@ -40,6 +54,10 @@ static void usbd_setup() {
       usbd_device_set_code_triple(&esphome_usbd, USBD_SPEED_FS, USB_BCC_MISCELLANEOUS, 0x02, 0x01) != 0)
     return;
   usbd_self_powered(&esphome_usbd, true);
+#ifdef USE_ZEPHYR_CDC_ACM_RATE_CALLBACK
+  if (usbd_msg_register_cb(&esphome_usbd, usbd_msg_callback) != 0)
+    return;
+#endif
   if (usbd_init(&esphome_usbd) == 0)
     usbd_enable(&esphome_usbd);
 }

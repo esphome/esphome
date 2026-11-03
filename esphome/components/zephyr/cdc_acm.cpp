@@ -1,69 +1,84 @@
 #include "cdc_acm.h"
 #if defined(USE_ZEPHYR_CDC_ACM_RATE_CALLBACK)
-#include "esphome/core/application.h"
-#include <zephyr/drivers/uart.h>
+#include <array>
+#include <atomic>
 #ifndef CONFIG_USB_DEVICE_STACK_NEXT
 #include <zephyr/drivers/uart/cdc_acm.h>
 #endif
 
-#define DEVICE_AND_COMMA(node_id) DEVICE_DT_GET(node_id),
-
 namespace esphome::zephyr {
 
-static CdcAcm cdc_acm_instance;  // NOLINT(cppcoreguidelines-avoid-non-const-global-variables)
-CdcAcm *const global_cdc_acm = &cdc_acm_instance;
+CdcAcm *global_cdc_acm = nullptr;  // NOLINT(cppcoreguidelines-avoid-non-const-global-variables)
 
-#if DT_HAS_COMPAT_STATUS_OKAY(zephyr_cdc_acm_uart)
-static const device *const CDC_DEVICES[] = {DT_FOREACH_STATUS_OKAY(zephyr_cdc_acm_uart, DEVICE_AND_COMMA)};
-#endif
+namespace {
 
-#ifdef CONFIG_USB_DEVICE_STACK_NEXT
+struct RateEvent {
+  const device *dev;
+  uint32_t rate;
+};
 
-// The new stack reports a rate change only with a USB device message on the system work queue, which also
-// runs all USB transfers; queuing scheduler work from there stalled USB. So the rates are polled from the
-// main loop. A rate the host sets and changes back within one poll is missed.
-static constexpr uint32_t RATE_POLL_INTERVAL_MS = 500;
+// Single-producer single-consumer queue: the USB driver's thread pushes, the main loop pops. It is static so
+// rates the host sets during boot, before CdcAcm exists, are kept. A host sets a rate when it opens a port,
+// so a few slots are plenty; a rate that does not fit is dropped.
+static constexpr uint8_t QUEUE_SIZE = 8;
+// NOLINTBEGIN(cppcoreguidelines-avoid-non-const-global-variables)
+std::array<RateEvent, QUEUE_SIZE> queue;
+std::atomic<uint8_t> queue_head{0};  // next slot to pop, written by the main loop
+std::atomic<uint8_t> queue_tail{0};  // next slot to push, written by the USB driver's thread
+// Written once on the main loop, read on the USB driver's thread
+std::atomic<CdcAcm *> instance{nullptr};
+// NOLINTEND(cppcoreguidelines-avoid-non-const-global-variables)
 
-void CdcAcm::start_() {
-#if DT_HAS_COMPAT_STATUS_OKAY(zephyr_cdc_acm_uart)
-  // Only changes after this point count, as on the legacy stack
-  for (size_t i = 0; i < this->rates_.size(); i++)
-    uart_line_ctrl_get(CDC_DEVICES[i], UART_LINE_CTRL_BAUD_RATE, &this->rates_[i]);
-  App.scheduler.set_interval(static_cast<Component *>(nullptr), static_cast<const char *>(nullptr),
-                             RATE_POLL_INTERVAL_MS, [this]() { this->poll_rates_(); });
-#endif
+bool pop(RateEvent &event) {
+  const uint8_t head = queue_head.load(std::memory_order_relaxed);
+  if (head == queue_tail.load(std::memory_order_acquire))
+    return false;
+  event = queue[head];
+  queue_head.store((head + 1) % QUEUE_SIZE, std::memory_order_release);
+  return true;
 }
 
-void CdcAcm::poll_rates_() {
-#if DT_HAS_COMPAT_STATUS_OKAY(zephyr_cdc_acm_uart)
-  for (size_t i = 0; i < this->rates_.size(); i++) {
-    uint32_t rate = 0;
-    if (uart_line_ctrl_get(CDC_DEVICES[i], UART_LINE_CTRL_BAUD_RATE, &rate) != 0 || rate == this->rates_[i])
-      continue;
-    this->rates_[i] = rate;
-    this->rate_callbacks_.call(CDC_DEVICES[i], rate);
-  }
+}  // namespace
+
+#ifndef CONFIG_USB_DEVICE_STACK_NEXT
+#define DEVICE_AND_COMMA(node_id) DEVICE_DT_GET(node_id),
 #endif
+
+CdcAcm::CdcAcm() {
+  global_cdc_acm = this;
+  instance.store(this, std::memory_order_release);
 }
 
-#else  // legacy USB device stack
-
-void CdcAcm::start_() {
-#if DT_HAS_COMPAT_STATUS_OKAY(zephyr_cdc_acm_uart)
-  for (const device *dev : CDC_DEVICES) {
+void CdcAcm::setup() {
+  // The new stack reports rates with a USB device message, which usb_device.cpp passes to rate_changed()
+#if !defined(CONFIG_USB_DEVICE_STACK_NEXT) && DT_HAS_COMPAT_STATUS_OKAY(zephyr_cdc_acm_uart)
+  for (const device *dev : {DT_FOREACH_STATUS_OKAY(zephyr_cdc_acm_uart, DEVICE_AND_COMMA)}) {
     // only one global callback can be registered
-    cdc_acm_dte_rate_callback_set(dev, CdcAcm::cdc_dte_rate_callback_);
+    cdc_acm_dte_rate_callback_set(dev, CdcAcm::rate_changed);
   }
 #endif
 }
 
-void CdcAcm::cdc_dte_rate_callback_(const struct device *device, uint32_t rate) {
-  // Unnamed, so each rate change is queued in order instead of replacing a pending one
-  App.scheduler.set_timeout(static_cast<Component *>(nullptr), static_cast<const char *>(nullptr), 0,
-                            [device, rate]() { global_cdc_acm->rate_callbacks_.call(device, rate); });
+void CdcAcm::loop() {
+  RateEvent event;
+  while (pop(event))
+    this->rate_callbacks_.call(event.dev, event.rate);
+  // A rate queued after the last pop has already asked for the loop again
+  this->disable_loop();
 }
 
-#endif
+void CdcAcm::rate_changed(const device *device, uint32_t rate) {
+  // Only atomics and enable_loop_soon_any_context() here: heavier work, like scheduler calls, on the USB
+  // driver's thread stalled USB transfers on the new stack
+  const uint8_t tail = queue_tail.load(std::memory_order_relaxed);
+  const uint8_t next = (tail + 1) % QUEUE_SIZE;
+  if (next == queue_head.load(std::memory_order_acquire))
+    return;
+  queue[tail] = {device, rate};
+  queue_tail.store(next, std::memory_order_release);
+  if (CdcAcm *cdc_acm = instance.load(std::memory_order_acquire); cdc_acm != nullptr)
+    cdc_acm->enable_loop_soon_any_context();
+}
 
 }  // namespace esphome::zephyr
 

@@ -6,7 +6,7 @@ from typing import NamedTuple, TypedDict
 import esphome.codegen as cg
 import esphome.config_validation as cv
 from esphome.const import CONF_BOARD, KEY_CORE, KEY_FRAMEWORK_VERSION
-from esphome.core import CORE, CoroPriority, coroutine_with_priority
+from esphome.core import CORE, ID, CoroPriority, coroutine_with_priority
 from esphome.helpers import copy_file_if_changed, write_file_if_changed
 from esphome.types import ConfigType
 from esphome.writer import clean_cmake_cache
@@ -87,6 +87,9 @@ class ZephyrData(TypedDict):
     overlay_builder: list[Callable[[], str]]
     # CDC ACM port number -> components that use it
     cdc_acm_users: dict[int, list[CdcAcmUser]]
+    # ID for zephyr::CdcAcm, set by the platform; created by zephyr_enable_cdc_acm_rate_callback()
+    cdc_acm_id: ID | None
+    cdc_acm_rate_callback: bool
 
 
 def zephyr_set_core_data(config: ConfigType) -> None:
@@ -99,6 +102,8 @@ def zephyr_set_core_data(config: ConfigType) -> None:
         },  # set empty to make sure that overlay is cleared after config change
         overlay_builder=[],
         cdc_acm_users={},
+        cdc_acm_id=None,
+        cdc_acm_rate_callback=False,
         extra_build_files={},
         pm_static=[],
         kconfig="",
@@ -318,11 +323,21 @@ def zephyr_enable_usb_cdc_acm() -> None:
 
 
 def zephyr_enable_cdc_acm_rate_callback() -> None:
-    """Make the bit rate a USB host sets on a CDC ACM port reach zephyr::CdcAcm."""
+    """Create zephyr::CdcAcm, which passes the bit rate a USB host sets to the main loop."""
+    data = zephyr_data()
+    if data["cdc_acm_rate_callback"]:
+        return
+    data["cdc_acm_rate_callback"] = True
     cg.add_define("USE_ZEPHYR_CDC_ACM_RATE_CALLBACK")
-    # On the new stack CdcAcm reads the rate from the main loop, so it needs no option
+    # The new stack reports the rate with a USB device message, so it needs no option
     if not zephyr_use_usb_device_next():
         zephyr_add_prj_conf("CDC_ACM_DTE_RATE_CALLBACK_SUPPORT", True)
+    CORE.add_job(_cdc_acm_rate_callback_to_code)
+
+
+async def _cdc_acm_rate_callback_to_code() -> None:
+    var = cg.new_Pvariable(zephyr_data()["cdc_acm_id"])
+    await cg.register_component(var, {})
 
 
 def _cdc_acm_add_ports() -> None:
