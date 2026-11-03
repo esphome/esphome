@@ -244,7 +244,7 @@ void SX126x::loop() {
   }
   const bool receive_pending = this->operation_.has_pending_receive();
   if (!this->operation_.is_ready() && !receive_pending) {
-    // Only unconfigured/recovery states are dormant; active operations must retain polling.
+    // Only radios needing configuration are dormant; active operations must retain polling.
     if (!this->operation_.is_active()) {
       this->disable_loop();
     }

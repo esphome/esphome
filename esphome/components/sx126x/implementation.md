@@ -122,7 +122,7 @@ Explicit reconfiguration may discard held RX to recover from persistent read fai
 The scopes also define failure handling. If BUSY does not clear, the exchange
 releases NSS without clocking an opcode or data. A failed Prepare skips Wait and
 enters Restore; a Wait timeout or cancellation also enters Restore. Restoration failure leaves
-the operation in `RecoveryRequired` instead of ready, and successful configuration
+the operation in `NeedsConfiguration` instead of ready, and successful configuration
 is required before reuse. The restoration result takes precedence over TX success.
 Releasing SPI alone cannot establish that packet settings and reception recovered.
 
@@ -239,18 +239,16 @@ introduced. Each component has one `RadioOperation`, whose state is private:
 
 ```mermaid
 stateDiagram-v2
-    [*] --> Unconfigured
-    Unconfigured --> Configuring: configure
+    [*] --> NeedsConfiguration
+    NeedsConfiguration --> Configuring: configure
     Idle --> Configuring: configure
-    RecoveryRequired --> Configuring: configure
     ReceivePending --> Configuring: explicit configure discards held RX
     Configuring --> Idle: all configuration commands succeed
-    Configuring --> Unconfigured: configuration fails
+    Configuring --> NeedsConfiguration: configuration fails
 
     Idle --> ChangingMode: mode or calibration request
     ChangingMode --> Idle: success, configuration retained
-    ChangingMode --> Unconfigured: successful cold sleep
-    ChangingMode --> RecoveryRequired: command fails
+    ChangingMode --> NeedsConfiguration: cold sleep succeeds or command fails
 
     state "PreparingTx (Prepare)" as PreparingTx
     state "Transmitting (Wait)" as Transmitting
@@ -263,7 +261,7 @@ stateDiagram-v2
     ReceivePending --> ReceivePending: packet read fails, retain IRQ and FIFO
     ReceivePending --> Restoring: packet consumed or discarded for CRC error
     Restoring --> Idle: restoration succeeds
-    Restoring --> RecoveryRequired: restoration fails
+    Restoring --> NeedsConfiguration: restoration fails
 
     note right of Idle
         Available for a new operation.
@@ -276,23 +274,26 @@ stateDiagram-v2
     end note
 ```
 
-ESPHome loop scheduling is separate from these ownership states. In Unconfigured
-or RecoveryRequired, `loop()` disables itself because polling cannot recover the
+ESPHome loop scheduling is separate from these ownership states. In
+NeedsConfiguration, `loop()` disables itself because polling cannot recover the
 radio. Successful `configure()` enables it again, even without a DIO1 edge. Active
 operations, including preparation/restoration and held RX, never take this dormant
 path. Idle reception may disable polling when an internal DIO1 pin is low; its
 interrupt wakes the loop. External pins continue to be polled. No lifecycle state
 or separate recovery flag is needed for scheduling.
 
-Configuration errors return to Unconfigured. Initial setup may also mark the
-ESPHome component failed. Preparing and Restoring are exclusive ownership states;
-public mode/configuration requests cannot interrupt them. Failed mode changes
-also enter RecoveryRequired. Idle means available for a driver-managed operation,
+Startup, cold sleep, failed configuration, failed mode changes and failed
+restoration all use NeedsConfiguration: each blocks normal operations until
+configuration succeeds. The error result and logs report why configuration is
+needed; the state only determines which operations are allowed. Initial setup
+failure separately marks the ESPHome component permanently failed. Preparing and
+Restoring are exclusive ownership states; public mode/configuration requests
+cannot interrupt them. Idle means available for a driver-managed operation,
 not the physical chip's mode: the radio may be receiving or sleeping.
 One TxOperation stores only the listener and deadline, not lifecycle state.
 Failed admission owes no completion. Accepted sends
 complete once, after attempted restoration and ownership release. A callback can
-start another send only if the state returned to Idle. RecoveryRequired rejects
+start another send only if the state returned to Idle. NeedsConfiguration rejects
 sends until an explicit configure succeeds: a failed standby/cleanup cannot be
 reported as recovered hardware. Cold sleep also requires configure before reuse.
 

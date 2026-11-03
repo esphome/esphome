@@ -43,9 +43,9 @@ class RadioOperation {
     if (!this->can_configure()) {
       return false;
     }
-    Attempt attempt(*this, State::STATE_CONFIGURING, State::STATE_UNCONFIGURED);
+    Attempt attempt(*this, State::STATE_CONFIGURING);
     const bool success = apply();
-    attempt.finish(success ? State::STATE_IDLE : State::STATE_UNCONFIGURED);
+    attempt.finish(success ? State::STATE_IDLE : State::STATE_NEEDS_CONFIGURATION);
     return success;
   }
 
@@ -55,8 +55,7 @@ class RadioOperation {
     }
     Attempt attempt(*this, State::STATE_CHANGING_MODE);
     const bool success = command();
-    attempt.finish(success ? (retains_configuration ? State::STATE_IDLE : State::STATE_UNCONFIGURED)
-                           : State::STATE_RECOVERY_REQUIRED);
+    attempt.finish(success && retains_configuration ? State::STATE_IDLE : State::STATE_NEEDS_CONFIGURATION);
     return success;
   }
 
@@ -102,28 +101,24 @@ class RadioOperation {
 
  private:
   enum class State {
-    STATE_UNCONFIGURED,
+    STATE_NEEDS_CONFIGURATION,
     STATE_CONFIGURING,
     STATE_IDLE,
     STATE_CHANGING_MODE,
     STATE_PREPARING_TX,
     STATE_RECEIVE_PENDING,
     STATE_TRANSMITTING,
-    STATE_RESTORING,
-    STATE_RECOVERY_REQUIRED
+    STATE_RESTORING
   };
 
   // If the owner itself gains an unexpected early exit, it fails closed.
   // Fallible hardware restoration belongs in restore_(), where its result is reported.
   class Attempt {
    public:
-    Attempt(RadioOperation &owner, State phase, State failure = State::STATE_RECOVERY_REQUIRED)
-        : owner_(owner), failure_(failure) {
-      this->owner_.state_ = phase;
-    }
+    Attempt(RadioOperation &owner, State phase) : owner_(owner) { this->owner_.state_ = phase; }
     ~Attempt() {
       if (!this->finished_) {
-        this->owner_.state_ = this->failure_;
+        this->owner_.state_ = State::STATE_NEEDS_CONFIGURATION;
       }
     }
     Attempt(const Attempt &) = delete;
@@ -135,16 +130,15 @@ class RadioOperation {
 
    private:
     RadioOperation &owner_;
-    State failure_;
     bool finished_{false};
   };
   template<typename Restore> SX126xError restore_(SX126xError result, Restore &&restore, Attempt &attempt) {
     this->state_ = State::STATE_RESTORING;
     const bool restored = restore();
-    attempt.finish(restored ? State::STATE_IDLE : State::STATE_RECOVERY_REQUIRED);
+    attempt.finish(restored ? State::STATE_IDLE : State::STATE_NEEDS_CONFIGURATION);
     return restored ? result : SX126xError::SX126X_ERROR_BUSY_TIMEOUT;
   }
-  State state_{State::STATE_UNCONFIGURED};
+  State state_{State::STATE_NEEDS_CONFIGURATION};
 };
 
 }  // namespace esphome::sx126x
