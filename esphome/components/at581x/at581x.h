@@ -29,7 +29,8 @@ class AT581XComponent final : public Component, public i2c::I2CDevice {
   void set_protect_time(int value) { this->protect_time_ms_ = std::clamp(value, 0, 65535); }
   void set_trigger_base(int value) { this->trigger_base_time_ms_ = std::clamp(value, 0, 65535); }
   void set_trigger_keep(int value) { this->trigger_keep_time_ms_ = std::clamp(value, 0, 65535); }
-  void set_stage_gain(int value) { this->gain_ = value; }
+  // Out-of-range values, negative ones included, become 255 so the next write rejects them
+  void set_stage_gain(int value) { this->gain_ = std::min<unsigned>(value, UINT8_MAX); }
 
   bool i2c_write_config();
   bool reset_hardware_frontend();
