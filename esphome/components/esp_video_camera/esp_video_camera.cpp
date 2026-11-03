@@ -13,7 +13,6 @@
 // without a word of complaint.
 #include <sdkconfig.h>
 
-#include "esp_heap_caps.h"
 #include "esp_idf_version.h"   // ESP_IDF_VERSION, for usb_host_config_t::peripheral_map
 #include "esp_memory_utils.h"  // esp_ptr_external_ram()
 
@@ -263,16 +262,6 @@ bool set_dqbuf_timeout(int fd, uint32_t timeout_ms, const char *what) {
 // ===========================================================================
 // ESPVideoCameraImage
 // ===========================================================================
-ESPVideoCameraImage::ESPVideoCameraImage(uint8_t *data, size_t length, uint8_t requesters)
-    : data_(data), length_(length), requesters_(requesters) {}
-
-ESPVideoCameraImage::~ESPVideoCameraImage() {
-  if (this->data_ != nullptr) {
-    heap_caps_free(this->data_);
-    this->data_ = nullptr;
-  }
-}
-
 bool ESPVideoCameraImage::was_requested_by(camera::CameraRequester requester) const {
   return (this->requesters_ & (1 << requester)) != 0;
 }
@@ -698,18 +687,17 @@ void ESPVideoCamera::deliver_frame_(const uint8_t *data, size_t length) {
   // Round up so consecutive frames of slightly different sizes land in the same
   // heap size class instead of fragmenting it.
   size_t alloc_size = (length + FRAME_ALLOC_GRANULARITY - 1) & ~(size_t) (FRAME_ALLOC_GRANULARITY - 1);
-  uint8_t *copy = (uint8_t *) heap_caps_malloc(alloc_size, MALLOC_CAP_SPIRAM | MALLOC_CAP_8BIT);
-  if (copy == nullptr)
-    copy = (uint8_t *) heap_caps_malloc(alloc_size, MALLOC_CAP_8BIT);
+  // PSRAM first, internal RAM as a fallback.
+  auto copy = RAMAllocator<uint8_t>().make_unique_array_for_overwrite(alloc_size);
   if (copy == nullptr) {
     ESP_LOGW(TAG, "Failed to allocate %u bytes (frame dropped)", (unsigned) alloc_size);
     return;
   }
-  memcpy(copy, data, length);
+  memcpy(copy.get(), data, length);
   // Claim pending single-image requests only now that a frame exists for them;
   // exchange() leaves one that arrives mid-copy set for the next frame.
   requesters = (uint8_t) (this->single_requesters_.exchange(0) | this->stream_requesters_);
-  this->current_image_ = std::make_shared<ESPVideoCameraImage>(copy, length, requesters);
+  this->current_image_ = std::make_shared<ESPVideoCameraImage>(std::move(copy), length, requesters);
   for (auto *listener : this->listeners_)
     listener->on_camera_image(this->current_image_);
 

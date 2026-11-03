@@ -7,6 +7,7 @@
 #if defined(USE_ESP_IDF) && defined(USE_ESP32_VARIANT_ESP32P4)
 
 #include "esphome/core/component.h"
+#include "esphome/core/helpers.h"
 #include "esphome/components/camera/camera.h"
 // i2c_id: is optional -- a USB camera is not on a bus -- so a UVC-only build
 // does not have the I2C component in it at all, and must not reach for it.
@@ -36,15 +37,15 @@ enum class DeviceType : uint8_t {
 /// be re-queued immediately while the API streams this copy out.
 class ESPVideoCameraImage : public camera::CameraImage {
  public:
-  ESPVideoCameraImage(uint8_t *data, size_t length, uint8_t requesters);
-  ~ESPVideoCameraImage() override;
+  ESPVideoCameraImage(RAMUniquePtr<uint8_t[]> data, size_t length, uint8_t requesters)
+      : data_(std::move(data)), length_(length), requesters_(requesters) {}
 
-  uint8_t *get_data_buffer() override { return this->data_; }
+  uint8_t *get_data_buffer() override { return this->data_.get(); }
   size_t get_data_length() override { return this->length_; }
   bool was_requested_by(camera::CameraRequester requester) const override;
 
  protected:
-  uint8_t *data_{nullptr};
+  RAMUniquePtr<uint8_t[]> data_;
   size_t length_{0};
   uint8_t requesters_{0};
 };
