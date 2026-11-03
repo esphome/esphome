@@ -44,17 +44,13 @@ void DHT::update() {
   }
 
   if (success) {
-    if (this->temperature_sensor_ != nullptr)
-      this->temperature_sensor_->publish_state(temperature);
-    if (this->humidity_sensor_ != nullptr)
-      this->humidity_sensor_->publish_state(humidity);
+    PUBLISH_STATE(this->temperature_sensor_, temperature);
+    PUBLISH_STATE(this->humidity_sensor_, humidity);
     this->status_clear_warning();
   } else {
     ESP_LOGW(TAG, "Invalid readings");
-    if (this->temperature_sensor_ != nullptr)
-      this->temperature_sensor_->publish_state(NAN);
-    if (this->humidity_sensor_ != nullptr)
-      this->humidity_sensor_->publish_state(NAN);
+    PUBLISH_STATE(this->temperature_sensor_, NAN);
+    PUBLISH_STATE(this->humidity_sensor_, NAN);
     this->status_set_warning();
   }
 }

@@ -3,6 +3,7 @@ import esphome.codegen as cg
 from esphome.components import audio, media_player, media_source, speaker
 from esphome.components.const import (
     CONF_ANNOUNCEMENT_VOLUME,
+    CONF_BITRATE,
     CONF_SOURCES,
     CONF_VOLUME_INCREMENT,
     CONF_VOLUME_INITIAL,
@@ -78,6 +79,7 @@ PIPELINE_SCHEMA = cv.Schema(
         cv.Optional(CONF_FORMAT, default="FLAC"): cv.enum(audio.AUDIO_FILE_TYPE_ENUM),
         cv.Optional(CONF_SAMPLE_RATE): cv.int_range(min=1),
         cv.Optional(CONF_NUM_CHANNELS): cv.int_range(1, 2),
+        cv.Optional(CONF_BITRATE): media_player.validate_mp3_bitrate,
     }
 )
 

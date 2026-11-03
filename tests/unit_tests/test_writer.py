@@ -2838,3 +2838,312 @@ def test_build_info_stale_branches(
     elif isinstance(content, str) and content != "ABSENT":
         info.write_text(content)
     assert _build_info_stale(h, cpp, info, 1) is expected, case
+
+
+def test_get_flags_unions_component_flags() -> None:
+    """get_flags merges the flag set from every component with the key."""
+    from esphome.writer import get_flags
+
+    comp_a = MagicMock()
+    comp_a.build_flags.return_value = {"-DA"}
+    comp_b = MagicMock()
+    comp_b.build_flags.return_value = {"-DB", "-DA"}
+    with (
+        patch("esphome.writer.CORE"),
+        patch(
+            "esphome.writer.iter_component_configs",
+            return_value=[("a", comp_a, {"x": 1}), ("b", comp_b, {})],
+        ),
+    ):
+        assert get_flags("build_flags") == {"-DA", "-DB"}
+
+    comp_a.build_flags.assert_called_once_with({"x": 1})
+
+
+def test_get_include_text_collects_component_includes() -> None:
+    """get_include_text handles missing, callable, list and empty includes."""
+    from esphome.writer import get_include_text
+
+    no_includes = MagicMock(spec=[])
+    callable_includes = MagicMock()
+    callable_includes.includes = lambda conf: f'#include "{conf["name"]}.h"'
+    none_includes = MagicMock()
+    none_includes.includes = None
+    list_includes = MagicMock()
+    list_includes.includes = ['#include "one.h"', '#include "two.h"']
+    empty_includes = MagicMock()
+    empty_includes.includes = ""
+    configs = [
+        ("a", no_includes, {}),
+        ("b", callable_includes, {"name": "dyn"}),
+        ("c", none_includes, {}),
+        ("d", list_includes, {}),
+        ("e", empty_includes, {}),
+    ]
+    with (
+        patch("esphome.writer.CORE"),
+        patch("esphome.writer.iter_component_configs", return_value=configs),
+    ):
+        text = get_include_text()
+
+    assert text == (
+        '#include "esphome.h"\nusing namespace esphome;\n'
+        '#include "dyn.h"\n'
+        '#include "one.h"\n#include "two.h"\n'
+    )
+
+
+def test_replace_file_content() -> None:
+    """replace_file_content substitutes per line and reports the count."""
+    from esphome.writer import replace_file_content
+
+    new, count = replace_file_content("a=1\nb=2\na=3\n", r"^a=\d", "a=0")
+    assert new == "a=0\nb=2\na=0\n"
+    assert count == 2
+
+
+@patch("esphome.writer.save_compiled_config")
+@patch("esphome.writer.clean_build")
+@patch("esphome.writer.StorageJSON")
+@patch("esphome.writer.storage_path")
+@patch("esphome.writer.CORE")
+def test_update_storage_json_unchanged_does_nothing(
+    mock_core: MagicMock,
+    mock_storage_path: MagicMock,
+    mock_storage_json_class: MagicMock,
+    mock_clean_build: MagicMock,
+    mock_save_compiled_config: MagicMock,
+    create_storage: Callable[..., StorageJSON],
+) -> None:
+    """With no config to cache and identical storage, nothing is written."""
+    mock_core.config = None
+    mock_storage_path.return_value = "/test/path"
+    old_storage = create_storage(loaded_integrations=["api"])
+    new_storage = create_storage(loaded_integrations=["api"])
+    new_storage.save = MagicMock()
+    mock_storage_json_class.load.return_value = old_storage
+    mock_storage_json_class.from_esphome_core.return_value = new_storage
+
+    update_storage_json()
+
+    mock_save_compiled_config.assert_not_called()
+    mock_clean_build.assert_not_called()
+    new_storage.save.assert_not_called()
+
+
+@patch("esphome.writer.clean_cmake_cache")
+@patch("esphome.writer.clean_build")
+@patch("esphome.writer.StorageJSON")
+@patch("esphome.writer.storage_path")
+@patch("esphome.writer.CORE")
+def test_update_storage_json_cleans_cmake_cache_when_integrations_added(
+    mock_core: MagicMock,
+    mock_storage_path: MagicMock,
+    mock_storage_json_class: MagicMock,
+    mock_clean_build: MagicMock,
+    mock_clean_cmake_cache: MagicMock,
+    create_storage: Callable[..., StorageJSON],
+    caplog: pytest.LogCaptureFixture,
+) -> None:
+    """Adding an integration on ESP32 cleans only the cmake cache."""
+    mock_core.config = None
+    mock_storage_path.return_value = "/test/path"
+    old_storage = create_storage(
+        loaded_integrations=["api"], core_platform=PLATFORM_ESP32
+    )
+    new_storage = create_storage(
+        loaded_integrations=["api", "wifi"], core_platform=PLATFORM_ESP32
+    )
+    new_storage.save = MagicMock()
+    mock_storage_json_class.load.return_value = old_storage
+    mock_storage_json_class.from_esphome_core.return_value = new_storage
+
+    with caplog.at_level("INFO"):
+        update_storage_json()
+
+    mock_clean_build.assert_not_called()
+    mock_clean_cmake_cache.assert_called_once_with()
+    assert "Integrations changed, cleaning cmake cache..." in caplog.text
+    new_storage.save.assert_called_once_with("/test/path")
+
+
+def test_find_begin_end_errors() -> None:
+    """find_begin_end rejects a missing begin and duplicate end markers."""
+    from esphome.writer import find_begin_end
+
+    with pytest.raises(EsphomeError, match="Could not find auto generated code begin"):
+        find_begin_end("no markers", "BEGIN", "END")
+
+    with pytest.raises(EsphomeError, match="Found multiple auto generate code endings"):
+        find_begin_end("BEGIN x END y END", "BEGIN", "END")
+
+    assert find_begin_end("pre BEGIN x END post", "BEGIN", "END") == ("pre ", " post")
+
+
+def _setup_copy_src_core(mock_core: MagicMock, tmp_path: Path) -> Path:
+    """Point a mocked CORE at tmp_path trees for copy_src_tree; return src dir."""
+    src_path = tmp_path / "src"
+    src_path.mkdir()
+    build_path = tmp_path / "build"
+    build_path.mkdir()
+    mock_core.relative_src_path.side_effect = src_path.joinpath
+    mock_core.relative_build_path.side_effect = build_path.joinpath
+    mock_core.defines = []
+    mock_core.config_hash = 0xDEADBEEF
+    mock_core.comment = ""
+    mock_core.target_platform = "test_platform"
+    mock_core.config = {}
+    return src_path
+
+
+@patch("esphome.writer.CORE")
+@patch("esphome.writer.iter_components")
+def test_copy_src_tree_skips_unchanged_non_source_resource(
+    mock_iter_components: MagicMock,
+    mock_core: MagicMock,
+    tmp_path: Path,
+) -> None:
+    """A non-source resource is ignored by the tree walk and copied only once."""
+    src_path = _setup_copy_src_core(mock_core, tmp_path)
+    resource_src = tmp_path / "data.txt"
+    resource_src.write_text("payload")
+
+    @contextmanager
+    def _path() -> Any:
+        yield resource_src
+
+    resource = MagicMock()
+    resource.package = "esphome.components.foo"
+    resource.resource = "data.txt"
+    resource.path = _path
+    component = MagicMock()
+    component.resources = [resource]
+    mock_iter_components.return_value = [("foo", component)]
+
+    with patch("esphome.writer.importlib.import_module", side_effect=AttributeError):
+        copy_src_tree()
+        copy_src_tree()
+
+    copied = src_path / "esphome" / "components" / "foo" / "data.txt"
+    assert copied.read_text() == "payload"
+
+
+@patch("esphome.writer.CORE")
+@patch("esphome.writer.iter_components")
+def test_copy_src_tree_calls_platform_copy_files(
+    mock_iter_components: MagicMock,
+    mock_core: MagicMock,
+    tmp_path: Path,
+) -> None:
+    """The target platform module's copy_files hook is invoked."""
+    _setup_copy_src_core(mock_core, tmp_path)
+    mock_iter_components.return_value = []
+
+    with patch("esphome.writer.importlib.import_module") as mock_import:
+        copy_src_tree()
+
+    mock_import.assert_called_once_with("esphome.components.test_platform")
+    mock_import.return_value.copy_files.assert_called_once_with()
+
+
+def test_generate_version_h_rejects_unparseable_version() -> None:
+    """An unparseable version string raises a clear error."""
+    from esphome.writer import generate_version_h
+
+    with (
+        patch("esphome.writer.__version__", "not-a-version"),
+        pytest.raises(EsphomeError, match="Could not parse version not-a-version"),
+    ):
+        generate_version_h()
+
+
+@patch("esphome.writer.CORE")
+def test_clean_build_full_without_build_path(
+    mock_core: MagicMock,
+    tmp_path: Path,
+) -> None:
+    """full=True with no build path set only clears the idedata caches."""
+    mock_core.build_path = None
+    mock_core.name = "test"
+    mock_core.relative_internal_path.side_effect = tmp_path.joinpath
+    idedata_cache = tmp_path / "idedata" / "test.json"
+    idedata_cache.parent.mkdir()
+    idedata_cache.write_text("{}")
+
+    clean_build(clear_pio_cache=False, full=True)
+
+    assert not idedata_cache.exists()
+
+
+@pytest.mark.parametrize(
+    "yaml_text",
+    ["- just\n- a list\n", "esphome: not-a-dict\n"],
+)
+def test_get_custom_build_dir_ignores_non_mapping(
+    tmp_path: Path, yaml_text: str
+) -> None:
+    """YAML that is not a mapping, or has a non-mapping esphome key, has no build dir."""
+    from esphome.writer import _get_custom_build_dir
+
+    yaml_file = tmp_path / "test.yaml"
+    yaml_file.write_text(yaml_text)
+
+    assert _get_custom_build_dir(yaml_file, tmp_path / ".esphome") is None
+
+
+@patch("esphome.writer.CORE")
+def test_clean_all_includes_ha_addon_and_data_dir_env(
+    mock_core: MagicMock,
+    tmp_path: Path,
+) -> None:
+    """clean_all cleans the add-on data dir and ESPHOME_DATA_DIR when set."""
+    config_dir = tmp_path / "config"
+    config_dir.mkdir()
+    env_data = tmp_path / "env_data"
+    env_data.mkdir()
+    (env_data / "leftover.txt").write_text("x")
+
+    real_is_dir = Path.is_dir
+
+    def _is_dir(self: Path) -> bool:
+        # Never touch a real /data on the machine running the tests
+        return False if self == Path("/data") else real_is_dir(self)
+
+    with (
+        patch("esphome.writer.is_ha_addon", return_value=True),
+        patch.object(Path, "is_dir", _is_dir),
+        patch.dict(os.environ, {"ESPHOME_DATA_DIR": str(env_data)}),
+    ):
+        clean_all([str(config_dir)])
+
+    assert env_data.exists()
+    assert not (env_data / "leftover.txt").exists()
+
+
+@patch("esphome.writer.clean_cmake_cache")
+@patch("esphome.writer.clean_build")
+@patch("esphome.writer.StorageJSON")
+@patch("esphome.writer.storage_path")
+@patch("esphome.writer.CORE")
+def test_update_storage_json_saves_without_cleaning_for_minor_change(
+    mock_core: MagicMock,
+    mock_storage_path: MagicMock,
+    mock_storage_json_class: MagicMock,
+    mock_clean_build: MagicMock,
+    mock_clean_cmake_cache: MagicMock,
+    create_storage: Callable[..., StorageJSON],
+) -> None:
+    """A change that needs no cleaning is saved without any clean."""
+    mock_core.config = None
+    mock_storage_path.return_value = "/test/path"
+    old_storage = create_storage(friendly_name="Old")
+    new_storage = create_storage(friendly_name="New")
+    new_storage.save = MagicMock()
+    mock_storage_json_class.load.return_value = old_storage
+    mock_storage_json_class.from_esphome_core.return_value = new_storage
+
+    update_storage_json()
+
+    mock_clean_build.assert_not_called()
+    mock_clean_cmake_cache.assert_not_called()
+    new_storage.save.assert_called_once_with("/test/path")

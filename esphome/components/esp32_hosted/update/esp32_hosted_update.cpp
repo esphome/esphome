@@ -24,8 +24,8 @@ namespace esphome::esp32_hosted {
 
 ESPHOME_LOG_TAG(TAG, "esp32_hosted.update");
 
-// Older coprocessor firmware versions have a 1500-byte limit per RPC call
-constexpr size_t CHUNK_SIZE = 1500;
+// The host rejects writes above its per-RPC payload limit before they reach the coprocessor
+constexpr size_t CHUNK_SIZE = EH_HOST_CP_OTA_CHUNK_MAX;
 // OTA begin blocks while the coprocessor erases its partition, end while it validates the image
 constexpr uint32_t OTA_WDT_TIMEOUT_MS = 60000;
 

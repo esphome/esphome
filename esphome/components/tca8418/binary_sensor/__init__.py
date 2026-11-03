@@ -65,9 +65,7 @@ CONFIG_SCHEMA = cv.All(
 
 def _final_validate(config: ConfigType) -> None:
     """Resolve the key to the number the device reports, checked against the keypad's matrix."""
-    full_config = fv.full_config.get()
-    keypad_path = full_config.get_path_for_id(config[CONF_KEYPAD_ID])[:-1]
-    keypad = full_config.get_config_for_path(keypad_path)
+    keypad = fv.get_declaring_config(config[CONF_KEYPAD_ID])
     rows = keypad.get(CONF_ROWS, 0)
     columns = keypad.get(CONF_COLUMNS, 0)
 

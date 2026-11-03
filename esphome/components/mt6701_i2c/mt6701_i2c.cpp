@@ -25,10 +25,6 @@ void MT6701I2CComponent::setup() {
 void MT6701I2CComponent::dump_config() {
   ESP_LOGCONFIG(TAG, "MT6701 (I2C):");
   LOG_I2C_DEVICE(this);
-  if (this->is_failed()) {
-    ESP_LOGE(TAG, ESP_LOG_MSG_COMM_FAIL);
-    return;
-  }
   if (this->direction_ != UNSET_U8) {
     ESP_LOGCONFIG(TAG, "  Direction bit: %u", this->direction_);
   }

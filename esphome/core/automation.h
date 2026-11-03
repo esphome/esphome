@@ -8,6 +8,7 @@
 #include "esphome/core/string_ref.h"
 #include <concepts>
 #include <functional>
+#include <span>
 #include <type_traits>
 #include <utility>
 #include <vector>
@@ -392,6 +393,8 @@ template<typename... X> class TemplatableValue<std::string, X...> {
   }
 
   bool has_value() const { return this->type_ != NONE; }
+  /// Whether the value comes from a lambda, so it may differ between reads.
+  bool is_lambda() const { return this->type_ == LAMBDA || this->type_ == STATELESS_LAMBDA; }
 
   std::string value(X... x) const {
     switch (this->type_) {
@@ -749,6 +752,29 @@ template<typename... Ts> class Automation {
 
  protected:
   ActionList<Ts...> actions_;
+};
+
+/// Triggers each automation in order; shared by every AutomationList size with the same arguments.
+template<typename... Ts>
+void trigger_automations(std::span<Automation<Ts...> *const> automations, const std::type_identity_t<Ts> &...x) {
+  for (auto *automation : automations)
+    automation->trigger(x...);
+}
+
+/// Automations a component triggers itself, sized at codegen time (count from cg.slot_counter).
+template<size_t N, typename... Ts> class AutomationList {
+ public:
+  void add(Automation<Ts...> *automation) { this->automations_.push_back(automation); }
+  bool empty() const { return this->automations_.empty(); }
+  /// Arguments convert to Ts only when the list is not empty (e.g. `const char *` to std::string).
+  template<typename... Args> void trigger(Args &&...x) {
+    if (this->automations_.empty())
+      return;
+    trigger_automations<Ts...>(std::span<Automation<Ts...> *const>(this->automations_), x...);
+  }
+
+ protected:
+  StaticVector<Automation<Ts...> *, N> automations_;
 };
 
 /// Callback forwarder that triggers an Automation directly.
