@@ -820,7 +820,8 @@ def test_probe_ota_key_gives_up_at_the_deadline(
     device_kwargs: dict[str, Any], caplog: pytest.LogCaptureFixture
 ) -> None:
     pytest.importorskip("aioesphomeapi.noise")
-    device = FakeEncryptedDevice(connections=2, **device_kwargs)
+    # One spare connection, so a third attempt would be served and counted
+    device = FakeEncryptedDevice(connections=3, **device_kwargs)
     device.start()
     # Only the retry pauses move the clock, so a slow runner cannot reach
     # the deadline in the middle of a handshake
@@ -841,6 +842,7 @@ def test_probe_ota_key_gives_up_at_the_deadline(
     device.join_and_check()
     # Tried at 0 and 3 s; the last pause stops at the deadline
     assert device.served == 2
+    assert clock[0] == 5
     assert any("Checking the key failed" in r.message for r in caplog.records)
     assert device.received is None
 
