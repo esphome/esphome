@@ -8,11 +8,7 @@ from esphome.components.const import (
 )
 from esphome.components.tcp_uart import DOMAIN as TCP_UART_DOMAIN
 import esphome.config_validation as cv
-from esphome.const import (
-    CONF_ID,
-    CONF_PORT,
-    CONF_UART_ID,
-)
+from esphome.const import CONF_ID, CONF_PORT, CONF_UART_ID
 import esphome.final_validate as fv
 from esphome.types import ConfigType
 
