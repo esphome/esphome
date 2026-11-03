@@ -5,24 +5,24 @@
 
 namespace esphome {
 
-TEST(SetupCommResult, FailureMarksFailed) {
+TEST(SetupCheck, FailureMarksFailed) {
   Component component;
-  EXPECT_FALSE(component.setup_comm_result(false));
+  EXPECT_FALSE(component.setup_check(false));
   EXPECT_TRUE(component.is_failed());
   EXPECT_TRUE(component.status_has_error());
 }
 
-TEST(SetupCommResult, CustomMessageOverloadMarksFailed) {
+TEST(SetupCheck, CustomMessageOverloadMarksFailed) {
   Component component;
-  EXPECT_FALSE(component.setup_comm_result(false, LOG_STR("Wrong chip ID")));
+  EXPECT_FALSE(component.setup_check(false, LOG_STR("Wrong chip ID")));
   EXPECT_TRUE(component.is_failed());
   EXPECT_TRUE(component.status_has_error());
 }
 
-TEST(SetupCommResult, SuccessLeavesComponentUntouched) {
+TEST(SetupCheck, SuccessLeavesComponentUntouched) {
   Component component;
-  EXPECT_TRUE(component.setup_comm_result(true));
-  EXPECT_TRUE(component.setup_comm_result(true, LOG_STR("Wrong chip ID")));
+  EXPECT_TRUE(component.setup_check(true));
+  EXPECT_TRUE(component.setup_check(true, LOG_STR("Wrong chip ID")));
   EXPECT_FALSE(component.is_failed());
   EXPECT_FALSE(component.status_has_error());
 }

@@ -228,11 +228,10 @@ class Component {
   }
 
   /// Marks the component failed with `message` (default "Communication failed") unless `ok`; returns `ok`.
-  /// Replaces `if (!write()) { mark_failed(); return; }` in setup(); inlined so the failure branches still merge.
-  bool ESPHOME_ALWAYS_INLINE setup_comm_result(bool ok) {
-    return this->setup_comm_result(ok, LOG_STR(ESP_LOG_MSG_COMM_FAIL));
-  }
-  bool ESPHOME_ALWAYS_INLINE setup_comm_result(bool ok, const LogString *message) {
+  /// For any setup() check: `if (!this->setup_check(this->write_byte(...))) return;`. Inlined so the failure
+  /// branches still merge.
+  bool ESPHOME_ALWAYS_INLINE setup_check(bool ok) { return this->setup_check(ok, LOG_STR(ESP_LOG_MSG_COMM_FAIL)); }
+  bool ESPHOME_ALWAYS_INLINE setup_check(bool ok, const LogString *message) {
     if (ok)
       return true;
     this->mark_failed(message);
