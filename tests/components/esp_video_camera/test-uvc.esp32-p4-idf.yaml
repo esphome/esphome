@@ -3,7 +3,6 @@
 esp_video_camera:
   name: Test USB Camera
   device: uvc
-  enable_uvc: true
   jpeg_quality: 80
   max_framerate: 10
 

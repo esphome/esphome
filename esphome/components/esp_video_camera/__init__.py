@@ -36,6 +36,7 @@ from esphome.const import (
 from esphome.core import CORE
 from esphome.core.entity_helpers import setup_entity
 import esphome.final_validate as fv
+from esphome.types import ConfigType
 
 _LOGGER = logging.getLogger(__name__)
 
@@ -50,6 +51,7 @@ esp_video_camera_ns = cg.esphome_ns.namespace("esp_video_camera")
 ESPVideoCamera = esp_video_camera_ns.class_(
     "ESPVideoCamera", cg.Component, cg.EntityBase
 )
+DeviceType = esp_video_camera_ns.enum("DeviceType", is_class=True)
 
 CONF_JPEG_QUALITY = "jpeg_quality"
 CONF_MAX_FRAMERATE = "max_framerate"
@@ -57,7 +59,6 @@ CONF_SENSOR_MODEL = "sensor_model"
 CONF_XCLK_PIN = "xclk_pin"
 CONF_XCLK_FREQUENCY = "xclk_frequency"
 CONF_ENABLE_XCLK = "enable_xclk"
-CONF_ENABLE_UVC = "enable_uvc"
 CONF_USB_PERIPHERAL_MAP = "usb_peripheral_map"
 
 # Output formats each supported sensor ships in esp_cam_sensor 2.3.0.
@@ -116,29 +117,37 @@ def _validate_sensor_model(value):
     return value
 
 
+# esp_video's fixed device nodes (esp_video_device.h).
+_JPEG_DEVICE = "/dev/video10"
+_UVC_DEVICE_PREFIX = "/dev/video4"
+
+
 def _validate_resolution(value):
-    """Normalise to 'auto' or 'WIDTHxHEIGHT'; the C++ side parses nothing else."""
+    """'auto', or a [width, height] list."""
     value = cv.string(value)
     if value.lower() == "auto":
         return "auto"
     if (size := _RESOLUTION_ALIASES.get(value.upper())) is not None:
-        return f"{size[0]}x{size[1]}"
-    parts = value.lower().split("x")
-    if len(parts) == 2 and parts[0].isdigit() and parts[1].isdigit():
-        return f"{int(parts[0])}x{int(parts[1])}"
-    raise cv.Invalid(
-        f"resolution '{value}' is invalid. Use 'auto', an alias "
-        f"({'/'.join(_RESOLUTION_ALIASES)}) or 'WIDTHxHEIGHT' (e.g. '1280x720')."
-    )
+        return list(size)
+    try:
+        return cv.dimensions(value)
+    except cv.Invalid:
+        raise cv.Invalid(
+            f"resolution '{value}' is invalid. Use 'auto', an alias "
+            f"({'/'.join(_RESOLUTION_ALIASES)}) or 'WIDTHxHEIGHT' (e.g. '1280x720')."
+        ) from None
 
 
 def _validate_device(value):
+    """Resolve the device aliases to the /dev/videoN path esp_video registers."""
     value = cv.string(value)
     low = value.lower()
-    if low in ("jpeg", "uvc"):
-        return low
+    if low == "jpeg":
+        return _JPEG_DEVICE
+    if low == "uvc":
+        return f"{_UVC_DEVICE_PREFIX}0"
     if low.startswith("uvc") and len(low) == 4 and low[3].isdigit():
-        return low
+        return f"{_UVC_DEVICE_PREFIX}{low[3]}"
     if value.startswith("/dev/video"):
         return value
     # No "csi": that device only produces RGB565/RAW, and a camera platform has to
@@ -149,10 +158,9 @@ def _validate_device(value):
     )
 
 
-def _is_uvc(device):
-    """True for a USB camera: the 'uvc'/'uvcN' aliases and the /dev/video4N
-    paths they resolve to (esp_video reserves 40-49 for USB-UVC)."""
-    return device.startswith(("uvc", "/dev/video4"))
+def _is_uvc(device: str) -> bool:
+    """True for a USB camera: esp_video reserves /dev/video40-49 for USB-UVC."""
+    return device.startswith(_UVC_DEVICE_PREFIX)
 
 
 def _xclk_pin(value):
@@ -185,43 +193,24 @@ def _validate_i2c_bus(config):
     )
 
 
-def _validate_uvc_device(config):
-    if _is_uvc(config[CONF_DEVICE]) and not config[CONF_ENABLE_UVC]:
-        raise cv.Invalid(
-            f"device: {config[CONF_DEVICE]} needs enable_uvc: true, otherwise the "
-            "USB-UVC host driver is not compiled in and the device never appears.",
-            path=[CONF_DEVICE],
-        )
-    if config[CONF_ENABLE_UVC] and not _is_uvc(config[CONF_DEVICE]):
-        # esp_video brings up every device it was configured for as one unit, so
-        # a USB camera that is asked for and never plugged in fails the whole
-        # pipeline -- and the retry that exists for a late-arriving camera then
-        # keeps a perfectly good MIPI sensor waiting forever.
-        raise cv.Invalid(
-            f"enable_uvc: true is for a USB camera, but device: is "
-            f"{config[CONF_DEVICE]}. Remove enable_uvc, or set device: uvc.",
-            path=[CONF_ENABLE_UVC],
-        )
-    return config
-
-
-def _sensor_format_symbol(config):
-    """The sensor output format `resolution:` maps to, or None for 'auto'.
-
-    Only meaningful for MIPI-CSI sources. A USB-UVC camera carries a real format
-    list and is resized at runtime through VIDIOC_S_FMT, so it needs nothing
-    here.
-    """
+def _mipi_resolution(config: ConfigType) -> tuple[int, int] | None:
+    """The size a MIPI sensor must be built for, or None for 'auto' or a USB
+    camera, which is resized at runtime through VIDIOC_S_FMT instead."""
     resolution = config[CONF_RESOLUTION]
     if resolution == "auto" or _is_uvc(config[CONF_DEVICE]):
         return None
-    width, height = (int(part) for part in resolution.split("x"))
-    return _SENSOR_FORMATS[config[CONF_SENSOR_MODEL]][width, height]
+    return tuple(resolution)
 
 
-def _validate_resolution_for_sensor(config):
-    resolution = config[CONF_RESOLUTION]
-    if resolution == "auto" or _is_uvc(config[CONF_DEVICE]):
+def _sensor_format_symbol(config: ConfigType) -> str | None:
+    """The sensor output format `resolution:` maps to, or None."""
+    if (size := _mipi_resolution(config)) is None:
+        return None
+    return _SENSOR_FORMATS[config[CONF_SENSOR_MODEL]][size]
+
+
+def _validate_resolution_for_sensor(config: ConfigType) -> ConfigType:
+    if (size := _mipi_resolution(config)) is None:
         return config
 
     if (model := config.get(CONF_SENSOR_MODEL)) is None:
@@ -233,9 +222,9 @@ def _validate_resolution_for_sensor(config):
             path=[CONF_RESOLUTION],
         )
 
-    width, height = (int(part) for part in resolution.split("x"))
+    width, height = size
     formats = _SENSOR_FORMATS[model]
-    if (width, height) not in formats:
+    if size not in formats:
         supported = ", ".join(f"{w}x{h}" for w, h in sorted(formats))
         raise cv.Invalid(
             f"the {model} does not have a {width}x{height} output format. "
@@ -309,7 +298,6 @@ CONFIG_SCHEMA = cv.All(
                 min=1000000, max=40000000
             ),
             cv.Optional(CONF_ENABLE_XCLK, default=False): cv.boolean,
-            cv.Optional(CONF_ENABLE_UVC, default=False): cv.boolean,
             # The ESP32-P4 has two USB controllers, and a board wires its host
             # connector to one of them. 0 is the target default -- the
             # High-Speed one -- which is right for most boards; a bit mask
@@ -334,7 +322,6 @@ CONFIG_SCHEMA = cv.All(
     # it: a 1280x720 RGB565 capture buffer alone is 1.8 MB, well past what
     # internal RAM can hold.
     cv.requires_component(PSRAM_DOMAIN),
-    _validate_uvc_device,
     _validate_i2c_bus,
     _validate_xclk,
     _validate_resolution_for_sensor,
@@ -360,16 +347,16 @@ def _reject_uvc_beside_usb_host(config):
     pump that runs in the main loop cannot service a blocking call made from
     the main loop. Sharing it properly is being worked out separately.
 
-    Only enable_uvc builds are affected -- a MIPI-CSI camera never touches the
+    Only USB camera builds are affected -- a MIPI-CSI camera never touches the
     USB host, so it is free to sit beside usb_uart and the rest.
     """
-    if config[CONF_ENABLE_UVC] and USB_HOST_DOMAIN in fv.full_config.get():
+    if _is_uvc(config[CONF_DEVICE]) and USB_HOST_DOMAIN in fv.full_config.get():
         raise cv.Invalid(
-            "enable_uvc: true cannot be used in the same configuration as the "
+            "A USB camera cannot be used in the same configuration as the "
             "usb_host component (which usb_uart also pulls in): both want to own "
             "the USB host library, and the result is a boot loop rather than a "
             "clear failure. Use one or the other for now.",
-            path=[CONF_ENABLE_UVC],
+            path=[CONF_DEVICE],
         )
     return config
 
@@ -382,7 +369,15 @@ FINAL_VALIDATE_SCHEMA = cv.All(_warn_about_idf_log_level, _reject_uvc_beside_usb
 async def to_code(config):
     cg.add_define("USE_CAMERA")
 
-    var = cg.new_Pvariable(config[CONF_ID])
+    device = config[CONF_DEVICE]
+    uvc = _is_uvc(device)
+    if uvc:
+        device_type = DeviceType.DEVICE_TYPE_UVC
+    elif device == _JPEG_DEVICE:
+        device_type = DeviceType.DEVICE_TYPE_HW_JPEG
+    else:
+        device_type = DeviceType.DEVICE_TYPE_DIRECT
+    var = cg.new_Pvariable(config[CONF_ID], device, device_type)
     await setup_entity(var, config, "camera")
     await cg.register_component(var, config)
 
@@ -398,18 +393,17 @@ async def to_code(config):
     )
     cg.add(var.set_xclk_freq(config[CONF_XCLK_FREQUENCY]))
     cg.add(var.set_enable_xclk_init(config[CONF_ENABLE_XCLK]))
-    cg.add(var.set_enable_uvc(config[CONF_ENABLE_UVC]))
     cg.add(var.set_usb_peripheral_map(config[CONF_USB_PERIPHERAL_MAP]))
 
-    cg.add(var.set_device(config[CONF_DEVICE]))
-    cg.add(var.set_resolution(config[CONF_RESOLUTION]))
+    if (resolution := config[CONF_RESOLUTION]) != "auto":
+        cg.add(var.set_resolution(*resolution))
     cg.add(var.set_jpeg_quality(config[CONF_JPEG_QUALITY]))
     cg.add(var.set_max_framerate(config[CONF_MAX_FRAMERATE]))
 
     # Also in esphome/idf_component.yml (keep the versions in step): that entry
     # covers the clang-tidy builds, this call is what adds it to "src" REQUIRES.
     add_idf_component(name="espressif/esp_video", ref="2.3.0")
-    if config[CONF_ENABLE_UVC]:
+    if uvc:
         # USB-UVC host driver, aligned with esp_video 2.3.0's own dependency.
         add_idf_component(name="espressif/usb_host_uvc", ref="2.5.*")
 
@@ -424,7 +418,7 @@ async def to_code(config):
         "CONFIG_ESP_VIDEO_ENABLE_HW_JPEG_ENC_VIDEO_DEVICE",
     ):
         add_idf_sdkconfig_option(opt, True)
-    if config[CONF_ENABLE_UVC]:
+    if uvc:
         add_idf_sdkconfig_option("CONFIG_ESP_VIDEO_ENABLE_USB_UVC_VIDEO_DEVICE", True)
         # 2048: a UVC configuration descriptor overruns the 256-byte default and
         # the camera never appears. 500 ms: the enumeration wait blocks whichever

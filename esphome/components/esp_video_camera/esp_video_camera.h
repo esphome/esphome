@@ -18,7 +18,6 @@
 
 #include <atomic>
 #include <memory>
-#include <string>
 #include <vector>
 
 namespace esphome::esp_video_camera {
@@ -27,6 +26,13 @@ namespace esphome::esp_video_camera {
 /// runs it. Defined in the .cpp, which is the only place that has the V4L2
 /// headers its members are built from.
 struct VideoInitContext;
+
+/// Which pipeline the configured device needs, resolved at code generation.
+enum class DeviceType : uint8_t {
+  DEVICE_TYPE_HW_JPEG,  // MIPI-CSI sensor through the hardware JPEG encoder
+  DEVICE_TYPE_UVC,      // USB-UVC camera
+  DEVICE_TYPE_DIRECT,   // any other /dev/videoN that already produces JPEG
+};
 
 /// An owned JPEG frame, copied out of the mapped V4L2 buffer so that buffer can
 /// be re-queued immediately while the API streams this copy out.
@@ -65,6 +71,8 @@ class ESPVideoCameraImageReader : public camera::CameraImageReader {
 /// explicit /dev/videoN path.
 class ESPVideoCamera : public camera::Camera {
  public:
+  ESPVideoCamera(const char *device, DeviceType device_type) : device_(device), device_type_(device_type) {}
+
   void setup() override;
   void loop() override;
   void dump_config() override;
@@ -76,12 +84,14 @@ class ESPVideoCamera : public camera::Camera {
   void set_xclk_pin(gpio_num_t pin) { this->xclk_pin_ = pin; }
   void set_xclk_freq(uint32_t freq) { this->xclk_freq_ = freq; }
   void set_enable_xclk_init(bool enable) { this->enable_xclk_init_ = enable; }
-  void set_enable_uvc(bool enable) { this->enable_uvc_ = enable; }
   void set_usb_peripheral_map(unsigned map) { this->usb_peripheral_map_ = map; }
 
   // Camera platform configuration ----------------------------------------------
-  void set_device(const std::string &device) { this->device_ = device; }
-  void set_resolution(const std::string &resolution) { this->resolution_ = resolution; }
+  /// 0x0 (the default) keeps whatever size the device comes up in.
+  void set_resolution(uint16_t width, uint16_t height) {
+    this->width_ = width;
+    this->height_ = height;
+  }
   void set_jpeg_quality(int quality) { this->jpeg_quality_ = quality; }
   void set_max_framerate(float fps) {
     this->max_framerate_ = fps;
@@ -96,10 +106,8 @@ class ESPVideoCamera : public camera::Camera {
   void stop_stream(camera::CameraRequester requester) override;
 
  protected:
-  /// True when the source is a USB camera: the "uvc"/"uvcN" aliases and the
-  /// /dev/video4N paths they resolve to. Those need no I2C bus and appear only
-  /// once the device has enumerated, so both paths treat them differently.
-  bool is_uvc_device_() const;
+  bool is_uvc_() const { return this->device_type_ == DeviceType::DEVICE_TYPE_UVC; }
+  bool is_hw_jpeg_() const { return this->device_type_ == DeviceType::DEVICE_TYPE_HW_JPEG; }
   /// Hand esp_video_init() to a task on core 0. True only means the attempt is
   /// under way.
   bool start_pipeline_init_();
@@ -140,7 +148,6 @@ class ESPVideoCamera : public camera::Camera {
   gpio_num_t xclk_pin_{GPIO_NUM_36};
   uint32_t xclk_freq_{24000000};
   bool enable_xclk_init_{false};
-  bool enable_uvc_{false};
   // Which of the ESP32-P4's two USB controllers the host port hangs off. Zero
   // is the target's default (the High-Speed one), which is right for most
   // boards; a bit mask names a specific controller for those it is not.
@@ -163,10 +170,10 @@ class ESPVideoCamera : public camera::Camera {
   bool usb_pump_started_{false};
 
   // Camera platform
-  std::string device_{"jpeg"};
-  std::string resolved_device_;
-  bool is_hw_jpeg_{false};
-  std::string resolution_{"auto"};
+  const char *device_;
+  DeviceType device_type_;
+  uint16_t width_{0};
+  uint16_t height_{0};
   int jpeg_quality_{80};  // V4L2 semantics: 1..100, higher is better
   float max_framerate_{10.0f};
   uint32_t min_interval_ms_{100};
@@ -180,7 +187,7 @@ class ESPVideoCamera : public camera::Camera {
   // returns at once, so only this path has to be spaced out.
   static constexpr uint32_t UVC_RETRY_INTERVAL_MS = 5000;
   uint32_t capture_retry_interval_ms_() const {
-    return this->is_uvc_device_() ? UVC_RETRY_INTERVAL_MS : CAPTURE_RETRY_INTERVAL_MS;
+    return this->is_uvc_() ? UVC_RETRY_INTERVAL_MS : CAPTURE_RETRY_INTERVAL_MS;
   }
   bool capture_retry_pending_{false};
   uint32_t capture_retry_at_ms_{0};

@@ -196,32 +196,6 @@ esp_err_t init_xclk_ledc(gpio_num_t gpio_num, uint32_t freq_hz) {
   return ledc_channel_config(&ch_conf);
 }
 
-// Parse "WIDTHxHEIGHT", the only form the Python schema emits. False for "auto".
-bool parse_resolution(const std::string &res, uint32_t &width, uint32_t &height) {
-  if (res.empty() || res == "auto")
-    return false;
-
-  size_t x_pos = res.find('x');
-  if (x_pos == std::string::npos || x_pos == 0 || x_pos + 1 >= res.size())
-    return false;
-  uint32_t w = 0, h = 0;
-  for (size_t i = 0; i < x_pos; i++) {
-    if (res[i] < '0' || res[i] > '9')
-      return false;
-    w = w * 10 + (res[i] - '0');
-  }
-  for (size_t i = x_pos + 1; i < res.size(); i++) {
-    if (res[i] < '0' || res[i] > '9')
-      return false;
-    h = h * 10 + (res[i] - '0');
-  }
-  if (w == 0 || h == 0)
-    return false;
-  width = w;
-  height = h;
-  return true;
-}
-
 // What a failed esp_video ioctl actually means.
 //
 // esp_video flattens its own error codes onto errno (esp_video_vfs.c) in a way
@@ -341,28 +315,12 @@ void ESPVideoCamera::setup() {
   // ESPHome builds with CONFIG_LOG_TAG_LEVEL_IMPL_NONE, so esp_log_level_set()
   // is compiled out and one tag cannot be quietened. to_code() warns instead.
 
-  // Resolve the device alias to a concrete /dev/videoN path. This runs before
-  // init_pipeline_() because is_uvc_device_() reads the resolved path, and the
-  // pipeline is built differently for a USB camera.
-  const std::string &d = this->device_;
-  this->is_hw_jpeg_ = false;
-  if (d.empty() || d == "jpeg" || d == ESP_VIDEO_JPEG_DEVICE_NAME) {
-    this->resolved_device_ = ESP_VIDEO_JPEG_DEVICE_NAME;  // /dev/video10
-    this->is_hw_jpeg_ = true;
-  } else if (d.starts_with("uvc")) {
-    // "uvc" -> /dev/video40, "uvcN" -> /dev/video4N (N validated as a digit).
-    const char *index = (d.size() == 4) ? (d.c_str() + 3) : "0";
-    this->resolved_device_ = std::string(ESP_VIDEO_USB_UVC_NAME_PREFIX) + index;
-  } else {
-    this->resolved_device_ = d;
-  }
-
   if (!this->init_pipeline_()) {
     // A USB camera that has not enumerated makes esp_video_init() fail as a
     // whole, and it unwinds everything it had created, so calling it again
     // later starts from a clean slate. Retry instead of failing the component
     // for good: that is also what makes plugging the camera in after boot work.
-    if (this->enable_uvc_) {
+    if (this->is_uvc_()) {
       ESP_LOGW(TAG, "Camera pipeline is not up (no USB camera?); will retry every %u s",
                (unsigned) (PIPELINE_RETRY_INTERVAL_MS / 1000));
       this->pipeline_retry_at_ms_ = millis() + PIPELINE_RETRY_INTERVAL_MS;
@@ -382,7 +340,7 @@ void ESPVideoCamera::setup() {
   // The encoder is always present, but it is fed by /dev/video0, which only
   // exists once a sensor answered on the SCCB bus. Without this check the
   // component reports itself ready and then never delivers a frame.
-  if (this->is_hw_jpeg_) {
+  if (this->is_hw_jpeg_()) {
     int csi_fd = open(ESP_VIDEO_MIPI_CSI_DEVICE_NAME, O_RDWR | O_NONBLOCK);
     if (csi_fd < 0) {
       ESP_LOGE(TAG,
@@ -402,11 +360,11 @@ void ESPVideoCamera::setup() {
   // node again, and start_direct_capture_() pays it a second time moments
   // later. Nothing is learned either way: a camera that is absent now is
   // expected to be, and loop() retries on a timer regardless.
-  if (this->is_uvc_device_()) {
+  if (this->is_uvc_()) {
     // The device count is the useful half of this: none at all this early is
     // normal, but it stays at none when the host port is not carrying data.
-    ESP_LOGI(TAG, "Waiting for the USB camera on %s to enumerate (%d USB device(s) so far)",
-             this->resolved_device_.c_str(), count_usb_devices());
+    ESP_LOGI(TAG, "Waiting for the USB camera on %s to enumerate (%d USB device(s) so far)", this->device_,
+             count_usb_devices());
     this->capture_retry_pending_ = true;
     this->capture_retry_at_ms_ = millis() + this->capture_retry_interval_ms_();
     return;
@@ -414,27 +372,22 @@ void ESPVideoCamera::setup() {
 
   // A MIPI sensor, by contrast, is either detected by now or never will be, so
   // its absence is worth failing on rather than retrying forever.
-  int test_fd = open(this->resolved_device_.c_str(), O_RDWR | O_NONBLOCK);
+  int test_fd = open(this->device_, O_RDWR | O_NONBLOCK);
   if (test_fd < 0) {
-    ESP_LOGE(TAG, "V4L2 device '%s' unavailable (errno=%d: %s)", this->resolved_device_.c_str(), errno,
-             strerror(errno));
+    ESP_LOGE(TAG, "V4L2 device '%s' unavailable (errno=%d: %s)", this->device_, errno, strerror(errno));
     this->mark_failed();
     return;
   }
   close(test_fd);
 
-  ESP_LOGI(TAG, "Camera ready on %s (source: %s)", this->resolved_device_.c_str(), this->device_.c_str());
-}
-
-bool ESPVideoCamera::is_uvc_device_() const {
-  return this->device_.starts_with("uvc") || this->resolved_device_.starts_with(ESP_VIDEO_USB_UVC_NAME_PREFIX);
+  ESP_LOGI(TAG, "Camera ready on %s", this->device_);
 }
 
 bool ESPVideoCamera::start_pipeline_init_() {
   if (this->init_ctx_ != nullptr)
     return true;  // one is already under way
   // A USB camera is not on any I2C bus, so only the MIPI-CSI path needs one.
-  const bool uvc_only = this->is_uvc_device_();
+  const bool uvc_only = this->is_uvc_();
   i2c_master_bus_handle_t i2c_handle = nullptr;
   if (!uvc_only) {
 #ifdef USE_I2C
@@ -492,7 +445,7 @@ bool ESPVideoCamera::start_pipeline_init_() {
 
 #if CONFIG_ESP_VIDEO_ENABLE_USB_UVC_VIDEO_DEVICE
   esp_video_init_usb_uvc_config_t &uvc_config = ctx->uvc_config;
-  if (this->enable_uvc_) {
+  if (this->is_uvc_()) {
     uvc_config.uvc.uvc_dev_num = 1;
     uvc_config.uvc.task_stack = 4096;
     uvc_config.uvc.task_priority = 5;
@@ -582,7 +535,7 @@ bool ESPVideoCamera::start_pipeline_init_() {
   // component for a camera that was about to come up.
   uint32_t init_timeout_ms = INIT_TIMEOUT_MS;
 #if CONFIG_ESP_VIDEO_ENABLE_USB_UVC_VIDEO_DEVICE
-  if (this->enable_uvc_)
+  if (this->is_uvc_())
     init_timeout_ms += CONFIG_USB_UVC_INIT_TIMEOUT_MS;
 #endif
   this->init_ctx_ = ctx;
@@ -652,7 +605,7 @@ void ESPVideoCamera::loop() {
       if (this->poll_pipeline_init_(0) < 0)
         return;  // still going; look again next iteration
       if (this->pipeline_ready_) {
-        ESP_LOGI(TAG, "Camera ready on %s (source: %s)", this->resolved_device_.c_str(), this->device_.c_str());
+        ESP_LOGI(TAG, "Camera ready on %s", this->device_);
       } else {
         this->pipeline_retry_at_ms_ = millis() + PIPELINE_RETRY_INTERVAL_MS;
       }
@@ -682,7 +635,7 @@ void ESPVideoCamera::loop() {
     return;
   }
 
-  if (this->is_hw_jpeg_) {
+  if (this->is_hw_jpeg_()) {
     this->loop_jpeg_pipeline_();
   } else {
     this->loop_direct_capture_();
@@ -706,7 +659,7 @@ void ESPVideoCamera::loop() {
              "Streaming from %s for %us without a single frame; restarting the capture. esp_video reports several "
              "unrelated failures as EPERM, which is indistinguishable from \"no frame yet\", so a device that has "
              "really gone can look like this.",
-             this->resolved_device_.c_str(), (unsigned) (NO_FRAME_WARNING_MS / 1000));
+             this->device_, (unsigned) (NO_FRAME_WARNING_MS / 1000));
     this->stop_capture_();
     this->capture_retry_pending_ = true;
     this->capture_retry_at_ms_ = millis() + this->capture_retry_interval_ms_();
@@ -734,7 +687,7 @@ void ESPVideoCamera::loop() {
 bool ESPVideoCamera::handle_device_gone_(int err) {
   if (!errno_means_device_gone(err))
     return false;
-  ESP_LOGW(TAG, "Capture device '%s' disappeared (%s); will retry", this->resolved_device_.c_str(), strerror(err));
+  ESP_LOGW(TAG, "Capture device '%s' disappeared (%s); will retry", this->device_, strerror(err));
   this->stop_capture_();
   this->capture_retry_pending_ = true;
   this->capture_retry_at_ms_ = millis() + this->capture_retry_interval_ms_();
@@ -984,18 +937,17 @@ void ESPVideoCamera::stop_stream(camera::CameraRequester requester) {
 }
 
 bool ESPVideoCamera::configure_capture_format_(uint32_t pixelformat) {
-  uint32_t width = 0, height = 0;
-  bool force_res = parse_resolution(this->resolution_, width, height);
+  const uint32_t width = this->width_;
+  const uint32_t height = this->height_;
+  const bool force_res = width != 0;
 
   // A MIPI-CSI sensor cannot be resized through V4L2: common_video_set_format()
   // rejects any size but the sensor's current one, and ENUM_FRAMESIZES reports
   // only that one. The size is a build-time Kconfig choice driven by
   // `resolution:` (see __init__.py). USB-UVC devices do resize at runtime.
   //
-  // This asks about capture_fd_, and on the hardware-JPEG path that is the
-  // MIPI-CSI node while resolved_device_ names the encoder -- so the name alone
-  // said a sensor could be resized.
-  const bool device_can_resize = !this->is_hw_jpeg_ && this->resolved_device_ != ESP_VIDEO_MIPI_CSI_DEVICE_NAME;
+  // On the hardware-JPEG path capture_fd_ is the MIPI-CSI node, not device_.
+  const bool device_can_resize = !this->is_hw_jpeg_() && strcmp(this->device_, ESP_VIDEO_MIPI_CSI_DEVICE_NAME) != 0;
 
   struct v4l2_format fmt;
   memset(&fmt, 0, sizeof(fmt));
@@ -1015,7 +967,7 @@ bool ESPVideoCamera::configure_capture_format_(uint32_t pixelformat) {
     // STREAMON has nothing to negotiate with -- "Could not find requested frame
     // format". Reading a plausible format back afterwards does not mean the
     // device accepted anything, so do not let that paper over it.
-    if (this->is_uvc_device_()) {
+    if (this->is_uvc_()) {
       ESP_LOGE(TAG, "VIDIOC_S_FMT failed on the USB camera (%s); it never agreed a stream format", strerror(errno));
       return false;
     }
@@ -1045,9 +997,8 @@ bool ESPVideoCamera::configure_capture_format_(uint32_t pixelformat) {
                          (pixelformat == V4L2_PIX_FMT_MJPEG && negotiated == V4L2_PIX_FMT_JPEG) ||
                          (pixelformat == V4L2_PIX_FMT_JPEG && negotiated == V4L2_PIX_FMT_MJPEG);
   if (!format_ok) {
-    ESP_LOGE(TAG, "Device '%s' does not support pixel format %s (negotiated %s instead)",
-             this->resolved_device_.c_str(), fourcc_to_string(pixelformat).c_str(),
-             fourcc_to_string(negotiated).c_str());
+    ESP_LOGE(TAG, "Device '%s' does not support pixel format %s (negotiated %s instead)", this->device_,
+             fourcc_to_string(pixelformat).c_str(), fourcc_to_string(negotiated).c_str());
     return false;
   }
 
@@ -1056,8 +1007,7 @@ bool ESPVideoCamera::configure_capture_format_(uint32_t pixelformat) {
   if (force_res && (this->capture_width_ != width || this->capture_height_ != height)) {
     if (device_can_resize) {
       ESP_LOGW(TAG, "Requested resolution %ux%u is not supported by '%s'; streaming %ux%u instead", (unsigned) width,
-               (unsigned) height, this->resolved_device_.c_str(), (unsigned) this->capture_width_,
-               (unsigned) this->capture_height_);
+               (unsigned) height, this->device_, (unsigned) this->capture_width_, (unsigned) this->capture_height_);
     } else {
       // The build asked the sensor driver for `resolution:` but a different
       // sensor answered on the bus, so it came up in its own default format.
@@ -1122,7 +1072,7 @@ bool ESPVideoCamera::start_capture_() {
   if (this->is_failed())
     return false;
 
-  bool ok = this->is_hw_jpeg_ ? this->start_jpeg_pipeline_() : this->start_direct_capture_();
+  bool ok = this->is_hw_jpeg_() ? this->start_jpeg_pipeline_() : this->start_direct_capture_();
   if (!ok) {
     this->stop_capture_();
     return false;
@@ -1140,7 +1090,7 @@ bool ESPVideoCamera::start_capture_() {
 }
 
 bool ESPVideoCamera::start_direct_capture_() {
-  this->capture_fd_ = open(this->resolved_device_.c_str(), O_RDWR | O_NONBLOCK);
+  this->capture_fd_ = open(this->device_, O_RDWR | O_NONBLOCK);
   if (this->capture_fd_ < 0) {
     // Not an error for a USB camera: opening the node is what runs esp_video's
     // uvc_video_init(), which fails until a camera has enumerated. Say how many
@@ -1148,11 +1098,11 @@ bool ESPVideoCamera::start_direct_capture_() {
     // none at all means power or cabling (on many boards the host port's 5 V is
     // behind a GPIO), while a device that is there but not usable means it did
     // not offer a UVC streaming interface.
-    if (this->is_uvc_device_()) {
-      ESP_LOGW(TAG, "No USB camera on %s yet (%s); %d USB device(s) on the bus", this->resolved_device_.c_str(),
-               strerror(errno), count_usb_devices());
+    if (this->is_uvc_()) {
+      ESP_LOGW(TAG, "No USB camera on %s yet (%s); %d USB device(s) on the bus", this->device_, strerror(errno),
+               count_usb_devices());
     } else {
-      ESP_LOGE(TAG, "open(%s) failed: %s", this->resolved_device_.c_str(), strerror(errno));
+      ESP_LOGE(TAG, "open(%s) failed: %s", this->device_, strerror(errno));
     }
     return false;
   }
@@ -1168,9 +1118,8 @@ bool ESPVideoCamera::start_direct_capture_() {
     return false;
   int type = V4L2_BUF_TYPE_VIDEO_CAPTURE;
   if (ioctl(this->capture_fd_, VIDIOC_STREAMON, &type) < 0) {
-    ESP_LOGE(TAG, "Could not start '%s' at %ux%u: %s (%s)", this->resolved_device_.c_str(),
-             (unsigned) this->capture_width_, (unsigned) this->capture_height_, strerror(errno),
-             esp_video_errno_means(errno));
+    ESP_LOGE(TAG, "Could not start '%s' at %ux%u: %s (%s)", this->device_, (unsigned) this->capture_width_,
+             (unsigned) this->capture_height_, strerror(errno), esp_video_errno_means(errno));
     return false;
   }
   return true;
@@ -1363,18 +1312,21 @@ void ESPVideoCamera::dump_config() {
   ESP_LOGCONFIG(TAG,
                 "ESP-Video Camera:\n"
                 "  Name: %s\n"
-                "  Source: %s (%s)\n"
-                "  Resolution: %s\n"
+                "  Device: %s\n"
                 "  Max framerate: %.1f fps",
-                LOG_STR_ARG(this->get_log_name()), this->device_.c_str(), this->resolved_device_.c_str(),
-                this->resolution_.c_str(), this->max_framerate_);
-  if (this->is_hw_jpeg_) {
+                LOG_STR_ARG(this->get_log_name()), this->device_, this->max_framerate_);
+  if (this->width_ != 0) {
+    ESP_LOGCONFIG(TAG, "  Resolution: %ux%u", this->width_, this->height_);
+  } else {
+    ESP_LOGCONFIG(TAG, "  Resolution: auto");
+  }
+  if (this->is_hw_jpeg_()) {
     ESP_LOGCONFIG(TAG, "  JPEG quality: %d", this->jpeg_quality_);
   }
 
   // Neither of the next two means anything for a USB camera: it has no sensor
   // clock to generate and is not probed over SCCB.
-  if (!this->is_uvc_device_()) {
+  if (!this->is_uvc_()) {
     // The XCLK settings are board-specific and are the first thing to have got
     // wrong on a sensor that never answers.
     char generated[40];
