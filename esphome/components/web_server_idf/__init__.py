@@ -1,5 +1,4 @@
 import esphome.codegen as cg
-from esphome.components import web_server_base
 from esphome.components.esp32 import (
     include_builtin_idf_component,
     request_tls,
@@ -8,7 +7,6 @@ from esphome.components.esp32 import (
 )
 from esphome.config_helpers import filter_source_files_from_defines
 import esphome.config_validation as cv
-from esphome.const import CONF_CERTIFICATE, CONF_KEY, CONF_PORT
 from esphome.core import CORE
 import esphome.final_validate as fv
 from esphome.types import ConfigType
@@ -16,53 +14,17 @@ from esphome.types import ConfigType
 CODEOWNERS = ["@dentra"]
 DOMAIN = "web_server_idf"
 
-CONF_SSL = "ssl"
-
 # Components that use the shared server in ways TLS does not support yet:
 # web_server streams events from the main loop straight to the socket,
 # phones check for a captive portal over plain HTTP, and prometheus is
 # advertised over mDNS as a plain HTTP service.
 SSL_INCOMPATIBLE_COMPONENTS = ("web_server", "captive_portal", "prometheus")
 
-# Set in CORE.data when the configuration can serve HTTPS, from YAML or at run time.
+# Set in CORE.data by consume_ssl_sockets() when a component serves HTTPS.
 KEY_SSL = "web_server_idf_ssl"
-
 
 # ESP-IDF's HTTPS server allows this many open connections; each holds a TLS session.
 HTTPS_MAX_CONNECTIONS = 4
-
-
-def _pem(marker: str) -> cv.All:
-    def check(value: str) -> str:
-        if marker not in value:
-            raise cv.Invalid(f"Expected a PEM block containing '{marker}'")
-        return value
-
-    return cv.All(cv.string_strict, check)
-
-
-def _unencrypted_key(value: str) -> str:
-    # Covers PKCS#8 "ENCRYPTED PRIVATE KEY" and legacy "Proc-Type: 4,ENCRYPTED" keys.
-    if "ENCRYPTED" in value:
-        raise cv.Invalid(
-            "Encrypted private keys are not supported; use an unencrypted key"
-        )
-    return value
-
-
-SSL_SCHEMA = cv.Schema(
-    {
-        cv.GenerateID(web_server_base.CONF_WEB_SERVER_BASE_ID): cv.use_id(
-            web_server_base.WebServerBase
-        ),
-        cv.Optional(CONF_PORT, default=443): cv.port,
-        cv.Required(CONF_CERTIFICATE): _pem("-----BEGIN CERTIFICATE-----"),
-        # Every unencrypted PEM private key form (PKCS#8, EC, RSA) ends its header this way.
-        cv.Required(CONF_KEY): cv.sensitive(
-            cv.All(_pem("PRIVATE KEY-----"), _unencrypted_key)
-        ),
-    }
-)
 
 
 def consume_ssl_sockets(config: ConfigType) -> ConfigType:
@@ -79,20 +41,9 @@ def consume_ssl_sockets(config: ConfigType) -> ConfigType:
     return config
 
 
-def _consume_sockets_for_ssl(config: ConfigType) -> ConfigType:
-    if CONF_SSL in config:
-        consume_ssl_sockets(config)
-    return config
-
-
 CONFIG_SCHEMA = cv.All(
-    cv.Schema(
-        {
-            cv.Optional(CONF_SSL): SSL_SCHEMA,
-        }
-    ),
+    cv.Schema({}),
     cv.only_on_esp32,
-    _consume_sockets_for_ssl,
 )
 
 
@@ -128,12 +79,6 @@ async def to_code(config: ConfigType) -> None:
     # Re-enable ESP-IDF's HTTP server (excluded by default to save compile time).
     # Basic auth uses mbedtls_base64_encode directly, so no TLS stack is needed.
     include_builtin_idf_component("esp_http_server")
-
-    if (ssl := config.get(CONF_SSL)) is not None:
-        enable_ssl()
-        base = await cg.get_variable(ssl[web_server_base.CONF_WEB_SERVER_BASE_ID])
-        cg.add(base.set_port(ssl[CONF_PORT]))
-        cg.add(base.set_ssl_credentials(ssl[CONF_CERTIFICATE], ssl[CONF_KEY]))
 
 
 # multipart.cpp is fully #ifdef'd on USE_WEBSERVER_OTA (set by the
