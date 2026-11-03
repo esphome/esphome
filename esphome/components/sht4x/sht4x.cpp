@@ -1,5 +1,6 @@
 #include "sht4x.h"
 #include "esphome/core/hal.h"
+#include "esphome/core/helpers.h"
 #include "esphome/core/log.h"
 
 namespace esphome::sht4x {
@@ -18,13 +19,20 @@ static constexpr float RAW_MAX = 65535.0f;
 
 void SHT4XComponent::read_serial_number_() {
   uint16_t buffer[2];
-  if (!this->get_8bit_register(SERIAL_NUMBER_COMMAND, buffer, 2, 1)) {
+  if (!this->get_8bit_register(SERIAL_NUMBER_COMMAND, buffer, 2, 10)) {
     ESP_LOGE(TAG, "Get serial number failed");
     this->serial_number_ = 0;
     return;
   }
   this->serial_number_ = (uint32_t(buffer[0]) << 16) | (uint32_t(buffer[1]));
   ESP_LOGD(TAG, "Serial number: %08" PRIx32, this->serial_number_);
+#ifdef USE_TEXT_SENSOR
+  if (this->serial_number_text_sensor_ != nullptr) {
+    char serial_number[format_hex_size(sizeof(this->serial_number_))];
+    format_hex_to(serial_number, this->serial_number_);
+    this->serial_number_text_sensor_->publish_state(serial_number);
+  }
+#endif
 }
 
 void SHT4XComponent::setup() {
