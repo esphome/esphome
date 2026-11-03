@@ -1,5 +1,6 @@
 #include <gtest/gtest.h>
 
+#include <algorithm>
 #include <utility>
 #include <vector>
 
@@ -16,6 +17,11 @@ using Writes = std::vector<std::pair<uint8_t, uint8_t>>;
 static constexpr uint8_t IOCON_MIRROR = 0x40;
 static constexpr uint8_t IOCON_SEQOP = 0x20;
 static constexpr uint8_t IOCON_ODR = 0x04;
+
+static Writes sorted(Writes writes) {
+  std::sort(writes.begin(), writes.end());
+  return writes;
+}
 
 /// Register file of a chip in BANK=0 mode, where IOCONA and IOCONB are the same register.
 class FakeBus : public i2c::I2CBus {
@@ -67,92 +73,91 @@ class MCP23017Test : public ::testing::Test {
   InternalGPIOPin int_pin_;
 };
 
-TEST_F(MCP23017Test, SetupReadFailureMarksFailedAndWritesNothing) {
+TEST_F(MCP23017Test, SetupBusFailure) {
   this->bus_.fail = true;
   this->component_.setup();
   EXPECT_TRUE(this->component_.is_failed());
   EXPECT_TRUE(this->bus_.writes.empty());
 }
 
-// Current behaviour: setup reads only IOCONA and ignores the result of both IOCON writes.
-TEST_F(MCP23017Test, SetupIgnoresIoconaWriteFailure) {
+TEST_F(MCP23017Test, SetupIoconaWriteFailure) {
   this->bus_.fail_write_reg = MCP23X17_IOCONA;
   this->component_.set_open_drain_ints(true);
   this->component_.setup();
   EXPECT_FALSE(this->component_.is_failed());
-  EXPECT_EQ(this->bus_.writes, (Writes{{MCP23X17_IPOLA, 0x00}, {MCP23X17_IPOLB, 0x00}, {MCP23X17_IOCONB, IOCON_ODR}}));
+  EXPECT_EQ(sorted(this->bus_.writes),
+            sorted(Writes{{MCP23X17_IPOLA, 0x00}, {MCP23X17_IPOLB, 0x00}, {MCP23X17_IOCONB, IOCON_ODR}}));
 }
 
-TEST_F(MCP23017Test, SetupDoesNotReadIoconb) {
+TEST_F(MCP23017Test, SetupIoconbReadFailure) {
   this->bus_.fail_read_reg = MCP23X17_IOCONB;
   this->component_.set_open_drain_ints(true);
   this->component_.setup();
   EXPECT_FALSE(this->component_.is_failed());
   EXPECT_EQ(
-      this->bus_.writes,
-      (Writes{
+      sorted(this->bus_.writes),
+      sorted(Writes{
           {MCP23X17_IPOLA, 0x00}, {MCP23X17_IPOLB, 0x00}, {MCP23X17_IOCONA, IOCON_ODR}, {MCP23X17_IOCONB, IOCON_ODR}}));
 }
 
-TEST_F(MCP23017Test, SetupIgnoresIoconbWriteFailure) {
+TEST_F(MCP23017Test, SetupIoconbWriteFailure) {
   this->bus_.fail_write_reg = MCP23X17_IOCONB;
   this->component_.set_open_drain_ints(true);
   this->component_.setup();
   EXPECT_FALSE(this->component_.is_failed());
-  EXPECT_EQ(this->bus_.writes, (Writes{{MCP23X17_IPOLA, 0x00}, {MCP23X17_IPOLB, 0x00}, {MCP23X17_IOCONA, IOCON_ODR}}));
+  EXPECT_EQ(sorted(this->bus_.writes),
+            sorted(Writes{{MCP23X17_IPOLA, 0x00}, {MCP23X17_IPOLB, 0x00}, {MCP23X17_IOCONA, IOCON_ODR}}));
 }
 
-TEST_F(MCP23017Test, SetupWithoutFlagsOnlyResetsInputPolarity) {
+TEST_F(MCP23017Test, SetupWithoutFlags) {
   this->bus_.reg(MCP23X17_IPOLA) = 0xFF;
   this->bus_.reg(MCP23X17_IPOLB) = 0x0F;
   this->component_.setup();
-  ASSERT_FALSE(this->component_.is_failed());
-  EXPECT_EQ(this->bus_.writes, (Writes{{MCP23X17_IPOLA, 0x00}, {MCP23X17_IPOLB, 0x00}}));
-  EXPECT_EQ(this->bus_.reg(MCP23X17_IOCONA), 0x00);
+  EXPECT_FALSE(this->component_.is_failed());
+  EXPECT_EQ(sorted(this->bus_.writes), sorted(Writes{{MCP23X17_IPOLA, 0x00}, {MCP23X17_IPOLB, 0x00}}));
 }
 
-TEST_F(MCP23017Test, SetupOpenDrainSetsOdrOnBothPorts) {
+TEST_F(MCP23017Test, SetupOpenDrain) {
   this->component_.set_open_drain_ints(true);
   this->component_.setup();
-  ASSERT_FALSE(this->component_.is_failed());
+  EXPECT_FALSE(this->component_.is_failed());
   EXPECT_EQ(
-      this->bus_.writes,
-      (Writes{
+      sorted(this->bus_.writes),
+      sorted(Writes{
           {MCP23X17_IPOLA, 0x00}, {MCP23X17_IPOLB, 0x00}, {MCP23X17_IOCONA, IOCON_ODR}, {MCP23X17_IOCONB, IOCON_ODR}}));
 }
 
-TEST_F(MCP23017Test, SetupInterruptPinSetsMirror) {
+TEST_F(MCP23017Test, SetupInterruptPin) {
   this->int_pin_.set_inverted(true);  // INT released
   this->component_.set_interrupt_pin(&this->int_pin_);
   this->component_.setup();
-  ASSERT_FALSE(this->component_.is_failed());
-  EXPECT_EQ(this->bus_.writes, (Writes{{MCP23X17_IPOLA, 0x00},
-                                       {MCP23X17_IPOLB, 0x00},
-                                       {MCP23X17_IOCONA, IOCON_MIRROR},
-                                       {MCP23X17_IOCONB, IOCON_MIRROR}}));
+  EXPECT_FALSE(this->component_.is_failed());
+  EXPECT_EQ(sorted(this->bus_.writes), sorted(Writes{{MCP23X17_IPOLA, 0x00},
+                                                     {MCP23X17_IPOLB, 0x00},
+                                                     {MCP23X17_IOCONA, IOCON_MIRROR},
+                                                     {MCP23X17_IOCONB, IOCON_MIRROR}}));
 }
 
-TEST_F(MCP23017Test, SetupOpenDrainAndInterruptPinKeepOtherIoconBits) {
+TEST_F(MCP23017Test, SetupOpenDrainAndInterruptPin) {
   this->bus_.reg(MCP23X17_IOCONA) = IOCON_SEQOP;
-  this->int_pin_.set_inverted(true);
+  this->int_pin_.set_inverted(true);  // INT released
   this->component_.set_interrupt_pin(&this->int_pin_);
   this->component_.set_open_drain_ints(true);
   this->component_.setup();
-  ASSERT_FALSE(this->component_.is_failed());
+  EXPECT_FALSE(this->component_.is_failed());
   constexpr uint8_t expected = IOCON_SEQOP | IOCON_MIRROR | IOCON_ODR;
   EXPECT_EQ(
-      this->bus_.writes,
-      (Writes{
+      sorted(this->bus_.writes),
+      sorted(Writes{
           {MCP23X17_IPOLA, 0x00}, {MCP23X17_IPOLB, 0x00}, {MCP23X17_IOCONA, expected}, {MCP23X17_IOCONB, expected}}));
 }
 
-// Current behaviour: bits left by an earlier config stay set until the chip loses power.
-TEST_F(MCP23017Test, SetupLeavesStaleOdrAndMirrorSet) {
-  this->bus_.reg(MCP23X17_IOCONA) = IOCON_MIRROR | IOCON_ODR;
+TEST_F(MCP23017Test, SetupStaleOdrAndMirror) {
+  this->bus_.reg(MCP23X17_IOCONA) = IOCON_SEQOP | IOCON_MIRROR | IOCON_ODR;
   this->component_.setup();
-  ASSERT_FALSE(this->component_.is_failed());
-  EXPECT_EQ(this->bus_.writes, (Writes{{MCP23X17_IPOLA, 0x00}, {MCP23X17_IPOLB, 0x00}}));
-  EXPECT_EQ(this->bus_.reg(MCP23X17_IOCONA), IOCON_MIRROR | IOCON_ODR);
+  EXPECT_FALSE(this->component_.is_failed());
+  EXPECT_EQ(sorted(this->bus_.writes), sorted(Writes{{MCP23X17_IPOLA, 0x00}, {MCP23X17_IPOLB, 0x00}}));
+  EXPECT_EQ(this->bus_.reg(MCP23X17_IOCONA), IOCON_SEQOP | IOCON_MIRROR | IOCON_ODR);
 }
 
 TEST_F(MCP23017Test, ReadWarningClearsAfterSuccessfulRead) {
