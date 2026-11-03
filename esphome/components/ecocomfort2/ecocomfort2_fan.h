@@ -1,7 +1,7 @@
 #pragma once
 
 #include "esphome/core/defines.h"
-#ifdef USE_ESP32
+#if defined(USE_ESP32) && defined(USE_FAN)
 
 #include "esphome/core/component.h"
 #include "esphome/components/fan/fan.h"
@@ -23,4 +23,4 @@ class Ecocomfort2Fan : public fan::Fan, public Ecocomfort2Client, public Compone
 
 }  // namespace esphome::ecocomfort2
 
-#endif  // USE_ESP32
+#endif  // USE_ESP32 && USE_FAN

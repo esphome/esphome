@@ -2,10 +2,12 @@
 
 from __future__ import annotations
 
+from collections.abc import Iterator
+from contextlib import contextmanager
 import os
 from pathlib import Path
 from types import SimpleNamespace
-from unittest.mock import patch
+from unittest.mock import MagicMock, patch
 
 import pytest
 
@@ -195,3 +197,57 @@ def test_ccache_env_includes_pch_settings(tmp_path: Path) -> None:
     env = _pch_ccache_env(tmp_path, {})
     assert env["CCACHE_SLOPPINESS"] == "pch_defines,time_macros"
     assert env["CCACHE_PCH_EXTSUM"] == "true"
+
+
+@contextmanager
+def _fake_ccache(
+    banner: str | Exception, env: dict[str, str] | None = None
+) -> Iterator[MagicMock]:
+    """A ccache on PATH whose ``--version`` prints ``banner``."""
+    with (
+        patch.dict(os.environ, env or {}, clear=True),
+        patch("shutil.which", return_value="/usr/bin/ccache"),
+        patch.object(ccache, "tool_version_probe", return_value=banner) as probe,
+    ):
+        yield probe
+
+
+@pytest.mark.parametrize(
+    ("banner", "env", "expected"),
+    [
+        ("ccache version 4.2\n", {}, True),
+        ("ccache version 4.6.3\nFeatures: file-storage\n", {}, True),
+        # An explicit enable skips the runnability probe, not the version
+        ("ccache version 4.6.3\n", {"ESPHOME_CCACHE_ENABLE": "1"}, True),
+        ("ccache version 4.6.3\n", {"ESPHOME_CCACHE_ENABLE": "0"}, False),
+        ("ccache version 4.7\n", {}, False),
+        ("ccache version 4.13.6\n", {}, False),
+        ("something else\n", {}, False),
+    ],
+)
+def test_ccache_breaks_pch(banner: str, env: dict[str, str], expected: bool) -> None:
+    with _fake_ccache(banner, env):
+        assert ccache.ccache_breaks_pch() is expected
+
+
+def test_ccache_breaks_pch_probes_and_logs_once(
+    caplog: pytest.LogCaptureFixture,
+) -> None:
+    """The runnability probe and the version check share one spawn."""
+    with _fake_ccache("ccache version 4.5.1\n") as probe, caplog.at_level("INFO"):
+        assert ccache.resolve_ccache_path() == "/usr/bin/ccache"
+        assert ccache.ccache_breaks_pch()
+        assert ccache.ccache_breaks_pch()
+    probe.assert_called_once()
+    assert caplog.text.count("ccache 4.5.1 at /usr/bin/ccache") == 1
+    assert "upgrade ccache to 4.7 or newer" in caplog.text
+
+
+def test_ccache_breaks_pch_forced_broken_binary_is_quiet(
+    caplog: pytest.LogCaptureFixture,
+) -> None:
+    """Forced on, a ccache that fails to run is still used, so the version
+    check must not claim the build compiles without it."""
+    with _fake_ccache(OSError("boom"), {"ESPHOME_CCACHE_ENABLE": "1"}):
+        assert not ccache.ccache_breaks_pch()
+    assert "compiling without ccache" not in caplog.text

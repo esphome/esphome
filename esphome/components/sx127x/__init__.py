@@ -11,9 +11,7 @@ from esphome.components.const import (
     CONF_RST_PIN,
 )
 import esphome.config_validation as cv
-from esphome.const import CONF_DATA, CONF_FREQUENCY, CONF_ID
-from esphome.core import ID
-from esphome.cpp_generator import MockObj, TemplateArgsType
+from esphome.const import CONF_DATA, CONF_FREQUENCY
 from esphome.types import ConfigType
 
 DOMAIN = "sx127x"
@@ -116,10 +114,6 @@ SHAPING = {
     "GAUSSIAN_BT_1_0": SX127xPaRamp.GAUSSIAN_BT_1_0,
     "NONE": SX127xPaRamp.SHAPING_NONE,
 }
-
-SendPacketAction = sx127x_ns.class_(
-    "SendPacketAction", automation.Action, cg.Parented.template(SX127x)
-)
 
 
 def validate_raw_data(value: Any) -> bytes | list[int]:
@@ -291,25 +285,8 @@ SEND_PACKET_ACTION_SCHEMA = cv.maybe_simple_value(
 )
 
 
-@automation.register_action(
+automation.register_apply_action(
     "sx127x.send_packet",
-    SendPacketAction,
     SEND_PACKET_ACTION_SCHEMA,
-    synchronous=True,
+    automation.ApplyBytes(CONF_DATA, "transmit_packet({})", stack=MAX_PACKET_SIZE),
 )
-async def send_packet_action_to_code(
-    config: ConfigType,
-    action_id: ID,
-    template_arg: cg.TemplateArguments,
-    args: TemplateArgsType,
-) -> MockObj:
-    var = cg.new_Pvariable(action_id, template_arg)
-    await cg.register_parented(var, config[CONF_ID])
-    await automation.templatable_bytes(
-        config[CONF_DATA],
-        args,
-        var.set_data_template,
-        var.set_data_static,
-        "sx127x_data",
-    )
-    return var

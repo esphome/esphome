@@ -42,10 +42,8 @@ void CAP1188Component::finish_setup_() {
   }
 
   // Set sensitivity
-  uint8_t sensitivity = 0;
-  this->read_byte(CAP1188_SENSITVITY, &sensitivity);
-  sensitivity = sensitivity & 0x0f;
-  this->write_byte(CAP1188_SENSITVITY, sensitivity | this->touch_threshold_);
+  // The threshold replaces the upper nibble and is ORed into the lower one, as before
+  this->update_register(CAP1188_SENSITVITY, 0xF0 | this->touch_threshold_, this->touch_threshold_);
 
   // Allow multiple touches
   this->write_byte(CAP1188_MULTI_TOUCH, this->allow_multiple_touches_);

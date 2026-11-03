@@ -150,12 +150,8 @@ void DPS310Component::calculate_values_(int32_t raw_temperature, int32_t raw_pre
                           t_raw_sc * this->c01_ + t_raw_sc * p_raw_sc * (this->c11_ + p_raw_sc * this->c21_)) /
                          100;  // divide by 100 for hPa
 
-  if (this->temperature_sensor_ != nullptr) {
-    this->temperature_sensor_->publish_state(temperature);
-  }
-  if (this->pressure_sensor_ != nullptr) {
-    this->pressure_sensor_->publish_state(pressure);
-  }
+  PUBLISH_STATE(this->temperature_sensor_, temperature);
+  PUBLISH_STATE(this->pressure_sensor_, pressure);
 }
 
 }  // namespace esphome::dps310

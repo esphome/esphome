@@ -7,6 +7,8 @@ esphome:
       - bk72xx_ble_tracker.start_scan
       - bk72xx_ble_tracker.start_scan:
           continuous: true
+      - bk72xx_ble_tracker.start_scan:
+          continuous: !lambda return false;
       - bk72xx_ble_tracker.stop_scan
       - bk72xx_ble_tracker.stop_scan: ble_tracker
 

@@ -64,6 +64,23 @@ void expect_decodes_to(const RawTimings &timings, uint32_t wand_id, uint16_t mag
 
 }  // namespace
 
+TEST(MagiQuestProtocolTest, EncodesTheSameFrame) {
+  // The frame as the encoder wrote it before it used item_bytes: two zero start bits, the 32 bit wand id and
+  // the 16 bit magnitude, then a one unit stop mark
+  RawTimings expected;
+  add_bit(expected, false);
+  add_bit(expected, false);
+  for (uint32_t mask = 1UL << 31; mask != 0; mask >>= 1)
+    add_bit(expected, WAND_ID & mask);
+  for (uint32_t mask = 1UL << 15; mask != 0; mask >>= 1)
+    add_bit(expected, MAGNITUDE & mask);
+  expected.push_back(UNIT);
+
+  RemoteTransmitData tx;
+  MagiQuestProtocol().encode(&tx, DECODED);
+  EXPECT_EQ(tx.get_data(), expected);
+}
+
 TEST(MagiQuestProtocolTest, DecodesAValidFrame) {
   expect_decodes_to(build_frame(WAND_ID, MAGNITUDE), WAND_ID, MAGNITUDE);
 }

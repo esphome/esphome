@@ -1,0 +1,15 @@
+esphome:
+  on_boot:
+    then:
+      - output.libretiny_pwm.set_frequency:
+          id: test_pwm
+          frequency: 100
+      - output.libretiny_pwm.set_frequency:
+          id: test_pwm
+          frequency: !lambda return 200;
+
+output:
+  - platform: libretiny_pwm
+    id: test_pwm
+    pin: ${pwm_pin}
+    frequency: 1kHz

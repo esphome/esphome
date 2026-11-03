@@ -14,7 +14,7 @@ from aioesphomeapi import (
 )
 import pytest
 
-from .state_utils import InitialStateHelper, StateWaiter, require_entity
+from .state_utils import require_entity, subscribe_after_initial_states
 from .types import APIClientConnectedFactory, RunCompiledFunction
 
 LONG_OPTION = (
@@ -44,16 +44,14 @@ async def test_api_encode_boundaries(
         number = require_entity(entities, "negative_number")
         button = require_entity(entities, "publish_values")
 
-        initial = InitialStateHelper(entities)
-        waiter = StateWaiter()
-        client.subscribe_states(initial.on_state_wrapper(waiter.on_state))
-        await initial.wait_for_initial_states()
+        sub = await subscribe_after_initial_states(client, entities)
+        waiter = sub.waiter
 
         # A float of exactly zero is skipped on the wire and must still read as 0.0, not missing
-        first = initial.initial_states[sensor.key]
+        first = sub.initial_states[sensor.key]
         assert isinstance(first, SensorState)
         assert first.state == 0.0 and not first.missing_state
-        first_number = initial.initial_states[number.key]
+        first_number = sub.initial_states[number.key]
         assert isinstance(first_number, NumberState)
         assert first_number.state == -123.5
 

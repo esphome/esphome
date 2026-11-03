@@ -14,7 +14,6 @@ namespace esphome::i2s_clockless_led_strip {
 
 ESPHOME_LOG_TAG(TAG, "i2s_clockless_led_strip");
 
-constexpr const char *const ERROR_ALLOCATION = "Allocation error";
 constexpr const char *const ERROR_I2S = "I2S error";
 
 // These values are hardcoded for an LED strip at 800 kbps.
@@ -47,8 +46,8 @@ constexpr size_t I2S_BUFFER_SAMPLES = (num_i2s_samples_from_duration_us(I2S_BUFF
 constexpr uint32_t I2S_BUFFER_DURATION_US_ACTUAL = num_i2s_samples_to_duration_us(I2S_BUFFER_SAMPLES);
 
 I2SClocklessLedStrip::I2SClocklessLedStrip(uint8_t pin, uint16_t num_leds, light::ChannelColors channel_colors)
-    : color_data_bytes_(num_leds * channel_colors.bytes_per_led()),
-      channel_colors_(channel_colors),
+    : internal_accessor_{nullptr, nullptr, channel_colors, &this->correction_},
+      color_data_bytes_(num_leds * channel_colors.bytes_per_led()),
       num_leds_(num_leds),
       pin_(pin) {}
 
@@ -62,7 +61,7 @@ void I2SClocklessLedStrip::dump_config() {
                 "  Channel colors: %s\n"
                 "  Number of LEDs: %" PRIu16 "\n"
                 "  DMA buffer: %" PRIuPTR " samples (%" PRIu32 " us)",
-                this->channel_colors_.to_string(channel_colors), this->num_leds_, I2S_BUFFER_SAMPLES,
+                this->internal_accessor_.channel_colors.to_string(channel_colors), this->num_leds_, I2S_BUFFER_SAMPLES,
                 I2S_BUFFER_DURATION_US_ACTUAL);
 }
 
@@ -70,7 +69,7 @@ float I2SClocklessLedStrip::get_setup_priority() const { return setup_priority::
 
 void I2SClocklessLedStrip::setup() {
   if (!this->allocate_buffers_()) {
-    this->mark_failed(LOG_STR(ERROR_ALLOCATION));
+    this->mark_failed(LOG_STR(ESP_LOG_MSG_ALLOC_FAIL));
     return;
   }
 
@@ -132,8 +131,10 @@ void I2SClocklessLedStrip::setup() {
         ESP_LOGE(TAG, "Error in i2s_channel_register_event_callback: %s", esp_err_to_name(err));
       } else {
         err = i2s_channel_enable(this->tx_handle_);
-        if (err == ESP_OK)
+        if (err == ESP_OK) {
+          this->accessor_ = &this->internal_accessor_;
           return;  // Success!
+        }
         ESP_LOGE(TAG, "Error in i2s_channel_enable: %s", esp_err_to_name(err));
       }
     }
@@ -149,32 +150,14 @@ bool I2SClocklessLedStrip::allocate_buffers_() {
   RAMAllocator<uint8_t> allocator(RAMAllocator<uint8_t>::ALLOC_INTERNAL);
   this->i2s_data_ = allocator.allocate(i2s_data_bytes);
   if (this->i2s_data_ != nullptr) {
-    this->color_data_ = allocator.allocate(this->color_data_bytes_);
-    if (this->color_data_ != nullptr) {
-      this->effect_data_ = allocator.allocate(this->num_leds_);
-      if (this->effect_data_ != nullptr) {
-        memset(this->i2s_data_, 0, i2s_data_bytes);
-        memset(this->color_data_, 0, this->color_data_bytes_);
-        memset(this->effect_data_, 0, this->num_leds_);
-        return true;
-      }
-      allocator.deallocate(this->color_data_, this->color_data_bytes_);
-      this->color_data_ = nullptr;
+    if (this->internal_accessor_.allocate(allocator, this->num_leds_)) {
+      memset(this->i2s_data_, 0, i2s_data_bytes);
+      return true;
     }
     allocator.deallocate(this->i2s_data_, i2s_data_bytes);
     this->i2s_data_ = nullptr;
   }
   return false;
-}
-
-light::LightTraits I2SClocklessLedStrip::get_traits() {
-  auto traits = light::LightTraits();
-  if (this->channel_colors_.has_white()) {
-    traits.set_supported_color_modes({light::ColorMode::RGB_WHITE, light::ColorMode::WHITE});
-  } else {
-    traits.set_supported_color_modes({light::ColorMode::RGB});
-  }
-  return traits;
 }
 
 void I2SClocklessLedStrip::write_state(light::LightState *state) {
@@ -188,7 +171,7 @@ void I2SClocklessLedStrip::write_state(light::LightState *state) {
   }
 
   const size_t color_data_bytes = this->color_data_bytes_;
-  uint8_t *color_data = this->color_data_;
+  uint8_t *color_data = this->internal_accessor_.color_data;
   uint8_t *i2s_data = this->i2s_data_;
   for (size_t i = 0; i < color_data_bytes; i++) {
     const uint8_t color_byte = *(color_data++);
@@ -234,19 +217,6 @@ bool IRAM_ATTR HOT I2SClocklessLedStrip::i2s_on_sent_callback(i2s_chan_handle_t 
     memset(dma_buf, 0, dma_buf_size);
   }
   return false;
-}
-
-void I2SClocklessLedStrip::clear_effect_data() { memset(this->effect_data_, 0, this->num_leds_); }
-
-light::ESPColorView I2SClocklessLedStrip::get_view_internal(int32_t index) const {
-  const light::ChannelColors &colors = this->channel_colors_;
-  uint8_t *led = this->color_data_ + (index * colors.bytes_per_led());
-  return {led + colors.r,
-          led + colors.g,
-          led + colors.b,
-          colors.has_white() ? led + colors.w : nullptr,
-          &this->effect_data_[index],
-          &this->correction_};
 }
 
 }  // namespace esphome::i2s_clockless_led_strip

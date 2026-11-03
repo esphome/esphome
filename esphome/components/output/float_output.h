@@ -130,4 +130,16 @@ class FloatOutput : public BinaryOutput {
 #endif
 };
 
+/// Calls the codegen-generated Fn(this, index, state) with the scaled, inverted level; the hub is baked into Fn.
+/// The index (a hub's channel) is data, so all channels of a hub share one instantiation.
+template<auto Fn> class ApplyFloatOutput final : public FloatOutput {
+ public:
+  explicit ApplyFloatOutput(uint16_t index = 0) : index_(index) {}
+
+ protected:
+  void write_state(float state) override { Fn(this, this->index_, state); }
+
+  uint16_t index_;  // Fits in the base's tail padding
+};
+
 }  // namespace esphome::output

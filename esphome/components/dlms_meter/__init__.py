@@ -13,6 +13,7 @@ from esphome.types import ConfigType
 CODEOWNERS = ["@SimonFischer04", "@Tomer27cz", "@latonita", "@PolarGoose"]
 DEPENDENCIES = ["uart"]
 DOMAIN = "dlms_meter"
+MULTI_CONF = True
 
 CONF_DLMS_METER_ID = "dlms_meter_id"
 CONF_DECRYPTION_KEY = "decryption_key"
@@ -22,7 +23,7 @@ CONF_CUSTOM_PATTERNS = "custom_patterns"
 CONF_SKIP_CRC = "skip_crc"
 CONF_DEFAULT_OBIS = "default_obis"
 
-DLMS_PARSER_VERSION = "2.2.0"
+DLMS_PARSER_VERSION = "2.2.2"
 
 dlms_meter_component_ns = cg.esphome_ns.namespace("dlms_meter")
 DlmsMeterComponent = dlms_meter_component_ns.class_(

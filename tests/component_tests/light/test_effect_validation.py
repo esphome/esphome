@@ -13,6 +13,8 @@ from esphome.components.light import (
     EffectRef,
     _final_validate,
     _get_data,
+    _initial_effect_index,
+    _validate_initial_state_effect,
     available_effects_str,
     find_effect_index,
 )
@@ -21,8 +23,14 @@ from esphome.components.light.automation import (
     _record_effect_ref,
 )
 from esphome.config import Config, path_context
-from esphome.const import CONF_EFFECT, CONF_EFFECTS, CONF_ID, CONF_NAME
-from esphome.core import ID, Lambda
+from esphome.const import (
+    CONF_EFFECT,
+    CONF_EFFECTS,
+    CONF_ID,
+    CONF_INITIAL_STATE,
+    CONF_NAME,
+)
+from esphome.core import ID, EsphomeError, Lambda
 import esphome.final_validate as fv
 from esphome.types import ConfigType
 
@@ -54,6 +62,12 @@ def test_find_effect_index_not_found() -> None:
 
 def test_find_effect_index_empty() -> None:
     assert find_effect_index([], "anything") is None
+
+
+def test_find_effect_index_none_is_zero() -> None:
+    effects = _make_effects("Fast Pulse")
+    assert find_effect_index(effects, "None") == 0
+    assert find_effect_index([], "none") == 0
 
 
 # --- available_effects_str ---
@@ -403,3 +417,55 @@ def test_record_effect_cycle_ref() -> None:
     assert len(data.effect_cycle_refs) == 1
     assert data.effect_cycle_refs[0].light_id is light_id
     assert data.effect_cycle_refs[0].component_path == ["esphome"]
+
+
+# --- _validate_initial_state_effect ---
+
+
+@pytest.mark.parametrize("name", ["slow pulse", "SLOW PULSE", "none"])
+def test_initial_state_effect_valid(name: str) -> None:
+    config: ConfigType = {
+        CONF_INITIAL_STATE: {CONF_EFFECT: name},
+        CONF_EFFECTS: _make_effects("Fast Pulse", "Slow Pulse"),
+    }
+    assert _validate_initial_state_effect(config) is config
+
+
+@pytest.mark.parametrize("name", ["none", "NONE", "None"])
+def test_initial_state_effect_none_without_effects(name: str) -> None:
+    config: ConfigType = {CONF_INITIAL_STATE: {CONF_EFFECT: name}}
+    assert _validate_initial_state_effect(config) is config
+
+
+def test_initial_state_effect_unknown_raises() -> None:
+    config: ConfigType = {
+        CONF_INITIAL_STATE: {CONF_EFFECT: "Missing"},
+        CONF_EFFECTS: _make_effects("Fast Pulse", "Slow Pulse"),
+    }
+    with pytest.raises(cv.Invalid) as exc_info:
+        _validate_initial_state_effect(config)
+    assert "Missing" in str(exc_info.value)
+    assert "'Fast Pulse', 'Slow Pulse'" in str(exc_info.value)
+    assert exc_info.value.path == [CONF_INITIAL_STATE, CONF_EFFECT]
+
+
+def test_initial_effect_index_unknown_raises() -> None:
+    """Codegen never emits an unresolved effect, even if validation was skipped."""
+    config: ConfigType = {
+        CONF_ID: ID("led1", is_declaration=True),
+        CONF_INITIAL_STATE: {CONF_EFFECT: "Missing"},
+        CONF_EFFECTS: _make_effects("Fast Pulse"),
+    }
+    with pytest.raises(EsphomeError, match="light 'led1'.*'Fast Pulse'"):
+        _initial_effect_index(config)
+
+
+def test_initial_effect_index_resolves() -> None:
+    effects = _make_effects("Fast Pulse", "Slow Pulse")
+    assert _initial_effect_index({CONF_EFFECTS: effects}) == 0
+    assert (
+        _initial_effect_index(
+            {CONF_INITIAL_STATE: {CONF_EFFECT: "slow pulse"}, CONF_EFFECTS: effects}
+        )
+        == 2
+    )

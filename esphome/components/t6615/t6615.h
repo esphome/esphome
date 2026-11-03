@@ -20,12 +20,12 @@ enum class T6615Command : uint8_t {
 };
 
 class T6615Component final : public PollingComponent, public uart::UARTDevice {
+  SUB_SENSOR(co2)
+
  public:
   void loop() override;
   void update() override;
   void dump_config() override;
-
-  void set_co2_sensor(sensor::Sensor *co2_sensor) { this->co2_sensor_ = co2_sensor; }
 
  protected:
   void query_ppm_();
@@ -33,8 +33,6 @@ class T6615Component final : public PollingComponent, public uart::UARTDevice {
 
   T6615Command command_ = T6615Command::NONE;
   uint32_t command_time_ = 0;
-
-  sensor::Sensor *co2_sensor_{nullptr};
 };
 
 }  // namespace esphome::t6615

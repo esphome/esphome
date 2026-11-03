@@ -4,7 +4,7 @@ from typing import Any
 from esphome import automation, pins
 import esphome.codegen as cg
 from esphome.components import wifi
-from esphome.components.const import CONF_BORDER_ROUTER
+from esphome.components.const import CONF_BORDER_ROUTER, CONF_DEVICE_TYPE
 from esphome.components.esp32 import (
     VARIANT_ESP32,
     VARIANT_ESP32C2,
@@ -33,7 +33,7 @@ from esphome.components.esp32 import (
 from esphome.components.mdns import MDNSComponent, enable_mdns_storage
 from esphome.components.network import add_use_address, request_ipv4_off, require_ipv6
 from esphome.components.nrf52.framework import include_west_project
-from esphome.components.zephyr import zephyr_add_prj_conf
+from esphome.components.zephyr import zephyr_add_prj_conf, zephyr_add_prj_conf_min
 from esphome.config_helpers import filter_source_files_from_platform
 import esphome.config_validation as cv
 from esphome.const import (
@@ -74,7 +74,6 @@ from esphome.writer import clean_build
 
 from .const import (
     CONF_CORE_OPTIONS,
-    CONF_DEVICE_TYPE,
     CONF_EXT_PAN_ID,
     CONF_FORCE_DATASET,
     CONF_MDNS_ID,
@@ -227,6 +226,12 @@ def set_sdkconfig_options(config: ConfigType) -> None:
     add_idf_sdkconfig_option("CONFIG_OPENTHREAD_DNS64_CLIENT", not border_router)
     add_idf_sdkconfig_option("CONFIG_OPENTHREAD_SRP_CLIENT", not border_router)
     if not border_router:
+        # The DNS64 hook breaks IPv6 literal lookups; see openthread_esp.cpp.
+        # Fixed upstream on ESP-IDF master, remove this once a release includes
+        # "fix(openthread): bypass DNS64 synthesis for IPv6 literals",
+        # https://github.com/espressif/esp-idf/commit/87b133ee1a7e91c1ee95176b4733b7f72236e5da
+        # (merged in https://github.com/espressif/esp-idf/commit/83239509832bf5d427935cd365f4b62a320e8765)
+        cg.add_build_flag("-Wl,--wrap=lwip_hook_dns_external_resolve")
         add_idf_sdkconfig_option("CONFIG_OPENTHREAD_SRP_CLIENT_MAX_SERVICES", 5)
 
     if border_router:
@@ -586,7 +591,7 @@ async def to_code(config: ConfigType) -> None:
             f"OPENTHREAD_NORDIC_LIBRARY_{config.get(CONF_DEVICE_TYPE)}", True
         )
         zephyr_add_prj_conf(f"OPENTHREAD_{config.get(CONF_DEVICE_TYPE)}", True)
-        zephyr_add_prj_conf("MAIN_STACK_SIZE", 4096)
+        zephyr_add_prj_conf_min("MAIN_STACK_SIZE", 4096)
 
 
 # Actions

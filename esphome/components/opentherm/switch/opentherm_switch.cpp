@@ -15,7 +15,7 @@ void OpenthermSwitch::setup() {
     ESP_LOGD(TAG, "Restored state for OpenTherm switch '%s': %d", LOG_STR_ARG(this->get_log_name()), restored.value());
     state = restored.value();
   }
-  this->write_state(state);
+  this->control(state);
 }
 
 void OpenthermSwitch::dump_config() {

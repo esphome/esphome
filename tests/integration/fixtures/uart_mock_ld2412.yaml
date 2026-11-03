@@ -30,7 +30,7 @@ uart_mock:
     # Target state: 0x03 (moving + still)
     # detection_distance = 100 (LD2412 computes from moving target when MOVE_BITMASK set)
     #
-    # Frame layout (24 bytes):
+    # Frame layout (23 bytes):
     #   [0-3]   F4 F3 F2 F1 = data frame header
     #   [4-5]   0D 00       = length 13
     #   [6]     02          = data type (normal)
@@ -41,10 +41,9 @@ uart_mock:
     #   [12-13] 78 00       = still distance 120 (0x0078)
     #   [14]    19          = still energy 25
     #   [15-16] 64 00       = detect distance bytes (ignored by LD2412 code)
-    #   [17]    00          = padding
-    #   [18]    55          = data footer marker
-    #   [19]    00          = CRC/check
-    #   [20-23] F8 F7 F6 F5 = data frame footer
+    #   [17]    55          = data footer marker
+    #   [18]    00          = CRC/check
+    #   [19-22] F8 F7 F6 F5 = data frame footer
     - delay: 100ms
       inject_rx:
         [
@@ -57,7 +56,6 @@ uart_mock:
           0x78, 0x00,
           0x19,
           0x64, 0x00,
-          0x00,
           0x55, 0x00,
           0xF8, 0xF7, 0xF6, 0xF5,
         ]
@@ -69,17 +67,13 @@ uart_mock:
       inject_rx: [0xDE, 0xAD, 0xBE, 0xEF, 0x00, 0x11, 0x22]
 
     # Phase 3 (t=400ms): Truncated frame (header + partial data, no footer)
-    # Starts with valid data frame header so parser accepts it.
-    # After this, buffer_pos_ = 8.
+    # Starts with a valid data frame header, so the parser waits for the 23 bytes its length announces.
     - delay: 100ms
       inject_rx: [0xF4, 0xF3, 0xF2, 0xF1, 0x0D, 0x00, 0x02, 0xAA]
 
-    # Phase 4 (t=600ms): Overflow - inject 60 bytes of 0xFF (MAX_LINE_LENGTH=54)
-    # Buffer has 8 bytes from phase 3 (garbage in phase 2 was rejected).
-    # Overflow math: buffer_pos_ starts at 8, overflow triggers when
-    # buffer_pos_ reaches 53 (MAX_LINE_LENGTH - 1). Need 45 more bytes to
-    # fill positions 8-52, then byte 46 triggers overflow. After overflow,
-    # buffer_pos_ = 0 and remaining 0xFF bytes are rejected (don't match header).
+    # Phase 4 (t=600ms): 60 bytes of 0xFF
+    # The first 15 complete the truncated frame's 23 bytes without its footer, so it is dropped
+    # with an 'Invalid length' warning; the rest cannot start a header and are dropped too.
     - delay: 200ms
       inject_rx:
         [
@@ -91,8 +85,8 @@ uart_mock:
           0xFF, 0xFF, 0xFF, 0xFF, 0xFF, 0xFF, 0xFF, 0xFF, 0xFF, 0xFF,
         ]
 
-    # Phase 5 (t=700ms): Valid frame after overflow - recovery test
-    # Buffer was reset by overflow. This valid frame should parse correctly.
+    # Phase 5 (t=700ms): Valid frame after the garbage - recovery test
+    # The buffer is empty again, so this valid frame should parse correctly.
     # Moving target: 50cm, energy 100
     # Still target: 75cm, energy 80
     # detection_distance = 50 (moving target distance, since MOVE_BITMASK set)
@@ -108,7 +102,72 @@ uart_mock:
           0x4B, 0x00,
           0x50,
           0x32, 0x00,
-          0x00,
+          0x55, 0x00,
+          0xF8, 0xF7, 0xF6, 0xF5,
+        ]
+
+    # Phase 6 (t=3200ms): Values that spell the command footer 04 03 02 01
+    # Moving distance 772 (0x0304), moving energy 2, still distance 1: bytes 9 to 12 are the
+    # command frame footer, which must not end the frame early.
+    # Still energy 5, detection_distance = 772 (moving target distance, since MOVE_BITMASK set).
+    # The sensors hold and throttle values for a second, so the gap lets the phase 5 states
+    # reach the test before these replace them.
+    - delay: 2500ms
+      inject_rx:
+        [
+          0xF4, 0xF3, 0xF2, 0xF1,
+          0x0D, 0x00,
+          0x02, 0xAA,
+          0x03,
+          0x04, 0x03,
+          0x02,
+          0x01, 0x00,
+          0x05,
+          0x04, 0x03,
+          0x55, 0x00,
+          0xF8, 0xF7, 0xF6, 0xF5,
+        ]
+
+    # Phase 7 (t=5700ms): Truncated frame merged with a complete one
+    # The eight header bytes announce a 23 byte frame, so its window takes in the first 15 bytes of
+    # the valid frame that follows. The merged frame has no footer where the count says, so it is
+    # dropped and the bytes after its header are replayed, which recovers the valid frame.
+    # Moving distance 400, moving energy 7, still distance 200, still energy 9, detection_distance = 400
+    - delay: 2500ms
+      inject_rx:
+        [
+          0xF4, 0xF3, 0xF2, 0xF1, 0x0D, 0x00, 0x02, 0xAA,
+          0xF4, 0xF3, 0xF2, 0xF1,
+          0x0D, 0x00,
+          0x02, 0xAA,
+          0x03,
+          0x90, 0x01,
+          0x07,
+          0xC8, 0x00,
+          0x09,
+          0x90, 0x01,
+          0x55, 0x00,
+          0xF8, 0xF7, 0xF6, 0xF5,
+        ]
+
+    # Phase 8 (t=8200ms): Impossible counts, then a complete frame
+    # A command header counting 0xFFF6 bytes (65536 in total, which must not wrap to 0) and one counting
+    # 0xFFFF are each dropped as soon as the count arrives, and the valid frame after them is parsed.
+    # Moving distance 600, moving energy 11, still distance 300, still energy 13, detection distance 600
+    - delay: 2500ms
+      inject_rx:
+        [
+          0xFD, 0xFC, 0xFB, 0xFA, 0xF6, 0xFF,
+          0xFD, 0xFC, 0xFB, 0xFA, 0xFF, 0xFF,
+          0xF4, 0xF3, 0xF2, 0xF1,
+          0x0D, 0x00,
+          0x02, 0xAA,
+          0x03,
+          0x58, 0x02,
+          0x0B,
+          0x2C, 0x01,
+          0x0D,
+          0x58, 0x02,
           0x55, 0x00,
           0xF8, 0xF7, 0xF6, 0xF5,
         ]

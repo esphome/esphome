@@ -111,7 +111,9 @@ class ToolOutput(RedirectText):
 
     def _emit_line(self, line: str) -> None:
         if self._progress and _PROGRESS.match(line):
-            if not self._is_filtered(line):
+            if self._is_filtered(line):
+                self._drop_line(line)
+            else:
                 text = _fit_terminal(line.strip("\r\n"))
                 self._write_color_replace(f"\r{text}\x1b[K")
                 self._on_progress_line = True
