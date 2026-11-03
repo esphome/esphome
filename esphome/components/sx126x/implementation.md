@@ -161,11 +161,13 @@ operations remain blocked until the complete configuration succeeds. Synchronous
 sends clear stale IRQ flags before starting TX, after checking for pending RX.
 
 `RadioOperation` owns readiness and the complete operation lifecycle. The
-component supplies preparation, waiting and restoration functions to its
-`transmit()` runner. Those functions cannot set readiness, and an early return
-from preparation or waiting always returns control to the runner. A restoration
-function is a required argument, not a cleanup call that each error branch must
-remember. Only this owner can transition to Idle after successful restoration.
+component supplies preparation and restoration functions to `start_transmit()`.
+Failed preparation restores immediately; accepted preparation retains ownership
+until `finish_transmit()` receives a result and a restoration function. The
+component polls IRQs and the deadline between those calls. Command functions
+cannot set readiness. Both entry points require restoration, so individual error
+branches do not have to remember cleanup. Only this owner can transition to Idle
+after successful restoration.
 
 Every failed or completed TX attempts standby, IRQ clearing, the configured packet parameters
 and RX/sleep mode. If restoration fails, clearing BUSY alone is insufficient:
@@ -176,11 +178,13 @@ reconfiguration, as does successful cold sleep. Warm sleep retains configuration
 
 The owner's private scope guard is a fallback for unexpected exits within the
 owner itself: it leaves readiness invalid. It performs no SPI or recovery work
-in its destructor. Fallible restoration stays explicit in the runner and its
+in its destructor. Fallible restoration stays explicit in the owner and its
 failure takes precedence over the transmit result. The callbacks are templates,
 run synchronously, and are never stored; there is no allocation or new thread.
-The ESPHome adapter re-enables its loop after successful restoration/configuration,
-so reception can resume without another transmission.
+The ESPHome adapter keeps polling through accepted TX and held RX, and enables
+its loop after successful admission or configuration. A failed admission that
+restores readiness or holds RX also enables polling, so reception can resume
+without another transmission.
 
 ## Verification
 
@@ -219,12 +223,13 @@ available; runtime setters now explicitly stage changes until configure succeeds
 
 ## Async continuation of the same operation lifecycle
 
-Async support extends the `RadioOperation` owner already used by the synchronous
-driver. `start_transmit()` either restores a failed preparation or retains
-ownership through packet airtime. `finish_transmit()` uses the same restoration
+Blocking and asynchronous sends both use the same `RadioOperation` owner.
+`start_transmit()` either restores a failed preparation or retains ownership
+through packet airtime. `finish_transmit()` uses the same restoration
 path and rejects duplicate completion. Pending RX instead holds the radio until
-`finish_receive()` restores it after the packet is consumed. The synchronous runner uses these
-two methods. There is no second readiness flag or component-owned state machine.
+`finish_receive()` restores it after the packet is consumed. The blocking wrapper
+calls `start_transmit_async()` and polls `poll_transmit_()` until its stack listener
+receives completion; there is no separate synchronous runner or readiness flag.
 
 Both send APIs use the same admission, command preparation, IRQ interpretation,
 deadline and restoration functions. The blocking API supplies a stack completion
@@ -232,14 +237,52 @@ listener and polls the engine while feeding the watchdog. The async API returns
 after preparation; loop() polls it. No thread, queue or per-send allocation is
 introduced. Each component has one `RadioOperation`, whose state is private:
 
-```text
-Unconfigured -> Configuring -> Idle
-Idle -> ChangingMode -> Idle (or Unconfigured after cold sleep)
-Idle -> PreparingTx -> Transmitting -> Restoring -> Idle
-                RX -> ReceivePending -> Restoring -> Idle
-           failure -> Restoring -> RecoveryRequired (if restoration fails)
-RecoveryRequired -> Configuring -> Idle
+```mermaid
+stateDiagram-v2
+    [*] --> Unconfigured
+    Unconfigured --> Configuring: configure
+    Idle --> Configuring: configure
+    RecoveryRequired --> Configuring: configure
+    ReceivePending --> Configuring: explicit configure discards held RX
+    Configuring --> Idle: all configuration commands succeed
+    Configuring --> Unconfigured: configuration fails
+
+    Idle --> ChangingMode: mode or calibration request
+    ChangingMode --> Idle: success, configuration retained
+    ChangingMode --> Unconfigured: successful cold sleep
+    ChangingMode --> RecoveryRequired: command fails
+
+    state "PreparingTx (Prepare)" as PreparingTx
+    state "Transmitting (Wait)" as Transmitting
+    state "Restoring (Restore)" as Restoring
+    Idle --> PreparingTx: start_transmit passes admission
+    PreparingTx --> Transmitting: TX started, send accepted
+    PreparingTx --> Restoring: preparation fails
+    PreparingTx --> ReceivePending: RX completes before standby, send rejected
+    Transmitting --> Restoring: TX done, timeout, read failure or cancellation
+    ReceivePending --> ReceivePending: packet read fails, retain IRQ and FIFO
+    ReceivePending --> Restoring: packet consumed or discarded for CRC error
+    Restoring --> Idle: restoration succeeds
+    Restoring --> RecoveryRequired: restoration fails
+
+    note right of Idle
+        Available for a new operation.
+        Hardware may be receiving or sleeping.
+        Rejection before Prepare leaves this state unchanged.
+    end note
+    note right of Transmitting
+        Radio owned throughout airtime.
+        SPI released between exchanges.
+    end note
 ```
+
+ESPHome loop scheduling is separate from these ownership states. In Unconfigured
+or RecoveryRequired, `loop()` disables itself because polling cannot recover the
+radio. Successful `configure()` enables it again, even without a DIO1 edge. Active
+operations, including preparation/restoration and held RX, never take this dormant
+path. Idle reception may disable polling when an internal DIO1 pin is low; its
+interrupt wakes the loop. External pins continue to be polled. No lifecycle state
+or separate recovery flag is needed for scheduling.
 
 Configuration errors return to Unconfigured. Initial setup may also mark the
 ESPHome component failed. Preparing and Restoring are exclusive ownership states;
@@ -258,6 +301,22 @@ Unrelated IRQs never imply success. The software deadline is checked at loop
 cadence even when DIO1 never signals. SPI and BUSY waits remain bounded synchronous
 work. Cancellation is synchronous in its caller; ordinary async completion occurs
 in loop(), never in the ISR. The header documents listener and payload lifetimes.
+
+## Diagnostics
+
+The blocking `transmit_packet()` wrapper logs admission failures, including
+invalid payloads, an unavailable radio and BUSY while another operation or RX
+owns the radio. YAML send actions and the existing packet-transport adapter use
+this wrapper. Logging does not retain or retry rejected packets. Async callers
+handle the returned admission result themselves; routine async rejection does
+not add a driver warning. Hardware command failures still report component warnings.
+
+`dump_config()` always labels and prints the requested profile, including after
+failed initial setup or failed runtime configuration. It separately reports
+whether the radio is ready for another operation. Requested settings can differ
+from the last successfully applied profile until `configure()` succeeds; dumping
+configuration neither applies them nor claims they describe the chip's current
+registers. An initial setup failure still permanently fails the ESPHome component.
 
 ## Receive borrowing without recursive dispatch
 

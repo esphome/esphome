@@ -1,5 +1,9 @@
 #include "sx126x_test_helpers.h"
 #include <tuple>
+#ifdef USE_HOST
+#include <string>
+#include "esphome/components/logger/logger.h"
+#endif
 namespace esphome::sx126x::testing {
 class SX126xBusySetup : public ::testing::TestWithParam<std::tuple<bool, bool>> {};
 
@@ -399,6 +403,7 @@ TEST(SX126xBusy, FailedModeChangeCannotBeClearedByAnotherModeCommand) {
 TEST(SX126xBusy, ConfigurationCannotReenterSendPreparationOrRestoration) {
   RadioHardware hw;
   hw.configure(true, true);
+  hw.radio.call();  // Advance from setup into ESPHome loop scheduling.
   hw.clear_trace();
   auto write = hw.cs.on_write;
   unsigned guarded = 0;
@@ -412,11 +417,13 @@ TEST(SX126xBusy, ConfigurationCannotReenterSendPreparationOrRestoration) {
     hw.radio.configure();
     hw.radio.set_mode_rx();
     hw.radio.loop();
+    EXPECT_TRUE(hw.radio.is_in_loop_state());
     EXPECT_EQ(hw.radio.transmit_packet(hw.packet), SX126xError::SX126X_ERROR_BUSY);
     EXPECT_EQ(hw.transactions.size(), commands);
   };
   EXPECT_EQ(hw.radio.transmit_packet(hw.packet), SX126xError::NONE);
   EXPECT_EQ(guarded, 2u);
+  EXPECT_TRUE(hw.radio.is_in_loop_state());
   EXPECT_TRUE(hw.receiving);
 }
 }  // namespace esphome::sx126x::testing
@@ -445,6 +452,42 @@ TEST(SX126xBusy, ColdSleepRequiresConfigurationAndWarmSleepRetainsIt) {
   EXPECT_TRUE(hw.transactions.empty());
   hw.radio.configure();
   EXPECT_EQ(hw.radio.transmit_packet(hw.packet), SX126xError::NONE);
+}
+
+TEST(SX126xBusy, UnavailableLoopStopsAndConfigurationResumesReceiveWithoutAnInterrupt) {
+  for (bool internal : {false, true}) {
+    for (unsigned cause = 0; cause < 3; cause++) {
+      SCOPED_TRACE(internal);
+      SCOPED_TRACE(cause);
+      RadioHardware hw;
+      PacketListener received;
+      hw.configure(true, true);
+      hw.radio.register_listener(&received);
+      // Set after setup: the fake pin cannot attach a hardware interrupt.
+      hw.dio.internal = internal;
+      hw.clear_trace();
+      if (cause == 0) {
+        hw.radio.set_mode_sleep(true);
+      } else if (cause == 1) {
+        hw.fail_at = 1;
+        hw.radio.configure();
+      } else {
+        hw.fail_at = 1;
+        hw.radio.set_mode_rx();
+      }
+      hw.clear_trace();
+      hw.radio.call();
+      ASSERT_TRUE(hw.radio.is_idle());
+      EXPECT_TRUE(hw.transactions.empty());
+      EXPECT_EQ(hw.dio.reads, 0u);
+      hw.radio.configure();
+      ASSERT_TRUE(hw.radio.is_in_loop_state());
+      hw.irq = IRQ_RX_DONE;  // No ISR edge: configure() must resume polling itself.
+      hw.radio.call();
+      ASSERT_EQ(received.packets.size(), 1u);
+      EXPECT_EQ(received.packets[0], hw.packet);
+    }
+  }
 }
 }  // namespace esphome::sx126x::testing
 
@@ -478,3 +521,94 @@ TEST(SX126xProfile, RejectsOversizedSyncValueBeforeResetOrSpi) {
   EXPECT_EQ(hw.radio.transmit_packet(hw.packet), SX126xError::NONE);
 }
 }  // namespace esphome::sx126x::testing
+
+#ifdef USE_HOST
+namespace esphome::sx126x::testing {
+template<typename F> static std::string capture_radio_logs(F action) {
+  const auto previous_baud_rate = logger::global_logger->get_baud_rate();
+  ::testing::internal::CaptureStdout();
+  logger::global_logger->set_baud_rate(115200);
+  action();
+  logger::global_logger->set_baud_rate(previous_baud_rate);
+  return ::testing::internal::GetCapturedStdout();
+}
+
+TEST(SX126xDiagnostics, BlockingRejectionsExplainWhyNoPacketWasSent) {
+  RadioHardware hw;
+  auto output = capture_radio_logs(
+      [&]() { EXPECT_EQ(hw.radio.transmit_packet(hw.packet), SX126xError::SX126X_ERROR_NOT_READY); });
+  EXPECT_NE(output.find("Packet rejected: radio not ready"), std::string::npos);
+  hw.configure(true, true, true);
+  hw.clear_trace();
+  output = capture_radio_logs(
+      [&]() { EXPECT_EQ(hw.radio.transmit_packet(hw.packet.data(), 2), SX126xError::INVALID_PARAMS); });
+  EXPECT_NE(output.find("Packet rejected: invalid payload"), std::string::npos);
+  EXPECT_TRUE(hw.transactions.empty());
+  hw.irq = IRQ_RX_DONE;
+  output =
+      capture_radio_logs([&]() { EXPECT_EQ(hw.radio.transmit_packet(hw.packet), SX126xError::SX126X_ERROR_BUSY); });
+  EXPECT_NE(output.find("Packet rejected: radio busy"), std::string::npos);
+  EXPECT_EQ(hw.irq, IRQ_RX_DONE);
+  EXPECT_EQ(hw.sends, 0u);
+  hw.irq = 0;
+  hw.clear_trace();
+  hw.fail_at = 1;
+  output = capture_radio_logs(
+      [&]() { EXPECT_EQ(hw.radio.transmit_packet(hw.packet), SX126xError::SX126X_ERROR_BUSY_TIMEOUT); });
+  EXPECT_NE(output.find("Packet preparation failed"), std::string::npos);
+  EXPECT_EQ(hw.sends, 0u);
+}
+
+TEST(SX126xDiagnostics, AsyncAdmissionLeavesRejectionReportingToItsCaller) {
+  class Completion final : public SX126xTransmitListener {
+   public:
+    void on_transmit_complete(SX126xError result) override { ADD_FAILURE() << "Rejected send completed"; }
+  } completion;
+  RadioHardware hw;
+  const auto output = capture_radio_logs([&]() {
+    EXPECT_EQ(hw.radio.start_transmit_async(&completion, hw.packet), SX126xError::SX126X_ERROR_NOT_READY);
+    hw.configure(true, true, true);
+    EXPECT_EQ(hw.radio.start_transmit_async(&completion, hw.packet.data(), 2), SX126xError::INVALID_PARAMS);
+    hw.irq = IRQ_RX_DONE;
+    EXPECT_EQ(hw.radio.start_transmit_async(&completion, hw.packet), SX126xError::SX126X_ERROR_BUSY);
+  });
+  EXPECT_EQ(output.find("Packet rejected"), std::string::npos);
+  EXPECT_EQ(hw.sends, 0u);
+}
+
+TEST(SX126xDiagnostics, FailedSetupPrintsRequestedConfiguration) {
+  RadioHardware hw;
+  hw.fail_at = 1;
+  hw.radio.set_pa_power(10);
+  hw.configure(true, true, true);
+  ASSERT_TRUE(hw.radio.is_failed());
+  const auto output = capture_radio_logs([&]() { hw.radio.dump_config(); });
+  EXPECT_NE(output.find("Ready for operation: NO"), std::string::npos);
+  EXPECT_NE(output.find("Requested configuration:"), std::string::npos);
+  EXPECT_NE(output.find("Frequency: 915000000 Hz"), std::string::npos);
+  EXPECT_NE(output.find("PA Power: 10 dBm"), std::string::npos);
+  EXPECT_NE(output.find("Payload Length: 3"), std::string::npos);
+  EXPECT_NE(output.find("Sync Value: 0x1424"), std::string::npos);
+}
+
+TEST(SX126xDiagnostics, StagedConfigurationIsLabelledAndDoesNotAlterAppliedSettings) {
+  RadioHardware hw;
+  hw.configure(true, true, true);
+  hw.radio.set_frequency(868000000);
+  hw.radio.set_payload_length(2);
+  auto output = capture_radio_logs([&]() { hw.radio.dump_config(); });
+  EXPECT_NE(output.find("Ready for operation: YES"), std::string::npos);
+  EXPECT_NE(output.find("Requested configuration:"), std::string::npos);
+  EXPECT_NE(output.find("Frequency: 868000000 Hz"), std::string::npos);
+  EXPECT_NE(output.find("Payload Length: 2"), std::string::npos);
+  EXPECT_EQ(hw.radio.get_max_packet_size(), 3u);
+  hw.clear_trace();
+  hw.fail_at = 1;
+  hw.radio.configure();
+  output = capture_radio_logs([&]() { hw.radio.dump_config(); });
+  EXPECT_NE(output.find("Ready for operation: NO"), std::string::npos);
+  EXPECT_NE(output.find("Frequency: 868000000 Hz"), std::string::npos);
+  EXPECT_EQ(hw.radio.get_max_packet_size(), 3u);
+}
+}  // namespace esphome::sx126x::testing
+#endif

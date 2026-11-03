@@ -462,6 +462,7 @@ TEST_P(SX126xAsyncModes, ReceiveAtStandbyRejectsSendAndSurvivesReadFailure) {
   PacketListener received;
   TransmitListener tx;
   hw.configure(lora, rx, fixed);
+  hw.radio.call();  // Advance from setup into ESPHome loop scheduling.
   hw.radio.register_listener(&received);
   hw.clear_trace();
   auto write = hw.cs.on_write;
@@ -493,6 +494,7 @@ TEST_P(SX126xAsyncModes, ReceiveAtStandbyRejectsSendAndSurvivesReadFailure) {
   hw.clear_trace();
   hw.fail_at = 2;  // Packet metadata read fails after the held IRQ is read.
   hw.radio.loop();
+  EXPECT_TRUE(hw.radio.is_in_loop_state());
   EXPECT_TRUE(received.packets.empty());
   EXPECT_EQ(hw.irq, IRQ_RX_DONE);
   EXPECT_FALSE(hw.receiving);
@@ -529,6 +531,7 @@ TEST_P(SX126xAsyncModes, FailedPreparationAndRestorationRequireSuccessfulConfigu
   hw.busy.on_read = busy;
   hw.radio.set_mode_rx();
   hw.radio.loop();
+  EXPECT_TRUE(hw.radio.is_idle());
   EXPECT_EQ(hw.radio.start_transmit_async(&listener, hw.packet), SX126xError::SX126X_ERROR_NOT_READY);
   EXPECT_EQ(hw.radio.transmit_packet(hw.packet), SX126xError::SX126X_ERROR_NOT_READY);
   EXPECT_TRUE(hw.transactions.empty());
@@ -537,6 +540,7 @@ TEST_P(SX126xAsyncModes, FailedPreparationAndRestorationRequireSuccessfulConfigu
   EXPECT_EQ(hw.radio.start_transmit_async(&listener, hw.packet), SX126xError::SX126X_ERROR_NOT_READY);
   hw.clear_trace();
   hw.radio.configure();
+  EXPECT_TRUE(hw.radio.is_in_loop_state());
   EXPECT_EQ(hw.receiving, rx);
   EXPECT_TRUE(listener.results.empty());
   ASSERT_EQ(hw.radio.start_transmit_async(&listener, hw.packet), SX126xError::NONE);

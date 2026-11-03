@@ -60,19 +60,6 @@ class RadioOperation {
     return success;
   }
 
-  // The blocking runner and asynchronous continuation share admission and restoration.
-  template<typename Prepare, typename Wait, typename Restore>
-  [[nodiscard]] SX126xError transmit(Prepare &&prepare, Wait &&wait, Restore &&restore) {
-    const auto admission = this->start_transmit(prepare, restore);
-    if (admission != SX126xError::NONE) {
-      return admission;
-    }
-    Attempt waiting(*this, State::STATE_TRANSMITTING);
-    const auto result = this->finish_transmit(wait(), restore);
-    waiting.release();
-    return result;
-  }
-
   // Preparation returns NONE, BUSY for RX held in standby, or a command failure.
   // Pending RX retains ownership until finish_receive(); failures restore immediately.
   template<typename Prepare, typename Restore>
@@ -143,9 +130,8 @@ class RadioOperation {
     Attempt &operator=(const Attempt &) = delete;
     void finish(State state) {
       this->owner_.state_ = state;
-      this->release();
+      this->finished_ = true;
     }
-    void release() { this->finished_ = true; }
 
    private:
     RadioOperation &owner_;

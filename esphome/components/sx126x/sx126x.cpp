@@ -96,6 +96,20 @@ SX126xError SX126x::transmit_packet(const uint8_t *data, size_t len) {
   } completion;
   const auto admitted = this->start_transmit_async(&completion, data, len, TRANSMIT_TIMEOUT_MS);
   if (admitted != SX126xError::NONE) {
+    switch (admitted) {
+      case SX126xError::SX126X_ERROR_NOT_READY:
+        ESP_LOGW(TAG, "Packet rejected: radio not ready");
+        break;
+      case SX126xError::INVALID_PARAMS:
+        ESP_LOGW(TAG, "Packet rejected: invalid payload length or data");
+        break;
+      case SX126xError::SX126X_ERROR_BUSY:
+        ESP_LOGW(TAG, "Packet rejected: radio busy with another operation or pending RX");
+        break;
+      default:
+        ESP_LOGW(TAG, "Packet preparation failed: %d", static_cast<int>(admitted));
+        break;
+    }
     return admitted;
   }
   while (!completion.done) {
@@ -230,6 +244,10 @@ void SX126x::loop() {
   }
   const bool receive_pending = this->operation_.has_pending_receive();
   if (!this->operation_.is_ready() && !receive_pending) {
+    // Only unconfigured/recovery states are dormant; active operations must retain polling.
+    if (!this->operation_.is_active()) {
+      this->disable_loop();
+    }
     return;
   }
   if (!receive_pending && !this->dio1_pin_->digital_read()) {
@@ -279,13 +297,14 @@ bool SX126x::command_result_(bool success) {
 }
 
 void SX126x::dump_config() {
-  ESP_LOGCONFIG(TAG, "SX126x:");
+  ESP_LOGCONFIG(TAG, "SX126x:\n  Ready for operation: %s", YESNO(!this->is_failed() && this->operation_.is_ready()));
   LOG_PIN("  CS Pin: ", this->cs_pin_);
   LOG_PIN("  BUSY Pin: ", this->busy_pin_);
   LOG_PIN("  RST Pin: ", this->rst_pin_);
   LOG_PIN("  DIO1 Pin: ", this->dio1_pin_);
   ESP_LOGCONFIG(TAG,
                 "  HW Version: %15s\n"
+                "  Requested configuration:\n"
                 "  Frequency: %" PRIu32 " Hz\n"
                 "  Bandwidth: %" PRIu32 " Hz\n"
                 "  PA Power: %" PRId8 " dBm\n"
@@ -293,19 +312,19 @@ void SX126x::dump_config() {
                 "  Payload Length: %" PRIu32 "\n"
                 "  CRC Enable: %s\n"
                 "  Rx Start: %s",
-                this->version_, this->active_profile_.frequency,
-                Sx126xCommands::bandwidth_hz(this->active_profile_.bandwidth), this->active_profile_.pa_power,
-                Sx126xCommands::ramp_us(this->active_profile_.pa_ramp), this->active_profile_.payload_length,
-                TRUEFALSE(this->active_profile_.crc_enable), TRUEFALSE(this->active_profile_.rx_start));
-  if (this->active_profile_.modulation == PACKET_TYPE_GFSK) {
+                this->version_, this->requested_profile_.frequency,
+                Sx126xCommands::bandwidth_hz(this->requested_profile_.bandwidth), this->requested_profile_.pa_power,
+                Sx126xCommands::ramp_us(this->requested_profile_.pa_ramp), this->requested_profile_.payload_length,
+                TRUEFALSE(this->requested_profile_.crc_enable), TRUEFALSE(this->requested_profile_.rx_start));
+  if (this->requested_profile_.modulation == PACKET_TYPE_GFSK) {
     const char *shaping = "NONE";
-    if (this->active_profile_.shaping == GAUSSIAN_BT_0_3) {
+    if (this->requested_profile_.shaping == GAUSSIAN_BT_0_3) {
       shaping = "GAUSSIAN_BT_0_3";
-    } else if (this->active_profile_.shaping == GAUSSIAN_BT_0_5) {
+    } else if (this->requested_profile_.shaping == GAUSSIAN_BT_0_5) {
       shaping = "GAUSSIAN_BT_0_5";
-    } else if (this->active_profile_.shaping == GAUSSIAN_BT_0_7) {
+    } else if (this->requested_profile_.shaping == GAUSSIAN_BT_0_7) {
       shaping = "GAUSSIAN_BT_0_7";
-    } else if (this->active_profile_.shaping == GAUSSIAN_BT_1_0) {
+    } else if (this->requested_profile_.shaping == GAUSSIAN_BT_1_0) {
       shaping = "GAUSSIAN_BT_1_0";
     }
     ESP_LOGCONFIG(TAG,
@@ -315,15 +334,15 @@ void SX126x::dump_config() {
                   "  Preamble Size: %" PRIu16 "\n"
                   "  Preamble Detect: %" PRIu16 "\n"
                   "  Bitrate: %" PRIu32 "b/s",
-                  this->active_profile_.deviation, shaping, this->active_profile_.preamble_size,
-                  this->active_profile_.preamble_detect, this->active_profile_.bitrate);
-  } else if (this->active_profile_.modulation == PACKET_TYPE_LORA) {
+                  this->requested_profile_.deviation, shaping, this->requested_profile_.preamble_size,
+                  this->requested_profile_.preamble_detect, this->requested_profile_.bitrate);
+  } else if (this->requested_profile_.modulation == PACKET_TYPE_LORA) {
     const char *cr = "4/8";
-    if (this->active_profile_.coding_rate == LORA_CR_4_5) {
+    if (this->requested_profile_.coding_rate == LORA_CR_4_5) {
       cr = "4/5";
-    } else if (this->active_profile_.coding_rate == LORA_CR_4_6) {
+    } else if (this->requested_profile_.coding_rate == LORA_CR_4_6) {
       cr = "4/6";
-    } else if (this->active_profile_.coding_rate == LORA_CR_4_7) {
+    } else if (this->requested_profile_.coding_rate == LORA_CR_4_7) {
       cr = "4/7";
     }
     ESP_LOGCONFIG(TAG,
@@ -331,16 +350,17 @@ void SX126x::dump_config() {
                   "  Spreading Factor: %" PRIu8 "\n"
                   "  Coding Rate: %s\n"
                   "  Preamble Size: %" PRIu16,
-                  this->active_profile_.spreading_factor, cr, this->active_profile_.preamble_size);
+                  this->requested_profile_.spreading_factor, cr, this->requested_profile_.preamble_size);
   }
-  if (this->active_profile_.sync_size != 0) {
+  if (this->requested_profile_.sync_size != 0) {
     char hex_buf[17];  // 8 bytes max = 16 hex chars + null
-    ESP_LOGCONFIG(TAG, "  Sync Value: 0x%s",
-                  format_hex_to(hex_buf, this->active_profile_.sync_value.data(), this->active_profile_.sync_size));
+    ESP_LOGCONFIG(
+        TAG, "  Sync Value: 0x%s",
+        format_hex_to(hex_buf, this->requested_profile_.sync_value.data(), this->requested_profile_.sync_size));
   }
-  ESP_LOGCONFIG(TAG, "  Whitening Enable: %s", TRUEFALSE(this->active_profile_.whitening_enable));
-  if (this->active_profile_.whitening_enable) {
-    ESP_LOGCONFIG(TAG, "  Whitening Initial: 0x%03x", this->active_profile_.whitening_initial);
+  ESP_LOGCONFIG(TAG, "  Whitening Enable: %s", TRUEFALSE(this->requested_profile_.whitening_enable));
+  if (this->requested_profile_.whitening_enable) {
+    ESP_LOGCONFIG(TAG, "  Whitening Initial: 0x%03x", this->requested_profile_.whitening_initial);
   }
 }
 

@@ -8,19 +8,17 @@ static_assert(!std::is_copy_constructible_v<RadioOperation>);
 static_assert(!std::is_move_constructible_v<RadioOperation>);
 
 template<typename T>
-concept TransmitWithoutRestoration = requires(T &operation) {
-  operation.transmit([]() { return SX126xError::NONE; }, []() { return SX126xError::NONE; });
-};
+concept TransmitWithoutRestoration =
+    requires(T &operation) { operation.start_transmit([]() { return SX126xError::NONE; }); };
 static_assert(!TransmitWithoutRestoration<RadioOperation>);
+template<typename T>
+concept FinishWithoutRestoration = requires(T &operation) { operation.finish_transmit(SX126xError::NONE); };
+static_assert(!FinishWithoutRestoration<RadioOperation>);
 
 TEST(RadioOperation, RejectedAdmissionDoesNotRunCallbacks) {
   RadioOperation operation;
   bool called = false;
-  EXPECT_EQ(operation.transmit(
-                [&]() {
-                  called = true;
-                  return SX126xError::NONE;
-                },
+  EXPECT_EQ(operation.start_transmit(
                 [&]() {
                   called = true;
                   return SX126xError::NONE;
@@ -60,18 +58,14 @@ TEST(RadioOperation, EarlyPreparationFailureStillRestoresExactlyOnce) {
   RadioOperation operation;
   ASSERT_TRUE(operation.configure([]() { return true; }));
   unsigned restored = 0;
-  bool waited = false;
-  EXPECT_EQ(operation.transmit([]() { return SX126xError::SX126X_ERROR_BUSY_TIMEOUT; },
-                               [&]() {
-                                 waited = true;
-                                 return SX126xError::NONE;
-                               },
-                               [&]() {
-                                 restored++;
-                                 return true;
-                               }),
+  auto restore = [&]() {
+    restored++;
+    return true;
+  };
+  EXPECT_EQ(operation.start_transmit([]() { return SX126xError::SX126X_ERROR_BUSY_TIMEOUT; }, restore),
             SX126xError::SX126X_ERROR_BUSY_TIMEOUT);
-  EXPECT_FALSE(waited);
+  EXPECT_FALSE(operation.is_waiting_for_transmit());
+  EXPECT_EQ(operation.finish_transmit(SX126xError::NONE, restore), SX126xError::SX126X_ERROR_NOT_READY);
   EXPECT_EQ(restored, 1u);
   EXPECT_TRUE(operation.is_ready());
 }
@@ -82,13 +76,15 @@ TEST(RadioOperation, EveryWaitResultRestoresAndCleanupFailureBlocksReuse) {
       RadioOperation operation;
       ASSERT_TRUE(operation.configure([]() { return true; }));
       unsigned cleanups = 0;
-      const auto actual = operation.transmit([]() { return SX126xError::NONE; }, [&]() { return result; },
-                                             [&]() {
-                                               cleanups++;
-                                               EXPECT_FALSE(operation.is_ready());
-                                               EXPECT_TRUE(operation.is_transmitting());
-                                               return restored;
-                                             });
+      auto restore = [&]() {
+        cleanups++;
+        EXPECT_FALSE(operation.is_ready());
+        EXPECT_TRUE(operation.is_transmitting());
+        return restored;
+      };
+      ASSERT_EQ(operation.start_transmit([]() { return SX126xError::NONE; }, restore), SX126xError::NONE);
+      EXPECT_EQ(cleanups, 0u);
+      const auto actual = operation.finish_transmit(result, restore);
       EXPECT_EQ(actual, restored ? result : SX126xError::SX126X_ERROR_BUSY_TIMEOUT);
       EXPECT_EQ(cleanups, 1u);
       EXPECT_EQ(operation.is_ready(), restored);
@@ -124,29 +120,28 @@ TEST(RadioOperation, CannotReenterDuringPreparationWaitingOrRestoration) {
       nested = true;
       return true;
     }));
-    EXPECT_EQ(operation.transmit(
+    EXPECT_EQ(operation.start_transmit(
                   [&]() {
                     nested = true;
                     return SX126xError::NONE;
                   },
-                  []() { return SX126xError::NONE; }, []() { return true; }),
+                  []() { return true; }),
               SX126xError::SX126X_ERROR_BUSY);
     EXPECT_FALSE(nested);
   };
-  EXPECT_EQ(operation.transmit(
+  auto restore = [&]() {
+    check();
+    return true;
+  };
+  ASSERT_EQ(operation.start_transmit(
                 [&]() {
                   check();
                   return SX126xError::NONE;
                 },
-                [&]() {
-                  check();
-                  return SX126xError::NONE;
-                },
-                [&]() {
-                  check();
-                  return true;
-                }),
+                restore),
             SX126xError::NONE);
+  check();  // Ownership persists between start and finish, across loop iterations.
+  EXPECT_EQ(operation.finish_transmit(SX126xError::NONE, restore), SX126xError::NONE);
   EXPECT_EQ(phases, 3u);
   EXPECT_TRUE(operation.is_ready());
 }
