@@ -7,6 +7,8 @@
 #endif
 #include "esphome/components/i2c/i2c.h"
 
+#include <algorithm>
+
 namespace esphome::at581x {
 
 class AT581XComponent final : public Component, public i2c::I2CDevice {
@@ -22,10 +24,11 @@ class AT581XComponent final : public Component, public i2c::I2CDevice {
   void set_frequency(int frequency);
   void set_power_consumption(int value);
   void set_sensing_distance(int distance) { this->delta_ = 1023 - distance; }
-  void set_poweron_selfcheck_time(int value) { this->self_check_time_ms_ = value; }
-  void set_protect_time(int value) { this->protect_time_ms_ = value; }
-  void set_trigger_base(int value) { this->trigger_base_time_ms_ = value; }
-  void set_trigger_keep(int value) { this->trigger_keep_time_ms_ = value; }
+  // Times in ms; the schema caps them at 65535, and larger lambda values are clamped
+  void set_poweron_selfcheck_time(int value) { this->self_check_time_ms_ = std::clamp(value, 0, 65535); }
+  void set_protect_time(int value) { this->protect_time_ms_ = std::clamp(value, 0, 65535); }
+  void set_trigger_base(int value) { this->trigger_base_time_ms_ = std::clamp(value, 0, 65535); }
+  void set_trigger_keep(int value) { this->trigger_keep_time_ms_ = std::clamp(value, 0, 65535); }
   void set_stage_gain(int value) { this->gain_ = value; }
 
   bool i2c_write_config();
