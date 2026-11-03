@@ -17,9 +17,8 @@ struct RateEvent {
   uint32_t rate;
 };
 
-// Single-producer single-consumer queue: the USB driver's thread pushes, the main loop pops. It is static so
-// rates the host sets during boot, before CdcAcm exists, are kept. A host sets a rate when it opens a port,
-// so a few slots are plenty; a rate that does not fit is dropped.
+// The USB driver's thread pushes, the main loop pops. Static, so rates set during boot are kept too.
+// A host sets a rate when it opens a port, so a few slots are plenty.
 static constexpr uint8_t QUEUE_SIZE = 8;
 // NOLINTBEGIN(cppcoreguidelines-avoid-non-const-global-variables)
 std::array<RateEvent, QUEUE_SIZE> queue;
@@ -68,8 +67,7 @@ void CdcAcm::loop() {
 }
 
 void CdcAcm::rate_changed(const device *device, uint32_t rate) {
-  // Only atomics and enable_loop_soon_any_context() here: heavier work, like scheduler calls, on the USB
-  // driver's thread stalled USB transfers on the new stack
+  // Runs on the USB driver's thread: heavier work here, like a scheduler call, stalled USB on the new stack
   const uint8_t tail = queue_tail.load(std::memory_order_relaxed);
   const uint8_t next = (tail + 1) % QUEUE_SIZE;
   if (next == queue_head.load(std::memory_order_acquire))

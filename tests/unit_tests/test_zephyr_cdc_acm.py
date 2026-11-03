@@ -17,6 +17,7 @@ from esphome.components.zephyr.const import (
     KEY_OVERLAY_BUILDER,
     KEY_PRJ_CONF,
     KEY_ZEPHYR,
+    CdcAcm,
 )
 import esphome.config_validation as cv
 from esphome.const import (
@@ -25,7 +26,7 @@ from esphome.const import (
     KEY_TARGET_PLATFORM,
     PLATFORM_NRF52,
 )
-from esphome.core import CORE
+from esphome.core import CORE, ID
 
 
 @pytest.fixture(autouse=True)
@@ -161,7 +162,7 @@ def test_rate_callback_creates_cdc_acm_once(
         KEY_TARGET_PLATFORM: PLATFORM_NRF52,
         KEY_FRAMEWORK_VERSION: version,
     }
-    CORE.data[KEY_ZEPHYR] = {KEY_PRJ_CONF: {}, "cdc_acm_rate_callback": False}
+    CORE.data[KEY_ZEPHYR] = {KEY_PRJ_CONF: {}, "cdc_acm_id": ID("cdc_acm", type=CdcAcm)}
     with patch.object(CORE, "add_job") as add_job:
         # DFU and usb_cdc_acm both ask for it
         zephyr_enable_cdc_acm_rate_callback()

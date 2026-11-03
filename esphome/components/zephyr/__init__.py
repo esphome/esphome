@@ -87,9 +87,8 @@ class ZephyrData(TypedDict):
     overlay_builder: list[Callable[[], str]]
     # CDC ACM port number -> components that use it
     cdc_acm_users: dict[int, list[CdcAcmUser]]
-    # ID for zephyr::CdcAcm, set by the platform; created by zephyr_enable_cdc_acm_rate_callback()
+    # ID for zephyr::CdcAcm, set by the platform; cleared once it is created
     cdc_acm_id: ID | None
-    cdc_acm_rate_callback: bool
 
 
 def zephyr_set_core_data(config: ConfigType) -> None:
@@ -103,7 +102,6 @@ def zephyr_set_core_data(config: ConfigType) -> None:
         overlay_builder=[],
         cdc_acm_users={},
         cdc_acm_id=None,
-        cdc_acm_rate_callback=False,
         extra_build_files={},
         pm_static=[],
         kconfig="",
@@ -324,20 +322,18 @@ def zephyr_enable_usb_cdc_acm() -> None:
 
 def zephyr_enable_cdc_acm_rate_callback() -> None:
     """Create zephyr::CdcAcm, which passes the bit rate a USB host sets to the main loop."""
-    data = zephyr_data()
-    if data["cdc_acm_rate_callback"]:
-        return
-    data["cdc_acm_rate_callback"] = True
     cg.add_define("USE_ZEPHYR_CDC_ACM_RATE_CALLBACK")
     # The new stack reports the rate with a USB device message, so it needs no option
     if not zephyr_use_usb_device_next():
         zephyr_add_prj_conf("CDC_ACM_DTE_RATE_CALLBACK_SUPPORT", True)
-    CORE.add_job(_cdc_acm_rate_callback_to_code)
+    data = zephyr_data()
+    if (cdc_acm_id := data["cdc_acm_id"]) is not None:
+        data["cdc_acm_id"] = None
+        CORE.add_job(_cdc_acm_component_to_code, cdc_acm_id)
 
 
-async def _cdc_acm_rate_callback_to_code() -> None:
-    var = cg.new_Pvariable(zephyr_data()["cdc_acm_id"])
-    await cg.register_component(var, {})
+async def _cdc_acm_component_to_code(cdc_acm_id: ID) -> None:
+    await cg.register_component(cg.new_Pvariable(cdc_acm_id), {})
 
 
 def _cdc_acm_add_ports() -> None:
