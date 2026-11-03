@@ -22,13 +22,15 @@
 
 #ifdef USE_WEBSERVER_SSL
 #include <esp_https_server.h>
-#include <esp_random.h>
 #include <mbedtls/pk.h>
 #include <mbedtls/x509_crt.h>
 #endif
 
-#ifdef USE_WEBSERVER_AUTH_DIGEST
+#if defined(USE_WEBSERVER_AUTH_DIGEST) || defined(USE_WEBSERVER_SSL)
 #include <esp_random.h>
+#endif
+
+#ifdef USE_WEBSERVER_AUTH_DIGEST
 #include <esp_rom_md5.h>
 #endif
 
