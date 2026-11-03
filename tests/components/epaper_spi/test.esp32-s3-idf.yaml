@@ -340,20 +340,21 @@ display:
       allow_other_uses: true
       number: GPIO4
 
-  # 13.3" Spectra E6 dual-CS (GDEP133C02 / Waveshare HAT+ (E))
+  # Good Display GDEP133C02 13.3" Spectra E6 (T133A01 pair, no D/C line)
   - platform: epaper_spi
     spi_id: spi_bus
     model: 13.3in-Spectra-E6
     cs_pin:
       allow_other_uses: true
       number: GPIO5
-    cs_secondary_pin: GPIO7
+    cs1_pin: GPIO7
     reset_pin:
       allow_other_uses: true
       number: GPIO16
     busy_pin:
       allow_other_uses: true
       number: GPIO4
+      inverted: true
     update_interval: 60s
     lambda: |-
       it.filled_rectangle(0, 0, it.get_width(), it.get_height(), Color::WHITE);

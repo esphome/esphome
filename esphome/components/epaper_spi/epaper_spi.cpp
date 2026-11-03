@@ -73,13 +73,10 @@ void EPaperBase::reset_bounds_() {
 }
 
 void EPaperBase::setup_pins_() const {
-  // Switch on panel power first (matches the manufacturer driving LOAD_SW/PWR high before
-  // anything else). Must happen before reset so the controller can power up.
   for (auto *pin : this->enable_pins_) {
-    pin->setup();  // OUTPUT
+    pin->setup();
     pin->digital_write(true);
   }
-
   if (this->dc_pin_ != nullptr) {
     this->dc_pin_->setup();  // OUTPUT
     this->dc_pin_->digital_write(false);
@@ -99,7 +96,7 @@ float EPaperBase::get_setup_priority() const { return setup_priority::PROCESSOR;
 
 void EPaperBase::command(uint8_t value) {
   ESP_LOGV(TAG, "Command: 0x%02X", value);
-  this->dc_command_();
+  this->dc_pin_->digital_write(false);
   this->enable();
   this->write_byte(value);
   this->disable();
@@ -113,11 +110,11 @@ void EPaperBase::cmd_data(uint8_t command, const uint8_t *ptr, size_t length) {
            format_hex_pretty_to(hex_buf, ptr, length, '.'));
 #endif
 
-  this->dc_command_();
+  this->dc_pin_->digital_write(false);
   this->enable();
   this->write_byte(command);
   if (length > 0) {
-    this->dc_data_();
+    this->dc_pin_->digital_write(true);
     this->write_array(ptr, length);
   }
   this->disable();
@@ -365,7 +362,7 @@ void EPaperBase::set_state_(EPaperState state, uint16_t delay) {
 }
 
 void EPaperBase::start_data_() {
-  this->dc_data_();
+  this->dc_pin_->digital_write(true);
   this->enable();
 }
 
@@ -577,8 +574,6 @@ void EPaperBase::dump_config() {
   LOG_PIN("  Reset Pin: ", this->reset_pin_);
   LOG_PIN("  DC Pin: ", this->dc_pin_);
   LOG_PIN("  Busy Pin: ", this->busy_pin_);
-  for (auto *pin : this->enable_pins_)
-    LOG_PIN("  Enable Pin: ", pin);
   LOG_PIN("  CS Pin: ", this->cs_);
   LOG_UPDATE_INTERVAL(this);
 }

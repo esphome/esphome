@@ -1,7 +1,5 @@
 #pragma once
 
-#include <vector>
-
 #include "colorconv.h"
 #include "esphome/components/display/display.h"
 #include "esphome/components/spi/spi.h"
@@ -204,9 +202,7 @@ class EPaperBase : public Display,
 
   void start_data_();
 
-  // D/C control. Some panels (e.g. the dual-CS 13.3" Spectra E6) have no D/C line and
-  // distinguish command from data purely by CS framing; for those dc_pin_ is null and these
-  // are no-ops.
+  // Panels without a D/C line frame commands with the chip select alone
   void dc_command_() const {
     if (this->dc_pin_ != nullptr)
       this->dc_pin_->digital_write(false);

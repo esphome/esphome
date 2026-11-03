@@ -1,6 +1,5 @@
 from typing import Any, Self
 
-from esphome import pins
 from esphome.components.mipi import check_model_requirements
 import esphome.config_validation as cv
 from esphome.const import CONF_DIMENSIONS, CONF_HEIGHT, CONF_OFFSET_HEIGHT, CONF_WIDTH
@@ -42,9 +41,6 @@ class EpaperModel:
 
     def get_default(self, key, fallback: Any = False) -> Any:
         return self.defaults.get(key, fallback)
-
-    def get_busy_pin_schema(self):
-        return pins.gpio_input_pin_schema
 
     def get_init_sequence(self, config: dict):
         return self.initsequence
