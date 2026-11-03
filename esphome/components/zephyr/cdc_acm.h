@@ -4,6 +4,7 @@
 
 #include "esphome/core/component.h"
 #include "esphome/core/helpers.h"
+#include <array>
 #include <zephyr/device.h>
 
 namespace esphome::zephyr {
@@ -15,15 +16,18 @@ class CdcAcm final : public Component {
   void setup() override;
   void loop() override;
 
-  /// Call from setup(). Rates set before that, even before boot finished, are delivered too.
+  /// Call from setup(). The first loop() after setup reports each port's current rate, so a rate the host set
+  /// during boot is not missed.
   template<typename F> void add_on_rate_callback(F &&callback) { this->rate_callbacks_.add(std::forward<F>(callback)); }
 
-  /// Called by the USB driver, from its own thread, when the host sets a bit rate on a port. Only queues it;
-  /// loop() reads the rate.
-  static void rate_changed(const device *device);
+  /// Called by the USB driver, from its own thread, when the host sets a bit rate. Only wakes loop(),
+  /// which reads the rates.
+  static void rate_changed();
 
  protected:
   CallbackManager<void(const device *, uint32_t)> rate_callbacks_;
+  // Last bit rate reported for each zephyr,cdc-acm-uart port, in device tree order
+  std::array<uint32_t, DT_NUM_INST_STATUS_OKAY(zephyr_cdc_acm_uart)> rates_{};
 };
 
 extern CdcAcm *global_cdc_acm;  // NOLINT(cppcoreguidelines-avoid-non-const-global-variables)

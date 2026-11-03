@@ -36,7 +36,7 @@ USBD_CONFIGURATION_DEFINE(esphome_usbd_fs_config, USB_SCD_SELF_POWERED, USB_MAX_
 // Runs on the system work queue, which also runs all USB transfers: keep it short
 static void usbd_msg_callback(usbd_context *const /*ctx*/, const usbd_msg *const msg) {
   if (msg->type == USBD_MSG_CDC_ACM_LINE_CODING)
-    CdcAcm::rate_changed(msg->dev);
+    CdcAcm::rate_changed();
 }
 #endif
 
