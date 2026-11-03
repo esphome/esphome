@@ -266,11 +266,16 @@ void VL53L0XSensor::update() {
   if (this->initiated_read_ || this->waiting_for_interrupt_) {
     this->publish_state(NAN);
     this->status_momentary_warning(5000);
-    ESP_LOGW(TAG, "%s - prior reading did not complete, restarting - initiated:%d waiting_for_interrupt:%d",
+    ESP_LOGW(TAG, "%s - update called before prior reading complete - initiated:%d waiting_for_interrupt:%d",
              LOG_STR_ARG(this->get_log_name()), this->initiated_read_, this->waiting_for_interrupt_);
-    // Clear the stalled measurement's interrupt and start a new one, so one lost reading never stalls the sensor
+    // A slow measurement gets one more interval; one still pending after that is stalled, so restart it
+    if (!this->restart_pending_) {
+      this->restart_pending_ = true;
+      return;
+    }
     reg(0x0B) = 0x01;
   }
+  this->restart_pending_ = false;
 
   // initiate single shot measurement
   reg(0x80) = 0x01;
@@ -311,6 +316,7 @@ void VL53L0XSensor::loop() {
       this->waiting_for_interrupt_ = false;
       if (!ok) {
         this->publish_state(NAN);
+        this->status_momentary_warning(5000);
         return;
       }
 
