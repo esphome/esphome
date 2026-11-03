@@ -177,15 +177,25 @@ class MQTTBackendESP32 final : public MQTTBackend {
   bool connected() const final { return this->is_connected_; }
 
   void connect() final {
-    if (!is_initalized_) {
-      if (initialize_()) {
-        esp_mqtt_client_start(handler_.get());
-      }
+    if (!this->is_initalized_) {
+      this->initialize_();
+    }
+    if (this->is_initalized_ && !this->is_started_) {
+      if (esp_mqtt_client_start(this->handler_.get()) == ESP_OK)
+        this->is_started_ = true;     // track if client is started
     }
   }
   void disconnect() final {
-    if (is_initalized_)
-      esp_mqtt_client_disconnect(handler_.get());
+    if (this->is_initalized_ && this->is_started_) {
+      // stop the mqtt task and stop auto-reconnect
+      if (esp_mqtt_client_stop(this->handler_.get()) == ESP_OK) {
+        this->is_started_ = false;
+        this->is_connected_ = false;  // stop() doesn't dispatch MQTT_EVENT_DISCONNECTED
+#if defined(USE_MQTT_IDF_ENQUEUE)
+        xTaskNotifyGive(this->task_handle_);
+#endif
+      }
+    }
   }
 
   bool subscribe(const char *topic, uint8_t qos) final {
@@ -252,6 +262,7 @@ class MQTTBackendESP32 final : public MQTTBackend {
 
   bool is_connected_{false};
   bool is_initalized_{false};
+  bool is_started_{false};
 
   esp_mqtt_client_config_t mqtt_cfg_{};
 
