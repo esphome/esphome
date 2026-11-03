@@ -103,12 +103,13 @@ struct VideoInitContext {
   esp_err_t result{ESP_FAIL};
   std::atomic<int> refs{2};
 
+  ~VideoInitContext() {
+    if (this->done != nullptr)
+      vSemaphoreDelete(this->done);
+  }
   void release() {
-    if (this->refs.fetch_sub(1) == 1) {
-      if (this->done != nullptr)
-        vSemaphoreDelete(this->done);
+    if (this->refs.fetch_sub(1) == 1)
       delete this;
-    }
   }
 };
 
@@ -396,37 +397,8 @@ bool ESPVideoCamera::start_pipeline_init_() {
     vTaskDelay(pdMS_TO_TICKS(50));
   }
 
-  // Heap-allocated so the configs stay valid for the init task even if the wait
-  // below times out (see VideoInitContext).
-  auto *ctx = new VideoInitContext();
-  ctx->done = xSemaphoreCreateBinary();
-  if (ctx->done == nullptr) {
-    ctx->refs.store(1);  // no task was started
-    ctx->release();
-    return false;
-  }
-
-  esp_video_init_csi_config_t &csi_config = ctx->csi_config;
-  csi_config.sccb_config.init_sccb = false;  // reuse the ESPHome I2C bus
-  csi_config.sccb_config.i2c_handle = i2c_handle;
-  csi_config.sccb_config.freq = 400000;
-  csi_config.reset_pin = (gpio_num_t) -1;
-  csi_config.pwdn_pin = (gpio_num_t) -1;
-  // Note: esp_video >= 2.x no longer takes xclk_pin/xclk_freq in the CSI config.
-  // The sensor XCLK is generated separately via LEDC (see init_xclk_ledc above).
-
-  esp_video_init_config_t &video_config = ctx->video_config;
-  if (!uvc_only)
-    video_config.csi = &csi_config;
-
 #if CONFIG_ESP_VIDEO_ENABLE_USB_UVC_VIDEO_DEVICE
-  esp_video_init_usb_uvc_config_t &uvc_config = ctx->uvc_config;
-  if (this->is_uvc_()) {
-    uvc_config.uvc.uvc_dev_num = 1;
-    uvc_config.uvc.task_stack = 4096;
-    uvc_config.uvc.task_priority = 5;
-    uvc_config.uvc.task_affinity = -1;
-
+  if (uvc_only) {
     // On boards where the host port's 5 V is switched -- an IO expander pin on
     // most of them -- that switch is a component of its own, and ESPHome runs
     // its setup() only microseconds before this one. Let the rail settle before
@@ -468,8 +440,6 @@ bool ESPVideoCamera::start_pipeline_init_() {
         // Without the USB Host library the UVC device can never enumerate, so
         // there is nothing to gain from continuing into esp_video_init().
         ESP_LOGE(TAG, "usb_host_install() failed: %s", esp_err_to_name(host_ret));
-        ctx->refs.store(1);  // no task was started
-        ctx->release();
         return false;
       }
     }
@@ -483,12 +453,42 @@ bool ESPVideoCamera::start_pipeline_init_() {
       if (xTaskCreatePinnedToCore(usb_host_lib_daemon_task, "usb_lib", 4096, nullptr, 10, nullptr, tskNO_AFFINITY) !=
           pdPASS) {
         ESP_LOGE(TAG, "Could not start the USB host event pump; no USB camera will enumerate");
-        ctx->refs.store(1);  // no init task was started
-        ctx->release();
         return false;
       }
       this->usb_pump_started_ = true;
     }
+  }
+#endif
+
+  // Heap-allocated so the configs stay valid for the init task even if the wait
+  // below times out (see VideoInitContext).
+  auto *ctx = new VideoInitContext();
+  ctx->done = xSemaphoreCreateBinary();
+  if (ctx->done == nullptr) {
+    delete ctx;
+    return false;
+  }
+
+  esp_video_init_csi_config_t &csi_config = ctx->csi_config;
+  csi_config.sccb_config.init_sccb = false;  // reuse the ESPHome I2C bus
+  csi_config.sccb_config.i2c_handle = i2c_handle;
+  csi_config.sccb_config.freq = 400000;
+  csi_config.reset_pin = (gpio_num_t) -1;
+  csi_config.pwdn_pin = (gpio_num_t) -1;
+  // Note: esp_video >= 2.x no longer takes xclk_pin/xclk_freq in the CSI config.
+  // The sensor XCLK is generated separately via LEDC (see init_xclk_ledc above).
+
+  esp_video_init_config_t &video_config = ctx->video_config;
+  if (!uvc_only)
+    video_config.csi = &csi_config;
+
+#if CONFIG_ESP_VIDEO_ENABLE_USB_UVC_VIDEO_DEVICE
+  esp_video_init_usb_uvc_config_t &uvc_config = ctx->uvc_config;
+  if (uvc_only) {
+    uvc_config.uvc.uvc_dev_num = 1;
+    uvc_config.uvc.task_stack = 4096;
+    uvc_config.uvc.task_priority = 5;
+    uvc_config.uvc.task_affinity = -1;
     uvc_config.usb.init_usb_host_lib = false;  // we manage the USB host library (see above)
     uvc_config.usb.task_stack = 4096;
     uvc_config.usb.task_priority = 5;
@@ -500,8 +500,7 @@ bool ESPVideoCamera::start_pipeline_init_() {
   // Run esp_video_init() on core 0 (hardware requirement).
   if (xTaskCreatePinnedToCore(video_init_task_core0, "esp_video_init", 8192, ctx, 5, nullptr, 0) != pdPASS) {
     ESP_LOGE(TAG, "Could not start the esp_video_init task");
-    ctx->refs.store(1);  // no task took a reference
-    ctx->release();
+    delete ctx;
     return false;
   }
 
