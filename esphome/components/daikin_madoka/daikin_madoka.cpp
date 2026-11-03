@@ -226,9 +226,9 @@ void DaikinMadoka::gattc_event_handler(esp_gattc_cb_event_t event, esp_gatt_if_t
 }
 
 void DaikinMadoka::update() {
-  ESP_LOGD(TAG, "Got update request...");
+  ESP_LOGV(TAG, "Got update request...");
   if (this->node_state != espbt::ClientState::ESTABLISHED) {
-    ESP_LOGD(TAG, "...but device is disconnected");
+    ESP_LOGV(TAG, "...but device is disconnected");
     return;
   }
   this->poll_pending_ = true;
@@ -333,7 +333,7 @@ bool DaikinMadoka::write_query_(const Query &query) {
   frame[4] = cmd[1];
   std::copy(query.args.begin(), query.args.end(), frame.begin() + 1 + MESSAGE_HEADER_SIZE);
 
-  ESP_LOGD(TAG, "Writing query. ID: 0x%04X, len: %u", query.cmd, msg_len + 1);
+  ESP_LOGV(TAG, "Writing query. ID: 0x%04X, len: %u", query.cmd, msg_len + 1);
   ESP_LOGV_HEX(TAG, frame.data(), msg_len + 1, MAX_CHUNK_SIZE, "%s");
 
   esp_err_t err =
@@ -360,7 +360,7 @@ void DaikinMadoka::parse_cb_(std::span<const uint8_t> msg) {
     return;
   }
 
-  ESP_LOGD(TAG, "Parsing message. ID: 0x%04X, len: %u", message_function_id(msg), msg.size());
+  ESP_LOGV(TAG, "Parsing message. ID: 0x%04X, len: %u", message_function_id(msg), msg.size());
   ESP_LOGV_HEX(TAG, msg.data(), msg.size(), 256, "%s");
 
   switch (message_function_id(msg)) {
