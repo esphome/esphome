@@ -32,9 +32,12 @@ void DeviceFirmwareUpdate::setup() {
       arch_feed_wdt();
       App.reboot();
     } else if (rate == DFU_TOUCH_BAUD_RATE) {
-      volatile uint32_t *dbl_reset_mem = (volatile uint32_t *) 0x20007F7C;
-      (*dbl_reset_mem) = DFU_DBL_RESET_MAGIC;
+      ESP_LOGI(TAG, "Rebooting into the bootloader");
       if (this->reset_pin_ != nullptr) {
+        // The bootloader checks this word after a pin reset. It is in the app's RAM (the heap on
+        // newer SDKs), so it is written only here, where the pin resets the chip right away.
+        volatile uint32_t *dbl_reset_mem = (volatile uint32_t *) 0x20007F7C;
+        (*dbl_reset_mem) = DFU_DBL_RESET_MAGIC;
         this->reset_pin_->digital_write(true);
       } else {
         NRF_POWER->GPREGRET = DFU_MAGIC_UF2_RESET;
