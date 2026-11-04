@@ -37,15 +37,16 @@ LedDriverFrequency = sx1509_ns.enum("LedDriverFrequency")
 
 # The PWM frequency is shared by all output pins; the values are nominal (see sx1509.h).
 LED_DRIVER_FREQUENCIES = LedDriverFrequency.options(
-    "7840HZ",
-    "3920HZ",
-    "1960HZ",
-    "980HZ",
-    "490HZ",
-    "245HZ",
-    "122HZ",
+    "7840Hz",
+    "3920Hz",
+    "1960Hz",
+    "980Hz",
+    "490Hz",
+    "245Hz",
+    "122Hz",
     prefix="LED_DRIVER_FREQ_",
 )
+_LED_DRIVER_FREQUENCY_ENUM = cv.enum(LED_DRIVER_FREQUENCIES)
 
 
 @schema_extractor("enum")
@@ -53,12 +54,12 @@ def validate_led_driver_frequency(value: Any) -> Any:
     """One of the nominal frequencies, written in any frequency form (980Hz, 980 Hz, 0.98kHz)."""
     if value == SCHEMA_EXTRACT:
         return LED_DRIVER_FREQUENCIES
-    key = f"{round(cv.frequency(value))}HZ"
+    key = f"{round(cv.frequency(value))}Hz"
     if key not in LED_DRIVER_FREQUENCIES:
         raise cv.Invalid(
             f"LED driver frequency must be one of {', '.join(LED_DRIVER_FREQUENCIES)}"
         )
-    return cv.enum(LED_DRIVER_FREQUENCIES)(key)
+    return _LED_DRIVER_FREQUENCY_ENUM(key)
 
 
 SX1509Component = sx1509_ns.class_(

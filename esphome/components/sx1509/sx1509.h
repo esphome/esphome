@@ -81,7 +81,6 @@ class SX1509Component final : public Component,
   bool digital_read_cache(uint8_t pin) override;            // NOLINT(readability-identifier-naming)
   void digital_write_hw(uint8_t pin, bool value) override;  // NOLINT(readability-identifier-naming)
 
-  LedDriverFrequency led_driver_frequency_{LED_DRIVER_FREQ_122HZ};
   uint16_t ddr_mask_ = 0x00;
   uint16_t input_mask_ = 0x00;  // Cache for input values (16-bit for all pins)
   uint16_t port_mask_ = 0x00;
@@ -89,6 +88,7 @@ class SX1509Component final : public Component,
   bool has_keypad_ = false;
   uint8_t rows_ = 0;
   uint8_t cols_ = 0;
+  LedDriverFrequency led_driver_frequency_{LED_DRIVER_FREQ_122HZ};
   const uint8_t *keys_{nullptr};
   uint16_t sleep_time_ = 128;
   uint8_t scan_time_ = 1;

@@ -9,10 +9,10 @@ import esphome.config_validation as cv
 @pytest.mark.parametrize(
     ("value", "expected"),
     [
-        ("980Hz", "980HZ"),
-        ("980 Hz", "980HZ"),
-        ("1.96kHz", "1960HZ"),
-        ("122HZ", "122HZ"),
+        ("980Hz", "980Hz"),
+        ("980 Hz", "980Hz"),
+        ("1.96kHz", "1960Hz"),
+        ("122HZ", "122Hz"),
     ],
 )
 def test_frequency_forms(value: str, expected: str) -> None:
