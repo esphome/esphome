@@ -36,9 +36,11 @@ void RS485FrameHub::loop() {
 
   // Transmits only after this pass's RX is drained, so frame_trigger sees any byte that followed the gate frame.
   this->maybe_tx_(now);
-  // idle_gap also needs the bus to still be silent, since RX during the delay may be a frame in progress.
+  // idle_gap also needs the bus to still be silent, since RX during the delay may be a frame in progress. Bytes
+  // that arrived while an on_frame callback ran are still waiting; the next pass reads them before sending.
   if (this->tx_start_pending_ && now - this->tx_delay_start_ >= this->tx_gate_delay_ &&
-      (this->tx_gate_mode_ != TX_GATE_IDLE_GAP || this->bus_silent_(now))) {
+      (this->tx_gate_mode_ != TX_GATE_IDLE_GAP || this->bus_silent_(now)) &&
+      (this->tx_gate_mode_ == TX_GATE_FIXED_DELAY || this->available() == 0)) {
     this->tx_start_pending_ = false;
     this->transmit_head_(now);
   }

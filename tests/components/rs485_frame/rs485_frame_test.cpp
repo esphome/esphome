@@ -427,6 +427,28 @@ TEST(RS485FrameHubTest, FrameTriggerYieldsToRxAfterGateFrame) {
   EXPECT_EQ(hub.fake_uart.written, hub.build_frame_for_test({0x01, 0x02}));
 }
 
+// read_available() reads only what was waiting when it started, so bytes that arrive while on_frame runs are
+// still in the UART; they mean another node took the gap, and are read before the hub would send.
+TEST(RS485FrameHubTest, FrameTriggerWaitsForBytesThatArriveDuringTheCallback) {
+  RS485FrameHubProbe hub;
+  static const uint8_t GATE[] = {0x01, 0x01};
+  hub.set_tx_gate_frame_type(GATE, sizeof(GATE));
+  hub.setup();
+  static const uint8_t DATA[] = {0x01, 0x02};
+  ASSERT_TRUE(hub.queue_frame(DATA, sizeof(DATA)));
+  hub.add_on_frame_callback([&hub](std::span<const uint8_t>) {
+    if (hub.fake_uart.rx.empty())
+      hub.fake_uart.rx.insert(hub.fake_uart.rx.end(), {0x10, 0x02});
+  });
+
+  hub.loop_at_for_test(1000, hub.build_frame_for_test({0x01, 0x01}));
+  EXPECT_TRUE(hub.fake_uart.written.empty());
+  EXPECT_EQ(hub.fake_uart.rx, (std::vector<uint8_t>{0x10, 0x02}));
+  hub.loop_at_for_test(1010, std::vector<uint8_t>(hub.fake_uart.rx));
+  EXPECT_EQ(hub.queue_depth_for_test(), 1u);
+  EXPECT_TRUE(hub.fake_uart.written.empty());
+}
+
 // RX during the frame_trigger gate delay gives the gap up; the frame waits for the next gate frame.
 TEST(RS485FrameHubTest, FrameTriggerDelayCancelledByRx) {
   RS485FrameHubProbe hub;
