@@ -196,19 +196,19 @@ class WebServerBase final {
       this->restart_if_running_();
     }
   }
+#else
+  void set_port(uint16_t port) { port_ = port; }
+#endif
 
  protected:
+#if defined(USE_ESP32) && defined(USE_WEBSERVER_SSL)
   void restart_if_running_() {
     if (this->initialized_ > 0)
       this->server_->begin();  // begin() stops the running listener first
   }
   const char *ssl_certificate_{nullptr};
   const char *ssl_private_key_{nullptr};
-#else
-  void set_port(uint16_t port) { port_ = port; }
 #endif
-
- protected:
   uint8_t initialized_{0};
   uint16_t port_{80};  // Keep in sync with DEFAULT_PORT in web_server/__init__.py
   AsyncWebServer *server_{nullptr};
