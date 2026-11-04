@@ -171,6 +171,7 @@ struct StrobeLightEffectColor {
   uint32_t duration;
   uint32_t transition_length;
   ColorMode color_mode;
+  bool use_color_temperature{false};
 };
 static_assert(std::is_trivially_copyable_v<StrobeLightEffectColor>, "StrobeLightEffectColor is copied out of flash");
 static_assert(sizeof(StrobeLightEffectColor) % sizeof(uint32_t) == 0,
@@ -198,6 +199,10 @@ class StrobeLightEffect : public LightEffect {
 
     auto call = this->state_->turn_on();
     call.from_light_color_values(color);
+    if (step.use_color_temperature) {
+      call.set_cold_white(optional<float>{});
+      call.set_warm_white(optional<float>{});
+    }
 
     if (!color.is_on()) {
       // Don't turn the light off, otherwise the light effect will be stopped
