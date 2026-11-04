@@ -198,10 +198,20 @@ void stop_task(void *arg) {
 }
 }  // namespace
 
+void AsyncWebServer::context_free(void *ctx) {
+  // Waits for a running shutdown_clients_() pass, and makes later passes skip the freed server.
+  auto *server = static_cast<AsyncWebServer *>(ctx);
+  LockGuard lock(server->close_lock_);
+  server->running_port_ = 0;
+}
+
 void AsyncWebServer::shutdown_clients_() {
   // Wakes the server task if it is blocked on a client. A just-closed client may still be listed with its number
   // reused elsewhere, so only descriptors still bound to this server's port are shut down.
   LockGuard lock(this->close_lock_);
+  if (this->running_port_ == 0) {
+    return;  // the server is being freed (context_free() ran), so its client list is gone
+  }
   int client_fds[CONFIG_LWIP_MAX_SOCKETS];
   size_t client_count = CONFIG_LWIP_MAX_SOCKETS;
   if (httpd_get_client_list(this->server_, &client_count, client_fds) != ESP_OK) {
@@ -248,18 +258,20 @@ bool ssl_credentials_valid(const uint8_t *cert_pem, size_t cert_len, const uint8
 void AsyncWebServer::end() {
   if (this->server_) {
 #ifdef USE_WEBSERVER_SSL
-    // A stalled TLS handshake or upload can hold the server task until the socket timeout. Shut the clients down to
-    // wake it, and stop on a helper task while feeding the watchdog; without memory for the task, stop directly.
-    this->shutdown_clients_();
+    // A stalled TLS handshake or upload can hold the server task until the socket timeout. Stop on a helper task and
+    // keep shutting the clients down until it is done: a client accepted before the stop message arrives is listed
+    // during its handshake, so a later pass reaches it. Without memory for the task, stop directly.
     StopRequest request{};
     request.server = this->server_;
     request.ssl = httpd_get_global_transport_ctx(this->server_) != nullptr;  // only HTTPS has one
     request.done = xSemaphoreCreateBinaryStatic(&request.done_buffer);
     if (xTaskCreate(stop_task, "httpd_stop", 3072, &request, uxTaskPriorityGet(nullptr), nullptr) == pdPASS) {
-      while (xSemaphoreTake(request.done, pdMS_TO_TICKS(100)) != pdTRUE) {
+      do {
+        this->shutdown_clients_();
         App.feed_wdt();
-      }
+      } while (xSemaphoreTake(request.done, pdMS_TO_TICKS(100)) != pdTRUE);
     } else {
+      this->shutdown_clients_();
       request.result = stop_server(this->server_, request.ssl);
     }
     const esp_err_t err = request.result;
@@ -299,9 +311,9 @@ void AsyncWebServer::begin() {
   config.close_fn = AsyncWebServer::safe_close_with_shutdown;
   esp_err_t start_err;
 #ifdef USE_WEBSERVER_SSL
-  // Lets close_fn find this server's lock. httpd frees the context on stop unless it has a free function.
+  // Lets close_fn find this server's lock. httpd calls the free function on stop just before freeing the server.
   config.global_user_ctx = this;
-  config.global_user_ctx_free_fn = [](void * /*unused*/) {};
+  config.global_user_ctx_free_fn = AsyncWebServer::context_free;
   if ((this->ssl_certificate_ == nullptr) != (this->ssl_private_key_ == nullptr)) {
     ESP_LOGE(TAG, "HTTPS needs both a certificate and a private key");
     return;
@@ -320,6 +332,9 @@ void AsyncWebServer::begin() {
     config.stack_size = std::max(config.stack_size, ssl_config.httpd.stack_size);
     ssl_config.httpd = config;
     ssl_config.port_secure = this->port_;
+    // A client that connects and never completes the handshake holds the server task. The check runs after each
+    // 5 s receive timeout, so this ends it at the first one instead of after three (the 10 s default).
+    ssl_config.tls_handshake_timeout_ms = 4000;
     ssl_config.servercert = cert;
     ssl_config.servercert_len = cert_len;
     ssl_config.prvtkey_pem = key;
