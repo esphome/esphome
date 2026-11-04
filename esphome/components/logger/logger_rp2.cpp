@@ -10,7 +10,7 @@ namespace esphome::logger {
 
 ESPHOME_LOG_TAG(TAG, "logger");
 
-#if defined(USE_CRASH_HANDLER) && defined(USE_LOGGER_UART_SELECTION_USB_CDC)
+#if defined(USE_RP2_CRASH_HANDLER) && defined(USE_LOGGER_UART_SELECTION_USB_CDC)
 void Logger::setup() {
   if (this->hw_serial_ == nullptr || !crash_log_pending())
     return;

@@ -152,7 +152,7 @@ class Logger final : public Component {
 #if defined(USE_ESPHOME_TASK_LOG_BUFFER) || (defined(USE_ZEPHYR) && defined(USE_LOGGER_UART_SELECTION_USB_CDC))
   void loop() override;
 #endif
-#if defined(USE_RP2) && defined(USE_CRASH_HANDLER) && defined(USE_LOGGER_UART_SELECTION_USB_CDC)
+#if defined(USE_RP2_CRASH_HANDLER) && defined(USE_LOGGER_UART_SELECTION_USB_CDC)
   void setup() override;
 #endif
   /// Manually set the baud rate for serial, set to 0 to disable.
