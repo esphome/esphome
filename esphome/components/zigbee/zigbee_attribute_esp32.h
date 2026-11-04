@@ -4,15 +4,10 @@
 #include <limits>
 #include <type_traits>
 
-#include "esphome/core/automation.h"
-#include "esphome/core/component.h"
-#include "esphome/core/defines.h"
+#include "zigbee_device_base_esp32.h"
 
 #ifdef USE_ESP32
 #ifdef USE_ZIGBEE
-
-#include "esp_zigbee.h"
-#include "zigbee_esp32.h"
 
 #ifdef USE_SENSOR
 #include "esphome/components/sensor/sensor.h"
@@ -29,34 +24,22 @@
 
 namespace esphome::zigbee {
 
-enum ZigbeeReportT {
-  ZIGBEE_REPORT_DEFAULT,
-  ZIGBEE_REPORT_COORDINATOR,
-  ZIGBEE_REPORT_ENABLE,
-  ZIGBEE_REPORT_FORCE,
-};
-
-class ZigbeeAttribute final : public Component {
+class ZigbeeAttribute final : public ZigbeeDeviceBase {
  public:
   ZigbeeAttribute(ZigbeeComponent *parent, uint8_t endpoint_id, uint16_t cluster_id, uint8_t role, uint16_t attr_id,
                   uint8_t attr_type, float scale, uint8_t max_size)
-      : zb_(parent),
-        endpoint_id_(endpoint_id),
+      : ZigbeeDeviceBase(parent, endpoint_id),
         cluster_id_(cluster_id),
         role_(role),
         attr_id_(attr_id),
         attr_type_(attr_type),
         max_size_(max_size),
         scale_(scale) {}
-  void loop() override;
   template<typename T> void add_attr(T value);
   template<typename T> void set_attr(const T &value);
   uint8_t attr_type() { return attr_type_; }
-  void set_report(ZigbeeReportT report);
-  void report();
-
   template<typename F> void add_on_value_callback(F &&callback) { on_value_callback_.add(std::forward<F>(callback)); }
-  void on_value(ezb_zcl_attribute_t attribute) {
+  void on_value(ezb_zcl_attribute_t attribute) override {
     if (attribute.data.type == this->attr_type() && attribute.data.value) {
       this->on_value_callback_.call(attribute);
     }
@@ -75,13 +58,10 @@ class ZigbeeAttribute final : public Component {
 #ifdef USE_NUMBER
   template<typename T> void connect(number::Number *device);
 #endif
-  bool report_enabled = false;
 
  protected:
-  void set_attr_();
-  void report_(bool has_lock);
-  ZigbeeComponent *zb_;
-  uint8_t endpoint_id_;
+  void set_attr_() override;
+  void report_(bool has_lock) override;
   uint16_t cluster_id_;
   uint8_t role_;
   uint16_t attr_id_;
@@ -89,9 +69,6 @@ class ZigbeeAttribute final : public Component {
   uint8_t max_size_;
   float scale_;
   void *value_p_{nullptr};
-  bool set_attr_requested_{false};
-  bool report_requested_{false};
-  bool force_report_{false};
   LazyCallbackManager<void(ezb_zcl_attribute_t attribute)> on_value_callback_{};
   template<typename T> T scale_value_(float value);
   template<typename T> T invalid_value_();

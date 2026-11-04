@@ -64,6 +64,7 @@ from esphome.core.entity_helpers import (  # noqa: F401  # pylint: disable=unuse
 zigbee_ns = cg.esphome_ns.namespace("zigbee")
 ZigbeeComponent = zigbee_ns.class_("ZigbeeComponent", cg.Component)
 ZigbeeAttribute = zigbee_ns.class_("ZigbeeAttribute", cg.Component)
+ZigbeeLight = zigbee_ns.class_("ZigbeeLight", cg.Component)
 BinaryAttrs = zigbee_ns.struct("BinaryAttrs")
 AnalogAttrs = zigbee_ns.struct("AnalogAttrs")
 AnalogAttrsOutput = zigbee_ns.struct("AnalogAttrsOutput")

@@ -473,6 +473,7 @@ def create_ep(router: bool) -> None:
         eps = list(ep_dict.keys())
         for ep in ep_list_new:
             ep_num = _get_next_ep_num(eps)
+            ep["num"] = ep_num
             ep_dict[ep_num] = ep
 
         # clear list so that it is not processed again

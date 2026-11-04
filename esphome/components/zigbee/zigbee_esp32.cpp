@@ -218,6 +218,14 @@ void ZigbeeComponent::handle_attribute_(ezb_zcl_message_info_t info, ezb_zcl_att
   }
 }
 
+void ZigbeeComponent::update_device_id(uint8_t endpoint_id, uint16_t device_id) {
+  ezb_af_ep_desc_t ep_desc = ezb_af_device_get_endpoint_desc(this->dev_desc_, endpoint_id);
+
+  if (ezb_af_ep_desc_set_profile_id(ep_desc, device_id) != EZB_ERR_NONE) {
+    ESP_LOGE(TAG, "Could not update device id in endpoint %u", endpoint_id);
+  }
+}
+
 void ZigbeeComponent::create_default_cluster(uint8_t endpoint_id, uint16_t device_id) {
   ezb_af_ep_desc_t ep_desc =
       esphome_zb_zha_default_ep_desc_create(endpoint_id, device_id, this->basic_cluster_data_.power_source);
