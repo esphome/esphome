@@ -1,14 +1,13 @@
 import esphome.codegen as cg
 from esphome.components import i2c
 from esphome.components.audio_dac import AudioDac
+from esphome.components.const import CONF_VOLUME_MAX_DB, CONF_VOLUME_MIN_DB
 import esphome.config_validation as cv
 from esphome.const import CONF_MIC_GAIN
 from esphome.types import ConfigType
 
 CODEOWNERS = ["@P4uLT"]
 CONF_ES8388_ID = "es8388_id"
-CONF_VOLUME_MIN_DB = "volume_min_db"
-CONF_VOLUME_MAX_DB = "volume_max_db"
 
 es8388_ns = cg.esphome_ns.namespace("es8388")
 

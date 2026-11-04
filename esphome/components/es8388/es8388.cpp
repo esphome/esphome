@@ -161,8 +161,8 @@ bool ES8388::set_volume(float volume) {
   volume = clamp(volume, 0.0f, 1.0f);
   // Linear in dB between the two ends, so equal volume steps sound like equal changes in loudness
   const float db = this->volume_min_db_ + volume * (this->volume_max_db_ - this->volume_min_db_);
-  const uint8_t value =
-      static_cast<uint8_t>(clamp<long>(lroundf(-db * DAC_ATTENUATION_STEPS_PER_DB), 0, DAC_ATTENUATION_MAX));
+  const auto steps = static_cast<int32_t>(lroundf(-db * DAC_ATTENUATION_STEPS_PER_DB));
+  const auto value = static_cast<uint8_t>(clamp<int32_t>(steps, 0, DAC_ATTENUATION_MAX));
   ESP_LOGD(TAG, "Setting ES8388_DACCONTROL4 / ES8388_DACCONTROL5 to 0x%02X (volume: %f)", value, volume);
   ES8388_ERROR_CHECK(this->write_byte(ES8388_DACCONTROL4, value));
   ES8388_ERROR_CHECK(this->write_byte(ES8388_DACCONTROL5, value));
