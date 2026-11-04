@@ -108,3 +108,17 @@ button:
     name: SHT Heater
     on_press:
       - sen6x.activate_sht_heater: sen6x_sensor
+  - platform: template
+    name: CO2 Forced Recalibration
+    on_press:
+      - sen6x.stop_measurement: sen6x_sensor
+      - delay: 2s
+      - sen6x.perform_forced_co2_recalibration:
+          id: sen6x_sensor
+          value: 420
+      - delay: 2s
+      - sen6x.perform_forced_co2_recalibration:
+          id: sen6x_sensor
+          value: !lambda "return id(pressure_source).state > 0 ? 450 : 420;"
+      - delay: 2s
+      - sen6x.start_measurement: sen6x_sensor
