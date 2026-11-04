@@ -8,6 +8,7 @@ import time
 from aioesphomeapi import EntityState
 import pytest
 
+from .state_utils import assert_device_name
 from .types import APIClientConnectedFactory, RunCompiledFunction
 from .wait_utils import wait_or_fail
 
@@ -23,9 +24,7 @@ async def test_host_mode_batch_delay(
     loop = asyncio.get_running_loop()
     async with run_compiled(yaml_config), api_client_connected() as client:
         # Verify we can get device info
-        device_info = await client.device_info()
-        assert device_info is not None
-        assert device_info.name == "host-batch-delay-test"
+        await assert_device_name(client, "host-batch-delay-test")
 
         # Subscribe to state changes
         states: dict[int, EntityState] = {}

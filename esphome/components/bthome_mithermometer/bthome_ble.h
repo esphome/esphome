@@ -18,18 +18,18 @@ class ReplayClockAccess;
 }  // namespace testing
 
 class BTHomeMiThermometer final : public ble_device_base::ESPBTDeviceListener, public Component {
+  SUB_SENSOR(temperature)
+  SUB_SENSOR(humidity)
+  SUB_SENSOR(battery_level)
+  SUB_SENSOR(battery_voltage)
+  SUB_SENSOR(signal_strength)
+
  public:
   void set_address(uint64_t address) { this->address_ = address; }
   void set_bindkey(std::initializer_list<uint8_t> bindkey);
 #ifdef USE_BTHOME_MITHERMOMETER_REPLAY_PROTECTION
   void set_replay_protection(bool replay_protection) { this->replay_protection_ = replay_protection; }
 #endif
-
-  void set_temperature(sensor::Sensor *temperature) { this->temperature_ = temperature; }
-  void set_humidity(sensor::Sensor *humidity) { this->humidity_ = humidity; }
-  void set_battery_level(sensor::Sensor *battery_level) { this->battery_level_ = battery_level; }
-  void set_battery_voltage(sensor::Sensor *battery_voltage) { this->battery_voltage_ = battery_voltage; }
-  void set_signal_strength(sensor::Sensor *signal_strength) { this->signal_strength_ = signal_strength; }
 
   void dump_config() override;
   bool parse_device(const ble_device_base::ESPBTDevice &device) override;
@@ -59,12 +59,6 @@ class BTHomeMiThermometer final : public ble_device_base::ESPBTDeviceListener, p
 #endif
   bool has_bindkey_{false};
   uint8_t bindkey_[16];
-
-  sensor::Sensor *temperature_{nullptr};
-  sensor::Sensor *humidity_{nullptr};
-  sensor::Sensor *battery_level_{nullptr};
-  sensor::Sensor *battery_voltage_{nullptr};
-  sensor::Sensor *signal_strength_{nullptr};
 };
 
 }  // namespace esphome::bthome_mithermometer

@@ -72,6 +72,18 @@ async def test_wait_or_fail_trims_deques_and_mappings() -> None:
 
 
 @pytest.mark.asyncio
+async def test_wait_or_fail_calls_callable_context_on_failure() -> None:
+    pending = ["a", "b"]
+    waiting = asyncio.ensure_future(
+        wait_or_fail(asyncio.Event(), 0.01, "stuck", missing=lambda: sorted(pending))
+    )
+    pending.remove("a")
+    with pytest.raises(pytest.fail.Exception) as err:
+        await waiting
+    assert str(err.value).endswith("missing (last 1 of 1):\n  b")
+
+
+@pytest.mark.asyncio
 async def test_wait_or_fail_reraises_a_timeout_from_the_awaitable() -> None:
     async def inner() -> None:
         raise TimeoutError("api call timed out")

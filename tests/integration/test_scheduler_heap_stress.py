@@ -3,10 +3,11 @@
 import asyncio
 import re
 
-from aioesphomeapi import UserService
 import pytest
 
+from .state_utils import assert_device_name, require_service
 from .types import APIClientConnectedFactory, RunCompiledFunction
+from .wait_utils import wait_or_fail
 
 
 @pytest.mark.asyncio
@@ -67,9 +68,7 @@ async def test_scheduler_heap_stress(
         api_client_connected() as client,
     ):
         # Verify we can connect
-        device_info = await client.device_info()
-        assert device_info is not None
-        assert device_info.name == "scheduler-heap-stress-test"
+        await assert_device_name(client, "scheduler-heap-stress-test")
 
         # List entities and services
         _, services = await asyncio.wait_for(
@@ -77,30 +76,19 @@ async def test_scheduler_heap_stress(
         )
 
         # Find our test service
-        run_stress_test_service: UserService | None = None
-        for service in services:
-            if service.name == "run_heap_stress_test":
-                run_stress_test_service = service
-                break
-
-        assert run_stress_test_service is not None, (
-            "run_heap_stress_test service not found"
-        )
+        run_stress_test_service = require_service(services, "run_heap_stress_test")
 
         # Call the run_heap_stress_test service to start the test
         await client.execute_service(run_stress_test_service, {})
 
         # Wait for all callbacks to execute (should be quick, but give more time for scheduling)
-        try:
-            await asyncio.wait_for(test_complete_future, timeout=10.0)
-        except TimeoutError:
-            # Report how many we got
-            missing_ids = sorted(set(range(1000)) - executed_callbacks)
-            pytest.fail(
-                f"Stress test timed out. Only {len(executed_callbacks)} of "
-                f"1000 callbacks executed. Missing IDs: "
-                f"{missing_ids[:20]}... (total missing: {len(missing_ids)})"
-            )
+        await wait_or_fail(
+            test_complete_future,
+            10.0,
+            "Stress test did not complete",
+            executed=lambda: f"{len(executed_callbacks)} of 1000 callbacks",
+            missing_ids=lambda: sorted(set(range(1000)) - executed_callbacks),
+        )
 
         # Verify all callbacks executed
         assert len(executed_callbacks) == 1000, (

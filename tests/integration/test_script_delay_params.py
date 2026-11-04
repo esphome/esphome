@@ -15,11 +15,12 @@ These bugs manifested as:
 
 from __future__ import annotations
 
-import asyncio
 import re
 
 import pytest
 
+from .log_utils import LineWaiter
+from .state_utils import assert_device_name, require_service
 from .types import APIClientConnectedFactory, RunCompiledFunction
 from .wait_utils import wait_or_fail
 
@@ -35,67 +36,34 @@ async def test_script_delay_with_params(
     This reproduces issues #12043 and #12044 where scripts would hang or become
     zombies due to LIFO ordering bugs in ScriptWaitAction from PR #7972.
     """
-    test_complete = asyncio.Event()
+    waiter = LineWaiter()
 
-    # Patterns to match in logs
-    father_calling_pattern = re.compile(r"Father iteration (\d+): calling son")
-    son_started_pattern = re.compile(r"Son script started with iteration (\d+)")
-    son_delaying_pattern = re.compile(r"Son script delaying for iteration (\d+)")
-    son_finished_pattern = re.compile(r"Son script finished with iteration (\d+)")
-    father_wait_returned_pattern = re.compile(
-        r"Father iteration (\d+): son finished, wait returned"
-    )
+    def iterations(pattern: str) -> set[int]:
+        return {
+            int(m.group(1)) for line in waiter.lines if (m := re.search(pattern, line))
+        }
 
-    # Track which iterations completed
-    father_calling = set()
-    son_started = set()
-    son_delaying = set()
-    son_finished = set()
-    wait_returned = set()
-
-    def check_output(line: str) -> None:
-        """Check log output for expected messages."""
-        if test_complete.is_set():
-            return
-
-        if mo := father_calling_pattern.search(line):
-            father_calling.add(int(mo.group(1)))
-        elif mo := son_started_pattern.search(line):
-            son_started.add(int(mo.group(1)))
-        elif mo := son_delaying_pattern.search(line):
-            son_delaying.add(int(mo.group(1)))
-        elif mo := son_finished_pattern.search(line):
-            son_finished.add(int(mo.group(1)))
-        elif mo := father_wait_returned_pattern.search(line):
-            iteration = int(mo.group(1))
-            wait_returned.add(iteration)
-            # Test completes when iteration 9 finishes
-            if iteration == 9:
-                test_complete.set()
+    def wait_returned() -> set[int]:
+        return iterations(r"Father iteration (\d+): son finished, wait returned")
 
     # Run with log monitoring
     async with (
-        run_compiled(yaml_config, line_callback=check_output),
+        run_compiled(yaml_config, line_callback=waiter.callback),
         api_client_connected() as client,
     ):
         # Verify device info
-        device_info = await client.device_info()
-        assert device_info is not None
-        assert device_info.name == "test-script-delay-params"
+        await assert_device_name(client, "test-script-delay-params")
 
         # Get services
         _, services = await client.list_entities_services()
-        test_service = next(
-            (s for s in services if s.name == "test_repeat_with_delay"), None
-        )
-        assert test_service is not None, "test_repeat_with_delay service not found"
+        test_service = require_service(services, "test_repeat_with_delay")
 
         # Execute the test
         await client.execute_service(test_service, {})
 
         # Wait for test to complete (10 iterations * ~100ms each + margin)
         await wait_or_fail(
-            test_complete,
+            waiter.wait_for("Father iteration 9: son finished, wait returned"),
             5.0,
             "Test timed out. "
             "This likely indicates the script became a zombie (issue #12044).",
@@ -104,6 +72,10 @@ async def test_script_delay_with_params(
 
         # Verify all 10 iterations completed successfully
         expected_iterations = set(range(10))
+        father_calling = iterations(r"Father iteration (\d+): calling son")
+        son_started = iterations(r"Son script started with iteration (\d+)")
+        son_delaying = iterations(r"Son script delaying for iteration (\d+)")
+        son_finished = iterations(r"Son script finished with iteration (\d+)")
         assert father_calling == expected_iterations, "Not all iterations started"
         assert son_started == expected_iterations, (
             "Son script not started for all iterations"
@@ -111,7 +83,7 @@ async def test_script_delay_with_params(
         assert son_finished == expected_iterations, (
             "Son script not finished for all iterations"
         )
-        assert wait_returned == expected_iterations, (
+        assert wait_returned() == expected_iterations, (
             "script.wait did not return for all iterations"
         )
 

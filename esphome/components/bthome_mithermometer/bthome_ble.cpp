@@ -165,11 +165,11 @@ void BTHomeMiThermometer::dump_config() {
     ESP_LOGCONFIG(TAG, "  Replay Protection: %s", YESNO(this->replay_protection_));
 #endif
   }
-  LOG_SENSOR("  ", "Temperature", this->temperature_);
-  LOG_SENSOR("  ", "Humidity", this->humidity_);
-  LOG_SENSOR("  ", "Battery Level", this->battery_level_);
-  LOG_SENSOR("  ", "Battery Voltage", this->battery_voltage_);
-  LOG_SENSOR("  ", "Signal Strength", this->signal_strength_);
+  LOG_SENSOR("  ", "Temperature", this->temperature_sensor_);
+  LOG_SENSOR("  ", "Humidity", this->humidity_sensor_);
+  LOG_SENSOR("  ", "Battery Level", this->battery_level_sensor_);
+  LOG_SENSOR("  ", "Battery Voltage", this->battery_voltage_sensor_);
+  LOG_SENSOR("  ", "Signal Strength", this->signal_strength_sensor_);
 }
 
 bool BTHomeMiThermometer::parse_device(const ble_device_base::ESPBTDevice &device) {
@@ -179,8 +179,8 @@ bool BTHomeMiThermometer::parse_device(const ble_device_base::ESPBTDevice &devic
       matched = true;
     }
   }
-  if (matched && this->signal_strength_ != nullptr) {
-    this->signal_strength_->publish_state(device.get_rssi());
+  if (matched && this->signal_strength_sensor_ != nullptr) {
+    this->signal_strength_sensor_->publish_state(device.get_rssi());
   }
   return matched;
 }
@@ -445,47 +445,47 @@ bool BTHomeMiThermometer::handle_service_data_(const ble_device_base::ServiceDat
         break;
       }
       case 0x01: {  // battery percentage
-        if (this->battery_level_ != nullptr) {
-          this->battery_level_->publish_state(value[0]);
+        if (this->battery_level_sensor_ != nullptr) {
+          this->battery_level_sensor_->publish_state(value[0]);
           reported = true;
         }
         break;
       }
       case 0x0C: {  // battery voltage (mV)
-        if (this->battery_voltage_ != nullptr) {
+        if (this->battery_voltage_sensor_ != nullptr) {
           const uint16_t raw = encode_uint16(value[1], value[0]);
-          this->battery_voltage_->publish_state(raw * 0.001f);
+          this->battery_voltage_sensor_->publish_state(raw * 0.001f);
           reported = true;
         }
         break;
       }
       case 0x02: {  // temperature
-        if (this->temperature_ != nullptr) {
+        if (this->temperature_sensor_ != nullptr) {
           const int16_t raw = encode_value_le<int16_t>(value);
-          this->temperature_->publish_state(raw * 0.01f);
+          this->temperature_sensor_->publish_state(raw * 0.01f);
           reported = true;
         }
         break;
       }
       case 0x03: {  // humidity
-        if (this->humidity_ != nullptr) {
+        if (this->humidity_sensor_ != nullptr) {
           const uint16_t raw = encode_uint16(value[1], value[0]);
-          this->humidity_->publish_state(raw * 0.01f);
+          this->humidity_sensor_->publish_state(raw * 0.01f);
           reported = true;
         }
         break;
       }
       case 0x45: {  // temperature (0.1C), e.g. Shelly BLU H&T
-        if (this->temperature_ != nullptr) {
+        if (this->temperature_sensor_ != nullptr) {
           const int16_t raw = encode_value_le<int16_t>(value);
-          this->temperature_->publish_state(raw * 0.1f);
+          this->temperature_sensor_->publish_state(raw * 0.1f);
           reported = true;
         }
         break;
       }
       case 0x2E: {  // humidity (uint8, 1%), e.g. Shelly BLU H&T
-        if (this->humidity_ != nullptr) {
-          this->humidity_->publish_state(value[0]);
+        if (this->humidity_sensor_ != nullptr) {
+          this->humidity_sensor_->publish_state(value[0]);
           reported = true;
         }
         break;

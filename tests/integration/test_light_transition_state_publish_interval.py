@@ -16,7 +16,7 @@ from aioesphomeapi import (
 )
 import pytest
 
-from .state_utils import InitialStateHelper, require_entity, wait_for_state
+from .state_utils import require_entity, subscribe_after_initial_states, wait_for_state
 from .types import APIClientConnectedFactory, RunCompiledFunction
 
 Timeline = list[tuple[float, LightState]]
@@ -75,10 +75,8 @@ class _Recorder:
 async def _subscribe(client: APIClient) -> tuple[list[EntityInfo], _Recorder]:
     """List entities and attach a recorder once the initial states have arrived."""
     entities, _ = await client.list_entities_services()
-    helper = InitialStateHelper(entities)
     recorder = _Recorder()
-    client.subscribe_states(helper.on_state_wrapper(recorder.on_state))
-    await helper.wait_for_initial_states()
+    await subscribe_after_initial_states(client, entities, on_state=recorder.on_state)
     return entities, recorder
 
 

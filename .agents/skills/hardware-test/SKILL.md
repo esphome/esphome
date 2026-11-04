@@ -67,9 +67,17 @@ driven, what the logs show, and the same flow on a `dev` build when a quirk coul
    automations in the config itself.
 7. **Analyze** with `grep -a -c` counts over the capture and keep an `-events.txt` extract of the lines
    that matter. Decode crashes with the platform's `addr2line` (see `reference/boards.md`).
-8. **Report** on the PR as a table: build SHA, board and framework, what was driven, counts, result,
-   plus the `dev` control row and the exact flow in a `<details>` block. No credentials, no port names,
-   no IP addresses.
+8. **Report** on the PR. Every result comment starts with this two-line GitHub alert, then a blank line:
+
+   ```
+   > [!NOTE]
+   > Automated testing results
+   ```
+
+   Then one short sentence saying what was tested (builds and SHAs, board, what was driven), a results table
+   (build SHA, board and framework, what was driven, counts, result, plus the `dev` control row), short bullets
+   for the findings, and the setup and exact flow in a collapsed `<details>` block. Answer any question asked on
+   the PR directly in the comment. No credentials, SSIDs, IP addresses, port names or other bench details.
 
 ## Flashing by chip family
 
@@ -80,6 +88,7 @@ driven, what the logs show, and the same flow on a `dev` build when a quirk coul
 | ESP32-S3, C3, C6, H2 native USB | `esphome upload --device /dev/cu.usbmodem*` | `logger: hardware_uart: USB_SERIAL_JTAG`. The USB console can wedge when the app takes over the console (0 bytes, esptool `No serial data received`); replug, or watch through `esphome logs --device <name>.local` |
 | Pico W / Pico 2 W | `esphome upload --device <port>` (1200 baud touch); first flash ever via BOOTSEL and `--device /Volumes/RPI-RP2` or `RP2350` | port re-enumerates after upload: `ports.py --wait 2e8a` then capture |
 | BW15 kit (RTL8720CF, rtl87xx) | `~/.platformio/penv/.libretiny/bin/python $SKILL/scripts/flash_rtl87xx_kit.py flash write -d <port> <build>/.pioenvs/<name>/*.uf2`. Plain `esphome upload` and plain ltchiptool time out because opening the port asserts DTR/RTS and holds the chip in reset | `serial_capture.py --released`, never `esphome logs` |
+| BW12 and other AmebaZ modules (RTL8710BX, rtl87xx) on a plain USB-UART | `~/.platformio/penv/.libretiny/bin/python -m ltchiptool flash write -B 115200 -b 115200 -t 120 -d <port> <uf2>`, started first, then strap by hand: CEN to GND, TX2 to GND, release CEN, release TX2. Without `-B 115200` the system data read at 1.5 Mbaud fails on CH340s (`Data read error at 0x9000`) and nothing is written. A 1 MB image takes about 80 s. A development board with DTR and RTS wired to CEN and the download pin needs no strap | `serial_capture.py`; a reset pulse does not reach CEN on a plain adapter, so a capture starts mid-run |
 | BK7238 / CB3S (bk72xx, RTS on CEN) | `~/.platformio/penv/.libretiny/bin/python $SKILL/scripts/flash_bk72xx.py flash write -d <port> <uf2>` (about 75 s) | logs are on UART2 by default; `logger: hardware_uart: UART1` puts them on the flashing adapter. `serial_capture.py --reset` gives a chip-enable reset; a plain open may or may not reset it, check for the bootloader banner |
 | LN882H | ltchiptool forces 1 Mbaud for writes; weak adapters need `LN882H_YM_BAUDRATE` patched to 115200 in the penv's `ln882htool.py`; short BOOT to GND while the tool connects | OTA after the first flash |
 | nRF52840 Dongle (PCA10059) | Nordic `nrfutil nrf5sdk-tools dfu usb-serial` on the bootloader port, or `dfu: true` in the config so the 1200 baud touch pin-resets into the bootloader; adafruit-nrfutil is refused | app has two CDC ports, ESPHome log on the second |
@@ -111,11 +120,11 @@ ESP-IDF OTA image: `.esphome/build/<name>/build/firmware.ota.bin`. LibreTiny OTA
   or exits 1 when a build, flash or port step failed.
 
 Per-topic scripts, each described in the matching `reference/recipes/<component>.md`: `online_image/`
-(server, image generator, API driver), `zwave_proxy/` (checksum verifier, device info), `usb_cdc_acm/`
+(server with prefixed misbehaviour cases, PNG, JPEG, BMP and QOI generators, API drivers, first pass timer), `zwave_proxy/` (checksum verifier, device info), `usb_cdc_acm/`
 (host driver, Zephyr driver probe), `rtsp_server/` (protocol client, raw rate reader, measurement set,
 API image grab), `cse7766/` (API observer with ping), `zephyr_coredump/` (reader flow, decode with the
-Zephyr tools), `libretiny_prefs/` (rtc preference harness header), `libretiny_crash/` (BK72xx crash probe header and
-capture decoder), `api_outgoing/` (wake cycle and Wi-Fi drop timing readers), `ld2450/` (zone number driver), `dfrobot_sen0395/` (API driver and case runner), `homeassistant_light/` (direct bulb driver, held-report case driver), `usb_audio/` (URL player).
+Zephyr tools), `libretiny_prefs/` (rtc preference harness header), `libretiny_crash/` (BK72xx crash probe header,
+capture decoder, RTL8720C ROM dump versus report matcher), `api_outgoing/` (wake cycle and Wi-Fi drop timing readers), `ld2450/` (zone number driver, loopback harness driver with number and binary sensor states and TX frame summarizer, frame stream harness with presence hold and link loss drivers, BT MAC driver), `api/` (raw plaintext native API client for user defined actions, store_yaml recovery client over Noise or plaintext), `http_request/` (update manifest server, update state driver, request test server, action case driver, concurrency, reboot, update check and OTA drivers, `ota_auth/` OTA request cases with basic auth), `modem/` (button and sensor driver over the plaintext API, also used for the BLE MIDI boards), `dfrobot_sen0395/` (API driver and case runner), `homeassistant_light/` (direct bulb driver, held-report case driver), `usb_audio/` (URL player), `speaker_media_player/` (API player driver, pipeline task case runner), `web_server/` (SSE client, request mix, SSE and HTTPD case runners), `mqtt/` (broker config with TLS, client-certificate and WebSocket listeners, test CA with server and client certificates, transport case runner, flash-and-drive runner, CLI TLS check without a board, MAC suffix runner with per-variant configs for two boards, `shutdown/` shutdown message runner and matcher), `udp/` (datagram recorder, `udp.write` payload checker and case driver), `entity_icons/` (icon and device class readback over the API, MQTT discovery, web_server and dump_config, with a comparer), `uart_sim/` (API driver and flash, capture and drive runner for the simulated UART sensors), `remote_base/` (loopback runner and API log decoder per sent frame), `xiaomi_ble/` (frame and header generator with the expected counts, injecting, advertising and receiving configs, counter and runner), `ble_terminate/` (proxy and peer configs, connect and disconnect driver, peer disconnect matcher, runner), `i2c_slave/` (D1 mini slave and BK7238 master configs), `wpa3_ap/` (PMF AP with join and leave logging, BK7238 and CB3S DUTs, runner and summary), `wisp_ap/` (WISP upstream with AP buttons, WISP and ALWAYS_ON DUTs, client, runner and per phase summary), `wifi_restart/` (WPA3 mixed WISP upstream, static IP DUTs with syslog, runner and summary), `ota_timing/` (OTA upload timer with deflate, raw and TCP modes, API build check, A/B runner and median summary, `inflate_bench/` on-device inflate benchmark with stream generator, configs and syslog runner), `gpio_hold/` (ISR pin hold self test with ESP32 and S3 configs), `ble_event_inject/` (GAP and GATTC event injector header and proxy package), `light_sleep_wake/` (LEDC wave and edge timer for light sleep wakeup on a C3), `manual_ip/` (station and AP manual IP configs, DNS probe and runners), `web_handlers/` (late handler, web_server, captive_portal and prometheus variants, web OTA runner), `bk72xx_flash/` (flash readback with retries, per partition diff of two dumps), `ble_server_security/` (secure GATT server and pairing client configs, driver, summary and runner), `prometheus/` (datetime metrics configs and driver), `zephyr_ble_server/` (nRF52 server, looping ESP32 client and UF2 flash and count runner).
 
 ## Templates in `$SKILL/templates`
 
@@ -131,11 +140,29 @@ capture decoder), `api_outgoing/` (wake cycle and Wi-Fi drop timing readers), `l
   `homeassistant-light-dut.yaml`, `deep-sleep-outgoing-dut.yaml`, `outgoing-wifi-drop-dut.yaml`,
   `globals-storage-dut.yaml`, `usb-audio-waveshare-s3-eth-dut.yaml`, `usb-audio-sendspin-s3-eth-dut.yaml`,
   `cast-pro-1-sendspin-control.yaml`, `aux-2-preprod-stock-dut.yaml`, `aux-2-preprod-usb-audio-dut.yaml`,
-  `dfrobot-sen0395-dut.yaml`.
+  `dfrobot-sen0395-dut.yaml`, `aux-2-preprod-speaker-player-dut.yaml`, `web-server-sse-dut.yaml`,
+  `mqtt-transport-dut.yaml`, `mqtt-tls-dut.yaml`, `udp-write-dut.yaml`, `entity-icon-dut.yaml`,
+  `online-image-s3-eth-dut.yaml`,
+  and the directories `store_yaml/` (package with secrets one directory up, per-board files),
+  `http_request_update/` (manifest URL setter shapes, per-board files), `modem/` (modem only and modem plus
+  Wi-Fi boot checks), `ble_midi/` (fake BLE MIDI instrument and the client), `http_request_action/` (request
+  action package with per-board files and an OTA flash variant) `uart_sim/` (simulator header, common package, per-build parts and run files) and `remote_base/` (common
+  package, transmit script, per-board templates and the ESP8266 software sender).
+
+## When the PR keeps moving
+
+Record every head in the stack (`gh pr view N --json headRefOid`), build, and recheck before flashing; if anything
+moved, wait five minutes and check again so the test runs on a settled head. When a head moved only by merging dev,
+compare the PR's own diff (`git diff $(git merge-base OLD origin/dev) OLD` against the same for NEW); if it is
+identical and the dev commits do not touch the code under test, earlier results still describe it, but rebuild so the
+comment quotes the exact commits. Fetch `origin dev` before computing a merge base.
 
 ## When something looks wrong
 
 - A capture stopped early or a line is missing: check the timestamps before trusting it.
+- A script that pipes into `tee` never ends although its work is done: a background command written as
+  `(cd dir && server & echo $!)` backgrounds the whole `cd && server` list, so a shell stays behind holding the
+  pipe open and `$!` is that shell, not the server. Write `(cd dir && exec server > out 2>&1 < /dev/null) &`.
 - The client never joins the AP: another board may still run an AP with the same SSID, or the device
   booted with saved credentials because the name was reused. One AP device at a time on the bench.
 - Builds come out byte-identical between branches: the wrong tree was imported (rule 3). The reverse
@@ -145,6 +172,14 @@ capture decoder), `api_outgoing/` (wake cycle and Wi-Fi drop timing readers), `l
   preference and repeat it in a periodic alive line, as `scripts/libretiny_prefs/ltprefs.hpp` does.
 - Multicast from the host never arrives on some access points: test it device to device. Broadcast
   is lossy under Wi-Fi power save, unicast is not. Throttle UDP floods to a fixed packet rate.
+- The merge base comes from a freshly fetched `origin/dev`; a stale local `dev` puts dependency bumps into the
+  PR diff and builds the control from the wrong commit.
+- A `.local` name can stop resolving in the middle of a run; keep the address from the boot log and drive by it.
+- Never point `framework: source:` at a local `file://` copy of LibreTiny to try a patch: PlatformIO installs it over
+  the shared `~/.platformio/platforms/libretiny`, so every later build on the machine uses the patched copy. Patch
+  through the ESPHome side (a linker `-Wl,-wrap,<symbol>` or a define) instead, and if it happened, restore the
+  directory from a clean copy of the same release.
+- `wc -l` pads its count on macOS, so `tail -n +$n0` needs `$((n0+0))` or an arithmetic expansion.
 - `api:` reboots a board after 15 min without a client: `reboot_timeout: 0s` on `api:` and `mqtt:` for
   soak tests.
 

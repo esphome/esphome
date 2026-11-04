@@ -3,31 +3,23 @@
 #include "esphome/core/component.h"
 #include "esphome/core/hal.h"
 #include "esphome/components/i2c/i2c.h"
-#include "esphome/components/gpio_expander/cached_gpio.h"
+#include "esphome/components/gpio_expander/cached_gpio_component.h"
 #include "esphome/components/gpio_expander/expander_gpio_pin.h"
 
 namespace esphome::pca6416a {
 
-class PCA6416AComponent final : public Component,
-                                public i2c::I2CDevice,
-                                public gpio_expander::CachedGpioExpander<uint8_t, 16> {
+class PCA6416AComponent final : public gpio_expander::CachedGpioExpanderComponent<uint8_t, 16>, public i2c::I2CDevice {
  public:
   PCA6416AComponent() = default;
 
   /// Check i2c availability and setup masks
   void setup() override;
-  void loop() override;
   /// Helper function to set the pin mode of a pin.
   void pin_mode(uint8_t pin, gpio::Flags flags);
 
-  float get_setup_priority() const override;
-
   void dump_config() override;
 
-  void set_interrupt_pin(InternalGPIOPin *pin) { this->interrupt_pin_ = pin; }
-
  protected:
-  static void IRAM_ATTR gpio_intr(PCA6416AComponent *arg);
   // Virtual methods from CachedGpioExpander
   bool digital_read_hw(uint8_t pin) override;
   bool digital_read_cache(uint8_t pin) override;
@@ -46,7 +38,6 @@ class PCA6416AComponent final : public Component,
   esphome::i2c::ErrorCode last_error_;
   /// Only the PCAL6416A has pull-up resistors
   bool has_pullup_{false};
-  InternalGPIOPin *interrupt_pin_{nullptr};
 };
 
 using PCA6416AGPIOPin = gpio_expander::ExpanderGPIOPin<PCA6416AComponent>;

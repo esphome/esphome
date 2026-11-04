@@ -40,7 +40,7 @@ SelectCall &SelectCall::with_option(const char *option, size_t len) {
 SelectCall &SelectCall::with_index(size_t index) {
   this->operation_ = SELECT_OP_SET;
   if (index >= this->parent_->size()) {
-    ESP_LOGW(TAG, "'%s' - Index value %zu out of bounds", this->parent_->get_name().c_str(), index);
+    ESP_LOGW(TAG, "'%s' - Index value %zu out of bounds", LOG_STR_ARG(this->parent_->get_log_name()), index);
     this->index_ = nullopt;  // Store nullopt for invalid index
   } else {
     this->index_ = index;
@@ -101,7 +101,7 @@ optional<size_t> SelectCall::calculate_target_index_(const char *name) {
 
 void SelectCall::perform() {
   auto *parent = this->parent_;
-  const auto *name = parent->get_name().c_str();
+  const auto *name = LOG_STR_ARG(parent->get_log_name());
 
   if (this->operation_ == SELECT_OP_NONE) {
     ESP_LOGW(TAG, "'%s' - SelectCall performed without selecting an operation", name);

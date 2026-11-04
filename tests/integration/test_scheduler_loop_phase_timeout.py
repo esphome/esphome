@@ -2,13 +2,16 @@
 
 from __future__ import annotations
 
-import asyncio
 import re
 
 import pytest
 
 from .conftest import run_binary
+from .log_utils import LineWaiter
 from .types import CompileFunction, ConfigWriter
+from .wait_utils import wait_or_fail
+
+RESULT_RE = re.compile(r"SCHEDULER_LOOP_PHASE_RESULT elapsed=(\d+)")
 
 
 @pytest.mark.asyncio
@@ -20,19 +23,17 @@ async def test_scheduler_loop_phase_timeout(
     config_path = await write_yaml_config(yaml_config)
     binary_path = await compile_esphome(config_path)
 
-    loop = asyncio.get_running_loop()
-    timeout_result: asyncio.Future[int] = loop.create_future()
+    waiter = LineWaiter()
 
-    def on_log_line(line: str) -> None:
-        match = re.search(r"SCHEDULER_LOOP_PHASE_RESULT elapsed=(\d+)", line)
-        if match and not timeout_result.done():
-            timeout_result.set_result(int(match.group(1)))
-
-    async with run_binary(binary_path, line_callback=on_log_line):
-        try:
-            elapsed = await asyncio.wait_for(timeout_result, timeout=15.0)
-        except TimeoutError:
-            pytest.fail("loop-phase timeout did not fire within 15 seconds")
+    async with run_binary(binary_path, line_callback=waiter.callback):
+        line = await wait_or_fail(
+            waiter.wait_for("SCHEDULER_LOOP_PHASE_RESULT elapsed=", timeout=30.0),
+            15.0,
+            "loop-phase timeout did not fire within 15 seconds",
+        )
+        match = RESULT_RE.search(line)
+        assert match, line
+        elapsed = int(match[1])
 
         assert elapsed < 1000, (
             f"loop-phase timeout should interrupt the five-second sleep, but fired after {elapsed}ms"

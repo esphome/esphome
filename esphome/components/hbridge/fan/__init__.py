@@ -33,7 +33,7 @@ CONFIG_SCHEMA = (
             cv.Optional(CONF_DECAY_MODE, default="SLOW"): cv.enum(
                 DECAY_MODE_OPTIONS, upper=True
             ),
-            cv.Optional(CONF_SPEED_COUNT, default=100): cv.int_range(min=1),
+            cv.Optional(CONF_SPEED_COUNT, default=100): fan.validate_speed_count,
             cv.Optional(CONF_ENABLE_PIN): cv.use_id(output.FloatOutput),
             cv.Optional(CONF_PRESET_MODES): validate_preset_modes,
         }
@@ -60,4 +60,4 @@ async def to_code(config: ConfigType) -> None:
     await cg.add_variable(var.set_pin_b, config[CONF_PIN_B])
     await cg.add_variable(var.set_enable_pin, config.get(CONF_ENABLE_PIN))
 
-    cg.add_optional(var.set_preset_modes, config.get(CONF_PRESET_MODES))
+    fan.set_preset_modes(var, config.get(CONF_PRESET_MODES, []))

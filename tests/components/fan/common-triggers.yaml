@@ -33,3 +33,12 @@ fan:
       - logger.log:
           format: "Preset %s"
           args: ["x.c_str()"]
+
+button:
+  - platform: template
+    name: Cycle Fan Speed
+    on_press:
+      - fan.cycle_speed: fan_triggers
+      - fan.cycle_speed:
+          id: fan_triggers
+          off_speed_cycle: false

@@ -19,6 +19,11 @@ from . import EpaperModel, ultrachip_resolution
 
 
 class UC8279(EpaperModel):
+    source_files = (
+        "epaper_spi_ultrachip.cpp",
+        "epaper_spi_uc8279.cpp",
+    )
+
     def __init__(
         self,
         name: str,

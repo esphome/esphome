@@ -6,14 +6,19 @@ takes the separate defer queue on multi-threaded builds.
 
 from __future__ import annotations
 
-import asyncio
 import re
 
 from aioesphomeapi import ButtonInfo
 import pytest
 
-from .state_utils import require_entity
+from .log_utils import LineWaiter
+from .state_utils import assert_device_name, require_entity
 from .types import APIClientConnectedFactory, RunCompiledFunction
+from .wait_utils import wait_or_fail
+
+RESULT_RE = re.compile(
+    r"SCHEDULER_WAKE_RESULT delay=\d+ elapsed=(\d+) loop_delta=(-?\d+)"
+)
 
 
 @pytest.mark.asyncio
@@ -22,30 +27,13 @@ async def test_scheduler_background_wake(
     run_compiled: RunCompiledFunction,
     api_client_connected: APIClientConnectedFactory,
 ) -> None:
-    loop = asyncio.get_running_loop()
-    results: dict[int, asyncio.Future[tuple[int, int]]] = {
-        100: loop.create_future(),
-        0: loop.create_future(),
-    }
-
-    def on_log_line(line: str) -> None:
-        match = re.search(
-            r"SCHEDULER_WAKE_RESULT delay=(\d+) elapsed=(\d+) loop_delta=(-?\d+)",
-            line,
-        )
-        if match is None:
-            return
-        result = results[int(match.group(1))]
-        if not result.done():
-            result.set_result((int(match.group(2)), int(match.group(3))))
+    waiter = LineWaiter()
 
     async with (
-        run_compiled(yaml_config, line_callback=on_log_line),
+        run_compiled(yaml_config, line_callback=waiter.callback),
         api_client_connected() as client,
     ):
-        device_info = await client.device_info()
-        assert device_info is not None
-        assert device_info.name == "scheduler-background-wake"
+        await assert_device_name(client, "scheduler-background-wake")
         entities, _ = await client.list_entities_services()
         for object_id, delay in (
             ("start_scheduler_timeout", 100),
@@ -59,12 +47,16 @@ async def test_scheduler_background_wake(
             )
             client.button_command(start_button.key)
 
-            try:
-                elapsed, loop_delta = await asyncio.wait_for(
-                    results[delay], timeout=10.0
-                )
-            except TimeoutError:
-                pytest.fail(f"background insert with delay={delay} did not fire")
+            line = await wait_or_fail(
+                waiter.wait_for(
+                    f"SCHEDULER_WAKE_RESULT delay={delay} elapsed=", timeout=20.0
+                ),
+                10.0,
+                f"background insert with delay={delay} did not fire",
+            )
+            match = RESULT_RE.search(line)
+            assert match, line
+            elapsed, loop_delta = int(match[1]), int(match[2])
 
             assert elapsed < 1000, (
                 f"background insert with delay={delay} should interrupt the "

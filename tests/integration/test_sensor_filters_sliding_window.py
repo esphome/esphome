@@ -7,7 +7,11 @@ import asyncio
 from aioesphomeapi import EntityState, SensorState
 import pytest
 
-from .state_utils import InitialStateHelper, build_key_to_entity_mapping
+from .state_utils import (
+    build_key_to_entity_mapping,
+    require_entity,
+    subscribe_after_initial_states,
+)
 from .types import APIClientConnectedFactory, RunCompiledFunction
 from .wait_utils import wait_or_fail
 
@@ -109,24 +113,11 @@ async def test_sensor_filters_sliding_window(
             ],
         )
 
-        # Set up initial state helper with all entities
-        initial_state_helper = InitialStateHelper(entities)
-
-        # Subscribe to state changes with wrapper
-        client.subscribe_states(initial_state_helper.on_state_wrapper(on_state))
-
         # Wait for initial states to be sent before pressing button
-        try:
-            await initial_state_helper.wait_for_initial_states()
-        except TimeoutError:
-            pytest.fail("Timeout waiting for initial states")
+        await subscribe_after_initial_states(client, entities, on_state=on_state)
 
         # Find the publish button
-        publish_button = next(
-            (e for e in entities if "publish_values_button" in e.object_id.lower()),
-            None,
-        )
-        assert publish_button is not None, "Publish Values Button not found"
+        publish_button = require_entity(entities, "publish_values_button")
 
         # Press the button to publish test values
         client.button_command(publish_button.key)
@@ -238,24 +229,11 @@ async def test_sensor_filters_nan_handling(
         # Build key-to-sensor mapping
         key_to_sensor = build_key_to_entity_mapping(entities, ["min_nan", "max_nan"])
 
-        # Set up initial state helper with all entities
-        initial_state_helper = InitialStateHelper(entities)
-
-        # Subscribe to state changes with wrapper
-        client.subscribe_states(initial_state_helper.on_state_wrapper(on_state))
-
         # Wait for initial states
-        try:
-            await initial_state_helper.wait_for_initial_states()
-        except TimeoutError:
-            pytest.fail("Timeout waiting for initial states")
+        await subscribe_after_initial_states(client, entities, on_state=on_state)
 
         # Find the publish button
-        publish_button = next(
-            (e for e in entities if "publish_nan_values_button" in e.object_id.lower()),
-            None,
-        )
-        assert publish_button is not None, "Publish NaN Values Button not found"
+        publish_button = require_entity(entities, "publish_nan_values_button")
 
         # Press the button
         client.button_command(publish_button.key)
@@ -337,24 +315,11 @@ async def test_sensor_filters_ring_buffer_wraparound(
         # Build key-to-sensor mapping
         key_to_sensor = build_key_to_entity_mapping(entities, ["wraparound_min"])
 
-        # Set up initial state helper with all entities
-        initial_state_helper = InitialStateHelper(entities)
-
-        # Subscribe to state changes with wrapper
-        client.subscribe_states(initial_state_helper.on_state_wrapper(on_state))
-
         # Wait for initial state
-        try:
-            await initial_state_helper.wait_for_initial_states()
-        except TimeoutError:
-            pytest.fail("Timeout waiting for initial state")
+        await subscribe_after_initial_states(client, entities, on_state=on_state)
 
         # Find the publish button
-        publish_button = next(
-            (e for e in entities if "publish_wraparound_button" in e.object_id.lower()),
-            None,
-        )
-        assert publish_button is not None, "Publish Wraparound Button not found"
+        publish_button = require_entity(entities, "publish_wraparound_button")
 
         # Press the button
         # Will publish: 10, 20, 30, 5, 25, 15, 40, 35, 20

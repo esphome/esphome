@@ -177,4 +177,11 @@ TEST_F(LD2450ZoneAckTest, MultipleCompleteFramesInRetainedSuffixAreDrained) {
   expect_zone(this->ld2450_, 0, 100, 200, 1500, 3000);
 }
 
+TEST_F(LD2450ZoneAckTest, PeriodicFooterBytesInZonePayloadDoNotEndTheAck) {
+  // Zone 0 x1 is -13227 (0xCC55 little endian): its bytes 55 CC are the periodic frame footer
+  this->ld2450_.feed(make_zone_ack({0x55, 0xCC, 0xC8, 0x00, 0xDC, 0x05, 0xB8, 0x0B}));
+  EXPECT_EQ(this->ld2450_.buffer_pos_, 0);
+  expect_zone(this->ld2450_, 0, -13227, 200, 1500, 3000);
+}
+
 }  // namespace esphome::ld2450::testing

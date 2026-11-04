@@ -8,12 +8,11 @@ suffix, so it never matched the actual mDNS hostname.
 
 from __future__ import annotations
 
-import asyncio
-
 import pytest
 
+from .log_utils import LineWaiter
+from .state_utils import assert_device_name
 from .types import APIClientConnectedFactory, RunCompiledFunction
-from .wait_utils import wait_or_fail
 
 # Host platform default MAC: 98:35:69:ab:f6:79 -> suffix "abf679"
 MAC_SUFFIX = "abf679"
@@ -26,23 +25,15 @@ async def test_use_address_runtime(
     api_client_connected: APIClientConnectedFactory,
 ) -> None:
     """The API dump_config logs "<name>.local" built from the device name."""
-    address_seen = asyncio.Event()
-
-    def check_output(line: str) -> None:
-        if "Address: use-address-runtime.local:" in line:
-            address_seen.set()
+    waiter = LineWaiter()
 
     async with (
-        run_compiled(yaml_config, line_callback=check_output),
+        run_compiled(yaml_config, line_callback=waiter.callback),
         api_client_connected() as client,
     ):
-        device_info = await client.device_info()
-        assert device_info is not None
-        assert device_info.name == "use-address-runtime"
+        await assert_device_name(client, "use-address-runtime")
 
-        await wait_or_fail(
-            address_seen, 10.0, "Did not log 'Address: use-address-runtime.local:'"
-        )
+        await waiter.wait_for("Address: use-address-runtime.local:", timeout=10.0)
 
 
 @pytest.mark.asyncio
@@ -52,19 +43,14 @@ async def test_use_address_runtime_mac_suffix(
     api_client_connected: APIClientConnectedFactory,
 ) -> None:
     """With name_add_mac_suffix the logged address includes the MAC suffix."""
-    address_seen = asyncio.Event()
-    expected = f"Address: use-address-mac-{MAC_SUFFIX}.local:"
-
-    def check_output(line: str) -> None:
-        if expected in line:
-            address_seen.set()
+    waiter = LineWaiter()
 
     async with (
-        run_compiled(yaml_config, line_callback=check_output),
+        run_compiled(yaml_config, line_callback=waiter.callback),
         api_client_connected() as client,
     ):
-        device_info = await client.device_info()
-        assert device_info is not None
-        assert device_info.name == f"use-address-mac-{MAC_SUFFIX}"
+        await assert_device_name(client, f"use-address-mac-{MAC_SUFFIX}")
 
-        await wait_or_fail(address_seen, 10.0, f"Did not log '{expected}'")
+        await waiter.wait_for(
+            f"Address: use-address-mac-{MAC_SUFFIX}.local:", timeout=10.0
+        )

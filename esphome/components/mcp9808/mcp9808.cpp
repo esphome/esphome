@@ -18,28 +18,24 @@ ESPHOME_LOG_TAG(TAG, "mcp9808");
 
 void MCP9808Sensor::setup() {
   uint16_t manu = 0;
-  if (!this->read_byte_16(MCP9808_REG_MANUF_ID, &manu)) {
-    this->mark_failed(LOG_STR(ESP_LOG_MSG_COMM_FAIL));
+  if (!this->setup_check(this->read_byte_16(MCP9808_REG_MANUF_ID, &manu)))
     return;
-  }
   if (manu != MCP9808_MANUF_ID) {
-    ESP_LOGE(TAG, "Incorrect manufacturer ID (%X) for '%s'", manu, this->name_.c_str());
+    ESP_LOGE(TAG, "Incorrect manufacturer ID (%X) for '%s'", manu, LOG_STR_ARG(this->get_log_name()));
     this->mark_failed(LOG_STR("Wrong chip ID"));
     return;
   }
   uint16_t dev_id = 0;
-  if (!this->read_byte_16(MCP9808_REG_DEVICE_ID, &dev_id)) {
-    this->mark_failed(LOG_STR(ESP_LOG_MSG_COMM_FAIL));
+  if (!this->setup_check(this->read_byte_16(MCP9808_REG_DEVICE_ID, &dev_id)))
     return;
-  }
   if (dev_id != MCP9808_DEV_ID) {
-    ESP_LOGE(TAG, "Incorrect device ID (%X) for '%s'", dev_id, this->name_.c_str());
+    ESP_LOGE(TAG, "Incorrect device ID (%X) for '%s'", dev_id, LOG_STR_ARG(this->get_log_name()));
     this->mark_failed(LOG_STR("Wrong chip ID"));
     return;
   }
 }
 void MCP9808Sensor::dump_config() {
-  ESP_LOGCONFIG(TAG, "%s:", this->name_.c_str());
+  ESP_LOGCONFIG(TAG, "%s:", LOG_STR_ARG(this->get_log_name()));
   LOG_I2C_DEVICE(this);
   LOG_UPDATE_INTERVAL(this);
   LOG_SENSOR("  ", "Temperature", this);
@@ -63,15 +59,15 @@ void MCP9808Sensor::update() {
 
   if ((msb & MCP9808_AMBIENT_TEMP_NEGATIVE) == MCP9808_AMBIENT_TEMP_NEGATIVE) {
     msb = msb & MCP9808_AMBIENT_CLEAR_SIGN;
-    temp = (256 - ((uint16_t) (msb) *16 + lsb / 16.0f)) * -1;
+    temp = (256 - ((uint16_t) (msb) * 16 + lsb / 16.0f)) * -1;
   } else {
-    temp = (uint16_t) (msb) *16 + lsb / 16.0f;
+    temp = (uint16_t) (msb) * 16 + lsb / 16.0f;
   }
 
   if (!this->status_comm_result(!std::isnan(temp), nullptr))
     return;
 
-  ESP_LOGD(TAG, "%s: Got temperature=%.4f°C", this->name_.c_str(), temp);
+  ESP_LOGD(TAG, "%s: Got temperature=%.4f°C", LOG_STR_ARG(this->get_log_name()), temp);
   this->publish_state(temp);
 }
 

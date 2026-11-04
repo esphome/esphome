@@ -20,3 +20,6 @@ esphome:
         - max7219digit.reverse_on:
         - max7219digit.reverse_off:
         - max7219digit.intensity: 10
+        - max7219digit.intensity:
+            intensity: 7
+        - max7219digit.intensity: !lambda return 3;

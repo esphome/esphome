@@ -40,7 +40,7 @@ class TcpListenerAccept : public ::testing::Test {
   uint16_t listen_on_loopback() {
     int fd = ::socket(AF_INET, SOCK_STREAM, 0);
     EXPECT_GE(fd, 0);
-    struct sockaddr_in addr {};
+    struct sockaddr_in addr{};
     addr.sin_family = AF_INET;
     addr.sin_addr.s_addr = htonl(INADDR_LOOPBACK);
     socklen_t len = sizeof(addr);
@@ -56,15 +56,13 @@ class TcpListenerAccept : public ::testing::Test {
   void connect_client(uint16_t port) {
     this->client_fd_ = ::socket(AF_INET, SOCK_STREAM, 0);
     ASSERT_GE(this->client_fd_, 0);
-    struct sockaddr_in addr {};
+    struct sockaddr_in addr{};
     addr.sin_family = AF_INET;
     addr.sin_addr.s_addr = htonl(INADDR_LOOPBACK);
     addr.sin_port = htons(port);
     ASSERT_EQ(::connect(this->client_fd_, reinterpret_cast<struct sockaddr *>(&addr), sizeof(addr)), 0);
     // The stack may queue the connection for accept() a moment after connect() returns.
-    struct pollfd pfd {
-      this->listen_fd_, POLLIN, 0
-    };
+    struct pollfd pfd{this->listen_fd_, POLLIN, 0};
     ASSERT_EQ(::poll(&pfd, 1, 1000), 1);
   }
 
@@ -110,9 +108,7 @@ TEST_F(TcpListenerAccept, PeerOutsideTheAllowListIsClosed) {
   EXPECT_TRUE(this->listener_.listening());
   EXPECT_FALSE(this->link_.in_backoff());
   // The peer sees the close.
-  struct pollfd pfd {
-    this->client_fd_, POLLIN, 0
-  };
+  struct pollfd pfd{this->client_fd_, POLLIN, 0};
   ASSERT_EQ(::poll(&pfd, 1, 1000), 1);
   char b;
   EXPECT_EQ(::read(this->client_fd_, &b, 1), 0);

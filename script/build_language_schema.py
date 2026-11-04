@@ -575,10 +575,20 @@ def merge(source, destination):
             # get node or create one
             node = destination.setdefault(key, {})
             merge(value, node)
+        elif key == "constraints" and isinstance(value, list):
+            destination[key] = value + destination.get(key, [])
         else:
             destination[key] = value
 
     return destination
+
+
+def inline_schema(node: dict, base: dict) -> None:
+    """Copy *base* into *node*, keeping the key constraints of both."""
+    local = node.get("constraints", [])
+    node |= base
+    if local:
+        node["constraints"] = base.get("constraints", []) + local
 
 
 def is_platform_schema(schema_name):
@@ -626,11 +636,14 @@ def shrink():
                     else:
                         print("expected extends here!" + x)
                     arr_s = merge(key_s, arr_s)
-                    if arr_s[S_TYPE] in ["enum", "typed"]:
-                        arr_s.pop(S_SCHEMA)
+                    # Only key constraints survive the collapse
+                    if arr_s[S_TYPE] in ["enum", "typed"] and (
+                        constraints := arr_s.pop(S_SCHEMA).get("constraints")
+                    ):
+                        arr_s[S_SCHEMA] = {"constraints": constraints}
                 else:
                     arr_s.pop(S_EXTENDS)
-                    arr_s |= key_s[S_SCHEMA]
+                    inline_schema(arr_s, key_s[S_SCHEMA])
 
     # simple types should be spread on each component,
     # for enums so far these are logger.is_log_level, cover.validate_cover_state and pulse_counter.sensor.COUNT_MODE_SCHEMA
@@ -1068,6 +1081,10 @@ def convert(schema, config_var, path):
             # A callable CONFIG_SCHEMA that returned a representative schema
             # for extraction (model-driven components); walk it as usual.
             convert(data, config_var, path)
+        elif schema_type == "key_constraint":
+            config_var.setdefault(S_SCHEMA, {}).setdefault("constraints", []).append(
+                data
+            )
         else:
             raise TypeError("Unknown extracted schema type")
     elif config_var.get("key") == "GeneratedID":
@@ -1092,7 +1109,8 @@ def convert(schema, config_var, path):
             config_var["typed_key"] = typed_schema[1].get("key", CONF_TYPE)
         for schema_key, schema_type in typed_schema[0][0].items():
             config = convert_config(schema_type, path + "/type_" + schema_key)
-            types[schema_key] = config["schema"]
+            # A type with no keys of its own converts to nothing.
+            types[schema_key] = config.get("schema", {S_CONFIG_VARS: {}})
 
     elif DUMP_UNKNOWN and S_TYPE not in config_var:
         config_var["unknown"] = repr_schema
