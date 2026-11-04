@@ -152,7 +152,6 @@ void MQTTBackendESP32::mqtt_event_handler_(const Event &event) {
 
     case MQTT_EVENT_CONNECTED:
       ESP_LOGV(TAG, "MQTT_EVENT_CONNECTED");
-      this->is_connected_ = true;
 #if defined(USE_MQTT_IDF_ENQUEUE)
       this->last_dropped_log_time_ = 0;
       xTaskNotifyGive(this->task_handle_);
@@ -162,7 +161,6 @@ void MQTTBackendESP32::mqtt_event_handler_(const Event &event) {
     case MQTT_EVENT_DISCONNECTED:
       ESP_LOGV(TAG, "MQTT_EVENT_DISCONNECTED");
       // TODO is there a way to get the disconnect reason?
-      this->is_connected_ = false;
 #if defined(USE_MQTT_IDF_ENQUEUE)
       this->last_dropped_log_time_ = 0;
       xTaskNotifyGive(this->task_handle_);
@@ -237,6 +235,15 @@ void MQTTBackendESP32::mqtt_event_handler(void *handler_args, esp_event_base_t b
     instance->subacks_.add(mqtt_event->data_len > 0 ? static_cast<uint8_t>(mqtt_event->data[0]) : SUBACK_FAILURE);
   }
 #endif
+  // Track the link state here, not in loop(): since esp-mqtt no longer reconnects
+  // on its own, a DISCONNECTED event must never be dropped, because that would
+  // leave the is_connected_ state incorrect and it would never reconnect.
+  // (allocate() below can drop the DISCONNECT if the event queue is full)
+  if (event_id == MQTT_EVENT_CONNECTED) {
+    instance->is_connected_.store(true);
+  } else if (event_id == MQTT_EVENT_DISCONNECTED) {
+    instance->is_connected_.store(false);
+  }
   // The SDK clears a pending disconnect request just before this event, so ask again if one is still wanted
   if (event_id == MQTT_EVENT_BEFORE_CONNECT && !instance->want_connected_.load()) {
     esp_mqtt_client_disconnect(instance->handler_.get());

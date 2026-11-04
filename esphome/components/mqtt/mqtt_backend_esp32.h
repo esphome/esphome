@@ -174,7 +174,7 @@ class MQTTBackendESP32 final : public MQTTBackend {
   void set_on_publish(std::function<on_publish_user_callback_t> &&callback) final {
     this->on_publish_.add(std::move(callback));
   }
-  bool connected() const final { return this->is_connected_; }
+  bool connected() const final { return this->is_connected_.load(); }
 
   void connect() final {
     this->want_connected_.store(true);  // before start/reconnect, so the MQTT task sees it
@@ -255,8 +255,10 @@ class MQTTBackendESP32 final : public MQTTBackend {
   using ClientHandler_ = std::unique_ptr<esp_mqtt_client, MqttClientDeleter>;
   ClientHandler_ handler_;
 
-  bool is_connected_{false};
   bool is_initalized_{false};
+  // is_connected_ is written by the MQTT task in mqtt_event_handler(),
+  // so a dropped event cannot leave it in the wrong state
+  std::atomic<bool> is_connected_{false};
   // Read by the MQTT task in mqtt_event_handler()
   std::atomic<bool> want_connected_{false};
 
