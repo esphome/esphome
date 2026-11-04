@@ -379,6 +379,14 @@ void VoiceAssistant::loop() {
         // Only microWakeWord detections use the buffered audio, so the microphone idles while it is stopped
         // (a software mute, say); the buffers stay allocated for when it runs again.
         if (this->micro_wake_word_->is_running()) {
+          // Until the microphone runs again, drop what it buffered before it stopped, so a clip never joins audio
+          // from before a mute to audio after it
+          if (!this->mic_source_->is_running() && (this->audio_source_ != nullptr)) {
+            this->audio_source_->clear_buffered_data();
+            if (this->audio_source2_ != nullptr) {
+              this->audio_source2_->clear_buffered_data();
+            }
+          }
           this->mic_source_->start();
           if (this->mic_source2_) {
             this->mic_source2_->start();
