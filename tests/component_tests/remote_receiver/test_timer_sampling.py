@@ -49,7 +49,7 @@ def _timer(
     }
 
 
-def test_timer_sampling_sets_period_and_filter(
+def test_timer_sampling_codegen(
     generate_main: Callable[[str | Path], str],
     component_config_path: Callable[[str], Path],
 ) -> None:
@@ -57,16 +57,10 @@ def test_timer_sampling_sets_period_and_filter(
     assert "rcvr->set_sample_period_us(100);" in main_cpp
     # 1.5 sample periods by default
     assert "rcvr->set_filter_us(150);" in main_cpp
-
-
-def test_timer_sampling_uses_static_frame_buffer(
-    generate_main: Callable[[str | Path], str],
-    component_config_path: Callable[[str], Path],
-) -> None:
-    """The default 4000 byte buffer becomes two static halves of 500 pulses."""
-    main_cpp = generate_main(component_config_path("receiver_bk72xx_timer.yaml"))
+    # the default 4000 byte buffer becomes two static halves of 500 pulses
     assert "static int32_t rcvr__frames[1000];" in main_cpp
     assert "rcvr->set_frame_buffer(rcvr__frames, 500);" in main_cpp
+    assert "set_buffer_size" not in main_cpp
 
 
 def test_edge_sampling_keeps_defaults(
