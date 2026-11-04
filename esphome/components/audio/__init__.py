@@ -18,6 +18,7 @@ from esphome.const import (
 )
 from esphome.core import CORE
 import esphome.final_validate as fv
+from esphome.schema_extractors import SCHEMA_EXTRACT, schema_extractor
 from esphome.types import ConfigType
 
 AUTO_LOAD = ["ring_buffer"]
@@ -126,7 +127,10 @@ _MEMORY_LOCATION_VALIDATOR = cv.one_of(*MEMORY_LOCATIONS, lower=True)
 def _maybe_empty_codec(schema: cv.Schema) -> Callable[[Any], Any]:
     """Wrap a codec dict schema so that a bare key (None value) is treated as an empty dict."""
 
+    @schema_extractor("schema")
     def validator(value: Any) -> Any:
+        if value is SCHEMA_EXTRACT:
+            return schema
         if value is None:
             value = {}
         return schema(value)

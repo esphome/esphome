@@ -421,15 +421,18 @@ def test_lvgl_style_schemas_are_named_and_deduped(lvgl_schema: dict) -> None:
     for name in ("STYLE_SCHEMA", "STATE_SCHEMA", "SET_STATE_SCHEMA"):
         assert name in schemas, f"style schema not registered as named: {name}"
 
-    # STYLE_SCHEMA must be referenced via `extends`, not inlined at every use
-    # site. Count the references to prove the dedup actually happened.
+    # The style schemas must be referenced via `extends`, not inlined at every
+    # use site (widgets extend STATE_SCHEMA, which holds the STYLE_SCHEMA refs).
+    # Count the references to prove the dedup actually happened.
     refs = 0
 
     def _count(node: object) -> None:
         nonlocal refs
         if isinstance(node, dict):
             extends = node.get("extends")
-            if isinstance(extends, list) and "lvgl.STYLE_SCHEMA" in extends:
+            if isinstance(extends, list) and (
+                "lvgl.STYLE_SCHEMA" in extends or "lvgl.STATE_SCHEMA" in extends
+            ):
                 refs += 1
             for value in node.values():
                 _count(value)
@@ -438,4 +441,176 @@ def test_lvgl_style_schemas_are_named_and_deduped(lvgl_schema: dict) -> None:
                 _count(value)
 
     _count(lvgl_schema)
-    assert refs > 100, f"STYLE_SCHEMA should be referenced via extends, got {refs}"
+    assert refs > 100, f"style schemas should be referenced via extends, got {refs}"
+
+
+# ---------------------------------------------------------------------------
+# Regression tests for keys the dumper used to drop.
+# ---------------------------------------------------------------------------
+
+
+def _config_vars(schema_dir: Path, file: str, top: str, name: str = "CONFIG_SCHEMA"):
+    doc = json.loads((schema_dir / f"{file}.json").read_text())
+    return doc[top]["schemas"][name]["schema"]["config_vars"]
+
+
+def test_child_of_empty_base_schema_keeps_config_vars(
+    language_schema_dir: Path,
+) -> None:
+    """Extending an empty cv.Schema({}) must not erase the child's own keys."""
+    config_vars = _config_vars(language_schema_dir, "sendspin", "sendspin.media_source")
+    assert "fixed_delay" in config_vars
+    assert "decode_memory" in config_vars
+
+
+def test_uart_debug_schema_is_walked(language_schema_dir: Path) -> None:
+    debug = _config_vars(language_schema_dir, "uart", "uart")["debug"]
+    assert debug["type"] == "schema"
+    # shared with usb_cdc_acm, so it stays a named schema instead of being inlined
+    (ref,) = debug["schema"]["extends"]
+    after = _config_vars(language_schema_dir, "uart", "uart", ref.split(".", 1)[1])[
+        "after"
+    ]
+    assert "delimiter" in after["schema"]["config_vars"]
+
+
+def test_mapping_entries_exposed(language_schema_dir: Path) -> None:
+    doc = json.loads((language_schema_dir / "mapping.json").read_text())
+    config_schema = doc["mapping"]["schemas"]["CONFIG_SCHEMA"]
+    assert config_schema["is_list"] is True
+    config_vars = config_schema["schema"]["config_vars"]
+    assert config_vars["entries"]["key"] == "String"
+    assert "default_value" in config_vars
+
+
+def test_neopixelbus_method_is_typed(language_schema_dir: Path) -> None:
+    method = _config_vars(language_schema_dir, "neopixelbus", "neopixelbus.light")[
+        "method"
+    ]
+    assert method["type"] == "typed"
+    assert "channel" in method["types"]["esp32_rmt"]["config_vars"]
+    assert "speed" in method["types"]["spi"]["config_vars"]
+
+
+def test_dotted_registry_names_land_in_their_own_domain(
+    language_schema_dir: Path,
+) -> None:
+    ble_server = json.loads((language_schema_dir / "ble_server.json").read_text())
+    assert "characteristic.set_value" in ble_server["ble_server"]["action"]
+    router = json.loads((language_schema_dir / "router.json").read_text())
+    assert "speaker.switch_output" in router["router"]["action"]
+    lvgl = json.loads((language_schema_dir / "lvgl.json").read_text())
+    assert "matrix.button.update" in lvgl["lvgl"]["action"]
+
+
+def test_registry_entry_not_overwritten_by_following_entry(
+    language_schema_dir: Path,
+) -> None:
+    """An unresolved dotted name used to be written over the previous entry."""
+    pzemdc = json.loads((language_schema_dir / "pzemdc.json").read_text())
+    reset_energy = pzemdc["pzemdc"]["action"]["reset_energy"]
+    assert (
+        reset_energy["schema"]["config_vars"]["id"]["use_id_type"] == "pzemdc::PZEMDC"
+    )
+
+
+def test_expander_pin_schema_is_resolvable(language_schema_dir: Path) -> None:
+    """A pin provider's schema was dropped as unreachable, leaving ``pin`` dangling."""
+    pca9554 = json.loads((language_schema_dir / "pca9554.json").read_text())
+    pin = pca9554["pca9554"]["pin"]
+    config_vars = pin["schema"]["config_vars"]
+    assert "number" in config_vars
+    assert "mode" in config_vars
+    assert "inverted" in config_vars
+
+
+def test_union_extends_keeps_referenced_schema(language_schema_dir: Path) -> None:
+    """cv.Any(cv.boolean, SCHEMA) keeps its boolean type and a resolvable extends."""
+    config_vars = _config_vars(language_schema_dir, "cm1106", "cm1106.sensor")
+    abc = config_vars["automatic_baseline_calibration"]
+    assert abc["type"] == "boolean"
+    extends = abc["schema"]["extends"]
+    assert extends == ["cm1106.sensor._ABC_SETTINGS_SCHEMA"]
+    settings = _config_vars(
+        language_schema_dir, "cm1106", "cm1106.sensor", "_ABC_SETTINGS_SCHEMA"
+    )
+    assert "cycle" in settings
+    assert "baseline" in settings
+
+
+def test_it8951_model_schema_is_extracted(language_schema_dir: Path) -> None:
+    """A per-model CONFIG_SCHEMA function exposes a representative schema."""
+    config_vars = _config_vars(language_schema_dir, "it8951", "it8951.display")
+    assert "busy_pin" in config_vars
+    assert "vcom" in config_vars
+    assert "M5STACK-M5PAPER" in config_vars["model"]["values"]
+
+
+def test_gsl3670_model_schema_is_extracted(language_schema_dir: Path) -> None:
+    config_vars = _config_vars(language_schema_dir, "gsl3670", "gsl3670.touchscreen")
+    assert "firmware" in config_vars
+    assert "interrupt_pin" in config_vars
+    assert config_vars["model"]["key"] == "Optional"
+    assert config_vars["model"]["default"] == "CUSTOM"
+    assert "CUSTOM" in config_vars["model"]["values"]
+
+
+def test_wrapped_module_schemas_are_walked(language_schema_dir: Path) -> None:
+    """Validators that wrap a module-level schema expose it through SCHEMA_EXTRACT."""
+    wifi = _config_vars(language_schema_dir, "wifi", "wifi")
+    assert "ap_timeout" in wifi["ap"]["schema"]["config_vars"]
+    assert "device_info" in wifi["dpp"]["schema"]["config_vars"]
+    assert "max_age" in wifi["lease_cache"]["schema"]["config_vars"]
+    ota = _config_vars(language_schema_dir, "esphome", "esphome.ota")
+    assert "old_key" in ota["encryption"]["schema"]["config_vars"]
+    openthread = _config_vars(language_schema_dir, "openthread", "openthread")
+    assert "rcp" in openthread["border_router"]["schema"]["config_vars"]
+    codecs = _config_vars(language_schema_dir, "audio", "audio")["codecs"]
+    flac = codecs["schema"]["config_vars"]["flac"]
+    assert "buffer_memory" in flac["schema"]["config_vars"]
+
+
+def test_union_of_scalar_and_mapping_keeps_both(language_schema_dir: Path) -> None:
+    """cv.Any(cv.port, cv.Schema({...})) keeps the mapping keys beside the scalar type."""
+    port = _config_vars(language_schema_dir, "udp", "udp")["port"]
+    assert port["type"] == "integer"
+    assert "listen_port" in port["schema"]["config_vars"]
+    ntc = _config_vars(language_schema_dir, "ntc", "ntc.sensor")["calibration"]
+    assert "b_constant" in ntc["schema"]["config_vars"]
+    sensor = json.loads((language_schema_dir / "sensor.json").read_text())["sensor"]
+    calibration = sensor["filter"]["to_ntc_temperature"]["schema"]["config_vars"][
+        "calibration"
+    ]
+    assert calibration["schema"]["extends"] == ["sensor.ntc_process_calibration"]
+    forms = sensor["schemas"]["ntc_process_calibration"]["schema"]["config_vars"]
+    assert "b_constant" in forms
+    assert "a" in forms
+
+
+def test_lvgl_layouts_and_containers_are_exposed(lvgl_schema: dict) -> None:
+    """Containers take a layout, children, and the theme is one named schema."""
+    schemas = lvgl_schema["lvgl"]["schemas"]
+    layout = schemas["LAYOUT_SCHEMA"]
+    assert layout["type"] == "typed"
+    assert "flex_flow" in layout["types"]["flex"]["config_vars"]
+    assert "grid_rows" in layout["types"]["grid"]["config_vars"]
+    button = schemas["WIDGET_TYPES"]["schema"]["config_vars"]["button"]["schema"]
+    assert button["config_vars"]["layout"]["schema"]["extends"] == [
+        "lvgl.LAYOUT_SCHEMA"
+    ]
+    assert button["config_vars"]["widgets"]["schema"]["extends"] == [
+        "lvgl.WIDGET_TYPES"
+    ]
+    assert "grid_cell_row_pos" in button["config_vars"]
+    assert set(button["extends"]) == {"lvgl.STATE_SCHEMA", "lvgl.FLAG_SCHEMA"}
+    top = schemas["CONFIG_SCHEMA"]["schema"]["config_vars"]
+    assert top["theme"]["schema"]["extends"] == ["lvgl.THEME_WIDGETS_SCHEMA"]
+    assert "dark_mode" in top["theme"]["schema"]["config_vars"]
+    assert lvgl_schema["lvgl"]["action"]["theme.update"]["schema"]["extends"] == [
+        "lvgl.THEME_WIDGETS_SCHEMA"
+    ]
+    msgbox = schemas["MSGBOX_SCHEMA"]["schema"]["config_vars"]
+    assert "header_buttons" in msgbox
+    assert msgbox["buttons"]["schema"]["config_vars"]["main"]["schema"]["extends"] == [
+        "lvgl.STATE_SCHEMA"
+    ]

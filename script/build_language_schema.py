@@ -191,6 +191,10 @@ def register_known_schema(module, name, schema):
         known_schemas[repr_schema] = [(schema, f"{module}.{name}")]
 
 
+def component_root(module_name):
+    return ".".join(module_name.split(".")[:3])
+
+
 def module_schemas(module):
     # This should yield elements in order so extended schemas are resolved properly
     # To do this we check on the source code where the symbol is seen first. Seems to work.
@@ -205,6 +209,13 @@ def module_schemas(module):
     schemas = []
     for m_attr_name in dir(module):
         m_attr_obj = getattr(module, m_attr_name)
+        if (
+            m_attr_name != S_CONFIG_SCHEMA
+            and inspect.isfunction(m_attr_obj)
+            and "<locals>" not in m_attr_obj.__qualname__
+            and component_root(m_attr_obj.__module__) != component_root(module.__name__)
+        ):
+            continue
         if is_convertible_schema(m_attr_obj):
             # Find where the name is assigned in the module source to preserve
             # definition order. Using ^NAME\s*= (multiline) targets assignments
@@ -215,9 +226,13 @@ def module_schemas(module):
                 re.MULTILINE,
             )
             pos = match.start() if match else -1
-            schemas.append((pos, m_attr_name, m_attr_obj))
+            # Imported names share a position; convert the schema objects
+            # before the validators that reference them
+            schemas.append(
+                (pos, not isinstance(m_attr_obj, vol.Schema), m_attr_name, m_attr_obj)
+            )
 
-    for _, name, obj in sorted(schemas, key=lambda x: x[0]):
+    for _, _, name, obj in sorted(schemas, key=lambda x: x[:2]):
         yield name, obj
 
 
@@ -279,30 +294,27 @@ def add_module_registries(domain, module):
                 found_registries[repr(attr_obj)] = f"{domain}.{reg_type}"
 
             for name in attr_obj:
-                if "." not in name:
+                entry_domain = reg_domain
+                parts = name.split(".")
+                if len(parts) == 1:
                     reg_entry_name = name
+                elif len(parts) == 2:
+                    entry_domain = parts[0]
+                    reg_entry_name = parts[1]
+                elif parts[0] in schema_core[S_PLATFORMS]:
+                    entry_domain = ".".join([parts[1], parts[0]])
+                    reg_entry_name = parts[2]
                 else:
-                    parts = name.split(".")
-                    if len(parts) == 2:
-                        reg_domain = parts[0]
-                        reg_entry_name = parts[1]
-                    elif len(parts) == 3:
-                        # is a platform or a component?
-                        if parts[0] in schema_core[S_PLATFORMS]:
-                            reg_domain = ".".join([parts[1], parts[0]])
-                            reg_entry_name = parts[2]
-                        elif parts[0] in schema_core[S_COMPONENTS]:
-                            reg_domain = parts[0]
-                            reg_entry_name = ".".join([parts[1], parts[2]])
-                        else:
-                            print(f"registry {name} is unknown")
+                    entry_domain = parts[0]
+                    reg_entry_name = ".".join(parts[1:])
 
-                if reg_domain not in output:
-                    output[reg_domain] = {}
-                if reg_type not in output[reg_domain]:
-                    output[reg_domain][reg_type] = {}
-                output[reg_domain][reg_type][reg_entry_name] = convert_config(
-                    attr_obj[name].schema, f"{reg_domain}/{reg_type}/{reg_entry_name}"
+                if entry_domain not in output:
+                    output[entry_domain] = {}
+                if reg_type not in output[entry_domain]:
+                    output[entry_domain][reg_type] = {}
+                output[entry_domain][reg_type][reg_entry_name] = convert_config(
+                    attr_obj[name].schema,
+                    f"{entry_domain}/{reg_type}/{reg_entry_name}",
                 )
 
 
@@ -391,15 +403,6 @@ def fix_globals():
     output["globals"][S_SCHEMAS][S_CONFIG_SCHEMA] = config
 
 
-def fix_mapping():
-    if "mapping" not in output:
-        return
-    from esphome.components.mapping import BASE_SCHEMA
-
-    config = convert_config(BASE_SCHEMA, "mapping/CONFIG_SCHEMA")
-    output["mapping"][S_SCHEMAS][S_CONFIG_SCHEMA] = config
-
-
 def fix_menu():
     if "display_menu_base" not in output:
         return
@@ -444,15 +447,35 @@ def fix_lvgl_widgets():
     schemas["WIDGET_TYPES"] = {S_TYPE: S_SCHEMA, S_SCHEMA: widgets[S_SCHEMA]}
     # 2. Reference it from the top-level widgets: list instead of inlining.
     widgets[S_SCHEMA] = {S_EXTENDS: ["lvgl.WIDGET_TYPES"]}
-    # 3. Let every widget contain child widgets, via the same named ref.
-    for widget in schemas["WIDGET_TYPES"][S_SCHEMA][S_CONFIG_VARS].values():
-        if widget.get(S_TYPE) == S_SCHEMA and S_SCHEMA in widget:
-            widget[S_SCHEMA].setdefault(S_CONFIG_VARS, {})["widgets"] = {
-                S_TYPE: S_SCHEMA,
-                "is_list": True,
-                "key": "Optional",
-                S_SCHEMA: {S_EXTENDS: ["lvgl.WIDGET_TYPES"]},
-            }
+
+    # 3. Let every container hold child widgets, via the same named ref. The
+    # widgets: key is added per value at validation time, so the dumper never
+    # sees it; a container is anything that takes a layout.
+    def add_widgets(node):
+        if isinstance(node, dict):
+            config_vars = node.get(S_CONFIG_VARS)
+            layout = (
+                config_vars.get("layout") if isinstance(config_vars, dict) else None
+            )
+            if isinstance(layout, dict) and layout.get(S_SCHEMA, {}).get(S_EXTENDS) == [
+                "lvgl.LAYOUT_SCHEMA"
+            ]:
+                config_vars.setdefault(
+                    "widgets",
+                    {
+                        S_TYPE: S_SCHEMA,
+                        "is_list": True,
+                        "key": "Optional",
+                        S_SCHEMA: {S_EXTENDS: ["lvgl.WIDGET_TYPES"]},
+                    },
+                )
+            for value in node.values():
+                add_widgets(value)
+        elif isinstance(node, list):
+            for value in node:
+                add_widgets(value)
+
+    add_widgets(output["lvgl"])
 
 
 def get_logger_tags():
@@ -488,14 +511,18 @@ def add_logger_tags():
     logs.pop("string")
 
 
+# Config vars whose own type is not a schema but that still extend one, e.g. the
+# cv.Any(cv.boolean, SETTINGS_SCHEMA) union keeps type boolean next to the
+# extends. The reference must survive so the schema is kept, but merging the
+# schema into the key would overwrite its type.
+INLINE_TYPES = ["schema", "trigger", "maybe"]
+
+
 def add_referenced_recursive(referenced_schemas, config_var, path, eat_schema=False):
     assert (
         S_CONFIG_VARS not in config_var and S_EXTENDS not in config_var
     )  # S_TYPE in cv or "key" in cv or len(cv) == 0
-    if (
-        config_var.get(S_TYPE) in ["schema", "trigger", "maybe"]
-        and S_SCHEMA in config_var
-    ):
+    if isinstance(config_var.get(S_SCHEMA), dict):
         schema = config_var[S_SCHEMA]
         for k, v in schema.get(S_CONFIG_VARS, {}).items():
             if eat_schema:
@@ -619,14 +646,21 @@ def shrink():
 
         for k, v in output.items():
             for kv, vv in v.items():
-                if kv != "pin" and isinstance(vv, dict):
-                    for kvv, vvv in vv.items():
-                        add_referenced_recursive(referenced_schemas, vvv, [k, kv, kvv])
+                if not isinstance(vv, dict):
+                    continue
+                if kv == "pin":
+                    # the pin provider entry is a config var itself
+                    add_referenced_recursive(referenced_schemas, vv, [k, kv])
+                    continue
+                for kvv, vvv in vv.items():
+                    add_referenced_recursive(referenced_schemas, vvv, [k, kv, kvv])
 
         for x, paths in referenced_schemas.items():
             if len(paths) == 1 and not is_platform_schema(x):
                 key_s = get_str_path_schema(x)
                 arr_s = get_arr_path_schema(paths[0])
+                if S_SCHEMA in arr_s and arr_s.get(S_TYPE) not in INLINE_TYPES:
+                    continue
                 # key_s |= arr_s
                 # key_s.pop(S_EXTENDS)
                 pass_again = True
@@ -654,18 +688,34 @@ def shrink():
         if key_s and key_s.get(S_TYPE) in ["enum", "registry", "integer", "string"]:
             if key_s[S_TYPE] == "registry":
                 print("Spreading registry: " + x)
+            still_referenced = False
             for target in paths:
                 target_s = get_arr_path_schema(target)
                 if S_SCHEMA not in target_s:
                     print("skipping simple spread for " + ".".join(target))
                     continue
-                assert target_s[S_SCHEMA][S_EXTENDS] == [x]
-                target_s.pop(S_SCHEMA)
+                if target_s.get(S_TYPE) not in INLINE_TYPES:
+                    still_referenced = True
+                    continue
+                schema = target_s[S_SCHEMA]
+                if S_EXTENDS in schema:
+                    assert schema[S_EXTENDS] == [x]
+                    schema.pop(S_EXTENDS)
+                elif schema:
+                    print("skipping simple spread for " + ".".join(target))
+                    continue
+                # cv.Any(cv.port, cv.Schema({...})): the union's own keys stay
+                # beside the spread simple type. Copies of a config var share
+                # the schema dict, so a sibling may already have taken the
+                # reference out.
+                if not schema:
+                    target_s.pop(S_SCHEMA)
                 target_s |= key_s
                 if key_s[S_TYPE] in ["integer", "string"]:
                     target_s["data_type"] = x.split(".")[1]
             # remove this dangling again
-            pop_str_path_schema(x)
+            if not still_referenced:
+                pop_str_path_schema(x)
         elif not key_s:
             for target in paths:
                 target_s = get_arr_path_schema(target)
@@ -673,7 +723,14 @@ def shrink():
                     # an empty schema like speaker.SPEAKER_SCHEMA
                     target_s[S_EXTENDS].remove(x)
                     continue
-                assert x in target_s[S_SCHEMA][S_EXTENDS]
+                extends = target_s[S_SCHEMA].get(S_EXTENDS, [])
+                if x not in extends:
+                    continue
+                if S_CONFIG_VARS in target_s[S_SCHEMA] or len(extends) > 1:
+                    extends.remove(x)
+                    if not extends:
+                        target_s[S_SCHEMA].pop(S_EXTENDS)
+                    continue
                 target_s.pop(S_SCHEMA)
                 target_s.pop(S_TYPE)  # undefined
                 target_s["data_type"] = x.split(".")[1]
@@ -778,7 +835,6 @@ def build_schema():
     fix_script()
     fix_font()
     fix_globals()
-    fix_mapping()
     add_logger_tags()
     shrink()
     fix_menu()
@@ -1109,7 +1165,7 @@ def convert(schema, config_var, path):
             config_var["typed_key"] = typed_schema[1].get("key", CONF_TYPE)
         for schema_key, schema_type in typed_schema[0][0].items():
             config = convert_config(schema_type, path + "/type_" + schema_key)
-            types[schema_key] = config["schema"]
+            types[schema_key] = config.get(S_SCHEMA, {})
 
     elif DUMP_UNKNOWN and S_TYPE not in config_var:
         config_var["unknown"] = repr_schema
@@ -1221,7 +1277,10 @@ def convert_keys(converted, schema, path):
                     "components": components,
                 }
         elif hasattr(k, "default") and str(k.default) != "...":
-            default_value = k.default()
+            try:
+                default_value = k.default()
+            except (KeyError, AttributeError):
+                default_value = None
             if default_value is not None:
                 result["default"] = str(default_value)
 

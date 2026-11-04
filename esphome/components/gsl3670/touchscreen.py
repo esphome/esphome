@@ -8,6 +8,7 @@ from esphome import external_files, pins
 import esphome.codegen as cg
 from esphome.components import i2c, touchscreen
 from esphome.components.const import CONF_SHA256
+from esphome.components.mipi import model_schema_extractor
 from esphome.components.touchscreen import (
     CONF_X_MAX,
     CONF_X_MIN,
@@ -174,13 +175,14 @@ def _extract_firmware_ref(entry: ConfigType) -> RemoteFile | None:
 PREFETCH_FILES = external_files.single_stage_prefetch(_extract_firmware_ref)
 
 
-def _config_schema(config: ConfigType) -> ConfigType:
-    model_option = {
-        cv.Optional(CONF_MODEL, default="CUSTOM"): cv.one_of(*MODELS, upper=True)
-    }
-    config = cv.Schema(model_option, extra=True)(config)
+_MODEL_OPTION = {
+    cv.Optional(CONF_MODEL, default="CUSTOM"): cv.one_of(*MODELS, upper=True)
+}
+
+
+def _model_schema(config: ConfigType) -> cv.Schema:
     defaults = MODELS[config[CONF_MODEL]]
-    schema = (
+    return (
         touchscreen_schema(cv.UNDEFINED, False, defaults)
         .extend(
             {
@@ -191,7 +193,7 @@ def _config_schema(config: ConfigType) -> ConfigType:
                 option_with_default(
                     CONF_RESET_PIN, defaults
                 ): pins.gpio_output_pin_schema,
-                **model_option,
+                **_MODEL_OPTION,
                 option_with_default(
                     CONF_FIRMWARE, defaults, required=True
                 ): FIRMWARE_SCHEMA,
@@ -200,7 +202,12 @@ def _config_schema(config: ConfigType) -> ConfigType:
         .extend(i2c.i2c_device_schema(0x40))
         .extend(cv.COMPONENT_SCHEMA)
     )
-    return schema(config)
+
+
+@model_schema_extractor(MODELS, _model_schema)
+def _config_schema(config: ConfigType) -> ConfigType:
+    config = cv.Schema(_MODEL_OPTION, extra=True)(config)
+    return _model_schema(config)(config)
 
 
 CONFIG_SCHEMA = _config_schema

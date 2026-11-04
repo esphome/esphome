@@ -1190,32 +1190,40 @@ def ntc_calc_b_constant(value):
     return a, b, c
 
 
+_NTC_B_CONSTANT_SCHEMA = cv.Schema(
+    {
+        cv.Required(CONF_B_CONSTANT): cv.All(
+            cv.float_, cv.Range(min=0, min_included=False)
+        ),
+        cv.Required(CONF_REFERENCE_TEMPERATURE): cv.All(
+            cv.temperature,
+            cv.Range(min=-ZERO_POINT, min_included=False),
+        ),
+        cv.Required(CONF_REFERENCE_RESISTANCE): cv.All(
+            cv.resistance, cv.Range(min=0, min_included=False)
+        ),
+    }
+)
+
+_NTC_ABC_SCHEMA = cv.Schema(
+    {
+        cv.Required(CONF_A): cv.float_,
+        cv.Required(CONF_B): cv.float_,
+        cv.Required(CONF_C): cv.float_,
+    }
+)
+
+
+@schema_extractor("schema")
 def ntc_process_calibration(value):
+    if value is SCHEMA_EXTRACT:
+        return cv.Any(_NTC_B_CONSTANT_SCHEMA, _NTC_ABC_SCHEMA)
     if isinstance(value, dict):
         if CONF_B_CONSTANT in value:
-            value = cv.Schema(
-                {
-                    cv.Required(CONF_B_CONSTANT): cv.All(
-                        cv.float_, cv.Range(min=0, min_included=False)
-                    ),
-                    cv.Required(CONF_REFERENCE_TEMPERATURE): cv.All(
-                        cv.temperature,
-                        cv.Range(min=-ZERO_POINT, min_included=False),
-                    ),
-                    cv.Required(CONF_REFERENCE_RESISTANCE): cv.All(
-                        cv.resistance, cv.Range(min=0, min_included=False)
-                    ),
-                }
-            )(value)
+            value = _NTC_B_CONSTANT_SCHEMA(value)
             a, b, c = ntc_calc_b_constant(value)
         else:
-            value = cv.Schema(
-                {
-                    cv.Required(CONF_A): cv.float_,
-                    cv.Required(CONF_B): cv.float_,
-                    cv.Required(CONF_C): cv.float_,
-                }
-            )(value)
+            value = _NTC_ABC_SCHEMA(value)
             a, b, c = ntc_get_abc(value)
     elif isinstance(value, list):
         if len(value) != 3:

@@ -69,6 +69,7 @@ from esphome.core import (
 )
 import esphome.final_validate as fv
 from esphome.helpers import write_file_if_changed
+from esphome.schema_extractors import SCHEMA_EXTRACT, schema_extractor
 from esphome.types import ConfigType
 from esphome.writer import clean_build
 
@@ -296,7 +297,10 @@ _RCP_SCHEMA = cv.Schema(
 _BORDER_ROUTER_SCHEMA = cv.Schema({cv.Optional(CONF_RCP): _RCP_SCHEMA})
 
 
+@schema_extractor("schema")
 def _validate_border_router(value: object) -> ConfigType:
+    if value is SCHEMA_EXTRACT:
+        return _BORDER_ROUTER_SCHEMA
     return _BORDER_ROUTER_SCHEMA({} if value is None else value)
 
 
