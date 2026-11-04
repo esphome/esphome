@@ -217,8 +217,7 @@ uint8_t Lc709203f::set_register_(uint8_t register_to_set, uint16_t value_to_set)
   //  part of the CRC calculation.
   write_buffer[0] = (this->address_) << 1;
   write_buffer[1] = register_to_set;
-  write_buffer[2] = value_to_set & 0xFF;         // Low byte
-  write_buffer[3] = (value_to_set >> 8) & 0xFF;  // High byte
+  put_le16(write_buffer + 2, value_to_set);
   write_buffer[4] = crc8(write_buffer, 4, 0x00, 0x07, true);
 
   for (uint8_t i = 0; i <= LC709203F_I2C_RETRY_COUNT; i++) {
