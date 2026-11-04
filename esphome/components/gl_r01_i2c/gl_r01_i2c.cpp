@@ -17,11 +17,9 @@ static const uint8_t READ_DELAY = 40;  // minimum milliseconds from datasheet to
 
 void GLR01I2CComponent::setup() {
   // Verify sensor presence
-  if (!this->read_byte_16(REG_VERSION, &this->version_)) {
-    ESP_LOGE(TAG, "Failed to communicate with GL-R01 I2C sensor!");
-    this->mark_failed();
+  if (!this->setup_check(this->read_byte_16(REG_VERSION, &this->version_),
+                         LOG_STR("Failed to communicate with GL-R01 I2C sensor!")))
     return;
-  }
   ESP_LOGD(TAG, "Found GL-R01 I2C with version 0x%04X", this->version_);
 }
 
