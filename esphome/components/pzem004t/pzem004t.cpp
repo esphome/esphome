@@ -103,9 +103,7 @@ void PZEM004T::write_state_(PZEM004T::PZEM004TReadState state) {
   data[3] = 1;
   data[4] = 1;
   data[5] = 0;
-  data[6] = 0;
-  for (int i = 0; i < 6; i++)
-    data[6] += data[i];
+  data[6] = sum_bytes(data.data(), 6);
 
   this->write_array(data);
   this->read_state_ = state;

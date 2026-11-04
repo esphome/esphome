@@ -10,13 +10,13 @@ static constexpr uint32_t CMD_GET_LOW_POWER = 0x18;
 // A report type the base does not know, standing in for a model's own work mode report
 static constexpr uint16_t TYPE_REPORT_MODEL_MODE = 0x0F00;
 
-// A model whose firmware reports the work mode itself, as the LD6004 does.
+// A model whose firmware reports the work mode itself, as the LD6004 does. The base derives no work
+// mode of its own, so the LD6002B low power report and presence must leave this one alone.
 class ModelReportedWorkMode : public ld600x::LD600XComponent {
  public:
   ModelReportedWorkMode() : LD600XComponent(LOG_STR("ld600x_test")) {}
 
  protected:
-  bool work_mode_uses_fallback() const override { return false; }
   bool handle_model_report(uint16_t type, const uint8_t *data, uint16_t len) override {
     if (type != TYPE_REPORT_MODEL_MODE || len < 1)
       return false;
