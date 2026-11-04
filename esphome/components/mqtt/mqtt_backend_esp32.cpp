@@ -151,6 +151,8 @@ void MQTTBackendESP32::mqtt_event_handler_(const Event &event) {
     case MQTT_EVENT_CONNECTED:
       ESP_LOGV(TAG, "MQTT_EVENT_CONNECTED");
       this->is_connected_ = true;
+      // The MQTT task reset subacks_ before queueing this event, and nothing subscribes before is_connected_
+      this->subscribes_sent_ = 0;
 #if defined(USE_MQTT_IDF_ENQUEUE)
       this->last_dropped_log_time_ = 0;
       xTaskNotifyGive(this->task_handle_);
@@ -218,23 +220,38 @@ void MQTTBackendESP32::mqtt_event_handler(void *handler_args, esp_event_base_t b
   MQTTBackendESP32 *instance = static_cast<MQTTBackendESP32 *>(handler_args);
   if (instance == nullptr)
     return;
-  // Recorded here, not in loop(), so teardown can see the confirmation without dispatching other events
-  if (event_id == MQTT_EVENT_PUBLISHED) {
-    auto msg_id = static_cast<uint16_t>(static_cast<esp_mqtt_event_t *>(event_data)->msg_id);
-    instance->acked_msg_id_.store(msg_id);
-    if (msg_id == instance->tracked_msg_id_.load())
-      instance->tracked_acked_.store(1);
+  const auto *mqtt_event = static_cast<esp_mqtt_event_t *>(event_data);
+  // Acks are only queued for a registered callback (all are registered in setup()), so the SUBACKs of the connect
+  // burst do not take the slots its retained messages need
+  bool listened = true;
+  switch (event_id) {
+    case MQTT_EVENT_CONNECTED:
+      instance->subacks_.reset();
+      break;
+    case MQTT_EVENT_SUBSCRIBED:
+      // One topic per SUBSCRIBE, so data[0] is its return code
+      instance->subacks_.add(mqtt_event->data_len > 0 ? static_cast<uint8_t>(mqtt_event->data[0]) : SUBACK_FAILURE);
+      listened = instance->on_subscribe_.size() != 0;
+      break;
+    case MQTT_EVENT_UNSUBSCRIBED:
+      listened = instance->on_unsubscribe_.size() != 0;
+      break;
+    case MQTT_EVENT_PUBLISHED: {
+      // Also lets teardown see the confirmation without dispatching other events
+      auto msg_id = static_cast<uint16_t>(mqtt_event->msg_id);
+      instance->acked_msg_id_.store(msg_id);
+      if (msg_id == instance->tracked_msg_id_.load())
+        instance->tracked_acked_.store(1);
+      listened = instance->on_publish_.size() != 0;
+      break;
+    }
+    default:
+      break;
   }
-#ifdef USE_MQTT_SESSION_PERSISTENCE
-  // Also counted here: the queue holds 31 events, too few for the SUBACKs of a device with many command topics
-  if (event_id == MQTT_EVENT_CONNECTED) {
-    instance->subacks_.reset();
-  } else if (event_id == MQTT_EVENT_SUBSCRIBED) {
-    const auto *mqtt_event = static_cast<esp_mqtt_event_t *>(event_data);
-    // One topic per SUBSCRIBE, so data[0] is its return code
-    instance->subacks_.add(mqtt_event->data_len > 0 ? static_cast<uint8_t>(mqtt_event->data[0]) : SUBACK_FAILURE);
+  if (!listened) {
+    ESP_LOGV(TAG, "Ack event_id=%" PRId32 ", msg_id=%d", event_id, mqtt_event->msg_id);
+    return;
   }
-#endif
   // queue event to decouple processing from ESP-IDF MQTT task to main loop
   auto *event = instance->mqtt_event_pool_.allocate();
   if (event == nullptr) {
@@ -242,7 +259,7 @@ void MQTTBackendESP32::mqtt_event_handler(void *handler_args, esp_event_base_t b
     instance->mqtt_event_queue_.increment_dropped_count();
     return;
   }
-  event->populate(*static_cast<esp_mqtt_event_t *>(event_data));
+  event->populate(*mqtt_event);
   // Push always succeeds: pool is sized to queue capacity (SIZE-1), so if
   // allocate() returned non-null, the queue cannot be full.
   instance->mqtt_event_queue_.push(event);

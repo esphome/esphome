@@ -128,6 +128,7 @@ class MQTTBackendESP32 final : public MQTTBackend {
   static constexpr ssize_t TASK_PRIORITY = 5;
   static constexpr uint8_t MQTT_QUEUE_LENGTH = 30;        // 30*12 bytes = 360
   static constexpr uint8_t MQTT_EVENT_QUEUE_LENGTH = 32;  // Inbound events from broker
+  static constexpr uint8_t MQTT_EVENT_POOL_SIZE = MQTT_EVENT_QUEUE_LENGTH - 1;
 
   void set_keep_alive(uint16_t keep_alive) final { this->keep_alive_ = keep_alive; }
   void set_client_id(const char *client_id) final { this->client_id_ = client_id; }
@@ -190,10 +191,17 @@ class MQTTBackendESP32 final : public MQTTBackend {
 
   bool subscribe(const char *topic, uint8_t qos) final {
 #if defined(USE_MQTT_IDF_ENQUEUE)
-    return enqueue_(MQTT_QUEUE_TYPE_SUBSCRIBE, topic, qos);
+    const bool sent = enqueue_(MQTT_QUEUE_TYPE_SUBSCRIBE, topic, qos);
 #else
-    return esp_mqtt_client_subscribe(handler_.get(), topic, qos) != -1;
+    const bool sent = esp_mqtt_client_subscribe(handler_.get(), topic, qos) != -1;
 #endif
+    if (sent)
+      this->subscribes_sent_++;
+    return sent;
+  }
+  bool can_subscribe() const final {
+    return subscribe_fits(this->subscribes_sent_, this->subacks_.received(),
+                          MQTT_EVENT_POOL_SIZE - this->mqtt_event_queue_.size());
   }
   bool unsubscribe(const char *topic) final {
 #if defined(USE_MQTT_IDF_ENQUEUE)
@@ -215,9 +223,7 @@ class MQTTBackendESP32 final : public MQTTBackend {
   using MQTTBackend::publish;
   bool publish_tracked(const MQTTMessage &message) final;
   bool publish_acknowledged() const final { return this->tracked_acked_.load(std::memory_order_acquire) != 0; }
-#ifdef USE_MQTT_SESSION_PERSISTENCE
   const SubackCounter &get_subacks() const { return this->subacks_; }
-#endif
 
   void loop() final;
 
@@ -252,11 +258,16 @@ class MQTTBackendESP32 final : public MQTTBackend {
 
   bool is_connected_{false};
   bool is_initalized_{false};
+  // Set with the PUBACK of tracked_msg_id_, see below. uint8_t, not bool: GCC on Xtensa emits an out-of-line call
+  // for atomic<bool>
+  std::atomic<uint8_t> tracked_acked_{0};
 
   esp_mqtt_client_config_t mqtt_cfg_{};
 
   std::string host_;
   uint16_t port_;
+  /// Every SUBSCRIBE sent on this connection, see can_subscribe(); the client counts only its fingerprinted ones
+  uint16_t subscribes_sent_{0};
   std::string username_;
   std::string password_;
   std::string lwt_topic_;
@@ -296,19 +307,15 @@ class MQTTBackendESP32 final : public MQTTBackend {
   // confirmed id in case the confirmation beat its store. Packet ids are never 0.
   std::atomic<uint16_t> tracked_msg_id_{0};
   std::atomic<uint16_t> acked_msg_id_{0};
-  // uint8_t, not bool: GCC on Xtensa emits an out-of-line call for atomic<bool>
-  std::atomic<uint8_t> tracked_acked_{0};
-#ifdef USE_MQTT_SESSION_PERSISTENCE
   // Counted in the ESP-IDF MQTT task, see mqtt_event_handler()
   SubackCounter subacks_;
-#endif
   // Pool sized to queue capacity (SIZE-1) because LockFreeQueue<T,N> is a ring
   // buffer that holds N-1 elements (one slot distinguishes full from empty).
   // This guarantees allocate() returns nullptr before push() can fail, which:
   //  1. Prevents leaking a pool slot (the Nth allocate succeeds but push fails)
   //  2. Avoids needing release() on the producer path after a failed push(),
   //     preserving the SPSC contract on the pool's internal free list
-  EventPool<Event, MQTT_EVENT_QUEUE_LENGTH - 1> mqtt_event_pool_;
+  EventPool<Event, MQTT_EVENT_POOL_SIZE> mqtt_event_pool_;
   LockFreeQueue<Event, MQTT_EVENT_QUEUE_LENGTH> mqtt_event_queue_;
 
 #if defined(USE_MQTT_IDF_ENQUEUE)

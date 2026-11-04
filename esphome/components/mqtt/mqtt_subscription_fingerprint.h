@@ -1,6 +1,7 @@
 #pragma once
 
 #include <atomic>
+#include <cstddef>
 #include <cstdint>
 
 #include "esphome/core/helpers.h"
@@ -46,9 +47,10 @@ class SubackCounter {
     // Released after granted_, so a reader that sees this SUBACK in received_ also sees it in granted_
     this->received_.store(this->received_.load(std::memory_order_relaxed) + 1, std::memory_order_release);
   }
+  uint16_t received() const { return this->received_.load(std::memory_order_acquire); }
   /// Compares the SUBACKs received with the number of SUBSCRIBEs sent on this connection.
   SubackTally tally(uint16_t sent) const {
-    const uint16_t received = this->received_.load(std::memory_order_acquire);
+    const uint16_t received = this->received();
     if (received < sent)
       return SubackTally::SUBACK_TALLY_PENDING;
     // More than sent means a SUBACK from an earlier connection was counted, so none can be trusted
@@ -61,5 +63,16 @@ class SubackCounter {
   std::atomic<uint16_t> received_{0};
   std::atomic<uint16_t> granted_{0};
 };
+
+/// Free inbound event slots kept for each unanswered SUBSCRIBE: one for the retained message it may deliver, one in
+/// reserve for a SUBACK counted before that message is queued.
+static constexpr size_t INBOUND_SLOTS_PER_SUBSCRIBE = 2;
+
+/// True when one more SUBSCRIBE can be sent without the retained messages of the unanswered ones overflowing the
+/// free inbound event slots. More SUBACKs than SUBSCRIBEs (one from an earlier connection) count as none unanswered.
+constexpr bool subscribe_fits(uint16_t sent, uint16_t answered, size_t free_slots) {
+  const size_t unanswered = sent > answered ? sent - answered : 0;
+  return (unanswered + 1) * INBOUND_SLOTS_PER_SUBSCRIBE <= free_slots;
+}
 
 }  // namespace esphome::mqtt
