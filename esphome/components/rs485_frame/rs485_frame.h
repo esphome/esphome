@@ -129,8 +129,6 @@ class RS485FrameHub : public Component, public uart::UARTDevice {
   std::unique_ptr<uint16_t[]> tx_queue_len_;
   // The unescaped frame being received, then the `payload` on_frame receives.
   std::unique_ptr<uint8_t[]> rx_payload_;
-  // Only allocated with dump_frames.
-  std::unique_ptr<char[]> hex_log_buf_;
   uint32_t last_rx_time_{0};
   uint32_t last_tx_time_{0};
   // Seeded in setup(), then advanced by RX and our own TX.

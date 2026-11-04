@@ -4,6 +4,7 @@
 #include "esphome/core/log.h"
 #include "esphome/core/progmem.h"
 
+#include <algorithm>
 #include <cinttypes>
 
 namespace esphome::rs485_frame {
@@ -21,8 +22,6 @@ void RS485FrameHub::setup() {
     this->tx_queue_ = std::make_unique<uint8_t[]>(this->max_queue_size_ * this->tx_slot_capacity_());
     this->tx_queue_len_ = std::make_unique<uint16_t[]>(this->max_queue_size_);
   }
-  if (this->dump_frames_)
-    this->hex_log_buf_ = std::make_unique<char[]>(format_hex_size(this->tx_slot_capacity_()));
   // idle_gap waits min_silence from boot on a quiet bus; fixed_delay may send right away.
   const uint32_t now = millis();
   this->last_activity_time_ = now;
@@ -291,8 +290,15 @@ void RS485FrameHub::transmit_head_(uint32_t now) {
 }
 
 void RS485FrameHub::log_frame_(const char *dir, const uint8_t *data, size_t len) {
-  format_hex_to(this->hex_log_buf_.get(), format_hex_size(this->tx_slot_capacity_()), data, len);
-  ESP_LOGD(TAG, "%s %s", dir, this->hex_log_buf_.get());
+#if ESPHOME_LOG_LEVEL >= ESPHOME_LOG_LEVEL_DEBUG
+  // Long frames are logged over several lines to keep the buffer on the stack.
+  static constexpr size_t BYTES_PER_LINE = 32;
+  char hex[format_hex_size(BYTES_PER_LINE)];
+  for (size_t pos = 0; pos < len; pos += BYTES_PER_LINE) {
+    format_hex_to(hex, data + pos, std::min(len - pos, BYTES_PER_LINE));
+    ESP_LOGD(TAG, "%s %s", dir, hex);
+  }
+#endif
 }
 
 }  // namespace esphome::rs485_frame

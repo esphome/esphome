@@ -224,6 +224,23 @@ TEST(RS485FrameHubTest, RxFramerRestartsOnDleStx) {
   EXPECT_EQ(hub.rx_payload_for_test(), payload);
 }
 
+// dump_frames logs a frame longer than one log line without disturbing delivery.
+TEST(RS485FrameHubTest, DumpFramesLogsLongFrames) {
+  RS485FrameHubProbe hub;
+  hub.set_crc_type(CRC_TYPE_SUM16_BIG_ENDIAN);
+  hub.set_dump_frames(true);
+  hub.setup();
+  hub.count_frames();
+
+  std::vector<uint8_t> payload(70);
+  for (size_t i = 0; i < payload.size(); i++)
+    payload[i] = static_cast<uint8_t>(i);
+  hub.feed_for_test(hub.build_frame_for_test(payload));
+
+  EXPECT_EQ(hub.frames, 1u);
+  EXPECT_EQ(hub.rx_payload_for_test(), payload);
+}
+
 // A DLE followed by anything but STX, ETX or the escape marker drops the frame.
 TEST(RS485FrameHubTest, RxFramerDropsBadEscape) {
   RS485FrameHubProbe hub;
