@@ -6,6 +6,7 @@
 #include <cstdio>
 
 #include "esphome/core/application.h"
+#include "esphome/core/helpers.h"
 #include "esphome/core/log.h"
 
 #include "fusb302b_registers.h"
@@ -347,7 +348,6 @@ bool FUSB302B::send_message(const PdMsg &msg) {
   // Register address, then the TX tokens; written in one transfer without the copy write_register() makes
   uint8_t buf[1 + 4 + 1 + 2 + PD_MAX_NUM_DATA_OBJECTS * 4 + 4];
   size_t len = 0;
-  const uint16_t header = msg.get_coded_header();
 
   buf[len++] = FUSB_FIFOS;
   buf[len++] = FUSB_TX_TOKEN_SYNC1;
@@ -355,14 +355,11 @@ bool FUSB302B::send_message(const PdMsg &msg) {
   buf[len++] = FUSB_TX_TOKEN_SYNC1;
   buf[len++] = FUSB_TX_TOKEN_SYNC2;
   buf[len++] = FUSB_TX_TOKEN_PACKSYM | (msg.num_of_obj * 4 + 2);
-  buf[len++] = header & 0xFF;
-  buf[len++] = header >> 8;
+  put_le16(buf + len, msg.get_coded_header());
+  len += 2;
   for (uint8_t i = 0; i < msg.num_of_obj; i++) {
-    const uint32_t obj = msg.data_objects[i];
-    buf[len++] = obj & 0xFF;
-    buf[len++] = (obj >> 8) & 0xFF;
-    buf[len++] = (obj >> 16) & 0xFF;
-    buf[len++] = obj >> 24;
+    put_le32(buf + len, msg.data_objects[i]);
+    len += 4;
   }
   buf[len++] = FUSB_TX_TOKEN_JAM_CRC;
   buf[len++] = FUSB_TX_TOKEN_EOP;

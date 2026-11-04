@@ -306,9 +306,8 @@ size_t ShellyDimmer::frame_command_(uint8_t *data, uint8_t cmd, const uint8_t *c
   }
 
   // Calculate checksum for the payload.
-  const uint16_t csum = shelly_dimmer_checksum(data + 1, 3 + len);
-  data[pos++] = static_cast<uint8_t>(csum >> 8);
-  data[pos++] = static_cast<uint8_t>(csum & 0xff);
+  put_be16(data + pos, shelly_dimmer_checksum(data + 1, 3 + len));
+  pos += 2;
   data[pos++] = SHELLY_DIMMER_PROTO_END_BYTE;
   return pos;
 }
