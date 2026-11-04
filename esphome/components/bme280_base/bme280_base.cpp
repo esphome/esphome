@@ -171,6 +171,10 @@ inline uint8_t oversampling_to_time(BME280Oversampling over_sampling) { return (
 void BME280Component::update() {
   // Enable sensor
   ESP_LOGV(TAG, "Sending conversion request");
+  if (!this->write_byte(BME280_REGISTER_CONTROLHUMID, this->humidity_oversampling_ & 0b111)) {
+    this->status_set_warning();
+    return;
+  }
   uint8_t meas_value = 0;
   meas_value |= (this->temperature_oversampling_ & 0b111) << 5;
   meas_value |= (this->pressure_oversampling_ & 0b111) << 2;
@@ -210,12 +214,11 @@ void BME280Component::update() {
   });
 }
 float BME280Component::read_temperature_(const uint8_t *data, int32_t *t_fine) {
-  int32_t adc = encode_uint24(data[3], data[4], data[5]);
-  adc >>= 4;
-  if (adc == 0x80000) {
-    // temperature was disabled
+  if (this->temperature_oversampling_ == BME280_OVERSAMPLING_NONE) {
     return NAN;
   }
+  int32_t adc = encode_uint24(data[3], data[4], data[5]);
+  adc >>= 4;
 
   const int32_t t1 = this->calibration_.t1;
   const int32_t t2 = this->calibration_.t2;
@@ -230,12 +233,11 @@ float BME280Component::read_temperature_(const uint8_t *data, int32_t *t_fine) {
 }
 
 float BME280Component::read_pressure_(const uint8_t *data, int32_t t_fine) {
-  int32_t adc = encode_uint24(data[0], data[1], data[2]);
-  adc >>= 4;
-  if (adc == 0x80000) {
-    // pressure was disabled
+  if (this->pressure_oversampling_ == BME280_OVERSAMPLING_NONE) {
     return NAN;
   }
+  int32_t adc = encode_uint24(data[0], data[1], data[2]);
+  adc >>= 4;
   const int64_t p1 = this->calibration_.p1;
   const int64_t p2 = this->calibration_.p2;
   const int64_t p3 = this->calibration_.p3;
@@ -267,11 +269,10 @@ float BME280Component::read_pressure_(const uint8_t *data, int32_t t_fine) {
 }
 
 float BME280Component::read_humidity_(const uint8_t *data, int32_t t_fine) {
-  uint16_t const raw_adc = encode_uint16(data[6], data[7]);
-  if (raw_adc == 0x8000)
+  if (this->humidity_oversampling_ == BME280_OVERSAMPLING_NONE) {
     return NAN;
-
-  int32_t const adc = raw_adc;
+  }
+  int32_t const adc = encode_uint16(data[6], data[7]);
 
   const int32_t h1 = this->calibration_.h1;
   const int32_t h2 = this->calibration_.h2;
