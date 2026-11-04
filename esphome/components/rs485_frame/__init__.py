@@ -30,9 +30,7 @@ class RS485FrameData:
 
 
 def _data() -> RS485FrameData:
-    if DOMAIN not in CORE.data:
-        CORE.data[DOMAIN] = RS485FrameData()
-    return CORE.data[DOMAIN]
+    return CORE.data.setdefault(DOMAIN, RS485FrameData())
 
 
 rs485_frame_ns = cg.esphome_ns.namespace("rs485_frame")
@@ -100,8 +98,10 @@ ESCAPE_MODE_DOUBLE = "double"
 validate_value_element_bytes = cv.one_of(1, 2, 3, 4, int=True)
 
 
-def _byte_list(min_len: int = 0, max_len: int = MAX_FRAME_TYPE_LEN) -> cv.All:
-    return cv.All(cv.ensure_list(cv.hex_uint8_t), cv.Length(min=min_len, max=max_len))
+def _byte_list(min_len: int = 0) -> cv.All:
+    return cv.All(
+        cv.ensure_list(cv.hex_uint8_t), cv.Length(min=min_len, max=MAX_FRAME_TYPE_LEN)
+    )
 
 
 validate_frame_type = _byte_list()
@@ -128,6 +128,20 @@ COMMAND_FORMAT_SCHEMA = cv.Schema(
         cv.Optional(CONF_POSTAMBLE, default=[]): _byte_list(),
     }
 )
+
+
+def check_frame_length(source: str, length: int, max_len: int) -> None:
+    """Rejects a constant frame the hub would drop instead of sending."""
+    if length < MIN_FRAME_LENGTH:
+        raise cv.Invalid(
+            f"{source} resolves to a {length}-byte frame; frames must be at least "
+            f"{MIN_FRAME_LENGTH} bytes, the shortest frame rs485_frame accepts on receive"
+        )
+    if length > max_len:
+        raise cv.Invalid(
+            f"{source} resolves to a {length}-byte frame, exceeding the referenced hub's "
+            f"max_frame_length: ({max_len})"
+        )
 
 
 def encode_command(
@@ -353,25 +367,17 @@ def _progmem_span(config: ConfigType, value: list[int]) -> str:
 
 def _validate_send_frame(config: ConfigType) -> ConfigType:
     parts = (config[CONF_FRAME_TYPE], config[CONF_PAYLOAD])
-    if any(isinstance(part, Lambda) for part in parts):
-        return config
-    if (length := sum(map(len, parts))) < MIN_FRAME_LENGTH:
-        raise cv.Invalid(
-            f"rs485_frame.send_frame frame_type + payload must be at least "
-            f"{MIN_FRAME_LENGTH} bytes, the shortest frame rs485_frame accepts on receive"
-        )
-    # The hub's max_frame_length is only known once the whole config is validated
-    _data().send_frames.append((config[CONF_ID], length))
+    if not any(isinstance(part, Lambda) for part in parts):
+        # The hub's max_frame_length is only known once the whole config is validated
+        _data().send_frames.append((config[CONF_ID], sum(map(len, parts))))
     return config
 
 
 def _final_validate(config: ConfigType) -> ConfigType:
-    max_len = config[CONF_MAX_FRAME_LENGTH]
     for hub_id, length in _data().send_frames:
-        if hub_id.id == config[CONF_ID].id and length > max_len:
-            raise cv.Invalid(
-                f"rs485_frame.send_frame sends a {length}-byte frame, exceeding this hub's "
-                f"max_frame_length: ({max_len})"
+        if hub_id.id == config[CONF_ID].id:
+            check_frame_length(
+                "rs485_frame.send_frame", length, config[CONF_MAX_FRAME_LENGTH]
             )
     return config
 

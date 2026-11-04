@@ -16,9 +16,8 @@ from .. import (
     CONF_VALUE_ELEMENT_BYTES,
     DOC_COMMAND_FORMAT_URL,
     MAX_COMMAND_VALUES,
-    MAX_FRAME_LENGTH_UPPER,
-    MIN_FRAME_LENGTH,
     RS485FrameHub,
+    check_frame_length,
     encode_command,
     validate_frame_type,
     validate_value_element_bytes,
@@ -26,29 +25,10 @@ from .. import (
 
 AUTO_LOAD = ["rs485_frame"]
 
-
-def _validate_button(config: ConfigType) -> ConfigType:
-    has_value = CONF_VALUE in config
-    if (CONF_FRAME_TYPE in config) != (CONF_PAYLOAD in config):
-        raise cv.Invalid(
-            "rs485_frame button raw form requires both 'frame_type' and 'payload'."
-        )
-    if has_value == (CONF_FRAME_TYPE in config):
-        raise cv.Invalid(
-            "rs485_frame button requires either 'value' or 'frame_type' + 'payload', not both."
-        )
-    if not has_value and (
-        CONF_COMMAND_FORMAT in config or CONF_VALUE_ELEMENT_BYTES in config
-    ):
-        raise cv.Invalid(
-            "rs485_frame button: 'command_format' and 'value_element_bytes' require 'value'."
-        )
-    if CONF_COMMAND_FORMAT in config and CONF_VALUE_ELEMENT_BYTES in config:
-        raise cv.Invalid(
-            "rs485_frame button: use 'value_element_bytes' or 'command_format', not both."
-        )
-    return config
-
+_RAW_MSG = "rs485_frame button raw form requires both 'frame_type' and 'payload'."
+_ENCODING_MSG = (
+    "rs485_frame button: use 'value_element_bytes' or 'command_format', not both."
+)
 
 CONFIG_SCHEMA = cv.All(
     button.button_schema(button.ApplyButton).extend(
@@ -58,15 +38,22 @@ CONFIG_SCHEMA = cv.All(
                 cv.ensure_list(cv.hex_uint32_t),
                 cv.Length(min=1, max=MAX_COMMAND_VALUES),
             ),
-            cv.Optional(CONF_VALUE_ELEMENT_BYTES): validate_value_element_bytes,
-            cv.Optional(CONF_FRAME_TYPE): validate_frame_type,
-            cv.Optional(CONF_PAYLOAD): cv.All(
-                cv.ensure_list(cv.hex_uint8_t), cv.Length(max=MAX_FRAME_LENGTH_UPPER)
+            cv.Exclusive(
+                CONF_VALUE_ELEMENT_BYTES, "encoding", msg=_ENCODING_MSG
+            ): validate_value_element_bytes,
+            cv.Exclusive(
+                CONF_COMMAND_FORMAT, "encoding", msg=_ENCODING_MSG
+            ): COMMAND_FORMAT_SCHEMA,
+            cv.Inclusive(CONF_FRAME_TYPE, "raw", msg=_RAW_MSG): validate_frame_type,
+            cv.Inclusive(CONF_PAYLOAD, "raw", msg=_RAW_MSG): cv.ensure_list(
+                cv.hex_uint8_t
             ),
-            cv.Optional(CONF_COMMAND_FORMAT): COMMAND_FORMAT_SCHEMA,
         }
     ),
-    _validate_button,
+    # 'value' or the raw form; command_format and value_element_bytes only encode 'value'
+    cv.has_exactly_one_key(CONF_VALUE, CONF_FRAME_TYPE),
+    cv.has_at_most_one_key(CONF_FRAME_TYPE, CONF_COMMAND_FORMAT),
+    cv.has_at_most_one_key(CONF_FRAME_TYPE, CONF_VALUE_ELEMENT_BYTES),
 )
 
 
@@ -94,16 +81,9 @@ def _final_validate(config: ConfigType) -> ConfigType:
             f"the referenced hub, or use the raw 'frame_type' + 'payload' form. See {DOC_COMMAND_FORMAT_URL}"
         )
     frame = _resolve_frame(config, hub_config)
-    if len(frame) < MIN_FRAME_LENGTH:
-        raise cv.Invalid(
-            f"rs485_frame button resolves to a {len(frame)}-byte frame; frames must be at "
-            f"least {MIN_FRAME_LENGTH} bytes, the shortest frame rs485_frame accepts on receive"
-        )
-    if len(frame) > (max_len := hub_config[CONF_MAX_FRAME_LENGTH]):
-        raise cv.Invalid(
-            f"rs485_frame button resolves to a {len(frame)}-byte frame, exceeding the "
-            f"referenced hub's max_frame_length: ({max_len})"
-        )
+    check_frame_length(
+        "rs485_frame button", len(frame), hub_config[CONF_MAX_FRAME_LENGTH]
+    )
     return config
 
 
