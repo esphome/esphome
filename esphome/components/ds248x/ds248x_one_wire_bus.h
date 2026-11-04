@@ -44,6 +44,8 @@ class DS248xOneWireBus : public one_wire::OneWireBus, public Component {
 
   /// Select the channel on the DS248x before any 1-Wire operation
   bool ensure_channel_();
+  /// True when the parent hub failed during setup
+  bool hub_failed_() const;
 
   DS248xComponent *parent_{nullptr};
   uint8_t channel_{0};

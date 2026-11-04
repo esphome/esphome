@@ -12,7 +12,7 @@ void DS248xOneWireBus::setup() {
 
   // Parent setup happens in DS248xComponent::setup()
   // We just need to scan for devices on this channel
-  if (this->parent_ != nullptr && this->parent_->is_failed()) {
+  if (this->hub_failed_()) {
     this->mark_failed(LOG_STR("DS248x hub failed"));
     return;
   }
@@ -33,18 +33,23 @@ void DS248xOneWireBus::dump_config() {
   this->dump_devices_(TAG);
 }
 
+bool DS248xOneWireBus::hub_failed_() const { return this->parent_ != nullptr && this->parent_->is_failed(); }
+
 bool DS248xOneWireBus::ensure_channel_() {
   if (this->parent_ == nullptr) {
     ESP_LOGE(TAG, "Parent not set!");
     return false;
   }
   // Skip I2C traffic to a hub that never came up
-  if (this->parent_->is_failed())
+  if (this->hub_failed_())
     return false;
   return this->parent_->select_channel(this->channel_);
 }
 
 int DS248xOneWireBus::reset_int() {
+  // Report no presence instead of a bus error, so the base class does not log "bus is held low"
+  if (this->hub_failed_())
+    return 0;
   if (!this->ensure_channel_()) {
     return -1;
   }
