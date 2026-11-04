@@ -17,8 +17,10 @@ PROGMEM_STRING_TABLE(QueuePolicyStrings, "replace_latest", "fifo");
 
 void RS485FrameHub::setup() {
   this->rx_payload_ = std::make_unique<uint8_t[]>(this->max_frame_length_ + this->crc_length_());
-  this->tx_queue_ = std::make_unique<uint8_t[]>(this->max_queue_size_ * this->tx_slot_capacity_());
-  this->tx_queue_len_ = std::make_unique<uint16_t[]>(this->max_queue_size_);
+  if (!this->sniffer_only_) {
+    this->tx_queue_ = std::make_unique<uint8_t[]>(this->max_queue_size_ * this->tx_slot_capacity_());
+    this->tx_queue_len_ = std::make_unique<uint16_t[]>(this->max_queue_size_);
+  }
   if (this->dump_frames_)
     this->hex_log_buf_ = std::make_unique<char[]>(format_hex_size(this->tx_slot_capacity_()));
 }

@@ -29,6 +29,7 @@ class RS485FrameHubProbe : public RS485FrameHub {
     return {this->rx_payload_.get(), this->rx_payload_.get() + this->rx_payload_len_};
   }
   size_t queue_depth_for_test() const { return this->tx_queue_count_; }
+  bool has_tx_queue_for_test() const { return this->tx_queue_ != nullptr; }
   std::vector<uint8_t> queued_frame_for_test(size_t i) const {
     const size_t index = (this->tx_queue_head_ + i) % this->max_queue_size_;
     const uint8_t *slot = this->tx_slot_(index);
@@ -279,9 +280,19 @@ TEST(RS485FrameHubTest, QueueFrameDropsOverlongAndSnifferFrames) {
   // Received frames under 2 bytes are dropped, so they are not sent either.
   EXPECT_FALSE(hub.queue_frame(DATA, 1));
 
-  hub.set_sniffer_only(true);
-  EXPECT_FALSE(hub.queue_frame(DATA, 2));
   EXPECT_EQ(hub.queue_depth_for_test(), 0u);
+}
+
+// A sniffer_only hub allocates no TX queue and never queues.
+TEST(RS485FrameHubTest, SnifferHubDropsFrames) {
+  RS485FrameHubProbe hub;
+  hub.set_sniffer_only(true);
+  hub.setup();
+  static const uint8_t DATA[2] = {};
+
+  EXPECT_FALSE(hub.queue_frame(DATA, sizeof(DATA)));
+  EXPECT_EQ(hub.queue_depth_for_test(), 0u);
+  EXPECT_FALSE(hub.has_tx_queue_for_test());
 }
 
 TEST(RS485FrameHubTest, FrameCallbackReceivesPayload) {
