@@ -937,7 +937,8 @@ async def new_value_range_trigger(
     """Create ``trigger_id`` with ``parent`` and a generated ``ValueRange (*)(float x)``: the bounds at ``x``.
 
     The trigger is declared before its bounds are rendered, so a bound may use the trigger's own id.
-    ``x`` is const, so an inlined bound cannot change the value the other bound sees.
+    A bound that names ``x`` gets its own copy, so it cannot change the value the other bound sees;
+    the const ``x`` is a backstop if bounds are ever inlined again.
     """
     trigger = cg.new_Pvariable(
         trigger_id, parent, cg.RawExpression(_apply_function_name(trigger_id))

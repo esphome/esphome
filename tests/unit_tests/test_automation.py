@@ -3440,7 +3440,7 @@ async def test_apply_statements_action_merges_with_neighbours() -> None:
 async def test_new_value_range_trigger(
     mock_cg: MockCodegen, config: dict, expected: str
 ) -> None:
-    """Unset bounds are NaN, a lambda bound is inlined with a const x, and the trigger comes first."""
+    """Unset bounds are NaN, a lambda bound naming x gets its own copy, and the trigger comes first."""
     trigger_id = ID("range_trigger", is_declaration=True)
     assert await new_value_range_trigger(trigger_id, PARENT_OBJ, config) is NEW_OBJ
     new_id, parent, function = mock_cg.new_pvariable.call_args.args
@@ -3455,7 +3455,7 @@ async def test_new_value_range_trigger(
         "add_global",
         "add_global_after_includes",
     ]
-    # A const x: an inlined bound that changes x does not compile
+    # A const x is a backstop: each bound naming x already gets its own copy
     assert str(mock_cg.add_global.call_args.args[0]) == (
         "static ValueRange esphome__range_trigger__fn(const float x);"
     )
