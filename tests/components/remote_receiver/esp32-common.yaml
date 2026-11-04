@@ -26,6 +26,12 @@ binary_sensor:
     toto:
       code: 0x0D00
   - platform: remote_receiver
+    name: Toto legacy fields
+    toto:
+      command: 0xEC
+      rc_code_1: 0x0D
+      rc_code_2: 0x0D
+  - platform: remote_receiver
     name: Drayton Thermostat On
     drayton:
       address: 0x6180

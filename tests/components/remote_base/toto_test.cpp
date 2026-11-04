@@ -39,22 +39,32 @@ optional<TotoData> decode(const RawTimings &timings) {
 TEST(TotoProtocolTest, DecodesARealCapture) {
   auto decoded = decode(FULL_FLUSH);
   ASSERT_TRUE(decoded.has_value());
-  EXPECT_EQ(*decoded, 0x0D00);
+  EXPECT_EQ(decoded->code, 0x0D00);
+}
+
+TEST(TotoProtocolTest, FillsTheOldFieldsOnReceive) {
+  RemoteTransmitData tx;
+  TotoProtocol().encode(&tx, TotoData{.code = 0x37BB});
+  auto decoded = decode(tx.get_data());
+  ASSERT_TRUE(decoded.has_value());
+  EXPECT_EQ(decoded->rc_code_1, 0x0D);
+  EXPECT_EQ(decoded->rc_code_2, 0x0D);
+  EXPECT_EQ(decoded->command, 0xEC);
 }
 
 TEST(TotoProtocolTest, SendsTheSameFrameAsTheOldFields) {
   RemoteTransmitData tx;
-  TotoProtocol().encode(&tx, 0x37BB);
+  TotoProtocol().encode(&tx, TotoData{.code = 0x37BB});
   EXPECT_EQ(tx.get_data(), reference_frame(0x0D, 0x0D, 0xEC));
 }
 
 TEST(TotoProtocolTest, RoundTrips) {
   for (const uint16_t code : {0x0000, 0x0134, 0x0234, 0x0D00, 0x37BB, 0xFFFF}) {
     RemoteTransmitData tx;
-    TotoProtocol().encode(&tx, code);
+    TotoProtocol().encode(&tx, TotoData{.code = code});
     auto decoded = decode(tx.get_data());
     ASSERT_TRUE(decoded.has_value()) << code;
-    EXPECT_EQ(*decoded, code);
+    EXPECT_EQ(decoded->code, code);
   }
 }
 

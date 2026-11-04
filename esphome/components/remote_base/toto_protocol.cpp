@@ -18,8 +18,8 @@ static constexpr BitTimings BIT_TIMINGS{
 
 // Both the header and the payload are sent least significant bit first; the payload is the code (low byte first)
 // followed by a checksum that makes the XOR of all three bytes zero.
-void TotoProtocol::encode(RemoteTransmitData *dst, const TotoData &code) {
-  uint8_t payload[3] = {static_cast<uint8_t>(code), static_cast<uint8_t>(code >> 8), 0};
+void TotoProtocol::encode(RemoteTransmitData *dst, const TotoData &data) {
+  uint8_t payload[3] = {static_cast<uint8_t>(data.code), static_cast<uint8_t>(data.code >> 8), 0};
   payload[2] = xor_bytes(payload, 2);
   dst->reserve(2 * (1 + TOTO_HEADER_BITS + sizeof(payload) * 8) + 1);
   dst->set_carrier_frequency(38000);
@@ -43,8 +43,11 @@ optional<TotoData> TotoProtocol::decode(RemoteReceiveData src) {
   uint8_t payload[3];
   if (!src.expect_bytes<BIT_TIMINGS>(payload, sizeof(payload)) || xor_bytes(payload, sizeof(payload)) != 0)
     return {};
-  return encode_uint16(payload[1], payload[0]);
+  return TotoData{.code = encode_uint16(payload[1], payload[0]),
+                  .rc_code_1 = static_cast<uint8_t>(reverse_bits(payload[0]) >> 4),
+                  .rc_code_2 = static_cast<uint8_t>(reverse_bits(payload[0]) & 0x0F),
+                  .command = reverse_bits(payload[1])};
 }
-void TotoProtocol::dump(const TotoData &code) { ESP_LOGI(TAG, "Received Toto code 0x%04X", code); }
+void TotoProtocol::dump(const TotoData &data) { ESP_LOGI(TAG, "Received Toto code 0x%04X", data.code); }
 
 }  // namespace esphome::remote_base

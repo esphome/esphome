@@ -1,6 +1,7 @@
 from collections.abc import Callable
 import dataclasses
 from dataclasses import dataclass
+import logging
 from pathlib import Path
 from typing import Any
 
@@ -60,6 +61,8 @@ from esphome.cpp_generator import MockObj
 from esphome.schema_extractors import SCHEMA_EXTRACT, schema_extractor
 from esphome.types import ConfigType, SafeExpType, TemplateArgsType
 from esphome.util import Registry, SimpleRegistry
+
+_LOGGER = logging.getLogger(__name__)
 
 AUTO_LOAD = ["binary_sensor"]
 DOMAIN = "remote_base"
@@ -2862,24 +2865,56 @@ register_protocol_action(
     TotoDumper,
 ) = declare_protocol("Toto")
 
-_TOTO_OLD_KEYS_REMOVED = (
-    "Toto now takes one 16-bit 'code' sent least significant bit first; with each field bit-reversed, "
-    "code = command << 8 | rc_code_2 << 4 | rc_code_1"
-)
+# The fields of the old most-significant-bit-first reading of code, still accepted
+_TOTO_LEGACY_KEYS = (CONF_RC_CODE_1, CONF_RC_CODE_2, CONF_COMMAND)
 
 TOTO_SCHEMA = cv.Schema(
     {
-        cv.Required(CONF_CODE): cv.hex_uint16_t,
-        cv.Optional(CONF_RC_CODE_1): cv.invalid(_TOTO_OLD_KEYS_REMOVED),
-        cv.Optional(CONF_RC_CODE_2): cv.invalid(_TOTO_OLD_KEYS_REMOVED),
-        cv.Optional(CONF_COMMAND): cv.invalid(_TOTO_OLD_KEYS_REMOVED),
+        cv.Optional(CONF_CODE): cv.hex_uint16_t,
+        cv.Optional(CONF_RC_CODE_1): cv.hex_int_range(0, 0xF),
+        cv.Optional(CONF_RC_CODE_2): cv.hex_int_range(0, 0xF),
+        cv.Optional(CONF_COMMAND): cv.hex_uint8_t,
     }
 )
 
 
-@register_binary_sensor("toto", TotoBinarySensor, TOTO_SCHEMA)
+def _reverse_byte(value: int) -> int:
+    return int(f"{value:08b}"[::-1], 2)
+
+
+def _toto_legacy_code(config: ConfigType) -> int:
+    rc_codes = config.get(CONF_RC_CODE_1, 0) << 4 | config.get(CONF_RC_CODE_2, 0)
+    return _reverse_byte(config[CONF_COMMAND]) << 8 | _reverse_byte(rc_codes)
+
+
+def _toto_warn_legacy(config: ConfigType) -> ConfigType:
+    if CONF_COMMAND not in config:
+        return config
+    if any(cg.is_template(config.get(key)) for key in _TOTO_LEGACY_KEYS):
+        replacement = "'code'"
+    else:
+        replacement = f"'code: 0x{_toto_legacy_code(config):04X}'"
+    _LOGGER.warning(
+        "Toto 'rc_code_1', 'rc_code_2' and 'command' are deprecated, use %s. Removed in 2027.6.0",
+        replacement,
+    )
+    return config
+
+
+_validate_toto_form = cv.All(
+    cv.has_exactly_one_key(CONF_CODE, CONF_COMMAND),
+    cv.has_none_or_all_keys(CONF_RC_CODE_1, CONF_COMMAND),
+    cv.has_none_or_all_keys(CONF_RC_CODE_2, CONF_COMMAND),
+    _toto_warn_legacy,
+)
+
+
+@register_binary_sensor(
+    "toto", TotoBinarySensor, cv.All(TOTO_SCHEMA, _validate_toto_form)
+)
 def toto_binary_sensor(var, config):
-    cg.add(var.set_data(config[CONF_CODE]))
+    code = _toto_legacy_code(config) if CONF_COMMAND in config else config[CONF_CODE]
+    cg.add(var.set_data(cg.StructInitializer(TotoData, ("code", code))))
 
 
 @register_trigger("toto", TotoTrigger, TotoData)
@@ -2903,8 +2938,18 @@ register_protocol_action(
     "toto",
     "Toto",
     TOTO_SCHEMA,
-    automation.ApplyField(CONF_CODE, "data = {}", cg.uint16),
-    validate=_toto_default_repeat,
+    (CONF_CODE, "code", cg.uint16),
+    # The legacy fields set their bits of code, so they also work as lambdas
+    automation.ApplyField(
+        CONF_RC_CODE_1, "data.code |= reverse_bits(uint8_t({} << 4))", cg.uint8
+    ),
+    automation.ApplyField(
+        CONF_RC_CODE_2, "data.code |= reverse_bits(uint8_t(({}) & 0x0F))", cg.uint8
+    ),
+    automation.ApplyField(
+        CONF_COMMAND, "data.code |= reverse_bits(uint8_t({})) << 8", cg.uint8
+    ),
+    validate=cv.All(_validate_toto_form, _toto_default_repeat),
 )
 
 
