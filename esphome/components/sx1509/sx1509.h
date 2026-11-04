@@ -18,6 +18,19 @@ const uint8_t EXTERNAL_CLOCK = 1;
 const uint8_t SOFTWARE_RESET = 0;
 const uint8_t HARDWARE_RESET = 1;
 
+// LED driver clock (ClkX) divider, bits 6:4 of REG_MISC. It sets the PWM frequency of all output pins.
+// ClkX = fOSC / 2^(divider-1) and the PWM frequency is about ClkX / 255. The values below assume the
+// typical 2MHz internal oscillator (datasheet range: 1.3MHz to 2.6MHz), so real chips can differ.
+enum LedDriverFrequency : uint8_t {
+  LED_DRIVER_FREQ_7840HZ = 1,
+  LED_DRIVER_FREQ_3920HZ = 2,
+  LED_DRIVER_FREQ_1960HZ = 3,
+  LED_DRIVER_FREQ_980HZ = 4,
+  LED_DRIVER_FREQ_490HZ = 5,
+  LED_DRIVER_FREQ_245HZ = 6,
+  LED_DRIVER_FREQ_122HZ = 7,
+};
+
 const uint8_t REG_I_ON[16] = {REG_I_ON_0,  REG_I_ON_1,  REG_I_ON_2,  REG_I_ON_3, REG_I_ON_4,  REG_I_ON_5,
                               REG_I_ON_6,  REG_I_ON_7,  REG_I_ON_8,  REG_I_ON_9, REG_I_ON_10, REG_I_ON_11,
                               REG_I_ON_12, REG_I_ON_13, REG_I_ON_14, REG_I_ON_15};
@@ -45,7 +58,6 @@ class SX1509Component final : public Component,
   uint16_t read_key_data();
   void set_pin_value(uint8_t pin, uint8_t i_on) { this->write_byte(REG_I_ON[pin], i_on); };
   void pin_mode(uint8_t pin, gpio::Flags flags);
-  uint32_t get_clock() { return this->clk_x_; };
   void set_rows_cols(uint8_t rows, uint8_t cols) {
     this->rows_ = rows;
     this->cols_ = cols;
@@ -61,6 +73,7 @@ class SX1509Component final : public Component,
   }
   void register_key_trigger(SX1509KeyTrigger *trig) { this->key_triggers_.push_back(trig); };
   void setup_led_driver(uint8_t pin);
+  void set_led_driver_frequency(LedDriverFrequency frequency) { this->led_driver_frequency_ = frequency; }
 
  protected:
   // Virtual methods from CachedGpioExpander — names come from base class
@@ -68,8 +81,6 @@ class SX1509Component final : public Component,
   bool digital_read_cache(uint8_t pin) override;            // NOLINT(readability-identifier-naming)
   void digital_write_hw(uint8_t pin, bool value) override;  // NOLINT(readability-identifier-naming)
 
-  uint32_t clk_x_ = 2000000;
-  uint8_t frequency_ = 0;
   uint16_t ddr_mask_ = 0x00;
   uint16_t input_mask_ = 0x00;  // Cache for input values (16-bit for all pins)
   uint16_t port_mask_ = 0x00;
@@ -77,6 +88,7 @@ class SX1509Component final : public Component,
   bool has_keypad_ = false;
   uint8_t rows_ = 0;
   uint8_t cols_ = 0;
+  LedDriverFrequency led_driver_frequency_{LED_DRIVER_FREQ_122HZ};
   const uint8_t *keys_{nullptr};
   uint16_t sleep_time_ = 128;
   uint8_t scan_time_ = 1;
