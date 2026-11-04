@@ -289,7 +289,7 @@ class Canbus : public Component {
   /// Logs and sends a frame that is already valid.
   canbus::Error send_frame_(const CanFrame &frame);
   /// For a canbus.send lambda: a CAN FD frame that did not fit is refused, a classic one is cut to 8 bytes.
-  bool lambda_payload_fits_(const CanPayload &payload, bool fd);
+  bool lambda_payload_fits_(const CanPayload &payload, [[maybe_unused]] bool fd);
   virtual bool setup_internal() = 0;
   virtual Error send_message(struct CanFrame *frame) = 0;
   virtual Error read_message(struct CanFrame *frame) = 0;
