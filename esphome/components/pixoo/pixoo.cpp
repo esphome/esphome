@@ -51,10 +51,8 @@ void Pixoo::setup() {
   // packet, so the LED board completes its final DMA block.
   this->frame_size_ = this->data_size_ + PACKET_STATIC_LEN + DMA_CHUNK;
 
-  if (!this->buffer_.init(this->data_size_)) {
-    this->mark_failed(LOG_STR("Failed to allocate draw buffer"));
+  if (!this->setup_check(this->buffer_.init(this->data_size_), LOG_STR("Failed to allocate draw buffer")))
     return;
-  }
 
   // The frame is shipped in one SPI transfer, so keep it in DMA-capable internal RAM.
   RAMAllocator<uint8_t> allocator(RAMAllocator<uint8_t>::ALLOC_INTERNAL);

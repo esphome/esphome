@@ -29,27 +29,23 @@ void RP2040PIOLEDStripLightOutput::dma_write_complete_handler() {
 
 void RP2040PIOLEDStripLightOutput::setup() {
   RAMAllocator<uint8_t> allocator;
-  if (!this->internal_accessor_.allocate(allocator, this->num_leds_)) {
-    this->mark_failed(LOG_STR(ESP_LOG_MSG_ALLOC_FAIL));
+  if (!this->setup_check(this->internal_accessor_.allocate(allocator, this->num_leds_),
+                         LOG_STR(ESP_LOG_MSG_ALLOC_FAIL)))
     return;
-  }
 
   // Initialize the PIO program
 
   // Select PIO instance to use (0 or 1)
-  if (this->pio_ == nullptr) {
-    this->mark_failed(LOG_STR("Failed to claim PIO instance"));
+  if (!this->setup_check(this->pio_ != nullptr, LOG_STR("Failed to claim PIO instance")))
     return;
-  }
 
   // if there are multiple strips, we can reuse the same PIO program and save space
   // but there are only 4 state machines on each PIO so we can only have 4 strips per PIO
   uint offset = 0;
 
-  if (RP2040PIOLEDStripLightOutput::num_instance[this->pio_ == pio0 ? 0 : 1] >= 4) {
-    this->mark_failed(LOG_STR("Too many instances of PIO program"));
+  if (!this->setup_check(RP2040PIOLEDStripLightOutput::num_instance[this->pio_ == pio0 ? 0 : 1] < 4,
+                         LOG_STR("Too many instances of PIO program")))
     return;
-  }
   // keep track of how many instances of the PIO program are running on each PIO
   RP2040PIOLEDStripLightOutput::num_instance[this->pio_ == pio0 ? 0 : 1]++;
 
