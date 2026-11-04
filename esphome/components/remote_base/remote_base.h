@@ -380,6 +380,8 @@ class RemoteReceiverBase : public RemoteComponentBase {
   void call_listeners_dumpers_(RawTimingsView data) {
     this->dispatch_(RemoteReceiveData(data, this->tolerance_, this->tolerance_mode_));
   }
+  /// A vector goes through call_listeners_dumpers_() (temp_), which on_raw passes on without a copy.
+  void call_listeners_dumpers_(const RawTimings &data) = delete;
   /// Each listener and dumper gets its own copy of src, starting at index 0.
   void dispatch_(const RemoteReceiveData &src);
 
