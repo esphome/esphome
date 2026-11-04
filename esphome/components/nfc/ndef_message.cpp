@@ -65,7 +65,7 @@ NdefMessage::NdefMessage(const std::span<const uint8_t> data) {
       index += id_length;
     }
 
-    if ((data.begin() + index > data.end()) || (data.begin() + index + payload_length > data.end())) {
+    if (payload_length > data.size() - index) {
       ESP_LOGE(TAG, "Corrupt record encountered; NdefMessage constructor aborting");
       break;
     }
