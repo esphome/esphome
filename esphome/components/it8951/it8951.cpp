@@ -330,10 +330,8 @@ void IT8951Display::setup() {
   this->buffer_length_ = static_cast<size_t>(this->row_width_) * static_cast<size_t>(this->height_);
   RAMAllocator<uint8_t> allocator{};
   this->buffer_ = allocator.allocate(this->buffer_length_);
-  if (this->buffer_ == nullptr) {
-    this->mark_failed(LOG_STR("Failed to allocate IT8951 framebuffer"));
+  if (!this->setup_check(this->buffer_ != nullptr, LOG_STR("Failed to allocate IT8951 framebuffer")))
     return;
-  }
   // The allocator does not zero memory; start blank (white) so undrawn regions
   // (e.g. with auto_clear disabled) don't show garbage on the first update.
   this->fill(Color::WHITE);

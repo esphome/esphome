@@ -29,35 +29,29 @@ void RP2040PIOLEDStripLightOutput::dma_write_complete_handler() {
 
 void RP2040PIOLEDStripLightOutput::setup() {
   RAMAllocator<uint8_t> allocator;
-  if (!this->internal_accessor_.allocate(allocator, this->num_leds_)) {
-    this->mark_failed(LOG_STR(ESP_LOG_MSG_ALLOC_FAIL));
+  if (!this->setup_check(this->internal_accessor_.allocate(allocator, this->num_leds_),
+                         LOG_STR(ESP_LOG_MSG_ALLOC_FAIL)))
     return;
-  }
 
   // Initialize the PIO program
 
   // Select PIO instance to use (0 or 1)
-  if (this->pio_ == nullptr) {
-    this->mark_failed(LOG_STR("Failed to claim PIO instance"));
+  if (!this->setup_check(this->pio_ != nullptr, LOG_STR("Failed to claim PIO instance")))
     return;
-  }
 
   // There are only 4 state machines on each PIO, so at most 4 strips per PIO
   auto &loaded = RP2040PIOLEDStripLightOutput::loaded_programs[pio_get_index(this->pio_)];
-  if (loaded.strips >= NUM_PIO_STATE_MACHINES) {
-    this->mark_failed(LOG_STR("Too many instances of PIO program"));
+  if (!this->setup_check(loaded.strips < NUM_PIO_STATE_MACHINES, LOG_STR("Too many instances of PIO program")))
     return;
-  }
 
   // Strips with the same program on the same PIO share one copy of it in instruction memory
   uint offset = 0;
   for (uint8_t i = 0; i < NUM_PIO_STATE_MACHINES; i++) {
     if (loaded.program[i] == nullptr) {
       // The SDK panics when instruction memory is full
-      if (!pio_can_add_program(this->pio_, this->program_)) {
-        this->mark_failed(LOG_STR("No PIO instruction memory left"));
+      if (!this->setup_check(pio_can_add_program(this->pio_, this->program_),
+                             LOG_STR("No PIO instruction memory left")))
         return;
-      }
       offset = pio_add_program(this->pio_, this->program_);
       loaded.program[i] = this->program_;
       loaded.offset[i] = offset;
