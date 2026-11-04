@@ -190,7 +190,7 @@ std::string ProntoProtocol::dump_duration_(uint32_t duration, uint16_t timebase,
   return dump_number_((duration + timebase / 2) / timebase, end);
 }
 
-std::string ProntoProtocol::compensate_and_dump_sequence_(std::span<const int32_t> data, uint16_t timebase) {
+std::string ProntoProtocol::compensate_and_dump_sequence_(RawTimingsView data, uint16_t timebase) {
   std::string out;
 
   for (int32_t t_length : data) {

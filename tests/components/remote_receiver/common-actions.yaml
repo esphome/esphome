@@ -129,10 +129,16 @@ on_pronto:
         format: "on_pronto: %s"
         args: ["x.data.c_str()"]
 on_raw:
-  then:
-    - logger.log:
-        format: "on_raw: %ld"
-        args: ["(long) x.front()"]
+  - then:
+      - logger.log:
+          format: "on_raw: %ld"
+          args: ["(long) x.front()"]
+  # A deferring automation gets its own copy of x
+  - then:
+      - delay: 10ms
+      - logger.log:
+          format: "on_raw later: %u"
+          args: ["(unsigned) x.size()"]
 on_rc5:
   then:
     - logger.log:

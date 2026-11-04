@@ -1,0 +1,21 @@
+esphome:
+  name: test
+
+esp8266:
+  board: d1_mini
+
+logger:
+
+remote_receiver:
+  - id: rcvr
+    pin: GPIO4
+    on_raw:
+      - then:
+          - logger.log:
+              format: "sync %u"
+              args: ["x.size()"]
+      - then:
+          - delay: 10ms
+          - logger.log:
+              format: "deferred %u"
+              args: ["x.size()"]
