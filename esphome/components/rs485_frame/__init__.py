@@ -10,7 +10,7 @@ from esphome.const import (
     CONF_PAYLOAD,
     CONF_TYPE,
 )
-from esphome.core import HexInt
+from esphome.core import HexInt, Lambda
 from esphome.types import ConfigType
 
 CODEOWNERS = ["@b3nj1"]
@@ -75,6 +75,9 @@ MAX_COMMAND_VALUES = 8
 MAX_FRAME_TYPE_LEN = 8
 MAX_FRAME_TYPE_ALTS = 4
 MAX_FRAME_LENGTH_UPPER = 1024
+# Must agree with MIN_FRAME_LENGTH in rs485_frame.h. Received frames shorter than this
+# (before the CRC) are dropped, so shorter frames are not sent either.
+MIN_FRAME_LENGTH = 2
 MAX_QUEUE_SIZE_UPPER = 32
 ESCAPE_MODE_BYTE = "escape_byte"
 ESCAPE_MODE_DOUBLE = "double"
@@ -102,7 +105,7 @@ def validate_frame_type_or_list(value: object) -> list[list[HexInt]]:
     would silently match every frame.
     """
     if value is None:
-        return []
+        raise cv.Invalid("frame_type needs a value; use [] to match every frame")
     if not isinstance(value, list):
         value = [value]
     if value and isinstance(value[0], list):
@@ -240,9 +243,9 @@ CONFIG_SCHEMA = cv.All(
             cv.Optional(CONF_COMMAND_FORMAT): COMMAND_FORMAT_SCHEMA,
             cv.Optional(CONF_DUMP_FRAMES, default=False): cv.boolean,
             cv.Optional(CONF_SNIFFER_ONLY, default=False): cv.boolean,
-            # 6 = DLE STX + 2 frame_type bytes + DLE ETX.
+            # Counts frame_type + payload, before escaping and without the CRC.
             cv.Optional(CONF_MAX_FRAME_LENGTH, default=128): cv.int_range(
-                min=6, max=MAX_FRAME_LENGTH_UPPER
+                min=MIN_FRAME_LENGTH, max=MAX_FRAME_LENGTH_UPPER
             ),
             cv.Optional(
                 CONF_FRAME_TIMEOUT, default="50ms"
@@ -327,14 +330,31 @@ def _progmem_span(config: ConfigType, value: list[int]) -> str:
     return f"std::span<const uint8_t>({table}, {len(value)})"
 
 
+def _validate_send_frame(config: ConfigType) -> ConfigType:
+    parts = (config[CONF_FRAME_TYPE], config[CONF_PAYLOAD])
+    if not any(isinstance(part, Lambda) for part in parts) and (
+        sum(map(len, parts)) < MIN_FRAME_LENGTH
+    ):
+        raise cv.Invalid(
+            f"rs485_frame.send_frame frame_type + payload must be at least "
+            f"{MIN_FRAME_LENGTH} bytes, the shortest frame rs485_frame accepts on receive"
+        )
+    return config
+
+
 automation.register_apply_action(
     "rs485_frame.send_frame",
-    cv.Schema(
-        {
-            cv.GenerateID(): cv.use_id(RS485FrameHub),
-            cv.Required(CONF_FRAME_TYPE): cv.templatable(validate_frame_type),
-            cv.Required(CONF_PAYLOAD): cv.templatable(cv.ensure_list(validate_byte)),
-        }
+    cv.All(
+        cv.Schema(
+            {
+                cv.GenerateID(): cv.use_id(RS485FrameHub),
+                cv.Required(CONF_FRAME_TYPE): cv.templatable(validate_frame_type),
+                cv.Required(CONF_PAYLOAD): cv.templatable(
+                    cv.ensure_list(validate_byte)
+                ),
+            }
+        ),
+        _validate_send_frame,
     ),
     automation.ApplyCall(
         "queue_raw_frame({}, {})",

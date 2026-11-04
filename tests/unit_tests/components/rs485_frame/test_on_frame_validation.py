@@ -1,12 +1,10 @@
 """Tests for rs485_frame on_frame validation.
 
-frame_type: a code review of the upstream PR found that frame_type: accepts a list of
-alternate prefixes (e.g. `[[0x01, 0x03], [0x01, 0x09]]`) so one lambda can decode multiple
-related frame types, but an *inner* prefix that is itself empty (`[[0x01, 0x03], []]`)
-silently becomes match-all for that alternate -- every frame matches, not just frames
-starting with 0x01 0x03. This is different from the documented, intentional
-`frame_type: []` top-level form (bare, not inside a list of alternates), which is
-match-all by design.
+frame_type: accepts a list of alternate prefixes (e.g. `[[0x01, 0x03], [0x01, 0x09]]`) so
+one lambda can decode several related frame types. An *inner* prefix that is itself empty
+(`[[0x01, 0x03], []]`), or a `frame_type:` with no value at all, would silently match every
+frame, so both are rejected. The documented top-level `frame_type: []` form matches every
+frame by design.
 
 Deferring actions: payload is a view into the hub's receive buffer, which the next frame
 overwrites, so on_frame must not delay or wait. Copying payload into a script parameter
@@ -60,3 +58,16 @@ def test_on_frame_allows_copy_into_script(fixture_path: Path) -> None:
     result = _validate_fixture(fixture_path, "rs485_frame_on_frame_script_copy.yaml")
 
     assert not result.errors, [str(err) for err in result.errors]
+
+
+def test_on_frame_null_frame_type_raises_clean_invalid(fixture_path: Path) -> None:
+    """A bare `frame_type:` with no value must be rejected, not treated as the match-all
+    `[]`, so a forgotten value does not run the automation on every frame."""
+    result = _validate_fixture(
+        fixture_path, "rs485_frame_on_frame_null_frame_type.yaml"
+    )
+
+    assert result.errors, "expected a validation error for a null frame_type"
+    assert any("frame_type needs a value" in str(err) for err in result.errors), [
+        str(err) for err in result.errors
+    ]

@@ -1,10 +1,9 @@
 packages:
   uart: !include ../../test_build_components/common/uart/esp32-idf.yaml
 
-# Regression test: a hub with no rs485_frame button/number entities, alongside an unrelated
-# platform (template) that does turn on USE_BUTTON/USE_NUMBER globally. The hub's own .cpp must
-# not require the button/number platform headers just because some other component uses those
-# platforms.
+# Regression test: a hub with no rs485_frame button entities, alongside unrelated template
+# platforms that turn on USE_BUTTON/USE_NUMBER globally. The hub's own .cpp must not require the
+# button platform header just because some other component uses those platforms.
 rs485_frame:
   - id: rs485_frame_hub_min
     uart_id: uart_bus

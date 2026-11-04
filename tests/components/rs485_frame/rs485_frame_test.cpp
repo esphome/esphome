@@ -146,13 +146,55 @@ TEST(RS485FrameHubTest, RxFramerRejectsBadCrcAndOverlongFrames) {
   hub.feed_for_test({0x10, 0x02, 0x01, 0x02, 0x00, 0x10, 0x03});
   EXPECT_EQ(hub.frames, 0u);
 
-  // Longer than max_frame_length: abandoned mid-receive.
-  hub.feed_for_test({0x10, 0x02, 0x01, 0x02, 0x03, 0x04, 0x05, 0x06, 0x07, 0x08, 0x10, 0x03});
+  // 9 bytes before a correct CRC, over max_frame_length.
+  hub.feed_for_test(hub.build_frame_for_test({0x01, 0x02, 0x03, 0x04, 0x05, 0x06, 0x07, 0x08, 0x09}));
   EXPECT_EQ(hub.frames, 0u);
 
   // The framer recovers: a valid frame right after is delivered.
   hub.feed_for_test({0x10, 0x02, 0x01, 0x02, 0x03, 0x10, 0x03});
   EXPECT_EQ(hub.frames, 1u);
+
+  // More bytes than the receive buffer holds (2 * 8 + 8), with no DLE ETX: reset, then recover.
+  hub.feed_for_test({0x10, 0x02});
+  hub.feed_for_test(std::vector<uint8_t>(30, 0x01));
+  hub.feed_for_test({0x10, 0x02, 0x01, 0x02, 0x03, 0x10, 0x03});
+  EXPECT_EQ(hub.frames, 2u);
+}
+
+// max_frame_length counts unescaped bytes before the CRC on RX, as it does on TX: the largest
+// frame the hub can send must also be accepted, even with every byte escaped.
+TEST(RS485FrameHubTest, RxAcceptsLargestFrameTxCanSend) {
+  for (uint8_t escape_marker : {uint8_t{0x00}, uint8_t{0x10}}) {
+    RS485FrameHubProbe hub;
+    hub.set_framing(0x10, 0x02, 0x03, escape_marker);
+    hub.set_crc_type(CRC_TYPE_CRC16_MODBUS);
+    hub.set_max_frame_length(8);
+    hub.setup();
+    hub.count_frames();
+
+    const std::vector<uint8_t> payload(8, 0x10);
+    hub.feed_for_test(hub.build_frame_for_test(payload));
+
+    EXPECT_EQ(hub.frames, 1u) << "escape " << int(escape_marker);
+    EXPECT_EQ(hub.rx_payload_for_test(), payload);
+  }
+}
+
+// A DLE STX inside a frame can only be the next frame starting (the escape byte is never STX),
+// so a frame that lost its DLE ETX must not take the following frame down with it.
+TEST(RS485FrameHubTest, RxFramerRestartsOnDleStx) {
+  RS485FrameHubProbe hub;
+  hub.set_framing(0x10, 0x02, 0x03, 0x00);
+  hub.set_crc_type(CRC_TYPE_SUM8);
+  hub.setup();
+  hub.count_frames();
+
+  hub.feed_for_test({0x10, 0x02, 0x01, 0x09, 0x05});
+  const std::vector<uint8_t> payload = {0x01, 0x03, 0x41};
+  hub.feed_for_test(hub.build_frame_for_test(payload));
+
+  EXPECT_EQ(hub.frames, 1u);
+  EXPECT_EQ(hub.rx_payload_for_test(), payload);
 }
 
 TEST(RS485FrameHubTest, QueueFrameFramesAndQueues) {
@@ -217,6 +259,8 @@ TEST(RS485FrameHubTest, QueueFrameDropsOverlongAndSnifferFrames) {
   static const uint8_t DATA[9] = {};
 
   EXPECT_FALSE(hub.queue_frame(DATA, sizeof(DATA)));
+  // Received frames under 2 bytes are dropped, so they are not sent either.
+  EXPECT_FALSE(hub.queue_frame(DATA, 1));
 
   hub.set_sniffer_only(true);
   EXPECT_FALSE(hub.queue_frame(DATA, 2));

@@ -18,6 +18,7 @@ from .. import (
     DOMAIN,
     MAX_COMMAND_VALUES,
     MAX_FRAME_LENGTH_UPPER,
+    MIN_FRAME_LENGTH,
     RS485FrameHub,
     encode_command,
     validate_byte,
@@ -94,6 +95,11 @@ def _final_validate(config: ConfigType) -> ConfigType:
             f"the referenced hub, or use the raw 'frame_type' + 'payload' form. See {DOC_COMMAND_FORMAT_URL}"
         )
     frame = _resolve_frame(config, hub_config)
+    if len(frame) < MIN_FRAME_LENGTH:
+        raise cv.Invalid(
+            f"rs485_frame button resolves to a {len(frame)}-byte frame; frames must be at "
+            f"least {MIN_FRAME_LENGTH} bytes, the shortest frame rs485_frame accepts on receive"
+        )
     if len(frame) > (max_len := hub_config[CONF_MAX_FRAME_LENGTH]):
         raise cv.Invalid(
             f"rs485_frame button resolves to a {len(frame)}-byte frame, exceeding the "

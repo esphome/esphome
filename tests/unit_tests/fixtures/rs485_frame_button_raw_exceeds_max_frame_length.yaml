@@ -28,8 +28,8 @@ rs485_frame:
 
 button:
   # frame_type (2 bytes) + payload (8 bytes) = 10 bytes, exceeding the hub's
-  # max_frame_length: 6 -- queue_raw_frame would drop this at runtime every time it is
-  # pressed. Must be rejected at config-validate time instead.
+  # max_frame_length: 6 -- the hub would drop this at runtime every time it is pressed.
+  # Must be rejected at config-validate time instead.
   - platform: rs485_frame
     rs485_frame_id: hub
     name: "Too Long"

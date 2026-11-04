@@ -8,7 +8,7 @@ packages:
 
 rs485_frame:
   # frame_trigger gate (default mode) with an explicit gate.frame_type + a command_format,
-  # so the `command:`-form button below is accepted.
+  # so the `value:`-form button below is accepted.
   - id: cmd_hub
     uart_id: uart_bus
     framing:
@@ -43,7 +43,7 @@ rs485_frame:
 
   # Raw-only generic hub with custom (non-default) framing bytes — exercises the framing
   # distinctness validation passing, and is the target of the raw-form button below (no
-  # command_format, so the `command:` form would be rejected against it).
+  # command_format, so the `value:` form would be rejected against it).
   - id: raw_hub
     uart_id: uart_bus
     framing:

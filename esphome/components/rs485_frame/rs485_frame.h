@@ -12,6 +12,9 @@ namespace esphome::rs485_frame {
 
 // Must agree with the cv.Length(max=8) frame_type cap in __init__.py.
 static constexpr size_t MAX_FRAME_TYPE_LEN = 8;
+// Must agree with MIN_FRAME_LENGTH in __init__.py. Received frames shorter than this (before the
+// CRC) are dropped, so shorter frames are not sent either.
+static constexpr size_t MIN_FRAME_LENGTH = 2;
 // Framing overhead added to every TX frame: DLE+STX(2) + DLE+ETX(2) + escaped CRC max(4).
 static constexpr size_t FRAME_OVERHEAD_BYTES = 8;
 

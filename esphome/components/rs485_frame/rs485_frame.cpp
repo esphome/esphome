@@ -16,8 +16,8 @@ PROGMEM_STRING_TABLE(GateModeStrings, "frame_trigger", "idle_gap", "fixed_delay"
 PROGMEM_STRING_TABLE(QueuePolicyStrings, "replace_latest", "fifo");
 
 void RS485FrameHub::setup() {
-  this->raw_frame_ = std::make_unique<uint8_t[]>(this->max_frame_length_);
-  this->rx_payload_ = std::make_unique<uint8_t[]>(this->max_frame_length_);
+  this->raw_frame_ = std::make_unique<uint8_t[]>(this->tx_slot_capacity_());
+  this->rx_payload_ = std::make_unique<uint8_t[]>(this->max_frame_length_ + this->crc_length_());
   this->tx_queue_ = std::make_unique<uint8_t[]>(this->max_queue_size_ * this->tx_slot_capacity_());
   this->tx_queue_len_ = std::make_unique<uint16_t[]>(this->max_queue_size_);
   if (this->dump_frames_)
@@ -76,8 +76,9 @@ void RS485FrameHub::set_framing(uint8_t dle, uint8_t stx, uint8_t etx, uint8_t e
 bool RS485FrameHub::check_tx_(size_t len) {
   if (this->sniffer_only_) {
     ESP_LOGW(TAG, "Ignoring frame because sniffer_only is enabled");
-  } else if (len > this->max_frame_length_) {
-    ESP_LOGW(TAG, "Frame payload (%zu) exceeds max_frame_length (%" PRIu32 "); dropping", len, this->max_frame_length_);
+  } else if (len < MIN_FRAME_LENGTH || len > this->max_frame_length_) {
+    ESP_LOGW(TAG, "Frame length %zu is outside %zu..max_frame_length (%" PRIu32 "); dropping", len, MIN_FRAME_LENGTH,
+             this->max_frame_length_);
   } else {
     return true;
   }
@@ -132,20 +133,23 @@ void RS485FrameHub::handle_rx_byte_(uint8_t byte, uint32_t now) {
     }
     return;
   }
-  if (this->raw_len_ >= this->max_frame_length_) {
-    ESP_LOGW(TAG, "Frame exceeded max_frame_length");
+  if (this->raw_len_ >= this->tx_slot_capacity_()) {
+    ESP_LOGW(TAG, "Frame exceeded receive buffer; resetting");
     this->reset_rx_();
     return;
   }
   this->raw_frame_[this->raw_len_++] = byte;
-  // Each in-frame DLE is resolved by the next byte: ETX ends the frame, the escape marker
-  // makes a literal DLE, anything else fails validate_frame_().
+  // Each in-frame DLE is resolved by the next byte: ETX ends the frame, STX starts the next one
+  // (the escape marker is never STX), the escape marker makes a literal DLE, anything else fails
+  // validate_frame_().
   if (this->after_dle_) {
     this->after_dle_ = false;
     if (byte == this->etx_) {
       this->process_raw_frame_(now);
       this->in_frame_ = false;
       this->raw_len_ = 0;
+    } else if (byte == this->stx_) {
+      this->raw_len_ = 2;  // raw_frame_[0..1] still hold DLE STX
     }
   } else if (byte == this->dle_) {
     this->after_dle_ = true;
@@ -168,14 +172,19 @@ void RS485FrameHub::process_raw_frame_(uint32_t now) {
 bool RS485FrameHub::validate_frame_() {
   const uint8_t *frame = this->raw_frame_.get();
   const size_t len = this->raw_len_;
-  // 6 = DLE STX + 2 frame_type bytes + DLE ETX.
-  if (len < 6 || frame[0] != this->dle_ || frame[1] != this->stx_ || frame[len - 2] != this->dle_ ||
+  // DLE STX + the shortest frame + DLE ETX.
+  if (len < 4 + MIN_FRAME_LENGTH || frame[0] != this->dle_ || frame[1] != this->stx_ || frame[len - 2] != this->dle_ ||
       frame[len - 1] != this->etx_)
     return false;
 
   uint8_t *payload = this->rx_payload_.get();
   size_t payload_len = 0;
+  const size_t crc_len = this->crc_length_();
   for (size_t i = 2; i + 2 < len; i++) {
+    if (payload_len == this->max_frame_length_ + crc_len) {
+      ESP_LOGW(TAG, "Frame exceeded max_frame_length");
+      return false;
+    }
     uint8_t b = frame[i];
     if (b == this->dle_) {
       if (i + 1 < len - 2 && frame[i + 1] == this->escape_marker_) {
@@ -187,8 +196,7 @@ bool RS485FrameHub::validate_frame_() {
     }
     payload[payload_len++] = b;
   }
-  const size_t crc_len = this->crc_length_();
-  if (payload_len < 2 + crc_len)
+  if (payload_len < MIN_FRAME_LENGTH + crc_len)
     return false;
   payload_len -= crc_len;
   this->rx_payload_len_ = payload_len;
