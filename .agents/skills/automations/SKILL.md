@@ -116,6 +116,8 @@ void add_on_state_callback(std::function<void(bool)> &&callback) {
 |------|----------------------|-------------|
 | `CallbackManager<void(Ts...)>` | 12 bytes (empty `std::vector`) | Callbacks are always or almost always registered |
 | `LazyCallbackManager<void(Ts...)>` | 4 bytes (`nullptr`) | Callbacks are often not registered (common case) |
+| `AutomationList<N, Ts...>` + `build_automation_lists` | 4 bytes per automation + count, none when unused | A hub fires its own `on_*` automations with no filter (4 B per automation vs 8 B per `Callback`) |
+| `automation.new_automation(args, conf)` + the parent's own fixed table | the table entry (pointer plus its own data) | Like `AutomationList`, but each automation needs a stored value of its own, e.g. a threshold the parent compares against |
 
 Both live in `esphome/core/helpers.h` and accept `std::function`, lambdas and forwarder structs through
 their templatized `add()` method. `LazyCallbackManager` is a drop-in replacement for `CallbackManager` that defers allocation until the first
