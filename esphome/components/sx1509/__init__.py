@@ -1,5 +1,3 @@
-from typing import Any
-
 from esphome import automation, pins
 import esphome.codegen as cg
 from esphome.components import i2c, key_provider
@@ -50,7 +48,7 @@ _LED_DRIVER_FREQUENCY_ENUM = cv.enum(LED_DRIVER_FREQUENCIES)
 
 
 @schema_extractor("enum")
-def validate_led_driver_frequency(value: Any) -> Any:
+def validate_led_driver_frequency(value: str | float) -> str | dict[str, MockObj]:
     """One of the nominal frequencies, written in any frequency form (980Hz, 980 Hz, 0.98kHz)."""
     if value == SCHEMA_EXTRACT:
         return LED_DRIVER_FREQUENCIES
