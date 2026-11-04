@@ -3433,7 +3433,7 @@ async def test_apply_statements_action_merges_with_neighbours() -> None:
         ({"above": 10.0, "below": 90.0}, "return ValueRange{10.0f, 90.0f};"),
         (
             {"below": Lambda("return x * 2.0f;")},
-            "return ValueRange{NAN, static_cast<float>(x * 2.0f)};",
+            "return ValueRange{NAN, [](float x) -> float {\n    return x * 2.0f;\n  }(x)};",
         ),
     ],
 )
