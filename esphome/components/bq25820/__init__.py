@@ -9,7 +9,7 @@ from esphome.components.const import (
     CONF_PRECHARGE_CURRENT,
 )
 import esphome.config_validation as cv
-from esphome.const import CONF_UPDATE_INTERVAL, CONF_WATCHDOG
+from esphome.const import CONF_UPDATE_INTERVAL, CONF_WATCHDOG, SCHEDULER_DONT_RUN
 from esphome.core import HexInt, TimePeriod
 from esphome.types import ConfigType
 
@@ -156,6 +156,12 @@ def _watchdog_boolean(value: object) -> object:
 
 def _check_watchdog(config: ConfigType) -> ConfigType:
     """Only the status poll feeds the watchdog, so it has to come round before the watchdog expires."""
+    # The poll also writes the configuration, so without one the charger keeps its reset settings
+    if config[CONF_UPDATE_INTERVAL].total_milliseconds == SCHEDULER_DONT_RUN:
+        raise cv.Invalid(
+            f"{CONF_UPDATE_INTERVAL} cannot be never: the poll writes the charger configuration",
+            path=[CONF_UPDATE_INTERVAL],
+        )
     if (period := WATCHDOG_PERIOD_S.get(config[CONF_WATCHDOG])) is None:
         return config
     if config[CONF_UPDATE_INTERVAL] >= TimePeriod(seconds=period):

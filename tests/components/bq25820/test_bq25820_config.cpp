@@ -126,6 +126,7 @@ TEST(BQ25820Temperature, FollowsTheBParameterCalibration) {
   hub.set_temp_in_c_sensor(&temperature);
   hub.set_ntc_calibration(1.0f / T0 + logf(PULL_UP / R0) / B, 1.0f / B);
   hub.update();  // configures the chip and restarts the ADC
+  run_delayed_poll();
   for (uint16_t raw : {100, 300, 512, 700, 900}) {
     SCOPED_TRACE(raw);
     // TS_ADC (0x37), LSB first
@@ -177,11 +178,11 @@ class BQ25820WriteFailureTest : public ::testing::Test {
     this->hub_.update();
     EXPECT_FALSE(this->hub_.status_has_warning());
     EXPECT_EQ(this->bus_.registers[REG_CHARGER_CONTROL], 0xC9);
-    // The status was read before this poll wrote the configuration, and the ADC was restarted, so the next
+    // The status was read before this poll wrote the configuration, and the ADC was restarted, so the delayed
     // poll publishes both
     EXPECT_EQ(status_publishes, 0);
     EXPECT_FALSE(this->vbat_.has_state());
-    this->hub_.update();
+    run_delayed_poll();
     EXPECT_EQ(status_publishes, 1);
     EXPECT_FLOAT_EQ(this->vbat_.state, 8.0f);
   }
@@ -210,12 +211,12 @@ TEST_F(BQ25820WriteFailureTest, ConfigurationPublishesOnceTheAdcHasConverted) {
   // The first poll writes the configuration and publishes nothing
   this->hub_.update();
   EXPECT_EQ(status_publishes, 0);
-  EXPECT_FALSE(this->vbat_.has_state());
-  // The delayed poll a second after the configuration write, with no further update() from the polling interval
-  App.scheduler.call(millis());
-  delay(1010);  // NOLINT: waits for the real one second timer
-  App.scheduler.call(millis());
+  // A poll inside the conversion window, from a short interval or component.update, publishes the status only
+  this->hub_.update();
   EXPECT_EQ(status_publishes, 1);
+  EXPECT_FALSE(this->vbat_.has_state());
+  run_delayed_poll();
+  EXPECT_EQ(status_publishes, 2);
   EXPECT_FLOAT_EQ(this->vbat_.state, 8.0f);
 }
 
@@ -317,6 +318,7 @@ TEST(BQ25820Adc, ScalesVoltagesAndSignedCurrentsBySenseResistor) {
   hub.set_vbat_sensor(&vbat);
   hub.set_vsys_sensor(&vsys);
   hub.update();
+  run_delayed_poll();
   for (const Reading &reading : READINGS) {
     SCOPED_TRACE(reading.ibat);
     // IAC, IBAT, VAC, VBAT and VSYS ADCs from 0x2D, LSB first

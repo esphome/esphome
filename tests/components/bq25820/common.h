@@ -6,6 +6,7 @@
 
 #include "esphome/components/bq25820/bq25820.h"
 #include "esphome/core/application.h"
+#include "esphome/core/hal.h"
 
 namespace esphome::bq25820::testing {
 
@@ -65,6 +66,13 @@ struct CancelDelayedPoll {
   BQ25820Component &hub;
   ~CancelDelayedPoll() { App.scheduler.cancel_timeout(&this->hub, uint32_t{0}); }
 };
+
+// Runs the poll a configuration write schedules once the ADC has converted, on the real clock
+inline void run_delayed_poll() {
+  App.scheduler.call(millis());
+  delay(1010);  // NOLINT: waits for the real one second timer
+  App.scheduler.call(millis());
+}
 
 inline void attach(BQ25820Component &hub, RegisterBus &bus) {
   hub.set_i2c_bus(&bus);

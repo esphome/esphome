@@ -166,9 +166,13 @@ bool BQ25820Component::write_config_registers_() {
 
 void BQ25820Component::configure_() {
   // The ADC was just enabled again, so the next poll comes once its first conversions are done
+  this->adc_ready_ = false;
   if (this->status_comm_result(this->write_config_registers_())) {
     this->configured_once_ = true;
-    this->set_timeout(PUBLISH_TIMEOUT_ID, FIRST_PUBLISH_DELAY_MS, [this]() { this->update(); });
+    this->set_timeout(PUBLISH_TIMEOUT_ID, FIRST_PUBLISH_DELAY_MS, [this]() {
+      this->adc_ready_ = true;
+      this->update();
+    });
   }
 }
 
@@ -200,7 +204,8 @@ void BQ25820Component::update() {
     this->status_publisher_(status);
 #endif
 #ifdef USE_BQ25820_SENSOR
-  this->publish_adc_(adc);
+  if (this->adc_ready_)
+    this->publish_adc_(adc);
 #endif
 }
 

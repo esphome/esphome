@@ -135,7 +135,6 @@ def _watchdog_config(interval: str, watchdog: object) -> ConfigType:
         ("60s", "80s"),
         ("60s", "160s"),
         ("30s", "40s"),
-        ("never", "disabled"),
     ],
 )
 def test_update_interval_within_watchdog_passes(
@@ -151,7 +150,6 @@ def test_update_interval_within_watchdog_passes(
         ("40s", "40s", 40),
         ("90s", "80s", 80),
         ("5min", True, 160),
-        ("never", "160s", 160),
     ],
 )
 def test_update_interval_past_watchdog_is_rejected(
@@ -161,6 +159,14 @@ def test_update_interval_past_watchdog_is_rejected(
         cv.Invalid, match=f"shorter than the {period} s watchdog"
     ) as err:
         _check_watchdog(_watchdog_config(interval, watchdog))
+    assert err.value.path == [CONF_UPDATE_INTERVAL]
+
+
+@pytest.mark.parametrize("watchdog", ["disabled", "160s"])
+def test_update_interval_never_is_rejected(watchdog: str) -> None:
+    """The poll writes the configuration, so without one the charger keeps its reset settings."""
+    with pytest.raises(cv.Invalid, match="cannot be never") as err:
+        _check_watchdog(_watchdog_config("never", watchdog))
     assert err.value.path == [CONF_UPDATE_INTERVAL]
 
 
