@@ -31,22 +31,23 @@ MQTTValveComponent::MQTTValveComponent(Valve *valve) : valve_(valve) {}
 void MQTTValveComponent::setup() {
   auto traits = this->valve_->get_traits();
   this->valve_->add_on_state_callback([this]() { this->publish_state(); });
-  this->subscribe(this->get_command_topic_(), [this](const std::string &topic, const std::string &payload) {
+  this->subscribe(this->command_topic_source_(), [this](const std::string &topic, const std::string &payload) {
     auto call = this->valve_->make_call();
     call.set_command(payload.c_str());
     call.perform();
   });
   if (traits.get_supports_position()) {
-    this->subscribe(this->get_position_command_topic(), [this](const std::string &topic, const std::string &payload) {
-      auto value = parse_number<float>(payload);
-      if (!value.has_value()) {
-        ESP_LOGW(TAG, "Invalid position value: '%s'", payload.c_str());
-        return;
-      }
-      auto call = this->valve_->make_call();
-      call.set_position(*value / 100.0f);
-      call.perform();
-    });
+    this->subscribe(this->get_position_command_topic_source(),
+                    [this](const std::string &topic, const std::string &payload) {
+                      auto value = parse_number<float>(payload);
+                      if (!value.has_value()) {
+                        ESP_LOGW(TAG, "Invalid position value: '%s'", payload.c_str());
+                        return;
+                      }
+                      auto call = this->valve_->make_call();
+                      call.set_position(*value / 100.0f);
+                      call.perform();
+                    });
   }
 }
 

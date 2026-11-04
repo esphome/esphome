@@ -143,21 +143,15 @@ void BH1745Component::update() {
   const uint16_t clear = buffer[3];
   ESP_LOGV(TAG, "Red: %u, Green: %u, Blue: %u, Clear: %u", red, green, blue, clear);
 
-  if (this->red_counts_sensor_ != nullptr)
-    this->red_counts_sensor_->publish_state(red);
-  if (this->green_counts_sensor_ != nullptr)
-    this->green_counts_sensor_->publish_state(green);
-  if (this->blue_counts_sensor_ != nullptr)
-    this->blue_counts_sensor_->publish_state(blue);
-  if (this->clear_counts_sensor_ != nullptr)
-    this->clear_counts_sensor_->publish_state(clear);
+  PUBLISH_STATE(this->red_counts_sensor_, red);
+  PUBLISH_STATE(this->green_counts_sensor_, green);
+  PUBLISH_STATE(this->blue_counts_sensor_, blue);
+  PUBLISH_STATE(this->clear_counts_sensor_, clear);
 
   // The datasheet picks its coefficients by whether clear / green < 0.160 (= 4 / 25).
   const bool low_clear_ratio = static_cast<uint32_t>(clear) * 25 < static_cast<uint32_t>(green) * 4;
-  if (this->illuminance_sensor_ != nullptr)
-    this->illuminance_sensor_->publish_state(calculate_lux(red, green, low_clear_ratio, this->lux_scale_));
-  if (this->color_temperature_sensor_ != nullptr)
-    this->color_temperature_sensor_->publish_state(calculate_cct(red, green, blue, low_clear_ratio));
+  PUBLISH_STATE(this->illuminance_sensor_, calculate_lux(red, green, low_clear_ratio, this->lux_scale_));
+  PUBLISH_STATE(this->color_temperature_sensor_, calculate_cct(red, green, blue, low_clear_ratio));
 }
 
 void BH1745Component::set_interrupt_state(bool on) {

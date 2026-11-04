@@ -9,6 +9,7 @@ from __future__ import annotations
 import asyncio
 from collections import Counter
 import socket
+import struct
 from typing import Self
 
 from aioesphomeapi import api_pb2
@@ -22,6 +23,19 @@ from .const import LOCALHOST
 MESSAGE_TYPE_OF = {cls: num for num, cls in api_core.MESSAGE_TYPE_TO_PROTO.items()}
 
 _READ_CHUNK = 4096
+
+# Backpressure tests pin both ends of the pipe small; only tens of KB fit in the kernel
+RECV_BUFFER_SIZE = 4096
+SERVER_SNDBUF = (
+    8192  # substituted for SERVER_SNDBUF in fixtures using sndbuf_pin_component
+)
+# Logged by the sndbuf_pin_component fixture when it pins a socket
+SNDBUF_PIN_LOG = "SO_SNDBUF pinned to"
+
+
+def pin_server_sndbuf(yaml_config: str) -> str:
+    """Substitute the pinned server send buffer size into a fixture."""
+    return yaml_config.replace("SERVER_SNDBUF", str(SERVER_SNDBUF))
 
 
 def encode_varint(value: int) -> bytes:
@@ -47,6 +61,36 @@ def decode_varint(buf: bytearray, pos: int) -> tuple[int, int] | None:
             return value, pos
         shift += 7
     return None
+
+
+WIRE_VARINT, WIRE_LENGTH, WIRE_FIXED32 = 0, 2, 5
+
+
+def tag(field: int, wire_type: int) -> bytes:
+    return encode_varint((field << 3) | wire_type)
+
+
+def decode_fields(payload: bytes) -> dict[int, list[int | bytes]]:
+    """Split a protobuf payload into field number -> raw values; a test reads fields the client lacks."""
+    fields: dict[int, list[int | bytes]] = {}
+    buf = bytearray(payload)
+    pos = 0
+    while pos < len(buf):
+        key, pos = decode_varint(buf, pos)
+        field, wire_type = key >> 3, key & 0x07
+        if wire_type == WIRE_VARINT:
+            value, pos = decode_varint(buf, pos)
+        elif wire_type == WIRE_LENGTH:
+            length, pos = decode_varint(buf, pos)
+            value = bytes(buf[pos : pos + length])
+            pos += length
+        elif wire_type == WIRE_FIXED32:
+            value = struct.unpack_from("<I", buf, pos)[0]
+            pos += 4
+        else:
+            raise AssertionError(f"unexpected wire type {wire_type} for field {field}")
+        fields.setdefault(field, []).append(value)
+    return fields
 
 
 def encode_frame(msg_type: int, payload: bytes) -> bytes:
@@ -135,12 +179,14 @@ class RawApiClient:
         loop = asyncio.get_running_loop()
         await loop.sock_sendall(self._sock, encode_frame(msg_type, payload))
 
-    async def read_until_frame(self, msg_type: int, timeout: float = 10.0) -> None:
-        """Read until at least one frame of msg_type has been received."""
+    async def read_until_frame(
+        self, msg_type: int, timeout: float = 10.0, count: int = 1
+    ) -> None:
+        """Read until at least count frames of msg_type have been received."""
         loop = asyncio.get_running_loop()
 
         async def _read_loop() -> None:
-            while not self.frame_counts[msg_type]:
+            while self.frame_counts[msg_type] < count:
                 data = await loop.sock_recv(self._sock, _READ_CHUNK)
                 assert data, "server closed the connection unexpectedly"
                 self.bytes_received += len(data)

@@ -4,6 +4,7 @@ from . import EpaperModel
 class WaveshareB(EpaperModel):
     class_name = "EpaperWaveshareB"
     source_files = (
+        "epaper_spi_bwr.cpp",
         "epaper_waveshare_b.cpp",
         "epaper_weact_3c.cpp",
     )

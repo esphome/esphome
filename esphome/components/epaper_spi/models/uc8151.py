@@ -21,7 +21,7 @@ class UC8151(EpaperModel):
     """EpaperModel class for black/white/red displays using the UC8151D controller."""
 
     class_name = "EPaperWaveshareBWR"
-    source_files = ("epaper_waveshare_bwr.cpp",)
+    source_files = ("epaper_spi_bwr.cpp", "epaper_waveshare_bwr.cpp")
 
     def validate_config(self, config: ConfigType) -> ConfigType:
         width, height = self.get_dimensions(config)

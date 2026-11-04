@@ -10,45 +10,24 @@ from aioesphomeapi import CoverInfo, CoverState, EntityState, api_pb2
 import pytest
 
 from .log_utils import LineWaiter
-from .raw_api_client import MESSAGE_TYPE_OF, RawApiClient, decode_varint, encode_varint
-from .state_utils import InitialStateHelper, StateWaiter, require_entity
+from .raw_api_client import (
+    MESSAGE_TYPE_OF,
+    WIRE_FIXED32,
+    WIRE_VARINT,
+    RawApiClient,
+    decode_fields,
+    tag,
+)
+from .state_utils import require_entity, subscribe_after_initial_states
 from .types import APIClientConnectedFactory, RunCompiledFunction
 
 COVER_COMMAND = MESSAGE_TYPE_OF[api_pb2.CoverCommandRequest]
 LIST_COVER = MESSAGE_TYPE_OF[api_pb2.ListEntitiesCoverResponse]
 LIST_DONE = MESSAGE_TYPE_OF[api_pb2.ListEntitiesDoneResponse]
-WIRE_VARINT, WIRE_LENGTH, WIRE_FIXED32 = 0, 2, 5
 # ListEntitiesCoverResponse fields; the installed client library does not know supports_toggle yet
 FIELD_ENTITY_KEY, FIELD_SUPPORTS_TOGGLE = 2, 15
 # CoverCommandRequest fields
 FIELD_KEY, FIELD_STOP, FIELD_TOGGLE = 1, 8, 11
-
-
-def tag(field: int, wire_type: int) -> bytes:
-    return encode_varint((field << 3) | wire_type)
-
-
-def decode_fields(payload: bytes) -> dict[int, list[int | bytes]]:
-    """Split a protobuf payload into field number -> raw values."""
-    fields: dict[int, list[int | bytes]] = {}
-    buf = bytearray(payload)
-    pos = 0
-    while pos < len(buf):
-        key, pos = decode_varint(buf, pos)
-        field, wire_type = key >> 3, key & 0x07
-        if wire_type == WIRE_VARINT:
-            value, pos = decode_varint(buf, pos)
-        elif wire_type == WIRE_LENGTH:
-            length, pos = decode_varint(buf, pos)
-            value = bytes(buf[pos : pos + length])
-            pos += length
-        elif wire_type == WIRE_FIXED32:
-            value = struct.unpack_from("<I", buf, pos)[0]
-            pos += 4
-        else:
-            raise AssertionError(f"unexpected wire type {wire_type} for field {field}")
-        fields.setdefault(field, []).append(value)
-    return fields
 
 
 @pytest.mark.asyncio
@@ -69,12 +48,10 @@ async def test_api_cover_toggle(
         plain_cover = require_entity(entities, "plain_cover", CoverInfo, exact=True)
 
         positions: dict[int, list[float]] = {toggle_cover.key: [], plain_cover.key: []}
-        waiter = StateWaiter()
 
         def on_state(state: EntityState) -> None:
             if isinstance(state, CoverState) and state.key in positions:
                 positions[state.key].append(state.position)
-            waiter.on_state(state)
 
         def position_is(key: int, value: float) -> Callable[[EntityState], bool]:
             return lambda s: (
@@ -83,9 +60,8 @@ async def test_api_cover_toggle(
                 and s.position == pytest.approx(value, abs=0.01)
             )
 
-        initial = InitialStateHelper(entities)
-        client.subscribe_states(initial.on_state_wrapper(on_state))
-        await initial.wait_for_initial_states()
+        sub = await subscribe_after_initial_states(client, entities, on_state=on_state)
+        waiter = sub.waiter
 
         # Capability discovery: only the cover with a toggle_action advertises toggle
         await raw.connect()

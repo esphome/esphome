@@ -141,17 +141,15 @@ void INA2XX::loop() {
 
       case State::DATA_COLLECTION_6:
         if (this->ina_model_ == INAModel::INA_228 || this->ina_model_ == INAModel::INA_229) {
-          if (this->energy_sensor_j_ != nullptr || this->energy_sensor_wh_ != nullptr ||
-              this->charge_sensor_c_ != nullptr || this->charge_sensor_ah_ != nullptr) {
+          if (this->energy_j_sensor_ != nullptr || this->energy_wh_sensor_ != nullptr ||
+              this->charge_c_sensor_ != nullptr || this->charge_ah_sensor_ != nullptr) {
             this->read_diagnostics_and_act_();
           }
-          if (this->energy_sensor_j_ != nullptr || this->energy_sensor_wh_ != nullptr) {
+          if (this->energy_j_sensor_ != nullptr || this->energy_wh_sensor_ != nullptr) {
             double energy_j{0}, energy_wh{0};
             this->full_loop_is_okay_ &= this->read_energy_(energy_j, energy_wh);
-            if (this->energy_sensor_j_ != nullptr)
-              this->energy_sensor_j_->publish_state(energy_j);
-            if (this->energy_sensor_wh_ != nullptr)
-              this->energy_sensor_wh_->publish_state(energy_wh);
+            PUBLISH_STATE(this->energy_j_sensor_, energy_j);
+            PUBLISH_STATE(this->energy_wh_sensor_, energy_wh);
           }
         }
         this->state_ = State::DATA_COLLECTION_7;
@@ -159,13 +157,11 @@ void INA2XX::loop() {
 
       case State::DATA_COLLECTION_7:
         if (this->ina_model_ == INAModel::INA_228 || this->ina_model_ == INAModel::INA_229) {
-          if (this->charge_sensor_c_ != nullptr || this->charge_sensor_ah_ != nullptr) {
+          if (this->charge_c_sensor_ != nullptr || this->charge_ah_sensor_ != nullptr) {
             double charge_c{0}, charge_ah{0};
             this->full_loop_is_okay_ &= this->read_charge_(charge_c, charge_ah);
-            if (this->charge_sensor_c_ != nullptr)
-              this->charge_sensor_c_->publish_state(charge_c);
-            if (this->charge_sensor_ah_ != nullptr)
-              this->charge_sensor_ah_->publish_state(charge_ah);
+            PUBLISH_STATE(this->charge_c_sensor_, charge_c);
+            PUBLISH_STATE(this->charge_ah_sensor_, charge_ah);
           }
         }
         this->state_ = State::DATA_COLLECTION_8;
@@ -219,10 +215,10 @@ void INA2XX::dump_config() {
   LOG_SENSOR("  ", "Power", this->power_sensor_);
 
   if (this->ina_model_ == INAModel::INA_228 || this->ina_model_ == INAModel::INA_229) {
-    LOG_SENSOR("  ", "Energy J", this->energy_sensor_j_);
-    LOG_SENSOR("  ", "Energy Wh", this->energy_sensor_wh_);
-    LOG_SENSOR("  ", "Charge C", this->charge_sensor_c_);
-    LOG_SENSOR("  ", "Charge Ah", this->charge_sensor_ah_);
+    LOG_SENSOR("  ", "Energy J", this->energy_j_sensor_);
+    LOG_SENSOR("  ", "Energy Wh", this->energy_wh_sensor_);
+    LOG_SENSOR("  ", "Charge C", this->charge_c_sensor_);
+    LOG_SENSOR("  ", "Charge Ah", this->charge_ah_sensor_);
   }
 }
 
