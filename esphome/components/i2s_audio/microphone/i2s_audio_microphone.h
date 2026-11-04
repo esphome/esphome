@@ -3,6 +3,7 @@
 #ifdef USE_ESP32
 
 #include "../i2s_audio.h"
+#include "dc_offset_filter.h"
 
 #include "esphome/components/microphone/microphone.h"
 #include "esphome/core/component.h"
@@ -59,11 +60,6 @@ class I2SAudioMicrophone final : public I2SAudioIn, public microphone::Microphon
   /// @return True if successful, false otherwise
   bool read_dma_buffer_size_();
 
-  /// @brief Attempts to correct a microphone DC offset; e.g., a microphones silent level is offset from 0. Applies a
-  /// correction offset that is updated using an exponential moving average for all samples away from 0.
-  /// @param data
-  void fix_dc_offset_(std::vector<uint8_t> &data);
-
   size_t read_(uint8_t *buf, size_t len, uint32_t timeout_ms);
 
   /// @brief Sets the Microphone ``audio_stream_info_`` member variable to the configured I2S settings.
@@ -107,8 +103,7 @@ class I2SAudioMicrophone final : public I2SAudioIn, public microphone::Microphon
   bool pdm_{false};
   bool correct_dc_offset_;
   bool locked_driver_{false};
-  int32_t dc_offset_prev_input_{0};
-  int32_t dc_offset_prev_output_{0};
+  DCOffsetFilter dc_offset_filter_;
 };
 
 }  // namespace esphome::i2s_audio

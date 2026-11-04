@@ -1,4 +1,5 @@
 #include "bl0942.h"
+#include "esphome/core/helpers.h"
 #include "esphome/core/log.h"
 #include <cinttypes>
 
@@ -89,26 +90,19 @@ void BL0942::write_reg_(uint8_t reg, uint32_t val) {
   pkt[2] = (val & 0xff);
   pkt[3] = (val >> 8) & 0xff;
   pkt[4] = (val >> 16) & 0xff;
-  pkt[5] = (pkt[0] + pkt[1] + pkt[2] + pkt[3] + pkt[4]) ^ 0xff;
+  pkt[5] = sum_bytes(pkt, 5) ^ 0xFF;
   this->write_array(pkt, 6);
   delay(1);
 }
 
 int BL0942::read_reg_(uint8_t reg) {
-  union {
-    uint8_t b[4];
-    uint32_le_t le32;
-  } resp;
+  uint8_t resp[4];
 
   this->write_byte(BL0942_READ_COMMAND | this->address_);
   this->write_byte(reg);
   this->flush();
-  if (this->read_array(resp.b, 4) &&
-      resp.b[3] ==
-          (uint8_t) ((BL0942_READ_COMMAND + this->address_ + reg + resp.b[0] + resp.b[1] + resp.b[2]) ^ 0xff)) {
-    resp.b[3] = 0;
-    return resp.le32;
-  }
+  if (this->read_array(resp, 4) && resp[3] == (sum_bytes(resp, 3, BL0942_READ_COMMAND + this->address_ + reg) ^ 0xFF))
+    return encode_uint24(resp[2], resp[1], resp[0]);
   return -1;
 }
 
