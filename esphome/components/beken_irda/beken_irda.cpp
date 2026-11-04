@@ -109,8 +109,10 @@ void BekenIrdaComponent::setup() {
   intc_service_change_handler(IRQ_IRDA, irda_isr);
   // sets up P26 as the NEC input and enables the IRDA clock and interrupts
   Irda_init_app();
-  if (REG_READ(IRDA_CTRL_REG) == 0)
+  if (REG_READ(IRDA_CTRL_REG) == 0) {
     this->mark_failed(LOG_STR("IRDA controller did not initialize"));
+    return;
+  }
   // the interrupt wakes the loop
   this->disable_loop();
 }
