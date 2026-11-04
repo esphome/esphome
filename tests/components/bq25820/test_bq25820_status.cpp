@@ -90,7 +90,7 @@ class BQ25820StatusTest : public ::testing::Test {
   }
 
   RegisterBus bus_;
-  BQ25820Component hub_;
+  BQ25820Component hub_{&DEFAULT_CONFIG, false};
   StatusEntities entities_;
 };
 

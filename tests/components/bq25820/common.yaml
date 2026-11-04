@@ -1,21 +1,10 @@
-# BQ25820 battery management and MPPT charger.
-#
-# Notes:
-# - temp_in_c and the ts_t1..ts_t5 thresholds assume a 10k NTC thermistor
-#   from TS to PGND with a 10k reference resistor.
-# - charge_voltage is the VFB feedback setpoint (1.504-1.566 V trim); the
-#   pack charge voltage itself is set by the external VFB resistor divider.
-# - charge_timer also enables the charge safety timer (EN_CHG_TMR).
-# - The ACUV/ACOV input window and the switching frequency are set by
-#   external resistors on the ACUV, ACOV and FSW_SYNC pins, not by I2C.
-
 bq25820:
   id: bq25820_component
   i2c_id: i2c_bus
   charge_current: 3A
   bat_sns_res: 5mΩ
   ac_sns_res: 2mΩ
-  watchdog: true
+  watchdog: 80s
   charge_voltage: 1.536V
   input_current_limit: 8A
   input_voltage_limit: 40V
@@ -50,6 +39,10 @@ sensor:
       name: "Input Current"
     temp_in_c:
       name: "temp_in_c"
+      b_constant: 3950
+      reference_resistance: 100kΩ
+      reference_temperature: 25°C
+      resistor: 100kΩ
 
 binary_sensor:
   - platform: bq25820

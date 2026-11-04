@@ -12,8 +12,12 @@ from esphome.cpp_generator import HexIntLiteral
 from esphome.types import ConfigType
 
 from .. import (
+    CHARGER_STATUS_1,
+    CHARGER_STATUS_2,
+    CHARGER_STATUS_3,
     CONF_BQ25820_ID,
     DUMP_STATUS,
+    FAULT_STATUS,
     STATUS,
     STATUS_PUBLISHER,
     BQ25820BaseSchema,
@@ -22,11 +26,6 @@ from .. import (
 
 DEPENDENCIES = ["bq25820"]
 
-# Index into the status read from 0x21
-REG_CHARGER_STATUS_1 = 0
-REG_CHARGER_STATUS_2 = 1
-REG_CHARGER_STATUS_3 = 2
-REG_FAULT_STATUS = 3
 # Bit set for each field value that reads as on: a single bit is on when it is 1
 _BIT_SET = 0b10
 
@@ -35,23 +34,23 @@ _FIELDS = (
     # CHARGE_STAT: trickle to top-off, done, trickle or precharge (below VBAT_LOWV)
     (
         "charging",
-        REG_CHARGER_STATUS_1,
+        CHARGER_STATUS_1,
         0,
         0x07,
         0b01111110,
         DEVICE_CLASS_BATTERY_CHARGING,
     ),
-    ("charged", REG_CHARGER_STATUS_1, 0, 0x07, 0b10000000, cv.UNDEFINED),
-    ("low_battery", REG_CHARGER_STATUS_1, 0, 0x07, 0b00000110, DEVICE_CLASS_BATTERY),
-    ("pg", REG_CHARGER_STATUS_2, 7, 0x01, _BIT_SET, DEVICE_CLASS_POWER),
-    ("reverse", REG_CHARGER_STATUS_3, 2, 0x01, _BIT_SET, cv.UNDEFINED),
-    ("vac_undervoltage", REG_FAULT_STATUS, 7, 0x01, _BIT_SET, DEVICE_CLASS_PROBLEM),
-    ("vac_overvoltage", REG_FAULT_STATUS, 6, 0x01, _BIT_SET, DEVICE_CLASS_PROBLEM),
-    ("ibat_overcurrent", REG_FAULT_STATUS, 5, 0x01, _BIT_SET, DEVICE_CLASS_PROBLEM),
-    ("vbat_overvoltage", REG_FAULT_STATUS, 4, 0x01, _BIT_SET, DEVICE_CLASS_PROBLEM),
-    ("thermal_shutdown", REG_FAULT_STATUS, 3, 0x01, _BIT_SET, DEVICE_CLASS_PROBLEM),
-    ("charge_safety_timer", REG_FAULT_STATUS, 2, 0x01, _BIT_SET, DEVICE_CLASS_PROBLEM),
-    ("drv_supply_invalid", REG_FAULT_STATUS, 1, 0x01, _BIT_SET, DEVICE_CLASS_PROBLEM),
+    ("charged", CHARGER_STATUS_1, 0, 0x07, 0b10000000, cv.UNDEFINED),
+    ("low_battery", CHARGER_STATUS_1, 0, 0x07, 0b00000110, DEVICE_CLASS_BATTERY),
+    ("pg", CHARGER_STATUS_2, 7, 0x01, _BIT_SET, DEVICE_CLASS_POWER),
+    ("reverse", CHARGER_STATUS_3, 2, 0x01, _BIT_SET, cv.UNDEFINED),
+    ("vac_undervoltage", FAULT_STATUS, 7, 0x01, _BIT_SET, DEVICE_CLASS_PROBLEM),
+    ("vac_overvoltage", FAULT_STATUS, 6, 0x01, _BIT_SET, DEVICE_CLASS_PROBLEM),
+    ("ibat_overcurrent", FAULT_STATUS, 5, 0x01, _BIT_SET, DEVICE_CLASS_PROBLEM),
+    ("vbat_overvoltage", FAULT_STATUS, 4, 0x01, _BIT_SET, DEVICE_CLASS_PROBLEM),
+    ("thermal_shutdown", FAULT_STATUS, 3, 0x01, _BIT_SET, DEVICE_CLASS_PROBLEM),
+    ("charge_safety_timer", FAULT_STATUS, 2, 0x01, _BIT_SET, DEVICE_CLASS_PROBLEM),
+    ("drv_supply_invalid", FAULT_STATUS, 1, 0x01, _BIT_SET, DEVICE_CLASS_PROBLEM),
 )
 
 
@@ -63,11 +62,16 @@ def _state_expression(reg: int, shift: int, mask: int, match: int) -> cg.MockObj
     return (cg.MockObj(f"{match:#06b}") >> value) & 1
 
 
-CONFIG_SCHEMA = BQ25820BaseSchema.extend(
-    {
-        cv.Optional(key): binary_sensor.binary_sensor_schema(device_class=device_class)
-        for key, *_, device_class in _FIELDS
-    }
+CONFIG_SCHEMA = cv.All(
+    BQ25820BaseSchema.extend(
+        {
+            cv.Optional(key): binary_sensor.binary_sensor_schema(
+                device_class=device_class
+            )
+            for key, *_, device_class in _FIELDS
+        }
+    ),
+    cv.has_at_least_one_key(*(key for key, *_ in _FIELDS)),
 )
 
 

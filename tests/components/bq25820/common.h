@@ -9,6 +9,13 @@
 namespace esphome::bq25820::testing {
 
 static constexpr uint8_t ADDRESS = 0x6B;
+// The packed defaults with the watchdog off
+static constexpr BQ25820Config DEFAULT_CONFIG{
+    .limits = {0, 0, 0, 880, 1000},
+    .controls = {0x10, 0x0A, 0xC9, 0x00, 0x00, 0x16, 0x01, 0x80},
+    .ibat_scale = 0.002f,
+    .iac_scale = 0.002f,
+};
 
 // The chip's registers behind an address pointer that moves on after every byte; reads can be made to fail.
 class RegisterBus final : public i2c::I2CBus {

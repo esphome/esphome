@@ -11,6 +11,8 @@ from esphome.cpp_generator import (
 from esphome.types import ConfigType
 
 from .. import (
+    CHARGER_STATUS_1,
+    CHARGER_STATUS_2,
     CONF_BQ25820_ID,
     DUMP_STATUS,
     STATUS,
@@ -25,8 +27,8 @@ ICON_BATTERY_CHARGING = "mdi:battery-charging"
 
 # (key, status register, bit shift, index of the field's value 0 in the C++ string table, icon)
 _FIELDS = (
-    ("charge_status", 0, 0, 0, ICON_BATTERY_CHARGING),
-    ("temp_status", 1, 4, 8, ICON_THERMOMETER),
+    ("charge_status", CHARGER_STATUS_1, 0, 0, ICON_BATTERY_CHARGING),
+    ("temp_status", CHARGER_STATUS_2, 4, 8, ICON_THERMOMETER),
 )
 
 
@@ -48,11 +50,14 @@ def _add_text_status(
     )
 
 
-CONFIG_SCHEMA = BQ25820BaseSchema.extend(
-    {
-        cv.Optional(key): text_sensor.text_sensor_schema(icon=icon)
-        for key, *_, icon in _FIELDS
-    }
+CONFIG_SCHEMA = cv.All(
+    BQ25820BaseSchema.extend(
+        {
+            cv.Optional(key): text_sensor.text_sensor_schema(icon=icon)
+            for key, *_, icon in _FIELDS
+        }
+    ),
+    cv.has_at_least_one_key(*(key for key, *_ in _FIELDS)),
 )
 
 

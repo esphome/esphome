@@ -7,7 +7,8 @@ from esphome.components.const import (
     CONF_PRECHARGE_CURRENT,
 )
 import esphome.config_validation as cv
-from esphome.const import CONF_WATCHDOG
+from esphome.const import CONF_UPDATE_INTERVAL, CONF_WATCHDOG
+from esphome.core import HexInt, TimePeriod
 from esphome.types import ConfigType
 
 CODEOWNERS = ["@beforeyouknowit"]
@@ -19,6 +20,7 @@ bq25820_ns = cg.esphome_ns.namespace("bq25820")
 BQ25820Component = bq25820_ns.class_(
     "BQ25820Component", cg.PollingComponent, i2c.I2CDevice
 )
+BQ25820Config = bq25820_ns.struct("BQ25820Config")
 
 CONF_BQ25820_ID = "bq25820_id"
 BQ25820BaseSchema = cv.Schema(
@@ -38,6 +40,11 @@ STATUS = STATUS_PUBLISHER.param("status")
 DUMP_STATUS = cg.HubFunction(
     "dump_status", cg.void, [], define="USE_BQ25820_DUMP_STATUS_PUBLISHER"
 )
+# Offsets into the status registers read from CHARGER_STATUS_1 (0x21)
+CHARGER_STATUS_1 = 0
+CHARGER_STATUS_2 = 1
+CHARGER_STATUS_3 = 2
+FAULT_STATUS = 3
 
 CONF_BAT_SNS_RES = "bat_sns_res"
 CONF_AC_SNS_RES = "ac_sns_res"
@@ -60,6 +67,9 @@ CONF_TS_T5 = "ts_t5"
 CHARGE_TIMER_CHOICES = {"5h": 0, "8h": 1, "12h": 2, "24h": 3}
 TOPOFF_TIMER_CHOICES = {"disabled": 0, "15m": 1, "30m": 2, "45m": 3}
 MPPT_SWEEP_TIMER_CHOICES = {"3m": 0, "10m": 1, "15m": 2, "20m": 3}
+# WATCHDOG[5:4]; the chip powers up with 40 s and the poll feeds it with WD_RST
+WATCHDOG_CHOICES = {"disabled": 0, "40s": 1, "80s": 2, "160s": 3}
+WATCHDOG_PERIOD_S = {"40s": 40, "80s": 80, "160s": 160}
 # (key, choices, default, shift): the register code is the index of the choice
 TS_THRESHOLDS = (
     (CONF_TS_T1, (-10, -5, 0, 5), "0C", 0),
@@ -113,8 +123,25 @@ def _validate_current_limits(config: ConfigType) -> ConfigType:
     return config
 
 
-def _ts_threshold(choices: tuple[int, ...]) -> cv.All:
-    return cv.All(cv.temperature, cv.one_of(*choices, float=True))
+def _watchdog_boolean(value: object) -> object:
+    """True picks the longest period, which the default 60 s update_interval feeds in time."""
+    if isinstance(value, bool):
+        return "160s" if value else "disabled"
+    return value
+
+
+def _check_watchdog(config: ConfigType) -> ConfigType:
+    """Only the status poll feeds the watchdog, so it has to come round before the watchdog expires."""
+    if (period := WATCHDOG_PERIOD_S.get(config[CONF_WATCHDOG])) is None:
+        return config
+    if config[CONF_UPDATE_INTERVAL] >= TimePeriod(seconds=period):
+        raise cv.Invalid(
+            f"{CONF_UPDATE_INTERVAL} must be shorter than the {period} s watchdog, "
+            f"or the watchdog resets the charger between polls; shorten "
+            f"{CONF_UPDATE_INTERVAL} or choose a longer {CONF_WATCHDOG}",
+            path=[CONF_UPDATE_INTERVAL],
+        )
+    return config
 
 
 CONFIG_SCHEMA = cv.All(
@@ -125,7 +152,9 @@ CONFIG_SCHEMA = cv.All(
             cv.Optional(CONF_CHARGE_CURRENT): cv.current,
             cv.Optional(CONF_BAT_SNS_RES, default="5mΩ"): validate_sense_resistance,
             cv.Optional(CONF_AC_SNS_RES, default="2mΩ"): validate_sense_resistance,
-            cv.Optional(CONF_WATCHDOG, default=False): cv.boolean,
+            cv.Optional(CONF_WATCHDOG, default="disabled"): cv.All(
+                _watchdog_boolean, cv.enum(WATCHDOG_CHOICES, lower=True)
+            ),
             # VFB feedback setpoint. The pack charge voltage is set by the
             # external VFB divider; this trims the 1.536 V regulation limit.
             cv.Optional(CONF_CHARGE_VOLTAGE, default="1.536V"): cv.All(
@@ -155,7 +184,9 @@ CONFIG_SCHEMA = cv.All(
             cv.Optional(CONF_FORCE_MPPT_SWEEP, default=False): cv.boolean,
             cv.Optional(CONF_TEMP_EN, default=True): cv.boolean,
             **{
-                cv.Optional(key, default=default): _ts_threshold(choices)
+                cv.Optional(key, default=default): cv.All(
+                    cv.temperature, cv.one_of(*choices, float=True)
+                )
                 for key, choices, default, _ in TS_THRESHOLDS
             },
         }
@@ -163,65 +194,71 @@ CONFIG_SCHEMA = cv.All(
     .extend(cv.polling_component_schema("60s"))
     .extend(i2c.i2c_device_schema(0x6B)),
     _validate_current_limits,
+    _check_watchdog,
 )
 
 
-async def to_code(config: ConfigType) -> None:
-    var = await i2c.new_i2c_component(config)
+def _flag(enabled: bool, bit: int) -> int:
+    return bit if enabled else 0
 
+
+def build_config(config: ConfigType) -> cg.StructInitializer:
+    """The register values, in the order of the tables in bq25820.cpp."""
     bat_sns_res = config[CONF_BAT_SNS_RES]
     ac_sns_res = config[CONF_AC_SNS_RES]
-    # Amps per ADC step
-    cg.add(var.set_ibat_scale(IBAT_ADC_STEP_MV / bat_sns_res))
-    cg.add(var.set_iac_scale(IAC_ADC_STEP_MV / ac_sns_res))
-    if (current := config.get(CONF_CHARGE_CURRENT)) is not None:
-        cg.add(var.set_charge_current_code(_current_code(current, bat_sns_res)))
-    if (current := config.get(CONF_PRECHARGE_CURRENT)) is not None:
-        cg.add(var.set_precharge_current_code(_current_code(current, bat_sns_res)))
-    if (current := config.get(CONF_INPUT_CURRENT_LIMIT)) is not None:
-        cg.add(var.set_input_current_limit_code(_current_code(current, ac_sns_res)))
-    # 2 mV steps from 1.504 V; 20 mV steps from 0 V
-    cg.add(
-        var.set_charge_voltage_code(
-            round((config[CONF_CHARGE_VOLTAGE] - 1.504) / 0.002)
-        )
-    )
-    cg.add(
-        var.set_input_voltage_limit_code(round(config[CONF_INPUT_VOLTAGE_LIMIT] / 0.02))
-    )
-    cg.add(
-        var.set_reverse_system_voltage_code(
-            round(config[CONF_REVERSE_SYSTEM_VOLTAGE] / 0.02)
-        )
-    )
-    # TOPOFF_TMR[7:6], WATCHDOG[5:4] (01b = 40 s), EN_CHG_TMR, CHG_TMR[2:1]
-    cg.add(
-        var.set_timer_control(
-            TOPOFF_TIMER_CHOICES[config[CONF_TOPOFF_TIMER]] << 6
-            | (0x10 if config[CONF_WATCHDOG] else 0)
-            | 0x08
-            | CHARGE_TIMER_CHOICES[config[CONF_CHARGE_TIMER]] << 1
-        )
-    )
-    # EN_HIZ, EN_CHG
-    cg.add(
-        var.set_charger_control(
-            CHARGER_CONTROL_DEFAULTS
-            | (0x04 if config[CONF_HIZ_ENABLED] else 0)
-            | (0x01 if config[CONF_CHARGE_ENABLED] else 0)
-        )
-    )
-    # FULL_SWEEP_TMR[2:1], EN_MPPT
-    cg.add(
-        var.set_mppt_control(
-            MPPT_SWEEP_TIMER_CHOICES[config[CONF_MPPT_SWEEP_TIMER]] << 1
-            | (0x01 if config[CONF_MPPT_ENABLED] else 0)
-        )
+
+    def current_limit(key: str, milliohms: float) -> int:
+        # Left out, the register keeps its reset value
+        current = config.get(key)
+        return 0 if current is None else _current_code(current, milliohms) << 2
+
+    # The 16-bit limits hold their code from bit 2 up; 20 mV voltage steps from 0 V
+    limits = (
+        current_limit(CONF_CHARGE_CURRENT, bat_sns_res),
+        current_limit(CONF_PRECHARGE_CURRENT, bat_sns_res),
+        current_limit(CONF_INPUT_CURRENT_LIMIT, ac_sns_res),
+        round(config[CONF_INPUT_VOLTAGE_LIMIT] / 0.02) << 2,
+        round(config[CONF_REVERSE_SYSTEM_VOLTAGE] / 0.02) << 2,
     )
     ts_thresholds = 0
     for key, choices, _, shift in TS_THRESHOLDS:
         ts_thresholds |= choices.index(config[key]) << shift
-    cg.add(var.set_ts_thresholds(ts_thresholds))
-    cg.add(var.set_ideal_diode_enabled(config[CONF_IDEAL_DIODE]))
-    cg.add(var.set_force_mppt_sweep(config[CONF_FORCE_MPPT_SWEEP]))
-    cg.add(var.set_temp_enabled(config[CONF_TEMP_EN]))
+    controls = (
+        # VFB_REG: 2 mV steps from 1.504 V
+        round((config[CONF_CHARGE_VOLTAGE] - 1.504) / 0.002),
+        # TOPOFF_TMR[7:6], WATCHDOG[5:4], EN_CHG_TMR, CHG_TMR[2:1]
+        TOPOFF_TIMER_CHOICES[config[CONF_TOPOFF_TIMER]] << 6
+        | WATCHDOG_CHOICES[config[CONF_WATCHDOG]] << 4
+        | 0x08
+        | CHARGE_TIMER_CHOICES[config[CONF_CHARGE_TIMER]] << 1,
+        # EN_HIZ, EN_CHG
+        CHARGER_CONTROL_DEFAULTS
+        | _flag(config[CONF_HIZ_ENABLED], 0x04)
+        | _flag(config[CONF_CHARGE_ENABLED], 0x01),
+        # EN_BATFET_IDEAL_DIODE
+        _flag(config[CONF_IDEAL_DIODE], 0x04),
+        # FULL_SWEEP_TMR[2:1], EN_MPPT
+        MPPT_SWEEP_TIMER_CHOICES[config[CONF_MPPT_SWEEP_TIMER]] << 1
+        | _flag(config[CONF_MPPT_ENABLED], 0x01),
+        ts_thresholds,
+        # EN_TS
+        _flag(config[CONF_TEMP_EN], 0x01),
+        # ADC_EN, ADC_RATE cleared for continuous conversion
+        0x80,
+    )
+    return cg.StructInitializer(
+        BQ25820Config,
+        ("limits", cg.ArrayInitializer(*limits)),
+        ("controls", cg.ArrayInitializer(*(HexInt(v) for v in controls))),
+        # Amps per ADC step
+        ("ibat_scale", IBAT_ADC_STEP_MV / bat_sns_res),
+        ("iac_scale", IAC_ADC_STEP_MV / ac_sns_res),
+    )
+
+
+async def to_code(config: ConfigType) -> None:
+    # In flash: the chip only needs it again after a watchdog reset
+    table = cg.shared_progmem_array(
+        "bq25820_config", BQ25820Config, cg.ArrayInitializer(build_config(config))
+    )
+    await i2c.new_i2c_component(config, table, config[CONF_FORCE_MPPT_SWEEP])
