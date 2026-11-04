@@ -98,6 +98,8 @@ class RS485FrameHub : public Component, public uart::UARTDevice {
   void encode_crc_(const uint8_t *data, size_t len, bool include_header, uint8_t *out) const;
   uint8_t *tx_slot_(size_t index) const { return this->tx_queue_ + index * (this->max_frame_length_ + this->crc_len_); }
   void maybe_tx_(uint32_t now);
+  /// idle_gap: nothing was received or sent for min_silence.
+  bool bus_silent_(uint32_t now) const { return now - this->last_activity_time_ >= this->tx_gate_interval_; }
   void send_next_(uint32_t now);
   void transmit_head_(uint32_t now);
   /// How long len bytes take on the wire at the UART's baud rate and frame format.

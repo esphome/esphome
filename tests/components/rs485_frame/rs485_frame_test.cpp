@@ -2,6 +2,7 @@
 
 #include <gtest/gtest.h>
 
+#include <algorithm>
 #include <cstdint>
 #include <vector>
 
@@ -13,21 +14,28 @@ namespace esphome::rs485_frame::testing {
 
 namespace {
 
-// Records what the hub writes; reads nothing.
+// Records what the hub writes and hands it the bytes queued in rx.
 class FakeUART : public uart::UARTComponent {
  public:
   void write_array(const uint8_t *data, size_t len) override {
     this->written.insert(this->written.end(), data, data + len);
   }
   bool peek_byte(uint8_t *data) override { return false; }
-  bool read_array(uint8_t *data, size_t len) override { return false; }
-  size_t available() override { return 0; }
+  bool read_array(uint8_t *data, size_t len) override {
+    if (len > this->rx.size())
+      return false;
+    std::copy_n(this->rx.begin(), len, data);
+    this->rx.erase(this->rx.begin(), this->rx.begin() + len);
+    return true;
+  }
+  size_t available() override { return this->rx.size(); }
   uart::UARTFlushResult flush() override { return uart::UARTFlushResult::UART_FLUSH_RESULT_SUCCESS; }
   void check_logger_conflict() override {}
 #if defined(USE_ESP8266) || defined(USE_ESP32)
   void load_settings(bool dump_config) override {}
 #endif
   std::vector<uint8_t> written;
+  std::vector<uint8_t> rx;
 };
 
 struct HubConfig {
@@ -101,7 +109,8 @@ class RS485FrameHubProbe : public ProbeStorage, public RS485FrameHub {
   }
   void maybe_tx_for_test(uint32_t now) { this->maybe_tx_(now); }
   void send_next_for_test(uint32_t now) { this->send_next_(now); }
-  void loop_at_for_test(uint32_t now) {
+  void loop_at_for_test(uint32_t now, const std::vector<uint8_t> &rx = {}) {
+    this->fake_uart.rx = rx;
     LoopBlockingGuard guard{nullptr, nullptr, now};
     this->loop();
   }
@@ -349,7 +358,7 @@ TEST(RS485FrameHubTest, FixedDelaySendsFirstFrameRightAway) {
   EXPECT_EQ(hub.queue_depth_for_test(), 0u);
 }
 
-// fixed_delay waits for the previous frame to leave the wire when it takes longer than the interval.
+// fixed_delay counts the interval from when the previous frame has left the wire.
 TEST(RS485FrameHubTest, FixedDelayWaitsForTheFrameOnTheWire) {
   RS485FrameHubProbe hub;
   hub.fake_uart.set_baud_rate(9600);
@@ -369,10 +378,51 @@ TEST(RS485FrameHubTest, FixedDelayWaitsForTheFrameOnTheWire) {
   ASSERT_GT(wire_ms, 1u);
 
   ASSERT_TRUE(hub.queue_frame(DATA, sizeof(DATA)));
-  hub.maybe_tx_for_test(now + wire_ms - 1);
-  EXPECT_EQ(hub.queue_depth_for_test(), 1u);
   hub.maybe_tx_for_test(now + wire_ms);
+  EXPECT_EQ(hub.queue_depth_for_test(), 1u);
+  hub.maybe_tx_for_test(now + wire_ms + 1);
   EXPECT_EQ(hub.queue_depth_for_test(), 0u);
+}
+
+// idle_gap rechecks min_silence when the gate delay ends, so RX during the delay holds the frame.
+TEST(RS485FrameHubTest, IdleGapDelayWaitsForSilenceAfterRx) {
+  RS485FrameHubProbe hub;
+  hub.set_tx_gate_mode(TX_GATE_IDLE_GAP);
+  hub.set_tx_gate_interval(20);
+  hub.set_tx_gate_delay(10);
+  hub.setup();
+  static const uint8_t DATA[] = {0x01, 0x02};
+  ASSERT_TRUE(hub.queue_frame(DATA, sizeof(DATA)));
+
+  const uint32_t boot = hub.last_activity_for_test();
+  hub.loop_at_for_test(boot + 20);
+  // A byte from another node just before the delay expires
+  hub.loop_at_for_test(boot + 29, {0x10, 0x02, 0x01});
+  hub.loop_at_for_test(boot + 30);
+  EXPECT_EQ(hub.queue_depth_for_test(), 1u);
+  hub.loop_at_for_test(boot + 48);
+  EXPECT_EQ(hub.queue_depth_for_test(), 1u);
+  hub.loop_at_for_test(boot + 49);
+  EXPECT_EQ(hub.queue_depth_for_test(), 0u);
+  EXPECT_FALSE(hub.fake_uart.written.empty());
+}
+
+// A partial frame that timed out is dropped before the next bytes are read, so a late continuation
+// cannot complete it.
+TEST(RS485FrameHubTest, RxTimeoutExpiresPartialFrameBeforeNextBytes) {
+  RS485FrameHubProbe hub({.crc_type = CRC_TYPE_NONE});
+  hub.set_in_frame_timeout(50);
+  hub.setup();
+  hub.count_frames();
+
+  hub.loop_at_for_test(1000, {0x10, 0x02, 0x01});
+  hub.loop_at_for_test(1050, {0x02, 0x10, 0x03});
+  EXPECT_EQ(hub.frames, 0u);
+
+  // Within the timeout the continuation completes the frame.
+  hub.loop_at_for_test(2000, {0x10, 0x02, 0x01});
+  hub.loop_at_for_test(2049, {0x02, 0x10, 0x03});
+  EXPECT_EQ(hub.frames, 1u);
 }
 
 // The gate delay holds the frame for delay ms, also across a millis() wrap.

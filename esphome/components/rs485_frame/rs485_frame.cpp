@@ -26,16 +26,18 @@ void RS485FrameHub::setup() {
 
 void RS485FrameHub::loop() {
   const uint32_t now = App.get_loop_component_start_time();
-  this->read_available([this, now](uint8_t byte) { this->handle_rx_byte_(byte, now); });
-
-  // A partial frame left by a cable pull or noise burst would otherwise stall reception.
+  // A partial frame left by a cable pull or noise burst would otherwise stall reception. Checked before
+  // draining, since the new bytes refresh last_rx_time_ and could complete the stale frame.
   if (this->in_frame_ && this->in_frame_timeout_ms_ > 0 && now - this->last_rx_time_ >= this->in_frame_timeout_ms_) {
     ESP_LOGW(TAG, "Intra-frame timeout, resetting receive state");
     this->reset_rx_();
   }
+  this->read_available([this, now](uint8_t byte) { this->handle_rx_byte_(byte, now); });
 
   this->maybe_tx_(now);
-  if (this->tx_start_pending_ && now - this->tx_delay_start_ >= this->tx_gate_delay_) {
+  // idle_gap also needs the bus to still be silent, since RX during the delay may be a frame in progress.
+  if (this->tx_start_pending_ && now - this->tx_delay_start_ >= this->tx_gate_delay_ &&
+      (this->tx_gate_mode_ != TX_GATE_IDLE_GAP || this->bus_silent_(now))) {
     this->tx_start_pending_ = false;
     this->transmit_head_(now);
   }
@@ -201,17 +203,13 @@ void RS485FrameHub::encode_crc_(const uint8_t *data, size_t len, bool include_he
 }
 
 void RS485FrameHub::maybe_tx_(uint32_t now) {
-  if (this->tx_queue_count_ == 0 || this->tx_start_pending_)
+  if (this->tx_queue_count_ == 0 || this->tx_start_pending_ || this->tx_gate_mode_ == TX_GATE_FRAME_TRIGGER)
     return;
-  const uint32_t since_tx = now - this->last_tx_time_;
-  if (this->tx_gate_mode_ == TX_GATE_IDLE_GAP) {
-    if (now - this->last_activity_time_ >= this->tx_gate_interval_ &&
-        since_tx >= this->last_tx_wire_ms_ + this->tx_gate_interval_)
-      this->send_next_(now);
-  } else if (this->tx_gate_mode_ == TX_GATE_FIXED_DELAY &&
-             since_tx >= std::max<uint32_t>(this->tx_gate_interval_, this->last_tx_wire_ms_)) {
+  // Both gates count the interval from the end of our last frame on the wire.
+  if (now - this->last_tx_time_ < this->last_tx_wire_ms_ + this->tx_gate_interval_)
+    return;
+  if (this->tx_gate_mode_ == TX_GATE_FIXED_DELAY || this->bus_silent_(now))
     this->send_next_(now);
-  }
 }
 
 void RS485FrameHub::send_next_(uint32_t now) {
