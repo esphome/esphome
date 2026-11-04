@@ -23,7 +23,7 @@ void SX1509Component::setup() {
     this->mark_failed(LOG_STR("Unexpected reset value"));
     return;
   }
-  clock_(INTERNAL_CLOCK_2MHZ);
+  this->clock_(INTERNAL_CLOCK_2MHZ, 1, 0, this->led_driver_frequency_);
   delayMicroseconds(500);
   if (this->has_keypad_)
     this->setup_keypad_();
@@ -141,8 +141,8 @@ void SX1509Component::setup_led_driver(uint8_t pin) {
   // Internal 2MHz oscillator: set bit 6, clear bit 5
   this->update_register(REG_CLOCK, (1 << 6) | (1 << 5), 1 << 6);
 
-  // Linear mode for banks A (bit 3) and B (bit 7); LED driver clock ClkX of all IOs (bits 6:4)
-  this->update_register(REG_MISC, (1 << 7) | (1 << 3) | 0x70, this->led_driver_frequency_);
+  // Linear mode for banks A (bit 3) and B (bit 7); setup() already set the LED driver clock (bits 6:4)
+  this->update_register(REG_MISC, (1 << 7) | (1 << 3), 0);
 
   this->update_register_16_(REG_LED_DRIVER_ENABLE_B, bit, bit);
 
@@ -163,7 +163,6 @@ void SX1509Component::clock_(uint8_t osc_source, uint8_t osc_pin_function, uint8
   this->write_byte(REG_CLOCK, reg_clock);
 
   osc_divider = clamp<uint8_t>(osc_divider, 1, 7u);
-  this->clk_x_ = 2000000;
   osc_divider = (osc_divider & 0b111) << 4;  // 3-bit value, bits 6:4
 
   this->update_register(REG_MISC, 0b111 << 4, osc_divider);
@@ -212,8 +211,7 @@ uint16_t SX1509Component::read_key_data() {
 }
 
 void SX1509Component::set_debounce_config_(uint8_t config_value) {
-  // First make sure clock is configured
-  this->update_register(REG_MISC, 1 << 4, 1 << 4);   // Just default to no divider if not set
+  // First make sure clock is configured; setup() already set the divider
   this->update_register(REG_CLOCK, 1 << 6, 1 << 6);  // default to internal osc.
 
   config_value &= 0b111;  // 3-bit value

@@ -22,13 +22,13 @@ const uint8_t HARDWARE_RESET = 1;
 // ClkX = fOSC / 2^(divider-1) and the PWM frequency is about ClkX / 255. The values below assume the
 // typical 2MHz internal oscillator (datasheet range: 1.3MHz to 2.6MHz), so real chips can differ.
 enum LedDriverFrequency : uint8_t {
-  LED_DRIVER_FREQ_7840HZ = 0x10,
-  LED_DRIVER_FREQ_3920HZ = 0x20,
-  LED_DRIVER_FREQ_1960HZ = 0x30,
-  LED_DRIVER_FREQ_980HZ = 0x40,
-  LED_DRIVER_FREQ_490HZ = 0x50,
-  LED_DRIVER_FREQ_245HZ = 0x60,
-  LED_DRIVER_FREQ_122HZ = 0x70,  // Default, same as the previous fixed value
+  LED_DRIVER_FREQ_7840HZ = 1,
+  LED_DRIVER_FREQ_3920HZ = 2,
+  LED_DRIVER_FREQ_1960HZ = 3,
+  LED_DRIVER_FREQ_980HZ = 4,
+  LED_DRIVER_FREQ_490HZ = 5,
+  LED_DRIVER_FREQ_245HZ = 6,
+  LED_DRIVER_FREQ_122HZ = 7,
 };
 
 const uint8_t REG_I_ON[16] = {REG_I_ON_0,  REG_I_ON_1,  REG_I_ON_2,  REG_I_ON_3, REG_I_ON_4,  REG_I_ON_5,
@@ -58,7 +58,6 @@ class SX1509Component final : public Component,
   uint16_t read_key_data();
   void set_pin_value(uint8_t pin, uint8_t i_on) { this->write_byte(REG_I_ON[pin], i_on); };
   void pin_mode(uint8_t pin, gpio::Flags flags);
-  uint32_t get_clock() { return this->clk_x_; };
   void set_rows_cols(uint8_t rows, uint8_t cols) {
     this->rows_ = rows;
     this->cols_ = cols;
@@ -82,7 +81,6 @@ class SX1509Component final : public Component,
   bool digital_read_cache(uint8_t pin) override;            // NOLINT(readability-identifier-naming)
   void digital_write_hw(uint8_t pin, bool value) override;  // NOLINT(readability-identifier-naming)
 
-  uint32_t clk_x_ = 2000000;
   LedDriverFrequency led_driver_frequency_{LED_DRIVER_FREQ_122HZ};
   uint16_t ddr_mask_ = 0x00;
   uint16_t input_mask_ = 0x00;  // Cache for input values (16-bit for all pins)

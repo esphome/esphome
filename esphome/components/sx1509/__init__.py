@@ -33,15 +33,16 @@ sx1509_ns = cg.esphome_ns.namespace("sx1509")
 LedDriverFrequency = sx1509_ns.enum("LedDriverFrequency")
 
 # The PWM frequency is shared by all output pins; the values are nominal (see sx1509.h).
-LED_DRIVER_FREQUENCIES = {
-    "7840HZ": LedDriverFrequency.LED_DRIVER_FREQ_7840HZ,
-    "3920HZ": LedDriverFrequency.LED_DRIVER_FREQ_3920HZ,
-    "1960HZ": LedDriverFrequency.LED_DRIVER_FREQ_1960HZ,
-    "980HZ": LedDriverFrequency.LED_DRIVER_FREQ_980HZ,
-    "490HZ": LedDriverFrequency.LED_DRIVER_FREQ_490HZ,
-    "245HZ": LedDriverFrequency.LED_DRIVER_FREQ_245HZ,
-    "122HZ": LedDriverFrequency.LED_DRIVER_FREQ_122HZ,
-}
+LED_DRIVER_FREQUENCIES = LedDriverFrequency.options(
+    "7840HZ",
+    "3920HZ",
+    "1960HZ",
+    "980HZ",
+    "490HZ",
+    "245HZ",
+    "122HZ",
+    prefix="LED_DRIVER_FREQ_",
+)
 
 SX1509Component = sx1509_ns.class_(
     "SX1509Component", cg.Component, i2c.I2CDevice, key_provider.KeyProvider
