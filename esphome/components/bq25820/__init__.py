@@ -1,3 +1,5 @@
+from dataclasses import dataclass
+
 import esphome.codegen as cg
 from esphome.components import i2c
 from esphome.components.const import (
@@ -70,12 +72,23 @@ MPPT_SWEEP_TIMER_CHOICES = {"3m": 0, "10m": 1, "15m": 2, "20m": 3}
 # WATCHDOG[5:4]; the chip powers up with 40 s and the poll feeds it with WD_RST
 WATCHDOG_CHOICES = {"disabled": 0, "40s": 1, "80s": 2, "160s": 3}
 WATCHDOG_PERIOD_S = {"40s": 40, "80s": 80, "160s": 160}
-# (key, choices, default, shift): the register code is the index of the choice
+
+
+@dataclass(frozen=True, kw_only=True)
+class _TsThreshold:
+    """A TS_THRESHOLD_CONTROL field; its register code is the index of the chosen temperature."""
+
+    key: str
+    choices: tuple[int, ...]
+    default: str
+    shift: int
+
+
 TS_THRESHOLDS = (
-    (CONF_TS_T1, (-10, -5, 0, 5), "0C", 0),
-    (CONF_TS_T2, (5, 10, 15, 20), "10C", 2),
-    (CONF_TS_T3, (40, 45, 50, 55), "45C", 4),
-    (CONF_TS_T5, (50, 55, 60, 65), "50C", 6),
+    _TsThreshold(key=CONF_TS_T1, choices=(-10, -5, 0, 5), default="0C", shift=0),
+    _TsThreshold(key=CONF_TS_T2, choices=(5, 10, 15, 20), default="10C", shift=2),
+    _TsThreshold(key=CONF_TS_T3, choices=(40, 45, 50, 55), default="45C", shift=4),
+    _TsThreshold(key=CONF_TS_T5, choices=(50, 55, 60, 65), default="50C", shift=6),
 )
 
 # The current limits step 250 uV across the sense resistor: 50 mA with the
@@ -196,10 +209,10 @@ CONFIG_SCHEMA = cv.All(
             cv.Optional(CONF_FORCE_MPPT_SWEEP, default=False): cv.boolean,
             cv.Optional(CONF_TEMP_EN, default=True): cv.boolean,
             **{
-                cv.Optional(key, default=default): cv.All(
-                    cv.temperature, cv.one_of(*choices, float=True)
+                cv.Optional(ts.key, default=ts.default): cv.All(
+                    cv.temperature, cv.one_of(*ts.choices, float=True)
                 )
-                for key, choices, default, _ in TS_THRESHOLDS
+                for ts in TS_THRESHOLDS
             },
         }
     )
@@ -233,8 +246,8 @@ def build_config(config: ConfigType) -> cg.StructInitializer:
         round(config[CONF_REVERSE_SYSTEM_VOLTAGE] / 0.02) << 2,
     )
     ts_thresholds = 0
-    for key, choices, _, shift in TS_THRESHOLDS:
-        ts_thresholds |= choices.index(config[key]) << shift
+    for ts in TS_THRESHOLDS:
+        ts_thresholds |= ts.choices.index(config[ts.key]) << ts.shift
     # VFB_REG: 2 mV steps from 1.504 V
     charge_voltage = round((config[CONF_CHARGE_VOLTAGE] - 1.504) / 0.002)
     timer_control = (

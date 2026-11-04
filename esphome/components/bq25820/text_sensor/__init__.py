@@ -1,3 +1,5 @@
+from dataclasses import dataclass
+
 from esphome.automation import parent_ref
 import esphome.codegen as cg
 from esphome.components import text_sensor
@@ -25,10 +27,33 @@ DEPENDENCIES = ["bq25820"]
 
 ICON_BATTERY_CHARGING = "mdi:battery-charging"
 
-# (key, status register, bit shift, index of the field's value 0 in the C++ string table, icon)
+
+@dataclass(frozen=True, kw_only=True)
+class _StatusText:
+    """The three-bit field (status[register] >> shift), named by BQ25820StatusStrings[first + field]."""
+
+    key: str
+    register: int
+    shift: int
+    first: int
+    icon: str
+
+
 _FIELDS = (
-    ("charge_status", CHARGER_STATUS_1, 0, 0, ICON_BATTERY_CHARGING),
-    ("temp_status", CHARGER_STATUS_2, 4, 8, ICON_THERMOMETER),
+    _StatusText(
+        key="charge_status",
+        register=CHARGER_STATUS_1,
+        shift=0,
+        first=0,
+        icon=ICON_BATTERY_CHARGING,
+    ),
+    _StatusText(
+        key="temp_status",
+        register=CHARGER_STATUS_2,
+        shift=4,
+        first=8,
+        icon=ICON_THERMOMETER,
+    ),
 )
 
 
@@ -53,18 +78,18 @@ def _add_text_status(
 CONFIG_SCHEMA = cv.All(
     BQ25820BaseSchema.extend(
         {
-            cv.Optional(key): text_sensor.text_sensor_schema(icon=icon)
-            for key, *_, icon in _FIELDS
+            cv.Optional(field.key): text_sensor.text_sensor_schema(icon=field.icon)
+            for field in _FIELDS
         }
     ),
-    cv.has_at_least_one_key(*(key for key, *_ in _FIELDS)),
+    cv.has_at_least_one_key(*(field.key for field in _FIELDS)),
 )
 
 
 async def to_code(config: ConfigType) -> None:
     hub = await cg.get_variable(config[CONF_BQ25820_ID])
     sensors = text_sensor.sub_text_sensors(config)
-    for key, reg, shift, first, _ in _FIELDS:
-        if (var := await sensors(key, None)) is not None:
-            _add_text_status(hub, var, reg, shift, first)
+    for field in _FIELDS:
+        if (var := await sensors(field.key, None)) is not None:
+            _add_text_status(hub, var, field.register, field.shift, field.first)
             DUMP_STATUS.add(hub, bq25820_ns.dump_status_entity(parent_ref(var)))
