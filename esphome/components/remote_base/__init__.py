@@ -2941,7 +2941,7 @@ register_protocol_action(
     (CONF_CODE, "code", cg.uint16),
     # The legacy fields set their bits of code, so they also work as lambdas
     automation.ApplyField(
-        CONF_RC_CODE_1, "data.code |= reverse_bits(uint8_t({} << 4))", cg.uint8
+        CONF_RC_CODE_1, "data.code |= reverse_bits(uint8_t(({}) << 4))", cg.uint8
     ),
     automation.ApplyField(
         CONF_RC_CODE_2, "data.code |= reverse_bits(uint8_t(({}) & 0x0F))", cg.uint8

@@ -27,7 +27,7 @@ def test_legacy_fields_set_code_bits(
     main_cpp = generate_main(component_config_path("toto_legacy.yaml"))
     code, legacy, command_only = protocol_call_bodies(main_cpp)
     assert "apply_call.data.code = 0x37BB;" in code
-    assert "apply_call.data.code |= reverse_bits(uint8_t(0x0D << 4));" in legacy
+    assert "apply_call.data.code |= reverse_bits(uint8_t((0x0D) << 4));" in legacy
     assert "apply_call.data.code |= reverse_bits(uint8_t((0x0D) & 0x0F));" in legacy
     assert "apply_call.data.code |= reverse_bits(uint8_t(0xEC)) << 8;" in legacy
     assert "apply_call.data.code |= reverse_bits(uint8_t(0xB0)) << 8;" in command_only
