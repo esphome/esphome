@@ -36,33 +36,33 @@ class BekenIrdaComponent final : public Component, public remote_base::RemoteRec
   void push_run_();
   void reset_capture_();
 
-  bool hardware_{false};
   uint32_t sample_period_{100};
   uint32_t filter_us_{150};
   uint32_t idle_us_{10000};
-  uint16_t buffer_size_{512};
-
-  volatile uint32_t last_code_{0};
-  volatile bool raw_ready_{false};
-  volatile bool repeat_ready_{false};
-  volatile uint32_t reject_count_{0};
-  volatile uint32_t error_count_{0};
   uint32_t last_reject_{0};
   uint32_t last_error_{0};
-
   ISRInternalGPIOPin isr_pin_;
   int32_t *buffer_{nullptr};
+
+  volatile uint32_t last_code_{0};
+  volatile uint32_t reject_count_{0};
+  volatile uint32_t error_count_{0};
   volatile uint32_t buffer_count_{0};
+  volatile uint32_t timer_ticks_{0};
+  volatile uint32_t last_counter_{0};
+  volatile uint32_t run_ticks_{0};
+  volatile uint32_t overflow_count_{0};
+
+  uint16_t buffer_size_{512};
+  volatile uint8_t run_level_{1};
+  volatile uint8_t last_level_{0};
+  bool hardware_{false};
+  volatile bool raw_ready_{false};
+  volatile bool repeat_ready_{false};
   volatile bool frame_ready_{false};
   volatile bool overflow_{false};
   volatile bool capture_active_{false};
-  volatile uint32_t timer_ticks_{0};
-  volatile uint32_t last_counter_{0};
   volatile bool run_active_{false};
-  volatile uint8_t run_level_{1};
-  volatile uint32_t run_ticks_{0};
-  volatile uint8_t last_level_{0};
-  volatile uint32_t overflow_count_{0};
 };
 
 }  // namespace esphome::beken_irda
