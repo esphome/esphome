@@ -13,6 +13,7 @@ from esphome.const import (
     CONF_TYPE,
 )
 from esphome.core import CORE, ID, HexInt, Lambda
+from esphome.schema_extractors import SCHEMA_EXTRACT, schema_extractor
 from esphome.types import ConfigType
 
 CODEOWNERS = ["@b3nj1"]
@@ -107,8 +108,11 @@ def _byte_list(min_len: int = 0) -> cv.All:
 validate_frame_type = _byte_list()
 
 
+@schema_extractor("schema")
 def validate_frame_type_or_list(value: object) -> list[list[HexInt]]:
     """One prefix or a list of non-empty prefixes, as a list of prefixes; [] matches every frame."""
+    if value is SCHEMA_EXTRACT:
+        return validate_frame_type
     if value is None:
         raise cv.Invalid("frame_type needs a value; use [] to match every frame")
     if not isinstance(value, list):
