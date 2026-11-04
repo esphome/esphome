@@ -1,5 +1,6 @@
 #include "delta_wallbox.h"
 #include "esphome/core/log.h"
+#include "esphome/core/helpers.h"
 #include "esphome/core/progmem.h"
 #include <algorithm>
 #include <array>

@@ -16,6 +16,7 @@
 
 #include "ens160_base.h"
 #include "esphome/core/log.h"
+#include "esphome/core/helpers.h"
 #include "esphome/core/hal.h"
 
 namespace esphome::ens160_base {
