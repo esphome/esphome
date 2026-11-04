@@ -557,12 +557,17 @@ bool crash_report_get(CrashReport &out) {
     out.flags |= CRASH_REPORT_FLAG_FAULT_ADDRESS;
     out.fault_address = s_raw_crash_data.fault_addr;
   }
-  out.backtrace_count = copy_backtrace(s_raw_crash_data.backtrace, s_raw_crash_data.backtrace_count,
-                                       s_raw_crash_data.reg_frame_count, build_matches, out.backtrace.data());
+  auto &crashed = out.cores[out.core_count++];
+  crashed.core = s_raw_crash_data.crashed_core;
+  crashed.count = copy_backtrace(s_raw_crash_data.backtrace, s_raw_crash_data.backtrace_count,
+                                 s_raw_crash_data.reg_frame_count, build_matches, crashed.addresses.data());
 #if SOC_CPU_CORES_NUM > 1
-  out.other_core_backtrace_count =
-      copy_backtrace(s_raw_crash_data.other_backtrace, s_raw_crash_data.other_backtrace_count,
-                     s_raw_crash_data.other_reg_frame_count, build_matches, out.other_core_backtrace.data());
+  if (s_raw_crash_data.other_backtrace_count > 0) {
+    auto &other = out.cores[out.core_count++];
+    other.core = 1 - s_raw_crash_data.crashed_core;
+    other.count = copy_backtrace(s_raw_crash_data.other_backtrace, s_raw_crash_data.other_backtrace_count,
+                                 s_raw_crash_data.other_reg_frame_count, build_matches, other.addresses.data());
+  }
 #endif
   return true;
 }

@@ -1210,20 +1210,27 @@ const char *ListEntitiesDoneResponse::dump_to(DumpBuffer &out) const {
   return out.c_str();
 }
 #ifdef USE_CRASH_REPORT
+const char *CrashReportCore::dump_to(DumpBuffer &out) const {
+  MessageDumpHelper helper(out, ESPHOME_PSTR("CrashReportCore"));
+  dump_field(out, ESPHOME_PSTR("core"), this->core);
+  for (uint16_t i = 0; i < this->backtrace_len; i++) {
+    dump_field(out, ESPHOME_PSTR("backtrace"), this->backtrace[i], 4);
+  }
+  return out.c_str();
+}
 const char *CrashReportResponse::dump_to(DumpBuffer &out) const {
   MessageDumpHelper helper(out, ESPHOME_PSTR("CrashReportResponse"));
   dump_field(out, ESPHOME_PSTR("flags"), this->flags);
   dump_field(out, ESPHOME_PSTR("reason"), this->reason);
   dump_field(out, ESPHOME_PSTR("pc"), this->pc);
-  for (uint16_t i = 0; i < this->backtrace_len; i++) {
-    dump_field(out, ESPHOME_PSTR("backtrace"), this->backtrace[i], 4);
-  }
   dump_field(out, ESPHOME_PSTR("cause"), this->cause);
   dump_field(out, ESPHOME_PSTR("fault_address"), this->fault_address);
   dump_field(out, ESPHOME_PSTR("build_time"), this->build_time);
   dump_field(out, ESPHOME_PSTR("crashed_core"), this->crashed_core);
-  for (uint16_t i = 0; i < this->other_core_backtrace_len; i++) {
-    dump_field(out, ESPHOME_PSTR("other_core_backtrace"), this->other_core_backtrace[i], 4);
+  for (uint16_t i = 0; i < this->cores_len; i++) {
+    out.append(4, ' ').append_p(ESPHOME_PSTR("cores")).append(": ");
+    this->cores[i].dump_to(out);
+    out.append("\n");
   }
   return out.c_str();
 }

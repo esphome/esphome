@@ -146,9 +146,10 @@ bool crash_report_get(CrashReport &out) {
   out.flags = CRASH_REPORT_FLAG_PRESENT | CRASH_REPORT_FLAG_BUILD_MATCHES;
   out.reason = CrashReason::CRASH_REASON_EXCEPTION;
   out.pc = rp2::s_crash_data.pc;
-  out.backtrace[out.backtrace_count++] = rp2::s_crash_data.lr;
+  auto &core = out.cores[out.core_count++];
+  core.addresses[core.count++] = rp2::s_crash_data.lr;
   for (uint8_t i = 0; i < rp2::s_crash_data.backtrace_count; i++)
-    out.backtrace[out.backtrace_count++] = rp2::s_crash_data.backtrace[i];
+    core.addresses[core.count++] = rp2::s_crash_data.backtrace[i];
   return true;
 }
 

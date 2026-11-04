@@ -233,7 +233,8 @@ bool crash_report_get(CrashReport &out) {
   } else {
     out.reason = CrashReason::CRASH_REASON_SOFT_WATCHDOG;
   }
-  out.backtrace_count = esp8266::read_rtc_backtrace(out.backtrace.data(), MAX_BACKTRACE);
+  out.core_count = 1;
+  out.cores[0].count = esp8266::read_rtc_backtrace(out.cores[0].addresses.data(), MAX_BACKTRACE);
   return true;
 }
 

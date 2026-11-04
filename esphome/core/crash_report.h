@@ -7,10 +7,19 @@
 #include <array>
 #include <cstdint>
 
+#ifdef USE_ESP32
+#include <soc/soc_caps.h>
+#endif
+
 namespace esphome {
 
 /// Per core
 static constexpr uint8_t CRASH_REPORT_MAX_BACKTRACE = 16;
+#ifdef USE_ESP32
+static constexpr uint8_t CRASH_REPORT_MAX_CORES = SOC_CPU_CORES_NUM;
+#else
+static constexpr uint8_t CRASH_REPORT_MAX_CORES = 1;
+#endif
 
 /// Sent as is over the native API
 enum CrashReportFlag : uint8_t {
@@ -32,18 +41,22 @@ enum class CrashReason : uint8_t {
   CRASH_REASON_HARDWARE_WATCHDOG = 6,  // Only the reason is recorded
 };
 
+struct CrashCoreBacktrace {
+  uint8_t core{0};
+  uint8_t count{0};
+  std::array<uint32_t, CRASH_REPORT_MAX_BACKTRACE> addresses{};
+};
+
 struct CrashReport {
   uint8_t flags{CRASH_REPORT_FLAG_NONE};
   CrashReason reason{CrashReason::CRASH_REASON_UNKNOWN};
   uint8_t crashed_core{0};
-  uint8_t backtrace_count{0};
-  uint8_t other_core_backtrace_count{0};
+  uint8_t core_count{0};
   uint32_t pc{0};
   uint32_t cause{0};
   uint32_t fault_address{0};
   uint32_t build_time{0};
-  std::array<uint32_t, CRASH_REPORT_MAX_BACKTRACE> backtrace{};
-  std::array<uint32_t, CRASH_REPORT_MAX_BACKTRACE> other_core_backtrace{};
+  std::array<CrashCoreBacktrace, CRASH_REPORT_MAX_CORES> cores{};
 };
 
 /// The previous boot's crash; false when there is none or it was read. Implemented per platform.

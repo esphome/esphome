@@ -555,6 +555,11 @@ message CrashReportRequest {
   // Empty
 }
 
+message CrashReportCore {
+  uint32 core = 1;
+  repeated uint32 backtrace = 2 [(fixed_array_with_length_define) = "CRASH_REPORT_MAX_BACKTRACE"];
+}
+
 message CrashReportResponse {
   option (id) = 164;
   option (source) = SOURCE_SERVER;
@@ -563,13 +568,11 @@ message CrashReportResponse {
   uint32 flags = 1;  // Bitmask of CrashReportFlag
   uint32 reason = 2;  // CrashReason
   uint32 pc = 3;
-  repeated uint32 backtrace = 4 [(fixed_array_with_length_define) = "CRASH_REPORT_MAX_BACKTRACE"];
-  uint32 cause = 5;
-  uint32 fault_address = 6;
-  uint32 build_time = 7;
-  uint32 crashed_core = 8;
-  // Dual-core chips only
-  repeated uint32 other_core_backtrace = 9 [(fixed_array_with_length_define) = "CRASH_REPORT_MAX_BACKTRACE"];
+  uint32 cause = 4;
+  uint32 fault_address = 5;
+  uint32 build_time = 6;
+  uint32 crashed_core = 7;
+  repeated CrashReportCore cores = 8 [(fixed_array_with_length_define) = "CRASH_REPORT_MAX_CORES"];
 }
 
 // ==================== COMMON =====================

@@ -502,22 +502,28 @@ def test_crash_report_messages_keep_their_wire_ids() -> None:
 
 def test_crash_report_response_fields_keep_their_wire_numbers() -> None:
     """Clients decode the response purely by field number."""
-    body = _extract_proto_message(PROTO_TEXT, "CrashReportResponse")
-    for field_name, number in (
-        ("flags", 1),
-        ("reason", 2),
-        ("pc", 3),
-        ("backtrace", 4),
-        ("cause", 5),
-        ("fault_address", 6),
-        ("build_time", 7),
-        ("crashed_core", 8),
-        ("other_core_backtrace", 9),
+    for message, fields in (
+        (
+            "CrashReportResponse",
+            (
+                ("flags", 1),
+                ("reason", 2),
+                ("pc", 3),
+                ("cause", 4),
+                ("fault_address", 5),
+                ("build_time", 6),
+                ("crashed_core", 7),
+                ("cores", 8),
+            ),
+        ),
+        ("CrashReportCore", (("core", 1), ("backtrace", 2))),
     ):
-        line = _field_declaration_line(body, field_name)
-        assert re.search(rf"\b{field_name}\s*=\s*{number}\b", line), (
-            f"{field_name} in CrashReportResponse is no longer field number {number}"
-        )
+        body = _extract_proto_message(PROTO_TEXT, message)
+        for field_name, number in fields:
+            line = _field_declaration_line(body, field_name)
+            assert re.search(rf"\b{field_name}\s*=\s*{number}\b", line), (
+                f"{field_name} in {message} is no longer field number {number}"
+            )
 
 
 def test_crash_report_rpc_requires_authentication() -> None:

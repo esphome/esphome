@@ -2169,10 +2169,13 @@ void APIConnection::on_crash_report_request() {
     resp.fault_address = report.fault_address;
     resp.build_time = report.build_time;
     resp.crashed_core = report.crashed_core;
-    resp.backtrace = report.backtrace;
-    resp.backtrace_len = report.backtrace_count;
-    resp.other_core_backtrace = report.other_core_backtrace;
-    resp.other_core_backtrace_len = report.other_core_backtrace_count;
+    for (uint8_t i = 0; i < report.core_count; i++) {
+      auto &core = resp.cores[i];
+      core.core = report.cores[i].core;
+      core.backtrace = report.cores[i].addresses;
+      core.backtrace_len = report.cores[i].count;
+    }
+    resp.cores_len = report.core_count;
   }
   if (!this->send_message(resp)) {
     this->on_fatal_error();
