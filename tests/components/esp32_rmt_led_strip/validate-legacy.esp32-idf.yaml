@@ -3,12 +3,14 @@
 light:
   - platform: esp32_rmt_led_strip
     id: legacy_rgb
+    rmt_symbols: 128
     pin: GPIO13
     num_leds: 60
     chipset: ws2812
     rgb_order: GRB # -> GRB
   - platform: esp32_rmt_led_strip
     id: legacy_rgbw
+    rmt_symbols: 128
     pin: GPIO14
     num_leds: 60
     chipset: sk6812
@@ -16,6 +18,7 @@ light:
     is_rgbw: true # -> GRBW
   - platform: esp32_rmt_led_strip
     id: legacy_wrgb
+    rmt_symbols: 128
     pin: GPIO15
     num_leds: 60
     chipset: sk6812
