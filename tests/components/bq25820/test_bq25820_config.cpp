@@ -9,7 +9,8 @@ static constexpr uint8_t REG_CHARGER_STATUS_1 = 0x21;
 static constexpr uint8_t WD_STAT = 0x08;
 
 // Every option away from its default, with the 40 s watchdog, as code generation packs packed_config.yaml
-// (checked in tests/component_tests/bq25820/test_init.py)
+// (checked in tests/component_tests/bq25820/test_init.py), except IPRECHG: 0 here covers a limit that keeps
+// its reset value
 static constexpr BQ25820Config SET_CONFIG{
     .limits = {240, 0, 256, 8000, 660},
     .controls = {0x17, 0x9C, 0xCC, 0x04, 0x03, 0xFF, 0x00, 0x80},
