@@ -376,9 +376,18 @@ void VoiceAssistant::loop() {
         this->set_state_(State::START_MICROPHONE, State::START_PIPELINE);
 #ifdef USE_VOICE_ASSISTANT_WAKE_WORD_AUDIO
       } else if (this->wake_word_audio_buffering_) {
-        this->mic_source_->start();
-        if (this->mic_source2_) {
-          this->mic_source2_->start();
+        // Only microWakeWord detections use the buffered audio, so the microphone idles while it is stopped
+        // (a software mute, say); the buffers stay allocated for when it runs again.
+        if (this->micro_wake_word_->is_running()) {
+          this->mic_source_->start();
+          if (this->mic_source2_) {
+            this->mic_source2_->start();
+          }
+        } else {
+          this->mic_source_->stop();
+          if (this->mic_source2_) {
+            this->mic_source2_->stop();
+          }
         }
 #endif
       } else {
@@ -1408,10 +1417,7 @@ void VoiceAssistant::update_wake_word_audio_() {
       this->wake_word_audio_requested_ = false;
       return;
     }
-    this->mic_source_->start();
-    if (this->mic_source2_) {
-      this->mic_source2_->start();
-    }
+    // The IDLE branch of loop() starts the microphone while microWakeWord runs
     ESP_LOGD(TAG, "Buffering wake word audio");
   } else {
     this->clear_wake_word_verdict_();
