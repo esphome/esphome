@@ -193,6 +193,16 @@ static inline bool is_code_addr(uint32_t val) {
 #endif
 }
 
+static void fill_record(uint32_t reason, uint32_t pc, uint32_t lr, uint32_t sp, uint32_t fault_status,
+                        uint32_t fault_address) {
+  s_record.reason = reason;
+  s_record.pc = pc;
+  s_record.lr = lr;
+  s_record.sp = sp;
+  s_record.fault_status = fault_status;
+  s_record.fault_address = fault_address;
+}
+
 // Return addresses above sp give the backtrace; then the magic marks the record complete.
 static void finish_record(uint32_t sp, uint32_t sram_start, uint32_t sram_end) {
   uint32_t count = 0;
@@ -267,12 +277,7 @@ static void record_crash(arm_registers *regs, uint32_t reason, uint32_t pc_offse
   uint32_t lr = 0;
   read_saved_sp_lr(mode, &sp, &lr);
 
-  s_record.reason = reason;
-  s_record.pc = regs->pc - pc_offset;
-  s_record.lr = lr;
-  s_record.sp = sp;
-  s_record.fault_status = 0;
-  s_record.fault_address = 0;
+  fill_record(reason, regs->pc - pc_offset, lr, sp, 0, 0);
   finish_record(sp, SRAM_START, SRAM_END);
 
   lt_wdt_enable(CRASH_REBOOT_WDT_MS);
@@ -369,22 +374,17 @@ extern "C" __attribute__((used)) uint32_t esphome_record_fault(const uint32_t *f
   } else if (cfsr & CFSR_MMARVALID) {
     address = read_reg(SCB_MMFAR);
   }
-  s_record.reason = vector + CRASH_REASON_CORTEX_M_OFFSET;
-  s_record.fault_status = cfsr;
-  s_record.fault_address = address;
-
   auto frame_addr = (uint32_t) frame;
   uint32_t frame_words = (exc_return & EXC_RETURN_STANDARD_FRAME) ? FRAME_WORDS : EXTENDED_FRAME_WORDS;
+  uint32_t pc = 0;
+  uint32_t lr = 0;
   uint32_t sp = 0;
   if (frame_addr >= SRAM_START && frame_addr <= SRAM_END - frame_words * 4 && (frame_addr & 3) == 0) {
-    s_record.pc = frame[FRAME_PC];
-    s_record.lr = frame[FRAME_LR];
+    pc = frame[FRAME_PC];
+    lr = frame[FRAME_LR];
     sp = frame_addr + frame_words * 4 + ((frame[FRAME_XPSR] & XPSR_STACK_ALIGNED) ? 4 : 0);
-  } else {
-    s_record.pc = 0;
-    s_record.lr = 0;
   }
-  s_record.sp = sp;
+  fill_record(vector + CRASH_REASON_CORTEX_M_OFFSET, pc, lr, sp, cfsr, address);
   finish_record(sp, SRAM_START, SRAM_END);
   return s_sdk_fault_vectors[vector - FIRST_FAULT_VECTOR];
 }
@@ -419,27 +419,21 @@ void crash_handler_install() {
 
 #endif  // USE_LIBRETINY_CRASH_HANDLER_VECTOR_PATCH
 
-// newlib's abort() ends in _exit(), which spins without a record: the BK7238 then hangs with the watchdog never
-// firing, and the RTL8720C restarts without one. Record it like a fault and reboot through the watchdog. Interrupts
-// go off first, since every task's delay() feeds the watchdog.
+// newlib's abort() spins in _exit() with no record and, on the BK7238, no watchdog reset. Interrupts go off first
+// because every task's delay() feeds the watchdog.
 // NOLINTNEXTLINE(bugprone-reserved-identifier,cert-dcl37-c,cert-dcl51-cpp,readability-identifier-naming)
-extern "C" __attribute__((noreturn, used)) void __wrap_abort() {
+extern "C" [[noreturn]] void __wrap_abort() {
   portDISABLE_INTERRUPTS();
-  uint32_t sp;
-  __asm volatile("mov %0, sp" : "=r"(sp));
+  lt_wdt_enable(CRASH_REBOOT_WDT_MS);
 #ifdef USE_LIBRETINY_CRASH_HANDLER_VECTOR_PATCH
   // A fault from here on keeps this record
   s_fault_recorded = true;
 #endif
-  s_record.reason = CRASH_REASON_ABORT;
+  uint32_t sp;
+  __asm volatile("mov %0, sp" : "=r"(sp));
   // The call site; a Thumb return address has bit 0 set
-  s_record.pc = (uint32_t) __builtin_return_address(0) & ~1u;
-  s_record.lr = 0;
-  s_record.sp = sp;
-  s_record.fault_status = 0;
-  s_record.fault_address = 0;
+  fill_record(CRASH_REASON_ABORT, (uint32_t) __builtin_return_address(0) & ~1u, 0, sp, 0, 0);
   finish_record(sp, SRAM_START, SRAM_END);
-  lt_wdt_enable(CRASH_REBOOT_WDT_MS);
   while (true) {
   }
 }
