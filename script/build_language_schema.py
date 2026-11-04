@@ -1013,7 +1013,6 @@ def convert(schema, config_var, path):
             config_var[S_TYPE] = "trigger"
             if ejs.extended_schemas[repr(data)][0] == automation.AUTOMATION_SCHEMA:
                 extra_schema = ejs.extended_schemas[repr(data)][1]
-            # an extra schema holding only trigger_id is skipped below
             if extra_schema:
                 config = convert_config(extra_schema, path + "/extra")
                 if "schema" in config:

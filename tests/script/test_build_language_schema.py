@@ -164,7 +164,7 @@ def test_convert_automation_extra_schema(
     monkeypatch.setitem(
         _bls.ejs.extended_schemas,
         repr(data),
-        [automation.AUTOMATION_SCHEMA, cv.Schema(extra)],
+        [automation.AUTOMATION_SCHEMA, extra],
     )
     config_var: dict = {}
     _bls.convert(validator, config_var, "/test")
@@ -399,6 +399,15 @@ def test_uart_clock_source_preserves_variant_metadata(
 # the full `build_schema()` and assert the generated lvgl.json carries the data
 # the schema_extractor hooks added.
 # ---------------------------------------------------------------------------
+
+
+def test_single_key_trigger_schema_is_dumped(language_schema_dir: Path) -> None:
+    """modbus_client's on_no_response has only `retry` besides trigger_id, and it is still dumped."""
+    modbus = json.loads((language_schema_dir / "modbus_client.json").read_text())
+    action_base = modbus["modbus_client"]["schemas"]["_ACTION_BASE_SCHEMA"]
+    trigger = action_base["schema"]["config_vars"]["on_no_response"]
+
+    assert set(trigger["schema"]["config_vars"]) == {"retry", "then"}
 
 
 @pytest.fixture(scope="module")
