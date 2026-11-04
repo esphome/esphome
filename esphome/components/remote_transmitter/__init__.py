@@ -84,9 +84,12 @@ CONFIG_SCHEMA = (
                 esp32_c6=48,
                 esp32_c61=cv.UNDEFINED,
                 esp32_h2=48,
+                esp32_h4=48,
+                esp32_h21=48,
                 esp32_p4=48,
                 esp32_s2=64,
                 esp32_s3=48,
+                esp32_s31=48,
             ): cv.All(cv.only_on_esp32, cv.int_range(min=2)),
             cv.Optional(CONF_NON_BLOCKING): _validate_non_blocking_platform,
             cv.Optional(CONF_ON_TRANSMIT): automation.validate_automation(single=True),
@@ -105,6 +108,8 @@ CONFIG_SCHEMA = (
             ]
         )
     )
+    # setup_priority::DATA - 1, from RemoteTransmitterComponent::get_setup_priority()
+    .add_extra(esp32_rmt.request_rmt_channel("TX", 599.0))
 )
 
 
@@ -122,7 +127,12 @@ def _validate_non_blocking(config: ConfigType) -> None:
         config[CONF_NON_BLOCKING] = True
 
 
-FINAL_VALIDATE_SCHEMA = _validate_non_blocking
+def _final_validate(config: ConfigType) -> None:
+    _validate_non_blocking(config)
+    esp32_rmt.final_validate_rmt_channels(config)
+
+
+FINAL_VALIDATE_SCHEMA = _final_validate
 
 DIGITAL_WRITE_ACTION_SCHEMA = cv.maybe_simple_value(
     {
@@ -165,6 +175,7 @@ async def to_code(config: ConfigType) -> None:
         var = cg.new_Pvariable(config[CONF_ID], pin)
         cg.add_optional(var.set_non_blocking, config.get(CONF_NON_BLOCKING))
     await cg.register_component(var, config)
+    esp32_rmt.register_rmt_channel(config)
 
     cg.add(var.set_carrier_duty_percent(config[CONF_CARRIER_DUTY_PERCENT]))
 
