@@ -1,3 +1,0 @@
-packages:
-  uart: !include ../../test_build_components/common/uart/esp32-ard.yaml
-  rs485_frame: !include common.yaml
