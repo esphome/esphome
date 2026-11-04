@@ -13,7 +13,7 @@ from typing import Any
 
 import pytest
 
-from esphome import config_validation as cv
+from esphome import automation, config_validation as cv
 
 SCRIPT_PATH = (
     Path(__file__).resolve().parent.parent.parent
@@ -139,6 +139,41 @@ def test_convert_walks_callable_schema_extractor() -> None:
 
     assert config_var["type"] == "schema"
     assert "foo" in config_var["schema"]["config_vars"]
+
+
+@pytest.mark.parametrize(
+    ("extra", "expected_vars"),
+    [
+        ({cv.Required("foo"): cv.string}, {"foo", "then"}),
+        (
+            {cv.Optional("foo"): cv.string, cv.Optional("bar"): cv.int_},
+            {"foo", "bar", "then"},
+        ),
+        ({cv.GenerateID("trigger_id"): cv.declare_id(automation.Trigger)}, None),
+    ],
+)
+def test_convert_automation_extra_schema(
+    extra: dict, expected_vars: set[str] | None, monkeypatch: pytest.MonkeyPatch
+) -> None:
+    """A trigger's own keys are dumped even when there is only one; trigger_id alone is not."""
+    from esphome.schema_extractors import SCHEMA_EXTRACT
+
+    validator = automation.validate_automation(extra)
+    # Schema.extend registers itself only when extraction is on at import, so register it here
+    data = validator(SCHEMA_EXTRACT)
+    monkeypatch.setitem(
+        _bls.ejs.extended_schemas,
+        repr(data),
+        [automation.AUTOMATION_SCHEMA, cv.Schema(extra)],
+    )
+    config_var: dict = {}
+    _bls.convert(validator, config_var, "/test")
+
+    assert config_var["type"] == "trigger"
+    if expected_vars is None:
+        assert "schema" not in config_var
+    else:
+        assert set(config_var["schema"]["config_vars"]) == expected_vars
 
 
 def test_convert_sees_pin_through_optional_pin_wrapper() -> None:
