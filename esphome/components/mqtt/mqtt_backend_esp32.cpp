@@ -112,9 +112,12 @@ void MQTTBackendESP32::loop() {
     Event *event = this->mqtt_event_queue_.pop();
     if (event == nullptr)
       break;
+    const auto event_id = event->event_id;
     this->mqtt_event_handler_(*event);
     this->mqtt_event_pool_.release(event);
-    if (millis() - start >= EVENT_DRAIN_BUDGET_MS)
+    // Let the client see a connection change before more messages are dispatched
+    if (event_id == MQTT_EVENT_CONNECTED || event_id == MQTT_EVENT_DISCONNECTED ||
+        millis() - start >= EVENT_DRAIN_BUDGET_MS)
       break;
   }
 
