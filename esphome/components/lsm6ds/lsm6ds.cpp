@@ -1,6 +1,7 @@
 #include "lsm6ds.h"
 #include "esphome/core/log.h"
 #include "esphome/core/hal.h"
+#include "esphome/core/helpers.h"
 #include "esphome/core/progmem.h"
 
 namespace esphome::lsm6ds {
@@ -47,11 +48,9 @@ uint16_t temperature_sensitivity_from_who_am_i(uint8_t who_am_i) {
 void LSM6DSComponent::setup() {
   MotionComponent::setup();
   uint8_t who_am_i = 0;
-  if (this->read_register(LSM6DS_REG_WHO_AM_I, &who_am_i, 1) != i2c::ERROR_OK) {
-    ESP_LOGE(TAG, "Failed to read WHO_AM_I — check wiring and I2C address");
-    this->mark_failed();
+  if (!this->setup_check(this->read_register(LSM6DS_REG_WHO_AM_I, &who_am_i, 1) == i2c::ERROR_OK,
+                         LOG_STR("Failed to read WHO_AM_I — check wiring and I2C address")))
     return;
-  }
   const LogString *chip_name = chip_name_from_who_am_i(who_am_i);
   if (chip_name == nullptr) {
     ESP_LOGE(TAG, "Unknown WHO_AM_I: 0x%02X", who_am_i);
@@ -63,10 +62,9 @@ void LSM6DSComponent::setup() {
   this->temperature_sensitivity_ = temperature_sensitivity_from_who_am_i(who_am_i);
 
   // 2. Software reset — clears all registers to defaults
-  if (this->write_register(LSM6DS_REG_CTRL3_C, &CTRL3_C_SW_RESET, 1) != i2c::ERROR_OK) {
-    this->mark_failed(LOG_STR("Software reset failed"));
+  if (!this->setup_check(this->write_register(LSM6DS_REG_CTRL3_C, &CTRL3_C_SW_RESET, 1) == i2c::ERROR_OK,
+                         LOG_STR("Software reset failed")))
     return;
-  }
   // Datasheet: reset bit self-clears after boot (typ. 50 µs);
   delay(2);
 
@@ -74,39 +72,32 @@ void LSM6DSComponent::setup() {
   //    BDU prevents reading a high-byte from one sample and a low-byte from the next.
   //    IF_INC is set by default after reset but we set it explicitly for clarity.
   uint8_t ctrl3 = CTRL3_C_IF_INC | CTRL3_C_BDU;
-  if (this->write_register(LSM6DS_REG_CTRL3_C, &ctrl3, 1) != i2c::ERROR_OK) {
-    this->mark_failed(LOG_STR("Config failed"));
+  if (!this->setup_check(this->write_register(LSM6DS_REG_CTRL3_C, &ctrl3, 1) == i2c::ERROR_OK,
+                         LOG_STR("Config failed")))
     return;
-  }
 
   // 4. Configure accelerometer: ODR in bits[7:4], FS in bits[3:2]
   //    Anti-aliasing filter bandwidth is left at power-on default (bits[1:0] = 00 = ODR/2).
   uint8_t ctrl1_xl = (uint8_t) (this->accel_odr_ << 4) | (uint8_t) (this->accel_range_ << 2);
-  if (this->write_register(LSM6DS_REG_CTRL1_XL, &ctrl1_xl, 1) != i2c::ERROR_OK) {
-    this->mark_failed(LOG_STR("Failed to configure accelerometer"));
+  if (!this->setup_check(this->write_register(LSM6DS_REG_CTRL1_XL, &ctrl1_xl, 1) == i2c::ERROR_OK,
+                         LOG_STR("Failed to configure accelerometer")))
     return;
-  }
 
   // 5. Configure gyroscope: ODR in bits[7:4], FS_G + FS_125 in bits[3:0]
   //    For ±125 dps: FS_G[2:1]=00 and FS_125(bit1)=1, so gyro_range_ encodes the full nibble.
   uint8_t ctrl2_g = (uint8_t) (this->gyro_odr_ << 4) | (uint8_t) (this->gyro_range_);
-  if (this->write_register(LSM6DS_REG_CTRL2_G, &ctrl2_g, 1) != i2c::ERROR_OK) {
-    this->mark_failed(LOG_STR("Failed to configure gyroscope"));
+  if (!this->setup_check(this->write_register(LSM6DS_REG_CTRL2_G, &ctrl2_g, 1) == i2c::ERROR_OK,
+                         LOG_STR("Failed to configure gyroscope")))
     return;
-  }
 
   // 6. Ensure accelerometer is in high-performance mode (CTRL6_C bit 4 = XL_HM_MODE = 0)
   //    and gyroscope is in high-performance mode (CTRL7_G bit 7 = G_HM_MODE = 0).
   //    Both default to 0 (high-performance) after reset, but write explicitly.
   uint8_t zero = 0x00;
-  if (this->write_register(LSM6DS_REG_CTRL6_C, &zero, 1) != i2c::ERROR_OK) {
-    this->mark_failed();
+  if (!this->setup_check(this->write_register(LSM6DS_REG_CTRL6_C, &zero, 1) == i2c::ERROR_OK))
     return;
-  }
-  if (this->write_register(LSM6DS_REG_CTRL7_G, &zero, 1) != i2c::ERROR_OK) {
-    this->mark_failed();
+  if (!this->setup_check(this->write_register(LSM6DS_REG_CTRL7_G, &zero, 1) == i2c::ERROR_OK))
     return;
-  }
 }
 
 void LSM6DSComponent::dump_config() {
@@ -166,9 +157,9 @@ bool LSM6DSComponent::update_data(motion::MotionData &data) {
   };
   float gyro_scale = GYRO_SCALE[this->gyro_range_];
 
-  data.angular_rate[motion::X_AXIS] = (int16_t) ((raw[1] << 8) | raw[0]) * gyro_scale;
-  data.angular_rate[motion::Y_AXIS] = (int16_t) ((raw[3] << 8) | raw[2]) * gyro_scale;
-  data.angular_rate[motion::Z_AXIS] = (int16_t) ((raw[5] << 8) | raw[4]) * gyro_scale;
+  data.angular_rate[motion::X_AXIS] = encode_value_le<int16_t>(raw) * gyro_scale;
+  data.angular_rate[motion::Y_AXIS] = encode_value_le<int16_t>(&raw[2]) * gyro_scale;
+  data.angular_rate[motion::Z_AXIS] = encode_value_le<int16_t>(&raw[4]) * gyro_scale;
 
   //  Accelerometer
   // Sensitivity (mg/LSB) from datasheet Table 3.
@@ -182,12 +173,9 @@ bool LSM6DSComponent::update_data(motion::MotionData &data) {
   };
   float accel_scale = ACCEL_SCALE[this->accel_range_];
 
-  data.acceleration[motion::X_AXIS] =
-      (int16_t) ((raw[LSM6DS_ACCEL_OFFSET + 1] << 8) | raw[LSM6DS_ACCEL_OFFSET + 0]) * accel_scale;
-  data.acceleration[motion::Y_AXIS] =
-      (int16_t) ((raw[LSM6DS_ACCEL_OFFSET + 3] << 8) | raw[LSM6DS_ACCEL_OFFSET + 2]) * accel_scale;
-  data.acceleration[motion::Z_AXIS] =
-      (int16_t) ((raw[LSM6DS_ACCEL_OFFSET + 5] << 8) | raw[LSM6DS_ACCEL_OFFSET + 4]) * accel_scale;
+  data.acceleration[motion::X_AXIS] = encode_value_le<int16_t>(&raw[LSM6DS_ACCEL_OFFSET]) * accel_scale;
+  data.acceleration[motion::Y_AXIS] = encode_value_le<int16_t>(&raw[LSM6DS_ACCEL_OFFSET + 2]) * accel_scale;
+  data.acceleration[motion::Z_AXIS] = encode_value_le<int16_t>(&raw[LSM6DS_ACCEL_OFFSET + 4]) * accel_scale;
 
   //  Temperature (lazy — only read if a listener is registered)
   // Kept as a separate 2-byte read to avoid extending the burst to 14 bytes when
@@ -196,7 +184,7 @@ bool LSM6DSComponent::update_data(motion::MotionData &data) {
   if (!this->temperature_callback_.empty()) {
     uint8_t raw_t[2];
     if (this->read_bytes(LSM6DS_REG_OUT_TEMP_L, raw_t, 2)) {
-      int16_t temp_raw = (int16_t) ((raw_t[1] << 8) | raw_t[0]);
+      int16_t temp_raw = encode_value_le<int16_t>(raw_t);
       float temperature = temp_raw / static_cast<float>(this->temperature_sensitivity_) + 25.0f;
       this->temperature_callback_.call(temperature);
     }

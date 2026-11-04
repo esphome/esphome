@@ -44,9 +44,7 @@ RC522_SCHEMA = cv.Schema(
 async def setup_rc522(var: MockObj, config: ConfigType) -> None:
     await cg.register_component(var, config)
 
-    if CONF_RESET_PIN in config:
-        reset = await cg.gpio_pin_expression(config[CONF_RESET_PIN])
-        cg.add(var.set_reset_pin(reset))
+    await cg.add_pin(var.set_reset_pin, config.get(CONF_RESET_PIN))
 
     for conf in config.get(CONF_ON_TAG, []):
         trigger = cg.new_Pvariable(conf[CONF_TRIGGER_ID])

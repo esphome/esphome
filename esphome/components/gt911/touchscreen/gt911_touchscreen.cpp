@@ -90,23 +90,19 @@ void GT911Touchscreen::setup_internal_() {
       if (err == i2c::ERROR_OK) {
         err = this->read(data, sizeof(data));
         if (err == i2c::ERROR_OK) {
-          this->x_raw_max_ = encode_uint16(data[1], data[0]);
-          this->y_raw_max_ = encode_uint16(data[3], data[2]);
+          this->x_raw_max_ = encode_value_le<uint16_t>(data);
+          this->y_raw_max_ = encode_value_le<uint16_t>(&data[2]);
           if (this->swap_x_y_)
             std::swap(this->x_raw_max_, this->y_raw_max_);
         }
       }
     }
-    if (err != i2c::ERROR_OK) {
-      this->mark_failed(LOG_STR("Calibration error"));
+    if (!this->setup_check(err == i2c::ERROR_OK, LOG_STR("Calibration error")))
       return;
-    }
   }
 
-  if (err != i2c::ERROR_OK) {
-    this->mark_failed(LOG_STR(ESP_LOG_MSG_COMM_FAIL));
+  if (!this->setup_check(err == i2c::ERROR_OK))
     return;
-  }
   this->setup_done_ = true;
 }
 

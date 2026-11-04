@@ -53,7 +53,7 @@ void BedJetFan::control(const fan::FanCall &call) {
 }
 
 void BedJetFan::on_status(const BedjetStatusPacket *data) {
-  ESP_LOGVV(TAG, "[%s] Handling on_status with data=%p", this->get_name().c_str(), (void *) data);
+  ESP_LOGVV(TAG, "[%s] Handling on_status with data=%p", LOG_STR_ARG(this->get_log_name()), (void *) data);
   bool did_change = false;
   bool new_state = data->mode != MODE_STANDBY && data->mode != MODE_WAIT;
 
@@ -96,11 +96,11 @@ bool BedJetFan::update_status_() {
 }
 
 void BedJetFan::update() {
-  ESP_LOGD(TAG, "[%s] update()", this->get_name().c_str());
+  ESP_LOGD(TAG, "[%s] update()", LOG_STR_ARG(this->get_log_name()));
   // TODO: if the hub component is already polling, do we also need to include polling?
   //  We're already going to get on_status() at the hub's polling interval.
   auto result = this->update_status_();
-  ESP_LOGD(TAG, "[%s] update_status result=%s", this->get_name().c_str(), result ? "true" : "false");
+  ESP_LOGD(TAG, "[%s] update_status result=%s", LOG_STR_ARG(this->get_log_name()), result ? "true" : "false");
 }
 
 /** Resets states to defaults. */

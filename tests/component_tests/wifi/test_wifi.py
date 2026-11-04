@@ -3,14 +3,16 @@
 import pytest
 from voluptuous import Invalid
 
-from esphome.components.wifi import _validate
+from esphome.components.wifi import CONFIG_SCHEMA, _validate
 from esphome.const import (
     CONF_HIDDEN,
     CONF_NETWORKS,
     CONF_PASSWORD,
     CONF_SSID,
     CONF_USE_ADDRESS,
+    PlatformFramework,
 )
+from tests.component_tests.types import SetCoreConfigCallable
 
 
 def test_hidden_folded_into_networks() -> None:
@@ -45,7 +47,8 @@ def test_shorthand_without_hidden_has_no_hidden_key() -> None:
     assert CONF_HIDDEN not in config[CONF_NETWORKS][0]
 
 
-def test_hidden_without_ssid_rejected() -> None:
+def test_hidden_without_ssid_rejected(set_core_config: SetCoreConfigCallable) -> None:
     """A 'hidden' option without an SSID has nothing to apply to and is rejected."""
-    with pytest.raises(Invalid, match="hidden"):
-        _validate({CONF_HIDDEN: True, CONF_USE_ADDRESS: "test.local"})
+    set_core_config(PlatformFramework.ESP8266_ARDUINO)
+    with pytest.raises(Invalid, match="'hidden' requires 'ssid'"):
+        CONFIG_SCHEMA({CONF_HIDDEN: True})

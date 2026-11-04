@@ -136,7 +136,6 @@ class BMI270Component final : public motion::MotionComponent, public i2c::I2CDev
   // Lifecycle
   void setup() override;
   void dump_config() override;
-  float get_setup_priority() const override { return setup_priority::DATA; }
 
   // Configuration setters
   void set_accel_range(BMI270AccelRange r) { this->accel_range_ = r; }

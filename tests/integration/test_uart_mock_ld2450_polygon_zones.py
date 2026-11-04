@@ -11,7 +11,6 @@ Tests:
 from __future__ import annotations
 
 import asyncio
-from pathlib import Path
 import re
 
 from aioesphomeapi import (
@@ -29,7 +28,7 @@ import pytest
 from esphome.components.ld2450.text import POLYGON_MAX_LENGTH, POLYGON_PATTERN
 
 from .host_prefs import clear_host_prefs
-from .state_utils import InitialStateHelper, StateWaiter, require_entity
+from .state_utils import require_entity, subscribe_after_initial_states
 from .types import APIClientConnectedFactory, RunCompiledFunction
 
 DEVICE_NAME = "uart-mock-ld2450-zones"
@@ -44,12 +43,6 @@ async def test_uart_mock_ld2450_polygon_zones(
     api_client_connected: APIClientConnectedFactory,
 ) -> None:
     """Test LD2450 polygon zone configuration and presence detection."""
-    external_components_path = str(
-        Path(__file__).parent / "fixtures" / "external_components"
-    )
-    yaml_config = yaml_config.replace(
-        "EXTERNAL_COMPONENT_PATH", external_components_path
-    )
     # Polygons are saved, so a previous run would otherwise restore them
     clear_host_prefs(DEVICE_NAME)
 
@@ -71,28 +64,22 @@ async def test_uart_mock_ld2450_polygon_zones(
         presence_history: dict[str, list[bool | None]] = {
             name: [] for name in presences
         }
-        waiter = StateWaiter()
-        expect = waiter.expect
 
         def on_state(state: EntityState) -> None:
             if isinstance(state, BinarySensorState) and state.key in presence_names:
                 presence_history[presence_names[state.key]].append(
                     None if state.missing_state else state.state
                 )
-            waiter.on_state(state)
 
-        initial_state_helper = InitialStateHelper(entities)
-        client.subscribe_states(initial_state_helper.on_state_wrapper(on_state))
-        await initial_state_helper.wait_for_initial_states()
+        sub = await subscribe_after_initial_states(client, entities, on_state=on_state)
+        expect = sub.waiter.expect
 
         for name, polygon in polygons.items():
             # Home Assistant validates input and the zone card finds zones with these
             assert polygon.pattern == POLYGON_PATTERN
             assert polygon.max_length == POLYGON_MAX_LENGTH
-            assert initial_state_helper.initial_states[polygon.key].state == ""
-            assert initial_state_helper.initial_states[
-                presences[name].key
-            ].missing_state
+            assert sub.initial_states[polygon.key].state == ""
+            assert sub.initial_states[presences[name].key].missing_state
 
         async def set_polygon(name: str, value: str, expected: str) -> None:
             key = polygons[name].key

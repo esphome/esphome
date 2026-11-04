@@ -8,7 +8,7 @@ from unittest.mock import AsyncMock, MagicMock, call, patch
 import pytest
 
 from esphome import cpp_helpers
-from esphome.components import i2c, spi, uart
+from esphome.components import ble_client, ble_device_base, i2c, modbus, spi, uart
 from esphome.const import CONF_ID
 
 
@@ -18,6 +18,17 @@ from esphome.const import CONF_ID
         (i2c.new_i2c_component, i2c, "register_i2c_device"),
         (uart.new_uart_component, uart, "register_uart_device"),
         (spi.new_spi_component, spi, "register_spi_device"),
+        (
+            ble_device_base.new_ble_device_component,
+            ble_device_base,
+            "register_ble_device",
+        ),
+        (ble_client.new_ble_node_component, ble_client, "register_ble_node"),
+        (
+            modbus.new_modbus_client_component,
+            modbus,
+            "register_modbus_client_device",
+        ),
     ],
 )
 @pytest.mark.asyncio
@@ -47,7 +58,14 @@ async def test_creates_registers_and_attaches_in_order(
 
 @pytest.mark.parametrize(
     "helper",
-    [i2c.new_i2c_component, uart.new_uart_component, spi.new_spi_component],
+    [
+        i2c.new_i2c_component,
+        uart.new_uart_component,
+        spi.new_spi_component,
+        ble_device_base.new_ble_device_component,
+        ble_client.new_ble_node_component,
+        modbus.new_modbus_client_component,
+    ],
 )
 def test_wrappers_are_plain_functions(helper: Callable[..., Any]) -> None:
     # An async wrapper would stay on the stack and become the component source.

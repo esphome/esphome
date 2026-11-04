@@ -184,9 +184,7 @@ FINAL_VALIDATE_SCHEMA = modbus.final_validate_modbus_device("pzem6l24", role="cl
 
 
 async def to_code(config: ConfigType) -> None:
-    var = cg.new_Pvariable(config[CONF_ID])
-    await cg.register_component(var, config)
-    await modbus.register_modbus_client_device(var, config)
+    var = await modbus.new_modbus_client_component(config)
 
     sensors = sensor.sub_sensors(config)
     await sensors("voltage_a", var.set_voltage_a_sensor)

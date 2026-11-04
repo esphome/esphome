@@ -198,7 +198,8 @@ template<typename T> class DisplayWriter {
 
   // For stateless lambdas (convertible to function pointer): use function pointer (4 bytes)
   template<typename F>
-  DisplayWriter(F f) requires std::invocable<F, T &> && std::convertible_to<F, void (*)(T &)>
+  DisplayWriter(F f)
+    requires std::invocable<F, T &> && std::convertible_to<F, void (*)(T &)>
       : type_(STATELESS_LAMBDA) {
     this->stateless_f_ = f;  // Implicit conversion to function pointer
   }
@@ -206,7 +207,9 @@ template<typename T> class DisplayWriter {
   // For stateful lambdas and std::function (not convertible to function pointer): use std::function* (heap allocated)
   // This handles backwards compatibility with external components
   template<typename F>
-  DisplayWriter(F f) requires std::invocable<F, T &> &&(!std::convertible_to<F, void (*)(T &)>) : type_(LAMBDA) {
+  DisplayWriter(F f)
+    requires std::invocable<F, T &> && (!std::convertible_to<F, void (*)(T &)>)
+      : type_(LAMBDA) {
     this->f_ = new std::function<void(T &)>(std::move(f));
   }
 

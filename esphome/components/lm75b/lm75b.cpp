@@ -1,4 +1,5 @@
 #include "lm75b.h"
+#include "esphome/core/helpers.h"
 #include "esphome/core/log.h"
 #include "esphome/core/hal.h"
 
@@ -21,7 +22,7 @@ void LM75BComponent::update() {
     return;
   }
   // Obtain combined 16-bit value
-  int16_t raw_temperature = (buff[0] << 8) | buff[1];
+  int16_t raw_temperature = encode_value<int16_t>(buff);
   // Read the 11-bit raw temperature value
   raw_temperature >>= 5;
   // Publish the temperature in °C

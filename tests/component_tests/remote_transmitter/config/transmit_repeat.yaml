@@ -13,16 +13,12 @@ button:
     name: Toto default repeat
     on_press:
       - remote_transmitter.transmit_toto:
-          command: 0xEC
-          rc_code_1: 0x0D
-          rc_code_2: 0x0D
+          code: 0x37BB
   - platform: template
     name: Toto explicit repeat
     on_press:
       - remote_transmitter.transmit_toto:
-          command: 0xEC
-          rc_code_1: 0x0D
-          rc_code_2: 0x0D
+          code: 0x37BB
           repeat:
             times: 2
             wait_time: 20ms

@@ -20,10 +20,9 @@ void PN532::setup() {
   // Get version data
   if (!this->write_command_({PN532_COMMAND_VERSION_DATA})) {
     ESP_LOGW(TAG, "Error sending version command, trying again");
-    if (!this->write_command_({PN532_COMMAND_VERSION_DATA})) {
-      this->mark_failed(LOG_STR("Error sending version command"));
+    if (!this->setup_check(this->write_command_({PN532_COMMAND_VERSION_DATA}),
+                           LOG_STR("Error sending version command")))
       return;
-    }
   }
 
   PN532Frame version_data;
@@ -45,10 +44,9 @@ void PN532::setup() {
   }
 
   PN532Frame wakeup_result;
-  if (!this->read_response(PN532_COMMAND_SAMCONFIGURATION, wakeup_result)) {
-    this->mark_failed(LOG_STR("Wake Up command failed"));
+  if (!this->setup_check(this->read_response(PN532_COMMAND_SAMCONFIGURATION, wakeup_result),
+                         LOG_STR("Wake Up command failed")))
     return;
-  }
 
   // Set up SAM (secure access module)
   uint8_t sam_timeout = std::min<uint8_t>(255u, this->update_interval_ / 50);
@@ -106,16 +104,15 @@ void PN532::update() {
     obj->on_scan_end();
 #endif
 
-  if (!this->write_command_({
-          PN532_COMMAND_INLISTPASSIVETARGET,
-          0x01,  // max 1 card
-          0x00,  // baud rate ISO14443A (106 kbit/s)
-      })) {
+  const bool ok = this->write_command_({
+      PN532_COMMAND_INLISTPASSIVETARGET,
+      0x01,  // max 1 card
+      0x00,  // baud rate ISO14443A (106 kbit/s)
+  });
+  if (!this->status_comm_result(ok)) {
     ESP_LOGW(TAG, "Requesting tag read failed!");
-    this->status_set_warning();
     return;
   }
-  this->status_clear_warning();
   this->requested_read_ = true;
 }
 

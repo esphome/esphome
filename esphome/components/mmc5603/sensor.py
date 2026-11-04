@@ -84,5 +84,4 @@ async def to_code(config: ConfigType) -> None:
     await sensors(CONF_FIELD_STRENGTH_Y, var.set_y_sensor)
     await sensors(CONF_FIELD_STRENGTH_Z, var.set_z_sensor)
     await sensors(CONF_HEADING, var.set_heading_sensor)
-    if CONF_AUTO_SET_RESET in config:
-        cg.add(var.set_auto_set_reset(config[CONF_AUTO_SET_RESET]))
+    cg.add_optional(var.set_auto_set_reset, config.get(CONF_AUTO_SET_RESET))

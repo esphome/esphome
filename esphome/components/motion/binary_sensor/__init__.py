@@ -113,5 +113,4 @@ async def to_code(config: ConfigType) -> None:
         # Convert the configured tilt angle (degrees) to the cosine the C++ side expects.
         threshold = round(math.cos(math.radians(threshold)), 6)
     cg.add(var.set_threshold(threshold))
-    if (duration := config.get(CONF_DURATION)) is not None:
-        cg.add(var.set_duration(duration))
+    cg.add_optional(var.set_duration, config.get(CONF_DURATION))

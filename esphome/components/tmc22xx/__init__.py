@@ -162,9 +162,7 @@ def final_validate(config: ConfigType) -> ConfigType:
 
 
 async def new_tmc22xx(config: ConfigType) -> cg.Pvariable:
-    var = cg.new_Pvariable(config[CONF_ID])
-    await cg.register_component(var, config)
-    await uart.register_uart_device(var, config)
+    var = await uart.new_uart_component(config)
     await stepper.register_stepper(var, config)
 
     cg.add(var.set_address(config[CONF_ADDRESS]))
@@ -178,8 +176,7 @@ async def new_tmc22xx(config: ConfigType) -> cg.Pvariable:
         (CONF_INDEX_PIN, var.set_index_pin),
         (CONF_DIAG_PIN, var.set_diag_pin),
     ):
-        if (pin := config.get(key)) is not None:
-            cg.add(setter(await cg.gpio_pin_expression(pin)))
+        await cg.add_pin(setter, config.get(key))
     for key, setter in (
         (CONF_RSENSE, var.set_rsense),
         (CONF_VSENSE, var.set_vsense),
@@ -244,7 +241,7 @@ def register_actions(domain: str, cls: MockObjClass) -> None:
                 ),
                 cv.Exclusive(CONF_IHOLD, "hold"): cv.templatable(cv.int_range(0, 31)),
                 cv.Optional(CONF_IHOLDDELAY): cv.templatable(cv.int_range(0, 15)),
-                cv.Optional(CONF_TPOWERDOWN): cv.templatable(cv.int_range(0, 255)),
+                cv.Optional(CONF_TPOWERDOWN): cv.templatable(cv.uint8_t),
                 cv.Optional(CONF_STANDSTILL_MODE): cv.templatable(
                     cv.enum(STANDSTILL_MODES, lower=True)
                 ),

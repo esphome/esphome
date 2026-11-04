@@ -1,3 +1,4 @@
+#include "esphome/core/helpers.h"
 #include "esphome/core/log.h"
 #include "stts22h.h"
 
@@ -37,9 +38,6 @@ void STTS22HComponent::dump_config() {
   LOG_SENSOR("", "STTS22H", this);
   LOG_I2C_DEVICE(this);
   LOG_UPDATE_INTERVAL(this);
-  if (this->is_failed()) {
-    ESP_LOGE(TAG, ESP_LOG_MSG_COMM_FAIL);
-  }
 }
 
 float STTS22HComponent::read_temperature_() {
@@ -51,33 +49,27 @@ float STTS22HComponent::read_temperature_() {
 
   // Combine the two bytes into a single 16-bit signed integer
   // The STTS22H temperature data is in two's complement format
-  int16_t temp_raw_value = static_cast<int16_t>(encode_uint16(temp_reg_value[1], temp_reg_value[0]));
+  int16_t temp_raw_value = encode_value_le<int16_t>(temp_reg_value);
   return temp_raw_value * SENSOR_SCALE;  // Apply sensor resolution
 }
 
 void STTS22HComponent::initialize_sensor_() {
   // Read current CTRL_REG configuration
   uint8_t ctrl_value;
-  if (this->read_register(CTRL_REG, &ctrl_value, 1) != i2c::NO_ERROR) {
-    this->mark_failed(LOG_STR(ESP_LOG_MSG_COMM_FAIL));
+  if (!this->setup_check(this->read_register(CTRL_REG, &ctrl_value, 1) == i2c::NO_ERROR))
     return;
-  }
 
   // Enable low ODR mode and enable ADD_INC
   // Before low ODR mode can be used,
   // FREERUN bit must be cleared (see sensor documentation)
   ctrl_value &= ~FREERUN_CTRL_ENABLE_FLAG;  // Clear FREERUN bit
-  if (this->write_register(CTRL_REG, &ctrl_value, 1) != i2c::NO_ERROR) {
-    this->mark_failed(LOG_STR(ESP_LOG_MSG_COMM_FAIL));
+  if (!this->setup_check(this->write_register(CTRL_REG, &ctrl_value, 1) == i2c::NO_ERROR))
     return;
-  }
 
   // Enable LOW ODR mode and ADD_INC
   ctrl_value |= LOW_ODR_CTRL_ENABLE_FLAG | ADD_INC_ENABLE_FLAG;  // Set LOW ODR bit and ADD_INC bit
-  if (this->write_register(CTRL_REG, &ctrl_value, 1) != i2c::NO_ERROR) {
-    this->mark_failed(LOG_STR(ESP_LOG_MSG_COMM_FAIL));
+  if (!this->setup_check(this->write_register(CTRL_REG, &ctrl_value, 1) == i2c::NO_ERROR))
     return;
-  }
 }
 
 }  // namespace esphome::stts22h

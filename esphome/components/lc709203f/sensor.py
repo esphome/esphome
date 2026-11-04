@@ -60,7 +60,7 @@ CONFIG_SCHEMA = (
                 entity_category=ENTITY_CATEGORY_DIAGNOSTIC,
             ).extend(
                 {
-                    cv.Required(CONF_B_CONSTANT): cv.int_range(0, 0xFFFF),
+                    cv.Required(CONF_B_CONSTANT): cv.uint16_t,
                 }
             ),
         }

@@ -11,6 +11,11 @@ from . import EpaperModel
 
 
 class WaveshareModel(EpaperModel):
+    source_files = (
+        "epaper_spi_mono.cpp",
+        "epaper_waveshare.cpp",
+    )
+
     def __init__(
         self,
         name: str,

@@ -153,6 +153,4 @@ async def to_code(config: ConfigType) -> None:
     await sensors(CONF_FIELD_STRENGTH_Z, var.set_z_sensor)
     await sensors(CONF_HEADING, var.set_heading_sensor)
     await sensors(CONF_TEMPERATURE, var.set_temperature_sensor)
-    if CONF_DRDY_PIN in config:
-        pin = await cg.gpio_pin_expression(config[CONF_DRDY_PIN])
-        cg.add(var.set_drdy_pin(pin))
+    await cg.add_pin(var.set_drdy_pin, config.get(CONF_DRDY_PIN))

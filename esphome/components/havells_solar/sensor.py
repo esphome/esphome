@@ -5,7 +5,6 @@ from esphome.const import (
     CONF_ACTIVE_POWER,
     CONF_CURRENT,
     CONF_FREQUENCY,
-    CONF_ID,
     CONF_PHASE_A,
     CONF_PHASE_B,
     CONF_PHASE_C,
@@ -225,9 +224,7 @@ FINAL_VALIDATE_SCHEMA = _final_validate
 
 
 async def to_code(config: ConfigType) -> None:
-    var = cg.new_Pvariable(config[CONF_ID])
-    await cg.register_component(var, config)
-    await modbus.register_modbus_client_device(var, config)
+    var = await modbus.new_modbus_client_component(config)
 
     sensors = sensor.sub_sensors(config)
     await sensors(CONF_FREQUENCY, var.set_frequency_sensor)

@@ -19,7 +19,7 @@ static constexpr uint32_t MAX_TRANSFER_TIME_MS = 20;
 // --- Loop / scheduling -------------------------------------------------------
 
 void IT8951Display::enqueue_(OpType type, uint16_t a, uint16_t b) {
-  if (!this->queue_.push_back(Op{type, a, b})) {
+  if (!this->queue_.push(Op{type, a, b})) {
     ESP_LOGE(TAG, "Op queue overflow (cap=%u); dropping op type=%u", static_cast<unsigned>(OP_QUEUE_SIZE),
              static_cast<unsigned>(type));
   }
@@ -74,7 +74,7 @@ void IT8951Display::loop() {
     return;
   }
 
-  this->queue_.pop_front();
+  this->queue_.pop();
   this->process_op_(queued_op);
 }
 
@@ -330,10 +330,8 @@ void IT8951Display::setup() {
   this->buffer_length_ = static_cast<size_t>(this->row_width_) * static_cast<size_t>(this->height_);
   RAMAllocator<uint8_t> allocator{};
   this->buffer_ = allocator.allocate(this->buffer_length_);
-  if (this->buffer_ == nullptr) {
-    this->mark_failed(LOG_STR("Failed to allocate IT8951 framebuffer"));
+  if (!this->setup_check(this->buffer_ != nullptr, LOG_STR("Failed to allocate IT8951 framebuffer")))
     return;
-  }
   // The allocator does not zero memory; start blank (white) so undrawn regions
   // (e.g. with auto_clear disabled) don't show garbage on the first update.
   this->fill(Color::WHITE);
@@ -982,13 +980,12 @@ void HOT IT8951Display::draw_pixels_internal(int x_start, int y_start, int w, in
       switch (bitness) {
         case COLOR_BITNESS_565: {
           const size_t i = source_idx * 2;
-          color_value = big_endian ? (static_cast<uint32_t>(ptr[i]) << 8) | ptr[i + 1]
-                                   : ptr[i] | (static_cast<uint32_t>(ptr[i + 1]) << 8);
+          color_value = big_endian ? encode_uint16(ptr[i], ptr[i + 1]) : encode_value_le<uint16_t>(&ptr[i]);
           break;
         }
         case COLOR_BITNESS_888: {
           const size_t i = source_idx * 3;
-          color_value = ptr[i] | (static_cast<uint32_t>(ptr[i + 1]) << 8) | (static_cast<uint32_t>(ptr[i + 2]) << 16);
+          color_value = encode_uint24(ptr[i + 2], ptr[i + 1], ptr[i]);
           break;
         }
         default:

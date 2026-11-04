@@ -91,25 +91,36 @@ class FakeEncryptedDevice(threading.Thread):
         self.prologue_features_override = prologue_features_override
         self.received: bytes | None = None
         self.probes = 0  # clients that left right after the handshake
+        self.served = 0
         self.error: Exception | None = None
         self.listener = socket.socket(socket.AF_INET, socket.SOCK_STREAM)
         self.listener.bind(("127.0.0.1", 0))
         self.listener.listen(1)
+        # Poll accept() so the thread can stop once the client is done: how
+        # many connections a deadline-bound client makes depends on timing,
+        # so ``connections`` is an upper bound, not a requirement.
+        self.listener.settimeout(0.05)
         self.port = self.listener.getsockname()[1]
+        self._client_done = threading.Event()
 
     def run(self) -> None:
         try:
-            for _ in range(self.connections):
-                sock, _ = self.listener.accept()
+            while self.served < self.connections and not self._client_done.is_set():
+                try:
+                    sock, _ = self.listener.accept()
+                except TimeoutError:
+                    continue
                 sock.settimeout(10)
                 with sock:
                     self._serve(sock)
+                self.served += 1
         except Exception as err:  # noqa: BLE001 - surfaced via join_and_check
             self.error = err
         finally:
             self.listener.close()
 
     def join_and_check(self) -> None:
+        self._client_done.set()
         self.join(timeout=10)
         assert not self.is_alive(), "fake device did not finish"
         if self.error is not None:
@@ -809,14 +820,29 @@ def test_probe_ota_key_gives_up_at_the_deadline(
     device_kwargs: dict[str, Any], caplog: pytest.LogCaptureFixture
 ) -> None:
     pytest.importorskip("aioesphomeapi.noise")
-    device = FakeEncryptedDevice(connections=2, **device_kwargs)
+    # One spare connection, so a third attempt would be served and counted
+    device = FakeEncryptedDevice(connections=3, **device_kwargs)
     device.start()
-    with patch("time.sleep"), caplog.at_level(logging.WARNING):
+    # Only the retry pauses move the clock, so a slow runner cannot reach
+    # the deadline in the middle of a handshake
+    clock = [0.0]
+
+    def sleep(seconds: float) -> None:
+        clock[0] += seconds
+
+    with (
+        patch("time.sleep", side_effect=sleep),
+        patch("time.monotonic", side_effect=lambda: clock[0]),
+        caplog.at_level(logging.WARNING),
+    ):
         assert (
-            espota2.probe_ota_key("127.0.0.1", device.port, PSK, timeout=0.5)
+            espota2.probe_ota_key("127.0.0.1", device.port, PSK, timeout=5)
             is not ProbeResult.ACCEPTED
         )
     device.join_and_check()
+    # Tried at 0 and 3 s; the last pause stops at the deadline
+    assert device.served == 2
+    assert clock[0] == 5
     assert any("Checking the key failed" in r.message for r in caplog.records)
     assert device.received is None
 

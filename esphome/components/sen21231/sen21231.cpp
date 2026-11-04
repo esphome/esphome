@@ -15,12 +15,10 @@ void Sen21231Sensor::dump_config() {
 
 void Sen21231Sensor::read_data_() {
   person_sensor_results_t results;
-  if (!this->read_bytes(PERSON_SENSOR_I2C_ADDRESS, (uint8_t *) &results, sizeof(results))) {
+  if (!this->status_comm_result(this->read_bytes(PERSON_SENSOR_I2C_ADDRESS, (uint8_t *) &results, sizeof(results)))) {
     ESP_LOGW(TAG, "Failed to read data from SEN21231");
-    this->status_set_warning();
     return;
   }
-  this->status_clear_warning();
   ESP_LOGD(TAG, "SEN21231: %d faces detected", results.num_faces);
   this->publish_state(results.num_faces);
   if (results.num_faces == 1) {

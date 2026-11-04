@@ -1,11 +1,45 @@
 #include "sen6x.h"
 #include "esphome/core/hal.h"
 #include "esphome/core/log.h"
+#include "esphome/core/progmem.h"
+#include <cinttypes>
 #include <cmath>
+#include <iterator>
 
 namespace esphome::sen6x {
 
 ESPHOME_LOG_TAG(TAG, "sen6x");
+
+// Indexed by Sen6xType
+PROGMEM_STRING_TABLE(TypeStrings, "SEN62", "SEN63C", "SEN65", "SEN66", "SEN68", "SEN69C", "UNKNOWN");
+
+static SEN6XComponent::Sen6xType infer_type_from_product_name(const char *product_name) {
+  const int16_t type = progmem_string_table_find<TypeStrings>(product_name, strnlen(product_name, 32));
+  return type < 0 ? SEN6XComponent::UNKNOWN : static_cast<SEN6XComponent::Sen6xType>(type);
+}
+
+#ifdef SEN6X_STATUS_SENSOR_COUNT
+// Bit of the status register behind each kind; the CO2 error bit is 9 on SEN66 and 12 on SEN63C/SEN69C
+static uint8_t status_bit(Sen6xStatus status, SEN6XComponent::Sen6xType type) {
+  switch (status) {
+    case Sen6xStatus::SEN6X_STATUS_FAN_ERROR:
+      return 4;
+    case Sen6xStatus::SEN6X_STATUS_FAN_SPEED_WARNING:
+      return 21;
+    case Sen6xStatus::SEN6X_STATUS_RHT_ERROR:
+      return 6;
+    case Sen6xStatus::SEN6X_STATUS_GAS_ERROR:
+      return 7;
+    case Sen6xStatus::SEN6X_STATUS_CO2_ERROR:
+      return type == SEN6XComponent::SEN66 ? 9 : 12;
+    case Sen6xStatus::SEN6X_STATUS_HCHO_ERROR:
+      return 10;
+    case Sen6xStatus::SEN6X_STATUS_PM_ERROR:
+      return 11;
+  }
+  return 0;
+}
+#endif
 
 static constexpr uint8_t POLL_RETRIES = 24;     // 24 attempts
 static constexpr uint32_t I2C_READ_DELAY = 20;  // 20 ms to wait for I2C read to complete
@@ -25,11 +59,11 @@ static constexpr uint32_t CO2_CONDITIONING_DELAY = 24000;
 // Accepted range of a runtime pressure source, the same as the schema's ambient_pressure_compensation
 static constexpr float AMBIENT_PRESSURE_MIN_HPA = 700.0f;
 static constexpr float AMBIENT_PRESSURE_MAX_HPA = 1200.0f;
-static constexpr uint32_t STARTUP_DELAY = 60000;  // ms before published values are considered valid
 static constexpr uint16_t SEN6X_CMD_GET_DATA_READY_STATUS = 0x0202;
 static constexpr uint16_t SEN6X_CMD_GET_FIRMWARE_VERSION = 0xD100;
 static constexpr uint16_t SEN6X_CMD_GET_PRODUCT_NAME = 0xD014;
 static constexpr uint16_t SEN6X_CMD_GET_SERIAL_NUMBER = 0xD033;
+static constexpr uint16_t SEN6X_CMD_READ_AND_CLEAR_DEVICE_STATUS = 0xD210;
 
 static constexpr uint16_t SEN6X_CMD_READ_MEASUREMENT = 0x0300;  // SEN66 only!
 static constexpr uint16_t SEN6X_CMD_READ_MEASUREMENT_SEN62 = 0x04A3;
@@ -38,6 +72,9 @@ static constexpr uint16_t SEN6X_CMD_READ_MEASUREMENT_SEN65 = 0x0446;
 static constexpr uint16_t SEN6X_CMD_READ_MEASUREMENT_SEN68 = 0x0467;
 static constexpr uint16_t SEN6X_CMD_READ_MEASUREMENT_SEN69C = 0x04B5;
 
+#ifdef USE_SEN6X_NUMBER_CONCENTRATION
+static constexpr uint16_t SEN6X_CMD_READ_NUMBER_CONCENTRATION = 0x0316;
+#endif
 static constexpr uint16_t SEN6X_CMD_START_MEASUREMENTS = 0x0021;
 static constexpr uint16_t SEN6X_CMD_STOP_MEASUREMENTS = 0x0104;
 static constexpr uint16_t SEN6X_CMD_START_FAN_CLEANING = 0x5607;
@@ -45,6 +82,8 @@ static constexpr uint16_t SEN6X_CMD_ACTIVATE_SHT_HEATER = 0x6765;
 static constexpr uint16_t SEN6X_CMD_RESET = 0xD304;
 static constexpr uint16_t SEN6X_CMD_VOC_ALGORITHM_TUNING = 0x60D0;
 static constexpr uint16_t SEN6X_CMD_NOX_ALGORITHM_TUNING = 0x60E1;
+static constexpr uint16_t SEN6X_CMD_TEMPERATURE_COMPENSATION = 0x60B2;
+static constexpr uint16_t SEN6X_CMD_TEMPERATURE_ACCELERATION = 0x6100;
 static constexpr uint16_t SEN6X_CMD_CO2_AUTOMATIC_SELF_CAL = 0x6711;
 static constexpr uint16_t SEN6X_CMD_AMBIENT_PRESSURE = 0x6720;
 static constexpr uint16_t SEN6X_CMD_SENSOR_ALTITUDE = 0x6736;
@@ -103,33 +142,36 @@ void SEN6XComponent::setup() {
         this->mark_failed(LOG_STR(ESP_LOG_MSG_COMM_FAIL));
         return;
       }
-      this->serial_number_ = SEN6XComponent::sensirion_convert_to_string_in_place(raw_serial_number, 16);
-      ESP_LOGI(TAG, "Serial number: %s", this->serial_number_.c_str());
+      // The last byte of serial_number_ stays 0, so a full 32-byte serial is still terminated
+      memcpy(this->serial_number_, SEN6XComponent::sensirion_convert_to_string_in_place(raw_serial_number, 16),
+             sizeof(this->serial_number_) - 1);
+      ESP_LOGI(TAG, "Serial number: %s", this->serial_number_);
 
       // Step 2: Read product name in next loop iteration
       this->set_timeout(0, [this]() {
-        uint16_t raw_product_name[16];
+        // One spare zero word so a full 32-byte name is still terminated
+        uint16_t raw_product_name[17]{};
         if (!this->get_register(SEN6X_CMD_GET_PRODUCT_NAME, raw_product_name, 16, 20)) {
           ESP_LOGE(TAG, ESP_LOG_MSG_COMM_FAIL);
           this->mark_failed(LOG_STR(ESP_LOG_MSG_COMM_FAIL));
           return;
         }
 
-        this->product_name_ = SEN6XComponent::sensirion_convert_to_string_in_place(raw_product_name, 16);
+        const char *product_name = SEN6XComponent::sensirion_convert_to_string_in_place(raw_product_name, 16);
 
-        Sen6xType inferred_type = this->infer_type_from_product_name_(this->product_name_);
+        Sen6xType inferred_type = infer_type_from_product_name(product_name);
         if (this->sen6x_type_ == UNKNOWN) {
           this->sen6x_type_ = inferred_type;
           if (inferred_type == UNKNOWN) {
-            ESP_LOGE(TAG, "Unknown product '%s'", this->product_name_.c_str());
+            ESP_LOGE(TAG, "Unknown product '%s'", product_name);
             this->mark_failed();
             return;
           }
-          ESP_LOGD(TAG, "Type inferred from product: %s", this->product_name_.c_str());
+          ESP_LOGD(TAG, "Type inferred from product: %s", product_name);
         } else if (this->sen6x_type_ != inferred_type && inferred_type != UNKNOWN) {
-          ESP_LOGW(TAG, "Configured type (used) mismatches product '%s'", this->product_name_.c_str());
+          ESP_LOGW(TAG, "Configured type (used) mismatches product '%s'", product_name);
         }
-        ESP_LOGI(TAG, "Product: %s", this->product_name_.c_str());
+        ESP_LOGI(TAG, "Product: %s", product_name);
 
         // Validate configured sensors against detected type and disable unsupported ones
         const bool has_voc_nox = (this->sen6x_type_ == SEN65 || this->sen6x_type_ == SEN66 ||
@@ -152,6 +194,22 @@ void SEN6XComponent::setup() {
           ESP_LOGE(TAG, "Formaldehyde requires SEN68 or SEN69C");
           this->hcho_sensor_ = nullptr;
         }
+#ifdef SEN6X_STATUS_SENSOR_COUNT
+        // A status sensor for a feature this variant lacks is dropped like the measurement sensors above, so
+        // an empty table skips the status read; the kept ones learn their register bit here
+        size_t kept = 0;
+        for (auto entry : this->status_sensors_) {
+          if ((entry.status == Sen6xStatus::SEN6X_STATUS_GAS_ERROR && !has_voc_nox) ||
+              (entry.status == Sen6xStatus::SEN6X_STATUS_CO2_ERROR && !has_co2) ||
+              (entry.status == Sen6xStatus::SEN6X_STATUS_HCHO_ERROR && !has_hcho)) {
+            ESP_LOGE(TAG, "'%s' needs a variant with that feature", LOG_STR_ARG(entry.sensor->get_log_name()));
+            continue;
+          }
+          entry.bit = status_bit(entry.status, this->sen6x_type_);
+          this->status_sensors_[kept++] = entry;
+        }
+        this->status_sensors_.resize(kept);
+#endif
 
         // Step 3: Read firmware version and start measurements in next loop iteration
         this->set_timeout(0, [this]() {
@@ -200,6 +258,16 @@ bool SEN6XComponent::write_setup_step_(SetupStep step) {
         return false;
       this->write_tuning_parameters_(SEN6X_CMD_NOX_ALGORITHM_TUNING, this->nox_tuning_params_.value());
       return true;
+    case SETUP_STEP_TEMPERATURE_COMPENSATION:
+      if (!this->temperature_compensation_.has_value())
+        return false;
+      this->write_temperature_compensation_(this->temperature_compensation_.value());
+      return true;
+    case SETUP_STEP_TEMPERATURE_ACCELERATION:
+      if (!this->temperature_acceleration_.has_value())
+        return false;
+      this->write_temperature_acceleration_(this->temperature_acceleration_.value());
+      return true;
     case SETUP_STEP_CO2_ASC:
       if (this->co2_sensor_ == nullptr || !this->co2_asc_.has_value())
         return false;
@@ -218,6 +286,18 @@ bool SEN6XComponent::write_setup_step_(SetupStep step) {
     default:
       return false;
   }
+}
+
+bool SEN6XComponent::write_temperature_compensation_(const TemperatureCompensation &compensation) {
+  // Word 4 selects compensation slot 0; other slots are not exposed
+  uint16_t params[4] = {static_cast<uint16_t>(compensation.offset),
+                        static_cast<uint16_t>(compensation.normalized_offset_slope), compensation.time_constant, 0};
+  return this->write_config_words_(SEN6X_CMD_TEMPERATURE_COMPENSATION, params, 4);
+}
+
+bool SEN6XComponent::write_temperature_acceleration_(const TemperatureAcceleration &acceleration) {
+  uint16_t params[4] = {acceleration.k, acceleration.p, acceleration.t1, acceleration.t2};
+  return this->write_config_words_(SEN6X_CMD_TEMPERATURE_ACCELERATION, params, 4);
 }
 
 bool SEN6XComponent::write_setup_register_(uint16_t i2c_command, uint16_t value) {
@@ -261,13 +341,24 @@ bool SEN6XComponent::write_tuning_parameters_(uint16_t i2c_command, const GasTun
 void SEN6XComponent::dump_config() {
   ESP_LOGCONFIG(TAG,
                 "sen6x:\n"
-                "  Product: %s\n"
+                "  Type: %s\n"
                 "  Serial: %s\n"
                 "  Firmware: %u.%u\n"
-                "  Address: 0x%02X",
-                this->product_name_.c_str(), this->serial_number_.c_str(), this->firmware_version_major_,
-                this->firmware_version_minor_, this->address_);
+                "  Address: 0x%02X\n"
+                "  Startup delay: %" PRIu32 " ms",
+                LOG_STR_ARG(TypeStrings::get_log_str(this->sen6x_type_, TypeStrings::LAST_INDEX)), this->serial_number_,
+                this->firmware_version_major_, this->firmware_version_minor_, this->address_, this->startup_delay_ms_);
   LOG_UPDATE_INTERVAL(this);
+  if (this->temperature_compensation_.has_value()) {
+    const auto &comp = this->temperature_compensation_.value();
+    ESP_LOGCONFIG(TAG, "  Temperature compensation: offset=%.2f slope=%.4f time_constant=%us", comp.offset / 200.0f,
+                  comp.normalized_offset_slope / 10000.0f, comp.time_constant);
+  }
+  if (this->temperature_acceleration_.has_value()) {
+    const auto &accel = this->temperature_acceleration_.value();
+    ESP_LOGCONFIG(TAG, "  Temperature acceleration: K=%.1f P=%.1f T1=%.1f T2=%.1f", accel.k / 10.0f, accel.p / 10.0f,
+                  accel.t1 / 10.0f, accel.t2 / 10.0f);
+  }
   // setup() clears co2_sensor_ once it detects a variant without CO2
   if (this->co2_sensor_ != nullptr) {
     if (this->co2_asc_.has_value()) {
@@ -279,21 +370,33 @@ void SEN6XComponent::dump_config() {
     if (this->ambient_pressure_ != PRESSURE_UNSET) {
       ESP_LOGCONFIG(TAG, "  Ambient pressure compensation: %u hPa", this->ambient_pressure_);
     }
-    if (this->ambient_pressure_source_ != nullptr) {
+    if (this->ambient_pressure_source_sensor_ != nullptr) {
       ESP_LOGCONFIG(TAG, "  Ambient pressure compensation source: %s",
-                    this->ambient_pressure_source_->get_name().c_str());
+                    LOG_STR_ARG(this->ambient_pressure_source_sensor_->get_log_name()));
     }
   }
   LOG_SENSOR("  ", "PM  1.0", this->pm_1_0_sensor_);
   LOG_SENSOR("  ", "PM  2.5", this->pm_2_5_sensor_);
   LOG_SENSOR("  ", "PM  4.0", this->pm_4_0_sensor_);
   LOG_SENSOR("  ", "PM 10.0", this->pm_10_0_sensor_);
+#ifdef USE_SEN6X_NUMBER_CONCENTRATION
+  LOG_SENSOR("  ", "PMC  0.5", this->pmc_0_5_sensor_);
+  LOG_SENSOR("  ", "PMC  1.0", this->pmc_1_0_sensor_);
+  LOG_SENSOR("  ", "PMC  2.5", this->pmc_2_5_sensor_);
+  LOG_SENSOR("  ", "PMC  4.0", this->pmc_4_0_sensor_);
+  LOG_SENSOR("  ", "PMC 10.0", this->pmc_10_0_sensor_);
+#endif
   LOG_SENSOR("  ", "Temperature", this->temperature_sensor_);
   LOG_SENSOR("  ", "Humidity", this->humidity_sensor_);
   LOG_SENSOR("  ", "VOC", this->voc_sensor_);
   LOG_SENSOR("  ", "NOx", this->nox_sensor_);
   LOG_SENSOR("  ", "HCHO", this->hcho_sensor_);
   LOG_SENSOR("  ", "CO2", this->co2_sensor_);
+#ifdef SEN6X_STATUS_SENSOR_COUNT
+  for (const auto &entry : this->status_sensors_) {
+    LOG_BINARY_SENSOR("  ", "Device status", entry.sensor);
+  }
+#endif
 }
 
 void SEN6XComponent::update() {
@@ -308,14 +411,19 @@ void SEN6XComponent::update() {
     return;
   }
 
-  if (this->ambient_pressure_source_ != nullptr && this->co2_sensor_ != nullptr) {
-    this->update_ambient_pressure_compensation_(this->ambient_pressure_source_->state);
+  if (this->ambient_pressure_source_sensor_ != nullptr && this->co2_sensor_ != nullptr) {
+    this->update_ambient_pressure_compensation_(this->ambient_pressure_source_sensor_->state);
   }
 
   set_read_command_and_words(this->sen6x_type_, this->read_cmd_, this->read_words_);
 
   // Polling uses chained timeouts to guarantee each I2C operation completes
   // before the next begins. The flow is:
+  //
+  //   read_device_status_()
+  //     with status sensors: write_command (read and clear device status)
+  //       -> timeout I2C_READ_DELAY -> parse_and_publish_device_status_()
+  //     -> poll_data_ready_()
   //
   //   poll_data_ready_()
   //     -> write_command (data ready status)
@@ -326,14 +434,21 @@ void SEN6XComponent::update() {
   //                      -> write_command (read measurement)
   //                      -> timeout I2C_READ_DELAY
   //                        -> parse_and_publish_measurements_()
+  //                          -> with pmc_* sensors: read_number_concentration_()
+  //                               -> write_command (read number concentration)
+  //                               -> timeout I2C_READ_DELAY
+  //                                 -> parse_and_publish_number_concentration_()
   //
   // All timeouts share a single ID (TIMEOUT_POLL) since only one is active
   // at a time. cancel_timeout in update() stops any in-flight chain.
   this->poll_retries_remaining_ = POLL_RETRIES;
-  this->poll_data_ready_();
+  this->read_device_status_();
 }
 
 void SEN6XComponent::poll_data_ready_() {
+  // stop_measurement() may have run from a publish callback while the chain was in flight
+  if (!this->measuring_)
+    return;
   if (this->poll_retries_remaining_ == 0) {
     this->status_set_warning();
     ESP_LOGD(TAG, "Data not ready");
@@ -488,29 +603,93 @@ void SEN6XComponent::parse_and_publish_measurements_() {
     return;
   }
 
-  if (this->pm_1_0_sensor_ != nullptr)
-    this->pm_1_0_sensor_->publish_state(pm_1_0);
-  if (this->pm_2_5_sensor_ != nullptr)
-    this->pm_2_5_sensor_->publish_state(pm_2_5);
-  if (this->pm_4_0_sensor_ != nullptr)
-    this->pm_4_0_sensor_->publish_state(pm_4_0);
-  if (this->pm_10_0_sensor_ != nullptr)
-    this->pm_10_0_sensor_->publish_state(pm_10_0);
-  if (this->temperature_sensor_ != nullptr)
-    this->temperature_sensor_->publish_state(temperature);
-  if (this->humidity_sensor_ != nullptr)
-    this->humidity_sensor_->publish_state(humidity);
-  if (this->voc_sensor_ != nullptr)
-    this->voc_sensor_->publish_state(voc);
-  if (this->nox_sensor_ != nullptr)
-    this->nox_sensor_->publish_state(nox);
-  if (this->hcho_sensor_ != nullptr)
-    this->hcho_sensor_->publish_state(hcho);
-  if (this->co2_sensor_ != nullptr)
-    this->co2_sensor_->publish_state(co2);
+  PUBLISH_STATE(this->pm_1_0_sensor_, pm_1_0);
+  PUBLISH_STATE(this->pm_2_5_sensor_, pm_2_5);
+  PUBLISH_STATE(this->pm_4_0_sensor_, pm_4_0);
+  PUBLISH_STATE(this->pm_10_0_sensor_, pm_10_0);
+  PUBLISH_STATE(this->temperature_sensor_, temperature);
+  PUBLISH_STATE(this->humidity_sensor_, humidity);
+  PUBLISH_STATE(this->voc_sensor_, voc);
+  PUBLISH_STATE(this->nox_sensor_, nox);
+  PUBLISH_STATE(this->hcho_sensor_, hcho);
+  PUBLISH_STATE(this->co2_sensor_, co2);
 
+#ifdef USE_SEN6X_NUMBER_CONCENTRATION
+  // The define says some device in the build has pmc sensors; this one may not
+  if (this->has_number_concentration_sensor_()) {
+    this->read_number_concentration_();  // the chain ends there, with the warning cleared
+    return;
+  }
+#endif
   this->status_clear_warning();
 }
+
+// Reads the status register first, so the error sensors update even when the measurement read fails, then runs
+// the measurement poll chain. Read And Clear (0xD210) is used because error flags are sticky on the device;
+// clearing each cycle makes the sensors report whether a problem occurred since the last update.
+void SEN6XComponent::read_device_status_() {
+#ifdef SEN6X_STATUS_SENSOR_COUNT
+  if (!this->status_sensors_.empty()) {
+    // The pressure write in update() may still be executing; the device rejects commands until it is done
+    if (const uint32_t wait = this->command_wait_remaining_(); wait != 0) {
+      this->set_timeout(TIMEOUT_POLL, wait, [this]() { this->read_device_status_(); });
+      return;
+    }
+    if (this->write_command(SEN6X_CMD_READ_AND_CLEAR_DEVICE_STATUS)) {
+      this->set_timeout(TIMEOUT_POLL, I2C_READ_DELAY, [this]() { this->parse_and_publish_device_status_(); });
+      return;
+    }
+    ESP_LOGD(TAG, "Read device status failed (%d)", this->last_error_);
+  }
+#endif
+  this->poll_data_ready_();
+}
+
+#ifdef SEN6X_STATUS_SENSOR_COUNT
+void SEN6XComponent::parse_and_publish_device_status_() {
+  uint16_t words[2];
+  if (this->read_data(words, 2)) {
+    const uint32_t status = (static_cast<uint32_t>(words[0]) << 16) | words[1];
+    for (const auto &entry : this->status_sensors_)
+      entry.sensor->publish_state(((status >> entry.bit) & 1) != 0);
+  } else {
+    ESP_LOGD(TAG, "Read device status failed (%d)", this->last_error_);
+  }
+  this->poll_data_ready_();
+}
+#endif
+
+#ifdef USE_SEN6X_NUMBER_CONCENTRATION
+bool SEN6XComponent::has_number_concentration_sensor_() const {
+  return this->pmc_0_5_sensor_ != nullptr || this->pmc_1_0_sensor_ != nullptr || this->pmc_2_5_sensor_ != nullptr ||
+         this->pmc_4_0_sensor_ != nullptr || this->pmc_10_0_sensor_ != nullptr;
+}
+
+void SEN6XComponent::read_number_concentration_() {
+  if (!this->write_command(SEN6X_CMD_READ_NUMBER_CONCENTRATION)) {
+    this->status_set_warning();
+    ESP_LOGD(TAG, "Read number concentration failed (%d)", this->last_error_);
+    return;
+  }
+
+  this->set_timeout(TIMEOUT_POLL, I2C_READ_DELAY, [this]() { this->parse_and_publish_number_concentration_(); });
+}
+
+void SEN6XComponent::parse_and_publish_number_concentration_() {
+  sensor::Sensor *sensors[] = {this->pmc_0_5_sensor_, this->pmc_1_0_sensor_, this->pmc_2_5_sensor_,
+                               this->pmc_4_0_sensor_, this->pmc_10_0_sensor_};
+  uint16_t measurements[std::size(sensors)];
+
+  if (!this->status_comm_result(this->read_data(measurements, std::size(measurements)))) {
+    ESP_LOGD(TAG, "Read data failed (%d)", this->last_error_);
+    return;
+  }
+
+  for (size_t i = 0; i < std::size(sensors); i++) {
+    PUBLISH_STATE(sensors[i], measurements[i] == 0xFFFF ? NAN : measurements[i] / 10.0f);
+  }
+}
+#endif
 
 void SEN6XComponent::write_ambient_pressure_(uint16_t pressure_hpa) {
   if (this->write_setup_register_(SEN6X_CMD_AMBIENT_PRESSURE, pressure_hpa))
@@ -557,7 +736,7 @@ void SEN6XComponent::on_measurement_started_() {
   }
   // Values need the warm-up period again after every start
   this->startup_complete_ = false;
-  this->set_timeout(TIMEOUT_STARTUP, STARTUP_DELAY, [this]() { this->startup_complete_ = true; });
+  this->set_timeout(TIMEOUT_STARTUP, this->startup_delay_ms_, [this]() { this->startup_complete_ = true; });
 }
 
 void SEN6XComponent::start_measurement() {
@@ -632,22 +811,6 @@ void SEN6XComponent::activate_sht_heater() {
     return;
   }
   this->set_command_wait_(SHT_HEATER_DELAY);
-}
-
-SEN6XComponent::Sen6xType SEN6XComponent::infer_type_from_product_name_(const std::string &product_name) {
-  if (product_name == "SEN62")
-    return SEN62;
-  if (product_name == "SEN63C")
-    return SEN63C;
-  if (product_name == "SEN65")
-    return SEN65;
-  if (product_name == "SEN66")
-    return SEN66;
-  if (product_name == "SEN68")
-    return SEN68;
-  if (product_name == "SEN69C")
-    return SEN69C;
-  return UNKNOWN;
 }
 
 }  // namespace esphome::sen6x

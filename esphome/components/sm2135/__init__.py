@@ -61,10 +61,8 @@ async def to_code(config: ConfigType) -> None:
     var = cg.new_Pvariable(config[CONF_ID])
     await cg.register_component(var, config)
 
-    data = await cg.gpio_pin_expression(config[CONF_DATA_PIN])
-    cg.add(var.set_data_pin(data))
-    clock = await cg.gpio_pin_expression(config[CONF_CLOCK_PIN])
-    cg.add(var.set_clock_pin(clock))
+    await cg.add_pin(var.set_data_pin, config[CONF_DATA_PIN])
+    await cg.add_pin(var.set_clock_pin, config[CONF_CLOCK_PIN])
 
     cg.add(var.set_rgb_current(config[CONF_RGB_CURRENT]))
     cg.add(var.set_cw_current(config[CONF_CW_CURRENT]))

@@ -10,6 +10,7 @@ const {
   detectGitHubActionsChanges,
   detectCodeOwner,
   detectTests,
+  detectApiProto,
   detectPRTemplateCheckboxes,
   detectDeprecatedComponents,
   detectMaintainerAccess,
@@ -114,6 +115,7 @@ module.exports = async ({ github, context }) => {
     actionsLabels,
     codeOwnerLabels,
     testLabels,
+    apiProtoLabels,
     checkboxLabels,
     deprecatedResult,
     maintainerAccess
@@ -128,6 +130,7 @@ module.exports = async ({ github, context }) => {
     detectGitHubActionsChanges(changedFiles),
     detectCodeOwner(github, context, changedFiles),
     detectTests(changedFiles),
+    detectApiProto(changedFiles),
     detectPRTemplateCheckboxes(context),
     detectDeprecatedComponents(github, context, changedFiles),
     detectMaintainerAccess(context)
@@ -156,6 +159,7 @@ module.exports = async ({ github, context }) => {
     ...actionsLabels,
     ...codeOwnerLabels,
     ...testLabels,
+    ...apiProtoLabels,
     ...checkboxLabels,
     ...deprecatedLabels
   ]);

@@ -455,16 +455,14 @@ def test_adc_limits_without_a_divider_are_rejected(key: str) -> None:
     """The limits only check a divider, so without one they would be silently ignored."""
     with pytest.raises(
         cv.Invalid,
-        match=f"'{key}:' only checks a 'pin:' source or a 'voltage_divider:'",
+        match=f"'{key}' requires 'voltage_divider' or 'pin'",
     ):
         CONFIG_SCHEMA(_hub(**{key: 3.34}))
 
 
 def test_adc_attenuation_needs_an_owned_pin() -> None:
     """The attenuation configures the hidden ADC of pin:, not an external sampler."""
-    with pytest.raises(
-        cv.Invalid, match="'adc_attenuation:' only applies to the ADC of"
-    ):
+    with pytest.raises(cv.Invalid, match="'adc_attenuation' requires 'pin'"):
         CONFIG_SCHEMA(_hub(adc_attenuation="12db"))
 
 

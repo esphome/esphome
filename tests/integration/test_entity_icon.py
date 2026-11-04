@@ -8,6 +8,7 @@ from aioesphomeapi import EntityState
 import pytest
 
 from .types import APIClientConnectedFactory, RunCompiledFunction
+from .wait_utils import wait_or_fail
 
 
 @pytest.mark.asyncio
@@ -80,10 +81,7 @@ async def test_entity_icon(
         client.subscribe_states(on_state)
 
         # Wait for states
-        try:
-            await asyncio.wait_for(state_received.wait(), timeout=5.0)
-        except TimeoutError:
-            pytest.fail("No states received within 5 seconds")
+        await wait_or_fail(state_received, 5.0, "No states received within 5 seconds")
 
         # Verify we received states
         assert len(states) > 0, (

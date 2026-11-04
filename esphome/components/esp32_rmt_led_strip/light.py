@@ -78,9 +78,12 @@ CONFIG_SCHEMA = cv.All(
                 esp32_c5=96,
                 esp32_c6=96,
                 esp32_h2=96,
+                esp32_h4=96,
+                esp32_h21=96,
                 esp32_p4=192,
                 esp32_s2=192,
                 esp32_s3=192,
+                esp32_s31=192,
             ): cv.int_range(min=2),
             cv.Optional(CONF_MAX_REFRESH_RATE): cv.positive_time_period_microseconds,
             cv.Optional(CONF_CHIPSET): cv.one_of(*CHIPSETS, upper=True),
@@ -121,7 +124,11 @@ CONFIG_SCHEMA = cv.All(
     light.migrate_channel_colors(
         removed_in="2027.3.0", component="esp32_rmt_led_strip"
     ),
+    # setup_priority::HARDWARE, from ESP32RMTLEDStripLightOutput::get_setup_priority()
+    esp32_rmt.request_rmt_channel("TX", 800.0),
 )
+
+FINAL_VALIDATE_SCHEMA = esp32_rmt.final_validate_rmt_channels
 
 
 async def to_code(config: ConfigType) -> None:
@@ -131,14 +138,14 @@ async def to_code(config: ConfigType) -> None:
     var = cg.new_Pvariable(config[CONF_OUTPUT_ID])
     await light.register_light(var, config)
     await cg.register_component(var, config)
+    esp32_rmt.register_rmt_channel(config)
 
     cg.add(var.set_num_leds(config[CONF_NUM_LEDS]))
     cg.add(var.set_pin(config[CONF_PIN][CONF_NUMBER]))
     if config[CONF_PIN][CONF_INVERTED]:
         cg.add(var.set_inverted(True))
 
-    if CONF_MAX_REFRESH_RATE in config:
-        cg.add(var.set_max_refresh_rate(config[CONF_MAX_REFRESH_RATE]))
+    cg.add_optional(var.set_max_refresh_rate, config.get(CONF_MAX_REFRESH_RATE))
 
     if CONF_CHIPSET in config:
         chipset = CHIPSETS[config[CONF_CHIPSET]]
@@ -169,5 +176,4 @@ async def to_code(config: ConfigType) -> None:
     )
     cg.add(var.set_use_psram(config[CONF_USE_PSRAM]))
     cg.add(var.set_rmt_symbols(config[CONF_RMT_SYMBOLS]))
-    if CONF_USE_DMA in config:
-        cg.add(var.set_use_dma(config[CONF_USE_DMA]))
+    cg.add_optional(var.set_use_dma, config.get(CONF_USE_DMA))

@@ -25,14 +25,13 @@ class BQ27220Component final : public PollingComponent, public i2c::I2CDevice {
   void dump_config() override;
 
  protected:
-  bool read_word_(uint8_t reg, uint16_t &value);
   /// Read a standard command register and publish it through the sensor, if one is configured.
   /// A failed read publishes NAN and clears `ok`.
   template<typename F> void publish_(sensor::Sensor *sensor, uint8_t reg, bool &ok, F convert) {
     if (sensor == nullptr)
       return;
     uint16_t raw;
-    if (!this->read_word_(reg, raw)) {
+    if (!this->read_byte_16_le(reg, &raw)) {
       ok = false;
       sensor->publish_state(NAN);
       return;

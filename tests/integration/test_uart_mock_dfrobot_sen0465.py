@@ -9,12 +9,12 @@ from __future__ import annotations
 
 import asyncio
 import math
-from pathlib import Path
 import re
 
 from aioesphomeapi import EntityState, SensorInfo
 import pytest
 
+from .log_utils import LineWaiter
 from .state_utils import require_entity
 from .types import APIClientConnectedFactory, RunCompiledFunction
 
@@ -30,26 +30,12 @@ async def test_uart_mock_dfrobot_sen0465(
     api_client_connected: APIClientConnectedFactory,
 ) -> None:
     """Boot sets passive mode and the alarm before the first reading."""
-    external_components_path = str(
-        Path(__file__).parent / "fixtures" / "external_components"
-    )
-    yaml_config = yaml_config.replace(
-        "EXTERNAL_COMPONENT_PATH", external_components_path
-    )
-
-    loop = asyncio.get_running_loop()
-    alarm_set: asyncio.Future[re.Match[str]] = loop.create_future()
-    lines: list[str] = []
-
-    def line_callback(line: str) -> None:
-        lines.append(line)
-        if (match := ALARM_RE.search(line)) and not alarm_set.done():
-            alarm_set.set_result(match)
-
+    waiter = LineWaiter()
+    lines = waiter.lines
     states: dict[int, EntityState] = {}
 
     async with (
-        run_compiled(yaml_config, line_callback=line_callback),
+        run_compiled(yaml_config, line_callback=waiter.callback),
         api_client_connected() as client,
     ):
         entities, _ = await client.list_entities_services()
@@ -70,7 +56,10 @@ async def test_uart_mock_dfrobot_sen0465(
         except TimeoutError:
             pytest.fail(f"No reading; log: {lines[-20:]}")
 
-        match = await asyncio.wait_for(alarm_set, timeout=1.0)
+        line = await waiter.wait_for(
+            "Alarm switch ", "ms after the mode change", timeout=1.0
+        )
+        assert (match := ALARM_RE.search(line)), line
         switch, threshold, alarm_type, delay_ms = (int(x) for x in match.groups())
         assert (switch, threshold, alarm_type) == (1, 35, 1)
         assert delay_ms >= 1000, (

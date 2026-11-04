@@ -232,6 +232,7 @@ void EPaperT133A01::fill(Color color) {
   }
   auto pixel_color = color_to_index(color);
   this->buffer_.fill(pixel_color + (pixel_color << 4));
+  this->drawn_since_hash_ = true;
 }
 
 void EPaperT133A01::draw_pixel_at(int x, int y, Color color) {
