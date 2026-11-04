@@ -16,17 +16,17 @@ const RawTimings FULL_FLUSH = {6266, -2734, 598, -540, 598, -1626, 598, -512,  6
 // The frame as it was sent before the bit order changed: rc_code_1, rc_code_2, command and checksum, most
 // significant bit first
 RawTimings reference_frame(uint8_t rc_code_1, uint8_t rc_code_2, uint8_t command) {
-  RawTimings out{6200, -2800};
+  RawTimings out{6000, -3000};
   auto bits = [&out](uint32_t value, uint8_t count) {
     for (uint32_t mask = 1u << (count - 1); mask != 0; mask >>= 1) {
-      out.push_back(550);
-      out.push_back((value & mask) ? -1700 : -550);
+      out.push_back(600);
+      out.push_back((value & mask) ? -1667 : -520);
     }
   };
   bits(0x2008, 15);
   const uint8_t rc_codes = rc_code_1 << 4 | rc_code_2;
   bits(rc_codes << 16 | command << 8 | (rc_codes ^ command), 24);
-  out.push_back(550);
+  out.push_back(600);
   return out;
 }
 

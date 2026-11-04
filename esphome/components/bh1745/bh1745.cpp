@@ -71,10 +71,8 @@ void BH1745Component::setup() {
     this->mark_failed(LOG_STR("Wrong part ID"));
     return;
   }
-  if (!this->write_byte(REG_SYSTEM_CONTROL, SYSTEM_CONTROL_SW_RESET)) {
-    this->mark_failed(LOG_STR(ESP_LOG_MSG_COMM_FAIL));
+  if (!this->setup_check(this->write_byte(REG_SYSTEM_CONTROL, SYSTEM_CONTROL_SW_RESET)))
     return;
-  }
 
   // Light lost behind glass is scaled back up, as the other light sensors do
   this->lux_scale_ = 160.0f * this->glass_attenuation_factor_ /
@@ -85,10 +83,8 @@ void BH1745Component::setup() {
       // High threshold 0 and low threshold 0xFFFF (low byte first) make the interrupt condition always
       // true, so the INT pin simply follows the enable bit, which drives the breakout's LEDs.
       static constexpr uint8_t THRESHOLDS[4] = {0x00, 0x00, 0xFF, 0xFF};
-      if (!this->write_bytes(REG_TH_LSB, THRESHOLDS, sizeof(THRESHOLDS))) {
-        this->mark_failed(LOG_STR(ESP_LOG_MSG_COMM_FAIL));
+      if (!this->setup_check(this->write_bytes(REG_TH_LSB, THRESHOLDS, sizeof(THRESHOLDS))))
         return;
-      }
     }
     // RGBC_EN makes the chip measure continuously; update() reads the latest result.
     if (!this->write_byte(REG_MODE_CONTROL1, static_cast<uint8_t>(this->measurement_time_)) ||

@@ -6,11 +6,11 @@ namespace esphome::remote_base {
 
 ESPHOME_LOG_TAG(TAG, "remote.toto");
 
-static constexpr uint32_t PREAMBLE_HIGH_US = 6200;
-static constexpr uint32_t PREAMBLE_LOW_US = 2800;
-static constexpr uint32_t BIT_HIGH_US = 550;
-static constexpr uint32_t BIT_ONE_LOW_US = 1700;
-static constexpr uint32_t BIT_ZERO_LOW_US = 550;
+static constexpr uint32_t PREAMBLE_HIGH_US = 6000;
+static constexpr uint32_t PREAMBLE_LOW_US = 3000;
+static constexpr uint32_t BIT_HIGH_US = 600;
+static constexpr uint32_t BIT_ONE_LOW_US = 1667;
+static constexpr uint32_t BIT_ZERO_LOW_US = 520;
 static constexpr uint16_t TOTO_HEADER = 0x0802;
 static constexpr uint8_t TOTO_HEADER_BITS = 15;
 static constexpr BitTimings BIT_TIMINGS{
