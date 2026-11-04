@@ -29,18 +29,15 @@ void SCD4XComponent::setup() {
   // the sensor needs 1000 ms to enter the idle state
   this->set_timeout(1000, [this]() {
     this->status_clear_error();
-    if (!this->write_command(SCD4X_CMD_STOP_MEASUREMENTS)) {
-      this->mark_failed(LOG_STR("Failed to stop measurements"));
+    if (!this->setup_check(this->write_command(SCD4X_CMD_STOP_MEASUREMENTS), LOG_STR("Failed to stop measurements")))
       return;
-    }
     // According to the SCD4x datasheet the sensor will only respond to other commands after waiting 500 ms after
     // issuing the stop_periodic_measurement command
     this->set_timeout(500, [this]() {
       uint16_t raw_serial_number[3];
-      if (!this->get_register(SCD4X_CMD_GET_SERIAL_NUMBER, raw_serial_number, 3, 1)) {
-        this->mark_failed(LOG_STR("Unable to read serial number"));
+      if (!this->setup_check(this->get_register(SCD4X_CMD_GET_SERIAL_NUMBER, raw_serial_number, 3, 1),
+                             LOG_STR("Unable to read serial number")))
         return;
-      }
       ESP_LOGD(TAG, "Serial number %02d.%02d.%02d", (uint16_t(raw_serial_number[0]) >> 8),
                uint16_t(raw_serial_number[0] & 0xFF), (uint16_t(raw_serial_number[1]) >> 8));
 
@@ -52,21 +49,18 @@ void SCD4XComponent::setup() {
 
       // If pressure compensation available use it, else use altitude
       if (this->ambient_pressure_) {
-        if (!this->update_ambient_pressure_compensation_(this->ambient_pressure_)) {
-          this->mark_failed(LOG_STR("Error setting ambient pressure compensation"));
+        if (!this->setup_check(this->update_ambient_pressure_compensation_(this->ambient_pressure_),
+                               LOG_STR("Error setting ambient pressure compensation")))
           return;
-        }
       } else {
-        if (!this->write_command(SCD4X_CMD_ALTITUDE_COMPENSATION, this->altitude_compensation_)) {
-          this->mark_failed(LOG_STR("Error setting altitude compensation"));
+        if (!this->setup_check(this->write_command(SCD4X_CMD_ALTITUDE_COMPENSATION, this->altitude_compensation_),
+                               LOG_STR("Error setting altitude compensation")))
           return;
-        }
       }
 
-      if (!this->write_command(SCD4X_CMD_AUTOMATIC_SELF_CALIBRATION, this->enable_asc_ ? 1 : 0)) {
-        this->mark_failed(LOG_STR("Error setting automatic self calibration"));
+      if (!this->setup_check(this->write_command(SCD4X_CMD_AUTOMATIC_SELF_CALIBRATION, this->enable_asc_ ? 1 : 0),
+                             LOG_STR("Error setting automatic self calibration")))
         return;
-      }
 
       this->initialized_ = true;
       // Finally start sensor measurements
