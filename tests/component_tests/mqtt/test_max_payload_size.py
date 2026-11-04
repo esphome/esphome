@@ -28,7 +28,7 @@ def test_define(
     assert defines["MQTT_MAX_PAYLOAD_SIZE"] == str(expected)
 
 
-@pytest.mark.parametrize("value", [0, 63, 1048577])
+@pytest.mark.parametrize("value", [0, 511, 1048577])
 def test_out_of_range_rejected(
     set_core_config: SetCoreConfigCallable, value: int
 ) -> None:

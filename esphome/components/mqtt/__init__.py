@@ -413,7 +413,7 @@ CONFIG_SCHEMA = cv.All(
                 bk72xx=16384,
                 rtl87xx=16384,
                 ln882x=16384,
-            ): cv.All(cv.validate_bytes, cv.int_range(min=64, max=1048576)),
+            ): cv.All(cv.validate_bytes, cv.int_range(min=512, max=1048576)),
             cv.SplitDefault(CONF_IDF_SEND_ASYNC, esp32=False): cv.All(
                 cv.boolean, cv.only_on_esp32
             ),
