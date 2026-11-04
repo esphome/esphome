@@ -227,16 +227,20 @@ file does, and it is the authority when they disagree. The most useful starting 
         A `dump_config` helper that picks a name returns `const LogString *` from `LOG_STR(...)`.
     *   **CRCs and bit tricks** come from `esphome/core/helpers.h` (`crc8`, `crc16`, `xor_bytes`, `sum16_bytes`,
         `reverse_bits`, `encode_uint16`, `encode_value_le`, `sign_extend<BITS>`, `bcd_to_uint8`, `assign_bits`); pick
-        the helper's arguments instead of writing a loop. 7-byte BCD RTC calendars use `time::decode_bcd_calendar<LAYOUT>`
-        and `encode_bcd_calendar<LAYOUT>` with `EPSON_BCD_CALENDAR`, `DS_BCD_CALENDAR` or `PCF_BCD_CALENDAR`.
+        the helper's arguments instead of writing a loop. `put_be16`/`24`/`32`, `put_le16` and `put_le32` write an
+        integer into a byte buffer and return the pointer past it. 7-byte BCD RTC calendars use
+        `time::decode_bcd_calendar<LAYOUT>` and `encode_bcd_calendar<LAYOUT>` with `EPSON_BCD_CALENDAR`,
+        `DS_BCD_CALENDAR` or `PCF_BCD_CALENDAR`.
     *   **Bus helpers:** UART drains with `read_available(on_byte)` and `discard_available()`, text lines with
         `LineReader<N>`, fixed-length binary frames with `FrameReader<N, HEADER...>`; I2C has `update_register`,
         `write_registers` (PROGMEM `I2CRegValue` table), `check_chip_id` and `read_bytes_16_le`.
-        `if (!this->status_comm_result(ok)) return;` sets or clears the warning.
+        `if (!this->status_comm_result(ok)) return;` sets or clears the warning; in `setup()`,
+        `if (!this->setup_check(ok)) return;` marks the component failed on error.
     *   **A hub's pointer to a child entity** comes from `SUB_SENSOR(name)`, `SUB_BINARY_SENSOR`, `SUB_TEXT_SENSOR`,
         `SUB_SWITCH`, `SUB_NUMBER`, `SUB_SELECT` or `SUB_BUTTON`, which declare the `set_<name>_<type>()` setter and
         the `<name>_<type>_` member (`SUB_SWITCH(turbo)` gives `set_turbo_switch()`); do not write the pair by hand.
         A child sensor that skips repeated values is `SUB_SENSOR_WITH_DEDUP(name, type)`.
+        Publish to an optional child with `PUBLISH_STATE(this->x_sensor_, value);`, not a hand-written null check.
     *   **An unset float is `NAN`**, not `optional<float>`; the optional costs 4 to 8 bytes of padding per member.
     *   **`PollingComponent` first runs `update()`** after a random share of the interval; call `this->update()` at the
         end of `setup()` when the entities need a state at boot.
