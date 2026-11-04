@@ -51,97 +51,21 @@ void RemoteReceiverComponent::sample_timer_isr(uint8_t channel) {
 }
 
 bool RemoteReceiverComponentStore::timer_isr() {
-  // invert the level so marks are positive, like the edge path
-  const bool level = !this->pin.digital_read();
-
+  // digital_read() applies the pin's inverted: option, so a mark reads true, like the edge path
+  const bool level = this->pin.digital_read();
   if (!this->capture_active) {
     // idle samples skip the tick counter read; the edge that starts a capture re-syncs it
     if (level == this->last_level)
       return false;
     this->last_counter = read_tick_counter();
-    this->level_ticks = 0;
-    this->last_level = level;
-    // a frame starts with a mark
-    if (level) {
-      this->capture_active = true;
-      this->run_active = false;
-    }
-    return false;
+    return this->sample(level, 0);
   }
-
   const uint32_t counter = read_tick_counter();
   uint32_t elapsed = counter - this->last_counter;
   if (counter < this->last_counter)
     elapsed += TICK_COUNTER_WRAP;
   this->last_counter = counter;
-  this->level_ticks += elapsed;
-
-  if (level == this->last_level) {
-    if (this->level_ticks < this->idle_ticks)
-      return false;
-    // end the frame with one idle period, like the edge path, not the measured gap
-    this->finish_run(level, this->idle_ticks);
-    this->push_run();
-    this->capture_active = false;
-    const uint16_t count = this->count;
-    this->count = 0;
-    // a capture that held only a glitch the filter folded away leaves nothing to dispatch
-    if (count == 0)
-      return false;
-    if (this->frame_overflow) {
-      this->frame_overflow = false;
-      this->overflow = true;
-      return true;
-    }
-    if (this->ready != nullptr) {
-      this->busy = true;
-      return true;
-    }
-    this->ready = this->capture;
-    this->ready_count = count;
-    this->capture = this->capture == this->buffer ? this->buffer + this->frame_entries : this->buffer;
-    return true;
-  }
-
-  const uint32_t ticks = this->level_ticks;
-  const bool ended = this->last_level;
-  this->level_ticks = 0;
-  this->last_level = level;
-  this->finish_run(ended, ticks);
-  return false;
-}
-
-void RemoteReceiverComponentStore::finish_run(bool level, uint32_t ticks) {
-  if (!this->run_active) {
-    this->run_level = level;
-    this->run_ticks = ticks;
-    this->run_active = true;
-    return;
-  }
-  // A run that returns to the pending level continues it, and a run shorter than the filter is folded into
-  // it, so the emitted durations keep alternating sign as the decoders expect.
-  if (level == this->run_level || ticks < this->filter_ticks) {
-    this->run_ticks += ticks;
-    return;
-  }
-  this->push_run();
-  this->run_level = level;
-  this->run_ticks = ticks;
-}
-
-void RemoteReceiverComponentStore::push_run() {
-  // drop a leading space, for example one left after a first mark that the filter removed
-  if (!this->run_active || (this->count == 0 && !this->run_level) || this->run_ticks < this->filter_ticks)
-    return;
-  const uint16_t count = this->count;
-  if (count >= this->frame_entries) {
-    // drop the rest of the frame; the frame end reports the overflow
-    this->frame_overflow = true;
-    return;
-  }
-  const auto run_us = static_cast<int32_t>(this->run_ticks / TIMER_TICKS_PER_US);
-  this->capture[count] = this->run_level ? run_us : -run_us;
-  this->count = count + 1;
+  return this->sample(level, elapsed);
 }
 
 void RemoteReceiverComponent::setup() {
@@ -149,7 +73,7 @@ void RemoteReceiverComponent::setup() {
   this->pin_->setup();
   s.pin = this->pin_->to_isr();
   s.capture = s.buffer;
-  s.last_level = !s.pin.digital_read();
+  s.last_level = s.pin.digital_read();
   s_receiver = this;
 
   timer_param_t param{};

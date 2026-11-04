@@ -23,6 +23,10 @@ static constexpr uint32_t TIMER_TICKS_PER_US = 26;
 struct RemoteReceiverComponentStore {
   /// Returns true when it published a frame or an overflow for the loop.
   bool timer_isr();
+  /// Takes one sample: the logical pin level (true for a mark) and the ticks since the previous sample.
+  /// Returns true like timer_isr().
+  bool sample(bool level, uint32_t elapsed);
+  bool end_frame(bool level);
   void finish_run(bool level, uint32_t ticks);
   void push_run();
 
@@ -141,7 +145,8 @@ class RemoteReceiverComponent final : public remote_base::RemoteReceiverBase,
   uint8_t carrier_duty_percent_{100};
 #endif
 
-#if defined(USE_ESP8266) || defined(USE_LIBRETINY) || defined(USE_RP2) || defined(USE_ESP32)
+#if defined(USE_REMOTE_RECEIVER_TIMER_SAMPLING) || defined(USE_ESP8266) || defined(USE_LIBRETINY) || \
+    defined(USE_RP2) || defined(USE_ESP32)
   RemoteReceiverComponentStore store_;
 #endif
 

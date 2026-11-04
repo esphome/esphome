@@ -3,6 +3,7 @@ remote_receiver:
   pin:
     number: P14
     mode: INPUT_PULLUP
+    inverted: true
   sampling: timer
   sample_period: 50us
   filter: 100us
