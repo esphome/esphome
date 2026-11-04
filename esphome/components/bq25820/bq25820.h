@@ -99,6 +99,13 @@ class BQ25820Component final : public PollingComponent, public i2c::I2CDevice {
   bool write_config_registers_();
 #ifdef USE_BQ25820_SENSOR
   void publish_adc_(const BQ25820Config &config);
+  /// Temperature from TS_ADC, the TS pin voltage as a 10-bit share of REGN; NAN when the reading is 0
+  float ntc_temperature_(int16_t ts_adc) const {
+    const float ratio = (ts_adc & 0x3FF) / 1024.0f;
+    if (ratio <= 0.0f)
+      return NAN;
+    return 1.0f / (this->ntc_a_ + this->ntc_b_ * logf(ratio / (1.0f - ratio))) - 273.15f;
+  }
 
   float ntc_a_{NAN};
   float ntc_b_{NAN};

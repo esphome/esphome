@@ -205,14 +205,7 @@ void BQ25820Component::publish_adc_(const BQ25820Config &config) {
   PUBLISH_STATE(this->vac_sensor_, static_cast<uint16_t>(adc[2]) * VOLTAGE_ADC_STEP_V);
   PUBLISH_STATE(this->vbat_sensor_, static_cast<uint16_t>(adc[3]) * VOLTAGE_ADC_STEP_V);
   PUBLISH_STATE(this->vsys_sensor_, static_cast<uint16_t>(adc[4]) * VOLTAGE_ADC_STEP_V);
-  if (this->temp_in_c_sensor_ != nullptr) {
-    // TS_ADC is the TS pin voltage as a 10-bit share of REGN
-    const float ratio = (adc[5] & 0x3FF) / 1024.0f;
-    float temperature = NAN;
-    if (ratio > 0.0f)
-      temperature = 1.0f / (this->ntc_a_ + this->ntc_b_ * logf(ratio / (1.0f - ratio))) - 273.15f;
-    this->temp_in_c_sensor_->publish_state(temperature);
-  }
+  PUBLISH_STATE(this->temp_in_c_sensor_, this->ntc_temperature_(adc[5]));
 }
 #endif
 
