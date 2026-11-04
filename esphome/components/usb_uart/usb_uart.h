@@ -112,28 +112,6 @@ enum class ConfigMode : uint8_t {
   CONFIG_MODE_MODEM,   ///< Apply the DTR/RTS state of one already-open channel
 };
 
-class RingBuffer {
- public:
-  RingBuffer(uint16_t buffer_size) : buffer_size_(buffer_size), buffer_(new uint8_t[buffer_size]) {}
-  bool is_empty() const { return this->read_pos_ == this->insert_pos_; }
-  size_t get_available() const {
-    return (this->insert_pos_ + this->buffer_size_ - this->read_pos_) % this->buffer_size_;
-  };
-  size_t get_free_space() const { return this->buffer_size_ - 1 - this->get_available(); }
-  uint8_t peek() const { return this->buffer_[this->read_pos_]; }
-  void push(uint8_t item);
-  void push(const uint8_t *data, size_t len);
-  uint8_t pop();
-  size_t pop(uint8_t *data, size_t len);
-  void clear() { this->read_pos_ = this->insert_pos_ = 0; }
-
- protected:
-  uint16_t insert_pos_ = 0;
-  uint16_t read_pos_ = 0;
-  uint16_t buffer_size_;
-  uint8_t *buffer_;
-};
-
 // Structure for queuing received USB data chunks
 struct UsbDataChunk {
   uint8_t data[usb_host::USB_MAX_PACKET_SIZE];
@@ -174,7 +152,7 @@ class USBUartChannelBase : public uart::UARTComponent, public Parented<USBUartCo
   void write_array(const uint8_t *data, size_t len) override;
   bool peek_byte(uint8_t *data) override;
   bool read_array(uint8_t *data, size_t len) override;
-  size_t available() override { return this->input_buffer_.get_available(); }
+  size_t available() override { return this->input_buffer_.size(); }
   bool is_connected() override { return this->initialised_.load(); }
   uart::UARTFlushResult flush() override;
   // Re-apply the current line settings (baud, parity, etc) to this already-open channel.
@@ -215,12 +193,13 @@ class USBUartChannelBase : public uart::UARTComponent, public Parented<USBUartCo
 
  protected:
   // Not directly instantiable; construct a concrete channel type instead.
-  USBUartChannelBase(uint8_t index, uint16_t buffer_size) : input_buffer_(RingBuffer(buffer_size)), index_(index) {}
+  USBUartChannelBase(uint8_t index, uint16_t buffer_size) : index_(index) { this->input_buffer_.init(buffer_size); }
   void check_logger_conflict() override {}
   LineStopBits line_stop_bits_() const;
   LineParity line_parity_() const;
   // Larger structures first (8+ bytes)
-  RingBuffer input_buffer_;
+  // Only the main loop touches it; the USB task hands data over through usb_data_queue_
+  FixedRingBuffer<uint8_t> input_buffer_;
   LockFreeQueue<UsbOutputChunk, USB_OUTPUT_CHUNK_COUNT> output_queue_;
   // Pool sized to queue capacity (SIZE-1) because LockFreeQueue<T,N> is a ring
   // buffer that holds N-1 elements. This guarantees allocate() returns nullptr

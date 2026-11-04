@@ -21,3 +21,9 @@ button:
       - htu21d.set_heater_level:
           id: htu21d_sensor
           level: 5
+      - htu21d.set_heater:
+          id: htu21d_sensor
+          status: !lambda return false;
+      - htu21d.set_heater_level:
+          id: htu21d_sensor
+          level: !lambda return 3;

@@ -1,5 +1,7 @@
 #include "bl0939.h"
+#include "esphome/core/hal.h"
 #include "esphome/core/log.h"
+#include "esphome/core/helpers.h"
 #include <cinttypes>
 
 namespace esphome::bl0939 {
@@ -20,7 +22,7 @@ static const uint8_t BL0939_REG_SOFT_RESET = 0x19;
 static const uint8_t BL0939_REG_USR_WRPROT = 0x1A;
 static const uint8_t BL0939_REG_TPS_CTRL = 0x1B;
 
-const uint8_t BL0939_INIT[6][6] = {
+static constexpr uint8_t BL0939_INIT[6][6] PROGMEM = {
     // Reset to default
     {BL0939_WRITE_COMMAND, BL0939_REG_SOFT_RESET, 0x5A, 0x5A, 0x5A, 0x33},
     // Enable User Operation Write
@@ -66,8 +68,10 @@ void BL0939::update() {
 }
 
 void BL0939::setup() {
-  for (auto *i : BL0939_INIT) {
-    this->write_array(i, 6);
+  uint8_t cmd[sizeof(BL0939_INIT[0])];
+  for (const auto *i : BL0939_INIT) {
+    progmem_memcpy(cmd, i, sizeof(cmd));
+    this->write_array(cmd, sizeof(cmd));
     delay(1);
   }
   this->flush();
@@ -91,33 +95,17 @@ void BL0939::received_package_(const DataPacket *data) const {
   float b_energy_consumption = (float) cfb_cnt / energy_reference_;
   float total_energy_consumption = a_energy_consumption + b_energy_consumption;
 
-  if (voltage_sensor_ != nullptr) {
-    voltage_sensor_->publish_state(v_rms);
-  }
-  if (current_sensor_1_ != nullptr) {
-    current_sensor_1_->publish_state(ia_rms);
-  }
-  if (current_sensor_2_ != nullptr) {
-    current_sensor_2_->publish_state(ib_rms);
-  }
-  if (power_sensor_1_ != nullptr) {
-    power_sensor_1_->publish_state(a_watt);
-  }
-  if (power_sensor_2_ != nullptr) {
-    power_sensor_2_->publish_state(b_watt);
-  }
-  if (energy_sensor_1_ != nullptr) {
-    energy_sensor_1_->publish_state(a_energy_consumption);
-  }
-  if (energy_sensor_2_ != nullptr) {
-    energy_sensor_2_->publish_state(b_energy_consumption);
-  }
-  if (energy_sensor_sum_ != nullptr) {
-    energy_sensor_sum_->publish_state(total_energy_consumption);
-  }
+  PUBLISH_STATE(this->voltage_sensor_, v_rms);
+  PUBLISH_STATE(this->current_1_sensor_, ia_rms);
+  PUBLISH_STATE(this->current_2_sensor_, ib_rms);
+  PUBLISH_STATE(this->power_1_sensor_, a_watt);
+  PUBLISH_STATE(this->power_2_sensor_, b_watt);
+  PUBLISH_STATE(this->energy_1_sensor_, a_energy_consumption);
+  PUBLISH_STATE(this->energy_2_sensor_, b_energy_consumption);
+  PUBLISH_STATE(this->energy_sum_sensor_, total_energy_consumption);
 
   if (this->internal_temperature_sensor_ != nullptr) {
-    const uint16_t raw_temperature = ((uint16_t(data->tps1.h) << 8) | data->tps1.l) & 0x3FF;
+    const uint16_t raw_temperature = encode_uint16(data->tps1.h, data->tps1.l) & 0x3FF;
     // Datasheet temperature conversion: Tx = (170 / 448) * (TB / 2 - 32) - 45.
     const float temperature = (170.0f / 448.0f) * (raw_temperature / 2.0f - 32.0f) - 45.0f;
     this->internal_temperature_sensor_->publish_state(temperature);
@@ -135,18 +123,18 @@ void BL0939::dump_config() {  // NOLINT(readability-function-cognitive-complexit
                 this->mode_ == BL0939Mode::BL0939_MODE_CURRENT_TRANSFORMER ? LOG_STR_LITERAL("current_transformer")
                                                                            : LOG_STR_LITERAL("direct"));
   LOG_SENSOR("", "Voltage", this->voltage_sensor_);
-  LOG_SENSOR("", "Current 1", this->current_sensor_1_);
-  LOG_SENSOR("", "Current 2", this->current_sensor_2_);
-  LOG_SENSOR("", "Power 1", this->power_sensor_1_);
-  LOG_SENSOR("", "Power 2", this->power_sensor_2_);
-  LOG_SENSOR("", "Energy 1", this->energy_sensor_1_);
-  LOG_SENSOR("", "Energy 2", this->energy_sensor_2_);
-  LOG_SENSOR("", "Energy sum", this->energy_sensor_sum_);
+  LOG_SENSOR("", "Current 1", this->current_1_sensor_);
+  LOG_SENSOR("", "Current 2", this->current_2_sensor_);
+  LOG_SENSOR("", "Power 1", this->power_1_sensor_);
+  LOG_SENSOR("", "Power 2", this->power_2_sensor_);
+  LOG_SENSOR("", "Energy 1", this->energy_1_sensor_);
+  LOG_SENSOR("", "Energy 2", this->energy_2_sensor_);
+  LOG_SENSOR("", "Energy sum", this->energy_sum_sensor_);
   LOG_SENSOR("", "Internal Temperature", this->internal_temperature_sensor_);
 }
 
-uint32_t BL0939::to_uint32_t(ube24_t input) { return input.h << 16 | input.m << 8 | input.l; }
+uint32_t BL0939::to_uint32_t(ube24_t input) { return encode_uint24(input.h, input.m, input.l); }
 
-int32_t BL0939::to_int32_t(sbe24_t input) { return input.h << 16 | input.m << 8 | input.l; }
+int32_t BL0939::to_int32_t(sbe24_t input) { return sign_extend<24>(encode_uint24(input.h, input.m, input.l)); }
 
 }  // namespace esphome::bl0939

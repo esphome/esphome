@@ -238,9 +238,13 @@ class VoiceAssistant final : public Component {
 
   void set_state_(State state);
   void set_state_(State state, State desired_state);
+  /// Move to state, or only make it the desired state while the microphone is still stopping
+  void set_state_after_mic_stop_(State state);
+  /// Stop a playing or queued response and tell Home Assistant when the TTS stream is still open
+  void cancel_response_();
   bool start_udp_socket_();
   void signal_stop_();
-  void start_playback_timeout_();
+  void start_playback_timeout_(uint32_t timeout_ms);
 
   // Drains the exposed microphone audio and sends it to Home Assistant over the API in one loop() pass.
   void stream_api_audio_();
@@ -320,7 +324,7 @@ class VoiceAssistant final : public Component {
   float volume_multiplier_;
   uint32_t conversation_timeout_;
   // Keep in sync with TTS_PLAYBACK_START_TIMEOUT_DEFAULT in __init__.py.
-  uint32_t tts_playback_start_timeout_{2000};
+  uint32_t tts_playback_start_timeout_{15000};
 
   Configuration config_{};
 

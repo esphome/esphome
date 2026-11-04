@@ -18,7 +18,7 @@ class UARTSink {
 /// Reads never wait; a short read takes nothing. Main loop only.
 class VirtualUARTComponent : public UARTComponent {
  public:
-  /// The RX ring is allocated here, once; 0 means no ring.
+  /// The RX ring is allocated here, once; 0 means no ring. A later set_rx_buffer_size() does not resize it.
   explicit VirtualUARTComponent(uint16_t rx_buffer_size);
 
   /// Hands one whole block to the attached reader, else adds it to the RX ring. False, and nothing kept, when it

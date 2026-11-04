@@ -11,9 +11,11 @@ from esphome.const import (
 )
 from esphome.types import ConfigType
 
-from . import CONF_LD2410_ID, LD2410Component
+from . import CONF_LD2410_ID, LD2410Component, require_background_correction_button
 
 DEPENDENCIES = ["ld2410"]
+
+CONF_CALIBRATION_RESULT = "calibration_result"
 
 CONFIG_SCHEMA = {
     cv.GenerateID(CONF_ID): cv.declare_id(cg.EntityBase),
@@ -24,7 +26,12 @@ CONFIG_SCHEMA = {
     cv.Optional(CONF_MAC_ADDRESS): text_sensor.text_sensor_schema(
         entity_category=ENTITY_CATEGORY_DIAGNOSTIC, icon=ICON_BLUETOOTH
     ),
+    cv.Optional(CONF_CALIBRATION_RESULT): text_sensor.text_sensor_schema(
+        entity_category=ENTITY_CATEGORY_DIAGNOSTIC, icon="mdi:radar"
+    ),
 }
+
+FINAL_VALIDATE_SCHEMA = require_background_correction_button(CONF_CALIBRATION_RESULT)
 
 
 async def to_code(config: ConfigType) -> None:
@@ -32,3 +39,4 @@ async def to_code(config: ConfigType) -> None:
     text_sensors = text_sensor.sub_text_sensors(config)
     await text_sensors(CONF_VERSION, hub.set_version_text_sensor)
     await text_sensors(CONF_MAC_ADDRESS, hub.set_mac_text_sensor)
+    await text_sensors(CONF_CALIBRATION_RESULT, hub.set_calibration_result_text_sensor)
