@@ -154,7 +154,7 @@ TEST(RS485FrameHubTest, RxFramerRejectsBadCrcAndOverlongFrames) {
   hub.feed_for_test({0x10, 0x02, 0x01, 0x02, 0x03, 0x10, 0x03});
   EXPECT_EQ(hub.frames, 1u);
 
-  // More bytes than the receive buffer holds (2 * 8 + 8), with no DLE ETX: reset, then recover.
+  // More bytes than the receive buffer holds (8 + CRC), with no DLE ETX: reset, then recover.
   hub.feed_for_test({0x10, 0x02});
   hub.feed_for_test(std::vector<uint8_t>(30, 0x01));
   hub.feed_for_test({0x10, 0x02, 0x01, 0x02, 0x03, 0x10, 0x03});
@@ -193,6 +193,23 @@ TEST(RS485FrameHubTest, RxFramerRestartsOnDleStx) {
   const std::vector<uint8_t> payload = {0x01, 0x03, 0x41};
   hub.feed_for_test(hub.build_frame_for_test(payload));
 
+  EXPECT_EQ(hub.frames, 1u);
+  EXPECT_EQ(hub.rx_payload_for_test(), payload);
+}
+
+// A DLE followed by anything but STX, ETX or the escape marker drops the frame.
+TEST(RS485FrameHubTest, RxFramerDropsBadEscape) {
+  RS485FrameHubProbe hub;
+  hub.set_framing(0x10, 0x02, 0x03, 0x00);
+  hub.set_crc_type(CRC_TYPE_NONE);
+  hub.setup();
+  hub.count_frames();
+
+  hub.feed_for_test({0x10, 0x02, 0x01, 0x10, 0x05, 0x02, 0x10, 0x03});
+  EXPECT_EQ(hub.frames, 0u);
+
+  const std::vector<uint8_t> payload = {0x01, 0x10, 0x02};
+  hub.feed_for_test(hub.build_frame_for_test(payload));
   EXPECT_EQ(hub.frames, 1u);
   EXPECT_EQ(hub.rx_payload_for_test(), payload);
 }

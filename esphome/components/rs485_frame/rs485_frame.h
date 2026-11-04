@@ -93,9 +93,11 @@ class RS485FrameHub : public Component, public uart::UARTDevice {
 
  protected:
   void handle_rx_byte_(uint8_t byte, uint32_t now);
-  void process_raw_frame_(uint32_t now);
+  void append_rx_(uint8_t byte);
+  void process_frame_(uint32_t now);
   void reset_rx_();
-  bool validate_frame_();
+  /// Checks the CRC that follows the rx_payload_len_ payload bytes.
+  bool check_crc_() const;
   uint16_t calculate_crc_(const uint8_t *data, size_t len, bool include_header) const;
   size_t crc_length_() const;
   bool crc_little_endian_() const {
@@ -125,8 +127,7 @@ class RS485FrameHub : public Component, public uart::UARTDevice {
   // tx_start_pending_ the head slot is the frame waiting out the gate delay.
   std::unique_ptr<uint8_t[]> tx_queue_;
   std::unique_ptr<uint16_t[]> tx_queue_len_;
-  std::unique_ptr<uint8_t[]> raw_frame_;
-  // The `payload` on_frame receives.
+  // The unescaped frame being received, then the `payload` on_frame receives.
   std::unique_ptr<uint8_t[]> rx_payload_;
   // Only allocated with dump_frames.
   std::unique_ptr<char[]> hex_log_buf_;
@@ -135,7 +136,6 @@ class RS485FrameHub : public Component, public uart::UARTDevice {
   // Advanced by RX and our own TX.
   uint32_t last_activity_time_{0};
   uint32_t tx_start_at_{0};
-  uint16_t raw_len_{0};
   uint16_t rx_payload_len_{0};
 
   uint8_t dle_{0x10};
@@ -151,13 +151,12 @@ class RS485FrameHub : public Component, public uart::UARTDevice {
   uint8_t max_queue_size_{1};
   uint8_t tx_queue_head_{0};
   uint8_t tx_queue_count_{0};
-  uint8_t previous_byte_{0};
   bool accept_header_crc_{true};
   bool accept_payload_crc_{true};
   bool dump_frames_{false};
   bool sniffer_only_{false};
   bool in_frame_{false};
-  // An in-frame DLE whose meaning the next byte decides (needed for doubling mode).
+  // The last byte was a DLE whose meaning the next byte decides.
   bool after_dle_{false};
   bool has_activity_{false};
   bool has_tx_ever_{false};
