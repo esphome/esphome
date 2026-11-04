@@ -1,3 +1,5 @@
+from typing import Any
+
 from esphome import automation, pins
 import esphome.codegen as cg
 from esphome.components import i2c, key_provider
@@ -13,6 +15,7 @@ from esphome.const import (
     CONF_TRIGGER_ID,
 )
 from esphome.cpp_generator import MockObj
+from esphome.schema_extractors import SCHEMA_EXTRACT, schema_extractor
 from esphome.types import ConfigType
 
 CONF_KEYPAD = "keypad"
@@ -43,6 +46,20 @@ LED_DRIVER_FREQUENCIES = LedDriverFrequency.options(
     "122HZ",
     prefix="LED_DRIVER_FREQ_",
 )
+
+
+@schema_extractor("enum")
+def validate_led_driver_frequency(value: Any) -> Any:
+    """One of the nominal frequencies, written in any frequency form (980Hz, 980 Hz, 0.98kHz)."""
+    if value == SCHEMA_EXTRACT:
+        return LED_DRIVER_FREQUENCIES
+    key = f"{round(cv.frequency(value))}HZ"
+    if key not in LED_DRIVER_FREQUENCIES:
+        raise cv.Invalid(
+            f"LED driver frequency must be one of {', '.join(LED_DRIVER_FREQUENCIES)}"
+        )
+    return cv.enum(LED_DRIVER_FREQUENCIES)(key)
+
 
 SX1509Component = sx1509_ns.class_(
     "SX1509Component", cg.Component, i2c.I2CDevice, key_provider.KeyProvider
@@ -92,9 +109,9 @@ CONFIG_SCHEMA = (
         {
             cv.GenerateID(): cv.declare_id(SX1509Component),
             cv.Optional(CONF_KEYPAD): cv.Schema(KEYPAD_SCHEMA),
-            cv.Optional(CONF_LED_DRIVER_FREQUENCY, default="122HZ"): cv.enum(
-                LED_DRIVER_FREQUENCIES, upper=True
-            ),
+            cv.Optional(
+                CONF_LED_DRIVER_FREQUENCY, default="122Hz"
+            ): validate_led_driver_frequency,
         }
     )
     .extend(cv.COMPONENT_SCHEMA)
