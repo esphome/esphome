@@ -8,7 +8,8 @@
 #include "bluedroid_hex.h"
 
 // Set with Bluedroid's private include dirs for this file only (native ESP-IDF toolchain).
-// The headers only feed the drift checks below, so skip them where the include dirs did not arrive.
+// The headers only feed the drift checks below. On Windows the include dirs come through with backslashes,
+// which GCC reads as escapes in the Ninja response file, so the checks are skipped where they are unreachable.
 #if defined(USE_ESP32_BLE_BLUEDROID_HEADERS) && __has_include("btc/btc_config.h")
 #define ESPHOME_BLUEDROID_DRIFT_CHECKS
 #include <type_traits>
