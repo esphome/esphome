@@ -2889,6 +2889,8 @@ def _toto_legacy_code(config: ConfigType) -> int:
 
 def _toto_warn_legacy(config: ConfigType) -> ConfigType:
     if CONF_COMMAND not in config:
+        if CONF_RC_CODE_1 in config or CONF_RC_CODE_2 in config:
+            raise cv.Invalid("'rc_code_1' and 'rc_code_2' need 'command'")
         return config
     if any(cg.is_template(config.get(key)) for key in _TOTO_LEGACY_KEYS):
         replacement = "'code'"
@@ -2903,8 +2905,6 @@ def _toto_warn_legacy(config: ConfigType) -> ConfigType:
 
 _validate_toto_form = cv.All(
     cv.has_exactly_one_key(CONF_CODE, CONF_COMMAND),
-    cv.has_none_or_all_keys(CONF_RC_CODE_1, CONF_COMMAND),
-    cv.has_none_or_all_keys(CONF_RC_CODE_2, CONF_COMMAND),
     _toto_warn_legacy,
 )
 
