@@ -247,12 +247,14 @@ class AsyncWebServer {
 
  protected:
   uint16_t port_{};
+#ifdef USE_WEBSERVER_SSL
+  uint16_t running_port_{};  // port_ of the running listener; port_ may already hold the next one
+#endif
   httpd_handle_t server_{};
 #ifdef USE_WEBSERVER_SSL
   const char *ssl_certificate_{nullptr};
   const char *ssl_private_key_{nullptr};
-  uint16_t running_port_{};  // port_ of the running listener; port_ may already hold the next one
-  Mutex close_lock_;         // held by close_fn while closing, and by shutdown_clients_()
+  Mutex close_lock_;  // held by close_fn while closing, and by shutdown_clients_()
   void shutdown_clients_();
 #endif
   static esp_err_t request_handler(httpd_req_t *r);
