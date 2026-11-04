@@ -63,10 +63,8 @@ void ENS160Component::setup() {
   uint16_t part_id;
   if (!this->setup_check(this->read_bytes(ENS160_REG_PART_ID, reinterpret_cast<uint8_t *>(&part_id), 2)))
     return;
-  if (part_id != ENS160_PART_ID) {
-    this->mark_failed(LOG_STR("Sensor reported an invalid ID. Is this a ENS160?"));
+  if (!this->setup_check(part_id == ENS160_PART_ID, LOG_STR("Sensor reported an invalid ID. Is this a ENS160?")))
     return;
-  }
 
   // set mode to reset
   if (!this->setup_check(this->write_byte(ENS160_REG_OPMODE, ENS160_OPMODE_RESET)))
@@ -79,10 +77,8 @@ void ENS160Component::setup() {
     return;
   this->validity_flag_ = static_cast<ValidityFlag>((ENS160_DATA_STATUS_VALIDITY & status_value) >> 2);
 
-  if (this->validity_flag_ == INVALID_OUTPUT) {
-    this->mark_failed(LOG_STR("Invalid Device Status - No valid output"));
+  if (!this->setup_check(this->validity_flag_ != INVALID_OUTPUT, LOG_STR("Invalid Device Status - No valid output")))
     return;
-  }
 
   // set mode to idle
   if (!this->setup_check(this->write_byte(ENS160_REG_OPMODE, ENS160_OPMODE_IDLE)))
@@ -109,17 +105,13 @@ void ENS160Component::setup() {
   this->firmware_ver_build_ = version_data[2];
 
   // set mode to standard
-  if (!this->write_byte(ENS160_REG_OPMODE, ENS160_OPMODE_STD)) {
-    this->mark_failed(LOG_STR(ESP_LOG_MSG_COMM_FAIL));
+  if (!this->setup_check(this->write_byte(ENS160_REG_OPMODE, ENS160_OPMODE_STD)))
     return;
-  }
 
   // read opmode and check standard mode is achieved before finishing Setup
   uint8_t op_mode;
-  if (!this->read_byte(ENS160_REG_OPMODE, &op_mode)) {
-    this->mark_failed(LOG_STR(ESP_LOG_MSG_COMM_FAIL));
+  if (!this->setup_check(this->read_byte(ENS160_REG_OPMODE, &op_mode)))
     return;
-  }
 
   if (!this->setup_check(op_mode == ENS160_OPMODE_STD, LOG_STR("Device failed to achieve Standard Operating Mode")))
     return;

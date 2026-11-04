@@ -65,10 +65,10 @@ void FUSB302B::setup() {
 
   this->interrupt_pin_->setup();
   // The task must exist before the interrupt is attached, since the ISR notifies it
-  if (!this->task_.create(FUSB302B::task_func, "fusb302b", TASK_STACK_SIZE, this, TASK_PRIORITY, false)) {
-    this->mark_failed(LOG_STR("Failed to create task"));
+  if (!this->setup_check(
+          this->task_.create(FUSB302B::task_func, "fusb302b", TASK_STACK_SIZE, this, TASK_PRIORITY, false),
+          LOG_STR("Failed to create task")))
     return;
-  }
   this->interrupt_pin_->attach_interrupt(&FUSB302B::gpio_intr, this, gpio::INTERRUPT_FALLING_EDGE);
 }
 

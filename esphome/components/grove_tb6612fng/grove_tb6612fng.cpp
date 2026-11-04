@@ -23,10 +23,8 @@ void GroveMotorDriveTB6612FNG::dump_config() {
 }
 
 void GroveMotorDriveTB6612FNG::setup() {
-  if (!this->standby()) {
-    this->mark_failed();
+  if (!this->setup_check(this->standby()))
     return;
-  }
 }
 
 bool GroveMotorDriveTB6612FNG::standby() {
