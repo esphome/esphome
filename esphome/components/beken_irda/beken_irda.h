@@ -14,18 +14,15 @@ class BekenIrdaComponent final : public Component, public remote_base::RemoteRec
   void dump_config() override;
   float get_setup_priority() const override { return setup_priority::HARDWARE; }
 
-  /// Called from the IRDA interrupt handler.
-  void handle_isr();
-
  protected:
+  static void irda_isr();
+  void handle_isr();
   void dispatch_full_(uint32_t code);
   void dispatch_repeat_();
 
-  uint32_t last_error_{0};
-
   volatile uint32_t last_code_{0};
-  /// Rejected codes and IRDA errors
-  volatile uint32_t error_count_{0};
+  /// Rejected codes and IRDA errors since the loop last reported them
+  volatile uint16_t error_count_{0};
   volatile bool raw_ready_{false};
   volatile bool repeat_ready_{false};
 };

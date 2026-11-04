@@ -1,7 +1,6 @@
 #include "beken_irda.h"
 
 #include <array>
-#include <cinttypes>
 
 #include "esphome/components/remote_base/nec_protocol.h"
 #include "esphome/core/helpers.h"
@@ -42,7 +41,7 @@ static constexpr size_t NEC_FRAME_DURATIONS = 2 + 64 + 1;
 // The ISR runs without an instance, so it reaches the component through this pointer.
 static BekenIrdaComponent *s_irda = nullptr;  // NOLINT(cppcoreguidelines-avoid-non-const-global-variables)
 
-static void irda_isr() { s_irda->handle_isr(); }
+void BekenIrdaComponent::irda_isr() { s_irda->handle_isr(); }
 
 void BekenIrdaComponent::handle_isr() {
   const uint32_t status = REG_READ(IRDA_INT_REG);
@@ -103,20 +102,10 @@ void BekenIrdaComponent::setup() {
 }
 
 void BekenIrdaComponent::loop() {
-  // Report decode errors once they change, at debug level so a noisy remote does not spam the log.
-  const uint32_t errors = this->error_count_;
-  if (errors != this->last_error_) {
-    this->last_error_ = errors;
-    ESP_LOGD(TAG, "%" PRIu32 " decode errors", errors);
-  }
-  if (!this->raw_ready_ && !this->repeat_ready_) {
-    this->disable_loop();
-    return;
-  }
-
   // Read the validated code together with clearing the flags, so a frame that arrives in between cannot
   // change what is dispatched.
   uint32_t code;
+  uint16_t errors;
   bool have_code;
   bool have_repeat;
   {
@@ -124,8 +113,18 @@ void BekenIrdaComponent::loop() {
     have_code = this->raw_ready_;
     have_repeat = this->repeat_ready_;
     code = this->last_code_;
+    errors = this->error_count_;
     this->raw_ready_ = false;
     this->repeat_ready_ = false;
+    this->error_count_ = 0;
+  }
+  // at debug level so a noisy remote does not spam the log
+  if (errors != 0) {
+    ESP_LOGD(TAG, "%u decode errors", errors);
+  }
+  if (!have_code && !have_repeat) {
+    this->disable_loop();
+    return;
   }
   if (have_code)
     this->dispatch_full_(code);
@@ -134,8 +133,7 @@ void BekenIrdaComponent::loop() {
 }
 
 void BekenIrdaComponent::dump_config() {
-  ESP_LOGCONFIG(TAG, "Beken IRDA receiver (NEC):\n"
-                     "  P26 is shared with PWM5; do not use PWM on it while receiving");
+  ESP_LOGCONFIG(TAG, "Beken IRDA receiver (NEC):");
   LOG_PIN("  Pin: ", this->pin_);
 }
 
