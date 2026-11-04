@@ -362,7 +362,7 @@ SEN6X_FORCED_CO2_RECALIBRATION_SCHEMA = cv.Schema(
         cv.Required(CONF_ID): cv.use_id(SEN6XComponent),
         # Reference CO2 concentration in ppm, within the sensor's 0 to 40000 ppm range.
         # A float, so a lambda can pass a sensor state; C++ rejects NaN and out-of-range values.
-        cv.Required(CONF_VALUE): cv.templatable(cv.int_range(min=0, max=40000)),
+        cv.Required(CONF_VALUE): cv.templatable(cv.float_range(min=0, max=40000)),
     }
 )
 
