@@ -87,6 +87,18 @@ IAC_ADC_STEP_MV = 0.004
 # Charger control bits the component does not set, at their reset values:
 # VRECHG 97.6% and EN_CHG_BIT_RESET_BEHAVIOR
 CHARGER_CONTROL_DEFAULTS = 0xC8
+# Register fields set from the configuration
+TOPOFF_TMR_SHIFT = 6  # TIMER_CONTROL[7:6]
+WATCHDOG_SHIFT = 4  # TIMER_CONTROL[5:4]
+EN_CHG_TMR = 0x08  # TIMER_CONTROL[3]
+CHG_TMR_SHIFT = 1  # TIMER_CONTROL[2:1]
+EN_HIZ = 0x04  # CHARGER_CONTROL[2]
+EN_CHG = 0x01  # CHARGER_CONTROL[0]
+EN_BATFET_IDEAL_DIODE = 0x04  # POWER_PATH_CONTROL[2]
+FULL_SWEEP_TMR_SHIFT = 1  # MPPT_CONTROL[2:1]
+EN_MPPT = 0x01  # MPPT_CONTROL[0]
+EN_TS = 0x01  # TS_REGION_CONTROL[0]
+ADC_EN = 0x80  # ADC_CONTROL[7]
 # (key, sense resistor key, lowest code, highest code)
 CURRENT_LIMITS = (
     (CONF_CHARGE_CURRENT, CONF_BAT_SNS_RES, 8, 400),
@@ -223,28 +235,36 @@ def build_config(config: ConfigType) -> cg.StructInitializer:
     ts_thresholds = 0
     for key, choices, _, shift in TS_THRESHOLDS:
         ts_thresholds |= choices.index(config[key]) << shift
-    controls = (
-        # VFB_REG: 2 mV steps from 1.504 V
-        round((config[CONF_CHARGE_VOLTAGE] - 1.504) / 0.002),
-        # TOPOFF_TMR[7:6], WATCHDOG[5:4], EN_CHG_TMR, CHG_TMR[2:1]
-        TOPOFF_TIMER_CHOICES[config[CONF_TOPOFF_TIMER]] << 6
-        | WATCHDOG_CHOICES[config[CONF_WATCHDOG]] << 4
-        | 0x08
-        | CHARGE_TIMER_CHOICES[config[CONF_CHARGE_TIMER]] << 1,
-        # EN_HIZ, EN_CHG
+    # VFB_REG: 2 mV steps from 1.504 V
+    charge_voltage = round((config[CONF_CHARGE_VOLTAGE] - 1.504) / 0.002)
+    timer_control = (
+        TOPOFF_TIMER_CHOICES[config[CONF_TOPOFF_TIMER]] << TOPOFF_TMR_SHIFT
+        | WATCHDOG_CHOICES[config[CONF_WATCHDOG]] << WATCHDOG_SHIFT
+        | EN_CHG_TMR
+        | CHARGE_TIMER_CHOICES[config[CONF_CHARGE_TIMER]] << CHG_TMR_SHIFT
+    )
+    charger_control = (
         CHARGER_CONTROL_DEFAULTS
-        | _flag(config[CONF_HIZ_ENABLED], 0x04)
-        | _flag(config[CONF_CHARGE_ENABLED], 0x01),
-        # EN_BATFET_IDEAL_DIODE
-        _flag(config[CONF_IDEAL_DIODE], 0x04),
-        # FULL_SWEEP_TMR[2:1], EN_MPPT
-        MPPT_SWEEP_TIMER_CHOICES[config[CONF_MPPT_SWEEP_TIMER]] << 1
-        | _flag(config[CONF_MPPT_ENABLED], 0x01),
+        | _flag(config[CONF_HIZ_ENABLED], EN_HIZ)
+        | _flag(config[CONF_CHARGE_ENABLED], EN_CHG)
+    )
+    power_path_control = _flag(config[CONF_IDEAL_DIODE], EN_BATFET_IDEAL_DIODE)
+    sweep_timer = MPPT_SWEEP_TIMER_CHOICES[config[CONF_MPPT_SWEEP_TIMER]]
+    mppt_enabled = _flag(config[CONF_MPPT_ENABLED], EN_MPPT)
+    mppt_control = sweep_timer << FULL_SWEEP_TMR_SHIFT | mppt_enabled
+    ts_region_control = _flag(config[CONF_TEMP_EN], EN_TS)
+    # ADC_RATE stays clear for continuous conversion
+    adc_control = ADC_EN
+    # In the order of the control register table in bq25820.cpp
+    controls = (
+        charge_voltage,
+        timer_control,
+        charger_control,
+        power_path_control,
+        mppt_control,
         ts_thresholds,
-        # EN_TS
-        _flag(config[CONF_TEMP_EN], 0x01),
-        # ADC_EN, ADC_RATE cleared for continuous conversion
-        0x80,
+        ts_region_control,
+        adc_control,
     )
     return cg.StructInitializer(
         BQ25820Config,

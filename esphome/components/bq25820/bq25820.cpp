@@ -199,17 +199,12 @@ void BQ25820Component::publish_adc_(const BQ25820Config &config) {
   int16_t adc[6];
   if (!this->status_comm_result(this->read_bytes_16_le(REG_IAC_ADC, adc, std::size(adc))))
     return;
-  if (this->iac_sensor_ != nullptr)
-    this->iac_sensor_->publish_state(adc[0] * config.iac_scale);
+  PUBLISH_STATE(this->iac_sensor_, adc[0] * config.iac_scale);
   // Positive while charging
-  if (this->ibat_sensor_ != nullptr)
-    this->ibat_sensor_->publish_state(adc[1] * config.ibat_scale);
-  if (this->vac_sensor_ != nullptr)
-    this->vac_sensor_->publish_state(static_cast<uint16_t>(adc[2]) * VOLTAGE_ADC_STEP_V);
-  if (this->vbat_sensor_ != nullptr)
-    this->vbat_sensor_->publish_state(static_cast<uint16_t>(adc[3]) * VOLTAGE_ADC_STEP_V);
-  if (this->vsys_sensor_ != nullptr)
-    this->vsys_sensor_->publish_state(static_cast<uint16_t>(adc[4]) * VOLTAGE_ADC_STEP_V);
+  PUBLISH_STATE(this->ibat_sensor_, adc[1] * config.ibat_scale);
+  PUBLISH_STATE(this->vac_sensor_, static_cast<uint16_t>(adc[2]) * VOLTAGE_ADC_STEP_V);
+  PUBLISH_STATE(this->vbat_sensor_, static_cast<uint16_t>(adc[3]) * VOLTAGE_ADC_STEP_V);
+  PUBLISH_STATE(this->vsys_sensor_, static_cast<uint16_t>(adc[4]) * VOLTAGE_ADC_STEP_V);
   if (this->temp_in_c_sensor_ != nullptr) {
     // TS_ADC is the TS pin voltage as a 10-bit share of REGN
     const float ratio = (adc[5] & 0x3FF) / 1024.0f;
