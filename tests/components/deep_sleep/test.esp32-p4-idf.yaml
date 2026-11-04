@@ -1,4 +1,5 @@
 substitutions:
   wakeup_pin: GPIO4
 
-<<: !include common-esp32-all.yaml
+packages:
+  deep_sleep: !include common-esp32-all.yaml
