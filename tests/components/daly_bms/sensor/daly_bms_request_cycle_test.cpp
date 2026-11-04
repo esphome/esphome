@@ -40,52 +40,52 @@ uint8_t last_request(const FakeUART &uart) { return uart.tx[uart.tx.size() - FRA
 class DalyBmsRequestCycleTest : public ::testing::Test {
  protected:
   void SetUp() override {
-    this->bms.set_uart_parent(&this->uart);
-    this->bms.set_address(0x80);
-    this->bms.setup();
-    this->bms.update();
-    loop_at(this->bms, 1000);
+    this->bms_.set_uart_parent(&this->uart_);
+    this->bms_.set_address(0x80);
+    this->bms_.setup();
+    this->bms_.update();
+    loop_at(this->bms_, 1000);
   }
 
-  FakeUART uart;
-  DalyBmsComponent bms;
+  FakeUART uart_;
+  DalyBmsComponent bms_;
 };
 
 TEST_F(DalyBmsRequestCycleTest, UpdateStartsWithBatteryLevel) {
-  ASSERT_EQ(request_count(this->uart), 1u);
-  EXPECT_EQ(last_request(this->uart), 0x90);
+  ASSERT_EQ(request_count(this->uart_), 1u);
+  EXPECT_EQ(last_request(this->uart_), 0x90);
 }
 
 // Without a response, the next request waits for the timeout.
 TEST_F(DalyBmsRequestCycleTest, NextRequestAfterTimeoutWithoutResponse) {
-  loop_at(this->bms, 1100);
-  EXPECT_EQ(request_count(this->uart), 1u);
-  loop_at(this->bms, 1250);
-  ASSERT_EQ(request_count(this->uart), 2u);
-  EXPECT_EQ(last_request(this->uart), 0x91);
+  loop_at(this->bms_, 1100);
+  EXPECT_EQ(request_count(this->uart_), 1u);
+  loop_at(this->bms_, 1250);
+  ASSERT_EQ(request_count(this->uart_), 2u);
+  EXPECT_EQ(last_request(this->uart_), 0x91);
 }
 
 // Once the response is complete and the line is quiet, the next request goes out before the timeout.
 TEST_F(DalyBmsRequestCycleTest, NextRequestFollowsCompleteResponse) {
-  receive(this->uart, response_frame(0x90));
-  loop_at(this->bms, 1010);
-  loop_at(this->bms, 1040);
-  EXPECT_EQ(request_count(this->uart), 1u);
-  loop_at(this->bms, 1060);
-  ASSERT_EQ(request_count(this->uart), 2u);
-  EXPECT_EQ(last_request(this->uart), 0x91);
+  receive(this->uart_, response_frame(0x90));
+  loop_at(this->bms_, 1010);
+  loop_at(this->bms_, 1040);
+  EXPECT_EQ(request_count(this->uart_), 1u);
+  loop_at(this->bms_, 1060);
+  ASSERT_EQ(request_count(this->uart_), 2u);
+  EXPECT_EQ(last_request(this->uart_), 0x91);
 }
 
 // A frame arriving shortly after the first one belongs to the same response and delays the next request.
 TEST_F(DalyBmsRequestCycleTest, MultiFrameResponseIsReadToTheEnd) {
-  receive(this->uart, response_frame(0x95));
-  loop_at(this->bms, 1010);
-  receive(this->uart, response_frame(0x95));
-  loop_at(this->bms, 1030);
-  loop_at(this->bms, 1070);
-  EXPECT_EQ(request_count(this->uart), 1u);
-  loop_at(this->bms, 1080);
-  EXPECT_EQ(request_count(this->uart), 2u);
+  receive(this->uart_, response_frame(0x95));
+  loop_at(this->bms_, 1010);
+  receive(this->uart_, response_frame(0x95));
+  loop_at(this->bms_, 1030);
+  loop_at(this->bms_, 1070);
+  EXPECT_EQ(request_count(this->uart_), 1u);
+  loop_at(this->bms_, 1080);
+  EXPECT_EQ(request_count(this->uart_), 2u);
 }
 
 // An update during a running cycle must not restart it, or a short update interval would never reach the
@@ -94,26 +94,26 @@ TEST_F(DalyBmsRequestCycleTest, UpdateDuringCycleDoesNotRestartIt) {
   uint32_t now = 1000;
   for (uint8_t expected = 0x91; expected <= 0x96; expected++) {
     now += 250;
-    this->bms.update();
-    loop_at(this->bms, now);
-    ASSERT_EQ(last_request(this->uart), expected);
+    this->bms_.update();
+    loop_at(this->bms_, now);
+    ASSERT_EQ(last_request(this->uart_), expected);
   }
-  EXPECT_EQ(request_count(this->uart), 7u);
+  EXPECT_EQ(request_count(this->uart_), 7u);
 }
 
 TEST_F(DalyBmsRequestCycleTest, UpdateAfterCompleteCycleStartsANewOne) {
   uint32_t now = 1000;
   for (int i = 0; i < 6; i++) {
     now += 250;
-    loop_at(this->bms, now);
+    loop_at(this->bms_, now);
   }
-  ASSERT_EQ(request_count(this->uart), 7u);
-  loop_at(this->bms, now + 250);
-  EXPECT_EQ(request_count(this->uart), 7u);
-  this->bms.update();
-  loop_at(this->bms, now + 260);
-  ASSERT_EQ(request_count(this->uart), 8u);
-  EXPECT_EQ(last_request(this->uart), 0x90);
+  ASSERT_EQ(request_count(this->uart_), 7u);
+  loop_at(this->bms_, now + 250);
+  EXPECT_EQ(request_count(this->uart_), 7u);
+  this->bms_.update();
+  loop_at(this->bms_, now + 260);
+  ASSERT_EQ(request_count(this->uart_), 8u);
+  EXPECT_EQ(last_request(this->uart_), 0x90);
 }
 
 }  // namespace
