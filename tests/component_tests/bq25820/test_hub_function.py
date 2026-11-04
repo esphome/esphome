@@ -8,7 +8,6 @@ from esphome.components.bq25820.binary_sensor import _state_expression
 
 from .status_datasheet import BINARY_SENSORS, TEXT_SENSORS, field_value, status_strings
 
-PARAMS = "const bq25820::BQ25820StatusRegisters & esphome__arg_status"
 BINARY = re.compile(r"::bs_(\w+)->publish_state\((.*)\);")
 LAST = re.compile(r"static uint8_t esphome__tx_(\w+)__last = 0xFF;")
 TEXT = re.compile(
@@ -23,9 +22,9 @@ CPP_TEXT = re.compile(
 
 
 def _body(main_cpp: str, hub: str, fn: str = "status") -> list[str]:
-    params = PARAMS if fn == "status" else ""
-    head = f"static void esphome__{hub}__{fn}_fn({params}) {{\n"
-    body = main_cpp.split(head, 1)[1].split("\n}", 1)[0]
+    head = f"static void esphome__{hub}__{fn}_fn("
+    # The last match is the definition; a prototype comes first
+    body = main_cpp.rsplit(head, 1)[1].split(") {\n", 1)[1].split("\n}", 1)[0]
     return [line.strip() for line in body.splitlines()]
 
 
@@ -113,15 +112,17 @@ def test_dump_status_lists_every_entity(
     ids = [f"tx_{key}" for key in TEXT_SENSORS] + [
         f"bs_{key}" for key in BINARY_SENSORS
     ]
-    assert _body(main_cpp, "charger_a", "dump_status") == [
-        f"bq25820::dump_status_entity(::{id_});" for id_ in ids
-    ]
-    assert _body(main_cpp, "charger_b", "dump_status") == [
-        "bq25820::dump_status_entity(::b_temp_status);"
-    ]
-    for hub in ("charger_a", "charger_b"):
-        assert (
-            f"{hub}->set_dump_status_publisher(esphome__{hub}__dump_status_fn);"
-            in main_cpp
+
+    def log(id_: str) -> str:
+        kind = "text_sensor" if id_.startswith(("tx_", "b_")) else "binary_sensor"
+        label = "Text Sensor" if kind == "text_sensor" else "Binary Sensor"
+        return (
+            f'{kind}::log_{kind}(esphome__arg_tag, "  ", '
+            f'LOG_STR_LITERAL("{label}"), ::{id_});'
         )
-    assert "charger_c->set_dump_status_publisher" not in main_cpp
+
+    assert _body(main_cpp, "charger_a", "dump") == [log(id_) for id_ in ids]
+    assert _body(main_cpp, "charger_b", "dump") == [log("b_temp_status")]
+    for hub in ("charger_a", "charger_b"):
+        assert f"{hub}->set_dump_publisher(esphome__{hub}__dump_fn);" in main_cpp
+    assert "charger_c->set_dump_publisher" not in main_cpp

@@ -96,7 +96,10 @@ async def to_code(config: ConfigType) -> None:
     hub = await cg.get_variable(config[CONF_BQ25820_ID])
     cg.add_define("USE_BQ25820_SENSOR")
     sensors = sensor.sub_sensors(config)
-    for key in _SENSOR_KEYS:
-        await sensors(key, getattr(hub, f"set_{key}_sensor"))
-    if CONF_TEMP_IN_C in config:
+    await sensors(CONF_VBAT, hub.set_vbat_sensor)
+    await sensors(CONF_VSYS, hub.set_vsys_sensor)
+    await sensors(CONF_VAC, hub.set_vac_sensor)
+    await sensors(CONF_IBAT, hub.set_ibat_sensor)
+    await sensors(CONF_IAC, hub.set_iac_sensor)
+    if await sensors(CONF_TEMP_IN_C, hub.set_temp_in_c_sensor) is not None:
         cg.add(hub.set_ntc_calibration(*ntc_calibration(config[CONF_TEMP_IN_C])))

@@ -60,16 +60,6 @@ inline void publish_status_text(text_sensor::TextSensor *sensor, uint8_t &last, 
 }
 #endif
 
-#ifdef USE_BQ25820_DUMP_STATUS_PUBLISHER
-// Log one status entity, for the generated dump_status function
-#ifdef USE_BINARY_SENSOR
-void dump_status_entity(binary_sensor::BinarySensor *sensor);
-#endif
-#ifdef USE_TEXT_SENSOR
-void dump_status_entity(text_sensor::TextSensor *sensor);
-#endif
-#endif
-
 class BQ25820Component final : public PollingComponent, public i2c::I2CDevice {
  public:
   /// `config` points into PROGMEM
@@ -95,9 +85,7 @@ class BQ25820Component final : public PollingComponent, public i2c::I2CDevice {
 #endif
 #ifdef USE_BQ25820_STATUS_PUBLISHER
   HUB_PUBLISHER(status, const BQ25820StatusRegisters &)
-#endif
-#ifdef USE_BQ25820_DUMP_STATUS_PUBLISHER
-  HUB_PUBLISHER(dump_status)
+  HUB_PUBLISHER(dump, const char *)
 #endif
 
  protected:

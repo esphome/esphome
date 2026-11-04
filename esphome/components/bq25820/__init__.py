@@ -38,10 +38,9 @@ STATUS_PUBLISHER = cg.HubFunction(
     define="USE_BQ25820_STATUS_PUBLISHER",
 )
 STATUS = STATUS_PUBLISHER.param("status")
-# Logs the status entities from the hub's dump_config
-DUMP_STATUS = cg.HubFunction(
-    "dump_status", cg.void, [], define="USE_BQ25820_DUMP_STATUS_PUBLISHER"
-)
+# Logs the status entities from the hub's dump_config, which calls it inside USE_BQ25820_STATUS_PUBLISHER
+DUMP = cg.HubFunction("dump", cg.void, [(cg.const_char_ptr, "tag")])
+DUMP_TAG = DUMP.param("tag")
 # Offsets into the status registers read from CHARGER_STATUS_1 (0x21)
 CHARGER_STATUS_1 = 0
 CHARGER_STATUS_2 = 1

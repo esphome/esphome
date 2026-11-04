@@ -18,15 +18,17 @@ from .. import (
     CHARGER_STATUS_2,
     CHARGER_STATUS_3,
     CONF_BQ25820_ID,
-    DUMP_STATUS,
+    DUMP,
+    DUMP_TAG,
     FAULT_STATUS,
     STATUS,
     STATUS_PUBLISHER,
     BQ25820BaseSchema,
-    bq25820_ns,
+    bq25820_ns as bq25820_ns,
 )
 
 DEPENDENCIES = ["bq25820"]
+_BINARY_SENSOR_TYPE = cg.RawExpression('LOG_STR_LITERAL("Binary Sensor")')
 
 # Bit set for each field value that reads as on: a single bit is on when it is 1
 _BIT_SET = 0b10
@@ -122,4 +124,9 @@ async def to_code(config: ConfigType) -> None:
                 field.register, field.shift, field.mask, field.on_values
             )
             STATUS_PUBLISHER.add(hub, parent_ref(var).publish_state(state))
-            DUMP_STATUS.add(hub, bq25820_ns.dump_status_entity(parent_ref(var)))
+            DUMP.add(
+                hub,
+                binary_sensor.binary_sensor_ns.log_binary_sensor(
+                    DUMP_TAG, "  ", _BINARY_SENSOR_TYPE, parent_ref(var)
+                ),
+            )

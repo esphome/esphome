@@ -16,7 +16,8 @@ from .. import (
     CHARGER_STATUS_1,
     CHARGER_STATUS_2,
     CONF_BQ25820_ID,
-    DUMP_STATUS,
+    DUMP,
+    DUMP_TAG,
     STATUS,
     STATUS_PUBLISHER,
     BQ25820BaseSchema,
@@ -24,6 +25,7 @@ from .. import (
 )
 
 DEPENDENCIES = ["bq25820"]
+_TEXT_SENSOR_TYPE = cg.RawExpression('LOG_STR_LITERAL("Text Sensor")')
 
 ICON_BATTERY_CHARGING = "mdi:battery-charging"
 
@@ -85,4 +87,9 @@ async def to_code(config: ConfigType) -> None:
     for field in _FIELDS:
         if (var := await sensors(field.key, None)) is not None:
             _add_text_status(hub, var, field)
-            DUMP_STATUS.add(hub, bq25820_ns.dump_status_entity(parent_ref(var)))
+            DUMP.add(
+                hub,
+                text_sensor.text_sensor_ns.log_text_sensor(
+                    DUMP_TAG, "  ", _TEXT_SENSOR_TYPE, parent_ref(var)
+                ),
+            )

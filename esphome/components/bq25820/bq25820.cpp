@@ -84,15 +84,6 @@ static void log_current_limit(const LogString *name, uint16_t limit, float amps_
   }
 }
 
-#ifdef USE_BQ25820_DUMP_STATUS_PUBLISHER
-#ifdef USE_BINARY_SENSOR
-void dump_status_entity(binary_sensor::BinarySensor *sensor) { LOG_BINARY_SENSOR("  ", "Binary Sensor", sensor); }
-#endif
-#ifdef USE_TEXT_SENSOR
-void dump_status_entity(text_sensor::TextSensor *sensor) { LOG_TEXT_SENSOR("  ", "Text Sensor", sensor); }
-#endif
-#endif
-
 void BQ25820Component::setup() {
   if (!this->check_chip_id(this, REG_PART_INFORMATION, PART_NUM_BQ25820, PART_NUM_MASK))
     return;
@@ -127,9 +118,9 @@ void BQ25820Component::dump_config() {
   LOG_SENSOR("  ", "Input Current", this->iac_sensor_);
   LOG_SENSOR("  ", "Temperature", this->temp_in_c_sensor_);
 #endif
-#ifdef USE_BQ25820_DUMP_STATUS_PUBLISHER
-  if (this->dump_status_publisher_ != nullptr)
-    this->dump_status_publisher_();
+#ifdef USE_BQ25820_STATUS_PUBLISHER
+  if (this->dump_publisher_ != nullptr)
+    this->dump_publisher_(TAG);
 #endif
 }
 
