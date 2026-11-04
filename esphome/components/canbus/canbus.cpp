@@ -22,28 +22,65 @@ void Canbus::dump_config() {
   }
 }
 
-canbus::Error Canbus::send_data(CanFrame &frame) {
-  const auto size = can_dlc_to_len(frame.can_data_length_code);
-  if (size == CAN_INVALID_DLC || (!frame.fd && size > CAN_MAX_DATA_LENGTH)) {
-    ESP_LOGE(TAG, "Invalid DLC=%" PRIu8 " for CAN frame format", frame.can_data_length_code);
-    return ERROR_FAILTX;
-  }
-  if (frame.can_id > (frame.use_extended_id ? 0x1FFFFFFFU : 0x7FFU)) {
+canbus::Error Canbus::send_data(const CanFrame &frame) {
+  if (frame.can_id > (frame.use_extended_id ? CAN_EXTENDED_ID_MAX : CAN_STANDARD_ID_MAX)) {
     ESP_LOGE(TAG, "CAN ID 0x%08" PRIx32 " exceeds frame identifier width", frame.can_id);
     return ERROR_FAILTX;
   }
-  if (frame.fd && frame.remote_transmission_request) {
-    ESP_LOGE(TAG, "Invalid CAN frame: FD with RTR");
+#ifdef USE_CANBUS_FD
+  if (frame.fd ? (frame.remote_transmission_request || can_dlc_to_len(frame.can_data_length_code) == CAN_INVALID_DLC)
+               : frame.bit_rate_switch) {
+    ESP_LOGE(TAG, "Invalid CAN frame: fd=%d rtr=%d brs=%d dlc=%" PRIu8, frame.fd, frame.remote_transmission_request,
+             frame.bit_rate_switch, frame.can_data_length_code);
     return ERROR_FAILTX;
   }
-  if (!frame.fd && frame.bit_rate_switch) {
-    ESP_LOGE(TAG, "Invalid CAN frame: BRS without FD");
-    return ERROR_FAILTX;
+#endif
+  return this->send_frame_(frame);
+}
+
+#ifdef USE_CANBUS_FD
+canbus::Error Canbus::send_data(uint32_t can_id, bool use_extended_id, bool remote_transmission_request,
+                                const uint8_t *data, size_t len, bool fd, bool bit_rate_switch, bool pad_data) {
+#else
+canbus::Error Canbus::send_data(uint32_t can_id, bool use_extended_id, bool remote_transmission_request,
+                                const uint8_t *data, size_t len) {
+#endif
+  CanFrame frame;
+  frame.use_extended_id = use_extended_id;
+  frame.remote_transmission_request = remote_transmission_request;
+  frame.can_id = can_id;
+#ifdef USE_CANBUS_FD
+  frame.fd = fd;
+  frame.bit_rate_switch = bit_rate_switch;
+  frame.error_state_indicator = false;
+  if (fd) {
+    frame.can_data_length_code = can_len_to_dlc(len, pad_data);
+    if (frame.can_data_length_code == CAN_INVALID_DLC) {
+      ESP_LOGE(TAG, "CAN FD cannot carry %zu bytes without pad_data", len);
+      return ERROR_FAILTX;
+    }
+    if (!remote_transmission_request && len != 0) {
+      std::memcpy(frame.data, data, len);
+      std::memset(frame.data + len, 0, can_dlc_to_len(frame.can_data_length_code) - len);
+    }
+    return this->send_data(frame);
   }
-  if (frame.fd && !this->supports_fd()) {
-    ESP_LOGE(TAG, "CAN FD is not supported by this controller or mode");
-    return ERROR_FAILTX;
-  }
+#endif
+  // Clamp before narrowing, so a lambda payload of 256 bytes or more cannot wrap to a short length
+  frame.can_data_length_code = static_cast<uint8_t>(std::min<size_t>(len, CAN_MAX_DATA_LENGTH));
+  // An empty vector may hand over a null pointer, which memcpy must not get even for 0 bytes
+  if (!remote_transmission_request && frame.can_data_length_code != 0)
+    std::memcpy(frame.data, data, frame.can_data_length_code);
+#ifdef USE_CANBUS_FD
+  // The caller's flags can still contradict each other
+  return this->send_data(frame);
+#else
+  return this->send_frame_(frame);
+#endif
+}
+
+canbus::Error Canbus::send_frame_(const CanFrame &frame) {
+  const uint8_t size = frame.payload_length();
   if (frame.use_extended_id) {
     ESP_LOGD(TAG, "send extended id=0x%08" PRIx32 " rtr=%s size=%d", frame.can_id,
              TRUEFALSE(frame.remote_transmission_request), size);
@@ -51,12 +88,10 @@ canbus::Error Canbus::send_data(CanFrame &frame) {
     ESP_LOGD(TAG, "send standard id=0x%03" PRIx32 " rtr=%s size=%d", frame.can_id,
              TRUEFALSE(frame.remote_transmission_request), size);
   }
+  ESP_LOGV_HEX(TAG, frame.data, size, CAN_FRAME_DATA_LENGTH, "  data=%s");
 
-  for (int i = 0; !frame.remote_transmission_request && i < size; i++) {
-    ESP_LOGVV(TAG, "  data[%d]=%02x", i, frame.data[i]);
-  }
-
-  canbus::Error error = this->send_message(&frame);
+  // Drivers take a mutable pointer but do not change the frame
+  canbus::Error error = this->send_message(const_cast<CanFrame *>(&frame));
   if (error != canbus::ERROR_OK) {
     if (frame.use_extended_id) {
       ESP_LOGW(TAG, "send to extended id=0x%08" PRIx32 " failed with error %d!", frame.can_id, error);
@@ -67,42 +102,6 @@ canbus::Error Canbus::send_data(CanFrame &frame) {
   return error;
 }
 
-canbus::Error Canbus::send_data(uint32_t can_id, bool use_extended_id, bool remote_transmission_request,
-                                const uint8_t *data, size_t len, bool fd, bool bit_rate_switch, bool pad_data) {
-  if (!fd && len > CAN_MAX_DATA_LENGTH) {
-    // Maintain original behavior of clamping non-FD frames to 8-bytes. Print a warning to alert the user that
-    // an operation they requested did not happen as they expected.
-    ESP_LOGW(TAG, "CAN payload length %zu exceeds maximum, sending first %" PRIu8 " bytes", len, CAN_MAX_DATA_LENGTH);
-    len = CAN_MAX_DATA_LENGTH;
-  } else if (fd && len > CAN_FD_MAX_DATA_LENGTH) {
-    ESP_LOGE(TAG, "CAN FD payload length %zu exceeds maximum of %" PRIu8 " bytes", len, CAN_FD_MAX_DATA_LENGTH);
-    return ERROR_FAILTX;
-  }
-  const uint8_t dlc = can_len_to_dlc(len, pad_data);
-  if (dlc == CAN_INVALID_DLC) {
-    ESP_LOGE(TAG, "CAN FD payload length %zu requires pad_data: true", len);
-    return ERROR_FAILTX;
-  }
-  if (len != 0 && data == nullptr && !remote_transmission_request) {
-    ESP_LOGE(TAG, "CAN payload data is null");
-    return ERROR_FAILTX;
-  }
-
-  CanFrame can_message{};
-  can_message.can_data_length_code = dlc;
-  can_message.can_id = can_id;
-  can_message.use_extended_id = use_extended_id;
-  can_message.remote_transmission_request = remote_transmission_request;
-  can_message.fd = fd;
-  can_message.bit_rate_switch = bit_rate_switch;
-
-  for (size_t i = 0; !remote_transmission_request && i < len; i++) {
-    can_message.data[i] = data[i];
-  }
-
-  return this->send_data(can_message);
-}
-
 void Canbus::loop() {
   uint32_t now = App.get_loop_component_start_time();
   if ((now - this->last_event_check_time_) >= EVENT_CHECK_INTERVAL_MS) {
@@ -110,31 +109,29 @@ void Canbus::loop() {
     this->last_event_check_time_ = now;
   }
 
+  struct CanFrame can_message;
   uint32_t message_counter = 0;
   for (; message_counter < this->max_frames_per_loop_; message_counter++) {
-    struct CanFrame can_message{};
+#ifdef USE_CANBUS_FD
+    // Classic drivers leave the CAN FD flags alone
+    can_message.fd = false;
+    can_message.bit_rate_switch = false;
+    can_message.error_state_indicator = false;
+#endif
     if (this->read_message(&can_message) != canbus::ERROR_OK) {
       break;
     }
 
-    uint8_t size = can_dlc_to_len(can_message.can_data_length_code);
-    if (size == CAN_INVALID_DLC) {
-      ESP_LOGW(TAG, "Ignoring CAN frame with invalid DLC=%" PRIu8, can_message.can_data_length_code);
-      continue;
-    }
-    if (!can_message.fd) {
-      size = std::min(size, CAN_MAX_DATA_LENGTH);
-    }
-
+    const uint8_t size = can_message.payload_length();
     if (can_message.use_extended_id) {
       ESP_LOGD(TAG, "received can message (#%" PRIu32 ") extended can_id=0x%" PRIx32 " size=%d", message_counter + 1,
                can_message.can_id, size);
     } else {
-      ESP_LOGD(TAG, "received can message (#%" PRIu32 ") standard can_id=0x%" PRIx32 " size=%d", message_counter + 1,
+      ESP_LOGD(TAG, "received can message (#%" PRIu32 ") std can_id=0x%" PRIx32 " size=%d", message_counter + 1,
                can_message.can_id, size);
     }
 
-    ESP_LOGV_HEX(TAG, can_message.data, size, CAN_FD_MAX_DATA_LENGTH, "  data=%s");
+    ESP_LOGV_HEX(TAG, can_message.data, size, CAN_FRAME_DATA_LENGTH, "  data=%s");
     this->frame_callbacks_.call(can_message);
   }
 
