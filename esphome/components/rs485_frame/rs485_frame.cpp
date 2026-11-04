@@ -255,9 +255,12 @@ size_t RS485FrameHub::build_frame_(const uint8_t *payload, size_t len, uint8_t *
 }
 
 void RS485FrameHub::maybe_tx_(uint32_t now) {
-  if (this->tx_gate_mode_ == TX_GATE_IDLE_GAP && now - this->last_activity_time_ >= this->tx_idle_gap_)
+  const uint32_t since_tx = now - this->last_tx_time_;
+  if (this->tx_gate_mode_ == TX_GATE_IDLE_GAP && now - this->last_activity_time_ >= this->tx_idle_gap_ &&
+      since_tx >= this->last_tx_wire_ms_ + this->tx_idle_gap_)
     this->send_next_(now);
-  if (this->tx_gate_mode_ == TX_GATE_FIXED_DELAY && now - this->last_tx_time_ >= this->tx_fixed_interval_)
+  if (this->tx_gate_mode_ == TX_GATE_FIXED_DELAY &&
+      since_tx >= std::max(this->tx_fixed_interval_, this->last_tx_wire_ms_))
     this->send_next_(now);
 }
 
@@ -286,7 +289,19 @@ void RS485FrameHub::transmit_head_(uint32_t now) {
   this->tx_queue_head_ = (this->tx_queue_head_ + 1) % this->max_queue_size_;
   this->tx_queue_count_--;
   this->last_tx_time_ = now;
+  this->last_tx_wire_ms_ = this->wire_time_ms_(len);
   this->last_activity_time_ = now;
+}
+
+uint32_t RS485FrameHub::wire_time_ms_(size_t len) const {
+  const uint32_t baud = this->parent_->get_baud_rate();
+  if (baud == 0)
+    return 0;
+  // Start bit, data bits, parity bit and stop bits
+  const uint32_t bits = 1 + this->parent_->get_data_bits() +
+                        (this->parent_->get_parity() != uart::UART_CONFIG_PARITY_NONE ? 1 : 0) +
+                        this->parent_->get_stop_bits();
+  return (len * bits * 1000 + baud - 1) / baud;
 }
 
 void RS485FrameHub::log_frame_(const char *dir, const uint8_t *data, size_t len) {

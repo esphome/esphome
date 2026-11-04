@@ -397,6 +397,34 @@ TEST(RS485FrameHubTest, FixedDelaySendsFirstFrameRightAway) {
   EXPECT_EQ(hub.queue_depth_for_test(), 0u);
 }
 
+// fixed_delay waits for the previous frame to leave the wire when it takes longer than the interval.
+TEST(RS485FrameHubTest, FixedDelayWaitsForTheFrameOnTheWire) {
+  FakeUART uart;
+  uart.set_baud_rate(9600);
+  uart.set_data_bits(8);
+  uart.set_stop_bits(1);
+  RS485FrameHubProbe hub;
+  hub.set_uart_parent(&uart);
+  hub.set_tx_gate_mode(TX_GATE_FIXED_DELAY);
+  hub.set_tx_fixed_interval(1);
+  hub.setup();
+  static const uint8_t DATA[48] = {0x01, 0x02};
+  ASSERT_TRUE(hub.queue_frame(DATA, sizeof(DATA)));
+
+  const uint32_t now = millis();
+  hub.maybe_tx_for_test(now);
+  ASSERT_EQ(hub.queue_depth_for_test(), 0u);
+  // 10 bits per byte at 9600 baud
+  const uint32_t wire_ms = (uart.written.size() * 10 * 1000 + 9599) / 9600;
+  ASSERT_GT(wire_ms, 1u);
+
+  ASSERT_TRUE(hub.queue_frame(DATA, sizeof(DATA)));
+  hub.maybe_tx_for_test(now + wire_ms - 1);
+  EXPECT_EQ(hub.queue_depth_for_test(), 1u);
+  hub.maybe_tx_for_test(now + wire_ms);
+  EXPECT_EQ(hub.queue_depth_for_test(), 0u);
+}
+
 // The gate delay holds the frame for delay ms, also across a millis() wrap.
 TEST(RS485FrameHubTest, GateDelayHoldsFrameAcrossWrap) {
   FakeUART uart;

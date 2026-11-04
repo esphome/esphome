@@ -112,6 +112,8 @@ class RS485FrameHub : public Component, public uart::UARTDevice {
   void maybe_tx_(uint32_t now);
   void send_next_(uint32_t now);
   void transmit_head_(uint32_t now);
+  /// How long len bytes take on the wire at the UART's baud rate and frame format.
+  uint32_t wire_time_ms_(size_t len) const;
   void log_frame_(const char *dir, const uint8_t *data, size_t len);
 
   // Empty for idle_gap / fixed_delay / sniffer hubs, so the gate matcher never fires.
@@ -131,6 +133,8 @@ class RS485FrameHub : public Component, public uart::UARTDevice {
   std::unique_ptr<uint8_t[]> rx_payload_;
   uint32_t last_rx_time_{0};
   uint32_t last_tx_time_{0};
+  // How long the last frame takes on the wire; the gates count from its end, not from write_array()
+  uint32_t last_tx_wire_ms_{0};
   // Seeded in setup(), then advanced by RX and our own TX.
   uint32_t last_activity_time_{0};
   // When the frame waiting out the gate delay was released.
