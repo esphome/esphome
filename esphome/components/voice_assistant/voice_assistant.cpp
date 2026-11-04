@@ -536,7 +536,7 @@ void VoiceAssistant::loop() {
       // still announcing our response, the microphone must stay shut, otherwise
       // the device records its own response and answers it. Only our own
       // response counts; an unrelated announcement does not hold this state.
-      if ((this->speaker_ == nullptr) && (this->media_player_ != nullptr) &&
+      if ((this->media_player_ != nullptr) &&
           (this->media_player_response_state_ == MediaPlayerResponseState::PLAYING)) {
         break;
       }
