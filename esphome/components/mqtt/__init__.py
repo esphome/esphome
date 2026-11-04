@@ -864,7 +864,7 @@ async def mqtt_publish_json_action_to_code(
     args: TemplateArgsType,
 ) -> MockObj:
     parent = await automation.apply_parent(config)
-    # Lambdas are called in order before the publish, with the trigger args by value
+    # Lambdas are bound in order before the publish; a trigger arg they name is a copy
     statements: list[str] = []
     values: dict[str, str] = {}
     for key, type_, const_fn in (

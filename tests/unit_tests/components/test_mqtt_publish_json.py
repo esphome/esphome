@@ -127,6 +127,35 @@ async def test_publish_json_lambdas_codegen() -> None:
 
 @pytest.mark.asyncio
 @pytest.mark.usefixtures("client")
+async def test_publish_json_lambdas_naming_no_arg_are_reduced() -> None:
+    """Topic, qos and retain lambdas that name no trigger arg bind their expression, in order."""
+    await automation.build_action(
+        _publish_json(
+            **{
+                CONF_TOPIC: Lambda('return std::string("a/") + "b";'),
+                CONF_QOS: Lambda("return 1;"),
+                CONF_RETAIN: Lambda("return true;"),
+            }
+        ),
+        INT_ARG,
+        INT_ARGS,
+    )
+
+    assert (
+        "static void esphome__act__fn(const std::remove_cvref_t<int> & x) {\n"
+        '  const std::string esphome__topic = std::string("a/") + "b";\n'
+        "  const uint8_t esphome__qos = static_cast<uint8_t>(1);\n"
+        "  const bool esphome__retain = static_cast<bool>(true);\n"
+        "  ::client->publish_json(esphome__topic, [&](ArduinoJson::JsonObject root) { "
+        "[](int x, ArduinoJson::JsonObject root) -> void {\n"
+        '    root["key"] = 1;\n'
+        "  }(x, root); }, esphome__qos, esphome__retain);\n"
+        "}\n"
+    ) in CORE.cpp_global_section
+
+
+@pytest.mark.asyncio
+@pytest.mark.usefixtures("client")
 async def test_publish_json_merged_actions_keep_their_locals_apart() -> None:
     """Two merged publishes each bind their values in their own block, in order."""
     first = _publish_json(**{CONF_TOPIC: Lambda("return to_string(x);")})

@@ -3427,7 +3427,7 @@ async def test_apply_statements_action_merges_with_neighbours() -> None:
 
 @pytest.mark.asyncio
 async def test_bind_lambda_keeps_args_by_value() -> None:
-    """The lambda is built with the trigger args by value and called, never reduced."""
+    """A lambda that names a trigger arg gets it by value and is called in place."""
     statement = await bind_lambda(
         Lambda("return x *= 2;"), [(cg.int_, "x")], cg.uint8, "esphome__v"
     )
