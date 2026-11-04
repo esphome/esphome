@@ -15,6 +15,7 @@ gc9503v.extend(
     reset_pin={"number": 41, "allow_other_uses": True},
     cs_pin=38,
     de_pin=40,
+    enable_pin=5,
     hsync_pin=42,
     vsync_pin={"number": 41, "allow_other_uses": True},
     pclk_pin=39,
