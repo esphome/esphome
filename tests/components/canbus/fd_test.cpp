@@ -23,7 +23,6 @@
 
 namespace esphome::canbus::testing {
 
-static_assert(Canbus::supports_fd());
 static_assert(sizeof(CanFrame::data) == CAN_FD_MAX_DATA_LENGTH);
 static_assert(can_dlc_to_len(8) == 8);
 static_assert(can_dlc_to_len(9) == 12);
@@ -36,6 +35,12 @@ static_assert(can_len_to_dlc(12, false) == 9);
 static_assert(can_len_to_dlc(49, true) == 15);
 static_assert(can_len_to_dlc(64, false) == 15);
 static_assert(can_len_to_dlc(65, true) == CAN_INVALID_DLC);
+
+// A bus of a platform that supports CAN FD, as register_canbus() sets it up
+class FdCanbus : public QueuedCanbus {
+ public:
+  FdCanbus() { this->set_supports_fd(true); }
+};
 
 TEST(CanbusFd, ClassicBraceInitializationStillWorks) {
   const CanFrame frame{true, false, 0x1234567, 8, {0, 1, 2, 3, 4, 5, 6, 7}};
@@ -71,7 +76,7 @@ TEST(CanbusFd, FrameValidation) {
            Case{"brs without fd", false, false, true, 8, ERROR_FAILTX},
            Case{"classic", false, false, false, 8, ERROR_OK},
        }) {
-    QueuedCanbus bus;
+    FdCanbus bus;
     CanFrame frame{};
     frame.can_id = 0x123;
     frame.fd = c.fd;
@@ -99,7 +104,7 @@ TEST(CanbusFd, LengthBasedSend) {
            Case{true, true, 65, CAN_INVALID_DLC},
            Case{false, false, 13, 8},  // classic still cuts to 8 bytes
        }) {
-    QueuedCanbus bus;
+    FdCanbus bus;
     const Error result = bus.send_data(0x123, false, false, payload.data(), c.len, c.fd, false, c.pad);
     if (c.expected_dlc == CAN_INVALID_DLC) {
       EXPECT_EQ(result, ERROR_FAILTX) << c.len;
@@ -114,6 +119,21 @@ TEST(CanbusFd, LengthBasedSend) {
     std::vector<uint8_t> expected(sent.payload_length(), 0);
     std::fill_n(expected.begin(), copied, 0xAB);
     EXPECT_EQ(payload_bytes(sent), expected) << c.len;
+  }
+}
+
+TEST(CanbusFd, ClassicBusInAnFdBuildRefusesFdFrames) {
+  FdCanbus fd_bus;
+  QueuedCanbus classic_bus;
+  EXPECT_TRUE(fd_bus.supports_fd());
+  EXPECT_FALSE(classic_bus.supports_fd());
+  static constexpr uint8_t DATA[8] = {1, 2, 3, 4, 5, 6, 7, 8};
+  for (QueuedCanbus *bus : {static_cast<QueuedCanbus *>(&fd_bus), &classic_bus}) {
+    const Error expected = bus->supports_fd() ? ERROR_OK : ERROR_FAILTX;
+    EXPECT_EQ(bus->send_data(0x123, false, false, DATA, sizeof(DATA), true), expected);
+    EXPECT_EQ(bus->send_data(0x123, false, false, DATA, sizeof(DATA)), ERROR_OK);
+    ASSERT_EQ(bus->sent.size(), bus->supports_fd() ? 2u : 1u);
+    EXPECT_FALSE(bus->sent.back().fd);
   }
 }
 
@@ -177,7 +197,7 @@ TEST(CanbusFd, ActionDefaultsAndOverrides) {
            Case{"brs without fd", false, false, false, nullptr, yes, nullptr, 8, false, false, false, 0},
            Case{"action fd without brs", false, true, false, yes, no, nullptr, 8, true, true, false, 8},
        }) {
-    QueuedCanbus bus;
+    FdCanbus bus;
     bus.set_default_fd(c.default_fd);
     bus.set_default_bit_rate_switch(c.default_brs);
     bus.set_default_pad_data(c.default_pad);

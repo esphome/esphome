@@ -168,6 +168,7 @@ async def setup_canbus_core_(var: MockObj, config: ConfigType) -> None:
         cg.add(var.set_use_extended_id(True))
     if _is_fd_bus(config):
         cg.add_define("USE_CANBUS_FD")
+        cg.add(var.set_supports_fd(True))
         for key, setter in (
             (CONF_DEFAULT_FD, var.set_default_fd),
             (CONF_DEFAULT_BIT_RATE_SWITCH, var.set_default_bit_rate_switch),

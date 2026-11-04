@@ -11,7 +11,6 @@ namespace esphome::canbus::testing {
 // Frames stay as large as on dev, and keep their field order for brace initialization
 static_assert(sizeof(CanFrame::data) == CAN_MAX_DATA_LENGTH);
 static_assert(sizeof(CanFrame) == 24);
-static_assert(!Canbus::supports_fd());
 static_assert(can_dlc_to_len(0) == 0);
 static_assert(can_dlc_to_len(8) == 8);
 static_assert(can_dlc_to_len(9) == 8);

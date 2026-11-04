@@ -30,6 +30,7 @@ def test_constant_payloads_share_progmem_tables(
     assert "set_data_template(" in main_cpp
     for setter in (
         "set_default_fd",
+        "set_supports_fd",
         "set_default_bit_rate_switch",
         "set_fd",
         "set_bit_rate_switch",

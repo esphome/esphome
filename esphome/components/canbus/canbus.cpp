@@ -28,6 +28,10 @@ canbus::Error Canbus::send_data(const CanFrame &frame) {
     return ERROR_FAILTX;
   }
 #ifdef USE_CANBUS_FD
+  if (frame.fd && !this->supports_fd_) {
+    ESP_LOGE(TAG, "CAN FD frame on a bus without CAN FD");
+    return ERROR_FAILTX;
+  }
   if (frame.fd ? (frame.remote_transmission_request || can_dlc_to_len(frame.can_data_length_code) == CAN_INVALID_DLC)
                : frame.bit_rate_switch) {
     ESP_LOGE(TAG, "Invalid CAN frame: fd=%d rtr=%d brs=%d dlc=%" PRIu8, frame.fd, frame.remote_transmission_request,

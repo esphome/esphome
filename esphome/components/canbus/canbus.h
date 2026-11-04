@@ -203,11 +203,12 @@ class Canbus : public Component {
     this->default_bit_rate_switch_ = default_bit_rate_switch;
   }
   void set_default_pad_data(bool default_pad_data) { this->default_pad_data_ = default_pad_data; }
+  void set_supports_fd(bool supports_fd) { this->supports_fd_ = supports_fd; }
 #endif
-  /// Whether frames carry CAN FD data, which a configured platform that supports CAN FD turns on for the build
-  static constexpr bool supports_fd() {
+  /// Whether this bus sends and receives CAN FD frames; a classic bus can share a build with a CAN FD one
+  bool supports_fd() const {
 #ifdef USE_CANBUS_FD
-    return true;
+    return this->supports_fd_;
 #else
     return false;
 #endif
@@ -246,6 +247,7 @@ class Canbus : public Component {
   bool default_fd_{false};
   bool default_bit_rate_switch_{false};
   bool default_pad_data_{false};
+  bool supports_fd_{false};
 #endif
   uint8_t events_to_log_{0};
   bool bus_off_{false};
