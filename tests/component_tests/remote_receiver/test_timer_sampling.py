@@ -20,6 +20,7 @@ from esphome.components.remote_receiver import (
     CONF_SAMPLING,
     SAMPLING_TIMER,
     final_validate_sampling,
+    timer_sampling_defaults,
     validate_sampling,
 )
 import esphome.config_validation as cv
@@ -36,8 +37,16 @@ def _us(value: int) -> cv.TimePeriodMicroseconds:
     return cv.positive_time_period_microseconds(f"{value}us")
 
 
-def _timer(**options: object) -> ConfigType:
-    return {CONF_SAMPLING: SAMPLING_TIMER, CONF_IDLE: _us(10000), **options}
+def _timer(
+    filter_us: int = 150, sample_us: int = 100, idle_us: int = 10000
+) -> ConfigType:
+    """A timer config as the schema hands it to validate_sampling."""
+    return {
+        CONF_SAMPLING: SAMPLING_TIMER,
+        CONF_SAMPLE_PERIOD: _us(sample_us),
+        CONF_FILTER: _us(filter_us),
+        CONF_IDLE: _us(idle_us),
+    }
 
 
 def test_timer_sampling_sets_period_and_filter(
@@ -50,19 +59,31 @@ def test_timer_sampling_sets_period_and_filter(
     assert "rcvr->set_filter_us(150);" in main_cpp
 
 
+def test_timer_sampling_uses_static_frame_buffer(
+    generate_main: Callable[[str | Path], str],
+    component_config_path: Callable[[str], Path],
+) -> None:
+    """The default 4000 byte buffer becomes two static halves of 500 pulses."""
+    main_cpp = generate_main(component_config_path("receiver_bk72xx_timer.yaml"))
+    assert "static int32_t rcvr__frames[1000];" in main_cpp
+    assert "rcvr->set_frame_buffer(rcvr__frames, 500);" in main_cpp
+
+
 def test_edge_sampling_keeps_defaults(
     generate_main: Callable[[str | Path], str],
     component_config_path: Callable[[str], Path],
 ) -> None:
     main_cpp = generate_main(component_config_path("receiver_bk72xx.yaml"))
     assert "set_sample_period_us" not in main_cpp
+    assert "__frames" not in main_cpp
     assert "rcvr->set_filter_us(50);" in main_cpp
 
 
 def test_default_filter_is_capped_below_the_nec_mark() -> None:
-    _set_family(FAMILY_BK7231T)
-    config = validate_sampling(_timer(**{CONF_SAMPLE_PERIOD: _us(1000)}))
-    assert config[CONF_FILTER].total_microseconds == 400
+    config = timer_sampling_defaults(
+        {CONF_SAMPLING: SAMPLING_TIMER, CONF_SAMPLE_PERIOD: "1000us"}
+    )
+    assert config[CONF_FILTER] == "400us"
 
 
 def test_sample_period_needs_timer_sampling() -> None:
@@ -80,75 +101,73 @@ def test_timer_sampling_rejected_on_bk7231q() -> None:
 def test_idle_limited_with_timer_sampling() -> None:
     _set_family(FAMILY_BK7231T)
     with pytest.raises(cv.Invalid, match="idle"):
-        validate_sampling(_timer(**{CONF_IDLE: _us(2000000)}))
-
-
-def test_filter_warning_uses_default_sample_period(
-    caplog: pytest.LogCaptureFixture,
-) -> None:
-    """A filter that cannot remove a one-sample glitch is reported."""
-    _set_family(FAMILY_BK7231T)
-    with caplog.at_level(logging.WARNING):
-        validate_sampling(_timer(**{CONF_FILTER: _us(80)}))
-    assert "sample period" in caplog.text
-
-
-def test_default_filter_does_not_warn(caplog: pytest.LogCaptureFixture) -> None:
-    _set_family(FAMILY_BK7231T)
-    with caplog.at_level(logging.WARNING):
-        validate_sampling(_timer())
-    assert caplog.text == ""
+        validate_sampling(_timer(idle_us=2000000))
 
 
 @pytest.mark.parametrize(
-    ("family", "full_config", "match"),
+    ("filter_us", "sample_us", "warns"),
+    [
+        # cannot remove a one-sample glitch
+        (80, 100, True),
+        # the defaults never warn, even when capped below a long sample period
+        (150, 100, False),
+        (400, 1000, False),
+    ],
+)
+def test_filter_warning(
+    caplog: pytest.LogCaptureFixture, filter_us: int, sample_us: int, warns: bool
+) -> None:
+    _set_family(FAMILY_BK7231T)
+    with caplog.at_level(logging.WARNING):
+        validate_sampling(_timer(filter_us, sample_us))
+    assert ("sample period" in caplog.text) is warns
+
+
+@pytest.mark.parametrize(
+    ("family", "config", "full_config", "match"),
     [
         # remote_transmitter paces its envelope with BKTIMER1 on BK7238
         (
             FAMILY_BK7238,
-            {"remote_receiver": [{}], "remote_transmitter": [{}]},
+            _timer(),
+            {"remote_receiver": [_timer()], "remote_transmitter": [{}]},
             "BKTIMER1",
         ),
         # one timer channel, one backend for the build
-        (FAMILY_BK7231T, {"remote_receiver": [{}, {}]}, "only one"),
-    ],
-)
-def test_final_validate_rejects(
-    family: str, full_config: ConfigType, match: str
-) -> None:
-    _set_family(family)
-    token = fv.full_config.set(full_config)
-    try:
-        with pytest.raises(cv.Invalid, match=match):
-            final_validate_sampling({CONF_SAMPLING: SAMPLING_TIMER})
-    finally:
-        fv.full_config.reset(token)
-
-
-_TIMER = {CONF_SAMPLING: SAMPLING_TIMER}
-
-
-@pytest.mark.parametrize(
-    ("family", "config", "full_config"),
-    [
+        (
+            FAMILY_BK7231T,
+            _timer(),
+            {"remote_receiver": [_timer(), {}]},
+            "every remote_receiver",
+        ),
         # no transmitter on BK7238
-        (FAMILY_BK7238, _TIMER, {"remote_receiver": [_TIMER]}),
+        (FAMILY_BK7238, _timer(), {"remote_receiver": [_timer()]}, None),
         # other families pace the transmitter without BKTIMER1
         (
             FAMILY_BK7231T,
-            _TIMER,
-            {"remote_receiver": [_TIMER], "remote_transmitter": [{}]},
+            _timer(),
+            {"remote_receiver": [_timer()], "remote_transmitter": [{}]},
+            None,
         ),
         # edge sampling never uses the timer
-        (FAMILY_BK7238, {}, {"remote_receiver": [{}, {}], "remote_transmitter": [{}]}),
+        (
+            FAMILY_BK7238,
+            {},
+            {"remote_receiver": [{}, {}], "remote_transmitter": [{}]},
+            None,
+        ),
     ],
 )
-def test_final_validate_allows(
-    family: str, config: ConfigType, full_config: ConfigType
+def test_final_validate(
+    family: str, config: ConfigType, full_config: ConfigType, match: str | None
 ) -> None:
     _set_family(family)
     token = fv.full_config.set(full_config)
     try:
-        final_validate_sampling(config)
+        if match is None:
+            assert final_validate_sampling(config) is config
+        else:
+            with pytest.raises(cv.Invalid, match=match):
+                final_validate_sampling(config)
     finally:
         fv.full_config.reset(token)

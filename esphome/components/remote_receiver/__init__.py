@@ -1,3 +1,4 @@
+import contextlib
 import logging
 from typing import Any
 
@@ -121,31 +122,42 @@ def validate_tolerance(value: Any) -> ConfigType:
     )
 
 
+def timer_filter_us(sample_us: int) -> int:
+    """1.5 sample periods, so a one-sample glitch is still removed."""
+    return min(sample_us * 3 // 2, MAX_TIMER_DEFAULT_FILTER_US)
+
+
+def timer_sampling_defaults(config: ConfigType) -> ConfigType:
+    """Fill the timer defaults before the schema, whose filter default is for edge sampling."""
+    if (
+        not isinstance(config, dict)
+        or str(config.get(CONF_SAMPLING)).lower() != SAMPLING_TIMER
+    ):
+        return config
+    config = {CONF_SAMPLE_PERIOD: DEFAULT_SAMPLE_PERIOD, **config}
+    if CONF_FILTER not in config:
+        # an invalid sample_period is reported by the schema
+        with contextlib.suppress(cv.Invalid):
+            sample = cv.positive_time_period_microseconds(config[CONF_SAMPLE_PERIOD])
+            config[CONF_FILTER] = f"{timer_filter_us(sample.total_microseconds)}us"
+    return config
+
+
 def validate_sampling(config: ConfigType) -> ConfigType:
-    """Check the timer sampling options and fill the filter default for the chosen sampling."""
-    if config.get(CONF_SAMPLING, SAMPLING_EDGE) != SAMPLING_TIMER:
+    if config.get(CONF_SAMPLING) != SAMPLING_TIMER:
         if CONF_SAMPLE_PERIOD in config:
             raise cv.Invalid(
                 f"'{CONF_SAMPLE_PERIOD}' needs '{CONF_SAMPLING}: {SAMPLING_TIMER}'"
             )
-        config.setdefault(
-            CONF_FILTER, cv.positive_time_period_microseconds(DEFAULT_FILTER)
-        )
         return config
     # The BK7231Q SDK registers no timer driver
     if get_libretiny_family() == FAMILY_BK7231Q:
         raise cv.Invalid(
             f"'{CONF_SAMPLING}: {SAMPLING_TIMER}' is not available on {FAMILY_BK7231Q}"
         )
-    sample_us = config.setdefault(
-        CONF_SAMPLE_PERIOD,
-        cv.positive_time_period_microseconds(DEFAULT_SAMPLE_PERIOD),
-    ).total_microseconds
-    if (filter_ := config.get(CONF_FILTER)) is None:
-        # 1.5 sample periods, so a one-sample glitch is still removed
-        default_us = min(sample_us * 3 // 2, MAX_TIMER_DEFAULT_FILTER_US)
-        config[CONF_FILTER] = cv.positive_time_period_microseconds(f"{default_us}us")
-    elif filter_.total_microseconds <= sample_us:
+    sample_us = config[CONF_SAMPLE_PERIOD].total_microseconds
+    filter_us = config[CONF_FILTER].total_microseconds
+    if filter_us <= sample_us and filter_us != timer_filter_us(sample_us):
         _LOGGER.warning(
             "remote_receiver: filter is not longer than the sample period, so it cannot remove one-sample glitches"
         )
@@ -159,7 +171,7 @@ def validate_sampling(config: ConfigType) -> ConfigType:
 
 
 MULTI_CONF = True
-CONFIG_SCHEMA = remote_base.validate_triggers(
+_RECEIVER_SCHEMA = remote_base.validate_triggers(
     cv.Schema(
         {
             cv.GenerateID(): cv.declare_id(RemoteReceiverComponent),
@@ -181,8 +193,8 @@ CONFIG_SCHEMA = remote_base.validate_triggers(
                 rtl87xx="4000b",
                 rp2="4000b",
             ): cv.All(cv.validate_bytes, cv.int_range(min=64, max=65535)),
-            # The default depends on the sampling, see validate_sampling
-            cv.Optional(CONF_FILTER): cv.All(
+            # timer_sampling_defaults fills the timer default
+            cv.Optional(CONF_FILTER, default=DEFAULT_FILTER): cv.All(
                 cv.positive_time_period_microseconds,
                 cv.Range(max=TimePeriod(microseconds=4294967295)),
             ),
@@ -273,30 +285,30 @@ CONFIG_SCHEMA = remote_base.validate_triggers(
     # setup_priority::DATA, the default of Component::get_setup_priority()
     .add_extra(esp32_rmt.request_rmt_channel("RX", 600.0))
 )
+CONFIG_SCHEMA = cv.All(timer_sampling_defaults, _RECEIVER_SCHEMA)
 
 
-def final_validate_sampling(config: ConfigType) -> None:
+def final_validate_sampling(config: ConfigType) -> ConfigType:
     if config.get(CONF_SAMPLING) != SAMPLING_TIMER:
-        return
+        return config
     full_config = fv.full_config.get()
     # The backend is chosen for the whole build and owns BKTIMER1
     if len(full_config[DOMAIN]) > 1:
         raise cv.Invalid(
-            f"'{CONF_SAMPLING}: {SAMPLING_TIMER}' supports only one remote_receiver"
+            f"'{CONF_SAMPLING}: {SAMPLING_TIMER}' switches every remote_receiver in the build to the "
+            "timer backend, which supports only one remote_receiver"
         )
     # On BK7238 remote_transmitter always paces its PWM envelope with BKTIMER1
     if get_libretiny_family() == FAMILY_BK7238 and "remote_transmitter" in full_config:
         raise cv.Invalid(
             f"'{CONF_SAMPLING}: {SAMPLING_TIMER}' and remote_transmitter both use BKTIMER1 on {FAMILY_BK7238}"
         )
+    return config
 
 
-def _final_validate(config: ConfigType) -> None:
-    final_validate_sampling(config)
-    esp32_rmt.final_validate_rmt_channels(config)
-
-
-FINAL_VALIDATE_SCHEMA = _final_validate
+FINAL_VALIDATE_SCHEMA = cv.All(
+    final_validate_sampling, esp32_rmt.final_validate_rmt_channels
+)
 
 
 async def to_code(config: ConfigType) -> None:
@@ -337,6 +349,11 @@ async def to_code(config: ConfigType) -> None:
     if config.get(CONF_SAMPLING) == SAMPLING_TIMER:
         cg.add_define("USE_REMOTE_RECEIVER_TIMER_SAMPLING")
         cg.add(var.set_sample_period_us(config[CONF_SAMPLE_PERIOD]))
+        # one frame half captures while the loop dispatches the other
+        frame_entries = config[CONF_BUFFER_SIZE] // 4 // 2
+        frames = f"{config[CONF_ID].id}__frames"
+        cg.add_global(cg.RawStatement(f"static int32_t {frames}[{frame_entries * 2}];"))
+        cg.add(var.set_frame_buffer(cg.RawExpression(frames), frame_entries))
 
 
 FILTER_SOURCE_FILES = filter_source_files_from_platform(

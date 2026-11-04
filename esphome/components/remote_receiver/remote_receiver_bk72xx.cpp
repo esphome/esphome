@@ -3,7 +3,7 @@
 #include "esphome/core/log.h"
 
 // clang-tidy cannot parse the Beken SDK headers pulled in via ArduinoPrivate.h
-#if defined(REMOTE_RECEIVER_TIMER_SAMPLING) && !defined(CLANG_TIDY)
+#if defined(USE_REMOTE_RECEIVER_TIMER_SAMPLING) && !defined(CLANG_TIDY)
 
 // ArduinoPrivate.h = Arduino.h + the BDK SDK headers (bk_timer.h, bk_timer_pub.h, sys_config.h)
 #include <ArduinoPrivate.h>
@@ -28,8 +28,8 @@ static constexpr uint8_t SAMPLE_TIMER = BKTIMER1;
 
 // Edge times come from the BKTIMER0 counter, which runs at the crystal frequency and wraps every
 // FCLK_DURATION_MS. Elapsed time is accumulated as counter deltas, so a delayed interrupt costs nothing.
-static constexpr uint32_t TICKS_PER_US = CFG_XTAL_FREQUENCE / 1000000;
-static constexpr uint32_t TICK_COUNTER_WRAP = FCLK_DURATION_MS * 1000 * TICKS_PER_US;
+static_assert(TIMER_TICKS_PER_US == CFG_XTAL_FREQUENCE / 1000000, "TIMER_TICKS_PER_US must match the crystal");
+static constexpr uint32_t TICK_COUNTER_WRAP = FCLK_DURATION_MS * 1000 * TIMER_TICKS_PER_US;
 
 static inline uint32_t read_tick_counter() {
   REG_WRITE(TIMER0_2_READ_CTL, (BKTIMER0 << TIMER0_2_READ_INDEX_POSI) | TIMER0_2_READ_OP_BIT);
@@ -38,15 +38,15 @@ static inline uint32_t read_tick_counter() {
   return REG_READ(TIMER0_2_READ_VALUE);
 }
 
-// The timer handler receives only the channel number, so it reaches the store through this pointer.
-static RemoteReceiverComponentStore *s_store = nullptr;  // NOLINT(cppcoreguidelines-avoid-non-const-global-variables)
+// The timer handler receives only the channel number, so it reaches the receiver through this pointer.
+static RemoteReceiverComponent *s_receiver = nullptr;  // NOLINT(cppcoreguidelines-avoid-non-const-global-variables)
 
-static void sample_timer_isr(UINT8 channel) { s_store->timer_isr(); }
+void RemoteReceiverComponent::sample_timer_isr(uint8_t channel) {
+  if (s_receiver->store_.timer_isr())
+    s_receiver->enable_loop_soon_any_context();
+}
 
-void RemoteReceiverComponentStore::timer_isr() {
-  if (this->frame_ready || this->overflow)
-    return;
-
+bool RemoteReceiverComponentStore::timer_isr() {
   const uint32_t counter = read_tick_counter();
   uint32_t elapsed = counter - this->last_counter;
   if (counter < this->last_counter)
@@ -57,19 +57,27 @@ void RemoteReceiverComponentStore::timer_isr() {
   const bool level = !this->pin.digital_read();
 
   if (level == this->last_level) {
-    if (this->capture_active && this->level_ticks >= this->idle_ticks) {
-      // end the frame with one idle period, like the edge path, not the measured gap
-      this->finish_run(level, this->idle_ticks);
-      this->push_run();
-      this->capture_active = false;
-      // a capture that held only a glitch the filter folded away leaves nothing to dispatch
-      if (!this->overflow && this->count > 0) {
-        this->frame_ready = true;
-      } else {
-        this->count = 0;
-      }
+    if (!this->capture_active || this->level_ticks < this->idle_ticks)
+      return false;
+    // end the frame with one idle period, like the edge path, not the measured gap
+    this->finish_run(level, this->idle_ticks);
+    this->push_run();
+    this->capture_active = false;
+    const uint32_t count = this->count;
+    this->count = 0;
+    // a capture that held only a glitch the filter folded away leaves nothing to dispatch
+    if (count == 0)
+      return false;
+    // the frame is dropped when it did not fit, or when the loop still dispatches the other half
+    if (this->frame_overflow || this->ready != nullptr) {
+      this->frame_overflow = false;
+      this->overflow = true;
+      return true;
     }
-    return;
+    this->ready = this->capture;
+    this->ready_count = count;
+    this->capture = this->capture == this->buffer ? this->buffer + this->frame_entries : this->buffer;
+    return true;
   }
 
   const uint32_t ticks = this->level_ticks;
@@ -84,6 +92,7 @@ void RemoteReceiverComponentStore::timer_isr() {
     this->capture_active = true;
     this->run_active = false;
   }
+  return false;
 }
 
 void RemoteReceiverComponentStore::finish_run(bool level, uint32_t ticks) {
@@ -110,110 +119,62 @@ void RemoteReceiverComponentStore::push_run() {
     return;
   const uint32_t count = this->count;
   if (count >= this->frame_entries) {
-    this->overflow = true;
-    this->capture_active = false;
+    // drop the rest of the frame; the frame end reports the overflow
+    this->frame_overflow = true;
     return;
   }
-  const auto run_us = static_cast<int32_t>(this->run_ticks / TICKS_PER_US);
+  const auto run_us = static_cast<int32_t>(this->run_ticks / TIMER_TICKS_PER_US);
   this->capture[count] = this->run_level ? run_us : -run_us;
   this->count = count + 1;
-}
-
-void RemoteReceiverComponentStore::reset(int32_t *capture) {
-  this->capture = capture;
-  this->count = 0;
-  this->level_ticks = 0;
-  this->last_counter = read_tick_counter();
-  this->last_level = !this->pin.digital_read();
-  this->capture_active = false;
-  this->run_active = false;
-  this->overflow = false;
-  this->frame_ready = false;
-}
-
-void RemoteReceiverComponent::fail_(const LogString *reason) {
-  RAMAllocator<int32_t> allocator;
-  allocator.deallocate(this->store_.buffer, this->store_.frame_entries * 2);
-  this->store_.buffer = nullptr;
-  this->mark_failed(reason);
 }
 
 void RemoteReceiverComponent::setup() {
   auto &s = this->store_;
   this->pin_->setup();
   s.pin = this->pin_->to_isr();
-  s.filter_ticks = this->filter_us_ * TICKS_PER_US;
-  s.idle_ticks = this->idle_us_ * TICKS_PER_US;
-  // buffer_size covers both frame buffers: one captures while the loop dispatches the other
-  s.frame_entries = this->buffer_size_ / sizeof(int32_t) / 2;
-  // allocate before the timer starts, since its interrupt writes the buffer as soon as it is enabled
-  s.buffer = RAMAllocator<int32_t>().allocate(s.frame_entries * 2);
-  if (s.buffer == nullptr) {
-    this->mark_failed(LOG_STR("Buffer allocation failed"));
-    return;
-  }
-  s.reset(s.buffer);
-  s_store = &s;
+  s.capture = s.buffer;
+  s.last_counter = read_tick_counter();
+  s.last_level = !s.pin.digital_read();
+  s_receiver = this;
 
   timer_param_t param{};
   param.channel = SAMPLE_TIMER;
   param.div = 1;
   param.period = this->sample_period_us_;
   param.t_Int_Handler = sample_timer_isr;
-  // CMD_TIMER_INIT_PARAM_US enables the channel and its interrupt
+  // CMD_TIMER_INIT_PARAM_US also enables the channel and its interrupt
   if (sddev_control((char *) TIMER_DEV_NAME, CMD_TIMER_INIT_PARAM_US, &param) != 0) {
-    this->fail_(LOG_STR("Timer init failed"));
+    this->mark_failed(LOG_STR("Timer init failed"));
     return;
   }
-  UINT32 channel = SAMPLE_TIMER;
-  if (sddev_control((char *) TIMER_DEV_NAME, CMD_TIMER_UNIT_ENABLE, &channel) != 0) {
-    // stop the interrupt before releasing the buffer it writes
-    sddev_control((char *) TIMER_DEV_NAME, CMD_TIMER_UNIT_DISABLE, &channel);
-    this->fail_(LOG_STR("Timer enable failed"));
-  }
-}
-
-void RemoteReceiverComponent::dump_config() {
-  ESP_LOGCONFIG(
-      TAG,
-      "Remote Receiver:\n"
-      "  Sampling: timer, every %" PRIu32 " us\n"
-      "  Buffer Size: %" PRIu32 " bytes (%" PRIu32 " pulses per frame)\n"
-      "  Tolerance: %" PRIu32 "%s\n"
-      "  Filter out pulses shorter than: %" PRIu32 " us\n"
-      "  Signal is done after %" PRIu32 " us of no changes",
-      this->sample_period_us_, this->buffer_size_, this->store_.frame_entries, this->tolerance_,
-      (this->tolerance_mode_ == remote_base::TOLERANCE_MODE_TIME) ? LOG_STR_LITERAL(" us") : LOG_STR_LITERAL("%"),
-      this->filter_us_, this->idle_us_);
-  LOG_PIN("  Pin: ", this->pin_);
-#ifdef REMOTE_BASE_DUMPER_COUNT
-  this->warn_extra_secondaries_();
-#endif
+  // the timer interrupt wakes the loop when it has a frame
+  this->disable_loop();
 }
 
 void RemoteReceiverComponent::loop() {
   auto &s = this->store_;
-  if (s.overflow) {
-    ESP_LOGW(TAG, "Buffer overflow");
-    InterruptLock lock;
-    s.reset(s.capture);
-    return;
-  }
-  if (!s.frame_ready)
-    return;
-
-  // Hand the finished frame to the dispatch and re-arm capture into the other half, so a frame that starts
-  // while the listeners and dumpers run is still captured. That half is free: its last frame was dispatched
-  // on an earlier loop, and dispatch returns before the next swap.
-  const int32_t *frame = s.capture;
-  const uint32_t count = s.count;
+  const int32_t *frame;
+  uint32_t count;
+  bool overflow;
   {
     InterruptLock lock;
-    s.reset(frame == s.buffer ? s.buffer + s.frame_entries : s.buffer);
+    frame = s.ready;
+    count = s.ready_count;
+    overflow = s.overflow;
+    s.overflow = false;
   }
+  if (overflow) {
+    ESP_LOGW(TAG, "Buffer overflow");
+  }
+  if (frame == nullptr) {
+    this->disable_loop();
+    return;
+  }
+  // the interrupt keeps capturing into the other half and publishes it once this one is released
   this->call_listeners_dumpers_({frame, count});
+  s.ready = nullptr;
 }
 
 }  // namespace esphome::remote_receiver
 
-#endif  // REMOTE_RECEIVER_TIMER_SAMPLING && !CLANG_TIDY
+#endif  // USE_REMOTE_RECEIVER_TIMER_SAMPLING && !CLANG_TIDY

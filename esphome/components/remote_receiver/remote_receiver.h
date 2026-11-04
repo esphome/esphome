@@ -12,25 +12,26 @@
 #endif  // SOC_RMT_SUPPORTED
 #endif  // USE_ESP32
 
-// The timer sampling backend exists only on BK72xx; the define alone (as in defines.h) selects nothing elsewhere.
-#if defined(USE_BK72XX) && defined(USE_REMOTE_RECEIVER_TIMER_SAMPLING)
-#define REMOTE_RECEIVER_TIMER_SAMPLING
-#endif
-
 namespace esphome::remote_receiver {
 
-#if defined(REMOTE_RECEIVER_TIMER_SAMPLING)
+#ifdef USE_REMOTE_RECEIVER_TIMER_SAMPLING
+/// BKTIMER0 counts at the 26 MHz crystal; remote_receiver_bk72xx.cpp checks this against the SDK.
+static constexpr uint32_t TIMER_TICKS_PER_US = 26;
+
 /// BK72xx timer sampling (remote_receiver_bk72xx.cpp): a timer interrupt samples the pin and records the
-/// runs of one frame into the capture half of buffer, while the loop dispatches the other half.
+/// runs of one frame into one half of buffer while the loop dispatches the frame in the other half.
 struct RemoteReceiverComponentStore {
-  void timer_isr();
+  /// Returns true when it published a frame or an overflow for the loop.
+  bool timer_isr();
   void finish_run(bool level, uint32_t ticks);
   void push_run();
-  /// Re-arm capture into the given buffer half; called with interrupts locked or before the timer runs.
-  void reset(int32_t *capture);
 
   int32_t *buffer{nullptr};
   int32_t *capture{nullptr};
+  /// Finished frame for the loop, nullptr once the loop has dispatched it
+  const int32_t *volatile ready{nullptr};
+  volatile uint32_t ready_count{0};
+  uint32_t count{0};
   uint32_t frame_entries{0};
   uint32_t filter_ticks{0};
   uint32_t idle_ticks{0};
@@ -38,13 +39,12 @@ struct RemoteReceiverComponentStore {
   uint32_t level_ticks{0};
   uint32_t run_ticks{0};
   ISRInternalGPIOPin pin;
-  /// Durations in capture, handed to the loop together with frame_ready
-  volatile uint32_t count{0};
   bool last_level{false};
   bool run_level{false};
   bool run_active{false};
   bool capture_active{false};
-  volatile bool frame_ready{false};
+  /// The frame being captured did not fit in its half
+  bool frame_overflow{false};
   volatile bool overflow{false};
 };
 #elif defined(USE_ESP8266) || defined(USE_LIBRETINY) || defined(USE_RP2) || (defined(USE_ESP32) && !SOC_RMT_SUPPORTED)
@@ -110,10 +110,18 @@ class RemoteReceiverComponent final : public remote_base::RemoteReceiverBase,
   void set_carrier_frequency(uint32_t carrier_frequency) { this->carrier_frequency_ = carrier_frequency; }
 #endif
   void set_buffer_size(uint32_t buffer_size) { this->buffer_size_ = buffer_size; }
+#ifdef USE_REMOTE_RECEIVER_TIMER_SAMPLING
+  void set_filter_us(uint32_t filter_us) { this->store_.filter_ticks = filter_us * TIMER_TICKS_PER_US; }
+  void set_idle_us(uint32_t idle_us) { this->store_.idle_ticks = idle_us * TIMER_TICKS_PER_US; }
+  void set_sample_period_us(uint32_t sample_period_us) { this->sample_period_us_ = sample_period_us; }
+  /// Two frame halves of frame_entries each, a static array sized at code generation.
+  void set_frame_buffer(int32_t *buffer, uint32_t frame_entries) {
+    this->store_.buffer = buffer;
+    this->store_.frame_entries = frame_entries;
+  }
+#else
   void set_filter_us(uint32_t filter_us) { this->filter_us_ = filter_us; }
   void set_idle_us(uint32_t idle_us) { this->idle_us_ = idle_us; }
-#ifdef REMOTE_RECEIVER_TIMER_SAMPLING
-  void set_sample_period_us(uint32_t sample_period_us) { this->sample_period_us_ = sample_period_us; }
 #endif
 
  protected:
@@ -133,16 +141,18 @@ class RemoteReceiverComponent final : public remote_base::RemoteReceiverBase,
   RemoteReceiverComponentStore store_;
 #endif
 
-#ifdef REMOTE_RECEIVER_TIMER_SAMPLING
-  void fail_(const LogString *reason);
-  uint32_t sample_period_us_{100};
+#ifdef USE_REMOTE_RECEIVER_TIMER_SAMPLING
+  static void sample_timer_isr(uint8_t channel);
+  uint32_t sample_period_us_{};
 #elif defined(USE_ESP8266) || defined(USE_LIBRETINY) || defined(USE_RP2) || (defined(USE_ESP32) && !SOC_RMT_SUPPORTED)
   HighFrequencyLoopRequester high_freq_;
 #endif
 
   uint32_t buffer_size_{};  // 0 on RMT targets: sized from receive_symbols in setup()
+#ifndef USE_REMOTE_RECEIVER_TIMER_SAMPLING
   uint32_t filter_us_{10};
   uint32_t idle_us_{10000};
+#endif
 };
 
 }  // namespace esphome::remote_receiver
