@@ -132,31 +132,20 @@ def encode_command(
     return out + list(command_format[CONF_POSTAMBLE])
 
 
-def _validate_escape(value: ConfigType) -> ConfigType:
-    # escape_byte needs the byte sent after a literal DLE; double mode sends DLE DLE.
-    if (value[CONF_MODE] == ESCAPE_MODE_BYTE) != (CONF_BYTE in value):
-        raise cv.Invalid(
-            "framing.escape.byte is required for mode escape_byte and not allowed for mode double"
-        )
-    return value
-
-
 FRAMING_SCHEMA = cv.Schema(
     {
         cv.Optional(CONF_DLE, default=0x10): cv.hex_uint8_t,
         cv.Optional(CONF_STX, default=0x02): cv.hex_uint8_t,
         cv.Optional(CONF_ETX, default=0x03): cv.hex_uint8_t,
         # No default: the wrong scheme silently corrupts every frame containing a DLE.
-        cv.Required(CONF_ESCAPE): cv.All(
-            cv.Schema(
-                {
-                    cv.Required(CONF_MODE): cv.one_of(
-                        ESCAPE_MODE_BYTE, ESCAPE_MODE_DOUBLE, lower=True
-                    ),
-                    cv.Optional(CONF_BYTE): cv.hex_uint8_t,
-                }
-            ),
-            _validate_escape,
+        # escape_byte sends a literal DLE as DLE followed by byte; double sends DLE DLE.
+        cv.Required(CONF_ESCAPE): cv.typed_schema(
+            {
+                ESCAPE_MODE_BYTE: {cv.Required(CONF_BYTE): cv.hex_uint8_t},
+                ESCAPE_MODE_DOUBLE: {},
+            },
+            key=CONF_MODE,
+            lower=True,
         ),
     }
 )
@@ -175,24 +164,35 @@ CRC_SCHEMA = cv.Schema(
     }
 )
 
+_GATE_DELAY = {
+    cv.Optional(CONF_DELAY, default="0ms"): cv.positive_time_period_milliseconds,
+}
+
 TX_SCHEMA = cv.Schema(
     {
-        cv.Optional(CONF_GATE, default={}): cv.Schema(
+        cv.Optional(CONF_GATE, default={}): cv.typed_schema(
             {
-                cv.Optional(CONF_MODE, default="frame_trigger"): cv.one_of(
-                    *TX_GATE_MODES, lower=True
-                ),
-                cv.Optional(CONF_FRAME_TYPE): validate_frame_type,
-                cv.Optional(
-                    CONF_DELAY, default="0ms"
-                ): cv.positive_time_period_milliseconds,
-                cv.Optional(
-                    CONF_MIN_SILENCE, default="4ms"
-                ): cv.positive_time_period_milliseconds,
-                cv.Optional(
-                    CONF_INTERVAL, default="100ms"
-                ): cv.positive_time_period_milliseconds,
-            }
+                # frame_type is checked in validate_hub, since sniffer_only hubs may leave it out.
+                "frame_trigger": {
+                    cv.Optional(CONF_FRAME_TYPE): validate_frame_type,
+                    **_GATE_DELAY,
+                },
+                "idle_gap": {
+                    cv.Optional(
+                        CONF_MIN_SILENCE, default="4ms"
+                    ): cv.positive_time_period_milliseconds,
+                    **_GATE_DELAY,
+                },
+                "fixed_delay": {
+                    cv.Optional(
+                        CONF_INTERVAL, default="100ms"
+                    ): cv.positive_time_period_milliseconds,
+                    **_GATE_DELAY,
+                },
+            },
+            key=CONF_MODE,
+            default_type="frame_trigger",
+            lower=True,
         ),
         cv.Optional(CONF_QUEUE_POLICY, default="replace_latest"): cv.one_of(
             *QUEUE_POLICIES, lower=True
@@ -294,8 +294,10 @@ async def to_code(config: ConfigType) -> None:
         )
     )
     cg.add(var.set_tx_gate_delay(gate[CONF_DELAY].total_milliseconds))
-    cg.add(var.set_tx_idle_gap(gate[CONF_MIN_SILENCE].total_milliseconds))
-    cg.add(var.set_tx_fixed_interval(gate[CONF_INTERVAL].total_milliseconds))
+    if (min_silence := gate.get(CONF_MIN_SILENCE)) is not None:
+        cg.add(var.set_tx_idle_gap(min_silence.total_milliseconds))
+    if (interval := gate.get(CONF_INTERVAL)) is not None:
+        cg.add(var.set_tx_fixed_interval(interval.total_milliseconds))
     cg.add(var.set_queue_policy(QUEUE_POLICIES[tx[CONF_QUEUE_POLICY]]))
     cg.add(var.set_max_queue_size(tx[CONF_MAX_QUEUE_SIZE]))
     cg.add(var.set_dump_frames(config[CONF_DUMP_FRAMES]))
