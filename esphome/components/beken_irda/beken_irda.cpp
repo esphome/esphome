@@ -33,7 +33,9 @@ static constexpr uint32_t IRDA_REPEAT_INT = 1u << 2;
 static constexpr uint32_t IRDA_FIFO_WREN_INT = 1u << 3;
 static constexpr uint32_t IRDA_PARITY_ERR_INT = 1u << 4;
 static constexpr uint32_t IRDA_STOP_ERR_INT = 1u << 5;
-static constexpr uint32_t IRDA_ERROR_INTS = IRDA_FIFO_WREN_INT | IRDA_PARITY_ERR_INT | IRDA_STOP_ERR_INT;
+// The BDK ignores all three; parity and stop errors mark a bad frame, FIFO_WREN is only counted
+static constexpr uint32_t IRDA_FRAME_ERROR_INTS = IRDA_PARITY_ERR_INT | IRDA_STOP_ERR_INT;
+static constexpr uint32_t IRDA_ERROR_INTS = IRDA_FIFO_WREN_INT | IRDA_FRAME_ERROR_INTS;
 
 using NEC = remote_base::NECProtocol;
 // Header mark and space, 32 bits of mark and space, and the final mark
@@ -45,7 +47,7 @@ static BekenIrdaComponent *s_irda = nullptr;  // NOLINT(cppcoreguidelines-avoid-
 void BekenIrdaComponent::irda_isr() { s_irda->handle_isr_(); }
 
 void BekenIrdaComponent::handle_isr_() {
-  const uint32_t status = REG_READ(IRDA_INT_REG);
+  uint32_t status = REG_READ(IRDA_INT_REG);
   REG_WRITE(IRDA_INT_REG, status);
 
   if (status & IRDA_END_INT) {
@@ -53,18 +55,20 @@ void BekenIrdaComponent::handle_isr_() {
     const uint8_t command = code >> 16;
     const uint8_t inverse = code >> 24;
     // a frame the hardware flagged as corrupt is dropped even when the command check passes
-    if ((status & IRDA_ERROR_INTS) == 0 && (command ^ inverse) == 0xFF) {
+    if ((status & IRDA_FRAME_ERROR_INTS) == 0 && (command ^ inverse) == 0xFF) {
       this->last_code_ = code;
       this->raw_ready_ = true;
       // a repeat still pending belongs to the previous code
       this->repeat_ready_ = false;
     } else {
       this->error_count_ = this->error_count_ + 1;
+      // counted once
+      status &= ~IRDA_ERROR_INTS;
     }
   } else if (status & IRDA_REPEAT_INT) {
     this->repeat_ready_ = true;
   }
-  if ((status & IRDA_ERROR_INTS) && !(status & IRDA_END_INT))
+  if (status & IRDA_ERROR_INTS)
     this->error_count_ = this->error_count_ + 1;
   this->enable_loop_soon_any_context();
 }
@@ -92,8 +96,10 @@ void BekenIrdaComponent::dispatch_repeat_() {
 
 void BekenIrdaComponent::setup() {
   s_irda = this;
-  // irda_init() already registers the IRDA interrupt during the BDK driver init. Registering again with
-  // the same priority fails and restores that handler, so replace it in place.
+  // irda_init() normally registers the IRDA interrupt during the BDK driver init. Registering again with the
+  // same priority then does nothing, and the change call replaces that handler in place; without it, the
+  // register call installs ours and the change call, which would otherwise do nothing, keeps it.
+  intc_service_register(IRQ_IRDA, PRI_IRQ_IRDA, irda_isr);
   intc_service_change_handler(IRQ_IRDA, irda_isr);
   // sets up P26 as the NEC input and enables the IRDA clock and interrupts
   Irda_init_app();
