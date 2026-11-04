@@ -5,7 +5,6 @@
 #include "esphome/core/helpers.h"
 #include "esphome/components/uart/uart.h"
 
-#include <memory>
 #include <span>
 
 namespace esphome::rs485_frame {
@@ -14,8 +13,6 @@ namespace esphome::rs485_frame {
 static constexpr size_t MAX_FRAME_TYPE_LEN = 8;
 // Must agree with MIN_FRAME_LENGTH in __init__.py; shorter frames are neither received nor sent.
 static constexpr size_t MIN_FRAME_LENGTH = 2;
-// Framing overhead added to every TX frame: DLE+STX(2) + DLE+ETX(2) + escaped CRC max(4).
-static constexpr size_t FRAME_OVERHEAD_BYTES = 8;
 
 enum CrcVariant : uint8_t { CRC_HEADER_INCLUSIVE, CRC_PAYLOAD_ONLY };
 enum CrcType : uint8_t {
@@ -43,14 +40,29 @@ inline bool frame_has_prefix(std::span<const uint8_t> payload, const uint8_t *pr
 /// Hub for a DLE-framed RS485 bus: RX framer, CRC engine, gated TX queue and on_frame callbacks.
 class RS485FrameHub : public Component, public uart::UARTDevice {
  public:
+  /// rx_payload holds max_frame_length + crc_len bytes. tx_queue holds max_queue_size slots of that
+  /// size and tx_queue_len max_queue_size entries; both are nullptr on a sniffer_only hub.
+  RS485FrameHub(uint8_t dle, uint8_t stx, uint8_t etx, uint8_t escape_marker, CrcType crc_type, uint8_t crc_len,
+                uint16_t max_frame_length, uint8_t max_queue_size, uint8_t *rx_payload, uint8_t *tx_queue,
+                uint16_t *tx_queue_len)
+      : rx_payload_(rx_payload),
+        tx_queue_(tx_queue),
+        tx_queue_len_(tx_queue_len),
+        max_frame_length_(max_frame_length),
+        dle_(dle),
+        stx_(stx),
+        etx_(etx),
+        escape_marker_(escape_marker),
+        crc_type_(crc_type),
+        crc_len_(crc_len),
+        max_queue_size_(max_queue_size) {}
+
   void setup() override;
   void loop() override;
   void dump_config() override;
 
-  void set_framing(uint8_t dle, uint8_t stx, uint8_t etx, uint8_t escape_marker);
   void set_accept_header_crc(bool accept) { this->accept_header_crc_ = accept; }
   void set_accept_payload_crc(bool accept) { this->accept_payload_crc_ = accept; }
-  void set_crc_type(CrcType type) { this->crc_type_ = type; }
   void set_tx_crc_variant(CrcVariant variant) { this->tx_crc_variant_ = variant; }
   void set_tx_gate_mode(TxGateMode mode) { this->tx_gate_mode_ = mode; }
   /// frame_type may live in PROGMEM.
@@ -59,13 +71,10 @@ class RS485FrameHub : public Component, public uart::UARTDevice {
     this->tx_gate_frame_type_len_ = len;
   }
   void set_tx_gate_delay(uint32_t delay) { this->tx_gate_delay_ = delay; }
-  void set_tx_idle_gap(uint32_t idle_gap) { this->tx_idle_gap_ = idle_gap; }
-  void set_tx_fixed_interval(uint32_t interval) { this->tx_fixed_interval_ = interval; }
+  /// idle_gap's min_silence or fixed_delay's interval.
+  void set_tx_gate_interval(uint32_t interval) { this->tx_gate_interval_ = interval; }
   void set_queue_policy(QueuePolicy policy) { this->queue_policy_ = policy; }
-  void set_max_queue_size(uint8_t size) { this->max_queue_size_ = size; }
   void set_dump_frames(bool dump_frames) { this->dump_frames_ = dump_frames; }
-  void set_sniffer_only(bool sniffer_only) { this->sniffer_only_ = sniffer_only; }
-  void set_max_frame_length(uint32_t length) { this->max_frame_length_ = length; }
   void set_in_frame_timeout(uint32_t ms) { this->in_frame_timeout_ms_ = ms; }
 
   /// Frame and queue an unframed payload; data may live in PROGMEM.
@@ -84,63 +93,54 @@ class RS485FrameHub : public Component, public uart::UARTDevice {
   void reset_rx_();
   /// Checks the CRC that follows the rx_payload_len_ payload bytes.
   bool check_crc_() const;
-  uint16_t calculate_crc_(const uint8_t *data, size_t len, bool include_header) const;
-  size_t crc_length_() const;
-  bool crc_little_endian_() const {
-    return this->crc_type_ == CRC_TYPE_CRC16_MODBUS || this->crc_type_ == CRC_TYPE_SUM16_LITTLE_ENDIAN;
-  }
-  size_t tx_slot_capacity_() const { return this->max_frame_length_ * 2 + FRAME_OVERHEAD_BYTES; }
-  uint8_t *tx_slot_(size_t index) const { return this->tx_queue_.get() + index * this->tx_slot_capacity_(); }
-  /// Writes the framed payload to out and returns its length. payload may sit at the end of
-  /// out's tx slot, since the escaped frame is written forward and never overtakes it.
-  size_t build_frame_(const uint8_t *payload, size_t len, uint8_t *out) const;
-  bool check_tx_(size_t len);
+  bool crc_matches_(bool include_header) const;
+  /// Writes the crc_len_ CRC bytes of data to out in wire order.
+  void encode_crc_(const uint8_t *data, size_t len, bool include_header, uint8_t *out) const;
+  uint8_t *tx_slot_(size_t index) const { return this->tx_queue_ + index * (this->max_frame_length_ + this->crc_len_); }
   void maybe_tx_(uint32_t now);
   void send_next_(uint32_t now);
   void transmit_head_(uint32_t now);
   /// How long len bytes take on the wire at the UART's baud rate and frame format.
-  uint32_t wire_time_ms_(size_t len) const;
+  uint16_t wire_time_ms_(size_t len) const;
   void log_frame_(const char *dir, const uint8_t *data, size_t len);
 
-  const uint8_t *tx_gate_frame_type_{nullptr};
-  uint32_t tx_gate_delay_{0};
-  uint32_t tx_idle_gap_{4};
-  uint32_t tx_fixed_interval_{100};
-  uint32_t max_frame_length_{128};
-  uint32_t in_frame_timeout_ms_{50};
-
-  LazyCallbackManager<void(std::span<const uint8_t>)> frame_callback_;
-  // Ring of max_queue_size_ slots of tx_slot_capacity_() bytes each, framed in place. While
-  // tx_start_pending_ the head slot is the frame waiting out the gate delay.
-  std::unique_ptr<uint8_t[]> tx_queue_;
-  std::unique_ptr<uint16_t[]> tx_queue_len_;
   // The unescaped frame being received, then the `payload` on_frame receives.
-  std::unique_ptr<uint8_t[]> rx_payload_;
+  uint8_t *const rx_payload_;
+  // Ring of max_queue_size_ slots holding the unescaped frame and its CRC, escaped as it is written.
+  // While tx_start_pending_ the head slot is the frame waiting out the gate delay.
+  uint8_t *const tx_queue_;
+  uint16_t *const tx_queue_len_;
+  const uint8_t *tx_gate_frame_type_{nullptr};
+  LazyCallbackManager<void(std::span<const uint8_t>)> frame_callback_;
+  uint32_t tx_gate_delay_{0};
+  uint32_t tx_gate_interval_{0};
+  uint32_t in_frame_timeout_ms_{50};
   uint32_t last_rx_time_{0};
   uint32_t last_tx_time_{0};
-  // How long the last frame takes on the wire; the gates count from its end, not from write_array()
-  uint32_t last_tx_wire_ms_{0};
   uint32_t last_activity_time_{0};  // RX or our own TX, seeded in setup()
   uint32_t tx_delay_start_{0};      // When the frame waiting out the gate delay was released
+  uint16_t max_frame_length_;
   uint16_t rx_payload_len_{0};
+  // How long the last frame takes on the wire; the gates count from its end, not from write_array()
+  uint16_t last_tx_wire_ms_{0};
 
-  uint8_t dle_{0x10};
-  uint8_t stx_{0x02};
-  uint8_t etx_{0x03};
+  uint8_t dle_;
+  uint8_t stx_;
+  uint8_t etx_;
   // Equals dle_ in doubling mode (a literal DLE is sent as DLE DLE).
-  uint8_t escape_marker_{0x00};
-  CrcType crc_type_{CRC_TYPE_SUM16_BIG_ENDIAN};
+  uint8_t escape_marker_;
+  CrcType crc_type_;
+  uint8_t crc_len_;
   CrcVariant tx_crc_variant_{CRC_HEADER_INCLUSIVE};
   TxGateMode tx_gate_mode_{TX_GATE_FRAME_TRIGGER};
   QueuePolicy queue_policy_{QUEUE_REPLACE_LATEST};
   uint8_t tx_gate_frame_type_len_{0};
-  uint8_t max_queue_size_{1};
+  uint8_t max_queue_size_;
   uint8_t tx_queue_head_{0};
   uint8_t tx_queue_count_{0};
   bool accept_header_crc_{true};
   bool accept_payload_crc_{true};
   bool dump_frames_{false};
-  bool sniffer_only_{false};
   bool in_frame_{false};
   // The last byte was a DLE whose meaning the next byte decides.
   bool after_dle_{false};

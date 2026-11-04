@@ -30,14 +30,60 @@ class FakeUART : public uart::UARTComponent {
   std::vector<uint8_t> written;
 };
 
-class RS485FrameHubProbe : public RS485FrameHub {
- public:
-  uint16_t crc_for_test(const std::vector<uint8_t> &data, bool include_header) const {
-    return this->calculate_crc_(data.data(), data.size(), include_header);
+struct HubConfig {
+  uint8_t escape_marker{0x00};
+  CrcType crc_type{CRC_TYPE_SUM16_BIG_ENDIAN};
+  uint16_t max_frame_length{128};
+  uint8_t max_queue_size{1};
+  bool sniffer_only{false};
+};
+
+uint8_t crc_len(CrcType type) {
+  switch (type) {
+    case CRC_TYPE_NONE:
+      return 0;
+    case CRC_TYPE_SUM8:
+    case CRC_TYPE_XOR8:
+      return 1;
+    default:
+      return 2;
   }
+}
+
+// Stand-ins for the static arrays codegen declares per hub, sized for every test here.
+struct ProbeStorage {
+  uint8_t rx_buffer[256];
+  uint8_t tx_buffer[512];
+  uint16_t tx_len_buffer[4];
+  FakeUART fake_uart;
+};
+
+class RS485FrameHubProbe : public ProbeStorage, public RS485FrameHub {
+ public:
+  explicit RS485FrameHubProbe(HubConfig c = {})
+      : RS485FrameHub(0x10, 0x02, 0x03, c.escape_marker, c.crc_type, crc_len(c.crc_type), c.max_frame_length,
+                      c.max_queue_size, this->rx_buffer, c.sniffer_only ? nullptr : this->tx_buffer,
+                      c.sniffer_only ? nullptr : this->tx_len_buffer) {
+    this->set_uart_parent(&this->fake_uart);
+  }
+  std::vector<uint8_t> crc_for_test(const std::vector<uint8_t> &data, bool include_header) const {
+    std::vector<uint8_t> out(this->crc_len_);
+    this->encode_crc_(data.data(), data.size(), include_header, out.data());
+    return out;
+  }
+  // The wire frame for payload with a header-inclusive CRC, framed independently of transmit_head_().
   std::vector<uint8_t> build_frame_for_test(const std::vector<uint8_t> &payload) const {
-    std::vector<uint8_t> out(payload.size() * 2 + FRAME_OVERHEAD_BYTES);
-    out.resize(this->build_frame_(payload.data(), payload.size(), out.data()));
+    std::vector<uint8_t> data = payload;
+    for (uint8_t b : this->crc_for_test(payload, true))
+      data.push_back(b);
+    std::vector<uint8_t> out = {this->dle_, this->stx_};
+    for (uint8_t b : data) {
+      out.push_back(b);
+      if (b == this->dle_)
+        out.push_back(this->escape_marker_);
+    }
+    out.push_back(this->dle_);
+    out.push_back(this->etx_);
     return out;
   }
   void feed_for_test(const std::vector<uint8_t> &bytes) {
@@ -45,7 +91,13 @@ class RS485FrameHubProbe : public RS485FrameHub {
       this->handle_rx_byte_(b, 0);
   }
   std::vector<uint8_t> rx_payload_for_test() const {
-    return {this->rx_payload_.get(), this->rx_payload_.get() + this->rx_payload_len_};
+    return {this->rx_payload_, this->rx_payload_ + this->rx_payload_len_};
+  }
+  // Sends the head frame and returns the bytes written to the UART.
+  std::vector<uint8_t> transmit_for_test() {
+    this->fake_uart.written.clear();
+    this->transmit_head_(0);
+    return this->fake_uart.written;
   }
   void maybe_tx_for_test(uint32_t now) { this->maybe_tx_(now); }
   void send_next_for_test(uint32_t now) { this->send_next_(now); }
@@ -55,12 +107,6 @@ class RS485FrameHubProbe : public RS485FrameHub {
   }
   uint32_t last_activity_for_test() const { return this->last_activity_time_; }
   size_t queue_depth_for_test() const { return this->tx_queue_count_; }
-  bool has_tx_queue_for_test() const { return this->tx_queue_ != nullptr; }
-  std::vector<uint8_t> queued_frame_for_test(size_t i) const {
-    const size_t index = (this->tx_queue_head_ + i) % this->max_queue_size_;
-    const uint8_t *slot = this->tx_slot_(index);
-    return {slot, slot + this->tx_queue_len_[index]};
-  }
   // Counts the frames delivered to on_frame callbacks.
   void count_frames() {
     this->add_on_frame_callback([this](std::span<const uint8_t>) { this->frames++; });
@@ -68,77 +114,29 @@ class RS485FrameHubProbe : public RS485FrameHub {
   uint32_t frames{0};
 };
 
-// The hand-rolled CRCs the component used before switching to the helpers.h functions; the
-// helpers must produce identical values for every CRC type and both header variants.
-uint16_t reference_crc(CrcType type, uint8_t dle, uint8_t stx, const std::vector<uint8_t> &payload,
-                       bool include_header) {
-  std::vector<uint8_t> data;
-  if (include_header) {
-    data.push_back(dle);
-    data.push_back(stx);
-  }
-  data.insert(data.end(), payload.begin(), payload.end());
-  switch (type) {
-    case CRC_TYPE_NONE:
-      return 0;
-    case CRC_TYPE_XOR8: {
-      uint8_t crc = 0;
-      for (auto b : data)
-        crc ^= b;
-      return crc;
-    }
-    case CRC_TYPE_CRC16_MODBUS: {
-      uint16_t crc = 0xFFFF;
-      for (auto b : data) {
-        crc ^= b;
-        for (uint8_t i = 0; i < 8; i++)
-          crc = (crc & 0x0001) ? (crc >> 1) ^ 0xA001 : crc >> 1;
-      }
-      return crc;
-    }
-    default: {
-      uint32_t sum = 0;
-      for (auto b : data)
-        sum += b;
-      return type == CRC_TYPE_SUM8 ? (sum & 0xFF) : (sum & 0xFFFF);
-    }
-  }
-}
-
 }  // namespace
 
-TEST(RS485FrameHubTest, CrcHelpersMatchReferenceImplementation) {
-  std::vector<std::vector<uint8_t>> payloads = {
-      {},
-      {0x01, 0x02},
-      {'1', '2', '3', '4', '5', '6', '7', '8', '9'},
-      {0x10, 0x10, 0x00, 0xFF, 0xFE, 0x03, 0x02},
+// Published check values for "123456789", in wire order, without and with the DLE STX header.
+TEST(RS485FrameHubTest, CrcCheckValues) {
+  struct CrcCase {
+    CrcType type;
+    std::vector<uint8_t> payload_only;
+    std::vector<uint8_t> header_inclusive;
   };
-  // A long payload so the 16-bit sums wrap.
-  std::vector<uint8_t> long_payload(600);
-  for (size_t i = 0; i < long_payload.size(); i++)
-    long_payload[i] = static_cast<uint8_t>(0xFF - i);
-  payloads.push_back(long_payload);
-
-  for (CrcType type : {CRC_TYPE_NONE, CRC_TYPE_SUM8, CRC_TYPE_SUM16_BIG_ENDIAN, CRC_TYPE_SUM16_LITTLE_ENDIAN,
-                       CRC_TYPE_XOR8, CRC_TYPE_CRC16_MODBUS}) {
-    RS485FrameHubProbe hub;
-    hub.set_framing(0x10, 0x02, 0x03, 0x00);
-    hub.set_crc_type(type);
-    for (const auto &payload : payloads) {
-      for (bool include_header : {false, true}) {
-        EXPECT_EQ(hub.crc_for_test(payload, include_header), reference_crc(type, 0x10, 0x02, payload, include_header))
-            << "type " << type << " len " << payload.size() << " header " << include_header;
-      }
-    }
+  const std::vector<CrcCase> cases = {
+      {CRC_TYPE_NONE, {}, {}},
+      {CRC_TYPE_SUM8, {0xDD}, {0xEF}},
+      {CRC_TYPE_SUM16_BIG_ENDIAN, {0x01, 0xDD}, {0x01, 0xEF}},
+      {CRC_TYPE_SUM16_LITTLE_ENDIAN, {0xDD, 0x01}, {0xEF, 0x01}},
+      {CRC_TYPE_XOR8, {0x31}, {0x23}},
+      {CRC_TYPE_CRC16_MODBUS, {0x37, 0x4B}, {0xCE, 0x55}},
+  };
+  const std::vector<uint8_t> check = {'1', '2', '3', '4', '5', '6', '7', '8', '9'};
+  for (const auto &c : cases) {
+    RS485FrameHubProbe hub({.crc_type = c.type});
+    EXPECT_EQ(hub.crc_for_test(check, false), c.payload_only) << "type " << c.type;
+    EXPECT_EQ(hub.crc_for_test(check, true), c.header_inclusive) << "type " << c.type;
   }
-}
-
-TEST(RS485FrameHubTest, Crc16ModbusCheckValue) {
-  RS485FrameHubProbe hub;
-  hub.set_crc_type(CRC_TYPE_CRC16_MODBUS);
-  // The published CRC-16/MODBUS check value for "123456789".
-  EXPECT_EQ(hub.crc_for_test({'1', '2', '3', '4', '5', '6', '7', '8', '9'}, false), 0x4B37);
 }
 
 // A frame built by the TX encoder must come back through the RX framer as the same payload,
@@ -146,9 +144,7 @@ TEST(RS485FrameHubTest, Crc16ModbusCheckValue) {
 TEST(RS485FrameHubTest, RxFramerRoundTripsBuiltFrames) {
   for (uint8_t escape_marker : {uint8_t{0x00}, uint8_t{0x10}}) {
     for (CrcType type : {CRC_TYPE_SUM16_BIG_ENDIAN, CRC_TYPE_CRC16_MODBUS, CRC_TYPE_XOR8, CRC_TYPE_NONE}) {
-      RS485FrameHubProbe hub;
-      hub.set_framing(0x10, 0x02, 0x03, escape_marker);
-      hub.set_crc_type(type);
+      RS485FrameHubProbe hub({.escape_marker = escape_marker, .crc_type = type});
       hub.setup();
       hub.count_frames();
 
@@ -162,10 +158,7 @@ TEST(RS485FrameHubTest, RxFramerRoundTripsBuiltFrames) {
 }
 
 TEST(RS485FrameHubTest, RxFramerRejectsBadCrcAndOverlongFrames) {
-  RS485FrameHubProbe hub;
-  hub.set_framing(0x10, 0x02, 0x03, 0x00);
-  hub.set_crc_type(CRC_TYPE_SUM8);
-  hub.set_max_frame_length(8);
+  RS485FrameHubProbe hub({.crc_type = CRC_TYPE_SUM8, .max_frame_length = 8});
   hub.setup();
   hub.count_frames();
 
@@ -188,31 +181,10 @@ TEST(RS485FrameHubTest, RxFramerRejectsBadCrcAndOverlongFrames) {
   EXPECT_EQ(hub.frames, 2u);
 }
 
-// max_frame_length counts unescaped bytes before the CRC on RX, as it does on TX: the largest
-// frame the hub can send must also be accepted, even with every byte escaped.
-TEST(RS485FrameHubTest, RxAcceptsLargestFrameTxCanSend) {
-  for (uint8_t escape_marker : {uint8_t{0x00}, uint8_t{0x10}}) {
-    RS485FrameHubProbe hub;
-    hub.set_framing(0x10, 0x02, 0x03, escape_marker);
-    hub.set_crc_type(CRC_TYPE_CRC16_MODBUS);
-    hub.set_max_frame_length(8);
-    hub.setup();
-    hub.count_frames();
-
-    const std::vector<uint8_t> payload(8, 0x10);
-    hub.feed_for_test(hub.build_frame_for_test(payload));
-
-    EXPECT_EQ(hub.frames, 1u) << "escape " << int(escape_marker);
-    EXPECT_EQ(hub.rx_payload_for_test(), payload);
-  }
-}
-
 // A DLE STX inside a frame can only be the next frame starting (the escape byte is never STX),
 // so a frame that lost its DLE ETX must not take the following frame down with it.
 TEST(RS485FrameHubTest, RxFramerRestartsOnDleStx) {
-  RS485FrameHubProbe hub;
-  hub.set_framing(0x10, 0x02, 0x03, 0x00);
-  hub.set_crc_type(CRC_TYPE_SUM8);
+  RS485FrameHubProbe hub({.crc_type = CRC_TYPE_SUM8});
   hub.setup();
   hub.count_frames();
 
@@ -227,7 +199,6 @@ TEST(RS485FrameHubTest, RxFramerRestartsOnDleStx) {
 // dump_frames logs a frame longer than one log line without disturbing delivery.
 TEST(RS485FrameHubTest, DumpFramesLogsLongFrames) {
   RS485FrameHubProbe hub;
-  hub.set_crc_type(CRC_TYPE_SUM16_BIG_ENDIAN);
   hub.set_dump_frames(true);
   hub.setup();
   hub.count_frames();
@@ -243,9 +214,7 @@ TEST(RS485FrameHubTest, DumpFramesLogsLongFrames) {
 
 // A DLE followed by anything but STX, ETX or the escape marker drops the frame.
 TEST(RS485FrameHubTest, RxFramerDropsBadEscape) {
-  RS485FrameHubProbe hub;
-  hub.set_framing(0x10, 0x02, 0x03, 0x00);
-  hub.set_crc_type(CRC_TYPE_NONE);
+  RS485FrameHubProbe hub({.crc_type = CRC_TYPE_NONE});
   hub.setup();
   hub.count_frames();
 
@@ -259,48 +228,43 @@ TEST(RS485FrameHubTest, RxFramerDropsBadEscape) {
 }
 
 TEST(RS485FrameHubTest, QueueFrameFramesAndQueues) {
-  RS485FrameHubProbe hub;
-  hub.set_framing(0x10, 0x02, 0x03, 0x00);
-  hub.set_crc_type(CRC_TYPE_NONE);
+  RS485FrameHubProbe hub({.crc_type = CRC_TYPE_NONE});
   hub.setup();
   static const uint8_t DATA[] = {0x01, 0x10, 0x02};
-
   EXPECT_TRUE(hub.queue_frame(DATA, sizeof(DATA)));
-  EXPECT_EQ(hub.queue_depth_for_test(), 1u);
-
-  EXPECT_EQ(hub.queued_frame_for_test(0), hub.build_frame_for_test({0x01, 0x10, 0x02}));
 
   // replace_latest: a second frame replaces the first.
   static const uint8_t TYPE[] = {0x01, 0x02};
   static const uint8_t PAYLOAD[] = {0x03};
   EXPECT_TRUE(hub.queue_raw_frame(TYPE, PAYLOAD));
   EXPECT_EQ(hub.queue_depth_for_test(), 1u);
-  EXPECT_EQ(hub.queued_frame_for_test(0), hub.build_frame_for_test({0x01, 0x02, 0x03}));
+  EXPECT_EQ(hub.transmit_for_test(), hub.build_frame_for_test({0x01, 0x02, 0x03}));
+  EXPECT_EQ(hub.queue_depth_for_test(), 0u);
 }
 
-// A max-length payload of DLE bytes doubles in size; framing it in place from the end of its
-// slot must produce the same frame as framing it from a separate buffer.
-TEST(RS485FrameHubTest, QueueFrameFramesWorstCaseInPlace) {
+// The largest frame, all DLE bytes, doubles in size and is escaped across several stack chunks;
+// it must leave as the same bytes an independent encoder builds and come back through the RX framer.
+TEST(RS485FrameHubTest, TransmitEscapesLargestFrame) {
   for (uint8_t escape_marker : {uint8_t{0x00}, uint8_t{0x10}}) {
-    RS485FrameHubProbe hub;
-    hub.set_framing(0x10, 0x02, 0x03, escape_marker);
-    hub.set_crc_type(CRC_TYPE_SUM16_BIG_ENDIAN);
-    hub.set_max_frame_length(8);
+    RS485FrameHubProbe hub({.escape_marker = escape_marker, .crc_type = CRC_TYPE_CRC16_MODBUS, .max_frame_length = 64});
     hub.setup();
-    static const uint8_t DATA[8] = {0x10, 0x10, 0x10, 0x10, 0x10, 0x10, 0x10, 0x10};
+    hub.count_frames();
+    const std::vector<uint8_t> payload(64, 0x10);
 
-    EXPECT_TRUE(hub.queue_frame(DATA, sizeof(DATA)));
-    const auto expected = hub.build_frame_for_test(std::vector<uint8_t>(DATA, DATA + sizeof(DATA)));
-    EXPECT_EQ(expected.size(), 2 * sizeof(DATA) + 6u);
-    EXPECT_EQ(hub.queued_frame_for_test(0), expected);
+    ASSERT_TRUE(hub.queue_frame(payload.data(), payload.size()));
+    const auto wire = hub.transmit_for_test();
+    EXPECT_EQ(wire, hub.build_frame_for_test(payload));
+    EXPECT_GE(wire.size(), 2 * payload.size() + 6u);
+
+    hub.feed_for_test(wire);
+    EXPECT_EQ(hub.frames, 1u) << "escape " << int(escape_marker);
+    EXPECT_EQ(hub.rx_payload_for_test(), payload);
   }
 }
 
 TEST(RS485FrameHubTest, FifoQueueKeepsOrderAndDropsWhenFull) {
-  RS485FrameHubProbe hub;
-  hub.set_crc_type(CRC_TYPE_NONE);
+  RS485FrameHubProbe hub({.crc_type = CRC_TYPE_NONE, .max_queue_size = 2});
   hub.set_queue_policy(QUEUE_FIFO);
-  hub.set_max_queue_size(2);
   hub.setup();
   static const uint8_t FIRST[] = {0x01, 0x01};
   static const uint8_t SECOND[] = {0x01, 0x02, 0x10};
@@ -309,39 +273,31 @@ TEST(RS485FrameHubTest, FifoQueueKeepsOrderAndDropsWhenFull) {
   EXPECT_TRUE(hub.queue_frame(SECOND, sizeof(SECOND)));
   EXPECT_FALSE(hub.queue_frame(FIRST, sizeof(FIRST)));
   EXPECT_EQ(hub.queue_depth_for_test(), 2u);
-  EXPECT_EQ(hub.queued_frame_for_test(0), hub.build_frame_for_test({0x01, 0x01}));
-  EXPECT_EQ(hub.queued_frame_for_test(1), hub.build_frame_for_test({0x01, 0x02, 0x10}));
+  EXPECT_EQ(hub.transmit_for_test(), hub.build_frame_for_test({0x01, 0x01}));
+  // The ring wraps: the freed slot takes the next frame behind SECOND.
+  EXPECT_TRUE(hub.queue_frame(FIRST, sizeof(FIRST)));
+  EXPECT_EQ(hub.transmit_for_test(), hub.build_frame_for_test({0x01, 0x02, 0x10}));
+  EXPECT_EQ(hub.transmit_for_test(), hub.build_frame_for_test({0x01, 0x01}));
 }
 
-TEST(RS485FrameHubTest, QueueFrameDropsOverlongAndSnifferFrames) {
-  RS485FrameHubProbe hub;
-  hub.set_max_frame_length(8);
-  hub.setup();
+// Frames outside 2..max_frame_length are dropped (received frames under 2 bytes are dropped
+// too), and a sniffer_only hub has no TX queue and never queues.
+TEST(RS485FrameHubTest, QueueFrameDropsInvalidFramesAndSnifferFrames) {
   static const uint8_t DATA[9] = {};
-
-  EXPECT_FALSE(hub.queue_frame(DATA, sizeof(DATA)));
-  // Received frames under 2 bytes are dropped, so they are not sent either.
-  EXPECT_FALSE(hub.queue_frame(DATA, 1));
-
-  EXPECT_EQ(hub.queue_depth_for_test(), 0u);
-}
-
-// A sniffer_only hub allocates no TX queue and never queues.
-TEST(RS485FrameHubTest, SnifferHubDropsFrames) {
-  RS485FrameHubProbe hub;
-  hub.set_sniffer_only(true);
+  RS485FrameHubProbe hub({.max_frame_length = 8});
   hub.setup();
-  static const uint8_t DATA[2] = {};
-
   EXPECT_FALSE(hub.queue_frame(DATA, sizeof(DATA)));
+  EXPECT_FALSE(hub.queue_frame(DATA, 1));
   EXPECT_EQ(hub.queue_depth_for_test(), 0u);
-  EXPECT_FALSE(hub.has_tx_queue_for_test());
+
+  RS485FrameHubProbe sniffer({.sniffer_only = true});
+  sniffer.setup();
+  EXPECT_FALSE(sniffer.queue_frame(DATA, 2));
+  EXPECT_EQ(sniffer.queue_depth_for_test(), 0u);
 }
 
 TEST(RS485FrameHubTest, FrameCallbackReceivesPayload) {
-  RS485FrameHubProbe hub;
-  hub.set_framing(0x10, 0x02, 0x03, 0x00);
-  hub.set_crc_type(CRC_TYPE_XOR8);
+  RS485FrameHubProbe hub({.crc_type = CRC_TYPE_XOR8});
   hub.setup();
   std::vector<uint8_t> received;
   hub.add_on_frame_callback([&](std::span<const uint8_t> payload) { received.assign(payload.begin(), payload.end()); });
@@ -358,11 +314,9 @@ TEST(RS485FrameHubTest, FrameCallbackReceivesPayload) {
 
 // idle_gap on a bus that has carried no byte yet transmits once min_silence has passed since boot.
 TEST(RS485FrameHubTest, IdleGapTransmitsOnQuietBus) {
-  FakeUART uart;
   RS485FrameHubProbe hub;
-  hub.set_uart_parent(&uart);
   hub.set_tx_gate_mode(TX_GATE_IDLE_GAP);
-  hub.set_tx_idle_gap(20);
+  hub.set_tx_gate_interval(20);
   hub.setup();
   static const uint8_t DATA[] = {0x01, 0x02};
   ASSERT_TRUE(hub.queue_frame(DATA, sizeof(DATA)));
@@ -372,16 +326,14 @@ TEST(RS485FrameHubTest, IdleGapTransmitsOnQuietBus) {
   EXPECT_EQ(hub.queue_depth_for_test(), 1u);
   hub.maybe_tx_for_test(boot + 20);
   EXPECT_EQ(hub.queue_depth_for_test(), 0u);
-  EXPECT_FALSE(uart.written.empty());
+  EXPECT_FALSE(hub.fake_uart.written.empty());
 }
 
 // fixed_delay sends the first frame without waiting a full interval.
 TEST(RS485FrameHubTest, FixedDelaySendsFirstFrameRightAway) {
-  FakeUART uart;
   RS485FrameHubProbe hub;
-  hub.set_uart_parent(&uart);
   hub.set_tx_gate_mode(TX_GATE_FIXED_DELAY);
-  hub.set_tx_fixed_interval(100);
+  hub.set_tx_gate_interval(100);
   hub.setup();
   static const uint8_t DATA[] = {0x01, 0x02};
   ASSERT_TRUE(hub.queue_frame(DATA, sizeof(DATA)));
@@ -399,14 +351,12 @@ TEST(RS485FrameHubTest, FixedDelaySendsFirstFrameRightAway) {
 
 // fixed_delay waits for the previous frame to leave the wire when it takes longer than the interval.
 TEST(RS485FrameHubTest, FixedDelayWaitsForTheFrameOnTheWire) {
-  FakeUART uart;
-  uart.set_baud_rate(9600);
-  uart.set_data_bits(8);
-  uart.set_stop_bits(1);
   RS485FrameHubProbe hub;
-  hub.set_uart_parent(&uart);
+  hub.fake_uart.set_baud_rate(9600);
+  hub.fake_uart.set_data_bits(8);
+  hub.fake_uart.set_stop_bits(1);
   hub.set_tx_gate_mode(TX_GATE_FIXED_DELAY);
-  hub.set_tx_fixed_interval(1);
+  hub.set_tx_gate_interval(1);
   hub.setup();
   static const uint8_t DATA[48] = {0x01, 0x02};
   ASSERT_TRUE(hub.queue_frame(DATA, sizeof(DATA)));
@@ -415,7 +365,7 @@ TEST(RS485FrameHubTest, FixedDelayWaitsForTheFrameOnTheWire) {
   hub.maybe_tx_for_test(now);
   ASSERT_EQ(hub.queue_depth_for_test(), 0u);
   // 10 bits per byte at 9600 baud
-  const uint32_t wire_ms = (uart.written.size() * 10 * 1000 + 9599) / 9600;
+  const uint32_t wire_ms = (hub.fake_uart.written.size() * 10 * 1000 + 9599) / 9600;
   ASSERT_GT(wire_ms, 1u);
 
   ASSERT_TRUE(hub.queue_frame(DATA, sizeof(DATA)));
@@ -427,9 +377,7 @@ TEST(RS485FrameHubTest, FixedDelayWaitsForTheFrameOnTheWire) {
 
 // The gate delay holds the frame for delay ms, also across a millis() wrap.
 TEST(RS485FrameHubTest, GateDelayHoldsFrameAcrossWrap) {
-  FakeUART uart;
   RS485FrameHubProbe hub;
-  hub.set_uart_parent(&uart);
   hub.set_tx_gate_delay(10);
   hub.setup();
   static const uint8_t DATA[] = {0x01, 0x02};

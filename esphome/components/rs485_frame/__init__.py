@@ -273,53 +273,65 @@ CONFIG_SCHEMA = cv.All(
 )
 
 
-async def to_code(config: ConfigType) -> None:
-    var = await uart.new_uart_component(config)
+CRC_LENGTHS = {"none": 0, "sum8": 1, "xor8": 1}
 
+
+def _static_buffer(name: str, ctype: str, size: int) -> cg.RawExpression:
+    cg.add_global(cg.RawStatement(f"static {ctype} {name}[{size}];"))
+    return cg.RawExpression(name)
+
+
+async def to_code(config: ConfigType) -> None:
+    hub_id = config[CONF_ID]
     framing = config[CONF_FRAMING]
-    escape = framing[CONF_ESCAPE]
-    cg.add(
-        var.set_framing(
-            framing[CONF_DLE],
-            framing[CONF_STX],
-            framing[CONF_ETX],
-            escape.get(CONF_BYTE, framing[CONF_DLE]),
-        )
+    crc = config[CONF_CRC]
+    tx_config = config[CONF_TX]
+    crc_len = CRC_LENGTHS.get(crc[CONF_TYPE], 2)
+    max_queue_size = tx_config[CONF_MAX_QUEUE_SIZE]
+    # Buffer sizes are known here, so they are static arrays rather than allocated at run time
+    frame_size = config[CONF_MAX_FRAME_LENGTH] + crc_len
+    rx = _static_buffer(f"{hub_id}__rx", "uint8_t", frame_size)
+    tx = tx_len = cg.nullptr
+    if not (sniffer_only := config[CONF_SNIFFER_ONLY]):
+        tx = _static_buffer(f"{hub_id}__tx", "uint8_t", max_queue_size * frame_size)
+        tx_len = _static_buffer(f"{hub_id}__tx_len", "uint16_t", max_queue_size)
+    var = await uart.new_uart_component(
+        config,
+        framing[CONF_DLE],
+        framing[CONF_STX],
+        framing[CONF_ETX],
+        framing[CONF_ESCAPE].get(CONF_BYTE, framing[CONF_DLE]),
+        CRC_TYPES[crc[CONF_TYPE]],
+        crc_len,
+        config[CONF_MAX_FRAME_LENGTH],
+        max_queue_size,
+        rx,
+        tx,
+        tx_len,
     )
 
-    crc = config[CONF_CRC]
-    cg.add(var.set_crc_type(CRC_TYPES[crc[CONF_TYPE]]))
     cg.add(var.set_accept_header_crc("header_inclusive" in crc[CONF_RX_ACCEPT]))
     cg.add(var.set_accept_payload_crc("payload_only" in crc[CONF_RX_ACCEPT]))
-    cg.add(var.set_tx_crc_variant(CRC_VARIANTS[crc[CONF_TX_VARIANT]]))
-
-    tx = config[CONF_TX]
-    gate = tx[CONF_GATE]
-    cg.add(var.set_tx_gate_mode(TX_GATE_MODES[gate[CONF_MODE]]))
-    gate_frame_type = gate.get(CONF_FRAME_TYPE, [])
-    cg.add(
-        var.set_tx_gate_frame_type(
-            automation.progmem_bytes(f"{config[CONF_ID]}_frame_type", gate_frame_type),
-            len(gate_frame_type),
-        )
-    )
-    cg.add(var.set_tx_gate_delay(gate[CONF_DELAY].total_milliseconds))
-    if (min_silence := gate.get(CONF_MIN_SILENCE)) is not None:
-        cg.add(var.set_tx_idle_gap(min_silence.total_milliseconds))
-    if (interval := gate.get(CONF_INTERVAL)) is not None:
-        cg.add(var.set_tx_fixed_interval(interval.total_milliseconds))
-    cg.add(var.set_queue_policy(QUEUE_POLICIES[tx[CONF_QUEUE_POLICY]]))
-    cg.add(var.set_max_queue_size(tx[CONF_MAX_QUEUE_SIZE]))
     cg.add(var.set_dump_frames(config[CONF_DUMP_FRAMES]))
-    cg.add(var.set_sniffer_only(config[CONF_SNIFFER_ONLY]))
-    cg.add(var.set_max_frame_length(config[CONF_MAX_FRAME_LENGTH]))
     cg.add(var.set_in_frame_timeout(config[CONF_FRAME_TIMEOUT].total_milliseconds))
+    if not sniffer_only:
+        gate = tx_config[CONF_GATE]
+        cg.add(var.set_tx_crc_variant(CRC_VARIANTS[crc[CONF_TX_VARIANT]]))
+        cg.add(var.set_tx_gate_mode(TX_GATE_MODES[gate[CONF_MODE]]))
+        if gate_frame_type := gate.get(CONF_FRAME_TYPE):
+            table = automation.progmem_bytes(f"{hub_id}_frame_type", gate_frame_type)
+            cg.add(var.set_tx_gate_frame_type(table, len(gate_frame_type)))
+        cg.add(var.set_tx_gate_delay(gate[CONF_DELAY].total_milliseconds))
+        interval = gate.get(CONF_MIN_SILENCE, gate.get(CONF_INTERVAL))
+        if interval is not None:
+            cg.add(var.set_tx_gate_interval(interval.total_milliseconds))
+        cg.add(var.set_queue_policy(QUEUE_POLICIES[tx_config[CONF_QUEUE_POLICY]]))
 
     payload_type = cg.std_span.template(cg.uint8.operator("const"))
     for conf in config.get(CONF_ON_FRAME, []):
         checks = [
             f"rs485_frame::frame_has_prefix(payload, "
-            f"{automation.progmem_bytes(f'{config[CONF_ID]}_frame_type', prefix)}, {len(prefix)})"
+            f"{automation.progmem_bytes(f'{hub_id}_frame_type', prefix)}, {len(prefix)})"
             for prefix in conf[CONF_FRAME_TYPE]
         ]
         await automation.build_callback_automation(

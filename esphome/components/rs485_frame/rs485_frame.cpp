@@ -6,6 +6,7 @@
 
 #include <algorithm>
 #include <cinttypes>
+#include <cstring>
 
 namespace esphome::rs485_frame {
 
@@ -17,15 +18,10 @@ PROGMEM_STRING_TABLE(GateModeStrings, "frame_trigger", "idle_gap", "fixed_delay"
 PROGMEM_STRING_TABLE(QueuePolicyStrings, "replace_latest", "fifo");
 
 void RS485FrameHub::setup() {
-  this->rx_payload_ = std::make_unique<uint8_t[]>(this->max_frame_length_ + this->crc_length_());
-  if (!this->sniffer_only_) {
-    this->tx_queue_ = std::make_unique<uint8_t[]>(this->max_queue_size_ * this->tx_slot_capacity_());
-    this->tx_queue_len_ = std::make_unique<uint16_t[]>(this->max_queue_size_);
-  }
   // idle_gap waits min_silence from boot on a quiet bus; fixed_delay may send right away.
   const uint32_t now = millis();
   this->last_activity_time_ = now;
-  this->last_tx_time_ = now - this->tx_fixed_interval_;
+  this->last_tx_time_ = now - this->tx_gate_interval_;
 }
 
 void RS485FrameHub::loop() {
@@ -55,61 +51,51 @@ void RS485FrameHub::dump_config() {
                 "  Framing: DLE=0x%02x STX=0x%02x ETX=0x%02x, escape=0x%02x\n"
                 "  CRC type: %s, TX CRC variant: %s, accept header CRC: %s, accept payload CRC: %s\n"
                 "  TX gate: %s, gate frame: %s, gate delay: %" PRIu32 "ms\n"
-                "  TX idle gap: %" PRIu32 "ms, TX interval: %" PRIu32 "ms\n"
+                "  TX gate interval: %" PRIu32 "ms\n"
                 "  Queue policy: %s, queue size: %u\n"
-                "  Max frame length: %" PRIu32 ", frame timeout: %" PRIu32 "ms\n"
+                "  Max frame length: %u, frame timeout: %" PRIu32 "ms\n"
                 "  Sniffer only: %s, dump frames: %s",
                 this->dle_, this->stx_, this->etx_, this->escape_marker_,
                 LOG_STR_ARG(CrcTypeStrings::get_log_str(this->crc_type_, 0)),
                 LOG_STR_ARG(CrcVariantStrings::get_log_str(this->tx_crc_variant_, 0)), YESNO(this->accept_header_crc_),
                 YESNO(this->accept_payload_crc_), LOG_STR_ARG(GateModeStrings::get_log_str(this->tx_gate_mode_, 0)),
-                gate_hex, this->tx_gate_delay_, this->tx_idle_gap_, this->tx_fixed_interval_,
+                gate_hex, this->tx_gate_delay_, this->tx_gate_interval_,
                 LOG_STR_ARG(QueuePolicyStrings::get_log_str(this->queue_policy_, 0)), this->max_queue_size_,
-                this->max_frame_length_, this->in_frame_timeout_ms_, YESNO(this->sniffer_only_),
+                this->max_frame_length_, this->in_frame_timeout_ms_, YESNO(this->tx_queue_ == nullptr),
                 YESNO(this->dump_frames_));
 }
 
-void RS485FrameHub::set_framing(uint8_t dle, uint8_t stx, uint8_t etx, uint8_t escape_marker) {
-  this->dle_ = dle;
-  this->stx_ = stx;
-  this->etx_ = etx;
-  this->escape_marker_ = escape_marker;
-}
-
-bool RS485FrameHub::check_tx_(size_t len) {
-  if (this->sniffer_only_) {
-    ESP_LOGW(TAG, "Ignoring frame because sniffer_only is enabled");
-  } else if (len < MIN_FRAME_LENGTH || len > this->max_frame_length_) {
-    ESP_LOGW(TAG, "Frame length %zu is outside %zu..max_frame_length (%" PRIu32 "); dropping", len, MIN_FRAME_LENGTH,
-             this->max_frame_length_);
-  } else {
-    return true;
-  }
-  return false;
-}
-
 bool RS485FrameHub::queue_raw_frame(std::span<const uint8_t> frame_type, std::span<const uint8_t> payload) {
-  const size_t len = frame_type.size() + payload.size();
-  if (!this->check_tx_(len))
+  if (this->tx_queue_ == nullptr) {
+    ESP_LOGW(TAG, "Ignoring frame because sniffer_only is enabled");
     return false;
-  size_t index = (this->tx_queue_head_ + this->tx_queue_count_) % this->max_queue_size_;
+  }
+  const size_t len = frame_type.size() + payload.size();
+  if (len < MIN_FRAME_LENGTH || len > this->max_frame_length_) {
+    ESP_LOGW(TAG, "Frame length %zu is outside %zu..max_frame_length (%u); dropping", len, MIN_FRAME_LENGTH,
+             this->max_frame_length_);
+    return false;
+  }
+  size_t index = this->tx_queue_head_;
   if (this->queue_policy_ == QUEUE_REPLACE_LATEST) {
     // The only slot; a frame waiting out the gate delay is replaced and keeps its start time.
     if (this->tx_queue_count_ > 0) {
       ESP_LOGW(TAG, "Replacing pending frame before it was transmitted");
     }
-    index = this->tx_queue_head_;
     this->tx_queue_count_ = 0;
   } else if (this->tx_queue_count_ >= this->max_queue_size_) {
     ESP_LOGW(TAG, "Frame queue full; dropping frame");
     return false;
+  } else {
+    index += this->tx_queue_count_;
+    if (index >= this->max_queue_size_)
+      index -= this->max_queue_size_;
   }
   uint8_t *slot = this->tx_slot_(index);
-  // Stage the unescaped bytes at the end of the slot and frame them forward into it.
-  uint8_t *staged = slot + this->tx_slot_capacity_() - len;
-  progmem_memcpy(staged, frame_type.data(), frame_type.size());
-  progmem_memcpy(staged + frame_type.size(), payload.data(), payload.size());
-  this->tx_queue_len_[index] = this->build_frame_(staged, len, slot);
+  progmem_memcpy(slot, frame_type.data(), frame_type.size());
+  progmem_memcpy(slot + frame_type.size(), payload.data(), payload.size());
+  this->encode_crc_(slot, len, this->tx_crc_variant_ == CRC_HEADER_INCLUSIVE, slot + len);
+  this->tx_queue_len_[index] = len + this->crc_len_;
   this->tx_queue_count_++;
   return true;
 }
@@ -150,7 +136,7 @@ void RS485FrameHub::handle_rx_byte_(uint8_t byte, uint32_t now) {
 }
 
 void RS485FrameHub::append_rx_(uint8_t byte) {
-  if (this->rx_payload_len_ == this->max_frame_length_ + this->crc_length_()) {
+  if (this->rx_payload_len_ == this->max_frame_length_ + this->crc_len_) {
     ESP_LOGW(TAG, "Frame exceeded max_frame_length; resetting");
     this->reset_rx_();
     return;
@@ -159,113 +145,77 @@ void RS485FrameHub::append_rx_(uint8_t byte) {
 }
 
 void RS485FrameHub::process_frame_(uint32_t now) {
-  const size_t crc_len = this->crc_length_();
-  if (this->rx_payload_len_ < MIN_FRAME_LENGTH + crc_len)
+  if (this->rx_payload_len_ < MIN_FRAME_LENGTH + this->crc_len_)
     return;
-  this->rx_payload_len_ -= crc_len;
+  this->rx_payload_len_ -= this->crc_len_;
   if (!this->check_crc_())
     return;
   if (this->dump_frames_)
-    this->log_frame_("RX", this->rx_payload_.get(), this->rx_payload_len_ + crc_len);
+    this->log_frame_("RX", this->rx_payload_, this->rx_payload_len_ + this->crc_len_);
 
-  const std::span<const uint8_t> payload(this->rx_payload_.get(), this->rx_payload_len_);
-  if (this->tx_gate_mode_ == TX_GATE_FRAME_TRIGGER && this->tx_gate_frame_type_len_ > 0 &&
+  const std::span<const uint8_t> payload(this->rx_payload_, this->rx_payload_len_);
+  if (this->tx_gate_mode_ == TX_GATE_FRAME_TRIGGER &&
       frame_has_prefix(payload, this->tx_gate_frame_type_, this->tx_gate_frame_type_len_))
     this->send_next_(now);
   this->frame_callback_.call(payload);
 }
 
 bool RS485FrameHub::check_crc_() const {
-  const size_t crc_len = this->crc_length_();
-  if (crc_len == 0)
-    return true;
-  const uint8_t *payload = this->rx_payload_.get();
-  const size_t payload_len = this->rx_payload_len_;
-  const uint8_t *crc_bytes = payload + payload_len;
-  uint16_t received_crc;
-  if (crc_len == 1) {
-    received_crc = crc_bytes[0];
-  } else if (this->crc_little_endian_()) {
-    received_crc = encode_uint16(crc_bytes[1], crc_bytes[0]);
-  } else {
-    received_crc = encode_uint16(crc_bytes[0], crc_bytes[1]);
-  }
-  return (this->accept_header_crc_ && this->calculate_crc_(payload, payload_len, true) == received_crc) ||
-         (this->accept_payload_crc_ && this->calculate_crc_(payload, payload_len, false) == received_crc);
+  return this->crc_len_ == 0 || (this->accept_header_crc_ && this->crc_matches_(true)) ||
+         (this->accept_payload_crc_ && this->crc_matches_(false));
 }
 
-uint16_t RS485FrameHub::calculate_crc_(const uint8_t *data, size_t len, bool include_header) const {
+bool RS485FrameHub::crc_matches_(bool include_header) const {
+  uint8_t crc[2];
+  this->encode_crc_(this->rx_payload_, this->rx_payload_len_, include_header, crc);
+  return memcmp(crc, this->rx_payload_ + this->rx_payload_len_, this->crc_len_) == 0;
+}
+
+void RS485FrameHub::encode_crc_(const uint8_t *data, size_t len, bool include_header, uint8_t *out) const {
   const uint8_t header[2] = {this->dle_, this->stx_};
   const size_t header_len = include_header ? sizeof(header) : 0;
+  uint16_t crc;
   switch (this->crc_type_) {
     case CRC_TYPE_SUM8:
-      return sum_bytes(data, len, sum_bytes(header, header_len));
+      out[0] = sum_bytes(data, len, sum_bytes(header, header_len));
+      return;
+    case CRC_TYPE_XOR8:
+      out[0] = xor_bytes(data, len, xor_bytes(header, header_len));
+      return;
     case CRC_TYPE_SUM16_BIG_ENDIAN:
+      crc = sum16_bytes(data, len, sum16_bytes(header, header_len));
+      out[0] = crc >> 8;
+      out[1] = crc & 0xFF;
+      return;
     case CRC_TYPE_SUM16_LITTLE_ENDIAN:
-      return sum16_bytes(data, len, sum16_bytes(header, header_len));
-    case CRC_TYPE_XOR8:
-      return xor_bytes(data, len, xor_bytes(header, header_len));
-    case CRC_TYPE_CRC16_MODBUS:
-      return crc16(data, static_cast<uint16_t>(len), crc16(header, static_cast<uint16_t>(header_len)));
-    case CRC_TYPE_NONE:
+      crc = sum16_bytes(data, len, sum16_bytes(header, header_len));
       break;
-  }
-  return 0;
-}
-
-size_t RS485FrameHub::crc_length_() const {
-  switch (this->crc_type_) {
-    case CRC_TYPE_NONE:
-      return 0;
-    case CRC_TYPE_SUM8:
-    case CRC_TYPE_XOR8:
-      return 1;
+    case CRC_TYPE_CRC16_MODBUS:
+      crc = crc16(data, static_cast<uint16_t>(len), crc16(header, static_cast<uint16_t>(header_len)));
+      break;
     default:
-      return 2;
+      return;
   }
-}
-
-size_t RS485FrameHub::build_frame_(const uint8_t *payload, size_t len, uint8_t *out) const {
-  // The CRC covers the unescaped payload, so take it before the frame overwrites a staged payload.
-  const uint16_t crc = this->calculate_crc_(payload, len, this->tx_crc_variant_ == CRC_HEADER_INCLUSIVE);
-  size_t pos = 0;
-  auto append_escaped = [this, out, &pos](uint8_t byte) {
-    out[pos++] = byte;
-    if (byte == this->dle_)
-      out[pos++] = this->escape_marker_;
-  };
-  out[pos++] = this->dle_;
-  out[pos++] = this->stx_;
-  for (size_t i = 0; i < len; i++)
-    append_escaped(payload[i]);
-  // The CRC bytes are escaped like payload bytes.
-  const size_t crc_len = this->crc_length_();
-  if (crc_len == 1) {
-    append_escaped(crc & 0xFF);
-  } else if (crc_len == 2 && this->crc_little_endian_()) {
-    append_escaped(crc & 0xFF);
-    append_escaped(crc >> 8);
-  } else if (crc_len == 2) {
-    append_escaped(crc >> 8);
-    append_escaped(crc & 0xFF);
-  }
-  out[pos++] = this->dle_;
-  out[pos++] = this->etx_;
-  return pos;
+  out[0] = crc & 0xFF;
+  out[1] = crc >> 8;
 }
 
 void RS485FrameHub::maybe_tx_(uint32_t now) {
+  if (this->tx_queue_count_ == 0 || this->tx_start_pending_)
+    return;
   const uint32_t since_tx = now - this->last_tx_time_;
-  if (this->tx_gate_mode_ == TX_GATE_IDLE_GAP && now - this->last_activity_time_ >= this->tx_idle_gap_ &&
-      since_tx >= this->last_tx_wire_ms_ + this->tx_idle_gap_)
+  if (this->tx_gate_mode_ == TX_GATE_IDLE_GAP) {
+    if (now - this->last_activity_time_ >= this->tx_gate_interval_ &&
+        since_tx >= this->last_tx_wire_ms_ + this->tx_gate_interval_)
+      this->send_next_(now);
+  } else if (this->tx_gate_mode_ == TX_GATE_FIXED_DELAY &&
+             since_tx >= std::max<uint32_t>(this->tx_gate_interval_, this->last_tx_wire_ms_)) {
     this->send_next_(now);
-  if (this->tx_gate_mode_ == TX_GATE_FIXED_DELAY &&
-      since_tx >= std::max(this->tx_fixed_interval_, this->last_tx_wire_ms_))
-    this->send_next_(now);
+  }
 }
 
 void RS485FrameHub::send_next_(uint32_t now) {
-  if (this->sniffer_only_ || this->tx_start_pending_ || this->tx_queue_count_ == 0)
+  if (this->tx_start_pending_ || this->tx_queue_count_ == 0)
     return;
   if (this->tx_gate_delay_ > 0) {
     this->tx_delay_start_ = now;
@@ -278,7 +228,31 @@ void RS485FrameHub::send_next_(uint32_t now) {
 void RS485FrameHub::transmit_head_(uint32_t now) {
   const uint8_t *frame = this->tx_slot_(this->tx_queue_head_);
   const size_t len = this->tx_queue_len_[this->tx_queue_head_];
-  this->write_array(frame, len);
+  // Escaped into a stack chunk on the way out, so the queue only holds the unescaped bytes.
+  static constexpr size_t TX_CHUNK_SIZE = 32;
+  uint8_t chunk[TX_CHUNK_SIZE];
+  size_t pos = 0;
+  size_t wire_len = 0;
+  auto put = [&](uint8_t byte) {
+    chunk[pos++] = byte;
+    if (pos == TX_CHUNK_SIZE) {
+      this->write_array(chunk, pos);
+      wire_len += pos;
+      pos = 0;
+    }
+  };
+  put(this->dle_);
+  put(this->stx_);
+  for (size_t i = 0; i < len; i++) {
+    put(frame[i]);
+    if (frame[i] == this->dle_)
+      put(this->escape_marker_);
+  }
+  put(this->dle_);
+  put(this->etx_);
+  if (pos > 0)
+    this->write_array(chunk, pos);
+  wire_len += pos;
 #if defined(USE_ESP8266) || defined(USE_RP2)
   // These UARTs do not drive flow_control_pin, so an auto-DE transceiver needs the bytes on the
   // wire before returning; ESP32 drives DE in hardware RS485 mode.
@@ -286,14 +260,15 @@ void RS485FrameHub::transmit_head_(uint32_t now) {
 #endif
   if (this->dump_frames_)
     this->log_frame_("TX", frame, len);
-  this->tx_queue_head_ = (this->tx_queue_head_ + 1) % this->max_queue_size_;
+  if (++this->tx_queue_head_ == this->max_queue_size_)
+    this->tx_queue_head_ = 0;
   this->tx_queue_count_--;
   this->last_tx_time_ = now;
-  this->last_tx_wire_ms_ = this->wire_time_ms_(len);
+  this->last_tx_wire_ms_ = this->wire_time_ms_(wire_len);
   this->last_activity_time_ = now;
 }
 
-uint32_t RS485FrameHub::wire_time_ms_(size_t len) const {
+uint16_t RS485FrameHub::wire_time_ms_(size_t len) const {
   const uint32_t baud = this->parent_->get_baud_rate();
   if (baud == 0)
     return 0;
@@ -301,7 +276,8 @@ uint32_t RS485FrameHub::wire_time_ms_(size_t len) const {
   const uint32_t bits = 1 + this->parent_->get_data_bits() +
                         (this->parent_->get_parity() != uart::UART_CONFIG_PARITY_NONE ? 1 : 0) +
                         this->parent_->get_stop_bits();
-  return (len * bits * 1000 + baud - 1) / baud;
+  // Saturates only at a baud rate far below anything RS485 runs at.
+  return std::min<uint32_t>((len * bits * 1000 + baud - 1) / baud, UINT16_MAX);
 }
 
 void RS485FrameHub::log_frame_(const char *dir, const uint8_t *data, size_t len) {
