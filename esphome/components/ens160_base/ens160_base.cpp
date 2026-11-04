@@ -113,8 +113,7 @@ void ENS160Component::setup() {
   if (!this->setup_check(this->read_byte(ENS160_REG_OPMODE, &op_mode)))
     return;
 
-  if (!this->setup_check(op_mode == ENS160_OPMODE_STD, LOG_STR("Device failed to achieve Standard Operating Mode")))
-    return;
+  this->setup_check(op_mode == ENS160_OPMODE_STD, LOG_STR("Device failed to achieve Standard Operating Mode"));
 }
 
 void ENS160Component::update() {
