@@ -19,7 +19,7 @@ static constexpr uint32_t MAX_TRANSFER_TIME_MS = 20;
 // --- Loop / scheduling -------------------------------------------------------
 
 void IT8951Display::enqueue_(OpType type, uint16_t a, uint16_t b) {
-  if (!this->queue_.push_back(Op{type, a, b})) {
+  if (!this->queue_.push(Op{type, a, b})) {
     ESP_LOGE(TAG, "Op queue overflow (cap=%u); dropping op type=%u", static_cast<unsigned>(OP_QUEUE_SIZE),
              static_cast<unsigned>(type));
   }
@@ -74,7 +74,7 @@ void IT8951Display::loop() {
     return;
   }
 
-  this->queue_.pop_front();
+  this->queue_.pop();
   this->process_op_(queued_op);
 }
 
