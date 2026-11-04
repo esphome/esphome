@@ -1109,8 +1109,7 @@ def convert(schema, config_var, path):
             config_var["typed_key"] = typed_schema[1].get("key", CONF_TYPE)
         for schema_key, schema_type in typed_schema[0][0].items():
             config = convert_config(schema_type, path + "/type_" + schema_key)
-            # A type with no keys of its own converts to nothing.
-            types[schema_key] = config.get("schema", {S_CONFIG_VARS: {}})
+            types[schema_key] = config["schema"]
 
     elif DUMP_UNKNOWN and S_TYPE not in config_var:
         config_var["unknown"] = repr_schema

@@ -12,17 +12,12 @@ namespace esphome::rs485_frame {
 
 // Must agree with the cv.Length(max=8) frame_type cap in __init__.py.
 static constexpr size_t MAX_FRAME_TYPE_LEN = 8;
-// Must agree with MIN_FRAME_LENGTH in __init__.py. Received frames shorter than this (before the
-// CRC) are dropped, so shorter frames are not sent either.
+// Must agree with MIN_FRAME_LENGTH in __init__.py; shorter frames are neither received nor sent.
 static constexpr size_t MIN_FRAME_LENGTH = 2;
 // Framing overhead added to every TX frame: DLE+STX(2) + DLE+ETX(2) + escaped CRC max(4).
 static constexpr size_t FRAME_OVERHEAD_BYTES = 8;
 
-enum CrcVariant : uint8_t {
-  CRC_HEADER_INCLUSIVE,
-  CRC_PAYLOAD_ONLY,
-};
-
+enum CrcVariant : uint8_t { CRC_HEADER_INCLUSIVE, CRC_PAYLOAD_ONLY };
 enum CrcType : uint8_t {
   CRC_TYPE_NONE,
   CRC_TYPE_SUM8,
@@ -31,17 +26,8 @@ enum CrcType : uint8_t {
   CRC_TYPE_XOR8,
   CRC_TYPE_CRC16_MODBUS,
 };
-
-enum QueuePolicy : uint8_t {
-  QUEUE_REPLACE_LATEST,
-  QUEUE_FIFO,
-};
-
-enum TxGateMode : uint8_t {
-  TX_GATE_FRAME_TRIGGER,
-  TX_GATE_IDLE_GAP,
-  TX_GATE_FIXED_DELAY,
-};
+enum QueuePolicy : uint8_t { QUEUE_REPLACE_LATEST, QUEUE_FIFO };
+enum TxGateMode : uint8_t { TX_GATE_FRAME_TRIGGER, TX_GATE_IDLE_GAP, TX_GATE_FIXED_DELAY };
 
 /// True when payload starts with the len-byte prefix, which may live in PROGMEM.
 inline bool frame_has_prefix(std::span<const uint8_t> payload, const uint8_t *prefix, size_t len) {
@@ -116,7 +102,6 @@ class RS485FrameHub : public Component, public uart::UARTDevice {
   uint32_t wire_time_ms_(size_t len) const;
   void log_frame_(const char *dir, const uint8_t *data, size_t len);
 
-  // Empty for idle_gap / fixed_delay / sniffer hubs, so the gate matcher never fires.
   const uint8_t *tx_gate_frame_type_{nullptr};
   uint32_t tx_gate_delay_{0};
   uint32_t tx_idle_gap_{4};
@@ -135,10 +120,8 @@ class RS485FrameHub : public Component, public uart::UARTDevice {
   uint32_t last_tx_time_{0};
   // How long the last frame takes on the wire; the gates count from its end, not from write_array()
   uint32_t last_tx_wire_ms_{0};
-  // Seeded in setup(), then advanced by RX and our own TX.
-  uint32_t last_activity_time_{0};
-  // When the frame waiting out the gate delay was released.
-  uint32_t tx_delay_start_{0};
+  uint32_t last_activity_time_{0};  // RX or our own TX, seeded in setup()
+  uint32_t tx_delay_start_{0};      // When the frame waiting out the gate delay was released
   uint16_t rx_payload_len_{0};
 
   uint8_t dle_{0x10};

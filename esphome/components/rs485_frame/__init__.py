@@ -90,8 +90,7 @@ MAX_COMMAND_VALUES = 8
 MAX_FRAME_TYPE_LEN = 8
 MAX_FRAME_TYPE_ALTS = 4
 MAX_FRAME_LENGTH_UPPER = 1024
-# Must agree with MIN_FRAME_LENGTH in rs485_frame.h. Received frames shorter than this
-# (before the CRC) are dropped, so shorter frames are not sent either.
+# Must agree with MIN_FRAME_LENGTH in rs485_frame.h; shorter frames are neither received nor sent.
 MIN_FRAME_LENGTH = 2
 MAX_QUEUE_SIZE_UPPER = 32
 ESCAPE_MODE_BYTE = "escape_byte"
@@ -109,11 +108,7 @@ validate_frame_type = _byte_list()
 
 
 def validate_frame_type_or_list(value: object) -> list[list[HexInt]]:
-    """One prefix ([0x01, 0x03]) or several ([[0x01, 0x03], [0x01, 0x09]]); [] matches every frame.
-
-    Normalized to a list of prefixes. An empty alternate inside a list is rejected, since it
-    would silently match every frame.
-    """
+    """One prefix or a list of non-empty prefixes, as a list of prefixes; [] matches every frame."""
     if value is None:
         raise cv.Invalid("frame_type needs a value; use [] to match every frame")
     if not isinstance(value, list):
