@@ -1,5 +1,5 @@
 import esphome.codegen as cg
-from esphome.components import network, socket
+from esphome.components import camera_video, network, socket
 from esphome.components.const import CONF_ALLOWED_IPS
 from esphome.components.esp32_camera import (
     CONF_JPEG_QUALITY,
@@ -12,13 +12,19 @@ from esphome.const import CONF_ID, CONF_MAX_CONNECTIONS, CONF_PORT, CONF_RESOLUT
 import esphome.final_validate as fv
 from esphome.types import ConfigType
 
-CODEOWNERS = ["@max246"]
-AUTO_LOAD = ["camera", "socket"]
+CODEOWNERS = ["@max246", "@jvgelder"]
+AUTO_LOAD = ["camera", "camera_video", "socket"]
 DEPENDENCIES = ["network"]
 DOMAIN = "rtsp_server"
 
+CONF_STREAM_ID = "stream_id"
+CONF_RTP_PAYLOAD_SIZE = "rtp_payload_size"
+
 # RFC 2435 stores width and height in units of 8 pixels in one byte each.
 RTP_JPEG_MAX_DIMENSION = 255 * 8
+DEFAULT_RTP_PAYLOAD_SIZE = 1400
+MIN_RTP_PAYLOAD_SIZE = 256
+MAX_RTP_PAYLOAD_SIZE = 1400
 
 rtsp_server_ns = cg.esphome_ns.namespace("rtsp_server")
 RTSPServer = rtsp_server_ns.class_("RTSPServer", cg.Component)
@@ -37,9 +43,13 @@ CONFIG_SCHEMA = cv.All(
     cv.Schema(
         {
             cv.GenerateID(): cv.declare_id(RTSPServer),
+            cv.Optional(CONF_STREAM_ID): cv.use_id(camera_video.EncodedVideoStream),
             cv.Optional(CONF_PORT, default=554): cv.port,
             cv.Optional(CONF_MAX_CONNECTIONS, default=2): cv.int_range(min=1, max=4),
             cv.Optional(CONF_ALLOWED_IPS): socket.IPV4_ALLOW_SCHEMA,
+            cv.Optional(
+                CONF_RTP_PAYLOAD_SIZE, default=DEFAULT_RTP_PAYLOAD_SIZE
+            ): cv.int_range(min=MIN_RTP_PAYLOAD_SIZE, max=MAX_RTP_PAYLOAD_SIZE),
         }
     ).extend(cv.COMPONENT_SCHEMA),
     _consume_rtsp_server_sockets,
@@ -47,11 +57,18 @@ CONFIG_SCHEMA = cv.All(
 
 
 def _final_validate(config: ConfigType) -> None:
-    camera = fv.full_config.get().get(ESP32_CAMERA_DOMAIN)
+    # Encoded video is supplied explicitly through camera_video::EncodedVideoStream and does not
+    # require the legacy singleton JPEG camera.
+    if CONF_STREAM_ID in config:
+        return
+
+    full_config = fv.full_config.get()
+    camera = full_config.get(ESP32_CAMERA_DOMAIN)
     if camera is None:
         raise cv.Invalid(
-            f"{DOMAIN} requires a camera, add an '{ESP32_CAMERA_DOMAIN}:' block"
+            f"{DOMAIN} requires an '{ESP32_CAMERA_DOMAIN}:' JPEG camera or '{CONF_STREAM_ID}:' H.264 stream"
         )
+
     pixel_format = camera[CONF_PIXEL_FORMAT]
     # A GRAYSCALE frame converts to a one-component JPEG, which RTP/JPEG cannot carry.
     if pixel_format == "GRAYSCALE":
@@ -79,7 +96,13 @@ FINAL_VALIDATE_SCHEMA = _final_validate
 
 
 async def to_code(config: ConfigType) -> None:
-    var = cg.new_Pvariable(config[CONF_ID], config[CONF_PORT])
+    if stream_id := config.get(CONF_STREAM_ID):
+        stream = await cg.get_variable(stream_id)
+        var = cg.new_Pvariable(config[CONF_ID], config[CONF_PORT], stream)
+        cg.add(var.set_rtp_payload_size(config[CONF_RTP_PAYLOAD_SIZE]))
+    else:
+        var = cg.new_Pvariable(config[CONF_ID], config[CONF_PORT])
+
     await cg.register_component(var, config)
     cg.add_define("MAX_RTSP_CONNECTIONS", config[CONF_MAX_CONNECTIONS])
     socket.add_ipv4_allow(var.set_allow, config.get(CONF_ALLOWED_IPS), config[CONF_ID])

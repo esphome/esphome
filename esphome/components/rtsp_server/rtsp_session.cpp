@@ -17,19 +17,11 @@ namespace esphome::rtsp_server {
 
 ESPHOME_LOG_TAG(TAG, "rtsp_server");
 
-static constexpr uint8_t RTP_PAYLOAD_TYPE_JPEG = 26;
 static constexpr uint32_t RTP_CLOCK_RATE = 90000;
 static constexpr uint32_t SESSION_TIMEOUT_MS = 60000;
 static constexpr char REQUEST_END[] = "\r\n\r\n";
 static constexpr size_t REQUEST_END_LEN = sizeof(REQUEST_END) - 1;
 static constexpr uint8_t ZERO_FILL[64]{};
-static constexpr char SDP_BODY[] = "v=0\r\n"
-                                   "o=- 0 0 IN IP4 0.0.0.0\r\n"
-                                   "s=ESPHome RTSP\r\n"
-                                   "t=0 0\r\n"
-                                   "m=video 0 RTP/AVP 26\r\n"
-                                   "a=control:trackID=0\r\n";
-
 namespace {
 
 StringRef trim(const StringRef &s) {
@@ -66,107 +58,39 @@ bool contains(const StringRef &hay, const StringRef &needle) {
 
 }  // namespace
 
-/// Scans JPEG marker segments (SOF0/1, DQT, SOS) for the dimensions, quantization tables and the start of
-/// the entropy-coded scan data. Assumes the standard Huffman tables (true for esp32-camera), so DHT segments
-/// are not parsed; receivers rebuild them per RFC 2435. Only three-component 4:2:2 or 4:2:0 frames without
-/// restart markers (DRI) can be carried as RFC 2435 types 0 and 1; anything else returns false.
-bool parse_jpeg_info(const uint8_t *data, size_t len, JpegInfo &out) {
-  if (len < 4 || data[0] != 0xFF || data[1] != 0xD8)
-    return false;  // no SOI
-
-  size_t pos = 2;
-  while (pos + 2 <= len) {
-    if (data[pos] != 0xFF) {
-      pos++;  // resync on a stray non-marker byte
-      continue;
-    }
-    uint8_t marker = data[pos + 1];
-    if (marker == 0xFF) {
-      pos++;  // fill byte before the real marker
-      continue;
-    }
-    if (marker == 0x01 || (marker >= 0xD0 && marker <= 0xD9)) {
-      pos += 2;  // standalone marker, no length field (TEM, RSTn, SOI, EOI)
-      continue;
-    }
-    if (pos + 4 > len)
-      break;
-
-    uint16_t seg_len = encode_uint16(data[pos + 2], data[pos + 3]);
-    size_t seg_start = pos + 4;
-    if (seg_len < 2 || seg_start + (seg_len - 2) > len)
-      return false;
-    size_t seg_end = seg_start + (seg_len - 2);
-
-    if (marker == 0xC0 || marker == 0xC1) {  // SOF0 / SOF1
-      if (seg_len < 8 + 3 * 3 || data[seg_start + 5] != 3)
-        return false;  // not three components
-      out.height = encode_uint16(data[seg_start + 1], data[seg_start + 2]);
-      out.width = encode_uint16(data[seg_start + 3], data[seg_start + 4]);
-      const uint8_t sampling = data[seg_start + 7];  // Y component H/V sampling factors
-      if (sampling == 0x21) {
-        out.type = 0;  // 4:2:2
-      } else if (sampling == 0x22) {
-        out.type = 1;  // 4:2:0
-      } else {
-        return false;
-      }
-    } else if (marker == 0xDD) {  // DRI
-      return false;
-    } else if (marker == 0xDB) {  // DQT, one or more tables back to back
-      size_t p = seg_start;
-      while (p < seg_end) {
-        uint8_t precision = data[p] >> 4;
-        uint8_t table_id = data[p] & 0x0F;
-        size_t table_len = precision == 0 ? QTABLE_LEN : 2 * QTABLE_LEN;
-        if (p + 1 + table_len > seg_end)
-          break;
-        if (precision == 0 && table_id == 0) {
-          out.qtable0 = &data[p + 1];
-        } else if (precision == 0 && table_id == 1) {
-          out.qtable1 = &data[p + 1];
-        }
-        p += 1 + table_len;
-      }
-    } else if (marker == 0xDA) {  // SOS, scan data follows
-      if (out.width == 0 || out.height == 0 || out.qtable0 == nullptr)
-        return false;
-      if (out.qtable1 == nullptr)
-        out.qtable1 = out.qtable0;
-      out.scan_data = data + seg_end;
-      out.scan_len = len - seg_end;
-      if (out.scan_len >= 2 && out.scan_data[out.scan_len - 2] == 0xFF && out.scan_data[out.scan_len - 1] == 0xD9)
-        out.scan_len -= 2;  // the RFC 2435 payload is the entropy-coded data only
-      return true;
-    }
-
-    pos = seg_end;
-  }
-  return false;
-}
-
-void RTSPSession::open(std::unique_ptr<socket::Socket> socket, uint32_t now) {
+void RTSPSession::open(std::unique_ptr<socket::Socket> socket, uint32_t now, camera_video::EncodedVideoStream *stream,
+                       uint16_t payload_size) {
+  this->stream_ = stream;
+  this->payload_size_ = payload_size;
+  this->packetizer_ = make_rtp_packetizer(stream, payload_size);
   this->socket_ = std::move(socket);
   this->socket_->setblocking(false);
   int enable = 1;
   this->socket_->setsockopt(IPPROTO_TCP, TCP_NODELAY, &enable, sizeof(enable));
+  this->state_ = State::INIT;
   this->should_close_ = false;
   this->close_after_send_ = false;
   this->read_pending_ = false;
   this->request_len_ = 0;
   this->skip_len_ = 0;
   this->filler_len_ = 0;
+  this->iov_pos_ = 0;
+  this->iov_count_ = 0;
   this->cseq_ = 0;
   this->last_frame_ms_ = 0;
   this->last_activity_ms_ = now;
   this->ssrc_ = random_uint32();
   this->sequence_number_ = static_cast<uint16_t>(random_uint32());
   this->rtp_timestamp_ = random_uint32();
+  this->timestamp_origin_us_ = 0;
+  this->timestamp_origin_rtp_ = this->rtp_timestamp_;
+  if (this->packetizer_ != nullptr)
+    this->packetizer_->reset();
   format_hex_to(this->session_id_, random_uint32());
 }
 
 void RTSPSession::close_() {
-  this->frame_.reset();
+  this->packetizer_.reset();
   this->socket_.reset();
   this->state_ = State::INIT;
   this->iov_pos_ = 0;
@@ -188,7 +112,7 @@ void RTSPSession::loop(uint32_t now, uint16_t port) {
 }
 
 void RTSPSession::service_(uint32_t now, uint16_t port) {
-  if (this->frame_ != nullptr && now - this->frame_progress_ms_ > FRAME_STALL_MS) {
+  if (this->has_frame_() && now - this->frame_progress_ms_ > FRAME_STALL_MS) {
     ESP_LOGV(TAG, "Session %s stalled, dropping frame", this->session_id_);
     this->drop_frame_();
   }
@@ -304,7 +228,6 @@ void RTSPSession::handle_request_(StringRef request, uint16_t port) {
         content_length = stol(value);
       }
     }
-
     if (next == std::string::npos)
       break;
     pos = next + 2;
@@ -332,13 +255,18 @@ void RTSPSession::handle_request_(StringRef request, uint16_t port) {
     char addr_buf[socket::SOCKADDR_STR_LEN];
     this->socket_->getsockname_to(addr_buf);
     const bool ipv6 = std::strchr(addr_buf, ':') != nullptr;
+    if (this->packetizer_ == nullptr || !this->packetizer_->write_sdp(this->sdp_buf_.data(), this->sdp_buf_.size())) {
+      this->queue_response_(503, "Service Unavailable");
+      return;
+    }
+    const char *sdp = this->sdp_buf_.data();
+    const size_t sdp_length = std::strlen(sdp);
     this->queue_response_(200, "OK",
                           "Content-Base: rtsp://%s%s%s:%u/\r\n"
                           "Content-Type: application/sdp\r\n"
                           "Content-Length: %u\r\n",
-                          ipv6 ? "[" : "", addr_buf, ipv6 ? "]" : "", port,
-                          static_cast<unsigned>(sizeof(SDP_BODY) - 1));
-    this->iov_[this->iov_count_++] = {const_cast<char *>(SDP_BODY), sizeof(SDP_BODY) - 1};
+                          ipv6 ? "[" : "", addr_buf, ipv6 ? "]" : "", port, static_cast<unsigned>(sdp_length));
+    this->iov_[this->iov_count_++] = {const_cast<char *>(sdp), sdp_length};
   } else if (str_equals_case_insensitive(method, StringRef::from_lit("SETUP"))) {
     this->handle_setup_(transport);
   } else if (str_equals_case_insensitive(method, StringRef::from_lit("PLAY"))) {
@@ -392,105 +320,73 @@ void RTSPSession::handle_play_() {
     return;
   }
   this->state_ = State::PLAYING;
-  this->frame_.reset();  // a repeated PLAY may arrive mid-frame
+  if (this->packetizer_ != nullptr)
+    this->packetizer_->reset();
+  if (this->stream_ != nullptr)
+    this->stream_->request_keyframe();
   this->queue_response_(200, "OK", "Range: npt=0.000-\r\n");
 }
 
 void RTSPSession::stop_playing_() {
   this->state_ = State::READY;
-  this->frame_.reset();
+  if (this->packetizer_ != nullptr)
+    this->packetizer_->reset();
 }
 
-void RTSPSession::on_new_frame(const std::shared_ptr<camera::CameraImage> &image, const JpegInfo &jpeg, uint32_t now) {
-  // Pending output means a frame is in flight or a stalled one is still being padded out.
-  if (this->state_ != State::PLAYING || this->frame_ != nullptr || this->iov_pos_ < this->iov_count_ ||
-      this->filler_len_ > 0)
+void RTSPSession::on_encoded_frame(const camera_video::FrameRef<camera_video::EncodedVideoFrame> &frame, uint32_t now) {
+  if (this->state_ != State::PLAYING || frame == nullptr || this->packetizer_ == nullptr)
     return;
-  this->frame_ = image;
-  this->jpeg_ = jpeg;
-  this->frame_sent_ = 0;
-  this->frame_progress_ms_ = now;
-
-  uint32_t elapsed_ms = this->last_frame_ms_ == 0 ? 0 : now - this->last_frame_ms_;
-  this->rtp_timestamp_ += static_cast<uint32_t>((static_cast<uint64_t>(elapsed_ms) * RTP_CLOCK_RATE) / 1000);
+  if (this->has_frame_() || this->iov_pos_ < this->iov_count_ || this->filler_len_ > 0) {
+    this->packetizer_->discontinuity();
+    return;
+  }
+  if (!this->packetizer_->set_frame(frame))
+    return;
+  uint64_t timestamp_us = frame->get_timestamp_us();
+  if (timestamp_us == 0)
+    timestamp_us = static_cast<uint64_t>(now) * 1000ULL;
+  if (this->timestamp_origin_us_ == 0 || timestamp_us < this->timestamp_origin_us_) {
+    this->timestamp_origin_us_ = timestamp_us;
+    this->timestamp_origin_rtp_ = this->rtp_timestamp_;
+  }
+  this->rtp_timestamp_ =
+      this->timestamp_origin_rtp_ +
+      static_cast<uint32_t>((timestamp_us - this->timestamp_origin_us_) * RTP_CLOCK_RATE / 1000000ULL);
   this->last_frame_ms_ = now;
+  this->frame_progress_ms_ = now;
 }
+
+void RTSPSession::on_discontinuity() {
+  if (this->packetizer_ != nullptr)
+    this->packetizer_->discontinuity();
+}
+
+bool RTSPSession::has_frame_() const { return this->packetizer_ != nullptr && this->packetizer_->has_frame(); }
 
 bool RTSPSession::queue_next_packet_() {
-  if (this->frame_ == nullptr)
+  if (this->packetizer_ == nullptr || !this->packetizer_->has_frame())
     return false;
-  if (this->frame_sent_ >= this->jpeg_.scan_len) {
-    this->frame_.reset();  // its last packet is written
+  RtpPacketContext ctx{reinterpret_cast<uint8_t *>(this->send_buf_.data()),
+                       this->iov_,
+                       this->iov_count_,
+                       this->sequence_number_,
+                       this->rtp_timestamp_,
+                       this->ssrc_};
+  if (!this->packetizer_->next_packet(ctx))
     return false;
-  }
-
-  const bool first_fragment = this->frame_sent_ == 0;
-  const size_t header_len =
-      INTERLEAVED_HEADER_LEN + RTP_HEADER_LEN + JPEG_HEADER_LEN + (first_fragment ? QUANT_HEADER_LEN : 0);
-  const size_t qtables_len = first_fragment ? 2 * QTABLE_LEN : 0;
-  const size_t payload_len =
-      std::min(this->jpeg_.scan_len - this->frame_sent_, MAX_PACKET_SIZE - header_len - qtables_len);
-  const bool last_fragment = this->frame_sent_ + payload_len >= this->jpeg_.scan_len;
-  const size_t rtp_len = header_len - INTERLEAVED_HEADER_LEN + qtables_len + payload_len;
-
-  auto *buf = reinterpret_cast<uint8_t *>(this->send_buf_.data());
-  size_t pos = 0;
-  buf[pos++] = '$';
-  buf[pos++] = 0;  // interleaved channel 0
-  buf[pos++] = static_cast<uint8_t>(rtp_len >> 8);
-  buf[pos++] = static_cast<uint8_t>(rtp_len);
-
-  buf[pos++] = 0x80;  // V=2, P=0, X=0, CC=0
-  buf[pos++] = static_cast<uint8_t>((last_fragment ? 0x80 : 0x00) | RTP_PAYLOAD_TYPE_JPEG);
-  buf[pos++] = static_cast<uint8_t>(this->sequence_number_ >> 8);
-  buf[pos++] = static_cast<uint8_t>(this->sequence_number_);
-  this->sequence_number_++;
-  buf[pos++] = static_cast<uint8_t>(this->rtp_timestamp_ >> 24);
-  buf[pos++] = static_cast<uint8_t>(this->rtp_timestamp_ >> 16);
-  buf[pos++] = static_cast<uint8_t>(this->rtp_timestamp_ >> 8);
-  buf[pos++] = static_cast<uint8_t>(this->rtp_timestamp_);
-  buf[pos++] = static_cast<uint8_t>(this->ssrc_ >> 24);
-  buf[pos++] = static_cast<uint8_t>(this->ssrc_ >> 16);
-  buf[pos++] = static_cast<uint8_t>(this->ssrc_ >> 8);
-  buf[pos++] = static_cast<uint8_t>(this->ssrc_);
-
-  // RFC 2435 main JPEG header
-  buf[pos++] = 0;  // type-specific
-  buf[pos++] = static_cast<uint8_t>(this->frame_sent_ >> 16);
-  buf[pos++] = static_cast<uint8_t>(this->frame_sent_ >> 8);
-  buf[pos++] = static_cast<uint8_t>(this->frame_sent_);
-  buf[pos++] = this->jpeg_.type;
-  buf[pos++] = 255;  // Q >= 128: the quantization tables follow in the first packet
-  buf[pos++] = static_cast<uint8_t>(this->jpeg_.width / 8);
-  buf[pos++] = static_cast<uint8_t>(this->jpeg_.height / 8);
-
-  uint8_t count = 0;
-  if (first_fragment) {
-    buf[pos++] = 0;  // MBZ
-    buf[pos++] = 0;  // 8-bit precision
-    buf[pos++] = static_cast<uint8_t>(qtables_len >> 8);
-    buf[pos++] = static_cast<uint8_t>(qtables_len);
-    this->iov_[0] = {buf, header_len};
-    this->iov_[1] = {const_cast<uint8_t *>(this->jpeg_.qtable0), QTABLE_LEN};
-    this->iov_[2] = {const_cast<uint8_t *>(this->jpeg_.qtable1), QTABLE_LEN};
-    count = 3;
-  } else {
-    this->iov_[0] = {buf, header_len};
-    count = 1;
-  }
-  this->iov_[count++] = {const_cast<uint8_t *>(this->jpeg_.scan_data + this->frame_sent_), payload_len};
   this->iov_pos_ = 0;
-  this->iov_count_ = count;
   this->sending_packet_ = true;
-  this->frame_sent_ += payload_len;
   return true;
 }
 
 void RTSPSession::drop_frame_() {
-  this->frame_.reset();
+  if (this->packetizer_ != nullptr && this->packetizer_->has_frame()) {
+    this->packetizer_->discontinuity();
+    this->packetizer_->reset();
+  }
   if (!this->sending_packet_ || this->iov_pos_ >= this->iov_count_)
     return;
-  // Even an unwritten packet is kept, so output stays pending and on_new_frame() takes nothing until the
+  // Even an unwritten packet is kept, so output stays pending and on_encoded_frame() takes nothing until the
   // socket drains. Entries after the header point into the frame.
   for (uint8_t i = std::max<uint8_t>(this->iov_pos_, 1); i < this->iov_count_; i++)
     this->filler_len_ += this->iov_[i].iov_len;
