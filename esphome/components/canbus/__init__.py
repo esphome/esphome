@@ -1,13 +1,16 @@
+import logging
 import re
 from typing import Any
 
 from esphome import automation
 import esphome.codegen as cg
 import esphome.config_validation as cv
-from esphome.const import CONF_DATA, CONF_ID, CONF_TRIGGER_ID
+from esphome.const import CONF_DATA, CONF_ID, CONF_PLATFORM, CONF_TRIGGER_ID
 from esphome.core import CORE, ID
 from esphome.cpp_generator import MockObj, TemplateArgsType
 from esphome.types import ConfigType
+
+_LOGGER = logging.getLogger(__name__)
 
 CODEOWNERS = ["@mvturnho", "@danielschramm"]
 DOMAIN = "canbus"
@@ -53,29 +56,30 @@ CanbusTrigger = canbus_ns.class_(
 )
 CanSpeed = canbus_ns.enum("CAN_SPEED")
 
-CAN_SPEEDS = {
-    "1KBPS": CanSpeed.CAN_1KBPS,
-    "5KBPS": CanSpeed.CAN_5KBPS,
-    "10KBPS": CanSpeed.CAN_10KBPS,
-    "12K5BPS": CanSpeed.CAN_12K5BPS,
-    "16KBPS": CanSpeed.CAN_16KBPS,
-    "20KBPS": CanSpeed.CAN_20KBPS,
-    "25KBPS": CanSpeed.CAN_25KBPS,
-    "31K25BPS": CanSpeed.CAN_31K25BPS,
-    "33KBPS": CanSpeed.CAN_33KBPS,
-    "40KBPS": CanSpeed.CAN_40KBPS,
-    "50KBPS": CanSpeed.CAN_50KBPS,
-    "80KBPS": CanSpeed.CAN_80KBPS,
-    "83K3BPS": CanSpeed.CAN_83K3BPS,
-    "95KBPS": CanSpeed.CAN_95KBPS,
-    "100KBPS": CanSpeed.CAN_100KBPS,
-    "125KBPS": CanSpeed.CAN_125KBPS,
-    "200KBPS": CanSpeed.CAN_200KBPS,
-    "250KBPS": CanSpeed.CAN_250KBPS,
-    "500KBPS": CanSpeed.CAN_500KBPS,
-    "800KBPS": CanSpeed.CAN_800KBPS,
-    "1000KBPS": CanSpeed.CAN_1000KBPS,
-}
+CAN_SPEEDS = CanSpeed.options(
+    "1KBPS",
+    "5KBPS",
+    "10KBPS",
+    "12K5BPS",
+    "16KBPS",
+    "20KBPS",
+    "25KBPS",
+    "31K25BPS",
+    "33KBPS",
+    "40KBPS",
+    "50KBPS",
+    "80KBPS",
+    "83K3BPS",
+    "95KBPS",
+    "100KBPS",
+    "125KBPS",
+    "200KBPS",
+    "250KBPS",
+    "500KBPS",
+    "800KBPS",
+    "1000KBPS",
+    prefix="CAN_",
+)
 
 
 def get_rate(value: str) -> int:
@@ -150,9 +154,19 @@ async def setup_canbus_core_(var: MockObj, config: ConfigType) -> None:
         )
 
 
-async def register_canbus(var: MockObj, config: ConfigType) -> None:
+async def register_canbus(
+    var: MockObj, config: ConfigType, *, reports_status: bool | None = None
+) -> None:
     if not CORE.has_id(config[CONF_ID]):
         var = cg.new_Pvariable(config[CONF_ID], var)
+    if reports_status is None:
+        _LOGGER.warning(
+            "CAN bus platform '%s' does not report bus state, so bus-off recovery and "
+            "error-state logging are disabled. Platform authors should either override "
+            "get_status() and get_events() and call register_canbus(..., reports_status=True) "
+            "or pass reports_status=False if the hardware cannot report it",
+            config[CONF_PLATFORM],
+        )
     await setup_canbus_core_(var, config)
 
 

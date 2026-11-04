@@ -290,6 +290,15 @@ void Component::status_set_warning(const LogString *message) {
   ESP_LOGW(TAG, "%s set Warning flag: %s", LOG_STR_ARG(this->get_component_log_str()),
            message ? LOG_STR_ARG(message) : LOG_STR_LITERAL("unspecified"));
 }
+bool Component::status_comm_result(bool ok) { return this->status_comm_result(ok, LOG_STR(ESP_LOG_MSG_COMM_FAIL)); }
+bool Component::status_comm_result(bool ok, const LogString *message) {
+  if (ok) {
+    this->status_clear_warning();
+  } else {
+    this->status_set_warning(message);
+  }
+  return ok;
+}
 void Component::status_set_error() { this->status_set_error((const LogString *) nullptr); }
 void Component::status_set_error(const LogString *message) {
   if (this->set_error_flag_(message) && message != nullptr) {

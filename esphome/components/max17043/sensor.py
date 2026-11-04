@@ -16,6 +16,7 @@ from esphome.const import (
 )
 from esphome.types import ConfigType
 
+AUTO_LOAD = ["max170xx"]
 DEPENDENCIES = ["i2c"]
 
 max17043_ns = cg.esphome_ns.namespace("max17043")
@@ -49,9 +50,7 @@ CONFIG_SCHEMA = (
 
 
 async def to_code(config: ConfigType) -> None:
-    var = cg.new_Pvariable(config[CONF_ID])
-    await cg.register_component(var, config)
-    await i2c.register_i2c_device(var, config)
+    var = await i2c.new_i2c_component(config)
 
     sensors = sensor.sub_sensors(config)
     await sensors(CONF_BATTERY_VOLTAGE, var.set_voltage_sensor)

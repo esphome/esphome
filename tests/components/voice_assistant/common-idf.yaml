@@ -55,6 +55,7 @@ voice_assistant:
   speaker: va_speaker_id
   micro_wake_word: mww_id
   conversation_timeout: 60s
+  tts_playback_start_timeout: 10s
   on_listening:
     - logger.log: "Voice assistant microphone listening"
   on_start:
@@ -73,6 +74,26 @@ voice_assistant:
         args: [x.c_str()]
   on_end:
     - logger.log: "Voice assistant ended"
+  on_intent_start:
+    - logger.log: "Intent start"
+  on_intent_progress:
+    - logger.log: "Intent progress"
+  on_intent_end:
+    - logger.log: "Intent end"
+  on_stt_vad_start:
+    - logger.log: "VAD start"
+  on_stt_vad_end:
+    - logger.log: "VAD end"
+  on_tts_stream_start:
+    - logger.log: "TTS stream start"
+  on_tts_stream_end:
+    - logger.log: "TTS stream end"
+  on_idle:
+    - logger.log: "Voice assistant idle"
+  on_client_connected:
+    - logger.log: "Voice assistant client connected"
+  on_client_disconnected:
+    - logger.log: "Voice assistant client disconnected"
   on_error:
     - logger.log:
         format: "Voice assistant error - code %s, message: %s"

@@ -244,11 +244,6 @@ class RC522 : public PollingComponent {
   std::vector<RC522Trigger *> triggers_ontag_;
   std::vector<RC522Trigger *> triggers_ontagremoved_;
   std::vector<uint8_t> current_uid_;
-
-  enum RC522Error {
-    NONE = 0,
-    RESET_FAILED,
-  } error_code_{NONE};
 };
 
 class RC522BinarySensor final : public binary_sensor::BinarySensor {

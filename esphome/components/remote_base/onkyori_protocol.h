@@ -19,15 +19,4 @@ class OnkyoRIProtocol : public RemoteProtocol<OnkyoRIData> {
 
 DECLARE_REMOTE_PROTOCOL(OnkyoRI)
 
-template<typename... Ts> class OnkyoRIAction : public RemoteTransmitterActionBase<Ts...> {
- public:
-  TEMPLATABLE_VALUE(uint16_t, data)
-
-  void encode(RemoteTransmitData *dst, Ts... x) override {
-    OnkyoRIData data{};
-    data.data = this->data_.value(x...);
-    OnkyoRIProtocol().encode(dst, data);
-  }
-};
-
 }  // namespace esphome::remote_base

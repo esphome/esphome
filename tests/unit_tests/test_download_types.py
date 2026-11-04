@@ -15,7 +15,7 @@ import pytest
 
 from esphome.storage_json import StorageJSON
 
-PLATFORMS = ["esp32", "esp8266", "rp2", "libretiny", "nrf52"]
+PLATFORMS = ["esp32", "esp8266", "rp2", "libretiny", "nrf52", "host"]
 
 
 def _download_types(platform: str, storage: StorageJSON) -> list[dict[str, Any]]:
@@ -96,15 +96,19 @@ def _nrf52_files(tmp_path: Path, *built: str) -> list[str]:
     [
         # Adafruit bootloader with the mcumgr OTA: MCUboot is chained behind it.
         (
-            ["zephyr/zephyr.uf2", "zephyr/app_update.bin"],
+            ["zephyr/zephyr.uf2", "firmware.zip", "zephyr/app_update.bin"],
             ["zephyr/zephyr.uf2", "firmware.zip", "zephyr/app_update.bin"],
         ),
-        (["zephyr/zephyr.uf2"], ["zephyr/zephyr.uf2", "firmware.zip"]),
+        (["zephyr/zephyr.uf2", "firmware.zip"], ["zephyr/zephyr.uf2", "firmware.zip"]),
+        # The DFU package is offered only when the build made one
+        (["zephyr/zephyr.uf2"], ["zephyr/zephyr.uf2"]),
         (
             ["zephyr/merged.hex", "zephyr/app_update.bin"],
             ["zephyr/merged.hex", "zephyr/app_update.bin"],
         ),
         (["zephyr/merged.hex"], ["zephyr/merged.hex"]),
+        # The dongle's Open DFU bootloader has no UF2 family, so its DFU package rides beside the HEX
+        (["zephyr/merged.hex", "firmware.zip"], ["zephyr/merged.hex", "firmware.zip"]),
         ([], ["zephyr/zephyr.hex"]),
     ],
 )

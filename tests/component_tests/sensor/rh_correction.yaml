@@ -1,0 +1,24 @@
+esphome:
+  name: test
+
+esp32:
+  board: esp32dev
+
+sensor:
+  - platform: template
+    id: temperature
+    filters:
+      - offset: -7.3
+  - platform: template
+    id: constant_offset
+    filters:
+      - rh_correction:
+          sensor_id: temperature
+          temperature_offset: -7.3
+  - platform: template
+    id: templated_offset
+    filters:
+      - rh_correction:
+          sensor_id: temperature
+          temperature_offset: !lambda return -7.3;
+          use_fahrenheit: true

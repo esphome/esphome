@@ -391,7 +391,6 @@ SET_STATE_SCHEMA = cv.Schema(
 )
 # Setting object flags
 FLAG_SCHEMA = cv.Schema({cv.Optional(flag): lvalid.lv_bool for flag in df.OBJ_FLAGS})
-FLAG_LIST = cv.ensure_list(df.LV_OBJ_FLAG.one_of)
 
 VALUE_TRIGGER_SCHEMA = {
     cv.Optional(CONF_TRIGGER, default=CONF_ON_VALUE): cv.one_of(

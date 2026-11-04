@@ -1,0 +1,41 @@
+esphome:
+  name: uart-mock-pipsolar-switches
+
+host:
+api:
+  batch_delay: 0ms
+logger:
+  level: DEBUG
+
+external_components:
+  - source:
+      type: local
+      path: EXTERNAL_COMPONENT_PATH
+
+# Dummy uart entry to satisfy pipsolar's DEPENDENCIES = ["uart"]
+# The actual UART bus used is the uart_mock component below
+uart:
+  baud_rate: 2400
+  port: /dev/null
+
+uart_mock:
+  id: mock_uart
+  baud_rate: 2400
+  auto_start: false
+
+# No polling, so only the switch writes reach the command queue and no
+# polled status publishes the switch states
+pipsolar:
+  id: inverter0
+  uart_id: mock_uart
+  update_interval: never
+
+switch:
+  - platform: pipsolar
+    pipsolar_id: inverter0
+    output_source_priority_utility:
+      name: Priority Utility
+    input_voltage_range:
+      name: Input Voltage Range
+    pv_power_balance:
+      name: PV Power Balance

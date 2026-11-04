@@ -41,6 +41,13 @@ api:
               entity:
                 - domain: weather
           - id: unset_input
+          - id: calendars_input
+            description: Calendars
+            multiple: true
+            max_length: 1023
+            target:
+              entity:
+                - domain: calendar
 
 switch:
   - platform: template
@@ -106,3 +113,16 @@ interval:
                 data:
                   type: daily
                   entity_id: !lambda 'return id(weather_input).entity_id().c_str();'
+      - if:
+          condition:
+            api.wizard.input_is_set: calendars_input
+          then:
+            - homeassistant.action:
+                action: calendar.get_events
+                data:
+                  duration: "24:00:00"
+                  entity_id: !lambda 'return id(calendars_input).entity_id().c_str();'
+            - lambda: |-
+                ESP_LOGD("wizard", "%u calendars", (unsigned) id(calendars_input).entity_id_count());
+                id(calendars_input).for_each_entity_id(
+                    [](StringRef calendar) { ESP_LOGD("wizard", "Calendar %.*s", (int) calendar.size(), calendar.c_str()); });

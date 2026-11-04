@@ -20,15 +20,4 @@ class BrennenstuhlProtocol : public RemoteProtocol<BrennenstuhlData> {
 
 DECLARE_REMOTE_PROTOCOL(Brennenstuhl)
 
-template<typename... Ts> class BrennenstuhlAction : public RemoteTransmitterActionBase<Ts...> {
- public:
-  TEMPLATABLE_VALUE(uint32_t, code)
-
-  void encode(RemoteTransmitData *dst, Ts... x) override {
-    BrennenstuhlData data{};
-    data.code = this->code_.value(x...);
-    BrennenstuhlProtocol().encode(dst, data);
-  }
-};
-
 }  // namespace esphome::remote_base

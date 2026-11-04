@@ -1,0 +1,6 @@
+substitutions:
+  i2s_din_pin: GPIO39
+
+packages:
+  i2s_audio: !include ../../test_build_components/common/i2s_audio/esp32-idf.yaml
+  sendspin: !include common-source.yaml

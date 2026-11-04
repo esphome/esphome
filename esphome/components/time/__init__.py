@@ -26,6 +26,8 @@ from esphome.const import (
     CONF_SECONDS,
     CONF_TIMEZONE,
     CONF_TRIGGER_ID,
+    KEY_CORE,
+    KEY_FRAMEWORK_VERSION,
     PLATFORM_BK72XX,
     PLATFORM_ESP32,
     PLATFORM_ESP8266,
@@ -167,6 +169,14 @@ def _parse_cron_part(part, min_value, max_value, special_mapping):
             raise cv.Invalid(
                 f"Repeat for '/' time expression must be an integer, got {repeat}"
             ) from None
+        if not min_value <= offset_n <= max_value:
+            raise cv.Invalid(
+                f"Step '{part}': offset {offset_n} is out of range (min={min_value} max={max_value})"
+            )
+        if repeat_n < 1:
+            raise cv.Invalid(
+                f"Step '{part}': repeat must be at least 1, got {repeat_n}"
+            )
         return set(range(offset_n, max_value + 1, repeat_n))
     if "-" in part:
         data = part.split("-")
@@ -181,8 +191,13 @@ def _parse_cron_part(part, min_value, max_value, special_mapping):
         end_n = _parse_cron_int(
             end, special_mapping, "Number for time range must be integer, got {}"
         )
+        for n in (begin_n, end_n):
+            if not min_value <= n <= max_value:
+                raise cv.Invalid(
+                    f"Range '{part}': {n} is out of range (min={min_value} max={max_value})"
+                )
         if end_n < begin_n:
-            return set(range(end_n, max_value + 1)) | set(range(min_value, begin_n + 1))
+            return set(range(begin_n, max_value + 1)) | set(range(min_value, end_n + 1))
         return set(range(begin_n, end_n + 1))
 
     return {
@@ -455,6 +470,12 @@ async def register_time(time_var, config):
 async def to_code(config):
     if CORE.using_zephyr:
         zephyr_add_prj_conf("POSIX_CLOCK", True)
+        # From sdk-nrf 2.8.0 newlib time() gets the clock through gettimeofday(),
+        # which Zephyr only provides with XSI_SINGLE_PROCESS. Without it time()
+        # always returns -1.
+        if CORE.data[KEY_CORE][KEY_FRAMEWORK_VERSION] >= cv.Version(2, 8, 0):
+            zephyr_add_prj_conf("POSIX_SINGLE_PROCESS", True)
+            zephyr_add_prj_conf("XSI_SINGLE_PROCESS", True)
     cg.add_define("USE_TIME")
     cg.add_global(time_ns.using)
 

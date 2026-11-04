@@ -1,3 +1,4 @@
 display:
   - id: !extend main_lcd
     tft_upload_watchdog_timeout: 30s
+    tft_upload_http_buffer_size_tx: 1024

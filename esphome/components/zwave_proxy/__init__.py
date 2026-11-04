@@ -2,7 +2,7 @@ import esphome.codegen as cg
 from esphome.components import uart
 from esphome.components.wifi import DOMAIN as WIFI_DOMAIN
 import esphome.config_validation as cv
-from esphome.const import CONF_ID, CONF_POWER_SAVE_MODE, CONF_WIFI
+from esphome.const import CONF_POWER_SAVE_MODE, CONF_WIFI
 import esphome.final_validate as fv
 from esphome.types import ConfigType
 
@@ -38,7 +38,5 @@ FINAL_VALIDATE_SCHEMA = final_validate
 
 
 async def to_code(config: ConfigType) -> None:
-    var = cg.new_Pvariable(config[CONF_ID])
-    await cg.register_component(var, config)
-    await uart.register_uart_device(var, config)
+    await uart.new_uart_component(config)
     cg.add_define("USE_ZWAVE_PROXY")

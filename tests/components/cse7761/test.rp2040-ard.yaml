@@ -4,5 +4,4 @@ substitutions:
 
 packages:
   uart_38400_even: !include ../../test_build_components/common/uart_38400_even/rp2040-ard.yaml
-
-<<: !include common.yaml
+  cse7761: !include common.yaml

@@ -43,19 +43,19 @@ TemplateAlarmControlPanel = template_ns.class_(
 TemplateAlarmControlPanelRestoreMode = template_ns.enum(
     "TemplateAlarmControlPanelRestoreMode"
 )
-RESTORE_MODES = {
-    "ALWAYS_DISARMED": TemplateAlarmControlPanelRestoreMode.ALARM_CONTROL_PANEL_ALWAYS_DISARMED,
-    "RESTORE_DEFAULT_DISARMED": TemplateAlarmControlPanelRestoreMode.ALARM_CONTROL_PANEL_RESTORE_DEFAULT_DISARMED,
-}
+RESTORE_MODES = TemplateAlarmControlPanelRestoreMode.options(
+    "ALWAYS_DISARMED", "RESTORE_DEFAULT_DISARMED", prefix="ALARM_CONTROL_PANEL_"
+)
 
 AlarmSensorType = template_ns.enum("AlarmSensorType")
 
-ALARM_SENSOR_TYPES = {
-    "DELAYED": AlarmSensorType.ALARM_SENSOR_TYPE_DELAYED,
-    "INSTANT": AlarmSensorType.ALARM_SENSOR_TYPE_INSTANT,
-    "DELAYED_FOLLOWER": AlarmSensorType.ALARM_SENSOR_TYPE_DELAYED_FOLLOWER,
-    "INSTANT_ALWAYS": AlarmSensorType.ALARM_SENSOR_TYPE_INSTANT_ALWAYS,
-}
+ALARM_SENSOR_TYPES = AlarmSensorType.options(
+    "DELAYED",
+    "INSTANT",
+    "DELAYED_FOLLOWER",
+    "INSTANT_ALWAYS",
+    prefix="ALARM_SENSOR_TYPE_",
+)
 
 
 def validate_config(config):

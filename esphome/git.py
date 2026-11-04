@@ -111,6 +111,15 @@ _TRANSIENT_GIT_ERROR_PATTERNS: tuple[str, ...] = (
 # simple rule since git hosts rarely emit them.
 _PERMANENT_HTTP_ERROR_RE = re.compile(r"(?:http |returned error: )4(?!29)\d\d")
 
+# How git reports a clone of a repository it cannot see. GitHub answers a
+# missing repository like a private one, asking for credentials, so without a
+# terminal git fails on the username prompt rather than saying "not found".
+_MISSING_REPOSITORY_RE = re.compile(
+    r"could not read (?:username|password)|repository not found"
+    r"|authentication failed|repository '[^']*' not found",
+    re.IGNORECASE,
+)
+
 # Network commands get 3 attempts with 2s/4s backoff. Worst case is ~3x
 # the command's own duration plus 6s of sleep, held under the cache entry
 # lock; peers with a complete entry fall back to it after
@@ -145,13 +154,51 @@ class GitRepositoryError(GitException):
     """Exception raised when a git repository is in an invalid state."""
 
 
+# The userinfo part of a URL, which can carry credentials.
+URL_USERINFO_RE = re.compile(r"://([^/@\s]+)@")
+
+
 def _redact_url_credentials(text: str) -> str:
     """Mask userinfo in any URLs embedded in ``text``.
 
     Users can put credentials directly in a git URL, and log output is
     routinely pasted into public issues.
     """
-    return re.sub(r"://[^/@\s]+@", "://***@", text)
+    return URL_USERINFO_RE.sub("://***@", text)
+
+
+def _explain_clone_failure(
+    err: GitCommandError, url: str, original_url: str
+) -> GitCommandError | None:
+    """Return a clearer error for a clone of a repository git cannot see.
+
+    ``url`` is the URL git was given, with any credentials inserted, and
+    ``original_url`` the one from the config. Returns ``None`` for any other
+    failure, so the caller re-raises git's own error.
+    """
+    if not _MISSING_REPOSITORY_RE.search(err.stderr):
+        return None
+    if not url.startswith(("http://", "https://")):
+        cause, check_also = "the SSH key used cannot access it", ", and the key"
+    elif URL_USERINFO_RE.search(url):
+        cause = "the username and password used cannot access it"
+        check_also = ", and the credentials"
+    else:
+        cause, check_also = "it is private and needs a username and password", ""
+    return GitCommandError(
+        f"Could not clone {_redact_url_credentials(original_url)}: the repository "
+        f"does not exist, or {cause}. Check the owner and repository name in the "
+        f"source{check_also}. Git reported: {_redact_url_credentials(str(err))}",
+        stderr=err.stderr,
+    )
+
+
+def strip_url_credentials(url: str) -> str:
+    """Return ``url`` without its userinfo (``user:token@``), for URLs that are published."""
+    parsed = urllib.parse.urlsplit(url)
+    if "@" not in parsed.netloc:
+        return url
+    return parsed._replace(netloc=parsed.netloc.rpartition("@")[2]).geturl()
 
 
 def _is_transient_git_error(stderr: str) -> bool:
@@ -706,9 +753,9 @@ def _clone_or_update_locked(
     # compute the same cache key as this one.
     original_url = url
     if username is not None and password is not None:
-        url = url.replace(
-            "://", f"://{urllib.parse.quote(username)}:{urllib.parse.quote(password)}@"
-        )
+        user = urllib.parse.quote(username, safe="")
+        token = urllib.parse.quote(password, safe="")
+        url = url.replace("://", f"://{user}:{token}@")
 
     hash_dir_name = _compute_destination_path(key, domain).name
     repo_dir = _repo_entry_dir(key, domain, subpath)
@@ -728,7 +775,12 @@ def _clone_or_update_locked(
         try:
             cmd = ["git", "clone", "--depth=1"]
             cmd += ["--", url, str(repo_dir)]
-            run_git_command(cmd, network=True, retry_cleanup=repo_dir)
+            try:
+                run_git_command(cmd, network=True, retry_cleanup=repo_dir)
+            except GitCommandError as err:
+                if explained := _explain_clone_failure(err, url, original_url):
+                    raise explained from err
+                raise
 
             if ref is not None:
                 # We need to fetch the PR branch first, otherwise git will complain
@@ -1039,8 +1091,8 @@ class GitFile:
         """Parse a git shorthand URL into its components."""
         if not isinstance(shorthand, str):
             raise ValueError("Git shorthand must be a string")
-        m = re.match(
-            r"(?P<domain>[a-zA-Z0-9\-]+)://(?P<owner>[a-zA-Z0-9\-]+)/(?P<repo>[a-zA-Z0-9\-\._]+)/(?P<filename>[a-zA-Z0-9\-_.\./]+)(?:@(?P<ref>[a-zA-Z0-9\-_.\./]+))?(?:\?(?P<query>[a-zA-Z0-9\-_.\./]+))?",
+        m = re.fullmatch(
+            rf"(?P<domain>[a-zA-Z0-9\-]+)://(?P<owner>[a-zA-Z0-9\-]+)/(?P<repo>[a-zA-Z0-9\-\._]+)/(?P<filename>[a-zA-Z0-9\-_.\./]+)(?:@(?P<ref>{cv.GIT_REF_PATTERN}))?(?:\?(?P<query>[a-zA-Z0-9\-_.\./]+))?",
             shorthand,
         )
         if m is None:

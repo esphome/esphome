@@ -1,4 +1,5 @@
 #include "cm1106.h"
+#include "esphome/core/helpers.h"
 #include "esphome/core/log.h"
 
 #include <cinttypes>
@@ -17,20 +18,14 @@ static constexpr uint8_t C_M1106_CMD_SET_ABC_STATUS_RESPONSE[4] = {0x16, 0x01, 0
 static constexpr uint8_t CM1106_ABC_FLAG_ENABLE = 0x0;
 static constexpr uint8_t CM1106_ABC_FLAG_DISABLE = 0x2;
 uint8_t cm1106_checksum(const uint8_t *response, size_t len) {
-  uint8_t crc = 0;
-  for (size_t i = 0; i < len - 1; i++) {
-    crc -= response[i];
-  }
-  return crc;
+  return static_cast<uint8_t>(-sum_bytes(response, len - 1));
 }
 
 void CM1106Component::setup() {
   uint8_t response[8] = {0};
-  if (!this->cm1106_write_command_(C_M1106_CMD_GET_CO2, sizeof(C_M1106_CMD_GET_CO2), response, sizeof(response))) {
-    ESP_LOGE(TAG, ESP_LOG_MSG_COMM_FAIL);
-    this->mark_failed();
+  if (!this->setup_check(
+          this->cm1106_write_command_(C_M1106_CMD_GET_CO2, sizeof(C_M1106_CMD_GET_CO2), response, sizeof(response))))
     return;
-  }
 
   if (this->abc_boot_logic_ != CM1106_ABC_NONE) {
     this->abc_set_(this->abc_boot_logic_ == CM1106_ABC_ENABLED);
@@ -46,7 +41,10 @@ void CM1106Component::update() {
   }
 
   if (response[0] != 0x16 || response[1] != 0x05 || response[2] != 0x01) {
-    ESP_LOGW(TAG, "Unexpected response: %02X %02X %02X %02X", response[0], response[1], response[2], response[3]);
+#if ESPHOME_LOG_LEVEL >= ESPHOME_LOG_LEVEL_WARN
+    char hex_buf[format_hex_pretty_size(4)];
+    ESP_LOGW(TAG, "Unexpected response: %s", format_hex_pretty_to(hex_buf, response, 4, ' '));
+#endif
     this->status_set_warning();
     return;
   }
@@ -58,7 +56,7 @@ void CM1106Component::update() {
     return;
   }
 
-  const uint16_t ppm = response[3] << 8 | response[4];
+  const uint16_t ppm = encode_uint16(response[3], response[4]);
   const uint8_t status = response[5];
   if (status & 0x1) {
     ESP_LOGW(TAG, "Preheating; CO₂=%uppm", ppm);
@@ -71,15 +69,13 @@ void CM1106Component::update() {
   this->status_clear_warning();
 
   ESP_LOGD(TAG, "CO₂=%uppm DF4=%02X", ppm, response[6]);
-  if (this->co2_sensor_ != nullptr)
-    this->co2_sensor_->publish_state(ppm);
+  PUBLISH_STATE(this->co2_sensor_, ppm);
 }
 
 void CM1106Component::calibrate_zero(uint16_t ppm) {
   uint8_t cmd[6];
   memcpy(cmd, C_M1106_CMD_SET_CO2_CALIB, sizeof(cmd));
-  cmd[3] = ppm >> 8;
-  cmd[4] = ppm & 0xFF;
+  put_be16(cmd + 3, ppm);
   if (this->send_command_expect_ack_(cmd, sizeof(cmd), C_M1106_CMD_SET_CO2_CALIB_RESPONSE)) {
     ESP_LOGD(TAG, "Successfully calibrated sensor to %uppm", ppm);
   }
@@ -91,8 +87,7 @@ void CM1106Component::abc_set_(bool enabled) {
   memcpy(cmd, C_M1106_CMD_SET_ABC_STATUS, sizeof(cmd));
   cmd[4] = enabled ? CM1106_ABC_FLAG_ENABLE : CM1106_ABC_FLAG_DISABLE;
   cmd[5] = this->abc_cycle_;
-  cmd[6] = this->abc_baseline_ >> 8;
-  cmd[7] = this->abc_baseline_ & 0xFF;
+  put_be16(cmd + 6, this->abc_baseline_);
   if (this->send_command_expect_ack_(cmd, sizeof(cmd), C_M1106_CMD_SET_ABC_STATUS_RESPONSE)) {
     ESP_LOGD(TAG, "Successfully set ABC status");
   }
@@ -102,23 +97,22 @@ bool CM1106Component::send_command_expect_ack_(const uint8_t *command, size_t co
   uint8_t response[4] = {0};
   if (!this->cm1106_write_command_(command, command_len, response, sizeof(response))) {
     ESP_LOGW(TAG, "Command %02X failed", command[2]);
-    this->status_set_warning();
+    this->status_set_warning(LOG_STR(ESP_LOG_MSG_COMM_FAIL));
     return false;
   }
-  if (memcmp(response, ack, sizeof(response)) != 0) {
-    ESP_LOGW(TAG, "Unexpected response: %02X %02X %02X %02X", response[0], response[1], response[2], response[3]);
-    this->status_set_warning();
+  if (!this->status_comm_result(memcmp(response, ack, sizeof(response)) == 0)) {
+#if ESPHOME_LOG_LEVEL >= ESPHOME_LOG_LEVEL_WARN
+    char hex_buf[format_hex_pretty_size(4)];
+    ESP_LOGW(TAG, "Unexpected response: %s", format_hex_pretty_to(hex_buf, response, 4, ' '));
+#endif
     return false;
   }
-  this->status_clear_warning();
   return true;
 }
 
 bool CM1106Component::cm1106_write_command_(const uint8_t *command, size_t command_len, uint8_t *response,
                                             size_t response_len) {
-  // Empty RX Buffer
-  while (this->available())
-    this->read();
+  this->discard_available();
   this->write_array(command, command_len - 1);
   this->write_byte(cm1106_checksum(command, command_len));
   this->flush();
@@ -138,9 +132,6 @@ void CM1106Component::dump_config() {
                   "  ABC calibration cycle: %u days\n"
                   "  ABC baseline: %uppm",
                   ONOFF(this->abc_boot_logic_ == CM1106_ABC_ENABLED), this->abc_cycle_, this->abc_baseline_);
-  }
-  if (this->is_failed()) {
-    ESP_LOGE(TAG, ESP_LOG_MSG_COMM_FAIL);
   }
 }
 

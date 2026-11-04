@@ -3,14 +3,16 @@ import logging
 import re
 from typing import Any
 
+from esphome import automation
 import esphome.codegen as cg
+from esphome.components.const import CONF_MANUFACTURER
 from esphome.components.esp32 import (
     CONF_PARTITIONS,
+    DOMAIN as ESP32_DOMAIN,
     add_idf_component,
     add_idf_sdkconfig_option,
     add_partition,
     include_builtin_idf_component,
-    require_mbedtls_ecp,
     require_mbedtls_tls_extras,
     require_vfs_select,
 )
@@ -28,6 +30,7 @@ from esphome.const import (
     CONF_TYPE,
     CONF_UNIT_OF_MEASUREMENT,
     CONF_VALUE,
+    CONF_VERSION,
     CONF_WIFI,
     DEVICE_CLASS_OUTLET,
 )
@@ -49,8 +52,11 @@ from .const import (
     CONF_SLEEPY,
     CONF_USE_DEVICE_TYPE,
     KEY_ZIGBEE,
+    KEY_ZIGBEE_AREA_STR,
+    KEY_ZIGBEE_VERSION_STR,
     POWER_SOURCE,
     ZigbeeAttribute,
+    ZigbeeComponent,
 )
 from .const_esp32 import (
     ALLOWED_UNITS,
@@ -200,8 +206,11 @@ def setup_attributes(config: ConfigType, clusters: list[dict[str, Any]]) -> None
                 attr[CONF_VALUE] = str(name)
                 attr[CONF_MAX_LENGTH] = len(str(name))
             if attr.get(CONNECT):  # connect device
-                if CONF_REPORT in config:
-                    attr[CONF_REPORT] = config[CONF_REPORT]
+                if (report := config.get(CONF_REPORT, "default")) not in (
+                    "default",
+                    "coordinator",
+                ):
+                    attr[CONF_REPORT] = report
                 attr[CONF_ID] = cv.declare_id(ZigbeeAttribute)(None)
                 attr_list = config.setdefault(KEY_ZIGBEE_ATTRIBUTES, [])
                 attr_list.append(attr)
@@ -385,17 +394,12 @@ async def attributes_to_code(
 async def esp32_to_code(config: ConfigType) -> "MockObj":
     add_idf_component(
         name="espressif/esp-zigbee-lib",
-        ref="2.0.4",
+        ref="2.0.5",
     )
-    # The esp-zigbee-lib blobs reference mbedtls_ecp_* (Zigbee Direct, install
-    # code ECDH); keep ECP without relying on esp_wifi's Kconfig select.
-    require_mbedtls_ecp()
 
-    # Zigbee's crypto platform uses AES-CCM and deterministic ECDSA directly.
+    # Zigbee's crypto platform uses AES-CCM directly.
     # Keep the esp32 component from trimming them out of mbedTLS.
-    require_mbedtls_tls_extras(
-        ("CONFIG_MBEDTLS_CCM_C", "CONFIG_MBEDTLS_ECDSA_DETERMINISTIC")
-    )
+    require_mbedtls_tls_extras({"CONFIG_MBEDTLS_CCM_C"})
 
     if CONF_WIFI in CORE.config:
         # zigbee_esp32.cpp uses esp_coexist.h when WiFi is present
@@ -418,12 +422,14 @@ async def esp32_to_code(config: ConfigType) -> "MockObj":
         cg.add(var.set_sleepy(True))
     if (keep_alive := config.get(CONF_POLLING_INTERVAL, 3000)) != 3000:
         cg.add(var.set_keep_alive(keep_alive))
-
     cg.add(
         var.set_basic_cluster(
             config[CONF_MODEL],
-            "esphome",
+            config[CONF_MANUFACTURER],
+            zb_data[KEY_ZIGBEE_AREA_STR],
+            zb_data[KEY_ZIGBEE_VERSION_STR],
             POWER_SOURCE[config[CONF_POWER_SOURCE]],
+            config[CONF_VERSION],
         )
     )
     for ep_num, ep in ep_dict.items():
@@ -454,3 +460,21 @@ async def add_component(entity: cg.MockObj, config: ConfigType) -> None:
             cg.add(zb_attr.connect(template_arg, entity, lambda_))
         else:
             cg.add(zb_attr.connect(template_arg, entity))
+
+
+ZIGBEE_ACTION_SCHEMA_ESP32 = automation.maybe_simple_id(
+    cv.All(
+        cv.Schema(
+            {
+                cv.GenerateID(): cv.use_id(ZigbeeComponent),
+            },
+        ),
+        cv.requires_component(ESP32_DOMAIN),
+    )
+)
+
+automation.register_apply_action(
+    "zigbee.report",
+    ZIGBEE_ACTION_SCHEMA_ESP32,
+    automation.ApplyCall("report()"),
+)

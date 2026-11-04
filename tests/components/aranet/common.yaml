@@ -1,0 +1,27 @@
+sensor:
+  - platform: aranet
+    mac_address: 00:11:22:33:44:55
+    co2:
+      name: Aranet4 Carbon Dioxide
+    temperature:
+      name: Aranet4 Temperature
+    humidity:
+      name: Aranet4 Humidity
+    pressure:
+      name: Aranet4 Pressure
+    battery_level:
+      name: Aranet4 Battery Level
+    measurement_interval:
+      name: Aranet4 Measurement Interval
+    measurement_age:
+      name: Aranet4 Measurement Age
+    signal_strength:
+      name: Aranet4 Signal Strength
+    radon:
+      name: Aranet Radon Concentration
+    radiation_rate:
+      name: Aranet Radiation Dose Rate
+    radiation_total:
+      name: Aranet Radiation Total Dose
+    radiation_duration:
+      name: Aranet Radiation Dose Duration

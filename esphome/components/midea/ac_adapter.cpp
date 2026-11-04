@@ -5,10 +5,7 @@
 
 namespace esphome::midea::ac {
 
-const char *const Constants::TAG = "midea";
-const char *const Constants::FREEZE_PROTECTION = "Freeze Protection";
-const char *const Constants::SILENT = "Silent";
-const char *const Constants::TURBO = "Turbo";
+const char Constants::TAG[] PROGMEM = "midea";
 
 ClimateMode Converters::to_climate_mode(MideaMode mode) {
   switch (mode) {

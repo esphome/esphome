@@ -23,10 +23,18 @@ DEPENDENCIES = ["uart"]
 
 emontx_ns = cg.esphome_ns.namespace("emontx")
 EmonTx = emontx_ns.class_("EmonTx", cg.Component, uart.UARTDevice)
+LockOnReboot = emontx_ns.enum("LockOnReboot", is_class=True)
 
 CONF_EMONTX_ID = "emontx_id"
 CONF_TAG_NAME = "tag_name"
 CONF_ON_JSON = "on_json"
+CONF_LOCK_ON_REBOOT = "lock_on_reboot"
+LOCK_ON_REBOOT_AUTO = "auto"
+LOCK_ON_REBOOT_MODES = {
+    LOCK_ON_REBOOT_AUTO: LockOnReboot.LOCK_ON_REBOOT_AUTO,
+    True: LockOnReboot.LOCK_ON_REBOOT_ALWAYS,
+    False: LockOnReboot.LOCK_ON_REBOOT_NEVER,
+}
 
 DOMAIN = "emontx"
 
@@ -44,13 +52,23 @@ def _get_data() -> EmonTxData:
     return CORE.data[DOMAIN]
 
 
+def _synchronous_automation_schema() -> cv.All:
+    # The received line and the parsed JSON document only live while the callbacks run.
+    return automation.validate_synchronous_automation(
+        "on_json and on_data", "the received data"
+    )
+
+
 # Main configuration schema
 CONFIG_SCHEMA = (
     cv.Schema(
         {
             cv.GenerateID(): cv.declare_id(EmonTx),
-            cv.Optional(CONF_ON_JSON): automation.validate_automation({}),
-            cv.Optional(CONF_ON_DATA): automation.validate_automation({}),
+            cv.Optional(CONF_ON_JSON): _synchronous_automation_schema(),
+            cv.Optional(CONF_ON_DATA): _synchronous_automation_schema(),
+            cv.Optional(CONF_LOCK_ON_REBOOT, default=LOCK_ON_REBOOT_AUTO): cv.Any(
+                cv.boolean, cv.one_of(LOCK_ON_REBOOT_AUTO, lower=True)
+            ),
         }
     )
     .extend(cv.COMPONENT_SCHEMA)
@@ -62,13 +80,12 @@ def final_validate(config: ConfigType) -> None:
     full_config = fv.full_config.get()
 
     # Count sensors registered to this hub (IDs are resolved at final_validate stage)
-    hub_id = str(config[CONF_ID])
-    sensor_count = sum(
-        1
-        for s in full_config.get(SENSOR_DOMAIN, [])
-        if s.get("platform") == DOMAIN and str(s.get(CONF_EMONTX_ID)) == hub_id
+    hub_id = config[CONF_ID]
+    _get_data().sensor_counts[str(hub_id)] = len(
+        fv.platform_entries(
+            domain=SENSOR_DOMAIN, platform=DOMAIN, match={CONF_EMONTX_ID: hub_id}
+        )
     )
-    _get_data().sensor_counts[hub_id] = sensor_count
 
     # Ensure UART RX buffer size is large enough to handle data bursts from firmware
     for uart_conf in full_config[UART_DOMAIN]:
@@ -104,16 +121,17 @@ _CALLBACK_AUTOMATIONS = (
     automation.CallbackAutomation(
         CONF_ON_JSON,
         "add_on_json_callback",
-        [(cg.JsonObject, "json"), (cg.std_string, "raw_json")],
+        [(cg.JsonObject, "json"), (cg.StringRef, "raw_json")],
     ),
     automation.CallbackAutomation(
-        CONF_ON_DATA, "add_on_data_callback", [(cg.std_string, "data")]
+        CONF_ON_DATA, "add_on_data_callback", [(cg.StringRef, "data")]
     ),
 )
 
 
 async def to_code(config: ConfigType) -> None:
     var = cg.new_Pvariable(config[CONF_ID])
+    cg.add_define("USE_LINE_READER")
 
     # Initialize sensor storage with count from final_validate before any
     # await, so platform to_code() calls always see it initialized
@@ -125,6 +143,12 @@ async def to_code(config: ConfigType) -> None:
     await cg.register_component(var, config)
     await uart.register_uart_device(var, config)
     await automation.build_callback_automations(var, config, _CALLBACK_AUTOMATIONS)
+
+    lock = config[CONF_LOCK_ON_REBOOT]
+    cg.add(var.set_lock_on_reboot(LOCK_ON_REBOOT_MODES[lock]))
+    if lock == LOCK_ON_REBOOT_AUTO:
+        # Locking depends on the firmware version the emonTx reports
+        cg.add_define("USE_EMONTX_VERSION")
 
 
 # Action: emontx.send_command
@@ -150,3 +174,16 @@ automation.register_apply_action(
         CONF_COMMAND, "send_command", cg.std_string, const_fn=_plain_literal
     ),
 )
+
+
+# Let another component (e.g. serial_proxy) take exclusive ownership of the UART.
+
+EMONTX_ID_SCHEMA = automation.maybe_simple_id({cv.GenerateID(): cv.use_id(EmonTx)})
+
+automation.register_apply_action(
+    "emontx.pause", EMONTX_ID_SCHEMA, automation.ApplyCall("set_paused(true)")
+)
+automation.register_apply_action(
+    "emontx.resume", EMONTX_ID_SCHEMA, automation.ApplyCall("set_paused(false)")
+)
+automation.register_apply_condition("emontx.is_paused", EMONTX_ID_SCHEMA, "is_paused()")

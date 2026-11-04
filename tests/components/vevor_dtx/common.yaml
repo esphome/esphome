@@ -1,0 +1,39 @@
+vevor_dtx:
+  id: vevor_dtx_hub
+  receiver_id: rcvr
+  bit_time: 88us
+  station_id: 0x1234
+
+sensor:
+  - platform: vevor_dtx
+    vevor_dtx_id: vevor_dtx_hub
+    temperature:
+      name: Outdoor Temperature
+    humidity:
+      name: Outdoor Humidity
+    wind_speed:
+      name: Wind Speed
+    wind_gust:
+      name: Wind Gust
+    wind_direction_degrees:
+      name: Wind Direction
+    rain:
+      name: Rain
+    uv_index:
+      name: UV Index
+    illuminance:
+      name: Illuminance
+    tx_counter:
+      name: TX Counter
+
+text_sensor:
+  - platform: vevor_dtx
+    vevor_dtx_id: vevor_dtx_hub
+    sensor_id:
+      name: Sensor ID
+
+binary_sensor:
+  - platform: vevor_dtx
+    vevor_dtx_id: vevor_dtx_hub
+    low_battery:
+      name: Low Battery
