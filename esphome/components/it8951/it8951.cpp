@@ -812,10 +812,10 @@ void IT8951Display::power_cycle_rails_() {
     return;
   for (auto *pin : this->enable_pins_)
     pin->digital_write(false);
-  delay(250);
+  delay(250);  // NOLINT - recovery path only, runs at most once per 30 s
   for (auto *pin : this->enable_pins_)
     pin->digital_write(true);
-  delay(300);
+  delay(300);  // NOLINT - let the controller boot before the reset pulse
 }
 
 void IT8951Display::recover_() {
