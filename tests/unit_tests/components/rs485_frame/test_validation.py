@@ -22,6 +22,7 @@ from esphome.core import CORE
         ("rs485_frame_button_raw_exceeds_max_frame_length.yaml", "max_frame_length"),
         ("rs485_frame_button_value_exceeds_max_frame_length.yaml", "max_frame_length"),
         ("rs485_frame_button_frame_too_short.yaml", "at least 2 bytes"),
+        ("rs485_frame_button_value_too_wide.yaml", "does not fit in 1 byte"),
         ("rs485_frame_send_frame_too_short.yaml", "at least 2 bytes"),
         ("rs485_frame_send_frame_exceeds_max_frame_length.yaml", "5-byte frame"),
         ("rs485_frame_on_frame_empty_alt_prefix.yaml", "length of value must be"),

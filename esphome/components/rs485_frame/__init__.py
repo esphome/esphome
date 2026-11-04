@@ -152,7 +152,9 @@ def encode_command(
     order = "big" if command_format[CONF_ENDIAN] == "big" else "little"
     out = list(command_format[CONF_PREAMBLE])
     for value in values:
-        out.extend((int(value) & ((1 << (size * 8)) - 1)).to_bytes(size, order))
+        if value >= 1 << (size * 8):
+            raise cv.Invalid(f"value {value:#x} does not fit in {size} byte(s)")
+        out.extend(int(value).to_bytes(size, order))
     return out + list(command_format[CONF_POSTAMBLE])
 
 
