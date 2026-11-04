@@ -40,8 +40,8 @@ static const uint32_t AUDIO_CHANNEL_STALL_TIMEOUT_MS = 2000;
 
 #ifdef USE_VOICE_ASSISTANT_WAKE_WORD_AUDIO
 // Room for live audio while the buffered audio is sent
-static const uint32_t WAKE_WORD_AUDIO_HEADROOM_MS = 1000;
-static const uint32_t WAKE_WORD_DETECTION_MAX_AGE_MS = 1000;
+static constexpr uint32_t WAKE_WORD_AUDIO_HEADROOM_MS = 1000;
+static constexpr uint32_t WAKE_WORD_DETECTION_MAX_AGE_MS = 1000;
 
 static size_t trim_audio_source(audio::RingBufferAudioSource *source,
                                 const std::weak_ptr<ring_buffer::RingBuffer> &weak_ring_buffer, size_t target_bytes) {
