@@ -176,6 +176,8 @@ class WebServerBase final {
   void set_ssl_credentials(const char *certificate, const char *private_key) {
     this->ssl_certificate_ = certificate;
     this->ssl_private_key_ = private_key;
+    if (this->server_ != nullptr)
+      this->server_->set_ssl_credentials(certificate, private_key);  // used at the next init()
   }
 #endif
 

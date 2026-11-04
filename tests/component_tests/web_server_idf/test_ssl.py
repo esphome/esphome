@@ -100,3 +100,14 @@ def test_ssl_rejects_incompatible_components(
 
     assert read_config({}) is None
     assert f"can't be used together with {component} yet" in capsys.readouterr().out
+
+
+def test_ssl_needs_idf_5_5(
+    component_config_path: Callable[[str], Path],
+    capsys: pytest.CaptureFixture[str],
+) -> None:
+    """HTTPS is rejected before ESP-IDF 5.5, which added the TLS handshake timeout."""
+    CORE.config_path = component_config_path("https_idf_5_4.yaml")
+
+    assert read_config({}) is None
+    assert "HTTPS needs ESP-IDF 5.5 or later" in capsys.readouterr().out

@@ -6,7 +6,7 @@
 namespace esphome::https_test {
 
 // Self-signed test certificate and key, for this build test only.
-static const char *const CERTIFICATE = R"(-----BEGIN CERTIFICATE-----
+static constexpr const char *CERTIFICATE = R"(-----BEGIN CERTIFICATE-----
 MIIBkDCCATegAwIBAgIUMMwcTkVDiMSsim4eX/Cdul/ZnsIwCgYIKoZIzj0EAwIw
 HTEbMBkGA1UEAwwSZXNwaG9tZS10ZXN0LmxvY2FsMCAXDTI2MTEwMjIzMTYzNFoY
 DzIxMjYxMDA5MjMxNjM0WjAdMRswGQYDVQQDDBJlc3Bob21lLXRlc3QubG9jYWww
@@ -18,7 +18,7 @@ AiBn6XgNZA8M9FCLsheo80/VePtC6mci/MmzKrsUVHddmwIgUgouxiAVVswudya9
 kedDMCS2/klleJS8/Imr9J05eJ4=
 -----END CERTIFICATE-----
 )";
-static const char *const PRIVATE_KEY = R"(-----BEGIN PRIVATE KEY-----
+static constexpr const char *PRIVATE_KEY = R"(-----BEGIN PRIVATE KEY-----
 MIGHAgEAMBMGByqGSM49AgEGCCqGSM49AwEHBG0wawIBAQQgOWIIXfeG3RJdg0CW
 IRGNs0g7EbJUIzpQtCIUZbJ+jXGhRANCAASUqX7QDmtpdjZAP4DgMjaN4JIO7mYj
 6FGx7tz5MZCKrz/lkTJY9wMYFfQ0+fp6X69lP76nEkbBmgmc2isz4Uo2

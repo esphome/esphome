@@ -12,6 +12,7 @@ from esphome.components.esp32 import (
 )
 from esphome.config_helpers import filter_source_files_from_defines
 import esphome.config_validation as cv
+from esphome.const import KEY_CORE, KEY_FRAMEWORK_VERSION
 from esphome.core import CORE
 from esphome.types import ConfigType
 
@@ -105,7 +106,12 @@ def _httpd_max_open_sockets() -> int:
 def _final_validate(config: ConfigType) -> None:
     # Runs after every CONFIG_SCHEMA, so all require_plain_http() calls are in.
     data = _get_data()
-    if data.ssl and data.plain_http:
+    if not data.ssl:
+        return
+    # tls_handshake_timeout_ms, which keeps a stalled client from holding the server task, is new in 5.5.
+    if CORE.data[KEY_CORE][KEY_FRAMEWORK_VERSION] < cv.Version(5, 5, 0):
+        raise cv.Invalid("HTTPS needs ESP-IDF 5.5 or later")
+    if data.plain_http:
         names = ", ".join(data.plain_http)
         raise cv.Invalid(f"HTTPS can't be used together with {names} yet")
 

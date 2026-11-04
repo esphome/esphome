@@ -332,11 +332,9 @@ void AsyncWebServer::begin() {
     config.stack_size = std::max(config.stack_size, ssl_config.httpd.stack_size);
     ssl_config.httpd = config;
     ssl_config.port_secure = this->port_;
-#if ESP_IDF_VERSION >= ESP_IDF_VERSION_VAL(5, 5, 0)
     // A client that connects and never completes the handshake holds the server task. The check runs after each
     // 5 s receive timeout, so this ends it at the first one instead of after three (the 10 s default).
     ssl_config.tls_handshake_timeout_ms = 4000;
-#endif
     ssl_config.servercert = cert;
     ssl_config.servercert_len = cert_len;
     ssl_config.prvtkey_pem = key;
