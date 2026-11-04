@@ -47,7 +47,7 @@ def test_interrupt_codegen(
     component_config_path: Callable[[str], Path],
 ) -> None:
     """The configured pin reaches the driver."""
-    main = generate_main(component_config_path("../../canbus/config/send_fd.yaml"))
+    main = generate_main(component_config_path("send_fd.yaml"))
     assert "fd_bus->set_interrupt_pin(" in main
 
 

@@ -113,15 +113,22 @@ def validate_data_rate(config: ConfigType) -> ConfigType:
     return config
 
 
+_FD_DEFAULT_KEYS = (
+    canbus.CONF_DEFAULT_FD,
+    canbus.CONF_DEFAULT_BIT_RATE_SWITCH,
+    canbus.CONF_DEFAULT_PAD_DATA,
+)
+
+
 def validate_mode_defaults(config: ConfigType) -> ConfigType:
-    """Default NORMAL sends to FD and reject FD or BRS defaults in CLASSIC mode."""
-    config.setdefault(canbus.CONF_DEFAULT_FD, config[CONF_MODE] == "NORMAL")
-    if config[CONF_MODE] == "CLASSIC" and (
-        config[canbus.CONF_DEFAULT_FD] or config[canbus.CONF_DEFAULT_BIT_RATE_SWITCH]
-    ):
-        raise cv.Invalid(
-            "default_fd and default_bit_rate_switch must be false in CLASSIC mode"
-        )
+    """Default NORMAL sends to FD; a CLASSIC bus drops the FD defaults and is a classic bus."""
+    if config[CONF_MODE] != "CLASSIC":
+        config.setdefault(canbus.CONF_DEFAULT_FD, config[CONF_MODE] == "NORMAL")
+        return config
+    # Without these keys canbus treats the bus as classic: no USE_CANBUS_FD and no FD sends
+    for key in _FD_DEFAULT_KEYS:
+        if config.pop(key, False):
+            raise cv.Invalid(f"{key} must be false in CLASSIC mode", path=[key])
     return config
 
 
@@ -137,8 +144,8 @@ CONFIG_SCHEMA = cv.All(
                 canbus.CAN_DATA_SPEEDS, upper=True
             ),
             cv.Optional(CONF_MODE, default="NORMAL"): cv.enum(MCP_MODE, upper=True),
+            # No default here, so validate_mode_defaults can pick one from the mode
             cv.Optional(canbus.CONF_DEFAULT_FD): cv.boolean,
-            cv.Optional(canbus.CONF_DEFAULT_BIT_RATE_SWITCH, default=False): cv.boolean,
             cv.Optional(CONF_INTERRUPT_PIN): gpio_expander.validate_interrupt_pin,
         }
     )
@@ -174,8 +181,6 @@ async def to_code(config: ConfigType) -> None:
         HexInt(tdc),
     )
     await canbus.register_canbus(var, config, reports_status=True)
-    if config[CONF_MODE] == "CLASSIC":
-        cg.add(var.set_supports_fd(False))
     await spi.register_spi_device(var, config)
     if (interrupt_pin := config.get(CONF_INTERRUPT_PIN)) is not None:
         pin = await cg.gpio_pin_expression(interrupt_pin)
