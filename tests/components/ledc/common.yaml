@@ -58,3 +58,9 @@ output:
       number: ${ledc_both_inverted_pin}
       inverted: true
     inverted: true
+  - platform: ledc
+    id: test_ledc_dithered
+    pin: 21
+    channel: 4
+    frequency: 19531Hz
+    dithering: true

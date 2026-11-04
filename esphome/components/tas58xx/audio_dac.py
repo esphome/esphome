@@ -12,8 +12,6 @@ from esphome.const import CONF_ENABLE_PIN, CONF_ID, CONF_MODEL
 from esphome.cpp_generator import MockObj
 from esphome.types import ConfigType
 
-from . import FILTER_SOURCE_FILES  # noqa: F401  pylint: disable=unused-import
-
 _LOGGER = logging.getLogger(__name__)
 
 DEPENDENCIES = ["i2c"]
