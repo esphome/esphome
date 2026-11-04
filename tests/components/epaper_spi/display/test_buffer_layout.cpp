@@ -2,6 +2,7 @@
 
 #include "esphome/components/epaper_spi/epaper_spi_ssd1677_gray4.h"
 #include "esphome/components/epaper_spi/epaper_spi_ssd1683.h"
+#include "esphome/components/epaper_spi/epaper_spi_inkplate13spectra.h"
 #include "esphome/components/epaper_spi/epaper_spi_t133a01.h"
 #include "esphome/components/epaper_spi/epaper_waveshare_bwr.h"
 #include "esphome/components/epaper_spi/epaper_weact_3c.h"
@@ -11,7 +12,8 @@ namespace {
 
 template<typename Driver> class Layout : public Driver {
  public:
-  Layout(uint16_t width, uint16_t height) : Driver("test", width, height, nullptr, 0) {}
+  template<typename... Extra>
+  Layout(uint16_t width, uint16_t height, Extra... extra) : Driver("test", width, height, nullptr, 0, extra...) {}
   uint16_t row_width() const { return this->row_width_; }
   size_t buffer_length() const { return this->buffer_length_; }
   bool is_mono() const { return this->buffer_is_mono_(); }
@@ -34,6 +36,11 @@ TEST(EPaperBufferLayout, SizesFollowBitsPerPixelAndPlanes) {
   EXPECT_EQ(t133.row_width(), 10);
   EXPECT_EQ(t133.buffer_length(), 30u);
   EXPECT_FALSE(t133.is_mono());
+
+  Layout<EPaperInkplate13Spectra> inkplate13(20, 3);
+  EXPECT_EQ(inkplate13.row_width(), 10);
+  EXPECT_EQ(inkplate13.buffer_length(), 30u);
+  EXPECT_FALSE(inkplate13.is_mono());
 
   Layout<EPaperWeAct3C> weact(21, 3);
   EXPECT_EQ(weact.row_width(), 3);

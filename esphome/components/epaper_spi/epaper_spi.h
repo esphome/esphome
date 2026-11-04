@@ -127,7 +127,8 @@ class EPaperBase : public Display,
 
   const LogString *epaper_state_to_string_();
   bool is_idle_() const;
-  void setup_pins_() const;
+  /// Sets up the panel pins and drives the enable and reset pins high
+  virtual void setup_pins() const;
   virtual bool reset();
   /// The reset pin part of reset(), for a driver that must skip what its parent adds to it
   bool hardware_reset_();

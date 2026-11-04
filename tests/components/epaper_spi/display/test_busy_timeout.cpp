@@ -84,7 +84,8 @@ class TestableT133A01 : public EPaperT133A01 {
   void install(spi::SPIDelegate *delegate) {
     this->delegate_ = delegate;
     this->set_dc_pin(&this->dc);
-    this->set_cs_pins(&this->cs, &this->cs1);
+    this->set_primary_cs_pin(&this->cs);
+    this->set_secondary_cs_pin(&this->cs1);
     this->set_busy_pin(&this->busy);
     ASSERT_TRUE(this->init_buffer_(this->buffer_length_));
     this->busy_timeout_seconds_ = 0;  // abandon as soon as the stuck pin is seen, so the test does not wait
@@ -92,6 +93,13 @@ class TestableT133A01 : public EPaperT133A01 {
 
   void start_transfer() { this->set_state_(EPaperState::TRANSFER_DATA); }
   EPaperState state() const { return this->state_; }
+
+  using EPaperT133A01::draw_pixel_at;
+  using EPaperT133A01::partial_;
+  using EPaperT133A01::transfer_chip_;
+  using EPaperT133A01::transfer_sub_;
+  using EPaperT133A01::TRF_PARTIAL_WAIT;
+  using EPaperT133A01::waiting_for_idle_;
 
   RecordingPin dc, cs, cs1;
   SwitchableBusyPin busy;
@@ -116,6 +124,32 @@ TEST(EPaperBusyTimeout, AbandonedT133A01TransferReleasesTheBus) {
   EXPECT_EQ(delegate.begin_count, delegate.end_count) << "SPI transaction left open";
   EXPECT_TRUE(display.cs.level) << "CS left asserted";
   EXPECT_TRUE(display.cs1.level) << "CS1 left asserted";
+}
+
+/// A partial update waits for the busy pin between its two halves. That wait must use the same timeout as every other
+/// wait, so a stuck pin abandons the update instead of leaving the display busy for ever and refusing every later
+/// update.
+TEST(EPaperBusyTimeout, StuckBusyPinDuringPartialUpdateAbandonsIt) {
+  TestableT133A01 display;
+  TimedSPIDelegate delegate(0);
+  display.install(&delegate);
+
+  // Draw something and run a partial transfer up to the wait after the first half. The wait on entering
+  // TRANSFER_DATA is long over, so the stuck pin is first seen by the partial path's own wait.
+  display.draw_pixel_at(0, 0, Color(0, 0, 0));
+  display.partial_ = true;
+  display.start_transfer();
+  display.waiting_for_idle_ = false;
+  const uint32_t deadline = millis() + 1000;
+  while (display.transfer_sub_ != TestableT133A01::TRF_PARTIAL_WAIT && millis() < deadline)
+    display.loop();
+  ASSERT_EQ(display.transfer_sub_, TestableT133A01::TRF_PARTIAL_WAIT);
+  ASSERT_EQ(display.transfer_chip_, 0);
+  display.busy.busy = true;
+
+  loop_until_idle(display);
+
+  EXPECT_EQ(display.state(), EPaperState::IDLE) << "a stuck busy pin during a partial update was never given up on";
 }
 
 /// Abandoning an update powers the panel off, so it is not left with its high-voltage drivers enabled.
