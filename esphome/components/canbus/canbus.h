@@ -117,8 +117,14 @@ class CanPayload : public StaticVector<uint8_t, CAN_FRAME_DATA_LENGTH> {
   // Not = default, so value-init does not zero the buffer
   CanPayload() {}
   CanPayload(const std::vector<uint8_t> &data)  // NOLINT(google-explicit-constructor)
-      : StaticVector<uint8_t, CAN_FRAME_DATA_LENGTH>(data.begin(), data.end()) {}
+      : StaticVector<uint8_t, CAN_FRAME_DATA_LENGTH>(data.begin(), data.end()),
+        truncated_(data.size() > CAN_FRAME_DATA_LENGTH) {}
   operator std::vector<uint8_t>() const { return {this->begin(), this->end()}; }  // NOLINT(google-explicit-constructor)
+  /// Whether it was built from a vector longer than one frame can carry
+  bool truncated() const { return this->truncated_; }
+
+ protected:
+  bool truncated_{false};
 };
 
 /// One CAN frame as passed between the bus and its driver. The CAN FD flags come after data, so code that
@@ -282,6 +288,8 @@ class Canbus : public Component {
   void log_events_(CanEventFlags events, uint32_t now);
   /// Logs and sends a frame that is already valid.
   canbus::Error send_frame_(const CanFrame &frame);
+  /// For a canbus.send lambda: a CAN FD frame that did not fit is refused, a classic one is cut to 8 bytes.
+  bool lambda_payload_fits_(const CanPayload &payload, bool fd);
   virtual bool setup_internal() = 0;
   virtual Error send_message(struct CanFrame *frame) = 0;
   virtual Error read_message(struct CanFrame *frame) = 0;
@@ -313,16 +321,25 @@ template<typename... Ts> class CanbusSendAction final : public Action<Ts...>, pu
     const bool bit_rate_switch = this->bit_rate_switch_.value_or(x..., fd && this->parent_->default_bit_rate_switch_);
     const bool pad_data = this->pad_data_.value_or(x..., this->parent_->default_pad_data_);
 #endif
-    this->data_.template visit<CAN_FRAME_DATA_LENGTH>(
-        [&](const uint8_t *data, size_t len) {
-#ifdef USE_CANBUS_FD
-          this->parent_->send_data(can_id, use_extended_id, this->remote_transmission_request_, data, len, fd,
-                                   bit_rate_switch, pad_data);
-#else
-          this->parent_->send_data(can_id, use_extended_id, this->remote_transmission_request_, data, len);
+#ifndef USE_CANBUS_FD
+    const bool fd = false;
 #endif
-        },
-        x...);
+    auto send = [&](const uint8_t *data, size_t len) {
+#ifdef USE_CANBUS_FD
+      this->parent_->send_data(can_id, use_extended_id, this->remote_transmission_request_, data, len, fd,
+                               bit_rate_switch, pad_data);
+#else
+      this->parent_->send_data(can_id, use_extended_id, this->remote_transmission_request_, data, len);
+#endif
+    };
+    if (this->data_.is_static()) {
+      this->data_.template visit<CAN_FRAME_DATA_LENGTH>(send, x...);
+      return;
+    }
+    // The conversion from a lambda's vector cuts it to one frame, so the length it had is checked here
+    const CanPayload payload = this->data_.value(x...);
+    if (this->parent_->lambda_payload_fits_(payload, fd))
+      send(payload.data(), payload.size());
   }
 
  protected:

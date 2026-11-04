@@ -45,6 +45,8 @@ TEST(CanbusSend, RemoteRequestDoesNotReadData) {
   ASSERT_EQ(bus.sent.size(), 1u);
   EXPECT_TRUE(bus.sent[0].remote_transmission_request);
   EXPECT_EQ(bus.sent[0].can_data_length_code, 8);
+  // Zeroed, not left from the stack, since drivers and the verbose log still read them
+  EXPECT_EQ(payload_bytes(bus.sent[0]), std::vector<uint8_t>(8, 0));
 }
 
 TEST(CanbusSend, FrameIdentifierMustFitItsWidth) {

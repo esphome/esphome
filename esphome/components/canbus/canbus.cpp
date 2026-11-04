@@ -70,17 +70,35 @@ canbus::Error Canbus::send_data(uint32_t can_id, bool use_extended_id, bool remo
     return this->send_data(frame);
   }
 #endif
+  if (len > CAN_MAX_DATA_LENGTH) {
+    ESP_LOGW(TAG, "Classic CAN carries 8 bytes, %zu cut", len);
+  }
   // Clamp before narrowing, so a lambda payload of 256 bytes or more cannot wrap to a short length
   frame.can_data_length_code = static_cast<uint8_t>(std::min<size_t>(len, CAN_MAX_DATA_LENGTH));
-  // An empty vector may hand over a null pointer, which memcpy must not get even for 0 bytes
-  if (!remote_transmission_request && frame.can_data_length_code != 0)
+  // A remote request carries no data, so its bytes are zeroed rather than left from the stack. An empty vector may
+  // hand over a null pointer, which memcpy must not get even for 0 bytes.
+  if (remote_transmission_request) {
+    std::memset(frame.data, 0, frame.can_data_length_code);
+  } else if (frame.can_data_length_code != 0) {
     std::memcpy(frame.data, data, frame.can_data_length_code);
+  }
 #ifdef USE_CANBUS_FD
   // The caller's flags can still contradict each other
   return this->send_data(frame);
 #else
   return this->send_frame_(frame);
 #endif
+}
+
+bool Canbus::lambda_payload_fits_(const CanPayload &payload, bool fd) {
+  if (!payload.truncated())
+    return true;
+  if (fd) {
+    ESP_LOGE(TAG, "CAN FD carries at most %u bytes, frame not sent", CAN_FRAME_DATA_LENGTH);
+    return false;
+  }
+  ESP_LOGW(TAG, "Classic CAN carries 8 bytes, the rest is cut");
+  return true;
 }
 
 canbus::Error Canbus::send_frame_(const CanFrame &frame) {

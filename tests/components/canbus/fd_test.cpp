@@ -170,6 +170,28 @@ TEST(CanbusFd, ClassicDriverAfterFdFrameSeesClearedFlags) {
 static bool yes() { return true; }
 static bool no() { return false; }
 
+static CanPayload sixty_four_bytes() { return std::vector<uint8_t>(64, 0xAB); }
+static CanPayload sixty_five_bytes() { return std::vector<uint8_t>(65, 0xAB); }
+
+TEST(CanbusFd, ActionRefusesAnFdLambdaPayloadThatDoesNotFit) {
+  struct Case {
+    CanPayload (*data)();
+    bool expect_sent;
+  };
+  for (const auto &c : {Case{sixty_four_bytes, true}, Case{sixty_five_bytes, false}}) {
+    FdCanbus bus;
+    bus.set_can_id(0x100);
+    bus.set_default_fd(true);
+    CanbusSendAction<> action;
+    action.set_parent(&bus);
+    action.set_data_template(c.data);
+    action.play();
+    ASSERT_EQ(bus.sent.size(), c.expect_sent ? 1u : 0u);
+    if (c.expect_sent)
+      EXPECT_EQ(bus.sent[0].payload_length(), 64);
+  }
+}
+
 TEST(CanbusFd, ActionDefaultsAndOverrides) {
   using Flag = bool (*)();
   struct Case {
