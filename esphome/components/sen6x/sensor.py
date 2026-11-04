@@ -360,7 +360,8 @@ for _name, _call in (
 SEN6X_FORCED_CO2_RECALIBRATION_SCHEMA = cv.Schema(
     {
         cv.Required(CONF_ID): cv.use_id(SEN6XComponent),
-        # Reference CO2 concentration in ppm, within the sensor's 0 to 40000 ppm range
+        # Reference CO2 concentration in ppm, within the sensor's 0 to 40000 ppm range.
+        # A float, so a lambda can pass a sensor state; C++ rejects NaN and out-of-range values.
         cv.Required(CONF_VALUE): cv.templatable(cv.int_range(min=0, max=40000)),
     }
 )
@@ -369,5 +370,5 @@ SEN6X_FORCED_CO2_RECALIBRATION_SCHEMA = cv.Schema(
 automation.register_apply_action(
     "sen6x.perform_forced_co2_recalibration",
     SEN6X_FORCED_CO2_RECALIBRATION_SCHEMA,
-    automation.ApplyField(CONF_VALUE, "perform_forced_co2_recalibration", cg.uint16),
+    automation.ApplyField(CONF_VALUE, "perform_forced_co2_recalibration", cg.float_),
 )

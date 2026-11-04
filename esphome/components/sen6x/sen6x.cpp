@@ -62,6 +62,8 @@ static constexpr uint32_t CO2_FORCED_RECALIBRATION_DELAY = 500;
 // Correction read back after a forced recalibration: 0xFFFF on failure, otherwise ppm offset by 0x8000
 static constexpr uint16_t CO2_FORCED_RECALIBRATION_FAILED = 0xFFFF;
 static constexpr uint16_t CO2_FORCED_RECALIBRATION_OFFSET = 0x8000;
+// Highest accepted reference: the sensor's 40000 ppm range, the same limit the schema applies to constants
+static constexpr float CO2_FORCED_RECALIBRATION_MAX_PPM = 40000.0f;
 // Accepted range of a runtime pressure source, the same as the schema's ambient_pressure_compensation
 static constexpr float AMBIENT_PRESSURE_MIN_HPA = 700.0f;
 static constexpr float AMBIENT_PRESSURE_MAX_HPA = 1200.0f;
@@ -726,7 +728,9 @@ uint32_t SEN6XComponent::command_wait_remaining_() const {
   return elapsed < this->command_wait_ ? this->command_wait_ - elapsed : 0;
 }
 
-bool SEN6XComponent::command_blocked_() const { return this->command_wait_remaining_() != 0; }
+bool SEN6XComponent::command_blocked_() const {
+  return this->co2_recalibration_pending_ || this->command_wait_remaining_() != 0;
+}
 
 void SEN6XComponent::set_command_wait_(uint32_t wait_ms) {
   this->command_started_at_ = millis();
@@ -820,11 +824,16 @@ void SEN6XComponent::activate_sht_heater() {
   this->set_command_wait_(SHT_HEATER_DELAY);
 }
 
-void SEN6XComponent::perform_forced_co2_recalibration(uint16_t target_co2_ppm) {
+void SEN6XComponent::perform_forced_co2_recalibration(float target_co2_ppm) {
   if (!this->initialized_)
     return;
   if (this->co2_sensor_ == nullptr) {
     ESP_LOGW(TAG, "Forced CO2 recalibration requires a CO2 sensor");
+    return;
+  }
+  // The schema only range-checks constants; a templated value is checked here, as the device keeps the result
+  if (std::isnan(target_co2_ppm) || target_co2_ppm < 0.0f || target_co2_ppm > CO2_FORCED_RECALIBRATION_MAX_PPM) {
+    ESP_LOGW(TAG, "Forced CO2 recalibration value out of range: %.0f ppm", target_co2_ppm);
     return;
   }
   // The device only accepts this command in idle mode, at least 600 ms after a stop; the stop's
@@ -837,27 +846,31 @@ void SEN6XComponent::perform_forced_co2_recalibration(uint16_t target_co2_ppm) {
     ESP_LOGW(TAG, "Device busy");
     return;
   }
-  if (!this->write_command(SEN6X_CMD_CO2_FORCED_RECALIBRATION, target_co2_ppm)) {
+  const auto target = static_cast<uint16_t>(lroundf(target_co2_ppm));
+  if (!this->write_command(SEN6X_CMD_CO2_FORCED_RECALIBRATION, target)) {
     this->status_set_warning();
     ESP_LOGW(TAG, "Forced CO2 recalibration failed (%d)", this->last_error_);
     return;
   }
-  // The result is read when the recalibration window ends; keep other commands out until it has been
-  this->set_command_wait_(CO2_FORCED_RECALIBRATION_DELAY + I2C_READ_DELAY);
-  this->set_timeout(TIMEOUT_CO2_RECALIBRATION, CO2_FORCED_RECALIBRATION_DELAY, [this, target_co2_ppm]() {
+  this->set_command_wait_(CO2_FORCED_RECALIBRATION_DELAY);
+  // Keep other commands out until the result has been read, however late the timeout runs
+  this->co2_recalibration_pending_ = true;
+  this->set_timeout(TIMEOUT_CO2_RECALIBRATION, CO2_FORCED_RECALIBRATION_DELAY, [this, target]() {
     uint16_t correction;
-    if (!this->read_data(correction)) {
+    const bool read_ok = this->read_data(correction);
+    this->co2_recalibration_pending_ = false;
+    if (!read_ok) {
       this->status_set_warning();
       ESP_LOGW(TAG, "Reading the forced CO2 recalibration result failed (%d)", this->last_error_);
       return;
     }
     if (correction == CO2_FORCED_RECALIBRATION_FAILED) {
       this->status_set_warning();
-      ESP_LOGW(TAG, "Forced CO2 recalibration to %u ppm rejected by the sensor", target_co2_ppm);
+      ESP_LOGW(TAG, "Forced CO2 recalibration to %u ppm rejected by the sensor", target);
       return;
     }
     const int correction_ppm = static_cast<int>(correction) - CO2_FORCED_RECALIBRATION_OFFSET;
-    ESP_LOGI(TAG, "Forced CO2 recalibration to %u ppm done, correction %d ppm", target_co2_ppm, correction_ppm);
+    ESP_LOGI(TAG, "Forced CO2 recalibration to %u ppm done, correction %d ppm", target, correction_ppm);
   });
 }
 
