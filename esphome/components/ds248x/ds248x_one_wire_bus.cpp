@@ -12,6 +12,10 @@ void DS248xOneWireBus::setup() {
 
   // Parent setup happens in DS248xComponent::setup()
   // We just need to scan for devices on this channel
+  if (this->parent_ != nullptr && this->parent_->is_failed()) {
+    this->mark_failed(LOG_STR("DS248x hub failed"));
+    return;
+  }
   if (!this->ensure_channel_()) {
     ESP_LOGE(TAG, "Failed to select channel %d during setup", this->channel_);
     this->mark_failed();
@@ -34,6 +38,9 @@ bool DS248xOneWireBus::ensure_channel_() {
     ESP_LOGE(TAG, "Parent not set!");
     return false;
   }
+  // Skip I2C traffic to a hub that never came up
+  if (this->parent_->is_failed())
+    return false;
   return this->parent_->select_channel(this->channel_);
 }
 

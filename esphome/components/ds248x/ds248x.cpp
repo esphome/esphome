@@ -70,16 +70,19 @@ bool DS248xComponent::wait_busy_() {
   uint32_t start = millis();
   do {
     uint8_t status;
-    if (this->read(&status, 1) == i2c::ERROR_OK && !(status & DS248X_STATUS_BUSY))
+    if (this->read(&status, 1) == i2c::ERROR_OK && !(status & DS248X_STATUS_BUSY)) {
+      this->status_clear_warning();
       return true;
+    }
     delayMicroseconds(100);
   } while (millis() - start < BUSY_TIMEOUT_MS);
   ESP_LOGW(TAG, "DS248x busy timeout");
   bool recovered = this->device_reset_() && this->device_configure_();
   this->current_channel_ = -1;
   if (!recovered) {
+    // Keep the component usable so a later command can succeed once the bus recovers
     ESP_LOGE(TAG, "DS248x recovery failed after busy timeout");
-    this->mark_failed();
+    this->status_set_warning();
   }
   return false;
 }
@@ -217,11 +220,9 @@ bool DS248xComponent::select_channel(uint8_t channel) {
     return false;
   }
 
-  if (!this->set_read_pointer_(DS248X_POINTER_STATUS))
-    return false;
-
+  // The channel is switched now, so cache it even if restoring the read pointer fails
   this->current_channel_ = channel;
-  return true;
+  return this->set_read_pointer_(DS248X_POINTER_STATUS);
 }
 
 // --- 1-Wire Bus Operations ---
