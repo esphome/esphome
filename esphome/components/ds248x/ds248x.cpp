@@ -14,7 +14,7 @@ void DS248xComponent::setup() {
     this->sleep_pin_->setup();
     this->sleep_pin_->pin_mode(esphome::gpio::FLAG_OUTPUT);
     this->sleep_pin_->digital_write(true);  // Wake up
-    delay(1);                               // DS2482-101 Datasheet: tOSCWUP = 100μs (using 10x margin)
+    delay(2);                               // tSWUP max: 2ms on DS2484, 100us on DS2482-101
   }
 
   // Probe device
