@@ -448,6 +448,17 @@ template<typename T, size_t N> class StaticRingBuffer {
     return true;
   }
 
+  /// Insert `value` so it is popped next; returns false when full.
+  bool push_front(const T &value) {
+    if (this->count_ >= N) {
+      return false;
+    }
+    this->head_ = (this->head_ + N - 1) % N;
+    this->data_[this->head_] = value;
+    ++this->count_;
+    return true;
+  }
+
   void pop() {
     if (this->count_ > 0) {
       this->head_ = (this->head_ + 1) % N;
