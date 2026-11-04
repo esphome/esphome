@@ -23,6 +23,10 @@ void RS485FrameHub::setup() {
   }
   if (this->dump_frames_)
     this->hex_log_buf_ = std::make_unique<char[]>(format_hex_size(this->tx_slot_capacity_()));
+  // idle_gap waits min_silence from boot on a quiet bus; fixed_delay may send right away.
+  const uint32_t now = millis();
+  this->last_activity_time_ = now;
+  this->last_tx_time_ = now - this->tx_fixed_interval_;
 }
 
 void RS485FrameHub::loop() {
@@ -36,7 +40,7 @@ void RS485FrameHub::loop() {
   }
 
   this->maybe_tx_(now);
-  if (this->tx_start_pending_ && now - this->tx_start_at_ < 0x80000000UL) {
+  if (this->tx_start_pending_ && now - this->tx_delay_start_ >= this->tx_gate_delay_) {
     this->tx_start_pending_ = false;
     this->transmit_head_(now);
   }
@@ -119,7 +123,6 @@ void RS485FrameHub::reset_rx_() {
 void RS485FrameHub::handle_rx_byte_(uint8_t byte, uint32_t now) {
   this->last_rx_time_ = now;
   this->last_activity_time_ = now;
-  this->has_activity_ = true;
   if (!this->after_dle_) {
     if (byte == this->dle_) {
       this->after_dle_ = true;
@@ -253,11 +256,9 @@ size_t RS485FrameHub::build_frame_(const uint8_t *payload, size_t len, uint8_t *
 }
 
 void RS485FrameHub::maybe_tx_(uint32_t now) {
-  if (this->tx_gate_mode_ == TX_GATE_IDLE_GAP && this->has_activity_ &&
-      now - this->last_activity_time_ >= this->tx_idle_gap_)
+  if (this->tx_gate_mode_ == TX_GATE_IDLE_GAP && now - this->last_activity_time_ >= this->tx_idle_gap_)
     this->send_next_(now);
-  if (this->tx_gate_mode_ == TX_GATE_FIXED_DELAY &&
-      (!this->has_tx_ever_ || now - this->last_tx_time_ >= this->tx_fixed_interval_))
+  if (this->tx_gate_mode_ == TX_GATE_FIXED_DELAY && now - this->last_tx_time_ >= this->tx_fixed_interval_)
     this->send_next_(now);
 }
 
@@ -265,7 +266,7 @@ void RS485FrameHub::send_next_(uint32_t now) {
   if (this->sniffer_only_ || this->tx_start_pending_ || this->tx_queue_count_ == 0)
     return;
   if (this->tx_gate_delay_ > 0) {
-    this->tx_start_at_ = now + this->tx_gate_delay_;
+    this->tx_delay_start_ = now;
     this->tx_start_pending_ = true;
   } else {
     this->transmit_head_(now);
@@ -287,8 +288,6 @@ void RS485FrameHub::transmit_head_(uint32_t now) {
   this->tx_queue_count_--;
   this->last_tx_time_ = now;
   this->last_activity_time_ = now;
-  this->has_activity_ = true;
-  this->has_tx_ever_ = true;
 }
 
 void RS485FrameHub::log_frame_(const char *dir, const uint8_t *data, size_t len) {

@@ -133,9 +133,10 @@ class RS485FrameHub : public Component, public uart::UARTDevice {
   std::unique_ptr<char[]> hex_log_buf_;
   uint32_t last_rx_time_{0};
   uint32_t last_tx_time_{0};
-  // Advanced by RX and our own TX.
+  // Seeded in setup(), then advanced by RX and our own TX.
   uint32_t last_activity_time_{0};
-  uint32_t tx_start_at_{0};
+  // When the frame waiting out the gate delay was released.
+  uint32_t tx_delay_start_{0};
   uint16_t rx_payload_len_{0};
 
   uint8_t dle_{0x10};
@@ -158,8 +159,6 @@ class RS485FrameHub : public Component, public uart::UARTDevice {
   bool in_frame_{false};
   // The last byte was a DLE whose meaning the next byte decides.
   bool after_dle_{false};
-  bool has_activity_{false};
-  bool has_tx_ever_{false};
   bool tx_start_pending_{false};
 };
 

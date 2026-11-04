@@ -6,10 +6,29 @@
 #include <vector>
 
 #include "esphome/components/rs485_frame/rs485_frame.h"
+#include "esphome/components/uart/uart_component.h"
+#include "esphome/core/application.h"
 
 namespace esphome::rs485_frame::testing {
 
 namespace {
+
+// Records what the hub writes; reads nothing.
+class FakeUART : public uart::UARTComponent {
+ public:
+  void write_array(const uint8_t *data, size_t len) override {
+    this->written.insert(this->written.end(), data, data + len);
+  }
+  bool peek_byte(uint8_t *data) override { return false; }
+  bool read_array(uint8_t *data, size_t len) override { return false; }
+  size_t available() override { return 0; }
+  uart::UARTFlushResult flush() override { return uart::UARTFlushResult::UART_FLUSH_RESULT_SUCCESS; }
+  void check_logger_conflict() override {}
+#if defined(USE_ESP8266) || defined(USE_ESP32)
+  void load_settings(bool dump_config) override {}
+#endif
+  std::vector<uint8_t> written;
+};
 
 class RS485FrameHubProbe : public RS485FrameHub {
  public:
@@ -28,6 +47,13 @@ class RS485FrameHubProbe : public RS485FrameHub {
   std::vector<uint8_t> rx_payload_for_test() const {
     return {this->rx_payload_.get(), this->rx_payload_.get() + this->rx_payload_len_};
   }
+  void maybe_tx_for_test(uint32_t now) { this->maybe_tx_(now); }
+  void send_next_for_test(uint32_t now) { this->send_next_(now); }
+  void loop_at_for_test(uint32_t now) {
+    LoopBlockingGuard guard{nullptr, nullptr, now};
+    this->loop();
+  }
+  uint32_t last_activity_for_test() const { return this->last_activity_time_; }
   size_t queue_depth_for_test() const { return this->tx_queue_count_; }
   bool has_tx_queue_for_test() const { return this->tx_queue_ != nullptr; }
   std::vector<uint8_t> queued_frame_for_test(size_t i) const {
@@ -311,6 +337,64 @@ TEST(RS485FrameHubTest, FrameCallbackReceivesPayload) {
   static const uint8_t OTHER[] = {0x01, 0x09};
   EXPECT_TRUE(frame_has_prefix(received, PREFIX, sizeof(PREFIX)));
   EXPECT_FALSE(frame_has_prefix(received, OTHER, sizeof(OTHER)));
+}
+
+// idle_gap on a bus that has carried no byte yet transmits once min_silence has passed since boot.
+TEST(RS485FrameHubTest, IdleGapTransmitsOnQuietBus) {
+  FakeUART uart;
+  RS485FrameHubProbe hub;
+  hub.set_uart_parent(&uart);
+  hub.set_tx_gate_mode(TX_GATE_IDLE_GAP);
+  hub.set_tx_idle_gap(20);
+  hub.setup();
+  static const uint8_t DATA[] = {0x01, 0x02};
+  ASSERT_TRUE(hub.queue_frame(DATA, sizeof(DATA)));
+
+  const uint32_t boot = hub.last_activity_for_test();
+  hub.maybe_tx_for_test(boot + 19);
+  EXPECT_EQ(hub.queue_depth_for_test(), 1u);
+  hub.maybe_tx_for_test(boot + 20);
+  EXPECT_EQ(hub.queue_depth_for_test(), 0u);
+  EXPECT_FALSE(uart.written.empty());
+}
+
+// fixed_delay sends the first frame without waiting a full interval.
+TEST(RS485FrameHubTest, FixedDelaySendsFirstFrameRightAway) {
+  FakeUART uart;
+  RS485FrameHubProbe hub;
+  hub.set_uart_parent(&uart);
+  hub.set_tx_gate_mode(TX_GATE_FIXED_DELAY);
+  hub.set_tx_fixed_interval(100);
+  hub.setup();
+  static const uint8_t DATA[] = {0x01, 0x02};
+  ASSERT_TRUE(hub.queue_frame(DATA, sizeof(DATA)));
+
+  const uint32_t now = millis();
+  hub.maybe_tx_for_test(now);
+  EXPECT_EQ(hub.queue_depth_for_test(), 0u);
+
+  ASSERT_TRUE(hub.queue_frame(DATA, sizeof(DATA)));
+  hub.maybe_tx_for_test(now + 99);
+  EXPECT_EQ(hub.queue_depth_for_test(), 1u);
+  hub.maybe_tx_for_test(now + 100);
+  EXPECT_EQ(hub.queue_depth_for_test(), 0u);
+}
+
+// The gate delay holds the frame for delay ms, also across a millis() wrap.
+TEST(RS485FrameHubTest, GateDelayHoldsFrameAcrossWrap) {
+  FakeUART uart;
+  RS485FrameHubProbe hub;
+  hub.set_uart_parent(&uart);
+  hub.set_tx_gate_delay(10);
+  hub.setup();
+  static const uint8_t DATA[] = {0x01, 0x02};
+  ASSERT_TRUE(hub.queue_frame(DATA, sizeof(DATA)));
+
+  hub.send_next_for_test(0xFFFFFFF8);
+  hub.loop_at_for_test(0x00000001);
+  EXPECT_EQ(hub.queue_depth_for_test(), 1u);
+  hub.loop_at_for_test(0x00000002);
+  EXPECT_EQ(hub.queue_depth_for_test(), 0u);
 }
 
 }  // namespace esphome::rs485_frame::testing
