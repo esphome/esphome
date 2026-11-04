@@ -128,6 +128,7 @@ class MQTTBackendESP32 final : public MQTTBackend {
   static constexpr ssize_t TASK_PRIORITY = 5;
   static constexpr uint8_t MQTT_QUEUE_LENGTH = 30;        // 30*12 bytes = 360
   static constexpr uint8_t MQTT_EVENT_QUEUE_LENGTH = 32;  // Inbound events from broker
+  static constexpr uint32_t EVENT_DRAIN_BUDGET_MS = 10;
   static constexpr uint8_t MQTT_EVENT_POOL_SIZE = MQTT_EVENT_QUEUE_LENGTH - 1;
 
   void set_keep_alive(uint16_t keep_alive) final { this->keep_alive_ = keep_alive; }

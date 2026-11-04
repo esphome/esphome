@@ -106,13 +106,16 @@ bool MQTTBackendESP32::initialize_() {
 }
 
 void MQTTBackendESP32::loop() {
-  // Drain the queue, capped at the pool size so a steady stream cannot hold the loop
+  // Drain the queue, capped by count and time so heavy on_message automations cannot hold the loop
+  const uint32_t start = App.get_loop_component_start_time();
   for (uint8_t i = 0; i < MQTT_EVENT_POOL_SIZE; i++) {
     Event *event = this->mqtt_event_queue_.pop();
     if (event == nullptr)
       break;
     this->mqtt_event_handler_(*event);
     this->mqtt_event_pool_.release(event);
+    if (millis() - start >= EVENT_DRAIN_BUDGET_MS)
+      break;
   }
 
   // Log dropped inbound events (check is cheap - single atomic load in common case)
