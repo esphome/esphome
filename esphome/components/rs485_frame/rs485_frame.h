@@ -105,7 +105,7 @@ class RS485FrameHub : public Component, public uart::UARTDevice {
   void transmit_head_(uint32_t now);
   /// How long len bytes take on the wire at the UART's baud rate and frame format.
   uint16_t wire_time_ms_(size_t len) const;
-  void log_frame_(const char *dir, const uint8_t *data, size_t len);
+  void log_frame_(const LogString *dir, const uint8_t *data, size_t len);
 
   // The unescaped frame being received, then the `payload` on_frame receives.
   uint8_t *const rx_payload_;

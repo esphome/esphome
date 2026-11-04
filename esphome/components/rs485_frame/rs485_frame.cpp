@@ -159,7 +159,7 @@ void RS485FrameHub::process_frame_(uint32_t now) {
   if (!this->check_crc_())
     return;
   if (this->dump_frames_)
-    this->log_frame_("RX", this->rx_payload_, this->rx_payload_len_ + this->crc_len_);
+    this->log_frame_(LOG_STR("RX"), this->rx_payload_, this->rx_payload_len_ + this->crc_len_);
 
   const std::span<const uint8_t> payload(this->rx_payload_, this->rx_payload_len_);
   if (this->tx_gate_mode_ == TX_GATE_FRAME_TRIGGER &&
@@ -191,9 +191,7 @@ void RS485FrameHub::encode_crc_(const uint8_t *data, size_t len, bool include_he
       out[0] = xor_bytes(data, len, xor_bytes(header, header_len));
       return;
     case CRC_TYPE_SUM16_BIG_ENDIAN:
-      crc = sum16_bytes(data, len, sum16_bytes(header, header_len));
-      out[0] = crc >> 8;
-      out[1] = crc & 0xFF;
+      put_be16(out, sum16_bytes(data, len, sum16_bytes(header, header_len)));
       return;
     case CRC_TYPE_SUM16_LITTLE_ENDIAN:
       crc = sum16_bytes(data, len, sum16_bytes(header, header_len));
@@ -204,8 +202,7 @@ void RS485FrameHub::encode_crc_(const uint8_t *data, size_t len, bool include_he
     default:
       return;
   }
-  out[0] = crc & 0xFF;
-  out[1] = crc >> 8;
+  put_le16(out, crc);
 }
 
 void RS485FrameHub::maybe_tx_(uint32_t now) {
@@ -259,7 +256,7 @@ void RS485FrameHub::transmit_head_(uint32_t now) {
   this->flush();
 #endif
   if (this->dump_frames_)
-    this->log_frame_("TX", frame, len);
+    this->log_frame_(LOG_STR("TX"), frame, len);
   if (++this->tx_queue_head_ == this->max_queue_size_)
     this->tx_queue_head_ = 0;
   this->tx_queue_count_--;
@@ -280,14 +277,14 @@ uint16_t RS485FrameHub::wire_time_ms_(size_t len) const {
   return std::min<uint32_t>((len * bits * 1000 + baud - 1) / baud, UINT16_MAX);
 }
 
-void RS485FrameHub::log_frame_(const char *dir, const uint8_t *data, size_t len) {
+void RS485FrameHub::log_frame_(const LogString *dir, const uint8_t *data, size_t len) {
 #if ESPHOME_LOG_LEVEL >= ESPHOME_LOG_LEVEL_DEBUG
   // Long frames are logged over several lines to keep the buffer on the stack.
   static constexpr size_t BYTES_PER_LINE = 32;
   char hex[format_hex_size(BYTES_PER_LINE)];
   for (size_t pos = 0; pos < len; pos += BYTES_PER_LINE) {
     format_hex_to(hex, data + pos, std::min(len - pos, BYTES_PER_LINE));
-    ESP_LOGD(TAG, "%s %s", dir, hex);
+    ESP_LOGD(TAG, "%s %s", LOG_STR_ARG(dir), hex);
   }
 #endif
 }
