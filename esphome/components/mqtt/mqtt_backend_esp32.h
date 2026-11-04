@@ -285,7 +285,7 @@ class MQTTBackendESP32 final : public MQTTBackend {
   uint8_t lwt_qos_;
   bool lwt_retain_;
 #if defined(USE_MQTT_IDF_ENQUEUE)
-  // subscribes_lost_ when this connection started
+  // subscribes_lost_ when this connection started; one lost across a reconnect fits the spare slot
   uint8_t subscribes_lost_at_connect_{0};
 #endif
   std::string client_id_;
