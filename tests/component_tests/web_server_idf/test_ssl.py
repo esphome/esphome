@@ -7,7 +7,7 @@ import sys
 import pytest
 
 from esphome import loader
-from esphome.components.esp32 import KEY_BOARD, KEY_VARIANT, VARIANT_ESP32
+from esphome.components.esp32 import KEY_BOARD, KEY_VARIANT, VARIANT_ESP32, idf_version
 from esphome.components.esp32.const import (
     KEY_ESP32,
     KEY_EXCLUDE_COMPONENTS,
@@ -16,6 +16,7 @@ from esphome.components.esp32.const import (
 from esphome.components.web_server_base import get_httpd_client_count
 from esphome.components.web_server_idf import HTTPS_MAX_CONNECTIONS, consume_ssl_sockets
 from esphome.config import read_config
+import esphome.config_validation as cv
 from esphome.const import PlatformFramework
 from esphome.core import CORE
 from tests.component_tests.helpers import get_define_value
@@ -111,3 +112,13 @@ def test_ssl_needs_idf_5_5(
 
     assert read_config({}) is None
     assert "HTTPS needs ESP-IDF 5.5 or later" in capsys.readouterr().out
+
+
+def test_ssl_on_arduino_checks_its_idf_version(
+    component_config_path: Callable[[str], Path],
+) -> None:
+    """On Arduino the check uses the ESP-IDF the core is built on, not the Arduino version."""
+    CORE.config_path = component_config_path("https_arduino.yaml")
+
+    assert read_config({}) is not None
+    assert idf_version() >= cv.Version(5, 5, 0)

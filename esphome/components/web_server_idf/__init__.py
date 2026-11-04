@@ -5,6 +5,7 @@ import esphome.codegen as cg
 from esphome.components import socket, web_server_base
 from esphome.components.esp32 import (
     get_user_lwip_max_sockets,
+    idf_version,
     include_builtin_idf_component,
     request_tls,
     require_mbedtls_tls_server,
@@ -12,7 +13,6 @@ from esphome.components.esp32 import (
 )
 from esphome.config_helpers import filter_source_files_from_defines
 import esphome.config_validation as cv
-from esphome.const import KEY_CORE, KEY_FRAMEWORK_VERSION
 from esphome.core import CORE
 from esphome.types import ConfigType
 
@@ -109,7 +109,7 @@ def _final_validate(config: ConfigType) -> None:
     if not data.ssl:
         return
     # tls_handshake_timeout_ms, which keeps a stalled client from holding the server task, is new in 5.5.
-    if CORE.data[KEY_CORE][KEY_FRAMEWORK_VERSION] < cv.Version(5, 5, 0):
+    if idf_version() < cv.Version(5, 5, 0):
         raise cv.Invalid("HTTPS needs ESP-IDF 5.5 or later")
     if data.plain_http:
         names = ", ".join(data.plain_http)
