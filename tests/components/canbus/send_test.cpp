@@ -111,6 +111,7 @@ TEST(CanbusSendAction, UsesTheBusOrItsOwnIdentifier) {
 TEST(CanbusSendAction, StaticPayload) {
   static constexpr uint8_t DATA[] = {0x11, 0x22, 0x33, 0x44, 0x55, 0x66, 0x77, 0x88};
   QueuedCanbus bus;
+  bus.set_can_id(0x100);
   CanbusSendAction<> action;
   action.set_parent(&bus);
   action.set_data_static(DATA, sizeof(DATA));

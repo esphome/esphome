@@ -17,8 +17,8 @@
 #include "esphome/core/optional.h"
 
 #define USE_CANBUS_FD
-#define canbus canbus_fd  // NOLINT(cppcoreguidelines-macro-usage)
-#include "esphome/components/canbus/canbus.cpp"
+#define canbus canbus_fd                         // NOLINT(cppcoreguidelines-macro-usage)
+#include "esphome/components/canbus/canbus.cpp"  // NOLINT(bugprone-suspicious-include)
 #include "fake_canbus.h"
 
 namespace esphome::canbus::testing {
@@ -198,6 +198,7 @@ TEST(CanbusFd, ActionDefaultsAndOverrides) {
            Case{"action fd without brs", false, true, false, yes, no, nullptr, 8, true, true, false, 8},
        }) {
     FdCanbus bus;
+    bus.set_can_id(0x100);
     bus.set_default_fd(c.default_fd);
     bus.set_default_bit_rate_switch(c.default_brs);
     bus.set_default_pad_data(c.default_pad);
