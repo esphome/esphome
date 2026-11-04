@@ -48,6 +48,8 @@ struct RemoteReceiverComponentStore {
   /// The frame being captured did not fit in its half
   bool frame_overflow{false};
   volatile bool overflow{false};
+  /// A finished frame was dropped because the loop was still dispatching the other half
+  volatile bool busy{false};
 };
 #elif defined(USE_ESP8266) || defined(USE_LIBRETINY) || defined(USE_RP2) || (defined(USE_ESP32) && !SOC_RMT_SUPPORTED)
 struct RemoteReceiverComponentStore {

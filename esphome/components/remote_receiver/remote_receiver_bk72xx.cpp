@@ -88,10 +88,13 @@ bool RemoteReceiverComponentStore::timer_isr() {
     // a capture that held only a glitch the filter folded away leaves nothing to dispatch
     if (count == 0)
       return false;
-    // the frame is dropped when it did not fit, or when the loop still dispatches the other half
-    if (this->frame_overflow || this->ready != nullptr) {
+    if (this->frame_overflow) {
       this->frame_overflow = false;
       this->overflow = true;
+      return true;
+    }
+    if (this->ready != nullptr) {
+      this->busy = true;
       return true;
     }
     this->ready = this->capture;
@@ -168,15 +171,21 @@ void RemoteReceiverComponent::loop() {
   const int32_t *frame;
   uint16_t count;
   bool overflow;
+  bool busy;
   {
     InterruptLock lock;
     frame = s.ready;
     count = s.ready_count;
     overflow = s.overflow;
+    busy = s.busy;
     s.overflow = false;
+    s.busy = false;
   }
   if (overflow) {
     ESP_LOGW(TAG, "Buffer overflow");
+  }
+  if (busy) {
+    ESP_LOGW(TAG, "Frame dropped, previous frame still being processed");
   }
   if (frame == nullptr) {
     this->disable_loop();

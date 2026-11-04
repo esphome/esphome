@@ -33,6 +33,7 @@ static constexpr uint32_t IRDA_REPEAT_INT = 1u << 2;
 static constexpr uint32_t IRDA_FIFO_WREN_INT = 1u << 3;
 static constexpr uint32_t IRDA_PARITY_ERR_INT = 1u << 4;
 static constexpr uint32_t IRDA_STOP_ERR_INT = 1u << 5;
+static constexpr uint32_t IRDA_ERROR_INTS = IRDA_FIFO_WREN_INT | IRDA_PARITY_ERR_INT | IRDA_STOP_ERR_INT;
 
 using NEC = remote_base::NECProtocol;
 // Header mark and space, 32 bits of mark and space, and the final mark
@@ -51,7 +52,8 @@ void BekenIrdaComponent::handle_isr_() {
     const uint32_t code = REG_READ(IRDA_RX_FIFO_REG);
     const uint8_t command = code >> 16;
     const uint8_t inverse = code >> 24;
-    if ((command ^ inverse) == 0xFF) {
+    // a frame the hardware flagged as corrupt is dropped even when the command check passes
+    if ((status & IRDA_ERROR_INTS) == 0 && (command ^ inverse) == 0xFF) {
       this->last_code_ = code;
       this->raw_ready_ = true;
       // a repeat still pending belongs to the previous code
@@ -62,7 +64,7 @@ void BekenIrdaComponent::handle_isr_() {
   } else if (status & IRDA_REPEAT_INT) {
     this->repeat_ready_ = true;
   }
-  if (status & (IRDA_FIFO_WREN_INT | IRDA_PARITY_ERR_INT | IRDA_STOP_ERR_INT))
+  if ((status & IRDA_ERROR_INTS) && !(status & IRDA_END_INT))
     this->error_count_ = this->error_count_ + 1;
   this->enable_loop_soon_any_context();
 }
