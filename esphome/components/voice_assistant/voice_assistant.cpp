@@ -816,6 +816,17 @@ void VoiceAssistant::start_playback_timeout_(uint32_t timeout_ms) {
   this->set_timeout(PLAYBACK_TIMEOUT_ID, timeout_ms, [this]() {
     this->cancel_timeout(SPEAKER_IDLE_TIMEOUT_ID);
     this->set_state_(State::RESPONSE_FINISHED, State::RESPONSE_FINISHED);
+#ifdef USE_MEDIA_PLAYER
+    // Playback never started: stop it, so a late start cannot play over the open microphone
+    if ((this->media_player_ != nullptr) &&
+        (this->media_player_response_state_ == MediaPlayerResponseState::URL_SENT)) {
+      this->media_player_->make_call()
+          .set_command(media_player::MEDIA_PLAYER_COMMAND_STOP)
+          .set_announcement(true)
+          .perform();
+      this->media_player_response_state_ = MediaPlayerResponseState::IDLE;
+    }
+#endif
 
     if (this->api_client_ == nullptr)
       return;
