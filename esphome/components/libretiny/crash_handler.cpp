@@ -10,6 +10,7 @@
 #endif
 
 #include "core.h"
+#include <FreeRTOS.h>
 #include "esphome/core/log.h"
 #include "esphome/core/progmem.h"
 
@@ -96,8 +97,10 @@ static constexpr uint32_t CRASH_REASON_PREFETCH_ABORT = 2;
 static constexpr uint32_t CRASH_REASON_DATA_ABORT = 3;
 // Cortex-M families: the exception number (3 to 7) plus this offset.
 static constexpr uint32_t CRASH_REASON_CORTEX_M_OFFSET = 1;
+// After the Cortex-M ones (4 to 8).
+static constexpr uint32_t CRASH_REASON_ABORT = 9;
 PROGMEM_STRING_TABLE(CrashReasonStrings, "Unknown", "Undefined instruction", "Prefetch abort", "Data abort",
-                     "Hard fault", "MemManage fault", "Bus fault", "Usage fault", "Secure fault");
+                     "Hard fault", "MemManage fault", "Bus fault", "Usage fault", "Secure fault", "Abort");
 
 static constexpr size_t MAX_BACKTRACE = 8;
 // Words scanned above sp for return addresses.
@@ -415,6 +418,31 @@ void crash_handler_install() {
 }
 
 #endif  // USE_LIBRETINY_CRASH_HANDLER_VECTOR_PATCH
+
+// newlib's abort() ends in _exit(), which spins without a record: the BK7238 then hangs with the watchdog never
+// firing, and the RTL8720C restarts without one. Record it like a fault and reboot through the watchdog. Interrupts
+// go off first, since every task's delay() feeds the watchdog.
+// NOLINTNEXTLINE(bugprone-reserved-identifier,cert-dcl37-c,cert-dcl51-cpp,readability-identifier-naming)
+extern "C" __attribute__((noreturn, used)) void __wrap_abort() {
+  portDISABLE_INTERRUPTS();
+  uint32_t sp;
+  __asm volatile("mov %0, sp" : "=r"(sp));
+#ifdef USE_LIBRETINY_CRASH_HANDLER_VECTOR_PATCH
+  // A fault from here on keeps this record
+  s_fault_recorded = true;
+#endif
+  s_record.reason = CRASH_REASON_ABORT;
+  // The call site; a Thumb return address has bit 0 set
+  s_record.pc = (uint32_t) __builtin_return_address(0) & ~1u;
+  s_record.lr = 0;
+  s_record.sp = sp;
+  s_record.fault_status = 0;
+  s_record.fault_address = 0;
+  finish_record(sp, SRAM_START, SRAM_END);
+  lt_wdt_enable(CRASH_REBOOT_WDT_MS);
+  while (true) {
+  }
+}
 
 }  // namespace esphome::libretiny
 
