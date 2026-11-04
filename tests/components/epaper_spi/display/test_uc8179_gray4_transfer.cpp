@@ -44,7 +44,7 @@ class TestableUC8179Gray4 : public EPaperUC8179Gray4 {
     this->set_auto_clear(false);
     this->update();
     const uint32_t deadline = millis() + 2000;
-    while (!(this->state_ == EPaperState::INITIALISE && this->init_powered_)) {
+    while (this->state_ != EPaperState::INITIALISE || !this->init_powered_) {
       ASSERT_LT(millis(), deadline) << "the panel was never powered on";
       this->loop();
     }
