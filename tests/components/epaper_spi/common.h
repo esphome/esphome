@@ -6,6 +6,7 @@
 #include <vector>
 
 #include "esphome/components/spi/spi.h"
+#include "esphome/core/color.h"
 #include "esphome/core/hal.h"
 
 namespace esphome::epaper_spi::testing {
@@ -104,5 +105,18 @@ class RecordingDelegate : public spi::SPIDelegate {
   uint32_t row_transfer_ms_;
   uint8_t last_command_{0};
 };
+
+/// A gray that lands squarely on each of the four grayscale levels.
+inline Color color_for_level(uint8_t level) {
+  static const uint8_t GRAYS[4] = {0, 64, 128, 255};
+  const uint8_t v = GRAYS[level];
+  return Color(v, v, v);
+}
+
+/// Draw one row of four-level grayscale pixels from x = 0.
+template<typename D> void draw_row(D &display, int y, const std::vector<uint8_t> &levels) {
+  for (size_t x = 0; x != levels.size(); x++)
+    display.draw_pixel_at((int) x, y, color_for_level(levels[x]));
+}
 
 }  // namespace esphome::epaper_spi::testing

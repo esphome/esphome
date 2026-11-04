@@ -19,6 +19,7 @@ class EPaperUltraChip : public EPaperBase {
   void on_safe_shutdown() override;
 
  protected:
+  static constexpr uint8_t CMD_POWER_SETTING = 0x01;
   static constexpr uint8_t CMD_POWER_OFF = 0x02;
   static constexpr uint8_t CMD_POWER_ON = 0x04;
   static constexpr uint8_t CMD_DEEP_SLEEP = 0x07;

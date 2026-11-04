@@ -65,7 +65,10 @@ FIX_HINT = (
     "its class's .cpp and every parent class's .cpp, excluding epaper_spi.cpp."
 )
 
-CLASS_RE = re.compile(r"^class\s+(\w+)\s+(?:final\s+)?:\s*public\s+(\w+)", re.MULTILINE)
+# A header-only template wrapper such as EPaperGray4<EPaperUC8179> adds no source, so its argument is the parent
+CLASS_RE = re.compile(
+    r"^class\s+(\w+)\s+(?:final\s+)?:\s*public\s+(?:\w+<)?(\w+)", re.MULTILINE
+)
 
 
 def _class_table() -> dict[str, tuple[str, str]]:
