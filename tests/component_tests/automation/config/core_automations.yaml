@@ -1,0 +1,36 @@
+---
+esphome:
+  name: test
+  on_boot:
+    - priority: 800
+      then:
+        - logger.log: boot high
+        - lambda: ESP_LOGI("test", "boot high lambda");
+    - then:
+        - logger.log: boot default
+    - priority: -100
+      then:
+        - logger.log: boot before delay
+        - delay: 1ms
+        - logger.log: boot after delay
+    - priority: 250.5
+      trigger_id: manual_boot
+      then:
+        - logger.log: boot manual
+  on_shutdown:
+    - priority: 700
+      then:
+        - logger.log: shutdown inline
+    - then:
+        - logger.log: shutdown before delay
+        - delay: 1ms
+  on_loop:
+    - then:
+        - lambda: ESP_LOGV("test", "loop inline");
+    - then:
+        - delay: 1ms
+
+esp32:
+  board: nodemcu-32s
+
+logger:
