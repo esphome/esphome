@@ -449,3 +449,25 @@ def test_convert_emits_time_period_enum() -> None:
 
     assert config_var["type"] == "enum"
     assert config_var["values"] == {"100us": None, "200us": None}
+
+
+def test_convert_typed_schema_with_an_empty_type(
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    """A typed_schema type with no keys of its own is dumped with no config vars."""
+    types = {
+        "with_keys": cv.Schema({cv.Required("byte"): cv.hex_uint8_t}),
+        "no_keys": cv.Schema({}),
+    }
+    schema = cv.typed_schema(types, key="mode")
+    # cv.typed_schema was decorated before the script enabled extraction, so register it by hand
+    monkeypatch.setitem(
+        _bls.ejs.typed_schemas, repr(schema), ((types,), {"key": "mode"})
+    )
+    config_var: dict = {}
+    _bls.convert(schema, config_var, "/test")
+
+    assert config_var["type"] == "typed"
+    assert config_var["typed_key"] == "mode"
+    assert "byte" in config_var["types"]["with_keys"]["config_vars"]
+    assert config_var["types"]["no_keys"] == {"config_vars": {}}

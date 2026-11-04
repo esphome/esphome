@@ -121,6 +121,9 @@ class RX8111Test : public ::testing::Test {
   void SetUp() override {
     this->rtc_.set_i2c_bus(&this->bus_);
     this->rtc_.set_i2c_address(ADDRESS);
+    // The scheduler starts an interval after a random share of its period, which can be 0 ms and add
+    // a poll to any scheduler call. Tests poll by hand, or set their own interval.
+    this->rtc_.set_event_poll_interval(SCHEDULER_DONT_RUN);
     EXPECT_EQ(this->rtc_.boot_retry_delay_ms_, 1000U);  // Production default remains one second.
     this->rtc_.boot_retry_delay_ms_ = 5;
     this->rtc_.add_on_time_sync_callback([this]() { this->syncs_++; });
@@ -386,6 +389,7 @@ TEST_F(RX8111Test, BinaryFailedStartupReadsLeaveEachRegisterGroupUnknown) {
     binary_sensor::BinarySensor event, battery;
     rtc.set_i2c_bus(&this->bus_);
     rtc.set_i2c_address(ADDRESS);
+    rtc.set_event_poll_interval(SCHEDULER_DONT_RUN);
     rtc.set_status_sensor(STATUS_SENSOR_EVENT_FLAG, &event);
     rtc.set_status_sensor(STATUS_SENSOR_BATTERY_LOW, &battery);
     this->bus_.fail_read = failed_register;
@@ -640,6 +644,7 @@ TEST_F(RX8111Test, BinaryValidCalendarReusesFlagsWithoutSyncCallbacks) {
   binary_sensor::BinarySensor event;
   rtc.set_i2c_bus(&this->bus_);
   rtc.set_i2c_address(ADDRESS);
+  rtc.set_event_poll_interval(SCHEDULER_DONT_RUN);
   rtc.set_status_sensor(STATUS_SENSOR_EVENT_FLAG, &event);
   auto before = this->bus_.flag_reads;
   rtc.setup();
@@ -1028,6 +1033,7 @@ TEST_F(RX8111Test, TimestampStartupTransitionsConfigureBeforeCallbacksAndRetainS
       text_sensor::TextSensor sensor;
       rtc.set_i2c_bus(&bus);
       rtc.set_i2c_address(ADDRESS);
+      rtc.set_event_poll_interval(SCHEDULER_DONT_RUN);
       const bool old_buffered = mode == 0;
       this->timestamp_(0x20, 0x10);
       this->timestamp_(old_buffered ? 0x40 : 0x20);
@@ -1087,6 +1093,7 @@ TEST_F(RX8111Test, TimestampStartupRetainsBufferAcrossAmbiguousClearFailure) {
       bus.accept_failed_timestamp_clear = accepted;
       rtc.set_i2c_bus(&bus);
       rtc.set_i2c_address(ADDRESS);
+      rtc.set_event_poll_interval(SCHEDULER_DONT_RUN);
       rtc.set_event_timestamp_sensor(&sensor, mode);
       std::vector<std::string> states;
       sensor.add_on_state_callback([&](const std::string &state) {
@@ -1156,6 +1163,7 @@ TEST_F(RX8111Test, TimestampStartupPreservesFirstFlagSnapshotAcrossFollowupReadF
       bus.fail_read_once = failed_reg;
       rtc.set_i2c_bus(&bus);
       rtc.set_i2c_address(ADDRESS);
+      rtc.set_event_poll_interval(SCHEDULER_DONT_RUN);
       rtc.set_event_timestamp_sensor(&sensor, TIMESTAMP_MODE_LATEST);
       this->configure_event_(rtc);
       EXPECT_TRUE(sensor.state.empty());
@@ -1222,6 +1230,7 @@ TEST_F(RX8111Test, TimestampExhaustedStartupPublishesStagedBufferOnceWithoutEnab
   text_sensor::TextSensor after_reboot;
   rebooted.set_i2c_bus(&this->bus_);
   rebooted.set_i2c_address(ADDRESS);
+  rebooted.set_event_poll_interval(SCHEDULER_DONT_RUN);
   rebooted.set_event_timestamp_sensor(&after_reboot, TIMESTAMP_MODE_STOP_WHEN_FULL);
   this->configure_event_(rebooted);
   EXPECT_TRUE(after_reboot.state.empty());
@@ -1814,6 +1823,7 @@ TEST_F(RX8111Test, FailedRestartKeepsStopAcrossHostResetUntilFreshTrustedWrite) 
   RX8111Component rebooted;
   rebooted.set_i2c_bus(&this->bus_);
   rebooted.set_i2c_address(ADDRESS);
+  rebooted.set_event_poll_interval(SCHEDULER_DONT_RUN);
   rebooted.add_on_time_sync_callback([this]() { this->syncs_++; });
   rebooted.setup();
   EXPECT_EQ(this->syncs_, 0);           // The RAM guard is gone, but STOP survives.
@@ -1870,6 +1880,7 @@ TEST_F(RX8111Test, IncompleteWritesRemainInvalidAfterComponentRecreation) {
     RX8111Component rebooted;
     rebooted.set_i2c_bus(&this->bus_);
     rebooted.set_i2c_address(ADDRESS);
+    rebooted.set_event_poll_interval(SCHEDULER_DONT_RUN);
     unsigned syncs = 0;
     rebooted.add_on_time_sync_callback([&syncs]() { syncs++; });
     rebooted.setup();
