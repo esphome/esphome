@@ -122,6 +122,8 @@ class BQ25820Component final : public PollingComponent, public i2c::I2CDevice {
 
   const BQ25820Config *config_;
   bool force_mppt_sweep_;
+  // Only so the first write at boot is not reported as a lost configuration
+  bool configured_once_{false};
 };
 
 }  // namespace esphome::bq25820

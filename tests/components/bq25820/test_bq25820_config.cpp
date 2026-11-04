@@ -206,9 +206,12 @@ TEST_F(BQ25820WriteFailureTest, FailedLimitWriteKeepsChargingOff) {
 
 TEST_F(BQ25820WriteFailureTest, ConfigurationPublishesOnceTheAdcHasConverted) {
   this->hub_.setup();
+  EXPECT_EQ(this->bus_.registers[REG_ADC_CONTROL] & ADC_EN, 0);
+  // The first poll writes the configuration and publishes nothing
+  this->hub_.update();
   EXPECT_EQ(status_publishes, 0);
   EXPECT_FALSE(this->vbat_.has_state());
-  // The delayed poll a second after the configuration write, with no update() from the polling interval
+  // The delayed poll a second after the configuration write, with no further update() from the polling interval
   App.scheduler.call(millis());
   delay(1010);  // NOLINT: waits for the real one second timer
   App.scheduler.call(millis());

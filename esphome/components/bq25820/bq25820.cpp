@@ -101,8 +101,8 @@ void BQ25820Component::setup() {
   if (!this->setup_check(this->update_register(REG_POWER_PATH_CONTROL, REG_RST, REG_RST)))
     return;
 
-  // Every poll retries it until it succeeds, since ADC_EN stays clear until then
-  this->configure_();
+  // REG_RST cleared ADC_EN, so the first poll writes the configuration and every poll retries it until it succeeds.
+  // Configuring there, not here, keeps an interval poll from publishing before the ADC has converted.
 }
 
 void BQ25820Component::dump_config() {
@@ -175,8 +175,10 @@ bool BQ25820Component::write_config_registers_() {
 
 void BQ25820Component::configure_() {
   // The ADC was just enabled again, so the next poll comes once its first conversions are done
-  if (this->status_comm_result(this->write_config_registers_()))
+  if (this->status_comm_result(this->write_config_registers_())) {
+    this->configured_once_ = true;
     this->set_timeout(PUBLISH_TIMEOUT_ID, FIRST_PUBLISH_DELAY_MS, [this]() { this->update(); });
+  }
 }
 
 // Every poll also feeds the watchdog, which update_interval is validated to beat
@@ -192,7 +194,9 @@ void BQ25820Component::update() {
   // ADC_EN clear: a partial write, or a charger reset on its own such as a brownout, which WD_STAT does not show
   // when the watchdog is off or each poll keeps feeding it. WD_STAT: the watchdog expired.
   if (ok && ((adc[0] & ADC_EN) == 0 || (this->watchdog_enabled_() && (status[0] & WD_STAT) != 0))) {
-    ESP_LOGW(TAG, "Charger lost its configuration, writing it again");
+    if (this->configured_once_) {
+      ESP_LOGW(TAG, "Charger lost its configuration, writing it again");
+    }
     this->configure_();
     return;
   }
