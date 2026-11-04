@@ -42,7 +42,10 @@ void CM1106Component::update() {
   }
 
   if (response[0] != 0x16 || response[1] != 0x05 || response[2] != 0x01) {
-    ESP_LOGW(TAG, "Unexpected response: %02X %02X %02X %02X", response[0], response[1], response[2], response[3]);
+#if ESPHOME_LOG_LEVEL >= ESPHOME_LOG_LEVEL_WARN
+    char hex_buf[format_hex_pretty_size(4)];
+    ESP_LOGW(TAG, "Unexpected response: %s", format_hex_pretty_to(hex_buf, response, 4, ' '));
+#endif
     this->status_set_warning();
     return;
   }
@@ -101,7 +104,10 @@ bool CM1106Component::send_command_expect_ack_(const uint8_t *command, size_t co
     return false;
   }
   if (!this->status_comm_result(memcmp(response, ack, sizeof(response)) == 0)) {
-    ESP_LOGW(TAG, "Unexpected response: %02X %02X %02X %02X", response[0], response[1], response[2], response[3]);
+#if ESPHOME_LOG_LEVEL >= ESPHOME_LOG_LEVEL_WARN
+    char hex_buf[format_hex_pretty_size(4)];
+    ESP_LOGW(TAG, "Unexpected response: %s", format_hex_pretty_to(hex_buf, response, 4, ' '));
+#endif
     return false;
   }
   return true;
