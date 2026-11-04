@@ -19,6 +19,8 @@ enum ToleranceMode : uint8_t {
 };
 
 using RawTimings = std::vector<int32_t>;
+/// A received frame's timings, viewed in whatever buffer the receiver keeps them.
+using RawTimingsView = std::span<const int32_t>;
 
 enum class BitOrder : uint8_t {
   BIT_ORDER_LSB_FIRST,
@@ -89,10 +91,14 @@ class RemoteTransmitData {
 class RemoteReceiveData {
  public:
   /// The timings are not copied: they must outlive this object.
-  explicit RemoteReceiveData(std::span<const int32_t> data, uint32_t tolerance, ToleranceMode tolerance_mode)
+  explicit RemoteReceiveData(RawTimingsView data, uint32_t tolerance, ToleranceMode tolerance_mode)
       : data_(data), index_(0), tolerance_(tolerance), tolerance_mode_(tolerance_mode) {}
+  explicit RemoteReceiveData(const RawTimings &data, uint32_t tolerance, ToleranceMode tolerance_mode)
+      : data_(data), vector_(&data), index_(0), tolerance_(tolerance), tolerance_mode_(tolerance_mode) {}
 
-  std::span<const int32_t> get_raw_data() const { return this->data_; }
+  RawTimingsView get_raw_data() const { return this->data_; }
+  /// The timings as a vector when they were given as one, else nullptr.
+  const RawTimings *get_raw_vector() const { return this->vector_; }
   uint32_t get_index() const { return index_; }
   int32_t operator[](uint32_t index) const { return this->data_[index]; }
   int32_t size() const { return this->data_.size(); }
@@ -180,7 +186,8 @@ class RemoteReceiveData {
     return 0;
   }
 
-  std::span<const int32_t> data_;
+  RawTimingsView data_;
+  const RawTimings *vector_{nullptr};
   uint32_t index_;
   uint32_t tolerance_;
   ToleranceMode tolerance_mode_;
@@ -366,9 +373,15 @@ class RemoteReceiverBase : public RemoteComponentBase {
 #ifdef REMOTE_BASE_DUMPER_COUNT
   void warn_extra_secondaries_();
 #endif
-  void call_listeners_dumpers_() { this->call_listeners_dumpers_(this->temp_); }
+  void call_listeners_dumpers_() {
+    this->dispatch_(RemoteReceiveData(this->temp_, this->tolerance_, this->tolerance_mode_));
+  }
   /// Dispatch a frame held in the receiver's own buffer, without copying it into temp_.
-  void call_listeners_dumpers_(std::span<const int32_t> data);
+  void call_listeners_dumpers_(RawTimingsView data) {
+    this->dispatch_(RemoteReceiveData(data, this->tolerance_, this->tolerance_mode_));
+  }
+  /// Each listener and dumper gets its own copy of src, starting at index 0.
+  void dispatch_(const RemoteReceiveData &src);
 
 #ifdef REMOTE_BASE_LISTENER_COUNT
   StaticVector<RemoteReceiverListener *, REMOTE_BASE_LISTENER_COUNT> listeners_;
