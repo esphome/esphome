@@ -106,10 +106,12 @@ bool MQTTBackendESP32::initialize_() {
 }
 
 void MQTTBackendESP32::loop() {
-  // process new events
-  // handle only 1 message per loop iteration
-  Event *event = this->mqtt_event_queue_.pop();
-  if (event != nullptr) {
+  // Drain what is queued, so a connect burst frees its slots in one pass; capped at the pool size so a steady
+  // stream of messages cannot hold the loop
+  for (uint8_t i = 0; i < MQTT_EVENT_POOL_SIZE; i++) {
+    Event *event = this->mqtt_event_queue_.pop();
+    if (event == nullptr)
+      break;
     this->mqtt_event_handler_(*event);
     this->mqtt_event_pool_.release(event);
   }
