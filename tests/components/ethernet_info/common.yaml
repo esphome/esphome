@@ -17,6 +17,10 @@ text_sensor:
   - platform: ethernet_info
     ip_address:
       name: IP Address
+      address_0:
+        name: IP Address 0
+      address_1:
+        name: IP Address 1
     dns_address:
       name: DNS Address
     mac_address:

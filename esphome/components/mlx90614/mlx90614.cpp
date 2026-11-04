@@ -174,7 +174,7 @@ void MLX90614Component::update() {
 
     // Bit 15 set means the device flagged the reading as invalid
     const float temperature = (raw & 0x8000) ? NAN : raw * 0.02f - 273.15f;
-    ESP_LOGD(TAG, "'%s': Got temperature=%.1f°C", sensor->get_name().c_str(), temperature);
+    ESP_LOGD(TAG, "'%s': Got temperature=%.1f°C", LOG_STR_ARG(sensor->get_log_name()), temperature);
     sensor->publish_state(temperature);
     return ec;
   };

@@ -88,8 +88,7 @@ async def to_code(config: ConfigType) -> None:
 
     cg.add(var.set_warmup_seconds(config[CONF_WARMUP_TIME]))
 
-    if CONF_DETECTION_RANGE in config:
-        cg.add(var.set_detection_range(config[CONF_DETECTION_RANGE]))
+    cg.add_optional(var.set_detection_range, config.get(CONF_DETECTION_RANGE))
 
 
 NO_ARGS_ACTION_SCHEMA = maybe_simple_id(

@@ -46,6 +46,9 @@ DOMAIN = "ble_device_base"
 
 CONF_BLE_HUB_ID = "ble_hub_id"
 
+# A six digit pairing passkey
+validate_passkey = cv.int_range(min=0, max=999999)
+
 # Number of parsed-advertisement listeners registered in this build; read via
 # cg.get_slot_count() by esp32_ble_tracker's feature coupling.
 LISTENER_COUNT_DEFINE = "ESPHOME_BLE_DEVICE_BASE_LISTENER_COUNT"

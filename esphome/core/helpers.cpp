@@ -35,7 +35,7 @@ __attribute__((noinline, cold)) void *callback_manager_grow(void *data, uint16_t
                                                             size_t elem_size) {
   ESPHOME_DEBUG_ASSERT(size < UINT16_MAX);
   uint16_t new_cap = size + 1;
-  auto *new_data = ::operator new(new_cap *elem_size);
+  auto *new_data = ::operator new(new_cap * elem_size);
   if (data) {
     __builtin_memcpy(new_data, data, size * elem_size);
     ::operator delete(data);

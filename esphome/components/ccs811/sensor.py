@@ -63,14 +63,13 @@ async def to_code(config: ConfigType) -> None:
     var = await i2c.new_i2c_component(config)
 
     sensors = sensor.sub_sensors(config)
-    await sensors(CONF_ECO2, var.set_co2)
-    await sensors(CONF_TVOC, var.set_tvoc)
+    await sensors(CONF_ECO2, var.set_co2_sensor)
+    await sensors(CONF_TVOC, var.set_tvoc_sensor)
 
     text_sensors = text_sensor.sub_text_sensors(config)
-    await text_sensors(CONF_VERSION, var.set_version)
+    await text_sensors(CONF_VERSION, var.set_version_text_sensor)
 
-    if (baseline := config.get(CONF_BASELINE)) is not None:
-        cg.add(var.set_baseline(baseline))
+    cg.add_optional(var.set_baseline, config.get(CONF_BASELINE))
 
-    await cg.add_variable(var.set_temperature, config.get(CONF_TEMPERATURE))
-    await cg.add_variable(var.set_humidity, config.get(CONF_HUMIDITY))
+    await cg.add_variable(var.set_temperature_sensor, config.get(CONF_TEMPERATURE))
+    await cg.add_variable(var.set_humidity_sensor, config.get(CONF_HUMIDITY))

@@ -451,12 +451,10 @@ bool TMC22XXStepper::write_register(uint8_t reg, uint32_t value) {
   this->flush();
   // On the single wire bus every byte sent is also received, drop that echo
   uint8_t echo[DATAGRAM_SIZE];
-  if (!this->read_array(echo, DATAGRAM_SIZE) || memcmp(echo, datagram, DATAGRAM_SIZE) != 0) {
+  if (!this->status_comm_result(this->read_array(echo, DATAGRAM_SIZE) && memcmp(echo, datagram, DATAGRAM_SIZE) == 0)) {
     ESP_LOGV(TAG, "No echo writing register 0x%02X", reg);
-    this->status_set_warning(LOG_STR(ESP_LOG_MSG_COMM_FAIL));
     return false;
   }
-  this->status_clear_warning();
 
   if (uint32_t *shadow = this->shadow_register(reg)) {
     *shadow = value;
@@ -483,12 +481,11 @@ optional<uint32_t> TMC22XXStepper::read_register(uint8_t reg) {
     this->status_set_warning(LOG_STR(ESP_LOG_MSG_COMM_FAIL));
     return {};
   }
-  if (reply[0] != SYNC_BYTE || reply[1] != MASTER_ADDRESS || reply[2] != reg || reply[7] != datagram_crc(reply, 7)) {
+  if (!this->status_comm_result(reply[0] == SYNC_BYTE && reply[1] == MASTER_ADDRESS && reply[2] == reg &&
+                                reply[7] == datagram_crc(reply, 7))) {
     ESP_LOGV(TAG, "Invalid reply reading register 0x%02X", reg);
-    this->status_set_warning(LOG_STR(ESP_LOG_MSG_COMM_FAIL));
     return {};
   }
-  this->status_clear_warning();
   return encode_uint32(reply[3], reply[4], reply[5], reply[6]);
 }
 

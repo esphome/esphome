@@ -126,11 +126,7 @@ void BME68xBSEC2Component::check_status_() {
     this->status_clear_error();
   }
   const bool has_bme68x_warning = this->bme68x_status_ > BME68X_OK && !is_no_new_data_warning(this->bme68x_status_);
-  if (this->bsec_status_ > BSEC_OK || has_bme68x_warning) {
-    this->status_set_warning();
-  } else {
-    this->status_clear_warning();
-  }
+  this->status_comm_result(this->bsec_status_ <= BSEC_OK && !has_bme68x_warning, nullptr);
 }
 
 void BME68xBSEC2Component::loop() {

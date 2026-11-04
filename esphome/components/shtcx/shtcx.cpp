@@ -68,10 +68,8 @@ void SHTCXComponent::update() {
   }
   if (!this->write_command(SHTCX_COMMAND_POLLING_H)) {
     ESP_LOGE(TAG, "Polling failed");
-    if (this->temperature_sensor_ != nullptr)
-      this->temperature_sensor_->publish_state(NAN);
-    if (this->humidity_sensor_ != nullptr)
-      this->humidity_sensor_->publish_state(NAN);
+    PUBLISH_STATE(this->temperature_sensor_, NAN);
+    PUBLISH_STATE(this->humidity_sensor_, NAN);
     this->status_set_warning();
     return;
   }
@@ -81,16 +79,13 @@ void SHTCXComponent::update() {
     float humidity = NAN;
     uint16_t raw_data[2];
     if (!this->read_data(raw_data, 2)) {
-      ESP_LOGE(TAG, ESP_LOG_MSG_COMM_FAIL);
-      this->status_set_warning();
+      this->status_set_warning(LOG_STR(ESP_LOG_MSG_COMM_FAIL));
     } else {
       temperature = 175.0f * float(raw_data[0]) / 65536.0f - 45.0f;
       humidity = 100.0f * float(raw_data[1]) / 65536.0f;
     }
-    if (this->temperature_sensor_ != nullptr)
-      this->temperature_sensor_->publish_state(temperature);
-    if (this->humidity_sensor_ != nullptr)
-      this->humidity_sensor_->publish_state(humidity);
+    PUBLISH_STATE(this->temperature_sensor_, temperature);
+    PUBLISH_STATE(this->humidity_sensor_, humidity);
     this->status_clear_warning();
     if (this->type_ != SHTCX_TYPE_SHTC1) {
       this->sleep();

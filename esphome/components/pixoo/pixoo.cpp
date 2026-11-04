@@ -146,9 +146,9 @@ void HOT Pixoo::draw_pixel_at(int x, int y, Color color) {
 }
 
 // flatten keeps the RGB565 decode inlined in the pixel loop, as in Display's own per pixel loop.
-void __attribute__((flatten))
-Pixoo::draw_pixels_internal(int x_start, int y_start, int w, int h, const uint8_t *ptr, display::ColorBitness bitness,
-                            bool big_endian, int x_offset, int y_offset, int x_pad) {
+void __attribute__((flatten)) Pixoo::draw_pixels_internal(int x_start, int y_start, int w, int h, const uint8_t *ptr,
+                                                          display::ColorBitness bitness, bool big_endian, int x_offset,
+                                                          int y_offset, int x_pad) {
   // Fast path for the common LVGL/image blit: RGB565, no rotation, no active clipping.
   // Anything else defers to the base implementation, which decodes per pixel and routes through
   // draw_pixel_at() so rotation, clipping and other color formats stay correct.

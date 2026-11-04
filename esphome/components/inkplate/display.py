@@ -69,12 +69,6 @@ MODELS = InkplateModel.options(
 CONF_CUSTOM_WAVEFORM = "custom_waveform"
 
 
-def _validate_custom_waveform(config: ConfigType) -> ConfigType:
-    if CONF_CUSTOM_WAVEFORM in config and config[CONF_MODEL] != "inkplate_10":
-        raise cv.Invalid("Custom waveforms are only supported on the Inkplate 10")
-    return config
-
-
 CONFIG_SCHEMA = cv.All(
     display.FULL_DISPLAY_SCHEMA.extend(
         {
@@ -143,7 +137,7 @@ CONFIG_SCHEMA = cv.All(
     .extend(cv.polling_component_schema("5s"))
     .extend(i2c.i2c_device_schema(0x48)),
     cv.has_at_most_one_key(CONF_PAGES, CONF_LAMBDA),
-    _validate_custom_waveform,
+    cv.only_when(CONF_CUSTOM_WAVEFORM, CONF_MODEL, "inkplate_10"),
 )
 
 

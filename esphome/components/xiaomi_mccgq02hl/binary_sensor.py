@@ -60,6 +60,6 @@ async def to_code(config: ConfigType) -> None:
     cg.add(var.set_bindkey(config[CONF_BINDKEY]))
 
     sensors = sensor.sub_sensors(config)
-    await sensors(CONF_BATTERY_LEVEL, var.set_battery_level)
+    await sensors(CONF_BATTERY_LEVEL, var.set_battery_level_sensor)
     binary_sensors = binary_sensor.sub_binary_sensors(config)
-    await binary_sensors(CONF_LIGHT, var.set_light)
+    await binary_sensors(CONF_LIGHT, var.set_light_binary_sensor)

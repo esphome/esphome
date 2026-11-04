@@ -83,8 +83,7 @@ async def to_code(config: ConfigType) -> None:
     cg.add(var.set_measured_power(config[CONF_MEASURED_POWER]))
 
     # TX power control only available on native Bluetooth (not ESP-Hosted)
-    if CONF_TX_POWER in config:
-        cg.add(var.set_tx_power(config[CONF_TX_POWER]))
+    cg.add_optional(var.set_tx_power, config.get(CONF_TX_POWER))
 
     cg.add_define("USE_ESP32_BLE_ADVERTISING")
 

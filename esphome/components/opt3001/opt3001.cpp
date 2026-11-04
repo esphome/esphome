@@ -104,13 +104,11 @@ void OPT3001Sensor::update() {
   this->read_lx_([this](float val) {
     this->updating_ = false;
 
-    if (std::isnan(val)) {
-      this->status_set_warning();
+    if (!this->status_comm_result(!std::isnan(val))) {
       this->publish_state(NAN);
       return;
     }
-    ESP_LOGD(TAG, "'%s': Illuminance=%.1flx", this->get_name().c_str(), val);
-    this->status_clear_warning();
+    ESP_LOGD(TAG, "'%s': Illuminance=%.1flx", LOG_STR_ARG(this->get_log_name()), val);
     this->publish_state(val);
   });
 }

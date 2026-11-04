@@ -50,15 +50,12 @@ void STS3XComponent::update() {
 
   this->set_timeout(50, [this]() {
     uint16_t raw_data[1];
-    if (!this->read_data(raw_data, 1)) {
-      this->status_set_warning();
+    if (!this->status_comm_result(this->read_data(raw_data, 1)))
       return;
-    }
 
     float temperature = 175.0f * float(raw_data[0]) / 65535.0f - 45.0f;
     ESP_LOGD(TAG, "Got temperature=%.2f°C", temperature);
     this->publish_state(temperature);
-    this->status_clear_warning();
   });
 }
 

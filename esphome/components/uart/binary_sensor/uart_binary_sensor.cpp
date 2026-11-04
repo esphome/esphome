@@ -14,10 +14,7 @@ void UARTBinarySensorHub::dump_config() {
 }
 
 void UARTBinarySensorHub::loop() {
-  while (this->available()) {
-    uint8_t byte;
-    if (!this->read_byte(&byte))
-      break;
+  this->read_available([this](uint8_t byte) {
     this->buffer_.push_overwrite(byte);
     for (const auto &matcher : this->matchers_) {
       // The byte just read has to be the pattern's last one before the rest is compared
@@ -30,7 +27,7 @@ void UARTBinarySensorHub::loop() {
       this->buffer_.clear();
       break;
     }
-  }
+  });
 }
 
 // Whether the pattern, apart from its last byte, ends the buffer

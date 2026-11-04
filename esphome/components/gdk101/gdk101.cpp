@@ -30,11 +30,7 @@ void GDK101Component::update() {
     return;
   }
 
-  if (!this->read_measurement_duration_(data)) {
-    this->status_set_warning(LOG_STR("Failed to read measurement duration"));
-    return;
-  }
-  this->status_clear_warning();
+  this->status_comm_result(this->read_measurement_duration_(data), LOG_STR("Failed to read measurement duration"));
 }
 
 void GDK101Component::setup() {
@@ -155,15 +151,11 @@ bool GDK101Component::read_status_(uint8_t *data) {
   }
 
 #ifdef USE_SENSOR
-  if (this->status_sensor_ != nullptr) {
-    this->status_sensor_->publish_state(data[0]);
-  }
+  PUBLISH_STATE(this->status_sensor_, data[0]);
 #endif  // USE_SENSOR
 
 #ifdef USE_BINARY_SENSOR
-  if (this->vibration_binary_sensor_ != nullptr) {
-    this->vibration_binary_sensor_->publish_state(data[1]);
-  }
+  PUBLISH_STATE(this->vibration_binary_sensor_, data[1]);
 #endif  // USE_BINARY_SENSOR
 
   return true;

@@ -96,9 +96,9 @@ static void __attribute__((flatten)) draw_packed_pixels(Display *display, int x_
 
 // Remove before 2027.5.0. Draws a block in the deprecated BGR or GRB order, pixel by pixel. Not inlined, so
 // the RGB loops above compile as tightly as before.
-static void __attribute__((noinline))
-draw_ordered_pixels(Display *display, int x_start, int y_start, int w, int h, const uint8_t *ptr, ColorOrder order,
-                    ColorBitness bitness, bool big_endian, int x_offset, int y_offset, int x_pad) {
+static void __attribute__((noinline)) draw_ordered_pixels(Display *display, int x_start, int y_start, int w, int h,
+                                                          const uint8_t *ptr, ColorOrder order, ColorBitness bitness,
+                                                          bool big_endian, int x_offset, int y_offset, int x_pad) {
   const size_t line_stride = x_offset + w + x_pad;
   for (int y = 0; y != h; y++) {
     size_t source_idx = (y_offset + y) * line_stride + x_offset;

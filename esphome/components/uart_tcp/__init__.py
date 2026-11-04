@@ -127,5 +127,4 @@ async def to_code(config: ConfigType) -> None:
         socket.require_tcp_client_link()
     cg.add(var.set_port(config[CONF_PORT]))
     cg.add(var.set_reconnect_interval(config[CONF_RECONNECT_INTERVAL]))
-    if (host := config.get(CONF_HOST)) is not None:
-        cg.add(var.set_host(host))
+    cg.add_optional(var.set_host, config.get(CONF_HOST))

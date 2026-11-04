@@ -11,55 +11,44 @@ void SMT100Component::update() {
 }
 
 void SMT100Component::loop() {
-  while (this->available() != 0) {
-    const int readch = this->read();
-    if (readch <= 0)
-      continue;
+  this->read_available([this](uint8_t readch) {
+    if (readch == 0)
+      return;
     char *line = this->line_reader_.feed(readch);
     this->line_reader_.log_if_overflowed(TAG);
     if (line != nullptr && line[0] != '\0') {
       char *token = strtok(line, ",");
       if (!token)
-        continue;
+        return;
       int counts = (int) strtol(token, nullptr, 10);
       token = strtok(nullptr, ",");
       if (!token)
-        continue;
+        return;
       float permittivity = (float) strtod(token, nullptr);
       token = strtok(nullptr, ",");
       if (!token)
-        continue;
+        return;
       float moisture = (float) strtod(token, nullptr);
       token = strtok(nullptr, ",");
       if (!token)
-        continue;
+        return;
       float temperature = (float) strtod(token, nullptr);
       token = strtok(nullptr, ",");
       if (!token)
-        continue;
+        return;
       float voltage = (float) strtod(token, nullptr);
 
-      if (this->counts_sensor_ != nullptr) {
-        counts_sensor_->publish_state(counts);
-      }
+      PUBLISH_STATE(this->counts_sensor_, counts);
 
-      if (this->permittivity_sensor_ != nullptr) {
-        permittivity_sensor_->publish_state(permittivity);
-      }
+      PUBLISH_STATE(this->permittivity_sensor_, permittivity);
 
-      if (this->moisture_sensor_ != nullptr) {
-        moisture_sensor_->publish_state(moisture);
-      }
+      PUBLISH_STATE(this->moisture_sensor_, moisture);
 
-      if (this->temperature_sensor_ != nullptr) {
-        temperature_sensor_->publish_state(temperature);
-      }
+      PUBLISH_STATE(this->temperature_sensor_, temperature);
 
-      if (this->voltage_sensor_ != nullptr) {
-        voltage_sensor_->publish_state(voltage);
-      }
+      PUBLISH_STATE(this->voltage_sensor_, voltage);
     }
-  }
+  });
 }
 
 void SMT100Component::dump_config() {

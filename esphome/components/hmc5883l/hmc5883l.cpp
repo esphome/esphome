@@ -121,14 +121,10 @@ void HMC5883LComponent::update() {
   float heading = atan2f(0.0f - x, y) * 180.0f / std::numbers::pi_v<float>;
   ESP_LOGD(TAG, "Got x=%0.02fµT y=%0.02fµT z=%0.02fµT heading=%0.01f°", x, y, z, heading);
 
-  if (this->x_sensor_ != nullptr)
-    this->x_sensor_->publish_state(x);
-  if (this->y_sensor_ != nullptr)
-    this->y_sensor_->publish_state(y);
-  if (this->z_sensor_ != nullptr)
-    this->z_sensor_->publish_state(z);
-  if (this->heading_sensor_ != nullptr)
-    this->heading_sensor_->publish_state(heading);
+  PUBLISH_STATE(this->x_sensor_, x);
+  PUBLISH_STATE(this->y_sensor_, y);
+  PUBLISH_STATE(this->z_sensor_, z);
+  PUBLISH_STATE(this->heading_sensor_, heading);
 }
 
 }  // namespace esphome::hmc5883l

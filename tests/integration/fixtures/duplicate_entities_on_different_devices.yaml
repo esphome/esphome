@@ -4,10 +4,13 @@ esphome:
   devices:
     - id: controller_1
       name: Controller 1
+      relation: via
     - id: controller_2
       name: Controller 2
+      relation: via
     - id: controller_3
       name: Controller 3
+      relation: via
 
 host:
 api:  # Port will be automatically injected

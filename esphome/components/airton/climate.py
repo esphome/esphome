@@ -16,15 +16,16 @@ CONF_VERTICAL_DIRECTION = "vertical_direction"
 
 VerticalDirection = airton_ns.enum("VerticalDirection", is_class=True)
 # In the order of the enum, so the option index is the direction value
-VERTICAL_DIRECTIONS = {
-    "off": VerticalDirection.VERTICAL_DIRECTION_OFF,
-    "swing": VerticalDirection.VERTICAL_DIRECTION_SWING,
-    "up": VerticalDirection.VERTICAL_DIRECTION_UP,
-    "middle-up": VerticalDirection.VERTICAL_DIRECTION_MIDDLE_UP,
-    "middle": VerticalDirection.VERTICAL_DIRECTION_MIDDLE,
-    "middle-down": VerticalDirection.VERTICAL_DIRECTION_MIDDLE_DOWN,
-    "down": VerticalDirection.VERTICAL_DIRECTION_DOWN,
-}
+VERTICAL_DIRECTIONS = VerticalDirection.options(
+    "off",
+    "swing",
+    "up",
+    "middle-up",
+    "middle",
+    "middle-down",
+    "down",
+    prefix="VERTICAL_DIRECTION_",
+)
 
 CONFIG_SCHEMA = climate_ir.climate_ir_with_receiver_schema(AirtonClimate).extend(
     {

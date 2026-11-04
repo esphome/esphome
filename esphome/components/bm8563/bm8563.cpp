@@ -2,6 +2,7 @@
 
 #include <cinttypes>
 
+#include "esphome/core/helpers.h"
 #include "esphome/core/log.h"
 
 namespace esphome::bm8563 {
@@ -67,28 +68,17 @@ void BM8563::read_time() {
   time::RealTimeClock::synchronize_epoch_(rtc_time.timestamp);
 }
 
-uint8_t BM8563::bcd2_to_byte_(uint8_t value) {
-  const uint8_t tmp = ((value & 0xF0) >> 0x4) * 10;
-  return tmp + (value & 0x0F);
-}
-
-uint8_t BM8563::byte_to_bcd2_(uint8_t value) {
-  const uint8_t bcdhigh = value / 10;
-  value -= bcdhigh * 10;
-  return (bcdhigh << 4) | value;
-}
-
 void BM8563::get_time_(ESPTime &time) {
   uint8_t buf[3] = {0};
   this->read_register(TIME_FIRST_REG, buf, 3);
 
-  time.second = this->bcd2_to_byte_(buf[0] & 0x7f);
-  time.minute = this->bcd2_to_byte_(buf[1] & 0x7f);
-  time.hour = this->bcd2_to_byte_(buf[2] & 0x3f);
+  time.second = bcd_to_uint8(buf[0] & 0x7f);
+  time.minute = bcd_to_uint8(buf[1] & 0x7f);
+  time.hour = bcd_to_uint8(buf[2] & 0x3f);
 }
 
 void BM8563::set_time_(const ESPTime &time) {
-  uint8_t buf[3] = {this->byte_to_bcd2_(time.second), this->byte_to_bcd2_(time.minute), this->byte_to_bcd2_(time.hour)};
+  uint8_t buf[3] = {uint8_to_bcd(time.second), uint8_to_bcd(time.minute), uint8_to_bcd(time.hour)};
   this->write_register_(TIME_FIRST_REG, buf, 3);
 }
 
@@ -96,12 +86,12 @@ void BM8563::get_date_(ESPTime &time) {
   uint8_t buf[4] = {0};
   this->read_register(DATE_FIRST_REG, buf, sizeof(buf));
 
-  time.day_of_month = this->bcd2_to_byte_(buf[0] & 0x3f);
+  time.day_of_month = bcd_to_uint8(buf[0] & 0x3f);
   // The chip counts weekdays 0-6 from Sunday (not BCD), ESPTime counts 1-7
   time.day_of_week = (buf[1] & 0x07) + 1;
-  time.month = this->bcd2_to_byte_(buf[2] & 0x1f);
+  time.month = bcd_to_uint8(buf[2] & 0x1f);
 
-  uint8_t year_byte = this->bcd2_to_byte_(buf[3] & 0xff);
+  uint8_t year_byte = bcd_to_uint8(buf[3] & 0xff);
 
   if (buf[2] & 0x80) {
     time.year = 1900 + year_byte;
@@ -112,10 +102,10 @@ void BM8563::get_date_(ESPTime &time) {
 
 void BM8563::set_date_(const ESPTime &time) {
   uint8_t buf[4] = {
-      this->byte_to_bcd2_(time.day_of_month),
+      uint8_to_bcd(time.day_of_month),
       static_cast<uint8_t>(time.day_of_week - 1),
-      this->byte_to_bcd2_(time.month),
-      this->byte_to_bcd2_(time.year % 100),
+      uint8_to_bcd(time.month),
+      uint8_to_bcd(time.year % 100),
   };
 
   if (time.year < 2000) {

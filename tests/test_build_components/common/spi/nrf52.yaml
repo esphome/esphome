@@ -1,0 +1,12 @@
+# Common SPI configuration for NRF52 tests
+
+substitutions:
+  clk_pin: P0.14
+  mosi_pin: P0.13
+  miso_pin: P0.15
+
+spi:
+  - id: spi_bus
+    clk_pin: ${clk_pin}
+    mosi_pin: ${mosi_pin}
+    miso_pin: ${miso_pin}

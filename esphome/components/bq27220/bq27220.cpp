@@ -57,11 +57,7 @@ void BQ27220Component::update() {
                  [](uint16_t raw) { return raw == TIME_TO_EMPTY_NOT_APPLICABLE ? NAN : float(raw); });
   this->publish_(this->state_of_health_sensor_, REG_STATE_OF_HEALTH, ok, [](uint16_t raw) { return float(raw); });
 
-  if (ok) {
-    this->status_clear_warning();
-  } else {
-    this->status_set_warning(LOG_STR("Failed to read one or more registers from BQ27220"));
-  }
+  this->status_comm_result(ok, LOG_STR("Failed to read one or more registers from BQ27220"));
 }
 
 void BQ27220Component::dump_config() {

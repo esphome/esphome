@@ -274,9 +274,7 @@ def _model_schema(config: ConfigType) -> cv.Schema:
             cv.Optional(CONF_UPDATE_MODE): update_mode,
             # One or more GPIOs driven high during setup to power on the panel
             # (e.g. board power-enable rails), before reset and init.
-            cv.Optional(
-                CONF_ENABLE_PIN, default=model.get_default(CONF_ENABLE_PIN, [])
-            ): cv.ensure_list(pins.gpio_output_pin_schema),
+            **display.enable_pin_schema(model, config),
             cv.Optional(CONF_RESET_DURATION): cv.All(
                 cv.positive_time_period_milliseconds,
                 cv.Range(max=core.TimePeriod(milliseconds=500)),
@@ -376,22 +374,19 @@ async def to_code(config: ConfigType) -> None:
             )
         )
     cg.add(var.set_full_update_every(config[CONF_FULL_UPDATE_EVERY]))
-    if (reset_duration := config.get(CONF_RESET_DURATION)) is not None:
-        cg.add(var.set_reset_duration(reset_duration))
+    cg.add_optional(var.set_reset_duration, config.get(CONF_RESET_DURATION))
     if config.get(CONF_INVERT_COLORS):
         cg.add(var.set_invert_colors(True))
     if config.get(CONF_SLEEP_WHEN_DONE):
         cg.add(var.set_sleep_when_done(True))
     cg.add(var.set_vcom(config[CONF_VCOM]))
     cg.add(var.set_vcom_register(config[CONF_VCOM_REGISTER]))
-    if CONF_FORCE_TEMPERATURE in config:
-        cg.add(var.set_force_temperature(config[CONF_FORCE_TEMPERATURE]))
+    cg.add_optional(var.set_force_temperature, config.get(CONF_FORCE_TEMPERATURE))
     if config.get(CONF_USE_LEGACY_DPY_AREA):
         cg.add(var.set_use_legacy_dpy_area(True))
     cg.add(var.set_grayscale(config[CONF_GRAYSCALE]))
     cg.add(var.set_dithering(config[CONF_DITHERING]))
-    if (mode := config.get(CONF_UPDATE_MODE)) is not None:
-        cg.add(var.set_update_mode(mode))
+    cg.add_optional(var.set_update_mode, config.get(CONF_UPDATE_MODE))
 
     transform = config.get(
         CONF_TRANSFORM,
