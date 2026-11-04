@@ -1,0 +1,4 @@
+substitutions:
+  wakeup_pin: GPIO4
+
+<<: !include common-esp32-all.yaml
