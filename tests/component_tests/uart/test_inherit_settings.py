@@ -46,7 +46,14 @@ def test_settings_source_follows_every_hop() -> None:
 def test_settings_source_ends_on_a_loop() -> None:
     uart.inherit_settings(ID("a"), ID("b"))
     uart.inherit_settings(ID("b"), ID("a"))
-    assert str(uart._settings_source(ID("a"))) in ("a", "b")
+    # a -> b -> a: the walk stops where it started
+    assert str(uart._settings_source(ID("a"))) == "a"
+
+
+def test_settings_source_ends_on_a_self_loop() -> None:
+    uart.inherit_settings(ID("a"), ID("a"))
+    # a -> a: the walk stops at once
+    assert str(uart._settings_source(ID("a"))) == "a"
 
 
 def test_device_is_checked_against_the_source(
@@ -65,6 +72,7 @@ def test_mismatch_is_reported_at_the_source(
     with pytest.raises(cv.Invalid, match="requires baud rate 115200") as err:
         _device(baud_rate=115200)
     assert err.value.path[-3:] == ["uart", 0, CONF_BAUD_RATE]
+    assert "(via copy)" in str(err.value)
 
 
 def test_device_without_settings_needs_no_source(
