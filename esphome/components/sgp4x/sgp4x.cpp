@@ -107,10 +107,8 @@ void SGP4xComponent::setup() {
 
 void SGP4xComponent::self_test_() {
   ESP_LOGD(TAG, "Starting self-test");
-  if (!this->write_command(SGP4X_CMD_SELF_TEST)) {
-    this->mark_failed(LOG_STR(ESP_LOG_MSG_COMM_FAIL));
+  if (!this->setup_check(this->write_command(SGP4X_CMD_SELF_TEST)))
     return;
-  }
 
   this->set_timeout(SGP4X_SELF_TEST_TIME, [this]() {
     uint16_t reply = 0;
