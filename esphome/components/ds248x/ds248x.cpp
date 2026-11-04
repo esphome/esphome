@@ -60,6 +60,8 @@ void DS248xComponent::dump_config() {
 
 // Datasheet command durations are sub-2ms; allow a little margin before forcing recovery.
 static constexpr uint32_t BUSY_TIMEOUT_MS = 5;
+// Limits retries while the chip stays unreachable, so a sensor update does not retry once per byte.
+static constexpr uint32_t RECOVERY_RETRY_MS = 1000;
 
 bool DS248xComponent::set_read_pointer_(uint8_t ptr) { return this->write_byte(DS248X_COMMAND_SETREADPTR, ptr); }
 
@@ -67,21 +69,28 @@ bool DS248xComponent::wait_busy_() {
   uint32_t start = millis();
   do {
     uint8_t status;
-    if (this->read(&status, 1) == i2c::ERROR_OK && !(status & DS248X_STATUS_BUSY)) {
-      this->status_clear_warning();
+    if (this->read(&status, 1) == i2c::ERROR_OK && !(status & DS248X_STATUS_BUSY))
       return true;
-    }
     delayMicroseconds(100);
   } while (millis() - start < BUSY_TIMEOUT_MS);
   ESP_LOGW(TAG, "DS248x busy timeout");
-  bool recovered = this->device_reset_() && this->device_configure_();
-  this->current_channel_ = -1;
-  if (!recovered) {
-    // Keep the component usable so a later command can succeed once the bus recovers
+  if (!this->recover_()) {
     ESP_LOGE(TAG, "DS248x recovery failed after busy timeout");
-    this->status_set_warning();
   }
   return false;
+}
+
+bool DS248xComponent::recover_() {
+  this->last_recovery_ms_ = millis();
+  this->current_channel_ = -1;
+  // Without a successful configure the chip runs with its reset defaults, so keep retrying until it succeeds
+  this->needs_recovery_ = !(this->device_reset_() && this->device_configure_());
+  if (this->needs_recovery_) {
+    this->status_set_warning();
+    return false;
+  }
+  this->status_clear_warning();
+  return true;
 }
 
 bool DS248xComponent::device_reset_() {
@@ -192,6 +201,8 @@ static constexpr uint8_t CHANNEL_WRITE_CODES[8] = {0xF0, 0xE1, 0xD2, 0xC3, 0xB4,
 static constexpr uint8_t CHANNEL_READ_CODES[8] = {0xB8, 0xB1, 0xAA, 0xA3, 0x9C, 0x95, 0x8E, 0x87};
 
 bool DS248xComponent::select_channel(uint8_t channel) {
+  if (this->needs_recovery_ && (millis() - this->last_recovery_ms_ < RECOVERY_RETRY_MS || !this->recover_()))
+    return false;
   if (this->channel_count_ <= 1)
     return true;
   if (channel >= this->channel_count_)

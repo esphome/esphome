@@ -120,6 +120,8 @@ class DS248xComponent : public Component, public i2c::I2CDevice {
   uint8_t ds2484_rwpu_{DS2484_PARAM_UNSET};
 
   int8_t current_channel_{-1};
+  bool needs_recovery_{false};
+  uint32_t last_recovery_ms_{0};
 
   // Internal helpers
   bool set_read_pointer_(uint8_t ptr);
@@ -128,6 +130,7 @@ class DS248xComponent : public Component, public i2c::I2CDevice {
   bool device_configure_();
   bool configure_ds2484_port_(uint8_t param, uint8_t val);
   bool write_config_();
+  bool recover_();
 };
 
 }  // namespace esphome::ds248x
