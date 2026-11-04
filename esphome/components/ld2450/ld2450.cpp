@@ -228,6 +228,7 @@ void LD2450Component::dump_config() {
   ESP_LOGCONFIG(TAG, "Buttons:");
   LOG_BUTTON("  ", "FactoryReset", this->factory_reset_button_);
   LOG_BUTTON("  ", "Restart", this->restart_button_);
+  LOG_BUTTON("  ", "XYUnfiltered", this->xy_unfiltered_button_);
 #endif
 #ifdef LD2450_POLYGON_ZONE_COUNT
   ESP_LOGCONFIG(TAG, "Polygon Zones:");
@@ -1001,13 +1002,13 @@ void LD2450Component::set_direction_text_sensor(uint8_t target, text_sensor::Tex
 }
 #endif
 #ifdef USE_LD2450_TARGET_XY
-void LD2450Component::set_target_xy_text_sensor(uint8_t target, text_sensor::TextSensor *s) {
+void LD2450Component::set_target_xy_text_sensor(uint8_t target, TargetXYTextSensor *s) {
   this->target_xy_text_sensors_[target] = s;
 }
 
 // Publish the position of a target in one radar frame; the sensor's filters throttle it
 void LD2450Component::update_target_xy_(uint8_t target, bool changed) {
-  text_sensor::TextSensor *s = this->target_xy_text_sensors_[target];
+  TargetXYTextSensor *s = this->target_xy_text_sensors_[target];
   if (s == nullptr || (!changed && s->has_state()))
     return;
   const Target &pos = this->target_info_[target];
@@ -1019,6 +1020,38 @@ void LD2450Component::update_target_xy_(uint8_t target, bool changed) {
   char text[16];
   const size_t len = buf_append_printf(text, sizeof(text), 0, "%d,%d", pos.x, pos.y);
   s->publish_state(text, len);
+}
+#endif
+
+#ifdef USE_LD2450_XY_UNFILTERED
+#ifdef USE_LD2450_TARGET_XY
+void TargetXYTextSensor::set_bypass_filters(bool bypass) {
+#ifdef USE_TEXT_SENSOR_FILTER
+  if (bypass && this->filter_list_ != nullptr) {
+    // Reset now, so a timeout armed by an earlier value does not send it while bypassed
+    this->filter_list_->reset_chain();
+    this->bypassed_filters_ = this->filter_list_;
+    this->filter_list_ = nullptr;
+  } else if (!bypass && this->bypassed_filters_ != nullptr) {
+    this->filter_list_ = this->bypassed_filters_;
+    this->bypassed_filters_ = nullptr;
+  }
+#endif
+}
+#endif
+
+void LD2450Component::start_xy_unfiltered() {
+  this->bypass_xy_filters_(true);
+  this->set_timeout(XY_UNFILTERED_TIMEOUT_ID, XY_UNFILTERED_DURATION_MS, [this]() { this->bypass_xy_filters_(false); });
+}
+
+void LD2450Component::bypass_xy_filters_(bool bypass) {
+#ifdef USE_LD2450_TARGET_XY
+  for (TargetXYTextSensor *s : this->target_xy_text_sensors_) {
+    if (s != nullptr)
+      s->set_bypass_filters(bypass);
+  }
+#endif
 }
 #endif
 
