@@ -126,7 +126,7 @@ def validate_mode_defaults(config: ConfigType) -> ConfigType:
 
 
 CONFIG_SCHEMA = cv.All(
-    canbus.CANBUS_SCHEMA.extend(
+    canbus.CANBUS_FD_SCHEMA.extend(
         {
             cv.GenerateID(): cv.declare_id(mcp251xfd),
             cv.Optional(CONF_CLOCK, default="40MHZ"): cv.enum(CAN_CLOCK, upper=True),
@@ -174,6 +174,8 @@ async def to_code(config: ConfigType) -> None:
         HexInt(tdc),
     )
     await canbus.register_canbus(var, config, reports_status=True)
+    if config[CONF_MODE] == "CLASSIC":
+        cg.add(var.set_supports_fd(False))
     await spi.register_spi_device(var, config)
     if (interrupt_pin := config.get(CONF_INTERRUPT_PIN)) is not None:
         pin = await cg.gpio_pin_expression(interrupt_pin)

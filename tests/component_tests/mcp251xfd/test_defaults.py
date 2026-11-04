@@ -1,5 +1,8 @@
 """MCP251XFD defaults for classic and FD operating modes."""
 
+from collections.abc import Callable
+from pathlib import Path
+
 import pytest
 
 from esphome.components.mcp251xfd import canbus as mcp251xfd
@@ -34,3 +37,16 @@ def test_fd_defaults(
             mcp251xfd.CONFIG_SCHEMA({**options, key: True})
     else:
         assert mcp251xfd.CONFIG_SCHEMA({**options, key: True})[key] is True
+
+
+def test_fd_capability_codegen(
+    generate_main: Callable[[str | Path], str],
+    component_config_path: Callable[[str], Path],
+) -> None:
+    """FD support is enabled per bus and disabled again in classic mode."""
+    main = generate_main(component_config_path("mcp251xfd_timing.yaml"))
+    assert "fd_bus->set_supports_fd(true);" in main
+    assert "fd_bus->set_supports_fd(false);" not in main
+    assert main.index("classic_bus->set_supports_fd(true);") < main.index(
+        "classic_bus->set_supports_fd(false);"
+    )

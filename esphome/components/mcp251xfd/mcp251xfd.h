@@ -39,7 +39,6 @@ class MCP251XFD : public canbus::Canbus,
   void set_interrupt_pin(InternalGPIOPin *pin) { this->interrupt_pin_ = pin; }
   canbus::CanStatus get_status() override;
   const FaultCounters &get_fault_counters() const { return this->fault_counters_; }
-  bool supports_fd() const override { return this->mcp_mode_ != CanMode::CAN_MODE_CLASSIC; }
 
  protected:
   CanClock mcp_clock_;

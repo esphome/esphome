@@ -327,7 +327,7 @@ canbus::Error MCP251XFD::send_message(canbus::CanFrame *frame) {
   if (this->is_failed() || this->mcp_mode_ == CanMode::CAN_MODE_LISTEN_ONLY)
     return canbus::ERROR_FAILTX;
 
-  const uint8_t length = canbus::can_dlc_to_len(frame->can_data_length_code);
+  const uint8_t length = frame->payload_length();
 
   std::array<uint8_t, 8> fifo;
   if (!this->read_registers_(REG_TX_FIFO_STA, fifo.data(), fifo.size()))
@@ -353,10 +353,12 @@ canbus::Error MCP251XFD::send_message(canbus::CanFrame *frame) {
     message[4] |= MESSAGE_IDE;
   if (frame->remote_transmission_request)
     message[4] |= MESSAGE_RTR;
+#ifdef USE_CANBUS_FD
   if (frame->fd)
     message[4] |= MESSAGE_FDF;
   if (frame->bit_rate_switch)
     message[4] |= MESSAGE_BRS;
+#endif
   if (!frame->remote_transmission_request)
     std::memcpy(message.data() + 8, frame->data, length);
 
@@ -395,6 +397,7 @@ canbus::Error MCP251XFD::read_message(canbus::CanFrame *frame) {
     frame->can_id = id & STANDARD_ID_MASK;
   }
   frame->remote_transmission_request = (message[4] & MESSAGE_RTR) != 0;
+#ifdef USE_CANBUS_FD
   frame->fd = (message[4] & MESSAGE_FDF) != 0;
   frame->bit_rate_switch = false;
   frame->error_state_indicator = false;
@@ -406,14 +409,12 @@ canbus::Error MCP251XFD::read_message(canbus::CanFrame *frame) {
     frame->bit_rate_switch = (message[4] & MESSAGE_BRS) != 0;
     frame->error_state_indicator = (message[5] & MESSAGE_ESI) != 0;
   }
+#else
+  if (message[4] & MESSAGE_FDF)
+    return canbus::ERROR_FAIL;
+#endif
   frame->can_data_length_code = message[4] & MESSAGE_DLC_MASK;
-  // Classic CAN DLC values 9..15 still represent eight data bytes.
-  uint8_t length;
-  if (frame->fd) {
-    length = canbus::can_dlc_to_len(frame->can_data_length_code);
-  } else {
-    length = std::min(frame->can_data_length_code, canbus::CAN_MAX_DATA_LENGTH);
-  }
+  const uint8_t length = frame->payload_length();
   std::memset(frame->data, 0, sizeof(frame->data));
   if (!frame->remote_transmission_request)
     std::memcpy(frame->data, message.data() + 8, length);

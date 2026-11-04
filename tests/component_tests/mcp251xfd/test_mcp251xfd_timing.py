@@ -201,5 +201,5 @@ def test_codegen(
         "mcp251xfd::MCP251XFD(mcp251xfd::CanClock::CAN_CLOCK_40MHZ, "
         "mcp251xfd::CanMode::CAN_MODE_NORMAL, 0x3E0F0F, 0x20000, 0x20400)"
     ) in main_cpp
-    assert "->set_default_fd(true);" in main_cpp
-    assert "->set_default_bit_rate_switch(true);" not in main_cpp
+    assert "fd_bus->set_default_fd(true);" in main_cpp
+    assert "fd_bus->set_default_bit_rate_switch(true);" not in main_cpp
