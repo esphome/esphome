@@ -1,6 +1,7 @@
 #include "hyt271.h"
 #include "esphome/core/log.h"
 #include "esphome/core/hal.h"
+#include "esphome/core/helpers.h"
 
 namespace esphome::hyt271 {
 
@@ -32,8 +33,8 @@ void HYT271Component::update() {
       ESP_LOGE(TAG, ESP_LOG_MSG_COMM_FAIL);
       return;
     }
-    uint16_t raw_temperature = ((raw_data[2] << 8) | raw_data[3]) >> 2;
-    uint16_t raw_humidity = ((raw_data[0] & 0x3F) << 8) | raw_data[1];
+    uint16_t raw_temperature = encode_uint16(raw_data[2], raw_data[3]) >> 2;
+    uint16_t raw_humidity = encode_uint16(raw_data[0] & 0x3F, raw_data[1]);
 
     float temperature = ((float(raw_temperature)) * (165.0f / 16383.0f)) - 40.0f;
     float humidity = (float(raw_humidity)) * (100.0f / 16383.0f);
