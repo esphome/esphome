@@ -11,6 +11,8 @@ from esphome.components import deep_sleep
 from esphome.components.esp32 import (
     KEY_BOARD,
     KEY_VARIANT,
+    VARIANT_ESP32C2,
+    VARIANT_ESP32C3,
     VARIANT_ESP32C6,
     VARIANT_ESP32H2,
     VARIANT_ESP32H4,
@@ -350,3 +352,19 @@ def test_deep_sleep_touch_wakeup_accepted_on_esp32_p4(
     )
     config = deep_sleep.CONFIG_SCHEMA({deep_sleep.CONF_TOUCH_WAKEUP: True})
     assert config[deep_sleep.CONF_TOUCH_WAKEUP] is True
+
+
+@pytest.mark.parametrize("variant", [VARIANT_ESP32C2, VARIANT_ESP32C3])
+def test_deep_sleep_ext1_wakeup_rejected_on_variant_without_ext1(
+    set_core_config: SetCoreConfigCallable, variant: str
+) -> None:
+    """esp32_ext1_wakeup is rejected on variants without ext1 wakeup support."""
+    set_core_config(
+        PlatformFramework.ESP32_IDF,
+        platform_data={KEY_BOARD: "esp32dev", KEY_VARIANT: variant},
+    )
+    config = {
+        deep_sleep.CONF_ESP32_EXT1_WAKEUP: {"pins": ["GPIO2"], "mode": "ANY_HIGH"}
+    }
+    with pytest.raises(cv.Invalid, match="Wakeup from ext1"):
+        deep_sleep.CONFIG_SCHEMA(config)
