@@ -226,9 +226,6 @@ class AsyncWebServer {
 
   void begin();
   void end();
-  /// Takes effect at the next begin().
-  void set_port(uint16_t port) { this->port_ = port; }
-
 #ifdef USE_WEBSERVER_SSL
   /// PEM certificate and key, not copied; nullptr for plain HTTP. Takes effect at the next begin().
   void set_ssl_credentials(const char *certificate, const char *private_key) {
@@ -247,16 +244,10 @@ class AsyncWebServer {
 
  protected:
   uint16_t port_{};
-#ifdef USE_WEBSERVER_SSL
-  uint16_t running_port_{};  // port_ of the running listener, 0 once stopped; port_ may already hold the next one
-#endif
   httpd_handle_t server_{};
 #ifdef USE_WEBSERVER_SSL
   const char *ssl_certificate_{nullptr};
   const char *ssl_private_key_{nullptr};
-  Mutex close_lock_;  // held by close_fn while closing, by shutdown_clients_() and by context_free()
-  void shutdown_clients_();
-  static void context_free(void *ctx);
 #endif
   static esp_err_t request_handler(httpd_req_t *r);
   static esp_err_t request_post_handler(httpd_req_t *r);

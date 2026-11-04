@@ -31,7 +31,8 @@ class HttpsTest : public Component {
   explicit HttpsTest(web_server_base::WebServerBase *base) : base_(base) {}
 
   void setup() override {
-    this->base_->set_ssl_credentials(CERTIFICATE, PRIVATE_KEY, 443);
+    this->base_->set_port(443);
+    this->base_->set_ssl_credentials(CERTIFICATE, PRIVATE_KEY);
     this->base_->init();
   }
   float get_setup_priority() const override { return setup_priority::WIFI - 1.0f; }

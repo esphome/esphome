@@ -168,44 +168,19 @@ class WebServerBase final {
    */
   void add_handler_without_auth(AsyncWebHandler *handler);
 
+  void set_port(uint16_t port) { port_ = port; }
   uint16_t get_port() const { return port_; }
 
 #if defined(USE_ESP32) && defined(USE_WEBSERVER_SSL)
-  // Both setters restart a running listener, closing open connections. Call from the main loop: from a request
-  // handler the restart would wait for its own task.
-
-  void set_port(uint16_t port) {
-    if (port == this->port_)
-      return;
-    this->port_ = port;
-    if (this->server_ != nullptr) {
-      this->server_->set_port(port);
-      this->restart_if_running_();
-    }
-  }
-  /// PEM certificate and key, or nullptr for plain HTTP. Not copied: they must stay valid, every restart reuses them.
-  /// A non-zero port switches the port too, with a single restart.
-  void set_ssl_credentials(const char *certificate, const char *private_key, uint16_t port = 0) {
+  /// PEM certificate and key for HTTPS. Not copied: they must stay valid. Set them, like the port, before init().
+  void set_ssl_credentials(const char *certificate, const char *private_key) {
     this->ssl_certificate_ = certificate;
     this->ssl_private_key_ = private_key;
-    if (port != 0)
-      this->port_ = port;
-    if (this->server_ != nullptr) {
-      this->server_->set_ssl_credentials(certificate, private_key);
-      this->server_->set_port(this->port_);
-      this->restart_if_running_();
-    }
   }
-#else
-  void set_port(uint16_t port) { port_ = port; }
 #endif
 
  protected:
 #if defined(USE_ESP32) && defined(USE_WEBSERVER_SSL)
-  void restart_if_running_() {
-    if (this->initialized_ > 0)
-      this->server_->begin();  // begin() stops the running listener first
-  }
   const char *ssl_certificate_{nullptr};
   const char *ssl_private_key_{nullptr};
 #endif

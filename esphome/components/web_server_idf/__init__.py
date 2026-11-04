@@ -48,7 +48,7 @@ def consume_ssl_sockets(config: ConfigType) -> ConfigType:
     """Serve the shared web server over HTTPS.
 
     The one thing a component that supplies its own certificate adds to its
-    schema; it then calls WebServerBase::set_ssl_credentials() at run time.
+    schema; it then calls WebServerBase::set_ssl_credentials() before init().
     This compiles HTTPS in and registers the connections it can hold open.
     """
     data = _get_data()
