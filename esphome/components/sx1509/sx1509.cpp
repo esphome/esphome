@@ -88,77 +88,54 @@ bool SX1509Component::digital_read_cache(uint8_t pin) {
 }
 
 void SX1509Component::digital_write_hw(uint8_t pin, bool bit_value) {
-  if ((~this->ddr_mask_) & (1 << pin)) {
-    // If the pin is an output, write high/low
-    uint16_t temp_reg_data = 0;
-    this->read_byte_16(REG_DATA_B, &temp_reg_data);
-    assign_bits(this->output_state_, 1 << pin, bit_value);
-    // Outputs take the shadow state, inputs keep what was read
-    temp_reg_data = (temp_reg_data & this->ddr_mask_) | (this->output_state_ & ~this->ddr_mask_);
-    this->write_byte_16(REG_DATA_B, temp_reg_data);
+  const uint16_t bit = 1 << pin;
+  if ((~this->ddr_mask_) & bit) {
+    assign_bits(this->output_state_, bit, bit_value);
+    // Outputs take the shadow state, inputs keep what was read. Unlike update_register_16_(), a failed read
+    // still writes, since every output bit comes from the shadow.
+    uint16_t data = 0;
+    this->read_byte_16(REG_DATA_B, &data);
+    this->write_byte_16(REG_DATA_B, (data & this->ddr_mask_) | (this->output_state_ & ~this->ddr_mask_));
   }
 }
 
 void SX1509Component::pin_mode(uint8_t pin, gpio::Flags flags) {
   ESP_LOGI(TAG, "Configuring pin %u with flags %x", pin, flags);
 
-  uint16_t temp_word = 0;
+  const uint16_t bit = 1 << pin;
 
   this->read_byte_16(REG_DIR_B, &this->ddr_mask_);
   if (flags & gpio::FLAG_OUTPUT) {
     // Always disable input buffer
-    this->read_byte_16(REG_INPUT_DISABLE_B, &temp_word);
-    temp_word |= (1 << pin);
-    this->write_byte_16(REG_INPUT_DISABLE_B, temp_word);
+    this->update_register_16_(REG_INPUT_DISABLE_B, bit, bit);
 
     if (flags & gpio::FLAG_OPEN_DRAIN) {
       // Pullup must be disabled for open drain mode
-      this->read_byte_16(REG_PULL_UP_B, &temp_word);
-      temp_word &= ~(1 << pin);
-      this->write_byte_16(REG_PULL_UP_B, temp_word);
-      this->read_byte_16(REG_OPEN_DRAIN_B, &temp_word);
-      temp_word |= (1 << pin);
-      this->write_byte_16(REG_OPEN_DRAIN_B, temp_word);
+      this->update_register_16_(REG_PULL_UP_B, bit, 0);
+      this->update_register_16_(REG_OPEN_DRAIN_B, bit, bit);
       ESP_LOGD(TAG, "Open drain output mode set for %u", pin);
     } else {
       ESP_LOGD(TAG, "Output Mode for %u", pin);
     }
-
-    // Set direction to output
-    this->ddr_mask_ &= ~(1 << pin);
-    this->write_byte_16(REG_DIR_B, this->ddr_mask_);
   } else {
     ESP_LOGD(TAG, "Input Mode for %u", pin);
 
     // Always enable input buffer
-    this->read_byte_16(REG_INPUT_DISABLE_B, &temp_word);
-    temp_word &= ~(1 << pin);
-    this->write_byte_16(REG_INPUT_DISABLE_B, temp_word);
-
-    // Pullup
-    this->read_byte_16(REG_PULL_UP_B, &temp_word);
-    assign_bits(temp_word, 1 << pin, flags & gpio::FLAG_PULLUP);
-    this->write_byte_16(REG_PULL_UP_B, temp_word);
-
-    // Pulldown
-    this->read_byte_16(REG_PULL_DOWN_B, &temp_word);
-    assign_bits(temp_word, 1 << pin, flags & gpio::FLAG_PULLDOWN);
-    this->write_byte_16(REG_PULL_DOWN_B, temp_word);
-
-    // Set direction to input
-    this->ddr_mask_ |= (1 << pin);
-    this->write_byte_16(REG_DIR_B, this->ddr_mask_);
+    this->update_register_16_(REG_INPUT_DISABLE_B, bit, 0);
+    this->update_register_16_(REG_PULL_UP_B, bit, (flags & gpio::FLAG_PULLUP) ? bit : 0);
+    this->update_register_16_(REG_PULL_DOWN_B, bit, (flags & gpio::FLAG_PULLDOWN) ? bit : 0);
   }
+  // A set direction bit makes the pin an input
+  assign_bits(this->ddr_mask_, bit, !(flags & gpio::FLAG_OUTPUT));
+  this->write_byte_16(REG_DIR_B, this->ddr_mask_);
 }
 
 void SX1509Component::setup_led_driver(uint8_t pin) {
-  uint16_t temp_word = 0;
+  const uint16_t bit = 1 << pin;
 
-  this->read_byte_16(REG_INPUT_DISABLE_B, &temp_word);
-  temp_word |= (1 << pin);
-  this->write_byte_16(REG_INPUT_DISABLE_B, temp_word);
+  this->update_register_16_(REG_INPUT_DISABLE_B, bit, bit);
 
-  this->ddr_mask_ &= ~(1 << pin);  // 0=output
+  this->ddr_mask_ &= ~bit;  // 0=output
   this->write_byte_16(REG_DIR_B, this->ddr_mask_);
 
   // Internal 2MHz oscillator: set bit 6, clear bit 5
@@ -167,14 +144,15 @@ void SX1509Component::setup_led_driver(uint8_t pin) {
   // Linear mode for banks A (bit 3) and B (bit 7); LED driver clock ClkX of all IOs (bits 6:4)
   this->update_register(REG_MISC, (1 << 7) | (1 << 3) | 0x70, this->led_driver_frequency_);
 
-  this->read_byte_16(REG_LED_DRIVER_ENABLE_B, &temp_word);
-  temp_word |= (1 << pin);
-  this->write_byte_16(REG_LED_DRIVER_ENABLE_B, temp_word);
+  this->update_register_16_(REG_LED_DRIVER_ENABLE_B, bit, bit);
 
-  this->read_byte_16(REG_DATA_B, &temp_word);
-  temp_word &= ~(1 << pin);
-  output_state_ &= ~(1 << pin);
-  this->write_byte_16(REG_DATA_B, temp_word);
+  this->output_state_ &= ~bit;
+  this->update_register_16_(REG_DATA_B, bit, 0);
+}
+
+bool SX1509Component::update_register_16_(uint8_t a_register, uint16_t mask, uint16_t value) {
+  uint16_t data;
+  return this->read_byte_16(a_register, &data) && this->write_byte_16(a_register, (data & ~mask) | (value & mask));
 }
 
 void SX1509Component::clock_(uint8_t osc_source, uint8_t osc_pin_function, uint8_t osc_freq_out, uint8_t osc_divider) {
@@ -257,10 +235,7 @@ void SX1509Component::set_debounce_time_(uint8_t time) {
 }
 
 void SX1509Component::set_debounce_enable_(uint8_t pin) {
-  uint16_t debounce_enable = 0;
-  this->read_byte_16(REG_DEBOUNCE_ENABLE_B, &debounce_enable);
-  debounce_enable |= (1 << pin);
-  this->write_byte_16(REG_DEBOUNCE_ENABLE_B, debounce_enable);
+  this->update_register_16_(REG_DEBOUNCE_ENABLE_B, 1 << pin, 1 << pin);
 }
 
 void SX1509Component::set_debounce_pin_(uint8_t pin) { set_debounce_enable_(pin); }

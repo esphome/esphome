@@ -49,7 +49,7 @@ CONF_WAKE_WORD = "wake_word"
 CONF_CONVERSATION_TIMEOUT = "conversation_timeout"
 CONF_TTS_PLAYBACK_START_TIMEOUT = "tts_playback_start_timeout"
 # Keep in sync with VoiceAssistant::tts_playback_start_timeout_ in voice_assistant.h.
-TTS_PLAYBACK_START_TIMEOUT_DEFAULT = core.TimePeriod(milliseconds=2000)
+TTS_PLAYBACK_START_TIMEOUT_DEFAULT = core.TimePeriod(milliseconds=15000)
 
 CONF_ON_TIMER_STARTED = "on_timer_started"
 CONF_ON_TIMER_UPDATED = "on_timer_updated"
