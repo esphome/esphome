@@ -6,21 +6,6 @@ namespace esphome::epaper_spi {
 
 ESPHOME_LOG_TAG(TAG, "epaper_spi.ssd1677_gray4");
 
-// Combine two source bytes (4 pixels each, 2 bits per pixel, most significant pixel first) into
-// one plane byte covering the same 8 pixels (1 bit per pixel), choosing high or low bit
-static uint8_t plane_byte(uint8_t first, uint8_t second, bool high_bit) {
-  uint8_t out = 0;
-  for (const uint8_t src : {first, second}) {
-    for (uint8_t shift = 6;; shift -= 2) {
-      const uint8_t level = (src >> shift) & 0x03;
-      out = (uint8_t) ((out << 1) | (high_bit ? (level >> 1) : (level & 1)));
-      if (shift == 0)
-        break;
-    }
-  }
-  return out;
-}
-
 void EPaperSSD1677Gray4::fill(Color color) {
   if (this->get_clipping().is_set()) {
     // Falls back to the generic per-pixel implementation for the clipped rectangle.
@@ -46,7 +31,7 @@ void HOT EPaperSSD1677Gray4::draw_pixel_at(int x, int y, Color color) {
 void EPaperSSD1677Gray4::plane_row(size_t y, uint8_t *out) {
   const size_t src_row = y * this->row_width_;
   for (size_t i = 0; i != this->plane_row_length_(); i++)
-    out[i] = plane_byte(this->buffer_[src_row + 2 * i], this->buffer_[src_row + 2 * i + 1], true);
+    out[i] = gray4_plane_byte(this->buffer_[src_row + 2 * i], this->buffer_[src_row + 2 * i + 1], true);
 }
 
 // the high bit of every pixel's level goes to the new (bw) plane
@@ -80,8 +65,10 @@ bool HOT EPaperSSD1677Gray4::transfer_data() {
   this->start_data_();
   while (this->current_data_index_ != this->y_high_) {
     const size_t src_row = this->current_data_index_ * this->row_width_ + this->x_low_ / 4;
-    for (size_t i = 0; i != plane_row_length; i++)
-      bytes_to_send[i] = plane_byte(this->buffer_[src_row + 2 * i], this->buffer_[src_row + 2 * i + 1], first_pass);
+    for (size_t i = 0; i != plane_row_length; i++) {
+      bytes_to_send[i] =
+          gray4_plane_byte(this->buffer_[src_row + 2 * i], this->buffer_[src_row + 2 * i + 1], first_pass);
+    }
     // What the next partial update compares against: the high bits, as a black-and-white frame.
     if (first_pass)
       this->record_sent_(this->current_data_index_ * plane_row_length, bytes_to_send, plane_row_length);

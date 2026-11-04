@@ -4,6 +4,8 @@ Supported models:
 - waveshare-7.5in-v2: 7.5" mono display, 800x480 pixels (EPD_7in5_V2)
 - seeed-reterminal-e1001: Seeed reTerminal E1001, which uses the same
   7.5" 800x480 panel on an integrated ESP32-S3 board
+- waveshare-7.5in-v2-4gray: the Waveshare 7.5" V2 in four-level grayscale, with
+  black-and-white differential partial refresh that keeps unchanged gray pixels
 
 Panel configuration and power-on (0x04) are both sent during the INITIALISE
 state; the state machine's built-in busy wait then covers the power-on delay
@@ -90,4 +92,75 @@ waveshare_7_5_v2.extend(
             "pullup": True,
         },
     },
+)
+
+
+# 60-byte register LUTs for the black-and-white differential partial refresh of the four-level
+# model, 10 groups of [VS, TP0..TP3, RP] with only group 0 used. WW, KK and the border get an empty
+# waveform, so pixels that stay light or stay dark (gray levels included) are not driven; KW drives
+# toward white (VS 10b) and WK toward black (VS 01b) for TP0 = 0x0C frames. The bit polarity in the
+# driver, these slot assignments and the 0x50 = 0xA9 border setting only work together.
+_LUT_SIZE = 60
+
+
+def _lut(*head: int) -> tuple[int, ...]:
+    return head + (0,) * (_LUT_SIZE - len(head))
+
+
+_LUT_VCOM = _lut(0x00, 0x0C, 0x01, 0x00, 0x00, 0x01)
+_LUT_NOOP = _lut()
+_LUT_KW = _lut(0x80, 0x0C, 0x01, 0x00, 0x00, 0x01)
+_LUT_WK = _lut(0x40, 0x0C, 0x01, 0x00, 0x00, 0x01)
+
+
+class UC8179Gray4(UC8179):
+    """Four-level grayscale on UC8179 panels, with black-and-white differential partial refresh.
+
+    The driver selects the OTP four-level waveform after power-on; the register LUTs below are
+    used only by partial updates.
+    """
+
+    source_files = (*UC8179.source_files, "epaper_spi_uc8179_gray4.cpp")
+
+    def __init__(
+        self, name: str, class_name: str = "EPaperUC8179Gray4", **defaults: Any
+    ) -> None:
+        # each plane byte is built from two whole buffer bytes
+        defaults.setdefault("width_multiple", 8)
+        super().__init__(name, class_name=class_name, **defaults)
+
+    def get_init_sequence(self, config: dict) -> tuple:
+        width, height = self.get_dimensions(config)
+        return (
+            # POWER SETTING
+            (0x01, 0x07, 0x07, 0x3F, 0x3F),
+            # BOOSTER SOFT START
+            (0x06, 0x27, 0x27, 0x18, 0x17),
+            # PANEL SETTING (black/white mode, LUT from OTP)
+            (0x00, 0x1F),
+            # RESOLUTION SETTING (width x height)
+            ultrachip_resolution(width, height),
+            # DUAL SPI MODE (disabled)
+            (0x15, 0x00),
+            # VCOM AND DATA INTERVAL SETTING
+            (0x50, 0x10, 0x07),
+            # TCON SETTING
+            (0x60, 0x22),
+            # Register LUTs for partial updates: VCOM, WW, KW, WK, KK, border
+            (0x20, *_LUT_VCOM),
+            (0x21, *_LUT_NOOP),
+            (0x22, *_LUT_KW),
+            (0x23, *_LUT_WK),
+            (0x24, *_LUT_NOOP),
+            (0x25, *_LUT_NOOP),
+        )
+
+
+# Waveshare 7.5" V2 (EPD_7in5_V2) in four-level grayscale
+UC8179Gray4(
+    "waveshare-7.5in-v2-4gray",
+    width=800,
+    height=480,
+    # A full four-level refresh takes about 2 s
+    minimum_update_interval="5s",
 )

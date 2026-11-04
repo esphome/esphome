@@ -40,6 +40,22 @@ constexpr uint8_t color_to_gray4(Color color) {
   return level > 3 ? 3 : level;
 }
 
+/** Combine two bytes of a 2 bit per pixel buffer (4 pixels each, most significant pixel first) into
+ * one 1 bit per pixel plane byte covering the same 8 pixels, from each level's high or low bit
+ */
+constexpr uint8_t gray4_plane_byte(uint8_t first, uint8_t second, bool high_bit) {
+  uint8_t out = 0;
+  for (const uint8_t src : {first, second}) {
+    for (uint8_t shift = 6;; shift -= 2) {
+      const uint8_t level = (src >> shift) & 0x03;
+      out = (uint8_t) ((out << 1) | (high_bit ? (level >> 1) : (level & 1)));
+      if (shift == 0)
+        break;
+    }
+  }
+  return out;
+}
+
 /** Map RGB color to discrete BWYR hex 4 color key
  *
  * @tparam NATIVE_COLOR  Type of native hardware color values
