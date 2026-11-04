@@ -81,8 +81,8 @@ class RP2040PIOLEDStripLightOutput final : public light::AddressableLight {
   inline static int num_instance[2];
   inline static std::map<Chipset, bool> conf_count;
   inline static std::map<Chipset, int> chipset_offsets;
-  inline static bool dma_chan_active[12];
-  inline static struct semaphore dma_write_complete_sem[12];
+  inline static bool dma_chan_active[NUM_DMA_CHANNELS];
+  inline static struct semaphore dma_write_complete_sem[NUM_DMA_CHANNELS];
 };
 
 }  // namespace esphome::rp2040_pio_led_strip
