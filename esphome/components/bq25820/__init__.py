@@ -26,19 +26,14 @@ BQ25820BaseSchema = cv.Schema(
         cv.GenerateID(CONF_BQ25820_ID): cv.use_id(BQ25820Component),
     }
 )
-_request_binary_sensor_slot = cg.slot_counter("BQ25820_BINARY_SENSOR_COUNT")
-_request_text_sensor_slot = cg.slot_counter("BQ25820_TEXT_SENSOR_COUNT")
-
-
-def register_binary_sensor(hub: cg.MockObj, var: cg.MockObj) -> cg.Expression:
-    _request_binary_sensor_slot(str(hub))
-    return hub.register_binary_sensor(var)
-
-
-def register_text_sensor(hub: cg.MockObj, var: cg.MockObj) -> cg.Expression:
-    _request_text_sensor_slot(str(hub))
-    return hub.register_text_sensor(var)
-
+BQ25820StatusRegisters = bq25820_ns.class_("BQ25820StatusRegisters")
+STATUS_PUBLISHER = cg.HubFunction(
+    "status",
+    cg.void,
+    [(BQ25820StatusRegisters.const_ref(), "status")],
+    define="USE_BQ25820_STATUS_PUBLISHER",
+)
+STATUS = STATUS_PUBLISHER.param("status")
 
 CONF_BAT_SNS_RES = "bat_sns_res"
 CONF_AC_SNS_RES = "ac_sns_res"

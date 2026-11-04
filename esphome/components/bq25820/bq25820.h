@@ -7,6 +7,10 @@
 #ifdef USE_SENSOR
 #include "esphome/components/sensor/sensor.h"
 #endif
+#ifdef USE_TEXT_SENSOR
+#include "esphome/components/text_sensor/text_sensor.h"
+#include "esphome/core/progmem.h"
+#endif
 #include "esphome/core/helpers.h"
 
 #include <array>
@@ -19,8 +23,20 @@ static constexpr uint8_t TIMER_CONTROL_WATCHDOG = 0x30;
 // CHARGER_STATUS_1-3 and FAULT_STATUS (0x21-0x24), read together by every poll
 using BQ25820StatusRegisters = std::array<uint8_t, 4>;
 
-class BQ25820BinarySensor;
-class BQ25820TextSensor;
+#ifdef USE_TEXT_SENSOR
+// CHARGE_STAT[2:0] (code 5 is reserved), then TS_STAT[2:0] (codes 5-7 are not defined)
+PROGMEM_STRING_TABLE(BQ25820StatusStrings, "Not Charging", "Trickle", "Precharge", "Fast Charge", "Taper", "Unknown",
+                     "Top-Off", "Done", "Normal", "Warm", "Cool", "Cold", "Hot", "Unknown");
+
+/// Publish the three-bit field in the low bits of `value` as string `first + field`, only when it differs from `last`
+inline void publish_status_text(text_sensor::TextSensor *sensor, uint8_t &last, uint8_t value, uint8_t first) {
+  value &= 0x07;
+  if (value == last)
+    return;
+  last = value;
+  sensor->publish_state(BQ25820StatusStrings::get_progmem_str(first + value, BQ25820StatusStrings::LAST_INDEX));
+}
+#endif
 
 class BQ25820Component final : public PollingComponent, public i2c::I2CDevice {
  public:
@@ -54,11 +70,8 @@ class BQ25820Component final : public PollingComponent, public i2c::I2CDevice {
   SUB_SENSOR(iac)
   SUB_SENSOR(temp_in_c)
 #endif
-#ifdef BQ25820_BINARY_SENSOR_COUNT
-  void register_binary_sensor(BQ25820BinarySensor *sensor) { this->binary_sensors_.push_back(sensor); }
-#endif
-#ifdef BQ25820_TEXT_SENSOR_COUNT
-  void register_text_sensor(BQ25820TextSensor *sensor) { this->text_sensors_.push_back(sensor); }
+#ifdef USE_BQ25820_STATUS_PUBLISHER
+  HUB_PUBLISHER(status, const BQ25820StatusRegisters &)
 #endif
 
  protected:
@@ -66,12 +79,6 @@ class BQ25820Component final : public PollingComponent, public i2c::I2CDevice {
   bool write_config_registers_();
   void publish_adc_();
 
-#ifdef BQ25820_BINARY_SENSOR_COUNT
-  StaticVector<BQ25820BinarySensor *, BQ25820_BINARY_SENSOR_COUNT> binary_sensors_;
-#endif
-#ifdef BQ25820_TEXT_SENSOR_COUNT
-  StaticVector<BQ25820TextSensor *, BQ25820_TEXT_SENSOR_COUNT> text_sensors_;
-#endif
   float ibat_scale_{0.002f};
   float iac_scale_{0.002f};
   uint16_t charge_current_code_{0};

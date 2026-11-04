@@ -1,10 +1,4 @@
 #include "bq25820.h"
-#ifdef BQ25820_BINARY_SENSOR_COUNT
-#include "binary_sensor/bq25820_binary_sensor.h"
-#endif
-#ifdef BQ25820_TEXT_SENSOR_COUNT
-#include "text_sensor/bq25820_text_sensor.h"
-#endif
 
 #include <cmath>
 #include <iterator>
@@ -107,14 +101,6 @@ void BQ25820Component::dump_config() {
   LOG_SENSOR("  ", "Input Current", this->iac_sensor_);
   LOG_SENSOR("  ", "Temperature", this->temp_in_c_sensor_);
 #endif
-#ifdef BQ25820_BINARY_SENSOR_COUNT
-  for (auto *sensor : this->binary_sensors_)
-    LOG_BINARY_SENSOR("  ", "Binary Sensor", sensor);
-#endif
-#ifdef BQ25820_TEXT_SENSOR_COUNT
-  for (auto *sensor : this->text_sensors_)
-    LOG_TEXT_SENSOR("  ", "Text Sensor", sensor);
-#endif
 }
 
 // Called from update() until it succeeds, and again after a watchdog expiry.
@@ -163,13 +149,9 @@ void BQ25820Component::update() {
   if (!this->status_comm_result(ok))
     return;
 
-#ifdef BQ25820_BINARY_SENSOR_COUNT
-  for (auto *sensor : this->binary_sensors_)
-    sensor->on_status(status);
-#endif
-#ifdef BQ25820_TEXT_SENSOR_COUNT
-  for (auto *sensor : this->text_sensors_)
-    sensor->on_status(status);
+#ifdef USE_BQ25820_STATUS_PUBLISHER
+  if (this->status_publisher_ != nullptr)
+    this->status_publisher_(status);
 #endif
   this->publish_adc_();
 }
