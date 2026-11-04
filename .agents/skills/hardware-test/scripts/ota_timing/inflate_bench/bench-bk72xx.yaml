@@ -1,0 +1,42 @@
+# Inflate benchmark: run gen_streams.py first, then bench.sh. Results go out over syslog to syslog_ip:5514.
+substitutions:
+  name: inflbench-bk
+  board: cb3s
+
+esphome:
+  name: ${name}
+  includes:
+    - bench_streams.hpp
+    - bench.hpp
+
+bk72xx:
+  board: ${board}
+
+logger:
+  hardware_uart: UART1
+
+wifi:
+  ssid: !secret wifi_ssid
+  password: !secret wifi_password
+
+api:
+  reboot_timeout: 0s
+
+ota:
+  - platform: esphome
+
+udp:
+  addresses:
+    - !secret syslog_ip
+
+time:
+  - platform: sntp
+
+syslog:
+  port: 5514
+
+interval:
+  - interval: 90s
+    then:
+      - delay: 20s
+      - lambda: run_inflate_bench();

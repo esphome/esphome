@@ -8,7 +8,7 @@ from aioesphomeapi import BinarySensorState, EntityState
 import pytest
 
 from .log_utils import LineWaiter
-from .state_utils import InitialStateHelper
+from .state_utils import subscribe_after_initial_states
 from .types import APIClientConnectedFactory, RunCompiledFunction
 
 
@@ -37,11 +37,9 @@ async def test_status_momentary(
             if isinstance(state, BinarySensorState):
                 changes.put_nowait((state.key, state.state, loop.time()))
 
-        initial_state_helper = InitialStateHelper(entities)
-        client.subscribe_states(initial_state_helper.on_state_wrapper(on_state))
-        await initial_state_helper.wait_for_initial_states()
-        assert initial_state_helper.initial_states[warning_key].state is False
-        assert initial_state_helper.initial_states[error_key].state is False
+        sub = await subscribe_after_initial_states(client, entities, on_state=on_state)
+        assert sub.initial_states[warning_key].state is False
+        assert sub.initial_states[error_key].state is False
 
         async def next_change(key: int) -> tuple[bool, float]:
             while True:

@@ -19,4 +19,4 @@ async def to_code(config):
     hub = await cg.get_variable(config[CONF_WIREGUARD_ID])
 
     text_sensors = text_sensor.sub_text_sensors(config)
-    await text_sensors(CONF_ADDRESS, hub.set_address_sensor)
+    await text_sensors(CONF_ADDRESS, hub.set_address_text_sensor)

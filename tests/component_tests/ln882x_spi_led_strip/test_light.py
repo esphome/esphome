@@ -6,8 +6,8 @@ from esphome import config_validation as cv
 from esphome.components.const import CONF_CHANNEL_COLORS
 from esphome.components.ln882x_spi_led_strip.light import (
     CHIPSETS,
+    FINAL_VALIDATE_SCHEMA,
     SPIEncoding,
-    _final_validate,
     _validate_num_leds,
     spi_encoding,
 )
@@ -82,6 +82,6 @@ def test_single_instance(
     set_core_config(PlatformFramework.LN882X_ARDUINO, full_config={"light": lights})
     if fails:
         with pytest.raises(cv.Invalid, match="Only one ln882x_spi_led_strip"):
-            _final_validate({})
+            FINAL_VALIDATE_SCHEMA({})
     else:
-        _final_validate({})
+        FINAL_VALIDATE_SCHEMA({})

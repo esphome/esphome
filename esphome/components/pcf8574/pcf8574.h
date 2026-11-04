@@ -3,16 +3,14 @@
 #include "esphome/core/component.h"
 #include "esphome/core/hal.h"
 #include "esphome/components/i2c/i2c.h"
-#include "esphome/components/gpio_expander/cached_gpio.h"
+#include "esphome/components/gpio_expander/cached_gpio_component.h"
 #include "esphome/components/gpio_expander/expander_gpio_pin.h"
 
 namespace esphome::pcf8574 {
 
 // PCF8574(8 pins)/PCF8575(16 pins) always read/write all pins in a single I2C transaction
 // so we use uint16_t as bank type to ensure all pins are in one bank and cached together
-class PCF8574Component final : public Component,
-                               public i2c::I2CDevice,
-                               public gpio_expander::CachedGpioExpander<uint16_t, 16> {
+class PCF8574Component final : public gpio_expander::CachedGpioExpanderComponent<uint16_t, 16>, public i2c::I2CDevice {
  public:
   PCF8574Component() = default;
 
@@ -20,21 +18,15 @@ class PCF8574Component final : public Component,
   void set_reset(bool reset) { this->reset_ = reset; }
   // Called by pin setters before any component's setup or GPIO writes.
   void register_input_pin(uint8_t pin) { this->configured_input_pins_ |= 1 << pin; }
-  void set_interrupt_pin(InternalGPIOPin *pin) { this->interrupt_pin_ = pin; }
 
   /// Check i2c availability and setup masks
   void setup() override;
-  void loop() override;
   /// Helper function to set the pin mode of a pin.
   void pin_mode(uint8_t pin, gpio::Flags flags);
-
-  float get_setup_priority() const override;
 
   void dump_config() override;
 
  protected:
-  static void gpio_intr(PCF8574Component *arg);
-
   bool digital_read_hw(uint8_t pin) override;
   bool digital_read_cache(uint8_t pin) override;
   void digital_write_hw(uint8_t pin, bool value) override;
@@ -54,7 +46,6 @@ class PCF8574Component final : public Component,
   // Keep in sync with DEFAULT_RESET in __init__.py; codegen omits the setter for the default.
   bool reset_{true};
   bool pcf8575_;  ///< TRUE->16-channel PCF8575, FALSE->8-channel PCF8574
-  InternalGPIOPin *interrupt_pin_{nullptr};
 };
 
 using PCF8574GPIOPin = gpio_expander::ExpanderGPIOPin<PCF8574Component>;

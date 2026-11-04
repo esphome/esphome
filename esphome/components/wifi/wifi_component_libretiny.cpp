@@ -25,6 +25,7 @@ extern "C" {
 extern "C" {
 #include <wifi_conf.h>
 #include <wifi_structures.h>
+#include <wifi_util.h>
 }
 #endif
 
@@ -252,12 +253,24 @@ bool WiFiComponent::wifi_sta_connect_(const WiFiAP &ap) {
   this->sta_state_ = static_cast<uint8_t>(LTWiFiSTAState::CONNECTING);
   s_ignored_disconnect_count = 0;
 
+  uint8_t channel = ap.get_channel();  // 0 = auto
+#ifdef USE_RTL87XX
+  // Given a channel and a BSSID, LibreTiny narrows the driver's scan list to the channel for the join, then leaves it
+  // disabled, so the next scan finds nothing. Narrow it here and pass no channel (LibreTiny ignores a channel without
+  // a BSSID); the join's own scan restores the full list when it ends. The placeholder SSID starts that scan, as
+  // LibreTiny's does; narrowed before it, the scan can miss the beacon.
+  if (channel != 0 && ap.has_bssid()) {
+    wext_set_ssid(WLAN0_NAME, reinterpret_cast<const uint8_t *>("-"), 1);
+    uint8_t pscan_config = PSCAN_ENABLE | PSCAN_FAST_SURVEY;
+    wifi_set_pscan_chan(&channel, &pscan_config, 1);
+  }
+  channel = 0;
+#endif
   WiFiStatus status;
   {
     // The driver blocks until the join has started, or finished on Realtek
     UnavoidableBlockingScope scope;
-    status = WiFi.begin(ap.ssid_.c_str(), ap.password_.empty() ? NULL : ap.password_.c_str(),
-                        ap.get_channel(),  // 0 = auto
+    status = WiFi.begin(ap.ssid_.c_str(), ap.password_.empty() ? NULL : ap.password_.c_str(), channel,
                         ap.has_bssid() ? ap.get_bssid().data() : NULL);
   }
   if (status != WL_CONNECTED) {
@@ -510,7 +523,7 @@ void WiFiComponent::wifi_process_event_(LTWiFiEvent *event) {
 #endif
       // For static IP configurations, GOT_IP event may not fire, so set connected state here
 #ifdef USE_WIFI_MANUAL_IP
-      if (const WiFiAP *config = this->get_selected_sta_(); config && config->get_manual_ip().has_value()) {
+      if (const WiFiAP *config = this->get_selected_sta_(); config && config->has_manual_ip()) {
         this->sta_state_ = static_cast<uint8_t>(LTWiFiSTAState::CONNECTED);
 #ifdef USE_WIFI_IP_STATE_LISTENERS
         this->notify_ip_state_listeners_();
@@ -819,6 +832,19 @@ void WiFiComponent::on_powerdown() {
     return;
   ESP_LOGD(TAG, "Disconnecting before powerdown");
   wifi_sta_disconnect();  // not WiFi.disconnect(): it frees the SSID its event handlers read
+  delay(100);             // NOLINT: once per reboot or deep sleep, lets the deauth go out
+}
+#endif
+
+#ifdef USE_BK72XX
+void WiFiComponent::on_powerdown() {
+  // Leave the AP so it no longer holds the association when we come back.
+  // Beken reports WL_CONNECTED only once it has an IP; joining or associated is WL_SCAN_COMPLETED
+  const WiFiStatus status = WiFi.status();
+  if (status != WL_CONNECTED && status != WL_SCAN_COMPLETED)
+    return;
+  ESP_LOGD(TAG, "Disconnecting before powerdown");
+  wlan_sta_disconnect();  // not WiFi.disconnect(): it only reports a lost link and sends no deauth
   delay(100);             // NOLINT: once per reboot or deep sleep, lets the deauth go out
 }
 #endif

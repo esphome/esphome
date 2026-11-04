@@ -21,6 +21,23 @@ void I2CBus::i2c_scan_() {
   }
 }
 
+void I2CBus::dump_scan_results_() {
+  if (!this->scan_)
+    return;
+  ESP_LOGCONFIG(TAG, "Results from bus scan:");
+  if (this->scan_results_.empty()) {
+    ESP_LOGCONFIG(TAG, "Found no devices");
+    return;
+  }
+  for (const auto &s : this->scan_results_) {
+    if (s.second) {
+      ESP_LOGCONFIG(TAG, "Found device at address 0x%02X", s.first);
+    } else {
+      ESP_LOGE(TAG, "Unknown error at address 0x%02X", s.first);
+    }
+  }
+}
+
 void log_wrong_chip_id(uint8_t id, uint8_t expected) {
   ESP_LOGE(TAG, "Wrong chip ID 0x%02X, expected 0x%02X", id, expected);
 }

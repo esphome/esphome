@@ -8,7 +8,11 @@ from aioesphomeapi import ButtonInfo
 import pytest
 
 from .log_utils import LineWaiter
-from .state_utils import InitialStateHelper, SensorStateCollector, require_entity
+from .state_utils import (
+    SensorStateCollector,
+    require_entity,
+    subscribe_after_initial_states,
+)
 from .types import APIClientConnectedFactory, RunCompiledFunction
 from .wait_utils import wait_or_fail
 
@@ -47,11 +51,9 @@ async def test_uart_mock_ld2420_config_exit(
     ):
         entities, _ = await client.list_entities_services()
         collector.build_key_mapping(entities)
-        initial_state_helper = InitialStateHelper(entities)
-        client.subscribe_states(
-            initial_state_helper.on_state_wrapper(collector.on_state)
+        await subscribe_after_initial_states(
+            client, entities, on_state=collector.on_state
         )
-        await initial_state_helper.wait_for_initial_states()
 
         start_btn = require_entity(entities, "start_scenario", ButtonInfo)
         client.button_command(start_btn.key)
