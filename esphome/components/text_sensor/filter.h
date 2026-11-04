@@ -34,6 +34,11 @@ class Filter {
 
   void output(std::string &value);
 
+  /// Put the filter back in its state before the first value. A filter that keeps no state needs no override.
+  virtual void reset() {}
+  /// reset() this filter and every filter after it.
+  void reset_chain();
+
  protected:
   friend TextSensor;
 
@@ -174,6 +179,7 @@ class ThrottleFilter : public Filter {
  public:
   explicit ThrottleFilter(uint32_t min_time_between_inputs) : min_time_between_inputs_(min_time_between_inputs) {}
   bool new_value(std::string &value) override;
+  void reset() override { this->last_input_ = 0; }
 
  protected:
   uint32_t last_input_{0};
@@ -197,6 +203,7 @@ class ThrottleWithPriorityFilter : public ThrottleFilter {
 class TimeoutFilterBase : public Filter, public Component {
  public:
   bool new_value(std::string &value) override;
+  void reset() override { this->disable_loop(); }
   void loop() override;
   float get_setup_priority() const override { return setup_priority::HARDWARE; }
 
@@ -215,6 +222,10 @@ class TimeoutFilterLast : public TimeoutFilterBase {
  public:
   explicit TimeoutFilterLast(uint32_t time_period) : TimeoutFilterBase(time_period) {}
   bool new_value(std::string &value) override;
+  void reset() override {
+    TimeoutFilterBase::reset();
+    this->last_.clear();
+  }
 
  protected:
   void send_timeout_value() override { this->send_(this->last_.data(), this->last_.size()); }
@@ -228,6 +239,10 @@ class TimeoutThrottleFilter : public TimeoutFilterLast {
   TimeoutThrottleFilter(uint32_t time_period, const char *const *prioritized)
       : TimeoutFilterLast(time_period), prioritized_(prioritized) {}
   bool new_value(std::string &value) override;
+  void reset() override {
+    TimeoutFilterLast::reset();
+    this->last_input_ = 0;
+  }
 
  protected:
   void send_timeout_value() override;
