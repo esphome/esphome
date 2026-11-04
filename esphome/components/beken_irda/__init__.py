@@ -4,7 +4,12 @@ from esphome import pins
 import esphome.codegen as cg
 from esphome.components import remote_base
 from esphome.components.libretiny import get_libretiny_family
-from esphome.components.libretiny.const import FAMILY_BK7238, KEY_BOARD, KEY_LIBRETINY
+from esphome.components.libretiny.const import (
+    FAMILY_BK7231Q,
+    FAMILY_BK7238,
+    KEY_BOARD,
+    KEY_LIBRETINY,
+)
 import esphome.config_validation as cv
 from esphome.const import (
     CONF_BUFFER_SIZE,
@@ -12,6 +17,7 @@ from esphome.const import (
     CONF_FILTER,
     CONF_ID,
     CONF_IDLE,
+    CONF_INPUT,
     CONF_INVERTED,
     CONF_MODE,
     CONF_NUMBER,
@@ -38,6 +44,8 @@ MODE_TIMER = "timer"
 
 # Matches sample_period_ in beken_irda.h.
 DEFAULT_SAMPLE_PERIOD_US = 100
+# Below the 560 us NEC mark, so a coarse sample period does not filter out every bit
+MAX_DEFAULT_FILTER_US = 400
 
 TIMER_ONLY_KEYS = (CONF_SAMPLE_PERIOD, CONF_FILTER, CONF_IDLE, CONF_BUFFER_SIZE)
 
@@ -64,6 +72,11 @@ def validate_hardware_pin(value: ConfigType) -> ConfigType:
             f"Hardware mode only accepts the IRDA pin P26, not pin {value[CONF_NUMBER]}; "
             f"use mode: {MODE_TIMER} for other pins"
         )
+    # Irda_init_app() sets up P26 itself, so pull-ups and other pin modes would be ignored.
+    if any(on for flag, on in value.get(CONF_MODE, {}).items() if flag != CONF_INPUT):
+        raise cv.Invalid(
+            f"Hardware mode does not apply pin modes; use mode: {MODE_TIMER} for a pull-up"
+        )
     return value
 
 
@@ -83,6 +96,11 @@ def validate_hardware_board(config: ConfigType) -> ConfigType:
     if get_libretiny_family() == FAMILY_BK7238:
         raise cv.Invalid(
             f"Hardware mode is not supported on {FAMILY_BK7238} (no IRDA block); use mode: {MODE_TIMER}"
+        )
+    if get_libretiny_family() == FAMILY_BK7231Q:
+        # Its SDK registers no IRDA interrupt handler, so the ISR could never be installed.
+        raise cv.Invalid(
+            f"Hardware mode is not supported on {FAMILY_BK7231Q}; use mode: {MODE_TIMER}"
         )
     if not _has_legacy_irda_block():
         board = CORE.data[KEY_LIBRETINY][KEY_BOARD]
@@ -190,7 +208,7 @@ async def to_code(config: ConfigType) -> None:
     if (filter_us := config.get(CONF_FILTER)) is not None:
         cg.add(var.set_filter_us(filter_us.total_microseconds))
     else:
-        cg.add(var.set_filter_us(sample_us * 3 // 2))
+        cg.add(var.set_filter_us(min(sample_us * 3 // 2, MAX_DEFAULT_FILTER_US)))
     if (idle := config.get(CONF_IDLE)) is not None:
         cg.add(var.set_idle_us(idle.total_microseconds))
     cg.add_optional(var.set_buffer_size, config.get(CONF_BUFFER_SIZE))

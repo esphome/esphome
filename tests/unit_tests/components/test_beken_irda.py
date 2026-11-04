@@ -15,6 +15,7 @@ from esphome.components.beken_irda import (
     validate_pin,
 )
 from esphome.components.libretiny.const import (
+    FAMILY_BK7231Q,
     FAMILY_BK7231T,
     FAMILY_BK7238,
     FAMILY_BK7251,
@@ -23,7 +24,14 @@ from esphome.components.libretiny.const import (
     KEY_LIBRETINY,
 )
 import esphome.config_validation as cv
-from esphome.const import CONF_FILTER, CONF_INVERTED, CONF_MODE, CONF_NUMBER
+from esphome.const import (
+    CONF_FILTER,
+    CONF_INPUT,
+    CONF_INVERTED,
+    CONF_MODE,
+    CONF_NUMBER,
+    CONF_PULLUP,
+)
 from esphome.core import CORE, TimePeriod
 
 
@@ -51,6 +59,27 @@ def test_hardware_pin_rejects_other_pins() -> None:
     """Hardware mode has no pin matrix, so any pin but P26 is rejected."""
     with pytest.raises(cv.Invalid, match="P26"):
         validate_hardware_pin({CONF_NUMBER: 14})
+
+
+def test_hardware_pin_accepts_plain_input() -> None:
+    """The default input pin mode is what Irda_init_app() sets up."""
+    pin = {CONF_NUMBER: 26, CONF_MODE: {CONF_INPUT: True, CONF_PULLUP: False}}
+    assert validate_hardware_pin(pin) == pin
+
+
+def test_hardware_pin_rejects_pullup() -> None:
+    """Hardware mode would silently drop a pull-up, so it is rejected."""
+    with pytest.raises(cv.Invalid, match="pin modes"):
+        validate_hardware_pin(
+            {CONF_NUMBER: 26, CONF_MODE: {CONF_INPUT: True, CONF_PULLUP: True}}
+        )
+
+
+def test_hardware_board_rejects_bk7231q() -> None:
+    """The BK7231Q SDK registers no IRDA interrupt handler."""
+    _set_family(FAMILY_BK7231Q)
+    with pytest.raises(cv.Invalid, match=FAMILY_BK7231Q):
+        validate_hardware_board({CONF_MODE: MODE_HARDWARE})
 
 
 def test_hardware_board_accepts_legacy_block() -> None:
