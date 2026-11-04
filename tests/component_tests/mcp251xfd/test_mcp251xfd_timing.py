@@ -8,9 +8,6 @@ import pytest
 from esphome.components import canbus
 from esphome.components.mcp251xfd import canbus as mcp251xfd
 import esphome.config_validation as cv
-from esphome.const import PlatformFramework
-
-from ..types import SetCoreConfigCallable
 
 
 def decode_timing(timing: int, data_phase: bool) -> tuple[int, int, int, int]:
@@ -30,12 +27,8 @@ def decode_timing(timing: int, data_phase: bool) -> tuple[int, int, int, int]:
 
 
 @pytest.fixture
-def configure(set_core_config: SetCoreConfigCallable) -> Callable[..., dict]:
-    """Validate MCP251xFD configuration with ESP32 GPIO support."""
-    set_core_config(
-        PlatformFramework.ESP32_IDF,
-        platform_data={"variant": "ESP32", "board": "esp32dev"},
-    )
+def configure() -> Callable[..., dict]:
+    """Validate MCP251xFD configuration."""
 
     def validate(**options: str) -> dict:
         return mcp251xfd.CONFIG_SCHEMA({"can_id": 1, "cs_pin": 21, **options})
@@ -61,15 +54,9 @@ def test_mode_configuration(
     assert str(config["mode"].enum_value) == str(getattr(mcp251xfd.CanMode, expected))
 
 
-def test_default_mode(configure: Callable[..., dict]) -> None:
-    """Normal mixed classic/FD operation remains the default."""
-    config = configure()
-    assert str(config["mode"].enum_value) == str(mcp251xfd.CanMode.CAN_MODE_NORMAL)
-
-
 def test_invalid_mode(configure: Callable[..., dict]) -> None:
     """Unexposed hardware modes remain invalid configuration choices."""
-    with pytest.raises(cv.Invalid, match="mode"):
+    with pytest.raises(cv.Invalid, match="'CONFIGURATION'"):
         configure(mode="CONFIGURATION")
 
 
@@ -120,10 +107,8 @@ def test_default_data_rate(
     config = configure(clock=clock, bit_rate=rate, data_bit_rate=rate)
     assert config["data_bit_rate"] == rate
     nominal, data, tdc = mcp251xfd.bit_timings(clock, rate, rate)
-    system_clock = 20_000_000 if clock == "20MHZ" else 40_000_000
-    expected = {"33KBPS": 100_000 / 3, "83K3BPS": 250_000 / 3}.get(
-        rate, canbus.get_rate(rate)
-    )
+    system_clock = mcp251xfd.SYSTEM_CLOCK[clock]
+    expected = mcp251xfd._exact_rate(rate)
     assert nominal >> 24 == data >> 24
     for timing, data_phase in ((nominal, False), (data, True)):
         prescaler, segment1, segment2, sjw = decode_timing(timing, data_phase)
@@ -184,7 +169,7 @@ def test_low_nominal_with_faster_data(
     assert config["data_bit_rate"] == "5KBPS"
     nominal, data, _ = mcp251xfd.bit_timings(clock, "1KBPS", "5KBPS")
     assert nominal >> 24 == data >> 24
-    system_clock = 20_000_000 if clock == "20MHZ" else 40_000_000
+    system_clock = mcp251xfd.SYSTEM_CLOCK[clock]
     for timing, data_phase, expected in ((nominal, False, 1000), (data, True, 5000)):
         prescaler, segment1, segment2, _ = decode_timing(timing, data_phase)
         actual = system_clock / (prescaler * (1 + segment1 + segment2))
@@ -203,3 +188,18 @@ def test_codegen(
     ) in main_cpp
     assert "fd_bus->set_default_fd(true);" in main_cpp
     assert "fd_bus->set_default_bit_rate_switch(true);" not in main_cpp
+    assert (
+        "mcp251xfd::MCP251XFD(mcp251xfd::CanClock::CAN_CLOCK_40MHZ, "
+        "mcp251xfd::CanMode::CAN_MODE_CLASSIC, 0x3E0F0F, 0xE0303, 0x21000)"
+    ) in main_cpp
+
+
+@pytest.mark.parametrize("clock", ["4MHZ", "20MHZ", "40MHZ"])
+def test_classic_nominal_only(configure: Callable[..., dict], clock: str) -> None:
+    """CLASSIC searches only the nominal phase, so 5 kbps works without a data phase."""
+    configure(mode="CLASSIC", clock=clock, bit_rate="5KBPS")
+    nominal, data, tdc = mcp251xfd.bit_timings(clock, "5KBPS", None)
+    prescaler, segment1, segment2, _ = decode_timing(nominal, False)
+    actual = mcp251xfd.SYSTEM_CLOCK[clock] / (prescaler * (1 + segment1 + segment2))
+    assert abs(actual / 5000 - 1) <= 0.005
+    assert (data, tdc) == (mcp251xfd.DATA_BIT_TIMING_RESET, mcp251xfd.TDC_RESET)

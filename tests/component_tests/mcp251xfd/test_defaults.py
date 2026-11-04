@@ -10,20 +10,9 @@ import yaml
 from esphome.components.mcp251xfd import canbus as mcp251xfd
 from esphome.config import read_config
 import esphome.config_validation as cv
-from esphome.const import PlatformFramework
 from esphome.core import CORE
 
-from ..types import SetCoreConfigCallable
-
 FD_DEFAULT_KEYS = ("default_fd", "default_bit_rate_switch", "default_pad_data")
-
-
-@pytest.fixture(autouse=True)
-def _set_esp32_core_config(set_core_config: SetCoreConfigCallable) -> None:
-    set_core_config(
-        PlatformFramework.ESP32_IDF,
-        platform_data={"variant": "ESP32", "board": "esp32dev"},
-    )
 
 
 @pytest.mark.parametrize("key", FD_DEFAULT_KEYS)
@@ -42,18 +31,15 @@ def test_fd_defaults(key: str, mode: str | None) -> None:
     assert mcp251xfd.CONFIG_SCHEMA({**options, key: True})[key] is True
 
 
-@pytest.mark.parametrize("key", FD_DEFAULT_KEYS)
+@pytest.mark.parametrize("key", (*FD_DEFAULT_KEYS, "data_bit_rate"))
 @pytest.mark.parametrize("mode", ["CLASSIC", "classic"])
 def test_classic_mode_is_a_classic_bus(key: str, mode: str) -> None:
-    """CLASSIC drops the FD defaults, so canbus treats it as a classic bus, and rejects enabling one."""
+    """CLASSIC has no FD options, so canbus treats it as a classic bus."""
     options = {"can_id": 1, "cs_pin": 21, "mode": mode}
-    for config in (
-        mcp251xfd.CONFIG_SCHEMA(options),
-        mcp251xfd.CONFIG_SCHEMA({**options, key: False}),
-    ):
-        assert not set(FD_DEFAULT_KEYS) & set(config)
-    with pytest.raises(cv.Invalid, match="CLASSIC"):
-        mcp251xfd.CONFIG_SCHEMA({**options, key: True})
+    config = mcp251xfd.CONFIG_SCHEMA(options)
+    assert not {*FD_DEFAULT_KEYS, "data_bit_rate"} & set(config)
+    with pytest.raises(cv.Invalid, match=key):
+        mcp251xfd.CONFIG_SCHEMA({**options, key: False})
 
 
 @pytest.mark.parametrize("rate", range(2000, 8001, 1000))
@@ -72,6 +58,7 @@ def test_fd_capability_codegen(
     assert "fd_bus->set_supports_fd(true);" in main
     assert "classic_bus->set_supports_fd(" not in main
     assert "classic_bus->set_default_" not in main
+    assert "set_interrupt_pin(" not in main
     assert "USE_CANBUS_FD" in {define.name for define in CORE.defines}
 
 
@@ -138,6 +125,7 @@ def test_send_codegen(
     assert "fd_bus->set_default_fd(true);" in main
     assert "fd_bus->set_default_bit_rate_switch(true);" in main
     assert "fd_bus->set_default_pad_data(true);" in main
+    assert "fd_bus->set_interrupt_pin(" in main
     assert main.count("->set_fd(") == 4
     assert main.count("->set_bit_rate_switch(") == 3
     assert main.count("->set_pad_data(") == 3

@@ -5,7 +5,8 @@
 
 namespace esphome::mcp251xfd {
 
-enum class CanClock : uint8_t { CAN_CLOCK_4MHZ, CAN_CLOCK_20MHZ, CAN_CLOCK_40MHZ };
+// Values are the oscillator frequency in MHz.
+enum class CanClock : uint8_t { CAN_CLOCK_4MHZ = 4, CAN_CLOCK_20MHZ = 20, CAN_CLOCK_40MHZ = 40 };
 
 enum class CanMode : uint8_t {
   CAN_MODE_NORMAL = 0,
@@ -21,22 +22,15 @@ static constexpr uint8_t INSTRUCTION_READ_CRC = 0xB0;
 
 static constexpr uint16_t REG_CON = 0x000;
 static constexpr uint16_t REG_NBTCFG = 0x004;
-static constexpr uint16_t REG_DBTCFG = 0x008;
-static constexpr uint16_t REG_TDC = 0x00C;
 static constexpr uint16_t REG_INT = 0x01C;
 static constexpr uint16_t REG_TREC = 0x034;
-static constexpr uint16_t REG_BDIAG0 = 0x038;
-static constexpr uint16_t REG_BDIAG1 = 0x03C;
 // FIFO 1 transmits. FIFO 2 receives. TXQ and TEF are disabled.
 static constexpr uint16_t REG_TX_FIFO_CON = 0x05C;
 static constexpr uint16_t REG_TX_FIFO_STA = 0x060;
-static constexpr uint16_t REG_TX_FIFO_UA = 0x064;
 static constexpr uint16_t REG_RX_FIFO_CON = 0x068;
 static constexpr uint16_t REG_RX_FIFO_STA = 0x06C;
-static constexpr uint16_t REG_RX_FIFO_UA = 0x070;
 static constexpr uint16_t REG_FLTCON = 0x1D0;
 static constexpr uint16_t REG_FLTOBJ0 = 0x1F0;
-static constexpr uint16_t REG_MASK0 = 0x1F4;
 static constexpr uint16_t REG_OSC = 0xE00;
 static constexpr uint16_t REG_CRC = 0xE08;
 
@@ -87,7 +81,9 @@ static constexpr uint8_t MESSAGE_BRS = 1U << 6;
 static constexpr uint8_t MESSAGE_FDF = 1U << 7;
 static constexpr uint8_t MESSAGE_ESI = 1U << 0;  // Byte 5 of the message header.
 static constexpr uint32_t STANDARD_ID_MASK = 0x7FF;
-static constexpr uint32_t EXTENDED_ID_MASK = 0x1FFFFFFF;
 static constexpr uint32_t EXTENDED_ID_LOW_MASK = 0x3FFFF;
+
+// Faults the driver logs; the other flags are reported through canbus events and status.
+static constexpr uint8_t INT_LOGGED_FAULTS = INT_SYSTEM_ERROR | INT_SPI_CRC_ERROR | INT_TX_ATTEMPTS_EXHAUSTED;
 
 }  // namespace esphome::mcp251xfd
