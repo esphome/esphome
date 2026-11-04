@@ -4,6 +4,7 @@
 
 #include "esphome/components/remote_base/remote_base.h"
 #include "esphome/core/log.h"
+#include "esphome/core/helpers.h"
 
 namespace esphome::daikin_arc {
 
@@ -89,9 +90,7 @@ void DaikinArcClimate::transmit_state() {
     remote_header[9] |= 0x10;
     this->last_humidity_ = remote_state[7];
   }
-  uint16_t fan_speed = this->fan_speed_();
-  remote_state[8] = fan_speed >> 8;
-  remote_state[9] = fan_speed & 0xff;
+  put_be16(remote_state + 8, this->fan_speed_());
 
   // Calculate checksum
   for (size_t i = 0; i < sizeof(remote_header) - 1; i++) {

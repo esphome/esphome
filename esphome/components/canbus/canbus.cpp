@@ -56,15 +56,6 @@ canbus::Error Canbus::send_data(uint32_t can_id, bool use_extended_id, bool remo
   return error;
 }
 
-void Canbus::add_trigger(CanbusTrigger *trigger) {
-  if (trigger->use_extended_id_) {
-    ESP_LOGVV(TAG, "add trigger for extended canid=0x%08" PRIx32, trigger->can_id_);
-  } else {
-    ESP_LOGVV(TAG, "add trigger for std canid=0x%03" PRIx32, trigger->can_id_);
-  }
-  this->triggers_.push_back(trigger);
-};
-
 void Canbus::loop() {
   uint32_t now = App.get_loop_component_start_time();
   if ((now - this->last_event_check_time_) >= EVENT_CHECK_INTERVAL_MS) {
@@ -97,16 +88,6 @@ void Canbus::loop() {
 
     this->callback_manager_(can_message.can_id, can_message.use_extended_id, can_message.remote_transmission_request,
                             data);
-
-    // fire all triggers
-    for (auto *trigger : this->triggers_) {
-      if ((trigger->can_id_ == (can_message.can_id & trigger->can_id_mask_)) &&
-          (trigger->use_extended_id_ == can_message.use_extended_id) &&
-          (!trigger->remote_transmission_request_.has_value() ||
-           trigger->remote_transmission_request_.value() == can_message.remote_transmission_request)) {
-        trigger->trigger(data, can_message.can_id, can_message.remote_transmission_request);
-      }
-    }
   }
 
   if (message_counter == this->max_frames_per_loop_) {

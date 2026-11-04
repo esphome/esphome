@@ -460,6 +460,17 @@ template<typename T, size_t N> class StaticRingBuffer {
     return true;
   }
 
+  /// Insert `value` so it is popped next; returns false when full.
+  bool push_front(const T &value) {
+    if (this->count_ >= N) {
+      return false;
+    }
+    this->head_ = (this->head_ + N - 1) % N;
+    this->data_[this->head_] = value;
+    ++this->count_;
+    return true;
+  }
+
   void pop() {
     if (this->count_ > 0) {
       this->head_ = (this->head_ + 1) % N;
@@ -1116,6 +1127,39 @@ constexpr std::array<uint8_t, sizeof(T)> decode_value(T val) {
     val >>= 8;
   }
   return ret;
+}
+
+/// Write the low 16, 24 or 32 bits of \p value to \p dst, most significant byte first (be) or least
+/// significant byte first (le). Returns the pointer past the last byte written.
+constexpr uint8_t *put_be16(uint8_t *dst, uint16_t value) {
+  dst[0] = static_cast<uint8_t>(value >> 8);
+  dst[1] = static_cast<uint8_t>(value);
+  return dst + 2;
+}
+constexpr uint8_t *put_be24(uint8_t *dst, uint32_t value) {
+  dst[0] = static_cast<uint8_t>(value >> 16);
+  dst[1] = static_cast<uint8_t>(value >> 8);
+  dst[2] = static_cast<uint8_t>(value);
+  return dst + 3;
+}
+constexpr uint8_t *put_be32(uint8_t *dst, uint32_t value) {
+  dst[0] = static_cast<uint8_t>(value >> 24);
+  dst[1] = static_cast<uint8_t>(value >> 16);
+  dst[2] = static_cast<uint8_t>(value >> 8);
+  dst[3] = static_cast<uint8_t>(value);
+  return dst + 4;
+}
+constexpr uint8_t *put_le16(uint8_t *dst, uint16_t value) {
+  dst[0] = static_cast<uint8_t>(value);
+  dst[1] = static_cast<uint8_t>(value >> 8);
+  return dst + 2;
+}
+constexpr uint8_t *put_le32(uint8_t *dst, uint32_t value) {
+  dst[0] = static_cast<uint8_t>(value);
+  dst[1] = static_cast<uint8_t>(value >> 8);
+  dst[2] = static_cast<uint8_t>(value >> 16);
+  dst[3] = static_cast<uint8_t>(value >> 24);
+  return dst + 4;
 }
 
 /// Decode a two-digit packed BCD byte (tens in the high nibble) to its value, e.g. 0x59 to 59.
