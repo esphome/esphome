@@ -155,6 +155,7 @@ void MQTTBackendESP32::mqtt_event_handler_(const Event &event) {
       // The MQTT task already reset subacks_
       this->subscribes_sent_ = 0;
 #if defined(USE_MQTT_IDF_ENQUEUE)
+      this->subscribes_lost_.store(0, std::memory_order_relaxed);
       this->last_dropped_log_time_ = 0;
       xTaskNotifyGive(this->task_handle_);
 #endif
@@ -296,7 +297,8 @@ void MQTTBackendESP32::esphome_mqtt_task(void *params) {
       if (this_mqtt->is_connected_) {
         switch (elem->type) {
           case MQTT_QUEUE_TYPE_SUBSCRIBE:
-            esp_mqtt_client_subscribe(this_mqtt->handler_.get(), elem->topic, elem->qos);
+            if (esp_mqtt_client_subscribe(this_mqtt->handler_.get(), elem->topic, elem->qos) == -1)
+              this_mqtt->subscribes_lost_.fetch_add(1, std::memory_order_relaxed);
             break;
 
           case MQTT_QUEUE_TYPE_UNSUBSCRIBE:
@@ -312,6 +314,8 @@ void MQTTBackendESP32::esphome_mqtt_task(void *params) {
             ESP_LOGE(TAG, "Invalid operation type from MQTT queue");
             break;
         }
+      } else if (elem->type == MQTT_QUEUE_TYPE_SUBSCRIBE) {
+        this_mqtt->subscribes_lost_.fetch_add(1, std::memory_order_relaxed);
       }
       this_mqtt->mqtt_outbound_pool_.release(elem);
     }

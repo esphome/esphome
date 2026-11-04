@@ -200,8 +200,13 @@ class MQTTBackendESP32 final : public MQTTBackend {
     return sent;
   }
   bool can_subscribe() const final {
-    return subscribe_fits(this->subscribes_sent_, this->subacks_.received(),
-                          MQTT_EVENT_POOL_SIZE - this->mqtt_event_queue_.size());
+    uint16_t sent = this->subscribes_sent_;
+#if defined(USE_MQTT_IDF_ENQUEUE)
+    // A SUBSCRIBE the task could not send never gets a SUBACK
+    const uint8_t lost = this->subscribes_lost_.load(std::memory_order_relaxed);
+    sent = sent > lost ? sent - lost : 0;
+#endif
+    return subscribe_fits(sent, this->subacks_.received(), MQTT_EVENT_POOL_SIZE - this->mqtt_event_queue_.size());
   }
   bool unsubscribe(const char *topic) final {
 #if defined(USE_MQTT_IDF_ENQUEUE)
@@ -260,6 +265,10 @@ class MQTTBackendESP32 final : public MQTTBackend {
   bool is_initalized_{false};
   // PUBACK of tracked_msg_id_ seen; uint8_t because atomic<bool> is out of line on Xtensa
   std::atomic<uint8_t> tracked_acked_{0};
+#if defined(USE_MQTT_IDF_ENQUEUE)
+  // Queued SUBSCRIBEs the task dropped or failed to send on this connection
+  std::atomic<uint8_t> subscribes_lost_{0};
+#endif
 
   esp_mqtt_client_config_t mqtt_cfg_{};
 

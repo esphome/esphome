@@ -64,7 +64,7 @@ class SubackCounter {
   std::atomic<uint16_t> granted_{0};
 };
 
-/// Free slots per unanswered SUBSCRIBE: its retained message plus one spare.
+/// Free slots per unanswered SUBSCRIBE: its retained message plus one spare; a payload esp-mqtt splits takes more.
 static constexpr size_t INBOUND_SLOTS_PER_SUBSCRIBE = 2;
 
 /// Whether one more SUBSCRIBE fits; extra SUBACKs (from an earlier connection) count as none unanswered.
