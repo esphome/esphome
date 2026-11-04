@@ -47,7 +47,7 @@ jobs:
         # setup-python interpreter so subsequent ``prek`` /
         # ``script/run-in-env.py`` steps find the deps without a
         # ``uv run`` prefix.
-        uses: astral-sh/setup-uv@v10.3.2
+        uses: astral-sh/setup-uv@v10.3.3
         with:
           enable-cache: true
           # Pin uv version so the action does not have to fetch the
