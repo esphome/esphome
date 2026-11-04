@@ -44,6 +44,12 @@ enum class OffsetCalibrationType : uint8_t {
   OFFSET_CALIBRATION_TYPE_POWER,
 };
 
+enum class CalibrationOperation : uint8_t {
+  CALIBRATION_OPERATION_SAVE,
+  CALIBRATION_OPERATION_CLEAR,
+  CALIBRATION_OPERATION_ABORT,
+};
+
 class ATM90E32Component final : public PollingComponent,
                                 public spi::SPIDevice<spi::BIT_ORDER_MSB_FIRST, spi::CLOCK_POLARITY_HIGH,
                                                       spi::CLOCK_PHASE_TRAILING, spi::DATA_RATE_1MHZ> {
@@ -136,8 +142,8 @@ class ATM90E32Component final : public PollingComponent,
   void set_enable_offset_calibration(bool flag) { enable_offset_calibration_ = flag; }
   void set_enable_gain_calibration(bool flag) { enable_gain_calibration_ = flag; }
   void set_instance_id(const char *id) { instance_id_ = id; }
-  int16_t calibrate_offset(uint8_t phase, bool voltage);
-  int16_t calibrate_power_offset(uint8_t phase, bool reactive);
+  bool calibrate_offset(uint8_t phase, bool voltage, int16_t &offset);
+  bool calibrate_power_offset(uint8_t phase, bool reactive, int16_t &offset);
   void run_gain_calibrations();
   // Body of the calibration buttons: logs the button name and the hint lines, then runs action.
   void press_calibration_button(EntityBase *entity, void (ATM90E32Component::*action)(),
@@ -177,7 +183,9 @@ class ATM90E32Component final : public PollingComponent,
   number::Number *ref_currents_[3]{nullptr, nullptr, nullptr};
 #endif
   uint16_t read16_(uint16_t a_register);
-  int read32_(uint16_t addr_h, uint16_t addr_l);
+  // Returns 0..65535 on success, or -1 on SPI validation failure.
+  int32_t read16_checked_(uint16_t a_register);
+  bool read32_(uint16_t addr_h, uint16_t addr_l, int32_t &value);
   void write16_(uint16_t a_register, uint16_t val, bool validate = true);
   float get_local_phase_voltage_(uint8_t phase);
   float get_local_phase_current_(uint8_t phase);
@@ -209,16 +217,19 @@ class ATM90E32Component final : public PollingComponent,
   void set_publish_interval_flag_(bool flag) { publish_interval_flag_ = flag; };
   void restore_offset_calibrations_(OffsetCalibrationType type);
   void restore_gain_calibrations_();
-  void finish_gain_calibration_(const GainCalibration (&previous)[3]);
-  void finish_offset_calibration_(const OffsetCalibration (&previous)[3], OffsetCalibrationType type);
+  void start_offset_calibration_(OffsetCalibrationType type);
+  void sample_offset_calibration_(OffsetCalibrationType type);
+  void complete_offset_calibration_(OffsetCalibrationType type, CalibrationOperation operation);
+  void finish_gain_calibration_(const GainCalibration (&previous)[3],
+                                CalibrationOperation operation = CalibrationOperation::CALIBRATION_OPERATION_SAVE);
+  bool finish_offset_calibration_(const OffsetCalibration (&previous)[3], OffsetCalibrationType type,
+                                  CalibrationOperation operation = CalibrationOperation::CALIBRATION_OPERATION_SAVE);
   // Persists verified register values; otherwise rollback() rewrites the previous values and returns their readback.
   // name starts a sentence; noun is used mid-sentence, keeping the log text the calibration helper matches.
   template<typename T, typename F>
-  void finish_calibration_(const LogString *name, const LogString *noun, ESPPreferenceObject &preference,
+  bool finish_calibration_(const LogString *name, const LogString *noun, ESPPreferenceObject &preference,
                            const T (&values)[3], bool writes_verified, bool &has_stored, bool &restored,
-                           bool (&mismatches)[3], F &&rollback);
-  bool clear_calibration_pref_(ESPPreferenceObject &preference, bool &has_stored, bool &restored,
-                               bool (&mismatches)[3]);
+                           bool (&mismatches)[3], CalibrationOperation operation, F &&rollback);
   void configure_chip_();
   void write_offsets_to_registers_(uint8_t phase, int16_t first_offset, int16_t second_offset,
                                    OffsetCalibrationType type);
@@ -234,10 +245,6 @@ class ATM90E32Component final : public PollingComponent,
   struct ATM90E32Phase {
     uint16_t voltage_gain_{0};
     uint16_t ct_gain_{0};
-    int16_t voltage_offset_{0};
-    int16_t current_offset_{0};
-    int16_t active_power_offset_{0};
-    int16_t reactive_power_offset_{0};
     float voltage_{0};
     float current_{0};
     float active_power_{0};
@@ -268,6 +275,7 @@ class ATM90E32Component final : public PollingComponent,
   OffsetCalibration config_offset_phase_[3];
   OffsetCalibration power_offset_phase_[3];
   OffsetCalibration config_power_offset_phase_[3];
+  OffsetCalibration previous_offsets_[3];
 
   GainCalibration gain_phase_[3];
   GainCalibration config_gain_phase_[3];
@@ -278,6 +286,7 @@ class ATM90E32Component final : public PollingComponent,
   bool has_config_reactive_power_offset_[3]{false, false, false};
   bool has_config_voltage_gain_[3]{false, false, false};
   bool has_config_current_gain_[3]{false, false, false};
+  bool offset_calibration_pending_{false};
 
   ESPPreferenceObject offset_pref_;
   ESPPreferenceObject power_offset_pref_;
