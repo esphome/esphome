@@ -129,14 +129,16 @@ void BekenIrdaComponent::handle_timer_isr() {
   if (this->frame_ready_ || this->overflow_)
     return;
 
-  // Without the tick counter, assume the nominal sampling period.
-  uint32_t elapsed = this->sample_period_ * TICK_TICKS_PER_US;
+  uint32_t elapsed;
   if constexpr (HAS_TICK_COUNTER) {
     uint32_t counter = read_tick_counter();
     elapsed = counter - this->last_counter_;
     if (counter < this->last_counter_)
       elapsed += TICK_COUNTER_WRAP;
     this->last_counter_ = counter;
+  } else {
+    // Without the tick counter, assume the nominal sampling period.
+    elapsed = this->sample_period_ * TICK_TICKS_PER_US;
   }
   this->timer_ticks_ = this->timer_ticks_ + elapsed;
   // The receiver output idles high and goes low during a mark, so invert the sampled level to
