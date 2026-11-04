@@ -13,8 +13,10 @@ void AS7341Component::setup() {
     return;
 
   // Power on (enter IDLE state)
-  if (!this->setup_check(this->enable_power(true), LOG_STR("Power on failed")))
+  if (!this->enable_power(true)) {
+    this->mark_failed(LOG_STR("Power on failed"));
     return;
+  }
 
   // Set configuration
   this->write_byte(AS7341_CONFIG, 0x00);
