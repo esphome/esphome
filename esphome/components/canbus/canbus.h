@@ -2,6 +2,7 @@
 
 #include "esphome/core/automation.h"
 #include "esphome/core/component.h"
+#include "esphome/core/hal.h"
 #include "esphome/core/helpers.h"
 #include "esphome/core/optional.h"
 
@@ -9,6 +10,7 @@
 #include <cinttypes>
 #include <cstddef>
 #include <cstring>
+#include <type_traits>
 #include <vector>
 
 namespace esphome::canbus {
@@ -80,19 +82,26 @@ static constexpr uint8_t CAN_INVALID_DLC = UINT8_MAX;
 
 /// Payload length of each CAN FD DLC; a classic frame carries min(DLC, 8) bytes
 static constexpr uint8_t CAN_FD_DLC_COUNT = 16;
-static constexpr uint8_t CAN_FD_DLC_LENGTHS[CAN_FD_DLC_COUNT] = {0, 1, 2, 3, 4, 5, 6, 7, 8, 12, 16, 20, 24, 32, 48, 64};
+static constexpr uint8_t CAN_FD_DLC_LENGTHS[CAN_FD_DLC_COUNT] PROGMEM = {0, 1,  2,  3,  4,  5,  6,  7,
+                                                                         8, 12, 16, 20, 24, 32, 48, 64};
+
+/// CAN_FD_DLC_LENGTHS[dlc] for dlc below CAN_FD_DLC_COUNT; read from flash at run time
+constexpr uint8_t can_fd_dlc_length(uint8_t dlc) {
+  return std::is_constant_evaluated() ? CAN_FD_DLC_LENGTHS[dlc] : progmem_read_byte(&CAN_FD_DLC_LENGTHS[dlc]);
+}
 
 /// Payload length of a CAN FD DLC, or CAN_INVALID_DLC above 15
 constexpr uint8_t can_dlc_to_len(uint8_t dlc) {
-  return dlc < CAN_FD_DLC_COUNT ? CAN_FD_DLC_LENGTHS[dlc] : CAN_INVALID_DLC;
+  return dlc < CAN_FD_DLC_COUNT ? can_fd_dlc_length(dlc) : CAN_INVALID_DLC;
 }
 
 /// CAN FD DLC for a payload length. With pad, the next longer length is used and the caller zero fills
 /// the extra bytes; otherwise a length CAN FD cannot carry returns CAN_INVALID_DLC.
 constexpr uint8_t can_len_to_dlc(size_t len, bool pad) {
   for (uint8_t dlc = 0; dlc < CAN_FD_DLC_COUNT; dlc++) {
-    if (CAN_FD_DLC_LENGTHS[dlc] >= len)
-      return (CAN_FD_DLC_LENGTHS[dlc] == len || pad) ? dlc : CAN_INVALID_DLC;
+    const uint8_t length = can_fd_dlc_length(dlc);
+    if (length >= len)
+      return (length == len || pad) ? dlc : CAN_INVALID_DLC;
   }
   return CAN_INVALID_DLC;
 }

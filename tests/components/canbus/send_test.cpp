@@ -8,13 +8,16 @@
 
 namespace esphome::canbus::testing {
 
-// Frames stay as large as on dev, and keep their field order for brace initialization
+// Frames stay as large as on dev, and keep their field order for brace initialization. clang-tidy builds with
+// defines.h, which turns CAN FD on.
+#ifndef USE_CANBUS_FD
 static_assert(sizeof(CanFrame::data) == CAN_MAX_DATA_LENGTH);
 static_assert(sizeof(CanFrame) == 24);
-static_assert(can_dlc_to_len(0) == 0);
-static_assert(can_dlc_to_len(8) == 8);
 static_assert(can_dlc_to_len(9) == 8);
 static_assert(can_dlc_to_len(15) == 8);
+#endif
+static_assert(can_dlc_to_len(0) == 0);
+static_assert(can_dlc_to_len(8) == 8);
 
 TEST(CanbusSend, ClassicFrameBraceInitialization) {
   const CanFrame frame{true, true, 0x1234567, 8, {0, 1, 2, 3, 4, 5, 6, 7}};
