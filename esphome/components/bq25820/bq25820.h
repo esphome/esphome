@@ -7,6 +7,9 @@
 #ifdef USE_SENSOR
 #include "esphome/components/sensor/sensor.h"
 #endif
+#ifdef USE_BINARY_SENSOR
+#include "esphome/components/binary_sensor/binary_sensor.h"
+#endif
 #ifdef USE_TEXT_SENSOR
 #include "esphome/components/text_sensor/text_sensor.h"
 #include "esphome/core/progmem.h"
@@ -36,6 +39,16 @@ inline void publish_status_text(text_sensor::TextSensor *sensor, uint8_t &last, 
   last = value;
   sensor->publish_state(BQ25820StatusStrings::get_progmem_str(first + value, BQ25820StatusStrings::LAST_INDEX));
 }
+#endif
+
+#ifdef USE_BQ25820_DUMP_STATUS_PUBLISHER
+// Log one status entity, for the generated dump_status function
+#ifdef USE_BINARY_SENSOR
+void dump_status_entity(binary_sensor::BinarySensor *sensor);
+#endif
+#ifdef USE_TEXT_SENSOR
+void dump_status_entity(text_sensor::TextSensor *sensor);
+#endif
 #endif
 
 class BQ25820Component final : public PollingComponent, public i2c::I2CDevice {
@@ -72,6 +85,9 @@ class BQ25820Component final : public PollingComponent, public i2c::I2CDevice {
 #endif
 #ifdef USE_BQ25820_STATUS_PUBLISHER
   HUB_PUBLISHER(status, const BQ25820StatusRegisters &)
+#endif
+#ifdef USE_BQ25820_DUMP_STATUS_PUBLISHER
+  HUB_PUBLISHER(dump_status)
 #endif
 
  protected:

@@ -10,7 +10,14 @@ from esphome.cpp_generator import (
 )
 from esphome.types import ConfigType
 
-from .. import CONF_BQ25820_ID, STATUS, STATUS_PUBLISHER, BQ25820BaseSchema, bq25820_ns
+from .. import (
+    CONF_BQ25820_ID,
+    DUMP_STATUS,
+    STATUS,
+    STATUS_PUBLISHER,
+    BQ25820BaseSchema,
+    bq25820_ns,
+)
 
 DEPENDENCIES = ["bq25820"]
 
@@ -55,3 +62,4 @@ async def to_code(config: ConfigType) -> None:
     for key, reg, shift, first, _ in _FIELDS:
         if (var := await sensors(key, None)) is not None:
             _add_text_status(hub, var, reg, shift, first)
+            DUMP_STATUS.add(hub, bq25820_ns.dump_status_entity(parent_ref(var)))

@@ -11,7 +11,14 @@ from esphome.const import (
 from esphome.cpp_generator import HexIntLiteral
 from esphome.types import ConfigType
 
-from .. import CONF_BQ25820_ID, STATUS, STATUS_PUBLISHER, BQ25820BaseSchema
+from .. import (
+    CONF_BQ25820_ID,
+    DUMP_STATUS,
+    STATUS,
+    STATUS_PUBLISHER,
+    BQ25820BaseSchema,
+    bq25820_ns,
+)
 
 DEPENDENCIES = ["bq25820"]
 
@@ -71,3 +78,4 @@ async def to_code(config: ConfigType) -> None:
         if (var := await sensors(key, None)) is not None:
             state = _state_expression(reg, shift, mask, match)
             STATUS_PUBLISHER.add(hub, parent_ref(var).publish_state(state))
+            DUMP_STATUS.add(hub, bq25820_ns.dump_status_entity(parent_ref(var)))

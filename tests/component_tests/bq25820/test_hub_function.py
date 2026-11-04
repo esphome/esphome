@@ -101,3 +101,30 @@ def test_single_bit_shortcut_needs_a_one_bit_field() -> None:
                 match,
                 value,
             )
+
+
+def test_dump_status_lists_every_entity(
+    generate_main: Callable[[str | Path], str],
+    component_config_path: Callable[[str], Path],
+) -> None:
+    """The hub's dump_config logs each status entity once, in config order."""
+    main_cpp = generate_main(component_config_path("hub_function.yaml"))
+
+    def dump_body(hub: str) -> list[str]:
+        head = f"static void esphome__{hub}__dump_status_fn() {{\n"
+        body = main_cpp.split(head, 1)[1].split("\n}", 1)[0]
+        return [line.strip() for line in body.splitlines()]
+
+    ids = [f"tx_{key}" for key in TEXT_SENSORS] + [
+        f"bs_{key}" for key in BINARY_SENSORS
+    ]
+    assert dump_body("charger_a") == [
+        f"bq25820::dump_status_entity(::{id_});" for id_ in ids
+    ]
+    assert dump_body("charger_b") == ["bq25820::dump_status_entity(::b_temp_status);"]
+    for hub in ("charger_a", "charger_b"):
+        assert (
+            f"{hub}->set_dump_status_publisher(esphome__{hub}__dump_status_fn);"
+            in main_cpp
+        )
+    assert "charger_c->set_dump_status_publisher" not in main_cpp

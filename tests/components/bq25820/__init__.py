@@ -18,6 +18,7 @@ def override_manifest(manifest: ComponentManifestOverride) -> None:
         cg.add_define("ESPHOME_ENTITY_BINARY_SENSOR_COUNT", 0)
         cg.add_define("USE_TEXT_SENSOR")
         cg.add_define("ESPHOME_ENTITY_TEXT_SENSOR_COUNT", 0)
+        cg.add_define("USE_BQ25820_DUMP_STATUS_PUBLISHER")
         cg.add_define("USE_BQ25820_STATUS_PUBLISHER")
 
     manifest.to_code = to_code

@@ -34,6 +34,10 @@ STATUS_PUBLISHER = cg.HubFunction(
     define="USE_BQ25820_STATUS_PUBLISHER",
 )
 STATUS = STATUS_PUBLISHER.param("status")
+# Logs the status entities from the hub's dump_config
+DUMP_STATUS = cg.HubFunction(
+    "dump_status", cg.void, [], define="USE_BQ25820_DUMP_STATUS_PUBLISHER"
+)
 
 CONF_BAT_SNS_RES = "bat_sns_res"
 CONF_AC_SNS_RES = "ac_sns_res"
