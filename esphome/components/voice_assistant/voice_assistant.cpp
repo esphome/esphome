@@ -213,11 +213,12 @@ bool VoiceAssistant::allocate_buffers_() {
 
 size_t VoiceAssistant::ring_buffer_size_() const {
 #ifdef USE_VOICE_ASSISTANT_WAKE_WORD_AUDIO
-  return (this->wake_word_audio_buffer_duration_ + WAKE_WORD_AUDIO_HEADROOM_MS) * SAMPLE_RATE_HZ / 1000 *
-         sizeof(int16_t);
-#else
-  return RING_BUFFER_SIZE;
+  if (this->is_wake_word_audio_active()) {
+    return (this->wake_word_audio_buffer_duration_ + WAKE_WORD_AUDIO_HEADROOM_MS) * SAMPLE_RATE_HZ / 1000 *
+           sizeof(int16_t);
+  }
 #endif
+  return RING_BUFFER_SIZE;
 }
 
 void VoiceAssistant::clear_buffers_(bool clear_microphone_audio) {
@@ -1364,6 +1365,12 @@ void VoiceAssistant::update_wake_word_audio_() {
   }
 
   if (active) {
+    if (this->state_ != State::IDLE) {
+      // Retried every loop, so the buffers are resized once the run ends
+      return;
+    }
+    // Buffers left over from a run without wake word audio are too small
+    this->deallocate_buffers_();
     if (!this->allocate_buffers_()) {
       // Detect wake words without verification rather than retry large allocations every loop
       ESP_LOGE(TAG, "Not enough memory for wake word audio");
