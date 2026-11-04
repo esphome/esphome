@@ -1028,20 +1028,34 @@ class ApplyFilterDomain:
         return cg.new_Pvariable(id_, cg.TemplateArguments(fn))
 
     async def build(
-        self, name: str, config: Any, filter_id: ID, *statements: str | ApplyCall
+        self,
+        name: str,
+        config: Any,
+        filter_id: ID,
+        *statements: str | ApplyCall,
+        schema: Any = None,
     ) -> MockObj:
         """Declare filter ``name`` as the function of ``statements`` over ``config``.
 
         Each ``ApplyCall`` is a statement whose ``{}`` take config values: constants baked in,
         value lambdas (which take no arguments) as their own functions. ``WHOLE_CONFIG`` is the
-        key of a single value schema. A statement whose keys are all absent is skipped. A
-        function with a value lambda is not shared.
+        key of a single value schema. A statement whose keys are all absent is skipped, except
+        the last, which must always apply so the function returns. A function with a value
+        lambda is not shared. With ``schema`` the statement keys are checked against it.
         """
+        calls = _apply_calls(statements)
+        if schema is not None:
+            for c in calls:
+                _check_call_keys(name, schema, c.members)
         body: list[str] = []
         lambdas = 0
-        for c in _apply_calls(statements):
+        for index, c in enumerate(calls):
             values = _apply_values(config, c.members)
             if not _apply_call_active(c.members, values):
+                if index == len(calls) - 1:
+                    raise ValueError(
+                        f"{name}: the last statement is skipped, so the function may not return"
+                    )
                 continue
             members = list(c.members)
             for i, ((key, type_, _), value) in enumerate(
