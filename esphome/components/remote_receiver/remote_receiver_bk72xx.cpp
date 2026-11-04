@@ -14,7 +14,7 @@ extern "C" {
 
 // The FreeRTOS tick runs on BKTIMER0 only with LT_MICROS_HIGH_RES, the default everywhere but on the BK7231Q,
 // which config validation rejects.
-#if defined(LT_MICROS_HIGH_RES) && !LT_MICROS_HIGH_RES
+#if !defined(LT_MICROS_HIGH_RES) || !LT_MICROS_HIGH_RES
 #error "remote_receiver timer sampling needs LT_MICROS_HIGH_RES"
 #endif
 
