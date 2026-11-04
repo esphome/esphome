@@ -47,11 +47,9 @@ bool DS248xOneWireBus::ensure_channel_() {
 }
 
 int DS248xOneWireBus::reset_int() {
-  // Report no presence instead of a bus error, so the base class does not log "bus is held low"
-  if (this->hub_failed_())
-    return 0;
   if (!this->ensure_channel_()) {
-    return -1;
+    // Report no presence while the hub is down, so the base class does not log "bus is held low"
+    return this->hub_failed_() || this->parent_->is_recovery_pending() ? 0 : -1;
   }
 
   bool presence = false;
@@ -83,27 +81,31 @@ void DS248xOneWireBus::write64(uint64_t val) {
   }
 }
 
+// Failed reads return the idle bus level 0xFF. All-zero bytes would pass the Dallas CRC check (crc8 of zeros is 0).
+static constexpr uint8_t IDLE_BYTE = 0xFF;
+
 uint8_t DS248xOneWireBus::read8() {
   if (!this->ensure_channel_()) {
-    return 0;
+    return IDLE_BYTE;
   }
   uint8_t value = 0;
   if (!this->parent_->ow_read_byte(value)) {
     ESP_LOGE(TAG, "Failed to read byte on channel %d", this->channel_);
+    return IDLE_BYTE;
   }
   return value;
 }
 
 uint64_t DS248xOneWireBus::read64() {
   if (!this->ensure_channel_()) {
-    return 0;
+    return UINT64_MAX;
   }
   uint64_t value = 0;
   for (uint8_t i = 0; i < 8; i++) {
     uint8_t byte = 0;
     if (!this->parent_->ow_read_byte(byte)) {
-      ESP_LOGE(TAG, "Failed to read byte %d/8 on channel %d - returning partial data", i + 1, this->channel_);
-      return value;  // Return partial data to avoid blocking, caller should validate
+      ESP_LOGE(TAG, "Failed to read byte %d/8 on channel %d", i + 1, this->channel_);
+      return UINT64_MAX;
     }
     value |= (static_cast<uint64_t>(byte) << (i * 8));
   }

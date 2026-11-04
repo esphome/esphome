@@ -93,6 +93,8 @@ class DS248xComponent : public Component, public i2c::I2CDevice {
 
   /// Get the channel count (1 for DS2482-100/DS2484, 8 for DS2482-800)
   uint8_t get_channel_count() const { return this->channel_count_; }
+  /// True while a failed recovery waits to be retried before the next command
+  bool is_recovery_pending() const { return this->needs_recovery_; }
 
   // --- Core 1-Wire API (used by DS248xOneWireBus) ---
   bool select_channel(uint8_t channel);
