@@ -9,3 +9,4 @@ usb_host:
       pid: 0xABCD
       manufacturer: Example Corp
       product: Example Widget
+      interface_description: Example Port
