@@ -184,11 +184,15 @@ class WebServerBase final {
     }
   }
   /// PEM certificate and key, or nullptr for plain HTTP. Not copied: they must stay valid, every restart reuses them.
-  void set_ssl_credentials(const char *certificate, const char *private_key) {
+  /// A non-zero port switches the port too, with a single restart.
+  void set_ssl_credentials(const char *certificate, const char *private_key, uint16_t port = 0) {
     this->ssl_certificate_ = certificate;
     this->ssl_private_key_ = private_key;
+    if (port != 0)
+      this->port_ = port;
     if (this->server_ != nullptr) {
       this->server_->set_ssl_credentials(certificate, private_key);
+      this->server_->set_port(this->port_);
       this->restart_if_running_();
     }
   }
