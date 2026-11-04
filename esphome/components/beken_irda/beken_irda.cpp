@@ -56,6 +56,8 @@ void BekenIrdaComponent::handle_isr_() {
     const uint8_t inverse = code >> 24;
     // a frame the hardware flagged as corrupt is dropped even when the command check passes
     if ((status & IRDA_FRAME_ERROR_INTS) == 0 && (command ^ inverse) == 0xFF) {
+      if (this->raw_ready_)
+        this->dropped_count_ = this->dropped_count_ + 1;
       this->last_code_ = code;
       this->raw_ready_ = true;
       // a repeat still pending belongs to the previous code
@@ -64,8 +66,12 @@ void BekenIrdaComponent::handle_isr_() {
       this->error_count_ = this->error_count_ + 1;
       // counted once
       status &= ~IRDA_ERROR_INTS;
+      // the repeats that follow belong to the rejected frame; a code still pending is dispatched
+      this->repeat_ready_ = false;
+      if (!this->raw_ready_)
+        this->last_code_ = 0;
     }
-  } else if (status & IRDA_REPEAT_INT) {
+  } else if ((status & IRDA_REPEAT_INT) && (status & IRDA_FRAME_ERROR_INTS) == 0) {
     this->repeat_ready_ = true;
   }
   if (status & IRDA_ERROR_INTS)
@@ -113,7 +119,8 @@ void BekenIrdaComponent::loop() {
   // Read the validated code together with clearing the flags, so a frame that arrives in between cannot
   // change what is dispatched.
   uint32_t code;
-  uint16_t errors;
+  uint8_t errors;
+  uint8_t dropped;
   bool have_code;
   bool have_repeat;
   {
@@ -122,13 +129,18 @@ void BekenIrdaComponent::loop() {
     have_repeat = this->repeat_ready_;
     code = this->last_code_;
     errors = this->error_count_;
+    dropped = this->dropped_count_;
     this->raw_ready_ = false;
     this->repeat_ready_ = false;
     this->error_count_ = 0;
+    this->dropped_count_ = 0;
   }
   // at debug level so a noisy remote does not spam the log
   if (errors != 0) {
     ESP_LOGD(TAG, "%u decode errors", errors);
+  }
+  if (dropped != 0) {
+    ESP_LOGW(TAG, "%u codes dropped, the loop did not keep up", dropped);
   }
   if (!have_code && !have_repeat) {
     this->disable_loop();

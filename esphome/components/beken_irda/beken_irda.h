@@ -22,7 +22,9 @@ class BekenIrdaComponent final : public Component, public remote_base::RemoteRec
 
   volatile uint32_t last_code_{0};
   /// Rejected codes and IRDA errors since the loop last reported them
-  volatile uint16_t error_count_{0};
+  // Reset by every loop pass, so a byte each is enough
+  volatile uint8_t error_count_{0};
+  volatile uint8_t dropped_count_{0};
   volatile bool raw_ready_{false};
   volatile bool repeat_ready_{false};
 };
