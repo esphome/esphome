@@ -7,6 +7,7 @@ namespace esphome::uart {
 
 VirtualUARTComponent::VirtualUARTComponent(uint16_t rx_buffer_size) {
   this->rx_buffer_size_ = rx_buffer_size;
+  // Size 0 allocates no ring: inject_rx() then refuses every block that is not empty.
   if (rx_buffer_size != 0) {
     this->rx_.init(rx_buffer_size);
   }
