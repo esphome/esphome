@@ -39,19 +39,10 @@ void MCP4728Component::loop() {
   }
 }
 
-void MCP4728Component::set_channel_value_(MCP4728ChannelIdx channel, uint16_t value) {
-  uint8_t cn = 0;
-  if (channel == MCP4728_CHANNEL_A) {
-    cn = 'A';
-  } else if (channel == MCP4728_CHANNEL_B) {
-    cn = 'B';
-  } else if (channel == MCP4728_CHANNEL_C) {
-    cn = 'C';
-  } else {
-    cn = 'D';
-  }
-  ESP_LOGV(TAG, "Setting MCP4728 channel %c to %d!", cn, value);
-  reg_[channel].data = value;
+void MCP4728Component::write_channel(uint8_t channel, float state) {
+  auto value = static_cast<uint16_t>(roundf(state * 4095));
+  ESP_LOGV(TAG, "Setting MCP4728 channel %c to %d!", 'A' + channel, value);
+  this->reg_[channel].data = value;
   this->update_ = true;
 }
 
@@ -87,21 +78,11 @@ bool MCP4728Component::seq_write_() {
   return err == i2c::ERROR_OK;
 }
 
-void MCP4728Component::select_vref_(MCP4728ChannelIdx channel, MCP4728Vref vref) {
-  reg_[channel].vref = vref;
-
-  this->update_ = true;
-}
-
-void MCP4728Component::select_power_down_(MCP4728ChannelIdx channel, MCP4728PwrDown pd) {
-  reg_[channel].pd = pd;
-
-  this->update_ = true;
-}
-
-void MCP4728Component::select_gain_(MCP4728ChannelIdx channel, MCP4728Gain gain) {
-  reg_[channel].gain = gain;
-
+void MCP4728Component::configure_channel(MCP4728ChannelIdx channel, MCP4728Vref vref, MCP4728Gain gain,
+                                         MCP4728PwrDown pd) {
+  this->reg_[channel].vref = vref;
+  this->reg_[channel].pd = pd;
+  this->reg_[channel].gain = gain;
   this->update_ = true;
 }
 

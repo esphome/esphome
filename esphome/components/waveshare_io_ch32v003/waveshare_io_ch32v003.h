@@ -26,6 +26,8 @@ class WaveshareIOCH32V003Component : public Component,
   uint16_t get_adc_value();
   uint8_t get_rtc_interrupt_status();
   void set_pwm_value(uint8_t value);  // 0 - 255
+  /// Write an output level, 0.0 to 1.0, clamped to the board's safe PWM range.
+  void write_pwm_level(float state, uint8_t min_value, uint8_t max_value);
 
  protected:
   bool digital_read_hw(uint8_t pin) override;

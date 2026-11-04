@@ -2,6 +2,7 @@
 #include "esphome/core/hal.h"
 #include "esphome/core/helpers.h"
 #include "esphome/core/log.h"
+#include "esphome/core/progmem.h"
 
 namespace esphome::bmp280_base {
 
@@ -20,42 +21,18 @@ static const uint8_t BMP280_MODE_FORCED = 0b01;
 static const uint8_t BMP280_SOFT_RESET = 0xB6;
 static const uint8_t BMP280_STATUS_IM_UPDATE = 0b01;
 
-inline uint16_t combine_bytes(uint8_t msb, uint8_t lsb) { return ((msb & 0xFF) << 8) | (lsb & 0xFF); }
+// Indexed by BMP280Oversampling
+PROGMEM_STRING_TABLE(OversamplingStrings, "None", "1x", "2x", "4x", "8x", "16x", "UNKNOWN");
 
-static const char *oversampling_to_str(BMP280Oversampling oversampling) {
-  switch (oversampling) {
-    case BMP280_OVERSAMPLING_NONE:
-      return "None";
-    case BMP280_OVERSAMPLING_1X:
-      return "1x";
-    case BMP280_OVERSAMPLING_2X:
-      return "2x";
-    case BMP280_OVERSAMPLING_4X:
-      return "4x";
-    case BMP280_OVERSAMPLING_8X:
-      return "8x";
-    case BMP280_OVERSAMPLING_16X:
-      return "16x";
-    default:
-      return "UNKNOWN";
-  }
+[[maybe_unused]] static const LogString *oversampling_to_str(BMP280Oversampling value) {
+  return OversamplingStrings::get_log_str(static_cast<uint8_t>(value), OversamplingStrings::LAST_INDEX);
 }
 
-static const char *iir_filter_to_str(BMP280IIRFilter filter) {
-  switch (filter) {
-    case BMP280_IIR_FILTER_OFF:
-      return "OFF";
-    case BMP280_IIR_FILTER_2X:
-      return "2x";
-    case BMP280_IIR_FILTER_4X:
-      return "4x";
-    case BMP280_IIR_FILTER_8X:
-      return "8x";
-    case BMP280_IIR_FILTER_16X:
-      return "16x";
-    default:
-      return "UNKNOWN";
-  }
+// Indexed by BMP280IIRFilter
+PROGMEM_STRING_TABLE(IIRFilterStrings, "OFF", "2x", "4x", "8x", "16x", "UNKNOWN");
+
+[[maybe_unused]] static const LogString *iir_filter_to_str(BMP280IIRFilter value) {
+  return IIRFilterStrings::get_log_str(static_cast<uint8_t>(value), IIRFilterStrings::LAST_INDEX);
 }
 
 void BMP280Component::setup() {
@@ -126,13 +103,13 @@ void BMP280Component::setup() {
 }
 void BMP280Component::dump_config() {
   ESP_LOGCONFIG(TAG, "BMP280:");
-  ESP_LOGCONFIG(TAG, "  IIR Filter: %s", iir_filter_to_str(this->iir_filter_));
+  ESP_LOGCONFIG(TAG, "  IIR Filter: %s", LOG_STR_ARG(iir_filter_to_str(this->iir_filter_)));
   LOG_UPDATE_INTERVAL(this);
 
   LOG_SENSOR("  ", "Temperature", this->temperature_sensor_);
-  ESP_LOGCONFIG(TAG, "    Oversampling: %s", oversampling_to_str(this->temperature_oversampling_));
+  ESP_LOGCONFIG(TAG, "    Oversampling: %s", LOG_STR_ARG(oversampling_to_str(this->temperature_oversampling_)));
   LOG_SENSOR("  ", "Pressure", this->pressure_sensor_);
-  ESP_LOGCONFIG(TAG, "    Oversampling: %s", oversampling_to_str(this->pressure_oversampling_));
+  ESP_LOGCONFIG(TAG, "    Oversampling: %s", LOG_STR_ARG(oversampling_to_str(this->pressure_oversampling_)));
 }
 
 inline uint8_t oversampling_to_time(BMP280Oversampling over_sampling) { return (1 << uint8_t(over_sampling)) >> 1; }
@@ -164,25 +141,22 @@ void BMP280Component::update() {
     float pressure = this->read_pressure_(t_fine);
 
     ESP_LOGV(TAG, "Temperature=%.1f°C Pressure=%.1fhPa", temperature, pressure);
-    if (this->temperature_sensor_ != nullptr)
-      this->temperature_sensor_->publish_state(temperature);
-    if (this->pressure_sensor_ != nullptr)
-      this->pressure_sensor_->publish_state(pressure);
+    PUBLISH_STATE(this->temperature_sensor_, temperature);
+    PUBLISH_STATE(this->pressure_sensor_, pressure);
     this->status_clear_warning();
   });
 }
 
 float BMP280Component::read_temperature_(int32_t *t_fine) {
+  if (this->temperature_oversampling_ == BMP280_OVERSAMPLING_NONE) {
+    return NAN;
+  }
   uint8_t data[3]{};
   if (!this->bmp_read_bytes(BMP280_REGISTER_TEMPDATA, data, 3))
     return NAN;
   ESP_LOGV(TAG, "Read temperature data, raw: %02X %02X %02X", data[0], data[1], data[2]);
   int32_t adc = encode_uint24(data[0], data[1], data[2]);
   adc >>= 4;
-  if (adc == 0x80000) {
-    // temperature was disabled
-    return NAN;
-  }
 
   const int32_t t1 = this->calibration_.t1;
   const int32_t t2 = this->calibration_.t2;
@@ -197,15 +171,14 @@ float BMP280Component::read_temperature_(int32_t *t_fine) {
 }
 
 float BMP280Component::read_pressure_(int32_t t_fine) {
+  if (this->pressure_oversampling_ == BMP280_OVERSAMPLING_NONE) {
+    return NAN;
+  }
   uint8_t data[3];
   if (!this->bmp_read_bytes(BMP280_REGISTER_PRESSUREDATA, data, 3))
     return NAN;
   int32_t adc = encode_uint24(data[0], data[1], data[2]);
   adc >>= 4;
-  if (adc == 0x80000) {
-    // pressure was disabled
-    return NAN;
-  }
   const int64_t p1 = this->calibration_.p1;
   const int64_t p2 = this->calibration_.p2;
   const int64_t p3 = this->calibration_.p3;

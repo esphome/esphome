@@ -18,25 +18,24 @@ class JpegDecoder : public ImageDecoder {
    *
    * @param image The RuntimeImage to decode the stream into.
    */
-  JpegDecoder(RuntimeImage *image) : ImageDecoder(image, JPEG) {}
-  ~JpegDecoder() override {}
+  JpegDecoder(RuntimeImage *image);
 
+  int prepare(size_t expected_size) override;
   int HOT decode(uint8_t *buffer, size_t size) override;
   void reset() override;
 
   /// The source is read as the decode needs it, through JPEGDEC's own 2 KB buffer
   bool supports_source() const override { return true; }
   int begin_source(DecodeSource *source) override;
-  /// Decodes one row of MCUs (8 or 16 pixel rows), or waits part way through one for more of the source
+  /// Decodes one row of MCUs (8 or 16 pixel rows), or waits part way through one for more of the source.
+  /// A progressive image is decoded one row of one scan per step, and drawn in the steps after its last scan.
   int HOT decode_step() override;
 
-  bool uses_direct_rgb565() const { return this->direct_rgb565_; }
   /// JPEGDEC decodes the image at 1/get_scale() of its size: 1, 2, 4 or 8
   int get_scale() const { return this->scale_; }
   void draw_rgb565(int x, int y, int w, int h, const uint8_t *pixels);
 
  protected:
-  bool prepare_rgb565_scaling_(int width, int height);
   /// Set up an opened image for decoding. Returns 0, or a DecodeError.
   int start_();
   /// The JPEGDEC option for scale_: JPEG_SCALE_HALF, _QUARTER and _EIGHTH are the divisors themselves
@@ -48,14 +47,10 @@ class JpegDecoder : public ImageDecoder {
   static int32_t source_seek(JPEGFILE *file, int32_t position);
   static void source_close(void *handle) {}
 
-  JPEGDEC jpeg_{};
-  FixedVector<uint16_t> x_boundaries_{};
-  FixedVector<uint16_t> y_boundaries_{};
-  int source_width_{0};
-  int source_height_{0};
+  /// About 18 KB of decoder state: PSRAM first, nullptr if out of memory
+  RAMUniquePtr<JPEGDEC> jpeg_;
   int scale_{1};                   // JPEGDEC decodes at 1/scale_ of the image size
   DecodeSource *source_{nullptr};  // Set while a begin_source() decode is in progress
-  bool direct_rgb565_{false};
   bool source_failed_{false};
 };
 

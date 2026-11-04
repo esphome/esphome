@@ -175,11 +175,7 @@ void AirthingsWaveBase::read_battery_(uint8_t *raw_value, uint16_t value_len) {
   if ((value_len >= (sizeof(AccessControlPointResponse) + 2)) && (raw_value[0] == ACCESS_CONTROL_POINT_COMMAND)) {
     ESP_LOGD(TAG, "Battery received: %u mV", (unsigned int) value->battery);
 
-    if (this->battery_voltage_ != nullptr) {
-      float voltage = value->battery / 1000.0f;
-
-      this->battery_voltage_->publish_state(voltage);
-    }
+    PUBLISH_STATE(this->battery_voltage_, value->battery / 1000.0f);
 
     // read the battery again at the configured update interval
     if (this->battery_update_interval_ != this->update_interval_) {

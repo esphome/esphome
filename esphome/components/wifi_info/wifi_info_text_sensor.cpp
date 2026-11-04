@@ -26,16 +26,20 @@ void IPAddressWiFiInfo::on_ip_state(const network::IPAddresses &ips, const netwo
   char buf[network::IP_ADDRESS_BUFFER_SIZE];
   ips[0].str_to(buf);
   this->publish_state(buf);
+#ifdef WIFI_INFO_IP_SENSOR_COUNT
   uint8_t sensor = 0;
   for (const auto &ip : ips) {
-    if (ip.is_set()) {
-      if (this->ip_sensors_[sensor] != nullptr) {
-        ip.str_to(buf);
-        this->ip_sensors_[sensor]->publish_state(buf);
-      }
-      sensor++;
+    if (!ip.is_set())
+      continue;
+    if (sensor == WIFI_INFO_IP_SENSOR_COUNT)
+      break;
+    if (this->ip_sensors_[sensor] != nullptr) {
+      ip.str_to(buf);
+      this->ip_sensors_[sensor]->publish_state(buf);
     }
+    sensor++;
   }
+#endif
 }
 
 /*********************

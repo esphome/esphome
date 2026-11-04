@@ -15,9 +15,9 @@ import pytest
 from .host_prefs import clear_host_prefs
 from .log_utils import LineWaiter
 from .state_utils import (
-    InitialStateHelper,
     require_entity,
     require_only_entity,
+    subscribe_after_initial_states,
     wait_for_state,
 )
 from .types import APIClientConnectedFactory, RunCompiledFunction
@@ -49,7 +49,6 @@ async def test_template_climate_two_point_temperature(
             )
 
         entities, _ = await client.list_entities_services()
-        initial_state_helper = InitialStateHelper(entities)
         test_climate = require_only_entity(entities, ClimateInfo)
         assert test_climate.name == "Test Two-Point Heatpump"
         assert test_climate.supports_two_point_target_temperature
@@ -57,13 +56,9 @@ async def test_template_climate_two_point_temperature(
 
         report_button = require_entity(entities, "simulate_device_report", ButtonInfo)
 
-        client.subscribe_states(
-            initial_state_helper.on_state_wrapper(lambda state: None)
-        )
+        sub = await subscribe_after_initial_states(client, entities)
 
-        await initial_state_helper.wait_for_initial_states()
-
-        initial = initial_state_helper.initial_states.get(test_climate.key)
+        initial = sub.initial_states.get(test_climate.key)
         assert initial is not None, "No initial climate state received"
         assert isinstance(initial, aioesphomeapi.ClimateState)
         # Nothing has been published yet: settable fields have no sensor to seed them from, so

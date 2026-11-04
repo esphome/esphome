@@ -192,7 +192,7 @@ uint8_t Lc709203f::get_register_(uint8_t register_to_read, uint16_t *register_va
       snprintf(buf, sizeof(buf), "CRC error reading from register 0x%02X", register_to_read);
       this->status_set_warning(buf);
     } else {
-      *register_value = ((uint16_t) read_buffer[4] << 8) | (uint16_t) read_buffer[3];
+      *register_value = encode_uint16(read_buffer[4], read_buffer[3]);
       return i2c::NO_ERROR;
     }
   }
