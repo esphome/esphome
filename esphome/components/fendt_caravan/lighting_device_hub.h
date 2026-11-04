@@ -5,26 +5,35 @@
 #include "esphome/components/switch/switch.h"
 #include "fendt_caravan_hub_base.h"
 #include "esphome/core/component.h"
+#include "esphome/core/helpers.h"
 #include "esphome/core/log.h"
+#include "esphome/core/string_ref.h"
 #include "device_decoders.h"
 #include "fendt_caravan.h"
-#include <map>
-#include <string>
 
 namespace esphome::fendt_caravan {
+
+struct LightEntry {
+  StringRef key;             // Non-owning, points to flash literal
+  light::LightState *state;  // Pointer to light state
+};
 
 class LightingDeviceHub : public FendtCaravanHubBase, public Parented<FendtCaravan> {
  public:
   void dump_config() override;
 
-  void set_binary_light_state(const std::string &key_name, light::LightState *state);
-  void set_float_light_state(const std::string &key_name, light::LightState *state);
+  void set_binary_light_state(const char *key_name, light::LightState *state);
+  void set_float_light_state(const char *key_name, light::LightState *state);
   void write_state(switch_::Switch *sw, bool state) override {};
   bool decode(const char *key, const char *value) override;
 
- private:
-  std::map<std::string, light::LightState *> binary_states_{};
-  std::map<std::string, light::LightState *> float_states_{};
+ protected:
+#ifdef LIGHTING_DEVICE_BINARY_LIGHT_COUNT
+  StaticVector<LightEntry, LIGHTING_DEVICE_BINARY_LIGHT_COUNT> binary_states_;
+#endif
+#ifdef LIGHTING_DEVICE_FLOAT_LIGHT_COUNT
+  StaticVector<LightEntry, LIGHTING_DEVICE_FLOAT_LIGHT_COUNT> float_states_;
+#endif
 };
 
 }  // namespace esphome::fendt_caravan

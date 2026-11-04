@@ -31,6 +31,10 @@ FendtFloatLightOutput = fendt_caravan_ns.class_(
     cg.Parented.template(LightingDeviceHub),
 )
 
+# Request a slot for each light at code generation time
+_request_binary_light_slot = cg.slot_counter("LIGHTING_DEVICE_BINARY_LIGHT_COUNT")
+_request_float_light_slot = cg.slot_counter("LIGHTING_DEVICE_FLOAT_LIGHT_COUNT")
+
 
 def _binary_output_schema() -> cv.Schema:
     return light.BINARY_LIGHT_SCHEMA.extend(
@@ -89,7 +93,10 @@ async def to_code(config):
     await cg.register_parented(var, parent)
     state = await cg.get_variable(config[CONF_ID])
     cg.add(var.set_variable_name(config[CONF_VARIABLE_NAME]))
+    # Request a slot for this light
     if config.get(CONF_LIGHT_TYPE) == "switch":
+        _request_binary_light_slot()
         cg.add(parent.set_binary_light_state(config[CONF_VARIABLE_NAME], state))
     if config.get(CONF_LIGHT_TYPE) == "dimmable":
+        _request_float_light_slot()
         cg.add(parent.set_float_light_state(config[CONF_VARIABLE_NAME], state))
