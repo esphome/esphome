@@ -16,6 +16,7 @@
 
 #include "ens160_base.h"
 #include "esphome/core/log.h"
+#include "esphome/core/helpers.h"
 #include "esphome/core/hal.h"
 
 namespace esphome::ens160_base {
@@ -238,14 +239,9 @@ void ENS160Component::send_env_data_() {
     ESP_LOGV(TAG, "External humidity compensation:    %.1f%%", humidity);
   }
 
-  uint16_t t = (uint16_t) ((temperature + 273.15f) * 64.0f);
-  uint16_t h = (uint16_t) (humidity * 512.0f);
-
   uint8_t data[4];
-  data[0] = t & 0xff;
-  data[1] = (t >> 8) & 0xff;
-  data[2] = h & 0xff;
-  data[3] = (h >> 8) & 0xff;
+  put_le16(data, static_cast<uint16_t>((temperature + 273.15f) * 64.0f));
+  put_le16(data + 2, static_cast<uint16_t>(humidity * 512.0f));
 
   if (!this->write_bytes(ENS160_REG_TEMP_IN, data, 4)) {
     ESP_LOGE(TAG, "Error writing compensation values");

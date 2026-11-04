@@ -75,8 +75,7 @@ void CM1106Component::update() {
 void CM1106Component::calibrate_zero(uint16_t ppm) {
   uint8_t cmd[6];
   memcpy(cmd, C_M1106_CMD_SET_CO2_CALIB, sizeof(cmd));
-  cmd[3] = ppm >> 8;
-  cmd[4] = ppm & 0xFF;
+  put_be16(cmd + 3, ppm);
   if (this->send_command_expect_ack_(cmd, sizeof(cmd), C_M1106_CMD_SET_CO2_CALIB_RESPONSE)) {
     ESP_LOGD(TAG, "Successfully calibrated sensor to %uppm", ppm);
   }
@@ -88,8 +87,7 @@ void CM1106Component::abc_set_(bool enabled) {
   memcpy(cmd, C_M1106_CMD_SET_ABC_STATUS, sizeof(cmd));
   cmd[4] = enabled ? CM1106_ABC_FLAG_ENABLE : CM1106_ABC_FLAG_DISABLE;
   cmd[5] = this->abc_cycle_;
-  cmd[6] = this->abc_baseline_ >> 8;
-  cmd[7] = this->abc_baseline_ & 0xFF;
+  put_be16(cmd + 6, this->abc_baseline_);
   if (this->send_command_expect_ack_(cmd, sizeof(cmd), C_M1106_CMD_SET_ABC_STATUS_RESPONSE)) {
     ESP_LOGD(TAG, "Successfully set ABC status");
   }
