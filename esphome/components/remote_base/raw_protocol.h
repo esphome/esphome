@@ -4,8 +4,6 @@
 #include "remote_base.h"
 
 #include <cinttypes>
-#include <type_traits>
-#include <variant>
 #include <vector>
 
 namespace esphome::remote_base {
@@ -33,25 +31,21 @@ class RawBinarySensor : public RemoteReceiverBinarySensorBase {
   size_t len_;
 };
 
-/// x is a view of the receiver's buffer (RawTimingsView) when the automation runs synchronously, and a vector
-/// (RawTimings) when it defers, since a deferred action keeps its own copy of x.
-template<typename T> class RawTrigger final : public Trigger<T>, public RemoteReceiverListener {
+class RawTrigger final : public Trigger<RawTimings>, public RemoteReceiverListener {
  protected:
   bool on_receive(RemoteReceiveData src) override {
-    if constexpr (std::is_same_v<T, RawTimingsView>) {
-      this->trigger(src.get_raw_data());
-    } else if (const RawTimings *timings = src.get_raw_vector()) {
+    if (const RawTimings *timings = src.get_raw_vector()) {
       this->trigger(*timings);
-    } else {
-      RawTimingsView data = src.get_raw_data();
-      this->timings_.assign(data.begin(), data.end());
-      this->trigger(this->timings_);
+      return false;
     }
+    // A receiver dispatching from its own buffer: x is a vector, so copy the frame into one kept here
+    RawTimingsView data = src.get_raw_data();
+    this->timings_.assign(data.begin(), data.end());
+    this->trigger(this->timings_);
     return false;
   }
 
-  // Only filled for a deferring automation fed from a receiver's own buffer
-  [[no_unique_address]] std::conditional_t<std::is_same_v<T, RawTimings>, RawTimings, std::monostate> timings_;
+  RawTimings timings_;
 };
 
 template<typename... Ts> class RawAction : public RemoteTransmitterActionBase<Ts...> {

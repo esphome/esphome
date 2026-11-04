@@ -252,11 +252,7 @@ def register_binary_sensor(
     return decorator
 
 
-def register_trigger(name, type, data_type, owning_data_type=None):
-    """Register on_<name>; with owning_data_type, a deferring automation gets x as that owning type.
-
-    type is then a template taking the data type.
-    """
+def register_trigger(name, type, data_type):
     validator = automation.validate_automation(
         {
             cv.GenerateID(CONF_TRIGGER_ID): cv.declare_id(type),
@@ -267,15 +263,9 @@ def register_trigger(name, type, data_type, owning_data_type=None):
     def decorator(func):
         async def new_func(config):
             _request_protocol_if_in_tree(name)
-            arg_type = data_type
-            if owning_data_type is not None:
-                ((arg_type, _),) = automation.owning_args(
-                    [(data_type, "x")], config, {str(data_type): owning_data_type}
-                )
-                config[CONF_TRIGGER_ID].type = type.template(arg_type)
             var = cg.new_Pvariable(config[CONF_TRIGGER_ID])
             await coroutine(func)(var, config)
-            await automation.build_automation(var, [(arg_type, "x")], config)
+            await automation.build_automation(var, [(data_type, "x")], config)
             return var
 
         return registerer(new_func)
@@ -1600,12 +1590,7 @@ def raw_binary_sensor(var, config):
     cg.add(var.set_len(len(code_)))
 
 
-@register_trigger(
-    "raw",
-    RawTrigger,
-    cg.std_span.template(cg.int32.operator("const")),
-    owning_data_type=cg.std_vector.template(cg.int32),
-)
+@register_trigger("raw", RawTrigger, cg.std_vector.template(cg.int32))
 def raw_trigger(var, config):
     pass
 

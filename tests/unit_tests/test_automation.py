@@ -3470,15 +3470,3 @@ async def test_new_automation(mock_cg: MockCodegen) -> None:
     assert str(obj) == "a1"
     ((id_, templ), _) = mock_cg.new_pvariable.call_args
     assert (str(id_), str(templ)) == ("a1", "<float>")
-
-
-def test_owning_args_maps_extra_types_when_deferring(
-    mock_registry: dict[str, RegistryEntry],
-) -> None:
-    view = cg.std_span.template(cg.int32.operator("const"))
-    owner = cg.std_vector.template(cg.int32)
-    args = [(view, "x")]
-    owning = {str(view): owner}
-    assert owning_args(args, {CONF_THEN: [{"logger.log": "hi"}]}, owning) == args
-    conf = {CONF_THEN: [{"logger.log": "hi"}, {"delay": "1s"}]}
-    assert owning_args(args, conf, owning) == [(owner, "x")]

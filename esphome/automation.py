@@ -1846,20 +1846,14 @@ def _options_have_non_synchronous_actions(options: Any) -> bool:
     return False
 
 
-def owning_args(
-    args: TemplateArgsType,
-    conf: ConfigType,
-    owning: dict[str, SafeExpType] | None = None,
-) -> TemplateArgsType:
-    """Pass owning types to an automation that defers, as it keeps its arguments.
-
-    StringRef becomes std::string; ``owning`` maps further non-owning types, keyed by their C++ name,
-    to the type that owns the data.
-    """
+def owning_args(args: TemplateArgsType, conf: ConfigType) -> TemplateArgsType:
+    """Pass std::string instead of StringRef to an automation that defers, as it keeps its arguments."""
     if not has_non_synchronous_actions(conf):
         return args
-    owning = {str(cg.StringRef): cg.std_string, **(owning or {})}
-    return [(owning.get(str(type_), type_), name) for type_, name in args]
+    return [
+        (cg.std_string if type_ is cg.StringRef else type_, name)
+        for type_, name in args
+    ]
 
 
 def validate_no_deferring_actions(
