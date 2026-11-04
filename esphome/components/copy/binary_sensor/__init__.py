@@ -38,4 +38,4 @@ async def to_code(config: ConfigType) -> None:
     var = await binary_sensor.new_binary_sensor(config)
     await cg.register_component(var, config)
 
-    await cg.add_variable(var.set_source, config[CONF_SOURCE_ID])
+    await cg.add_variable(var.set_source_binary_sensor, config[CONF_SOURCE_ID])

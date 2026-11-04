@@ -2,6 +2,7 @@
 #include "esphome/core/hal.h"
 #include "esphome/core/helpers.h"
 #include "esphome/core/log.h"
+#include "esphome/core/progmem.h"
 #include "esphome/components/i2c/i2c.h"
 
 #include <cinttypes>
@@ -17,27 +18,12 @@ static const uint8_t SYSCONFIG_ADDRESS = 0xA5;
 static const uint8_t PCONFIG_ADDRESS = 0xA6;
 static const uint8_t READ_COMMAND = 0x0A;
 
-[[maybe_unused]] static const char *oversampling_to_str(XGZP68XXOversampling oversampling) {
-  switch (oversampling) {
-    case XGZP68XX_OVERSAMPLING_256X:
-      return "256x";
-    case XGZP68XX_OVERSAMPLING_512X:
-      return "512x";
-    case XGZP68XX_OVERSAMPLING_1024X:
-      return "1024x";
-    case XGZP68XX_OVERSAMPLING_2048X:
-      return "2048x";
-    case XGZP68XX_OVERSAMPLING_4096X:
-      return "4096x";
-    case XGZP68XX_OVERSAMPLING_8192X:
-      return "8192x";
-    case XGZP68XX_OVERSAMPLING_16384X:
-      return "16384x";
-    case XGZP68XX_OVERSAMPLING_32768X:
-      return "32768x";
-    default:
-      return "UNKNOWN";
-  }
+// Indexed by the XGZP68XXOversampling register value, which is not in size order
+PROGMEM_STRING_TABLE(OversamplingStrings, "1024x", "2048x", "4096x", "8192x", "256x", "512x", "16384x", "32768x",
+                     "UNKNOWN");
+
+[[maybe_unused]] static const LogString *oversampling_to_str(XGZP68XXOversampling value) {
+  return OversamplingStrings::get_log_str(static_cast<uint8_t>(value), OversamplingStrings::LAST_INDEX);
 }
 
 void XGZP68XXComponent::update() {
@@ -48,7 +34,7 @@ void XGZP68XXComponent::update() {
     uint8_t newconfig = (oldconfig & 0xf8) | (this->pressure_oversampling_ & 0x7);
     this->write_register(PCONFIG_ADDRESS, &newconfig, 1);
     ESP_LOGD(TAG, "oversampling to %s: oldconfig = 0x%x newconfig = 0x%x",
-             oversampling_to_str(this->pressure_oversampling_), oldconfig, newconfig);
+             LOG_STR_ARG(oversampling_to_str(this->pressure_oversampling_)), oldconfig, newconfig);
     this->last_pressure_oversampling_ = this->pressure_oversampling_;
   }
 
@@ -106,7 +92,7 @@ void XGZP68XXComponent::dump_config() {
   LOG_SENSOR("  ", "Temperature: ", this->temperature_sensor_);
   LOG_SENSOR("  ", "Pressure: ", this->pressure_sensor_);
   if (this->pressure_sensor_ != nullptr) {
-    ESP_LOGCONFIG(TAG, "    Oversampling: %s", oversampling_to_str(this->pressure_oversampling_));
+    ESP_LOGCONFIG(TAG, "    Oversampling: %s", LOG_STR_ARG(oversampling_to_str(this->pressure_oversampling_)));
   }
   LOG_I2C_DEVICE(this);
   LOG_UPDATE_INTERVAL(this);
