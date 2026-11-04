@@ -20,11 +20,23 @@ static const uint8_t DALY_REQUEST_STATUS = 0x94;
 static const uint8_t DALY_REQUEST_CELL_VOLTAGE = 0x95;
 static const uint8_t DALY_REQUEST_TEMPERATURE = 0x96;
 
-void DalyBmsComponent::setup() { this->next_request_ = 1; }
+// next_request_ value once every request of a cycle has been sent
+static const uint8_t DALY_REQUEST_CYCLE_DONE = 7;
+// A response can span several frames (three cell voltages per frame). Once a frame is complete and the line
+// stays quiet this long, the response is over and the next request can go out.
+static const uint32_t DALY_RESPONSE_GAP_MS = 50;
+
+void DalyBmsComponent::setup() { this->next_request_ = 0; }
 
 void DalyBmsComponent::dump_config() { ESP_LOGCONFIG(TAG, "Daly BMS:"); }
 
 void DalyBmsComponent::update() {
+  if (this->next_request_ != 0 && this->next_request_ != DALY_REQUEST_CYCLE_DONE) {
+    // Restarting now would starve the last requests (cell voltages, temperatures) when the update interval is
+    // shorter than a request cycle. The running cycle finishes first, the next update starts a new one.
+    ESP_LOGV(TAG, "Request cycle still running, update skipped");
+    return;
+  }
   this->trigger_next_ = true;
   this->next_request_ = 0;
 }
@@ -36,6 +48,12 @@ void DalyBmsComponent::loop() {
     ESP_LOGW(TAG, "Last transmission too long ago. Reset RX index.");
     this->data_.clear();
     this->receiving_ = false;
+  }
+  if (this->frame_received_ && !this->receiving_ && (now - this->last_transmission_ >= DALY_RESPONSE_GAP_MS) &&
+      !this->trigger_next_) {
+    // response complete -> trigger next request without waiting for the timeout
+    this->last_transmission_ = now;
+    this->trigger_next_ = true;
   }
   if ((now - this->last_transmission_ >= 250) && !this->trigger_next_) {
     // last transmittion longer than 0.25s ago -> trigger next request
@@ -59,12 +77,16 @@ void DalyBmsComponent::loop() {
           this->decode_data_(this->data_);
           this->data_.clear();
           this->receiving_ = false;
+          this->frame_received_ = true;
         }
       },
       avail);
 
   if (this->trigger_next_) {
     this->trigger_next_ = false;
+    this->frame_received_ = false;
+    // the response timeout counts from the request, also for the first request of a cycle started by update()
+    this->last_transmission_ = now;
     switch (this->next_request_) {
       case 0:
         this->request_data_(DALY_REQUEST_BATTERY_LEVEL);
@@ -92,9 +114,9 @@ void DalyBmsComponent::loop() {
         break;
       case 6:
         this->request_data_(DALY_REQUEST_TEMPERATURE);
-        this->next_request_ = 7;
+        this->next_request_ = DALY_REQUEST_CYCLE_DONE;
         break;
-      case 7:
+      case DALY_REQUEST_CYCLE_DONE:
       default:
         break;
     }
