@@ -422,7 +422,8 @@ message SendspinCapabilities {
 }
 
 message CrashReportCapabilities {
-  // Bitmask of CrashReportFlag
+  // Bitmask of CrashReportFlag. ESP32 checks BUILD_MATCHES against the build time stored with the record;
+  // ESP8266, RP2 and LibreTiny store none and assume it.
   uint32 flags = 1;
 }
 
