@@ -8,6 +8,10 @@
 #include "esphome/core/helpers.h"
 #include "esphome/core/log.h"
 
+#if defined(USE_LIBRETINY_VARIANT_BK7238) && defined(USE_OTA)
+#include <flashdb.h>
+#endif
+
 namespace esphome::libretiny {
 
 ESPHOME_LOG_TAG(TAG, "libretiny");
@@ -55,10 +59,27 @@ void LTComponent::dump_config() {
   }
 #endif
 
-#ifdef USE_TEXT_SENSOR
-  if (this->version_ != nullptr) {
-    this->version_->publish_state(&LT_BANNER_STR[10]);
+#if defined(USE_LIBRETINY_VARIANT_BK7238) && defined(USE_OTA) && \
+    (FLASH_DOWNLOAD_OFFSET == 0x132000 || FLASH_DOWNLOAD_OFFSET == 0x12C000)
+  // The other layout's bootloader, known by the CRC-32 of its first 257 bytes as bk7231tools identifies it,
+  // applies updates from its own download offset, so this build's updates are never applied.
+#if FLASH_DOWNLOAD_OFFSET == 0x132000
+  static constexpr uint32_t OTHER_BOOTLOADER_CRC = 0xF42F8C32;
+  static constexpr const char *OTHER_BOOTLOADER = "Tuya T1 2.0.0; set board: generic-bk7238-tuya";
+#else
+  static constexpr uint32_t OTHER_BOOTLOADER_CRC = 0x6BEB0924;
+  static constexpr const char *OTHER_BOOTLOADER = "Beken 1.0.14; set board: generic-bk7238";
+#endif
+  uint8_t bootloader[257];
+  if (lt_flash_read(0, bootloader, sizeof(bootloader)) == sizeof(bootloader) &&
+      fdb_calc_crc32(0, bootloader, sizeof(bootloader)) == OTHER_BOOTLOADER_CRC) {
+    ESP_LOGE(TAG, "OTA updates are not applied: bootloader is %s, upload, then reset (the upload reports an error)",
+             OTHER_BOOTLOADER);
   }
+#endif
+
+#ifdef USE_TEXT_SENSOR
+  PUBLISH_STATE(this->version_text_sensor_, &LT_BANNER_STR[10]);
 #endif  // USE_TEXT_SENSOR
 }
 

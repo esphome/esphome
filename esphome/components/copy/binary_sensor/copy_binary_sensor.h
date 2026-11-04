@@ -6,13 +6,11 @@
 namespace esphome::copy {
 
 class CopyBinarySensor final : public binary_sensor::BinarySensor, public Component {
+  SUB_BINARY_SENSOR(source)
+
  public:
-  void set_source(binary_sensor::BinarySensor *source) { source_ = source; }
   void setup() override;
   void dump_config() override;
-
- protected:
-  binary_sensor::BinarySensor *source_;
 };
 
 }  // namespace esphome::copy

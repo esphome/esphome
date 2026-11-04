@@ -43,7 +43,7 @@ void HDC302XComponent::dump_config() {
                 this->heater_active_ ? LOG_STR_LITERAL("active") : LOG_STR_LITERAL("inactive"));
   LOG_I2C_DEVICE(this);
   LOG_UPDATE_INTERVAL(this);
-  LOG_SENSOR("  ", "Temperature", this->temp_sensor_);
+  LOG_SENSOR("  ", "Temperature", this->temperature_sensor_);
   LOG_SENSOR("  ", "Humidity", this->humidity_sensor_);
 }
 
@@ -137,19 +137,9 @@ void HDC302XComponent::read_data_() {
   if (!this->status_comm_result(crc_ok, LOG_STR("Read data: invalid CRC")))
     return;
 
-  if (this->temp_sensor_ != nullptr) {
-    uint16_t raw_t = encode_uint16(buf[0], buf[1]);
-    // Calculate temperature in Celsius per datasheet section 7.3.3.
-    float temp = -45 + 175 * (float(raw_t) / 65535.0f);
-    this->temp_sensor_->publish_state(temp);
-  }
-
-  if (this->humidity_sensor_ != nullptr) {
-    uint16_t raw_rh = encode_uint16(buf[3], buf[4]);
-    // Calculate RH% per datasheet section 7.3.3.
-    float humidity = 100 * (float(raw_rh) / 65535.0f);
-    this->humidity_sensor_->publish_state(humidity);
-  }
+  // Temperature in Celsius and RH% per datasheet section 7.3.3.
+  PUBLISH_STATE(this->temperature_sensor_, -45 + 175 * (encode_uint16(buf[0], buf[1]) / 65535.0f));
+  PUBLISH_STATE(this->humidity_sensor_, 100 * (encode_uint16(buf[3], buf[4]) / 65535.0f));
 }
 
 uint32_t HDC302XComponent::conversion_delay_ms_() {

@@ -41,12 +41,35 @@ template<typename T, size_t N> optional<size_t> find_index(const T (&arr)[N], T 
 
 // Formats the MAC address into the buffer, or "unknown" when it is not valid
 inline const char *format_mac_str(const uint8_t *mac_address, std::span<char, MAC_ADDRESS_PRETTY_BUFFER_SIZE> buffer) {
-  if (mac_address_is_valid(mac_address)) {
+  // mac_address_is_valid() rejects the multicast bit, which radar Bluetooth MACs may have set; only all-00 and all-FF
+  // mean no address
+  uint8_t any_set = 0x00;
+  uint8_t all_set = 0xFF;
+  for (size_t i = 0; i < MAC_ADDRESS_SIZE; i++) {
+    any_set |= mac_address[i];
+    all_set &= mac_address[i];
+  }
+  if (any_set != 0x00 && all_set != 0xFF) {
     format_mac_addr_upper(mac_address, buffer.data());
   } else {
     ESPHOME_strncpy_P(buffer.data(), ESPHOME_PSTR("unknown"), buffer.size());
   }
   return buffer.data();
+}
+
+// MAC address the module uses when Bluetooth is disabled
+static constexpr uint8_t NO_MAC[MAC_ADDRESS_SIZE] PROGMEM = {0x08, 0x05, 0x04, 0x03, 0x02, 0x01};
+
+// Stores the radar's reported MAC, or clears it when the radar reports Bluetooth off; returns whether Bluetooth is on
+inline bool store_mac(const uint8_t *reported, uint8_t *mac_address) {
+  uint8_t no_mac[MAC_ADDRESS_SIZE];
+  progmem_memcpy(no_mac, NO_MAC, MAC_ADDRESS_SIZE);
+  if (std::memcmp(reported, no_mac, MAC_ADDRESS_SIZE) == 0) {
+    std::memset(mac_address, 0, MAC_ADDRESS_SIZE);
+    return false;
+  }
+  std::memcpy(mac_address, reported, MAC_ADDRESS_SIZE);
+  return true;
 }
 
 // Helper function to format firmware version with stack allocation

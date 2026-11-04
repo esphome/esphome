@@ -60,7 +60,7 @@ class BQ25186Component : public PollingComponent, public i2c::I2CDevice {
 #endif
 #ifdef USE_BQ25186_PG_GPO
   /// The /PG/GPO pin is put in general purpose output mode when a switch drives it
-  void set_pg_gpo_switch(switch_::Switch *pg_gpo_switch) { this->pg_gpo_switch_ = pg_gpo_switch; }
+  SUB_SWITCH(pg_gpo)
   bool write_pg_gpo_level(bool level) {
     return this->update_register_(BQ25186_REG_SYS_REG, BQ25186_SYS_REG_PG_GPO_LEVEL,
                                   level ? BQ25186_SYS_REG_PG_GPO_LEVEL : 0);
@@ -83,9 +83,6 @@ class BQ25186Component : public PollingComponent, public i2c::I2CDevice {
 #endif
 #ifdef BQ25186_TEXT_SENSOR_COUNT
   StaticVector<BQ25186TextSensor *, BQ25186_TEXT_SENSOR_COUNT> text_sensors_;
-#endif
-#ifdef USE_BQ25186_PG_GPO
-  switch_::Switch *pg_gpo_switch_{nullptr};
 #endif
   BQ25186ConfigRegisters regs_{};  // the configuration last applied, written again after a chip reset
   bool configure_on_boot_{false};

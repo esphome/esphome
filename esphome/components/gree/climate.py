@@ -1,5 +1,5 @@
 import esphome.codegen as cg
-from esphome.components import climate_ir
+from esphome.components import climate_ir, remote_base
 import esphome.config_validation as cv
 from esphome.const import CONF_MODEL, CONF_USE_FAHRENHEIT
 from esphome.types import ConfigType
@@ -13,7 +13,16 @@ GreeClimate = gree_ns.class_("GreeClimate", climate_ir.ClimateIR)
 
 Model = gree_ns.enum("Model")
 MODELS = Model.options(
-    "generic", "yan", "yaa", "yac", "yac1fb9", "yx1ff", "yag", "yaw1f", prefix="GREE_"
+    "generic",
+    "yan",
+    "yaa",
+    "yac",
+    "yac1fb9",
+    "yb1fa",
+    "yx1ff",
+    "yag",
+    "yaw1f",
+    prefix="GREE_",
 )
 
 CONFIG_SCHEMA = climate_ir.climate_ir_with_receiver_schema(GreeClimate).extend(
@@ -32,3 +41,5 @@ async def to_code(config: ConfigType) -> None:
         cg.add(var.set_use_fahrenheit(True))
     if config[CONF_MODEL] == "yaw1f":
         cg.add_define("USE_GREE_YAW1F")
+    if remote_base.CONF_RECEIVER_ID in config:
+        cg.add_define("USE_GREE_RECEIVER")

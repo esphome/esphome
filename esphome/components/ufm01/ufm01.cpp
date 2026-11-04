@@ -103,10 +103,7 @@ static bool bcd_to_digits(const uint8_t *data, size_t len, char *out) {
 static bool validate_software_version_response(const uint8_t data[SOFTWARE_VERSION_RESPONSE_SIZE]) {
   if (data[0] != COMMAND_ACK || data[SOFTWARE_VERSION_STOP_INDEX] != FRAME_STOP_BYTE)
     return false;
-  uint8_t sum = 0;
-  for (size_t i = 1; i < SOFTWARE_VERSION_CHECKSUM_INDEX; ++i)
-    sum += data[i];
-  return data[SOFTWARE_VERSION_CHECKSUM_INDEX] == sum;
+  return data[SOFTWARE_VERSION_CHECKSUM_INDEX] == sum_bytes(data + 1, SOFTWARE_VERSION_CHECKSUM_INDEX - 1);
 }
 
 static bool check_byte(const uint8_t data[FRAME_SIZE], size_t index, uint8_t expected, const char *name) {
@@ -137,10 +134,7 @@ static bool validate_passive_with_id_frame(const uint8_t data[PASSIVE_FRAME_WITH
   if (data[0] != FRAME_START_BYTE_1 || data[1] != PASSIVE_START_BYTE_2_WITH_ID ||
       data[PASSIVE_WITH_ID_STOP_INDEX] != FRAME_STOP_BYTE)
     return false;
-  uint8_t sum = 0;
-  for (size_t i = 0; i < PASSIVE_WITH_ID_CHECKSUM_INDEX; ++i)
-    sum += data[i];
-  return data[PASSIVE_WITH_ID_CHECKSUM_INDEX] == sum;
+  return data[PASSIVE_WITH_ID_CHECKSUM_INDEX] == sum_bytes(data, PASSIVE_WITH_ID_CHECKSUM_INDEX);
 }
 #endif
 
@@ -318,10 +312,8 @@ void UFM01Component::dump_config() {
 // The binary sensors keep their last state while readings are stale; only flow and temperature go unknown
 void UFM01Component::publish_stale_flow_and_temperature_() {
 #ifdef USE_SENSOR
-  if (this->flow_sensor_ != nullptr)
-    this->flow_sensor_->publish_state(NAN);
-  if (this->temperature_sensor_ != nullptr)
-    this->temperature_sensor_->publish_state(NAN);
+  PUBLISH_STATE(this->flow_sensor_, NAN);
+  PUBLISH_STATE(this->temperature_sensor_, NAN);
 #endif
 }
 
@@ -426,28 +418,21 @@ void UFM01Component::on_active_frame_(const uint8_t data[FRAME_SIZE], uint32_t n
 #endif
   bool empty_tube = read_empty_tube(data);
 #ifdef USE_BINARY_SENSOR
-  if (this->ufc_chip_error_binary_sensor_ != nullptr)
-    this->ufc_chip_error_binary_sensor_->publish_state(read_ufc_chip_error(data));
-  if (this->flow_direction_wrong_binary_sensor_ != nullptr)
-    this->flow_direction_wrong_binary_sensor_->publish_state(read_flow_direction_wrong(data));
-  if (this->empty_tube_binary_sensor_ != nullptr)
-    this->empty_tube_binary_sensor_->publish_state(empty_tube);
-  if (this->flow_rate_out_of_range_binary_sensor_ != nullptr)
-    this->flow_rate_out_of_range_binary_sensor_->publish_state(read_flow_rate_out_of_range(data));
+  PUBLISH_STATE(this->ufc_chip_error_binary_sensor_, read_ufc_chip_error(data));
+  PUBLISH_STATE(this->flow_direction_wrong_binary_sensor_, read_flow_direction_wrong(data));
+  PUBLISH_STATE(this->empty_tube_binary_sensor_, empty_tube);
+  PUBLISH_STATE(this->flow_rate_out_of_range_binary_sensor_, read_flow_rate_out_of_range(data));
 #endif
 
 #ifdef USE_SENSOR
   // Total volume remains valid when the tube is dry; flow and temperature are not.
-  if (this->accumulated_flow_sensor_ != nullptr)
-    this->accumulated_flow_sensor_->publish_state(read_accumulated_flow(data));
+  PUBLISH_STATE(this->accumulated_flow_sensor_, read_accumulated_flow(data));
 
   if (empty_tube) {
     this->publish_stale_flow_and_temperature_();
   } else {
-    if (this->flow_sensor_ != nullptr)
-      this->flow_sensor_->publish_state(read_flow(data));
-    if (this->temperature_sensor_ != nullptr)
-      this->temperature_sensor_->publish_state(read_temperature(data));
+    PUBLISH_STATE(this->flow_sensor_, read_flow(data));
+    PUBLISH_STATE(this->temperature_sensor_, read_temperature(data));
   }
 #endif
   this->last_valid_frame_ms_ = now;

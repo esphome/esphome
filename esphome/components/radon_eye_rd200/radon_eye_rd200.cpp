@@ -166,9 +166,7 @@ void RadonEyeRD200::read_sensors_(uint8_t *value, uint16_t value_len) {
     return;
   }
 
-  if (this->radon_sensor_ != nullptr) {
-    this->radon_sensor_->publish_state(radon_now);
-  }
+  PUBLISH_STATE(this->radon_sensor_, radon_now);
 
   if (this->radon_long_term_sensor_ != nullptr) {
     if (radon_month > 0) {

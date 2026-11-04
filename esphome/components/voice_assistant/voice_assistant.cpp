@@ -30,6 +30,10 @@ static const size_t RING_BUFFER_SIZE = RING_BUFFER_SAMPLES * sizeof(int16_t);
 static const size_t SEND_BUFFER_SAMPLES = 32 * SAMPLE_RATE_HZ / 1000;  // 32ms * 16kHz / 1000ms
 static const size_t SEND_BUFFER_SIZE = SEND_BUFFER_SAMPLES * sizeof(int16_t);
 static const size_t RECEIVE_SIZE = 1024;
+// Stall watchdog, re-armed from loop() while playback runs. Waiting for playback
+// to start uses tts_playback_start_timeout_ instead (home-assistant-voice-pe#621).
+static constexpr uint32_t PLAYBACK_STALL_TIMEOUT_MS = 2000;
+
 static const size_t SPEAKER_BUFFER_SIZE = 16 * RECEIVE_SIZE;
 
 // If one microphone channel keeps producing audio while another configured channel produces none for this
@@ -499,7 +503,8 @@ void VoiceAssistant::loop() {
       }
 #endif
       if (playing) {
-        this->start_playback_timeout_();
+        // Playback is running: short watchdog against a stalled player.
+        this->start_playback_timeout_(PLAYBACK_STALL_TIMEOUT_MS);
       }
       break;
     }
@@ -524,6 +529,23 @@ void VoiceAssistant::loop() {
         this->stream_ended_ = false;
 
         this->tts_stream_end_trigger_.trigger();
+      }
+#endif
+#ifdef USE_MEDIA_PLAYER
+      // Counterpart to the speaker checks above: while the media player is
+      // still announcing our response, the microphone must stay shut, otherwise
+      // the device records its own response and answers it. Only our own
+      // response counts; an unrelated announcement does not hold this state.
+      if ((this->media_player_ != nullptr) &&
+          (this->media_player_response_state_ == MediaPlayerResponseState::PLAYING)) {
+        break;
+      }
+      // The start timeout fired before playback began: skip the follow-up turn, so a late start
+      // cannot play into an open microphone.
+      if ((this->media_player_ != nullptr) &&
+          (this->media_player_response_state_ == MediaPlayerResponseState::URL_SENT)) {
+        this->set_state_(State::IDLE, State::IDLE);
+        break;
       }
 #endif
       if (this->continue_conversation_) {
@@ -753,6 +775,14 @@ void VoiceAssistant::request_stop() {
       this->cancel_response_();
       break;
     case State::RESPONSE_FINISHED:
+#ifdef USE_MEDIA_PLAYER
+      // loop() holds this state while our response is still being announced;
+      // stop it the same way STREAMING_RESPONSE does.
+      if ((this->media_player_ != nullptr) &&
+          (this->media_player_response_state_ == MediaPlayerResponseState::PLAYING)) {
+        this->cancel_response_();
+      }
+#endif
       break;  // Let the incoming audio stream finish then it will go to idle.
   }
 }
@@ -786,8 +816,8 @@ void VoiceAssistant::signal_stop_() {
   }
 }
 
-void VoiceAssistant::start_playback_timeout_() {
-  this->set_timeout(PLAYBACK_TIMEOUT_ID, this->tts_playback_start_timeout_, [this]() {
+void VoiceAssistant::start_playback_timeout_(uint32_t timeout_ms) {
+  this->set_timeout(PLAYBACK_TIMEOUT_ID, timeout_ms, [this]() {
     this->cancel_timeout(SPEAKER_IDLE_TIMEOUT_ID);
     this->set_state_(State::RESPONSE_FINISHED, State::RESPONSE_FINISHED);
 
@@ -828,6 +858,11 @@ void VoiceAssistant::on_event(const api::VoiceAssistantEventResponse &msg) {
       this->defer([this]() { this->listening_trigger_.trigger(); });
       break;
     case api::enums::VOICE_ASSISTANT_STT_END: {
+      // Providers that detect the end of speech themselves send no STT_VAD_END, so stop the microphone here
+      // if that event didn't already
+      if (this->state_ == State::STREAMING_MICROPHONE) {
+        this->set_state_(State::STOP_MICROPHONE, State::AWAITING_RESPONSE);
+      }
       std::string text;
       for (const auto &arg : msg.data) {
         if (arg.name == "text") {
@@ -861,7 +896,7 @@ void VoiceAssistant::on_event(const api::VoiceAssistantEventResponse &msg) {
             this->media_player_->make_call().set_media_url(this->tts_response_url_).set_announcement(true).perform();
 
             this->started_streaming_tts_ = true;
-            this->start_playback_timeout_();
+            this->start_playback_timeout_(this->tts_playback_start_timeout_);
 
             tts_url_for_trigger = this->tts_response_url_;
             this->tts_response_url_.clear();  // Reset streaming URL
@@ -929,7 +964,7 @@ void VoiceAssistant::on_event(const api::VoiceAssistantEventResponse &msg) {
 
           this->media_player_->make_call().set_media_url(url).set_announcement(true).perform();
 
-          this->start_playback_timeout_();
+          this->start_playback_timeout_(this->tts_playback_start_timeout_);
         }
         this->started_streaming_tts_ = false;  // Helps indicate reaching the TTS_END stage
 #endif
@@ -1112,7 +1147,8 @@ void VoiceAssistant::on_announce(const api::VoiceAssistantAnnounceRequest &msg) 
         .perform();
     this->continue_conversation_ = msg.start_conversation;
 
-    this->start_playback_timeout_();
+    // Waiting for playback to start here too, not for it to finish.
+    this->start_playback_timeout_(this->tts_playback_start_timeout_);
 
     if (this->continuous_) {
       this->set_state_(State::STOP_MICROPHONE, State::STREAMING_RESPONSE);

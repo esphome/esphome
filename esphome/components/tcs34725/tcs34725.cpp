@@ -210,14 +210,10 @@ void TCS34725Component::update() {
     channel_c = raw_c / max_count * 100.0f;
   }
 
-  if (this->clear_sensor_ != nullptr)
-    this->clear_sensor_->publish_state(channel_c);
-  if (this->red_sensor_ != nullptr)
-    this->red_sensor_->publish_state(channel_r);
-  if (this->green_sensor_ != nullptr)
-    this->green_sensor_->publish_state(channel_g);
-  if (this->blue_sensor_ != nullptr)
-    this->blue_sensor_->publish_state(channel_b);
+  PUBLISH_STATE(this->clear_sensor_, channel_c);
+  PUBLISH_STATE(this->red_sensor_, channel_r);
+  PUBLISH_STATE(this->green_sensor_, channel_g);
+  PUBLISH_STATE(this->blue_sensor_, channel_b);
 
   if (this->illuminance_sensor_ || this->color_temperature_sensor_) {
     calculate_temperature_and_lux_(raw_r, raw_g, raw_b, raw_c);
@@ -229,11 +225,9 @@ void TCS34725Component::update() {
   // - clear not oversaturated
   // - clear oversaturated but gain and timing cannot go lower
   if (!this->integration_time_auto_ || raw_c < 65530 || (this->gain_reg_ == 0 && this->integration_time_ < 200)) {
-    if (this->illuminance_sensor_ != nullptr)
-      this->illuminance_sensor_->publish_state(this->illuminance_);
+    PUBLISH_STATE(this->illuminance_sensor_, this->illuminance_);
 
-    if (this->color_temperature_sensor_ != nullptr)
-      this->color_temperature_sensor_->publish_state(this->color_temperature_);
+    PUBLISH_STATE(this->color_temperature_sensor_, this->color_temperature_);
   }
 
   ESP_LOGD(TAG,

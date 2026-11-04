@@ -342,7 +342,7 @@ bool WiFiComponent::wifi_loop_() {
 #endif
     // For static IP configurations, notify IP listeners immediately as the IP is already configured
 #if defined(USE_WIFI_IP_STATE_LISTENERS) && defined(USE_WIFI_MANUAL_IP)
-    if (const WiFiAP *config = this->get_selected_sta_(); config && config->get_manual_ip().has_value()) {
+    if (const WiFiAP *config = this->get_selected_sta_(); config && config->has_manual_ip()) {
       s_sta_had_ip = true;
       this->notify_ip_state_listeners_();
     }
