@@ -41,6 +41,12 @@ performance nit, because it fragments a small shared heap. Flag:
   literal already lives in flash).
 - `std::string` / `std::to_string` / string-returning helpers on hot paths where
   a buffer or view API exists.
+- A `set_timeout` / `set_interval` / `defer` lambda whose captures exceed 8 bytes
+  on 32-bit or are not trivially copyable (`this` plus two 4-byte values, `this`
+  plus a member function pointer, a `std::string`, a `std::function`):
+  `std::function` then heap-allocates each time it is scheduled. Flag it on
+  retries, re-armed timeouts and hot-path `defer`; a `set_interval` set up once
+  in `setup()` is a single allocation. `[this]` plus one 4-byte value fits.
 
 ## C++ conventions
 
@@ -83,6 +89,7 @@ helper; `AGENTS.md` section 4 and the `component-codegen` skill have the detail.
 | hand-written `{"a": MyEnum.MY_ENUM_A, ...}` dict | `MyEnum.options("a", "b", prefix="MY_ENUM_")` |
 | loops on `available()` / `read_byte()` | UART `read_available(on_byte)`, `discard_available()`, `LineReader<N>`, `FrameReader<N, HEADER...>` |
 | hand-rolled CRC, checksum or bit loop | `crc8`, `crc16`, `xor_bytes`, `sum16_bytes`, `encode_uint16`, ... (`esphome/core/helpers.h`) |
+| integer split into buffer bytes by hand (`buf[0] = v >> 8; buf[1] = v;`) | `put_be16`/`24`/`32`, `put_le16`, `put_le32` (`esphome/core/helpers.h`) |
 | bare `mark_failed()`, or `ESP_LOGE` then `mark_failed()` | `this->mark_failed(LOG_STR("reason"))` or `LOG_STR(ESP_LOG_MSG_COMM_FAIL)` |
 | button/switch/number/select C++ class that only calls the hub | `ApplyButton`, `ApplySwitch`, `ApplyNumber`, `ApplySelect` with `apply=` |
 | action or condition class that only forwards to the parent | `register_apply_action` / `register_apply_condition` |
