@@ -63,6 +63,17 @@ def test_timer_sampling_codegen(
     assert "set_buffer_size" not in main_cpp
 
 
+def test_timer_frame_buffer_avoids_config_ids(
+    generate_main: Callable[[str | Path], str],
+    component_config_path: Callable[[str], Path],
+) -> None:
+    main_cpp = generate_main(
+        component_config_path("receiver_bk72xx_timer_id_clash.yaml")
+    )
+    assert "static int32_t rcvr__frames_2[1000];" in main_cpp
+    assert "rcvr->set_frame_buffer(rcvr__frames_2, 500);" in main_cpp
+
+
 def test_edge_sampling_keeps_defaults(
     generate_main: Callable[[str | Path], str],
     component_config_path: Callable[[str], Path],
