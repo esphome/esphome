@@ -45,15 +45,11 @@ static const LogString *iir_filter_to_str(IIRFilter filter) {
 
 void BMP3XXComponent::setup() {
   // Call the Device base class "initialise" function
-  if (!reset()) {
-    this->mark_failed(LOG_STR("Failed to reset"));
+  if (!this->setup_check(this->reset(), LOG_STR("Failed to reset")))
     return;
-  }
 
-  if (!read_byte(BMP388_CHIP_ID, &this->chip_id_.reg)) {
-    this->mark_failed(LOG_STR(ESP_LOG_MSG_COMM_FAIL));
+  if (!this->setup_check(read_byte(BMP388_CHIP_ID, &this->chip_id_.reg)))
     return;
-  }
   ESP_LOGCONFIG(TAG, "Chip %s Id 0x%X", LOG_STR_ARG(chip_type_to_str(this->chip_id_.reg)), this->chip_id_.reg);
 
   if (chip_id_.reg != BMP388_ID && chip_id_.reg != BMP390_ID) {
@@ -63,10 +59,10 @@ void BMP3XXComponent::setup() {
   // set sensor in sleep mode
   stop_conversion();
   // Read the calibration parameters into the params structure
-  if (!read_bytes(BMP388_TRIM_PARAMS, (uint8_t *) &compensation_params_, sizeof(compensation_params_))) {
-    this->mark_failed(LOG_STR("Can't read calibration data"));
+  if (!this->setup_check(
+          read_bytes(BMP388_TRIM_PARAMS, (uint8_t *) &compensation_params_, sizeof(compensation_params_)),
+          LOG_STR("Can't read calibration data")))
     return;
-  }
   compensation_float_params_.param_T1 =
       (float) compensation_params_.param_T1 / powf(2.0f, -8.0f);  // Calculate the floating point trim parameters
   compensation_float_params_.param_T2 = (float) compensation_params_.param_T2 / powf(2.0f, 30.0f);
@@ -84,10 +80,8 @@ void BMP3XXComponent::setup() {
   compensation_float_params_.param_P11 = (float) compensation_params_.param_P11 / powf(2.0f, 65.0f);
 
   // Initialise the BMP388 IIR filter register
-  if (!set_iir_filter(this->iir_filter_)) {
-    this->mark_failed(LOG_STR("Failed to set IIR filter"));
+  if (!this->setup_check(this->set_iir_filter(this->iir_filter_), LOG_STR("Failed to set IIR filter")))
     return;
-  }
 
   // Set power control registers
   pwr_ctrl_.bit.press_en = 1;
@@ -103,10 +97,8 @@ void BMP3XXComponent::setup() {
     this->temperature_oversampling_ = OVERSAMPLING_NONE;
   }
   // Initialise the BMP388 oversampling register
-  if (!set_oversampling_register(this->pressure_oversampling_, this->temperature_oversampling_)) {
-    this->mark_failed(LOG_STR("Failed to set oversampling register"));
-    return;
-  }
+  this->setup_check(this->set_oversampling_register(this->pressure_oversampling_, this->temperature_oversampling_),
+                    LOG_STR("Failed to set oversampling register"));
 }
 
 void BMP3XXComponent::dump_config() {
@@ -162,10 +154,8 @@ void BMP3XXComponent::update() {
       ESP_LOGD(TAG, "Got temperature=%.1f°C", temperature);
     }
 
-    if (this->temperature_sensor_ != nullptr)
-      this->temperature_sensor_->publish_state(temperature);
-    if (this->pressure_sensor_ != nullptr)
-      this->pressure_sensor_->publish_state(pressure);
+    PUBLISH_STATE(this->temperature_sensor_, temperature);
+    PUBLISH_STATE(this->pressure_sensor_, pressure);
     this->status_clear_warning();
     set_mode(SLEEP_MODE);
   });

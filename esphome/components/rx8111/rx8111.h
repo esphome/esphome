@@ -3,6 +3,9 @@
 #include "esphome/core/helpers.h"
 #include "esphome/components/i2c/i2c.h"
 #include "esphome/components/time/real_time_clock.h"
+#ifdef USE_BINARY_SENSOR
+#include "esphome/components/binary_sensor/binary_sensor.h"
+#endif
 #ifdef USE_RX8111_TIMESTAMP
 #include "esphome/components/text_sensor/text_sensor.h"
 #endif
@@ -13,6 +16,26 @@ enum TimestampMode : uint8_t {
   TIMESTAMP_MODE_LATEST,
   TIMESTAMP_MODE_STOP_WHEN_FULL,
   TIMESTAMP_MODE_OVERWRITE,
+};
+
+#ifdef USE_BINARY_SENSOR
+enum StatusSensor : uint8_t {
+  STATUS_SENSOR_VLF,
+  STATUS_SENSOR_ALARM_FLAG,
+  STATUS_SENSOR_TIMER_FLAG,
+  STATUS_SENSOR_XST,
+  STATUS_SENSOR_EVENT_FLAG,
+  STATUS_SENSOR_BATTERY_LOW,
+  STATUS_SENSOR_EVIN,
+  STATUS_SENSOR_COUNT,
+  STATUS_SENSOR_FIRST_MONITOR = STATUS_SENSOR_BATTERY_LOW,
+};
+#endif
+
+struct FlagSnapshot {
+  enum State : uint8_t { UNREAD, FAILED, VALID };
+  State state{UNREAD};
+  uint8_t value{0};
 };
 
 namespace testing {
@@ -39,6 +62,12 @@ class RX8111Component final : public time::RealTimeClock, public i2c::I2CDevice 
   void set_timer_configured(bool configured) { this->timer_configured_ = configured; }
   void set_event_poll_interval(uint32_t interval) { this->event_poll_interval_ = interval; }
   void set_evin_settings(uint8_t settings) { this->evin_settings_ = settings; }
+#ifdef USE_BINARY_SENSOR
+  void set_status_sensor(uint8_t index, binary_sensor::BinarySensor *sensor) {
+    if (index < STATUS_SENSOR_COUNT)
+      this->status_sensors_[index] = sensor;
+  }
+#endif
 #ifdef USE_RX8111_TIMESTAMP
   void set_event_timestamp_sensor(text_sensor::TextSensor *sensor, TimestampMode mode) {
     this->timestamp_sensor_ = sensor;
@@ -107,7 +136,9 @@ class RX8111Component final : public time::RealTimeClock, public i2c::I2CDevice 
 
   bool set_stop_bit_(bool stop);
   bool finish_time_write_(bool calendar_written);
-  bool read_calendar_(ESPTime &rtc_time);
+  bool read_calendar_(ESPTime &rtc_time, FlagSnapshot *flags = nullptr);
+  void read_time_(FlagSnapshot &flags);
+  void run_deferred_update_(bool status_only);
   void set_warning_(uint16_t bit, const LogString *message);
   void clear_warning_(uint16_t bit);
   void configure_boot_battery_();
@@ -116,6 +147,10 @@ class RX8111Component final : public time::RealTimeClock, public i2c::I2CDevice 
   enum BootFeature : uint8_t { BOOT_BATTERY, BOOT_FOUT, BOOT_EVENT, BOOT_ALARM, BOOT_TIMER, BOOT_FEATURE_COUNT };
   void boot_config_result_(BootFeature feature, bool success);
   bool watching_() const {
+#ifdef USE_BINARY_SENSOR
+    if (this->has_status_sensor_())
+      return true;
+#endif
 #ifdef USE_RX8111_TIMESTAMP
     if (this->timestamp_sensor_ != nullptr && !this->event_boot_pending_)
       return true;
@@ -146,13 +181,23 @@ class RX8111Component final : public time::RealTimeClock, public i2c::I2CDevice 
   bool timestamp_seen_ : 1 {false};
   bool capture_restore_pending_ : 1 {false};
 #endif
-  void check_event_flags_();
+  void check_event_flags_(FlagSnapshot flags = {});
+#ifdef USE_BINARY_SENSOR
+  bool has_status_sensor_() const {
+    for (auto *sensor : this->status_sensors_) {
+      if (sensor != nullptr)
+        return true;
+    }
+    return false;
+  }
+  binary_sensor::BinarySensor *status_sensors_[STATUS_SENSOR_COUNT]{};
+#endif
   bool program_alarm_(uint8_t second, uint8_t minute, uint8_t hour, uint8_t weekday, uint8_t day, bool boot = false);
   bool set_alarm_interrupt_(bool enabled);
   bool disable_timer_(uint8_t &extension, uint8_t &control);
   bool configure_timer_(bool clear_stale_flag = false);
   void start_event_polling_();
-  bool poll_event_flags_();
+  bool poll_event_flags_(FlagSnapshot snapshot = {});
   void configure_boot_alarm_();
   void configure_boot_timer_();
   void cancel_boot_retry_(bool alarm);
@@ -174,6 +219,10 @@ class RX8111Component final : public time::RealTimeClock, public i2c::I2CDevice 
   uint8_t alarm_weekday_{ALARM_FIELD_UNSET};
   uint8_t alarm_day_{ALARM_FIELD_UNSET};
   bool time_write_invalid_ : 1 {false};
+  bool update_running_ : 1 {false};
+  bool deferred_update_running_ : 1 {false};
+  bool sync_running_ : 1 {false};
+  bool poll_running_ : 1 {false};
   bool battery_configured_ : 1 {false};
   bool battery_backup_ : 1 {false};
   bool battery_charging_ : 1 {false};

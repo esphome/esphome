@@ -44,25 +44,19 @@ void HMC5883LComponent::setup() {
   config_a |= this->oversampling_ << 5;
   config_a |= this->datarate_ << 2;
   config_a |= 0b0 << 0;  // Measurement Mode: Normal(high impedance on load)
-  if (!this->write_byte(HMC5883L_REGISTER_CONFIG_A, config_a)) {
-    this->mark_failed(LOG_STR(ESP_LOG_MSG_COMM_FAIL));
+  if (!this->setup_check(this->write_byte(HMC5883L_REGISTER_CONFIG_A, config_a)))
     return;
-  }
 
   uint8_t config_b = 0;
   config_b |= this->range_ << 5;
-  if (!this->write_byte(HMC5883L_REGISTER_CONFIG_B, config_b)) {
-    this->mark_failed(LOG_STR(ESP_LOG_MSG_COMM_FAIL));
+  if (!this->setup_check(this->write_byte(HMC5883L_REGISTER_CONFIG_B, config_b)))
     return;
-  }
 
   uint8_t mode = 0;
   // Continuous Measurement Mode
   mode |= 0b00;
-  if (!this->write_byte(HMC5883L_REGISTER_MODE, mode)) {
-    this->mark_failed(LOG_STR(ESP_LOG_MSG_COMM_FAIL));
+  if (!this->setup_check(this->write_byte(HMC5883L_REGISTER_MODE, mode)))
     return;
-  }
 }
 void HMC5883LComponent::dump_config() {
   ESP_LOGCONFIG(TAG, "HMC5883L:");
@@ -121,14 +115,10 @@ void HMC5883LComponent::update() {
   float heading = atan2f(0.0f - x, y) * 180.0f / std::numbers::pi_v<float>;
   ESP_LOGD(TAG, "Got x=%0.02fµT y=%0.02fµT z=%0.02fµT heading=%0.01f°", x, y, z, heading);
 
-  if (this->x_sensor_ != nullptr)
-    this->x_sensor_->publish_state(x);
-  if (this->y_sensor_ != nullptr)
-    this->y_sensor_->publish_state(y);
-  if (this->z_sensor_ != nullptr)
-    this->z_sensor_->publish_state(z);
-  if (this->heading_sensor_ != nullptr)
-    this->heading_sensor_->publish_state(heading);
+  PUBLISH_STATE(this->x_sensor_, x);
+  PUBLISH_STATE(this->y_sensor_, y);
+  PUBLISH_STATE(this->z_sensor_, z);
+  PUBLISH_STATE(this->heading_sensor_, heading);
 }
 
 }  // namespace esphome::hmc5883l

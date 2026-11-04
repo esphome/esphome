@@ -51,5 +51,5 @@ async def to_code(config: ConfigType) -> None:
     xiaomi_ble.setup_xiaomi_device(var, config)
 
     sensors = sensor.sub_sensors(config)
-    await sensors(CONF_MOISTURE, var.set_moisture)
-    await sensors(CONF_CONDUCTIVITY, var.set_conductivity)
+    await sensors(CONF_MOISTURE, var.set_moisture_sensor)
+    await sensors(CONF_CONDUCTIVITY, var.set_conductivity_sensor)

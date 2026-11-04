@@ -1,0 +1,106 @@
+#pragma once
+
+#include "esphome/components/display/display.h"
+#include "esphome/components/i2c/i2c.h"
+#include "esphome/core/component.h"
+#include "esphome/core/defines.h"
+#include "esphome/core/helpers.h"
+#include "esphome/core/time.h"
+
+namespace esphome::ht16k33_char {
+
+class HT16K33CharDisplay;
+using ht16k33_char_writer_t = display::DisplayWriter<HT16K33CharDisplay>;
+
+class HT16K33CharDisplay final : public PollingComponent, public i2c::I2CDevice {
+ public:
+  /// message holds capacity bytes of UTF-8 text; intensity is 0 (dimmest) to 15
+  HT16K33CharDisplay(char *message, uint8_t capacity, uint8_t intensity)
+      : message_(message), capacity_(capacity), intensity_(intensity) {}
+
+  void setup() override;
+  void update() override;
+  void dump_config() override;
+  float get_setup_priority() const override { return setup_priority::PROCESSOR; }
+
+  void set_writer(ht16k33_char_writer_t &&writer) { this->writer_ = std::move(writer); }
+  /// 0 (dimmest) to 15, clamped
+  void set_intensity(uint8_t intensity);
+#ifdef HT16K33_CHAR_SECONDARY_COUNT
+  void add_secondary_display(uint8_t address) { this->secondary_addresses_.push_back(address); }
+#endif
+#ifdef USE_HT16K33_CHAR_GLYPH_OVERRIDES
+  /// add_characters entries, each a word with the code point in the low half and the segments in the high half,
+  /// ending with 0. A word is read from flash directly on every platform.
+  void set_glyph_overrides(const uint32_t *glyphs) { this->glyph_overrides_ = glyphs; }
+#endif
+
+  /// For printing from automations; the lambda starts from an empty message
+  void clear() { this->length_ = 0; }
+  /// Write str at byte offset pos, where a `.`, a `:` and each byte of a multi-byte character count as one.
+  /// Returns the bytes written.
+  uint8_t print(uint8_t pos, const char *str);
+  uint8_t print(const char *str) { return this->print(0, str); }
+  uint8_t printf(uint8_t pos, const char *format, ...) __attribute__((format(printf, 3, 4)));
+  uint8_t printf(const char *format, ...) __attribute__((format(printf, 2, 3)));
+  uint8_t strftime(uint8_t pos, const char *format, ESPTime time) __attribute__((format(strftime, 3, 0)));
+  uint8_t strftime(const char *format, ESPTime time) __attribute__((format(strftime, 2, 0))) {
+    return this->strftime(0, format, time);
+  }
+  /// HH:MM, or H:MM without the leading zero; 12-hour when use_ampm
+  uint8_t clock_display(uint8_t pos, bool show_leading_zero, bool use_ampm, ESPTime time);
+
+  /// 0 steady, 1 at 2 Hz, 2 at 1 Hz, 3 at 0.5 Hz; before setup only the value is kept
+  void set_blink(uint8_t blink);
+  void display_off(bool turn_off);
+  /// Stop the oscillator, the lowest power state; before setup only the value is kept
+  void display_standby(bool standby);
+  /// Clear the display memory; the next update redraws the message
+  void blank();
+
+ protected:
+  uint8_t chip_count_() const {
+#ifdef HT16K33_CHAR_SECONDARY_COUNT
+    return 1 + this->secondary_addresses_.size();
+#else
+    return 1;
+#endif
+  }
+  uint8_t chip_address_(uint8_t chip) const {
+#ifdef HT16K33_CHAR_SECONDARY_COUNT
+    if (chip > 0)
+      return this->secondary_addresses_[chip - 1];
+#endif
+    return this->address_;
+  }
+  // One call site, so a small f inlines
+  template<typename F> void for_each_chip_(F &&f) {
+    for (uint8_t chip = 0, count = this->chip_count_(); chip < count; chip++)
+      f(this->chip_address_(chip));
+  }
+  uint8_t system_setup_() const;
+  uint8_t display_setup_command_() const;
+  bool write_all_(uint8_t command);
+  /// Send a command to every chip once set up, and report the result
+  void send_(uint8_t command);
+  /// Draw the first length bytes of the message; the chips it does not reach are cleared
+  bool write_frames_(uint8_t length);
+  uint8_t find_segments_(uint32_t codepoint) const;
+  uint8_t vprintf_(uint8_t pos, const char *format, va_list arg);
+
+  char *const message_;
+  const uint8_t capacity_;
+  uint8_t length_{0};
+  uint8_t intensity_;
+  /// Display setup register: on bit and blink rate; bit 7 remembers standby, which the register does not use
+  uint8_t display_setup_{1};
+  ht16k33_char_writer_t writer_{};
+#ifdef HT16K33_CHAR_SECONDARY_COUNT
+  StaticVector<uint8_t, HT16K33_CHAR_SECONDARY_COUNT> secondary_addresses_;
+#endif
+#ifdef USE_HT16K33_CHAR_GLYPH_OVERRIDES
+  const uint32_t *glyph_overrides_{nullptr};
+#endif
+};
+
+}  // namespace esphome::ht16k33_char

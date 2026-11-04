@@ -1,0 +1,12 @@
+esphome:
+  name: rmt-test
+
+esp32:
+  variant: esp32c3
+  framework:
+    type: esp-idf
+
+remote_receiver:
+  - pin: GPIO4
+  - pin: GPIO5
+  - pin: GPIO6
