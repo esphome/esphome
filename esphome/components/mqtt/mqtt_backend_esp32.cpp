@@ -17,71 +17,66 @@ namespace esphome::mqtt {
 
 ESPHOME_LOG_TAG(TAG, "mqtt");
 
-// Fill a config for esp_mqtt_client_init() or esp_mqtt_set_config(), which copy the strings it points to.
-// Build it fresh for each call: start_connect_() reassigns these strings, which can reallocate them.
-void MQTTBackendESP32::build_config_(esp_mqtt_client_config_t &cfg) const {
-  cfg.broker.address.hostname = this->host_.c_str();
-  cfg.broker.address.port = this->port_;
-  cfg.session.keepalive = this->keep_alive_;
-  cfg.session.disable_clean_session = !this->clean_session_;
+bool MQTTBackendESP32::initialize_() {
+  mqtt_cfg_.broker.address.hostname = this->host_.c_str();
+  mqtt_cfg_.broker.address.port = this->port_;
+  mqtt_cfg_.session.keepalive = this->keep_alive_;
+  mqtt_cfg_.session.disable_clean_session = !this->clean_session_;
+  // ESPHome's state machine drives reconnects, so the client stays down after disconnect()
+  mqtt_cfg_.network.disable_auto_reconnect = true;
 
   if (!this->username_.empty()) {
-    cfg.credentials.username = this->username_.c_str();
+    mqtt_cfg_.credentials.username = this->username_.c_str();
     if (!this->password_.empty()) {
-      cfg.credentials.authentication.password = this->password_.c_str();
+      mqtt_cfg_.credentials.authentication.password = this->password_.c_str();
     }
   }
 
   if (!this->lwt_topic_.empty()) {
-    cfg.session.last_will.topic = this->lwt_topic_.c_str();
-    cfg.session.last_will.qos = this->lwt_qos_;
-    cfg.session.last_will.retain = this->lwt_retain_;
+    mqtt_cfg_.session.last_will.topic = this->lwt_topic_.c_str();
+    this->mqtt_cfg_.session.last_will.qos = this->lwt_qos_;
+    this->mqtt_cfg_.session.last_will.retain = this->lwt_retain_;
 
     if (!this->lwt_message_.empty()) {
-      cfg.session.last_will.msg = this->lwt_message_.c_str();
-      cfg.session.last_will.msg_len = this->lwt_message_.size();
+      mqtt_cfg_.session.last_will.msg = this->lwt_message_.c_str();
+      mqtt_cfg_.session.last_will.msg_len = this->lwt_message_.size();
     }
   }
 
   if (!this->client_id_.empty()) {
-    cfg.credentials.client_id = this->client_id_.c_str();
+    mqtt_cfg_.credentials.client_id = this->client_id_.c_str();
   }
 #ifdef USE_MQTT_TLS
-  cfg.broker.verification.skip_cert_common_name_check = this->skip_cert_cn_check_;
-  cfg.broker.verification.certificate = this->ca_certificate_;
+  mqtt_cfg_.broker.verification.skip_cert_common_name_check = this->skip_cert_cn_check_;
+  mqtt_cfg_.broker.verification.certificate = this->ca_certificate_;
 #ifdef USE_MQTT_CERT_BUNDLE
-  cfg.broker.verification.crt_bundle_attach = esp_crt_bundle_attach;
+  mqtt_cfg_.broker.verification.crt_bundle_attach = esp_crt_bundle_attach;
 #endif
   // Validation only accepts the client certificate together with its key
-  cfg.credentials.authentication.certificate = this->cl_certificate_;
-  cfg.credentials.authentication.key = this->cl_key_;
+  mqtt_cfg_.credentials.authentication.certificate = this->cl_certificate_;
+  mqtt_cfg_.credentials.authentication.key = this->cl_key_;
 #endif
   // Validation keeps TLS off plain ws, so only the TCP transport has two forms
   switch (this->transport_) {
     case MQTTTransport::MQTT_TRANSPORT_WS:
-      cfg.broker.address.transport = MQTT_TRANSPORT_OVER_WS;
+      mqtt_cfg_.broker.address.transport = MQTT_TRANSPORT_OVER_WS;
       break;
     case MQTTTransport::MQTT_TRANSPORT_WSS:
-      cfg.broker.address.transport = MQTT_TRANSPORT_OVER_WSS;
+      mqtt_cfg_.broker.address.transport = MQTT_TRANSPORT_OVER_WSS;
       break;
     case MQTTTransport::MQTT_TRANSPORT_TCP:
     default:
 #ifdef USE_MQTT_TLS
-      cfg.broker.address.transport = MQTT_TRANSPORT_OVER_SSL;
+      mqtt_cfg_.broker.address.transport = MQTT_TRANSPORT_OVER_SSL;
 #else
-      cfg.broker.address.transport = MQTT_TRANSPORT_OVER_TCP;
+      mqtt_cfg_.broker.address.transport = MQTT_TRANSPORT_OVER_TCP;
 #endif
       break;
   }
   // Only set for the WebSocket transports
-  cfg.broker.address.path = this->ws_path_;
-  cfg.network.disable_auto_reconnect = this->reconnect_disabled_;
-}
+  mqtt_cfg_.broker.address.path = this->ws_path_;
 
-bool MQTTBackendESP32::initialize_() {
-  esp_mqtt_client_config_t cfg{};
-  this->build_config_(cfg);
-  auto *mqtt_client = esp_mqtt_client_init(&cfg);
+  auto *mqtt_client = esp_mqtt_client_init(&mqtt_cfg_);
   if (mqtt_client) {
     handler_.reset(mqtt_client);
     is_initalized_ = true;
@@ -242,6 +237,10 @@ void MQTTBackendESP32::mqtt_event_handler(void *handler_args, esp_event_base_t b
     instance->subacks_.add(mqtt_event->data_len > 0 ? static_cast<uint8_t>(mqtt_event->data[0]) : SUBACK_FAILURE);
   }
 #endif
+  // The SDK clears a pending disconnect request just before this event, so ask again if one is still wanted
+  if (event_id == MQTT_EVENT_BEFORE_CONNECT && !instance->want_connected_.load()) {
+    esp_mqtt_client_disconnect(instance->handler_.get());
+  }
   // queue event to decouple processing from ESP-IDF MQTT task to main loop
   auto *event = instance->mqtt_event_pool_.allocate();
   if (event == nullptr) {

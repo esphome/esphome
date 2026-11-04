@@ -813,7 +813,7 @@ void MQTTClientComponent::disable() {
     return;
   ESP_LOGD(TAG, "Disabling");
   this->state_ = MQTT_CLIENT_DISABLED;
-  this->mqtt_backend_.stop();
+  this->mqtt_backend_.disconnect();
 }
 
 // Out of line so the topic buffer is off the stack while the matched callback runs

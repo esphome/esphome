@@ -177,26 +177,19 @@ class MQTTBackendESP32 final : public MQTTBackend {
   bool connected() const final { return this->is_connected_; }
 
   void connect() final {
+    this->want_connected_.store(true);  // before start/reconnect, so the MQTT task sees it
     if (!this->is_initalized_) {
       if (this->initialize_()) {
         esp_mqtt_client_start(this->handler_.get());
       }
-    } else if (this->reconnect_disabled_) {
-      this->set_auto_reconnect_(true);
-      // Ignored if the task has not parked in WAIT_RECONNECT yet,
-      // but auto-reconnect is back on
+    } else {
+      // Auto-reconnect is off, so wake the task parked in WAIT_RECONNECT
       esp_mqtt_client_reconnect(this->handler_.get());
     }
   }
   void disconnect() final {
+    this->want_connected_.store(false);
     if (this->is_initalized_) {
-      esp_mqtt_client_disconnect(this->handler_.get());
-    }
-  }
-  void stop() final {
-    if (this->is_initalized_) {
-      // With auto-reconnect off, the task parks in WAIT_RECONNECT after disconnecting
-      this->set_auto_reconnect_(false);
       esp_mqtt_client_disconnect(this->handler_.get());
     }
   }
@@ -254,13 +247,6 @@ class MQTTBackendESP32 final : public MQTTBackend {
 
  protected:
   bool initialize_();
-  void build_config_(esp_mqtt_client_config_t &cfg) const;
-  void set_auto_reconnect_(bool enable) {
-    this->reconnect_disabled_ = !enable;
-    esp_mqtt_client_config_t cfg{};
-    this->build_config_(cfg);
-    esp_mqtt_set_config(this->handler_.get(), &cfg);
-  }
   void mqtt_event_handler_(const Event &event);
   static void mqtt_event_handler(void *handler_args, esp_event_base_t base, int32_t event_id, void *event_data);
 
@@ -272,7 +258,10 @@ class MQTTBackendESP32 final : public MQTTBackend {
 
   bool is_connected_{false};
   bool is_initalized_{false};
-  bool reconnect_disabled_{false};
+  // Read by the MQTT task in mqtt_event_handler()
+  std::atomic<bool> want_connected_{false};
+
+  esp_mqtt_client_config_t mqtt_cfg_{};
 
   std::string host_;
   uint16_t port_;
