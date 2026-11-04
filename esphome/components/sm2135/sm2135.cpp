@@ -100,11 +100,10 @@ void SM2135::loop() {
   if (this->separate_modes_) {
     const bool rgb_in_use = this->pwm_amounts_[0] || this->pwm_amounts_[1] || this->pwm_amounts_[2];
     const bool cw_in_use = this->pwm_amounts_[3] || this->pwm_amounts_[4];
-    // Only one mode can be active at once, so if both have output use the most recently used
+    // Drive the group that holds a value; all dark falls through to Cold/Warm. Both groups only hold a value
+    // without color_interlock, and then the last updated channel decides.
     const bool use_cw = rgb_in_use && cw_in_use ? this->update_channel_ >= 3 : !rgb_in_use;
     if (use_cw) {
-      // No color so must be Cold/Warm
-
       this->write_byte_(SM2135_CW);
       this->sm2135_stop_();
       delay(1);
@@ -113,8 +112,6 @@ void SM2135::loop() {
       this->write_byte_(this->pwm_amounts_[3]);
       this->write_byte_(this->pwm_amounts_[4]);
     } else {
-      // Color
-
       this->write_byte_(SM2135_RGB);
       this->write_byte_(this->pwm_amounts_[0]);
       this->write_byte_(this->pwm_amounts_[1]);
