@@ -77,11 +77,9 @@ from .const import (
     MAX_TARGETS,
 )
 
-_AREA_KINDS = {
-    "interference": AreaKind.AREA_KIND_INTERFERENCE,
-    "detection": AreaKind.AREA_KIND_DETECTION,
-    "dwell": AreaKind.AREA_KIND_DWELL,
-}
+_AREA_KINDS = AreaKind.options(
+    "interference", "detection", "dwell", prefix="AREA_KIND_"
+)
 
 _AREA_AXES = (
     (KEY_X_MIN, AreaAxis.AREA_AXIS_X_MIN),

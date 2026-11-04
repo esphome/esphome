@@ -39,16 +39,12 @@ static constexpr uint32_t READ_TIMEOUT_ID = 0;
 // A0 = SCL -> 0x43
 
 void INA3221Component::setup() {
-  if (!this->write_byte_16(INA3221_REGISTER_CONFIG, INA3221_CONFIG_RESET)) {
-    this->mark_failed(LOG_STR(ESP_LOG_MSG_COMM_FAIL));
+  if (!this->setup_check(this->write_byte_16(INA3221_REGISTER_CONFIG, INA3221_CONFIG_RESET)))
     return;
-  }
   delay(1);
 
-  if (!this->write_byte_16(INA3221_REGISTER_CONFIG, this->config_)) {
-    this->mark_failed(LOG_STR(ESP_LOG_MSG_COMM_FAIL));
+  if (!this->setup_check(this->write_byte_16(INA3221_REGISTER_CONFIG, this->config_)))
     return;
-  }
 
 #ifdef USE_INA3221_ALERT_LIMITS
   for (uint8_t i = 0; i < 3; i++) {
