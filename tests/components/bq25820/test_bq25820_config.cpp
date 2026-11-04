@@ -1,5 +1,6 @@
 #include "common.h"
 #include "esphome/components/sensor/sensor.h"
+#include "esphome/core/hal.h"
 
 #include <cmath>
 
@@ -23,6 +24,7 @@ class BQ25820ConfigTest : public ::testing::Test {
 
   RegisterBus bus_;
   BQ25820Component hub_{&SET_CONFIG, true};
+  CancelDelayedPoll cancel_poll_{this->hub_};
 };
 
 TEST_F(BQ25820ConfigTest, FirstPollWritesEachRegisterInTableOrder) {
@@ -84,6 +86,7 @@ TEST_F(BQ25820ConfigTest, WatchdogExpiryRewritesTheConfigurationWithoutAnotherSw
 TEST(BQ25820WatchdogOff, PollsNeitherFeedNorRewrite) {
   RegisterBus bus;
   BQ25820Component hub{&DEFAULT_CONFIG, false};
+  CancelDelayedPoll cancel_poll{hub};
   attach(hub, bus);
   hub.update();
   EXPECT_EQ(bus.registers[REG_CHARGER_CONTROL], 0xC9);
@@ -101,6 +104,7 @@ TEST(BQ25820ChipId, OnlyThePartNumberIsChecked) {
     SCOPED_TRACE(part_information);
     RegisterBus bus;
     BQ25820Component hub{&DEFAULT_CONFIG, false};
+    CancelDelayedPoll cancel_poll{hub};
     attach(hub, bus);
     bus.registers[0x3D] = part_information;
     hub.setup();
@@ -116,6 +120,7 @@ TEST(BQ25820Temperature, FollowsTheBParameterCalibration) {
   static constexpr float PULL_UP = 47000.0f;
   RegisterBus bus;
   BQ25820Component hub{&DEFAULT_CONFIG, false};
+  CancelDelayedPoll cancel_poll{hub};
   sensor::Sensor temperature;
   attach(hub, bus);
   hub.set_temp_in_c_sensor(&temperature);
@@ -183,6 +188,7 @@ class BQ25820WriteFailureTest : public ::testing::Test {
 
   RegisterBus bus_;
   BQ25820Component hub_{&DEFAULT_CONFIG, false};
+  CancelDelayedPoll cancel_poll_{this->hub_};
   sensor::Sensor vbat_;
 };
 
@@ -196,6 +202,18 @@ TEST_F(BQ25820WriteFailureTest, FailedResetMarksSetupFailed) {
 
 TEST_F(BQ25820WriteFailureTest, FailedLimitWriteKeepsChargingOff) {
   this->check_failed_write_(0x08);  // VAC_DPM
+}
+
+TEST_F(BQ25820WriteFailureTest, ConfigurationPublishesOnceTheAdcHasConverted) {
+  this->hub_.setup();
+  EXPECT_EQ(status_publishes, 0);
+  EXPECT_FALSE(this->vbat_.has_state());
+  // The delayed poll a second after the configuration write, with no update() from the polling interval
+  App.scheduler.call(millis());
+  delay(1010);  // NOLINT: waits for the real one second timer
+  App.scheduler.call(millis());
+  EXPECT_EQ(status_publishes, 1);
+  EXPECT_FLOAT_EQ(this->vbat_.state, 8.0f);
 }
 
 TEST_F(BQ25820WriteFailureTest, ChargerResetIsWrittenAgain) {
@@ -287,6 +305,7 @@ TEST(BQ25820Adc, ScalesVoltagesAndSignedCurrentsBySenseResistor) {
   }};
   RegisterBus bus;
   BQ25820Component hub{&CONFIG, false};
+  CancelDelayedPoll cancel_poll{hub};
   sensor::Sensor iac, ibat, vac, vbat, vsys;
   attach(hub, bus);
   hub.set_iac_sensor(&iac);

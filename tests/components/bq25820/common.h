@@ -5,6 +5,7 @@
 #include <array>
 
 #include "esphome/components/bq25820/bq25820.h"
+#include "esphome/core/application.h"
 
 namespace esphome::bq25820::testing {
 
@@ -57,6 +58,12 @@ class RegisterBus final : public i2c::I2CBus {
   size_t next_() { return this->pointer_++ % this->registers.size(); }
 
   uint8_t pointer_{0};
+};
+
+// Declared after a hub: cancels the delayed poll a configuration write schedules, so it never runs on a destroyed hub
+struct CancelDelayedPoll {
+  BQ25820Component &hub;
+  ~CancelDelayedPoll() { App.scheduler.cancel_timeout(&this->hub, uint32_t{0}); }
 };
 
 inline void attach(BQ25820Component &hub, RegisterBus &bus) {

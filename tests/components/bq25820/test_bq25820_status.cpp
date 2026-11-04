@@ -90,6 +90,7 @@ class BQ25820StatusTest : public ::testing::Test {
 
   RegisterBus bus_;
   BQ25820Component hub_{&DEFAULT_CONFIG, false};
+  CancelDelayedPoll cancel_poll_{this->hub_};
   StatusEntities entities_;
 };
 
