@@ -2,9 +2,12 @@
 
 #include "esphome/core/automation.h"
 #include "esphome/core/component.h"
+#include "esphome/core/helpers.h"
 #include "esphome/core/optional.h"
 
+#include <algorithm>
 #include <cinttypes>
+#include <cstring>
 #include <vector>
 
 namespace esphome::canbus {
@@ -49,6 +52,17 @@ static const uint8_t CAN_MAX_DATA_LENGTH = 8;
 
 static const uint8_t CAN_ERROR_PASSIVE_THRESHOLD = 128;
 
+/// Frame payload without heap; converts to and from std::vector<uint8_t> for older lambdas.
+class CanPayload : public StaticVector<uint8_t, CAN_MAX_DATA_LENGTH> {
+ public:
+  using StaticVector<uint8_t, CAN_MAX_DATA_LENGTH>::StaticVector;
+  // Not = default, so value-init does not zero the buffer
+  CanPayload() {}
+  CanPayload(const std::vector<uint8_t> &data)  // NOLINT(google-explicit-constructor)
+      : StaticVector<uint8_t, CAN_MAX_DATA_LENGTH>(data.begin(), data.end()) {}
+  operator std::vector<uint8_t>() const { return {this->begin(), this->end()}; }  // NOLINT(google-explicit-constructor)
+};
+
 /*
 Can Frame describes a normative CAN Frame
 The RTR = Remote Transmission Request is implemented in every CAN controller but rarely used
@@ -60,6 +74,14 @@ struct CanFrame {
   uint32_t can_id;              /* 29 or 11 bit CAN_ID; drivers clear bits 29-31 (on_frame relies on it) */
   uint8_t can_data_length_code; /* frame payload length in byte (0 .. CAN_MAX_DATA_LENGTH) */
   uint8_t data[CAN_MAX_DATA_LENGTH] __attribute__((aligned(8)));
+
+  uint8_t payload_length() const { return std::min(this->can_data_length_code, CAN_MAX_DATA_LENGTH); }
+  CanPayload payload() const {
+    CanPayload out;
+    std::memcpy(out.data(), this->data, CAN_MAX_DATA_LENGTH);
+    out.resize(this->payload_length());
+    return out;
+  }
 };
 
 enum CanEventFlags : uint8_t {
@@ -106,6 +128,9 @@ class Canbus : public Component {
   void set_max_frames_per_loop(uint32_t max_frames_per_loop) { this->max_frames_per_loop_ = max_frames_per_loop; }
   virtual CanStatus get_status() { return {}; }
 
+  /// The frame is only valid during the call.
+  template<typename F> void add_frame_callback(F &&callback) { this->frame_callbacks_.add(std::forward<F>(callback)); }
+
   /**
    * Add a callback to be called when a CAN message is received. All received messages
    * are passed to the callback without filtering.
@@ -116,7 +141,14 @@ class Canbus : public Component {
    * - rtr If this is a remote transmission request
    * - data The message data
    */
-  template<typename F> void add_callback(F &&callback) { this->callback_manager_.add(std::forward<F>(callback)); }
+  template<typename F>
+  ESPDEPRECATED("Use add_frame_callback(), which does not copy the payload. Removed in 2027.5.0.", "2026.11.0")
+  void add_callback(F &&callback) {
+    this->frame_callbacks_.add([cb = std::forward<F>(callback)](const CanFrame &frame) mutable {
+      cb(frame.can_id, frame.use_extended_id, frame.remote_transmission_request,
+         std::vector<uint8_t>(frame.data, frame.data + frame.payload_length()));
+    });
+  }
 
  protected:
   template<typename... Ts> friend class CanbusSendAction;
@@ -126,8 +158,7 @@ class Canbus : public Component {
   bool use_extended_id_{false};
   uint8_t events_to_log_{0};
   bool bus_off_{false};
-  CallbackManager<void(uint32_t can_id, bool extended_id, bool rtr, const std::vector<uint8_t> &data)>
-      callback_manager_{};
+  CallbackManager<void(const CanFrame &frame)> frame_callbacks_{};
 
   // interval in which to check for new can bus events (bus-off, passive, active)
   static constexpr uint32_t EVENT_CHECK_INTERVAL_MS = 100;
@@ -154,7 +185,7 @@ class Canbus : public Component {
 };
 
 template<typename... Ts> class CanbusSendAction final : public Action<Ts...>, public Parented<Canbus> {
-  TEMPLATABLE_BYTES(data)
+  TEMPLATABLE_BUFFER(data, CanPayload)
 
   void set_can_id(uint32_t can_id) { this->can_id_ = can_id; }
 
