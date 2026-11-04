@@ -116,6 +116,13 @@ void MQTTBackendESP32::loop() {
     this->mqtt_event_pool_.release(event);
   }
 
+  // A DISCONNECTED event was dropped (pool full). Wait for the queue to drain so no older
+  // CONNECTED event can follow it, then handle it as if it had arrived.
+  if (this->is_connected_ && !this->link_up_.load() && this->mqtt_event_queue_.empty()) {
+    ESP_LOGW(TAG, "Disconnect event was dropped, handling it now");
+    this->handle_disconnected_();
+  }
+
   // Log dropped inbound events (check is cheap - single atomic load in common case)
   uint16_t inbound_dropped = this->mqtt_event_queue_.get_and_reset_dropped_count();
   if (inbound_dropped > 0) {
@@ -152,6 +159,7 @@ void MQTTBackendESP32::mqtt_event_handler_(const Event &event) {
 
     case MQTT_EVENT_CONNECTED:
       ESP_LOGV(TAG, "MQTT_EVENT_CONNECTED");
+      this->is_connected_ = true;
 #if defined(USE_MQTT_IDF_ENQUEUE)
       this->last_dropped_log_time_ = 0;
       xTaskNotifyGive(this->task_handle_);
@@ -161,11 +169,7 @@ void MQTTBackendESP32::mqtt_event_handler_(const Event &event) {
     case MQTT_EVENT_DISCONNECTED:
       ESP_LOGV(TAG, "MQTT_EVENT_DISCONNECTED");
       // TODO is there a way to get the disconnect reason?
-#if defined(USE_MQTT_IDF_ENQUEUE)
-      this->last_dropped_log_time_ = 0;
-      xTaskNotifyGive(this->task_handle_);
-#endif
-      this->on_disconnect_.call(MQTTClientDisconnectReason::TCP_DISCONNECTED);
+      this->handle_disconnected_();
       break;
 
     case MQTT_EVENT_SUBSCRIBED:
@@ -212,6 +216,15 @@ void MQTTBackendESP32::mqtt_event_handler_(const Event &event) {
   }
 }
 
+void MQTTBackendESP32::handle_disconnected_() {
+  this->is_connected_ = false;
+#if defined(USE_MQTT_IDF_ENQUEUE)
+  this->last_dropped_log_time_ = 0;
+  xTaskNotifyGive(this->task_handle_);
+#endif
+  this->on_disconnect_.call(MQTTClientDisconnectReason::TCP_DISCONNECTED);
+}
+
 /// static - Dispatch event to instance method
 void MQTTBackendESP32::mqtt_event_handler(void *handler_args, esp_event_base_t base, int32_t event_id,
                                           void *event_data) {
@@ -235,30 +248,32 @@ void MQTTBackendESP32::mqtt_event_handler(void *handler_args, esp_event_base_t b
     instance->subacks_.add(mqtt_event->data_len > 0 ? static_cast<uint8_t>(mqtt_event->data[0]) : SUBACK_FAILURE);
   }
 #endif
-  // Track the link state here, not in loop(): since esp-mqtt no longer reconnects
-  // on its own, a DISCONNECTED event must never be dropped, because that would
-  // leave the is_connected_ state incorrect and it would never reconnect.
-  // (allocate() below can drop the DISCONNECT if the event queue is full)
-  if (event_id == MQTT_EVENT_CONNECTED) {
-    instance->is_connected_.store(true);
-  } else if (event_id == MQTT_EVENT_DISCONNECTED) {
-    instance->is_connected_.store(false);
-  }
   // The SDK clears a pending disconnect request just before this event, so ask again if one is still wanted
   if (event_id == MQTT_EVENT_BEFORE_CONNECT && !instance->want_connected_.load()) {
-    esp_mqtt_client_disconnect(instance->handler_.get());
+    const auto *mqtt_event = static_cast<esp_mqtt_event_t *>(event_data);
+    esp_mqtt_client_disconnect(mqtt_event->client);
+  }
+  if (event_id == MQTT_EVENT_CONNECTED) {
+    instance->link_up_.store(1);
   }
   // queue event to decouple processing from ESP-IDF MQTT task to main loop
   auto *event = instance->mqtt_event_pool_.allocate();
   if (event == nullptr) {
     // Pool exhausted, drop event (counted via queue's dropped counter)
     instance->mqtt_event_queue_.increment_dropped_count();
+    if (event_id == MQTT_EVENT_DISCONNECTED) {
+      // Without auto-reconnect a lost disconnect would leave us offline; loop() handles it
+      instance->link_up_.store(0);
+    }
     return;
   }
   event->populate(*static_cast<esp_mqtt_event_t *>(event_data));
   // Push always succeeds: pool is sized to queue capacity (SIZE-1), so if
   // allocate() returned non-null, the queue cannot be full.
   instance->mqtt_event_queue_.push(event);
+  if (event_id == MQTT_EVENT_DISCONNECTED) {
+    instance->link_up_.store(0);  // after the push, see link_up_
+  }
 
   // Wake main loop immediately to process MQTT event
   App.wake_loop_threadsafe();
@@ -289,7 +304,7 @@ void MQTTBackendESP32::esphome_mqtt_task(void *params) {
     // Process all queued items
     struct QueueElement *elem;
     while ((elem = this_mqtt->mqtt_queue_.pop()) != nullptr) {
-      if (this_mqtt->is_connected_) {
+      if (this_mqtt->connected()) {
         switch (elem->type) {
           case MQTT_QUEUE_TYPE_SUBSCRIBE:
             esp_mqtt_client_subscribe(this_mqtt->handler_.get(), elem->topic, elem->qos);
