@@ -42,7 +42,7 @@ struct Harness {
     this->thermometer.set_bindkey(
         {0xEE, 0xF4, 0x18, 0xDA, 0xF6, 0x99, 0xA0, 0xC1, 0x88, 0xF3, 0xBF, 0xD1, 0x7E, 0x45, 0x65, 0xD9});
     this->thermometer.set_replay_protection(replay_protection);
-    this->thermometer.set_temperature(&this->temperature);
+    this->thermometer.set_temperature_sensor(&this->temperature);
   }
 
   BTHomeMiThermometer thermometer;
