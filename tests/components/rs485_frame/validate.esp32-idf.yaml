@@ -76,7 +76,7 @@ rs485_frame:
         mode: fixed_delay
         interval: 250ms
 
-# Buttons exercise all _validate_button + _final_validate branches:
+# Buttons exercise every button schema and _final_validate branch:
 #   - value: form against a hub that has command_format (cmd_hub)                   -> accepted
 #   - raw form against a hub with no command_format (raw_hub)                       -> accepted
 #   - value: + button-level command_format overriding hub's format (cmd_hub)        -> accepted
