@@ -71,6 +71,13 @@ rs485_frame:
           - lambda: |-
               if (!payload.empty())
                 id(g_led_mask) = payload[0];
+      # on_frame must stay synchronous (payload is a view into the RX buffer). To defer,
+      # copy the bytes into a script parameter; the script owns its copy and may delay.
+      - frame_type: [0x01, 0x04]
+        then:
+          - script.execute:
+              id: handle_frame_later
+              data: !lambda "return std::vector<uint8_t>(payload.begin(), payload.end());"
 
   # Hub 2 — sniffer-only with idle_gap gate and CRC16-Modbus. Exercises a different
   # crc_type, gate mode, queue policy, and the FIFO-with-larger-queue path.
@@ -184,3 +191,14 @@ script:
           frame_type: [0x00, 0xA2]
           payload: !lambda |-
             return std::vector<uint8_t>{0x42, 0x00, static_cast<uint8_t>(id(g_led_mask) & 0xFF)};
+
+  - id: handle_frame_later
+    mode: queued
+    max_runs: 5
+    parameters:
+      data: uint8_t[]
+    then:
+      - delay: 100ms
+      - lambda: |-
+          if (!data.empty())
+            id(g_led_mask) = data[0];

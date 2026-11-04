@@ -247,8 +247,13 @@ CONFIG_SCHEMA = cv.All(
             cv.Optional(
                 CONF_FRAME_TIMEOUT, default="50ms"
             ): cv.positive_time_period_milliseconds,
-            cv.Optional(CONF_ON_FRAME): automation.validate_automation(
-                {cv.Required(CONF_FRAME_TYPE): validate_frame_type_or_list}
+            # payload is a view into the RX buffer, which the next frame overwrites.
+            cv.Optional(CONF_ON_FRAME): automation.validate_synchronous_automation(
+                "rs485_frame on_frame",
+                "payload",
+                extra_schema={
+                    cv.Required(CONF_FRAME_TYPE): validate_frame_type_or_list
+                },
             ),
         }
     )
