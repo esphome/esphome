@@ -2,6 +2,7 @@
 
 #include "esphome/core/automation.h"
 #include "esphome/core/component.h"
+#include "esphome/core/hal.h"
 #include "esphome/core/helpers.h"
 #include "esphome/core/optional.h"
 
@@ -9,6 +10,7 @@
 #include <cinttypes>
 #include <cstddef>
 #include <cstring>
+#include <type_traits>
 #include <vector>
 
 namespace esphome::canbus {
@@ -44,121 +46,115 @@ enum CanSpeed : uint8_t {
   CAN_500KBPS,
   CAN_800KBPS,
   CAN_1000KBPS,
+#ifdef USE_CANBUS_FD
+  // Data phase rates of a CAN FD controller
   CAN_2000KBPS,
   CAN_3000KBPS,
   CAN_4000KBPS,
   CAN_5000KBPS,
   CAN_6000KBPS,
   CAN_7000KBPS,
-  CAN_8000KBPS
+  CAN_8000KBPS,
+#endif
 };
 
 template<typename... Ts> class CanbusSendAction;
 
 /* CAN payload length definitions according to ISO 11898-1 */
 static constexpr uint8_t CAN_MAX_DATA_LENGTH = 8;
+#ifdef USE_CANBUS_FD
 static constexpr uint8_t CAN_FD_MAX_DATA_LENGTH = 64;
+/// Payload bytes a CanFrame holds: one CAN FD frame when a platform that supports it is configured
+static constexpr uint8_t CAN_FRAME_DATA_LENGTH = CAN_FD_MAX_DATA_LENGTH;
+#else
+/// Payload bytes a CanFrame holds: one classic frame
+static constexpr uint8_t CAN_FRAME_DATA_LENGTH = CAN_MAX_DATA_LENGTH;
+#endif
+
+static constexpr uint32_t CAN_STANDARD_ID_MAX = 0x7FF;
+static constexpr uint32_t CAN_EXTENDED_ID_MAX = 0x1FFFFFFF;
 
 static constexpr uint8_t CAN_ERROR_PASSIVE_THRESHOLD = 128;
 
-/* Returned by either length conversion when the input cannot be represented. */
+#ifdef USE_CANBUS_FD
+/// Returned by the length conversions for a value that cannot be represented
 static constexpr uint8_t CAN_INVALID_DLC = UINT8_MAX;
 
-/* Decode using the CAN FD mapping. Classic CAN callers must cap valid results at eight bytes. */
-constexpr uint8_t can_dlc_to_len(uint8_t dlc) {
-  if (dlc <= CAN_MAX_DATA_LENGTH) {
-    return dlc;
-  }
+/// Payload length of each CAN FD DLC; a classic frame carries min(DLC, 8) bytes
+static constexpr uint8_t CAN_FD_DLC_COUNT = 16;
+static constexpr uint8_t CAN_FD_DLC_LENGTHS[CAN_FD_DLC_COUNT] PROGMEM = {0, 1,  2,  3,  4,  5,  6,  7,
+                                                                         8, 12, 16, 20, 24, 32, 48, 64};
 
-  switch (dlc) {
-    case 9:
-      return 12;
-    case 10:
-      return 16;
-    case 11:
-      return 20;
-    case 12:
-      return 24;
-    case 13:
-      return 32;
-    case 14:
-      return 48;
-    case 15:
-      return 64;
-    default:
-      return CAN_INVALID_DLC;
-  }
+/// CAN_FD_DLC_LENGTHS[dlc] for dlc below CAN_FD_DLC_COUNT; read from flash at run time
+constexpr uint8_t can_fd_dlc_length(uint8_t dlc) {
+  return std::is_constant_evaluated() ? CAN_FD_DLC_LENGTHS[dlc] : progmem_read_byte(&CAN_FD_DLC_LENGTHS[dlc]);
 }
 
-/* With pad, round up to the next CAN FD length. The caller must fill the extra payload bytes. */
+/// Payload length of a CAN FD DLC, or CAN_INVALID_DLC above 15
+constexpr uint8_t can_dlc_to_len(uint8_t dlc) {
+  return dlc < CAN_FD_DLC_COUNT ? can_fd_dlc_length(dlc) : CAN_INVALID_DLC;
+}
+
+/// CAN FD DLC for a payload length. With pad, the next longer length is used and the caller zero fills
+/// the extra bytes; otherwise a length CAN FD cannot carry returns CAN_INVALID_DLC.
 constexpr uint8_t can_len_to_dlc(size_t len, bool pad) {
-  if (len > CAN_FD_MAX_DATA_LENGTH) {
-    return CAN_INVALID_DLC;
+  for (uint8_t dlc = 0; dlc < CAN_FD_DLC_COUNT; dlc++) {
+    const uint8_t length = can_fd_dlc_length(dlc);
+    if (length >= len)
+      return (length == len || pad) ? dlc : CAN_INVALID_DLC;
   }
-
-  if (len <= CAN_MAX_DATA_LENGTH) {
-    return static_cast<uint8_t>(len);
-  }
-
-  if (len <= 12)
-    return (len == 12 || pad) ? 9 : CAN_INVALID_DLC;
-  if (len <= 16)
-    return (len == 16 || pad) ? 10 : CAN_INVALID_DLC;
-  if (len <= 20)
-    return (len == 20 || pad) ? 11 : CAN_INVALID_DLC;
-  if (len <= 24)
-    return (len == 24 || pad) ? 12 : CAN_INVALID_DLC;
-  if (len <= 32)
-    return (len == 32 || pad) ? 13 : CAN_INVALID_DLC;
-  if (len <= 48)
-    return (len == 48 || pad) ? 14 : CAN_INVALID_DLC;
-  if (len <= 64)
-    return (len == 64 || pad) ? 15 : CAN_INVALID_DLC;
-
   return CAN_INVALID_DLC;
 }
+#else
+/// Payload length of a classic DLC; 9 to 15 still carry 8 bytes
+constexpr uint8_t can_dlc_to_len(uint8_t dlc) { return std::min(dlc, CAN_MAX_DATA_LENGTH); }
+#endif
 
 /// Frame payload without heap; converts to and from std::vector<uint8_t> for older lambdas.
-class CanPayload : public StaticVector<uint8_t, CAN_FD_MAX_DATA_LENGTH> {
+class CanPayload : public StaticVector<uint8_t, CAN_FRAME_DATA_LENGTH> {
  public:
-  using StaticVector<uint8_t, CAN_FD_MAX_DATA_LENGTH>::StaticVector;
+  using StaticVector<uint8_t, CAN_FRAME_DATA_LENGTH>::StaticVector;
   // Not = default, so value-init does not zero the buffer
   CanPayload() {}
   CanPayload(const std::vector<uint8_t> &data)  // NOLINT(google-explicit-constructor)
-      : StaticVector<uint8_t, CAN_FD_MAX_DATA_LENGTH>(data.begin(), data.end()) {}
+      : StaticVector<uint8_t, CAN_FRAME_DATA_LENGTH>(data.begin(), data.end()),
+        truncated_(data.size() > CAN_FRAME_DATA_LENGTH) {}
   operator std::vector<uint8_t>() const { return {this->begin(), this->end()}; }  // NOLINT(google-explicit-constructor)
+  /// Whether it was built from a vector longer than one frame can carry
+  bool truncated() const { return this->truncated_; }
+
+ protected:
+  bool truncated_{false};
 };
 
-/*
-Can Frame describes a normative CAN Frame
-The RTR = Remote Transmission Request is implemented in every CAN controller but rarely used
-So currently the flag is passed to and from the hardware but currently ignored to the user application.
-*/
+/// One CAN frame as passed between the bus and its driver. The CAN FD flags come after data, so code that
+/// brace-initializes a classic frame keeps working.
 struct CanFrame {
+  bool use_extended_id = false;
+  bool remote_transmission_request = false;
   uint32_t can_id;              /* 29 or 11 bit CAN_ID; drivers clear bits 29-31 (on_frame relies on it) */
-  uint8_t can_data_length_code; /* Wire DLC (0..15), not byte length. For RTR, the requested length. */
+  uint8_t can_data_length_code; /* DLC as on the wire, not a byte count (see payload_length()) */
+  uint8_t data[CAN_FRAME_DATA_LENGTH] __attribute__((aligned(8)));
+#ifdef USE_CANBUS_FD
+  bool fd = false;                    /* CAN FD frame; it cannot be a remote transmission request */
+  bool bit_rate_switch = false;       /* CAN FD only: data phase sent at the data bit rate */
+  bool error_state_indicator = false; /* CAN FD only: received transmitter was error passive */
+#endif
 
-  bool use_extended_id : 1 = false;
-  bool remote_transmission_request : 1 = false;
-  bool fd : 1 = false; /* FD frames cannot use RTR. BRS and ESI are only meaningful for FD frames. */
-  bool bit_rate_switch : 1 = false;
-  bool error_state_indicator : 1 =
-      false; /* Received transmitter error state. Transmit handling is controller-specific. */
-
-  uint8_t data[CAN_FD_MAX_DATA_LENGTH] __attribute__((aligned(8)));
-
-  /// Payload bytes for the DLC, at most 8 for a classic frame; 0 for an invalid DLC.
+  /// Payload bytes for the DLC: at most 8 for a classic frame, 0 for an invalid CAN FD DLC
   uint8_t payload_length() const {
-    const uint8_t len = can_dlc_to_len(this->can_data_length_code);
-    if (len == CAN_INVALID_DLC)
-      return 0;
-    return this->fd ? len : std::min(len, CAN_MAX_DATA_LENGTH);
+#ifdef USE_CANBUS_FD
+    if (this->fd) {
+      const uint8_t len = can_dlc_to_len(this->can_data_length_code);
+      return len == CAN_INVALID_DLC ? 0 : len;
+    }
+#endif
+    return std::min(this->can_data_length_code, CAN_MAX_DATA_LENGTH);
   }
   CanPayload payload() const {
     CanPayload out;
-    const uint8_t len = this->payload_length();
-    std::memcpy(out.data(), this->data, len);
-    out.resize(len);
+    std::memcpy(out.data(), this->data, CAN_FRAME_DATA_LENGTH);
+    out.resize(this->payload_length());
     return out;
   }
 };
@@ -191,15 +187,18 @@ class Canbus : public Component {
   float get_setup_priority() const override { return setup_priority::HARDWARE; }
   void loop() override;
 
-  canbus::Error send_data(CanFrame &frame);
-
-  // Explicit frame format. pad_data permits zero-padding to the next representable FD length.
+  /// Validates the frame and passes it to the driver.
+  canbus::Error send_data(const CanFrame &frame);
+#ifdef USE_CANBUS_FD
+  /// Sends up to 8 bytes as a classic frame, longer data is cut. An fd frame carries up to 64 bytes; pad_data
+  /// zero fills a length CAN FD cannot carry up to the next one.
   canbus::Error send_data(uint32_t can_id, bool use_extended_id, bool remote_transmission_request, const uint8_t *data,
-                          size_t len, bool fd, bool bit_rate_switch, bool pad_data = false);
+                          size_t len, bool fd = false, bool bit_rate_switch = false, bool pad_data = false);
+#else
+  /// Sends up to 8 bytes as a classic frame, longer data is cut.
   canbus::Error send_data(uint32_t can_id, bool use_extended_id, bool remote_transmission_request, const uint8_t *data,
-                          size_t len) {
-    return this->send_data(can_id, use_extended_id, remote_transmission_request, data, len, false, false);
-  }
+                          size_t len);
+#endif
   canbus::Error send_data(uint32_t can_id, bool use_extended_id, bool remote_transmission_request,
                           const std::vector<uint8_t> &data) {
     return this->send_data(can_id, use_extended_id, remote_transmission_request, data.data(), data.size());
@@ -212,13 +211,23 @@ class Canbus : public Component {
   void set_use_extended_id(bool use_extended_id) { this->use_extended_id_ = use_extended_id; }
   void set_bitrate(CanSpeed bit_rate) { this->bit_rate_ = bit_rate; }
   void set_max_frames_per_loop(uint32_t max_frames_per_loop) { this->max_frames_per_loop_ = max_frames_per_loop; }
-  // Defaults apply to canbus.send actions, not the classic-only send_data() overloads or explicit CanFrames.
+#ifdef USE_CANBUS_FD
+  // Defaults for canbus.send actions only, not for send_data()
   void set_default_fd(bool default_fd) { this->default_fd_ = default_fd; }
   void set_default_bit_rate_switch(bool default_bit_rate_switch) {
     this->default_bit_rate_switch_ = default_bit_rate_switch;
   }
   void set_default_pad_data(bool default_pad_data) { this->default_pad_data_ = default_pad_data; }
-  virtual bool supports_fd() const { return false; }
+  void set_supports_fd(bool supports_fd) { this->supports_fd_ = supports_fd; }
+#endif
+  /// Whether this bus sends and receives CAN FD frames; a classic bus can share a build with a CAN FD one
+  bool supports_fd() const {
+#ifdef USE_CANBUS_FD
+    return this->supports_fd_;
+#else
+    return false;
+#endif
+  }
   virtual CanStatus get_status() { return {}; }
 
   /// The frame is only valid during the call.
@@ -249,9 +258,12 @@ class Canbus : public Component {
   uint32_t max_frames_per_loop_{50};  // Keep in sync with DEFAULT_MAX_FRAMES_PER_LOOP in __init__.py
   CanSpeed bit_rate_{CAN_125KBPS};    // Keep in sync with DEFAULT_BIT_RATE in __init__.py
   bool use_extended_id_{false};
+#ifdef USE_CANBUS_FD
   bool default_fd_{false};
   bool default_bit_rate_switch_{false};
   bool default_pad_data_{false};
+  bool supports_fd_{false};
+#endif
   uint8_t events_to_log_{0};
   bool bus_off_{false};
   CallbackManager<void(const CanFrame &frame)> frame_callbacks_{};
@@ -274,6 +286,10 @@ class Canbus : public Component {
 #endif
 
   void log_events_(CanEventFlags events, uint32_t now);
+  /// Logs and sends a frame that is already valid.
+  canbus::Error send_frame_(const CanFrame &frame);
+  /// For a canbus.send lambda: a CAN FD frame that did not fit is refused, a classic one is cut to 8 bytes.
+  bool lambda_payload_fits_(const CanPayload &payload, bool fd);
   virtual bool setup_internal() = 0;
   virtual Error send_message(struct CanFrame *frame) = 0;
   virtual Error read_message(struct CanFrame *frame) = 0;
@@ -282,9 +298,11 @@ class Canbus : public Component {
 
 template<typename... Ts> class CanbusSendAction final : public Action<Ts...>, public Parented<Canbus> {
   TEMPLATABLE_BUFFER(data, CanPayload)
+#ifdef USE_CANBUS_FD
   TEMPLATABLE_VALUE(bool, fd)
   TEMPLATABLE_VALUE(bool, bit_rate_switch)
   TEMPLATABLE_VALUE(bool, pad_data)
+#endif
 
   void set_can_id(uint32_t can_id) { this->can_id_ = can_id; }
 
@@ -298,15 +316,30 @@ template<typename... Ts> class CanbusSendAction final : public Action<Ts...>, pu
     auto can_id = this->can_id_.has_value() ? *this->can_id_ : this->parent_->can_id_;
     auto use_extended_id =
         this->use_extended_id_.has_value() ? *this->use_extended_id_ : this->parent_->use_extended_id_;
+#ifdef USE_CANBUS_FD
     const bool fd = this->fd_.value_or(x..., this->parent_->default_fd_);
     const bool bit_rate_switch = this->bit_rate_switch_.value_or(x..., fd && this->parent_->default_bit_rate_switch_);
     const bool pad_data = this->pad_data_.value_or(x..., this->parent_->default_pad_data_);
-    this->data_.template visit<CAN_FD_MAX_DATA_LENGTH>(
-        [&](const uint8_t *data, size_t len) {
-          this->parent_->send_data(can_id, use_extended_id, this->remote_transmission_request_, data, len, fd,
-                                   bit_rate_switch, pad_data);
-        },
-        x...);
+#endif
+#ifndef USE_CANBUS_FD
+    const bool fd = false;
+#endif
+    auto send = [&](const uint8_t *data, size_t len) {
+#ifdef USE_CANBUS_FD
+      this->parent_->send_data(can_id, use_extended_id, this->remote_transmission_request_, data, len, fd,
+                               bit_rate_switch, pad_data);
+#else
+      this->parent_->send_data(can_id, use_extended_id, this->remote_transmission_request_, data, len);
+#endif
+    };
+    if (this->data_.is_static()) {
+      this->data_.template visit<CAN_FRAME_DATA_LENGTH>(send, x...);
+      return;
+    }
+    // The conversion from a lambda's vector cuts it to one frame, so the length it had is checked here
+    const CanPayload payload = this->data_.value(x...);
+    if (this->parent_->lambda_payload_fits_(payload, fd))
+      send(payload.data(), payload.size());
   }
 
  protected:

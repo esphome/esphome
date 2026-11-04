@@ -3,12 +3,11 @@
 #include <algorithm>
 #include <atomic>
 #include <cstdint>
-#include <deque>
 #include <string>
 #include <utility>
 #include <vector>
 
-#include "esphome/components/canbus/canbus.h"
+#include "fake_canbus.h"
 
 // Needs AddressSanitizer's malloc hooks
 #ifndef __has_feature
@@ -21,32 +20,6 @@ extern "C" int __sanitizer_install_malloc_and_free_hooks(void (*malloc_hook)(con
 #endif
 
 namespace esphome::canbus::testing {
-
-// Receives queued frames
-class QueuedCanbus : public Canbus {
- public:
-  void queue(uint32_t can_id, bool extended, std::initializer_list<uint8_t> data) {
-    CanFrame frame{};
-    frame.can_id = can_id;
-    frame.use_extended_id = extended;
-    frame.can_data_length_code = static_cast<uint8_t>(data.size());
-    std::copy(data.begin(), data.end(), frame.data);
-    this->rx_.push_back(frame);
-  }
-
- protected:
-  bool setup_internal() override { return true; }
-  Error send_message(CanFrame *frame) override { return ERROR_OK; }
-  Error read_message(CanFrame *frame) override {
-    if (this->rx_.empty())
-      return ERROR_NOMSG;
-    *frame = this->rx_.front();
-    this->rx_.pop_front();
-    return ERROR_OK;
-  }
-
-  std::deque<CanFrame> rx_;
-};
 
 TEST(CanbusFrameCallback, PassesEveryFrameAndItsPayload) {
   using Received = std::vector<std::pair<uint32_t, std::vector<uint8_t>>>;
@@ -133,12 +106,10 @@ TEST(CanbusFrameCallback, PayloadKeepsVectorForms) {
 
   CanPayload braced = {0x00, 0x20, 0x42};
   EXPECT_EQ(braced.size(), 3u);
-  const CanPayload too_long = std::vector<uint8_t>(CAN_FD_MAX_DATA_LENGTH + 2, 7);
-  EXPECT_EQ(too_long.size(), CAN_FD_MAX_DATA_LENGTH);
+  const CanPayload too_long = std::vector<uint8_t>(CAN_MAX_DATA_LENGTH + 2, 7);
+  EXPECT_EQ(too_long.size(), CAN_MAX_DATA_LENGTH);
   frame.can_data_length_code = 15;  // legal on the wire
   EXPECT_EQ(frame.payload().size(), CAN_MAX_DATA_LENGTH);
-  frame.fd = true;
-  EXPECT_EQ(frame.payload().size(), CAN_FD_MAX_DATA_LENGTH);
 }
 
 }  // namespace esphome::canbus::testing
