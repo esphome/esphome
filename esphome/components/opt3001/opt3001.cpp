@@ -23,8 +23,10 @@ static constexpr uint16_t OPT3001_CONFIGURATION_CONVERSION_MODE_SHUTDOWN = 0b000
 static constexpr uint16_t OPT3001_CONFIGURATION_FULL_RANGE_ONE_SHOT = OPT3001_CONFIGURATION_RANGE_FULL |
                                                                       OPT3001_CONFIGURATION_CONVERSION_TIME_800 |
                                                                       OPT3001_CONFIGURATION_CONVERSION_MODE_SINGLE_SHOT;
-static constexpr uint16_t OPT3001_CONVERSION_TIME_800 =
-    825;  // give it 25 extra ms; it seems to not be ready quite often
+// give it 25 extra ms; it seems to not be ready quite often
+static constexpr uint16_t OPT3001_CONVERSION_TIME_800 = 825;
+// 10 ms apart, so a sensor that never finishes gives up 200 ms after the conversion wait
+static constexpr uint8_t RESULT_MAX_RETRIES = 20;
 
 /*
 opt3001 properties:
@@ -35,7 +37,7 @@ opt3001 properties:
 
 */
 
-void OPT3001Sensor::read_result_() {
+void OPT3001Sensor::read_result_(uint8_t retries_left) {
   // ensure the single shot flag is clear, indicating it's done
   uint16_t raw_value;
   if (!this->read_byte_16(OPT3001_REG_CONFIGURATION, &raw_value)) {
@@ -45,8 +47,13 @@ void OPT3001Sensor::read_result_() {
   }
 
   if ((raw_value & OPT3001_CONFIGURATION_CONVERSION_MODE_MASK) != OPT3001_CONFIGURATION_CONVERSION_MODE_SHUTDOWN) {
+    if (retries_left == 0) {
+      ESP_LOGW(TAG, "Measurement did not complete");
+      this->publish_lx_(NAN);
+      return;
+    }
     ESP_LOGV(TAG, "Data not ready; waiting 10ms");
-    this->set_timeout(RESULT_RETRY_TIMEOUT_ID, 10, [this]() { this->read_result_(); });
+    this->set_timeout(RESULT_RETRY_TIMEOUT_ID, 10, [this, retries_left]() { this->read_result_(retries_left - 1); });
     return;
   }
 
@@ -69,10 +76,7 @@ void OPT3001Sensor::dump_config() {
 }
 
 void OPT3001Sensor::update() {
-  // Set a flag and skip just in case the sensor isn't responding,
-  // and we just keep waiting for it in read_result_.
-  // This way we don't end up with potentially boundless "threads"
-  // using up memory and eventually crashing the device
+  // skip while the previous measurement is still in flight
   if (this->updating_) {
     return;
   }
@@ -84,7 +88,7 @@ void OPT3001Sensor::update() {
     this->publish_lx_(NAN);
     return;
   }
-  this->set_timeout(READ_TIMEOUT_ID, OPT3001_CONVERSION_TIME_800, [this]() { this->read_result_(); });
+  this->set_timeout(READ_TIMEOUT_ID, OPT3001_CONVERSION_TIME_800, [this]() { this->read_result_(RESULT_MAX_RETRIES); });
 }
 
 void OPT3001Sensor::publish_lx_(float val) {

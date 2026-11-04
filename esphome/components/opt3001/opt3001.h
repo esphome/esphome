@@ -14,7 +14,7 @@ class OPT3001Sensor final : public sensor::Sensor, public PollingComponent, publ
 
  protected:
   // checks if one-shot is complete, then reads and publishes the result
-  void read_result_();
+  void read_result_(uint8_t retries_left);
   // ends the update: publishes the reading, or NAN on failure
   void publish_lx_(float val);
 
