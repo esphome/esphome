@@ -6,6 +6,7 @@
 #include <cstdio>
 
 #include "esphome/core/application.h"
+#include "esphome/core/helpers.h"
 #include "esphome/core/log.h"
 
 #include "fusb302b_registers.h"

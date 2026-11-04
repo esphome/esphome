@@ -2,6 +2,7 @@
 #ifdef USE_ESP32
 #include "ecocomfort2_hub.h"
 #include "esphome/core/application.h"
+#include "esphome/core/helpers.h"
 #include "esphome/core/log.h"
 
 #include <cmath>
