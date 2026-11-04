@@ -3565,7 +3565,7 @@ async def test_apply_filter_build_rejects_skipped_last_statement(
 
 @pytest.mark.asyncio
 async def test_apply_filter_build_checks_schema_keys(mock_cg: MockCodegen) -> None:
-    """``build`` given a schema rejects a misspelled key instead of skipping its statement."""
+    """``build`` given a schema rejects a misspelled key instead of skipping its statement, and builds valid keys."""
     schema = cv.Schema({cv.Optional("low"): cv.float_})
     lwo = ApplyCall("if (x < {}) return {{}};", (("lwo", cg.float_),))
     with pytest.raises(ValueError, match="'lwo' is not in the schema"):
@@ -3573,6 +3573,11 @@ async def test_apply_filter_build_checks_schema_keys(mock_cg: MockCodegen) -> No
             "my.filter", {"low": 1.0}, ID("filt_1"), lwo, "return x;", schema=schema
         )
     mock_cg.new_pvariable.assert_not_called()
+    low = ApplyCall("if (x < {}) return {{}};", (("low", cg.float_),))
+    await _filter_domain(Registry()).build(
+        "my.filter", {"low": 1.0}, ID("filt_2"), low, "return x;", schema=schema
+    )
+    mock_cg.new_pvariable.assert_called_once()
 
 
 def test_apply_filter_rejects_unknown_key() -> None:
