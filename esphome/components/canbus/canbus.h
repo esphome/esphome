@@ -10,6 +10,7 @@
 #include <cinttypes>
 #include <cstddef>
 #include <cstring>
+#include <initializer_list>
 #include <type_traits>
 #include <vector>
 
@@ -116,11 +117,21 @@ class CanPayload : public StaticVector<uint8_t, CAN_FRAME_DATA_LENGTH> {
   using StaticVector<uint8_t, CAN_FRAME_DATA_LENGTH>::StaticVector;
   // Not = default, so value-init does not zero the buffer
   CanPayload() {}
+  // Every constructor that can be given more than one frame records that it cut the rest
+  template<typename InputIt> CanPayload(InputIt first, InputIt last) {
+    for (; first != last; ++first) {
+      if (this->size() == CAN_FRAME_DATA_LENGTH) {
+        this->truncated_ = true;
+        break;
+      }
+      this->push_back(*first);
+    }
+  }
+  CanPayload(std::initializer_list<uint8_t> data) : CanPayload(data.begin(), data.end()) {}
   CanPayload(const std::vector<uint8_t> &data)  // NOLINT(google-explicit-constructor)
-      : StaticVector<uint8_t, CAN_FRAME_DATA_LENGTH>(data.begin(), data.end()),
-        truncated_(data.size() > CAN_FRAME_DATA_LENGTH) {}
+      : CanPayload(data.begin(), data.end()) {}
   operator std::vector<uint8_t>() const { return {this->begin(), this->end()}; }  // NOLINT(google-explicit-constructor)
-  /// Whether it was built from a vector longer than one frame can carry
+  /// Whether it was built from more bytes than one frame can carry
   bool truncated() const { return this->truncated_; }
 
  protected:
