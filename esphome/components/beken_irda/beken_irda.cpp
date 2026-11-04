@@ -312,13 +312,16 @@ void BekenIrdaComponent::setup_gpio_timer_() {
     this->mark_failed(LOG_STR("Capture buffer allocation failed"));
     return;
   }
-  // Each frame is copied into temp_, so reserve it up front; a failed reserve would abort, so check first.
-  if (lt_heap_get_max_alloc() < this->buffer_size_ * sizeof(int32_t)) {
+  // Each frame is copied into temp_, so reserve it up front. A failed reserve aborts, so first make
+  // sure the heap has a block that size by allocating and freeing one.
+  int32_t *probe = allocator.allocate(this->buffer_size_);
+  if (probe == nullptr) {
     allocator.deallocate(this->buffer_, this->buffer_size_);
     this->buffer_ = nullptr;
     this->mark_failed(LOG_STR("Frame buffer allocation failed"));
     return;
   }
+  allocator.deallocate(probe, this->buffer_size_);
   this->temp_.reserve(this->buffer_size_);
 
   timer_param_t param;
