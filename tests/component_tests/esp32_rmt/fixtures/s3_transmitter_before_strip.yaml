@@ -1,0 +1,21 @@
+esphome:
+  name: rmt-test
+
+esp32:
+  variant: esp32s3
+  framework:
+    type: esp-idf
+
+# Listed first, but set up after the strip, which has a higher setup priority
+remote_transmitter:
+  - id: ir
+    pin: GPIO4
+    carrier_duty_percent: 50%
+
+light:
+  - platform: esp32_rmt_led_strip
+    id: strip
+    chipset: WS2812
+    channel_colors: GRB
+    pin: GPIO5
+    num_leds: 5
