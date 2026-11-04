@@ -174,15 +174,15 @@ void LD6002BComponent::wake_() {
 }
 
 #ifdef USE_SWITCH
-void LD6002BComponent::set_switch_state(switch_::Switch *entity, bool state) {
-  if (entity != this->low_power_switch_) {
-    this->LD600XComponent::set_switch_state(entity, state);
-    return;
-  }
+bool LD6002BComponent::set_switch_state(switch_::Switch *entity, bool state) {
+  if (entity != this->low_power_switch_)
+    return this->LD600XComponent::set_switch_state(entity, state);
+  if (!this->send_control_command_(state ? CMD_LOW_POWER_ON : CMD_LOW_POWER_OFF))
+    return false;
   this->low_power_enabled_ = state;
   this->low_power_reported_ = true;
-  this->send_control_command_(state ? CMD_LOW_POWER_ON : CMD_LOW_POWER_OFF);
   this->update_work_mode_fallback_();
+  return true;
 }
 #endif
 
