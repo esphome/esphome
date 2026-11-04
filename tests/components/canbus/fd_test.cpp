@@ -172,13 +172,19 @@ static bool no() { return false; }
 
 static CanPayload sixty_four_bytes() { return std::vector<uint8_t>(64, 0xAB); }
 static CanPayload sixty_five_bytes() { return std::vector<uint8_t>(65, 0xAB); }
+// Built from a range rather than a vector, so it goes through another constructor
+static CanPayload sixty_five_byte_range() {
+  static constexpr uint8_t DATA[65] = {};
+  return CanPayload(std::begin(DATA), std::end(DATA));
+}
 
 TEST(CanbusFd, ActionRefusesAnFdLambdaPayloadThatDoesNotFit) {
   struct Case {
     CanPayload (*data)();
     bool expect_sent;
   };
-  for (const auto &c : {Case{sixty_four_bytes, true}, Case{sixty_five_bytes, false}}) {
+  for (const auto &c :
+       {Case{sixty_four_bytes, true}, Case{sixty_five_bytes, false}, Case{sixty_five_byte_range, false}}) {
     FdCanbus bus;
     bus.set_can_id(0x100);
     bus.set_default_fd(true);

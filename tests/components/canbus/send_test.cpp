@@ -75,6 +75,17 @@ TEST(CanbusSend, DriverErrorIsReturned) {
 static CanPayload three_bytes() { return {1, 2, 3}; }
 static CanPayload too_long() { return std::vector<uint8_t>(20, 0xAB); }
 
+TEST(CanbusSend, EveryPayloadConstructorRecordsATruncation) {
+  EXPECT_FALSE(CanPayload({1, 2, 3, 4, 5, 6, 7, 8}).truncated());
+  const CanPayload braces{1, 2, 3, 4, 5, 6, 7, 8, 9};
+  EXPECT_TRUE(braces.truncated());
+  EXPECT_EQ(braces.size(), 8u);
+  static constexpr uint8_t DATA[9] = {};
+  EXPECT_TRUE(CanPayload(std::begin(DATA), std::end(DATA)).truncated());
+  EXPECT_TRUE(CanPayload(std::vector<uint8_t>(9, 0)).truncated());
+  EXPECT_FALSE(CanPayload(std::vector<uint8_t>(8, 0)).truncated());
+}
+
 TEST(CanbusSendAction, UsesTheBusOrItsOwnIdentifier) {
   struct Case {
     const char *name;
