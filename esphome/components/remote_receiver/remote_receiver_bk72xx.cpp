@@ -27,13 +27,17 @@ ESPHOME_LOG_TAG(TAG, "remote_receiver");
 static constexpr uint8_t SAMPLE_TIMER = BKTIMER1;
 
 // Edge times come from the BKTIMER0 counter, which runs at the crystal frequency and wraps every
-// FCLK_DURATION_MS. Elapsed time is accumulated as counter deltas, so a delayed interrupt costs nothing.
+// FCLK_DURATION_MS. Elapsed time is accumulated as counter deltas, so an interrupt delayed by up to one wrap
+// costs nothing; a longer hold-off (a flash write) loses whole wraps, and every other clock stops with it.
 static_assert(TIMER_TICKS_PER_US == CFG_XTAL_FREQUENCE / 1000000, "TIMER_TICKS_PER_US must match the crystal");
 static constexpr uint32_t TICK_COUNTER_WRAP = FCLK_DURATION_MS * 1000 * TIMER_TICKS_PER_US;
 
+// The latch takes a few cycles; give up after a bounded wait, like LibreTiny's getTicksCount()
+static constexpr uint32_t TICK_READ_SPINS = 1000;
+
 static inline uint32_t read_tick_counter() {
   REG_WRITE(TIMER0_2_READ_CTL, (BKTIMER0 << TIMER0_2_READ_INDEX_POSI) | TIMER0_2_READ_OP_BIT);
-  while (REG_READ(TIMER0_2_READ_CTL) & TIMER0_2_READ_OP_BIT) {
+  for (uint32_t spins = 0; spins < TICK_READ_SPINS && (REG_READ(TIMER0_2_READ_CTL) & TIMER0_2_READ_OP_BIT); spins++) {
   }
   return REG_READ(TIMER0_2_READ_VALUE);
 }

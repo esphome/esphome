@@ -16,7 +16,7 @@ class BekenIrdaComponent final : public Component, public remote_base::RemoteRec
 
  protected:
   static void irda_isr();
-  void handle_isr();
+  void handle_isr_();
   void dispatch_full_(uint32_t code);
   void dispatch_repeat_();
 

@@ -41,9 +41,9 @@ static constexpr size_t NEC_FRAME_DURATIONS = 2 + 64 + 1;
 // The ISR runs without an instance, so it reaches the component through this pointer.
 static BekenIrdaComponent *s_irda = nullptr;  // NOLINT(cppcoreguidelines-avoid-non-const-global-variables)
 
-void BekenIrdaComponent::irda_isr() { s_irda->handle_isr(); }
+void BekenIrdaComponent::irda_isr() { s_irda->handle_isr_(); }
 
-void BekenIrdaComponent::handle_isr() {
+void BekenIrdaComponent::handle_isr_() {
   const uint32_t status = REG_READ(IRDA_INT_REG);
   REG_WRITE(IRDA_INT_REG, status);
 

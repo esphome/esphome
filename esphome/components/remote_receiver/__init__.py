@@ -29,6 +29,7 @@ from esphome.const import (
 )
 from esphome.core import CORE, TimePeriod
 import esphome.final_validate as fv
+from esphome.schema_extractors import SCHEMA_EXTRACT, schema_extractor
 from esphome.types import ConfigType
 
 _LOGGER = logging.getLogger(__name__)
@@ -285,7 +286,14 @@ _RECEIVER_SCHEMA = remote_base.validate_triggers(
     # setup_priority::DATA, the default of Component::get_setup_priority()
     .add_extra(esp32_rmt.request_rmt_channel("RX", 600.0))
 )
-CONFIG_SCHEMA = cv.All(timer_sampling_defaults, _RECEIVER_SCHEMA)
+
+
+@schema_extractor("triggers")
+def CONFIG_SCHEMA(config: ConfigType) -> ConfigType:
+    """Fill the timer sampling defaults before the schema, which then sees them as set."""
+    if config == SCHEMA_EXTRACT:
+        return _RECEIVER_SCHEMA(SCHEMA_EXTRACT)
+    return _RECEIVER_SCHEMA(timer_sampling_defaults(config))
 
 
 def final_validate_sampling(config: ConfigType) -> ConfigType:
