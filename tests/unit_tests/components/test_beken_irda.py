@@ -6,6 +6,7 @@ import pytest
 
 from esphome import final_validate as fv
 from esphome.components.beken_irda import (
+    CONFIG_SCHEMA,
     MODE_HARDWARE,
     MODE_TIMER,
     final_validate,
@@ -75,11 +76,11 @@ def test_hardware_pin_rejects_pullup() -> None:
         )
 
 
-def test_hardware_board_rejects_bk7231q() -> None:
-    """The BK7231Q SDK registers no IRDA interrupt handler."""
+def test_component_rejects_bk7231q() -> None:
+    """The BK7231Q SDK registers neither the timer nor the IRDA driver."""
     _set_family(FAMILY_BK7231Q)
     with pytest.raises(cv.Invalid, match=FAMILY_BK7231Q):
-        validate_hardware_board({CONF_MODE: MODE_HARDWARE})
+        CONFIG_SCHEMA({})
 
 
 def test_hardware_board_accepts_legacy_block() -> None:

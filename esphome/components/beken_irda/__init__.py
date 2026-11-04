@@ -3,7 +3,7 @@ import logging
 from esphome import pins
 import esphome.codegen as cg
 from esphome.components import remote_base
-from esphome.components.libretiny import get_libretiny_family
+from esphome.components.libretiny import get_libretiny_family, only_on_family
 from esphome.components.libretiny.const import (
     FAMILY_BK7231Q,
     FAMILY_BK7238,
@@ -97,11 +97,6 @@ def validate_hardware_board(config: ConfigType) -> ConfigType:
         raise cv.Invalid(
             f"Hardware mode is not supported on {FAMILY_BK7238} (no IRDA block); use mode: {MODE_TIMER}"
         )
-    if get_libretiny_family() == FAMILY_BK7231Q:
-        # Its SDK registers no IRDA interrupt handler, so the ISR could never be installed.
-        raise cv.Invalid(
-            f"Hardware mode is not supported on {FAMILY_BK7231Q}; use mode: {MODE_TIMER}"
-        )
     if not _has_legacy_irda_block():
         board = CORE.data[KEY_LIBRETINY][KEY_BOARD]
         raise cv.Invalid(
@@ -164,6 +159,8 @@ BASE_SCHEMA = cv.Schema(
 
 
 CONFIG_SCHEMA = cv.All(
+    # The BK7231Q SDK registers neither the timer nor the IRDA driver, so no mode can work there.
+    only_on_family(unsupported=[FAMILY_BK7231Q]),
     # validate_triggers is lazy, so triggers registered by an external protocol after this module
     # is imported are still accepted.
     remote_base.validate_triggers(BASE_SCHEMA),

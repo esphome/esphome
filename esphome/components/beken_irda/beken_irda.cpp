@@ -41,8 +41,10 @@ static constexpr uint32_t IRDA_PARITY_ERR_INT = 1u << 4;
 static constexpr uint32_t IRDA_STOP_ERR_INT = 1u << 5;
 
 extern "C" {
-// NOLINTNEXTLINE(readability-identifier-naming) - name defined by the Beken SDK
+#ifdef USE_BEKEN_IRDA_LEGACY_IRDA
+// NOLINTNEXTLINE(readability-identifier-naming) - name defined by the Beken SDK, only in the legacy driver
 void Irda_init_app();
+#endif
 // Implemented by the BDK but not declared in this SDK's intc_pub.h.
 void intc_service_change_handler(unsigned char int_num, void (*isr)());
 }
@@ -62,6 +64,13 @@ static constexpr uint32_t TICK_COUNTER_SELECT_REG = 0x00802A10;
 static constexpr uint32_t TICK_COUNTER_VALUE_REG = 0x00802A14;
 static constexpr uint32_t TICK_TICKS_PER_US = 26;
 static constexpr uint32_t TICK_COUNTER_WRAP = 2 * 1000 * TICK_TICKS_PER_US;
+
+// LibreTiny runs the FreeRTOS tick on BKTIMER0 only with LT_MICROS_HIGH_RES, its default.
+#if defined(LT_MICROS_HIGH_RES) && !LT_MICROS_HIGH_RES
+static constexpr bool HAS_TICK_COUNTER = false;
+#else
+static constexpr bool HAS_TICK_COUNTER = true;
+#endif
 
 static inline uint32_t read_tick_counter() {
   reg_write(TICK_COUNTER_SELECT_REG, (BKTIMER0 << 2) | 1);
@@ -102,6 +111,8 @@ void BekenIrdaComponent::handle_isr() {
     if ((command ^ inverse) == 0xFFu) {
       this->last_code_ = code;
       this->raw_ready_ = true;
+      // A repeat still pending belongs to the previous code.
+      this->repeat_ready_ = false;
     } else {
       this->reject_count_ = this->reject_count_ + 1;
     }
@@ -118,18 +129,15 @@ void BekenIrdaComponent::handle_timer_isr() {
   if (this->frame_ready_ || this->overflow_)
     return;
 
-  uint32_t elapsed;
-#ifdef USE_LIBRETINY_VARIANT_BK7231Q
-  // This part runs LibreTiny's low-resolution clock and has no 26 MHz tick counter, so fall back
-  // to assuming the nominal sampling period.
-  elapsed = this->sample_period_ * TICK_TICKS_PER_US;
-#else
-  uint32_t counter = read_tick_counter();
-  elapsed = counter - this->last_counter_;
-  if (counter < this->last_counter_)
-    elapsed += TICK_COUNTER_WRAP;
-  this->last_counter_ = counter;
-#endif
+  // Without the tick counter, assume the nominal sampling period.
+  uint32_t elapsed = this->sample_period_ * TICK_TICKS_PER_US;
+  if constexpr (HAS_TICK_COUNTER) {
+    uint32_t counter = read_tick_counter();
+    elapsed = counter - this->last_counter_;
+    if (counter < this->last_counter_)
+      elapsed += TICK_COUNTER_WRAP;
+    this->last_counter_ = counter;
+  }
   this->timer_ticks_ = this->timer_ticks_ + elapsed;
   // The receiver output idles high and goes low during a mark, so invert the sampled level to
   // match remote_base, which uses positive durations for marks.
@@ -214,10 +222,8 @@ void BekenIrdaComponent::push_sample_(int32_t value) {
 void BekenIrdaComponent::reset_capture_() {
   this->buffer_count_ = 0;
   this->timer_ticks_ = 0;
-#ifndef USE_LIBRETINY_VARIANT_BK7231Q
-  // BK7231Q has no 26 MHz tick counter to resync with (see handle_timer_isr).
-  this->last_counter_ = read_tick_counter();
-#endif
+  if constexpr (HAS_TICK_COUNTER)
+    this->last_counter_ = read_tick_counter();
   this->frame_ready_ = false;
   this->overflow_ = false;
   this->capture_active_ = false;
@@ -262,6 +268,8 @@ void BekenIrdaComponent::dispatch_repeat_() {
 }
 
 void BekenIrdaComponent::setup_hardware_() {
+#ifdef USE_BEKEN_IRDA_LEGACY_IRDA
+  this->temp_.reserve(2 + 64 + 1);
   this->last_code_ = 0;
   this->raw_ready_ = false;
   this->repeat_ready_ = false;
@@ -279,6 +287,7 @@ void BekenIrdaComponent::setup_hardware_() {
   if (reg_read(IRDA_CTRL_REG) == 0) {
     this->mark_failed(LOG_STR("IRDA controller did not initialize"));
   }
+#endif
 }
 
 void BekenIrdaComponent::setup_gpio_timer_() {
@@ -301,6 +310,14 @@ void BekenIrdaComponent::setup_gpio_timer_() {
     this->mark_failed(LOG_STR("Capture buffer allocation failed"));
     return;
   }
+  // Each frame is copied into temp_, so reserve it up front; a failed reserve would abort, so check first.
+  if (lt_heap_get_max_alloc() < this->buffer_size_ * sizeof(int32_t)) {
+    allocator.deallocate(this->buffer_, this->buffer_size_);
+    this->buffer_ = nullptr;
+    this->mark_failed(LOG_STR("Frame buffer allocation failed"));
+    return;
+  }
+  this->temp_.reserve(this->buffer_size_);
 
   timer_param_t param;
   param.channel = TIMER_CHANNEL;
@@ -329,9 +346,8 @@ void BekenIrdaComponent::setup_gpio_timer_() {
 
 void BekenIrdaComponent::setup() {
   s_irda = this;
-  // Reserve the largest frame the frontend can produce up front, so reception never allocates on
-  // the heap once it is running.
-  this->temp_.reserve(this->hardware_ ? 2 + 64 + 1 : this->buffer_size_);
+  // Each frontend reserves the largest frame it can produce, so reception never allocates on the heap
+  // once it is running.
   ESP_LOGD(TAG, "setup: mode=%s", this->hardware_ ? LOG_STR_LITERAL("hardware") : LOG_STR_LITERAL("timer"));
   if (this->hardware_) {
     this->setup_hardware_();
