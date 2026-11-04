@@ -1,0 +1,70 @@
+esphome:
+  name: uart-mock-sim800l-callbacks
+  on_boot:
+    priority: -100
+    then:
+      - delay: 200ms
+      # One write, so every line is parsed in a single loop with no poll in between.
+      # RING resets the state machine from any state but receiving an SMS.
+      - uart_mock.inject_rx:
+          id: mock_uart
+          data: "RING\r\n+CLIP: \"+15551234567\",145,\"\",0,\"\",0\r\n+DTMF: 7,100\r\nNO CARRIER\r\n+CMTI: \"SM\",1\r\n+CMGL: 1,\"REC UNREAD\",\"+15557654321\",\"\",\"26/11/03,10:00:00+00\"\r\nHello there\r\nOK\r\nRING\r\n+CLIP: \"+15550000000\",145,\"\",0,\"\",0\r\n+CMTI: \"SM\",2\r\nOK\r\n+CLCC: 1,1,0,0,0,\"+15550000000\",145\r\nOK\r\n+CMTI: \"SM\",3\r\nOK\r\nOK\r\n+CUSD: 0, \"Balance 5\", 15\r\n+CUSD: 0, \"Balance 5\", 15\r\n"
+
+host:
+api:
+logger:
+  level: DEBUG
+
+external_components:
+  - source:
+      type: local
+      path: EXTERNAL_COMPONENT_PATH
+
+# Dummy uart entry to satisfy sim800l's DEPENDENCIES = ["uart"]
+# The actual UART bus used is the uart_mock component below
+uart:
+  baud_rate: 115200
+  port: /dev/null
+
+uart_mock:
+  id: mock_uart
+  baud_rate: 9600
+  rx_buffer_size: 1024
+
+sim800l:
+  id: sim
+  uart_id: mock_uart
+  # No polling, so only the injected lines move the state machine
+  update_interval: never
+  # Two automations, so two listeners each get the strings
+  on_sms_received:
+    - then:
+        - logger.log:
+            format: "on_sms_received A sender=%s message=%s"
+            args: [sender.c_str(), message.c_str()]
+    - then:
+        - logger.log:
+            format: "on_sms_received B sender=%s message=%s"
+            args: [sender.c_str(), message.c_str()]
+  on_incoming_call:
+    - logger.log:
+        format: "on_incoming_call caller_id=%s"
+        args: [caller_id.c_str()]
+  on_call_connected:
+    - logger.log: "on_call_connected"
+  on_call_disconnected:
+    - logger.log: "on_call_disconnected"
+  on_dtmf_received:
+    - logger.log:
+        format: "on_dtmf_received key=%s"
+        args: [key.c_str()]
+  on_ussd_received:
+    - logger.log:
+        format: "on_ussd_received before=%s"
+        args: [ussd.c_str()]
+    # Sending a code from the automation must not change the received text it holds
+    - sim800l.send_ussd:
+        ussd: "*999#"
+    - logger.log:
+        format: "on_ussd_received after=%s"
+        args: [ussd.c_str()]
