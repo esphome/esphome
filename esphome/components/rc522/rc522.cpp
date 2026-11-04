@@ -171,7 +171,7 @@ void RC522::loop() {
     case STATE_SELECT_SERIAL: {
       buffer_[1] = 0x70;  // select
       // todo: set CRC
-      buffer_[6] = buffer_[2] ^ buffer_[3] ^ buffer_[4] ^ buffer_[5];
+      buffer_[6] = xor_bytes(buffer_ + 2, 4);
       pcd_calculate_crc_(buffer_, 7);
       state_ = STATE_SELECT_SERIAL_DONE;
       break;
