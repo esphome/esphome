@@ -25,8 +25,8 @@ static constexpr uint16_t OPT3001_CONFIGURATION_FULL_RANGE_ONE_SHOT = OPT3001_CO
                                                                       OPT3001_CONFIGURATION_CONVERSION_MODE_SINGLE_SHOT;
 // give it 25 extra ms; it seems to not be ready quite often
 static constexpr uint16_t OPT3001_CONVERSION_TIME_800 = 825;
-// 10 ms apart, so a sensor that never finishes gives up 200 ms after the conversion wait
-static constexpr uint8_t RESULT_MAX_RETRIES = 20;
+// 10 ms apart: 1 s past the conversion wait covers an auto-range restart (10 ms plus another 800 ms conversion)
+static constexpr uint8_t RESULT_MAX_RETRIES = 100;
 
 /*
 opt3001 properties:
