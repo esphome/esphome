@@ -203,7 +203,8 @@ class MQTTBackendESP32 final : public MQTTBackend {
     uint16_t sent = this->subscribes_sent_;
 #if defined(USE_MQTT_IDF_ENQUEUE)
     // A SUBSCRIBE the task could not send never gets a SUBACK
-    const uint8_t lost = this->subscribes_lost_.load(std::memory_order_relaxed);
+    const auto lost = static_cast<uint8_t>(this->subscribes_lost_.load(std::memory_order_relaxed) -
+                                           this->subscribes_lost_at_connect_);
     sent = sent > lost ? sent - lost : 0;
 #endif
     return subscribe_fits(sent, this->subacks_.received(), MQTT_EVENT_POOL_SIZE - this->mqtt_event_queue_.size());
@@ -266,7 +267,7 @@ class MQTTBackendESP32 final : public MQTTBackend {
   // PUBACK of tracked_msg_id_ seen; uint8_t because atomic<bool> is out of line on Xtensa
   std::atomic<uint8_t> tracked_acked_{0};
 #if defined(USE_MQTT_IDF_ENQUEUE)
-  // Queued SUBSCRIBEs the task dropped or failed to send on this connection
+  // Queued SUBSCRIBEs the task dropped or failed to send; wraps
   std::atomic<uint8_t> subscribes_lost_{0};
 #endif
 
@@ -282,6 +283,10 @@ class MQTTBackendESP32 final : public MQTTBackend {
   std::string lwt_message_;
   uint8_t lwt_qos_;
   bool lwt_retain_;
+#if defined(USE_MQTT_IDF_ENQUEUE)
+  // subscribes_lost_ when this connection started
+  uint8_t subscribes_lost_at_connect_{0};
+#endif
   std::string client_id_;
   uint16_t keep_alive_;
   bool clean_session_;
@@ -299,7 +304,7 @@ class MQTTBackendESP32 final : public MQTTBackend {
   EventPool<struct QueueElement, MQTT_QUEUE_LENGTH - 1> mqtt_outbound_pool_;
   NotifyingLockFreeQueue<struct QueueElement, MQTT_QUEUE_LENGTH> mqtt_queue_;
   TaskHandle_t task_handle_{nullptr};
-  // Only the task increments it; load and store avoid the atomic read-modify-write libcall
+  // The task is the only writer, so load and store need no atomic read-modify-write libcall
   void count_lost_subscribe_() {
     this->subscribes_lost_.store(this->subscribes_lost_.load(std::memory_order_relaxed) + 1, std::memory_order_relaxed);
   }

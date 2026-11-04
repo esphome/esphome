@@ -155,7 +155,7 @@ void MQTTBackendESP32::mqtt_event_handler_(const Event &event) {
       // The MQTT task already reset subacks_
       this->subscribes_sent_ = 0;
 #if defined(USE_MQTT_IDF_ENQUEUE)
-      this->subscribes_lost_.store(0, std::memory_order_relaxed);
+      this->subscribes_lost_at_connect_ = this->subscribes_lost_.load(std::memory_order_relaxed);
       this->last_dropped_log_time_ = 0;
       xTaskNotifyGive(this->task_handle_);
 #endif
