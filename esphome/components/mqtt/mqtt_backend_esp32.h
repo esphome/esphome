@@ -258,15 +258,14 @@ class MQTTBackendESP32 final : public MQTTBackend {
 
   bool is_connected_{false};
   bool is_initalized_{false};
-  // Set with the PUBACK of tracked_msg_id_, see below. uint8_t, not bool: GCC on Xtensa emits an out-of-line call
-  // for atomic<bool>
+  // PUBACK of tracked_msg_id_ seen; uint8_t because atomic<bool> is out of line on Xtensa
   std::atomic<uint8_t> tracked_acked_{0};
 
   esp_mqtt_client_config_t mqtt_cfg_{};
 
   std::string host_;
   uint16_t port_;
-  /// Every SUBSCRIBE sent on this connection, see can_subscribe(); the client counts only its fingerprinted ones
+  /// SUBSCRIBEs sent on this connection, for can_subscribe()
   uint16_t subscribes_sent_{0};
   std::string username_;
   std::string password_;

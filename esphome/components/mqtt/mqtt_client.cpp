@@ -576,7 +576,7 @@ void MQTTClientComponent::resubscribe_subscription_(MQTTSubscription *sub) {
   const uint32_t now = millis();
   bool do_resub = sub->resubscribe_timeout == 0 || now - sub->resubscribe_timeout > 1000;
 
-  // Paced, so the retained messages of a connect burst do not arrive faster than the backend can hold them
+  // Paced so the connect burst fits the backend queue
   if (do_resub && this->mqtt_backend_.can_subscribe()) {
     sub->subscribed = this->subscribe_topic_(sub->topic, sub->qos);
     sub->resubscribe_timeout = now;

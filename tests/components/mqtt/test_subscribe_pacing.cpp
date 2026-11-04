@@ -47,9 +47,8 @@ struct BurstResult {
   size_t dropped{0};
 };
 
-/// Models the connect burst: the MQTT task handles every answer to the SUBSCRIBEs sent so far before the main loop
-/// runs again, and the main loop drains the queue on each pass. Each exact topic brings one SUBACK and then
-/// one retained message; with split_last the main loop runs between the last SUBACK and its retained message.
+/// Connect burst model: the task answers every sent SUBSCRIBE (SUBACK, then one retained message) before the loop
+/// drains the queue; split_last runs the loop between the last SUBACK and its message.
 static BurstResult run_burst(uint16_t topics, bool paced, bool queue_acks, bool split_last) {
   BurstResult result;
   size_t queued = 0;

@@ -61,8 +61,7 @@ class MQTTBackend {
   virtual void connect() = 0;
   virtual void disconnect() = 0;
   virtual bool subscribe(const char *topic, uint8_t qos) = 0;
-  /// Whether another SUBSCRIBE can be sent now without risking the loss of the messages it brings. Backends that
-  /// hand broker events over straight from the client loop have no limit.
+  /// Whether another SUBSCRIBE fits the inbound queue; backends without a queue always say yes.
   virtual bool can_subscribe() const { return true; }
   virtual bool unsubscribe(const char *topic) = 0;
   virtual bool publish(const char *topic, const char *payload, size_t length, uint8_t qos, bool retain) = 0;

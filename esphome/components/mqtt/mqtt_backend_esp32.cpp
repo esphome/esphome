@@ -106,8 +106,7 @@ bool MQTTBackendESP32::initialize_() {
 }
 
 void MQTTBackendESP32::loop() {
-  // Drain what is queued, so a connect burst frees its slots in one pass; capped at the pool size so a steady
-  // stream of messages cannot hold the loop
+  // Drain the queue, capped at the pool size so a steady stream cannot hold the loop
   for (uint8_t i = 0; i < MQTT_EVENT_POOL_SIZE; i++) {
     Event *event = this->mqtt_event_queue_.pop();
     if (event == nullptr)
@@ -153,7 +152,7 @@ void MQTTBackendESP32::mqtt_event_handler_(const Event &event) {
     case MQTT_EVENT_CONNECTED:
       ESP_LOGV(TAG, "MQTT_EVENT_CONNECTED");
       this->is_connected_ = true;
-      // The MQTT task reset subacks_ before queueing this event, and nothing subscribes before is_connected_
+      // The MQTT task already reset subacks_
       this->subscribes_sent_ = 0;
 #if defined(USE_MQTT_IDF_ENQUEUE)
       this->last_dropped_log_time_ = 0;
@@ -223,8 +222,7 @@ void MQTTBackendESP32::mqtt_event_handler(void *handler_args, esp_event_base_t b
   if (instance == nullptr)
     return;
   const auto *mqtt_event = static_cast<esp_mqtt_event_t *>(event_data);
-  // Acks are only queued for a registered callback (all are registered in setup()), so the SUBACKs of the connect
-  // burst do not take the slots its retained messages need
+  // Acks take a slot only when a callback wants them, leaving room for retained messages
   bool listened = true;
   switch (event_id) {
     case MQTT_EVENT_CONNECTED:
@@ -239,7 +237,7 @@ void MQTTBackendESP32::mqtt_event_handler(void *handler_args, esp_event_base_t b
       listened = instance->on_unsubscribe_.size() != 0;
       break;
     case MQTT_EVENT_PUBLISHED: {
-      // Also lets teardown see the confirmation without dispatching other events
+      // Also seen by teardown without dispatching
       auto msg_id = static_cast<uint16_t>(mqtt_event->msg_id);
       instance->acked_msg_id_.store(msg_id);
       if (msg_id == instance->tracked_msg_id_.load())

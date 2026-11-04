@@ -64,12 +64,10 @@ class SubackCounter {
   std::atomic<uint16_t> granted_{0};
 };
 
-/// Free inbound event slots kept for each unanswered SUBSCRIBE: one for the retained message it may deliver, one in
-/// reserve for a SUBACK counted before that message is queued.
+/// Free slots per unanswered SUBSCRIBE: its retained message plus one spare.
 static constexpr size_t INBOUND_SLOTS_PER_SUBSCRIBE = 2;
 
-/// True when one more SUBSCRIBE can be sent without the retained messages of the unanswered ones overflowing the
-/// free inbound event slots. More SUBACKs than SUBSCRIBEs (one from an earlier connection) count as none unanswered.
+/// Whether one more SUBSCRIBE fits; extra SUBACKs (from an earlier connection) count as none unanswered.
 constexpr bool subscribe_fits(uint16_t sent, uint16_t answered, size_t free_slots) {
   const size_t unanswered = sent > answered ? sent - answered : 0;
   return (unanswered + 1) * INBOUND_SLOTS_PER_SUBSCRIBE <= free_slots;
