@@ -192,6 +192,42 @@ class IT8951Display : public Display,
 
   // --- Display API ---
   void update() override;
+
+  // --- Helpers for writers that hand over pre-rendered full frames ------------
+  // Some hosts (Seeed reTerminal boards among them) render a complete screen on a
+  // server and stream the packed bitmap down. They need the framebuffer pointer to
+  // memcpy into, an explicit way to declare which region changed, and a way to ask
+  // for a grayscale-clearing refresh. Going through draw_pixels_at() for a 1872x1404
+  // 1bpp frame costs a per-pixel conversion loop; these accessors let such a writer
+  // keep the fast path without reimplementing the driver.
+  uint8_t *framebuffer_data() { return this->buffer_; }
+  size_t framebuffer_size() const { return this->buffer_length_; }
+  bool is_idle() const { return this->phase_ == Phase::IDLE; }
+  void mark_dirty_area(uint16_t x, uint16_t y, uint16_t w, uint16_t h) {
+    if (x < this->x_low_)
+      this->x_low_ = x;
+    if (y < this->y_low_)
+      this->y_low_ = y;
+    if (static_cast<uint32_t>(x) + w > this->x_high_)
+      this->x_high_ = static_cast<uint16_t>(x + w);
+    if (static_cast<uint32_t>(y) + h > this->y_high_)
+      this->y_high_ = static_cast<uint16_t>(y + h);
+  }
+  void mark_dirty_full() {
+    this->x_low_ = 0;
+    this->y_low_ = 0;
+    this->x_high_ = this->width_;
+    this->y_high_ = this->height_;
+  }
+  // Push the periodic counter to the threshold so the next update takes the
+  // full-refresh branch (and therefore keeps GC16 on a monochrome panel instead of
+  // being downgraded to DU). Needed when the host knows a large solid-black area just
+  // appeared: DU does not erase it, only GC16 does.
+  void force_full_gc16() {
+    this->partial_update_count_ = this->full_update_every_;
+    this->mark_dirty_full();
+  }
+
   void update_mode(UpdateMode mode);
   DisplayType get_display_type() override { return this->grayscale_ ? DISPLAY_TYPE_GRAYSCALE : DISPLAY_TYPE_BINARY; }
   void fill(Color color) override;
