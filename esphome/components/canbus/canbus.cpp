@@ -71,7 +71,7 @@ canbus::Error Canbus::send_data(uint32_t can_id, bool use_extended_id, bool remo
   }
 #endif
   if (len > CAN_MAX_DATA_LENGTH) {
-    ESP_LOGW(TAG, "Classic CAN carries 8 bytes, %zu cut", len);
+    ESP_LOGW(TAG, "Classic CAN carries 8 bytes, %zu given, sent 8", len);
   }
   // Clamp before narrowing, so a lambda payload of 256 bytes or more cannot wrap to a short length
   frame.can_data_length_code = static_cast<uint8_t>(std::min<size_t>(len, CAN_MAX_DATA_LENGTH));
@@ -90,14 +90,18 @@ canbus::Error Canbus::send_data(uint32_t can_id, bool use_extended_id, bool remo
 #endif
 }
 
-bool Canbus::lambda_payload_fits_(const CanPayload &payload, bool fd) {
+bool Canbus::lambda_payload_fits_(const CanPayload &payload, [[maybe_unused]] bool fd) {
   if (!payload.truncated())
     return true;
+#ifdef USE_CANBUS_FD
   if (fd) {
     ESP_LOGE(TAG, "CAN FD carries at most %u bytes, frame not sent", CAN_FRAME_DATA_LENGTH);
     return false;
   }
+  // The payload still holds 64 bytes, so send_data() warns as it cuts a classic frame to 8
+#else
   ESP_LOGW(TAG, "Classic CAN carries 8 bytes, the rest is cut");
+#endif
   return true;
 }
 
