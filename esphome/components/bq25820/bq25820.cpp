@@ -134,7 +134,8 @@ bool BQ25820Component::watchdog_enabled_() const {
   return (progmem_read_byte(&this->config_->controls[CONTROL_TIMER]) & TIMER_CONTROL_WATCHDOG) != 0;
 }
 
-// Charging off, configure, charging on; a failure leaves charging off and ADC_EN clear.
+// Charging off, configure, charging on, ADC last: a failure before charger control leaves charging off, and any
+// failure leaves ADC_EN clear so the next poll writes it all again.
 bool BQ25820Component::write_config_registers_() {
   BQ25820Config config = this->load_config_();
   // The charger control write also feeds the watchdog
@@ -164,7 +165,7 @@ bool BQ25820Component::write_config_registers_() {
   return ok;
 }
 
-void BQ25820Component::configure_() {
+bool BQ25820Component::configure_() {
   // The ADC was just enabled again, so the next poll comes once its first conversions are done
   this->adc_ready_ = false;
   if (this->status_comm_result(this->write_config_registers_())) {
@@ -173,7 +174,9 @@ void BQ25820Component::configure_() {
       this->adc_ready_ = true;
       this->update();
     });
+    return true;
   }
+  return false;
 }
 
 // Every poll also feeds the watchdog, which update_interval is validated to beat
@@ -192,7 +195,13 @@ void BQ25820Component::update() {
     if (this->configured_once_) {
       ESP_LOGW(TAG, "Charger lost its configuration, writing it again");
     }
-    this->configure_();
+    // Only a failed write publishes this status, so the fault sensors still follow a charger that keeps resetting
+    if (this->configure_())
+      return;
+#ifdef USE_BQ25820_STATUS_PUBLISHER
+    if (this->status_publisher_ != nullptr)
+      this->status_publisher_(status);
+#endif
     return;
   }
   if (ok && this->watchdog_enabled_())

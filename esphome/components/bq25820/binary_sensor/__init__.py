@@ -24,7 +24,6 @@ from .. import (
     STATUS,
     STATUS_PUBLISHER,
     BQ25820BaseSchema,
-    bq25820_ns as bq25820_ns,
 )
 
 DEPENDENCIES = ["bq25820"]

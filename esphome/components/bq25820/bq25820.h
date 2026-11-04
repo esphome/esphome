@@ -93,7 +93,7 @@ class BQ25820Component final : public PollingComponent, public i2c::I2CDevice {
   bool watchdog_enabled_() const;
   bool write_config_registers_();
   /// Writes the configuration, then polls again once the ADC has had time to convert
-  void configure_();
+  bool configure_();
 #ifdef USE_BQ25820_SENSOR
   void publish_adc_(const BQ25820AdcRegisters &adc);
   /// Temperature from TS_ADC, the TS pin voltage as a 10-bit share of REGN; NAN when the reading is 0

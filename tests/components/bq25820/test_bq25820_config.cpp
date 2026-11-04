@@ -166,12 +166,13 @@ class BQ25820WriteFailureTest : public ::testing::Test {
   // Polls with writes to `reg` failing, then once they work again
   void check_failed_write_(uint8_t reg) {
     this->bus_.fail_write_register = reg;
-    for (int i = 0; i < 2; i++) {
+    // The status still publishes, so the fault sensors follow the charger; the ADC readings do not
+    for (int i = 1; i <= 2; i++) {
       this->hub_.update();
       EXPECT_TRUE(this->hub_.status_has_warning());
       EXPECT_EQ(this->bus_.registers[REG_CHARGER_CONTROL] & EN_CHG, 0);
       EXPECT_EQ(this->bus_.registers[REG_ADC_CONTROL] & ADC_EN, 0);
-      EXPECT_EQ(status_publishes, 0);
+      EXPECT_EQ(status_publishes, i);
       EXPECT_FALSE(this->vbat_.has_state());
     }
     this->bus_.fail_write_register = -1;
@@ -180,10 +181,10 @@ class BQ25820WriteFailureTest : public ::testing::Test {
     EXPECT_EQ(this->bus_.registers[REG_CHARGER_CONTROL], 0xC9);
     // The status was read before this poll wrote the configuration, and the ADC was restarted, so the delayed
     // poll publishes both
-    EXPECT_EQ(status_publishes, 0);
+    EXPECT_EQ(status_publishes, 2);
     EXPECT_FALSE(this->vbat_.has_state());
     run_delayed_poll();
-    EXPECT_EQ(status_publishes, 1);
+    EXPECT_EQ(status_publishes, 3);
     EXPECT_FLOAT_EQ(this->vbat_.state, 8.0f);
   }
 
