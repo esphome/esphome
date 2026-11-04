@@ -68,6 +68,12 @@ static constexpr uint8_t REG_RST = 0x80;
 // MPPT control (0x1A)
 static constexpr uint8_t FORCE_SWEEP = 0x80;
 static constexpr uint8_t EN_MPPT = 0x01;
+// ADC control (0x2B); the configuration always sets it and a charger reset clears it
+static constexpr uint8_t ADC_EN = 0x80;
+
+static constexpr uint32_t PUBLISH_TIMEOUT_ID = 0;
+// After a configuration write, long enough for the ADC to finish its first round of conversions
+static constexpr uint32_t FIRST_PUBLISH_DELAY_MS = 1000;
 
 // A current limit step is 250 uV across the sense resistor: 25 IBAT or 62.5 IAC ADC steps
 static constexpr float CHARGE_LIMIT_ADC_STEPS = 25.0f;
@@ -163,7 +169,9 @@ bool BQ25820Component::write_config_registers_() {
   if (!ok) {
     ESP_LOGW(TAG, "Configuration write failed");
     // EN_CHG resets to 1, so charging stays off until the configuration is written
-    this->update_register(REG_CHARGER_CONTROL, EN_CHG, 0);
+    if (!this->update_register(REG_CHARGER_CONTROL, EN_CHG, 0)) {
+      ESP_LOGW(TAG, "Could not turn charging off; the charger runs at its reset limits");
+    }
   }
   return ok;
 }
@@ -172,9 +180,18 @@ bool BQ25820Component::write_config_registers_() {
 void BQ25820Component::update() {
   BQ25820StatusRegisters status;
   bool ok = this->read_bytes(REG_CHARGER_STATUS_1, status.data(), status.size());
-  // WD_STAT: the watchdog expired and reset the configuration. A failed status read does not hold back the first
-  // write, since the chip charges at its reset settings until then.
-  const bool configure = !this->config_written_ || (ok && this->watchdog_enabled_() && (status[0] & WD_STAT) != 0);
+  // A failed status read does not hold back the first write, since the chip charges at its reset settings until then
+  bool configure = !this->config_written_;
+  if (!configure && ok) {
+    // WD_STAT: the watchdog expired. ADC_EN clear: the charger reset on its own, for example in a brownout, which
+    // WD_STAT does not show when the watchdog is off or each poll keeps feeding it.
+    uint8_t adc_control;
+    ok = this->read_byte(REG_ADC_CONTROL, &adc_control);
+    configure = ok && ((this->watchdog_enabled_() && (status[0] & WD_STAT) != 0) || (adc_control & ADC_EN) == 0);
+    if (configure) {
+      ESP_LOGW(TAG, "Charger lost its configuration, writing it again");
+    }
+  }
   if (configure) {
     this->config_written_ = this->write_config_registers_();
     ok = ok && this->config_written_;
@@ -182,11 +199,24 @@ void BQ25820Component::update() {
   // Also after a rewrite, so a latched WD_STAT clears instead of forcing a rewrite every poll
   if (ok && this->watchdog_enabled_())
     ok = this->write_byte(REG_CHARGER_CONTROL, progmem_read_byte(&this->config_->controls[CONTROL_CHARGER]) | WD_RST);
-  // The status was read before the configuration was written, and the ADC was just enabled again, so a
-  // configuration poll publishes nothing
-  if (!this->status_comm_result(ok) || configure)
+  if (!this->status_comm_result(ok))
     return;
+  if (configure) {
+    // The status was read before the configuration was written and the ADC was just enabled again, so the
+    // readings are published once its first conversions are done
+    this->set_timeout(PUBLISH_TIMEOUT_ID, FIRST_PUBLISH_DELAY_MS, [this]() { this->read_and_publish_(); });
+    return;
+  }
+  this->publish_(status);
+}
 
+void BQ25820Component::read_and_publish_() {
+  BQ25820StatusRegisters status;
+  if (this->status_comm_result(this->read_bytes(REG_CHARGER_STATUS_1, status.data(), status.size())))
+    this->publish_(status);
+}
+
+void BQ25820Component::publish_(const BQ25820StatusRegisters &status) {
 #ifdef USE_BQ25820_STATUS_PUBLISHER
   if (this->status_publisher_ != nullptr)
     this->status_publisher_(status);

@@ -210,6 +210,24 @@ TEST_F(BQ25820WriteFailureTest, FailedLimitWriteKeepsChargingOff) {
   this->check_failed_write_(0x08);  // VAC_DPM
 }
 
+TEST_F(BQ25820WriteFailureTest, ChargerResetIsWrittenAgain) {
+  static constexpr uint8_t REG_ADC_CONTROL = 0x2B;
+  this->hub_.update();
+  this->hub_.update();
+  EXPECT_EQ(status_publishes, 1);
+  // A charger reset on its own clears ADC_EN and the configured limits, with the watchdog off
+  this->bus_.registers[REG_ADC_CONTROL] = 0;
+  this->bus_.registers[REG_CHARGER_CONTROL] = 0xC9;
+  this->bus_.registers[0x08] = 0;
+  this->hub_.update();
+  EXPECT_NE(this->bus_.registers[REG_ADC_CONTROL] & 0x80, 0);
+  EXPECT_NE(this->bus_.registers[0x08], 0);
+  // That poll wrote the configuration, so it publishes nothing
+  EXPECT_EQ(status_publishes, 1);
+  this->hub_.update();
+  EXPECT_EQ(status_publishes, 2);
+}
+
 TEST_F(BQ25820WriteFailureTest, FailedControlWriteKeepsChargingOff) {
   this->check_failed_write_(0x1B);  // TS_THRESHOLD_CONTROL
 }

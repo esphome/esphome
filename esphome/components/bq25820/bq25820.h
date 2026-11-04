@@ -97,6 +97,9 @@ class BQ25820Component final : public PollingComponent, public i2c::I2CDevice {
   BQ25820Config load_config_() const;
   bool watchdog_enabled_() const;
   bool write_config_registers_();
+  /// Reads the status registers and publishes them and the ADC readings, without touching the configuration
+  void read_and_publish_();
+  void publish_(const BQ25820StatusRegisters &status);
 #ifdef USE_BQ25820_SENSOR
   void publish_adc_(const BQ25820Config &config);
   /// Temperature from TS_ADC, the TS pin voltage as a 10-bit share of REGN; NAN when the reading is 0
