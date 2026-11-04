@@ -21,11 +21,10 @@ class BekenIrdaComponent final : public Component, public remote_base::RemoteRec
   void dispatch_full_(uint32_t code);
   void dispatch_repeat_();
 
-  uint32_t last_reject_{0};
   uint32_t last_error_{0};
 
   volatile uint32_t last_code_{0};
-  volatile uint32_t reject_count_{0};
+  /// Rejected codes and IRDA errors
   volatile uint32_t error_count_{0};
   volatile bool raw_ready_{false};
   volatile bool repeat_ready_{false};

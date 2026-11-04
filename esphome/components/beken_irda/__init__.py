@@ -67,8 +67,6 @@ def validate_board(config: ConfigType) -> ConfigType:
 
 
 CONFIG_SCHEMA = cv.All(
-    # validate_triggers is lazy, so triggers registered by an external protocol after this module
-    # is imported are still accepted.
     remote_base.validate_triggers(
         cv.Schema(
             {

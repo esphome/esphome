@@ -3,6 +3,7 @@
 #include <array>
 #include <cinttypes>
 
+#include "esphome/components/remote_base/nec_protocol.h"
 #include "esphome/core/helpers.h"
 #include "esphome/core/log.h"
 
@@ -34,12 +35,7 @@ static constexpr uint32_t IRDA_FIFO_WREN_INT = 1u << 3;
 static constexpr uint32_t IRDA_PARITY_ERR_INT = 1u << 4;
 static constexpr uint32_t IRDA_STOP_ERR_INT = 1u << 5;
 
-static constexpr uint32_t NEC_HEADER_MARK_US = 9000;
-static constexpr uint32_t NEC_HEADER_SPACE_US = 4500;
-static constexpr uint32_t NEC_REPEAT_SPACE_US = 2250;
-static constexpr uint32_t NEC_BIT_MARK_US = 560;
-static constexpr uint32_t NEC_ONE_SPACE_US = 1690;
-static constexpr uint32_t NEC_ZERO_SPACE_US = 560;
+using NEC = remote_base::NECProtocol;
 // Header mark and space, 32 bits of mark and space, and the final mark
 static constexpr size_t NEC_FRAME_DURATIONS = 2 + 64 + 1;
 
@@ -62,13 +58,14 @@ void BekenIrdaComponent::handle_isr() {
       // a repeat still pending belongs to the previous code
       this->repeat_ready_ = false;
     } else {
-      this->reject_count_ = this->reject_count_ + 1;
+      this->error_count_ = this->error_count_ + 1;
     }
   } else if (status & IRDA_REPEAT_INT) {
     this->repeat_ready_ = true;
   }
   if (status & (IRDA_FIFO_WREN_INT | IRDA_PARITY_ERR_INT | IRDA_STOP_ERR_INT))
     this->error_count_ = this->error_count_ + 1;
+  this->enable_loop_soon_any_context();
 }
 
 void BekenIrdaComponent::dispatch_full_(uint32_t code) {
@@ -76,20 +73,19 @@ void BekenIrdaComponent::dispatch_full_(uint32_t code) {
   // can process it.
   std::array<int32_t, NEC_FRAME_DURATIONS> frame;
   size_t pos = 0;
-  frame[pos++] = NEC_HEADER_MARK_US;
-  frame[pos++] = -static_cast<int32_t>(NEC_HEADER_SPACE_US);
+  frame[pos++] = NEC::HEADER_HIGH_US;
+  frame[pos++] = -NEC::HEADER_LOW_US;
   for (uint32_t mask = 1; mask != 0; mask <<= 1) {
-    frame[pos++] = NEC_BIT_MARK_US;
-    frame[pos++] = -static_cast<int32_t>((code & mask) ? NEC_ONE_SPACE_US : NEC_ZERO_SPACE_US);
+    frame[pos++] = NEC::BIT_HIGH_US;
+    frame[pos++] = (code & mask) ? -NEC::BIT_ONE_LOW_US : -NEC::BIT_ZERO_LOW_US;
   }
-  frame[pos] = NEC_BIT_MARK_US;
+  frame[pos] = NEC::BIT_HIGH_US;
   this->call_listeners_dumpers_(frame);
 }
 
 void BekenIrdaComponent::dispatch_repeat_() {
   // remote_base's NEC decoder ignores standalone repeat frames, so they go out raw for on_raw listeners
-  static constexpr int32_t REPEAT_FRAME[] = {NEC_HEADER_MARK_US, -static_cast<int32_t>(NEC_REPEAT_SPACE_US),
-                                             NEC_BIT_MARK_US};
+  static constexpr int32_t REPEAT_FRAME[] = {NEC::HEADER_HIGH_US, -NEC::REPEAT_HEADER_LOW_US, NEC::BIT_HIGH_US};
   this->call_listeners_dumpers_(REPEAT_FRAME);
 }
 
@@ -102,19 +98,20 @@ void BekenIrdaComponent::setup() {
   Irda_init_app();
   if (REG_READ(IRDA_CTRL_REG) == 0)
     this->mark_failed(LOG_STR("IRDA controller did not initialize"));
+  // the interrupt wakes the loop
+  this->disable_loop();
 }
 
 void BekenIrdaComponent::loop() {
-  // cheap while idle: the flags are only read here, the lock is taken once there is something to take
-  if (!this->raw_ready_ && !this->repeat_ready_ && this->reject_count_ == this->last_reject_ &&
-      this->error_count_ == this->last_error_)
-    return;
-
   // Report decode errors once they change, at debug level so a noisy remote does not spam the log.
-  if (this->reject_count_ != this->last_reject_ || this->error_count_ != this->last_error_) {
-    this->last_reject_ = this->reject_count_;
-    this->last_error_ = this->error_count_;
-    ESP_LOGD(TAG, "%" PRIu32 " rejected, %" PRIu32 " errors", this->last_reject_, this->last_error_);
+  const uint32_t errors = this->error_count_;
+  if (errors != this->last_error_) {
+    this->last_error_ = errors;
+    ESP_LOGD(TAG, "%" PRIu32 " decode errors", errors);
+  }
+  if (!this->raw_ready_ && !this->repeat_ready_) {
+    this->disable_loop();
+    return;
   }
 
   // Read the validated code together with clearing the flags, so a frame that arrives in between cannot
