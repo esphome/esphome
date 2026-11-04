@@ -87,10 +87,8 @@ void BQ25820Component::setup() {
     return;
 
   // Start from the reset values; the bit clears itself
-  if (!this->update_register(REG_POWER_PATH_CONTROL, REG_RST, REG_RST)) {
-    this->mark_failed(LOG_STR(ESP_LOG_MSG_COMM_FAIL));
+  if (!this->setup_check(this->update_register(REG_POWER_PATH_CONTROL, REG_RST, REG_RST)))
     return;
-  }
 
   // Writes the configuration, and retries it on every poll until it succeeds
   this->update();
@@ -174,16 +172,19 @@ bool BQ25820Component::write_config_registers_() {
 void BQ25820Component::update() {
   BQ25820StatusRegisters status;
   bool ok = this->read_bytes(REG_CHARGER_STATUS_1, status.data(), status.size());
-  // WD_STAT: the watchdog expired and reset the configuration. Nothing is published until it is written.
-  const bool configure = ok && (!this->config_written_ || (this->watchdog_enabled_() && (status[0] & WD_STAT) != 0));
+  // WD_STAT: the watchdog expired and reset the configuration. A failed status read does not hold back the first
+  // write, since the chip charges at its reset settings until then.
+  const bool configure = !this->config_written_ || (ok && this->watchdog_enabled_() && (status[0] & WD_STAT) != 0);
   if (configure) {
     this->config_written_ = this->write_config_registers_();
-    ok = this->config_written_;
+    ok = ok && this->config_written_;
   }
   // Also after a rewrite, so a latched WD_STAT clears instead of forcing a rewrite every poll
   if (ok && this->watchdog_enabled_())
     ok = this->write_byte(REG_CHARGER_CONTROL, progmem_read_byte(&this->config_->controls[CONTROL_CHARGER]) | WD_RST);
-  if (!this->status_comm_result(ok))
+  // The status was read before the configuration was written, and the ADC was just enabled again, so a
+  // configuration poll publishes nothing
+  if (!this->status_comm_result(ok) || configure)
     return;
 
 #ifdef USE_BQ25820_STATUS_PUBLISHER
@@ -191,9 +192,7 @@ void BQ25820Component::update() {
     this->status_publisher_(status);
 #endif
 #ifdef USE_BQ25820_SENSOR
-  // ADC_EN was just set again, so the ADC registers still hold 0 until the first conversion completes
-  if (!configure)
-    this->publish_adc_(this->load_config_());
+  this->publish_adc_(this->load_config_());
 #endif
 }
 

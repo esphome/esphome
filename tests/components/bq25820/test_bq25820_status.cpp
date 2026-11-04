@@ -76,6 +76,8 @@ class BQ25820StatusTest : public ::testing::Test {
     this->hub_.set_i2c_address(ADDRESS);
     this->hub_.set_status_publisher(publish_status);
     entities = &this->entities_;
+    // The first poll writes the configuration and publishes nothing
+    this->hub_.update();
   }
 
   binary_sensor::BinarySensor &binary_(size_t index) { return this->entities_.binary[index]; }

@@ -184,10 +184,12 @@ class BQ25820WriteFailureTest : public ::testing::Test {
     this->hub_.update();
     EXPECT_FALSE(this->hub_.status_has_warning());
     EXPECT_EQ(this->bus_.registers[REG_CHARGER_CONTROL], 0xC9);
-    EXPECT_EQ(status_publishes, 1);
-    // The ADC was restarted by this poll, so its first conversion is published by the next
+    // The status was read before this poll wrote the configuration, and the ADC was restarted, so the next
+    // poll publishes both
+    EXPECT_EQ(status_publishes, 0);
     EXPECT_FALSE(this->vbat_.has_state());
     this->hub_.update();
+    EXPECT_EQ(status_publishes, 1);
     EXPECT_FLOAT_EQ(this->vbat_.state, 8.0f);
   }
 
