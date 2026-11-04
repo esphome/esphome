@@ -18,7 +18,11 @@ from esphome.components.bq25820 import (
     sensor,
     text_sensor,
 )
-from esphome.components.bq25820.sensor import CONF_RESISTOR, ntc_calibration
+from esphome.components.bq25820.sensor import (
+    CONF_RESISTOR,
+    ntc_calibration,
+    validate_reference_temperature,
+)
 from esphome.components.const import (
     CONF_B_CONSTANT,
     CONF_CHARGE_CURRENT,
@@ -79,7 +83,7 @@ def test_config_is_packed_into_a_progmem_table(
     assert _hub_config(main_cpp, "charger_defaults") == (
         "bq25820::BQ25820Config{\n"
         "  .limits = {0, 0, 0, 880, 1000},\n"
-        "  .controls = {0x10, 0x0A, 0xC9, 0x00, 0x00, 0x16, 0x01, 0x80},\n"
+        "  .controls = {0x10, 0x0A, 0x00, 0x00, 0x16, 0x01, 0x80, 0xC9},\n"
         "  .ibat_scale = 0.002f,\n"
         "  .iac_scale = 0.002f,\n"
         "}"
@@ -87,7 +91,7 @@ def test_config_is_packed_into_a_progmem_table(
     assert _hub_config(main_cpp, "charger_set") == (
         "bq25820::BQ25820Config{\n"
         "  .limits = {240, 80, 256, 8000, 660},\n"
-        "  .controls = {0x17, 0x9C, 0xCC, 0x04, 0x03, 0xFF, 0x00, 0x80},\n"
+        "  .controls = {0x17, 0x9C, 0x04, 0x03, 0xFF, 0x00, 0x80, 0xCC},\n"
         "  .ibat_scale = 0.002f,\n"
         "  .iac_scale = 0.002f,\n"
         "}"
@@ -173,3 +177,16 @@ def test_watchdog_boolean_keeps_old_configs() -> None:
 def test_platform_needs_an_entity(schema: cv.Schema) -> None:
     with pytest.raises(cv.Invalid, match="at least one of"):
         schema({})
+
+
+@pytest.mark.parametrize("value", ["-273.15°C", "-300°C", "0K"])
+def test_reference_temperature_at_or_below_absolute_zero_is_rejected(
+    value: str,
+) -> None:
+    with pytest.raises(cv.Invalid):
+        validate_reference_temperature(value)
+
+
+def test_reference_temperature_above_absolute_zero_passes() -> None:
+    assert validate_reference_temperature("-273°C") == pytest.approx(-273)
+    assert validate_reference_temperature("25°C") == pytest.approx(25)

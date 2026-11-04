@@ -42,16 +42,16 @@ struct ControlRegister {
 static const ControlRegister CONTROL_REGISTERS[BQ25820_CONTROL_COUNT] PROGMEM = {
     {REG_CHARGE_VOLTAGE_LIMIT, 0x1F},  // VFB_REG
     {REG_TIMER_CONTROL, 0xFE},         // everything but EN_TMR2X
-    {REG_CHARGER_CONTROL, 0xFF},       // VRECHG, EN_HIZ, EN_CHG
     {REG_POWER_PATH_CONTROL, 0x04},    // EN_BATFET_IDEAL_DIODE
     {REG_MPPT_CONTROL, 0x07},          // FULL_SWEEP_TMR[2:1], EN_MPPT
     {REG_TS_THRESHOLD_CONTROL, 0xFF},  // TS_T1, TS_T2, TS_T3, TS_T5
     {REG_TS_REGION_CONTROL, 0x01},     // EN_TS
     {REG_ADC_CONTROL, 0xC0},           // ADC_EN, ADC_RATE
+    {REG_CHARGER_CONTROL, 0xFF},       // VRECHG, EN_HIZ, EN_CHG; last, so charging starts with every limit in place
 };
 static constexpr size_t CONTROL_TIMER = 1;
-static constexpr size_t CONTROL_CHARGER = 2;
-static constexpr size_t CONTROL_MPPT = 4;
+static constexpr size_t CONTROL_MPPT = 3;
+static constexpr size_t CONTROL_CHARGER = 7;
 static constexpr size_t LIMIT_CHARGE_CURRENT = 0;
 static constexpr size_t LIMIT_PRECHARGE_CURRENT = 1;
 static constexpr size_t LIMIT_INPUT_CURRENT = 2;
@@ -60,6 +60,7 @@ static constexpr size_t LIMIT_INPUT_CURRENT = 2;
 static constexpr uint8_t TIMER_CONTROL_WATCHDOG = 0x30;
 // Charger control (0x17)
 static constexpr uint8_t WD_RST = 0x20;
+static constexpr uint8_t EN_CHG = 0x01;
 // Charger status 1 (0x21)
 static constexpr uint8_t WD_STAT = 0x08;
 // Power path control (0x19)
@@ -144,16 +145,17 @@ bool BQ25820Component::watchdog_enabled_() const {
 // Called from update() until it succeeds, and again after a watchdog expiry.
 bool BQ25820Component::write_config_registers_() {
   const BQ25820Config config = this->load_config_();
+  // Stops at the first failure, before the charger control write can enable charging
   bool ok = true;
-  for (size_t i = 0; i < BQ25820_LIMIT_COUNT; i++) {
+  for (size_t i = 0; ok && i < BQ25820_LIMIT_COUNT; i++) {
     if (config.limits[i] != 0)
-      ok &= this->write_byte_16_le(progmem_read_byte(&LIMIT_REGISTERS[i]), config.limits[i]);
+      ok = this->write_byte_16_le(progmem_read_byte(&LIMIT_REGISTERS[i]), config.limits[i]);
   }
-  for (size_t i = 0; i < BQ25820_CONTROL_COUNT; i++) {
+  for (size_t i = 0; ok && i < BQ25820_CONTROL_COUNT; i++) {
     ControlRegister entry;
     progmem_memcpy(&entry, &CONTROL_REGISTERS[i], sizeof(entry));
     const uint8_t value = config.controls[i];
-    ok &= entry.mask == 0xFF ? this->write_byte(entry.reg, value) : this->update_register(entry.reg, entry.mask, value);
+    ok = entry.mask == 0xFF ? this->write_byte(entry.reg, value) : this->update_register(entry.reg, entry.mask, value);
   }
   // One panel sweep at startup, kept pending until it is written
   if (ok && this->force_mppt_sweep_) {
@@ -162,6 +164,8 @@ bool BQ25820Component::write_config_registers_() {
   }
   if (!ok) {
     ESP_LOGW(TAG, "Configuration write failed");
+    // EN_CHG resets to 1, so charging stays off until the configuration is written
+    this->update_register(REG_CHARGER_CONTROL, EN_CHG, 0);
   }
   return ok;
 }
@@ -171,7 +175,8 @@ void BQ25820Component::update() {
   BQ25820StatusRegisters status;
   bool ok = this->read_bytes(REG_CHARGER_STATUS_1, status.data(), status.size());
   // WD_STAT: the watchdog expired and reset the configuration. Nothing is published until it is written.
-  if (ok && (!this->config_written_ || (this->watchdog_enabled_() && (status[0] & WD_STAT) != 0))) {
+  const bool configure = ok && (!this->config_written_ || (this->watchdog_enabled_() && (status[0] & WD_STAT) != 0));
+  if (configure) {
     this->config_written_ = this->write_config_registers_();
     ok = this->config_written_;
   }
@@ -186,7 +191,9 @@ void BQ25820Component::update() {
     this->status_publisher_(status);
 #endif
 #ifdef USE_BQ25820_SENSOR
-  this->publish_adc_(this->load_config_());
+  // ADC_EN was just set again, so the ADC registers still hold 0 until the first conversion completes
+  if (!configure)
+    this->publish_adc_(this->load_config_());
 #endif
 }
 

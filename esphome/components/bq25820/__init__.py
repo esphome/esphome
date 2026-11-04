@@ -272,12 +272,12 @@ def build_config(config: ConfigType) -> cg.StructInitializer:
     controls = (
         charge_voltage,
         timer_control,
-        charger_control,
         power_path_control,
         mppt_control,
         ts_thresholds,
         ts_region_control,
         adc_control,
+        charger_control,
     )
     return cg.StructInitializer(
         BQ25820Config,

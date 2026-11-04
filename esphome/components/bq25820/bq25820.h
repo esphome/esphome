@@ -28,7 +28,7 @@ static constexpr size_t BQ25820_CONTROL_COUNT = 8;
 struct BQ25820Config {
   // ICHG, IPRECHG, IAC_DPM, VAC_DPM and VAC_REV; 0 keeps the reset value
   std::array<uint16_t, BQ25820_LIMIT_COUNT> limits;
-  // VFB_REG, timer, charger, power path, MPPT, TS threshold, TS region and ADC control
+  // VFB_REG, timer, power path, MPPT, TS threshold, TS region, ADC and charger control
   std::array<uint8_t, BQ25820_CONTROL_COUNT> controls;
   // Amps per current ADC step, from the sense resistors
   float ibat_scale;

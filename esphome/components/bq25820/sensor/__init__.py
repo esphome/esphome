@@ -31,6 +31,10 @@ CONF_TEMP_IN_C = "temp_in_c"
 CONF_RESISTOR = "resistor"
 ZERO_POINT = 273.15
 _ABOVE_ZERO = cv.Range(min=0, min_included=False)
+# In °C; at absolute zero ntc_calibration() divides by zero
+validate_reference_temperature = cv.All(
+    cv.temperature, cv.Range(min=-ZERO_POINT, min_included=False)
+)
 
 _VOLTAGE_SCHEMA = sensor.sensor_schema(
     unit_of_measurement=UNIT_VOLT,
@@ -81,7 +85,7 @@ CONFIG_SCHEMA = cv.All(
                     ),
                     cv.Optional(
                         CONF_REFERENCE_TEMPERATURE, default="25°C"
-                    ): cv.temperature,
+                    ): validate_reference_temperature,
                     cv.Optional(CONF_RESISTOR, default="10kΩ"): cv.All(
                         cv.resistance, _ABOVE_ZERO
                     ),

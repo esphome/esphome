@@ -13,7 +13,7 @@ static constexpr uint8_t WD_STAT = 0x08;
 // its reset value
 static constexpr BQ25820Config SET_CONFIG{
     .limits = {240, 0, 256, 8000, 660},
-    .controls = {0x17, 0x9C, 0xCC, 0x04, 0x03, 0xFF, 0x00, 0x80},
+    .controls = {0x17, 0x9C, 0x04, 0x03, 0xFF, 0x00, 0x80, 0xCC},
     .ibat_scale = 0.002f,
     .iac_scale = 0.002f,
 };
@@ -129,6 +129,7 @@ TEST(BQ25820Temperature, FollowsTheBParameterCalibration) {
   hub.set_i2c_address(ADDRESS);
   hub.set_temp_in_c_sensor(&temperature);
   hub.set_ntc_calibration(1.0f / T0 + logf(PULL_UP / R0) / B, 1.0f / B);
+  hub.update();  // configures the chip and restarts the ADC
   for (uint16_t raw : {100, 300, 512, 700, 900}) {
     SCOPED_TRACE(raw);
     // TS_ADC (0x37), LSB first
@@ -146,6 +147,149 @@ TEST(BQ25820Temperature, FollowsTheBParameterCalibration) {
   bus.registers[0x38] = 0x02;
   hub.update();
   EXPECT_NEAR(temperature.state, 30.0f, 0.01f);
+}
+
+static constexpr uint8_t REG_CHARGER_CONTROL = 0x17;
+static constexpr uint8_t EN_CHG = 0x01;
+
+static int status_publishes = 0;  // NOLINT(cppcoreguidelines-avoid-non-const-global-variables)
+
+// A chip at its reset values, with EN_CHG set, and a hub with the default configuration
+class BQ25820WriteFailureTest : public ::testing::Test {
+ protected:
+  void SetUp() override {
+    status_publishes = 0;
+    this->hub_.set_i2c_bus(&this->bus_);
+    this->hub_.set_i2c_address(ADDRESS);
+    this->hub_.set_status_publisher([](const BQ25820StatusRegisters &) { status_publishes++; });
+    this->hub_.set_vbat_sensor(&this->vbat_);
+    this->bus_.registers[0x3D] = 0x18;  // PART_INFORMATION
+    this->bus_.registers[REG_CHARGER_CONTROL] = 0xC9;
+    // VBAT_ADC (0x33): 4000 steps, 8 V
+    this->bus_.registers[0x33] = 4000 & 0xFF;
+    this->bus_.registers[0x34] = 4000 >> 8;
+  }
+
+  // Polls with writes to `reg` failing, then once they work again
+  void check_failed_write_(uint8_t reg) {
+    this->bus_.fail_write_register = reg;
+    for (int i = 0; i < 2; i++) {
+      this->hub_.update();
+      EXPECT_TRUE(this->hub_.status_has_warning());
+      EXPECT_EQ(this->bus_.registers[REG_CHARGER_CONTROL] & EN_CHG, 0);
+      EXPECT_EQ(status_publishes, 0);
+      EXPECT_FALSE(this->vbat_.has_state());
+    }
+    this->bus_.fail_write_register = -1;
+    this->hub_.update();
+    EXPECT_FALSE(this->hub_.status_has_warning());
+    EXPECT_EQ(this->bus_.registers[REG_CHARGER_CONTROL], 0xC9);
+    EXPECT_EQ(status_publishes, 1);
+    // The ADC was restarted by this poll, so its first conversion is published by the next
+    EXPECT_FALSE(this->vbat_.has_state());
+    this->hub_.update();
+    EXPECT_FLOAT_EQ(this->vbat_.state, 8.0f);
+  }
+
+  RegisterBus bus_;
+  BQ25820Component hub_{&DEFAULT_CONFIG, false};
+  sensor::Sensor vbat_;
+};
+
+TEST_F(BQ25820WriteFailureTest, FailedResetMarksSetupFailed) {
+  this->bus_.fail_write_register = 0x19;  // POWER_PATH_CONTROL, REG_RST
+  this->hub_.setup();
+  EXPECT_TRUE(this->hub_.is_failed());
+  EXPECT_EQ(this->bus_.registers[0x08], 0);  // no configuration written
+  EXPECT_EQ(status_publishes, 0);
+}
+
+TEST_F(BQ25820WriteFailureTest, FailedLimitWriteKeepsChargingOff) {
+  this->check_failed_write_(0x08);  // VAC_DPM
+}
+
+TEST_F(BQ25820WriteFailureTest, FailedControlWriteKeepsChargingOff) {
+  this->check_failed_write_(0x1B);  // TS_THRESHOLD_CONTROL
+}
+
+TEST_F(BQ25820ConfigTest, FailedSweepIsRetriedOnce) {
+  this->bus_.fail_write_register = 0x1A;  // MPPT_CONTROL
+  this->bus_.writes_before_failure = 1;   // the configuration write, then FORCE_SWEEP fails
+  this->hub_.update();
+  EXPECT_TRUE(this->hub_.status_has_warning());
+  EXPECT_EQ(this->reg_(0x1A), 0x03);
+  this->bus_.fail_write_register = -1;
+  this->hub_.update();
+  EXPECT_FALSE(this->hub_.status_has_warning());
+  EXPECT_EQ(this->reg_(0x1A), 0x83);
+  // A watchdog rewrite does not sweep again
+  this->reg_(0x1A) = 0;
+  this->reg_(REG_CHARGER_STATUS_1) = WD_STAT;
+  this->hub_.update();
+  EXPECT_EQ(this->reg_(0x1A), 0x03);
+}
+
+TEST_F(BQ25820ConfigTest, FailedWatchdogFeedAfterTheSweepDoesNotRewriteOrSweepAgain) {
+  this->bus_.fail_write_register = REG_CHARGER_CONTROL;
+  this->bus_.writes_before_failure = 1;  // the configuration write, then WD_RST fails
+  this->hub_.update();
+  EXPECT_TRUE(this->hub_.status_has_warning());
+  EXPECT_EQ(this->reg_(0x1A), 0x83);
+  EXPECT_EQ(this->reg_(REG_CHARGER_CONTROL), 0xCC);
+  this->bus_.fail_write_register = -1;
+  this->reg_(0x1A) = 0x03;
+  this->reg_(0x15) = 0;
+  this->hub_.update();
+  EXPECT_FALSE(this->hub_.status_has_warning());
+  EXPECT_EQ(this->reg_(0x1A), 0x03);
+  EXPECT_EQ(this->reg_(0x15), 0);
+  EXPECT_EQ(this->reg_(REG_CHARGER_CONTROL), 0xCC | 0x20);
+}
+
+TEST(BQ25820Adc, ScalesVoltagesAndSignedCurrentsBySenseResistor) {
+  // A 2 mOhm battery shunt and a 5 mOhm input shunt: 10 uV and 4 uV ADC steps
+  static constexpr BQ25820Config CONFIG{
+      .limits = {0, 0, 0, 880, 1000},
+      .controls = {0x10, 0x0A, 0x00, 0x00, 0x16, 0x01, 0x80, 0xC9},
+      .ibat_scale = 0.010f / 2.0f,
+      .iac_scale = 0.004f / 5.0f,
+  };
+  struct Reading {
+    uint16_t iac, ibat, vac, vbat, vsys;
+    float iac_a, ibat_a, vac_v, vbat_v, vsys_v;
+  };
+  static constexpr std::array<Reading, 3> READINGS{{
+      {2500, 1000, 12000, 6400, 6500, 2.0f, 5.0f, 24.0f, 12.8f, 13.0f},
+      // Discharging: IBAT and IAC are two's complement; voltages above 32767 steps stay positive
+      {static_cast<uint16_t>(-125), static_cast<uint16_t>(-1234), 0x9000, 0, 1, -0.1f, -6.17f, 73.728f, 0.0f, 0.002f},
+      {0x7FFF, 0x8000, 0xFFFF, 1, 0, 26.2136f, -163.84f, 131.07f, 0.002f, 0.0f},
+  }};
+  RegisterBus bus;
+  BQ25820Component hub{&CONFIG, false};
+  sensor::Sensor iac, ibat, vac, vbat, vsys;
+  hub.set_i2c_bus(&bus);
+  hub.set_i2c_address(ADDRESS);
+  hub.set_iac_sensor(&iac);
+  hub.set_ibat_sensor(&ibat);
+  hub.set_vac_sensor(&vac);
+  hub.set_vbat_sensor(&vbat);
+  hub.set_vsys_sensor(&vsys);
+  hub.update();
+  for (const Reading &reading : READINGS) {
+    SCOPED_TRACE(reading.ibat);
+    // IAC, IBAT, VAC, VBAT and VSYS ADCs from 0x2D, LSB first
+    const std::array<uint16_t, 5> codes{reading.iac, reading.ibat, reading.vac, reading.vbat, reading.vsys};
+    for (size_t i = 0; i < codes.size(); i++) {
+      bus.registers[0x2D + 2 * i] = codes[i] & 0xFF;
+      bus.registers[0x2E + 2 * i] = codes[i] >> 8;
+    }
+    hub.update();
+    EXPECT_NEAR(iac.state, reading.iac_a, 1e-4f);
+    EXPECT_NEAR(ibat.state, reading.ibat_a, 1e-4f);
+    EXPECT_NEAR(vac.state, reading.vac_v, 1e-4f);
+    EXPECT_NEAR(vbat.state, reading.vbat_v, 1e-4f);
+    EXPECT_NEAR(vsys.state, reading.vsys_v, 1e-4f);
+  }
 }
 
 }  // namespace esphome::bq25820::testing
