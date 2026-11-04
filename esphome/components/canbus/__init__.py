@@ -100,13 +100,16 @@ CAN_SPEEDS = CanSpeed.options(
 # Data phase rates for a CAN FD platform's own schema
 CAN_DATA_SPEEDS = {
     **CAN_SPEEDS,
-    "2000KBPS": CanSpeed.CAN_2000KBPS,
-    "3000KBPS": CanSpeed.CAN_3000KBPS,
-    "4000KBPS": CanSpeed.CAN_4000KBPS,
-    "5000KBPS": CanSpeed.CAN_5000KBPS,
-    "6000KBPS": CanSpeed.CAN_6000KBPS,
-    "7000KBPS": CanSpeed.CAN_7000KBPS,
-    "8000KBPS": CanSpeed.CAN_8000KBPS,
+    **CanSpeed.options(
+        "2000KBPS",
+        "3000KBPS",
+        "4000KBPS",
+        "5000KBPS",
+        "6000KBPS",
+        "7000KBPS",
+        "8000KBPS",
+        prefix="CAN_",
+    ),
 }
 
 
