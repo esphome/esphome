@@ -100,6 +100,7 @@ class RS485FrameHub : public Component, public uart::UARTDevice {
   void maybe_tx_(uint32_t now);
   /// idle_gap: nothing was received or sent for min_silence.
   bool bus_silent_(uint32_t now) const { return now - this->last_activity_time_ >= this->tx_gate_interval_; }
+  /// Releases the head frame; loop() sends it once the gate delay has passed.
   void send_next_(uint32_t now);
   void transmit_head_(uint32_t now);
   /// How long len bytes take on the wire at the UART's baud rate and frame format.
@@ -109,7 +110,7 @@ class RS485FrameHub : public Component, public uart::UARTDevice {
   // The unescaped frame being received, then the `payload` on_frame receives.
   uint8_t *const rx_payload_;
   // Ring of max_queue_size_ slots holding the unescaped frame and its CRC, escaped as it is written.
-  // While tx_start_pending_ the head slot is the frame waiting out the gate delay.
+  // While tx_start_pending_ the head slot is the frame released by the gate, waiting out the gate delay.
   uint8_t *const tx_queue_;
   uint16_t *const tx_queue_len_;
   const uint8_t *tx_gate_frame_type_{nullptr};

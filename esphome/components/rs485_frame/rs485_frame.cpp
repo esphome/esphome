@@ -34,6 +34,7 @@ void RS485FrameHub::loop() {
   }
   this->read_available([this, now](uint8_t byte) { this->handle_rx_byte_(byte, now); });
 
+  // Transmits only after this pass's RX is drained, so frame_trigger sees any byte that followed the gate frame.
   this->maybe_tx_(now);
   // idle_gap also needs the bus to still be silent, since RX during the delay may be a frame in progress.
   if (this->tx_start_pending_ && now - this->tx_delay_start_ >= this->tx_gate_delay_ &&
@@ -110,6 +111,9 @@ void RS485FrameHub::reset_rx_() {
 void RS485FrameHub::handle_rx_byte_(uint8_t byte, uint32_t now) {
   this->last_rx_time_ = now;
   this->last_activity_time_ = now;
+  // frame_trigger answers in the gap right after the gate frame; a later byte means another node took it.
+  if (this->tx_gate_mode_ == TX_GATE_FRAME_TRIGGER)
+    this->tx_start_pending_ = false;
   if (!this->after_dle_) {
     if (byte == this->dle_) {
       this->after_dle_ = true;
@@ -215,12 +219,8 @@ void RS485FrameHub::maybe_tx_(uint32_t now) {
 void RS485FrameHub::send_next_(uint32_t now) {
   if (this->tx_start_pending_ || this->tx_queue_count_ == 0)
     return;
-  if (this->tx_gate_delay_ > 0) {
-    this->tx_delay_start_ = now;
-    this->tx_start_pending_ = true;
-  } else {
-    this->transmit_head_(now);
-  }
+  this->tx_delay_start_ = now;
+  this->tx_start_pending_ = true;
 }
 
 void RS485FrameHub::transmit_head_(uint32_t now) {

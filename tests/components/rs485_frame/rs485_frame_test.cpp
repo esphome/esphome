@@ -107,7 +107,6 @@ class RS485FrameHubProbe : public ProbeStorage, public RS485FrameHub {
     this->transmit_head_(0);
     return this->fake_uart.written;
   }
-  void maybe_tx_for_test(uint32_t now) { this->maybe_tx_(now); }
   void send_next_for_test(uint32_t now) { this->send_next_(now); }
   void loop_at_for_test(uint32_t now, const std::vector<uint8_t> &rx = {}) {
     this->fake_uart.rx = rx;
@@ -331,9 +330,9 @@ TEST(RS485FrameHubTest, IdleGapTransmitsOnQuietBus) {
   ASSERT_TRUE(hub.queue_frame(DATA, sizeof(DATA)));
 
   const uint32_t boot = hub.last_activity_for_test();
-  hub.maybe_tx_for_test(boot + 19);
+  hub.loop_at_for_test(boot + 19);
   EXPECT_EQ(hub.queue_depth_for_test(), 1u);
-  hub.maybe_tx_for_test(boot + 20);
+  hub.loop_at_for_test(boot + 20);
   EXPECT_EQ(hub.queue_depth_for_test(), 0u);
   EXPECT_FALSE(hub.fake_uart.written.empty());
 }
@@ -348,13 +347,13 @@ TEST(RS485FrameHubTest, FixedDelaySendsFirstFrameRightAway) {
   ASSERT_TRUE(hub.queue_frame(DATA, sizeof(DATA)));
 
   const uint32_t now = millis();
-  hub.maybe_tx_for_test(now);
+  hub.loop_at_for_test(now);
   EXPECT_EQ(hub.queue_depth_for_test(), 0u);
 
   ASSERT_TRUE(hub.queue_frame(DATA, sizeof(DATA)));
-  hub.maybe_tx_for_test(now + 99);
+  hub.loop_at_for_test(now + 99);
   EXPECT_EQ(hub.queue_depth_for_test(), 1u);
-  hub.maybe_tx_for_test(now + 100);
+  hub.loop_at_for_test(now + 100);
   EXPECT_EQ(hub.queue_depth_for_test(), 0u);
 }
 
@@ -371,16 +370,16 @@ TEST(RS485FrameHubTest, FixedDelayWaitsForTheFrameOnTheWire) {
   ASSERT_TRUE(hub.queue_frame(DATA, sizeof(DATA)));
 
   const uint32_t now = millis();
-  hub.maybe_tx_for_test(now);
+  hub.loop_at_for_test(now);
   ASSERT_EQ(hub.queue_depth_for_test(), 0u);
   // 10 bits per byte at 9600 baud
   const uint32_t wire_ms = (hub.fake_uart.written.size() * 10 * 1000 + 9599) / 9600;
   ASSERT_GT(wire_ms, 1u);
 
   ASSERT_TRUE(hub.queue_frame(DATA, sizeof(DATA)));
-  hub.maybe_tx_for_test(now + wire_ms);
+  hub.loop_at_for_test(now + wire_ms);
   EXPECT_EQ(hub.queue_depth_for_test(), 1u);
-  hub.maybe_tx_for_test(now + wire_ms + 1);
+  hub.loop_at_for_test(now + wire_ms + 1);
   EXPECT_EQ(hub.queue_depth_for_test(), 0u);
 }
 
@@ -405,6 +404,52 @@ TEST(RS485FrameHubTest, IdleGapDelayWaitsForSilenceAfterRx) {
   hub.loop_at_for_test(boot + 49);
   EXPECT_EQ(hub.queue_depth_for_test(), 0u);
   EXPECT_FALSE(hub.fake_uart.written.empty());
+}
+
+// frame_trigger answers only in the gap right after the gate frame: bytes that follow it in the same
+// receive batch mean another node already took the gap, so the frame waits for the next gate frame.
+TEST(RS485FrameHubTest, FrameTriggerYieldsToRxAfterGateFrame) {
+  RS485FrameHubProbe hub;
+  static const uint8_t GATE[] = {0x01, 0x01};
+  hub.set_tx_gate_frame_type(GATE, sizeof(GATE));
+  hub.setup();
+  static const uint8_t DATA[] = {0x01, 0x02};
+  ASSERT_TRUE(hub.queue_frame(DATA, sizeof(DATA)));
+
+  std::vector<uint8_t> rx = hub.build_frame_for_test({0x01, 0x01});
+  rx.insert(rx.end(), {0x10, 0x02, 0x05});
+  hub.loop_at_for_test(1000, rx);
+  EXPECT_EQ(hub.queue_depth_for_test(), 1u);
+  EXPECT_TRUE(hub.fake_uart.written.empty());
+
+  hub.loop_at_for_test(1010, hub.build_frame_for_test({0x01, 0x01}));
+  EXPECT_EQ(hub.queue_depth_for_test(), 0u);
+  EXPECT_EQ(hub.fake_uart.written, hub.build_frame_for_test({0x01, 0x02}));
+}
+
+// RX during the frame_trigger gate delay gives the gap up; the frame waits for the next gate frame.
+TEST(RS485FrameHubTest, FrameTriggerDelayCancelledByRx) {
+  RS485FrameHubProbe hub;
+  static const uint8_t GATE[] = {0x01, 0x01};
+  hub.set_tx_gate_frame_type(GATE, sizeof(GATE));
+  hub.set_tx_gate_delay(10);
+  hub.setup();
+  static const uint8_t DATA[] = {0x01, 0x02};
+  ASSERT_TRUE(hub.queue_frame(DATA, sizeof(DATA)));
+
+  hub.loop_at_for_test(1000, hub.build_frame_for_test({0x01, 0x01}));
+  hub.loop_at_for_test(1005, {0x10, 0x02});
+  hub.loop_at_for_test(1010);
+  hub.loop_at_for_test(1100);
+  EXPECT_EQ(hub.queue_depth_for_test(), 1u);
+  EXPECT_TRUE(hub.fake_uart.written.empty());
+
+  hub.loop_at_for_test(1200, hub.build_frame_for_test({0x01, 0x01}));
+  hub.loop_at_for_test(1209);
+  EXPECT_EQ(hub.queue_depth_for_test(), 1u);
+  hub.loop_at_for_test(1210);
+  EXPECT_EQ(hub.queue_depth_for_test(), 0u);
+  EXPECT_EQ(hub.fake_uart.written, hub.build_frame_for_test({0x01, 0x02}));
 }
 
 // A partial frame that timed out is dropped before the next bytes are read, so a late continuation
