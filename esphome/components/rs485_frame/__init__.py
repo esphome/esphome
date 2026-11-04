@@ -1,3 +1,5 @@
+from dataclasses import dataclass, field
+
 from esphome import automation
 import esphome.codegen as cg
 from esphome.components import uart
@@ -10,7 +12,7 @@ from esphome.const import (
     CONF_PAYLOAD,
     CONF_TYPE,
 )
-from esphome.core import HexInt, Lambda
+from esphome.core import CORE, ID, HexInt, Lambda
 from esphome.types import ConfigType
 
 CODEOWNERS = ["@b3nj1"]
@@ -19,6 +21,19 @@ DOMAIN = "rs485_frame"
 MULTI_CONF = True
 
 DOC_COMMAND_FORMAT_URL = "https://esphome.io/components/rs485_frame/#command-format"
+
+
+@dataclass
+class RS485FrameData:
+    # Hub id and length of each constant send_frame, checked against the hub's max_frame_length
+    send_frames: list[tuple[ID, int]] = field(default_factory=list)
+
+
+def _data() -> RS485FrameData:
+    if DOMAIN not in CORE.data:
+        CORE.data[DOMAIN] = RS485FrameData()
+    return CORE.data[DOMAIN]
+
 
 rs485_frame_ns = cg.esphome_ns.namespace("rs485_frame")
 RS485FrameHub = rs485_frame_ns.class_("RS485FrameHub", cg.Component, uart.UARTDevice)
@@ -331,14 +346,30 @@ def _progmem_span(config: ConfigType, value: list[int]) -> str:
 
 def _validate_send_frame(config: ConfigType) -> ConfigType:
     parts = (config[CONF_FRAME_TYPE], config[CONF_PAYLOAD])
-    if not any(isinstance(part, Lambda) for part in parts) and (
-        sum(map(len, parts)) < MIN_FRAME_LENGTH
-    ):
+    if any(isinstance(part, Lambda) for part in parts):
+        return config
+    if (length := sum(map(len, parts))) < MIN_FRAME_LENGTH:
         raise cv.Invalid(
             f"rs485_frame.send_frame frame_type + payload must be at least "
             f"{MIN_FRAME_LENGTH} bytes, the shortest frame rs485_frame accepts on receive"
         )
+    # The hub's max_frame_length is only known once the whole config is validated
+    _data().send_frames.append((config[CONF_ID], length))
     return config
+
+
+def _final_validate(config: ConfigType) -> ConfigType:
+    max_len = config[CONF_MAX_FRAME_LENGTH]
+    for hub_id, length in _data().send_frames:
+        if hub_id.id == config[CONF_ID].id and length > max_len:
+            raise cv.Invalid(
+                f"rs485_frame.send_frame sends a {length}-byte frame, exceeding this hub's "
+                f"max_frame_length: ({max_len})"
+            )
+    return config
+
+
+FINAL_VALIDATE_SCHEMA = _final_validate
 
 
 automation.register_apply_action(

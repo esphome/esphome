@@ -85,3 +85,20 @@ def test_send_frame_constant_under_two_bytes_raises_clean_invalid(
     assert any("at least 2 bytes" in str(err) for err in result.errors), [
         str(err) for err in result.errors
     ]
+
+
+def test_send_frame_constant_exceeding_max_frame_length_raises_clean_invalid(
+    fixture_path: Path,
+) -> None:
+    """send_frame with constant frame_type and payload longer than the hub's
+    max_frame_length: must be rejected, like the button."""
+    CORE.config_path = fixture_path / "dummy.yaml"
+    raw_config = yaml_util.load_yaml(
+        fixture_path / "rs485_frame_send_frame_exceeds_max_frame_length.yaml"
+    )
+
+    result = esphome_config.validate_config(raw_config, {})
+
+    assert any("5-byte frame" in str(err) for err in result.errors), [
+        str(err) for err in result.errors
+    ]
