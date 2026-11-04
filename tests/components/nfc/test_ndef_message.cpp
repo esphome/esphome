@@ -18,9 +18,10 @@ TEST(NdefMessage, ParsesShortTextRecord) {
 }
 
 TEST(NdefMessage, ParsesRecordWithId) {
-  NdefMessage message(std::vector<uint8_t>{0xD9, 0x01, 0x01, 0x02, 'T', 'i', 'd', 'p'});
+  NdefMessage message(std::vector<uint8_t>{0xD9, 0x01, 0x04, 0x02, 'T', 'i', 'd', 0x02, 'e', 'n', 'x'});
   ASSERT_EQ(message.get_records().size(), 1u);
   EXPECT_EQ(message.get_records()[0]->get_id(), "id");
+  EXPECT_EQ(message.get_records()[0]->get_payload(), "x");
 }
 
 TEST(NdefMessage, RejectsTypeLengthPastEnd) {
