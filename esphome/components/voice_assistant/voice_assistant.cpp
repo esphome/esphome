@@ -536,9 +536,15 @@ void VoiceAssistant::loop() {
       // still announcing our response, the microphone must stay shut, otherwise
       // the device records its own response and answers it. Only our own
       // response counts; an unrelated announcement does not hold this state.
-      // A player that starts only after the start timeout fired is not held.
       if ((this->media_player_ != nullptr) &&
           (this->media_player_response_state_ == MediaPlayerResponseState::PLAYING)) {
+        break;
+      }
+      // The start timeout fired before playback began: skip the follow-up turn, so a late start
+      // cannot play into an open microphone.
+      if ((this->media_player_ != nullptr) &&
+          (this->media_player_response_state_ == MediaPlayerResponseState::URL_SENT)) {
+        this->set_state_(State::IDLE, State::IDLE);
         break;
       }
 #endif
@@ -774,10 +780,7 @@ void VoiceAssistant::request_stop() {
       // stop it the same way STREAMING_RESPONSE does.
       if ((this->media_player_ != nullptr) &&
           (this->media_player_response_state_ == MediaPlayerResponseState::PLAYING)) {
-        this->media_player_->make_call()
-            .set_command(media_player::MEDIA_PLAYER_COMMAND_STOP)
-            .set_announcement(true)
-            .perform();
+        this->cancel_response_();
       }
 #endif
       break;  // Let the incoming audio stream finish then it will go to idle.
