@@ -1106,6 +1106,39 @@ constexpr std::array<uint8_t, sizeof(T)> decode_value(T val) {
   return ret;
 }
 
+/// Write the low 16, 24 or 32 bits of \p value to \p dst, most significant byte first (be) or least
+/// significant byte first (le). Returns the pointer past the last byte written.
+constexpr uint8_t *put_be16(uint8_t *dst, uint16_t value) {
+  dst[0] = static_cast<uint8_t>(value >> 8);
+  dst[1] = static_cast<uint8_t>(value);
+  return dst + 2;
+}
+constexpr uint8_t *put_be24(uint8_t *dst, uint32_t value) {
+  dst[0] = static_cast<uint8_t>(value >> 16);
+  dst[1] = static_cast<uint8_t>(value >> 8);
+  dst[2] = static_cast<uint8_t>(value);
+  return dst + 3;
+}
+constexpr uint8_t *put_be32(uint8_t *dst, uint32_t value) {
+  dst[0] = static_cast<uint8_t>(value >> 24);
+  dst[1] = static_cast<uint8_t>(value >> 16);
+  dst[2] = static_cast<uint8_t>(value >> 8);
+  dst[3] = static_cast<uint8_t>(value);
+  return dst + 4;
+}
+constexpr uint8_t *put_le16(uint8_t *dst, uint16_t value) {
+  dst[0] = static_cast<uint8_t>(value);
+  dst[1] = static_cast<uint8_t>(value >> 8);
+  return dst + 2;
+}
+constexpr uint8_t *put_le32(uint8_t *dst, uint32_t value) {
+  dst[0] = static_cast<uint8_t>(value);
+  dst[1] = static_cast<uint8_t>(value >> 8);
+  dst[2] = static_cast<uint8_t>(value >> 16);
+  dst[3] = static_cast<uint8_t>(value >> 24);
+  return dst + 4;
+}
+
 /// Decode a two-digit packed BCD byte (tens in the high nibble) to its value, e.g. 0x59 to 59.
 constexpr uint8_t bcd_to_uint8(uint8_t bcd) { return (bcd >> 4) * 10 + (bcd & 0x0F); }
 /// Encode a value from 0 to 99 as a two-digit packed BCD byte, e.g. 59 to 0x59.
