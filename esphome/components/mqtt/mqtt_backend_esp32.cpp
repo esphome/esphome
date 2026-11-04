@@ -298,7 +298,7 @@ void MQTTBackendESP32::esphome_mqtt_task(void *params) {
         switch (elem->type) {
           case MQTT_QUEUE_TYPE_SUBSCRIBE:
             if (esp_mqtt_client_subscribe(this_mqtt->handler_.get(), elem->topic, elem->qos) == -1)
-              this_mqtt->subscribes_lost_.fetch_add(1, std::memory_order_relaxed);
+              this_mqtt->count_lost_subscribe_();
             break;
 
           case MQTT_QUEUE_TYPE_UNSUBSCRIBE:
@@ -315,7 +315,7 @@ void MQTTBackendESP32::esphome_mqtt_task(void *params) {
             break;
         }
       } else if (elem->type == MQTT_QUEUE_TYPE_SUBSCRIBE) {
-        this_mqtt->subscribes_lost_.fetch_add(1, std::memory_order_relaxed);
+        this_mqtt->count_lost_subscribe_();
       }
       this_mqtt->mqtt_outbound_pool_.release(elem);
     }
