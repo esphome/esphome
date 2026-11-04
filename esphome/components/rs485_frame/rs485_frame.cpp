@@ -166,7 +166,7 @@ bool RS485FrameHub::check_crc_() const {
 }
 
 bool RS485FrameHub::crc_matches_(bool include_header) const {
-  uint8_t crc[2];
+  uint8_t crc[2]{};
   this->encode_crc_(this->rx_payload_, this->rx_payload_len_, include_header, crc);
   return memcmp(crc, this->rx_payload_ + this->rx_payload_len_, this->crc_len_) == 0;
 }
