@@ -8,6 +8,7 @@ from esphome.components.zephyr import (
     _disable_board_cdc_acm_overlay,
     zephyr_claim_cdc_acm,
     zephyr_enable_cdc_acm_rate_callback,
+    zephyr_require_cdc_acm,
     zephyr_use_usb_device_next,
 )
 from esphome.components.zephyr.const import (
@@ -28,7 +29,7 @@ from esphome.core import CORE
 
 @pytest.fixture(autouse=True)
 def clean_zephyr_data() -> None:
-    CORE.data[KEY_ZEPHYR] = {"cdc_acm_users": {}}
+    CORE.data[KEY_ZEPHYR] = {"cdc_acm_users": {}, "cdc_acm_required": False}
 
 
 def _users(id: int) -> list[str]:
@@ -92,6 +93,7 @@ def _prj_conf_for(platform: str, version: cv.Version) -> dict[str, object]:
     }
     CORE.data[KEY_ZEPHYR] = {
         "cdc_acm_users": {},
+        "cdc_acm_required": False,
         KEY_PRJ_CONF: {},
         KEY_OVERLAY: {},
         KEY_OVERLAY_BUILDER: [],
@@ -163,3 +165,28 @@ def test_rate_callback_options(version: cv.Version, legacy_option: bool) -> None
 
     prj_conf = CORE.data[KEY_ZEPHYR][KEY_PRJ_CONF].get("", {})
     assert ("CONFIG_CDC_ACM_DTE_RATE_CALLBACK_SUPPORT" in prj_conf) is legacy_option
+
+
+@pytest.mark.parametrize(
+    ("version", "port_added"),
+    [(cv.Version(2, 9, 2), False), (cv.Version(3, 4, 1), True)],
+)
+def test_dfu_without_claimed_port(version: cv.Version, port_added: bool) -> None:
+    CORE.data[KEY_CORE] = {
+        KEY_TARGET_PLATFORM: PLATFORM_NRF52,
+        KEY_FRAMEWORK_VERSION: version,
+    }
+    CORE.data[KEY_ZEPHYR] = {
+        "cdc_acm_users": {},
+        "cdc_acm_required": False,
+        KEY_PRJ_CONF: {},
+        KEY_OVERLAY: {},
+        KEY_OVERLAY_BUILDER: [],
+    }
+    zephyr_require_cdc_acm()
+    _cdc_acm_add_ports()
+
+    # The new stack turns off the board's port, so DFU needs one of its own
+    assert (
+        "cdc_acm_uart0" in CORE.data[KEY_ZEPHYR][KEY_OVERLAY].get("", "")
+    ) is port_added

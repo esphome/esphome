@@ -21,7 +21,7 @@ from esphome.components.zephyr import (
     zephyr_add_prj_conf,
     zephyr_data,
     zephyr_enable_cdc_acm_rate_callback,
-    zephyr_enable_usb_cdc_acm,
+    zephyr_require_cdc_acm,
     zephyr_set_core_data,
     zephyr_setup_preferences,
     zephyr_to_code,
@@ -583,7 +583,7 @@ async def _dfu_to_code(dfu_config):
     await cg.add_pin(var.set_reset_pin, dfu_config.get(CONF_RESET_PIN))
 
     # DFU uses cdc rate callback to enter bootloader which was disabled explicitly to save power.
-    zephyr_enable_usb_cdc_acm()
+    zephyr_require_cdc_acm()
     zephyr_enable_cdc_acm_rate_callback()
     await cg.register_component(var, dfu_config)
 

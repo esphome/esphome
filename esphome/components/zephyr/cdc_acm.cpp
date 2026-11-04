@@ -34,8 +34,16 @@ void CdcAcm::start_() {
   }
 #endif
   started.store(true, std::memory_order_release);
-  // Runs after every component's setup(), so all callbacks are registered by then
+  // Runs on the next scheduler pass; add_on_rate_callback() passes the rates found to later callbacks
   rate_changed();
+}
+
+const device *CdcAcm::device_at_(size_t index) {
+#if DT_HAS_COMPAT_STATUS_OKAY(zephyr_cdc_acm_uart)
+  return CDC_DEVICES[index];
+#else
+  return nullptr;
+#endif
 }
 
 void CdcAcm::report_rates_() {

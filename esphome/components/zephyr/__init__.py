@@ -87,6 +87,8 @@ class ZephyrData(TypedDict):
     overlay_builder: list[Callable[[], str]]
     # CDC ACM port number -> components that use it
     cdc_acm_users: dict[int, list[CdcAcmUser]]
+    # Add port 0 even when no component claims a port (see zephyr_require_cdc_acm())
+    cdc_acm_required: bool
 
 
 def zephyr_set_core_data(config: ConfigType) -> None:
@@ -99,6 +101,7 @@ def zephyr_set_core_data(config: ConfigType) -> None:
         },  # set empty to make sure that overlay is cleared after config change
         overlay_builder=[],
         cdc_acm_users={},
+        cdc_acm_required=False,
         extra_build_files={},
         pm_static=[],
         kconfig="",
@@ -325,10 +328,24 @@ def zephyr_enable_cdc_acm_rate_callback() -> None:
         zephyr_add_prj_conf("CDC_ACM_DTE_RATE_CALLBACK_SUPPORT", True)
 
 
+def zephyr_require_cdc_acm() -> None:
+    """Make sure the USB device has a CDC ACM port, even when no component claims one.
+
+    For users that only watch the bit rate the host sets (DFU), which works on any
+    port. On the legacy stack, boards with a USB serial backend keep their own port.
+    """
+    zephyr_enable_usb_cdc_acm()
+    if zephyr_use_usb_device_next():
+        zephyr_data()["cdc_acm_required"] = True
+
+
 def _cdc_acm_add_ports() -> None:
     """Set up every CDC ACM port claimed with zephyr_claim_cdc_acm()."""
-    users = zephyr_data()["cdc_acm_users"]
-    if not users:
+    data = zephyr_data()
+    ids = sorted(data["cdc_acm_users"])
+    if not ids and data["cdc_acm_required"]:
+        ids = [0]
+    if not ids:
         return
     zephyr_enable_usb_cdc_acm()
     nodes = "".join(
@@ -336,7 +353,7 @@ def _cdc_acm_add_ports() -> None:
                 cdc_acm_uart{id}: cdc_acm_uart{id} {{
                     compatible = "zephyr,cdc-acm-uart";
                 }};"""
-        for id in sorted(users)
+        for id in ids
     )
     zephyr_add_overlay(
         f"""

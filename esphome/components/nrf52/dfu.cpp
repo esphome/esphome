@@ -5,6 +5,7 @@
 #include "esphome/core/application.h"
 #include "esphome/core/log.h"
 #include "esphome/components/zephyr/cdc_acm.h"
+#include "esphome/components/zephyr/usb_device.h"
 
 #include <hal/nrf_power.h>
 
@@ -23,6 +24,10 @@ void DeviceFirmwareUpdate::setup() {
   if (this->reset_pin_ != nullptr) {
     this->reset_pin_->setup();
   }
+#ifdef CONFIG_USB_DEVICE_STACK_NEXT
+  // Needed when no other component uses USB (logger on a hardware UART or off)
+  zephyr::usb_device_enable();
+#endif
 #if defined(USE_ZEPHYR_CDC_ACM_RATE_CALLBACK)
   zephyr::global_cdc_acm->add_on_rate_callback([this](const device *, uint32_t rate) {
     if (rate == RESET_TOUCH_BAUD_RATE) {
