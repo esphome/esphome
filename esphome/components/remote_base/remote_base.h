@@ -1,6 +1,7 @@
 #pragma once
 
 #include <concepts>
+#include <span>
 #include <utility>
 #include <vector>
 
@@ -87,10 +88,11 @@ class RemoteTransmitData {
 
 class RemoteReceiveData {
  public:
-  explicit RemoteReceiveData(const RawTimings &data, uint32_t tolerance, ToleranceMode tolerance_mode)
+  /// The timings are not copied: they must outlive this object.
+  explicit RemoteReceiveData(std::span<const int32_t> data, uint32_t tolerance, ToleranceMode tolerance_mode)
       : data_(data), index_(0), tolerance_(tolerance), tolerance_mode_(tolerance_mode) {}
 
-  const RawTimings &get_raw_data() const { return this->data_; }
+  std::span<const int32_t> get_raw_data() const { return this->data_; }
   uint32_t get_index() const { return index_; }
   int32_t operator[](uint32_t index) const { return this->data_[index]; }
   int32_t size() const { return this->data_.size(); }
@@ -178,7 +180,7 @@ class RemoteReceiveData {
     return 0;
   }
 
-  const RawTimings &data_;
+  std::span<const int32_t> data_;
   uint32_t index_;
   uint32_t tolerance_;
   ToleranceMode tolerance_mode_;
@@ -364,7 +366,9 @@ class RemoteReceiverBase : public RemoteComponentBase {
 #ifdef REMOTE_BASE_DUMPER_COUNT
   void warn_extra_secondaries_();
 #endif
-  void call_listeners_dumpers_();
+  void call_listeners_dumpers_() { this->call_listeners_dumpers_(this->temp_); }
+  /// Dispatch a frame held in the receiver's own buffer, without copying it into temp_.
+  void call_listeners_dumpers_(std::span<const int32_t> data);
 
 #ifdef REMOTE_BASE_LISTENER_COUNT
   StaticVector<RemoteReceiverListener *, REMOTE_BASE_LISTENER_COUNT> listeners_;

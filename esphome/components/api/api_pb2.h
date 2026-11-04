@@ -3841,7 +3841,7 @@ class InfraredRFReceiveEvent final : public ProtoMessage {
   uint32_t device_id{0};
 #endif
   uint32_t key{0};
-  const std::vector<int32_t> *timings{};
+  const std::span<const int32_t> *timings{};
   static uint8_t *encode_msg(const void *self, uint8_t *pos PROTO_ENCODE_DEBUG_PARAM);
   uint8_t *encode(ProtoWriteBuffer &buffer PROTO_ENCODE_DEBUG_PARAM) const {
     return encode_msg(this, buffer.get_pos() PROTO_ENCODE_DEBUG_ARG);
