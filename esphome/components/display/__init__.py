@@ -190,6 +190,16 @@ async def setup_display_core_(var, config):
         cg.add(var.show_test_card())
 
 
+def requires_buffer(config: ConfigType) -> bool:
+    """Return True if the display config draws pixel by pixel (lambda, pages or test card).
+
+    Such writers draw in arbitrary order, so the driver needs a framebuffer.
+    """
+    return any(
+        config.get(key) for key in (CONF_LAMBDA, CONF_PAGES, CONF_SHOW_TEST_CARD)
+    )
+
+
 # Storage of display metadata in a central location, accessible via the id
 
 
@@ -202,6 +212,9 @@ class DisplayMetaData:
     has_writer: bool = False
     rotation: int = 0
     draw_rounding: int = 0
+    # The display has no framebuffer of its own, so an LVGL instance driving it
+    # must hold back rendering while the display is busy.
+    requires_update_when_display_idle: bool = False
 
 
 def _get_metadata_list() -> list[tuple]:
@@ -268,6 +281,7 @@ def add_metadata(
     has_writer: bool = False,
     rotation: int = 0,
     draw_rounding: int = 0,
+    requires_update_when_display_idle: bool = False,
 ):
     entries = _get_metadata_list()
     assert not any(existing_id is id for existing_id, _ in entries), (
@@ -284,6 +298,7 @@ def add_metadata(
                 has_writer=has_writer,
                 rotation=rotation,
                 draw_rounding=draw_rounding,
+                requires_update_when_display_idle=requires_update_when_display_idle,
             ),
         )
     )
