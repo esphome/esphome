@@ -653,20 +653,12 @@ def _apply_function(
     template_arg: cg.TemplateArguments,
     args: TemplateArgsType,
     statements: list[str],
-    share: bool = False,
 ) -> MockObj:
-    """Emit the generated function and declare ``id_`` as the ``ApplyAction``,
-    ``ApplyCondition`` or ``ApplyFilter`` templated on it, so the object calls it directly.
-
-    With ``share`` an identical function emitted before is reused, so equal objects share one
-    class. Never share a body that may hold ``static`` state, that is one with code from a user
-    lambda.
-    """
+    """Emit the generated function and declare ``id_`` as the ``ApplyAction`` or
+    ``ApplyCondition`` templated on it, so ``play()`` calls it directly."""
 
     def emit() -> MockObj:
-        fn = apply_static_function(
-            id_, return_type, _apply_params(args), statements, share=share
-        )
+        fn = apply_static_function(id_, return_type, _apply_params(args), statements)
         return cg.new_Pvariable(id_, cg.TemplateArguments(fn, *template_arg))
 
     return _COLLECTED_ACTION if _collect_action(id_, statements, emit) else emit()
@@ -1024,18 +1016,16 @@ class ApplyFilterDomain:
     def new(self, filter_id: ID, statements: list[str], share: bool = False) -> MockObj:
         """Declare ``filter_id`` as the domain's ``ApplyFilter`` on a function of ``statements``.
 
-        Pass ``share`` for a body of constants only; see ``_apply_function``.
+        The function takes ``params`` exactly as the filter class passes them. With ``share`` an
+        identical function emitted before is reused, so equal filters share one class. Never
+        share a body that may hold ``static`` state, that is one with code from a user lambda.
         """
         id_ = filter_id.copy()
         id_.type = self.filter_class
-        return _apply_function(
-            id_,
-            self.return_type,
-            cg.TemplateArguments(),
-            list(self.params),
-            statements,
-            share=share,
+        fn = apply_static_function(
+            id_, self.return_type, list(self.params), statements, share=share
         )
+        return cg.new_Pvariable(id_, cg.TemplateArguments(fn))
 
     async def build(
         self, name: str, config: Any, filter_id: ID, *statements: str | ApplyCall
@@ -1064,10 +1054,11 @@ class ApplyFilterDomain:
                         filter_id, lambdas, value, type_
                     )
                     lambdas += 1
-            exprs = await _render_values(
-                name, c.target, members, values, config, None, [], compare=True
+            body.append(
+                await _render_call(
+                    name, c.target, members, values, config, None, [], compare=True
+                )
             )
-            body.append(c.target.format(*exprs))
         return self.new(filter_id, body, share=not lambdas)
 
     def register(self, name: str, schema: Any, *statements: str | ApplyCall) -> None:
