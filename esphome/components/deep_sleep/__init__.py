@@ -464,9 +464,7 @@ DEEP_SLEEP_ENTER_SCHEMA = cv.All(
 automation.register_apply_action(
     "deep_sleep.enter",
     DEEP_SLEEP_ENTER_SCHEMA,
-    automation.ApplyField(
-        CONF_SLEEP_DURATION, "set_sleep_duration", cg.uint32, by_value=True
-    ),
+    automation.ApplyField(CONF_SLEEP_DURATION, "set_sleep_duration", cg.uint32),
     automation.ApplyCall(
         "set_sleep_until({}, {}, {}, {})",
         (
