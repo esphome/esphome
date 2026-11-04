@@ -83,16 +83,11 @@ ESCAPE_MODE_BYTE = "escape_byte"
 ESCAPE_MODE_DOUBLE = "double"
 
 
-def validate_byte(value: object) -> HexInt:
-    return HexInt(int(cv.hex_uint8_t(value)))
-
-
-def validate_u32(value: object) -> HexInt:
-    return HexInt(int(cv.hex_uint32_t(value)))
+validate_value_element_bytes = cv.one_of(1, 2, 3, 4, int=True)
 
 
 def _byte_list(min_len: int = 0, max_len: int = MAX_FRAME_TYPE_LEN) -> cv.All:
-    return cv.All(cv.ensure_list(validate_byte), cv.Length(min=min_len, max=max_len))
+    return cv.All(cv.ensure_list(cv.hex_uint8_t), cv.Length(min=min_len, max=max_len))
 
 
 validate_frame_type = _byte_list()
@@ -118,7 +113,7 @@ def validate_frame_type_or_list(value: object) -> list[list[HexInt]]:
 COMMAND_FORMAT_SCHEMA = cv.Schema(
     {
         cv.Optional(CONF_PREAMBLE, default=[]): _byte_list(),
-        cv.Required(CONF_VALUE_ELEMENT_BYTES): cv.one_of(1, 2, 3, 4, int=True),
+        cv.Required(CONF_VALUE_ELEMENT_BYTES): validate_value_element_bytes,
         cv.Optional(CONF_ENDIAN, default="big"): cv.one_of("big", "little", lower=True),
         cv.Optional(CONF_POSTAMBLE, default=[]): _byte_list(),
     }
@@ -148,9 +143,9 @@ def _validate_escape(value: ConfigType) -> ConfigType:
 
 FRAMING_SCHEMA = cv.Schema(
     {
-        cv.Optional(CONF_DLE, default=0x10): validate_byte,
-        cv.Optional(CONF_STX, default=0x02): validate_byte,
-        cv.Optional(CONF_ETX, default=0x03): validate_byte,
+        cv.Optional(CONF_DLE, default=0x10): cv.hex_uint8_t,
+        cv.Optional(CONF_STX, default=0x02): cv.hex_uint8_t,
+        cv.Optional(CONF_ETX, default=0x03): cv.hex_uint8_t,
         # No default: the wrong scheme silently corrupts every frame containing a DLE.
         cv.Required(CONF_ESCAPE): cv.All(
             cv.Schema(
@@ -158,7 +153,7 @@ FRAMING_SCHEMA = cv.Schema(
                     cv.Required(CONF_MODE): cv.one_of(
                         ESCAPE_MODE_BYTE, ESCAPE_MODE_DOUBLE, lower=True
                     ),
-                    cv.Optional(CONF_BYTE): validate_byte,
+                    cv.Optional(CONF_BYTE): cv.hex_uint8_t,
                 }
             ),
             _validate_escape,
@@ -171,7 +166,9 @@ CRC_SCHEMA = cv.Schema(
         cv.Required(CONF_TYPE): cv.one_of(*CRC_TYPES, lower=True),
         cv.Optional(
             CONF_RX_ACCEPT, default=["header_inclusive", "payload_only"]
-        ): cv.ensure_list(cv.one_of(*CRC_VARIANTS, lower=True)),
+        ): cv.All(
+            cv.ensure_list(cv.one_of(*CRC_VARIANTS, lower=True)), cv.Length(min=1)
+        ),
         cv.Optional(CONF_TX_VARIANT, default="header_inclusive"): cv.one_of(
             *CRC_VARIANTS, lower=True
         ),
@@ -350,7 +347,7 @@ automation.register_apply_action(
                 cv.GenerateID(): cv.use_id(RS485FrameHub),
                 cv.Required(CONF_FRAME_TYPE): cv.templatable(validate_frame_type),
                 cv.Required(CONF_PAYLOAD): cv.templatable(
-                    cv.ensure_list(validate_byte)
+                    cv.ensure_list(cv.hex_uint8_t)
                 ),
             }
         ),

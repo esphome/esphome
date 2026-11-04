@@ -15,15 +15,13 @@ from .. import (
     CONF_RS485_FRAME_ID,
     CONF_VALUE_ELEMENT_BYTES,
     DOC_COMMAND_FORMAT_URL,
-    DOMAIN,
     MAX_COMMAND_VALUES,
     MAX_FRAME_LENGTH_UPPER,
     MIN_FRAME_LENGTH,
     RS485FrameHub,
     encode_command,
-    validate_byte,
     validate_frame_type,
-    validate_u32,
+    validate_value_element_bytes,
 )
 
 AUTO_LOAD = ["rs485_frame"]
@@ -57,12 +55,13 @@ CONFIG_SCHEMA = cv.All(
         {
             cv.GenerateID(CONF_RS485_FRAME_ID): cv.use_id(RS485FrameHub),
             cv.Optional(CONF_VALUE): cv.All(
-                cv.ensure_list(validate_u32), cv.Length(min=1, max=MAX_COMMAND_VALUES)
+                cv.ensure_list(cv.hex_uint32_t),
+                cv.Length(min=1, max=MAX_COMMAND_VALUES),
             ),
-            cv.Optional(CONF_VALUE_ELEMENT_BYTES): cv.one_of(1, 2, 3, 4, int=True),
+            cv.Optional(CONF_VALUE_ELEMENT_BYTES): validate_value_element_bytes,
             cv.Optional(CONF_FRAME_TYPE): validate_frame_type,
             cv.Optional(CONF_PAYLOAD): cv.All(
-                cv.ensure_list(validate_byte), cv.Length(max=MAX_FRAME_LENGTH_UPPER)
+                cv.ensure_list(cv.hex_uint8_t), cv.Length(max=MAX_FRAME_LENGTH_UPPER)
             ),
             cv.Optional(CONF_COMMAND_FORMAT): COMMAND_FORMAT_SCHEMA,
         }
@@ -113,7 +112,7 @@ FINAL_VALIDATE_SCHEMA = _final_validate
 
 async def to_code(config: ConfigType) -> None:
     hub_id = config[CONF_RS485_FRAME_ID]
-    hub_config = next(c for c in CORE.config[DOMAIN] if c[CONF_ID] == hub_id)
+    hub_config = fv.get_declaring_config(hub_id, CORE.config)
     frame = _resolve_frame(config, hub_config)
     table = automation.progmem_bytes(f"{config[CONF_ID]}_frame", frame)
     hub = await cg.get_variable(hub_id)
