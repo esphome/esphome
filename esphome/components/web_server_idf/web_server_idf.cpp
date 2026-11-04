@@ -177,18 +177,22 @@ uint16_t local_port(int fd) {
   return 0;
 }
 
-// Runs httpd_ssl_stop() for AsyncWebServer::end() on its own task and signals the caller when done.
+// Stops the server for AsyncWebServer::end() on its own task and signals the caller when done.
 // A semaphore, not a task notification: the main loop task already uses notifications to wake itself.
 struct StopRequest {
   httpd_handle_t server;
+  bool ssl;
   esp_err_t result;
   StaticSemaphore_t done_buffer;
   SemaphoreHandle_t done;
 };
 
+// httpd_ssl_stop() also posts HTTPS_SERVER_EVENT_STOP, to match the start event httpd_ssl_start() posted.
+esp_err_t stop_server(httpd_handle_t server, bool ssl) { return ssl ? httpd_ssl_stop(server) : httpd_stop(server); }
+
 void stop_task(void *arg) {
   auto *request = static_cast<StopRequest *>(arg);
-  request->result = httpd_ssl_stop(request->server);
+  request->result = stop_server(request->server, request->ssl);
   xSemaphoreGive(request->done);  // the request is not touched after this
   vTaskDelete(nullptr);
 }
@@ -244,26 +248,21 @@ bool ssl_credentials_valid(const uint8_t *cert_pem, size_t cert_len, const uint8
 void AsyncWebServer::end() {
   if (this->server_) {
 #ifdef USE_WEBSERVER_SSL
-    esp_err_t err;
-    // Only an HTTPS server has a global transport context.
-    if (httpd_get_global_transport_ctx(this->server_) == nullptr) {
-      err = httpd_stop(this->server_);
-    } else {
-      // A stalled TLS handshake can hold the server task until the socket timeout. Shut the clients down to wake it,
-      // and stop on a helper task while feeding the watchdog; without memory for the task, stop directly.
-      this->shutdown_clients_();
-      StopRequest request{};
-      request.server = this->server_;
-      request.done = xSemaphoreCreateBinaryStatic(&request.done_buffer);
-      if (xTaskCreate(stop_task, "httpd_stop", 3072, &request, uxTaskPriorityGet(nullptr), nullptr) == pdPASS) {
-        while (xSemaphoreTake(request.done, pdMS_TO_TICKS(100)) != pdTRUE) {
-          App.feed_wdt();
-        }
-      } else {
-        request.result = httpd_ssl_stop(this->server_);
+    // A stalled TLS handshake or upload can hold the server task until the socket timeout. Shut the clients down to
+    // wake it, and stop on a helper task while feeding the watchdog; without memory for the task, stop directly.
+    this->shutdown_clients_();
+    StopRequest request{};
+    request.server = this->server_;
+    request.ssl = httpd_get_global_transport_ctx(this->server_) != nullptr;  // only HTTPS has one
+    request.done = xSemaphoreCreateBinaryStatic(&request.done_buffer);
+    if (xTaskCreate(stop_task, "httpd_stop", 3072, &request, uxTaskPriorityGet(nullptr), nullptr) == pdPASS) {
+      while (xSemaphoreTake(request.done, pdMS_TO_TICKS(100)) != pdTRUE) {
+        App.feed_wdt();
       }
-      err = request.result;
+    } else {
+      request.result = stop_server(this->server_, request.ssl);
     }
+    const esp_err_t err = request.result;
     if (err != ESP_OK) {
       // The listener is still running; keep its handle so begin() doesn't start a second one beside it.
       ESP_LOGE(TAG, "Web server failed to stop: %s", esp_err_to_name(err));
