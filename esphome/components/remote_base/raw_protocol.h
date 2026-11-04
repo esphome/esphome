@@ -31,7 +31,7 @@ class RawBinarySensor : public RemoteReceiverBinarySensorBase {
   size_t len_;
 };
 
-class RawTrigger final : public Trigger<RawTimings>, public RemoteReceiverListener {
+class RawTrigger final : public Trigger<std::span<const int32_t>>, public RemoteReceiverListener {
  protected:
   bool on_receive(RemoteReceiveData src) override {
     this->trigger(src.get_raw_data());

@@ -1590,7 +1590,7 @@ def raw_binary_sensor(var, config):
     cg.add(var.set_len(len(code_)))
 
 
-@register_trigger("raw", RawTrigger, cg.std_vector.template(cg.int32))
+@register_trigger("raw", RawTrigger, cg.std_span.template(cg.int32.operator("const")))
 def raw_trigger(var, config):
     pass
 
