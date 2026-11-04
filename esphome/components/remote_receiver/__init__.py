@@ -159,7 +159,7 @@ def validate_sampling(config: ConfigType) -> ConfigType:
     filter_us = config[CONF_FILTER].total_microseconds
     if filter_us <= sample_us and filter_us != timer_filter_us(sample_us):
         _LOGGER.warning(
-            "remote_receiver: filter is not longer than the sample period, so it cannot remove one-sample glitches"
+            "filter is not longer than the sample period, so it cannot remove one-sample glitches"
         )
     # Both are counted in 26MHz timer ticks
     for key in (CONF_FILTER, CONF_IDLE):
@@ -343,13 +343,15 @@ async def to_code(config: ConfigType) -> None:
             config[CONF_TOLERANCE][CONF_VALUE], config[CONF_TOLERANCE][CONF_TYPE]
         )
     )
-    cg.add_optional(var.set_buffer_size, config.get(CONF_BUFFER_SIZE))
     cg.add(var.set_filter_us(config[CONF_FILTER]))
     cg.add(var.set_idle_us(config[CONF_IDLE]))
-    if config.get(CONF_SAMPLING) == SAMPLING_TIMER:
+    if config.get(CONF_SAMPLING) != SAMPLING_TIMER:
+        cg.add_optional(var.set_buffer_size, config.get(CONF_BUFFER_SIZE))
+    else:
         cg.add_define("USE_REMOTE_RECEIVER_TIMER_SAMPLING")
         cg.add(var.set_sample_period_us(config[CONF_SAMPLE_PERIOD]))
-        # one frame half captures while the loop dispatches the other
+        # one frame half captures while the loop dispatches the other; the 65535 byte
+        # buffer_size cap keeps frame_entries within the store's uint16_t
         frame_entries = config[CONF_BUFFER_SIZE] // 4 // 2
         frames = f"{config[CONF_ID].id}__frames"
         cg.add_global(cg.RawStatement(f"static int32_t {frames}[{frame_entries * 2}];"))

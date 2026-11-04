@@ -30,15 +30,17 @@ struct RemoteReceiverComponentStore {
   int32_t *capture{nullptr};
   /// Finished frame for the loop, nullptr once the loop has dispatched it
   const int32_t *volatile ready{nullptr};
-  volatile uint32_t ready_count{0};
-  uint32_t count{0};
-  uint32_t frame_entries{0};
   uint32_t filter_ticks{0};
   uint32_t idle_ticks{0};
   uint32_t last_counter{0};
   uint32_t level_ticks{0};
   uint32_t run_ticks{0};
   ISRInternalGPIOPin pin;
+  /// Entries per frame half; buffer_size is capped at 65535 bytes, so at most 8191
+  uint16_t frame_entries{0};
+  uint16_t count{0};
+  volatile uint16_t ready_count{0};
+  uint16_t sample_period_us{0};
   bool last_level{false};
   bool run_level{false};
   bool run_active{false};
@@ -109,17 +111,17 @@ class RemoteReceiverComponent final : public remote_base::RemoteReceiverBase,
   void set_carrier_duty_percent(uint8_t carrier_duty_percent) { this->carrier_duty_percent_ = carrier_duty_percent; }
   void set_carrier_frequency(uint32_t carrier_frequency) { this->carrier_frequency_ = carrier_frequency; }
 #endif
-  void set_buffer_size(uint32_t buffer_size) { this->buffer_size_ = buffer_size; }
 #ifdef USE_REMOTE_RECEIVER_TIMER_SAMPLING
   void set_filter_us(uint32_t filter_us) { this->store_.filter_ticks = filter_us * TIMER_TICKS_PER_US; }
   void set_idle_us(uint32_t idle_us) { this->store_.idle_ticks = idle_us * TIMER_TICKS_PER_US; }
-  void set_sample_period_us(uint32_t sample_period_us) { this->sample_period_us_ = sample_period_us; }
+  void set_sample_period_us(uint16_t sample_period_us) { this->store_.sample_period_us = sample_period_us; }
   /// Two frame halves of frame_entries each, a static array sized at code generation.
-  void set_frame_buffer(int32_t *buffer, uint32_t frame_entries) {
+  void set_frame_buffer(int32_t *buffer, uint16_t frame_entries) {
     this->store_.buffer = buffer;
     this->store_.frame_entries = frame_entries;
   }
 #else
+  void set_buffer_size(uint32_t buffer_size) { this->buffer_size_ = buffer_size; }
   void set_filter_us(uint32_t filter_us) { this->filter_us_ = filter_us; }
   void set_idle_us(uint32_t idle_us) { this->idle_us_ = idle_us; }
 #endif
@@ -143,13 +145,12 @@ class RemoteReceiverComponent final : public remote_base::RemoteReceiverBase,
 
 #ifdef USE_REMOTE_RECEIVER_TIMER_SAMPLING
   static void sample_timer_isr(uint8_t channel);
-  uint32_t sample_period_us_{};
 #elif defined(USE_ESP8266) || defined(USE_LIBRETINY) || defined(USE_RP2) || (defined(USE_ESP32) && !SOC_RMT_SUPPORTED)
   HighFrequencyLoopRequester high_freq_;
 #endif
 
-  uint32_t buffer_size_{};  // 0 on RMT targets: sized from receive_symbols in setup()
 #ifndef USE_REMOTE_RECEIVER_TIMER_SAMPLING
+  uint32_t buffer_size_{};  // 0 on RMT targets: sized from receive_symbols in setup()
   uint32_t filter_us_{10};
   uint32_t idle_us_{10000};
 #endif

@@ -83,9 +83,11 @@ void RemoteReceiverComponent::dump_config() {
 #ifdef USE_REMOTE_RECEIVER_TIMER_SAMPLING
   // the timer backend keeps only tick counts, and its buffer holds two frames
   const uint32_t pulses = this->store_.frame_entries;
+  const uint32_t buffer_size = pulses * 2 * sizeof(int32_t);
   const uint32_t filter_us = this->store_.filter_ticks / TIMER_TICKS_PER_US;
   const uint32_t idle_us = this->store_.idle_ticks / TIMER_TICKS_PER_US;
 #else
+  const uint32_t buffer_size = this->buffer_size_;
   const uint32_t pulses = this->store_.buffer_entries;
   const uint32_t filter_us = this->filter_us_;
   const uint32_t idle_us = this->idle_us_;
@@ -97,11 +99,11 @@ void RemoteReceiverComponent::dump_config() {
       "  Tolerance: %" PRIu32 "%s\n"
       "  Filter out pulses shorter than: %" PRIu32 " us\n"
       "  Signal is done after %" PRIu32 " us of no changes",
-      this->buffer_size_, pulses, this->tolerance_,
+      buffer_size, pulses, this->tolerance_,
       (this->tolerance_mode_ == remote_base::TOLERANCE_MODE_TIME) ? LOG_STR_LITERAL(" us") : LOG_STR_LITERAL("%"),
       filter_us, idle_us);
 #ifdef USE_REMOTE_RECEIVER_TIMER_SAMPLING
-  ESP_LOGCONFIG(TAG, "  Sampling: timer, every %" PRIu32 " us", this->sample_period_us_);
+  ESP_LOGCONFIG(TAG, "  Sampling: timer, every %u us", this->store_.sample_period_us);
 #endif
   LOG_PIN("  Pin: ", this->pin_);
 #ifdef REMOTE_BASE_DUMPER_COUNT
