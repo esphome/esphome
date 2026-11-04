@@ -254,10 +254,12 @@ class MQTTBackendESP32 final : public MQTTBackend {
 
  protected:
   bool initialize_();
+  void build_config_(esp_mqtt_client_config_t &cfg) const;
   void set_auto_reconnect_(bool enable) {
-    this->mqtt_cfg_.network.disable_auto_reconnect = !enable;
-    esp_mqtt_set_config(this->handler_.get(), &this->mqtt_cfg_);
     this->reconnect_disabled_ = !enable;
+    esp_mqtt_client_config_t cfg{};
+    this->build_config_(cfg);
+    esp_mqtt_set_config(this->handler_.get(), &cfg);
   }
   void mqtt_event_handler_(const Event &event);
   static void mqtt_event_handler(void *handler_args, esp_event_base_t base, int32_t event_id, void *event_data);
@@ -271,8 +273,6 @@ class MQTTBackendESP32 final : public MQTTBackend {
   bool is_connected_{false};
   bool is_initalized_{false};
   bool reconnect_disabled_{false};
-
-  esp_mqtt_client_config_t mqtt_cfg_{};
 
   std::string host_;
   uint16_t port_;
