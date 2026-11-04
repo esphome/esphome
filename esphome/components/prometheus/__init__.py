@@ -1,5 +1,5 @@
 import esphome.codegen as cg
-from esphome.components import web_server_base
+from esphome.components import web_server_base, web_server_idf
 from esphome.components.web_server_base import CONF_WEB_SERVER_BASE_ID
 import esphome.config_validation as cv
 from esphome.const import CONF_ID, CONF_INCLUDE_INTERNAL, CONF_NAME, CONF_RELABEL
@@ -22,20 +22,30 @@ CUSTOMIZED_ENTITY = cv.All(
     cv.has_at_least_one_key(CONF_ID, CONF_NAME),
 )
 
-CONFIG_SCHEMA = cv.Schema(
-    {
-        cv.GenerateID(): cv.declare_id(PrometheusHandler),
-        cv.GenerateID(CONF_WEB_SERVER_BASE_ID): cv.use_id(
-            web_server_base.WebServerBase
-        ),
-        cv.Optional(CONF_INCLUDE_INTERNAL, default=False): cv.boolean,
-        cv.Optional(CONF_RELABEL, default={}): cv.Schema(
-            {
-                cv.use_id(EntityBase): CUSTOMIZED_ENTITY,
-            }
-        ),
-    },
-).extend(cv.COMPONENT_SCHEMA)
+
+def _require_plain_http(config: ConfigType) -> ConfigType:
+    # Prometheus is advertised over mDNS as a plain HTTP service.
+    web_server_idf.require_plain_http(DOMAIN)
+    return config
+
+
+CONFIG_SCHEMA = cv.All(
+    cv.Schema(
+        {
+            cv.GenerateID(): cv.declare_id(PrometheusHandler),
+            cv.GenerateID(CONF_WEB_SERVER_BASE_ID): cv.use_id(
+                web_server_base.WebServerBase
+            ),
+            cv.Optional(CONF_INCLUDE_INTERNAL, default=False): cv.boolean,
+            cv.Optional(CONF_RELABEL, default={}): cv.Schema(
+                {
+                    cv.use_id(EntityBase): CUSTOMIZED_ENTITY,
+                }
+            ),
+        },
+    ).extend(cv.COMPONENT_SCHEMA),
+    _require_plain_http,
+)
 
 
 async def to_code(config: ConfigType) -> None:

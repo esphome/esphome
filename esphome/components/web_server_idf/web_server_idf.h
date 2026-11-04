@@ -230,15 +230,11 @@ class AsyncWebServer {
   void set_port(uint16_t port) { this->port_ = port; }
 
 #ifdef USE_WEBSERVER_SSL
-  /// Serve HTTPS with this certificate and private key (PEM, null-terminated). The strings are not copied and
-  /// must stay valid until they are replaced or cleared, because every restart reuses them. Takes effect at the
-  /// next begin(); nullptr goes back to plain HTTP.
+  /// PEM certificate and key, not copied; nullptr for plain HTTP. Takes effect at the next begin().
   void set_ssl_credentials(const char *certificate, const char *private_key) {
     this->ssl_certificate_ = certificate;
     this->ssl_private_key_ = private_key;
   }
-  /// True while the server is running with TLS.
-  bool is_ssl() const { return this->server_ != nullptr && this->ssl_running_; }
 #endif
 
   // NOLINTNEXTLINE(readability-identifier-naming)
@@ -255,7 +251,6 @@ class AsyncWebServer {
 #ifdef USE_WEBSERVER_SSL
   const char *ssl_certificate_{nullptr};
   const char *ssl_private_key_{nullptr};
-  bool ssl_running_{false};
   uint16_t running_port_{};  // port_ of the running listener; port_ may already hold the next one
   Mutex close_lock_;         // held by close_fn while closing, and by shutdown_clients_()
   void shutdown_clients_();

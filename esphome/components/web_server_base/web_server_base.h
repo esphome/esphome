@@ -168,50 +168,45 @@ class WebServerBase final {
    */
   void add_handler_without_auth(AsyncWebHandler *handler);
 
+  uint16_t get_port() const { return port_; }
+
 #if defined(USE_ESP32) && defined(USE_WEBSERVER_SSL)
-  /// With HTTPS compiled in, a running listener restarts on the new port, which closes open connections. Call from
-  /// the main loop: from an HTTP request handler, the restart would wait for its own task.
+  // Both setters restart a running listener, closing open connections. Call from the main loop: from a request
+  // handler the restart would wait for its own task.
+
   void set_port(uint16_t port) {
     if (port == this->port_)
       return;
     this->port_ = port;
     if (this->server_ != nullptr) {
       this->server_->set_port(port);
-      if (this->initialized_ > 0)
-        this->server_->begin();  // begin() stops the running listener first
+      this->restart_if_running_();
     }
   }
-#else
-  void set_port(uint16_t port) { port_ = port; }
-#endif
-  uint16_t get_port() const { return port_; }
-
-#if defined(USE_ESP32) && defined(USE_WEBSERVER_SSL)
-  /// Serve HTTPS with this certificate and private key (PEM, null-terminated), or plain HTTP again with nullptr.
-  /// The strings are not copied and must stay valid until they are replaced or cleared, because every restart
-  /// reuses them. A running listener restarts to apply
-  /// them, which closes open connections. Call from the main loop: from an HTTP request handler, the restart would
-  /// wait for its own task.
+  /// PEM certificate and key, or nullptr for plain HTTP. Not copied: they must stay valid, every restart reuses them.
   void set_ssl_credentials(const char *certificate, const char *private_key) {
     this->ssl_certificate_ = certificate;
     this->ssl_private_key_ = private_key;
-    if (this->server_ == nullptr)
-      return;
-    this->server_->set_ssl_credentials(certificate, private_key);
+    if (this->server_ != nullptr) {
+      this->server_->set_ssl_credentials(certificate, private_key);
+      this->restart_if_running_();
+    }
+  }
+
+ protected:
+  void restart_if_running_() {
     if (this->initialized_ > 0)
       this->server_->begin();  // begin() stops the running listener first
   }
-  /// True while the listener is serving HTTPS.
-  bool is_ssl() const { return this->server_ != nullptr && this->server_->is_ssl(); }
+  const char *ssl_certificate_{nullptr};
+  const char *ssl_private_key_{nullptr};
+#else
+  void set_port(uint16_t port) { port_ = port; }
 #endif
 
  protected:
   uint8_t initialized_{0};
   uint16_t port_{80};  // Keep in sync with DEFAULT_PORT in web_server/__init__.py
-#if defined(USE_ESP32) && defined(USE_WEBSERVER_SSL)
-  const char *ssl_certificate_{nullptr};
-  const char *ssl_private_key_{nullptr};
-#endif
   AsyncWebServer *server_{nullptr};
   std::vector<AsyncWebHandler *> handlers_;
 #ifdef USE_WEBSERVER_AUTH

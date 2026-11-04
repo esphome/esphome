@@ -13,15 +13,12 @@ from esphome.components.esp32.const import (
     KEY_EXCLUDE_COMPONENTS,
     KEY_SDKCONFIG_OPTIONS,
 )
-from esphome.components.socket import KEY_SOCKET_CONSUMERS_TCP
-from esphome.components.web_server_idf import (
-    HTTPS_MAX_CONNECTIONS,
-    consume_ssl_sockets,
-    enable_ssl,
-)
+from esphome.components.web_server_base import get_httpd_client_count
+from esphome.components.web_server_idf import HTTPS_MAX_CONNECTIONS, consume_ssl_sockets
 from esphome.config import read_config
 from esphome.const import PlatformFramework
-from esphome.core import CORE, EsphomeError
+from esphome.core import CORE
+from tests.component_tests.helpers import get_define_value
 from tests.component_tests.types import SetCoreConfigCallable
 
 ESP32_PLATFORM_DATA = {KEY_BOARD: "esp32dev", KEY_VARIANT: VARIANT_ESP32}
@@ -36,21 +33,33 @@ def unload_https_test() -> Generator[None]:
     loader.clear_component_meta_finders()
 
 
-def test_enable_ssl_sets_up_https(
+def test_consume_ssl_sockets_sets_up_https(
     generate_main: Callable[[str | Path], str],
     component_config_path: Callable[[str], Path],
 ) -> None:
-    """A component that calls enable_ssl() compiles HTTPS in, with the server side of TLS."""
+    """A component with consume_ssl_sockets() in its schema compiles HTTPS in, with the server side of TLS."""
     generate_main(component_config_path("https.yaml"))
 
     sdkconfig = CORE.data[KEY_ESP32][KEY_SDKCONFIG_OPTIONS]
     assert "USE_WEBSERVER_SSL" in {define.name for define in CORE.defines}
+    assert get_define_value("WEB_SERVER_MAX_OPEN_SOCKETS") == str(HTTPS_MAX_CONNECTIONS)
+    assert get_httpd_client_count() == HTTPS_MAX_CONNECTIONS
     assert sdkconfig["CONFIG_ESP_HTTPS_SERVER_ENABLE"]
     assert "esp_https_server" not in CORE.data[KEY_ESP32][KEY_EXCLUDE_COMPONENTS]
     assert not sdkconfig.get("CONFIG_MBEDTLS_TLS_CLIENT_ONLY")
-    assert (
-        CORE.data[KEY_SOCKET_CONSUMERS_TCP]["web_server_idf"] == HTTPS_MAX_CONNECTIONS
-    )
+
+
+def test_no_https_without_consume_ssl_sockets(
+    generate_main: Callable[[str | Path], str],
+    component_config_path: Callable[[str], Path],
+) -> None:
+    """Without consume_ssl_sockets() nothing HTTPS is compiled in."""
+    generate_main(component_config_path("web_server.yaml"))
+
+    sdkconfig = CORE.data[KEY_ESP32][KEY_SDKCONFIG_OPTIONS]
+    assert "USE_WEBSERVER_SSL" not in {define.name for define in CORE.defines}
+    assert "CONFIG_ESP_HTTPS_SERVER_ENABLE" not in sdkconfig
+    assert "esp_https_server" in CORE.data[KEY_ESP32][KEY_EXCLUDE_COMPONENTS]
 
 
 def test_https_sockets_reserved_once(set_core_config: SetCoreConfigCallable) -> None:
@@ -59,9 +68,7 @@ def test_https_sockets_reserved_once(set_core_config: SetCoreConfigCallable) -> 
     consume_ssl_sockets({})
     consume_ssl_sockets({})
 
-    assert (
-        CORE.data[KEY_SOCKET_CONSUMERS_TCP]["web_server_idf"] == HTTPS_MAX_CONNECTIONS
-    )
+    assert get_httpd_client_count() == HTTPS_MAX_CONNECTIONS
 
 
 def test_https_sockets_not_reserved_off_esp32(
@@ -71,17 +78,7 @@ def test_https_sockets_not_reserved_off_esp32(
     set_core_config(PlatformFramework.RP2040_ARDUINO)
     consume_ssl_sockets({})
 
-    assert "web_server_idf" not in CORE.data.get(KEY_SOCKET_CONSUMERS_TCP, {})
-
-
-def test_enable_ssl_requires_consume_ssl_sockets(
-    set_core_config: SetCoreConfigCallable,
-) -> None:
-    """Without the schema validator, the connections and the compatibility check would be skipped."""
-    set_core_config(PlatformFramework.ESP32_IDF, platform_data=ESP32_PLATFORM_DATA)
-
-    with pytest.raises(EsphomeError, match="consume_ssl_sockets"):
-        enable_ssl()
+    assert get_httpd_client_count() == 0
 
 
 @pytest.mark.parametrize(
@@ -102,4 +99,4 @@ def test_ssl_rejects_incompatible_components(
     CORE.config_path = component_config_path(config_file)
 
     assert read_config({}) is None
-    assert f"can't be used together with '{component}' yet" in capsys.readouterr().out
+    assert f"can't be used together with {component} yet" in capsys.readouterr().out

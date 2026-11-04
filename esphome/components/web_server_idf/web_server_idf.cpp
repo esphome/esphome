@@ -28,11 +28,8 @@
 #include <mbedtls/x509_crt.h>
 #endif
 
-#if defined(USE_WEBSERVER_AUTH_DIGEST) || defined(USE_WEBSERVER_SSL)
-#include <esp_random.h>
-#endif
-
 #ifdef USE_WEBSERVER_AUTH_DIGEST
+#include <esp_random.h>
 #include <esp_rom_md5.h>
 #endif
 
@@ -149,15 +146,8 @@ void AsyncWebServer::safe_close_with_shutdown(httpd_handle_t hd, int sockfd) {
   // See: https://github.com/esphome/esphome-webserver/issues/163
 
 #ifdef USE_WEBSERVER_SSL
-  // shutdown_clients_() works through the client list by descriptor number. Closing under its lock keeps a listed
-  // descriptor from being freed, and its number reused by another task, while it does.
-  auto *server = static_cast<AsyncWebServer *>(httpd_get_global_user_ctx(hd));
-  if (server != nullptr) {
-    LockGuard lock(server->close_lock_);
-    shutdown(sockfd, SHUT_RD);
-    close(sockfd);
-    return;
-  }
+  // Keeps shutdown_clients_() from acting on a descriptor freed, and its number reused, while it walks the list.
+  LockGuard lock(static_cast<AsyncWebServer *>(httpd_get_global_user_ctx(hd))->close_lock_);
 #endif
 
   // Attempt shutdown - ignore errors as socket may already be closed
@@ -187,30 +177,25 @@ uint16_t local_port(int fd) {
   return 0;
 }
 
-// Runs httpd_stop() for AsyncWebServer::end() on its own task and signals the caller when done.
+// Runs httpd_ssl_stop() for AsyncWebServer::end() on its own task and signals the caller when done.
 // A semaphore, not a task notification: the main loop task already uses notifications to wake itself.
 struct StopRequest {
   httpd_handle_t server;
-  bool ssl;
   esp_err_t result;
   StaticSemaphore_t done_buffer;
   SemaphoreHandle_t done;
 };
 
-// httpd_ssl_stop() also posts HTTPS_SERVER_EVENT_STOP, to match the start event httpd_ssl_start() posted.
-esp_err_t stop_server(httpd_handle_t server, bool ssl) { return ssl ? httpd_ssl_stop(server) : httpd_stop(server); }
-
 void stop_task(void *arg) {
   auto *request = static_cast<StopRequest *>(arg);
-  request->result = stop_server(request->server, request->ssl);
+  request->result = httpd_ssl_stop(request->server);
   xSemaphoreGive(request->done);  // the request is not touched after this
   vTaskDelete(nullptr);
 }
 }  // namespace
 
 void AsyncWebServer::shutdown_clients_() {
-  // Shutting a client down wakes the server task if it is blocked on that client. The lock keeps close_fn from
-  // freeing a listed descriptor meanwhile. A client closed just before may still be listed, with its number free or
+  // Wakes the server task if it is blocked on a client. A just-closed client may still be listed with its number
   // reused elsewhere, so only descriptors still bound to this server's port are shut down.
   LockGuard lock(this->close_lock_);
   int client_fds[CONFIG_LWIP_MAX_SOCKETS];
@@ -228,22 +213,19 @@ void AsyncWebServer::shutdown_clients_() {
 namespace {
 #if ESP_IDF_VERSION < ESP_IDF_VERSION_VAL(6, 0, 0)
 int ssl_random(void * /*unused*/, unsigned char *buf, size_t len) {
-  esp_fill_random(buf, len);
+  random_bytes(buf, len);
   return 0;
 }
 #endif
 
-// esp_https_server parses the credentials only when a client connects, so check them (and that the key belongs to
-// the certificate) before starting: a bad pair then leaves the server stopped instead of failing every handshake.
-bool ssl_credentials_valid(const char *certificate, const char *private_key) {
+// esp_https_server parses the credentials only when a client connects, so check the pair before starting.
+// Lengths include the terminating null, as mbedTLS wants for PEM.
+bool ssl_credentials_valid(const uint8_t *cert_pem, size_t cert_len, const uint8_t *key_pem, size_t key_len) {
   mbedtls_x509_crt crt;
   mbedtls_pk_context key;
   mbedtls_x509_crt_init(&crt);
   mbedtls_pk_init(&key);
-  const auto *key_pem = reinterpret_cast<const unsigned char *>(private_key);
-  const size_t key_len = strlen(private_key) + 1;
-  bool valid =
-      mbedtls_x509_crt_parse(&crt, reinterpret_cast<const unsigned char *>(certificate), strlen(certificate) + 1) == 0;
+  bool valid = mbedtls_x509_crt_parse(&crt, cert_pem, cert_len) == 0;
 #if ESP_IDF_VERSION >= ESP_IDF_VERSION_VAL(6, 0, 0)
   // mbedTLS 4 (ESP-IDF 6) takes its randomness from PSA Crypto instead of an RNG argument.
   valid = valid && mbedtls_pk_parse_key(&key, key_pem, key_len, nullptr, 0) == 0 &&
@@ -262,28 +244,31 @@ bool ssl_credentials_valid(const char *certificate, const char *private_key) {
 void AsyncWebServer::end() {
   if (this->server_) {
 #ifdef USE_WEBSERVER_SSL
-    // httpd_stop() waits for the server task to finish with its current client, which a stalled TLS handshake or a
-    // slow upload can hold for up to the socket timeout. Shutting the clients down first wakes it. A client accepted
-    // just after can still hold it, so wait on a helper task and keep feeding the task watchdog meanwhile; without
-    // memory for the task, stop directly.
-    this->shutdown_clients_();
-    StopRequest request{};
-    request.server = this->server_;
-    request.ssl = this->ssl_running_;
-    request.done = xSemaphoreCreateBinaryStatic(&request.done_buffer);
-    if (xTaskCreate(stop_task, "httpd_stop", 3072, &request, uxTaskPriorityGet(nullptr), nullptr) == pdPASS) {
-      while (xSemaphoreTake(request.done, pdMS_TO_TICKS(100)) != pdTRUE) {
-        App.feed_wdt();
-      }
+    esp_err_t err;
+    // Only an HTTPS server has a global transport context.
+    if (httpd_get_global_transport_ctx(this->server_) == nullptr) {
+      err = httpd_stop(this->server_);
     } else {
-      request.result = stop_server(this->server_, request.ssl);
+      // A stalled TLS handshake can hold the server task until the socket timeout. Shut the clients down to wake it,
+      // and stop on a helper task while feeding the watchdog; without memory for the task, stop directly.
+      this->shutdown_clients_();
+      StopRequest request{};
+      request.server = this->server_;
+      request.done = xSemaphoreCreateBinaryStatic(&request.done_buffer);
+      if (xTaskCreate(stop_task, "httpd_stop", 3072, &request, uxTaskPriorityGet(nullptr), nullptr) == pdPASS) {
+        while (xSemaphoreTake(request.done, pdMS_TO_TICKS(100)) != pdTRUE) {
+          App.feed_wdt();
+        }
+      } else {
+        request.result = httpd_ssl_stop(this->server_);
+      }
+      err = request.result;
     }
-    if (request.result != ESP_OK) {
+    if (err != ESP_OK) {
       // The listener is still running; keep its handle so begin() doesn't start a second one beside it.
-      ESP_LOGE(TAG, "Web server failed to stop: %s", esp_err_to_name(request.result));
+      ESP_LOGE(TAG, "Web server failed to stop: %s", esp_err_to_name(err));
       return;
     }
-    this->ssl_running_ = false;
 #else
     httpd_stop(this->server_);
 #endif
@@ -313,42 +298,38 @@ void AsyncWebServer::begin() {
   config.lru_purge_enable = true;
   // Use custom close function that shuts down before closing to prevent lwIP race conditions
   config.close_fn = AsyncWebServer::safe_close_with_shutdown;
+  esp_err_t start_err;
 #ifdef USE_WEBSERVER_SSL
   // Lets close_fn find this server's lock. httpd frees the context on stop unless it has a free function.
   config.global_user_ctx = this;
   config.global_user_ctx_free_fn = [](void * /*unused*/) {};
-#endif
-  esp_err_t start_err;
-#ifdef USE_WEBSERVER_SSL
   if ((this->ssl_certificate_ == nullptr) != (this->ssl_private_key_ == nullptr)) {
     ESP_LOGE(TAG, "HTTPS needs both a certificate and a private key");
     return;
   }
   if (this->ssl_certificate_ != nullptr) {
-    if (!ssl_credentials_valid(this->ssl_certificate_, this->ssl_private_key_)) {
+    const auto *cert = reinterpret_cast<const uint8_t *>(this->ssl_certificate_);
+    const auto *key = reinterpret_cast<const uint8_t *>(this->ssl_private_key_);
+    const size_t cert_len = strlen(this->ssl_certificate_) + 1;
+    const size_t key_len = strlen(this->ssl_private_key_) + 1;
+    if (!ssl_credentials_valid(cert, cert_len, key, key_len)) {
       ESP_LOGE(TAG, "HTTPS certificate or key is invalid, or the key does not match the certificate");
       return;
     }
     httpd_ssl_config_t ssl_config = HTTPD_SSL_CONFIG_DEFAULT();
-    // The TLS handshake needs the larger stack of the HTTPS defaults, and each TLS session takes memory, so keep
-    // the HTTPS connection limit.
+    // The TLS handshake needs the larger stack of the HTTPS defaults.
     config.stack_size = std::max(config.stack_size, ssl_config.httpd.stack_size);
-    config.max_open_sockets = ssl_config.httpd.max_open_sockets;
     ssl_config.httpd = config;
     ssl_config.port_secure = this->port_;
-    ssl_config.servercert = reinterpret_cast<const uint8_t *>(this->ssl_certificate_);
-    ssl_config.servercert_len = strlen(this->ssl_certificate_) + 1;
-    ssl_config.prvtkey_pem = reinterpret_cast<const uint8_t *>(this->ssl_private_key_);
-    ssl_config.prvtkey_len = strlen(this->ssl_private_key_) + 1;
+    ssl_config.servercert = cert;
+    ssl_config.servercert_len = cert_len;
+    ssl_config.prvtkey_pem = key;
+    ssl_config.prvtkey_len = key_len;
     start_err = httpd_ssl_start(&this->server_, &ssl_config);
-    this->ssl_running_ = start_err == ESP_OK;
     if (start_err != ESP_OK) {
       ESP_LOGE(TAG, "HTTPS server failed to start: %s", esp_err_to_name(start_err));
     }
   } else {
-    // With HTTPS compiled in, only the HTTPS connections are reserved, so plain HTTP must not exceed them either.
-    const httpd_ssl_config_t ssl_defaults = HTTPD_SSL_CONFIG_DEFAULT();
-    config.max_open_sockets = std::min(config.max_open_sockets, ssl_defaults.httpd.max_open_sockets);
     start_err = httpd_start(&this->server_, &config);
   }
 #else

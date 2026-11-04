@@ -25,7 +25,6 @@ CONFIG_SCHEMA = cv.All(
 
 
 async def to_code(config: ConfigType) -> None:
-    web_server_idf.enable_ssl()
     base = await cg.get_variable(config[CONF_WEB_SERVER_BASE_ID])
     var = cg.new_Pvariable(config[CONF_ID], base)
     await cg.register_component(var, config)
