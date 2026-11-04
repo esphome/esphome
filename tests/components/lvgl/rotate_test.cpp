@@ -7,7 +7,7 @@ namespace esphome::lvgl::testing {
 
 namespace {
 
-static constexpr uint16_t PADDING = 0xAAAA;
+constexpr uint16_t PADDING = 0xAAAA;
 
 struct RotateCase {
   lv_coord_t width;
