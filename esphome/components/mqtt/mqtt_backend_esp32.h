@@ -178,9 +178,9 @@ class MQTTBackendESP32 final : public MQTTBackend {
 
   void connect() final {
     this->want_connected_.store(true);  // before start/reconnect, so the MQTT task sees it
-    if (!this->is_initalized_) {
-      if (this->initialize_()) {
-        esp_mqtt_client_start(this->handler_.get());
+    if (!is_initalized_) {
+      if (initialize_()) {
+        esp_mqtt_client_start(handler_.get());
       }
     } else {
       // Auto-reconnect is off, so wake the task parked in WAIT_RECONNECT
@@ -189,9 +189,8 @@ class MQTTBackendESP32 final : public MQTTBackend {
   }
   void disconnect() final {
     this->want_connected_.store(false);
-    if (this->is_initalized_) {
-      esp_mqtt_client_disconnect(this->handler_.get());
-    }
+    if (is_initalized_)
+      esp_mqtt_client_disconnect(handler_.get());
   }
 
   bool subscribe(const char *topic, uint8_t qos) final {
