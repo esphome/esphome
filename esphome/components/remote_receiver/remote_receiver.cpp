@@ -3,7 +3,9 @@
 #include "esphome/core/helpers.h"
 #include "esphome/core/log.h"
 
-#if defined(USE_LIBRETINY) || defined(USE_ESP8266) || defined(USE_RP2) || (defined(USE_ESP32) && !SOC_RMT_SUPPORTED)
+#if (defined(USE_LIBRETINY) || defined(USE_ESP8266) || defined(USE_RP2) || \
+     (defined(USE_ESP32) && !SOC_RMT_SUPPORTED)) && \
+    !defined(REMOTE_RECEIVER_TIMER_SAMPLING)
 
 namespace esphome::remote_receiver {
 

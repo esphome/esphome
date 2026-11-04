@@ -1,5 +1,0 @@
-bk72xx:
-  board: generic-bk7231n-qfn32-tuya
-
-packages:
-  beken_irda: !include common.yaml

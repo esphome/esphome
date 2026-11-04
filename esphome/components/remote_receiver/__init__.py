@@ -1,6 +1,11 @@
+import logging
+from typing import Any
+
 from esphome import pins
 import esphome.codegen as cg
 from esphome.components import esp32, esp32_rmt, remote_base
+from esphome.components.libretiny import get_libretiny_family
+from esphome.components.libretiny.const import FAMILY_BK7231Q, FAMILY_BK7238
 from esphome.config_helpers import filter_source_files_from_platform
 import esphome.config_validation as cv
 from esphome.const import (
@@ -18,21 +23,59 @@ from esphome.const import (
     CONF_TYPE,
     CONF_USE_DMA,
     CONF_VALUE,
+    PLATFORM_BK72XX,
     PlatformFramework,
 )
 from esphome.core import CORE, TimePeriod
+import esphome.final_validate as fv
 from esphome.types import ConfigType
+
+_LOGGER = logging.getLogger(__name__)
 
 CONF_FILTER_SYMBOLS = "filter_symbols"
 CONF_RECEIVE_SYMBOLS = "receive_symbols"
+CONF_SAMPLE_PERIOD = "sample_period"
+CONF_SAMPLING = "sampling"
 
-# The tolerance schema and validator moved to remote_base; keep the old names importable here.
-TOLERANCE_SCHEMA = remote_base.TOLERANCE_SCHEMA
-validate_tolerance = remote_base.validate_tolerance
+SAMPLING_EDGE = "edge"
+SAMPLING_TIMER = "timer"
+DEFAULT_FILTER = "50us"
+DEFAULT_SAMPLE_PERIOD = "100us"
+# Below the 560us NEC mark, so a coarse sample period does not filter out every bit
+MAX_TIMER_DEFAULT_FILTER_US = 400
 
 AUTO_LOAD = ["remote_base"]
 DOMAIN = "remote_receiver"
 remote_receiver_ns = cg.esphome_ns.namespace("remote_receiver")
+remote_base_ns = cg.esphome_ns.namespace("remote_base")
+
+ToleranceMode = remote_base_ns.enum("ToleranceMode")
+
+TYPE_PERCENTAGE = "percentage"
+TYPE_TIME = "time"
+
+TOLERANCE_MODE = {
+    TYPE_PERCENTAGE: ToleranceMode.TOLERANCE_MODE_PERCENTAGE,
+    TYPE_TIME: ToleranceMode.TOLERANCE_MODE_TIME,
+}
+
+TOLERANCE_SCHEMA = cv.typed_schema(
+    {
+        TYPE_PERCENTAGE: cv.Schema(
+            {cv.Required(CONF_VALUE): cv.All(cv.percentage_int, cv.uint32_t)}
+        ),
+        TYPE_TIME: cv.Schema(
+            {
+                cv.Required(CONF_VALUE): cv.All(
+                    cv.positive_time_period_microseconds,
+                    cv.Range(max=TimePeriod(microseconds=4294967295)),
+                )
+            }
+        ),
+    },
+    lower=True,
+    enum=TOLERANCE_MODE,
+)
 
 RemoteReceiverComponent = remote_receiver_ns.class_(
     "RemoteReceiverComponent", remote_base.RemoteReceiverBase, cg.Component
@@ -55,6 +98,66 @@ def validate_config(config: ConfigType) -> ConfigType:
     return config
 
 
+def validate_tolerance(value: Any) -> ConfigType:
+    if isinstance(value, dict):
+        return TOLERANCE_SCHEMA(value)
+
+    if "%" in str(value):
+        type_ = TYPE_PERCENTAGE
+    else:
+        try:
+            cv.positive_time_period_microseconds(value)
+            type_ = TYPE_TIME
+        except cv.Invalid as exc:
+            raise cv.Invalid(
+                "Tolerance must be a percentage or time. Configurations made before 2024.5.0 treated the value as a percentage."
+            ) from exc
+
+    return TOLERANCE_SCHEMA(
+        {
+            CONF_VALUE: value,
+            CONF_TYPE: type_,
+        }
+    )
+
+
+def validate_sampling(config: ConfigType) -> ConfigType:
+    """Check the timer sampling options and fill the filter default for the chosen sampling."""
+    if config.get(CONF_SAMPLING, SAMPLING_EDGE) != SAMPLING_TIMER:
+        if CONF_SAMPLE_PERIOD in config:
+            raise cv.Invalid(
+                f"'{CONF_SAMPLE_PERIOD}' needs '{CONF_SAMPLING}: {SAMPLING_TIMER}'"
+            )
+        config.setdefault(
+            CONF_FILTER, cv.positive_time_period_microseconds(DEFAULT_FILTER)
+        )
+        return config
+    # The BK7231Q SDK registers no timer driver
+    if get_libretiny_family() == FAMILY_BK7231Q:
+        raise cv.Invalid(
+            f"'{CONF_SAMPLING}: {SAMPLING_TIMER}' is not available on {FAMILY_BK7231Q}"
+        )
+    sample_us = config.setdefault(
+        CONF_SAMPLE_PERIOD,
+        cv.positive_time_period_microseconds(DEFAULT_SAMPLE_PERIOD),
+    ).total_microseconds
+    if (filter_ := config.get(CONF_FILTER)) is None:
+        # 1.5 sample periods, so a one-sample glitch is still removed
+        default_us = min(sample_us * 3 // 2, MAX_TIMER_DEFAULT_FILTER_US)
+        config[CONF_FILTER] = cv.positive_time_period_microseconds(f"{default_us}us")
+    elif filter_.total_microseconds <= sample_us:
+        _LOGGER.warning(
+            "remote_receiver: filter is not longer than the sample period, so it cannot remove one-sample glitches"
+        )
+    # Both are counted in 26MHz timer ticks
+    for key in (CONF_FILTER, CONF_IDLE):
+        if config[key].total_microseconds > 1000000:
+            raise cv.Invalid(
+                f"'{key}' can be at most 1s with '{CONF_SAMPLING}: {SAMPLING_TIMER}'"
+            )
+    return config
+
+
 MULTI_CONF = True
 CONFIG_SCHEMA = remote_base.validate_triggers(
     cv.Schema(
@@ -62,7 +165,7 @@ CONFIG_SCHEMA = remote_base.validate_triggers(
             cv.GenerateID(): cv.declare_id(RemoteReceiverComponent),
             cv.Required(CONF_PIN): cv.All(pins.internal_gpio_input_pin_schema),
             cv.Optional(CONF_DUMP, default=[]): remote_base.validate_dumpers,
-            cv.Optional(CONF_TOLERANCE, default="25%"): remote_base.validate_tolerance,
+            cv.Optional(CONF_TOLERANCE, default="25%"): validate_tolerance,
             # pulse ring targets hold one 4 byte entry per pulse; 4000b keeps their 1000 pulses
             cv.SplitDefault(
                 CONF_BUFFER_SIZE,
@@ -78,9 +181,21 @@ CONFIG_SCHEMA = remote_base.validate_triggers(
                 rtl87xx="4000b",
                 rp2="4000b",
             ): cv.All(cv.validate_bytes, cv.int_range(min=64, max=65535)),
-            cv.Optional(CONF_FILTER, default="50us"): cv.All(
+            # The default depends on the sampling, see validate_sampling
+            cv.Optional(CONF_FILTER): cv.All(
                 cv.positive_time_period_microseconds,
                 cv.Range(max=TimePeriod(microseconds=4294967295)),
+            ),
+            cv.Optional(CONF_SAMPLING): cv.All(
+                cv.only_on(PLATFORM_BK72XX),
+                cv.one_of(SAMPLING_EDGE, SAMPLING_TIMER, lower=True),
+            ),
+            # A tick counter that wraps every 2ms measures the time between samples
+            cv.Optional(CONF_SAMPLE_PERIOD): cv.All(
+                cv.positive_time_period_microseconds,
+                cv.Range(
+                    min=TimePeriod(microseconds=50), max=TimePeriod(microseconds=1000)
+                ),
             ),
             cv.Optional(CONF_CLOCK_RESOLUTION): cv.All(
                 cv.only_on_esp32,
@@ -154,11 +269,34 @@ CONFIG_SCHEMA = remote_base.validate_triggers(
         )
     )
     .add_extra(validate_config)
+    .add_extra(validate_sampling)
     # setup_priority::DATA, the default of Component::get_setup_priority()
     .add_extra(esp32_rmt.request_rmt_channel("RX", 600.0))
 )
 
-FINAL_VALIDATE_SCHEMA = esp32_rmt.final_validate_rmt_channels
+
+def final_validate_sampling(config: ConfigType) -> None:
+    if config.get(CONF_SAMPLING) != SAMPLING_TIMER:
+        return
+    full_config = fv.full_config.get()
+    # The backend is chosen for the whole build and owns BKTIMER1
+    if len(full_config[DOMAIN]) > 1:
+        raise cv.Invalid(
+            f"'{CONF_SAMPLING}: {SAMPLING_TIMER}' supports only one remote_receiver"
+        )
+    # On BK7238 remote_transmitter always paces its PWM envelope with BKTIMER1
+    if get_libretiny_family() == FAMILY_BK7238 and "remote_transmitter" in full_config:
+        raise cv.Invalid(
+            f"'{CONF_SAMPLING}: {SAMPLING_TIMER}' and remote_transmitter both use BKTIMER1 on {FAMILY_BK7238}"
+        )
+
+
+def _final_validate(config: ConfigType) -> None:
+    final_validate_sampling(config)
+    esp32_rmt.final_validate_rmt_channels(config)
+
+
+FINAL_VALIDATE_SCHEMA = _final_validate
 
 
 async def to_code(config: ConfigType) -> None:
@@ -196,6 +334,9 @@ async def to_code(config: ConfigType) -> None:
     cg.add_optional(var.set_buffer_size, config.get(CONF_BUFFER_SIZE))
     cg.add(var.set_filter_us(config[CONF_FILTER]))
     cg.add(var.set_idle_us(config[CONF_IDLE]))
+    if config.get(CONF_SAMPLING) == SAMPLING_TIMER:
+        cg.add_define("USE_REMOTE_RECEIVER_TIMER_SAMPLING")
+        cg.add(var.set_sample_period_us(config[CONF_SAMPLE_PERIOD]))
 
 
 FILTER_SOURCE_FILES = filter_source_files_from_platform(
@@ -204,6 +345,7 @@ FILTER_SOURCE_FILES = filter_source_files_from_platform(
             PlatformFramework.ESP32_ARDUINO,
             PlatformFramework.ESP32_IDF,
         },
+        "remote_receiver_bk72xx.cpp": {PlatformFramework.BK72XX_ARDUINO},
         "remote_receiver.cpp": {
             PlatformFramework.ESP32_ARDUINO,
             PlatformFramework.ESP32_IDF,

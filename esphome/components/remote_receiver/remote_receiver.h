@@ -12,9 +12,42 @@
 #endif  // SOC_RMT_SUPPORTED
 #endif  // USE_ESP32
 
+// The timer sampling backend exists only on BK72xx; the define alone (as in defines.h) selects nothing elsewhere.
+#if defined(USE_BK72XX) && defined(USE_REMOTE_RECEIVER_TIMER_SAMPLING)
+#define REMOTE_RECEIVER_TIMER_SAMPLING
+#endif
+
 namespace esphome::remote_receiver {
 
-#if defined(USE_ESP8266) || defined(USE_LIBRETINY) || defined(USE_RP2) || (defined(USE_ESP32) && !SOC_RMT_SUPPORTED)
+#if defined(REMOTE_RECEIVER_TIMER_SAMPLING)
+/// BK72xx timer sampling (remote_receiver_bk72xx.cpp): a timer interrupt samples the pin and records the
+/// runs of one frame into the capture half of buffer, while the loop dispatches the other half.
+struct RemoteReceiverComponentStore {
+  void timer_isr();
+  void finish_run(bool level, uint32_t ticks);
+  void push_run();
+  /// Re-arm capture into the given buffer half; called with interrupts locked or before the timer runs.
+  void reset(int32_t *capture);
+
+  int32_t *buffer{nullptr};
+  int32_t *capture{nullptr};
+  uint32_t frame_entries{0};
+  uint32_t filter_ticks{0};
+  uint32_t idle_ticks{0};
+  uint32_t last_counter{0};
+  uint32_t level_ticks{0};
+  uint32_t run_ticks{0};
+  ISRInternalGPIOPin pin;
+  /// Durations in capture, handed to the loop together with frame_ready
+  volatile uint32_t count{0};
+  bool last_level{false};
+  bool run_level{false};
+  bool run_active{false};
+  bool capture_active{false};
+  volatile bool frame_ready{false};
+  volatile bool overflow{false};
+};
+#elif defined(USE_ESP8266) || defined(USE_LIBRETINY) || defined(USE_RP2) || (defined(USE_ESP32) && !SOC_RMT_SUPPORTED)
 struct RemoteReceiverComponentStore {
   static void gpio_intr(RemoteReceiverComponentStore *arg);
 
@@ -79,6 +112,9 @@ class RemoteReceiverComponent final : public remote_base::RemoteReceiverBase,
   void set_buffer_size(uint32_t buffer_size) { this->buffer_size_ = buffer_size; }
   void set_filter_us(uint32_t filter_us) { this->filter_us_ = filter_us; }
   void set_idle_us(uint32_t idle_us) { this->idle_us_ = idle_us; }
+#ifdef REMOTE_RECEIVER_TIMER_SAMPLING
+  void set_sample_period_us(uint32_t sample_period_us) { this->sample_period_us_ = sample_period_us; }
+#endif
 
  protected:
 #if defined(USE_ESP32) && SOC_RMT_SUPPORTED
@@ -97,7 +133,10 @@ class RemoteReceiverComponent final : public remote_base::RemoteReceiverBase,
   RemoteReceiverComponentStore store_;
 #endif
 
-#if defined(USE_ESP8266) || defined(USE_LIBRETINY) || defined(USE_RP2) || (defined(USE_ESP32) && !SOC_RMT_SUPPORTED)
+#ifdef REMOTE_RECEIVER_TIMER_SAMPLING
+  void fail_(const LogString *reason);
+  uint32_t sample_period_us_{100};
+#elif defined(USE_ESP8266) || defined(USE_LIBRETINY) || defined(USE_RP2) || (defined(USE_ESP32) && !SOC_RMT_SUPPORTED)
   HighFrequencyLoopRequester high_freq_;
 #endif
 

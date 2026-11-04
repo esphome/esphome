@@ -1,7 +1,6 @@
 beken_irda:
   id: irda_rx
   pin: P26
-  mode: timer
   dump: nec
   on_nec:
     then:
