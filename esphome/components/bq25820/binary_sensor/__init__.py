@@ -67,47 +67,27 @@ _FIELDS = (
         key="pg", register=CHARGER_STATUS_2, shift=7, device_class=DEVICE_CLASS_POWER
     ),
     _StatusBit(key="reverse", register=CHARGER_STATUS_3, shift=2),
-    _StatusBit(
-        key="vac_undervoltage",
-        register=FAULT_STATUS,
-        shift=7,
-        device_class=DEVICE_CLASS_PROBLEM,
-    ),
-    _StatusBit(
-        key="vac_overvoltage",
-        register=FAULT_STATUS,
-        shift=6,
-        device_class=DEVICE_CLASS_PROBLEM,
-    ),
-    _StatusBit(
-        key="ibat_overcurrent",
-        register=FAULT_STATUS,
-        shift=5,
-        device_class=DEVICE_CLASS_PROBLEM,
-    ),
-    _StatusBit(
-        key="vbat_overvoltage",
-        register=FAULT_STATUS,
-        shift=4,
-        device_class=DEVICE_CLASS_PROBLEM,
-    ),
-    _StatusBit(
-        key="thermal_shutdown",
-        register=FAULT_STATUS,
-        shift=3,
-        device_class=DEVICE_CLASS_PROBLEM,
-    ),
-    _StatusBit(
-        key="charge_safety_timer",
-        register=FAULT_STATUS,
-        shift=2,
-        device_class=DEVICE_CLASS_PROBLEM,
-    ),
-    _StatusBit(
-        key="drv_supply_invalid",
-        register=FAULT_STATUS,
-        shift=1,
-        device_class=DEVICE_CLASS_PROBLEM,
+    # FAULT_STATUS bits 7 to 1
+    *(
+        _StatusBit(
+            key=key,
+            register=FAULT_STATUS,
+            shift=shift,
+            device_class=DEVICE_CLASS_PROBLEM,
+        )
+        for shift, key in zip(
+            range(7, 0, -1),
+            (
+                "vac_undervoltage",
+                "vac_overvoltage",
+                "ibat_overcurrent",
+                "vbat_overvoltage",
+                "thermal_shutdown",
+                "charge_safety_timer",
+                "drv_supply_invalid",
+            ),
+            strict=True,
+        )
     ),
 )
 

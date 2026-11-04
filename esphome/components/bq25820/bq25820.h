@@ -28,7 +28,7 @@ static constexpr size_t BQ25820_CONTROL_COUNT = 8;
 struct BQ25820Config {
   // ICHG, IPRECHG, IAC_DPM, VAC_DPM and VAC_REV; 0 keeps the reset value
   std::array<uint16_t, BQ25820_LIMIT_COUNT> limits;
-  // VFB_REG, timer, power path, MPPT, TS threshold, TS region, ADC and charger control
+  // VFB_REG, timer, power path, MPPT, TS threshold, TS region, charger and ADC control
   std::array<uint8_t, BQ25820_CONTROL_COUNT> controls;
   // Amps per current ADC step, from the sense resistors
   float ibat_scale;
@@ -37,11 +37,18 @@ struct BQ25820Config {
 
 // CHARGER_STATUS_1-3 and FAULT_STATUS (0x21-0x24), read together by every poll
 using BQ25820StatusRegisters = std::array<uint8_t, 4>;
+#ifdef USE_BQ25820_SENSOR
+// ADC_CONTROL in the low byte of the first word, then the IAC, IBAT, VAC, VBAT, VSYS and TS ADCs (0x2B-0x38)
+using BQ25820AdcRegisters = std::array<int16_t, 7>;
+#else
+// ADC_CONTROL (0x2B)
+using BQ25820AdcRegisters = std::array<uint8_t, 1>;
+#endif
 
 #ifdef USE_TEXT_SENSOR
-// CHARGE_STAT[2:0] (code 5 is reserved), then TS_STAT[2:0] (codes 5-7 are not defined)
+// CHARGE_STAT[2:0] (code 5 is reserved), then TS_STAT[2:0]; TS codes 5-7 are not defined and fall back to index 5
 PROGMEM_STRING_TABLE(BQ25820StatusStrings, "Not Charging", "Trickle", "Precharge", "Fast Charge", "Taper", "Unknown",
-                     "Top-Off", "Done", "Normal", "Warm", "Cool", "Cold", "Hot", "Unknown");
+                     "Top-Off", "Done", "Normal", "Warm", "Cool", "Cold", "Hot");
 
 /// Publish the three-bit field in the low bits of `value` as string `first + field`, only when it differs from `last`
 inline void publish_status_text(text_sensor::TextSensor *sensor, uint8_t &last, uint8_t value, uint8_t first) {
@@ -49,7 +56,7 @@ inline void publish_status_text(text_sensor::TextSensor *sensor, uint8_t &last, 
   if (value == last)
     return;
   last = value;
-  sensor->publish_state(BQ25820StatusStrings::get_progmem_str(first + value, BQ25820StatusStrings::LAST_INDEX));
+  sensor->publish_state(BQ25820StatusStrings::get_progmem_str(first + value, 5));
 }
 #endif
 
@@ -97,11 +104,10 @@ class BQ25820Component final : public PollingComponent, public i2c::I2CDevice {
   BQ25820Config load_config_() const;
   bool watchdog_enabled_() const;
   bool write_config_registers_();
-  /// Reads the status registers and publishes them and the ADC readings, without touching the configuration
-  void read_and_publish_();
-  void publish_(const BQ25820StatusRegisters &status);
+  /// Writes the configuration, then polls again once the ADC has had time to convert
+  void configure_();
 #ifdef USE_BQ25820_SENSOR
-  void publish_adc_(const BQ25820Config &config);
+  void publish_adc_(const BQ25820AdcRegisters &adc);
   /// Temperature from TS_ADC, the TS pin voltage as a 10-bit share of REGN; NAN when the reading is 0
   float ntc_temperature_(int16_t ts_adc) const {
     const float ratio = (ts_adc & 0x3FF) / 1024.0f;
@@ -115,8 +121,7 @@ class BQ25820Component final : public PollingComponent, public i2c::I2CDevice {
 #endif
 
   const BQ25820Config *config_;
-  bool force_mppt_sweep_ : 1;
-  bool config_written_ : 1 {false};
+  bool force_mppt_sweep_;
 };
 
 }  // namespace esphome::bq25820

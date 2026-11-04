@@ -262,13 +262,10 @@ def build_config(config: ConfigType) -> cg.StructInitializer:
         | _flag(config[CONF_CHARGE_ENABLED], EN_CHG)
     )
     power_path_control = _flag(config[CONF_IDEAL_DIODE], EN_BATFET_IDEAL_DIODE)
-    sweep_timer = MPPT_SWEEP_TIMER_CHOICES[config[CONF_MPPT_SWEEP_TIMER]]
-    mppt_enabled = _flag(config[CONF_MPPT_ENABLED], EN_MPPT)
-    mppt_control = sweep_timer << FULL_SWEEP_TMR_SHIFT | mppt_enabled
+    mppt_control = MPPT_SWEEP_TIMER_CHOICES[
+        config[CONF_MPPT_SWEEP_TIMER]
+    ] << FULL_SWEEP_TMR_SHIFT | _flag(config[CONF_MPPT_ENABLED], EN_MPPT)
     ts_region_control = _flag(config[CONF_TEMP_EN], EN_TS)
-    # ADC_RATE stays clear for continuous conversion
-    adc_control = ADC_EN
-    # In the order of the control register table in bq25820.cpp
     controls = (
         charge_voltage,
         timer_control,
@@ -276,21 +273,21 @@ def build_config(config: ConfigType) -> cg.StructInitializer:
         mppt_control,
         ts_thresholds,
         ts_region_control,
-        adc_control,
         charger_control,
+        # ADC_RATE stays clear for continuous conversion
+        ADC_EN,
     )
     return cg.StructInitializer(
         BQ25820Config,
         ("limits", cg.ArrayInitializer(*limits)),
         ("controls", cg.ArrayInitializer(*(HexInt(v) for v in controls))),
-        # Amps per ADC step
         ("ibat_scale", IBAT_ADC_STEP_MV / bat_sns_res),
         ("iac_scale", IAC_ADC_STEP_MV / ac_sns_res),
     )
 
 
 async def to_code(config: ConfigType) -> None:
-    # In flash: the chip only needs it again after a watchdog reset
+    # In flash: the chip only needs it again after a charger reset
     table = cg.shared_progmem_array(
         "bq25820_config", BQ25820Config, cg.ArrayInitializer(build_config(config))
     )

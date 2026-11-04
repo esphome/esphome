@@ -9,10 +9,19 @@
 namespace esphome::bq25820::testing {
 
 static constexpr uint8_t ADDRESS = 0x6B;
+static constexpr uint8_t REG_TIMER_CONTROL = 0x15;
+static constexpr uint8_t REG_CHARGER_CONTROL = 0x17;
+static constexpr uint8_t REG_MPPT_CONTROL = 0x1A;
+static constexpr uint8_t REG_CHARGER_STATUS_1 = 0x21;
+static constexpr uint8_t REG_ADC_CONTROL = 0x2B;
+static constexpr uint8_t EN_CHG = 0x01;
+static constexpr uint8_t WD_RST = 0x20;
+static constexpr uint8_t WD_STAT = 0x08;
+static constexpr uint8_t ADC_EN = 0x80;
 // The packed defaults with the watchdog off
 static constexpr BQ25820Config DEFAULT_CONFIG{
     .limits = {0, 0, 0, 880, 1000},
-    .controls = {0x10, 0x0A, 0x00, 0x00, 0x16, 0x01, 0x80, 0xC9},
+    .controls = {0x10, 0x0A, 0x00, 0x00, 0x16, 0x01, 0xC9, 0x80},
     .ibat_scale = 0.002f,
     .iac_scale = 0.002f,
 };
@@ -49,5 +58,10 @@ class RegisterBus final : public i2c::I2CBus {
 
   uint8_t pointer_{0};
 };
+
+inline void attach(BQ25820Component &hub, RegisterBus &bus) {
+  hub.set_i2c_bus(&bus);
+  hub.set_i2c_address(ADDRESS);
+}
 
 }  // namespace esphome::bq25820::testing

@@ -29,11 +29,9 @@ CONF_IAC = "iac"
 CONF_TEMP_IN_C = "temp_in_c"
 # The resistor from REGN to TS, above the NTC thermistor from TS to PGND
 CONF_RESISTOR = "resistor"
-ZERO_POINT = 273.15
-_ABOVE_ZERO = cv.Range(min=0, min_included=False)
 # In °C; at absolute zero ntc_calibration() divides by zero
 validate_reference_temperature = cv.All(
-    cv.temperature, cv.Range(min=-ZERO_POINT, min_included=False)
+    cv.temperature, cv.Range(min=-sensor.ZERO_POINT, min_included=False)
 )
 
 _VOLTAGE_SCHEMA = sensor.sensor_schema(
@@ -54,11 +52,8 @@ _SENSOR_KEYS = (CONF_VBAT, CONF_VSYS, CONF_VAC, CONF_IBAT, CONF_IAC, CONF_TEMP_I
 
 def ntc_calibration(config: ConfigType) -> tuple[float, float]:
     """B-parameter fit of the TS thermistor as 1/T = a + b * ln(R_ntc / resistor)."""
-    b = 1 / config[CONF_B_CONSTANT]
-    a = 1 / (config[CONF_REFERENCE_TEMPERATURE] + ZERO_POINT) + b * log(
-        config[CONF_RESISTOR] / config[CONF_REFERENCE_RESISTANCE]
-    )
-    return a, b
+    a, b, _ = sensor.ntc_calc_b_constant(config)
+    return a + b * log(config[CONF_RESISTOR]), b
 
 
 CONFIG_SCHEMA = cv.All(
@@ -77,17 +72,17 @@ CONFIG_SCHEMA = cv.All(
                 state_class=STATE_CLASS_MEASUREMENT,
             ).extend(
                 {
-                    cv.Optional(CONF_B_CONSTANT, default=3435): cv.All(
-                        cv.float_, _ABOVE_ZERO
-                    ),
+                    cv.Optional(
+                        CONF_B_CONSTANT, default=3435
+                    ): cv.positive_not_null_float,
                     cv.Optional(CONF_REFERENCE_RESISTANCE, default="10kΩ"): cv.All(
-                        cv.resistance, _ABOVE_ZERO
+                        cv.resistance, cv.positive_not_null_float
                     ),
                     cv.Optional(
                         CONF_REFERENCE_TEMPERATURE, default="25°C"
                     ): validate_reference_temperature,
                     cv.Optional(CONF_RESISTOR, default="10kΩ"): cv.All(
-                        cv.resistance, _ABOVE_ZERO
+                        cv.resistance, cv.positive_not_null_float
                     ),
                 }
             ),
@@ -101,10 +96,7 @@ async def to_code(config: ConfigType) -> None:
     hub = await cg.get_variable(config[CONF_BQ25820_ID])
     cg.add_define("USE_BQ25820_SENSOR")
     sensors = sensor.sub_sensors(config)
-    await sensors(CONF_VBAT, hub.set_vbat_sensor)
-    await sensors(CONF_VSYS, hub.set_vsys_sensor)
-    await sensors(CONF_VAC, hub.set_vac_sensor)
-    await sensors(CONF_IBAT, hub.set_ibat_sensor)
-    await sensors(CONF_IAC, hub.set_iac_sensor)
-    if await sensors(CONF_TEMP_IN_C, hub.set_temp_in_c_sensor) is not None:
+    for key in _SENSOR_KEYS:
+        await sensors(key, getattr(hub, f"set_{key}_sensor"))
+    if CONF_TEMP_IN_C in config:
         cg.add(hub.set_ntc_calibration(*ntc_calibration(config[CONF_TEMP_IN_C])))

@@ -34,18 +34,14 @@ class _StatusText:
 
     key: str
     register: int
-    shift: int
-    first: int
+    shift: int = 0
+    first: int = 0
     icon: str
 
 
 _FIELDS = (
     _StatusText(
-        key="charge_status",
-        register=CHARGER_STATUS_1,
-        shift=0,
-        first=0,
-        icon=ICON_BATTERY_CHARGING,
+        key="charge_status", register=CHARGER_STATUS_1, icon=ICON_BATTERY_CHARGING
     ),
     _StatusText(
         key="temp_status",
@@ -57,10 +53,7 @@ _FIELDS = (
 )
 
 
-def _add_text_status(
-    hub: cg.MockObj, var: cg.MockObj, reg: int, shift: int, first: int
-) -> None:
-    """Publish status string first + the three-bit field at status[reg] >> shift, on change."""
+def _add_text_status(hub: cg.MockObj, var: cg.MockObj, field: _StatusText) -> None:
     last = cg.MockObj(f"esphome__{var}__last")
     # 0xFF so the first poll publishes
     declaration = VariableDeclarationExpression(cg.uint8, "", last, static=True)
@@ -70,7 +63,7 @@ def _add_text_status(
     STATUS_PUBLISHER.add(
         hub,
         bq25820_ns.publish_status_text(
-            parent_ref(var), last, STATUS[reg] >> shift, first
+            parent_ref(var), last, STATUS[field.register] >> field.shift, field.first
         ),
     )
 
@@ -91,5 +84,5 @@ async def to_code(config: ConfigType) -> None:
     sensors = text_sensor.sub_text_sensors(config)
     for field in _FIELDS:
         if (var := await sensors(field.key, None)) is not None:
-            _add_text_status(hub, var, field.register, field.shift, field.first)
+            _add_text_status(hub, var, field)
             DUMP_STATUS.add(hub, bq25820_ns.dump_status_entity(parent_ref(var)))

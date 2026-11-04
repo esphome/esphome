@@ -5,25 +5,19 @@
 
 namespace esphome::bq25820::testing {
 
-static constexpr uint8_t REG_CHARGER_STATUS_1 = 0x21;
-static constexpr uint8_t WD_STAT = 0x08;
-
 // Every option away from its default, with the 40 s watchdog, as code generation packs packed_config.yaml
 // (checked in tests/component_tests/bq25820/test_init.py), except IPRECHG: 0 here covers a limit that keeps
 // its reset value
 static constexpr BQ25820Config SET_CONFIG{
     .limits = {240, 0, 256, 8000, 660},
-    .controls = {0x17, 0x9C, 0x04, 0x03, 0xFF, 0x00, 0x80, 0xCC},
+    .controls = {0x17, 0x9C, 0x04, 0x03, 0xFF, 0x00, 0xCC, 0x80},
     .ibat_scale = 0.002f,
     .iac_scale = 0.002f,
 };
 
 class BQ25820ConfigTest : public ::testing::Test {
  protected:
-  void SetUp() override {
-    this->hub_.set_i2c_bus(&this->bus_);
-    this->hub_.set_i2c_address(ADDRESS);
-  }
+  void SetUp() override { attach(this->hub_, this->bus_); }
 
   uint8_t &reg_(uint8_t address) { return this->bus_.registers[address]; }
 
@@ -33,11 +27,11 @@ class BQ25820ConfigTest : public ::testing::Test {
 
 TEST_F(BQ25820ConfigTest, FirstPollWritesEachRegisterInTableOrder) {
   // Bits the configuration does not own, which must survive
-  this->reg_(0x15) = 0x01;  // EN_TMR2X
+  this->reg_(REG_TIMER_CONTROL) = 0x01;  // EN_TMR2X
   this->reg_(0x19) = 0xFB;
-  this->reg_(0x1A) = 0x78;
+  this->reg_(REG_MPPT_CONTROL) = 0x78;
   this->reg_(0x1C) = 0xFE;
-  this->reg_(0x2B) = 0x3F;
+  this->reg_(REG_ADC_CONTROL) = 0x3F;
   this->reg_(0x00) = 0xE0;
   this->reg_(0x10) = 0x5A;  // IPRECHG is left at its value with a 0 code
   this->hub_.update();
@@ -53,53 +47,52 @@ TEST_F(BQ25820ConfigTest, FirstPollWritesEachRegisterInTableOrder) {
   EXPECT_EQ(this->reg_(0x10), 0x5A);
   // 8-bit registers, masked
   EXPECT_EQ(this->reg_(0x00), 0xF7);
-  EXPECT_EQ(this->reg_(0x15), 0x9D);
+  EXPECT_EQ(this->reg_(REG_TIMER_CONTROL), 0x9D);
   EXPECT_EQ(this->reg_(0x19), 0xFF);
-  EXPECT_EQ(this->reg_(0x1A), 0xFB);  // with FORCE_SWEEP
+  EXPECT_EQ(this->reg_(REG_MPPT_CONTROL), 0xFB);  // with FORCE_SWEEP
   EXPECT_EQ(this->reg_(0x1B), 0xFF);
   EXPECT_EQ(this->reg_(0x1C), 0xFE);
-  EXPECT_EQ(this->reg_(0x2B), 0xBF);
+  EXPECT_EQ(this->reg_(REG_ADC_CONTROL), 0xBF);
   // The charger control write, then WD_RST to feed the watchdog
-  EXPECT_EQ(this->reg_(0x17), 0xCC | 0x20);
+  EXPECT_EQ(this->reg_(REG_CHARGER_CONTROL), (0xCC | WD_RST));
 }
 
 TEST_F(BQ25820ConfigTest, EveryPollFeedsTheWatchdog) {
   this->hub_.update();
   for (int i = 0; i < 3; i++) {
-    this->reg_(0x17) = 0;
+    this->reg_(REG_CHARGER_CONTROL) = 0;
     this->hub_.update();
-    EXPECT_EQ(this->reg_(0x17), 0xCC | 0x20);
+    EXPECT_EQ(this->reg_(REG_CHARGER_CONTROL), (0xCC | WD_RST));
   }
 }
 
 TEST_F(BQ25820ConfigTest, WatchdogExpiryRewritesTheConfigurationWithoutAnotherSweep) {
   this->hub_.update();
-  this->reg_(0x15) = 0;
-  this->reg_(0x1A) = 0;
+  this->reg_(REG_TIMER_CONTROL) = 0;
+  this->reg_(REG_MPPT_CONTROL) = 0;
   this->hub_.update();
-  EXPECT_EQ(this->reg_(0x15), 0);  // not written again while WD_STAT is clear
+  EXPECT_EQ(this->reg_(REG_TIMER_CONTROL), 0);  // not written again while WD_STAT is clear
   this->reg_(REG_CHARGER_STATUS_1) = WD_STAT;
-  this->reg_(0x17) = 0;
+  this->reg_(REG_CHARGER_CONTROL) = 0;
   this->hub_.update();
-  EXPECT_EQ(this->reg_(0x15), 0x9C);
-  EXPECT_EQ(this->reg_(0x1A), 0x03);  // the panel sweep only runs once
+  EXPECT_EQ(this->reg_(REG_TIMER_CONTROL), 0x9C);
+  EXPECT_EQ(this->reg_(REG_MPPT_CONTROL), 0x03);  // the panel sweep only runs once
   // The recovery poll feeds the watchdog too, which is what clears WD_STAT on the chip
-  EXPECT_EQ(this->reg_(0x17), 0xCC | 0x20);
+  EXPECT_EQ(this->reg_(REG_CHARGER_CONTROL), (0xCC | WD_RST));
 }
 
 TEST(BQ25820WatchdogOff, PollsNeitherFeedNorRewrite) {
   RegisterBus bus;
   BQ25820Component hub{&DEFAULT_CONFIG, false};
-  hub.set_i2c_bus(&bus);
-  hub.set_i2c_address(ADDRESS);
+  attach(hub, bus);
   hub.update();
-  EXPECT_EQ(bus.registers[0x17], 0xC9);
-  EXPECT_EQ(bus.registers[0x15], 0x0A);
-  bus.registers[0x15] = 0;
+  EXPECT_EQ(bus.registers[REG_CHARGER_CONTROL], 0xC9);
+  EXPECT_EQ(bus.registers[REG_TIMER_CONTROL], 0x0A);
+  bus.registers[REG_TIMER_CONTROL] = 0;
   bus.registers[REG_CHARGER_STATUS_1] = WD_STAT;
   hub.update();
-  EXPECT_EQ(bus.registers[0x15], 0);
-  EXPECT_EQ(bus.registers[0x17], 0xC9);
+  EXPECT_EQ(bus.registers[REG_TIMER_CONTROL], 0);
+  EXPECT_EQ(bus.registers[REG_CHARGER_CONTROL], 0xC9);
 }
 
 TEST(BQ25820ChipId, OnlyThePartNumberIsChecked) {
@@ -108,8 +101,7 @@ TEST(BQ25820ChipId, OnlyThePartNumberIsChecked) {
     SCOPED_TRACE(part_information);
     RegisterBus bus;
     BQ25820Component hub{&DEFAULT_CONFIG, false};
-    hub.set_i2c_bus(&bus);
-    hub.set_i2c_address(ADDRESS);
+    attach(hub, bus);
     bus.registers[0x3D] = part_information;
     hub.setup();
     EXPECT_EQ(hub.is_failed(), (part_information & 0x38) != 0x18);
@@ -125,8 +117,7 @@ TEST(BQ25820Temperature, FollowsTheBParameterCalibration) {
   RegisterBus bus;
   BQ25820Component hub{&DEFAULT_CONFIG, false};
   sensor::Sensor temperature;
-  hub.set_i2c_bus(&bus);
-  hub.set_i2c_address(ADDRESS);
+  attach(hub, bus);
   hub.set_temp_in_c_sensor(&temperature);
   hub.set_ntc_calibration(1.0f / T0 + logf(PULL_UP / R0) / B, 1.0f / B);
   hub.update();  // configures the chip and restarts the ADC
@@ -149,9 +140,6 @@ TEST(BQ25820Temperature, FollowsTheBParameterCalibration) {
   EXPECT_NEAR(temperature.state, 30.0f, 0.01f);
 }
 
-static constexpr uint8_t REG_CHARGER_CONTROL = 0x17;
-static constexpr uint8_t EN_CHG = 0x01;
-
 static int status_publishes = 0;  // NOLINT(cppcoreguidelines-avoid-non-const-global-variables)
 
 // A chip at its reset values, with EN_CHG set, and a hub with the default configuration
@@ -159,8 +147,7 @@ class BQ25820WriteFailureTest : public ::testing::Test {
  protected:
   void SetUp() override {
     status_publishes = 0;
-    this->hub_.set_i2c_bus(&this->bus_);
-    this->hub_.set_i2c_address(ADDRESS);
+    attach(this->hub_, this->bus_);
     this->hub_.set_status_publisher([](const BQ25820StatusRegisters &) { status_publishes++; });
     this->hub_.set_vbat_sensor(&this->vbat_);
     this->bus_.registers[0x3D] = 0x18;  // PART_INFORMATION
@@ -177,6 +164,7 @@ class BQ25820WriteFailureTest : public ::testing::Test {
       this->hub_.update();
       EXPECT_TRUE(this->hub_.status_has_warning());
       EXPECT_EQ(this->bus_.registers[REG_CHARGER_CONTROL] & EN_CHG, 0);
+      EXPECT_EQ(this->bus_.registers[REG_ADC_CONTROL] & ADC_EN, 0);
       EXPECT_EQ(status_publishes, 0);
       EXPECT_FALSE(this->vbat_.has_state());
     }
@@ -211,7 +199,6 @@ TEST_F(BQ25820WriteFailureTest, FailedLimitWriteKeepsChargingOff) {
 }
 
 TEST_F(BQ25820WriteFailureTest, ChargerResetIsWrittenAgain) {
-  static constexpr uint8_t REG_ADC_CONTROL = 0x2B;
   this->hub_.update();
   this->hub_.update();
   EXPECT_EQ(status_publishes, 1);
@@ -220,7 +207,7 @@ TEST_F(BQ25820WriteFailureTest, ChargerResetIsWrittenAgain) {
   this->bus_.registers[REG_CHARGER_CONTROL] = 0xC9;
   this->bus_.registers[0x08] = 0;
   this->hub_.update();
-  EXPECT_NE(this->bus_.registers[REG_ADC_CONTROL] & 0x80, 0);
+  EXPECT_NE(this->bus_.registers[REG_ADC_CONTROL] & ADC_EN, 0);
   EXPECT_NE(this->bus_.registers[0x08], 0);
   // That poll wrote the configuration, so it publishes nothing
   EXPECT_EQ(status_publishes, 1);
@@ -234,43 +221,57 @@ TEST_F(BQ25820WriteFailureTest, FailedControlWriteKeepsChargingOff) {
 
 TEST_F(BQ25820ConfigTest, FailedSweepIsRetriedOnce) {
   this->bus_.fail_write_register = 0x1A;  // MPPT_CONTROL
-  this->bus_.writes_before_failure = 1;   // the configuration write, then FORCE_SWEEP fails
+  this->bus_.writes_before_failure = 1;   // the MPPT control write, then FORCE_SWEEP fails
   this->hub_.update();
   EXPECT_TRUE(this->hub_.status_has_warning());
-  EXPECT_EQ(this->reg_(0x1A), 0x03);
+  EXPECT_EQ(this->reg_(REG_MPPT_CONTROL), 0x03);
   this->bus_.fail_write_register = -1;
   this->hub_.update();
   EXPECT_FALSE(this->hub_.status_has_warning());
-  EXPECT_EQ(this->reg_(0x1A), 0x83);
+  EXPECT_EQ(this->reg_(REG_MPPT_CONTROL), 0x83);
   // A watchdog rewrite does not sweep again
-  this->reg_(0x1A) = 0;
+  this->reg_(REG_MPPT_CONTROL) = 0;
   this->reg_(REG_CHARGER_STATUS_1) = WD_STAT;
   this->hub_.update();
-  EXPECT_EQ(this->reg_(0x1A), 0x03);
+  EXPECT_EQ(this->reg_(REG_MPPT_CONTROL), 0x03);
 }
 
-TEST_F(BQ25820ConfigTest, FailedWatchdogFeedAfterTheSweepDoesNotRewriteOrSweepAgain) {
-  this->bus_.fail_write_register = REG_CHARGER_CONTROL;
-  this->bus_.writes_before_failure = 1;  // the configuration write, then WD_RST fails
+TEST_F(BQ25820ConfigTest, PartialWriteLeavesAdcEnClearAndIsRetried) {
+  this->bus_.fail_write_register = 0x1C;  // TS_REGION_CONTROL, the last control before charging starts
   this->hub_.update();
   EXPECT_TRUE(this->hub_.status_has_warning());
-  EXPECT_EQ(this->reg_(0x1A), 0x83);
-  EXPECT_EQ(this->reg_(REG_CHARGER_CONTROL), 0xCC);
+  EXPECT_EQ(this->reg_(REG_ADC_CONTROL) & ADC_EN, 0);
+  EXPECT_EQ(this->reg_(REG_CHARGER_CONTROL) & EN_CHG, 0);
   this->bus_.fail_write_register = -1;
-  this->reg_(0x1A) = 0x03;
-  this->reg_(0x15) = 0;
   this->hub_.update();
   EXPECT_FALSE(this->hub_.status_has_warning());
-  EXPECT_EQ(this->reg_(0x1A), 0x03);
-  EXPECT_EQ(this->reg_(0x15), 0);
-  EXPECT_EQ(this->reg_(REG_CHARGER_CONTROL), 0xCC | 0x20);
+  EXPECT_EQ(this->reg_(REG_ADC_CONTROL), ADC_EN);
+  EXPECT_EQ(this->reg_(REG_CHARGER_CONTROL), (0xCC | WD_RST));
+}
+
+TEST_F(BQ25820ConfigTest, FailedWatchdogFeedDoesNotRewriteOrSweepAgain) {
+  this->hub_.update();
+  EXPECT_EQ(this->reg_(REG_MPPT_CONTROL), 0x83);
+  this->reg_(REG_MPPT_CONTROL) = 0x03;
+  this->reg_(REG_TIMER_CONTROL) = 0;
+  this->reg_(REG_CHARGER_CONTROL) = 0xCC;
+  this->bus_.fail_write_register = REG_CHARGER_CONTROL;
+  this->hub_.update();
+  EXPECT_TRUE(this->hub_.status_has_warning());
+  EXPECT_EQ(this->reg_(REG_CHARGER_CONTROL), 0xCC);
+  this->bus_.fail_write_register = -1;
+  this->hub_.update();
+  EXPECT_FALSE(this->hub_.status_has_warning());
+  EXPECT_EQ(this->reg_(REG_MPPT_CONTROL), 0x03);
+  EXPECT_EQ(this->reg_(REG_TIMER_CONTROL), 0);
+  EXPECT_EQ(this->reg_(REG_CHARGER_CONTROL), (0xCC | WD_RST));
 }
 
 TEST(BQ25820Adc, ScalesVoltagesAndSignedCurrentsBySenseResistor) {
   // A 2 mOhm battery shunt and a 5 mOhm input shunt: 10 uV and 4 uV ADC steps
   static constexpr BQ25820Config CONFIG{
       .limits = {0, 0, 0, 880, 1000},
-      .controls = {0x10, 0x0A, 0x00, 0x00, 0x16, 0x01, 0x80, 0xC9},
+      .controls = {0x10, 0x0A, 0x00, 0x00, 0x16, 0x01, 0xC9, 0x80},
       .ibat_scale = 0.010f / 2.0f,
       .iac_scale = 0.004f / 5.0f,
   };
@@ -287,8 +288,7 @@ TEST(BQ25820Adc, ScalesVoltagesAndSignedCurrentsBySenseResistor) {
   RegisterBus bus;
   BQ25820Component hub{&CONFIG, false};
   sensor::Sensor iac, ibat, vac, vbat, vsys;
-  hub.set_i2c_bus(&bus);
-  hub.set_i2c_address(ADDRESS);
+  attach(hub, bus);
   hub.set_iac_sensor(&iac);
   hub.set_ibat_sensor(&ibat);
   hub.set_vac_sensor(&vac);

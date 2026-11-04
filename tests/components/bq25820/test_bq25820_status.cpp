@@ -6,8 +6,6 @@
 
 namespace esphome::bq25820::testing {
 
-static constexpr uint8_t REG_CHARGER_STATUS_1 = 0x21;
-
 enum BinaryIndex : uint8_t {
   CHARGING,
   CHARGED,
@@ -72,8 +70,7 @@ static void publish_status(const BQ25820StatusRegisters &status) {
 class BQ25820StatusTest : public ::testing::Test {
  protected:
   void SetUp() override {
-    this->hub_.set_i2c_bus(&this->bus_);
-    this->hub_.set_i2c_address(ADDRESS);
+    attach(this->hub_, this->bus_);
     this->hub_.set_status_publisher(publish_status);
     entities = &this->entities_;
     // The first poll writes the configuration and publishes nothing

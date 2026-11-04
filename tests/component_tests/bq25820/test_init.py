@@ -83,7 +83,7 @@ def test_config_is_packed_into_a_progmem_table(
     assert _hub_config(main_cpp, "charger_defaults") == (
         "bq25820::BQ25820Config{\n"
         "  .limits = {0, 0, 0, 880, 1000},\n"
-        "  .controls = {0x10, 0x0A, 0x00, 0x00, 0x16, 0x01, 0x80, 0xC9},\n"
+        "  .controls = {0x10, 0x0A, 0x00, 0x00, 0x16, 0x01, 0xC9, 0x80},\n"
         "  .ibat_scale = 0.002f,\n"
         "  .iac_scale = 0.002f,\n"
         "}"
@@ -91,7 +91,7 @@ def test_config_is_packed_into_a_progmem_table(
     assert _hub_config(main_cpp, "charger_set") == (
         "bq25820::BQ25820Config{\n"
         "  .limits = {240, 80, 256, 8000, 660},\n"
-        "  .controls = {0x17, 0x9C, 0x04, 0x03, 0xFF, 0x00, 0x80, 0xCC},\n"
+        "  .controls = {0x17, 0x9C, 0x04, 0x03, 0xFF, 0x00, 0xCC, 0x80},\n"
         "  .ibat_scale = 0.002f,\n"
         "  .iac_scale = 0.002f,\n"
         "}"
