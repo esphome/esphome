@@ -435,15 +435,18 @@ bool crash_report_get(CrashReport &out) {
   out.flags = CRASH_REPORT_FLAG_PRESENT | CRASH_REPORT_FLAG_BUILD_MATCHES;
   out.reason = record.reason != 0 ? CrashReason::CRASH_REASON_EXCEPTION : CrashReason::CRASH_REASON_UNKNOWN;
   out.pc = record.pc;
-  // Cortex-M CFSR, and the BFAR or MMFAR it marks valid; BK72xx records neither
+#ifdef USE_LIBRETINY_CRASH_HANDLER_VECTOR_PATCH
+  // Cortex-M CFSR, and the BFAR or MMFAR its valid bits mark (0 is a real address for a null dereference);
+  // BK72xx records neither
   if (record.fault_status != 0) {
     out.flags |= CRASH_REPORT_FLAG_CAUSE;
     out.cause = record.fault_status;
   }
-  if (record.fault_address != 0) {
+  if (record.fault_status & (libretiny::CFSR_BFARVALID | libretiny::CFSR_MMARVALID)) {
     out.flags |= CRASH_REPORT_FLAG_FAULT_ADDRESS;
     out.fault_address = record.fault_address;
   }
+#endif
   auto &core = out.cores[out.core_count++];
   core.addresses[core.count++] = record.lr;
   for (size_t i = 0; i < libretiny::MAX_BACKTRACE && record.backtrace[i] != 0; i++)
