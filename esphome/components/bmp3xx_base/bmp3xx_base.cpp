@@ -97,9 +97,8 @@ void BMP3XXComponent::setup() {
     this->temperature_oversampling_ = OVERSAMPLING_NONE;
   }
   // Initialise the BMP388 oversampling register
-  if (!this->setup_check(this->set_oversampling_register(this->pressure_oversampling_, this->temperature_oversampling_),
-                         LOG_STR("Failed to set oversampling register")))
-    return;
+  this->setup_check(this->set_oversampling_register(this->pressure_oversampling_, this->temperature_oversampling_),
+                    LOG_STR("Failed to set oversampling register"));
 }
 
 void BMP3XXComponent::dump_config() {

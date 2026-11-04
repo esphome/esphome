@@ -22,10 +22,7 @@ void GroveMotorDriveTB6612FNG::dump_config() {
   LOG_I2C_DEVICE(this);
 }
 
-void GroveMotorDriveTB6612FNG::setup() {
-  if (!this->setup_check(this->standby()))
-    return;
-}
+void GroveMotorDriveTB6612FNG::setup() { this->setup_check(this->standby()); }
 
 bool GroveMotorDriveTB6612FNG::standby() {
   uint8_t status = 0;
