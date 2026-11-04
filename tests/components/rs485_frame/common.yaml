@@ -6,9 +6,8 @@ globals:
     type: std::string
     initial_value: '""'
 
-# NOTE: every hub below shares one UART (uart_bus) so this single config exercises all hub modes
-# for compile/config coverage. On real hardware each actively-transmitting hub needs its own UART;
-# this is a test fixture, not a wiring example.
+# Each hub needs a UART of its own; the other gate modes, CRC types and a sniffer_only hub
+# compile in test-multi.esp32-idf.yaml, which has two UARTs.
 rs485_frame:
   # Hub 1 — exercises on_frame: triggers + button.
   # crc: is required (it has no default). command_format: is set explicitly so
@@ -79,74 +78,6 @@ rs485_frame:
               id: handle_frame_later
               data: !lambda "return std::vector<uint8_t>(payload.begin(), payload.end());"
 
-  # Hub 2 — sniffer-only with idle_gap gate and CRC16-Modbus. Exercises a different
-  # crc_type, gate mode, queue policy, and the FIFO-with-larger-queue path.
-  - id: rs485_frame_hub2
-    uart_id: uart_bus
-    sniffer_only: true
-    # double escape mode: a literal DLE is stuffed by doubling it (DLE DLE) rather than with
-    # a separate escape byte. Exercises the doubling framer/encoder path in CI.
-    framing:
-      escape:
-        mode: double
-    crc:
-      type: crc16_modbus
-      rx_accept: [header_inclusive, payload_only]
-      tx_variant: header_inclusive
-    tx:
-      gate:
-        mode: idle_gap
-        min_silence: 10ms
-      queue_policy: fifo
-      max_queue_size: 4
-
-  # Hub 3 — generic raw hub with no command_format: target of the raw-form button and the
-  # send_frame action, proving the raw transmit path works without any command_format. XOR8
-  # CRC, fixed_delay gate.
-  - id: rs485_frame_hub3
-    uart_id: uart_bus
-    framing:
-      escape:
-        mode: escape_byte
-        byte: 0x00
-    crc:
-      type: xor8
-    tx:
-      gate:
-        mode: fixed_delay
-        interval: 500ms
-
-  # Hub 4 — sum8 CRC with a 1-byte command_format and an idle_gap gate.
-  - id: rs485_frame_hub4
-    uart_id: uart_bus
-    framing:
-      escape:
-        mode: escape_byte
-        byte: 0x00
-    crc:
-      type: sum8
-    command_format:
-      value_element_bytes: 1
-    tx:
-      gate:
-        mode: idle_gap
-        min_silence: 20ms
-
-  # Hub 6 — sum16_little_endian CRC: compiles the little-endian 2-byte CRC read/emit branch
-  # for a sum (the counterpart to sum16_big_endian; same on-wire byte order as crc16_modbus).
-  - id: rs485_frame_hub6
-    uart_id: uart_bus
-    framing:
-      escape:
-        mode: escape_byte
-        byte: 0x00
-    crc:
-      type: sum16_little_endian
-    tx:
-      gate:
-        mode: idle_gap
-        min_silence: 15ms
-
 binary_sensor:
   # User RX decoding is done entirely through on_frame: + template sensors.
   - platform: template
@@ -172,10 +103,8 @@ button:
     value: 0x00010000
 
   # Raw-form: bypasses command_format entirely — frame_type + payload bytes go out as-is.
-  # Targets hub3 (no command_format set) to prove the raw path works when the command-form
-  # path would have been rejected by the button platform's _final_validate.
   - platform: rs485_frame
-    rs485_frame_id: rs485_frame_hub3
+    rs485_frame_id: rs485_frame_hub
     name: "Generic Probe Frame"
     frame_type: [0x00, 0xA1]
     payload: [0x01, 0x00, 0x55]
@@ -187,7 +116,7 @@ script:
   - id: send_generic_probe
     then:
       - rs485_frame.send_frame:
-          id: rs485_frame_hub3
+          id: rs485_frame_hub
           frame_type: [0x00, 0xA2]
           payload: !lambda |-
             return std::vector<uint8_t>{0x42, 0x00, static_cast<uint8_t>(id(g_led_mask) & 0xFF)};

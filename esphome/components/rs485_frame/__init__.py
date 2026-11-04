@@ -383,6 +383,13 @@ def _validate_send_frame(config: ConfigType) -> ConfigType:
 
 
 def _final_validate(config: ConfigType) -> ConfigType:
+    # Each hub drains its UART's receive stream, so the RX pin cannot be shared with another reader;
+    # a hub that transmits also needs the TX pin to itself.
+    uart.final_validate_device_schema(
+        f"rs485_frame {config[CONF_ID].id}",
+        require_rx=True,
+        require_tx=not config[CONF_SNIFFER_ONLY],
+    )(config)
     for hub_id, length in _data().send_frames:
         if hub_id.id == config[CONF_ID].id:
             check_frame_length(

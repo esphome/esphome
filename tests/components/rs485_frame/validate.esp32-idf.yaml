@@ -1,10 +1,10 @@
 ## Config-only validation tests for validate_hub() branches and the button platform's
 ## _final_validate, which the compiled common.yaml does not all reach. CI runs this with
-## `esphome config` only; it is never compiled, so it uses the shared UART package like the
-## compiled tests.
+## `esphome config` only; it is never compiled. Each hub needs a UART of its own, so the
+## sniffer_only and fixed_delay hubs are in validate-gates.esp32-idf.yaml.
 
 packages:
-  uart: !include ../../test_build_components/common/uart/esp32-idf.yaml
+  uart_2x: !include ../../test_build_components/common/uart_2x/esp32-idf.yaml
 
 rs485_frame:
   # frame_trigger gate (default mode) with an explicit gate.frame_type + a command_format,
@@ -27,25 +27,11 @@ rs485_frame:
       value_element_bytes: 4
       postamble: [0x00]
 
-  # Sniffer-only hub: exempt from the frame_trigger gate.frame_type requirement. crc: type none.
-  - id: sniffer_hub
-    uart_id: uart_bus
-    sniffer_only: true
-    # double escape mode validated config-only here (no byte: key permitted).
-    framing:
-      escape:
-        mode: double
-    crc:
-      type: none
-    tx:
-      gate:
-        mode: idle_gap
-
   # Raw-only generic hub with custom (non-default) framing bytes — exercises the framing
   # distinctness validation passing, and is the target of the raw-form button below (no
   # command_format, so the `value:` form would be rejected against it).
   - id: raw_hub
-    uart_id: uart_bus
+    uart_id: uart_bus_2
     framing:
       dle: 0x7D
       stx: 0x01
@@ -58,23 +44,6 @@ rs485_frame:
     tx:
       gate:
         mode: idle_gap
-
-  # fixed_delay gate mode (no gate.frame_type needed).
-  - id: idle_hub
-    uart_id: uart_bus
-    framing:
-      escape:
-        mode: escape_byte
-        byte: 0x00
-    crc:
-      type: sum8
-    command_format:
-      preamble: [0x00, 0x01, 0x80]
-      value_element_bytes: 1
-    tx:
-      gate:
-        mode: fixed_delay
-        interval: 250ms
 
 # Buttons exercise every button schema and _final_validate branch:
 #   - value: form against a hub that has command_format (cmd_hub)                   -> accepted
