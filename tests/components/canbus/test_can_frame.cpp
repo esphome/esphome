@@ -371,7 +371,8 @@ TEST(CanFrameTest, ActionEvaluatesLambdaFlagsAndPayloadLengths) {
   bus.set_can_id(0x123);
   CanbusSendAction<bool, unsigned> action;
   action.set_parent(&bus);
-  action.set_data_template([](bool, unsigned len) -> std::vector<uint8_t> { return std::vector<uint8_t>(len, 0xAB); });
+  // CanPayload keeps the first 64 bytes of a longer lambda result
+  action.set_data_template([](bool, unsigned len) -> CanPayload { return std::vector<uint8_t>(len, 0xAB); });
   action.set_fd([](bool fd, unsigned) -> bool { return fd; });
   action.set_bit_rate_switch([](bool fd, unsigned) -> bool { return fd; });
   action.set_pad_data([](bool, unsigned) -> bool { return true; });
@@ -379,16 +380,13 @@ TEST(CanFrameTest, ActionEvaluatesLambdaFlagsAndPayloadLengths) {
     for (unsigned len : {0, 8, 9, 12, 64, 65, 256}) {
       const size_t before = bus.send_count;
       action.play(fd, len);
-      const bool valid = !fd || len <= 64;
-      EXPECT_EQ(bus.send_count, before + (valid ? 1 : 0));
-      if (valid) {
-        EXPECT_EQ(bus.sent_frame.fd, fd);
-        EXPECT_EQ(bus.sent_frame.bit_rate_switch, fd);
-        const size_t sent_len = fd ? len : std::min<unsigned>(len, 8);
-        EXPECT_EQ(bus.sent_frame.can_data_length_code, can_len_to_dlc(sent_len, true));
-        for (size_t i = 0; i < sent_len; i++)
-          EXPECT_EQ(bus.sent_frame.data[i], 0xAB);
-      }
+      EXPECT_EQ(bus.send_count, before + 1);
+      EXPECT_EQ(bus.sent_frame.fd, fd);
+      EXPECT_EQ(bus.sent_frame.bit_rate_switch, fd);
+      const size_t sent_len = std::min<unsigned>(len, fd ? 64 : 8);
+      EXPECT_EQ(bus.sent_frame.can_data_length_code, can_len_to_dlc(sent_len, true));
+      for (size_t i = 0; i < sent_len; i++)
+        EXPECT_EQ(bus.sent_frame.data[i], 0xAB);
     }
   }
 }

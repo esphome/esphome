@@ -2,10 +2,13 @@
 
 #include "esphome/core/automation.h"
 #include "esphome/core/component.h"
+#include "esphome/core/helpers.h"
 #include "esphome/core/optional.h"
 
+#include <algorithm>
 #include <cinttypes>
 #include <cstddef>
+#include <cstring>
 #include <vector>
 
 namespace esphome::canbus {
@@ -50,7 +53,6 @@ enum CanSpeed : uint8_t {
   CAN_8000KBPS
 };
 
-class CanbusTrigger;
 template<typename... Ts> class CanbusSendAction;
 
 /* CAN payload length definitions according to ISO 11898-1 */
@@ -116,13 +118,24 @@ constexpr uint8_t can_len_to_dlc(size_t len, bool pad) {
   return CAN_INVALID_DLC;
 }
 
+/// Frame payload without heap; converts to and from std::vector<uint8_t> for older lambdas.
+class CanPayload : public StaticVector<uint8_t, CAN_FD_MAX_DATA_LENGTH> {
+ public:
+  using StaticVector<uint8_t, CAN_FD_MAX_DATA_LENGTH>::StaticVector;
+  // Not = default, so value-init does not zero the buffer
+  CanPayload() {}
+  CanPayload(const std::vector<uint8_t> &data)  // NOLINT(google-explicit-constructor)
+      : StaticVector<uint8_t, CAN_FD_MAX_DATA_LENGTH>(data.begin(), data.end()) {}
+  operator std::vector<uint8_t>() const { return {this->begin(), this->end()}; }  // NOLINT(google-explicit-constructor)
+};
+
 /*
 Can Frame describes a normative CAN Frame
 The RTR = Remote Transmission Request is implemented in every CAN controller but rarely used
 So currently the flag is passed to and from the hardware but currently ignored to the user application.
 */
 struct CanFrame {
-  uint32_t can_id;              /* 29 or 11 bit CAN_ID  */
+  uint32_t can_id;              /* 29 or 11 bit CAN_ID; drivers clear bits 29-31 (on_frame relies on it) */
   uint8_t can_data_length_code; /* Wire DLC (0..15), not byte length. For RTR, the requested length. */
 
   bool use_extended_id : 1 = false;
@@ -133,6 +146,21 @@ struct CanFrame {
       false; /* Received transmitter error state. Transmit handling is controller-specific. */
 
   uint8_t data[CAN_FD_MAX_DATA_LENGTH] __attribute__((aligned(8)));
+
+  /// Payload bytes for the DLC, at most 8 for a classic frame; 0 for an invalid DLC.
+  uint8_t payload_length() const {
+    const uint8_t len = can_dlc_to_len(this->can_data_length_code);
+    if (len == CAN_INVALID_DLC)
+      return 0;
+    return this->fd ? len : std::min(len, CAN_MAX_DATA_LENGTH);
+  }
+  CanPayload payload() const {
+    CanPayload out;
+    const uint8_t len = this->payload_length();
+    std::memcpy(out.data(), this->data, len);
+    out.resize(len);
+    return out;
+  }
 };
 
 enum CanEventFlags : uint8_t {
@@ -193,7 +221,9 @@ class Canbus : public Component {
   virtual bool supports_fd() const { return false; }
   virtual CanStatus get_status() { return {}; }
 
-  void add_trigger(CanbusTrigger *trigger);
+  /// The frame is only valid during the call.
+  template<typename F> void add_frame_callback(F &&callback) { this->frame_callbacks_.add(std::forward<F>(callback)); }
+
   /**
    * Add a callback to be called when a CAN message is received. All received messages
    * are passed to the callback without filtering.
@@ -204,18 +234,17 @@ class Canbus : public Component {
    * - rtr If this is a remote transmission request
    * - data The message data
    */
-  template<typename F> void add_callback(F &&callback) { this->callback_manager_.add(std::forward<F>(callback)); }
-
-  /** Add a callback for every valid received frame, without filtering.
-   * The frame reference is only valid for the duration of the callback.
-   */
-  template<typename F> void add_on_frame_received_callback(F &&callback) {
-    this->received_frame_callbacks_.add(std::forward<F>(callback));
+  template<typename F>
+  ESPDEPRECATED("Use add_frame_callback(), which does not copy the payload. Removed in 2027.5.0.", "2026.11.0")
+  void add_callback(F &&callback) {
+    this->frame_callbacks_.add([cb = std::forward<F>(callback)](const CanFrame &frame) mutable {
+      cb(frame.can_id, frame.use_extended_id, frame.remote_transmission_request,
+         std::vector<uint8_t>(frame.data, frame.data + frame.payload_length()));
+    });
   }
 
  protected:
   template<typename... Ts> friend class CanbusSendAction;
-  std::vector<CanbusTrigger *> triggers_{};
   uint32_t can_id_;
   uint32_t max_frames_per_loop_{50};  // Keep in sync with DEFAULT_MAX_FRAMES_PER_LOOP in __init__.py
   CanSpeed bit_rate_{CAN_125KBPS};    // Keep in sync with DEFAULT_BIT_RATE in __init__.py
@@ -225,9 +254,7 @@ class Canbus : public Component {
   bool default_pad_data_{false};
   uint8_t events_to_log_{0};
   bool bus_off_{false};
-  CallbackManager<void(uint32_t can_id, bool extended_id, bool rtr, const std::vector<uint8_t> &data)>
-      callback_manager_{};
-  LazyCallbackManager<void(const CanFrame &)> received_frame_callbacks_;
+  CallbackManager<void(const CanFrame &frame)> frame_callbacks_{};
 
   // interval in which to check for new can bus events (bus-off, passive, active)
   static constexpr uint32_t EVENT_CHECK_INTERVAL_MS = 100;
@@ -254,7 +281,7 @@ class Canbus : public Component {
 };
 
 template<typename... Ts> class CanbusSendAction final : public Action<Ts...>, public Parented<Canbus> {
-  TEMPLATABLE_BYTES(data)
+  TEMPLATABLE_BUFFER(data, CanPayload)
   TEMPLATABLE_VALUE(bool, fd)
   TEMPLATABLE_VALUE(bool, bit_rate_switch)
   TEMPLATABLE_VALUE(bool, pad_data)
@@ -286,28 +313,6 @@ template<typename... Ts> class CanbusSendAction final : public Action<Ts...>, pu
   optional<uint32_t> can_id_{};
   optional<bool> use_extended_id_{};
   bool remote_transmission_request_{false};
-};
-
-class CanbusTrigger final : public Trigger<std::vector<uint8_t>, uint32_t, bool>, public Component {
-  friend class Canbus;
-
- public:
-  explicit CanbusTrigger(Canbus *parent, const std::uint32_t can_id, const std::uint32_t can_id_mask,
-                         const bool use_extended_id)
-      : parent_(parent), can_id_(can_id), can_id_mask_(can_id_mask), use_extended_id_(use_extended_id) {};
-
-  void set_remote_transmission_request(bool remote_transmission_request) {
-    this->remote_transmission_request_ = remote_transmission_request;
-  }
-
-  void setup() override { this->parent_->add_trigger(this); }
-
- protected:
-  Canbus *parent_;
-  uint32_t can_id_;
-  uint32_t can_id_mask_;
-  bool use_extended_id_;
-  optional<bool> remote_transmission_request_{};
 };
 
 }  // namespace esphome::canbus
