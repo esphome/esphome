@@ -242,15 +242,18 @@ def validate_hub(config: ConfigType) -> ConfigType:
         )
     tx = config[CONF_TX]
     gate = tx[CONF_GATE]
-    if (
-        gate[CONF_MODE] == "frame_trigger"
-        and not gate.get(CONF_FRAME_TYPE)
-        and not config[CONF_SNIFFER_ONLY]
-    ):
-        raise cv.Invalid(
-            "tx.gate.frame_type is required (a non-empty byte list) when tx.gate.mode is "
-            "frame_trigger; the gate would never fire and queued commands would not transmit"
-        )
+    if gate[CONF_MODE] == "frame_trigger" and not config[CONF_SNIFFER_ONLY]:
+        frame_type = gate.get(CONF_FRAME_TYPE)
+        if not frame_type:
+            raise cv.Invalid(
+                "tx.gate.frame_type is required (a non-empty byte list) when tx.gate.mode is "
+                "frame_trigger; the gate would never fire and queued commands would not transmit"
+            )
+        if len(frame_type) > config[CONF_MAX_FRAME_LENGTH]:
+            raise cv.Invalid(
+                f"tx.gate.frame_type is {len(frame_type)} bytes, longer than max_frame_length "
+                f"({config[CONF_MAX_FRAME_LENGTH]}); no received frame could match it"
+            )
     if tx[CONF_QUEUE_POLICY] == "replace_latest" and tx[CONF_MAX_QUEUE_SIZE] != 1:
         raise cv.Invalid("replace_latest requires max_queue_size: 1")
     return config
