@@ -15,10 +15,8 @@ static constexpr uint8_t CONFIG_REG_COUNT = sizeof(CONFIG_REGS);
 
 void MT6701I2CComponent::setup() {
   uint16_t count;
-  if (!this->read_count(count)) {
-    this->mark_failed(LOG_STR("not responding on I2C"));
+  if (!this->setup_check(this->read_count(count), LOG_STR("not responding on I2C")))
     return;
-  }
   this->apply_config_();
 }
 

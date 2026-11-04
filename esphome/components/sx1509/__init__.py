@@ -13,6 +13,7 @@ from esphome.const import (
     CONF_TRIGGER_ID,
 )
 from esphome.cpp_generator import MockObj
+from esphome.schema_extractors import SCHEMA_EXTRACT, schema_extractor
 from esphome.types import ConfigType
 
 CONF_KEYPAD = "keypad"
@@ -22,6 +23,7 @@ CONF_SLEEP_TIME = "sleep_time"
 CONF_SCAN_TIME = "scan_time"
 CONF_DEBOUNCE_TIME = "debounce_time"
 CONF_SX1509_ID = "sx1509_id"
+CONF_LED_DRIVER_FREQUENCY = "led_driver_frequency"
 
 AUTO_LOAD = ["key_provider", "gpio_expander"]
 DEPENDENCIES = ["i2c"]
@@ -29,6 +31,34 @@ DOMAIN = "sx1509"
 MULTI_CONF = True
 
 sx1509_ns = cg.esphome_ns.namespace("sx1509")
+LedDriverFrequency = sx1509_ns.enum("LedDriverFrequency")
+
+# The PWM frequency is shared by all output pins; the values are nominal (see sx1509.h).
+LED_DRIVER_FREQUENCIES = LedDriverFrequency.options(
+    "7840Hz",
+    "3920Hz",
+    "1960Hz",
+    "980Hz",
+    "490Hz",
+    "245Hz",
+    "122Hz",
+    prefix="LED_DRIVER_FREQ_",
+)
+_LED_DRIVER_FREQUENCY_ENUM = cv.enum(LED_DRIVER_FREQUENCIES)
+
+
+@schema_extractor("enum")
+def validate_led_driver_frequency(value: str | float) -> str | dict[str, MockObj]:
+    """One of the nominal frequencies, written in any frequency form (980Hz, 980 Hz, 0.98kHz)."""
+    if value == SCHEMA_EXTRACT:
+        return LED_DRIVER_FREQUENCIES
+    key = f"{round(cv.frequency(value))}Hz"
+    if key not in LED_DRIVER_FREQUENCIES:
+        raise cv.Invalid(
+            f"LED driver frequency must be one of {', '.join(LED_DRIVER_FREQUENCIES)}"
+        )
+    return _LED_DRIVER_FREQUENCY_ENUM(key)
+
 
 SX1509Component = sx1509_ns.class_(
     "SX1509Component", cg.Component, i2c.I2CDevice, key_provider.KeyProvider
@@ -78,6 +108,9 @@ CONFIG_SCHEMA = (
         {
             cv.GenerateID(): cv.declare_id(SX1509Component),
             cv.Optional(CONF_KEYPAD): cv.Schema(KEYPAD_SCHEMA),
+            cv.Optional(
+                CONF_LED_DRIVER_FREQUENCY, default="122Hz"
+            ): validate_led_driver_frequency,
         }
     )
     .extend(cv.COMPONENT_SCHEMA)
@@ -87,6 +120,7 @@ CONFIG_SCHEMA = (
 
 async def to_code(config: ConfigType) -> None:
     var = await i2c.new_i2c_component(config)
+    cg.add(var.set_led_driver_frequency(config[CONF_LED_DRIVER_FREQUENCY]))
     if conf := config.get(CONF_KEYPAD):
         cg.add(var.set_rows_cols(conf[CONF_KEY_ROWS], conf[CONF_KEY_COLUMNS]))
         if (
