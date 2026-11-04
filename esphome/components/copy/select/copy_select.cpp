@@ -6,11 +6,11 @@ namespace esphome::copy {
 ESPHOME_LOG_TAG(TAG, "copy.select");
 
 void CopySelect::setup() {
-  source_->add_on_state_callback([this](size_t index) { this->publish_state(index); });
+  this->source_select_->add_on_state_callback([this](size_t index) { this->publish_state(index); });
 
-  traits.set_options(source_->traits.get_options());
+  traits.set_options(this->source_select_->traits.get_options());
 
-  auto idx = this->source_->active_index();
+  auto idx = this->source_select_->active_index();
   if (idx.has_value())
     this->publish_state(*idx);
 }
@@ -18,7 +18,7 @@ void CopySelect::setup() {
 void CopySelect::dump_config() { LOG_SELECT("", "Copy Select", this); }
 
 void CopySelect::control(size_t index) {
-  auto call = source_->make_call();
+  auto call = this->source_select_->make_call();
   call.set_index(index);
   call.perform();
 }

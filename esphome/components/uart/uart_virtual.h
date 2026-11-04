@@ -12,7 +12,7 @@ namespace esphome::uart {
 /// Reads never wait; a short read takes nothing. Main loop only.
 class VirtualUARTComponent : public UARTComponent {
  public:
-  /// The RX ring is allocated here, once.
+  /// The RX ring is allocated here, once; a later set_rx_buffer_size() does not resize it.
   explicit VirtualUARTComponent(uint16_t rx_buffer_size);
 
   /// Adds one whole block to the RX ring; false, and nothing kept, when it does not fit.
