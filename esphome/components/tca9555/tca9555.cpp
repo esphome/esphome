@@ -25,14 +25,8 @@ void TCA9555Component::setup() {
     return;
   }
 
-  if (this->interrupt_pin_ != nullptr) {
-    this->interrupt_pin_->setup();
-    this->interrupt_pin_->attach_interrupt(&TCA9555Component::gpio_intr, this, gpio::INTERRUPT_FALLING_EDGE);
-    this->set_invalidate_on_read_(false);
-  }
-  this->disable_loop();
+  this->setup_interrupt_pin_();
 }
-void IRAM_ATTR TCA9555Component::gpio_intr(TCA9555Component *arg) { arg->enable_loop_soon_any_context(); }
 void TCA9555Component::dump_config() {
   ESP_LOGCONFIG(TAG, "TCA9555:");
   LOG_PIN("  Interrupt Pin: ", this->interrupt_pin_);
@@ -42,24 +36,13 @@ void TCA9555Component::pin_mode(uint8_t pin, gpio::Flags flags) {
   if (flags == gpio::FLAG_INPUT) {
     // Set mode mask bit
     this->mode_mask_ |= 1 << pin;
-    if (this->interrupt_pin_ == nullptr) {
-      this->enable_loop();
-    }
+    this->enable_polling_loop_();
   } else if (flags == gpio::FLAG_OUTPUT) {
     // Clear mode mask bit
     this->mode_mask_ &= ~(1 << pin);
   }
   // Write GPIO to enable input mode
   this->write_gpio_modes_();
-}
-void TCA9555Component::loop() {
-  this->reset_pin_cache_();
-  // Only disable the loop once INT has actually gone HIGH. Input transitions that straddle the
-  // I2C read leave INT asserted without re-firing a falling edge, which would strand us with
-  // stale state forever; keep looping until the line is released so we self-heal.
-  if (this->interrupt_pin_ != nullptr && this->interrupt_pin_->digital_read()) {
-    this->disable_loop();
-  }
 }
 
 bool TCA9555Component::read_gpio_outputs_() {
@@ -123,8 +106,6 @@ bool TCA9555Component::write_gpio_modes_() {
 }
 
 bool TCA9555Component::digital_read_cache(uint8_t pin) { return this->input_mask_ & (1 << pin); }
-
-float TCA9555Component::get_setup_priority() const { return setup_priority::IO; }
 
 }  // namespace esphome::tca9555
 

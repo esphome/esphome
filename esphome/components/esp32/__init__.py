@@ -56,6 +56,7 @@ from esphome.const import (
 from esphome.core import CORE, EsphomeError, HexInt
 from esphome.core.config import BOARD_MAX_LENGTH
 from esphome.coroutine import CoroPriority, coroutine_with_priority
+from esphome.espidf import sbom
 from esphome.espidf.component import IDFComponent, generate_idf_components
 import esphome.final_validate as fv
 from esphome.helpers import copy_file_if_changed, rmtree, write_file_if_changed
@@ -203,6 +204,11 @@ PSRAM_XIP_VARIANTS = {
 # The other variants either export both (classic ESP32, nano-format only) or
 # neither, so the engine is already in the image and the wrap saves nothing.
 ROM_VSNPRINTF_WITHOUT_VASPRINTF_VARIANTS = {VARIANT_ESP32C6}
+
+# Variants whose ROM exports sscanf for the newlib format in use
+# (esp32c6.rom.newlib-normal.ld). The ESP32-C2 ROM only has it in the nano
+# format, which ESPHome turns off.
+ROM_SSCANF_VARIANTS = {VARIANT_ESP32C6}
 
 # NVS encryption (HMAC peripheral scheme) is only available on variants that
 # expose the HMAC peripheral (SOC_HMAC_SUPPORTED in soc_caps.h). The original
@@ -2388,7 +2394,9 @@ FRAMEWORK_SCHEMA = cv.Schema(
                     cv.Schema(
                         {
                             cv.Required(CONF_NAME): cv.string_strict,
-                            cv.Optional(CONF_SOURCE): cv.git_ref,
+                            cv.Optional(CONF_SOURCE): cv.All(
+                                cv.string_strict, cv.Length(min=1)
+                            ),
                             cv.Optional(CONF_REF): cv.string,
                             cv.Optional(CONF_PATH): cv.string,
                         }
@@ -2527,7 +2535,22 @@ CONFIG_SCHEMA = cv.All(
 FINAL_VALIDATE_SCHEMA = cv.Schema(final_validate)
 
 
-def _configure_lwip_max_sockets(conf: dict) -> None:
+def get_user_lwip_max_sockets() -> int | None:
+    """CONFIG_LWIP_MAX_SOCKETS from the user's sdkconfig_options, or None when unset.
+
+    A value that is not a number reads as 0.
+    """
+    user_max_sockets = CORE.config[DOMAIN][CONF_FRAMEWORK][CONF_SDKCONFIG_OPTIONS].get(
+        "CONFIG_LWIP_MAX_SOCKETS"
+    )
+    if user_max_sockets is None:
+        return None
+    with contextlib.suppress(ValueError, TypeError):
+        return int(user_max_sockets)
+    return 0
+
+
+def _configure_lwip_max_sockets() -> None:
     """Calculate and set CONFIG_LWIP_MAX_SOCKETS based on component needs.
 
     Socket component tracks consumer needs via consume_sockets() called during config validation.
@@ -2536,8 +2559,7 @@ def _configure_lwip_max_sockets(conf: dict) -> None:
     """
     from esphome.components.socket import get_socket_counts
 
-    # Check if user manually specified CONFIG_LWIP_MAX_SOCKETS
-    user_max_sockets = conf[CONF_SDKCONFIG_OPTIONS].get("CONFIG_LWIP_MAX_SOCKETS")
+    user_max_sockets = get_user_lwip_max_sockets()
 
     # CONFIG_LWIP_MAX_SOCKETS is a single VFS socket pool shared by all socket
     # types (TCP clients, TCP listeners, and UDP). Include all three counts.
@@ -2547,21 +2569,17 @@ def _configure_lwip_max_sockets(conf: dict) -> None:
     # User specified their own value - respect it but warn if insufficient
     if user_max_sockets is not None:
         _LOGGER.info(
-            "Using user-provided CONFIG_LWIP_MAX_SOCKETS: %s",
+            "Using user-provided CONFIG_LWIP_MAX_SOCKETS: %d",
             user_max_sockets,
         )
 
-        user_sockets_int = 0
-        with contextlib.suppress(ValueError, TypeError):
-            user_sockets_int = int(user_max_sockets)
-
-        if user_sockets_int < total_sockets:
+        if user_max_sockets < total_sockets:
             _LOGGER.warning(
                 "CONFIG_LWIP_MAX_SOCKETS is set to %d but your configuration "
                 "needs %d sockets (%d TCP + %d UDP + %d TCP_LISTEN). You may "
                 "experience socket exhaustion errors. Consider increasing to "
                 "at least %d.",
-                user_sockets_int,
+                user_max_sockets,
                 total_sockets,
                 sc.tcp,
                 sc.udp,
@@ -2817,8 +2835,21 @@ async def _reconcile_mbedtls_sdkconfig() -> None:
             if option not in data.tls_extras_required:
                 set_idf_sdkconfig_default(option, False)
 
-    # Keeping the peer certificate costs ~4KB heap per connection.
-    if data.peer_cert_required:
+    # Keeping the peer certificate costs ~4KB heap per connection. TLS 1.3
+    # depends on it in Kconfig, which silently drops TLS 1.3 without it.
+    tls13 = is_idf_sdkconfig_option_enabled("CONFIG_MBEDTLS_SSL_PROTO_TLS1_3")
+    if (
+        tls13
+        and "CONFIG_MBEDTLS_SSL_KEEP_PEER_CERTIFICATE" in opts
+        and not is_idf_sdkconfig_option_enabled(
+            "CONFIG_MBEDTLS_SSL_KEEP_PEER_CERTIFICATE"
+        )
+    ):
+        _LOGGER.warning(
+            "CONFIG_MBEDTLS_SSL_PROTO_TLS1_3 needs "
+            "CONFIG_MBEDTLS_SSL_KEEP_PEER_CERTIFICATE; TLS 1.3 is disabled"
+        )
+    if data.peer_cert_required or tls13:
         set_idf_sdkconfig_default("CONFIG_MBEDTLS_SSL_KEEP_PEER_CERTIFICATE", True)
     elif data.disable_peer_cert:
         set_idf_sdkconfig_default("CONFIG_MBEDTLS_SSL_KEEP_PEER_CERTIFICATE", False)
@@ -3306,7 +3337,7 @@ async def to_code(config):
         # Kconfig range is [1,63]; 0 gets clamped to the default.
         add_idf_sdkconfig_option("CONFIG_LWIP_BRIDGEIF_MAX_PORTS", 1)
 
-    _configure_lwip_max_sockets(conf)
+    _configure_lwip_max_sockets()
 
     if advanced[CONF_EXECUTE_FROM_PSRAM]:
         add_idf_sdkconfig_option("CONFIG_SPIRAM_XIP_FROM_PSRAM", True)
@@ -3382,9 +3413,17 @@ async def to_code(config):
                 "CONFIG_BOOTLOADER_CACHE_32BIT_ADDR_QUAD_FLASH", True
             )
 
-    # Enable OTA rollback support
-    if advanced[CONF_ENABLE_OTA_ROLLBACK]:
+    # ESP-IDF 6.2 enables app rollback by default with automatic confirmation at
+    # startup and renamed the confirm-by-app option, so there the explicit off is needed
+    rollback = advanced[CONF_ENABLE_OTA_ROLLBACK]
+    if idf_version() >= cv.Version(6, 2, 0):
+        add_idf_sdkconfig_option("CONFIG_BOOTLOADER_APP_ROLLBACK", rollback)
+        add_idf_sdkconfig_option(
+            "CONFIG_BOOTLOADER_APP_ROLLBACK_CONFIRM_BY_APP", rollback
+        )
+    elif rollback:
         add_idf_sdkconfig_option("CONFIG_BOOTLOADER_APP_ROLLBACK_ENABLE", True)
+    if rollback:
         cg.add_define("USE_OTA_ROLLBACK")
 
     # Enable software OTA downgrade protection. Embed the project version into
@@ -3993,6 +4032,7 @@ def copy_files():
         CORE.relative_build_path("version.txt"),
         __version__,
     )
+    sbom.write_manifests()
 
     # Remote extra build files are fetched into the shared download cache in
     # one parallel batch (conditional requests skip unchanged files), then

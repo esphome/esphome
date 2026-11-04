@@ -174,14 +174,10 @@ def _register_provisioning_source(config: ConfigType) -> ConfigType:
 
 CONF_SUPPORTS_RESPONSE = "supports_response"
 
-# Enum values in api::enums namespace
-enums_ns = api_ns.namespace("enums")
-SUPPORTS_RESPONSE_OPTIONS = {
-    "none": enums_ns.SUPPORTS_RESPONSE_NONE,
-    "optional": enums_ns.SUPPORTS_RESPONSE_OPTIONAL,
-    "only": enums_ns.SUPPORTS_RESPONSE_ONLY,
-    "status": enums_ns.SUPPORTS_RESPONSE_STATUS,
-}
+SupportsResponseType = api_ns.namespace("enums").enum("SupportsResponseType")
+SUPPORTS_RESPONSE_OPTIONS = SupportsResponseType.options(
+    "none", "optional", "only", "status", prefix="SUPPORTS_RESPONSE_"
+)
 
 
 def _auto_detect_supports_response(config: ConfigType) -> ConfigType:

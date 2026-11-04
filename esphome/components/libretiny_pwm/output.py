@@ -1,6 +1,7 @@
 from esphome import automation, pins
 import esphome.codegen as cg
-from esphome.components import output
+from esphome.components import libretiny, output
+from esphome.components.libretiny.const import FAMILY_LN882H
 import esphome.config_validation as cv
 from esphome.const import CONF_FREQUENCY, CONF_ID, CONF_PIN
 from esphome.types import ConfigType
@@ -12,13 +13,16 @@ LibreTinyPWM = libretinypwm_ns.class_("LibreTinyPWM", output.FloatOutput, cg.Com
 
 validate_frequency = cv.All(cv.frequency, cv.float_range(min=0, min_included=False))
 
-CONFIG_SCHEMA = output.FLOAT_OUTPUT_SCHEMA.extend(
-    {
-        cv.Required(CONF_ID): cv.declare_id(LibreTinyPWM),
-        cv.Required(CONF_PIN): pins.internal_gpio_output_pin_schema,
-        cv.Optional(CONF_FREQUENCY, default="1kHz"): validate_frequency,
-    }
-).extend(cv.COMPONENT_SCHEMA)
+CONFIG_SCHEMA = cv.All(
+    libretiny.only_on_family(unsupported=FAMILY_LN882H),
+    output.FLOAT_OUTPUT_SCHEMA.extend(
+        {
+            cv.Required(CONF_ID): cv.declare_id(LibreTinyPWM),
+            cv.Required(CONF_PIN): pins.internal_gpio_output_pin_schema,
+            cv.Optional(CONF_FREQUENCY, default="1kHz"): validate_frequency,
+        }
+    ).extend(cv.COMPONENT_SCHEMA),
+)
 
 
 async def to_code(config: ConfigType) -> None:

@@ -9,21 +9,8 @@ ESPHOME_LOG_TAG(TAG, "pcd_8544");
 
 void PCD8544::setup_pins_() {
   this->spi_setup();
-  this->init_reset_();
+  pulse_reset(this->reset_pin_, {.high_before_ms = 1, .low_ms = 10});
   this->dc_pin_->setup();
-}
-
-void PCD8544::init_reset_() {
-  if (this->reset_pin_ != nullptr) {
-    this->reset_pin_->setup();
-    this->reset_pin_->digital_write(true);
-    delay(1);
-    // Trigger Reset
-    this->reset_pin_->digital_write(false);
-    delay(10);
-    // Wake up
-    this->reset_pin_->digital_write(true);
-  }
 }
 
 void PCD8544::initialize() {

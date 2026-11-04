@@ -1,0 +1,35 @@
+esphome:
+  name: test
+
+esp32:
+  board: esp32dev
+
+i2c:
+  id: i2c_bus
+  sda: 21
+  scl: 22
+
+audio_dac:
+  - platform: tas58xx
+    model: tas5805m
+    id: amp_btl
+    ignore_enable_pin_warning: true
+  - platform: tas58xx
+    model: tas5825m
+    id: amp_pbtl
+    address: 0x2C
+    dac_mode: pbtl
+    mixer_mode: left
+    ignore_enable_pin_warning: true
+
+select:
+  - platform: tas58xx
+    tas58xx_id: amp_btl
+    mixer_mode:
+      id: mixer_btl
+      name: Mixer BTL
+  - platform: tas58xx
+    tas58xx_id: amp_pbtl
+    mixer_mode:
+      id: mixer_pbtl
+      name: Mixer PBTL

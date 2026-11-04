@@ -5,7 +5,6 @@ from esphome.const import CONF_MODEL, DEVICE_CLASS_PROBLEM, ENTITY_CATEGORY_DIAG
 import esphome.final_validate as fv
 from esphome.types import ConfigType
 
-from . import FILTER_SOURCE_FILES  # noqa: F401  pylint: disable=unused-import
 from .audio_dac import CONF_TAS58XX_ID, DAC_TAS5825M, TAS58xx, tas58xx_ns
 
 CONF_HAVE_FAULT = "have_fault"
@@ -56,9 +55,7 @@ CONFIG_SCHEMA = cv.Schema(
 
 
 def _final_validate(config: ConfigType) -> ConfigType:
-    fconf = fv.full_config.get()
-    hub_path = fconf.get_path_for_id(config[CONF_TAS58XX_ID])
-    hub_conf = fconf.get_config_for_path(hub_path[:-1])
+    hub_conf = fv.get_declaring_config(config[CONF_TAS58XX_ID])
 
     if hub_conf[CONF_MODEL] == DAC_TAS5825M:
         return config
