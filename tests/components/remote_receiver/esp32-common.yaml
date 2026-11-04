@@ -22,6 +22,10 @@ binary_sensor:
       command: 0x0D
       extension: 0x03
   - platform: remote_receiver
+    name: Toto Full Flush
+    toto:
+      code: 0x0D00
+  - platform: remote_receiver
     name: Drayton Thermostat On
     drayton:
       address: 0x6180

@@ -2862,9 +2862,17 @@ register_protocol_action(
     TotoDumper,
 ) = declare_protocol("Toto")
 
+_TOTO_OLD_KEYS_REMOVED = (
+    "Toto now takes one 16-bit 'code' sent least significant bit first; with each field bit-reversed, "
+    "code = command << 8 | rc_code_2 << 4 | rc_code_1"
+)
+
 TOTO_SCHEMA = cv.Schema(
     {
         cv.Required(CONF_CODE): cv.hex_uint16_t,
+        cv.Optional(CONF_RC_CODE_1): cv.invalid(_TOTO_OLD_KEYS_REMOVED),
+        cv.Optional(CONF_RC_CODE_2): cv.invalid(_TOTO_OLD_KEYS_REMOVED),
+        cv.Optional(CONF_COMMAND): cv.invalid(_TOTO_OLD_KEYS_REMOVED),
     }
 )
 
