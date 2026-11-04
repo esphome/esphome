@@ -141,27 +141,6 @@ void MQTTBackendESP32::loop() {
 #endif
 }
 
-// Only called while the esp-mqtt task is stopped, so the main loop can act as
-// the pool/queue producer without racing the task
-void MQTTBackendESP32::queue_disconnect_event_() {
-  Event *event = this->mqtt_event_pool_.allocate();
-  if (event != nullptr) {
-    event->event_id = MQTT_EVENT_DISCONNECTED;
-    this->mqtt_event_queue_.push(event);
-  }
-}
-
-void MQTTBackendESP32::discard_queued_events_() {
-  uint16_t count = 0;
-  Event *event = this->mqtt_event_queue_.pop();
-  while (event != nullptr) {
-    this->mqtt_event_pool_.release(event);
-    event = this->mqtt_event_queue_.pop();
-    count++;
-  }
-  ESP_LOGV(TAG, "Discarded %u pending events", count);
-}
-
 void MQTTBackendESP32::mqtt_event_handler_(const Event &event) {
   ESP_LOGV(TAG, "Event dispatched from event loop event_id=%d", event.event_id);
   switch (event.event_id) {

@@ -60,6 +60,8 @@ class MQTTBackend {
   virtual bool connected() const = 0;
   virtual void connect() = 0;
   virtual void disconnect() = 0;
+  /// stop() disconnects and stays disconnected until connect() is called
+  virtual void stop() { this->disconnect(); }
   virtual bool subscribe(const char *topic, uint8_t qos) = 0;
   virtual bool unsubscribe(const char *topic) = 0;
   virtual bool publish(const char *topic, const char *payload, size_t length, uint8_t qos, bool retain) = 0;

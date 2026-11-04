@@ -178,28 +178,26 @@ class MQTTBackendESP32 final : public MQTTBackend {
 
   void connect() final {
     if (!this->is_initalized_) {
-      this->initialize_();
-    }
-    if (this->is_initalized_ && !this->is_started_) {
-      if (esp_mqtt_client_start(this->handler_.get()) == ESP_OK) {
-        this->is_started_ = true;  // track if mqtt client started
+      if (this->initialize_()) {
+        esp_mqtt_client_start(this->handler_.get());
       }
+    } else if (this->reconnect_disabled_) {
+      this->set_auto_reconnect_(true);
+      // Ignored if the task has not parked in WAIT_RECONNECT yet,
+      // but auto-reconnect is back on
+      esp_mqtt_client_reconnect(this->handler_.get());
     }
   }
   void disconnect() final {
-    if (this->is_initalized_ && this->is_started_) {
-      // stop the mqtt task and stop auto-reconnect, stop() waits for the
-      // task to exit, so no further events can be queued after it returns.
-      if (esp_mqtt_client_stop(this->handler_.get()) == ESP_OK) {
-        this->is_started_ = false;
-        this->discard_queued_events_();
-        // stop() doesn't dispatch MQTT_EVENT_DISCONNECTED; queue one if the
-        // main loop had seen the session as connected
-        if (this->is_connected_) {
-          this->is_connected_ = false;
-          this->queue_disconnect_event_();
-        }
-      }
+    if (this->is_initalized_) {
+      esp_mqtt_client_disconnect(this->handler_.get());
+    }
+  }
+  void stop() final {
+    if (this->is_initalized_) {
+      // With auto-reconnect off, the task parks in WAIT_RECONNECT after disconnecting
+      this->set_auto_reconnect_(false);
+      esp_mqtt_client_disconnect(this->handler_.get());
     }
   }
 
@@ -256,10 +254,13 @@ class MQTTBackendESP32 final : public MQTTBackend {
 
  protected:
   bool initialize_();
+  void set_auto_reconnect_(bool enable) {
+    this->mqtt_cfg_.network.disable_auto_reconnect = !enable;
+    esp_mqtt_set_config(this->handler_.get(), &this->mqtt_cfg_);
+    this->reconnect_disabled_ = !enable;
+  }
   void mqtt_event_handler_(const Event &event);
   static void mqtt_event_handler(void *handler_args, esp_event_base_t base, int32_t event_id, void *event_data);
-  void discard_queued_events_();
-  void queue_disconnect_event_();
 
   struct MqttClientDeleter {
     void operator()(esp_mqtt_client *client_handler) { esp_mqtt_client_destroy(client_handler); }
@@ -269,7 +270,7 @@ class MQTTBackendESP32 final : public MQTTBackend {
 
   bool is_connected_{false};
   bool is_initalized_{false};
-  bool is_started_{false};
+  bool reconnect_disabled_{false};
 
   esp_mqtt_client_config_t mqtt_cfg_{};
 
