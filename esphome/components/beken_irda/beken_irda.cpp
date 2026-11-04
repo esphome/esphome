@@ -60,6 +60,7 @@ void BekenIrdaComponent::handle_isr_() {
         this->dropped_count_ = this->dropped_count_ + 1;
       this->last_code_ = code;
       this->raw_ready_ = true;
+      this->repeats_valid_ = true;
       // a repeat still pending belongs to the previous code
       this->repeat_ready_ = false;
     } else {
@@ -68,10 +69,9 @@ void BekenIrdaComponent::handle_isr_() {
       status &= ~IRDA_ERROR_INTS;
       // the repeats that follow belong to the rejected frame; a code still pending is dispatched
       this->repeat_ready_ = false;
-      if (!this->raw_ready_)
-        this->last_code_ = 0;
+      this->repeats_valid_ = false;
     }
-  } else if ((status & IRDA_REPEAT_INT) && (status & IRDA_FRAME_ERROR_INTS) == 0) {
+  } else if ((status & IRDA_REPEAT_INT) && (status & IRDA_FRAME_ERROR_INTS) == 0 && this->repeats_valid_) {
     this->repeat_ready_ = true;
   }
   if (status & IRDA_ERROR_INTS)
@@ -148,7 +148,7 @@ void BekenIrdaComponent::loop() {
   }
   if (have_code)
     this->dispatch_full_(code);
-  if (have_repeat && code != 0)
+  if (have_repeat)
     this->dispatch_repeat_();
 }
 

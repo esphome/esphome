@@ -21,12 +21,14 @@ class BekenIrdaComponent final : public Component, public remote_base::RemoteRec
   void dispatch_repeat_();
 
   volatile uint32_t last_code_{0};
-  /// Rejected codes and IRDA errors since the loop last reported them
-  // Reset by every loop pass, so a byte each is enough
+  // Rejected codes and IRDA errors, and codes overwritten before dispatch; reset by every loop pass
   volatile uint8_t error_count_{0};
   volatile uint8_t dropped_count_{0};
-  volatile bool raw_ready_{false};
-  volatile bool repeat_ready_{false};
+  // Bit fields keep the flags in one byte; the loop changes them only under InterruptLock
+  volatile bool raw_ready_ : 1 {false};
+  volatile bool repeat_ready_ : 1 {false};
+  /// Repeats belong to the last frame the ISR read, so they are dropped after a rejected one
+  volatile bool repeats_valid_ : 1 {false};
 };
 
 }  // namespace esphome::beken_irda
