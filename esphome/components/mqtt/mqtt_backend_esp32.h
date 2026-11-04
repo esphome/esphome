@@ -206,7 +206,7 @@ class MQTTBackendESP32 final : public MQTTBackend {
     // A SUBSCRIBE the task could not send never gets a SUBACK
     const auto lost = static_cast<uint16_t>(this->subscribes_lost_.load(std::memory_order_relaxed) -
                                             this->subscribes_lost_at_connect_);
-    sent = sent > lost ? sent - lost : 0;
+    sent = static_cast<uint16_t>(sent - lost);
 #endif
     return subscribe_fits(sent, this->subacks_.received(), MQTT_EVENT_POOL_SIZE - this->mqtt_event_queue_.size());
   }

@@ -32,6 +32,12 @@ TEST(SubscribeFits, ExtraSubacksCountAsNoneUnanswered) {
   EXPECT_FALSE(subscribe_fits(0, 1, 1));
 }
 
+TEST(SubscribeFits, CountersWrap) {
+  // 15 unanswered across the 16-bit rollover still fill the window
+  EXPECT_FALSE(subscribe_fits(9, 65530, POOL_SIZE));
+  EXPECT_TRUE(subscribe_fits(8, 65530, POOL_SIZE));
+}
+
 TEST(SubackCounter, ReceivedCountsEverySuback) {
   SubackCounter subacks;
   EXPECT_EQ(subacks.received(), 0);
