@@ -17,8 +17,7 @@ TEST_F(LD6002BTest, EmptyLowPowerReportIsIgnored) {
 }
 
 TEST_F(LD6002BTest, LowPowerSwitchKeepsStateWhenQueueFull) {
-  for (int i = 0; i < 32; i++)
-    this->sensitivity_.make_call().set_index(0).perform();
+  this->fill_command_queue_();
   this->low_power_.turn_on();
   EXPECT_FALSE(this->low_power_.state);
 }

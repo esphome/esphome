@@ -102,6 +102,8 @@ class SX1509Component final : public Component,
   StaticVector<LedChannel, SX1509_LED_CHANNEL_COUNT> led_channels_;
 #endif
 
+  /// 16-bit update_register() for the B/A register pairs
+  bool update_register_16_(uint8_t a_register, uint16_t mask, uint16_t value);
   void setup_keypad_();
   void set_debounce_config_(uint8_t config_value);
   void set_debounce_time_(uint8_t time);

@@ -17,6 +17,8 @@
 #include "esphome/components/host/preferences.h"
 #include "esphome/components/ld6004/ld6004.h"
 #include "esphome/components/ld600x/ld600x_frame.h"
+#include "esphome/components/number/number.h"
+#include "esphome/components/select/select.h"
 #include "esphome/components/uart/uart_component.h"
 #include "esphome/core/application.h"
 #include "esphome/core/hal.h"
@@ -28,10 +30,13 @@ using ld600x::AREA_COUNT;
 static constexpr uint8_t MAX_TARGETS = LD600X_MAX_TARGETS;
 
 static constexpr uint16_t TYPE_CONTROL = 0x0201;
+static constexpr uint16_t TYPE_SET_DWELL_LIFETIME = 0x0206;
+static constexpr uint16_t TYPE_SET_OUTPUT_INTERVAL = 0x0207;
 static constexpr uint16_t TYPE_REPORT_TARGET = 0x0A04;
 static constexpr uint16_t TYPE_REPORT_AREA_PRESENCE = 0x0A0A;
 static constexpr uint16_t TYPE_REPORT_WORK_MODE = 0x0A12;
 static constexpr uint16_t TYPE_REPORT_WORK_STATUS = 0x0A14;
+static constexpr uint16_t TYPE_REPORT_DWELL_LIFETIME = 0x0A17;
 
 static constexpr uint32_t CMD_POINT_CLOUD_OFF = 0x07;
 static constexpr uint32_t CMD_TARGET_DISPLAY_ON = 0x08;
@@ -122,6 +127,25 @@ inline std::vector<uint8_t> area_presence(const std::array<uint32_t, AREA_COUNT>
   return tf_frame(TYPE_REPORT_AREA_PRESENCE, p);
 }
 
+// The generated apply entities forward to the hub through this pointer.
+inline LD6004Component *&test_hub() {
+  static LD6004Component *hub = nullptr;
+  return hub;
+}
+
+// What the generated publish="on_success" number and select do.
+inline void apply_number(number::Number *entity, float value) {
+  if (test_hub()->set_number_value(entity, value))
+    entity->publish_state(value);
+}
+inline void apply_select(select::Select *entity, size_t index) {
+  if (test_hub()->set_select_value(entity, index))
+    entity->publish_state(index);
+}
+
+using TestNumber = number::ApplyNumber<apply_number>;
+using TestSelect = select::ApplySelect<apply_select>;
+
 /// A hub with the presence binary sensors, set up as codegen does and past its boot timeout.
 class LD6004Test : public ::testing::Test {
  protected:
@@ -132,13 +156,10 @@ class LD6004Test : public ::testing::Test {
     setenv("ESPHOME_PREFDIR", this->temp_dir_.c_str(), 1);
     host::host_preferences = &this->prefs_;
     global_preferences = &this->prefs_;
+    test_hub() = &this->sut_;
 
     this->sut_.set_uart_parent(&this->uart_);
-    this->sut_.set_presence_binary_sensor(&this->presence_);
-    for (uint8_t i = 0; i < MAX_TARGETS; i++)
-      this->sut_.set_target_presence_binary_sensor(i, &this->target_presence_[i]);
-    for (uint8_t i = 0; i < AREA_COUNT; i++)
-      this->sut_.set_area_presence_binary_sensor(i, &this->area_presence_[i]);
+    this->configure_();
 
     this->sut_.setup();
     // Past setup()'s 100 ms boot timeout, which starts the streams and queues the queries
@@ -146,7 +167,17 @@ class LD6004Test : public ::testing::Test {
     App.scheduler.call(millis());
   }
 
+  /// Attach the entities under test before setup(); the default is the presence hub.
+  virtual void configure_() {
+    this->sut_.set_presence_binary_sensor(&this->presence_);
+    for (uint8_t i = 0; i < MAX_TARGETS; i++)
+      this->sut_.set_target_presence_binary_sensor(i, &this->target_presence_[i]);
+    for (uint8_t i = 0; i < AREA_COUNT; i++)
+      this->sut_.set_area_presence_binary_sensor(i, &this->area_presence_[i]);
+  }
+
   void TearDown() override {
+    test_hub() = nullptr;
     host::setup_preferences();
     unsetenv("ESPHOME_PREFDIR");
     std::filesystem::remove_all(this->temp_dir_);
@@ -157,10 +188,36 @@ class LD6004Test : public ::testing::Test {
     this->sut_.loop();
   }
 
+  /// ACK every boot command in turn until the queue is empty; returns the control codes that were sent.
+  /// Each frame sent takes the next id, which next_command_id_ follows.
+  std::vector<uint32_t> drain_commands_() {
+    std::vector<uint32_t> controls;
+    for (int i = 0; i < 32 && this->uart_.tx.size() >= ld600x::TF_FRAME_OVERHEAD; i++) {
+      const uint16_t type = encode_uint16(this->uart_.tx[5], this->uart_.tx[6]);
+      if (type == TYPE_CONTROL && this->uart_.tx.size() >= ld600x::TF_PAYLOAD_OFFSET + 4)
+        controls.push_back(encode_value_le<uint32_t>(&this->uart_.tx[ld600x::TF_PAYLOAD_OFFSET]));
+      this->uart_.tx.clear();
+      this->feed_(ack(type));
+      this->next_command_id_++;
+    }
+    EXPECT_TRUE(this->uart_.tx.empty());
+    return controls;
+  }
+
+  /// Call queue_write until the hub rejects one, which leaves the command queue full.
+  template<typename F> void fill_command_queue_(F queue_write) {
+    for (int i = 0; i < 64; i++) {
+      if (!queue_write())
+        return;
+    }
+    FAIL() << "Command queue never filled";
+  }
+
   host::HostPreferences prefs_;
   std::filesystem::path temp_dir_;
   MockUARTComponent uart_;
   LD6004Component sut_;
+  uint16_t next_command_id_{FIRST_COMMAND_ID};
 
   binary_sensor::BinarySensor presence_;
   binary_sensor::BinarySensor target_presence_[MAX_TARGETS];

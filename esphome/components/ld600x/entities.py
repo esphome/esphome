@@ -77,11 +77,9 @@ from .const import (
     MAX_TARGETS,
 )
 
-_AREA_KINDS = {
-    "interference": AreaKind.AREA_KIND_INTERFERENCE,
-    "detection": AreaKind.AREA_KIND_DETECTION,
-    "dwell": AreaKind.AREA_KIND_DWELL,
-}
+_AREA_KINDS = AreaKind.options(
+    "interference", "detection", "dwell", prefix="AREA_KIND_"
+)
 
 _AREA_AXES = (
     (KEY_X_MIN, AreaAxis.AREA_AXIS_X_MIN),
@@ -322,7 +320,8 @@ def number_final_validate(
 # The apply call picks the setting by entity pointer, so every number shares one generated class.
 NUMBER_CONTROL: dict[str, str] = {
     "apply": "set_number_value(entity, value)",
-    "publish": "before",
+    # A rejected value or a full command queue leaves the number at its old value.
+    "publish": "on_success",
 }
 
 
@@ -393,7 +392,8 @@ def select_schema(
 
 SELECT_CONTROL: dict[str, str] = {
     "apply": "set_select_value(entity, index)",
-    "publish": "before",
+    # A full command queue rejects the write, and the select then keeps its old option.
+    "publish": "on_success",
 }
 
 
@@ -427,6 +427,9 @@ async def select_to_code(
         options=area_id_options(area_kinds),
         **SELECT_CONTROL,
     )
+    if CONF_AREA_ID in config:
+        # The area_id select can pick an area of any kind, so the hub sizes them all.
+        request_model_sizes(hub, area_kinds=len(area_kinds))
     return selects
 
 
