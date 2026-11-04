@@ -30,7 +30,7 @@ class CdcAcm final {
   std::array<uint32_t, DT_NUM_INST_STATUS_OKAY(zephyr_cdc_acm_uart)> rates_{};
 };
 
-extern CdcAcm *const global_cdc_acm;
+extern CdcAcm *global_cdc_acm;  // NOLINT(cppcoreguidelines-avoid-non-const-global-variables)
 
 }  // namespace esphome::zephyr
 

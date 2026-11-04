@@ -2,6 +2,7 @@
 #if defined(USE_ZEPHYR_CDC_ACM_RATE_CALLBACK)
 #include "esphome/core/application.h"
 #include <atomic>
+#include <iterator>
 #include <zephyr/drivers/uart.h>
 #ifndef CONFIG_USB_DEVICE_STACK_NEXT
 #include <zephyr/drivers/uart/cdc_acm.h>
@@ -11,8 +12,8 @@
 
 namespace esphome::zephyr {
 
-static CdcAcm cdc_acm_instance;  // NOLINT(cppcoreguidelines-avoid-non-const-global-variables)
-CdcAcm *const global_cdc_acm = &cdc_acm_instance;
+static CdcAcm cdc_acm_instance;              // NOLINT(cppcoreguidelines-avoid-non-const-global-variables)
+CdcAcm *global_cdc_acm = &cdc_acm_instance;  // NOLINT(cppcoreguidelines-avoid-non-const-global-variables)
 
 namespace {
 // USB starts in the logger's pre_setup(), before App is constructed, and the host sets a bit rate as soon as the
@@ -39,8 +40,9 @@ void CdcAcm::start_() {
 
 void CdcAcm::report_rates_() {
 #if DT_HAS_COMPAT_STATUS_OKAY(zephyr_cdc_acm_uart)
-  for (size_t i = 0; i < this->rates_.size(); i++) {
-    uint32_t rate;
+  static_assert(std::size(CDC_DEVICES) == std::tuple_size_v<decltype(rates_)>);
+  for (size_t i = 0; i < std::size(CDC_DEVICES); i++) {
+    uint32_t rate = 0;
     if (uart_line_ctrl_get(CDC_DEVICES[i], UART_LINE_CTRL_BAUD_RATE, &rate) != 0 || rate == this->rates_[i])
       continue;
     this->rates_[i] = rate;
