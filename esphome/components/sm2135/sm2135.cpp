@@ -98,9 +98,10 @@ void SM2135::loop() {
   this->write_byte_(current_mask_);
 
   if (this->separate_modes_) {
-    if (this->update_channel_ == 3 || this->update_channel_ == 4) {
-      // No color so must be Cold/Warm
-
+    const bool color_on = this->pwm_amounts_[0] || this->pwm_amounts_[1] || this->pwm_amounts_[2];
+    const bool white_on = this->pwm_amounts_[3] || this->pwm_amounts_[4];
+    // Both groups only hold a value without color_interlock; the last updated channel then decides
+    if (!color_on || (white_on && this->update_channel_ >= 3)) {
       this->write_byte_(SM2135_CW);
       this->sm2135_stop_();
       delay(1);
@@ -109,8 +110,6 @@ void SM2135::loop() {
       this->write_byte_(this->pwm_amounts_[3]);
       this->write_byte_(this->pwm_amounts_[4]);
     } else {
-      // Color
-
       this->write_byte_(SM2135_RGB);
       this->write_byte_(this->pwm_amounts_[0]);
       this->write_byte_(this->pwm_amounts_[1]);
