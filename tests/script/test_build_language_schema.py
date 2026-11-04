@@ -141,6 +141,21 @@ def test_convert_walks_callable_schema_extractor() -> None:
     assert "foo" in config_var["schema"]["config_vars"]
 
 
+def test_convert_sees_pin_through_optional_pin_wrapper() -> None:
+    """A pin schema wrapped by PIN_SCHEMA_REGISTRY.optional() is still dumped as a pin."""
+    from esphome import pins
+
+    _bls.add_pin_validators()
+    schema = pins.gpio_output_pin_schema
+    expected: dict = {}
+    _bls.convert(schema, expected, "/test")
+    config_var: dict = {}
+    _bls.convert(pins.PIN_SCHEMA_REGISTRY.optional(schema), config_var, "/test")
+
+    assert expected["type"] == "pin"
+    assert config_var == expected
+
+
 def test_convert_emits_key_constraints() -> None:
     base = cv.Schema({cv.Optional("transport", default="tcp"): cv.string})
     schema = cv.All(
@@ -424,3 +439,25 @@ def test_lvgl_style_schemas_are_named_and_deduped(lvgl_schema: dict) -> None:
 
     _count(lvgl_schema)
     assert refs > 100, f"STYLE_SCHEMA should be referenced via extends, got {refs}"
+
+
+def test_convert_typed_schema_with_an_empty_type(
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    """A typed_schema type with no keys of its own is dumped with no config vars."""
+    types = {
+        "with_keys": cv.Schema({cv.Required("byte"): cv.hex_uint8_t}),
+        "no_keys": cv.Schema({}),
+    }
+    schema = cv.typed_schema(types, key="mode")
+    # cv.typed_schema was decorated before the script enabled extraction, so register it by hand
+    monkeypatch.setitem(
+        _bls.ejs.typed_schemas, repr(schema), ((types,), {"key": "mode"})
+    )
+    config_var: dict = {}
+    _bls.convert(schema, config_var, "/test")
+
+    assert config_var["type"] == "typed"
+    assert config_var["typed_key"] == "mode"
+    assert "byte" in config_var["types"]["with_keys"]["config_vars"]
+    assert config_var["types"]["no_keys"] == {"config_vars": {}}

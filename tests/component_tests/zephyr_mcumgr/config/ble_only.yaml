@@ -1,0 +1,13 @@
+esphome:
+  name: mcumgrtest
+
+nrf52:
+  board: adafruit_itsybitsy_nrf52840
+  bootloader: adafruit_nrf52_sd140_v6
+
+zephyr_ble_server:
+
+ota:
+  - platform: zephyr_mcumgr
+    transport:
+      ble: true

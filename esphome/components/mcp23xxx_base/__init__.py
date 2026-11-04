@@ -32,9 +32,8 @@ MCP23XXX_INTERRUPT_MODES = MCP23XXXInterruptMode.options(
 MCP23XXX_CONFIG_SCHEMA = cv.Schema(
     {
         cv.Optional(CONF_OPEN_DRAIN_INTERRUPT, default=False): cv.boolean,
-        cv.Optional(CONF_INTERRUPT_PIN): gpio_expander.validate_interrupt_pin,
     }
-).extend(cv.COMPONENT_SCHEMA)
+).extend(gpio_expander.INTERRUPT_EXPANDER_SCHEMA)
 
 
 @coroutine

@@ -331,6 +331,8 @@ class FloatLiteral(Literal):
     def __str__(self):
         if math.isnan(self.f):
             return "NAN"
+        if math.isinf(self.f):
+            return "INFINITY" if self.f > 0 else "-INFINITY"
         return f"{self.f}f"
 
 
@@ -484,6 +486,17 @@ def progmem_array(id_, rhs) -> "MockObj":
     return obj
 
 
+def unique_global_id(name: str, type_: "MockObjClass") -> ID:
+    """A declaration ID for a generated global, unique against config ids, variables and reserved names."""
+    from esphome.config import iter_ids
+    from esphome.config_validation import RESERVED_IDS
+
+    used = {str(i) for i, _ in iter_ids(CORE.config)}
+    used |= {str(i) for i in CORE.variables}
+    used |= set(RESERVED_IDS) | CORE.loaded_integrations
+    return ID(ensure_unique_string(name, used), is_declaration=True, type=type_)
+
+
 class ExternProgmemAssignmentExpression(ProgmemAssignmentExpression):
     __slots__ = ()
 
@@ -517,9 +530,6 @@ def shared_progmem_array(
     ``constexpr=False`` is for tables of generated object pointers: each top level variable
     element must pass ``is_static_pointer`` or ``EsphomeError`` is raised.
     """
-    from esphome.config import iter_ids
-    from esphome.config_validation import RESERVED_IDS
-
     arrays: dict[str, MockObj] = CORE.data.setdefault("shared_progmem_array", {})
     rhs = safe_exp(rhs)
     if not constexpr and isinstance(rhs, ArrayInitializer):
@@ -532,10 +542,7 @@ def shared_progmem_array(
     key = f"{type_} {rhs} {constexpr}"
     if share and (array := arrays.get(key)) is not None:
         return array
-    used = {str(i) for i, _ in iter_ids(CORE.config)}
-    used |= {str(i) for i in CORE.variables}
-    used |= set(RESERVED_IDS) | CORE.loaded_integrations
-    id_ = ID(ensure_unique_string(name, used), is_declaration=True, type=type_)
+    id_ = unique_global_id(name, type_)
     # After the user includes, so a lambda in the table can use what their headers declare.
     CORE.add_global_after_includes(
         ProgmemAssignmentExpression(type_, id_, rhs, constexpr)
@@ -786,7 +793,7 @@ def static_function(
     name: str,
     return_type: SafeExpType,
     parameters: TemplateArgsType,
-    body: list[str],
+    body: list[str | Statement],
 ) -> RawExpression:
     """Emit ``static <return_type> <name>(parameters) { body }`` at global scope and return an
     expression naming it, for use as a template argument or a function pointer.
@@ -800,7 +807,7 @@ def static_function(
     )
     add_global(RawStatement(f"{signature};"))
     add_global_after_includes(
-        RawStatement(f"{signature} {{\n{indent(chr(10).join(body))}\n}}")
+        RawStatement(f"{signature} {{\n{indent(chr(10).join(map(str, body)))}\n}}")
     )
     return RawExpression(name)
 
@@ -1326,10 +1333,19 @@ class MockObjClass(MockObj):
             # pylint: disable=protected-access
             self._parents += paren._parents
 
+    @property
+    def parents(self) -> list["MockObjClass"]:
+        """Every ancestor class: each direct parent followed by its own parents."""
+        return self._parents
+
     def inherits_from(self, other: "MockObjClass") -> bool:
         if str(self) == str(other):
             return True
         return any(str(parent) == str(other) for parent in self._parents)
+
+    def const_ref(self) -> MockObj:
+        """``const T &``, for a parameter that takes this type by reference."""
+        return self.operator("const").operator("ref")
 
     def template(self, *args: SafeExpType) -> "MockObjClass":
         if len(args) != 1 or not isinstance(args[0], TemplateArguments):
@@ -1360,6 +1376,7 @@ def call_lambda(lamb: LambdaExpression) -> Expression:
     Given a lambda, either reduce to a simple expression or call it, possibly with parameters
     from the surrounding context.
     This is for use only with value-returning lambdas, used in places where the value of a lambda call is needed.
+    Use only where the surrounding scope declares the lambda's parameters with the same types.
     :param lamb: The LambdaExpression to call or reduce
     :return: An Expression representing the result of calling the lambda or reducing it to a simple expression
     """

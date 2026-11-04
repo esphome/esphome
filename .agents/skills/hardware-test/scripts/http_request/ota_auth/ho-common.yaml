@@ -1,0 +1,60 @@
+wifi:
+  ssid: !secret wifi_ssid
+  password: !secret wifi_password
+  power_save_mode: none
+
+logger:
+  level: DEBUG
+
+api:
+  reboot_timeout: 0s
+  actions:
+    - action: fl_md5url
+      variables: {url: string, md5url: string}
+      then:
+        - ota.http_request.flash:
+            url: !lambda return url;
+            md5_url: !lambda return md5url;
+    - action: fl_md5
+      variables: {url: string, sum: string}
+      then:
+        - ota.http_request.flash:
+            url: !lambda return url;
+            md5: !lambda return sum;
+    - action: fl_auth
+      variables: {url: string, md5url: string, user: string, pw: string}
+      then:
+        - ota.http_request.flash:
+            url: !lambda return url;
+            md5_url: !lambda return md5url;
+            username: !lambda return user;
+            password: !lambda return pw;
+    - action: fl_nourl
+      then:
+        - lambda: id(hota).flash();
+    - action: fl_badurl
+      then:
+        - lambda: |-
+            id(hota).set_url("not a url");
+            id(hota).flash();
+    - action: getters
+      then:
+        - lambda: |-
+            ESP_LOGI("hot", "getters computed='%s' expected='%s'", id(hota).md5_computed().c_str(),
+                     id(hota).md5_expected().c_str());
+
+esphome:
+  on_boot:
+    priority: -100
+    then:
+      - lambda: |-
+          ESP_LOGI("hot", "boot getters computed='%s' expected='%s'", id(hota).md5_computed().c_str(),
+                   id(hota).md5_expected().c_str());
+
+http_request:
+  timeout: 10s
+
+ota:
+  - platform: esphome
+  - platform: http_request
+    id: hota

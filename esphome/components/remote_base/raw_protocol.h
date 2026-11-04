@@ -31,12 +31,21 @@ class RawBinarySensor : public RemoteReceiverBinarySensorBase {
   size_t len_;
 };
 
-class RawTrigger final : public Trigger<RawTimings>, public Component, public RemoteReceiverListener {
+class RawTrigger final : public Trigger<RawTimings>, public RemoteReceiverListener {
  protected:
   bool on_receive(RemoteReceiveData src) override {
-    this->trigger(src.get_raw_data());
+    if (const RawTimings *timings = src.get_raw_vector()) {
+      this->trigger(*timings);
+      return false;
+    }
+    // A receiver dispatching from its own buffer: x is a vector, so copy the frame into one kept here
+    RawTimingsView data = src.get_raw_data();
+    this->timings_.assign(data.begin(), data.end());
+    this->trigger(this->timings_);
     return false;
   }
+
+  RawTimings timings_;
 };
 
 template<typename... Ts> class RawAction : public RemoteTransmitterActionBase<Ts...> {
