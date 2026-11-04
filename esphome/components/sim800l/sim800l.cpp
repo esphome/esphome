@@ -200,12 +200,11 @@ void Sim800LComponent::parse_cmd_(std::string message) {
       ESP_LOGD(TAG, "Check ussd code: '%s'", message.c_str());
       if (message.starts_with("+CUSD:")) {
         this->state_ = STATE_RECEIVED_USSD;
-        this->ussd_ = "";
         size_t start = 10;
         size_t end = message.find_last_of(',');
         if (end > start) {
-          this->ussd_ = message.substr(start + 1, end - start - 2);
-          this->ussd_received_callback_.call(this->ussd_);
+          // Not stored in ussd_: send_ussd() from a listener would overwrite the text the others receive
+          this->ussd_received_callback_.call(message.substr(start + 1, end - start - 2));
         }
       }
       // Otherwise we receive another OK, we do nothing just wait polling to continuously check for SMS
