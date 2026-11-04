@@ -1,6 +1,7 @@
 #include "pmsx003.h"
 #include "esphome/core/log.h"
 #include "esphome/core/application.h"
+#include "esphome/core/helpers.h"
 
 namespace esphome::pmsx003 {
 

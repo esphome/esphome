@@ -1,5 +1,6 @@
 #include "somfy_rts_protocol.h"
 #include "esphome/core/log.h"
+#include "esphome/core/helpers.h"
 
 namespace esphome::remote_base {
 

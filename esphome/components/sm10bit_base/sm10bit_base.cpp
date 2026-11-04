@@ -1,4 +1,5 @@
 #include "sm10bit_base.h"
+#include "esphome/core/helpers.h"
 
 namespace esphome::sm10bit_base {
 

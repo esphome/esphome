@@ -4,6 +4,7 @@
 #include "pvvx_display.h"
 #include "esphome/components/ble_device_base/ble_device.h"
 #include "esphome/core/log.h"
+#include "esphome/core/helpers.h"
 
 namespace esphome::pvvx_mithermometer {
 

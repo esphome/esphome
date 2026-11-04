@@ -2,6 +2,7 @@
 #include "esphome/components/display/display_color_utils.h"
 
 #include "esphome/core/log.h"
+#include "esphome/core/helpers.h"
 
 #include <cmath>
 #include <cstring>
