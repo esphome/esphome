@@ -138,8 +138,7 @@ bool PCA9554Component::read_inputs_() {
 
 bool PCA9554Component::write_address_(uint8_t address, uint16_t value) {
   uint8_t outputs[2];
-  outputs[0] = (uint8_t) value;
-  outputs[1] = (uint8_t) (value >> 8);
+  put_le16(outputs, value);
   const i2c::ErrorCode err = this->write_register(address, outputs, this->reg_width_);
   if (!this->status_comm_result(err == i2c::ERROR_OK)) {
     ESP_LOGE(TAG, "write_register(): I2C I/O error: %d", (int) err);
