@@ -10,7 +10,7 @@
 
 namespace esphome::nrf52 {
 
-static const char *const TAG = "dfu";
+ESPHOME_LOG_TAG(TAG, "dfu");
 
 static const uint32_t DFU_DBL_RESET_MAGIC = 0x5A1AD5;  // SALADS
 static const uint8_t DFU_MAGIC_UF2_RESET = 0x57;       // Adafruit nRF52 bootloader UF2 magic

@@ -3,7 +3,7 @@
 
 namespace esphome::climate_ir_lg {
 
-static const char *const TAG = "climate.climate_ir_lg";
+ESPHOME_LOG_TAG(TAG, "climate.climate_ir_lg");
 
 // All codes provided here are missing the checksum (last 4 bits)
 // this checksum needs to be calculated before sending (look at `calc_checksum_()`)
@@ -135,13 +135,14 @@ void LgIrClimate::transmit_state() {
         default:
           return;
       }
-      this->transmit_(remote_state);
-      this->publish_state();
-      return;
     } else {  // just toggle swing when advanced_commands_support is not set
       remote_state |= HEADER_BASIC;
       remote_state |= BASIC_SWING_TOGGLE;
     }
+    // The remote's swing button sends a fixed code with no fan speed or temperature bits, so the
+    // frame goes out as is instead of falling through to them
+    this->transmit_(remote_state);
+    return;
   } else {  // Mode commands
     const bool climate_is_off = (this->mode_before_ == climate::CLIMATE_MODE_OFF);
     switch (this->mode) {
@@ -208,7 +209,6 @@ void LgIrClimate::transmit_state() {
   }
 
   this->transmit_(remote_state);
-  this->publish_state();
 }
 
 bool LgIrClimate::on_receive(remote_base::RemoteReceiveData data) {

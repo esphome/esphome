@@ -19,7 +19,7 @@
 
 namespace esphome::remote_transmitter {
 
-static const char *const TAG = "remote_transmitter";
+ESPHOME_LOG_TAG(TAG, "remote_transmitter");
 
 #ifdef REMOTE_TRANSMITTER_BK_PWM
 

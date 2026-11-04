@@ -173,6 +173,7 @@ async def to_code(config: ConfigType) -> None:
             settings.height,
             settings.image_type_enum,
             settings.transparent,
+            settings.byte_order_big_endian,
         )
         add_metadata(
             view_id,

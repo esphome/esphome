@@ -1,0 +1,8 @@
+light:
+  - platform: ln882x_spi_led_strip
+    name: "My Light"
+    pin: PA06
+    num_leds: 30
+    chipset: sm16703
+    channel_colors: GRB
+    max_refresh_rate: 20ms

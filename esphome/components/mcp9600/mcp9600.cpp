@@ -3,7 +3,7 @@
 
 namespace esphome::mcp9600 {
 
-static const char *const TAG = "mcp9600";
+ESPHOME_LOG_TAG(TAG, "mcp9600");
 
 static const uint8_t MCP9600_REGISTER_HOT_JUNCTION = 0x00;
 // static const uint8_t MCP9600_REGISTER_JUNCTION_DELTA = 0x01; // Unused, but kept for future reference
@@ -33,8 +33,7 @@ void MCP9600Component::setup() {
 
   // Allows both MCP9600's and MCP9601's to be connected.
   if (this->device_id_ != (uint8_t) 0x40 && this->device_id_ != (uint8_t) 0x41) {
-    this->error_code_ = COMMUNICATION_FAILED;
-    this->mark_failed();
+    this->mark_failed(LOG_STR("Connected device does not match a known MCP9600 or MCP9601 sensor"));
     return;
   }
 
@@ -55,8 +54,7 @@ void MCP9600Component::setup() {
   success &= this->write_byte_16(MCP9600_REGISTER_ALERT4_LIMIT, 0x0000);
 
   if (!success) {
-    this->error_code_ = FAILED_TO_UPDATE_CONFIGURATION;
-    this->mark_failed();
+    this->mark_failed(LOG_STR("Failed to update device configuration"));
     return;
   }
 }
@@ -70,18 +68,6 @@ void MCP9600Component::dump_config() {
   LOG_UPDATE_INTERVAL(this);
   LOG_SENSOR("  ", "Hot Junction Temperature", this->hot_junction_sensor_);
   LOG_SENSOR("  ", "Cold Junction Temperature", this->cold_junction_sensor_);
-
-  switch (this->error_code_) {
-    case COMMUNICATION_FAILED:
-      ESP_LOGE(TAG, "Connected device does not match a known MCP9600 or MCP901 sensor");
-      break;
-    case FAILED_TO_UPDATE_CONFIGURATION:
-      ESP_LOGE(TAG, "Failed to update device configuration");
-      break;
-    case NONE:
-    default:
-      break;
-  }
 }
 
 void MCP9600Component::update() {

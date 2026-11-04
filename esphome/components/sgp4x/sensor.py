@@ -11,7 +11,6 @@ from esphome.const import (
     CONF_COMPENSATION,
     CONF_GAIN_FACTOR,
     CONF_GATING_MAX_DURATION_MINUTES,
-    CONF_ID,
     CONF_INDEX_OFFSET,
     CONF_LEARNING_TIME_GAIN_HOURS,
     CONF_LEARNING_TIME_OFFSET_HOURS,
@@ -100,16 +99,16 @@ CONFIG_SCHEMA = cv.All(
 
 
 async def to_code(config: ConfigType) -> None:
-    var = cg.new_Pvariable(config[CONF_ID])
-    await cg.register_component(var, config)
-    await i2c.register_i2c_device(var, config)
+    var = await i2c.new_i2c_component(config)
 
     if CONF_COMPENSATION in config:
         compensation_config = config[CONF_COMPENSATION]
-        sens = await cg.get_variable(compensation_config[CONF_HUMIDITY_SOURCE])
-        cg.add(var.set_humidity_sensor(sens))
-        sens = await cg.get_variable(compensation_config[CONF_TEMPERATURE_SOURCE])
-        cg.add(var.set_temperature_sensor(sens))
+        await cg.add_variable(
+            var.set_humidity_sensor, compensation_config[CONF_HUMIDITY_SOURCE]
+        )
+        await cg.add_variable(
+            var.set_temperature_sensor, compensation_config[CONF_TEMPERATURE_SOURCE]
+        )
 
     cg.add(var.set_store_baseline(config[CONF_STORE_BASELINE]))
 

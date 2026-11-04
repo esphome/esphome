@@ -6,7 +6,7 @@
 
 namespace esphome::gt911 {
 
-static const char *const TAG = "gt911.touchscreen";
+ESPHOME_LOG_TAG(TAG, "gt911.touchscreen");
 
 static const uint8_t PRIMARY_ADDRESS = 0x5D;    // default I2C address for GT911
 static const uint8_t SECONDARY_ADDRESS = 0x14;  // secondary I2C address for GT911
@@ -24,9 +24,13 @@ static const size_t MAX_BUTTONS = 4;  // max number of buttons scanned
     return; \
   }
 
+// Reset sequence (Goodix GT911 datasheet): INT held low while RST is released selects address 0x5D, then
+// T3 + T4 pass before INT is handed back to the chip as its interrupt output
+static constexpr uint32_t RESET_LOW_MS = 10;
+static constexpr uint32_t RESET_SETTLE_MS = 5 + 50 + 1;
+
 void GT911Touchscreen::setup() {
   if (this->reset_pin_ != nullptr) {
-    // temporarily set the interrupt pin to output to control address selection
     this->reset_pin_->setup();
     this->reset_pin_->digital_write(false);
     if (this->interrupt_pin_ != nullptr) {
@@ -34,20 +38,19 @@ void GT911Touchscreen::setup() {
       this->interrupt_pin_->pin_mode(gpio::FLAG_OUTPUT);
       this->interrupt_pin_->digital_write(false);
     }
-    delay(2);
-    this->reset_pin_->digital_write(true);
-    // wait at least T3+T4 ms as per the datasheet
-    this->set_timeout(5 + 50 + 1, [this] { this->setup_internal_(); });
+    this->set_timeout(RESET_LOW_MS, [this] {
+      this->reset_pin_->digital_write(true);
+      this->set_timeout(RESET_SETTLE_MS, [this] { this->setup_internal_(); });
+    });
     return;
   }
   this->setup_internal_();
 }
 
 void GT911Touchscreen::setup_internal_() {
-  if (this->interrupt_pin_ != nullptr) {
-    if (this->interrupt_pin_->is_internal())
-      this->interrupt_pin_->pin_mode(gpio::FLAG_INPUT);
-  }
+  // Expander pins must leave output mode too, or the chip cannot drive its interrupt line
+  if (this->interrupt_pin_ != nullptr)
+    this->interrupt_pin_->pin_mode(gpio::FLAG_INPUT);
 
   uint8_t data[4];
   i2c::ErrorCode err = this->write(GET_SWITCHES, sizeof(GET_SWITCHES));
@@ -72,7 +75,7 @@ void GT911Touchscreen::setup_internal_() {
           ESP_LOGD(TAG, "Interrupt pin: hardware interrupt, active %s",
                    active_high ? LOG_STR_LITERAL("HIGH") : LOG_STR_LITERAL("LOW"));
         } else {
-          // IO expander pin: leave as output for configuration only.
+          // IO expander pin: no hardware interrupt, the touch state is polled.
           ESP_LOGD(TAG, "Interrupt pin: IO expander polling mode, active %s",
                    active_high ? LOG_STR_LITERAL("HIGH") : LOG_STR_LITERAL("LOW"));
         }
@@ -87,8 +90,8 @@ void GT911Touchscreen::setup_internal_() {
       if (err == i2c::ERROR_OK) {
         err = this->read(data, sizeof(data));
         if (err == i2c::ERROR_OK) {
-          this->x_raw_max_ = encode_uint16(data[1], data[0]);
-          this->y_raw_max_ = encode_uint16(data[3], data[2]);
+          this->x_raw_max_ = encode_value_le<uint16_t>(data);
+          this->y_raw_max_ = encode_value_le<uint16_t>(&data[2]);
           if (this->swap_x_y_)
             std::swap(this->x_raw_max_, this->y_raw_max_);
         }

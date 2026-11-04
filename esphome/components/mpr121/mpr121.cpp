@@ -3,11 +3,12 @@
 #include <cstdint>
 
 #include "esphome/core/hal.h"
+#include "esphome/core/helpers.h"
 #include "esphome/core/log.h"
 
 namespace esphome::mpr121 {
 
-static const char *const TAG = "mpr121";
+ESPHOME_LOG_TAG(TAG, "mpr121");
 
 void MPR121Component::setup() {
   this->disable_loop();
@@ -15,8 +16,7 @@ void MPR121Component::setup() {
   this->write_byte(MPR121_SOFTRESET, 0x63);
   this->set_timeout(100, [this]() {
     if (!this->write_byte(MPR121_ECR, 0x0)) {
-      this->error_code_ = COMMUNICATION_FAILED;
-      this->mark_failed();
+      this->mark_failed(LOG_STR(ESP_LOG_MSG_COMM_FAIL));
       return;
     }
     // set touch sensitivity for all 12 channels
@@ -70,23 +70,10 @@ void MPR121Component::set_release_debounce(uint8_t debounce) {
 void MPR121Component::dump_config() {
   ESP_LOGCONFIG(TAG, "MPR121:");
   LOG_I2C_DEVICE(this);
-  switch (this->error_code_) {
-    case COMMUNICATION_FAILED:
-      ESP_LOGE(TAG, ESP_LOG_MSG_COMM_FAIL);
-      break;
-    case NONE:
-    default:
-      break;
-  }
 }
 void MPR121Component::loop() {
   uint16_t val = 0;
-  this->read_byte_16(MPR121_TOUCHSTATUS_L, &val);
-
-  // Flip order
-  uint8_t lsb = val >> 8;
-  uint8_t msb = val;
-  val = (uint16_t(msb) << 8) | lsb;
+  this->read_byte_16_le(MPR121_TOUCHSTATUS_L, &val);
 
   for (auto *channel : this->channels_)
     channel->process(val);
@@ -94,18 +81,16 @@ void MPR121Component::loop() {
   this->read_byte(MPR121_GPIODATA, &this->gpio_input_);
 }
 
-bool MPR121Component::digital_read(uint8_t ionum) { return (this->gpio_input_ & (1 << ionum)) != 0; }
+bool MPR121Component::digital_read(uint8_t pin) { return (this->gpio_input_ & (1 << (pin - 4))) != 0; }
 
-void MPR121Component::digital_write(uint8_t ionum, bool value) {
-  if (value) {
-    this->gpio_output_ |= (1 << ionum);
-  } else {
-    this->gpio_output_ &= ~(1 << ionum);
-  }
+void MPR121Component::digital_write(uint8_t pin, bool value) {
+  const uint8_t ionum = pin - 4;
+  assign_bits(this->gpio_output_, 1 << ionum, value);
   this->flush_gpio_();
 }
 
-void MPR121Component::pin_mode(uint8_t ionum, gpio::Flags flags) {
+void MPR121Component::pin_mode(uint8_t pin, gpio::Flags flags) {
+  const uint8_t ionum = pin - 4;
   this->gpio_enable_ |= (1 << ionum);
   if (flags & gpio::FLAG_INPUT) {
     this->gpio_direction_ &= ~(1 << ionum);
@@ -126,34 +111,9 @@ bool MPR121Component::flush_gpio_() {
   this->write_byte(MPR121_GPIOEN, this->gpio_enable_);
   this->write_byte(MPR121_GPIODIR, this->gpio_direction_);
 
-  if (!this->write_byte(MPR121_GPIODATA, this->gpio_output_)) {
-    this->status_set_warning();
-    return false;
-  }
-
-  this->status_clear_warning();
-  return true;
-}
-
-void MPR121GPIOPin::setup() { this->pin_mode(this->flags_); }
-
-void MPR121GPIOPin::pin_mode(gpio::Flags flags) {
-  assert(this->pin_ >= 4);
-  this->parent_->pin_mode(this->pin_ - 4, flags);
-}
-
-bool MPR121GPIOPin::digital_read() {
-  assert(this->pin_ >= 4);
-  return this->parent_->digital_read(this->pin_ - 4) != this->inverted_;
-}
-
-void MPR121GPIOPin::digital_write(bool value) {
-  assert(this->pin_ >= 4);
-  this->parent_->digital_write(this->pin_ - 4, value != this->inverted_);
-}
-
-size_t MPR121GPIOPin::dump_summary(char *buffer, size_t len) const {
-  return buf_append_printf(buffer, len, 0, "ELE%u on MPR121", this->pin_);
+  return this->status_comm_result(this->write_byte(MPR121_GPIODATA, this->gpio_output_));
 }
 
 }  // namespace esphome::mpr121
+
+ESPHOME_EXPANDER_PIN_SUMMARY(esphome::mpr121::MPR121Component, "ELE%u on MPR121")

@@ -25,7 +25,7 @@ enum Protocol { WLED_NOTIFIER = 0, WARLS = 1, DRGB = 2, DRGBW = 3, DNRGB = 4 };
 
 constexpr uint32_t DEFAULT_BLANK_TIME = 1000;
 
-static const char *const TAG = "wled_light_effect";
+ESPHOME_LOG_TAG(TAG, "wled_light_effect");
 
 WLEDLightEffect::WLEDLightEffect(const char *name) : AddressableLightEffect(name) {}
 

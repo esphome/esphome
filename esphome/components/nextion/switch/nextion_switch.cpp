@@ -4,7 +4,7 @@
 
 namespace esphome::nextion {
 
-static const char *const TAG = "nextion_switch";
+ESPHOME_LOG_TAG(TAG, "nextion_switch");
 
 void NextionSwitch::process_bool(const std::string &variable_name, bool on) {
   if (!this->nextion_->is_setup())

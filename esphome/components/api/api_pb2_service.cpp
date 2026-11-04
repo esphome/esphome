@@ -6,7 +6,7 @@
 
 namespace esphome::api {
 
-static const char *const TAG = "api.service";
+ESPHOME_LOG_TAG(TAG, "api.service");
 
 #ifdef HAS_PROTO_MESSAGE_DUMP
 void APIServerConnectionBase::log_send_message_(const LogString *name, const char *dump) {

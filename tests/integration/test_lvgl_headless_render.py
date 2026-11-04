@@ -18,6 +18,7 @@ import pytest
 
 from .artifact_utils import keep_artifact
 from .bmp_utils import capture_when_drawn
+from .state_utils import require_service
 from .types import APIClientConnectedFactory, RunCompiledFunction
 
 WIDTH = 300
@@ -30,7 +31,7 @@ EXPECTED_SHA256 = "a995b002dd1d183c47514da15ab9a60a3e7d788c2e24386a02fddd4865509
 # Bundled LVGL version (esphome/components/lvgl/__init__.py, LVGL_VERSION) the hash above was
 # generated against. A version bump can shift anti-aliasing enough to change the hash even though
 # nothing is actually wrong -- if this test fails, check that first before regenerating the hash.
-EXPECTED_LVGL_VERSION = "9.5.0"
+EXPECTED_LVGL_VERSION = "9.6.0"
 
 
 @pytest.mark.asyncio
@@ -47,7 +48,7 @@ async def test_lvgl_headless_render(
 
     async with run_compiled(yaml_config), api_client_connected() as client:
         _, services = await client.list_entities_services()
-        service = next(s for s in services if s.name == "take_screenshot")
+        service = require_service(services, "take_screenshot")
 
         async def take(name: str) -> None:
             await client.execute_service(service, {"name": name})

@@ -6,7 +6,6 @@ from esphome.const import (
     CONF_CS_PIN,
     CONF_DATA_PIN,
     CONF_ID,
-    CONF_LAMBDA,
     CONF_READ_PIN,
     CONF_WRITE_PIN,
 )
@@ -31,17 +30,9 @@ async def to_code(config: ConfigType) -> None:
     var = cg.new_Pvariable(config[CONF_ID])
     await display.register_display(var, config)
 
-    cs = await cg.gpio_pin_expression(config[CONF_CS_PIN])
-    cg.add(var.set_cs_pin(cs))
-    data = await cg.gpio_pin_expression(config[CONF_DATA_PIN])
-    cg.add(var.set_data_pin(data))
-    read = await cg.gpio_pin_expression(config[CONF_READ_PIN])
-    cg.add(var.set_read_pin(read))
-    write = await cg.gpio_pin_expression(config[CONF_WRITE_PIN])
-    cg.add(var.set_write_pin(write))
+    await cg.add_pin(var.set_cs_pin, config[CONF_CS_PIN])
+    await cg.add_pin(var.set_data_pin, config[CONF_DATA_PIN])
+    await cg.add_pin(var.set_read_pin, config[CONF_READ_PIN])
+    await cg.add_pin(var.set_write_pin, config[CONF_WRITE_PIN])
 
-    if CONF_LAMBDA in config:
-        lambda_ = await cg.process_lambda(
-            config[CONF_LAMBDA], [(TM1621DisplayRef, "it")], return_type=cg.void
-        )
-        cg.add(var.set_writer(lambda_))
+    await display.add_writer(var, config, TM1621DisplayRef)

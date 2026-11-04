@@ -16,7 +16,7 @@
 
 namespace esphome::nextion {
 
-static const char *const TAG = "nextion.upload";
+ESPHOME_LOG_TAG(TAG, "nextion.upload");
 static constexpr size_t NEXTION_MAX_RESPONSE_LOG_BYTES = 16;
 
 // Timeout for display acknowledgment during TFT upload (ms).
@@ -283,6 +283,7 @@ bool Nextion::upload_tft(uint32_t baud_rate, bool exit_reparse) {
       .timeout_ms = static_cast<int>(this->tft_upload_http_timeout_),
       .disable_auto_redirect = false,
       .max_redirection_count = 10,
+      .buffer_size_tx = this->tft_upload_http_buffer_size_tx_,  // 0 = ESP-IDF default
   };
   // Initialize the HTTP client with the configuration
   esp_http_client_handle_t http_client = esp_http_client_init(&config);

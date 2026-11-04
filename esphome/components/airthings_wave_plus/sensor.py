@@ -1,5 +1,6 @@
 import esphome.codegen as cg
 from esphome.components import airthings_wave_base, sensor
+from esphome.components.const import CONF_DEVICE_TYPE
 import esphome.config_validation as cv
 from esphome.const import (
     CONF_CO2,
@@ -27,12 +28,8 @@ AirthingsWavePlus = airthings_wave_plus_ns.class_(
     "AirthingsWavePlus", airthings_wave_base.AirthingsWaveBase
 )
 
-CONF_DEVICE_TYPE = "device_type"
 WaveDeviceType = airthings_wave_plus_ns.enum("WaveDeviceType")
-DEVICE_TYPES = {
-    "WAVE_PLUS": WaveDeviceType.WAVE_PLUS,
-    "WAVE_GEN2": WaveDeviceType.WAVE_GEN2,
-}
+DEVICE_TYPES = WaveDeviceType.options("WAVE_PLUS", "WAVE_GEN2")
 
 
 def validate_wave_gen2_config(config: ConfigType) -> ConfigType:
@@ -88,8 +85,8 @@ async def to_code(config: ConfigType) -> None:
     await airthings_wave_base.wave_base_to_code(var, config)
 
     sensors = sensor.sub_sensors(config)
-    await sensors(CONF_RADON, var.set_radon)
-    await sensors(CONF_RADON_LONG_TERM, var.set_radon_long_term)
-    await sensors(CONF_CO2, var.set_co2)
-    await sensors(CONF_ILLUMINANCE, var.set_illuminance)
+    await sensors(CONF_RADON, var.set_radon_sensor)
+    await sensors(CONF_RADON_LONG_TERM, var.set_radon_long_term_sensor)
+    await sensors(CONF_CO2, var.set_co2_sensor)
+    await sensors(CONF_ILLUMINANCE, var.set_illuminance_sensor)
     cg.add(var.set_device_type(config[CONF_DEVICE_TYPE]))

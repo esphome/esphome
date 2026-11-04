@@ -67,6 +67,8 @@ inline constexpr uint32_t SCHEDULER_DONT_RUN = 4294967295UL;
 /// with component-level NUMERIC_ID values, even if the uint32_t values overlap.
 enum class InternalSchedulerID : uint32_t {
   POLLING_UPDATE = 0,  // PollingComponent interval
+  STATUS_WARNING = 1,  // status_momentary_warning() without a name
+  STATUS_ERROR = 2,    // status_momentary_error() without a name
 };
 
 // Forward declaration
@@ -225,6 +227,17 @@ class Component {
     this->mark_failed();
   }
 
+  /// Marks the component failed with `message` (default "Communication failed") unless `ok`; returns `ok`.
+  /// For any setup() check: `if (!this->setup_check(this->write_byte(...))) return;`. Inlined so the failure
+  /// branches still merge.
+  bool ESPHOME_ALWAYS_INLINE setup_check(bool ok) { return this->setup_check(ok, LOG_STR(ESP_LOG_MSG_COMM_FAIL)); }
+  bool ESPHOME_ALWAYS_INLINE setup_check(bool ok, const LogString *message) {
+    if (ok)
+      return true;
+    this->mark_failed(message);
+    return false;
+  }
+
   /** Disable this component's loop. The loop() method will no longer be called.
    *
    * This is useful for components that only need to run for a certain period of time
@@ -283,6 +296,11 @@ class Component {
   void status_set_warning(const char *message);
   void status_set_warning(const LogString *message);
 
+  /// Clears the warning when `ok`, else sets it with `message` (default "Communication failed"); returns `ok`.
+  /// Replaces the `if (!read()) { status_set_warning(...); return; } status_clear_warning();` pattern.
+  bool status_comm_result(bool ok);
+  bool status_comm_result(bool ok, const LogString *message);
+
   void status_set_error();  // Set error flag without message
   void status_set_error(const LogString *message);
 
@@ -298,23 +316,23 @@ class Component {
     this->status_clear_error_slow_path_();
   }
 
-  /** Set warning status flag and automatically clear it after a timeout.
-   *
-   * @param name Identifier for the timeout (used to cancel/replace existing timeouts with the same name).
-   *             Must be a static string literal (stored in flash/rodata), not a temporary or dynamic string.
-   *             This is NOT a message to display - use status_set_warning() with a message if logging is needed.
-   * @param length Duration in milliseconds before the warning is automatically cleared.
-   */
+  // Remove before 2027.5.0
+  ESPDEPRECATED("Use status_momentary_warning() without a name. Removed in 2027.5.0", "2026.11.0")
   void status_momentary_warning(const char *name, uint32_t length = 5000);
 
-  /** Set error status flag and automatically clear it after a timeout.
-   *
-   * @param name Identifier for the timeout (used to cancel/replace existing timeouts with the same name).
-   *             Must be a static string literal (stored in flash/rodata), not a temporary or dynamic string.
-   *             This is NOT a message to display - use status_set_error() with a message if logging is needed.
-   * @param length Duration in milliseconds before the error is automatically cleared.
-   */
+  /// Set warning status flag and clear it after `length` ms. A new call restarts the timeout.
+  /// `message` is logged in place of "unspecified" when the flag gets set.
+  void status_momentary_warning(uint32_t length = 5000);
+  void status_momentary_warning(const LogString *message, uint32_t length = 5000);
+
+  // Remove before 2027.5.0
+  ESPDEPRECATED("Use status_momentary_error() without a name. Removed in 2027.5.0", "2026.11.0")
   void status_momentary_error(const char *name, uint32_t length = 5000);
+
+  /// Set error status flag and clear it after `length` ms. A new call restarts the timeout.
+  /// `message` is logged in place of "unspecified"; unlike status_set_error() it is not stored.
+  void status_momentary_error(uint32_t length = 5000);
+  void status_momentary_error(const LogString *message, uint32_t length = 5000);
 
   bool has_overridden_loop() const { return (this->component_state_ & COMPONENT_HAS_LOOP) != 0; }
 
@@ -356,6 +374,8 @@ class Component {
   /// Note: Callers often use the return value to decide whether to log a warning/error,
   /// so once a flag is set, subsequent (potentially different) messages may be suppressed.
   bool set_status_flag_(uint8_t flag);
+  /// Set the error flag and log it; true when it was not set before.
+  bool set_error_flag_(const LogString *message);
 
   /** Set an interval function with a const char* name. Empty name means no cancelling possible.
    *

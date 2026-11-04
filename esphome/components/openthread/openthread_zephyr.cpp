@@ -7,7 +7,7 @@
 #include "esphome/core/helpers.h"
 #include <zephyr/net/openthread.h>
 
-static const char *const TAG = "openthread";
+ESPHOME_LOG_TAG(TAG, "openthread");
 
 namespace esphome::openthread {
 

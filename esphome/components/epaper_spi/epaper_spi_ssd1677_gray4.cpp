@@ -4,7 +4,7 @@
 
 namespace esphome::epaper_spi {
 
-static constexpr const char *const TAG = "epaper_spi.ssd1677_gray4";
+ESPHOME_LOG_TAG(TAG, "epaper_spi.ssd1677_gray4");
 
 // Combine two source bytes (4 pixels each, 2 bits per pixel, most significant pixel first) into
 // one plane byte covering the same 8 pixels (1 bit per pixel), choosing high or low bit
@@ -29,10 +29,7 @@ void EPaperSSD1677Gray4::fill(Color color) {
   }
   const uint8_t level = color_to_gray4(color);
   this->buffer_.fill((uint8_t) (level | (level << 2) | (level << 4) | (level << 6)));
-  this->x_low_ = 0;
-  this->y_low_ = 0;
-  this->x_high_ = this->width_;
-  this->y_high_ = this->height_;
+  this->mark_all_drawn_();
 }
 
 void HOT EPaperSSD1677Gray4::draw_pixel_at(int x, int y, Color color) {
@@ -83,14 +80,14 @@ bool HOT EPaperSSD1677Gray4::transfer_data() {
   this->start_data_();
   while (this->current_data_index_ != this->y_high_) {
     const size_t src_row = this->current_data_index_ * this->row_width_ + this->x_low_ / 4;
-    for (size_t i = 0; i != plane_row_length; i++) {
-      const uint8_t plane = plane_byte(this->buffer_[src_row + 2 * i], this->buffer_[src_row + 2 * i + 1], first_pass);
-      // The OTP grayscale waveform treats data as inverted relative to monochrome
-      bytes_to_send[i] = (uint8_t) ~plane;
-      // What the next partial update compares against: the high bits, as a black-and-white frame.
-      if (first_pass && this->sent_.is_valid())
-        this->sent_[this->current_data_index_ * plane_row_length + i] = plane;
-    }
+    for (size_t i = 0; i != plane_row_length; i++)
+      bytes_to_send[i] = plane_byte(this->buffer_[src_row + 2 * i], this->buffer_[src_row + 2 * i + 1], first_pass);
+    // What the next partial update compares against: the high bits, as a black-and-white frame.
+    if (first_pass)
+      this->record_sent_(this->current_data_index_ * plane_row_length, bytes_to_send, plane_row_length);
+    // The OTP grayscale waveform treats data as inverted relative to monochrome
+    for (size_t i = 0; i != plane_row_length; i++)
+      bytes_to_send[i] = (uint8_t) ~bytes_to_send[i];
     ++this->current_data_index_;
     this->write_array(bytes_to_send, plane_row_length);
     if (millis() - start_time > MAX_TRANSFER_TIME) {

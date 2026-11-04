@@ -3,20 +3,22 @@
 
 namespace esphome::aqi {
 
-static const char *const TAG = "aqi";
+ESPHOME_LOG_TAG(TAG, "aqi");
+
+static constexpr uint32_t CALCULATE_DEFER_ID = 0;
 
 void AQISensor::setup() {
   if (this->pm_2_5_sensor_ != nullptr) {
     this->pm_2_5_sensor_->add_on_state_callback([this](float value) {
       this->pm_2_5_value_ = value;
       // Defer calculation to avoid double-publishing if both sensors update in the same loop
-      this->defer("update", [this]() { this->calculate_aqi_(); });
+      this->defer(CALCULATE_DEFER_ID, [this]() { this->calculate_aqi_(); });
     });
   }
   if (this->pm_10_0_sensor_ != nullptr) {
     this->pm_10_0_sensor_->add_on_state_callback([this](float value) {
       this->pm_10_0_value_ = value;
-      this->defer("update", [this]() { this->calculate_aqi_(); });
+      this->defer(CALCULATE_DEFER_ID, [this]() { this->calculate_aqi_(); });
     });
   }
 }
@@ -28,10 +30,10 @@ void AQISensor::dump_config() {
   ESP_LOGCONFIG(TAG, "  Extended Range: %s",
                 this->extended_range_ ? LOG_STR_LITERAL("enabled") : LOG_STR_LITERAL("disabled"));
   if (this->pm_2_5_sensor_ != nullptr) {
-    ESP_LOGCONFIG(TAG, "  PM2.5 Sensor: '%s'", this->pm_2_5_sensor_->get_name().c_str());
+    ESP_LOGCONFIG(TAG, "  PM2.5 Sensor: '%s'", LOG_STR_ARG(this->pm_2_5_sensor_->get_log_name()));
   }
   if (this->pm_10_0_sensor_ != nullptr) {
-    ESP_LOGCONFIG(TAG, "  PM10 Sensor: '%s'", this->pm_10_0_sensor_->get_name().c_str());
+    ESP_LOGCONFIG(TAG, "  PM10 Sensor: '%s'", LOG_STR_ARG(this->pm_10_0_sensor_->get_log_name()));
   }
   LOG_SENSOR("  ", "AQI", this);
 }

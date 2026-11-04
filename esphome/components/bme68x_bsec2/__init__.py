@@ -36,28 +36,18 @@ BME68xBSEC2Component = bme68x_bsec2_ns.class_("BME68xBSEC2Component", cg.Compone
 MODEL_OPTIONS = ["bme680", "bme688"]
 
 AlgorithmOutput = bme68x_bsec2_ns.enum("AlgorithmOutput")
-ALGORITHM_OUTPUT_OPTIONS = {
-    "classification": AlgorithmOutput.ALGORITHM_OUTPUT_CLASSIFICATION,
-    "regression": AlgorithmOutput.ALGORITHM_OUTPUT_REGRESSION,
-}
+ALGORITHM_OUTPUT_OPTIONS = AlgorithmOutput.options(
+    "classification", "regression", prefix="ALGORITHM_OUTPUT_"
+)
 
 OperatingAge = bme68x_bsec2_ns.enum("OperatingAge")
-OPERATING_AGE_OPTIONS = {
-    "4d": OperatingAge.OPERATING_AGE_4D,
-    "28d": OperatingAge.OPERATING_AGE_28D,
-}
+OPERATING_AGE_OPTIONS = OperatingAge.options("4d", "28d", prefix="OPERATING_AGE_")
 
 SampleRate = bme68x_bsec2_ns.enum("SampleRate")
-SAMPLE_RATE_OPTIONS = {
-    "LP": SampleRate.SAMPLE_RATE_LP,
-    "ULP": SampleRate.SAMPLE_RATE_ULP,
-}
+SAMPLE_RATE_OPTIONS = SampleRate.options("LP", "ULP", prefix="SAMPLE_RATE_")
 
 Voltage = bme68x_bsec2_ns.enum("Voltage")
-VOLTAGE_OPTIONS = {
-    "1.8V": Voltage.VOLTAGE_1_8V,
-    "3.3V": Voltage.VOLTAGE_3_3V,
-}
+VOLTAGE_OPTIONS = Voltage.options("1.8V", "3.3V", prefix="VOLTAGE_")
 
 ALGORITHM_OUTPUT_FILE_NAME = {
     "classification": "sel",

@@ -1,0 +1,1 @@
+DOMAIN = "inkplate6"

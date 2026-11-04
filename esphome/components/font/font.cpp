@@ -6,7 +6,7 @@
 #include "esphome/components/unicode/unicode.h"
 
 namespace esphome::font {
-static const char *const TAG = "font";
+ESPHOME_LOG_TAG(TAG, "font");
 
 #ifdef USE_LVGL_FONT
 static const uint8_t OPA4_TABLE[16] = {0, 17, 34, 51, 68, 85, 102, 119, 136, 153, 170, 187, 204, 221, 238, 255};

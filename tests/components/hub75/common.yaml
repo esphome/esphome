@@ -10,3 +10,6 @@ esphome:
     - hub75.set_brightness:
         id: my_hub75
         brightness: 50
+    - hub75.set_brightness:
+        id: my_hub75
+        brightness: !lambda return 150;

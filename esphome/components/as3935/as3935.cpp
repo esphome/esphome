@@ -3,7 +3,7 @@
 
 namespace esphome::as3935 {
 
-static const char *const TAG = "as3935";
+ESPHOME_LOG_TAG(TAG, "as3935");
 
 void AS3935Component::setup() {
   this->irq_pin_->setup();
@@ -59,12 +59,10 @@ void AS3935Component::loop() {
 #endif
 #ifdef USE_SENSOR
     uint8_t distance = this->get_distance_to_storm_();
-    if (this->distance_sensor_ != nullptr)
-      this->distance_sensor_->publish_state(distance);
+    PUBLISH_STATE(this->distance_sensor_, distance);
 
     uint32_t energy = this->get_lightning_energy_();
-    if (this->energy_sensor_ != nullptr)
-      this->energy_sensor_->publish_state(energy);
+    PUBLISH_STATE(this->energy_sensor_, energy);
 #endif
   }
 }

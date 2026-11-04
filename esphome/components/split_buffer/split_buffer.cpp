@@ -7,7 +7,7 @@
 #include "esphome/core/log.h"
 
 namespace esphome::split_buffer {
-static constexpr const char *const TAG = "split_buffer";
+ESPHOME_LOG_TAG(TAG, "split_buffer");
 
 SplitBuffer::~SplitBuffer() { this->free(); }
 

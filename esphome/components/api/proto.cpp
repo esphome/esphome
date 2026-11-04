@@ -6,7 +6,7 @@
 
 namespace esphome::api {
 
-static const char *const TAG = "api.proto";
+ESPHOME_LOG_TAG(TAG, "api.proto");
 
 uint32_t ProtoSize::varint_slow(uint32_t value) { return varint_wide(value); }
 

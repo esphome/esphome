@@ -28,12 +28,4 @@ class Hob2HoodProtocol : public RemoteProtocol<Hob2HoodData> {
 
 DECLARE_REMOTE_PROTOCOL(Hob2Hood)
 
-template<typename... Ts> class Hob2HoodAction : public RemoteTransmitterActionBase<Ts...> {
- public:
-  TEMPLATABLE_VALUE(Hob2HoodCommand, command)
-  void encode(RemoteTransmitData *dst, Ts... x) override {
-    Hob2HoodProtocol().encode(dst, Hob2HoodData{this->command_.value(x...)});
-  }
-};
-
 }  // namespace esphome::remote_base

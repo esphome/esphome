@@ -4,7 +4,7 @@
 
 namespace esphome::mcp23x17_base {
 
-static const char *const TAG = "mcp23x17_base";
+ESPHOME_LOG_TAG(TAG, "mcp23x17_base");
 
 bool MCP23X17Base::digital_read_hw(uint8_t pin) {
   uint8_t data;
@@ -43,15 +43,11 @@ void MCP23X17Base::pin_mode(uint8_t pin, gpio::Flags flags) {
   } else if (flags == gpio::FLAG_OUTPUT) {
     this->update_reg(pin, false, iodir);
   }
-  // When interrupt_pin is configured, auto-enable CHANGE interrupt for input pins
-  // so the chip's INT output fires on any input state change
-  if (this->interrupt_pin_ != nullptr && (flags & gpio::FLAG_INPUT)) {
-    this->pin_interrupt_mode(pin, mcp23xxx_base::MCP23XXX_CHANGE);
-  }
-  // Enable polling loop for input pins (not needed for interrupt-driven mode
-  // where the ISR handles re-enabling loop)
-  if (this->interrupt_pin_ == nullptr && (flags & gpio::FLAG_INPUT)) {
-    this->enable_loop();
+  if (flags & gpio::FLAG_INPUT) {
+    // With an interrupt pin, INT fires on any change of an input
+    if (this->interrupt_pin_ != nullptr)
+      this->pin_interrupt_mode(pin, mcp23xxx_base::MCP23XXX_CHANGE);
+    this->enable_polling_loop_();
   }
 }
 
@@ -92,11 +88,7 @@ void MCP23X17Base::update_reg(uint8_t pin, bool pin_value, uint8_t reg_addr) {
     this->read_reg(reg_addr, &reg_value);
   }
 
-  if (pin_value) {
-    reg_value |= 1 << bit;
-  } else {
-    reg_value &= ~(1 << bit);
-  }
+  assign_bits(reg_value, 1 << bit, pin_value);
 
   this->write_reg(reg_addr, reg_value);
 

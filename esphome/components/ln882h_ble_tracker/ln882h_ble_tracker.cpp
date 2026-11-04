@@ -9,7 +9,7 @@
 
 namespace esphome::ln882h_ble_tracker {
 
-static const char *const TAG = "ln882h_ble_tracker";
+ESPHOME_LOG_TAG(TAG, "ln882h_ble_tracker");
 
 static constexpr float BLE_SCAN_UNIT_MS = 0.625f;
 

@@ -16,6 +16,7 @@ from esphome.const import (
 from esphome.core import CORE, CoroPriority, coroutine_with_priority
 from esphome.types import SafeExpType
 
+DOMAIN = "stepper"
 IS_PLATFORM_COMPONENT = True
 
 stepper_ns = cg.esphome_ns.namespace("stepper")
@@ -74,12 +75,9 @@ STEPPER_SCHEMA = cv.Schema(
 
 
 async def setup_stepper_core_(stepper_var, config):
-    if CONF_ACCELERATION in config:
-        cg.add(stepper_var.set_acceleration(config[CONF_ACCELERATION]))
-    if CONF_DECELERATION in config:
-        cg.add(stepper_var.set_deceleration(config[CONF_DECELERATION]))
-    if CONF_MAX_SPEED in config:
-        cg.add(stepper_var.set_max_speed(config[CONF_MAX_SPEED]))
+    cg.add_optional(stepper_var.set_acceleration, config.get(CONF_ACCELERATION))
+    cg.add_optional(stepper_var.set_deceleration, config.get(CONF_DECELERATION))
+    cg.add_optional(stepper_var.set_max_speed, config.get(CONF_MAX_SPEED))
 
 
 async def register_stepper(var, config):

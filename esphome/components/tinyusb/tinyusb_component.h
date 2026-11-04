@@ -49,6 +49,8 @@ class TinyUSB final : public Component {
   void set_usb_desc_serial(const char *usb_desc_serial) { this->string_descriptor_[SERIAL_NUMBER] = usb_desc_serial; }
   /// Self-powered device: watch VBUS on this GPIO so a cable pull becomes a detach.
   void set_vbus_monitor_pin(int pin) { this->vbus_monitor_pin_ = static_cast<int8_t>(pin); }
+  /// Configuration descriptor from a class component that esp_tinyusb has no built-in default for (HID).
+  void set_full_speed_config(const uint8_t *descriptor) { this->tusb_cfg_.descriptor.full_speed_config = descriptor; }
 
  protected:
   char usb_desc_lang_id_[2] = {0x09, 0x04};  // defaults to english
@@ -72,9 +74,16 @@ class TinyUSB final : public Component {
       .bLength = sizeof(tusb_desc_device_t),
       .bDescriptorType = TUSB_DESC_DEVICE,
       .bcdUSB = 0x0200,
+#if CFG_TUD_CDC || CFG_TUD_NCM || CFG_TUD_ECM_RNDIS
+      // Interface association (IAD) only for classes that group interfaces, as esp_tinyusb's default descriptor does
       .bDeviceClass = TUSB_CLASS_MISC,
       .bDeviceSubClass = MISC_SUBCLASS_COMMON,
       .bDeviceProtocol = MISC_PROTOCOL_IAD,
+#else
+      .bDeviceClass = TUSB_CLASS_UNSPECIFIED,
+      .bDeviceSubClass = 0,
+      .bDeviceProtocol = 0,
+#endif
       .bMaxPacketSize0 = CFG_TUD_ENDPOINT0_SIZE,
       .idVendor = 0x303A,
       .idProduct = 0x4001,

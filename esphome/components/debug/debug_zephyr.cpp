@@ -1,9 +1,12 @@
 #include "debug_component.h"
 #ifdef USE_ZEPHYR
+#include <cinttypes>
 #include <climits>
+#include "esphome/core/alloc_helpers.h"
 #include "esphome/core/log.h"
 #include <esphome/components/zephyr/reset_reason.h>
 #include <zephyr/drivers/hwinfo.h>
+#include <zephyr/kernel.h>
 #include <hal/nrf_power.h>
 #include <cstdint>
 #include <zephyr/storage/flash_map.h>
@@ -12,7 +15,7 @@
 
 namespace esphome::debug {
 
-static const char *const TAG = "debug";
+ESPHOME_LOG_TAG(TAG, "debug");
 constexpr std::uintptr_t MBR_PARAM_PAGE_ADDR = 0xFFC;
 constexpr std::uintptr_t MBR_BOOTLOADER_ADDR = 0xFF8;
 
@@ -154,6 +157,8 @@ static const char *regout0_to_str(uint32_t value) {
       return "3.0V";
     case (UICR_REGOUT0_VOUT_3V3):
       return "3.3V";
+    default:
+      break;
   }
   return "???V";
 }
@@ -335,6 +340,8 @@ size_t DebugComponent::get_device_info_(std::span<char, DEVICE_INFO_BUFFER_SIZE>
         return "QFxx - 6x6 48-pin QFN";
       case 0x2005:
         return "CKxx - 3.544 x 3.607 WLCSP";
+      default:
+        break;
     }
     return "Unspecified";
   };
@@ -399,25 +406,51 @@ size_t DebugComponent::get_device_info_(std::span<char, DEVICE_INFO_BUFFER_SIZE>
 #endif
   }
 #endif
-  auto uicr = [](volatile uint32_t *data, uint8_t size) {
-    std::string res;
+  // 13 words of 8 hex digits, separated by spaces
+  char uicr_buf[13 * 9];
+  auto uicr = [&uicr_buf](volatile uint32_t *data, uint8_t size) {
+    size_t len = 0;
     for (size_t i = 0; i < size; i++) {
-      if (i > 0) {
-        res += ' ';
-      }
-      res += format_hex_pretty<uint32_t>(data[i], '\0', false);
+      len = buf_append_printf(uicr_buf, sizeof(uicr_buf), len, i > 0 ? " %08" PRIX32 : "%08" PRIX32, data[i]);
     }
-    return res;
+    return uicr_buf;
   };
-  ESP_LOGD(TAG, "  NRFFW %s", uicr(NRF_UICR->NRFFW, 13).c_str());
-  ESP_LOGD(TAG, "  NRFHW %s", uicr(NRF_UICR->NRFHW, 12).c_str());
+  ESP_LOGD(TAG, "  NRFFW %s", uicr(NRF_UICR->NRFFW, 13));
+  ESP_LOGD(TAG, "  NRFHW %s", uicr(NRF_UICR->NRFHW, 12));
 #ifdef ESPHOME_LOG_HAS_VERBOSE
   log_peripherals_info();
 #endif
   return pos;
 }
 
-void DebugComponent::update_platform_() {}
+// The Python side enables the statistics only for a verbose logger
+#ifdef CONFIG_SCHED_THREAD_USAGE_ANALYSIS
+static void log_thread_usage(const struct k_thread *thread, void *user_data) {
+  const auto cpu_cycles = *static_cast<const uint64_t *>(user_data);
+  auto *tid = const_cast<k_tid_t>(thread);  // NOLINT(cppcoreguidelines-pro-type-const-cast)
+  k_thread_runtime_stats_t stats;
+  if (k_thread_runtime_stats_get(tid, &stats) != 0)
+    return;
+  char state[32];
+  const char *name = k_thread_name_get(tid);
+  ESP_LOGV(TAG, "  %-16s prio %3d %-10s %3u%% peak %" PRIu32 " avg %" PRIu32, name != nullptr ? name : "?",
+           thread->base.prio, k_thread_state_str(tid, state, sizeof(state)),
+           static_cast<unsigned>(stats.execution_cycles * 100 / cpu_cycles),
+           static_cast<uint32_t>(k_cyc_to_us_floor64(stats.peak_cycles)),
+           static_cast<uint32_t>(k_cyc_to_us_floor64(stats.average_cycles)));
+}
+#endif
+
+void DebugComponent::update_platform_() {
+#ifdef CONFIG_SCHED_THREAD_USAGE_ANALYSIS
+  k_thread_runtime_stats_t cpu;
+  if (k_thread_runtime_stats_all_get(&cpu) != 0 || cpu.execution_cycles == 0)
+    return;
+  ESP_LOGV(TAG, "Thread CPU usage since boot (peak and average us per time slice):");
+  // The unlocked walk lets the log output inside the callback block
+  k_thread_foreach_unlocked(log_thread_usage, &cpu.execution_cycles);
+#endif
+}
 
 }  // namespace esphome::debug
 #endif

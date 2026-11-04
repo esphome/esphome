@@ -2,10 +2,11 @@
 
 #include "esphome/components/bmp581_base/bmp581_base.h"
 #include "esphome/components/i2c/i2c.h"
+#include "esphome/core/log.h"
 
 namespace esphome::bmp581_i2c {
 
-static const char *const TAG = "bmp581_i2c.sensor";
+ESPHOME_LOG_TAG(TAG, "bmp581_i2c.sensor");
 
 /// This class implements support for the BMP581 Temperature+Pressure i2c sensor.
 class BMP581I2CComponent final : public esphome::bmp581_base::BMP581Component, public i2c::I2CDevice {

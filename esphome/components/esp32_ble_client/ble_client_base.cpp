@@ -11,7 +11,7 @@
 
 namespace esphome::esp32_ble_client {
 
-static const char *const TAG = "esp32_ble_client";
+ESPHOME_LOG_TAG(TAG, "esp32_ble_client");
 
 // Connection parameters are shared with the other GATT client backends
 // (ble_device_base/ble_client_state.h) so the platforms cannot drift.
@@ -363,17 +363,11 @@ bool BLEClientBase::gattc_event_handler(esp_gattc_cb_event_t event, esp_gatt_if_
         break;
       }
 
-      const bool open_failed = param->open.status != ESP_GATT_OK && param->open.status != ESP_GATT_ALREADY_OPEN;
-      // Bluedroid reports a failed open as DISCONNECT_EVT then a failing OPEN_EVT, with no CONNECT_EVT,
-      // so DISCONNECTING with no id is expected for a failure. Anything else means a bad assumption
-      // about how the ESP BT stack works, so log it.
-      const bool expected_failure =
-          open_failed && this->state() == espbt::ClientState::DISCONNECTING && this->conn_id_ == UNSET_CONN_ID;
-      if (this->state() != espbt::ClientState::CONNECTING && !expected_failure) {
+      if (this->state() != espbt::ClientState::CONNECTING) {
         ESP_LOGE(TAG, "[%d] [%s] ESP_GATTC_OPEN_EVT in %s state (status=%d)", this->connection_index_,
                  this->address_str_, espbt::client_state_to_string(this->state()), param->open.status);
       }
-      if (open_failed) {
+      if (param->open.status != ESP_GATT_OK && param->open.status != ESP_GATT_ALREADY_OPEN) {
         this->log_gattc_warning_("Connection open", param->open.status);
         // Connection was never established so CLOSE_EVT may not follow
         this->set_idle_();
@@ -430,11 +424,10 @@ bool BLEClientBase::gattc_event_handler(esp_gattc_cb_event_t event, esp_gatt_if_
         ESP_LOGD(TAG, "[%d] [%s] ESP_GATTC_DISCONNECT_EVT, reason 0x%02x", this->connection_index_, this->address_str_,
                  param->disconnect.reason);
       }
-      // For active disconnects (esp_ble_gattc_close), CLOSE_EVT arrives before
-      // DISCONNECT_EVT. If CLOSE_EVT already transitioned us to IDLE, don't go
-      // backwards to DISCONNECTING — the connection is already fully cleaned up.
-      if (this->state() == espbt::ClientState::IDLE) {
-        this->log_event_("DISCONNECT_EVT after CLOSE_EVT, already IDLE");
+      // IDLE: CLOSE_EVT (active close) already cleaned up. No conn_id: no CONNECT_EVT for this attempt yet,
+      // so the event is left over from the previous link or precedes a failed open that OPEN_EVT handles.
+      if (this->state() == espbt::ClientState::IDLE || this->conn_id_ == UNSET_CONN_ID) {
+        this->log_event_("DISCONNECT_EVT with no live link, ignoring");
         break;
       }
       // For passive disconnects (remote device disconnected or link lost),
@@ -680,18 +673,17 @@ float BLEClientBase::parse_char_value(uint8_t *value, uint16_t length) {
     case 0xD:  // int12.
     case 0xE:  // int16.
       if (length > 2) {
-        return (float) ((int16_t) (value[1] << 8) + (int16_t) value[2]);
+        return (float) encode_value<int16_t>(&value[1]);
       }
       [[fallthrough]];
     case 0xF:  // int24.
       if (length > 3) {
-        return (float) ((int32_t) (value[1] << 16) + (int32_t) (value[2] << 8) + (int32_t) (value[3]));
+        return (float) encode_uint24(value[1], value[2], value[3]);
       }
       [[fallthrough]];
     case 0x10:  // int32.
       if (length > 4) {
-        return (float) ((int32_t) (value[1] << 24) + (int32_t) (value[2] << 16) + (int32_t) (value[3] << 8) +
-                        (int32_t) (value[4]));
+        return (float) encode_value<int32_t>(&value[1]);
       }
   }
   ESP_LOGW(TAG, "[%d] [%s] Cannot parse characteristic value of type 0x%x length %d", this->connection_index_,

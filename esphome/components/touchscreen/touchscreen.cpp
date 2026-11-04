@@ -4,7 +4,7 @@
 
 namespace esphome::touchscreen {
 
-static const char *const TAG = "touchscreen";
+ESPHOME_LOG_TAG(TAG, "touchscreen");
 static constexpr uint32_t TOUCH_TIMEOUT_ID = 0;
 
 void TouchscreenInterrupt::gpio_intr(TouchscreenInterrupt *store) { store->touched = true; }

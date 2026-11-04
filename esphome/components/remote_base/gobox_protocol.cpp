@@ -4,7 +4,7 @@
 
 namespace esphome::remote_base {
 
-static const char *const TAG = "remote.gobox";
+ESPHOME_LOG_TAG(TAG, "remote.gobox");
 
 constexpr uint32_t BIT_MARK_US = 580;  // 70us seems like a safe time delta for the receiver...
 constexpr uint32_t BIT_ONE_SPACE_US = 1640;

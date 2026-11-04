@@ -11,6 +11,7 @@ from typing import Any
 from esphome import automation
 import esphome.codegen as cg
 from esphome.components.const import CONF_DESCRIPTION
+from esphome.components.homeassistant import DOMAIN as HOMEASSISTANT_DOMAIN
 import esphome.config_validation as cv
 from esphome.const import (
     CONF_DEVICE_CLASS,
@@ -118,11 +119,6 @@ def _validate_multiple(conf: ConfigType) -> ConfigType:
             "is only for standalone inputs (id)",
             path=[CONF_MULTIPLE],
         )
-    if CONF_MAX_LENGTH in conf and not conf[CONF_MULTIPLE]:
-        raise cv.Invalid(
-            "max_length only applies to an input with multiple: true",
-            path=[CONF_MAX_LENGTH],
-        )
     return conf
 
 
@@ -149,6 +145,7 @@ WIZARD_INPUT_SCHEMA = cv.All(
     ),
     cv.has_exactly_one_key(CONF_ID, CONF_ENTITY),
     _validate_multiple,
+    cv.only_when(CONF_MAX_LENGTH, CONF_MULTIPLE, True),
 )
 
 WIZARD_PAGE_SCHEMA = cv.All(
@@ -207,6 +204,7 @@ WIZARD_SCHEMA = cv.All(
 WIZARD_INPUT_DOMAINS = (
     "binary_sensor",
     "button",
+    "light",
     "number",
     "select",
     "sensor",
@@ -215,7 +213,14 @@ WIZARD_INPUT_DOMAINS = (
     "text_sensor",
 )
 # Platforms that act on one family of Home Assistant domains, which the input's filters must stay within
-WIZARD_DOMAIN_LIMITED_PLATFORMS = ("button", "number", "select", "switch", "text")
+WIZARD_DOMAIN_LIMITED_PLATFORMS = (
+    "button",
+    "light",
+    "number",
+    "select",
+    "switch",
+    "text",
+)
 
 
 def wizard_input_ids(api_config: ConfigType) -> set[str]:
@@ -293,7 +298,7 @@ def _validate_wizard_input(conf: ConfigType) -> ConfigType:
         fv.full_config.get(), conf[CONF_ENTITY]
     )
     if (
-        declaration.get(CONF_PLATFORM) != "homeassistant"
+        declaration.get(CONF_PLATFORM) != HOMEASSISTANT_DOMAIN
         or domain not in WIZARD_INPUT_DOMAINS
     ):
         raise cv.Invalid(

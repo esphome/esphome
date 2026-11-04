@@ -15,7 +15,7 @@
 
 namespace esphome::remote_transmitter {
 
-static const char *const TAG = "remote_transmitter";
+ESPHOME_LOG_TAG(TAG, "remote_transmitter");
 
 // PWM peripheral carrier, envelope paced by a gtimer interrupt chain. Bit-banging would need
 // interrupts disabled for the whole frame, but this core's micros() derives from the FreeRTOS

@@ -4,7 +4,7 @@
 
 namespace esphome::gl_r01_i2c {
 
-static const char *const TAG = "gl_r01_i2c";
+ESPHOME_LOG_TAG(TAG, "gl_r01_i2c");
 
 // Register definitions from datasheet
 static const uint8_t REG_VERSION = 0x00;

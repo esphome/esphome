@@ -15,7 +15,7 @@
 
 namespace esphome {
 
-static const char *const TAG = "esp32";
+ESPHOME_LOG_TAG(TAG, "esp32");
 
 bool random_bytes(uint8_t *data, size_t len) {
   esp_fill_random(data, len);

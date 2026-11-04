@@ -12,10 +12,29 @@ esphome:
             delay_after_detect: 0s
             delay_after_disappear: 0s
           sensitivity: 6
+      - dfrobot_sen0395.settings:
+          id: mmwave
+          factory_reset: !lambda return false;
+          sensitivity: !lambda return 7;
       - dfrobot_sen0395.reset
 
 dfrobot_sen0395:
   - id: mmwave
+
+number:
+  - platform: template
+    id: mmwave_max_distance
+    name: mmwave max distance
+    min_value: 1
+    max_value: 9
+    step: 0.5
+    set_action:
+      - dfrobot_sen0395.settings:
+          id: mmwave
+          detection_segments:
+            - 0cm
+            - !lambda "return x;"
+          sensitivity: 5
 
 binary_sensor:
   - platform: dfrobot_sen0395

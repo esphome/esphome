@@ -3,7 +3,7 @@
 
 namespace esphome::mcp23008 {
 
-static const char *const TAG = "mcp23008";
+ESPHOME_LOG_TAG(TAG, "mcp23008");
 
 static constexpr uint8_t IOCON_ODR = 0x04;  // Open-drain output for INT pin
 

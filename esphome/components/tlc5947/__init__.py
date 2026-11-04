@@ -16,6 +16,7 @@ from esphome.types import ConfigType
 CONF_LAT_PIN = "lat_pin"
 
 CODEOWNERS = ["@rnauber"]
+DOMAIN = "tlc5947"
 
 tlc5947_ns = cg.esphome_ns.namespace("tlc5947")
 TLC5947 = tlc5947_ns.class_("TLC5947", cg.Component)
@@ -37,14 +38,9 @@ async def to_code(config: ConfigType) -> None:
     var = cg.new_Pvariable(config[CONF_ID])
     await cg.register_component(var, config)
 
-    data = await cg.gpio_pin_expression(config[CONF_DATA_PIN])
-    cg.add(var.set_data_pin(data))
-    clock = await cg.gpio_pin_expression(config[CONF_CLOCK_PIN])
-    cg.add(var.set_clock_pin(clock))
-    lat = await cg.gpio_pin_expression(config[CONF_LAT_PIN])
-    cg.add(var.set_lat_pin(lat))
-    if CONF_OE_PIN in config:
-        outenable = await cg.gpio_pin_expression(config[CONF_OE_PIN])
-        cg.add(var.set_outenable_pin(outenable))
+    await cg.add_pin(var.set_data_pin, config[CONF_DATA_PIN])
+    await cg.add_pin(var.set_clock_pin, config[CONF_CLOCK_PIN])
+    await cg.add_pin(var.set_lat_pin, config[CONF_LAT_PIN])
+    await cg.add_pin(var.set_outenable_pin, config.get(CONF_OE_PIN))
 
     cg.add(var.set_num_chips(config[CONF_NUM_CHIPS]))

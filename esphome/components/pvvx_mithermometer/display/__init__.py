@@ -5,7 +5,6 @@ from esphome.const import (
     CONF_AUTO_CLEAR_ENABLED,
     CONF_DISCONNECT_DELAY,
     CONF_ID,
-    CONF_LAMBDA,
     CONF_TIME_ID,
     CONF_VALIDITY_PERIOD,
 )
@@ -45,12 +44,6 @@ async def to_code(config: ConfigType) -> None:
     cg.add(var.set_auto_clear(config[CONF_AUTO_CLEAR_ENABLED]))
     cg.add(var.set_validity_period(config[CONF_VALIDITY_PERIOD].total_seconds))
 
-    if CONF_TIME_ID in config:
-        time_ = await cg.get_variable(config[CONF_TIME_ID])
-        cg.add(var.set_time(time_))
+    await cg.add_variable(var.set_time, config.get(CONF_TIME_ID))
 
-    if CONF_LAMBDA in config:
-        lambda_ = await cg.process_lambda(
-            config[CONF_LAMBDA], [(PVVXDisplayRef, "it")], return_type=cg.void
-        )
-        cg.add(var.set_writer(lambda_))
+    await display.add_writer(var, config, PVVXDisplayRef)

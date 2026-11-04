@@ -25,6 +25,7 @@ from esphome.yaml_util import (
 from .jinja import Jinja, JinjaError, Missing, Resolver, UndefinedError, has_jinja
 
 CODEOWNERS = ["@esphome/core"]
+DOMAIN = "substitutions"
 _LOGGER = logging.getLogger(__name__)
 
 ContextVars = ChainMap[str, Any]
@@ -67,8 +68,9 @@ def raise_first_undefined(
             for e, p_path, _ in errors[1:]
         )
         _LOGGER.debug("Additional undefined variables in %s: %s", context_label, extras)
-    raise cv.Invalid(
-        f"Undefined variable in {context_label}: {err.message}\n{format_path(err_path, err_value)}"
+    raise cv.SourceTraceInvalid(
+        f"Undefined variable in {context_label}: {err.message}",
+        format_path(err_path, err_value),
     )
 
 
@@ -222,13 +224,13 @@ def _expand_substitutions(
                 errors=errors,
             )
         except JinjaError as err:
-            raise cv.Invalid(
+            raise cv.SourceTraceInvalid(
                 f"{err.error_name()} Error evaluating jinja expression"
                 f" '{value}': {str(err.parent())}."
                 f"\nEvaluation stack: (most recent evaluation last)"
                 f"\n{err.stack_trace_str()}"
-                f"\nRelevant context:\n{err.context_trace_str()}"
-                f"\n{format_path(path, orig_value)}",
+                f"\nRelevant context:\n{err.context_trace_str()}",
+                format_path(path, orig_value),
                 path,
             ) from err
         else:
@@ -388,9 +390,9 @@ def resolve_include(
         return include.load() if include.should_load() else {}
     except (esphome.core.EsphomeError, cv.Invalid) as err:
         resolved = f" (expanded from '{original}')" if substituted else ""
-        raise cv.Invalid(
-            f"Error including file '{filename}'{resolved}: {err}"
-            f"\n{format_path(path, original)}",
+        raise cv.SourceTraceInvalid(
+            f"Error including file '{filename}'{resolved}: {err}",
+            format_path(path, original),
             path + [f"<{filename}>"],
         ) from err
 
@@ -517,7 +519,7 @@ def resolve_substitutions_block(
     """Resolve a deferred ``substitutions: !include file.yaml`` and validate the shape.
 
     The caller is responsible for wrapping the call in
-    ``cv.prepend_path(CONF_SUBSTITUTIONS)`` for error reporting.
+    ``cv.prepend_path(DOMAIN)`` for error reporting.
     ``command_line_substitutions`` seeds the filename context so
     ``substitutions: !include ${var}.yaml`` can reference CLI-provided vars.
     """
@@ -552,7 +554,7 @@ def do_substitution_pass(
     # Extract substitutions from config, overriding with substitutions coming from command line:
     # Use merge_dicts_ordered to preserve OrderedDict type for move_to_end()
     substitutions = config.pop(CONF_SUBSTITUTIONS, {})
-    with cv.prepend_path(CONF_SUBSTITUTIONS):
+    with cv.prepend_path(DOMAIN):
         substitutions = resolve_substitutions_block(
             substitutions, command_line_substitutions
         )

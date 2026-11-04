@@ -13,11 +13,16 @@ from esphome.const import (
 )
 from esphome.types import ConfigType
 
-from .. import CONF_SYSTA_BUS_ID, SystaBus, register_systa_bus_listener, systa_bus_ns
+from .. import (
+    CONF_SYSTA_BUS_ID,
+    CONF_SYSTASOLAR_AQUA,
+    SystaBus,
+    register_systa_bus_listener,
+    systa_bus_ns,
+)
 
 SystaSolarAquaSensor = systa_bus_ns.class_("SystaSolarAquaSensor", cg.Component)
 
-CONF_SYSTASOLAR_AQUA = "systasolar_aqua"
 CONF_TEMPERATURE_TSA = "temperature_tsa"
 CONF_TEMPERATURE_TSE = "temperature_tse"
 CONF_TEMPERATURE_TWU = "temperature_twu"
@@ -38,7 +43,7 @@ _PUMP_SPEED_SCHEMA = sensor.sensor_schema(
     state_class=STATE_CLASS_MEASUREMENT,
 )
 
-# Sensors per model, keyed by config key; the C++ setter is "set_<key>_sensor"
+# Sensors per model, keyed by config key
 MODEL_SENSORS = {
     CONF_SYSTASOLAR_AQUA: {
         CONF_TEMPERATURE_TSA: _TEMPERATURE_SCHEMA,
@@ -72,10 +77,13 @@ async def to_code(config: ConfigType) -> None:
     var = cg.new_Pvariable(config[CONF_ID])
     await cg.register_component(var, config)
 
-    for key in MODEL_SENSORS[config[CONF_MODEL]]:
-        if (conf := config.get(key)) is not None:
-            sens = await sensor.new_sensor(conf)
-            cg.add(getattr(var, f"set_{key}_sensor")(sens))
+    # The schema only lets a model's own keys through, so unconfigured ones are skipped here
+    sensors = sensor.sub_sensors(config)
+    await sensors(CONF_TEMPERATURE_TSA, var.set_temperature_tsa_sensor)
+    await sensors(CONF_TEMPERATURE_TSE, var.set_temperature_tse_sensor)
+    await sensors(CONF_TEMPERATURE_TWU, var.set_temperature_twu_sensor)
+    await sensors(CONF_TEMPERATURE_TW2, var.set_temperature_tw2_sensor)
+    await sensors(CONF_PUMP_SPEED, var.set_pump_speed_sensor)
 
     systa_bus = await cg.get_variable(config[CONF_SYSTA_BUS_ID])
     await register_systa_bus_listener(systa_bus, var)

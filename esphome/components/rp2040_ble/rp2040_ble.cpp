@@ -11,7 +11,7 @@
 
 namespace esphome::rp2040_ble {
 
-static const char *const TAG = "rp2040_ble";
+ESPHOME_LOG_TAG(TAG, "rp2040_ble");
 
 // NOLINTNEXTLINE(cppcoreguidelines-avoid-non-const-global-variables)
 RP2040BLE *global_ble = nullptr;

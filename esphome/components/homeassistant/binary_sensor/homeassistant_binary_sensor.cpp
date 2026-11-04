@@ -5,7 +5,7 @@
 
 namespace esphome::homeassistant {
 
-static const char *const TAG = "homeassistant.binary_sensor";
+ESPHOME_LOG_TAG(TAG, "homeassistant.binary_sensor");
 
 void HomeassistantBinarySensor::setup() {
   api::global_api_server->subscribe_home_assistant_state(this->entity_id_, this->attribute_, [this](StringRef state) {

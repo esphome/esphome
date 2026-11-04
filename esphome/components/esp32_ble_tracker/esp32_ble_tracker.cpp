@@ -16,7 +16,6 @@
 #include <freertos/FreeRTOS.h>
 #include <freertos/FreeRTOSConfig.h>
 #include <freertos/task.h>
-#include <nvs_flash.h>
 #include <cinttypes>
 
 #ifdef USE_OTA
@@ -32,7 +31,7 @@
 
 namespace esphome::esp32_ble_tracker {
 
-static const char *const TAG = "esp32_ble_tracker";
+ESPHOME_LOG_TAG(TAG, "esp32_ble_tracker");
 
 ESP32BLETracker *global_esp32_ble_tracker = nullptr;  // NOLINT(cppcoreguidelines-avoid-non-const-global-variables)
 

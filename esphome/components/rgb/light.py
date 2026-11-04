@@ -21,9 +21,6 @@ async def to_code(config: ConfigType) -> None:
     var = cg.new_Pvariable(config[CONF_OUTPUT_ID])
     await light.register_light(var, config)
 
-    red = await cg.get_variable(config[CONF_RED])
-    cg.add(var.set_red(red))
-    green = await cg.get_variable(config[CONF_GREEN])
-    cg.add(var.set_green(green))
-    blue = await cg.get_variable(config[CONF_BLUE])
-    cg.add(var.set_blue(blue))
+    await cg.add_variable(var.set_red, config[CONF_RED])
+    await cg.add_variable(var.set_green, config[CONF_GREEN])
+    await cg.add_variable(var.set_blue, config[CONF_BLUE])

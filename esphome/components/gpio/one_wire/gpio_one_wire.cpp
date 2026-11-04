@@ -4,7 +4,7 @@
 
 namespace esphome::gpio {
 
-static const char *const TAG = "gpio.one_wire";
+ESPHOME_LOG_TAG(TAG, "gpio.one_wire");
 
 void GPIOOneWireBus::setup() {
   this->t_pin_->setup();

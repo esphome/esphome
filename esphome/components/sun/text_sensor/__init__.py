@@ -53,8 +53,7 @@ async def to_code(config: ConfigType) -> None:
     var = await text_sensor.new_text_sensor(config)
     await cg.register_component(var, config)
 
-    paren = await cg.get_variable(config[CONF_SUN_ID])
-    cg.add(var.set_parent(paren))
+    await cg.register_parented(var, config[CONF_SUN_ID])
     cg.add(var.set_sunrise(SUN_TYPES[config[CONF_TYPE]]))
     cg.add(var.set_elevation(config[CONF_ELEVATION]))
     cg.add(var.set_format(config[CONF_FORMAT]))

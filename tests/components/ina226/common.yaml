@@ -13,3 +13,13 @@ sensor:
       name: INA226 Shunt Voltage
     max_current: 3.2A
     update_interval: 15s
+    adc_time: 588us
+  - platform: ina226
+    i2c_id: i2c_bus
+    address: 0x41
+    shunt_resistance: 0.1 ohm
+    current:
+      name: INA226 Current 2
+    adc_time:
+      voltage: 2116us
+      current: 4156us

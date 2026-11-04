@@ -4,7 +4,7 @@
 
 namespace esphome::pmsx003 {
 
-static const char *const TAG = "pmsx003";
+ESPHOME_LOG_TAG(TAG, "pmsx003");
 
 static const uint8_t START_CHARACTER_1 = 0x42;
 static const uint8_t START_CHARACTER_2 = 0x4D;
@@ -83,8 +83,7 @@ void PMSX003Component::loop() {
         if (now - this->fan_on_time_ < STABILISING_MS)
           return;
         // consume any command responses that are in the serial buffer
-        while (this->available())
-          this->read_byte(&this->data_[0]);
+        this->discard_available();
         // Trigger a new read
         this->send_command_(Command::MANUAL_MEASUREMENT, 0);
         this->state_ = State::WAITING;
@@ -100,27 +99,30 @@ void PMSX003Component::loop() {
     this->data_index_ = 0;
   }
 
-  if (this->available() == 0)
+  const size_t avail = this->available();
+  if (avail == 0)
     return;
 
   this->last_transmission_ = now;
-  while (this->available() != 0) {
-    this->read_byte(&this->data_[this->data_index_]);
-    auto check = this->check_byte_();
-    if (!check.has_value()) {
-      if (this->update_interval_ > STABILISING_MS || now - this->last_update_ >= this->update_interval_) {
-        this->parse_data_();
-        this->last_update_ = now;
-      }
-      this->data_index_ = 0;
-    } else if (!*check) {
-      // wrong data
-      this->data_index_ = 0;
-    } else {
-      // next byte
-      this->data_index_++;
-    }
-  }
+  this->read_available(
+      [this, now](uint8_t byte) {
+        this->data_[this->data_index_] = byte;
+        auto check = this->check_byte_();
+        if (!check.has_value()) {
+          if (this->update_interval_ > STABILISING_MS || now - this->last_update_ >= this->update_interval_) {
+            this->parse_data_();
+            this->last_update_ = now;
+          }
+          this->data_index_ = 0;
+        } else if (!*check) {
+          // wrong data
+          this->data_index_ = 0;
+        } else {
+          // next byte
+          this->data_index_++;
+        }
+      },
+      avail);
 }
 
 optional<bool> PMSX003Component::check_byte_() {
@@ -159,10 +161,7 @@ optional<bool> PMSX003Component::check_byte_() {
   }
 
   // checksum is without checksum bytes
-  uint16_t checksum = 0;
-  for (uint16_t i = 0; i < total_size - 2; i++) {
-    checksum += this->data_[i];
-  }
+  const uint16_t checksum = sum16_bytes(this->data_, total_size - 2);
 
   const uint16_t check = this->get_16_bit_uint_(total_size - 2);
   if (checksum != check) {
@@ -189,6 +188,7 @@ bool PMSX003Component::check_payload_length_(uint16_t payload_length) {
     case Type::PMS5003ST:           // Data 16 not set/reserved
       return payload_length == 36;  // 2*17+2
     case Type::PMS9003M:
+    case Type::LUFTMY:
       return payload_length == 28;  // 2*13+2
   }
   return false;
@@ -206,10 +206,7 @@ void PMSX003Component::send_command_(Command cmd, uint16_t data) {
   };
 
   // Calculate checksum
-  uint16_t checksum = 0;
-  for (uint8_t i = 0; i < 5; i++) {
-    checksum += send_data[i];
-  }
+  const uint16_t checksum = sum16_bytes(send_data, 5);
   send_data[5] = (checksum >> 8) & 0xFF;  // Verify Byte 1
   send_data[6] = (checksum >> 0) & 0xFF;  // Verify Byte 2
 
@@ -219,71 +216,62 @@ void PMSX003Component::send_command_(Command cmd, uint16_t data) {
 }
 
 void PMSX003Component::parse_data_() {
-  // Particle Matter
+  // PM mass concentrations
   const uint16_t pm_1_0_std_concentration = this->get_16_bit_uint_(4);
   const uint16_t pm_2_5_std_concentration = this->get_16_bit_uint_(6);
   const uint16_t pm_10_0_std_concentration = this->get_16_bit_uint_(8);
 
-  const uint16_t pm_1_0_concentration = this->get_16_bit_uint_(10);
-  const uint16_t pm_2_5_concentration = this->get_16_bit_uint_(12);
-  const uint16_t pm_10_0_concentration = this->get_16_bit_uint_(14);
-
-  const uint16_t pm_particles_03um = this->get_16_bit_uint_(16);
-  const uint16_t pm_particles_05um = this->get_16_bit_uint_(18);
-  const uint16_t pm_particles_10um = this->get_16_bit_uint_(20);
-  const uint16_t pm_particles_25um = this->get_16_bit_uint_(22);
-
+  PUBLISH_STATE(this->pm_1_0_std_sensor_, pm_1_0_std_concentration);
+  PUBLISH_STATE(this->pm_2_5_std_sensor_, pm_2_5_std_concentration);
+  PUBLISH_STATE(this->pm_10_0_std_sensor_, pm_10_0_std_concentration);
   ESP_LOGD(TAG,
            "Got PM1.0 Standard Concentration: %u µg/m³, PM2.5 Standard Concentration %u µg/m³, PM10.0 Standard "
-           "Concentration: %u µg/m³, PM1.0 Concentration: %u µg/m³, PM2.5 Concentration %u µg/m³, PM10.0 "
            "Concentration: %u µg/m³",
-           pm_1_0_std_concentration, pm_2_5_std_concentration, pm_10_0_std_concentration, pm_1_0_concentration,
-           pm_2_5_concentration, pm_10_0_concentration);
+           pm_1_0_std_concentration, pm_2_5_std_concentration, pm_10_0_std_concentration);
 
-  if (this->pm_1_0_std_sensor_ != nullptr)
-    this->pm_1_0_std_sensor_->publish_state(pm_1_0_std_concentration);
-  if (this->pm_2_5_std_sensor_ != nullptr)
-    this->pm_2_5_std_sensor_->publish_state(pm_2_5_std_concentration);
-  if (this->pm_10_0_std_sensor_ != nullptr)
-    this->pm_10_0_std_sensor_->publish_state(pm_10_0_std_concentration);
+  // The Luftmy LD10, LD11, LD13, LD15 and LD16 report no atmospheric PM, so their particle counts start at byte 10.
+  // All PMS types have atmospheric PM at bytes 10-15, so their particle counts start at byte 16.
+  const bool is_luftmy = this->type_ == Type::LUFTMY;
+  const uint8_t pc_offset = is_luftmy ? 10 : 16;
 
-  if (this->pm_1_0_sensor_ != nullptr)
-    this->pm_1_0_sensor_->publish_state(pm_1_0_concentration);
-  if (this->pm_2_5_sensor_ != nullptr)
-    this->pm_2_5_sensor_->publish_state(pm_2_5_concentration);
-  if (this->pm_10_0_sensor_ != nullptr)
-    this->pm_10_0_sensor_->publish_state(pm_10_0_concentration);
+  if (!is_luftmy) {
+    const uint16_t pm_1_0_concentration = this->get_16_bit_uint_(10);
+    const uint16_t pm_2_5_concentration = this->get_16_bit_uint_(12);
+    const uint16_t pm_10_0_concentration = this->get_16_bit_uint_(14);
 
-  if (this->pm_particles_03um_sensor_ != nullptr)
-    this->pm_particles_03um_sensor_->publish_state(pm_particles_03um);
-  if (this->pm_particles_05um_sensor_ != nullptr)
-    this->pm_particles_05um_sensor_->publish_state(pm_particles_05um);
-  if (this->pm_particles_10um_sensor_ != nullptr)
-    this->pm_particles_10um_sensor_->publish_state(pm_particles_10um);
-  if (this->pm_particles_25um_sensor_ != nullptr)
-    this->pm_particles_25um_sensor_->publish_state(pm_particles_25um);
+    ESP_LOGD(TAG, "Got PM1.0 Concentration: %u µg/m³, PM2.5 Concentration %u µg/m³, PM10.0 Concentration: %u µg/m³",
+             pm_1_0_concentration, pm_2_5_concentration, pm_10_0_concentration);
 
-  if (this->type_ == Type::PMS5003T) {
-    ESP_LOGD(TAG,
-             "Got PM0.3 Particles: %u Count/0.1L, PM0.5 Particles: %u Count/0.1L, PM1.0 Particles: %u Count/0.1L, "
-             "PM2.5 Particles %u Count/0.1L",
-             pm_particles_03um, pm_particles_05um, pm_particles_10um, pm_particles_25um);
-  } else {
-    // Note the pm particles 50um & 100um are not returned,
-    // as PMS5003T uses those data values for temperature and humidity.
-    const uint16_t pm_particles_50um = this->get_16_bit_uint_(24);
-    const uint16_t pm_particles_100um = this->get_16_bit_uint_(26);
+    PUBLISH_STATE(this->pm_1_0_sensor_, pm_1_0_concentration);
+    PUBLISH_STATE(this->pm_2_5_sensor_, pm_2_5_concentration);
+    PUBLISH_STATE(this->pm_10_0_sensor_, pm_10_0_concentration);
+  }
 
-    ESP_LOGD(TAG,
-             "Got PM0.3 Particles: %u Count/0.1L, PM0.5 Particles: %u Count/0.1L, PM1.0 Particles: %u Count/0.1L, "
-             "PM2.5 Particles %u Count/0.1L, PM5.0 Particles: %u Count/0.1L, PM10.0 Particles %u Count/0.1L",
-             pm_particles_03um, pm_particles_05um, pm_particles_10um, pm_particles_25um, pm_particles_50um,
+  // Particle counts at pc_offset: >0.3, >0.5, >1.0, >2.5µm
+  const uint16_t pm_particles_03um = this->get_16_bit_uint_(pc_offset);
+  const uint16_t pm_particles_05um = this->get_16_bit_uint_(pc_offset + 2);
+  const uint16_t pm_particles_10um = this->get_16_bit_uint_(pc_offset + 4);
+  const uint16_t pm_particles_25um = this->get_16_bit_uint_(pc_offset + 6);
+
+  PUBLISH_STATE(this->pm_particles_03um_sensor_, pm_particles_03um);
+  PUBLISH_STATE(this->pm_particles_05um_sensor_, pm_particles_05um);
+  PUBLISH_STATE(this->pm_particles_10um_sensor_, pm_particles_10um);
+  PUBLISH_STATE(this->pm_particles_25um_sensor_, pm_particles_25um);
+  ESP_LOGD(TAG,
+           "Got PM0.3 Particles: %u Count/0.1L, PM0.5 Particles: %u Count/0.1L, PM1.0 Particles: %u Count/0.1L, "
+           "PM2.5 Particles: %u Count/0.1L",
+           pm_particles_03um, pm_particles_05um, pm_particles_10um, pm_particles_25um);
+
+  // PMS5003T uses pc_offset+8 and pc_offset+10 for temperature/humidity, not particle counts
+  if (this->type_ != Type::PMS5003T) {
+    const uint16_t pm_particles_50um = this->get_16_bit_uint_(pc_offset + 8);
+    const uint16_t pm_particles_100um = this->get_16_bit_uint_(pc_offset + 10);
+
+    ESP_LOGD(TAG, "Got PM5.0 Particles: %u Count/0.1L, PM10.0 Particles: %u Count/0.1L", pm_particles_50um,
              pm_particles_100um);
 
-    if (this->pm_particles_50um_sensor_ != nullptr)
-      this->pm_particles_50um_sensor_->publish_state(pm_particles_50um);
-    if (this->pm_particles_100um_sensor_ != nullptr)
-      this->pm_particles_100um_sensor_->publish_state(pm_particles_100um);
+    PUBLISH_STATE(this->pm_particles_50um_sensor_, pm_particles_50um);
+    PUBLISH_STATE(this->pm_particles_100um_sensor_, pm_particles_100um);
   }
 
   // Formaldehyde
@@ -292,8 +280,7 @@ void PMSX003Component::parse_data_() {
 
     ESP_LOGD(TAG, "Got Formaldehyde: %u µg/m^3", formaldehyde);
 
-    if (this->formaldehyde_sensor_ != nullptr)
-      this->formaldehyde_sensor_->publish_state(formaldehyde);
+    PUBLISH_STATE(this->formaldehyde_sensor_, formaldehyde);
   }
 
   // Temperature and Humidity
@@ -305,10 +292,8 @@ void PMSX003Component::parse_data_() {
 
     ESP_LOGD(TAG, "Got Temperature: %.1f°C, Humidity: %.1f%%", temperature, humidity);
 
-    if (this->temperature_sensor_ != nullptr)
-      this->temperature_sensor_->publish_state(temperature);
-    if (this->humidity_sensor_ != nullptr)
-      this->humidity_sensor_->publish_state(humidity);
+    PUBLISH_STATE(this->temperature_sensor_, temperature);
+    PUBLISH_STATE(this->humidity_sensor_, humidity);
   }
 
   // Firmware Version and Error Code

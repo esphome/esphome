@@ -20,7 +20,11 @@ namespace esphome::improv_ble {
 
 using namespace bytebuffer;
 
-static const char *const TAG = "improv_ble.component";
+ESPHOME_LOG_TAG(TAG, "improv_ble.component");
+
+static constexpr uint32_t STOP_SERVICE_TIMEOUT_ID = 0;
+static constexpr uint32_t WIFI_CONNECT_TIMEOUT_ID = 1;
+
 static constexpr size_t IMPROV_MAX_LOG_BYTES = 128;
 static constexpr char ESPHOME_MY_LINK[] = "https://my.home-assistant.io/redirect/config_flow_start?domain=esphome";
 // command + data length + trailing byte
@@ -43,8 +47,8 @@ ImprovBLEComponent::ImprovBLEComponent() { global_improv_component = this; }
 
 void ImprovBLEComponent::setup() {
 #ifdef USE_BINARY_SENSOR
-  if (this->authorizer_ != nullptr) {
-    this->authorizer_->add_on_state_callback([this](bool state) {
+  if (this->authorizer_binary_sensor_ != nullptr) {
+    this->authorizer_binary_sensor_->add_on_state_callback([this](bool state) {
       if (state) {
         this->authorized_start_ = millis();
         this->identify_start_ = 0;
@@ -138,7 +142,8 @@ void ImprovBLEComponent::loop() {
       this->set_status_indicator_state_(false);
 
       if (this->should_start_ && this->setup_complete_) {
-        if (this->service_->is_created()) {
+        // A service that an earlier session stopped stays STOPPED and can be started again
+        if (this->service_->is_created() || this->service_->is_stopped()) {
           this->service_->start();
         } else if (this->service_->is_running()) {
           // Start by advertising the device name first BEFORE setting any state
@@ -159,7 +164,7 @@ void ImprovBLEComponent::loop() {
       break;
     case improv::STATE_AWAITING_AUTHORIZATION: {
 #ifdef USE_BINARY_SENSOR
-      if (this->authorizer_ == nullptr ||
+      if (this->authorizer_binary_sensor_ == nullptr ||
           (this->authorized_start_ != 0 && ((now - this->authorized_start_) < this->authorized_duration_))) {
         this->set_state_(improv::STATE_AUTHORIZED);
       } else {
@@ -174,7 +179,7 @@ void ImprovBLEComponent::loop() {
     }
     case improv::STATE_AUTHORIZED: {
 #ifdef USE_BINARY_SENSOR
-      if (this->authorizer_ != nullptr && now - this->authorized_start_ > this->authorized_duration_) {
+      if (this->authorizer_binary_sensor_ != nullptr && now - this->authorized_start_ > this->authorized_duration_) {
         ESP_LOGD(TAG, "Authorization timeout");
         this->set_state_(improv::STATE_AWAITING_AUTHORIZATION);
         return;
@@ -322,7 +327,7 @@ void ImprovBLEComponent::stop() {
   // Wait before stopping the service to ensure all BLE clients see the state change.
   // This prevents clients from repeatedly reconnecting and wasting resources by allowing
   // them to observe that the device is provisioned before the service disappears.
-  this->set_timeout("end-service", STOP_ADVERTISING_DELAY, [this] {
+  this->set_timeout(STOP_SERVICE_TIMEOUT_ID, STOP_ADVERTISING_DELAY, [this] {
     if (this->state_ == improv::STATE_STOPPED || this->service_ == nullptr)
       return;
     // Release first so removing the service UUID does not restart advertising on the way out
@@ -337,7 +342,7 @@ float ImprovBLEComponent::get_setup_priority() const { return setup_priority::AF
 void ImprovBLEComponent::dump_config() {
   ESP_LOGCONFIG(TAG, "Improv BLE:");
 #ifdef USE_BINARY_SENSOR
-  LOG_BINARY_SENSOR("  ", "Authorizer", this->authorizer_);
+  LOG_BINARY_SENSOR("  ", "Authorizer", this->authorizer_binary_sensor_);
 #endif
 #ifdef USE_OUTPUT
   ESP_LOGCONFIG(TAG, "  Status Indicator: '%s'", YESNO(this->status_indicator_ != nullptr));
@@ -349,11 +354,8 @@ void ImprovBLEComponent::process_incoming_data_() {
     return;
   uint8_t length = this->incoming_data_[1];
 
-#if ESPHOME_LOG_LEVEL >= ESPHOME_LOG_LEVEL_VERBOSE
-  char hex_buf[format_hex_pretty_size(IMPROV_MAX_LOG_BYTES)];
-  ESP_LOGV(TAG, "Processing bytes - %s",
-           format_hex_pretty_to(hex_buf, this->incoming_data_.data(), this->incoming_data_.size()));
-#endif
+  ESP_LOGV_HEX(TAG, this->incoming_data_.data(), this->incoming_data_.size(), IMPROV_MAX_LOG_BYTES,
+               "Processing bytes - %s");
   if (this->incoming_data_.size() - 3 == length) {
     this->set_error_(improv::ERROR_NONE);
     improv::ImprovCommand command = improv::parse_improv_data(this->incoming_data_);
@@ -398,7 +400,7 @@ void ImprovBLEComponent::process_incoming_data_() {
         ESP_LOGD(TAG, "Received Improv Wi-Fi settings ssid=%s, password=" LOG_SECRET("%s"), command.ssid.c_str(),
                  command.password.c_str());
 
-        this->set_timeout("wifi-connect-timeout", 30000, [this]() { this->on_wifi_connect_timeout_(); });
+        this->set_timeout(WIFI_CONNECT_TIMEOUT_ID, 30000, [this]() { this->on_wifi_connect_timeout_(); });
         this->incoming_data_.clear();
         break;
       }
@@ -423,7 +425,7 @@ void ImprovBLEComponent::on_wifi_connect_timeout_() {
   this->set_error_(improv::ERROR_UNABLE_TO_CONNECT);
   this->set_state_(improv::STATE_AUTHORIZED);
 #ifdef USE_BINARY_SENSOR
-  if (this->authorizer_ != nullptr)
+  if (this->authorizer_binary_sensor_ != nullptr)
     this->authorized_start_ = millis();
 #endif
   ESP_LOGW(TAG, "Timed out while connecting to Wi-Fi network");
@@ -438,7 +440,7 @@ void ImprovBLEComponent::check_wifi_connection_() {
   if (this->state_ == improv::STATE_PROVISIONING) {
     wifi::global_wifi_component->save_wifi_sta(this->connecting_sta_.get_ssid(), this->connecting_sta_.get_password());
     this->connecting_sta_ = {};
-    this->cancel_timeout("wifi-connect-timeout");
+    this->cancel_timeout(WIFI_CONNECT_TIMEOUT_ID);
 
     // Build the URL list directly into a stack buffer with no heap allocation
     std::array<uint8_t, improv::RPC_RESPONSE_MAX_SIZE> buf;
@@ -538,7 +540,7 @@ void ImprovBLEComponent::release_advertising_() {
 improv::State ImprovBLEComponent::get_initial_state_() const {
 #ifdef USE_BINARY_SENSOR
   // If we have an authorizer, start in awaiting authorization state
-  return this->authorizer_ == nullptr ? improv::STATE_AUTHORIZED : improv::STATE_AWAITING_AUTHORIZATION;
+  return this->authorizer_binary_sensor_ == nullptr ? improv::STATE_AUTHORIZED : improv::STATE_AWAITING_AUTHORIZATION;
 #else
   // No binary_sensor support = no authorizer possible, start as authorized
   return improv::STATE_AUTHORIZED;
