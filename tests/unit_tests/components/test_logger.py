@@ -42,7 +42,7 @@ def test_dir_does_not_import_platform_packages() -> None:
 
 @pytest.mark.parametrize(
     ("variant", "label"),
-    [("NRF54L15", "uart20"), ("NRF52840", "uart0")],
+    [("NRF54L15", "uart20"), ("NRF54LM20", "uart20"), ("NRF52840", "uart0")],
 )
 def test_zephyr_uart0_label(variant: str, label: str) -> None:
     from esphome.components.logger import _zephyr_uart0_label

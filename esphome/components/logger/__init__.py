@@ -217,22 +217,21 @@ def uart_selection(value: Any) -> str:
     if CORE.is_host:
         raise cv.Invalid("Uart selection not valid for host platform")
     if CORE.is_nrf52:
-        from esphome.components.nrf52.const import VARIANT_NRF54L15
+        from esphome.components.nrf52.const import VARIANTS_WITHOUT_USB
         from esphome.components.nrf52.framework import get_nrf52_variant
 
-        if get_nrf52_variant() == VARIANT_NRF54L15:
-            # No USB device on the nRF54L15
+        if get_nrf52_variant() in VARIANTS_WITHOUT_USB:
             return cv.one_of(UART0, upper=True)(value)
         return cv.one_of(*UART_SELECTION_NRF52, upper=True)(value)
     raise NotImplementedError
 
 
 def _zephyr_uart0_label() -> str:
-    """The devicetree label of UART0; the nRF54L15 names its console UART uart20."""
-    from esphome.components.nrf52.const import VARIANT_NRF54L15
+    """The devicetree label of UART0."""
+    from esphome.components.nrf52.const import VARIANT_CONSOLE_UART
     from esphome.components.nrf52.framework import get_nrf52_variant
 
-    return "uart20" if get_nrf52_variant() == VARIANT_NRF54L15 else "uart0"
+    return VARIANT_CONSOLE_UART.get(get_nrf52_variant(), "uart0")
 
 
 def validate_local_no_higher_than_global(config: ConfigType) -> ConfigType:
@@ -399,8 +398,9 @@ CONFIG_SCHEMA = cv.All(
                 ln882x=DEFAULT,
                 rtl87xx=DEFAULT,
                 nrf52=USB_CDC,
-                # No USB device on the nRF54L15
+                # No USB device on the nRF54L15, and USB does not work yet on the nRF54LM20
                 nrf52_54l15=UART0,
+                nrf52_54lm20=UART0,
             ): cv.All(
                 cv.only_on(
                     [
@@ -671,6 +671,9 @@ async def _late_logger_init(config: ConfigType) -> None:
         # esphome implement own fatal error handler which save PC/LR before reset
         zephyr_add_prj_conf("RESET_ON_FATAL_ERROR", False)
         zephyr_add_prj_conf("THREAD_LOCAL_STORAGE", True)
+        cg.add_define(
+            "ESPHOME_LOGGER_UART0_NODE", cg.RawExpression(_zephyr_uart0_label())
+        )
         if has_serial_logging:
             zephyr_add_prj_conf("SERIAL", True)
             if config[CONF_HARDWARE_UART] == UART0:

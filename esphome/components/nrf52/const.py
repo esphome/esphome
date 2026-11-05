@@ -17,6 +17,10 @@ VARIANT_PORT_PINS = {
     VARIANT_NRF54LM20: (10, 32, 11, 13),
 }
 
+# Devicetree label of the console UART, which the logger calls UART0
+VARIANT_CONSOLE_UART = {VARIANT_NRF54L15: "uart20", VARIANT_NRF54LM20: "uart20"}
+VARIANTS_WITHOUT_USB = frozenset({VARIANT_NRF54L15})
+
 EXTRA_ADC = [
     "VDD",
     "VDDHDIV5",
