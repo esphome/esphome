@@ -628,6 +628,32 @@ def test_uc8179_e1001_code_generation(
     assert "97, 4, 3, 32, 1, 224" in main_cpp
 
 
+def test_gdey0583t81_defaults_and_driver_class(
+    set_core_config: SetCoreConfigCallable,
+    set_component_config: Callable[[str, Any], None],
+) -> None:
+    """The GDEY0583T81 models default to 648x480 and use the UC8179 driver class."""
+    set_core_config(
+        PlatformFramework.ESP32_IDF,
+        platform_data={KEY_BOARD: "esp32dev", KEY_VARIANT: VARIANT_ESP32},
+    )
+
+    set_component_config("spi", {"id": "spi_bus", "clk_pin": 18, "mosi_pin": 19})
+
+    for name in ("goodisplay-gdey0583t81-5.83", "0583BN-T81-D2"):
+        model = MODELS[name.upper()]
+        assert model.class_name == "EPaperUC8179"
+        config = run_schema_validation(
+            {
+                "id": "test_display",
+                "model": name,
+                "dc_pin": 21,
+                "full_update_every": 5,
+            }
+        )
+        assert model.get_dimensions(config) == (648, 480)
+
+
 def test_uc8279_width_must_be_a_multiple_of_8(
     set_core_config: SetCoreConfigCallable,
     set_component_config: Callable[[str, Any], None],
