@@ -139,11 +139,8 @@ def model_schema(config: ConfigType) -> cv.Schema:
             model.option(CONF_VSYNC_FRONT_PORCH): cv.int_,
         }
     )
-    if model.get_default(CONF_BRIGHTNESS, None) is not None or model.name == "CUSTOM":
-        schema = schema.extend(
-            {model.option(CONF_BRIGHTNESS, cv.UNDEFINED): cv.uint8_t}
-        )
-    return schema
+    # Allowed for every model so that schema extraction shows it; _config_schema rejects it where it is not supported
+    return schema.extend({model.option(CONF_BRIGHTNESS, cv.UNDEFINED): cv.uint8_t})
 
 
 @model_schema_extractor(MODELS, model_schema)
@@ -161,6 +158,15 @@ def _config_schema(config: ConfigType) -> ConfigType:
     model = MODELS[config[CONF_MODEL].upper()]
     model.check_requirements()
     config = model_schema(config)(config)
+    if (
+        CONF_BRIGHTNESS in config
+        and model.get_default(CONF_BRIGHTNESS, None) is None
+        and model.name != "CUSTOM"
+    ):
+        raise cv.Invalid(
+            f"Display model {model.name} does not support setting brightness with a DSI command",
+            path=[CONF_BRIGHTNESS],
+        )
     width, height, _offset_width, _offset_height, _pad_width, _pad_height = (
         model.get_dimensions(config)
     )

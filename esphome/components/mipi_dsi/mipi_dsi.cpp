@@ -166,7 +166,11 @@ void MipiDsi::setup() {
   }
   if (this->brightness_.has_value()) {
     const uint8_t brightness = this->brightness_.value();
-    esp_lcd_panel_io_tx_param(this->io_handle_, BRIGHTNESS_CMD, &brightness, 1);
+    err = esp_lcd_panel_io_tx_param(this->io_handle_, BRIGHTNESS_CMD, &brightness, 1);
+    if (err != ESP_OK) {
+      this->smark_failed(LOG_STR("lcd_panel_io_tx_param failed"), err);
+      return;
+    }
   }
   this->io_lock_ = xSemaphoreCreateBinary();
   esp_lcd_dpi_panel_event_callbacks_t cbs = {
