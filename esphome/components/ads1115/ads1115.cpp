@@ -10,10 +10,8 @@ static const uint8_t ADS1115_REGISTER_CONFIG = 0x01;
 
 void ADS1115Component::setup() {
   uint16_t value;
-  if (!this->read_byte_16(ADS1115_REGISTER_CONVERSION, &value)) {
-    this->mark_failed(LOG_STR(ESP_LOG_MSG_COMM_FAIL));
+  if (!this->setup_check(this->read_byte_16(ADS1115_REGISTER_CONVERSION, &value)))
     return;
-  }
 
   uint16_t config = 0;
   // Clear single-shot bit
@@ -57,10 +55,8 @@ void ADS1115Component::setup() {
   //        0bxxxxxxxxxxxxxx11
   config |= 0b0000000000000011;
 
-  if (!this->write_byte_16(ADS1115_REGISTER_CONFIG, config)) {
-    this->mark_failed(LOG_STR(ESP_LOG_MSG_COMM_FAIL));
+  if (!this->setup_check(this->write_byte_16(ADS1115_REGISTER_CONFIG, config)))
     return;
-  }
   this->prev_config_ = config;
 }
 void ADS1115Component::dump_config() {

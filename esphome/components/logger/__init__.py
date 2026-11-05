@@ -618,6 +618,8 @@ async def _late_logger_init(config: ConfigType) -> None:
             cg.add_define("USE_ESP32_LOG_V2")
             # --wrap: a strong definition collides; see logger_esp32.cpp
             cg.add_build_flag("-Wl,--wrap=esp_log_format")
+    if CORE.is_rp2 and config[CONF_HARDWARE_UART] == USB_CDC:
+        cg.add_define("USE_LOGGER_UART_SELECTION_USB_CDC")
     # Define platform support flags for components that need auto-detection
     try:
         uart_selection(USB_SERIAL_JTAG)

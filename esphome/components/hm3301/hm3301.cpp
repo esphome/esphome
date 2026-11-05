@@ -1,4 +1,5 @@
 #include "esphome/core/log.h"
+#include "esphome/core/helpers.h"
 #include "hm3301.h"
 
 namespace esphome::hm3301 {
@@ -83,7 +84,7 @@ void HM3301Component::update() {
 bool HM3301Component::validate_checksum_(const uint8_t *data) { return sum_bytes(data, 28) == data[28]; }
 
 uint16_t HM3301Component::get_sensor_value_(const uint8_t *data, uint8_t i) {
-  return (uint16_t) data[i * 2] << 8 | data[i * 2 + 1];
+  return encode_uint16(data[i * 2], data[i * 2 + 1]);
 }
 
 }  // namespace esphome::hm3301
