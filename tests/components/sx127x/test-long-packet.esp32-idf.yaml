@@ -30,7 +30,7 @@ sx127x:
   - id: transceiver_long_lambda
     cs_pin: GPIO25
     rst_pin: GPIO26
-    dio0_pin: GPIO27
+    # dio0_pin is not used for long packets and left out here
     dio1_pin: GPIO14
     frequency: 868950000
     modulation: FSK

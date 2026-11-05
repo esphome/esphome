@@ -65,8 +65,8 @@ void SX127x::setup() {
   // setup reset
   this->rst_pin_->setup();
 
-  // setup dio0
-  if (this->dio0_pin_) {
+  // setup dio0 (not used for long packets, whose format has no PayloadReady)
+  if (this->dio0_pin_ && !this->is_long_packet_mode_()) {
     this->dio0_pin_->setup();
     this->dio0_pin_->attach_interrupt(&SX127x::gpio_intr, this, gpio::INTERRUPT_RISING_EDGE);
   }
@@ -369,8 +369,8 @@ uint32_t SX127x::packet_idle_timeout_ms_() const {
 
 void SX127x::reset_long_packet_rx_() {
   this->packet_.clear();
-  // When the length is known upfront (not resolved via payload_length_func_), set it immediately so
-  // the reserve() below in handle_long_packet_() can take effect from the very first drain.
+  // When the length is known upfront (not resolved via payload_length_func_), set it immediately so each
+  // drain is capped to the bytes still missing and never grows packet_ past the capacity reserved in configure()
   this->packet_expected_length_ = this->payload_length_func_ ? 0 : this->payload_length_;
   this->packet_last_byte_ms_ = 0;
   this->long_packet_rssi_captured_ = false;

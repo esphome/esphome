@@ -176,7 +176,11 @@ def validate_config(config: ConfigType) -> ConfigType:
             raise cv.Invalid("Config 'bitsync' required with FSK/OOK")
         if CONF_PACKET_MODE not in config:
             raise cv.Invalid("Config 'packet_mode' required with FSK/OOK")
-        if config[CONF_PACKET_MODE] and CONF_DIO0_PIN not in config:
+        if (
+            config[CONF_PACKET_MODE]
+            and not is_long_packet(config)
+            and CONF_DIO0_PIN not in config
+        ):
             raise cv.Invalid("Config 'dio0_pin' required in packet mode")
         if (
             not payload_length_is_lambda

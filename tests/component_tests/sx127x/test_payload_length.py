@@ -44,6 +44,21 @@ def test_payload_length_valid(overrides: dict[str, Any]) -> None:
     assert validate_config(config) is config
 
 
+def test_dio0_pin_optional_for_long_packets() -> None:
+    """Long packets do not use DIO0, so dio0_pin may be left out."""
+    config = _config(payload_length=LENGTH_LAMBDA, dio1_pin=27)
+    del config["dio0_pin"]
+    assert validate_config(config) is config
+
+
+def test_dio0_pin_required_for_short_packets() -> None:
+    """Short packets in packet mode still need dio0_pin for PayloadReady."""
+    config = _config(payload_length=8)
+    del config["dio0_pin"]
+    with pytest.raises(cv.Invalid, match="dio0_pin"):
+        validate_config(config)
+
+
 @pytest.mark.parametrize(
     ("overrides", "message"),
     [
