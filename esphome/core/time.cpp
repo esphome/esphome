@@ -15,6 +15,8 @@ uint8_t days_in_month(uint8_t month, uint16_t year) {
   return DAYS_IN_MONTH[month];
 }
 
+static uint16_t days_in_year(uint16_t year) { return days_in_month(2, year) == 29 ? 366 : 365; }
+
 size_t ESPTime::strftime(char *buffer, size_t buffer_len, const char *format) {
   struct tm c_tm = this->to_c_tm();
 #ifdef USE_TIME_TIMEZONE
@@ -252,8 +254,7 @@ void ESPTime::increment_second() {
     increment_time_value(this->month, 1, 13);
   }
 
-  uint16_t days_in_year = (this->year % 4 == 0) ? 366 : 365;
-  if (increment_time_value(this->day_of_year, 1, days_in_year + 1)) {
+  if (increment_time_value(this->day_of_year, 1, days_in_year(this->year) + 1)) {
     // day of year roll-over, increment year
     this->year++;
   }
@@ -270,8 +271,7 @@ void ESPTime::increment_day() {
     increment_time_value(this->month, 1, 13);
   }
 
-  uint16_t days_in_year = (this->year % 4 == 0) ? 366 : 365;
-  if (increment_time_value(this->day_of_year, 1, days_in_year + 1)) {
+  if (increment_time_value(this->day_of_year, 1, days_in_year(this->year) + 1)) {
     // day of year roll-over, increment year
     this->year++;
   }
@@ -285,7 +285,7 @@ void ESPTime::recalc_timestamp_utc(bool use_day_of_year) {
   }
 
   for (int i = 1970; i < this->year; i++)
-    res += (i % 4 == 0) ? 366 : 365;
+    res += days_in_year(i);
 
   if (use_day_of_year) {
     res += this->day_of_year - 1;

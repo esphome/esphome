@@ -51,28 +51,23 @@ void AHT10Component::setup() {
       error_code = this->write(AHT10_INITIALIZE_CMD, sizeof(AHT10_INITIALIZE_CMD));
       break;
   }
-  if (error_code != i2c::ERROR_OK) {
-    this->mark_failed(LOG_STR(ESP_LOG_MSG_COMM_FAIL));
+  if (!this->setup_check(error_code == i2c::ERROR_OK))
     return;
-  }
   uint8_t cal_attempts = 0;
   uint8_t data = AHT10_STATUS_BUSY;
   while (data & AHT10_STATUS_BUSY) {
     delay(AHT10_DEFAULT_DELAY);
-    if (this->read(&data, 1) != i2c::ERROR_OK) {
-      this->mark_failed(LOG_STR(ESP_LOG_MSG_COMM_FAIL));
+    if (!this->setup_check(this->read(&data, 1) == i2c::ERROR_OK))
       return;
-    }
     ++cal_attempts;
     if (cal_attempts > AHT10_INIT_ATTEMPTS) {
       this->mark_failed(LOG_STR("Initialization timed out"));
       return;
     }
   }
-  if ((data & 0x68) != 0x08) {  // Bit[6:5] = 0b00, NORMAL mode and Bit[3] = 0b1, CALIBRATED
-    this->mark_failed(LOG_STR("Initialization failed"));
+  // Bit[6:5] = 0b00, NORMAL mode and Bit[3] = 0b1, CALIBRATED
+  if (!this->setup_check((data & 0x68) == 0x08, LOG_STR("Initialization failed")))
     return;
-  }
 }
 
 void AHT10Component::restart_read_() {
@@ -120,10 +115,7 @@ void AHT10Component::read_data_() {
   uint32_t raw_temperature = encode_uint24(data[3] & 0xF, data[4], data[5]);
   uint32_t raw_humidity = encode_uint24(data[1], data[2], data[3]) >> 4;
 
-  if (this->temperature_sensor_ != nullptr) {
-    float temperature = ((200.0f * static_cast<float>(raw_temperature)) / AHT10_DIVISOR) - 50.0f;
-    this->temperature_sensor_->publish_state(temperature);
-  }
+  PUBLISH_STATE(this->temperature_sensor_, ((200.0f * static_cast<float>(raw_temperature)) / AHT10_DIVISOR) - 50.0f);
   if (this->humidity_sensor_ != nullptr) {
     float humidity = raw_humidity == 0 ? NAN : static_cast<float>(raw_humidity) * 100.0f / AHT10_DIVISOR;
     if (std::isnan(humidity)) {

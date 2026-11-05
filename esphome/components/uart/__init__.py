@@ -121,7 +121,6 @@ HOST_BAUD_RATES = [
 ]
 
 UARTDevice = uart_ns.class_("UARTDevice")
-UARTWriteAction = uart_ns.class_("UARTWriteAction", automation.Action)
 UARTDebugger = uart_ns.class_("UARTDebugger", cg.Component, automation.Action)
 UARTDummyReceiver = uart_ns.class_("UARTDummyReceiver", cg.Component)
 MULTI_CONF = True
@@ -278,7 +277,9 @@ DEBUG_SCHEMA = cv.Schema(
                 cv.Optional(
                     CONF_TIMEOUT, default=AFTER_DEFAULTS[CONF_TIMEOUT]
                 ): cv.positive_time_period_milliseconds,
-                cv.Optional(CONF_DELIMITER): cv.templatable(validate_raw_data),
+                cv.Optional(CONF_DELIMITER): cv.All(
+                    validate_raw_data, cv.Length(max=255)
+                ),
             }
         ),
         cv.Optional(
@@ -349,12 +350,11 @@ async def debug_to_code(config, parent):
     after = config[CONF_AFTER]
     cg.add(trigger.set_after_bytes(after[CONF_BYTES]))
     cg.add(trigger.set_after_timeout(after[CONF_TIMEOUT]))
-    if CONF_DELIMITER in after:
-        data = after[CONF_DELIMITER]
-        if isinstance(data, bytes):
-            data = list(data)
-        for byte in after[CONF_DELIMITER]:
-            cg.add(trigger.add_delimiter_byte(byte))
+    if delimiter := after.get(CONF_DELIMITER):
+        table = cg.shared_progmem_array(
+            "uart_debug_delimiter", cg.uint8, [int(b) for b in delimiter]
+        )
+        cg.add(trigger.set_after_delimiter(table, len(delimiter)))
     if config[CONF_DUMMY_RECEIVER]:
         dummy = cg.new_Pvariable(config[CONF_DUMMY_RECEIVER_ID], parent)
         await cg.register_component(dummy, {})
@@ -441,6 +441,8 @@ KEY_UART_DEVICES = "uart_devices"
 
 @dataclass
 class UARTData:
+    # (UART, the UART whose settings it runs with), in the order they were declared.
+    settings_sources: list[tuple[ID, ID]] = field(default_factory=list)
     # UARTs whose received bytes do not keep the timing of a serial line.
     unclocked: list[ID] = field(default_factory=list)
 
@@ -449,6 +451,25 @@ def _get_data() -> UARTData:
     if DOMAIN not in CORE.data:
         CORE.data[DOMAIN] = UARTData()
     return CORE.data[DOMAIN]
+
+
+def inherit_settings(uart_id: ID, source_id: ID) -> None:
+    """Check the devices on a UART against the baud rate, data bits, parity and stop bits of another one.
+
+    For a UART without settings of its own that passes on the bytes of source_id. Call it from
+    CONFIG_SCHEMA: the devices' final validation can run before that of the caller.
+    """
+    _get_data().settings_sources.append((uart_id, source_id))
+
+
+def _settings_source(uart_id: ID) -> ID | None:
+    """Return the UART whose settings uart_id runs with, following every hop, or None."""
+    sources = {str(uart): source for uart, source in _get_data().settings_sources}
+    found = None
+    # pop() ends the walk on a loop.
+    while (source := sources.pop(str(uart_id), None)) is not None:
+        found = uart_id = source
+    return found
 
 
 def mark_unclocked(uart_id: ID) -> ID:
@@ -521,6 +542,7 @@ def final_validate_device_schema(
 
     def validate_hub(hub_config):
         hub_schema = {}
+        settings_schema = {}
         uart_id = hub_config[CONF_ID]
         uart_id_type_str = str(uart_id.type)
         devices = fv.full_config.get().data.setdefault(KEY_UART_DEVICES, {})
@@ -541,13 +563,28 @@ def final_validate_device_schema(
                 )
             ] = validate_pin(CONF_RX_PIN, device)
         if baud_rate is not None:
-            hub_schema[cv.Required(CONF_BAUD_RATE)] = validate_baud_rate
+            settings_schema[cv.Required(CONF_BAUD_RATE)] = validate_baud_rate
         if data_bits is not None:
-            hub_schema[cv.Required(CONF_DATA_BITS)] = validate_data_bits
+            settings_schema[cv.Required(CONF_DATA_BITS)] = validate_data_bits
         if parity is not None:
-            hub_schema[cv.Required(CONF_PARITY)] = validate_parity
+            settings_schema[cv.Required(CONF_PARITY)] = validate_parity
         if stop_bits is not None:
-            hub_schema[cv.Required(CONF_STOP_BITS)] = validate_stop_bits
+            settings_schema[cv.Required(CONF_STOP_BITS)] = validate_stop_bits
+        if (source_id := _settings_source(uart_id)) is None:
+            hub_schema.update(settings_schema)
+        elif settings_schema:
+            try:
+                fv.id_declaration_match_schema(settings_schema)(source_id)
+            except cv.MultipleInvalid as err:
+                # Each error keeps its path at the source UART; a missing key keeps ESPHome's wording.
+                raise cv.MultipleInvalid(
+                    [
+                        e
+                        if isinstance(e, cv.RequiredFieldInvalid)
+                        else cv.Invalid(f"{e.msg} (via {uart_id})", e.path)
+                        for e in err.errors
+                    ]
+                ) from err
         return cv.Schema(hub_schema, extra=cv.ALLOW_EXTRA)(hub_config)
 
     return cv.Schema(
@@ -593,9 +630,8 @@ def new_uart_component(
     return cg.new_bus_component(register_uart_device, config, *args)
 
 
-@automation.register_action(
+automation.register_apply_action(
     "uart.write",
-    UARTWriteAction,
     cv.maybe_simple_value(
         {
             cv.GenerateID(): cv.use_id(UARTComponent),
@@ -603,15 +639,11 @@ def new_uart_component(
         },
         key=CONF_DATA,
     ),
-    synchronous=True,
+    # A constant stays in flash: write_array_progmem copies it out in chunks on ESP8266
+    automation.ApplyBytes(
+        CONF_DATA, "write_array({})", progmem_target="write_array_progmem({})"
+    ),
 )
-async def uart_write_to_code(config, action_id, template_arg, args):
-    var = cg.new_Pvariable(action_id, template_arg)
-    await cg.register_parented(var, config[CONF_ID])
-    await automation.templatable_bytes(
-        config[CONF_DATA], args, var.set_data_template, var.set_data_static, "uart_data"
-    )
-    return var
 
 
 @coroutine_with_priority(CoroPriority.FINAL)

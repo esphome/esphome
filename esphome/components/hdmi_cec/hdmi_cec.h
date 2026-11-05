@@ -22,10 +22,10 @@ namespace esphome::hdmi_cec {
 // Release/acquire store and load. The read-modify-write forms of std::atomic are not available on
 // every target (the ESP8266 has none), so a writer computes the new value itself; that is safe here
 // because every atomic in this component has exactly one writer.
-template<typename T> ESPHOME_ALWAYS_INLINE void atomic_set(std::atomic<T> &atom, T value) {
+template<typename T> inline ESPHOME_ALWAYS_INLINE void atomic_set(std::atomic<T> &atom, T value) {
   atom.store(value, std::memory_order_release);
 }
-template<typename T> ESPHOME_ALWAYS_INLINE T atomic_get(const std::atomic<T> &atom) {
+template<typename T> inline ESPHOME_ALWAYS_INLINE T atomic_get(const std::atomic<T> &atom) {
   return atom.load(std::memory_order_acquire);
 }
 
