@@ -631,3 +631,51 @@ def test_hub_functions_with_one_name_on_one_hub_raise() -> None:
         ValueError, match="two functions named esphome__hub_a__status_fn"
     ):
         ch.CORE.flush_tasks()
+
+
+@pytest.mark.parametrize(
+    ("mask", "on_values"),
+    [(0x01, 0b10), (0x01, 0b01), (0x03, 0b10), (0x07, 0b01111110)],
+)
+def test_bit_field_on_matches_the_on_values(mask: int, on_values: int) -> None:
+    """The generated test, also valid Python, is true for exactly the field values in on_values."""
+    expr = str(ch.bit_field_on(MockObj("status")[0], 2, mask, on_values))
+    for value in range(256):
+        result = eval(expr, {"__builtins__": {}}, {"status": [value]})  # noqa: S307
+        assert (result != 0) == bool((on_values >> ((value >> 2) & mask)) & 1), value
+
+
+def test_bit_field_on_reads_a_set_bit_directly() -> None:
+    """Only a one-bit field that is on when set skips the bitmap."""
+    status = MockObj("status")[1]
+    assert str(ch.bit_field_on(status, 3, 0x01)) == "((status[1] >> 3) & 0x01)"
+    assert (
+        str(ch.bit_field_on(status, 3, 0x03, 0b10))
+        == "((0b0010 >> ((status[1] >> 3) & 0x03)) & 1)"
+    )
+
+
+def test_add_table_on_change_declares_last_and_publishes() -> None:
+    """Each text sensor gets its own 0xFF-initialised last value and one call; fallback defaults to the last string."""
+    from esphome.components import text_sensor
+
+    fn = _status_function()
+    status = fn.param("status")
+    table = cg.esphome_ns.namespace("hub").namespace("HubStrings")
+    hub = cg.MockObj("hub_a", "->")
+    text_sensor.add_table_on_change(fn, hub, MockObj("tx_a"), table, status[0], 0x03)
+    text_sensor.add_table_on_change(
+        fn, hub, MockObj("tx_b"), table, status[1] >> 4, 0x07, 8, 5
+    )
+    ch.CORE.flush_tasks()
+    assert _after_includes() == [
+        (
+            "static void esphome__hub_a__status_fn(const hub::Regs & esphome__arg_status) {\n"
+            "  static uint8_t esphome__tx_a__last = 0xFF;\n"
+            "  text_sensor::publish_table_on_change<hub::HubStrings, 0x03, hub::HubStrings::LAST_INDEX>("
+            "::tx_a, esphome__tx_a__last, esphome__arg_status[0], 0);\n"
+            "  static uint8_t esphome__tx_b__last = 0xFF;\n"
+            "  text_sensor::publish_table_on_change<hub::HubStrings, 0x07, 5>("
+            "::tx_b, esphome__tx_b__last, (esphome__arg_status[1] >> 4), 8);\n}"
+        )
+    ]

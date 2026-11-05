@@ -199,7 +199,10 @@ a second hub function (`"dump"`, a `const char *` tag parameter, no define of it
 
 **Entities that each watch a register field:** when every field (register, shift, mask, match) is known at
 build time, use the rule above (see `bq25186`). A binary sensor tests its field value against an on-values
-bitmap (`match`); a one-bit field reads the bit (simplified from bq25186's `_state_expression`):
+bitmap with `cg.bit_field_on(value, shift, mask, on_values)` (a one-bit field that is on when set is the
+default and reads the bit); a text sensor names its field from a `PROGMEM_STRING_TABLE` with
+`text_sensor.add_table_on_change(...)`, which publishes only when the field changes (the mask and fallback
+are template arguments, so each table compiles to one out-of-line function):
 ```python
 # hub __init__.py
 STATUS_PUBLISHER = cg.HubFunction(
@@ -210,11 +213,15 @@ STATUS_PUBLISHER = cg.HubFunction(
 )
 STATUS = STATUS_PUBLISHER.param("status")
 
-# platform to_code, per configured entity
-value = (STATUS[reg] >> shift) & mask
-if mask != 0x01 or match != 0b10:  # 0b10: a one-bit field that is on when set
-    value = (cg.MockObj(f"{match:#06b}") >> value) & 1
-STATUS_PUBLISHER.add(hub, parent_ref(var).publish_state(value))
+# binary_sensor.py to_code, per configured entity
+state = cg.bit_field_on(STATUS[reg], shift, mask, on_values)
+STATUS_PUBLISHER.add(hub, parent_ref(var).publish_state(state))
+
+# text_sensor.py: string first + ((status[reg] >> shift) & 0x03) of the table, LAST_INDEX past its end
+STRINGS = bq25186_ns.namespace("BQ25186StatusStrings")
+text_sensor.add_table_on_change(
+    STATUS_PUBLISHER, hub, var, STRINGS, STATUS[reg] >> shift, 0x03, first
+)
 ```
 Store a field description per entity (a struct in a `SlotList` sized by `cg.slot_list`) only when the
 field is chosen at run time, as in `sen6x`, where the status bit depends on the variant read in `setup()`.

@@ -16,6 +16,7 @@ from esphome.coroutine import FakeAwaitable
 from esphome.cpp_generator import (
     AssignmentExpression,
     BinOpExpression,
+    HexIntLiteral,
     MockObj,
     RawStatement,
     Statement,
@@ -371,6 +372,20 @@ class HubFunction:
                 name, self._return_type, self._parameters, self._body(items)
             )
             add(getattr(hub, f"set_{self._name}_publisher")(fn))
+
+
+# on_values of a one-bit field that is on when its bit is set
+BIT_FIELD_SET = 0b10
+
+
+def bit_field_on(
+    value: MockObj, shift: int, mask: int, on_values: int = BIT_FIELD_SET
+) -> MockObj:
+    """Whether the field ``(value >> shift) & mask`` is a set bit of ``on_values``; by default a set bit."""
+    field_ = (value >> shift) & HexIntLiteral(mask)
+    if mask == 0x01 and on_values == BIT_FIELD_SET:
+        return field_
+    return (MockObj(f"{on_values:#06b}") >> field_) & 1
 
 
 async def gpio_pin_expression(conf):

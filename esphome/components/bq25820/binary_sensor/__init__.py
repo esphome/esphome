@@ -10,7 +10,6 @@ from esphome.const import (
     DEVICE_CLASS_POWER,
     DEVICE_CLASS_PROBLEM,
 )
-from esphome.cpp_generator import HexIntLiteral
 from esphome.types import ConfigType
 
 from .. import (
@@ -29,9 +28,6 @@ from .. import (
 DEPENDENCIES = ["bq25820"]
 _BINARY_SENSOR_TYPE = cg.RawExpression('LOG_STR_LITERAL("Binary Sensor")')
 
-# Bit set for each field value that reads as on: a single bit is on when it is 1
-_BIT_SET = 0b10
-
 
 @dataclass(frozen=True, kw_only=True)
 class _StatusBit:
@@ -41,7 +37,7 @@ class _StatusBit:
     register: int
     shift: int = 0
     mask: int = 0x01
-    on_values: int = _BIT_SET
+    on_values: int = cg.BIT_FIELD_SET
     device_class: str = cv.UNDEFINED
 
 
@@ -93,14 +89,6 @@ _FIELDS = (
 )
 
 
-def _state_expression(reg: int, shift: int, mask: int, match: int) -> cg.MockObj:
-    """Whether the field (status[reg] >> shift) & mask reads as on, as a bit of match."""
-    value = (STATUS[reg] >> shift) & HexIntLiteral(mask)
-    if mask == 0x01 and match == _BIT_SET:
-        return value
-    return (cg.MockObj(f"{match:#06b}") >> value) & 1
-
-
 CONFIG_SCHEMA = cv.All(
     BQ25820BaseSchema.extend(
         {
@@ -119,8 +107,8 @@ async def to_code(config: ConfigType) -> None:
     sensors = binary_sensor.sub_binary_sensors(config)
     for field in _FIELDS:
         if (var := await sensors(field.key, None)) is not None:
-            state = _state_expression(
-                field.register, field.shift, field.mask, field.on_values
+            state = cg.bit_field_on(
+                STATUS[field.register], field.shift, field.mask, field.on_values
             )
             STATUS_PUBLISHER.add(hub, parent_ref(var).publish_state(state))
             DUMP.add(

@@ -30,8 +30,14 @@ from esphome.core.entity_helpers import (
     setup_device_class,
     setup_entity,
 )
-from esphome.cpp_generator import MockObj, MockObjClass
-from esphome.types import ConfigType
+from esphome.cpp_generator import (
+    AssignmentExpression,
+    HexIntLiteral,
+    MockObj,
+    MockObjClass,
+    VariableDeclarationExpression,
+)
+from esphome.types import ConfigType, Expression
 from esphome.util import Registry
 
 DEVICE_CLASSES = [
@@ -347,6 +353,34 @@ def sub_text_sensors(
 ) -> SubEntities:
     """Return a SubEntities bound to new_text_sensor."""
     return SubEntities(new_text_sensor, config, parent)
+
+
+def add_table_on_change(
+    function: cg.HubFunction,
+    hub: MockObj,
+    var: MockObj,
+    table: MockObj,
+    value: Expression,
+    mask: int,
+    first: int = 0,
+    fallback: int | None = None,
+) -> None:
+    """Add to ``function`` of ``hub``: publish string ``first + (value & mask)`` of the PROGMEM_STRING_TABLE
+    ``table`` (a ``namespace()``) on ``var`` when the field changes; ``fallback`` defaults to the last string."""
+    last = MockObj(f"esphome__{var}__last")
+    # 0xFF so the first call publishes
+    declaration = VariableDeclarationExpression(cg.uint8, "", last, static=True)
+    function.add(
+        hub, AssignmentExpression(None, None, declaration, HexIntLiteral(0xFF))
+    )
+    function.add(
+        hub,
+        text_sensor_ns.publish_table_on_change.template(
+            table,
+            HexIntLiteral(mask),
+            table.LAST_INDEX if fallback is None else fallback,
+        )(automation.parent_ref(var), last, value, first),
+    )
 
 
 # Makes a plain text sensor follow another text sensor: follow_text_sensor(entity, source)

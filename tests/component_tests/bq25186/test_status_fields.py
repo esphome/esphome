@@ -2,7 +2,8 @@
 
 from esphome.components.bq25186 import binary_sensor, text_sensor
 
-from .status_datasheet import BINARY_SENSORS, TEXT_SENSORS, field_value, status_strings
+from ..hub_function_helpers import field_value, progmem_strings
+from .status_datasheet import BINARY_SENSORS, TEXT_SENSORS
 
 
 def test_binary_sensor_fields_match_the_datasheet() -> None:
@@ -16,7 +17,7 @@ def test_binary_sensor_fields_match_the_datasheet() -> None:
 
 
 def test_text_sensor_fields_match_the_datasheet() -> None:
-    strings = status_strings()
+    strings = progmem_strings("bq25186")
     assert [key for key, *_ in text_sensor._FIELDS] == list(TEXT_SENSORS)
     for key, reg, shift, first in text_sensor._FIELDS:
         sheet_reg, bits, states = TEXT_SENSORS[key]
