@@ -133,10 +133,10 @@ void RemoteReceiverBase::warn_extra_secondaries_() {
 }
 #endif
 
-void RemoteReceiverBase::call_listeners_dumpers_() {
+void RemoteReceiverBase::dispatch_(const RemoteReceiveData &src) {
 #ifdef REMOTE_BASE_LISTENER_COUNT
   for (auto *listener : this->listeners_)
-    listener->on_receive(RemoteReceiveData(this->temp_, this->tolerance_, this->tolerance_mode_));
+    listener->on_receive(src);
 #endif
 #ifdef REMOTE_BASE_DUMPER_COUNT
   bool success = false;
@@ -145,12 +145,12 @@ void RemoteReceiverBase::call_listeners_dumpers_() {
     if (dumper->is_secondary()) {
       if (secondary == nullptr)
         secondary = dumper;
-    } else if (dumper->dump(RemoteReceiveData(this->temp_, this->tolerance_, this->tolerance_mode_))) {
+    } else if (dumper->dump(src)) {
       success = true;
     }
   }
   if (!success && secondary != nullptr)
-    secondary->dump(RemoteReceiveData(this->temp_, this->tolerance_, this->tolerance_mode_));
+    secondary->dump(src);
 #endif
 }
 

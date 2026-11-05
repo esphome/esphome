@@ -262,6 +262,7 @@ enum BluetoothScannerMode : uint32_t {
 enum VoiceAssistantSubscribeFlag : uint32_t {
   VOICE_ASSISTANT_SUBSCRIBE_NONE = 0,
   VOICE_ASSISTANT_SUBSCRIBE_API_AUDIO = 1,
+  VOICE_ASSISTANT_SUBSCRIBE_WAKE_WORD_AUDIO = 8,
 };
 enum VoiceAssistantRequestFlag : uint32_t {
   VOICE_ASSISTANT_REQUEST_NONE = 0,
@@ -283,6 +284,7 @@ enum VoiceAssistantEvent : uint32_t {
   VOICE_ASSISTANT_WAKE_WORD_END = 10,
   VOICE_ASSISTANT_STT_VAD_START = 11,
   VOICE_ASSISTANT_STT_VAD_END = 12,
+  VOICE_ASSISTANT_WAKE_WORD_REJECTED = 13,
   VOICE_ASSISTANT_TTS_STREAM_START = 98,
   VOICE_ASSISTANT_TTS_STREAM_END = 99,
   VOICE_ASSISTANT_INTENT_PROGRESS = 100,
@@ -734,6 +736,23 @@ class ZWaveProxyCapabilities final : public ProtoMessage {
  protected:
 };
 #endif
+#ifdef USE_STORE_YAML
+class StoreYamlCapabilities final : public ProtoMessage {
+ public:
+  bool supported{false};
+  static uint8_t *encode_msg(const void *self, uint8_t *pos PROTO_ENCODE_DEBUG_PARAM);
+  uint8_t *encode(ProtoWriteBuffer &buffer PROTO_ENCODE_DEBUG_PARAM) const {
+    return encode_msg(this, buffer.get_pos() PROTO_ENCODE_DEBUG_ARG);
+  }
+  static uint32_t calc_size_msg(const void *self);
+  uint32_t calculate_size() const { return calc_size_msg(this); }
+#ifdef HAS_PROTO_MESSAGE_DUMP
+  const char *dump_to(DumpBuffer &out) const override;
+#endif
+
+ protected:
+};
+#endif
 #ifdef USE_API_WIZARD
 class WizardCapabilities final : public ProtoMessage {
  public:
@@ -772,7 +791,7 @@ class SendspinCapabilities final : public ProtoMessage {
 class DeviceCapabilitiesResponse final : public ProtoMessage {
  public:
   static constexpr uint16_t MESSAGE_TYPE = 150;
-  static constexpr uint8_t ESTIMATED_SIZE = 136;
+  static constexpr uint8_t ESTIMATED_SIZE = 153;
 #ifdef HAS_PROTO_MESSAGE_DUMP
   const LogString *message_name() const override { return LOG_STR("device_capabilities_response"); }
 #endif
@@ -793,6 +812,9 @@ class DeviceCapabilitiesResponse final : public ProtoMessage {
 #endif
 #ifdef USE_SENDSPIN
   SendspinCapabilities sendspin{};
+#endif
+#ifdef USE_STORE_YAML
+  StoreYamlCapabilities store_yaml{};
 #endif
   static uint8_t *encode_msg(const void *self, uint8_t *pos PROTO_ENCODE_DEBUG_PARAM);
   uint8_t *encode(ProtoWriteBuffer &buffer PROTO_ENCODE_DEBUG_PARAM) const {
@@ -2953,7 +2975,7 @@ class VoiceAssistantAudioSettings final : public ProtoMessage {
 class VoiceAssistantRequest final : public ProtoMessage {
  public:
   static constexpr uint16_t MESSAGE_TYPE = 90;
-  static constexpr uint8_t ESTIMATED_SIZE = 41;
+  static constexpr uint8_t ESTIMATED_SIZE = 68;
 #ifdef HAS_PROTO_MESSAGE_DUMP
   const LogString *message_name() const override { return LOG_STR("voice_assistant_request"); }
 #endif
@@ -2962,6 +2984,11 @@ class VoiceAssistantRequest final : public ProtoMessage {
   uint32_t flags{0};
   VoiceAssistantAudioSettings audio_settings{};
   StringRef wake_word_phrase{nullptr, 0};  // null until set, encode only
+  StringRef wake_word_id{nullptr, 0};      // null until set, encode only
+  uint32_t wake_word_audio_bytes{0};
+  float wake_word_probability{0.0f};
+  float wake_word_probability_cutoff{0.0f};
+  uint32_t wake_word_audio_bytes2{0};
   static uint8_t *encode_msg(const void *self, uint8_t *pos PROTO_ENCODE_DEBUG_PARAM);
   uint8_t *encode(ProtoWriteBuffer &buffer PROTO_ENCODE_DEBUG_PARAM) const {
     return encode_msg(this, buffer.get_pos() PROTO_ENCODE_DEBUG_ARG);
@@ -3841,7 +3868,7 @@ class InfraredRFReceiveEvent final : public ProtoMessage {
   uint32_t device_id{0};
 #endif
   uint32_t key{0};
-  const std::vector<int32_t> *timings{};
+  const std::span<const int32_t> *timings{};
   static uint8_t *encode_msg(const void *self, uint8_t *pos PROTO_ENCODE_DEBUG_PARAM);
   uint8_t *encode(ProtoWriteBuffer &buffer PROTO_ENCODE_DEBUG_PARAM) const {
     return encode_msg(this, buffer.get_pos() PROTO_ENCODE_DEBUG_ARG);
@@ -4102,6 +4129,7 @@ class UsbDeviceDescriptor final : public ProtoMessage {
   uint32_t interface_number{0};
   uint32_t interface_class{0};
   uint32_t port_number{0};
+  StringRef interface_description{nullptr, 0};  // null until set, encode only
   static uint8_t *encode_msg(const void *self, uint8_t *pos PROTO_ENCODE_DEBUG_PARAM);
   uint8_t *encode(ProtoWriteBuffer &buffer PROTO_ENCODE_DEBUG_PARAM) const {
     return encode_msg(this, buffer.get_pos() PROTO_ENCODE_DEBUG_ARG);
@@ -4196,6 +4224,31 @@ class SendspinPairingTokenResponse final : public ProtoMessage {
 #endif
   enums::SendspinPairingTokenStatus status{};
   StringRef token{nullptr, 0};  // null until set, encode only
+  static uint8_t *encode_msg(const void *self, uint8_t *pos PROTO_ENCODE_DEBUG_PARAM);
+  uint8_t *encode(ProtoWriteBuffer &buffer PROTO_ENCODE_DEBUG_PARAM) const {
+    return encode_msg(this, buffer.get_pos() PROTO_ENCODE_DEBUG_ARG);
+  }
+  static uint32_t calc_size_msg(const void *self);
+  uint32_t calculate_size() const { return calc_size_msg(this); }
+#ifdef HAS_PROTO_MESSAGE_DUMP
+  const char *dump_to(DumpBuffer &out) const override;
+#endif
+
+ protected:
+};
+#endif
+#ifdef USE_STORE_YAML
+class GetYamlResponse final : public ProtoMessage {
+ public:
+  static constexpr uint16_t MESSAGE_TYPE = 162;
+  static constexpr uint8_t ESTIMATED_SIZE = 25;
+#ifdef HAS_PROTO_MESSAGE_DUMP
+  const LogString *message_name() const override { return LOG_STR("get_yaml_response"); }
+#endif
+  const uint8_t *data{nullptr};
+  uint16_t data_len{0};
+  bool done{false};
+  uint32_t total_size{0};
   static uint8_t *encode_msg(const void *self, uint8_t *pos PROTO_ENCODE_DEBUG_PARAM);
   uint8_t *encode(ProtoWriteBuffer &buffer PROTO_ENCODE_DEBUG_PARAM) const {
     return encode_msg(this, buffer.get_pos() PROTO_ENCODE_DEBUG_ARG);

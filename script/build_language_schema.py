@@ -1009,13 +1009,9 @@ def convert(schema, config_var, path):
             config_var.update(convert_config(data[0], path + "/maybe"))
         # esphome/on_boot
         elif schema_type == "automation":
-            extra_schema = None
             config_var[S_TYPE] = "trigger"
-            if ejs.extended_schemas[repr(data)][0] == automation.AUTOMATION_SCHEMA:
-                extra_schema = ejs.extended_schemas[repr(data)][1]
-            if (
-                extra_schema is not None and len(extra_schema) > 1
-            ):  # usually only trigger_id here
+            entry = ejs.extended_schemas[repr(data)]
+            if entry[0] == automation.AUTOMATION_SCHEMA and (extra_schema := entry[1]):
                 config = convert_config(extra_schema, path + "/extra")
                 if "schema" in config:
                     automation_schema = config["schema"]
@@ -1109,7 +1105,8 @@ def convert(schema, config_var, path):
             config_var["typed_key"] = typed_schema[1].get("key", CONF_TYPE)
         for schema_key, schema_type in typed_schema[0][0].items():
             config = convert_config(schema_type, path + "/type_" + schema_key)
-            types[schema_key] = config["schema"]
+            # A type with no keys of its own converts to nothing.
+            types[schema_key] = config.get("schema", {S_CONFIG_VARS: {}})
 
     elif DUMP_UNKNOWN and S_TYPE not in config_var:
         config_var["unknown"] = repr_schema
