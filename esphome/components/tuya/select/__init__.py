@@ -19,23 +19,18 @@ CODEOWNERS = ["@bearpawmaxim"]
 TuyaSelect = tuya_ns.class_("TuyaSelect", select.Select, cg.Component)
 
 
-def datapoint_value(value):
+def datapoint_value(value: int) -> int:
     """Option key: the 0-255 datapoint value. A named function, because the
     schema dumper can only name bare-callable wildcard keys."""
     return cv.int_range(0, 2**8 - 1)(value)
 
 
-_OPTIONS_MAP_SCHEMA = cv.Schema({datapoint_value: cv.string_strict})
+OPTIONS_MAP_SCHEMA = cv.Schema({datapoint_value: cv.string_strict})
 
 
-@schema_extractor("schema")
 def ensure_option_map(value):
-    # Expose the mapping shape to the language-schema dumper; without it the
-    # cv.Any would advertise only the string-list branch for every select
-    if value is SCHEMA_EXTRACT:
-        return _OPTIONS_MAP_SCHEMA
     cv.check_not_templatable(value)
-    value = _OPTIONS_MAP_SCHEMA(value)
+    value = OPTIONS_MAP_SCHEMA(value)
 
     all_values = list(value.keys())
     unique_values = set(value.keys())
@@ -58,6 +53,23 @@ def validate_options_shape(config: ConfigType) -> ConfigType:
     return config
 
 
+@schema_extractor("schema")
+def validate_options(value: ConfigType | list) -> ConfigType | list | cv.Schema:
+    """Mapping from datapoint values to option names (enum/int datapoints), or
+    a plain list of option names (string datapoints).
+
+    The language-schema dumper cannot represent a union of shapes; merging the
+    cv.Any branches into one entry advertised a bare string list for every
+    select, so expose the mapping form, which the dumper can walk.
+    """
+    if value is SCHEMA_EXTRACT:
+        return OPTIONS_MAP_SCHEMA
+    return cv.Any(
+        ensure_option_map,
+        cv.All(cv.ensure_list(cv.string_strict), cv.Length(min=1)),
+    )(value)
+
+
 CONFIG_SCHEMA = cv.All(
     select.select_schema(TuyaSelect)
     .extend(
@@ -66,10 +78,7 @@ CONFIG_SCHEMA = cv.All(
             cv.Optional(CONF_ENUM_DATAPOINT): cv.uint8_t,
             cv.Optional(CONF_INT_DATAPOINT): cv.uint8_t,
             cv.Optional(CONF_STRING_DATAPOINT): cv.uint8_t,
-            cv.Required(CONF_OPTIONS): cv.Any(
-                ensure_option_map,
-                cv.All(cv.ensure_list(cv.string_strict), cv.Length(min=1)),
-            ),
+            cv.Required(CONF_OPTIONS): validate_options,
             cv.Optional(CONF_OPTIMISTIC, default=False): cv.boolean,
         }
     )

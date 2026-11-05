@@ -10,6 +10,12 @@ void TuyaSelect::setup() {
     if (this->is_string_) {
       // STRING type: match value_string against option names
       ESP_LOGV(TAG, "MCU reported select %u string value %s", this->select_id_, datapoint.value_string.c_str());
+      // An option name can never contain a NUL byte, and index_of() takes a
+      // NUL-terminated option table, so reject such payloads before lookup
+      if (datapoint.value_string.find('\0') != std::string::npos) {
+        ESP_LOGW(TAG, "Invalid string value containing NUL byte");
+        return;
+      }
       auto index = this->index_of(datapoint.value_string);
       if (index.has_value()) {
         this->publish_state(*index);
