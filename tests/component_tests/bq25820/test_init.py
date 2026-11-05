@@ -17,6 +17,7 @@ from esphome.components.bq25820 import (
     binary_sensor,
     sensor,
     text_sensor,
+    validate_sense_resistance,
 )
 from esphome.components.bq25820.sensor import (
     CONF_RESISTOR,
@@ -196,3 +197,16 @@ def test_reference_temperature_at_or_below_absolute_zero_is_rejected(
 def test_reference_temperature_above_absolute_zero_passes() -> None:
     assert validate_reference_temperature("-273°C") == pytest.approx(-273)
     assert validate_reference_temperature("25°C") == pytest.approx(25)
+
+
+@pytest.mark.parametrize(
+    ("value", "milliohms"), [("5mΩ", 5.0), ("0.01mΩ", 0.01), ("10mΩ", 10.0)]
+)
+def test_sense_resistance_in_range_passes(value: str, milliohms: float) -> None:
+    assert validate_sense_resistance(value) == pytest.approx(milliohms)
+
+
+@pytest.mark.parametrize("value", ["5Ω", "0.005mΩ", "11mΩ"])
+def test_sense_resistance_out_of_range_is_rejected(value: str) -> None:
+    with pytest.raises(cv.Invalid, match="Sense resistance must be 0.01-10 mΩ"):
+        validate_sense_resistance(value)

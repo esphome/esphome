@@ -35,7 +35,7 @@ class RegisterBus final : public i2c::I2CBus {
   i2c::ErrorCode write_readv(uint8_t address, const uint8_t *data, size_t size, uint8_t *out,
                              size_t out_size) override {
     EXPECT_EQ(address, ADDRESS);
-    if (out_size != 0 && this->fail_reads)
+    if (out_size != 0 && (this->fail_reads || (size != 0 && data[0] == this->fail_read_register)))
       return i2c::ERROR_NOT_ACKNOWLEDGED;
     if (size > 1 && data[0] == this->fail_write_register && this->writes_before_failure-- <= 0)
       return i2c::ERROR_NOT_ACKNOWLEDGED;
@@ -51,6 +51,8 @@ class RegisterBus final : public i2c::I2CBus {
 
   std::array<uint8_t, 0x40> registers{};
   bool fail_reads{false};
+  // Reads starting at this register fail
+  int fail_read_register{-1};
   // Writes to this register fail once `writes_before_failure` of them have gone through
   int fail_write_register{-1};
   int writes_before_failure{0};

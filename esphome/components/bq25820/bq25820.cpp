@@ -93,8 +93,8 @@ void BQ25820Component::setup() {
   if (!this->setup_check(this->update_register(REG_POWER_PATH_CONTROL, REG_RST, REG_RST)))
     return;
 
-  // REG_RST cleared ADC_EN, so this poll writes the configuration now, not one interval later
-  this->update();
+  // Written now, whatever the reads do, so charging never runs at the reset limits for an interval
+  this->configure_();
 }
 
 void BQ25820Component::dump_config() {
@@ -168,6 +168,18 @@ bool BQ25820Component::write_config_registers_() {
   return ok;
 }
 
+bool BQ25820Component::configure_() {
+  // The ADC restarts, so the next publish waits for its first conversions
+  this->adc_ready_ = false;
+  if (!this->status_comm_result(this->write_config_registers_()))
+    return false;
+  this->set_timeout(PUBLISH_TIMEOUT_ID, FIRST_PUBLISH_DELAY_MS, [this]() {
+    this->adc_ready_ = true;
+    this->update();
+  });
+  return true;
+}
+
 // Every poll also feeds the watchdog, which update_interval is validated to beat
 void BQ25820Component::update() {
   BQ25820StatusRegisters status;
@@ -189,15 +201,8 @@ void BQ25820Component::update() {
     if (this->adc_ready_) {
       ESP_LOGW(TAG, "Charger lost its configuration, writing it again");
     }
-    // The ADC restarts, so the next publish waits for its first conversions
-    this->adc_ready_ = false;
-    if (this->status_comm_result(this->write_config_registers_())) {
-      this->set_timeout(PUBLISH_TIMEOUT_ID, FIRST_PUBLISH_DELAY_MS, [this]() {
-        this->adc_ready_ = true;
-        this->update();
-      });
+    if (this->configure_())
       return;
-    }
   } else {
     // A failed feed still publishes what was read
     this->status_comm_result(

@@ -229,6 +229,15 @@ TEST_F(BQ25820WriteFailureTest, ConfigurationPublishesOnceTheAdcHasConverted) {
   EXPECT_FLOAT_EQ(this->vbat_.state, 8.0f);
 }
 
+TEST_F(BQ25820WriteFailureTest, SetupConfiguresEvenWhenTheStatusReadFails) {
+  this->bus_.fail_read_register = REG_CHARGER_STATUS_1;
+  this->hub_.setup();
+  EXPECT_FALSE(this->hub_.is_failed());
+  EXPECT_NE(this->bus_.registers[REG_ADC_CONTROL] & ADC_EN, 0);
+  EXPECT_EQ(this->bus_.registers[0x08], 880 & 0xFF);  // VAC_DPM
+  EXPECT_EQ(status_publishes, 0);
+}
+
 TEST_F(BQ25820WriteFailureTest, ChargerResetIsWrittenAgain) {
   this->hub_.update();
   this->hub_.update();
