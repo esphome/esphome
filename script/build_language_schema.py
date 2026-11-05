@@ -1,5 +1,6 @@
 #!/usr/bin/env python3
 import argparse
+import copy
 import inspect
 import json
 import os
@@ -591,7 +592,10 @@ def inline_schema(node: dict, base: dict) -> None:
     if local:
         node["constraints"] = base.get("constraints", []) + local
     if local_vars:
-        node[S_CONFIG_VARS] = base.get(S_CONFIG_VARS, {}) | local_vars
+        # Per field: a local override like {"default": "b"} keeps the base's type and values
+        node[S_CONFIG_VARS] = merge(
+            local_vars, copy.deepcopy(base.get(S_CONFIG_VARS, {}))
+        )
 
 
 def splice_extends(node: dict, extends: list, name: str) -> None:

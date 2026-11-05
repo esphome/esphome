@@ -646,3 +646,26 @@ def test_gree_feature_switches_extend_the_switch_schema(
     ]
     for key in ("health", "light", "turbo", "xfan"):
         assert config_vars[key]["schema"]["extends"] == ["switch._SWITCH_SCHEMA"]
+
+
+def test_inline_schema_merges_a_same_key_override_per_field() -> None:
+    """A local override keeps the base field's type and values, and the base is not mutated."""
+    base = {
+        "config_vars": {
+            "mode": {
+                "key": "Optional",
+                "type": "enum",
+                "values": {"a": None, "b": None},
+            }
+        }
+    }
+    node = {"config_vars": {"mode": {"default": "b"}}, "extends": ["x"]}
+    _bls.inline_schema(node, base)
+
+    assert node["config_vars"]["mode"] == {
+        "key": "Optional",
+        "type": "enum",
+        "values": {"a": None, "b": None},
+        "default": "b",
+    }
+    assert "default" not in base["config_vars"]["mode"]
