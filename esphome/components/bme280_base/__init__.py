@@ -24,23 +24,14 @@ DOMAIN = "bme280_base"
 
 bme280_ns = cg.esphome_ns.namespace("bme280_base")
 BME280Oversampling = bme280_ns.enum("BME280Oversampling")
-OVERSAMPLING_OPTIONS = {
-    "NONE": BME280Oversampling.BME280_OVERSAMPLING_NONE,
-    "1X": BME280Oversampling.BME280_OVERSAMPLING_1X,
-    "2X": BME280Oversampling.BME280_OVERSAMPLING_2X,
-    "4X": BME280Oversampling.BME280_OVERSAMPLING_4X,
-    "8X": BME280Oversampling.BME280_OVERSAMPLING_8X,
-    "16X": BME280Oversampling.BME280_OVERSAMPLING_16X,
-}
+OVERSAMPLING_OPTIONS = BME280Oversampling.options(
+    "NONE", "1X", "2X", "4X", "8X", "16X", prefix="BME280_OVERSAMPLING_"
+)
 
 BME280IIRFilter = bme280_ns.enum("BME280IIRFilter")
-IIR_FILTER_OPTIONS = {
-    "OFF": BME280IIRFilter.BME280_IIR_FILTER_OFF,
-    "2X": BME280IIRFilter.BME280_IIR_FILTER_2X,
-    "4X": BME280IIRFilter.BME280_IIR_FILTER_4X,
-    "8X": BME280IIRFilter.BME280_IIR_FILTER_8X,
-    "16X": BME280IIRFilter.BME280_IIR_FILTER_16X,
-}
+IIR_FILTER_OPTIONS = BME280IIRFilter.options(
+    "OFF", "2X", "4X", "8X", "16X", prefix="BME280_IIR_FILTER_"
+)
 
 CONFIG_SCHEMA_BASE = cv.Schema(
     {

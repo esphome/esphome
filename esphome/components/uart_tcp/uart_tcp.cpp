@@ -16,13 +16,11 @@ void UartTcp::setup() {
 #ifdef USE_SOCKET_TCP_LISTENER
   this->listener_.begin(TAG);
 #endif
-  if (this->connected_sensor_ != nullptr) {
-    this->connected_sensor_->publish_state(false);
-  }
+#ifdef USE_BINARY_SENSOR
+  PUBLISH_STATE(this->connected_binary_sensor_, false);
+#endif
 #ifdef USE_SENSOR
-  if (this->disconnects_sensor_ != nullptr) {
-    this->disconnects_sensor_->publish_state(0);
-  }
+  PUBLISH_STATE(this->disconnects_sensor_, 0);
 #endif
 }
 
@@ -37,7 +35,9 @@ void UartTcp::dump_config() {
 #ifdef USE_SOCKET_TCP_LISTENER
   this->listener_.dump_config();
 #endif
-  LOG_BINARY_SENSOR("  ", "Connected", this->connected_sensor_);
+#ifdef USE_BINARY_SENSOR
+  LOG_BINARY_SENSOR("  ", "Connected", this->connected_binary_sensor_);
+#endif
 #ifdef USE_SENSOR
   LOG_SENSOR("  ", "Disconnects", this->disconnects_sensor_);
 #endif
@@ -57,9 +57,9 @@ void UartTcp::sync_link_() {
     // The driver kept whatever arrived while the link was down.
     this->discard_uart_();
   }
-  if (this->connected_sensor_ != nullptr) {
-    this->connected_sensor_->publish_state(up);
-  }
+#ifdef USE_BINARY_SENSOR
+  PUBLISH_STATE(this->connected_binary_sensor_, up);
+#endif
 #ifdef USE_SENSOR
   // Only edges get here, so down is the falling edge.
   if (!up && this->disconnects_sensor_ != nullptr) {

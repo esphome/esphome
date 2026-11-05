@@ -92,10 +92,11 @@ class ILI9XXXDisplay : public display::DisplayBuffer,
   void on_powerdown() override { this->command(ILI9XXX_SLPIN); }
 
   display::DisplayType get_display_type() override { return display::DisplayType::DISPLAY_TYPE_COLOR; }
-  void draw_pixels_at(int x_start, int y_start, int w, int h, const uint8_t *ptr, display::ColorOrder order,
-                      display::ColorBitness bitness, bool big_endian, int x_offset, int y_offset, int x_pad) override;
 
  protected:
+  void draw_pixels_internal(int x_start, int y_start, int w, int h, const uint8_t *ptr, display::ColorBitness bitness,
+                            bool big_endian, int x_offset, int y_offset, int x_pad) override;
+
   inline bool check_buffer_() {
     if (this->buffer_ == nullptr) {
       if (!this->is_failed())

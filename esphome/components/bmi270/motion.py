@@ -20,12 +20,9 @@ CONF_AUX_DEVICE = "aux_device"
 #  Enum proxies (must match the C++ enum values exactly)
 BMI270AuxDevice = bmi270_ns.enum("BMI270AuxDevice")
 BMI270AccelRange = bmi270_ns.enum("BMI270AccelRange")
-ACCEL_RANGE_OPTIONS = {
-    "2G": BMI270AccelRange.BMI270_ACCEL_RANGE_2G,
-    "4G": BMI270AccelRange.BMI270_ACCEL_RANGE_4G,
-    "8G": BMI270AccelRange.BMI270_ACCEL_RANGE_8G,
-    "16G": BMI270AccelRange.BMI270_ACCEL_RANGE_16G,
-}
+ACCEL_RANGE_OPTIONS = BMI270AccelRange.options(
+    "2G", "4G", "8G", "16G", prefix="BMI270_ACCEL_RANGE_"
+)
 
 BMI270GyroRange = bmi270_ns.enum("BMI270GyroRange")
 GYRO_RANGE_OPTIONS = {

@@ -6,6 +6,11 @@ from . import EpaperModel
 
 
 class Inkplate6ColorModel(EpaperModel):
+    source_files = (
+        "epaper_spi_4bpp.cpp",
+        "epaper_spi_inkplate6color.cpp",
+    )
+
     def __init__(self, name, class_name="EPaperInkplate6Color", **kwargs):
         super().__init__(name, class_name, **kwargs)
 

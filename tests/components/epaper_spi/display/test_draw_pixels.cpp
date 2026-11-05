@@ -42,11 +42,11 @@ template<typename Driver> class TestableDisplay : public Driver {
 
   std::vector<uint16_t> bounds() const { return {this->x_low_, this->y_low_, this->x_high_, this->y_high_}; }
 
-  void draw_one_by_one(int x_start, int y_start, int w, int h, const uint8_t *ptr, display::ColorOrder order,
-                       display::ColorBitness bitness, bool big_endian, int x_offset, int y_offset, int x_pad) {
+  void draw_one_by_one(int x_start, int y_start, int w, int h, const uint8_t *ptr, display::ColorBitness bitness,
+                       bool big_endian, int x_offset, int y_offset, int x_pad) {
     // The per-pixel path the fast one must match
-    display::Display::draw_pixels_at(  // NOLINT(bugprone-parent-virtual-call)
-        x_start, y_start, w, h, ptr, order, bitness, big_endian, x_offset, y_offset, x_pad);
+    display::Display::draw_pixels_internal(  // NOLINT(bugprone-parent-virtual-call)
+        x_start, y_start, w, h, ptr, bitness, big_endian, x_offset, y_offset, x_pad);
   }
 };
 
@@ -100,10 +100,10 @@ TEST(EPaperDrawPixels, SameResultAsDrawingPixelByPixel) {
           }
           // a 3 pixel left offset, 2 rows skipped and 4 pixels of padding
           const auto data = random_bytes((3 + block.w + 4) * (2 + block.h), seed++);
-          fast.draw_pixels_at(block.x, block.y, block.w, block.h, data.data(), display::COLOR_ORDER_RGB,
-                              display::COLOR_BITNESS_565, big_endian, 3, 2, 4);
-          slow.draw_one_by_one(block.x, block.y, block.w, block.h, data.data(), display::COLOR_ORDER_RGB,
-                               display::COLOR_BITNESS_565, big_endian, 3, 2, 4);
+          fast.draw_pixels_at(block.x, block.y, block.w, block.h, data.data(), display::COLOR_BITNESS_565, big_endian,
+                              3, 2, 4);
+          slow.draw_one_by_one(block.x, block.y, block.w, block.h, data.data(), display::COLOR_BITNESS_565, big_endian,
+                               3, 2, 4);
           const auto where = ::testing::Message() << "rotation " << rotation << " mirroring " << int(mirroring)
                                                   << " big endian " << big_endian << " block " << block.x << ","
                                                   << block.y << " " << block.w << "x" << block.h;
@@ -115,16 +115,28 @@ TEST(EPaperDrawPixels, SameResultAsDrawingPixelByPixel) {
   }
 }
 
-/// The colour order reaches the RGB565 block writer.
-TEST(EPaperDrawPixels, ColourOrderIsHonoured) {
-  for (const auto order : {display::COLOR_ORDER_RGB, display::COLOR_ORDER_BGR, display::COLOR_ORDER_GRB}) {
-    TestableDisplay<EPaperSSD1683> fast(21, 13);
-    TestableDisplay<EPaperSSD1683> slow(21, 13);
-    const auto data = random_bytes(21 * 13, 99);
-    fast.draw_pixels_at(0, 0, 21, 13, data.data(), order, display::COLOR_BITNESS_565, false, 0, 0, 0);
-    slow.draw_one_by_one(0, 0, 21, 13, data.data(), order, display::COLOR_BITNESS_565, false, 0, 0, 0);
-    EXPECT_EQ(fast.buffer(), slow.buffer()) << "order " << int(order);
-  }
+/// Every form of draw_pixels_at() can be called through the driver's own type and draws the same result.
+TEST(EPaperDrawPixels, AllFormsAreVisibleThroughTheDriver) {
+  const auto data = rgb565(24 * 16, 11);
+  TestableDisplay<EPaperSSD1683> slow(24, 16);
+  slow.draw_one_by_one(0, 0, 24, 16, data.data(), display::COLOR_BITNESS_565, false, 0, 0, 0);
+  TestableDisplay<EPaperSSD1683> full(24, 16);
+  TestableDisplay<EPaperSSD1683> packed(24, 16);
+  full.draw_pixels_at(0, 0, 24, 16, data.data(), display::COLOR_BITNESS_565, false, 0, 0, 0);
+  packed.draw_pixels_at(0, 0, 24, 16, data.data(), display::COLOR_BITNESS_565, false);
+  EXPECT_EQ(full.buffer(), slow.buffer());
+  EXPECT_EQ(packed.buffer(), slow.buffer());
+  // Remove before 2027.5.0, with the forms that take a color order
+#pragma GCC diagnostic push
+#pragma GCC diagnostic ignored "-Wdeprecated-declarations"
+  TestableDisplay<EPaperSSD1683> old_full(24, 16);
+  TestableDisplay<EPaperSSD1683> old_packed(24, 16);
+  old_full.draw_pixels_at(0, 0, 24, 16, data.data(), display::COLOR_ORDER_RGB, display::COLOR_BITNESS_565, false, 0, 0,
+                          0);
+  old_packed.draw_pixels_at(0, 0, 24, 16, data.data(), display::COLOR_ORDER_RGB, display::COLOR_BITNESS_565, false);
+#pragma GCC diagnostic pop
+  EXPECT_EQ(old_full.buffer(), slow.buffer());
+  EXPECT_EQ(old_packed.buffer(), slow.buffer());
 }
 
 /// With a clipping region set the block goes through draw_pixel_at(), which honours it.
@@ -134,8 +146,8 @@ TEST(EPaperDrawPixels, ClippingFallsBackToDrawingPixelByPixel) {
   const auto data = rgb565(24 * 16, 7);
   for (auto *display : {&fast, &slow})
     display->start_clipping(4, 4, 12, 10);
-  fast.draw_pixels_at(0, 0, 24, 16, data.data(), display::COLOR_ORDER_RGB, display::COLOR_BITNESS_565, false, 0, 0, 0);
-  slow.draw_one_by_one(0, 0, 24, 16, data.data(), display::COLOR_ORDER_RGB, display::COLOR_BITNESS_565, false, 0, 0, 0);
+  fast.draw_pixels_at(0, 0, 24, 16, data.data(), display::COLOR_BITNESS_565, false, 0, 0, 0);
+  slow.draw_one_by_one(0, 0, 24, 16, data.data(), display::COLOR_BITNESS_565, false, 0, 0, 0);
   EXPECT_EQ(fast.buffer(), slow.buffer());
   EXPECT_EQ(fast.bounds(), (std::vector<uint16_t>{4, 4, 12, 10}));
 }
@@ -145,13 +157,28 @@ TEST(EPaperDrawPixels, OtherBufferLayoutsDrawPixelByPixel) {
   TestableDisplay<EPaperSSD1677Gray4> fast(16, 4);
   TestableDisplay<EPaperSSD1677Gray4> slow(16, 4);
   const auto data = rgb565(16 * 4, 11);
-  fast.draw_pixels_at(0, 0, 16, 4, data.data(), display::COLOR_ORDER_RGB, display::COLOR_BITNESS_565, false, 0, 0, 0);
-  slow.draw_one_by_one(0, 0, 16, 4, data.data(), display::COLOR_ORDER_RGB, display::COLOR_BITNESS_565, false, 0, 0, 0);
+  fast.draw_pixels_at(0, 0, 16, 4, data.data(), display::COLOR_BITNESS_565, false, 0, 0, 0);
+  slow.draw_one_by_one(0, 0, 16, 4, data.data(), display::COLOR_BITNESS_565, false, 0, 0, 0);
   EXPECT_EQ(fast.buffer(), slow.buffer());
 }
 
-/// The RGB565 lookup gives exactly what converting the colour and thresholding it does, for every value and order.
-TEST(EPaperDrawPixels, Rgb565LookupMatchesTheColourConversion) {
+/// The RGB565 lookup gives exactly what converting the color and thresholding it does, for every value.
+TEST(EPaperDrawPixels, Rgb565LookupMatchesTheColorConversion) {
+  const Rgb565ToMono to_mono;
+  size_t mismatches = 0;
+  for (uint32_t value = 0; value != 0x10000; value++) {
+    const uint8_t expected = color_to_mono(ColorUtil::to_color(value, display::COLOR_BITNESS_565));
+    if (to_mono(static_cast<uint16_t>(value)) != expected)
+      mismatches++;
+  }
+  EXPECT_EQ(mismatches, 0u);
+}
+
+// Remove before 2027.5.0
+/// The deprecated lookup that takes a color order still matches the deprecated conversion with that order.
+TEST(EPaperDrawPixels, DeprecatedOrderedLookupMatchesTheColorConversion) {
+#pragma GCC diagnostic push
+#pragma GCC diagnostic ignored "-Wdeprecated-declarations"
   for (const auto order : {display::COLOR_ORDER_RGB, display::COLOR_ORDER_BGR, display::COLOR_ORDER_GRB}) {
     const Rgb565ToMono to_mono(order);
     size_t mismatches = 0;
@@ -162,6 +189,7 @@ TEST(EPaperDrawPixels, Rgb565LookupMatchesTheColourConversion) {
     }
     EXPECT_EQ(mismatches, 0u) << "order " << int(order);
   }
+#pragma GCC diagnostic pop
 }
 
 /// Other bit depths, and a buffer split into several blocks, go through draw_pixel_at() and give the same result.
@@ -172,10 +200,8 @@ TEST(EPaperDrawPixels, OtherCasesDrawPixelByPixel) {
     fast.split_buffer(7);
     slow.split_buffer(7);
     const auto data = rgb565(24 * 16, 5);
-    fast.draw_pixels_at(-2, 3, 24, 16, data.data(), display::COLOR_ORDER_RGB, display::COLOR_BITNESS_565, false, 0, 0,
-                        0);
-    slow.draw_one_by_one(-2, 3, 24, 16, data.data(), display::COLOR_ORDER_RGB, display::COLOR_BITNESS_565, false, 0, 0,
-                         0);
+    fast.draw_pixels_at(-2, 3, 24, 16, data.data(), display::COLOR_BITNESS_565, false, 0, 0, 0);
+    slow.draw_one_by_one(-2, 3, 24, 16, data.data(), display::COLOR_BITNESS_565, false, 0, 0, 0);
     EXPECT_EQ(fast.buffer(), slow.buffer()) << "split buffer";
     EXPECT_EQ(fast.bounds(), slow.bounds()) << "split buffer";
   }
@@ -183,8 +209,8 @@ TEST(EPaperDrawPixels, OtherCasesDrawPixelByPixel) {
     TestableDisplay<EPaperSSD1683> fast(24, 16);
     TestableDisplay<EPaperSSD1683> slow(24, 16);
     const auto data = random_bytes(24 * 16, 9);
-    fast.draw_pixels_at(0, 0, 24, 16, data.data(), display::COLOR_ORDER_RGB, bitness, false, 0, 0, 0);
-    slow.draw_one_by_one(0, 0, 24, 16, data.data(), display::COLOR_ORDER_RGB, bitness, false, 0, 0, 0);
+    fast.draw_pixels_at(0, 0, 24, 16, data.data(), bitness, false, 0, 0, 0);
+    slow.draw_one_by_one(0, 0, 24, 16, data.data(), bitness, false, 0, 0, 0);
     EXPECT_EQ(fast.buffer(), slow.buffer()) << "bitness " << int(bitness);
     EXPECT_EQ(fast.bounds(), slow.bounds()) << "bitness " << int(bitness);
   }

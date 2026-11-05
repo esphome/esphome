@@ -1,5 +1,6 @@
 import esphome.codegen as cg
 from esphome.components import climate_ir
+from esphome.components.const import CONF_HORIZONTAL_DEFAULT, CONF_VERTICAL_DEFAULT
 import esphome.config_validation as cv
 from esphome.types import ConfigType
 
@@ -22,27 +23,27 @@ CONF_SUPPORTS_DRY = "supports_dry"
 CONF_SUPPORTS_FAN_ONLY = "supports_fan_only"
 CONF_FAHRENHEIT_COMPATIBILITY = "fahrenheit_compatibility"
 
-CONF_HORIZONTAL_DEFAULT = "horizontal_default"
 HorizontalDirections = mitsubishi_ns.enum("HorizontalDirections")
-HORIZONTAL_DIRECTIONS = {
-    "left": HorizontalDirections.HORIZONTAL_DIRECTION_LEFT,
-    "middle-left": HorizontalDirections.HORIZONTAL_DIRECTION_MIDDLE_LEFT,
-    "middle": HorizontalDirections.HORIZONTAL_DIRECTION_MIDDLE,
-    "middle-right": HorizontalDirections.HORIZONTAL_DIRECTION_MIDDLE_RIGHT,
-    "right": HorizontalDirections.HORIZONTAL_DIRECTION_RIGHT,
-    "split": HorizontalDirections.HORIZONTAL_DIRECTION_SPLIT,
-}
+HORIZONTAL_DIRECTIONS = HorizontalDirections.options(
+    "left",
+    "middle-left",
+    "middle",
+    "middle-right",
+    "right",
+    "split",
+    prefix="HORIZONTAL_DIRECTION_",
+)
 
-CONF_VERTICAL_DEFAULT = "vertical_default"
 VerticalDirections = mitsubishi_ns.enum("VerticalDirections")
-VERTICAL_DIRECTIONS = {
-    "auto": VerticalDirections.VERTICAL_DIRECTION_AUTO,
-    "up": VerticalDirections.VERTICAL_DIRECTION_UP,
-    "middle-up": VerticalDirections.VERTICAL_DIRECTION_MIDDLE_UP,
-    "middle": VerticalDirections.VERTICAL_DIRECTION_MIDDLE,
-    "middle-down": VerticalDirections.VERTICAL_DIRECTION_MIDDLE_DOWN,
-    "down": VerticalDirections.VERTICAL_DIRECTION_DOWN,
-}
+VERTICAL_DIRECTIONS = VerticalDirections.options(
+    "auto",
+    "up",
+    "middle-up",
+    "middle",
+    "middle-down",
+    "down",
+    prefix="VERTICAL_DIRECTION_",
+)
 
 CONF_VERTICAL_VANES = "vertical_vanes"
 

@@ -12,6 +12,7 @@
 #include "esphome/core/component.h"
 #include "esphome/core/defines.h"
 #include "esphome/core/alloc_helpers.h"
+#include "esphome/core/hal.h"
 #include "esphome/core/helpers.h"
 #include "esphome/core/log.h"
 
@@ -186,6 +187,13 @@ enum class HttpReadLoopResult : uint8_t {
   TIMEOUT,   ///< Timeout waiting for data, caller should exit loop
 };
 
+/// Progress of a request started with HttpRequestComponent::begin()
+enum class HttpRequestProgress : uint8_t {
+  HTTP_REQUEST_PROGRESS_PENDING,  ///< Still connecting, sending, or waiting for the response headers
+  HTTP_REQUEST_PROGRESS_DONE,     ///< Response headers received; status_code is set and the body can be read
+  HTTP_REQUEST_PROGRESS_FAILED,   ///< No response; the container must still be ended
+};
+
 /// Process a read result with timeout tracking and delay handling
 /// @param bytes_read_or_error Return value from read() - positive for bytes read, negative for error
 /// @param last_data_time Time of last successful read, updated when data received
@@ -249,9 +257,18 @@ class HttpContainer : public Parented<HttpRequestComponent> {
    *   - http_read_fully(): for simple "read N bytes" operations
    */
   virtual int read(uint8_t *buf, size_t max_len) = 0;
+  /// Like read(), but returns 0 at once when no data has arrived yet, where read() may wait for it.
+  virtual int read_available(uint8_t *buf, size_t max_len) { return this->read(buf, max_len); }
   virtual void end() = 0;
 
+  /// Advance a request started with HttpRequestComponent::begin(); call from the main loop until it is no
+  /// longer pending. Containers from start() are already done. Most calls return quickly, but on ESP-IDF the
+  /// first call for each host waits for the name lookup and the TCP connection, up to the whole timeout.
+  virtual HttpRequestProgress poll() { return HttpRequestProgress::HTTP_REQUEST_PROGRESS_DONE; }
+
   void set_secure(bool secure) { this->secure_ = secure; }
+  void set_watchdog_timeout(uint32_t watchdog_timeout) { this->watchdog_timeout_ = watchdog_timeout; }
+  uint32_t get_watchdog_timeout() const { return this->watchdog_timeout_; }
   void set_chunked(bool chunked) { this->is_chunked_ = chunked; }
 
   size_t get_bytes_read() const { return this->bytes_read_; }
@@ -283,6 +300,7 @@ class HttpContainer : public Parented<HttpRequestComponent> {
 
  protected:
   size_t bytes_read_{0};
+  uint32_t watchdog_timeout_{0};
   bool secure_{false};
   bool is_chunked_{false};  ///< True if response uses chunked transfer encoding
   std::vector<Header> response_headers_{};
@@ -322,25 +340,70 @@ inline HttpReadResult http_read_fully(HttpContainer *container, uint8_t *buffer,
   return {HttpReadStatus::OK, 0};
 }
 
-class HttpRequestResponseTrigger final : public Trigger<std::shared_ptr<HttpContainer>, std::string &> {
- public:
-  void process(const std::shared_ptr<HttpContainer> &container, std::string &response_body) {
-    this->trigger(container, response_body);
-  }
+/// What HttpRequestComponent asks of the action that owns a request
+enum class RequestEvent : uint8_t {
+  REQUEST_EVENT_START,    ///< Build the request and call begin()
+  REQUEST_EVENT_FINISH,   ///< Fire the triggers and continue the action chain
+  REQUEST_EVENT_DESTROY,  ///< Free the request
+  REQUEST_EVENT_ABANDON,  ///< Dropped at shutdown: stop the action, so that it can run again
+};
+
+/// A request from an HttpRequestSendAction, run from HttpRequestComponent::loop().
+/// The action derives from it to add the trigger arguments.
+struct PendingRequest {
+  using Handler = void (*)(PendingRequest *request, RequestEvent event);
+  PendingRequest(Handler handler, void *owner) : handler(handler), owner(owner) {}
+  PendingRequest(const PendingRequest &) = delete;
+  PendingRequest &operator=(const PendingRequest &) = delete;
+  void free_buffer();
+
+  PendingRequest *next{nullptr};
+  Handler handler;
+  // The action, so that a stop of it can find its requests
+  void *owner;
+  // nullptr until the request has started
+  std::shared_ptr<HttpContainer> container;
+  uint8_t *buf{nullptr};
+  size_t buf_size{0};
+  size_t read_index{0};
+  uint32_t last_data_time{0};
+  uint32_t timeout{0};
+  uint32_t start_time{0};
+  bool capture{false};
+  bool reading{false};
+  bool failed{false};
+  bool finished{false};
+  bool cancelled{false};
 };
 
 class HttpRequestComponent : public Component {
  public:
   void dump_config() override;
   float get_setup_priority() const override { return setup_priority::AFTER_WIFI; }
+  void setup() override;
+  void loop() override;
+  void on_safe_shutdown() override;
+  void on_shutdown() override;
+
+  /// For HttpRequestSendAction: queue a request and take ownership of it. Requests start in order, up to
+  /// max_concurrent_requests at a time; one that can start at once is started here.
+  void submit(PendingRequest *request);
+  /// For HttpRequestSendAction: drop the requests of a stopped action without firing their triggers.
+  void cancel(void *owner);
 
   void set_useragent(const char *useragent) { this->useragent_ = useragent; }
   void set_timeout(uint32_t timeout) { this->timeout_ = timeout; }
   uint32_t get_timeout() const { return this->timeout_; }
   void set_watchdog_timeout(uint32_t watchdog_timeout) { this->watchdog_timeout_ = watchdog_timeout; }
   uint32_t get_watchdog_timeout() const { return this->watchdog_timeout_; }
+  uint32_t get_watchdog_timeout(uint32_t timeout_ms) const {
+    if (this->watchdog_timeout_ == 0 || timeout_ms <= this->timeout_)
+      return this->watchdog_timeout_;
+    return this->watchdog_timeout_ + 3 * (timeout_ms - this->timeout_);
+  }
   void set_follow_redirects(bool follow_redirects) { this->follow_redirects_ = follow_redirects; }
   void set_redirect_limit(uint16_t limit) { this->redirect_limit_ = limit; }
+  void set_max_concurrent_requests(uint8_t max_concurrent) { this->max_concurrent_ = max_concurrent; }
 
   std::shared_ptr<HttpContainer> get(const char *url) { return this->start(url, "GET", "", std::vector<Header>{}); }
   std::shared_ptr<HttpContainer> get(const char *url, const std::vector<Header> &request_headers) {
@@ -412,7 +475,7 @@ class HttpRequestComponent : public Component {
   std::shared_ptr<HttpContainer> start(const char *url, const char *method, const std::string &body,
                                        const std::vector<Header> &request_headers) {
     // Call perform() directly to avoid ambiguity with the deprecated overloads
-    return this->perform(url, method, body, request_headers, {});
+    return this->perform(url, method, body, request_headers, {}, this->timeout_);
   }
   std::shared_ptr<HttpContainer> start(const std::string &url, const std::string &method, const std::string &body,
                                        const std::vector<Header> &request_headers) {
@@ -437,7 +500,7 @@ class HttpRequestComponent : public Component {
     for (const auto &h : collect_headers) {
       lower.push_back(str_lower_case(h));  // NOLINT
     }
-    return this->perform(url.c_str(), method.c_str(), body, request_headers, lower);
+    return this->perform(url.c_str(), method.c_str(), body, request_headers, lower, this->timeout_);
   }
 
   // Remove before 2027.1.0
@@ -453,7 +516,7 @@ class HttpRequestComponent : public Component {
       lower.push_back(str_lower_case(h));  // NOLINT
     }
     return this->perform(url.c_str(), method.c_str(), body,
-                         std::vector<Header>(request_headers.begin(), request_headers.end()), lower);
+                         std::vector<Header>(request_headers.begin(), request_headers.end()), lower, this->timeout_);
   }
 
   // Remove before 2027.1.0
@@ -463,13 +526,19 @@ class HttpRequestComponent : public Component {
                                        const std::vector<std::string> &lower_case_collect_headers) {
     return this->perform(url.c_str(), method.c_str(), body,
                          std::vector<Header>(request_headers.begin(), request_headers.end()),
-                         lower_case_collect_headers);
+                         lower_case_collect_headers, this->timeout_);
   }
 
   std::shared_ptr<HttpContainer> start(const char *url, const char *method, const std::string &body,
                                        const std::vector<Header> &request_headers,
                                        const std::vector<std::string> &lower_case_collect_headers) {
-    return this->perform(url, method, body, request_headers, lower_case_collect_headers);
+    return this->perform(url, method, body, request_headers, lower_case_collect_headers, this->timeout_);
+  }
+  std::shared_ptr<HttpContainer> start(const char *url, const char *method, const std::string &body,
+                                       const std::vector<Header> &request_headers,
+                                       const std::vector<std::string> &lower_case_collect_headers,
+                                       uint32_t timeout_ms) {
+    return this->perform(url, method, body, request_headers, lower_case_collect_headers, timeout_ms);
   }
   std::shared_ptr<HttpContainer> start(const std::string &url, const std::string &method, const std::string &body,
                                        const std::vector<Header> &request_headers,
@@ -477,15 +546,44 @@ class HttpRequestComponent : public Component {
     return this->start(url.c_str(), method.c_str(), body, request_headers, lower_case_collect_headers);
   }
 
+  /// Start a request without waiting for the response, then poll() the container until it is not pending.
+  /// Returns nullptr when the request cannot be started. Platforms without a non-blocking client complete
+  /// the request here.
+  virtual std::shared_ptr<HttpContainer> begin(const char *url, const char *method, std::string &&body,
+                                               const std::vector<Header> &request_headers,
+                                               const std::vector<std::string> &lower_case_collect_headers,
+                                               uint32_t timeout_ms) {
+    return this->perform(url, method, body, request_headers, lower_case_collect_headers, timeout_ms);
+  }
+
  protected:
   virtual std::shared_ptr<HttpContainer> perform(const char *url, const char *method, const std::string &body,
                                                  const std::vector<Header> &request_headers,
-                                                 const std::vector<std::string> &lower_case_collect_headers) = 0;
+                                                 const std::vector<std::string> &lower_case_collect_headers,
+                                                 uint32_t timeout_ms) = 0;
+  /// Longest time one loop() pass spends reading a response body
+  static constexpr uint32_t READ_BUDGET_MS = 10;
+  /// Requests that wait for a free slot; more are dropped with on_error
+  static constexpr uint8_t MAX_QUEUED = 4;
+
+  bool process_();
+  void drain_();
+  void begin_request_(PendingRequest *request);
+  bool advance_(PendingRequest *request);
+  void finish_(PendingRequest *request);
+  void remove_dead_();
+
   const char *useragent_{nullptr};
   bool follow_redirects_{};
   uint16_t redirect_limit_{};
   uint32_t timeout_{4500};
   uint32_t watchdog_timeout_{0};
+  // Oldest first; the first max_concurrent_ live requests run
+  PendingRequest *requests_{nullptr};
+  // Depth of calls that hold request pointers; finished and cancelled requests are freed when it returns to 0
+  uint8_t busy_{0};
+  uint8_t max_concurrent_{1};
+  bool shutting_down_{false};
 };
 
 template<typename... Ts> class HttpRequestSendAction final : public Action<Ts...> {
@@ -494,6 +592,7 @@ template<typename... Ts> class HttpRequestSendAction final : public Action<Ts...
   TEMPLATABLE_VALUE(std::string, url)
   TEMPLATABLE_VALUE(const char *, method)
   TEMPLATABLE_VALUE(std::string, body)
+  TEMPLATABLE_VALUE(uint32_t, timeout)
 #ifdef USE_HTTP_REQUEST_RESPONSE
   TEMPLATABLE_VALUE(bool, capture_response)
 #endif
@@ -526,7 +625,42 @@ template<typename... Ts> class HttpRequestSendAction final : public Action<Ts...
     this->max_response_buffer_size_ = max_response_buffer_size;
   }
 
-  void play(const Ts &...x) override {
+  void play_complex(const Ts &...x) override {
+    this->num_running_++;
+    this->parent_->submit(new Request(this, x...));  // NOLINT(cppcoreguidelines-owning-memory)
+  }
+
+  void play(const Ts &...x) override { /* see play_complex */ }
+
+ protected:
+  struct Request final : PendingRequest {
+    Request(HttpRequestSendAction *action, const Ts &...x)
+        : PendingRequest(&HttpRequestSendAction::handle_event, action), args(x...) {}
+    std::tuple<stored_trigger_arg_t<Ts>...> args;
+  };
+
+  static void handle_event(PendingRequest *request, RequestEvent event) {
+    auto *self = static_cast<Request *>(request);
+    auto *action = static_cast<HttpRequestSendAction *>(request->owner);
+    switch (event) {
+      case RequestEvent::REQUEST_EVENT_START:
+        std::apply([action, self](auto &...x) { action->start_request_(*self, x...); }, self->args);
+        break;
+      case RequestEvent::REQUEST_EVENT_FINISH:
+        action->finish_(*self);
+        break;
+      case RequestEvent::REQUEST_EVENT_DESTROY:
+        delete self;  // NOLINT(cppcoreguidelines-owning-memory)
+        break;
+      case RequestEvent::REQUEST_EVENT_ABANDON:
+        action->stop_complex();
+        break;
+    }
+  }
+
+  void stop() override { this->parent_->cancel(this); }
+
+  void start_request_(Request &request, const Ts &...x) {
     std::string body;
     if (this->body_.has_value()) {
       body = this->body_.value(x...);
@@ -543,61 +677,47 @@ template<typename... Ts> class HttpRequestSendAction final : public Action<Ts...
       request_headers.push_back({header.name, header.value(x...)});
     }
 
-    auto container = this->parent_->start(this->url_.value(x...).c_str(), this->method_.value(x...), body,
-                                          request_headers, this->lower_case_collect_headers_);
-
-    auto captured_args = std::make_tuple(x...);
-
-    if (container == nullptr) {
-      std::apply([this](Ts... captured_args_inner) { this->error_trigger_.trigger(captured_args_inner...); },
-                 captured_args);
-      return;
-    }
-
+    request.timeout = this->timeout_.has_value() ? this->timeout_.value(x...) : this->parent_->get_timeout();
 #ifdef USE_HTTP_REQUEST_RESPONSE
-    if (this->capture_response_.value(x...)) {
-      size_t max_length = this->max_response_buffer_size_;
-      std::string response_body;
-      RAMAllocator<uint8_t> allocator;
-      uint8_t *buf = allocator.allocate(max_length);
-      if (buf != nullptr) {
-        // NOTE: HttpContainer::read() has non-BSD socket semantics - see top of this file
-        // Use http_read_loop_result() helper instead of checking return values directly
-        size_t read_index = 0;
-        uint32_t last_data_time = millis();
-        const uint32_t read_timeout = this->parent_->get_timeout();
-        while (container->get_bytes_read() < max_length) {
-          int read_or_error = container->read(buf + read_index, std::min<size_t>(max_length - read_index, 512));
-          App.feed_wdt();
-          yield();
-          auto result =
-              http_read_loop_result(read_or_error, last_data_time, read_timeout, container->is_read_complete());
-          if (result == HttpReadLoopResult::RETRY)
-            continue;
-          if (result != HttpReadLoopResult::DATA)
-            break;  // COMPLETE, ERROR, or TIMEOUT
-          read_index += read_or_error;
-        }
-        response_body.reserve(read_index);
-        response_body.assign((char *) buf, read_index);
-        allocator.deallocate(buf, max_length);
-      }
-      std::apply(
-          [this, &container, &response_body](Ts... captured_args_inner) {
-            this->success_trigger_with_response_.trigger(container, response_body, captured_args_inner...);
-          },
-          captured_args);
-    } else
+    request.capture = this->capture_response_.value(x...);
 #endif
-    {
-      std::apply([this, &container](
-                     Ts... captured_args_inner) { this->success_trigger_.trigger(container, captured_args_inner...); },
-                 captured_args);
-    }
-    container->end();
+    request.buf_size = this->max_response_buffer_size_;
+    request.container = this->parent_->begin(this->url_.value(x...).c_str(), this->method_.value(x...), std::move(body),
+                                             request_headers, this->lower_case_collect_headers_, request.timeout);
   }
 
- protected:
+  void finish_(Request &request) {
+    auto &container = request.container;
+    if (request.failed) {
+      std::apply([this](auto &...args) { this->error_trigger_.trigger(args...); }, request.args);
+    }
+#ifdef USE_HTTP_REQUEST_RESPONSE
+    else if (request.capture) {
+      std::string response_body;
+      if (request.buf != nullptr)
+        response_body.assign(reinterpret_cast<char *>(request.buf), request.read_index);
+      request.free_buffer();
+      std::apply(
+          [this, &container, &response_body](auto &...args) {
+            this->success_trigger_with_response_.trigger(container, response_body, args...);
+          },
+          request.args);
+    }
+#endif
+    else {
+      std::apply([this, &container](auto &...args) { this->success_trigger_.trigger(container, args...); },
+                 request.args);
+    }
+    // End it before the chain can start another request, so that one client is held at a time
+    if (container != nullptr) {
+      container->end();
+      container.reset();
+    }
+    // A stop from the triggers ended this run; a run started after it continues the chain instead
+    if (!request.cancelled)
+      std::apply([this](auto &...args) { this->play_next_(args...); }, request.args);
+  }
+
   void encode_json_(Ts... x, JsonObject root) {
     for (const auto &item : this->json_) {
       auto val = item.second;

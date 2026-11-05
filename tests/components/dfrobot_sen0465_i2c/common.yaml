@@ -1,0 +1,24 @@
+sensor:
+  - platform: dfrobot_sen0465_i2c
+    id: dfrobot_sen0466_i2c_co
+    i2c_id: i2c_bus
+    model: SEN0466
+    address: 0x77
+    temperature_compensation: true
+    alarm:
+      threshold: 50
+    update_interval: 30s
+    concentration:
+      name: CO Concentration
+    temperature:
+      name: CO Sensor Temperature
+  - platform: dfrobot_sen0465_i2c
+    id: dfrobot_sen0465_i2c_o2
+    i2c_id: i2c_bus
+    model: SEN0465
+    address: 0x76
+    alarm:
+      threshold: 19.5
+      type: low
+    concentration:
+      name: O2 Concentration

@@ -4,10 +4,10 @@
 #include "esphome/core/defines.h"
 #include "esphome/core/helpers.h"
 #include "esphome/core/string_ref.h"
+#include "esphome/core/line_reader.h"
 #include "esphome/components/uart/uart.h"
 #include "esphome/components/json/json_util.h"
 
-#include <array>
 #include <atomic>
 
 #ifdef USE_SENSOR
@@ -19,7 +19,7 @@
 
 namespace esphome::emontx {
 
-/// Maximum line length in bytes (plus one byte reserved for null terminator)
+/// Maximum line length in characters
 static constexpr size_t MAX_LINE_LENGTH = 1024;
 
 enum class LockOnReboot : uint8_t {
@@ -92,18 +92,16 @@ class EmonTx final : public Component, public uart::UARTDevice {
 #endif
   LazyCallbackManager<void(JsonObject, StringRef)> json_callbacks_;
   LazyCallbackManager<void(StringRef)> data_callbacks_;
-  uint16_t buffer_pos_{0};
   std::atomic<bool> paused_{false};
   bool was_paused_{false};
   LockOnReboot lock_on_reboot_{LockOnReboot::LOCK_ON_REBOOT_NEVER};
-  bool discarding_line_{false};  // Set after an overflow or a pause until the end of that line
 #ifdef USE_EMONTX_VERSION
   bool lock_supported_{false};      // The last version reported is v1.2.0 or later
   bool unlock_sent_{false};         // AUTO has sent 'emonunlock' since boot
   uint8_t version_frames_left_{0};  // Data lines still to wait for a version reply; 0 when none is owed
   uint32_t last_msg_number_{0};
 #endif
-  std::array<char, MAX_LINE_LENGTH + 1> buffer_{};
+  LineReader<MAX_LINE_LENGTH + 1> line_reader_;
 };
 
 }  // namespace esphome::emontx

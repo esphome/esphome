@@ -86,9 +86,7 @@ CONFIG_SCHEMA = cv.Schema(
                 is_polling_component=True,
             )
         )
-        .extend(
-            {cv.Optional(CONF_FAN_RPM_OFFSET, default=0): cv.int_range(min=0, max=255)}
-        ),
+        .extend({cv.Optional(CONF_FAN_RPM_OFFSET, default=0): cv.uint8_t}),
         cv.Optional(CONF_WATER_TEMPERATURE): sensor.sensor_schema(
             MicroNovaSensor,
             unit_of_measurement=UNIT_CELSIUS,

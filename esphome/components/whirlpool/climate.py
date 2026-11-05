@@ -11,11 +11,7 @@ whirlpool_ns = cg.esphome_ns.namespace("whirlpool")
 WhirlpoolClimate = whirlpool_ns.class_("WhirlpoolClimate", climate_ir.ClimateIR)
 
 Model = whirlpool_ns.enum("Model")
-MODELS = {
-    "DG11J1-3A": Model.MODEL_DG11J1_3A,
-    "DG11J1-91": Model.MODEL_DG11J1_91,
-    "HISENSE_ARG": Model.MODEL_HISENSE_ARG,
-}
+MODELS = Model.options("DG11J1-3A", "DG11J1-91", "HISENSE_ARG", prefix="MODEL_")
 
 CONFIG_SCHEMA = climate_ir.climate_ir_with_receiver_schema(WhirlpoolClimate).extend(
     {

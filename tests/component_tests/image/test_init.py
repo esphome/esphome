@@ -745,7 +745,7 @@ def test_image_generation(
         in main_cpp
     )
     assert (
-        "new(cat_img) image::Image(uint8_t_id, 32, 24, image::IMAGE_TYPE_RGB565, image::TRANSPARENCY_OPAQUE);"
+        "new(cat_img) image::Image(uint8_t_id, 32, 24, image::IMAGE_TYPE_RGB565, image::TRANSPARENCY_OPAQUE, false);"
         in main_cpp
     )
 

@@ -25,7 +25,7 @@ void HX711Sensor::update() {
   uint32_t result;
   if (this->read_sensor_(&result)) {
     int32_t value = static_cast<int32_t>(result);
-    ESP_LOGD(TAG, "'%s': Got value %" PRId32, this->name_.c_str(), value);
+    ESP_LOGD(TAG, "'%s': Got value %" PRId32, LOG_STR_ARG(this->get_log_name()), value);
     this->publish_state(value);
   }
 }
@@ -59,17 +59,12 @@ bool HX711Sensor::read_sensor_(uint32_t *result) {
     final_dout = this->dout_pin_->digital_read();
   }
 
-  if (!final_dout) {
+  if (!this->status_comm_result(final_dout)) {
     ESP_LOGW(TAG, "HX711 DOUT pin not high after reading (data 0x%" PRIx32 ")!", data);
-    this->status_set_warning();
     return false;
   }
 
-  this->status_clear_warning();
-
-  if (data & 0x800000ULL) {
-    data |= 0xFF000000ULL;
-  }
+  data = static_cast<uint32_t>(sign_extend<24>(data));
 
   if (result != nullptr)
     *result = data;

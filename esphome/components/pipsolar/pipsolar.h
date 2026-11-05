@@ -194,7 +194,10 @@ class Pipsolar final : public uart::UARTDevice, public PollingComponent {
   PIPSOLAR_SWITCH(pv_ok_condition_for_parallel_switch, QPIRI)
   PIPSOLAR_SWITCH(pv_power_balance_switch, QPIRI)
 
-  void queue_command(const std::string &command);
+  void queue_command(const char *command);
+  void queue_command(const std::string &command) { this->queue_command(command.c_str()); }
+  // A switch write; off is nullptr when the inverter has no off command
+  void write_switch(bool state, const char *on, const char *off);
   void setup() override;
   void loop() override;
   void dump_config() override;
@@ -206,7 +209,6 @@ class Pipsolar final : public uart::UARTDevice, public PollingComponent {
   static const size_t COMMAND_TIMEOUT = 5000;
   static const size_t POLLING_COMMANDS_MAX = 15;
   void add_polling_command_(const char *command, ENUMPollingCommand polling_command);
-  void empty_uart_buffer_();
   uint8_t check_incoming_crc_();
   uint8_t check_incoming_length_(uint8_t length);
   uint16_t pipsolar_crc_(uint8_t *msg, uint8_t len);

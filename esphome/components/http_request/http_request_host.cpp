@@ -20,7 +20,8 @@ ESPHOME_LOG_TAG(TAG, "http_request");
 
 std::shared_ptr<HttpContainer> HttpRequestHost::perform(const char *url, const char *method, const std::string &body,
                                                         const std::vector<Header> &request_headers,
-                                                        const std::vector<std::string> &lower_case_collect_headers) {
+                                                        const std::vector<std::string> &lower_case_collect_headers,
+                                                        uint32_t) {
   if (!network::is_connected()) {
     this->status_momentary_error(1000);
     ESP_LOGW(TAG, "HTTP Request failed; Not connected to network");

@@ -19,7 +19,7 @@ static constexpr uint32_t MAX_TRANSFER_TIME_MS = 20;
 // --- Loop / scheduling -------------------------------------------------------
 
 void IT8951Display::enqueue_(OpType type, uint16_t a, uint16_t b) {
-  if (!this->queue_.push_back(Op{type, a, b})) {
+  if (!this->queue_.push(Op{type, a, b})) {
     ESP_LOGE(TAG, "Op queue overflow (cap=%u); dropping op type=%u", static_cast<unsigned>(OP_QUEUE_SIZE),
              static_cast<unsigned>(type));
   }
@@ -74,7 +74,7 @@ void IT8951Display::loop() {
     return;
   }
 
-  this->queue_.pop_front();
+  this->queue_.pop();
   this->process_op_(queued_op);
 }
 
@@ -330,10 +330,8 @@ void IT8951Display::setup() {
   this->buffer_length_ = static_cast<size_t>(this->row_width_) * static_cast<size_t>(this->height_);
   RAMAllocator<uint8_t> allocator{};
   this->buffer_ = allocator.allocate(this->buffer_length_);
-  if (this->buffer_ == nullptr) {
-    this->mark_failed(LOG_STR("Failed to allocate IT8951 framebuffer"));
+  if (!this->setup_check(this->buffer_ != nullptr, LOG_STR("Failed to allocate IT8951 framebuffer")))
     return;
-  }
   // The allocator does not zero memory; start blank (white) so undrawn regions
   // (e.g. with auto_clear disabled) don't show garbage on the first update.
   this->fill(Color::WHITE);
@@ -959,8 +957,9 @@ void HOT IT8951Display::write_pixel_native_(uint16_t x, uint16_t y, const Color 
   }
 }
 
-void HOT IT8951Display::draw_pixels_at(int x_start, int y_start, int w, int h, const uint8_t *ptr, ColorOrder order,
-                                       ColorBitness bitness, bool big_endian, int x_offset, int y_offset, int x_pad) {
+void HOT IT8951Display::draw_pixels_internal(int x_start, int y_start, int w, int h, const uint8_t *ptr,
+                                             ColorBitness bitness, bool big_endian, int x_offset, int y_offset,
+                                             int x_pad) {
   // A writer (e.g. LVGL) may push pixels before the framebuffer is ready or
   // after an allocation failure; ignore those rather than dereferencing null.
   if (this->buffer_ == nullptr)
@@ -968,7 +967,7 @@ void HOT IT8951Display::draw_pixels_at(int x_start, int y_start, int w, int h, c
   // A clipping rectangle would need a per-pixel test; that's rare for the bulk
   // blit callers (LVGL, images), so fall back to the base per-pixel path then.
   if (this->get_clipping().is_set()) {
-    Display::draw_pixels_at(x_start, y_start, w, h, ptr, order, bitness, big_endian, x_offset, y_offset, x_pad);
+    Display::draw_pixels_internal(x_start, y_start, w, h, ptr, bitness, big_endian, x_offset, y_offset, x_pad);
     return;
   }
 
@@ -981,16 +980,12 @@ void HOT IT8951Display::draw_pixels_at(int x_start, int y_start, int w, int h, c
       switch (bitness) {
         case COLOR_BITNESS_565: {
           const size_t i = source_idx * 2;
-          color_value = big_endian ? (static_cast<uint32_t>(ptr[i]) << 8) | ptr[i + 1]
-                                   : ptr[i] | (static_cast<uint32_t>(ptr[i + 1]) << 8);
+          color_value = big_endian ? encode_uint16(ptr[i], ptr[i + 1]) : encode_value_le<uint16_t>(&ptr[i]);
           break;
         }
         case COLOR_BITNESS_888: {
           const size_t i = source_idx * 3;
-          color_value =
-              big_endian
-                  ? (static_cast<uint32_t>(ptr[i]) << 16) | (static_cast<uint32_t>(ptr[i + 1]) << 8) | ptr[i + 2]
-                  : ptr[i] | (static_cast<uint32_t>(ptr[i + 1]) << 8) | (static_cast<uint32_t>(ptr[i + 2]) << 16);
+          color_value = encode_uint24(ptr[i + 2], ptr[i + 1], ptr[i]);
           break;
         }
         default:
@@ -1003,7 +998,7 @@ void HOT IT8951Display::draw_pixels_at(int x_start, int y_start, int w, int h, c
       if (nx < 0 || ny < 0 || nx >= this->width_ || ny >= this->height_)
         continue;
       this->write_pixel_native_(static_cast<uint16_t>(nx), static_cast<uint16_t>(ny),
-                                ColorUtil::to_color(color_value, order, bitness));
+                                ColorUtil::to_color(color_value, bitness));
     }
   }
 

@@ -1,0 +1,27 @@
+packages:
+  device_base: !include common.yaml
+
+# Enable OTA for multipart upload testing
+ota:
+  - platform: esphome
+    id: web_server_esphome_ota
+    password: "test_ota_password"
+  - platform: web_server
+    id: web_server_web_server_ota
+
+# Web server configuration
+web_server:
+  port: 8080
+  version: 2
+  include_internal: true
+  # "*" compiles the origin check out; PNA still echoes the request origin
+  enable_private_network_access: true
+  allowed_origins:
+    - "*"
+
+# Enable debug logging for OTA
+logger:
+  level: VERBOSE
+  logs:
+    web_server: VERBOSE
+    web_server_idf: VERBOSE

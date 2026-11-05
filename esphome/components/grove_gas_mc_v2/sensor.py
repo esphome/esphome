@@ -4,7 +4,6 @@ import esphome.config_validation as cv
 from esphome.const import (
     CONF_CARBON_MONOXIDE,
     CONF_ETHANOL,
-    CONF_ID,
     CONF_NITROGEN_DIOXIDE,
     CONF_TVOC,
     DEVICE_CLASS_CARBON_MONOXIDE,
@@ -68,9 +67,7 @@ CONFIG_SCHEMA = (
 
 
 async def to_code(config: ConfigType) -> None:
-    var = cg.new_Pvariable(config[CONF_ID])
-    await cg.register_component(var, config)
-    await i2c.register_i2c_device(var, config)
+    var = await i2c.new_i2c_component(config)
 
     for key in [CONF_TVOC, CONF_CARBON_MONOXIDE, CONF_NITROGEN_DIOXIDE, CONF_ETHANOL]:
         if sensor_config := config.get(key):

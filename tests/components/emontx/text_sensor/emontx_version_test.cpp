@@ -12,7 +12,6 @@ namespace {
 class EmonTxVersionTest : public ::testing::Test {
  protected:
   void SetUp() override {
-    construct_app();
     this->sut_.set_uart_parent(&this->uart_);
     this->sut_.set_version_text_sensor(&this->version_);
   }

@@ -1,3 +1,4 @@
+from collections.abc import Callable
 from typing import Any
 
 import esphome.codegen as cg
@@ -101,19 +102,33 @@ def validate_adc_time(value: Any) -> EnumValue:
     return cv.enum(ADC_TIMES, int=True)(value)
 
 
+def _per_channel(validator: Callable[[Any], Any]) -> Callable[[Any], ConfigType]:
+    """One value for every channel, or one each; always returns the per-channel dict."""
+    return cv.Any(
+        cv.All(
+            validator,
+            lambda value: {
+                CONF_BUS_VOLTAGE: value,
+                CONF_SHUNT_VOLTAGE: value,
+                CONF_TEMPERATURE: value,
+            },
+        ),
+        cv.Schema(
+            {
+                cv.Optional(CONF_BUS_VOLTAGE, default="4120 us"): validator,
+                cv.Optional(CONF_SHUNT_VOLTAGE, default="4120 us"): validator,
+                cv.Optional(CONF_TEMPERATURE, default="4120 us"): validator,
+            }
+        ),
+    )
+
+
 INA2XX_SCHEMA = cv.Schema(
     {
         cv.Required(CONF_SHUNT_RESISTANCE): cv.All(cv.resistance, cv.Range(min=0.0)),
         cv.Required(CONF_MAX_CURRENT): cv.All(cv.current, cv.Range(min=0.0)),
         cv.Optional(CONF_ADC_RANGE, default=0): cv.int_range(min=0, max=1),
-        cv.Optional(CONF_ADC_TIME, default="4120 us"): cv.Any(
-            validate_adc_time,
-            {
-                cv.Optional(CONF_BUS_VOLTAGE, default="4120 us"): validate_adc_time,
-                cv.Optional(CONF_SHUNT_VOLTAGE, default="4120 us"): validate_adc_time,
-                cv.Optional(CONF_TEMPERATURE, default="4120 us"): validate_adc_time,
-            },
-        ),
+        cv.Optional(CONF_ADC_TIME, default="4120 us"): _per_channel(validate_adc_time),
         cv.Optional(CONF_ADC_AVERAGING, default=128): cv.enum(ADC_SAMPLES, int=True),
         cv.Optional(CONF_TEMPERATURE_COEFFICIENT, default=0): cv.int_range(
             min=0, max=16383
@@ -214,15 +229,10 @@ async def setup_ina2xx(var: MockObj, config: ConfigType) -> None:
     cg.add(var.set_shunt_tempco(config[CONF_TEMPERATURE_COEFFICIENT]))
     cg.add(var.set_reset_on_boot(config[CONF_RESET_ON_BOOT]))
 
-    adc_time_config = config[CONF_ADC_TIME]
-    if isinstance(adc_time_config, dict):
-        cg.add(var.set_adc_time_bus_voltage(adc_time_config[CONF_BUS_VOLTAGE]))
-        cg.add(var.set_adc_time_shunt_voltage(adc_time_config[CONF_SHUNT_VOLTAGE]))
-        cg.add(var.set_adc_time_die_temperature(adc_time_config[CONF_TEMPERATURE]))
-    else:
-        cg.add(var.set_adc_time_bus_voltage(adc_time_config))
-        cg.add(var.set_adc_time_shunt_voltage(adc_time_config))
-        cg.add(var.set_adc_time_die_temperature(adc_time_config))
+    adc_time = config[CONF_ADC_TIME]
+    cg.add(var.set_adc_time_bus_voltage(adc_time[CONF_BUS_VOLTAGE]))
+    cg.add(var.set_adc_time_shunt_voltage(adc_time[CONF_SHUNT_VOLTAGE]))
+    cg.add(var.set_adc_time_die_temperature(adc_time[CONF_TEMPERATURE]))
 
     sensors = sensor.sub_sensors(config)
     await sensors(CONF_SHUNT_VOLTAGE, var.set_shunt_voltage_sensor)
@@ -230,7 +240,7 @@ async def setup_ina2xx(var: MockObj, config: ConfigType) -> None:
     await sensors(CONF_TEMPERATURE, var.set_die_temperature_sensor)
     await sensors(CONF_CURRENT, var.set_current_sensor)
     await sensors(CONF_POWER, var.set_power_sensor)
-    await sensors(CONF_ENERGY, var.set_energy_sensor_wh)
-    await sensors(CONF_ENERGY_JOULES, var.set_energy_sensor_j)
-    await sensors(CONF_CHARGE, var.set_charge_sensor_ah)
-    await sensors(CONF_CHARGE_COULOMBS, var.set_charge_sensor_c)
+    await sensors(CONF_ENERGY, var.set_energy_wh_sensor)
+    await sensors(CONF_ENERGY_JOULES, var.set_energy_j_sensor)
+    await sensors(CONF_CHARGE, var.set_charge_ah_sensor)
+    await sensors(CONF_CHARGE_COULOMBS, var.set_charge_c_sensor)

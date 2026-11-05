@@ -162,11 +162,7 @@ void HostUartComponent::setup() {
       break;
   };
   // Set stop bits
-  if (this->stop_bits_ == 2) {
-    options.c_cflag |= CSTOPB;
-  } else {
-    options.c_cflag &= ~CSTOPB;
-  }
+  assign_bits(options.c_cflag, CSTOPB, this->stop_bits_ == 2);
   cfsetispeed(&options, baud);
   cfsetospeed(&options, baud);
   tcsetattr(this->file_descriptor_, TCSANOW, &options);
@@ -283,6 +279,36 @@ UARTFlushResult HostUartComponent::flush() {
     return UARTFlushResult::UART_FLUSH_RESULT_FAILED;
   }
   return UARTFlushResult::UART_FLUSH_RESULT_SUCCESS;
+}
+
+bool HostUartComponent::set_modem_control(bool dtr, bool rts) {
+  if (this->file_descriptor_ == -1) {
+    return false;
+  }
+  // One TIOCMSET so the device never sees a state in between the old and the new one
+  int bits;
+  if (ioctl(this->file_descriptor_, TIOCMGET, &bits) == -1) {
+    this->update_error_(strerror(errno));
+    return false;
+  }
+  bits = (bits & ~(TIOCM_DTR | TIOCM_RTS)) | (dtr ? TIOCM_DTR : 0) | (rts ? TIOCM_RTS : 0);
+  if (ioctl(this->file_descriptor_, TIOCMSET, &bits) == -1) {
+    this->update_error_(strerror(errno));
+    return false;
+  }
+  return true;
+}
+
+bool HostUartComponent::get_dtr() const { return (this->get_modem_bits_() & TIOCM_DTR) != 0; }
+
+bool HostUartComponent::get_rts() const { return (this->get_modem_bits_() & TIOCM_RTS) != 0; }
+
+int HostUartComponent::get_modem_bits_() const {
+  int bits = 0;
+  if (this->file_descriptor_ != -1) {
+    ioctl(this->file_descriptor_, TIOCMGET, &bits);
+  }
+  return bits;
 }
 
 void HostUartComponent::update_error_(const std::string &error) {

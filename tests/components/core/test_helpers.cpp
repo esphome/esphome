@@ -166,6 +166,7 @@ TEST(SmallPow10, Zero) { EXPECT_EQ(small_pow10(0), 1u); }
 TEST(SmallPow10, One) { EXPECT_EQ(small_pow10(1), 10u); }
 TEST(SmallPow10, Two) { EXPECT_EQ(small_pow10(2), 100u); }
 TEST(SmallPow10, Three) { EXPECT_EQ(small_pow10(3), 1000u); }
+TEST(SmallPow10, Four) { EXPECT_EQ(small_pow10(4), 10000u); }
 
 // --- frac_to_str_unchecked() ---
 

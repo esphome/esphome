@@ -28,10 +28,10 @@ void SoundLevelComponent::dump_config() {
 }
 
 void SoundLevelComponent::setup() {
-  this->microphone_source_->add_data_callback([this](const std::vector<uint8_t> &data) {
+  this->microphone_source_->add_data_callback([this](const microphone::AudioCapture &capture) {
     std::shared_ptr<ring_buffer::RingBuffer> temp_ring_buffer = this->ring_buffer_.lock();
     if (temp_ring_buffer != nullptr) {
-      temp_ring_buffer->write((void *) data.data(), data.size());
+      temp_ring_buffer->write((void *) capture.data.data(), capture.data.size());
     }
   });
 
@@ -60,12 +60,8 @@ void SoundLevelComponent::loop() {
       this->stop_();
 
       // Reset sensor outputs
-      if (this->peak_sensor_ != nullptr) {
-        this->peak_sensor_->publish_state(NAN);
-      }
-      if (this->rms_sensor_ != nullptr) {
-        this->rms_sensor_->publish_state(NAN);
-      }
+      PUBLISH_STATE(this->peak_sensor_, NAN);
+      PUBLISH_STATE(this->rms_sensor_, NAN);
 
       // Reset accumulators
       this->squared_peak_ = 0;
@@ -81,8 +77,7 @@ void SoundLevelComponent::loop() {
   }
 
   // Expose a chunk of the ring buffer's internal storage - don't block to avoid slowing the main loop.
-  // pre_shift is ignored by RingBufferAudioSource (no intermediate transfer buffer to compact).
-  this->audio_source_->fill(0, false);
+  this->audio_source_->fill(0);
 
   if (this->audio_source_->available() == 0) {
     // No new audio available for processing

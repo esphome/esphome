@@ -1,7 +1,7 @@
 import esphome.codegen as cg
-from esphome.components import ble_device_base
+from esphome.components import ble_device_base, xiaomi_ble
 import esphome.config_validation as cv
-from esphome.const import CONF_BINDKEY, CONF_ID, CONF_MAC_ADDRESS
+from esphome.const import CONF_BINDKEY, CONF_MAC_ADDRESS
 from esphome.types import ConfigType
 
 AUTO_LOAD = ["ble_device_base", "xiaomi_ble"]
@@ -11,7 +11,7 @@ MULTI_CONF = True
 
 xiaomi_rtcgq02lm_ns = cg.esphome_ns.namespace("xiaomi_rtcgq02lm")
 XiaomiRTCGQ02LM = xiaomi_rtcgq02lm_ns.class_(
-    "XiaomiRTCGQ02LM", ble_device_base.ESPBTDeviceListener, cg.Component
+    "XiaomiRTCGQ02LM", xiaomi_ble.XiaomiEncryptedDevice, cg.Component
 )
 
 CONFIG_SCHEMA = cv.All(
@@ -29,9 +29,6 @@ CONFIG_SCHEMA = cv.All(
 
 
 async def to_code(config: ConfigType) -> None:
-    var = cg.new_Pvariable(config[CONF_ID])
-    await cg.register_component(var, config)
-    await ble_device_base.register_ble_device(var, config)
+    var = await ble_device_base.new_ble_device_component(config)
 
-    cg.add(var.set_address(config[CONF_MAC_ADDRESS].as_hex))
-    cg.add(var.set_bindkey(config[CONF_BINDKEY]))
+    xiaomi_ble.setup_xiaomi_device(var, config)

@@ -50,6 +50,15 @@ optional<std::string> request_get_header(httpd_req_t *req, const char *name) {
   return {str};
 }
 
+size_t request_get_header_to(httpd_req_t *req, const char *name, std::span<char> buf) {
+  const size_t len = httpd_req_get_hdr_value_len(req, name);
+  if (len == 0)
+    return 0;
+  if (len >= buf.size() || httpd_req_get_hdr_value_str(req, name, buf.data(), buf.size()) != ESP_OK)
+    return SIZE_MAX;
+  return len;
+}
+
 optional<std::string> query_key_value(const char *query_url, size_t query_len, const char *key) {
   if (query_url == nullptr || query_len == 0) {
     return {};

@@ -20,6 +20,10 @@ tcp_uart:
     host: 127.0.0.1
     port: 18125
     reconnect_interval: 3s
+
+binary_sensor:
+  - platform: tcp_uart
+    tcp_uart_id: tcp_uart_1
     connected:
       name: Bridge Connected
 

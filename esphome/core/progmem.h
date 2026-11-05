@@ -26,6 +26,7 @@
 #define ESPHOME_strncmp_P strncmp_P
 #define ESPHOME_strncasecmp_P strncasecmp_P
 #define ESPHOME_strlen_P strlen_P
+#define ESPHOME_strstr_P strstr_P
 // Type for pointers to PROGMEM strings (for use with ESPHOME_F return values)
 using ProgmemStr = const __FlashStringHelper *;
 // Storage class for PROGMEM_STRING_TABLE data; LOG_STR_ARG treats a LogString as PGM_P
@@ -43,6 +44,7 @@ using ProgmemStr = const __FlashStringHelper *;
 #define ESPHOME_strncmp_P strncmp
 #define ESPHOME_strncasecmp_P strncasecmp
 #define ESPHOME_strlen_P strlen
+#define ESPHOME_strstr_P strstr
 // Type for pointers to strings (no PROGMEM on non-ESP8266 platforms)
 using ProgmemStr = const char *;
 // No-op on non-ESP8266 platforms where PROGMEM itself is a no-op.
@@ -152,5 +154,19 @@ struct LogString;
       return reinterpret_cast<const ::esphome::LogString *>(get_(idx, fallback)); \
     } \
   }
+
+/// The index of the string value (len bytes, in RAM) in a PROGMEM_STRING_TABLE, or -1 when it is
+/// not one of its strings. One pass over the blob, so a table without offsets costs the same.
+template<typename Table> int16_t progmem_string_table_find(const char *value, size_t len) {
+  const char *entry = Table::BLOB.data();
+  for (uint8_t i = 0; i < Table::COUNT; i++) {
+    const size_t entry_len = ESPHOME_strlen_P(entry);
+    if (entry_len == len && ESPHOME_strncmp_P(value, entry, len) == 0) {
+      return i;
+    }
+    entry += entry_len + 1;
+  }
+  return -1;
+}
 
 }  // namespace esphome

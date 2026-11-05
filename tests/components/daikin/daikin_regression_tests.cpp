@@ -4,7 +4,6 @@
 #include <gtest/gtest.h>
 #include <array>
 #include <cstdint>
-#include <new>
 #include <vector>
 
 #include "esphome/components/daikin/daikin.h"
@@ -121,11 +120,9 @@ struct Rig {
   DaikinClimate climate;
 
   Rig() {
-    // All instances share one preference key; clear it so setup starts from defaults
+    // A second fixture in the same test would otherwise restore what the first saved
     if (global_preferences != nullptr)
       global_preferences->reset();
-    static const bool APP_CONSTRUCTED = (new (&App) Application(), true);
-    (void) APP_CONSTRUCTED;
     static char name[] = "test_daikin_regression";
     static char friendly_name[] = "";
     App.pre_setup(name, sizeof(name) - 1, friendly_name, 0);
