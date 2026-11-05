@@ -465,19 +465,14 @@ void CC1101Component::dump_config() {
   LOG_PIN("  CS Pin: ", this->cs_);
   LOG_PIN("  GDO0 Pin: ", this->gdo0_pin_);
 
-  if (!this->packet_mode_) {
-    ESP_LOGCONFIG(TAG, "  Packet length: Async serial");
-  } else if (this->packet_length_func_) {
-    ESP_LOGCONFIG(TAG, "  Packet length: Dynamic lambda (max=%u), infinite-to-fixed", MAX_PACKET_LENGTH);
-  } else if (this->packet_length_ == 0) {
-    ESP_LOGCONFIG(TAG, "  Packet length: Variable, length byte after sync (max=%u)", this->state_.PKTLEN);
-  } else if (this->packet_length_ <= 64) {
-    ESP_LOGCONFIG(TAG, "  Packet length: Fixed, %u bytes", this->packet_length_);
-  } else if (this->packet_length_ <= 255) {
-    ESP_LOGCONFIG(TAG, "  Packet length: Long fixed, %u bytes (max=%u)", this->packet_length_, MAX_PACKET_LENGTH);
-  } else {
-    ESP_LOGCONFIG(TAG, "  Packet length: Long fixed, %u bytes (max=%u), infinite-to-fixed", this->packet_length_,
-                  MAX_PACKET_LENGTH);
+  if (this->packet_mode_) {
+    if (this->packet_length_func_) {
+      ESP_LOGCONFIG(TAG, "  Packet Length: lambda");
+    } else if (this->packet_length_ == 0) {
+      ESP_LOGCONFIG(TAG, "  Packet Length: variable");
+    } else {
+      ESP_LOGCONFIG(TAG, "  Packet Length: %u", this->packet_length_);
+    }
   }
 }
 
