@@ -1,5 +1,6 @@
 #include "sht4x.h"
 #include "esphome/core/hal.h"
+#include "esphome/core/helpers.h"
 #include "esphome/core/log.h"
 
 namespace esphome::sht4x {
@@ -18,21 +19,26 @@ static constexpr float RAW_MAX = 65535.0f;
 
 void SHT4XComponent::read_serial_number_() {
   uint16_t buffer[2];
-  if (!this->get_8bit_register(SERIAL_NUMBER_COMMAND, buffer, 2, 1)) {
+  if (!this->get_8bit_register(SERIAL_NUMBER_COMMAND, buffer, 2, 10)) {
     ESP_LOGE(TAG, "Get serial number failed");
     this->serial_number_ = 0;
     return;
   }
   this->serial_number_ = (uint32_t(buffer[0]) << 16) | (uint32_t(buffer[1]));
   ESP_LOGD(TAG, "Serial number: %08" PRIx32, this->serial_number_);
+#ifdef USE_TEXT_SENSOR
+  if (this->serial_number_text_sensor_ != nullptr) {
+    char serial_number[format_hex_size(sizeof(this->serial_number_))];
+    format_hex_to(serial_number, this->serial_number_);
+    this->serial_number_text_sensor_->publish_state(serial_number);
+  }
+#endif
 }
 
 void SHT4XComponent::setup() {
   auto err = this->write(nullptr, 0);
-  if (err != i2c::ERROR_OK) {
-    this->mark_failed(LOG_STR(ESP_LOG_MSG_COMM_FAIL));
+  if (!this->setup_check(err == i2c::ERROR_OK))
     return;
-  }
 
   this->read_serial_number_();
 
@@ -94,17 +100,9 @@ void SHT4XComponent::update() {
     }
 
     // Evaluate and publish measurements
-    if (this->temp_sensor_ != nullptr) {
-      // Temp is contained in the first result word
-      float temp = TEMPERATURE_OFFSET + TEMPERATURE_SPAN * static_cast<float>(buffer[0]) / RAW_MAX;
-      this->temp_sensor_->publish_state(temp);
-    }
-
-    if (this->humidity_sensor_ != nullptr) {
-      // Relative humidity is in the second result word
-      float rh = HUMIDITY_OFFSET + HUMIDITY_SPAN * static_cast<float>(buffer[1]) / RAW_MAX;
-      this->humidity_sensor_->publish_state(rh);
-    }
+    // Temperature is in the first result word, relative humidity in the second
+    PUBLISH_STATE(this->temp_sensor_, TEMPERATURE_OFFSET + TEMPERATURE_SPAN * static_cast<float>(buffer[0]) / RAW_MAX);
+    PUBLISH_STATE(this->humidity_sensor_, HUMIDITY_OFFSET + HUMIDITY_SPAN * static_cast<float>(buffer[1]) / RAW_MAX);
 
     // Fire heater after measurement to maximize cooldown time before the next reading.
     // The heater command produces a measurement that we don't need (datasheet 4.9).

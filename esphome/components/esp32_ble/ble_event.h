@@ -213,7 +213,7 @@ class BLEEvent {
         // Used by: ble_client (ble_rssi_sensor component)
         RSSICompleteData read_rssi_complete;  // 8 bytes
         // Security events - we store the full security union
-        // Used by: ble_client (automation), bluetooth_proxy, esp32_ble_client
+        // Used by: ble_client (automation), bluetooth_proxy, esp32_ble_client, esp32_ble_server
         esp_ble_sec_t security;  // Variable size, but fits within scan_result size
       };
     } gap;  // 80 bytes total
@@ -343,12 +343,12 @@ class BLEEvent {
         break;
 
       // Security events - copy the entire security union
-      // Used by: ble_client, bluetooth_proxy, esp32_ble_client
-      case ESP_GAP_BLE_AUTH_CMPL_EVT:      // Used by: bluetooth_proxy, esp32_ble_client
-      case ESP_GAP_BLE_SEC_REQ_EVT:        // Used by: esp32_ble_client
-      case ESP_GAP_BLE_PASSKEY_NOTIF_EVT:  // Used by: ble_client automation
-      case ESP_GAP_BLE_PASSKEY_REQ_EVT:    // Used by: ble_client automation
-      case ESP_GAP_BLE_NC_REQ_EVT:         // Used by: ble_client automation
+      // Used by: ble_client, bluetooth_proxy, esp32_ble_client, esp32_ble_server
+      case ESP_GAP_BLE_AUTH_CMPL_EVT:      // Used by: bluetooth_proxy, esp32_ble_client, esp32_ble_server
+      case ESP_GAP_BLE_SEC_REQ_EVT:        // Used by: esp32_ble_client, esp32_ble_server
+      case ESP_GAP_BLE_PASSKEY_NOTIF_EVT:  // Used by: ble_client, esp32_ble_server automations
+      case ESP_GAP_BLE_PASSKEY_REQ_EVT:    // Used by: ble_client, esp32_ble_server automations
+      case ESP_GAP_BLE_NC_REQ_EVT:         // Used by: ble_client, esp32_ble_server automations
         memcpy(&this->event_.gap.security, &p->ble_security, sizeof(esp_ble_sec_t));
         break;
 

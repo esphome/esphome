@@ -27,6 +27,9 @@ static constexpr uint8_t NOTES_COUNT = static_cast<uint8_t>(sizeof(NOTES) / size
 
 static constexpr uint8_t REPEATING_NOTE_GAP_MS = 10;
 
+// Each note fades in and out over 2^5 samples (2 ms at 16 kHz)
+static constexpr uint8_t NOTE_FADE_BITS = 5;
+
 // The first quarter of a sine wave at full scale: round(32767 * sin(i * pi / 128))
 static constexpr uint8_t QUARTER_SINE_BITS = 6;
 static constexpr uint16_t QUARTER_SINE[(1 << QUARTER_SINE_BITS) + 1] PROGMEM = {
@@ -131,7 +134,9 @@ void Rtttl::loop() {
         // Try and send out the remainder of the existing note, one per `loop()`
         if (this->phase_step_ != 0 && this->samples_sent_ >= this->samples_gap_) {  // Play note
           // The multiplication wraps at exactly one full cycle of the phase
-          sample[sample_index] = sine_sample(this->samples_sent_ * this->phase_step_);
+          sample[sample_index] =
+              fade_sample(sine_sample(this->samples_sent_ * this->phase_step_),
+                          this->samples_sent_ - this->samples_gap_, this->samples_count_ - 1 - this->samples_sent_);
         } else {
           sample[sample_index] = 0;
         }
@@ -280,6 +285,13 @@ int16_t Rtttl::sine_sample(uint32_t phase) {
   const int32_t high = progmem_read_uint16(&QUARTER_SINE[index + 1]);
   const int32_t value = low + (((high - low) * fraction) >> 16);
   return static_cast<int16_t>((phase >> 31) != 0 ? -value : value);
+}
+
+int16_t Rtttl::fade_sample(int16_t value, uint32_t from_start, uint32_t to_end) {
+  const uint32_t edge = std::min(from_start, to_end);
+  if (edge >= (1U << NOTE_FADE_BITS))
+    return value;
+  return static_cast<int16_t>((value * static_cast<int32_t>(edge)) >> NOTE_FADE_BITS);
 }
 
 void Rtttl::play(std::string rtttl) {

@@ -102,6 +102,9 @@ class Rtttl final : public Component {
   void set_state_(State state);
   /// The value of a full scale sine wave at phase, where the full uint32_t range is one cycle.
   static int16_t sine_sample(uint32_t phase);
+  /// Scales a sample near either end of a note, so the note does not click when the wave starts or stops away from
+  /// zero. from_start and to_end count the samples between this one and each end of the note.
+  static int16_t fade_sample(int16_t value, uint32_t from_start, uint32_t to_end);
 
   /// The song being played; points at owned_song_ or at static storage.
   const char *song_{nullptr};
