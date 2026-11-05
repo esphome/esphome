@@ -38,13 +38,19 @@ struct TargetSensor {
 #endif
 
 class RD03DComponent final : public Component, public uart::UARTDevice {
+#ifdef USE_SENSOR
+  SUB_SENSOR(target_count)
+#endif
+#ifdef USE_BINARY_SENSOR
+  SUB_BINARY_SENSOR(target)
+#endif
+
  public:
   void setup() override;
   void loop() override;
   void dump_config() override;
 
 #ifdef USE_SENSOR
-  void set_target_count_sensor(sensor::Sensor *sensor) { this->target_count_sensor_ = sensor; }
   void set_x_sensor(uint8_t target, sensor::Sensor *sensor) { this->targets_[target].x = sensor; }
   void set_y_sensor(uint8_t target, sensor::Sensor *sensor) { this->targets_[target].y = sensor; }
   void set_speed_sensor(uint8_t target, sensor::Sensor *sensor) { this->targets_[target].speed = sensor; }
@@ -53,7 +59,6 @@ class RD03DComponent final : public Component, public uart::UARTDevice {
   void set_angle_sensor(uint8_t target, sensor::Sensor *sensor) { this->targets_[target].angle = sensor; }
 #endif
 #ifdef USE_BINARY_SENSOR
-  void set_target_binary_sensor(binary_sensor::BinarySensor *sensor) { this->target_binary_sensor_ = sensor; }
   void set_target_binary_sensor(uint8_t target, binary_sensor::BinarySensor *sensor) {
     this->target_presence_[target] = sensor;
   }
@@ -73,11 +78,9 @@ class RD03DComponent final : public Component, public uart::UARTDevice {
 
 #ifdef USE_SENSOR
   std::array<TargetSensor, MAX_TARGETS> targets_{};
-  sensor::Sensor *target_count_sensor_{nullptr};
 #endif
 #ifdef USE_BINARY_SENSOR
   std::array<binary_sensor::BinarySensor *, MAX_TARGETS> target_presence_{};
-  binary_sensor::BinarySensor *target_binary_sensor_{nullptr};
 #endif
 
   // Configuration (only sent if explicitly set)

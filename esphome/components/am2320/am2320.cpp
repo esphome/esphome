@@ -26,20 +26,16 @@ void AM2320Component::update() {
   float humidity = ((data[2] << 8) + data[3]) / 10.0f;
 
   ESP_LOGD(TAG, "Got temperature=%.1f°C humidity=%.1f%%", temperature, humidity);
-  if (this->temperature_sensor_ != nullptr)
-    this->temperature_sensor_->publish_state(temperature);
-  if (this->humidity_sensor_ != nullptr)
-    this->humidity_sensor_->publish_state(humidity);
+  PUBLISH_STATE(this->temperature_sensor_, temperature);
+  PUBLISH_STATE(this->humidity_sensor_, humidity);
   this->status_clear_warning();
 }
 void AM2320Component::setup() {
   uint8_t data[8];
   data[0] = 0;
   data[1] = 4;
-  if (!this->read_data_(data)) {
-    this->mark_failed(LOG_STR(ESP_LOG_MSG_COMM_FAIL));
+  if (!this->setup_check(this->read_data_(data)))
     return;
-  }
 }
 void AM2320Component::dump_config() {
   ESP_LOGD(TAG, "AM2320:");

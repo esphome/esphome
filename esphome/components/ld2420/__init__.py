@@ -15,6 +15,15 @@ LD2420Component = ld2420_ns.class_("LD2420Component", cg.Component, uart.UARTDev
 
 CONF_LD2420_ID = "ld2420_id"
 
+# Each hub keeps its listeners in a fixed size list; the define is the largest count any one hub needs
+_request_listener_slot = cg.slot_counter("LD2420_LISTENER_COUNT")
+
+
+async def register_listener(hub: cg.MockObj, var: cg.MockObj) -> None:
+    _request_listener_slot(str(hub))
+    cg.add(hub.register_listener(var))
+
+
 CONFIG_SCHEMA = cv.All(
     cv.Schema(
         {

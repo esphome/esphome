@@ -137,6 +137,7 @@ void HOT Scheduler::set_timer_common_(Component *component, SchedulerItem::Type 
     delay = 1;
   }
 
+  uint32_t offset = 0;
   // Take lock early to protect scheduler_item_pool_head_ access
   {
     LockGuard guard{this->lock_};
@@ -181,13 +182,8 @@ void HOT Scheduler::set_timer_common_(Component *component, SchedulerItem::Type 
       if (type == SchedulerItem::INTERVAL) {
         item->interval = delay;
         // first execution happens immediately after a random smallish offset
-        uint32_t offset = this->calculate_interval_offset_(delay);
+        offset = this->calculate_interval_offset_(delay);
         item->set_next_execution(now_64 + offset);
-#ifdef ESPHOME_LOG_HAS_VERBOSE
-        SchedulerNameLog name_log;
-        ESP_LOGV(TAG, "Scheduler interval for %s is %" PRIu32 "ms, offset %" PRIu32 "ms",
-                 name_log.format(name_type, static_name, hash_or_id), delay, offset);
-#endif
       } else {
         item->interval = 0;
         item->set_next_execution(now_64 + delay);
@@ -213,6 +209,14 @@ void HOT Scheduler::set_timer_common_(Component *component, SchedulerItem::Type 
     }
 #endif
   }
+#ifdef ESPHOME_LOG_HAS_VERBOSE
+  // Logged after releasing the lock: a logger on_message automation can call back into the scheduler.
+  if (type == SchedulerItem::INTERVAL) {
+    SchedulerNameLog name_log;
+    ESP_LOGV(TAG, "Scheduler interval for %s is %" PRIu32 "ms, offset %" PRIu32 "ms",
+             name_log.format(name_type, static_name, hash_or_id), delay, offset);
+  }
+#endif
   // A background insertion may shorten a sleep whose deadline was already computed.
   if (!is_main_loop_thread()) [[unlikely]]
     wake_scheduler_threadsafe();
@@ -483,13 +487,6 @@ uint32_t HOT Scheduler::call(uint32_t now) {
       // Not reached timeout yet, done for this call
       break;
     }
-    // Don't run on failed components (is_item_failed_ exempts SELF_POINTER delays).
-    if (this->is_item_failed_(item)) {
-      LockGuard guard{this->lock_};
-      this->recycle_item_main_loop_(this->pop_raw_locked_());
-      continue;
-    }
-
     // Check if item is marked for removal
     // This handles two cases:
     // 1. Item was marked for removal after cleanup_() but before we got here
@@ -513,6 +510,13 @@ uint32_t HOT Scheduler::call(uint32_t now) {
       continue;
     }
 #endif
+
+    // Don't run on failed components (is_item_failed_ exempts SELF_POINTER delays).
+    if (this->is_item_failed_(item)) {
+      LockGuard guard{this->lock_};
+      this->recycle_item_main_loop_(this->pop_raw_locked_());
+      continue;
+    }
 
 #ifdef ESPHOME_DEBUG_SCHEDULER
     {

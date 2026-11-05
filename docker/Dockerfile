@@ -1,5 +1,5 @@
 ARG BUILD_VERSION=dev
-ARG BUILD_BASE_VERSION=2026.06.1
+ARG BUILD_BASE_VERSION=2026.11.0
 ARG BUILD_TYPE=docker
 
 FROM ghcr.io/esphome/docker-base:debian-${BUILD_BASE_VERSION} AS base-source-docker
@@ -84,3 +84,5 @@ FROM base-${BUILD_TYPE} AS final
 # Copy esphome and install
 COPY . /esphome
 RUN uv pip install --no-cache-dir -e /esphome
+# The tree has no .git; lets SBOM manifests describe it as the release it was built from
+ENV ESPHOME_IS_DOCKER_IMAGE=true
