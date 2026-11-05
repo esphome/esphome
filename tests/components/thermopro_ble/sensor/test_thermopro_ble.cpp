@@ -82,9 +82,75 @@ TEST_F(ThermoProBLETest, TP96WrongSizeRejected) {
   EXPECT_TRUE(this->nothing_published_());
 }
 
-TEST_F(ThermoProBLETest, TP972Battery) {
+TEST_F(ThermoProBLETest, TP3BatteryLevels) {
+  std::vector<uint8_t> record = TP357;
+  record[4] = 0x00;
+  EXPECT_TRUE(this->parse_("TP357 (2142)", record));
+  EXPECT_FLOAT_EQ(this->battery_level_.state, 1.0f);
+  record[4] = 0x01;
+  EXPECT_TRUE(this->parse_("TP357 (2142)", record));
+  EXPECT_FLOAT_EQ(this->battery_level_.state, 50.0f);
+}
+
+TEST_F(ThermoProBLETest, TP3UnknownBatteryNotPublished) {
+  std::vector<uint8_t> record = TP357;
+  record[4] = 0x03;
+  EXPECT_TRUE(this->parse_("TP357 (2142)", record));
+  EXPECT_FLOAT_EQ(this->temperature_.state, 24.1f);
+  EXPECT_FALSE(this->battery_level_.has_state());
+}
+
+TEST_F(ThermoProBLETest, TP357SInvalidReadingNotPublished) {
+  std::vector<uint8_t> record = TP357S;
+  record[1] = record[2] = record[3] = 0xFF;
+  EXPECT_TRUE(this->parse_("TP357S (3C62)", record));
+  EXPECT_FALSE(this->temperature_.has_state());
+  EXPECT_FALSE(this->humidity_.has_state());
+  EXPECT_FLOAT_EQ(this->battery_level_.state, 100.0f);
+}
+
+TEST_F(ThermoProBLETest, TP3NegativeTemperature) {
+  std::vector<uint8_t> record = TP357;
+  record[1] = 0xCE;
+  record[2] = 0xFF;
+  EXPECT_TRUE(this->parse_("TP357 (2142)", record));
+  EXPECT_FLOAT_EQ(this->temperature_.state, -5.0f);
+  EXPECT_FLOAT_EQ(this->humidity_.state, 29.0f);
+}
+
+TEST_F(ThermoProBLETest, TP96ThirteenByteFrame) {
+  EXPECT_TRUE(this->parse_("TP960R", with_station_mac(TP960R)));
+  EXPECT_FLOAT_EQ(this->temperature_.state, 28.0f);
+  EXPECT_FLOAT_EQ(this->external_temperature_.state, 26.0f);
+  EXPECT_NEAR(this->battery_level_.state, 9.10f, 0.01f);
+}
+
+TEST_F(ThermoProBLETest, TP972ThirteenByteFrame) {
+  EXPECT_TRUE(this->parse_("TP972S", with_station_mac(TP972S_7B)));
+  EXPECT_FLOAT_EQ(this->temperature_.state, 21.0f);
+  EXPECT_FLOAT_EQ(this->external_temperature_.state, 21.0f);
+  EXPECT_NEAR(this->battery_level_.state, 87.34f, 0.01f);
+}
+
+// Upstream thermopro-ble rounds ambient down to 15 and 30 °C; the sensor keeps the fraction.
+TEST_F(ThermoProBLETest, TP972S) {
   EXPECT_TRUE(this->parse_("TP972S", TP972S));
+  EXPECT_NEAR(this->temperature_.state, 3.56f, 0.01f);
+  EXPECT_NEAR(this->external_temperature_.state, 15.56f, 0.01f);
   EXPECT_NEAR(this->battery_level_.state, 90.43f, 0.01f);
+}
+
+TEST_F(ThermoProBLETest, TP972S2) {
+  EXPECT_TRUE(this->parse_("TP972S", TP972S_2));
+  EXPECT_NEAR(this->temperature_.state, 23.31f, 0.01f);
+  EXPECT_NEAR(this->external_temperature_.state, 30.56f, 0.01f);
+  EXPECT_NEAR(this->battery_level_.state, 94.65f, 0.01f);
+}
+
+TEST_F(ThermoProBLETest, TP970MultiPointFrame) {
+  EXPECT_TRUE(this->parse_("TP970R", TP972S));
+  EXPECT_NEAR(this->temperature_.state, 3.56f, 0.01f);
+  EXPECT_NEAR(this->external_temperature_.state, 15.56f, 0.01f);
 }
 
 TEST_F(ThermoProBLETest, LargestFrameAccepted) {
