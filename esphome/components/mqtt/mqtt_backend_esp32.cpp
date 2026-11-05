@@ -106,7 +106,7 @@ bool MQTTBackendESP32::initialize_() {
 }
 
 void MQTTBackendESP32::loop() {
-  // Drain the queue, capped by count and time so heavy on_message automations cannot hold the loop
+  // Capped by count and time so slow on_message automations cannot hold the loop
   const uint32_t start = App.get_loop_component_start_time();
   for (uint8_t i = 0; i < MQTT_EVENT_POOL_SIZE; i++) {
     Event *event = this->mqtt_event_queue_.pop();
@@ -115,7 +115,7 @@ void MQTTBackendESP32::loop() {
     const auto event_id = event->event_id;
     this->mqtt_event_handler_(*event);
     this->mqtt_event_pool_.release(event);
-    // Let the client see a connection change before more messages are dispatched
+    // Let the client handle a connection change first
     if (event_id == MQTT_EVENT_CONNECTED || event_id == MQTT_EVENT_DISCONNECTED ||
         millis() - start >= EVENT_DRAIN_BUDGET_MS)
       break;
@@ -229,7 +229,7 @@ void MQTTBackendESP32::mqtt_event_handler(void *handler_args, esp_event_base_t b
   if (instance == nullptr)
     return;
   const auto *mqtt_event = static_cast<esp_mqtt_event_t *>(event_data);
-  // Acks take a slot only when a callback wants them, leaving room for retained messages
+  // Acks are queued only when a callback wants them
   bool listened = true;
   switch (event_id) {
     case MQTT_EVENT_CONNECTED:
@@ -251,7 +251,7 @@ void MQTTBackendESP32::mqtt_event_handler(void *handler_args, esp_event_base_t b
       break;
     }
     case MQTT_EVENT_DATA:
-      // Only the first chunk of an oversized message is queued, so the client logs the drop
+      // Queue only the first chunk of an oversized message, so the client logs the drop
       if (mqtt_event->total_data_len > MQTT_MAX_PAYLOAD_SIZE && mqtt_event->current_data_offset != 0)
         return;
       break;
@@ -274,13 +274,13 @@ void MQTTBackendESP32::mqtt_event_handler(void *handler_args, esp_event_base_t b
     ESP_LOGV(TAG, "Ack event_id=%" PRId32 ", msg_id=%d", event_id, mqtt_event->msg_id);
   }
   if (event_id == MQTT_EVENT_SUBSCRIBED) {
-    // Counted after its event is queued, so can_subscribe() keeps that slot reserved until it is taken.
+    // Counted after queueing so its slot stays reserved
     // One topic per SUBSCRIBE, so data[0] is its return code
     instance->subacks_.add(mqtt_event->data_len > 0 ? static_cast<uint8_t>(mqtt_event->data[0]) : SUBACK_FAILURE);
   } else if (!listened) {
     return;
   }
-  // Wake main loop immediately; a SUBACK, even a filtered one, may let the next SUBSCRIBE go out
+  // A filtered SUBACK may still let the next SUBSCRIBE go out
   App.wake_loop_threadsafe();
 }
 

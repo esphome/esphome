@@ -21,10 +21,9 @@ TEST(SubscribeFits, KeepsTwoSlotsPerUnansweredSubscribe) {
 }
 
 TEST(SubscribeFits, QueuedAcksKeepThreeSlots) {
-  // 9 unanswered plus the new one need 30 slots, so the SUBACK and retained message of each still fit
+  // 9 unanswered plus the new one need 30 slots
   EXPECT_TRUE(subscribe_fits(9, 0, POOL_SIZE, INBOUND_SLOTS_PER_SUBSCRIBE_WITH_ACK));
   EXPECT_FALSE(subscribe_fits(10, 0, POOL_SIZE, INBOUND_SLOTS_PER_SUBSCRIBE_WITH_ACK));
-  // The 16th subscription the two-slot window would admit with 15 pending
   EXPECT_FALSE(subscribe_fits(15, 0, POOL_SIZE - 1, INBOUND_SLOTS_PER_SUBSCRIBE_WITH_ACK));
 }
 
@@ -61,8 +60,7 @@ struct BurstResult {
   size_t dropped{0};
 };
 
-/// Connect burst model: the task answers every sent SUBSCRIBE (SUBACK, then one retained message) before the loop
-/// drains the queue; split_last runs the loop between the last SUBACK and its message.
+/// Connect burst model; split_last runs the loop between the last SUBACK and its message.
 static BurstResult run_burst(uint16_t topics, bool paced, bool queue_acks, bool split_last) {
   BurstResult result;
   size_t queued = 0;
@@ -116,7 +114,6 @@ TEST(SubscribePacing, PacedBurstDeliversEveryRetainedMessage) {
 }
 
 TEST(SubscribePacing, PacedBurstWithQueuedAcksDeliversEveryRetainedMessage) {
-  // An on_subscribe callback puts each SUBACK in the queue too, and the loop may run between it and its message
   for (uint16_t topics : {1, 15, 16, 31, 40, 100, 250}) {
     for (bool split_last : {false, true}) {
       const BurstResult result = run_burst(topics, true, true, split_last);

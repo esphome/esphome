@@ -268,7 +268,7 @@ class MQTTBackendESP32 final : public MQTTBackend {
   bool is_connected_{false};
   bool is_initalized_{false};
 #if defined(USE_MQTT_IDF_ENQUEUE)
-  // Queued SUBSCRIBEs the task dropped or failed to send; wraps like subscribes_sent_
+  // Queued SUBSCRIBEs the task could not send
   std::atomic<uint16_t> subscribes_lost_{0};
 #endif
 
@@ -276,7 +276,7 @@ class MQTTBackendESP32 final : public MQTTBackend {
 
   std::string host_;
   uint16_t port_;
-  /// SUBSCRIBEs sent on this connection, for can_subscribe()
+  /// SUBSCRIBEs sent on this connection
   uint16_t subscribes_sent_{0};
   std::string username_;
   std::string password_;
@@ -285,13 +285,13 @@ class MQTTBackendESP32 final : public MQTTBackend {
   uint8_t lwt_qos_;
   bool lwt_retain_;
 #if defined(USE_MQTT_IDF_ENQUEUE)
-  // subscribes_lost_ when this connection started; one lost across a reconnect fits the spare slot
+  // subscribes_lost_ when this connection started
   uint16_t subscribes_lost_at_connect_{0};
 #endif
   std::string client_id_;
   uint16_t keep_alive_;
   bool clean_session_;
-  // PUBACK of tracked_msg_id_ seen; uint8_t because atomic<bool> is out of line on Xtensa
+  // uint8_t because atomic<bool> is out of line on Xtensa
   std::atomic<uint8_t> tracked_acked_{0};
 #ifdef USE_MQTT_TLS
   const char *ca_certificate_{nullptr};
@@ -307,7 +307,7 @@ class MQTTBackendESP32 final : public MQTTBackend {
   EventPool<struct QueueElement, MQTT_QUEUE_LENGTH - 1> mqtt_outbound_pool_;
   NotifyingLockFreeQueue<struct QueueElement, MQTT_QUEUE_LENGTH> mqtt_queue_;
   TaskHandle_t task_handle_{nullptr};
-  // The task is the only writer, so load and store need no atomic read-modify-write libcall
+  // Only the task writes, so no atomic read-modify-write is needed
   void count_lost_subscribe_() {
     this->subscribes_lost_.store(this->subscribes_lost_.load(std::memory_order_relaxed) + 1, std::memory_order_relaxed);
   }

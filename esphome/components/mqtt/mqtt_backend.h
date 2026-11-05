@@ -61,7 +61,7 @@ class MQTTBackend {
   virtual void connect() = 0;
   virtual void disconnect() = 0;
   virtual bool subscribe(const char *topic, uint8_t qos) = 0;
-  /// Whether another SUBSCRIBE fits the inbound queue; backends without a queue always say yes.
+  /// Whether another SUBSCRIBE fits the inbound queue.
   virtual bool can_subscribe() const { return true; }
   virtual bool unsubscribe(const char *topic) = 0;
   virtual bool publish(const char *topic, const char *payload, size_t length, uint8_t qos, bool retain) = 0;
