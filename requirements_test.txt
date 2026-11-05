@@ -9,7 +9,7 @@ pytest==9.2.0
 pytest-cov==7.1.0
 pytest-mock==3.17.0
 pytest-timeout==2.4.0
-pytest-asyncio==1.4.1
+pytest-asyncio==1.4.1.post1
 pytest-xdist==3.8.0
 asyncmock==0.4.2
 hypothesis==6.92.1
@@ -17,7 +17,7 @@ hypothesis==6.92.1
 # CodSpeed benchmarks under tests/benchmarks/python/
 # (skipped via pytest.importorskip when missing -- only required for the
 # benchmarks job in .github/workflows/ci.yml)
-pytest-codspeed==5.0.3
+pytest-codspeed==5.0.4
 
 # Used by the import-time regression check (.github/workflows/ci.yml → import-time job)
 importtime-waterfall==1.0.0

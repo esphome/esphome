@@ -10,7 +10,6 @@ from esphome.const import (
     CONF_TIMEOUT,
     DEVICE_CLASS_DISTANCE,
     DEVICE_CLASS_ILLUMINANCE,
-    DEVICE_CLASS_SIGNAL_STRENGTH,
     ENTITY_CATEGORY_CONFIG,
     ICON_LIGHTBULB,
     ICON_MOTION_SENSOR,
@@ -65,14 +64,12 @@ CONFIG_SCHEMA = CONFIG_SCHEMA.extend(
             {
                 cv.Required(CONF_MOVE_THRESHOLD): number.number_schema(
                     number.ApplyNumber,
-                    device_class=DEVICE_CLASS_SIGNAL_STRENGTH,
                     entity_category=ENTITY_CATEGORY_CONFIG,
                     icon=ICON_MOTION_SENSOR,
                     unit_of_measurement=UNIT_PERCENT,
                 ),
                 cv.Required(CONF_STILL_THRESHOLD): number.number_schema(
                     number.ApplyNumber,
-                    device_class=DEVICE_CLASS_SIGNAL_STRENGTH,
                     entity_category=ENTITY_CATEGORY_CONFIG,
                     icon=ICON_MOTION_SENSOR,
                     unit_of_measurement=UNIT_PERCENT,
