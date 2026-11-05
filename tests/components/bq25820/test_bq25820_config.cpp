@@ -238,6 +238,21 @@ TEST_F(BQ25820WriteFailureTest, SetupConfiguresEvenWhenTheStatusReadFails) {
   EXPECT_EQ(status_publishes, 0);
 }
 
+TEST_F(BQ25820WriteFailureTest, LandedButFailedAdcWriteIsWrittenAgain) {
+  this->bus_.fail_write_register = REG_ADC_CONTROL;
+  this->bus_.writes_before_failure = 1;  // clearing ADC_EN works, the last write lands but reports an error
+  this->bus_.failed_write_lands = true;
+  this->hub_.update();
+  EXPECT_TRUE(this->hub_.status_has_warning());
+  EXPECT_NE(this->bus_.registers[REG_ADC_CONTROL] & ADC_EN, 0);
+  this->bus_.fail_write_register = -1;
+  this->hub_.update();  // ADC_EN reads set, but the configuration is written again
+  EXPECT_FALSE(this->hub_.status_has_warning());
+  EXPECT_EQ(status_publishes, 1);  // from the failed write's poll
+  run_delayed_poll();
+  EXPECT_FLOAT_EQ(this->vbat_.state, 8.0f);
+}
+
 TEST_F(BQ25820WriteFailureTest, ChargerResetIsWrittenAgain) {
   this->hub_.update();
   this->hub_.update();

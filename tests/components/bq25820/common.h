@@ -37,13 +37,16 @@ class RegisterBus final : public i2c::I2CBus {
     EXPECT_EQ(address, ADDRESS);
     if (out_size != 0 && (this->fail_reads || (size != 0 && data[0] == this->fail_read_register)))
       return i2c::ERROR_NOT_ACKNOWLEDGED;
-    if (size > 1 && data[0] == this->fail_write_register && this->writes_before_failure-- <= 0)
+    const bool fail_write = size > 1 && data[0] == this->fail_write_register && this->writes_before_failure-- <= 0;
+    if (fail_write && !this->failed_write_lands)
       return i2c::ERROR_NOT_ACKNOWLEDGED;
     if (size != 0) {
       this->pointer_ = data[0];
       for (size_t i = 1; i < size; i++)
         this->registers[this->next_()] = data[i];
     }
+    if (fail_write)
+      return i2c::ERROR_NOT_ACKNOWLEDGED;
     for (size_t i = 0; i < out_size; i++)
       out[i] = this->registers[this->next_()];
     return i2c::ERROR_OK;
@@ -56,6 +59,8 @@ class RegisterBus final : public i2c::I2CBus {
   // Writes to this register fail once `writes_before_failure` of them have gone through
   int fail_write_register{-1};
   int writes_before_failure{0};
+  // A failing write still reaches the register, as when only the acknowledgement is lost
+  bool failed_write_lands{false};
 
  protected:
   size_t next_() { return this->pointer_++ % this->registers.size(); }

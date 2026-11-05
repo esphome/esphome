@@ -171,7 +171,8 @@ bool BQ25820Component::write_config_registers_() {
 bool BQ25820Component::configure_() {
   // The ADC restarts, so the next publish waits for its first conversions
   this->adc_ready_ = false;
-  if (!this->status_comm_result(this->write_config_registers_()))
+  this->rewrite_ = !this->write_config_registers_();
+  if (!this->status_comm_result(!this->rewrite_))
     return false;
   this->set_timeout(PUBLISH_TIMEOUT_ID, FIRST_PUBLISH_DELAY_MS, [this]() {
     this->adc_ready_ = true;
@@ -197,7 +198,7 @@ void BQ25820Component::update() {
   }
   const bool watchdog = this->watchdog_enabled_();
   // ADC_EN clear: a partial write or a charger reset; WD_STAT: the watchdog expired
-  if ((adc[0] & ADC_EN) == 0 || (watchdog && (status[0] & WD_STAT) != 0)) {
+  if (this->rewrite_ || (adc[0] & ADC_EN) == 0 || (watchdog && (status[0] & WD_STAT) != 0)) {
     if (this->adc_ready_) {
       ESP_LOGW(TAG, "Charger lost its configuration, writing it again");
     }

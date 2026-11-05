@@ -115,6 +115,8 @@ class BQ25820Component final : public PollingComponent, public i2c::I2CDevice {
   bool force_mppt_sweep_;
   // Cleared by a configuration write until the delayed poll, so no poll publishes unconverted ADC readings
   bool adc_ready_{false};
+  // A failed write may still have set ADC_EN, so the next poll writes the configuration again regardless
+  bool rewrite_{false};
 };
 
 }  // namespace esphome::bq25820
