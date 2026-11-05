@@ -1,5 +1,11 @@
 import esphome.codegen as cg
 from esphome.components import i2c
+from esphome.components.const import (
+    CONF_CHARGE_CURRENT,
+    CONF_CHARGE_ENABLED,
+    CONF_INPUT_CURRENT_LIMIT,
+    CONF_PRECHARGE_CURRENT,
+)
 import esphome.config_validation as cv
 from esphome.types import ConfigType
 
@@ -10,11 +16,7 @@ MULTI_CONF = True
 
 CONF_SY6970_ID = "sy6970_id"
 CONF_ENABLE_STATUS_LED = "enable_status_led"
-CONF_INPUT_CURRENT_LIMIT = "input_current_limit"
 CONF_CHARGE_VOLTAGE = "charge_voltage"
-CONF_CHARGE_CURRENT = "charge_current"
-CONF_PRECHARGE_CURRENT = "precharge_current"
-CONF_CHARGE_ENABLED = "charge_enabled"
 CONF_ENABLE_ADC = "enable_adc"
 CONF_I2C_WATCHDOG_TIMEOUT = "i2c_watchdog_timeout"
 
