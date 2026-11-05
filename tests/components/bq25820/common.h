@@ -23,7 +23,7 @@ static constexpr uint8_t ADC_EN = 0x80;
 // The packed defaults with the watchdog off
 static constexpr BQ25820Config DEFAULT_CONFIG{
     .limits = {0, 0, 0, 880, 1000},
-    .controls = {0x10, 0x0A, 0x00, 0x00, 0x16, 0x01, 0xC9, 0x80},
+    .controls = {0x10, 0x0A, 0x00, 0x00, 0x16, 0x01, 0xC9},
     .ibat_scale = 0.002f,
     .iac_scale = 0.002f,
 };

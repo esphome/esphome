@@ -22,13 +22,13 @@
 namespace esphome::bq25820 {
 
 static constexpr size_t BQ25820_LIMIT_COUNT = 5;
-static constexpr size_t BQ25820_CONTROL_COUNT = 8;
+static constexpr size_t BQ25820_CONTROL_COUNT = 7;
 
 // Register values built by code generation into a PROGMEM table, in the order of the register tables in bq25820.cpp
 struct BQ25820Config {
   // ICHG, IPRECHG, IAC_DPM, VAC_DPM and VAC_REV; 0 keeps the reset value
   std::array<uint16_t, BQ25820_LIMIT_COUNT> limits;
-  // VFB_REG, timer, power path, MPPT, TS threshold, TS region, charger and ADC control
+  // VFB_REG, timer, power path, MPPT, TS threshold, TS region and charger control
   std::array<uint8_t, BQ25820_CONTROL_COUNT> controls;
   // Amps per current ADC step, from the sense resistors
   float ibat_scale;
@@ -46,11 +46,11 @@ using BQ25820AdcRegisters = std::array<uint8_t, 1>;
 #endif
 
 #ifdef USE_TEXT_SENSOR
-// CHARGE_STAT[2:0] (code 5 is reserved), then TS_STAT[2:0]; TS codes 5-7 are not defined and fall back to index 5
+// CHARGE_STAT codes, then TS_STAT codes; undefined TS codes 5-7 fall back to index 5
 PROGMEM_STRING_TABLE(BQ25820StatusStrings, "Not Charging", "Trickle", "Precharge", "Fast Charge", "Taper", "Unknown",
                      "Top-Off", "Done", "Normal", "Warm", "Cool", "Cold", "Hot");
 
-/// Publish the three-bit field in the low bits of `value` as string `first + field`, only when it differs from `last`
+/// Publishes string `first + (value & 7)`, only on change
 inline void publish_status_text(text_sensor::TextSensor *sensor, uint8_t &last, uint8_t value, uint8_t first) {
   value &= 0x07;
   if (value == last)
@@ -92,8 +92,6 @@ class BQ25820Component final : public PollingComponent, public i2c::I2CDevice {
   BQ25820Config load_config_() const;
   bool watchdog_enabled_() const;
   bool write_config_registers_();
-  /// Writes the configuration, then polls again once the ADC has had time to convert
-  bool configure_();
 #ifdef USE_BQ25820_SENSOR
   void publish_adc_(const BQ25820AdcRegisters &adc);
   /// Temperature from TS_ADC, the TS pin voltage as a 10-bit share of REGN; NAN when the reading is 0
@@ -110,8 +108,6 @@ class BQ25820Component final : public PollingComponent, public i2c::I2CDevice {
 
   const BQ25820Config *config_;
   bool force_mppt_sweep_;
-  // Only so the first write at boot is not reported as a lost configuration
-  bool configured_once_{false};
   // Cleared by a configuration write until the delayed poll, so no poll publishes unconverted ADC readings
   bool adc_ready_{false};
 };

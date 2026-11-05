@@ -45,12 +45,10 @@ static const ControlRegister CONTROL_REGISTERS[BQ25820_CONTROL_COUNT] PROGMEM = 
     {REG_TS_THRESHOLD_CONTROL, 0xFF},  // TS_T1, TS_T2, TS_T3, TS_T5
     {REG_TS_REGION_CONTROL, 0x01},     // EN_TS
     {REG_CHARGER_CONTROL, 0xFF},       // VRECHG, EN_HIZ, EN_CHG; after every limit, so charging starts with them
-    {REG_ADC_CONTROL, 0xC0},           // ADC_EN, ADC_RATE; last, so ADC_EN set means the configuration is written
 };
 static constexpr size_t CONTROL_TIMER = 1;
 static constexpr size_t CONTROL_MPPT = 3;
 static constexpr size_t CONTROL_CHARGER = 6;
-static constexpr size_t CONTROL_ADC = 7;
 static constexpr size_t LIMIT_CHARGE_CURRENT = 0;
 static constexpr size_t LIMIT_PRECHARGE_CURRENT = 1;
 static constexpr size_t LIMIT_INPUT_CURRENT = 2;
@@ -69,6 +67,7 @@ static constexpr uint8_t FORCE_SWEEP = 0x80;
 static constexpr uint8_t EN_MPPT = 0x01;
 // ADC control (0x2B); the configuration sets it last and a charger reset clears it
 static constexpr uint8_t ADC_EN = 0x80;
+static constexpr uint8_t ADC_EN_RATE_MASK = 0xC0;
 
 static constexpr uint32_t PUBLISH_TIMEOUT_ID = 0;
 // After a configuration write, long enough for the ADC to finish its first round of conversions
@@ -92,8 +91,7 @@ void BQ25820Component::setup() {
   if (!this->setup_check(this->update_register(REG_POWER_PATH_CONTROL, REG_RST, REG_RST)))
     return;
 
-  // REG_RST cleared ADC_EN, so the first poll writes the configuration and every poll retries it until it succeeds.
-  // Configuring there, not here, keeps an interval poll from publishing before the ADC has converted.
+  // REG_RST cleared ADC_EN, so the first poll writes the configuration
 }
 
 void BQ25820Component::dump_config() {
@@ -147,36 +145,22 @@ bool BQ25820Component::write_config_registers_() {
       ok = this->write_byte_16_le(progmem_read_byte(&LIMIT_REGISTERS[i]), config.limits[i]);
   }
   for (size_t i = 0; ok && i < BQ25820_CONTROL_COUNT; i++) {
-    // One panel sweep at startup with charging on, kept pending until it is written
-    if (i == CONTROL_ADC && this->force_mppt_sweep_) {
-      ok = this->update_register(REG_MPPT_CONTROL, FORCE_SWEEP, FORCE_SWEEP);
-      this->force_mppt_sweep_ = !ok;
-      if (!ok)
-        break;
-    }
     ControlRegister entry;
     progmem_memcpy(&entry, &CONTROL_REGISTERS[i], sizeof(entry));
     const uint8_t value = config.controls[i];
     ok = entry.mask == 0xFF ? this->write_byte(entry.reg, value) : this->update_register(entry.reg, entry.mask, value);
   }
+  // One panel sweep at startup with charging on, kept pending until it is written
+  if (ok && this->force_mppt_sweep_) {
+    ok = this->update_register(REG_MPPT_CONTROL, FORCE_SWEEP, FORCE_SWEEP);
+    this->force_mppt_sweep_ = !ok;
+  }
+  // ADC_RATE clear for continuous conversion
+  ok = ok && this->update_register(REG_ADC_CONTROL, ADC_EN_RATE_MASK, ADC_EN);
   if (!ok) {
     ESP_LOGW(TAG, "Configuration write failed");
   }
   return ok;
-}
-
-bool BQ25820Component::configure_() {
-  // The ADC was just enabled again, so the next poll comes once its first conversions are done
-  this->adc_ready_ = false;
-  if (this->status_comm_result(this->write_config_registers_())) {
-    this->configured_once_ = true;
-    this->set_timeout(PUBLISH_TIMEOUT_ID, FIRST_PUBLISH_DELAY_MS, [this]() {
-      this->adc_ready_ = true;
-      this->update();
-    });
-    return true;
-  }
-  return false;
 }
 
 // Every poll also feeds the watchdog, which update_interval is validated to beat
@@ -189,25 +173,27 @@ void BQ25820Component::update() {
 #else
             this->read_byte(REG_ADC_CONTROL, adc.data());
 #endif
-  // ADC_EN clear: a partial write, or a charger reset on its own such as a brownout, which WD_STAT does not show
-  // when the watchdog is off or each poll keeps feeding it. WD_STAT: the watchdog expired.
-  if (ok && ((adc[0] & ADC_EN) == 0 || (this->watchdog_enabled_() && (status[0] & WD_STAT) != 0))) {
-    if (this->configured_once_) {
+  const bool watchdog = this->watchdog_enabled_();
+  // ADC_EN clear: a partial write or a charger reset; WD_STAT: the watchdog expired
+  if (ok && ((adc[0] & ADC_EN) == 0 || (watchdog && (status[0] & WD_STAT) != 0))) {
+    if (this->adc_ready_) {
       ESP_LOGW(TAG, "Charger lost its configuration, writing it again");
     }
-    // Only a failed write publishes this status, so the fault sensors still follow a charger that keeps resetting
-    if (this->configure_())
+    // The ADC restarts, so the next publish waits for its first conversions
+    this->adc_ready_ = false;
+    if (this->status_comm_result(this->write_config_registers_())) {
+      this->set_timeout(PUBLISH_TIMEOUT_ID, FIRST_PUBLISH_DELAY_MS, [this]() {
+        this->adc_ready_ = true;
+        this->update();
+      });
       return;
-#ifdef USE_BQ25820_STATUS_PUBLISHER
-    if (this->status_publisher_ != nullptr)
-      this->status_publisher_(status);
-#endif
-    return;
+    }
+  } else {
+    if (ok && watchdog)
+      ok = this->write_byte(REG_CHARGER_CONTROL, progmem_read_byte(&this->config_->controls[CONTROL_CHARGER]) | WD_RST);
+    if (!this->status_comm_result(ok))
+      return;
   }
-  if (ok && this->watchdog_enabled_())
-    ok = this->write_byte(REG_CHARGER_CONTROL, progmem_read_byte(&this->config_->controls[CONTROL_CHARGER]) | WD_RST);
-  if (!this->status_comm_result(ok))
-    return;
 #ifdef USE_BQ25820_STATUS_PUBLISHER
   if (this->status_publisher_ != nullptr)
     this->status_publisher_(status);
@@ -222,10 +208,13 @@ void BQ25820Component::update() {
 static constexpr float VOLTAGE_ADC_STEP_V = 0.002f;
 
 void BQ25820Component::publish_adc_(const BQ25820AdcRegisters &adc) {
-  const BQ25820Config config = this->load_config_();
-  PUBLISH_STATE(this->iac_sensor_, adc[1] * config.iac_scale);
+  float iac_scale;
+  float ibat_scale;
+  progmem_memcpy(&iac_scale, &this->config_->iac_scale, sizeof(iac_scale));
+  progmem_memcpy(&ibat_scale, &this->config_->ibat_scale, sizeof(ibat_scale));
+  PUBLISH_STATE(this->iac_sensor_, adc[1] * iac_scale);
   // Positive while charging
-  PUBLISH_STATE(this->ibat_sensor_, adc[2] * config.ibat_scale);
+  PUBLISH_STATE(this->ibat_sensor_, adc[2] * ibat_scale);
   PUBLISH_STATE(this->vac_sensor_, static_cast<uint16_t>(adc[3]) * VOLTAGE_ADC_STEP_V);
   PUBLISH_STATE(this->vbat_sensor_, static_cast<uint16_t>(adc[4]) * VOLTAGE_ADC_STEP_V);
   PUBLISH_STATE(this->vsys_sensor_, static_cast<uint16_t>(adc[5]) * VOLTAGE_ADC_STEP_V);

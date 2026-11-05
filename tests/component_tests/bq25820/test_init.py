@@ -83,7 +83,7 @@ def test_config_is_packed_into_a_progmem_table(
     assert _hub_config(main_cpp, "charger_defaults") == (
         "bq25820::BQ25820Config{\n"
         "  .limits = {0, 0, 0, 880, 1000},\n"
-        "  .controls = {0x10, 0x0A, 0x00, 0x00, 0x16, 0x01, 0xC9, 0x80},\n"
+        "  .controls = {0x10, 0x0A, 0x00, 0x00, 0x16, 0x01, 0xC9},\n"
         "  .ibat_scale = 0.002f,\n"
         "  .iac_scale = 0.002f,\n"
         "}"
@@ -91,7 +91,7 @@ def test_config_is_packed_into_a_progmem_table(
     assert _hub_config(main_cpp, "charger_set") == (
         "bq25820::BQ25820Config{\n"
         "  .limits = {240, 80, 256, 8000, 660},\n"
-        "  .controls = {0x17, 0x9C, 0x04, 0x03, 0xFF, 0x00, 0xCC, 0x80},\n"
+        "  .controls = {0x17, 0x9C, 0x04, 0x03, 0xFF, 0x00, 0xCC},\n"
         "  .ibat_scale = 0.002f,\n"
         "  .iac_scale = 0.002f,\n"
         "}"
@@ -170,7 +170,7 @@ def test_update_interval_never_is_rejected(watchdog: str) -> None:
     assert err.value.path == [CONF_UPDATE_INTERVAL]
 
 
-def test_watchdog_boolean_keeps_old_configs() -> None:
+def test_watchdog_boolean_maps_to_a_period() -> None:
     assert _watchdog_boolean(True) == "160s"
     assert _watchdog_boolean(False) == "disabled"
     assert _watchdog_boolean("40s") == "40s"

@@ -38,8 +38,12 @@ STATUS_PUBLISHER = cg.HubFunction(
     define="USE_BQ25820_STATUS_PUBLISHER",
 )
 STATUS = STATUS_PUBLISHER.param("status")
-# Logs the status entities from the hub's dump_config, which calls it inside USE_BQ25820_STATUS_PUBLISHER
-DUMP = cg.HubFunction("dump", cg.void, [(cg.const_char_ptr, "tag")])
+DUMP = cg.HubFunction(
+    "dump",
+    cg.void,
+    [(cg.const_char_ptr, "tag")],
+    define="USE_BQ25820_STATUS_PUBLISHER",
+)
 DUMP_TAG = DUMP.param("tag")
 # Offsets into the status registers read from CHARGER_STATUS_1 (0x21)
 CHARGER_STATUS_1 = 0
@@ -70,7 +74,6 @@ TOPOFF_TIMER_CHOICES = {"disabled": 0, "15m": 1, "30m": 2, "45m": 3}
 MPPT_SWEEP_TIMER_CHOICES = {"3m": 0, "10m": 1, "15m": 2, "20m": 3}
 # WATCHDOG[5:4]; the chip powers up with 40 s and the poll feeds it with WD_RST
 WATCHDOG_CHOICES = {"disabled": 0, "40s": 1, "80s": 2, "160s": 3}
-WATCHDOG_PERIOD_S = {"40s": 40, "80s": 80, "160s": 160}
 
 
 @dataclass(frozen=True, kw_only=True)
@@ -110,7 +113,6 @@ EN_BATFET_IDEAL_DIODE = 0x04  # POWER_PATH_CONTROL[2]
 FULL_SWEEP_TMR_SHIFT = 1  # MPPT_CONTROL[2:1]
 EN_MPPT = 0x01  # MPPT_CONTROL[0]
 EN_TS = 0x01  # TS_REGION_CONTROL[0]
-ADC_EN = 0x80  # ADC_CONTROL[7]
 # (key, sense resistor key, lowest code, highest code)
 CURRENT_LIMITS = (
     (CONF_CHARGE_CURRENT, CONF_BAT_SNS_RES, 8, 400),
@@ -162,8 +164,9 @@ def _check_watchdog(config: ConfigType) -> ConfigType:
             f"{CONF_UPDATE_INTERVAL} cannot be never: the poll writes the charger configuration",
             path=[CONF_UPDATE_INTERVAL],
         )
-    if (period := WATCHDOG_PERIOD_S.get(config[CONF_WATCHDOG])) is None:
+    if not (code := WATCHDOG_CHOICES[config[CONF_WATCHDOG]]):
         return config
+    period = 20 << code
     if config[CONF_UPDATE_INTERVAL] >= TimePeriod(seconds=period):
         raise cv.Invalid(
             f"{CONF_UPDATE_INTERVAL} must be shorter than the {period} s watchdog, "
@@ -279,8 +282,6 @@ def build_config(config: ConfigType) -> cg.StructInitializer:
         ts_thresholds,
         ts_region_control,
         charger_control,
-        # ADC_RATE stays clear for continuous conversion
-        ADC_EN,
     )
     return cg.StructInitializer(
         BQ25820Config,

@@ -11,7 +11,7 @@ namespace esphome::bq25820::testing {
 // its reset value
 static constexpr BQ25820Config SET_CONFIG{
     .limits = {240, 0, 256, 8000, 660},
-    .controls = {0x17, 0x9C, 0x04, 0x03, 0xFF, 0x00, 0xCC, 0x80},
+    .controls = {0x17, 0x9C, 0x04, 0x03, 0xFF, 0x00, 0xCC},
     .ibat_scale = 0.002f,
     .iac_scale = 0.002f,
 };
@@ -313,7 +313,7 @@ TEST(BQ25820Adc, ScalesVoltagesAndSignedCurrentsBySenseResistor) {
   // A 2 mOhm battery shunt and a 5 mOhm input shunt: 10 uV and 4 uV ADC steps
   static constexpr BQ25820Config CONFIG{
       .limits = {0, 0, 0, 880, 1000},
-      .controls = {0x10, 0x0A, 0x00, 0x00, 0x16, 0x01, 0xC9, 0x80},
+      .controls = {0x10, 0x0A, 0x00, 0x00, 0x16, 0x01, 0xC9},
       .ibat_scale = 0.010f / 2.0f,
       .iac_scale = 0.004f / 5.0f,
   };
