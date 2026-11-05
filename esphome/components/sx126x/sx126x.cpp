@@ -150,6 +150,7 @@ SX126xError SX126x::start_transmit_async(SX126xTransmitListener *listener, const
   if (admission_after_preflight != SX126xError::NONE) {
     return admission_after_preflight;
   }
+  this->tx_generation_++;
   this->tx_ = {listener, 0, timeout_ms};
   const auto result = this->operation_.start_transmit(
       [this, data, len, timeout_ms]() { return this->prepare_transmit_(data, len, timeout_ms); },
@@ -213,10 +214,23 @@ void SX126x::poll_transmit_(uint32_t now) {
   if (!this->operation_.is_waiting_for_transmit()) {
     return;
   }
+  const uint32_t generation = this->tx_generation_;
   if (this->dio1_pin_->digital_read()) {
     uint16_t status;
-    if (!this->command_result_(this->commands_.read_irq(status)) ||
-        !this->command_result_(this->commands_.clear_irqs(status))) {
+    const bool read = this->command_result_(this->commands_.read_irq(status));
+    // Logging may cancel this operation and start another, even with the same listener.
+    if (this->tx_generation_ != generation || !this->operation_.is_waiting_for_transmit()) {
+      return;
+    }
+    if (!read) {
+      this->finish_transmit_(SX126xError::SX126X_ERROR_BUSY_TIMEOUT);
+      return;
+    }
+    const bool cleared = this->command_result_(this->commands_.clear_irqs(status));
+    if (this->tx_generation_ != generation || !this->operation_.is_waiting_for_transmit()) {
+      return;
+    }
+    if (!cleared) {
       this->finish_transmit_(SX126xError::SX126X_ERROR_BUSY_TIMEOUT);
       return;
     }

@@ -1,7 +1,8 @@
 #include "sx126x_test_helpers.h"
 #include "esphome/components/logger/logger.h"
 #include "esphome/core/application.h"
-#include <string_view>
+#include <string>
+#include <tuple>
 
 namespace esphome::sx126x::testing {
 
@@ -14,15 +15,15 @@ class RadioLogCallback {
                                    [](void *instance, uint8_t level, const char *tag, const char *message, size_t len) {
                                      auto *self = static_cast<RadioLogCallback *>(instance);
                                      if (self->callback_) {
-                                       self->callback_(std::string_view(message, len));
+                                       self->callback_(std::string(message, len));
                                      }
                                    });
   }
   ~RadioLogCallback() { logger::global_logger = this->previous_; }
-  void set_callback(std::function<void(std::string_view)> callback) { this->callback_ = std::move(callback); }
+  void set_callback(std::function<void(const std::string &)> callback) { this->callback_ = std::move(callback); }
 
  private:
-  std::function<void(std::string_view)> callback_;
+  std::function<void(const std::string &)> callback_;
   logger::Logger *previous_;
   logger::Logger logger_{0};
 };
@@ -41,8 +42,8 @@ TEST(SX126xReentry, PreflightWarningClearCannotOverwriteNestedSend) {
   hw.radio.status_set_warning(LOG_STR("Previous communication failure"));
   hw.irq = IRQ_TX_DONE;  // Stale IRQ forces a successful preflight exchange.
   unsigned callbacks = 0;
-  log.set_callback([&](std::string_view message) {
-    if (message.find("cleared Warning flag") != std::string_view::npos) {
+  log.set_callback([&](const std::string &message) {
+    if (message.find("cleared Warning flag") != std::string::npos) {
       callbacks++;
       EXPECT_EQ(hw.radio.start_transmit_async(&nested, hw.packet), SX126xError::NONE);
     }
@@ -65,8 +66,8 @@ TEST(SX126xReentry, PreflightWarningClearRechecksRadioReadiness) {
   hw.configure(true, true);
   hw.radio.status_set_warning(LOG_STR("Previous communication failure"));
   hw.irq = IRQ_TX_DONE;
-  log.set_callback([&](std::string_view message) {
-    if (message.find("cleared Warning flag") != std::string_view::npos) {
+  log.set_callback([&](const std::string &message) {
+    if (message.find("cleared Warning flag") != std::string::npos) {
       hw.radio.set_mode_sleep(true);
     }
   });
@@ -74,5 +75,52 @@ TEST(SX126xReentry, PreflightWarningClearRechecksRadioReadiness) {
   EXPECT_EQ(hw.sends, 0u);
   EXPECT_TRUE(outer.results.empty());
 }
+
+class SX126xPollingReentry : public ::testing::TestWithParam<std::tuple<unsigned, bool>> {};
+
+TEST_P(SX126xPollingReentry, WarningCallbackCannotCompleteReplacementSend) {
+  const auto [failed_command, reuse_listener] = GetParam();
+  RadioHardware hw;
+  RadioLogCallback log;
+  ReentryCompletion first, second;
+  auto *replacement = reuse_listener ? &first : &second;
+  hw.configure(true, true);
+  hw.auto_complete = false;
+  ASSERT_EQ(hw.radio.start_transmit_async(&first, hw.packet), SX126xError::NONE);
+  hw.clear_trace();
+  hw.fail_at = failed_command;
+  hw.irq = IRQ_TX_DONE;
+  if (failed_command == 0) {
+    hw.radio.status_set_warning(LOG_STR("Previous communication failure"));
+  }
+  unsigned callbacks = 0;
+  size_t commands_after_replacement = 0;
+  log.set_callback([&](const std::string &message) {
+    if (callbacks == 0 && message.find("Warning flag") != std::string::npos) {
+      callbacks++;
+      hw.fail_at = 0;
+      EXPECT_TRUE(hw.radio.cancel_transmit_async(&first));
+      EXPECT_EQ(hw.radio.start_transmit_async(replacement, hw.packet), SX126xError::NONE);
+      commands_after_replacement = hw.transactions.size();
+    }
+  });
+  {
+    LoopBlockingGuard clock{nullptr, nullptr, millis()};
+    hw.radio.loop();
+  }
+  ASSERT_EQ(callbacks, 1u);
+  EXPECT_EQ(first.results, (std::vector<SX126xError>{SX126xError::SX126X_ERROR_CANCELLED}));
+  EXPECT_TRUE(second.results.empty());
+  EXPECT_TRUE(hw.radio.is_transmitting());
+  EXPECT_EQ(hw.transactions.size(), commands_after_replacement);  // No stale IRQ clear or restoration.
+  hw.irq = IRQ_TX_DONE;
+  hw.radio.loop();
+  ASSERT_EQ(replacement->results.size(), reuse_listener ? 2u : 1u);
+  EXPECT_EQ(replacement->results.back(), SX126xError::NONE);
+  EXPECT_FALSE(hw.radio.is_transmitting());
+}
+
+INSTANTIATE_TEST_SUITE_P(ReadSuccessReadFailureAndClearFailure, SX126xPollingReentry,
+                         ::testing::Combine(::testing::Values(0u, 1u, 2u), ::testing::Bool()));
 
 }  // namespace esphome::sx126x::testing

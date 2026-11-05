@@ -149,6 +149,7 @@ class SX126x final : public Component {
     }
   }
   TxOperation tx_;
+  uint32_t tx_generation_{0};
   bool rx_dispatching_{false};
   bool command_result_(bool success);
   Sx126xSpiDevice spi_device_;
