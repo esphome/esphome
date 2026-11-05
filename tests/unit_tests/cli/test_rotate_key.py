@@ -406,6 +406,16 @@ def test_restores_when_the_device_was_never_reached(
     assert "Restored the previous key" in out
 
 
+def test_a_successful_upload_without_the_callback_keeps_the_new_key(
+    env: dict[str, Mock], capfd: pytest.CaptureFixture[str]
+) -> None:
+    """A finished upload is never rolled back, even if the callback did not run."""
+    env["upload"].side_effect = None
+    assert command_rotate_key(MockArgs(), CORE.config) == 0
+    assert NEW_KEY in CORE.config_path.read_text()
+    assert "SUCCESS" in capfd.readouterr().out
+
+
 def test_keeps_the_edit_after_a_failed_upload(
     env: dict[str, Mock], capfd: pytest.CaptureFixture[str]
 ) -> None:

@@ -63,19 +63,22 @@ def field_line_re(
     ``indent``; the name may be quoted. Keeps the prefix, the quotes and the
     trailer for rewrite."""
     scalar = PLAIN_SCALAR if value is None else re.escape(value)
-    prefix = rf"{indent}[\"']?{re.escape(name)}[\"']?\s*:\s*"
+    prefix = rf"{field_prefix(name, indent)}\s*"
     return re.compile(rf"^(?P<prefix>{prefix}){TRAILER.format(value=scalar)}")
 
 
-def _secret_ref(name: str = r"[^\s\"']+") -> str:
-    """`!secret name` as the whole scalar: `!secret ota key` is not `ota`, and
-    a comment needs whitespace before its `#`, so `a#b` is one name."""
-    return rf"!secret\s+(?P<q>[\"']?)(?P<name>{name})(?P=q)(?=\s+#|\s*$)"
+def field_prefix(name: str, indent: str = r"\s*") -> str:
+    """The pattern of ``name:`` at ``indent``; the name may be quoted."""
+    return rf"{indent}[\"']?{re.escape(name)}[\"']?\s*:"
 
 
 def secret_field_re(name: str) -> re.Pattern[str]:
-    """Match ``name: !secret <secret>``; the secret is the ``name`` group."""
-    return re.compile(rf"^\s*[\"']?{re.escape(name)}[\"']?\s*:\s*{_secret_ref()}")
+    """Match ``name: !secret <secret>``; the secret is the ``name`` group. It is
+    the whole scalar (`!secret ota key` is not `ota`) and `a#b` is one name."""
+    return re.compile(
+        rf"^{field_prefix(name)}\s*!secret\s+(?P<q>[\"']?)(?P<name>[^\s\"']+)(?P=q)"
+        r"(?=\s+#|\s*$)"
+    )
 
 
 def rewrite(match: re.Match[str], value: str, quote: str | None = None) -> str:

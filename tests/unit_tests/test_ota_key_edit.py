@@ -217,7 +217,9 @@ def test_refuses_a_secret_defined_elsewhere(tmp_path: Path) -> None:
     scalar, is refused rather than guessed at."""
     secrets = f"device_key: >-\n  {OLD_KEY}\n"
     _setup(tmp_path, SECRET_YAML, secrets)
-    with pytest.raises(EsphomeError, match="No 'device_key:' line"):
+    with pytest.raises(
+        EsphomeError, match="No plain 'device_key:' line with the current key"
+    ):
         locate_key_edits(OLD_KEY, NEW_KEY)
 
 
@@ -472,7 +474,7 @@ ota:
       old_key: ${{prev}}
 """,
     )
-    with pytest.raises(EsphomeError, match="edit it by hand"):
+    with pytest.raises(EsphomeError, match="edit 'old_key' by hand"):
         old_key_edit(OLD_KEY)
 
 
@@ -1439,3 +1441,65 @@ def test_device_including_the_target_of_a_linked_include_is_a_sharer(
     edits = locate_key_edits(OLD_KEY, NEW_KEY)
     with_sharers(edits)
     assert [p.name for p in edits[0].shared_with] == ["other.yaml"]
+
+
+def test_a_file_that_fails_to_scan_is_unchecked(tmp_path: Path) -> None:
+    """Its uses cannot be read, so the warning names it and no `_old` line is reused."""
+    (tmp_path / "broken.yaml").write_bytes(b"key: !secret device_key\nbad: @x\n")
+    _setup(tmp_path, SECRET_YAML, f"device_key: {OLD_KEY}\ndevice_key_old: x\n")
+    edits = locate_key_edits(OLD_KEY, NEW_KEY)
+    unchecked = with_sharers(edits)
+    assert edits[0].shared_with == []
+    assert len(unchecked) == 1 and "broken.yaml" in unchecked[0]
+    with pytest.raises(EsphomeError, match="Could not read every configuration"):
+        old_key_edit(OLD_KEY)
+
+
+def test_includes_are_matched_by_file_name_outside_comments(tmp_path: Path) -> None:
+    """`wifi_api.yaml` is not `api.yaml`, a commented include does not count,
+    and a remote package names its file before the `@ref`."""
+    (tmp_path / "api.yaml").write_bytes(f'encryption:\n  key: "{OLD_KEY}"\n'.encode())
+    (tmp_path / "lookalike.yaml").write_bytes(
+        b"wifi: !include wifi_api.yaml\n# api: !include api.yaml\n"
+    )
+    (tmp_path / "remote.yaml").write_bytes(
+        b"packages:\n  base: github://me/configs/api.yaml@main\n"
+    )
+    _setup(
+        tmp_path,
+        "esphome:\n  name: test\n\napi: !include api.yaml\n\n"
+        "ota:\n  - platform: esphome\n    encryption:\n",
+    )
+    edits = locate_key_edits(OLD_KEY, NEW_KEY)
+    with_sharers(edits)
+    assert [p.name for p in edits[0].shared_with] == ["remote.yaml"]
+
+
+def test_bare_block_followed_by_a_sibling_gets_one_level_more(tmp_path: Path) -> None:
+    """Blank and comment lines are passed over; a sibling option is not a child."""
+    yaml_text = API_YAML + "\n    # the port\n    port: 3232\n"
+    path = _setup(tmp_path, yaml_text)
+    (edit,) = old_key_edit(OLD_KEY)
+    assert (edit.path, edit.line, edit.new_line) == (
+        path,
+        9,
+        f'      old_key: "{OLD_KEY}"',
+    )
+
+
+def test_literal_old_key_next_to_a_secret_key_entry_is_refused(tmp_path: Path) -> None:
+    """The entry with its own key line gets old_key; a plain copy of a secret is refused."""
+    yaml_text = f"""esphome:
+  name: test
+
+ota:
+  - platform: esphome
+    encryption:
+      key: "{OLDER_KEY}"
+  - platform: esphome
+    encryption:
+      key: !secret device_key
+"""
+    _setup(tmp_path, yaml_text, f"device_key: {OLD_KEY}\n")
+    with pytest.raises(EsphomeError, match="kept in secrets.yaml"):
+        old_key_edit(OLD_KEY)

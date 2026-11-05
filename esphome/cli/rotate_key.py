@@ -114,16 +114,16 @@ def command_rotate_key(args: argparse.Namespace, config: ConfigType) -> int | No
         return fail("The new key is the same as the current one")
 
     try:
-        edits = locate_key_edits(old_key, new_key)
+        key_edits = locate_key_edits(old_key, new_key)
         # The previous key stays in the config as old_key so an install still
         # reaches the device if it ends up running either key
         old_edits = old_key_edit(old_key)
-        edits += old_edits
+        edits = [*key_edits, *old_edits]
         unchecked = with_sharers(edits)
     except EsphomeError as err:
         return fail(str(err))
     # Another device's previous key would be overwritten where this key is not
-    key_users = {p for edit in edits if edit not in old_edits for p in edit.shared_with}
+    key_users = {p for edit in key_edits for p in edit.shared_with}
     for edit in old_edits:
         if others := sorted(set(edit.shared_with) - key_users):
             return fail(
@@ -195,7 +195,6 @@ def command_rotate_key(args: argparse.Namespace, config: ConfigType) -> int | No
             safe_print(keys)
             return fail("Interrupted; " + "; ".join(notes))
         return fail("Interrupted before the upload")
-    # From here every exit restores or reports, so nothing sits outside the try
     uploaded = False
     try:
         safe_print(
@@ -236,6 +235,8 @@ def command_rotate_key(args: argparse.Namespace, config: ConfigType) -> int | No
                 else "The upload failed before the image was sent (see the error "
                 "above); nothing changed on the device."
             )
+        # A successful upload sent the image even if the callback did not run
+        uploaded = True
         safe_print("Waiting for the device to come back with the new key...")
         found = espota2.probe_ota_key(network_devices, remote_port, new_key)
         if found is not ProbeResult.ACCEPTED:
