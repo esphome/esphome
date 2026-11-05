@@ -1,4 +1,4 @@
-from esphome.components.mipi import delay
+from esphome.components.mipi import SLPOUT, delay
 
 from . import DsiDriverChip
 
@@ -24,6 +24,8 @@ DsiDriverChip(
     brightness=0xFF,
     requires={"psram"},
     reset_pin={"xl9535": {"address": 0x20}, "number": 2},
+    # The panel needs 120 ms after SLPOUT before DISPON, so SLPOUT is in the init sequence with its own delay
+    no_slpout=True,
     initsequence=[
         # The panel ignores commands sent too soon after the hardware reset
         delay(120),
@@ -36,5 +38,7 @@ DsiDriverChip(
         (0x30, 0x00, 0x00, 0x04, 0xCF),
         (0x12, 0x00),
         (0x35, 0x00),  # Tearing effect output on
+        (SLPOUT,),
+        delay(120),
     ],
 )
