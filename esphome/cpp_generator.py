@@ -793,7 +793,7 @@ def static_function(
     name: str,
     return_type: SafeExpType,
     parameters: TemplateArgsType,
-    body: list[str],
+    body: list[str | Statement],
 ) -> RawExpression:
     """Emit ``static <return_type> <name>(parameters) { body }`` at global scope and return an
     expression naming it, for use as a template argument or a function pointer.
@@ -807,7 +807,7 @@ def static_function(
     )
     add_global(RawStatement(f"{signature};"))
     add_global_after_includes(
-        RawStatement(f"{signature} {{\n{indent(chr(10).join(body))}\n}}")
+        RawStatement(f"{signature} {{\n{indent(chr(10).join(map(str, body)))}\n}}")
     )
     return RawExpression(name)
 
@@ -1343,6 +1343,10 @@ class MockObjClass(MockObj):
             return True
         return any(str(parent) == str(other) for parent in self._parents)
 
+    def const_ref(self) -> MockObj:
+        """``const T &``, for a parameter that takes this type by reference."""
+        return self.operator("const").operator("ref")
+
     def template(self, *args: SafeExpType) -> "MockObjClass":
         if len(args) != 1 or not isinstance(args[0], TemplateArguments):
             args = TemplateArguments(*args)
@@ -1372,6 +1376,7 @@ def call_lambda(lamb: LambdaExpression) -> Expression:
     Given a lambda, either reduce to a simple expression or call it, possibly with parameters
     from the surrounding context.
     This is for use only with value-returning lambdas, used in places where the value of a lambda call is needed.
+    Use only where the surrounding scope declares the lambda's parameters with the same types.
     :param lamb: The LambdaExpression to call or reduce
     :return: An Expression representing the result of calling the lambda or reducing it to a simple expression
     """

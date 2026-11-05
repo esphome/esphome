@@ -66,5 +66,18 @@ TEST_F(WiFiRetryPhaseTest, NetworkMissingFromScanIsTriedAsHidden) {
   EXPECT_FALSE(host_hooks.last_connect.has_bssid());
 }
 
+TEST_F(WiFiRetryPhaseTest, PinnedBssidMissingFromScanRestartsAtOnce) {
+  WiFiAP ap = make_ap("home");
+  ap.set_bssid(BSSID_A);
+  this->add_network_(ap);
+
+  // The SSID is visible, but on another access point, so no hidden network is left to try
+  this->scan_({make_result("home", BSSID_B)});
+
+  // The adapter restarts now instead of after the scan timeout
+  EXPECT_EQ(host_hooks.station_offs, 1);
+  EXPECT_EQ(host_hooks.connects, 0);
+}
+
 }  // namespace
 }  // namespace esphome::wifi::testing

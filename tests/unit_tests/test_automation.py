@@ -22,6 +22,7 @@ from esphome.automation import (
     ApplyCondition,
     ApplyField,
     Automation,
+    AutomationList,
     CallbackAutomation,
     DelayAction,
     ForCondition,
@@ -31,7 +32,6 @@ from esphome.automation import (
     NotCondition,
     OrCondition,
     RepeatAction,
-    ResumeComponentAction,
     StatelessLambdaCondition,
     TriggerForwarder,
     TriggerOnFalseForwarder,
@@ -44,6 +44,7 @@ from esphome.automation import (
     apply_statements_action,
     build_action,
     build_action_list,
+    build_automation_lists,
     build_callback_automation,
     build_callback_automations,
     build_condition,
@@ -55,7 +56,9 @@ from esphome.automation import (
     if_action_to_code,
     literal_with_length,
     maybe_simple_id,
+    new_automation,
     new_lambda_pvariable,
+    owning_args,
     parent_ref,
     progmem_bytes,
     register_action,
@@ -92,11 +95,20 @@ from esphome.const import (
     CONF_TYPE_ID,
     CONF_UPDATE_INTERVAL,
 )
-from esphome.core import CORE, ID, KEY_CORE, KEY_TARGET_PLATFORM, EsphomeError, Lambda
+from esphome.core import (
+    CORE,
+    ID,
+    KEY_CORE,
+    KEY_TARGET_PLATFORM,
+    EsphomeError,
+    Lambda,
+    TimePeriodMilliseconds,
+)
 from esphome.cpp_generator import LambdaExpression, MockObj, RawExpression
 from esphome.schema_extractors import SCHEMA_EXTRACT
 from esphome.types import ConfigType
 from esphome.util import Registry, RegistryEntry
+from tests.component_tests.helpers import get_define_value
 
 
 def _make_registry(non_synchronous_actions: set[str]) -> dict[str, RegistryEntry]:
@@ -335,6 +347,42 @@ def test_has_non_synchronous_actions_set_playlist_delay() -> None:
         }
     ]
     assert has_non_synchronous_actions(actions) is False
+
+
+OWNING_ARGS = [(cg.StringRef, "key"), (cg.bool_, "value")]
+
+
+def test_owning_args_synchronous_keeps_string_ref(
+    mock_registry: dict[str, RegistryEntry],
+) -> None:
+    assert owning_args(OWNING_ARGS, {CONF_THEN: [{"logger.log": "hi"}]}) == OWNING_ARGS
+
+
+def test_owning_args_deferring_gets_std_string(
+    mock_registry: dict[str, RegistryEntry],
+) -> None:
+    conf = {CONF_THEN: [{"logger.log": "hi"}, {"delay": "1s"}]}
+    assert owning_args(OWNING_ARGS, conf) == [
+        (cg.std_string, "key"),
+        (cg.bool_, "value"),
+    ]
+
+
+def test_owning_args_nested_deferring_gets_std_string(
+    mock_registry: dict[str, RegistryEntry],
+) -> None:
+    conf = {CONF_THEN: [{"if": {CONF_THEN: [{"delay": "1s"}]}}]}
+    assert owning_args(OWNING_ARGS, conf)[0] == (cg.std_string, "key")
+
+
+def test_owning_args_swaps_every_string_ref(
+    mock_registry: dict[str, RegistryEntry],
+) -> None:
+    args = [(cg.StringRef, "key"), (cg.StringRef, "value")]
+    assert owning_args(args, {CONF_THEN: [{"delay": "1s"}]}) == [
+        (cg.std_string, "key"),
+        (cg.std_string, "value"),
+    ]
 
 
 def test_validate_no_deferring_actions_accepts_synchronous(
@@ -1110,34 +1158,144 @@ async def test_apply_condition_id_constant_is_the_named_object(
     )
 
 
+def _by_value_call(type_: str, body: str) -> str:
+    """A config lambda called in place with arg ``x`` by value, whitespace folded."""
+    return f"[]({type_} x) -> {type_} {{ {_squash(body)} }}(x)"
+
+
+LAMBDA_BODIES = [
+    "return x * 2;",
+    "if (x) return 1;\nreturn 2;",
+    "x *= 2;\nreturn x;",
+    "return x *= 2;",
+]
+
+
 @pytest.mark.asyncio
+@pytest.mark.parametrize("body", LAMBDA_BODIES)
 async def test_apply_lambdas(
-    registries: tuple[Registry, Registry], mock_cg: MockCodegen
+    registries: tuple[Registry, Registry], mock_cg: MockCodegen, body: str
 ) -> None:
-    """A single return reduces to a cast, anything longer is called inline with the trigger args."""
-    fields = (
-        ApplyField("kp", "set_kp", cg.float_),
-        ApplyField("ki", "set_ki", cg.float_),
+    """Every lambda is called in place with the trigger arg by value, so it may modify it."""
+    fields = (ApplyField("kp", "set_kp", cg.int32),)
+    await _run_apply_action(
+        registries, fields, {"kp": Lambda(body)}, args=[(cg.int32, "x")]
     )
-    config = {
-        "kp": Lambda("return x * 2;"),
-        "ki": Lambda("if (x) return 1.0f;\nreturn 2.0f;"),
-    }
-    await _run_apply_action(registries, fields, config, args=[(cg.int32, "x")])
-    text = _apply_definition(mock_cg)
+    text = _squash(_apply_definition(mock_cg))
     assert text.startswith(
         "static void esphome__obj_1__fn(const std::remove_cvref_t<int32_t> & x) {"
     )
     # The parent is global-scope qualified, so an arg named like the id cannot shadow it.
-    assert f"::{PARENT_OBJ}->set_kp(" in text
-    assert f"::{PARENT_OBJ}->set_kp(static_cast<float>(x * 2));" in text
-    # Outer apply lambda and inner field lambda spell the trigger arg identically.
-    assert text.count("const std::remove_cvref_t<int32_t> & x") == 2
-    assert (
-        f"::{PARENT_OBJ}->set_ki([](const std::remove_cvref_t<int32_t> & x) -> float {{"
-        in text
+    assert f"::{PARENT_OBJ}->set_kp({_by_value_call('int32_t', body)});" in text
+
+
+@pytest.mark.asyncio
+async def test_apply_lambda_naming_no_arg_is_reduced(
+    registries: tuple[Registry, Registry], mock_cg: MockCodegen
+) -> None:
+    """A lone return that names no value arg copies nothing, so it is the bare expression."""
+    fields = (ApplyField("kp", "set_kp", cg.int32),)
+    config = {"kp": Lambda("return 42;")}
+    await _run_apply_action(registries, fields, config, args=[(cg.int32, "x")])
+    assert f"::{PARENT_OBJ}->set_kp(static_cast<int32_t>(42));" in _apply_definition(
+        mock_cg
     )
-    assert "}(x));" in text
+    # Beside an operator a reduced class-typed expression is parenthesized.
+    check = ApplyCall("state == {}", (("state", cg.std_string),))
+    config = {"state": Lambda('return "a";')}
+    await _run_apply_condition(registries, check, config, args=[(cg.int32, "x")])
+    assert f'return ::{PARENT_OBJ}->state == ("a");' in _apply_definition(mock_cg)
+
+
+@pytest.mark.asyncio
+async def test_apply_lambda_unnamed_arg_is_not_copied(
+    registries: tuple[Registry, Registry], mock_cg: MockCodegen
+) -> None:
+    """An arg the body never names stays a reference; a named one is by value."""
+    fields = (ApplyField("index", "set_index", cg.size_t),)
+    args = [(cg.std_string, "x"), (cg.size_t, "i")]
+    # `xi` must not count as naming `x`
+    config = {"index": Lambda("size_t xi = i;\nreturn xi;")}
+    await _run_apply_action(registries, fields, config, args=args)
+    assert (
+        "set_index([](const std::remove_cvref_t<std::string> & x, size_t i) -> size_t {"
+        in _apply_definition(mock_cg)
+    )
+
+
+@pytest.mark.asyncio
+@pytest.mark.parametrize(
+    "body",
+    [
+        "return 42; // x",
+        "return 1 /* x */;",
+        'return sizeof("x");',
+        'return sizeof("a\\"x");',
+        'return sizeof(R"(x)");',
+        "return 'x';",
+        "return foo.x;",
+        "return p->x;",
+        "return ns::x;",
+    ],
+)
+async def test_apply_lambda_arg_in_noise_is_not_copied(
+    registries: tuple[Registry, Registry], mock_cg: MockCodegen, body: str
+) -> None:
+    """A name only in a comment, a literal or after member access does not copy the arg."""
+    fields = (ApplyField("kp", "set_kp", cg.int32),)
+    await _run_apply_action(
+        registries, fields, {"kp": Lambda(body)}, args=[(cg.std_string, "x")]
+    )
+    text = _apply_definition(mock_cg)
+    assert "std::string x" not in text
+    assert "const std::remove_cvref_t<std::string> & x" in text
+
+
+@pytest.mark.asyncio
+@pytest.mark.parametrize(
+    "body",
+    [
+        "return x.size(); // done",
+        "/* a */ return x.size();",
+        'return sizeof("a") + x.size();',
+        "return 1'0 + x.size() + 2'0;",
+        "return '\"' + x.size();",
+        "return s.x + x.size();",
+    ],
+)
+async def test_apply_lambda_arg_beside_noise_is_copied(
+    registries: tuple[Registry, Registry], mock_cg: MockCodegen, body: str
+) -> None:
+    """A real use next to a comment, literal or digit separator still takes the arg by value."""
+    fields = (ApplyField("kp", "set_kp", cg.int32),)
+    await _run_apply_action(
+        registries, fields, {"kp": Lambda(body)}, args=[(cg.std_string, "x")]
+    )
+    assert "[](std::string x) -> int32_t {" in _apply_definition(mock_cg)
+
+
+@pytest.mark.asyncio
+async def test_apply_reduced_comma_expression_is_parenthesized(
+    registries: tuple[Registry, Registry], mock_cg: MockCodegen
+) -> None:
+    """A reduced uncast expression with a top-level comma stays one value."""
+    fields = (ApplyBytes("data", "send({})"),)
+    config = {"data": Lambda("return touch(), std::vector<uint8_t>{0x01};")}
+    await _run_apply_action(registries, fields, config)
+    assert (
+        "const std::vector<uint8_t> esphome__bytes = "
+        "(touch(), std::vector<uint8_t>{0x01});"
+    ) in _apply_definition(mock_cg)
+    fields = (ApplyField("name", "set_name", cg.std_string),)
+    config = {"name": Lambda('return touch(), std::string("a");')}
+    await _run_apply_action(registries, fields, config)
+    assert f'::{PARENT_OBJ}->set_name((touch(), std::string("a")));' in (
+        _apply_definition(mock_cg)
+    )
+    # Commas inside brackets or literals are not top level
+    config = {"name": Lambda('return f(1, 2) + ",";')}
+    await _run_apply_action(registries, fields, config)
+    assert f'::{PARENT_OBJ}->set_name(f(1, 2) + ",");' in _apply_definition(mock_cg)
 
 
 @pytest.mark.asyncio
@@ -1345,7 +1503,7 @@ async def test_apply_bytes_lambda_is_a_vector_in_a_block(
     body: str,
 ) -> None:
     """A lambda payload is called once into a scoped vector and passed as data and size;
-    it takes the trigger args by their own types and is never reduced, so it may modify them."""
+    a trigger arg it names is taken by its own type, so it may modify it."""
     fields = (ApplyBytes("data", "send({})"),)
     config = {"data": Lambda(body)}
     await _run_apply_action(
@@ -1568,28 +1726,26 @@ async def test_apply_condition_string_constant(
 
 @pytest.mark.asyncio
 @pytest.mark.parametrize(
-    ("body", "expected", "called"),
+    ("type_", "body"),
     [
-        ("return x;", "->state == (x);", False),
-        ('return x.empty() ? "e" : x;', '->state == (x.empty() ? "e" : x);', False),
-        ('if (x.empty()) return "e";\nreturn x;', "}(x);", True),
+        *((cg.int32, body) for body in LAMBDA_BODIES),
+        (cg.std_string, "return x;"),
+        (cg.std_string, 'if (x.empty()) return "e";\nreturn x;'),
     ],
 )
-async def test_apply_condition_string_lambda_paths(
+async def test_apply_condition_lambdas(
     registries: tuple[Registry, Registry],
     mock_cg: MockCodegen,
+    type_: MockObj,
     body: str,
-    expected: str,
-    called: bool,
 ) -> None:
-    """A single return is inlined with no copy; a longer body is a called std::string lambda."""
-    check = ApplyCall("state == {}", (("state", cg.std_string),))
+    """A condition lambda is called in place with the trigger arg by value, a std::string too."""
+    check = ApplyCall("state == {}", (("state", type_),))
     await _run_apply_condition(
-        registries, check, {"state": Lambda(body)}, args=[(cg.std_string, "x")]
+        registries, check, {"state": Lambda(body)}, args=[(type_, "x")]
     )
-    text = _apply_definition(mock_cg)
-    assert expected in text
-    assert ("-> std::string {" in text) is called
+    text = _squash(_apply_definition(mock_cg))
+    assert f"->state == {_by_value_call(str(type_), body)};" in text
 
 
 def test_progmem_bytes_shares_equal_payloads() -> None:
@@ -1625,6 +1781,23 @@ async def test_templatable_bytes_lambda_payload() -> None:
     assert "act->set_code_template(" in text
     assert "-> std::vector<uint8_t>" in text
     assert "set_code_static" not in text
+
+
+@pytest.mark.asyncio
+async def test_templatable_bytes_lambda_return_type() -> None:
+    CORE.config = {}
+    var = MockObj("act", "->")
+    await templatable_bytes(
+        Lambda("return {0x01};"),
+        [],
+        var.set_code_template,
+        var.set_code_static,
+        "payload",
+        return_type=MockObj("ns::Buffer"),
+    )
+    text = CORE.cpp_main_section
+    assert "-> ns::Buffer" in text
+    assert "std::vector" not in text
 
 
 @pytest.mark.asyncio
@@ -1725,6 +1898,22 @@ async def test_trigger_callback_filter_names_parent(mock_cg: MockCodegen) -> Non
         "if (!(state == 1 && ::improv->is_failed() == false)) return; "
         f"::{NEW_OBJ}->trigger();"
     ) in text
+
+
+@pytest.mark.asyncio
+@pytest.mark.parametrize("body", LAMBDA_BODIES)
+async def test_trigger_callback_filter_lambdas(mock_cg: MockCodegen, body: str) -> None:
+    """A filter lambda is called in place with the callback's arg by value."""
+    text = _squash(
+        await build_trigger_callback(
+            [(cg.int32, "x")],
+            {**TRIGGER_CONF, "level": Lambda(body)},
+            [(cg.int32, "x")],
+            when=ApplyCall("x == {}", (("level", cg.int32),)),
+        )
+    )
+    assert text.startswith("[](const std::remove_cvref_t<int32_t> & x) -> void {")
+    assert f"if (!(x == {_by_value_call('int32_t', body)})) return;" in text
 
 
 @pytest.mark.asyncio
@@ -2225,22 +2414,90 @@ async def test_wait_until_action_timeout_is_optional(with_timeout: bool) -> None
     assert ("wait->set_timeout_value(" in CORE.cpp_main_section) == with_timeout
 
 
-@pytest.mark.asyncio
-@pytest.mark.parametrize("with_interval", [True, False])
-async def test_component_resume_action_update_interval_is_optional(
-    with_interval: bool,
-) -> None:
+def _component_action(name: str, body: ConfigType | None = None) -> ConfigType:
+    """Config for a ``component.*`` action on ``comp``, typed as the registry declares it."""
+    return {
+        name: {CONF_ID: ID("comp", type=cg.PollingComponent), **(body or {})},
+        CONF_TYPE_ID: ID(
+            "act",
+            is_declaration=True,
+            type=ACTION_REGISTRY[name].type_id,
+            is_manual=False,
+        ),
+    }
+
+
+@pytest.fixture
+def polling_component() -> None:
     CORE.config = {}
     cg.new_Pvariable(ID("comp", is_declaration=True, type=cg.PollingComponent))
-    body: ConfigType = {CONF_ID: ID("comp", type=cg.PollingComponent)}
-    if with_interval:
-        body[CONF_UPDATE_INTERVAL] = 250
-    config: ConfigType = {
-        "component.resume": body,
-        CONF_TYPE_ID: ID("resume", is_declaration=True, type=ResumeComponentAction),
-    }
-    await build_action(config, TEMPLATE_ARG, [])
-    assert ("resume->set_update_interval(" in CORE.cpp_main_section) == with_interval
+
+
+@pytest.mark.asyncio
+@pytest.mark.usefixtures("polling_component")
+@pytest.mark.parametrize(
+    "name",
+    ["component.update", "component.suspend", "component.resume"],
+)
+async def test_component_action_codegen(name: str) -> None:
+    """Each action is an object constructed with the component, with no interval set."""
+    await build_action(_component_action(name), TEMPLATE_ARG, [])
+
+    class_name = str(ACTION_REGISTRY[name].type_id)
+    assert f"new(act) {class_name}<>(comp);" in CORE.cpp_main_section
+    assert "set_update_interval" not in CORE.cpp_main_section
+
+
+@pytest.mark.asyncio
+@pytest.mark.usefixtures("polling_component")
+async def test_component_resume_constant_interval_codegen() -> None:
+    await build_action(
+        _component_action(
+            "component.resume",
+            {CONF_UPDATE_INTERVAL: TimePeriodMilliseconds(milliseconds=250)},
+        ),
+        TEMPLATE_ARG,
+        [],
+    )
+
+    assert (
+        "act->set_update_interval([]() -> uint32_t {\n    return 250;\n});"
+    ) in CORE.cpp_main_section
+
+
+@pytest.mark.asyncio
+@pytest.mark.usefixtures("polling_component")
+async def test_component_resume_interval_lambda_codegen() -> None:
+    """A templated interval is a lambda over the trigger args."""
+    await build_action(
+        _component_action(
+            "component.resume", {CONF_UPDATE_INTERVAL: Lambda("return x * 1000;")}
+        ),
+        cg.TemplateArguments(cg.uint32),
+        [(cg.uint32, "x")],
+    )
+
+    main = CORE.cpp_main_section
+    assert "new(act) ResumeComponentAction<uint32_t>(comp);" in main
+    assert (
+        "act->set_update_interval([](uint32_t x) -> uint32_t {\n"
+        "    return x * 1000;\n"
+        "});"
+    ) in main
+
+
+@pytest.mark.asyncio
+@pytest.mark.usefixtures("polling_component")
+@pytest.mark.parametrize("body", ["x *= 1000; return x;", "return x *= 1000;"])
+async def test_component_resume_interval_lambda_takes_args_by_value(body: str) -> None:
+    """The user's interval lambda gets the trigger args by value, so it may modify them."""
+    await build_action(
+        _component_action("component.resume", {CONF_UPDATE_INTERVAL: Lambda(body)}),
+        cg.TemplateArguments(cg.uint32),
+        [(cg.uint32, "x")],
+    )
+
+    assert f"[](uint32_t x) -> uint32_t {{\n    {body}\n}}" in CORE.cpp_main_section
 
 
 COMPONENT_ID = ID("comp", type=cg.Component)
@@ -3181,3 +3438,52 @@ async def test_apply_statements_action_merges_with_neighbours() -> None:
     assert "ApplyRunAction<esphome__act_s__fn, int>" in CORE.cpp_main_section
     text = CORE.cpp_global_section
     assert text.index("use(esphome__v);") < text.index("::comp->do_a();")
+
+
+@pytest.mark.asyncio
+async def test_build_automation_lists(mock_cg: MockCodegen) -> None:
+    """Each automation is added to its parent's list; the count is the busiest parent's."""
+    mock_cg.new_pvariable.side_effect = lambda id_, *args: MockObj(str(id_), "->")
+    entries = (
+        AutomationList("on_key", "TEST_ON_KEY_COUNT", [(cg.uint8, "x")]),
+        AutomationList("on_tag", "TEST_ON_TAG_COUNT", []),
+        AutomationList("on_raw", "TEST_ON_RAW_COUNT", []),
+    )
+
+    def conf(name: str) -> ConfigType:
+        return {CONF_AUTOMATION_ID: ID(name), CONF_THEN: []}
+
+    hub_a = MockObj("hub_a", "->")
+    hub_b = MockObj("hub_b", "->")
+    await build_automation_lists(
+        hub_a, {"on_key": [conf("a1"), conf("a2")], "on_tag": [conf("a3")]}, entries
+    )
+    await build_automation_lists(hub_b, {"on_key": [conf("b1")]}, entries)
+    assert [str(c.args[0]) for c in mock_cg.add.call_args_list] == [
+        "hub_a->add_on_key_automation(a1)",
+        "hub_a->add_on_key_automation(a2)",
+        "hub_a->add_on_tag_automation(a3)",
+        "hub_b->add_on_key_automation(b1)",
+    ]
+    assert [str(c.args[1]) for c in mock_cg.new_pvariable.call_args_list] == [
+        "<uint8_t>",
+        "<uint8_t>",
+        "<>",
+        "<uint8_t>",
+    ]
+    CORE.flush_tasks()
+    assert get_define_value("TEST_ON_KEY_COUNT") == "2"
+    assert get_define_value("TEST_ON_TAG_COUNT") == "1"
+    assert get_define_value("TEST_ON_RAW_COUNT") is None
+
+
+@pytest.mark.asyncio
+async def test_new_automation(mock_cg: MockCodegen) -> None:
+    """A bare automation takes its template from args and gets no constructor arguments."""
+    mock_cg.new_pvariable.side_effect = lambda id_, *args: MockObj(str(id_), "->")
+    obj = await new_automation(
+        [(cg.float_, "x")], {CONF_AUTOMATION_ID: ID("a1"), CONF_THEN: []}
+    )
+    assert str(obj) == "a1"
+    ((id_, templ), _) = mock_cg.new_pvariable.call_args
+    assert (str(id_), str(templ)) == ("a1", "<float>")

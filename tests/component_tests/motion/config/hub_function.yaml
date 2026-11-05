@@ -1,0 +1,38 @@
+---
+esphome:
+  name: test
+
+esp8266:
+  board: d1_mini
+
+i2c:
+  sda: GPIO4
+  scl: GPIO5
+
+motion:
+  - platform: qmi8658
+    id: imu
+  - platform: qmi8658
+    id: idle_imu
+    address: 0x6A
+
+sensor:
+  - platform: motion
+    motion_id: imu
+    id: accel_x
+    type: acceleration_x
+  - platform: motion
+    motion_id: imu
+    id: imu_roll
+    type: roll
+
+binary_sensor:
+  - platform: motion
+    motion_id: imu
+    id: face_up
+    type: face_up
+
+event:
+  - platform: motion
+    motion_id: imu
+    id: shake
