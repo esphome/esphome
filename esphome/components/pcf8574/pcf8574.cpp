@@ -75,8 +75,7 @@ bool PCF8574Component::write_gpio_() {
   value |= ~this->mode_mask_;
 
   uint8_t data[2];
-  data[0] = value;
-  data[1] = value >> 8;
+  put_le16(data, value);
   return this->status_comm_result(this->write(data, this->pcf8575_ ? 2 : 1) == i2c::ERROR_OK);
 }
 
