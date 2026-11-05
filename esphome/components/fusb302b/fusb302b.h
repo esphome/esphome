@@ -28,6 +28,14 @@ namespace esphome::fusb302b {
 /// A dedicated task owns all I2C traffic to the chip so that PD replies meet the protocol timing
 /// even while the main loop is busy. The main loop only publishes state changes.
 class FUSB302B : public PowerDelivery, public Component, public i2c::I2CDevice {
+#ifdef USE_SENSOR
+  SUB_SENSOR(voltage)
+  SUB_SENSOR(current)
+#endif
+#ifdef USE_TEXT_SENSOR
+  SUB_TEXT_SENSOR(contract)
+#endif
+
  public:
   explicit FUSB302B(InternalGPIOPin *interrupt_pin) : interrupt_pin_(interrupt_pin) {}
 
@@ -50,14 +58,6 @@ class FUSB302B : public PowerDelivery, public Component, public i2c::I2CDevice {
   template<typename F> void add_on_request_failed_callback(F &&callback) {
     this->request_failed_callback_.add(std::forward<F>(callback));
   }
-
-#ifdef USE_SENSOR
-  void set_voltage_sensor(sensor::Sensor *sensor) { this->voltage_sensor_ = sensor; }
-  void set_current_sensor(sensor::Sensor *sensor) { this->current_sensor_ = sensor; }
-#endif
-#ifdef USE_TEXT_SENSOR
-  void set_contract_text_sensor(text_sensor::TextSensor *sensor) { this->contract_text_sensor_ = sensor; }
-#endif
 
  protected:
   enum class SourceCapStep : uint8_t {
@@ -129,13 +129,6 @@ class FUSB302B : public PowerDelivery, public Component, public i2c::I2CDevice {
 
   LazyCallbackManager<void(PdState, PdState)> state_callback_;
   LazyCallbackManager<void()> request_failed_callback_;
-#ifdef USE_SENSOR
-  sensor::Sensor *voltage_sensor_{nullptr};
-  sensor::Sensor *current_sensor_{nullptr};
-#endif
-#ifdef USE_TEXT_SENSOR
-  text_sensor::TextSensor *contract_text_sensor_{nullptr};
-#endif
 };
 
 }  // namespace esphome::fusb302b
