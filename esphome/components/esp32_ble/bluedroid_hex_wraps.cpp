@@ -13,6 +13,8 @@
 #if defined(USE_ESP32_BLE_BLUEDROID_HEADERS) && __has_include("btc/btc_config.h")
 #define ESPHOME_BLUEDROID_DRIFT_CHECKS
 #include <type_traits>
+// stack/bt_types.h redefines PACKED from esphome/core/helpers.h; nothing below uses it.
+#undef PACKED
 extern "C" {
 #include "btc/btc_config.h"
 #include "device/bdaddr.h"
