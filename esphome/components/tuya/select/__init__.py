@@ -8,6 +8,7 @@ from esphome.const import (
     CONF_OPTIMISTIC,
     CONF_OPTIONS,
 )
+from esphome.types import ConfigType
 
 from .. import CONF_TUYA_ID, Tuya, tuya_ns
 
@@ -32,7 +33,7 @@ def ensure_option_map(value):
     return value
 
 
-def validate_options_shape(config):
+def validate_options_shape(config: ConfigType) -> ConfigType:
     if CONF_STRING_DATAPOINT in config:
         if not isinstance(config[CONF_OPTIONS], list):
             raise cv.Invalid(
@@ -54,7 +55,8 @@ CONFIG_SCHEMA = cv.All(
             cv.Optional(CONF_INT_DATAPOINT): cv.uint8_t,
             cv.Optional(CONF_STRING_DATAPOINT): cv.uint8_t,
             cv.Required(CONF_OPTIONS): cv.Any(
-                ensure_option_map, cv.ensure_list(cv.string_strict)
+                ensure_option_map,
+                cv.All(cv.ensure_list(cv.string_strict), cv.Length(min=1)),
             ),
             cv.Optional(CONF_OPTIMISTIC, default=False): cv.boolean,
         }
