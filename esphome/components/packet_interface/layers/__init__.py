@@ -227,6 +227,21 @@ def check_packet_sizes(config: ConfigType, size: int) -> None:
         capacity = layer_type.send_capacity(layer)
 
 
+def check_broadcast_link(config: ConfigType) -> None:
+    """On a link that every device hears, layers that keep state for one peer need an addressing layer."""
+    if CONF_ADDRESSING in config:
+        return
+    for kind in STACK_ORDER:
+        if (layer := config.get(kind.key)) is not None and kind.get_type(
+            layer
+        ).single_peer(layer):
+            raise cv.Invalid(
+                f"This '{kind.key}' works between two devices only, but every device hears this link, so it needs "
+                f"'{CONF_ADDRESSING}' with a '{CONF_DESTINATION}'",
+                path=[kind.key],
+            )
+
+
 def stack_auto_load(config: ConfigType) -> set[str]:
     """The components that the layers configured in config need loaded."""
     loads: set[str] = set()

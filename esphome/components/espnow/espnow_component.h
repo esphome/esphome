@@ -25,6 +25,9 @@ namespace esphome::espnow {
 
 using peer_address_t = std::array<uint8_t, ESP_NOW_ETH_ALEN>;
 
+/// A short description of an ESP-NOW error code, for logging.
+const LogString *espnow_error_to_str(esp_err_t error);
+
 enum class ESPNowTriggers : uint8_t {
   TRIGGER_NONE = 0,
   ON_NEW_PEER = 1,
@@ -123,6 +126,7 @@ class ESPNowComponent final : public Component {
   uint8_t get_wifi_channel();
 
   void set_auto_add_peer(bool value) { this->auto_add_peer_ = value; }
+  bool get_auto_add_peer() const { return this->auto_add_peer_; }
 
 #if defined(USE_WIFI) && defined(USE_WIFI_CONNECT_STATE_LISTENERS)
   // WiFiConnectStateListener interface: refresh the cached channel after each (re)connect

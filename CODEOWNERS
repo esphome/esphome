@@ -224,6 +224,7 @@ esphome/components/esp_ldo/* @clydebarrow
 esphome/components/espectre/* @francescopace
 esphome/components/esphome/ota/* @esphome/core
 esphome/components/espnow/* @jesserockz
+esphome/components/espnow/packet_interface/* @clydebarrow
 esphome/components/espnow/packet_transport/* @EasilyBoredEngineer
 esphome/components/ethernet_info/* @gtjadsonsantos
 esphome/components/event/* @nohat
