@@ -1537,19 +1537,22 @@ def test_linked_build_data_dir_is_not_unchecked(tmp_path: Path) -> None:
 
 
 def test_secret_users_follow_their_own_secrets_file(tmp_path: Path) -> None:
-    """A device with its own secrets.yaml uses a different `device_key`."""
-    for folder, secrets in (("own", True), ("fallback", False)):
+    """A device with its own loadable secrets.yaml uses a different `device_key`."""
+    secrets_files = {"own": b"device_key: other\n", "broken": b"device_key: [\n"}
+    for folder in ("own", "fallback", "broken"):
         (tmp_path / folder).mkdir()
         (tmp_path / folder / "device.yaml").write_bytes(
             b"api:\n  encryption:\n    key: !secret device_key\n"
         )
-        if secrets:
-            (tmp_path / folder / "secrets.yaml").write_bytes(b"device_key: other\n")
+        if (secrets := secrets_files.get(folder)) is not None:
+            (tmp_path / folder / "secrets.yaml").write_bytes(secrets)
     _setup(tmp_path, SECRET_YAML, f"device_key: {OLD_KEY}\n")
     edits = locate_key_edits(OLD_KEY, NEW_KEY)
     with_sharers(edits)
+    # A secrets.yaml that does not load falls back like a missing one
     assert [p.relative_to(tmp_path.resolve()) for p in edits[0].shared_with] == [
-        Path("fallback/device.yaml")
+        Path("broken/device.yaml"),
+        Path("fallback/device.yaml"),
     ]
 
 

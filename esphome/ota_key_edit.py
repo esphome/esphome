@@ -208,15 +208,15 @@ def _walk_configs() -> _Configs:
 
 def _secret_users(name: str, secrets_path: Path) -> set[Path]:
     """The scanned files that use the secret ``name`` of ``secrets_path``; one
-    with no secrets.yaml beside it may fall back to it, so it counts."""
+    without a loadable secrets.yaml beside it may fall back to it, so it counts."""
     target = secrets_path.resolve()
     return {
         path
         for path, scan in _configs().files
         if any(secret == name for secret, _ in scan.secrets)
         and (
-            not (beside := path.parent / SECRET_YAML).is_file()
-            or beside.resolve() == target
+            (own := secrets_path_for(path)) != path.parent / SECRET_YAML
+            or own.resolve() == target
         )
     }
 
