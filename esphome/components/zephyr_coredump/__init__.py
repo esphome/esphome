@@ -1,6 +1,10 @@
 import esphome.codegen as cg
 from esphome.components.nrf52 import NRF52840_FLASH_SIZE, TESTING_FLASH_SIZE
-from esphome.components.nrf52.boards import BOARDS_ZEPHYR, BOOTLOADER_CONFIG
+from esphome.components.nrf52.boards import (
+    BOARDS_ZEPHYR,
+    BOOTLOADER_CONFIG,
+    short_board_name,
+)
 from esphome.components.zephyr import (
     Section,
     zephyr_add_overlay,
@@ -57,7 +61,7 @@ def _partition_address() -> int:
         )
     # MCUboot reserves nothing, so the flash size has to come from the board
     board = data[KEY_BOARD]
-    if "nrf52840" not in board and board not in BOARDS_ZEPHYR:
+    if "nrf52840" not in board and short_board_name(board) not in BOARDS_ZEPHYR:
         raise cv.Invalid(
             f"{DOMAIN} does not know the flash size of board '{board}', "
             "only nRF52840 boards are supported"

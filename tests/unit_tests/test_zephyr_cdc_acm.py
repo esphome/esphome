@@ -2,9 +2,21 @@
 
 import pytest
 
-from esphome.components.zephyr import CdcAcmUser, zephyr_claim_cdc_acm
-from esphome.components.zephyr.const import KEY_ZEPHYR
+from esphome.components.zephyr import (
+    CdcAcmUser,
+    _cdc_acm_add_ports,
+    zephyr_claim_cdc_acm,
+    zephyr_require_cdc_acm,
+    zephyr_set_core_data,
+)
+from esphome.components.zephyr.const import KEY_BOOTLOADER, KEY_ZEPHYR
 import esphome.config_validation as cv
+from esphome.const import (
+    CONF_BOARD,
+    KEY_CORE,
+    KEY_FRAMEWORK_VERSION,
+    KEY_TARGET_PLATFORM,
+)
 from esphome.core import CORE
 
 
@@ -65,3 +77,40 @@ def test_two_irq_users_are_rejected_even_if_they_allow_the_logger() -> None:
 
     with pytest.raises(cv.Invalid, match="'zephyr_mcumgr' and 'usb_cdc_acm'"):
         zephyr_claim_cdc_acm(0, "usb_cdc_acm")
+
+
+def _overlay(*ports: int, required: bool = False) -> str:
+    zephyr_set_core_data({CONF_BOARD: "xiao_ble", KEY_BOOTLOADER: "adafruit"})
+    CORE.data[KEY_CORE] = {
+        KEY_TARGET_PLATFORM: "nrf52",
+        KEY_FRAMEWORK_VERSION: cv.Version(3, 2, 0),
+    }
+    if required:
+        zephyr_require_cdc_acm()
+    for port in ports:
+        zephyr_claim_cdc_acm(port, f"user{port}")
+    _cdc_acm_add_ports()
+    return CORE.data[KEY_ZEPHYR]["overlay"][""]
+
+
+def test_claimed_ports_are_added_and_enabled() -> None:
+    overlay = _overlay(0, 1)
+
+    assert overlay.count('status = "okay";') == 2
+    assert "cdc_acm_uart0: cdc_acm_uart0 {" in overlay
+    assert "cdc_acm_uart1: cdc_acm_uart1 {" in overlay
+
+
+def test_no_port_without_users() -> None:
+    assert "cdc_acm_uart" not in _overlay()
+
+
+def test_required_port_is_added_without_users() -> None:
+    assert "cdc_acm_uart0: cdc_acm_uart0 {" in _overlay(required=True)
+
+
+def test_required_port_uses_claimed_ports() -> None:
+    overlay = _overlay(1, required=True)
+
+    assert "cdc_acm_uart0" not in overlay
+    assert "cdc_acm_uart1: cdc_acm_uart1 {" in overlay

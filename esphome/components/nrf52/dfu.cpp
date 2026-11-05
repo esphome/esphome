@@ -7,6 +7,7 @@
 #include "esphome/components/zephyr/cdc_acm.h"
 
 #include <hal/nrf_power.h>
+#include <zephyr/usb/usb_device.h>
 
 namespace esphome::nrf52 {
 
@@ -24,6 +25,8 @@ void DeviceFirmwareUpdate::setup() {
     this->reset_pin_->setup();
   }
 #if defined(CONFIG_CDC_ACM_DTE_RATE_CALLBACK_SUPPORT)
+  // Not every board starts USB at boot, and DFU may be the only USB user
+  usb_enable(nullptr);
   zephyr::global_cdc_acm->add_on_rate_callback([this](const device *, uint32_t rate) {
     if (rate == RESET_TOUCH_BAUD_RATE) {
       // A plain reboot for host tools (a logs view's Reset device): the USB CDC has no
