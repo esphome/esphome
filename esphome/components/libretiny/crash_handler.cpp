@@ -486,7 +486,9 @@ bool crash_report_get(CrashReport &out) {
   }
 #endif
   auto &core = out.cores[out.core_count++];
-  core.addresses[core.count++] = record.lr;
+  // 0 for abort(), and for a Cortex-M frame outside SRAM
+  if (record.lr != 0)
+    core.addresses[core.count++] = record.lr;
   for (size_t i = 0; i < libretiny::MAX_BACKTRACE && record.backtrace[i] != 0; i++)
     core.addresses[core.count++] = record.backtrace[i];
   return true;
