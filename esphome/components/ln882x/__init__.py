@@ -29,6 +29,7 @@ from esphome.components.libretiny.const import (
 )
 from esphome.core import CORE
 from esphome.cpp_generator import MockObj
+from esphome.stacktrace import process_crash_handler_line as process_stacktrace  # noqa: F401
 from esphome.types import ConfigType
 
 from .boards import LN882X_BOARD_PINS, LN882X_BOARDS

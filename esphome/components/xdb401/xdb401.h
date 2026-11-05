@@ -8,8 +8,6 @@ namespace esphome::xdb401 {
 
 class XDB401Component final : public PollingComponent, public i2c::I2CDevice {
  public:
-  void set_temperature_sensor(sensor::Sensor *temperature_sensor) { this->temperature_sensor_ = temperature_sensor; }
-  void set_pressure_sensor(sensor::Sensor *pressure_sensor) { this->pressure_sensor_ = pressure_sensor; }
   void set_pressure_range_bar(uint8_t pressure_range_bar) { this->pressure_range_bar_ = pressure_range_bar; }
 
   void setup() override;
@@ -30,8 +28,8 @@ class XDB401Component final : public PollingComponent, public i2c::I2CDevice {
   bool measurement_in_progress_{false};
   uint8_t pressure_range_bar_{10};
 
-  sensor::Sensor *temperature_sensor_{nullptr};
-  sensor::Sensor *pressure_sensor_{nullptr};
+  SUB_SENSOR(temperature)
+  SUB_SENSOR(pressure)
 };
 
 }  // namespace esphome::xdb401
