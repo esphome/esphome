@@ -38,7 +38,7 @@ void CdcAcm::start_() {
   rate_changed();
 }
 
-const device *CdcAcm::device_at_(size_t index) {
+const device *CdcAcm::device_at(size_t index) {
 #if DT_HAS_COMPAT_STATUS_OKAY(zephyr_cdc_acm_uart)
   return CDC_DEVICES[index];
 #else

@@ -20,7 +20,7 @@ class CdcAcm final {
       // The first report may already have run (the scheduler runs while a setup() waits)
       for (size_t i = 0; i < this->rates_.size(); i++) {
         if (this->rates_[i] != 0)
-          callback(device_at_(i), this->rates_[i]);
+          callback(device_at(i), this->rates_[i]);
       }
     }
     this->rate_callbacks_.add(std::forward<F>(callback));
@@ -31,7 +31,7 @@ class CdcAcm final {
 
  protected:
   void start_();
-  static const device *device_at_(size_t index);
+  static const device *device_at(size_t index);
   void report_rates_();
   CallbackManager<void(const device *, uint32_t)> rate_callbacks_;
   // Last bit rate reported for each zephyr,cdc-acm-uart port, in device tree order
