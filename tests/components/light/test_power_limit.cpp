@@ -26,12 +26,19 @@ std::array<uint16_t, 256> build_gamma_table(double gamma) {
 // A strip of RGBW pixels in memory, with the protected hooks the tests drive
 class Strip : public AddressableLight {
  public:
-  explicit Strip(int32_t count) : buffer_(count * 4) {}
+  explicit Strip(int32_t count)
+      : num_leds_(count),
+        buffer_(count * 5),
+        internal_accessor_(this->buffer_.data(), this->buffer_.data() + num_leds_ * 4, light::ChannelColors{0, 1, 2, 3},
+                           &this->correction_) {
+    this->accessor_ = &this->internal_accessor_;
+  }
+
   ~Strip() { delete this->power_estimation_; }  // NOLINT(cppcoreguidelines-owning-memory)
-  int32_t size() const override { return this->buffer_.size() / 4; }
+  int32_t size() const override { return this->num_leds_; }
   void clear_effect_data() override {}
   LightTraits get_traits() override { return {}; }
-  void write_state(LightState *state) override { this->sent_red = (*this)[0].get_red_raw(); }
+  void write_state(LightState *state) override { this->sent_red = (*this)[0].get_raw().red; }
   uint8_t sent_red{0};
   // Every channel draws ma_per_channel at full level; setup turns the settings into the idle draw and budget
   void configure_power(float ma_per_channel, float idle_ma_per_led, float max_current_ma) {
@@ -44,12 +51,9 @@ class Strip : public AddressableLight {
   uint8_t power_brightness() const { return this->correction_.get_power_brightness(); }
 
  protected:
-  ESPColorView get_view_internal(int32_t index) const override {
-    auto *pixel = const_cast<uint8_t *>(&this->buffer_[index * 4]);
-    return {pixel, pixel + 1, pixel + 2, pixel + 3, nullptr, &this->correction_};
-  }
-
+  const size_t num_leds_;
   std::vector<uint8_t> buffer_;
+  light::CorrectedBufferColorAccessor internal_accessor_;
 };
 
 }  // namespace
@@ -115,7 +119,7 @@ TEST(PowerLimit, APixelWrittenUnderTheLimitLandsLimited) {
   ASSERT_LT(scale, 255);
   // A single pixel rewritten by a lambda lands at the limited level straight away
   strip[1] = Color(128, 0, 0, 0);
-  EXPECT_NEAR(strip[1].get_red_raw(), (128 * scale) / 255.0f, 2);
+  EXPECT_NEAR(strip[1].get_raw().red, (128 * scale) / 255.0f, 2);
   EXPECT_NEAR(strip[1].get_red(), 128, 2);
 }
 
@@ -123,7 +127,7 @@ TEST(PowerLimit, LevelsDoNotCreepOverALimitCycle) {
   Strip strip(4);
   // Levels written once and never touched again, as a lambda would leave them
   for (int i = 0; i < 4; i++)
-    strip[i].set_raw(1 + i * 40, 2, 100, 0);
+    strip[i].set_raw(Color{uint8_t(1 + i * 40), 2, 100, 0});
   // 1020 mA at full level, so the budget of 300 mA limits the strip
   strip.configure_power(255, 0, 300);
   strip.limit();
@@ -131,7 +135,7 @@ TEST(PowerLimit, LevelsDoNotCreepOverALimitCycle) {
   ASSERT_LT(limited, 255);
   // Lit channels stay lit while limited
   for (int i = 0; i < 4; i++)
-    EXPECT_GE(strip[i].get_green_raw(), 1) << i;
+    EXPECT_GE(strip[i].get_raw().green, 1) << i;
   // A budget the strip cannot reach, and the next frame restores the scale
   strip.configure_power(255, 0, 100000);
   strip.limit();
@@ -140,29 +144,30 @@ TEST(PowerLimit, LevelsDoNotCreepOverALimitCycle) {
   const int step = (255 + limited - 1) / limited;
   for (int i = 0; i < 4; i++) {
     const int red = 1 + i * 40;
-    EXPECT_GE(strip[i].get_red_raw(), red) << i;
-    EXPECT_LE(strip[i].get_red_raw(), red + step) << i;
-    EXPECT_GE(strip[i].get_blue_raw(), 100) << i;
-    EXPECT_LE(strip[i].get_blue_raw(), 100 + step) << i;
+    Color raw_color = strip[i].get_raw();
+    EXPECT_GE(raw_color.red, red) << i;
+    EXPECT_LE(raw_color.red, red + step) << i;
+    EXPECT_GE(raw_color.blue, 100) << i;
+    EXPECT_LE(raw_color.blue, 100 + step) << i;
   }
 }
 
 TEST(PowerLimit, ADimPixelSettlesWhileDemandAlternates) {
   Strip strip(2);
   strip.configure_power(20, 0, 10.04f);  // two full red pixels would draw 40 mA
-  strip[0].set_raw(1, 0, 0, 0);
+  strip[0].set_raw(Color{1, 0, 0, 0});
   uint8_t dim = 0;
   for (int cycle = 0; cycle < 4; cycle++) {
-    strip[1].set_raw(255, 0, 0, 0);
+    strip[1].set_raw(Color{255, 0, 0, 0});
     strip.limit();
     ASSERT_LT(strip.power_brightness(), 255) << cycle;
-    strip[1].set_raw(0, 0, 0, 0);
+    strip[1].set_raw(Color{0, 0, 0, 0});
     strip.limit();
     ASSERT_EQ(strip.power_brightness(), 255) << cycle;
     // The first cycle may move the level by one quantisation step; after that it stays put
     if (cycle > 0)
-      EXPECT_EQ(strip[0].get_red_raw(), dim) << cycle;
-    dim = strip[0].get_red_raw();
+      EXPECT_EQ(strip[0].get_raw().red, dim) << cycle;
+    dim = strip[0].get_raw().red;
     EXPECT_GE(dim, 1) << cycle;
     EXPECT_LE(dim, 3) << cycle;
   }
@@ -177,11 +182,11 @@ TEST(PowerLimit, TheStateLimitsAFrameBeforeTheDriverSendsIt) {
   strip.schedule_show();
   state.loop();
   EXPECT_LT(strip.sent_red, 255);
-  EXPECT_EQ(strip.sent_red, strip[0].get_red_raw());
+  EXPECT_EQ(strip.sent_red, strip[0].get_raw().red);
   // Nothing pending: the next loop neither limits nor writes
-  strip[0].set_raw(255, 0, 0, 0);
+  strip[0].set_raw(Color{255, 0, 0, 0});
   state.loop();
-  EXPECT_EQ(strip[0].get_red_raw(), 255);
+  EXPECT_EQ(strip[0].get_raw().red, 255);
 }
 
 TEST(PowerLimit, ALevelPastTheScaleInForceSaturatesWhenTheScaleRises) {
@@ -192,11 +197,11 @@ TEST(PowerLimit, ALevelPastTheScaleInForceSaturatesWhenTheScaleRises) {
   ASSERT_LT(strip.power_brightness(), 255);
   // A raw write past the scale, as a lambda or a partition over another strip can make; one such pixel
   // alone fits the budget, so the scale goes back up
-  strip[0].set_raw(255, 0, 0, 0);
-  strip[1].set_raw(0, 0, 0, 0);
+  strip[0].set_raw(Color{255, 0, 0, 0});
+  strip[1].set_raw(Color{0, 0, 0, 0});
   strip.limit();
   ASSERT_EQ(strip.power_brightness(), 255);
-  EXPECT_EQ(strip[0].get_red_raw(), 255);
+  EXPECT_EQ(strip[0].get_raw().red, 255);
 }
 
 TEST(PowerLimit, RepeatedPassesOverAnUnchangedFrameHoldTheScale) {
