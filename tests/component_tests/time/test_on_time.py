@@ -153,13 +153,13 @@ def test_on_time_schedule_rejected(
         TIME_SCHEMA({CONF_TIMEZONE: "UTC0", CONF_ON_TIME: [{**entry, CONF_THEN: []}]})
 
 
-def _on_time_lines(automation: str, check: str) -> str:
+def _on_time_lines(action: str, check: str) -> str:
     return "\n".join(
         [
             "sntp_time->add_on_time_callback([](const std::remove_cvref_t<ESPTime> & x) -> void {",
             f"    if (!({check}))",
             "      return;",
-            f"    ::{automation}->trigger();",
+            f"    esphome__{action}__fn();",
         ]
     )
 
@@ -167,31 +167,33 @@ def _on_time_lines(automation: str, check: str) -> str:
 # One entry per on_time automation in config/on_time_fields.yaml, in order.
 EXPECTED_ON_TIME_CODE = [
     _on_time_lines(
-        "automation_id", "x.second == 0 && ((0x84210842108421ULL >> x.minute) & 1)"
+        "lambdaaction_id", "x.second == 0 && ((0x84210842108421ULL >> x.minute) & 1)"
     ),
     _on_time_lines(
-        "automation_id_2",
+        "lambdaaction_id_2",
         "x.second == 0 && x.minute == 30 && x.hour == 7"
         " && ((0x7cU >> x.day_of_week) & 1)",
     ),
-    _on_time_lines("automation_id_3", "x.second == 0 && x.minute == 30 && x.hour == 7"),
     _on_time_lines(
-        "automation_id_4",
+        "lambdaaction_id_3", "x.second == 0 && x.minute == 30 && x.hour == 7"
+    ),
+    _on_time_lines(
+        "lambdaaction_id_4",
         "x.second == 0 && x.minute == 0 && ((0x3ff00U >> x.hour) & 1)",
     ),
     _on_time_lines(
-        "automation_id_5",
+        "lambdaaction_id_5",
         "x.second == 0 && x.minute == 0 && x.hour == 12"
         " && ((0x8002U >> x.day_of_month) & 1) && ((0x82U >> x.month) & 1)",
     ),
     _on_time_lines(
-        "automation_id_6",
+        "lambdaaction_id_6",
         "x.second == 0 && x.minute == 0 && x.hour == 0"
         " && ((0x20408102U >> x.day_of_month) & 1)",
     ),
-    _on_time_lines("automation_id_7", "((0x1000200040008001ULL >> x.second) & 1)"),
+    _on_time_lines("lambdaaction_id_7", "((0x1000200040008001ULL >> x.second) & 1)"),
     _on_time_lines(
-        "automation_id_8", "x.second == 0 && ((0x82U >> x.day_of_week) & 1)"
+        "lambdaaction_id_8", "x.second == 0 && ((0x82U >> x.day_of_week) & 1)"
     ),
 ]
 
