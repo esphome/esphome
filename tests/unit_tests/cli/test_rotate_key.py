@@ -12,6 +12,7 @@ import pytest
 
 from esphome import yaml_util
 from esphome.cli.rotate_key import PRECHECK_ADVICE, command_rotate_key
+from esphome.config import do_substitution_pass
 from esphome.const import (
     CONF_API,
     CONF_ENCRYPTION,
@@ -27,10 +28,10 @@ from esphome.const import (
 )
 from esphome.core import CORE, EsphomeError, Toolchain
 from esphome.espota2 import ProbeResult
-from esphome.ota_key_edit import KeyEdit
 from esphome.upload_targets import PortType
 from esphome.util import ESPHOME_COMMAND
 from esphome.yaml_edit import RestoreError
+from tests.unit_tests.test_ota_key_edit import API_YAML, NEW_KEY, OLD_KEY, SECRET_YAML
 
 
 @dataclass
@@ -40,6 +41,7 @@ class MockArgs:
     yes: bool = False
     substitution: list[list[str]] | None = None
     toolchain: Toolchain | None = None
+    dashboard: bool = False
 
 
 def _interrupt_after(writes: int) -> Any:
@@ -58,7 +60,7 @@ def _interrupt_after(writes: int) -> Any:
     return write
 
 
-def setup_core(tmp_path: Path) -> None:
+def _core_at(tmp_path: Path) -> None:
     CORE.reset()
     CORE.config_path = tmp_path / "test.yaml"
     CORE.name = "test"
@@ -66,19 +68,6 @@ def setup_core(tmp_path: Path) -> None:
     CORE.data[KEY_CORE] = {KEY_TARGET_PLATFORM: PLATFORM_ESP32}
 
 
-OLD_KEY = "AAECAwQFBgcICQoLDA0ODxAREhMUFRYXGBkaGxwdHh8="
-NEW_KEY = "AQIDBAUGBwgJCgsMDQ4PEBESExQVFhcYGRobHB0eHyA="
-API_YAML = f"""esphome:
-  name: test
-
-api:
-  encryption:
-    key: "{OLD_KEY}"
-
-ota:
-  - platform: esphome
-    encryption:
-"""
 OTA_CONF = {
     CONF_PLATFORM: CONF_ESPHOME,
     CONF_PORT: 3232,
@@ -90,7 +79,7 @@ OTA_CONF = {
 def env(tmp_path: Path) -> Generator[dict[str, Mock]]:
     """A config with an inline api key, loaded the way read_config does so
     the key node carries its source range, and every network step mocked."""
-    setup_core(tmp_path)
+    _core_at(tmp_path)
     CORE.config_path.write_text(API_YAML, encoding="utf-8")
     CORE.raw_config = yaml_util.load_yaml(CORE.config_path)
     CORE.config = {
@@ -189,54 +178,69 @@ def test_declined(env: dict[str, Mock]) -> None:
     env["probe"].assert_not_called()
 
 
-def test_warns_about_a_shared_secret(
-    env: dict[str, Mock], capfd: pytest.CaptureFixture[str]
+@pytest.mark.parametrize(
+    ("yaml_text", "files", "message"),
+    [
+        (
+            API_YAML,
+            {"other.yaml": "packages:\n  base: !include test.yaml\n"},
+            "test.yaml is also used by other.yaml",
+        ),
+        (
+            # Without a secrets.yaml beside it the device may fall back to this one
+            SECRET_YAML,
+            {
+                "secrets.yaml": f"device_key: {OLD_KEY}\n",
+                "sub/device.yaml": "api:\n  encryption:\n    key: !secret device_key\n",
+            },
+            "secret 'device_key' is also used by sub/device.yaml",
+        ),
+        (
+            API_YAML,
+            {"broken.yaml": "key: !secret device_key\nbad: @x\n"},
+            "Could not check whether other configurations use this key: Could not scan",
+        ),
+        (
+            f'api:\n  encryption:\n    key: "{OLD_KEY}"\n\nota:\n  - !include ota.yaml\n',
+            {
+                "ota.yaml": "platform: esphome\nencryption:\n",
+                "other.yaml": "ota:\n  - !include ota.yaml\n",
+            },
+            "ota.yaml is also used by other.yaml",
+        ),
+        (
+            SECRET_YAML,
+            {
+                "secrets.yaml": f"device_key: {OLD_KEY}\ndevice_key_old: x\n",
+                "other.yaml": "wifi:\n  password: !secret device_key_old\n",
+            },
+            "secret 'device_key_old' is also used by other.yaml",
+        ),
+    ],
+    ids=["includer", "secrets_fallback", "unchecked", "old_key_file", "old_secret"],
+)
+def test_refuses_a_key_that_is_not_unique(
+    env: dict[str, Mock],
+    capfd: pytest.CaptureFixture[str],
+    yaml_text: str,
+    files: dict[str, str],
+    message: str,
 ) -> None:
-    """Other configurations using the rewritten secret are named before the
-    confirmation."""
-
-    def scan(edits: list[KeyEdit]) -> list[str]:
-        edits[0].secret = "device_key"
-        edits[0].shared_with = [CORE.config_dir / "b.yaml"]
-        return ["c.yaml is a link"]
-
-    with patch("esphome.cli.rotate_key.with_sharers", side_effect=scan):
-        env["confirm"].return_value = "n"
-        assert command_rotate_key(MockArgs(), CORE.config) == 1
+    """Anything another configuration uses or may use stops the rotation
+    before any question, probe or write."""
+    CORE.config_path.write_text(yaml_text, encoding="utf-8")
+    for name, text in files.items():
+        (CORE.config_dir / name).parent.mkdir(exist_ok=True)
+        (CORE.config_dir / name).write_text(text, encoding="utf-8")
+    CORE.raw_config = do_substitution_pass(yaml_util.load_yaml(CORE.config_path), None)
+    before = {p: p.read_bytes() for p in CORE.config_dir.rglob("*.yaml")}
+    assert command_rotate_key(MockArgs(yes=True), CORE.config) == 1
     out = capfd.readouterr().out
-    assert "b.yaml (secret 'device_key')" in out
-    assert "Could not check every configuration for shared use: c.yaml is a link" in out
-
-
-def test_refuses_an_old_key_in_a_file_only_others_share(
-    env: dict[str, Mock], capfd: pytest.CaptureFixture[str]
-) -> None:
-    """A keyless package used by other devices must not get this device's old_key."""
-
-    def scan(edits: list[KeyEdit]) -> list[str]:
-        edits[-1].shared_with = [CORE.config_dir / "b.yaml"]
-        return []
-
-    with patch("esphome.cli.rotate_key.with_sharers", side_effect=scan):
-        assert command_rotate_key(MockArgs(yes=True), CORE.config) == 1
-    assert CORE.config_path.read_text() == API_YAML
-    assert "b.yaml also use while keeping their own key" in capfd.readouterr().out
+    assert message in out
+    assert "only a key unique to this device can be rotated, change it by hand" in out
+    assert {p: p.read_bytes() for p in CORE.config_dir.rglob("*.yaml")} == before
+    env["confirm"].assert_not_called()
     env["probe"].assert_not_called()
-
-
-def test_a_device_that_only_may_share_the_key_does_not_vouch_for_old_key(
-    env: dict[str, Mock], capfd: pytest.CaptureFixture[str]
-) -> None:
-    other = CORE.config_dir / "b.yaml"
-
-    def scan(edits: list[KeyEdit]) -> list[str]:
-        edits[0].shared_with = edits[0].maybe_shared_with = [other]
-        edits[-1].shared_with = [other]
-        return []
-
-    with patch("esphome.cli.rotate_key.with_sharers", side_effect=scan):
-        assert command_rotate_key(MockArgs(yes=True), CORE.config) == 1
-    assert "b.yaml also use while keeping their own key" in capfd.readouterr().out
 
 
 def test_uses_the_snapshot_taken_before_validation(env: dict[str, Mock]) -> None:
@@ -520,9 +524,11 @@ def test_child_compile_gets_global_options_first(
     env: dict[str, Mock],
 ) -> None:
     """The compile parser is strict, so -s and --toolchain precede it."""
-    args = MockArgs(substitution=[["name", "kitchen"]])
-    CORE.dashboard = True
-    args.toolchain = Toolchain.PLATFORMIO
+    args = MockArgs(
+        substitution=[["name", "kitchen"]],
+        toolchain=Toolchain.PLATFORMIO,
+        dashboard=True,
+    )
     assert command_rotate_key(args, CORE.config) == 0
     assert env["compile"].call_args.args[len(ESPHOME_COMMAND) :] == (
         "--dashboard",
@@ -568,7 +574,7 @@ def test_refuses_host(env: dict[str, Mock]) -> None:
     env["probe"].assert_not_called()
 
 
-@pytest.mark.parametrize("helper", ["locate_key_edits", "apply_line_edits"])
+@pytest.mark.parametrize("helper", ["rotation_edits", "apply_line_edits"])
 def test_reports_edit_errors(
     env: dict[str, Mock], capfd: pytest.CaptureFixture[str], helper: str
 ) -> None:

@@ -11,7 +11,13 @@ import pytest
 from esphome import yaml_util
 from esphome.config import do_substitution_pass
 from esphome.core import CORE, EsphomeError
-from esphome.ota_key_edit import KeyEdit, locate_key_edits, old_key_edit, with_sharers
+from esphome.ota_key_edit import (
+    KeyEdit,
+    locate_key_edits,
+    old_key_edit,
+    rotation_edits,
+    with_sharers,
+)
 from esphome.yaml_edit import Snapshot, apply_line_edits, restore_files
 
 OLD_KEY = "AAECAwQFBgcICQoLDA0ODxAREhMUFRYXGBkaGxwdHh8="
@@ -57,15 +63,29 @@ def _setup(tmp_path: Path, yaml_text: str, secrets: str | None = None) -> Path:
     return CORE.config_path
 
 
+def _device(api_include: str) -> str:
+    """A device whose api block is included and whose ota block takes its key."""
+    return (
+        f"esphome:\n  name: test\n\napi: !include {api_include}\n\n"
+        "ota:\n  - platform: esphome\n    encryption:\n"
+    )
+
+
 def _edits() -> list[KeyEdit]:
-    """Everything a rotation writes, the way the command collects it."""
+    """Everything a rotation writes, with the sharers filled in but not refused."""
     edits = [*locate_key_edits(OLD_KEY, NEW_KEY), *old_key_edit(OLD_KEY)]
     with_sharers(edits)
     return edits
 
 
+def _key_sharers() -> tuple[list[KeyEdit], list[str]]:
+    """The key edits with their sharers, and what the scan could not check."""
+    edits = locate_key_edits(OLD_KEY, NEW_KEY)
+    return edits, with_sharers(edits)
+
+
 def _rotate() -> list[KeyEdit]:
-    edits = _edits()
+    edits = rotation_edits(OLD_KEY, NEW_KEY)
     apply_line_edits(edits)
     return edits
 
@@ -384,28 +404,19 @@ def test_secret_in_an_include_falls_back_to_the_main_secrets(tmp_path: Path) -> 
     (tmp_path / "sub" / "api.yaml").write_text(
         "encryption:\n  key: !secret device_key\n", encoding="utf-8"
     )
-    _setup(
-        tmp_path,
-        """esphome:
-  name: test
-
-api: !include sub/api.yaml
-
-ota:
-  - platform: esphome
-    encryption:
-""",
-        f"device_key: {OLD_KEY}\n",
-    )
+    yaml_text, secrets = _device("sub/api.yaml"), f"device_key: {OLD_KEY}\n"
+    _setup(tmp_path, yaml_text, secrets)
     edits = locate_key_edits(OLD_KEY, NEW_KEY)
     assert [(e.path, e.line) for e in edits] == [(tmp_path / "secrets.yaml", 0)]
     # A file beside the include that does not parse is skipped by the
     # loader too, so the main one is still the target
     (tmp_path / "sub" / "secrets.yaml").write_bytes(b"a: [\n")
+    _setup(tmp_path, yaml_text, secrets)  # the secrets file is found once per run
     edits = locate_key_edits(OLD_KEY, NEW_KEY)
     assert [(e.path, e.line) for e in edits] == [(tmp_path / "secrets.yaml", 0)]
     # One beside the include that loads is the loader's first choice
     (tmp_path / "sub" / "secrets.yaml").write_bytes(f"device_key: {OLD_KEY}\n".encode())
+    _setup(tmp_path, yaml_text, secrets)
     edits = locate_key_edits(OLD_KEY, NEW_KEY)
     assert [(e.path, e.line) for e in edits] == [(tmp_path / "sub" / "secrets.yaml", 0)]
 
@@ -666,8 +677,7 @@ def test_secret_shared_with_other_configs_is_reported(tmp_path: Path) -> None:
     (tmp_path / "packages").mkdir()
     (tmp_path / "packages" / "base.yaml").write_bytes(b"key: !secret device_key\n")
     _setup(tmp_path, SECRET_YAML, f"device_key: {OLD_KEY}\ndevice_key_old: x\n")
-    edits = locate_key_edits(OLD_KEY, NEW_KEY)
-    with_sharers(edits)
+    edits, _ = _key_sharers()
     root = tmp_path.resolve()
     assert [e.shared_with for e in edits] == [
         [root / "other.yaml", root / "packages" / "base.yaml", root / "quoted.yaml"]
@@ -734,8 +744,7 @@ def test_shared_secret_scan_covers_yml_and_skips_unreadable_files(
     (tmp_path / "latin1.yaml").write_bytes(b"caf\xe9: !secret device_key\n")
     (tmp_path / "notes.txt").write_bytes(b"key: !secret device_key\n")
     _setup(tmp_path, SECRET_YAML, f"device_key: {OLD_KEY}\n")
-    edits = locate_key_edits(OLD_KEY, NEW_KEY)
-    with_sharers(edits)
+    edits, _ = _key_sharers()
     assert [e.shared_with for e in edits] == [[tmp_path.resolve() / "other.yml"]]
 
 
@@ -751,11 +760,9 @@ def test_shared_include_with_a_hash_in_its_quoted_name_is_reported(
     )
     _setup(
         tmp_path,
-        "esphome:\n  name: test\n\napi: !include 'shared # ota.yaml'\n\n"
-        "ota:\n  - platform: esphome\n    encryption:\n",
+        _device("'shared # ota.yaml'"),
     )
-    edits = locate_key_edits(OLD_KEY, NEW_KEY)
-    with_sharers(edits)
+    edits, _ = _key_sharers()
     assert [(e.path.name, e.shared_with) for e in edits] == [
         ("shared # ota.yaml", [tmp_path.resolve() / "other.yaml"])
     ]
@@ -770,11 +777,9 @@ def test_literal_key_in_a_shared_include_is_reported(tmp_path: Path) -> None:
     (tmp_path / "other.yaml").write_bytes(b"api: !include common.yaml\n")
     _setup(
         tmp_path,
-        "esphome:\n  name: test\n\napi: !include common.yaml\n\n"
-        "ota:\n  - platform: esphome\n    encryption:\n",
+        _device("common.yaml"),
     )
-    edits = locate_key_edits(OLD_KEY, NEW_KEY)
-    with_sharers(edits)
+    edits, _ = _key_sharers()
     assert [(e.path.name, e.shared_with) for e in edits] == [
         ("common.yaml", [tmp_path.resolve() / "other.yaml"])
     ]
@@ -826,13 +831,11 @@ def test_own_includes_and_similar_names_are_not_shared_users(tmp_path: Path) -> 
     (tmp_path / "lookalike.yaml").write_bytes(b"wifi: !include wifi_common.yaml\n")
     _setup(
         tmp_path,
-        "esphome:\n  name: test\n\napi: !include base.yaml\n\n"
-        "ota:\n  - platform: esphome\n    encryption:\n",
+        _device("base.yaml"),
     )
     # other.yaml reaches common.yaml through this configuration's own
     # base.yaml, so it is a sharer; base.yaml itself and the lookalike are not
-    edits = locate_key_edits(OLD_KEY, NEW_KEY)
-    with_sharers(edits)
+    edits, _ = _key_sharers()
     assert [(e.path.name, [p.name for p in e.shared_with]) for e in edits] == [
         ("common.yaml", ["other.yaml"])
     ]
@@ -853,15 +856,15 @@ def test_existing_old_secret_used_elsewhere_is_not_overwritten(
     )
     _setup(tmp_path, SECRET_YAML, secrets)  # the scan runs once per run
     with pytest.raises(
-        EsphomeError, match="'device_key_old:' in .* is used by .*other.yaml"
+        EsphomeError, match="^secret 'device_key_old' is also used by other.yaml;"
     ):
-        old_key_edit(OLD_KEY)
+        rotation_edits(OLD_KEY, NEW_KEY)
     (tmp_path / "other.yaml").unlink()
     _setup(
         tmp_path, SECRET_YAML + "wifi:\n  password: !secret device_key_old\n", secrets
     )
     with pytest.raises(
-        EsphomeError, match="'device_key_old:' in .* is used by .*test.yaml"
+        EsphomeError, match="'device_key_old' is also used at .*test.yaml"
     ):
         old_key_edit(OLD_KEY)
 
@@ -876,11 +879,15 @@ def test_key_secret_with_a_folded_value_gets_no_old_line(tmp_path: Path) -> None
 def test_old_secret_collision_check_refuses_an_unreadable_file(
     tmp_path: Path,
 ) -> None:
-    """A file the scan cannot read might use the line, so it is not reused."""
+    """A file the scan cannot read might use the line, so nothing is rotated."""
     (tmp_path / "latin1.yaml").write_bytes(b"caf\xe9: 1\n")
     _setup(tmp_path, SECRET_YAML, f"device_key: {OLD_KEY}\ndevice_key_old: hunter2\n")
-    with pytest.raises(EsphomeError, match="Could not read every configuration"):
-        old_key_edit(OLD_KEY)
+    with pytest.raises(
+        EsphomeError,
+        match=r"^Could not check whether other configurations use this key: "
+        r"Error reading file .*latin1\.yaml.*; only a key unique to this device",
+    ):
+        rotation_edits(OLD_KEY, NEW_KEY)
 
 
 def test_old_key_secret_with_a_folded_value_is_refused(tmp_path: Path) -> None:
@@ -989,8 +996,7 @@ def test_secret_in_a_symlinked_include_resolves_beside_the_link(tmp_path: Path) 
     (sub / "secrets.yaml").write_bytes(f"device_key: {OLD_KEY}\n".encode())
     _setup(
         tmp_path,
-        "esphome:\n  name: test\n\napi: !include sub/api.yaml\n\n"
-        "ota:\n  - platform: esphome\n    encryption:\n",
+        _device("sub/api.yaml"),
     )
     edits = locate_key_edits(OLD_KEY, NEW_KEY)
     assert [e.path for e in edits] == [(sub / "secrets.yaml").resolve()]
@@ -998,19 +1004,18 @@ def test_secret_in_a_symlinked_include_resolves_beside_the_link(tmp_path: Path) 
 
 def test_scan_reports_what_it_could_not_read(tmp_path: Path) -> None:
     """An unreadable file or a linked directory makes the shared-use check
-    incomplete; the warning says so, and the collision check refuses."""
+    incomplete, so the rotation is refused."""
     (tmp_path / "latin1.yaml").write_bytes(b"caf\xe9: 1\n")
     elsewhere = tmp_path.parent / "elsewhere_configs"
     elsewhere.mkdir(exist_ok=True)
     (tmp_path / "linked").symlink_to(elsewhere)
     _setup(tmp_path, SECRET_YAML, f"device_key: {OLD_KEY}\ndevice_key_old: x\n")
-    edits = locate_key_edits(OLD_KEY, NEW_KEY)
-    unchecked = with_sharers(edits)
+    edits, unchecked = _key_sharers()
     assert len(unchecked) == 2
     assert any("latin1.yaml" in u for u in unchecked)
     assert any("is a link" in u for u in unchecked)
-    with pytest.raises(EsphomeError, match="Could not read every configuration"):
-        old_key_edit(OLD_KEY)
+    with pytest.raises(EsphomeError, match=r"\(and 1 more\); only a key unique"):
+        rotation_edits(OLD_KEY, NEW_KEY)
 
 
 def test_secret_used_elsewhere_in_this_configuration_is_refused(
@@ -1034,8 +1039,7 @@ def test_sharers_include_the_files_that_include_a_sharer(tmp_path: Path) -> None
     (tmp_path / "other.yaml").write_bytes(b"packages:\n  base: !include base.yaml\n")
     (tmp_path / "third.yaml").write_bytes(b"packages:\n  base: !include other.yaml\n")
     _setup(tmp_path, SECRET_YAML, f"device_key: {OLD_KEY}\n")
-    edits = locate_key_edits(OLD_KEY, NEW_KEY)
-    with_sharers(edits)
+    edits, _ = _key_sharers()
     assert [p.name for p in edits[0].shared_with] == [
         "base.yaml",
         "other.yaml",
@@ -1055,8 +1059,7 @@ def test_old_secret_goes_to_the_secrets_file_of_the_block_that_gets_old_key(
     (sub / "secrets.yaml").write_bytes(f"device_key: {OLD_KEY}\n".encode())
     _setup(
         tmp_path,
-        "esphome:\n  name: test\n\napi: !include sub/api.yaml\n\n"
-        "ota:\n  - platform: esphome\n    encryption:\n",
+        _device("sub/api.yaml"),
         "wifi: x\n",
     )
     with pytest.raises(
@@ -1080,8 +1083,7 @@ def test_a_directory_include_is_reported_as_unchecked(tmp_path: Path) -> None:
     cannot follow."""
     (tmp_path / "other.yaml").write_bytes(b"packages: !include_dir_named packages\n")
     _setup(tmp_path, SECRET_YAML, f"device_key: {OLD_KEY}\n")
-    edits = locate_key_edits(OLD_KEY, NEW_KEY)
-    unchecked = with_sharers(edits)
+    edits, unchecked = _key_sharers()
     assert unchecked == [
         f"{tmp_path.resolve() / 'other.yaml'} includes the directory packages"
     ]
@@ -1146,8 +1148,7 @@ def test_comments_in_other_configurations_are_not_uses(tmp_path: Path) -> None:
         b"# key: !secret device_key\n# packages: !include_dir_named packages\nwifi: x\n"
     )
     _setup(tmp_path, SECRET_YAML, f"device_key: {OLD_KEY}\n")
-    edits = locate_key_edits(OLD_KEY, NEW_KEY)
-    unchecked = with_sharers(edits)
+    edits, unchecked = _key_sharers()
     assert (edits[0].shared_with, unchecked) == ([], [])
 
 
@@ -1190,6 +1191,39 @@ def test_old_key_inserted_into_a_shared_include_names_the_sharers(
         (False, ["other.yaml"]),
         (True, ["other.yaml"]),
     ]
+    with pytest.raises(
+        EsphomeError, match="^ota.yaml is also used by other.yaml; only a key unique"
+    ):
+        rotation_edits(OLD_KEY, NEW_KEY)
+
+
+def test_a_device_including_this_config_refuses_every_edit_it_shares(
+    tmp_path: Path,
+) -> None:
+    """The secret and the file that gets old_key are both named."""
+    (tmp_path / "other.yaml").write_bytes(b"packages:\n  base: !include test.yaml\n")
+    _setup(tmp_path, SECRET_YAML, f"device_key: {OLD_KEY}\n")
+    with pytest.raises(
+        EsphomeError,
+        match="^secret 'device_key', test.yaml are also used by other.yaml;",
+    ):
+        rotation_edits(OLD_KEY, NEW_KEY)
+    assert (tmp_path / "secrets.yaml").read_text() == f"device_key: {OLD_KEY}\n"
+
+
+def test_old_key_going_into_a_package_other_devices_use_is_refused(
+    tmp_path: Path,
+) -> None:
+    """The key is this device's own, but old_key would land in a shared package."""
+    (tmp_path / "ota.yaml").write_bytes(b"platform: esphome\nencryption:\n")
+    (tmp_path / "other.yaml").write_bytes(b"ota:\n  - !include ota.yaml\n")
+    _setup(
+        tmp_path,
+        f'esphome:\n  name: test\n\napi:\n  encryption:\n    key: "{OLD_KEY}"\n\n'
+        "ota:\n  - !include ota.yaml\n",
+    )
+    with pytest.raises(EsphomeError, match="^ota.yaml is also used by other.yaml;"):
+        rotation_edits(OLD_KEY, NEW_KEY)
 
 
 def test_key_overridden_on_top_of_a_package_block(tmp_path: Path) -> None:
@@ -1216,8 +1250,7 @@ def test_a_substituted_include_path_is_reported_as_unchecked(tmp_path: Path) -> 
         b"packages:\n  base:\n    url: x\n    file: ${pkg}\n"
     )
     _setup(tmp_path, SECRET_YAML, f"device_key: {OLD_KEY}\n")
-    edits = locate_key_edits(OLD_KEY, NEW_KEY)
-    unchecked = with_sharers(edits)
+    edits, unchecked = _key_sharers()
     assert sorted(unchecked) == [
         f"{tmp_path.resolve() / 'other.yaml'} includes ${{common}} through a substitution",
         f"{tmp_path.resolve() / 'third.yaml'} includes ${{pkg}} through a substitution",
@@ -1227,8 +1260,7 @@ def test_a_substituted_include_path_is_reported_as_unchecked(tmp_path: Path) -> 
 def test_another_device_including_the_main_file_is_a_sharer(tmp_path: Path) -> None:
     (tmp_path / "other.yaml").write_bytes(b"packages:\n  base: !include test.yaml\n")
     _setup(tmp_path, API_YAML)
-    edits = locate_key_edits(OLD_KEY, NEW_KEY)
-    with_sharers(edits)
+    edits, _ = _key_sharers()
     assert [p.name for p in edits[0].shared_with] == ["other.yaml"]
 
 
@@ -1244,8 +1276,7 @@ def test_mapping_includes_are_sharers_and_remote_files_are_not(
     )
     (tmp_path / "plain.yaml").write_bytes(b"esphome:\n  name: test.yaml\n")
     _setup(tmp_path, API_YAML)
-    edits = locate_key_edits(OLD_KEY, NEW_KEY)
-    with_sharers(edits)
+    edits, _ = _key_sharers()
     assert [p.name for p in edits[0].shared_with] == ["block.yaml", "flow.yaml"]
 
 
@@ -1256,9 +1287,8 @@ def test_hidden_trees_are_not_scanned(tmp_path: Path) -> None:
     )
     (tmp_path / ".hidden.yaml").write_bytes(b": [unreadable\n")
     _setup(tmp_path, API_YAML)
-    edits = locate_key_edits(OLD_KEY, NEW_KEY)
-    assert with_sharers(edits) == []
-    assert edits[0].shared_with == []
+    edits, unchecked = _key_sharers()
+    assert (edits[0].shared_with, unchecked) == ([], [])
 
 
 def test_secret_key_overridden_on_top_of_a_package_block(tmp_path: Path) -> None:
@@ -1284,8 +1314,7 @@ def test_secret_uses_before_the_last_line_and_in_flow_mappings(tmp_path: Path) -
         b"api: {encryption: {key: !secret device_key}}\n"
     )
     _setup(tmp_path, SECRET_YAML, f"device_key: {OLD_KEY}\n")
-    edits = locate_key_edits(OLD_KEY, NEW_KEY)
-    with_sharers(edits)
+    edits, _ = _key_sharers()
     assert [p.name for p in edits[0].shared_with] == ["early.yaml", "flow.yaml"]
 
 
@@ -1305,8 +1334,7 @@ def test_a_device_including_the_main_file_shares_its_secret(tmp_path: Path) -> N
     """The main file names the secret, so a device including it is a sharer."""
     (tmp_path / "other.yaml").write_bytes(b"packages:\n  base: !include test.yaml\n")
     _setup(tmp_path, SECRET_YAML, f"device_key: {OLD_KEY}\n")
-    edits = locate_key_edits(OLD_KEY, NEW_KEY)
-    with_sharers(edits)
+    edits, _ = _key_sharers()
     assert [p.name for p in edits[0].shared_with] == ["other.yaml"]
 
 
@@ -1497,23 +1525,20 @@ def test_device_including_the_target_of_a_linked_include_is_a_sharer(
     )
     (tmp_path / "alias.yaml").symlink_to(tmp_path / "common.yaml")
     (tmp_path / "other.yaml").write_bytes(b"api: !include common.yaml\n")
-    yaml_text = "esphome:\n  name: test\n\napi: !include alias.yaml\n\nota:\n  - platform: esphome\n    encryption:\n"
-    _setup(tmp_path, yaml_text)
-    edits = locate_key_edits(OLD_KEY, NEW_KEY)
-    with_sharers(edits)
+    _setup(tmp_path, _device("alias.yaml"))
+    edits, _ = _key_sharers()
     assert [p.name for p in edits[0].shared_with] == ["other.yaml"]
 
 
 def test_a_file_that_fails_to_scan_is_unchecked(tmp_path: Path) -> None:
-    """Its uses cannot be read, so the warning names it and no `_old` line is reused."""
+    """Its uses cannot be read, so the rotation is refused naming it."""
     (tmp_path / "broken.yaml").write_bytes(b"key: !secret device_key\nbad: @x\n")
     _setup(tmp_path, SECRET_YAML, f"device_key: {OLD_KEY}\ndevice_key_old: x\n")
-    edits = locate_key_edits(OLD_KEY, NEW_KEY)
-    unchecked = with_sharers(edits)
+    edits, unchecked = _key_sharers()
     assert edits[0].shared_with == []
     assert len(unchecked) == 1 and "broken.yaml" in unchecked[0]
-    with pytest.raises(EsphomeError, match="Could not read every configuration"):
-        old_key_edit(OLD_KEY)
+    with pytest.raises(EsphomeError, match="Could not scan .*broken.yaml"):
+        rotation_edits(OLD_KEY, NEW_KEY)
 
 
 def test_includes_are_matched_by_resolved_path_outside_comments(tmp_path: Path) -> None:
@@ -1532,11 +1557,9 @@ def test_includes_are_matched_by_resolved_path_outside_comments(tmp_path: Path) 
     (tmp_path / "other" / "parent.yaml").write_bytes(b"api: !include ../api.yaml\n")
     _setup(
         tmp_path,
-        "esphome:\n  name: test\n\napi: !include api.yaml\n\n"
-        "ota:\n  - platform: esphome\n    encryption:\n",
+        _device("api.yaml"),
     )
-    edits = locate_key_edits(OLD_KEY, NEW_KEY)
-    with_sharers(edits)
+    edits, _ = _key_sharers()
     assert edits[0].shared_with == [(tmp_path / "other" / "parent.yaml").resolve()]
 
 
@@ -1584,7 +1607,7 @@ def test_old_secret_used_by_a_package_in_the_build_data_is_refused(
         f"device_key: {OLD_KEY}\ndevice_key_old: {OLDER_KEY}\n",
     )
     with pytest.raises(
-        EsphomeError, match="'device_key_old:' in .* is used by .*pkg.yaml"
+        EsphomeError, match="'device_key_old' is also used at .*pkg.yaml"
     ):
         old_key_edit(OLD_KEY)
 
@@ -1594,7 +1617,7 @@ def test_linked_build_data_dir_is_not_unchecked(tmp_path: Path) -> None:
     (tmp_path / "data").mkdir()
     (tmp_path / ".esphome").symlink_to(tmp_path / "data")
     _setup(tmp_path, API_YAML)
-    assert with_sharers(locate_key_edits(OLD_KEY, NEW_KEY)) == []
+    assert _key_sharers()[1] == []
 
 
 def test_secret_users_follow_their_own_secrets_file(tmp_path: Path) -> None:
@@ -1608,15 +1631,20 @@ def test_secret_users_follow_their_own_secrets_file(tmp_path: Path) -> None:
         if (secrets := secrets_files.get(folder)) is not None:
             (tmp_path / folder / "secrets.yaml").write_bytes(secrets)
     _setup(tmp_path, SECRET_YAML, f"device_key: {OLD_KEY}\n")
-    edits = locate_key_edits(OLD_KEY, NEW_KEY)
-    with_sharers(edits)
-    # A secrets.yaml that does not load falls back like a missing one
+    edits, _ = _key_sharers()
+    # A secrets.yaml that does not load falls back like a missing one, and a
+    # fallback may reach this secrets file, so both count
     assert [p.relative_to(tmp_path.resolve()) for p in edits[0].shared_with] == [
         Path("broken/device.yaml"),
         Path("fallback/device.yaml"),
     ]
-    # Their fallback depends on their own main config, so they only may share it
-    assert edits[0].maybe_shared_with == edits[0].shared_with
+    with pytest.raises(
+        EsphomeError,
+        match=r"^secret 'device_key' is also used by broken/device\.yaml, "
+        r"fallback/device\.yaml; only a key unique to this device can be rotated, "
+        "change it by hand$",
+    ):
+        rotation_edits(OLD_KEY, NEW_KEY)
 
 
 @pytest.mark.skipif(sys.platform == "win32", reason="symlinks need privileges")

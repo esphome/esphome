@@ -18,7 +18,7 @@ from esphome.const import CONF_API, CONF_PASSWORD, CONF_PORT
 from esphome.core import CORE, EsphomeError
 from esphome.espota2 import ProbeResult
 from esphome.log import AnsiFore, color
-from esphome.ota_key_edit import locate_key_edits, old_key_edit, with_sharers
+from esphome.ota_key_edit import rotation_edits
 from esphome.types import ConfigType
 from esphome.upload_targets import PortType, get_port_type
 from esphome.util import (
@@ -115,62 +115,21 @@ def command_rotate_key(args: argparse.Namespace, config: ConfigType) -> int | No
         return fail("The new key is the same as the current one")
 
     try:
-        key_edits = locate_key_edits(old_key, new_key)
         # The previous key stays in the config as old_key so an install still
         # reaches the device if it ends up running either key
-        old_edits = old_key_edit(old_key)
-        edits = [*key_edits, *old_edits]
-        unchecked = with_sharers(edits)
+        edits = rotation_edits(old_key, new_key)
     except EsphomeError as err:
         return fail(str(err))
-    # Another device's previous key would be overwritten where this key is not;
-    # a device that only may use the key does not vouch for the old_key file
-    key_users = {
-        p
-        for edit in key_edits
-        for p in edit.shared_with
-        if p not in edit.maybe_shared_with
-    }
-    for edit in old_edits:
-        if others := sorted(set(edit.shared_with) - key_users):
-            return fail(
-                f"old_key goes into {edit.path}, which "
-                + ", ".join(str(p) for p in others)
-                + " also use while keeping their own key; add old_key by hand"
-            )
-
-    warnings = []
     # With the recommended shape the ota inherits the api key, so rotating
     # it changes what Home Assistant connects with
     if str(static_encryption_key(config.get(CONF_API) or {})) == old_key:
-        warnings.append(
-            "The api encryption key changes too; Home Assistant will ask for "
-            "the new key after the install."
-        )
-    shared: dict[str, set[str]] = {}
-    for edit in edits:
-        what = f"secret '{edit.secret}'" if edit.secret else edit.path.name
-        for path in edit.shared_with:
-            shared.setdefault(
-                str(path.relative_to(CORE.config_dir.resolve())), set()
-            ).add(what)
-    if unchecked:
-        warnings.append(
-            "Could not check every configuration for shared use: "
-            + "; ".join(unchecked)
-        )
-    if shared:
-        warnings.append(
-            "Other configurations share what is rewritten: "
-            + "; ".join(
-                f"{p} ({', '.join(sorted(w))})" for p, w in sorted(shared.items())
+        safe_print(
+            color(
+                AnsiFore.BOLD_YELLOW,
+                "The api encryption key changes too; Home Assistant will ask for "
+                "the new key after the install.",
             )
-            + ". Their devices keep the previous key until their next install; "
-            "make sure those configurations carry it as old_key."
         )
-    if warnings:
-        for warning in warnings:
-            safe_print(color(AnsiFore.BOLD_YELLOW, warning))
         if not args.yes:
             if not sys.stdin.isatty():
                 return fail("Confirm with --yes when there is no terminal")
@@ -209,7 +168,7 @@ def command_rotate_key(args: argparse.Namespace, config: ConfigType) -> int | No
             + ", ".join(color(AnsiFore.CYAN, str(p)) for p in originals)
         )
         # Global options go before the subcommand; the compile parser is strict
-        cli_args = ["--dashboard"] if CORE.dashboard else []
+        cli_args = ["--dashboard"] if args.dashboard else []
         if args.toolchain:
             cli_args += ["--toolchain", str(args.toolchain)]
         for key, value in args.substitution or []:
