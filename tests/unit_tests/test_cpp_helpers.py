@@ -634,37 +634,38 @@ def test_hub_functions_with_one_name_on_one_hub_raise() -> None:
 
 
 @pytest.mark.parametrize(
-    ("mask", "on_values"),
-    [(0x01, 0b10), (0x01, 0b01), (0x03, 0b10), (0x07, 0b01111110)],
+    ("mask", "on"),
+    [(0x01, (1,)), (0x01, (0,)), (0x03, (1,)), (0x07, (1, 2, 3, 4, 5, 6))],
 )
-def test_register_field_is_on_matches_the_on_values(mask: int, on_values: int) -> None:
-    """The generated test, also valid Python, is true for exactly the field values in on_values."""
-    expr = str(cg.RegisterField(0, 2, mask).is_on(MockObj("status"), on_values))
+def test_register_field_is_on_matches_the_on_values(
+    mask: int, on: tuple[int, ...]
+) -> None:
+    """The generated test, also valid Python, is true for exactly the field values in on."""
+    field = cg.RegisterField(register=0, shift=2, mask=mask, on=on)
+    expr = str(field.is_on(MockObj("status")))
     for value in range(256):
         result = eval(expr, {"__builtins__": {}}, {"status": [value]})  # noqa: S307
-        assert (result != 0) == bool((on_values >> ((value >> 2) & mask)) & 1), value
+        assert (result != 0) == (((value >> 2) & mask) in on), value
 
 
 def test_register_field_is_on_reads_a_set_bit_directly() -> None:
-    """Only a one-bit field that is on when set skips the bitmap."""
+    """Only a one-bit field that is on at 1 skips the bitmap."""
     status = MockObj("status")
-    assert str(cg.RegisterField(1, 3).is_on(status)) == "((status[1] >> 3) & 0x01)"
-    assert (
-        str(cg.RegisterField(1, 3, 0x03).is_on(status, 0b10))
-        == "((0b0010 >> ((status[1] >> 3) & 0x03)) & 1)"
-    )
-    assert str(cg.RegisterField(2).shifted(status)) == "(status[2] >> 0)"
+    one_bit = cg.RegisterField(register=1, shift=3)
+    assert str(one_bit.is_on(status)) == "((status[1] >> 3) & 0x01)"
+    two_bit = cg.RegisterField(register=1, shift=3, mask=0x03)
+    assert str(two_bit.is_on(status)) == "((0b0010 >> ((status[1] >> 3) & 0x03)) & 1)"
+    assert str(cg.RegisterField(register=2).shifted(status)) == "(status[2] >> 0)"
 
 
-@pytest.mark.parametrize(
-    ("mask", "on_values"), [(0x3F, 0b10), (0x01, 0b100), (0x03, 1 << 4)]
-)
-def test_register_field_is_on_rejects_a_bitmap_past_the_shift(
-    mask: int, on_values: int
+@pytest.mark.parametrize(("mask", "on"), [(0x3F, (1,)), (0x01, (2,)), (0x03, (4,))])
+def test_register_field_is_on_rejects_values_outside_the_field(
+    mask: int, on: tuple[int, ...]
 ) -> None:
-    """A mask over 0x1F or on_values past mask + 1 bits would be an undefined C++ shift."""
+    """A mask over 0x1F or an on value outside the field would be an undefined C++ shift."""
+    field = cg.RegisterField(register=0, mask=mask, on=on)
     with pytest.raises(ValueError, match="at most 0x1F"):
-        cg.RegisterField(0, 0, mask).is_on(MockObj("status"), on_values)
+        field.is_on(MockObj("status"))
 
 
 def test_add_table_on_change_declares_last_and_publishes() -> None:
@@ -676,14 +677,19 @@ def test_add_table_on_change_declares_last_and_publishes() -> None:
     table = cg.esphome_ns.namespace("hub").namespace("HubStrings")
     hub = cg.MockObj("hub_a", "->")
     text_sensor.add_table_on_change(
-        fn, hub, MockObj("tx_a"), status, cg.RegisterField(0, mask=0x03), table=table
+        fn,
+        hub,
+        MockObj("tx_a"),
+        status,
+        cg.RegisterField(register=0, mask=0x03),
+        table=table,
     )
     text_sensor.add_table_on_change(
         fn,
         hub,
         MockObj("tx_b"),
         status,
-        cg.RegisterField(1, 4, 0x07),
+        cg.RegisterField(register=1, shift=4, mask=0x07),
         table=table,
         first=8,
         fallback=5,

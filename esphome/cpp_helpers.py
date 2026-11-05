@@ -1,7 +1,7 @@
 from collections.abc import Awaitable, Callable, Hashable, Mapping
 from dataclasses import dataclass, field
 import logging
-from typing import Any
+from typing import TYPE_CHECKING, Any
 
 from esphome.const import (
     CONF_ID,
@@ -32,6 +32,9 @@ from esphome.cpp_types import App
 from esphome.helpers import cpp_string_escape
 from esphome.types import ConfigFragmentType, ConfigType, Expression, TemplateArgsType
 from esphome.util import Registry, RegistryEntry
+
+if TYPE_CHECKING:
+    from esphome.core.entity_helpers import SubEntities
 
 _LOGGER = logging.getLogger(__name__)
 
@@ -376,10 +379,13 @@ class HubFunction:
     async def publish_children(
         self,
         hub: MockObj,
-        sub_entities: Callable[[str, None], Awaitable[MockObj | None]],
+        sub_entities: "SubEntities",
         states: Mapping[str, Expression],
     ) -> dict[str, MockObj]:
-        """Create each configured child of ``states`` and publish its state from the function of ``hub``."""
+        """Create each configured child of ``states`` and add ``::<child>->publish_state(<state>);``.
+
+        Returns the created children by key.
+        """
         from esphome.automation import parent_ref
 
         children = {}
@@ -390,33 +396,38 @@ class HubFunction:
         return children
 
 
-# on_values of a one-bit field that is on when its bit is set
-BIT_FIELD_SET = 0b10
-
-
-@dataclass(frozen=True)
+@dataclass(frozen=True, kw_only=True)
 class RegisterField:
-    """The field ``(values[register] >> shift) & mask`` of a hub's register array."""
+    """The field ``(values[register] >> shift) & mask`` of a hub's register array.
+
+    ``on`` lists the field values a binary sensor reads as on.
+    """
 
     register: int
     shift: int = 0
     mask: int = 0x01
+    on: tuple[int, ...] = (1,)
 
     def shifted(self, values: MockObj) -> MockObj:
-        """The register shifted down to the field, not yet masked."""
+        """``(values[register] >> shift)``, unmasked: the C++ text helper applies the mask itself."""
         return values[self.register] >> self.shift
 
-    def is_on(self, values: MockObj, on_values: int = BIT_FIELD_SET) -> MockObj:
-        """Whether the field value is a set bit of ``on_values``; by default the field's bit is set."""
-        if self.mask > 0x1F or on_values >> (self.mask + 1):
+    def is_on(self, values: MockObj) -> MockObj:
+        """Whether the field is one of ``on``.
+
+        A one-bit field on at 1 is ``((status[1] >> 7) & 0x01)``; any other is a lookup in a bitmap of the
+        on values, ``((0b0110 >> ((status[0] >> 5) & 0x03)) & 1)`` for ``mask=0x03, on=(1, 2)``.
+        """
+        if self.mask > 0x1F or any(value & ~self.mask for value in self.on):
             raise ValueError(
-                f"RegisterField mask {self.mask:#x} with on_values {on_values:#b}: "
-                "the mask must be at most 0x1F and on_values at most mask + 1 bits"
+                f"RegisterField mask {self.mask:#x} with on values {self.on}: "
+                "the mask must be at most 0x1F and every on value a value of the field"
             )
         bits = self.shifted(values) & HexIntLiteral(self.mask)
-        if self.mask == 0x01 and on_values == BIT_FIELD_SET:
+        if self.mask == 0x01 and self.on == (1,):
             return bits
-        return (MockObj(f"{on_values:#06b}") >> bits) & 1
+        bitmap = sum(1 << value for value in set(self.on))
+        return (MockObj(f"{bitmap:#06b}") >> bits) & 1
 
 
 async def gpio_pin_expression(conf):

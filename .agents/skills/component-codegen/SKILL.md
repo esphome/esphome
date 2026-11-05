@@ -197,14 +197,12 @@ plain entities, with no listener class or list. A child that lost a `Component` 
 a second hub function (`"dump"`, a `const char *` tag parameter, no define of its own) that the hub's
 `dump_config()` calls inside the value function's `#ifdef`; every child adds to both.
 
-**Entities that each watch a register field:** when every field (register, shift, mask, match) is known at
-build time, use the rule above (see `bq25186`). Describe each field with `cg.RegisterField(register, shift,
-mask)` (a dataclass, so a platform's field table can subclass it with `kw_only` extras). A binary sensor
-tests its field against an on-values bitmap with `field.is_on(values, on_values)` (a one-bit field that is on
-when set is the default and reads the bit), and `publish_children` creates the configured children and adds
-their publishes; a text sensor names its field from a `PROGMEM_STRING_TABLE` with
-`text_sensor.add_table_on_change(...)`, which publishes only when the field changes (the mask and fallback are
-template arguments, so there is one instantiation per table):
+**Entities that each watch a register field:** when every field is known at build time, use the rule above
+(see `bq25186`). Describe each field with `cg.RegisterField(register=..., shift=..., mask=..., on=...)`.
+`on` lists the field values a binary sensor reads as on; it defaults to `(1,)`. It is a keyword-only dataclass,
+so a platform's table subclasses it with its own fields, such as `key` and `device_class`.
+`field.is_on(STATUS)` gives the binary sensor's state. A text sensor names its field from a
+`PROGMEM_STRING_TABLE` with `text_sensor.add_table_on_change(...)`, which publishes only when the field changes:
 ```python
 # hub __init__.py
 STATUS_PUBLISHER = cg.HubFunction(
@@ -215,25 +213,38 @@ STATUS_PUBLISHER = cg.HubFunction(
 )
 STATUS = STATUS_PUBLISHER.param("status")
 
-# binary_sensor.py to_code
-await STATUS_PUBLISHER.publish_children(
-    hub,
-    binary_sensor.sub_binary_sensors(config),
-    {field.key: field.is_on(STATUS, field.on_values) for field in _FIELDS},
+
+# binary_sensor.py
+@dataclass(frozen=True, kw_only=True)
+class _StatusBit(cg.RegisterField):
+    key: str
+    device_class: str = cv.UNDEFINED
+
+
+_FIELDS = (
+    _StatusBit(key="ts", register=REG_STAT0, shift=7),
+    _StatusBit(key="charging", register=REG_STAT0, shift=5, mask=0x03, on=(1, 2)),
 )
 
+# binary_sensor.py to_code
+sensors = binary_sensor.sub_binary_sensors(config)
+for field in _FIELDS:
+    if (var := await sensors(field.key, None)) is not None:
+        STATUS_PUBLISHER.add(hub, parent_ref(var).publish_state(field.is_on(STATUS)))
+# ::bs_ts->publish_state(((esphome__arg_status[0] >> 7) & 0x01));
+# ::bs_charging->publish_state(((0b0110 >> ((esphome__arg_status[0] >> 5) & 0x03)) & 1));
+
 # text_sensor.py to_code, per configured entity
-STRINGS = bq25186_ns.namespace("BQ25186StatusStrings")
 text_sensor.add_table_on_change(
-    STATUS_PUBLISHER,
-    hub,
-    var,
-    STATUS,
-    cg.RegisterField(REG_STAT1, 3, 0x03),
-    table=STRINGS,
-    first=4,
+    STATUS_PUBLISHER, hub, var, STATUS, field, table=STRINGS, first=field.first
 )
+# static uint8_t esphome__tx__last = 0xFF;
+# text_sensor::publish_table_on_change<bq25186::BQ25186StatusStrings, 0x03,
+#     bq25186::BQ25186StatusStrings::LAST_INDEX>(::tx, esphome__tx__last, (esphome__arg_status[1] >> 3), 4);
 ```
+The mask and fallback are template arguments, so there is one instantiation per table and mask. When each
+child's state is a fixed expression in a dict, `await HUB_FN.publish_children(hub, sub_entities, states)` adds
+one `publish_state` per configured child (see `sy6970`).
 Store a field description per entity (a struct in a `SlotList` sized by `cg.slot_list`) only when the
 field is chosen at run time, as in `sen6x`, where the status bit depends on the variant read in `setup()`.
 Never a template per bit or a virtual listener base (a second vptr per entity).

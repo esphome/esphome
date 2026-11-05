@@ -97,7 +97,7 @@ class TextSensor : public EntityBase {
 };
 
 /// Publish `Table` string `first + (value & Mask)`, or `Fallback` past its end, only when the field differs from
-/// `last`; start `last` at 0xFF so the first call publishes
+/// `last`
 template<typename Table, uint8_t Mask, uint8_t Fallback>
 inline void publish_table_on_change(TextSensor *sensor, uint8_t &last, uint8_t value, uint8_t first) {
   static_assert(Fallback < Table::COUNT, "Fallback must index a string of Table");

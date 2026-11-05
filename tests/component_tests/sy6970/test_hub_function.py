@@ -3,7 +3,7 @@
 from collections.abc import Callable
 from pathlib import Path
 
-from ..hub_function_helpers import check_publishers_set, hub_function_body
+from ..hub_function_helpers import hub_function_body
 
 REG = "esphome__arg_data.registers"
 STATUS = f"{REG}[sy6970::SY6970_REG_STATUS]"
@@ -55,5 +55,6 @@ def test_children_publish_through_hub_function(
     main_cpp = generate_main(component_config_path("hub_function.yaml"))
 
     assert hub_function_body(main_cpp, "charger", "data") == EXPECTED_BODY
+    assert "charger->set_data_publisher(esphome__charger__data_fn);" in main_cpp
     # A hub without children keeps a null publisher
-    check_publishers_set(main_cpp, ["charger"], ["idle_charger"], "data")
+    assert "idle_charger->set_data_publisher" not in main_cpp

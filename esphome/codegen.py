@@ -54,7 +54,6 @@ from esphome.cpp_generator import (  # noqa: F401
     with_local_variable,
 )
 from esphome.cpp_helpers import (  # noqa: F401
-    BIT_FIELD_SET,
     HubFunction,
     RegisterField,
     add_optional,

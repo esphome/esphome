@@ -366,9 +366,16 @@ def add_table_on_change(
     first: int = 0,
     fallback: int | None = None,
 ) -> None:
-    """Publish string ``first + field`` of the PROGMEM_STRING_TABLE ``table`` on ``var``, on change."""
+    """Publish string ``first + field`` of the PROGMEM_STRING_TABLE ``table`` on ``var``, on change.
+
+    Adds two lines to ``function``, for example::
+
+        static uint8_t esphome__tx__last = 0xFF;
+        text_sensor::publish_table_on_change<Strings, 0x07, 5>(::tx, esphome__tx__last, (status[1] >> 4), 8);
+
+    The last field value is one static byte per sensor; a ``Deduplicator<uint8_t>`` would take 3.
+    """
     last = MockObj(f"esphome__{var}__last")
-    # 0xFF so the first call publishes
     declaration = VariableDeclarationExpression(cg.uint8, "", last, static=True)
     function.add(
         hub, AssignmentExpression(None, None, declaration, HexIntLiteral(0xFF))
