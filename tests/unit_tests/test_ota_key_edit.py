@@ -1608,6 +1608,32 @@ def test_secret_in_an_include_outside_the_config_dir_is_refused(tmp_path: Path) 
     _refused(rf"^secret 'device_key' is also used by .*{deeper}, other\.yaml;")
 
 
+@pytest.mark.skipif(
+    sys.platform == "win32", reason="symlinks need privileges on Windows"
+)
+def test_a_linked_include_follows_includes_beside_the_link(tmp_path: Path) -> None:
+    """The loader resolves a linked file's includes from the link's directory."""
+    (real := tmp_path / "real").mkdir()
+    (real / "pkg.yaml").write_bytes(b"<<: !include nested.yaml\n")
+    (real / "nested.yaml").write_bytes(b"x: 1\n")
+    (shared := tmp_path / "shared").mkdir()
+    (shared / "pkg.yaml").symlink_to(real / "pkg.yaml")
+    (shared / "nested.yaml").write_bytes(b"key: !secret device_key\n")
+    (config_dir := tmp_path / "configs").mkdir()
+    (config_dir / "other.yaml").write_bytes(b"api: !include ../shared/pkg.yaml\n")
+    _setup(config_dir, SECRET_YAML, f"device_key: {OLD_KEY}\n")
+    nested = re.escape((shared / "nested.yaml").resolve().as_posix())
+    _refused(rf"^secret 'device_key' is also used by .*{nested}")
+
+
+def test_an_include_cycle_ends(tmp_path: Path) -> None:
+    (loop := tmp_path / "loop").mkdir()
+    (loop / "a.yaml").write_bytes(b"x: !include ../loop/a.yaml\n")
+    (tmp_path / "other.yaml").write_bytes(b"x: !include loop/a.yaml\n")
+    _setup(tmp_path, SECRET_YAML, f"device_key: {OLD_KEY}\n")
+    assert rotation_edits(OLD_KEY, NEW_KEY)
+
+
 def test_a_missing_include_target_is_unchecked(tmp_path: Path) -> None:
     (tmp_path / "other.yaml").write_bytes(b"api: !include ../gone.yaml\n")
     _setup(tmp_path, SECRET_YAML, f"device_key: {OLD_KEY}\n")

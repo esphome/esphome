@@ -90,7 +90,7 @@ class _Scan:
     """What a yaml file names, from its tokens alone; comments never count."""
 
     secrets: list[tuple[str, int]] = field(default_factory=list)  # name, line
-    targets: set[Path] = field(default_factory=set)  # local yaml files it names
+    targets: set[Path] = field(default_factory=set)  # local files it includes, as named
     include_dir: str | None = None
     unresolved: str | None = None  # an include path only known when loaded
 
@@ -114,6 +114,12 @@ class _State:
 
 def _state() -> _State:
     return CORE.data.setdefault(_DOMAIN, _State())
+
+
+def _as_named(path: Path) -> Path:
+    """``path`` with its directory resolved but its own name kept: a linked file's
+    includes resolve beside the link, as the loader does."""
+    return path.parent.resolve() / path.name
 
 
 def _scan(path: Path) -> _Scan:
@@ -182,7 +188,7 @@ def _scan(path: Path) -> _Scan:
         elif included and ("$" in value or "<%" in value):
             found.unresolved = found.unresolved or value
         elif included:
-            found.targets.add((path.parent / value).resolve())
+            found.targets.add(_as_named(path.parent / value))
     return found
 
 
@@ -238,7 +244,7 @@ def _configs() -> _Configs:
                 except EsphomeError as err:
                     skip(err)
     # An include from outside these trees is scanned too, as are its own includes
-    seen = {path.resolve() for path, _ in found}
+    seen = {_as_named(path) for path, _ in found}
     pending = [target for _, scan in found for target in scan.targets]
     while pending:
         if (target := pending.pop()) in seen:
@@ -254,7 +260,7 @@ def _configs() -> _Configs:
     named_by: dict[Path, set[Path]] = {}
     for path, scan in found:
         for target in scan.targets:
-            named_by.setdefault(target, set()).add(path)
+            named_by.setdefault(target.resolve(), set()).add(path)
     state.configs = _Configs(found, skipped, named_by)
     return state.configs
 
