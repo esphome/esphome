@@ -151,6 +151,9 @@ void SX127x::configure_fsk_ook_() {
   this->write_register_(REG_BITRATE_LSB, (uint8_t) ((bitrate >> 0) & 0xFF));
 
   // configure rx and afc
+  if (this->has_afc_bandwidth_) {
+    this->write_register_(REG_AFC_BW, BW_FSK_OOK[this->afc_bandwidth_]);
+  }
   uint8_t trigger = (this->preamble_detect_ > 0) ? TRIGGER_PREAMBLE : TRIGGER_RSSI;
   this->write_register_(REG_AFC_FEI, AFC_AUTO_CLEAR_ON);
   if (this->modulation_ == MOD_FSK) {
@@ -439,6 +442,9 @@ void SX127x::dump_config() {
                 progmem_read_uint16(&RAMP[this->pa_ramp_]));
   if (this->modulation_ == MOD_FSK) {
     ESP_LOGCONFIG(TAG, "  Deviation: %" PRIu32 " Hz", this->deviation_);
+  }
+  if (this->has_afc_bandwidth_) {
+    ESP_LOGCONFIG(TAG, "  AFC Bandwidth: %" PRIu32 " Hz", BW_HZ[this->afc_bandwidth_]);
   }
   if (this->modulation_ == MOD_LORA) {
     const char *cr = "4/8";
