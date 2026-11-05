@@ -100,8 +100,7 @@ void BMP3XXComponent::setup() {
     uint8_t err_reg;
     if (!this->setup_check(this->read_byte(BMP388_ERR_REG, &err_reg)))
       return;
-    // The sensor stays asleep and sets conf_err if one measurement takes longer than the data rate period.
-    // _validate_data_rate rejects that at config time; this guards against its timing formula drifting.
+    // conf_err: one measurement is longer than the data rate period, so the sensor stays asleep
     this->setup_check((err_reg & ERR_REG_CONF_ERR) == 0, LOG_STR("Data rate too fast for the oversampling settings"));
   }
 }
@@ -185,7 +184,7 @@ void BMP3XXComponent::read_and_publish_() {
   PUBLISH_STATE(this->pressure_sensor_, pressure);
   this->status_clear_warning();
   if (this->operation_mode_ == FORCED_MODE)
-    set_mode(SLEEP_MODE);
+    this->stop_conversion();
 }
 
 // Reset the BMP3XX
@@ -300,25 +299,11 @@ bool BMP3XXComponent::data_ready() {
     return false;
   }
   if (this->operation_mode_ == NORMAL_MODE) {
-    // A sensor that lost power comes back asleep with default settings, and its data would never change
-    decltype(this->pwr_ctrl_) pwr_ctrl;
-    if (!this->read_byte(BMP388_PWR_CTRL, &pwr_ctrl.reg)) {
-      ESP_LOGE(TAG, "Failed to read power control register");
+    if (!this->check_reset_())
       return false;
-    }
-    if (pwr_ctrl.bit.mode != NORMAL_MODE) {
-      ESP_LOGW(TAG, "Sensor was reset - restoring its settings");
-      this->normal_mode_data_valid_ = false;
-      if (!this->configure_()) {
-        ESP_LOGE(TAG, "Failed to restore settings");
-      }
-      return false;
-    }
-    // The data registers always hold the latest result once the first one is in.
-    // drdy clears on read, so it would fail a poll that comes before the next result.
-    if (this->normal_mode_data_valid_) {
+    // drdy clears on read; the data registers keep the latest result
+    if (this->normal_mode_data_valid_)
       return true;
-    }
   }
   // Read the interrupt status register
   uint8_t status;
@@ -333,11 +318,27 @@ bool BMP3XXComponent::data_ready() {
     if (pwr_ctrl_.bit.mode == FORCED_MODE) {
       pwr_ctrl_.bit.mode = SLEEP_MODE;
     }
-    // Only read in NORMAL_MODE
-    this->normal_mode_data_valid_ = true;
+    if (this->operation_mode_ == NORMAL_MODE)
+      this->normal_mode_data_valid_ = true;
     return true;  // The measurement is ready
   }
   return false;  // The measurement is still pending
+}
+
+bool BMP3XXComponent::check_reset_() {
+  decltype(this->pwr_ctrl_) pwr_ctrl;
+  if (!this->read_byte(BMP388_PWR_CTRL, &pwr_ctrl.reg)) {
+    ESP_LOGE(TAG, "Failed to read power control register");
+    return false;
+  }
+  if (pwr_ctrl.bit.mode == NORMAL_MODE)
+    return true;
+  ESP_LOGW(TAG, "Sensor was reset - restoring its settings");
+  this->normal_mode_data_valid_ = false;
+  if (!this->configure_()) {
+    ESP_LOGE(TAG, "Failed to restore settings");
+  }
+  return false;
 }
 
 ////////////////////////////////////////////////////////////////////////////////

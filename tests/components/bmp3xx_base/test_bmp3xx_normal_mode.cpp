@@ -30,6 +30,8 @@ class NormalModeBMP3XX final : public BMP3XXComponent {
     this->registers[BMP388_INT_STATUS] = 0x00;
   }
 
+  uint8_t mode() const { return (this->registers[BMP388_PWR_CTRL] >> 4) & 0x03; }
+
   std::array<uint8_t, 256> registers{};
   bool fail_writes{false};
 
@@ -40,12 +42,7 @@ class NormalModeBMP3XX final : public BMP3XXComponent {
       this->registers[a_register] = 0;
     return true;
   }
-  bool write_byte(uint8_t a_register, uint8_t data) override {
-    if (this->fail_writes)
-      return false;
-    this->registers[a_register] = data;
-    return true;
-  }
+  bool write_byte(uint8_t a_register, uint8_t data) override { return this->write_bytes(a_register, &data, 1); }
   bool read_bytes(uint8_t a_register, uint8_t *data, size_t len) override {
     std::memcpy(data, &this->registers[a_register], len);
     return true;
@@ -72,19 +69,24 @@ struct NormalModeFixture {
     this->bmp.set_output_data_rate_config(ODR_12_5_HZ);
     this->bmp.setup();
   }
+
+  // A new result arrives and is polled
+  void new_result() {
+    this->bmp.registers[BMP388_INT_STATUS] = INT_STATUS_DRDY;
+    this->bmp.update();
+  }
 };
 
 TEST(BMP3XXNormalModeTest, SetupStartsNormalModeAtDataRate) {
   NormalModeFixture f;
   EXPECT_FALSE(f.bmp.is_failed());
   EXPECT_EQ(f.bmp.registers[BMP388_ODR], ODR_12_5_HZ);
-  EXPECT_EQ((f.bmp.registers[BMP388_PWR_CTRL] >> 4) & 0x03, NORMAL_MODE);
+  EXPECT_EQ(f.bmp.mode(), NORMAL_MODE);
 }
 
 TEST(BMP3XXNormalModeTest, KeepsReadingWhenNoNewResultSinceLastPoll) {
   NormalModeFixture f;
-  f.bmp.registers[BMP388_INT_STATUS] = INT_STATUS_DRDY;
-  f.bmp.update();
+  f.new_result();
   ASSERT_EQ(f.published, 1);
 
   // drdy was cleared by that read and no new result has arrived yet
@@ -99,8 +101,7 @@ TEST(BMP3XXNormalModeTest, WaitsForFirstResultAfterSetup) {
   EXPECT_EQ(f.published, 0);
   EXPECT_TRUE(f.bmp.status_has_warning());
 
-  f.bmp.registers[BMP388_INT_STATUS] = INT_STATUS_DRDY;
-  f.bmp.update();
+  f.new_result();
   EXPECT_EQ(f.published, 1);
   EXPECT_FALSE(f.bmp.status_has_warning());
 }
@@ -108,8 +109,7 @@ TEST(BMP3XXNormalModeTest, WaitsForFirstResultAfterSetup) {
 TEST(BMP3XXNormalModeTest, SensorResetIsDetectedAndSettingsRestored) {
   NormalModeFixture f;
   const uint8_t osr = f.bmp.registers[BMP388_OSR];
-  f.bmp.registers[BMP388_INT_STATUS] = INT_STATUS_DRDY;
-  f.bmp.update();
+  f.new_result();
   ASSERT_EQ(f.published, 1);
 
   // Nothing is published from the reset chip's empty data registers
@@ -119,33 +119,30 @@ TEST(BMP3XXNormalModeTest, SensorResetIsDetectedAndSettingsRestored) {
   EXPECT_TRUE(f.bmp.status_has_warning());
   EXPECT_EQ(f.bmp.registers[BMP388_OSR], osr);
   EXPECT_EQ(f.bmp.registers[BMP388_ODR], ODR_12_5_HZ);
-  EXPECT_EQ((f.bmp.registers[BMP388_PWR_CTRL] >> 4) & 0x03, NORMAL_MODE);
+  EXPECT_EQ(f.bmp.mode(), NORMAL_MODE);
 
   // The first result with the restored settings is published again
-  f.bmp.registers[BMP388_INT_STATUS] = INT_STATUS_DRDY;
-  f.bmp.update();
+  f.new_result();
   EXPECT_EQ(f.published, 2);
   EXPECT_FALSE(f.bmp.status_has_warning());
 }
 
 TEST(BMP3XXNormalModeTest, FailedRestoreIsRetried) {
   NormalModeFixture f;
-  f.bmp.registers[BMP388_INT_STATUS] = INT_STATUS_DRDY;
-  f.bmp.update();
+  f.new_result();
   ASSERT_EQ(f.published, 1);
 
   f.bmp.power_on_reset();
   f.bmp.fail_writes = true;
   f.bmp.update();
-  EXPECT_EQ((f.bmp.registers[BMP388_PWR_CTRL] >> 4) & 0x03, SLEEP_MODE);
+  EXPECT_EQ(f.bmp.mode(), SLEEP_MODE);
 
   f.bmp.fail_writes = false;
   f.bmp.update();
-  EXPECT_EQ((f.bmp.registers[BMP388_PWR_CTRL] >> 4) & 0x03, NORMAL_MODE);
+  EXPECT_EQ(f.bmp.mode(), NORMAL_MODE);
   EXPECT_EQ(f.published, 1);
 
-  f.bmp.registers[BMP388_INT_STATUS] = INT_STATUS_DRDY;
-  f.bmp.update();
+  f.new_result();
   EXPECT_EQ(f.published, 2);
   EXPECT_FALSE(f.bmp.status_has_warning());
 }

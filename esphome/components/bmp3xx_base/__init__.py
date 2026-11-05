@@ -68,19 +68,19 @@ DATA_RATE_OPTIONS = {
 
 
 def _validate_data_rate(config: ConfigType) -> ConfigType:
-    """One measurement must fit in the data rate period (BMP390 datasheet 3.9.2, as in update())."""
+    """One measurement must fit in the data rate period (BMP390 datasheet 3.9.2)."""
     if (data_rate := config.get(CONF_DATA_RATE)) is None:
         return config
     # DATA_RATE_OPTIONS is in register order and each step doubles the 5 ms period
     period_ms = 5 * 2 ** list(DATA_RATE_OPTIONS).index(data_rate)
     oversampling = list(OVERSAMPLING_OPTIONS)
     meas_us = 234
-    if CONF_PRESSURE in config:
-        osr_p = oversampling.index(config[CONF_PRESSURE][CONF_OVERSAMPLING])
-        meas_us += 392 + 2020 * 2**osr_p
-    osr_t = 0
-    if CONF_TEMPERATURE in config:
-        osr_t = oversampling.index(config[CONF_TEMPERATURE][CONF_OVERSAMPLING])
+    if (pressure := config.get(CONF_PRESSURE)) is not None:
+        meas_us += 392 + 2020 * 2 ** oversampling.index(pressure[CONF_OVERSAMPLING])
+    temperature = config.get(CONF_TEMPERATURE)
+    osr_t = (
+        0 if temperature is None else oversampling.index(temperature[CONF_OVERSAMPLING])
+    )
     meas_us += 163 + 2020 * 2**osr_t
     if meas_us > period_ms * 1000:
         raise cv.Invalid(

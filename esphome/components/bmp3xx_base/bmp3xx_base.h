@@ -244,6 +244,8 @@ class BMP3XXComponent : public PollingComponent {
   // Write the filter, oversampling and, in NORMAL_MODE, the data rate and mode
   bool configure_();
   void read_and_publish_();
+  // False when the sensor lost power and fell back to sleep; its settings are then restored
+  bool check_reset_();
 
   // Bosch temperature compensation function
   float bmp388_compensate_temperature_(float uncomp_temp);
