@@ -1,6 +1,7 @@
 from collections.abc import Awaitable, Callable
 import dataclasses
 from dataclasses import dataclass
+import logging
 from pathlib import Path
 from typing import Any, NamedTuple
 
@@ -67,6 +68,8 @@ from esphome.cpp_generator import MockObj
 from esphome.schema_extractors import SCHEMA_EXTRACT, schema_extractor
 from esphome.types import ConfigType, SafeExpType, TemplateArgsType
 from esphome.util import Registry, SimpleRegistry
+
+_LOGGER = logging.getLogger(__name__)
 
 AUTO_LOAD = ["binary_sensor"]
 DOMAIN = "remote_base"
@@ -1681,6 +1684,11 @@ def raw_dumper(var, config):
 async def _raw_encode(config: ConfigType, args: TemplateArgsType) -> list[str]:
     data = _CALL_DATA
     code = config[CONF_CODE]
+    if config[CONF_CODE_STORAGE_ID].is_manual:
+        _LOGGER.warning(
+            "transmit_raw ignores code_storage_id '%s'; equal codes share one table",
+            config[CONF_CODE_STORAGE_ID],
+        )
     if isinstance(code, Lambda):
         timings = await _transmit_value(code, args, cg.std_vector.template(cg.int32))
         statements = [f"{data}->set_data({timings});"]

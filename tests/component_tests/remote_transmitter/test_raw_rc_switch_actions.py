@@ -39,6 +39,15 @@ def _in_order(body: str, *parts: str) -> None:
     assert positions == sorted(positions)
 
 
+def test_code_storage_id_warns(
+    generate_main: Callable[[str | Path], str],
+    component_config_path: Callable[[str], Path],
+    caplog: pytest.LogCaptureFixture,
+) -> None:
+    generate_main(component_config_path("raw_code_storage_id.yaml"))
+    assert "transmit_raw ignores code_storage_id 'my_code'" in caplog.text
+
+
 def test_no_action_objects(main_cpp: str) -> None:
     assert "RawAction" not in main_cpp
     assert "RCSwitch" not in main_cpp.replace("RCSwitchBase", "")
