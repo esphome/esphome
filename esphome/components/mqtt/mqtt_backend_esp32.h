@@ -174,7 +174,7 @@ class MQTTBackendESP32 final : public MQTTBackend {
   void set_on_publish(std::function<on_publish_user_callback_t> &&callback) final {
     this->on_publish_.add(std::move(callback));
   }
-  bool connected() const final { return this->is_connected_ && this->link_up_.load(); }
+  bool connected() const final { return this->is_connected_; }
 
   void connect() final {
     this->want_connected_.store(1);  // before start/reconnect, so the MQTT task sees it
@@ -271,8 +271,11 @@ class MQTTBackendESP32 final : public MQTTBackend {
   std::atomic<uint8_t> want_connected_{0};
 
   // Link state as seen by the MQTT task, written in mqtt_event_handler() so it can't be lost
-  // when a queued event is dropped. Set before CONNECTED is queued; cleared after DISCONNECTED
-  // is queued or dropped, so loop() never handles the same disconnect twice.
+  // when a queued event is dropped. Only used by loop() to detect a dropped DISCONNECTED;
+  // connected() follows the queued events so the state machine never acts on a link change
+  // before the matching event (and its callbacks) have been processed.
+  // Set before CONNECTED is queued; cleared after DISCONNECTED is queued or dropped, so loop()
+  // never handles the same disconnect twice.
   // uint8_t, not bool: GCC on Xtensa emits an out-of-line call for atomic<bool>
   std::atomic<uint8_t> link_up_{0};
 

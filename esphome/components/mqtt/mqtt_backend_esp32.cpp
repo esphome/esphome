@@ -118,6 +118,8 @@ void MQTTBackendESP32::loop() {
 
   // A DISCONNECTED event was dropped (pool full). Wait for the queue to drain so no older
   // CONNECTED event can follow it, then handle it as if it had arrived.
+  // link_up_ is read before empty(): it is cleared after the push, so if a queued DISCONNECTED
+  // exists, seeing link_up_ == 0 guarantees empty() sees it too.
   if (this->is_connected_ && !this->link_up_.load() && this->mqtt_event_queue_.empty()) {
     ESP_LOGW(TAG, "Disconnect event was dropped, handling it now");
     this->handle_disconnected_();
