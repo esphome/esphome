@@ -40,10 +40,8 @@ void INA226Component::setup() {
   ConfigurationRegister config;
 
   config.reset = 1;
-  if (!this->write_byte_16(INA226_REGISTER_CONFIG, config.raw)) {
-    this->mark_failed(LOG_STR(ESP_LOG_MSG_COMM_FAIL));
+  if (!this->setup_check(this->write_byte_16(INA226_REGISTER_CONFIG, config.raw)))
     return;
-  }
   delay(1);
 
   config.raw = 0;
@@ -61,10 +59,8 @@ void INA226Component::setup() {
   // Mode Settings [2:0] Combinations (111 -> Shunt and Bus, Continuous)
   config.mode = 0b111;
 
-  if (!this->write_byte_16(INA226_REGISTER_CONFIG, config.raw)) {
-    this->mark_failed(LOG_STR(ESP_LOG_MSG_COMM_FAIL));
+  if (!this->setup_check(this->write_byte_16(INA226_REGISTER_CONFIG, config.raw)))
     return;
-  }
 
   // lsb is multiplied by 1000000 to store it as an integer value
   uint32_t lsb = static_cast<uint32_t>(ceilf(this->max_current_a_ * 1000000.0f / 32768));
@@ -75,10 +71,8 @@ void INA226Component::setup() {
 
   ESP_LOGV(TAG, "    Using LSB=%" PRIu32 " calibration=%" PRIu32, lsb, calibration);
 
-  if (!this->write_byte_16(INA226_REGISTER_CALIBRATION, calibration)) {
-    this->mark_failed(LOG_STR(ESP_LOG_MSG_COMM_FAIL));
+  if (!this->setup_check(this->write_byte_16(INA226_REGISTER_CALIBRATION, calibration)))
     return;
-  }
 }
 
 void INA226Component::dump_config() {

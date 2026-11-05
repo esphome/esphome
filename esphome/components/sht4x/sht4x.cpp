@@ -37,10 +37,8 @@ void SHT4XComponent::read_serial_number_() {
 
 void SHT4XComponent::setup() {
   auto err = this->write(nullptr, 0);
-  if (err != i2c::ERROR_OK) {
-    this->mark_failed(LOG_STR(ESP_LOG_MSG_COMM_FAIL));
+  if (!this->setup_check(err == i2c::ERROR_OK))
     return;
-  }
 
   this->read_serial_number_();
 
