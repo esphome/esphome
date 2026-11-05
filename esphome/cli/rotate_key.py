@@ -38,7 +38,8 @@ PRECHECK_ADVICE = {
     ),
     ProbeResult.REJECTED: (
         "The device runs a different key than the yaml. Install the current "
-        "configuration first, presenting its key with --prompt-ota-key, then rotate."
+        "configuration first with 'esphome run', which also tries old_key; when "
+        "neither key works, present the device's key with --prompt-ota-key."
     ),
     ProbeResult.NOT_OFFERED: (
         "The device does not offer encryption: it runs a firmware older than "

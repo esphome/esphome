@@ -69,6 +69,17 @@ _INDENT_RE = re.compile(r"\s*")
 _KEY_FIELD_RE = re.compile(rf"^{field_prefix(CONF_KEY)}")
 _BARE_BLOCK_RE = re.compile(rf"^{field_prefix(CONF_ENCRYPTION)}\s*(#.*)?$")
 _YAML_SUFFIXES = (".yaml", ".yml")
+_COLLECTION_STARTS = (
+    yaml.BlockMappingStartToken,
+    yaml.BlockSequenceStartToken,
+    yaml.FlowMappingStartToken,
+    yaml.FlowSequenceStartToken,
+)
+_COLLECTION_ENDS = (
+    yaml.BlockEndToken,
+    yaml.FlowMappingEndToken,
+    yaml.FlowSequenceEndToken,
+)
 _KEY_SECRET_RE = secret_field_re(CONF_KEY)
 
 
@@ -117,31 +128,44 @@ def _scan(path: Path) -> _Scan:
             f"Could not scan {path}: {getattr(err, 'problem', err)}"
         ) from err
     found = scans[path] = _Scan()
+    depth = 0
+    include_maps: set[int] = set()  # depths of `!include {file: ...}` mappings
+    keys: dict[int, str] = {}  # the last key seen at each depth
     for prev2, prev, token in zip(
         [None, None, *tokens], [None, *tokens], tokens, strict=False
     ):
+        tag = prev.value[1] if isinstance(prev, yaml.TagToken) else ""
+        if isinstance(token, _COLLECTION_STARTS):
+            depth += 1
+            if tag == "include":
+                include_maps.add(depth)
+            continue
+        if isinstance(token, _COLLECTION_ENDS):
+            include_maps.discard(depth)
+            keys.pop(depth, None)
+            depth -= 1
+            continue
         if not isinstance(token, yaml.ScalarToken):
             continue
         value = token.value
-        # A remote package names a file of its repository, never this one
-        if value.endswith(_YAML_SUFFIXES) and "://" not in value:
-            found.targets.add((path.parent / value).resolve())
-        tag = prev.value[1] if isinstance(prev, yaml.TagToken) else ""
+        if isinstance(prev, yaml.KeyToken):
+            keys[depth] = value
+            continue
+        # Only an include loads a local file; a remote package's file is not one
+        included = tag == "include" or (
+            depth in include_maps
+            and isinstance(prev, yaml.ValueToken)
+            and isinstance(prev2, yaml.ScalarToken)
+            and keys.get(depth) == "file"
+        )
         if tag == "secret":
             found.secrets.append((value, prev.start_mark.line))
         elif tag.startswith("include_dir_") and found.include_dir is None:
             found.include_dir = value
-        file_value = (
-            isinstance(prev, yaml.ValueToken)
-            and isinstance(prev2, yaml.ScalarToken)
-            and prev2.value == "file"
-        )
-        if (
-            "$" in value
-            and (tag.startswith("include") or file_value)
-            and found.substituted is None
-        ):
-            found.substituted = value
+        elif included and "$" in value:
+            found.substituted = found.substituted or value
+        elif included:
+            found.targets.add((path.parent / value).resolve())
     return found
 
 
@@ -187,14 +211,15 @@ def _walk_configs() -> _Configs:
     ):
         for name in list(dirnames):
             path = Path(dirpath, name)
-            if path.resolve() == data_dir:
+            # Hidden trees (.git, .venv) hold no configurations, as in find_files
+            if name.startswith(".") or path.resolve() == data_dir:
                 dirnames.remove(name)
             elif path.is_symlink():
                 dirnames.remove(name)
                 skip(f"{path} is a link")
         for filename in filenames:
             path = Path(dirpath, filename)
-            if path.suffix not in _YAML_SUFFIXES:
+            if path.suffix not in _YAML_SUFFIXES or filename.startswith("."):
                 continue
             try:
                 found.append((path, _scan(path)))
@@ -443,7 +468,8 @@ def old_key_edit(old_key: str) -> list[KeyEdit]:
     else:
         # A bare block takes after the api key
         keyed = (raw.get(CONF_API) or {}).get(CONF_ENCRYPTION) or {}
-        doc, line_no, text = source_line(items[0][0], CONF_ENCRYPTION)
+        # Package entries merge in first, so the last one is the device's own
+        doc, line_no, text = source_line(items[-1][0], CONF_ENCRYPTION)
         anchor, anchor_re = CONF_ENCRYPTION, _BARE_BLOCK_RE
         indent = _child_indent(doc, line_no, _indent(text))
     if not anchor_re.match(text):

@@ -923,6 +923,26 @@ ota:
     )
 
 
+def test_two_bare_blocks_old_key_goes_into_the_last(tmp_path: Path) -> None:
+    """Package entries merge in first, so the device's own block is the last."""
+    head = """esphome:
+  name: test
+
+api:
+  encryption:
+    key: "{}"
+
+ota:
+  - platform: esphome
+    encryption:
+  - platform: esphome
+    encryption:
+"""
+    path = _setup(tmp_path, head.format(OLD_KEY))
+    _rotate()
+    assert path.read_text() == head.format(NEW_KEY) + f'      old_key: "{OLD_KEY}"\n'
+
+
 def test_flow_style_bare_block_is_refused(tmp_path: Path) -> None:
     yaml_text = f"""esphome:
   name: test
@@ -1189,6 +1209,10 @@ def test_key_overridden_on_top_of_a_package_block(tmp_path: Path) -> None:
 def test_a_substituted_include_path_is_reported_as_unchecked(tmp_path: Path) -> None:
     (tmp_path / "other.yaml").write_bytes(b"packages:\n  base: !include ${common}\n")
     (tmp_path / "third.yaml").write_bytes(
+        b"packages:\n  base: !include\n    file: ${pkg}\n"
+    )
+    # A remote package's file is never a local include
+    (tmp_path / "remote.yaml").write_bytes(
         b"packages:\n  base:\n    url: x\n    file: ${pkg}\n"
     )
     _setup(tmp_path, SECRET_YAML, f"device_key: {OLD_KEY}\n")
@@ -1206,6 +1230,35 @@ def test_another_device_including_the_main_file_is_a_sharer(tmp_path: Path) -> N
     edits = locate_key_edits(OLD_KEY, NEW_KEY)
     with_sharers(edits)
     assert [p.name for p in edits[0].shared_with] == ["other.yaml"]
+
+
+def test_mapping_includes_are_sharers_and_remote_files_are_not(
+    tmp_path: Path,
+) -> None:
+    (tmp_path / "block.yaml").write_bytes(
+        b"packages:\n  base: !include\n    file: test.yaml\n    vars: {a: 1}\n"
+    )
+    (tmp_path / "flow.yaml").write_bytes(b"packages:\n  - !include {file: test.yaml}\n")
+    (tmp_path / "remote.yaml").write_bytes(
+        b"packages:\n  base:\n    url: https://example.com/x\n    file: test.yaml\n"
+    )
+    (tmp_path / "plain.yaml").write_bytes(b"esphome:\n  name: test.yaml\n")
+    _setup(tmp_path, API_YAML)
+    edits = locate_key_edits(OLD_KEY, NEW_KEY)
+    with_sharers(edits)
+    assert [p.name for p in edits[0].shared_with] == ["block.yaml", "flow.yaml"]
+
+
+def test_hidden_trees_are_not_scanned(tmp_path: Path) -> None:
+    (tmp_path / ".venv").mkdir()
+    (tmp_path / ".venv" / "other.yaml").write_bytes(
+        b"packages:\n  base: !include ../test.yaml\n"
+    )
+    (tmp_path / ".hidden.yaml").write_bytes(b": [unreadable\n")
+    _setup(tmp_path, API_YAML)
+    edits = locate_key_edits(OLD_KEY, NEW_KEY)
+    assert with_sharers(edits) == []
+    assert edits[0].shared_with == []
 
 
 def test_secret_key_overridden_on_top_of_a_package_block(tmp_path: Path) -> None:

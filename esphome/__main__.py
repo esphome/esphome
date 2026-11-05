@@ -3072,6 +3072,12 @@ def run_esphome(argv):
     # and rewrite conf_path to the extracted YAML config. The suffix check
     # stays inline so the ordinary run never imports esphome.bundle.
     if conf_path.name.lower().endswith(BUNDLE_EXTENSION):
+        if args.command == "rotate-key":
+            # The edits would land in the extracted copy, which the next run replaces
+            _LOGGER.error(
+                "rotate-key edits the yaml; run it on the source configuration"
+            )
+            return 1
         from esphome.bundle import prepare_bundle_for_compile
 
         _LOGGER.info("Extracting config bundle %s...", conf_path)

@@ -6881,6 +6881,19 @@ def test_run_esphome_bundle_detection(tmp_path: Path) -> None:
     assert result == 2
 
 
+def test_run_esphome_rotate_key_refuses_a_bundle(
+    tmp_path: Path, caplog: pytest.LogCaptureFixture
+) -> None:
+    """The edits would land in an extracted copy that the next run replaces."""
+    bundle_path = tmp_path / f"device{BUNDLE_EXTENSION}"
+    bundle_path.write_bytes(b"fake-bundle")
+    with patch("esphome.bundle.prepare_bundle_for_compile") as mock_prepare:
+        result = run_esphome(["esphome", "rotate-key", str(bundle_path)])
+    mock_prepare.assert_not_called()
+    assert result == 1
+    assert "run it on the source configuration" in caplog.text
+
+
 def test_run_esphome_non_bundle_skips_extraction(tmp_path: Path) -> None:
     """Test run_esphome does not extract for regular .yaml files."""
     yaml_file = tmp_path / "device.yaml"
