@@ -215,10 +215,10 @@ TEST_F(BQ25820WriteFailureTest, FailedLimitWriteKeepsChargingOff) {
 }
 
 TEST_F(BQ25820WriteFailureTest, ConfigurationPublishesOnceTheAdcHasConverted) {
+  // setup() writes the configuration with charging off at the reset values, and publishes nothing
   this->hub_.setup();
-  EXPECT_EQ(this->bus_.registers[REG_ADC_CONTROL] & ADC_EN, 0);
-  // The first poll writes the configuration and publishes nothing
-  this->hub_.update();
+  EXPECT_NE(this->bus_.registers[REG_ADC_CONTROL] & ADC_EN, 0);
+  EXPECT_EQ(this->bus_.registers[REG_CHARGER_CONTROL], 0xC9);
   EXPECT_EQ(status_publishes, 0);
   // A poll inside the conversion window, from a short interval or component.update, publishes the status only
   this->hub_.update();
@@ -245,6 +245,8 @@ TEST_F(BQ25820WriteFailureTest, ChargerResetIsWrittenAgain) {
   this->hub_.update();
   EXPECT_EQ(status_publishes, 2);
 }
+
+TEST_F(BQ25820WriteFailureTest, FailedAdcWriteStillTurnsChargingOff) { this->check_failed_write_(REG_ADC_CONTROL); }
 
 TEST_F(BQ25820WriteFailureTest, FailedControlWriteKeepsChargingOff) {
   this->check_failed_write_(0x1B);  // TS_THRESHOLD_CONTROL
@@ -315,6 +317,16 @@ TEST_F(BQ25820ConfigTest, FailedWatchdogFeedDoesNotRewriteOrSweepAgain) {
   EXPECT_EQ(this->reg_(REG_MPPT_CONTROL), 0x03);
   EXPECT_EQ(this->reg_(REG_TIMER_CONTROL), 0);
   EXPECT_EQ(this->reg_(REG_CHARGER_CONTROL), (0xCC | WD_RST));
+}
+
+TEST_F(BQ25820ConfigTest, FailedWatchdogFeedStillPublishesTheStatus) {
+  status_publishes = 0;
+  this->hub_.set_status_publisher([](const BQ25820StatusRegisters &) { status_publishes++; });
+  this->hub_.update();  // writes the configuration and publishes nothing
+  this->bus_.fail_write_register = REG_CHARGER_CONTROL;
+  this->hub_.update();
+  EXPECT_TRUE(this->hub_.status_has_warning());
+  EXPECT_EQ(status_publishes, 1);
 }
 
 TEST(BQ25820Adc, ScalesVoltagesAndSignedCurrentsBySenseResistor) {

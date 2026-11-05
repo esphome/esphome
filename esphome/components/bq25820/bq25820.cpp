@@ -93,7 +93,8 @@ void BQ25820Component::setup() {
   if (!this->setup_check(this->update_register(REG_POWER_PATH_CONTROL, REG_RST, REG_RST)))
     return;
 
-  // REG_RST cleared ADC_EN, so the first poll writes the configuration
+  // REG_RST cleared ADC_EN, so this poll writes the configuration now, not one interval later
+  this->update();
 }
 
 void BQ25820Component::dump_config() {
@@ -141,7 +142,9 @@ bool BQ25820Component::write_config_registers_() {
   // The charger control write also feeds the watchdog
   if (this->watchdog_enabled_())
     config.controls[CONTROL_CHARGER] |= WD_RST;
-  bool ok = this->update_register(REG_ADC_CONTROL, ADC_EN, 0) && this->update_register(REG_CHARGER_CONTROL, EN_CHG, 0);
+  // Charging goes off even when the ADC write fails
+  bool ok = this->update_register(REG_ADC_CONTROL, ADC_EN, 0);
+  ok = this->update_register(REG_CHARGER_CONTROL, EN_CHG, 0) && ok;
   for (size_t i = 0; ok && i < BQ25820_LIMIT_COUNT; i++) {
     if (config.limits[i] != 0)
       ok = this->write_byte_16_le(progmem_read_byte(&LIMIT_REGISTERS[i]), config.limits[i]);
@@ -175,9 +178,11 @@ void BQ25820Component::update() {
 #else
             this->read_byte(REG_ADC_CONTROL, adc.data());
 #endif
+  if (!this->status_comm_result(ok))
+    return;
   const bool watchdog = this->watchdog_enabled_();
   // ADC_EN clear: a partial write or a charger reset; WD_STAT: the watchdog expired
-  if (ok && ((adc[0] & ADC_EN) == 0 || (watchdog && (status[0] & WD_STAT) != 0))) {
+  if ((adc[0] & ADC_EN) == 0 || (watchdog && (status[0] & WD_STAT) != 0)) {
     if (this->adc_ready_) {
       ESP_LOGW(TAG, "Charger lost its configuration, writing it again");
     }
@@ -191,10 +196,10 @@ void BQ25820Component::update() {
       return;
     }
   } else {
-    if (ok && watchdog)
-      ok = this->write_byte(REG_CHARGER_CONTROL, progmem_read_byte(&this->config_->controls[CONTROL_CHARGER]) | WD_RST);
-    if (!this->status_comm_result(ok))
-      return;
+    // A failed feed still publishes what was read
+    this->status_comm_result(
+        !watchdog ||
+        this->write_byte(REG_CHARGER_CONTROL, progmem_read_byte(&this->config_->controls[CONTROL_CHARGER]) | WD_RST));
   }
 #ifdef USE_BQ25820_STATUS_PUBLISHER
   if (this->status_publisher_ != nullptr)
