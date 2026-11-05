@@ -149,9 +149,12 @@ CONFIG_SCHEMA = remote_base.validate_triggers(
                 esp32_c6=96,
                 esp32_c61=cv.UNDEFINED,
                 esp32_h2=96,
+                esp32_h4=96,
+                esp32_h21=96,
                 esp32_p4=192,
                 esp32_s2=192,
                 esp32_s3=192,
+                esp32_s31=192,
             ): cv.All(cv.only_on_esp32, cv.int_range(min=2)),
             cv.Optional(CONF_FILTER_SYMBOLS): cv.All(
                 cv.only_on_esp32, cv.int_range(min=0)
@@ -201,7 +204,11 @@ CONFIG_SCHEMA = remote_base.validate_triggers(
         )
     )
     .add_extra(validate_config)
+    # setup_priority::DATA, the default of Component::get_setup_priority()
+    .add_extra(esp32_rmt.request_rmt_channel("RX", 600.0))
 )
+
+FINAL_VALIDATE_SCHEMA = esp32_rmt.final_validate_rmt_channels
 
 
 async def to_code(config: ConfigType) -> None:
@@ -229,6 +236,7 @@ async def to_code(config: ConfigType) -> None:
     for trigger in triggers:
         remote_base.add_listener(var, trigger)
     await cg.register_component(var, config)
+    esp32_rmt.register_rmt_channel(config)
 
     cg.add(
         var.set_tolerance(

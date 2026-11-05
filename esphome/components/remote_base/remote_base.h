@@ -1,6 +1,7 @@
 #pragma once
 
 #include <concepts>
+#include <span>
 #include <utility>
 #include <vector>
 
@@ -18,6 +19,8 @@ enum ToleranceMode : uint8_t {
 };
 
 using RawTimings = std::vector<int32_t>;
+/// A received frame's timings, viewed in whatever buffer the receiver keeps them.
+using RawTimingsView = std::span<const int32_t>;
 
 enum class BitOrder : uint8_t {
   BIT_ORDER_LSB_FIRST,
@@ -87,10 +90,15 @@ class RemoteTransmitData {
 
 class RemoteReceiveData {
  public:
-  explicit RemoteReceiveData(const RawTimings &data, uint32_t tolerance, ToleranceMode tolerance_mode)
+  /// The timings are not copied: they must outlive this object.
+  explicit RemoteReceiveData(RawTimingsView data, uint32_t tolerance, ToleranceMode tolerance_mode)
       : data_(data), index_(0), tolerance_(tolerance), tolerance_mode_(tolerance_mode) {}
+  explicit RemoteReceiveData(const RawTimings &data, uint32_t tolerance, ToleranceMode tolerance_mode)
+      : data_(data), vector_(&data), index_(0), tolerance_(tolerance), tolerance_mode_(tolerance_mode) {}
 
-  const RawTimings &get_raw_data() const { return this->data_; }
+  RawTimingsView get_raw_data() const { return this->data_; }
+  /// The timings as a vector when they were given as one, else nullptr.
+  const RawTimings *get_raw_vector() const { return this->vector_; }
   uint32_t get_index() const { return index_; }
   int32_t operator[](uint32_t index) const { return this->data_[index]; }
   int32_t size() const { return this->data_.size(); }
@@ -178,7 +186,8 @@ class RemoteReceiveData {
     return 0;
   }
 
-  const RawTimings &data_;
+  RawTimingsView data_;
+  const RawTimings *vector_{nullptr};
   uint32_t index_;
   uint32_t tolerance_;
   ToleranceMode tolerance_mode_;
@@ -337,8 +346,7 @@ class RemoteReceiverDumperBase {
 class RemoteReceiverBase : public RemoteComponentBase {
  public:
   RemoteReceiverBase(InternalGPIOPin *pin) : RemoteComponentBase(pin) {}
-  // Slots are counted at code generation; without one the call fails at compile time with the same message
-  // the runtime check logs
+  // Listener slots are counted at code generation; without one the call fails at compile time
 #ifdef REMOTE_BASE_LISTENER_COUNT
   void register_listener(RemoteReceiverListener *listener);
 #else
@@ -347,6 +355,9 @@ class RemoteReceiverBase : public RemoteComponentBase {
   }
 #endif
 #ifdef REMOTE_BASE_DUMPER_COUNT
+  /// Codegen only (remote_base.add_dumper): the table must outlive this receiver.
+  void set_dumpers(RemoteReceiverDumperBase *const *dumpers, size_t count);
+  /// For C++ registration, also from setup(); each call copies the list to the heap.
   void register_dumper(RemoteReceiverDumperBase *dumper);
 #else
   template<typename T> void register_dumper(T *) {
@@ -359,14 +370,27 @@ class RemoteReceiverBase : public RemoteComponentBase {
   }
 
  protected:
-  void call_listeners_dumpers_();
+#ifdef REMOTE_BASE_DUMPER_COUNT
+  void warn_extra_secondaries_();
+#endif
+  void call_listeners_dumpers_() {
+    this->dispatch_(RemoteReceiveData(this->temp_, this->tolerance_, this->tolerance_mode_));
+  }
+  /// Dispatch a frame held in the receiver's own buffer, without copying it into temp_.
+  void call_listeners_dumpers_(RawTimingsView data) {
+    this->dispatch_(RemoteReceiveData(data, this->tolerance_, this->tolerance_mode_));
+  }
+  /// A vector goes through call_listeners_dumpers_() (temp_), which on_raw passes on without a copy.
+  void call_listeners_dumpers_(const RawTimings &data) = delete;
+  /// Each listener and dumper gets its own copy of src, starting at index 0.
+  void dispatch_(const RemoteReceiveData &src);
 
 #ifdef REMOTE_BASE_LISTENER_COUNT
   StaticVector<RemoteReceiverListener *, REMOTE_BASE_LISTENER_COUNT> listeners_;
 #endif
 #ifdef REMOTE_BASE_DUMPER_COUNT
-  StaticVector<RemoteReceiverDumperBase *, REMOTE_BASE_DUMPER_COUNT> dumpers_;
-  RemoteReceiverDumperBase *secondary_dumper_{nullptr};  // runs only when no primary dumper matched
+  // The first secondary dumper runs only when no primary dumper matched
+  ConstVector<RemoteReceiverDumperBase *, true> dumpers_;
 #endif
   RawTimings temp_;
   uint32_t tolerance_{25};

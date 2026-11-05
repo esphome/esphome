@@ -1,0 +1,32 @@
+esphome:
+  name: rb32@V@
+
+esp32:
+  board: esp32dev
+  framework:
+    type: esp-idf
+
+packages:
+  common: !include ../rb-common.yaml
+  txscript: !include ../rb-txscript.yaml
+
+remote_transmitter:
+  pin:
+    number: GPIO4
+    allow_other_uses: true
+  carrier_duty_percent: 100%
+  rmt_symbols: 64
+
+remote_receiver:
+  - id: rx_all
+    pin:
+      number: GPIO4
+      allow_other_uses: true
+    dump: all
+    rmt_symbols: 192
+  - id: rx_nec_raw
+    pin:
+      number: GPIO4
+      allow_other_uses: true
+    dump: [nec, raw]
+    rmt_symbols: 192
