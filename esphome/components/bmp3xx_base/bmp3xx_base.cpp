@@ -45,10 +45,8 @@ static const LogString *iir_filter_to_str(IIRFilter filter) {
 
 void BMP3XXComponent::setup() {
   // Call the Device base class "initialise" function
-  if (!reset()) {
-    this->mark_failed(LOG_STR("Failed to reset"));
+  if (!this->setup_check(this->reset(), LOG_STR("Failed to reset")))
     return;
-  }
 
   if (!this->setup_check(read_byte(BMP388_CHIP_ID, &this->chip_id_.reg)))
     return;
@@ -82,10 +80,8 @@ void BMP3XXComponent::setup() {
   compensation_float_params_.param_P11 = (float) compensation_params_.param_P11 / powf(2.0f, 65.0f);
 
   // Initialise the BMP388 IIR filter register
-  if (!set_iir_filter(this->iir_filter_)) {
-    this->mark_failed(LOG_STR("Failed to set IIR filter"));
+  if (!this->setup_check(this->set_iir_filter(this->iir_filter_), LOG_STR("Failed to set IIR filter")))
     return;
-  }
 
   // Set power control registers
   pwr_ctrl_.bit.press_en = 1;
@@ -101,10 +97,8 @@ void BMP3XXComponent::setup() {
     this->temperature_oversampling_ = OVERSAMPLING_NONE;
   }
   // Initialise the BMP388 oversampling register
-  if (!set_oversampling_register(this->pressure_oversampling_, this->temperature_oversampling_)) {
-    this->mark_failed(LOG_STR("Failed to set oversampling register"));
-    return;
-  }
+  this->setup_check(this->set_oversampling_register(this->pressure_oversampling_, this->temperature_oversampling_),
+                    LOG_STR("Failed to set oversampling register"));
 }
 
 void BMP3XXComponent::dump_config() {

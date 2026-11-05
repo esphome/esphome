@@ -521,10 +521,10 @@ bool WiFiComponent::needs_full_scan_results_() const {
   return false;
 }
 
-bool WiFiComponent::matches_configured_network_(const char *ssid, const uint8_t *bssid) const {
+const WiFiAP *WiFiComponent::find_configured_network_(const char *ssid, const uint8_t *bssid) const {
   // Hidden networks in scan results have empty SSIDs - skip them
   if (ssid[0] == '\0') {
-    return false;
+    return nullptr;
   }
   for (const auto &sta : this->sta_) {
     // Skip hidden network configs (they don't appear in normal scans)
@@ -534,16 +534,16 @@ bool WiFiComponent::matches_configured_network_(const char *ssid, const uint8_t 
     // For BSSID-only configs (empty SSID), match by BSSID
     if (sta.ssid_.empty()) {
       if (sta.has_bssid() && std::memcmp(sta.get_bssid().data(), bssid, 6) == 0) {
-        return true;
+        return &sta;
       }
       continue;
     }
     // Match by SSID
     if (sta.ssid_ == ssid) {
-      return true;
+      return &sta;
     }
   }
-  return false;
+  return nullptr;
 }
 
 void __attribute__((flatten)) WiFiComponent::set_sta_priority(bssid_t bssid, int8_t priority) {
@@ -1744,10 +1744,11 @@ void WiFiComponent::check_scanning_finished() {
   if (!found_match) {
     ESP_LOGW(TAG, "No matching network found");
     // No scan results matched our configured networks - transition directly to hidden mode
-    // Don't call retry_connect() since we never attempted a connection (no BSSID to penalize)
     this->transition_to_phase_(WiFiRetryPhase::RETRY_HIDDEN);
-    // If no hidden networks to try, skip connection attempt (will be handled on next loop)
+    // No hidden network left: retry now instead of waiting out the scan timeout. With
+    // selected_sta_index_ at -1, retry_connect() penalizes no BSSID.
     if (this->selected_sta_index_ == -1) {
+      this->retry_connect();
       return;
     }
     // Now start connection attempt in hidden mode

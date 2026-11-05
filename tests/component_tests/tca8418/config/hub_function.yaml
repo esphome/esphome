@@ -1,0 +1,28 @@
+esphome:
+  name: test
+
+esp32:
+  board: esp32dev
+
+i2c:
+  sda: GPIO21
+  scl: GPIO22
+
+tca8418:
+  - id: keypad
+    rows: 2
+    columns: 2
+    keys: "1234"
+  - id: idle_keypad
+    address: 0x35
+
+binary_sensor:
+  - platform: tca8418
+    keypad_id: keypad
+    key: "4"
+    id: key_four
+  - platform: tca8418
+    keypad_id: keypad
+    row: 0
+    col: 0
+    id: key_one

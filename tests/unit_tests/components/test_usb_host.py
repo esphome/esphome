@@ -46,6 +46,21 @@ from esphome.types import ConfigType
             id="different_manufacturer",
         ),
         pytest.param(
+            {
+                "id": "a",
+                "vid": 0x303A,
+                "pid": 0x4001,
+                "interface_description": "Zigbee",
+            },
+            {
+                "id": "b",
+                "vid": 0x303A,
+                "pid": 0x4001,
+                "interface_description": "Thread",
+            },
+            id="different_interface_description",
+        ),
+        pytest.param(
             {"id": "a", "vid": 0x303A, "pid": 0, "product": "ZBT-2"},
             {"id": "b", "vid": 0x303A, "pid": 0x4001, "product": "ZWA-2"},
             id="wildcard_pid_separated_by_product",
@@ -79,6 +94,16 @@ def test_disjoint_clients_are_accepted(first: ConfigType, second: ConfigType) ->
             {"id": "a", "vid": 0x303A, "pid": 0x4001, "product": "ZBT-2"},
             {"id": "b", "vid": 0x303A, "pid": 0x4001, "product": "ZBT-2"},
             id="identical_filters",
+        ),
+        pytest.param(
+            {"id": "a", "vid": 0x303A, "pid": 0x4001},
+            {
+                "id": "b",
+                "vid": 0x303A,
+                "pid": 0x4001,
+                "interface_description": "Zigbee",
+            },
+            id="unfiltered_shadows_interface_filtered",
         ),
         pytest.param(
             {"id": "a", "vid": 0, "pid": 0},
