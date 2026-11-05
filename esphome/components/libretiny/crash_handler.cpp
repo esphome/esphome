@@ -158,7 +158,10 @@ void crash_handler_log() {
     ESP_LOGE(TAG, "  CFSR: 0x%08" PRIX32 "  Address: 0x%08" PRIX32, s_record.fault_status, s_record.fault_address);
   }
   ESP_LOGE(TAG, "  PC:  0x%08" PRIX32 "  (fault location)", s_record.pc);
-  ESP_LOGE(TAG, "  LR:  0x%08" PRIX32 "  (return address)", s_record.lr);
+  // 0 for abort(), and for a Cortex-M frame outside SRAM
+  if (s_record.lr != 0) {
+    ESP_LOGE(TAG, "  LR:  0x%08" PRIX32 "  (return address)", s_record.lr);
+  }
   ESP_LOGE(TAG, "  SP:  0x%08" PRIX32, s_record.sp);
   uint8_t count = 0;
   for (; count < MAX_BACKTRACE && s_record.backtrace[count] != 0; count++) {
@@ -166,8 +169,9 @@ void crash_handler_log() {
   }
   // addr2line hint with every address
   char hint[160];
-  int pos = snprintf(hint, sizeof(hint), "Use: addr2line -pfiaC -e raw_firmware.elf 0x%08" PRIX32 " 0x%08" PRIX32,
-                     s_record.pc, s_record.lr);
+  int pos = snprintf(hint, sizeof(hint), "Use: addr2line -pfiaC -e raw_firmware.elf 0x%08" PRIX32, s_record.pc);
+  if (s_record.lr != 0)
+    pos += snprintf(hint + pos, sizeof(hint) - pos, " 0x%08" PRIX32, s_record.lr);
   for (uint8_t i = 0; i < count && pos < (int) sizeof(hint) - 12; i++) {
     pos += snprintf(hint + pos, sizeof(hint) - pos, " 0x%08" PRIX32, s_record.backtrace[i]);
   }
@@ -425,14 +429,17 @@ void crash_handler_install() {
 extern "C" [[noreturn]] void __wrap_abort() {
   portDISABLE_INTERRUPTS();
   lt_wdt_enable(CRASH_REBOOT_WDT_MS);
-#ifdef USE_LIBRETINY_CRASH_HANDLER_VECTOR_PATCH
-  // A fault from here on keeps this record
-  s_fault_recorded = true;
-#endif
   uint32_t sp;
   __asm volatile("mov %0, sp" : "=r"(sp));
   // The call site; a Thumb return address has bit 0 set
   fill_record(CRASH_REASON_ABORT, (uint32_t) __builtin_return_address(0) & ~1u, 0, sp, 0, 0);
+  // Valid without a backtrace, so a fault in the stack scan still leaves this record
+  s_record.backtrace[0] = 0;
+  s_record.magic = CRASH_MAGIC_V2;
+#ifdef USE_LIBRETINY_CRASH_HANDLER_VECTOR_PATCH
+  // A fault in the scan then spins for the watchdog instead of replacing this record or running the SDK dump
+  s_fault_recorded = true;
+#endif
   finish_record(sp, SRAM_START, SRAM_END);
   while (true) {
   }
