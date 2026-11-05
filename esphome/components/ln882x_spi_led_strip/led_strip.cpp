@@ -110,10 +110,9 @@ void LN882xSPILEDStripLightOutput::setup() {
 
   // One block for the color, effect and DMA data.
   RAMAllocator<uint8_t> allocator;
-  if (!this->internal_accessor_.allocate(allocator, this->num_leds_, this->dma_data_bytes_)) {
-    this->mark_failed(LOG_STR(ESP_LOG_MSG_ALLOC_FAIL));
+  if (!this->setup_check(this->internal_accessor_.allocate(allocator, this->num_leds_, this->dma_data_bytes_),
+                         LOG_STR(ESP_LOG_MSG_ALLOC_FAIL)))
     return;
-  }
   this->dma_data_ = this->internal_accessor_.effect_data + this->num_leds_;
 
   spi_dma_init(this->pin_, this->prescaler_);
