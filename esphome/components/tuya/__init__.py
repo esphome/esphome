@@ -5,6 +5,7 @@ import esphome.config_validation as cv
 from esphome.const import CONF_SENSOR_DATAPOINT, CONF_TIME_ID
 from esphome.core import CORE, AutoLoad
 from esphome.cpp_generator import MockObj
+from esphome.schema_extractors import SCHEMA_EXTRACT, schema_extractor
 from esphome.types import ConfigType
 
 CODEOWNERS = ["@dwmw2"]
@@ -88,7 +89,11 @@ UART_SCHEMA = cv.All(
 )
 
 
+@schema_extractor("schema")
 def _validate_config(value):
+    if value is SCHEMA_EXTRACT:
+        # Expose the UART schema to the language-schema dumper
+        return UART_SCHEMA
     # When auto-loaded as a base class by another transport component, there
     # is no `tuya:` config block and no UART device to validate.
     if isinstance(value, AutoLoad):
@@ -99,7 +104,7 @@ def _validate_config(value):
 CONFIG_SCHEMA = _validate_config
 
 
-async def register_tuya(var, config):
+async def register_tuya(var: MockObj, config: ConfigType) -> None:
     """Register config options handled by the Tuya base class.
 
     Called by transport components (UART here, others such as TCP elsewhere)
