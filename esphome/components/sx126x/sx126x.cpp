@@ -116,6 +116,9 @@ SX126xError SX126x::transmit_packet(const uint8_t *data, size_t len) {
     App.feed_wdt();
     this->poll_transmit_(millis());
   }
+  if (completion.result != SX126xError::NONE) {
+    ESP_LOGW(TAG, "Packet transmission failed: %d", static_cast<int>(completion.result));
+  }
   return completion.result;
 }
 
