@@ -5,15 +5,16 @@
 #include "esphome/components/sun/sun.h"
 
 namespace esphome::sun::testing {
+namespace {
 
-static constexpr time_t HOUR = 3600;
-static constexpr time_t DAY = 24 * HOUR;
+constexpr time_t HOUR = 3600;
+constexpr time_t DAY = 24 * HOUR;
 // 2024-06-21 00:00:00 UTC and 2024-12-21 00:00:00 UTC
-static constexpr time_t JUNE_SOLSTICE = 1718928000;
-static constexpr time_t DECEMBER_SOLSTICE = 1734739200;
-static constexpr double DEFAULT_ELEVATION = -0.83333;
+constexpr time_t JUNE_SOLSTICE = 1718928000;
+constexpr time_t DECEMBER_SOLSTICE = 1734739200;
+constexpr double DEFAULT_ELEVATION = -0.83333;
 // Reference times from the NOAA algorithm; the implementation targets about one minute.
-static constexpr time_t TOLERANCE = 90;
+constexpr time_t TOLERANCE = 90;
 
 class FakeClock : public time::RealTimeClock {
  public:
@@ -28,11 +29,11 @@ struct Site {
   double longitude;
 };
 
-static constexpr Site PARIS{"paris", 48.8584, 2.2945};
-static constexpr Site AUCKLAND{"auckland", -36.8485, 174.7633};
-static constexpr Site HONOLULU{"honolulu", 21.3069, -157.8583};
-static constexpr Site TROMSO{"tromso", 69.6496, 18.9560};
-static constexpr Site SITES[] = {
+constexpr Site PARIS{"paris", 48.8584, 2.2945};
+constexpr Site AUCKLAND{"auckland", -36.8485, 174.7633};
+constexpr Site HONOLULU{"honolulu", 21.3069, -157.8583};
+constexpr Site TROMSO{"tromso", 69.6496, 18.9560};
+constexpr Site SITES[] = {
     PARIS,
     AUCKLAND,
     HONOLULU,
@@ -108,4 +109,5 @@ TEST_F(SunEventsTest, PolarDayAndNightHaveNoEvents) {
   }
 }
 
+}  // namespace
 }  // namespace esphome::sun::testing
