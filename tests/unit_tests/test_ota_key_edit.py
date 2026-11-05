@@ -1543,6 +1543,28 @@ def test_old_secret_used_by_a_package_in_the_build_data_is_refused(
     _refused(r"^secret 'device_key_old' is also used by \.esphome/pkg\.yaml:2;")
 
 
+def test_secret_in_an_include_outside_the_config_dir_is_refused(tmp_path: Path) -> None:
+    """Another device's include outside the scanned tree is followed, includes and all."""
+    (shared := tmp_path / "shared").mkdir()
+    (shared / "api.yaml").write_bytes(b"<<: !include deeper.yaml\n")
+    (shared / "deeper.yaml").write_bytes(b"key: !secret device_key\n")
+    (config_dir := tmp_path / "configs").mkdir()
+    (config_dir / "other.yaml").write_bytes(
+        b"api: !include ../shared/api.yaml\nwifi: !include ../shared/api.yaml\n"
+    )
+    _setup(config_dir, SECRET_YAML, f"device_key: {OLD_KEY}\n")
+    deeper = re.escape((shared / "deeper.yaml").resolve().as_posix())
+    _refused(rf"^secret 'device_key' is also used by .*{deeper}, other\.yaml;")
+
+
+def test_a_missing_include_target_is_unchecked(tmp_path: Path) -> None:
+    (tmp_path / "other.yaml").write_bytes(b"api: !include ../gone.yaml\n")
+    _setup(tmp_path, SECRET_YAML, f"device_key: {OLD_KEY}\n")
+    _refused(
+        r"^Could not check whether other configurations use this key: Error reading"
+    )
+
+
 def test_secret_used_by_a_remote_package_checkout_is_refused(tmp_path: Path) -> None:
     """Another device's remote package falls back to this secrets.yaml."""
     checkout = tmp_path / ".esphome" / "packages" / "abc123"

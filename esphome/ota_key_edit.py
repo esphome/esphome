@@ -192,8 +192,8 @@ def _root_indent(lines: list[str]) -> str:
 
 
 def _configs() -> _Configs:
-    """Every yaml file under the config dir scanned, and what could not be;
-    walked once per run."""
+    """Every yaml file under the config dir and the files they include scanned,
+    and what could not be; walked once per run."""
     state = _state()
     if state.configs is not None:
         return state.configs
@@ -223,6 +223,19 @@ def _configs() -> _Configs:
                     found.append((path, _scan(path)))
                 except EsphomeError as err:
                     skip(err)
+    # An include from outside these trees is scanned too, as are its own includes
+    seen = {path.resolve() for path, _ in found}
+    pending = [target for _, scan in found for target in scan.targets]
+    while pending:
+        if (target := pending.pop()) in seen:
+            continue
+        seen.add(target)
+        try:
+            found.append((target, scan := _scan(target)))
+        except EsphomeError as err:
+            skip(err)
+            continue
+        pending.extend(scan.targets)
     found.sort(key=lambda ps: ps[0])
     named_by: dict[Path, set[Path]] = {}
     for path, scan in found:
