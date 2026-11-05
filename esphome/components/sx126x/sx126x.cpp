@@ -31,7 +31,7 @@ void SX126x::setup() {
 }
 
 void SX126x::configure() {
-  if (!this->operation_.can_configure() || this->rx_dispatching_) {
+  if (!this->operation_.can_configure()) {
     ESP_LOGW(TAG, "Radio operation in progress, configuration ignored");
     return;
   }
@@ -39,7 +39,7 @@ void SX126x::configure() {
 }
 
 bool SX126x::can_change_mode_() {
-  if (this->operation_.is_ready() && !this->rx_dispatching_) {
+  if (this->operation_.is_ready()) {
     return true;
   }
   ESP_LOGW(TAG, "Radio unavailable, mode change ignored");

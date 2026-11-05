@@ -94,6 +94,8 @@ class SX126x final : public Component {
     this->change_mode_(
         [this]() { return this->command_result_(this->commands_.calibrate_image(this->active_profile_.frequency)); });
   }
+  // Mode changes and configuration are allowed during RX callbacks when the radio
+  // is available; they never modify the borrowed packet buffer.
   void configure();
   SX126xError transmit_packet(const uint8_t *data, size_t len);
   SX126xError transmit_packet(const std::vector<uint8_t> &packet) {

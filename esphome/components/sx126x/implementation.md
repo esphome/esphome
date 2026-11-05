@@ -322,7 +322,9 @@ registers. An initial setup failure still permanently fails the ESPHome componen
 ## Receive borrowing without recursive dispatch
 
 Only loop() reads packets and invokes receive listeners. Admission may inspect IRQ
-status, but never reads a packet, acknowledges pending RX, or invokes user code.
+status, but never reads a packet, acknowledges pending RX, or dispatches receive
+listeners. Status logging can invoke user automations; admission rechecks radio
+ownership afterward, and polling discards results if the transmit generation changed.
 Pending RX causes BUSY and keeps the loop enabled, letting the application retry
 after delivery. This also applies to the blocking API. Stale TX IRQs do not block
 admission and are cleared during preparation.
@@ -330,7 +332,8 @@ admission and are cleared during preparation.
 A scoped RxDelivery guard prevents recursive loop calls while listeners and
 on_packet automations borrow the packet. A callback may send an echo if no other
 RX is pending; this copies the payload into the chip FIFO without mutating the
-borrowed buffer. Mode/configuration calls during delivery are rejected. The one
+borrowed buffer. Mode/configuration calls during delivery are allowed when
+RadioOperation permits them; they never mutate the borrowed packet. The one
 reusable RX vector reserves 255 bytes during setup, avoiding later growth in the
 driver. Listeners must not retain a borrowed reference after callback return;
 existing automation value-copy behavior is unchanged.

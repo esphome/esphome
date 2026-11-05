@@ -576,4 +576,63 @@ TEST(SX126xAsync, ExplicitConfigurationCanRecoverAnUnreadableHeldPacket) {
   EXPECT_EQ(listener.results, (std::vector<SX126xError>{SX126xError::NONE}));
 }
 
+class SX126xReceiveActions : public ::testing::TestWithParam<unsigned> {};
+
+TEST_P(SX126xReceiveActions, ModeAndConfigurationPreserveBorrowedPacket) {
+  RadioHardware hw;
+  ReceiveCallback action;
+  PacketListener observer;
+  hw.configure(true, true);
+  hw.radio.register_listener(&action);
+  hw.radio.register_listener(&observer);
+  const auto original = hw.packet;
+  const unsigned selected_action = GetParam();
+  unsigned callbacks = 0;
+  action.on_packet_callback = [&]() {
+    callbacks++;
+    hw.clear_trace();
+    switch (selected_action) {
+      case 0:
+        hw.radio.set_mode_sleep();
+        break;
+      case 1:
+        hw.radio.set_mode_sleep(true);
+        break;
+      case 2:
+        hw.radio.set_rx_start(false);
+        hw.radio.configure();
+        break;
+      case 3:
+        hw.radio.set_mode_standby(STDBY_XOSC);
+        break;
+      case 4:
+        hw.radio.set_mode_rx();
+        break;
+      case 5:
+        hw.radio.run_image_cal();
+        break;
+    }
+    EXPECT_FALSE(hw.transactions.empty());  // The requested operation must actually reach the chip.
+    EXPECT_EQ(hw.receiving, selected_action >= 4);
+    const auto commands = hw.transactions.size();
+    hw.packet.assign(19, 0x99);
+    hw.irq = IRQ_RX_DONE;
+    hw.radio.loop();  // Recursive packet delivery is still forbidden, including after configure().
+    EXPECT_EQ(hw.transactions.size(), commands);
+  };
+  hw.irq = IRQ_RX_DONE;
+  hw.radio.loop();
+  EXPECT_EQ(callbacks, 1u);
+  ASSERT_EQ(observer.packets.size(), 1u);
+  EXPECT_EQ(observer.packets.front(), original);
+  EXPECT_EQ(hw.irq, IRQ_RX_DONE);  // The next packet is left for a later loop.
+  if (selected_action == 1) {
+    TransmitListener tx;
+    EXPECT_EQ(hw.radio.start_transmit_async(&tx, original), SX126xError::SX126X_ERROR_NOT_READY);
+  }
+}
+
+INSTANTIATE_TEST_SUITE_P(SleepColdSleepConfigureStandbyRxAndCalibration, SX126xReceiveActions,
+                         ::testing::Range(0u, 6u));
+
 }  // namespace esphome::sx126x::testing
