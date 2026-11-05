@@ -1,10 +1,13 @@
+from dataclasses import dataclass, field
+
 import esphome.codegen as cg
 from esphome.components import update
 import esphome.config_validation as cv
-from esphome.const import CONF_SOURCE
+from esphome.const import CONF_ID, CONF_SOURCE
+import esphome.final_validate as fv
 from esphome.types import ConfigType
 
-from .. import CONF_HTTP_REQUEST_ID, HttpRequestComponent, http_request_ns
+from .. import CONF_HTTP_REQUEST_ID, DOMAIN, HttpRequestComponent, http_request_ns
 
 AUTO_LOAD = ["json"]
 CODEOWNERS = ["@jesserockz"]
@@ -38,6 +41,35 @@ CONFIG_SCHEMA = cv.All(
     )
     .extend(cv.polling_component_schema("6h")),
 )
+
+
+@dataclass
+class HttpRequestUpdateData:
+    # Target id to the id of the update entity that installs through it.
+    target_owners: dict[str, str] = field(default_factory=dict)
+
+
+def _get_data(fconf: fv.FinalValidateConfig) -> HttpRequestUpdateData:
+    if DOMAIN not in fconf.data:
+        fconf.data[DOMAIN] = HttpRequestUpdateData()
+    return fconf.data[DOMAIN]
+
+
+def _no_shared_targets(config: ConfigType) -> ConfigType:
+    """A target reports its install progress to one entity, so two cannot share it."""
+    owners = _get_data(fv.full_config.get()).target_owners
+    target_id = str(config[CONF_TARGET_ID])
+    entity_id = str(config[CONF_ID])
+    if (other := owners.setdefault(target_id, entity_id)) != entity_id:
+        raise cv.Invalid(
+            f"'{target_id}' is already updated by '{other}'. An update target can only "
+            f"be used by one update entity.",
+            path=[CONF_TARGET_ID],
+        )
+    return config
+
+
+FINAL_VALIDATE_SCHEMA = _no_shared_targets
 
 
 async def to_code(config: ConfigType) -> None:

@@ -37,10 +37,23 @@ class FakeTarget : public UpdateTarget {
   using UpdateTarget::report_progress_;
 };
 
-JsonDocument parse(const std::string &json) {
-  JsonDocument doc;
-  deserializeJson(doc, json);
-  return doc;
+// A target that updates something other than this device reports that device's version.
+class VersionedTarget : public FakeTarget {
+ public:
+  const char *get_current_version() const override { return "1.2.3"; }
+};
+
+// Asks @p target about a build entry, parsed the same way the update platform parses a
+// manifest. json_util owns the document, so nothing here outlives the call.
+bool matches_build(const UpdateTarget &target, const std::string &json) {
+  bool matched = false;
+  const bool parsed =
+      json::parse_json(reinterpret_cast<const uint8_t *>(json.data()), json.size(), [&](JsonObject root) {
+        matched = target.matches_build(root);
+        return true;
+      });
+  EXPECT_TRUE(parsed);
+  return matched;
 }
 
 }  // namespace
@@ -51,6 +64,12 @@ class OtaHttpRequestTest : public ::testing::Test {
   static void report_state(OtaHttpRequestComponent &ota, ota::OTAState state, uint8_t error) {
     ota.report_state_(state, 50.0f, error);
   }
+};
+
+// Friend of HttpRequestUpdate, so a finished check can be applied without an HTTP fetch.
+class HttpRequestUpdateCheckTest : public ::testing::Test {
+ protected:
+  static void finish_check(HttpRequestUpdate &update, TaskResult *result) { update.finish_check_(result); }
 };
 
 TEST(UpdateTargetReports, ReachTheListenerWithTheirPayload) {
@@ -83,21 +102,28 @@ TEST(UpdateTargetManifest, KeyDefaultsToTheOtaImage) {
   EXPECT_STREQ(target.get_manifest_key(), "ota");
 }
 
+TEST(UpdateTargetManifest, CurrentVersionDefaultsToThisFirmware) {
+  FakeTarget target;
+#ifdef ESPHOME_PROJECT_VERSION
+  EXPECT_STREQ(target.get_current_version(), ESPHOME_PROJECT_VERSION);
+#else
+  EXPECT_STREQ(target.get_current_version(), ESPHOME_VERSION);
+#endif
+}
+
+TEST(UpdateTargetManifest, CurrentVersionCanComeFromTheTarget) {
+  VersionedTarget target;
+  EXPECT_STREQ(target.get_current_version(), "1.2.3");
+}
+
 TEST_F(OtaHttpRequestTest, MatchesOnlyBuildsForThisChipFamily) {
   OtaHttpRequestComponent ota;
   EXPECT_STREQ(ota.get_manifest_key(), "ota");
 
-  JsonDocument matching = parse(std::string(R"({"chipFamily": ")") + ESPHOME_VARIANT + R"("})");
-  EXPECT_TRUE(ota.matches_build(matching.as<JsonObjectConst>()));
-
-  JsonDocument other_family = parse(R"({"chipFamily": "NOT-A-CHIP"})");
-  EXPECT_FALSE(ota.matches_build(other_family.as<JsonObjectConst>()));
-
-  JsonDocument not_a_string = parse(R"({"chipFamily": 42})");
-  EXPECT_FALSE(ota.matches_build(not_a_string.as<JsonObjectConst>()));
-
-  JsonDocument absent = parse(R"({"ota": {}})");
-  EXPECT_FALSE(ota.matches_build(absent.as<JsonObjectConst>()));
+  EXPECT_TRUE(matches_build(ota, std::string(R"({"chipFamily": ")") + ESPHOME_VARIANT + R"("})"));
+  EXPECT_FALSE(matches_build(ota, R"({"chipFamily": "NOT-A-CHIP"})"));
+  EXPECT_FALSE(matches_build(ota, R"({"chipFamily": 42})"));
+  EXPECT_FALSE(matches_build(ota, R"({"ota": {}})"));
 }
 
 TEST_F(OtaHttpRequestTest, TranslatesOtaStateForTheUpdateEntity) {
@@ -154,6 +180,51 @@ TEST(HttpRequestUpdateTargetState, FailureLeavesTheUpdateAvailable) {
 
   EXPECT_EQ(update.state, update::UPDATE_STATE_AVAILABLE);
   EXPECT_FALSE(update.update_info.has_progress);
+}
+
+TEST_F(HttpRequestUpdateCheckTest, ResultOfAFinishedCheckBecomesTheEntityState) {
+  HttpRequestUpdate update;
+  auto *result = new TaskResult();
+  result->info.latest_version = "2.0.0";
+  result->info.current_version = "1.0.0";
+  finish_check(update, result);
+
+  EXPECT_EQ(update.state, update::UPDATE_STATE_AVAILABLE);
+  EXPECT_EQ(update.update_info.latest_version, "2.0.0");
+}
+
+// A target that installs asynchronously is still working when the next check lands; its state
+// and the metadata of the image it is installing have to survive.
+TEST_F(HttpRequestUpdateCheckTest, ResultIsDiscardedWhileATargetIsInstalling) {
+  HttpRequestUpdate update;
+  FakeTarget target;
+  update.set_target(&target);
+  auto *installing = new TaskResult();
+  installing->info.latest_version = "2.0.0";
+  installing->info.current_version = "1.0.0";
+  finish_check(update, installing);
+  update.perform(false);
+  ASSERT_EQ(update.state, update::UPDATE_STATE_INSTALLING);
+
+  auto *late = new TaskResult();
+  late->info.latest_version = "3.0.0";
+  late->info.current_version = "1.0.0";
+  finish_check(update, late);
+
+  EXPECT_EQ(update.state, update::UPDATE_STATE_INSTALLING);
+  EXPECT_EQ(update.update_info.latest_version, "2.0.0");
+}
+
+// Without the guard this dereferences the unset request parent and crashes.
+TEST_F(HttpRequestUpdateCheckTest, NoCheckIsStartedWhileATargetIsInstalling) {
+  HttpRequestUpdate update;
+  FakeTarget target;
+  update.set_target(&target);
+  update.on_target_state(UpdateTargetState::UPDATE_TARGET_STATE_PROGRESS, 10.0f, nullptr);
+
+  update.update();
+
+  EXPECT_EQ(update.state, update::UPDATE_STATE_INSTALLING);
 }
 
 }  // namespace esphome::http_request::testing

@@ -1,6 +1,8 @@
 #pragma once
 
+#include "esphome/core/defines.h"
 #include "esphome/core/log.h"
+#include "esphome/core/version.h"
 
 #include "esphome/components/json/json_util.h"
 
@@ -47,6 +49,21 @@ class UpdateTarget {
 
   /// Key inside a matching build entry that holds the image `path` and `md5`.
   virtual const char *get_manifest_key() const { return "ota"; }
+
+  /** Version currently installed on this target, compared against the manifest's `version`.
+   *
+   * Defaults to the version of the firmware this device is running, which is what a target that
+   * updates this device wants. A target that updates something else returns the version it read
+   * from that device, in storage that outlives the call. Read while parsing the manifest, which
+   * happens in a separate task on ESP32, so the value must be cached rather than fetched here.
+   */
+  virtual const char *get_current_version() const {
+#ifdef ESPHOME_PROJECT_VERSION
+    return ESPHOME_PROJECT_VERSION;
+#else
+    return ESPHOME_VERSION;
+#endif
+  }
 
   /// Start installing the image at @p url, which must hash to @p md5.
   virtual void install(const std::string &url, const std::string &md5) = 0;

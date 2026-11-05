@@ -3,7 +3,6 @@
 #include <cstring>
 
 #include "esphome/core/application.h"
-#include "esphome/core/version.h"
 
 #include "esphome/components/json/json_util.h"
 #include "esphome/components/network/util.h"
@@ -103,6 +102,12 @@ void HttpRequestUpdate::end_check_(TaskResult *result) {
 }
 
 void HttpRequestUpdate::update() {
+  // A target that installs asynchronously is still working, and its state and metadata describe
+  // the image being installed; a check would replace both.
+  if (this->state_ == update::UPDATE_STATE_INSTALLING) {
+    ESP_LOGD(TAG, "Install in progress, skipping update check");
+    return;
+  }
   if (!network::is_connected()) {
     ESP_LOGD(TAG, "Network not connected, skipping update check");
     return;
@@ -237,11 +242,7 @@ void HttpRequestUpdate::update_task(void *params) {
       info->firmware_url.insert(0, source, prefix_len);
     }
 
-#ifdef ESPHOME_PROJECT_VERSION
-    info->current_version = ESPHOME_PROJECT_VERSION;
-#else
-    info->current_version = ESPHOME_VERSION;
-#endif
+    info->current_version = this_update->target_->get_current_version();
   }
 
 defer:
@@ -252,42 +253,50 @@ defer:
   // same thread as readers (API, MQTT, web server). This is a single defer for
   // both success and error paths to avoid multiple std::function instantiations.
   // Lambda captures only 2 pointers (8 bytes) — fits in std::function SBO on supported toolchains.
-  this_update->defer([this_update, result]() {
-#ifdef USE_ESP32
-    this_update->task_result_ = nullptr;
-    this_update->end_check_(result);
-#endif
-    if (result->error_str != nullptr) {
-      this_update->status_set_error(result->error_str);
-      delete result;
-      return;
-    }
-
-    // Determine new state on main loop (avoids extra lambda captures from task)
-    bool trigger_update_available = false;
-    update::UpdateState new_state;
-    if (result->info.latest_version.empty() || result->info.latest_version == result->info.current_version) {
-      new_state = update::UPDATE_STATE_NO_UPDATE;
-    } else {
-      new_state = update::UPDATE_STATE_AVAILABLE;
-      if (this_update->state_ != update::UPDATE_STATE_AVAILABLE) {
-        trigger_update_available = true;
-      }
-    }
-
-    this_update->update_info_ = std::move(result->info);
-    this_update->state_ = new_state;
-    delete result;  // Safe: moved-from state is valid for destruction
-
-    this_update->status_clear_error();
-    this_update->publish_state();
-
-    if (trigger_update_available) {
-      this_update->get_update_available_trigger()->trigger(this_update->update_info_);
-    }
-  });
+  this_update->defer([this_update, result]() { this_update->finish_check_(result); });
 
   UPDATE_RETURN;
+}
+
+void HttpRequestUpdate::finish_check_(TaskResult *result) {
+#ifdef USE_ESP32
+  this->task_result_ = nullptr;
+  this->end_check_(result);
+#endif
+  // An install started after this check did, so its state and metadata win.
+  if (this->state_ == update::UPDATE_STATE_INSTALLING) {
+    ESP_LOGD(TAG, "Install in progress, discarding update check result");
+    delete result;
+    return;
+  }
+
+  if (result->error_str != nullptr) {
+    this->status_set_error(result->error_str);
+    delete result;
+    return;
+  }
+
+  bool trigger_update_available = false;
+  update::UpdateState new_state;
+  if (result->info.latest_version.empty() || result->info.latest_version == result->info.current_version) {
+    new_state = update::UPDATE_STATE_NO_UPDATE;
+  } else {
+    new_state = update::UPDATE_STATE_AVAILABLE;
+    if (this->state_ != update::UPDATE_STATE_AVAILABLE) {
+      trigger_update_available = true;
+    }
+  }
+
+  this->update_info_ = std::move(result->info);
+  this->state_ = new_state;
+  delete result;  // Safe: moved-from state is valid for destruction
+
+  this->status_clear_error();
+  this->publish_state();
+
+  if (trigger_update_available) {
+    this->get_update_available_trigger()->trigger(this->update_info_);
+  }
 }
 
 void HttpRequestUpdate::perform(bool force) {

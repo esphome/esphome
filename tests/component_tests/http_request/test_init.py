@@ -78,6 +78,7 @@ def test_deprecated_ota_id_warns(
         ("update_no_target.yaml", "Couldn't find any component that can be used for"),
         ("update_both_targets.yaml", "Cannot specify more than one of"),
         ("update_ambiguous_target.yaml", "Too many candidates found"),
+        ("update_shared_target.yaml", "is already updated by"),
     ],
 )
 def test_update_target_errors(

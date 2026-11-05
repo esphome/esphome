@@ -16,6 +16,7 @@ namespace esphome::http_request {
 
 namespace testing {
 class HttpRequestUpdateTest;
+class HttpRequestUpdateCheckTest;
 }  // namespace testing
 
 class HttpRequestUpdate;
@@ -69,12 +70,15 @@ class HttpRequestUpdate final : public update::UpdateEntity, public PollingCompo
 
  private:
   friend class testing::HttpRequestUpdateTest;
+  friend class testing::HttpRequestUpdateCheckTest;
   void release_source_url_();
   // A check reads the URL it started with until it ends, on the update task or inline through an
   // automation it triggers. Ownership of that buffer moves to the check, so a set_source_url in the
   // meantime cannot free it; end_check_() hands it back or frees it on the main loop.
   void begin_check_(TaskResult *result);
   void end_check_(TaskResult *result);
+  // Applies a finished check's result on the main loop, and takes ownership of it.
+  void finish_check_(TaskResult *result);
 
   bool source_url_owned_{false};  // source_url_ was copied by a run-time setter; sits in the padding above
   const char *source_url_{nullptr};
