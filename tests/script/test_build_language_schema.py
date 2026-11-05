@@ -472,3 +472,65 @@ def test_convert_typed_schema_with_an_empty_type(
     assert config_var["typed_key"] == "mode"
     assert "byte" in config_var["types"]["with_keys"]["config_vars"]
     assert config_var["types"]["no_keys"] == {"config_vars": {}}
+
+
+def _schema(config_vars: dict | None = None, extends: list | None = None) -> dict:
+    schema: dict = {}
+    if config_vars is not None:
+        schema["config_vars"] = config_vars
+    if extends is not None:
+        schema["extends"] = extends
+    return {"type": "schema", "schema": schema}
+
+
+def test_splice_extends_replaces_the_inlined_name() -> None:
+    assert _bls.splice_extends(["a", "b", "c"], "b", ["d", "a"]) == ["a", "d", "c"]
+    assert _bls.splice_extends(["b"], "b", []) == []
+
+
+def test_shrink_inlining_one_extend_keeps_the_others(
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    """Inlining a once-referenced schema keeps the target's other extends."""
+    output = {
+        "base": {"schemas": {"SHARED": _schema({"name": {"key": "Optional"}})}},
+        "mod": {
+            "schemas": {
+                "ONCE": _schema({"extra": {"key": "Optional"}}),
+                "CONFIG_SCHEMA": _schema({}, ["base.SHARED", "mod.ONCE"]),
+            }
+        },
+        "other": {"schemas": {"CONFIG_SCHEMA": _schema({}, ["base.SHARED"])}},
+    }
+    monkeypatch.setattr(_bls, "output", output)
+    monkeypatch.setattr(_bls, "components", {})
+    _bls.shrink()
+
+    schema = output["mod"]["schemas"]["CONFIG_SCHEMA"]["schema"]
+    assert schema["extends"] == ["base.SHARED"]
+    assert "extra" in schema["config_vars"]
+
+
+def test_shrink_drops_a_bare_validator_beside_config_vars(
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    """An empty extend next to real keys (cv.All(SCHEMA, check)) is dropped, not collapsed."""
+    output = {
+        "mod": {
+            "schemas": {
+                "check": {},
+                "CONFIG_SCHEMA": _schema(
+                    {"address": {"key": "Required"}}, ["mod.check"]
+                ),
+            }
+        },
+        "other": {"schemas": {"CONFIG_SCHEMA": _schema(None, ["mod.check"])}},
+    }
+    monkeypatch.setattr(_bls, "output", output)
+    monkeypatch.setattr(_bls, "components", {})
+    _bls.shrink()
+
+    assert output["mod"]["schemas"]["CONFIG_SCHEMA"] == _schema(
+        {"address": {"key": "Required"}}
+    )
+    assert output["other"]["schemas"]["CONFIG_SCHEMA"] == {"data_type": "check"}
