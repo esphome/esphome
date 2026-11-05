@@ -376,7 +376,8 @@ file does, and it is the authority when they disagree. The most useful starting 
     5.  **Commit:** Commit your changes. There is no strict format for commit messages.
     6.  **Pull Request:** Submit a PR against the `dev` branch. The Pull Request title must start with a `[tag]` prefix. For component work, use the component name (e.g., `[display] Fix bug`, `[abc123] Add new component`); for changes to shared/core code that isn't tied to a single component, use `[core]` (e.g., `[core] Add validator`). Update documentation, examples, and add `CODEOWNERS` entries as needed. Pull requests should always be made using the `.github/PULL_REQUEST_TEMPLATE.md` template - fill out all sections completely without removing any parts of the template.
     7.  **Fixes for a release branch:** a fix that should ship in a beta or patch release goes to `dev` like any other
-        PR, with the milestone of that release; the release manager cherry-picks the milestone onto `beta` or `release`.
+        PR, with the milestone of that release; the release manager cherry-picks the squash-merge commit of each PR in
+        the milestone onto `beta` or `release`.
         Test the cherry-pick of the PR's whole change onto that branch. If it conflicts, make one commit on top of that
         branch with the whole PR and the conflicts resolved, push it to a branch of your fork, and declare it in the PR
         body with one block per branch:
