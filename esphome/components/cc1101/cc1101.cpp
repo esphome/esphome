@@ -4,6 +4,7 @@
 #include "esphome/core/helpers.h"
 #include "esphome/core/log.h"
 #include "esphome/core/progmem.h"
+#include <algorithm>
 #include <cmath>
 #include <cstring>
 
@@ -268,9 +269,15 @@ void CC1101Component::finish_long_packet_() {
   float freq_offset = static_cast<int8_t>(this->state_.FREQEST) * (XTAL_FREQUENCY / (1 << 14));
   uint8_t lqi = this->state_.LQI & STATUS_LQI_MASK;
   // No CRC check: crc_enable is rejected for long packets, the chip only sets CRC_OK after the last payload
-  // byte, and the packet is finished on the MCU byte count before that
-  this->call_listeners_(this->packet_, freq_offset, this->long_packet_rssi_, lqi);
+  // byte, and the packet is finished on the MCU byte count before that.
+  // Restart RX before dispatching, so a callback may change channel or mode, and hand out the packet from a
+  // swapped buffer that a restart cannot clear. Swapping back keeps the reserved capacity.
+  std::vector<uint8_t> packet;
+  packet.swap(this->packet_);
   this->restart_long_packet_rx_();
+  this->call_listeners_(packet, freq_offset, this->long_packet_rssi_, lqi);
+  packet.clear();
+  this->packet_.swap(packet);
 }
 
 void CC1101Component::handle_long_packet_(uint8_t rx_bytes) {
@@ -303,18 +310,14 @@ void CC1101Component::handle_long_packet_(uint8_t rx_bytes) {
     this->read_(Register::RSSI);
     this->long_packet_rssi_ = (this->state_.RSSI * RSSI_STEP) - RSSI_OFFSET;
   }
+  // Read through an aligned buffer: for an unaligned target the ESP32 SPI driver allocates a bounce buffer
+  alignas(4) uint8_t staged[RX_FIFO_SIZE];
+  this->read_(Register::FIFO, staged, to_read);
   this->packet_.resize(old_size + to_read);
-  this->read_(Register::FIFO, this->packet_.data() + old_size, to_read);
+  std::memcpy(this->packet_.data() + old_size, staged, to_read);
   this->packet_last_byte_ms_ = App.get_loop_component_start_time();
   ESP_LOGVV(TAG, "Drained RX FIFO: read=%u received=%u expected=%u fifo=%u", to_read,
             static_cast<uint16_t>(this->packet_.size()), this->packet_expected_length_, rx_bytes);
-
-  if (this->packet_.size() > MAX_PACKET_LENGTH) {
-    ESP_LOGW(TAG, "Packet length exceeds maximum, discarding packet: length=%u max=%u",
-             static_cast<uint16_t>(this->packet_.size()), MAX_PACKET_LENGTH);
-    this->restart_long_packet_rx_();
-    return;
-  }
 
   if (this->packet_expected_length_ == 0 && this->packet_length_func_) {
     const int32_t length = this->packet_length_func_(this->packet_);
@@ -344,6 +347,14 @@ void CC1101Component::handle_long_packet_(uint8_t rx_bytes) {
     }
   }
 
+  // Only reachable while the length is still unknown; a known length caps every read
+  if (this->packet_.size() > MAX_PACKET_LENGTH) {
+    ESP_LOGW(TAG, "Packet length exceeds maximum, discarding packet: length=%u max=%u",
+             static_cast<uint16_t>(this->packet_.size()), MAX_PACKET_LENGTH);
+    this->restart_long_packet_rx_();
+    return;
+  }
+
   this->maybe_switch_long_packet_to_fixed_();
 
   if (this->packet_expected_length_ > 0 && this->packet_.size() >= this->packet_expected_length_) {
@@ -356,16 +367,20 @@ void CC1101Component::loop_long_packet_() {
     this->disable_loop();
     return;
   }
-  // While bytes arrive, RXBYTES can be misread; read it until two reads agree (datasheet section 20)
+  // While bytes arrive, RXBYTES can be misread; read it until two reads agree (datasheet section 20). The
+  // count only grows during reception, so if the reads never agree the smaller one is a safe lower bound.
+  // Waiting for the next loop pass instead would let the FIFO overflow.
   this->read_(Register::RXBYTES);
-  for (uint8_t retries = RXBYTES_STABLE_RETRIES; retries > 0; retries--) {
-    const uint8_t previous = this->state_.NUM_RXBYTES;
+  uint8_t previous = 0;
+  uint8_t current = this->state_.NUM_RXBYTES;
+  bool stable = false;
+  for (uint8_t retries = RXBYTES_STABLE_RETRIES; retries > 0 && !stable; retries--) {
+    previous = current;
     this->read_(Register::RXBYTES);
-    if (this->state_.NUM_RXBYTES == previous) {
-      break;
-    }
+    current = this->state_.NUM_RXBYTES;
+    stable = current == previous;
   }
-  const uint8_t rx_bytes = this->state_.NUM_RXBYTES;
+  const uint8_t rx_bytes = stable ? current : std::min(previous, current);
   if (this->state_.RXFIFO_OVERFLOW) {
     ESP_LOGW(TAG, "RX FIFO overflow, discarding packet: received=%u expected=%u fifo=%u",
              static_cast<uint16_t>(this->packet_.size()), this->packet_expected_length_, rx_bytes);
