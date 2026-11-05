@@ -58,6 +58,18 @@
 #define ESPHOME_ALWAYS_INLINE __attribute__((always_inline))
 #define PACKED __attribute__((packed))
 
+/// Declares the `<name>_publisher_` function pointer and `set_<name>_publisher()` that a cg.HubFunction named
+/// `<name>` fills; the pointer stays nullptr when no child added an item, so check it before calling.
+/// Use it in a public section: it ends on `public:`.
+#define HUB_PUBLISHER(name, ...) HUB_PUBLISHER_RETURNING(void, name, __VA_ARGS__)
+/// HUB_PUBLISHER for a cg.HubFunction that returns `ret` (bool: whether any item was true).
+#define HUB_PUBLISHER_RETURNING(ret, name, ...) \
+ protected: \
+  ret (*name##_publisher_)(__VA_ARGS__){nullptr}; \
+\
+ public: \
+  void set_##name##_publisher(ret (*publisher)(__VA_ARGS__)) { this->name##_publisher_ = publisher; }
+
 namespace esphome {
 
 // Forward declaration to avoid circular dependency with string_ref.h
@@ -444,6 +456,17 @@ template<typename T, size_t N> class StaticRingBuffer {
     }
     this->data_[this->tail_] = value;
     this->tail_ = (this->tail_ + 1) % N;
+    ++this->count_;
+    return true;
+  }
+
+  /// Insert `value` so it is popped next; returns false when full.
+  bool push_front(const T &value) {
+    if (this->count_ >= N) {
+      return false;
+    }
+    this->head_ = (this->head_ + N - 1) % N;
+    this->data_[this->head_] = value;
     ++this->count_;
     return true;
   }
@@ -1104,6 +1127,39 @@ constexpr std::array<uint8_t, sizeof(T)> decode_value(T val) {
     val >>= 8;
   }
   return ret;
+}
+
+/// Write the low 16, 24 or 32 bits of \p value to \p dst, most significant byte first (be) or least
+/// significant byte first (le). Returns the pointer past the last byte written.
+constexpr uint8_t *put_be16(uint8_t *dst, uint16_t value) {
+  dst[0] = static_cast<uint8_t>(value >> 8);
+  dst[1] = static_cast<uint8_t>(value);
+  return dst + 2;
+}
+constexpr uint8_t *put_be24(uint8_t *dst, uint32_t value) {
+  dst[0] = static_cast<uint8_t>(value >> 16);
+  dst[1] = static_cast<uint8_t>(value >> 8);
+  dst[2] = static_cast<uint8_t>(value);
+  return dst + 3;
+}
+constexpr uint8_t *put_be32(uint8_t *dst, uint32_t value) {
+  dst[0] = static_cast<uint8_t>(value >> 24);
+  dst[1] = static_cast<uint8_t>(value >> 16);
+  dst[2] = static_cast<uint8_t>(value >> 8);
+  dst[3] = static_cast<uint8_t>(value);
+  return dst + 4;
+}
+constexpr uint8_t *put_le16(uint8_t *dst, uint16_t value) {
+  dst[0] = static_cast<uint8_t>(value);
+  dst[1] = static_cast<uint8_t>(value >> 8);
+  return dst + 2;
+}
+constexpr uint8_t *put_le32(uint8_t *dst, uint32_t value) {
+  dst[0] = static_cast<uint8_t>(value);
+  dst[1] = static_cast<uint8_t>(value >> 8);
+  dst[2] = static_cast<uint8_t>(value >> 16);
+  dst[3] = static_cast<uint8_t>(value >> 24);
+  return dst + 4;
 }
 
 /// Decode a two-digit packed BCD byte (tens in the high nibble) to its value, e.g. 0x59 to 59.

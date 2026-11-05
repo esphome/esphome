@@ -38,17 +38,14 @@ bool M5StackUnitBldc::read_command_raw_(float *value) {
 }
 
 void M5StackUnitBldc::setup() {
-  if (!this->write_byte(REG_MODE, static_cast<uint8_t>(this->control_mode_))) {
-    this->mark_failed(LOG_STR("Failed to write control mode"));
+  if (!this->setup_check(this->write_byte(REG_MODE, static_cast<uint8_t>(this->control_mode_)),
+                         LOG_STR("Failed to write control mode")))
     return;
-  }
   // The unit keeps driving its last command across an ESP reboot, so the cache and the number start from it, and
   // a running motor only takes the direction through the stop and restore sequence
   float command;
-  if (!this->read_command_raw_(&command)) {
-    this->mark_failed(LOG_STR("Failed to read the motor command"));
+  if (!this->setup_check(this->read_command_raw_(&command), LOG_STR("Failed to read the motor command")))
     return;
-  }
   this->last_command_ = command;
   // REG_DIRECTION is readable (datasheet register 0x60, W/R), so a boot that already matches the configured
   // direction skips the stop-and-restore cycle entirely instead of spinning the motor down for no reason. A
@@ -64,19 +61,16 @@ void M5StackUnitBldc::setup() {
   }
   this->current_direction_ = this->initial_direction_;
 #ifdef USE_SELECT
-  if (this->direction_select_ != nullptr)
-    this->direction_select_->publish_state(static_cast<size_t>(this->initial_direction_));
+  PUBLISH_STATE(this->direction_select_, static_cast<size_t>(this->initial_direction_));
 #endif
 #ifdef USE_NUMBER
-  if (this->command_number_ != nullptr)
-    this->command_number_->publish_state(command);
+  PUBLISH_STATE(this->command_number_, command);
 #endif
 
   const uint8_t motor_config[2] = {static_cast<uint8_t>(this->motor_model_), this->pole_pairs_};
-  if (!this->write_reg_(REG_MOTOR_CONFIG, motor_config)) {
-    this->mark_failed(LOG_STR("Failed to write motor model/pole pairs"));
+  if (!this->setup_check(this->write_reg_(REG_MOTOR_CONFIG, motor_config),
+                         LOG_STR("Failed to write motor model/pole pairs")))
     return;
-  }
   if (this->has_pid_ && !this->write_reg_(REG_PID, this->pid_)) {
     this->mark_failed(LOG_STR("Failed to write PID gains"));
     return;
@@ -219,8 +213,7 @@ void M5StackUnitBldc::finish_direction_change_() {
              static_cast<unsigned>(DIRECTION_CHANGE_POLL_MS * DIRECTION_CHANGE_MAX_POLLS));
     this->last_command_ = 0;
 #ifdef USE_NUMBER
-    if (this->command_number_ != nullptr)
-      this->command_number_->publish_state(0);
+    PUBLISH_STATE(this->command_number_, 0);
 #endif
     return;
   }

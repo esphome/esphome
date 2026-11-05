@@ -154,6 +154,7 @@ esphome/components/d01/* @ch604
 esphome/components/dac7678/* @NickB1
 esphome/components/daikin_arc/* @MagicBear
 esphome/components/daikin_brc/* @hagak
+esphome/components/daikin_madoka/* @Petapton
 esphome/components/dallas_temp/* @ssieb
 esphome/components/daly_bms/* @s1lvi0
 esphome/components/dashboard_import/* @esphome/core
@@ -294,6 +295,7 @@ esphome/components/honeywellabp2_i2c/* @jpfaff
 esphome/components/host/* @clydebarrow @esphome/core
 esphome/components/host/time/* @clydebarrow
 esphome/components/hrxl_maxsonar_wr/* @netmikey
+esphome/components/ht16k33_char/* @ilikecake
 esphome/components/hte501/* @Stock-M
 esphome/components/http_request/ota/* @oarcher
 esphome/components/http_request/update/* @jesserockz
@@ -631,6 +633,7 @@ esphome/components/st7789v/* @kbx81
 esphome/components/st7920/* @marsjan155
 esphome/components/statsd/* @Links2004
 esphome/components/stcc4/* @j9brown
+esphome/components/store_yaml/* @bdraco
 esphome/components/stts22h/* @B48D81EFCC
 esphome/components/substitutions/* @esphome/core
 esphome/components/sun/* @OttoWinter
