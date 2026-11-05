@@ -354,6 +354,22 @@ def test_a_build_that_cannot_be_removed_shows_the_new_key(
     assert OLD_KEY in out and NEW_KEY in out
 
 
+def test_images_are_dropped_when_the_restore_raises_anything(
+    env: dict[str, Mock], capfd: pytest.CaptureFixture[str]
+) -> None:
+    env["compile"].return_value = 1
+    CORE.firmware_bin.parent.mkdir(parents=True)
+    CORE.firmware_bin.write_bytes(b"")
+    with (
+        patch("esphome.cli.rotate_key.restore_files", side_effect=SystemExit(3)),
+        pytest.raises(SystemExit),
+    ):
+        command_rotate_key(MockArgs(), CORE.config)
+    assert not CORE.firmware_bin.exists()
+    out = capfd.readouterr().out
+    assert OLD_KEY in out and NEW_KEY in out
+
+
 def test_an_interrupt_during_the_image_cleanup_shows_the_keys(
     env: dict[str, Mock], capfd: pytest.CaptureFixture[str]
 ) -> None:

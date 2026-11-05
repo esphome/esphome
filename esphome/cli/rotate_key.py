@@ -280,8 +280,17 @@ def _restore(originals: dict[Path, Snapshot], keys: str) -> None:
         why = str(err) or "; ".join(getattr(err, "__notes__", ()))
         safe_print(color(AnsiFore.BOLD_RED, why or f"Interrupted restoring {files}"))
         safe_print(keys)
+    except BaseException:
+        safe_print(keys)
+        raise
     else:
         safe_print(color(AnsiFore.BOLD_YELLOW, f"Restored the previous key in {files}"))
+    finally:
+        _drop_images(keys)
+
+
+def _drop_images(keys: str) -> None:
+    """Delete the images a build made with the new key."""
     build_dir = CORE.firmware_bin.parent
     failed: list[str] = []
     images: list[Path] = []

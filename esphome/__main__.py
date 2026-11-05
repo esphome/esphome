@@ -2834,7 +2834,9 @@ def parse_args(argv):
         "-y",
         "--yes",
         action="store_true",
-        help="Do not ask for confirmation when the api encryption key changes too.",
+        help="Do not ask for confirmation of the warnings: the api encryption key "
+        "changing too, files shared with other configurations, or configurations "
+        "that could not be checked.",
     )
 
     parser_analyze_memory = subparsers.add_parser(

@@ -291,6 +291,13 @@ def _secret_line(
     return hit
 
 
+def _has_root_key(secrets_path: Path, name: str) -> bool:
+    """Whether a root level ``name:`` key exists, whatever its value."""
+    lines = read_text(secrets_path).splitlines()
+    key_re = re.compile(field_prefix(name, re.escape(_root_indent(lines))))
+    return any(key_re.match(text) for text in lines)
+
+
 def _secret_rewrite(
     secrets_path: Path,
     name: str,
@@ -452,16 +459,14 @@ def old_key_edit(old_key: str) -> list[KeyEdit]:
     else:
         rendered = f"{CONF_OLD_KEY}: !secret {secret}_old"
         secrets_path = _secret_file(doc)  # the file that gets old_key
+        name = f"{secret}_old"
         # An existing `<secret>_old` line is reused only when nothing uses it
-        if (
-            kept := _secret_rewrite(secrets_path, f"{secret}_old", old_key)
-        ) is not None:
+        if (kept := _secret_rewrite(secrets_path, name, old_key)) is not None:
             if skipped := _configs().skipped:  # an unread file might use the line
                 raise EsphomeError(
                     "Could not read every configuration to check the secret: "
                     + skipped[0]
                 )
-            name = f"{secret}_old"
             own = {
                 d
                 for d in own_documents()
@@ -473,6 +478,10 @@ def old_key_edit(old_key: str) -> list[KeyEdit]:
                     + ", ".join(str(p) for p in users)
                     + f"; rename it or add '{CONF_OLD_KEY}' by hand"
                 )
-        extra = [kept or _secret_insert(secrets_path, secret, f"{secret}_old", old_key)]
+        elif _has_root_key(secrets_path, name):  # a second one would not load
+            raise EsphomeError(
+                f"'{name}:' in {secrets_path} is not a plain line; edit it by hand"
+            )
+        extra = [kept or _secret_insert(secrets_path, secret, name, old_key)]
     edit = KeyEdit(doc, line_no, text, f"{indent}{rendered}", insert_after=True)
     return [edit, *extra]

@@ -705,6 +705,14 @@ def test_secret_old_key_rewritten_in_secrets(tmp_path: Path) -> None:
     )
 
 
+def test_secret_old_line_that_is_not_plain_is_refused(tmp_path: Path) -> None:
+    """A second `<secret>_old:` key would stop secrets.yaml from loading."""
+    secrets = f"device_key: {OLD_KEY}\ndevice_key_old: >-\n  {OLDER_KEY}\n"
+    _setup(tmp_path, SECRET_YAML, secrets)
+    with pytest.raises(EsphomeError, match="'device_key_old:' .* is not a plain line"):
+        _edits()
+
+
 def test_bare_block_with_a_secret_api_key(tmp_path: Path) -> None:
     """The inherited key is a secret too, so old_key points at secrets.yaml."""
     yaml_text = SECRET_YAML.replace(
