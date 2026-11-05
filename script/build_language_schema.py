@@ -609,6 +609,9 @@ def splice_extends(node: dict, extends: list, name: str) -> None:
         node[S_EXTENDS] = spliced
 
 
+SIMPLE_TYPES = ("enum", "registry", "integer", "string")
+
+
 def drop_extend(node: dict, name: str) -> None:
     """Remove *name* from *node*'s extends, dropping the key when it empties."""
     # Rebuilt, not mutated: merge() shares extends lists between inlined nodes
@@ -680,7 +683,7 @@ def shrink():
     # then are all simple types, integer and strings
     for x, paths in referenced_schemas.items():
         key_s = get_str_path_schema(x)
-        if key_s and key_s.get(S_TYPE) in ["enum", "registry", "integer", "string"]:
+        if key_s and key_s.get(S_TYPE) in SIMPLE_TYPES:
             if key_s[S_TYPE] == "registry":
                 print("Spreading registry: " + x)
             for target in paths:
@@ -691,8 +694,19 @@ def shrink():
                 extends = target_s[S_SCHEMA][S_EXTENDS]
                 assert x in extends
                 if len(extends) > 1:
-                    # Spliced beside sibling extends, which already carry the type
+                    # Spliced beside sibling extends (cv.Any(A, B)): keep the siblings
                     drop_extend(target_s[S_SCHEMA], x)
+                    if any(
+                        get_str_path_schema(e).get(S_TYPE) in SIMPLE_TYPES
+                        for e in target_s[S_SCHEMA].get(S_EXTENDS, [])
+                    ):
+                        continue
+                    if key_s[S_TYPE] == "enum" and "values" not in target_s:
+                        target_s["values"] = key_s["values"]
+                    else:
+                        print(
+                            f"dropped {x} beside sibling extends at " + ".".join(target)
+                        )
                     continue
                 target_s.pop(S_SCHEMA)
                 target_s |= key_s

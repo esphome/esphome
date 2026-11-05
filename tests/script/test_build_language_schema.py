@@ -603,10 +603,10 @@ def test_shrink_inlines_into_a_typed_variant(monkeypatch: pytest.MonkeyPatch) ->
     assert set(variant["config_vars"]) == {"local", "extra"}
 
 
-def test_shrink_spread_drops_a_simple_type_beside_siblings(
+def test_shrink_spread_keeps_enum_values_beside_a_schema(
     monkeypatch: pytest.MonkeyPatch,
 ) -> None:
-    """A simple type spliced beside another extend is dropped; alone it is folded in."""
+    """An enum spliced beside a plain schema keeps its values; alone it is folded in."""
     enum = {"type": "enum", "values": {"a": None}}
     output = {
         "base": {
@@ -632,7 +632,7 @@ def test_shrink_spread_drops_a_simple_type_beside_siblings(
 
     mod_vars = output["mod"]["schemas"]["CONFIG_SCHEMA"]["schema"]["config_vars"]
     other_vars = output["other"]["schemas"]["CONFIG_SCHEMA"]["schema"]["config_vars"]
-    assert mod_vars["mode"] == _schema(None, ["base.B"])
+    assert mod_vars["mode"] == {**_schema(None, ["base.B"]), "values": {"a": None}}
     assert other_vars["mode"] == enum
 
 
