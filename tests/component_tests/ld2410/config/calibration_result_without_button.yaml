@@ -1,0 +1,17 @@
+esphome:
+  name: test
+
+esp8266:
+  board: d1_mini
+
+uart:
+  tx_pin: 1
+  rx_pin: 3
+  baud_rate: 256000
+
+ld2410:
+
+text_sensor:
+  - platform: ld2410
+    calibration_result:
+      name: result

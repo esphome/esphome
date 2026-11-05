@@ -1,4 +1,5 @@
 #include "sun.h"
+#include "esphome/core/application.h"
 #include "esphome/core/log.h"
 #include <numbers>
 
@@ -320,5 +321,34 @@ optional<ESPTime> Sun::sunrise(ESPTime date, double elevation) { return this->ca
 optional<ESPTime> Sun::sunset(ESPTime date, double elevation) { return this->calc_event_(date, false, 90 - elevation); }
 double Sun::elevation() { return this->calc_coords_().elevation; }
 double Sun::azimuth() { return this->calc_coords_().azimuth; }
+
+#ifdef USE_SUN_ELEVATION_POLL
+void Sun::start_elevation_poll() {
+  App.scheduler.set_interval(this, 60000, [this]() { this->poll_elevation(); });
+}
+
+void Sun::poll_elevation() {
+  double current = this->elevation();
+  if (std::isnan(current))
+    return;
+  const double last = this->last_elevation_;
+  // A NaN previous elevation (first poll) fails every crossing check.
+#ifdef SUN_SUNRISE_AUTOMATION_COUNT
+  for (uint8_t i = 0; i < this->sunrise_count_; i++) {
+    const auto &entry = this->sunrise_automations_[i];
+    if (rose_past(last, current, entry.elevation))
+      entry.automation->trigger();
+  }
+#endif
+#ifdef SUN_SUNSET_AUTOMATION_COUNT
+  for (uint8_t i = 0; i < this->sunset_count_; i++) {
+    const auto &entry = this->sunset_automations_[i];
+    if (set_past(last, current, entry.elevation))
+      entry.automation->trigger();
+  }
+#endif
+  this->last_elevation_ = current;
+}
+#endif
 
 }  // namespace esphome::sun

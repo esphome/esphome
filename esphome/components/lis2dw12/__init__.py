@@ -1,5 +1,6 @@
 from esphome import automation
 import esphome.codegen as cg
+from esphome.components.const import CONF_ON_DOUBLE_TAP, CONF_ON_TAP
 import esphome.config_validation as cv
 from esphome.const import (
     CONF_CALIBRATION,
@@ -24,10 +25,8 @@ CONF_LIS2DW12_ID = "lis2dw12_id"
 
 CONF_MIRROR_Z = "mirror_z"
 CONF_ON_ACTIVE = "on_active"
-CONF_ON_DOUBLE_TAP = "on_double_tap"
 CONF_ON_FREEFALL = "on_freefall"
 CONF_ON_ORIENTATION = "on_orientation"
-CONF_ON_TAP = "on_tap"
 
 CONF_LOW_NOISE = "low_noise"
 CONF_FILTER_BANDWIDTH = "filter_bandwidth"
