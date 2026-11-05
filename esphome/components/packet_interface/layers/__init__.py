@@ -172,19 +172,24 @@ def stack_schema() -> dict:
     return {cv.Optional(kind.key): kind.schema() for kind in STACK_ORDER}
 
 
-def check_session(config: ConfigType) -> None:
-    """Layers that need packets back from the peer need a session layer, whose keep-alives send them."""
-    if CONF_SESSION in config:
-        return
+def layer_needing_session(config: ConfigType) -> str | None:
+    """The key of the first layer in this stack that needs packets back from the peer, if any."""
     for kind in STACK_ORDER:
         if (layer := config.get(kind.key)) is not None and kind.get_type(
             layer
         ).needs_session(layer):
-            raise cv.Invalid(
-                f"This '{kind.key}' needs packets from the peer, so it needs a '{CONF_SESSION}' layer, whose "
-                "keep-alives make sure they are sent",
-                path=[kind.key],
-            )
+            return kind.key
+    return None
+
+
+def check_session(config: ConfigType) -> None:
+    """Layers that need packets back from the peer need a session layer, whose keep-alives send them."""
+    if CONF_SESSION not in config and (key := layer_needing_session(config)):
+        raise cv.Invalid(
+            f"This '{key}' needs packets from the peer, so it needs a '{CONF_SESSION}' layer, whose "
+            "keep-alives make sure they are sent",
+            path=[key],
+        )
 
 
 def check_single_peer(config: ConfigType, destination: int) -> None:

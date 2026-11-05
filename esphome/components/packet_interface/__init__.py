@@ -19,12 +19,14 @@ from .layers import (
     CONF_ADDRESSING,
     CONF_DESTINATION,
     CONF_PEERS,
+    CONF_SESSION,
     STACK_ORDER,
     PacketInterface,
     build_stack,
     check_packet_sizes,
     check_session,
     check_single_peer,
+    layer_needing_session,
     packet_interface_ns,
     stack_auto_load,
     stack_schema,
@@ -40,6 +42,9 @@ CONF_PACKET_INTERFACE = "packet_interface"
 for module_info in pkgutil.iter_modules(layers.__path__):
     importlib.import_module(f".layers.{module_info.name}", package=__package__)
 
+# The layer keys that each link class does itself, by class name
+_PROVIDED_LAYERS: dict[str, tuple[str, ...]] = {}
+
 LINK_LAYER_SCHEMAS = {
     cv.Optional(CONF_ADDRESSING): ADDRESSING.schema(),
     **stack_schema(),
@@ -48,6 +53,7 @@ LINK_LAYER_SCHEMAS = {
 __all__ = [
     "CONF_MAX_PACKET_SIZE",
     "CONF_PACKET_INTERFACE",
+    "interface_has_layer",
     "interface_layers",
     "PacketInterface",
     "final_validate_interface",
@@ -114,6 +120,16 @@ def interface_layers(interface_id: ID) -> ConfigType | None:
     return None
 
 
+def interface_has_layer(interface_id: ID, key: str) -> bool:
+    """During final validation, whether the packet interface with this id has the layer, configured or done by its link."""
+    interface = interface_layers(interface_id)
+    if interface is None:
+        return False
+    return key in interface or key in _PROVIDED_LAYERS.get(
+        str(interface[CONF_ID].type), ()
+    )
+
+
 def final_validate_interface(key: str) -> Callable[[ConfigType], ConfigType]:
     """Final validation for an application: a link with peers must be used through one of the peers."""
 
@@ -132,25 +148,46 @@ def final_validate_interface(key: str) -> Callable[[ConfigType], ConfigType]:
     return validator
 
 
+def _check_provided_session(config: ConfigType) -> ConfigType:
+    """A link's own session does not send packets through the layers, so none can need them from the peer."""
+    if key := layer_needing_session(config):
+        raise cv.Invalid(
+            f"This '{key}' needs packets from the peer, which this link does not send through its layers, "
+            "so it cannot be used on this link",
+            path=[key],
+        )
+    return config
+
+
 def packet_interface_schema(
     class_: MockObjClass,
     default_max_packet_size: int,
     max_packet_size_limit: int = 4096,
+    provides: tuple[str, ...] = (),
 ) -> cv.Schema:
-    """Schema for a link platform, with the layers that can be stacked on it."""
-    return (
-        cv.Schema(
-            {
-                cv.GenerateID(): cv.declare_id(class_),
-                cv.Optional(
-                    CONF_MAX_PACKET_SIZE, default=default_max_packet_size
-                ): cv.int_range(16, max_packet_size_limit),
-                **LINK_LAYER_SCHEMAS,
-            }
+    """Schema for a link platform; provides names the layer keys, such as reliability, that the link does itself."""
+    if provides:
+        _PROVIDED_LAYERS[str(class_)] = provides
+    link_layers = {
+        key: (
+            cv.invalid(f"This link provides '{key}' itself, so it cannot be configured")
+            if key in provides
+            else schema
         )
-        .extend(cv.COMPONENT_SCHEMA)
-        .add_extra(_validate_layers)
-    )
+        for key, schema in LINK_LAYER_SCHEMAS.items()
+    }
+    schema = cv.Schema(
+        {
+            cv.GenerateID(): cv.declare_id(class_),
+            cv.Optional(
+                CONF_MAX_PACKET_SIZE, default=default_max_packet_size
+            ): cv.int_range(16, max_packet_size_limit),
+            **link_layers,
+        }
+    ).extend(cv.COMPONENT_SCHEMA)
+    if CONF_SESSION in provides:
+        schema = schema.add_extra(_check_provided_session)
+    return schema.add_extra(_validate_layers)
 
 
 async def new_packet_interface(config: ConfigType, *args: Any) -> MockObj:
