@@ -521,17 +521,16 @@ void MQTTClientComponent::loop() {
         ESP_LOGW(TAG, "Lost client connection");
         this->start_dnslookup_();
       } else {
-        if (!this->birth_message_.topic.empty() && !this->sent_birth_message_) {
+        this->last_connected_ = now;
+        const bool all_subscribed = this->resubscribe_subscriptions_();
+#ifdef USE_MQTT_SESSION_PERSISTENCE
+        if (all_subscribed && !this->subacks_settled_)
+          this->check_subacks_();
+#endif
+        // Online only once every paced SUBSCRIBE is out, so no command for an unsubscribed topic is lost
+        if (all_subscribed && !this->birth_message_.topic.empty() && !this->sent_birth_message_) {
           this->sent_birth_message_ = this->publish(this->birth_message_);
         }
-
-        this->last_connected_ = now;
-#ifdef USE_MQTT_SESSION_PERSISTENCE
-        if (this->resubscribe_subscriptions_() && !this->subacks_settled_)
-          this->check_subacks_();
-#else
-        this->resubscribe_subscriptions_();
-#endif
 
         // Process pending resends for all MQTT components centrally
         // Limit work per loop iteration to avoid triggering task WDT on reconnect
