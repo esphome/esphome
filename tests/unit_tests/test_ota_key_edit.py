@@ -1543,6 +1543,19 @@ def test_old_secret_used_by_a_package_in_the_build_data_is_refused(
     _refused(r"^secret 'device_key_old' is also used by \.esphome/pkg\.yaml:2;")
 
 
+def test_secret_used_by_a_remote_package_checkout_is_refused(tmp_path: Path) -> None:
+    """Another device's remote package falls back to this secrets.yaml."""
+    checkout = tmp_path / ".esphome" / "packages" / "abc123"
+    checkout.mkdir(parents=True)
+    (checkout / "base.yaml").write_bytes(b"ota:\n  key: !secret device_key\n")
+    (checkout / ".git").mkdir()
+    (checkout / ".git" / "broken.yaml").write_bytes(b": [unreadable\n")
+    _setup(tmp_path, SECRET_YAML, f"device_key: {OLD_KEY}\n")
+    _refused(
+        r"^secret 'device_key' is also used by \.esphome/packages/abc123/base\.yaml;"
+    )
+
+
 def test_secret_used_by_an_own_file_outside_the_config_dir_is_refused(
     tmp_path: Path,
 ) -> None:

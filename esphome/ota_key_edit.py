@@ -205,22 +205,24 @@ def _configs() -> _Configs:
         skipped.append(str(what))
         _LOGGER.debug("Skipping %s", what)
 
-    for dirpath, dirnames, filenames in os.walk(
-        CORE.config_dir.resolve(), onerror=skip
-    ):
-        for name in list(dirnames):
-            path = Path(dirpath, name)
-            # Hidden trees (.git, .venv) hold no configurations, as in find_files
-            if name.startswith(".") or path.resolve() == data_dir:
-                dirnames.remove(name)
-            elif path.is_symlink():
-                dirnames.remove(name)
-                skip(f"{path} is a link")
-        for path in filter_yaml_files(Path(dirpath, f) for f in filenames):
-            try:
-                found.append((path, _scan(path)))
-            except EsphomeError as err:
-                skip(err)
+    # Remote packages are checked out under the data dir, and their secrets fall back here
+    packages = data_dir / "packages"
+    roots = [CORE.config_dir.resolve(), *([packages] if packages.is_dir() else [])]
+    for root in roots:
+        for dirpath, dirnames, filenames in os.walk(root, onerror=skip):
+            for name in list(dirnames):
+                path = Path(dirpath, name)
+                # Hidden trees (.git, .venv) hold no configurations, as in find_files
+                if name.startswith(".") or path.resolve() == data_dir:
+                    dirnames.remove(name)
+                elif path.is_symlink():
+                    dirnames.remove(name)
+                    skip(f"{path} is a link")
+            for path in filter_yaml_files(Path(dirpath, f) for f in filenames):
+                try:
+                    found.append((path, _scan(path)))
+                except EsphomeError as err:
+                    skip(err)
     found.sort(key=lambda ps: ps[0])
     named_by: dict[Path, set[Path]] = {}
     for path, scan in found:

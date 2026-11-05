@@ -372,6 +372,39 @@ def test_images_are_dropped_when_the_restore_raises_anything(
     assert OLD_KEY in out and NEW_KEY in out
 
 
+def test_a_restore_exit_shows_its_report(
+    env: dict[str, Mock], capfd: pytest.CaptureFixture[str]
+) -> None:
+    env["compile"].return_value = 1
+    err = SystemExit(3)
+    err.add_note("Could not restore x")
+    with (
+        patch("esphome.cli.rotate_key.restore_files", side_effect=err),
+        pytest.raises(SystemExit),
+    ):
+        command_rotate_key(MockArgs(), CORE.config)
+    out = capfd.readouterr().out
+    assert "Could not restore x" in out
+    assert OLD_KEY in out and NEW_KEY in out
+
+
+@pytest.mark.parametrize("failed_rollback", [True, False])
+def test_an_exit_while_writing_shows_the_keys_only_when_the_rollback_failed(
+    env: dict[str, Mock], capfd: pytest.CaptureFixture[str], failed_rollback: bool
+) -> None:
+    err = SystemExit(3)
+    if failed_rollback:
+        err.add_note("Could not restore x")
+    with (
+        patch("esphome.cli.rotate_key.apply_line_edits", side_effect=err),
+        pytest.raises(SystemExit),
+    ):
+        command_rotate_key(MockArgs(), CORE.config)
+    out = capfd.readouterr().out
+    assert ("Could not restore x" in out) is failed_rollback
+    assert (NEW_KEY in out) is failed_rollback
+
+
 def test_an_interrupt_during_the_image_cleanup_shows_the_keys(
     env: dict[str, Mock], capfd: pytest.CaptureFixture[str]
 ) -> None:

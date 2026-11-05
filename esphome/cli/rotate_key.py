@@ -161,6 +161,11 @@ def command_rotate_key(args: argparse.Namespace, config: ConfigType) -> int | No
             safe_print(keys)
             return fail("Interrupted; " + "; ".join(notes))
         return fail("Interrupted before the upload")
+    except BaseException as err:
+        if notes := getattr(err, "__notes__", None):
+            safe_print(color(AnsiFore.BOLD_RED, "; ".join(notes)))
+            safe_print(keys)
+        raise
     uploaded = False
     try:
         safe_print(
@@ -240,7 +245,9 @@ def _restore(originals: dict[Path, Snapshot], keys: str) -> None:
         why = str(err) or "; ".join(getattr(err, "__notes__", ()))
         safe_print(color(AnsiFore.BOLD_RED, why or f"Interrupted restoring {files}"))
         safe_print(keys)
-    except BaseException:
+    except BaseException as err:
+        if notes := getattr(err, "__notes__", None):
+            safe_print(color(AnsiFore.BOLD_RED, "; ".join(notes)))
         safe_print(keys)
         raise
     else:
