@@ -6,6 +6,7 @@
 #include "esphome/core/automation.h"
 #include "esphome/core/hal.h"
 #include "esphome/core/helpers.h"
+#include "esphome/core/optional.h"
 #include "light_effect.h"
 
 namespace esphome::light {

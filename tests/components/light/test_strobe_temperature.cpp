@@ -1,7 +1,9 @@
 #include <gtest/gtest.h>
 
+#include "esphome/components/light/color_mode.h"
 #include "esphome/components/light/light_output.h"
 #include "esphome/components/light/light_state.h"
+#include "esphome/components/light/light_traits.h"
 #include "esphome/components/light/base_light_effects.h"
 
 namespace esphome::light::testing {
