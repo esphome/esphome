@@ -272,6 +272,25 @@ TEST_F(BQ25820ConfigTest, PartialWriteLeavesAdcEnClearAndIsRetried) {
   EXPECT_EQ(this->reg_(REG_CHARGER_CONTROL), (0xCC | WD_RST));
 }
 
+TEST_F(BQ25820ConfigTest, FailedAdcWriteAfterWatchdogExpiryIsRetried) {
+  this->hub_.update();
+  this->reg_(REG_CHARGER_STATUS_1) = WD_STAT;
+  this->reg_(REG_TIMER_CONTROL) = 0;
+  this->bus_.fail_write_register = REG_ADC_CONTROL;
+  this->bus_.writes_before_failure = 1;  // clearing ADC_EN, then the last write fails
+  this->hub_.update();
+  EXPECT_TRUE(this->hub_.status_has_warning());
+  EXPECT_EQ(this->reg_(REG_ADC_CONTROL) & ADC_EN, 0);
+  // The charger control write fed the watchdog, which clears WD_STAT on the chip
+  this->reg_(REG_CHARGER_STATUS_1) = 0;
+  this->reg_(REG_TIMER_CONTROL) = 0;
+  this->bus_.fail_write_register = -1;
+  this->hub_.update();
+  EXPECT_FALSE(this->hub_.status_has_warning());
+  EXPECT_EQ(this->reg_(REG_TIMER_CONTROL), 0x9C);
+  EXPECT_EQ(this->reg_(REG_ADC_CONTROL), ADC_EN);
+}
+
 TEST_F(BQ25820ConfigTest, FailedWatchdogFeedDoesNotRewriteOrSweepAgain) {
   this->hub_.update();
   EXPECT_EQ(this->reg_(REG_MPPT_CONTROL), 0x83);

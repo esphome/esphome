@@ -134,14 +134,14 @@ bool BQ25820Component::watchdog_enabled_() const {
   return (progmem_read_byte(&this->config_->controls[CONTROL_TIMER]) & TIMER_CONTROL_WATCHDOG) != 0;
 }
 
-// Charging off, configure, charging on, ADC last: a failure before charger control leaves charging off, and any
-// failure leaves ADC_EN clear so the next poll writes it all again.
+// ADC off, charging off, configure, charging on, ADC last: a failure before charger control leaves charging off,
+// and any failure leaves ADC_EN clear so the next poll writes it all again.
 bool BQ25820Component::write_config_registers_() {
   BQ25820Config config = this->load_config_();
   // The charger control write also feeds the watchdog
   if (this->watchdog_enabled_())
     config.controls[CONTROL_CHARGER] |= WD_RST;
-  bool ok = this->update_register(REG_CHARGER_CONTROL, EN_CHG, 0);
+  bool ok = this->update_register(REG_ADC_CONTROL, ADC_EN, 0) && this->update_register(REG_CHARGER_CONTROL, EN_CHG, 0);
   for (size_t i = 0; ok && i < BQ25820_LIMIT_COUNT; i++) {
     if (config.limits[i] != 0)
       ok = this->write_byte_16_le(progmem_read_byte(&LIMIT_REGISTERS[i]), config.limits[i]);
