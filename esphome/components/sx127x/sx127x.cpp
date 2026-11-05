@@ -384,9 +384,7 @@ void SX127x::restart_long_packet_rx_() {
 
 void SX127x::finish_long_packet_() {
   this->packet_.resize(this->packet_expected_length_);
-  float rssi = this->long_packet_rssi_captured_ ? this->long_packet_rssi_
-                                                : -(float) this->read_register_(REG_RSSI_VALUE_FSK) / 2.0f;
-  this->call_listeners_(this->packet_, rssi, 0.0f);
+  this->call_listeners_(this->packet_, this->long_packet_rssi_, 0.0f);
   this->restart_long_packet_rx_();
 }
 
@@ -417,7 +415,7 @@ void SX127x::handle_long_packet_(uint8_t irq2) {
     const size_t old_size = this->packet_.size();
     this->packet_.resize(old_size + to_read);
     this->read_fifo_(this->packet_.data() + old_size, to_read);
-    this->packet_last_byte_ms_ = millis();
+    this->packet_last_byte_ms_ = App.get_loop_component_start_time();
     ESP_LOGVV(TAG, "Drained RX FIFO: read=%u received=%u expected=%u", (unsigned) to_read,
               (unsigned) this->packet_.size(), (unsigned) this->packet_expected_length_);
 
@@ -479,7 +477,7 @@ void SX127x::loop() {
         this->disable_loop();
         return;
       }
-      if (millis() - this->packet_last_byte_ms_ > this->packet_idle_timeout_ms_()) {
+      if (App.get_loop_component_start_time() - this->packet_last_byte_ms_ > this->packet_idle_timeout_ms_()) {
         ESP_LOGW(TAG, "Packet receive timeout, discarding packet: received=%u expected=%u",
                  (unsigned) this->packet_.size(), (unsigned) this->packet_expected_length_);
         this->restart_long_packet_rx_();
