@@ -214,6 +214,42 @@ def test_generate_cmakelists_txt_external_source_root_srcdir(tmp_component, tmp_
     assert str((source / "thing.cpp").resolve()).replace("\\", "/") in content
 
 
+def test_generate_cmakelists_txt_capitalised_src_dir(tmp_component, tmp_path):
+    source = tmp_path / "caps_lib"
+    (source / "Src").mkdir(parents=True)
+    (source / "Src" / "thing.cpp").write_text("int t;")
+    tmp_component.source_path = source
+    tmp_component.data = {}
+
+    content = generate_cmakelists_txt(tmp_component)
+
+    assert str((source / "Src" / "thing.cpp").resolve()).replace("\\", "/") in content
+
+
+def test_generate_cmakelists_txt_explicit_src_dir(tmp_component):
+    (tmp_component.path / "src").mkdir()
+    (tmp_component.path / "src" / "ignored.c").write_text("int i;")
+    (tmp_component.path / "custom").mkdir()
+    (tmp_component.path / "custom" / "used.c").write_text("int u;")
+    tmp_component.data = {"build": {"srcDir": "custom"}}
+
+    content = generate_cmakelists_txt(tmp_component)
+
+    assert "used.c" in content
+    assert "ignored.c" not in content
+
+
+def test_generate_cmakelists_txt_without_include_dirs(tmp_component, tmp_path):
+    source = tmp_path / "bare_lib"
+    source.mkdir()
+    tmp_component.source_path = source
+    tmp_component.data = {"build": {"includeDir": "missing", "srcDir": "gone"}}
+
+    content = generate_cmakelists_txt(tmp_component)
+
+    assert "INCLUDE_DIRS" not in content
+
+
 def test_generate_cmakelists_txt_with_flags(tmp_component, tmp_path):
     src_dir = tmp_component.path / "src"
     src_dir.mkdir()
@@ -402,6 +438,21 @@ def test_generate_idf_component_yml_with_dependencies(tmp_component, tmp_path):
     override_path: {dep.path}
 """
     )
+
+
+def test_generate_idf_component_yml_with_two_dependencies(tmp_component, tmp_path):
+    deps = []
+    for name in ("dep_a", "dep_b"):
+        dep = IDFComponent(name, "1.0", source=URLSource("http://dummy.com"))
+        dep.path = tmp_path / name
+        deps.append(dep)
+    tmp_component.dependencies = deps
+    tmp_component.data = {}
+
+    result = generate_idf_component_yml(tmp_component)
+
+    assert f"  dep_a:\n    override_path: {deps[0].path}\n" in result
+    assert f"  dep_b:\n    override_path: {deps[1].path}\n" in result
 
 
 def test_generate_idf_component_yml_missing_path_raises(tmp_component):
