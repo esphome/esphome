@@ -42,10 +42,8 @@ void CAP1188Component::finish_setup_() {
   }
 
   // Set sensitivity
-  uint8_t sensitivity = 0;
-  this->read_byte(CAP1188_SENSITVITY, &sensitivity);
-  sensitivity = sensitivity & 0x0f;
-  this->write_byte(CAP1188_SENSITVITY, sensitivity | this->touch_threshold_);
+  // The threshold replaces the upper nibble and is ORed into the lower one, as before
+  this->update_register(CAP1188_SENSITVITY, 0xF0 | this->touch_threshold_, this->touch_threshold_);
 
   // Allow multiple touches
   this->write_byte(CAP1188_MULTI_TOUCH, this->allow_multiple_touches_);
@@ -74,15 +72,12 @@ void CAP1188Component::dump_config() {
 void CAP1188Component::loop() {
   uint8_t touched = 0;
 
-  this->read_register(CAP1188_SENSOR_INPUT_STATUS, &touched, 1);
+  // On a failed read the channels keep their state instead of reporting a release
+  if (!this->status_comm_result(this->read_byte(CAP1188_SENSOR_INPUT_STATUS, &touched)))
+    return;
 
-  if (touched) {
-    uint8_t data = 0;
-    this->read_register(CAP1188_MAIN, &data, 1);
-    data = data & ~CAP1188_MAIN_INT;
-
-    this->write_register(CAP1188_MAIN, &data, 1);
-  }
+  if (touched)
+    this->update_register(CAP1188_MAIN, CAP1188_MAIN_INT, 0);
 
   for (auto *channel : this->channels_) {
     channel->process(touched);

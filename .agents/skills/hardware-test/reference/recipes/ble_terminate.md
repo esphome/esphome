@@ -1,0 +1,27 @@
+# BLE terminate with peripheral latency (#20232)
+
+`scripts/ble_terminate`: an ESP32-S3 `bluetooth_proxy` (active) over Ethernet as the central (`btproxy.yaml`) and a
+classic devkit `esp32_ble_server` peer (`btpeer.yaml`). The peer asks for 50 ms / latency 10 / 6 s with
+`esp_ble_gap_update_conn_params` 4 s after connect; earlier requests are overwritten by the proxy's own "medium
+conn params" after service discovery. Read the proxy's `Conn params updated` line (VERBOSE, API logs) to confirm;
+the peer side never logs the event. The proxy only connects to a device its scanner has seen, so `btdrive.py`
+subscribes to raw advertisements first.
+
+Measure the peer's own disconnect (`serial_capture.py --ms`) after the client's disconnect: about 0.2 to 0.8 s when
+the terminate arrived, about 6 s (the supervision timeout) when it was lost. The client side disconnect time is the
+API reply and says nothing. On dev the S3 lost 6 of 12; the PR lost 0 of 16.
+
+`run.sh LABEL ROUNDS` writes `central_bda.hpp` from `PROXY_BT_MAC`, builds and flashes both boards, runs the rounds
+and `an.py`, which prints PASS only when every round completed, every peer disconnect came within 3 s and the last
+parameter update the proxy logged before each disconnect had latency=10 (a round without it did not test peripheral
+latency and counts as inconclusive).
+
+Controller build check: ESP-IDF 5.5.6 ships `libbtdm_app.a` byte for byte the same as 5.5.5 for esp32c3 and esp32s3
+(build 51d9dfd). Without hardware:
+
+```bash
+strings -a <idf>/components/bt/controller/lib_esp32c3_family/<chip>/libbtdm_app.a | grep -E '^[0-9a-f]{7}$'
+```
+
+On a board: a button lambda logging `btdm_controller_get_compile_version()` (declared `extern "C"`) over the API,
+since the ESP-IDF init line only reaches the UART.

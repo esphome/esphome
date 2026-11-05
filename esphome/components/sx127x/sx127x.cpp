@@ -7,16 +7,19 @@ namespace esphome::sx127x {
 
 ESPHOME_LOG_TAG(TAG, "sx127x");
 static const uint32_t FXOSC = 32000000u;
-static const uint16_t RAMP[16] = {3400, 2000, 1000, 500, 250, 125, 100, 62, 50, 40, 31, 25, 20, 15, 12, 10};
-static const uint32_t BW_HZ[22] = {2604,  3125,  3906,  5208,  6250,  7812,   10416,  12500,  15625,  20833,  25000,
-                                   31250, 41666, 50000, 62500, 83333, 100000, 125000, 166666, 200000, 250000, 500000};
-static const uint8_t BW_LORA[22] = {BW_7_8,   BW_7_8,   BW_7_8,   BW_7_8,   BW_7_8,   BW_7_8,  BW_10_4, BW_15_6,
-                                    BW_15_6,  BW_20_8,  BW_31_3,  BW_31_3,  BW_41_7,  BW_62_5, BW_62_5, BW_125_0,
-                                    BW_125_0, BW_125_0, BW_250_0, BW_250_0, BW_250_0, BW_500_0};
-static const uint8_t BW_FSK_OOK[22] = {RX_BW_2_6,   RX_BW_3_1,   RX_BW_3_9,   RX_BW_5_2,  RX_BW_6_3,   RX_BW_7_8,
-                                       RX_BW_10_4,  RX_BW_12_5,  RX_BW_15_6,  RX_BW_20_8, RX_BW_25_0,  RX_BW_31_3,
-                                       RX_BW_41_7,  RX_BW_50_0,  RX_BW_62_5,  RX_BW_83_3, RX_BW_100_0, RX_BW_125_0,
-                                       RX_BW_166_7, RX_BW_200_0, RX_BW_250_0, RX_BW_250_0};
+static constexpr uint16_t RAMP[16] PROGMEM = {3400, 2000, 1000, 500, 250, 125, 100, 62, 50, 40, 31, 25, 20, 15, 12, 10};
+// Aligned 32 bit loads from flash are safe on ESP8266, so this table is read directly
+static constexpr uint32_t BW_HZ[22] PROGMEM = {2604,   3125,   3906,   5208,   6250,   7812,  10416, 12500,
+                                               15625,  20833,  25000,  31250,  41666,  50000, 62500, 83333,
+                                               100000, 125000, 166666, 200000, 250000, 500000};
+static constexpr uint8_t BW_LORA[22] PROGMEM = {
+    BW_7_8,  BW_7_8,  BW_7_8,  BW_7_8,  BW_7_8,   BW_7_8,   BW_10_4,  BW_15_6,  BW_15_6,  BW_20_8,  BW_31_3,
+    BW_31_3, BW_41_7, BW_62_5, BW_62_5, BW_125_0, BW_125_0, BW_125_0, BW_250_0, BW_250_0, BW_250_0, BW_500_0};
+static constexpr uint8_t BW_FSK_OOK[22] PROGMEM = {
+    RX_BW_2_6,   RX_BW_3_1,   RX_BW_3_9,   RX_BW_5_2,   RX_BW_6_3,   RX_BW_7_8,  RX_BW_10_4, RX_BW_12_5,
+    RX_BW_15_6,  RX_BW_20_8,  RX_BW_25_0,  RX_BW_31_3,  RX_BW_41_7,  RX_BW_50_0, RX_BW_62_5, RX_BW_83_3,
+    RX_BW_100_0, RX_BW_125_0, RX_BW_166_7, RX_BW_200_0, RX_BW_250_0, RX_BW_250_0};
+
 static const int32_t RSSI_OFFSET_HF = 157;
 static const int32_t RSSI_OFFSET_LF = 164;
 
@@ -135,7 +138,7 @@ void SX127x::configure() {
 
 void SX127x::configure_fsk_ook_() {
   // set the channel bw
-  this->write_register_(REG_RX_BW, BW_FSK_OOK[this->bandwidth_]);
+  this->write_register_(REG_RX_BW, progmem_read_byte(&BW_FSK_OOK[this->bandwidth_]));
 
   // set fdev
   uint32_t fdev = std::min((this->deviation_ * 4096) / 250000, (uint32_t) 0x3FFF);
@@ -211,7 +214,8 @@ void SX127x::configure_lora_() {
   uint8_t header_mode = this->payload_length_ > 0 ? IMPLICIT_HEADER : EXPLICIT_HEADER;
   uint8_t crc_mode = (this->crc_enable_) ? RX_PAYLOAD_CRC_ON : RX_PAYLOAD_CRC_OFF;
   uint8_t spreading_factor = this->spreading_factor_ << SPREADING_FACTOR_SHIFT;
-  this->write_register_(REG_MODEM_CONFIG1, BW_LORA[this->bandwidth_] | this->coding_rate_ | header_mode);
+  this->write_register_(REG_MODEM_CONFIG1,
+                        progmem_read_byte(&BW_LORA[this->bandwidth_]) | this->coding_rate_ | header_mode);
   this->write_register_(REG_MODEM_CONFIG2, spreading_factor | crc_mode);
 
   // config fifo and payload length
@@ -432,7 +436,7 @@ void SX127x::dump_config() {
                 "  PA Power: %" PRIu8 " dBm\n"
                 "  PA Ramp: %" PRIu16 " us",
                 TRUEFALSE(this->auto_cal_), this->frequency_, BW_HZ[this->bandwidth_], pa_pin, this->pa_power_,
-                RAMP[this->pa_ramp_]);
+                progmem_read_uint16(&RAMP[this->pa_ramp_]));
   if (this->modulation_ == MOD_FSK) {
     ESP_LOGCONFIG(TAG, "  Deviation: %" PRIu32 " Hz", this->deviation_);
   }
