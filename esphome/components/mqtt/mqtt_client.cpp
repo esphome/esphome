@@ -103,6 +103,13 @@ static void format_esphome_topic(char (&topic)[ESPHOME_TOPIC_BUFFER_SIZE], const
 void MQTTClientComponent::setup() {
   this->mqtt_backend_.set_on_message(
       [this](const char *topic, const char *payload, size_t len, size_t index, size_t total) {
+        // total comes from the broker; reserving it unchecked can exhaust the heap
+        if (total > MQTT_MAX_PAYLOAD_SIZE) {
+          if (index == 0) {
+            ESP_LOGW(TAG, "Dropped %zu byte message on '%s' (max %d)", total, topic, MQTT_MAX_PAYLOAD_SIZE);
+          }
+          return;
+        }
         if (index == 0) {
           this->payload_buffer_.clear();
           this->payload_buffer_.reserve(total);
@@ -299,7 +306,10 @@ void MQTTClientComponent::dump_config() {
                   "  Discovery retain: %s",
                   this->discovery_info_.prefix.c_str(), YESNO(this->discovery_info_.retain));
   }
-  ESP_LOGCONFIG(TAG, "  Topic Prefix: '%s'", this->topic_prefix_.c_str());
+  ESP_LOGCONFIG(TAG,
+                "  Topic Prefix: '%s'\n"
+                "  Max Payload Size: %d",
+                this->topic_prefix_.c_str(), MQTT_MAX_PAYLOAD_SIZE);
   if (!this->log_message_.topic.empty()) {
     ESP_LOGCONFIG(TAG, "  Log Topic: '%s'", this->log_message_.topic.c_str());
   }

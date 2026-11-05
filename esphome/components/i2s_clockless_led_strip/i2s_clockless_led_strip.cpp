@@ -68,10 +68,8 @@ void I2SClocklessLedStrip::dump_config() {
 float I2SClocklessLedStrip::get_setup_priority() const { return setup_priority::IO; }
 
 void I2SClocklessLedStrip::setup() {
-  if (!this->allocate_buffers_()) {
-    this->mark_failed(LOG_STR(ESP_LOG_MSG_ALLOC_FAIL));
+  if (!this->setup_check(this->allocate_buffers_(), LOG_STR(ESP_LOG_MSG_ALLOC_FAIL)))
     return;
-  }
 
   i2s_chan_config_t chan_config = {
       .id = I2S_NUM_AUTO,
