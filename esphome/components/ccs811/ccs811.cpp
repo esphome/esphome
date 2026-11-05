@@ -123,15 +123,11 @@ void CCS811Component::send_env_data_() {
   if (this->humidity_sensor_ == nullptr && this->temperature_sensor_ == nullptr)
     return;
 
-  float humidity = NAN;
-  if (this->humidity_sensor_ != nullptr)
-    humidity = this->humidity_sensor_->state;
-  if (std::isnan(humidity) || humidity < 0 || humidity > 100)
+  float humidity = sensor::source_value(this->humidity_sensor_, 0.0f, 100.0f);
+  if (std::isnan(humidity))
     humidity = 50;
-  float temperature = NAN;
-  if (this->temperature_sensor_ != nullptr)
-    temperature = this->temperature_sensor_->state;
-  if (std::isnan(temperature) || temperature < -25 || temperature > 50)
+  float temperature = sensor::source_value(this->temperature_sensor_, -25.0f, 50.0f);
+  if (std::isnan(temperature))
     temperature = 25;
   // temperature has a 25° offset to allow negative temperatures
   temperature += 25;

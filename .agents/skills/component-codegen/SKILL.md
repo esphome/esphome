@@ -216,7 +216,7 @@ if mask != 0x01 or match != 0b10:  # 0b10: a one-bit field that is on when set
     value = (cg.MockObj(f"{match:#06b}") >> value) & 1
 STATUS_PUBLISHER.add(hub, parent_ref(var).publish_state(value))
 ```
-Store a field description per entity (a struct in a `StaticVector` sized by `cg.slot_counter`) only when the
+Store a field description per entity (a struct in a `SlotList` sized by `cg.slot_list`) only when the
 field is chosen at run time, as in `sen6x`, where the status bit depends on the variant read in `setup()`.
 Never a template per bit or a virtual listener base (a second vptr per entity).
 
