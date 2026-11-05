@@ -1,3 +1,4 @@
+from esphome.automation import parent_ref
 import esphome.codegen as cg
 from esphome.components import event
 import esphome.config_validation as cv
@@ -6,6 +7,8 @@ from esphome.types import ConfigType
 
 from .. import (
     CONF_MOTION_ID,
+    DATA,
+    DATA_PUBLISHER,
     MotionComponent,
     check_has_accelerometer,
     check_update_interval,
@@ -47,9 +50,10 @@ FINAL_VALIDATE_SCHEMA = _final_validate
 
 async def to_code(config: ConfigType) -> None:
     parent = await cg.get_variable(config[CONF_MOTION_ID])
-    var = cg.new_Pvariable(config[CONF_ID], parent)
+    var = cg.new_Pvariable(config[CONF_ID])
     await event.register_event(var, config, event_types=EVENT_TYPES)
     await cg.register_component(var, config)
+    DATA_PUBLISHER.add(parent, parent_ref(var).process_motion_data(DATA))
 
     cg.add(var.set_threshold(config[CONF_THRESHOLD]))
     cg.add(var.set_cooldown(config[CONF_COOLDOWN]))

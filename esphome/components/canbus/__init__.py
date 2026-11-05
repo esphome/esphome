@@ -4,10 +4,12 @@ from typing import Any
 
 from esphome import automation
 import esphome.codegen as cg
+from esphome.config import iter_ids
 import esphome.config_validation as cv
 from esphome.const import CONF_DATA, CONF_ID, CONF_PLATFORM
 from esphome.core import CORE, ID
 from esphome.cpp_generator import MockObj, TemplateArgsType
+import esphome.final_validate as fv
 from esphome.types import ConfigType
 
 _LOGGER = logging.getLogger(__name__)
@@ -24,10 +26,21 @@ CONF_CANBUS_ID = "canbus_id"
 CONF_BIT_RATE = "bit_rate"
 CONF_ON_FRAME = "on_frame"
 CONF_MAX_FRAMES_PER_LOOP = "max_frames_per_loop"
+CONF_FD = "fd"
+CONF_BIT_RATE_SWITCH = "bit_rate_switch"
+CONF_PAD_DATA = "pad_data"
+CONF_DEFAULT_FD = "default_fd"
+CONF_DEFAULT_BIT_RATE_SWITCH = "default_bit_rate_switch"
+CONF_DEFAULT_PAD_DATA = "default_pad_data"
 DEFAULT_MAX_FRAMES_PER_LOOP = 50  # Keep in sync with max_frames_per_loop_ in canbus.h
 DEFAULT_BIT_RATE = "125KBPS"  # Keep in sync with bit_rate_ in canbus.h
 # All 29 id bits; received ids never use more, so on_frame skips the & for this mask
 CAN_ID_MASK_ALL = 0x1FFFFFFF
+CAN_MAX_DATA_LENGTH = 8
+# Payload length of each CAN FD DLC, keep in sync with CAN_FD_DLC_LENGTHS in canbus.h
+CAN_FD_DATA_LENGTHS = (0, 1, 2, 3, 4, 5, 6, 7, 8, 12, 16, 20, 24, 32, 48, 64)
+# canbus.send options that need a platform built on CANBUS_FD_SCHEMA
+_FD_SEND_KEYS = (CONF_FD, CONF_BIT_RATE_SWITCH, CONF_PAD_DATA)
 
 
 def _flag(name: str, value: bool) -> str:
@@ -84,6 +97,21 @@ CAN_SPEEDS = CanSpeed.options(
     prefix="CAN_",
 )
 
+# Data phase rates for a CAN FD platform's own schema
+CAN_DATA_SPEEDS = {
+    **CAN_SPEEDS,
+    **CanSpeed.options(
+        "2000KBPS",
+        "3000KBPS",
+        "4000KBPS",
+        "5000KBPS",
+        "6000KBPS",
+        "7000KBPS",
+        "8000KBPS",
+        prefix="CAN_",
+    ),
+}
+
 
 def get_rate(value: str) -> int:
     match = re.match(r"(\d+)(?:K(\d+)?)?BPS", value, re.IGNORECASE)
@@ -120,12 +148,37 @@ CANBUS_SCHEMA = cv.Schema(
 
 CANBUS_SCHEMA.add_extra(validate_id)
 
+# A platform whose controller supports CAN FD extends this instead of CANBUS_SCHEMA. Its buses then accept the
+# CAN FD options of canbus.send, and register_canbus() turns on USE_CANBUS_FD, which makes every CanFrame
+# 64 bytes long.
+CANBUS_FD_SCHEMA = CANBUS_SCHEMA.extend(
+    {
+        cv.Optional(CONF_DEFAULT_FD, default=False): cv.boolean,
+        cv.Optional(CONF_DEFAULT_BIT_RATE_SWITCH, default=False): cv.boolean,
+        cv.Optional(CONF_DEFAULT_PAD_DATA, default=False): cv.boolean,
+    }
+)
+
+
+def _is_fd_bus(config: ConfigType) -> bool:
+    return CONF_DEFAULT_FD in config
+
 
 async def setup_canbus_core_(var: MockObj, config: ConfigType) -> None:
     await cg.register_component(var, config)
     cg.add(var.set_can_id(config[CONF_CAN_ID]))
     if config[CONF_USE_EXTENDED_ID]:
         cg.add(var.set_use_extended_id(True))
+    if _is_fd_bus(config):
+        cg.add_define("USE_CANBUS_FD")
+        cg.add(var.set_supports_fd(True))
+        for key, setter in (
+            (CONF_DEFAULT_FD, var.set_default_fd),
+            (CONF_DEFAULT_BIT_RATE_SWITCH, var.set_default_bit_rate_switch),
+            (CONF_DEFAULT_PAD_DATA, var.set_default_pad_data),
+        ):
+            if config.get(key):
+                cg.add(setter(True))
     if (bit_rate := config[CONF_BIT_RATE]) != DEFAULT_BIT_RATE:
         cg.add(var.set_bitrate(CAN_SPEEDS[bit_rate]))
     if (max_frames := config[CONF_MAX_FRAMES_PER_LOOP]) != DEFAULT_MAX_FRAMES_PER_LOOP:
@@ -175,6 +228,53 @@ async def register_canbus(
     await setup_canbus_core_(var, config)
 
 
+def validate_send(action: ConfigType, bus: ConfigType) -> None:
+    """Reject a canbus.send that its bus cannot send, as far as the values are known.
+
+    Lambda values are checked when the action runs.
+    """
+    data = action[CONF_DATA]
+    length = None if cg.is_template(data) else len(data)
+    if not _is_fd_bus(bus):
+        for key in _FD_SEND_KEYS:
+            if key in action:
+                raise cv.Invalid(
+                    f"{key} needs a canbus platform that supports CAN FD", path=[key]
+                )
+        fd = False
+    else:
+        fd = action.get(CONF_FD, bus[CONF_DEFAULT_FD])
+        if fd is False and action.get(CONF_BIT_RATE_SWITCH) is True:
+            raise cv.Invalid("bit_rate_switch requires fd: true")
+        if fd is True and action[CONF_REMOTE_TRANSMISSION_REQUEST]:
+            raise cv.Invalid("remote_transmission_request cannot be used with fd: true")
+    if length is None:
+        return
+    if fd is False and length > CAN_MAX_DATA_LENGTH:
+        raise cv.Invalid("Classic CAN data must be at most 8 bytes", path=[CONF_DATA])
+    if (
+        fd is True
+        and length not in CAN_FD_DATA_LENGTHS
+        and action.get(CONF_PAD_DATA, bus[CONF_DEFAULT_PAD_DATA]) is False
+    ):
+        raise cv.Invalid("CAN FD data length requires pad_data: true", path=[CONF_DATA])
+
+
+def final_validate(config: list[ConfigType]) -> None:
+    full_config = fv.full_config.get()
+    for bus_id, path in iter_ids(full_config):
+        if len(path) < 2 or path[-2:] != ["canbus.send", CONF_CANBUS_ID]:
+            continue
+        action_path = path[:-1]
+        action = full_config.get_config_for_path(action_path)
+        bus = fv.get_declaring_config(bus_id, full_config)
+        with cv.prepend_path([cv.ROOT_CONFIG_PATH, *action_path]):
+            validate_send(action, bus)
+
+
+FINAL_VALIDATE_SCHEMA = final_validate
+
+
 # Actions
 CANBUS_SEND_ACTION_SCHEMA = cv.maybe_simple_value(
     {
@@ -182,9 +282,12 @@ CANBUS_SEND_ACTION_SCHEMA = cv.maybe_simple_value(
         cv.Optional(CONF_CAN_ID): cv.int_range(min=0, max=CAN_ID_MASK_ALL),
         cv.Optional(CONF_USE_EXTENDED_ID, default=False): cv.boolean,
         cv.Optional(CONF_REMOTE_TRANSMISSION_REQUEST, default=False): cv.boolean,
-        # One classic CAN frame
+        cv.Optional(CONF_FD): cv.templatable(cv.boolean),
+        cv.Optional(CONF_BIT_RATE_SWITCH): cv.templatable(cv.boolean),
+        cv.Optional(CONF_PAD_DATA): cv.templatable(cv.boolean),
+        # One CAN FD frame; final_validate holds a classic bus to 8 bytes
         cv.Required(CONF_DATA): cv.templatable(
-            cv.All(validate_raw_data, cv.Length(max=8))
+            cv.All(validate_raw_data, cv.Length(max=CAN_FD_DATA_LENGTHS[-1]))
         ),
     },
     validate_id,
@@ -214,6 +317,14 @@ async def canbus_action_to_code(
     cg.add(
         var.set_remote_transmission_request(config[CONF_REMOTE_TRANSMISSION_REQUEST])
     )
+    # Only set on a CAN FD bus, which final_validate checks
+    for key, setter in (
+        (CONF_FD, var.set_fd),
+        (CONF_BIT_RATE_SWITCH, var.set_bit_rate_switch),
+        (CONF_PAD_DATA, var.set_pad_data),
+    ):
+        if (value := config.get(key)) is not None:
+            cg.add(setter(await cg.templatable(value, args, cg.bool_)))
 
     await automation.templatable_bytes(
         config[CONF_DATA],
