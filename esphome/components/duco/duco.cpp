@@ -1,6 +1,7 @@
 #include "duco.h"
 
 #include "esphome/core/application.h"
+#include "esphome/core/helpers.h"
 #include "esphome/core/log.h"
 
 namespace esphome::duco {
@@ -157,9 +158,7 @@ void Duco::send(DucoDevice *device, uint8_t function, std::initializer_list<uint
   const uint8_t id = this->next_id_();
   uint8_t frame[5 + MAX_REQUEST_DATA + 2] = {HEADER_START, HEADER_END, static_cast<uint8_t>(size + 2), function, id};
   std::copy_n(data.begin(), size, frame + 5);
-  const uint16_t crc = crc16(frame + 2, size + 3);
-  frame[size + 5] = crc & 0xFF;
-  frame[size + 6] = crc >> 8;
+  put_le16(frame + size + 5, crc16(frame + 2, size + 3));
   this->write_array(frame, size + 7);
   this->flush();
 

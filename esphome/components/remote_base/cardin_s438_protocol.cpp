@@ -76,10 +76,8 @@ void build_wire(uint8_t wire[WIRE_SIZE], uint8_t seed, uint8_t plain0, uint8_t p
 
   wire[0] = plain0 + key;
 
-  // checksum over the first three bytes, little-endian.
-  const uint16_t checksum = sum16_bytes(wire, 3);
-  wire[3] = checksum;
-  wire[4] = checksum >> 8;
+  // checksum over the first three bytes
+  put_le16(wire + 3, sum16_bytes(wire, 3));
 }
 
 }  // namespace
