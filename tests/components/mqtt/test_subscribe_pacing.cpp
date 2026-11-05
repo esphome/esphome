@@ -2,6 +2,7 @@
 
 #include <cstddef>
 #include <cstdint>
+#include <initializer_list>
 
 #include "esphome/components/mqtt/mqtt_subscription_fingerprint.h"
 
@@ -60,13 +61,13 @@ struct BurstResult {
   size_t dropped{0};
 };
 
-/// Connect burst model; split_last runs the loop between the last SUBACK and its message.
-static BurstResult run_burst(uint16_t topics, bool paced, bool queue_acks, bool split_last) {
+/// Connect burst model; the loop may subscribe after a SUBACK is counted but before its retained message is queued.
+static BurstResult run_burst(uint16_t topics, bool paced, bool queue_acks) {
   BurstResult result;
   size_t queued = 0;
   uint16_t sent = 0;
   uint16_t answered = 0;
-  bool retained_due = false;
+  const size_t slots = queue_acks ? INBOUND_SLOTS_PER_SUBSCRIBE_WITH_ACK : INBOUND_SLOTS_PER_SUBSCRIBE;
   auto push = [&]() {
     if (queued < POOL_SIZE) {
       queued++;
@@ -74,24 +75,20 @@ static BurstResult run_burst(uint16_t topics, bool paced, bool queue_acks, bool 
       result.dropped++;
     }
   };
-  for (int pass = 0; pass < 10000 && (sent < topics || queued != 0 || retained_due); pass++) {
-    result.delivered += queued;
-    queued = 0;
-    const size_t slots = queue_acks ? INBOUND_SLOTS_PER_SUBSCRIBE_WITH_ACK : INBOUND_SLOTS_PER_SUBSCRIBE;
+  auto subscribe = [&]() {
     while (sent < topics && (!paced || subscribe_fits(sent, answered, POOL_SIZE - queued, slots)))
       sent++;
-    if (retained_due) {
-      retained_due = false;
-      push();
-    }
-    for (; answered < sent; answered++) {
+  };
+  for (int pass = 0; pass < 10000 && (sent < topics || queued != 0); pass++) {
+    result.delivered += queued;
+    queued = 0;
+    subscribe();
+    while (answered < sent) {
+      answered++;
       if (queue_acks)
         push();
-      if (split_last && answered + 1 == sent) {
-        retained_due = true;
-      } else {
-        push();
-      }
+      subscribe();
+      push();
     }
   }
   return result;
@@ -99,27 +96,23 @@ static BurstResult run_burst(uint16_t topics, bool paced, bool queue_acks, bool 
 
 TEST(SubscribePacing, UnpacedBurstOverflowsThePool) {
   // 49 is what an ESP32-C3 with 40 retained topics lost before acks were kept out of the queue
-  EXPECT_EQ(run_burst(40, false, true, false).dropped, 49);
-  EXPECT_EQ(run_burst(40, false, false, false).dropped, 9);
+  EXPECT_EQ(run_burst(40, false, true).dropped, 49);
+  EXPECT_EQ(run_burst(40, false, false).dropped, 9);
 }
 
 TEST(SubscribePacing, PacedBurstDeliversEveryRetainedMessage) {
   for (uint16_t topics : {1, 15, 31, 40, 100, 250}) {
-    for (bool split_last : {false, true}) {
-      const BurstResult result = run_burst(topics, true, false, split_last);
-      EXPECT_EQ(result.dropped, 0) << topics << " topics, split_last=" << split_last;
-      EXPECT_EQ(result.delivered, topics) << topics << " topics, split_last=" << split_last;
-    }
+    const BurstResult result = run_burst(topics, true, false);
+    EXPECT_EQ(result.dropped, 0) << topics << " topics";
+    EXPECT_EQ(result.delivered, topics) << topics << " topics";
   }
 }
 
 TEST(SubscribePacing, PacedBurstWithQueuedAcksDeliversEveryRetainedMessage) {
   for (uint16_t topics : {1, 15, 16, 31, 40, 100, 250}) {
-    for (bool split_last : {false, true}) {
-      const BurstResult result = run_burst(topics, true, true, split_last);
-      EXPECT_EQ(result.dropped, 0) << topics << " topics, split_last=" << split_last;
-      EXPECT_EQ(result.delivered, topics * 2u) << topics << " topics, split_last=" << split_last;
-    }
+    const BurstResult result = run_burst(topics, true, true);
+    EXPECT_EQ(result.dropped, 0) << topics << " topics";
+    EXPECT_EQ(result.delivered, topics * 2u) << topics << " topics";
   }
 }
 
