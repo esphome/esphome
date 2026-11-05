@@ -77,4 +77,9 @@ constexpr bool subscribe_fits(uint16_t sent, uint16_t answered, size_t free_slot
   return (unanswered + 1) * slots_per_subscribe <= free_slots;
 }
 
+/// The sent count raised to the SUBACKs counted, so stray SUBACKs give no credit; wrap safe.
+constexpr uint16_t rebase_sent(uint16_t sent, uint16_t answered) {
+  return static_cast<int16_t>(answered - sent) > 0 ? answered : sent;
+}
+
 }  // namespace esphome::mqtt

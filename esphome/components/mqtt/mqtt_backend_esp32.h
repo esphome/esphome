@@ -191,6 +191,9 @@ class MQTTBackendESP32 final : public MQTTBackend {
   }
 
   bool subscribe(const char *topic, uint8_t qos) final {
+    // SUBACKs for an earlier connection's SUBSCRIBEs, which esp-mqtt resends, give no credit
+    const uint16_t counted = this->sent_on_connection_();
+    this->subscribes_sent_ += static_cast<uint16_t>(rebase_sent(counted, this->subacks_.received()) - counted);
 #if defined(USE_MQTT_IDF_ENQUEUE)
     const bool sent = this->enqueue_(MQTT_QUEUE_TYPE_SUBSCRIBE, topic, qos);
 #else
@@ -201,13 +204,7 @@ class MQTTBackendESP32 final : public MQTTBackend {
     return sent;
   }
   bool can_subscribe() const final {
-    uint16_t sent = this->subscribes_sent_;
-#if defined(USE_MQTT_IDF_ENQUEUE)
-    // A SUBSCRIBE the task could not send never gets a SUBACK
-    const auto lost = static_cast<uint16_t>(this->subscribes_lost_.load(std::memory_order_relaxed) -
-                                            this->subscribes_lost_at_connect_);
-    sent = static_cast<uint16_t>(sent - lost);
-#endif
+    const uint16_t sent = this->sent_on_connection_();
     // Loaded before the queue size, so retained data queued after a counted SUBACK is seen
     const uint16_t answered = this->subacks_.received();
     // The event being dispatched still holds its pool slot
@@ -266,6 +263,15 @@ class MQTTBackendESP32 final : public MQTTBackend {
   struct MqttClientDeleter {
     void operator()(esp_mqtt_client *client_handler) { esp_mqtt_client_destroy(client_handler); }
   };
+  /// SUBSCRIBEs sent on this connection, less those the task could not send
+  uint16_t sent_on_connection_() const {
+#if defined(USE_MQTT_IDF_ENQUEUE)
+    return static_cast<uint16_t>(this->subscribes_sent_ - (this->subscribes_lost_.load(std::memory_order_relaxed) -
+                                                           this->subscribes_lost_at_connect_));
+#else
+    return this->subscribes_sent_;
+#endif
+  }
   using ClientHandler_ = std::unique_ptr<esp_mqtt_client, MqttClientDeleter>;
   ClientHandler_ handler_;
 

@@ -46,6 +46,14 @@ TEST(SubscribeFits, CountersWrap) {
   EXPECT_TRUE(subscribe_fits(8, 65530, POOL_SIZE));
 }
 
+TEST(RebaseSent, StraySubacksRaiseTheSentCount) {
+  EXPECT_EQ(rebase_sent(0, 1), 1);
+  EXPECT_EQ(rebase_sent(5, 3), 5);
+  EXPECT_EQ(rebase_sent(5, 5), 5);
+  EXPECT_EQ(rebase_sent(65535, 2), 2);
+  EXPECT_EQ(rebase_sent(2, 65535), 2);
+}
+
 TEST(SubackCounter, ReceivedCountsEverySuback) {
   SubackCounter subacks;
   EXPECT_EQ(subacks.received(), 0);
@@ -62,11 +70,15 @@ struct BurstResult {
 };
 
 /// Connect burst model; the loop may subscribe after a SUBACK is counted but before its retained message is queued.
-static BurstResult run_burst(uint16_t topics, bool paced, bool queue_acks) {
+/// stray_subacks are counted before the burst, as for an earlier connection's SUBSCRIBEs that esp-mqtt resends.
+static BurstResult run_burst(uint16_t topics, bool paced, bool queue_acks, uint16_t stray_subacks = 0) {
   BurstResult result;
   size_t queued = 0;
+  uint16_t issued = 0;
+  uint16_t delivered_acks = 0;
+  // The backend's counters
   uint16_t sent = 0;
-  uint16_t answered = 0;
+  uint16_t answered = stray_subacks;
   const size_t slots = queue_acks ? INBOUND_SLOTS_PER_SUBSCRIBE_WITH_ACK : INBOUND_SLOTS_PER_SUBSCRIBE;
   auto push = [&]() {
     if (queued < POOL_SIZE) {
@@ -76,14 +88,17 @@ static BurstResult run_burst(uint16_t topics, bool paced, bool queue_acks) {
     }
   };
   auto subscribe = [&]() {
-    while (sent < topics && (!paced || subscribe_fits(sent, answered, POOL_SIZE - queued, slots)))
-      sent++;
+    while (issued < topics && (!paced || subscribe_fits(sent, answered, POOL_SIZE - queued, slots))) {
+      sent = rebase_sent(sent, answered) + 1;
+      issued++;
+    }
   };
-  for (int pass = 0; pass < 10000 && (sent < topics || queued != 0); pass++) {
+  for (int pass = 0; pass < 10000 && (issued < topics || queued != 0); pass++) {
     result.delivered += queued;
     queued = 0;
     subscribe();
-    while (answered < sent) {
+    while (delivered_acks < issued) {
+      delivered_acks++;
       answered++;
       if (queue_acks)
         push();
@@ -113,6 +128,13 @@ TEST(SubscribePacing, PacedBurstWithQueuedAcksDeliversEveryRetainedMessage) {
     const BurstResult result = run_burst(topics, true, true);
     EXPECT_EQ(result.dropped, 0) << topics << " topics";
     EXPECT_EQ(result.delivered, topics * 2u) << topics << " topics";
+  }
+}
+
+TEST(SubscribePacing, StraySubacksGiveNoCredit) {
+  for (uint16_t strays : {1, 5, 15}) {
+    EXPECT_EQ(run_burst(40, true, false, strays).dropped, 0) << strays << " strays";
+    EXPECT_EQ(run_burst(40, true, true, strays).dropped, 0) << strays << " strays, queued acks";
   }
 }
 
