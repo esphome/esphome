@@ -208,8 +208,12 @@ class MQTTBackendESP32 final : public MQTTBackend {
                                             this->subscribes_lost_at_connect_);
     sent = static_cast<uint16_t>(sent - lost);
 #endif
+    // Loaded before the queue size, so retained data queued after a counted SUBACK is seen
+    const uint16_t answered = this->subacks_.received();
+    // The event being dispatched still holds its pool slot
+    const size_t free_slots = MQTT_EVENT_POOL_SIZE - this->mqtt_event_queue_.size() - this->dispatching_;
     return subscribe_fits(
-        sent, this->subacks_.received(), MQTT_EVENT_POOL_SIZE - this->mqtt_event_queue_.size(),
+        sent, answered, free_slots,
         this->on_subscribe_.size() != 0 ? INBOUND_SLOTS_PER_SUBSCRIBE_WITH_ACK : INBOUND_SLOTS_PER_SUBSCRIBE);
   }
   bool unsubscribe(const char *topic) final {
@@ -291,6 +295,7 @@ class MQTTBackendESP32 final : public MQTTBackend {
   std::string client_id_;
   uint16_t keep_alive_;
   bool clean_session_;
+  bool dispatching_{false};
   // uint8_t because atomic<bool> is out of line on Xtensa
   std::atomic<uint8_t> tracked_acked_{0};
 #ifdef USE_MQTT_TLS
