@@ -320,7 +320,8 @@ class AsyncStreamResponse {
   static void close_session_work(void *arg);
   void refresh_lru_();
   static void refresh_lru_work(void *arg);
-  // httpd frees a session before closing its socket, so the fd may already belong to a new client
+  // httpd closes the socket before it clears the session, so this can still match a closed fd; write() also checks
+  // socket_closed_
   bool owns_session_(int fd) const { return fd != 0 && httpd_sess_get_ctx(this->hd_, fd) == this; }
   static void destroy(void *p);
 
