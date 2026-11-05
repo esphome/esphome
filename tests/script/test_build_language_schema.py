@@ -537,3 +537,112 @@ def test_shrink_drops_a_bare_validator_beside_config_vars(
         {"address": {"key": "Required"}}
     )
     assert output["other"]["schemas"]["CONFIG_SCHEMA"] == {"data_type": "check"}
+
+
+def test_shrink_inlined_schema_brings_its_own_extends(
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    """The inlined schema's extends take its place beside the target's siblings."""
+    output = {
+        "base": {
+            "schemas": {
+                "SHARED": _schema({"name": {"key": "Optional"}}),
+                "INNER": _schema({"inner": {"key": "Optional"}}),
+            }
+        },
+        "mod": {
+            "schemas": {
+                "ONCE": _schema({"extra": {"key": "Optional"}}, ["base.INNER"]),
+                "CONFIG_SCHEMA": _schema(
+                    {"local": {"key": "Optional"}}, ["base.SHARED", "mod.ONCE"]
+                ),
+            }
+        },
+        "other": {
+            "schemas": {"CONFIG_SCHEMA": _schema({}, ["base.SHARED", "base.INNER"])}
+        },
+    }
+    _shrink(monkeypatch, output)
+
+    schema = output["mod"]["schemas"]["CONFIG_SCHEMA"]["schema"]
+    assert schema["extends"] == ["base.SHARED", "base.INNER"]
+    assert set(schema["config_vars"]) == {"local", "extra"}
+
+
+def test_shrink_inlines_into_a_typed_variant(monkeypatch: pytest.MonkeyPatch) -> None:
+    """A typed variant's top-level extends keep the sibling, the inherited base and local keys."""
+    output = {
+        "base": {
+            "schemas": {
+                "SHARED": _schema({"name": {"key": "Optional"}}),
+                "INNER": _schema({"inner": {"key": "Optional"}}),
+            }
+        },
+        "mod": {
+            "schemas": {
+                "ONCE": _schema({"extra": {"key": "Optional"}}, ["base.INNER"]),
+                "CONFIG_SCHEMA": {
+                    "type": "typed",
+                    "types": {
+                        "v1": {
+                            "config_vars": {"local": {"key": "Optional"}},
+                            "extends": ["base.SHARED", "mod.ONCE"],
+                        }
+                    },
+                },
+            }
+        },
+        "other": {
+            "schemas": {"CONFIG_SCHEMA": _schema({}, ["base.SHARED", "base.INNER"])}
+        },
+    }
+    _shrink(monkeypatch, output)
+
+    variant = output["mod"]["schemas"]["CONFIG_SCHEMA"]["types"]["v1"]
+    assert variant["extends"] == ["base.SHARED", "base.INNER"]
+    assert set(variant["config_vars"]) == {"local", "extra"}
+
+
+def test_shrink_spread_drops_a_simple_type_beside_siblings(
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    """A simple type spliced beside another extend is dropped; alone it is folded in."""
+    enum = {"type": "enum", "values": {"a": None}}
+    output = {
+        "base": {
+            "schemas": {"E": enum, "B": _schema({"b": {"key": "Optional"}})},
+        },
+        "mod": {
+            "schemas": {
+                "CONFIG_SCHEMA": _schema({"mode": _schema(None, ["base.E", "base.B"])})
+            }
+        },
+        "other": {
+            "schemas": {
+                "CONFIG_SCHEMA": _schema(
+                    {
+                        "mode": _schema(None, ["base.E"]),
+                        "b": _schema(None, ["base.B"]),
+                    }
+                )
+            }
+        },
+    }
+    _shrink(monkeypatch, output)
+
+    mod_vars = output["mod"]["schemas"]["CONFIG_SCHEMA"]["schema"]["config_vars"]
+    other_vars = output["other"]["schemas"]["CONFIG_SCHEMA"]["schema"]["config_vars"]
+    assert mod_vars["mode"] == _schema(None, ["base.B"])
+    assert other_vars["mode"] == enum
+
+
+def test_gree_feature_switches_extend_the_switch_schema(
+    language_schema_dir: Path,
+) -> None:
+    """Gree's closure-built feature switches export the switch schema."""
+    gree = json.loads((language_schema_dir / "gree.json").read_text())
+    config_vars = gree["gree.switch"]["schemas"]["CONFIG_SCHEMA"]["schema"][
+        "config_vars"
+    ]
+    for key in ("health", "light", "turbo", "xfan"):
+        assert config_vars[key]["schema"]["extends"] == ["switch._SWITCH_SCHEMA"]

@@ -584,11 +584,14 @@ def merge(source, destination):
 
 
 def inline_schema(node: dict, base: dict) -> None:
-    """Copy *base* into *node*, keeping the key constraints of both."""
+    """Copy *base* into *node*, keeping the key constraints and config vars of both."""
     local = node.get("constraints", [])
+    local_vars = node.get(S_CONFIG_VARS)
     node |= base
     if local:
         node["constraints"] = base.get("constraints", []) + local
+    if local_vars:
+        node[S_CONFIG_VARS] = base.get(S_CONFIG_VARS, {}) | local_vars
 
 
 def splice_extends(node: dict, extends: list, name: str) -> None:
@@ -685,7 +688,12 @@ def shrink():
                 if S_SCHEMA not in target_s:
                     print("skipping simple spread for " + ".".join(target))
                     continue
-                assert target_s[S_SCHEMA][S_EXTENDS] == [x]
+                extends = target_s[S_SCHEMA][S_EXTENDS]
+                assert x in extends
+                if len(extends) > 1:
+                    # Spliced beside sibling extends, which already carry the type
+                    drop_extend(target_s[S_SCHEMA], x)
+                    continue
                 target_s.pop(S_SCHEMA)
                 target_s |= key_s
                 if key_s[S_TYPE] in ["integer", "string"]:
