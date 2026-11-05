@@ -21,7 +21,8 @@ class BekenIrdaComponent final : public Component, public remote_base::RemoteRec
   void dispatch_repeat_();
 
   volatile uint32_t last_code_{0};
-  // Rejected codes and IRDA errors, and codes overwritten before dispatch; reset by every loop pass
+  // Rejected codes and IRDA errors, and codes overwritten before dispatch; reset by every loop pass.
+  // Saturating, so a flood between passes reads as 255 rather than wrapping to zero
   volatile uint8_t error_count_{0};
   volatile uint8_t dropped_count_{0};
   // Bit fields keep the flags in one byte; the loop changes them only under InterruptLock

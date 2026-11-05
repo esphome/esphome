@@ -41,6 +41,12 @@ using NEC = remote_base::NECProtocol;
 // Header mark and space, 32 bits of mark and space, and the final mark
 static constexpr size_t NEC_FRAME_DURATIONS = 2 + 64 + 1;
 
+// The counters are read and reset once per loop, so a flood between passes must not wrap them
+static inline void saturating_increment(volatile uint8_t &value) {
+  if (value != UINT8_MAX)
+    value = value + 1;
+}
+
 // The ISR runs without an instance, so it reaches the component through this pointer.
 static BekenIrdaComponent *s_irda = nullptr;  // NOLINT(cppcoreguidelines-avoid-non-const-global-variables)
 
@@ -57,14 +63,14 @@ void BekenIrdaComponent::handle_isr_() {
     // a frame the hardware flagged as corrupt is dropped even when the command check passes
     if ((status & IRDA_FRAME_ERROR_INTS) == 0 && (command ^ inverse) == 0xFF) {
       if (this->raw_ready_)
-        this->dropped_count_ = this->dropped_count_ + 1;
+        saturating_increment(this->dropped_count_);
       this->last_code_ = code;
       this->raw_ready_ = true;
       this->repeats_valid_ = true;
       // a repeat still pending belongs to the previous code
       this->repeat_ready_ = false;
     } else {
-      this->error_count_ = this->error_count_ + 1;
+      saturating_increment(this->error_count_);
       // counted once
       status &= ~IRDA_ERROR_INTS;
       // the repeats that follow belong to the rejected frame; a code still pending is dispatched
@@ -75,7 +81,7 @@ void BekenIrdaComponent::handle_isr_() {
     this->repeat_ready_ = true;
   }
   if (status & IRDA_ERROR_INTS)
-    this->error_count_ = this->error_count_ + 1;
+    saturating_increment(this->error_count_);
   this->enable_loop_soon_any_context();
 }
 
