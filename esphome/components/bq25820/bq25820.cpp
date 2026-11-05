@@ -192,7 +192,7 @@ void BQ25820Component::update() {
 #endif
   // Only the write or the feed below clears the warning, so a failing one is not reported as recovered
   if (!ok) {
-    this->status_set_warning();
+    this->status_set_warning(LOG_STR(ESP_LOG_MSG_COMM_FAIL));
     return;
   }
   const bool watchdog = this->watchdog_enabled_();
