@@ -16,7 +16,7 @@ sx127x:
     packet_mode: true
     # Above the 64-byte RX FIFO: exercises the unlimited length packet format
     # and FifoLevel/FifoEmpty-driven draining (SX1276/77/78 datasheet section
-    # 4.2.13.3, "Unlimited Length Packet Format", and 4.2.13.5, "Handling Large
+    # 4.2.13.2, "Unlimited Length Packet Format", and 4.2.13.5, "Handling Large
     # Packets"). Requires dio1_pin, since FifoLevel/FifoEmpty are only
     # selectable on DIO1 in packet mode, not on DIO0.
     payload_length: 1024
