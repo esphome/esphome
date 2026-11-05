@@ -28,7 +28,7 @@ static constexpr uint8_t PART_NUM_BQ25820 = 0x18;
 static constexpr uint8_t PART_NUM_MASK = 0x38;
 
 // The 16-bit limits, written LSB first, in BQ25820Config::limits order
-static const uint8_t LIMIT_REGISTERS[BQ25820_LIMIT_COUNT] PROGMEM = {
+static const uint8_t LIMIT_REGISTERS[] PROGMEM = {
     REG_CHARGE_CURRENT_LIMIT, REG_PRECHARGE_CURRENT_LIMIT,    REG_INPUT_CURRENT_LIMIT,
     REG_INPUT_VOLTAGE_LIMIT,  REG_REVERSE_MODE_VOLTAGE_LIMIT,
 };
@@ -37,7 +37,7 @@ struct ControlRegister {
   uint8_t reg;
   uint8_t mask;
 };
-static const ControlRegister CONTROL_REGISTERS[BQ25820_CONTROL_COUNT] PROGMEM = {
+static const ControlRegister CONTROL_REGISTERS[] PROGMEM = {
     {REG_CHARGE_VOLTAGE_LIMIT, 0x1F},  // VFB_REG
     {REG_TIMER_CONTROL, 0xFE},         // everything but EN_TMR2X
     {REG_POWER_PATH_CONTROL, 0x04},    // EN_BATFET_IDEAL_DIODE
@@ -46,6 +46,8 @@ static const ControlRegister CONTROL_REGISTERS[BQ25820_CONTROL_COUNT] PROGMEM = 
     {REG_TS_REGION_CONTROL, 0x01},     // EN_TS
     {REG_CHARGER_CONTROL, 0xFF},       // VRECHG, EN_HIZ, EN_CHG; after every limit, so charging starts with them
 };
+static_assert(std::size(LIMIT_REGISTERS) == BQ25820_LIMIT_COUNT);
+static_assert(std::size(CONTROL_REGISTERS) == BQ25820_CONTROL_COUNT);
 static constexpr size_t CONTROL_TIMER = 1;
 static constexpr size_t CONTROL_MPPT = 3;
 static constexpr size_t CONTROL_CHARGER = 6;
