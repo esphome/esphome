@@ -120,9 +120,11 @@ class CC1101Component final : public Component,
   bool is_long_packet_mode_() const;
   void reset_long_packet_rx_();
   void restart_long_packet_rx_();
+  void loop_long_packet_();
   void handle_long_packet_(uint8_t rx_bytes);
   void finish_long_packet_();
   void maybe_switch_long_packet_to_fixed_();
+  void reconfigure_packet_length_();
   void set_long_packet_pktlen_(uint16_t length);
   uint32_t compute_packet_idle_timeout_ms_() const;
   Trigger<std::vector<uint8_t>, float, float, uint8_t> packet_trigger_;

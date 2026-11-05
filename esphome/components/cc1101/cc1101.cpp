@@ -280,7 +280,7 @@ void CC1101Component::handle_long_packet_(uint8_t rx_bytes) {
     if (to_read > remaining) {
       to_read = remaining;
     }
-    if (to_read == rx_bytes && remaining > rx_bytes) {
+    if (to_read > 0 && to_read == rx_bytes && remaining > rx_bytes) {
       to_read--;
     }
   } else if (to_read > 0) {
@@ -351,55 +351,50 @@ void CC1101Component::handle_long_packet_(uint8_t rx_bytes) {
   }
 }
 
-void CC1101Component::loop() {
-  if (this->state_.PKT_FORMAT != static_cast<uint8_t>(PacketFormat::PACKET_FORMAT_FIFO) || this->gdo0_pin_ == nullptr ||
-      (!this->is_long_packet_mode_() && !this->gdo0_pin_->digital_read())) {
+void CC1101Component::loop_long_packet_() {
+  if (this->state_.PKT_FORMAT != static_cast<uint8_t>(PacketFormat::PACKET_FORMAT_FIFO) || this->gdo0_pin_ == nullptr) {
     this->disable_loop();
     return;
   }
-
-  if (!this->is_long_packet_mode_()) {
+  // While bytes arrive, RXBYTES can be misread; read it until two reads agree (datasheet section 20)
+  this->read_(Register::RXBYTES);
+  for (uint8_t retries = RXBYTES_STABLE_RETRIES; retries > 0; retries--) {
+    const uint8_t previous = this->state_.NUM_RXBYTES;
+    this->read_(Register::RXBYTES);
+    if (this->state_.NUM_RXBYTES == previous) {
+      break;
+    }
+  }
+  const uint8_t rx_bytes = this->state_.NUM_RXBYTES;
+  if (this->state_.RXFIFO_OVERFLOW) {
+    ESP_LOGW(TAG, "RX FIFO overflow, discarding packet: received=%u expected=%u fifo=%u",
+             static_cast<uint16_t>(this->packet_.size()), this->packet_expected_length_, rx_bytes);
+    this->restart_long_packet_rx_();
+    return;
+  }
+  if (rx_bytes == 0 && this->packet_.empty() && !this->gdo0_pin_->digital_read()) {
     this->disable_loop();
+    return;
+  }
+  this->handle_long_packet_(rx_bytes);
+}
+
+void CC1101Component::loop() {
+  if (this->is_long_packet_mode_()) {
+    this->loop_long_packet_();
+    return;
+  }
+
+  this->disable_loop();
+  if (this->state_.PKT_FORMAT != static_cast<uint8_t>(PacketFormat::PACKET_FORMAT_FIFO) || this->gdo0_pin_ == nullptr ||
+      !this->gdo0_pin_->digital_read()) {
+    return;
   }
 
   // Read state
   this->read_(Register::RXBYTES);
-  if (this->is_long_packet_mode_()) {
-    // While bytes arrive, RXBYTES can be misread; read it until two reads agree (datasheet section 20)
-    for (uint8_t retries = RXBYTES_STABLE_RETRIES; retries > 0; retries--) {
-      const uint8_t previous = this->state_.NUM_RXBYTES;
-      this->read_(Register::RXBYTES);
-      if (this->state_.NUM_RXBYTES == previous) {
-        break;
-      }
-    }
-  }
   uint8_t rx_bytes = this->state_.NUM_RXBYTES;
   bool overflow = this->state_.RXFIFO_OVERFLOW;
-  if (this->is_long_packet_mode_()) {
-    if (overflow) {
-      ESP_LOGW(TAG, "RX FIFO overflow, discarding packet: received=%u expected=%u fifo=%u",
-               static_cast<uint16_t>(this->packet_.size()), this->packet_expected_length_, rx_bytes);
-      this->restart_long_packet_rx_();
-      return;
-    }
-    if (rx_bytes == 0) {
-      if (this->packet_.empty() && !this->gdo0_pin_->digital_read()) {
-        this->disable_loop();
-        return;
-      }
-      if (!this->packet_.empty() &&
-          App.get_loop_component_start_time() - this->packet_last_byte_ms_ > this->packet_idle_timeout_ms_) {
-        ESP_LOGW(TAG, "Packet receive timeout, discarding packet: received=%u expected=%u fifo=%u",
-                 static_cast<uint16_t>(this->packet_.size()), this->packet_expected_length_, rx_bytes);
-        this->restart_long_packet_rx_();
-      }
-      return;
-    }
-    this->handle_long_packet_(rx_bytes);
-    return;
-  }
-
   if (overflow || rx_bytes == 0) {
     ESP_LOGW(TAG, "RX FIFO overflow, flushing");
     this->enter_idle_();
@@ -1052,12 +1047,24 @@ void CC1101Component::set_packet_mode(bool value) {
 
 void CC1101Component::set_packet_length(uint16_t value) {
   this->packet_length_ = value;
-  this->configure_packet_mode_();
+  this->reconfigure_packet_length_();
 }
 
 void CC1101Component::set_packet_length_lambda(packet_length_func_t func) {
   this->packet_length_func_ = func;
+  this->reconfigure_packet_length_();
+}
+
+void CC1101Component::reconfigure_packet_length_() {
+  if (!this->initialized_) {
+    this->configure_packet_mode_();
+    return;
+  }
+  // Like the other runtime setters: go through IDLE, and flush bytes of a reception in progress
+  this->enter_idle_();
+  this->strobe_(Command::FRX);
   this->configure_packet_mode_();
+  this->enter_rx_();
 }
 
 void CC1101Component::set_crc_enable(bool value) {
