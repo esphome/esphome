@@ -780,18 +780,16 @@ void AsyncStreamResponse::begin(const AsyncWebServerRequest *request, const char
   }
 }
 
-// Held around a stream's ownership check and send, and while its socket is marked closed
-static Mutex &stream_send_mutex() {
-  static Mutex mutex;
-  return mutex;
-}
+// Held around a stream's ownership check and send, and while its socket is marked closed.
+// Created at boot, so no allocation can fail once requests arrive.
+static Mutex stream_send_mutex;  // NOLINT(cppcoreguidelines-avoid-non-const-global-variables)
 
 void AsyncStreamResponse::socket_closing(httpd_handle_t hd, int fd) {
   // Only streams set a session context
   auto *rsp = static_cast<AsyncStreamResponse *>(httpd_sess_get_ctx(hd, fd));
   if (rsp == nullptr)
     return;
-  LockGuard guard{stream_send_mutex()};
+  LockGuard guard{stream_send_mutex};
   rsp->socket_closed_ = true;
 }
 
@@ -912,7 +910,7 @@ ssize_t AsyncStreamResponse::write(struct iovec *iov, int iovcnt) {
   int err = 0;
   {
     // Held across the check and the send, so socket_closing() cannot close the socket in between
-    LockGuard guard{stream_send_mutex()};
+    LockGuard guard{stream_send_mutex};
     if (!this->socket_closed_ && this->owns_session_(fd)) {
       struct msghdr msg{};
       msg.msg_iov = iov;

@@ -300,7 +300,7 @@ class AsyncStreamResponse {
   /// Httpd task, from the server's close_fn: no write() reaches the socket after this returns.
   static void socket_closing(httpd_handle_t hd, int fd);
 
-  /// httpd committed this response as the session context, after the creating handler returned.
+  /// httpd holds this response as the session context; begin() has sent the whole head by then.
   bool is_attached() const { return this->owns_session_(this->fd_.load()); }
   /// The client is still connected; httpd has not freed the session.
   bool is_connected() const { return this->fd_.load() != 0; }

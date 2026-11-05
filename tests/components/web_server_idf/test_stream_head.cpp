@@ -17,9 +17,11 @@ namespace esphome::web_server_idf::testing {
 struct Capture {
   std::string bytes;
   std::vector<int> batch_sizes;
+  int attempts{0};
   int fail_after_batches{-1};
 
   bool operator()(struct iovec *iov, int count) {
+    this->attempts++;
     if (static_cast<int>(this->batch_sizes.size()) == this->fail_after_batches) {
       return false;
     }
@@ -142,10 +144,15 @@ TEST(StreamHead, BatchBoundary) {
 }
 
 TEST(StreamHead, FailedSendSkipsLaterBatches) {
-  std::vector<HttpHeader> headers(10, HttpHeader{"X", "y"});
+  // Three batches; the second fails, so the third is never sent
+  std::vector<HttpHeader> headers(12, HttpHeader{"X", "y"});
+  Capture full;
+  build_head(full, "200 OK", "text/plain", headers, {}, nullptr);
+  ASSERT_EQ(full.batch_sizes.size(), 3u);
   Capture cap;
   cap.fail_after_batches = 1;
   EXPECT_FALSE(write_stream_head<struct iovec>(cap, "200 OK", "text/plain", headers, {}, nullptr));
+  EXPECT_EQ(cap.attempts, 2);
   EXPECT_EQ(cap.batch_sizes.size(), 1u);
 }
 
