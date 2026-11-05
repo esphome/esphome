@@ -20,10 +20,8 @@ static const uint8_t MAX_ADJUSTMENTS_PER_UPDATE = 2;
 
 void VEML3235Sensor::setup() {
   uint8_t device_id[] = {0, 0};
-  if (!this->refresh_config_reg()) {
-    this->mark_failed(LOG_STR("Unable to write configuration"));
+  if (!this->setup_check(this->refresh_config_reg(), LOG_STR("Unable to write configuration")))
     return;
-  }
   if ((this->read_register(ID_REG, device_id, sizeof device_id) != i2c::ERROR_OK)) {
     this->mark_failed(LOG_STR("Unable to read ID"));
   } else if (device_id[0] != DEVICE_ID) {
