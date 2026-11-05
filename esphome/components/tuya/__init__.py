@@ -7,6 +7,7 @@ from esphome.core import CORE, AutoLoad
 from esphome.cpp_generator import MockObj
 from esphome.types import ConfigType
 
+CODEOWNERS = ["@dwmw2"]
 DOMAIN = "tuya"
 
 CONF_IGNORE_MCU_UPDATE_ON_DATAPOINTS = "ignore_mcu_update_on_datapoints"
