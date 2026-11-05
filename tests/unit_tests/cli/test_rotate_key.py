@@ -32,6 +32,7 @@ from esphome.upload_targets import PortType
 from esphome.util import ESPHOME_COMMAND
 from esphome.yaml_edit import RestoreError
 from tests.unit_tests.test_ota_key_edit import API_YAML, NEW_KEY, OLD_KEY, SECRET_YAML
+from tests.unit_tests.test_yaml_edit import _setup
 
 
 @dataclass
@@ -60,14 +61,6 @@ def _interrupt_after(writes: int) -> Any:
     return write
 
 
-def _core_at(tmp_path: Path) -> None:
-    CORE.reset()
-    CORE.config_path = tmp_path / "test.yaml"
-    CORE.name = "test"
-    CORE.build_path = tmp_path / ".esphome" / "build" / "test"
-    CORE.data[KEY_CORE] = {KEY_TARGET_PLATFORM: PLATFORM_ESP32}
-
-
 OTA_CONF = {
     CONF_PLATFORM: CONF_ESPHOME,
     CONF_PORT: 3232,
@@ -79,15 +72,18 @@ OTA_CONF = {
 def env(tmp_path: Path) -> Generator[dict[str, Mock]]:
     """A config with an inline api key, loaded the way read_config does so
     the key node carries its source range, and every network step mocked."""
-    _core_at(tmp_path)
-    CORE.config_path.write_text(API_YAML, encoding="utf-8")
-    CORE.raw_config = yaml_util.load_yaml(CORE.config_path)
+    _setup(tmp_path, API_YAML)
+    CORE.name = "test"
+    CORE.build_path = tmp_path / ".esphome" / "build" / "test"
+    CORE.data[KEY_CORE] = {KEY_TARGET_PLATFORM: PLATFORM_ESP32}
     CORE.config = {
         CONF_API: {CONF_ENCRYPTION: {CONF_KEY: OLD_KEY}},
         CONF_OTA: [OTA_CONF],
     }
     with (
-        patch("esphome.__main__.choose_upload_log_host", return_value=["dev.local"]),
+        patch(
+            "esphome.__main__.choose_upload_log_host", return_value=["dev.local"]
+        ) as choose,
         patch("esphome.__main__._resolve_network_devices", return_value=["dev.local"]),
         patch("esphome.cli.rotate_key.get_port_type", return_value=PortType.NETWORK),
         patch(
@@ -121,6 +117,7 @@ def env(tmp_path: Path) -> Generator[dict[str, Mock]]:
             "upload": upload,
             "confirm": confirm,
             "stdin": stdin,
+            "choose": choose,
         }
 
 
@@ -227,7 +224,7 @@ def test_refuses_a_key_that_is_not_unique(
     message: str,
 ) -> None:
     """Anything another configuration uses or may use stops the rotation
-    before any question, probe or write."""
+    before any question, device choice, probe or write."""
     CORE.config_path.write_text(yaml_text, encoding="utf-8")
     for name, text in files.items():
         (CORE.config_dir / name).parent.mkdir(exist_ok=True)
@@ -240,6 +237,7 @@ def test_refuses_a_key_that_is_not_unique(
     assert "only a key unique to this device can be rotated, change it by hand" in out
     assert {p: p.read_bytes() for p in CORE.config_dir.rglob("*.yaml")} == before
     env["confirm"].assert_not_called()
+    env["choose"].assert_not_called()
     env["probe"].assert_not_called()
 
 

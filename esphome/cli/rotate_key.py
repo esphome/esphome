@@ -92,16 +92,6 @@ def command_rotate_key(args: argparse.Namespace, config: ConfigType) -> int | No
     old_key = str(old_key)
     remote_port = int(ota_conf[CONF_PORT])
 
-    devices = choose_upload_log_host(
-        default=args.device, check_default=None, purpose=Purpose.UPLOADING
-    )
-    if get_port_type(devices[0]) in (PortType.SERIAL, PortType.BOOTSEL):
-        return fail(
-            "rotate-key works over the air; on a serial connection change the "
-            "key in the yaml and run 'esphome run' instead"
-        )
-    network_devices = _resolve_network_devices(devices, config, args)
-
     if args.prompt_new_key:
         new_key = read_secret_line("New OTA encryption key: ")
     else:
@@ -135,6 +125,16 @@ def command_rotate_key(args: argparse.Namespace, config: ConfigType) -> int | No
                 return fail("Confirm with --yes when there is no terminal")
             if safe_input("Continue? [y/N] ").strip().lower() not in ("y", "yes"):
                 return 1
+
+    devices = choose_upload_log_host(
+        default=args.device, check_default=None, purpose=Purpose.UPLOADING
+    )
+    if get_port_type(devices[0]) in (PortType.SERIAL, PortType.BOOTSEL):
+        return fail(
+            "rotate-key works over the air; on a serial connection change the "
+            "key in the yaml and run 'esphome run' instead"
+        )
+    network_devices = _resolve_network_devices(devices, config, args)
 
     safe_print("Checking that the device accepts the current key...")
     found = espota2.probe_ota_key(

@@ -3,22 +3,17 @@
 from __future__ import annotations
 
 from pathlib import Path
+import re
 import sys
 from unittest.mock import patch
 
 import pytest
 
 from esphome import yaml_util
-from esphome.config import do_substitution_pass
 from esphome.core import CORE, EsphomeError
-from esphome.ota_key_edit import (
-    KeyEdit,
-    locate_key_edits,
-    old_key_edit,
-    rotation_edits,
-    with_sharers,
-)
+from esphome.ota_key_edit import KeyEdit, locate_key_edits, old_key_edit, rotation_edits
 from esphome.yaml_edit import Snapshot, apply_line_edits, restore_files
+from tests.unit_tests import test_yaml_edit
 
 OLD_KEY = "AAECAwQFBgcICQoLDA0ODxAREhMUFRYXGBkaGxwdHh8="
 OLDER_KEY = "AgMEBQYHCAkKCwwNDg8QERITFBUWFxgZGhscHR4fICE="
@@ -51,16 +46,10 @@ ota:
 
 
 def _setup(tmp_path: Path, yaml_text: str, secrets: str | None = None) -> Path:
-    """Write the yaml (and secrets.yaml), point CORE at it and load the raw
-    config the way read_config does, so key nodes carry their source range."""
-    CORE.reset()
-    CORE.config_path = tmp_path / "test.yaml"
-    # Bytes, so Windows does not turn the newlines into CRLF on the way in
-    CORE.config_path.write_bytes(yaml_text.encode())
+    """Write secrets.yaml, then load the yaml as ``test_yaml_edit._setup`` does."""
     if secrets is not None:
         (tmp_path / "secrets.yaml").write_bytes(secrets.encode())
-    CORE.raw_config = do_substitution_pass(yaml_util.load_yaml(CORE.config_path), None)
-    return CORE.config_path
+    return test_yaml_edit._setup(tmp_path, yaml_text)
 
 
 def _device(api_include: str) -> str:
@@ -71,17 +60,9 @@ def _device(api_include: str) -> str:
     )
 
 
-def _edits() -> list[KeyEdit]:
-    """Everything a rotation writes, with the sharers filled in but not refused."""
-    edits = [*locate_key_edits(OLD_KEY, NEW_KEY), *old_key_edit(OLD_KEY)]
-    with_sharers(edits)
-    return edits
-
-
-def _key_sharers() -> tuple[list[KeyEdit], list[str]]:
-    """The key edits with their sharers, and what the scan could not check."""
-    edits = locate_key_edits(OLD_KEY, NEW_KEY)
-    return edits, with_sharers(edits)
+def _refused(match: str) -> None:
+    with pytest.raises(EsphomeError, match=match):
+        rotation_edits(OLD_KEY, NEW_KEY)
 
 
 def _rotate() -> list[KeyEdit]:
@@ -254,7 +235,7 @@ def test_refuses_a_line_that_changed_since_it_was_located(tmp_path: Path) -> Non
 def test_old_key_added_to_a_bare_block(tmp_path: Path) -> None:
     """A bare block gets old_key one level in; the api line is rewritten."""
     path = _setup(tmp_path, API_YAML)
-    edits = _edits()
+    edits = rotation_edits(OLD_KEY, NEW_KEY)
     apply_line_edits(edits)
     assert path.read_text() == (
         API_YAML.replace(OLD_KEY, NEW_KEY) + f'      old_key: "{OLD_KEY}"\n'
@@ -352,7 +333,7 @@ def test_inherited_key_in_a_bare_block_is_not_a_line(tmp_path: Path) -> None:
         CORE.raw_config["ota"][0]["encryption"] or {}
     )
     CORE.raw_config["ota"][0]["encryption"]["key"] = OLD_KEY
-    edits = _edits()
+    edits = rotation_edits(OLD_KEY, NEW_KEY)
     assert [(e.line, e.insert_after) for e in edits] == [(5, False), (9, True)]
     apply_line_edits(edits)
     assert path.read_text() == (
@@ -669,7 +650,7 @@ def test_secret_shared_with_other_configs_is_reported(tmp_path: Path) -> None:
         b'ota:\n  - platform: esphome\n    encryption:\n      key: !secret "device_key"\n'
     )
     (tmp_path / "unrelated.yaml").write_bytes(
-        b"wifi:\n  password: !secret device_key_old\n"
+        b"wifi:\n  password: !secret device_key_other\n"
     )
     build = tmp_path / ".esphome" / "build"
     build.mkdir(parents=True)
@@ -677,11 +658,11 @@ def test_secret_shared_with_other_configs_is_reported(tmp_path: Path) -> None:
     (tmp_path / "packages").mkdir()
     (tmp_path / "packages" / "base.yaml").write_bytes(b"key: !secret device_key\n")
     _setup(tmp_path, SECRET_YAML, f"device_key: {OLD_KEY}\ndevice_key_old: x\n")
-    edits, _ = _key_sharers()
-    root = tmp_path.resolve()
-    assert [e.shared_with for e in edits] == [
-        [root / "other.yaml", root / "packages" / "base.yaml", root / "quoted.yaml"]
-    ]
+    _refused(
+        "^secret 'device_key' is also used by other.yaml, packages/base.yaml, "
+        "quoted.yaml; only a key unique to this device can be rotated, change it "
+        "by hand$"
+    )
 
 
 def test_secret_key_keeps_the_previous_key_in_secrets(tmp_path: Path) -> None:
@@ -689,7 +670,7 @@ def test_secret_key_keeps_the_previous_key_in_secrets(tmp_path: Path) -> None:
     ota block gets `old_key: !secret device_key_old` and the secrets file
     the line it points to, right under the rewritten one."""
     _setup(tmp_path, SECRET_YAML, f"wifi: hunter2\ndevice_key: {OLD_KEY}\n")
-    edits = _edits()
+    edits = rotation_edits(OLD_KEY, NEW_KEY)
     apply_line_edits(edits)
     assert CORE.config_path.read_text() == SECRET_YAML.replace(
         "      key: !secret device_key\n",
@@ -719,8 +700,7 @@ def test_secret_old_line_that_is_not_plain_is_refused(tmp_path: Path) -> None:
     """A second `<secret>_old:` key would stop secrets.yaml from loading."""
     secrets = f"device_key: {OLD_KEY}\ndevice_key_old: >-\n  {OLDER_KEY}\n"
     _setup(tmp_path, SECRET_YAML, secrets)
-    with pytest.raises(EsphomeError, match="'device_key_old:' .* is not a plain line"):
-        _edits()
+    _refused(r"^No plain 'device_key_old:' line in .*secrets\.yaml; edit it by hand$")
 
 
 def test_bare_block_with_a_secret_api_key(tmp_path: Path) -> None:
@@ -744,8 +724,7 @@ def test_shared_secret_scan_covers_yml_and_skips_unreadable_files(
     (tmp_path / "latin1.yaml").write_bytes(b"caf\xe9: !secret device_key\n")
     (tmp_path / "notes.txt").write_bytes(b"key: !secret device_key\n")
     _setup(tmp_path, SECRET_YAML, f"device_key: {OLD_KEY}\n")
-    edits, _ = _key_sharers()
-    assert [e.shared_with for e in edits] == [[tmp_path.resolve() / "other.yml"]]
+    _refused("^secret 'device_key' is also used by other.yml;")
 
 
 def test_shared_include_with_a_hash_in_its_quoted_name_is_reported(
@@ -762,10 +741,7 @@ def test_shared_include_with_a_hash_in_its_quoted_name_is_reported(
         tmp_path,
         _device("'shared # ota.yaml'"),
     )
-    edits, _ = _key_sharers()
-    assert [(e.path.name, e.shared_with) for e in edits] == [
-        ("shared # ota.yaml", [tmp_path.resolve() / "other.yaml"])
-    ]
+    _refused("^shared # ota.yaml is also used by other.yaml;")
 
 
 def test_literal_key_in_a_shared_include_is_reported(tmp_path: Path) -> None:
@@ -779,10 +755,7 @@ def test_literal_key_in_a_shared_include_is_reported(tmp_path: Path) -> None:
         tmp_path,
         _device("common.yaml"),
     )
-    edits, _ = _key_sharers()
-    assert [(e.path.name, e.shared_with) for e in edits] == [
-        ("common.yaml", [tmp_path.resolve() / "other.yaml"])
-    ]
+    _refused("^common.yaml is also used by other.yaml;")
 
 
 def test_mode_failure_is_reported(tmp_path: Path) -> None:
@@ -835,10 +808,7 @@ def test_own_includes_and_similar_names_are_not_shared_users(tmp_path: Path) -> 
     )
     # other.yaml reaches common.yaml through this configuration's own
     # base.yaml, so it is a sharer; base.yaml itself and the lookalike are not
-    edits, _ = _key_sharers()
-    assert [(e.path.name, [p.name for p in e.shared_with]) for e in edits] == [
-        ("common.yaml", ["other.yaml"])
-    ]
+    _refused("^common.yaml is also used by other.yaml;")
 
 
 def test_existing_old_secret_used_elsewhere_is_not_overwritten(
@@ -863,10 +833,7 @@ def test_existing_old_secret_used_elsewhere_is_not_overwritten(
     _setup(
         tmp_path, SECRET_YAML + "wifi:\n  password: !secret device_key_old\n", secrets
     )
-    with pytest.raises(
-        EsphomeError, match="'device_key_old' is also used at .*test.yaml"
-    ):
-        old_key_edit(OLD_KEY)
+    _refused("^secret 'device_key_old' is also used by test.yaml:13;")
 
 
 def test_key_secret_with_a_folded_value_gets_no_old_line(tmp_path: Path) -> None:
@@ -1010,12 +977,10 @@ def test_scan_reports_what_it_could_not_read(tmp_path: Path) -> None:
     elsewhere.mkdir(exist_ok=True)
     (tmp_path / "linked").symlink_to(elsewhere)
     _setup(tmp_path, SECRET_YAML, f"device_key: {OLD_KEY}\ndevice_key_old: x\n")
-    edits, unchecked = _key_sharers()
-    assert len(unchecked) == 2
-    assert any("latin1.yaml" in u for u in unchecked)
-    assert any("is a link" in u for u in unchecked)
-    with pytest.raises(EsphomeError, match=r"\(and 1 more\); only a key unique"):
-        rotation_edits(OLD_KEY, NEW_KEY)
+    _refused(
+        "^Could not check whether other configurations use this key: "
+        r".*linked is a link \(and 1 more\); only a key unique"
+    )
 
 
 def test_secret_used_elsewhere_in_this_configuration_is_refused(
@@ -1027,8 +992,7 @@ def test_secret_used_elsewhere_in_this_configuration_is_refused(
         SECRET_YAML + "wifi:\n  password: !secret device_key\n",
         f"device_key: {OLD_KEY}\n",
     )
-    with pytest.raises(EsphomeError, match="also used at .*test.yaml:13"):
-        locate_key_edits(OLD_KEY, NEW_KEY)
+    _refused("^secret 'device_key' is also used by test.yaml:13;")
 
 
 def test_sharers_include_the_files_that_include_a_sharer(tmp_path: Path) -> None:
@@ -1039,12 +1003,7 @@ def test_sharers_include_the_files_that_include_a_sharer(tmp_path: Path) -> None
     (tmp_path / "other.yaml").write_bytes(b"packages:\n  base: !include base.yaml\n")
     (tmp_path / "third.yaml").write_bytes(b"packages:\n  base: !include other.yaml\n")
     _setup(tmp_path, SECRET_YAML, f"device_key: {OLD_KEY}\n")
-    edits, _ = _key_sharers()
-    assert [p.name for p in edits[0].shared_with] == [
-        "base.yaml",
-        "other.yaml",
-        "third.yaml",
-    ]
+    _refused("^secret 'device_key' is also used by base.yaml, other.yaml, third.yaml;")
 
 
 def test_old_secret_goes_to_the_secrets_file_of_the_block_that_gets_old_key(
@@ -1083,10 +1042,8 @@ def test_a_directory_include_is_reported_as_unchecked(tmp_path: Path) -> None:
     cannot follow."""
     (tmp_path / "other.yaml").write_bytes(b"packages: !include_dir_named packages\n")
     _setup(tmp_path, SECRET_YAML, f"device_key: {OLD_KEY}\n")
-    edits, unchecked = _key_sharers()
-    assert unchecked == [
-        f"{tmp_path.resolve() / 'other.yaml'} includes the directory packages"
-    ]
+    path = re.escape(str(tmp_path.resolve() / "other.yaml"))
+    _refused(f": {path} includes the directory packages; only a key unique")
 
 
 def test_a_hash_inside_a_secret_name_is_part_of_it(tmp_path: Path) -> None:
@@ -1148,8 +1105,7 @@ def test_comments_in_other_configurations_are_not_uses(tmp_path: Path) -> None:
         b"# key: !secret device_key\n# packages: !include_dir_named packages\nwifi: x\n"
     )
     _setup(tmp_path, SECRET_YAML, f"device_key: {OLD_KEY}\n")
-    edits, unchecked = _key_sharers()
-    assert (edits[0].shared_with, unchecked) == ([], [])
+    assert rotation_edits(OLD_KEY, NEW_KEY)
 
 
 def test_existing_old_key_secret_used_elsewhere_is_refused(tmp_path: Path) -> None:
@@ -1161,8 +1117,7 @@ def test_existing_old_key_secret_used_elsewhere_is_refused(tmp_path: Path) -> No
         + "wifi:\n  password: !secret device_key_old\n"
     )
     _setup(tmp_path, yaml_text, f"device_key: {OLD_KEY}\ndevice_key_old: {OLDER_KEY}\n")
-    with pytest.raises(EsphomeError, match="'device_key_old' is also used at"):
-        old_key_edit(OLD_KEY)
+    _refused("^secret 'device_key_old' is also used by test.yaml:14;")
 
 
 def test_a_key_merged_from_an_anchor_is_refused(tmp_path: Path) -> None:
@@ -1186,11 +1141,6 @@ def test_old_key_inserted_into_a_shared_include_names_the_sharers(
     )
     (tmp_path / "other.yaml").write_bytes(b"ota:\n  - !include ota.yaml\n")
     _setup(tmp_path, "esphome:\n  name: test\n\nota:\n  - !include ota.yaml\n")
-    edits = _edits()
-    assert [(e.insert_after, [p.name for p in e.shared_with]) for e in edits] == [
-        (False, ["other.yaml"]),
-        (True, ["other.yaml"]),
-    ]
     with pytest.raises(
         EsphomeError, match="^ota.yaml is also used by other.yaml; only a key unique"
     ):
@@ -1250,18 +1200,15 @@ def test_a_substituted_include_path_is_reported_as_unchecked(tmp_path: Path) -> 
         b"packages:\n  base:\n    url: x\n    file: ${pkg}\n"
     )
     _setup(tmp_path, SECRET_YAML, f"device_key: {OLD_KEY}\n")
-    edits, unchecked = _key_sharers()
-    assert sorted(unchecked) == [
-        f"{tmp_path.resolve() / 'other.yaml'} includes ${{common}} through a substitution",
-        f"{tmp_path.resolve() / 'third.yaml'} includes ${{pkg}} through a substitution",
-    ]
+    _refused(
+        r"other\.yaml includes \$\{common\} through a substitution \(and 1 more\);"
+    )
 
 
 def test_another_device_including_the_main_file_is_a_sharer(tmp_path: Path) -> None:
     (tmp_path / "other.yaml").write_bytes(b"packages:\n  base: !include test.yaml\n")
     _setup(tmp_path, API_YAML)
-    edits, _ = _key_sharers()
-    assert [p.name for p in edits[0].shared_with] == ["other.yaml"]
+    _refused("^test.yaml is also used by other.yaml;")
 
 
 def test_mapping_includes_are_sharers_and_remote_files_are_not(
@@ -1276,8 +1223,7 @@ def test_mapping_includes_are_sharers_and_remote_files_are_not(
     )
     (tmp_path / "plain.yaml").write_bytes(b"esphome:\n  name: test.yaml\n")
     _setup(tmp_path, API_YAML)
-    edits, _ = _key_sharers()
-    assert [p.name for p in edits[0].shared_with] == ["block.yaml", "flow.yaml"]
+    _refused("^test.yaml is also used by block.yaml, flow.yaml;")
 
 
 def test_hidden_trees_are_not_scanned(tmp_path: Path) -> None:
@@ -1287,8 +1233,7 @@ def test_hidden_trees_are_not_scanned(tmp_path: Path) -> None:
     )
     (tmp_path / ".hidden.yaml").write_bytes(b": [unreadable\n")
     _setup(tmp_path, API_YAML)
-    edits, unchecked = _key_sharers()
-    assert (edits[0].shared_with, unchecked) == ([], [])
+    assert rotation_edits(OLD_KEY, NEW_KEY)
 
 
 def test_secret_key_overridden_on_top_of_a_package_block(tmp_path: Path) -> None:
@@ -1314,8 +1259,7 @@ def test_secret_uses_before_the_last_line_and_in_flow_mappings(tmp_path: Path) -
         b"api: {encryption: {key: !secret device_key}}\n"
     )
     _setup(tmp_path, SECRET_YAML, f"device_key: {OLD_KEY}\n")
-    edits, _ = _key_sharers()
-    assert [p.name for p in edits[0].shared_with] == ["early.yaml", "flow.yaml"]
+    _refused("^secret 'device_key' is also used by early.yaml, flow.yaml;")
 
 
 def test_secret_used_in_a_flow_mapping_of_this_configuration_is_refused(
@@ -1326,16 +1270,14 @@ def test_secret_used_in_a_flow_mapping_of_this_configuration_is_refused(
         SECRET_YAML + "wifi: {password: !secret device_key}\n",
         f"device_key: {OLD_KEY}\n",
     )
-    with pytest.raises(EsphomeError, match="also used at .*test.yaml:12"):
-        locate_key_edits(OLD_KEY, NEW_KEY)
+    _refused("^secret 'device_key' is also used by test.yaml:12;")
 
 
 def test_a_device_including_the_main_file_shares_its_secret(tmp_path: Path) -> None:
     """The main file names the secret, so a device including it is a sharer."""
     (tmp_path / "other.yaml").write_bytes(b"packages:\n  base: !include test.yaml\n")
     _setup(tmp_path, SECRET_YAML, f"device_key: {OLD_KEY}\n")
-    edits, _ = _key_sharers()
-    assert [p.name for p in edits[0].shared_with] == ["other.yaml"]
+    _refused("^secret 'device_key', test.yaml are also used by other.yaml;")
 
 
 def test_repeated_old_key_entries_are_all_rewritten(tmp_path: Path) -> None:
@@ -1412,7 +1354,7 @@ def test_bare_block_located_after_full_validation(tmp_path: Path) -> None:
     config = read_config({}, snapshot_user_config=True)
     assert config is not None
     CORE.raw_config = config.user_config
-    edits = _edits()
+    edits = rotation_edits(OLD_KEY, NEW_KEY)
     assert [e.new_line.strip() for e in edits] == [
         f'key: "{NEW_KEY}"  # shared with ota',
         f'old_key: "{OLD_KEY}"',
@@ -1501,8 +1443,7 @@ def test_secret_use_after_an_escaped_quote_is_refused(tmp_path: Path) -> None:
         SECRET_YAML + 'wifi: {ssid: "Kitchen \\" #1", password: !secret device_key}\n',
         f"device_key: {OLD_KEY}\n",
     )
-    with pytest.raises(EsphomeError, match="also used at .*test.yaml:12"):
-        locate_key_edits(OLD_KEY, NEW_KEY)
+    _refused("^secret 'device_key' is also used by test.yaml:12;")
 
 
 def test_secret_named_on_the_next_line_is_refused(tmp_path: Path) -> None:
@@ -1511,8 +1452,7 @@ def test_secret_named_on_the_next_line_is_refused(tmp_path: Path) -> None:
         SECRET_YAML + "wifi:\n  password: !secret\n    device_key\n",
         f"device_key: {OLD_KEY}\n",
     )
-    with pytest.raises(EsphomeError, match="also used at .*test.yaml:13"):
-        locate_key_edits(OLD_KEY, NEW_KEY)
+    _refused("^secret 'device_key' is also used by test.yaml:13;")
 
 
 @pytest.mark.skipif(sys.platform == "win32", reason="symlinks need privileges")
@@ -1526,19 +1466,14 @@ def test_device_including_the_target_of_a_linked_include_is_a_sharer(
     (tmp_path / "alias.yaml").symlink_to(tmp_path / "common.yaml")
     (tmp_path / "other.yaml").write_bytes(b"api: !include common.yaml\n")
     _setup(tmp_path, _device("alias.yaml"))
-    edits, _ = _key_sharers()
-    assert [p.name for p in edits[0].shared_with] == ["other.yaml"]
+    _refused(" is also used by other.yaml;")
 
 
 def test_a_file_that_fails_to_scan_is_unchecked(tmp_path: Path) -> None:
     """Its uses cannot be read, so the rotation is refused naming it."""
     (tmp_path / "broken.yaml").write_bytes(b"key: !secret device_key\nbad: @x\n")
     _setup(tmp_path, SECRET_YAML, f"device_key: {OLD_KEY}\ndevice_key_old: x\n")
-    edits, unchecked = _key_sharers()
-    assert edits[0].shared_with == []
-    assert len(unchecked) == 1 and "broken.yaml" in unchecked[0]
-    with pytest.raises(EsphomeError, match="Could not scan .*broken.yaml"):
-        rotation_edits(OLD_KEY, NEW_KEY)
+    _refused(r": Could not scan .*broken\.yaml.*; only a key unique")
 
 
 def test_includes_are_matched_by_resolved_path_outside_comments(tmp_path: Path) -> None:
@@ -1559,8 +1494,7 @@ def test_includes_are_matched_by_resolved_path_outside_comments(tmp_path: Path) 
         tmp_path,
         _device("api.yaml"),
     )
-    edits, _ = _key_sharers()
-    assert edits[0].shared_with == [(tmp_path / "other" / "parent.yaml").resolve()]
+    _refused("^api.yaml is also used by other/parent.yaml;")
 
 
 def test_bare_block_followed_by_a_sibling_gets_one_level_more(tmp_path: Path) -> None:
@@ -1606,10 +1540,22 @@ def test_old_secret_used_by_a_package_in_the_build_data_is_refused(
         SECRET_YAML + "wifi: !include .esphome/pkg.yaml\n",
         f"device_key: {OLD_KEY}\ndevice_key_old: {OLDER_KEY}\n",
     )
-    with pytest.raises(
-        EsphomeError, match="'device_key_old' is also used at .*pkg.yaml"
-    ):
-        old_key_edit(OLD_KEY)
+    _refused(r"^secret 'device_key_old' is also used by \.esphome/pkg\.yaml:2;")
+
+
+def test_secret_used_by_an_own_file_outside_the_config_dir_is_refused(
+    tmp_path: Path,
+) -> None:
+    """A use outside the config dir is named by its full path."""
+    (tmp_path / "pkg.yaml").write_bytes(b"ssid: x\npassword: !secret device_key\n")
+    (config_dir := tmp_path / "configs").mkdir()
+    _setup(
+        config_dir,
+        SECRET_YAML + "wifi: !include ../pkg.yaml\n",
+        f"device_key: {OLD_KEY}\n",
+    )
+    pkg = re.escape((tmp_path / "pkg.yaml").resolve().as_posix())
+    _refused(f"^secret 'device_key' is also used by {pkg}:2;")
 
 
 @pytest.mark.skipif(sys.platform == "win32", reason="symlinks need privileges")
@@ -1617,11 +1563,11 @@ def test_linked_build_data_dir_is_not_unchecked(tmp_path: Path) -> None:
     (tmp_path / "data").mkdir()
     (tmp_path / ".esphome").symlink_to(tmp_path / "data")
     _setup(tmp_path, API_YAML)
-    assert _key_sharers()[1] == []
+    assert rotation_edits(OLD_KEY, NEW_KEY)
 
 
-def test_secret_users_follow_their_own_secrets_file(tmp_path: Path) -> None:
-    """A device with its own loadable secrets.yaml uses a different `device_key`."""
+def test_secret_users_in_any_directory_count(tmp_path: Path) -> None:
+    """A same-named secret counts whichever secrets.yaml a device reads it from."""
     secrets_files = {"own": b"device_key: other\n", "broken": b"device_key: [\n"}
     for folder in ("own", "fallback", "broken"):
         (tmp_path / folder).mkdir()
@@ -1631,20 +1577,11 @@ def test_secret_users_follow_their_own_secrets_file(tmp_path: Path) -> None:
         if (secrets := secrets_files.get(folder)) is not None:
             (tmp_path / folder / "secrets.yaml").write_bytes(secrets)
     _setup(tmp_path, SECRET_YAML, f"device_key: {OLD_KEY}\n")
-    edits, _ = _key_sharers()
-    # A secrets.yaml that does not load falls back like a missing one, and a
-    # fallback may reach this secrets file, so both count
-    assert [p.relative_to(tmp_path.resolve()) for p in edits[0].shared_with] == [
-        Path("broken/device.yaml"),
-        Path("fallback/device.yaml"),
-    ]
-    with pytest.raises(
-        EsphomeError,
-        match=r"^secret 'device_key' is also used by broken/device\.yaml, "
-        r"fallback/device\.yaml; only a key unique to this device can be rotated, "
-        "change it by hand$",
-    ):
-        rotation_edits(OLD_KEY, NEW_KEY)
+    _refused(
+        r"^secret 'device_key' is also used by broken/device\.yaml, "
+        r"fallback/device\.yaml, own/device\.yaml; only a key unique to this "
+        "device can be rotated, change it by hand$"
+    )
 
 
 @pytest.mark.skipif(sys.platform == "win32", reason="symlinks need privileges")

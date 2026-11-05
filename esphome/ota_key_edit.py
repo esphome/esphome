@@ -3,7 +3,6 @@ it from, or the secrets.yaml line a `!secret` on it points to."""
 
 from __future__ import annotations
 
-from collections.abc import Collection
 from dataclasses import dataclass, field
 import logging
 import os
@@ -30,7 +29,7 @@ from esphome.yaml_edit import (
     source_line,
     source_of,
 )
-from esphome.yaml_util import SECRET_YAML, secrets_path_for
+from esphome.yaml_util import secrets_path_for
 
 _LOGGER = logging.getLogger(__name__)
 _DOMAIN = "ota_key_edit"
@@ -38,10 +37,11 @@ _DOMAIN = "ota_key_edit"
 
 @dataclass
 class KeyEdit(LineEdit):
-    """A line edit with the secret it holds and the other configs that may use it."""
+    """A line edit with the secret it holds and the yaml lines rewritten to
+    point at it, the only uses of it allowed."""
 
     secret: str | None = None
-    shared_with: list[Path] = field(default_factory=list)
+    secret_uses: frozenset[tuple[Path, int]] = frozenset()
 
 
 def _key_blocks(raw: ConfigType, key: str) -> list[ConfigType]:
@@ -238,40 +238,22 @@ def _secrets_path(doc: Path) -> Path:
     return found
 
 
-def _secret_users(name: str, secrets_path: Path) -> set[Path]:
-    """The scanned files that use the secret ``name`` of ``secrets_path``,
-    counting those that fall back to the main secrets file."""
-    target = secrets_path.resolve()
-    return {
-        path
-        for path, scan in _configs().files
-        if scan.uses(name)
-        and (
-            (own := _secrets_path(path)) != path.parent / SECRET_YAML
-            or own.resolve() == target
-        )
-    }
+def _secret_users(name: str) -> set[Path]:
+    """The scanned files that use the secret ``name``, from any secrets file."""
+    return {path for path, scan in _configs().files if scan.uses(name)}
 
 
-def with_sharers(edits: list[KeyEdit]) -> list[str]:
-    """Fill in ``shared_with``: the other configs that use or may use each
-    rewritten line's secret or include, directly or through further includes.
-    Returns what the scan could not follow."""
+_HAND_EDIT = "only a key unique to this device can be rotated, change it by hand"
+
+
+def _refuse_shared(edits: list[KeyEdit]) -> None:
+    """Refuses unless every edited line and secret is used only by this
+    configuration, on the lines being rewritten."""
     main = CORE.config_path.resolve()
+    root = CORE.config_dir.resolve()
     own = own_documents()
-    # This config's own files stay in the search: another device may reach a
-    # line through one of them, the main file included
     configs = _configs()
-    unchecked = [*configs.skipped]
-    for path, scan in configs.files:
-        if path.resolve() == main:
-            continue
-        if scan.include_dir is not None:
-            unchecked.append(f"{path} includes the directory {scan.include_dir}")
-        if scan.substituted is not None:
-            unchecked.append(
-                f"{path} includes {scan.substituted} through a substitution"
-            )
+    allowed = {(e.secret, *site) for e in edits for site in e.secret_uses}
 
     def including(files: set[Path]) -> set[Path]:
         return {p for f in files for p in configs.named_by.get(f.resolve(), ())}
@@ -282,64 +264,75 @@ def with_sharers(edits: list[KeyEdit]) -> list[str]:
             users = users | frontier
         return users
 
-    def others(paths: set[Path]) -> list[Path]:
-        return sorted(p for p in paths if p.resolve() not in own)
+    def shown(path: Path) -> str:
+        # The same text on every OS
+        return (
+            path.relative_to(root) if path.is_relative_to(root) else path
+        ).as_posix()
 
+    what: dict[str, None] = {}
+    users: set[str] = set()
     for edit in edits:
-        if edit.insert_after and edit.secret:
-            continue  # a new secrets line has no users yet
+        # This config's own files stay in the search: another device may
+        # reach a line through one of them, the main file included
+        files = including({edit.path})
+        found = []
         if edit.secret:
-            users = _secret_users(edit.secret, edit.path)
-        else:
-            users = including({edit.path})
-        edit.shared_with = others(with_includers(users))
-    return unchecked
-
-
-_HAND_EDIT = "only a key unique to this device can be rotated, change it by hand"
-
-
-def rotation_edits(old_key: str, new_key: str) -> list[KeyEdit]:
-    """Every edit of a rotation: the new key and the previous one as old_key.
-    Refuses when another configuration uses or may use an edited line."""
-    edits = [*locate_key_edits(old_key, new_key), *old_key_edit(old_key)]
-    unchecked = with_sharers(edits)
-    if shared := [e for e in edits if e.shared_with]:
-        what = dict.fromkeys(
-            f"secret '{e.secret}'" if e.secret else e.path.name for e in shared
-        )
-        root = CORE.config_dir.resolve()
-        users = sorted(
-            {str(p.relative_to(root)) for e in shared for p in e.shared_with}
-        )
+            files |= _secret_users(edit.secret)
+            found = [
+                f"{shown(doc)}:{i + 1}"
+                for doc in own
+                for name, i in _scan(doc).secrets
+                if name == edit.secret and (name, doc, i) not in allowed
+            ]
+        found += [shown(p) for p in with_includers(files) if p.resolve() not in own]
+        if found:
+            what[f"secret '{edit.secret}'" if edit.secret else edit.path.name] = None
+            users.update(found)
+    if what:
         raise EsphomeError(
             f"{', '.join(what)} {'is' if len(what) == 1 else 'are'} also used by "
-            f"{', '.join(users)}; {_HAND_EDIT}"
+            f"{', '.join(sorted(users))}; {_HAND_EDIT}"
         )
+    unchecked = [*configs.skipped]
+    for path, scan in configs.files:
+        if path.resolve() == main:
+            continue
+        if scan.include_dir is not None:
+            unchecked.append(f"{path} includes the directory {scan.include_dir}")
+        if scan.substituted is not None:
+            unchecked.append(
+                f"{path} includes {scan.substituted} through a substitution"
+            )
     if unchecked:
         more = f" (and {len(unchecked) - 1} more)" if len(unchecked) > 1 else ""
         raise EsphomeError(
             "Could not check whether other configurations use this key: "
             f"{unchecked[0]}{more}; {_HAND_EDIT}"
         )
+
+
+def rotation_edits(old_key: str, new_key: str) -> list[KeyEdit]:
+    """Every edit of a rotation: the new key and the previous one as old_key.
+    Refuses unless every edited line and secret is this device's alone."""
+    edits = [*locate_key_edits(old_key, new_key), *old_key_edit(old_key)]
+    _refuse_shared(edits)
     return edits
 
 
 def _secret_line(
-    secrets_path: Path, name: str, value: str | None = None, required: bool = False
-) -> tuple[int, re.Match[str]] | None:
-    """The root level ``name:`` line, None when absent unless ``required``."""
+    secrets_path: Path, name: str, value: str | None = None
+) -> tuple[int, re.Match[str]]:
+    """The root level plain ``name:`` line, holding ``value`` if given."""
     lines = read_text(secrets_path).splitlines()
     line_re = field_line_re(name, value, re.escape(_root_indent(lines)))
-    hit = next(
-        ((i, m) for i, text in enumerate(lines) if (m := line_re.match(text))), None
+    for i, text in enumerate(lines):
+        if m := line_re.match(text):
+            return i, m
+    holding = "" if value is None else " with the current key"
+    raise EsphomeError(
+        f"No plain '{name}:' line{holding} in {secrets_path}; edit it by hand"
     )
-    if hit is None and required:
-        holding = "" if value is None else " with the current key"
-        raise EsphomeError(
-            f"No plain '{name}:' line{holding} in {secrets_path}; edit it by hand"
-        )
-    return hit
 
 
 def _has_root_key(secrets_path: Path, name: str) -> bool:
@@ -350,23 +343,17 @@ def _has_root_key(secrets_path: Path, name: str) -> bool:
 
 
 def _secret_rewrite(
-    secrets_path: Path,
-    name: str,
-    value: str,
-    expect: str | None = None,
-    required: bool = False,
-) -> KeyEdit | None:
-    """Set the root level ``name:`` line to ``value``; None when it is not a
-    plain scalar holding ``expect``, unless ``required``."""
-    if (hit := _secret_line(secrets_path, name, expect, required)) is None:
-        return None
-    i, m = hit
+    secrets_path: Path, name: str, value: str, expect: str | None = None
+) -> KeyEdit:
+    """Set the root level plain ``name:`` line, holding ``expect`` if given,
+    to ``value``."""
+    i, m = _secret_line(secrets_path, name, expect)
     return KeyEdit(secrets_path, i, m.string, rewrite(m, value), secret=name)
 
 
 def _secret_insert(secrets_path: Path, after: str, name: str, value: str) -> KeyEdit:
     """Add ``name: value`` under the root level ``after`` line."""
-    i, m = _secret_line(secrets_path, after, required=True)
+    i, m = _secret_line(secrets_path, after)
     return KeyEdit(
         secrets_path,
         i,
@@ -394,9 +381,7 @@ def _field_edits(
     ``new_value``; with ``expect`` the secret must hold the block's value."""
     secret_re = secret_field_re(option)
     what = "the key" if option == CONF_KEY else f"'{option}'"
-    edits: list[KeyEdit] = []
-    seen: set[tuple[Path, int]] = set()
-    allowed: dict[str, set[tuple[Path, int]]] = {}
+    edits: dict[tuple[Path, int], KeyEdit] = {}
     for block in blocks:
         doc, line_no, text = source_line(block, option)
         value = str(block[option])
@@ -407,9 +392,8 @@ def _field_edits(
                 name,
                 new_value,
                 expect=value if expect else None,
-                required=True,
             )
-            allowed.setdefault(name, set()).add((doc.resolve(), line_no))
+            edit.secret_uses = frozenset({(doc.resolve(), line_no)})
         elif match := field_line_re(option, value).match(text):
             if not literal_ok:
                 raise EsphomeError(_SECRET_AS_LITERAL)
@@ -420,12 +404,10 @@ def _field_edits(
                 f"!secret; edit {what} by hand"
             )
         # The api and ota blocks may share one !secret line
-        if (where := (edit.path.resolve(), edit.line)) not in seen:
-            seen.add(where)
-            edits.append(edit)
-    for name, lines in allowed.items():
-        _refuse_other_own_uses(name, lines)
-    return edits
+        where = (edit.path.resolve(), edit.line)
+        if (kept := edits.setdefault(where, edit)) is not edit:
+            kept.secret_uses |= edit.secret_uses
+    return list(edits.values())
 
 
 def locate_key_edits(old_key: str, new_key: str) -> list[KeyEdit]:
@@ -434,20 +416,6 @@ def locate_key_edits(old_key: str, new_key: str) -> list[KeyEdit]:
     if not (blocks := _key_blocks(CORE.raw_config or {}, old_key)):
         raise EsphomeError("The current key was not found on a line of the yaml")
     return _field_edits(blocks, CONF_KEY, new_key, expect=True, literal_ok=True)
-
-
-def _refuse_other_own_uses(
-    name: str, allowed: Collection[tuple[Path, int]] = ()
-) -> None:
-    """The secret may only feed this config's ``allowed`` lines; a wifi
-    password on it would change too."""
-    for doc in own_documents():
-        for secret, i in _scan(doc).secrets:
-            if secret == name and (doc, i) not in allowed:
-                raise EsphomeError(
-                    f"'{name}' is also used at {doc}:{i + 1}; a rotation would "
-                    "change that value too, edit the key by hand"
-                )
 
 
 def _secret_name(block: ConfigType) -> str | None:
@@ -508,14 +476,11 @@ def old_key_edit(old_key: str) -> list[KeyEdit]:
         rendered = f"{CONF_OLD_KEY}: !secret {secret}_old"
         secrets_path = editable_file(_secrets_path(doc))
         name = f"{secret}_old"
-        # A leftover `<secret>_old` line is reused; rotation_edits refuses
-        # it when another configuration uses it
-        if (kept := _secret_rewrite(secrets_path, name, old_key)) is not None:
-            _refuse_other_own_uses(name)
-        elif _has_root_key(secrets_path, name):  # a second one would not load
-            raise EsphomeError(
-                f"'{name}:' in {secrets_path} is not a plain line; edit it by hand"
-            )
-        extra = [kept or _secret_insert(secrets_path, secret, name, old_key)]
+        # A leftover line is reused; a second one would not load
+        extra = [
+            _secret_rewrite(secrets_path, name, old_key)
+            if _has_root_key(secrets_path, name)
+            else _secret_insert(secrets_path, secret, name, old_key)
+        ]
     edit = KeyEdit(doc, line_no, text, f"{indent}{rendered}", insert_after=True)
     return [edit, *extra]
