@@ -2,6 +2,7 @@
 
 #include "sx126x_commands.h"
 #include "radio_operation.h"
+#include "esphome/components/spi/spi.h"
 #include "esphome/core/automation.h"
 #include "esphome/core/component.h"
 #include "esphome/core/hal.h"
