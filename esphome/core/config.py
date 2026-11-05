@@ -57,6 +57,7 @@ from esphome.core import (
     CORE,
     KEY_CONTROLLER_REGISTRY_CONTROLLERS,
     CoroPriority,
+    TimePeriodMilliseconds,
     coroutine_with_priority,
 )
 import esphome.final_validate as fv
@@ -76,6 +77,9 @@ CONF_RELATION = "relation"
 CONF_SBOM = "sbom"
 CONF_SUPPLIER = "supplier"
 CONF_SUSPEND_LOOP = "suspend_loop"
+
+# Application::loop_interval_ when loop_interval is not set. Make sure to align with application.h
+DEFAULT_LOOP_INTERVAL = TimePeriodMilliseconds(milliseconds=16)
 
 _LOGGER = logging.getLogger(__name__)
 
@@ -209,6 +213,13 @@ def validate_ids_and_references(config: ConfigType) -> ConfigType:
         )
 
     return config
+
+
+def get_loop_interval() -> TimePeriodMilliseconds:
+    """Return the main loop interval of the configuration; for final validation."""
+    return fv.full_config.get()[CONF_ESPHOME].get(
+        CONF_LOOP_INTERVAL, DEFAULT_LOOP_INTERVAL
+    )
 
 
 def validate_loop_interval(config: ConfigType) -> ConfigType:
@@ -910,7 +921,8 @@ async def to_code(config: ConfigType) -> None:
 
     CORE.add_job(_add_automations, config)
 
-    cg.add_build_flag("-fno-exceptions")
+    if not (CORE.using_toolchain_esp_idf or CORE.using_toolchain_sdk_nrf):
+        cg.add_build_flag("-fno-exceptions")
 
     # Libraries
     for lib in config[CONF_LIBRARIES]:

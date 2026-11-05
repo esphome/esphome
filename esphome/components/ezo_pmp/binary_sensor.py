@@ -34,5 +34,5 @@ async def to_code(config):
     hub = await cg.get_variable(config[CONF_ID])
 
     binary_sensors = binary_sensor.sub_binary_sensors(config)
-    await binary_sensors(CONF_PUMP_STATE, hub.set_is_dosing)
-    await binary_sensors(CONF_IS_PAUSED, hub.set_is_paused)
+    await binary_sensors(CONF_PUMP_STATE, hub.set_is_dosing_binary_sensor)
+    await binary_sensors(CONF_IS_PAUSED, hub.set_is_paused_binary_sensor)
