@@ -434,8 +434,10 @@ extern "C" [[noreturn]] void __wrap_abort() {
   // Inside the bl that called abort(): a noreturn call can be the caller's last instruction, so the return
   // address may already be the next function. Bit 0 is the Thumb bit.
   fill_record(CRASH_REASON_ABORT, ((uint32_t) __builtin_return_address(0) & ~1u) - 2, 0, sp, 0, 0);
-  // Valid without a backtrace, so a fault in the stack scan still leaves this record
-  s_record.backtrace[0] = 0;
+  // Valid without a backtrace, so a fault in the stack scan still leaves this record; every entry is cleared, so
+  // a scan cut short leaves none from an earlier crash
+  for (auto &addr : s_record.backtrace)
+    addr = 0;
   s_record.magic = CRASH_MAGIC_V2;
   // Keeps those writes ahead of the scan's reads
   __asm volatile("" ::: "memory");
