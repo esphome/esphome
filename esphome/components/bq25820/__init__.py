@@ -160,10 +160,10 @@ def _watchdog_boolean(value: object) -> object:
 
 def _check_watchdog(config: ConfigType) -> ConfigType:
     """Only the status poll feeds the watchdog, so it has to come round before the watchdog expires."""
-    # The poll also writes the configuration, so without one the charger keeps its reset settings
+    # The poll writes the configuration again after a charger reset; without one it stays at reset settings
     if config[CONF_UPDATE_INTERVAL].total_milliseconds == SCHEDULER_DONT_RUN:
         raise cv.Invalid(
-            f"{CONF_UPDATE_INTERVAL} cannot be never: the poll writes the charger configuration",
+            f"{CONF_UPDATE_INTERVAL} cannot be never: the poll restores the charger configuration after a reset",
             path=[CONF_UPDATE_INTERVAL],
         )
     if not (code := WATCHDOG_CHOICES[config[CONF_WATCHDOG]]):

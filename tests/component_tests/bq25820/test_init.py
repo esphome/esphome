@@ -187,7 +187,7 @@ def test_update_interval_past_watchdog_is_rejected(
 
 @pytest.mark.parametrize("watchdog", ["disabled", "160s"])
 def test_update_interval_never_is_rejected(watchdog: str) -> None:
-    """The poll writes the configuration, so without one the charger keeps its reset settings."""
+    """The poll restores the configuration after a charger reset, so it must run."""
     with pytest.raises(cv.Invalid, match="cannot be never") as err:
         _check_watchdog(_watchdog_config("never", watchdog))
     assert err.value.path == [CONF_UPDATE_INTERVAL]
