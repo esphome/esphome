@@ -208,7 +208,9 @@ class MQTTBackendESP32 final : public MQTTBackend {
                                             this->subscribes_lost_at_connect_);
     sent = static_cast<uint16_t>(sent - lost);
 #endif
-    return subscribe_fits(sent, this->subacks_.received(), MQTT_EVENT_POOL_SIZE - this->mqtt_event_queue_.size());
+    return subscribe_fits(
+        sent, this->subacks_.received(), MQTT_EVENT_POOL_SIZE - this->mqtt_event_queue_.size(),
+        this->on_subscribe_.size() != 0 ? INBOUND_SLOTS_PER_SUBSCRIBE_WITH_ACK : INBOUND_SLOTS_PER_SUBSCRIBE);
   }
   bool unsubscribe(const char *topic) final {
 #if defined(USE_MQTT_IDF_ENQUEUE)

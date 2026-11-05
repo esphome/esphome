@@ -236,8 +236,6 @@ void MQTTBackendESP32::mqtt_event_handler(void *handler_args, esp_event_base_t b
       instance->subacks_.reset();
       break;
     case MQTT_EVENT_SUBSCRIBED:
-      // One topic per SUBSCRIBE, so data[0] is its return code
-      instance->subacks_.add(mqtt_event->data_len > 0 ? static_cast<uint8_t>(mqtt_event->data[0]) : SUBACK_FAILURE);
       listened = instance->on_subscribe_.size() != 0;
       break;
     case MQTT_EVENT_UNSUBSCRIBED:
@@ -260,23 +258,29 @@ void MQTTBackendESP32::mqtt_event_handler(void *handler_args, esp_event_base_t b
     default:
       break;
   }
-  if (!listened) {
+  if (listened) {
+    // queue event to decouple processing from ESP-IDF MQTT task to main loop
+    auto *event = instance->mqtt_event_pool_.allocate();
+    if (event != nullptr) {
+      event->populate(*mqtt_event);
+      // Push always succeeds: pool is sized to queue capacity (SIZE-1), so if
+      // allocate() returned non-null, the queue cannot be full.
+      instance->mqtt_event_queue_.push(event);
+    } else {
+      // Pool exhausted, drop event (counted via queue's dropped counter)
+      instance->mqtt_event_queue_.increment_dropped_count();
+    }
+  } else {
     ESP_LOGV(TAG, "Ack event_id=%" PRId32 ", msg_id=%d", event_id, mqtt_event->msg_id);
+  }
+  if (event_id == MQTT_EVENT_SUBSCRIBED) {
+    // Counted after its event is queued, so can_subscribe() keeps that slot reserved until it is taken.
+    // One topic per SUBSCRIBE, so data[0] is its return code
+    instance->subacks_.add(mqtt_event->data_len > 0 ? static_cast<uint8_t>(mqtt_event->data[0]) : SUBACK_FAILURE);
+  } else if (!listened) {
     return;
   }
-  // queue event to decouple processing from ESP-IDF MQTT task to main loop
-  auto *event = instance->mqtt_event_pool_.allocate();
-  if (event == nullptr) {
-    // Pool exhausted, drop event (counted via queue's dropped counter)
-    instance->mqtt_event_queue_.increment_dropped_count();
-    return;
-  }
-  event->populate(*mqtt_event);
-  // Push always succeeds: pool is sized to queue capacity (SIZE-1), so if
-  // allocate() returned non-null, the queue cannot be full.
-  instance->mqtt_event_queue_.push(event);
-
-  // Wake main loop immediately to process MQTT event
+  // Wake main loop immediately; a SUBACK, even a filtered one, may let the next SUBSCRIBE go out
   App.wake_loop_threadsafe();
 }
 

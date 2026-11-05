@@ -20,6 +20,14 @@ TEST(SubscribeFits, KeepsTwoSlotsPerUnansweredSubscribe) {
   EXPECT_TRUE(subscribe_fits(15, 1, POOL_SIZE));
 }
 
+TEST(SubscribeFits, QueuedAcksKeepThreeSlots) {
+  // 9 unanswered plus the new one need 30 slots, so the SUBACK and retained message of each still fit
+  EXPECT_TRUE(subscribe_fits(9, 0, POOL_SIZE, INBOUND_SLOTS_PER_SUBSCRIBE_WITH_ACK));
+  EXPECT_FALSE(subscribe_fits(10, 0, POOL_SIZE, INBOUND_SLOTS_PER_SUBSCRIBE_WITH_ACK));
+  // The 16th subscription the two-slot window would admit with 15 pending
+  EXPECT_FALSE(subscribe_fits(15, 0, POOL_SIZE - 1, INBOUND_SLOTS_PER_SUBSCRIBE_WITH_ACK));
+}
+
 TEST(SubscribeFits, AnsweredSubscribesFreeTheWindow) {
   EXPECT_FALSE(subscribe_fits(40, 30, 20));
   EXPECT_TRUE(subscribe_fits(40, 31, 20));
@@ -71,7 +79,8 @@ static BurstResult run_burst(uint16_t topics, bool paced, bool queue_acks, bool 
   for (int pass = 0; pass < 10000 && (sent < topics || queued != 0 || retained_due); pass++) {
     result.delivered += queued;
     queued = 0;
-    while (sent < topics && (!paced || subscribe_fits(sent, answered, POOL_SIZE - queued)))
+    const size_t slots = queue_acks ? INBOUND_SLOTS_PER_SUBSCRIBE_WITH_ACK : INBOUND_SLOTS_PER_SUBSCRIBE;
+    while (sent < topics && (!paced || subscribe_fits(sent, answered, POOL_SIZE - queued, slots)))
       sent++;
     if (retained_due) {
       retained_due = false;
@@ -102,6 +111,17 @@ TEST(SubscribePacing, PacedBurstDeliversEveryRetainedMessage) {
       const BurstResult result = run_burst(topics, true, false, split_last);
       EXPECT_EQ(result.dropped, 0) << topics << " topics, split_last=" << split_last;
       EXPECT_EQ(result.delivered, topics) << topics << " topics, split_last=" << split_last;
+    }
+  }
+}
+
+TEST(SubscribePacing, PacedBurstWithQueuedAcksDeliversEveryRetainedMessage) {
+  // An on_subscribe callback puts each SUBACK in the queue too, and the loop may run between it and its message
+  for (uint16_t topics : {1, 15, 16, 31, 40, 100, 250}) {
+    for (bool split_last : {false, true}) {
+      const BurstResult result = run_burst(topics, true, true, split_last);
+      EXPECT_EQ(result.dropped, 0) << topics << " topics, split_last=" << split_last;
+      EXPECT_EQ(result.delivered, topics * 2u) << topics << " topics, split_last=" << split_last;
     }
   }
 }

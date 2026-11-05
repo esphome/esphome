@@ -66,12 +66,15 @@ class SubackCounter {
 
 /// Free slots per unanswered SUBSCRIBE: its retained message plus one spare; a payload esp-mqtt splits takes more.
 static constexpr size_t INBOUND_SLOTS_PER_SUBSCRIBE = 2;
+/// One more when an on_subscribe callback queues the SUBACK as well.
+static constexpr size_t INBOUND_SLOTS_PER_SUBSCRIBE_WITH_ACK = INBOUND_SLOTS_PER_SUBSCRIBE + 1;
 
 /// Whether one more SUBSCRIBE fits; wrap safe, and extra SUBACKs (from an earlier connection) count as none.
-constexpr bool subscribe_fits(uint16_t sent, uint16_t answered, size_t free_slots) {
+constexpr bool subscribe_fits(uint16_t sent, uint16_t answered, size_t free_slots,
+                              size_t slots_per_subscribe = INBOUND_SLOTS_PER_SUBSCRIBE) {
   const auto diff = static_cast<int16_t>(sent - answered);
   const size_t unanswered = diff > 0 ? diff : 0;
-  return (unanswered + 1) * INBOUND_SLOTS_PER_SUBSCRIBE <= free_slots;
+  return (unanswered + 1) * slots_per_subscribe <= free_slots;
 }
 
 }  // namespace esphome::mqtt
