@@ -10,19 +10,17 @@ void TuyaSelect::setup() {
     if (this->is_string_) {
       // STRING type: match value_string against option names
       ESP_LOGV(TAG, "MCU reported select %u string value %s", this->select_id_, datapoint.value_string.c_str());
-      const auto &options = this->traits.get_options();
-      for (size_t i = 0; i < options.size(); i++) {
-        if (options[i] == datapoint.value_string) {
-          this->publish_state(i);
-          return;
-        }
+      auto index = this->index_of(datapoint.value_string);
+      if (index.has_value()) {
+        this->publish_state(*index);
+        return;
       }
       ESP_LOGW(TAG, "Invalid string value %s", datapoint.value_string.c_str());
     } else {
       // ENUM/INTEGER type: match value_enum against mappings
       uint8_t enum_value = datapoint.value_enum;
       ESP_LOGV(TAG, "MCU reported select %u value %u", this->select_id_, enum_value);
-      auto mappings = this->mappings_;
+      const auto &mappings = this->mappings_;
       auto it = std::find(mappings.cbegin(), mappings.cend(), enum_value);
       if (it == mappings.end()) {
         ESP_LOGW(TAG, "Invalid value %u", enum_value);
@@ -40,9 +38,15 @@ void TuyaSelect::control(size_t index) {
 
   if (this->is_string_) {
     // STRING type: send the option name as string
-    const auto &option = this->option_at(index);
+    const char *option = this->option_at(index);
     ESP_LOGV(TAG, "Setting %u datapoint string value to %s", this->select_id_, option);
-    this->parent_->set_string_datapoint_value(this->select_id_, option);
+    if (this->optimistic_) {
+      // The parent skips a value equal to the last MCU report, which an MCU that does
+      // not report back leaves stale, so optimistic mode always sends
+      this->parent_->force_set_string_datapoint_value(this->select_id_, option);
+    } else {
+      this->parent_->set_string_datapoint_value(this->select_id_, option);
+    }
   } else {
     // ENUM/INTEGER type: send the mapped value
     uint8_t mapping = this->mappings_.at(index);
