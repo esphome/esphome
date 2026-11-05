@@ -22,23 +22,18 @@ void DAC7678Output::setup() {
   ESP_LOGV(TAG, "Resetting device");
 
   // Reset device
-  if (!this->write_byte_16(DAC7678_REG_SOFTWARE_RESET, 0x0000)) {
-    this->mark_failed(LOG_STR("Reset failed"));
+  if (!this->setup_check(this->write_byte_16(DAC7678_REG_SOFTWARE_RESET, 0x0000), LOG_STR("Reset failed")))
     return;
-  } else {
-    ESP_LOGV(TAG, "Reset succeeded");
-  }
+  ESP_LOGV(TAG, "Reset succeeded");
 
   delayMicroseconds(1000);
 
   // Set internal reference
   if (this->internal_reference_) {
-    if (!this->write_byte_16(DAC7678_REG_INTERNAL_REF_0, 1 << 4)) {
-      this->mark_failed(LOG_STR("Set internal reference failed"));
+    if (!this->setup_check(this->write_byte_16(DAC7678_REG_INTERNAL_REF_0, 1 << 4),
+                           LOG_STR("Set internal reference failed")))
       return;
-    } else {
-      ESP_LOGV(TAG, "Internal reference enabled");
-    }
+    ESP_LOGV(TAG, "Internal reference enabled");
   }
 }
 

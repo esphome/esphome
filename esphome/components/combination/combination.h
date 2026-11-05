@@ -59,6 +59,9 @@ class CombinationOneParameterComponent : public CombinationComponent {
 };
 
 class KalmanCombinationComponent final : public CombinationOneParameterComponent {
+  // Optional sensor for publishing the current error
+  SUB_SENSOR(std_dev)
+
  public:
   void dump_config() override;
   void setup() override;
@@ -66,14 +69,10 @@ class KalmanCombinationComponent final : public CombinationOneParameterComponent
   void set_process_std_dev(float process_std_dev) {
     this->update_variance_value_ = process_std_dev * process_std_dev * 0.001f;
   }
-  void set_std_dev_sensor(Sensor *sensor) { this->std_dev_sensor_ = sensor; }
 
  protected:
   void update_variance_();
   void correct_(float value, float stddev);
-
-  // Optional sensor for publishing the current error
-  sensor::Sensor *std_dev_sensor_{nullptr};
 
   // Tick of the last update
   uint32_t last_update_{0};
