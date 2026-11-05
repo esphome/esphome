@@ -1353,7 +1353,7 @@ bool APIConnection::check_voice_assistant_api_connection_() const {
 
 void APIConnection::on_subscribe_voice_assistant_request(const SubscribeVoiceAssistantRequest &msg) {
   if (voice_assistant::global_voice_assistant != nullptr) {
-    voice_assistant::global_voice_assistant->client_subscription(this, msg.subscribe);
+    voice_assistant::global_voice_assistant->client_subscription(this, msg.subscribe, msg.flags);
   }
 }
 void APIConnection::on_voice_assistant_response(const VoiceAssistantResponse &msg) {
@@ -1969,7 +1969,7 @@ bool APIConnection::send_hello_response_(const HelloRequest &msg) {
 
   HelloResponse resp;
   resp.api_version_major = 1;
-  resp.api_version_minor = 19;
+  resp.api_version_minor = 20;
   // Send only the version string - the client only logs this for debugging and doesn't use it otherwise
   resp.server_info = esphome_version_ref();
   resp.name = StringRef(App.get_name());
@@ -2164,6 +2164,11 @@ bool APIConnection::send_device_capabilities_response_() {
 #ifdef USE_STORE_YAML
   resp.store_yaml.supported = true;
 #endif
+#ifdef USE_CRASH_REPORT
+  CrashReport report;
+  if (crash_report_get(report))
+    resp.crash_report.flags = report.flags;
+#endif
   return this->send_message(resp);
 }
 void APIConnection::on_hello_request(const HelloRequest &msg) {
@@ -2192,6 +2197,34 @@ void APIConnection::on_device_capabilities_request() {
     this->on_fatal_error();
   }
 }
+#ifdef USE_CRASH_REPORT
+void APIConnection::on_crash_report_request() {
+  CrashReport report;
+  CrashReportResponse resp;
+  if (crash_report_get(report)) {
+    resp.flags = report.flags;
+    resp.reason = static_cast<uint32_t>(report.reason);
+    resp.pc = report.pc;
+    resp.cause = report.cause;
+    resp.fault_address = report.fault_address;
+    resp.build_time = report.build_time;
+    resp.crashed_core = report.crashed_core;
+    for (uint8_t i = 0; i < report.core_count; i++) {
+      auto &core = resp.cores[i];
+      core.core = report.cores[i].core;
+      core.backtrace = report.cores[i].addresses;
+      core.backtrace_len = report.cores[i].count;
+    }
+    resp.cores_len = report.core_count;
+  }
+  if (!this->send_message(resp)) {
+    this->on_fatal_error();
+    return;
+  }
+  if (resp.flags & CRASH_REPORT_FLAG_PRESENT)
+    crash_report_clear();
+}
+#endif
 
 #ifdef USE_API_HOMEASSISTANT_STATES
 void APIConnection::on_home_assistant_state_response(const HomeAssistantStateResponse &msg) {
