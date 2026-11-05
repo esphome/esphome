@@ -373,9 +373,7 @@ void AirtonSerialClimate::send_ab_() {
 }
 
 void AirtonSerialClimate::write_frame_(uint8_t *frame, size_t len) {
-  const uint16_t crc = crc16(frame, len - 2);
-  frame[len - 2] = static_cast<uint8_t>(crc >> 8);
-  frame[len - 1] = static_cast<uint8_t>(crc);
+  put_be16(frame + len - 2, crc16(frame, len - 2));
   this->write_array(frame, len);
 }
 

@@ -354,6 +354,17 @@ def test_uart_clock_source_preserves_variant_metadata(
     assert "ESP32C6" not in clock_source["values"]["APB"]["variants"]
 
 
+def test_automation_with_one_extra_key_keeps_it(language_schema_dir: Path) -> None:
+    """A trigger whose only extra key is not trigger_id still lists that key."""
+    modbus_schema = json.loads((language_schema_dir / "modbus_client.json").read_text())
+    on_no_response = modbus_schema["modbus_client"]["schemas"]["_ACTION_BASE_SCHEMA"][
+        "schema"
+    ]["config_vars"]["on_no_response"]
+
+    assert on_no_response["type"] == "trigger"
+    assert set(on_no_response["schema"]["config_vars"]) == {"retry", "then"}
+
+
 # ---------------------------------------------------------------------------
 # Regression tests for the lvgl schema dump.
 #
@@ -439,3 +450,25 @@ def test_lvgl_style_schemas_are_named_and_deduped(lvgl_schema: dict) -> None:
 
     _count(lvgl_schema)
     assert refs > 100, f"STYLE_SCHEMA should be referenced via extends, got {refs}"
+
+
+def test_convert_typed_schema_with_an_empty_type(
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    """A typed_schema type with no keys of its own is dumped with no config vars."""
+    types = {
+        "with_keys": cv.Schema({cv.Required("byte"): cv.hex_uint8_t}),
+        "no_keys": cv.Schema({}),
+    }
+    schema = cv.typed_schema(types, key="mode")
+    # cv.typed_schema was decorated before the script enabled extraction, so register it by hand
+    monkeypatch.setitem(
+        _bls.ejs.typed_schemas, repr(schema), ((types,), {"key": "mode"})
+    )
+    config_var: dict = {}
+    _bls.convert(schema, config_var, "/test")
+
+    assert config_var["type"] == "typed"
+    assert config_var["typed_key"] == "mode"
+    assert "byte" in config_var["types"]["with_keys"]["config_vars"]
+    assert config_var["types"]["no_keys"] == {"config_vars": {}}

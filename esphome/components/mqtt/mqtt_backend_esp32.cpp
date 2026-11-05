@@ -252,6 +252,11 @@ void MQTTBackendESP32::mqtt_event_handler(void *handler_args, esp_event_base_t b
       listened = instance->on_publish_.size() != 0;
       break;
     }
+    case MQTT_EVENT_DATA:
+      // Only the first chunk of an oversized message is queued, so the client logs the drop
+      if (mqtt_event->total_data_len > MQTT_MAX_PAYLOAD_SIZE && mqtt_event->current_data_offset != 0)
+        return;
+      break;
     default:
       break;
   }
