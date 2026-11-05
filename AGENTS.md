@@ -388,7 +388,7 @@ file does, and it is the authority when they disagree. The most useful starting 
         ````
         `branch` is `release` for patch releases and `beta` for beta releases. A malformed block is ignored, and the
         merge commit is picked instead. Use the block, not a commit mentioned in prose. Keep that branch until the release
-        is out, and update the block when the PR or the target branch changes.
+        is out, and make a new commit and update the block if the PR changes afterwards or the commit no longer applies.
     8.  **Comments:** When commenting on GitHub PRs or issues, don't tag contributors, especially bots. Avoid referring to list items (e.g. from reviews) with the form #nn - this will be interpreted by GitHub as a reference to issue or PR nn. Keep comments short and exclude irrelevant details, backstories, restatement of previous comments and anything that is already obvious to the reader.
 
 *   **Documentation Contributions:**
