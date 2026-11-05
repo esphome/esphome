@@ -12,9 +12,18 @@ from esphome.build_helpers.ccache import resolve_ccache_path
 from esphome.core import CORE, EsphomeError
 from esphome.framework_helpers import run_command_ok
 
-from .framework import check_and_install, get_build_env, get_build_paths
+from .const import VARIANT_NRF54L15
+from .framework import (
+    check_and_install,
+    get_build_env,
+    get_build_paths,
+    get_nrf52_variant,
+)
 
 _LOGGER = logging.getLogger(__name__)
+
+# J-Link device names for boards whose Zephyr runner args pass a generic core, which cannot program RRAM
+_JLINK_DEVICES = {VARIANT_NRF54L15: "nRF54L15_M33"}
 
 # Where SEGGER's installers put the J-Link tools when they are not on PATH
 _JLINK_INSTALL_DIRS = {
@@ -117,6 +126,8 @@ def upload_using_jlink() -> None:
         # The runner only resumes the halted CPU unless asked to reset
         "--reset",
     ]
+    if (device := _JLINK_DEVICES.get(get_nrf52_variant())) is not None:
+        west_cmd += ["--device", device]
     if not run_command_ok(
         west_cmd, env=env, stream_output=True, cwd=str(paths["framework_path"])
     ):

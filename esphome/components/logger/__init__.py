@@ -217,8 +217,22 @@ def uart_selection(value: Any) -> str:
     if CORE.is_host:
         raise cv.Invalid("Uart selection not valid for host platform")
     if CORE.is_nrf52:
+        from esphome.components.nrf52.const import VARIANT_NRF54L15
+        from esphome.components.nrf52.framework import get_nrf52_variant
+
+        if get_nrf52_variant() == VARIANT_NRF54L15:
+            # No USB device on the nRF54L15
+            return cv.one_of(UART0, upper=True)(value)
         return cv.one_of(*UART_SELECTION_NRF52, upper=True)(value)
     raise NotImplementedError
+
+
+def _zephyr_uart0_label() -> str:
+    """The devicetree label of UART0; the nRF54L15 names its console UART uart20."""
+    from esphome.components.nrf52.const import VARIANT_NRF54L15
+    from esphome.components.nrf52.framework import get_nrf52_variant
+
+    return "uart20" if get_nrf52_variant() == VARIANT_NRF54L15 else "uart0"
 
 
 def validate_local_no_higher_than_global(config: ConfigType) -> ConfigType:
@@ -385,6 +399,8 @@ CONFIG_SCHEMA = cv.All(
                 ln882x=DEFAULT,
                 rtl87xx=DEFAULT,
                 nrf52=USB_CDC,
+                # No USB device on the nRF54L15
+                nrf52_54l15=UART0,
             ): cv.All(
                 cv.only_on(
                     [
@@ -658,7 +674,9 @@ async def _late_logger_init(config: ConfigType) -> None:
         if has_serial_logging:
             zephyr_add_prj_conf("SERIAL", True)
             if config[CONF_HARDWARE_UART] == UART0:
-                zephyr_add_overlay("""&uart0 { status = "okay";};""")
+                zephyr_add_overlay(
+                    f"""&{_zephyr_uart0_label()} {{ status = "okay";}};"""
+                )
             if config[CONF_HARDWARE_UART] == UART1:
                 zephyr_add_overlay("""&uart1 { status = "okay";};""")
             if config[CONF_HARDWARE_UART] == USB_CDC:

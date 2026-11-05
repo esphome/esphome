@@ -74,7 +74,11 @@ void Logger::pre_setup() {
     static const struct device *uart_dev = nullptr;
     switch (this->uart_) {
       case UART_SELECTION_UART0:  // NOLINT(bugprone-branch-clone)
+#ifdef USE_NRF52_VARIANT_NRF54L15
+        uart_dev = DEVICE_DT_GET_OR_NULL(DT_NODELABEL(uart20));
+#else
         uart_dev = DEVICE_DT_GET_OR_NULL(DT_NODELABEL(uart0));
+#endif
         break;
       case UART_SELECTION_UART1:
         uart_dev = DEVICE_DT_GET_OR_NULL(DT_NODELABEL(uart1));

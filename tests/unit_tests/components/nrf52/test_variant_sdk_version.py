@@ -7,6 +7,7 @@ import pytest
 
 from esphome.components import nrf52
 from esphome.components.nrf52.const import (
+    VARIANT_NRF54L15,
     VARIANT_NRF54LM20,
     VARIANT_NRF51822,
     VARIANT_NRF52840,
@@ -33,6 +34,7 @@ from esphome.types import ConfigType
         ("bbc_microbit", VARIANT_NRF51822),
         ("adafruit_feather_nrf52840", VARIANT_NRF52840),
         ("nrf54lm20dk", VARIANT_NRF54LM20),
+        ("nrf54l15dk/nrf54l15/cpuapp", VARIANT_NRF54L15),
         ("nrf54lm20dk/nrf54lm20b/cpuapp", VARIANT_NRF54LM20),
     ],
 )

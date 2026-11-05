@@ -199,6 +199,37 @@ class TestUploadProgramJlink:
             "--reset",
         ]
 
+    def test_jlink_names_the_nrf54l15_device(
+        self, setup_core: Path, tmp_path: Path
+    ) -> None:
+        """The board's generic cortex-m33 device cannot program the nRF54L15's RRAM."""
+        from esphome.components.nrf52 import upload_program
+        from esphome.components.nrf52.const import VARIANT_NRF54L15
+        from esphome.components.nrf52.framework import set_nrf52_variant
+
+        _setup_nrf52_core(build_path=tmp_path / "build")
+        set_nrf52_variant(VARIANT_NRF54L15)
+        CORE.config_path = tmp_path / "test.yaml"
+
+        with (
+            patch(
+                "esphome.components.nrf52.jlink.find_jlink_commander",
+                return_value=tmp_path / "JLinkExe",
+            ),
+            patch("esphome.components.nrf52.jlink.check_and_install"),
+            patch(
+                "esphome.components.nrf52.jlink.get_build_paths",
+                return_value=_make_paths(tmp_path),
+            ),
+            patch("esphome.components.nrf52.jlink.get_build_env", return_value={}),
+            patch(
+                "esphome.components.nrf52.jlink.run_command_ok", return_value=True
+            ) as mock_run,
+        ):
+            assert upload_program(config={}, args=None, host="JLINK") is True
+
+        assert mock_run.call_args[0][0][-2:] == ["--device", "nRF54L15_M33"]
+
     def test_jlink_not_installed_raises(self, setup_core: Path, tmp_path: Path) -> None:
         """Without SEGGER's software the upload stops before running west."""
         from esphome.components.nrf52 import upload_program

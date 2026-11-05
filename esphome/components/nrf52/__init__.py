@@ -82,6 +82,7 @@ from .const import (
     CONF_UDP,
     FLASH_SECTOR_SIZE,
     SMP_UDP_PORT,
+    VARIANT_NRF54L15,
     VARIANT_NRF54LM20,
     VARIANT_NRF51822,
     VARIANT_NRF52840,
@@ -148,6 +149,8 @@ def _board_variant(board: str) -> str:
     qualifiers = BOARD_ALIASES.get(board, board).lower().split("/")
     if len(qualifiers) > 1 and qualifiers[1].startswith("nrf54lm20"):
         return VARIANT_NRF54LM20
+    if len(qualifiers) > 1 and qualifiers[1].startswith("nrf54l15"):
+        return VARIANT_NRF54L15
     return VARIANT_NRF52840
 
 
@@ -479,7 +482,7 @@ async def to_code(config: ConfigType) -> None:
     variant = get_nrf52_variant()
     cg.add_define("ESPHOME_VARIANT", variant)
     cg.add_build_flag(f"-DUSE_NRF52_VARIANT_{variant}")
-    if variant == VARIANT_NRF54LM20:
+    if variant in (VARIANT_NRF54L15, VARIANT_NRF54LM20):
         # The entropy driver runs on the CRACEN crypto unit, which needs Nordic's PSA crypto
         include_west_project("mbedtls")
         include_west_project("oberon-psa-crypto")
