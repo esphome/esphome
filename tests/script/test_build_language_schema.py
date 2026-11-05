@@ -719,3 +719,26 @@ def test_inline_schema_overlays_nested_schema_fields() -> None:
         "type": "boolean",
         "default": "True",
     }
+
+
+def test_shrink_enum_collapse_reports_dropped_siblings(
+    monkeypatch: pytest.MonkeyPatch, capsys: pytest.CaptureFixture[str]
+) -> None:
+    """Collapsing into an enum prints the sibling extends it cannot keep."""
+    output = {
+        "base": {"schemas": {"B": _schema({"b": {"key": "Optional"}})}},
+        "mod": {
+            "schemas": {
+                "E": {"type": "enum", "values": {"a": None}},
+                "CONFIG_SCHEMA": _schema({"mode": _schema(None, ["mod.E", "base.B"])}),
+            }
+        },
+        "other": {"schemas": {"CONFIG_SCHEMA": _schema({}, ["base.B"])}},
+    }
+    _shrink(monkeypatch, output)
+
+    mode = output["mod"]["schemas"]["CONFIG_SCHEMA"]["schema"]["config_vars"]["mode"]
+    assert mode == {"type": "enum", "values": {"a": None}}
+    assert "dropped ['base.B'] beside sibling extends at mod.schemas.CONFIG_SCHEMA" in (
+        capsys.readouterr().out
+    )

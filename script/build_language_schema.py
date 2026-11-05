@@ -686,10 +686,15 @@ def shrink():
                     if extends:
                         splice_extends(arr_s[S_SCHEMA], extends, x)
                     # Only key constraints survive the collapse
-                    if arr_s[S_TYPE] in ["enum", "typed"] and (
-                        constraints := arr_s.pop(S_SCHEMA).get("constraints")
-                    ):
-                        arr_s[S_SCHEMA] = {"constraints": constraints}
+                    if arr_s[S_TYPE] in ["enum", "typed"]:
+                        collapsed = arr_s.pop(S_SCHEMA)
+                        if siblings := collapsed.get(S_EXTENDS):
+                            print(
+                                f"dropped {siblings} beside sibling extends at "
+                                + ".".join(paths[0])
+                            )
+                        if constraints := collapsed.get("constraints"):
+                            arr_s[S_SCHEMA] = {"constraints": constraints}
                 else:
                     extends = arr_s.pop(S_EXTENDS)
                     inline_schema(arr_s, key_s[S_SCHEMA])
