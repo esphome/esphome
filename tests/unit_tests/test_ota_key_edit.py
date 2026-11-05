@@ -1554,6 +1554,8 @@ def test_secret_users_follow_their_own_secrets_file(tmp_path: Path) -> None:
         Path("broken/device.yaml"),
         Path("fallback/device.yaml"),
     ]
+    # Their fallback depends on their own main config, so they only may share it
+    assert edits[0].maybe_shared_with == edits[0].shared_with
 
 
 @pytest.mark.skipif(sys.platform == "win32", reason="symlinks need privileges")

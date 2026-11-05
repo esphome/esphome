@@ -40,6 +40,8 @@ class KeyEdit(LineEdit):
 
     secret: str | None = None
     shared_with: list[Path] = field(default_factory=list)
+    # Those of shared_with that use it only if their fallback secrets file is this one
+    maybe_shared_with: list[Path] = field(default_factory=list)
 
 
 def _key_blocks(raw: ConfigType, key: str) -> list[ConfigType]:
@@ -206,19 +208,19 @@ def _walk_configs() -> _Configs:
     return _Configs(found, skipped, named_by)
 
 
-def _secret_users(name: str, secrets_path: Path) -> set[Path]:
-    """The scanned files that use the secret ``name`` of ``secrets_path``; one
-    without a loadable secrets.yaml beside it may fall back to it, so it counts."""
+def _secret_users(name: str, secrets_path: Path) -> tuple[set[Path], set[Path]]:
+    """The scanned files that use the secret ``name`` of ``secrets_path``, and
+    those without a loadable secrets.yaml beside them, which may fall back to it."""
     target = secrets_path.resolve()
-    return {
-        path
-        for path, scan in _configs().files
-        if any(secret == name for secret, _ in scan.secrets)
-        and (
-            (own := secrets_path_for(path)) != path.parent / SECRET_YAML
-            or own.resolve() == target
-        )
-    }
+    users: set[Path] = set()
+    maybe: set[Path] = set()
+    for path, scan in _configs().files:
+        if any(secret == name for secret, _ in scan.secrets):
+            if (own := secrets_path_for(path)) != path.parent / SECRET_YAML:
+                maybe.add(path)
+            elif own.resolve() == target:
+                users.add(path)
+    return users, maybe
 
 
 def with_sharers(edits: list[KeyEdit]) -> list[str]:
@@ -245,18 +247,26 @@ def with_sharers(edits: list[KeyEdit]) -> list[str]:
     def including(files: set[Path]) -> set[Path]:
         return {p for f in files for p in configs.named_by.get(f.resolve(), ())}
 
+    def with_includers(users: set[Path]) -> set[Path]:
+        frontier = users
+        while frontier := including(frontier) - users:
+            users = users | frontier
+        return users
+
+    def others(paths: set[Path]) -> list[Path]:
+        return sorted(p for p in paths if p.resolve() not in own)
+
     for edit in edits:
         if edit.insert_after and edit.secret:
             continue  # a new secrets line has no users yet
-        users = (
-            _secret_users(edit.secret, edit.path)
-            if edit.secret
-            else including({edit.path})
-        )
-        frontier = users
-        while frontier := including(frontier) - users:
-            users |= frontier
-        edit.shared_with = sorted(p for p in users if p.resolve() not in own)
+        if edit.secret:
+            users, maybe = _secret_users(edit.secret, edit.path)
+        else:
+            users, maybe = including({edit.path}), set()
+        users = with_includers(users)
+        everyone = with_includers(users | maybe)
+        edit.shared_with = others(everyone)
+        edit.maybe_shared_with = others(everyone - users)
     return unchecked
 
 
@@ -457,7 +467,7 @@ def old_key_edit(old_key: str) -> list[KeyEdit]:
                 for d in own_documents()
                 if any(s == name for s, _ in _scan(d).secrets)
             }
-            if users := sorted(_secret_users(name, secrets_path) | own):
+            if users := sorted(set().union(*_secret_users(name, secrets_path), own)):
                 raise EsphomeError(
                     f"'{name}:' in {secrets_path} is used by "
                     + ", ".join(str(p) for p in users)

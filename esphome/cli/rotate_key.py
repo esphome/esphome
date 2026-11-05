@@ -122,8 +122,14 @@ def command_rotate_key(args: argparse.Namespace, config: ConfigType) -> int | No
         unchecked = with_sharers(edits)
     except EsphomeError as err:
         return fail(str(err))
-    # Another device's previous key would be overwritten where this key is not
-    key_users = {p for edit in key_edits for p in edit.shared_with}
+    # Another device's previous key would be overwritten where this key is not;
+    # a device that only may use the key does not vouch for the old_key file
+    key_users = {
+        p
+        for edit in key_edits
+        for p in edit.shared_with
+        if p not in edit.maybe_shared_with
+    }
     for edit in old_edits:
         if others := sorted(set(edit.shared_with) - key_users):
             return fail(

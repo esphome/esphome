@@ -224,6 +224,21 @@ def test_refuses_an_old_key_in_a_file_only_others_share(
     env["probe"].assert_not_called()
 
 
+def test_a_device_that_only_may_share_the_key_does_not_vouch_for_old_key(
+    env: dict[str, Mock], capfd: pytest.CaptureFixture[str]
+) -> None:
+    other = CORE.config_dir / "b.yaml"
+
+    def scan(edits: list[KeyEdit]) -> list[str]:
+        edits[0].shared_with = edits[0].maybe_shared_with = [other]
+        edits[-1].shared_with = [other]
+        return []
+
+    with patch("esphome.cli.rotate_key.with_sharers", side_effect=scan):
+        assert command_rotate_key(MockArgs(yes=True), CORE.config) == 1
+    assert "b.yaml also use while keeping their own key" in capfd.readouterr().out
+
+
 def test_uses_the_snapshot_taken_before_validation(env: dict[str, Mock]) -> None:
     """Validation rewrites the raw config; the snapshot keeps the source lines."""
 
