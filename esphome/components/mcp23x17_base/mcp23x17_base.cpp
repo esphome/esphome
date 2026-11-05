@@ -8,19 +8,11 @@ ESPHOME_LOG_TAG(TAG, "mcp23x17_base");
 
 bool MCP23X17Base::digital_read_hw(uint8_t pin) {
   uint8_t data;
-  if (pin < 8) {
-    if (!this->read_reg(mcp23x17_base::MCP23X17_GPIOA, &data)) {
-      this->status_set_warning(LOG_STR(ESP_LOG_MSG_COMM_FAIL));
-      return false;
-    }
-    this->input_mask_ = encode_uint16(this->input_mask_ >> 8, data);
-  } else {
-    if (!this->read_reg(mcp23x17_base::MCP23X17_GPIOB, &data)) {
-      this->status_set_warning(LOG_STR(ESP_LOG_MSG_COMM_FAIL));
-      return false;
-    }
-    this->input_mask_ = encode_uint16(data, this->input_mask_ & 0xFF);
+  if (!this->read_reg(pin < 8 ? mcp23x17_base::MCP23X17_GPIOA : mcp23x17_base::MCP23X17_GPIOB, &data)) {
+    this->status_set_warning(LOG_STR(ESP_LOG_MSG_COMM_FAIL));
+    return false;
   }
+  this->input_[pin / 8] = data;
   return true;
 }
 
@@ -28,8 +20,6 @@ void MCP23X17Base::digital_write_hw(uint8_t pin, bool value) {
   uint8_t reg_addr = pin < 8 ? mcp23x17_base::MCP23X17_OLATA : mcp23x17_base::MCP23X17_OLATB;
   this->update_reg(pin, value, reg_addr);
 }
-
-bool MCP23X17Base::digital_read_cache(uint8_t pin) { return this->input_mask_ & (1 << pin); }
 
 void MCP23X17Base::pin_mode(uint8_t pin, gpio::Flags flags) {
   uint8_t iodir = pin < 8 ? mcp23x17_base::MCP23X17_IODIRA : mcp23x17_base::MCP23X17_IODIRB;

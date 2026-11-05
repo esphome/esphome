@@ -6,8 +6,9 @@
 #include "esphome/components/i2c/i2c.h"
 #include "esphome/core/preferences.h"
 #include "esphome/core/defines.h"
+#include "esphome/core/finite_set_mask.h"
+#include "esphome/core/helpers.h"
 #include <map>
-#include <queue>
 
 #ifdef USE_BSEC
 #include <bsec.h>
@@ -67,6 +68,22 @@ class BME680BSECComponent final : public Component, public i2c::I2CDevice {
   void loop() override;
 
  protected:
+  // States waiting for loop() to publish them, one per pass
+  enum PublishSlot : uint8_t {
+    PUBLISH_SLOT_IAQ,
+    PUBLISH_SLOT_CO2_EQUIVALENT,
+    PUBLISH_SLOT_BREATH_VOC_EQUIVALENT,
+    PUBLISH_SLOT_PRESSURE,
+    PUBLISH_SLOT_GAS_RESISTANCE,
+    PUBLISH_SLOT_TEMPERATURE,
+    PUBLISH_SLOT_HUMIDITY,
+    // These take pending_accuracy_ instead of a value
+    PUBLISH_SLOT_IAQ_ACCURACY_TEXT,
+    PUBLISH_SLOT_IAQ_ACCURACY,
+    PUBLISH_SLOT_SAVE_STATE,
+    PUBLISH_SLOT_COUNT,
+  };
+
   void set_config_();
   float calc_sensor_sample_rate_(SampleRate sample_rate);
   void update_subscription_();
@@ -91,7 +108,12 @@ class BME680BSECComponent final : public Component, public i2c::I2CDevice {
   void save_state_(
       uint8_t accuracy);  // Save the bsec_state_data_ member (volatile memory) to the ESP preferences (storage)
 
-  void queue_push_(std::function<void()> &&f) { this->queue_.push(std::move(f)); }
+  void queue_publish_(PublishSlot slot);
+  template<PublishSlot S> void queue_publish_(float value) {
+    static_assert(S < PUBLISH_SLOT_IAQ_ACCURACY_TEXT, "slot has no value");
+    this->pending_values_[S] = value;
+    this->queue_publish_(S);
+  }
 
   static uint8_t work_buffer_[BSEC_MAX_WORKBUFFER_SIZE];
   struct bme680_dev bme680_;
@@ -102,7 +124,11 @@ class BME680BSECComponent final : public Component, public i2c::I2CDevice {
   uint32_t millis_overflow_counter_{0};
   int64_t next_call_ns_{0};
 
-  std::queue<std::function<void()>> queue_;
+  // Arrival order; a slot already waiting keeps its place and takes the newer value
+  StaticRingBuffer<PublishSlot, PUBLISH_SLOT_COUNT> pending_;
+  FiniteSetMask<PublishSlot, DefaultBitPolicy<PublishSlot, PUBLISH_SLOT_COUNT>> pending_mask_;
+  float pending_values_[PUBLISH_SLOT_IAQ_ACCURACY_TEXT];
+  uint8_t pending_accuracy_{0};
 
   bool bsec_state_data_valid_;
   uint8_t bsec_state_data_[BSEC_MAX_STATE_BLOB_SIZE];  // This is the current snapshot of the BSEC library state

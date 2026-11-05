@@ -515,6 +515,43 @@ display:
       it.filled_rectangle(0, 0, it.get_width(), it.get_height(), Color::WHITE);
       it.circle(it.get_width() / 2, it.get_height() / 2, 100, Color::BLACK);
 
+  # Good Display GDEY0583T81 5.83" mono e-paper (648x480, UC8179)
+  - platform: epaper_spi
+    spi_id: spi_bus
+    model: goodisplay-gdey0583t81-5.83
+    full_update_every: 5
+    cs_pin:
+      allow_other_uses: true
+      number: GPIO5
+    dc_pin:
+      allow_other_uses: true
+      number: GPIO17
+    reset_pin:
+      allow_other_uses: true
+      number: GPIO16
+    busy_pin:
+      allow_other_uses: true
+      number: GPIO4
+      inverted: true
+
+  # Seeed 0583BN-T81-D2, the GDEY0583T81 panel under its label name
+  - platform: epaper_spi
+    spi_id: spi_bus
+    model: 0583BN-T81-D2
+    cs_pin:
+      allow_other_uses: true
+      number: GPIO5
+    dc_pin:
+      allow_other_uses: true
+      number: GPIO17
+    reset_pin:
+      allow_other_uses: true
+      number: GPIO16
+    busy_pin:
+      allow_other_uses: true
+      number: GPIO4
+      inverted: true
+
   # Seeed reTerminal E1001 - 7.5" mono e-paper (800x480, UC8179)
   # Pins overridden to avoid conflicts with the E1002 defaults above
   - platform: epaper_spi
