@@ -28,7 +28,7 @@ dependencies:
   espressif/esp_modem:
     version: 2.1.0
   espressif/mdns:
-    version: 1.14.0
+    version: 1.15.0
   espressif/esp_wifi_remote:
     version: 1.6.5
     rules:
