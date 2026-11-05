@@ -192,9 +192,9 @@ class MQTTBackendESP32 final : public MQTTBackend {
 
   bool subscribe(const char *topic, uint8_t qos) final {
 #if defined(USE_MQTT_IDF_ENQUEUE)
-    const bool sent = enqueue_(MQTT_QUEUE_TYPE_SUBSCRIBE, topic, qos);
+    const bool sent = this->enqueue_(MQTT_QUEUE_TYPE_SUBSCRIBE, topic, qos);
 #else
-    const bool sent = esp_mqtt_client_subscribe(handler_.get(), topic, qos) != -1;
+    const bool sent = esp_mqtt_client_subscribe(this->handler_.get(), topic, qos) != -1;
 #endif
     if (sent)
       this->subscribes_sent_++;
