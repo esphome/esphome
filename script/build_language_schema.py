@@ -562,28 +562,6 @@ def get_arr_path_schema(path):
     return s
 
 
-def merge(source, destination):
-    """
-    run me with nosetests --with-doctest file.py
-
-    >>> a = { 'first' : { 'all_rows' : { 'pass' : 'dog', 'number' : '1' } } }
-    >>> b = { 'first' : { 'all_rows' : { 'fail' : 'cat', 'number' : '5' } } }
-    >>> merge(b, a) == { 'first' : { 'all_rows' : { 'pass' : 'dog', 'fail' : 'cat', 'number' : '5' } } }
-    True
-    """
-    for key, value in source.items():
-        if isinstance(value, dict):
-            # get node or create one
-            node = destination.setdefault(key, {})
-            merge(value, node)
-        elif key == "constraints" and isinstance(value, list):
-            destination[key] = value + destination.get(key, [])
-        else:
-            destination[key] = value
-
-    return destination
-
-
 def inline_schema(node: dict, base: dict) -> None:
     """Copy *base* into *node*, keeping the key constraints and config vars of both."""
     local = node.get("constraints", [])
@@ -592,10 +570,42 @@ def inline_schema(node: dict, base: dict) -> None:
     if local:
         node["constraints"] = base.get("constraints", []) + local
     if local_vars:
-        # Per field: a local override like {"default": "b"} keeps the base's type and values
-        node[S_CONFIG_VARS] = merge(
-            local_vars, copy.deepcopy(base.get(S_CONFIG_VARS, {}))
+        node[S_CONFIG_VARS] = copy.deepcopy(
+            overlay_config_vars(local_vars, base.get(S_CONFIG_VARS, {}))
         )
+
+
+def overlay_field(local: dict, base: dict) -> dict:
+    """Overlay the field descriptor *local* on *base*, the one it inherits.
+
+    Only the schema structure recurses (a nested ``schema`` and its ``config_vars``,
+    whose key constraints are kept from both); any other value *local* sets, such
+    as a narrowed ``values`` map or its own ``id_type``, replaces the base's.
+    """
+    merged = base | local
+    local_schema, base_schema = local.get(S_SCHEMA), base.get(S_SCHEMA)
+    if isinstance(local_schema, dict) and isinstance(base_schema, dict):
+        schema = base_schema | local_schema
+        if S_CONFIG_VARS in local_schema and S_CONFIG_VARS in base_schema:
+            schema[S_CONFIG_VARS] = overlay_config_vars(
+                local_schema[S_CONFIG_VARS], base_schema[S_CONFIG_VARS]
+            )
+        if "constraints" in local_schema and "constraints" in base_schema:
+            schema["constraints"] = (
+                base_schema["constraints"] + local_schema["constraints"]
+            )
+        merged[S_SCHEMA] = schema
+    return merged
+
+
+def overlay_config_vars(local: dict, base: dict) -> dict:
+    """Overlay *local* field descriptors on *base*'s, one field at a time."""
+    return base | {
+        name: overlay_field(field, base[name])
+        if isinstance(base.get(name), dict)
+        else field
+        for name, field in local.items()
+    }
 
 
 def splice_extends(node: dict, extends: list, name: str) -> None:
@@ -618,7 +628,7 @@ SIMPLE_TYPES = ("enum", "registry", "integer", "string")
 
 def drop_extend(node: dict, name: str) -> None:
     """Remove *name* from *node*'s extends, dropping the key when it empties."""
-    # Rebuilt, not mutated: merge() shares extends lists between inlined nodes
+    # Rebuilt, not mutated: inlined nodes can share one extends list
     if extends := [e for e in node[S_EXTENDS] if e != name]:
         node[S_EXTENDS] = extends
     else:
@@ -668,7 +678,11 @@ def shrink():
                     extends = arr_s[S_SCHEMA].pop(S_EXTENDS, None)
                     if extends is None:
                         print("expected extends here!" + x)
-                    arr_s = merge(key_s, arr_s)
+                    merged = overlay_field(arr_s, key_s)
+                    # The inlined schema decides the type (an enum or typed collapse)
+                    merged[S_TYPE] = key_s.get(S_TYPE, merged.get(S_TYPE))
+                    arr_s.clear()
+                    arr_s.update(copy.deepcopy(merged))
                     if extends:
                         splice_extends(arr_s[S_SCHEMA], extends, x)
                     # Only key constraints survive the collapse

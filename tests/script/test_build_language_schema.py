@@ -188,18 +188,21 @@ def test_convert_emits_key_constraints() -> None:
     ]
 
 
-def test_merge_keeps_base_and_local_constraints() -> None:
+def test_overlay_field_keeps_base_and_local_constraints() -> None:
     base = {"schema": {"constraints": [{"type": "key_requires", "keys": ["a"]}]}}
     local = {"schema": {"constraints": [{"type": "only_when", "keys": ["b"]}]}}
-    assert _bls.merge(base, local)["schema"]["constraints"] == [
+    assert _bls.overlay_field(local, base)["schema"]["constraints"] == [
         {"type": "key_requires", "keys": ["a"]},
         {"type": "only_when", "keys": ["b"]},
     ]
 
 
-def test_merge_enum_option_named_constraints() -> None:
+def test_overlay_field_enum_option_named_constraints() -> None:
     base = {"values": {"constraints": None}}
-    assert _bls.merge(base, {"values": {}}) == {"values": {"constraints": None}}
+    assert _bls.overlay_field({"key": "Optional"}, base) == {
+        "key": "Optional",
+        "values": {"constraints": None},
+    }
 
 
 def test_inline_schema_keeps_base_and_local_constraints() -> None:
@@ -669,3 +672,50 @@ def test_inline_schema_merges_a_same_key_override_per_field() -> None:
         "default": "b",
     }
     assert "default" not in base["config_vars"]["mode"]
+
+
+def test_inline_schema_lets_a_narrowed_enum_replace_the_base_values() -> None:
+    """An explicitly overridden values map replaces the base's instead of merging with it."""
+    base = {
+        "config_vars": {
+            "mode": {
+                "key": "Optional",
+                "type": "enum",
+                "values": {"a": None, "b": None},
+            }
+        }
+    }
+    node = {"config_vars": {"mode": {"values": {"b": None}}}}
+    _bls.inline_schema(node, base)
+
+    assert node["config_vars"]["mode"] == {
+        "key": "Optional",
+        "type": "enum",
+        "values": {"b": None},
+    }
+
+
+def test_inline_schema_overlays_nested_schema_fields() -> None:
+    """A nested schema's config vars overlay per field too."""
+    base = {
+        "config_vars": {
+            "outer": {
+                "type": "schema",
+                "schema": {
+                    "config_vars": {"inner": {"key": "Optional", "type": "boolean"}}
+                },
+            }
+        }
+    }
+    node = {
+        "config_vars": {
+            "outer": {"schema": {"config_vars": {"inner": {"default": "True"}}}}
+        }
+    }
+    _bls.inline_schema(node, base)
+
+    assert node["config_vars"]["outer"]["schema"]["config_vars"]["inner"] == {
+        "key": "Optional",
+        "type": "boolean",
+        "default": "True",
+    }
