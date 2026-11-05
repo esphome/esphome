@@ -1,6 +1,7 @@
 #include <gtest/gtest.h>
 
 #include <array>
+#include <cmath>
 #include <cstdint>
 #include <cstring>
 
@@ -18,6 +19,9 @@ class NormalModeBMP3XX final : public BMP3XXComponent {
  public:
   NormalModeBMP3XX() {
     this->registers[BMP388_CHIP_ID] = BMP390_ID;
+    // Nonzero trim parameters, so the readings go through the compensation
+    for (int i = 0; i < 21; i++)
+      this->registers[BMP388_TRIM_PARAMS + i] = 0x11 * (i % 7 + 1);
     this->registers[BMP388_EVENT] = 0x01;  // por_detected
   }
 
@@ -28,6 +32,20 @@ class NormalModeBMP3XX final : public BMP3XXComponent {
     this->registers[BMP388_ODR] = 0x00;
     this->registers[BMP388_CONFIG] = 0x00;
     this->registers[BMP388_INT_STATUS] = 0x00;
+    std::memset(&this->registers[BMP388_DATA_0], 0, 6);
+  }
+
+  // Raw 24-bit pressure and temperature readings, as the chip stores them
+  void set_raw(uint32_t pressure, uint32_t temperature) {
+    for (int i = 0; i < 3; i++) {
+      this->registers[BMP388_DATA_0 + i] = pressure >> (8 * i);
+      this->registers[BMP388_DATA_3 + i] = temperature >> (8 * i);
+    }
+  }
+
+  // The pressure the component should publish for these raw readings
+  float pressure_for(uint32_t pressure, uint32_t temperature) {
+    return this->bmp388_compensate_pressure_(pressure, this->bmp388_compensate_temperature_(temperature)) / 100.0f;
   }
 
   uint8_t mode() const { return (this->registers[BMP388_PWR_CTRL] >> 4) & 0x03; }
@@ -58,14 +76,17 @@ class NormalModeBMP3XX final : public BMP3XXComponent {
 struct NormalModeFixture {
   NormalModeBMP3XX bmp;
   sensor::Sensor temperature;
+  sensor::Sensor pressure;
   int published{0};
 
-  NormalModeFixture() {
+  explicit NormalModeFixture(bool with_pressure = false) {
     static char name[] = "test_bmp3xx_normal_mode";
     static char friendly_name[] = "";
     App.pre_setup(name, sizeof(name) - 1, friendly_name, 0);
     this->temperature.add_on_state_callback([this](float) { this->published++; });
     this->bmp.set_temperature_sensor(&this->temperature);
+    if (with_pressure)
+      this->bmp.set_pressure_sensor(&this->pressure);
     this->bmp.set_output_data_rate_config(ODR_12_5_HZ);
     this->bmp.setup();
   }
@@ -121,6 +142,11 @@ TEST(BMP3XXNormalModeTest, SensorResetIsDetectedAndSettingsRestored) {
   EXPECT_EQ(f.bmp.registers[BMP388_ODR], ODR_12_5_HZ);
   EXPECT_EQ(f.bmp.mode(), NORMAL_MODE);
 
+  // Still nothing while the first measurement with the restored settings is pending
+  f.bmp.update();
+  EXPECT_EQ(f.published, 1);
+  EXPECT_TRUE(f.bmp.status_has_warning());
+
   // The first result with the restored settings is published again
   f.new_result();
   EXPECT_EQ(f.published, 2);
@@ -145,6 +171,31 @@ TEST(BMP3XXNormalModeTest, FailedRestoreIsRetried) {
   f.new_result();
   EXPECT_EQ(f.published, 2);
   EXPECT_FALSE(f.bmp.status_has_warning());
+}
+
+TEST(BMP3XXNormalModeTest, PublishesEachNewPressureReading) {
+  NormalModeFixture f(true);
+  f.bmp.set_raw(6500000, 8300000);
+  f.new_result();
+  const float first = f.bmp.pressure_for(6500000, 8300000);
+  ASSERT_TRUE(std::isfinite(first));
+  EXPECT_FLOAT_EQ(f.pressure.state, first);
+
+  f.bmp.set_raw(6600000, 8350000);
+  f.new_result();
+  const float second = f.bmp.pressure_for(6600000, 8350000);
+  ASSERT_NE(second, first);
+  EXPECT_FLOAT_EQ(f.pressure.state, second);
+
+  // The reset chip's empty registers are never published
+  f.bmp.power_on_reset();
+  f.bmp.update();
+  f.bmp.update();
+  EXPECT_FLOAT_EQ(f.pressure.state, second);
+
+  f.bmp.set_raw(6700000, 8400000);
+  f.new_result();
+  EXPECT_FLOAT_EQ(f.pressure.state, f.bmp.pressure_for(6700000, 8400000));
 }
 
 }  // namespace
