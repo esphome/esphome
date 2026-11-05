@@ -124,10 +124,8 @@ void PCA9685Output::loop() {
               phase_end);
 
     uint8_t data[4];
-    data[0] = phase_begin & 0xFF;
-    data[1] = (phase_begin >> 8) & 0xFF;
-    data[2] = phase_end & 0xFF;
-    data[3] = (phase_end >> 8) & 0xFF;
+    put_le16(data, phase_begin);
+    put_le16(data + 2, phase_end);
 
     uint8_t reg = PCA9685_REGISTER_LED0 + 4 * channel;
     if (!this->write_bytes(reg, data, 4)) {
@@ -140,18 +138,16 @@ void PCA9685Output::loop() {
   this->update_ = false;
 }
 
-void PCA9685Output::register_channel(PCA9685Channel *channel) {
-  auto c = channel->channel_;
-  this->min_channel_ = std::min(this->min_channel_, c);
-  this->max_channel_ = std::max(this->max_channel_, c);
-  channel->set_parent(this);
+void PCA9685Output::register_channel(uint8_t channel) {
+  this->min_channel_ = std::min(this->min_channel_, channel);
+  this->max_channel_ = std::max(this->max_channel_, channel);
 }
 
-void PCA9685Channel::write_state(float state) {
-  const uint16_t max_duty = 4096;
-  const float duty_rounded = roundf(state * max_duty);
-  auto duty = static_cast<uint16_t>(duty_rounded);
-  this->parent_->set_channel_value_(this->channel_, duty);
+void PCA9685Output::write_channel(uint8_t channel, float state) {
+  auto value = static_cast<uint16_t>(roundf(state * 4096));
+  if (this->pwm_amounts_[channel] != value)
+    this->update_ = true;
+  this->pwm_amounts_[channel] = value;
 }
 
 }  // namespace esphome::pca9685

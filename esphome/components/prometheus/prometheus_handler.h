@@ -193,6 +193,36 @@ class PrometheusHandler final : public AsyncWebHandler, public Component {
                   std::string &friendly_name);
 #endif
 
+#if defined(USE_DATETIME_DATE) || defined(USE_DATETIME_DATETIME) || defined(USE_DATETIME_TIME)
+  /// Print the failed row and, when the entity has a state, the value row in milliseconds
+  void date_time_rows_(AsyncResponseStream *stream, ProgmemStr failed_metric, ProgmemStr value_metric, EntityBase *obj,
+                       int64_t value_ms, std::string &area, std::string &node, std::string &friendly_name);
+#endif
+
+#ifdef USE_DATETIME_DATE
+  /// Return the type for prometheus
+  void date_type_(AsyncResponseStream *stream);
+  /// Return the date state as prometheus data point
+  void date_row_(AsyncResponseStream *stream, datetime::DateEntity *obj, std::string &area, std::string &node,
+                 std::string &friendly_name);
+#endif
+
+#ifdef USE_DATETIME_TIME
+  /// Return the type for prometheus
+  void time_type_(AsyncResponseStream *stream);
+  /// Return the time state as prometheus data point
+  void time_row_(AsyncResponseStream *stream, datetime::TimeEntity *obj, std::string &area, std::string &node,
+                 std::string &friendly_name);
+#endif
+
+#ifdef USE_DATETIME_DATETIME
+  /// Return the type for prometheus
+  void datetime_type_(AsyncResponseStream *stream);
+  /// Return the datetime state as prometheus data point
+  void datetime_row_(AsyncResponseStream *stream, datetime::DateTimeEntity *obj, std::string &area, std::string &node,
+                     std::string &friendly_name);
+#endif
+
 #ifdef USE_CLIMATE
   /// Return the type for prometheus
   void climate_type_(AsyncResponseStream *stream);
