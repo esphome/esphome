@@ -8,6 +8,7 @@ from esphome.const import (
     CONF_OPTIMISTIC,
     CONF_OPTIONS,
 )
+from esphome.schema_extractors import SCHEMA_EXTRACT, schema_extractor
 from esphome.types import ConfigType
 
 from .. import CONF_TUYA_ID, Tuya, tuya_ns
@@ -18,12 +19,23 @@ CODEOWNERS = ["@bearpawmaxim"]
 TuyaSelect = tuya_ns.class_("TuyaSelect", select.Select, cg.Component)
 
 
+def datapoint_value(value):
+    """Option key: the 0-255 datapoint value. A named function, because the
+    schema dumper can only name bare-callable wildcard keys."""
+    return cv.int_range(0, 2**8 - 1)(value)
+
+
+_OPTIONS_MAP_SCHEMA = cv.Schema({datapoint_value: cv.string_strict})
+
+
+@schema_extractor("schema")
 def ensure_option_map(value):
+    # Expose the mapping shape to the language-schema dumper; without it the
+    # cv.Any would advertise only the string-list branch for every select
+    if value is SCHEMA_EXTRACT:
+        return _OPTIONS_MAP_SCHEMA
     cv.check_not_templatable(value)
-    option = cv.All(cv.int_range(0, 2**8 - 1))
-    mapping = cv.All(cv.string_strict)
-    options_map_schema = cv.Schema({option: mapping})
-    value = options_map_schema(value)
+    value = _OPTIONS_MAP_SCHEMA(value)
 
     all_values = list(value.keys())
     unique_values = set(value.keys())

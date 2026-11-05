@@ -3,7 +3,8 @@
 import pytest
 
 from esphome import config_validation as cv
-from esphome.components.tuya.select import CONFIG_SCHEMA
+from esphome.components.tuya.select import CONFIG_SCHEMA, ensure_option_map
+from esphome.schema_extractors import SCHEMA_EXTRACT
 
 
 def _config(**kwargs) -> dict:
@@ -42,3 +43,12 @@ def test_int_datapoint_rejects_list() -> None:
 def test_string_datapoint_rejects_empty_list() -> None:
     with pytest.raises(cv.Invalid):
         CONFIG_SCHEMA(_config(string_datapoint=5, options=[]))
+
+
+def test_option_map_shape_is_extractable() -> None:
+    # The language-schema dumper must see the numeric mapping form of
+    # 'options', not just the string-list branch of the cv.Any
+    data = ensure_option_map(SCHEMA_EXTRACT)
+
+    assert isinstance(data, cv.Schema)
+    assert data({0: "low", 1: "high"}) == {0: "low", 1: "high"}
