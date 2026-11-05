@@ -114,9 +114,10 @@ def test_idle_limited_with_timer_sampling() -> None:
     [
         # cannot remove a one-sample glitch
         (80, 100, True),
-        # the defaults never warn, even when capped below a long sample period
+        # 1.5 sample periods removes a one-sample glitch
         (150, 100, False),
-        (400, 1000, False),
+        # the default is capped below a long sample period, so it cannot remove one either
+        (400, 1000, True),
     ],
 )
 def test_filter_warning(
