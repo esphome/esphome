@@ -366,6 +366,13 @@ void APIConnection::loop() {
   // (missing a frame is fine, missing a state update is not)
   this->try_send_camera_image_();
 #endif
+
+#ifdef USE_STORE_YAML
+  // Guard inline so the idle hot path pays a compare, not a function call.
+  if (this->store_yaml_pos_ != STORE_YAML_IDLE) {
+    this->try_send_store_yaml_();
+  }
+#endif
 }
 
 void APIConnection::check_keepalive_(uint32_t now) {
@@ -1222,6 +1229,36 @@ void APIConnection::on_camera_image_request(const CameraImageRequest &msg) {
 }
 #endif
 
+#ifdef USE_STORE_YAML
+void APIConnection::on_get_yaml_request() {
+  // A re-request while a transfer is in flight is ignored (see api.proto)
+  if (this->store_yaml_pos_ != STORE_YAML_IDLE)
+    return;
+  this->store_yaml_pos_ = 0;
+  this->try_send_store_yaml_();
+}
+
+void APIConnection::try_send_store_yaml_() {
+  // Advance only after a successful send, so a full TX buffer retries the same chunk from loop()
+  while (this->helper_->can_write_without_blocking()) {
+    const size_t to_send = std::min(STORE_YAML_DATA_SIZE - this->store_yaml_pos_, MAX_BATCH_PACKET_SIZE);
+    GetYamlResponse resp;
+    resp.data = STORE_YAML_DATA + this->store_yaml_pos_;
+    resp.data_len = to_send;
+    if (this->store_yaml_pos_ == 0)
+      resp.total_size = STORE_YAML_DATA_SIZE;
+    resp.done = this->store_yaml_pos_ + to_send == STORE_YAML_DATA_SIZE;
+    if (!this->send_message(resp))
+      return;
+    if (resp.done) {
+      this->store_yaml_pos_ = STORE_YAML_IDLE;
+      return;
+    }
+    this->store_yaml_pos_ += to_send;
+  }
+}
+#endif
+
 #ifdef USE_HOMEASSISTANT_TIME
 void APIConnection::on_get_time_response(const GetTimeResponse &value) {
   if (homeassistant::global_homeassistant_time != nullptr) {
@@ -1316,7 +1353,7 @@ bool APIConnection::check_voice_assistant_api_connection_() const {
 
 void APIConnection::on_subscribe_voice_assistant_request(const SubscribeVoiceAssistantRequest &msg) {
   if (voice_assistant::global_voice_assistant != nullptr) {
-    voice_assistant::global_voice_assistant->client_subscription(this, msg.subscribe);
+    voice_assistant::global_voice_assistant->client_subscription(this, msg.subscribe, msg.flags);
   }
 }
 void APIConnection::on_voice_assistant_response(const VoiceAssistantResponse &msg) {
@@ -2124,6 +2161,9 @@ bool APIConnection::send_device_capabilities_response_() {
   resp.sendspin.feature_flags = sendspin_::global_sendspin_hub->get_feature_flags();
   resp.sendspin.client_id = sendspin_::global_sendspin_hub->get_client_id();
 #endif
+#ifdef USE_STORE_YAML
+  resp.store_yaml.supported = true;
+#endif
   return this->send_message(resp);
 }
 void APIConnection::on_hello_request(const HelloRequest &msg) {
@@ -2365,10 +2405,14 @@ bool APIConnection::try_to_clear_buffer_slow_(bool log_out_of_space) {
 bool APIConnection::send_message_(uint32_t payload_size, uint16_t message_type, MessageEncodeFn encode_fn,
                                   const void *msg) {
 #ifdef HAS_PROTO_MESSAGE_DUMP
-  // Skip dump for log messages (recursive logging risk) and camera frames (high-frequency noise)
+  // Skip dump for log messages (recursive logging risk), camera frames (high-frequency noise)
+  // and YAML chunks (may contain secrets)
   if (message_type != SubscribeLogsResponse::MESSAGE_TYPE
 #ifdef USE_CAMERA
       && message_type != CameraImageResponse::MESSAGE_TYPE
+#endif
+#ifdef USE_STORE_YAML
+      && message_type != GetYamlResponse::MESSAGE_TYPE
 #endif
   ) {
     auto *proto_msg = static_cast<const ProtoMessage *>(msg);
