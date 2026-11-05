@@ -48,7 +48,10 @@ struct TuyaDatapointListener {
  *
  * Holds the datapoint store, listener registration and the datapoint setters.
  * A subclass provides the transport by implementing send_datapoint_command()
- * and feeding received datapoints to handle_datapoint_().
+ * and feeding received datapoints to handle_datapoint_(). When the transport
+ * has finished initializing (first datapoint report received), it must call
+ * initialized_callback_.call(); the fan, cover and number platforms rely on
+ * it for state restore and initial-value handling.
  */
 class Tuya : public Component {
  public:
@@ -88,7 +91,7 @@ class Tuya : public Component {
   void set_raw_datapoint_value_(uint8_t datapoint_id, const std::vector<uint8_t> &value, bool forced);
   /// Deliver a datapoint value to the MCU over the subclass's transport.
   virtual void send_datapoint_command(uint8_t datapoint_id, TuyaDatapointType datapoint_type,
-                                      std::vector<uint8_t> data) = 0;
+                                      const std::vector<uint8_t> &data) = 0;
 
   std::vector<TuyaDatapointListener> listeners_;
   std::vector<TuyaDatapoint> datapoints_;

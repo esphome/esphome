@@ -79,7 +79,7 @@ class TuyaUART final : public Tuya, public uart::UARTDevice {
   void send_command_(const TuyaCommand &command);
   void send_empty_command_(TuyaCommandType command);
   void send_datapoint_command(uint8_t datapoint_id, TuyaDatapointType datapoint_type,
-                              std::vector<uint8_t> data) override;
+                              const std::vector<uint8_t> &data) override;
   void set_status_pin_();
   void send_wifi_status_();
   uint8_t get_wifi_status_code_();

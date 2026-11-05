@@ -517,7 +517,7 @@ void TuyaUART::send_empty_command_(TuyaCommandType command) {
 }
 
 void TuyaUART::send_datapoint_command(uint8_t datapoint_id, TuyaDatapointType datapoint_type,
-                                      std::vector<uint8_t> data) {
+                                      const std::vector<uint8_t> &data) {
   std::vector<uint8_t> buffer;
   buffer.push_back(datapoint_id);
   buffer.push_back(static_cast<uint8_t>(datapoint_type));
