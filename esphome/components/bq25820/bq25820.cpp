@@ -28,7 +28,7 @@ static constexpr uint8_t PART_NUM_BQ25820 = 0x18;
 static constexpr uint8_t PART_NUM_MASK = 0x38;
 
 // The 16-bit limits, written LSB first, in BQ25820Config::limits order
-static const uint8_t LIMIT_REGISTERS[] PROGMEM = {
+static constexpr uint8_t LIMIT_REGISTERS[] PROGMEM = {
     REG_CHARGE_CURRENT_LIMIT, REG_PRECHARGE_CURRENT_LIMIT,    REG_INPUT_CURRENT_LIMIT,
     REG_INPUT_VOLTAGE_LIMIT,  REG_REVERSE_MODE_VOLTAGE_LIMIT,
 };
@@ -37,7 +37,7 @@ struct ControlRegister {
   uint8_t reg;
   uint8_t mask;
 };
-static const ControlRegister CONTROL_REGISTERS[] PROGMEM = {
+static constexpr ControlRegister CONTROL_REGISTERS[] PROGMEM = {
     {REG_CHARGE_VOLTAGE_LIMIT, 0x1F},  // VFB_REG
     {REG_TIMER_CONTROL, 0xFE},         // everything but EN_TMR2X
     {REG_POWER_PATH_CONTROL, 0x04},    // EN_BATFET_IDEAL_DIODE
