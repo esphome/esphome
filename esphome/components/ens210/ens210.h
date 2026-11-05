@@ -8,13 +8,13 @@ namespace esphome::ens210 {
 
 /// This class implements support for the ENS210 relative humidity and temperature i2c sensor.
 class ENS210Component final : public PollingComponent, public i2c::I2CDevice {
+  SUB_SENSOR(humidity)
+  SUB_SENSOR(temperature)
+
  public:
   void dump_config() override;
   void setup() override;
   void update() override;
-
-  void set_humidity_sensor(sensor::Sensor *humidity_sensor) { humidity_sensor_ = humidity_sensor; }
-  void set_temperature_sensor(sensor::Sensor *temperature_sensor) { temperature_sensor_ = temperature_sensor; }
 
   enum ErrorCode {
     ENS210_STATUS_OK = 0,     // The value was read, the CRC matches, and data is valid
@@ -27,9 +27,6 @@ class ENS210Component final : public PollingComponent, public i2c::I2CDevice {
  protected:
   bool set_low_power_(bool enable);
   void extract_measurement_(uint32_t val, int *data, int *status);
-
-  sensor::Sensor *temperature_sensor_{nullptr};
-  sensor::Sensor *humidity_sensor_{nullptr};
 };
 
 }  // namespace esphome::ens210

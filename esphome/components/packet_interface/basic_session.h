@@ -20,6 +20,10 @@ namespace esphome::packet_interface {
  * which discards data: the session is reported lost, and connected again when the peer is next heard.
  */
 class BasicSession : public PacketInterface {
+#ifdef USE_BINARY_SENSOR
+  SUB_BINARY_SENSOR(connected)
+#endif
+
  public:
   /// The packet type byte.
   static constexpr size_t HEADER_SIZE = 1;
@@ -32,9 +36,6 @@ class BasicSession : public PacketInterface {
 
   void set_keep_alive(uint32_t keep_alive_ms) { this->keep_alive_ms_ = keep_alive_ms; }
   void set_session_timeout(uint32_t timeout_ms) { this->timeout_ms_ = timeout_ms; }
-#ifdef USE_BINARY_SENSOR
-  void set_connected_sensor(binary_sensor::BinarySensor *sensor) { this->connected_sensor_ = sensor; }
-#endif
 
   bool is_connected() const { return this->connected_; }
 
@@ -45,9 +46,6 @@ class BasicSession : public PacketInterface {
   void set_connected_(bool connected);
 
   PacketInterface *lower_;
-#ifdef USE_BINARY_SENSOR
-  binary_sensor::BinarySensor *connected_sensor_{nullptr};
-#endif
   uint32_t keep_alive_ms_{10000};
   uint32_t timeout_ms_{30000};
   uint32_t last_receive_ms_{0};

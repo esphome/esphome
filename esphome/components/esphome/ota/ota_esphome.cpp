@@ -197,6 +197,9 @@ void ESPHomeOTAComponent::loop() {
   this->handle_handshake_();
 }
 
+// Deflate for an RTL8710B image: 2026.10 firmware does not know this bit, and
+// there LibreTiny corrupts a deflate upload into OTA2 (esphome#22012)
+static constexpr uint8_t CLIENT_FEATURE_SUPPORTS_DEFLATE_RTL8710B = 0x40;
 static constexpr uint8_t CLIENT_FEATURE_SUPPORTS_COMPRESSION = 0x01;
 static constexpr uint8_t CLIENT_FEATURE_SUPPORTS_SHA256_AUTH = 0x02;
 static constexpr uint8_t CLIENT_FEATURE_SUPPORTS_EXTENDED_PROTOCOL = 0x04;
@@ -292,8 +295,11 @@ void ESPHomeOTAComponent::handle_handshake_() {
 
       // Validate magic bytes
       if (memcmp(this->handshake_buf_, MAGIC_BYTES, sizeof(MAGIC_BYTES)) != 0) {
-        ESP_LOGW(TAG, "Magic bytes mismatch! 0x%02X-0x%02X-0x%02X-0x%02X-0x%02X", this->handshake_buf_[0],
-                 this->handshake_buf_[1], this->handshake_buf_[2], this->handshake_buf_[3], this->handshake_buf_[4]);
+#if ESPHOME_LOG_LEVEL >= ESPHOME_LOG_LEVEL_WARN
+        char hex_buf[format_hex_pretty_size(HANDSHAKE_BUF_SIZE)];
+        ESP_LOGW(TAG, "Magic bytes mismatch! %s",
+                 format_hex_pretty_to(hex_buf, this->handshake_buf_, HANDSHAKE_BUF_SIZE, '-'));
+#endif
         this->send_error_and_cleanup_(ota::OTA_RESPONSE_ERROR_MAGIC);
         return;
       }
@@ -369,7 +375,7 @@ void ESPHomeOTAComponent::handle_handshake_() {
 #endif
 #ifdef USE_OTA_DEFLATE
         // Offered only once the session memory is in hand; else uncompressed
-        if ((this->ota_features_ & CLIENT_FEATURE_SUPPORTS_DEFLATE) != 0) {
+        if ((this->ota_features_ & (CLIENT_FEATURE_SUPPORTS_DEFLATE | CLIENT_FEATURE_SUPPORTS_DEFLATE_RTL8710B)) != 0) {
           // Value initialized: a corrupt stream that back references the
           // window before it is filled then copies zeros, never stale memory.
           // Default placement, PSRAM first where present: the session lives for one

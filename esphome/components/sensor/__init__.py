@@ -45,7 +45,6 @@ from esphome.const import (
     CONF_TIMEOUT,
     CONF_TO,
     CONF_TRIGGER_ID,
-    CONF_TYPE_ID,
     CONF_UNIT_OF_MEASUREMENT,
     CONF_USE_FAHRENHEIT,
     CONF_VALUE,
@@ -689,10 +688,9 @@ async def delta_filter_to_code(config, filter_id):
     else:
         min = _get_delta(config)
     var = cg.new_Pvariable(filter_id, *min, *max)
-    if isinstance(config, dict) and (baseline_lambda := config.get(CONF_BASELINE)):
-        baseline = await cg.process_lambda(
-            baseline_lambda, [(float, "x")], return_type=float
-        )
+    if isinstance(config, dict) and (baseline := config.get(CONF_BASELINE)) is not None:
+        # A plain number is wrapped in a lambda that returns it
+        baseline = await cg.templatable(baseline, [(float, "x")], float)
         cg.add(var.set_baseline(baseline))
     return var
 
@@ -1009,26 +1007,17 @@ def _timeout_throttle_period(
     return timeout[CONF_TIMEOUT]
 
 
+def _timeout_throttle_merge(first: ConfigType, second: ConfigType) -> tuple | None:
+    if (period := _timeout_throttle_period(first, second)) is None:
+        return None
+    return TimeoutThrottleFilter, [period]
+
+
 async def _build_chain_filters(config: list[ConfigType]) -> list:
     """Like build_filters, but merges the radar `timeout` + `throttle_with_priority` pair into one filter."""
-    filters = []
-    i = 0
-    while i < len(config):
-        if (
-            i + 1 < len(config)
-            and (period := _timeout_throttle_period(config[i], config[i + 1]))
-            is not None
-        ):
-            filter_id = config[i][CONF_TYPE_ID].copy()
-            filter_id.type = TimeoutThrottleFilter
-            var = cg.new_Pvariable(filter_id, period)
-            await cg.register_component(var, {})
-            filters.append(var)
-            i += 2
-            continue
-        filters.append(await cg.build_registry_entry(FILTER_REGISTRY, config[i]))
-        i += 1
-    return filters
+    return await cg.build_registry_list_merged(
+        FILTER_REGISTRY, config, _timeout_throttle_merge
+    )
 
 
 _CALLBACK_AUTOMATIONS = (
