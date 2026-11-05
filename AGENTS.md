@@ -205,6 +205,18 @@ file does, and it is the authority when they disagree. The most useful starting 
         static constexpr uint32_t READ_TIMEOUT_ID = 0;
         this->set_timeout(READ_TIMEOUT_ID, 50, [this]() { this->read_(); });
         ```
+    *   **Scheduler lambdas capture at most 8 bytes:** `set_timeout`, `set_interval` and `defer` store the lambda
+        in a `std::function`, which keeps it inline only when it is at most 8 bytes on 32-bit targets and trivially
+        copyable; anything else is a heap allocation each time it is scheduled, which matters for retries, re-armed
+        timeouts and `defer` on a hot path. `[this]` plus one 4-byte value fits. `[this]` plus two 4-byte values,
+        `[this]` plus a member function pointer (8 bytes), a `std::string` or a `std::function` do not: keep that
+        state in members and capture `[this]`, or capture a small index instead.
+        ```cpp
+        // Bad - 12 bytes on 32-bit, allocates on every retry
+        this->set_timeout(RETRY_ID, 10, [this, configure = config.configure]() { (this->*configure)(); });
+        // Good - 8 bytes, the pointer is looked up when the timeout runs
+        this->set_timeout(RETRY_ID, 10, [this, feature]() { this->run_configure_(feature); });
+        ```
     *   **Don't override a default with the same value:** if a base class method already returns what you
         want, do not override it. `Component::get_setup_priority()` returns `setup_priority::DATA`, so a
         component that wants `DATA` should simply leave it alone.
@@ -227,8 +239,10 @@ file does, and it is the authority when they disagree. The most useful starting 
         A `dump_config` helper that picks a name returns `const LogString *` from `LOG_STR(...)`.
     *   **CRCs and bit tricks** come from `esphome/core/helpers.h` (`crc8`, `crc16`, `xor_bytes`, `sum16_bytes`,
         `reverse_bits`, `encode_uint16`, `encode_value_le`, `sign_extend<BITS>`, `bcd_to_uint8`, `assign_bits`); pick
-        the helper's arguments instead of writing a loop. 7-byte BCD RTC calendars use `time::decode_bcd_calendar<LAYOUT>`
-        and `encode_bcd_calendar<LAYOUT>` with `EPSON_BCD_CALENDAR`, `DS_BCD_CALENDAR` or `PCF_BCD_CALENDAR`.
+        the helper's arguments instead of writing a loop. `put_be16`/`24`/`32`, `put_le16` and `put_le32` write an
+        integer into a byte buffer and return the pointer past it. 7-byte BCD RTC calendars use
+        `time::decode_bcd_calendar<LAYOUT>` and `encode_bcd_calendar<LAYOUT>` with `EPSON_BCD_CALENDAR`,
+        `DS_BCD_CALENDAR` or `PCF_BCD_CALENDAR`.
     *   **Bus helpers:** UART drains with `read_available(on_byte)` and `discard_available()`, text lines with
         `LineReader<N>`, fixed-length binary frames with `FrameReader<N, HEADER...>`; I2C has `update_register`,
         `write_registers` (PROGMEM `I2CRegValue` table), `check_chip_id` and `read_bytes_16_le`.
