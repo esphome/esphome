@@ -436,6 +436,8 @@ extern "C" [[noreturn]] void __wrap_abort() {
   // Valid without a backtrace, so a fault in the stack scan still leaves this record
   s_record.backtrace[0] = 0;
   s_record.magic = CRASH_MAGIC_V2;
+  // Keeps those writes ahead of the scan's reads
+  __asm volatile("" ::: "memory");
 #ifdef USE_LIBRETINY_CRASH_HANDLER_VECTOR_PATCH
   // A fault in the scan then spins for the watchdog instead of replacing this record or running the SDK dump
   s_fault_recorded = true;
