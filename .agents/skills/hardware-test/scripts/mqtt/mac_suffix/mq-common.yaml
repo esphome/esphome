@@ -1,0 +1,24 @@
+# Package for esphome#9315, included by the per-variant files under pr/ and base/ (substitutions name, suffix).
+esphome:
+  name: ${name}
+  name_add_mac_suffix: ${suffix}
+
+wifi:
+  ssid: !secret wifi_ssid
+  password: !secret wifi_password
+  power_save_mode: none
+
+logger:
+  level: DEBUG
+
+ota:
+  - platform: esphome
+
+button:
+  - platform: restart
+    name: Restart
+
+interval:
+  - interval: 10s
+    then:
+      - logger.log: "alive"
