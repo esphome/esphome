@@ -96,7 +96,7 @@ called by other devices, scripts, and pages.
 As defense-in-depth, the web server checks the `Origin` header on browser requests
 to every endpoint served through it, including the web OTA `/update` endpoint
 (the captive portal pages are open by design): a request whose `Origin` does not match
-the address the device is served on is rejected, and the `allowed_origins` option
+the `Host` header of the same request is rejected, and the `allowed_origins` option
 widens that list. This blocks the common "confused deputy" (CSRF) case where a page
 the operator visits drives the device through their browser. It is **not** an
 authentication boundary: it only constrains browsers. Any client that omits the
@@ -107,6 +107,8 @@ validation. The following are therefore **not** vulnerabilities in this reposito
 - Requests without an `Origin` header (for example `curl`) reaching the control
   endpoints, whether or not `web_server` `auth:` is set.
 - Requests from an origin the operator added to `allowed_origins`.
+- DNS rebinding: a page whose host name resolves to the device sends a matching
+  `Origin` and `Host`, so the check lets it through.
 - Firmware upload through the web OTA endpoint (`/update`) by a client that sends no
   `Origin` header when web OTA is enabled without `web_server` `auth:`; this is the
   same exposure as running OTA without a password.

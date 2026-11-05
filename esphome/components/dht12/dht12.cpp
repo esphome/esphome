@@ -3,6 +3,7 @@
 //  - DHT12_sensor_library: https://github.com/xreef/DHT12_sensor_library/blob/master/DHT12.cpp
 
 #include "dht12.h"
+#include "esphome/core/helpers.h"
 #include "esphome/core/log.h"
 
 namespace esphome::dht12 {
@@ -32,10 +33,8 @@ void DHT12Component::update() {
 }
 void DHT12Component::setup() {
   uint8_t data[5];
-  if (!this->read_data_(data)) {
-    this->mark_failed(LOG_STR(ESP_LOG_MSG_COMM_FAIL));
+  if (!this->setup_check(this->read_data_(data)))
     return;
-  }
 }
 void DHT12Component::dump_config() {
   ESP_LOGD(TAG, "DHT12:");
@@ -50,7 +49,7 @@ bool DHT12Component::read_data_(uint8_t *data) {
     return false;
   }
 
-  uint8_t checksum = data[0] + data[1] + data[2] + data[3];
+  uint8_t checksum = sum_bytes(data, 4);
   if (data[4] != checksum) {
     ESP_LOGW(TAG, "DHT12 Checksum invalid!");
     return false;
