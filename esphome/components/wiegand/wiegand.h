@@ -4,7 +4,6 @@
 #include "esphome/core/automation.h"
 #include "esphome/core/component.h"
 #include "esphome/core/hal.h"
-#include "esphome/core/helpers.h"
 
 namespace esphome::wiegand {
 
@@ -22,12 +21,6 @@ struct WiegandStore {
   static void d1_gpio_intr(WiegandStore *arg);
 };
 
-class WiegandTagTrigger final : public Trigger<std::string> {};
-
-class WiegandRawTrigger final : public Trigger<uint8_t, uint64_t> {};
-
-class WiegandKeyTrigger final : public Trigger<uint8_t> {};
-
 class Wiegand final : public key_provider::KeyProvider, public Component {
  public:
   float get_setup_priority() const override { return setup_priority::HARDWARE; }
@@ -37,14 +30,29 @@ class Wiegand final : public key_provider::KeyProvider, public Component {
 
   void set_d0_pin(InternalGPIOPin *pin) { this->d0_pin_ = pin; };
   void set_d1_pin(InternalGPIOPin *pin) { this->d1_pin_ = pin; };
-  SLOT_LIST(WiegandTagTrigger, tag_triggers_, register_tag_trigger, WIEGAND_TAG_TRIGGER_COUNT)
-  SLOT_LIST(WiegandRawTrigger, raw_triggers_, register_raw_trigger, WIEGAND_RAW_TRIGGER_COUNT)
-  SLOT_LIST(WiegandKeyTrigger, key_triggers_, register_key_trigger, WIEGAND_KEY_TRIGGER_COUNT)
+#ifdef WIEGAND_ON_TAG_COUNT
+  void add_on_tag_automation(Automation<std::string> *automation) { this->tag_automations_.add(automation); }
+#endif
+#ifdef WIEGAND_ON_RAW_COUNT
+  void add_on_raw_automation(Automation<uint8_t, uint64_t> *automation) { this->raw_automations_.add(automation); }
+#endif
+#ifdef WIEGAND_ON_KEY_COUNT
+  void add_on_key_automation(Automation<uint8_t> *automation) { this->key_automations_.add(automation); }
+#endif
 
  protected:
   InternalGPIOPin *d0_pin_;
   InternalGPIOPin *d1_pin_;
   WiegandStore store_{};
+#ifdef WIEGAND_ON_TAG_COUNT
+  AutomationList<WIEGAND_ON_TAG_COUNT, std::string> tag_automations_;
+#endif
+#ifdef WIEGAND_ON_RAW_COUNT
+  AutomationList<WIEGAND_ON_RAW_COUNT, uint8_t, uint64_t> raw_automations_;
+#endif
+#ifdef WIEGAND_ON_KEY_COUNT
+  AutomationList<WIEGAND_ON_KEY_COUNT, uint8_t> key_automations_;
+#endif
 };
 
 }  // namespace esphome::wiegand
