@@ -57,6 +57,7 @@ BASIC_SESSION_SCHEMA = cv.All(
 @SESSION.register(
     "basic",
     schema=BASIC_SESSION_SCHEMA,
+    single_peer=lambda config: True,
     auto_load=lambda config: ["binary_sensor"] if CONF_BINARY_SENSOR in config else [],
 )
 async def build_basic_session(config: ConfigType, lower: MockObj) -> MockObj:

@@ -7,7 +7,11 @@ import esphome.codegen as cg
 from esphome.components import packet_interface
 from esphome.components.binary_sensor import BinarySensor
 from esphome.components.const import CONF_PROVIDER, CONF_REMOTE_ID
-from esphome.components.packet_interface import CONF_PACKET_INTERFACE, interface_layers
+from esphome.components.packet_interface import (
+    CONF_PACKET_INTERFACE,
+    final_validate_interface,
+    interface_layers,
+)
 from esphome.components.packet_interface.layers import CONF_SESSION
 from esphome.components.sensor import Sensor
 import esphome.config_validation as cv
@@ -108,7 +112,9 @@ def _final_validate(config: ConfigType) -> ConfigType:
     return config
 
 
-FINAL_VALIDATE_SCHEMA = _final_validate
+FINAL_VALIDATE_SCHEMA = cv.All(
+    final_validate_interface(CONF_PACKET_INTERFACE), _final_validate
+)
 
 
 def _validate_remote_id(config: ConfigType) -> ConfigType:
