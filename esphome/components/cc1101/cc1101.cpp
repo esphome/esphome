@@ -1,5 +1,6 @@
 #include "cc1101.h"
 #include "cc1101pa.h"
+#include "esphome/core/application.h"
 #include "esphome/core/helpers.h"
 #include "esphome/core/log.h"
 #include "esphome/core/progmem.h"
@@ -172,6 +173,7 @@ void CC1101Component::configure() {
     this->write_(static_cast<Register>(i));
   }
   this->set_output_power(this->output_power_requested_);
+  this->packet_idle_timeout_ms_ = this->compute_packet_idle_timeout_ms_();
 
   if (!this->enter_rx_()) {
     this->mark_failed();
@@ -190,7 +192,7 @@ bool CC1101Component::is_long_packet_mode_() const {
   return this->packet_mode_ && (this->packet_length_ > 64 || this->packet_length_func_);
 }
 
-uint32_t CC1101Component::packet_idle_timeout_ms_() const {
+uint32_t CC1101Component::compute_packet_idle_timeout_ms_() const {
   const float symbol_rate =
       (((256.0f + this->state_.DRATE_M) * (1 << this->state_.DRATE_E)) / (1 << 28)) * XTAL_FREQUENCY;
   const uint32_t timeout = static_cast<uint32_t>(std::ceil((8.0f * PACKET_IDLE_TIMEOUT_BYTES * 1000.0f) / symbol_rate));
@@ -259,11 +261,9 @@ void CC1101Component::finish_long_packet_() {
   this->read_(Register::LQI);
   float freq_offset = static_cast<int8_t>(this->state_.FREQEST) * (XTAL_FREQUENCY / (1 << 14));
   float rssi = (this->state_.RSSI * RSSI_STEP) - RSSI_OFFSET;
-  bool crc_ok = (this->state_.LQI & STATUS_CRC_OK_MASK) != 0;
   uint8_t lqi = this->state_.LQI & STATUS_LQI_MASK;
-  if (this->state_.CRC_EN == 0 || crc_ok) {
-    this->call_listeners_(this->packet_, freq_offset, rssi, lqi);
-  }
+  // No CRC check: crc_enable is rejected for long packets, the CRC bytes would arrive after the payload
+  this->call_listeners_(this->packet_, freq_offset, rssi, lqi);
   this->restart_long_packet_rx_();
 }
 
@@ -287,7 +287,8 @@ void CC1101Component::handle_long_packet_(uint8_t rx_bytes) {
   }
 
   if (to_read == 0) {
-    if (!this->packet_.empty() && millis() - this->packet_last_byte_ms_ > this->packet_idle_timeout_ms_()) {
+    if (!this->packet_.empty() &&
+        App.get_loop_component_start_time() - this->packet_last_byte_ms_ > this->packet_idle_timeout_ms_) {
       ESP_LOGW(TAG, "Packet receive timeout, discarding packet: received=%u expected=%u fifo=%u",
                static_cast<uint16_t>(this->packet_.size()), this->packet_expected_length_, rx_bytes);
       this->restart_long_packet_rx_();
@@ -304,7 +305,7 @@ void CC1101Component::handle_long_packet_(uint8_t rx_bytes) {
   }
   this->packet_.resize(old_size + to_read);
   this->read_(Register::FIFO, this->packet_.data() + old_size, to_read);
-  this->packet_last_byte_ms_ = millis();
+  this->packet_last_byte_ms_ = App.get_loop_component_start_time();
   ESP_LOGVV(TAG, "Drained RX FIFO: read=%u received=%u expected=%u fifo=%u", to_read,
             static_cast<uint16_t>(this->packet_.size()), this->packet_expected_length_, rx_bytes);
 
@@ -328,10 +329,10 @@ void CC1101Component::handle_long_packet_(uint8_t rx_bytes) {
       this->restart_long_packet_rx_();
       return;
     }
-    if (length > 0 && static_cast<size_t>(length) < this->packet_.size()) {
-      ESP_LOGW(TAG, "Invalid computed packet length, discarding packet: length=%" PRId32 " received=%u", length,
-               static_cast<uint16_t>(this->packet_.size()));
-      this->restart_long_packet_rx_();
+    // A packet shorter than the first FIFO drain is already complete; finish_long_packet_() truncates it
+    if (length > 0 && static_cast<size_t>(length) <= this->packet_.size()) {
+      this->packet_expected_length_ = static_cast<uint16_t>(length);
+      this->finish_long_packet_();
       return;
     }
     if (length > 0) {
@@ -376,7 +377,8 @@ void CC1101Component::loop() {
         this->disable_loop();
         return;
       }
-      if (!this->packet_.empty() && millis() - this->packet_last_byte_ms_ > this->packet_idle_timeout_ms_()) {
+      if (!this->packet_.empty() &&
+          App.get_loop_component_start_time() - this->packet_last_byte_ms_ > this->packet_idle_timeout_ms_) {
         ESP_LOGW(TAG, "Packet receive timeout, discarding packet: received=%u expected=%u fifo=%u",
                  static_cast<uint16_t>(this->packet_.size()), this->packet_expected_length_, rx_bytes);
         this->restart_long_packet_rx_();
@@ -497,6 +499,9 @@ void CC1101Component::begin_rx() {
   }
   // Transition through IDLE to ensure FS_AUTOCAL calibration occurs
   this->enter_idle_();
+  if (this->is_long_packet_mode_()) {
+    this->reset_long_packet_rx_();
+  }
   if (!this->enter_rx_()) {
     ESP_LOGW(TAG, "Failed to enter RX state!");
   }
@@ -510,6 +515,9 @@ void CC1101Component::reset() {
 void CC1101Component::set_idle() {
   ESP_LOGV(TAG, "Setting IDLE state");
   this->enter_idle_();
+  if (this->is_long_packet_mode_()) {
+    this->reset_long_packet_rx_();
+  }
 }
 
 bool CC1101Component::wait_for_state_(State target_state, uint32_t timeout_ms) {
@@ -606,9 +614,9 @@ CC1101Error CC1101Component::transmit_packet(const uint8_t *data, size_t len) {
     ESP_LOGW(TAG, "Cannot transmit packet: packet mode is not FIFO");
     return CC1101Error::PARAMS;
   }
-  // Long packet TX needs chunked FIFO refills and is not implemented.
-  if (this->state_.LENGTH_CONFIG == static_cast<uint8_t>(LengthConfig::LENGTH_CONFIG_INFINITE)) {
-    ESP_LOGW(TAG, "Cannot transmit packet: long packet TX is not implemented for infinite packet mode");
+  // Long packet TX needs chunked FIFO refills and is not implemented
+  if (this->is_long_packet_mode_()) {
+    ESP_LOGW(TAG, "Cannot transmit packet: long packet mode is RX-only");
     return CC1101Error::PARAMS;
   }
   const bool variable = this->state_.LENGTH_CONFIG == static_cast<uint8_t>(LengthConfig::LENGTH_CONFIG_VARIABLE);
@@ -779,6 +787,7 @@ void CC1101Component::set_symbol_rate(float value) {
   split_float(value * (1 << 28) / XTAL_FREQUENCY, 8, e, m);
   this->state_.DRATE_E = e;
   this->state_.DRATE_M = static_cast<uint8_t>(m);
+  this->packet_idle_timeout_ms_ = this->compute_packet_idle_timeout_ms_();
   if (this->initialized_) {
     this->write_(Register::MDMCFG4);
     this->write_(Register::MDMCFG3);

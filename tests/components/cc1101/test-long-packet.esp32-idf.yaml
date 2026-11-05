@@ -17,7 +17,7 @@ cc1101:
     # both the RX FIFO draining and the infinite-to-fixed packet length switch
     # (CC1101 datasheet section 15.2.2, "Packet Length > 255").
     packet_length: 1024
-    crc_enable: true
+    crc_enable: false
     whitening: false
     sync_mode: "16/16"
     sync0: 0x91

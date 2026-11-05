@@ -122,7 +122,7 @@ class CC1101Component final : public Component,
   void handle_long_packet_(uint8_t rx_bytes);
   void finish_long_packet_();
   void maybe_switch_long_packet_to_fixed_();
-  uint32_t packet_idle_timeout_ms_() const;
+  uint32_t compute_packet_idle_timeout_ms_() const;
   Trigger<std::vector<uint8_t>, float, float, uint8_t> packet_trigger_;
   std::vector<uint8_t> packet_;
   std::vector<CC1101Listener *> listeners_;
@@ -130,6 +130,7 @@ class CC1101Component final : public Component,
   uint16_t packet_length_{0};
   uint16_t packet_expected_length_{0};
   uint32_t packet_last_byte_ms_{0};
+  uint32_t packet_idle_timeout_ms_{0};
   bool packet_mode_{false};
   bool packet_fixed_mode_armed_{false};
 

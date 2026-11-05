@@ -255,6 +255,13 @@ def _validate_packet_mode(config):
             raise cv.Invalid("packet_length is required when packet_mode is enabled")
     if packet_length_is_lambda and not config.get(CONF_PACKET_MODE, False):
         raise cv.Invalid("packet_mode is required when packet_length is a lambda")
+    is_long_packet = config.get(CONF_PACKET_MODE, False) and (
+        packet_length_is_lambda or config.get(CONF_PACKET_LENGTH, 0) > 64
+    )
+    if is_long_packet and config.get(CONF_CRC_ENABLE, False):
+        raise cv.Invalid(
+            "crc_enable is not available with packet_length > 64 or a lambda"
+        )
     return config
 
 
