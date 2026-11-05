@@ -10,6 +10,7 @@
 #include <openthread/netdata.h>
 #include <openthread/tasklet.h>
 
+#include <algorithm>
 #include <cstring>
 #include <utility>
 
@@ -415,9 +416,10 @@ void OpenThreadComponent::apply_linkmode_(otInstance *instance) {
   // otChildSupervisionSetCheckTimeout()/SetInterval() take uint16_t seconds; clamp the
   // derived values so a large poll_period can't silently wrap past 65535.
   const auto check_timeout_sec = static_cast<uint16_t>(
-      std::clamp<uint32_t>(poll_period_sec * 2, child_supervision_check_timeout_min_sec, UINT16_MAX));
-  const auto interval_sec = static_cast<uint16_t>(
-      std::clamp<uint32_t>(poll_period_sec * 3 / 2, child_supervision_interval_min_sec, UINT16_MAX));
+      std::clamp<uint32_t>(poll_period_sec * 3 + 10, child_supervision_check_timeout_min_sec, UINT16_MAX));
+  // Ends just before a poll so the parent holds the frame briefly. Signed: poll_period_sec can be 0.
+  const auto interval_sec = static_cast<uint16_t>(std::clamp<int32_t>(static_cast<int32_t>(poll_period_sec * 2) - 10,
+                                                                      child_supervision_interval_min_sec, UINT16_MAX));
   otThreadSetChildTimeout(instance, std::max<uint32_t>(poll_period_sec * 4, child_timeout_min_sec));
   otChildSupervisionSetCheckTimeout(instance, check_timeout_sec);
   otChildSupervisionSetInterval(instance, interval_sec);
