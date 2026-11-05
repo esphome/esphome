@@ -19,10 +19,8 @@ const LogString *EPaperBase::epaper_state_to_string_() {
 }
 
 void EPaperBase::setup() {
-  if (!this->init_buffer_(this->buffer_length_)) {
-    this->mark_failed(LOG_STR("Failed to initialise buffer"));
+  if (!this->setup_check(this->init_buffer_(this->buffer_length_), LOG_STR("Failed to initialise buffer")))
     return;
-  }
   this->setup_pins_();
   this->spi_setup();
 }
@@ -36,10 +34,11 @@ bool EPaperBase::init_buffer_(size_t buffer_length) {
 }
 
 bool EPaperBase::init_sent_frame_(size_t length) {
-  if (!this->is_using_partial_update_())
+  if (!this->is_using_partial_update_() || this->sent_init_failed_)
     return false;
   if (this->sent_.init(length))
     return true;
+  this->sent_init_failed_ = true;
   ESP_LOGW(TAG, "No memory for the previous frame; partial updates will send the whole drawn area");
   return false;
 }

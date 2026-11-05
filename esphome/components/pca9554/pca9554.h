@@ -50,7 +50,6 @@ class PCA9554Component final : public gpio_expander::CachedGpioExpanderComponent
 
   // Virtual methods from CachedGpioExpander
   bool digital_read_hw(uint8_t pin) override;
-  bool digital_read_cache(uint8_t pin) override;
   void digital_write_hw(uint8_t pin, bool value) override;
 
 #ifdef USE_PCA9554_PCAL
@@ -61,8 +60,6 @@ class PCA9554Component final : public gpio_expander::CachedGpioExpanderComponent
   uint16_t config_mask_{0x00};
   /// The mask to write as output state - 1 means HIGH, 0 means LOW
   uint16_t output_mask_{0x00};
-  /// The state of the actual input pins - 1 means HIGH, 0 means LOW
-  uint16_t input_mask_{0x00};
 #ifdef USE_PCA9554_PCAL
   // Shadows of the PCAL registers. setup() writes them, so every part starts with the pulls disconnected
   // whatever its power-on state is (the PCAL9555 powers up with pull-ups enabled).
