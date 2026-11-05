@@ -193,6 +193,7 @@ class AsyncWebServerRequest {
   void onDisconnect(std::function<void()> fn) { this->on_disconnect_ = std::move(fn); }
 #endif
 
+  /// sess_ctx is reserved for AsyncStreamResponse: the server's close_fn treats any session context as one.
   operator httpd_req_t *() const { return this->req_; }
   optional<std::string> get_header(const char *name) const;
   // NOLINTNEXTLINE(readability-identifier-naming)
