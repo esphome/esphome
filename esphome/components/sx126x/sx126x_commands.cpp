@@ -23,41 +23,29 @@ static constexpr uint8_t OCP_140MA = 0x38;  // 140 mA max current
 // LoRa low data rate optimization threshold
 static constexpr float LOW_DATA_RATE_OPTIMIZE_THRESHOLD = 16.38f;  // 16.38 ms
 
-bool Sx126xCommands::read_fifo_(uint8_t offset, std::vector<uint8_t> &packet) {
-  const uint8_t header[] = {RADIO_READ_BUFFER, offset, 0};
-  return this->spi_device_.read(header, packet);
-}
-
-bool Sx126xCommands::write_fifo_(uint8_t offset, const uint8_t *data, size_t len) {
-  const uint8_t header[] = {RADIO_WRITE_BUFFER, offset};
-  return this->spi_device_.write(header, {data, len});
-}
-
-bool Sx126xCommands::read_opcode_(uint8_t opcode, uint8_t *data, uint8_t size) {
+void Sx126xCommands::read_opcode_(uint8_t opcode, uint8_t *data, uint8_t size) {
   const uint8_t header[] = {opcode, 0};
-  return this->spi_device_.read(header, {data, size});
+  this->spi_device_.read(header, {data, size});
 }
 
-bool Sx126xCommands::write_opcode_(uint8_t opcode, const uint8_t *data, uint8_t size) {
-  return this->spi_device_.write({&opcode, 1}, {data, size});
+void Sx126xCommands::write_opcode_(uint8_t opcode, const uint8_t *data, uint8_t size) {
+  this->spi_device_.write({&opcode, 1}, {data, size});
 }
 
-bool Sx126xCommands::read_register_(uint16_t reg, uint8_t *data, uint8_t size) {
+void Sx126xCommands::read_register_(uint16_t reg, uint8_t *data, uint8_t size) {
   const uint8_t header[] = {RADIO_READ_REGISTER, static_cast<uint8_t>(reg >> 8), static_cast<uint8_t>(reg), 0};
-  return this->spi_device_.read(header, {data, size});
+  this->spi_device_.read(header, {data, size});
 }
 
-bool Sx126xCommands::write_register_(uint16_t reg, const uint8_t *data, uint8_t size) {
+void Sx126xCommands::write_register_(uint16_t reg, const uint8_t *data, uint8_t size) {
   const uint8_t header[] = {RADIO_WRITE_REGISTER, static_cast<uint8_t>(reg >> 8), static_cast<uint8_t>(reg)};
-  return this->spi_device_.write(header, {data, size});
+  this->spi_device_.write(header, {data, size});
 }
 
 ConfigurationResult Sx126xCommands::configure(const RadioProfile &profile, std::span<char, 16> version) {
   uint8_t buf[8];
   // wakeup
-  if (!this->read_opcode_(RADIO_GET_STATUS, nullptr, 0)) {
-    return ConfigurationResult::CONFIGURATION_RESULT_BUSY_TIMEOUT;
-  }
+  this->read_opcode_(RADIO_GET_STATUS, nullptr, 0);
 
   // config tcxo
   if (profile.tcxo_voltage != TCXO_CTRL_NONE) {
@@ -66,32 +54,25 @@ ConfigurationResult Sx126xCommands::configure(const RadioProfile &profile, std::
     buf[1] = (delay >> 16) & 0xFF;
     buf[2] = (delay >> 8) & 0xFF;
     buf[3] = (delay >> 0) & 0xFF;
-    if (!this->write_opcode_(RADIO_SET_TCXOMODE, buf, 4)) {
-      return ConfigurationResult::CONFIGURATION_RESULT_BUSY_TIMEOUT;
-    }
+    this->write_opcode_(RADIO_SET_TCXOMODE, buf, 4);
     buf[0] = 0x7F;
-    if (!this->write_opcode_(RADIO_CALIBRATE, buf, 1)) {
-      return ConfigurationResult::CONFIGURATION_RESULT_BUSY_TIMEOUT;
-    }
+    this->write_opcode_(RADIO_CALIBRATE, buf, 1);
   }
 
   // clear errors
   buf[0] = 0x00;
   buf[1] = 0x00;
-  if (!this->write_opcode_(RADIO_CLR_ERROR, buf, 2)) {
-    return ConfigurationResult::CONFIGURATION_RESULT_BUSY_TIMEOUT;
-  }
+  this->write_opcode_(RADIO_CLR_ERROR, buf, 2);
 
   // rf switch
   if (profile.rf_switch) {
     buf[0] = 0x01;
-    if (!this->write_opcode_(RADIO_SET_RFSWITCHMODE, buf, 1)) {
-      return ConfigurationResult::CONFIGURATION_RESULT_BUSY_TIMEOUT;
-    }
+    this->write_opcode_(RADIO_SET_RFSWITCHMODE, buf, 1);
   }
 
   // check silicon version to make sure hw is ok
-  if (!this->read_register_(REG_VERSION_STRING, reinterpret_cast<uint8_t *>(version.data()), version.size())) {
+  this->read_register_(REG_VERSION_STRING, reinterpret_cast<uint8_t *>(version.data()), version.size());
+  if (!this->spi_device_.ok()) {
     return ConfigurationResult::CONFIGURATION_RESULT_BUSY_TIMEOUT;
   }
   version[version.size() - 1] = '\0';
@@ -101,14 +82,10 @@ ConfigurationResult Sx126xCommands::configure(const RadioProfile &profile, std::
 
   // setup packet type
   buf[0] = profile.modulation;
-  if (!this->write_opcode_(RADIO_SET_PACKETTYPE, buf, 1)) {
-    return ConfigurationResult::CONFIGURATION_RESULT_BUSY_TIMEOUT;
-  }
+  this->write_opcode_(RADIO_SET_PACKETTYPE, buf, 1);
 
   // calibrate image
-  if (!this->calibrate_image(profile.frequency)) {
-    return ConfigurationResult::CONFIGURATION_RESULT_BUSY_TIMEOUT;
-  }
+  this->calibrate_image(profile.frequency);
 
   // set frequency
   uint64_t freq = ((uint64_t) profile.frequency << 25) / XTAL_FREQ;
@@ -116,9 +93,7 @@ ConfigurationResult Sx126xCommands::configure(const RadioProfile &profile, std::
   buf[1] = (uint8_t) ((freq >> 16) & 0xFF);
   buf[2] = (uint8_t) ((freq >> 8) & 0xFF);
   buf[3] = (uint8_t) (freq & 0xFF);
-  if (!this->write_opcode_(RADIO_SET_RFFREQUENCY, buf, 4)) {
-    return ConfigurationResult::CONFIGURATION_RESULT_BUSY_TIMEOUT;
-  }
+  this->write_opcode_(RADIO_SET_RFFREQUENCY, buf, 4);
 
   // configure pa
   int8_t pa_power = profile.pa_power;
@@ -127,40 +102,28 @@ ConfigurationResult Sx126xCommands::configure(const RadioProfile &profile, std::
     // in rev 2.1 of the datasheet
     if (pa_power == 15) {
       uint8_t cfg[4] = {0x06, 0x00, 0x01, 0x01};
-      if (!this->write_opcode_(RADIO_SET_PACONFIG, cfg, 4)) {
-        return ConfigurationResult::CONFIGURATION_RESULT_BUSY_TIMEOUT;
-      }
+      this->write_opcode_(RADIO_SET_PACONFIG, cfg, 4);
     } else {
       uint8_t cfg[4] = {0x04, 0x00, 0x01, 0x01};
-      if (!this->write_opcode_(RADIO_SET_PACONFIG, cfg, 4)) {
-        return ConfigurationResult::CONFIGURATION_RESULT_BUSY_TIMEOUT;
-      }
+      this->write_opcode_(RADIO_SET_PACONFIG, cfg, 4);
     }
     pa_power = std::max(pa_power, (int8_t) -3);
     pa_power = std::min(pa_power, (int8_t) 14);
     buf[0] = OCP_80MA;
-    if (!this->write_register_(REG_OCP, buf, 1)) {
-      return ConfigurationResult::CONFIGURATION_RESULT_BUSY_TIMEOUT;
-    }
+    this->write_register_(REG_OCP, buf, 1);
   } else {
     // the following values were taken from section 13.1.14.1 table 13-21
     // in rev 2.1 of the datasheet
     uint8_t cfg[4] = {0x04, 0x07, 0x00, 0x01};
-    if (!this->write_opcode_(RADIO_SET_PACONFIG, cfg, 4)) {
-      return ConfigurationResult::CONFIGURATION_RESULT_BUSY_TIMEOUT;
-    }
+    this->write_opcode_(RADIO_SET_PACONFIG, cfg, 4);
     pa_power = std::max(pa_power, (int8_t) -3);
     pa_power = std::min(pa_power, (int8_t) 22);
     buf[0] = OCP_140MA;
-    if (!this->write_register_(REG_OCP, buf, 1)) {
-      return ConfigurationResult::CONFIGURATION_RESULT_BUSY_TIMEOUT;
-    }
+    this->write_register_(REG_OCP, buf, 1);
   }
   buf[0] = pa_power;
   buf[1] = profile.pa_ramp;
-  if (!this->write_opcode_(RADIO_SET_TXPARAMS, buf, 2)) {
-    return ConfigurationResult::CONFIGURATION_RESULT_BUSY_TIMEOUT;
-  }
+  this->write_opcode_(RADIO_SET_TXPARAMS, buf, 2);
 
   // configure modem
   if (profile.modulation == PACKET_TYPE_LORA) {
@@ -170,18 +133,12 @@ ConfigurationResult Sx126xCommands::configure(const RadioProfile &profile, std::
     buf[1] = progmem_read_byte(&BW_LORA[profile.bandwidth - SX126X_BW_7810]);
     buf[2] = profile.coding_rate;
     buf[3] = (duration > LOW_DATA_RATE_OPTIMIZE_THRESHOLD) ? 0x01 : 0x00;
-    if (!this->write_opcode_(RADIO_SET_MODULATIONPARAMS, buf, 4)) {
-      return ConfigurationResult::CONFIGURATION_RESULT_BUSY_TIMEOUT;
-    }
+    this->write_opcode_(RADIO_SET_MODULATIONPARAMS, buf, 4);
 
     // set packet params and sync word
-    if (!this->set_packet_params(profile, profile.max_packet_size())) {
-      return ConfigurationResult::CONFIGURATION_RESULT_BUSY_TIMEOUT;
-    }
+    this->set_packet_params(profile, profile.max_packet_size());
     if (profile.sync_size == 2) {
-      if (!this->write_register_(REG_LORA_SYNCWORD, profile.sync_value.data(), profile.sync_size)) {
-        return ConfigurationResult::CONFIGURATION_RESULT_BUSY_TIMEOUT;
-      }
+      this->write_register_(REG_LORA_SYNCWORD, profile.sync_value.data(), profile.sync_size);
     }
   } else {
     // set modulation params
@@ -195,63 +152,46 @@ ConfigurationResult Sx126xCommands::configure(const RadioProfile &profile, std::
     buf[5] = (fdev >> 16) & 0xFF;
     buf[6] = (fdev >> 8) & 0xFF;
     buf[7] = (fdev >> 0) & 0xFF;
-    if (!this->write_opcode_(RADIO_SET_MODULATIONPARAMS, buf, 8)) {
-      return ConfigurationResult::CONFIGURATION_RESULT_BUSY_TIMEOUT;
-    }
+    this->write_opcode_(RADIO_SET_MODULATIONPARAMS, buf, 8);
 
     // set crc params
     if (profile.crc_enable) {
       buf[0] = profile.crc_initial >> 8;
       buf[1] = profile.crc_initial & 0xFF;
-      if (!this->write_register_(REG_CRC_INITIAL, buf, 2)) {
-        return ConfigurationResult::CONFIGURATION_RESULT_BUSY_TIMEOUT;
-      }
+      this->write_register_(REG_CRC_INITIAL, buf, 2);
       buf[0] = profile.crc_polynomial >> 8;
       buf[1] = profile.crc_polynomial & 0xFF;
-      if (!this->write_register_(REG_CRC_POLYNOMIAL, buf, 2)) {
-        return ConfigurationResult::CONFIGURATION_RESULT_BUSY_TIMEOUT;
-      }
+      this->write_register_(REG_CRC_POLYNOMIAL, buf, 2);
     }
 
     // set whitening params
     if (profile.whitening_enable) {
       // according to the datasheet, section 12 table 12-1 "The user should not
       // change the value of the 7 MSB of this register"
-      if (!this->read_register_(REG_WHITENING_INITIAL, buf, 1)) {
-        return ConfigurationResult::CONFIGURATION_RESULT_BUSY_TIMEOUT;
-      }
+      this->read_register_(REG_WHITENING_INITIAL, buf, 1);
       buf[0] = (buf[0] & 0xFE) | ((profile.whitening_initial >> 8) & 0x01);
       buf[1] = profile.whitening_initial & 0xFF;
-      if (!this->write_register_(REG_WHITENING_INITIAL, buf, 2)) {
-        return ConfigurationResult::CONFIGURATION_RESULT_BUSY_TIMEOUT;
-      }
+      this->write_register_(REG_WHITENING_INITIAL, buf, 2);
     }
 
     // set packet params and sync word
-    if (!this->set_packet_params(profile, profile.max_packet_size())) {
-      return ConfigurationResult::CONFIGURATION_RESULT_BUSY_TIMEOUT;
-    }
+    this->set_packet_params(profile, profile.max_packet_size());
     if (profile.sync_size != 0) {
-      if (!this->write_register_(REG_GFSK_SYNCWORD, profile.sync_value.data(), profile.sync_size)) {
-        return ConfigurationResult::CONFIGURATION_RESULT_BUSY_TIMEOUT;
-      }
+      this->write_register_(REG_GFSK_SYNCWORD, profile.sync_value.data(), profile.sync_size);
     }
   }
 
   // switch to rx or sleep
   if (profile.rx_start) {
-    if (!this->receive()) {
-      return ConfigurationResult::CONFIGURATION_RESULT_BUSY_TIMEOUT;
-    }
+    this->receive();
   } else {
-    if (!this->sleep()) {
-      return ConfigurationResult::CONFIGURATION_RESULT_BUSY_TIMEOUT;
-    }
+    this->sleep();
   }
-  return ConfigurationResult::CONFIGURATION_RESULT_OK;
+  return this->spi_device_.ok() ? ConfigurationResult::CONFIGURATION_RESULT_OK
+                                : ConfigurationResult::CONFIGURATION_RESULT_BUSY_TIMEOUT;
 }
 
-bool Sx126xCommands::set_packet_params(const RadioProfile &profile, uint8_t payload_length) {
+void Sx126xCommands::set_packet_params(const RadioProfile &profile, uint8_t payload_length) {
   uint8_t buf[9];
   if (profile.modulation == PACKET_TYPE_LORA) {
     buf[0] = (profile.preamble_size >> 8) & 0xFF;
@@ -260,9 +200,7 @@ bool Sx126xCommands::set_packet_params(const RadioProfile &profile, uint8_t payl
     buf[3] = payload_length;
     buf[4] = (profile.crc_enable) ? 0x01 : 0x00;
     buf[5] = 0x00;
-    if (!this->write_opcode_(RADIO_SET_PACKETPARAMS, buf, 6)) {
-      return false;
-    }
+    this->write_opcode_(RADIO_SET_PACKETPARAMS, buf, 6);
   } else {
     uint16_t preamble_size = profile.preamble_size * 8;
     buf[0] = (preamble_size >> 8) & 0xFF;
@@ -278,14 +216,11 @@ bool Sx126xCommands::set_packet_params(const RadioProfile &profile, uint8_t payl
       buf[7] = 0x01;
     }
     buf[8] = (profile.whitening_enable) ? 0x01 : 0x00;
-    if (!this->write_opcode_(RADIO_SET_PACKETPARAMS, buf, 9)) {
-      return false;
-    }
+    this->write_opcode_(RADIO_SET_PACKETPARAMS, buf, 9);
   }
-  return true;
 }
 
-bool Sx126xCommands::calibrate_image(uint32_t frequency) {
+void Sx126xCommands::calibrate_image(uint32_t frequency) {
   // the following values were taken from section 9.2.1 table 9-2
   // in rev 2.1 of the datasheet
   uint8_t buf[2] = {0, 0};
@@ -306,14 +241,11 @@ bool Sx126xCommands::calibrate_image(uint32_t frequency) {
     buf[1] = 0x6F;
   }
   if (buf[0] > 0 && buf[1] > 0) {
-    if (!this->write_opcode_(RADIO_CALIBRATEIMAGE, buf, 2)) {
-      return false;
-    }
+    this->write_opcode_(RADIO_CALIBRATEIMAGE, buf, 2);
   }
-  return true;
 }
 
-bool Sx126xCommands::receive() {
+void Sx126xCommands::receive() {
   uint8_t buf[8];
 
   // configure irq params
@@ -326,24 +258,20 @@ bool Sx126xCommands::receive() {
   buf[5] = (IRQ_RADIO_NONE >> 0) & 0xFF;
   buf[6] = (IRQ_RADIO_NONE >> 8) & 0xFF;
   buf[7] = (IRQ_RADIO_NONE >> 0) & 0xFF;
-  if (!this->write_opcode_(RADIO_SET_DIOIRQPARAMS, buf, 8)) {
-    return false;
-  }
+  this->write_opcode_(RADIO_SET_DIOIRQPARAMS, buf, 8);
 
   // set timeout to 0
   buf[0] = 0x00;
-  if (!this->write_opcode_(RADIO_SET_LORASYMBTIMEOUT, buf, 1)) {
-    return false;
-  }
+  this->write_opcode_(RADIO_SET_LORASYMBTIMEOUT, buf, 1);
 
   // switch to continuous mode rx
   buf[0] = 0xFF;
   buf[1] = 0xFF;
   buf[2] = 0xFF;
-  return this->write_opcode_(RADIO_SET_RX, buf, 3);
+  this->write_opcode_(RADIO_SET_RX, buf, 3);
 }
 
-bool Sx126xCommands::transmit(uint32_t timeout_ms) {
+void Sx126xCommands::transmit(uint32_t timeout_ms) {
   uint8_t buf[8];
 
   // configure irq params
@@ -356,57 +284,57 @@ bool Sx126xCommands::transmit(uint32_t timeout_ms) {
   buf[5] = (IRQ_RADIO_NONE >> 0) & 0xFF;
   buf[6] = (IRQ_RADIO_NONE >> 8) & 0xFF;
   buf[7] = (IRQ_RADIO_NONE >> 0) & 0xFF;
-  if (!this->write_opcode_(RADIO_SET_DIOIRQPARAMS, buf, 8)) {
-    return false;
-  }
+  this->write_opcode_(RADIO_SET_DIOIRQPARAMS, buf, 8);
 
   const uint32_t ticks = timeout_ms * 64;
   buf[0] = ticks >> 16;
   buf[1] = ticks >> 8;
   buf[2] = ticks;
-  return this->write_opcode_(RADIO_SET_TX, buf, 3);
+  this->write_opcode_(RADIO_SET_TX, buf, 3);
 }
 
-bool Sx126xCommands::sleep(bool cold) {
+void Sx126xCommands::sleep(bool cold) {
   // 0x04 = warm start (config retained), 0x00 = cold start (config lost, lowest power)
-  uint8_t buf[1];
-  buf[0] = cold ? 0x00 : 0x04;
-  return this->write_opcode_(RADIO_SET_SLEEP, buf, 1);
+  const uint8_t mode = cold ? 0x00 : 0x04;
+  this->write_opcode_(RADIO_SET_SLEEP, &mode, 1);
 }
 
-bool Sx126xCommands::standby(SX126xStandbyMode mode) {
-  uint8_t buf[1];
-  buf[0] = mode;
-  return this->write_opcode_(RADIO_SET_STANDBY, buf, 1);
+void Sx126xCommands::standby(SX126xStandbyMode mode) {
+  const uint8_t value = mode;
+  this->write_opcode_(RADIO_SET_STANDBY, &value, 1);
 }
 
 uint32_t Sx126xCommands::bandwidth_hz(SX126xBw bw) { return BW_HZ[bw]; }
 uint16_t Sx126xCommands::ramp_us(uint8_t ramp) { return progmem_read_uint16(&RAMP[ramp]); }
-bool Sx126xCommands::clear_irqs(uint16_t mask) {
-  uint8_t data[] = {static_cast<uint8_t>(mask >> 8), static_cast<uint8_t>(mask)};
-  return this->write_opcode_(RADIO_CLR_IRQSTATUS, data, 2);
+
+void Sx126xCommands::clear_irqs(uint16_t mask) {
+  const uint8_t data[] = {static_cast<uint8_t>(mask >> 8), static_cast<uint8_t>(mask)};
+  this->write_opcode_(RADIO_CLR_IRQSTATUS, data, 2);
 }
-bool Sx126xCommands::read_irq(uint16_t &status) {
-  uint8_t data[2];
-  if (!this->read_opcode_(RADIO_GET_IRQSTATUS, data, 2)) {
-    return false;
-  }
-  status = (uint16_t(data[0]) << 8) | data[1];
-  return true;
+
+uint16_t Sx126xCommands::read_irq() {
+  uint8_t data[2]{};
+  this->read_opcode_(RADIO_GET_IRQSTATUS, data, 2);
+  return (uint16_t(data[0]) << 8) | data[1];
 }
-bool Sx126xCommands::write_fifo(const uint8_t *data, size_t size) { return this->write_fifo_(0, data, size); }
-bool Sx126xCommands::read_packet(const RadioProfile &profile, std::vector<uint8_t> &packet, float &rssi, float &snr) {
-  uint8_t data[3];
-  if (!this->read_opcode_(RADIO_GET_PACKETSTATUS, data, 3)) {
-    return false;
-  }
+
+void Sx126xCommands::write_fifo(const uint8_t *data, size_t size) {
+  const uint8_t header[] = {RADIO_WRITE_BUFFER, 0};
+  this->spi_device_.write(header, {data, size});
+}
+
+void Sx126xCommands::read_packet(const RadioProfile &profile, std::vector<uint8_t> &packet, float &rssi, float &snr) {
+  uint8_t data[3]{};
+  this->read_opcode_(RADIO_GET_PACKETSTATUS, data, 3);
   rssi = (profile.modulation == PACKET_TYPE_LORA ? data[0] : data[2]) / -2.0f;
   snr = profile.modulation == PACKET_TYPE_LORA ? static_cast<int8_t>(data[1]) / 4.0f : 0;
-  if (!this->read_opcode_(RADIO_GET_RXBUFFERSTATUS, data, 2)) {
-    return false;
+  this->read_opcode_(RADIO_GET_RXBUFFERSTATUS, data, 2);
+  if (!this->spi_device_.ok()) {
+    return;  // The length and offset were not read.
   }
   packet.resize(data[0]);
-  return this->read_fifo_(data[1], packet);
+  const uint8_t header[] = {RADIO_READ_BUFFER, data[1], 0};
+  this->spi_device_.read(header, packet);
 }
 
 }  // namespace esphome::sx126x

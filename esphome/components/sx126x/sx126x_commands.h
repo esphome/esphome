@@ -11,33 +11,34 @@ enum class ConfigurationResult {
 };
 
 // Encodes chip commands. No ESPHome lifecycle, callbacks, or raw SPI access.
-// Results describe command exchange; TX completion is a separate IRQ operation.
+// Commands record failure in the SPI device: callers start a sequence with begin()
+// and check ok() at its end, or before acting on a value that was read.
 class Sx126xCommands {
  public:
   Sx126xCommands(const Sx126xCommands &) = delete;
   Sx126xCommands &operator=(const Sx126xCommands &) = delete;
   explicit Sx126xCommands(Sx126xSpiDevice &spi_device) : spi_device_(spi_device) {}
   [[nodiscard]] ConfigurationResult configure(const RadioProfile &profile, std::span<char, 16> version);
-  [[nodiscard]] bool set_packet_params(const RadioProfile &profile, uint8_t length);
-  [[nodiscard]] bool calibrate_image(uint32_t frequency);
-  [[nodiscard]] bool standby(SX126xStandbyMode mode);
-  [[nodiscard]] bool receive();
-  [[nodiscard]] bool transmit(uint32_t timeout_ms = 0);
-  [[nodiscard]] bool sleep(bool cold = false);
-  [[nodiscard]] bool clear_irqs(uint16_t mask = 0xFFFF);
-  [[nodiscard]] bool read_irq(uint16_t &status);
-  [[nodiscard]] bool write_fifo(const uint8_t *data, size_t size);
-  [[nodiscard]] bool read_packet(const RadioProfile &profile, std::vector<uint8_t> &packet, float &rssi, float &snr);
+  void set_packet_params(const RadioProfile &profile, uint8_t length);
+  void calibrate_image(uint32_t frequency);
+  void standby(SX126xStandbyMode mode);
+  void receive();
+  void transmit(uint32_t timeout_ms = 0);
+  void sleep(bool cold = false);
+  void clear_irqs(uint16_t mask = 0xFFFF);
+  // Returns 0 if the read was skipped or failed.
+  uint16_t read_irq();
+  void write_fifo(const uint8_t *data, size_t size);
+  // Leaves the packet unchanged if a read fails.
+  void read_packet(const RadioProfile &profile, std::vector<uint8_t> &packet, float &rssi, float &snr);
   static uint32_t bandwidth_hz(SX126xBw bw);
   static uint16_t ramp_us(uint8_t ramp);
 
  private:
-  [[nodiscard]] bool read_fifo_(uint8_t offset, std::vector<uint8_t> &packet);
-  [[nodiscard]] bool write_fifo_(uint8_t offset, const uint8_t *data, size_t len);
-  [[nodiscard]] bool read_opcode_(uint8_t opcode, uint8_t *data, uint8_t size);
-  [[nodiscard]] bool write_opcode_(uint8_t opcode, const uint8_t *data, uint8_t size);
-  [[nodiscard]] bool read_register_(uint16_t reg, uint8_t *data, uint8_t size);
-  [[nodiscard]] bool write_register_(uint16_t reg, const uint8_t *data, uint8_t size);
+  void read_opcode_(uint8_t opcode, uint8_t *data, uint8_t size);
+  void write_opcode_(uint8_t opcode, const uint8_t *data, uint8_t size);
+  void read_register_(uint16_t reg, uint8_t *data, uint8_t size);
+  void write_register_(uint16_t reg, const uint8_t *data, uint8_t size);
   Sx126xSpiDevice &spi_device_;
 };
 }  // namespace esphome::sx126x

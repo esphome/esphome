@@ -372,8 +372,10 @@ TEST(SX126xAsync, BackToBackReceiveEchoPreservesBorrowedPacketForAllListeners) {
       hw.irq = IRQ_RX_DONE;
       const auto count = hw.transactions.size();
       hw.radio.loop();  // Explicit loop reentry must not overwrite the borrowed RX buffer either.
+      // The send stops in standby and holds the new packet instead of overwriting the FIFO.
       EXPECT_EQ(hw.radio.start_transmit_async(&tx, packet), SX126xError::SX126X_ERROR_BUSY);
-      EXPECT_EQ(hw.transactions.size(), count + 1);
+      ASSERT_EQ(hw.transactions.size(), count + 2);
+      EXPECT_EQ(hw.transactions[count][0], RADIO_SET_STANDBY);
       EXPECT_EQ(hw.transactions.back()[0], RADIO_GET_IRQSTATUS);
       EXPECT_EQ(packet, first);
     } else {

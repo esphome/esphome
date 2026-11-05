@@ -33,52 +33,94 @@ struct ReentryCompletion final : SX126xTransmitListener {
   std::vector<SX126xError> results;
 };
 
-TEST(SX126xReentry, PreflightWarningClearCannotOverwriteNestedSend) {
+// Status logging is the only user code that can run inside a radio operation. It runs only
+// after the operation has committed its state, so a callback sees either a running send or a
+// released radio, and the interrupted operation touches nothing after the callback returns.
+
+TEST(SX126xReentry, SuccessfulStartRunsNoUserCode) {
   RadioHardware hw;
   RadioLogCallback log;
   ReentryCompletion outer, nested;
   hw.configure(true, true);
   hw.auto_complete = false;
   hw.radio.status_set_warning(LOG_STR("Previous communication failure"));
-  hw.irq = IRQ_TX_DONE;  // Stale IRQ forces a successful preflight exchange.
+  hw.irq = IRQ_TX_DONE;  // A stale IRQ must not complete the new send either.
   unsigned callbacks = 0;
   log.set_callback([&](const std::string &message) {
     if (message.find("cleared Warning flag") != std::string::npos) {
       callbacks++;
+      EXPECT_FALSE(hw.radio.is_transmitting());  // Only the completion clears the warning.
       EXPECT_EQ(hw.radio.start_transmit_async(&nested, hw.packet), SX126xError::NONE);
     }
   });
-  EXPECT_EQ(hw.radio.start_transmit_async(&outer, hw.packet), SX126xError::SX126X_ERROR_BUSY);
-  ASSERT_EQ(callbacks, 1u);
+  ASSERT_EQ(hw.radio.start_transmit_async(&outer, hw.packet), SX126xError::NONE);
+  EXPECT_EQ(callbacks, 0u);
   EXPECT_TRUE(outer.results.empty());
+  LoopBlockingGuard clock{nullptr, nullptr, millis()};
+  hw.radio.loop();
+  EXPECT_TRUE(outer.results.empty());  // The stale IRQ was cleared before the send.
+  hw.irq = IRQ_TX_DONE;
+  hw.radio.loop();
+  ASSERT_EQ(callbacks, 1u);
+  EXPECT_EQ(outer.results, (std::vector<SX126xError>{SX126xError::NONE}));
   EXPECT_TRUE(nested.results.empty());
-  EXPECT_EQ(hw.sends, 1u);
-  // A lost listener also makes cancellation fail, without deliberately dereferencing null.
+  EXPECT_TRUE(hw.radio.is_transmitting());
+  EXPECT_EQ(hw.sends, 2u);
   ASSERT_TRUE(hw.radio.cancel_transmit_async(&nested));
   EXPECT_EQ(nested.results, (std::vector<SX126xError>{SX126xError::SX126X_ERROR_CANCELLED}));
+  EXPECT_EQ(outer.results.size(), 1u);
+}
+
+class SX126xStartReentry : public ::testing::TestWithParam<bool> {};
+
+TEST_P(SX126xStartReentry, WarningCallbackAfterFailedStartSeesReleasedRadio) {
+  const bool cold_sleep = GetParam();
+  RadioHardware hw;
+  RadioLogCallback log;
+  ReentryCompletion outer, nested;
+  hw.configure(true, true);
+  hw.auto_complete = false;
+  hw.radio.status_set_warning(LOG_STR("Previous communication failure"));
+  hw.clear_trace();
+  hw.fail_at = 3;  // Preparation fails; restoration succeeds and clears the warning.
+  unsigned callbacks = 0;
+  size_t commands_after_callback = 0;
+  log.set_callback([&](const std::string &message) {
+    if (message.find("cleared Warning flag") != std::string::npos) {
+      callbacks++;
+      EXPECT_FALSE(hw.radio.is_transmitting());
+      EXPECT_EQ(hw.receiving, true);  // Restoration finished before the callback.
+      if (cold_sleep) {
+        hw.radio.set_mode_sleep(true);
+      } else {
+        EXPECT_EQ(hw.radio.start_transmit_async(&nested, hw.packet), SX126xError::NONE);
+      }
+      commands_after_callback = hw.transactions.size();
+    }
+  });
+  EXPECT_EQ(hw.radio.start_transmit_async(&outer, hw.packet), SX126xError::SX126X_ERROR_BUSY_TIMEOUT);
+  ASSERT_EQ(callbacks, 1u);
+  EXPECT_EQ(hw.transactions.size(), commands_after_callback);  // The failed start touched nothing after it.
+  EXPECT_TRUE(outer.results.empty());                          // A rejected start never completes.
+  if (cold_sleep) {
+    EXPECT_FALSE(hw.radio.is_transmitting());
+    EXPECT_EQ(hw.radio.start_transmit_async(&outer, hw.packet), SX126xError::SX126X_ERROR_NOT_READY);
+    EXPECT_EQ(hw.sends, 0u);
+    return;
+  }
+  EXPECT_TRUE(hw.radio.is_transmitting());
+  EXPECT_EQ(hw.sends, 1u);
+  hw.irq = IRQ_TX_DONE;
+  hw.radio.loop();
+  EXPECT_EQ(nested.results, (std::vector<SX126xError>{SX126xError::NONE}));
   EXPECT_TRUE(outer.results.empty());
 }
 
-TEST(SX126xReentry, PreflightWarningClearRechecksRadioReadiness) {
-  RadioHardware hw;
-  RadioLogCallback log;
-  ReentryCompletion outer;
-  hw.configure(true, true);
-  hw.radio.status_set_warning(LOG_STR("Previous communication failure"));
-  hw.irq = IRQ_TX_DONE;
-  log.set_callback([&](const std::string &message) {
-    if (message.find("cleared Warning flag") != std::string::npos) {
-      hw.radio.set_mode_sleep(true);
-    }
-  });
-  EXPECT_EQ(hw.radio.start_transmit_async(&outer, hw.packet), SX126xError::SX126X_ERROR_NOT_READY);
-  EXPECT_EQ(hw.sends, 0u);
-  EXPECT_TRUE(outer.results.empty());
-}
+INSTANTIATE_TEST_SUITE_P(NestedSendOrColdSleep, SX126xStartReentry, ::testing::Bool());
 
 class SX126xPollingReentry : public ::testing::TestWithParam<std::tuple<unsigned, bool>> {};
 
-TEST_P(SX126xPollingReentry, WarningCallbackCannotCompleteReplacementSend) {
+TEST_P(SX126xPollingReentry, WarningCallbackCannotCancelOrDisturbAFinishedSend) {
   const auto [failed_command, reuse_listener] = GetParam();
   RadioHardware hw;
   RadioLogCallback log;
@@ -88,18 +130,16 @@ TEST_P(SX126xPollingReentry, WarningCallbackCannotCompleteReplacementSend) {
   hw.auto_complete = false;
   ASSERT_EQ(hw.radio.start_transmit_async(&first, hw.packet), SX126xError::NONE);
   hw.clear_trace();
-  hw.fail_at = failed_command;
+  hw.fail_at = failed_command;  // 0: success, 1: IRQ read fails, 2: IRQ clear fails.
   hw.irq = IRQ_TX_DONE;
-  if (failed_command == 0) {
-    hw.radio.status_set_warning(LOG_STR("Previous communication failure"));
-  }
+  hw.radio.status_set_warning(LOG_STR("Previous communication failure"));
   unsigned callbacks = 0;
   size_t commands_after_replacement = 0;
   log.set_callback([&](const std::string &message) {
-    if (callbacks == 0 && message.find("Warning flag") != std::string::npos) {
+    if (callbacks == 0 && message.find("cleared Warning flag") != std::string::npos) {
       callbacks++;
-      hw.fail_at = 0;
-      EXPECT_TRUE(hw.radio.cancel_transmit_async(&first));
+      EXPECT_TRUE(first.results.empty());                    // Status is reported before the completion.
+      EXPECT_FALSE(hw.radio.cancel_transmit_async(&first));  // Already finished: no second completion.
       EXPECT_EQ(hw.radio.start_transmit_async(replacement, hw.packet), SX126xError::NONE);
       commands_after_replacement = hw.transactions.size();
     }
@@ -109,7 +149,8 @@ TEST_P(SX126xPollingReentry, WarningCallbackCannotCompleteReplacementSend) {
     hw.radio.loop();
   }
   ASSERT_EQ(callbacks, 1u);
-  EXPECT_EQ(first.results, (std::vector<SX126xError>{SX126xError::SX126X_ERROR_CANCELLED}));
+  const auto expected = failed_command == 0 ? SX126xError::NONE : SX126xError::SX126X_ERROR_BUSY_TIMEOUT;
+  EXPECT_EQ(first.results, (std::vector<SX126xError>{expected}));
   EXPECT_TRUE(second.results.empty());
   EXPECT_TRUE(hw.radio.is_transmitting());
   EXPECT_EQ(hw.transactions.size(), commands_after_replacement);  // No stale IRQ clear or restoration.

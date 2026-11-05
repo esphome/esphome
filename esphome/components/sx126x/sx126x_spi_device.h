@@ -7,6 +7,8 @@ namespace esphome::sx126x {
 
 // Persistent radio device. read()/write() use exchange_() for one complete selected interval.
 // No raw SPI access escapes. Call only from the main loop; spans are borrowed until return.
+// Failures stick: after a BUSY timeout every exchange is skipped until the next begin(),
+// so a command sequence checks ok() once instead of after every command.
 class Sx126xSpiDevice {
  public:
   Sx126xSpiDevice() = default;
@@ -26,8 +28,13 @@ class Sx126xSpiDevice {
   void set_busy_pin(GPIOPin *pin) { this->busy_pin_ = pin; }
   void setup() { this->device_.spi_setup(); }
   void teardown() { this->device_.spi_teardown(); }
-  [[nodiscard]] bool write(std::span<const uint8_t> header, std::span<const uint8_t> data);
-  [[nodiscard]] bool read(std::span<const uint8_t> header, std::span<uint8_t> data);
+  // Starts a command sequence with no recorded failure.
+  void begin() { this->ok_ = true; }
+  // False once any exchange since begin() timed out waiting for BUSY.
+  bool ok() const { return this->ok_; }
+  void write(std::span<const uint8_t> header, std::span<const uint8_t> data);
+  // Leaves data unchanged when the exchange is skipped or times out.
+  void read(std::span<const uint8_t> header, std::span<uint8_t> data);
 
  private:
   using Device =
@@ -42,9 +49,10 @@ class Sx126xSpiDevice {
    private:
     Device &device_;
   };
-  [[nodiscard]] bool exchange_(std::span<const uint8_t> header, std::span<const uint8_t> tx, std::span<uint8_t> rx);
+  void exchange_(std::span<const uint8_t> header, std::span<const uint8_t> tx, std::span<uint8_t> rx);
   Device device_;
   GPIOPin *busy_pin_{nullptr};
+  bool ok_{true};
 };
 
 }  // namespace esphome::sx126x

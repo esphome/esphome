@@ -2,6 +2,7 @@
 #include "esphome/core/application.h"
 #include "esphome/core/hal.h"
 #include "esphome/core/log.h"
+#include "esphome/core/progmem.h"
 
 namespace esphome::sx126x {
 
@@ -9,7 +10,12 @@ ESPHOME_LOG_TAG(TAG, "sx126x");
 static constexpr uint32_t RESET_DELAY_HIGH_US = 5000;
 static constexpr uint32_t RESET_DELAY_LOW_US = 2000;
 static constexpr uint32_t TRANSMIT_TIMEOUT_MS = 4000;
+static constexpr uint32_t MAX_TRANSMIT_TIMEOUT_MS = 262143;  // 24-bit SetTx timeout in 1/64 ms steps
 static constexpr uint32_t RECEIVE_RETRY_INTERVAL_MS = 200;
+
+// Indexed by SX126xError.
+PROGMEM_STRING_TABLE(SX126xErrorStrings, "none", "timeout", "invalid payload", "radio not ready", "bus timeout",
+                     "radio busy", "cancelled");
 
 void SX126x::setup() {
   this->packet_.reserve(SX126X_MAX_PACKET_SIZE);
@@ -26,45 +32,45 @@ void SX126x::setup() {
   this->spi_device_.setup();
 
   // configure rf
-  if (!this->configure_() && !this->is_failed()) {
+  this->configure();
+  if (this->state_ != State::STATE_IDLE) {
     this->mark_failed(LOG_STR("Radio configuration failed"));
   }
 }
 
+void SX126x::commit_(State state) {
+  this->state_ = state;
+  this->busy_ = false;
+  if (state != State::STATE_NEEDS_CONFIGURATION) {
+    this->enable_loop();
+  }
+}
+
+bool SX126x::report_(bool ok) { return this->status_comm_result(ok, LOG_STR("Wait busy timeout")); }
+
 void SX126x::configure() {
-  if (!this->operation_.can_configure()) {
+  if (this->is_failed()) {
+    return;
+  }
+  // A held packet may be discarded: explicit reconfiguration is the recovery path.
+  if (this->busy_ || this->state_ == State::STATE_TRANSMITTING) {
     ESP_LOGW(TAG, "Radio operation in progress, configuration ignored");
     return;
   }
-  this->configure_();
+  this->busy_ = true;
+  this->rx_retry_pending_ = false;
+  const LogString *failure = this->apply_configuration_();
+  this->commit_(failure == nullptr ? State::STATE_IDLE : State::STATE_NEEDS_CONFIGURATION);
+  if (failure == nullptr) {
+    this->status_clear_warning();
+  } else {
+    this->status_set_warning(failure);
+  }
 }
 
-bool SX126x::can_change_mode_() {
-  if (this->operation_.is_ready()) {
-    return true;
-  }
-  ESP_LOGW(TAG, "Radio unavailable, mode change ignored");
-  return false;
-}
-
-bool SX126x::is_transmitting() const { return this->operation_.is_transmitting(); }
-
-bool SX126x::configure_() {
-  if (this->is_failed()) {
-    return false;
-  }
-  const bool configured = this->operation_.configure([this]() { return this->apply_configuration_(); });
-  if (configured) {
-    this->rx_retry_pending_ = false;
-    this->enable_loop();
-  }
-  return configured;
-}
-
-bool SX126x::apply_configuration_() {
+const LogString *SX126x::apply_configuration_() {
   if (!this->requested_profile_.sync_valid) {
-    this->status_set_warning(LOG_STR("Invalid sync value"));
-    return false;
+    return LOG_STR("Invalid sync value");
   }
   this->rst_pin_->digital_write(true);
   delayMicroseconds(RESET_DELAY_HIGH_US);
@@ -72,265 +78,263 @@ bool SX126x::apply_configuration_() {
   delayMicroseconds(RESET_DELAY_LOW_US);
   this->rst_pin_->digital_write(true);
   delayMicroseconds(RESET_DELAY_HIGH_US);
-  const auto result = this->commands_.configure(this->requested_profile_, this->version_);
-  if (result == ConfigurationResult::CONFIGURATION_RESULT_UNSUPPORTED) {
-    this->status_set_warning(LOG_STR("Unsupported chip version"));
-    return false;
+  this->spi_device_.begin();
+  switch (this->commands_.configure(this->requested_profile_, this->version_)) {
+    case ConfigurationResult::CONFIGURATION_RESULT_OK:
+      this->active_profile_ = this->requested_profile_;
+      return nullptr;
+    case ConfigurationResult::CONFIGURATION_RESULT_UNSUPPORTED:
+      return LOG_STR("Unsupported chip version");
+    default:
+      return LOG_STR("Wait busy timeout");
   }
-  if (!this->command_result_(result == ConfigurationResult::CONFIGURATION_RESULT_OK)) {
-    return false;
+}
+
+void SX126x::set_mode_rx() { this->change_mode_(ModeCommand::MODE_COMMAND_RX); }
+void SX126x::set_mode_tx() { this->change_mode_(ModeCommand::MODE_COMMAND_TX); }
+void SX126x::set_mode_standby(SX126xStandbyMode mode) { this->change_mode_(ModeCommand::MODE_COMMAND_STANDBY, mode); }
+void SX126x::set_mode_sleep(bool cold) {
+  this->change_mode_(cold ? ModeCommand::MODE_COMMAND_COLD_SLEEP : ModeCommand::MODE_COMMAND_SLEEP);
+}
+void SX126x::run_image_cal() { this->change_mode_(ModeCommand::MODE_COMMAND_IMAGE_CAL); }
+
+void SX126x::change_mode_(ModeCommand command, uint8_t arg) {
+  if (this->busy_ || this->state_ != State::STATE_IDLE) {
+    ESP_LOGW(TAG, "Radio unavailable, mode change ignored");
+    return;
   }
-  this->active_profile_ = this->requested_profile_;
-  return true;
+  this->busy_ = true;
+  this->spi_device_.begin();
+  switch (command) {
+    case ModeCommand::MODE_COMMAND_RX:
+      this->commands_.receive();
+      break;
+    case ModeCommand::MODE_COMMAND_TX:
+      this->commands_.transmit();
+      break;
+    case ModeCommand::MODE_COMMAND_STANDBY:
+      this->commands_.standby(static_cast<SX126xStandbyMode>(arg));
+      break;
+    case ModeCommand::MODE_COMMAND_SLEEP:
+    case ModeCommand::MODE_COMMAND_COLD_SLEEP:
+      this->commands_.sleep(command == ModeCommand::MODE_COMMAND_COLD_SLEEP);
+      break;
+    case ModeCommand::MODE_COMMAND_IMAGE_CAL:
+      this->commands_.calibrate_image(this->active_profile_.frequency);
+      break;
+  }
+  const bool ok = this->spi_device_.ok();
+  // Cold sleep loses the configuration, and a failed command leaves the chip state unknown.
+  this->commit_(ok && command != ModeCommand::MODE_COMMAND_COLD_SLEEP ? State::STATE_IDLE
+                                                                      : State::STATE_NEEDS_CONFIGURATION);
+  this->report_(ok);
 }
 
 size_t SX126x::get_max_packet_size() { return this->active_profile_.max_packet_size(); }
 
 SX126xError SX126x::transmit_packet(const uint8_t *data, size_t len) {
-  class Completion : public SX126xTransmitListener {
-   public:
-    void on_transmit_complete(SX126xError result) override {
-      this->result = result;
-      this->done = true;
+  SX126xError result = this->start_transmit_(nullptr, data, len, TRANSMIT_TIMEOUT_MS);
+  if (result == SX126xError::NONE) {
+    // Wait for this send's own completion. A send without a listener cannot be cancelled,
+    // and only its own poll can end it, so a later send started by a callback is not awaited.
+    result = SX126xError::SX126X_ERROR_NOT_READY;
+    while (this->state_ == State::STATE_TRANSMITTING && !this->poll_transmit_(millis(), &result)) {
+      App.feed_wdt();
     }
-    SX126xError result{SX126xError::NONE};
-    bool done{false};
-  } completion;
-  const auto admitted = this->start_transmit_async(&completion, data, len, TRANSMIT_TIMEOUT_MS);
-  if (admitted != SX126xError::NONE) {
-    switch (admitted) {
-      case SX126xError::SX126X_ERROR_NOT_READY:
-        ESP_LOGW(TAG, "Packet rejected: radio not ready");
-        break;
-      case SX126xError::INVALID_PARAMS:
-        ESP_LOGW(TAG, "Packet rejected: invalid payload length or data");
-        break;
-      case SX126xError::SX126X_ERROR_BUSY:
-        ESP_LOGW(TAG, "Packet rejected: radio busy with another operation or pending RX");
-        break;
-      default:
-        ESP_LOGW(TAG, "Packet preparation failed: %d", static_cast<int>(admitted));
-        break;
-    }
-    return admitted;
   }
-  while (!completion.done) {
-    App.feed_wdt();
-    this->poll_transmit_(millis());
+  if (result != SX126xError::NONE) {
+    ESP_LOGW(
+        TAG, "Packet send failed: %s",
+        LOG_STR_ARG(SX126xErrorStrings::get_log_str(static_cast<uint8_t>(result), SX126xErrorStrings::LAST_INDEX)));
   }
-  if (completion.result != SX126xError::NONE) {
-    ESP_LOGW(TAG, "Packet transmission failed: %d", static_cast<int>(completion.result));
-  }
-  return completion.result;
+  return result;
 }
 
 SX126xError SX126x::start_transmit_async(SX126xTransmitListener *listener, const uint8_t *data, size_t len,
                                          uint32_t timeout_ms) {
-  if (!this->is_ready()) {
-    return SX126xError::SX126X_ERROR_NOT_READY;
-  }
-  const auto admission = this->operation_.transmit_admission();
-  if (admission != SX126xError::NONE) {
-    return admission;
-  }
-  if (listener == nullptr || data == nullptr || len == 0 || len > this->get_max_packet_size() ||
-      (this->active_profile_.payload_length > 0 && len != this->active_profile_.payload_length) || timeout_ms == 0 ||
-      timeout_ms > 262143) {
+  if (listener == nullptr || timeout_ms == 0 || timeout_ms > MAX_TRANSMIT_TIMEOUT_MS) {
     return SX126xError::INVALID_PARAMS;
   }
-
-  // Admission never reads a packet: borrowed RX data stays stable. Status reporting
-  // can invoke logger callbacks, so recheck ownership after the IRQ preflight.
-  if (this->dio1_pin_->digital_read()) {
-    uint16_t status;
-    if (!this->command_result_(this->commands_.read_irq(status))) {
-      return SX126xError::SX126X_ERROR_BUSY_TIMEOUT;
-    }
-    if (status & IRQ_RX_DONE) {
-      this->enable_loop();
-      return SX126xError::SX126X_ERROR_BUSY;
-    }
-  }
-  const auto admission_after_preflight = this->operation_.transmit_admission();
-  if (admission_after_preflight != SX126xError::NONE) {
-    return admission_after_preflight;
-  }
-  this->tx_generation_++;
-  this->tx_ = {listener, 0, timeout_ms};
-  const auto result = this->operation_.start_transmit(
-      [this, data, len, timeout_ms]() { return this->prepare_transmit_(data, len, timeout_ms); },
-      [this]() { return this->command_result_(this->restore_after_transmit_()); });
-  if (result != SX126xError::NONE) {
-    this->tx_ = {};
-    if (this->operation_.is_ready() || this->operation_.has_pending_receive()) {
-      this->enable_loop();
-    }
-    return result;
-  }
-  this->tx_.started_ms = millis();
-  this->enable_loop();
-  return SX126xError::NONE;
-}
-
-SX126xError SX126x::prepare_transmit_(const uint8_t *data, size_t len, uint32_t timeout_ms) {
-  uint16_t status;
-  if (!this->command_result_(this->commands_.standby(STDBY_XOSC) && this->commands_.read_irq(status))) {
-    return SX126xError::SX126X_ERROR_BUSY_TIMEOUT;
-  }
-  // RX cannot advance in standby. Keep any packet that completed after admission
-  // intact for loop(), before clearing IRQs or overwriting the shared FIFO.
-  if (status & IRQ_RX_DONE) {
-    return SX126xError::SX126X_ERROR_BUSY;
-  }
-  const bool prepared =
-      this->commands_.clear_irqs() &&
-      (this->active_profile_.payload_length != 0 || this->commands_.set_packet_params(this->active_profile_, len)) &&
-      this->commands_.write_fifo(data, len) && this->commands_.transmit(timeout_ms);
-  return this->command_result_(prepared) ? SX126xError::NONE : SX126xError::SX126X_ERROR_BUSY_TIMEOUT;
-}
-
-bool SX126x::restore_after_transmit_() {
-  return this->commands_.standby(STDBY_XOSC) && this->commands_.clear_irqs() &&
-         (this->active_profile_.payload_length != 0 ||
-          this->commands_.set_packet_params(this->active_profile_, this->get_max_packet_size())) &&
-         (this->active_profile_.rx_start ? this->commands_.receive() : this->commands_.sleep());
-}
-
-void SX126x::finish_transmit_(SX126xError result) {
-  if (!this->operation_.is_waiting_for_transmit()) {
-    return;
-  }
-  result = this->operation_.finish_transmit(
-      result, [this]() { return this->command_result_(this->restore_after_transmit_()); });
-  auto *listener = this->tx_.listener;
-  this->tx_ = {};
-  listener->on_transmit_complete(result);
+  return this->start_transmit_(listener, data, len, timeout_ms);
 }
 
 bool SX126x::cancel_transmit_async(SX126xTransmitListener *listener) {
-  if (!this->operation_.is_waiting_for_transmit() || listener == nullptr || listener != this->tx_.listener) {
+  if (this->busy_ || this->state_ != State::STATE_TRANSMITTING || listener == nullptr ||
+      listener != this->tx_.listener) {
     return false;
   }
-  this->finish_transmit_(SX126xError::SX126X_ERROR_CANCELLED);
+  this->finish_transmit_(SX126xError::SX126X_ERROR_CANCELLED, nullptr);
   return true;
 }
 
-void SX126x::poll_transmit_(uint32_t now) {
-  if (!this->operation_.is_waiting_for_transmit()) {
-    return;
+SX126xError SX126x::start_transmit_(SX126xTransmitListener *listener, const uint8_t *data, size_t len,
+                                    uint32_t timeout_ms) {
+  if (!this->is_ready() || this->state_ == State::STATE_NEEDS_CONFIGURATION) {
+    return SX126xError::SX126X_ERROR_NOT_READY;
   }
-  const uint32_t generation = this->tx_generation_;
+  if (this->busy_ || this->state_ != State::STATE_IDLE) {
+    return SX126xError::SX126X_ERROR_BUSY;
+  }
+  const uint32_t fixed_length = this->active_profile_.payload_length;
+  if (data == nullptr || len == 0 || len > this->get_max_packet_size() || (fixed_length != 0 && len != fixed_length)) {
+    return SX126xError::INVALID_PARAMS;
+  }
+  this->busy_ = true;
+  this->spi_device_.begin();
+  this->commands_.standby(STDBY_XOSC);
+  // RX cannot advance in standby. Keep a packet that completed before standby intact for
+  // loop(), before clearing IRQs or overwriting the shared FIFO. A failed read returns 0.
+  if (this->commands_.read_irq() & IRQ_RX_DONE) {
+    this->commit_(State::STATE_HOLDING_RX);
+    return SX126xError::SX126X_ERROR_BUSY;
+  }
+  this->commands_.clear_irqs();
+  if (fixed_length == 0) {
+    this->commands_.set_packet_params(this->active_profile_, len);
+  }
+  this->commands_.write_fifo(data, len);
+  this->commands_.transmit(timeout_ms);
+  if (!this->spi_device_.ok()) {
+    const bool restored = this->restore_();
+    this->commit_(restored ? State::STATE_IDLE : State::STATE_NEEDS_CONFIGURATION);
+    this->report_(restored);  // Last step: logging may run user code.
+    return SX126xError::SX126X_ERROR_BUSY_TIMEOUT;
+  }
+  this->tx_ = {listener, millis(), timeout_ms};
+  this->commit_(State::STATE_TRANSMITTING);
+  // No status report on success, so no user code runs before the caller has the result.
+  // The completion reports status instead.
+  return SX126xError::NONE;
+}
+
+bool SX126x::poll_transmit_(uint32_t now, SX126xError *result) {
+  if (this->busy_ || this->state_ != State::STATE_TRANSMITTING) {
+    return false;
+  }
+  bool done = false;
+  SX126xError outcome = SX126xError::NONE;
   if (this->dio1_pin_->digital_read()) {
-    uint16_t status;
-    const bool read = this->command_result_(this->commands_.read_irq(status));
-    // Logging may cancel this operation and start another, even with the same listener.
-    if (this->tx_generation_ != generation || !this->operation_.is_waiting_for_transmit()) {
-      return;
-    }
-    if (!read) {
-      this->finish_transmit_(SX126xError::SX126X_ERROR_BUSY_TIMEOUT);
-      return;
-    }
-    const bool cleared = this->command_result_(this->commands_.clear_irqs(status));
-    if (this->tx_generation_ != generation || !this->operation_.is_waiting_for_transmit()) {
-      return;
-    }
-    if (!cleared) {
-      this->finish_transmit_(SX126xError::SX126X_ERROR_BUSY_TIMEOUT);
-      return;
-    }
-    if (status & (IRQ_TX_DONE | IRQ_RX_TX_TIMEOUT)) {
-      this->finish_transmit_((status & IRQ_RX_TX_TIMEOUT) ? SX126xError::TIMEOUT : SX126xError::NONE);
-      return;
+    this->busy_ = true;
+    this->spi_device_.begin();
+    const uint16_t status = this->commands_.read_irq();
+    this->commands_.clear_irqs(status);
+    this->busy_ = false;
+    if (!this->spi_device_.ok()) {
+      outcome = SX126xError::SX126X_ERROR_BUSY_TIMEOUT;
+      done = true;
+    } else if (status & IRQ_RX_TX_TIMEOUT) {
+      outcome = SX126xError::TIMEOUT;
+      done = true;
+    } else if (status & IRQ_TX_DONE) {
+      done = true;
     }
   }
   // A cached loop tick can precede admission; signed subtraction also handles wraparound.
-  if (static_cast<int32_t>(now - this->tx_.started_ms) >= static_cast<int32_t>(this->tx_.timeout_ms)) {
-    this->finish_transmit_(SX126xError::TIMEOUT);
+  if (!done && static_cast<int32_t>(now - this->tx_.started_ms) >= static_cast<int32_t>(this->tx_.timeout_ms)) {
+    outcome = SX126xError::TIMEOUT;
+    done = true;
+  }
+  if (done) {
+    this->finish_transmit_(outcome, result);
+  }
+  return done;
+}
+
+void SX126x::finish_transmit_(SX126xError result, SX126xError *out) {
+  this->busy_ = true;
+  const bool restored = this->restore_();
+  this->commit_(restored ? State::STATE_IDLE : State::STATE_NEEDS_CONFIGURATION);
+  if (!restored) {
+    result = SX126xError::SX126X_ERROR_BUSY_TIMEOUT;
+  }
+  auto *listener = std::exchange(this->tx_.listener, nullptr);
+  if (out != nullptr) {
+    *out = result;
+  }
+  // User code may run from here on: logging first, then the completion.
+  this->report_(restored);
+  if (listener != nullptr) {
+    listener->on_transmit_complete(result);
   }
 }
 
-void SX126x::call_listeners_(const std::vector<uint8_t> &packet, float rssi, float snr) {
-  RxDelivery delivery(this->rx_dispatching_);
-  for (auto &listener : this->listeners_) {
-    listener->on_packet(packet, rssi, snr);
+bool SX126x::restore_() {
+  this->spi_device_.begin();
+  this->commands_.standby(STDBY_XOSC);
+  this->commands_.clear_irqs();
+  if (this->active_profile_.payload_length == 0) {
+    this->commands_.set_packet_params(this->active_profile_, this->get_max_packet_size());
   }
-  this->packet_trigger_.trigger(packet, rssi, snr);
+  if (this->active_profile_.rx_start) {
+    this->commands_.receive();
+  } else {
+    this->commands_.sleep();
+  }
+  return this->spi_device_.ok();
 }
 
 void SX126x::loop() {
-  if (this->rx_dispatching_ || this->is_failed()) {
-    return;
-  }
-  if (this->operation_.is_waiting_for_transmit()) {
-    this->poll_transmit_(App.get_loop_component_start_time());
-    return;
-  }
-  const bool receive_pending = this->operation_.has_pending_receive();
-  if (!this->operation_.is_ready() && !receive_pending) {
-    // Only radios needing configuration are dormant; active operations must retain polling.
-    if (!this->operation_.is_active()) {
-      this->disable_loop();
-    }
+  if (this->busy_ || this->rx_dispatching_ || this->is_failed()) {
     return;
   }
   const uint32_t now = App.get_loop_component_start_time();
+  if (this->state_ == State::STATE_TRANSMITTING) {
+    this->poll_transmit_(now, nullptr);
+    return;
+  }
+  if (this->state_ == State::STATE_NEEDS_CONFIGURATION) {
+    this->disable_loop();
+    return;
+  }
   if (this->rx_retry_pending_ && now - this->rx_retry_started_ms_ < RECEIVE_RETRY_INTERVAL_MS) {
     return;
   }
-  if (!receive_pending && !this->dio1_pin_->digital_read()) {
+  const bool holding = this->state_ == State::STATE_HOLDING_RX;
+  if (!holding && !this->dio1_pin_->digital_read()) {
     if (this->dio1_pin_->is_internal()) {
       this->disable_loop();
     }
     return;
   }
-
-  uint16_t status;
-  if (!this->receive_result_(this->commands_.read_irq(status), now)) {
-    return;
-  }
-  if (receive_pending) {
-    const bool received = (status & IRQ_RX_DONE) && !(status & IRQ_CRC_ERROR);
-    float rssi = 0, snr = 0;
-    if (received &&
-        !this->receive_result_(this->commands_.read_packet(this->active_profile_, this->packet_, rssi, snr), now)) {
-      return;  // Stay in standby with IRQ/FIFO intact for a later retry.
-    }
-    const auto restored =
-        this->operation_.finish_receive([this]() { return this->command_result_(this->restore_after_transmit_()); });
-    (void) restored;  // The owner blocks further operations if restoration failed.
-    if (received) {
-      this->call_listeners_(this->packet_, rssi, snr);
-    }
-    return;
-  }
-  if (!this->receive_result_(this->commands_.clear_irqs(status), now)) {
-    return;
-  }
-  if ((status & IRQ_RX_DONE) && !(status & IRQ_CRC_ERROR)) {
-    float rssi, snr;
-    if (this->receive_result_(this->commands_.read_packet(this->active_profile_, this->packet_, rssi, snr), now)) {
-      this->call_listeners_(this->packet_, rssi, snr);
-    }
-  }
+  this->receive_(holding, now);
 }
 
-bool SX126x::receive_result_(bool success, uint32_t now) {
-  this->rx_retry_pending_ = !success;
-  if (!success) {
-    // Keep pending IRQ/FIFO ownership, but do not spend a BUSY timeout on every loop.
-    this->rx_retry_started_ms_ = now;
+void SX126x::receive_(bool holding, uint32_t now) {
+  this->busy_ = true;
+  this->spi_device_.begin();
+  const uint16_t status = this->commands_.read_irq();
+  if (!holding) {
+    this->commands_.clear_irqs(status);  // A held packet keeps its IRQ until restoration.
   }
-  return this->command_result_(success);
-}
-
-bool SX126x::command_result_(bool success) {
-  this->status_comm_result(success, LOG_STR("Wait busy timeout"));
-  return success;
+  const bool received = (status & IRQ_RX_DONE) && !(status & IRQ_CRC_ERROR);
+  float rssi = 0, snr = 0;
+  if (received) {
+    this->commands_.read_packet(this->active_profile_, this->packet_, rssi, snr);
+  }
+  const bool read = this->spi_device_.ok();
+  // Keep a failed packet's IRQ/FIFO, but do not spend a BUSY timeout on every loop.
+  this->rx_retry_pending_ = !read;
+  this->rx_retry_started_ms_ = now;
+  State next = this->state_;
+  if (read && holding) {
+    next = this->restore_() ? State::STATE_IDLE : State::STATE_NEEDS_CONFIGURATION;
+  }
+  this->commit_(next);
+  // The packet buffer is borrowed from here until listeners return; loop() will not refill it.
+  this->rx_dispatching_ = true;
+  this->report_(read && next != State::STATE_NEEDS_CONFIGURATION);
+  if (read && received) {
+    for (auto *listener : this->listeners_) {
+      listener->on_packet(this->packet_, rssi, snr);
+    }
+    this->packet_trigger_.trigger(this->packet_, rssi, snr);
+  }
+  this->rx_dispatching_ = false;
 }
 
 void SX126x::dump_config() {
-  ESP_LOGCONFIG(TAG, "SX126x:\n  Ready for operation: %s", YESNO(!this->is_failed() && this->operation_.is_ready()));
+  ESP_LOGCONFIG(TAG, "SX126x:\n  Ready for operation: %s",
+                YESNO(!this->is_failed() && this->state_ == State::STATE_IDLE));
   LOG_PIN("  CS Pin: ", this->cs_pin_);
   LOG_PIN("  BUSY Pin: ", this->busy_pin_);
   LOG_PIN("  RST Pin: ", this->rst_pin_);

@@ -540,25 +540,26 @@ TEST(SX126xDiagnostics, BlockingRejectionsExplainWhyNoPacketWasSent) {
   RadioHardware hw;
   auto output = capture_radio_logs(
       [&]() { EXPECT_EQ(hw.radio.transmit_packet(hw.packet), SX126xError::SX126X_ERROR_NOT_READY); });
-  EXPECT_NE(output.find("Packet rejected: radio not ready"), std::string::npos);
+  EXPECT_NE(output.find("Packet send failed: radio not ready"), std::string::npos);
   hw.configure(true, true, true);
   hw.clear_trace();
   output = capture_radio_logs(
       [&]() { EXPECT_EQ(hw.radio.transmit_packet(hw.packet.data(), 2), SX126xError::INVALID_PARAMS); });
-  EXPECT_NE(output.find("Packet rejected: invalid payload"), std::string::npos);
+  EXPECT_NE(output.find("Packet send failed: invalid payload"), std::string::npos);
   EXPECT_TRUE(hw.transactions.empty());
   hw.irq = IRQ_RX_DONE;
   output =
       capture_radio_logs([&]() { EXPECT_EQ(hw.radio.transmit_packet(hw.packet), SX126xError::SX126X_ERROR_BUSY); });
-  EXPECT_NE(output.find("Packet rejected: radio busy"), std::string::npos);
+  EXPECT_NE(output.find("Packet send failed: radio busy"), std::string::npos);
   EXPECT_EQ(hw.irq, IRQ_RX_DONE);
   EXPECT_EQ(hw.sends, 0u);
-  hw.irq = 0;
+  hw.radio.loop();  // Deliver the held packet, which also clears its IRQ.
+  EXPECT_EQ(hw.irq, 0u);
   hw.clear_trace();
   hw.fail_at = 1;
   output = capture_radio_logs(
       [&]() { EXPECT_EQ(hw.radio.transmit_packet(hw.packet), SX126xError::SX126X_ERROR_BUSY_TIMEOUT); });
-  EXPECT_NE(output.find("Packet preparation failed"), std::string::npos);
+  EXPECT_NE(output.find("Packet send failed: bus timeout"), std::string::npos);
   EXPECT_EQ(hw.sends, 0u);
 }
 
@@ -575,7 +576,7 @@ TEST(SX126xDiagnostics, AsyncAdmissionLeavesRejectionReportingToItsCaller) {
     hw.irq = IRQ_RX_DONE;
     EXPECT_EQ(hw.radio.start_transmit_async(&completion, hw.packet), SX126xError::SX126X_ERROR_BUSY);
   });
-  EXPECT_EQ(output.find("Packet rejected"), std::string::npos);
+  EXPECT_EQ(output.find("Packet send failed"), std::string::npos);
   EXPECT_EQ(hw.sends, 0u);
 }
 
@@ -629,7 +630,7 @@ TEST_P(SX126xTimeoutDiagnostics, BlockingTimeoutLogsFailureAfterRestoration) {
   }
   const auto output =
       capture_radio_logs([&]() { EXPECT_EQ(hw.radio.transmit_packet(hw.packet), SX126xError::TIMEOUT); });
-  EXPECT_NE(output.find("Packet transmission failed:"), std::string::npos);
+  EXPECT_NE(output.find("Packet send failed: timeout"), std::string::npos);
   EXPECT_TRUE(hw.receiving);
   EXPECT_FALSE(hw.radio.is_transmitting());
   EXPECT_FALSE(hw.radio.status_has_warning());  // Restoration itself succeeded.
@@ -653,7 +654,7 @@ TEST(SX126xDiagnostics, AsyncTimeoutLeavesCompletionReportingToItsCaller) {
     hw.radio.loop();
   });
   EXPECT_EQ(completion.count, 1u);
-  EXPECT_EQ(output.find("Packet transmission failed:"), std::string::npos);
+  EXPECT_EQ(output.find("Packet send failed"), std::string::npos);
 }
 
 }  // namespace esphome::sx126x::testing
