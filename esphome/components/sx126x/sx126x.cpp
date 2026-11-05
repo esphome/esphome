@@ -325,11 +325,7 @@ bool SX126x::receive_result_(bool success, uint32_t now) {
 }
 
 bool SX126x::command_result_(bool success) {
-  if (success) {
-    this->status_clear_warning();
-  } else {
-    this->status_set_warning(LOG_STR("Wait busy timeout"));
-  }
+  this->status_comm_result(success, LOG_STR("Wait busy timeout"));
   return success;
 }
 
