@@ -158,7 +158,7 @@ def validate_sampling(config: ConfigType) -> ConfigType:
         )
     sample_us = config[CONF_SAMPLE_PERIOD].total_microseconds
     filter_us = config[CONF_FILTER].total_microseconds
-    if filter_us <= sample_us and filter_us != timer_filter_us(sample_us):
+    if filter_us <= sample_us:
         _LOGGER.warning(
             "filter is not longer than the sample period, so it cannot remove one-sample glitches"
         )
