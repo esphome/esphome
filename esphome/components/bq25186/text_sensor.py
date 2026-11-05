@@ -17,10 +17,10 @@ REG_STAT0 = 0
 REG_STAT1 = 1
 _STRINGS = bq25186_ns.namespace("BQ25186StatusStrings")
 
-# (key, status register, bit shift, index of the field's value 0 in the C++ string table)
+# (key, two-bit status field, index of the field's value 0 in the C++ string table)
 _FIELDS = (
-    ("charge_status", REG_STAT0, 5, 0),
-    ("ts_status", REG_STAT1, 3, 4),
+    ("charge_status", cg.RegisterField(REG_STAT0, 5, 0x03), 0),
+    ("ts_status", cg.RegisterField(REG_STAT1, 3, 0x03), 4),
 )
 
 
@@ -35,8 +35,8 @@ CONFIG_SCHEMA = cv.All(
 async def to_code(config: ConfigType) -> None:
     hub = await cg.get_variable(config[CONF_BQ25186_ID])
     sensors = text_sensor.sub_text_sensors(config)
-    for key, reg, shift, first in _FIELDS:
+    for key, field, first in _FIELDS:
         if (var := await sensors(key, None)) is not None:
             text_sensor.add_table_on_change(
-                STATUS_PUBLISHER, hub, var, _STRINGS, STATUS[reg] >> shift, 0x03, first
+                STATUS_PUBLISHER, hub, var, STATUS, field, table=_STRINGS, first=first
             )

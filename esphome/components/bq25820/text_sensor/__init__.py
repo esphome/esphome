@@ -28,24 +28,26 @@ _UNKNOWN = 5  # undefined TS codes 5-7 fall back to "Unknown"
 
 
 @dataclass(frozen=True, kw_only=True)
-class _StatusText:
-    """The three-bit field (status[register] >> shift), named by BQ25820StatusStrings[first + field]."""
+class _StatusText(cg.RegisterField):
+    """The field named by BQ25820StatusStrings[first + field]."""
 
     key: str
-    register: int
-    shift: int = 0
     first: int = 0
     icon: str
 
 
 _FIELDS = (
     _StatusText(
-        key="charge_status", register=CHARGER_STATUS_1, icon=ICON_BATTERY_CHARGING
+        key="charge_status",
+        register=CHARGER_STATUS_1,
+        mask=0x07,
+        icon=ICON_BATTERY_CHARGING,
     ),
     _StatusText(
         key="temp_status",
         register=CHARGER_STATUS_2,
         shift=4,
+        mask=0x07,
         first=8,
         icon=ICON_THERMOMETER,
     ),
@@ -72,11 +74,11 @@ async def to_code(config: ConfigType) -> None:
                 STATUS_PUBLISHER,
                 hub,
                 var,
-                _STRINGS,
-                STATUS[field.register] >> field.shift,
-                0x07,
-                field.first,
-                _UNKNOWN,
+                STATUS,
+                field,
+                table=_STRINGS,
+                first=field.first,
+                fallback=_UNKNOWN,
             )
             DUMP.add(
                 hub,

@@ -7,7 +7,6 @@ from ..hub_function_helpers import (
     check_publishers_set,
     check_status_function,
     hub_function_body,
-    progmem_strings,
 )
 from .status_datasheet import BINARY_SENSORS, TEXT_SENSORS
 
@@ -24,11 +23,10 @@ def test_status_publishers(
     check_status_function(
         main_cpp,
         "charger_a",
-        "bq25186::BQ25186StatusStrings",
-        progmem_strings("bq25186"),
-        TEXT_SENSORS,
-        BINARY_SENSORS,
-        CPP_TEST,
+        table="bq25186::BQ25186StatusStrings",
+        text_sensors=TEXT_SENSORS,
+        binary_sensors=BINARY_SENSORS,
+        cpp_test=CPP_TEST,
     )
     assert hub_function_body(main_cpp, "charger_b") == [
         "static uint8_t esphome__b_ts_status__last = 0xFF;",

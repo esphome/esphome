@@ -30,13 +30,10 @@ _BINARY_SENSOR_TYPE = cg.RawExpression('LOG_STR_LITERAL("Binary Sensor")')
 
 
 @dataclass(frozen=True, kw_only=True)
-class _StatusBit:
-    """On when the field (status[register] >> shift) & mask is a set bit of on_values."""
+class _StatusBit(cg.RegisterField):
+    """On when the field is a set bit of on_values."""
 
     key: str
-    register: int
-    shift: int = 0
-    mask: int = 0x01
     on_values: int = cg.BIT_FIELD_SET
     device_class: str = cv.UNDEFINED
 
@@ -104,16 +101,15 @@ CONFIG_SCHEMA = cv.All(
 
 async def to_code(config: ConfigType) -> None:
     hub = await cg.get_variable(config[CONF_BQ25820_ID])
-    sensors = binary_sensor.sub_binary_sensors(config)
-    for field in _FIELDS:
-        if (var := await sensors(field.key, None)) is not None:
-            state = cg.bit_field_on(
-                STATUS[field.register], field.shift, field.mask, field.on_values
-            )
-            STATUS_PUBLISHER.add(hub, parent_ref(var).publish_state(state))
-            DUMP.add(
-                hub,
-                binary_sensor.binary_sensor_ns.log_binary_sensor(
-                    DUMP_TAG, "  ", _BINARY_SENSOR_TYPE, parent_ref(var)
-                ),
-            )
+    children = await STATUS_PUBLISHER.publish_children(
+        hub,
+        binary_sensor.sub_binary_sensors(config),
+        {field.key: field.is_on(STATUS, field.on_values) for field in _FIELDS},
+    )
+    for var in children.values():
+        DUMP.add(
+            hub,
+            binary_sensor.binary_sensor_ns.log_binary_sensor(
+                DUMP_TAG, "  ", _BINARY_SENSOR_TYPE, parent_ref(var)
+            ),
+        )

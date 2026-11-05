@@ -100,6 +100,8 @@ class TextSensor : public EntityBase {
 /// `last`; start `last` at 0xFF so the first call publishes
 template<typename Table, uint8_t Mask, uint8_t Fallback>
 inline void publish_table_on_change(TextSensor *sensor, uint8_t &last, uint8_t value, uint8_t first) {
+  static_assert(Fallback < Table::COUNT, "Fallback must index a string of Table");
+  static_assert(Mask != 0xFF, "a field value of 0xFF would match the unset last");
   value &= Mask;
   if (value == last)
     return;

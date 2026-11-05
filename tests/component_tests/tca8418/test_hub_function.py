@@ -3,6 +3,8 @@
 from collections.abc import Callable
 from pathlib import Path
 
+from ..hub_function_helpers import check_publishers_set
+
 
 def test_binary_sensors_publish_through_hub_function(
     generate_main: Callable[[str | Path], str],
@@ -17,6 +19,5 @@ def test_binary_sensors_publish_through_hub_function(
         "  tca8418::publish_key(::key_one, esphome__arg_key, 1, esphome__arg_pressed);\n"
         "}"
     ) in main_cpp
-    assert "keypad->set_key_publisher(esphome__keypad__key_fn);" in main_cpp
     # A keypad without binary sensors keeps a null publisher
-    assert "idle_keypad->set_key_publisher" not in main_cpp
+    check_publishers_set(main_cpp, ["keypad"], ["idle_keypad"], "key")

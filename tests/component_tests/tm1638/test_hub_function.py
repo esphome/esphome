@@ -3,6 +3,8 @@
 from collections.abc import Callable
 from pathlib import Path
 
+from ..hub_function_helpers import check_publishers_set
+
 
 def test_keys_publish_through_hub_function(
     generate_main: Callable[[str | Path], str],
@@ -16,6 +18,5 @@ def test_keys_publish_through_hub_function(
         "  tm1638::publish_key(::button7, esphome__arg_keys, 7);\n"
         "}"
     ) in main_cpp
-    assert "panel->set_keys_publisher(esphome__panel__keys_fn);" in main_cpp
     # A panel without keys keeps a null publisher, so its loop reads nothing
-    assert "idle_panel->set_keys_publisher" not in main_cpp
+    check_publishers_set(main_cpp, ["panel"], ["idle_panel"], "keys")

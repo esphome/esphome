@@ -47,32 +47,39 @@ def _eval(expr: str, reg: int, value: int) -> int:
     return eval(expr, {"__builtins__": {}}, {STATUS: status})  # noqa: S307
 
 
+def _flat(code: str) -> str:
+    return re.sub(r"\s+", "", code)
+
+
 def _text_fields(match: re.Match[str]) -> tuple[str, ...]:
-    return tuple(match[name] for name in ("key", "value", "mask", "first", "fallback"))
+    return (match["key"].lower(), *match.group("value", "mask", "first", "fallback"))
 
 
 def check_status_function(
     main_cpp: str,
     hub: str,
+    *,
     table: str,
-    strings: list[str],
     text_sensors: Mapping[str, tuple[int, int, tuple[str, ...]]],
     binary_sensors: Mapping[str, tuple[int, int, frozenset[int]]],
     cpp_test: Path,
 ) -> None:
     """Every decode in the function of `hub` matches the datasheet tables (register offset, field bits,
     then the string per field value or the field values that read as on), text sensors first, in table order;
-    `table` is the qualified PROGMEM_STRING_TABLE, and the C++ copy in `cpp_test` decodes the same."""
-    head = re.escape(f"text_sensor::publish_table_on_change<{table},")
+    `table` is the component's qualified PROGMEM_STRING_TABLE, and the C++ copy in `cpp_test` decodes the same."""
+    strings = progmem_strings(table.split("::", 1)[0])
+    # Matched without whitespace, as clang-format wraps the C++ copy
     text_call = re.compile(
-        head
-        + r" (?P<mask>0x\w+), (?P<fallback>[^>]+)>\(::tx_(?P<key>\w+), esphome__tx_(?P=key)__last, "
-        r"(?P<value>.*), (?P<first>\d+)\);"
+        re.escape(f"text_sensor::publish_table_on_change<{table},")
+        + r"(?P<mask>0x\w+),(?P<fallback>[^>]+)>\((?:::tx_|&entities->text\[)(?P<key>\w+)\]?,"
+        r"[\w>-]+,(?P<value>.*?),(?P<first>\d+)\);"
     )
     body = hub_function_body(main_cpp, hub)
     n_text = 2 * len(text_sensors)
     pairs = zip(body[0:n_text:2], body[1:n_text:2], strict=True)
-    text = [(LAST.fullmatch(last), text_call.fullmatch(line)) for last, line in pairs]
+    text = [
+        (LAST.fullmatch(last), text_call.fullmatch(_flat(line))) for last, line in pairs
+    ]
     assert [(m[1], t["key"]) for m, t in text] == [(key, key) for key in text_sensors]
     for _, match in text:
         key, value_expr, mask, first, fallback = _text_fields(match)
@@ -84,7 +91,7 @@ def check_status_function(
             index = int(first) + (_eval(value_expr, reg, value) & int(mask, 16))
             string = strings[index] if index < len(strings) else strings[fallback_index]
             assert string == states[field_value(value, bits)], (key, value)
-    binary = [BINARY.fullmatch(line) for line in body[n_text:]]
+    binary = [BINARY.fullmatch(_flat(line)) for line in body[n_text:]]
     assert [m[1] for m in binary] == list(binary_sensors)
     for match in binary:
         reg, bits, on_values = binary_sensors[match[1]]
@@ -92,26 +99,14 @@ def check_status_function(
             on = _eval(match[2], reg, value) != 0
             assert on == (field_value(value, bits) in on_values), (match[1], value)
 
-    # Compared without whitespace, as clang-format wraps the C++ copy
-    cpp = re.sub(r"\s+", "", cpp_test.read_text(encoding="utf-8")).replace(
-        "status[", f"{STATUS}["
-    )
+    cpp = _flat(cpp_test.read_text(encoding="utf-8")).replace("status[", f"{STATUS}[")
     cpp_binary = re.compile(r"entities->binary\[(\w+)\]\.publish_state\((.*?)\);")
-    cpp_text = re.compile(
-        head
-        + r"(?P<mask>0x\w+),(?P<fallback>[^>]+)>\(&entities->text\[(?P<key>\w+)\],entities->\w+,"
-        r"(?P<value>.*?),(?P<first>\d+)\);"
-    )
-
-    def flat(groups: tuple[str, ...]) -> tuple[str, ...]:
-        return tuple(re.sub(r"\s+", "", group) for group in groups)
-
     assert [(m[1].lower(), m[2]) for m in cpp_binary.finditer(cpp)] == [
-        flat(m.groups()) for m in binary
+        m.groups() for m in binary
     ]
-    assert [
-        (m["key"].lower(), *_text_fields(m)[1:]) for m in cpp_text.finditer(cpp)
-    ] == [flat(_text_fields(t)) for _, t in text]
+    assert [_text_fields(m) for m in text_call.finditer(cpp)] == [
+        _text_fields(t) for _, t in text
+    ]
 
 
 def check_publishers_set(

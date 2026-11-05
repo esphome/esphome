@@ -198,11 +198,13 @@ a second hub function (`"dump"`, a `const char *` tag parameter, no define of it
 `dump_config()` calls inside the value function's `#ifdef`; every child adds to both.
 
 **Entities that each watch a register field:** when every field (register, shift, mask, match) is known at
-build time, use the rule above (see `bq25186`). A binary sensor tests its field value against an on-values
-bitmap with `cg.bit_field_on(value, shift, mask, on_values)` (a one-bit field that is on when set is the
-default and reads the bit); a text sensor names its field from a `PROGMEM_STRING_TABLE` with
-`text_sensor.add_table_on_change(...)`, which publishes only when the field changes (the mask and fallback
-are template arguments, so each table compiles to one out-of-line function):
+build time, use the rule above (see `bq25186`). Describe each field with `cg.RegisterField(register, shift,
+mask)` (a dataclass, so a platform's field table can subclass it with `kw_only` extras). A binary sensor
+tests its field against an on-values bitmap with `field.is_on(values, on_values)` (a one-bit field that is on
+when set is the default and reads the bit), and `publish_children` creates the configured children and adds
+their publishes; a text sensor names its field from a `PROGMEM_STRING_TABLE` with
+`text_sensor.add_table_on_change(...)`, which publishes only when the field changes (the mask and fallback are
+template arguments, so there is one instantiation per table):
 ```python
 # hub __init__.py
 STATUS_PUBLISHER = cg.HubFunction(
@@ -213,14 +215,23 @@ STATUS_PUBLISHER = cg.HubFunction(
 )
 STATUS = STATUS_PUBLISHER.param("status")
 
-# binary_sensor.py to_code, per configured entity
-state = cg.bit_field_on(STATUS[reg], shift, mask, on_values)
-STATUS_PUBLISHER.add(hub, parent_ref(var).publish_state(state))
+# binary_sensor.py to_code
+await STATUS_PUBLISHER.publish_children(
+    hub,
+    binary_sensor.sub_binary_sensors(config),
+    {field.key: field.is_on(STATUS, field.on_values) for field in _FIELDS},
+)
 
-# text_sensor.py: string first + ((status[reg] >> shift) & 0x03) of the table, LAST_INDEX past its end
+# text_sensor.py to_code, per configured entity
 STRINGS = bq25186_ns.namespace("BQ25186StatusStrings")
 text_sensor.add_table_on_change(
-    STATUS_PUBLISHER, hub, var, STRINGS, STATUS[reg] >> shift, 0x03, first
+    STATUS_PUBLISHER,
+    hub,
+    var,
+    STATUS,
+    cg.RegisterField(REG_STAT1, 3, 0x03),
+    table=STRINGS,
+    first=4,
 )
 ```
 Store a field description per entity (a struct in a `SlotList` sized by `cg.slot_list`) only when the
