@@ -11,6 +11,19 @@ from esphome.types import ConfigType
 CODEOWNERS = ["@dwmw2", "@ssieb"]
 DOMAIN = "tuya"
 
+
+def AUTO_LOAD(config: ConfigType | None = None) -> list[str]:
+    """Auto-load uart for an explicit `tuya:` block.
+
+    An AutoLoad config means another transport pulled in the base class only,
+    with no UART. A falsy config is a tooling probe for the maximal set, which
+    also keeps the uart->tuya edge in the CI test dependency graph.
+    """
+    if isinstance(config, AutoLoad):
+        return []
+    return ["uart"]
+
+
 CONF_IGNORE_MCU_UPDATE_ON_DATAPOINTS = "ignore_mcu_update_on_datapoints"
 
 CONF_ON_DATAPOINT_UPDATE = "on_datapoint_update"
@@ -90,7 +103,7 @@ UART_SCHEMA = cv.All(
 
 
 @schema_extractor("schema")
-def _validate_config(value):
+def _validate_config(value: ConfigType | AutoLoad) -> ConfigType | AutoLoad | cv.Schema:
     if value is SCHEMA_EXTRACT:
         # Expose the UART schema to the language-schema dumper
         return UART_SCHEMA
