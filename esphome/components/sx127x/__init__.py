@@ -160,7 +160,9 @@ def validate_config(config: ConfigType) -> ConfigType:
         if config[CONF_BANDWIDTH] == "500_0kHz":
             raise cv.Invalid(f"{config[CONF_BANDWIDTH]} is only available with LORA")
         if CONF_AFC_BANDWIDTH in config and config[CONF_AFC_BANDWIDTH] == "500_0kHz":
-            raise cv.Invalid(f"{config[CONF_AFC_BANDWIDTH]} is not available with FSK/OOK")
+            raise cv.Invalid(
+                f"{config[CONF_AFC_BANDWIDTH]} is not available with FSK/OOK"
+            )
         if CONF_BITSYNC not in config:
             raise cv.Invalid("Config 'bitsync' required with FSK/OOK")
         if CONF_PACKET_MODE not in config:
