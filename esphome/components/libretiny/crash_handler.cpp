@@ -467,7 +467,11 @@ bool crash_report_get(CrashReport &out) {
   out = {};
   // The record has no build stamp; like ESP8266 and RP2, assume the running firmware wrote it
   out.flags = CRASH_REPORT_FLAG_PRESENT | CRASH_REPORT_FLAG_BUILD_MATCHES;
-  out.reason = record.reason != 0 ? CrashReason::CRASH_REASON_EXCEPTION : CrashReason::CRASH_REASON_UNKNOWN;
+  if (record.reason == libretiny::CRASH_REASON_ABORT) {
+    out.reason = CrashReason::CRASH_REASON_ABORT;
+  } else {
+    out.reason = record.reason != 0 ? CrashReason::CRASH_REASON_EXCEPTION : CrashReason::CRASH_REASON_UNKNOWN;
+  }
   out.pc = record.pc;
 #ifdef USE_LIBRETINY_CRASH_HANDLER_VECTOR_PATCH
   // Cortex-M CFSR, and the BFAR or MMFAR its valid bits mark (0 is a real address for a null dereference);
