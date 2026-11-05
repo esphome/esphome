@@ -77,6 +77,10 @@ class ClimateTraits {
   friend class Climate;  // Climate wires its custom mode lists into traits
 
  public:
+  // The visual range a platform starts from, in °C
+  static constexpr float DEFAULT_VISUAL_MIN_TEMPERATURE = 10.0f;
+  static constexpr float DEFAULT_VISUAL_MAX_TEMPERATURE = 30.0f;
+
   // Out of line on purpose: an inlined default init makes GCC copy the defaults from a .rodata
   // template per traits() override, and .rodata is RAM on ESP8266.
   ClimateTraits();
@@ -193,8 +197,8 @@ class ClimateTraits {
   void set_supported_custom_presets_(const ClimateCustomModes *presets) { this->supported_custom_presets_ = presets; }
 
   uint32_t feature_flags_{0};
-  float visual_min_temperature_{10};
-  float visual_max_temperature_{30};
+  float visual_min_temperature_{DEFAULT_VISUAL_MIN_TEMPERATURE};
+  float visual_max_temperature_{DEFAULT_VISUAL_MAX_TEMPERATURE};
   float visual_target_temperature_step_{0.1};
   float visual_current_temperature_step_{0.1};
   float visual_min_humidity_{30};

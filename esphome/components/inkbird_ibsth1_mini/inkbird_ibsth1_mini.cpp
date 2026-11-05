@@ -7,10 +7,10 @@ ESPHOME_LOG_TAG(TAG, "inkbird_ibsth1_mini");
 
 void InkbirdIbstH1Mini::dump_config() {
   ESP_LOGCONFIG(TAG, "Inkbird IBS TH1 MINI");
-  LOG_SENSOR("  ", "Temperature", this->temperature_);
-  LOG_SENSOR("  ", "External Temperature", this->external_temperature_);
-  LOG_SENSOR("  ", "Humidity", this->humidity_);
-  LOG_SENSOR("  ", "Battery Level", this->battery_level_);
+  LOG_SENSOR("  ", "Temperature", this->temperature_sensor_);
+  LOG_SENSOR("  ", "External Temperature", this->external_temperature_sensor_);
+  LOG_SENSOR("  ", "Humidity", this->humidity_sensor_);
+  LOG_SENSOR("  ", "Battery Level", this->battery_level_sensor_);
 }
 
 bool InkbirdIbstH1Mini::parse_device(const ble_device_base::ESPBTDevice &device) {
@@ -85,18 +85,14 @@ bool InkbirdIbstH1Mini::parse_device(const ble_device_base::ESPBTDevice &device)
   auto humidity = ((mnf_data.data[1] << 8) + mnf_data.data[0]) / 100.0f;
 
   // Send temperature only if the value is set
-  if (!std::isnan(temperature) && this->temperature_ != nullptr) {
-    this->temperature_->publish_state(temperature);
+  if (!std::isnan(temperature) && this->temperature_sensor_ != nullptr) {
+    this->temperature_sensor_->publish_state(temperature);
   }
-  if (!std::isnan(external_temperature) && this->external_temperature_ != nullptr) {
-    this->external_temperature_->publish_state(external_temperature);
+  if (!std::isnan(external_temperature) && this->external_temperature_sensor_ != nullptr) {
+    this->external_temperature_sensor_->publish_state(external_temperature);
   }
-  if (this->humidity_ != nullptr) {
-    this->humidity_->publish_state(humidity);
-  }
-  if (this->battery_level_ != nullptr) {
-    this->battery_level_->publish_state(battery_level);
-  }
+  PUBLISH_STATE(this->humidity_sensor_, humidity);
+  PUBLISH_STATE(this->battery_level_sensor_, battery_level);
 
   return true;
 }
