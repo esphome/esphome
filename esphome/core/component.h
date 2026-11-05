@@ -227,6 +227,17 @@ class Component {
     this->mark_failed();
   }
 
+  /// Marks the component failed with `message` (default "Communication failed") unless `ok`; returns `ok`.
+  /// For any setup() check: `if (!this->setup_check(this->write_byte(...))) return;`. Inlined so the failure
+  /// branches still merge.
+  bool ESPHOME_ALWAYS_INLINE setup_check(bool ok) { return this->setup_check(ok, LOG_STR(ESP_LOG_MSG_COMM_FAIL)); }
+  bool ESPHOME_ALWAYS_INLINE setup_check(bool ok, const LogString *message) {
+    if (ok)
+      return true;
+    this->mark_failed(message);
+    return false;
+  }
+
   /** Disable this component's loop. The loop() method will no longer be called.
    *
    * This is useful for components that only need to run for a certain period of time

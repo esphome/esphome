@@ -1712,8 +1712,10 @@ def ssid(value):
     value = string_strict(value)
     if not value:
         raise Invalid("SSID can't be empty.")
-    if len(value) > 32:
-        raise Invalid("SSID can't be longer than 32 characters")
+    # 802.11 limits the SSID to 32 octets, and the C++ components compare the
+    # UTF-8 byte length against that limit, so measure bytes here as well
+    if (size := len(value.encode("utf-8"))) > 32:
+        raise Invalid(f"SSID can't be longer than 32 bytes (got {size} bytes in UTF-8)")
     return value
 
 
@@ -1943,10 +1945,10 @@ def _parse_percentage(value: object) -> float:
     return float(value)
 
 
-def percentage_int(value):
-    if isinstance(value, str) and value.endswith("%"):
-        value = int(value[:-1].rstrip())
-    return value
+def percentage_int(value: object) -> int:
+    if isinstance(value, str):
+        return int_(value.strip().removesuffix("%"))
+    return int_(value)
 
 
 def invalid(message):
@@ -2158,7 +2160,7 @@ def dimensions(value):
         raise Invalid(
             "Dimensions must be a string (WIDTHxHEIGHT). Got a number instead, try quoting the value."
         )
-    match = re.match(r"\s*([0-9]+)\s*[xX]\s*([0-9]+)\s*", value)
+    match = re.fullmatch(r"\s*([0-9]+)\s*[xX]\s*([0-9]+)\s*", value)
     if not match:
         raise Invalid(
             f"Invalid value '{value}' for dimensions. Only WIDTHxHEIGHT is allowed."
@@ -2236,7 +2238,10 @@ def entity_id(value):
     value = string_strict(value).lower()
     if value.count(".") != 1:
         raise Invalid("Entity ID must have exactly one dot in it")
-    for x in value.split("."):
+    parts = value.split(".")
+    if not all(parts):
+        raise Invalid("Entity ID must be of the form '<domain>.<object_id>'")
+    for x in parts:
         for c in x:
             if c not in ENTITY_ID_CHARACTERS:
                 raise Invalid(f"Invalid character for entity ID: {c}")
