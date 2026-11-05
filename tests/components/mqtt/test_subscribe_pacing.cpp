@@ -131,7 +131,8 @@ TEST(SubscribePacing, PacedBurstWithQueuedAcksDeliversEveryRetainedMessage) {
   }
 }
 
-TEST(SubscribePacing, StraySubacksGiveNoCredit) {
+// Strays counted before the burst; one counted mid-burst still gives a credit
+TEST(SubscribePacing, StraySubacksBeforeBurstGiveNoCredit) {
   for (uint16_t strays : {1, 5, 15}) {
     EXPECT_EQ(run_burst(40, true, false, strays).dropped, 0) << strays << " strays";
     EXPECT_EQ(run_burst(40, true, true, strays).dropped, 0) << strays << " strays, queued acks";

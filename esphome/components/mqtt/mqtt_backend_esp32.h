@@ -191,7 +191,8 @@ class MQTTBackendESP32 final : public MQTTBackend {
   }
 
   bool subscribe(const char *topic, uint8_t qos) final {
-    // SUBACKs for an earlier connection's SUBSCRIBEs, which esp-mqtt resends, give no credit
+    // Stray SUBACKs for resent SUBSCRIBEs of an earlier connection give no credit once they outnumber
+    // ours; one counted mid-burst still frees a slot until the burst ends
     const uint16_t counted = this->sent_on_connection_();
     this->subscribes_sent_ += static_cast<uint16_t>(rebase_sent(counted, this->subacks_.received()) - counted);
 #if defined(USE_MQTT_IDF_ENQUEUE)
