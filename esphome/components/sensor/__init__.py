@@ -1,5 +1,6 @@
 import logging
 import math
+import struct
 from typing import Any
 
 from esphome import automation
@@ -303,8 +304,6 @@ ApplyFilter = sensor_ns.class_("ApplyFilter", Filter)
 APPLY_FILTER = automation.ApplyFilterDomain(
     FILTER_REGISTRY, ApplyFilter, cg.optional.template(cg.float_), ((cg.float_, "x"),)
 )
-OffsetFilter = sensor_ns.class_("OffsetFilter", Filter)
-MultiplyFilter = sensor_ns.class_("MultiplyFilter", Filter)
 ValueListFilter = sensor_ns.class_("ValueListFilter", Filter)
 FilterOutValueFilter = sensor_ns.class_("FilterOutValueFilter", ValueListFilter)
 ThrottleFilter = sensor_ns.class_("ThrottleFilter", Filter)
@@ -323,11 +322,8 @@ HeartbeatFilter = sensor_ns.class_("HeartbeatFilter", Filter)
 DeltaFilter = sensor_ns.class_("DeltaFilter", Filter)
 OrFilter = sensor_ns.class_("OrFilter", Filter)
 CalibrateLinearFilter = sensor_ns.class_("CalibrateLinearFilter", Filter)
-ToNTCResistanceFilter = sensor_ns.class_("ToNTCResistanceFilter", Filter)
-ToNTCTemperatureFilter = sensor_ns.class_("ToNTCTemperatureFilter", Filter)
 RHCorrectionFilter = sensor_ns.class_("RHCorrectionFilter", Filter)
 CalibratePolynomialFilter = sensor_ns.class_("CalibratePolynomialFilter", Filter)
-ClampFilter = sensor_ns.class_("ClampFilter", Filter)
 RoundFilter = sensor_ns.class_("RoundFilter", Filter)
 RoundMultipleFilter = sensor_ns.class_("RoundMultipleFilter", Filter)
 RoundSignificantDigitsFilter = sensor_ns.class_("RoundSignificantDigitsFilter", Filter)
@@ -426,16 +422,16 @@ def sensor_schema(
     return _SENSOR_SCHEMA.extend(schema)
 
 
-@FILTER_REGISTRY.register("offset", OffsetFilter, cv.templatable(cv.float_))
-async def offset_filter_to_code(config, filter_id):
-    template_ = await cg.templatable(config, [], cg.float_)
-    return cg.new_Pvariable(filter_id, template_)
-
-
-@FILTER_REGISTRY.register("multiply", MultiplyFilter, cv.templatable(cv.float_))
-async def multiply_filter_to_code(config, filter_id):
-    template_ = await cg.templatable(config, [], cg.float_)
-    return cg.new_Pvariable(filter_id, template_)
+APPLY_FILTER.register(
+    "offset",
+    cv.templatable(cv.float_),
+    automation.ApplyCall("return x + {};", ((automation.WHOLE_CONFIG, cg.float_),)),
+)
+APPLY_FILTER.register(
+    "multiply",
+    cv.templatable(cv.float_),
+    automation.ApplyCall("return x * {};", ((automation.WHOLE_CONFIG, cg.float_),)),
+)
 
 
 TemplatableFloat = cg.esphome_ns.class_("TemplatableFn").template(cg.float_)
@@ -839,6 +835,17 @@ def validate_calibrate_linear(config):
 LINEAR_SEGMENT = cg.std_ns.class_("array").template(cg.float_, 3)
 
 
+_LINEAR = automation.ApplyCall(
+    "return x * {} + {};", (("k", cg.float_), ("b", cg.float_))
+)
+
+
+async def _linear_filter(filter_id: ID, k: float, b: float) -> MockObj:
+    return await APPLY_FILTER.build(
+        "calibrate_linear", {"k": k, "b": b}, filter_id, _LINEAR
+    )
+
+
 @FILTER_REGISTRY.register(
     "calibrate_linear",
     CalibrateLinearFilter,
@@ -859,12 +866,12 @@ async def calibrate_linear_filter_to_code(config, filter_id):
     x = [conf[CONF_FROM] for conf in config[CONF_DATAPOINTS]]
     y = [conf[CONF_TO] for conf in config[CONF_DATAPOINTS]]
 
-    linear_functions = []
     if config[CONF_METHOD] == "least_squares":
-        k, b = fit_linear(x, y)
-        linear_functions = [[k, b, float("NaN")]]
-    elif config[CONF_METHOD] == "exact":
-        linear_functions = map_linear(x, y)
+        return await _linear_filter(filter_id, *fit_linear(x, y))
+    linear_functions = map_linear(x, y)
+    if len(linear_functions) == 1:
+        # One segment needs no table
+        return await _linear_filter(filter_id, *linear_functions[0][:2])
     # The last segment always has a NaN boundary, so the filter needs no count.
     table = cg.shared_progmem_array(
         "sensor_calibrate_linear", LINEAR_SEGMENT, linear_functions
@@ -936,14 +943,31 @@ CLAMP_SCHEMA = cv.All(
 )
 
 
-@FILTER_REGISTRY.register("clamp", ClampFilter, CLAMP_SCHEMA)
-async def clamp_filter_to_code(config, filter_id):
-    return cg.new_Pvariable(
-        filter_id,
-        config[CONF_MIN_VALUE],
-        config[CONF_MAX_VALUE],
-        config[CONF_IGNORE_OUT_OF_RANGE],
-    )
+def _clamp_bound(config: ConfigType, value: float) -> str:
+    """The bound as the filter's float, NAN for no bound.
+
+    A literal beyond float range was infinite in the old ClampFilter, so no bound; one that
+    rounds to FLT_MAX stays a bound.
+    """
+    try:
+        bound = struct.unpack("f", struct.pack("f", value))[0]
+    except OverflowError:
+        return "NAN"
+    return str(cg.safe_exp(bound)) if math.isfinite(bound) else "NAN"
+
+
+APPLY_FILTER.register(
+    "clamp",
+    CLAMP_SCHEMA,
+    automation.ApplyCall(
+        "return sensor::clamp_filter_value(x, {}, {}, {});",
+        (
+            (CONF_MIN_VALUE, cg.float_, _clamp_bound),
+            (CONF_MAX_VALUE, cg.float_, _clamp_bound),
+            (CONF_IGNORE_OUT_OF_RANGE, cg.bool_),
+        ),
+    ),
+)
 
 
 @FILTER_REGISTRY.register(
@@ -1240,46 +1264,26 @@ def ntc_process_calibration(value):
     }
 
 
-@FILTER_REGISTRY.register(
+_NTC_SCHEMA = cv.Schema({cv.Required(CONF_CALIBRATION): ntc_process_calibration})
+_NTC_COEFFICIENTS = tuple(
+    ((CONF_CALIBRATION, key), cg.double) for key in (CONF_A, CONF_B, CONF_C)
+)
+APPLY_FILTER.register(
     "to_ntc_resistance",
-    ToNTCResistanceFilter,
-    cv.All(
-        cv.Schema(
-            {
-                cv.Required(CONF_CALIBRATION): ntc_process_calibration,
-            }
-        ),
+    _NTC_SCHEMA,
+    automation.ApplyCall(
+        "return sensor::steinhart_hart_resistance(x, {}, {}, {});",
+        _NTC_COEFFICIENTS,
     ),
 )
-async def calibrate_ntc_resistance_filter_to_code(config, filter_id):
-    calib = config[CONF_CALIBRATION]
-    return cg.new_Pvariable(
-        filter_id,
-        calib[CONF_A],
-        calib[CONF_B],
-        calib[CONF_C],
-    )
-
-
-@FILTER_REGISTRY.register(
+APPLY_FILTER.register(
     "to_ntc_temperature",
-    ToNTCTemperatureFilter,
-    cv.All(
-        cv.Schema(
-            {
-                cv.Required(CONF_CALIBRATION): ntc_process_calibration,
-            }
-        ),
+    _NTC_SCHEMA,
+    automation.ApplyCall(
+        "return sensor::steinhart_hart_temperature(x, {}, {}, {});",
+        _NTC_COEFFICIENTS,
     ),
 )
-async def calibrate_ntc_temperature_filter_to_code(config, filter_id):
-    calib = config[CONF_CALIBRATION]
-    return cg.new_Pvariable(
-        filter_id,
-        calib[CONF_A],
-        calib[CONF_B],
-        calib[CONF_C],
-    )
 
 
 @FILTER_REGISTRY.register(

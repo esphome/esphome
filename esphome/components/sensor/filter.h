@@ -315,27 +315,6 @@ template<auto Fn> class ApplyFilter final : public Filter {
   optional<float> new_value(float value) override { return Fn(value); }
 };
 
-/// A simple filter that adds `offset` to each value it receives.
-class OffsetFilter : public Filter {
- public:
-  explicit OffsetFilter(TemplatableFn<float> offset);
-
-  optional<float> new_value(float value) override;
-
- protected:
-  TemplatableFn<float> offset_;
-};
-
-/// A simple filter that multiplies to each value it receives by `multiplier`.
-class MultiplyFilter : public Filter {
- public:
-  explicit MultiplyFilter(TemplatableFn<float> multiplier);
-  optional<float> new_value(float value) override;
-
- protected:
-  TemplatableFn<float> multiplier_;
-};
-
 // Value tables are read in place from flash, which ESP8266 only allows for whole words.
 static_assert(sizeof(TemplatableFn<float>) == sizeof(void *), "TemplatableFn<float> must stay a single pointer");
 
@@ -589,17 +568,6 @@ class CalibratePolynomialFilter : public Filter {
   const float *coefficients_;  // [count, c0, c1, ...]
 };
 
-class ClampFilter : public Filter {
- public:
-  ClampFilter(float min, float max, bool ignore_out_of_range);
-  optional<float> new_value(float value) override;
-
- protected:
-  float min_{NAN};
-  float max_{NAN};
-  bool ignore_out_of_range_;
-};
-
 class RoundFilter : public Filter {
  public:
   explicit RoundFilter(uint8_t precision);
@@ -631,27 +599,13 @@ template<uint8_t Digits> class RoundSignificantDigitsFilter : public Filter {
   }
 };
 
-class ToNTCResistanceFilter : public Filter {
- public:
-  ToNTCResistanceFilter(double a, double b, double c) : a_(a), b_(b), c_(c) {}
-  optional<float> new_value(float value) override;
+/// Clamp to [min, max] for the clamp filter; a non-finite bound is no bound, and NaN input fails the first set bound.
+/// Out of range gives the bound, or empty to drop the value with `ignore_out_of_range`.
+optional<float> clamp_filter_value(float value, float min, float max, bool ignore_out_of_range);
 
- protected:
-  double a_;
-  double b_;
-  double c_;
-};
-
-class ToNTCTemperatureFilter : public Filter {
- public:
-  ToNTCTemperatureFilter(double a, double b, double c) : a_(a), b_(b), c_(c) {}
-  optional<float> new_value(float value) override;
-
- protected:
-  double a_;
-  double b_;
-  double c_;
-};
+/// Steinhart-Hart conversions in double precision for the to_ntc_* filters; non-finite input gives NaN.
+float steinhart_hart_resistance(float temperature, double a, double b, double c);
+float steinhart_hart_temperature(float resistance, double a, double b, double c);
 
 /** RH Temperature correction filter
  *
