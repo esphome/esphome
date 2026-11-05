@@ -72,15 +72,12 @@ void CAP1188Component::dump_config() {
 void CAP1188Component::loop() {
   uint8_t touched = 0;
 
-  this->read_register(CAP1188_SENSOR_INPUT_STATUS, &touched, 1);
+  // On a failed read the channels keep their state instead of reporting a release
+  if (!this->status_comm_result(this->read_byte(CAP1188_SENSOR_INPUT_STATUS, &touched)))
+    return;
 
-  if (touched) {
-    uint8_t data = 0;
-    this->read_register(CAP1188_MAIN, &data, 1);
-    data = data & ~CAP1188_MAIN_INT;
-
-    this->write_register(CAP1188_MAIN, &data, 1);
-  }
+  if (touched)
+    this->update_register(CAP1188_MAIN, CAP1188_MAIN_INT, 0);
 
   for (auto *channel : this->channels_) {
     channel->process(touched);
