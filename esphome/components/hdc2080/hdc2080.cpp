@@ -22,10 +22,8 @@ static constexpr uint8_t MEAS_CONF_HUM = 0x04;   // Bits 2:1 = 10: humidity only
 
 void HDC2080Component::setup() {
   const uint8_t data = 0x00;  // automatic measurement mode disabled, heater off
-  if (this->write_register(REG_RESET_DRDY_INT_CONF, &data, 1) != i2c::ERROR_OK) {
-    this->mark_failed(LOG_STR(ESP_LOG_MSG_COMM_FAIL));
+  if (!this->setup_check(this->write_register(REG_RESET_DRDY_INT_CONF, &data, 1) == i2c::ERROR_OK))
     return;
-  }
 }
 
 void HDC2080Component::dump_config() {
