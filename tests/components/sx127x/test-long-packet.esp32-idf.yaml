@@ -39,11 +39,10 @@ sx127x:
     bandwidth: 50_0kHz
     bitsync: true
     packet_mode: true
-    # payload_length: 0 with payload_length_lambda exercises the arbitrary
-    # length field configuration: the length is not known upfront and is
-    # derived at runtime from the bytes received so far.
-    payload_length: 0
-    payload_length_lambda: |-
+    # payload_length as a lambda exercises the arbitrary length field
+    # configuration: the length is not known upfront and is derived at
+    # runtime from the bytes received so far.
+    payload_length: !lambda |-
       if (x.size() < 3) return 0;
       if (x[0] != 0x54) return -1;
       return x[2] + 12;

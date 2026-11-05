@@ -125,7 +125,7 @@ class SX127x final : public Component,
   uint32_t bitrate_;
   uint32_t deviation_;
   uint32_t frequency_;
-  uint32_t payload_length_;
+  uint32_t payload_length_{0};
   size_t packet_expected_length_{0};
   uint32_t packet_last_byte_ms_{0};
   float long_packet_rssi_{0.0f};

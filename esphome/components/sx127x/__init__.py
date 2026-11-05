@@ -33,7 +33,6 @@ CONF_PA_POWER = "pa_power"
 CONF_PA_RAMP = "pa_ramp"
 CONF_PACKET_MODE = "packet_mode"
 CONF_PAYLOAD_LENGTH = "payload_length"
-CONF_PAYLOAD_LENGTH_LAMBDA = "payload_length_lambda"
 CONF_PREAMBLE_DETECT = "preamble_detect"
 CONF_PREAMBLE_ERRORS = "preamble_errors"
 CONF_PREAMBLE_POLARITY = "preamble_polarity"
@@ -134,6 +133,7 @@ validate_packet_data = cv.All(validate_raw_data, cv.Length(min=1, max=MAX_PACKET
 
 
 def validate_config(config: ConfigType) -> ConfigType:
+    payload_length_is_lambda = cg.is_template(config[CONF_PAYLOAD_LENGTH])
     if config[CONF_MODULATION] == "LORA":
         bws = [
             "7_8kHz",
@@ -153,12 +153,12 @@ def validate_config(config: ConfigType) -> ConfigType:
             raise cv.Invalid("Cannot use LoRa without dio0_pin")
         if config[CONF_PREAMBLE_SIZE] < 6:
             raise cv.Invalid("Minimum 'preamble_size' is 6 with LORA")
+        if payload_length_is_lambda:
+            raise cv.Invalid("payload_length as a lambda is not available with LORA")
         if config[CONF_SPREADING_FACTOR] == 6 and config[CONF_PAYLOAD_LENGTH] == 0:
             raise cv.Invalid("Payload length must be set when spreading factor is 6")
         if config[CONF_PAYLOAD_LENGTH] > 255:
             raise cv.Invalid("Payload length must be <= 255 with LORA")
-        if CONF_PAYLOAD_LENGTH_LAMBDA in config:
-            raise cv.Invalid("payload_length_lambda is not available with LORA")
         if CONF_DIO1_PIN in config:
             raise cv.Invalid("dio1_pin is not available with LORA")
     else:
@@ -170,31 +170,24 @@ def validate_config(config: ConfigType) -> ConfigType:
             raise cv.Invalid("Config 'packet_mode' required with FSK/OOK")
         if config[CONF_PACKET_MODE] and CONF_DIO0_PIN not in config:
             raise cv.Invalid("Config 'dio0_pin' required in packet mode")
-        if config[CONF_PAYLOAD_LENGTH] > 64 and not config[CONF_PACKET_MODE]:
+        if (
+            not payload_length_is_lambda
+            and config[CONF_PAYLOAD_LENGTH] > 64
+            and not config[CONF_PACKET_MODE]
+        ):
             raise cv.Invalid(
                 "payload_length must be <= 64 when packet_mode is disabled"
             )
-        if CONF_PAYLOAD_LENGTH_LAMBDA in config:
-            if not config[CONF_PACKET_MODE]:
-                raise cv.Invalid(
-                    "packet_mode is required when payload_length_lambda is set"
-                )
-            if config[CONF_PAYLOAD_LENGTH] != 0:
-                raise cv.Invalid(
-                    "payload_length must be 0 when payload_length_lambda is set"
-                )
-        is_long_packet = (
-            config[CONF_PAYLOAD_LENGTH] > 64 or CONF_PAYLOAD_LENGTH_LAMBDA in config
-        )
+        if payload_length_is_lambda and not config[CONF_PACKET_MODE]:
+            raise cv.Invalid("packet_mode is required when payload_length is a lambda")
+        is_long_packet = payload_length_is_lambda or (config[CONF_PAYLOAD_LENGTH] > 64)
         if is_long_packet and CONF_DIO1_PIN not in config:
             raise cv.Invalid(
-                "dio1_pin is required when payload_length > 64 or "
-                "payload_length_lambda is set"
+                "dio1_pin is required when payload_length > 64 or is a lambda"
             )
         if is_long_packet and config[CONF_CRC_ENABLE]:
             raise cv.Invalid(
-                "crc_enable is not available with payload_length > 64 or "
-                "payload_length_lambda"
+                "crc_enable is not available with payload_length > 64 or a lambda"
             )
     if config[CONF_PA_PIN] == "RFO" and config[CONF_PA_POWER] > 15:
         raise cv.Invalid("PA power must be <= 15 dbm when using the RFO pin")
@@ -227,8 +220,9 @@ CONFIG_SCHEMA = (
             cv.Optional(CONF_PA_POWER, default=17): cv.int_range(min=0, max=17),
             cv.Optional(CONF_PA_RAMP, default="40us"): cv.enum(RAMP),
             cv.Optional(CONF_PACKET_MODE): cv.boolean,
-            cv.Optional(CONF_PAYLOAD_LENGTH, default=0): cv.int_range(min=0, max=1024),
-            cv.Optional(CONF_PAYLOAD_LENGTH_LAMBDA): cv.lambda_,
+            cv.Optional(CONF_PAYLOAD_LENGTH, default=0): cv.templatable(
+                cv.int_range(min=0, max=1024)
+            ),
             cv.Optional(CONF_PREAMBLE_DETECT, default=0): cv.int_range(min=0, max=3),
             cv.Optional(CONF_PREAMBLE_ERRORS, default=0): cv.int_range(min=0, max=31),
             cv.Optional(CONF_PREAMBLE_POLARITY, default=0xAA): cv.All(
@@ -278,14 +272,15 @@ async def to_code(config: ConfigType) -> None:
     cg.add(var.set_pa_power(config[CONF_PA_POWER]))
     cg.add(var.set_shaping(config[CONF_SHAPING]))
     cg.add(var.set_crc_enable(config[CONF_CRC_ENABLE]))
-    cg.add(var.set_payload_length(config[CONF_PAYLOAD_LENGTH]))
-    if CONF_PAYLOAD_LENGTH_LAMBDA in config:
+    if cg.is_template(config[CONF_PAYLOAD_LENGTH]):
         lambda_ = await cg.process_lambda(
-            config[CONF_PAYLOAD_LENGTH_LAMBDA],
+            config[CONF_PAYLOAD_LENGTH],
             [(cg.std_vector.template(cg.uint8).operator("ref").operator("const"), "x")],
             return_type=cg.int32,
         )
         cg.add(var.set_payload_length_lambda(lambda_))
+    else:
+        cg.add(var.set_payload_length(config[CONF_PAYLOAD_LENGTH]))
     cg.add(var.set_preamble_detect(config[CONF_PREAMBLE_DETECT]))
     cg.add(var.set_preamble_size(config[CONF_PREAMBLE_SIZE]))
     cg.add(var.set_preamble_polarity(config[CONF_PREAMBLE_POLARITY]))
