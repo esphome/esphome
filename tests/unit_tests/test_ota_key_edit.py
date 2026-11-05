@@ -1286,3 +1286,21 @@ ota:
     assert [(e.path.name, e.new_line) for e in edits] == [
         ("secrets.yaml", f"device_old: {OLD_KEY}")
     ]
+
+
+def test_merged_secret_key_with_a_hash_in_its_name(tmp_path: Path) -> None:
+    """A merged block's `key: !secret a#b` line locates like an unmerged one."""
+    from esphome.config_helpers import merge_config
+
+    (tmp_path / "package.yaml").write_bytes(
+        f'api:\n  encryption:\n    key: "{OLDER_KEY}"\n'.encode()
+    )
+    _setup(
+        tmp_path,
+        SECRET_YAML.replace("device_key", "device_key#prod"),
+        f"device_key#prod: {OLD_KEY}\n",
+    )
+    package = yaml_util.load_yaml(tmp_path / "package.yaml")
+    CORE.raw_config = merge_config(package, CORE.raw_config)
+    edits = locate_key_edits(OLD_KEY, NEW_KEY)
+    assert [e.secret for e in edits] == ["device_key#prod"]

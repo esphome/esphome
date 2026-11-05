@@ -67,10 +67,15 @@ def field_line_re(
     return re.compile(rf"^(?P<prefix>{prefix}){TRAILER.format(value=scalar)}")
 
 
+def _secret_ref(name: str = r"[^\s\"']+") -> str:
+    """`!secret name` as the whole scalar: `!secret ota key` is not `ota`, and
+    a comment needs whitespace before its `#`, so `a#b` is one name."""
+    return rf"!secret\s+(?P<q>[\"']?)(?P<name>{name})(?P=q)(?=\s+#|\s*$)"
+
+
 def secret_field_re(name: str) -> re.Pattern[str]:
-    """Match ``name: !secret <secret>``, the secret named as a plain scalar."""
-    secret = r"!secret\s+(?P<q>[\"']?)[^\s#\"'$]+(?P=q)(?:\s+#.*)?\s*$"
-    return re.compile(rf"^\s*[\"']?{re.escape(name)}[\"']?\s*:\s*{secret}")
+    """Match ``name: !secret <secret>``; the secret is the ``name`` group."""
+    return re.compile(rf"^\s*[\"']?{re.escape(name)}[\"']?\s*:\s*{_secret_ref()}")
 
 
 def rewrite(match: re.Match[str], value: str, quote: str | None = None) -> str:

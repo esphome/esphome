@@ -21,6 +21,7 @@ from esphome.yaml_edit import (
     own_documents,
     read_text,
     rewrite,
+    secret_field_re,
     source_line,
     source_of,
 )
@@ -74,17 +75,6 @@ _SUBSTITUTED_INCLUDE_RE = re.compile(
 )
 
 
-def _secret_ref(name: str = r"[^\s\"']+") -> str:
-    """`!secret name` as the whole scalar: `!secret ota key` is not `ota`, and
-    a comment needs whitespace before its `#`, so `a#b` is one name."""
-    return rf"!secret\s+(?P<q>[\"']?)(?P<name>{name})(?P=q)(?=\s+#|\s*$)"
-
-
-def _secret_field_re(name: str) -> re.Pattern[str]:
-    """``name: !secret <any>``."""
-    return re.compile(rf"^\s*{name}\s*:\s*{_secret_ref()}")
-
-
 def _secret_use_re(name: str) -> re.Pattern[str]:
     """A use of the secret ``name`` anywhere in a text, in a flow mapping too."""
     return re.compile(
@@ -92,8 +82,8 @@ def _secret_use_re(name: str) -> re.Pattern[str]:
     )
 
 
-_KEY_SECRET_RE = _secret_field_re(CONF_KEY)
-_OLD_KEY_SECRET_RE = _secret_field_re(CONF_OLD_KEY)
+_KEY_SECRET_RE = secret_field_re(CONF_KEY)
+_OLD_KEY_SECRET_RE = secret_field_re(CONF_OLD_KEY)
 
 
 def _indent(text: str) -> str:
