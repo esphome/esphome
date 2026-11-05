@@ -707,6 +707,24 @@ def test_add_table_on_change_declares_last_and_publishes() -> None:
     ]
 
 
+def test_add_table_on_change_rejects_an_index_past_255() -> None:
+    """The C++ index is a uint8_t, so first + mask past 255 would wrap round the fallback."""
+    from esphome.components import text_sensor
+
+    fn = _status_function()
+    table = cg.esphome_ns.namespace("hub").namespace("HubStrings")
+    with pytest.raises(ValueError, match="past the 255 string index"):
+        text_sensor.add_table_on_change(
+            fn,
+            cg.MockObj("hub_a", "->"),
+            MockObj("tx_a"),
+            fn.param("status"),
+            cg.RegisterField(register=0, mask=0x1F),
+            table=table,
+            first=240,
+        )
+
+
 @pytest.mark.asyncio
 async def test_publish_children_publishes_only_configured_children() -> None:
     """Each configured child publishes its state in states order."""

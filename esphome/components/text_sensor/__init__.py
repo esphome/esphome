@@ -375,6 +375,11 @@ def add_table_on_change(
 
     The last field value is one static byte per sensor; a ``Deduplicator<uint8_t>`` would take 3.
     """
+    # The C++ sums first + field in a uint8_t index, so a sum past 255 would wrap round the fallback
+    if first + field.mask > 0xFF:
+        raise ValueError(
+            f"add_table_on_change: first {first} + mask {field.mask:#x} is past the 255 string index"
+        )
     last = MockObj(f"esphome__{var}__last")
     declaration = VariableDeclarationExpression(cg.uint8, "", last, static=True)
     function.add(
