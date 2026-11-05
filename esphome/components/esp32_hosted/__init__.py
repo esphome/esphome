@@ -290,7 +290,7 @@ async def to_code(config: ConfigType) -> None:
         esp32.add_idf_sdkconfig_option("CONFIG_EH_HOST_PORT_DMA_PREFER_SPIRAM", True)
         # use_psram covers the transport buffers only. The task stacks stay internal: the
         # SDIO workers are the Wi-Fi hot path, and PSRAM stacks corrupted the heap on
-        # 3.0.10 (esp-hosted-mcu#254). Revisit only with a hardware measurement.
+        # 3.0.10 (esp-hosted-mcu#254).
         esp32.add_idf_sdkconfig_option("CONFIG_ESP_HOSTED_DFLT_TASK_FROM_SPIRAM", False)
 
     # ESP-NOW-over-hosted shim: only the radio-less ESP32-P4 host needs it (see
