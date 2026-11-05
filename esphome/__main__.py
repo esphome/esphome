@@ -3118,8 +3118,10 @@ def run_esphome(argv):
         config = read_config(
             command_line_substitutions,
             skip_external_update=skip_external,
-            # Snapshot only needed by `esphome config --no-defaults`.
-            snapshot_user_config=getattr(args, "no_defaults", False),
+            # `esphome config --no-defaults` prints it; rotate-key edits the
+            # source lines it keeps
+            snapshot_user_config=getattr(args, "no_defaults", False)
+            or args.command == "rotate-key",
         )
         if config is None:
             return 2

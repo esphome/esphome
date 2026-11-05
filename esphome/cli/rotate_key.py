@@ -72,6 +72,10 @@ def command_rotate_key(args: argparse.Namespace, config: ConfigType) -> int | No
         safe_print(color(AnsiFore.BOLD_RED, message))
         return 1
 
+    # Validation replaces the raw config's list entries in place, losing their
+    # source lines; the snapshot taken before it keeps them
+    if (user_config := getattr(config, "user_config", None)) is not None:
+        CORE.raw_config = user_config
     ota_conf = _esphome_ota_conf(config)
     if ota_conf is None:
         return fail("rotate-key needs the esphome OTA platform in the configuration")
@@ -113,10 +117,20 @@ def command_rotate_key(args: argparse.Namespace, config: ConfigType) -> int | No
         edits = locate_key_edits(old_key, new_key)
         # The previous key stays in the config as old_key so an install still
         # reaches the device if it ends up running either key
-        edits += old_key_edit(old_key)
+        old_edits = old_key_edit(old_key)
+        edits += old_edits
         unchecked = with_sharers(edits)
     except EsphomeError as err:
         return fail(str(err))
+    # Another device's previous key would be overwritten where this key is not
+    key_users = {p for edit in edits if edit not in old_edits for p in edit.shared_with}
+    for edit in old_edits:
+        if others := sorted(set(edit.shared_with) - key_users):
+            return fail(
+                f"old_key goes into {edit.path}, which "
+                + ", ".join(str(p) for p in others)
+                + " also use while keeping their own key; add old_key by hand"
+            )
 
     warnings = []
     # With the recommended shape the ota inherits the api key, so rotating

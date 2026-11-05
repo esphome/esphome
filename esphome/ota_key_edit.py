@@ -65,8 +65,8 @@ def _key_blocks(raw: ConfigType, key: str) -> list[ConfigType]:
 
 
 _INDENT_RE = re.compile(r"\s*")
-_KEY_FIELD_RE = re.compile(rf"^\s*{CONF_KEY}\s*:")
-_BARE_BLOCK_RE = re.compile(rf"^\s*{CONF_ENCRYPTION}\s*:\s*(#.*)?$")
+_KEY_FIELD_RE = re.compile(rf"^\s*[\"']?{CONF_KEY}[\"']?\s*:")
+_BARE_BLOCK_RE = re.compile(rf"^\s*[\"']?{CONF_ENCRYPTION}[\"']?\s*:\s*(#.*)?$")
 _YAML_SUFFIXES = (".yaml", ".yml")
 _INCLUDE_DIR_RE = re.compile(r"!include_dir_\w+\s+(?P<dir>[^\s#]+)")
 # An include or package file whose path holds a substitution
@@ -94,9 +94,14 @@ def _without_comment(text: str) -> str:
     """The line up to its comment: a `#` after whitespace that is not inside
     a quoted scalar, so `!include "shared # ota.yaml"` keeps its name."""
     quote = ""
+    escaped = False
     for i, char in enumerate(text):
         if quote:
-            if char == quote:
+            if escaped:
+                escaped = False
+            elif char == "\\" and quote == '"':
+                escaped = True
+            elif char == quote:
                 quote = ""
         elif char in "\"'":
             quote = char
@@ -108,6 +113,17 @@ def _without_comment(text: str) -> str:
 def _file_use_re(file_name: str) -> re.Pattern[str]:
     """The file name at a path boundary; `wifi_api.yaml` is not `api.yaml`."""
     return re.compile(rf"(?<![\w.-]){re.escape(file_name)}(?![\w.])")
+
+
+def _child_indent(doc: Path, line_no: int, indent: str) -> str:
+    """The indent of the first option under the block line, or one level more."""
+    for text in read_text(doc).splitlines()[line_no + 1 :]:
+        if not (stripped := text.strip()) or stripped.startswith("#"):
+            continue
+        if len(child := _indent(text)) > len(indent):
+            return child
+        break
+    return f"{indent}  "
 
 
 def _root_indent(lines: list[str]) -> str:
@@ -179,21 +195,29 @@ def with_sharers(edits: list[KeyEdit]) -> list[str]:
             unchecked.append(
                 f"{path} includes {match['target']} through a substitution"
             )
+    # An include may name a file or a link to it
+    links: dict[Path, set[str]] = {}
+    for path, _ in texts:
+        links.setdefault(path.resolve(), set()).add(path.name)
+
+    def including(files: set[Path]) -> set[Path]:
+        names = {n for f in files for n in {f.name, *links.get(f.resolve(), ())}}
+        return {
+            path
+            for path, text in texts
+            if any(_file_use_re(name).search(text) for name in names)
+        }
+
     for edit in edits:
         if edit.insert_after and edit.secret:
             continue  # a new secrets line has no users yet
-        ref = (
-            _secret_use_re(edit.secret) if edit.secret else _file_use_re(edit.path.name)
-        )
-        users = {path for path, text in texts if ref.search(text)}
+        if edit.secret:
+            ref = _secret_use_re(edit.secret)
+            users = {path for path, text in texts if ref.search(text)}
+        else:
+            users = including({edit.path})
         frontier = users
-        while frontier:
-            frontier = {
-                path
-                for name in {p.name for p in frontier}
-                for path, text in texts
-                if path not in users and _file_use_re(name).search(text)
-            }
+        while frontier := including(frontier) - users:
             users |= frontier
         edit.shared_with = sorted(p for p in users if p.resolve() not in own)
     return unchecked
@@ -282,8 +306,11 @@ def _refuse_other_own_uses(name: str, allowed: set[tuple[Path, int]]) -> None:
     would change too."""
     ref = _secret_use_re(name)
     for doc in own_documents():
-        for i, text in enumerate(read_text(doc).splitlines()):
-            if ref.search(_without_comment(text)) and (doc, i) not in allowed:
+        # The whole document, as a `!secret` may name the secret on the next line
+        text = "\n".join(map(_without_comment, read_text(doc).splitlines()))
+        for match in ref.finditer(text):
+            i = text.count("\n", 0, match.start())
+            if (doc, i) not in allowed:
                 raise EsphomeError(
                     f"'{name}' is also used at {doc}:{i + 1}; a rotation would "
                     "change that value too, edit the key by hand"
@@ -298,7 +325,15 @@ def _secret_name(block: ConfigType) -> str | None:
     return match["name"] if match else None
 
 
-def _old_key_rewrites(blocks: list[ConfigType], old_key: str) -> list[KeyEdit]:
+_SECRET_AS_LITERAL = (
+    "The current key is kept in secrets.yaml, so it cannot go into the yaml as a "
+    f"plain '{CONF_OLD_KEY}'; use a !secret for it or edit it by hand"
+)
+
+
+def _old_key_rewrites(
+    blocks: list[ConfigType], old_key: str, secret_backed: bool
+) -> list[KeyEdit]:
     """Rewrite the ``old_key:`` line of each block, or the secret it names."""
     edits: list[KeyEdit] = []
     secret_lines: dict[str, set[tuple[Path, int]]] = {}
@@ -313,6 +348,8 @@ def _old_key_rewrites(blocks: list[ConfigType], old_key: str) -> list[KeyEdit]:
                 )
             secret_lines.setdefault(name, set()).add((doc.resolve(), line_no))
         elif match := literal_re.match(text):
+            if secret_backed:
+                raise EsphomeError(_SECRET_AS_LITERAL)
             edit = KeyEdit(doc, line_no, text, rewrite(match, old_key))
         else:
             raise EsphomeError(
@@ -347,14 +384,21 @@ def old_key_edit(old_key: str) -> list[KeyEdit]:
         items[0],
     )
     # Same-port entries must agree, so every existing old_key is rewritten
+    # Only a key that never appears in the yaml itself must stay out of it
+    key_blocks = _key_blocks(CORE.raw_config or {}, old_key)
+    secret_backed = bool(key_blocks) and all(map(_secret_name, key_blocks))
     if with_old := [enc for _, enc in items if enc.get(CONF_OLD_KEY) is not None]:
-        return _old_key_rewrites(with_old, old_key)
-    # Indent from the block's own key line, else one level under `encryption:`
+        return _old_key_rewrites(with_old, old_key, secret_backed)
+    # Indent from the block's own key line, else like the options already under
+    # `encryption:`, or one level under it
     if source_of(encryption, CONF_KEY) is not None:
-        mapping, anchor, anchor_re, step = encryption, CONF_KEY, _KEY_FIELD_RE, ""
+        mapping, anchor, anchor_re = encryption, CONF_KEY, _KEY_FIELD_RE
     else:
-        mapping, anchor, anchor_re, step = item, CONF_ENCRYPTION, _BARE_BLOCK_RE, "  "
+        mapping, anchor, anchor_re = item, CONF_ENCRYPTION, _BARE_BLOCK_RE
     doc, line_no, text = source_line(mapping, anchor)
+    indent = _indent(text)
+    if mapping is item:
+        indent = _child_indent(doc, line_no, indent)
     if not anchor_re.match(text):
         raise EsphomeError(
             f"{doc}:{line_no + 1} does not hold '{anchor}:' as a block line; "
@@ -363,6 +407,8 @@ def old_key_edit(old_key: str) -> list[KeyEdit]:
     # The block's own key line decides; a bare block takes after the api key
     keyed = encryption if mapping is encryption else _api_encryption()
     if (secret := _secret_name(keyed)) is None:
+        if secret_backed:
+            raise EsphomeError(_SECRET_AS_LITERAL)
         rendered = f'{CONF_OLD_KEY}: "{old_key}"'
         extra = []
     else:
@@ -386,7 +432,5 @@ def old_key_edit(old_key: str) -> list[KeyEdit]:
                     + f"; rename it or add '{CONF_OLD_KEY}' by hand"
                 )
         extra = [kept or _secret_insert(secrets_path, secret, f"{secret}_old", old_key)]
-    edit = KeyEdit(
-        doc, line_no, text, f"{_indent(text)}{step}{rendered}", insert_after=True
-    )
+    edit = KeyEdit(doc, line_no, text, f"{indent}{rendered}", insert_after=True)
     return [edit, *extra]

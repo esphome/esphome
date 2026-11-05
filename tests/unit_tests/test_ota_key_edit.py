@@ -1304,3 +1304,138 @@ def test_merged_secret_key_with_a_hash_in_its_name(tmp_path: Path) -> None:
     CORE.raw_config = merge_config(package, CORE.raw_config)
     edits = locate_key_edits(OLD_KEY, NEW_KEY)
     assert [e.secret for e in edits] == ["device_key#prod"]
+
+
+def test_bare_block_located_after_full_validation(tmp_path: Path) -> None:
+    """Validation rewrites the raw ota list; the pre-validation snapshot keeps its lines."""
+    from esphome.config import read_config
+
+    yaml_text = API_YAML.replace(
+        "esphome:\n  name: test\n",
+        "esphome:\n  name: test\nesp8266:\n  board: d1_mini\n"
+        "wifi:\n  ssid: x\n  password: yyyyyyyy\n",
+    )
+    CORE.reset()
+    CORE.config_path = tmp_path / "test.yaml"
+    CORE.config_path.write_bytes(yaml_text.encode())
+    config = read_config({}, snapshot_user_config=True)
+    assert config is not None
+    CORE.raw_config = config.user_config
+    edits = _edits()
+    assert [e.new_line.strip() for e in edits] == [
+        f'key: "{NEW_KEY}"  # shared with ota',
+        f'old_key: "{OLD_KEY}"',
+    ]
+
+
+def test_secret_key_with_a_literal_old_key_is_refused(tmp_path: Path) -> None:
+    """The key from secrets.yaml must not be copied into the yaml as old_key."""
+    _setup(
+        tmp_path,
+        SECRET_YAML + f'      old_key: "{OLDER_KEY}"\n',
+        f"device_key: {OLD_KEY}\n",
+    )
+    with pytest.raises(EsphomeError, match="kept in secrets.yaml"):
+        old_key_edit(OLD_KEY)
+
+
+def test_secret_key_from_another_entry_with_a_literal_insert_is_refused(
+    tmp_path: Path,
+) -> None:
+    """A keyless entry next to one keyed from a secret gets no plain old_key."""
+    yaml_text = f"""esphome:
+  name: test
+
+api:
+  encryption:
+    key: "{OLDER_KEY}"
+
+ota:
+  - platform: esphome
+    encryption:
+  - platform: esphome
+    encryption:
+      key: !secret device_key
+"""
+    _setup(tmp_path, yaml_text, f"device_key: {OLD_KEY}\n")
+    edits = locate_key_edits(OLD_KEY, NEW_KEY)
+    assert [e.secret for e in edits] == ["device_key"]
+    # The keyed entry takes old_key, as a secret
+    assert [e.new_line.strip() for e in old_key_edit(OLD_KEY)] == [
+        "old_key: !secret device_key_old",
+        f'device_key_old: "{OLD_KEY}"',
+    ]
+
+
+@pytest.mark.parametrize(
+    ("block", "expected"),
+    [
+        ('    "encryption":\n', '    "encryption":\n      old_key: "{key}"\n'),
+        (
+            "    encryption:\n        allow_plaintext_upload: false\n",
+            '    encryption:\n        old_key: "{key}"\n        allow_plaintext_upload: false\n',
+        ),
+    ],
+    ids=["quoted", "existing_option"],
+)
+def test_bare_block_old_key_shape(tmp_path: Path, block: str, expected: str) -> None:
+    # Only the ota block's `encryption:` line changes; the api one stays
+    yaml_text = API_YAML.rsplit("    encryption:\n", 1)[0] + block
+    path = _setup(tmp_path, yaml_text)
+    _rotate()
+    assert path.read_text() == yaml_text.replace(OLD_KEY, NEW_KEY).replace(
+        block, expected.format(key=OLD_KEY)
+    )
+
+
+def test_quoted_key_field_gets_old_key(tmp_path: Path) -> None:
+    yaml_text = f"""esphome:
+  name: test
+
+ota:
+  - platform: esphome
+    encryption:
+      "key": "{OLD_KEY}"
+"""
+    path = _setup(tmp_path, yaml_text)
+    _rotate()
+    assert path.read_text() == yaml_text.replace(
+        f'"key": "{OLD_KEY}"\n', f'"key": "{NEW_KEY}"\n      old_key: "{OLD_KEY}"\n'
+    )
+
+
+def test_secret_use_after_an_escaped_quote_is_refused(tmp_path: Path) -> None:
+    _setup(
+        tmp_path,
+        SECRET_YAML + 'wifi: {ssid: "Kitchen \\" #1", password: !secret device_key}\n',
+        f"device_key: {OLD_KEY}\n",
+    )
+    with pytest.raises(EsphomeError, match="also used at .*test.yaml:12"):
+        locate_key_edits(OLD_KEY, NEW_KEY)
+
+
+def test_secret_named_on_the_next_line_is_refused(tmp_path: Path) -> None:
+    _setup(
+        tmp_path,
+        SECRET_YAML + "wifi:\n  password: !secret\n    device_key\n",
+        f"device_key: {OLD_KEY}\n",
+    )
+    with pytest.raises(EsphomeError, match="also used at .*test.yaml:13"):
+        locate_key_edits(OLD_KEY, NEW_KEY)
+
+
+@pytest.mark.skipif(sys.platform == "win32", reason="symlinks need privileges")
+def test_device_including_the_target_of_a_linked_include_is_a_sharer(
+    tmp_path: Path,
+) -> None:
+    """The key is read through `alias.yaml`; `other.yaml` includes its target."""
+    (tmp_path / "common.yaml").write_bytes(
+        f'encryption:\n  key: "{OLD_KEY}"\n'.encode()
+    )
+    (tmp_path / "alias.yaml").symlink_to(tmp_path / "common.yaml")
+    (tmp_path / "other.yaml").write_bytes(b"api: !include common.yaml\n")
+    yaml_text = "esphome:\n  name: test\n\napi: !include alias.yaml\n\nota:\n  - platform: esphome\n    encryption:\n"
+    _setup(tmp_path, yaml_text)
+    edits = locate_key_edits(OLD_KEY, NEW_KEY)
+    with_sharers(edits)
+    assert [p.name for p in edits[0].shared_with] == ["other.yaml"]

@@ -208,6 +208,33 @@ def test_warns_about_a_shared_secret(
     assert "Could not check every configuration for shared use: c.yaml is a link" in out
 
 
+def test_refuses_an_old_key_in_a_file_only_others_share(
+    env: dict[str, Mock], capfd: pytest.CaptureFixture[str]
+) -> None:
+    """A keyless package used by other devices must not get this device's old_key."""
+
+    def scan(edits: list[KeyEdit]) -> list[str]:
+        edits[-1].shared_with = [CORE.config_dir / "b.yaml"]
+        return []
+
+    with patch("esphome.cli.rotate_key.with_sharers", side_effect=scan):
+        assert command_rotate_key(MockArgs(yes=True), CORE.config) == 1
+    assert CORE.config_path.read_text() == API_YAML
+    assert "b.yaml also use while keeping their own key" in capfd.readouterr().out
+    env["probe"].assert_not_called()
+
+
+def test_uses_the_snapshot_taken_before_validation(env: dict[str, Mock]) -> None:
+    """Validation rewrites the raw config; the snapshot keeps the source lines."""
+
+    class Validated(dict):
+        user_config = CORE.raw_config
+
+    CORE.raw_config = {}
+    assert command_rotate_key(MockArgs(yes=True), Validated(CORE.config)) == 0
+    assert NEW_KEY in CORE.config_path.read_text()
+
+
 def test_no_terminal_needs_yes(
     env: dict[str, Mock],
 ) -> None:
