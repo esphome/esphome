@@ -28,6 +28,9 @@ WebServerBase = web_server_base_ns.class_("WebServerBase")
 
 CONF_WEB_SERVER_BASE_ID = "web_server_base_id"
 
+# Longest Origin the ESP32 server can read; keep in sync with MAX_ORIGIN_LENGTH in origin.h.
+MAX_ORIGIN_LENGTH = 127
+
 
 @dataclass
 class WebServerBaseData:
