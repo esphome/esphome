@@ -134,7 +134,8 @@ SX126xError SX126x::start_transmit_async(SX126xTransmitListener *listener, const
     return SX126xError::INVALID_PARAMS;
   }
 
-  // Admission never reads a packet or invokes a callback: borrowed RX data stays stable.
+  // Admission never reads a packet: borrowed RX data stays stable. Status reporting
+  // can invoke logger callbacks, so recheck ownership after the IRQ preflight.
   if (this->dio1_pin_->digital_read()) {
     uint16_t status;
     if (!this->command_result_(this->commands_.read_irq(status))) {
@@ -144,6 +145,10 @@ SX126xError SX126x::start_transmit_async(SX126xTransmitListener *listener, const
       this->enable_loop();
       return SX126xError::SX126X_ERROR_BUSY;
     }
+  }
+  const auto admission_after_preflight = this->operation_.transmit_admission();
+  if (admission_after_preflight != SX126xError::NONE) {
+    return admission_after_preflight;
   }
   this->tx_ = {listener, 0, timeout_ms};
   const auto result = this->operation_.start_transmit(
