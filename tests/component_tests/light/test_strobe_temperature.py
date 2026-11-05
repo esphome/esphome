@@ -2,6 +2,7 @@
 
 from collections.abc import Callable
 from pathlib import Path
+import re
 
 import pytest
 
@@ -42,5 +43,8 @@ def test_codegen_distinguishes_temperature_from_explicit_channels(
     assert source.count(".use_color_temperature = false,") == 4
     assert ".cold_white = 0.25f," in source
     assert ".warm_white = 0.5f," in source
-    assert ".cold_white = 1.0f," in source
-    assert ".warm_white = 1.0f," in source
+    assert re.search(
+        r"\.cold_white = 0\.0f,\s*\.warm_white = 1\.0f,[^}]*"
+        r"\.use_color_temperature = false,",
+        source,
+    )

@@ -200,8 +200,12 @@ class StrobeLightEffect : public LightEffect {
     auto call = this->state_->turn_on();
     call.from_light_color_values(color);
     if (step.use_color_temperature) {
-      call.set_cold_white(optional<float>{});
-      call.set_warm_white(optional<float>{});
+      const auto traits = this->state_->get_traits();
+      // Keep the default channels if LightCall cannot convert the temperature.
+      if (traits.get_min_mireds() > 0.0f && traits.get_max_mireds() > traits.get_min_mireds()) {
+        call.set_cold_white(optional<float>{});
+        call.set_warm_white(optional<float>{});
+      }
     }
 
     if (!color.is_on()) {

@@ -8,23 +8,26 @@ namespace esphome::light::testing {
 
 namespace {
 
-static constexpr float COLD_MIRED = 1000000.0f / 4100.0f;
-static constexpr float WARM_MIRED = 1000000.0f / 4000.0f;
+constexpr float COLD_MIRED = 1000000.0f / 4100.0f;
+constexpr float WARM_MIRED = 1000000.0f / 4000.0f;
 
 class StrobeOutput : public LightOutput {
  public:
-  explicit StrobeOutput(ColorMode mode) : mode_(mode) {}
+  explicit StrobeOutput(ColorMode mode, float min_mireds = COLD_MIRED, float max_mireds = WARM_MIRED)
+      : mode_(mode), min_mireds_(min_mireds), max_mireds_(max_mireds) {}
   LightTraits get_traits() override {
     LightTraits traits;
     traits.set_supported_color_modes({this->mode_});
-    traits.set_min_mireds(COLD_MIRED);
-    traits.set_max_mireds(WARM_MIRED);
+    traits.set_min_mireds(this->min_mireds_);
+    traits.set_max_mireds(this->max_mireds_);
     return traits;
   }
   void write_state(LightState *state) override {}
 
  protected:
   ColorMode mode_;
+  float min_mireds_;
+  float max_mireds_;
 };
 
 class TestableStrobe : public StrobeLightEffect {
@@ -86,6 +89,31 @@ TEST_P(StrobeTemperature, AlternatesColdAndWarmChannels) {
   effect.advance();
   EXPECT_FLOAT_EQ(state.current_values.get_cold_white(), 1.0f);
   EXPECT_FLOAT_EQ(state.current_values.get_warm_white(), 0.0f);
+}
+
+TEST_P(StrobeTemperature, KeepsDefaultChannelsWithoutAValidTemperatureRange) {
+  constexpr float ranges[][2] = {
+      {0.0f, 0.0f}, {0.0f, WARM_MIRED}, {COLD_MIRED, 0.0f}, {COLD_MIRED, COLD_MIRED}, {WARM_MIRED, COLD_MIRED}};
+  for (const auto &range : ranges) {
+    SCOPED_TRACE(::testing::Message() << "min_mireds=" << range[0] << ", max_mireds=" << range[1]);
+    StrobeOutput output(GetParam(), range[0], range[1]);
+    LightState state(&output);
+    TestableStrobe effect;
+    const StrobeLightEffectColor steps[] = {step_at(COLD_MIRED, true), step_at(WARM_MIRED, true)};
+    initialize_strobe(effect, state, GetParam(), steps, 2);
+
+    state.remote_values.set_cold_white(0.0f);
+    state.remote_values.set_warm_white(0.0f);
+    effect.advance();
+    EXPECT_FLOAT_EQ(state.current_values.get_cold_white(), 1.0f);
+    EXPECT_FLOAT_EQ(state.current_values.get_warm_white(), 1.0f);
+
+    state.remote_values.set_cold_white(0.25f);
+    state.remote_values.set_warm_white(0.5f);
+    effect.advance();
+    EXPECT_FLOAT_EQ(state.current_values.get_cold_white(), 1.0f);
+    EXPECT_FLOAT_EQ(state.current_values.get_warm_white(), 1.0f);
+  }
 }
 
 INSTANTIATE_TEST_SUITE_P(WhiteModes, StrobeTemperature,
