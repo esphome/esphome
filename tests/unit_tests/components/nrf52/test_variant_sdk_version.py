@@ -35,6 +35,7 @@ from esphome.types import ConfigType
         ("adafruit_feather_nrf52840", VARIANT_NRF52840),
         ("nrf54lm20dk", VARIANT_NRF54LM20),
         ("nrf54l15dk/nrf54l15/cpuapp", VARIANT_NRF54L15),
+        ("nrf54l15dk", VARIANT_NRF54L15),
         ("nrf54lm20dk/nrf54lm20b/cpuapp", VARIANT_NRF54LM20),
     ],
 )
@@ -104,6 +105,7 @@ def test_nrf54lm20_rejects_platformio(platformio: PropertyMock) -> None:
     ("board", "resolved"),
     [
         ("nrf54lm20dk", "nrf54lm20dk/nrf54lm20a/cpuapp"),
+        ("nrf54l15dk", "nrf54l15dk/nrf54l15/cpuapp"),
         ("nrf54lm20dk/nrf54lm20b/cpuapp", "nrf54lm20dk/nrf54lm20b/cpuapp"),
         ("xiao_ble", "xiao_ble"),
     ],
