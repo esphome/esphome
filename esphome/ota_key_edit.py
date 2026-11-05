@@ -86,8 +86,10 @@ def _secret_field_re(name: str) -> re.Pattern[str]:
 
 
 def _secret_use_re(name: str) -> re.Pattern[str]:
-    """A use of the secret ``name`` anywhere on a line."""
-    return re.compile(_secret_ref(re.escape(name)))
+    """A use of the secret ``name`` anywhere in a text, in a flow mapping too."""
+    return re.compile(
+        rf"!secret\s+(?P<q>[\"']?){re.escape(name)}(?P=q)(?=[\s,\]}}]|$)", re.MULTILINE
+    )
 
 
 _KEY_SECRET_RE = _secret_field_re(CONF_KEY)
@@ -174,12 +176,13 @@ def with_sharers(edits: list[KeyEdit]) -> list[str]:
     substituted includes)."""
     main = CORE.config_path.resolve()
     own = own_documents()
-    # This config's own includes stay in: another device may reach a line
-    # through one of them
+    # This config's own files stay in the search: another device may reach a
+    # line through one of them, the main file included
     texts, skipped = _config_texts()
-    texts = [(path, text) for path, text in texts if path.resolve() != main]
     unchecked = [*skipped]
     for path, text in texts:
+        if path.resolve() == main:
+            continue
         if match := _INCLUDE_DIR_RE.search(text):
             unchecked.append(f"{path} includes the directory {match['dir']}")
         if match := _SUBSTITUTED_INCLUDE_RE.search(text):
@@ -305,6 +308,34 @@ def _secret_name(block: ConfigType) -> str | None:
     return match["name"] if match else None
 
 
+def _old_key_rewrites(blocks: list[ConfigType], old_key: str) -> list[KeyEdit]:
+    """Rewrite the ``old_key:`` line of each block, or the secret it names."""
+    edits: list[KeyEdit] = []
+    secret_lines: dict[str, set[tuple[Path, int]]] = {}
+    for encryption in blocks:
+        doc, line_no, text = source_line(encryption, CONF_OLD_KEY)
+        literal_re = field_line_re(CONF_OLD_KEY, str(encryption[CONF_OLD_KEY]))
+        if match := _OLD_KEY_SECRET_RE.match(text):
+            name, secrets_path = match["name"], _secret_file(doc)
+            if (edit := _secret_rewrite(secrets_path, name, old_key)) is None:
+                raise EsphomeError(
+                    f"No plain '{name}:' line in {secrets_path}; edit it by hand"
+                )
+            secret_lines.setdefault(name, set()).add((doc.resolve(), line_no))
+        elif match := literal_re.match(text):
+            edit = KeyEdit(doc, line_no, text, rewrite(match, old_key))
+        else:
+            raise EsphomeError(
+                f"{doc}:{line_no + 1} does not hold '{CONF_OLD_KEY}' as a plain "
+                "value; edit it by hand"
+            )
+        if edit not in edits:
+            edits.append(edit)
+    for name, lines in secret_lines.items():
+        _refuse_other_own_uses(name, lines)
+    return edits
+
+
 def old_key_edit(old_key: str) -> list[KeyEdit]:
     """Set ``old_key:`` on the esphome ota block, rewriting or adding it. A
     key from secrets.yaml stays there as ``<name>_old``. Of several entries
@@ -325,23 +356,9 @@ def old_key_edit(old_key: str) -> list[KeyEdit]:
         ),
         items[0],
     )
-    if (existing := encryption.get(CONF_OLD_KEY)) is not None:
-        doc, line_no, text = source_line(encryption, CONF_OLD_KEY)
-        if match := _OLD_KEY_SECRET_RE.match(text):
-            name, secrets_path = match["name"], _secret_file(doc)
-            if (edit := _secret_rewrite(secrets_path, name, old_key)) is None:
-                raise EsphomeError(
-                    f"No plain '{name}:' line in {secrets_path}; edit it by hand"
-                )
-            _refuse_other_own_uses(name, {(doc.resolve(), line_no)})
-            return [edit]
-        match = field_line_re(CONF_OLD_KEY, str(existing)).match(text)
-        if match is None:
-            raise EsphomeError(
-                f"{doc}:{line_no + 1} does not hold '{CONF_OLD_KEY}' as a plain "
-                "value; edit it by hand"
-            )
-        return [KeyEdit(doc, line_no, text, rewrite(match, old_key))]
+    # Same-port entries must agree, so every existing old_key is rewritten
+    if with_old := [enc for _, enc in items if enc.get(CONF_OLD_KEY) is not None]:
+        return _old_key_rewrites(with_old, old_key)
     # Indent from the block's own key line, else one level under `encryption:`
     if source_of(encryption, CONF_KEY) is not None:
         mapping, anchor, anchor_re, step = encryption, CONF_KEY, _KEY_FIELD_RE, ""

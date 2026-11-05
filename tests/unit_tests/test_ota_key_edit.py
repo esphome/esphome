@@ -1196,3 +1196,93 @@ def test_another_device_including_the_main_file_is_a_sharer(tmp_path: Path) -> N
     edits = locate_key_edits(OLD_KEY, NEW_KEY)
     with_sharers(edits)
     assert [p.name for p in edits[0].shared_with] == ["other.yaml"]
+
+
+def test_secret_key_overridden_on_top_of_a_package_block(tmp_path: Path) -> None:
+    """A winning `key: !secret` line of a merged block is edited like a literal one."""
+    from esphome.config_helpers import merge_config
+
+    (tmp_path / "package.yaml").write_bytes(
+        f'api:\n  encryption:\n    key: "{OLDER_KEY}"\n'.encode()
+    )
+    _setup(tmp_path, SECRET_YAML, f"device_key: {OLD_KEY}\n")
+    package = yaml_util.load_yaml(tmp_path / "package.yaml")
+    CORE.raw_config = merge_config(package, CORE.raw_config)
+    edits = locate_key_edits(OLD_KEY, NEW_KEY)
+    assert [(e.path.name, e.secret) for e in edits] == [("secrets.yaml", "device_key")]
+
+
+def test_secret_uses_before_the_last_line_and_in_flow_mappings(tmp_path: Path) -> None:
+    """A use is found on any line of another file and inside a flow mapping."""
+    (tmp_path / "early.yaml").write_bytes(
+        b"api:\n  encryption:\n    key: !secret device_key\nlogger:\n"
+    )
+    (tmp_path / "flow.yaml").write_bytes(
+        b"api: {encryption: {key: !secret device_key}}\n"
+    )
+    _setup(tmp_path, SECRET_YAML, f"device_key: {OLD_KEY}\n")
+    edits = locate_key_edits(OLD_KEY, NEW_KEY)
+    with_sharers(edits)
+    assert [p.name for p in edits[0].shared_with] == ["early.yaml", "flow.yaml"]
+
+
+def test_secret_used_in_a_flow_mapping_of_this_configuration_is_refused(
+    tmp_path: Path,
+) -> None:
+    _setup(
+        tmp_path,
+        SECRET_YAML + "wifi: {password: !secret device_key}\n",
+        f"device_key: {OLD_KEY}\n",
+    )
+    with pytest.raises(EsphomeError, match="also used at .*test.yaml:12"):
+        locate_key_edits(OLD_KEY, NEW_KEY)
+
+
+def test_a_device_including_the_main_file_shares_its_secret(tmp_path: Path) -> None:
+    """The main file names the secret, so a device including it is a sharer."""
+    (tmp_path / "other.yaml").write_bytes(b"packages:\n  base: !include test.yaml\n")
+    _setup(tmp_path, SECRET_YAML, f"device_key: {OLD_KEY}\n")
+    edits = locate_key_edits(OLD_KEY, NEW_KEY)
+    with_sharers(edits)
+    assert [p.name for p in edits[0].shared_with] == ["other.yaml"]
+
+
+def test_repeated_old_key_entries_are_all_rewritten(tmp_path: Path) -> None:
+    """Same-port entries must keep one old_key, so each source is rewritten."""
+    yaml_text = f"""esphome:
+  name: test
+
+ota:
+  - platform: esphome
+    encryption:
+      old_key: "{OLDER_KEY}"
+  - platform: esphome
+    encryption:
+      key: "{OLD_KEY}"
+      old_key: "{OLDER_KEY}"
+"""
+    path = _setup(tmp_path, yaml_text)
+    _rotate()
+    assert path.read_text() == yaml_text.replace(
+        f'key: "{OLD_KEY}"', f'key: "{NEW_KEY}"'
+    ).replace(f'old_key: "{OLDER_KEY}"', f'old_key: "{OLD_KEY}"')
+
+
+def test_repeated_old_key_secret_is_rewritten_once(tmp_path: Path) -> None:
+    yaml_text = f"""esphome:
+  name: test
+
+ota:
+  - platform: esphome
+    encryption:
+      old_key: !secret device_old
+  - platform: esphome
+    encryption:
+      key: "{OLD_KEY}"
+      old_key: !secret device_old
+"""
+    _setup(tmp_path, yaml_text, f"device_old: {OLDER_KEY}\n")
+    edits = old_key_edit(OLD_KEY)
+    assert [(e.path.name, e.new_line) for e in edits] == [
+        ("secrets.yaml", f"device_old: {OLD_KEY}")
+    ]

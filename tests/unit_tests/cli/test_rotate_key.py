@@ -166,6 +166,15 @@ def test_success(env: dict[str, Mock], capfd: pytest.CaptureFixture[str]) -> Non
     assert "SUCCESS" in out
 
 
+def test_uploads_the_platform_ota_image(env: dict[str, Mock]) -> None:
+    """The upload sends what the platform's ota_image hook picks, as installs do."""
+    image = Path("firmware.ota.uf2")
+    with patch("esphome.__main__._app_ota_image", return_value=image) as pick:
+        assert command_rotate_key(MockArgs(), CORE.config) == 0
+    pick.assert_called_once()
+    assert env["upload"].call_args.args[3] == image
+
+
 def test_yes_skips_confirmation(
     env: dict[str, Mock],
 ) -> None:
@@ -225,7 +234,12 @@ def test_prompted_new_key(env: dict[str, Mock]) -> None:
     assert env["probe"].call_args_list[1].args[2] == key
 
 
-@pytest.mark.parametrize("key", ["not-base64", OLD_KEY], ids=["invalid", "same"])
+@pytest.mark.parametrize(
+    "key",
+    # The last one spells OLD_KEY's bytes with other padding bits
+    ["not-base64", OLD_KEY, OLD_KEY[:-2] + "9="],
+    ids=["invalid", "same", "same_bytes"],
+)
 def test_rejects_bad_new_key(env: dict[str, Mock], key: str) -> None:
     with patch("esphome.cli.rotate_key.read_secret_line", return_value=key):
         assert command_rotate_key(MockArgs(prompt_new_key=True), CORE.config) == 1
@@ -261,16 +275,21 @@ def test_restores_before_the_upload(
         env["compile"].side_effect = KeyboardInterrupt
     image = CORE.firmware_bin
     image.parent.mkdir(parents=True)
-    factory = image.with_name("firmware.factory.bin")
-    for built in (image, factory):
-        built.write_bytes(b"built with the new key")
+    built = [
+        image,
+        image.with_name("firmware.factory.bin"),
+        image.with_name("firmware.elf"),
+        image.with_name("firmware.bin.signed"),
+    ]
+    for path in built:
+        path.write_bytes(b"built with the new key")
     assert command_rotate_key(MockArgs(), CORE.config) == 1
     assert CORE.config_path.read_text() == API_YAML
     assert env["probe"].call_count == 1
     out = capfd.readouterr().out
     assert ("Interrupted before the upload" in out) is (step == "interrupt")
     # The images may hold the new key, so no upload can install them
-    assert not image.exists() and not factory.exists()
+    assert not any(path.exists() for path in built)
     assert "compile again before the next upload" in out
     assert NEW_KEY not in out
 

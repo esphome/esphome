@@ -8,6 +8,7 @@ import sys
 
 from esphome import espota2
 from esphome.components.noise import (
+    decode_encryption_key,
     generate_encryption_key,
     static_encryption_key,
     validate_encryption_key,
@@ -61,6 +62,7 @@ def command_rotate_key(args: argparse.Namespace, config: ConfigType) -> int | No
     """Write a new key, build with it, upload with the current one, confirm."""
     from esphome.__main__ import (
         Purpose,
+        _app_ota_image,
         _esphome_ota_conf,
         _resolve_network_devices,
         choose_upload_log_host,
@@ -103,7 +105,8 @@ def command_rotate_key(args: argparse.Namespace, config: ConfigType) -> int | No
         validate_encryption_key(new_key)
     except Invalid as err:
         return fail(f"Invalid new key: {err}")
-    if new_key == old_key:
+    # Two base64 spellings can decode to the same bytes
+    if decode_encryption_key(new_key) == decode_encryption_key(old_key):
         return fail("The new key is the same as the current one")
 
     try:
@@ -205,7 +208,7 @@ def command_rotate_key(args: argparse.Namespace, config: ConfigType) -> int | No
             network_devices,
             remote_port,
             ota_conf.get(CONF_PASSWORD),
-            CORE.firmware_bin,
+            _app_ota_image(args),
             noise_psk=old_key,
             plaintext_fallback=False,
             on_upload_start=image_sent,
@@ -262,7 +265,9 @@ def _restore(originals: dict[Path, Snapshot], keys: str) -> None:
     failed: list[str] = []
     images: list[Path] = []
     try:
-        images = [p for s in (".bin", ".uf2") for p in build_dir.glob(f"*{s}")]
+        # The serial and BOOTSEL uploads also take the elf and the signed bin
+        suffixes = (".bin", ".uf2", ".elf", ".signed")
+        images = [p for s in suffixes for p in build_dir.glob(f"*{s}")]
         for image in images:  # every one is tried, whatever the others did
             try:
                 image.unlink()

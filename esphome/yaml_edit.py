@@ -67,6 +67,12 @@ def field_line_re(
     return re.compile(rf"^(?P<prefix>{prefix}){TRAILER.format(value=scalar)}")
 
 
+def secret_field_re(name: str) -> re.Pattern[str]:
+    """Match ``name: !secret <secret>``, the secret named as a plain scalar."""
+    secret = r"!secret\s+(?P<q>[\"']?)[^\s#\"'$]+(?P=q)(?:\s+#.*)?\s*$"
+    return re.compile(rf"^\s*[\"']?{re.escape(name)}[\"']?\s*:\s*{secret}")
+
+
 def rewrite(match: re.Match[str], value: str, quote: str | None = None) -> str:
     """The matched line with ``value`` in place of the scalar; the source
     quotes stay unless ``quote`` is given."""
@@ -134,9 +140,10 @@ def source_of(mapping: ConfigType, name: str) -> tuple[Path, int] | None:
         if rng is None:
             return None
         doc, line = Path(rng.start_mark.document), rng.start_mark.line
-        if doc.resolve() not in own_documents() or not field_line_re(name).match(
-            line_at(doc, line)
-        ):
+        if doc.resolve() not in own_documents():
+            return None
+        text = line_at(doc, line)
+        if not (field_line_re(name).match(text) or secret_field_re(name).match(text)):
             return None
         return doc, line
     # An included mapping carries its parent's `!include` line, so only a
