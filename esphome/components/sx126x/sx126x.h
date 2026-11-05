@@ -153,6 +153,9 @@ class SX126x final : public Component {
   TxOperation tx_;
   uint32_t tx_generation_{0};
   bool rx_dispatching_{false};
+  bool rx_retry_pending_{false};
+  uint32_t rx_retry_started_ms_{0};
+  bool receive_result_(bool success, uint32_t now);
   bool command_result_(bool success);
   Sx126xSpiDevice spi_device_;
   Sx126xCommands commands_{this->spi_device_};

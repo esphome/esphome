@@ -499,6 +499,7 @@ TEST_P(SX126xAsyncModes, ReceiveAtStandbyRejectsSendAndSurvivesReadFailure) {
   EXPECT_EQ(hw.irq, IRQ_RX_DONE);
   EXPECT_FALSE(hw.receiving);
   hw.clear_trace();
+  LoopBlockingGuard retry{nullptr, nullptr, App.get_loop_component_start_time() + 200};
   hw.radio.loop();
   hw.radio.loop();
   ASSERT_EQ(received.packets.size(), 1u);

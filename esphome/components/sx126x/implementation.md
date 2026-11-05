@@ -280,7 +280,12 @@ radio. Successful `configure()` enables it again, even without a DIO1 edge. Acti
 operations, including preparation/restoration and held RX, never take this dormant
 path. Idle reception may disable polling when an internal DIO1 pin is low; its
 interrupt wakes the loop. External pins continue to be polled. No lifecycle state
-or separate recovery flag is needed for scheduling.
+or separate recovery flag is needed for ownership. Failed receive exchanges use
+a 200 ms retry gate on the cached loop clock, including across clock rollover.
+The loop stays enabled while an IRQ or held RX needs retrying; the gate avoids
+repeating the 20 ms BUSY wait on every loop. Held RX remains intact until a
+successful read/restoration or explicit configuration. Successful configuration
+clears the retry gate; TX completion polling is independent of this RX gate.
 
 Startup, cold sleep, failed configuration, failed mode changes and failed
 restoration all use NeedsConfiguration: each blocks normal operations until

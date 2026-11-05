@@ -9,6 +9,7 @@ ESPHOME_LOG_TAG(TAG, "sx126x");
 static constexpr uint32_t RESET_DELAY_HIGH_US = 5000;
 static constexpr uint32_t RESET_DELAY_LOW_US = 2000;
 static constexpr uint32_t TRANSMIT_TIMEOUT_MS = 4000;
+static constexpr uint32_t RECEIVE_RETRY_INTERVAL_MS = 200;
 
 void SX126x::setup() {
   this->packet_.reserve(SX126X_MAX_PACKET_SIZE);
@@ -54,6 +55,7 @@ bool SX126x::configure_() {
   }
   const bool configured = this->operation_.configure([this]() { return this->apply_configuration_(); });
   if (configured) {
+    this->rx_retry_pending_ = false;
     this->enable_loop();
   }
   return configured;
@@ -272,6 +274,10 @@ void SX126x::loop() {
     }
     return;
   }
+  const uint32_t now = App.get_loop_component_start_time();
+  if (this->rx_retry_pending_ && now - this->rx_retry_started_ms_ < RECEIVE_RETRY_INTERVAL_MS) {
+    return;
+  }
   if (!receive_pending && !this->dio1_pin_->digital_read()) {
     if (this->dio1_pin_->is_internal()) {
       this->disable_loop();
@@ -280,15 +286,15 @@ void SX126x::loop() {
   }
 
   uint16_t status;
-  if (!this->command_result_(this->commands_.read_irq(status))) {
+  if (!this->receive_result_(this->commands_.read_irq(status), now)) {
     return;
   }
   if (receive_pending) {
     const bool received = (status & IRQ_RX_DONE) && !(status & IRQ_CRC_ERROR);
     float rssi = 0, snr = 0;
     if (received &&
-        !this->command_result_(this->commands_.read_packet(this->active_profile_, this->packet_, rssi, snr))) {
-      return;  // Stay in standby with IRQ/FIFO intact so the next loop can retry.
+        !this->receive_result_(this->commands_.read_packet(this->active_profile_, this->packet_, rssi, snr), now)) {
+      return;  // Stay in standby with IRQ/FIFO intact for a later retry.
     }
     const auto restored =
         this->operation_.finish_receive([this]() { return this->command_result_(this->restore_after_transmit_()); });
@@ -298,15 +304,24 @@ void SX126x::loop() {
     }
     return;
   }
-  if (!this->command_result_(this->commands_.clear_irqs(status))) {
+  if (!this->receive_result_(this->commands_.clear_irqs(status), now)) {
     return;
   }
   if ((status & IRQ_RX_DONE) && !(status & IRQ_CRC_ERROR)) {
     float rssi, snr;
-    if (this->command_result_(this->commands_.read_packet(this->active_profile_, this->packet_, rssi, snr))) {
+    if (this->receive_result_(this->commands_.read_packet(this->active_profile_, this->packet_, rssi, snr), now)) {
       this->call_listeners_(this->packet_, rssi, snr);
     }
   }
+}
+
+bool SX126x::receive_result_(bool success, uint32_t now) {
+  this->rx_retry_pending_ = !success;
+  if (!success) {
+    // Keep pending IRQ/FIFO ownership, but do not spend a BUSY timeout on every loop.
+    this->rx_retry_started_ms_ = now;
+  }
+  return this->command_result_(success);
 }
 
 bool SX126x::command_result_(bool success) {

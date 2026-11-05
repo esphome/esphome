@@ -1,4 +1,5 @@
 #include "sx126x_test_helpers.h"
+#include "esphome/core/application.h"
 #include <tuple>
 #ifdef USE_HOST
 #include <string>
@@ -225,6 +226,7 @@ TEST_P(SX126xBusyReceive, DropsFailedReadsAndRecoversOnNextPacket) {
     EXPECT_FALSE(hardware.radio.is_failed());
     hardware.clear_trace();
     hardware.irq = IRQ_RX_DONE;
+    LoopBlockingGuard retry{nullptr, nullptr, App.get_loop_component_start_time() + 200};
     hardware.radio.loop();
     ASSERT_EQ(listener.packets.size(), 1u);
     EXPECT_EQ(listener.packets[0], hardware.packet);
@@ -248,6 +250,7 @@ TEST(SX126xBusy, KeepsPollingAnUnclearedInterruptAfterBusyTimeout) {
   hardware.radio.call();
   EXPECT_TRUE(listener.packets.empty());
   hardware.clear_trace();
+  LoopBlockingGuard retry{nullptr, nullptr, App.get_loop_component_start_time() + 200};
   hardware.radio.call();
   EXPECT_EQ(listener.packets.size(), 1u);
 }
