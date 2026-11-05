@@ -88,12 +88,8 @@ class LN882HBLE final : public Component {
   /// (the bk72xx sibling exposes the same accessor).
   void get_mac_lsb_first(uint8_t out[6]) const;
 
-#ifdef LN882H_BLE_SCAN_LISTENER_COUNT
   /// Register a consumer for scan reports (delivered on the main task via loop()).
-  /// Storage is codegen-sized: the consumer's codegen requests a slot via
-  /// request_scan_listener_slot(), which emits LN882H_BLE_SCAN_LISTENER_COUNT.
-  void register_scan_listener(BLEScanListener *listener) { this->scan_listeners_.push_back(listener); }
-#endif
+  SLOT_LIST(BLEScanListener, scan_listeners_, register_scan_listener, LN882H_BLE_SCAN_LISTENER_COUNT)
 
   /// Start the controller scan. Interval/window are in BLE units (0.625 ms);
   /// active enables scan requests on the 1M PHY. Enables the stack first if
@@ -118,11 +114,6 @@ class LN882HBLE final : public Component {
  protected:
   void resolve_mac_();
 
-#ifdef LN882H_BLE_SCAN_LISTENER_COUNT
-  // Codegen-sized: no heap allocation, no std::vector template instantiation —
-  // the same StaticVector pattern as the tracker's ble_device_base listeners.
-  StaticVector<BLEScanListener *, LN882H_BLE_SCAN_LISTENER_COUNT> scan_listeners_;
-#endif
   // Report ring: the SDK event callback (rw task) allocates a report from the
   // pool, fills it and pushes the pointer; loop() pops, dispatches and releases.
   // Lock-free SPSC, zero allocation at steady state — the esp32_ble pattern.
