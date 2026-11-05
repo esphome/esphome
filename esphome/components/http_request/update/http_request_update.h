@@ -4,8 +4,9 @@
 #include "esphome/core/helpers.h"
 
 #include "esphome/components/http_request/http_request.h"
-#include "esphome/components/http_request/ota/ota_http_request.h"
 #include "esphome/components/update/update_entity.h"
+
+#include "update_target.h"
 
 #ifdef USE_ESP32
 #include <freertos/FreeRTOS.h>
@@ -28,7 +29,7 @@ struct TaskResult {
   bool owns_source_url{false};          // the check holds the buffer until it ends, see begin_check_()
 };
 
-class HttpRequestUpdate final : public update::UpdateEntity, public PollingComponent, public ota::OTAStateListener {
+class HttpRequestUpdate final : public update::UpdateEntity, public PollingComponent, public UpdateTargetListener {
  public:
   void setup() override;
   void update() override;
@@ -36,7 +37,7 @@ class HttpRequestUpdate final : public update::UpdateEntity, public PollingCompo
   void perform(bool force) override;
   void check() override { this->update(); }
 
-  ~HttpRequestUpdate() override { this->release_source_url_(); }
+  ~HttpRequestUpdate() { this->release_source_url_(); }
 
   /// Codegen only: the config literal lives in flash for the life of the program, so it is kept by pointer.
   void set_source_url_static(const char *source_url) {
@@ -50,15 +51,15 @@ class HttpRequestUpdate final : public update::UpdateEntity, public PollingCompo
   const char *get_source_url() const { return this->source_url_; }
 
   void set_request_parent(HttpRequestComponent *request_parent) { this->request_parent_ = request_parent; }
-  void set_ota_parent(OtaHttpRequestComponent *ota_parent) { this->ota_parent_ = ota_parent; }
+  void set_target(UpdateTarget *target) { this->target_ = target; }
 
   float get_setup_priority() const override { return setup_priority::AFTER_WIFI; }
 
-  void on_ota_state(ota::OTAState state, float progress, uint8_t error) override;
+  void on_target_state(UpdateTargetState state, float progress, const LogString *message) override;
 
  protected:
   HttpRequestComponent *request_parent_;
-  OtaHttpRequestComponent *ota_parent_;
+  UpdateTarget *target_;
 
   static void update_task(void *params);
 #ifdef USE_ESP32
