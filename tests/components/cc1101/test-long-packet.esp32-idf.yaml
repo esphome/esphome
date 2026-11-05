@@ -40,11 +40,10 @@ cc1101:
     symbol_rate: 4800
     modulation_type: GFSK
     packet_mode: true
-    # packet_length: 0 with packet_length_lambda exercises the arbitrary length
-    # field configuration (CC1101 datasheet section 15.2.1): the length is not
+    # packet_length as a lambda exercises the arbitrary length field
+    # configuration (CC1101 datasheet section 15.2.1): the length is not
     # known upfront and is derived at runtime from the bytes received so far.
-    packet_length: 0
-    packet_length_lambda: |-
+    packet_length: !lambda |-
       if (x.size() < 3) return 0;
       if (x[0] != 0x54) return -1;
       return x[2] + 12;

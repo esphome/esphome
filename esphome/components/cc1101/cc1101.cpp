@@ -298,7 +298,7 @@ void CC1101Component::handle_long_packet_(uint8_t rx_bytes) {
   const size_t old_size = this->packet_.size();
   // Reserve the known target length once, so growth below stays within already-reserved capacity
   // instead of reallocating repeatedly. A no-op once capacity() already covers it (e.g. every call
-  // after the first for a fixed packet_length, or every call after packet_length_lambda resolves it).
+  // after the first for a fixed packet_length, or every call after a packet_length lambda resolves it).
   if (this->packet_expected_length_ > 0 && this->packet_.capacity() < this->packet_expected_length_) {
     this->packet_.reserve(this->packet_expected_length_);
   }
