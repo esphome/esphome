@@ -26,6 +26,14 @@ TEST_F(LD6002BTest, InstallationReportPublishesOption) {
   EXPECT_EQ(this->installation_.current_option(), "side");
 }
 
+// A full command queue drops the write, and the select keeps showing the module's setting
+TEST_F(LD6002BTest, SensitivityKeepsOptionWhenQueueFull) {
+  this->feed_(tf_frame(TYPE_REPORT_SENSITIVITY, {0x01}));
+  this->fill_command_queue_();
+  this->sensitivity_.make_call().set_index(2).perform();
+  EXPECT_EQ(this->sensitivity_.current_option(), "medium");
+}
+
 }  // namespace esphome::ld6002b::testing
 
 #endif  // USE_HOST

@@ -144,20 +144,23 @@ bool LD6002BComponent::defer_frame_write(uint16_t type, const uint8_t *data, uin
   if (len > 0 && data != nullptr) {
     std::memcpy(this->wake_scratch_.data(), data, len);
   }
+  this->wake_type_ = type;
+  this->wake_len_ = len;
+  this->wake_track_ = track;
   // A button pulse must not raise the pin in the middle of this one.
   this->cancel_timeout(WAKE_BUTTON_TIMEOUT_ID);
   this->wake_pulse_pending_ = true;
   this->wakeup_pin_->digital_write(false);
   const uint8_t generation = this->send_generation_;
-  this->set_timeout(this->wakeup_pulse_ms_, [this, type, len, track, generation]() {
+  this->set_timeout(this->wakeup_pulse_ms_, [this, generation]() {
     this->wakeup_pin_->digital_write(true);
     this->wake_pulse_pending_ = false;
     // Anonymous timeouts are never cancelled, so a tracked pulse whose command has since been
     // retired must not transmit: the frame would land after its successor and be booked to it.
-    if (track && generation != this->send_generation_) {
+    if (this->wake_track_ && generation != this->send_generation_) {
       return;
     }
-    this->write_frame_(type, (len > 0) ? this->wake_scratch_.data() : nullptr, len, track);
+    this->write_frame_(this->wake_type_, this->wake_scratch_.data(), this->wake_len_, this->wake_track_);
   });
   return true;
 }
@@ -174,15 +177,15 @@ void LD6002BComponent::wake_() {
 }
 
 #ifdef USE_SWITCH
-void LD6002BComponent::set_switch_state(switch_::Switch *entity, bool state) {
-  if (entity != this->low_power_switch_) {
-    this->LD600XComponent::set_switch_state(entity, state);
-    return;
-  }
+bool LD6002BComponent::set_switch_state(switch_::Switch *entity, bool state) {
+  if (entity != this->low_power_switch_)
+    return this->LD600XComponent::set_switch_state(entity, state);
+  if (!this->send_control_command_(state ? CMD_LOW_POWER_ON : CMD_LOW_POWER_OFF))
+    return false;
   this->low_power_enabled_ = state;
   this->low_power_reported_ = true;
-  this->send_control_command_(state ? CMD_LOW_POWER_ON : CMD_LOW_POWER_OFF);
   this->update_work_mode_fallback_();
+  return true;
 }
 #endif
 

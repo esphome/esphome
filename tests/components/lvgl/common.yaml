@@ -159,14 +159,6 @@ binary_sensor:
             id: lv_image
             src: !lambda if (x) return id(cat_image); else return id(dog_image);
 
-wifi:
-  ssid: SSID
-  password: PASSWORD123
-
-time:
-  - platform: sntp
-    id: sntp_time
-
 text:
   - id: lvgl_text
     platform: lvgl
