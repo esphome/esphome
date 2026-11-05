@@ -381,19 +381,13 @@ class HubFunction:
         hub: MockObj,
         sub_entities: "SubEntities",
         states: Mapping[str, Expression],
-    ) -> dict[str, MockObj]:
-        """Create each configured child of ``states`` and add ``::<child>->publish_state(<state>);``.
-
-        Returns the created children by key.
-        """
+    ) -> None:
+        """Create each configured child of ``states`` and add ``::<child>->publish_state(<state>);``."""
         from esphome.automation import parent_ref
 
-        children = {}
         for key, state in states.items():
             if (var := await sub_entities(key, None)) is not None:
                 self.add(hub, parent_ref(var).publish_state(state))
-                children[key] = var
-        return children
 
 
 @dataclass(frozen=True, kw_only=True)
@@ -408,6 +402,14 @@ class RegisterField:
     mask: int = 0x01
     on: tuple[int, ...] = (1,)
 
+    def __post_init__(self) -> None:
+        # Checked when the table row is built, so a bad row fails on import, not only when configured
+        if self.mask > 0x1F or any(value & ~self.mask for value in self.on):
+            raise ValueError(
+                f"RegisterField mask {self.mask:#x} with on values {self.on}: "
+                "the mask must be at most 0x1F and every on value a value of the field"
+            )
+
     def shifted(self, values: MockObj) -> MockObj:
         """``(values[register] >> shift)``, unmasked: the C++ text helper applies the mask itself."""
         return values[self.register] >> self.shift
@@ -418,11 +420,6 @@ class RegisterField:
         A one-bit field on at 1 is ``((status[1] >> 7) & 0x01)``; any other is a lookup in a bitmap of the
         on values, ``((0b0110 >> ((status[0] >> 5) & 0x03)) & 1)`` for ``mask=0x03, on=(1, 2)``.
         """
-        if self.mask > 0x1F or any(value & ~self.mask for value in self.on):
-            raise ValueError(
-                f"RegisterField mask {self.mask:#x} with on values {self.on}: "
-                "the mask must be at most 0x1F and every on value a value of the field"
-            )
         bits = self.shifted(values) & HexIntLiteral(self.mask)
         if self.mask == 0x01 and self.on == (1,):
             return bits

@@ -659,13 +659,12 @@ def test_register_field_is_on_reads_a_set_bit_directly() -> None:
 
 
 @pytest.mark.parametrize(("mask", "on"), [(0x3F, (1,)), (0x01, (2,)), (0x03, (4,))])
-def test_register_field_is_on_rejects_values_outside_the_field(
+def test_register_field_rejects_values_outside_the_field(
     mask: int, on: tuple[int, ...]
 ) -> None:
     """A mask over 0x1F or an on value outside the field would be an undefined C++ shift."""
-    field = cg.RegisterField(register=0, mask=mask, on=on)
     with pytest.raises(ValueError, match="at most 0x1F"):
-        field.is_on(MockObj("status"))
+        cg.RegisterField(register=0, mask=mask, on=on)
 
 
 def test_add_table_on_change_declares_last_and_publishes() -> None:
@@ -710,7 +709,7 @@ def test_add_table_on_change_declares_last_and_publishes() -> None:
 
 @pytest.mark.asyncio
 async def test_publish_children_publishes_only_configured_children() -> None:
-    """Each configured child publishes its state in states order; the created vars come back by key."""
+    """Each configured child publishes its state in states order."""
     fn = _status_function()
     status = fn.param("status")
     hub = cg.MockObj("hub_a", "->")
@@ -718,14 +717,10 @@ async def test_publish_children_publishes_only_configured_children() -> None:
     async def sub_entities(key: str, _: None) -> MockObj | None:
         return None if key == "absent" else MockObj(f"bs_{key}", "->")
 
-    children = await fn.publish_children(
+    await fn.publish_children(
         hub, sub_entities, {"b": status[1], "absent": status[2], "a": status[0]}
     )
     ch.CORE.flush_tasks()
-    assert {key: str(var) for key, var in children.items()} == {
-        "b": "bs_b",
-        "a": "bs_a",
-    }
     assert _after_includes() == [
         (
             "static void esphome__hub_a__status_fn(const hub::Regs & esphome__arg_status) {\n"
