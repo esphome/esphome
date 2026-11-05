@@ -591,15 +591,28 @@ def inline_schema(node: dict, base: dict) -> None:
         node["constraints"] = base.get("constraints", []) + local
 
 
-def splice_extends(extends: list, name: str, inherited: list) -> list:
-    """Replace *name* in *extends* with *inherited*, the extends of the schema it names.
+def splice_extends(node: dict, extends: list, name: str) -> None:
+    """Set *node*'s extends to *extends*, with *name* replaced by the extends *node* inherited from it.
 
-    >>> splice_extends(["a", "b", "c"], "b", ["d", "a"])
-    ['a', 'd', 'c']
+    >>> node = {"extends": ["d", "a"]}
+    >>> splice_extends(node, ["a", "b", "c"], "b")
+    >>> node
+    {'extends': ['a', 'd', 'c']}
     """
-    idx = extends.index(name) if name in extends else len(extends)
+    inherited = node.pop(S_EXTENDS, [])
+    idx = extends.index(name)
     added = [e for e in inherited if e not in extends]
-    return extends[:idx] + added + extends[idx + 1 :]
+    if spliced := extends[:idx] + added + extends[idx + 1 :]:
+        node[S_EXTENDS] = spliced
+
+
+def drop_extend(node: dict, name: str) -> None:
+    """Remove *name* from *node*'s extends, dropping the key when it empties."""
+    # Rebuilt, not mutated: merge() shares extends lists between inlined nodes
+    if extends := [e for e in node[S_EXTENDS] if e != name]:
+        node[S_EXTENDS] = extends
+    else:
+        node.pop(S_EXTENDS)
 
 
 def is_platform_schema(schema_name):
@@ -647,9 +660,7 @@ def shrink():
                         print("expected extends here!" + x)
                     arr_s = merge(key_s, arr_s)
                     if extends:
-                        inherited = arr_s[S_SCHEMA].pop(S_EXTENDS, [])
-                        if spliced := splice_extends(extends, x, inherited):
-                            arr_s[S_SCHEMA][S_EXTENDS] = spliced
+                        splice_extends(arr_s[S_SCHEMA], extends, x)
                     # Only key constraints survive the collapse
                     if arr_s[S_TYPE] in ["enum", "typed"] and (
                         constraints := arr_s.pop(S_SCHEMA).get("constraints")
@@ -658,9 +669,7 @@ def shrink():
                 else:
                     extends = arr_s.pop(S_EXTENDS)
                     inline_schema(arr_s, key_s[S_SCHEMA])
-                    inherited = arr_s.pop(S_EXTENDS, [])
-                    if spliced := splice_extends(extends, x, inherited):
-                        arr_s[S_EXTENDS] = spliced
+                    splice_extends(arr_s, extends, x)
 
     # simple types should be spread on each component,
     # for enums so far these are logger.is_log_level, cover.validate_cover_state and pulse_counter.sensor.COUNT_MODE_SCHEMA
@@ -688,18 +697,14 @@ def shrink():
                 target_s = get_arr_path_schema(target)
                 if S_SCHEMA not in target_s:
                     # an empty schema like speaker.SPEAKER_SCHEMA
-                    target_s[S_EXTENDS].remove(x)
+                    drop_extend(target_s, x)
                     continue
                 target_schema = target_s[S_SCHEMA]
-                extends = target_schema.get(S_EXTENDS, [])
-                if x not in extends:
-                    print(f"dangling {x} already removed from " + ".".join(target))
-                    continue
+                extends = target_schema[S_EXTENDS]
+                assert x in extends
                 if target_schema.get(S_CONFIG_VARS) or len(extends) > 1:
                     # A bare validator beside real keys (cv.All(SCHEMA, check)) adds nothing
-                    target_schema[S_EXTENDS].remove(x)
-                    if not target_schema[S_EXTENDS]:
-                        target_schema.pop(S_EXTENDS)
+                    drop_extend(target_schema, x)
                     continue
                 target_s.pop(S_SCHEMA)
                 target_s.pop(S_TYPE)  # undefined

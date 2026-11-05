@@ -483,9 +483,16 @@ def _schema(config_vars: dict | None = None, extends: list | None = None) -> dic
     return {"type": "schema", "schema": schema}
 
 
-def test_splice_extends_replaces_the_inlined_name() -> None:
-    assert _bls.splice_extends(["a", "b", "c"], "b", ["d", "a"]) == ["a", "d", "c"]
-    assert _bls.splice_extends(["b"], "b", []) == []
+def test_splice_extends_drops_the_key_when_nothing_remains() -> None:
+    node: dict = {"extends": []}
+    _bls.splice_extends(node, ["b"], "b")
+    assert node == {}
+
+
+def _shrink(monkeypatch: pytest.MonkeyPatch, output: dict) -> None:
+    monkeypatch.setattr(_bls, "output", output)
+    monkeypatch.setattr(_bls, "components", {})
+    _bls.shrink()
 
 
 def test_shrink_inlining_one_extend_keeps_the_others(
@@ -502,9 +509,7 @@ def test_shrink_inlining_one_extend_keeps_the_others(
         },
         "other": {"schemas": {"CONFIG_SCHEMA": _schema({}, ["base.SHARED"])}},
     }
-    monkeypatch.setattr(_bls, "output", output)
-    monkeypatch.setattr(_bls, "components", {})
-    _bls.shrink()
+    _shrink(monkeypatch, output)
 
     schema = output["mod"]["schemas"]["CONFIG_SCHEMA"]["schema"]
     assert schema["extends"] == ["base.SHARED"]
@@ -526,9 +531,7 @@ def test_shrink_drops_a_bare_validator_beside_config_vars(
         },
         "other": {"schemas": {"CONFIG_SCHEMA": _schema(None, ["mod.check"])}},
     }
-    monkeypatch.setattr(_bls, "output", output)
-    monkeypatch.setattr(_bls, "components", {})
-    _bls.shrink()
+    _shrink(monkeypatch, output)
 
     assert output["mod"]["schemas"]["CONFIG_SCHEMA"] == _schema(
         {"address": {"key": "Required"}}
