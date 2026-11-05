@@ -17,6 +17,7 @@ from esphome.const import (
     CONF_BUILD_PATH,
     CONF_DEVICES,
     CONF_ESPHOME,
+    CONF_FRIENDLY_NAME,
     CONF_INCLUDES,
     CONF_INCLUDES_C,
     CONF_NAME,
@@ -43,6 +44,7 @@ from esphome.core.config import (
     valid_include,
     valid_project_name,
     validate_area_config,
+    validate_friendly_name_with_suffix,
     validate_hostname,
 )
 import esphome.final_validate as fv
@@ -2024,3 +2026,31 @@ def test_filter_source_files_drops_util_cpp_without_mqtt() -> None:
 
     CORE.defines = {core.Define("USE_API"), core.Define("USE_MQTT")}
     assert "util.cpp" not in config.FILTER_SOURCE_FILES()
+
+
+@pytest.mark.parametrize(
+    ("friendly_name", "separator", "valid"),
+    [
+        ("a" * 120, " ", True),  # 127 bytes, the most an API short string holds
+        ("a" * 120, " - ", False),
+        ("a" * 118, " - ", True),
+        ("\u00e9" * 60, " ", True),  # 120 bytes in UTF-8
+        ("\u00e9" * 60, "--", False),
+    ],
+)
+def test_validate_friendly_name_with_suffix(
+    friendly_name: str, separator: str, valid: bool
+) -> None:
+    config = {
+        CONF_NAME_ADD_MAC_SUFFIX: True,
+        CONF_FRIENDLY_NAME: friendly_name,
+        CONF_FRIENDLY_NAME_SEPARATOR: separator,
+    }
+    if valid:
+        assert validate_friendly_name_with_suffix(config) == config
+    else:
+        with pytest.raises(cv.Invalid, match="at most 127 fit"):
+            validate_friendly_name_with_suffix(config)
+    # Without the suffix nothing is appended
+    config[CONF_NAME_ADD_MAC_SUFFIX] = False
+    assert validate_friendly_name_with_suffix(config) == config

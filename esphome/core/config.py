@@ -166,6 +166,23 @@ def validate_hostname(config):
     return config
 
 
+# DeviceInfoResponse sends the friendly name as a short string (encode_short_string_force in api/proto.h)
+FRIENDLY_NAME_WITH_SUFFIX_MAX_LEN = 127
+
+
+def validate_friendly_name_with_suffix(config: ConfigType) -> ConfigType:
+    if not config[CONF_NAME_ADD_MAC_SUFFIX] or not config[CONF_FRIENDLY_NAME]:
+        return config
+    full = f"{config[CONF_FRIENDLY_NAME]}{config[CONF_FRIENDLY_NAME_SEPARATOR]}{_MAC_SUFFIX_PLACEHOLDER}"
+    if (length := len(full.encode("utf-8"))) > FRIENDLY_NAME_WITH_SUFFIX_MAX_LEN:
+        raise cv.Invalid(
+            f"friendly_name with {CONF_FRIENDLY_NAME_SEPARATOR} and the MAC suffix is {length} "
+            f"bytes; at most {FRIENDLY_NAME_WITH_SUFFIX_MAX_LEN} fit",
+            path=[CONF_FRIENDLY_NAME],
+        )
+    return config
+
+
 def validate_ids_and_references(config: ConfigType) -> ConfigType:
     """Validate that there are no hash collisions between IDs and that area_id references are valid.
 
@@ -504,6 +521,7 @@ CONFIG_SCHEMA = cv.All(
         }
     ),
     validate_hostname,
+    validate_friendly_name_with_suffix,
 )
 
 
