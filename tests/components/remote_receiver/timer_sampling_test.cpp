@@ -3,6 +3,10 @@
 #include <vector>
 #include "esphome/components/remote_receiver/remote_receiver.h"
 
+// remote_receiver.h only defines the timer store when the backend is enabled, so an ESP32 build
+// compiles this file to nothing
+#ifdef USE_REMOTE_RECEIVER_TIMER_SAMPLING
+
 namespace esphome::remote_receiver::testing {
 
 static constexpr uint32_t SAMPLE_US = 50;
@@ -92,3 +96,5 @@ TEST(RemoteReceiverTimerSampling, LoneGlitchPublishesNothing) {
 }
 
 }  // namespace esphome::remote_receiver::testing
+
+#endif  // USE_REMOTE_RECEIVER_TIMER_SAMPLING
