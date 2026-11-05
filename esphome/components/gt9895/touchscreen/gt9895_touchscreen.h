@@ -35,6 +35,7 @@ class GT9895Touchscreen : public touchscreen::Touchscreen, public i2c::I2CDevice
   void update_touches() override;
   void read_info_();
   bool read_(uint32_t address, uint8_t *data, size_t len);
+  void comm_failed_();
   static bool checksum_ok(const uint8_t *data, size_t len);
 
   InternalGPIOPin *interrupt_pin_{nullptr};

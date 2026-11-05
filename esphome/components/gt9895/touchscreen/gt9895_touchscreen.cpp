@@ -84,21 +84,25 @@ void GT9895Touchscreen::update_touches() {
   uint8_t data[GT9895_HEADER_SIZE + GT9895_MAX_TOUCHES * GT9895_CONTACT_SIZE + GT9895_CHECKSUM_SIZE];
   size_t len = GT9895_HEADER_SIZE + GT9895_FIRST_READ_CONTACTS * GT9895_CONTACT_SIZE + GT9895_CHECKSUM_SIZE;
   if (!this->status_comm_result(this->read_(this->touch_data_address_, data, len))) {
-    this->skip_update_ = true;
+    this->comm_failed_();
     return;
   }
   // No new report since the last one was cleared: keep the current touches
-  if (data[0] == 0 || !checksum_ok(data, GT9895_HEADER_SIZE)) {
+  if (data[0] == 0) {
     this->skip_update_ = true;
     return;
   }
 
   const uint8_t count = std::min<uint8_t>(data[2] & 0x0F, GT9895_MAX_TOUCHES);
-  if ((data[0] & GT9895_EVENT_TOUCH) != 0 && count != 0) {
+  if (!checksum_ok(data, GT9895_HEADER_SIZE)) {
+    // Still clear the report below, or the controller will not write the next one
+    ESP_LOGV(TAG, "Bad header checksum");
+    this->skip_update_ = true;
+  } else if ((data[0] & GT9895_EVENT_TOUCH) != 0 && count != 0) {
     const size_t needed = GT9895_HEADER_SIZE + count * GT9895_CONTACT_SIZE + GT9895_CHECKSUM_SIZE;
     if (needed > len) {
       if (!this->status_comm_result(this->read_(this->touch_data_address_ + len, data + len, needed - len))) {
-        this->skip_update_ = true;
+        this->comm_failed_();
         return;
       }
     }
@@ -122,7 +126,16 @@ void GT9895Touchscreen::update_touches() {
   uint8_t clear[5];
   put_be32(clear, this->touch_data_address_);
   clear[4] = 0;
-  this->status_comm_result(this->write(clear, sizeof(clear)) == i2c::ERROR_OK);
+  if (!this->status_comm_result(this->write(clear, sizeof(clear)) == i2c::ERROR_OK))
+    this->comm_failed_();
+}
+
+void GT9895Touchscreen::comm_failed_() {
+  this->skip_update_ = true;
+  // With an interrupt the base class stops polling, and the controller sends no new interrupt while a report is
+  // pending, so read again on the next loop
+  if (this->store_.init)
+    this->store_.touched = true;
 }
 
 bool GT9895Touchscreen::read_(uint32_t address, uint8_t *data, size_t len) {
