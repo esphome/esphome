@@ -24,7 +24,7 @@ void TuyaFan::setup() {
         this->publish_state();
       } else if (datapoint.type == TuyaDatapointType::STRING) {
         auto speed = parse_number<int>(datapoint.value_string);
-        if (!speed.has_value()) {
+        if (!speed.has_value() || *speed < 0 || *speed > this->speed_count_) {
           ESP_LOGE(TAG, "Speed has invalid value '%s'", datapoint.value_string.c_str());
         } else {
           ESP_LOGV(TAG, "MCU reported speed of: %d", *speed);
@@ -122,7 +122,7 @@ void TuyaFan::set_integer_(uint8_t datapoint_id, uint32_t value) {
   }
 }
 
-void TuyaFan::set_string_(uint8_t datapoint_id, const std::string &value) {
+void TuyaFan::set_string_(uint8_t datapoint_id, const char *value) {
   if (this->optimistic_) {
     this->parent_->force_set_string_datapoint_value(datapoint_id, value);
   } else {
