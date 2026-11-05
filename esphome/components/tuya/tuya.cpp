@@ -1,4 +1,5 @@
 #include "tuya.h"
+#include <cstring>
 #include "esphome/core/gpio.h"
 #include "esphome/core/helpers.h"
 #include "esphome/core/log.h"
@@ -691,6 +692,10 @@ void Tuya::set_integer_datapoint_value(uint8_t datapoint_id, uint32_t value) {
 }
 
 void Tuya::set_string_datapoint_value(uint8_t datapoint_id, const std::string &value) {
+  this->set_string_datapoint_value_(datapoint_id, value.c_str(), false);
+}
+
+void Tuya::set_string_datapoint_value(uint8_t datapoint_id, const char *value) {
   this->set_string_datapoint_value_(datapoint_id, value, false);
 }
 
@@ -715,6 +720,10 @@ void Tuya::force_set_integer_datapoint_value(uint8_t datapoint_id, uint32_t valu
 }
 
 void Tuya::force_set_string_datapoint_value(uint8_t datapoint_id, const std::string &value) {
+  this->set_string_datapoint_value_(datapoint_id, value.c_str(), true);
+}
+
+void Tuya::force_set_string_datapoint_value(uint8_t datapoint_id, const char *value) {
   this->set_string_datapoint_value_(datapoint_id, value, true);
 }
 
@@ -783,8 +792,8 @@ void Tuya::set_raw_datapoint_value_(uint8_t datapoint_id, const std::vector<uint
   this->send_datapoint_command_(datapoint_id, TuyaDatapointType::RAW, value);
 }
 
-void Tuya::set_string_datapoint_value_(uint8_t datapoint_id, const std::string &value, bool forced) {
-  ESP_LOGD(TAG, "Setting datapoint %u to %s", datapoint_id, value.c_str());
+void Tuya::set_string_datapoint_value_(uint8_t datapoint_id, const char *value, bool forced) {
+  ESP_LOGD(TAG, "Setting datapoint %u to %s", datapoint_id, value);
   optional<TuyaDatapoint> datapoint = this->get_datapoint_(datapoint_id);
   if (!datapoint.has_value()) {
     ESP_LOGW(TAG, "Setting unknown datapoint %u", datapoint_id);
@@ -795,10 +804,7 @@ void Tuya::set_string_datapoint_value_(uint8_t datapoint_id, const std::string &
     ESP_LOGV(TAG, "Not sending unchanged value");
     return;
   }
-  std::vector<uint8_t> data;
-  for (char const &c : value) {
-    data.push_back(c);
-  }
+  std::vector<uint8_t> data(value, value + strlen(value));
   this->send_datapoint_command_(datapoint_id, TuyaDatapointType::STRING, data);
 }
 
