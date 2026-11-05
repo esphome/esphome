@@ -69,10 +69,9 @@ void ESP32RMTLEDStripLightOutput::setup() {
   size_t buffer_size = this->get_buffer_size_();
 
   RAMAllocator<uint8_t> allocator(this->use_psram_ ? 0 : RAMAllocator<uint8_t>::ALLOC_INTERNAL);
-  if (!this->internal_accessor_.allocate(allocator, this->num_leds_)) {
-    this->mark_failed(LOG_STR(ESP_LOG_MSG_ALLOC_FAIL));
+  if (!this->setup_check(this->internal_accessor_.allocate(allocator, this->num_leds_),
+                         LOG_STR(ESP_LOG_MSG_ALLOC_FAIL)))
     return;
-  }
 
 #if ESP_IDF_VERSION >= ESP_IDF_VERSION_VAL(5, 3, 0)
   // copy of the led buffer
@@ -104,10 +103,8 @@ void ESP32RMTLEDStripLightOutput::setup() {
   channel.flags.invert_out = this->invert_out_;
   channel.flags.with_dma = this->use_dma_;
   channel.intr_priority = 0;
-  if (rmt_new_tx_channel(&channel, &this->channel_) != ESP_OK) {
-    this->mark_failed(LOG_STR("Channel creation failed"));
+  if (!this->setup_check(rmt_new_tx_channel(&channel, &this->channel_) == ESP_OK, LOG_STR("Channel creation failed")))
     return;
-  }
 
 #if ESP_IDF_VERSION >= ESP_IDF_VERSION_VAL(5, 3, 0)
   rmt_simple_encoder_config_t encoder;
@@ -115,23 +112,18 @@ void ESP32RMTLEDStripLightOutput::setup() {
   encoder.callback = encoder_callback;
   encoder.arg = &this->params_;
   encoder.min_chunk_size = RMT_SYMBOLS_PER_BYTE;
-  if (rmt_new_simple_encoder(&encoder, &this->encoder_) != ESP_OK) {
-    this->mark_failed(LOG_STR("Encoder creation failed"));
+  if (!this->setup_check(rmt_new_simple_encoder(&encoder, &this->encoder_) == ESP_OK,
+                         LOG_STR("Encoder creation failed")))
     return;
-  }
 #else
   rmt_copy_encoder_config_t encoder;
   memset(&encoder, 0, sizeof(encoder));
-  if (rmt_new_copy_encoder(&encoder, &this->encoder_) != ESP_OK) {
-    this->mark_failed(LOG_STR("Encoder creation failed"));
+  if (!this->setup_check(rmt_new_copy_encoder(&encoder, &this->encoder_) == ESP_OK, LOG_STR("Encoder creation failed")))
     return;
-  }
 #endif
 
-  if (rmt_enable(this->channel_) != ESP_OK) {
-    this->mark_failed(LOG_STR("Enabling channel failed"));
+  if (!this->setup_check(rmt_enable(this->channel_) == ESP_OK, LOG_STR("Enabling channel failed")))
     return;
-  }
 
   this->accessor_ = &this->internal_accessor_;
 }
