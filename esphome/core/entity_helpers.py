@@ -9,6 +9,7 @@ from typing import Any, Literal, get_args
 
 from esphome.automation import apply_static_function, parent_ref
 import esphome.codegen as cg
+from esphome.components.const import CONF_ZIGBEE_COVER
 import esphome.config_validation as cv
 from esphome.const import (
     CONF_CLUSTER,
@@ -1155,6 +1156,7 @@ _ZIGBEE_ENTITY_CLASSES = {
         "ZigbeeBinarySensor",
         ["generic", "device_class"],
     ),
+    "cover": (CONF_ZIGBEE_COVER, "ZigbeeCover", []),
     "sensor": (CONF_ZIGBEE_SENSOR, "ZigbeeSensor", ["generic", "device_class"]),
     "switch": (CONF_ZIGBEE_SWITCH, "ZigbeeSwitch", ["generic", "on_off"]),
     "number": (CONF_ZIGBEE_NUMBER, "ZigbeeNumber", ["generic"]),
@@ -1176,6 +1178,7 @@ def _zigbee_entity_schema(platform: str) -> cv.Schema:
 
 
 ZIGBEE_BINARY_SENSOR_SCHEMA = _zigbee_entity_schema("binary_sensor")
+ZIGBEE_COVER_SCHEMA = _zigbee_entity_schema("cover")
 ZIGBEE_SENSOR_SCHEMA = _zigbee_entity_schema("sensor")
 ZIGBEE_SWITCH_SCHEMA = _zigbee_entity_schema("switch")
 ZIGBEE_NUMBER_SCHEMA = _zigbee_entity_schema("number")

@@ -163,6 +163,10 @@ void load_zb_event(ZBEvent *event, ezb_zcl_message_info_t info, ezb_zcl_attribut
   event->load_set_attr_value_event(info, attribute);
 }
 
+void load_zb_event(ZBEvent *event, ezb_zcl_message_info_t info, uint8_t cmd_id, uint8_t percentage) {
+  event->load_window_covering_event(info, cmd_id, percentage);
+}
+
 template<typename... Args> void enqueue_zb_event(Args... args) {
   // Allocate an event from the pool
   ZBEvent *event = global_zigbee->zb_event_pool_.allocate();
@@ -194,10 +198,37 @@ static void zb_attribute_handler(ezb_zcl_set_attr_value_message_t *message) {
   enqueue_zb_event(message->info, message->in.attribute);
 }
 
+static void zb_window_covering_handler(ezb_zcl_window_covering_movement_message_t *message) {
+  ESP_RETURN_ON_FALSE(message && message->in.header, , TAG, "Empty message");
+  const uint8_t cmd_id = message->in.header->cmd_id;
+  uint8_t percentage = 0;
+  switch (cmd_id) {
+    case EZB_ZCL_CMD_WINDOW_COVERING_UP_OPEN_ID:
+    case EZB_ZCL_CMD_WINDOW_COVERING_DOWN_CLOSE_ID:
+    case EZB_ZCL_CMD_WINDOW_COVERING_STOP_ID:
+      break;
+    case EZB_ZCL_CMD_WINDOW_COVERING_GO_TO_LIFT_PERCENTAGE_ID:
+      percentage = message->in.payload.lift_percentage;
+      if (percentage > 100) {
+        message->out.result = EZB_ZCL_STATUS_INVALID_VALUE;
+        return;
+      }
+      break;
+    default:
+      message->out.result = EZB_ZCL_STATUS_UNSUP_CMD;
+      return;
+  }
+  enqueue_zb_event(message->info, cmd_id, percentage);
+  message->out.result = EZB_ZCL_STATUS_SUCCESS;
+}
+
 static void zb_action_handler(ezb_zcl_core_action_callback_id_t callback_id, void *message) {
   switch (callback_id) {
     case EZB_ZCL_CORE_SET_ATTR_VALUE_CB_ID:
       zb_attribute_handler((ezb_zcl_set_attr_value_message_t *) message);
+      break;
+    case EZB_ZCL_CORE_WINDOW_COVERING_MOVEMENT_CB_ID:
+      zb_window_covering_handler((ezb_zcl_window_covering_movement_message_t *) message);
       break;
     case EZB_ZCL_CORE_DEFAULT_RSP_CB_ID: {
 #ifdef ESPHOME_LOG_HAS_VERBOSE
@@ -217,6 +248,16 @@ void ZigbeeComponent::handle_attribute_(ezb_zcl_message_info_t info, ezb_zcl_att
     it->second->on_value(attribute);
   }
 }
+
+#ifdef USE_COVER
+void ZigbeeComponent::handle_window_covering_(ezb_zcl_message_info_t info, uint8_t cmd_id, uint8_t percentage) {
+  auto it = this->attributes_.find({info.dst_ep, info.cluster_id, info.cluster_role,
+                                    EZB_ZCL_ATTR_WINDOW_COVERING_CURRENT_POSITION_LIFT_PERCENTAGE_ID});
+  if (it != this->attributes_.end()) {
+    it->second->on_command(cmd_id, percentage);
+  }
+}
+#endif
 
 void ZigbeeComponent::create_default_cluster(uint8_t endpoint_id, uint16_t device_id) {
   ezb_af_ep_desc_t ep_desc =
@@ -401,6 +442,12 @@ void ZigbeeComponent::loop() {
     switch (event->callback_id_) {
       case EZB_ZCL_CORE_SET_ATTR_VALUE_CB_ID:
         this->handle_attribute_(event->event_.set_attr.info, event->event_.set_attr.attribute);
+        break;
+      case EZB_ZCL_CORE_WINDOW_COVERING_MOVEMENT_CB_ID:
+#ifdef USE_COVER
+        this->handle_window_covering_(event->event_.window_covering.info, event->event_.window_covering.cmd_id,
+                                      event->event_.window_covering.percentage);
+#endif
         break;
       default:
         ESP_LOGW(TAG, "Received event with unhandled callback id: 0x%x", static_cast<unsigned>(event->callback_id_));
