@@ -129,10 +129,16 @@ on_pronto:
         format: "on_pronto: %s"
         args: ["x.data.c_str()"]
 on_raw:
-  then:
-    - logger.log:
-        format: "on_raw: %ld"
-        args: ["(long) x.front()"]
+  - then:
+      - logger.log:
+          format: "on_raw: %ld"
+          args: ["(long) x.front()"]
+  # A deferring automation gets its own copy of x
+  - then:
+      - delay: 10ms
+      - logger.log:
+          format: "on_raw later: %u"
+          args: ["(unsigned) x.size()"]
 on_rc5:
   then:
     - logger.log:
@@ -185,8 +191,8 @@ on_mirage:
 on_toto:
   then:
     - logger.log:
-        format: "on_toto: %u %u %u"
-        args: ["x.rc_code_1", "x.rc_code_2", "x.command"]
+        format: "on_toto: %u %u %u %u"
+        args: ["x.code", "x.rc_code_1", "x.rc_code_2", "x.command"]
 on_aok:
   then:
     - logger.log:
@@ -207,3 +213,8 @@ on_ira211:
     - logger.log:
         format: "on_ira211: %u %.1f"
         args: ["static_cast<uint8_t>(x.command)", "x.get_temperature()"]
+on_cardin_s438:
+  then:
+    - logger.log:
+        format: "on_cardin_s438: %u %u"
+        args: ["x.code", "x.channel"]

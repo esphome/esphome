@@ -92,6 +92,19 @@ binary_sensor:
     has_target:
       name: "Has Target"
 
+# Commanded before the module answered: the changes are ignored and nothing is published
+number:
+  - platform: ld2410s
+    ld2410s_id: ld2410s_dev
+    max_distance:
+      name: "Max Distance"
+
+select:
+  - platform: ld2410s
+    ld2410s_id: ld2410s_dev
+    response_speed:
+      name: "Response Speed"
+
 button:
   - platform: template
     name: "Start Scenario"

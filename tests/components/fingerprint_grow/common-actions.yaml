@@ -14,3 +14,10 @@ button:
           speed: 200
           color: BLUE
           count: 2
+      - fingerprint_grow.aura_led_control:
+          state: !lambda return fingerprint_grow::FLASHING;
+          speed: !lambda return 100;
+          color: !lambda return fingerprint_grow::RED;
+          count: !lambda return 3;
+      - fingerprint_grow.delete:
+          finger_id: !lambda return 2;

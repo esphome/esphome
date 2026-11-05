@@ -7,18 +7,15 @@
 namespace esphome::iaqcore {
 
 class IAQCore final : public PollingComponent, public i2c::I2CDevice {
- public:
-  void set_co2(sensor::Sensor *co2) { co2_ = co2; }
-  void set_tvoc(sensor::Sensor *tvoc) { tvoc_ = tvoc; }
+  SUB_SENSOR(co2)
+  SUB_SENSOR(tvoc)
 
+ public:
   void setup() override;
   void update() override;
   void dump_config() override;
 
  protected:
-  sensor::Sensor *co2_{nullptr};
-  sensor::Sensor *tvoc_{nullptr};
-
   void publish_nans_();
 };
 

@@ -40,10 +40,7 @@ RG_MODELS = {
     # 1.200 - https://rainsensors.com/wp-content/uploads/sites/3/2022/03/2022.02.17-rev-1.200-rg-9_instructions.pdf
 }
 
-RG15_RESOLUTION = {
-    "low": RG15Resolution.FORCE_LOW,
-    "high": RG15Resolution.FORCE_HIGH,
-}
+RG15_RESOLUTION = RG15Resolution.options("low", "high", prefix="FORCE_")
 
 SUPPORTED_OPTIONS = {
     CONF_ACC: ["RG_15"],

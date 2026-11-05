@@ -3,7 +3,6 @@ from collections.abc import Callable
 from esphome import automation, preferences
 from esphome.automation import maybe_simple_id
 import esphome.codegen as cg
-from esphome.components import mqtt, web_server, zigbee
 import esphome.config_validation as cv
 from esphome.const import (
     CONF_DEVICE_CLASS,
@@ -20,12 +19,11 @@ from esphome.const import (
     CONF_RESTORE_STATE,
     CONF_STATE,
     CONF_STORAGE,
-    CONF_WEB_SERVER,
     DEVICE_CLASS_EMPTY,
     DEVICE_CLASS_OUTLET,
     DEVICE_CLASS_SWITCH,
 )
-from esphome.core import CORE, ID, CoroPriority, coroutine_with_priority
+from esphome.core import CORE, ID, CoroPriority, coroutine_with_priority, entity_helpers
 from esphome.core.entity_helpers import (
     RESTORE_STATE_INITIAL,
     RESTORE_STATE_INVERT,
@@ -33,6 +31,9 @@ from esphome.core.entity_helpers import (
     ApplyEntity,
     SubEntities,
     entity_duplicate_validator,
+    lazy_load_setup,
+    lazy_load_validator,
+    mqtt_component_class,
     queue_entity_register,
     restore_state_schema,
     setup_device_class,
@@ -183,12 +184,14 @@ def _resolve_restore_mode(config: ConfigType) -> MockObj | str:
 
 
 _SWITCH_SCHEMA = (
-    cv.ENTITY_BASE_SCHEMA.extend(web_server.WEBSERVER_SORTING_SCHEMA)
+    cv.ENTITY_BASE_SCHEMA.extend(entity_helpers.WEBSERVER_SORTING_SCHEMA)
     .extend(cv.MQTT_COMMAND_COMPONENT_SCHEMA)
-    .extend(zigbee.SWITCH_SCHEMA)
+    .extend(entity_helpers.ZIGBEE_SWITCH_SCHEMA)
     .extend(
         {
-            cv.OnlyWith(CONF_MQTT_ID, "mqtt"): cv.declare_id(mqtt.MQTTSwitchComponent),
+            cv.OnlyWith(CONF_MQTT_ID, "mqtt"): cv.declare_id(
+                mqtt_component_class("MQTTSwitchComponent")
+            ),
             cv.Optional(CONF_INVERTED): cv.boolean,
             cv.Exclusive(CONF_RESTORE_MODE, "restore"): validate_restore_mode,
             cv.Exclusive(CONF_RESTORE_STATE, "restore"): RESTORE_STATE_SCHEMA,
@@ -205,7 +208,7 @@ _SWITCH_SCHEMA = (
 
 
 _SWITCH_SCHEMA.add_extra(entity_duplicate_validator("switch"))
-_SWITCH_SCHEMA.add_extra(zigbee.validate_switch)
+_SWITCH_SCHEMA.add_extra(lazy_load_validator("zigbee", "validate_switch"))
 _SWITCH_SCHEMA.add_extra(_validate_initial_state)
 
 
@@ -272,17 +275,12 @@ async def setup_switch_core_(var, config):
 
     CORE.add_job(_build_switch_automations, var, config)
 
-    if (mqtt_id := config.get(CONF_MQTT_ID)) is not None:
-        mqtt_ = cg.new_Pvariable(mqtt_id, var)
-        await mqtt.register_mqtt_component(mqtt_, config)
-
-    if web_server_config := config.get(CONF_WEB_SERVER):
-        await web_server.add_entity_config(var, web_server_config)
+    await entity_helpers.setup_entity_integrations(var, config)
 
     setup_device_class(config)
 
     cg.add(var.set_restore_mode(_resolve_restore_mode(config)))
-    await zigbee.setup_switch(var, config)
+    await lazy_load_setup("zigbee", "setup_switch", var, config)
 
 
 async def register_switch(var, config):
@@ -303,6 +301,7 @@ APPLY_ENTITY = ApplyEntity(
     ApplySwitch,
     ((SwitchPtr, "entity"), (cg.bool_, "state")),
     "entity->publish_state(state);",
+    momentary=("entity->publish_state(false);", "state"),
 )
 
 

@@ -7,7 +7,6 @@ from esphome.types import ConfigType
 
 from .. import ft5x06_ns
 
-FT5x06ButtonListener = ft5x06_ns.class_("FT5x06ButtonListener")
 FT5x06Touchscreen = ft5x06_ns.class_(
     "FT5x06Touchscreen",
     touchscreen.Touchscreen,

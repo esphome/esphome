@@ -6,6 +6,7 @@
 #include "esphome/components/wifi/wifi_component.h"
 #endif
 #include "haier_base.h"
+#include "esphome/core/progmem.h"
 
 using namespace esphome::climate;
 using namespace esphome::uart;
@@ -19,28 +20,16 @@ constexpr size_t PROTOCOL_INITIALIZATION_INTERVAL = 10000;
 constexpr size_t DEFAULT_MESSAGES_INTERVAL_MS = 2000;
 constexpr size_t CONTROL_MESSAGES_INTERVAL_MS = 400;
 
-const char *HaierClimateBase::phase_to_string_(ProtocolPhases phase) {
-  static const char *phase_names[] = {
-      "SENDING_INIT_1",
-      "SENDING_INIT_2",
-      "SENDING_FIRST_STATUS_REQUEST",
-      "SENDING_FIRST_ALARM_STATUS_REQUEST",
-      "IDLE",
-      "SENDING_STATUS_REQUEST",
-      "SENDING_UPDATE_SIGNAL_REQUEST",
-      "SENDING_SIGNAL_LEVEL",
-      "SENDING_CONTROL",
-      "SENDING_ACTION_COMMAND",
-      "SENDING_ALARM_STATUS_REQUEST",
-      "UNKNOWN"  // Should be the last!
-  };
-  static_assert(
-      (sizeof(phase_names) / sizeof(char *)) == (((int) ProtocolPhases::NUM_PROTOCOL_PHASES) + 1),
-      "Wrong phase_names array size. Please, make sure that this array is aligned with the enum ProtocolPhases");
-  int phase_index = (int) phase;
-  if ((phase_index > (int) ProtocolPhases::NUM_PROTOCOL_PHASES) || (phase_index < 0))
-    phase_index = (int) ProtocolPhases::NUM_PROTOCOL_PHASES;
-  return phase_names[phase_index];
+PROGMEM_STRING_TABLE(ProtocolPhaseStrings, "SENDING_INIT_1", "SENDING_INIT_2", "SENDING_FIRST_STATUS_REQUEST",
+                     "SENDING_FIRST_ALARM_STATUS_REQUEST", "IDLE", "SENDING_STATUS_REQUEST",
+                     "SENDING_UPDATE_SIGNAL_REQUEST", "SENDING_SIGNAL_LEVEL", "SENDING_CONTROL",
+                     "SENDING_ACTION_COMMAND", "SENDING_ALARM_STATUS_REQUEST", "UNKNOWN");
+
+const LogString *HaierClimateBase::phase_to_string_(ProtocolPhases phase) {
+  static_assert(ProtocolPhaseStrings::COUNT == ((int) ProtocolPhases::NUM_PROTOCOL_PHASES) + 1,
+                "ProtocolPhaseStrings must match the enum ProtocolPhases, with UNKNOWN last");
+  // UNKNOWN (-1) wraps past the table and reads as the last entry, "UNKNOWN"
+  return ProtocolPhaseStrings::get_log_str(static_cast<uint8_t>(phase), ProtocolPhaseStrings::LAST_INDEX);
 }
 
 bool check_timeout(std::chrono::steady_clock::time_point now, std::chrono::steady_clock::time_point tpoint,
@@ -71,7 +60,8 @@ HaierClimateBase::~HaierClimateBase() {}
 
 void HaierClimateBase::set_phase(ProtocolPhases phase) {
   if (this->protocol_phase_ != phase) {
-    ESP_LOGV(TAG, "Phase transition: %s => %s", phase_to_string_(this->protocol_phase_), phase_to_string_(phase));
+    ESP_LOGV(TAG, "Phase transition: %s => %s", LOG_STR_ARG(phase_to_string_(this->protocol_phase_)),
+             LOG_STR_ARG(phase_to_string_(phase)));
     this->protocol_phase_ = phase;
   }
 }
@@ -225,7 +215,7 @@ haier_protocol::HandlerError HaierClimateBase::report_network_status_answer_hand
 
 haier_protocol::HandlerError HaierClimateBase::timeout_default_handler_(haier_protocol::FrameType request_type) {
   ESP_LOGW(TAG, "Answer timeout for command %02X, phase %s", (uint8_t) request_type,
-           phase_to_string_(this->protocol_phase_));
+           LOG_STR_ARG(phase_to_string_(this->protocol_phase_)));
   if (this->protocol_phase_ > ProtocolPhases::IDLE) {
     this->set_phase(ProtocolPhases::IDLE);
   } else {
@@ -353,12 +343,8 @@ void HaierClimateBase::initialization() {
   this->display_status_ = recovered.display_state ? SwitchState::PENDING_ON : SwitchState::PENDING_OFF;
   this->health_mode_ = recovered.health_mode ? SwitchState::PENDING_ON : SwitchState::PENDING_OFF;
 #ifdef USE_SWITCH
-  if (this->display_switch_ != nullptr) {
-    this->display_switch_->publish_state(this->get_display_state());
-  }
-  if (this->health_mode_switch_ != nullptr) {
-    this->health_mode_switch_->publish_state(this->get_health_mode());
-  }
+  PUBLISH_STATE(this->display_switch_, this->get_display_state());
+  PUBLISH_STATE(this->health_mode_switch_, this->get_health_mode());
 #endif
 }
 
