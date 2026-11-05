@@ -19,10 +19,8 @@ const LogString *EPaperBase::epaper_state_to_string_() {
 }
 
 void EPaperBase::setup() {
-  if (!this->init_buffer_(this->buffer_length_)) {
-    this->mark_failed(LOG_STR("Failed to initialise buffer"));
+  if (!this->setup_check(this->init_buffer_(this->buffer_length_), LOG_STR("Failed to initialise buffer")))
     return;
-  }
   this->setup_pins_();
   this->spi_setup();
 }
