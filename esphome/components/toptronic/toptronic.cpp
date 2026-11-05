@@ -93,17 +93,18 @@ TopTronic::TopTronic(canbus::Canbus *canbus, uint16_t device_id) : canbus_(canbu
     }
   }
   if (!bus_already_logged) {
-    canbus->add_callback([](uint32_t can_id, bool, bool, const std::vector<uint8_t> &data) {
-      log_debug_frame(can_id, data.data(), data.size(), false);
+    canbus->add_frame_callback([](const canbus::CanFrame &frame) {
+      log_debug_frame(frame.can_id, frame.data, frame.payload_length(), false);
     });
   }
-  canbus->add_callback([this](uint32_t can_id, bool extended_id, bool rtr, const std::vector<uint8_t> &data) {
+  canbus->add_frame_callback([this](const canbus::CanFrame &frame) {
     // A remote frame has no payload; the bytes passed with it are left over from an earlier frame
-    if (rtr || this->paused_ || !extended_id || sender_id(can_id) != this->device_id_)
+    if (frame.remote_transmission_request || this->paused_ || !frame.use_extended_id ||
+        sender_id(frame.can_id) != this->device_id_)
       return;
     const uint8_t *msg;
     size_t len;
-    if (this->parse_frame_(data.data(), data.size(), can_id, &msg, &len))
+    if (this->parse_frame_(frame.data, frame.payload_length(), frame.can_id, &msg, &len))
       this->interpret_message_(msg, len);
   });
 }
