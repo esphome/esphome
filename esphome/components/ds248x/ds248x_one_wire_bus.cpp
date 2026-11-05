@@ -17,7 +17,6 @@ void DS248xOneWireBus::setup() {
     return;
   }
   if (!this->ensure_channel_()) {
-    ESP_LOGE(TAG, "Failed to select channel %d during setup", this->channel_);
     this->mark_failed(LOG_STR("Channel select failed"));
     return;
   }
