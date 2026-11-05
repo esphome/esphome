@@ -122,7 +122,6 @@ class SX127x final : public Component,
   InternalGPIOPin *dio0_pin_{nullptr};
   InternalGPIOPin *dio1_pin_{nullptr};
   InternalGPIOPin *rst_pin_{nullptr};
-  SX127xBw bandwidth_;
   uint32_t bitrate_;
   uint32_t deviation_;
   uint32_t frequency_;
@@ -130,8 +129,9 @@ class SX127x final : public Component,
   size_t packet_expected_length_{0};
   uint32_t packet_last_byte_ms_{0};
   float long_packet_rssi_{0.0f};
-  bool long_packet_rssi_captured_{false};
+  float rx_floor_;
   uint16_t preamble_size_;
+  SX127xBw bandwidth_;
   uint8_t coding_rate_;
   uint8_t modulation_;
   uint8_t pa_pin_;
@@ -142,10 +142,10 @@ class SX127x final : public Component,
   uint8_t preamble_polarity_;
   uint8_t shaping_;
   uint8_t spreading_factor_;
-  float rx_floor_;
   bool auto_cal_{false};
   bool bitsync_{false};
   bool crc_enable_{false};
+  bool long_packet_rssi_captured_{false};
   bool packet_mode_{false};
   bool rx_start_{false};
 };

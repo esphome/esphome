@@ -662,21 +662,15 @@ void SX127x::dump_config() {
                   shaping, this->modulation_ == MOD_FSK ? LOG_STR_LITERAL("FSK") : LOG_STR_LITERAL("OOK"),
                   this->bitrate_, TRUEFALSE(this->bitsync_), TRUEFALSE(this->rx_start_), this->rx_floor_,
                   TRUEFALSE(this->packet_mode_));
-    if (!this->packet_mode_) {
-      ESP_LOGCONFIG(TAG, "  Payload Length: Continuous mode");
-    } else {
+    if (this->packet_mode_) {
       ESP_LOGCONFIG(TAG, "  CRC Enable: %s", TRUEFALSE(this->crc_enable_));
-      if (this->payload_length_func_) {
-        ESP_LOGCONFIG(TAG, "  Payload Length: Dynamic lambda (max=%u), unlimited length format", MAX_PACKET_LENGTH);
-      } else if (this->payload_length_ == 0) {
-        ESP_LOGCONFIG(TAG, "  Payload Length: Variable, length byte after sync (max=%u)",
-                      (unsigned) this->get_max_packet_size() - 1);
-      } else if (this->payload_length_ <= 64) {
-        ESP_LOGCONFIG(TAG, "  Payload Length: Fixed, %u bytes", (unsigned) this->payload_length_);
-      } else {
-        ESP_LOGCONFIG(TAG, "  Payload Length: Long fixed, %u bytes (max=%u), unlimited length format",
-                      (unsigned) this->payload_length_, MAX_PACKET_LENGTH);
-      }
+    }
+    if (this->payload_length_func_) {
+      ESP_LOGCONFIG(TAG, "  Payload Length: lambda");
+    } else if (this->payload_length_ > 0) {
+      ESP_LOGCONFIG(TAG, "  Payload Length: %" PRIu32, this->payload_length_);
+    } else if (this->packet_mode_) {
+      ESP_LOGCONFIG(TAG, "  Payload Length: variable");
     }
     if (!this->sync_value_.empty()) {
       char hex_buf[17];  // 8 bytes max = 16 hex chars + null
