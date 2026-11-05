@@ -22,18 +22,15 @@ static const uint8_t HDC302X_CMD_HEATER_CONFIGURE[2] = {0x30, 0x6e};
 
 void HDC302XComponent::setup() {
   // Soft reset the device
-  if (this->write(HDC302X_CMD_SOFT_RESET, 2) != i2c::ERROR_OK) {
-    this->mark_failed(LOG_STR("Soft reset failed"));
+  if (!this->setup_check(this->write(HDC302X_CMD_SOFT_RESET, 2) == i2c::ERROR_OK, LOG_STR("Soft reset failed")))
     return;
-  }
   // Delay SensorRR (reset ready), per datasheet, 6.5.
   delay(3);
 
   // Clear status register
-  if (this->write(HDC302X_CMD_CLEAR_STATUS_REGISTER, 2) != i2c::ERROR_OK) {
-    this->mark_failed(LOG_STR("Clear status failed"));
+  if (!this->setup_check(this->write(HDC302X_CMD_CLEAR_STATUS_REGISTER, 2) == i2c::ERROR_OK,
+                         LOG_STR("Clear status failed")))
     return;
-  }
 }
 
 void HDC302XComponent::dump_config() {
