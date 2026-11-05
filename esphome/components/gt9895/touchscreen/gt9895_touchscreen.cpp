@@ -30,7 +30,7 @@ void GT9895Touchscreen::setup() {
 
 void GT9895Touchscreen::read_info_() {
   uint8_t fw[GT9895_FW_VERSION_SIZE];
-  if (!this->read_(GT9895_REG_FW_VERSION, fw, sizeof(fw)) || !checksum_ok_(fw, sizeof(fw))) {
+  if (!this->read_(GT9895_REG_FW_VERSION, fw, sizeof(fw)) || !checksum_ok(fw, sizeof(fw))) {
     this->mark_failed(LOG_STR("Failed to read the firmware version"));
     return;
   }
@@ -51,7 +51,7 @@ void GT9895Touchscreen::read_info_() {
     return;
   }
   auto info = std::make_unique<uint8_t[]>(len);
-  if (!this->read_(GT9895_REG_RUNTIME_INFO, info.get(), len) || !checksum_ok_(info.get(), len)) {
+  if (!this->read_(GT9895_REG_RUNTIME_INFO, info.get(), len) || !checksum_ok(info.get(), len)) {
     this->mark_failed(LOG_STR("Failed to read the runtime information"));
     return;
   }
@@ -88,7 +88,7 @@ void GT9895Touchscreen::update_touches() {
     return;
   }
   // No new report since the last one was cleared: keep the current touches
-  if (data[0] == 0 || !checksum_ok_(data, GT9895_HEADER_SIZE)) {
+  if (data[0] == 0 || !checksum_ok(data, GT9895_HEADER_SIZE)) {
     this->skip_update_ = true;
     return;
   }
@@ -103,7 +103,7 @@ void GT9895Touchscreen::update_touches() {
       }
     }
     const uint8_t *contacts = data + GT9895_HEADER_SIZE;
-    if (!checksum_ok_(contacts, count * GT9895_CONTACT_SIZE + GT9895_CHECKSUM_SIZE)) {
+    if (!checksum_ok(contacts, count * GT9895_CONTACT_SIZE + GT9895_CHECKSUM_SIZE)) {
       ESP_LOGV(TAG, "Bad contact checksum");
       this->skip_update_ = true;
     } else {
@@ -131,7 +131,7 @@ bool GT9895Touchscreen::read_(uint32_t address, uint8_t *data, size_t len) {
   return this->write_read(addr, sizeof(addr), data, len) == i2c::ERROR_OK;
 }
 
-bool GT9895Touchscreen::checksum_ok_(const uint8_t *data, size_t len) {
+bool GT9895Touchscreen::checksum_ok(const uint8_t *data, size_t len) {
   const size_t body = len - GT9895_CHECKSUM_SIZE;
   return sum16_bytes(data, body) == encode_uint16(data[body + 1], data[body]);
 }
