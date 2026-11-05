@@ -29,7 +29,7 @@ from esphome.yaml_edit import (
     source_line,
     source_of,
 )
-from esphome.yaml_util import secrets_path_for
+from esphome.yaml_util import named_path, secrets_path_for
 
 _LOGGER = logging.getLogger(__name__)
 _DOMAIN = "ota_key_edit"
@@ -116,12 +116,6 @@ def _state() -> _State:
     return CORE.data.setdefault(_DOMAIN, _State())
 
 
-def _as_named(path: Path) -> Path:
-    """``path`` with its directory resolved but its own name kept: a linked file's
-    includes resolve beside the link, as the loader does."""
-    return path.parent.resolve() / path.name
-
-
 def _scan(path: Path) -> _Scan:
     """``path`` scanned once per run; nothing is constructed, included or loaded."""
     scans = _state().scans
@@ -188,7 +182,7 @@ def _scan(path: Path) -> _Scan:
         elif included and ("$" in value or "<%" in value):
             found.unresolved = found.unresolved or value
         elif included:
-            found.targets.add(_as_named(path.parent / value))
+            found.targets.add(named_path(path.parent / value))
     return found
 
 
@@ -244,7 +238,7 @@ def _configs() -> _Configs:
                 except EsphomeError as err:
                     skip(err)
     # An include from outside these trees is scanned too, as are its own includes
-    seen = {_as_named(path) for path, _ in found}
+    seen = {named_path(path) for path, _ in found}
     pending = [target for _, scan in found for target in scan.targets]
     while pending:
         if (target := pending.pop()) in seen:
