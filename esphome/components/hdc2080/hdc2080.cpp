@@ -22,10 +22,8 @@ static constexpr uint8_t MEAS_CONF_HUM = 0x04;   // Bits 2:1 = 10: humidity only
 
 void HDC2080Component::setup() {
   const uint8_t data = 0x00;  // automatic measurement mode disabled, heater off
-  if (this->write_register(REG_RESET_DRDY_INT_CONF, &data, 1) != i2c::ERROR_OK) {
-    this->mark_failed(LOG_STR(ESP_LOG_MSG_COMM_FAIL));
+  if (!this->setup_check(this->write_register(REG_RESET_DRDY_INT_CONF, &data, 1) == i2c::ERROR_OK))
     return;
-  }
 }
 
 void HDC2080Component::dump_config() {
@@ -52,14 +50,8 @@ void HDC2080Component::update() {
     uint8_t raw_data[4];
     if (!this->status_comm_result(this->read_register(REG_TEMPERATURE_LOW, raw_data, 4) == i2c::ERROR_OK))
       return;
-    if (this->temperature_sensor_ != nullptr) {
-      float temp = encode_value_le<uint16_t>(raw_data) * (165.0f / 65536.0f) - 40.5f;
-      this->temperature_sensor_->publish_state(temp);
-    }
-    if (this->humidity_sensor_ != nullptr) {
-      float humidity = encode_value_le<uint16_t>(&raw_data[2]) * (100.0f / 65536.0f);
-      this->humidity_sensor_->publish_state(humidity);
-    }
+    PUBLISH_STATE(this->temperature_sensor_, encode_value_le<uint16_t>(raw_data) * (165.0f / 65536.0f) - 40.5f);
+    PUBLISH_STATE(this->humidity_sensor_, encode_value_le<uint16_t>(&raw_data[2]) * (100.0f / 65536.0f));
   });
 }
 
