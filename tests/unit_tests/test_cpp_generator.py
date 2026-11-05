@@ -1010,6 +1010,8 @@ def test_late_pvariable_is_created_where_declared() -> None:
     main = CORE.cpp_main_section
     assert main.index("new(late) Final<int32_t>(5);") < main.index("after();")
     assert cg.is_static_pointer(late.var)
+
+
 def test_static_function_accepts_statements() -> None:
     call = cg.MockObj("foo")(cg.MockObj("x") >> 2)
     cg.static_function(
