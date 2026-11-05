@@ -37,9 +37,7 @@ void DaikinClimate::transmit_state() {
   this->set_presets_(remote_state);
   remote_state[21] = this->operation_mode_();
   remote_state[22] = this->temperature_();
-  uint16_t fan_speed = this->fan_speed_();
-  remote_state[24] = fan_speed >> 8;
-  remote_state[25] = fan_speed & 0xff;
+  put_be16(remote_state + 24, this->fan_speed_());
 
   remote_state[7] = sum_bytes(remote_state, 7);
   remote_state[34] = sum_bytes(remote_state + 16, 18);
