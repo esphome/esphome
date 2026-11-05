@@ -5,13 +5,12 @@
 #include "esphome/components/spi/spi.h"
 #include "esphome/core/automation.h"
 #include "cc1101defs.h"
-#include <functional>
 #include <vector>
 
 namespace esphome::cc1101 {
 
 enum class CC1101Error { NONE = 0, TIMEOUT, PARAMS, CRC_ERROR, FIFO_OVERFLOW, PLL_LOCK };
-using packet_length_func_t = std::function<int32_t(const std::vector<uint8_t> &)>;
+using packet_length_func_t = int32_t (*)(const std::vector<uint8_t> &);
 
 class CC1101Listener {
  public:
@@ -122,15 +121,17 @@ class CC1101Component final : public Component,
   void handle_long_packet_(uint8_t rx_bytes);
   void finish_long_packet_();
   void maybe_switch_long_packet_to_fixed_();
+  void set_long_packet_pktlen_(uint16_t length);
   uint32_t compute_packet_idle_timeout_ms_() const;
   Trigger<std::vector<uint8_t>, float, float, uint8_t> packet_trigger_;
   std::vector<uint8_t> packet_;
   std::vector<CC1101Listener *> listeners_;
-  packet_length_func_t packet_length_func_{};
+  packet_length_func_t packet_length_func_{nullptr};
   uint16_t packet_length_{0};
   uint16_t packet_expected_length_{0};
   uint32_t packet_last_byte_ms_{0};
   uint32_t packet_idle_timeout_ms_{0};
+  float long_packet_rssi_{0.0f};
   bool packet_mode_{false};
   bool packet_fixed_mode_armed_{false};
 

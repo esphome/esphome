@@ -16,6 +16,7 @@ namespace esphome::cc1101 {
 
 ESPHOME_LOG_TAG(TAG, "cc1101");
 static constexpr size_t TX_FIFO_SIZE = 64;
+static constexpr size_t RX_FIFO_SIZE = 64;
 
 // MDMCFG2 MOD_FORMAT values
 PROGMEM_STRING_TABLE(ModulationStrings, "2-FSK", "GFSK", "UNUSED", "ASK/OOK", "4-FSK", "UNUSED", "UNUSED", "MSK");
@@ -211,7 +212,7 @@ void CC1101Component::reset_long_packet_rx_() {
   } else if (this->packet_length_ > 255) {
     this->packet_expected_length_ = this->packet_length_;
     this->state_.LENGTH_CONFIG = static_cast<uint8_t>(LengthConfig::LENGTH_CONFIG_INFINITE);
-    this->state_.PKTLEN = static_cast<uint8_t>(this->packet_length_ % 256);
+    this->set_long_packet_pktlen_(this->packet_length_);
   } else {
     this->packet_expected_length_ = this->packet_length_;
     this->packet_fixed_mode_armed_ = true;
@@ -227,10 +228,19 @@ void CC1101Component::reset_long_packet_rx_() {
 
 void CC1101Component::restart_long_packet_rx_() {
   this->enter_idle_();
-  this->strobe_(Command::FRX);
-  this->reset_long_packet_rx_();
   this->enter_rx_();
   this->disable_loop();
+}
+
+void CC1101Component::set_long_packet_pktlen_(uint16_t length) {
+  // PKTLEN must not be 0 (datasheet section 15.2), so a multiple of 256 stays in infinite mode for the
+  // whole packet and ends on the MCU byte count alone
+  if (length % 256 == 0) {
+    this->state_.PKTLEN = 0xFF;
+    this->packet_fixed_mode_armed_ = true;
+  } else {
+    this->state_.PKTLEN = static_cast<uint8_t>(length % 256);
+  }
 }
 
 void CC1101Component::maybe_switch_long_packet_to_fixed_() {
@@ -257,22 +267,15 @@ void CC1101Component::maybe_switch_long_packet_to_fixed_() {
 void CC1101Component::finish_long_packet_() {
   this->packet_.resize(this->packet_expected_length_);
   this->read_(Register::FREQEST);
-  this->read_(Register::RSSI);
   this->read_(Register::LQI);
   float freq_offset = static_cast<int8_t>(this->state_.FREQEST) * (XTAL_FREQUENCY / (1 << 14));
-  float rssi = (this->state_.RSSI * RSSI_STEP) - RSSI_OFFSET;
   uint8_t lqi = this->state_.LQI & STATUS_LQI_MASK;
   // No CRC check: crc_enable is rejected for long packets, the CRC bytes would arrive after the payload
-  this->call_listeners_(this->packet_, freq_offset, rssi, lqi);
+  this->call_listeners_(this->packet_, freq_offset, this->long_packet_rssi_, lqi);
   this->restart_long_packet_rx_();
 }
 
 void CC1101Component::handle_long_packet_(uint8_t rx_bytes) {
-  if (this->packet_expected_length_ > 0 && this->packet_.size() >= this->packet_expected_length_) {
-    this->finish_long_packet_();
-    return;
-  }
-
   uint16_t to_read = rx_bytes;
   if (this->packet_expected_length_ > 0) {
     const uint16_t remaining = this->packet_expected_length_ - this->packet_.size();
@@ -297,11 +300,10 @@ void CC1101Component::handle_long_packet_(uint8_t rx_bytes) {
   }
 
   const size_t old_size = this->packet_.size();
-  // Reserve the known target length once, so growth below stays within already-reserved capacity
-  // instead of reallocating repeatedly. A no-op once capacity() already covers it (e.g. every call
-  // after the first for a fixed packet_length, or every call after a packet_length lambda resolves it).
-  if (this->packet_expected_length_ > 0 && this->packet_.capacity() < this->packet_expected_length_) {
-    this->packet_.reserve(this->packet_expected_length_);
+  if (old_size == 0) {
+    // The RSSI register follows the live signal; sample it while the packet is still on air
+    this->read_(Register::RSSI);
+    this->long_packet_rssi_ = (this->state_.RSSI * RSSI_STEP) - RSSI_OFFSET;
   }
   this->packet_.resize(old_size + to_read);
   this->read_(Register::FIFO, this->packet_.data() + old_size, to_read);
@@ -337,7 +339,7 @@ void CC1101Component::handle_long_packet_(uint8_t rx_bytes) {
     }
     if (length > 0) {
       this->packet_expected_length_ = static_cast<uint16_t>(length);
-      this->state_.PKTLEN = static_cast<uint8_t>(length <= 255 ? length : length % 256);
+      this->set_long_packet_pktlen_(this->packet_expected_length_);
       this->write_(Register::PKTLEN);
       ESP_LOGVV(TAG, "Resolved packet length: received=%u expected=%u pktlen=%u",
                 static_cast<uint16_t>(this->packet_.size()), this->packet_expected_length_, this->state_.PKTLEN);
@@ -354,6 +356,7 @@ void CC1101Component::handle_long_packet_(uint8_t rx_bytes) {
 void CC1101Component::loop() {
   if (this->state_.PKT_FORMAT != static_cast<uint8_t>(PacketFormat::PACKET_FORMAT_FIFO) || this->gdo0_pin_ == nullptr ||
       (!this->is_long_packet_mode_() && !this->gdo0_pin_->digital_read())) {
+    this->disable_loop();
     return;
   }
 
@@ -363,6 +366,16 @@ void CC1101Component::loop() {
 
   // Read state
   this->read_(Register::RXBYTES);
+  if (this->is_long_packet_mode_()) {
+    // While bytes arrive, RXBYTES can be misread; read it until two reads agree (datasheet section 20)
+    for (uint8_t retries = RXBYTES_STABLE_RETRIES; retries > 0; retries--) {
+      const uint8_t previous = this->state_.NUM_RXBYTES;
+      this->read_(Register::RXBYTES);
+      if (this->state_.NUM_RXBYTES == previous) {
+        break;
+      }
+    }
+  }
   uint8_t rx_bytes = this->state_.NUM_RXBYTES;
   bool overflow = this->state_.RXFIFO_OVERFLOW;
   if (this->is_long_packet_mode_()) {
@@ -499,9 +512,6 @@ void CC1101Component::begin_rx() {
   }
   // Transition through IDLE to ensure FS_AUTOCAL calibration occurs
   this->enter_idle_();
-  if (this->is_long_packet_mode_()) {
-    this->reset_long_packet_rx_();
-  }
   if (!this->enter_rx_()) {
     ESP_LOGW(TAG, "Failed to enter RX state!");
   }
@@ -516,7 +526,9 @@ void CC1101Component::set_idle() {
   ESP_LOGV(TAG, "Setting IDLE state");
   this->enter_idle_();
   if (this->is_long_packet_mode_()) {
+    this->strobe_(Command::FRX);
     this->reset_long_packet_rx_();
+    this->disable_loop();
   }
 }
 
@@ -556,7 +568,14 @@ void CC1101Component::enter_idle_() {
   this->wait_for_state_(State::IDLE);
 }
 
-bool CC1101Component::enter_rx_() { return this->enter_calibrated_(State::RX, Command::RX); }
+bool CC1101Component::enter_rx_() {
+  if (this->is_long_packet_mode_()) {
+    // Every RX entry starts a fresh long packet; callers leave the chip in IDLE, where SFRX is allowed
+    this->strobe_(Command::FRX);
+    this->reset_long_packet_rx_();
+  }
+  return this->enter_calibrated_(State::RX, Command::RX);
+}
 
 bool CC1101Component::enter_tx_() { return this->enter_calibrated_(State::TX, Command::TX); }
 
@@ -999,6 +1018,9 @@ void CC1101Component::configure_packet_mode_() {
       // Threshold-only signal reasserts after each partial FIFO drain during long packets.
       this->state_.GDO0_CFG = 0x00;
       this->state_.FIFO_THR = 7;
+      // Reserve once, so receiving never allocates. Before a lambda resolves the length, up to one FIFO
+      // drain past MAX_PACKET_LENGTH can be read before the size check discards the packet.
+      this->packet_.reserve(this->packet_length_func_ ? MAX_PACKET_LENGTH + RX_FIFO_SIZE : this->packet_length_);
       this->reset_long_packet_rx_();
     } else {
       this->state_.GDO0_CFG = 0x01;
@@ -1041,7 +1063,7 @@ void CC1101Component::set_packet_length(uint16_t value) {
 }
 
 void CC1101Component::set_packet_length_lambda(packet_length_func_t func) {
-  this->packet_length_func_ = std::move(func);
+  this->packet_length_func_ = func;
   this->configure_packet_mode_();
 }
 

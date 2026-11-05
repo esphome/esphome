@@ -13,6 +13,7 @@ from esphome.const import (
     CONF_VALUE,
     CONF_WAIT_TIME,
 )
+from esphome.types import ConfigType
 
 CODEOWNERS = ["@lygris", "@gabest11"]
 DEPENDENCIES = ["spi"]
@@ -246,7 +247,7 @@ CONFIG_MAP = {
 }
 
 
-def _validate_packet_mode(config):
+def _validate_packet_mode(config: ConfigType) -> ConfigType:
     packet_length_is_lambda = cg.is_template(config.get(CONF_PACKET_LENGTH))
     if config.get(CONF_PACKET_MODE, False):
         if CONF_GDO0_PIN not in config:
