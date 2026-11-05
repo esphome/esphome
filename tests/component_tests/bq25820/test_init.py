@@ -28,6 +28,7 @@ from esphome.components.const import (
     CONF_B_CONSTANT,
     CONF_CHARGE_CURRENT,
     CONF_INPUT_CURRENT_LIMIT,
+    CONF_PRECHARGE_CURRENT,
 )
 import esphome.config_validation as cv
 from esphome.const import (
@@ -51,6 +52,27 @@ def test_charge_current_below_range_is_rejected() -> None:
     config = {CONF_BAT_SNS_RES: 5.0, CONF_AC_SNS_RES: 2.0, CONF_CHARGE_CURRENT: 0.1}
     with pytest.raises(cv.Invalid, match="0.4-20 A with a 5 mΩ bat_sns_res"):
         _validate_current_limits(config)
+
+
+@pytest.mark.parametrize(
+    ("key", "current", "valid"),
+    [
+        (CONF_CHARGE_CURRENT, 0.39, False),  # rounds to the 0.4 A code
+        (CONF_CHARGE_CURRENT, 0.4, True),
+        (CONF_CHARGE_CURRENT, 20.0, True),
+        (CONF_CHARGE_CURRENT, 20.01, False),
+        (CONF_PRECHARGE_CURRENT, 0.24, False),  # rounds to the 0.25 A code
+        (CONF_PRECHARGE_CURRENT, 0.25, True),
+        (CONF_PRECHARGE_CURRENT, 10.0, True),
+    ],
+)
+def test_current_near_the_range_ends(key: str, current: float, valid: bool) -> None:
+    config = {CONF_BAT_SNS_RES: 5.0, CONF_AC_SNS_RES: 2.0, key: current}
+    if valid:
+        assert _validate_current_limits(config) is config
+    else:
+        with pytest.raises(cv.Invalid):
+            _validate_current_limits(config)
 
 
 def test_input_current_range_follows_shunt() -> None:

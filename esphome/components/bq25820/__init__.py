@@ -139,7 +139,9 @@ def _validate_current_limits(config: ConfigType) -> ConfigType:
         if (current := config.get(key)) is None:
             continue
         milliohms = config[shunt_key]
-        if not low <= _current_code(current, milliohms) <= high:
+        # The unrounded code, so a current just outside the range is not rounded into it
+        code = current * milliohms / CURRENT_LIMIT_STEP_MV
+        if not low - 1e-9 <= code <= high + 1e-9:
             step = CURRENT_LIMIT_STEP_MV / milliohms
             raise cv.Invalid(
                 f"Must be {low * step:g}-{high * step:g} A with a "
