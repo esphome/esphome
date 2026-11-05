@@ -392,7 +392,6 @@ void USBUartTypeCdcAcm::on_connected() {
     channel->cdc_dev_ = cdc_devs[i++];
     fix_mps(channel->cdc_dev_.in_ep);
     fix_mps(channel->cdc_dev_.out_ep);
-    channel->initialised_.store(true);
     // Claim the communication (interrupt) interface so CDC class requests are accepted
     // by the device. Some CDC ACM implementations (e.g. EFR32 NCP) require this before
     // they enable data flow on the bulk endpoints.
@@ -424,11 +423,13 @@ void USBUartTypeCdcAcm::on_connected() {
     }
   }
   this->status_clear_error();
-  this->enable_channels();
+  this->read_interface_descriptions_();
 }
 
 void USBUartTypeCdcAcm::on_disconnected() {
+  this->string_channel_ = 0;
   for (auto *channel : this->channels_) {
+    channel->interface_description_[0] = '\0';
     // Not set up for this device: it was rejected before on_connected() ran, or it has
     // fewer ports than there are channels. Nothing was claimed for it.
     if (channel->cdc_dev_.in_ep == nullptr)
@@ -518,6 +519,31 @@ void USBUartTypeCdcAcm::modem_control_transfer(USBUartChannelBase *channel) {
   ESP_LOGD(TAG, "SET_CONTROL_LINE_STATE: DTR=%s RTS=%s", ONOFF(channel->dtr_), ONOFF(channel->rts_));
   this->config_transfer_(CDC_REQUEST_TYPE, CDC_SET_CONTROL_LINE_STATE, value,
                          channel->cdc_dev_.interrupt_interface_number);
+}
+
+void USBUartComponent::read_interface_descriptions_() {
+  while (this->string_channel_ < this->channels_.size()) {
+    auto *channel = this->channels_[this->string_channel_];
+    if (channel->cdc_dev_.in_ep != nullptr && this->read_interface_string_(channel->get_interface_number()))
+      return;
+    this->string_channel_++;
+  }
+  this->string_channel_ = 0;
+  // Mark the channels initialised after the string reads, not in on_connected(): a settings or
+  // modem transfer started during the reads would be cut off by the init config
+  for (auto *channel : this->channels_) {
+    if (channel->cdc_dev_.in_ep != nullptr)
+      channel->initialised_.store(true);
+  }
+  this->enable_channels();
+}
+
+void USBUartComponent::on_interface_string(uint8_t interface_number, const usb_str_desc_t *desc) {
+  auto *channel = this->channels_[this->string_channel_++];
+  if (!usb_host::copy_descriptor_string(desc, channel->interface_description_)) {
+    ESP_LOGW(TAG, "Interface %u string descriptor is not ASCII", interface_number);
+  }
+  this->read_interface_descriptions_();
 }
 
 void USBUartComponent::enable_channels() {

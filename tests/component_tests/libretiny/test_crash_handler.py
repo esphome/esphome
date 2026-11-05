@@ -33,6 +33,8 @@ def test_crash_handler_family_gate(
     defines = {define.name for define in CORE.defines}
     assert ("USE_LIBRETINY_CRASH_HANDLER" in defines) is enabled
     assert ("USE_CRASH_HANDLER" in defines) is enabled
+    # __wrap_abort is only built with the crash handler; a leaked flag fails the link
+    assert ("-Wl,--wrap=abort" in CORE.build_flags) is enabled
     for trap in BK_TRAP_HANDLERS:
         assert (f"-Wl,--wrap={trap}" in CORE.build_flags) is bk_hooks
     assert (
