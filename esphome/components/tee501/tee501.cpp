@@ -11,14 +11,11 @@ static constexpr size_t TEE501_SERIAL_NUMBER_SIZE = 7;
 void TEE501Component::setup() {
   uint8_t address[] = {0x70, 0x29};
   uint8_t identification[9];
-  if (this->write_read(address, sizeof address, identification, sizeof identification) != i2c::ERROR_OK) {
-    this->mark_failed(LOG_STR(ESP_LOG_MSG_COMM_FAIL));
+  if (!this->setup_check(this->write_read(address, sizeof address, identification, sizeof identification) ==
+                         i2c::ERROR_OK))
     return;
-  }
-  if (identification[8] != crc8(identification, 8, 0xFF, 0x31, true)) {
-    this->mark_failed(LOG_STR("CRC check failed"));
+  if (!this->setup_check(identification[8] == crc8(identification, 8, 0xFF, 0x31, true), LOG_STR("CRC check failed")))
     return;
-  }
 #if ESPHOME_LOG_LEVEL >= ESPHOME_LOG_LEVEL_VERBOSE
   char serial_hex[format_hex_size(TEE501_SERIAL_NUMBER_SIZE)];
 #endif
