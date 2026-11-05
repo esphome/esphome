@@ -132,6 +132,14 @@ MAX_PACKET_SIZE = 255
 validate_packet_data = cv.All(validate_raw_data, cv.Length(min=1, max=MAX_PACKET_SIZE))
 
 
+def is_long_packet(config: ConfigType) -> bool:
+    """Whether config uses long packet RX (FSK/OOK packet mode, payload_length > 64 or a lambda)."""
+    if config[CONF_MODULATION] == "LORA" or not config.get(CONF_PACKET_MODE):
+        return False
+    payload_length = config[CONF_PAYLOAD_LENGTH]
+    return cg.is_template(payload_length) or payload_length > 64
+
+
 def validate_config(config: ConfigType) -> ConfigType:
     payload_length_is_lambda = cg.is_template(config[CONF_PAYLOAD_LENGTH])
     if config[CONF_MODULATION] == "LORA":
@@ -180,14 +188,18 @@ def validate_config(config: ConfigType) -> ConfigType:
             )
         if payload_length_is_lambda and not config[CONF_PACKET_MODE]:
             raise cv.Invalid("packet_mode is required when payload_length is a lambda")
-        is_long_packet = payload_length_is_lambda or (config[CONF_PAYLOAD_LENGTH] > 64)
-        if is_long_packet and CONF_DIO1_PIN not in config:
+        long_packet = is_long_packet(config)
+        if long_packet and CONF_DIO1_PIN not in config:
             raise cv.Invalid(
                 "dio1_pin is required when payload_length > 64 or is a lambda"
             )
-        if is_long_packet and config[CONF_CRC_ENABLE]:
+        if long_packet and config[CONF_CRC_ENABLE]:
             raise cv.Invalid(
                 "crc_enable is not available with payload_length > 64 or a lambda"
+            )
+        if not long_packet and CONF_DIO1_PIN in config:
+            raise cv.Invalid(
+                "dio1_pin is only used with payload_length > 64 or a lambda"
             )
     if config[CONF_PA_PIN] == "RFO" and config[CONF_PA_POWER] > 15:
         raise cv.Invalid("PA power must be <= 15 dbm when using the RFO pin")

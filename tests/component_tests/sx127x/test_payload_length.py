@@ -4,7 +4,7 @@ from typing import Any
 
 import pytest
 
-from esphome.components.sx127x import validate_config
+from esphome.components.sx127x import is_long_packet, validate_config
 import esphome.config_validation as cv
 from esphome.core import Lambda
 
@@ -79,9 +79,32 @@ def test_payload_length_valid(overrides: dict[str, Any]) -> None:
             {"modulation": "LORA", "dio1_pin": 27},
             "dio1_pin is not available with LORA",
         ),
+        (
+            {"payload_length": 64, "dio1_pin": 27},
+            "dio1_pin is only used with",
+        ),
+        (
+            {"packet_mode": False, "dio1_pin": 27},
+            "dio1_pin is only used with",
+        ),
     ],
 )
 def test_payload_length_invalid(overrides: dict[str, Any], message: str) -> None:
     """Invalid payload_length combinations are rejected with a clear message."""
     with pytest.raises(cv.Invalid, match=message):
         validate_config(_config(**overrides))
+
+
+@pytest.mark.parametrize(
+    ("overrides", "expected"),
+    [
+        ({"payload_length": 64}, False),
+        ({"payload_length": 65}, True),
+        ({"payload_length": LENGTH_LAMBDA}, True),
+        ({"packet_mode": False, "payload_length": 65}, False),
+        ({"modulation": "LORA", "payload_length": 200}, False),
+    ],
+)
+def test_is_long_packet(overrides: dict[str, Any], expected: bool) -> None:
+    """Long packet RX applies to FSK/OOK packet mode above 64 bytes or with a lambda."""
+    assert is_long_packet(_config(**overrides)) is expected

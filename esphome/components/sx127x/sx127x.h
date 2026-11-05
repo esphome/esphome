@@ -5,7 +5,6 @@
 #include "esphome/core/automation.h"
 #include "esphome/core/component.h"
 #include "esphome/core/hal.h"
-#include <functional>
 #include <vector>
 
 namespace esphome::sx127x {
@@ -38,7 +37,7 @@ enum SX127xBw : uint8_t {
 };
 
 enum class SX127xError { NONE = 0, TIMEOUT, INVALID_PARAMS, SX127X_ERROR_NOT_READY };
-using payload_length_func_t = std::function<int32_t(const std::vector<uint8_t> &)>;
+using payload_length_func_t = int32_t (*)(const std::vector<uint8_t> &);
 
 class SX127xListener {
  public:
@@ -74,7 +73,7 @@ class SX127x final : public Component,
   void set_pa_ramp(uint8_t ramp) { this->pa_ramp_ = ramp; }
   void set_packet_mode(bool packet_mode) { this->packet_mode_ = packet_mode; }
   void set_payload_length(uint32_t payload_length) { this->payload_length_ = payload_length; }
-  void set_payload_length_lambda(payload_length_func_t func) { this->payload_length_func_ = std::move(func); }
+  void set_payload_length_lambda(payload_length_func_t func) { this->payload_length_func_ = func; }
   void set_preamble_errors(uint8_t preamble_errors) { this->preamble_errors_ = preamble_errors; }
   void set_preamble_polarity(uint8_t preamble_polarity) { this->preamble_polarity_ = preamble_polarity; }
   void set_preamble_size(uint16_t preamble_size) { this->preamble_size_ = preamble_size; }
@@ -117,7 +116,7 @@ class SX127x final : public Component,
   std::vector<SX127xListener *> listeners_;
   std::vector<uint8_t> packet_;
   std::vector<uint8_t> sync_value_;
-  payload_length_func_t payload_length_func_{};
+  payload_length_func_t payload_length_func_{nullptr};
   InternalGPIOPin *dio0_pin_{nullptr};
   InternalGPIOPin *dio1_pin_{nullptr};
   InternalGPIOPin *rst_pin_{nullptr};

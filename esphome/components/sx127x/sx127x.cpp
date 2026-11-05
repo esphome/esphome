@@ -74,7 +74,7 @@ void SX127x::setup() {
   }
 
   // setup dio1 (long-packet RX only, mapped to FifoEmpty falling edge)
-  if (this->dio1_pin_) {
+  if (this->dio1_pin_ && this->is_long_packet_mode_()) {
     this->dio1_pin_->setup();
     this->dio1_pin_->attach_interrupt(&SX127x::gpio_intr, this, gpio::INTERRUPT_FALLING_EDGE);
   }
@@ -140,6 +140,10 @@ void SX127x::configure() {
   }
 
   if (this->is_long_packet_mode_()) {
+    // Reserve once, so receiving never allocates. Before a lambda resolves the length, one burst past
+    // MAX_PACKET_LENGTH can be read before the size check discards the packet.
+    this->packet_.reserve(this->payload_length_func_ ? MAX_PACKET_LENGTH + FIFO_THRESHOLD_HALF + 1
+                                                     : this->payload_length_);
     this->reset_long_packet_rx_();
   }
 
@@ -375,10 +379,8 @@ void SX127x::reset_long_packet_rx_() {
 }
 
 void SX127x::restart_long_packet_rx_() {
+  // set_mode_() clears the FIFO and the long packet state on each mode change
   this->set_mode_standby();
-  // Writing the FifoOverrun bit clears both the flag and the FIFO itself.
-  this->write_register_(REG_IRQ_FLAGS2, FIFO_OVERRUN);
-  this->reset_long_packet_rx_();
   this->set_mode_rx();
 }
 
@@ -407,11 +409,11 @@ void SX127x::handle_long_packet_(uint8_t irq2) {
 
     // FifoLevel guarantees strictly more than FIFO_THRESHOLD_HALF bytes are present, otherwise at
     // least 1 byte (the tail end) is available.
-    const size_t to_read = (irq2 & FIFO_LEVEL) ? FIFO_THRESHOLD_HALF + 1 : 1;
-
-    if (this->packet_expected_length_ > 0 && this->packet_.capacity() < this->packet_expected_length_) {
-      this->packet_.reserve(this->packet_expected_length_);
+    size_t to_read = (irq2 & FIFO_LEVEL) ? FIFO_THRESHOLD_HALF + 1 : 1;
+    if (this->packet_expected_length_ > 0) {
+      to_read = std::min(to_read, this->packet_expected_length_ - this->packet_.size());
     }
+
     const size_t old_size = this->packet_.size();
     this->packet_.resize(old_size + to_read);
     this->read_fifo_(this->packet_.data() + old_size, to_read);
@@ -469,6 +471,7 @@ void SX127x::handle_long_packet_(uint8_t irq2) {
 void SX127x::loop() {
   if (this->is_long_packet_mode_()) {
     if (this->dio1_pin_ == nullptr) {
+      this->disable_loop();
       return;
     }
     uint8_t irq2 = this->read_register_(REG_IRQ_FLAGS2);
@@ -515,9 +518,10 @@ void SX127x::loop() {
     if (payload_length == 0) {
       payload_length = this->read_register_(REG_FIFO);
     }
+    // Read RSSI before emptying the FIFO, which restarts the receiver (AutoRestartRxMode)
+    float rssi = -(float) this->read_register_(REG_RSSI_VALUE_FSK) / 2.0f;
     this->packet_.resize(payload_length);
     this->read_fifo_(this->packet_);
-    float rssi = -(float) this->read_register_(REG_RSSI_VALUE_FSK) / 2.0f;
     this->call_listeners_(this->packet_, rssi, 0.0f);
   }
 }
@@ -560,6 +564,11 @@ void SX127x::set_mode_(uint8_t modulation, uint8_t mode) {
       this->mark_failed(LOG_STR("Set mode failure"));
       return;
     }
+  }
+  if (this->is_long_packet_mode_()) {
+    // Drop a partial packet on any mode change; leaving Rx does not clear the FIFO, writing FifoOverrun does
+    this->write_register_(REG_IRQ_FLAGS2, FIFO_OVERRUN);
+    this->reset_long_packet_rx_();
   }
 }
 
