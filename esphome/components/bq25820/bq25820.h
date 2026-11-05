@@ -23,6 +23,8 @@ namespace esphome::bq25820 {
 
 static constexpr size_t BQ25820_LIMIT_COUNT = 5;
 static constexpr size_t BQ25820_CONTROL_COUNT = 7;
+// TS_ADC this close to REGN means no NTC is connected
+static constexpr uint16_t NTC_OPEN_CODE = 1020;
 
 // Register values built by code generation into a PROGMEM table, in the order of the register tables in bq25820.cpp
 struct BQ25820Config {
@@ -94,11 +96,12 @@ class BQ25820Component final : public PollingComponent, public i2c::I2CDevice {
   bool write_config_registers_();
 #ifdef USE_BQ25820_SENSOR
   void publish_adc_(const BQ25820AdcRegisters &adc);
-  /// Temperature from TS_ADC, the TS pin voltage as a 10-bit share of REGN; NAN when the reading is 0
+  /// Temperature from TS_ADC, the TS pin voltage as a 10-bit share of REGN; NAN for a shorted or open NTC
   float ntc_temperature_(int16_t ts_adc) const {
-    const float ratio = (ts_adc & 0x3FF) / 1024.0f;
-    if (ratio <= 0.0f)
+    const uint16_t code = ts_adc & 0x3FF;
+    if (code == 0 || code >= NTC_OPEN_CODE)
       return NAN;
+    const float ratio = code / 1024.0f;
     return 1.0f / (this->ntc_a_ + this->ntc_b_ * logf(ratio / (1.0f - ratio))) - 273.15f;
   }
 

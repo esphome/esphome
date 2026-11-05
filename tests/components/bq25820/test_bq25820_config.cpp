@@ -144,6 +144,14 @@ TEST(BQ25820Temperature, FollowsTheBParameterCalibration) {
   bus.registers[0x38] = 0x02;
   hub.update();
   EXPECT_NEAR(temperature.state, 30.0f, 0.01f);
+  // A shorted or an open NTC is unknown, not a temperature
+  for (uint16_t raw : {0, 1020, 1023}) {
+    SCOPED_TRACE(raw);
+    bus.registers[0x37] = raw & 0xFF;
+    bus.registers[0x38] = raw >> 8;
+    hub.update();
+    EXPECT_TRUE(std::isnan(temperature.state));
+  }
 }
 
 static int status_publishes = 0;  // NOLINT(cppcoreguidelines-avoid-non-const-global-variables)
