@@ -63,7 +63,7 @@ class SM2135 final : public Component {
   SM2135Current rgb_current_;
   SM2135Current cw_current_;
   bool separate_modes_;
-  uint8_t update_channel_;
+  uint8_t update_channel_{0};
   std::vector<uint8_t> pwm_amounts_;
   bool update_{true};
 };

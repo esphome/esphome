@@ -54,6 +54,7 @@ from esphome.cpp_generator import (  # noqa: F401
     with_local_variable,
 )
 from esphome.cpp_helpers import (  # noqa: F401
+    HubFunction,
     add_optional,
     add_pin,
     add_variable,

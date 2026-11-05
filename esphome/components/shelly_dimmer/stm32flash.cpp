@@ -452,26 +452,9 @@ template<typename T> stm32_err_t stm32_check_ack_timeout(const stm32_err_t s_err
   }
 }
 
-/* detect CPU endian */
-bool cpu_le() {
-  static constexpr int N = 1;
-
-  // returns true if little endian
-  return *reinterpret_cast<const char *>(&N) == 1;
-}
-
-uint32_t le_u32(const uint32_t v) {
-  if (!cpu_le())
-    return ((v & 0xFF000000) >> 24) | ((v & 0x00FF0000) >> 8) | ((v & 0x0000FF00) << 8) | ((v & 0x000000FF) << 24);
-  return v;
-}
-
 template<size_t N> void populate_buffer_with_address(uint8_t (&buffer)[N], uint32_t address) {
-  buffer[0] = static_cast<uint8_t>(address >> 24);
-  buffer[1] = static_cast<uint8_t>((address >> 16) & 0xFF);
-  buffer[2] = static_cast<uint8_t>((address >> 8) & 0xFF);
-  buffer[3] = static_cast<uint8_t>(address & 0xFF);
-  buffer[4] = static_cast<uint8_t>(buffer[0] ^ buffer[1] ^ buffer[2] ^ buffer[3]);
+  put_be32(buffer, address);
+  buffer[4] = xor_bytes(buffer, 4);
 }
 
 template<typename T> stm32_unique_ptr make_stm32_with_deletor(T ptr) {
@@ -842,8 +825,6 @@ static stm32_err_t stm32_run_raw_code(const stm32_unique_ptr &stm, uint32_t targ
                                       uint32_t code_size) {
   static constexpr uint32_t BUFFER_SIZE = 256;
 
-  const auto stack_le = le_u32(0x20002000);
-  const auto code_address_le = le_u32(target_address + 8 + 1);  // thumb mode address (!)
   uint32_t length = code_size + 8;
 
   /* Must be 32-bit aligned */
@@ -864,8 +845,8 @@ static stm32_err_t stm32_run_raw_code(const stm32_unique_ptr &stm, uint32_t targ
   if (!mem)
     return STM32_ERR_UNKNOWN;
 
-  memcpy(mem.get(), &stack_le, sizeof(stack_le));
-  memcpy(mem.get() + 4, &code_address_le, sizeof(code_address_le));
+  put_le32(mem.get(), 0x20002000);
+  put_le32(mem.get() + 4, target_address + 8 + 1);  // thumb mode address (!)
   memcpy(mem.get() + 8, code, code_size);
 
   auto *pos = mem.get();
@@ -968,7 +949,7 @@ stm32_err_t stm32_crc_memory(const stm32_unique_ptr &stm, const uint32_t address
     if (!stream->read_array(buf, BUFFER_SIZE))
       return STM32_ERR_UNKNOWN;
 
-    if (buf[4] != (buf[0] ^ buf[1] ^ buf[2] ^ buf[3]))
+    if (buf[4] != xor_bytes(buf, 4))
       return STM32_ERR_UNKNOWN;
 
     *crc = (buf[0] << 24) | (buf[1] << 16) | (buf[2] << 8) | buf[3];
