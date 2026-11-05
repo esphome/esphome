@@ -92,7 +92,7 @@ class _Scan:
     secrets: list[tuple[str, int]] = field(default_factory=list)  # name, line
     targets: set[Path] = field(default_factory=set)  # local yaml files it names
     include_dir: str | None = None
-    substituted: str | None = None  # an include path holding a substitution
+    unresolved: str | None = None  # an include path only known when loaded
 
     def uses(self, name: str) -> bool:
         return any(secret == name for secret, _ in self.secrets)
@@ -125,7 +125,12 @@ def _scan(path: Path) -> _Scan:
         found = scans[path] = _Scan()
         return found
     try:
-        tokens = list(yaml.scan(text, Loader=yaml.SafeLoader))
+        # An anchor may sit between a tag and its value
+        tokens = [
+            t
+            for t in yaml.scan(text, Loader=yaml.SafeLoader)
+            if not isinstance(t, yaml.AnchorToken)
+        ]
     except yaml.YAMLError as err:
         raise EsphomeError(
             f"Could not scan {path}: {getattr(err, 'problem', err)}"
@@ -148,6 +153,18 @@ def _scan(path: Path) -> _Scan:
             keys.pop(depth, None)
             depth -= 1
             continue
+        # An include map's `file:` value, possibly behind a tag
+        file_value = (
+            depth in include_maps
+            and keys.get(depth) == "file"
+            and (
+                isinstance(prev, yaml.ValueToken)
+                or (isinstance(prev2, yaml.ValueToken) and tag)
+            )
+        )
+        if isinstance(token, yaml.AliasToken) and (tag == "include" or file_value):
+            found.unresolved = found.unresolved or f"*{token.value}"
+            continue
         if not isinstance(token, yaml.ScalarToken):
             continue
         value = token.value
@@ -155,18 +172,15 @@ def _scan(path: Path) -> _Scan:
             keys[depth] = value
             continue
         # Only an include loads a local file; a remote package's file is not one
-        included = tag == "include" or (
-            depth in include_maps
-            and isinstance(prev, yaml.ValueToken)
-            and isinstance(prev2, yaml.ScalarToken)
-            and keys.get(depth) == "file"
-        )
+        included = tag == "include" or (file_value and not tag)
+        if file_value and tag:  # !env_var, !secret, ...: only known when loaded
+            found.unresolved = found.unresolved or f"!{tag} {value}"
         if tag == "secret":
             found.secrets.append((value, prev.start_mark.line))
         elif tag.startswith("include_dir_") and found.include_dir is None:
             found.include_dir = value
-        elif included and "$" in value:
-            found.substituted = found.substituted or value
+        elif included and ("$" in value or "<%" in value):
+            found.unresolved = found.unresolved or value
         elif included:
             found.targets.add((path.parent / value).resolve())
     return found
@@ -304,6 +318,12 @@ def _refuse_shared(edits: list[KeyEdit]) -> None:
         if found:
             what[f"secret '{edit.secret}'" if edit.secret else edit.path.name] = None
             users.update(found)
+    # A device that includes the main file loads everything this one does
+    if includers := [
+        shown(p) for p in with_includers(including({main})) if p.resolve() not in own
+    ]:
+        what[main.name] = None
+        users.update(includers)
     if what:
         raise EsphomeError(
             f"{', '.join(what)} {'is' if len(what) == 1 else 'are'} also used by "
@@ -315,9 +335,9 @@ def _refuse_shared(edits: list[KeyEdit]) -> None:
             continue
         if scan.include_dir is not None:
             unchecked.append(f"{path} includes the directory {scan.include_dir}")
-        if scan.substituted is not None:
+        if scan.unresolved is not None:
             unchecked.append(
-                f"{path} includes {scan.substituted} through a substitution"
+                f"{path} includes {scan.unresolved}, a path only known when loaded"
             )
     if unchecked:
         more = f" (and {len(unchecked) - 1} more)" if len(unchecked) > 1 else ""

@@ -1201,8 +1201,59 @@ def test_a_substituted_include_path_is_reported_as_unchecked(tmp_path: Path) -> 
     )
     _setup(tmp_path, SECRET_YAML, f"device_key: {OLD_KEY}\n")
     _refused(
-        r"other\.yaml includes \$\{common\} through a substitution \(and 1 more\);"
+        r"other\.yaml includes \$\{common\}, a path only known when loaded \(and 1 more\);"
     )
+
+
+@pytest.mark.parametrize(
+    ("include", "shown"),
+    [
+        ("!include <% path %>", "<% path %>"),
+        ("!include\n    file: !env_var PKG", "!env_var PKG"),
+        ("!include\n    file: !secret pkg_path", "!secret pkg_path"),
+        ("!include *pkg", "*pkg"),
+        ("!include\n    file: *pkg", "*pkg"),
+    ],
+)
+def test_an_include_path_known_only_when_loaded_is_unchecked(
+    tmp_path: Path, include: str, shown: str
+) -> None:
+    (tmp_path / "other.yaml").write_text(
+        f"x: &pkg test.yaml\npackages:\n  base: {include}\n", newline="\n"
+    )
+    _setup(tmp_path, SECRET_YAML, f"device_key: {OLD_KEY}\n")
+    _refused(
+        rf"other\.yaml includes {re.escape(shown)}, a path only known when loaded;"
+    )
+
+
+@pytest.mark.parametrize(
+    "value", ["!secret &saved device_key", "&saved !secret device_key"]
+)
+def test_an_anchored_secret_use_is_found(tmp_path: Path, value: str) -> None:
+    (tmp_path / "other.yaml").write_text(f"wifi:\n  password: {value}\n", newline="\n")
+    _setup(tmp_path, SECRET_YAML, f"device_key: {OLD_KEY}\n")
+    _refused(r"^secret 'device_key' is also used by other\.yaml;")
+
+
+def test_an_anchored_include_is_followed(tmp_path: Path) -> None:
+    (tmp_path / "other.yaml").write_bytes(b"packages:\n  base: !include &p test.yaml\n")
+    _setup(tmp_path, API_YAML)
+    _refused("^test.yaml is also used by other.yaml;")
+
+
+def test_a_device_including_the_main_file_shares_its_included_key(
+    tmp_path: Path,
+) -> None:
+    """The key comes through the main file's include_dir, which the scan does not
+    link; the other device loads the main file, so it loads that key too."""
+    (tmp_path / "ota").mkdir()
+    (tmp_path / "ota" / "esphome.yaml").write_bytes(
+        f'- platform: esphome\n  encryption:\n    key: "{OLD_KEY}"\n'.encode()
+    )
+    (tmp_path / "other.yaml").write_bytes(b"packages:\n  base: !include test.yaml\n")
+    _setup(tmp_path, "esphome:\n  name: test\n\nota: !include_dir_merge_list ota\n")
+    _refused(r"^test\.yaml is also used by other\.yaml;")
 
 
 def test_another_device_including_the_main_file_is_a_sharer(tmp_path: Path) -> None:
