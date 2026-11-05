@@ -32,14 +32,18 @@ static constexpr uint8_t SAMPLE_TIMER = BKTIMER1;
 static_assert(TIMER_TICKS_PER_US == CFG_XTAL_FREQUENCE / 1000000, "TIMER_TICKS_PER_US must match the crystal");
 static constexpr uint32_t TICK_COUNTER_WRAP = FCLK_DURATION_MS * 1000 * TIMER_TICKS_PER_US;
 
-// The latch takes a few cycles; give up after a bounded wait, like LibreTiny's getTicksCount()
-static constexpr uint32_t TICK_READ_SPINS = 1000;
+// The latch completes in a few cycles; this bound only guards against a controller that never
+// finishes the read. Give up and skip the sample rather than return a stale counter.
+static constexpr uint32_t TICK_READ_SPINS = 100;
 
-static inline uint32_t read_tick_counter() {
+static inline bool read_tick_counter(uint32_t *value) {
   REG_WRITE(TIMER0_2_READ_CTL, (BKTIMER0 << TIMER0_2_READ_INDEX_POSI) | TIMER0_2_READ_OP_BIT);
   for (uint32_t spins = 0; spins < TICK_READ_SPINS && (REG_READ(TIMER0_2_READ_CTL) & TIMER0_2_READ_OP_BIT); spins++) {
   }
-  return REG_READ(TIMER0_2_READ_VALUE);
+  if (REG_READ(TIMER0_2_READ_CTL) & TIMER0_2_READ_OP_BIT)
+    return false;
+  *value = REG_READ(TIMER0_2_READ_VALUE);
+  return true;
 }
 
 // The timer handler receives only the channel number, so it reaches the receiver through this pointer.
@@ -53,14 +57,25 @@ void RemoteReceiverComponent::sample_timer_isr(uint8_t channel) {
 bool RemoteReceiverComponentStore::timer_isr() {
   // digital_read() applies the pin's inverted: option, so a mark reads true, like the edge path
   const bool level = this->pin.digital_read();
+  uint32_t counter;
   if (!this->capture_active) {
     // idle samples skip the tick counter read; the edge that starts a capture re-syncs it
     if (level == this->last_level)
       return false;
-    this->last_counter = read_tick_counter();
+    if (!read_tick_counter(&counter)) {
+      this->count_tick_read_error();
+      // wake the loop so it reports the failure
+      return true;
+    }
+    this->last_counter = counter;
     return this->sample(level, 0);
   }
-  const uint32_t counter = read_tick_counter();
+  if (!read_tick_counter(&counter)) {
+    // leave last_counter and the level alone, so the next read spans the gap
+    this->count_tick_read_error();
+    // wake the loop so it reports the failure
+    return true;
+  }
   uint32_t elapsed = counter - this->last_counter;
   if (counter < this->last_counter)
     elapsed += TICK_COUNTER_WRAP;
@@ -96,20 +111,30 @@ void RemoteReceiverComponent::loop() {
   uint16_t count;
   bool overflow;
   bool busy;
+  uint16_t tick_errors;
   {
     InterruptLock lock;
     frame = s.ready;
     count = s.ready_count;
     overflow = s.overflow;
     busy = s.busy;
+    tick_errors = s.tick_read_errors;
     s.overflow = false;
     s.busy = false;
+    s.tick_read_errors = 0;
   }
   if (overflow) {
     ESP_LOGW(TAG, "Buffer overflow");
   }
   if (busy) {
     ESP_LOGW(TAG, "Frame dropped, previous frame still being processed");
+  }
+  if (tick_errors != 0) {
+    if (tick_errors == UINT16_MAX) {
+      ESP_LOGW(TAG, "Counter read timed out at least %u times; timings may be wrong", tick_errors);
+    } else {
+      ESP_LOGW(TAG, "Counter read timed out %u times; timings may be wrong", tick_errors);
+    }
   }
   if (frame == nullptr) {
     this->disable_loop();

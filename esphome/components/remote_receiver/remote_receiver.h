@@ -21,7 +21,7 @@ static constexpr uint32_t TIMER_TICKS_PER_US = 26;
 /// BK72xx timer sampling (remote_receiver_bk72xx.cpp): a timer interrupt samples the pin and records the
 /// runs of one frame into one half of buffer while the loop dispatches the frame in the other half.
 struct RemoteReceiverComponentStore {
-  /// Returns true when it published a frame or an overflow for the loop.
+  /// Returns true when it published a frame, an overflow, or a counter read error for the loop.
   bool timer_isr();
   /// Takes one sample: the logical pin level (true for a mark) and the ticks since the previous sample.
   /// Returns true like timer_isr().
@@ -29,6 +29,11 @@ struct RemoteReceiverComponentStore {
   bool end_frame(bool level);
   void finish_run(bool level, uint32_t ticks);
   void push_run();
+  /// Counts a failed counter read; saturating so a flood cannot wrap the count to zero
+  void count_tick_read_error() {
+    if (this->tick_read_errors != UINT16_MAX)
+      this->tick_read_errors = this->tick_read_errors + 1;
+  }
 
   int32_t *buffer{nullptr};
   int32_t *capture{nullptr};
@@ -44,6 +49,8 @@ struct RemoteReceiverComponentStore {
   uint16_t frame_entries{0};
   uint16_t count{0};
   volatile uint16_t ready_count{0};
+  /// Counter reads that timed out before the loop next ran; saturating, cleared by the loop
+  volatile uint16_t tick_read_errors{0};
   uint16_t sample_period_us{0};
   bool last_level{false};
   bool run_level{false};
