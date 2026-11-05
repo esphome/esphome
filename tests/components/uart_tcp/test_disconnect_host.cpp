@@ -53,7 +53,7 @@ class UartTcpDisconnect : public ::testing::Test {
     this->bridge_.set_port(ntohs(addr.sin_port));
     // A zero interval lets a dropped link retry on the next pass.
     this->bridge_.set_reconnect_interval(0);
-    this->bridge_.set_connected_sensor(&this->connected_);
+    this->bridge_.set_connected_binary_sensor(&this->connected_);
     this->bridge_.set_disconnects_sensor(&this->disconnects_);
     this->tick();
     this->bridge_.setup();

@@ -158,10 +158,33 @@ void SendspinHub::setup() {
   this->client_->add_player(this->player_config_).set_listener(this->player_listener_);
 #endif
 
+#ifdef USE_SENDSPIN_SOURCE
+  // Every source reports its signal (Sendspin/spec#335); sendspin-cpp 0.9.3 does only with line sense, so the signal
+  // is always applied below. Remove both once sendspin-cpp follows the spec change.
+  this->source_config_.line_sense = true;
+  this->source_role_ = &this->client_->add_source(this->source_config_);
+  this->source_role_->set_listener(this);
+  // THREAD CONTEXT: Microphone task, the role's single producer. A capture time of 0 (unknown) makes the library
+  // stamp the buffer as ending now.
+  this->microphone_source_->add_data_callback([this](const microphone::AudioCapture &capture) {
+    // A failed microphone read can publish an empty buffer, which the library rejects with a warning
+    if (!capture.data.empty()) {
+      this->source_role_->write_audio(capture.data.data(), capture.data.size(), capture.capture_time_us);
+    }
+  });
+  // A sensor that reports its state at boot can run the set_signal action before this setup()
+  this->set_source_signal(this->source_signal_);
+#endif
+
   // Set before setup() by codegen; an unpaired access switch sets it later, from its own setup().
   if (this->unpaired_access_.has_value()) {
     this->client_->set_unpaired_access_enabled(*this->unpaired_access_);
   }
+
+#ifdef USE_SENDSPIN_ENABLED_SWITCH
+  // loop() waits for this, so a restore mode without a state still has to answer.
+  this->enabled_switch_->restore(true);
+#endif
 }
 
 void SendspinHub::loop() {
@@ -211,6 +234,9 @@ void SendspinHub::dump_config() {
                 this->firmware_version_, YESNO(this->task_stack_in_psram_),
                 YESNO(this->client_ != nullptr && this->client_->is_unpaired_access_enabled()),
                 this->pairing_code_method_());
+#ifdef USE_SENDSPIN_ENABLED_SWITCH
+  LOG_SWITCH("  ", "Enabled switch", this->enabled_switch_);
+#endif
 
 #ifdef USE_SENDSPIN_ARTWORK
   // Slot indices come from the order the image platform entries were declared, so the log is the
@@ -222,6 +248,17 @@ void SendspinHub::dump_config() {
                   IMAGE_FORMAT_NAMES[static_cast<uint8_t>(preference.format)], preference.width, preference.height,
                   preference.display_offset_ms);
   }
+#endif
+
+#ifdef USE_SENDSPIN_SOURCE
+  ESP_LOGCONFIG(TAG,
+                "  Source:\n"
+                "    Sample rate: %" PRIu32 " Hz\n"
+                "    Channels: %u\n"
+                "    Bits per sample: %u\n"
+                "    Task stack in PSRAM: %s",
+                this->source_config_.sample_rate, this->source_config_.channels, this->source_config_.bit_depth,
+                YESNO(this->source_config_.psram_stack));
 #endif
 }
 
@@ -561,6 +598,29 @@ sendspin::PlayerRole *SendspinHub::get_player_role() {
     return this->client_->player();
   }
   return nullptr;
+}
+#endif
+
+#ifdef USE_SENDSPIN_SOURCE
+// THREAD CONTEXT: Main loop (invoked from the sendspin.source.set_signal action)
+void SendspinHub::set_source_signal(bool present) {
+  if (this->source_role_ == nullptr) {
+    this->source_signal_ = present;  // Applied in setup()
+    return;
+  }
+  this->source_role_->set_signal(present ? sendspin::SourceSignal::PRESENT : sendspin::SourceSignal::ABSENT);
+}
+
+// THREAD CONTEXT: Main loop (SourceRoleListener override, fired from client_->loop())
+void SendspinHub::on_streaming_started() {
+  this->microphone_source_->start();
+  this->source_streaming_started_callbacks_.call();
+}
+
+// THREAD CONTEXT: Main loop (SourceRoleListener override, fired from client_->loop())
+void SendspinHub::on_streaming_stopped() {
+  this->microphone_source_->stop();
+  this->source_streaming_stopped_callbacks_.call();
 }
 #endif
 
