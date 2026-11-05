@@ -1,0 +1,37 @@
+esphome:
+  name: test
+
+esp32:
+  board: esp32dev
+  framework:
+    type: esp-idf
+
+wifi:
+  ap:
+
+i2s_audio:
+  - id: i2s_bus
+    i2s_lrclk_pin: GPIO4
+    i2s_bclk_pin: GPIO5
+
+microphone:
+  - platform: i2s_audio
+    id: mic
+    i2s_din_pin: GPIO39
+    adc_type: external
+    sample_rate: 48000
+
+sendspin:
+  source:
+    microphone: mic
+
+switch:
+  - platform: template
+    name: Share Microphone
+    optimistic: true
+    turn_on_action:
+      - sendspin.source.set_signal:
+          present: true
+    turn_off_action:
+      - sendspin.source.set_signal:
+          present: false

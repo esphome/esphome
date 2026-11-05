@@ -34,3 +34,12 @@ switch:
       - stepper.set_deceleration:
           id: test_stepper
           deceleration: 250 steps/s^2
+      - stepper.report_position:
+          id: test_stepper
+          position: !lambda return 100;
+      - stepper.set_speed:
+          id: test_stepper
+          speed: !lambda return 200.0f;
+      - stepper.set_deceleration:
+          id: test_stepper
+          deceleration: !lambda return 180.0f;
