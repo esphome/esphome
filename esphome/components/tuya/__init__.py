@@ -18,7 +18,8 @@ CONF_FORCE_TIME_SYNC = "force_time_sync"
 
 tuya_ns = cg.esphome_ns.namespace("tuya")
 TuyaDatapointType = tuya_ns.enum("TuyaDatapointType", is_class=True)
-Tuya = tuya_ns.class_("Tuya", cg.Component, uart.UARTDevice)
+Tuya = tuya_ns.class_("Tuya", cg.Component)
+TuyaUART = tuya_ns.class_("TuyaUART", Tuya, uart.UARTDevice)
 
 TuyaDatapoint = tuya_ns.struct("TuyaDatapoint")
 
@@ -59,7 +60,7 @@ def _validate_time_options(config: ConfigType) -> ConfigType:
 CONFIG_SCHEMA = cv.All(
     cv.Schema(
         {
-            cv.GenerateID(): cv.declare_id(Tuya),
+            cv.GenerateID(): cv.declare_id(TuyaUART),
             cv.Optional(CONF_TIME_ID): cv.use_id(time.RealTimeClock),
             cv.Optional(CONF_FORCE_TIME_SYNC, default=False): cv.boolean,
             cv.Optional(CONF_IGNORE_MCU_UPDATE_ON_DATAPOINTS): cv.ensure_list(
