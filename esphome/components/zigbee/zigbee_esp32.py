@@ -90,6 +90,8 @@ from .zigbee_ep_esp32 import (
     BINARY_SENSOR_EP_CONFIGS,
     SENSOR_EP_CONFIGS,
     SWITCH_EP_CONFIGS,
+    WINDOW_COVERING_EP,
+    WINDOW_COVERING_TYPES,
     add_clusters_to_first_ep,
     add_ep,
     create_ep,
@@ -407,6 +409,15 @@ def validate_light_esp32(config: ConfigType) -> ConfigType:
             raise cv.Invalid(
                 f"Zigbee option '{key}' is not supported on lights yet", path=[key]
             )
+    return config
+
+
+def validate_cover_esp32(config: ConfigType) -> ConfigType:
+    ep = copy.deepcopy(WINDOW_COVERING_EP)
+    covering_type = WINDOW_COVERING_TYPES.get(config.get(CONF_DEVICE_CLASS), 0x00)
+    ep[CONF_CLUSTERS][0][CONF_ATTRIBUTES][0][CONF_VALUE] = covering_type
+    setup_attributes(config, ep[CONF_CLUSTERS])
+    add_ep(ep, config.get(CONF_ENDPOINT), config.get(CONF_USE_DEVICE_TYPE))
     return config
 
 

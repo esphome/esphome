@@ -8,12 +8,15 @@ from esphome.const import (
     CONF_TYPE,
     CONF_VALUE,
     DEVICE_CLASS_ATMOSPHERIC_PRESSURE,
+    DEVICE_CLASS_AWNING,
     DEVICE_CLASS_CARBON_DIOXIDE,
+    DEVICE_CLASS_CURTAIN,
     DEVICE_CLASS_HUMIDITY,
     DEVICE_CLASS_ILLUMINANCE,
     DEVICE_CLASS_OCCUPANCY,
     DEVICE_CLASS_PM25,
     DEVICE_CLASS_PRESSURE,
+    DEVICE_CLASS_SHUTTER,
     DEVICE_CLASS_TEMPERATURE,
     DEVICE_CLASS_VOLUME_FLOW_RATE,
     UNIT_CELSIUS,
@@ -356,6 +359,44 @@ SWITCH_EP_CONFIGS: dict[str, dict[str, Any]] = {
             },
         ],
     },
+}
+
+WINDOW_COVERING_TYPES = {
+    DEVICE_CLASS_AWNING: 0x05,
+    DEVICE_CLASS_CURTAIN: 0x04,
+    DEVICE_CLASS_SHUTTER: 0x06,
+}
+
+WINDOW_COVERING_EP = {
+    DEVICE_TYPE: "WINDOW_COVERING",
+    CONF_CLUSTERS: [
+        {
+            CONF_ID: "WINDOW_COVERING",
+            ROLE: "SERVER",
+            CONF_ATTRIBUTES: [
+                {
+                    CONF_ATTRIBUTE_ID: 0x0,
+                    CONF_TYPE: "ENUM8",
+                    CONF_VALUE: 0x00,
+                },
+                {
+                    CONF_ATTRIBUTE_ID: 0x7,
+                    CONF_TYPE: "MAP8",
+                    CONF_VALUE: 0x0B,
+                },
+                {
+                    CONF_ATTRIBUTE_ID: 0x17,
+                    CONF_TYPE: "MAP8",
+                    CONF_VALUE: 0x00,
+                },
+                {
+                    CONF_ATTRIBUTE_ID: 0x8,
+                    CONF_TYPE: "UINT8",
+                    CONNECT: True,
+                },
+            ],
+        },
+    ],
 }
 
 

@@ -61,6 +61,9 @@ class ZigbeeComponent final : public Component {
   template<typename T>
   void add_attr(uint8_t endpoint_id, uint16_t cluster_id, uint8_t role, uint16_t attr_id, uint8_t max_size,
                 uint8_t attr_type, uint8_t attr_access, T value);
+#ifdef USE_COVER
+  void remove_attr(uint8_t endpoint_id, uint16_t cluster_id, uint8_t role, uint16_t attr_id);
+#endif
 
   static bool app_signal_handler(const ezb_app_signal_t *app_signal);
   static void esp_zigbee_alarm_bdb_commissioning(ezb_bdb_comm_mode_mask_t mode);
@@ -105,6 +108,9 @@ class ZigbeeComponent final : public Component {
   void add_attr_(ZigbeeAttributeInterface *attr, uint8_t endpoint_id, uint16_t cluster_id, uint8_t role,
                  uint16_t attr_id, uint8_t attr_type, uint8_t attr_access, T *value_p);
   void handle_attribute_(ezb_zcl_message_info_t info, ezb_zcl_attribute_t attribute);
+#ifdef USE_COVER
+  void handle_window_covering_(ezb_zcl_message_info_t info, uint8_t cmd_id, uint8_t percentage);
+#endif
   // attributes_ will be used during operation in zigbee callbacks to update the attribute values and trigger
   // automations
   // key tuple could be replaced by single 64 (48) bit int with bit fields for endpoint, cluster, role and attr_id

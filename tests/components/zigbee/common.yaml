@@ -47,6 +47,11 @@ switch:
     endpoint: 1
     optimistic: true
 
+cover:
+  - platform: template
+    name: "Template Cover"
+    optimistic: true
+
 number:
   - platform: template
     name: "Template number"
