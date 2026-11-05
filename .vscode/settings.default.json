@@ -12,7 +12,13 @@
   "files.trimTrailingWhitespace": true,
   "yaml.customTags": [
     "!secret scalar",
+    "!env_var scalar",
+    "!include scalar",
+    "!include mapping",
     "!lambda scalar",
+    "!literal scalar",
+    "!literal sequence",
+    "!literal mapping",
     "!extend scalar",
     "!remove scalar",
     "!include_dir_named scalar",
