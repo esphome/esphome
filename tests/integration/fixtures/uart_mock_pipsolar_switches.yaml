@@ -22,9 +22,14 @@ uart_mock:
   id: mock_uart
   baud_rate: 2400
   auto_start: false
+  # The switches enable the QPIRI poll, sent once at boot. A bare CR fails it at
+  # once, so queued commands don't wait out the 5 s poll timeout
+  responses:
+    - expect_tx: [0x51, 0x50, 0x49, 0x52, 0x49]
+      inject_rx: [0x0D]
 
-# No polling, so only the switch writes reach the command queue and no
-# polled status publishes the switch states
+# No polling after boot, so only the switch writes reach the command queue and
+# no polled status publishes the switch states
 pipsolar:
   id: inverter0
   uart_id: mock_uart

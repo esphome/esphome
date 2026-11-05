@@ -81,12 +81,9 @@ class ABBWelcomeData {
   uint8_t get_message_type() const { return this->data_[3]; }
   void set_destination_address(uint32_t address) {
     if (this->get_address_length() == 2) {
-      this->data_[4] = (address >> 8) & 0xff;
-      this->data_[5] = address & 0xff;
+      put_be16(this->data_.data() + 4, address);
     } else {
-      this->data_[4] = (address >> 16) & 0xff;
-      this->data_[5] = (address >> 8) & 0xff;
-      this->data_[6] = address & 0xff;
+      put_be24(this->data_.data() + 4, address);
     }
   }
   uint32_t get_destination_address() const {
@@ -97,12 +94,9 @@ class ABBWelcomeData {
   }
   void set_source_address(uint32_t address) {
     if (this->get_address_length() == 2) {
-      this->data_[6] = (address >> 8) & 0xff;
-      this->data_[7] = address & 0xff;
+      put_be16(this->data_.data() + 6, address);
     } else {
-      this->data_[7] = (address >> 16) & 0xff;
-      this->data_[8] = (address >> 8) & 0xff;
-      this->data_[9] = address & 0xff;
+      put_be24(this->data_.data() + 7, address);
     }
   }
   uint32_t get_source_address() const {
