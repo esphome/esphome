@@ -49,11 +49,6 @@ static constexpr uint8_t MADCTL_YFLIP = 0x01;        // Mirror the display verti
 static constexpr uint16_t MADCTL_FLIP_FLAG = 0x100;  // controller uses axis flip bits
 
 static constexpr uint8_t DELAY_FLAG = 0xFF;
-// store a 16 bit value in a buffer, big endian.
-static inline void put16_be(uint8_t *buf, uint16_t value) {
-  buf[0] = value >> 8;
-  buf[1] = value;
-}
 
 // Buffer mode, conveniently also the number of bytes in a pixel
 enum PixelMode {
@@ -360,11 +355,11 @@ class MipiSpi : public display::Display,
     x2 += get_offset_width_();
     y1 += get_offset_height_();
     y2 += get_offset_height_();
-    put16_be(buf, y1);
-    put16_be(buf + 2, y2);
+    put_be16(buf, y1);
+    put_be16(buf + 2, y2);
     this->write_command_(RASET, buf, sizeof buf);
-    put16_be(buf, x1);
-    put16_be(buf + 2, x2);
+    put_be16(buf, x1);
+    put_be16(buf + 2, x2);
     this->write_command_(CASET, buf, sizeof buf);
     if constexpr (BUS_TYPE != BUS_TYPE_QUAD) {
       this->write_command_(WDATA);

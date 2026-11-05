@@ -16,6 +16,7 @@ static constexpr uint32_t MEASUREMENT_TIMEOUT_ID = 0;
 static const uint8_t CMD_ADDRESS = 0x30;
 static const uint8_t SYSCONFIG_ADDRESS = 0xA5;
 static const uint8_t PCONFIG_ADDRESS = 0xA6;
+static constexpr uint8_t PCONFIG_OVERSAMPLING_MASK = 0x07;
 static const uint8_t READ_COMMAND = 0x0A;
 
 // Indexed by the XGZP68XXOversampling register value, which is not in size order
@@ -27,14 +28,10 @@ PROGMEM_STRING_TABLE(OversamplingStrings, "1024x", "2048x", "4096x", "8192x", "2
 }
 
 void XGZP68XXComponent::update() {
-  // Do we need to change oversampling?
-  if (this->last_pressure_oversampling_ != this->pressure_oversampling_) {
-    uint8_t oldconfig = 0;
-    this->read_register(PCONFIG_ADDRESS, &oldconfig, 1);
-    uint8_t newconfig = (oldconfig & 0xf8) | (this->pressure_oversampling_ & 0x7);
-    this->write_register(PCONFIG_ADDRESS, &newconfig, 1);
-    ESP_LOGD(TAG, "oversampling to %s: oldconfig = 0x%x newconfig = 0x%x",
-             LOG_STR_ARG(oversampling_to_str(this->pressure_oversampling_)), oldconfig, newconfig);
+  // A failed write is retried on the next update
+  if (this->last_pressure_oversampling_ != this->pressure_oversampling_ &&
+      this->update_register(PCONFIG_ADDRESS, PCONFIG_OVERSAMPLING_MASK, this->pressure_oversampling_)) {
+    ESP_LOGD(TAG, "Oversampling set to %s", LOG_STR_ARG(oversampling_to_str(this->pressure_oversampling_)));
     this->last_pressure_oversampling_ = this->pressure_oversampling_;
   }
 
@@ -76,14 +73,10 @@ void XGZP68XXComponent::setup() {
   uint8_t config1 = 0, config2 = 0;
 
   // Display some sample bits to confirm we are talking to the sensor
-  if (i2c::ErrorCode::ERROR_OK != this->read_register(SYSCONFIG_ADDRESS, &config1, 1)) {
-    this->mark_failed(LOG_STR(ESP_LOG_MSG_COMM_FAIL));
+  if (!this->setup_check(i2c::ErrorCode::ERROR_OK == this->read_register(SYSCONFIG_ADDRESS, &config1, 1)))
     return;
-  }
-  if (i2c::ErrorCode::ERROR_OK != this->read_register(PCONFIG_ADDRESS, &config2, 1)) {
-    this->mark_failed(LOG_STR(ESP_LOG_MSG_COMM_FAIL));
+  if (!this->setup_check(i2c::ErrorCode::ERROR_OK == this->read_register(PCONFIG_ADDRESS, &config2, 1)))
     return;
-  }
   ESP_LOGD(TAG, "sys_config 0x%x, p_config 0x%x", config1, config2);
 }
 

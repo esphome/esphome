@@ -14,17 +14,22 @@ from esphome.const import (
 from esphome.core import CORE, ID, CoroPriority, coroutine, coroutine_with_priority
 from esphome.coroutine import FakeAwaitable
 from esphome.cpp_generator import (
+    AssignmentExpression,
+    BinOpExpression,
     MockObj,
     RawStatement,
+    Statement,
     add,
     add_define,
     add_global,
     get_variable,
     new_Pvariable,
+    statement,
+    static_function,
 )
 from esphome.cpp_types import App
 from esphome.helpers import cpp_string_escape
-from esphome.types import ConfigFragmentType, ConfigType, Expression
+from esphome.types import ConfigFragmentType, ConfigType, Expression, TemplateArgsType
 from esphome.util import Registry, RegistryEntry
 
 _LOGGER = logging.getLogger(__name__)
@@ -214,6 +219,117 @@ def slot_counter(define: str) -> Callable[..., None]:
         counts[key] = counts.get(key, 0) + 1
 
     return request_slot
+
+
+_HUB_FUNCTION_DOMAIN = "hub_function"
+
+
+@dataclass
+class _HubFunctionState:
+    """One run's items per hub (keyed by ``str(hub)``) for one HubFunction."""
+
+    hubs: dict[str, tuple[MockObj, list[Expression | Statement]]] = field(
+        default_factory=dict
+    )
+    emitted: bool = False
+
+
+@dataclass
+class _HubFunctionData:
+    """One run's state for every HubFunction, keyed by the instance, plus the names emitted."""
+
+    states: dict["HubFunction", _HubFunctionState] = field(default_factory=dict)
+    names: set[str] = field(default_factory=set)
+
+
+def _hub_function_data() -> _HubFunctionData:
+    return CORE.data.setdefault(_HUB_FUNCTION_DOMAIN, _HubFunctionData())
+
+
+def _arg(name: str) -> str:
+    # Prefixed, so a parameter cannot hide an entity id the items name
+    return f"esphome__arg_{name}"
+
+
+class HubFunction:
+    """One generated function per hub, ``esphome__<hub>__<name>_fn``, built from the items its children
+    ``add`` in ``to_code`` and passed to the ``set_<name>_publisher()`` that ``HUB_PUBLISHER`` declares.
+    A hub without items keeps ``nullptr``. ``void`` items are statements or expressions; ``bool`` items
+    are expressions that all run (no short-circuit), and the function returns whether any was true.
+    """
+
+    def __init__(
+        self,
+        name: str,
+        return_type: MockObj,
+        parameters: TemplateArgsType,
+        *,
+        define: str | None = None,
+    ) -> None:
+        if str(return_type) not in ("void", "bool"):
+            raise ValueError(f"HubFunction '{name}' returns void or bool")
+        self._name = name
+        self._return_type = return_type
+        self._returns_bool = str(return_type) == "bool"
+        self._parameters = [(type_, _arg(arg)) for type_, arg in parameters]
+        self._define = define
+
+        @coroutine_with_priority(CoroPriority.FINAL)
+        async def emit_job() -> None:
+            self._emit()
+
+        self._emit_job = emit_job
+
+    def param(self, name: str) -> MockObj:
+        """The parameter ``name``, for use in the items."""
+        arg = _arg(name)
+        if arg not in (param for _, param in self._parameters):
+            raise ValueError(f"HubFunction '{self._name}' has no parameter '{name}'")
+        return MockObj(arg)
+
+    def add(self, hub: MockObj, item: Expression | Statement) -> None:
+        """Append ``item`` to the function of ``hub``, a plain variable such as ``cg.get_variable``'s."""
+        if self._returns_bool and isinstance(item, Statement):
+            raise ValueError(f"HubFunction '{self._name}' takes bool expressions")
+        state = self._state()
+        if state.emitted:
+            raise ValueError(
+                f"HubFunction '{self._name}': item for {hub} added after the "
+                f"functions were emitted; add items from to_code"
+            )
+        if not state.hubs:
+            CORE.add_job(self._emit_job)
+        state.hubs.setdefault(str(hub), (hub, []))[1].append(item)
+
+    def _state(self) -> _HubFunctionState:
+        # Keyed by the instance, which lives for the process; CORE.data clears between runs
+        return _hub_function_data().states.setdefault(self, _HubFunctionState())
+
+    def _body(self, items: list[Expression | Statement]) -> list[Statement]:
+        if not self._returns_bool:
+            return [statement(item) for item in items]
+        any_ = MockObj("esphome__found")
+        return [
+            statement(AssignmentExpression(self._return_type, "", any_, False)),
+            *(statement(BinOpExpression(any_, "|=", item)) for item in items),
+            RawStatement(f"return {any_};"),
+        ]
+
+    def _emit(self) -> None:
+        state = self._state()
+        state.emitted = True
+        if self._define is not None:
+            add_define(self._define)
+        names = _hub_function_data().names
+        for hub, items in state.hubs.values():
+            name = f"esphome__{hub}__{self._name}_fn"
+            if name in names:
+                raise ValueError(f"HubFunction: two functions named {name}")
+            names.add(name)
+            fn = static_function(
+                name, self._return_type, self._parameters, self._body(items)
+            )
+            add(getattr(hub, f"set_{self._name}_publisher")(fn))
 
 
 async def gpio_pin_expression(conf):
