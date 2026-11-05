@@ -1455,9 +1455,9 @@ def test_a_file_that_fails_to_scan_is_unchecked(tmp_path: Path) -> None:
         old_key_edit(OLD_KEY)
 
 
-def test_includes_are_matched_by_file_name_outside_comments(tmp_path: Path) -> None:
-    """`wifi_api.yaml` is not `api.yaml`, a commented include does not count,
-    and a remote package names its file before the `@ref`."""
+def test_includes_are_matched_by_resolved_path_outside_comments(tmp_path: Path) -> None:
+    """Only a path that resolves to the edited file counts: not `wifi_api.yaml`, a
+    commented include, a remote package or another folder's `api.yaml`."""
     (tmp_path / "api.yaml").write_bytes(f'encryption:\n  key: "{OLD_KEY}"\n'.encode())
     (tmp_path / "lookalike.yaml").write_bytes(
         b"wifi: !include wifi_api.yaml\n# api: !include api.yaml\n"
@@ -1465,6 +1465,10 @@ def test_includes_are_matched_by_file_name_outside_comments(tmp_path: Path) -> N
     (tmp_path / "remote.yaml").write_bytes(
         b"packages:\n  base: github://me/configs/api.yaml@main\n"
     )
+    (tmp_path / "other").mkdir()
+    (tmp_path / "other" / "api.yaml").write_bytes(b"encryption:\n")
+    (tmp_path / "other" / "device.yaml").write_bytes(b"api: !include api.yaml\n")
+    (tmp_path / "other" / "parent.yaml").write_bytes(b"api: !include ../api.yaml\n")
     _setup(
         tmp_path,
         "esphome:\n  name: test\n\napi: !include api.yaml\n\n"
@@ -1472,7 +1476,7 @@ def test_includes_are_matched_by_file_name_outside_comments(tmp_path: Path) -> N
     )
     edits = locate_key_edits(OLD_KEY, NEW_KEY)
     with_sharers(edits)
-    assert [p.name for p in edits[0].shared_with] == ["remote.yaml"]
+    assert edits[0].shared_with == [(tmp_path / "other" / "parent.yaml").resolve()]
 
 
 def test_bare_block_followed_by_a_sibling_gets_one_level_more(tmp_path: Path) -> None:
@@ -1502,4 +1506,85 @@ ota:
 """
     _setup(tmp_path, yaml_text, f"device_key: {OLD_KEY}\n")
     with pytest.raises(EsphomeError, match="kept in secrets.yaml"):
+        old_key_edit(OLD_KEY)
+
+
+def test_old_secret_used_by_a_package_in_the_build_data_is_refused(
+    tmp_path: Path,
+) -> None:
+    """A file this config loads from outside the scanned tree still counts."""
+    (tmp_path / ".esphome").mkdir()
+    (tmp_path / ".esphome" / "pkg.yaml").write_bytes(
+        b"ssid: x\npassword: !secret device_key_old\n"
+    )
+    _setup(
+        tmp_path,
+        SECRET_YAML + "wifi: !include .esphome/pkg.yaml\n",
+        f"device_key: {OLD_KEY}\ndevice_key_old: {OLDER_KEY}\n",
+    )
+    with pytest.raises(
+        EsphomeError, match="'device_key_old:' in .* is used by .*pkg.yaml"
+    ):
+        old_key_edit(OLD_KEY)
+
+
+@pytest.mark.skipif(sys.platform == "win32", reason="symlinks need privileges")
+def test_linked_build_data_dir_is_not_unchecked(tmp_path: Path) -> None:
+    (tmp_path / "data").mkdir()
+    (tmp_path / ".esphome").symlink_to(tmp_path / "data")
+    _setup(tmp_path, API_YAML)
+    assert with_sharers(locate_key_edits(OLD_KEY, NEW_KEY)) == []
+
+
+def test_secret_users_follow_their_own_secrets_file(tmp_path: Path) -> None:
+    """A device with its own secrets.yaml uses a different `device_key`."""
+    for folder, secrets in (("own", True), ("fallback", False)):
+        (tmp_path / folder).mkdir()
+        (tmp_path / folder / "device.yaml").write_bytes(
+            b"api:\n  encryption:\n    key: !secret device_key\n"
+        )
+        if secrets:
+            (tmp_path / folder / "secrets.yaml").write_bytes(b"device_key: other\n")
+    _setup(tmp_path, SECRET_YAML, f"device_key: {OLD_KEY}\n")
+    edits = locate_key_edits(OLD_KEY, NEW_KEY)
+    with_sharers(edits)
+    assert [p.relative_to(tmp_path.resolve()) for p in edits[0].shared_with] == [
+        Path("fallback/device.yaml")
+    ]
+
+
+@pytest.mark.skipif(sys.platform == "win32", reason="symlinks need privileges")
+def test_one_line_read_through_a_link_and_its_target_is_edited_once(
+    tmp_path: Path,
+) -> None:
+    (tmp_path / "enc.yaml").write_bytes(f'key: "{OLD_KEY}"\n'.encode())
+    (tmp_path / "link.yaml").symlink_to(tmp_path / "enc.yaml")
+    yaml_text = """esphome:
+  name: test
+
+ota:
+  - platform: esphome
+    encryption: !include enc.yaml
+  - platform: esphome
+    encryption: !include link.yaml
+"""
+    _setup(tmp_path, yaml_text)
+    assert len(locate_key_edits(OLD_KEY, NEW_KEY)) == 1
+
+
+def test_encryption_shared_with_the_api_gets_no_old_key(tmp_path: Path) -> None:
+    """The api encryption schema rejects old_key, so a shared mapping is refused."""
+    (tmp_path / "enc.yaml").write_bytes(f'key: "{OLD_KEY}"\n'.encode())
+    yaml_text = """esphome:
+  name: test
+
+api:
+  encryption: !include enc.yaml
+
+ota:
+  - platform: esphome
+    encryption: !include enc.yaml
+"""
+    _setup(tmp_path, yaml_text)
+    with pytest.raises(EsphomeError, match="is the api key too"):
         old_key_edit(OLD_KEY)

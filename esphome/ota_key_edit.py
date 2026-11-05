@@ -28,7 +28,7 @@ from esphome.yaml_edit import (
     source_line,
     source_of,
 )
-from esphome.yaml_util import secrets_path_for
+from esphome.yaml_util import SECRET_YAML, secrets_path_for
 
 _LOGGER = logging.getLogger(__name__)
 _DOMAIN = "ota_key_edit"
@@ -79,7 +79,7 @@ class _Scan:
     """What a yaml file names, from its tokens alone; comments never count."""
 
     secrets: list[tuple[str, int]] = field(default_factory=list)  # name, line
-    names: set[str] = field(default_factory=set)  # yaml file names in scalars
+    targets: set[Path] = field(default_factory=set)  # local yaml files it names
     include_dir: str | None = None
     substituted: str | None = None  # an include path holding a substitution
 
@@ -88,7 +88,7 @@ class _Scan:
 class _Configs:
     files: list[tuple[Path, _Scan]]
     skipped: list[str]
-    named_by: dict[str, set[Path]]  # a file name to the files naming it
+    named_by: dict[Path, set[Path]]  # a resolved file to the files naming it
 
 
 @dataclass
@@ -102,10 +102,10 @@ def _state() -> _State:
 
 
 def _scan(path: Path) -> _Scan:
-    """``path`` scanned once per run, by its target; nothing is constructed,
-    included or loaded."""
+    """``path`` scanned once per run; nothing is constructed, included or
+    loaded. Names resolve beside ``path`` as spelled, so a link keeps its own."""
     scans = _state().scans
-    if (found := scans.get(resolved := path.resolve())) is not None:
+    if (found := scans.get(path)) is not None:
         return found
     text = read_text(path)
     try:
@@ -114,18 +114,16 @@ def _scan(path: Path) -> _Scan:
         raise EsphomeError(
             f"Could not scan {path}: {getattr(err, 'problem', err)}"
         ) from err
-    found = scans[resolved] = _Scan()
+    found = scans[path] = _Scan()
     for prev2, prev, token in zip(
         [None, None, *tokens], [None, *tokens], tokens, strict=False
     ):
         if not isinstance(token, yaml.ScalarToken):
             continue
         value = token.value
-        base = value.replace("\\", "/").rsplit("/", 1)[-1]
-        # A remote package names its file before an `@ref`
-        found.names.update(
-            n for n in (base, base.split("@", 1)[0]) if n.endswith(_YAML_SUFFIXES)
-        )
+        # A remote package names a file of its repository, never this one
+        if value.endswith(_YAML_SUFFIXES) and "://" not in value:
+            found.targets.add((path.parent / value).resolve())
         tag = prev.value[1] if isinstance(prev, yaml.TagToken) else ""
         if tag == "secret":
             found.secrets.append((value, prev.start_mark.line))
@@ -187,7 +185,7 @@ def _walk_configs() -> _Configs:
     ):
         for name in list(dirnames):
             path = Path(dirpath, name)
-            if path == data_dir:
+            if path.resolve() == data_dir:
                 dirnames.remove(name)
             elif path.is_symlink():
                 dirnames.remove(name)
@@ -201,19 +199,25 @@ def _walk_configs() -> _Configs:
             except EsphomeError as err:
                 skip(err)
     found.sort(key=lambda ps: ps[0])
-    named_by: dict[str, set[Path]] = {}
+    named_by: dict[Path, set[Path]] = {}
     for path, scan in found:
-        for name in scan.names:
-            named_by.setdefault(name, set()).add(path)
+        for target in scan.targets:
+            named_by.setdefault(target, set()).add(path)
     return _Configs(found, skipped, named_by)
 
 
-def _secret_users(name: str) -> set[Path]:
-    """The scanned files that use the secret ``name``."""
+def _secret_users(name: str, secrets_path: Path) -> set[Path]:
+    """The scanned files that use the secret ``name`` of ``secrets_path``; one
+    with no secrets.yaml beside it may fall back to it, so it counts."""
+    target = secrets_path.resolve()
     return {
         path
         for path, scan in _configs().files
         if any(secret == name for secret, _ in scan.secrets)
+        and (
+            not (beside := path.parent / SECRET_YAML).is_file()
+            or beside.resolve() == target
+        )
     }
 
 
@@ -237,19 +241,18 @@ def with_sharers(edits: list[KeyEdit]) -> list[str]:
             unchecked.append(
                 f"{path} includes {scan.substituted} through a substitution"
             )
-    # An include may name a file or a link to it
-    links: dict[Path, set[str]] = {}
-    for path, _ in configs.files:
-        links.setdefault(path.resolve(), set()).add(path.name)
 
     def including(files: set[Path]) -> set[Path]:
-        names = {n for f in files for n in {f.name, *links.get(f.resolve(), ())}}
-        return {p for n in names for p in configs.named_by.get(n, ())}
+        return {p for f in files for p in configs.named_by.get(f.resolve(), ())}
 
     for edit in edits:
         if edit.insert_after and edit.secret:
             continue  # a new secrets line has no users yet
-        users = _secret_users(edit.secret) if edit.secret else including({edit.path})
+        users = (
+            _secret_users(edit.secret, edit.path)
+            if edit.secret
+            else including({edit.path})
+        )
         frontier = users
         while frontier := including(frontier) - users:
             users |= frontier
@@ -348,7 +351,9 @@ def _field_edits(
                 f"!secret; edit {what} by hand"
             )
         # The api and ota blocks may share one !secret line
-        if edit not in edits:
+        if (edit.path.resolve(), edit.line) not in {
+            (e.path.resolve(), e.line) for e in edits
+        }:
             edits.append(edit)
     for name, lines in allowed.items():
         _refuse_other_own_uses(name, lines)
@@ -408,6 +413,16 @@ def old_key_edit(old_key: str) -> list[KeyEdit]:
     ):
         doc, line_no, text = source_line(keyed, CONF_KEY)
         anchor, anchor_re, indent = CONF_KEY, _KEY_FIELD_RE, _indent(text)
+        api = (raw.get(CONF_API) or {}).get(CONF_ENCRYPTION) or {}
+        if (api_key := source_of(api, CONF_KEY)) is not None and (
+            api_key[0].resolve(),
+            api_key[1],
+        ) == (doc.resolve(), line_no):
+            # The api encryption schema takes no old_key
+            raise EsphomeError(
+                f"{doc}:{line_no + 1} is the api key too; add '{CONF_OLD_KEY}' to "
+                "an ota-only encryption block by hand"
+            )
     else:
         # A bare block takes after the api key
         keyed = (raw.get(CONF_API) or {}).get(CONF_ENCRYPTION) or {}
@@ -436,9 +451,15 @@ def old_key_edit(old_key: str) -> list[KeyEdit]:
                     "Could not read every configuration to check the secret: "
                     + skipped[0]
                 )
-            if users := sorted(_secret_users(f"{secret}_old")):
+            name = f"{secret}_old"
+            own = {
+                d
+                for d in own_documents()
+                if any(s == name for s, _ in _scan(d).secrets)
+            }
+            if users := sorted(_secret_users(name, secrets_path) | own):
                 raise EsphomeError(
-                    f"'{secret}_old:' in {secrets_path} is used by "
+                    f"'{name}:' in {secrets_path} is used by "
                     + ", ".join(str(p) for p in users)
                     + f"; rename it or add '{CONF_OLD_KEY}' by hand"
                 )
