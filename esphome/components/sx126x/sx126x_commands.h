@@ -15,11 +15,15 @@ enum class ConfigurationResult {
 // and check ok() at its end, or before acting on a value that was read.
 class Sx126xCommands {
  public:
+  Sx126xCommands() = default;
   Sx126xCommands(const Sx126xCommands &) = delete;
   Sx126xCommands &operator=(const Sx126xCommands &) = delete;
-  explicit Sx126xCommands(Sx126xSpiDevice &spi_device) : spi_device_(spi_device) {}
-  [[nodiscard]] ConfigurationResult configure(const RadioProfile &profile, std::span<char, 16> version);
-  void set_packet_params(const RadioProfile &profile, uint8_t length);
+  Sx126xSpiDevice &bus() { return this->spi_device_; }
+  // Fills applied as it goes; only use it if the result is OK.
+  [[nodiscard]] ConfigurationResult configure(const RadioProfile &profile, std::span<char, 16> version,
+                                              AppliedProfile &applied);
+  // Sets the payload length in the applied packet parameters and writes them.
+  void set_packet_length(AppliedProfile &applied, uint8_t length);
   void calibrate_image(uint32_t frequency);
   void standby(SX126xStandbyMode mode);
   void receive();
@@ -30,7 +34,7 @@ class Sx126xCommands {
   uint16_t read_irq();
   void write_fifo(const uint8_t *data, size_t size);
   // Leaves the packet unchanged if a read fails.
-  void read_packet(const RadioProfile &profile, std::vector<uint8_t> &packet, float &rssi, float &snr);
+  void read_packet(uint8_t modulation, std::vector<uint8_t> &packet, float &rssi, float &snr);
   static uint32_t bandwidth_hz(SX126xBw bw);
   static uint16_t ramp_us(uint8_t ramp);
 
@@ -39,6 +43,7 @@ class Sx126xCommands {
   void write_opcode_(uint8_t opcode, const uint8_t *data, uint8_t size);
   void read_register_(uint16_t reg, uint8_t *data, uint8_t size);
   void write_register_(uint16_t reg, const uint8_t *data, uint8_t size);
-  Sx126xSpiDevice &spi_device_;
+  static void encode_packet_params_(const RadioProfile &profile, AppliedProfile &applied);
+  Sx126xSpiDevice spi_device_;
 };
 }  // namespace esphome::sx126x

@@ -47,7 +47,6 @@ struct RadioProfile {
   uint32_t bitrate{0};
   uint32_t deviation{0};
   uint32_t frequency{0};
-  uint32_t payload_length{0};
   uint32_t tcxo_delay{0};
   uint16_t crc_polynomial{0};
   uint16_t crc_initial{0};
@@ -63,6 +62,7 @@ struct RadioProfile {
   uint8_t shaping{0};
   uint8_t spreading_factor{0};
   int8_t pa_power{0};
+  uint8_t payload_length{0};
   bool sx1261{false};
   bool crc_enable{false};
   bool crc_inverted{false};
@@ -80,6 +80,18 @@ struct RadioProfile {
     std::copy(bytes.begin(), bytes.end(), this->sync_value.begin());
     this->sync_size = bytes.size();
   }
+  size_t max_packet_size() const { return this->payload_length > 0 ? this->payload_length : 255; }
+};
+
+// The parts of the last successfully applied profile that runtime operations read.
+// SetPacketParams is encoded once; sends only change its payload length byte.
+struct AppliedProfile {
+  uint32_t frequency{0};
+  std::array<uint8_t, 9> packet_params{};
+  uint8_t packet_params_size{0};
+  uint8_t payload_length{0};
+  uint8_t modulation{PACKET_TYPE_LORA};
+  bool rx_start{false};
   size_t max_packet_size() const { return this->payload_length > 0 ? this->payload_length : 255; }
 };
 }  // namespace esphome::sx126x

@@ -20,7 +20,7 @@ PROGMEM_STRING_TABLE(SX126xErrorStrings, "none", "timeout", "invalid payload", "
 void SX126x::setup() {
   this->packet_.reserve(SX126X_MAX_PACKET_SIZE);
   // setup pins
-  this->busy_pin_->setup();
+  this->bus_().get_busy_pin()->setup();
   this->rst_pin_->setup();
   this->dio1_pin_->setup();
   if (this->dio1_pin_->is_internal()) {
@@ -29,7 +29,7 @@ void SX126x::setup() {
   }
 
   // start spi
-  this->spi_device_.setup();
+  this->bus_().setup();
 
   // configure rf
   this->configure();
@@ -78,10 +78,11 @@ const LogString *SX126x::apply_configuration_() {
   delayMicroseconds(RESET_DELAY_LOW_US);
   this->rst_pin_->digital_write(true);
   delayMicroseconds(RESET_DELAY_HIGH_US);
-  this->spi_device_.begin();
-  switch (this->commands_.configure(this->requested_profile_, this->version_)) {
+  this->bus_().begin();
+  AppliedProfile applied;
+  switch (this->commands_.configure(this->requested_profile_, this->version_, applied)) {
     case ConfigurationResult::CONFIGURATION_RESULT_OK:
-      this->active_profile_ = this->requested_profile_;
+      this->active_profile_ = applied;
       return nullptr;
     case ConfigurationResult::CONFIGURATION_RESULT_UNSUPPORTED:
       return LOG_STR("Unsupported chip version");
@@ -104,7 +105,7 @@ void SX126x::change_mode_(ModeCommand command, uint8_t arg) {
     return;
   }
   this->busy_ = true;
-  this->spi_device_.begin();
+  this->bus_().begin();
   switch (command) {
     case ModeCommand::MODE_COMMAND_RX:
       this->commands_.receive();
@@ -123,7 +124,7 @@ void SX126x::change_mode_(ModeCommand command, uint8_t arg) {
       this->commands_.calibrate_image(this->active_profile_.frequency);
       break;
   }
-  const bool ok = this->spi_device_.ok();
+  const bool ok = this->bus_().ok();
   // Cold sleep loses the configuration, and a failed command leaves the chip state unknown.
   this->commit_(ok && command != ModeCommand::MODE_COMMAND_COLD_SLEEP ? State::STATE_IDLE
                                                                       : State::STATE_NEEDS_CONFIGURATION);
@@ -175,12 +176,12 @@ SX126xError SX126x::start_transmit_(SX126xTransmitListener *listener, const uint
   if (this->busy_ || this->state_ != State::STATE_IDLE) {
     return SX126xError::SX126X_ERROR_BUSY;
   }
-  const uint32_t fixed_length = this->active_profile_.payload_length;
+  const uint8_t fixed_length = this->active_profile_.payload_length;
   if (data == nullptr || len == 0 || len > this->get_max_packet_size() || (fixed_length != 0 && len != fixed_length)) {
     return SX126xError::INVALID_PARAMS;
   }
   this->busy_ = true;
-  this->spi_device_.begin();
+  this->bus_().begin();
   this->commands_.standby(STDBY_XOSC);
   // RX cannot advance in standby. Keep a packet that completed before standby intact for
   // loop(), before clearing IRQs or overwriting the shared FIFO. A failed read returns 0.
@@ -190,11 +191,11 @@ SX126xError SX126x::start_transmit_(SX126xTransmitListener *listener, const uint
   }
   this->commands_.clear_irqs();
   if (fixed_length == 0) {
-    this->commands_.set_packet_params(this->active_profile_, len);
+    this->commands_.set_packet_length(this->active_profile_, len);
   }
   this->commands_.write_fifo(data, len);
   this->commands_.transmit(timeout_ms);
-  if (!this->spi_device_.ok()) {
+  if (!this->bus_().ok()) {
     const bool restored = this->restore_();
     this->commit_(restored ? State::STATE_IDLE : State::STATE_NEEDS_CONFIGURATION);
     this->report_(restored);  // Last step: logging may run user code.
@@ -215,11 +216,11 @@ bool SX126x::poll_transmit_(uint32_t now, SX126xError *result) {
   SX126xError outcome = SX126xError::NONE;
   if (this->dio1_pin_->digital_read()) {
     this->busy_ = true;
-    this->spi_device_.begin();
+    this->bus_().begin();
     const uint16_t status = this->commands_.read_irq();
     this->commands_.clear_irqs(status);
     this->busy_ = false;
-    if (!this->spi_device_.ok()) {
+    if (!this->bus_().ok()) {
       outcome = SX126xError::SX126X_ERROR_BUSY_TIMEOUT;
       done = true;
     } else if (status & IRQ_RX_TX_TIMEOUT) {
@@ -259,18 +260,18 @@ void SX126x::finish_transmit_(SX126xError result, SX126xError *out) {
 }
 
 bool SX126x::restore_() {
-  this->spi_device_.begin();
+  this->bus_().begin();
   this->commands_.standby(STDBY_XOSC);
   this->commands_.clear_irqs();
   if (this->active_profile_.payload_length == 0) {
-    this->commands_.set_packet_params(this->active_profile_, this->get_max_packet_size());
+    this->commands_.set_packet_length(this->active_profile_, this->get_max_packet_size());
   }
   if (this->active_profile_.rx_start) {
     this->commands_.receive();
   } else {
     this->commands_.sleep();
   }
-  return this->spi_device_.ok();
+  return this->bus_().ok();
 }
 
 void SX126x::loop() {
@@ -301,7 +302,7 @@ void SX126x::loop() {
 
 void SX126x::receive_(bool holding, uint32_t now) {
   this->busy_ = true;
-  this->spi_device_.begin();
+  this->bus_().begin();
   const uint16_t status = this->commands_.read_irq();
   if (!holding) {
     this->commands_.clear_irqs(status);  // A held packet keeps its IRQ until restoration.
@@ -309,9 +310,9 @@ void SX126x::receive_(bool holding, uint32_t now) {
   const bool received = (status & IRQ_RX_DONE) && !(status & IRQ_CRC_ERROR);
   float rssi = 0, snr = 0;
   if (received) {
-    this->commands_.read_packet(this->active_profile_, this->packet_, rssi, snr);
+    this->commands_.read_packet(this->active_profile_.modulation, this->packet_, rssi, snr);
   }
-  const bool read = this->spi_device_.ok();
+  const bool read = this->bus_().ok();
   // Keep a failed packet's IRQ/FIFO, but do not spend a BUSY timeout on every loop.
   this->rx_retry_pending_ = !read;
   this->rx_retry_started_ms_ = now;
@@ -335,8 +336,8 @@ void SX126x::receive_(bool holding, uint32_t now) {
 void SX126x::dump_config() {
   ESP_LOGCONFIG(TAG, "SX126x:\n  Ready for operation: %s",
                 YESNO(!this->is_failed() && this->state_ == State::STATE_IDLE));
-  LOG_PIN("  CS Pin: ", this->cs_pin_);
-  LOG_PIN("  BUSY Pin: ", this->busy_pin_);
+  LOG_PIN("  CS Pin: ", this->bus_().get_cs_pin());
+  LOG_PIN("  BUSY Pin: ", this->bus_().get_busy_pin());
   LOG_PIN("  RST Pin: ", this->rst_pin_);
   LOG_PIN("  DIO1 Pin: ", this->dio1_pin_);
   ESP_LOGCONFIG(TAG,
@@ -346,7 +347,7 @@ void SX126x::dump_config() {
                 "  Bandwidth: %" PRIu32 " Hz\n"
                 "  PA Power: %" PRId8 " dBm\n"
                 "  PA Ramp: %" PRIu16 " us\n"
-                "  Payload Length: %" PRIu32 "\n"
+                "  Payload Length: %" PRIu8 "\n"
                 "  CRC Enable: %s\n"
                 "  Rx Start: %s",
                 this->version_, this->requested_profile_.frequency,

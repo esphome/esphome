@@ -42,7 +42,13 @@ void Sx126xCommands::write_register_(uint16_t reg, const uint8_t *data, uint8_t 
   this->spi_device_.write(header, {data, size});
 }
 
-ConfigurationResult Sx126xCommands::configure(const RadioProfile &profile, std::span<char, 16> version) {
+ConfigurationResult Sx126xCommands::configure(const RadioProfile &profile, std::span<char, 16> version,
+                                              AppliedProfile &applied) {
+  applied.frequency = profile.frequency;
+  applied.payload_length = profile.payload_length;
+  applied.modulation = profile.modulation;
+  applied.rx_start = profile.rx_start;
+  encode_packet_params_(profile, applied);
   uint8_t buf[8];
   // wakeup
   this->read_opcode_(RADIO_GET_STATUS, nullptr, 0);
@@ -136,7 +142,7 @@ ConfigurationResult Sx126xCommands::configure(const RadioProfile &profile, std::
     this->write_opcode_(RADIO_SET_MODULATIONPARAMS, buf, 4);
 
     // set packet params and sync word
-    this->set_packet_params(profile, profile.max_packet_size());
+    this->write_opcode_(RADIO_SET_PACKETPARAMS, applied.packet_params.data(), applied.packet_params_size);
     if (profile.sync_size == 2) {
       this->write_register_(REG_LORA_SYNCWORD, profile.sync_value.data(), profile.sync_size);
     }
@@ -175,7 +181,7 @@ ConfigurationResult Sx126xCommands::configure(const RadioProfile &profile, std::
     }
 
     // set packet params and sync word
-    this->set_packet_params(profile, profile.max_packet_size());
+    this->write_opcode_(RADIO_SET_PACKETPARAMS, applied.packet_params.data(), applied.packet_params_size);
     if (profile.sync_size != 0) {
       this->write_register_(REG_GFSK_SYNCWORD, profile.sync_value.data(), profile.sync_size);
     }
@@ -191,8 +197,9 @@ ConfigurationResult Sx126xCommands::configure(const RadioProfile &profile, std::
                                 : ConfigurationResult::CONFIGURATION_RESULT_BUSY_TIMEOUT;
 }
 
-void Sx126xCommands::set_packet_params(const RadioProfile &profile, uint8_t payload_length) {
-  uint8_t buf[9];
+void Sx126xCommands::encode_packet_params_(const RadioProfile &profile, AppliedProfile &applied) {
+  auto &buf = applied.packet_params;
+  const uint8_t payload_length = profile.max_packet_size();
   if (profile.modulation == PACKET_TYPE_LORA) {
     buf[0] = (profile.preamble_size >> 8) & 0xFF;
     buf[1] = (profile.preamble_size >> 0) & 0xFF;
@@ -200,7 +207,7 @@ void Sx126xCommands::set_packet_params(const RadioProfile &profile, uint8_t payl
     buf[3] = payload_length;
     buf[4] = (profile.crc_enable) ? 0x01 : 0x00;
     buf[5] = 0x00;
-    this->write_opcode_(RADIO_SET_PACKETPARAMS, buf, 6);
+    applied.packet_params_size = 6;
   } else {
     uint16_t preamble_size = profile.preamble_size * 8;
     buf[0] = (preamble_size >> 8) & 0xFF;
@@ -216,8 +223,13 @@ void Sx126xCommands::set_packet_params(const RadioProfile &profile, uint8_t payl
       buf[7] = 0x01;
     }
     buf[8] = (profile.whitening_enable) ? 0x01 : 0x00;
-    this->write_opcode_(RADIO_SET_PACKETPARAMS, buf, 9);
+    applied.packet_params_size = 9;
   }
+}
+
+void Sx126xCommands::set_packet_length(AppliedProfile &applied, uint8_t length) {
+  applied.packet_params[applied.modulation == PACKET_TYPE_LORA ? 3 : 6] = length;
+  this->write_opcode_(RADIO_SET_PACKETPARAMS, applied.packet_params.data(), applied.packet_params_size);
 }
 
 void Sx126xCommands::calibrate_image(uint32_t frequency) {
@@ -323,11 +335,11 @@ void Sx126xCommands::write_fifo(const uint8_t *data, size_t size) {
   this->spi_device_.write(header, {data, size});
 }
 
-void Sx126xCommands::read_packet(const RadioProfile &profile, std::vector<uint8_t> &packet, float &rssi, float &snr) {
+void Sx126xCommands::read_packet(uint8_t modulation, std::vector<uint8_t> &packet, float &rssi, float &snr) {
   uint8_t data[3]{};
   this->read_opcode_(RADIO_GET_PACKETSTATUS, data, 3);
-  rssi = (profile.modulation == PACKET_TYPE_LORA ? data[0] : data[2]) / -2.0f;
-  snr = profile.modulation == PACKET_TYPE_LORA ? static_cast<int8_t>(data[1]) / 4.0f : 0;
+  rssi = (modulation == PACKET_TYPE_LORA ? data[0] : data[2]) / -2.0f;
+  snr = modulation == PACKET_TYPE_LORA ? static_cast<int8_t>(data[1]) / 4.0f : 0;
   this->read_opcode_(RADIO_GET_RXBUFFERSTATUS, data, 2);
   if (!this->spi_device_.ok()) {
     return;  // The length and offset were not read.

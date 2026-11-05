@@ -26,6 +26,8 @@ class Sx126xSpiDevice {
 #endif
 
   void set_busy_pin(GPIOPin *pin) { this->busy_pin_ = pin; }
+  GPIOPin *get_busy_pin() const { return this->busy_pin_; }
+  GPIOPin *get_cs_pin() const { return this->device_.get_cs_pin(); }
   void setup() { this->device_.spi_setup(); }
   void teardown() { this->device_.spi_teardown(); }
   // Starts a command sequence with no recorded failure.
@@ -37,8 +39,11 @@ class Sx126xSpiDevice {
   void read(std::span<const uint8_t> header, std::span<uint8_t> data);
 
  private:
-  using Device =
-      spi::SPIDevice<spi::BIT_ORDER_MSB_FIRST, spi::CLOCK_POLARITY_LOW, spi::CLOCK_PHASE_LEADING, spi::DATA_RATE_8MHZ>;
+  class Device final : public spi::SPIDevice<spi::BIT_ORDER_MSB_FIRST, spi::CLOCK_POLARITY_LOW,
+                                             spi::CLOCK_PHASE_LEADING, spi::DATA_RATE_8MHZ> {
+   public:
+    GPIOPin *get_cs_pin() const { return this->cs_; }
+  };
   class Selection {
    public:
     explicit Selection(Device &device) : device_(device) { this->device_.enable(); }
