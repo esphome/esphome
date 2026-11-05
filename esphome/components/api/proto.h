@@ -29,16 +29,7 @@ constexpr uint8_t WIRE_TYPE_MASK = 0b111;          // Mask to extract wire type 
 
 // Reinterpret float bits as uint32_t without floating-point comparison.
 // Used by both encode_float() and calc_float() to ensure identical zero checks.
-// Uses union type-punning which is a GCC/Clang extension (not standard C++),
-// but bit_cast/memcpy don't optimize to a no-op on xtensa-gcc (ESP8266).
-inline uint32_t float_to_raw(float value) {
-  union {
-    float f;
-    uint32_t u;
-  } v;
-  v.f = value;
-  return v.u;
-}
+inline uint32_t float_to_raw(float value) { return bit_cast<uint32_t>(value); }
 
 // Helper functions for ZigZag encoding/decoding
 inline constexpr uint32_t encode_zigzag32(int32_t value) {
@@ -200,14 +191,7 @@ class ProtoFieldValue {
   // Fixed32 accessors
   uint32_t as_fixed32() const { return static_cast<uint32_t>(this->scalar_); }
   int32_t as_sfixed32() const { return static_cast<int32_t>(this->as_fixed32()); }
-  float as_float() const {
-    union {
-      uint32_t raw;
-      float value;
-    } s{};
-    s.raw = this->as_fixed32();
-    return s.value;
-  }
+  float as_float() const { return bit_cast<float>(this->as_fixed32()); }
 
  private:
   const uint8_t *data_;
