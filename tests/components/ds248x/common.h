@@ -30,6 +30,8 @@ class FakeDS2482 final : public i2c::I2CBus {
     this->transfers++;
     if (this->nack_all || (size != 0 && data[0] == this->nack_command))
       return i2c::ERROR_NOT_ACKNOWLEDGED;
+    if (size != 0 && data[0] == DS248X_COMMAND_READBYTE && this->byte_reads == this->nack_byte_read)
+      return i2c::ERROR_NOT_ACKNOWLEDGED;
     if (size != 0)
       this->command_(data, size);
     for (size_t i = 0; i < out_size; i++)
@@ -42,6 +44,14 @@ class FakeDS2482 final : public i2c::I2CBus {
   unsigned channel_selects{0};
   bool nack_all{false};
   int nack_command{NO_COMMAND};
+  // NACKs the Read Byte command once this many bytes have been read
+  int nack_byte_read{NO_COMMAND};
+  unsigned one_wire_commands{0};
+  int byte_reads{0};
+  // Bytes the wire returns to Read Byte commands, in order
+  uint8_t wire_bytes[8]{};
+
+  uint8_t config() const { return this->config_; }
   // The next 1-Wire command keeps 1WB set until a device reset; cleared once used
   bool stick_busy{false};
 
@@ -76,6 +86,9 @@ class FakeDS2482 final : public i2c::I2CBus {
       case DS248X_COMMAND_WRITEBYTE:
       case DS248X_COMMAND_READBYTE:
       case DS248X_COMMAND_TRIPLET:
+        this->one_wire_commands++;
+        if (data[0] == DS248X_COMMAND_READBYTE)
+          this->data_ = this->wire_bytes[this->byte_reads++ % 8];
         // No devices on the wire: no presence pulse, and a triplet reads both bits as 1
         this->status_ = data[0] == DS248X_COMMAND_TRIPLET ? DS248X_STATUS_SBR | DS248X_STATUS_TSB : 0;
         if (this->stick_busy) {
@@ -97,6 +110,8 @@ class FakeDS2482 final : public i2c::I2CBus {
         return this->config_;
       case POINTER_CHANNEL:
         return CHANNEL_READ_CODES[this->channel];
+      case DS248X_POINTER_DATA:
+        return this->data_;
       default:
         return 0xFF;
     }
@@ -105,6 +120,7 @@ class FakeDS2482 final : public i2c::I2CBus {
   uint8_t pointer_{DS248X_POINTER_STATUS};
   uint8_t status_{0};
   uint8_t config_{0};
+  uint8_t data_{0};
   bool busy_{false};
 };
 

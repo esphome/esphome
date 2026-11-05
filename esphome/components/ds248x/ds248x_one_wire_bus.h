@@ -46,6 +46,8 @@ class DS248xOneWireBus : public one_wire::OneWireBus, public Component {
   bool ensure_channel_();
   /// True when the parent hub failed during setup
   bool hub_failed_() const;
+  /// reset_int() result for a failed reset: 0 while the hub is down or recovering, else -1
+  int reset_error_() const;
 
   DS248xComponent *parent_{nullptr};
   uint8_t channel_{0};

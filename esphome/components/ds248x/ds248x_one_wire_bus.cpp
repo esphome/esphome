@@ -46,18 +46,20 @@ bool DS248xOneWireBus::ensure_channel_() {
   return this->parent_->select_channel(this->channel_);
 }
 
+// Report no presence while the hub is down, so the base class does not log "bus is held low"
+int DS248xOneWireBus::reset_error_() const {
+  if (this->parent_ == nullptr)
+    return -1;
+  return this->parent_->is_failed() || this->parent_->is_recovery_pending() ? 0 : -1;
+}
+
 int DS248xOneWireBus::reset_int() {
-  if (!this->ensure_channel_()) {
-    // Report no presence while the hub is down, so the base class does not log "bus is held low"
-    if (this->parent_ == nullptr)
-      return -1;
-    return this->parent_->is_failed() || this->parent_->is_recovery_pending() ? 0 : -1;
-  }
+  if (!this->ensure_channel_())
+    return this->reset_error_();
 
   bool presence = false;
-  if (!this->parent_->ow_reset(presence)) {
-    return -1;
-  }
+  if (!this->parent_->ow_reset(presence))
+    return this->reset_error_();
   return presence ? 1 : 0;
 }
 

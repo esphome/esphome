@@ -87,4 +87,36 @@ TEST_F(DS248xTest, ChannelStaysCachedWhenReadPointerRestoreFails) {
   EXPECT_EQ(this->bus_.channel_selects, selects + 1);
 }
 
+TEST_F(DS248xTest, FailedConfigureKeepsRecoveryPending) {
+  this->hub_.set_active_pullup(true);
+  this->setup_hub();
+  ASSERT_EQ(this->bus_.config(), DS248X_CONFIG_ACTIVE_PULLUP);
+  DS248xOneWireBus wire;
+  wire.set_parent(&this->hub_);
+  wire.set_channel(2);
+
+  // The device reset is acknowledged, but the chip refuses its configuration and keeps the reset defaults
+  this->bus_.stick_busy = true;
+  this->bus_.nack_command = DS248X_COMMAND_WRITECONFIG;
+  bool presence = false;
+  EXPECT_FALSE(this->hub_.ow_reset(presence));
+  EXPECT_TRUE(this->hub_.is_recovery_pending());
+  EXPECT_TRUE(this->hub_.status_has_warning());
+  EXPECT_EQ(this->bus_.config(), 0);
+  this->bus_.nack_command = NO_COMMAND;
+  AppSetupState::set_complete(true);
+
+  const unsigned commands = this->bus_.one_wire_commands;
+  EXPECT_EQ(wire.reset_int(), 0);
+  EXPECT_EQ(this->bus_.one_wire_commands, commands);
+
+  this->hub_.expire_backoff();
+  EXPECT_EQ(wire.reset_int(), 0);
+  EXPECT_EQ(this->bus_.one_wire_commands, commands + 1);
+  EXPECT_EQ(this->bus_.config(), DS248X_CONFIG_ACTIVE_PULLUP);
+  EXPECT_EQ(this->bus_.channel, 2);
+  EXPECT_FALSE(this->hub_.is_recovery_pending());
+  EXPECT_FALSE(this->hub_.status_has_warning());
+}
+
 }  // namespace esphome::ds248x::testing
