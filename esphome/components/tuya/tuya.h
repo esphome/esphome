@@ -139,7 +139,7 @@ class Tuya final : public Component, public uart::UARTDevice {
   void send_empty_command_(TuyaCommandType command);
   void set_numeric_datapoint_value_(uint8_t datapoint_id, TuyaDatapointType datapoint_type, uint32_t value,
                                     uint8_t length, bool forced);
-  void set_string_datapoint_value_(uint8_t datapoint_id, const char *value, bool forced);
+  void set_string_datapoint_value_(uint8_t datapoint_id, const char *value, size_t len, bool forced);
   void set_raw_datapoint_value_(uint8_t datapoint_id, const std::vector<uint8_t> &value, bool forced);
   void send_datapoint_command_(uint8_t datapoint_id, TuyaDatapointType datapoint_type, std::vector<uint8_t> data);
   void set_status_pin_();
