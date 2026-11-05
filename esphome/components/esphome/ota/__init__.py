@@ -40,7 +40,7 @@ from esphome.const import (
 )
 from esphome.core import CORE, coroutine_with_priority
 from esphome.coroutine import CoroPriority
-from esphome.espota2 import CONF_ALLOW_PLAINTEXT_UPLOAD, CONF_OLD_KEY
+from esphome.espota2 import CONF_ALLOW_PLAINTEXT_UPLOAD, CONF_OLD_KEY, DEFAULT_OTA_PORTS
 import esphome.final_validate as fv
 from esphome.types import ConfigType
 
@@ -324,16 +324,7 @@ CONFIG_SCHEMA = cv.All(
         {
             cv.GenerateID(): cv.declare_id(ESPHomeOTAComponent),
             cv.Optional(CONF_VERSION, default=2): cv.one_of(1, 2, int=True),
-            cv.SplitDefault(
-                CONF_PORT,
-                esp8266=8266,
-                esp32=3232,
-                rp2=2040,
-                bk72xx=8892,
-                ln882x=8820,
-                rtl87xx=8892,
-                host=8082,
-            ): cv.port,
+            cv.SplitDefault(CONF_PORT, **DEFAULT_OTA_PORTS): cv.port,
             cv.Optional(CONF_ALLOW_PARTITION_ACCESS, default=False): cv.boolean,
             cv.Optional(CONF_PASSWORD): cv.sensitive(),
             cv.Optional(CONF_ENCRYPTION): _encryption_schema,

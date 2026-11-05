@@ -17,25 +17,12 @@ void Am43Component::dump_config() {
                 this->pin_, (int) this->invert_position_);
 }
 
-void Am43Component::setup() {
-  this->position = COVER_OPEN;
-  this->encoder_ = make_unique<Am43Encoder>();
-  this->decoder_ = make_unique<Am43Decoder>();
-  this->logged_in_ = false;
-}
+void Am43Component::setup() { this->position = COVER_OPEN; }
 
 void Am43Component::loop() {
   if (this->node_state == espbt::ClientState::ESTABLISHED && !this->logged_in_) {
-    auto *packet = this->encoder_->get_send_pin_request(this->pin_);
-    auto status =
-        esp_ble_gattc_write_char(this->parent_->get_gattc_if(), this->parent_->get_conn_id(), this->char_handle_,
-                                 packet->length, packet->data, ESP_GATT_WRITE_TYPE_NO_RSP, ESP_GATT_AUTH_REQ_NONE);
     ESP_LOGI(TAG, "[%s] Logging into AM43", LOG_STR_ARG(this->get_log_name()));
-    if (status) {
-      ESP_LOGW(TAG, "[%s] Error writing set_pin to device, error = %d", LOG_STR_ARG(this->get_log_name()), status);
-    } else {
-      this->logged_in_ = true;
-    }
+    this->logged_in_ = this->write_packet_(Am43Encoder::get_send_pin_request(this->pin_), LOG_STR("set_pin"));
   }
 }
 
@@ -53,29 +40,15 @@ void Am43Component::control(const CoverCall &call) {
     ESP_LOGW(TAG, "[%s] Cannot send cover control, not connected", LOG_STR_ARG(this->get_log_name()));
     return;
   }
-  if (call.get_stop()) {
-    auto *packet = this->encoder_->get_stop_request();
-    auto status =
-        esp_ble_gattc_write_char(this->parent_->get_gattc_if(), this->parent_->get_conn_id(), this->char_handle_,
-                                 packet->length, packet->data, ESP_GATT_WRITE_TYPE_NO_RSP, ESP_GATT_AUTH_REQ_NONE);
-    if (status) {
-      ESP_LOGW(TAG, "[%s] Error writing stop command to device, error = %d", LOG_STR_ARG(this->get_log_name()), status);
-    }
-  }
+  if (call.get_stop())
+    this->write_packet_(Am43Encoder::get_stop_request(), LOG_STR("stop"));
   auto opt_pos = call.get_position();
   if (opt_pos.has_value()) {
     auto pos = *opt_pos;
 
     if (this->invert_position_)
       pos = 1 - pos;
-    auto *packet = this->encoder_->get_set_position_request(100 - (uint8_t) (pos * 100));
-    auto status =
-        esp_ble_gattc_write_char(this->parent_->get_gattc_if(), this->parent_->get_conn_id(), this->char_handle_,
-                                 packet->length, packet->data, ESP_GATT_WRITE_TYPE_NO_RSP, ESP_GATT_AUTH_REQ_NONE);
-    if (status) {
-      ESP_LOGW(TAG, "[%s] Error writing set_position command to device, error = %d", LOG_STR_ARG(this->get_log_name()),
-               status);
-    }
+    this->write_packet_(Am43Encoder::get_set_position_request(100 - (uint8_t) (pos * 100)), LOG_STR("set_position"));
   }
 }
 
@@ -113,10 +86,11 @@ void Am43Component::gattc_event_handler(esp_gattc_cb_event_t event, esp_gatt_if_
     case ESP_GATTC_NOTIFY_EVT: {
       if (param->notify.handle != this->char_handle_)
         break;
-      this->decoder_->decode(param->notify.value, param->notify.value_len);
+      Am43Decoder decoder;
+      decoder.decode(param->notify.value, param->notify.value_len);
 
-      if (this->decoder_->has_position()) {
-        this->position = ((float) this->decoder_->position_ / 100.0f);
+      if (decoder.has_position()) {
+        this->position = ((float) decoder.position_ / 100.0f);
         if (!this->invert_position_)
           this->position = 1 - this->position;
         if (this->position > 0.97f)
@@ -126,27 +100,20 @@ void Am43Component::gattc_event_handler(esp_gattc_cb_event_t event, esp_gatt_if_
         this->publish_state();
       }
 
-      if (this->decoder_->has_pin_response()) {
-        if (this->decoder_->pin_ok_) {
+      if (decoder.has_pin_response()) {
+        if (decoder.pin_ok_) {
           ESP_LOGI(TAG, "[%s] AM43 pin accepted.", LOG_STR_ARG(this->get_log_name()));
-          auto *packet = this->encoder_->get_position_request();
-          auto status = esp_ble_gattc_write_char(this->parent_->get_gattc_if(), this->parent_->get_conn_id(),
-                                                 this->char_handle_, packet->length, packet->data,
-                                                 ESP_GATT_WRITE_TYPE_NO_RSP, ESP_GATT_AUTH_REQ_NONE);
-          if (status) {
-            ESP_LOGW(TAG, "[%s] Error writing set_position to device, error = %d", LOG_STR_ARG(this->get_log_name()),
-                     status);
-          }
+          this->write_packet_(Am43Encoder::get_position_request(), LOG_STR("get_position"));
         } else {
           ESP_LOGW(TAG, "[%s] AM43 pin rejected!", LOG_STR_ARG(this->get_log_name()));
         }
       }
 
-      if (this->decoder_->has_set_position_response() && !this->decoder_->set_position_ok_) {
+      if (decoder.has_set_position_response() && !decoder.set_position_ok_) {
         ESP_LOGW(TAG, "[%s] Got nack after sending set_position. Bad pin?", LOG_STR_ARG(this->get_log_name()));
       }
 
-      if (this->decoder_->has_set_state_response() && !this->decoder_->set_state_ok_) {
+      if (decoder.has_set_state_response() && !decoder.set_state_ok_) {
         ESP_LOGW(TAG, "[%s] Got nack after sending set_state. Bad pin?", LOG_STR_ARG(this->get_log_name()));
       }
       break;
@@ -154,6 +121,19 @@ void Am43Component::gattc_event_handler(esp_gattc_cb_event_t event, esp_gatt_if_
     default:
       break;
   }
+}
+
+bool Am43Component::write_packet_(const Am43Packet &packet, const LogString *what) {
+  // NOLINTNEXTLINE(cppcoreguidelines-pro-type-const-cast) the IDF API takes a mutable buffer it only reads
+  auto status = esp_ble_gattc_write_char(this->parent_->get_gattc_if(), this->parent_->get_conn_id(),
+                                         this->char_handle_, packet.length, const_cast<uint8_t *>(packet.data),
+                                         ESP_GATT_WRITE_TYPE_NO_RSP, ESP_GATT_AUTH_REQ_NONE);
+  if (status) {
+    ESP_LOGW(TAG, "[%s] Error writing %s to device, error = %d", LOG_STR_ARG(this->get_log_name()), LOG_STR_ARG(what),
+             status);
+    return false;
+  }
+  return true;
 }
 
 }  // namespace esphome::am43
