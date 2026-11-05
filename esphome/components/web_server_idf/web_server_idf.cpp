@@ -45,6 +45,9 @@ namespace esphome::web_server_idf {
 #ifndef HTTPD_401
 #define HTTPD_401 "401 Unauthorized"
 #endif
+#ifndef HTTPD_403
+#define HTTPD_403 "403 Forbidden"
+#endif
 #ifndef HTTPD_409
 #define HTTPD_409 "409 Conflict"
 #endif
@@ -158,6 +161,7 @@ void AsyncWebServer::begin() {
   httpd_config_t config = HTTPD_DEFAULT_CONFIG();
   config.stack_size = 4512;
   config.server_port = this->port_;
+  config.max_open_sockets = WEB_SERVER_MAX_OPEN_SOCKETS;
   config.uri_match_fn = [](const char * /*unused*/, const char * /*unused*/, size_t /*unused*/) { return true; };
   // Always enable LRU purging to handle socket exhaustion gracefully.
   // When max sockets is reached, the oldest connection is closed to make room for new ones.
@@ -332,6 +336,10 @@ optional<std::string> AsyncWebServerRequest::get_header(const char *name) const 
   return request_get_header(*this, name);
 }
 
+size_t AsyncWebServerRequest::get_header_to(const char *name, std::span<char> buf) const {
+  return request_get_header_to(*this, name, buf);
+}
+
 StringRef AsyncWebServerRequest::url_to(std::span<char, URL_BUF_SIZE> buffer) const {
   const char *uri = this->req_->uri;
   const char *query_start = strchr(uri, '?');
@@ -366,6 +374,9 @@ void AsyncWebServerRequest::init_response_(AsyncWebServerResponse *rsp, int code
       break;
     case 401:
       status = HTTPD_401;
+      break;
+    case 403:
+      status = HTTPD_403;
       break;
     case 404:
       status = HTTPD_404;
