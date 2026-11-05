@@ -2,6 +2,7 @@
 #include "esphome/core/application.h"
 #include "esphome/core/hal.h"
 #include "esphome/core/log.h"
+#include <cstring>
 
 namespace esphome::sx127x {
 
@@ -384,8 +385,14 @@ void SX127x::restart_long_packet_rx_() {
 
 void SX127x::finish_long_packet_() {
   this->packet_.resize(this->packet_expected_length_);
-  this->call_listeners_(this->packet_, this->long_packet_rssi_, 0.0f);
+  // Restart RX before dispatching, so a callback may change the mode, and hand out the packet from a swapped
+  // buffer that a mode change cannot clear. Swapping back keeps the reserved capacity.
+  std::vector<uint8_t> packet;
+  packet.swap(this->packet_);
   this->restart_long_packet_rx_();
+  this->call_listeners_(packet, this->long_packet_rssi_, 0.0f);
+  packet.clear();
+  this->packet_.swap(packet);
 }
 
 void SX127x::handle_long_packet_(uint8_t irq2) {
@@ -412,19 +419,15 @@ void SX127x::handle_long_packet_(uint8_t irq2) {
       to_read = std::min(to_read, this->packet_expected_length_ - this->packet_.size());
     }
 
+    // Read through an aligned buffer: for an unaligned target the ESP32 SPI driver allocates a bounce buffer
+    alignas(4) uint8_t staged[FIFO_THRESHOLD_HALF + 1];
     const size_t old_size = this->packet_.size();
+    this->read_fifo_(staged, to_read);
     this->packet_.resize(old_size + to_read);
-    this->read_fifo_(this->packet_.data() + old_size, to_read);
+    std::memcpy(this->packet_.data() + old_size, staged, to_read);
     this->packet_last_byte_ms_ = App.get_loop_component_start_time();
     ESP_LOGVV(TAG, "Drained RX FIFO: read=%u received=%u expected=%u", (unsigned) to_read,
               (unsigned) this->packet_.size(), (unsigned) this->packet_expected_length_);
-
-    if (this->packet_.size() > MAX_PACKET_LENGTH) {
-      ESP_LOGW(TAG, "Packet length exceeds maximum, discarding packet: length=%u max=%u",
-               (unsigned) this->packet_.size(), MAX_PACKET_LENGTH);
-      this->restart_long_packet_rx_();
-      return;
-    }
 
     if (this->packet_expected_length_ == 0 && this->payload_length_func_) {
       int32_t expected = this->payload_length_func_(this->packet_);
@@ -450,6 +453,14 @@ void SX127x::handle_long_packet_(uint8_t irq2) {
         ESP_LOGVV(TAG, "Resolved packet length: received=%u expected=%u", (unsigned) this->packet_.size(),
                   (unsigned) this->packet_expected_length_);
       }
+    }
+
+    // Only reachable while the length is still unknown; a known length caps every read
+    if (this->packet_expected_length_ == 0 && this->packet_.size() > MAX_PACKET_LENGTH) {
+      ESP_LOGW(TAG, "Packet length exceeds maximum, discarding packet: length=%u max=%u",
+               (unsigned) this->packet_.size(), MAX_PACKET_LENGTH);
+      this->restart_long_packet_rx_();
+      return;
     }
 
     if (!this->long_packet_rssi_captured_ && this->packet_expected_length_ > 0) {
@@ -579,6 +590,10 @@ void SX127x::set_mode_rx() {
 }
 
 void SX127x::set_mode_tx() {
+  if (this->is_long_packet_mode_()) {
+    ESP_LOGW(TAG, "TX is not supported with long packets");
+    return;
+  }
   this->set_mode_(this->modulation_, MODE_TX);
   if (this->modulation_ == MOD_LORA) {
     this->write_register_(REG_IRQ_FLAGS_MASK, 0x00);

@@ -203,7 +203,7 @@ def validate_config(config: ConfigType) -> ConfigType:
             )
         if not long_packet and CONF_DIO1_PIN in config:
             raise cv.Invalid(
-                "dio1_pin is only used with payload_length > 64 or a lambda"
+                "dio1_pin is only used in packet mode with payload_length > 64 or a lambda"
             )
     if config[CONF_PA_PIN] == "RFO" and config[CONF_PA_POWER] > 15:
         raise cv.Invalid("PA power must be <= 15 dbm when using the RFO pin")

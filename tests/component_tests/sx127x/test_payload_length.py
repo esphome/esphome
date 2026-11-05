@@ -96,11 +96,11 @@ def test_dio0_pin_required_for_short_packets() -> None:
         ),
         (
             {"payload_length": 64, "dio1_pin": 27},
-            "dio1_pin is only used with",
+            "dio1_pin is only used",
         ),
         (
             {"packet_mode": False, "dio1_pin": 27},
-            "dio1_pin is only used with",
+            "dio1_pin is only used",
         ),
     ],
 )
