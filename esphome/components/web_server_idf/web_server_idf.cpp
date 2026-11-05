@@ -134,6 +134,8 @@ void AsyncWebServer::safe_close_with_shutdown(httpd_handle_t hd, int sockfd) {
   //
   // See: https://github.com/esphome/esphome-webserver/issues/163
 
+  AsyncStreamResponse::socket_closing(hd, sockfd);
+
   // Attempt shutdown - ignore errors as socket may already be closed
   shutdown(sockfd, SHUT_RD);
 
@@ -761,6 +763,21 @@ void AsyncStreamResponse::begin(const AsyncWebServerRequest *request, const char
   }
 }
 
+// Held around a stream's ownership check and send, and while its socket is marked closed
+static Mutex &stream_send_mutex() {
+  static Mutex mutex;
+  return mutex;
+}
+
+void AsyncStreamResponse::socket_closing(httpd_handle_t hd, int fd) {
+  // Only streams set a session context
+  auto *rsp = static_cast<AsyncStreamResponse *>(httpd_sess_get_ctx(hd, fd));
+  if (rsp == nullptr)
+    return;
+  LockGuard guard{stream_send_mutex()};
+  rsp->socket_closed_ = true;
+}
+
 void AsyncStreamResponse::destroy(void *ptr) {
   auto *rsp = static_cast<AsyncStreamResponse *>(ptr);
   int fd = rsp->fd_.exchange(0);  // Atomically get and clear fd
@@ -871,28 +888,32 @@ ssize_t AsyncStreamResponse::write(struct iovec *iov, int iovcnt) {
   if (total == 0) {
     return 0;
   }
-  // httpd frees a session before closing its socket, so the fd may already be a new client's.
+  // httpd closes the socket before it clears the session, so the fd number may already be a new client's.
   // Treated as would-block; the stall timer ends a session that never becomes ours again.
   const int fd = this->fd_.load();
-  if (this->owns_session_(fd)) {
-    struct msghdr msg{};
-    msg.msg_iov = iov;
-    msg.msg_iovlen = iovcnt;
-    const ssize_t sent = sendmsg(fd, &msg, MSG_DONTWAIT);
-    if (sent > 0) {
-      this->stall_.clear();
-      return sent;
+  ssize_t sent = 0;
+  int err = 0;
+  {
+    // Held across the check and the send, so socket_closing() cannot close the socket in between
+    LockGuard guard{stream_send_mutex()};
+    if (!this->socket_closed_ && this->owns_session_(fd)) {
+      struct msghdr msg{};
+      msg.msg_iov = iov;
+      msg.msg_iovlen = iovcnt;
+      sent = sendmsg(fd, &msg, MSG_DONTWAIT);
+      err = errno;
     }
-    if (sent < 0) {
-      const int err = errno;
-      if (err != EAGAIN && err != EWOULDBLOCK) {
-        ESP_LOGD(TAG, "send error: errno %d", err);
-        // A hard error is not a timeout, so is_stalled() must not report one
-        this->stall_.clear();
-        this->close();
-        return -1;
-      }
-    }
+  }
+  if (sent > 0) {
+    this->stall_.clear();
+    return sent;
+  }
+  if (sent < 0 && err != EAGAIN && err != EWOULDBLOCK) {
+    ESP_LOGD(TAG, "send error: errno %d", err);
+    // A hard error is not a timeout, so is_stalled() must not report one
+    this->stall_.clear();
+    this->close();
+    return -1;
   }
   // Socket buffer full, try again later; a socket that stays full past the stall timeout is closed
   const uint32_t now = App.get_loop_component_start_time();

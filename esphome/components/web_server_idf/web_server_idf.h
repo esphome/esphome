@@ -293,6 +293,8 @@ class AsyncStreamResponse {
   void close();
   /// Main loop, every pass. Keeps the session fresh in httpd's LRU and retries a pending close.
   void loop();
+  /// Httpd task, from the server's close_fn: no write() reaches the socket after this returns.
+  static void socket_closing(httpd_handle_t hd, int fd);
 
   /// httpd committed this response as the session context, after the creating handler returned.
   bool is_attached() const { return this->owns_session_(this->fd_.load()); }
@@ -327,6 +329,8 @@ class AsyncStreamResponse {
   // Set on the main loop before queueing close work, cleared by the HTTPD-task callback when done.
   std::atomic<bool> close_work_queued_{false};
   std::atomic<bool> lru_work_queued_{false};
+  // Guarded by the stream send mutex
+  bool socket_closed_{false};
   // Main-loop only; the HTTPD task never reads or writes these flags.
   bool close_requested_{false};
   bool close_retry_warning_logged_{false};
