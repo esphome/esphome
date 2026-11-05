@@ -94,7 +94,9 @@ class SX127x final : public Component,
   Trigger<std::vector<uint8_t>, float, float> *get_packet_trigger() { return &this->packet_trigger_; }
 
  protected:
-  static void gpio_intr(SX127x *arg);
+  // Inline like App.get_loop_component_start_time(): on RP2040 an out-of-line IRAM_ATTR function in the same
+  // file as that inline one fails with a section type conflict
+  static void IRAM_ATTR gpio_intr(SX127x *arg) { arg->enable_loop_soon_any_context(); }
   void configure_fsk_ook_();
   void configure_lora_();
   void set_mode_(uint8_t modulation, uint8_t mode);

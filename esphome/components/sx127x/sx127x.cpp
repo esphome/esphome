@@ -61,8 +61,6 @@ void SX127x::write_fifo_(const uint8_t *data, size_t len) {
   this->disable();
 }
 
-void IRAM_ATTR SX127x::gpio_intr(SX127x *arg) { arg->enable_loop_soon_any_context(); }
-
 void SX127x::setup() {
   // setup reset
   this->rst_pin_->setup();

@@ -32,8 +32,8 @@ CONFIG_SCHEMA = transport_schema(SX127xTransport).extend(
 def _validate_parent(parent_config: ConfigType) -> ConfigType:
     if is_long_packet(parent_config):
         raise cv.Invalid(
-            f"packet_transport cannot send with {CONF_PAYLOAD_LENGTH} > 64 or a lambda,"
-            " that configuration is receive-only"
+            f"packet_transport is not supported with {CONF_PAYLOAD_LENGTH} > 64 or a"
+            " lambda, long packets are receive-only"
         )
     return parent_config
 
