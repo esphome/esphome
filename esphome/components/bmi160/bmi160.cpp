@@ -123,7 +123,7 @@ void BMI160Component::internal_setup_(int stage) {
 
 bool BMI160Component::setup_stage_(int stage) {
   switch (stage) {
-    case 0:
+    case 0: {
       uint8_t chipid;
       if (!this->read_byte(BMI160_REGISTER_CHIPID, &chipid) || (chipid != 0b11010001)) {
         return false;
@@ -138,7 +138,7 @@ bool BMI160Component::setup_stage_(int stage) {
       // min 5ms, 10ms
       this->set_timeout(10, [this]() { this->internal_setup_(1); });
       break;
-
+    }
     case 1:
       ESP_LOGV(TAG, "  Bringing gyroscope out of sleep");
       if (!this->write_byte(BMI160_REGISTER_CMD, (uint8_t) Cmd::GYRO_SET_PMU_MODE | (uint8_t) GyroPmuMode::NORMAL)) {
@@ -149,7 +149,7 @@ bool BMI160Component::setup_stage_(int stage) {
       this->set_timeout(GYRO_WAKEUP_TIMEOUT_MS, [this]() { this->internal_setup_(2); });
       break;
 
-    case 2:
+    case 2: {
       ESP_LOGV(TAG, "  Setting up Gyro Config");
       uint8_t gyro_config = (uint8_t) GyroBandwidth::OSR4 | (uint8_t) GyroOuputDataRate::HZ_25;
       ESP_LOGV(TAG, "  Output gyro_config: 0b" BYTE_TO_BINARY_PATTERN, BYTE_TO_BINARY(gyro_config));
@@ -178,6 +178,10 @@ bool BMI160Component::setup_stage_(int stage) {
       }
 
       this->setup_complete_ = true;
+      break;
+    }
+    default:
+      break;
   }
   return true;
 }
@@ -196,19 +200,6 @@ void BMI160Component::dump_config() {
   LOG_SENSOR("  ", "Temperature", this->temperature_sensor_);
 }
 
-i2c::ErrorCode BMI160Component::read_le_int16_(uint8_t reg, int16_t *value, uint8_t len) {
-  uint8_t raw_data[len * 2];
-  // read using read_register because we have little-endian data, and read_bytes_16 will swap it
-  i2c::ErrorCode err = this->read_register(reg, raw_data, len * 2);
-  if (err != i2c::ERROR_OK) {
-    return err;
-  }
-  for (int i = 0; i < len; i++) {
-    value[i] = (int16_t) ((uint16_t) raw_data[i * 2] | ((uint16_t) raw_data[i * 2 + 1] << 8));
-  }
-  return err;
-}
-
 void BMI160Component::update() {
   if (!this->setup_complete_) {
     return;
@@ -216,7 +207,7 @@ void BMI160Component::update() {
 
   ESP_LOGV(TAG, "    Updating BMI160");
   int16_t data[6];
-  if (this->read_le_int16_(BMI160_REGISTER_DATA_GYRO_X_LSB, data, 6) != i2c::ERROR_OK) {
+  if (!this->read_bytes_16_le(BMI160_REGISTER_DATA_GYRO_X_LSB, data, 6)) {
     this->status_set_warning();
     return;
   }
@@ -229,7 +220,7 @@ void BMI160Component::update() {
   float accel_z = (float) data[5] / (float) INT16_MAX * 16 * GRAVITY_EARTH;
 
   int16_t raw_temperature;
-  if (this->read_le_int16_(BMI160_REGISTER_DATA_TEMP_LSB, &raw_temperature, 1) != i2c::ERROR_OK) {
+  if (!this->read_bytes_16_le(BMI160_REGISTER_DATA_TEMP_LSB, &raw_temperature, 1)) {
     this->status_set_warning();
     return;
   }
@@ -240,22 +231,15 @@ void BMI160Component::update() {
            "gyro={x=%.3f °/s, y=%.3f °/s, z=%.3f °/s}, temp=%.3f°C",
            accel_x, accel_y, accel_z, gyro_x, gyro_y, gyro_z, temperature);
 
-  if (this->accel_x_sensor_ != nullptr)
-    this->accel_x_sensor_->publish_state(accel_x);
-  if (this->accel_y_sensor_ != nullptr)
-    this->accel_y_sensor_->publish_state(accel_y);
-  if (this->accel_z_sensor_ != nullptr)
-    this->accel_z_sensor_->publish_state(accel_z);
+  PUBLISH_STATE(this->accel_x_sensor_, accel_x);
+  PUBLISH_STATE(this->accel_y_sensor_, accel_y);
+  PUBLISH_STATE(this->accel_z_sensor_, accel_z);
 
-  if (this->temperature_sensor_ != nullptr)
-    this->temperature_sensor_->publish_state(temperature);
+  PUBLISH_STATE(this->temperature_sensor_, temperature);
 
-  if (this->gyro_x_sensor_ != nullptr)
-    this->gyro_x_sensor_->publish_state(gyro_x);
-  if (this->gyro_y_sensor_ != nullptr)
-    this->gyro_y_sensor_->publish_state(gyro_y);
-  if (this->gyro_z_sensor_ != nullptr)
-    this->gyro_z_sensor_->publish_state(gyro_z);
+  PUBLISH_STATE(this->gyro_x_sensor_, gyro_x);
+  PUBLISH_STATE(this->gyro_y_sensor_, gyro_y);
+  PUBLISH_STATE(this->gyro_z_sensor_, gyro_z);
 
   this->status_clear_warning();
 }

@@ -14,7 +14,6 @@ namespace {
 class EmonTxTest : public ::testing::Test {
  protected:
   void SetUp() override {
-    construct_app();
     this->sut_.set_uart_parent(&this->uart_);
     this->sut_.add_on_data_callback([this](StringRef line) { this->lines_.emplace_back(line.c_str(), line.size()); });
     this->sut_.add_on_json_callback([this](JsonObject, StringRef) { this->json_count_++; });

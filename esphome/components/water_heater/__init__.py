@@ -1,3 +1,5 @@
+from functools import partial
+
 import esphome.codegen as cg
 import esphome.config_validation as cv
 from esphome.const import (
@@ -6,18 +8,22 @@ from esphome.const import (
     CONF_ID,
     CONF_MAX_TEMPERATURE,
     CONF_MIN_TEMPERATURE,
+    CONF_UNIT_OF_MEASUREMENT,
     CONF_VISUAL,
 )
 from esphome.core import CORE, CoroPriority, coroutine_with_priority
 from esphome.core.entity_helpers import (
+    convert_visual_temperatures,
     entity_duplicate_validator,
     queue_entity_register,
     setup_entity,
+    setup_entity_temperature_unit,
 )
 from esphome.cpp_generator import MockObjClass
+import esphome.final_validate as fv
 from esphome.types import ConfigType
 
-CODEOWNERS = ["@dhoeben"]
+CODEOWNERS = ["@esphome/core"]
 DOMAIN = "water_heater"
 
 IS_PLATFORM_COMPONENT = True
@@ -42,19 +48,36 @@ WATER_HEATER_MODES = WaterHeaterMode.options(
 )
 validate_water_heater_mode = cv.enum(WATER_HEATER_MODES, upper=True)
 
+
+_visual_temperatures_in_entity_unit = partial(
+    convert_visual_temperatures, delta_keys=(CONF_TARGET_TEMPERATURE_STEP,)
+)
+
+
 _WATER_HEATER_SCHEMA = cv.ENTITY_BASE_SCHEMA.extend(
     {
         cv.Optional(CONF_VISUAL, default={}): cv.Schema(
             {
-                cv.Optional(CONF_MIN_TEMPERATURE): cv.temperature,
-                cv.Optional(CONF_MAX_TEMPERATURE): cv.temperature,
-                cv.Optional(CONF_TARGET_TEMPERATURE_STEP): cv.float_,
+                cv.Optional(CONF_MIN_TEMPERATURE): cv.temperature_with_unit,
+                cv.Optional(CONF_MAX_TEMPERATURE): cv.temperature_with_unit,
+                cv.Optional(CONF_TARGET_TEMPERATURE_STEP): cv.temperature_with_unit,
             }
         ),
     }
 )
 
 _WATER_HEATER_SCHEMA.add_extra(entity_duplicate_validator("water_heater"))
+_WATER_HEATER_SCHEMA.add_extra(_visual_temperatures_in_entity_unit)
+
+
+def _final_validate(config: list[ConfigType]) -> None:
+    # Runs once for the whole domain; converts what waited for a platform's unit resolver
+    full_config = fv.full_config.get()
+    for entry in config:
+        _visual_temperatures_in_entity_unit(entry, full_config=full_config)
+
+
+FINAL_VALIDATE_SCHEMA = _final_validate
 
 
 def water_heater_schema(
@@ -62,8 +85,13 @@ def water_heater_schema(
     *,
     icon: str = cv.UNDEFINED,
     entity_category: str = cv.UNDEFINED,
+    temperature_unit: bool = False,
 ) -> cv.Schema:
+    """``temperature_unit`` adds ``unit_of_measurement`` for a platform whose temperatures are all
+    in the unit the user picks; the class then needs ``set_temperature_unit(TemperatureUnit)``."""
     schema = {cv.GenerateID(): cv.declare_id(class_)}
+    if temperature_unit:
+        schema[cv.Optional(CONF_UNIT_OF_MEASUREMENT)] = cv.temperature_unit
 
     for key, default, validator in [
         (CONF_ICON, icon, cv.icon),
@@ -88,6 +116,7 @@ async def setup_water_heater_core_(var: cg.Pvariable, config: ConfigType) -> Non
     if (temp_step := visual.get(CONF_TARGET_TEMPERATURE_STEP)) is not None:
         cg.add_define("USE_WATER_HEATER_VISUAL_OVERRIDES")
         cg.add(var.set_visual_target_temperature_step_override(temp_step))
+    setup_entity_temperature_unit(var, config)
 
 
 async def register_water_heater(var: cg.Pvariable, config: ConfigType) -> cg.Pvariable:

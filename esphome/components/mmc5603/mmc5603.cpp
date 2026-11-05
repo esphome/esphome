@@ -32,39 +32,26 @@ static const uint8_t MMC56X3_CTRL2_REG = 0x1D;
 static const uint8_t MMC5603_ODR_REG = 0x1A;
 
 void MMC5603Component::setup() {
-  uint8_t id = 0;
-  if (!this->read_byte(MMC56X3_PRODUCT_ID, &id)) {
-    this->mark_failed(LOG_STR(ESP_LOG_MSG_COMM_FAIL));
+  // Some chips report 0 instead of MMC56X3_CHIP_ID (0x10), so bit 4 is ignored
+  if (!this->check_chip_id(this, MMC56X3_PRODUCT_ID, 0x00, static_cast<uint8_t>(~MMC56X3_CHIP_ID)))
     return;
-  }
 
-  if (id != 0 && id != MMC56X3_CHIP_ID) {  // ID is not reported correctly by all chips, 0 on some chips
-    this->mark_failed(LOG_STR("The ID registers don't match - Is this really an MMC5603?"));
+  // turn on set bit
+  if (!this->setup_check(this->write_byte(MMC56X3_CTRL1_REG, 0x80), LOG_STR("Control 1 failed for set bit")))
     return;
-  }
 
-  if (!this->write_byte(MMC56X3_CTRL1_REG, 0x80)) {  // turn on set bit
-    this->mark_failed(LOG_STR("Control 1 failed for set bit"));
+  // turn on set bit
+  if (!this->setup_check(this->write_byte(MMC56X3_CTRL0_REG, 0x08), LOG_STR("Control 0 failed for set bit")))
     return;
-  }
 
-  if (!this->write_byte(MMC56X3_CTRL0_REG, 0x08)) {  // turn on set bit
-    this->mark_failed(LOG_STR("Control 0 failed for set bit"));
+  if (!this->setup_check(this->write_byte(MMC56X3_CTRL0_REG, 0x10)))
     return;
-  }
-
-  if (!this->write_byte(MMC56X3_CTRL0_REG, 0x10)) {
-    this->mark_failed(LOG_STR(ESP_LOG_MSG_COMM_FAIL));
-    return;
-  }
 
   uint8_t ctrl_2 = 0;
 
   ctrl_2 &= ~0x10;  // turn off cmm_en bit
-  if (!this->write_byte(MMC56X3_CTRL2_REG, ctrl_2)) {
-    this->mark_failed(LOG_STR(ESP_LOG_MSG_COMM_FAIL));
+  if (!this->setup_check(this->write_byte(MMC56X3_CTRL2_REG, ctrl_2)))
     return;
-  }
 }
 void MMC5603Component::dump_config() {
   ESP_LOGCONFIG(TAG, "MMC5603:");
@@ -134,14 +121,10 @@ void MMC5603Component::update() {
   const float heading = atan2f(0.0f - x, y) * 180.0f / std::numbers::pi_v<float>;
   ESP_LOGD(TAG, "Got x=%0.02fµT y=%0.02fµT z=%0.02fµT heading=%0.01f°", x, y, z, heading);
 
-  if (this->x_sensor_ != nullptr)
-    this->x_sensor_->publish_state(x);
-  if (this->y_sensor_ != nullptr)
-    this->y_sensor_->publish_state(y);
-  if (this->z_sensor_ != nullptr)
-    this->z_sensor_->publish_state(z);
-  if (this->heading_sensor_ != nullptr)
-    this->heading_sensor_->publish_state(heading);
+  PUBLISH_STATE(this->x_sensor_, x);
+  PUBLISH_STATE(this->y_sensor_, y);
+  PUBLISH_STATE(this->z_sensor_, z);
+  PUBLISH_STATE(this->heading_sensor_, heading);
 }
 
 }  // namespace esphome::mmc5603

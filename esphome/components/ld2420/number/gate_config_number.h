@@ -5,14 +5,6 @@
 
 namespace esphome::ld2420 {
 
-class LD2420TimeoutNumber final : public number::Number, public Parented<LD2420Component> {
- public:
-  LD2420TimeoutNumber() = default;
-
- protected:
-  void control(float timeout) override;
-};
-
 class LD2420MinDistanceNumber final : public number::Number, public Parented<LD2420Component> {
  public:
   LD2420MinDistanceNumber() = default;
@@ -35,42 +27,6 @@ class LD2420GateSelectNumber final : public number::Number, public Parented<LD24
 
  protected:
   void control(float gate_select) override;
-};
-
-class LD2420MoveSensFactorNumber final : public number::Number, public Parented<LD2420Component> {
- public:
-  LD2420MoveSensFactorNumber() = default;
-
- protected:
-  void control(float move_factor) override;
-};
-
-class LD2420StillSensFactorNumber final : public number::Number, public Parented<LD2420Component> {
- public:
-  LD2420StillSensFactorNumber() = default;
-
- protected:
-  void control(float still_factor) override;
-};
-
-class LD2420StillThresholdNumbers final : public number::Number, public Parented<LD2420Component> {
- public:
-  LD2420StillThresholdNumbers() = default;
-  LD2420StillThresholdNumbers(uint8_t gate);
-
- protected:
-  uint8_t gate_;
-  void control(float still_threshold) override;
-};
-
-class LD2420MoveThresholdNumbers final : public number::Number, public Parented<LD2420Component> {
- public:
-  LD2420MoveThresholdNumbers() = default;
-  LD2420MoveThresholdNumbers(uint8_t gate);
-
- protected:
-  uint8_t gate_;
-  void control(float move_threshold) override;
 };
 
 }  // namespace esphome::ld2420

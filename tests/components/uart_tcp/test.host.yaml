@@ -8,7 +8,15 @@ uart_tcp:
     uart_id: uart_bus
     host: 127.0.0.1
     port: 44502
+
+binary_sensor:
+  - platform: uart_tcp
+    uart_tcp_id: bridge
     connected:
       name: UART TCP Connected
+
+sensor:
+  - platform: uart_tcp
+    uart_tcp_id: bridge
     disconnects:
       name: UART TCP Disconnects

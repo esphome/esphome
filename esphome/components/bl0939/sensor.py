@@ -2,7 +2,6 @@ import esphome.codegen as cg
 from esphome.components import sensor, uart
 import esphome.config_validation as cv
 from esphome.const import (
-    CONF_ID,
     CONF_INTERNAL_TEMPERATURE,
     CONF_MODE,
     CONF_VOLTAGE,
@@ -112,20 +111,18 @@ CONFIG_SCHEMA = (
 
 
 async def to_code(config: ConfigType) -> None:
-    var = cg.new_Pvariable(config[CONF_ID])
-    await cg.register_component(var, config)
-    await uart.register_uart_device(var, config)
+    var = await uart.new_uart_component(config)
 
     if (mode := config[CONF_MODE]) != DEFAULT_MODE:
         cg.add(var.set_mode(mode))
 
     sensors = sensor.sub_sensors(config)
     await sensors(CONF_VOLTAGE, var.set_voltage_sensor)
-    await sensors(CONF_CURRENT_1, var.set_current_sensor_1)
-    await sensors(CONF_CURRENT_2, var.set_current_sensor_2)
-    await sensors(CONF_ACTIVE_POWER_1, var.set_power_sensor_1)
-    await sensors(CONF_ACTIVE_POWER_2, var.set_power_sensor_2)
-    await sensors(CONF_ENERGY_1, var.set_energy_sensor_1)
-    await sensors(CONF_ENERGY_2, var.set_energy_sensor_2)
-    await sensors(CONF_ENERGY_TOTAL, var.set_energy_sensor_sum)
+    await sensors(CONF_CURRENT_1, var.set_current_1_sensor)
+    await sensors(CONF_CURRENT_2, var.set_current_2_sensor)
+    await sensors(CONF_ACTIVE_POWER_1, var.set_power_1_sensor)
+    await sensors(CONF_ACTIVE_POWER_2, var.set_power_2_sensor)
+    await sensors(CONF_ENERGY_1, var.set_energy_1_sensor)
+    await sensors(CONF_ENERGY_2, var.set_energy_2_sensor)
+    await sensors(CONF_ENERGY_TOTAL, var.set_energy_sum_sensor)
     await sensors(CONF_INTERNAL_TEMPERATURE, var.set_internal_temperature_sensor)

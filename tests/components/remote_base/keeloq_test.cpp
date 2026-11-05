@@ -1,4 +1,5 @@
 #include <gtest/gtest.h>
+#include <vector>
 #include "esphome/components/remote_base/keeloq_protocol.h"
 
 namespace esphome::remote_base::testing {
@@ -40,6 +41,40 @@ RawTimings as_received(RawTimings timings, bool drop_tail = false) {
     merged.pop_back();
   }
   return merged;
+}
+
+// Jarolift TDEF group UP for the channel mask 0x0F0F, from a published test vector. The mask's low byte is
+// inside the hopping code, the high byte is the group sent after the 64-bit word.
+KeeloqData tdef_frame(uint8_t group) {
+  KeeloqData data{};
+  data.encrypted = 0xF94A09F2;
+  data.address = 0x1234500;
+  data.command = 0x8;
+  data.set_group(group);
+  return data;
+}
+
+// The data bits after the 10-bit-time header: a 1-bit-time mark is a 1, a 2-bit-time mark a 0.
+std::vector<bool> sent_bits(const RawTimings &timings) {
+  std::vector<bool> bits;
+  size_t i = 0;
+  while (i < timings.size() && timings[i] != -static_cast<int32_t>(10 * BIT_US)) {
+    i++;
+  }
+  for (i++; i < timings.size(); i++) {
+    if (timings[i] > 0) {
+      bits.push_back(timings[i] == static_cast<int32_t>(BIT_US));
+    }
+  }
+  return bits;
+}
+
+uint32_t field(const std::vector<bool> &bits, size_t first, size_t count) {
+  uint32_t value = 0;
+  for (size_t i = 0; i < count; i++) {
+    value |= static_cast<uint32_t>(bits[first + i]) << i;
+  }
+  return value;
 }
 
 optional<KeeloqData> decode(const RawTimings &timings) {
@@ -146,7 +181,7 @@ TEST(KeeloqProtocolTest, ASpaceThatIsNeitherDataNorAGapDropsTheSuffix) {
 }
 
 TEST(KeeloqProtocolTest, ASuffixFollowsARepeatBitOfZero) {
-  // The encoder always sends the repeat bit as 1. Turn it into a 0 bit, with and without a suffix.
+  // frame() sends the repeat bit as 1. Turn it into a 0 bit, with and without a suffix.
   for (uint8_t suffix_bits : {0, 8}) {
     RawTimings timings = as_received(encode(frame(suffix_bits > 0 ? 0xA5 : 0, suffix_bits)));
     const size_t repeat = timings.size() - 2 * suffix_bits - 2;
@@ -171,6 +206,60 @@ TEST(KeeloqProtocolTest, ASuffixEndsAtAGap) {
   if (decoded.has_value()) {
     EXPECT_EQ(decoded->suffix, 0x5);
     EXPECT_EQ(decoded->suffix_bits, 3);
+  }
+}
+
+TEST(KeeloqProtocolTest, HcsWordStillEndsWithRepeatOne) {
+  // 32 code bits, 28 address bits, 4 command bits, vlow, repeat.
+  std::vector<bool> bits = sent_bits(encode(frame(0, 0)));
+  ASSERT_EQ(bits.size(), 66u);
+  EXPECT_FALSE(bits[64]);
+  EXPECT_TRUE(bits[65]);
+}
+
+TEST(KeeloqProtocolTest, TdefGroupFrameSendsTheGroupAfterThe64BitWord) {
+  std::vector<bool> bits = sent_bits(encode(tdef_frame(0x0F)));
+  ASSERT_EQ(bits.size(), 72u);
+  EXPECT_EQ(field(bits, 0, 32), 0xF94A09F2u);
+  EXPECT_EQ(field(bits, 32, 28), 0x1234500u);
+  EXPECT_EQ(field(bits, 60, 4), 0x8u);
+  EXPECT_EQ(field(bits, 64, 8), 0x0Fu);
+}
+
+TEST(KeeloqProtocolTest, TdefChannelOneSendsNoChannelTenBit) {
+  // Channels 1 to 8 have no bit in the group. Bit 65 is the HCS301 repeat bit, which is always 1
+  // without a group; a Jarolift receiver reads it as channel 10.
+  std::vector<bool> bits = sent_bits(encode(tdef_frame(0x00)));
+  ASSERT_EQ(bits.size(), 72u);
+  EXPECT_EQ(field(bits, 64, 8), 0x00u);
+}
+
+TEST(KeeloqProtocolTest, TdefGroupRoundTrips) {
+  // 0x0F is channels 9 to 12, 0x80 is channel 16, the last bit of the frame.
+  for (uint8_t group : {0x0F, 0x80}) {
+    auto decoded = decode(as_received(encode(tdef_frame(group))));
+    ASSERT_TRUE(decoded.has_value()) << int(group);
+    if (decoded.has_value()) {
+      EXPECT_EQ(decoded->address, 0x1234500u);
+      EXPECT_EQ(decoded->command, 0x8);
+      EXPECT_EQ(decoded->encrypted, 0xF94A09F2u);
+      EXPECT_EQ(decoded->suffix_bits, 6);
+      EXPECT_EQ(decoded->group(), group);
+    }
+  }
+}
+
+TEST(KeeloqProtocolTest, AReceivedRepeatBitOfZeroIsSentAgainAsZero) {
+  KeeloqData received = frame(0, 0);
+  received.repeat = false;
+  std::vector<bool> bits = sent_bits(encode(received));
+  ASSERT_EQ(bits.size(), 66u);
+  EXPECT_FALSE(bits[65]);
+
+  auto decoded = decode(as_received(encode(received)));
+  ASSERT_TRUE(decoded.has_value());
+  if (decoded.has_value()) {
+    EXPECT_FALSE(decoded->repeat);
   }
 }
 

@@ -19,7 +19,7 @@ CONFIG_SCHEMA = (
     cover.cover_schema(Am43Component)
     .extend(
         {
-            cv.Optional(CONF_PIN, default=8888): cv.int_range(min=0, max=0xFFFF),
+            cv.Optional(CONF_PIN, default=8888): cv.uint16_t,
             cv.Optional(CONF_INVERT_POSITION, default=False): cv.boolean,
         }
     )

@@ -7,11 +7,11 @@ namespace esphome::vbus {
 ESPHOME_LOG_TAG(TAG, "vbus.sensor");
 
 static inline uint16_t get_u16(std::vector<uint8_t> &message, int start) {
-  return (message[start + 1] << 8) + message[start];
+  return encode_value_le<uint16_t>(&message[start]);
 }
 
 static inline int16_t get_i16(std::vector<uint8_t> &message, int start) {
-  return (int16_t) ((message[start + 1] << 8) + message[start]);
+  return encode_value_le<int16_t>(&message[start]);
 }
 
 void DeltaSolBSPlusSensor::dump_config() {
@@ -30,30 +30,18 @@ void DeltaSolBSPlusSensor::dump_config() {
 }
 
 void DeltaSolBSPlusSensor::handle_message(std::vector<uint8_t> &message) {
-  if (this->temperature1_sensor_ != nullptr)
-    this->temperature1_sensor_->publish_state(get_i16(message, 0) * 0.1f);
-  if (this->temperature2_sensor_ != nullptr)
-    this->temperature2_sensor_->publish_state(get_i16(message, 2) * 0.1f);
-  if (this->temperature3_sensor_ != nullptr)
-    this->temperature3_sensor_->publish_state(get_i16(message, 4) * 0.1f);
-  if (this->temperature4_sensor_ != nullptr)
-    this->temperature4_sensor_->publish_state(get_i16(message, 6) * 0.1f);
-  if (this->pump_speed1_sensor_ != nullptr)
-    this->pump_speed1_sensor_->publish_state(message[8]);
-  if (this->pump_speed2_sensor_ != nullptr)
-    this->pump_speed2_sensor_->publish_state(message[9]);
-  if (this->operating_hours1_sensor_ != nullptr)
-    this->operating_hours1_sensor_->publish_state(get_u16(message, 16));
-  if (this->operating_hours2_sensor_ != nullptr)
-    this->operating_hours2_sensor_->publish_state(get_u16(message, 18));
-  if (this->heat_quantity_sensor_ != nullptr) {
-    this->heat_quantity_sensor_->publish_state(get_u16(message, 20) + get_u16(message, 22) * 1000.0f +
-                                               get_u16(message, 24) * 1000000.0f);
-  }
-  if (this->time_sensor_ != nullptr)
-    this->time_sensor_->publish_state(get_u16(message, 12));
-  if (this->version_sensor_ != nullptr)
-    this->version_sensor_->publish_state(get_u16(message, 26) * 0.01f);
+  PUBLISH_STATE(this->temperature1_sensor_, get_i16(message, 0) * 0.1f);
+  PUBLISH_STATE(this->temperature2_sensor_, get_i16(message, 2) * 0.1f);
+  PUBLISH_STATE(this->temperature3_sensor_, get_i16(message, 4) * 0.1f);
+  PUBLISH_STATE(this->temperature4_sensor_, get_i16(message, 6) * 0.1f);
+  PUBLISH_STATE(this->pump_speed1_sensor_, message[8]);
+  PUBLISH_STATE(this->pump_speed2_sensor_, message[9]);
+  PUBLISH_STATE(this->operating_hours1_sensor_, get_u16(message, 16));
+  PUBLISH_STATE(this->operating_hours2_sensor_, get_u16(message, 18));
+  PUBLISH_STATE(this->heat_quantity_sensor_,
+                get_u16(message, 20) + get_u16(message, 22) * 1000.0f + get_u16(message, 24) * 1000000.0f);
+  PUBLISH_STATE(this->time_sensor_, get_u16(message, 12));
+  PUBLISH_STATE(this->version_sensor_, get_u16(message, 26) * 0.01f);
 }
 
 void DeltaSolBS2009Sensor::dump_config() {
@@ -72,29 +60,17 @@ void DeltaSolBS2009Sensor::dump_config() {
 }
 
 void DeltaSolBS2009Sensor::handle_message(std::vector<uint8_t> &message) {
-  if (this->temperature1_sensor_ != nullptr)
-    this->temperature1_sensor_->publish_state(get_i16(message, 0) * 0.1f);
-  if (this->temperature2_sensor_ != nullptr)
-    this->temperature2_sensor_->publish_state(get_i16(message, 2) * 0.1f);
-  if (this->temperature3_sensor_ != nullptr)
-    this->temperature3_sensor_->publish_state(get_i16(message, 4) * 0.1f);
-  if (this->temperature4_sensor_ != nullptr)
-    this->temperature4_sensor_->publish_state(get_i16(message, 6) * 0.1f);
-  if (this->pump_speed1_sensor_ != nullptr)
-    this->pump_speed1_sensor_->publish_state(message[8]);
-  if (this->pump_speed2_sensor_ != nullptr)
-    this->pump_speed2_sensor_->publish_state(message[12]);
-  if (this->operating_hours1_sensor_ != nullptr)
-    this->operating_hours1_sensor_->publish_state(get_u16(message, 10));
-  if (this->operating_hours2_sensor_ != nullptr)
-    this->operating_hours2_sensor_->publish_state(get_u16(message, 18));
-  if (this->heat_quantity_sensor_ != nullptr) {
-    this->heat_quantity_sensor_->publish_state(get_u16(message, 28) + get_u16(message, 30) * 1000);
-  }
-  if (this->time_sensor_ != nullptr)
-    this->time_sensor_->publish_state(get_u16(message, 22));
-  if (this->version_sensor_ != nullptr)
-    this->version_sensor_->publish_state(get_u16(message, 32) * 0.01f);
+  PUBLISH_STATE(this->temperature1_sensor_, get_i16(message, 0) * 0.1f);
+  PUBLISH_STATE(this->temperature2_sensor_, get_i16(message, 2) * 0.1f);
+  PUBLISH_STATE(this->temperature3_sensor_, get_i16(message, 4) * 0.1f);
+  PUBLISH_STATE(this->temperature4_sensor_, get_i16(message, 6) * 0.1f);
+  PUBLISH_STATE(this->pump_speed1_sensor_, message[8]);
+  PUBLISH_STATE(this->pump_speed2_sensor_, message[12]);
+  PUBLISH_STATE(this->operating_hours1_sensor_, get_u16(message, 10));
+  PUBLISH_STATE(this->operating_hours2_sensor_, get_u16(message, 18));
+  PUBLISH_STATE(this->heat_quantity_sensor_, get_u16(message, 28) + get_u16(message, 30) * 1000);
+  PUBLISH_STATE(this->time_sensor_, get_u16(message, 22));
+  PUBLISH_STATE(this->version_sensor_, get_u16(message, 32) * 0.01f);
 }
 
 void DeltaSolCSensor::dump_config() {
@@ -112,28 +88,17 @@ void DeltaSolCSensor::dump_config() {
 }
 
 void DeltaSolCSensor::handle_message(std::vector<uint8_t> &message) {
-  if (this->temperature1_sensor_ != nullptr)
-    this->temperature1_sensor_->publish_state(get_i16(message, 0) * 0.1f);
-  if (this->temperature2_sensor_ != nullptr)
-    this->temperature2_sensor_->publish_state(get_i16(message, 2) * 0.1f);
-  if (this->temperature3_sensor_ != nullptr)
-    this->temperature3_sensor_->publish_state(get_i16(message, 4) * 0.1f);
-  if (this->temperature4_sensor_ != nullptr)
-    this->temperature4_sensor_->publish_state(get_i16(message, 6) * 0.1f);
-  if (this->pump_speed1_sensor_ != nullptr)
-    this->pump_speed1_sensor_->publish_state(message[8]);
-  if (this->pump_speed2_sensor_ != nullptr)
-    this->pump_speed2_sensor_->publish_state(message[9]);
-  if (this->operating_hours1_sensor_ != nullptr)
-    this->operating_hours1_sensor_->publish_state(get_u16(message, 12));
-  if (this->operating_hours2_sensor_ != nullptr)
-    this->operating_hours2_sensor_->publish_state(get_u16(message, 14));
-  if (this->heat_quantity_sensor_ != nullptr) {
-    this->heat_quantity_sensor_->publish_state(get_u16(message, 16) + get_u16(message, 18) * 1000.0f +
-                                               get_u16(message, 20) * 1000000.0f);
-  }
-  if (this->time_sensor_ != nullptr)
-    this->time_sensor_->publish_state(get_u16(message, 22));
+  PUBLISH_STATE(this->temperature1_sensor_, get_i16(message, 0) * 0.1f);
+  PUBLISH_STATE(this->temperature2_sensor_, get_i16(message, 2) * 0.1f);
+  PUBLISH_STATE(this->temperature3_sensor_, get_i16(message, 4) * 0.1f);
+  PUBLISH_STATE(this->temperature4_sensor_, get_i16(message, 6) * 0.1f);
+  PUBLISH_STATE(this->pump_speed1_sensor_, message[8]);
+  PUBLISH_STATE(this->pump_speed2_sensor_, message[9]);
+  PUBLISH_STATE(this->operating_hours1_sensor_, get_u16(message, 12));
+  PUBLISH_STATE(this->operating_hours2_sensor_, get_u16(message, 14));
+  PUBLISH_STATE(this->heat_quantity_sensor_,
+                get_u16(message, 16) + get_u16(message, 18) * 1000.0f + get_u16(message, 20) * 1000000.0f);
+  PUBLISH_STATE(this->time_sensor_, get_u16(message, 22));
 }
 
 void DeltaSolCS2Sensor::dump_config() {
@@ -149,24 +114,15 @@ void DeltaSolCS2Sensor::dump_config() {
 }
 
 void DeltaSolCS2Sensor::handle_message(std::vector<uint8_t> &message) {
-  if (this->temperature1_sensor_ != nullptr)
-    this->temperature1_sensor_->publish_state(get_i16(message, 0) * 0.1f);
-  if (this->temperature2_sensor_ != nullptr)
-    this->temperature2_sensor_->publish_state(get_i16(message, 2) * 0.1f);
-  if (this->temperature3_sensor_ != nullptr)
-    this->temperature3_sensor_->publish_state(get_i16(message, 4) * 0.1f);
-  if (this->temperature4_sensor_ != nullptr)
-    this->temperature4_sensor_->publish_state(get_i16(message, 6) * 0.1f);
-  if (this->pump_speed_sensor_ != nullptr)
-    this->pump_speed_sensor_->publish_state(message[12]);
-  if (this->operating_hours_sensor_ != nullptr)
-    this->operating_hours_sensor_->publish_state(get_u16(message, 14));
-  if (this->heat_quantity_sensor_ != nullptr) {
-    this->heat_quantity_sensor_->publish_state((static_cast<uint32_t>(get_u16(message, 26)) << 16) |
-                                               get_u16(message, 24));
-  }
-  if (this->version_sensor_ != nullptr)
-    this->version_sensor_->publish_state(get_u16(message, 28) * 0.01f);
+  PUBLISH_STATE(this->temperature1_sensor_, get_i16(message, 0) * 0.1f);
+  PUBLISH_STATE(this->temperature2_sensor_, get_i16(message, 2) * 0.1f);
+  PUBLISH_STATE(this->temperature3_sensor_, get_i16(message, 4) * 0.1f);
+  PUBLISH_STATE(this->temperature4_sensor_, get_i16(message, 6) * 0.1f);
+  PUBLISH_STATE(this->pump_speed_sensor_, message[12]);
+  PUBLISH_STATE(this->operating_hours_sensor_, get_u16(message, 14));
+  PUBLISH_STATE(this->heat_quantity_sensor_,
+                (static_cast<uint32_t>(get_u16(message, 26)) << 16) | get_u16(message, 24));
+  PUBLISH_STATE(this->version_sensor_, get_u16(message, 28) * 0.01f);
 }
 
 void DeltaSolCS4Sensor::dump_config() {
@@ -187,34 +143,20 @@ void DeltaSolCS4Sensor::dump_config() {
 }
 
 void DeltaSolCS4Sensor::handle_message(std::vector<uint8_t> &message) {
-  if (this->temperature1_sensor_ != nullptr)
-    this->temperature1_sensor_->publish_state(get_i16(message, 0) * 0.1f);
-  if (this->temperature2_sensor_ != nullptr)
-    this->temperature2_sensor_->publish_state(get_i16(message, 2) * 0.1f);
-  if (this->temperature3_sensor_ != nullptr)
-    this->temperature3_sensor_->publish_state(get_i16(message, 4) * 0.1f);
-  if (this->temperature4_sensor_ != nullptr)
-    this->temperature4_sensor_->publish_state(get_i16(message, 6) * 0.1f);
-  if (this->temperature5_sensor_ != nullptr)
-    this->temperature5_sensor_->publish_state(get_i16(message, 36) * 0.1f);
-  if (this->pump_speed1_sensor_ != nullptr)
-    this->pump_speed1_sensor_->publish_state(message[8]);
-  if (this->pump_speed2_sensor_ != nullptr)
-    this->pump_speed2_sensor_->publish_state(message[12]);
-  if (this->operating_hours1_sensor_ != nullptr)
-    this->operating_hours1_sensor_->publish_state(get_u16(message, 10));
-  if (this->operating_hours2_sensor_ != nullptr)
-    this->operating_hours2_sensor_->publish_state(get_u16(message, 14));
-  if (this->heat_quantity_sensor_ != nullptr) {
-    this->heat_quantity_sensor_->publish_state((static_cast<uint32_t>(get_u16(message, 30)) << 16) |
-                                               get_u16(message, 28));
-  }
-  if (this->time_sensor_ != nullptr)
-    this->time_sensor_->publish_state(get_u16(message, 22));
-  if (this->version_sensor_ != nullptr)
-    this->version_sensor_->publish_state(get_u16(message, 32) * 0.01f);
-  if (this->flow_rate_sensor_ != nullptr)
-    this->flow_rate_sensor_->publish_state(get_u16(message, 38));
+  PUBLISH_STATE(this->temperature1_sensor_, get_i16(message, 0) * 0.1f);
+  PUBLISH_STATE(this->temperature2_sensor_, get_i16(message, 2) * 0.1f);
+  PUBLISH_STATE(this->temperature3_sensor_, get_i16(message, 4) * 0.1f);
+  PUBLISH_STATE(this->temperature4_sensor_, get_i16(message, 6) * 0.1f);
+  PUBLISH_STATE(this->temperature5_sensor_, get_i16(message, 36) * 0.1f);
+  PUBLISH_STATE(this->pump_speed1_sensor_, message[8]);
+  PUBLISH_STATE(this->pump_speed2_sensor_, message[12]);
+  PUBLISH_STATE(this->operating_hours1_sensor_, get_u16(message, 10));
+  PUBLISH_STATE(this->operating_hours2_sensor_, get_u16(message, 14));
+  PUBLISH_STATE(this->heat_quantity_sensor_,
+                (static_cast<uint32_t>(get_u16(message, 30)) << 16) | get_u16(message, 28));
+  PUBLISH_STATE(this->time_sensor_, get_u16(message, 22));
+  PUBLISH_STATE(this->version_sensor_, get_u16(message, 32) * 0.01f);
+  PUBLISH_STATE(this->flow_rate_sensor_, get_u16(message, 38));
 }
 
 void DeltaSolCSPlusSensor::dump_config() {
@@ -235,34 +177,20 @@ void DeltaSolCSPlusSensor::dump_config() {
 }
 
 void DeltaSolCSPlusSensor::handle_message(std::vector<uint8_t> &message) {
-  if (this->temperature1_sensor_ != nullptr)
-    this->temperature1_sensor_->publish_state(get_i16(message, 0) * 0.1f);
-  if (this->temperature2_sensor_ != nullptr)
-    this->temperature2_sensor_->publish_state(get_i16(message, 2) * 0.1f);
-  if (this->temperature3_sensor_ != nullptr)
-    this->temperature3_sensor_->publish_state(get_i16(message, 4) * 0.1f);
-  if (this->temperature4_sensor_ != nullptr)
-    this->temperature4_sensor_->publish_state(get_i16(message, 6) * 0.1f);
-  if (this->temperature5_sensor_ != nullptr)
-    this->temperature5_sensor_->publish_state(get_i16(message, 36) * 0.1f);
-  if (this->pump_speed1_sensor_ != nullptr)
-    this->pump_speed1_sensor_->publish_state(message[8]);
-  if (this->pump_speed2_sensor_ != nullptr)
-    this->pump_speed2_sensor_->publish_state(message[12]);
-  if (this->operating_hours1_sensor_ != nullptr)
-    this->operating_hours1_sensor_->publish_state(get_u16(message, 10));
-  if (this->operating_hours2_sensor_ != nullptr)
-    this->operating_hours2_sensor_->publish_state(get_u16(message, 14));
-  if (this->heat_quantity_sensor_ != nullptr) {
-    this->heat_quantity_sensor_->publish_state((static_cast<uint32_t>(get_u16(message, 30)) << 16) |
-                                               get_u16(message, 28));
-  }
-  if (this->time_sensor_ != nullptr)
-    this->time_sensor_->publish_state(get_u16(message, 22));
-  if (this->version_sensor_ != nullptr)
-    this->version_sensor_->publish_state(get_u16(message, 32) * 0.01f);
-  if (this->flow_rate_sensor_ != nullptr)
-    this->flow_rate_sensor_->publish_state(get_u16(message, 38));
+  PUBLISH_STATE(this->temperature1_sensor_, get_i16(message, 0) * 0.1f);
+  PUBLISH_STATE(this->temperature2_sensor_, get_i16(message, 2) * 0.1f);
+  PUBLISH_STATE(this->temperature3_sensor_, get_i16(message, 4) * 0.1f);
+  PUBLISH_STATE(this->temperature4_sensor_, get_i16(message, 6) * 0.1f);
+  PUBLISH_STATE(this->temperature5_sensor_, get_i16(message, 36) * 0.1f);
+  PUBLISH_STATE(this->pump_speed1_sensor_, message[8]);
+  PUBLISH_STATE(this->pump_speed2_sensor_, message[12]);
+  PUBLISH_STATE(this->operating_hours1_sensor_, get_u16(message, 10));
+  PUBLISH_STATE(this->operating_hours2_sensor_, get_u16(message, 14));
+  PUBLISH_STATE(this->heat_quantity_sensor_,
+                (static_cast<uint32_t>(get_u16(message, 30)) << 16) | get_u16(message, 28));
+  PUBLISH_STATE(this->time_sensor_, get_u16(message, 22));
+  PUBLISH_STATE(this->version_sensor_, get_u16(message, 32) * 0.01f);
+  PUBLISH_STATE(this->flow_rate_sensor_, get_u16(message, 38));
 }
 
 void DeltaSolBS2Sensor::dump_config() {
@@ -280,28 +208,17 @@ void DeltaSolBS2Sensor::dump_config() {
 }
 
 void DeltaSolBS2Sensor::handle_message(std::vector<uint8_t> &message) {
-  if (this->temperature1_sensor_ != nullptr)
-    this->temperature1_sensor_->publish_state(get_i16(message, 0) * 0.1f);
-  if (this->temperature2_sensor_ != nullptr)
-    this->temperature2_sensor_->publish_state(get_i16(message, 2) * 0.1f);
-  if (this->temperature3_sensor_ != nullptr)
-    this->temperature3_sensor_->publish_state(get_i16(message, 4) * 0.1f);
-  if (this->temperature4_sensor_ != nullptr)
-    this->temperature4_sensor_->publish_state(get_i16(message, 6) * 0.1f);
-  if (this->pump_speed1_sensor_ != nullptr)
-    this->pump_speed1_sensor_->publish_state(message[8]);
-  if (this->pump_speed2_sensor_ != nullptr)
-    this->pump_speed2_sensor_->publish_state(message[9]);
-  if (this->operating_hours1_sensor_ != nullptr)
-    this->operating_hours1_sensor_->publish_state(get_u16(message, 12));
-  if (this->operating_hours2_sensor_ != nullptr)
-    this->operating_hours2_sensor_->publish_state(get_u16(message, 14));
-  if (this->heat_quantity_sensor_ != nullptr) {
-    float heat_wh = get_u16(message, 16) + get_u16(message, 18) * 1000.0f + get_u16(message, 20) * 1000000.0f;
-    this->heat_quantity_sensor_->publish_state(heat_wh);
-  }
-  if (this->version_sensor_ != nullptr)
-    this->version_sensor_->publish_state(get_u16(message, 24) * 0.01f);
+  PUBLISH_STATE(this->temperature1_sensor_, get_i16(message, 0) * 0.1f);
+  PUBLISH_STATE(this->temperature2_sensor_, get_i16(message, 2) * 0.1f);
+  PUBLISH_STATE(this->temperature3_sensor_, get_i16(message, 4) * 0.1f);
+  PUBLISH_STATE(this->temperature4_sensor_, get_i16(message, 6) * 0.1f);
+  PUBLISH_STATE(this->pump_speed1_sensor_, message[8]);
+  PUBLISH_STATE(this->pump_speed2_sensor_, message[9]);
+  PUBLISH_STATE(this->operating_hours1_sensor_, get_u16(message, 12));
+  PUBLISH_STATE(this->operating_hours2_sensor_, get_u16(message, 14));
+  PUBLISH_STATE(this->heat_quantity_sensor_,
+                get_u16(message, 16) + get_u16(message, 18) * 1000.0f + get_u16(message, 20) * 1000000.0f);
+  PUBLISH_STATE(this->version_sensor_, get_u16(message, 24) * 0.01f);
 }
 
 void VBusCustomSensor::dump_config() {

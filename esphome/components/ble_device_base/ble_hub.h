@@ -104,19 +104,19 @@ struct HubCapabilities {
 // transition for every accepted or refused mode request - consumers skip
 // their own mode report on push builds.
 template<typename T>
-concept BLEHubContract = requires(T hub, ESPBTDeviceListener *listener, RawAdvertisementCallback raw_callback,
-                                  uint8_t *mac) {
-  hub.register_listener(listener);
-  hub.set_raw_advertisement_callback(raw_callback);
-  { T::get_capabilities() } -> std::same_as<HubCapabilities>;
-  hub.get_adapter_mac(mac);
-  { hub.scan_running() } -> std::same_as<bool>;
-  { hub.scan_active() } -> std::same_as<bool>;
-  { hub.request_scan_mode(true) } -> std::same_as<bool>;
+concept BLEHubContract =
+    requires(T hub, ESPBTDeviceListener *listener, RawAdvertisementCallback raw_callback, uint8_t *mac) {
+      hub.register_listener(listener);
+      hub.set_raw_advertisement_callback(raw_callback);
+      { T::get_capabilities() } -> std::same_as<HubCapabilities>;
+      hub.get_adapter_mac(mac);
+      { hub.scan_running() } -> std::same_as<bool>;
+      { hub.scan_active() } -> std::same_as<bool>;
+      { hub.request_scan_mode(true) } -> std::same_as<bool>;
 #ifdef USE_BLE_SCANNER_STATE_CALLBACK
-  hub.set_scanner_state_callback(ScannerStateCallback{});
-  { hub.get_scanner_state() } -> std::same_as<ScannerState>;
+      hub.set_scanner_state_callback(ScannerStateCallback{});
+      { hub.get_scanner_state() } -> std::same_as<ScannerState>;
 #endif
-};
+    };
 
 }  // namespace esphome::ble_device_base

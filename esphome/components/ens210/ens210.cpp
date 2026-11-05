@@ -7,6 +7,7 @@
 //   https://github.com/sciosense/ENS210_driver
 
 #include "ens210.h"
+#include "esphome/core/helpers.h"
 #include "esphome/core/log.h"
 #include "esphome/core/hal.h"
 
@@ -160,31 +161,25 @@ void ENS210Component::update() {
       return;
     }
     // Pack bytes for humidity
-    h_val_data = (uint32_t) ((uint32_t) data[5] << 16 | (uint32_t) data[4] << 8 | (uint32_t) data[3]);
+    h_val_data = encode_uint24(data[5], data[4], data[3]);
     // Extract humidity data and update the status
     extract_measurement_(h_val_data, &humidity_data, &humidity_status);
 
     if (humidity_status == ENS210_STATUS_OK) {
-      if (this->humidity_sensor_ != nullptr) {
-        float humidity = (humidity_data & 0xFFFF) / 512.0;
-        this->humidity_sensor_->publish_state(humidity);
-      }
+      PUBLISH_STATE(this->humidity_sensor_, (humidity_data & 0xFFFF) / 512.0);
     } else {
       ESP_LOGW(TAG, "Humidity status failure: %s", LOG_STR_ARG(ens210_status_to_human(humidity_status)));
       this->status_set_warning();
       return;
     }
     // Pack bytes for temperature
-    t_val_data = (uint32_t) ((uint32_t) data[2] << 16 | (uint32_t) data[1] << 8 | (uint32_t) data[0]);
+    t_val_data = encode_uint24(data[2], data[1], data[0]);
     // Extract temperature data and update the status
     extract_measurement_(t_val_data, &temperature_data, &temperature_status);
 
     if (temperature_status == ENS210_STATUS_OK) {
-      if (this->temperature_sensor_ != nullptr) {
-        // Temperature in Celsius
-        float temperature = (temperature_data & 0xFFFF) / 64.0 - 27315L / 100.0;
-        this->temperature_sensor_->publish_state(temperature);
-      }
+      // Temperature in Celsius
+      PUBLISH_STATE(this->temperature_sensor_, (temperature_data & 0xFFFF) / 64.0 - 27315L / 100.0);
     } else {
       ESP_LOGW(TAG, "Temperature status failure: %s", LOG_STR_ARG(ens210_status_to_human(temperature_status)));
     }

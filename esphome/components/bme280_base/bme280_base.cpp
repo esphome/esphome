@@ -5,6 +5,7 @@
 #include "esphome/core/hal.h"
 #include "esphome/core/helpers.h"
 #include "esphome/core/log.h"
+#include "esphome/core/progmem.h"
 #include <esphome/components/sensor/sensor.h>
 #include <esphome/core/component.h>
 
@@ -51,42 +52,18 @@ static const uint8_t BME280_MODE_FORCED = 0b01;
 static const uint8_t BME280_SOFT_RESET = 0xB6;
 static const uint8_t BME280_STATUS_IM_UPDATE = 0b01;
 
-inline uint16_t combine_bytes(uint8_t msb, uint8_t lsb) { return ((msb & 0xFF) << 8) | (lsb & 0xFF); }
+// Indexed by BME280IIRFilter
+PROGMEM_STRING_TABLE(IIRFilterStrings, "OFF", "2x", "4x", "8x", "16x", "UNKNOWN");
 
-const char *iir_filter_to_str(BME280IIRFilter filter) {  // NOLINT
-  switch (filter) {
-    case BME280_IIR_FILTER_OFF:
-      return "OFF";
-    case BME280_IIR_FILTER_2X:
-      return "2x";
-    case BME280_IIR_FILTER_4X:
-      return "4x";
-    case BME280_IIR_FILTER_8X:
-      return "8x";
-    case BME280_IIR_FILTER_16X:
-      return "16x";
-    default:
-      return "UNKNOWN";
-  }
+[[maybe_unused]] static const LogString *iir_filter_to_str(BME280IIRFilter value) {
+  return IIRFilterStrings::get_log_str(static_cast<uint8_t>(value), IIRFilterStrings::LAST_INDEX);
 }
 
-const char *oversampling_to_str(BME280Oversampling oversampling) {  // NOLINT
-  switch (oversampling) {
-    case BME280_OVERSAMPLING_NONE:
-      return "None";
-    case BME280_OVERSAMPLING_1X:
-      return "1x";
-    case BME280_OVERSAMPLING_2X:
-      return "2x";
-    case BME280_OVERSAMPLING_4X:
-      return "4x";
-    case BME280_OVERSAMPLING_8X:
-      return "8x";
-    case BME280_OVERSAMPLING_16X:
-      return "16x";
-    default:
-      return "UNKNOWN";
-  }
+// Indexed by BME280Oversampling
+PROGMEM_STRING_TABLE(OversamplingStrings, "None", "1x", "2x", "4x", "8x", "16x", "UNKNOWN");
+
+[[maybe_unused]] static const LogString *oversampling_to_str(BME280Oversampling value) {
+  return OversamplingStrings::get_log_str(static_cast<uint8_t>(value), OversamplingStrings::LAST_INDEX);
 }
 
 void BME280Component::setup() {
@@ -98,29 +75,21 @@ void BME280Component::setup() {
     this->reset_to_construction_state();
   }
 
-  if (!this->read_byte(BME280_REGISTER_CHIPID, &chip_id)) {
-    this->mark_failed(LOG_STR(ESP_LOG_MSG_COMM_FAIL));
+  if (!this->setup_check(this->read_byte(BME280_REGISTER_CHIPID, &chip_id)))
     return;
-  }
-  if (chip_id != 0x60) {
-    this->mark_failed(LOG_STR("Wrong chip ID or no response"));
+  if (!this->setup_check(chip_id == 0x60, LOG_STR("Wrong chip ID or no response")))
     return;
-  }
 
   // Send a soft reset.
-  if (!this->write_byte(BME280_REGISTER_RESET, BME280_SOFT_RESET)) {
-    this->mark_failed(LOG_STR("Reset failed"));
+  if (!this->setup_check(this->write_byte(BME280_REGISTER_RESET, BME280_SOFT_RESET), LOG_STR("Reset failed")))
     return;
-  }
   // Wait until the NVM data has finished loading.
   uint8_t status;
   uint8_t retry = 5;
   do {  // NOLINT
     delay(2);
-    if (!this->read_byte(BME280_REGISTER_STATUS, &status)) {
-      this->mark_failed(LOG_STR("Error reading status register"));
+    if (!this->setup_check(this->read_byte(BME280_REGISTER_STATUS, &status), LOG_STR("Error reading status register")))
       return;
-    }
   } while ((status & BME280_STATUS_IM_UPDATE) && (--retry));
   if (status & BME280_STATUS_IM_UPDATE) {
     this->mark_failed(LOG_STR("Timeout loading NVM"));
@@ -152,41 +121,35 @@ void BME280Component::setup() {
   this->calibration_.h6 = read_u8_(BME280_REGISTER_DIG_H6);
 
   uint8_t humid_control_val = 0;
-  if (!this->read_byte(BME280_REGISTER_CONTROLHUMID, &humid_control_val)) {
-    this->mark_failed(LOG_STR("Read humidity control"));
+  if (!this->setup_check(this->read_byte(BME280_REGISTER_CONTROLHUMID, &humid_control_val),
+                         LOG_STR("Read humidity control")))
     return;
-  }
   humid_control_val &= ~0b00000111;
   humid_control_val |= this->humidity_oversampling_ & 0b111;
-  if (!this->write_byte(BME280_REGISTER_CONTROLHUMID, humid_control_val)) {
-    this->mark_failed(LOG_STR("Write humidity control"));
+  if (!this->setup_check(this->write_byte(BME280_REGISTER_CONTROLHUMID, humid_control_val),
+                         LOG_STR("Write humidity control")))
     return;
-  }
 
   uint8_t config_register = 0;
-  if (!this->read_byte(BME280_REGISTER_CONFIG, &config_register)) {
-    this->mark_failed(LOG_STR("Read config"));
+  if (!this->setup_check(this->read_byte(BME280_REGISTER_CONFIG, &config_register), LOG_STR("Read config")))
     return;
-  }
   config_register &= ~0b11111100;
   config_register |= 0b101 << 5;  // 1000 ms standby time
   config_register |= (this->iir_filter_ & 0b111) << 2;
-  if (!this->write_byte(BME280_REGISTER_CONFIG, config_register)) {
-    this->mark_failed(LOG_STR("Write config"));
+  if (!this->setup_check(this->write_byte(BME280_REGISTER_CONFIG, config_register), LOG_STR("Write config")))
     return;
-  }
 }
 void BME280Component::dump_config() {
   ESP_LOGCONFIG(TAG, "BME280:");
-  ESP_LOGCONFIG(TAG, "  IIR Filter: %s", iir_filter_to_str(this->iir_filter_));
+  ESP_LOGCONFIG(TAG, "  IIR Filter: %s", LOG_STR_ARG(iir_filter_to_str(this->iir_filter_)));
   LOG_UPDATE_INTERVAL(this);
 
   LOG_SENSOR("  ", "Temperature", this->temperature_sensor_);
-  ESP_LOGCONFIG(TAG, "    Oversampling: %s", oversampling_to_str(this->temperature_oversampling_));
+  ESP_LOGCONFIG(TAG, "    Oversampling: %s", LOG_STR_ARG(oversampling_to_str(this->temperature_oversampling_)));
   LOG_SENSOR("  ", "Pressure", this->pressure_sensor_);
-  ESP_LOGCONFIG(TAG, "    Oversampling: %s", oversampling_to_str(this->pressure_oversampling_));
+  ESP_LOGCONFIG(TAG, "    Oversampling: %s", LOG_STR_ARG(oversampling_to_str(this->pressure_oversampling_)));
   LOG_SENSOR("  ", "Humidity", this->humidity_sensor_);
-  ESP_LOGCONFIG(TAG, "    Oversampling: %s", oversampling_to_str(this->humidity_oversampling_));
+  ESP_LOGCONFIG(TAG, "    Oversampling: %s", LOG_STR_ARG(oversampling_to_str(this->humidity_oversampling_)));
 }
 
 inline uint8_t oversampling_to_time(BME280Oversampling over_sampling) { return (1 << uint8_t(over_sampling)) >> 1; }
@@ -194,6 +157,10 @@ inline uint8_t oversampling_to_time(BME280Oversampling over_sampling) { return (
 void BME280Component::update() {
   // Enable sensor
   ESP_LOGV(TAG, "Sending conversion request");
+  if (!this->write_byte(BME280_REGISTER_CONTROLHUMID, this->humidity_oversampling_ & 0b111)) {
+    this->status_set_warning();
+    return;
+  }
   uint8_t meas_value = 0;
   meas_value |= (this->temperature_oversampling_ & 0b111) << 5;
   meas_value |= (this->pressure_oversampling_ & 0b111) << 2;
@@ -226,22 +193,18 @@ void BME280Component::update() {
     float const humidity = this->read_humidity_(data, t_fine);
 
     ESP_LOGV(TAG, "Temperature=%.1f°C Pressure=%.1fhPa Humidity=%.1f%%", temperature, pressure, humidity);
-    if (this->temperature_sensor_ != nullptr)
-      this->temperature_sensor_->publish_state(temperature);
-    if (this->pressure_sensor_ != nullptr)
-      this->pressure_sensor_->publish_state(pressure);
-    if (this->humidity_sensor_ != nullptr)
-      this->humidity_sensor_->publish_state(humidity);
+    PUBLISH_STATE(this->temperature_sensor_, temperature);
+    PUBLISH_STATE(this->pressure_sensor_, pressure);
+    PUBLISH_STATE(this->humidity_sensor_, humidity);
     this->status_clear_warning();
   });
 }
 float BME280Component::read_temperature_(const uint8_t *data, int32_t *t_fine) {
-  int32_t adc = ((data[3] & 0xFF) << 16) | ((data[4] & 0xFF) << 8) | (data[5] & 0xFF);
-  adc >>= 4;
-  if (adc == 0x80000) {
-    // temperature was disabled
+  if (this->temperature_oversampling_ == BME280_OVERSAMPLING_NONE) {
     return NAN;
   }
+  int32_t adc = encode_uint24(data[3], data[4], data[5]);
+  adc >>= 4;
 
   const int32_t t1 = this->calibration_.t1;
   const int32_t t2 = this->calibration_.t2;
@@ -256,12 +219,11 @@ float BME280Component::read_temperature_(const uint8_t *data, int32_t *t_fine) {
 }
 
 float BME280Component::read_pressure_(const uint8_t *data, int32_t t_fine) {
-  int32_t adc = ((data[0] & 0xFF) << 16) | ((data[1] & 0xFF) << 8) | (data[2] & 0xFF);
-  adc >>= 4;
-  if (adc == 0x80000) {
-    // pressure was disabled
+  if (this->pressure_oversampling_ == BME280_OVERSAMPLING_NONE) {
     return NAN;
   }
+  int32_t adc = encode_uint24(data[0], data[1], data[2]);
+  adc >>= 4;
   const int64_t p1 = this->calibration_.p1;
   const int64_t p2 = this->calibration_.p2;
   const int64_t p3 = this->calibration_.p3;
@@ -293,11 +255,10 @@ float BME280Component::read_pressure_(const uint8_t *data, int32_t t_fine) {
 }
 
 float BME280Component::read_humidity_(const uint8_t *data, int32_t t_fine) {
-  uint16_t const raw_adc = ((data[6] & 0xFF) << 8) | (data[7] & 0xFF);
-  if (raw_adc == 0x8000)
+  if (this->humidity_oversampling_ == BME280_OVERSAMPLING_NONE) {
     return NAN;
-
-  int32_t const adc = raw_adc;
+  }
+  int32_t const adc = encode_uint16(data[6], data[7]);
 
   const int32_t h1 = this->calibration_.h1;
   const int32_t h2 = this->calibration_.h2;
@@ -335,8 +296,8 @@ uint8_t BME280Component::read_u8_(uint8_t a_register) {
 }
 uint16_t BME280Component::read_u16_le_(uint8_t a_register) {
   uint16_t data = 0;
-  this->read_byte_16(a_register, &data);
-  return (data >> 8) | (data << 8);
+  this->read_byte_16_le(a_register, &data);
+  return data;
 }
 int16_t BME280Component::read_s16_le_(uint8_t a_register) { return this->read_u16_le_(a_register); }
 

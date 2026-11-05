@@ -27,16 +27,8 @@ static const uint16_t RATE_HZ[] PROGMEM = {1, 10, 25, 50, 100, 200, 400, 1620, 1
 void LIS3DHComponent::setup() {
   MotionComponent::setup();
 
-  uint8_t who_am_i = 0;
-  if (!this->read_byte(LIS3DH_REG_WHO_AM_I, &who_am_i)) {
-    this->mark_failed(LOG_STR("Failed to read chip ID - check wiring / address"));
+  if (!this->check_chip_id(this, LIS3DH_REG_WHO_AM_I, LIS3DH_WHO_AM_I_VALUE))
     return;
-  }
-  if (who_am_i != LIS3DH_WHO_AM_I_VALUE) {
-    ESP_LOGE(TAG, "Wrong chip ID: 0x%02X (expected 0x%02X)", who_am_i, LIS3DH_WHO_AM_I_VALUE);
-    this->mark_failed(LOG_STR("Wrong chip ID"));
-    return;
-  }
 
   if (!this->setup_accelerometer_() || !this->setup_temperature_() || !this->setup_interrupt_()) {
     this->mark_failed(LOG_STR("Failed to configure sensor"));
@@ -152,8 +144,8 @@ bool LIS3DHComponent::update_data(motion::MotionData &data) {
   if (this->is_failed())
     return false;
 
-  uint8_t raw[6];
-  if (!this->read_bytes(LIS3DH_REG_OUT_X_L | LIS3DH_AUTO_INCREMENT, raw, 6)) {
+  int16_t raw[3];
+  if (!this->read_bytes_16_le(LIS3DH_REG_OUT_X_L | LIS3DH_AUTO_INCREMENT, raw, 3)) {
     this->status_set_warning(LOG_STR("Failed to read acceleration data"));
     return false;
   }
@@ -162,9 +154,9 @@ bool LIS3DHComponent::update_data(motion::MotionData &data) {
   progmem_memcpy(&scale, &SCALE_G[this->range_], sizeof(scale));
 
   // Data is little-endian and left-justified in a signed 16-bit register.
-  int16_t raw_x = (int16_t) encode_uint16(raw[1], raw[0]);
-  int16_t raw_y = (int16_t) encode_uint16(raw[3], raw[2]);
-  int16_t raw_z = (int16_t) encode_uint16(raw[5], raw[4]);
+  int16_t raw_x = raw[0];
+  int16_t raw_y = raw[1];
+  int16_t raw_z = raw[2];
   ESP_LOGV(TAG, "Read raw accel data: %d, %d, %d", raw_x, raw_y, raw_z);
   data.acceleration[motion::X_AXIS] = raw_x * scale;
   data.acceleration[motion::Y_AXIS] = raw_y * scale;
@@ -176,14 +168,14 @@ bool LIS3DHComponent::update_data(motion::MotionData &data) {
 }
 
 bool LIS3DHComponent::publish_temperature_() {
-  uint8_t raw[2];
-  if (!this->read_bytes(LIS3DH_REG_OUT_ADC3_L | LIS3DH_AUTO_INCREMENT, raw, 2)) {
+  int16_t raw;
+  if (!this->read_bytes_16_le(LIS3DH_REG_OUT_ADC3_L | LIS3DH_AUTO_INCREMENT, &raw, 1)) {
     this->status_set_warning(LOG_STR("Failed to read temperature data"));
     return false;
   }
   // Signed, left-justified, relative value with 1 °C per count of the high byte; the
   // low byte carries the fractional bits in the modes that have them.
-  float temperature = (int16_t) encode_uint16(raw[1], raw[0]) / 256.0f + LIS3DH_TEMP_REFERENCE_C;
+  float temperature = raw / 256.0f + LIS3DH_TEMP_REFERENCE_C;
   this->temperature_callback_.call(temperature);
   return true;
 }

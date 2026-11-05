@@ -12,15 +12,20 @@ gamma after the balancing formula instead of before it.
 
 from __future__ import annotations
 
-import asyncio
 import re
 from typing import Any
 
-from aioesphomeapi import EntityState, LightInfo, LightState
+from aioesphomeapi import LightInfo, LightState
 import pytest
 
-from .state_utils import InitialStateHelper
+from .log_utils import LineWaiter
+from .state_utils import require_entity, subscribe_after_initial_states
 from .types import APIClientConnectedFactory, RunCompiledFunction
+
+CB_CW_RE = re.compile(r"(?<!N)CB_CW_OUTPUT:([\d.]+)")
+CB_WW_RE = re.compile(r"(?<!N)CB_WW_OUTPUT:([\d.]+)")
+NCB_CW_RE = re.compile(r"NCB_CW_OUTPUT:([\d.]+)")
+NCB_WW_RE = re.compile(r"NCB_WW_OUTPUT:([\d.]+)")
 
 
 @pytest.mark.asyncio
@@ -30,70 +35,30 @@ async def test_light_constant_brightness(
     api_client_connected: APIClientConnectedFactory,
 ) -> None:
     """Test constant_brightness true and false behavior with gamma correction."""
-    # Track output values for both lights from log lines
-    cb_cw_pattern = re.compile(r"(?<!N)CB_CW_OUTPUT:([\d.]+)")
-    cb_ww_pattern = re.compile(r"(?<!N)CB_WW_OUTPUT:([\d.]+)")
-    ncb_cw_pattern = re.compile(r"NCB_CW_OUTPUT:([\d.]+)")
-    ncb_ww_pattern = re.compile(r"NCB_WW_OUTPUT:([\d.]+)")
+    waiter = LineWaiter()
 
-    latest: dict[str, float] = {
-        "cb_cw": 0.0,
-        "cb_ww": 0.0,
-        "ncb_cw": 0.0,
-        "ncb_ww": 0.0,
-    }
-
-    def on_log_line(line: str) -> None:
-        for pattern, key in [
-            (cb_cw_pattern, "cb_cw"),
-            (cb_ww_pattern, "cb_ww"),
-            (ncb_cw_pattern, "ncb_cw"),
-            (ncb_ww_pattern, "ncb_ww"),
-        ]:
-            match = pattern.search(line)
-            if match:
-                latest[key] = float(match.group(1))
-
-    loop = asyncio.get_running_loop()
+    def latest(pattern: re.Pattern[str]) -> float:
+        """Return the last output value logged so far, or 0.0 if none."""
+        for line in reversed(waiter.lines):
+            if match := pattern.search(line):
+                return float(match[1])
+        return 0.0
 
     async with (
-        run_compiled(yaml_config, line_callback=on_log_line),
+        run_compiled(yaml_config, line_callback=waiter.callback),
         api_client_connected() as client,
     ):
         entities, _ = await client.list_entities_services()
-        lights = [e for e in entities if isinstance(e, LightInfo)]
-        cb_light = next(e for e in lights if e.object_id.endswith("cb_light"))
-        ncb_light = next(e for e in lights if e.object_id.endswith("ncb_light"))
+        cb_light = require_entity(entities, "test_cb_light", LightInfo, exact=True)
+        ncb_light = require_entity(entities, "test_ncb_light", LightInfo, exact=True)
 
-        # Use InitialStateHelper to wait for initial state broadcast
-        initial_state_helper = InitialStateHelper(entities)
+        sub = await subscribe_after_initial_states(client, entities)
 
-        # Track state changes per light key
-        state_futures: dict[int, asyncio.Future[EntityState]] = {}
-
-        def on_state(state: EntityState) -> None:
-            if isinstance(state, LightState) and state.key in state_futures:
-                future = state_futures[state.key]
-                if not future.done():
-                    future.set_result(state)
-
-        client.subscribe_states(initial_state_helper.on_state_wrapper(on_state))
-
-        try:
-            await initial_state_helper.wait_for_initial_states()
-        except TimeoutError:
-            pytest.fail("Timeout waiting for initial states")
-
-        async def send_and_wait(
-            light_key: int, timeout: float = 5.0, **kwargs: Any
-        ) -> LightState:
-            """Send a light command and wait for the state response."""
-            state_futures[light_key] = loop.create_future()
+        async def send_and_wait(light_key: int, **kwargs: Any) -> LightState:
+            """Send a light command and return the light's next state."""
+            next_light = sub.waiter.next_state(light_key, LightState)
             client.light_command(key=light_key, **kwargs)
-            try:
-                return await asyncio.wait_for(state_futures[light_key], timeout=timeout)
-            except TimeoutError:
-                pytest.fail(f"Timeout waiting for light state after command: {kwargs}")
+            return await next_light
 
         # --- Test constant_brightness: true ---
 
@@ -120,7 +85,7 @@ async def test_light_constant_brightness(
             await send_and_wait(
                 cb_light.key, color_temperature=mireds, transition_length=0
             )
-            cb_totals.append((mireds, latest["cb_cw"], latest["cb_ww"]))
+            cb_totals.append((mireds, latest(CB_CW_RE), latest(CB_WW_RE)))
 
         # All totals should be approximately equal (constant brightness)
         reference_total = next((cw + ww for _, cw, ww in cb_totals if cw + ww > 0), 0)
@@ -154,7 +119,7 @@ async def test_light_constant_brightness(
             await send_and_wait(
                 ncb_light.key, color_temperature=mireds, transition_length=0
             )
-            ncb_totals.append((mireds, latest["ncb_cw"], latest["ncb_ww"]))
+            ncb_totals.append((mireds, latest(NCB_CW_RE), latest(NCB_WW_RE)))
 
         extreme_cw = ncb_totals[0]  # 153 mireds - pure cold
         extreme_ww = ncb_totals[-1]  # 500 mireds - pure warm

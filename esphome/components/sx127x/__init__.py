@@ -3,11 +3,15 @@ from typing import Any
 from esphome import automation, pins
 import esphome.codegen as cg
 from esphome.components import spi
-from esphome.components.const import CONF_CRC_ENABLE, CONF_ON_PACKET
+from esphome.components.const import (
+    CONF_BITRATE,
+    CONF_CRC_ENABLE,
+    CONF_MODULATION,
+    CONF_ON_PACKET,
+    CONF_RST_PIN,
+)
 import esphome.config_validation as cv
-from esphome.const import CONF_DATA, CONF_FREQUENCY, CONF_ID
-from esphome.core import ID
-from esphome.cpp_generator import MockObj, TemplateArgsType
+from esphome.const import CONF_DATA, CONF_FREQUENCY
 from esphome.types import ConfigType
 
 DOMAIN = "sx127x"
@@ -19,12 +23,10 @@ CONF_SX127X_ID = "sx127x_id"
 
 CONF_AUTO_CAL = "auto_cal"
 CONF_BANDWIDTH = "bandwidth"
-CONF_BITRATE = "bitrate"
 CONF_BITSYNC = "bitsync"
 CONF_CODING_RATE = "coding_rate"
 CONF_DEVIATION = "deviation"
 CONF_DIO0_PIN = "dio0_pin"
-CONF_MODULATION = "modulation"
 CONF_PA_PIN = "pa_pin"
 CONF_PA_POWER = "pa_power"
 CONF_PA_RAMP = "pa_ramp"
@@ -34,7 +36,6 @@ CONF_PREAMBLE_DETECT = "preamble_detect"
 CONF_PREAMBLE_ERRORS = "preamble_errors"
 CONF_PREAMBLE_POLARITY = "preamble_polarity"
 CONF_PREAMBLE_SIZE = "preamble_size"
-CONF_RST_PIN = "rst_pin"
 CONF_RX_FLOOR = "rx_floor"
 CONF_RX_START = "rx_start"
 CONF_SHAPING = "shaping"
@@ -113,10 +114,6 @@ SHAPING = {
     "GAUSSIAN_BT_1_0": SX127xPaRamp.GAUSSIAN_BT_1_0,
     "NONE": SX127xPaRamp.SHAPING_NONE,
 }
-
-SendPacketAction = sx127x_ns.class_(
-    "SendPacketAction", automation.Action, cg.Parented.template(SX127x)
-)
 
 
 def validate_raw_data(value: Any) -> bytes | list[int]:
@@ -205,7 +202,7 @@ CONFIG_SCHEMA = (
             cv.Optional(CONF_PREAMBLE_POLARITY, default=0xAA): cv.All(
                 cv.hex_int, cv.one_of(0xAA, 0x55)
             ),
-            cv.Optional(CONF_PREAMBLE_SIZE, default=0): cv.int_range(min=0, max=65535),
+            cv.Optional(CONF_PREAMBLE_SIZE, default=0): cv.uint16_t,
             cv.Required(CONF_RST_PIN): pins.internal_gpio_output_pin_schema,
             cv.Optional(CONF_RX_FLOOR, default=-94): cv.float_range(min=-128, max=-1),
             cv.Optional(CONF_RX_START, default=True): cv.boolean,
@@ -221,9 +218,7 @@ CONFIG_SCHEMA = (
 
 
 async def to_code(config: ConfigType) -> None:
-    var = cg.new_Pvariable(config[CONF_ID])
-    await cg.register_component(var, config)
-    await spi.register_spi_device(var, config)
+    var = await spi.new_spi_component(config)
     if CONF_ON_PACKET in config:
         await automation.build_automation(
             var.get_packet_trigger(),
@@ -234,11 +229,8 @@ async def to_code(config: ConfigType) -> None:
             ],
             config[CONF_ON_PACKET],
         )
-    if CONF_DIO0_PIN in config:
-        dio0_pin = await cg.gpio_pin_expression(config[CONF_DIO0_PIN])
-        cg.add(var.set_dio0_pin(dio0_pin))
-    rst_pin = await cg.gpio_pin_expression(config[CONF_RST_PIN])
-    cg.add(var.set_rst_pin(rst_pin))
+    await cg.add_pin(var.set_dio0_pin, config.get(CONF_DIO0_PIN))
+    await cg.add_pin(var.set_rst_pin, config[CONF_RST_PIN])
     cg.add(var.set_auto_cal(config[CONF_AUTO_CAL]))
     cg.add(var.set_bandwidth(config[CONF_BANDWIDTH]))
     cg.add(var.set_frequency(config[CONF_FREQUENCY]))
@@ -293,25 +285,8 @@ SEND_PACKET_ACTION_SCHEMA = cv.maybe_simple_value(
 )
 
 
-@automation.register_action(
+automation.register_apply_action(
     "sx127x.send_packet",
-    SendPacketAction,
     SEND_PACKET_ACTION_SCHEMA,
-    synchronous=True,
+    automation.ApplyBytes(CONF_DATA, "transmit_packet({})", stack=MAX_PACKET_SIZE),
 )
-async def send_packet_action_to_code(
-    config: ConfigType,
-    action_id: ID,
-    template_arg: cg.TemplateArguments,
-    args: TemplateArgsType,
-) -> MockObj:
-    var = cg.new_Pvariable(action_id, template_arg)
-    await cg.register_parented(var, config[CONF_ID])
-    await automation.templatable_bytes(
-        config[CONF_DATA],
-        args,
-        var.set_data_template,
-        var.set_data_static,
-        "sx127x_data",
-    )
-    return var

@@ -1,0 +1,9 @@
+substitutions: {name: sd32pr}
+esphome:
+  name: sd32pr
+esp32:
+  board: esp32dev
+  framework: {type: esp-idf}
+deep_sleep:
+  id: ds
+packages: {c: !include ../sd-common.yaml}

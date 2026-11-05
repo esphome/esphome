@@ -5,8 +5,10 @@ namespace esphome::zhlt01 {
 
 ESPHOME_LOG_TAG(TAG, "zhlt01.climate");
 
+static constexpr uint8_t ZHLT01_MESSAGE_LENGTH = 12;
+
 void ZHLT01Climate::transmit_state() {
-  uint8_t ir_message[12] = {0};
+  uint8_t ir_message[ZHLT01_MESSAGE_LENGTH] = {0};
 
   // Byte 1 : Timer
   ir_message[1] = 0x00;  // Timer off
@@ -102,7 +104,7 @@ void ZHLT01Climate::transmit_state() {
   ir_message[11] = 0xD5;
 
   // Set checksum bytes
-  for (int i = 0; i < 12; i += 2) {
+  for (int i = 0; i < ZHLT01_MESSAGE_LENGTH; i += 2) {
     ir_message[i] = ~ir_message[i + 1];
   }
 
@@ -117,13 +119,7 @@ void ZHLT01Climate::transmit_state() {
   data->space(AC1_HDR_SPACE);
 
   // Data
-  for (uint8_t i : ir_message) {
-    for (uint8_t j = 0; j < 8; j++) {
-      data->mark(AC1_BIT_MARK);
-      bool bit = i & (1 << j);
-      data->space(bit ? AC1_ONE_SPACE : AC1_ZERO_SPACE);
-    }
-  }
+  data->item_bytes<AC1_BIT_TIMINGS>(ir_message, sizeof(ir_message));
 
   // Footer
   data->mark(AC1_BIT_MARK);
@@ -140,19 +136,10 @@ bool ZHLT01Climate::on_receive(remote_base::RemoteReceiveData data) {
   }
 
   // Decode IR message
-  uint8_t ir_message[12] = {0};
-  // Read all bytes
-  for (int i = 0; i < 12; i++) {
-    // Read bit
-    for (int j = 0; j < 8; j++) {
-      if (data.expect_item(AC1_BIT_MARK, AC1_ONE_SPACE)) {
-        ir_message[i] |= 1 << j;
-      } else if (!data.expect_item(AC1_BIT_MARK, AC1_ZERO_SPACE)) {
-        ESP_LOGV(TAG, "Byte %d bit %d fail", i, j);
-        return false;
-      }
-    }
-    ESP_LOGVV(TAG, "Byte %d %02X", i, ir_message[i]);
+  uint8_t ir_message[ZHLT01_MESSAGE_LENGTH];
+  if (!data.expect_bytes<AC1_BIT_TIMINGS>(ir_message, sizeof(ir_message))) {
+    ESP_LOGV(TAG, "Data fail");
+    return false;
   }
 
   // Validate footer
@@ -162,7 +149,7 @@ bool ZHLT01Climate::on_receive(remote_base::RemoteReceiveData data) {
   }
 
   // Validate checksum
-  for (int i = 0; i < 12; i += 2) {
+  for (int i = 0; i < ZHLT01_MESSAGE_LENGTH; i += 2) {
     if (ir_message[i] != (uint8_t) (~ir_message[i + 1])) {
       ESP_LOGV(TAG, "Byte %d checksum incorrect (%02X != %02X)", i, ir_message[i], (uint8_t) (~ir_message[i + 1]));
       return false;

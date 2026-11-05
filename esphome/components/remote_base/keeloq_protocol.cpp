@@ -93,9 +93,14 @@ void KeeloqProtocol::encode(RemoteTransmitData *dst, const KeeloqData &data) {
     dst->space(1 * BIT_TIME_US);
   }
 
-  // repeat flag - always sent as a '1'
-  dst->mark(1 * BIT_TIME_US);
-  dst->space(2 * BIT_TIME_US);
+  // repeat flag
+  if (data.repeat) {
+    dst->mark(1 * BIT_TIME_US);
+    dst->space(2 * BIT_TIME_US);
+  } else {
+    dst->mark(2 * BIT_TIME_US);
+    dst->space(1 * BIT_TIME_US);
+  }
 
   const uint8_t extra = data.suffix_bits > NBITS_SUFFIX_MAX ? NBITS_SUFFIX_MAX : data.suffix_bits;
   for (uint8_t i = 0; i < extra; i++) {
@@ -234,6 +239,12 @@ optional<KeeloqData> KeeloqProtocol::decode(RemoteReceiveData src) {
 }
 
 void KeeloqProtocol::dump(const KeeloqData &data) {
+  if (data.suffix_bits == 6) {
+    // Jarolift TDEF frame: show the group as transmit_keeloq takes it.
+    ESP_LOGD(TAG, "Received Keeloq: address=0x%08" PRIx32 ", command=0x%02x, encrypted=0x%08" PRIx32 ", group=0x%02x",
+             data.address, data.command, data.encrypted, data.group());
+    return;
+  }
   ESP_LOGD(TAG, "Received Keeloq: address=0x%08" PRIx32 ", command=0x%02x, encrypted=0x%08" PRIx32 ", suffix=0x%04x/%u",
            data.address, data.command, data.encrypted, data.suffix, data.suffix_bits);
 }

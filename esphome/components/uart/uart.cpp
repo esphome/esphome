@@ -33,6 +33,13 @@ void UARTDevice::check_uart_settings(uint32_t baud_rate, uint8_t stop_bits, UART
   }
 }
 
+void UARTDevice::discard_available() {
+  UARTComponent *parent = this->parent_;
+  uint8_t byte;
+  while (parent->available() && parent->read_byte(&byte)) {
+  }
+}
+
 const LogString *parity_to_str(UARTParityOptions parity) {
   return UARTParityStrings::get_log_str(static_cast<uint8_t>(parity), UARTParityStrings::LAST_INDEX);
 }

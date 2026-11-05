@@ -38,10 +38,7 @@ bool PN532Spi::write_data(const std::span<const uint8_t> data) {
   delay(2);
   // First byte, communication mode: Write data
   this->write_byte(0x01);
-#if ESPHOME_LOG_LEVEL >= ESPHOME_LOG_LEVEL_VERBOSE
-  char hex_buf[format_hex_pretty_size(PN532_MAX_LOG_BYTES)];
-#endif
-  ESP_LOGV(TAG, "Writing data: %s", format_hex_pretty_to(hex_buf, sizeof(hex_buf), data.data(), data.size()));
+  ESP_LOGV_HEX(TAG, data.data(), data.size(), PN532_MAX_LOG_BYTES, "Writing data: %s");
   this->write_array(data.data(), data.size());
   this->disable();
 
@@ -65,10 +62,7 @@ bool PN532Spi::read_data(pn532::PN532Frame &data, size_t len) {
   data[0] = 0x01;
   this->read_array(data.data() + 1, len);
   this->disable();
-#if ESPHOME_LOG_LEVEL >= ESPHOME_LOG_LEVEL_VERBOSE
-  char hex_buf[format_hex_pretty_size(PN532_MAX_LOG_BYTES)];
-#endif
-  ESP_LOGV(TAG, "Read data: %s", format_hex_pretty_to(hex_buf, sizeof(hex_buf), data.data(), data.size()));
+  ESP_LOGV_HEX(TAG, data.data(), data.size(), PN532_MAX_LOG_BYTES, "Read data: %s");
   return true;
 }
 

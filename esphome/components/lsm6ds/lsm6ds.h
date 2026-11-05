@@ -96,7 +96,6 @@ class LSM6DSComponent final : public motion::MotionComponent, public i2c::I2CDev
  public:
   void setup() override;
   void dump_config() override;
-  float get_setup_priority() const override { return setup_priority::DATA; }
 
   // Configuration setters (called from Python codegen)
   void set_accel_range(LSM6DSAccelRange r) { this->accel_range_ = r; }

@@ -40,5 +40,4 @@ async def to_code(config: ConfigType) -> None:
     await cg.register_component(var, config)
 
     cg.add(var.set_type(config[CONF_TYPE]))
-    paren = await cg.get_variable(config[CONF_SUN_ID])
-    cg.add(var.set_parent(paren))
+    await cg.register_parented(var, config[CONF_SUN_ID])

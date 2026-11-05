@@ -5,7 +5,6 @@ import esphome.config_validation as cv
 from esphome.const import (
     CONF_BATTERY_LEVEL,
     CONF_BATTERY_VOLTAGE,
-    CONF_ID,
     CONF_SIZE,
     CONF_TEMPERATURE,
     CONF_VOLTAGE,
@@ -61,7 +60,7 @@ CONFIG_SCHEMA = (
                 entity_category=ENTITY_CATEGORY_DIAGNOSTIC,
             ).extend(
                 {
-                    cv.Required(CONF_B_CONSTANT): cv.int_range(0, 0xFFFF),
+                    cv.Required(CONF_B_CONSTANT): cv.uint16_t,
                 }
             ),
         }
@@ -72,9 +71,7 @@ CONFIG_SCHEMA = (
 
 
 async def to_code(config: ConfigType) -> None:
-    var = cg.new_Pvariable(config[CONF_ID])
-    await cg.register_component(var, config)
-    await i2c.register_i2c_device(var, config)
+    var = await i2c.new_i2c_component(config)
     cg.add(var.set_pack_size(config.get(CONF_SIZE)))
     cg.add(var.set_pack_voltage(BATTERY_VOLTAGE_OPTIONS[config[CONF_VOLTAGE]]))
 

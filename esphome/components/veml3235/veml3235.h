@@ -15,13 +15,9 @@ static const uint8_t ID_REG = 0x09;
 
 // Bit offsets within CONFIG_REG
 //
-// The device expects the low data byte first while write_byte_16() sends the high byte first, so the 16-bit
-// configuration word used here is byte-swapped relative to the datasheet: datasheet low-byte bits are word
-// bits 15:8 here and datasheet high-byte bits are word bits 7:0.
-//
-static const uint8_t CONFIG_REG_IT_BIT = 12;
-static const uint8_t CONFIG_REG_DG_BIT = 5;
-static const uint8_t CONFIG_REG_G_BIT = 3;
+static const uint8_t CONFIG_REG_IT_BIT = 4;
+static const uint8_t CONFIG_REG_DG_BIT = 13;
+static const uint8_t CONFIG_REG_G_BIT = 11;
 
 // Other important constants
 //
