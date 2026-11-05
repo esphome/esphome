@@ -34,7 +34,7 @@ class NullCanbus : public canbus::Canbus {
   std::vector<canbus::CanFrame> sent;
   bool fail{false};
   // Lets a test count the callbacks a hub registered on this bus
-  size_t callback_count() const { return this->callback_manager_.size(); }
+  size_t callback_count() const { return this->frame_callbacks_.size(); }
 
  protected:
   bool setup_internal() override { return true; }
