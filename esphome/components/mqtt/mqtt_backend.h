@@ -27,6 +27,19 @@ enum class MQTTTransport : uint8_t {
   MQTT_TRANSPORT_WSS = 2,
 };
 
+/// Sets a flag for the guard's scope and restores its previous value on exit.
+class DispatchGuard {
+ public:
+  explicit DispatchGuard(bool &flag) : flag_(flag), previous_(flag) { flag = true; }
+  ~DispatchGuard() { this->flag_ = this->previous_; }
+  DispatchGuard(const DispatchGuard &) = delete;
+  DispatchGuard &operator=(const DispatchGuard &) = delete;
+
+ protected:
+  bool &flag_;
+  bool previous_;
+};
+
 /// internal struct for MQTT messages.
 struct MQTTMessage {
   std::string topic;

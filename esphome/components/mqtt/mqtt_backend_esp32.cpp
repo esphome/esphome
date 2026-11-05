@@ -113,9 +113,10 @@ void MQTTBackendESP32::loop() {
     if (event == nullptr)
       break;
     const auto event_id = event->event_id;
-    this->dispatching_ = true;
-    this->mqtt_event_handler_(*event);
-    this->dispatching_ = false;
+    {
+      DispatchGuard dispatching(this->dispatching_);
+      this->mqtt_event_handler_(*event);
+    }
     this->mqtt_event_pool_.release(event);
     // Let the client handle a connection change first
     if (event_id == MQTT_EVENT_CONNECTED || event_id == MQTT_EVENT_DISCONNECTED ||

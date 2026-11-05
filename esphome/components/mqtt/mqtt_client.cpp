@@ -860,17 +860,18 @@ void MQTTClientComponent::on_message(const std::string &topic, const std::string
 #endif
     // Indexed with the count taken up front: a callback may subscribe, which can reallocate the
     // vector, and the new entry waits for the next message.
-    // Restored rather than cleared, so only the outermost dispatch erases what was unsubscribed meanwhile.
-    const bool was_dispatching = this->dispatching_;
-    this->dispatching_ = true;
-    const size_t count = this->subscriptions_.size();
-    for (size_t i = 0; i < count; i++) {
-      const auto &subscription = this->subscriptions_[i];
-      if (!subscription.removed && topic_matches(topic.c_str(), subscription.topic))
-        subscription.callback.call(topic, payload);
+    // Only the outermost dispatch erases what was unsubscribed meanwhile.
+    const bool outermost = !this->dispatching_;
+    {
+      DispatchGuard dispatching(this->dispatching_);
+      const size_t count = this->subscriptions_.size();
+      for (size_t i = 0; i < count; i++) {
+        const auto &subscription = this->subscriptions_[i];
+        if (!subscription.removed && topic_matches(topic.c_str(), subscription.topic))
+          subscription.callback.call(topic, payload);
+      }
     }
-    this->dispatching_ = was_dispatching;
-    if (!was_dispatching && this->removed_while_dispatching_) {
+    if (outermost && this->removed_while_dispatching_) {
       this->removed_while_dispatching_ = false;
       this->erase_removed_subscriptions_();
     }
