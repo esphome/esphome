@@ -32,7 +32,7 @@ runs:
       # detects the activated venv via ``VIRTUAL_ENV`` so the venv layout
       # downstream jobs rely on is preserved.
       if: steps.cache-venv.outputs.cache-hit != 'true'
-      uses: astral-sh/setup-uv@v10.3.2
+      uses: astral-sh/setup-uv@v10.3.3
       with:
         enable-cache: true
         # Pull request saves land in per-PR scopes nothing else can

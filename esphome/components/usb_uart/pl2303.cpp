@@ -2,6 +2,7 @@
     defined(USE_ESP32_VARIANT_ESP32S31) || defined(USE_ESP32_VARIANT_ESP32H4)
 #include "usb_uart.h"
 #include "usb/usb_host.h"
+#include "esphome/core/helpers.h"
 #include "esphome/core/log.h"
 #include <cinttypes>
 
@@ -102,14 +103,6 @@ static uint32_t nearest_supported_baud(uint32_t baud) {
     }
   }
   return SUPPORTED_BAUD_RATES[n - 1];
-}
-
-// Direct encoding: little-endian 32-bit baud rate value
-static void encode_baud_direct(uint8_t buf[4], uint32_t baud) {
-  buf[0] = baud & 0xFF;
-  buf[1] = (baud >> 8) & 0xFF;
-  buf[2] = (baud >> 16) & 0xFF;
-  buf[3] = (baud >> 24) & 0xFF;
 }
 
 // Divisor encoding for TYPE_HX, TYPE_HXD: baudrate = 12M*32 / (mantissa * 4^exponent)
@@ -299,7 +292,7 @@ bool USBUartTypePL2303::config_step(USBUartChannelBase *channel, uint8_t step, b
       // Choose baud encoding based on chip type
       uint32_t nearest = nearest_supported_baud(baud);
       if (baud == nearest || this->chip_type_ == PL2303_TYPE_HXN) {
-        encode_baud_direct(line_coding, baud);
+        put_le32(line_coding, baud);
       } else if (this->chip_type_ == PL2303_TYPE_TA || this->chip_type_ == PL2303_TYPE_TB) {
         encode_baud_divisor_alt(line_coding, baud);
       } else {
