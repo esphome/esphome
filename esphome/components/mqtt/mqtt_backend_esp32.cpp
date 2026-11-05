@@ -235,6 +235,12 @@ void MQTTBackendESP32::mqtt_event_handler(void *handler_args, esp_event_base_t b
     instance->subacks_.add(mqtt_event->data_len > 0 ? static_cast<uint8_t>(mqtt_event->data[0]) : SUBACK_FAILURE);
   }
 #endif
+  if (event_id == MQTT_EVENT_DATA) {
+    const auto *mqtt_event = static_cast<esp_mqtt_event_t *>(event_data);
+    // Only the first chunk of an oversized message is queued, so the client logs the drop
+    if (mqtt_event->total_data_len > MQTT_MAX_PAYLOAD_SIZE && mqtt_event->current_data_offset != 0)
+      return;
+  }
   // queue event to decouple processing from ESP-IDF MQTT task to main loop
   auto *event = instance->mqtt_event_pool_.allocate();
   if (event == nullptr) {
