@@ -261,7 +261,7 @@ def _validate_packet_mode(config: ConfigType) -> ConfigType:
     )
     if is_long_packet and config.get(CONF_CRC_ENABLE, False):
         raise cv.Invalid(
-            "crc_enable is not available with packet_length > 64 or a lambda"
+            "crc_enable is not supported with packet_length > 64 or a lambda"
         )
     return config
 

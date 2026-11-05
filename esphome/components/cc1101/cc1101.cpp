@@ -6,7 +6,6 @@
 #include "esphome/core/progmem.h"
 #include <cmath>
 #include <cstring>
-#include <utility>
 
 #ifdef USE_ESP32
 #include <esp_memory_utils.h>
@@ -114,8 +113,6 @@ CC1101Component::CC1101Component() {
   // CRITICAL: Initialize PA Table to avoid transmitting 0 power (Silence)
   memset(this->pa_table_, 0, sizeof(this->pa_table_));
 }
-
-void IRAM_ATTR CC1101Component::gpio_intr(CC1101Component *arg) { arg->enable_loop_soon_any_context(); }
 
 void CC1101Component::setup() {
   this->spi_setup();
@@ -270,7 +267,8 @@ void CC1101Component::finish_long_packet_() {
   this->read_(Register::LQI);
   float freq_offset = static_cast<int8_t>(this->state_.FREQEST) * (XTAL_FREQUENCY / (1 << 14));
   uint8_t lqi = this->state_.LQI & STATUS_LQI_MASK;
-  // No CRC check: crc_enable is rejected for long packets, the CRC bytes would arrive after the payload
+  // No CRC check: crc_enable is rejected for long packets, the chip only sets CRC_OK after the last payload
+  // byte, and the packet is finished on the MCU byte count before that
   this->call_listeners_(this->packet_, freq_offset, this->long_packet_rssi_, lqi);
   this->restart_long_packet_rx_();
 }

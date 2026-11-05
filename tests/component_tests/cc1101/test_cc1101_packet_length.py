@@ -43,7 +43,7 @@ def test_packet_length_valid(config: dict[str, Any]) -> None:
                 "packet_length": 65,
                 "crc_enable": True,
             },
-            "crc_enable is not available",
+            "crc_enable is not supported",
         ),
         (
             {
@@ -52,7 +52,7 @@ def test_packet_length_valid(config: dict[str, Any]) -> None:
                 "packet_length": LENGTH_LAMBDA,
                 "crc_enable": True,
             },
-            "crc_enable is not available",
+            "crc_enable is not supported",
         ),
     ],
 )
