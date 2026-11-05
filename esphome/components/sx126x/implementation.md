@@ -45,30 +45,39 @@ listeners are user code too. Any of them may call back into the driver.
 
 Every operation therefore runs in the same order:
 
-1. **SPI work**, with the private `busy_` flag set. Nothing in this phase logs,
-   reports status or calls a listener.
-2. **Commit** the next state with `commit_()`, which also clears `busy_`.
-3. **Report status** with `report_()` or the configuration warning.
+1. **SPI work**, with the radio's `busy()` flag set.
+2. **Commit** the next state, which also clears `busy()`.
+3. **Report status**.
 4. **Call callbacks**: the transmit completion or the receive listeners.
 
-After step 3, the operation does not read or change operation state again. Code
-that re-enters from steps 3 or 4 therefore sees a committed state: a send that is
-fully started, or a radio that is fully restored or needs configuration. It never
-sees a half-prepared send. This is why the driver needs no generation counter and
-no transient states.
+The code is split so that this order is structural:
 
-`busy_` covers the remaining case: re-entry during step 1 itself, for example
-from a GPIO pin implementation that logs. While it is set, every public operation
-is rejected (sends return BUSY; mode changes and configuration log a warning and do
-nothing) and `loop()` returns without work.
+- `Sx126xRadio` does steps 1 and 2. It owns the state and every command sequence.
+  It is not a `Component` and has no listeners, so it cannot report status or
+  call user code; a compile-time check in the tests keeps it that way. Each
+  operation returns a `RadioEffects` value describing steps 3 and 4.
+- `SX126x::apply_()` does steps 3 and 4 from that value, and is the only place a
+  radio operation runs user code. It reads nothing back from the radio afterwards.
 
-A successful send start skips step 3 entirely, so no user code runs before
+Code that re-enters from steps 3 or 4 therefore sees a committed state: a send
+that is fully started, or a radio that is fully restored or needs configuration.
+It never sees a half-prepared send. This is why the driver needs no generation
+counter and no transient states. In `ESPHOME_DEBUG` builds, `apply_()` asserts
+that the radio is not busy whenever the effects would run user code.
+
+Two parts remain rules rather than structure. `Sx126xRadio` must not log, because
+log listeners are user code; `sx126x_radio.cpp` contains no `ESP_LOG` calls. And
+`busy()` covers re-entry during step 1 itself, for example from a GPIO pin
+implementation that logs: while it is set, every public operation is rejected
+(sends return BUSY; mode changes and configuration log a warning and do nothing)
+and `loop()` does no work.
+
+A successful send start reports no status, so no user code runs before
 `start_transmit_async()` returns. The completion reports status instead.
 
-The rule is a convention inside `sx126x.cpp`, not something the type system
-enforces. The reentry tests check it: a status callback during a failed start,
-a completion or a cold sleep sees committed state, and the interrupted operation
-sends no further commands after the callback returns.
+The reentry tests check the order through real logger callbacks: a status callback
+during a failed start, a completion or a cold sleep sees committed state, and the
+interrupted operation sends no further commands after the callback returns.
 
 ## Life of a transmission
 
@@ -80,7 +89,7 @@ exchange. Admission then runs three sub-flows:
    received (see below). Otherwise clear stale flags, set the payload length,
    copy the payload into the chip buffer and start TX.
 2. **Wait:** the chip sends the packet over the air. The radio stays in the
-   `TRANSMITTING` state, but SPI is free between exchanges. `poll_transmit_()`
+   `TRANSMITTING` state, but SPI is free between exchanges. `poll_transmit()`
    checks event flags and the software deadline; TX-done, timeout or cancellation
    ends the wait. The chip can transmit or receive, but not both at once.
 3. **Restore:** enter standby, clear event flags, restore the payload length and
@@ -100,7 +109,7 @@ sequenceDiagram
     C->>D: start_transmit_async()
     D->>D: Check readiness and payload (no SPI)
     rect rgba(128, 128, 128, 0.12)
-        Note over D,R: PREPARE (busy_ set)
+        Note over D,R: PREPARE (busy set)
         Note over D,R: After standby, check for a received packet before clearing flags or writing the FIFO
         loop Each preparation command, ending with SetTx
             D->>R: NSS low: select / wake
@@ -108,7 +117,7 @@ sequenceDiagram
             D->>R: SPI opcode and parameters / packet bytes
             D->>R: NSS high: deselect
         end
-        D->>D: commit_(TRANSMITTING)
+        D->>D: Commit TRANSMITTING
     end
     D-->>C: NONE (payload copied, TX started, no status report)
     rect rgba(128, 128, 128, 0.12)
@@ -117,31 +126,30 @@ sequenceDiagram
         R->>R: Transmit packet over the air
         D->>D: loop() checks event or deadline
         R-->>D: DIO1 event indication
-        loop Read and clear event flags (busy_ set)
+        loop Read and clear event flags (busy set)
             D->>R: SPI: read / clear event flags
         end
     end
     rect rgba(128, 128, 128, 0.12)
-        Note over D,R: RESTORE (busy_ set)
+        Note over D,R: RESTORE (busy set)
         loop Each restoration command
             D->>R: SPI: standby, clear flags, payload length, RX / sleep
         end
-        D->>D: commit_(IDLE or NEEDS_CONFIGURATION)
+        D->>D: Commit IDLE or NEEDS_CONFIGURATION
     end
-    D->>D: report_(restored): may run user code
+    D->>D: apply_(): status report, may run user code
     D-->>C: Completion callback with transmission result
 ```
 
 The early return means the send was accepted, not completed. The caller's payload
 buffer is no longer needed, but its completion listener must remain alive.
 
-The blocking `transmit_packet()` calls the same internal `start_transmit_()` with
-no listener, then calls `poll_transmit_()` until it returns true, feeding the
-watchdog. `poll_transmit_()` returns true only when it finished the current send,
-and passes back that send's result. The blocking caller waits on that return
-value, not on the state: a callback may start another send as soon as the first
-one finishes, and the blocking caller must not wait for it. A send without a
-listener cannot be cancelled, so only its own poll can finish it. The blocking
+The blocking `transmit_packet()` starts the same send with no listener, then calls
+`Sx126xRadio::poll_transmit()` until its effects say `finished`, feeding the
+watchdog. No user code runs between these polls, because effects are applied only
+once the send has finished, and a send without a listener cannot be cancelled.
+The blocking caller then applies the effects and returns that send's result; a
+callback may already have started another send, and the caller does not wait for it. The blocking
 API holds up other main-loop work during airtime.
 
 If a packet was received before standby, preparation stops with BUSY and moves
@@ -194,8 +202,9 @@ lifecycle, warnings, callbacks or raw SPI access. Commands return nothing; their
 failure is recorded in the SPI device. Configuration distinguishes BUSY timeouts
 from unsupported silicon.
 
-`SX126x` owns reset, component status, the requested `RadioProfile` and the
-`AppliedProfile`. Setters change the requested profile only. The applied settings
+`Sx126xRadio` owns reset, the state and the `AppliedProfile`; `SX126x` owns
+component status and the requested `RadioProfile`. Setters change the requested
+profile only. The applied settings
 change only after every configuration command succeeds. They hold just what
 runtime operations read: the frequency for calibration, the payload length, the
 modulation for RX metadata, the RX start policy for restoration, and the
@@ -210,7 +219,7 @@ invalidates configuration, while warm sleep retains it.
 
 ## States
 
-Each component has one private state, plus the `busy_` flag during SPI work:
+Each `Sx126xRadio` has one private state, plus the busy flag during SPI work:
 
 ```mermaid
 stateDiagram-v2
@@ -244,7 +253,7 @@ stateDiagram-v2
     end note
 ```
 
-| Request | NEEDS_CONFIGURATION | IDLE | TRANSMITTING | HOLDING_RX | `busy_` set |
+| Request | NEEDS_CONFIGURATION | IDLE | TRANSMITTING | HOLDING_RX | busy |
 | --- | --- | --- | --- | --- | --- |
 | Send | NOT_READY | runs | BUSY | BUSY | BUSY |
 | Mode change, calibration | ignored | runs | ignored | ignored | ignored |
@@ -257,11 +266,11 @@ restoration all use `NEEDS_CONFIGURATION`. The error result and logs report why;
 the state only decides which operations are allowed. An initial setup failure
 also marks the ESPHome component permanently failed.
 
-`commit_()` enables the ESPHome loop for every state except
-`NEEDS_CONFIGURATION`, where `loop()` disables itself because polling cannot
-recover the radio. Successful `configure()` enables it again, even without a DIO1
-edge. In `IDLE`, the loop may disable itself when an internal DIO1 pin is low; the
-interrupt wakes it. External pins continue to be polled.
+`apply_()` enables the ESPHome loop for every state except
+`NEEDS_CONFIGURATION`, where the effects ask for the loop to sleep because polling
+cannot recover the radio. Successful `configure()` enables it again, even without a DIO1
+edge. In `IDLE`, the loop may sleep when an internal DIO1 pin is low; the interrupt
+wakes it. External pins continue to be polled.
 
 Failed receive exchanges use a 200 ms retry gate on the cached loop clock,
 including across clock rollover. The loop stays enabled while an IRQ or held
@@ -271,10 +280,10 @@ so it is never delayed by it.
 
 ## Completion and status
 
-Failed admission owes no completion. An accepted send completes exactly once, in
-`finish_transmit_()`, which is the only place a send ends. It restores the radio,
-commits the state, clears the stored listener, reports status, and only then calls
-the listener. A callback can start another send only if the state returned to
+Failed admission owes no completion. An accepted send completes exactly once.
+`Sx126xRadio::finish_transmit_()` is the only place a send ends: it restores the
+radio, commits the state and moves the stored listener into the effects. `apply_()`
+then reports status, and only then calls the listener. A callback can start another send only if the state returned to
 `IDLE`. Cancellation is synchronous in its caller; ordinary completion runs in
 `loop()`, never in the ISR.
 
@@ -296,7 +305,8 @@ succeeds.
 
 ## Receive borrowing without recursive dispatch
 
-Only `loop()` reads packets and calls receive listeners. Sending may read the event
+Only `loop()` reads packets, through `Sx126xRadio::poll()`, and `apply_()` calls
+receive listeners. Sending may read the event
 flags, but never reads a packet, clears a received packet's flags, or calls
 receive listeners.
 
@@ -326,11 +336,12 @@ and embedded builds do not establish RF or physical-fault behavior.
 
 - Add byte framing only in `Sx126xCommands`, using the complete exchange API.
 - Keep GPIO/SPI selection and BUSY timing exclusively in `Sx126xSpiDevice`.
-- In `SX126x`, follow the ordering rule: SPI work with `busy_` set, `commit_()`,
-  status, callbacks. Do not log, report status or call listeners before
-  `commit_()`, and do not touch operation state after reporting.
+- Put command sequences and state changes in `Sx126xRadio`, and return what the
+  component must do as `RadioEffects`. Do not log there.
+- Run user code only from `SX126x::apply_()`. Once it has run user code, `apply_()`
+  must not read radio state again; callbacks themselves may call any public method.
 - Start each command sequence with `begin()` and check `ok()` before acting on a
   value read in it.
-- End every send through `finish_transmit_()`.
+- End every send through `Sx126xRadio::finish_transmit_()`.
 - Test new commands through the GPIO-backed fake chip, including every failure
   boundary. Test both send entry points when changing send behavior.

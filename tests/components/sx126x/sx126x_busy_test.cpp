@@ -1,6 +1,7 @@
 #include "sx126x_test_helpers.h"
 #include "esphome/core/application.h"
 #include <tuple>
+#include <type_traits>
 #ifdef USE_HOST
 #include <string>
 #include "esphome/components/logger/logger.h"
@@ -380,6 +381,9 @@ static_assert(!RawSpiAccessible<SX126x>);
 static_assert(!RawSpiAccessible<Sx126xSpiDevice>);
 static_assert(!ManualSelectionAccessible<SX126x>);
 static_assert(!ManualSelectionAccessible<Sx126xSpiDevice>);
+// The radio runs every command sequence and state change. Without component status or
+// listeners it cannot run user code mid-operation; SX126x::apply_() does that afterwards.
+static_assert(!std::is_base_of_v<Component, Sx126xRadio>);
 }  // namespace esphome::sx126x::testing
 
 namespace esphome::sx126x::testing {
