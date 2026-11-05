@@ -371,6 +371,9 @@ class TestLiterals:
             (cg.FloatLiteral(4.2), "4.2f"),
             (cg.FloatLiteral(1.23456789), "1.23456789f"),
             (cg.FloatLiteral(math.nan), "NAN"),
+            (cg.FloatLiteral(math.inf), "INFINITY"),
+            (cg.FloatLiteral(-math.inf), "-INFINITY"),
+            (cg.FloatLiteral(float("1e400")), "INFINITY"),
             (cg.FlashStringLiteral("hello"), 'ESPHOME_F("hello")'),
             (cg.FlashStringLiteral(""), 'ESPHOME_F("")'),
             (
@@ -981,6 +984,21 @@ def test_static_function_declares_early_and_defines_after_includes() -> None:
     assert [str(st) for st in CORE.global_statements_after_includes] == [
         "static void esphome__act__fn(int32_t x) {\n  return;\n}"
     ]
+
+
+def test_static_function_accepts_statements() -> None:
+    call = cg.MockObj("foo")(cg.MockObj("x") >> 2)
+    cg.static_function(
+        "esphome__st__fn", ct.void, [(ct.int32, "x")], [cg.statement(call), "return;"]
+    )
+    assert [str(st) for st in CORE.global_statements_after_includes] == [
+        "static void esphome__st__fn(int32_t x) {\n  foo((x >> 2));\n  return;\n}"
+    ]
+
+
+def test_const_ref_renders_const_reference() -> None:
+    regs = cg.MockObj("hub", "::").class_("Regs")
+    assert str(regs.const_ref()) == "const hub::Regs &"
 
 
 def test_add_global_after_includes_rejects_non_statements() -> None:

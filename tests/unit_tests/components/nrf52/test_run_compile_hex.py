@@ -138,3 +138,12 @@ def test_sd140_v7_dfu_accepts_all_s140_7_softdevices(
     cmd = next(c.args[0] for c in run_cmd.call_args_list if "genpkg" in c.args[0])
     sd_req = cmd[cmd.index("--sd-req") + 1].split(",")
     assert sd_req == ["0x00CA", "0x0100", "0x0123"]
+
+
+def test_successful_build_writes_idedata(build_dir: Path, run_cmd: Mock) -> None:
+    """The idedata cache is written after the build, as on the other native toolchains."""
+    with patch(
+        "esphome.components.nrf52.toolchain.get_idedata", return_value={}
+    ) as get_idedata:
+        _build(build_dir, cv.Version(3, 4, 0), ["zephyr/zephyr/zephyr.hex"], run_cmd)
+    get_idedata.assert_called_once_with()

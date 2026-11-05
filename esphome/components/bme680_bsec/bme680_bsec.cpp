@@ -1,7 +1,7 @@
 #include "bme680_bsec.h"
 #include "esphome/core/helpers.h"
 #include "esphome/core/log.h"
-#include <string>
+#include "esphome/core/progmem.h"
 
 namespace esphome::bme680_bsec {
 #ifdef USE_BSEC
@@ -9,7 +9,7 @@ ESPHOME_LOG_TAG(TAG, "bme680_bsec.sensor");
 
 static constexpr uint32_t READ_TIMEOUT_ID = 0;
 
-static const std::string IAQ_ACCURACY_STATES[4] = {"Stabilizing", "Uncertain", "Calibrating", "Calibrated"};
+PROGMEM_STRING_TABLE(IaqAccuracyStrings, "Stabilizing", "Uncertain", "Calibrating", "Calibrated");
 
 std::vector<BME680BSECComponent *>
     BME680BSECComponent::instances;  // NOLINT(cppcoreguidelines-avoid-non-const-global-variables)
@@ -193,12 +193,54 @@ void BME680BSECComponent::loop() {
   }
   this->status_comm_result(this->bsec_status_ <= BSEC_OK && this->bme680_status_ <= BME680_OK, nullptr);
 
-  // Process a single action from the queue. These are primarily sensor state publishes
-  // that in totality take too long to send in a single call.
-  if (this->queue_.size()) {
-    auto action = std::move(this->queue_.front());
-    this->queue_.pop();
-    action();
+  // Publish a single waiting state. All of them in one call take too long.
+  if (this->pending_.empty())
+    return;
+  const PublishSlot slot = this->pending_.front();
+  this->pending_.pop();
+  this->pending_mask_.erase(slot);
+  switch (slot) {
+    case PUBLISH_SLOT_IAQ:
+      this->publish_sensor_(this->iaq_sensor_, this->pending_values_[slot]);
+      break;
+    case PUBLISH_SLOT_IAQ_ACCURACY_TEXT:
+      this->publish_sensor_(
+          this->iaq_accuracy_text_sensor_,
+          IaqAccuracyStrings::get_progmem_str(this->pending_accuracy_, IaqAccuracyStrings::LAST_INDEX));
+      break;
+    case PUBLISH_SLOT_IAQ_ACCURACY:
+      this->publish_sensor_(this->iaq_accuracy_sensor_, this->pending_accuracy_, true);
+      break;
+    case PUBLISH_SLOT_SAVE_STATE:
+      this->save_state_(this->pending_accuracy_);
+      break;
+    case PUBLISH_SLOT_CO2_EQUIVALENT:
+      this->publish_sensor_(this->co2_equivalent_sensor_, this->pending_values_[slot]);
+      break;
+    case PUBLISH_SLOT_BREATH_VOC_EQUIVALENT:
+      this->publish_sensor_(this->breath_voc_equivalent_sensor_, this->pending_values_[slot]);
+      break;
+    case PUBLISH_SLOT_PRESSURE:
+      this->publish_sensor_(this->pressure_sensor_, this->pending_values_[slot]);
+      break;
+    case PUBLISH_SLOT_GAS_RESISTANCE:
+      this->publish_sensor_(this->gas_resistance_sensor_, this->pending_values_[slot]);
+      break;
+    case PUBLISH_SLOT_TEMPERATURE:
+      this->publish_sensor_(this->temperature_sensor_, this->pending_values_[slot]);
+      break;
+    case PUBLISH_SLOT_HUMIDITY:
+      this->publish_sensor_(this->humidity_sensor_, this->pending_values_[slot]);
+      break;
+    default:
+      break;
+  }
+}
+
+void BME680BSECComponent::queue_publish_(PublishSlot slot) {
+  if (!this->pending_mask_.count(slot)) {
+    this->pending_mask_.insert(slot);
+    this->pending_.push(slot);
   }
 }
 
@@ -385,34 +427,31 @@ void BME680BSECComponent::publish_(const bsec_output_t *outputs, uint8_t num_out
     float signal = outputs[i].signal;
     switch (outputs[i].sensor_id) {
       case BSEC_OUTPUT_IAQ:
-      case BSEC_OUTPUT_STATIC_IAQ: {
-        uint8_t accuracy = std::min<uint8_t>(outputs[i].accuracy, std::size(IAQ_ACCURACY_STATES) - 1);
-        this->queue_push_([this, signal]() { this->publish_sensor_(this->iaq_sensor_, signal); });
-        this->queue_push_([this, accuracy]() {
-          this->publish_sensor_(this->iaq_accuracy_text_sensor_, IAQ_ACCURACY_STATES[accuracy]);
-        });
-        this->queue_push_([this, accuracy]() { this->publish_sensor_(this->iaq_accuracy_sensor_, accuracy, true); });
-
+      case BSEC_OUTPUT_STATIC_IAQ:
+        this->pending_accuracy_ = std::min<uint8_t>(outputs[i].accuracy, IaqAccuracyStrings::LAST_INDEX);
+        this->queue_publish_<PUBLISH_SLOT_IAQ>(signal);
+        this->queue_publish_(PUBLISH_SLOT_IAQ_ACCURACY_TEXT);
+        this->queue_publish_(PUBLISH_SLOT_IAQ_ACCURACY);
         // Queue up an opportunity to save state
-        this->queue_push_([this, accuracy]() { this->save_state_(accuracy); });
-      } break;
+        this->queue_publish_(PUBLISH_SLOT_SAVE_STATE);
+        break;
       case BSEC_OUTPUT_CO2_EQUIVALENT:
-        this->queue_push_([this, signal]() { this->publish_sensor_(this->co2_equivalent_sensor_, signal); });
+        this->queue_publish_<PUBLISH_SLOT_CO2_EQUIVALENT>(signal);
         break;
       case BSEC_OUTPUT_BREATH_VOC_EQUIVALENT:
-        this->queue_push_([this, signal]() { this->publish_sensor_(this->breath_voc_equivalent_sensor_, signal); });
+        this->queue_publish_<PUBLISH_SLOT_BREATH_VOC_EQUIVALENT>(signal);
         break;
       case BSEC_OUTPUT_RAW_PRESSURE:
-        this->queue_push_([this, signal]() { this->publish_sensor_(this->pressure_sensor_, signal / 100.0f); });
+        this->queue_publish_<PUBLISH_SLOT_PRESSURE>(signal / 100.0f);
         break;
       case BSEC_OUTPUT_RAW_GAS:
-        this->queue_push_([this, signal]() { this->publish_sensor_(this->gas_resistance_sensor_, signal); });
+        this->queue_publish_<PUBLISH_SLOT_GAS_RESISTANCE>(signal);
         break;
       case BSEC_OUTPUT_SENSOR_HEAT_COMPENSATED_TEMPERATURE:
-        this->queue_push_([this, signal]() { this->publish_sensor_(this->temperature_sensor_, signal); });
+        this->queue_publish_<PUBLISH_SLOT_TEMPERATURE>(signal);
         break;
       case BSEC_OUTPUT_SENSOR_HEAT_COMPENSATED_HUMIDITY:
-        this->queue_push_([this, signal]() { this->publish_sensor_(this->humidity_sensor_, signal); });
+        this->queue_publish_<PUBLISH_SLOT_HUMIDITY>(signal);
         break;
     }
   }
@@ -435,8 +474,9 @@ void BME680BSECComponent::publish_sensor_(sensor::Sensor *sensor, float value, b
   sensor->publish_state(value);
 }
 
-void BME680BSECComponent::publish_sensor_(text_sensor::TextSensor *sensor, const std::string &value) {
-  if (!sensor || (sensor->has_state() && sensor->state == value)) {
+void BME680BSECComponent::publish_sensor_(text_sensor::TextSensor *sensor, ProgmemStr value) {
+  if (!sensor ||
+      (sensor->has_state() && ESPHOME_strcmp_P(sensor->state.c_str(), reinterpret_cast<ESPHOME_PGM_P>(value)) == 0)) {
     return;
   }
   sensor->publish_state(value);
