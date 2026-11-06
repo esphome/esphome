@@ -135,9 +135,14 @@ class NullPin : public GPIOPin {
   }
 
  protected:
+  static NullPin instance;         // NOLINT(cppcoreguidelines-avoid-non-const-global-variables)
   static GPIOPin *const NULL_PIN;  // NOLINT(cppcoreguidelines-avoid-non-const-global-variables)
   // https://bugs.llvm.org/show_bug.cgi?id=48040
 };
+
+// Constant-initialized, so both are valid before any dynamic initialization runs.
+inline constinit NullPin NullPin::instance;  // NOLINT(cppcoreguidelines-avoid-non-const-global-variables)
+inline GPIOPin *const NullPin::NULL_PIN = &NullPin::instance;
 
 class Utility {
  public:
@@ -267,7 +272,7 @@ class SPIDelegate {
   SPIBitOrder bit_order_{BIT_ORDER_MSB_FIRST};
   uint32_t data_rate_{1000000};
   SPIMode mode_{MODE0};
-  GPIOPin *cs_pin_{NullPin::NULL_PIN};
+  GPIOPin *cs_pin_{&NullPin::instance};  // the address is constant, unlike NULL_PIN's value
 #ifdef USE_SPI_PSRAM_DMA
   bool psram_dma_{false};
 #endif

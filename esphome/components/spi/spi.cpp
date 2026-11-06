@@ -10,13 +10,10 @@ namespace esphome::spi {
 
 ESPHOME_LOG_TAG(TAG, "spi");
 
-SPIDelegate *const SPIDelegate::NULL_DELEGATE =  // NOLINT(cppcoreguidelines-avoid-non-const-global-variables)
-    new SPIDelegateDummy();
-// https://bugs.llvm.org/show_bug.cgi?id=48040
+static constinit SPIDelegateDummy null_delegate;  // NOLINT(cppcoreguidelines-avoid-non-const-global-variables)
+SPIDelegate *const SPIDelegate::NULL_DELEGATE = &null_delegate;
 
 bool SPIDelegate::is_ready() { return true; }
-
-GPIOPin *const NullPin::NULL_PIN = new NullPin();  // NOLINT(cppcoreguidelines-avoid-non-const-global-variables)
 
 SPIDelegate *SPIComponent::register_device(SPIClient *device, SPIMode mode, SPIBitOrder bit_order, uint32_t data_rate,
                                            GPIOPin *cs_pin, bool release_device, bool write_only) {
