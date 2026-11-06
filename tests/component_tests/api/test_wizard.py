@@ -640,7 +640,6 @@ def test_number_input_accepts_input_number(tmp_path: Path) -> None:
 
 
 def _buffer(main_cpp: str, input_id: str) -> str:
-    """The generated name of an input's buffer, from its row in the input table."""
     return re.search(rf"\{{{fnv1_hash(input_id)}u, (\w+)", main_cpp)[1]
 
 
