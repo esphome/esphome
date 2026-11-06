@@ -343,6 +343,69 @@ TEST_F(MonitorServer, ListenerNeverTransmits) {
   EXPECT_TRUE(this->uart_.written.empty());
 }
 
+// The hub answers a request it handed on, and then no longer takes the next frame for another device's reply.
+TEST_F(MonitorServer, ResponseIsSentAndEndsTheWait) {
+  this->receive_(0x05, WRITE_1);
+  this->hub_.send_response(0x05, WRITE_1);
+  ASSERT_EQ(this->uart_.written.size(), sizeof(WRITE_1) + 3);
+  EXPECT_EQ(this->uart_.written[0], 0x05);
+  EXPECT_EQ(crc16(this->uart_.written.data(), this->uart_.written.size()), 0);
+  this->receive_(0x05, WRITE_2);  // same shape as the reply: still a request
+  ASSERT_EQ(this->seen_.size(), 2u);
+  EXPECT_EQ(this->seen_[1].pdu, vec(WRITE_2));
+  ASSERT_EQ(this->paired_.size(), 1u);  // only the reply sent above
+  EXPECT_EQ(this->paired_[0].request, vec(WRITE_1));
+  EXPECT_EQ(this->paired_[0].response, vec(WRITE_1));
+}
+
+// A reply sent with send_response is reported with the request it answers, once it is on the wire.
+TEST_F(MonitorServer, SentResponseIsSeenWithItsRequest) {
+  this->receive_(0x05, READ);
+  this->hub_.send_response(0x05, READ_REPLY);
+  ASSERT_EQ(this->paired_.size(), 1u);
+  EXPECT_EQ(this->paired_[0].address, 0x05);
+  EXPECT_EQ(this->paired_[0].request, vec(READ));
+  EXPECT_EQ(this->paired_[0].response, vec(READ_REPLY));
+  EXPECT_EQ(this->paired_[0].written_before, sizeof(READ_REPLY) + 3);
+}
+
+TEST_F(MonitorServer, ExceptionResponseIsSent) {
+  const uint8_t read_failed[] = {0x83, 0x0B};
+  this->receive_(0x05, READ);
+  this->hub_.send_response(0x05, read_failed);
+  ASSERT_EQ(this->uart_.written.size(), sizeof(read_failed) + 3);
+  EXPECT_EQ(this->uart_.written[1], 0x83);
+}
+
+TEST_F(MonitorServer, ResponseWithAnotherFunctionCodeIsDropped) {
+  this->receive_(0x05, READ);
+  this->hub_.send_response(0x05, WRITE_1);
+  this->hub_.send_response(0x05, {});
+  EXPECT_TRUE(this->uart_.written.empty());
+  this->hub_.send_response(0x05, READ_REPLY);  // still waited for
+  EXPECT_EQ(this->uart_.written.size(), sizeof(READ_REPLY) + 3);
+}
+
+TEST_F(MonitorServer, ResponseForAnotherAddressIsDropped) {
+  this->receive_(0x05, READ);
+  this->hub_.send_response(0x07, READ_REPLY);
+  EXPECT_TRUE(this->uart_.written.empty());
+}
+
+TEST_F(MonitorServer, ResponseWithoutAnOpenRequestIsDropped) {
+  this->hub_.send_response(0x05, READ_REPLY);
+  this->hub_.send_response(BROADCAST_ADDRESS, READ_REPLY);
+  EXPECT_TRUE(this->uart_.written.empty());
+}
+
+// A gateway may answer inside on_request, for example from on_not_sent of modbus_client.send.
+TEST_F(MonitorServer, ResponseFromInsideOnRequestIsSent) {
+  this->hub_.add_on_request_callback(
+      [this](uint8_t address, std::span<const uint8_t>) { this->hub_.send_response(address, READ_REPLY); });
+  this->receive_(0x05, READ);
+  EXPECT_EQ(this->uart_.written.size(), sizeof(READ_REPLY) + 3);
+}
+
 namespace {
 
 // Replies held back by a busy bus go out from a timer, which needs the App scheduler.
@@ -405,6 +468,22 @@ TEST_F(MonitorServerHeld, ReplyStillBlockedWhenDueIsNotSeen) {
   EXPECT_FALSE(this->hub_.reply_held());
   EXPECT_TRUE(this->uart_.written.empty());
   EXPECT_TRUE(this->paired_.empty());
+}
+
+// The other device has already answered, so a reply from inside on_response would be a second one.
+TEST_F(MonitorServerHeld, ResponseFromInsideOnResponseIsDropped) {
+  int calls = 0;
+  this->hub_.add_on_response_callback(
+      [this, &calls](uint8_t address, std::span<const uint8_t>, std::span<const uint8_t> response) {
+        calls++;
+        this->hub_.send_response(address, response);
+      });
+  this->receive_(0x05, READ);
+  this->receive_(0x05, READ_REPLY);  // the other device's reply
+  this->hub_.busy = false;           // a held second reply would go out now
+  run_timers();
+  EXPECT_EQ(calls, 1);  // only for the other device's reply
+  EXPECT_TRUE(this->uart_.written.empty());
 }
 
 }  // namespace esphome::modbus::testing
