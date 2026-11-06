@@ -3,7 +3,9 @@
 #include "esphome/components/remote_base/remote_base.h"
 #include "esphome/core/component.h"
 
+#include <algorithm>
 #include <cinttypes>
+#include <span>
 
 #if defined(USE_ESP32)
 #include <soc/soc_caps.h>
@@ -87,6 +89,13 @@ struct RemoteReceiverComponentStore {
   volatile bool overflow{false};
 };
 #elif defined(USE_ESP32) && SOC_RMT_SUPPORTED
+/// Words in the RMT ring: one slot per pending rmt_receive, at least two (one filling while one is decoded);
+/// without a buffer_size, four slots cover a few frames queued across a stalled loop pass.
+constexpr uint32_t rmt_buffer_words(uint32_t receive_symbols, uint32_t buffer_size) {
+  const uint32_t slot = sizeof(rmt_rx_done_event_data_t) + receive_symbols * sizeof(rmt_symbol_word_t);
+  return ((buffer_size == 0 ? slot * 4 : std::max(slot * 2, buffer_size)) + 3) / 4;
+}
+
 struct RemoteReceiverComponentStore {
   /// Stores RMT symbols and rx done event data
   volatile uint8_t *buffer{nullptr};
@@ -134,7 +143,18 @@ class RemoteReceiverComponent final : public remote_base::RemoteReceiverBase,
     this->store_.frame_entries = frame_entries;
   }
 #else
-  void set_buffer_size(uint32_t buffer_size) { this->buffer_size_ = buffer_size; }
+#if defined(USE_ESP32) && SOC_RMT_SUPPORTED
+  /// uint32_t words keep the RMT symbols aligned
+  void set_buffer(std::span<uint32_t> buffer) {
+    this->store_.buffer = reinterpret_cast<uint8_t *>(buffer.data());
+    this->store_.buffer_size = buffer.size_bytes();
+  }
+#elif defined(USE_ESP8266) || defined(USE_LIBRETINY) || defined(USE_RP2) || defined(USE_ESP32)
+  void set_buffer(std::span<int32_t> buffer) {
+    this->store_.buffer = buffer.data();
+    this->store_.buffer_entries = buffer.size();
+  }
+#endif
   void set_filter_us(uint32_t filter_us) { this->filter_us_ = filter_us; }
   void set_idle_us(uint32_t idle_us) { this->idle_us_ = idle_us; }
 #endif
@@ -164,7 +184,6 @@ class RemoteReceiverComponent final : public remote_base::RemoteReceiverBase,
 #endif
 
 #ifndef USE_REMOTE_RECEIVER_TIMER_SAMPLING
-  uint32_t buffer_size_{};  // 0 on RMT targets: sized from receive_symbols in setup()
   uint32_t filter_us_{10};
   uint32_t idle_us_{10000};
 #endif
