@@ -229,8 +229,10 @@ Never a template per bit or a virtual listener base (a second vptr per entity).
 - `uart.new_uart_component(config, *ctor_args)` (and `i2c.new_i2c_component`, `spi.new_spi_component`,
   `modbus.new_modbus_client_component`, `ble_client.new_ble_node_component`) constructs, registers and
   attaches in one call.
-- `buf = cg.static_buffer(f"{config[CONF_ID].id}__rx", cg.uint8, size)` declares a fixed buffer sized from the
-  config as a file-scope static (BSS, not heap) under a unique name; pass `buf` to the constructor.
+- A fixed buffer sized from the config is a file-scope static (BSS, not heap): declare
+  `cv.GenerateID(CONF_RX_BUFFER_ID): cv.declare_id(cg.uint8)` in the schema, then
+  `buf = cg.static_buffer(config[CONF_RX_BUFFER_ID], size)` and pass `buf` to the constructor. Never build the name
+  from another id (`f"{config[CONF_ID].id}__rx"`); it can collide with a user's id.
 - `display.add_writer(var, config)` sets the lambda.
 - `MyEnum.options("on", prefix="MY_ENUM_")` builds an enum dict.
 - `button.restart_button_schema(cls)` (and `factory_reset_`, `query_`) are button presets.
