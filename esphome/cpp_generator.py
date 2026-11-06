@@ -585,6 +585,10 @@ def static_buffer(
     """
     if not isinstance(owner, ID) or owner.type is None:
         raise EsphomeError(f"Buffer owner '{owner}' must be the owning component's ID")
+    if psram and align is not None and align > 4:
+        raise EsphomeError(
+            "A PSRAM buffer can only be aligned to 4 bytes, the heap alignment"
+        )
     # Same condition as the USE_PSRAM define: psram is configured and not disabled
     if psram and not CORE.config.get("psram", {"disabled": True}).get("disabled"):
         return MockObj(f"psram_buffer<{type_}>({size})", ".")
