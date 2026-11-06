@@ -1,5 +1,7 @@
 """The hub gets a static frame buffer sized for its point cloud entities, unless PSRAM is used."""
 
+import pytest
+
 from esphome.components.ld600x import LD600XComponent, add_frame_buffer
 from esphome.const import CONF_ID
 from esphome.core import CORE, ID
@@ -22,17 +24,14 @@ def test_default_size() -> None:
     ]
 
 
-POINT_CLOUD_BUFFER = "static uint8_t ld600x__radar_buffer__pstorage[ld600x::DEFAULT_MAX_DATA_LEN_POINT_CLOUD];"
-
-
-def test_point_cloud_size() -> None:
+@pytest.mark.parametrize(
+    ("domain", "key"), [("sensor", "point_count"), ("switch", "point_cloud")]
+)
+def test_point_cloud_size(domain: str, key: str) -> None:
     hub_id = ID("radar", type=LD600XComponent)
-    for platforms in (
-        {"sensor": [{HUB_KEY: hub_id, "point_count": {}}]},
-        {"switch": [{HUB_KEY: hub_id, "point_cloud": {}}]},
-    ):
-        CORE.reset()
-        assert _buffers(**platforms) == [POINT_CLOUD_BUFFER]
+    assert _buffers(**{domain: [{HUB_KEY: hub_id, key: {}}]}) == [
+        "static uint8_t ld600x__radar_buffer__pstorage[ld600x::DEFAULT_MAX_DATA_LEN_POINT_CLOUD];"
+    ]
 
 
 def test_psram_keeps_the_heap_buffer() -> None:
