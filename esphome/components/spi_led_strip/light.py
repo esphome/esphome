@@ -23,9 +23,11 @@ async def to_code(config: ConfigType) -> None:
     await light.register_light(var, config)
     await spi.register_spi_device(var, config)
     await cg.register_component(var, config)
-    # Without a static buffer, setup() allocates one, in PSRAM when available
+    # With PSRAM, setup() allocates the buffer there instead
     if "psram" not in CORE.loaded_integrations:
         buffer = cg.static_buffer(
-            config[CONF_OUTPUT_ID], cg.uint8, config[CONF_NUM_LEDS] * 5 + 8
+            config[CONF_OUTPUT_ID],
+            cg.uint32,
+            str(spi_led_strip_ns.buffer_words(config[CONF_NUM_LEDS])),
         )
         cg.add(var.set_buffer(buffer))

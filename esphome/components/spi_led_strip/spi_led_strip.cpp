@@ -4,22 +4,21 @@
 namespace esphome::spi_led_strip {
 
 constexpr size_t COLOR_DATA_OFFSET = 5;
-constexpr size_t BUFFER_PADDING = 8;
 
-SpiLedStrip::SpiLedStrip(uint16_t num_leds) : buffer_size_(num_leds * 4 + BUFFER_PADDING), num_leds_(num_leds) {}
-void SpiLedStrip::set_buffer(uint8_t *buffer) {
-  this->internal_accessor_.color_data = buffer + COLOR_DATA_OFFSET;
-  this->internal_accessor_.effect_data = buffer + this->buffer_size_;
+SpiLedStrip::SpiLedStrip(uint16_t num_leds) : buffer_size_(frame_size(num_leds)), num_leds_(num_leds) {}
+void SpiLedStrip::set_buffer(uint32_t *buffer) {
+  auto *buf = reinterpret_cast<uint8_t *>(buffer);
+  this->internal_accessor_.color_data = buf + COLOR_DATA_OFFSET;
+  this->internal_accessor_.effect_data = buf + this->buffer_size_;
 }
 void SpiLedStrip::setup() {
-  if (this->internal_accessor_.color_data == nullptr) {
-    RAMAllocator<uint8_t> allocator;
-    uint8_t *buf = allocator.allocate(this->buffer_size_ + this->num_leds_);
-    if (!this->setup_check(buf != nullptr, LOG_STR(ESP_LOG_MSG_ALLOC_FAIL)))
-      return;
-    this->set_buffer(buf);
-    this->internal_accessor_.clear_effect_data(this->num_leds_);
-  }
+#ifdef USE_PSRAM
+  uint32_t *words = RAMAllocator<uint32_t>().allocate(buffer_words(this->num_leds_));
+  if (!this->setup_check(words != nullptr, LOG_STR(ESP_LOG_MSG_ALLOC_FAIL)))
+    return;
+  this->set_buffer(words);
+  this->internal_accessor_.clear_effect_data(this->num_leds_);
+#endif
   uint8_t *buf = this->internal_accessor_.color_data - COLOR_DATA_OFFSET;
   memset(buf, 0xFF, this->buffer_size_);
   memset(buf, 0, 4);
