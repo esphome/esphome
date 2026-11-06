@@ -8,7 +8,6 @@
 namespace esphome::tx20 {
 
 ESPHOME_LOG_TAG(TAG, "tx20");
-static const uint8_t MAX_BUFFER_SIZE = 41;
 static const uint16_t TX20_MAX_TIME = MAX_BUFFER_SIZE * 1200 + 5000;
 static const uint16_t TX20_BIT_TIME = 1200;
 PROGMEM_STRING_TABLE(DirectionStrings, "N", "NNE", "NE", "ENE", "E", "ESE", "SE", "SSE", "S", "SSW", "SW", "WSW", "W",
@@ -17,7 +16,6 @@ PROGMEM_STRING_TABLE(DirectionStrings, "N", "NNE", "NE", "ENE", "E", "ESE", "SE"
 void Tx20Component::setup() {
   this->pin_->setup();
 
-  this->store_.buffer = new uint16_t[MAX_BUFFER_SIZE];
   this->store_.pin = this->pin_->to_isr();
   this->store_.reset();
 
