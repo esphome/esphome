@@ -67,10 +67,7 @@ class ESPHomeLogFormatter(logging.Formatter):
         }.get(record.levelname, "")
         message = f"{prefix}{formatted}{AnsiStyle.RESET_ALL.value}"
         if CORE.dashboard:
-            try:  # noqa: SIM105
-                message = message.replace("\033", "\\033")
-            except UnicodeEncodeError:
-                pass
+            message = message.replace("\033", "\\033")
         return message
 
 
