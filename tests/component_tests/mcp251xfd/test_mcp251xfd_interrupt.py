@@ -18,8 +18,8 @@ def test_interrupt_pin(pin: int | dict[str, object]) -> None:
 @pytest.mark.parametrize(
     ("options", "message"),
     [
-        ({"inverted": True}, "MCP251xFD INT is active-low"),
-        ({"allow_other_uses": True}, "MCP251xFD INT does not support sharing"),
+        ({"inverted": True}, "MCP251XFD INT is active-low"),
+        ({"allow_other_uses": True}, "MCP251XFD INT does not support sharing"),
     ],
 )
 def test_invalid_interrupt_pin(options: dict[str, object], message: str) -> None:
