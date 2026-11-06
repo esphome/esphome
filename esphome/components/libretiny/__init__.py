@@ -568,6 +568,8 @@ async def component_to_code(config):
         # Crash handler (crash_handler.cpp)
         cg.add_define("USE_LIBRETINY_CRASH_HANDLER")
         cg.add_define("USE_CRASH_HANDLER")
+        cg.add_define("USE_CRASH_REPORT")
+        cg.add_build_flag("-Wl,--wrap=abort")
     if config[CONF_FAMILY] in (FAMILY_BK7231N, FAMILY_BK7238):
         for trap in BK_TRAP_HANDLERS:
             cg.add_build_flag(f"-Wl,--wrap={trap}")

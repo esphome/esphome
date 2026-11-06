@@ -315,10 +315,8 @@ void AS734XComponent::setup() {
            this->write_byte(AS7343_CHAIN_CMD, 0x46 + (i / len) * 0x10);
     }
   }
-  if (!ok) {
-    this->mark_failed(LOG_STR(ESP_LOG_MSG_COMM_FAIL));
+  if (!this->setup_check(ok))
     return;
-  }
   this->disable_loop();
 }
 
