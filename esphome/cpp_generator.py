@@ -567,17 +567,35 @@ def shared_progmem_string(value: str) -> Expression:
     return text
 
 
-def static_buffer(owner: ID, type_: "MockObjClass", size: int | str) -> "MockObj":
+def static_buffer(
+    owner: ID,
+    type_: "MockObjClass",
+    size: "int | str | Expression",
+    *,
+    psram: bool = False,
+    align: int | None = None,
+) -> "MockObj":
     """Emit a zeroed file-scope ``static type_ <component>__<owner>_buffer__pstorage[size];``.
 
     Named like placement new storage, so ``esphome analyze-memory`` counts it under the owner.
-    ``size`` may be a C++ constant expression.
+    ``size`` may be a C++ constant expression. With ``psram=True`` a build with PSRAM enabled
+    gets a ``psram_buffer<type_>(size)`` call instead, which allocates each time it is
+    evaluated, so pass the result once; it is nullptr if the allocation fails.
+    ``align`` prefixes the declaration with ``alignas(align)``.
     """
     if not isinstance(owner, ID) or owner.type is None:
         raise EsphomeError(f"Buffer owner '{owner}' must be the owning component's ID")
+    if psram and align is not None and align > 4:
+        raise EsphomeError(
+            "A PSRAM buffer can only be aligned to 4 bytes, the heap alignment"
+        )
+    # Same condition as the USE_PSRAM define: psram is configured and not disabled
+    if psram and not CORE.config.get("psram", {"disabled": True}).get("disabled"):
+        return MockObj(f"psram_buffer<{type_}>({size})", ".")
     base = unique_global_id(f"{owner.id}_buffer", type_)
     name = _pstorage_name(owner.type, base)
-    CORE.add_global(RawStatement(f"static {type_} {name}[{size}];"))
+    prefix = "" if align is None else f"alignas({align}) "
+    CORE.add_global(RawStatement(f"{prefix}static {type_} {name}[{size}];"))
     buffer = MockObj(name, ".")
     CORE.register_variable(base, buffer)
     return buffer
@@ -1365,6 +1383,10 @@ class MockObjClass(MockObj):
     def const_ref(self) -> MockObj:
         """``const T &``, for a parameter that takes this type by reference."""
         return self.operator("const").operator("ref")
+
+    def static_(self, name: str) -> MockObj:
+        """The static member ``Class::name``; call it for ``Class::name(args)``."""
+        return MockObj(f"{self.base}::{name}", "::")
 
     def template(self, *args: SafeExpType) -> "MockObjClass":
         if len(args) != 1 or not isinstance(args[0], TemplateArguments):
