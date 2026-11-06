@@ -139,8 +139,8 @@ async def to_code(config: ConfigType) -> None:
     encoding = spi_encoding(CHIPSETS[config[CONF_CHIPSET]])
     num_leds = config[CONF_NUM_LEDS]
     channel_colors = config[CONF_CHANNEL_COLORS]
-    dma_data_bytes = (
-        num_leds * len(channel_colors) * SPI_BITS_PER_LED_BIT + encoding.reset_bytes
+    dma_data_bytes = ln882x_spi_led_strip_ns.dma_data_bytes(
+        num_leds * len(channel_colors), encoding.reset_bytes
     )
     var = cg.new_Pvariable(
         config[CONF_OUTPUT_ID],
