@@ -893,18 +893,6 @@ class DisplayPage final {
 inline void Display::show_next_page() { this->page_->show_next(); }
 inline void Display::show_prev_page() { this->page_->show_prev(); }
 
-template<typename... Ts> class DisplayPageShowAction final : public Action<Ts...> {
- public:
-  TEMPLATABLE_VALUE(DisplayPage *, page)
-
-  void play(const Ts &...x) override {
-    auto *page = this->page_.value(x...);
-    if (page != nullptr) {
-      page->show();
-    }
-  }
-};
-
 const LogString *text_align_to_string(TextAlign textalign);
 
 }  // namespace esphome::display
