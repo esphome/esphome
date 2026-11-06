@@ -12,7 +12,7 @@ from typing import Any
 
 from esphome import automation
 import esphome.codegen as cg
-from esphome.components.const import CONF_BUFFER_ID, CONF_DESCRIPTION
+from esphome.components.const import CONF_DESCRIPTION
 from esphome.components.homeassistant import DOMAIN as HOMEASSISTANT_DOMAIN
 import esphome.config_validation as cv
 from esphome.const import (
@@ -83,6 +83,8 @@ class WizardData:
 
     # The entities that components gave a role, and the role, in the order they were registered
     roles: list[tuple[ID, str]] = field(default_factory=list)
+    # The buffer of each input, by input ID; api and homeassistant can each ask for it first
+    buffers: dict[str, cg.MockObj] = field(default_factory=dict)
 
 
 def _get_data() -> WizardData:
@@ -163,7 +165,6 @@ WIZARD_INPUT_SCHEMA = cv.All(
         {
             cv.Optional(CONF_ID): cv.declare_id(WizardInput),
             cv.Optional(CONF_ENTITY): cv.use_id(cg.EntityBase),
-            cv.GenerateID(CONF_BUFFER_ID): cv.declare_id(cg.char),
             cv.Optional(CONF_DESCRIPTION): _wizard_text(WIZARD_DESCRIPTION_MAX_LENGTH),
             cv.Optional(CONF_MULTIPLE, default=False): cv.boolean,
             cv.Optional(CONF_MAX_LENGTH): cv.int_range(
@@ -267,6 +268,17 @@ def wizard_input_ids(api_config: ConfigType) -> set[str]:
     }
 
 
+def _wizard_buffer_size(conf: ConfigType) -> int:
+    return conf.get(CONF_MAX_LENGTH, WIZARD_ENTITY_ID_MAX_LENGTH) + 1
+
+
+def _wizard_buffer(input_id: ID, size: int) -> cg.MockObj:
+    buffers = _get_data().buffers
+    if (buffer := buffers.get(input_id.id)) is None:
+        buffer = buffers[input_id.id] = cg.static_buffer(cg.char, size)
+    return buffer
+
+
 def wizard_input_buffer(entity_id: ID) -> cg.MockObj | None:
     """The RAM buffer holding the Home Assistant entity ID of a wizard input.
 
@@ -276,8 +288,8 @@ def wizard_input_buffer(entity_id: ID) -> cg.MockObj | None:
     if (wizard := CORE.config.get(API_DOMAIN, {}).get(CONF_WIZARD)) is None:
         return None
     for conf in _wizard_inputs(wizard):
-        if CONF_ENTITY in conf and conf[CONF_ENTITY].id == entity_id.id:
-            return cg.MockObj(conf[CONF_BUFFER_ID], ".")
+        if conf.get(CONF_ENTITY) == entity_id:
+            return _wizard_buffer(entity_id, _wizard_buffer_size(conf))
     return None
 
 
@@ -545,9 +557,9 @@ async def to_code(wizard: ConfigType) -> None:
     entries: list[cg.RawExpression] = []
     for conf in _wizard_inputs(wizard):
         input_id = _wizard_input_id(conf)
-        # A linked homeassistant entity uses the buffer as its entity id
-        size = conf.get(CONF_MAX_LENGTH, WIZARD_ENTITY_ID_MAX_LENGTH) + 1
-        buffer = cg.static_buffer(conf[CONF_BUFFER_ID], size)
+        # Every buffer starts empty, until the wizard sets it. A linked homeassistant entity uses it as its entity id.
+        size = _wizard_buffer_size(conf)
+        buffer = _wizard_buffer(input_id, size)
         if CONF_ID in conf:
             cg.new_Pvariable(input_id, buffer)
         key = fnv1_hash(input_id.id)

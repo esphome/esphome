@@ -1,6 +1,5 @@
 import esphome.codegen as cg
 from esphome.components import packet_interface
-from esphome.components.const import CONF_BUFFER_ID
 from esphome.components.packet_interface import (
     CONF_MAX_PACKET_SIZE,
     new_packet_interface,
@@ -33,5 +32,5 @@ async def to_code(config: ConfigType) -> None:
     # The udp component sends to its addresses through its broadcast socket
     cg.add(udp_var.set_should_broadcast())
     # The copy buffer's size is known here, so it is a static array rather than allocated at run time
-    tx_buffer = cg.static_buffer(config[CONF_BUFFER_ID], config[CONF_MAX_PACKET_SIZE])
+    tx_buffer = cg.static_buffer(cg.uint8, config[CONF_MAX_PACKET_SIZE])
     await new_packet_interface(config, udp_var, tx_buffer)

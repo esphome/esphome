@@ -10,7 +10,6 @@ AUTO_LOAD = ["unicode"]
 CONF_MAX_BUFFER_LENGTH = "max_buffer_length"
 CONF_SECONDARY_DISPLAYS = "secondary_displays"
 CONF_ADD_CHARACTERS = "add_characters"
-CONF_MESSAGE_ID = "message_id"
 
 # The only board so far
 DEVICE_ADAFRUIT_7_SEG_056IN = "ADAFRUIT_7_SEG_.56IN"
@@ -58,7 +57,6 @@ CONFIG_SCHEMA = cv.All(
     display.BASIC_DISPLAY_SCHEMA.extend(
         {
             cv.GenerateID(): cv.declare_id(HT16K33CharDisplay),
-            cv.GenerateID(CONF_MESSAGE_ID): cv.declare_id(cg.char),
             cv.Required(CONF_DEVICE): cv.one_of(
                 DEVICE_ADAFRUIT_7_SEG_056IN, upper=True
             ),
@@ -84,7 +82,7 @@ CONFIG_SCHEMA = cv.All(
 async def to_code(config: ConfigType) -> None:
     capacity = config[CONF_MAX_BUFFER_LENGTH]
     # Room for the terminator
-    message = cg.static_buffer(config[CONF_MESSAGE_ID], capacity + 1)
+    message = cg.static_buffer(cg.char, capacity + 1)
     var = cg.new_Pvariable(config[CONF_ID], message, capacity, config[CONF_INTENSITY])
     await display.register_display(var, config)
     await i2c.register_i2c_device(var, config)
