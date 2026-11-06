@@ -9,14 +9,14 @@ from esphome import automation
 from esphome.components.const import CONF_ON_STOP
 from esphome.components.script import (
     CONF_SCRIPT_STOP,
-    SingleScript,
+    CONFIG_SCHEMA,
+    SCRIPT_MODES,
     default_script_stop_ids,
     to_code,
 )
 import esphome.config_validation as cv
 from esphome.const import CONF_ID, CONF_MODE, CONF_PARAMETERS, CONF_THEN
 from esphome.core import ID
-from esphome.cpp_generator import MockObj
 
 
 def test_bare_script_stop_defaults_to_enclosing_script() -> None:
@@ -103,58 +103,89 @@ async def test_on_stop_builds_stop_trigger_automation() -> None:
     stop_conf = {CONF_THEN: []}
     config = [
         {
-            CONF_ID: ID("my_script", is_declaration=True, type=SingleScript),
+            CONF_ID: ID("my_script", is_declaration=True, type=SCRIPT_MODES["single"]),
             CONF_MODE: "single",
             CONF_PARAMETERS: {},
             CONF_THEN: [],
             CONF_ON_STOP: stop_conf,
         },
         {
-            CONF_ID: ID("other_script", is_declaration=True, type=SingleScript),
+            CONF_ID: ID(
+                "other_script", is_declaration=True, type=SCRIPT_MODES["single"]
+            ),
             CONF_MODE: "single",
             CONF_PARAMETERS: {},
             CONF_THEN: [],
         },
     ]
     with (
-        patch("esphome.codegen.new_Pvariable") as new_pvariable,
         patch("esphome.codegen.add"),
         patch("esphome.codegen.add_define") as add_define,
         patch(
             "esphome.automation.build_automation", new_callable=AsyncMock
         ) as build_automation,
+        patch(
+            "esphome.automation.build_automation_or_run_function",
+            new_callable=AsyncMock,
+            return_value=None,
+        ) as build_or_run,
     ):
-        new_pvariable.side_effect = lambda id_, *args: MockObj(id_.id, "->")
         await to_code(config)
 
     add_define.assert_called_once_with("USE_SCRIPT_ON_STOP")
 
-    assert [
-        (str(c.args[0]), *c.args[1:]) for c in build_automation.await_args_list
-    ] == [
+    assert [(str(c.args[0]), *c.args[1:3]) for c in build_or_run.await_args_list] == [
         ("my_script", [], config[0]),
-        ("my_script->get_stop_trigger()", [], stop_conf),
         ("other_script", [], config[1]),
     ]
+    assert [
+        (str(c.args[0]), *c.args[1:]) for c in build_automation.await_args_list
+    ] == [("my_script->get_stop_trigger()", [], stop_conf)]
 
 
 @pytest.mark.asyncio
 async def test_no_on_stop_define_without_on_stop() -> None:
     config = [
         {
-            CONF_ID: ID("my_script", is_declaration=True, type=SingleScript),
+            CONF_ID: ID("my_script", is_declaration=True, type=SCRIPT_MODES["single"]),
             CONF_MODE: "single",
             CONF_PARAMETERS: {},
             CONF_THEN: [],
         }
     ]
     with (
-        patch("esphome.codegen.new_Pvariable") as new_pvariable,
         patch("esphome.codegen.add"),
         patch("esphome.codegen.add_define") as add_define,
-        patch("esphome.automation.build_automation", new_callable=AsyncMock),
+        patch(
+            "esphome.automation.build_automation_or_run_function",
+            new_callable=AsyncMock,
+            return_value=None,
+        ),
     ):
-        new_pvariable.side_effect = lambda id_, *args: MockObj(id_.id, "->")
         await to_code(config)
 
     add_define.assert_not_called()
+
+
+@pytest.mark.parametrize("name", ["esphome__running", "esphome__arg_0"])
+def test_reserved_parameter_names_rejected(name: str) -> None:
+    """The reason reaches the user, at the parameter's path."""
+    config = [{CONF_ID: "my_script", CONF_PARAMETERS: {name: "int"}, CONF_THEN: []}]
+    with pytest.raises(cv.MultipleInvalid) as err:
+        CONFIG_SCHEMA(config)
+    (error,) = err.value.errors
+    assert (
+        error.msg == "Names starting with 'esphome__' are reserved for generated code"
+    )
+    assert error.path == [0, CONF_PARAMETERS, name]
+
+
+def test_parameter_name_accepted() -> None:
+    config = [
+        {
+            CONF_ID: "my_script",
+            CONF_PARAMETERS: {"esphome_running": "int"},
+            CONF_THEN: [],
+        }
+    ]
+    assert CONFIG_SCHEMA(config)[0][CONF_PARAMETERS] == {"esphome_running": "int"}

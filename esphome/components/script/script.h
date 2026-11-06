@@ -24,7 +24,7 @@ class ScriptLogger {
 };
 
 /// The abstract base class for all script types.
-template<typename... Ts> class Script : public ScriptLogger, public Trigger<Ts...> {
+template<typename... Ts> class Script : public ScriptLogger {
  public:
   /** Execute a new instance of this script.
    *
@@ -32,44 +32,83 @@ template<typename... Ts> class Script : public ScriptLogger, public Trigger<Ts..
    */
   virtual void execute(Ts...) = 0;
   /// Check if any instance of this script is currently running.
-  virtual bool is_running() { return this->is_action_running(); }
-#ifdef USE_SCRIPT_ON_STOP
+  virtual bool is_running() = 0;
   /// Stop all instances of this script. Fires the on_stop trigger once if any instance was running.
-  virtual void stop() {
-    if (this->is_action_running())
-      this->stop_running_();
-  }
+  virtual void stop() = 0;
 
+#ifdef USE_SCRIPT_ON_STOP
   Trigger<> *get_stop_trigger() { return &this->stop_trigger_; }
-#else
-  /// Stop all instances of this script.
-  virtual void stop() { this->stop_action(); }
 #endif
 
   // Internal function to give scripts readable names.
   void set_name(const LogString *name) { name_ = name; }
 
  protected:
-  // Run the action chain with this script's name published as the current source (RAII save/restore,
-  // so nesting composes), so deferred work inside the script is attributed to it in blocking
-  // warnings. Force-inlined to fold into the always-inlined trigger chain (no extra stack frame).
-  inline void run_actions_(const Ts &...x) ESPHOME_ALWAYS_INLINE {
-    ScopedSourceGuard source_guard{this->name_};
-    this->trigger(x...);
-  }
-
-  // Stop the running actions early and fire the on_stop trigger.
-  void stop_running_() {
-    this->stop_action();
-#ifdef USE_SCRIPT_ON_STOP
-    this->stop_trigger_.trigger();
-#endif
-  }
-
   const LogString *name_{nullptr};
 #ifdef USE_SCRIPT_ON_STOP
   Trigger<> stop_trigger_;
 #endif
+};
+
+/// Runs the script's actions through an Automation, for actions that can wait (delay, wait_until, ...).
+template<typename... Ts> class AutomationScript : public Script<Ts...>, public Trigger<Ts...> {
+ protected:
+  bool body_running_() { return this->is_action_running(); }
+  int body_num_running_() { return this->automation_parent_->num_running(); }
+  inline void run_body_(const Ts &...x) ESPHOME_ALWAYS_INLINE { this->trigger(x...); }
+  void stop_body_() { this->stop_action(); }
+};
+
+/** Runs the script's actions as one generated function, when they are all inline.
+ *
+ * Like ApplyRunAction, the function gets the run count by reference and returns early once a
+ * stop clears it. The mode code built on this is shared; FunctionScript or FunctionPointerScript
+ * supplies the function.
+ */
+template<typename... Ts> class FunctionBody : public Script<Ts...> {
+ protected:
+  bool body_running_() { return this->num_running_ > 0; }
+  int body_num_running_() { return this->num_running_; }
+  inline void run_body_(const Ts &...x) ESPHOME_ALWAYS_INLINE {
+    this->num_running_++;
+    this->run_function(this->num_running_, x...);
+    if (this->num_running_ > 0)
+      this->num_running_--;
+  }
+  void stop_body_() { this->num_running_ = 0; }
+  virtual void run_function(const int &running, const Ts &...x) = 0;
+
+  int num_running_{0};
+};
+
+/// What all script modes share, on top of the class that runs the actions.
+template<class Body, typename... Ts> class ScriptBase : public Body {
+ public:
+  bool is_running() override { return this->body_running_(); }
+#ifdef USE_SCRIPT_ON_STOP
+  void stop() override {
+    if (this->body_running_())
+      this->stop_running_();
+  }
+#else
+  void stop() override { this->stop_body_(); }
+#endif
+
+ protected:
+  // Publish this script's name as the current source while the actions run (RAII, so nesting
+  // composes), so deferred work is attributed to it in blocking warnings.
+  inline void run_actions_(const Ts &...x) ESPHOME_ALWAYS_INLINE {
+    ScopedSourceGuard source_guard{this->name_};
+    this->run_body_(x...);
+  }
+
+  // Stop the running actions early and fire the on_stop trigger.
+  void stop_running_() {
+    this->stop_body_();
+#ifdef USE_SCRIPT_ON_STOP
+    this->stop_trigger_.trigger();
+#endif
+  }
 };
 
 /** A script type for which only a single instance at a time is allowed.
@@ -77,10 +116,10 @@ template<typename... Ts> class Script : public ScriptLogger, public Trigger<Ts..
  * If a new instance is executed while the previous one hasn't finished yet,
  * a warning is printed and the new instance is discarded.
  */
-template<typename... Ts> class SingleScript : public Script<Ts...> {
+template<class Body, typename... Ts> class SingleMode : public ScriptBase<Body, Ts...> {
  public:
   void execute(Ts... x) override {
-    if (this->is_action_running()) {
+    if (this->body_running_()) {
       this->esp_logw_(__LINE__, ESPHOME_LOG_FORMAT("Script '%s' is already running! (mode: single)"),
                       LOG_STR_ARG(this->name_));
       return;
@@ -95,16 +134,16 @@ template<typename... Ts> class SingleScript : public Script<Ts...> {
  * If a new instance is started but another one is already running, the existing
  * script is stopped and the new instance starts from the beginning.
  */
-template<typename... Ts> class RestartScript : public Script<Ts...> {
+template<class Body, typename... Ts> class RestartMode : public ScriptBase<Body, Ts...> {
  public:
   void execute(Ts... x) override {
-    if (this->is_action_running()) {
+    if (this->body_running_()) {
       this->esp_logd_(__LINE__, ESPHOME_LOG_FORMAT("Script '%s' restarting (mode: restart)"), LOG_STR_ARG(this->name_));
       this->stop_running_();
 #ifdef USE_SCRIPT_ON_STOP
       // on_stop may have executed this script again; only the newest run may continue
-      if (this->is_action_running())
-        this->stop_action();
+      if (this->body_running_())
+        this->stop_body_();
 #endif
     }
 
@@ -126,10 +165,10 @@ template<typename... Ts> class RestartScript : public Script<Ts...> {
  * - Subsequent executes while running are queued starting at position 0
  * - Maximum total instances = max_runs_ (includes 1 running + (max_runs_ - 1) queued)
  */
-template<typename... Ts> class QueueingScript : public Script<Ts...>, public Component {
+template<class Body, typename... Ts> class QueueingMode : public ScriptBase<Body, Ts...>, public Component {
  public:
   void execute(Ts... x) override {
-    if (this->is_action_running() || this->num_queued_ > 0) {
+    if (this->body_running_() || this->num_queued_ > 0) {
       // num_queued_ is the number of *queued* instances (waiting, not including currently running)
       // max_runs_ is the maximum *total* instances (running + queued)
       // So we reject when num_queued_ + 1 >= max_runs_ (queued + running >= max)
@@ -164,7 +203,7 @@ template<typename... Ts> class QueueingScript : public Script<Ts...>, public Com
   void stop() override {
 #ifdef USE_SCRIPT_ON_STOP
     // Queued runs are unfinished work too, even between two runs when nothing is running
-    const bool stopping = this->is_action_running() || this->num_queued_ != 0;
+    const bool stopping = this->body_running_() || this->num_queued_ != 0;
 #endif
     // Clear all queued items to free memory immediately
     // Resetting the array automatically destroys all unique_ptrs and their contents
@@ -175,12 +214,12 @@ template<typename... Ts> class QueueingScript : public Script<Ts...>, public Com
     if (stopping)
       this->stop_running_();
 #else
-    Script<Ts...>::stop();
+    ScriptBase<Body, Ts...>::stop();
 #endif
   }
 
   void loop() override {
-    if (this->num_queued_ != 0 && !this->is_action_running()) {
+    if (this->num_queued_ != 0 && !this->body_running_()) {
       // Dequeue: decrement count, move tuple out (frees slot), advance read position
       this->num_queued_--;
       const size_t queue_capacity = static_cast<size_t>(this->max_runs_ - 1);
@@ -227,10 +266,10 @@ template<typename... Ts> class QueueingScript : public Script<Ts...>, public Com
  * If a new instance is started while previous ones haven't finished yet,
  * the new one is executed in parallel to the other instances.
  */
-template<typename... Ts> class ParallelScript : public Script<Ts...> {
+template<class Body, typename... Ts> class ParallelMode : public ScriptBase<Body, Ts...> {
  public:
   void execute(Ts... x) override {
-    if (this->max_runs_ != 0 && this->automation_parent_->num_running() >= this->max_runs_) {
+    if (this->max_runs_ != 0 && this->body_num_running_() >= this->max_runs_) {
       this->esp_logw_(__LINE__, ESPHOME_LOG_FORMAT("Script '%s' maximum number of parallel runs exceeded!"),
                       LOG_STR_ARG(this->name_));
       return;
@@ -241,6 +280,32 @@ template<typename... Ts> class ParallelScript : public Script<Ts...> {
 
  protected:
   int max_runs_ = 0;
+};
+
+template<typename... Ts> using SingleScript = SingleMode<AutomationScript<Ts...>, Ts...>;
+template<typename... Ts> using RestartScript = RestartMode<AutomationScript<Ts...>, Ts...>;
+template<typename... Ts> using QueueingScript = QueueingMode<AutomationScript<Ts...>, Ts...>;
+template<typename... Ts> using ParallelScript = ParallelMode<AutomationScript<Ts...>, Ts...>;
+
+/// A script of mode `Mode` (built on FunctionBody) whose actions are the generated function Fn.
+template<class Mode, auto Fn, typename... Ts> class FunctionScript final : public Mode {
+ protected:
+  void run_function(const int &running, const Ts &...x) override { Fn(running, x...); }
+};
+
+/** Like FunctionScript, but one class for all scripts of `Mode`, holding the function.
+ *
+ * For queued scripts, whose per-script class would copy the Component vtable too.
+ */
+template<class Mode, typename... Ts> class FunctionPointerScript final : public Mode {
+ public:
+  using fn_t = void (*)(const int &, const Ts &...);
+  explicit FunctionPointerScript(fn_t fn) : fn_(fn) {}
+
+ protected:
+  void run_function(const int &running, const Ts &...x) override { this->fn_(running, x...); }
+
+  const fn_t fn_;
 };
 
 /** Wait for a script to finish before continuing.
