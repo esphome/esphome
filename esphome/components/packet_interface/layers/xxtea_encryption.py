@@ -50,13 +50,10 @@ async def build_xxtea(
     buffers = cg.static_buffer(
         config[CONF_ID],
         cg.uint32,
-        f"{XxteaEncryption}::buffer_words({lower_size})",
+        XxteaEncryption.static_("buffer_words")(lower_size),
         psram=True,
     )
     var = cg.new_Pvariable(config[CONF_ID], lower, rolling_code, buffers)
     cg.add(var.set_key(derive_key(config[CONF_KEY])))
     await cg.register_component(var, config)
-    return (
-        var,
-        f"{XxteaEncryption}::packet_size({lower_size}, {str(rolling_code).lower()})",
-    )
+    return var, XxteaEncryption.static_("packet_size")(lower_size, rolling_code)

@@ -175,7 +175,7 @@ static bool is_expected_control_report(uint32_t command, uint16_t type) {
 #endif
 
 void LD600XComponent::setup() {
-  if (!this->setup_check(this->parser_.has_buffer(), LOG_STR("Failed to allocate frame buffer")))
+  if (!this->setup_check(this->parser_.has_buffer(), LOG_STR(ESP_LOG_MSG_ALLOC_FAIL)))
     return;
 
   this->set_timeout(SETUP_DELAY_MS, [this]() {
