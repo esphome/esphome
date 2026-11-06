@@ -2,26 +2,26 @@
 
 #include "esphome/core/component.h"
 #include "esphome/core/hal.h"
-#include <vector>
 
 namespace esphome::my9231 {
 
 /// MY9231 float output component.
 class MY9231OutputComponent final : public Component {
  public:
-  void set_pin_di(GPIOPin *pin_di) { pin_di_ = pin_di; }
-  void set_pin_dcki(GPIOPin *pin_dcki) { pin_dcki_ = pin_dcki; }
+  /// @param pwm_amounts storage for num_channels duty values, owned by the caller for the life of the program.
+  MY9231OutputComponent(GPIOPin *pin_di, GPIOPin *pin_dcki, uint16_t *pwm_amounts, uint16_t num_channels,
+                        uint8_t num_chips, uint8_t bit_depth)
+      : pin_di_(pin_di),
+        pin_dcki_(pin_dcki),
+        pwm_amounts_(pwm_amounts),
+        num_channels_(num_channels),
+        num_chips_(num_chips),
+        bit_depth_(bit_depth) {}
 
-  void set_num_channels(uint16_t num_channels) { this->num_channels_ = num_channels; }
-  void set_num_chips(uint8_t num_chips) { this->num_chips_ = num_chips; }
-  void set_bit_depth(uint8_t bit_depth) { this->bit_depth_ = bit_depth; }
-
-  /// Setup the MY9231.
   void setup() override;
   void dump_config() override;
-  /// HARDWARE setup_priority
   float get_setup_priority() const override { return setup_priority::HARDWARE; }
-  /// Send new values if they were updated.
+  /// Send the new duty values, then sleep until write_channel() changes one.
   void loop() override;
 
   void write_channel(uint16_t channel, float state);
@@ -34,13 +34,12 @@ class MY9231OutputComponent final : public Component {
   void send_di_pulses_(uint8_t count);
   void send_dcki_pulses_(uint8_t count);
 
-  GPIOPin *pin_di_;
-  GPIOPin *pin_dcki_;
-  uint8_t bit_depth_;
-  uint16_t num_channels_;
-  uint8_t num_chips_;
-  std::vector<uint16_t> pwm_amounts_;
-  bool update_{true};
+  GPIOPin *const pin_di_;
+  GPIOPin *const pin_dcki_;
+  uint16_t *const pwm_amounts_;
+  const uint16_t num_channels_;
+  const uint8_t num_chips_;
+  const uint8_t bit_depth_;
 };
 
 }  // namespace esphome::my9231
