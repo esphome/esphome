@@ -5,6 +5,7 @@
 #include "esphome/core/application.h"
 #include "esphome/core/defines.h"
 #include "esphome/core/log.h"
+#include "esphome/core/progmem.h"
 
 #include "esphome/components/md5/md5.h"
 #include "esphome/components/watchdog/watchdog.h"
@@ -48,30 +49,53 @@ void OtaHttpRequestComponent::flash() {
   }
 
   ESP_LOGI(TAG, "Starting update");
-#ifdef USE_OTA_STATE_LISTENER
-  this->notify_state_(ota::OTA_STARTED, 0.0f, 0);
-#endif
+  this->report_state_(ota::OTA_STARTED, 0.0f, 0);
 
   auto ota_status = this->do_ota_();
 
   switch (ota_status) {
     case ota::OTA_RESPONSE_OK:
-#ifdef USE_OTA_STATE_LISTENER
-      this->notify_state_(ota::OTA_COMPLETED, 100.0f, ota_status);
-#endif
+      this->report_state_(ota::OTA_COMPLETED, 100.0f, ota_status);
       delay(10);
       App.safe_reboot();
       break;
 
     default:
-#ifdef USE_OTA_STATE_LISTENER
-      this->notify_state_(ota::OTA_ERROR, 0.0f, ota_status);
-#endif
+      this->report_state_(ota::OTA_ERROR, 0.0f, ota_status);
       this->request_->md5_computed.clear();  // will be reset at next attempt
       this->request_->md5_expected.clear();  // will be reset at next attempt
       break;
   }
 }
+
+void OtaHttpRequestComponent::report_state_(ota::OTAState state, float progress, uint8_t error) {
+#ifdef USE_OTA_STATE_LISTENER
+  this->notify_state_(state, progress, error);
+#endif
+#ifdef USE_HTTP_REQUEST_UPDATE
+  switch (state) {
+    case ota::OTA_IN_PROGRESS:
+      this->report_progress_(progress);
+      break;
+    case ota::OTA_COMPLETED:
+      this->report_complete_();
+      break;
+    case ota::OTA_ABORT:
+    case ota::OTA_ERROR:
+      this->report_failed_(LOG_STR("Failed to install firmware"));
+      break;
+    default:
+      break;
+  }
+#endif
+}
+
+#ifdef USE_HTTP_REQUEST_UPDATE
+bool OtaHttpRequestComponent::matches_build(JsonObjectConst build) const {
+  JsonVariantConst chip_family = build[ESPHOME_F("chipFamily")];
+  return chip_family.is<const char *>() && chip_family == ESPHOME_VARIANT;
+}
+#endif
 
 void OtaHttpRequestComponent::cleanup_(ota::OTABackendPtr backend, const std::shared_ptr<HttpContainer> &container,
                                        bool abort_backend) {
@@ -179,9 +203,7 @@ uint8_t OtaHttpRequestComponent::do_ota_() {
       last_progress = now;
       float percentage = container->get_bytes_read() * 100.0f / container->content_length;
       ESP_LOGD(TAG, "Progress: %0.1f%%", percentage);
-#ifdef USE_OTA_STATE_LISTENER
-      this->notify_state_(ota::OTA_IN_PROGRESS, percentage, 0);
-#endif
+      this->report_state_(ota::OTA_IN_PROGRESS, percentage, 0);
     }
   }  // while
 

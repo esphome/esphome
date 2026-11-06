@@ -8,6 +8,7 @@ from esphome.coroutine import CoroPriority
 from esphome.types import ConfigType
 
 from .. import CONF_HTTP_REQUEST_ID, HttpRequestComponent, http_request_ns
+from ..update import UpdateTarget
 
 CODEOWNERS = ["@oarcher"]
 
@@ -17,8 +18,10 @@ DEPENDENCIES = ["network", "http_request"]
 CONF_MD5 = "md5"
 CONF_MD5_URL = "md5_url"
 
+# An UpdateTarget as well, so the update platform can install a firmware image
+# from a manifest on this device. See update_target.h.
 OtaHttpRequestComponent = http_request_ns.class_(
-    "OtaHttpRequestComponent", OTAComponent
+    "OtaHttpRequestComponent", OTAComponent, UpdateTarget
 )
 
 CONFIG_SCHEMA = cv.All(

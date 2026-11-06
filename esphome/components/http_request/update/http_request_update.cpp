@@ -3,7 +3,6 @@
 #include <cstring>
 
 #include "esphome/core/application.h"
-#include "esphome/core/version.h"
 
 #include "esphome/components/json/json_util.h"
 #include "esphome/components/network/util.h"
@@ -30,7 +29,7 @@ static constexpr uint32_t INITIAL_CHECK_INTERVAL_MS = 10000;
 static constexpr uint8_t INITIAL_CHECK_MAX_ATTEMPTS = 6;
 
 void HttpRequestUpdate::setup() {
-  this->ota_parent_->add_state_listener(this);
+  this->target_->set_update_listener(this);
 
   // Check periodically until network is ready
   // Only if update interval is > total retry window to avoid redundant checks
@@ -49,17 +48,26 @@ void HttpRequestUpdate::setup() {
   }
 }
 
-void HttpRequestUpdate::on_ota_state(ota::OTAState state, float progress, uint8_t error) {
-  if (state == ota::OTAState::OTA_IN_PROGRESS) {
-    this->state_ = update::UPDATE_STATE_INSTALLING;
-    this->update_info_.has_progress = true;
-    this->update_info_.progress = progress;
-    this->publish_state();
-  } else if (state == ota::OTAState::OTA_ABORT || state == ota::OTAState::OTA_ERROR) {
-    this->state_ = update::UPDATE_STATE_AVAILABLE;
-    this->status_set_error(LOG_STR("Failed to install firmware"));
-    this->publish_state();
+void HttpRequestUpdate::on_target_state(UpdateTargetState state, float progress, const LogString *message) {
+  switch (state) {
+    case UpdateTargetState::UPDATE_TARGET_STATE_PROGRESS:
+      this->state_ = update::UPDATE_STATE_INSTALLING;
+      this->update_info_.has_progress = true;
+      this->update_info_.progress = progress;
+      break;
+    case UpdateTargetState::UPDATE_TARGET_STATE_COMPLETE:
+      this->state_ = update::UPDATE_STATE_NO_UPDATE;
+      this->update_info_.has_progress = false;
+      this->update_info_.current_version = this->update_info_.latest_version;
+      this->status_clear_error();
+      break;
+    case UpdateTargetState::UPDATE_TARGET_STATE_FAILED:
+      this->state_ = update::UPDATE_STATE_AVAILABLE;
+      this->update_info_.has_progress = false;
+      this->status_set_error(message);
+      break;
   }
+  this->publish_state();
 }
 
 void HttpRequestUpdate::set_source_url(const char *source_url, size_t len) {
@@ -94,6 +102,12 @@ void HttpRequestUpdate::end_check_(TaskResult *result) {
 }
 
 void HttpRequestUpdate::update() {
+  // A target that installs asynchronously is still working, and its state and metadata describe
+  // the image being installed; a check would replace both.
+  if (this->state_ == update::UPDATE_STATE_INSTALLING) {
+    ESP_LOGD(TAG, "Install in progress, skipping update check");
+    return;
+  }
   if (!network::is_connected()) {
     ESP_LOGD(TAG, "Network not connected, skipping update check");
     return;
@@ -168,7 +182,8 @@ void HttpRequestUpdate::update_task(void *params) {
 
     bool valid = false;
     {  // Scope to ensure JsonDocument is destroyed before deallocating buffer
-      valid = json::parse_json(data, read_index, [info](JsonObject root) -> bool {
+      UpdateTarget *target = this_update->target_;
+      valid = json::parse_json(data, read_index, [info, target](JsonObject root) -> bool {
         if (!root[ESPHOME_F("name")].is<const char *>() || !root[ESPHOME_F("version")].is<const char *>() ||
             !root[ESPHOME_F("builds")].is<JsonArray>()) {
           ESP_LOGE(TAG, "Manifest does not contain required fields");
@@ -179,31 +194,26 @@ void HttpRequestUpdate::update_task(void *params) {
 
         auto builds_array = root[ESPHOME_F("builds")].as<JsonArray>();
         for (auto build : builds_array) {
-          if (!build[ESPHOME_F("chipFamily")].is<const char *>()) {
+          if (!build.is<JsonObject>() || !target->matches_build(build.as<JsonObjectConst>()))
+            continue;
+
+          JsonVariantConst image = build[target->get_manifest_key()];
+          if (!image.is<JsonObjectConst>() || !image[ESPHOME_F("path")].is<const char *>() ||
+              !image[ESPHOME_F("md5")].is<const char *>()) {
             ESP_LOGE(TAG, "Manifest does not contain required fields");
             return false;
           }
-          if (build[ESPHOME_F("chipFamily")] == ESPHOME_VARIANT) {
-            if (!build[ESPHOME_F("ota")].is<JsonObject>()) {
-              ESP_LOGE(TAG, "Manifest does not contain required fields");
-              return false;
-            }
-            JsonObject ota = build[ESPHOME_F("ota")].as<JsonObject>();
-            if (!ota[ESPHOME_F("path")].is<const char *>() || !ota[ESPHOME_F("md5")].is<const char *>()) {
-              ESP_LOGE(TAG, "Manifest does not contain required fields");
-              return false;
-            }
-            info->firmware_url = ota[ESPHOME_F("path")].as<std::string>();
-            info->md5 = ota[ESPHOME_F("md5")].as<std::string>();
+          info->firmware_url = image[ESPHOME_F("path")].as<std::string>();
+          info->md5 = image[ESPHOME_F("md5")].as<std::string>();
 
-            if (ota[ESPHOME_F("summary")].is<const char *>())
-              info->summary = ota[ESPHOME_F("summary")].as<std::string>();
-            if (ota[ESPHOME_F("release_url")].is<const char *>())
-              info->release_url = ota[ESPHOME_F("release_url")].as<std::string>();
+          if (image[ESPHOME_F("summary")].is<const char *>())
+            info->summary = image[ESPHOME_F("summary")].as<std::string>();
+          if (image[ESPHOME_F("release_url")].is<const char *>())
+            info->release_url = image[ESPHOME_F("release_url")].as<std::string>();
 
-            return true;
-          }
+          return true;
         }
+        ESP_LOGE(TAG, "Manifest does not contain a build for this device");
         return false;
       });
     }
@@ -232,11 +242,7 @@ void HttpRequestUpdate::update_task(void *params) {
       info->firmware_url.insert(0, source, prefix_len);
     }
 
-#ifdef ESPHOME_PROJECT_VERSION
-    info->current_version = ESPHOME_PROJECT_VERSION;
-#else
-    info->current_version = ESPHOME_VERSION;
-#endif
+    info->current_version = this_update->target_->get_current_version();
   }
 
 defer:
@@ -247,42 +253,50 @@ defer:
   // same thread as readers (API, MQTT, web server). This is a single defer for
   // both success and error paths to avoid multiple std::function instantiations.
   // Lambda captures only 2 pointers (8 bytes) — fits in std::function SBO on supported toolchains.
-  this_update->defer([this_update, result]() {
-#ifdef USE_ESP32
-    this_update->task_result_ = nullptr;
-    this_update->end_check_(result);
-#endif
-    if (result->error_str != nullptr) {
-      this_update->status_set_error(result->error_str);
-      delete result;
-      return;
-    }
-
-    // Determine new state on main loop (avoids extra lambda captures from task)
-    bool trigger_update_available = false;
-    update::UpdateState new_state;
-    if (result->info.latest_version.empty() || result->info.latest_version == result->info.current_version) {
-      new_state = update::UPDATE_STATE_NO_UPDATE;
-    } else {
-      new_state = update::UPDATE_STATE_AVAILABLE;
-      if (this_update->state_ != update::UPDATE_STATE_AVAILABLE) {
-        trigger_update_available = true;
-      }
-    }
-
-    this_update->update_info_ = std::move(result->info);
-    this_update->state_ = new_state;
-    delete result;  // Safe: moved-from state is valid for destruction
-
-    this_update->status_clear_error();
-    this_update->publish_state();
-
-    if (trigger_update_available) {
-      this_update->get_update_available_trigger()->trigger(this_update->update_info_);
-    }
-  });
+  this_update->defer([this_update, result]() { this_update->finish_check_(result); });
 
   UPDATE_RETURN;
+}
+
+void HttpRequestUpdate::finish_check_(TaskResult *result) {
+#ifdef USE_ESP32
+  this->task_result_ = nullptr;
+  this->end_check_(result);
+#endif
+  // An install started after this check did, so its state and metadata win.
+  if (this->state_ == update::UPDATE_STATE_INSTALLING) {
+    ESP_LOGD(TAG, "Install in progress, discarding update check result");
+    delete result;
+    return;
+  }
+
+  if (result->error_str != nullptr) {
+    this->status_set_error(result->error_str);
+    delete result;
+    return;
+  }
+
+  bool trigger_update_available = false;
+  update::UpdateState new_state;
+  if (result->info.latest_version.empty() || result->info.latest_version == result->info.current_version) {
+    new_state = update::UPDATE_STATE_NO_UPDATE;
+  } else {
+    new_state = update::UPDATE_STATE_AVAILABLE;
+    if (this->state_ != update::UPDATE_STATE_AVAILABLE) {
+      trigger_update_available = true;
+    }
+  }
+
+  this->update_info_ = std::move(result->info);
+  this->state_ = new_state;
+  delete result;  // Safe: moved-from state is valid for destruction
+
+  this->status_clear_error();
+  this->publish_state();
+
+  if (trigger_update_available) {
+    this->get_update_available_trigger()->trigger(this->update_info_);
+  }
 }
 
 void HttpRequestUpdate::perform(bool force) {
@@ -293,10 +307,8 @@ void HttpRequestUpdate::perform(bool force) {
   this->state_ = update::UPDATE_STATE_INSTALLING;
   this->publish_state();
 
-  this->ota_parent_->set_md5(this->update_info.md5);
-  this->ota_parent_->set_url(this->update_info.firmware_url);
-  // Flash in the next loop
-  this->defer([this]() { this->ota_parent_->flash(); });
+  // Install in the next loop
+  this->defer([this]() { this->target_->install(this->update_info_.firmware_url, this->update_info_.md5); });
 }
 
 }  // namespace esphome::http_request
