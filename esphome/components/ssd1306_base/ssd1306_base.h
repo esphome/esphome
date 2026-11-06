@@ -61,6 +61,9 @@ class SSD1306 : public display::DisplayBuffer {
   virtual void command(uint8_t value) = 0;
   virtual void write_display_data() = 0;
   void init_reset_();
+  bool init_framebuffer_();
+  void init_controller_(bool display_off = true);
+  uint8_t get_column_start_() const;
 
   bool is_sh1106_() const;
   bool is_sh1107_() const;
