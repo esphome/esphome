@@ -59,14 +59,22 @@ def test_handles_scalars() -> None:
     assert not subtree_references_uart("bus", "bus")
 
 
-def test_claims_distinct_uarts_and_keys(
+def test_claims_distinct_uarts(
     set_core_config: SetCoreConfigCallable,
 ) -> None:
     _set(set_core_config)
     claim_exclusive(_entry("uart_0"), "owner")
     claim_exclusive(_entry("uart_1"), "owner")
-    claim_exclusive(_entry("uart_0", "link_id"), "owner", "link_id")
     claim_exclusive(_entry("uart_0"), "other_owner")
+
+
+def test_rejects_one_uart_under_two_keys(
+    set_core_config: SetCoreConfigCallable,
+) -> None:
+    _set(set_core_config)
+    claim_exclusive(_entry("uart_0"), "owner")
+    with pytest.raises(cv.Invalid, match="already used by another 'owner' entry"):
+        claim_exclusive(_entry("uart_0", "link_id"), "owner", "link_id")
 
 
 def test_claims_ignore_the_owner_data(

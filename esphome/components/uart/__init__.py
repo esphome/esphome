@@ -623,9 +623,8 @@ def claim_exclusive(
     """
     full_config = fv.full_config.get()
     uart_id = str(config[conf_key])
-    used = full_config.data.setdefault(KEY_UART_EXCLUSIVE, {}).setdefault(
-        (owner, conf_key), set()
-    )
+    # Per owner, not per key: one UART named under two of the owner's keys is two readers
+    used = full_config.data.setdefault(KEY_UART_EXCLUSIVE, {}).setdefault(owner, set())
     if uart_id in used:
         raise cv.Invalid(
             f"The UART '{uart_id}' is already used by another '{owner}' entry. "
