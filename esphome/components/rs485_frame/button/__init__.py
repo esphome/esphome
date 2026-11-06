@@ -27,7 +27,7 @@ AUTO_LOAD = ["rs485_frame"]
 
 _RAW_MSG = "rs485_frame button raw form requires both 'frame_type' and 'payload'."
 _ENCODING_MSG = (
-    "rs485_frame button: use 'value_element_bytes' or 'command_format', not both."
+    "rs485_frame button: set value_element_bytes or command_format, not both"
 )
 
 CONFIG_SCHEMA = cv.All(

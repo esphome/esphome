@@ -3,16 +3,20 @@ from dataclasses import dataclass, field
 from esphome import automation
 import esphome.codegen as cg
 from esphome.components import uart
+from esphome.components.const import CONF_DATA_BITS, CONF_PARITY, CONF_STOP_BITS
 import esphome.config_validation as cv
 from esphome.const import (
+    CONF_BAUD_RATE,
     CONF_DELAY,
     CONF_ID,
     CONF_INTERVAL,
     CONF_MODE,
     CONF_PAYLOAD,
     CONF_TYPE,
+    CONF_UART_ID,
 )
 from esphome.core import CORE, ID, HexInt, Lambda
+import esphome.final_validate as fv
 from esphome.schema_extractors import SCHEMA_EXTRACT, schema_extractor
 from esphome.types import ConfigType
 
@@ -139,13 +143,11 @@ def check_frame_length(source: str, length: int, max_len: int) -> None:
     """Rejects a constant frame the hub would drop instead of sending."""
     if length < MIN_FRAME_LENGTH:
         raise cv.Invalid(
-            f"{source} resolves to a {length}-byte frame; frames must be at least "
-            f"{MIN_FRAME_LENGTH} bytes, the shortest frame rs485_frame accepts on receive"
+            f"{source} resolves to a {length}-byte frame; frames must be at least {MIN_FRAME_LENGTH} bytes"
         )
     if length > max_len:
         raise cv.Invalid(
-            f"{source} resolves to a {length}-byte frame, exceeding the referenced hub's "
-            f"max_frame_length: ({max_len})"
+            f"{source} resolves to a {length}-byte frame, over the hub's max_frame_length ({max_len})"
         )
 
 
@@ -193,15 +195,14 @@ CRC_SCHEMA = cv.Schema(
     }
 )
 
-# The hub stores these as 16-bit milliseconds.
-_MS16 = cv.All(
+# Upper bound for every bus timing, including how long the longest frame takes to send.
+MAX_BUS_TIME_MS = 10000
+_BUS_TIME = cv.All(
     cv.positive_time_period_milliseconds,
-    cv.Range(max=cv.TimePeriod(milliseconds=65535)),
+    cv.Range(max=cv.TimePeriod(milliseconds=MAX_BUS_TIME_MS)),
 )
 
-_GATE_DELAY = {
-    cv.Optional(CONF_DELAY, default="0ms"): _MS16,
-}
+_GATE_DELAY = {cv.Optional(CONF_DELAY, default="0ms"): _BUS_TIME}
 
 TX_SCHEMA = cv.Schema(
     {
@@ -213,11 +214,11 @@ TX_SCHEMA = cv.Schema(
                     **_GATE_DELAY,
                 },
                 "idle_gap": {
-                    cv.Optional(CONF_MIN_SILENCE, default="4ms"): _MS16,
+                    cv.Optional(CONF_MIN_SILENCE, default="4ms"): _BUS_TIME,
                     **_GATE_DELAY,
                 },
                 "fixed_delay": {
-                    cv.Optional(CONF_INTERVAL, default="100ms"): _MS16,
+                    cv.Optional(CONF_INTERVAL, default="100ms"): _BUS_TIME,
                     **_GATE_DELAY,
                 },
             },
@@ -250,8 +251,7 @@ def validate_hub(config: ConfigType) -> ConfigType:
             raise cv.Invalid("tx.gate.frame_type is required for frame_trigger")
         if len(frame_type) > config[CONF_MAX_FRAME_LENGTH]:
             raise cv.Invalid(
-                f"tx.gate.frame_type is {len(frame_type)} bytes, longer than max_frame_length "
-                f"({config[CONF_MAX_FRAME_LENGTH]}); no received frame could match it"
+                f"tx.gate.frame_type is longer than max_frame_length ({config[CONF_MAX_FRAME_LENGTH]})"
             )
     if tx[CONF_QUEUE_POLICY] == "replace_latest" and tx[CONF_MAX_QUEUE_SIZE] != 1:
         raise cv.Invalid("replace_latest requires max_queue_size: 1")
@@ -272,7 +272,7 @@ CONFIG_SCHEMA = cv.All(
             cv.Optional(CONF_MAX_FRAME_LENGTH, default=128): cv.int_range(
                 min=MIN_FRAME_LENGTH, max=MAX_FRAME_LENGTH_UPPER
             ),
-            cv.Optional(CONF_FRAME_TIMEOUT, default="50ms"): _MS16,
+            cv.Optional(CONF_FRAME_TIMEOUT, default="50ms"): _BUS_TIME,
             cv.Optional(CONF_ON_FRAME): automation.validate_synchronous_automation(
                 "rs485_frame on_frame",
                 "payload",
@@ -288,7 +288,8 @@ CONFIG_SCHEMA = cv.All(
 )
 
 
-CRC_LENGTHS = {"none": 0, "sum8": 1, "xor8": 1}
+def _crc_len(config: ConfigType) -> int:
+    return {"none": 0, "sum8": 1, "xor8": 1}.get(config[CONF_CRC][CONF_TYPE], 2)
 
 
 async def to_code(config: ConfigType) -> None:
@@ -296,7 +297,7 @@ async def to_code(config: ConfigType) -> None:
     framing = config[CONF_FRAMING]
     crc = config[CONF_CRC]
     tx_config = config[CONF_TX]
-    crc_len = CRC_LENGTHS.get(crc[CONF_TYPE], 2)
+    crc_len = _crc_len(config)
     max_queue_size = tx_config[CONF_MAX_QUEUE_SIZE]
     frame_size = config[CONF_MAX_FRAME_LENGTH] + crc_len
     rx = cg.static_buffer(hub_id, cg.uint8, frame_size)
@@ -381,6 +382,16 @@ def _final_validate(config: ConfigType) -> ConfigType:
         require_rx=True,
         require_tx=not config[CONF_SNIFFER_ONLY],
     )(config)
+    if not config[CONF_SNIFFER_ONLY]:
+        bus = fv.get_declaring_config(config[CONF_UART_ID])
+        # Worst case: every byte escaped, plus DLE STX and DLE ETX.
+        wire_bytes = 2 * (config[CONF_MAX_FRAME_LENGTH] + _crc_len(config)) + 4
+        bits = 1 + bus[CONF_DATA_BITS] + bus[CONF_STOP_BITS]
+        bits += bus[CONF_PARITY] != "NONE"
+        if wire_bytes * bits * 1000 > MAX_BUS_TIME_MS * bus[CONF_BAUD_RATE]:
+            raise cv.Invalid(
+                f"max_frame_length takes over {MAX_BUS_TIME_MS}ms to send at this baud rate"
+            )
     for hub_id, length in _data().send_frames:
         if hub_id.id == config[CONF_ID].id:
             check_frame_length(

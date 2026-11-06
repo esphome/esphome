@@ -25,6 +25,7 @@ from esphome.core import CORE
         ),
         ("rs485_frame_on_frame_empty_alt_prefix.yaml", "length of value must be"),
         ("rs485_frame_on_frame_null_frame_type.yaml", "frame_type needs a value"),
+        ("rs485_frame_wire_time_too_long.yaml", "takes over 10000ms to send"),
         ("rs485_frame_uart_without_tx.yaml", "to declare a tx_pin"),
         ("rs485_frame_uart_without_rx.yaml", "to declare a rx_pin"),
         (

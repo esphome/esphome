@@ -1,0 +1,27 @@
+esphome:
+  name: test-device
+
+esp32:
+  board: esp32dev
+  framework:
+    type: esp-idf
+
+uart:
+  id: uart_bus
+  tx_pin: GPIO17
+  rx_pin: GPIO16
+  baud_rate: 300
+
+# The longest escaped frame takes about 68 seconds at 300 baud. Must be rejected.
+rs485_frame:
+  id: hub
+  uart_id: uart_bus
+  max_frame_length: 1024
+  framing:
+    escape:
+      mode: double
+  crc:
+    type: none
+  tx:
+    gate:
+      mode: fixed_delay

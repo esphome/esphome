@@ -36,10 +36,9 @@ enum RxState : uint8_t { RX_STATE_IDLE, RX_STATE_IDLE_DLE, RX_STATE_FRAME, RX_ST
 inline bool frame_has_prefix(std::span<const uint8_t> payload, const uint8_t *prefix, size_t len) {
   if (payload.size() < len)
     return false;
-  for (size_t i = 0; i < len; i++) {
+  for (size_t i = 0; i < len; i++)
     if (payload[i] != progmem_read_byte(prefix + i))
       return false;
-  }
   return true;
 }
 
