@@ -1830,19 +1830,32 @@ class TestDownloadFromMirrors:
         url = download_from_mirrors([target.as_uri()], {}, target)
         assert url == target.as_uri()
         assert target.read_bytes() == b"archive"
-        assert not (tmp_path / "dist" / "esp-idf-1.2.3.tar.xz.copy").exists()
+        assert [p.name for p in (tmp_path / "dist").iterdir()] == [
+            "esp-idf-1.2.3.tar.xz"
+        ]
 
-    def test_file_mirror_at_staging_path_is_kept(self, tmp_path: Path) -> None:
-        """A mirror that names the staging file itself cannot be copied onto
-        itself; it is reported as a failed mirror and the file is left alone."""
+    def test_archive_beside_target_survives_fallback(self, tmp_path: Path) -> None:
+        """A user's archive stored next to the target under a staging-like
+        name is never the staging file: a failed first mirror and a
+        succeeding second one leave it untouched."""
+        first = tmp_path / "f.bin.copy"
+        first.write_bytes(b"first")
+        second = tmp_path / "second.bin"
+        second.write_bytes(b"second")
         target = tmp_path / "f.bin"
-        staged = tmp_path / "f.bin.copy"
-        staged.write_bytes(b"archive")
-        with pytest.raises(EsphomeError, match="all mirrors") as ei:
-            download_from_mirrors([staged.as_uri()], {}, target)
-        assert "are the same file" in str(ei.value)
-        assert staged.read_bytes() == b"archive"
-        assert not target.exists()
+        with patch(
+            "esphome.framework_helpers.os.access",
+            side_effect=lambda path, mode: Path(path) != first,
+        ):
+            url = download_from_mirrors([first.as_uri(), second.as_uri()], {}, target)
+        assert url == second.as_uri()
+        assert target.read_bytes() == b"second"
+        assert first.read_bytes() == b"first"
+        assert sorted(p.name for p in tmp_path.iterdir()) == [
+            "f.bin",
+            "f.bin.copy",
+            "second.bin",
+        ]
 
     def test_malformed_file_url_falls_back_to_next_mirror(self, tmp_path: Path) -> None:
         """Urlparse rejects the authority; that is a mirror failure, not an
@@ -1893,7 +1906,7 @@ class TestDownloadFromMirrors:
             url = download_from_mirrors([source.as_uri()], {}, target)
         assert url == source.as_uri()
         assert target.read_bytes() == b"local"
-        assert not (tmp_path / "f.bin.copy").exists()
+        assert sorted(p.name for p in tmp_path.iterdir()) == ["f.bin", "local.bin"]
         assert len(calls) == 2
         mock_sleep.assert_called_once()
 
@@ -1917,7 +1930,8 @@ class TestDownloadFromMirrors:
             download_from_mirrors([source.as_uri()], {}, target)
         assert "disk full" in str(ei.value)
         assert "busy" not in str(ei.value)
-        assert f"Could not remove {tmp_path / 'f.bin.copy'}: busy" in caplog.text
+        assert f"Could not remove {tmp_path / 'f.bin.'}" in caplog.text
+        assert ".copy: busy" in caplog.text
 
     def test_failed_copy_leaves_no_partial_target_and_warns(
         self, tmp_path: Path, caplog: pytest.LogCaptureFixture
@@ -1944,7 +1958,7 @@ class TestDownloadFromMirrors:
             )
         assert url == "https://mirror2.com/f"
         assert target.read_bytes() == b"second"
-        assert not (tmp_path / "f.bin.copy").exists()
+        assert sorted(p.name for p in tmp_path.iterdir()) == ["f.bin", "local.bin"]
         assert f"Local mirror {source.as_uri()} is unusable: denied" in caplog.text
         mock_sleep.assert_not_called()
 

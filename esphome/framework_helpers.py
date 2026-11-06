@@ -12,6 +12,7 @@ from pathlib import Path
 import shutil
 import subprocess
 import sys
+import tempfile
 import threading
 import time
 from typing import IO, TYPE_CHECKING
@@ -1362,17 +1363,17 @@ def _copy_local_mirror(
     # An archive already at the target sits in the download cache, which is
     # consumed by the install anyway, so it is used in place.
     if not (path_target.is_file() and source.samefile(path_target)):
-        # A staging name of its own: an interrupted copy never leaves a
-        # truncated archive at the target, and never touches the .part
-        # file and sidecar the HTTP download resumes from.
-        staged = path_target.with_name(path_target.name + ".copy")
+        # An exclusively created staging file: an interrupted copy never
+        # leaves a truncated archive at the target, no mirror path can name
+        # it, and the .part file the HTTP download resumes from is untouched.
+        fd, name = tempfile.mkstemp(
+            dir=path_target.parent, prefix=path_target.name + ".", suffix=".copy"
+        )
+        os.close(fd)
+        staged = Path(name)
         try:
             shutil.copyfile(source, staged)
             rename_with_retry(staged, path_target, overwrite=True)
-        except shutil.SameFileError:
-            # The mirror names the staging file itself; nothing was written,
-            # so there is nothing to clean up and the user's file stays.
-            raise
         except BaseException:
             # Best-effort: a failed cleanup must not replace the copy error
             try:
