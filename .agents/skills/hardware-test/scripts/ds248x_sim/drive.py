@@ -40,14 +40,15 @@ failed: list[str] = []
 
 
 def sim_reader() -> None:
-    buf = b""
+    buf = bytearray()
     while not stop.is_set():
         buf += sim.read(4096)
-        while b"\n" in buf:
-            line, buf = buf.split(b"\n", 1)
-            sim_lines.append(
-                (time.time(), ANSI.sub("", line.decode(errors="replace")).strip())
-            )
+        *lines, rest = buf.split(b"\n")
+        buf = bytearray(rest)
+        now = time.time()
+        sim_lines.extend(
+            (now, ANSI.sub("", line.decode(errors="replace")).strip()) for line in lines
+        )
 
 
 def send(c: str) -> None:
@@ -58,12 +59,7 @@ def send(c: str) -> None:
 def last_cnt(before: float) -> dict[str, int]:
     for t, line in reversed(sim_lines):
         if t <= before and "CNT " in line:
-            body = (
-                line.split("CNT ", 1)[1]
-                .replace("inj c=", "inj_c=")
-                .replace(" z=", " inj_z=")
-            )
-            body = body.replace(" b=", " inj_b=").replace(" k=", " inj_k=")
+            body = line.split("CNT ", 1)[1]
             return {k: int(v) for k, v in re.findall(r"(\w+)=(-?\d+)", body)}
     return {}
 
@@ -82,14 +78,19 @@ def phase(
     )
     t0 = time.time()
     for at, c in actions:
-        while time.time() - t0 < at:
-            time.sleep(0.05)
+        time.sleep(max(0.0, t0 + at - time.time()))
         send(c)
     p.wait()
-    time.sleep(5.5)  # one more simulator report
+    n0 = len(sim_lines)
+    send("s")  # one more simulator report
+    deadline = time.time() + 6
+    while time.time() < deadline and not any(
+        "CNT " in line for _, line in sim_lines[n0:]
+    ):
+        time.sleep(0.05)
     a, b = last_cnt(t0), last_cnt(time.time())
     delta = {k: b.get(k, 0) - a.get(k, 0) for k in COUNTERS}
-    log = ANSI.sub("", pathlib.Path(out).read_text(encoding="utf-8", errors="replace"))
+    log = pathlib.Path(out).read_text(encoding="utf-8", errors="replace")
     temps = re.findall(r"'(\w+)': Got Temperature=(-?[\d.]+)", log)
     per = dict.fromkeys(EXPECT, 0)
     wrong = []
@@ -116,13 +117,14 @@ def phase(
         failed.append(name)
 
 
-RUNS = {
-    "c": lambda: phase("c", 90, [(12 + 6 * i, "c") for i in range(12)]),
-    "cd": lambda: phase("cd", 100, [(10 + 3 * i, "c") for i in range(28)]),
-    "z": lambda: phase("z", 50, [(12 + 5 * i, "z") for i in range(6)]),
-    "b": lambda: phase("b", 40, [(12, "b")]),
-    "k": lambda: phase("k", 40, [(12, "k")]),
-    "dead": lambda: phase("dead", 45, [(25, "X")], pre="x"),
+# name: (seconds, actions, pre)
+RUNS: dict[str, tuple[int, list[tuple[float, str]], str]] = {
+    "c": (90, [(12 + 6 * i, "c") for i in range(12)], ""),
+    "cd": (100, [(10 + 3 * i, "c") for i in range(28)], ""),
+    "z": (50, [(12 + 5 * i, "z") for i in range(6)], ""),
+    "b": (40, [(12, "b")], ""),
+    "k": (40, [(12, "k")], ""),
+    "dead": (45, [(25, "X")], "x"),
 }
 
 
@@ -137,7 +139,7 @@ def main() -> int:
             return 1
         time.sleep(0.2)
     for name in PHASES:
-        RUNS[name]()
+        phase(name, *RUNS[name])
     send("X")
     stop.set()
     if failed:

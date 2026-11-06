@@ -31,6 +31,7 @@ calls: list[tuple[str, dict]] = []
 states: dict[int, str | None] = {}
 subs: list[tuple[str, str | None]] = []
 fails: list[str] = []
+DUMP = re.compile(r"DUMP (\w+) n=\d+ state=(.*?) opts=(.*)$")
 
 
 def ev(msg: str) -> None:
@@ -82,12 +83,17 @@ async def main() -> None:
         for _ in range(3):
             dmark = len(lines)
             cli.button_command(dump)
-            await asyncio.sleep(1.5)
-            dumps = {
-                m.group(1): (m.group(2), m.group(3))
-                for line in lines[dmark:]
-                if (m := re.search(r"DUMP (\w+) n=\d+ state=(.*?) opts=(.*)$", line))
-            }
+            deadline = time.monotonic() + 1.5
+            while True:
+                dumps = {
+                    m.group(1): (m.group(2), m.group(3))
+                    for line in lines[dmark:]
+                    if (m := re.search(DUMP, line))
+                }
+                done = len(dumps) == 2 and any("HEAP" in line for line in lines[dmark:])
+                if done or time.monotonic() > deadline:
+                    break
+                await asyncio.sleep(0.05)
             if len(dumps) == 2:
                 break
         new = [
@@ -95,10 +101,10 @@ async def main() -> None:
             for line in lines[mark:]
             if "homeassistant.select" in line or "DUMP" in line or "HEAP" in line
         ]
-        ok = True
-        for nm, exp in (("Small", expect_small), ("Big", expect_big)):
-            if exp is not None and dumps.get(nm) != exp:
-                ok = False
+        ok = all(
+            exp is None or dumps.get(nm) == exp
+            for nm, exp in (("Small", expect_small), ("Big", expect_big))
+        )
         api = {names[k]: v for k, v in states.items()}
         if not ok:
             fails.append(name)

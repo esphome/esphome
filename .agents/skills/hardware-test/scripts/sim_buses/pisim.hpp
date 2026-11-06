@@ -13,10 +13,11 @@ struct Side {
   bool up{false};
 };
 inline Side a{"A"}, b{"B"};
-// payload i: length n, byte k = (i * 31 + k) & 0xFF, first two bytes carry i
+// payload i: length n, byte k = pat(i, k), first two bytes carry i
+inline uint8_t pat(uint16_t i, size_t k) { return (uint8_t) ((i * 31 + k) & 0xFF); }
 inline void fill(uint8_t *buf, size_t n, uint16_t i) {
   for (size_t k = 0; k < n; k++)
-    buf[k] = (uint8_t) ((i * 31 + k) & 0xFF);
+    buf[k] = pat(i, k);
   if (n >= 2) {
     buf[0] = i >> 8;
     buf[1] = i & 0xFF;
@@ -37,7 +38,7 @@ inline void attach(Side &s, PacketInterface *link) {
     uint16_t i = (p[0] << 8) | p[1];
     bool ok = true;
     for (size_t k = 2; k < n; k++)
-      ok &= p[k] == (uint8_t) ((i * 31 + k) & 0xFF);
+      ok &= p[k] == pat(i, k);
     ok ? s.rx_ok++ : s.rx_bad++;
     s.rx_bytes += n;
   });

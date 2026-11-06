@@ -64,8 +64,12 @@ class MxSniff : public esphome::spi::SPIDelegate {
   size_t n_{0};
 };
 
+// Shared by mxsim.hpp and spysim.hpp, so a config can include both.
+#ifndef SIM_BUSES_DELEGATE_PEEK
+#define SIM_BUSES_DELEGATE_PEEK
 struct DelegatePeek : esphome::spi::SPIClient {
   static esphome::spi::SPIDelegate *&of(esphome::spi::SPIClient *c) {
     return static_cast<DelegatePeek *>(c)->delegate_;
   }
 };
+#endif

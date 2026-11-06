@@ -39,11 +39,7 @@ async def main() -> int:
     c = APIClient(HOST, 6053, None)
     await c.connect(login=True)
     wiz = await c.device_wizard()
-    inputs = {}
-    for page in wiz.pages:
-        for inp in getattr(page, "inputs", []) or []:
-            inputs[getattr(inp, "id", None) or getattr(inp, "entity", None)] = inp
-    print("wizard inputs:", {k: getattr(v, "key", None) for k, v in inputs.items()})
+    print("wizard pages:", wiz.pages)
     for name, val in SET.items():
         c.wizard_input_set(fnv1_hash(name), val)
     ents, _ = await c.list_entities_services()

@@ -4,8 +4,6 @@ import pathlib
 import re
 import sys
 
-ANSI = re.compile(r"\x1b\[[0-9;]*m")
-
 
 def main() -> int:
     phases: list[tuple[str, dict[str, int]]] = []
@@ -19,7 +17,6 @@ def main() -> int:
         .read_text(encoding="utf-8", errors="replace")
         .splitlines()
     ):
-        line = ANSI.sub("", line)
         if m := re.search(r"PHASE (\w+)", line):
             phases.append((cur, c))
             cur, c = m.group(1), {}

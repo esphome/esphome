@@ -13,8 +13,7 @@ struct Bus final : public esphome::i2c::I2CBus {
   uint8_t last_cmd[2][2]{};  // per address: 0 = 0x40, 1 = 0x48
 
   static void word(uint8_t *out, uint16_t v) {
-    out[0] = v >> 8;
-    out[1] = v;
+    esphome::put_be16(out, v);
     out[2] = esphome::crc8(out, 2, 0xFF, 0x31, true);
   }
 

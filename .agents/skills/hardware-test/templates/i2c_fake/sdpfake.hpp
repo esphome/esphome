@@ -1,6 +1,7 @@
 #pragma once
 // Fake Sensirion SDP3x / SDP8xx sensors on an in-firmware I2C bus.
 #include "esphome/components/i2c/i2c_bus.h"
+#include "esphome/core/helpers.h"
 #include "esphome/core/log.h"
 
 namespace sdpfake {
@@ -18,16 +19,6 @@ struct Dev {
   uint32_t stops{0}, stop_nak{0}, resets{0}, reset_nak{0}, reads{0}, read_fail{0};
 };
 
-inline uint8_t crc8(uint8_t a, uint8_t b) {
-  uint8_t c = 0xFF;
-  for (uint8_t v : {a, b}) {
-    c ^= v;
-    for (int i = 0; i < 8; i++)
-      c = (c & 0x80) ? (c << 1) ^ 0x31 : (c << 1);
-  }
-  return c;
-}
-
 struct Bus final : public esphome::i2c::I2CBus {
   Dev devs[6] = {
       {0x21, 0x0301, 0x0101, 1200, 5000, 60, 0, false},   // SDP31-500Pa, 20 Pa
@@ -39,9 +30,9 @@ struct Bus final : public esphome::i2c::I2CBus {
   };
 
   static void put(uint8_t *out, size_t &o, uint16_t w) {
-    out[o++] = w >> 8;
-    out[o++] = w & 0xFF;
-    out[o++] = crc8(w >> 8, w & 0xFF);
+    esphome::put_be16(out + o, w);
+    out[o + 2] = esphome::crc8(out + o, 2, 0xFF, 0x31, true);
+    o += 3;
   }
 
   ErrorCode write_readv(uint8_t address, const uint8_t *data, size_t size, uint8_t *out, size_t out_size) override {

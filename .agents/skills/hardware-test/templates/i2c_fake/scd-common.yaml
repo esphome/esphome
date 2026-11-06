@@ -56,11 +56,11 @@ button:
     on_press:
       - lambda: |-
           float p = scdfake::CASES[scdfake::idx++ % (sizeof(scdfake::CASES) / sizeof(scdfake::CASES[0]))];
-          uint32_t before = scdfake::bus.e000_writes;
+          uint32_t before = scdfake::bus.e000_writes();
           id(press).state = p;
           ESP_LOGI("scdfake", "CASE source %.2f", p);
           id(scd).update();
-          ESP_LOGI("scdfake", "CASE source %.2f -> %u E000 writes", p, scdfake::bus.e000_writes - before);
+          ESP_LOGI("scdfake", "CASE source %.2f -> %u E000 writes", p, scdfake::bus.e000_writes() - before);
   - platform: template
     name: Show
     on_press:
@@ -73,7 +73,7 @@ button:
     on_press:
       - lambda: |-
           for (float p : {101325.0f, 1013.6f, 450.0f, 1100.2f}) {
-            uint32_t before = scdfake::bus.e000_writes;
+            uint32_t before = scdfake::bus.e000_writes();
             id(scd)->set_ambient_pressure_compensation(p);
-            ESP_LOGI("scdfake", "CASE direct %.2f -> %u E000 writes", p, scdfake::bus.e000_writes - before);
+            ESP_LOGI("scdfake", "CASE direct %.2f -> %u E000 writes", p, scdfake::bus.e000_writes() - before);
           }

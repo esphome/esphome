@@ -3,6 +3,7 @@
 // A transfer is [module, register, data...]; a read in its own transaction answers the last register written.
 #include "esphome/components/i2c/i2c_bus.h"
 #include "esphome/core/hal.h"
+#include "esphome/core/helpers.h"
 #include "esphome/core/log.h"
 #include <cstring>
 #include <string>
@@ -49,14 +50,6 @@ struct Bus final : public esphome::i2c::I2CBus {
       if (c.addr == a)
         return &c;
     return nullptr;
-  }
-
-  static uint32_t be32(const uint8_t *d) { return (uint32_t(d[0]) << 24) | (d[1] << 16) | (d[2] << 8) | d[3]; }
-  static void put32(uint8_t *o, uint32_t v) {
-    o[0] = v >> 24;
-    o[1] = v >> 16;
-    o[2] = v >> 8;
-    o[3] = v;
   }
 
   uint32_t gpio_in(Chip &c) {
@@ -110,7 +103,7 @@ struct Bus final : public esphome::i2c::I2CBus {
       snprintf(tmp, sizeof(tmp), "%02X.%02X", d[0], d[1]);
       c.log += tmp;
       if (d[0] == 0x01 && vn == 4) {  // GPIO bulk writes
-        uint32_t m = be32(v);
+        uint32_t m = esphome::encode_uint32(v[0], v[1], v[2], v[3]);
         switch (d[1]) {
           case 0x02:
             c.dir |= m;
@@ -202,15 +195,15 @@ struct Bus final : public esphome::i2c::I2CBus {
         if (c.reg == 0x01 && out_size == 1)
           out[0] = c.hw_id;
         else if (c.reg == 0x02 && out_size == 4)
-          put32(out, c.version);
+          esphome::put_be32(out, c.version);
         else if (c.reg == 0x03 && out_size == 4)
-          put32(out, c.options);
+          esphome::put_be32(out, c.options);
         else if (c.reg == 0x04 && out_size == 4)
-          put32(out, c.temp_raw);
+          esphome::put_be32(out, c.temp_raw);
         else
           c.bad++;
       } else if (c.mod == 0x01 && c.reg == 0x04 && out_size == 4) {
-        put32(out, gpio_in(c));
+        esphome::put_be32(out, gpio_in(c));
         c.bulk_reads++;
       } else if (c.mod == 0x09 && c.reg >= 0x07 && c.reg < 0x17 && out_size == 2) {
         uint16_t a = c.adc[c.reg - 0x07];
@@ -221,7 +214,7 @@ struct Bus final : public esphome::i2c::I2CBus {
         out[0] = t >> 8;
         out[1] = t;
       } else if (c.mod == 0x11 && c.reg >= 0x30 && c.reg < 0x40 && out_size == 4) {
-        put32(out, (uint32_t) c.enc[c.reg - 0x30]);
+        esphome::put_be32(out, (uint32_t) c.enc[c.reg - 0x30]);
       } else {
         c.bad++;
       }

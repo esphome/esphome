@@ -10,6 +10,7 @@
 #include "hardware/i2c.h"
 #include "hardware/irq.h"
 #include "hardware/gpio.h"
+#include "esphome/core/helpers.h"
 
 namespace sim {
 
@@ -19,21 +20,6 @@ struct Dev {
   uint8_t sp[9];
 };
 
-static uint8_t crc8(const uint8_t *d, int n) {
-  uint8_t crc = 0;
-  for (int i = 0; i < n; i++) {
-    uint8_t b = d[i];
-    for (int j = 0; j < 8; j++) {
-      uint8_t mix = (crc ^ b) & 1;
-      crc >>= 1;
-      if (mix)
-        crc ^= 0x8C;
-      b >>= 1;
-    }
-  }
-  return crc;
-}
-
 static Dev devs[4];
 static const int NDEV = 4;
 
@@ -41,11 +27,11 @@ static void make_dev(int i, uint8_t ch, uint8_t serial, float temp) {
   Dev &d = devs[i];
   d.ch = ch;
   uint8_t r[8] = {0x28, serial, 0x22, 0x68, 0x00, 0x00, 0x00, 0};
-  r[7] = crc8(r, 7);
+  r[7] = esphome::crc8(r, 7);
   memcpy(d.rom, r, 8);
   int16_t t = (int16_t) (temp * 16);
   uint8_t s[9] = {(uint8_t) (t & 0xFF), (uint8_t) (t >> 8), 0x4B, 0x46, 0x7F, 0xFF, 0x0C, 0x10, 0};
-  s[8] = crc8(s, 8);
+  s[8] = esphome::crc8(s, 8);
   memcpy(d.sp, s, 9);
 }
 
@@ -168,7 +154,7 @@ static void ow_write(uint8_t b) {
       for (int i = 0; i < NDEV; i++)
         if (selected & (1 << i)) {
           devs[i].sp[2 + spidx] = b;
-          devs[i].sp[8] = crc8(devs[i].sp, 8);
+          devs[i].sp[8] = esphome::crc8(devs[i].sp, 8);
         }
       if (++spidx == 3)
         ow = OW_IDLE;
@@ -424,6 +410,8 @@ inline void set_dead(bool d) {
   hw()->enable = d ? 0 : 1;
 }
 
+inline void report();
+
 inline void poll_serial() {
   while (Serial.available()) {
     int c = Serial.read();
@@ -452,6 +440,9 @@ inline void poll_serial() {
         set_dead(false);
         ESP_LOGI("sim", "ALIVE");
         break;
+      case 's':
+        report();
+        break;
       default:
         break;
     }
@@ -469,7 +460,7 @@ inline void report() {
   }
   ESP_LOGI("sim",
            "CNT txn=%u drst=%u chsl=%u owreset=%u wbyte=%u rbyte=%u trip=%u match=%u wrong_ch=%u nacked=%u "
-           "cfgw=%u ops_no_apu=%u convert=%u readsp=%u inj c=%u z=%u b=%u k=%u ch=%u cfg=%u dead=%d",
+           "cfgw=%u ops_no_apu=%u convert=%u readsp=%u inj_c=%u inj_z=%u inj_b=%u inj_k=%u ch=%u cfg=%u dead=%d",
            cnt.txn, cnt.drst, cnt.chsl, cnt.owreset, cnt.wbyte, cnt.rbyte, cnt.trip, cnt.match, cnt.wrong_ch,
            cnt.nacked, cnt.cfg_writes, cnt.ops_no_apu, cnt.convert, cnt.readsp, cnt.inject_c, cnt.inject_z,
            cnt.inject_b, cnt.inject_k, channel, config, dead);

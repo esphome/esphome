@@ -1,5 +1,6 @@
 #pragma once
 #include "esphome/components/spi/spi.h"
+#include "esphome/core/helpers.h"
 #include "esphome/core/log.h"
 
 // Records each SPI transaction's length and FNV-1a hash in front of the real delegate.
@@ -10,7 +11,7 @@ class SpySniff : public esphome::spi::SPIDelegate {
   uint32_t tx{0}, last_len{0}, last_hash{0};
   void begin_transaction() override {
     this->len_ = 0;
-    this->hash_ = 2166136261u;
+    this->hash_ = esphome::FNV1_OFFSET_BASIS;
     this->real_->begin_transaction();
   }
   void end_transaction() override {
@@ -33,14 +34,18 @@ class SpySniff : public esphome::spi::SPIDelegate {
  protected:
   void rec_(const uint8_t *p, size_t n) {
     for (size_t i = 0; i < n; i++)
-      this->hash_ = (this->hash_ ^ p[i]) * 16777619u;
+      this->hash_ = (this->hash_ ^ p[i]) * esphome::FNV1_PRIME;
     this->len_ += n;
   }
   esphome::spi::SPIDelegate *real_;
   uint32_t len_{0}, hash_{0};
 };
+// Shared by mxsim.hpp and spysim.hpp, so a config can include both.
+#ifndef SIM_BUSES_DELEGATE_PEEK
+#define SIM_BUSES_DELEGATE_PEEK
 struct DelegatePeek : esphome::spi::SPIClient {
   static esphome::spi::SPIDelegate *&of(esphome::spi::SPIClient *c) {
     return static_cast<DelegatePeek *>(c)->delegate_;
   }
 };
+#endif

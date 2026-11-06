@@ -3,6 +3,7 @@
 #include "hardware/i2c.h"
 #include "hardware/irq.h"
 #include "hardware/gpio.h"
+#include "esphome/core/helpers.h"
 #include "esphome/core/log.h"
 
 namespace picofake {
@@ -13,10 +14,7 @@ static volatile bool first = true;
 static volatile uint32_t n_rd = 0, n_data = 0, n_ctrl = 0, n_hum = 0, n_abrt = 0;
 static volatile int mode = 0;
 
-static void put16(uint8_t r, uint16_t v) {
-  regs[r] = v & 0xFF;
-  regs[r + 1] = v >> 8;
-}
+static void put16(uint8_t r, uint16_t v) { esphome::put_le16(&regs[r], v); }
 
 // mode 0: datasheet example raw (T 519888, P 415148, H 30000); 1: 0x80000/0x80000/0x8000
 inline void set_mode(int m) {

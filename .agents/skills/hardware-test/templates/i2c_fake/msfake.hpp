@@ -1,6 +1,7 @@
 #pragma once
 // Fake MS8607s (PT at 0x76.., humidity at 0x40..) on an in-firmware I2C bus, with per-device faults.
 #include "esphome/components/i2c/i2c_bus.h"
+#include "esphome/core/helpers.h"
 #include "esphome/core/log.h"
 
 namespace msfake {
@@ -39,15 +40,6 @@ inline uint8_t crc4(const uint16_t *w) {
   add(0);
   add(0);
   return (r >> 12) & 0xF;
-}
-inline uint8_t crc8(uint8_t a, uint8_t b) {
-  uint8_t c = 0;
-  for (uint8_t v : {a, b}) {
-    c ^= v;
-    for (int i = 0; i < 8; i++)
-      c = (c & 0x80) ? (c << 1) ^ 0x31 : (c << 1);
-  }
-  return c;
 }
 
 struct Bus final : public esphome::i2c::I2CBus {
@@ -104,9 +96,7 @@ struct Bus final : public esphome::i2c::I2CBus {
         p.pending = c;
         (c == 0x5A ? p.conv_t : p.conv_p)++;
       } else if (c >= 0xA0 && c <= 0xAE && out_size == 2) {
-        uint16_t v = p.prom[(c - 0xA0) / 2];
-        out[0] = v >> 8;
-        out[1] = v & 0xFF;
+        esphome::put_be16(out, p.prom[(c - 0xA0) / 2]);
         p.prom_reads++;
         return esphome::i2c::ERROR_OK;
       } else if (c == 0x00 && out_size == 3) {
@@ -119,9 +109,7 @@ struct Bus final : public esphome::i2c::I2CBus {
         }
         p.pending = 0;
         p.adc++;
-        out[0] = v >> 16;
-        out[1] = v >> 8;
-        out[2] = v;
+        esphome::put_be24(out, v);
         return esphome::i2c::ERROR_OK;
       }
     }
@@ -138,9 +126,9 @@ struct Bus final : public esphome::i2c::I2CBus {
     if (size == 0 && out_size == 3) {
       h.reads++;
       uint16_t v = (h.raw & ~0x3) | 0x2;
-      out[0] = v >> 8;
-      out[1] = v & 0xFF;
-      out[2] = crc8(out[0], out[1]) ^ ((h.bad_crc_every && h.reads % h.bad_crc_every == 0) ? 0xFF : 0);
+      esphome::put_be16(out, v);
+      out[2] =
+          esphome::crc8(out, 2, 0x00, 0x31, true) ^ ((h.bad_crc_every && h.reads % h.bad_crc_every == 0) ? 0xFF : 0);
     }
     return esphome::i2c::ERROR_OK;
   }
