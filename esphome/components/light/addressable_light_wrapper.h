@@ -79,10 +79,11 @@ class AddressableLightWrapper : public light::AddressableLight {
       return;
     }
 
-    float r = this->light_state_->gamma_uncorrect_lut(this->wrapper_state_[0] / 255.0f);
-    float g = this->light_state_->gamma_uncorrect_lut(this->wrapper_state_[1] / 255.0f);
-    float b = this->light_state_->gamma_uncorrect_lut(this->wrapper_state_[2] / 255.0f);
-    float w = this->light_state_->gamma_uncorrect_lut(this->wrapper_state_[3] / 255.0f);
+    // The partition stores linear values here; the wrapped light applies its own gamma
+    float r = this->wrapper_state_[0] / 255.0f;
+    float g = this->wrapper_state_[1] / 255.0f;
+    float b = this->wrapper_state_[2] / 255.0f;
+    float w = this->wrapper_state_[3] / 255.0f;
 
     auto call = this->light_state_->make_call();
 

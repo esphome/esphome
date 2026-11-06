@@ -10,11 +10,12 @@ namespace esphome::partition {
 
 class AddressableSegment {
  public:
-  AddressableSegment(light::LightState *src, int32_t src_offset, int32_t size, bool reversed)
+  AddressableSegment(light::LightState *src, int32_t src_offset, int32_t size, bool reversed, bool single_light)
       : src_(static_cast<light::AddressableLight *>(src->get_output())),
         src_offset_(src_offset),
         size_(size),
-        reversed_(reversed) {}
+        reversed_(reversed),
+        single_light_(single_light) {}
 
   light::AddressableLight *get_src() const { return this->src_; }
   int32_t get_src_offset() const { return this->src_offset_; }
@@ -22,6 +23,9 @@ class AddressableSegment {
   int32_t get_dst_offset() const { return this->dst_offset_; }
   void set_dst_offset(int32_t dst_offset) { this->dst_offset_ = dst_offset; }
   bool is_reversed() const { return this->reversed_; }
+  /// A non-addressable light behind an AddressableLightWrapper: it applies its own gamma, so the
+  /// partition stores linear values in it instead of gamma-corrected ones
+  bool is_single_light() const { return this->single_light_; }
 
  protected:
   light::AddressableLight *src_;
@@ -29,6 +33,7 @@ class AddressableSegment {
   int32_t size_;
   int32_t dst_offset_;
   bool reversed_;
+  bool single_light_;
 };
 
 class PartitionLightOutput final : public light::AddressableLight {
@@ -65,11 +70,19 @@ class PartitionLightOutput final : public light::AddressableLight {
     PartitionColorAccessor(const PartitionLightOutput *parent) : parent_(parent) {}
 
     Color get(int32_t index) const override {
-      light::ESPColorView color_view = this->parent_->get_color_view_(index);
+      const AddressableSegment &seg = this->parent_->get_segment_(index);
+      light::ESPColorView color_view = this->parent_->get_color_view_(seg, index);
+      if (seg.is_single_light()) {
+        return color_view.get_raw();
+      }
       return this->parent_->get_color_correction_(color_view)->color_uncorrect(color_view.get_raw());
     }
     uint8_t get_channel(int32_t index, uint8_t channel) const override {
-      light::ESPColorView color_view = this->parent_->get_color_view_(index);
+      const AddressableSegment &seg = this->parent_->get_segment_(index);
+      light::ESPColorView color_view = this->parent_->get_color_view_(seg, index);
+      if (seg.is_single_light()) {
+        return color_view.get_channel_raw(channel);
+      }
       return this->parent_->get_color_correction_(color_view)
           ->color_uncorrect_channel(channel, color_view.get_channel_raw(channel));
     }
@@ -82,11 +95,21 @@ class PartitionLightOutput final : public light::AddressableLight {
     }
 
     void set(int32_t index, Color color) override {
-      light::ESPColorView color_view = this->parent_->get_color_view_(index);
+      const AddressableSegment &seg = this->parent_->get_segment_(index);
+      light::ESPColorView color_view = this->parent_->get_color_view_(seg, index);
+      if (seg.is_single_light()) {
+        color_view.set_raw(color);
+        return;
+      }
       color_view.set_raw(this->parent_->get_color_correction_(color_view)->color_correct(color));
     }
     void set_channel(int32_t index, uint8_t channel, uint8_t value) override {
-      light::ESPColorView color_view = this->parent_->get_color_view_(index);
+      const AddressableSegment &seg = this->parent_->get_segment_(index);
+      light::ESPColorView color_view = this->parent_->get_color_view_(seg, index);
+      if (seg.is_single_light()) {
+        color_view.set_channel_raw(channel, value);
+        return;
+      }
       color_view.set_channel_raw(
           channel, this->parent_->get_color_correction_(color_view)->color_correct_channel(channel, value));
     }
@@ -108,7 +131,11 @@ class PartitionLightOutput final : public light::AddressableLight {
     const PartitionLightOutput *const parent_;
   };
 
-  light::ESPColorView get_color_view_(int32_t index) const;
+  const AddressableSegment &get_segment_(int32_t index) const;
+  light::ESPColorView get_color_view_(const AddressableSegment &seg, int32_t index) const;
+  light::ESPColorView get_color_view_(int32_t index) const {
+    return this->get_color_view_(this->get_segment_(index), index);
+  }
 
   // Gets the color correction associated with the specified color view.
   // The correction will only be valid until the next call to this method.
