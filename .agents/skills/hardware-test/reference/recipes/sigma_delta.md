@@ -17,7 +17,7 @@ The same header has:
   idle give the interrupt share (44.1 kHz cost 20% of core 1).
 
 `gen.py NAME tpl.yaml > NAME.yaml` builds the whole sequence: DC levels, volume, mute, formats, 2 Hz and 50 Hz sines
-with DUMP lines, sample rates, underrun, stop mid-play, finish, rtttl and a play/stop hammer. `gen2.py` builds the
+with DUMP lines, sample rates, underrun, stop mid-play, finish, rtttl and a play/stop hammer. `gen2.py` (both share the step helpers in `steps.py`) builds the
 inverted pin run (set the speaker pin to `{number: GPIO21, inverted: true}` in a copy of `tpl.yaml`) plus the CPU cost
 per rate. `run.sh LABEL [gen|gen2]` generates, builds, flashes, captures with `--ms` until `ALLDONE` and prints the
 `RES` lines; for `gen` it then runs `an.py`, which fits the sines and prints the level edges of the underrun, stop and

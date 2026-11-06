@@ -1,48 +1,8 @@
 """gen2.py NAME tpl.yaml > NAME.yaml: inverted pin levels and CPU cost per sample rate (flash with the pin inverted)."""
 
-import pathlib
 import sys
 
-name = sys.argv[1]
-steps = []
-
-
-def L(code):
-    steps.append(f"      - lambda: |-\n          {code}")
-
-
-def D(ms):
-    steps.append(f"      - delay: {ms}ms")
-
-
-def M(label, n=150):
-    steps.append(
-        f'      - script.execute: {{id: meas, label: "{label}", n: {n}}}\n      - script.wait: meas'
-    )
-
-
-def DUMP(label):
-    L(f'sdp::dump("{label}");')
-
-
-def log(s):
-    L(f'ESP_LOGI("sdp", "STEP {s}");')
-
-
-def fmt(bits, ch, rate):
-    L(f"id(spk).set_audio_stream_info(audio::AudioStreamInfo({bits}, {ch}, {rate}));")
-
-
-def stopall():
-    L("sdp::set_mode(sdp::M_OFF);")
-    D(60)
-    L("id(spk).stop();")
-    D(300)
-
-
-def dc(v):
-    L(f"sdp::lvl_ = {float(v)}f; sdp::set_mode(sdp::M_DC);")
-
+from steps import D, L, M, dc, fmt, log, render, stopall
 
 log("run2")
 M("inv_idle")
@@ -68,5 +28,4 @@ for rate in [44100, 48000, 22050, 8000]:
     stopall()
 L('ESP_LOGI("sdp", "ALLDONE");')
 
-tpl = pathlib.Path(sys.argv[2]).read_text(encoding="utf-8")
-print(tpl.replace("NAME", name).replace("      # @STEPS@", "\n".join(steps)))
+print(render(sys.argv[1], sys.argv[2]))

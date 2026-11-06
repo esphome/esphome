@@ -4,49 +4,9 @@ DC levels, volume, mute, sample formats, stereo, 2 Hz and 50 Hz sines with DUMP 
 rates, underrun, stop mid-play, finish, rtttl and a play/stop hammer; the run ends with ALLDONE.
 """
 
-import pathlib
 import sys
 
-name = sys.argv[1]
-steps = []
-
-
-def L(code):
-    steps.append(f"      - lambda: |-\n          {code}")
-
-
-def D(ms):
-    steps.append(f"      - delay: {ms}ms")
-
-
-def M(label, n=150):
-    steps.append(
-        f'      - script.execute: {{id: meas, label: "{label}", n: {n}}}\n      - script.wait: meas'
-    )
-
-
-def DUMP(label):
-    L(f'sdp::dump("{label}");')
-
-
-def log(s):
-    L(f'ESP_LOGI("sdp", "STEP {s}");')
-
-
-def fmt(bits, ch, rate):
-    L(f"id(spk).set_audio_stream_info(audio::AudioStreamInfo({bits}, {ch}, {rate}));")
-
-
-def stopall():
-    L("sdp::set_mode(sdp::M_OFF);")
-    D(60)
-    L("id(spk).stop();")
-    D(300)
-
-
-def dc(v):
-    L(f"sdp::lvl_ = {float(v)}f; sdp::set_mode(sdp::M_DC);")
-
+from steps import DUMP, STEPS, D, L, M, dc, fmt, log, render, stopall
 
 log("idle_before_play")
 M("idle_boot")
@@ -140,7 +100,7 @@ D(100)
 L(
     'sdp::set_mode(sdp::M_OFF); id(spk).stop(); id(tstop) = esp_timer_get_time(); ESP_LOGI("sdp", "STOPCALL");'
 )
-steps.append(
+STEPS.append(
     "      - wait_until: {condition: {lambda: 'return sdp::capture_done();'}, timeout: 20s}"
 )
 L(
@@ -157,7 +117,7 @@ D(100)
 L(
     'sdp::set_mode(sdp::M_OFF); vTaskDelay(25); id(spk).finish(); id(tstop) = esp_timer_get_time(); ESP_LOGI("sdp", "FINISHCALL");'
 )
-steps.append(
+STEPS.append(
     "      - wait_until: {condition: {lambda: 'return sdp::capture_done();'}, timeout: 20s}"
 )
 L(
@@ -167,10 +127,10 @@ L(
 log("rtttl")
 D(300)
 L("id(f0) = sdp::frames_played_; id(t0) = esp_timer_get_time();")
-steps.append("      - rtttl.play: 'scale:d=4,o=5,b=100:c,d,e,f,g,a,b,c6'")
+STEPS.append("      - rtttl.play: 'scale:d=4,o=5,b=100:c,d,e,f,g,a,b,c6'")
 D(300)
 M("rtttl", 400)
-steps.append(
+STEPS.append(
     "      - wait_until: {condition: {lambda: 'return !id(tone).is_playing();'}, timeout: 30s}"
 )
 L(
@@ -179,9 +139,9 @@ L(
 D(500)
 M("after_rtttl")
 # rtttl stop mid tune
-steps.append("      - rtttl.play: 'long:d=1,o=5,b=60:c,d,e,f'")
+STEPS.append("      - rtttl.play: 'long:d=1,o=5,b=60:c,d,e,f'")
 D(800)
-steps.append("      - rtttl.stop: {id: tone}")
+STEPS.append("      - rtttl.stop: {id: tone}")
 D(500)
 L('ESP_LOGI("sdp", "RES rtttl_stop state=%d", sdp::st());')
 M("after_rtttl_stop")
@@ -201,5 +161,4 @@ L(
 M("after_hammer")
 L('ESP_LOGI("sdp", "ALLDONE");')
 
-tpl = pathlib.Path(sys.argv[2]).read_text(encoding="utf-8")
-print(tpl.replace("NAME", name).replace("      # @STEPS@", "\n".join(steps)))
+print(render(sys.argv[1], sys.argv[2]))
