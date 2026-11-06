@@ -99,14 +99,6 @@ ESPHOME_IDF_FRAMEWORK_MIRRORS = str_to_lst_of_str(
     ]
 )
 
-# SHA-256 of the ESP-IDF framework archive, when the user knows it. Without
-# it a verified local mirror archive cannot be recognised as complete and is
-# downloaded again on every run (see ESPHOME_IDF_FRAMEWORK_MIRRORS).
-ESPHOME_IDF_FRAMEWORK_SHA256 = (
-    os.environ.get("ESPHOME_IDF_FRAMEWORK_SHA256", "").strip().lower() or None
-)
-
-
 ESP_IDF_CONSTRAINTS_MIRRORS = str_to_lst_of_str(
     os.environ.get(
         "ESP_IDF_CONSTRAINTS_MIRRORS",
@@ -919,18 +911,6 @@ def _preinstall_idf_tool_archives(
         _LOGGER.debug("Pre-extraction failure detail", exc_info=True)
 
 
-def _normalize_mirror_url(url: str) -> str:
-    """Rewrite ``local://`` mirror URLs into ``file://`` ones.
-
-    ``local:///D:/firmware`` is a lot easier to type on Windows than
-    ``file:///D:/firmware``, and everything downstream only understands the
-    ``file:`` scheme.
-    """
-    if url.lower().startswith("local:"):
-        return "file:" + url[len("local:") :]
-    return url
-
-
 def _check_esphome_idf_framework_install(
     version: str,
     targets: list[str],
@@ -1031,7 +1011,6 @@ def _check_esphome_idf_framework_install(
                 )
 
             mirrors = [source_url] if source_url else ESPHOME_IDF_FRAMEWORK_MIRRORS
-            mirrors = [_normalize_mirror_url(mirror) for mirror in mirrors]
             # Download to a persistent file in the tool download cache (not
             # a temp file) so an interrupted download resumes on the next
             # run; the cache is pruned after a successful install anyway.
@@ -1042,7 +1021,6 @@ def _check_esphome_idf_framework_install(
                 tarball_path,
                 framework_path,
                 progress_header="Extracting",
-                sha256=ESPHOME_IDF_FRAMEWORK_SHA256,
             )
         extracted_marker.touch()
 

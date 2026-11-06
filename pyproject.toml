@@ -63,7 +63,6 @@ addopts = [
   "--cov=esphome",
   "--cov-branch",
 ]
-asyncio_default_fixture_loop_scope = "function"
 
 [tool.pylint.MAIN]
 py-version = "3.12"

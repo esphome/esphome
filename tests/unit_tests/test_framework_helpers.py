@@ -1767,6 +1767,61 @@ class TestDownloadFromMirrors:
         mock_sleep.assert_not_called()
         assert (tmp_path / "out.bin.part").exists()
 
+    def test_file_mirror_copies_local_archive(self, tmp_path: Path) -> None:
+        """A file:// mirror is served from disk with no network access, the
+        template substitution still applies, and the user's file is left
+        in place for the caller to delete the copy."""
+        source = tmp_path / "mirror" / "esp-idf-1.2.3.tar.xz"
+        source.parent.mkdir()
+        source.write_bytes(b"archive")
+        target = tmp_path / "dist" / "out.tar.xz"
+        seen: list[int] = []
+        with patch("requests.get") as mock_get:
+            url = download_from_mirrors(
+                [f"{source.parent.as_uri()}/esp-idf-{{VERSION}}.tar.xz"],
+                {"VERSION": "1.2.3"},
+                target,
+                progress=seen.append,
+            )
+        assert url == f"{source.as_uri()}"
+        assert target.read_bytes() == b"archive"
+        assert source.read_bytes() == b"archive"
+        assert seen == [len(b"archive")]
+        mock_get.assert_not_called()
+
+    def test_missing_file_mirror_falls_back_to_next_mirror(
+        self, tmp_path: Path
+    ) -> None:
+        missing = (tmp_path / "missing.bin").as_uri()
+        target = tmp_path / "f.bin"
+        with patch("requests.get", return_value=_mock_response(b"second")):
+            url = download_from_mirrors([missing, "https://mirror2.com/f"], {}, target)
+        assert url == "https://mirror2.com/f"
+        assert target.read_bytes() == b"second"
+
+    def test_missing_file_mirror_fails_fast(self, tmp_path: Path) -> None:
+        """A local file that is not there is a permanent failure: no backoff
+        sweep, and the path is named in the error."""
+        missing = tmp_path / "missing.bin"
+        with (
+            patch("esphome.framework_helpers.time.sleep") as mock_sleep,
+            pytest.raises(EsphomeError, match="all mirrors") as ei,
+        ):
+            download_from_mirrors([missing.as_uri()], {}, tmp_path / "f.bin")
+        assert f"local file does not exist: {missing}" in str(ei.value)
+        mock_sleep.assert_not_called()
+
+    @pytest.mark.parametrize(
+        ("url", "expected"),
+        [
+            ("file:///tmp/a%20b/x.tar.xz", "/tmp/a b/x.tar.xz"),
+            ("file://localhost/tmp/x.tar.xz", "/tmp/x.tar.xz"),
+            ("file://server/share/x.tar.xz", "//server/share/x.tar.xz"),
+        ],
+    )
+    def test_local_path_from_url(self, url: str, expected: str) -> None:
+        assert framework_helpers.local_path_from_url(url) == Path(expected)
+
 
 class TestDownloadAndExtract:
     def test_downloads_extracts_and_deletes_archive(self, tmp_path: Path) -> None:
