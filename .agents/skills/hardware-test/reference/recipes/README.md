@@ -57,3 +57,4 @@ One file per component, named after it:
 - [`ezo_fake_bus.md`](ezo_fake_bus.md): the ezo component against a fake I2C bus that answers like an EZO circuit
 - [`twai_self.md`](twai_self.md): esp32_can on_frame with the controller hearing its own transmit pad, no transceiver
 - [`buttons.md`](buttons.md): output button pad timing, homeassistant button through a raw API client with the wizard input, uart button on the UART0 loopback
+- [`sigma_delta.md`](sigma_delta.md): pulse density of the sigma_delta speaker pin read inside the ESP32-P4, rtttl note onset and release
