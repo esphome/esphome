@@ -12,8 +12,9 @@ SP=${SRV_PORT:-18765}; U=http://${HOST_IP:?set HOST_IP}:$SP; DRIVE=${DRIVE:-$D/.
 [ -f "$DRIVE" ] || { echo "FAIL: set DRIVE to scripts/speaker_media_player/drive.py"; exit 1; }
 [ -f "$D/www/s1.flac.cut" ] && [ -f "$D/www/s2.flac.cut" ] || { echo "FAIL: make www/s1.flac and www/s2.flac with mk.py"; exit 1; }
 : > "$D/srv.log"; ARGS=(); FAIL=0
-pgrep -f "[s]rv.py $SP" > /dev/null || { (cd "$D" && exec python3 srv.py "$SP" www >> srv.log 2>&1 < /dev/null) & sleep 1; }
-pgrep -f "[s]rv.py $SP" > /dev/null || { echo "FAIL: srv.py did not start"; cat "$D/srv.log"; exit 1; }
+pkill -f "[s]rv.py $SP" && sleep 1  # an old server keeps its own PAUSE, www and log
+(cd "$D" && exec python3 srv.py "$SP" www >> srv.log 2>&1 < /dev/null) & SRV=$!; trap 'kill $SRV 2>/dev/null' EXIT; sleep 1
+kill -0 $SRV 2> /dev/null || { echo "FAIL: srv.py did not start"; cat "$D/srv.log"; exit 1; }
 for arg in "$@"; do
   v=${arg%%=*}; T=${arg#*=}; O=$D/out-tts$v; rm -rf "$O"; mkdir -p "$O"
   printf 'esphome:\n  name: tts%s\npackages:\n  tts: !include tts-common.yaml\n' "$v" > "$D/tts$v.yaml"

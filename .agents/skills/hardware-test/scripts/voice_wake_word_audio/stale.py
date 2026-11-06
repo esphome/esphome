@@ -5,7 +5,8 @@ env: MARKER_AUDIO (default marker.aiff), WAKE_AUDIO (default wake.aiff), PLAY (p
 
 The wake word clip of each detection must not reach back to the marker word spoken before the restart. Writes a log
 to OUT, the received audio to OUT.t<N>.pcm and a RESULT line per trial; stalean.py measures the clips. Each run is
-rejected 0.6 s after the start. Needs the buttons from mww-buttons.yaml. Exits 1 when nothing was detected.
+rejected 0.6 s after the start. Needs the buttons from mww-buttons.yaml. Exits 1 when nothing was detected, a
+detection came without wake word audio, a START arrived outside a trial window or a reject failed.
 """
 
 import asyncio
@@ -57,6 +58,8 @@ async def main() -> int:
     bstop, bstart = mww_buttons(ents)
     cur = Trial()
     loop = asyncio.get_running_loop()
+    tasks: list[asyncio.Task] = []
+    failures: list[str] = []
 
     async def reject() -> None:
         await asyncio.sleep(0.6)
@@ -67,7 +70,8 @@ async def main() -> int:
     ) -> int:
         if not cur.waiting:
             mark("START outside a trial window, rejected and ignored")
-            loop.create_task(reject())  # noqa: RUF006
+            failures.append("START outside a trial window")
+            tasks.append(loop.create_task(reject()))
             return 0
         cur.waiting = False
         cur.ww = ww
@@ -75,6 +79,7 @@ async def main() -> int:
         mark(f"START ww bytes={ww.audio_bytes if ww else None}")
         cur.started.set()
         cur.reject_task = loop.create_task(reject())
+        tasks.append(cur.reject_task)
         return 0
 
     async def stop(abort: bool) -> None:
@@ -109,11 +114,21 @@ async def main() -> int:
         await asyncio.sleep(1.5)
         detected += 1
         pathlib.Path(f"{OUT}.t{t}.pcm").write_bytes(bytes(cur.audio))
-        ww_ms = cur.ww.audio_bytes // 32 if cur.ww else 0
+        ww_ms = cur.ww.audio_bytes // 32 if cur.ww else None
+        if not ww_ms:
+            failures.append(f"t{t} detected without wake word audio")
         mark(f"RESULT {json.dumps({'t': t, 'detected': True, 'ww_ms': ww_ms})}")
         await asyncio.sleep(7)
+    results = await asyncio.gather(*tasks, return_exceptions=True)
+    failures.extend(
+        f"reject task failed: {r!r}" for r in results if isinstance(r, BaseException)
+    )
     await cli.disconnect()
-    return 0 if detected else 1
+    if not detected:
+        failures.append("nothing was detected")
+    if failures:
+        mark(f"FAIL: {failures}")
+    return 1 if failures else 0
 
 
 RC = asyncio.run(main())

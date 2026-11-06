@@ -52,5 +52,6 @@ both it starts at about 1 s.
 - The PE mute switch only mutes samples. To stop microWakeWord, add `mww-buttons.yaml` (template buttons calling
   `micro_wake_word.stop` and `start`); `mww.py` checks that no run starts while it is stopped.
 - Stale clip check: `stale.py` says a spoken marker word (`marker.aiff`), stops microWakeWord for 3 s, starts it and
-  says the wake word; `stalean.py` measures loud audio before the phrase in each clip. A steady 1 kHz beep never
-  reaches the PE stream (the XMOS processing removes it), so the marker has to be speech.
+  says the wake word; `stalean.py` measures loud audio before the phrase in each clip and exits 1 above
+  `MAX_LOUD_MS` (default 100). A steady 1 kHz beep never reaches the PE stream (the XMOS processing removes it), so
+  the marker has to be speech.
