@@ -1817,8 +1817,9 @@ class TestDownloadFromMirrors:
     def test_directory_file_mirror_is_not_a_file(self, tmp_path: Path) -> None:
         """Pointing at the mirror folder instead of the archive names the
         real problem, not a missing path."""
-        with pytest.raises(EsphomeError, match=f"not a file: {tmp_path}"):
+        with pytest.raises(EsphomeError, match="all mirrors") as ei:
             download_from_mirrors([tmp_path.as_uri()], {}, tmp_path / "f.bin")
+        assert f"not a file: {tmp_path}" in str(ei.value)
 
     def test_file_mirror_at_target_is_used_in_place(self, tmp_path: Path) -> None:
         """An archive pre-seeded at the download target itself is not copied
