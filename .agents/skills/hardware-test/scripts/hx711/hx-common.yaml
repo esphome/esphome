@@ -1,0 +1,28 @@
+esp32:
+  board: esp32dev
+  framework:
+    type: esp-idf
+
+esphome:
+  includes: [hxsim.hpp]
+  on_boot:
+    - priority: -100
+      then:
+        - lambda: hxsim::chip.start();
+
+logger:
+  level: VERBOSE
+  logs:
+    scheduler: DEBUG
+    component: DEBUG
+    esp32.preferences: DEBUG
+    sensor: DEBUG
+
+interval:
+  - interval: 50ms
+    then:
+      - lambda: |-
+          hxsim::chip.log_events();
+          static int last = -1;
+          int w = id(hx).status_has_warning();
+          if (w != last) { last = w; ESP_LOGI("hxsim", "STATUS warning=%d", w); }
