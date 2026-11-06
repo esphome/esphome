@@ -3,14 +3,15 @@
 #21596 lets an API client fetch the crash recorded on the previous boot; #22288 records `abort()` as a crash on
 LibreTiny. `scripts/crash_report/crash-common.yaml` (a package: Wi-Fi from `secrets.yaml`, plaintext API, OTA,
 DEBUG logger) adds three buttons: `crash abort`, `crash null store` and `crash div zero`. The per-run file supplies
-the board and the name. Flash it, then:
+the board and the name. Flash it, then run the drivers (they import `scripts/apiconn.py`, so run them in place or
+put `scripts/` on `PYTHONPATH`):
 
 - `drive.py HOST BUTTON_OBJECT_ID` (for example `crash_abort`) reads the capability, presses the button, reconnects
   after the reboot and fetches the report twice (reason, PC, cause, fault address, build time, per-core backtrace),
   subscribes to logs with `dump_config` to see what is replayed, and checks the capability from a second client.
   It exits 1 when the device does not offer a report after the crash.
-- `peek.py HOST` prints only the capability and how many replayed `CRASH DETECTED` lines a new log client gets;
-  `peek.py HOST BUTTON_OBJECT_ID` just presses the button.
+- `peek.py HOST` prints only the capability and how many replayed `CRASH DETECTED` lines a new log client gets. To
+  only press a button, use `scripts/api_button.py HOST - press "crash abort"`.
 - Decode the PC and the backtrace with the build's ELF (`addr2line -e firmware.elf`). On RTL8720C a noreturn
   `bl abort` can be the last instruction of a function, so the return address points at padding: decode
   `(addr & ~1) - 2` to get the call line.

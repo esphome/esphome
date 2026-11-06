@@ -16,5 +16,5 @@ sleep 150; echo "$(date +%T) AP DOWN" >> "$O/driver.txt"; $PY -m esptool --port 
 sleep 120; echo "$(date +%T) AP UP" >> "$O/driver.txt"; $PY -m esptool --port "$A" --after hard-reset chip_id > /dev/null 2>&1
 wait $CAP
 cat "$O/driver.txt"
-grep -a -E 'EV (ssid|channel|wifi)|Beacon Timeout|Connecting to' "$O/serial.txt" | sed 's/\x1b\[[0-9;]*m//g' | cut -c1-150
+grep -a -E 'EV (ssid|channel|wifi)|Beacon Timeout|Connecting to' "$O/serial.txt" | cut -c1-150
 grep -a -q "EV channel" "$O/serial.txt" || { echo "FAIL: no channel sensor update"; exit 1; }

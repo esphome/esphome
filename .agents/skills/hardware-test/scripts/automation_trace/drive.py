@@ -8,12 +8,14 @@ when the Run All pass never reached 'M done'.
 """
 
 import asyncio
-import os
 import pathlib
 import re
 import sys
 
-from aioesphomeapi import APIClient, LogLevel
+from aioesphomeapi import LogLevel
+
+sys.path.insert(0, str(pathlib.Path(__file__).resolve().parents[1]))
+from apiconn import connect, log_text  # noqa: E402
 
 HOST, OUT = sys.argv[1], sys.argv[2]
 marks: list[str] = []
@@ -21,19 +23,10 @@ done = asyncio.Event()
 
 
 async def main() -> bool:
-    cli = APIClient(HOST, 6053, None, noise_psk=os.environ.get("API_KEY"))
-    for _ in range(30):
-        try:
-            await cli.connect(login=True)
-            break
-        except Exception:  # noqa: BLE001
-            await asyncio.sleep(1)
-    else:
-        sys.exit(f"no API connection to {HOST}")
+    cli = await connect(HOST)
 
     def on_log(m) -> None:
-        t = re.sub(r"\x1b\[[0-9;]*m", "", m.message.decode(errors="replace"))
-        if mm := re.search(r"\]: (M .*)$", t):
+        if mm := re.search(r"\]: (M .*)$", log_text(m)):
             marks.append(mm.group(1).strip())
             if mm.group(1).strip() == "M done":
                 done.set()
@@ -54,16 +47,19 @@ async def main() -> bool:
     except TimeoutError:
         marks.append("DRIVER run all timed out")
         ok = False
-    for step in ("cb1", "cb2", "num70", "num20", "swon", "swoff", "selc", "sela"):
-        marks.append(f"DRIVER {step}")
-        if step.startswith("cb"):
-            cli.button_command(by["Chain Button"].key)
-        elif step.startswith("num"):
-            cli.number_command(by["Num"].key, float(step[3:]))
-        elif step.startswith("sw"):
-            cli.switch_command(by["Sw"].key, step == "swon")
-        else:
-            cli.select_command(by["Sel"].key, step[3:])
+    steps = (
+        ("cb1", lambda: cli.button_command(by["Chain Button"].key)),
+        ("cb2", lambda: cli.button_command(by["Chain Button"].key)),
+        ("num70", lambda: cli.number_command(by["Num"].key, 70.0)),
+        ("num20", lambda: cli.number_command(by["Num"].key, 20.0)),
+        ("swon", lambda: cli.switch_command(by["Sw"].key, True)),
+        ("swoff", lambda: cli.switch_command(by["Sw"].key, False)),
+        ("selc", lambda: cli.select_command(by["Sel"].key, "c")),
+        ("sela", lambda: cli.select_command(by["Sel"].key, "a")),
+    )
+    for label, send in steps:
+        marks.append(f"DRIVER {label}")
+        send()
         await asyncio.sleep(0.8)
     await asyncio.sleep(1)
     await cli.disconnect()

@@ -55,9 +55,9 @@ fi
 wait $CAP
 c() { grep -a -c "$1" "$O/serial.txt"; }
 echo "$NAME $MODE: cycles $(c 'CYCLE '), connects $(c 'EV CONNECT'), disconnects $(c 'EV DISCONNECT'), msgs $(c 'EV MSG')," \
-  "task wdt $(c 'task_wdt'), resets $(grep -a -c -E 'Guru|abort\(\)|rst:0x' "$O/serial.txt")"
+  "task wdt $(c 'task_wdt'), resets $(grep -a -c -E 'Guru|abort\(\)|Backtrace|rst:0x' "$O/serial.txt")"
 grep -a 'mqtt took a long time' "$O/serial.txt" | sed 's/.*took/took/' | sort | uniq -c
 [ "$MODE" = outage ] && python3 "$D/analyze.py" "$O" "$NAME"
 [ "$(c 'CYCLE ')" -gt 0 ] || { echo "FAIL: no disable cycle ran"; exit 1; }
-[ "$(c task_wdt)" = 0 ] && [ "$(grep -a -c -E 'Guru|abort\(\)|rst:0x' "$O/serial.txt")" = 0 ] || { echo "FAIL: reset or task watchdog"; exit 1; }
+[ "$(c task_wdt)" = 0 ] && [ "$(grep -a -c -E 'Guru|abort\(\)|Backtrace|rst:0x' "$O/serial.txt")" = 0 ] || { echo "FAIL: reset or task watchdog"; exit 1; }
 echo PASS

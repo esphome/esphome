@@ -112,6 +112,8 @@ ESP-IDF OTA image: `.esphome/build/<name>/build/firmware.ota.bin`. LibreTiny OTA
   and then; retry up to three times.
 - `api_button.py HOST KEY list|press NAME [...]`: list a device's template buttons or press them over the API; the
   recipes drive their test configs with it.
+- `apiconn.py`: `connect(host, tries)` (API connect and login with retries, `API_KEY` from the env) and `log_text()`
+  (an API log line without ANSI codes), imported by the newer API drivers.
 - `wifisave_hammer.sh KIND DUT_PORT DUT_YAML DUT_TREE CLIENT_PORT CLIENT_YAML CLIENT_TREE [SETTLE]`:
   the fallback AP plus captive portal hammer end to end (compile, flash, capture, counts) with the
   templates below. KIND is `esp`, `pico`, `bw15` or `bk`. It ends with `RESULT PASS` (exit 0),

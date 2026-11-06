@@ -5,14 +5,16 @@ Exits 1 when the device does not offer a crash report after the crash.
 """
 
 import asyncio
-import os
+import pathlib
 import re
-import socket
 import sys
 import time
 
 from aioesphomeapi import APIClient
 from aioesphomeapi.model import LogLevel
+
+sys.path.insert(0, str(pathlib.Path(__file__).resolve().parents[1]))
+import apiconn  # noqa: E402
 
 HOST, BTN = sys.argv[1], sys.argv[2]
 T0 = time.monotonic()
@@ -23,20 +25,7 @@ def mark(w: str) -> None:
 
 
 async def connect() -> APIClient:
-    for _ in range(90):
-        try:
-            c = APIClient(
-                socket.gethostbyname(HOST),
-                6053,
-                None,
-                noise_psk=os.environ.get("API_KEY"),
-            )
-            await asyncio.wait_for(c.connect(login=True), 10)
-        except Exception:  # noqa: BLE001
-            await asyncio.sleep(1)
-        else:
-            return c
-    sys.exit("no reconnect")
+    return await apiconn.connect(HOST, tries=90)
 
 
 async def main() -> bool:
@@ -68,9 +57,7 @@ async def main() -> bool:
     mark(f"after read: crash_report={(await c.device_capabilities()).crash_report}")
     lines: list[str] = []
     c.subscribe_logs(
-        lambda m: lines.append(
-            re.sub(r"\x1b\[[0-9;]*m", "", m.message.decode(errors="replace"))
-        ),
+        lambda m: lines.append(apiconn.log_text(m)),
         log_level=LogLevel.LOG_LEVEL_VERY_VERBOSE,
         dump_config=True,
     )

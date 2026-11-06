@@ -4,6 +4,7 @@ usage: analyze.py OUTDIR NAME   (reads serial.txt, mosq.log and sub.txt written 
 The broker log has 1 s resolution, so a connect in the second of the enable can show up inside the window.
 """
 
+import bisect
 import pathlib
 import re
 import sys
@@ -59,17 +60,25 @@ ticks = [
 ]
 
 
-def within(ts: float, w: list, slack: float = 0.0) -> bool:
-    return w[0] + slack <= ts <= w[1]
+connects = [ts for ts, s in ser if "EV CONNECT" in s]
+msgs = [ts for ts, s in ser if "EV MSG" in s]
+
+
+def within(times: list[float], w: list, slack: float) -> int:
+    """How many of the sorted TIMES fall in [start + SLACK, end] of window W."""
+    return max(
+        0, bisect.bisect_right(times, w[1]) - bisect.bisect_left(times, w[0] + slack)
+    )
 
 
 print(f"{NAME}: {len(wins)} disabled windows, heap at cycles {heaps}")
 for w in wins:
-    con = sum(1 for ts, s in ser if "EV CONNECT" in s and within(ts, w, 0.5))
-    msg = sum(1 for ts, s in ser if "EV MSG" in s and within(ts, w, 1.0))
-    bc = sum(1 for ts in broker if within(ts, w, 1.0))
-    tk = sum(1 for ts in ticks if within(ts, w, 2.0))
-    nxt = next((ts for ts, s in ser if "EV CONNECT" in s and ts > w[1]), None)
+    con = within(connects, w, 0.5)
+    msg = within(msgs, w, 1.0)
+    bc = within(broker, w, 1.0)
+    tk = within(ticks, w, 2.0)
+    i = bisect.bisect_right(connects, w[1])
+    nxt = connects[i] if i < len(connects) else None
     lat = f"{(nxt - w[1]) * 1000:.0f} ms" if nxt else "never"
     print(
         f"  cycle {w[2]}: disabled {w[1] - w[0]:.0f} s  device on_connect={con} inbound msgs={msg} "

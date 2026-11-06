@@ -88,7 +88,8 @@ server_port: 8129`, `api:`, `config:`, `onboarding:` and MQTT debug logging, plu
 token, `flow.py TOKENFILE` adds the MQTT entry (the `protocol` and `other_settings: {set_client_cert: false,
 set_ca_cert: "off", transport: tcp}` fields are required), and `hadrive.py TOKENFILE NAME` reads the device's time,
 date and datetime entities, calls `set_value` on each and reads again; it exits 1 on a missing entity or a failed
-call. `dt-common.yaml` is the device side (classic ESP32, three template datetime entities, `${broker}`).
+call. The three share the REST calls in `ha_rest.py`. `dt-common.yaml` is the device side (classic ESP32, three
+template datetime entities, `${broker}`).
 
 - The HA dev branch keeps a YAML port change as a pending HTTP config and reverts it after 5 minutes. Before
   starting HA again, set `data.stable.server_port` to 8129 and `data.pending` to null in `.storage/http`.
@@ -114,8 +115,8 @@ https://github.com/esphome/esphome/pull/22230#issuecomment-6614854671
 
 ## Retained message burst at connect (#22200)
 
-`scripts/mqtt/retained_burst/`: `burst-common.yaml` subscribes 25 `on_message` topics plus 15 switch command topics,
-and `seed.sh BROKER_PORT` leaves all 40 retained on a local mosquitto (`seed.sh BROKER_PORT clear` removes them).
+`scripts/mqtt/retained_burst/`: `burst-topics.yaml` (a package) subscribes 25 `on_message` topics plus 15 switch
+command topics, `burst-common.yaml` logs the counts 15 s after the connect, and `seed.sh BROKER_PORT` leaves all 40 retained on a local mosquitto (`seed.sh BROKER_PORT clear` removes them).
 `run.sh LABEL BOOTS` (env `TREE`, `PORT`, `SC`, `PY`, `BROKER`, `BROKER_PORT`, default board an ESP32-C3) resets the
 board BOOTS times and prints `RESULT got=x/25 switches_on=y/15` and any `Dropped` lines per boot; it passes only with
 40 of 40 on every boot. Before #22200 the C3 dropped exactly 49 events (80 events minus 31 slots): the main loop
@@ -123,8 +124,9 @@ drains nothing during the burst.
 
 ## Forced reconnect mid-burst (#22248)
 
-`scripts/mqtt/reconnect/`: `kick-common.yaml` has the same 40 topics and counts per connection with a
-`mode: restart` script on `on_connect`, logging `RESULT` 6 s after each connect. `kick.py BROKER_LOG BROKER_PORT
+`scripts/mqtt/reconnect/`: `kick-common.yaml` includes the same `burst-topics.yaml` and counts per connection with
+a `mode: restart` script on `on_connect`, logging `RESULT` 6 s after each connect. It and `run.sh` use files from
+`../retained_burst/`, so copy the whole `mqtt/` directory to the scratch directory. `kick.py BROKER_LOG BROKER_PORT
 PREFIX CYCLES` tails the broker log and takes over the device's client id 0 to 400 ms after every other connect
 (mosquitto drops it with "session taken over"), then leaves the next connection alone for 8 s and ends it. It
 starts by kicking the connection that is already up and skips its own connections (from 127.0.0.1 with the same id).

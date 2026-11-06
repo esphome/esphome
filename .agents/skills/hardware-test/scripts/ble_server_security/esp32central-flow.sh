@@ -10,8 +10,8 @@ D=$(cd "$(dirname "$0")" && pwd); G=${1:?tag}; T=${TREE:?set TREE}; ST=${SERVER_
 S=${SERVER_PORT:?set SERVER_PORT}; C=${CLIENT_PORT:?set CLIENT_PORT}; MAC=${SERVER_BLE_MAC:?set SERVER_BLE_MAC}; SC=${SC:?set SC}
 O=$D/out-ec$G; rm -rf "$O"; mkdir -p "$O"
 pkill -f "[s]erial_capture.py $S"; pkill -f "[s]erial_capture.py $C"
-$PY -m esptool --port "$S" erase_flash > "$O/erase.log" 2>&1 && $PY -m esptool --port "$C" erase_flash >> "$O/erase.log" 2>&1 ||
-  { echo "FAIL: erase"; exit 1; }
+$PY -m esptool --port "$S" erase_flash > "$O/erase-srv.log" 2>&1 & E=$!
+$PY -m esptool --port "$C" erase_flash > "$O/erase-cli.log" 2>&1 && wait $E || { echo "FAIL: erase"; exit 1; }
 (cd "$ST" && $PY -m esphome -s name "ecsrv$G" run --no-logs "$D/esp32central-srv.yaml" --device "$S" > "$O/srv-upload.log" 2>&1) ||
   { echo "FAIL: server build or upload"; exit 1; }
 (cd "$T" && $PY -m esphome -s name "eccli$G" -s server "$MAC" run --no-logs "$D/esp32central-cli.yaml" --device "$C" \

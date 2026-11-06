@@ -10,7 +10,7 @@ straight to the device's port 5353 with python-zeroconf packets:
   records of both services, prints the answers and exits 1 when one is missing. Diff the dump between builds.
 - `mq.py IP HOSTNAME hammer N [TIMEOUT]` sends N questions back to back (0.5 s timeout each) and counts misses per
   question.
-- `lat.py IP HOSTNAME N` sends A queries 300 ms apart and prints the median, p90, p99 and maximum latency and how
+- `mq.py IP HOSTNAME lat N` sends A queries 300 ms apart and prints the median, p90, p99 and maximum latency and how
   many answers came after 1.5 s or never.
 
 Judge responder timing on an Ethernet board: on a crowded Wi-Fi network back-to-back query loss swung between 0 and

@@ -4,11 +4,25 @@
 #include "esphome/core/log.h"
 #include "esphome/components/web_server_base/web_server_base.h"
 #include <esp_heap_caps.h>
+#include <iterator>
 
 // Written by make_certs.sh: CERT, KEY and BAD_KEY as PEM strings.
 #include "certs.h"
 
 namespace esphome::httpstest {
+
+// Listener per mode number: the switch path, the key (nullptr for plain HTTP) and the port.
+struct ListenerMode {
+  const char *path;
+  const char *key;
+  uint16_t port;
+};
+static constexpr ListenerMode MODES[] = {
+    {"/hw/switch/http", nullptr, 80},
+    {"/hw/switch/https", KEY, 443},
+    {"/hw/switch/bad", BAD_KEY, 443},
+    {"/hw/switch/https8443", KEY, 8443},
+};
 
 // Serves /hw over HTTPS (port 443 or 8443) or HTTP (port 80) and switches between them from the main loop.
 // /hw/switch/{http,https,https8443,bad} picks the listener; bad sets a key that does not match the certificate.
@@ -35,24 +49,18 @@ class HttpsTest : public Component, public AsyncWebHandler {
     this->requests_++;
     if (url == "/hw/big") {
       static char big[16384];
-      memset(big, 'x', sizeof(big) - 1);
+      if (big[0] == '\0')
+        memset(big, 'x', sizeof(big) - 1);
       request->send(200, "text/plain", big);
       return;
     }
-    int mode = -1;
-    if (url == "/hw/switch/http")
-      mode = 0;
-    else if (url == "/hw/switch/https")
-      mode = 1;
-    else if (url == "/hw/switch/bad")
-      mode = 2;
-    else if (url == "/hw/switch/https8443")
-      mode = 3;
-    if (mode >= 0) {
-      // the setters restart the listener, so run them from the main loop
-      this->defer([this, mode]() { this->switch_(mode); });
-      request->send(202, "text/plain", "switching");
-      return;
+    for (int mode = 0; mode < (int) std::size(MODES); mode++) {
+      if (url == MODES[mode].path) {
+        // the setters restart the listener, so run them from the main loop
+        this->defer([this, mode]() { this->switch_(mode); });
+        request->send(202, "text/plain", "switching");
+        return;
+      }
     }
     char body[96];
     snprintf(body, sizeof(body), "ok mode=%d requests=%u heap=%u\n", this->mode_, (unsigned) this->requests_,
@@ -65,14 +73,8 @@ class HttpsTest : public Component, public AsyncWebHandler {
  protected:
   void switch_(int mode) {
     uint32_t t0 = millis();
-    if (mode == 0)
-      this->base_->set_ssl_credentials(nullptr, nullptr, 80);
-    else if (mode == 1)
-      this->base_->set_ssl_credentials(CERT, KEY, 443);
-    else if (mode == 2)
-      this->base_->set_ssl_credentials(CERT, BAD_KEY, 443);
-    else
-      this->base_->set_ssl_credentials(CERT, KEY, 8443);
+    const ListenerMode &m = MODES[mode];
+    this->base_->set_ssl_credentials(m.key != nullptr ? CERT : nullptr, m.key, m.port);
     this->mode_ = mode;
     ESP_LOGI("hwt", "SWITCH to mode %d took %u ms", mode, (unsigned) (millis() - t0));
   }

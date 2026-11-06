@@ -40,19 +40,20 @@ def kick(client_id: str) -> None:
     )
 
 
-ids = PAT.findall(pathlib.Path(LOG).read_text(encoding="utf-8", errors="replace"))
-if not ids:
-    sys.exit(f"no {PREFIX}- client in {LOG} yet")
-with pathlib.Path(LOG).open(encoding="utf-8", errors="replace") as log:
-    log.seek(0, 2)
+with pathlib.Path(LOG).open("rb") as log:
+    # the device connected seconds ago, so its id is in the log's tail
+    log.seek(max(0, log.seek(0, 2) - 256 * 1024))
+    ids = PAT.findall(log.read().decode(errors="replace"))
+    if not ids:
+        sys.exit(f"no {PREFIX}- client in {LOG} yet")
     kick(ids[-1])
     n = 0
     while n < CYCLES * 2:
         line = log.readline()
         if not line:
-            time.sleep(0.01)
+            time.sleep(0.001)
             continue
-        if not (m := PAT.search(line)):
+        if not (m := PAT.search(line.decode(errors="replace"))):
             continue
         n += 1
         if n % 2 == 1:

@@ -38,23 +38,14 @@ async def find_peripheral(c: APIClient) -> tuple[int, int]:
 async def owner(c: APIClient, flags: int) -> None:
     addr, atype = await find_peripheral(c)
     log(f"peripheral {addr:#x} seen, connecting")
-    done = asyncio.get_running_loop().create_future()
-
-    def on_state(connected: bool, mtu: int, err: int) -> None:
-        log(f"connection state connected={connected} mtu={mtu} err={err}")
-        if connected and not done.done():
-            done.set_result(True)
-
-    await c.bluetooth_device_connect(
-        addr, on_state, timeout=30, feature_flags=flags, address_type=atype
-    )
-    await asyncio.wait_for(done, 30)
+    if not await connect_once(c, addr, flags, "owner", time.time(), atype):
+        sys.exit("owner could not connect")
     log("OWNER HOLDS LINK")
     await asyncio.sleep(10**6)
 
 
 async def connect_once(
-    c: APIClient, addr: int, flags: int, label: str, t0: float
+    c: APIClient, addr: int, flags: int, label: str, t0: float, atype: int = 0
 ) -> bool:
     st = asyncio.get_running_loop().create_future()
 
@@ -68,7 +59,7 @@ async def connect_once(
     log(f"{label} connect at {time.time() - t0:.2f} s")
     try:
         await c.bluetooth_device_connect(
-            addr, on_state, timeout=30, feature_flags=flags, address_type=0
+            addr, on_state, timeout=30, feature_flags=flags, address_type=atype
         )
         return await asyncio.wait_for(st, 30)
     except Exception as e:  # noqa: BLE001
