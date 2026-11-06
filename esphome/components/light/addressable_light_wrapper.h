@@ -15,6 +15,7 @@ class AddressableLightWrapper : public light::AddressableLight {
   }
 
   int32_t size() const override { return 1; }
+  bool applies_own_gamma(int32_t index) const override { return true; }
 
   void clear_effect_data() override { this->wrapper_state_[4] = 0; }
 
@@ -79,7 +80,7 @@ class AddressableLightWrapper : public light::AddressableLight {
       return;
     }
 
-    // The partition stores linear values here; the wrapped light applies its own gamma
+    // The partition stores brightness-scaled linear values here; the wrapped light applies its own gamma
     float r = this->wrapper_state_[0] / 255.0f;
     float g = this->wrapper_state_[1] / 255.0f;
     float b = this->wrapper_state_[2] / 255.0f;

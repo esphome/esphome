@@ -81,7 +81,27 @@ class ESPColorCorrection {
   }
   uint8_t color_uncorrect_channel(uint8_t channel, uint8_t raw_value) const;
 
+  /// Brightness scaling without gamma, for a pixel whose own light applies gamma
+  inline Color color_scale(Color color) const {
+    return Color(this->color_scale_channel(COLOR_CHANNEL_R, color.red),
+                 this->color_scale_channel(COLOR_CHANNEL_G, color.green),
+                 this->color_scale_channel(COLOR_CHANNEL_B, color.blue),
+                 this->color_scale_channel(COLOR_CHANNEL_W, color.white));
+  }
+  inline uint8_t color_scale_channel(uint8_t channel, uint8_t value) const ESPHOME_ALWAYS_INLINE {
+    return esp_scale8_twice(value, this->max_brightness_[channel], this->local_brightness_);
+  }
+  inline Color color_unscale(Color raw_color) const {
+    return Color(this->color_unscale_channel(COLOR_CHANNEL_R, raw_color.red),
+                 this->color_unscale_channel(COLOR_CHANNEL_G, raw_color.green),
+                 this->color_unscale_channel(COLOR_CHANNEL_B, raw_color.blue),
+                 this->color_unscale_channel(COLOR_CHANNEL_W, raw_color.white));
+  }
+  uint8_t color_unscale_channel(uint8_t channel, uint8_t raw_value) const { return this->unscale_(channel, raw_value); }
+
  protected:
+  /// Undo the brightness scaling of one level
+  uint8_t unscale_(uint8_t channel, uint8_t level) const;
   // The limit on a gamma-corrected level; rounded up, so a lit channel stays lit
   inline uint8_t limit_(uint8_t res) const ESPHOME_ALWAYS_INLINE {
 #ifdef USE_LIGHT_POWER_ESTIMATION

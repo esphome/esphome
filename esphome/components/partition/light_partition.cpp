@@ -23,17 +23,13 @@ const AddressableSegment &PartitionLightOutput::get_segment_(int32_t index) cons
   return this->segments_[lo];
 }
 
-light::ESPColorView PartitionLightOutput::get_color_view_(const AddressableSegment &seg, int32_t index) const {
+int32_t PartitionLightOutput::get_src_index_(const AddressableSegment &seg, int32_t index) const {
   // offset within the segment
   int32_t seg_off = index - seg.get_dst_offset();
-  // offset within the src
-  int32_t src_off;
   if (seg.is_reversed()) {
-    src_off = seg.get_src_offset() + seg.get_size() - seg_off - 1;
-  } else {
-    src_off = seg.get_src_offset() + seg_off;
+    return seg.get_src_offset() + seg.get_size() - seg_off - 1;
   }
-  return (*seg.get_src())[src_off];
+  return seg.get_src_offset() + seg_off;
 }
 
 }  // namespace esphome::partition
