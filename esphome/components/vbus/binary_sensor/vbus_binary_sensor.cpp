@@ -23,30 +23,18 @@ void DeltaSolBSPlusBSensor::dump_config() {
 }
 
 void DeltaSolBSPlusBSensor::handle_message(std::vector<uint8_t> &message) {
-  if (this->relay1_binary_sensor_ != nullptr)
-    this->relay1_binary_sensor_->publish_state(message[10] & 1);
-  if (this->relay2_binary_sensor_ != nullptr)
-    this->relay2_binary_sensor_->publish_state(message[10] & 2);
-  if (this->s1_error_binary_sensor_ != nullptr)
-    this->s1_error_binary_sensor_->publish_state(message[11] & 1);
-  if (this->s2_error_binary_sensor_ != nullptr)
-    this->s2_error_binary_sensor_->publish_state(message[11] & 2);
-  if (this->s3_error_binary_sensor_ != nullptr)
-    this->s3_error_binary_sensor_->publish_state(message[11] & 4);
-  if (this->s4_error_binary_sensor_ != nullptr)
-    this->s4_error_binary_sensor_->publish_state(message[11] & 8);
-  if (this->collector_max_binary_sensor_ != nullptr)
-    this->collector_max_binary_sensor_->publish_state(message[15] & 1);
-  if (this->collector_min_binary_sensor_ != nullptr)
-    this->collector_min_binary_sensor_->publish_state(message[15] & 2);
-  if (this->collector_frost_binary_sensor_ != nullptr)
-    this->collector_frost_binary_sensor_->publish_state(message[15] & 4);
-  if (this->tube_collector_binary_sensor_ != nullptr)
-    this->tube_collector_binary_sensor_->publish_state(message[15] & 8);
-  if (this->recooling_binary_sensor_ != nullptr)
-    this->recooling_binary_sensor_->publish_state(message[15] & 0x10);
-  if (this->hqm_binary_sensor_ != nullptr)
-    this->hqm_binary_sensor_->publish_state(message[15] & 0x20);
+  PUBLISH_STATE(this->relay1_binary_sensor_, message[10] & 1);
+  PUBLISH_STATE(this->relay2_binary_sensor_, message[10] & 2);
+  PUBLISH_STATE(this->s1_error_binary_sensor_, message[11] & 1);
+  PUBLISH_STATE(this->s2_error_binary_sensor_, message[11] & 2);
+  PUBLISH_STATE(this->s3_error_binary_sensor_, message[11] & 4);
+  PUBLISH_STATE(this->s4_error_binary_sensor_, message[11] & 8);
+  PUBLISH_STATE(this->collector_max_binary_sensor_, message[15] & 1);
+  PUBLISH_STATE(this->collector_min_binary_sensor_, message[15] & 2);
+  PUBLISH_STATE(this->collector_frost_binary_sensor_, message[15] & 4);
+  PUBLISH_STATE(this->tube_collector_binary_sensor_, message[15] & 8);
+  PUBLISH_STATE(this->recooling_binary_sensor_, message[15] & 0x10);
+  PUBLISH_STATE(this->hqm_binary_sensor_, message[15] & 0x20);
 }
 
 void DeltaSolBS2009BSensor::dump_config() {
@@ -59,16 +47,11 @@ void DeltaSolBS2009BSensor::dump_config() {
 }
 
 void DeltaSolBS2009BSensor::handle_message(std::vector<uint8_t> &message) {
-  if (this->s1_error_binary_sensor_ != nullptr)
-    this->s1_error_binary_sensor_->publish_state(message[20] & 1);
-  if (this->s2_error_binary_sensor_ != nullptr)
-    this->s2_error_binary_sensor_->publish_state(message[20] & 2);
-  if (this->s3_error_binary_sensor_ != nullptr)
-    this->s3_error_binary_sensor_->publish_state(message[20] & 4);
-  if (this->s4_error_binary_sensor_ != nullptr)
-    this->s4_error_binary_sensor_->publish_state(message[20] & 8);
-  if (this->frost_protection_active_binary_sensor_ != nullptr)
-    this->frost_protection_active_binary_sensor_->publish_state(message[25] & 1);
+  PUBLISH_STATE(this->s1_error_binary_sensor_, message[20] & 1);
+  PUBLISH_STATE(this->s2_error_binary_sensor_, message[20] & 2);
+  PUBLISH_STATE(this->s3_error_binary_sensor_, message[20] & 4);
+  PUBLISH_STATE(this->s4_error_binary_sensor_, message[20] & 8);
+  PUBLISH_STATE(this->frost_protection_active_binary_sensor_, message[25] & 1);
 }
 
 void DeltaSolCBSensor::dump_config() {
@@ -80,14 +63,10 @@ void DeltaSolCBSensor::dump_config() {
 }
 
 void DeltaSolCBSensor::handle_message(std::vector<uint8_t> &message) {
-  if (this->s1_error_binary_sensor_ != nullptr)
-    this->s1_error_binary_sensor_->publish_state(message[10] & 1);
-  if (this->s2_error_binary_sensor_ != nullptr)
-    this->s2_error_binary_sensor_->publish_state(message[10] & 2);
-  if (this->s3_error_binary_sensor_ != nullptr)
-    this->s3_error_binary_sensor_->publish_state(message[10] & 4);
-  if (this->s4_error_binary_sensor_ != nullptr)
-    this->s4_error_binary_sensor_->publish_state(message[10] & 8);
+  PUBLISH_STATE(this->s1_error_binary_sensor_, message[10] & 1);
+  PUBLISH_STATE(this->s2_error_binary_sensor_, message[10] & 2);
+  PUBLISH_STATE(this->s3_error_binary_sensor_, message[10] & 4);
+  PUBLISH_STATE(this->s4_error_binary_sensor_, message[10] & 8);
 }
 
 void DeltaSolCS2BSensor::dump_config() {
@@ -99,14 +78,10 @@ void DeltaSolCS2BSensor::dump_config() {
 }
 
 void DeltaSolCS2BSensor::handle_message(std::vector<uint8_t> &message) {
-  if (this->s1_error_binary_sensor_ != nullptr)
-    this->s1_error_binary_sensor_->publish_state(message[18] & 1);
-  if (this->s2_error_binary_sensor_ != nullptr)
-    this->s2_error_binary_sensor_->publish_state(message[18] & 2);
-  if (this->s3_error_binary_sensor_ != nullptr)
-    this->s3_error_binary_sensor_->publish_state(message[18] & 4);
-  if (this->s4_error_binary_sensor_ != nullptr)
-    this->s4_error_binary_sensor_->publish_state(message[18] & 8);
+  PUBLISH_STATE(this->s1_error_binary_sensor_, message[18] & 1);
+  PUBLISH_STATE(this->s2_error_binary_sensor_, message[18] & 2);
+  PUBLISH_STATE(this->s3_error_binary_sensor_, message[18] & 4);
+  PUBLISH_STATE(this->s4_error_binary_sensor_, message[18] & 8);
 }
 
 void DeltaSolCS4BSensor::dump_config() {
@@ -118,14 +93,10 @@ void DeltaSolCS4BSensor::dump_config() {
 }
 
 void DeltaSolCS4BSensor::handle_message(std::vector<uint8_t> &message) {
-  if (this->s1_error_binary_sensor_ != nullptr)
-    this->s1_error_binary_sensor_->publish_state(message[20] & 1);
-  if (this->s2_error_binary_sensor_ != nullptr)
-    this->s2_error_binary_sensor_->publish_state(message[20] & 2);
-  if (this->s3_error_binary_sensor_ != nullptr)
-    this->s3_error_binary_sensor_->publish_state(message[20] & 4);
-  if (this->s4_error_binary_sensor_ != nullptr)
-    this->s4_error_binary_sensor_->publish_state(message[20] & 8);
+  PUBLISH_STATE(this->s1_error_binary_sensor_, message[20] & 1);
+  PUBLISH_STATE(this->s2_error_binary_sensor_, message[20] & 2);
+  PUBLISH_STATE(this->s3_error_binary_sensor_, message[20] & 4);
+  PUBLISH_STATE(this->s4_error_binary_sensor_, message[20] & 8);
 }
 
 void DeltaSolCSPlusBSensor::dump_config() {
@@ -137,14 +108,10 @@ void DeltaSolCSPlusBSensor::dump_config() {
 }
 
 void DeltaSolCSPlusBSensor::handle_message(std::vector<uint8_t> &message) {
-  if (this->s1_error_binary_sensor_ != nullptr)
-    this->s1_error_binary_sensor_->publish_state(message[20] & 1);
-  if (this->s2_error_binary_sensor_ != nullptr)
-    this->s2_error_binary_sensor_->publish_state(message[20] & 2);
-  if (this->s3_error_binary_sensor_ != nullptr)
-    this->s3_error_binary_sensor_->publish_state(message[20] & 4);
-  if (this->s4_error_binary_sensor_ != nullptr)
-    this->s4_error_binary_sensor_->publish_state(message[20] & 8);
+  PUBLISH_STATE(this->s1_error_binary_sensor_, message[20] & 1);
+  PUBLISH_STATE(this->s2_error_binary_sensor_, message[20] & 2);
+  PUBLISH_STATE(this->s3_error_binary_sensor_, message[20] & 4);
+  PUBLISH_STATE(this->s4_error_binary_sensor_, message[20] & 8);
 }
 
 void DeltaSolBS2BSensor::dump_config() {
@@ -156,14 +123,10 @@ void DeltaSolBS2BSensor::dump_config() {
 }
 
 void DeltaSolBS2BSensor::handle_message(std::vector<uint8_t> &message) {
-  if (this->s1_error_binary_sensor_ != nullptr)
-    this->s1_error_binary_sensor_->publish_state(message[10] & 1);
-  if (this->s2_error_binary_sensor_ != nullptr)
-    this->s2_error_binary_sensor_->publish_state(message[10] & 2);
-  if (this->s3_error_binary_sensor_ != nullptr)
-    this->s3_error_binary_sensor_->publish_state(message[10] & 4);
-  if (this->s4_error_binary_sensor_ != nullptr)
-    this->s4_error_binary_sensor_->publish_state(message[10] & 8);
+  PUBLISH_STATE(this->s1_error_binary_sensor_, message[10] & 1);
+  PUBLISH_STATE(this->s2_error_binary_sensor_, message[10] & 2);
+  PUBLISH_STATE(this->s3_error_binary_sensor_, message[10] & 4);
+  PUBLISH_STATE(this->s4_error_binary_sensor_, message[10] & 8);
 }
 
 void VBusCustomBSensor::dump_config() {

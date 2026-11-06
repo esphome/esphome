@@ -49,16 +49,13 @@ static bool check_model_and_device_match(INAModel model, uint16_t dev_id) {
 }
 
 void INA2XX::setup() {
-  if (!this->reset_config_()) {
-    this->mark_failed(LOG_STR("Reset failed, check connection"));
+  if (!this->setup_check(this->reset_config_(), LOG_STR("Reset failed, check connection")))
     return;
-  }
   delay(2);
 
-  if (!this->check_device_model_()) {
-    this->mark_failed(LOG_STR("Device not supported or model selected improperly in yaml file"));
+  if (!this->setup_check(this->check_device_model_(),
+                         LOG_STR("Device not supported or model selected improperly in yaml file")))
     return;
-  }
   delay(1);
 
   this->configure_adc_range_();
@@ -148,10 +145,8 @@ void INA2XX::loop() {
           if (this->energy_j_sensor_ != nullptr || this->energy_wh_sensor_ != nullptr) {
             double energy_j{0}, energy_wh{0};
             this->full_loop_is_okay_ &= this->read_energy_(energy_j, energy_wh);
-            if (this->energy_j_sensor_ != nullptr)
-              this->energy_j_sensor_->publish_state(energy_j);
-            if (this->energy_wh_sensor_ != nullptr)
-              this->energy_wh_sensor_->publish_state(energy_wh);
+            PUBLISH_STATE(this->energy_j_sensor_, energy_j);
+            PUBLISH_STATE(this->energy_wh_sensor_, energy_wh);
           }
         }
         this->state_ = State::DATA_COLLECTION_7;
@@ -162,10 +157,8 @@ void INA2XX::loop() {
           if (this->charge_c_sensor_ != nullptr || this->charge_ah_sensor_ != nullptr) {
             double charge_c{0}, charge_ah{0};
             this->full_loop_is_okay_ &= this->read_charge_(charge_c, charge_ah);
-            if (this->charge_c_sensor_ != nullptr)
-              this->charge_c_sensor_->publish_state(charge_c);
-            if (this->charge_ah_sensor_ != nullptr)
-              this->charge_ah_sensor_->publish_state(charge_ah);
+            PUBLISH_STATE(this->charge_c_sensor_, charge_c);
+            PUBLISH_STATE(this->charge_ah_sensor_, charge_ah);
           }
         }
         this->state_ = State::DATA_COLLECTION_8;

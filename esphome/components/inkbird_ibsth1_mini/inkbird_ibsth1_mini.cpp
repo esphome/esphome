@@ -91,12 +91,8 @@ bool InkbirdIbstH1Mini::parse_device(const ble_device_base::ESPBTDevice &device)
   if (!std::isnan(external_temperature) && this->external_temperature_sensor_ != nullptr) {
     this->external_temperature_sensor_->publish_state(external_temperature);
   }
-  if (this->humidity_sensor_ != nullptr) {
-    this->humidity_sensor_->publish_state(humidity);
-  }
-  if (this->battery_level_sensor_ != nullptr) {
-    this->battery_level_sensor_->publish_state(battery_level);
-  }
+  PUBLISH_STATE(this->humidity_sensor_, humidity);
+  PUBLISH_STATE(this->battery_level_sensor_, battery_level);
 
   return true;
 }

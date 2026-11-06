@@ -243,48 +243,33 @@ _STATE_CONDITIONS = (
 MediaPlayerCommand = media_player_ns.enum("MediaPlayerCommand", is_class=True)
 
 
+def _on_state_enter(conf_key: str, state: cg.MockObj) -> automation.CallbackAutomation:
+    return automation.CallbackAutomation(
+        conf_key,
+        "add_on_state_callback",
+        forwarder=StateEnterForwarder.template(state),
+        params=[(MediaPlayerState, "state")],
+        forward=[],
+        when=f"state == {state}",
+    )
+
+
 _CALLBACK_AUTOMATIONS = (
     automation.CallbackAutomation(
-        CONF_ON_STATE, "add_on_state_callback", forwarder=StateAnyForwarder
-    ),
-    automation.CallbackAutomation(
-        CONF_ON_IDLE,
+        CONF_ON_STATE,
         "add_on_state_callback",
-        forwarder=StateEnterForwarder.template(
-            MediaPlayerState.MEDIA_PLAYER_STATE_IDLE
-        ),
+        forwarder=StateAnyForwarder,
+        params=[(MediaPlayerState, "state")],
+        forward=[],
     ),
-    automation.CallbackAutomation(
-        CONF_ON_PLAY,
-        "add_on_state_callback",
-        forwarder=StateEnterForwarder.template(
-            MediaPlayerState.MEDIA_PLAYER_STATE_PLAYING
-        ),
+    _on_state_enter(CONF_ON_IDLE, MediaPlayerState.MEDIA_PLAYER_STATE_IDLE),
+    _on_state_enter(CONF_ON_PLAY, MediaPlayerState.MEDIA_PLAYER_STATE_PLAYING),
+    _on_state_enter(CONF_ON_PAUSE, MediaPlayerState.MEDIA_PLAYER_STATE_PAUSED),
+    _on_state_enter(
+        CONF_ON_ANNOUNCEMENT, MediaPlayerState.MEDIA_PLAYER_STATE_ANNOUNCING
     ),
-    automation.CallbackAutomation(
-        CONF_ON_PAUSE,
-        "add_on_state_callback",
-        forwarder=StateEnterForwarder.template(
-            MediaPlayerState.MEDIA_PLAYER_STATE_PAUSED
-        ),
-    ),
-    automation.CallbackAutomation(
-        CONF_ON_ANNOUNCEMENT,
-        "add_on_state_callback",
-        forwarder=StateEnterForwarder.template(
-            MediaPlayerState.MEDIA_PLAYER_STATE_ANNOUNCING
-        ),
-    ),
-    automation.CallbackAutomation(
-        CONF_ON_TURN_ON,
-        "add_on_state_callback",
-        forwarder=StateEnterForwarder.template(MediaPlayerState.MEDIA_PLAYER_STATE_ON),
-    ),
-    automation.CallbackAutomation(
-        CONF_ON_TURN_OFF,
-        "add_on_state_callback",
-        forwarder=StateEnterForwarder.template(MediaPlayerState.MEDIA_PLAYER_STATE_OFF),
-    ),
+    _on_state_enter(CONF_ON_TURN_ON, MediaPlayerState.MEDIA_PLAYER_STATE_ON),
+    _on_state_enter(CONF_ON_TURN_OFF, MediaPlayerState.MEDIA_PLAYER_STATE_OFF),
 )
 
 
