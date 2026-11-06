@@ -14,6 +14,9 @@
 #include <esp_intr_alloc.h>
 #include <hal/i2c_ll.h>
 #include <soc/i2c_periph.h>
+#if SOC_I2C_SUPPORT_HW_FSM_RST
+#error "This chip has an I2C FSM reset; remove NO_FSM_RST for it in i2c/__init__.py"
+#endif
 
 // Chips without an I2C FSM reset (ESP32, S2, S3, C2, C3): after a NACK the controller can keep raising
 // ACK_ERR, and the IDF i2c_master ISR clears it without masking it, so the interrupt fires forever and starves
@@ -47,8 +50,9 @@ esp_err_t __wrap_esp_intr_alloc_intrstatus(int source, int flags, uint32_t reg, 
   for (int port = 0; port < SOC_HP_I2C_NUM; port++) {
     if (source == i2c_periph_signal[port].irq) {
       i2c_isr_guards[port] = {handler, arg, I2C_LL_GET_HW(port)};
-      return __real_esp_intr_alloc_intrstatus(source, flags, reg, mask, i2c_isr_guard, &i2c_isr_guards[port],
-                                              ret_handle);
+      handler = i2c_isr_guard;
+      arg = &i2c_isr_guards[port];
+      break;
     }
   }
   return __real_esp_intr_alloc_intrstatus(source, flags, reg, mask, handler, arg, ret_handle);

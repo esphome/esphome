@@ -75,9 +75,10 @@ I2CDevice = i2c_ns.class_("I2CDevice")
 
 ESP32_I2C_CAPABILITIES = {
     # https://github.com/espressif/esp-idf/blob/master/components/soc/esp32/include/soc/soc_caps.h
-    VARIANT_ESP32: {"NUM": 2, "HP": 2},
-    VARIANT_ESP32C2: {"NUM": 1, "HP": 1},
-    VARIANT_ESP32C3: {"NUM": 1, "HP": 1},
+    # NO_FSM_RST: SOC_I2C_SUPPORT_HW_FSM_RST is not defined
+    VARIANT_ESP32: {"NUM": 2, "HP": 2, "NO_FSM_RST": True},
+    VARIANT_ESP32C2: {"NUM": 1, "HP": 1, "NO_FSM_RST": True},
+    VARIANT_ESP32C3: {"NUM": 1, "HP": 1, "NO_FSM_RST": True},
     VARIANT_ESP32C5: {"NUM": 2, "HP": 1, "LP": 1},
     VARIANT_ESP32C6: {"NUM": 2, "HP": 1, "LP": 1},
     VARIANT_ESP32C61: {"NUM": 1, "HP": 1},
@@ -85,8 +86,8 @@ ESP32_I2C_CAPABILITIES = {
     VARIANT_ESP32H4: {"NUM": 2, "HP": 2},
     VARIANT_ESP32H21: {"NUM": 2, "HP": 2},
     VARIANT_ESP32P4: {"NUM": 3, "HP": 2, "LP": 1},
-    VARIANT_ESP32S2: {"NUM": 2, "HP": 2},
-    VARIANT_ESP32S3: {"NUM": 2, "HP": 2},
+    VARIANT_ESP32S2: {"NUM": 2, "HP": 2, "NO_FSM_RST": True},
+    VARIANT_ESP32S3: {"NUM": 2, "HP": 2, "NO_FSM_RST": True},
     VARIANT_ESP32S31: {"NUM": 3, "HP": 2, "LP": 1},
 }
 VALIDATE_LP_I2C = {
@@ -96,15 +97,6 @@ VALIDATE_LP_I2C = {
     VARIANT_ESP32S31: esp32_s31_validate_lp_i2c,
 }
 LP_I2C_VARIANT = list(VALIDATE_LP_I2C.keys())
-
-# Variants without SOC_I2C_SUPPORT_HW_FSM_RST
-ESP32_I2C_NO_FSM_RESET = {
-    VARIANT_ESP32,
-    VARIANT_ESP32C2,
-    VARIANT_ESP32C3,
-    VARIANT_ESP32S2,
-    VARIANT_ESP32S3,
-}
 
 CONF_SDA_PULLUP_ENABLED = "sda_pullup_enabled"
 CONF_SCL_PULLUP_ENABLED = "scl_pullup_enabled"
@@ -334,7 +326,7 @@ async def to_code(config: ConfigType) -> None:
 
         # Re-enable the I2C driver (excluded by default to save compile time)
         include_builtin_idf_component("esp_driver_i2c")
-        if get_esp32_variant() in ESP32_I2C_NO_FSM_RESET:
+        if ESP32_I2C_CAPABILITIES.get(get_esp32_variant(), {}).get("NO_FSM_RST"):
             # ACK_ERR interrupt storm after a NACK; see i2c_bus_esp_idf.cpp
             cg.add_define("USE_I2C_ISR_GUARD")
             cg.add_build_flag("-Wl,--wrap=esp_intr_alloc_intrstatus")
