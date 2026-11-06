@@ -48,14 +48,10 @@ FINAL_VALIDATE_SCHEMA = final_validate_entity_id
 
 async def to_code(config: ConfigType) -> None:
     cg.add_define("USE_API_HOMEASSISTANT_SERVICES")
-    # Options come from Home Assistant at runtime, into static storage
-    size, count = config[CONF_OPTIONS_BUFFER_SIZE], config[CONF_MAX_OPTIONS]
     var = await select.new_select(
         config,
-        cg.static_buffer(config[CONF_ID], cg.char, size),
-        size,
-        cg.static_buffer(config[CONF_ID], cg.const_char_ptr, count),
-        count,
+        cg.static_buffer(config[CONF_ID], cg.char, config[CONF_OPTIONS_BUFFER_SIZE]),
+        cg.static_buffer(config[CONF_ID], cg.const_char_ptr, config[CONF_MAX_OPTIONS]),
         options=[],
     )
     await cg.register_component(var, config)
