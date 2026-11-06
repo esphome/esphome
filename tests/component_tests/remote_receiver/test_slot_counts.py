@@ -32,8 +32,7 @@ def test_bare_receiver_emits_no_counts(
     generate_main: Callable[[str | Path], str],
     component_config_path: Callable[[str], Path],
 ) -> None:
-    main_cpp = generate_main(component_config_path("receiver_bare.yaml"))
-    assert "* 4 + 3) / 4];" in main_cpp
+    generate_main(component_config_path("receiver_bare.yaml"))
     assert get_define_value("REMOTE_BASE_DUMPER_COUNT") is None
     assert get_define_value("REMOTE_BASE_LISTENER_COUNT") is None
 

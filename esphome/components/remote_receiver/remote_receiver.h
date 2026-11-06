@@ -3,7 +3,9 @@
 #include "esphome/components/remote_base/remote_base.h"
 #include "esphome/core/component.h"
 
+#include <algorithm>
 #include <cinttypes>
+#include <span>
 
 #if defined(USE_ESP32)
 #include <soc/soc_caps.h>
@@ -87,6 +89,13 @@ struct RemoteReceiverComponentStore {
   volatile bool overflow{false};
 };
 #elif defined(USE_ESP32) && SOC_RMT_SUPPORTED
+/// Words in the RMT ring: one slot per pending rmt_receive, at least two (one filling while one is decoded);
+/// without a buffer_size, four slots cover a few frames queued across a stalled loop pass.
+constexpr uint32_t rmt_buffer_words(uint32_t receive_symbols, uint32_t buffer_size) {
+  const uint32_t slot = sizeof(rmt_rx_done_event_data_t) + receive_symbols * sizeof(rmt_symbol_word_t);
+  return ((buffer_size == 0 ? slot * 4 : std::max(slot * 2, buffer_size)) + 3) / 4;
+}
+
 struct RemoteReceiverComponentStore {
   /// Stores RMT symbols and rx done event data
   volatile uint8_t *buffer{nullptr};
@@ -135,16 +144,15 @@ class RemoteReceiverComponent final : public remote_base::RemoteReceiverBase,
   }
 #else
 #if defined(USE_ESP32) && SOC_RMT_SUPPORTED
-  /// A static array of `size` bytes from code generation; uint32_t words keep the RMT symbols aligned.
-  void set_buffer(uint32_t *buffer, uint32_t size) {
-    this->store_.buffer = reinterpret_cast<uint8_t *>(buffer);
-    this->store_.buffer_size = size;
+  /// uint32_t words keep the RMT symbols aligned
+  void set_buffer(std::span<uint32_t> buffer) {
+    this->store_.buffer = reinterpret_cast<uint8_t *>(buffer.data());
+    this->store_.buffer_size = buffer.size_bytes();
   }
 #else
-  /// A static array of `entries` pulses from code generation.
-  void set_buffer(int32_t *buffer, uint32_t entries) {
-    this->store_.buffer = buffer;
-    this->store_.buffer_entries = entries;
+  void set_buffer(std::span<int32_t> buffer) {
+    this->store_.buffer = buffer.data();
+    this->store_.buffer_entries = buffer.size();
   }
 #endif
   void set_filter_us(uint32_t filter_us) { this->filter_us_ = filter_us; }
