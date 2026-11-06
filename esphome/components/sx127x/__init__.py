@@ -168,7 +168,7 @@ def validate_config(config: ConfigType) -> ConfigType:
         if config[CONF_PAYLOAD_LENGTH] > 64:
             raise cv.Invalid("Payload length must be <= 64 with FSK/OOK")
     if CONF_AFC_BANDWIDTH in config and config[CONF_MODULATION] != "FSK":
-        raise cv.Invalid("afc_bandwidth is only available with FSK")
+        raise cv.Invalid("Config 'afc_bandwidth' only available with FSK")
     if config[CONF_PA_PIN] == "RFO" and config[CONF_PA_POWER] > 15:
         raise cv.Invalid("PA power must be <= 15 dbm when using the RFO pin")
     if config[CONF_PA_PIN] == "BOOST" and config[CONF_PA_POWER] < 2:
