@@ -211,7 +211,7 @@ void IRAM_ATTR ISRInternalGPIOPin::digital_write(bool value) {
   auto *pin = static_cast<ESP32InternalGPIOPin *>(this->arg_);
   gpio_hal_set_level(&GPIO_HAL, pin->get_pin_num(), value != pin->pin_flags_.inverted);
 #ifdef USE_GPIO_HOLD
-  isr_refresh_hold(pin->get_pin_num(), pin->pin_flags_.rtc_io, pin->get_hold());
+  isr_refresh_hold(pin->get_pin_num(), pin->pin_flags_.rtc_io, pin->flags_ & gpio::FLAG_HOLD);
 #endif
 }
 
@@ -267,7 +267,7 @@ void IRAM_ATTR ISRInternalGPIOPin::pin_mode(gpio::Flags flags) {
     }
   }
 #ifdef USE_GPIO_HOLD
-  isr_refresh_hold(num, pin->pin_flags_.rtc_io, pin->get_hold());
+  isr_refresh_hold(num, pin->pin_flags_.rtc_io, pin->flags_ & gpio::FLAG_HOLD);
 #endif
   pin->isr_flags_ = flags;
 }
