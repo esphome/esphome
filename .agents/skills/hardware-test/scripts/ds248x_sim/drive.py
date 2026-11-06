@@ -4,7 +4,7 @@ usage: SC=path/to/serial_capture.py drive.py TAG SIM_PORT DUT_PORT [PHASES]
 PHASES is a comma list of c, cd, z, b, k, dead (default c,z,b,k,dead). Holds the simulator port for the whole run
 (log and commands); the DUT log is captured per phase into TAG-<phase>.log, each phase starting with a DUT reset.
 Exits 1 when the simulator never reports, the simulator port fails, a phase ends without a fresh simulator report or
-a phase got no readings at all.
+a phase got no readings at all or any wrong temperature.
 """
 
 import os
@@ -123,6 +123,8 @@ def phase(
     )
     if not temps:
         failed.append(f"{name} (no readings)")
+    if wrong:
+        failed.append(f"{name} ({len(wrong)} wrong temperatures)")
     if not fresh or not a or reader_error:
         print(f"{TAG} {name}: no fresh simulator report, sim counters are not valid")
         failed.append(f"{name} (no simulator report)")

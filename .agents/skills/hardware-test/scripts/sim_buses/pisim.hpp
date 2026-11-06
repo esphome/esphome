@@ -46,6 +46,10 @@ inline void attach(Side &s, PacketInterface *link) {
 }
 inline bool send(Side &s, uint16_t i, size_t n) {
   static uint8_t buf[2048];
+  if (n > sizeof(buf)) {
+    s.tx_refused++;
+    return false;
+  }
   fill(buf, n, i);
   PacketBuffer p(buf, n);
   bool ok = s.top->send_to_interface(p, PacketMetaData{});

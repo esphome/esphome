@@ -5,12 +5,13 @@
 // Sits in front of a MAX7219 chain's real SPI delegate and keeps what each chip of the chain would latch.
 class MxSniff : public esphome::spi::SPIDelegate {
  public:
+  static constexpr uint8_t MAX_CHIPS = 8;  // a longer chain counts every transaction as bad
   MxSniff(esphome::spi::SPIDelegate *real, uint8_t chips)
       : SPIDelegate(1000000, esphome::spi::BIT_ORDER_MSB_FIRST, esphome::spi::MODE0, nullptr),
         real_(real),
         chips_(chips) {}
-  uint8_t digits[8][8]{};  // [chip nearest DIN first][register 1..8 - 1]
-  uint8_t ctrl[8][16]{};
+  uint8_t digits[MAX_CHIPS][8]{};  // [chip nearest DIN first][register 1..8 - 1]
+  uint8_t ctrl[MAX_CHIPS][16]{};
   uint32_t transactions{0}, bad{0};
   void begin_transaction() override {
     this->n_ = 0;
@@ -19,7 +20,7 @@ class MxSniff : public esphome::spi::SPIDelegate {
   void end_transaction() override {
     this->real_->end_transaction();
     this->transactions++;
-    if (this->n_ != this->chips_ * 2) {
+    if (this->chips_ > MAX_CHIPS || this->n_ != this->chips_ * 2) {
       this->bad++;
       return;
     }
@@ -42,9 +43,10 @@ class MxSniff : public esphome::spi::SPIDelegate {
     this->real_->write_array(ptr, length);
   }
   void report(const char *name) {
-    char line[8 * 8 * 3 + 1];
+    char line[MAX_CHIPS * 8 * 3 + 1];
     char *o = line;
-    for (uint8_t c = 0; c < this->chips_; c++)
+    *o = '\0';
+    for (uint8_t c = 0; c < this->chips_ && c < MAX_CHIPS; c++)
       for (uint8_t r = 0; r < 8; r++)
         o += sprintf(o, "%02X%s", this->digits[c][r], r == 7 ? "|" : " ");
     ESP_LOGI("mxsim", "MX %s tx=%u bad=%u shutdown=%u scan=%u intensity=%u digits=%s", name,
@@ -60,7 +62,7 @@ class MxSniff : public esphome::spi::SPIDelegate {
   }
   esphome::spi::SPIDelegate *real_;
   uint8_t chips_;
-  uint8_t bytes_[16]{};
+  uint8_t bytes_[MAX_CHIPS * 2]{};
   size_t n_{0};
 };
 

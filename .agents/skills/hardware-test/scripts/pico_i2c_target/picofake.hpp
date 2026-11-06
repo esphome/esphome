@@ -13,6 +13,9 @@ static volatile uint8_t ptr = 0;
 static volatile bool first = true;
 static volatile uint32_t n_rd = 0, n_data = 0, n_ctrl = 0, n_hum = 0, n_abrt = 0;
 static volatile int mode = 0;
+// A mode change is staged and copied in at STOP, so a burst never mixes the two modes
+static uint8_t staged[8];
+static volatile bool staged_ready = false;
 
 static void put16(uint8_t r, uint16_t v) { esphome::put_le16(&regs[r], v); }
 
@@ -20,9 +23,18 @@ static void put16(uint8_t r, uint16_t v) { esphome::put_le16(&regs[r], v); }
 inline void set_mode(int m) {
   const uint8_t d0[8] = {0x65, 0x5A, 0xC0, 0x7E, 0xED, 0x00, 0x75, 0x30};
   const uint8_t d1[8] = {0x80, 0x00, 0x00, 0x80, 0x00, 0x00, 0x80, 0x00};
-  memcpy(&regs[0xF7], m ? d1 : d0, 8);
+  staged_ready = false;
+  memcpy(staged, m ? d1 : d0, 8);
+  staged_ready = true;
   mode = m;
   ESP_LOGI(TAG, "MODE %d", m);
+}
+
+static void apply_staged() {
+  if (staged_ready) {
+    memcpy(&regs[0xF7], staged, 8);
+    staged_ready = false;
+  }
 }
 
 static void irq() {
@@ -63,6 +75,7 @@ static void irq() {
   if (st & I2C_IC_INTR_STAT_R_STOP_DET_BITS) {
     hw->clr_stop_det;
     first = true;
+    apply_staged();
   }
   if (st & I2C_IC_INTR_STAT_R_RESTART_DET_BITS) {
     hw->clr_restart_det;
@@ -96,6 +109,7 @@ inline void start(uint8_t chip_id) {
     regs[0xE7] = 30;
   }
   set_mode(0);
+  apply_staged();
   i2c_init(i2c0, 100000);
   i2c_set_slave_mode(i2c0, true, 0x76);
   gpio_set_function(4, GPIO_FUNC_I2C);

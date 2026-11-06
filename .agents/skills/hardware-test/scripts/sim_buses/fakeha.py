@@ -170,8 +170,8 @@ async def main() -> None:
         expect_small=("bbb", "aaa|bbb|ddd"),
     )
     full = [
-        f"option-{i:02d}-" + "x" * 5 for i in range(16)
-    ]  # 16 options, 15 bytes each = 240
+        f"option-{i:02d}-" + "x" * 4 for i in range(16)
+    ]  # 16 options, 14 characters plus NUL each = 240 bytes
     await step(
         "big 16 long options",
         [(BIG, "options", repr(full)), (BIG, None, full[15])],
