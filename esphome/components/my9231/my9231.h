@@ -2,7 +2,7 @@
 
 #include "esphome/core/component.h"
 #include "esphome/core/hal.h"
-#include <vector>
+#include <span>
 
 namespace esphome::my9231 {
 
@@ -12,7 +12,8 @@ class MY9231OutputComponent final : public Component {
   void set_pin_di(GPIOPin *pin_di) { pin_di_ = pin_di; }
   void set_pin_dcki(GPIOPin *pin_dcki) { pin_dcki_ = pin_dcki; }
 
-  void set_num_channels(uint16_t num_channels) { this->num_channels_ = num_channels; }
+  /// One value per channel, a static array from code generation.
+  void set_pwm_amounts(std::span<uint16_t> pwm_amounts) { this->pwm_amounts_ = pwm_amounts; }
   void set_num_chips(uint8_t num_chips) { this->num_chips_ = num_chips; }
   void set_bit_depth(uint8_t bit_depth) { this->bit_depth_ = bit_depth; }
 
@@ -37,9 +38,8 @@ class MY9231OutputComponent final : public Component {
   GPIOPin *pin_di_;
   GPIOPin *pin_dcki_;
   uint8_t bit_depth_;
-  uint16_t num_channels_;
   uint8_t num_chips_;
-  std::vector<uint16_t> pwm_amounts_;
+  std::span<uint16_t> pwm_amounts_;
   bool update_{true};
 };
 

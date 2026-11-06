@@ -36,6 +36,10 @@ async def to_code(config: ConfigType) -> None:
     await cg.add_pin(var.set_pin_di, config[CONF_DATA_PIN])
     await cg.add_pin(var.set_pin_dcki, config[CONF_CLOCK_PIN])
 
-    cg.add(var.set_num_channels(config[CONF_NUM_CHANNELS]))
+    cg.add(
+        var.set_pwm_amounts(
+            cg.static_buffer(config[CONF_ID], cg.uint16, config[CONF_NUM_CHANNELS])
+        )
+    )
     cg.add(var.set_num_chips(config[CONF_NUM_CHIPS]))
     cg.add(var.set_bit_depth(config[CONF_BIT_DEPTH]))
