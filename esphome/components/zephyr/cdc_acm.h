@@ -3,48 +3,29 @@
 #if defined(USE_ZEPHYR_CDC_ACM_RATE_CALLBACK)
 
 #include "esphome/core/helpers.h"
-#include <array>
 #include <zephyr/device.h>
 
 namespace esphome::zephyr {
 
-#define ESPHOME_CDC_ACM_DEVICE(node_id) DEVICE_DT_GET(node_id),
-
 /// Passes the bit rate a USB host sets on a CDC ACM port from the USB driver's thread to the main loop.
 class CdcAcm final {
  public:
-  /// Call from setup(). Rates reach the callbacks on the main loop, starting with each port's current rate, so a
-  /// rate the host set during boot is not missed.
+  /// Call from setup(). Callbacks get each port's current rate, then every rate the host sets, in order, on the
+  /// main loop.
   template<typename F> void add_on_rate_callback(F &&callback) {
-    if (this->rate_callbacks_.size() == 0) {
+    if (this->rate_callbacks_.size() == 0)
       this->start_();
-    } else {
-      // The first report may already have run (the scheduler runs while a setup() waits)
-      for (size_t i = 0; i < DEVICES.size(); i++) {
-        if (this->rates_[i] != 0)
-          callback(DEVICES[i], this->rates_[i]);
-      }
-    }
     this->rate_callbacks_.add(std::forward<F>(callback));
   }
 
-  /// Called by the USB driver, from its own thread, when the host sets a bit rate. Each call is passed on, in
-  /// order, so a short change such as the 1200 bps DFU touch is not lost if the host sets another rate quickly.
-  static void rate_changed(const device *dev, uint32_t rate);
+  /// Called by the USB driver, from its own thread, after the host set the bit rate of `dev`.
+  static void rate_changed(const device *dev);
 
  protected:
-  // Every zephyr,cdc-acm-uart port, in device tree order
-  static constexpr std::array<const device *, DT_NUM_INST_STATUS_OKAY(zephyr_cdc_acm_uart)> DEVICES{
-      DT_FOREACH_STATUS_OKAY(zephyr_cdc_acm_uart, ESPHOME_CDC_ACM_DEVICE)};
-
   void start_();
-  void report_rate_(const device *dev, uint32_t rate);
+  static void post_rate(const device *dev);
   CallbackManager<void(const device *, uint32_t)> rate_callbacks_;
-  // Last bit rate reported for each port in DEVICES
-  std::array<uint32_t, DEVICES.size()> rates_{};
 };
-
-#undef ESPHOME_CDC_ACM_DEVICE
 
 extern CdcAcm *global_cdc_acm;  // NOLINT(cppcoreguidelines-avoid-non-const-global-variables)
 

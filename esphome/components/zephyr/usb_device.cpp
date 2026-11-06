@@ -8,7 +8,6 @@
 #include <initializer_list>
 #ifdef USE_ZEPHYR_CDC_ACM_RATE_CALLBACK
 #include "cdc_acm.h"
-#include <zephyr/drivers/uart.h>
 #endif
 #else
 #include <cerrno>
@@ -48,9 +47,8 @@ static void usbd_msg_callback(usbd_context *const ctx, const usbd_msg *const msg
     }
   }
 #ifdef USE_ZEPHYR_CDC_ACM_RATE_CALLBACK
-  uint32_t rate = 0;
-  if (msg->type == USBD_MSG_CDC_ACM_LINE_CODING && uart_line_ctrl_get(msg->dev, UART_LINE_CTRL_BAUD_RATE, &rate) == 0)
-    CdcAcm::rate_changed(msg->dev, rate);
+  if (msg->type == USBD_MSG_CDC_ACM_LINE_CODING)
+    CdcAcm::rate_changed(msg->dev);
 #endif
 }
 
