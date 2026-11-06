@@ -2587,7 +2587,7 @@ template<class T> class RAMAllocator {
 /// `count` zeroed elements from RAMAllocator, so they may live in PSRAM; nullptr if allocation fails.
 /// What `cg.static_buffer(..., psram=True)` emits in place of a static array when the build has PSRAM.
 template<class T> T *psram_buffer(size_t count) {
-  T *buffer = RAMAllocator<T>().allocate(count);
+  T *buffer = RAMAllocator<T>().make_unique_array_for_overwrite(count).release();
   if (buffer != nullptr)
     memset(buffer, 0, count * sizeof(T));
   return buffer;
