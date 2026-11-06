@@ -186,6 +186,18 @@ def test_rp2_rejects_esp32_only_keys_by_name(
         bluetooth_proxy.CONFIG_SCHEMA({"connections": [{}]})
 
 
+def test_esp32_explicit_connections_claim_gatt_slots(
+    set_core_config: SetCoreConfigCallable,
+) -> None:
+    # Explicit `connections:` entries must charge the slot ledger like the
+    # generated ones; dev historically let them evade the budget.
+    set_core_config(PlatformFramework.ESP32_IDF)
+    bluetooth_proxy.CONFIG_SCHEMA({"active": True, "connections": [{}, {}]})
+    # Exact match (one entry per slot): catches a missed charge and a
+    # double charge alike.
+    assert bluetooth_connection._get_data().slot_consumers == ["bluetooth_proxy"] * 2
+
+
 def test_hub_source_filter_covers_every_hub_platform() -> None:
     # bluetooth_connection cannot import this module to derive the hub.cpp
     # framework set, so pin it here: a platform admitted to the proxy but
@@ -229,6 +241,12 @@ def test_every_registered_hub_platform_has_a_schema_arm() -> None:
     # Hub platforms must also be in the backend registry the shared codegen
     # helpers dispatch on.
     assert registered <= set(bluetooth_connection._PLATFORM_BACKENDS)
+    # Every non-esp32 backend platform must carry a slot cap: without one the
+    # ledger's FINAL_VALIDATE accepts unlimited claims silently (esp32's cap
+    # is the controller budget in esp32_ble).
+    assert set(bluetooth_connection._PLATFORM_BACKENDS) - {"esp32"} <= set(
+        bluetooth_connection.HUB_MAX_CONNECTIONS
+    )
     # The outer walkable schema's bound must stay the loosest platform cap.
     assert (
         max(bluetooth_connection.HUB_MAX_CONNECTIONS.values())
