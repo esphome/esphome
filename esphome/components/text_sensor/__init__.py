@@ -74,6 +74,11 @@ TimeoutThrottleFilter = text_sensor_ns.class_(
     "TimeoutThrottleFilter", TimeoutFilterLast
 )
 Substitution = text_sensor_ns.struct("Substitution")
+ApplyFilter = text_sensor_ns.class_("ApplyFilter", Filter)
+# The value is modified in place; returning false stops the chain
+APPLY_FILTER = automation.ApplyFilterDomain(
+    FILTER_REGISTRY, ApplyFilter, cg.bool_, ((cg.std_string.operator("ref"), "x"),)
+)
 
 
 @FILTER_REGISTRY.register("lambda", LambdaFilter, cv.returning_lambda)
