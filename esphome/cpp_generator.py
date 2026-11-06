@@ -567,14 +567,19 @@ def shared_progmem_string(value: str) -> Expression:
     return text
 
 
-def static_buffer(owner: ID, type_: "MockObjClass", size: int | str) -> "MockObj":
+def static_buffer(
+    owner: ID, type_: "MockObjClass", size: int | str, *, psram: bool = False
+) -> "MockObj":
     """Emit a zeroed file-scope ``static type_ <component>__<owner>_buffer__pstorage[size];``.
 
     Named like placement new storage, so ``esphome analyze-memory`` counts it under the owner.
-    ``size`` may be a C++ constant expression.
+    ``size`` may be a C++ constant expression. With ``psram=True`` a build with the psram
+    component gets ``nullptr`` instead, and the C++ passes it to ``static_or_heap()``.
     """
     if not isinstance(owner, ID) or owner.type is None:
         raise EsphomeError(f"Buffer owner '{owner}' must be the owning component's ID")
+    if psram and "psram" in CORE.loaded_integrations:
+        return MockObj("nullptr")
     base = unique_global_id(f"{owner.id}_buffer", type_)
     name = f"{_extract_component_ns(str(owner.type))}__{base}__pstorage"
     CORE.add_global(RawStatement(f"static {type_} {name}[{size}];"))
