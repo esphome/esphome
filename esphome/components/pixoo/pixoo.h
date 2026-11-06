@@ -19,11 +19,22 @@ enum PixooModel : uint8_t {
   PIXOO_64 = 64,
 };
 
+static constexpr size_t PACKET_STATIC_LEN = 5;  // header + tail
+
 class Pixoo : public display::Display,
               public spi::SPIDevice<spi::BIT_ORDER_MSB_FIRST, spi::CLOCK_POLARITY_LOW, spi::CLOCK_PHASE_LEADING,
                                     spi::DATA_RATE_8MHZ> {
  public:
-  explicit Pixoo(PixooModel model) : model_(model) {}
+  // frame_buffer holds frame_words(model) words; word-aligned for the SPI DMA transfer.
+  Pixoo(PixooModel model, uint32_t *frame_buffer)
+      : model_(model), frame_buffer_(reinterpret_cast<uint8_t *>(frame_buffer)) {}
+
+  // Full SPI frame: a DATA packet (header + RGB888 + tail), then a DMA-chunk-sized UNUSED packet so the
+  // LED board completes its final DMA block.
+  static constexpr size_t frame_size(PixooModel model) {
+    return static_cast<size_t>(model) * model * 3 + PACKET_STATIC_LEN + DMA_CHUNK;
+  }
+  static constexpr size_t frame_words(PixooModel model) { return (frame_size(model) + 3) / 4; }
 
   void setup() override;
   void update() override;
@@ -58,7 +69,7 @@ class Pixoo : public display::Display,
   size_t frame_size_{0};  // full SPI frame: DATA packet + trailing UNUSED packet
 
   split_buffer::SplitBuffer buffer_{};
-  uint8_t *frame_buffer_{nullptr};
+  uint8_t *frame_buffer_;
   uint8_t cmd_buffer_[DMA_CHUNK]{};
 };
 
