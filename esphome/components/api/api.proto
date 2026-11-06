@@ -421,6 +421,17 @@ message SendspinCapabilities {
   string client_id = 2 [(max_data_length) = 43];
 }
 
+// The device's primary network interface, using the same priority order as its default route
+// (see network::get_network_type()) when more than one is connected. Modem/cellular interfaces
+// are intentionally out of scope for this first step and report NETWORK_TYPE_UNKNOWN, same as a
+// disconnected or not-compiled-in interface.
+enum NetworkType {
+  NETWORK_TYPE_UNKNOWN = 0;
+  NETWORK_TYPE_WIFI = 1;
+  NETWORK_TYPE_ETHERNET = 2;
+  NETWORK_TYPE_THREAD = 3;
+}
+
 message CrashReportCapabilities {
   // Bitmask of CrashReportFlag. ESP32 checks BUILD_MATCHES against the build time stored with the record;
   // ESP8266, RP2 and LibreTiny store none and assume it.
@@ -440,6 +451,10 @@ message DeviceCapabilitiesResponse {
   SendspinCapabilities sendspin = 6 [(field_ifdef) = "USE_SENDSPIN"];
   StoreYamlCapabilities store_yaml = 7 [(field_ifdef) = "USE_STORE_YAML"];
   CrashReportCapabilities crash_report = 8 [(field_ifdef) = "USE_CRASH_REPORT"];
+  // The device's primary connected interface when this response was sent, using the same
+  // priority as the default route. Not necessarily the interface carrying this API connection.
+  // UNKNOWN when no station-mode interface is connected, including AP-only.
+  NetworkType network_type = 9;
 }
 
 // ==================== DEVICE WIZARD ====================

@@ -65,6 +65,45 @@ ESPHOME_ALWAYS_INLINE inline bool is_connected() {
   // NOLINTEND(readability-simplify-boolean-expr)
 }
 
+/// The network interface currently providing connectivity, in priority order when more than one
+/// is connected. Modem has no value yet (no matching API wire value); a device reachable only
+/// over modem reports NETWORK_TYPE_NONE, same as no interface being connected at all.
+/// Numbered to match api::enums::NetworkType so api_connection.cpp can cast instead of switching;
+/// keep the two in sync.
+enum class NetworkType : uint8_t {
+  NETWORK_TYPE_NONE = 0,
+  NETWORK_TYPE_WIFI = 1,
+  NETWORK_TYPE_ETHERNET = 2,
+  NETWORK_TYPE_THREAD = 3,
+};
+
+/// Return which interface the device is currently reachable through. Uses the same
+/// wifi-vs-ethernet priority pivot as get_use_address_to() (USE_NETWORK_PRIMARY_INTERFACE_WIFI),
+/// so the reported interface always matches the address a client would actually use.
+ESPHOME_ALWAYS_INLINE inline NetworkType get_network_type() {
+#if defined(USE_NETWORK_PRIMARY_INTERFACE_WIFI) && defined(USE_WIFI)
+  if (wifi::global_wifi_component != nullptr && wifi::global_wifi_component->is_connected())
+    return NetworkType::NETWORK_TYPE_WIFI;
+#endif
+
+#ifdef USE_ETHERNET
+  if (ethernet::global_eth_component != nullptr && ethernet::global_eth_component->is_connected())
+    return NetworkType::NETWORK_TYPE_ETHERNET;
+#endif
+
+#if !defined(USE_NETWORK_PRIMARY_INTERFACE_WIFI) && defined(USE_WIFI)
+  if (wifi::global_wifi_component != nullptr && wifi::global_wifi_component->is_connected())
+    return NetworkType::NETWORK_TYPE_WIFI;
+#endif
+
+#if defined(USE_OPENTHREAD) && !defined(USE_OPENTHREAD_BORDER_ROUTER)
+  if (openthread::global_openthread_component != nullptr && openthread::global_openthread_component->is_connected())
+    return NetworkType::NETWORK_TYPE_THREAD;
+#endif
+
+  return NetworkType::NETWORK_TYPE_NONE;
+}
+
 /// Return whether the network is disabled: every configured interface with a
 /// disable() lifecycle (modem, wifi, ethernet) is disabled.
 bool is_disabled();
