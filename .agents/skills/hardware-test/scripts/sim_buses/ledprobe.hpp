@@ -32,7 +32,11 @@ inline void sample(void *) {
 }
 
 inline void start() {
-  gpio_input_enable(PIN);
+  esp_err_t err = gpio_input_enable(PIN);
+  if (err != ESP_OK) {
+    ESP_LOGE("probe", "LED pin input failed: %s", esp_err_to_name(err));
+    return;
+  }
   esp_timer_create_args_t a{};
   a.callback = sample;
   a.name = "ledprobe";

@@ -16,7 +16,7 @@ pkill -f "[s]erial_capture.py $P"; pkill -f "[s]erial_capture.py $FP"
 (cd "$T" && $PY -m esphome run --no-logs "$R/$NAME.yaml" --device "$P" > "$OUT/upload.log" 2>&1) || { echo "build or upload failed"; exit 1; }
 $PY "$SC" "$FP" $((S + 3)) "$OUT/fake.txt" > /dev/null 2>&1 &
 FAKE_CAP=$!
-$PY "$SC" "$P" "$S" "$OUT/dut.txt" --reset > /dev/null 2>&1 || { echo "FAIL: DUT capture got nothing"; exit 1; }
+$PY "$SC" "$P" "$S" "$OUT/dut.txt" --reset > /dev/null 2>&1 || { kill $FAKE_CAP 2>/dev/null; echo "FAIL: DUT capture got nothing"; exit 1; }
 wait $FAKE_CAP || { echo "FAIL: fake capture got nothing (FAKE_PORT right?)"; exit 1; }
 grep -a -q "STAT mode=" "$OUT/fake.txt" || { echo "FAIL: no STAT lines from the fake (flashed? FAKE_PORT right?)"; exit 1; }
 grep -a -o "STAT .*" "$OUT/fake.txt" | tail -1
