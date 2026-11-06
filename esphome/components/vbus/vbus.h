@@ -34,6 +34,7 @@ class VBus final : public uart::UARTDevice, public Component {
 
  protected:
   int state_{0};
+  uint32_t last_rx_ms_{0};
   std::vector<uint8_t> buffer_;
   uint8_t protocol_;
   uint16_t source_;
