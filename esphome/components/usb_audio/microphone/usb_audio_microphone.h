@@ -58,7 +58,7 @@ class USBAudioMicrophone : public microphone::Microphone,
   void mic_task_loop_();
   void request_(uint8_t set, uint8_t clear);
 
-  // 2 * READ_TIMEOUT_MS of audio.
+  // Sized by codegen from READ_PERIOD_MS in microphone/__init__.py.
   std::span<uint8_t> frame_;
   // Created once in setup() and parked between streams.
   StaticTask mic_task_;
