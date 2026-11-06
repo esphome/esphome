@@ -24,14 +24,10 @@ CONF_FEATURES_STEP_SIZE = "features_step_size"
 CONF_FEATURE_COUNT = "feature_count"
 
 tflite_micro_runtime_ns = cg.esphome_ns.namespace("tflite_micro_runtime")
-# A Component, so setup() loads the configured model and dump_config() reports it
-# at boot even when no consumer references the model. An audio model is the
-# exception: setup() leaves loading it to the streaming consumer.
+# A Component, so setup() loads the configured model even without a consumer.
 TFLiteMicroHelper = tflite_micro_runtime_ns.class_("TFLiteMicroHelper", cg.Component)
 
-# Closed name sets the helper stores as C++ enums. The configuration keeps the
-# names, because they also select the code path here; to_code maps each one with
-# the tables below.
+# Closed name sets the helper stores as C++ enums; to_code maps them with the tables.
 ModelType = tflite_micro_runtime_ns.enum("ModelType", is_class=True)
 InputType = tflite_micro_runtime_ns.enum("InputType", is_class=True)
 InputOrder = tflite_micro_runtime_ns.enum("InputOrder", is_class=True)
@@ -53,10 +49,8 @@ INPUT_ORDERS = {
     "GRAY": InputOrder.INPUT_ORDER_GRAY,
 }
 
-# tflite_output_processor implements these four modes. The names below them come
-# from the upstream project this component was ported from and map onto the mode
-# they actually behaved like, so an existing configuration still validates without
-# keeping five aliases in the C++ enum.
+# The four modes tflite_output_processor implements. The other names come from the
+# upstream project and map onto the mode they behaved like.
 OUTPUT_PROCESSING_MODES = {
     "argmax": "argmax",
     "softmax": "softmax",
@@ -69,10 +63,8 @@ OUTPUT_PROCESSING_MODES = {
     "experimental_scale": "softmax",
 }
 
-# Spellings the YAML options and a model's .txt report share. ``int8`` is not one
-# of them: the image pipeline of tflite_model_source rejects an int8 model (its
-# buffer would be filled with the wrong zero point), so no report can name it and
-# only the C++ enumerator is kept for a consumer that sets it directly.
+# Names the YAML options and a .txt report share. int8 is not one: the image
+# pipeline of tflite_model_source rejects an int8 model.
 INPUT_TYPE_NAMES = {"uint8": "uint8", "float32": "float32"}
 INPUT_ORDER_NAMES = {"RGB": "RGB", "BGR": "BGR", "GRAY": "GRAY"}
 
@@ -108,11 +100,8 @@ PER_MODEL_SCHEMA = cv.Schema(
     }
 )
 
-# The values a model's .txt report may supply, validated with the same rules as the
-# YAML options of the same name. The report is written by the model exporter, so an
-# unknown name in it would otherwise reach code generation and fail there with a
-# KeyError instead of a configuration error. Keys this schema does not know are kept
-# as they are: the operator count of an image report is used elsewhere in the build.
+# Values a model's .txt report may supply, validated like the YAML options. Unknown
+# keys are kept: the operator count of an image report is used elsewhere in the build.
 IMAGE_REPORT_VALUES_SCHEMA = cv.Schema(
     {
         cv.Optional(CONF_INPUT_TYPE): cv.enum(INPUT_TYPE_NAMES, lower=True),
@@ -142,18 +131,14 @@ AUDIO_REPORT_VALUES_SCHEMA = cv.Schema(
     extra=cv.ALLOW_EXTRA,
 )
 
-# Keyed by the ``model_type`` values of the configuration schema.
 REPORT_VALUES_SCHEMAS = {
     "image": IMAGE_REPORT_VALUES_SCHEMA,
     "audio": AUDIO_REPORT_VALUES_SCHEMA,
 }
 
-
 MULTI_CONF = True
 CONFIG_SCHEMA = cv.All(PER_MODEL_SCHEMA.extend(cv.COMPONENT_SCHEMA), cv.only_on_esp32)
 
 # Static, not computed from CORE at import time: the module is imported once per
-# process, so a value derived from CORE there goes stale (and is order dependent)
-# in a long-running dashboard. CONFIG_SCHEMA already rejects every non-ESP32
-# target, and the siblings are auto-loaded, so only the platform is listed here.
+# process, so a CORE-derived value goes stale in a long-running dashboard.
 DEPENDENCIES = ["esp32"]

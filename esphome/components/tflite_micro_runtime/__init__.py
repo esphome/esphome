@@ -1,11 +1,8 @@
 """Component to manage TFLite Micro models and inference runtime.
 
-Supports image (single-shot) and audio (streaming) model types,
-with local file, github shorthand, and http URL model sources.
-
-C++ runtime for https://github.com/espressif/esp-tflite-micro.
-Model source resolution and metadata parsing live in the
-tflite_model_source component.
+Supports image (single-shot) and audio (streaming) model types. The C++ runtime
+wraps https://github.com/espressif/esp-tflite-micro; model source resolution and
+metadata parsing live in the tflite_model_source component.
 """
 
 from dataclasses import dataclass
@@ -70,8 +67,7 @@ DOMAIN = "tflite_micro_runtime"
 # Operator slots kept when no .txt report says how many the model needs.
 _MAX_OPERATORS_FLOOR = 30
 
-# Headroom over the counted operators, which also covers a model that registers one
-# slot per operator version.
+# Headroom over the counted operators, covering a slot per operator version.
 _MAX_OPERATORS_MARGIN = 5
 
 # "Total operations: N" in a model's .txt report.
@@ -94,8 +90,7 @@ def _runtime_data() -> _RuntimeData:
     return data
 
 
-# Library-only sub-components carrying the split C++ sources of the former
-# monolithic component. Auto-loaded so users only configure tflite_micro_runtime.
+# Library-only sub-components, auto-loaded so users only configure this component.
 AUTO_LOAD = [
     "tflite_memory_handler",
     "tflite_model_debug",
@@ -110,9 +105,7 @@ CONFIG_SCHEMA = _schema.CONFIG_SCHEMA
 MULTI_CONF = _schema.MULTI_CONF
 DEPENDENCIES = _schema.DEPENDENCIES + ["tflite_model_source"]
 
-# Re-exported for consumers which reference the runtime class through this
-# component. The class is a Component on its own, so a configuration without such
-# a consumer still loads its model in setup() and reports it in dump_config().
+# Re-exported for consumers which reference the runtime class through this component.
 __all__ = [
     "TFLiteMicroHelper",
     "CONFIG_SCHEMA",
@@ -127,27 +120,20 @@ async def to_code(config: ConfigType) -> None:
     model_type = config[CONF_MODEL_TYPE]
     model_path, model_data = resolve_model_source(config)
     var = cg.new_Pvariable(config[CONF_ID])
-    # Registers the helper with the App, which is what makes setup() (model load)
-    # and dump_config() run.
     await cg.register_component(var, config)
     rhs = [HexInt(x) for x in model_data]
     prog_arr = cg.progmem_array(config[CONF_RAW_DATA_ID], rhs)
     cg.add(var.set_model(prog_arr, len(model_data)))
-    # Per-instance CRC32 - MULTI_CONF safe, each TFLiteMicroHelper carries its own expected checksum
-    crc32_val = zlib.crc32(model_data) & 0xFFFFFFFF
-    cg.add(var.set_expected_crc32(crc32_val))
+    # Per-instance CRC32 - MULTI_CONF safe, each helper carries its own checksum.
+    cg.add(var.set_expected_crc32(zlib.crc32(model_data) & 0xFFFFFFFF))
     cg.add(var.set_model_type(MODEL_TYPES[model_type]))
     cg.add_build_flag("-DTF_LITE_STATIC_MEMORY")
     cg.add_build_flag("-DTF_LITE_DISABLE_X86_NEON")
     cg.add_build_flag("-DESP_NN")
     cg.add_build_flag("-DOPTIMIZED_KERNEL=esp_nn")
-    # The operator defines are process-global compile-time macros, so they are
-    # computed across ALL configured models and emitted once for the whole build.
+    # Operator defines are process-global, so they cover ALL configured models.
     _add_operator_defines()
     if config.get(CONF_DEBUG, False):
-        # Per instance only: set_debug() switches the verbose logging and the
-        # extra load diagnostics of this helper. It does not touch the build-wide
-        # defines above.
         cg.add(var.set_debug(True))
     if model_type == "image":
         await _configure_image_model(config, var, model_path)
@@ -167,18 +153,12 @@ def _model_filename(model_path: Path) -> str:
 def _validate_model_operators(model_path: Path) -> None:
     """Reject a model whose operators the pinned TFLM cannot register.
 
-    A model without a .txt report cannot be checked here; the loader's
-    device-side check covers it at load time. A report that has no operator
-    section is treated the same way: it says nothing about what the model runs,
-    so it must not pass as a model that needs no kernel. A report that cannot be
-    read at all raises from ``extract_model_ops()`` and is reported here as a
-    config error.
+    A missing or operator-less report cannot be checked here; the device-side check
+    covers it at load time. A report that cannot be read is a config error.
     """
     try:
         model_ops = extract_model_ops(model_path)
     except ValueError as err:
-        # Report the parse failure as a config error, not as an unexpected
-        # exception with a traceback.
         raise cv.Invalid(str(err)) from err
     if not model_ops:
         _LOGGER.info(
@@ -211,17 +191,11 @@ def _validate_report_values(
     model_path: Path,
     source: str = "the .txt report",
 ) -> ConfigType:
-    """Validate the values a model's .txt report supplies.
-
-    The report is written by the model exporter, so one unknown value in it would
-    otherwise reach code generation, where cv.Invalid is not caught and the user
-    sees a traceback instead of a configuration error.
-    """
+    """Validate the values a model's .txt report supplies."""
     try:
         return REPORT_VALUES_SCHEMAS[model_type](values)
     except cv.Invalid as err:
-        # cv.Invalid of a key loses its key name when it is re-raised as text, so
-        # repeat the path here to keep the message pointing at the report entry.
+        # Re-raising as text loses the key path, so repeat it here.
         where = "".join(f"[{key}]" for key in err.path)
         raise cv.Invalid(
             f"Invalid value in {source} of model "
@@ -230,37 +204,21 @@ def _validate_report_values(
 
 
 def _report_values(model_path: Path, model_type: str) -> ConfigType | None:
-    """The values of the model's .txt report, validated, or None without one.
-
-    Both the final validation and code generation read the report through this
-    function, so the values that reach the C++ setters are the ones the schema
-    produced: a spelling it lowercases, a size it converts to bytes.
-    """
+    """Validated .txt report values, or None without a report."""
     if (report := _parse_report(model_path, model_type)) is None:
         return None
     return _validate_report_values(report, model_type, model_path)
 
 
 def _final_validate(config: ConfigType) -> None:
-    """Check the model itself once every component has validated.
-
-    Both checks need the resolved model file and both can reject the
-    configuration: an operator esp-tflite-micro cannot register, or a .txt report
-    value the runtime cannot use. They run here rather than in to_code() so the
-    failure names the model and is reported as a configuration error. An image
-    model is resolved completely, which also rejects it when no source provides
-    its input shape.
-    """
+    """Check the model itself once every component has validated."""
     model_type = config[CONF_MODEL_TYPE]
     model_path, _ = resolve_model_source(config)
     _validate_model_operators(model_path)
     if model_type == "image":
-        # Resolving the image configuration is also what rejects a model whose input
-        # shape no report, file name or YAML option provides.
+        # Also rejects a model whose input shape no source provides.
         _resolve_image_config(config, model_path)
         return
-    # The same call code generation reads the report through, so a value that only
-    # passes because it is coerced is also the value that reaches the C++ setters.
     _report_values(model_path, model_type)
 
 
@@ -268,29 +226,13 @@ FINAL_VALIDATE_SCHEMA = _final_validate
 
 
 def _add_build_defines() -> None:
-    """Emit the defines that describe the build rather than one model.
-
-    ``USE_TFLITE_MICRO_HELPER`` compiles the runtime in and
-    ``DEBUG_TFLITE_MICRO_HELPER`` compiles in the diagnostics of the loader it
-    calls: the check that the buffer starts with the TFL3 identifier, and the arena
-    usage it logs when tensor allocation fails. Both are emitted for every build,
-    because the second one is read when a model fails to load -- on a device that
-    would have had to be built with it beforehand. Neither belongs to a model: a
-    model's ``debug:`` only calls set_debug(), which switches the verbose logging
-    of that one helper. CORE.defines is a set keyed by name and value, so the
-    MULTI_CONF invocations that emit a value-less define again keep one entry.
-    """
+    """Emit the defines that describe the build rather than one model."""
     cg.add_define("USE_TFLITE_MICRO_HELPER")
     cg.add_define("DEBUG_TFLITE_MICRO_HELPER")
 
 
 def _emit_max_operators(value: int) -> None:
-    """Queue the resolver size, widening a value another component already set.
-
-    ``CORE.defines`` is keyed by name and value, so leaving both entries would emit
-    the same macro twice. Another component can only need more slots than it asks
-    for, so the larger value wins instead of this component staying silent.
-    """
+    """Queue the resolver size, widening a value another component already set."""
     for define in list(CORE.defines):
         if define.name != _MAX_OPERATORS_DEFINE:
             continue
@@ -314,40 +256,22 @@ def _emit_max_operators(value: int) -> None:
 
 
 def _add_operator_defines() -> None:
-    """Emit the operator defines once for the whole build.
-
-    Unlike the value-less defines above, a define that carries a value keeps one
-    entry per call: ``cg.add_define()`` wraps the value in an expression object
-    that compares by identity. Calling this from every to_code() invocation
-    (MULTI_CONF) would write the same ``#define`` several times, so skip it when
-    this component already emitted it; every invocation computes the same value
-    anyway. Only this component's own state counts: a define queued by another
-    component is widened instead of being mistaken for this one's.
-    """
+    """Emit the operator defines once for the whole build."""
     data = _runtime_data()
     if data.operator_defines_emitted:
         return
     data.operator_defines_emitted = True
     _emit_max_operators(_compute_max_operators())
     if (ops := _selective_op_defines()) is None:
-        # Another component may already have limited the kernels. The operator set
-        # of a model here is unknown, so the whole table must win over that.
+        # A model's operator set is unknown, so the whole table must win.
         emit_all_ops()
         return
-    # tflite_op_processor owns the flags, so every component that configures the
-    # selective build widens the same process-global set through one place.
+    # tflite_op_processor owns the flags, so the selective build goes through it.
     emit_selective_op_defines(sorted(ops))
 
 
 def _selective_op_defines() -> set[str] | None:
-    """Return the operators the configured models need, or None to keep every kernel.
-
-    The kernels no model uses can be left out only when the operator set of every
-    configured model is known at config time. One model without a .txt report, or
-    with a report that names no operator, keeps the whole table: a firmware missing
-    the kernel that model needs would fail at registration time on the device
-    instead of at build time.
-    """
+    """Return the operators the configured models need, or None to keep every kernel."""
     if CORE.config is None:
         return None
     ops: set[str] = set()
@@ -365,29 +289,17 @@ def _selective_op_defines() -> set[str] | None:
 
 
 def _compute_max_operators() -> int:
-    """Compute the single TFLITE_MICRO_MAX_OPERATORS value for the ENTIRE build.
+    """Compute the single TFLITE_MICRO_MAX_OPERATORS value for the entire build.
 
-    Defines are process-global. With MULTI_CONF each to_code() invocation would
-    otherwise emit its own value and the last one wins -- silently breaking
-    earlier models with a too-small resolver.
-    All invocations therefore compute the SAME max across every configured model.
-
-    Each report is read two ways: its operator list gives the operator types the
-    resolver registers, its "Total operations" line the number of nodes, which also
-    covers a model that registers several versions of one operator. The larger
-    reading wins, so a report that has only one of them still sizes the resolver
-    instead of leaving it at the floor. The floor itself is not optional: a model
-    whose report is missing would otherwise get whatever count the other models
-    produced, and its resolver would only fail at registration on the device.
+    Defines are process-global, so every to_code() invocation must compute the same
+    max across every configured model. Both readings of a report count: its operator
+    list and its "Total operations" line; the larger one wins.
     """
     if CORE.config is None:
         return _MAX_OPERATORS_FLOOR
     max_ops = 0
     for entry in CORE.config.get(DOMAIN, []):
         model_path, _ = resolve_model_source(entry)
-        # The operator list is what selective op compilation is built from, so it
-        # also sizes the resolver: a report without a "Total operations" line must
-        # not leave it at the floor while its operator list enables selective ops.
         model_ops = extract_model_ops(model_path)
         if model_ops:
             max_ops = max(max_ops, len(model_ops) + _MAX_OPERATORS_MARGIN)
@@ -419,8 +331,7 @@ def _compute_max_operators() -> int:
     return max(_MAX_OPERATORS_FLOOR, max_ops)
 
 
-# Keys a .txt report supplies under the same name as the YAML option, so a value
-# given in the YAML wins by overwriting it.
+# Keys a .txt report supplies under the same name as the YAML option.
 _IMAGE_REPORT_KEYS = (
     CONF_INPUT_TYPE,
     CONF_INPUT_CHANNELS,
@@ -453,12 +364,7 @@ def _merge_report_values(
 
 
 def _resolve_image_config(entry: ConfigType, model_path: Path) -> ConfigType:
-    """The image configuration, with the YAML values applied over the report.
-
-    The width and height have no default: the file name conventions describe the
-    channel order only, so a model with no shape from either source is rejected here
-    instead of building a firmware whose load cannot match its input tensor.
-    """
+    """The image configuration, with the YAML values applied over the report."""
     model_filename = _model_filename(model_path)
     if (values := _report_values(model_path, "image")) is not None:
         auto_config = values
@@ -496,8 +402,7 @@ async def _configure_image_model(
     cg.add(var.set_input_channels(auto_config.get(CONF_INPUT_CHANNELS, 3)))
     cg.add(var.set_input_width(auto_config[CONF_INPUT_WIDTH]))
     cg.add(var.set_input_height(auto_config[CONF_INPUT_HEIGHT]))
-    # Through the table, so C++ only ever receives a mode tflite_output_processor
-    # implements -- also for a YAML alias, which cv.enum keeps as the alias name.
+    # Through the table, so C++ only receives a mode tflite_output_processor implements.
     cg.add(
         var.set_output_processing(
             OUTPUT_PROCESSING_MODES[auto_config.get(CONF_OUTPUT_PROCESSING, "argmax")]
@@ -516,8 +421,6 @@ async def _configure_audio_model(
 ) -> None:
     report = _report_values(model_path, "audio")
     if report is None:
-        # Every audio parameter then comes from YAML or from the C++ defaults, and
-        # a streaming model whose window or feature count is wrong still builds.
         _LOGGER.warning(
             "No audio metadata for '%s'; the audio options come from the YAML "
             "configuration or the C++ defaults",
