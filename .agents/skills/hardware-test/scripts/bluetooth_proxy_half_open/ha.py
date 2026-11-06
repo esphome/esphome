@@ -12,7 +12,7 @@ import asyncio
 import sys
 import time
 
-from aioesphomeapi import APIClient
+from aioesphomeapi import APIClient, APIConnectionError
 
 HOST, KEY, ROLE = sys.argv[1], sys.argv[2], sys.argv[3]
 MARK = b"\xff\xff\x21\x56"
@@ -62,7 +62,8 @@ async def connect_once(
             addr, on_state, timeout=30, feature_flags=flags, address_type=atype
         )
         return await asyncio.wait_for(st, 30)
-    except Exception as e:  # noqa: BLE001
+    except (TimeoutError, APIConnectionError) as e:
+        # TimeoutAPIError and a dropped API link are both APIConnectionError; anything else is a rig bug
         log(f"{label} error {e!r} at {time.time() - t0:.2f} s")
         return False
 
@@ -84,6 +85,9 @@ async def swap(c: APIClient, flags: int, addr: int) -> None:
         if await connect_once(c, addr, flags, f"attempt {attempt}", t0):
             log(f"CONNECTED on attempt {attempt} at {time.time() - t0:.2f} s")
             break
+    else:
+        log("both attempts failed, nothing to release")
+        return
     await c.bluetooth_device_disconnect(addr)
     await asyncio.sleep(2)
 
