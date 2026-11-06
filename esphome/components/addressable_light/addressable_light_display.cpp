@@ -20,7 +20,7 @@ void AddressableLightDisplay::display() {
   bool dirty = false;
   Color *c;
 
-  for (uint32_t offset = 0; offset < this->addressable_light_buffer_.size(); offset++) {
+  for (int32_t offset = 0; offset < this->width_ * this->height_; offset++) {
     c = &(this->addressable_light_buffer_[offset]);
 
     light::ESPColorView pixel = (*this->light_)[offset];
@@ -48,7 +48,7 @@ void HOT AddressableLightDisplay::draw_absolute_pixel_internal(int x, int y, Col
   if (this->pixel_mapper_f_.has_value()) {
     // Params are passed by reference, so they may be modified in call.
     int index = (*this->pixel_mapper_f_)(x, y);
-    if (index < 0 || static_cast<size_t>(index) >= this->addressable_light_buffer_.size())
+    if (index < 0 || index >= this->width_ * this->height_)
       return;
     this->addressable_light_buffer_[index] = color;
   } else {

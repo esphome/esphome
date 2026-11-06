@@ -40,8 +40,7 @@ class XxteaEncryption : public PacketInterface {
   }
   static constexpr size_t buffer_words(size_t lower_size) { return lower_size / 4 * 2; }
 
-  /// @param buffers buffer_words() words for the send and receive buffers;
-  /// nullptr on PSRAM builds, which allocate them in setup()
+  /// @param buffers buffer_words() words for the send and receive buffers; setup() fails if it is nullptr
   XxteaEncryption(PacketInterface *lower, bool rolling_code, uint32_t *buffers);
 
   void setup() override;
@@ -56,7 +55,6 @@ class XxteaEncryption : public PacketInterface {
   void next_boot_();
 
   PacketInterface *lower_;
-  const size_t trailer_size_;
   std::array<uint32_t, 8> key_{};
   // Separate buffers, as a layer above may send a reply while a received packet is being passed up; tx_buffer_ is set
   // only once setup() succeeds
