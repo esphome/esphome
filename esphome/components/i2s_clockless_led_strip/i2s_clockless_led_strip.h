@@ -23,7 +23,7 @@ namespace esphome::i2s_clockless_led_strip {
 static constexpr size_t I2S_BYTES_PER_SAMPLE = 3;
 /// The color and effect data rounded up to a word, so the I2S data after it that the ISR copies is word aligned
 static constexpr size_t i2s_data_offset(uint16_t num_leds, uint8_t bytes_per_led) {
-  return (num_leds * (bytes_per_led + 1) + 3) / 4 * 4;
+  return (light::BufferColorAccessor::buffer_bytes(num_leds, bytes_per_led) + 3) / 4 * 4;
 }
 /// The whole block for the constructor, the I2S data holding I2S_BYTES_PER_SAMPLE bytes per color byte
 static constexpr size_t buffer_bytes(uint16_t num_leds, uint8_t bytes_per_led) {
