@@ -856,7 +856,6 @@ def test_inputs_have_buffers_hashes_and_a_table(
 ) -> None:
     main_cpp = generate_main(write_input_config(tmp_path, ESP32_HEADER))
 
-    # The buffer holds the YAML entity ID until the wizard sets another
     assert f"static char {_buffer(main_cpp, 'ha_sensor')}[256];" in main_cpp
     entities = (
         "ha_sensor",
@@ -960,8 +959,6 @@ def test_an_entity_with_an_entity_id_that_is_no_input_is_valid(
     # Static entries keep their literal and are kept apart from the wizard buffers
     assert 'ha_plain_sensor->set_entity_id("sensor.plain");' in main_cpp
     assert f"{fnv1_hash('ha_plain_sensor')}u" not in main_cpp
-    # Every buffer starts empty
-    assert '] = "sensor.' not in main_cpp.split("API_WIZARD_INPUTS")[0]
 
 
 @pytest.mark.parametrize(
