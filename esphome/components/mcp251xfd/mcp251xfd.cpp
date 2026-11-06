@@ -36,6 +36,7 @@ bool MCP251XFD::setup_internal() {
   }
 
   // Leave TEF, TXQ, automatic RTR responses and timestamps disabled. ESI follows the controller's error state.
+  // Leave RTXAT clear for unlimited retransmissions, as in the MCP2515 driver.
   std::array<uint8_t, 16> config_data;
   uint8_t *out =
       put_le32(config_data.data(), (static_cast<uint32_t>(CanMode::CAN_MODE_CONFIGURATION) << 24) | CON_ISO_CRC_ENABLE);
@@ -56,9 +57,8 @@ bool MCP251XFD::setup_internal() {
   for (uint16_t address = RAM_START; address < RAM_START + RAM_SIZE; address += zeros.size())
     this->write_registers_(address, zeros.data(), zeros.size());
 
-  // Enable local fault summaries for polling; only RX-not-empty is enabled on the INT pin.
-  this->write_register_(REG_TX_FIFO_CON, FIFO_PAYLOAD_64 | ((TX_FIFO_DEPTH - 1) << 24) | FIFO_TX_ENABLE |
-                                             FIFO_TX_ATTEMPTS_EXHAUSTED_ENABLE);
+  // Enable the local overflow summary for polling; only RX-not-empty is enabled on the INT pin.
+  this->write_register_(REG_TX_FIFO_CON, FIFO_PAYLOAD_64 | ((TX_FIFO_DEPTH - 1) << 24) | FIFO_TX_ENABLE);
   this->write_register_(REG_RX_FIFO_CON, FIFO_PAYLOAD_64 | ((RX_FIFO_DEPTH - 1) << 24) | FIFO_RX_OVERFLOW_ENABLE |
                                              (this->interrupt_pin_ != nullptr ? FIFO_RX_NOT_EMPTY_ENABLE : 0));
 
@@ -355,7 +355,6 @@ canbus::CanStatus MCP251XFD::get_status() {
   status.rx_error_counter = this->last_trec_;
   status.tx_error_counter = this->last_trec_ >> 8;
   status.bus_off = ((this->last_trec_ >> 16) & ERROR_BUS_OFF) != 0;
-  status.tx_failed_count = this->tx_failed_count_;
   status.rx_overrun_count = this->rx_overrun_count_;
   status.bus_error_count = this->bus_error_count_;
   return status;
@@ -389,23 +388,13 @@ canbus::CanEventFlags MCP251XFD::get_events() {
     events |= canbus::CAN_EVENT_BUS_OFF;
   this->last_error_flags_ = error_flags;
 
-  const uint8_t fifo_faults = controller_flags & (INT_RX_OVERFLOW | INT_TX_ATTEMPTS_EXHAUSTED);
-  if (fifo_faults != 0) {
-    // One read covers TX FIFO 1 status through RX FIFO 2 status
-    std::array<uint8_t, REG_RX_FIFO_STA - REG_TX_FIFO_STA + 1> fifo;
-    if (this->read_registers_(REG_TX_FIFO_STA, fifo.data(), fifo.size())) {
-      if ((fifo_faults & INT_RX_OVERFLOW) && (fifo.back() & FIFO_RX_OVERFLOW))
-        this->write_byte_(REG_RX_FIFO_STA, static_cast<uint8_t>(~FIFO_RX_OVERFLOW));
-      if ((fifo_faults & INT_TX_ATTEMPTS_EXHAUSTED) && (fifo.front() & FIFO_TX_ATTEMPTS_EXHAUSTED))
-        this->write_byte_(REG_TX_FIFO_STA, static_cast<uint8_t>(~FIFO_TX_ATTEMPTS_EXHAUSTED));
-    }
-  }
   if (controller_flags & INT_RX_OVERFLOW) {
+    uint8_t fifo_status;
+    if (this->read_registers_(REG_RX_FIFO_STA, &fifo_status, 1) && (fifo_status & FIFO_RX_OVERFLOW))
+      this->write_byte_(REG_RX_FIFO_STA, static_cast<uint8_t>(~FIFO_RX_OVERFLOW));
     events |= canbus::CAN_EVENT_RX_QUEUE_FULL;
     this->rx_overrun_count_++;
   }
-  if (controller_flags & INT_TX_ATTEMPTS_EXHAUSTED)
-    this->tx_failed_count_++;
   if (controller_flags & (INT_CAN_ERROR | INT_INVALID_MESSAGE))
     this->bus_error_count_++;
   if (controller_flags & INT_SPI_CRC_ERROR) {
@@ -433,8 +422,7 @@ canbus::CanEventFlags MCP251XFD::get_events() {
     this->write_registers_(REG_INT, clear_flags.data(), clear_flags.size());
   }
   if ((controller_flags & INT_LOGGED_FAULTS) && this->should_log_fault_(now)) {
-    ESP_LOGW(TAG, "Controller fault:%s%s%s RX errors=%u, TX errors=%u",
-             controller_flags & INT_TX_ATTEMPTS_EXHAUSTED ? LOG_STR_LITERAL(" TX retry limit;") : LOG_STR_LITERAL(""),
+    ESP_LOGW(TAG, "Controller fault:%s%s RX errors=%u, TX errors=%u",
              controller_flags & INT_SPI_CRC_ERROR ? LOG_STR_LITERAL(" SPI CRC/format error;") : LOG_STR_LITERAL(""),
              controller_flags & INT_SYSTEM_ERROR ? LOG_STR_LITERAL(" system error (possible RX loss or halted TX);")
                                                  : LOG_STR_LITERAL(""),

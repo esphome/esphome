@@ -34,7 +34,6 @@ class MCP251XFD : public canbus::Canbus,
   uint32_t last_mode_recovery_time_{0};
   // Latched flags are polled, so these count observations rather than exact losses.
   uint32_t rx_overrun_count_{0};
-  uint32_t tx_failed_count_{0};
   uint32_t bus_error_count_{0};
   CanClock mcp_clock_;
   CanMode mcp_mode_;
