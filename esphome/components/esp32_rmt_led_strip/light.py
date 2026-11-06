@@ -177,10 +177,11 @@ async def to_code(config: ConfigType) -> None:
     )
     num_leds = config[CONF_NUM_LEDS]
     psram = config[CONF_USE_PSRAM]
+    bytes_per_led = len(config[CONF_CHANNEL_COLORS])
     led_data = light.static_led_buffer(
-        config[CONF_OUTPUT_ID], num_leds, config[CONF_CHANNEL_COLORS], psram=psram
+        config[CONF_OUTPUT_ID], num_leds, bytes_per_led, psram=psram
     )
-    color_bytes = num_leds * len(config[CONF_CHANNEL_COLORS])
+    color_bytes = num_leds * bytes_per_led
     rmt_buf = cg.static_buffer(
         config[CONF_OUTPUT_ID],
         RmtBuffer,

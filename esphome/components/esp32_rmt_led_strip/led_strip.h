@@ -48,7 +48,7 @@ class ESP32RMTLEDStripLightOutput final : public light::AddressableLight {
     this->internal_accessor_.channel_colors = channel_colors;
   }
   void set_use_dma(bool use_dma) { this->use_dma_ = use_dma; }
-  /// Buffers from cg.static_buffer(..., psram=...), or nullptr to allocate them in PSRAM. Call after
+  /// Buffers from cg.static_buffer(..., psram=...), nullptr if a PSRAM allocation failed. Call after
   /// set_num_leds() and set_channel_colors().
   void set_buffers(uint8_t *led_data, RmtBuffer *rmt_buf);
 
