@@ -961,6 +961,11 @@ class TestStaticBuffer:
         assert str(buffer) == "sysex_buffer"
         assert CORE.variables[id_] is buffer
 
+    def test_declared_id_of_another_type_is_rejected(self) -> None:
+        id_ = ID("sysex_buffer", is_declaration=True, type=ct.uint16)
+        with pytest.raises(EsphomeError, match="declared as uint16_t, not uint8_t"):
+            cg.static_buffer(id_, ct.uint8, 16)
+
     def test_same_name_twice_gets_two_buffers(self) -> None:
         CORE.config = {}
         a = cg.static_buffer("hub__rx", ct.uint8, 8)
