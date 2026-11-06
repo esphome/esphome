@@ -3,7 +3,7 @@ import pkgutil
 from typing import Any
 
 import esphome.codegen as cg
-from esphome.components.const import CONF_MAX_PACKET_SIZE
+from esphome.components.const import CONF_BUFFER_ID, CONF_MAX_PACKET_SIZE
 import esphome.config_validation as cv
 from esphome.const import CONF_ID
 from esphome.cpp_generator import MockObj, MockObjClass
@@ -69,6 +69,7 @@ def packet_interface_schema(
         cv.Schema(
             {
                 cv.GenerateID(): cv.declare_id(class_),
+                cv.GenerateID(CONF_BUFFER_ID): cv.declare_id(cg.uint8),
                 cv.Optional(
                     CONF_MAX_PACKET_SIZE, default=default_max_packet_size
                 ): cv.int_range(16, max_packet_size_limit),

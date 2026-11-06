@@ -35,12 +35,12 @@ from esphome.types import ConfigType
 _LOGGER = logging.getLogger(__name__)
 
 CONF_FILTER_SYMBOLS = "filter_symbols"
+CONF_FRAMES_ID = "frames_id"
 CONF_RECEIVE_SYMBOLS = "receive_symbols"
 CONF_SAMPLE_PERIOD = "sample_period"
 CONF_SAMPLING = "sampling"
 
 SAMPLING_EDGE = "edge"
-CONF_FRAMES_ID = "frames_id"
 SAMPLING_TIMER = "timer"
 DEFAULT_FILTER = "50us"
 DEFAULT_SAMPLE_PERIOD = "100us"
@@ -177,7 +177,6 @@ _RECEIVER_SCHEMA = remote_base.validate_triggers(
     cv.Schema(
         {
             cv.GenerateID(): cv.declare_id(RemoteReceiverComponent),
-            # Only used with timer sampling
             cv.GenerateID(CONF_FRAMES_ID): cv.declare_id(cg.int32),
             cv.Required(CONF_PIN): cv.All(pins.internal_gpio_input_pin_schema),
             cv.Optional(CONF_DUMP, default=[]): remote_base.validate_dumpers,
