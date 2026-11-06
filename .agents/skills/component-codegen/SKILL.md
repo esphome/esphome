@@ -231,8 +231,7 @@ Never a template per bit or a virtual listener base (a second vptr per entity).
   attaches in one call.
 - A fixed buffer sized from the config is a file-scope static (BSS, not heap): declare
   `cv.GenerateID(CONF_RX_BUFFER_ID): cv.declare_id(cg.uint8)` in the schema, then
-  `buf = cg.static_buffer(config[CONF_RX_BUFFER_ID], size)` and pass `buf` to the constructor. Never build the name
-  from another id (`f"{config[CONF_ID].id}__rx"`); it can collide with a user's id.
+  `buf = cg.static_buffer(config[CONF_RX_BUFFER_ID], size)` and pass `buf` to the constructor.
 - `display.add_writer(var, config)` sets the lambda.
 - `MyEnum.options("on", prefix="MY_ENUM_")` builds an enum dict.
 - `button.restart_button_schema(cls)` (and `factory_reset_`, `query_`) are button presets.
