@@ -1020,6 +1020,17 @@ class TestStaticStorage:
         assert str(cg.static_storage(hub, ct.uint8, 0)) == "std::span<uint8_t>()"
         assert not CORE.global_statements
 
+    def test_expression_count_gets_storage(self) -> None:
+        hub = ID("hub", is_declaration=True, type=ct.esphome_ns.class_("Hub"))
+        CORE.config = {}
+        count = ct.esphome_ns.class_("Hub").static_("COUNT")
+        span = cg.static_storage(hub, ct.uint8, count)
+        assert str(span) == (
+            "std::span<uint8_t>(reinterpret_cast<uint8_t *>"
+            "(esphome__hub_storage__pstorage), Hub::COUNT)"
+        )
+        assert len(CORE.global_statements) == 1
+
     def test_owner_must_be_an_id(self) -> None:
         with pytest.raises(EsphomeError, match="owning component's ID"):
             cg.static_storage(ID("hub"), ct.uint8, 8)
