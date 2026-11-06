@@ -47,12 +47,11 @@ class TestHdlc : public HdlcReliability {
 };
 
 struct Peer {
-  explicit Peer(uint8_t queue_length = 4, bool run_setup = true)
-      : tx_slots(HdlcReliability::send_queue_size(this->link.get_max_packet_size(), queue_length)) {
-    this->hdlc = std::make_unique<TestHdlc>(&this->link, this->tx_slots.data(), queue_length);
+  explicit Peer(uint8_t queue_length = 4) {
+    this->hdlc = std::make_unique<TestHdlc>(&this->link);
+    this->hdlc->set_max_queue_length(queue_length);
     this->hdlc->set_max_retries(3);
-    if (run_setup)
-      this->hdlc->setup();
+    this->hdlc->setup();
     this->hdlc->add_packet_interface_listener(
         [this](const PacketBuffer &data, const PacketMetaData &) { this->received.push_back(to_vector(data)); });
     this->hdlc->add_on_session_state_callback([this](bool connected) { this->states.push_back(connected); });
@@ -65,7 +64,6 @@ struct Peer {
   bool send(const Frame &data) { return this->hdlc->send_to_interface(PacketBuffer(data), {}); }
 
   MockLink link;
-  std::vector<uint8_t> tx_slots;
   std::unique_ptr<TestHdlc> hdlc;
   std::vector<Frame> received;
   std::vector<bool> states;
@@ -179,16 +177,6 @@ TEST_F(HdlcReliabilityTest, QueuedBeforeConnectIsSentAfter) {
   ASSERT_TRUE(a.send({0x02}));
   pump(a, b);
   EXPECT_EQ(b.received, (std::vector<Frame>{{0x01}, {0x02}}));
-}
-
-TEST_F(HdlcReliabilityTest, QueuedBeforeSetupIsSentOnce) {
-  Peer a(4, false), b;
-  ASSERT_TRUE(a.send({0x01}));
-  EXPECT_EQ(a.hdlc->get_send_capacity(), 3);
-  a.hdlc->setup();
-  pump(a, b);
-  EXPECT_EQ(b.received, (std::vector<Frame>{{0x01}}));
-  EXPECT_EQ(a.hdlc->get_send_capacity(), 4);
 }
 
 TEST_F(HdlcReliabilityTest, DeliversInOrderBothWays) {
@@ -420,7 +408,7 @@ TEST_F(HdlcReliabilityTest, OversizedFrameDropped) {
 
 TEST_F(HdlcReliabilityTest, LinkTooSmallFailsSetup) {
   MockLink link(HdlcReliability::FRAME_OVERHEAD);
-  TestHdlc hdlc(&link, nullptr, 4);
+  TestHdlc hdlc(&link);
   EXPECT_EQ(hdlc.get_max_packet_size(), 0);
   hdlc.setup();
   EXPECT_TRUE(hdlc.is_failed());
