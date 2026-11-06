@@ -92,6 +92,7 @@ ISOLATED_COMPONENTS = {
     "lvgl": "Defines multiple SDL displays on host platform that conflict when merged with other display configs",
     "lightwaverf": "Drives hardware timer 1 on the ESP8266, which the esp8266 component refuses to share with hdmi_cec and opentherm",
     "mapping": "Uses dict format for image/display sections incompatible with standard list format - ESPHome merge_config cannot handle",
+    "mcp251xfd": "Classic and CAN FD tests require separate builds with different feature defines",
     "openthread": "Conflicts with wifi: used by most components",
     "openthread_info": "Conflicts with wifi: used by most components",
     "opentherm": "Drives hardware timer 1 on the ESP8266, which the esp8266 component refuses to share with hdmi_cec and lightwaverf",

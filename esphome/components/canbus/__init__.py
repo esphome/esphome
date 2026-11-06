@@ -148,16 +148,21 @@ CANBUS_SCHEMA = cv.Schema(
 
 CANBUS_SCHEMA.add_extra(validate_id)
 
+
 # A platform whose controller supports CAN FD extends this instead of CANBUS_SCHEMA. Its buses then accept the
 # CAN FD options of canbus.send, and register_canbus() turns on USE_CANBUS_FD, which makes every CanFrame
 # 64 bytes long.
-CANBUS_FD_SCHEMA = CANBUS_SCHEMA.extend(
-    {
-        cv.Optional(CONF_DEFAULT_FD, default=False): cv.boolean,
-        cv.Optional(CONF_DEFAULT_BIT_RATE_SWITCH, default=False): cv.boolean,
-        cv.Optional(CONF_DEFAULT_PAD_DATA, default=False): cv.boolean,
-    }
-)
+def canbus_fd_schema(default_fd: bool = False) -> cv.Schema:
+    return CANBUS_SCHEMA.extend(
+        {
+            cv.Optional(CONF_DEFAULT_FD, default=default_fd): cv.boolean,
+            cv.Optional(CONF_DEFAULT_BIT_RATE_SWITCH, default=False): cv.boolean,
+            cv.Optional(CONF_DEFAULT_PAD_DATA, default=False): cv.boolean,
+        }
+    )
+
+
+CANBUS_FD_SCHEMA = canbus_fd_schema()
 
 
 def _is_fd_bus(config: ConfigType) -> bool:
