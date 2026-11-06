@@ -8,17 +8,26 @@
 #include "zigbee_attribute_esp32.h"
 #include "zigbee_esp32.h"
 #include "esphome/core/application.h"
+#include "esphome/core/hal.h"
 #include "esphome/core/log.h"
 #include "zigbee_helpers_esp32.h"
 #ifdef USE_WIFI
 #include "esp_coexist.h"
 #endif
 
+#include <algorithm>
+
 namespace esphome::zigbee {
 
 ESPHOME_LOG_TAG(TAG, "zigbee");
 
 static constexpr uint32_t COMMISSIONING_RETRY_TIMEOUT_ID = 0;
+
+// Since esp-zigbee-lib 2.0.5 every lost poll or transmission raises PARENT_LINK_FAILURE, even during a short radio
+// outage such as a BLE scan. Rejoin only after this many failures over at least two poll intervals, which is longer
+// than a fast poll burst. A gap of more than two intervals between failures means a poll got through.
+static constexpr uint16_t PARENT_LINK_MISSED_POLLS = 4;
+static constexpr uint32_t PARENT_LINK_MIN_POLL_INTERVAL_MS = 3000;
 
 static ZigbeeComponent *global_zigbee = nullptr;  // NOLINT(cppcoreguidelines-avoid-non-const-global-variables)
 
@@ -135,8 +144,30 @@ bool ZigbeeComponent::app_signal_handler(const ezb_app_signal_t *app_signal) {
       const ezb_nwk_signal_network_status_params_t *network_status_params =
           (const ezb_nwk_signal_network_status_params_t *) ezb_app_signal_get_params(app_signal);
       if (network_status_params->status == EZB_NWK_NETWORK_STATUS_PARENT_LINK_FAILURE) {
+        static uint32_t first_failure_ms = 0;
+        static uint32_t last_failure_ms = 0;
+        static uint16_t failure_count = 0;
+        if (!global_zigbee->joined_) {
+          break;  // not joined yet, or a rejoin is running
+        }
+        const uint32_t now = millis();
+        const uint32_t interval = std::max(global_zigbee->keep_alive_, PARENT_LINK_MIN_POLL_INTERVAL_MS);
+        if (failure_count == 0 || now - last_failure_ms > 2 * interval) {
+          first_failure_ms = now;
+          failure_count = 0;
+        }
+        last_failure_ms = now;
+        if (failure_count < UINT16_MAX) {
+          failure_count++;
+        }
+        if (failure_count < PARENT_LINK_MISSED_POLLS || now - first_failure_ms < 2 * interval) {
+          ESP_LOGD(TAG, "Parent link failure %u", failure_count);
+          break;
+        }
+        ESP_LOGW(TAG, "Parent link failures for %" PRIu32 " ms (%u), attempting rejoin", now - first_failure_ms,
+                 failure_count);
+        failure_count = 0;
         global_zigbee->joined_ = false;
-        ESP_LOGW(TAG, "Parent link failure, attempting rejoin");
         ezb_zdo_nwk_mgmt_leave_req_t leave_req = {
             .dst_nwk_addr = ezb_nwk_get_short_address(),
             .field =
@@ -147,7 +178,10 @@ bool ZigbeeComponent::app_signal_handler(const ezb_app_signal_t *app_signal) {
         };
         // Send leave request to the network to rejoin
         // triggers EZB_ZDO_SIGNAL_LEAVE signal first, then EZB_BDB_SIGNAL_DEVICE_REBOOT
-        ezb_zdo_nwk_mgmt_leave_req(&leave_req);
+        if (ezb_zdo_nwk_mgmt_leave_req(&leave_req) != EZB_ERR_NONE) {
+          ESP_LOGW(TAG, "Leave request for rejoin failed");
+          global_zigbee->joined_ = true;  // still joined, so later failures can start a rejoin again
+        }
       } else {
         ESP_LOGD(TAG, "Zigbee APP Signal NETWORK_STATUS: 0x%02x", network_status_params->status);
       }
