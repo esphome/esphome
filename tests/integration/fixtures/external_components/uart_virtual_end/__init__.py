@@ -8,8 +8,10 @@ CODEOWNERS = ["@esphome/tests"]
 DEPENDENCIES = ["uart"]
 MULTI_CONF = True
 
-CONF_PEER_ID = "peer_id"
-CONF_COPIES_PEER = "copies_peer"
+# Not peer_id: uart.claim_exclusive() of the bridge's peer_id end rejects any other
+# component that names that UART under peer_id.
+CONF_OTHER_END_ID = "other_end_id"
+CONF_COPIES_OTHER_END = "copies_other_end"
 
 uart_virtual_end_ns = cg.esphome_ns.namespace("uart_virtual_end")
 UartVirtualEnd = uart_virtual_end_ns.class_(
@@ -17,10 +19,10 @@ UartVirtualEnd = uart_virtual_end_ns.class_(
 )
 
 
-def _copies_peer(config: ConfigType) -> ConfigType:
-    # This end then passes on its peer's writes like a UART that copies another one.
-    if config[CONF_COPIES_PEER]:
-        uart.inherit_settings(config[CONF_ID], config[CONF_PEER_ID])
+def _copies_other_end(config: ConfigType) -> ConfigType:
+    # This end then passes on its other end's writes like a UART that copies another one.
+    if config[CONF_COPIES_OTHER_END]:
+        uart.inherit_settings(config[CONF_ID], config[CONF_OTHER_END_ID])
     return config
 
 
@@ -29,12 +31,12 @@ CONFIG_SCHEMA = cv.All(
     cv.Schema(
         {
             cv.GenerateID(): cv.declare_id(UartVirtualEnd),
-            cv.Required(CONF_PEER_ID): cv.use_id(UartVirtualEnd),
+            cv.Required(CONF_OTHER_END_ID): cv.use_id(UartVirtualEnd),
             cv.Optional(CONF_BAUD_RATE, default=9600): cv.int_range(min=1),
-            cv.Optional(CONF_COPIES_PEER, default=False): cv.boolean,
+            cv.Optional(CONF_COPIES_OTHER_END, default=False): cv.boolean,
         }
     ).extend(cv.COMPONENT_SCHEMA),
-    _copies_peer,
+    _copies_other_end,
 )
 
 
@@ -44,4 +46,4 @@ async def to_code(config: ConfigType) -> None:
     await cg.register_component(var, config)
     cg.add(var.set_label(str(config[CONF_ID])))
     cg.add(var.set_baud_rate(config[CONF_BAUD_RATE]))
-    cg.add(var.set_peer(await cg.get_variable(config[CONF_PEER_ID])))
+    cg.add(var.set_peer(await cg.get_variable(config[CONF_OTHER_END_ID])))

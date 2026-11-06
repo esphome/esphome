@@ -1,9 +1,8 @@
 import esphome.codegen as cg
 from esphome.components import uart
-from esphome.components.bridge import claim_exclusive
+from esphome.components.bridge import DOMAIN as BRIDGE_DOMAIN
 import esphome.config_validation as cv
-from esphome.const import CONF_DEBUG, CONF_DUMMY_RECEIVER, CONF_ID, CONF_UART_ID
-import esphome.final_validate as fv
+from esphome.const import CONF_ID, CONF_UART_ID
 from esphome.types import ConfigType
 
 from .. import _settings_source, uart_ns
@@ -24,23 +23,11 @@ CONFIG_SCHEMA = cv.Schema(
 ).extend(cv.COMPONENT_SCHEMA)
 
 
-def _reject_dummy_receiver(uart_conf: ConfigType) -> ConfigType:
-    debug = uart_conf.get(CONF_DEBUG)
-    if isinstance(debug, dict) and debug.get(CONF_DUMMY_RECEIVER):
-        raise cv.Invalid(
-            "dummy_receiver reads this UART and drops the bytes the bridge should forward.",
-            [CONF_DEBUG, CONF_DUMMY_RECEIVER],
-        )
-    return uart_conf
-
-
-def _final_validate(config: ConfigType) -> ConfigType:
+def _final_validate(config: ConfigType) -> None:
     if str(config[CONF_UART_ID]) == str(config[CONF_PEER_ID]):
         raise cv.Invalid("The two ends are the same UART.", [CONF_PEER_ID])
     for key in (CONF_UART_ID, CONF_PEER_ID):
-        claim_exclusive(config, key, "UART")
-        fv.id_declaration_match_schema(_reject_dummy_receiver)(config[key])
-    return config
+        uart.claim_exclusive(config, BRIDGE_DOMAIN, key)
 
 
 FINAL_VALIDATE_SCHEMA = _final_validate

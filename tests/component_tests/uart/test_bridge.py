@@ -61,7 +61,7 @@ def test_rejects_a_uart_in_two_bridges_under_either_key(
 ) -> None:
     _set_config(set_core_config, _full_config())
     _final_validate(_bridge_config("uart_0", "uart_1"))
-    with pytest.raises(cv.Invalid, match="already bridged"):
+    with pytest.raises(cv.Invalid, match="already used by another 'bridge' entry"):
         _final_validate(_bridge_config("uart_2", "uart_0"))
 
 
@@ -111,7 +111,7 @@ def test_rejects_a_cdc_acm_interface_in_bridges_of_both_platforms(
     CORE.config_path = tmp_path / "test.yaml"
     CORE.config_path.write_text(_CDC_ACM_YAML + entries)
     assert read_config({}) is None
-    assert "'cdc_0' is already bridged" in capsys.readouterr().out
+    assert "'cdc_0' is already used by another 'bridge'" in capsys.readouterr().out
 
 
 def test_rejects_a_uart_another_component_uses(

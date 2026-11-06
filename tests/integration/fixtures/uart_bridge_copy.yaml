@@ -21,12 +21,12 @@ uart:
 # bridge reads it like a line at 115200 baud.
 uart_virtual_end:
   - id: meter
-    peer_id: end_a
+    other_end_id: end_a
     baud_rate: 115200
   - id: end_a
-    peer_id: meter
+    other_end_id: meter
     baud_rate: 115200
-    copies_peer: true
+    copies_other_end: true
 
 uart_mock:
   - id: end_b

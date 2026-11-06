@@ -20,13 +20,13 @@ uart:
 # Every end derives from VirtualUARTComponent, so the bridge is wired directly.
 uart_virtual_end:
   - id: client_line
-    peer_id: end_a
+    other_end_id: end_a
   - id: end_a
-    peer_id: client_line
+    other_end_id: client_line
   - id: end_b
-    peer_id: server_line
+    other_end_id: server_line
   - id: server_line
-    peer_id: end_b
+    other_end_id: end_b
 
 bridge:
   - platform: uart
