@@ -98,6 +98,8 @@ class DeliverQueueResponse : public ::testing::Test {
         release_queue_entry(this->nextion_, entry);
     }
     queue(this->nextion_).clear();
+    App.~Application();
+    new (&App) Application();  // drops the timer a held-back command planned for this display; later tests use App too
   }
 
   /// Queues a query the way add_to_get_queue() does. An unsent query still waits for command spacing.

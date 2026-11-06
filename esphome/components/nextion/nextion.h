@@ -62,7 +62,13 @@ class NextionCommandPacer {
    *            for consistency with the rest of the queue timing).
    * @return true if the spacing interval has elapsed since the last command was sent.
    */
-  bool can_send(uint32_t now) const { return (now - last_command_time_) >= spacing_ms_; }
+  bool can_send(uint32_t now) const { return this->remaining(now) == 0; }
+
+  /// Milliseconds until can_send(now) allows the next command, 0 if it allows one now
+  uint32_t remaining(uint32_t now) const {
+    const uint32_t elapsed = now - this->last_command_time_;
+    return elapsed >= this->spacing_ms_ ? 0 : this->spacing_ms_ - elapsed;
+  }
 
   /**
    * @brief Record the transmit timestamp for the most recently sent command.
@@ -1458,16 +1464,30 @@ class Nextion final : public NextionBase, public PollingComponent, public uart::
 
 #ifdef USE_NEXTION_COMMAND_SPACING
   NextionCommandPacer command_pacer_{0};
+  /// When an answer from the display last removed a queue entry, an entry was last taken as lost, or a held-back
+  /// command went out with nothing unanswered ahead of it
+  uint32_t last_answer_time_{0};
+
+  /// Plans a timeout in wait_ms that sends held-back commands and waveforms as loop() does, unless one is planned
+  void plan_pacer_wake_(uint32_t wait_ms);
+
+  /// Whether the limit of 16 unanswered commands and the removal of lost answers apply: only with a spacing above 0
+  bool limits_unanswered_() const { return this->command_pacer_.get_spacing() > 0; }
+
+  /// Whether sending waits because `unanswered` sent commands reach the limit. Older front entries queued 1 s ago
+  /// are removed as lost after 1 s without answers, lowering `unanswered`.
+  bool must_wait_for_answers_(size_t &unanswered);
 
   /**
-   * @brief Process any commands in the queue that are pending due to command spacing
+   * @brief Process any commands in the queue that are pending due to command spacing or unanswered commands
    *
    * This method checks if the first item in the nextion_queue_ has a pending command
    * that was previously blocked by command spacing. If spacing now allows and a
    * pending command exists, it attempts to send the command. Once successfully sent,
    * the pending command is cleared and the queue item continues normal processing.
    *
-   * Called from loop() to retry sending commands that were delayed by spacing.
+   * Called from loop() to retry sending commands that were delayed by spacing or, with a spacing above 0, by the
+   * limit of 16 commands, and from a timeout when the spacing has elapsed before the next loop pass.
    */
   void process_pending_in_queue_();
 
@@ -1480,6 +1500,19 @@ class Nextion final : public NextionBase, public PollingComponent, public uart::
     return !this->nextion_queue_.empty() && this->nextion_queue_.back() != nullptr &&
            !this->nextion_queue_.back()->pending_command.empty();
   }
+
+  /// Whether the display sent something that loop() has not read or handled yet
+  bool has_unhandled_answers_();
+
+  /**
+   * @brief Whether ordinary commands wait because an addt went out and the display has not sent 0xFE yet.
+   *
+   * The display takes the bytes after its 0xFE as waveform data, so nothing else may go out before them.
+   * Once the addt went out 1 s ago and the display has answered nothing for 1 s, the waveform entry is taken as
+   * lost and removed. Called from loop() and the wake-up only; a new command or query checks
+   * connection_state_.waveform_addt_sent_ and removes nothing. Always false without waveforms.
+   */
+  bool check_waveform_ready_();
 #endif  // USE_NEXTION_COMMAND_SPACING
 
   std::list<NextionQueue *> nextion_queue_;
@@ -1514,16 +1547,17 @@ class Nextion final : public NextionBase, public PollingComponent, public uart::
    * @brief Status flags for Nextion display state management
    *
    * Uses bitfields to pack multiple boolean states into a single byte,
-   * saving 5 bytes of RAM compared to individual bool variables.
+   * saving 7 bytes of RAM compared to individual bool variables.
    */
   struct {
     uint8_t is_connected_ : 1;              ///< Connection established with Nextion display
-    uint8_t sent_setup_commands_ : 1;       ///< Initial setup commands have been sent
+    uint8_t sent_setup_commands_ : 1;       ///< Setup commands have been sent since the last 0x88
     uint8_t ignore_is_setup_ : 1;           ///< Temporarily ignore setup state for special operations
     uint8_t nextion_reports_is_setup_ : 1;  ///< Nextion has reported successful initialization
     uint8_t is_updating_ : 1;               ///< TFT firmware update is currently in progress
     uint8_t auto_wake_on_touch_ : 1;        ///< Display should wake automatically on touch (default: true)
-    uint8_t reserved_ : 2;                  ///< Reserved bits for future flag additions
+    uint8_t pacer_wake_planned_ : 1;        ///< A timeout to send held-back commands is planned
+    uint8_t waveform_addt_sent_ : 1;        ///< An addt went out and its 0xFE has not come yet
   } connection_state_{};                    ///< Zero-initialized status flags (all start as false)
 
   void process_nextion_commands_();
@@ -1536,6 +1570,7 @@ class Nextion final : public NextionBase, public PollingComponent, public uart::
   uint8_t wake_up_page_ = 255;
 #ifdef USE_NEXTION_CONF_START_UP_PAGE
   uint8_t start_up_page_ = 255;
+  bool start_up_page_sent_ = false;
 #endif  // USE_NEXTION_CONF_START_UP_PAGE
   bool auto_wake_on_touch_ = true;
 
@@ -1553,7 +1588,8 @@ class Nextion final : public NextionBase, public PollingComponent, public uart::
   /**
    * @brief Add a command to the Nextion queue with a pending command for retry
    *
-   * This method creates a queue entry for a command that was blocked by command spacing.
+   * This method creates a queue entry for a command that was blocked by command spacing or, with a spacing above 0,
+   * by 16 queued commands.
    * The command string is stored in the queue item's pending_command field so it can
    * be retried later when spacing allows. This ensures commands are not lost when
    * sent too quickly.
