@@ -986,6 +986,17 @@ class TestStaticBuffer:
             "[uart::Hub::size(4, true)];"
         )
 
+    def test_psram_rejects_over_alignment(self) -> None:
+        hub = ID(
+            "hub",
+            is_declaration=True,
+            type=ct.esphome_ns.namespace("uart").class_("Hub"),
+        )
+        CORE.config = {}
+        with pytest.raises(EsphomeError, match="aligned to 4 bytes"):
+            cg.static_buffer(hub, ct.uint8, 8, psram=True, align=32)
+        cg.static_buffer(hub, ct.uint8, 8, psram=True, align=4)
+
     def test_owner_must_be_an_id(self) -> None:
         with pytest.raises(EsphomeError, match="owning component's ID"):
             cg.static_buffer("hub", ct.uint8, 8)
