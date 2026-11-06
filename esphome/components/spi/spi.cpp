@@ -54,8 +54,7 @@ void SPIComponent::setup() {
 
   if (this->using_hw_) {
     if (!this->setup_hw_bus_()) {
-      ESP_LOGE(TAG, "Unable to allocate SPI interface");
-      this->mark_failed();
+      this->mark_failed(LOG_STR("Unable to allocate SPI interface"));
       return;
     }
   } else {
