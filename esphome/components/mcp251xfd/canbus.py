@@ -1,9 +1,17 @@
+from esphome import pins
 import esphome.codegen as cg
-from esphome.components import canbus, gpio_expander, spi
+from esphome.components import canbus, spi
 from esphome.components.canbus import CONF_BIT_RATE, CanbusComponent
 from esphome.components.spi import CONF_SPI_MODE
 import esphome.config_validation as cv
-from esphome.const import CONF_DATA_RATE, CONF_ID, CONF_INTERRUPT_PIN, CONF_MODE
+from esphome.const import (
+    CONF_ALLOW_OTHER_USES,
+    CONF_DATA_RATE,
+    CONF_ID,
+    CONF_INTERRUPT_PIN,
+    CONF_INVERTED,
+    CONF_MODE,
+)
 from esphome.core import HexInt
 from esphome.types import ConfigType
 
@@ -107,6 +115,14 @@ def bit_timings(
     return best[1]
 
 
+def validate_interrupt_pin(value: ConfigType) -> ConfigType:
+    if value.get(CONF_INVERTED):
+        raise cv.Invalid("MCP251XFD INT is active-low. inverted: true is not supported")
+    if value.get(CONF_ALLOW_OTHER_USES):
+        raise cv.Invalid("MCP251XFD INT does not support sharing the interrupt pin")
+    return value
+
+
 def validate_bit_timing(config: ConfigType) -> ConfigType:
     bit_timings(
         config[CONF_CLOCK], config[CONF_BIT_RATE], config.get(CONF_DATA_BIT_RATE)
@@ -132,7 +148,9 @@ _DEVICE_SCHEMA = cv.Schema(
         cv.Optional(CONF_BIT_RATE, default="500KBPS"): cv.enum(
             canbus.CAN_SPEEDS, upper=True
         ),
-        cv.Optional(CONF_INTERRUPT_PIN): gpio_expander.validate_interrupt_pin,
+        cv.Optional(CONF_INTERRUPT_PIN): cv.All(
+            pins.internal_gpio_input_pin_schema, validate_interrupt_pin
+        ),
     }
 ).extend(
     spi.spi_device_schema(True, "8MHz"),
