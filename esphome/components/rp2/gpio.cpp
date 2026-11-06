@@ -27,10 +27,7 @@ static int flags_to_mode(gpio::Flags flags, uint8_t pin) {
   }
 }
 
-// The ISR pin is the pin itself; pins are never freed.
-ISRInternalGPIOPin RP2GPIOPin::to_isr() const {
-  return ISRInternalGPIOPin(const_cast<RP2GPIOPin *>(this));  // NOLINT(cppcoreguidelines-pro-type-const-cast)
-}
+ISRInternalGPIOPin RP2GPIOPin::to_isr() const { return ISRInternalGPIOPin(this); }
 
 void RP2GPIOPin::attach_interrupt_(void (*func)(void *), void *arg, gpio::InterruptType type) const {
   PinStatus arduino_mode = LOW;
@@ -92,12 +89,12 @@ void IRAM_ATTR ISRInternalGPIOPin::clear_interrupt() {
 }
 
 void IRAM_ATTR ISRInternalGPIOPin::pin_mode(gpio::Flags flags) {
-  const uint8_t pin = static_cast<RP2GPIOPin *>(this->arg_)->get_pin();
+  const uint8_t num = static_cast<RP2GPIOPin *>(this->arg_)->get_pin();
   if (flags & gpio::FLAG_OUTPUT) {
-    sio_hw->gpio_oe_set = 1u << pin;
+    sio_hw->gpio_oe_set = 1u << num;
   } else if (flags & gpio::FLAG_INPUT) {
-    sio_hw->gpio_oe_clr = 1u << pin;
-    hw_write_masked(&pads_bank0_hw->io[pin],
+    sio_hw->gpio_oe_clr = 1u << num;
+    hw_write_masked(&pads_bank0_hw->io[num],
                     (bool_to_bit(flags & gpio::FLAG_PULLUP) << PADS_BANK0_GPIO0_PUE_LSB) |
                         (bool_to_bit(flags & gpio::FLAG_PULLDOWN) << PADS_BANK0_GPIO0_PDE_LSB),
                     PADS_BANK0_GPIO0_PUE_BITS | PADS_BANK0_GPIO0_PDE_BITS);

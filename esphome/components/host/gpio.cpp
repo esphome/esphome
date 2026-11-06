@@ -9,10 +9,7 @@ namespace host {
 
 ESPHOME_LOG_TAG(TAG, "host");
 
-// The ISR pin is the pin itself; pins are never freed.
-ISRInternalGPIOPin HostGPIOPin::to_isr() const {
-  return ISRInternalGPIOPin(const_cast<HostGPIOPin *>(this));  // NOLINT(cppcoreguidelines-pro-type-const-cast)
-}
+ISRInternalGPIOPin HostGPIOPin::to_isr() const { return ISRInternalGPIOPin(this); }
 
 void HostGPIOPin::attach_interrupt_(void (*func)(void *), void *arg, gpio::InterruptType type) const {
   ESP_LOGD(TAG, "Attaching interrupt %p to pin %d and mode %d", func, pin_, (uint32_t) type);

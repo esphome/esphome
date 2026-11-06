@@ -64,10 +64,7 @@ static void gpio_interrupt_handler(const device * /*dev*/, gpio_callback *cb, ui
   }
 }
 
-// The ISR pin is the pin itself; pins are never freed.
-ISRInternalGPIOPin ZephyrGPIOPin::to_isr() const {
-  return ISRInternalGPIOPin(const_cast<ZephyrGPIOPin *>(this));  // NOLINT(cppcoreguidelines-pro-type-const-cast)
-}
+ISRInternalGPIOPin ZephyrGPIOPin::to_isr() const { return ISRInternalGPIOPin(this); }
 
 void ZephyrGPIOPin::attach_interrupt_(void (*func)(void *), void *arg, gpio::InterruptType type) const {
   if (!device_is_ready(this->gpio_)) {
@@ -157,13 +154,16 @@ void ZephyrGPIOPin::detach_interrupt() const {
 
 bool IRAM_ATTR ISRInternalGPIOPin::digital_read() {
   auto *pin = static_cast<zephyr::ZephyrGPIOPin *>(this->arg_);
-  return pin != nullptr && pin->isr_digital_read();
+  if (pin == nullptr || pin->gpio_ == nullptr)
+    return false;
+  return bool(gpio_pin_get(pin->gpio_, pin->pin_ % pin->gpio_size_) != pin->inverted_);
 }
 
 void IRAM_ATTR ISRInternalGPIOPin::digital_write(bool value) {
   auto *pin = static_cast<zephyr::ZephyrGPIOPin *>(this->arg_);
-  if (pin != nullptr)
-    pin->isr_digital_write(value);
+  if (pin == nullptr || pin->gpio_ == nullptr)
+    return;
+  gpio_pin_set(pin->gpio_, pin->pin_ % pin->gpio_size_, value != pin->inverted_ ? 1 : 0);
 }
 
 }  // namespace esphome

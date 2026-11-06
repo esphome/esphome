@@ -24,6 +24,7 @@
 
 #if defined(USE_ESP32_VARIANT_ESP32) || (SOC_RTCIO_PIN_COUNT > 0 && defined(USE_GPIO_HOLD))
 #define ISR_PIN_USE_RTC 1  // NOLINT
+static_assert(SOC_RTCIO_PIN_COUNT < 31, "RTC IO number + 1 must fit in PinFlags::rtc_io");
 #endif
 
 namespace esphome {
@@ -76,7 +77,6 @@ static inline void IRAM_ATTR isr_refresh_hold(gpio_num_t pin, uint8_t rtc_io, bo
 void ESP32InternalGPIOPin::set_pin(gpio_num_t pin) {
   this->pin_ = static_cast<uint8_t>(pin);
 #ifdef ISR_PIN_USE_RTC
-  static_assert(SOC_RTCIO_PIN_COUNT < 31, "RTC IO number + 1 must fit in rtc_io");
 #ifdef RTCIO_NEED_MAPPING
   this->pin_flags_.rtc_io = rtc_gpio_is_valid_gpio(pin) ? rtc_io_number_get(pin) + 1 : 0;
 #else
@@ -85,10 +85,7 @@ void ESP32InternalGPIOPin::set_pin(gpio_num_t pin) {
 #endif
 }
 
-// The ISR pin is the pin itself; pins are never freed.
-ISRInternalGPIOPin ESP32InternalGPIOPin::to_isr() const {
-  return ISRInternalGPIOPin(const_cast<ESP32InternalGPIOPin *>(this));  // NOLINT(cppcoreguidelines-pro-type-const-cast)
-}
+ISRInternalGPIOPin ESP32InternalGPIOPin::to_isr() const { return ISRInternalGPIOPin(this); }
 
 void ESP32InternalGPIOPin::attach_interrupt_(void (*func)(void *), void *arg, gpio::InterruptType type) const {
   gpio_int_type_t idf_type = GPIO_INTR_ANYEDGE;

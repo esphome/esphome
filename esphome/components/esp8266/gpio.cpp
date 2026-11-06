@@ -36,10 +36,15 @@ static int flags_to_mode(gpio::Flags flags, uint8_t pin) {
   return INPUT;
 }
 
-// The ISR pin is the pin itself; pins are never freed.
-ISRInternalGPIOPin ESP8266GPIOPin::to_isr() const {
-  return ISRInternalGPIOPin(const_cast<ESP8266GPIOPin *>(this));  // NOLINT(cppcoreguidelines-pro-type-const-cast)
+// Slot of each pin's GPF register (0x804 + 4 * slot), so ISR code does not read the core's PROGMEM table.
+static constexpr uint32_t GPF_SLOTS_0_7 = 0x76fe4d5c;
+static constexpr uint32_t GPF_SLOTS_8_15 = 0x3210ba98;
+static inline volatile uint32_t &IRAM_ATTR isr_gpf(uint8_t num) {
+  const uint32_t slots = num < 8 ? GPF_SLOTS_0_7 : GPF_SLOTS_8_15;
+  return ESP8266_REG(0x804 + 4 * ((slots >> (4 * (num & 7))) & 0xF));
 }
+
+ISRInternalGPIOPin ESP8266GPIOPin::to_isr() const { return ISRInternalGPIOPin(this); }
 
 void ESP8266GPIOPin::attach_interrupt_(void (*func)(void *), void *arg, gpio::InterruptType type) const {
   uint8_t arduino_mode = 0;
@@ -84,6 +89,7 @@ void ESP8266GPIOPin::detach_interrupt() const { detachInterrupt(pin_); }
 namespace esphome {
 
 using esp8266::ESP8266GPIOPin;
+using esp8266::isr_gpf;
 
 bool IRAM_ATTR ISRInternalGPIOPin::digital_read() {
   auto *pin = static_cast<ESP8266GPIOPin *>(this->arg_);
@@ -129,10 +135,10 @@ void IRAM_ATTR ISRInternalGPIOPin::pin_mode(gpio::Flags flags) {
       GPEC = 1 << num;
     }
     if (flags & gpio::FLAG_PULLUP) {
-      GPF(num) = GPF(num) | (1 << GPFPU);
+      isr_gpf(num) = isr_gpf(num) | (1 << GPFPU);
       GPC(num) = GPC(num) | (1 << GPCD);
     } else {
-      GPF(num) = GPF(num) & ~(1 << GPFPU);
+      isr_gpf(num) = isr_gpf(num) & ~(1 << GPFPU);
     }
   } else {
     if (flags & gpio::FLAG_OUTPUT) {
