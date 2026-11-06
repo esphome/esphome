@@ -1,5 +1,5 @@
 import esphome.codegen as cg
-from esphome.components import lcd_base
+from esphome.components import text_display
 from esphome.components.display_menu_base import (
     DISPLAY_MENU_BASE_SCHEMA,
     DisplayMenuComponent,
@@ -34,7 +34,7 @@ MULTI_CONF = True
 def validate_lcd_dimensions(config: ConfigType) -> ConfigType:
     if config[CONF_DIMENSIONS][0] < MINIMUM_COLUMNS:
         raise cv.Invalid(
-            f"LCD display must have at least {MINIMUM_COLUMNS} columns to be usable with the menu"
+            f"The display must have at least {MINIMUM_COLUMNS} columns to be usable with the menu"
         )
     return config
 
@@ -43,7 +43,7 @@ CONFIG_SCHEMA = DISPLAY_MENU_BASE_SCHEMA.extend(
     cv.Schema(
         {
             cv.GenerateID(): cv.declare_id(LCDCharacterMenuComponent),
-            cv.GenerateID(CONF_DISPLAY_ID): cv.use_id(lcd_base.LCDDisplay),
+            cv.GenerateID(CONF_DISPLAY_ID): cv.use_id(text_display.TextDisplay),
             cv.Optional(CONF_MARK_SELECTED, default=0x3E): cv.uint8_t,
             cv.Optional(CONF_MARK_EDITING, default=0x2A): cv.uint8_t,
             cv.Optional(CONF_MARK_SUBMENU, default=0x7E): cv.uint8_t,
