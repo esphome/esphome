@@ -129,6 +129,26 @@ helper; `AGENTS.md` section 4 and the `component-codegen` skill have the detail.
 - Config-only checks use the `validate.*.yaml` prefix; compiled checks use
   `test.*.yaml`.
 
+## Naming user-facing functions
+
+Methods users call from lambdas (`it.` in a display lambda, `id(x).` elsewhere),
+actions and config keys are public API once released, so the name has to be
+right before then. Flag:
+
+- A boolean that means off or disabled, so `true` turns something off:
+  `display_off(true)` turns the display off and `display_off(false)` turns it on.
+  Name it for the positive state so `true` means on, e.g. `set_power(bool on)`,
+  `set_on(bool on)` (tm1637) or `set_enabled(bool enabled)`.
+- Other negated names (`disable_x`, `no_x`, `skip_x` taking a bool): use the
+  positive form.
+- A name that differs from what a sibling component calls the same operation
+  (other display drivers, other climate devices): reuse their name.
+- Methods whose names do not explain how they differ (`display_off` next to
+  `display_standby`).
+
+A name not yet in a release can be renamed outright (check the release tag);
+a released one keeps the old name as an `ESPDEPRECATED` alias.
+
 ## Breaking changes and public API
 
 - Base classes under `esphome/core/` and documented config options are public
