@@ -13,6 +13,7 @@ from esphome.const import (
     PLATFORM_ESP8266,
 )
 from esphome.core import CORE, ID, LINE_DIRECTIVE_RESET, DocumentLocation, EsphomeError
+from esphome.types import ConfigType
 from esphome.yaml_util import parse_yaml
 
 
@@ -941,6 +942,75 @@ class TestSharedProgmemArray:
         assert str(array) == "table_2"
 
 
+class TestStaticBuffer:
+    def test_is_named_after_its_owner_and_unique(self) -> None:
+        hub = ID(
+            "hub",
+            is_declaration=True,
+            type=ct.esphome_ns.namespace("uart").class_("Hub"),
+        )
+        CORE.config = {"sensor": [{"id": ID("hub_buffer", is_declaration=True)}]}
+        cg.static_buffer(hub, ct.uint8, 64)
+        b = cg.static_buffer(hub, ct.uint8, 8)
+        assert [str(st) for st in CORE.global_statements] == [
+            "static uint8_t uart__hub_buffer_2__pstorage[64];",
+            "static uint8_t uart__hub_buffer_3__pstorage[8];",
+        ]
+        assert str(b) == "uart__hub_buffer_3__pstorage"
+
+    @pytest.mark.parametrize(
+        ("config", "expected"),
+        [
+            ({}, "uart__hub_buffer__pstorage"),
+            ({"psram": {"disabled": True}}, "uart__hub_buffer__pstorage"),
+            ({"psram": {"disabled": False}}, "psram_buffer<uint8_t>(8)"),
+        ],
+    )
+    def test_psram_builds_allocate(self, config: ConfigType, expected: str) -> None:
+        hub = ID(
+            "hub",
+            is_declaration=True,
+            type=ct.esphome_ns.namespace("uart").class_("Hub"),
+        )
+        CORE.config = config
+        assert str(cg.static_buffer(hub, ct.uint8, 8, psram=True)) == expected
+        assert len(CORE.global_statements) == (0 if "psram_buffer" in expected else 1)
+
+    def test_align_and_expression_size(self) -> None:
+        hub_class = ct.esphome_ns.namespace("uart").class_("Hub")
+        hub = ID("hub", is_declaration=True, type=hub_class)
+        CORE.config = {}
+        cg.static_buffer(hub, ct.uint8, hub_class.static_("size")(4, True), align=4)
+        assert str(CORE.global_statements[0]) == (
+            "alignas(4) static uint8_t uart__hub_buffer__pstorage"
+            "[uart::Hub::size(4, true)];"
+        )
+
+    def test_psram_rejects_over_alignment(self) -> None:
+        hub = ID(
+            "hub",
+            is_declaration=True,
+            type=ct.esphome_ns.namespace("uart").class_("Hub"),
+        )
+        CORE.config = {}
+        with pytest.raises(EsphomeError, match="aligned to 4 bytes"):
+            cg.static_buffer(hub, ct.uint8, 8, psram=True, align=32)
+        cg.static_buffer(hub, ct.uint8, 8, psram=True, align=4)
+
+    def test_owner_must_be_an_id(self) -> None:
+        with pytest.raises(EsphomeError, match="owning component's ID"):
+            cg.static_buffer("hub", ct.uint8, 8)
+        with pytest.raises(EsphomeError, match="owning component's ID"):
+            cg.static_buffer(ID("hub"), ct.uint8, 8)
+
+
+def test_static_member() -> None:
+    cls = ct.esphome_ns.namespace("hdlc").class_("HdlcReliability")
+    assert str(cls.static_("packet_size")) == "hdlc::HdlcReliability::packet_size"
+    call = cls.static_("packet_size")(8, False)
+    assert str(call) == "hdlc::HdlcReliability::packet_size(8, false)"
+
+
 class TestProgmemString:
     @staticmethod
     def _set_platform(platform: str) -> None:
@@ -984,6 +1054,21 @@ def test_static_function_declares_early_and_defines_after_includes() -> None:
     assert [str(st) for st in CORE.global_statements_after_includes] == [
         "static void esphome__act__fn(int32_t x) {\n  return;\n}"
     ]
+
+
+def test_static_function_accepts_statements() -> None:
+    call = cg.MockObj("foo")(cg.MockObj("x") >> 2)
+    cg.static_function(
+        "esphome__st__fn", ct.void, [(ct.int32, "x")], [cg.statement(call), "return;"]
+    )
+    assert [str(st) for st in CORE.global_statements_after_includes] == [
+        "static void esphome__st__fn(int32_t x) {\n  foo((x >> 2));\n  return;\n}"
+    ]
+
+
+def test_const_ref_renders_const_reference() -> None:
+    regs = cg.MockObj("hub", "::").class_("Regs")
+    assert str(regs.const_ref()) == "const hub::Regs &"
 
 
 def test_add_global_after_includes_rejects_non_statements() -> None:
