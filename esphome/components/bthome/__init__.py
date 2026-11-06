@@ -1,0 +1,2 @@
+CODEOWNERS = ["@jpeletier"]
+DOMAIN = "bthome"
