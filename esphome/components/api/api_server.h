@@ -30,6 +30,7 @@
 
 #include <array>
 #include <memory>
+#include <span>
 #include <vector>
 
 namespace esphome::api {
@@ -208,7 +209,7 @@ class APIServer final : public Component
   void send_serial_proxy_identity(const SerialProxyIdentity &msg);
 #endif
 #ifdef USE_IR_RF
-  void send_infrared_rf_receive_event(uint32_t device_id, uint32_t key, const std::vector<int32_t> *timings);
+  void send_infrared_rf_receive_event(uint32_t device_id, uint32_t key, std::span<const int32_t> timings);
 #endif
 
   bool is_connected() const { return this->api_connection_count_ != 0; }

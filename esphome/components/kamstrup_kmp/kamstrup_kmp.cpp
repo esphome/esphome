@@ -83,8 +83,7 @@ void KamstrupKMPComponent::send_command_(uint16_t command) {
   msg[0] = 0x3F;
   msg[1] = 0x10;
   msg[2] = 0x01;
-  msg[3] = command >> 8;
-  msg[4] = command & 0xFF;
+  put_be16(msg + 3, command);
 
   this->discard_available();
   this->send_message_(msg, msg_len);
@@ -100,9 +99,7 @@ void KamstrupKMPComponent::send_message_(const uint8_t *msg, int msg_len) {
     buffer[i] = msg[i];
   }
 
-  uint16_t crc = crc16be(buffer, buffer_len - 2);
-  buffer[buffer_len - 2] = crc >> 8;
-  buffer[buffer_len - 1] = crc & 0xFF;
+  put_be16(buffer + buffer_len - 2, crc16be(buffer, buffer_len - 2));
 
   // Prepare actual TX message
   uint8_t tx_msg[20];
@@ -206,7 +203,7 @@ void KamstrupKMPComponent::parse_command_message_(uint16_t command, const uint8_
     return;
   }
 
-  uint16_t recv_command = msg[2] << 8 | msg[3];
+  uint16_t recv_command = encode_uint16(msg[2], msg[3]);
   if (recv_command != command) {
     ESP_LOGE(TAG, "Received invalid message (invalid unexpected command received 0x%04X, expected 0x%04X)",
              recv_command, command);
