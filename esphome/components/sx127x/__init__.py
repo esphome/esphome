@@ -158,7 +158,9 @@ def validate_config(config: ConfigType) -> ConfigType:
         if config[CONF_BANDWIDTH] == "500_0kHz":
             raise cv.Invalid(f"{config[CONF_BANDWIDTH]} is only available with LORA")
         if config.get(CONF_AFC_BANDWIDTH) == "500_0kHz":
-            raise cv.Invalid("500_0kHz is only available with LORA")
+            raise cv.Invalid(
+                "500_0kHz is only available with LORA", path=[CONF_AFC_BANDWIDTH]
+            )
         if CONF_BITSYNC not in config:
             raise cv.Invalid("Config 'bitsync' required with FSK/OOK")
         if CONF_PACKET_MODE not in config:
@@ -168,7 +170,9 @@ def validate_config(config: ConfigType) -> ConfigType:
         if config[CONF_PAYLOAD_LENGTH] > 64:
             raise cv.Invalid("Payload length must be <= 64 with FSK/OOK")
     if CONF_AFC_BANDWIDTH in config and config[CONF_MODULATION] != "FSK":
-        raise cv.Invalid("Config 'afc_bandwidth' only available with FSK")
+        raise cv.Invalid(
+            "Config 'afc_bandwidth' only available with FSK", path=[CONF_AFC_BANDWIDTH]
+        )
     if config[CONF_PA_PIN] == "RFO" and config[CONF_PA_POWER] > 15:
         raise cv.Invalid("PA power must be <= 15 dbm when using the RFO pin")
     if config[CONF_PA_PIN] == "BOOST" and config[CONF_PA_POWER] < 2:
