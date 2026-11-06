@@ -448,9 +448,10 @@ TEST(StaticFixedVector, UsesStorageAndDestroysWithoutFreeing) {
     StaticFixedVector<Counted> v;
     v.init(std::span<Counted>(reinterpret_cast<Counted *>(raw), 2));
     EXPECT_EQ(v.capacity(), 2u);
-    v.emplace_back(1);
+    EXPECT_NE(v.emplace_back(1), nullptr);
     v.push_back(Counted(2));
     v.push_back(Counted(3));  // beyond capacity, ignored
+    EXPECT_EQ(v.emplace_back(4), nullptr);
     EXPECT_EQ(v.size(), 2u);
     EXPECT_EQ(static_cast<void *>(v.begin()), static_cast<void *>(raw));
     EXPECT_EQ(v[1].v, 2);
