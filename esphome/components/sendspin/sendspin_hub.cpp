@@ -144,6 +144,10 @@ void SendspinHub::setup() {
   this->artwork_role_->set_listener(this);
 #endif
 
+#ifdef USE_SENDSPIN_COLOR
+  this->client_->add_color().set_listener(this);
+#endif
+
 #ifdef USE_SENDSPIN_CONTROLLER
   this->controller_role_ = &this->client_->add_controller();
   this->controller_role_->set_listener(this);
@@ -174,6 +178,12 @@ void SendspinHub::setup() {
   });
   // A sensor that reports its state at boot can run the set_signal action before this setup()
   this->set_source_signal(this->source_signal_);
+#endif
+
+#ifdef USE_SENDSPIN_VISUALIZER
+  if (this->visualizer_config_ != nullptr) {
+    this->client_->add_visualizer(*this->visualizer_config_).set_listener(this->visualizer_listener_);
+  }
 #endif
 
   // Set before setup() by codegen; an unpaired access switch sets it later, from its own setup().
@@ -539,6 +549,15 @@ void SendspinHub::artwork_frame_done(uint8_t slot) {
     this->artwork_role_->frame_done(slot);
   }
 }
+#endif
+
+#ifdef USE_SENDSPIN_COLOR
+// THREAD CONTEXT: Main loop (ColorRoleListener override, fired from client_->loop())
+void SendspinHub::on_color(const sendspin::ServerColorStateObject &color) { this->color_callbacks_.call(color); }
+
+// THREAD CONTEXT: Main loop (ColorRoleListener override, fired from client_->loop())
+// Palette dropped (disconnect or role deactivated): fan out an all-nullopt state, as on_metadata_clear() does.
+void SendspinHub::on_color_clear() { this->color_callbacks_.call(sendspin::ServerColorStateObject{}); }
 #endif
 
 #ifdef USE_SENDSPIN_CONTROLLER
