@@ -132,8 +132,9 @@ helper; `AGENTS.md` section 4 and the `component-codegen` skill have the detail.
 ## Naming user-facing functions
 
 Methods users call from lambdas (`it.` in a display lambda, `id(x).` elsewhere),
-actions and config keys are public API once released, so the name has to be
-right before then. Flag:
+actions and config keys are hard to rename once released: users' configs depend
+on them, even on undocumented methods (an undocumented C++ API change). Get the
+name right before the release. Flag:
 
 - A boolean that means off or disabled, so `true` turns something off:
   `display_off(true)` turns the display off and `display_off(false)` turns it on.
@@ -147,7 +148,8 @@ right before then. Flag:
   `display_standby`).
 
 A name not yet in a release can be renamed outright (check the release tag);
-a released one keeps the old name as an `ESPDEPRECATED` alias.
+a released C++ method keeps the old name as an `ESPDEPRECATED` alias, and a
+released config key uses `cv.rename_key(..., removed_in=...)`.
 
 ## Breaking changes and public API
 
