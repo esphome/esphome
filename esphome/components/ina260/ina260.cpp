@@ -35,10 +35,9 @@ static const uint8_t INA260_REGISTER_DEVICE_ID = 0xFF;
 
 void INA260Component::setup() {
   // Reset device on setup
-  if (!this->write_byte_16(INA260_REGISTER_CONFIG, 0x8000)) {
-    this->mark_failed(LOG_STR("Device reset failed - Is the device connected?"));
+  if (!this->setup_check(this->write_byte_16(INA260_REGISTER_CONFIG, 0x8000),
+                         LOG_STR("Device reset failed - Is the device connected?")))
     return;
-  }
 
   delay(2);
 
@@ -50,10 +49,9 @@ void INA260Component::setup() {
     return;
   }
 
-  if (!this->write_byte_16(INA260_REGISTER_CONFIG, (uint16_t) 0b0000001100000111)) {
-    this->mark_failed(LOG_STR("Failed to update device configuration"));
+  if (!this->setup_check(this->write_byte_16(INA260_REGISTER_CONFIG, (uint16_t) 0b0000001100000111),
+                         LOG_STR("Failed to update device configuration")))
     return;
-  }
 }
 
 void INA260Component::dump_config() {

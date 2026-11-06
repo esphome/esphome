@@ -78,6 +78,10 @@ class ES8388 final : public audio_dac::AudioDac, public Component, public i2c::I
   optional<DacOutputLine> get_dac_power();
   optional<AdcInputMicLine> get_mic_input();
 
+  /// The DAC attenuation at volume 0 and at volume 1, in dB from -96 to 0.
+  void set_volume_min_db(float volume_min_db) { this->volume_min_db_ = volume_min_db; }
+  void set_volume_max_db(float volume_max_db) { this->volume_max_db_ = volume_max_db; }
+
   bool set_dac_output(DacOutputLine line);
   bool set_adc_input_mic(AdcInputMicLine line);
 
@@ -94,6 +98,9 @@ class ES8388 final : public audio_dac::AudioDac, public Component, public i2c::I
   /// @param mute_state True to mute, false to unmute
   /// @return True if successful and false otherwise
   bool set_mute_state_(bool mute_state);
+
+  float volume_min_db_{-96.0f};
+  float volume_max_db_{0.0f};
 
   ES8388MicGain mic_gain_{ES8388_MIC_GAIN_0DB};
 
