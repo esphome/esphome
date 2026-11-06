@@ -266,21 +266,6 @@ def wizard_input_ids(api_config: ConfigType) -> set[str]:
     }
 
 
-def _wizard_buffer_name(entity_id: ID) -> str:
-    return f"api_wizard_input_{entity_id.id}"
-
-
-def wizard_input_buffer(entity_id: ID) -> str | None:
-    """Name of the RAM buffer holding the Home Assistant entity ID of a wizard input.
-
-    Returns None when the entity is not an input of the wizard. The buffer is defined by the api
-    codegen, and the homeassistant entity of the input is given it in place of a constant.
-    """
-    if entity_id.id not in wizard_input_ids(CORE.config.get(API_DOMAIN, {})):
-        return None
-    return _wizard_buffer_name(entity_id)
-
-
 def _wizard_input_declaration(
     config: fv.FinalValidateConfig, entity_id: ID
 ) -> tuple[str, ConfigType]:
@@ -545,12 +530,12 @@ async def to_code(wizard: ConfigType) -> None:
     entries: list[cg.RawExpression] = []
     for conf in _wizard_inputs(wizard):
         input_id = _wizard_input_id(conf)
-        # Every buffer starts empty, until the wizard sets it. A linked homeassistant entity uses it as its entity id.
-        buffer = _wizard_buffer_name(input_id)
         size = conf.get(CONF_MAX_LENGTH, WIZARD_ENTITY_ID_MAX_LENGTH) + 1
-        cg.add_global(cg.RawStatement(f'static char {buffer}[{size}] = "";'))
+        buffer = cg.static_buffer(ID(input_id.id, type=WizardInput), cg.char, size)
         if CONF_ID in conf:
-            cg.new_Pvariable(input_id, cg.RawExpression(buffer))
+            cg.new_Pvariable(input_id, buffer)
+        else:
+            cg.add((await cg.get_variable(input_id)).set_entity_id(buffer))
         key = fnv1_hash(input_id.id)
         if conf[CONF_MULTIPLE]:
             entries.append(cg.RawExpression(f"{{{key}u, {buffer}, {size}}}"))

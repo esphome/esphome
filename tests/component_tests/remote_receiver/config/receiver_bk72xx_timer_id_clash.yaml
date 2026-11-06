@@ -5,7 +5,7 @@ bk72xx:
   board: generic-bk7252
 
 globals:
-  - id: rcvr__frames
+  - id: rcvr_buffer
     type: int
 
 remote_receiver:
