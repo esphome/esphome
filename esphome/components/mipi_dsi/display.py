@@ -39,6 +39,7 @@ from esphome.components.mipi import (
 import esphome.config_validation as cv
 from esphome.const import (
     CONF_AUTO_CLEAR_ENABLED,
+    CONF_BRIGHTNESS,
     CONF_COLOR_ORDER,
     CONF_DIMENSIONS,
     CONF_ENABLE_PIN,
@@ -97,7 +98,7 @@ def model_schema(config: ConfigType) -> cv.Schema:
     # Dimensions are optional if the model has a default width
     cv_dimensions = cv.Optional if model.get_default(CONF_WIDTH) else cv.Required
     pixel_modes = (PIXEL_MODE_16BIT, PIXEL_MODE_24BIT, "16", "24")
-    return display.FULL_DISPLAY_SCHEMA.extend(
+    schema = display.FULL_DISPLAY_SCHEMA.extend(
         {
             model.option(CONF_RESET_PIN, cv.UNDEFINED): pins.gpio_output_pin_schema,
             cv.GenerateID(): cv.declare_id(MipiDsi),
@@ -138,6 +139,8 @@ def model_schema(config: ConfigType) -> cv.Schema:
             model.option(CONF_VSYNC_FRONT_PORCH): cv.int_,
         }
     )
+    # Allowed for every model so that schema extraction shows it; _config_schema rejects it where it is not supported
+    return schema.extend({model.option(CONF_BRIGHTNESS, cv.UNDEFINED): cv.uint8_t})
 
 
 @model_schema_extractor(MODELS, model_schema)
@@ -155,6 +158,15 @@ def _config_schema(config: ConfigType) -> ConfigType:
     model = MODELS[config[CONF_MODEL].upper()]
     model.check_requirements()
     config = model_schema(config)(config)
+    if (
+        CONF_BRIGHTNESS in config
+        and model.get_default(CONF_BRIGHTNESS, None) is None
+        and model.name != "CUSTOM"
+    ):
+        raise cv.Invalid(
+            f"Display model {model.name} does not support setting brightness with a DSI command",
+            path=[CONF_BRIGHTNESS],
+        )
     width, height, _offset_width, _offset_height, _pad_width, _pad_height = (
         model.get_dimensions(config)
     )
