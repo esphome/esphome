@@ -99,7 +99,7 @@ class ISRInternalGPIOPin {
  public:
   ISRInternalGPIOPin() = default;
   ISRInternalGPIOPin(void *arg) : arg_(arg) {}
-  /// Points at the pin itself; the ISR-safe calls read its fields. Pins are never freed.
+  /// For the platform pins' to_isr(), which also prepares the pin; callers get handles from pin->to_isr().
   template<std::derived_from<GPIOPin> T>
   explicit ISRInternalGPIOPin(const T *pin)
       : arg_(const_cast<T *>(pin)) {}  // NOLINT(cppcoreguidelines-pro-type-const-cast)
