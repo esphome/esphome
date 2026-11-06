@@ -24,8 +24,11 @@ class FastLEDLightOutput final : public light::AddressableLight {
 
   inline int32_t size() const override { return this->num_leds_; }
 
-  /// `effect_data` holds one byte per LED, a static array from code generation
-  void set_effect_data(uint8_t *effect_data) { this->internal_accessor_.effect_data = effect_data; }
+  /// Static arrays from code generation, one entry per LED
+  void set_buffers(CRGB *leds, uint8_t *effect_data) {
+    this->leds_ = leds;
+    this->internal_accessor_.effect_data = effect_data;
+  }
 
   /// Set a maximum refresh rate in µs as some lights do not like being updated too often.
   void set_max_refresh_rate(uint32_t interval_us) { this->max_refresh_rate_ = interval_us; }
@@ -34,11 +37,6 @@ class FastLEDLightOutput final : public light::AddressableLight {
   CLEDController &add_leds(CLEDController *controller, int num_leds) {
     this->controller_ = controller;
     this->num_leds_ = num_leds;
-    this->leds_ = new CRGB[num_leds];  // NOLINT
-
-    for (int i = 0; i < this->num_leds_; i++)
-      this->leds_[i] = CRGB::Black;
-
     return *this->controller_;
   }
 

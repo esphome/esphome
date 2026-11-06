@@ -18,6 +18,8 @@ FastLEDLightOutput = fastled_base_ns.class_(
     "FastLEDLightOutput", light.AddressableLight
 )
 
+CRGB = cg.global_ns.class_("CRGB")
+
 RGB_ORDERS = [
     "RGB",
     "RBG",
@@ -42,10 +44,11 @@ async def new_fastled_light(config: ConfigType) -> MockObj:
     await cg.register_component(var, config)
 
     cg.add_optional(var.set_max_refresh_rate, config.get(CONF_MAX_REFRESH_RATE))
+    leds = cg.static_buffer(config[CONF_OUTPUT_ID], CRGB, config[CONF_NUM_LEDS])
     effect_data = cg.static_buffer(
         config[CONF_OUTPUT_ID], cg.uint8, config[CONF_NUM_LEDS]
     )
-    cg.add(var.set_effect_data(effect_data))
+    cg.add(var.set_buffers(leds, effect_data))
 
     if CORE.is_esp32:
         from esphome.components.esp32 import add_idf_component
