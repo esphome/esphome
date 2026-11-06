@@ -63,8 +63,22 @@ def field_line_re(
     ``indent``; the name may be quoted. Keeps the prefix, the quotes and the
     trailer for rewrite."""
     scalar = PLAIN_SCALAR if value is None else re.escape(value)
-    prefix = rf"{indent}[\"']?{re.escape(name)}[\"']?\s*:\s*"
+    prefix = rf"{field_prefix(name, indent)}\s*"
     return re.compile(rf"^(?P<prefix>{prefix}){TRAILER.format(value=scalar)}")
+
+
+def field_prefix(name: str, indent: str = r"\s*") -> str:
+    """The pattern of ``name:`` at ``indent``; the name may be quoted."""
+    return rf"{indent}[\"']?{re.escape(name)}[\"']?\s*:"
+
+
+def secret_field_re(name: str) -> re.Pattern[str]:
+    """Match ``name: !secret <secret>``; the secret is the ``name`` group. It is
+    the whole scalar (`!secret ota key` is not `ota`) and `a#b` is one name."""
+    return re.compile(
+        rf"^{field_prefix(name)}\s*!secret\s+(?P<q>[\"']?)(?P<name>[^\s\"']+)(?P=q)"
+        r"(?=\s+#|\s*$)"
+    )
 
 
 def rewrite(match: re.Match[str], value: str, quote: str | None = None) -> str:
@@ -134,9 +148,10 @@ def source_of(mapping: ConfigType, name: str) -> tuple[Path, int] | None:
         if rng is None:
             return None
         doc, line = Path(rng.start_mark.document), rng.start_mark.line
-        if doc.resolve() not in own_documents() or not field_line_re(name).match(
-            line_at(doc, line)
-        ):
+        if doc.resolve() not in own_documents():
+            return None
+        text = line_at(doc, line)
+        if not (field_line_re(name).match(text) or secret_field_re(name).match(text)):
             return None
         return doc, line
     # An included mapping carries its parent's `!include` line, so only a
