@@ -121,8 +121,9 @@ async def to_code(config: ConfigType) -> None:
     num_leds = config[CONF_NUM_LEDS]
     channel_colors = config[CONF_CHANNEL_COLORS]
     led_data = light.static_led_buffer(config[CONF_OUTPUT_ID], num_leds, channel_colors)
-    # 8 DMA bytes per color byte plus 2 * 64 bytes of padding, as 32-bit words for the DMA source
     dma_buf = cg.static_buffer(
-        config[CONF_OUTPUT_ID], cg.uint32, num_leds * len(channel_colors) * 2 + 32
+        config[CONF_OUTPUT_ID],
+        cg.uint32,
+        str(beken_spi_led_strip_ns.dma_buffer_words(num_leds * len(channel_colors))),
     )
     cg.add(var.set_buffers(led_data, dma_buf))

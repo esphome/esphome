@@ -159,7 +159,7 @@ void spi_dma_tx_finish_callback(unsigned int param) {
 }
 
 void BekenSPILEDStripLightOutput::setup() {
-  const size_t dma_buffer_size = (this->get_buffer_size_() * 8) + (2 * 64);
+  const size_t dma_buffer_size = dma_buffer_words(this->get_buffer_size_()) * sizeof(uint32_t);
 
   uint32_t value = PCLK_POSI_SPI;
   sddev_control(ICU_DEV_NAME, CMD_CONF_PCLK_26M, &value);
