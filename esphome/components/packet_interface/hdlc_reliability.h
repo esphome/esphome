@@ -31,7 +31,7 @@ class HdlcReliability : public PacketInterface {
     return size_t{queue_length} * packet_size(lower_size);
   }
 
-  /// @param tx_slots send_queue_size() bytes for the send queue; nullptr on PSRAM builds, which allocate it in setup()
+  /// @param tx_slots send_queue_size() bytes for the send queue; setup() fails if it is nullptr
   /// @param max_queue_length the queue_length the send queue was sized for
   HdlcReliability(PacketInterface *lower, uint8_t *tx_slots, uint8_t max_queue_length);
 
@@ -80,7 +80,7 @@ class HdlcReliability : public PacketInterface {
 
   PacketInterface *lower_;
   // max_queue_length_ slots of max_packet_size_ bytes, a ring starting at head_ which holds frame va_
-  uint8_t *tx_slots_;                              // null until setup() with PSRAM
+  uint8_t *tx_slots_;                              // null if the PSRAM allocation failed
   std::array<uint16_t, MAX_WINDOW> tx_lengths_{};  // indexed like the slots
   uint32_t timeout_ms_{200};
   uint32_t ack_delay_ms_{0};

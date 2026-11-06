@@ -460,17 +460,6 @@ TEST(StaticFixedVector, UsesStorageAndDestroysWithoutFreeing) {
   EXPECT_EQ(Counted::live, 0);
 }
 
-TEST(StaticFixedVector, ReinitDestroysTheOldElements) {
-  alignas(Counted) static unsigned char raw[sizeof(Counted) * 2];
-  StaticFixedVector<Counted> v;
-  v.init(std::span<Counted>(reinterpret_cast<Counted *>(raw), 2));
-  v.emplace_back(1);
-  v.init(std::span<Counted>(reinterpret_cast<Counted *>(raw), 1));
-  EXPECT_EQ(Counted::live, 0);
-  EXPECT_TRUE(v.empty());
-  EXPECT_EQ(v.capacity(), 1u);
-}
-
 // --- RAMAllocator::make_unique() ---
 
 namespace {

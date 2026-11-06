@@ -145,7 +145,7 @@ async def to_code(config: ConfigType) -> None:
     var = cg.new_Pvariable(
         config[CONF_OUTPUT_ID],
         light.static_led_buffer(
-            config[CONF_OUTPUT_ID], num_leds, channel_colors, dma_data_bytes
+            config[CONF_OUTPUT_ID], num_leds, len(channel_colors), dma_data_bytes
         ),
         config[CONF_PIN],
         num_leds,

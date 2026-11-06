@@ -8,10 +8,11 @@ namespace esphome::sm16716 {
 
 class SM16716 final : public Component {
  public:
+  /// One value per channel, a static array from code generation.
+  explicit SM16716(std::span<uint8_t> pwm_amounts) : pwm_amounts_(pwm_amounts) {}
+
   void set_data_pin(GPIOPin *data_pin) { data_pin_ = data_pin; }
   void set_clock_pin(GPIOPin *clock_pin) { clock_pin_ = clock_pin; }
-  /// One value per channel, a static array from code generation.
-  void set_pwm_amounts(std::span<uint8_t> pwm_amounts) { this->pwm_amounts_ = pwm_amounts; }
   void set_num_chips(uint8_t num_chips) { num_chips_ = num_chips; }
 
   void setup() override;

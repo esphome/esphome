@@ -924,9 +924,10 @@ template<typename T> class StaticFixedVector {
   StaticFixedVector(const StaticFixedVector &) = delete;
   StaticFixedVector &operator=(const StaticFixedVector &) = delete;
 
+  /// Called once by code generation, on an empty vector
   void init(std::span<T> storage) {
-    this->clear();
-    this->storage_ = storage;
+    this->data_ = storage.data();
+    this->capacity_ = static_cast<uint16_t>(storage.size());
   }
   void clear() {
     if constexpr (!std::is_trivially_destructible_v<T>) {
@@ -941,24 +942,25 @@ template<typename T> class StaticFixedVector {
   void push_back(T &&value) { this->emplace_back(std::move(value)); }
   /// The new element, or nullptr when full
   template<typename... Args> T *emplace_back(Args &&...args) {
-    if (this->size_ >= this->storage_.size())
+    if (this->size_ >= this->capacity_)
       return nullptr;
-    return new (&this->storage_[this->size_++]) T(std::forward<Args>(args)...);
+    return new (&this->data_[this->size_++]) T(std::forward<Args>(args)...);
   }
 
   size_t size() const { return this->size_; }
   bool empty() const { return this->size_ == 0; }
-  size_t capacity() const { return this->storage_.size(); }
-  T &operator[](size_t i) { return this->storage_[i]; }
-  const T &operator[](size_t i) const { return this->storage_[i]; }
-  T *begin() { return this->storage_.data(); }
-  T *end() { return this->storage_.data() + this->size_; }
-  const T *begin() const { return this->storage_.data(); }
-  const T *end() const { return this->storage_.data() + this->size_; }
+  size_t capacity() const { return this->capacity_; }
+  T &operator[](size_t i) { return this->data_[i]; }
+  const T &operator[](size_t i) const { return this->data_[i]; }
+  T *begin() { return this->data_; }
+  T *end() { return this->data_ + this->size_; }
+  const T *begin() const { return this->data_; }
+  const T *end() const { return this->data_ + this->size_; }
 
  private:
-  std::span<T> storage_;
-  size_t size_{0};
+  T *data_{nullptr};
+  uint16_t capacity_{0};
+  uint16_t size_{0};
 };
 
 /// @brief Helper class for efficient buffer allocation - uses stack for small sizes, heap for large
@@ -2629,18 +2631,12 @@ template<class T> class RAMAllocator {
   uint8_t flags_{ALLOC_INTERNAL | ALLOC_EXTERNAL};
 };
 
-/// The static buffer from `cg.static_buffer(..., psram=True)`, or, when that returned nullptr because the build has
-/// PSRAM, `count` elements allocated with RAMAllocator so they may live in PSRAM. Returns nullptr if allocation fails.
-/// Both start zeroed, like BSS.
-template<class T> T *static_or_heap(T *buffer, size_t count) {
-#ifdef USE_PSRAM
-  if (buffer == nullptr) {
-    T *heap = RAMAllocator<T>().allocate(count);
-    if (heap != nullptr)
-      memset(heap, 0, count * sizeof(T));
-    return heap;
-  }
-#endif
+/// `count` zeroed elements from RAMAllocator, so they may live in PSRAM; nullptr if allocation fails.
+/// What `cg.static_buffer(..., psram=True)` emits in place of a static array when the build has PSRAM.
+template<class T> T *psram_buffer(size_t count) {
+  T *buffer = RAMAllocator<T>().allocate(count);
+  if (buffer != nullptr)
+    memset(buffer, 0, count * sizeof(T));
   return buffer;
 }
 
