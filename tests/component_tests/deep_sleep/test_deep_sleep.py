@@ -2,11 +2,24 @@
 
 from collections.abc import Callable
 from pathlib import Path
+import re
 
 import pytest
 
 from esphome import config_validation as cv
 from esphome.components import deep_sleep
+from esphome.components.esp32 import (
+    KEY_BOARD,
+    KEY_VARIANT,
+    VARIANT_ESP32C2,
+    VARIANT_ESP32C3,
+    VARIANT_ESP32C6,
+    VARIANT_ESP32H2,
+    VARIANT_ESP32H4,
+    VARIANT_ESP32H21,
+    VARIANT_ESP32P4,
+    VARIANT_ESP32S31,
+)
 from esphome.const import CONF_WAKEUP_PIN, PlatformFramework
 
 from ..types import SetCoreConfigCallable
@@ -218,3 +231,140 @@ def test_deep_sleep_esp32_wakeup_pin_mode_at_both_levels_rejected(
     with pytest.raises(cv.Invalid, match="not both") as exc:
         deep_sleep.validate_config(config)
     assert exc.value.path == [CONF_WAKEUP_PIN, 0, deep_sleep.CONF_WAKEUP_PIN_MODE]
+
+
+ENTER_YAML = "tests/component_tests/deep_sleep/test_deep_sleep_enter.yaml"
+
+
+def test_deep_sleep_enter_without_duration(
+    generate_main: Callable[[str | Path], str],
+) -> None:
+    """A bare deep_sleep.enter only begins a manual sleep with the configured duration."""
+    main_cpp = generate_main(ENTER_YAML)
+
+    assert (
+        "new(deep_sleep_enterdeepsleepaction_id) "
+        "deep_sleep::EnterDeepSleepAction<>(deepsleep);\n"
+        "new(automation_id) Automation<>(sleep_now);"
+    ) in main_cpp
+
+
+def test_deep_sleep_enter_constant_duration(
+    generate_main: Callable[[str | Path], str],
+) -> None:
+    """A constant sleep_duration is set in milliseconds."""
+    main_cpp = generate_main(ENTER_YAML)
+
+    assert (
+        "deep_sleep_enterdeepsleepaction_id_2->set_sleep_duration([]() -> uint32_t {\n"
+        "    return 3600000;\n"
+        "});"
+    ) in main_cpp
+
+
+def test_deep_sleep_enter_lambda_duration(
+    generate_main: Callable[[str | Path], str],
+) -> None:
+    """A lambda sleep_duration is computed from the script parameters."""
+    main_cpp = generate_main(ENTER_YAML)
+
+    assert re.search(
+        r"new\(deep_sleep_enterdeepsleepaction_id_3\) "
+        r"deep_sleep::EnterDeepSleepAction<uint32_t>\(deepsleep\);\n"
+        r"deep_sleep_enterdeepsleepaction_id_3->set_sleep_duration\("
+        r"\[\]\(uint32_t seconds\) -> uint32_t \{\n(?:    #line [^\n]*\n)?"
+        r"    return seconds \* 1000;\n",
+        main_cpp,
+    )
+
+
+@pytest.mark.parametrize(
+    ("action_id", "body"),
+    [
+        ("deep_sleep_enterdeepsleepaction_id_4", "seconds *= 1000; return seconds;"),
+        ("deep_sleep_enterdeepsleepaction_id_5", "return seconds *= 1000;"),
+    ],
+)
+def test_deep_sleep_enter_lambda_takes_args_by_value(
+    generate_main: Callable[[str | Path], str], action_id: str, body: str
+) -> None:
+    """The sleep_duration lambda gets the script parameters by value, so it may modify them."""
+    main_cpp = generate_main(ENTER_YAML)
+
+    assert re.search(
+        action_id + r"->set_sleep_duration\("
+        r"\[\]\(uint32_t seconds\) -> uint32_t \{\n(?:    #line [^\n]*\n)?    "
+        + re.escape(body)
+        + "\n",
+        main_cpp,
+    )
+
+
+def test_deep_sleep_enter_until(
+    generate_main: Callable[[str | Path], str],
+) -> None:
+    """The until and time_id keys set the wake time of day and the clock to read it from."""
+    main_cpp = generate_main(ENTER_YAML)
+
+    assert (
+        "deep_sleep_enterdeepsleepaction_id_6->set_until(6, 30, 0);\n"
+        "deep_sleep_enterdeepsleepaction_id_6->set_time(sntp_time);"
+    ) in main_cpp
+
+
+@pytest.mark.parametrize(
+    "variant", [VARIANT_ESP32H2, VARIANT_ESP32H21, VARIANT_ESP32S31]
+)
+def test_deep_sleep_wakeup_pin_rejected_on_variant_without_pin_wakeup(
+    set_core_config: SetCoreConfigCallable, variant: str
+) -> None:
+    """wakeup_pin is rejected on variants where it would be silently ignored."""
+    set_core_config(
+        PlatformFramework.ESP32_IDF,
+        platform_data={KEY_BOARD: "esp32dev", KEY_VARIANT: variant},
+    )
+    with pytest.raises(cv.Invalid, match="Wakeup from 'wakeup_pin'"):
+        deep_sleep.CONFIG_SCHEMA({CONF_WAKEUP_PIN: "GPIO4"})
+
+
+@pytest.mark.parametrize(
+    "variant", [VARIANT_ESP32C6, VARIANT_ESP32H4, VARIANT_ESP32H21]
+)
+def test_deep_sleep_touch_wakeup_rejected_on_variant_without_touch(
+    set_core_config: SetCoreConfigCallable, variant: str
+) -> None:
+    """touch_wakeup is rejected on variants without touch wakeup support."""
+    set_core_config(
+        PlatformFramework.ESP32_IDF,
+        platform_data={KEY_BOARD: "esp32dev", KEY_VARIANT: variant},
+    )
+    with pytest.raises(cv.Invalid, match="Wakeup from touch"):
+        deep_sleep.CONFIG_SCHEMA({deep_sleep.CONF_TOUCH_WAKEUP: True})
+
+
+def test_deep_sleep_touch_wakeup_accepted_on_esp32_p4(
+    set_core_config: SetCoreConfigCallable,
+) -> None:
+    """touch_wakeup is accepted on the ESP32-P4."""
+    set_core_config(
+        PlatformFramework.ESP32_IDF,
+        platform_data={KEY_BOARD: "esp32dev", KEY_VARIANT: VARIANT_ESP32P4},
+    )
+    config = deep_sleep.CONFIG_SCHEMA({deep_sleep.CONF_TOUCH_WAKEUP: True})
+    assert config[deep_sleep.CONF_TOUCH_WAKEUP] is True
+
+
+@pytest.mark.parametrize("variant", [VARIANT_ESP32C2, VARIANT_ESP32C3])
+def test_deep_sleep_ext1_wakeup_rejected_on_variant_without_ext1(
+    set_core_config: SetCoreConfigCallable, variant: str
+) -> None:
+    """esp32_ext1_wakeup is rejected on variants without ext1 wakeup support."""
+    set_core_config(
+        PlatformFramework.ESP32_IDF,
+        platform_data={KEY_BOARD: "esp32dev", KEY_VARIANT: variant},
+    )
+    config = {
+        deep_sleep.CONF_ESP32_EXT1_WAKEUP: {"pins": ["GPIO2"], "mode": "ANY_HIGH"}
+    }
+    with pytest.raises(cv.Invalid, match="Wakeup from ext1"):
+        deep_sleep.CONFIG_SCHEMA(config)

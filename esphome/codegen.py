@@ -54,6 +54,7 @@ from esphome.cpp_generator import (  # noqa: F401
     with_local_variable,
 )
 from esphome.cpp_helpers import (  # noqa: F401
+    HubFunction,
     add_optional,
     add_pin,
     add_variable,
@@ -69,6 +70,7 @@ from esphome.cpp_helpers import (  # noqa: F401
     register_parented,
     set_setup_priority,
     slot_counter,
+    slot_list,
 )
 from esphome.cpp_types import (  # noqa: F401
     NAN,
