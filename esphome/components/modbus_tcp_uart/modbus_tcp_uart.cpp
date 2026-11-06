@@ -1,7 +1,6 @@
 #include "modbus_tcp_uart.h"
 
 #include "mbap.h"
-#include "esphome/components/modbus/modbus_definitions.h"
 #include "esphome/components/tcp_uart/tcp_uart.h"
 #include "esphome/core/application.h"
 #include "esphome/core/log.h"
@@ -117,6 +116,7 @@ void ModbusTcpUart::write_array(const uint8_t *data, size_t len) {
 }
 
 void ModbusTcpUart::send_tx_(size_t held) {
+  static_assert(RTU_FRAME_SIZE >= RTU_MAX_SIZE, "tx_ holds the largest frame take_rtu returns");
   while (this->tx_len_ != 0) {
     if (this->tx_frame_len_ == 0) {
       size_t frame_len = 0;
@@ -349,8 +349,7 @@ void ModbusTcpUart::send_rtu_as_mbap_() {
   uint16_t txn;
   if (this->server_) {
     // A late reply to an earlier request, or one from another unit, must not take this request's id.
-    if (!this->txn_pending_ || this->tx_[0] != this->unit_ ||
-        (this->tx_[1] & modbus::FUNCTION_CODE_MASK) != this->function_) {
+    if (!this->txn_pending_ || this->tx_[0] != this->unit_ || (this->tx_[1] & ~EXCEPTION_FLAG) != this->function_) {
       this->note_drop_(LOG_STR("Reply without a matching request, dropped"));
       this->consume_tx_(this->tx_frame_len_);
       return;

@@ -80,6 +80,48 @@ TEST(MbapTest, WriteRejectsAnEmptyPdu) {
   EXPECT_EQ(write_mbap(frame, sizeof(frame), 1, 1, frame, 0), 0u);
 }
 
+TEST(MbapTest, FrameLengthByFunctionCode) {
+  // Unit, function code and CRC are 4 bytes of each frame; the function code gives the rest.
+  struct Row {
+    uint8_t function;
+    bool reply;
+    size_t length;
+  };
+  const Row rows[] = {
+      {0x03, false, 8},   // read: address and quantity
+      {0x06, false, 8},   // write one register: address and value
+      {0x06, true, 8},    // its reply echoes the request
+      {0x10, true, 8},    // reply to a write of several registers: address and quantity
+      {0x14, false, 5},   // file record: a byte count, 0 until it arrives
+      {0x16, false, 10},  // mask write: address, AND mask and OR mask
+      {0x17, false, 13},  // read/write: two addresses, two quantities and a byte count, 0 until it arrives
+      {0x17, true, 5},    // its reply is like a read reply
+      {0x18, false, 6},   // read FIFO queue: the pointer address
+      {0x18, true, 6},    // its reply: a 2-byte byte count, 0 until it arrives
+      {0x83, true, 5},    // exception reply to a read: the exception code
+      {0x41, false, 0},   // a code without a known length: take_rtu looks for its CRC
+  };
+  for (const Row &row : rows) {
+    const uint8_t start[] = {0x01, row.function};
+    EXPECT_EQ(rtu_frame_length(start, sizeof(start), row.reply), row.length)
+        << "function " << static_cast<int>(row.function);
+  }
+}
+
+TEST(MbapTest, FrameLengthAddsTheByteCount) {
+  // Reply to a read of two registers: byte count 4, so 5 + 4 bytes.
+  const uint8_t read_reply[] = {0x01, 0x03, 0x04};
+  EXPECT_EQ(rtu_frame_length(read_reply, sizeof(read_reply), true), 9u);
+  // Until the byte count arrives it counts as 0.
+  EXPECT_EQ(rtu_frame_length(read_reply, 2, true), 5u);
+  // Write of two registers: address, quantity and byte count 4 come first, so 9 + 4 bytes.
+  const uint8_t write_request[] = {0x01, 0x10, 0x00, 0x00, 0x00, 0x02, 0x04};
+  EXPECT_EQ(rtu_frame_length(write_request, sizeof(write_request), false), 13u);
+  // Read/write that writes two registers: both addresses, both quantities and byte count 4 first, so 13 + 4 bytes.
+  const uint8_t read_write_request[] = {0x01, 0x17, 0x00, 0x00, 0x00, 0x02, 0x00, 0x10, 0x00, 0x02, 0x04};
+  EXPECT_EQ(rtu_frame_length(read_write_request, sizeof(read_write_request), false), 17u);
+}
+
 TEST(MbapTest, TakeRtuUsesTheLengthOfTheFunctionCode) {
   // 01 03 02 12 34 B5 33: a reply to a one-register read, then the start of the next frame.
   const uint8_t two[] = {0x01, 0x03, 0x02, 0x12, 0x34, 0xB5, 0x33, 0x01, 0x03};
@@ -111,6 +153,16 @@ TEST(MbapTest, TakeRtuEndsAnUnknownFunctionAtItsCrc) {
   EXPECT_EQ(take_rtu(frame, 5, false, &len), RtuTake::NEED_MORE);
   ASSERT_EQ(take_rtu(frame, sizeof(frame), false, &len), RtuTake::FRAME);
   EXPECT_EQ(len, 6u);
+}
+
+TEST(MbapTest, TakeRtuReadsTheByteCountOfAFifoReply) {
+  // The Read FIFO Queue reply of [APP 6.18]: byte count 6, FIFO count 2, values 0x01B8 and 0x1284, CRC.
+  const uint8_t reply[] = {0x01, 0x18, 0x00, 0x06, 0x00, 0x02, 0x01, 0xB8, 0x12, 0x84, 0x19, 0x18};
+  size_t len = 0;
+  // Unit, function code, the 2-byte byte count and CRC are 6 bytes; with the 6 counted bytes the reply has 12.
+  EXPECT_EQ(take_rtu(reply, 6, true, &len), RtuTake::NEED_MORE);
+  ASSERT_EQ(take_rtu(reply, sizeof(reply), true, &len), RtuTake::FRAME);
+  EXPECT_EQ(len, 12u);
 }
 
 }  // namespace

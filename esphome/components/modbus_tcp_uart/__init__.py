@@ -20,7 +20,7 @@ import esphome.final_validate as fv
 from esphome.types import ConfigType
 
 CODEOWNERS = ["@Bascht74"]
-DEPENDENCIES = ["modbus", "tcp_uart"]
+DEPENDENCIES = ["tcp_uart"]
 DOMAIN = "modbus_tcp_uart"
 MULTI_CONF = True
 
