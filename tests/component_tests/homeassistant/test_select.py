@@ -16,8 +16,16 @@ def test_select_valid_domains(generate_main: Callable[[str | Path], str]) -> Non
     main_cpp = generate_main(DIR / "select_valid.yaml")
 
     # Default and configured option storage are passed to the constructor
-    assert "new(ha_select) homeassistant::HomeassistantSelect(16, 256);" in main_cpp
-    assert "new(ha_input_select) homeassistant::HomeassistantSelect(4, 64);" in main_cpp
+    assert "static char homeassistant__ha_select_buffer__pstorage[256];" in main_cpp
+    assert (
+        "static const char * homeassistant__ha_select_buffer_2__pstorage[16];"
+        in main_cpp
+    )
+    assert (
+        "new(ha_input_select) homeassistant::HomeassistantSelect("
+        "homeassistant__ha_input_select_buffer__pstorage, 64, "
+        "homeassistant__ha_input_select_buffer_2__pstorage, 4);"
+    ) in main_cpp
     assert 'ha_select->set_entity_id("select.example");' in main_cpp
     assert 'ha_input_select->set_entity_id("input_select.example");' in main_cpp
     assert any(d.name == "USE_API_HOMEASSISTANT_SERVICES" for d in CORE.defines)
