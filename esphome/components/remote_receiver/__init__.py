@@ -45,6 +45,7 @@ DEFAULT_FILTER = "50us"
 DEFAULT_SAMPLE_PERIOD = "100us"
 # Below the 560us NEC mark, so a coarse sample period does not filter out every bit
 MAX_TIMER_DEFAULT_FILTER_US = 400
+DEFAULT_RMT_BUFFER_SLOTS = 4
 
 AUTO_LOAD = ["remote_base"]
 DOMAIN = "remote_receiver"
@@ -321,7 +322,8 @@ FINAL_VALIDATE_SCHEMA = cv.All(
 
 async def to_code(config: ConfigType) -> None:
     pin = await cg.gpio_pin_expression(config[CONF_PIN])
-    if CORE.is_esp32 and esp32.get_esp32_variant() not in esp32_rmt.VARIANTS_NO_RMT:
+    rmt = CORE.is_esp32 and esp32.get_esp32_variant() not in esp32_rmt.VARIANTS_NO_RMT
+    if rmt:
         # Re-enable ESP-IDF's RMT driver (excluded by default to save compile time)
         esp32.include_builtin_idf_component("esp_driver_rmt")
 
@@ -353,8 +355,24 @@ async def to_code(config: ConfigType) -> None:
     )
     cg.add(var.set_filter_us(config[CONF_FILTER]))
     cg.add(var.set_idle_us(config[CONF_IDLE]))
-    if config.get(CONF_SAMPLING) != SAMPLING_TIMER:
-        cg.add_optional(var.set_buffer_size, config.get(CONF_BUFFER_SIZE))
+    if rmt:
+        # One slot per pending rmt_receive: two are the floor (one filling while one is decoded), and
+        # the default of four covers a few frames queued across a stalled loop pass
+        slot = f"(sizeof(rmt_rx_done_event_data_t) + {config[CONF_RECEIVE_SYMBOLS]} * sizeof(rmt_symbol_word_t))"
+        if (size := config.get(CONF_BUFFER_SIZE)) is not None:
+            size = f"std::max<uint32_t>({slot} * 2, {size})"
+        else:
+            size = f"{slot} * {DEFAULT_RMT_BUFFER_SLOTS}"
+        # uint32_t words keep the RMT symbols aligned
+        buffer = cg.static_buffer(config[CONF_ID], cg.uint32, f"({size} + 3) / 4")
+        cg.add(var.set_buffer(buffer, cg.RawExpression(f"sizeof({buffer})")))
+    elif config.get(CONF_SAMPLING) != SAMPLING_TIMER:
+        entries = (config[CONF_BUFFER_SIZE] + 3) // 4
+        cg.add(
+            var.set_buffer(
+                cg.static_buffer(config[CONF_ID], cg.int32, entries), entries
+            )
+        )
     else:
         cg.add_define("USE_REMOTE_RECEIVER_TIMER_SAMPLING")
         cg.add(var.set_sample_period_us(config[CONF_SAMPLE_PERIOD]))
