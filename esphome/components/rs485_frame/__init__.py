@@ -153,12 +153,11 @@ def encode_command(
 ) -> list[int]:
     """Preamble, each value as element_bytes in the format's byte order, then postamble."""
     size = element_bytes or command_format[CONF_VALUE_ELEMENT_BYTES]
-    order = "big" if command_format[CONF_ENDIAN] == "big" else "little"
     out = list(command_format[CONF_PREAMBLE])
     for value in values:
         if value >= 1 << (size * 8):
             raise cv.Invalid(f"value {value:#x} does not fit in {size} byte(s)")
-        out.extend(int(value).to_bytes(size, order))
+        out.extend(int(value).to_bytes(size, command_format[CONF_ENDIAN]))
     return out + list(command_format[CONF_POSTAMBLE])
 
 
@@ -320,7 +319,6 @@ async def to_code(config: ConfigType) -> None:
         framing[CONF_ETX],
         framing[CONF_ESCAPE].get(CONF_BYTE, framing[CONF_DLE]),
         CRC_TYPES[crc[CONF_TYPE]],
-        crc_len,
         config[CONF_MAX_FRAME_LENGTH],
         max_queue_size,
         rx,
@@ -328,22 +326,31 @@ async def to_code(config: ConfigType) -> None:
         tx_len,
     )
 
-    cg.add(var.set_accept_header_crc("header_inclusive" in crc[CONF_RX_ACCEPT]))
-    cg.add(var.set_accept_payload_crc("payload_only" in crc[CONF_RX_ACCEPT]))
-    cg.add(var.set_dump_frames(config[CONF_DUMP_FRAMES]))
-    cg.add(var.set_in_frame_timeout(config[CONF_FRAME_TIMEOUT].total_milliseconds))
+    # Setters are only emitted when the value differs from the C++ default.
+    if "header_inclusive" not in crc[CONF_RX_ACCEPT]:
+        cg.add(var.set_accept_header_crc(False))
+    if "payload_only" not in crc[CONF_RX_ACCEPT]:
+        cg.add(var.set_accept_payload_crc(False))
+    if config[CONF_DUMP_FRAMES]:
+        cg.add(var.set_dump_frames(True))
+    if (timeout := config[CONF_FRAME_TIMEOUT].total_milliseconds) != 50:
+        cg.add(var.set_in_frame_timeout(timeout))
     if not sniffer_only:
         gate = tx_config[CONF_GATE]
-        cg.add(var.set_tx_crc_variant(CRC_VARIANTS[crc[CONF_TX_VARIANT]]))
-        cg.add(var.set_tx_gate_mode(TX_GATE_MODES[gate[CONF_MODE]]))
+        if crc[CONF_TX_VARIANT] != "header_inclusive":
+            cg.add(var.set_tx_crc_variant(CRC_VARIANTS[crc[CONF_TX_VARIANT]]))
+        if gate[CONF_MODE] != "frame_trigger":
+            cg.add(var.set_tx_gate_mode(TX_GATE_MODES[gate[CONF_MODE]]))
         if gate_frame_type := gate.get(CONF_FRAME_TYPE):
             table = automation.progmem_bytes(f"{hub_id}_frame_type", gate_frame_type)
             cg.add(var.set_tx_gate_frame_type(table, len(gate_frame_type)))
-        cg.add(var.set_tx_gate_delay(gate[CONF_DELAY].total_milliseconds))
+        if delay := gate[CONF_DELAY].total_milliseconds:
+            cg.add(var.set_tx_gate_delay(delay))
         interval = gate.get(CONF_MIN_SILENCE, gate.get(CONF_INTERVAL))
         if interval is not None:
             cg.add(var.set_tx_gate_interval(interval.total_milliseconds))
-        cg.add(var.set_queue_policy(QUEUE_POLICIES[tx_config[CONF_QUEUE_POLICY]]))
+        if tx_config[CONF_QUEUE_POLICY] != "replace_latest":
+            cg.add(var.set_queue_policy(QUEUE_POLICIES[tx_config[CONF_QUEUE_POLICY]]))
 
     payload_type = cg.std_span.template(cg.uint8.operator("const"))
     for conf in config.get(CONF_ON_FRAME, []):
@@ -363,8 +370,6 @@ async def to_code(config: ConfigType) -> None:
 
 
 def _progmem_span(config: ConfigType, value: list[int]) -> str:
-    if not value:
-        return "{}"
     table = automation.progmem_bytes(f"{config[CONF_ID]}_send", value)
     return f"std::span<const uint8_t>({table}, {len(value)})"
 

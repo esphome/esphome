@@ -24,6 +24,17 @@ enum CrcType : uint8_t {
   CRC_TYPE_XOR8,
   CRC_TYPE_CRC16_MODBUS,
 };
+constexpr uint8_t crc_length(CrcType type) {
+  switch (type) {
+    case CRC_TYPE_NONE:
+      return 0;
+    case CRC_TYPE_SUM8:
+    case CRC_TYPE_XOR8:
+      return 1;
+    default:
+      return 2;
+  }
+}
 enum QueuePolicy : uint8_t { QUEUE_REPLACE_LATEST, QUEUE_FIFO };
 enum TxGateMode : uint8_t { TX_GATE_FRAME_TRIGGER, TX_GATE_IDLE_GAP, TX_GATE_FIXED_DELAY };
 
@@ -41,9 +52,9 @@ inline bool frame_has_prefix(std::span<const uint8_t> payload, const uint8_t *pr
 /// Hub for a DLE-framed RS485 bus: RX framer, CRC engine, gated TX queue and on_frame callbacks.
 class RS485FrameHub : public Component, public uart::UARTDevice {
  public:
-  /// rx_payload holds max_frame_length + crc_len bytes. tx_queue holds max_queue_size slots of that
+  /// rx_payload holds max_frame_length + crc_length(crc_type) bytes. tx_queue holds max_queue_size slots of that
   /// size and tx_queue_len max_queue_size entries; both are nullptr on a sniffer_only hub.
-  RS485FrameHub(uint8_t dle, uint8_t stx, uint8_t etx, uint8_t escape_marker, CrcType crc_type, uint8_t crc_len,
+  RS485FrameHub(uint8_t dle, uint8_t stx, uint8_t etx, uint8_t escape_marker, CrcType crc_type,
                 uint16_t max_frame_length, uint8_t max_queue_size, uint8_t *rx_payload, uint8_t *tx_queue,
                 uint16_t *tx_queue_len)
       : rx_payload_(rx_payload),
@@ -55,7 +66,7 @@ class RS485FrameHub : public Component, public uart::UARTDevice {
         etx_(etx),
         escape_marker_(escape_marker),
         crc_type_(crc_type),
-        crc_len_(crc_len),
+        crc_len_(crc_length(crc_type)),
         max_queue_size_(max_queue_size) {}
 
   void setup() override;
@@ -115,6 +126,18 @@ class RS485FrameHub : public Component, public uart::UARTDevice {
     }
     put(this->dle_);
     put(this->etx_);
+  }
+  /// Whether the released frame may go out now that its gate delay has passed.
+  bool gate_allows_send_(uint32_t now) {
+    switch (this->tx_gate_mode_) {
+      case TX_GATE_FIXED_DELAY:
+        return true;
+      case TX_GATE_IDLE_GAP:
+        // RX during the delay may be a frame in progress.
+        return this->bus_silent_(now) && this->available() == 0;
+      default:
+        return this->available() == 0;
+    }
   }
   /// How long len bytes take on the wire at the UART's baud rate and frame format.
   uint16_t wire_time_ms_(size_t len) const;

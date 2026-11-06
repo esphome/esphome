@@ -53,18 +53,6 @@ struct HubConfig {
   bool sniffer_only{false};
 };
 
-uint8_t crc_len(CrcType type) {
-  switch (type) {
-    case CRC_TYPE_NONE:
-      return 0;
-    case CRC_TYPE_SUM8:
-    case CRC_TYPE_XOR8:
-      return 1;
-    default:
-      return 2;
-  }
-}
-
 // Stand-ins for the static arrays codegen declares per hub, sized for every test here.
 struct ProbeStorage {
   uint8_t rx_buffer[256];
@@ -76,8 +64,8 @@ struct ProbeStorage {
 class RS485FrameHubProbe : public ProbeStorage, public RS485FrameHub {
  public:
   explicit RS485FrameHubProbe(HubConfig c = {})
-      : RS485FrameHub(0x10, 0x02, 0x03, c.escape_marker, c.crc_type, crc_len(c.crc_type), c.max_frame_length,
-                      c.max_queue_size, this->rx_buffer, c.sniffer_only ? nullptr : this->tx_buffer,
+      : RS485FrameHub(0x10, 0x02, 0x03, c.escape_marker, c.crc_type, c.max_frame_length, c.max_queue_size,
+                      this->rx_buffer, c.sniffer_only ? nullptr : this->tx_buffer,
                       c.sniffer_only ? nullptr : this->tx_len_buffer) {
     this->set_uart_parent(&this->fake_uart);
   }

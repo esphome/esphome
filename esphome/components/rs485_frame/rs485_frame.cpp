@@ -29,18 +29,15 @@ void RS485FrameHub::loop() {
   // A partial frame left by a cable pull or noise burst would otherwise stall reception. Checked before
   // draining, since the new bytes refresh last_rx_time_ and could complete the stale frame.
   if (this->in_frame_ && this->in_frame_timeout_ms_ > 0 && now - this->last_rx_time_ >= this->in_frame_timeout_ms_) {
-    ESP_LOGW(TAG, "Intra-frame timeout, resetting receive state");
+    ESP_LOGV(TAG, "Intra-frame timeout, resetting receive state");
     this->reset_rx_();
   }
   this->read_available([this, now](uint8_t byte) { this->handle_rx_byte_(byte, now); });
 
   // Transmits only after this pass's RX is drained, so frame_trigger sees any byte that followed the gate frame.
   this->maybe_tx_(now);
-  // idle_gap also needs the bus to still be silent, since RX during the delay may be a frame in progress. Bytes
-  // that arrived while an on_frame callback ran are still waiting; the next pass reads them before sending.
-  if (this->tx_start_pending_ && now - this->tx_delay_start_ >= this->tx_gate_delay_ &&
-      (this->tx_gate_mode_ != TX_GATE_IDLE_GAP || this->bus_silent_(now)) &&
-      (this->tx_gate_mode_ == TX_GATE_FIXED_DELAY || this->available() == 0)) {
+  // Bytes that arrived while an on_frame callback ran are still waiting; the next pass reads them before sending.
+  if (this->tx_start_pending_ && now - this->tx_delay_start_ >= this->tx_gate_delay_ && this->gate_allows_send_(now)) {
     this->tx_start_pending_ = false;
     this->transmit_head_(now);
   }
@@ -99,7 +96,7 @@ bool RS485FrameHub::queue_raw_frame(std::span<const uint8_t> frame_type, std::sp
   if (this->queue_policy_ == QUEUE_REPLACE_LATEST) {
     // The only slot; a frame waiting out the gate delay is replaced and keeps its start time.
     if (this->tx_queue_count_ > 0) {
-      ESP_LOGW(TAG, "Replacing pending frame before it was transmitted");
+      ESP_LOGV(TAG, "Replacing pending frame before it was transmitted");
     }
     this->tx_queue_count_ = 0;
   }
@@ -189,7 +186,6 @@ bool RS485FrameHub::crc_matches_(bool include_header) const {
 void RS485FrameHub::encode_crc_(const uint8_t *data, size_t len, bool include_header, uint8_t *out) const {
   const uint8_t header[2] = {this->dle_, this->stx_};
   const size_t header_len = include_header ? sizeof(header) : 0;
-  uint16_t crc;
   switch (this->crc_type_) {
     case CRC_TYPE_SUM8:
       out[0] = sum_bytes(data, len, sum_bytes(header, header_len));
@@ -201,15 +197,14 @@ void RS485FrameHub::encode_crc_(const uint8_t *data, size_t len, bool include_he
       put_be16(out, sum16_bytes(data, len, sum16_bytes(header, header_len)));
       return;
     case CRC_TYPE_SUM16_LITTLE_ENDIAN:
-      crc = sum16_bytes(data, len, sum16_bytes(header, header_len));
-      break;
+      put_le16(out, sum16_bytes(data, len, sum16_bytes(header, header_len)));
+      return;
     case CRC_TYPE_CRC16_MODBUS:
-      crc = crc16(data, static_cast<uint16_t>(len), crc16(header, static_cast<uint16_t>(header_len)));
-      break;
+      put_le16(out, crc16(data, static_cast<uint16_t>(len), crc16(header, static_cast<uint16_t>(header_len))));
+      return;
     default:
       return;
   }
-  put_le16(out, crc);
 }
 
 void RS485FrameHub::maybe_tx_(uint32_t now) {

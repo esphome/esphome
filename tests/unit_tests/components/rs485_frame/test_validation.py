@@ -1,12 +1,4 @@
-"""Tests for rs485_frame config validation that only a whole config can trigger.
-
-A button or constant send_frame whose frame is shorter than rs485_frame accepts on receive, or
-longer than the hub's max_frame_length, would only be dropped at run time, so it is rejected at
-validation, as is a TX gate prefix longer than max_frame_length, which no frame can match. An
-empty alternate on_frame prefix or a bare `frame_type:` would match every frame, so both are
-rejected too; the documented top-level `frame_type: []` matches every frame. Every hub needs
-the RX pin of its UART to itself, and a hub that transmits needs the TX pin too.
-"""
+"""Validation errors for rs485_frame that only a whole config can trigger."""
 
 from __future__ import annotations
 
