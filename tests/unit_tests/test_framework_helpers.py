@@ -1832,6 +1832,18 @@ class TestDownloadFromMirrors:
         assert target.read_bytes() == b"archive"
         assert not (tmp_path / "dist" / "esp-idf-1.2.3.tar.xz.part").exists()
 
+    def test_file_mirror_at_staging_path_is_kept(self, tmp_path: Path) -> None:
+        """A mirror that names the staging file itself cannot be copied onto
+        itself; it is reported as a failed mirror and the file is left alone."""
+        target = tmp_path / "f.bin"
+        staged = tmp_path / "f.bin.part"
+        staged.write_bytes(b"archive")
+        with pytest.raises(EsphomeError, match="all mirrors") as ei:
+            download_from_mirrors([staged.as_uri()], {}, target)
+        assert "are the same file" in str(ei.value)
+        assert staged.read_bytes() == b"archive"
+        assert not target.exists()
+
     def test_failed_copy_leaves_no_partial_target_and_warns(
         self, tmp_path: Path, caplog: pytest.LogCaptureFixture
     ) -> None:

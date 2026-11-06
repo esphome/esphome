@@ -1363,6 +1363,10 @@ def _copy_local_mirror(
         try:
             shutil.copyfile(source, part)
             part.replace(path_target)
+        except shutil.SameFileError:
+            # The mirror names the staging file itself; nothing was written,
+            # so there is nothing to clean up and the user's file stays.
+            raise
         except BaseException:
             part.unlink(missing_ok=True)
             raise
