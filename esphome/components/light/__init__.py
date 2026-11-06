@@ -78,6 +78,7 @@ from .restore_state import (
 from .types import (  # noqa: F401
     AddressableLight,
     AddressableLightState,
+    BufferColorAccessor,
     ChannelColors,
     ColorMode,
     GammaTable,
@@ -259,16 +260,18 @@ def channel_colors_struct(value: str) -> cg.MockObj:
 def static_led_buffer(
     output_id: ID,
     num_leds: int,
-    channel_colors: str,
+    bytes_per_led: int,
     extra_bytes: int | Expression = 0,
     *,
     psram: bool = False,
 ) -> MockObj:
-    """Static block for `BufferColorAccessor::set_buffer`: color data, one effect byte per LED, then `extra_bytes`.
+    """Static block for `BufferColorAccessor::set_buffer`: `buffer_bytes()`, then `extra_bytes`.
 
-    With `psram=True` a build with PSRAM gets nullptr, for the C++ to pass to `static_or_heap()`.
+    With `psram=True` a build with PSRAM allocates it instead, see `cg.static_buffer`.
     """
-    size = num_leds * (len(channel_colors) + 1) + extra_bytes
+    size = BufferColorAccessor.static_("buffer_bytes")(num_leds, bytes_per_led)
+    if extra_bytes:
+        size = size + extra_bytes
     return cg.static_buffer(output_id, cg.uint8, size, psram=psram)
 
 

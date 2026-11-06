@@ -579,14 +579,15 @@ def static_buffer(
 
     Named like placement new storage, so ``esphome analyze-memory`` counts it under the owner.
     ``size`` may be a C++ constant expression. With ``psram=True`` a build with PSRAM enabled
-    gets ``nullptr`` instead, and the C++ passes it to ``static_or_heap()``.
+    gets a ``psram_buffer<type_>(size)`` call instead, which allocates each time it is
+    evaluated, so pass the result once; it is nullptr if the allocation fails.
     ``align`` prefixes the declaration with ``alignas(align)``.
     """
     if not isinstance(owner, ID) or owner.type is None:
         raise EsphomeError(f"Buffer owner '{owner}' must be the owning component's ID")
     # Same condition as the USE_PSRAM define: psram is configured and not disabled
     if psram and not CORE.config.get("psram", {"disabled": True}).get("disabled"):
-        return MockObj("nullptr")
+        return MockObj(f"psram_buffer<{type_}>({size})", ".")
     base = unique_global_id(f"{owner.id}_buffer", type_)
     name = _pstorage_name(owner.type, base)
     prefix = "" if align is None else f"alignas({align}) "
