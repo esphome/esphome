@@ -11,7 +11,7 @@ import re
 import sys
 import time
 
-from aioesphomeapi import APIClient
+from aioesphomeapi import APIClient, ButtonInfo
 from aioesphomeapi.model import CrashReason, LogLevel
 
 sys.path.insert(0, str(pathlib.Path(__file__).resolve().parents[1]))
@@ -39,7 +39,11 @@ async def main() -> str | None:
         old = await c.crash_report()
         mark(f"read the earlier report first: reason={old.reason}")
     ents, _ = await c.list_entities_services()
-    key = next(e.key for e in ents if e.object_id == BTN)
+    key = next((e.key for e in ents if e.object_id == BTN), None)
+    if key is None:
+        await c.disconnect()
+        buttons = [e.object_id for e in ents if isinstance(e, ButtonInfo)]
+        return f"no button {BTN!r}, the device has {buttons}"
     mark(f"PRESS {BTN}")
     c.button_command(key)
     await asyncio.sleep(2)

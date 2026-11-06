@@ -35,5 +35,6 @@ for i in $(seq 1 "$N"); do
   echo "$NAME boot$i: ${R:-no RESULT} | $(grep -a 'Dropped' "$O/boot$i.txt" | sed 's/.*Dropped/Dropped/' | tr '\n' ' ')"
   [ -n "$R" ] || FAIL=1
   case $R in "got=25/25 "*"switches_on=15/15 "*) ;; *) FAIL=1;; esac
+  grep -a -q -E 'Guru|abort\(\)|Backtrace|task_wdt' "$O/boot$i.txt" && { echo "$NAME boot$i: crash or watchdog"; FAIL=1; }
 done
-[ "$FAIL" = 0 ] && echo PASS || { echo "FAIL: a boot missed messages or never reported"; exit 1; }
+[ "$FAIL" = 0 ] && echo PASS || { echo "FAIL: a boot crashed, missed messages or never reported"; exit 1; }

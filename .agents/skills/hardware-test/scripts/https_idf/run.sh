@@ -20,6 +20,7 @@ $PY "$D/stall.py" "$H" | tee "$O/stall.txt"; [ "${PIPESTATUS[0]}" = 0 ] || RC=1
 "$D/t2.sh" "$H" | tee "$O/t2.txt"; [ "${PIPESTATUS[0]}" = 0 ] || RC=1
 sleep 3
 grep -a -E 'SWITCH to mode|https_server|httpd|Guru|abort\(\)|Backtrace|task_wdt' "$O/serial.txt" | cut -c1-160
-grep -a -q -E 'Guru|abort\(\)|Backtrace|task_wdt' "$O/serial.txt" && { echo "FAIL: reset or watchdog"; RC=1; }
+sed -n '/IP Address/,$p' "$O/serial.txt" | grep -a -q -E 'Guru|abort\(\)|Backtrace|rst:0x|task_wdt' &&
+  { echo "FAIL: reset or watchdog"; RC=1; }
 grep -a 'ALIVE' "$O/serial.txt" | sed -n '1p;$p'
 [ "$RC" = 0 ] && echo PASS || { echo FAIL; exit 1; }

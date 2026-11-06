@@ -109,12 +109,14 @@ async def observe(
     if connect_addr is None:
         return
     log(f"asking proxy to connect {connect_addr:#x}")
-    await connect_once(c, connect_addr, flags, "observer", time.time())
+    ok = await connect_once(c, connect_addr, flags, "observer", time.time())
     await c.bluetooth_device_disconnect(connect_addr)
     log("released")
     n0 = seen["n"]
     await asyncio.sleep(20)
     log(f"adverts in 20 s after release {seen['n'] - n0}")
+    if not ok:
+        sys.exit("observer connect failed")
 
 
 async def main() -> None:

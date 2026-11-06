@@ -15,6 +15,8 @@ $PY "$SC" "$CP" 150 "$OUT/client.txt" --reset > /dev/null 2>&1 || { echo "FAIL: 
 c() { grep -a -c "$1" "$OUT/client.txt"; }
 echo "bn$L: connects $(c 'CLI connected'), num value $(c 'CLI num value') notify A $(c 'num notify A') B $(c 'num notify B')," \
   "txt value $(c 'CLI txt value') notify A $(c 'txt notify A') B $(c 'txt notify B'), services released $(c 'All clients established, services released')"
+CRASH=$(sed -n '/CLI connected/,$p' "$OUT/client.txt" | grep -a -c -E 'Guru|abort\(\)|Backtrace|rst:0x|task_wdt')
+[ "$CRASH" = 0 ] || { echo "FAIL: the client crashed or reset $CRASH times after connecting"; exit 1; }
 [ "$(c 'num notify A')" -gt 0 ] && [ "$(c 'txt notify A')" -gt 0 ] || { echo "FAIL: no on_notify fired"; exit 1; }
 [ "$(c 'txt notify B')" -gt 0 ] || { echo "FAIL: the delayed txt on_notify never fired"; exit 1; }
 [ "$(c 'num notify A')" = "$(c 'num notify B')" ] || { echo "FAIL: the two num on_notify triggers fired a different number of times"; exit 1; }

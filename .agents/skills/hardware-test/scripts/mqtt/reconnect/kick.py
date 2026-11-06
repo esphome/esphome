@@ -72,5 +72,5 @@ with pathlib.Path(LOG).open("rb") as log:
                 flush=True,
             )
             time.sleep(8)
+            log.seek(0, 2)  # skip the 8 s, but not the reconnect this kick causes
             kick(m.group(1))
-            log.seek(0, 2)
