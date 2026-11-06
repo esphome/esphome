@@ -8,10 +8,6 @@
 #include "esphome/core/helpers.h"
 #include "esphome/core/log.h"
 
-#ifdef USE_ESP32_TASK_WDT
-#include "esp_task_wdt.h"
-#endif
-
 ESPHOME_LOG_TAG(TAG, "image_decoder.jpeg");
 
 namespace esphome::runtime_image {
@@ -51,20 +47,6 @@ void JpegDecoder::draw_rgb565(int x, int y, int w, int h, const uint8_t *pixels)
   }
 }
 
-// Some very big images take too long to decode, so feed the watchdog as the decode goes
-// to avoid crashing if the executing task has a watchdog enabled.
-static void feed_watchdog() {
-#ifdef USE_ESP32_TASK_WDT
-  // Only a task the watchdog watches may feed it
-  if (esp_task_wdt_status(nullptr) != ESP_OK)
-    return;
-#elif defined(USE_ESP32)
-  // No watchdog to feed, and a decode off the loop task must not run the status LED
-  return;
-#endif
-  App.feed_wdt();
-}
-
 /**
  * @brief Callback method that will be called by the JPEGDEC engine when a chunk
  * of the image is decoded.
@@ -79,7 +61,8 @@ static int draw_callback(JPEGDRAW *jpeg) {
     return 0;
   }
 
-  feed_watchdog();
+  // Very big images take long to decode, so feed the watchdog as the decode goes
+  App.feed_wdt_if_watched();
   if (decoder->uses_direct_rgb565()) {
     decoder->draw_rgb565(jpeg->x, jpeg->y, jpeg->iWidth, jpeg->iHeight,
                          reinterpret_cast<const uint8_t *>(jpeg->pPixels));
@@ -143,7 +126,7 @@ int HOT JpegDecoder::decode(uint8_t *buffer, size_t size) {
     return this->fail_();
   int result;
   while ((result = this->jpeg_->decodeRows(1)) == JPEG_DECODE_MORE)
-    feed_watchdog();
+    App.feed_wdt_if_watched();
   if (result != 1)
     return this->fail_();
   this->decoded_bytes_ = size;

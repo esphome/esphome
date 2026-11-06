@@ -278,6 +278,9 @@ class Application {
 #else
   void feed_wdt();
 #endif
+  /// Feed from code that may run off the loop task (a long download or image decode): on ESP32 only a task the
+  /// watchdog watches feeds it, and with watchdog_timeout: 0s nothing does.
+  void feed_wdt_if_watched();
 
 #ifdef USE_STATUS_LED
   /// Dispatch interval for the status LED update. Deliberately shorter than
@@ -870,8 +873,8 @@ inline void ESPHOME_ALWAYS_INLINE Application::loop() {
   // the SDK feeds both watchdogs while the cont task is suspended, so no WDT cap needed.
   static constexpr uint32_t MAX_SLEEP_BASE = 0x68D7A3;
 #elif defined(USE_HOST) || (defined(USE_ESP32) && !defined(USE_ESP32_TASK_WDT))
-  // No watchdog to feed (host, or ESP32 with watchdog_timeout: 0s) and ESPHOME_SUSPEND_LOOP
-  // is rejected on host, so delay_time is already bounded by loop_interval_.
+  // No watchdog to feed (host, or ESP32 with watchdog_timeout: 0s), so nothing caps the sleep; with
+  // suspend_loop an ESP32 may sleep until a wake notification arrives.
   static constexpr uint32_t MAX_SLEEP_BASE = std::numeric_limits<uint32_t>::max();
 #else
   static constexpr uint32_t MAX_SLEEP_BASE = WDT_FEED_INTERVAL_MS * 2;

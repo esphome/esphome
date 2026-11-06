@@ -33,6 +33,9 @@
 #ifdef USE_STATUS_LED
 #include "esphome/components/status_led/status_led.h"
 #endif
+#ifdef USE_ESP32_TASK_WDT
+#include "esp_task_wdt.h"
+#endif
 
 namespace esphome {
 
@@ -242,6 +245,16 @@ void Application::feed_wdt() {
   this->feed_wdt_with_time(MillisInternal::get());
 }
 #endif
+
+void Application::feed_wdt_if_watched() {
+#ifdef USE_ESP32_TASK_WDT
+  if (esp_task_wdt_status(nullptr) != ESP_OK)
+    return;
+#elif defined(USE_ESP32)
+  return;
+#endif
+  this->feed_wdt();
+}
 
 void HOT Application::feed_wdt_slow_(uint32_t time) {
   // Callers (both feed_wdt() and feed_wdt_with_time()) have already
