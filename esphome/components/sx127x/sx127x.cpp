@@ -152,7 +152,7 @@ void SX127x::configure_fsk_ook_() {
 
   // configure rx and afc
   if (this->has_afc_bandwidth_) {
-    this->write_register_(REG_AFC_BW, BW_FSK_OOK[this->afc_bandwidth_]);
+    this->write_register_(REG_AFC_BW, progmem_read_byte(&BW_FSK_OOK[this->afc_bandwidth_]));
   }
   uint8_t trigger = (this->preamble_detect_ > 0) ? TRIGGER_PREAMBLE : TRIGGER_RSSI;
   this->write_register_(REG_AFC_FEI, AFC_AUTO_CLEAR_ON);
