@@ -590,6 +590,10 @@ def static_buffer(
     evaluated, so pass the result once; it is nullptr if the allocation fails.
     ``align`` prefixes the declaration with ``alignas(align)``.
     """
+    if psram and align is not None and align > 4:
+        raise EsphomeError(
+            "A PSRAM buffer can only be aligned to 4 bytes, the heap alignment"
+        )
     base, name = _owned_static_name(owner, "buffer", type_)
     # Same condition as the USE_PSRAM define: psram is configured and not disabled
     if psram and not CORE.config.get("psram", {"disabled": True}).get("disabled"):
