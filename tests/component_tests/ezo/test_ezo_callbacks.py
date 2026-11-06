@@ -30,7 +30,7 @@ def callbacks(
 
 def test_custom_callback_types(callbacks: dict[str, list[tuple[str, str]]]) -> None:
     assert callbacks["add_custom_callback"] == [
-        ("direct", "std::string"),
+        ("direct", "StringRef"),
         ("forwarder", "std::string"),
     ]
 
@@ -47,7 +47,7 @@ def test_custom_callback_types(callbacks: dict[str, list[tuple[str, str]]]) -> N
 def test_reply_callback_types(
     callbacks: dict[str, list[tuple[str, str]]], method: str
 ) -> None:
-    assert callbacks[method] == [("direct", "std::string")]
+    assert callbacks[method] == [("direct", "StringRef")]
 
 
 def test_led_callback_type(callbacks: dict[str, list[tuple[str, str]]]) -> None:
