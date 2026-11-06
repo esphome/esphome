@@ -291,7 +291,7 @@ void EmonTx::send_command(const char *command) {
  */
 void EmonTx::register_sensor(const char *tag_name, sensor::Sensor *sensor) {
   ESP_LOGCONFIG(TAG, "Registering sensor for tag: %s", tag_name);
-  this->sensors_.emplace_back(tag_name, sensor);
+  this->sensors_.push_back({tag_name, sensor});
 }
 #endif
 

@@ -1,9 +1,6 @@
-from dataclasses import dataclass, field
-
 from esphome import automation
 import esphome.codegen as cg
 from esphome.components import uart
-from esphome.components.sensor import DOMAIN as SENSOR_DOMAIN
 from esphome.components.uart import DOMAIN as UART_DOMAIN
 import esphome.config_validation as cv
 from esphome.const import (
@@ -13,7 +10,6 @@ from esphome.const import (
     CONF_RX_BUFFER_SIZE,
     CONF_UART_ID,
 )
-from esphome.core import CORE
 import esphome.final_validate as fv
 from esphome.types import ConfigType
 
@@ -39,17 +35,6 @@ LOCK_ON_REBOOT_MODES = {
 DOMAIN = "emontx"
 
 MINIMUM_RX_BUFFER_SIZE = 2048
-
-
-@dataclass
-class EmonTxData:
-    sensor_counts: dict[str, int] = field(default_factory=dict)
-
-
-def _get_data() -> EmonTxData:
-    if DOMAIN not in CORE.data:
-        CORE.data[DOMAIN] = EmonTxData()
-    return CORE.data[DOMAIN]
 
 
 def _synchronous_automation_schema() -> cv.All:
@@ -78,14 +63,6 @@ CONFIG_SCHEMA = (
 
 def final_validate(config: ConfigType) -> None:
     full_config = fv.full_config.get()
-
-    # Count sensors registered to this hub (IDs are resolved at final_validate stage)
-    hub_id = config[CONF_ID]
-    _get_data().sensor_counts[str(hub_id)] = len(
-        fv.platform_entries(
-            domain=SENSOR_DOMAIN, platform=DOMAIN, match={CONF_EMONTX_ID: hub_id}
-        )
-    )
 
     # Ensure UART RX buffer size is large enough to handle data bursts from firmware
     for uart_conf in full_config[UART_DOMAIN]:
@@ -132,13 +109,6 @@ _CALLBACK_AUTOMATIONS = (
 async def to_code(config: ConfigType) -> None:
     var = cg.new_Pvariable(config[CONF_ID])
     cg.add_define("USE_LINE_READER")
-
-    # Initialize sensor storage with count from final_validate before any
-    # await, so platform to_code() calls always see it initialized
-    # regardless of YAML key order.
-    sensor_count = _get_data().sensor_counts.get(str(config[CONF_ID]), 0)
-    if sensor_count > 0:
-        cg.add(var.init_sensors(sensor_count))
 
     await cg.register_component(var, config)
     await uart.register_uart_device(var, config)

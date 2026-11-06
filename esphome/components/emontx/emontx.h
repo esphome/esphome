@@ -19,6 +19,11 @@
 
 namespace esphome::emontx {
 
+// Sized by codegen; no sensor platform means no define
+#ifndef EMONTX_SENSOR_COUNT
+static constexpr uint8_t EMONTX_SENSOR_COUNT = 0;
+#endif
+
 /// Maximum line length in characters
 static constexpr size_t MAX_LINE_LENGTH = 1024;
 
@@ -66,7 +71,6 @@ class EmonTx final : public Component, public uart::UARTDevice {
   void set_lock_on_reboot(LockOnReboot lock_on_reboot) { this->lock_on_reboot_ = lock_on_reboot; }
 
 #ifdef USE_SENSOR
-  void init_sensors(size_t count) { this->sensors_.init(count); }
   void register_sensor(const char *tag_name, sensor::Sensor *sensor);
 #endif
 
@@ -88,7 +92,7 @@ class EmonTx final : public Component, public uart::UARTDevice {
 #endif
 
 #ifdef USE_SENSOR
-  FixedVector<std::pair<const char *, sensor::Sensor *>> sensors_{};
+  [[no_unique_address]] SlotList<std::pair<const char *, sensor::Sensor *>, EMONTX_SENSOR_COUNT> sensors_;
 #endif
   LazyCallbackManager<void(JsonObject, StringRef)> json_callbacks_;
   LazyCallbackManager<void(StringRef)> data_callbacks_;

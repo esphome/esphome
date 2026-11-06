@@ -34,6 +34,8 @@ from .. import CONF_EMONTX_ID, CONF_TAG_NAME, EmonTx, emontx_ns
 
 EmonTxSensor = emontx_ns.class_("EmonTxSensor", sensor.Sensor, cg.Component)
 
+_request_sensor_slot = cg.slot_counter("EMONTX_SENSOR_COUNT")
+
 # Known emonTx/avrdb JSON tag conventions, gathered from real firmware
 # (see https://github.com/openenergymonitor/avrdb_firmware), used to decide
 # whether each tag below requires a numeric index or may also appear bare:
@@ -210,4 +212,5 @@ async def to_code(config: ConfigType) -> None:
     await cg.register_component(var, config)
     await sensor.register_sensor(var, config)
     hub = await cg.get_variable(config[CONF_EMONTX_ID])
+    _request_sensor_slot()
     cg.add(hub.register_sensor(config[CONF_TAG_NAME], var))
