@@ -73,7 +73,7 @@ TEST_F(MCP23008Test, SetupIoconWriteFailure) {
   this->bus_.fail_write_reg = MCP23X08_IOCON;
   this->component_.set_open_drain_ints(true);
   this->component_.setup();
-  EXPECT_FALSE(this->component_.is_failed());
+  EXPECT_TRUE(this->component_.is_failed());
   EXPECT_TRUE(this->bus_.writes.empty());
 }
 
@@ -81,7 +81,7 @@ TEST_F(MCP23008Test, SetupWithoutOpenDrain) {
   this->bus_.regs[MCP23X08_IOCON] = IOCON_SEQOP;
   this->component_.setup();
   EXPECT_FALSE(this->component_.is_failed());
-  EXPECT_EQ(sorted(this->bus_.writes), sorted(Writes{}));
+  EXPECT_EQ(sorted(this->bus_.writes), sorted(Writes{{MCP23X08_IOCON, IOCON_SEQOP}}));
 }
 
 TEST_F(MCP23008Test, SetupOpenDrain) {
@@ -96,8 +96,8 @@ TEST_F(MCP23008Test, SetupStaleOdr) {
   this->bus_.regs[MCP23X08_IOCON] = IOCON_SEQOP | IOCON_ODR;
   this->component_.setup();
   EXPECT_FALSE(this->component_.is_failed());
-  EXPECT_EQ(sorted(this->bus_.writes), sorted(Writes{}));
-  EXPECT_EQ(this->bus_.regs[MCP23X08_IOCON], IOCON_SEQOP | IOCON_ODR);
+  EXPECT_EQ(sorted(this->bus_.writes), sorted(Writes{{MCP23X08_IOCON, IOCON_SEQOP}}));
+  EXPECT_EQ(this->bus_.regs[MCP23X08_IOCON], IOCON_SEQOP);
 }
 
 TEST_F(MCP23008Test, ReadWarningClearsAfterSuccessfulRead) {
