@@ -10,6 +10,9 @@ globals:
     type: int
     restore_value: true
     initial_value: "0"
+  - id: restore_ok
+    type: bool
+    initial_value: "false"
 
 binary_sensor:
   - platform: ld6004
@@ -44,6 +47,10 @@ script:
       - lambda: |-
           id(boots) += 1;
           ESP_LOGI("ld6sim", "BOOT %d pc=%d td=%d", id(boots), (int) id(sw_pc).state, (int) id(sw_td).state);
+          // Boot 1 left point cloud on and target display off; check before the cases overwrite them.
+          id(restore_ok) = id(sw_pc).state && !id(sw_td).state;
+          if (id(boots) == 2 && !id(restore_ok))
+            ESP_LOGE("ld6sim", "CASE restore_failed boot=2");
       - lambda: |-
           ESP_LOGI("ld6sim", "CASE p1_defaults");
           ld6sim::mod.send("target x=1", ld6sim::targets_n(1, 1));
@@ -81,14 +88,16 @@ script:
       - switch.turn_on: sw_pc
       - switch.turn_off: sw_td
       - delay: 3s
-      # CASE done only on the second boot, so a skipped reboot fails run.sh; boots > 2 means stale preferences.
+      # CASE done only on the second boot with restored switches, so a skipped reboot or a lost state fails run.sh.
       - lambda: |-
           if (id(boots) == 1) {
             ESP_LOGI("ld6sim", "CASE reboot boot=1");
             global_preferences->sync();
             App.safe_reboot();
-          } else if (id(boots) == 2) {
+          } else if (id(boots) == 2 && id(restore_ok)) {
             ESP_LOGI("ld6sim", "CASE done boot=2");
+          } else if (id(boots) == 2) {
+            ESP_LOGE("ld6sim", "CASE end boot=2 without restored switches");
           } else {
             ESP_LOGE("ld6sim", "CASE stale boot=%d, rerun with ERASE=1", id(boots));
           }

@@ -9,8 +9,8 @@ T=${TREE:?set TREE}; P=${PORT:?set PORT}; SC=${SC:?set SC}; PY=${PY:-$T/venv/bin
 [ -f "$R/$C.yaml" ] || { echo "no case file $C.yaml"; exit 1; }
 NAME=rs$C$L; OUT=$R/out-$NAME; rm -rf "$OUT"; mkdir -p "$OUT"
 printf 'esphome:\n  name: %s\npackages:\n  cases: !include %s.yaml\n' "$NAME" "$C" > "$R/$NAME.yaml"
-pkill -f "[s]erial_capture.py $P"
-(cd "$T" && $PY -m esphome run --no-logs "$R/$NAME.yaml" --device "$P" > "$OUT/build.log" 2>&1) ||
+pkill -f "[s]erial_capture.py $P "
+(cd "$T" && PYTHONUNBUFFERED=1 timeout 1500 $PY -m esphome run --no-logs "$R/$NAME.yaml" --device "$P" > "$OUT/build.log" 2>&1) ||
   { echo "build or flash failed, see $OUT/build.log"; exit 1; }
 $PY "$SC" "$P" "$S" "$OUT/serial.txt" --reset > /dev/null 2>&1 || { echo "serial capture failed"; exit 1; }
 grep -a -E '\[(sim|hwt|rs485_frame)[]:]' "$OUT/serial.txt" | sed -E 's/^\[[0-9:.]*\]//; s/\[(sim|hwt|rs485_frame):[0-9]+\]/[\1]/' > "$R/out-$NAME.log"

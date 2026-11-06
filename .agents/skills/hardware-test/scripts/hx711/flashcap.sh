@@ -2,7 +2,8 @@
 # flashcap.sh DIR NAME TREE SECONDS: upload the prebuilt NAME from DIR over serial, then capture a fresh boot to
 # DIR/NAME-cap.txt (ms time stamps). Fails when the capture has no DONE line or shows a crash.
 # env: PORT (serial port), SC (path to serial_capture.py), PY (default TREE/venv/bin/python)
-H=$(cd "$(dirname "$0")" && pwd); D=${1:?dir}; N=${2:?name}; T=${3:?tree}; S=${4:?seconds}
+H=$(cd "$(dirname "$0")" && pwd); N=${2:?name}; S=${4:?seconds}
+D=$(cd "${1:?dir}" && pwd) || exit 1; T=$(cd "${3:?tree}" && pwd) || exit 1
 P=${PORT:?set PORT}; SC=${SC:?set SC}; PY=${PY:-$T/venv/bin/python}
 cd "$D" && PYTHONPATH=$T PYTHONUNBUFFERED=1 timeout 300 $PY -m esphome upload "$D/$N.yaml" --device "$P" > "$D/$N-upload.log" 2>&1 ||
   { echo "upload failed"; tail -5 "$D/$N-upload.log"; exit 1; }
