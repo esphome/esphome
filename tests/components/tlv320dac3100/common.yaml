@@ -1,0 +1,25 @@
+esphome:
+  on_boot:
+    then:
+      - audio_dac.mute_off: dac_bclk
+      - audio_dac.mute_on: dac_mclk
+      - audio_dac.set_volume:
+          id: dac_bclk
+          volume: 50%
+
+audio_dac:
+  - platform: tlv320dac3100
+    id: dac_bclk
+    i2c_id: i2c_bus
+    sample_rate: 44100
+    output: SPEAKER
+    speaker_gain: 24dB
+    reset_pin: ${reset_pin}
+  - platform: tlv320dac3100
+    id: dac_mclk
+    i2c_id: i2c_bus
+    address: 0x19
+    sample_rate: 48000
+    bits_per_sample: 32bit
+    mclk_frequency: 12288000
+    output: HEADPHONE
