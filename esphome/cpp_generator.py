@@ -568,13 +568,19 @@ def shared_progmem_string(value: str) -> Expression:
 
 
 def static_buffer(
-    owner: ID, type_: "MockObjClass", size: int | str, *, psram: bool = False
+    owner: ID,
+    type_: "MockObjClass",
+    size: "int | str | Expression",
+    *,
+    psram: bool = False,
+    align: int | None = None,
 ) -> "MockObj":
     """Emit a zeroed file-scope ``static type_ <component>__<owner>_buffer__pstorage[size];``.
 
     Named like placement new storage, so ``esphome analyze-memory`` counts it under the owner.
     ``size`` may be a C++ constant expression. With ``psram=True`` a build with PSRAM enabled
     gets ``nullptr`` instead, and the C++ passes it to ``static_or_heap()``.
+    ``align`` prefixes the declaration with ``alignas(align)``.
     """
     if not isinstance(owner, ID) or owner.type is None:
         raise EsphomeError(f"Buffer owner '{owner}' must be the owning component's ID")
@@ -583,7 +589,8 @@ def static_buffer(
         return MockObj("nullptr")
     base = unique_global_id(f"{owner.id}_buffer", type_)
     name = f"{_extract_component_ns(str(owner.type))}__{base}__pstorage"
-    CORE.add_global(RawStatement(f"static {type_} {name}[{size}];"))
+    prefix = "" if align is None else f"alignas({align}) "
+    CORE.add_global(RawStatement(f"{prefix}static {type_} {name}[{size}];"))
     buffer = MockObj(name, ".")
     CORE.register_variable(base, buffer)
     return buffer
@@ -1368,6 +1375,10 @@ class MockObjClass(MockObj):
     def const_ref(self) -> MockObj:
         """``const T &``, for a parameter that takes this type by reference."""
         return self.operator("const").operator("ref")
+
+    def static_(self, name: str) -> MockObj:
+        """The static member ``Class::name``; call it for ``Class::name(args)``."""
+        return MockObj(f"{self.base}::{name}", "::")
 
     def template(self, *args: SafeExpType) -> "MockObjClass":
         if len(args) != 1 or not isinstance(args[0], TemplateArguments):
