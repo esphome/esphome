@@ -75,11 +75,17 @@ async def to_code(config: ConfigType) -> None:
     esp32.include_builtin_idf_component("esp_driver_i2s")
     esp32.add_idf_sdkconfig_option("CONFIG_I2S_ISR_IRAM_SAFE", True)
 
+    num_leds = config[CONF_NUM_LEDS]
+    channel_colors = config[CONF_CHANNEL_COLORS]
+    i2s_data_bytes = f"{num_leds * len(channel_colors)} * {i2s_clockless_led_strip_ns.I2S_BYTES_PER_SAMPLE}"
     var = cg.new_Pvariable(
         config[CONF_OUTPUT_ID],
+        light.static_led_buffer(
+            config[CONF_OUTPUT_ID], num_leds, channel_colors, i2s_data_bytes
+        ),
         config[CONF_PIN],
-        config[CONF_NUM_LEDS],
-        light.channel_colors_struct(config[CONF_CHANNEL_COLORS]),
+        num_leds,
+        light.channel_colors_struct(channel_colors),
     )
 
     await light.register_light(var, config)

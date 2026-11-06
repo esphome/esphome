@@ -86,7 +86,7 @@ static void spi_dma_transmit(const uint8_t *data, uint16_t len) {
 // transfer is the reset gap, so starting the next one while that byte shifts out is harmless.
 static bool spi_dma_busy() { return hal_dma_get_data_num(LED_STRIP_DMA_CH) != 0; }
 
-LN882xSPILEDStripLightOutput::LN882xSPILEDStripLightOutput(uint8_t pin, uint16_t num_leds,
+LN882xSPILEDStripLightOutput::LN882xSPILEDStripLightOutput(uint8_t *buffer, uint8_t pin, uint16_t num_leds,
                                                            light::ChannelColors channel_colors, uint8_t prescaler,
                                                            uint8_t bit0_high_bits, uint8_t bit1_high_bits,
                                                            uint16_t reset_bytes)
@@ -98,7 +98,9 @@ LN882xSPILEDStripLightOutput::LN882xSPILEDStripLightOutput(uint8_t pin, uint16_t
       pin_(pin),
       prescaler_(prescaler),
       bit0_high_bits_(bit0_high_bits),
-      bit1_high_bits_(bit1_high_bits) {}
+      bit1_high_bits_(bit1_high_bits) {
+  this->dma_data_ = this->internal_accessor_.set_buffer(buffer, num_leds);
+}
 
 void LN882xSPILEDStripLightOutput::setup() {
   const uint32_t apb0_hz = hal_clock_get_apb0_clk();
@@ -107,13 +109,6 @@ void LN882xSPILEDStripLightOutput::setup() {
     this->mark_failed(LOG_STR("APB0 clock is not 40 MHz"));
     return;
   }
-
-  // One block for the color, effect and DMA data.
-  RAMAllocator<uint8_t> allocator;
-  if (!this->setup_check(this->internal_accessor_.allocate(allocator, this->num_leds_, this->dma_data_bytes_),
-                         LOG_STR(ESP_LOG_MSG_ALLOC_FAIL)))
-    return;
-  this->dma_data_ = this->internal_accessor_.effect_data + this->num_leds_;
 
   spi_dma_init(this->pin_, this->prescaler_);
 
