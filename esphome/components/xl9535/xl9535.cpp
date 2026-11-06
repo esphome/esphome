@@ -1,4 +1,5 @@
 #include "xl9535.h"
+#include "esphome/core/helpers.h"
 #include "esphome/core/log.h"
 
 namespace esphome::xl9535 {
@@ -6,10 +7,9 @@ namespace esphome::xl9535 {
 ESPHOME_LOG_TAG(TAG, "xl9535");
 
 void XL9535Component::setup() {
-  // Check to see if the device can read from the register
-  uint8_t port = 0;
-  if (!this->setup_check(this->read_register(XL9535_INPUT_PORT_0_REGISTER, &port, 1) == i2c::ERROR_OK))
-    return;
+  // Start from the levels the chip already holds, which survive a reboot of the MCU
+  this->setup_check(this->read_byte(XL9535_OUTPUT_PORT_0_REGISTER, &this->output_[0]) &&
+                    this->read_byte(XL9535_OUTPUT_PORT_1_REGISTER, &this->output_[1]));
 }
 
 void XL9535Component::dump_config() {
@@ -29,9 +29,9 @@ bool XL9535Component::digital_read(uint8_t pin) {
 }
 
 void XL9535Component::digital_write(uint8_t pin, bool value) {
-  const uint8_t mask = pin_mask(pin);
-  this->status_comm_result(
-      this->update_register(port_register(XL9535_OUTPUT_PORT_0_REGISTER, pin), mask, value ? mask : 0));
+  uint8_t &output = this->output_[pin / 10];
+  assign_bits(output, pin_mask(pin), value);
+  this->status_comm_result(this->write_byte(port_register(XL9535_OUTPUT_PORT_0_REGISTER, pin), output));
 }
 
 void XL9535Component::pin_mode(uint8_t pin, gpio::Flags mode) {
