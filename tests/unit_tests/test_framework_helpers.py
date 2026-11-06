@@ -1962,16 +1962,16 @@ class TestDownloadFromMirrors:
         assert f"Local mirror {source.as_uri()} is unusable: denied" in caplog.text
         mock_sleep.assert_not_called()
 
-    @pytest.mark.parametrize(
-        ("url", "expected"),
-        [
-            ("file:///tmp/a%20b/x.tar.xz", "/tmp/a b/x.tar.xz"),
-            ("file://localhost/tmp/x.tar.xz", "/tmp/x.tar.xz"),
-            ("file://server/share/x.tar.xz", "//server/share/x.tar.xz"),
-        ],
-    )
-    def test_local_path_from_url(self, url: str, expected: str) -> None:
-        assert framework_helpers.local_path_from_url(url) == Path(expected)
+    def test_local_path_from_url(self, tmp_path: Path) -> None:
+        """Percent-decoding, an explicit localhost host, and a UNC host; built
+        from tmp_path so the paths are absolute on Windows too."""
+        target = tmp_path / "a b" / "x.tar.xz"
+        assert framework_helpers.local_path_from_url(target.as_uri()) == target
+        with_host = target.as_uri().replace("file:///", "file://localhost/", 1)
+        assert framework_helpers.local_path_from_url(with_host) == target
+        assert framework_helpers.local_path_from_url(
+            "file://server/share/x.tar.xz"
+        ) == Path("//server/share/x.tar.xz")
 
     def test_relative_file_url_is_a_mirror_failure(self, tmp_path: Path) -> None:
         """A relative file URL would be read from the current directory;
