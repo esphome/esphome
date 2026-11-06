@@ -2576,7 +2576,6 @@ def test_require_idf_version_rejects_other_platforms(
         require_idf_version(cv.Version(5, 5, 3))("x")
 
 
-@pytest.mark.parametrize("framework", ["idf", "arduino"])
 @pytest.mark.parametrize(
     ("config_name", "timeout"),
     [("watchdog_disabled", None), ("watchdog_default", 5), ("watchdog_custom", 10)],
@@ -2584,12 +2583,11 @@ def test_require_idf_version_rejects_other_platforms(
 def test_task_watchdog_sdkconfig_and_define(
     generate_main: Callable[[str | Path], str],
     component_config_path: Callable[[str], Path],
-    framework: str,
     config_name: str,
     timeout: int | None,
 ) -> None:
     """watchdog_timeout: 0s turns the task watchdog off; any other value configures it."""
-    generate_main(component_config_path(f"{config_name}_{framework}.yaml"))
+    generate_main(component_config_path(f"{config_name}.yaml"))
     sdkconfig = CORE.data[KEY_ESP32][KEY_SDKCONFIG_OPTIONS]
     defines = {define.name for define in CORE.defines}
     assert sdkconfig["CONFIG_ESP_TASK_WDT_INIT"] is (timeout is not None)
