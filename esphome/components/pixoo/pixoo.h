@@ -29,11 +29,11 @@ class Pixoo : public display::Display,
   Pixoo(PixooModel model, uint32_t *frame_buffer)
       : model_(model), frame_buffer_(reinterpret_cast<uint8_t *>(frame_buffer)) {}
 
+  // RGB888 image bytes.
+  static constexpr size_t data_size(PixooModel model) { return static_cast<size_t>(model) * model * 3; }
   // Full SPI frame: a DATA packet (header + RGB888 + tail), then a DMA-chunk-sized UNUSED packet so the
   // LED board completes its final DMA block.
-  static constexpr size_t frame_size(PixooModel model) {
-    return static_cast<size_t>(model) * model * 3 + PACKET_STATIC_LEN + DMA_CHUNK;
-  }
+  static constexpr size_t frame_size(PixooModel model) { return data_size(model) + PACKET_STATIC_LEN + DMA_CHUNK; }
   static constexpr size_t frame_words(PixooModel model) { return (frame_size(model) + 3) / 4; }
 
   void setup() override;
@@ -64,9 +64,6 @@ class Pixoo : public display::Display,
   static constexpr size_t DMA_CHUNK = 240;
 
   PixooModel model_;
-
-  size_t data_size_{0};   // RGB888 image bytes: model^2 * 3
-  size_t frame_size_{0};  // full SPI frame: DATA packet + trailing UNUSED packet
 
   split_buffer::SplitBuffer buffer_{};
   uint8_t *frame_buffer_;

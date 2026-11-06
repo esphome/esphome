@@ -44,19 +44,16 @@ static inline void pad_unused(uint8_t *buf, size_t total) {
 float Pixoo::get_setup_priority() const { return setup_priority::PROCESSOR; }
 
 void Pixoo::setup() {
-  const uint32_t num_pixels = static_cast<uint32_t>(this->model_) * this->model_;
-  this->data_size_ = num_pixels * 3;
-  this->frame_size_ = frame_size(this->model_);
-
-  if (!this->setup_check(this->buffer_.init(this->data_size_), LOG_STR("Failed to allocate draw buffer")))
+  const size_t image_bytes = data_size(this->model_);
+  if (!this->setup_check(this->buffer_.init(image_bytes), LOG_STR("Failed to allocate draw buffer")))
     return;
 
   // Pre-build the constant DATA-packet framing; only the RGB888 payload changes per frame.
   this->frame_buffer_[0] = PACKET_HEAD;
-  put_le16(this->frame_buffer_ + 1, this->data_size_);
+  put_le16(this->frame_buffer_ + 1, image_bytes);
   this->frame_buffer_[3] = CMD_DATA;
-  this->frame_buffer_[PACKET_HEADER_LEN + this->data_size_] = PACKET_TAIL;
-  pad_unused(this->frame_buffer_ + this->data_size_ + PACKET_STATIC_LEN, DMA_CHUNK);
+  this->frame_buffer_[PACKET_HEADER_LEN + image_bytes] = PACKET_TAIL;
+  pad_unused(this->frame_buffer_ + image_bytes + PACKET_STATIC_LEN, DMA_CHUNK);
 
   this->spi_setup();
 
@@ -89,10 +86,10 @@ void Pixoo::set_panel_brightness(float brightness) {
 
 void Pixoo::update() {
   this->do_update_();
-  for (size_t i = 0; i < this->data_size_; i++)
+  for (size_t i = 0; i < data_size(this->model_); i++)
     this->frame_buffer_[PACKET_HEADER_LEN + i] = this->buffer_[i];
   this->enable();
-  this->write_array(this->frame_buffer_, this->frame_size_);
+  this->write_array(this->frame_buffer_, frame_size(this->model_));
   this->disable();
 }
 
@@ -164,7 +161,7 @@ void Pixoo::fill(Color color) {
     display::Display::fill(color);
     return;
   }
-  for (size_t i = 0; i < this->data_size_; i += 3) {
+  for (size_t i = 0; i < data_size(this->model_); i += 3) {
     this->buffer_[i] = color.r;
     this->buffer_[i + 1] = color.g;
     this->buffer_[i + 2] = color.b;
