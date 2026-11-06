@@ -179,7 +179,7 @@ class MQTTBackendESP32 final : public MQTTBackend {
   bool connected() const final { return this->is_connected_; }
 
   void connect() final {
-    this->requested_link_state_.store(LinkState::CONNECTED);  // before start/reconnect, so the MQTT task sees it
+    this->requested_link_state_.store(LinkState::LINK_STATE_CONNECTED);  // before start/reconnect, so the MQTT task sees it
     if (!is_initalized_) {
       if (initialize_()) {
         esp_mqtt_client_start(handler_.get());
@@ -190,7 +190,7 @@ class MQTTBackendESP32 final : public MQTTBackend {
     }
   }
   void disconnect() final {
-    this->requested_link_state_.store(LinkState::DISCONNECTED);
+    this->requested_link_state_.store(LinkState::LINK_STATE_DISCONNECTED);
 
     // esp_mqtt_client_disconnect() only requests the disconnect; the MQTT task closes the
     // socket about 1s later (potentially 10-20s). Change is_connected_ now so the state
@@ -297,12 +297,12 @@ class MQTTBackendESP32 final : public MQTTBackend {
 #endif
 
   // uint8_t-sized, not bool: GCC on Xtensa emits an out-of-line call for atomic<bool>
-  enum class LinkState : uint8_t { DISCONNECTED = 0, CONNECTED };
+  enum class LinkState : uint8_t { LINK_STATE_DISCONNECTED = 0, LINK_STATE_CONNECTED };
 
   // The link state the component last requested via connect()/disconnect()
   // (follows mqtt.enable/disable). is_connected_ tracks the actual state.
   // Read by the MQTT task in mqtt_event_handler().
-  std::atomic<LinkState> requested_link_state_{LinkState::DISCONNECTED};
+  std::atomic<LinkState> requested_link_state_{LinkState::LINK_STATE_DISCONNECTED};
 
   // The link state as the MQTT task sees it, written in mqtt_event_handler() so it can't be
   // lost when a queued event is dropped. Only used by loop() to detect a dropped DISCONNECTED;
@@ -310,7 +310,7 @@ class MQTTBackendESP32 final : public MQTTBackend {
   // before the matching event (and its callbacks) have been processed.
   // Set before CONNECTED is queued; cleared after DISCONNECTED is queued or dropped, so loop()
   // never handles the same disconnect twice.
-  std::atomic<LinkState> task_link_state_{LinkState::DISCONNECTED};
+  std::atomic<LinkState> task_link_state_{LinkState::LINK_STATE_DISCONNECTED};
 
   esp_mqtt_client_config_t mqtt_cfg_{};
 
