@@ -468,6 +468,17 @@ TEST(RAMAllocatorMakeUnique, ValueInitializesLikeMakeUnique) {
   EXPECT_TRUE(std::all_of(std::begin(p->words), std::end(p->words), [](uint32_t w) { return w == 0; }));
 }
 
+TEST(PsramBuffer, ZeroedAndRejectsOverflow) {
+  uint32_t *buffer = psram_buffer<uint32_t>(4);
+  ASSERT_NE(buffer, nullptr);
+  for (size_t i = 0; i < 4; i++)
+    EXPECT_EQ(buffer[i], 0u);
+  buffer[3] = 0xFFFFFFFF;  // all four elements are in the allocation
+  RAMAllocator<uint32_t>().deallocate(buffer, 4);
+  EXPECT_EQ(psram_buffer<uint32_t>(SIZE_MAX / sizeof(uint32_t) + 1), nullptr);
+  EXPECT_EQ(psram_buffer<uint32_t>(0), nullptr);
+}
+
 TEST(RAMAllocatorMakeUnique, ArrayFormRejectsOverflowAndZero) {
   EXPECT_EQ(RAMAllocator<uint32_t>().make_unique_array_for_overwrite(SIZE_MAX / sizeof(uint32_t) + 1), nullptr);
   EXPECT_EQ(RAMAllocator<uint32_t>().make_unique_array_for_overwrite(0), nullptr);
