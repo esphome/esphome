@@ -2633,10 +2633,15 @@ template<class T> class RAMAllocator {
 
 /// The static buffer from `cg.static_buffer(..., psram=True)`, or, when that returned nullptr because the build has
 /// PSRAM, `count` elements allocated with RAMAllocator so they may live in PSRAM. Returns nullptr if allocation fails.
+/// Both start zeroed, like BSS.
 template<class T> T *static_or_heap(T *buffer, size_t count) {
 #ifdef USE_PSRAM
-  if (buffer == nullptr)
-    return RAMAllocator<T>().allocate(count);
+  if (buffer == nullptr) {
+    T *heap = RAMAllocator<T>().allocate(count);
+    if (heap != nullptr)
+      memset(heap, 0, count * sizeof(T));
+    return heap;
+  }
 #endif
   return buffer;
 }

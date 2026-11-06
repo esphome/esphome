@@ -976,6 +976,16 @@ class TestStaticBuffer:
         assert str(cg.static_buffer(hub, ct.uint8, 8, psram=True)) == expected
         assert len(CORE.global_statements) == (0 if expected == "nullptr" else 1)
 
+    def test_align_and_expression_size(self) -> None:
+        hub_class = ct.esphome_ns.namespace("uart").class_("Hub")
+        hub = ID("hub", is_declaration=True, type=hub_class)
+        CORE.config = {}
+        cg.static_buffer(hub, ct.uint8, hub_class.static_("size")(4, True), align=4)
+        assert str(CORE.global_statements[0]) == (
+            "alignas(4) static uint8_t uart__hub_buffer__pstorage"
+            "[uart::Hub::size(4, true)];"
+        )
+
     def test_owner_must_be_an_id(self) -> None:
         with pytest.raises(EsphomeError, match="owning component's ID"):
             cg.static_buffer("hub", ct.uint8, 8)
@@ -1013,6 +1023,13 @@ class TestStaticStorage:
     def test_owner_must_be_an_id(self) -> None:
         with pytest.raises(EsphomeError, match="owning component's ID"):
             cg.static_storage(ID("hub"), ct.uint8, 8)
+
+
+def test_static_member() -> None:
+    cls = ct.esphome_ns.namespace("hdlc").class_("HdlcReliability")
+    assert str(cls.static_("packet_size")) == "hdlc::HdlcReliability::packet_size"
+    call = cls.static_("packet_size")(8, False)
+    assert str(call) == "hdlc::HdlcReliability::packet_size(8, false)"
 
 
 class TestProgmemString:

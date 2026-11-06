@@ -32,7 +32,7 @@ struct SunGTIL2Message {
   uint8_t end[39];
 } __attribute__((packed));
 
-static_assert(sizeof(SunGTIL2Message) == SunGTIL2::MESSAGE_SIZE, "Expected the message size to be 350 bytes");
+static_assert(sizeof(SunGTIL2Message) == SunGTIL2::MESSAGE_SIZE);
 
 void SunGTIL2::loop() {
   this->read_available([this](uint8_t c) { this->handle_char_(c); });

@@ -184,7 +184,7 @@ async def to_code(config: ConfigType) -> None:
     rmt_buf = cg.static_buffer(
         config[CONF_OUTPUT_ID],
         RmtBuffer,
-        str(esp32_rmt_led_strip_ns.rmt_buffer_size(color_bytes)),
+        esp32_rmt_led_strip_ns.rmt_buffer_size(color_bytes),
         psram=psram,
     )
     cg.add(var.set_buffers(led_data, rmt_buf))

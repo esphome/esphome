@@ -5,6 +5,8 @@
 #include "esphome/core/component.h"
 #include "esphome/core/hal.h"
 
+#include <span>
+
 namespace esphome::tlc5947 {
 
 class TLC5947 final : public Component {
@@ -12,7 +14,7 @@ class TLC5947 final : public Component {
   static constexpr uint8_t N_CHANNELS_PER_CHIP = 24;
 
   /// `pwm_amounts` holds N_CHANNELS_PER_CHIP values per chip, a static array from code generation
-  TLC5947(uint8_t num_chips, uint16_t *pwm_amounts) : num_chips_(num_chips), pwm_amounts_(pwm_amounts) {}
+  explicit TLC5947(std::span<uint16_t> pwm_amounts) : pwm_amounts_(pwm_amounts) {}
 
   void set_data_pin(GPIOPin *data_pin) { data_pin_ = data_pin; }
   void set_clock_pin(GPIOPin *clock_pin) { clock_pin_ = clock_pin; }
@@ -39,9 +41,7 @@ class TLC5947 final : public Component {
   GPIOPin *clock_pin_;
   GPIOPin *lat_pin_;
   GPIOPin *outenable_pin_{nullptr};
-  uint8_t num_chips_;
-
-  uint16_t *pwm_amounts_;
+  std::span<uint16_t> pwm_amounts_;
   bool update_{true};
 };
 

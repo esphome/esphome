@@ -69,4 +69,4 @@ async def build_basic_session(
     await cg.register_component(var, config)
     binary_sensors = binary_sensor.sub_binary_sensors(config)
     await binary_sensors(CONF_BINARY_SENSOR, var.set_connected_binary_sensor)
-    return var, f"{BasicSession}::packet_size({lower_size})"
+    return var, BasicSession.static_("packet_size")(lower_size)

@@ -45,7 +45,7 @@ float Pixoo::get_setup_priority() const { return setup_priority::PROCESSOR; }
 
 void Pixoo::setup() {
   const size_t image_bytes = data_size(this->model_);
-  if (!this->setup_check(this->buffer_.init(image_bytes), LOG_STR("Failed to allocate draw buffer")))
+  if (!this->setup_check(this->buffer_.init(image_bytes), LOG_STR(ESP_LOG_MSG_ALLOC_FAIL)))
     return;
 
   // Pre-build the constant DATA-packet framing; only the RGB888 payload changes per frame.
@@ -86,7 +86,8 @@ void Pixoo::set_panel_brightness(float brightness) {
 
 void Pixoo::update() {
   this->do_update_();
-  for (size_t i = 0; i < data_size(this->model_); i++)
+  const size_t image_bytes = data_size(this->model_);
+  for (size_t i = 0; i < image_bytes; i++)
     this->frame_buffer_[PACKET_HEADER_LEN + i] = this->buffer_[i];
   this->enable();
   this->write_array(this->frame_buffer_, frame_size(this->model_));
@@ -161,7 +162,8 @@ void Pixoo::fill(Color color) {
     display::Display::fill(color);
     return;
   }
-  for (size_t i = 0; i < data_size(this->model_); i += 3) {
+  const size_t image_bytes = data_size(this->model_);
+  for (size_t i = 0; i < image_bytes; i += 3) {
     this->buffer_[i] = color.r;
     this->buffer_[i + 1] = color.g;
     this->buffer_[i + 2] = color.b;
