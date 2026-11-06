@@ -7,6 +7,5 @@ PY=${PY:-$T/venv/bin/python}; SC=${SC:?set SC}; NAME=vlpf$L; OUT=$R/out-$NAME; r
 sed -E "s/^  name: vlpf$/  name: $NAME/; s/^  build_path: .*/  build_path: build-$NAME/" "$R/vlpf.yaml" > "$R/$NAME.yaml"
 pkill -f "[s]erial_capture.py $P"
 (cd "$T" && $PY -m esphome run --no-logs "$R/$NAME.yaml" --device "$P" > "$OUT/upload.log" 2>&1) || { echo "build or upload failed"; exit 1; }
-$PY "$SC" "$P" 150 "$OUT/serial.txt" --reset > /dev/null 2>&1
-[ -s "$OUT/serial.txt" ] || { echo "serial capture got nothing"; exit 1; }
+$PY "$SC" "$P" 150 "$OUT/serial.txt" --reset > /dev/null 2>&1 || { echo "serial capture got nothing"; exit 1; }
 python3 "$R/an.py" "$OUT/serial.txt"

@@ -26,17 +26,22 @@ inline void IRAM_ATTR on_clk(void *) {
   clocks++;
   put();
 }
+inline bool ok(esp_err_t err, const char *what) {
+  if (err != ESP_OK)
+    ESP_LOGE("hcsim", "%s failed: %s", what, esp_err_to_name(err));
+  return err == ESP_OK;
+}
 inline void start() {
-  gpio_set_direction(DATA, GPIO_MODE_INPUT_OUTPUT);
-  gpio_input_enable(CLK);
-  gpio_input_enable(LOAD);
-  gpio_install_isr_service(ESP_INTR_FLAG_IRAM);
-  gpio_set_intr_type(LOAD, GPIO_INTR_NEGEDGE);
-  gpio_set_intr_type(CLK, GPIO_INTR_POSEDGE);
-  gpio_isr_handler_add(LOAD, on_load, nullptr);
-  gpio_isr_handler_add(CLK, on_clk, nullptr);
-  gpio_intr_enable(LOAD);
-  gpio_intr_enable(CLK);
-  ESP_LOGI("hcsim", "HC sim started");
+  esp_err_t isr = gpio_install_isr_service(ESP_INTR_FLAG_IRAM);
+  bool good = ok(gpio_set_direction(DATA, GPIO_MODE_INPUT_OUTPUT), "DATA direction") &&
+              ok(gpio_input_enable(CLK), "CLK input") && ok(gpio_input_enable(LOAD), "LOAD input") &&
+              ok(isr == ESP_ERR_INVALID_STATE ? ESP_OK : isr, "ISR service") &&
+              ok(gpio_set_intr_type(LOAD, GPIO_INTR_NEGEDGE), "LOAD edge") &&
+              ok(gpio_set_intr_type(CLK, GPIO_INTR_POSEDGE), "CLK edge") &&
+              ok(gpio_isr_handler_add(LOAD, on_load, nullptr), "LOAD handler") &&
+              ok(gpio_isr_handler_add(CLK, on_clk, nullptr), "CLK handler") &&
+              ok(gpio_intr_enable(LOAD), "LOAD interrupt") && ok(gpio_intr_enable(CLK), "CLK interrupt");
+  if (good)
+    ESP_LOGI("hcsim", "HC sim started");
 }
 }  // namespace hcsim

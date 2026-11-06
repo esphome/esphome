@@ -44,9 +44,17 @@ def main() -> int:
             f"FAIL: phase sequence {seq}, the capture ended early or the board restarted"
         )
         return 1
-    # quiet phases after a fault phase must read again, nothing may crash or reboot, and both faults must fire
+    # quiet phases after a fault phase must read at least half as often as the first quiet phase, nothing may crash
+    # or reboot, and both faults must fire
     bad = [p for p, counts in phases if counts.get("crash")]
-    bad += [p for p, counts in phases[1:] if p == "quiet" and not counts.get("ok")]
+    base_ok = phases[1][1].get("ok", 0)
+    if not base_ok:
+        bad.append("first quiet phase had no readings")
+    bad += [
+        f"{p} {i} ok={counts.get('ok', 0)} of {base_ok}"
+        for i, (p, counts) in enumerate(phases)
+        if i > 1 and p == "quiet" and counts.get("ok", 0) * 2 < base_ok
+    ]
     bad += [
         f"{p} reboot"
         for i, (p, counts) in enumerate(phases)

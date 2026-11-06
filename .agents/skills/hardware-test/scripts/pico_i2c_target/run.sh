@@ -15,12 +15,15 @@ printf 'esphome:\n  name: %s\n\npackages:\n  common: !include dut-common.yaml\n 
 pkill -f "[s]erial_capture.py $P"; pkill -f "[s]erial_capture.py $FP"
 (cd "$T" && $PY -m esphome run --no-logs "$R/$NAME.yaml" --device "$P" > "$OUT/upload.log" 2>&1) || { echo "build or upload failed"; exit 1; }
 $PY "$SC" "$FP" $((S + 3)) "$OUT/fake.txt" > /dev/null 2>&1 &
-$PY "$SC" "$P" "$S" "$OUT/dut.txt" --reset > /dev/null 2>&1
-wait
-[ -s "$OUT/dut.txt" ] || { echo "FAIL: DUT capture got nothing"; exit 1; }
+FAKE_CAP=$!
+$PY "$SC" "$P" "$S" "$OUT/dut.txt" --reset > /dev/null 2>&1 || { echo "FAIL: DUT capture got nothing"; exit 1; }
+wait $FAKE_CAP || { echo "FAIL: fake capture got nothing (FAKE_PORT right?)"; exit 1; }
 grep -a -q "STAT mode=" "$OUT/fake.txt" || { echo "FAIL: no STAT lines from the fake (flashed? FAKE_PORT right?)"; exit 1; }
 grep -a -o "STAT .*" "$OUT/fake.txt" | tail -1
 # "'AT': Sending state 25.08200 °C ..." -> per sensor, the distinct values seen
 VALS=$(grep -a -o -E "'[A-Z]{2}': Sending state [^ ]+" "$OUT/dut.txt" | sed -E "s/'([A-Z]{2})': Sending state /\1 /" | sort | uniq -c)
 [ -n "$VALS" ] || { echo "FAIL: no sensor states (check the wiring: C3 GPIO6/7 to Pico GP4/GP5 plus GND)"; exit 1; }
 echo "$VALS"
+case $K in bme280) WANT="AT AP AH BT BP BH" ;; *) WANT="AT AP BT BP" ;; esac
+MISSING=$(for s in $WANT; do echo "$VALS" | grep -q " $s " || printf '%s ' "$s"; done)
+[ -z "$MISSING" ] || { echo "FAIL: no states from $MISSING"; exit 1; }

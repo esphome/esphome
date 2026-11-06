@@ -66,9 +66,16 @@ struct LcdSim {
 class LcdSimBus : public esphome::i2c::I2CBus {
  public:
   explicit LcdSimBus(esphome::i2c::I2CBus *real) : real_(real) {}
-  LcdSim sims[3];
+  static constexpr uint8_t MAX_SIMS = 3;
+  LcdSim sims[MAX_SIMS];
   uint8_t n{0};
-  void add(uint8_t addr) { this->sims[this->n++].addr = addr; }
+  void add(uint8_t addr) {
+    if (this->n >= MAX_SIMS) {
+      ESP_LOGE("lcdsim", "no room for 0x%02X, raise MAX_SIMS", addr);
+      return;
+    }
+    this->sims[this->n++].addr = addr;
+  }
   esphome::i2c::ErrorCode write_readv(uint8_t address, const uint8_t *w, size_t wn, uint8_t *r, size_t rn) override {
     for (uint8_t i = 0; i < this->n; i++) {
       if (this->sims[i].addr == address) {

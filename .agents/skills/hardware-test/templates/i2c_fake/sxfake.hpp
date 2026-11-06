@@ -33,7 +33,8 @@ struct Bus final : public esphome::i2c::I2CBus {
     int a = address - 0x3E;
     if (size == 0 && out_size == 0)
       return esphome::i2c::ERROR_OK;
-    uint8_t reg = size ? data[0] : 0;
+    const uint8_t start = size ? data[0] : 0;
+    uint8_t reg = start;
     for (size_t i = 1; i < size; i++, reg++) {
       uint8_t r = reg & 0x7F;
       if (this->n < 600)
@@ -50,7 +51,7 @@ struct Bus final : public esphome::i2c::I2CBus {
       this->regs[a][r] = data[i];
     }
     for (size_t i = 0; i < out_size; i++)
-      out[i] = this->regs[a][(data[0] + i) & 0x7F];
+      out[i] = this->regs[a][(start + i) & 0x7F];
     return esphome::i2c::ERROR_OK;
   }
 
