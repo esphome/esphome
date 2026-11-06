@@ -110,16 +110,24 @@ TEST_F(GCJA5Test, BackToBackFrames) {
   EXPECT_FLOAT_EQ(this->pm_2_5_published_[1], 3);
 }
 
-// There is no header search: a stray byte misaligns every frame until a 500 ms pause clears the buffer
-TEST_F(GCJA5Test, GarbageBeforeFrameMisalignsUntilPause) {
+TEST_F(GCJA5Test, GarbageBeforeHeaderIsSkipped) {
   std::vector<uint8_t> bytes{0x55};
   for (int i = 0; i < 3; i++) {
     auto f = frame(50 + i, 60);
     bytes.insert(bytes.end(), f.begin(), f.end());
   }
-  this->feed_(bytes, 1000);
-  EXPECT_TRUE(this->pm_2_5_published_.empty());
-  this->feed_(frame(70, 80), 1500);
+  this->feed_(bytes);
+  ASSERT_EQ(this->pm_2_5_published_.size(), 3u);
+  EXPECT_FLOAT_EQ(this->pm_2_5_published_[0], 50);
+}
+
+// A cut-off frame fails the checks; the frame that started inside it is still found.
+TEST_F(GCJA5Test, FrameInsideRejectedFrameIsFound) {
+  auto cut = frame(1, 2);
+  cut.resize(12);
+  auto f = frame(70, 80);
+  cut.insert(cut.end(), f.begin(), f.end());
+  this->feed_(cut);
   ASSERT_EQ(this->pm_2_5_published_.size(), 1u);
   EXPECT_FLOAT_EQ(this->pm_2_5_published_[0], 70);
 }
