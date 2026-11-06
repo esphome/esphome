@@ -12,7 +12,7 @@ done
 one() {
   c=$1; G=$R/gen/$c; y=$(ls "$G"/rmt*.yaml); b=$(basename "$y" .yaml)
   (cd "$T" && $PY -m esphome compile --only-generate "$y" > "$G/gen.log" 2>&1); rc=$?
-  w=$(grep -E "WARNING RMT memory" "$G/gen.log" | sed -E "s/.*, ('[^']*') (will not fit|may not fit).*/\1 \2/" | head -1)
+  w=$(grep -E "WARNING RMT memory" "$G/gen.log" | sed -E "s/.*these components, (.*) will not fit.*/\1 will not fit/" | head -1)
   e=$(grep -E "each need one|Must be (an even|at most)" "$G/gen.log" | sed -E 's/^ *//' | cut -c1-70 | head -1)
   reg=$(grep -o "register_component_([a-z0-9]*" "$G/.esphome/build/$b/src/main.cpp" 2>/dev/null | sed 's/register_component_(//' | grep -E "^(so|tx|rx)" | tr '\n' ' ')
   echo "$c rc=$rc warn=[${w:-none}] err=[${e:-none}] reg=[$reg]" > "$G/verdict.txt"

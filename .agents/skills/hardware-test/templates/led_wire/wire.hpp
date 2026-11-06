@@ -219,6 +219,8 @@ inline void stress_step() {
 }
 inline void stress_report() {
   for (int k = 0; k < 2; k++) {
+    if (rx_[k].h == nullptr)
+      continue;
     auto &s = st_[k];
     ESP_LOGI(TAG, "STRESS %s frames=%u missing=%u bad_bytes=%u bad_timing=%u nominal=%u/%u", rx_[k].name,
              (unsigned) s.frames, (unsigned) s.missing, (unsigned) s.bad_bytes, (unsigned) s.bad_timing, s.nom[0],

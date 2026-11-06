@@ -1,6 +1,6 @@
 // In-chip pulse density probe for a sigma-delta (or any PWM-like) output pin, plus a PCM feeder task.
 // Sampler: core 0 task reads the pin's input register with pseudo-random cycle gaps; one window
-// (SDP_N samples, ~1 ms) gives a density in 1/10000. Windows are stored with their time for dumping.
+// (SDP_N samples, about 2 ms) gives a density in 1/10000. Windows are stored with their time for dumping.
 // Feeder: core 0 task generating DC / sine / stereo PCM in 8/16/24/32 bit and calling speaker->play().
 #pragma once
 #include <cmath>
@@ -167,7 +167,7 @@ static void summary(const char *label) {
            sd / 100, mn / 100.0, mx / 100.0, (long long) ((cap_t_[cap_n_ - 1] - cap_t_[0]) / 1000));
 }
 
-// Raw dump: "DUMP label t0us | dt_us:density ..." 16 per line.
+// Raw dump: "DUMP <label> <index> <t_us>:<density> ..." 16 per line, t_us relative to the first window.
 static void dump(const char *label) {
   char line[400];
   for (int i = 0; i < cap_n_; i += 16) {
