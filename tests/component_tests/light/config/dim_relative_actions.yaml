@@ -47,3 +47,14 @@ script:
       - light.effect.previous:
           id: dim_light
           include_none: true
+  - id: dim_skip_then_dim
+    then:
+      - light.dim_relative:
+          id: dim_light
+          relative_brightness: 10%
+          brightness_limits:
+            min_brightness: 90%
+            limit_mode: DO_NOTHING
+      - light.dim_relative:
+          id: dim_light
+          relative_brightness: -5%
