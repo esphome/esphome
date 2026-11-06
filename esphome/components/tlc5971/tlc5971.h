@@ -4,17 +4,18 @@
 
 #include "esphome/core/component.h"
 #include "esphome/core/hal.h"
-#include <vector>
 
 namespace esphome::tlc5971 {
 
 class TLC5971 final : public Component {
  public:
-  const uint8_t N_CHANNELS_PER_CHIP = 12;
+  static constexpr uint8_t N_CHANNELS_PER_CHIP = 12;
+
+  /// `pwm_amounts` holds N_CHANNELS_PER_CHIP values per chip, a static array from code generation
+  TLC5971(uint8_t num_chips, uint16_t *pwm_amounts) : num_chips_(num_chips), pwm_amounts_(pwm_amounts) {}
 
   void set_data_pin(GPIOPin *data_pin) { data_pin_ = data_pin; }
   void set_clock_pin(GPIOPin *clock_pin) { clock_pin_ = clock_pin; }
-  void set_num_chips(uint8_t num_chips) { num_chips_ = num_chips; }
 
   void setup() override;
 
@@ -38,7 +39,7 @@ class TLC5971 final : public Component {
   GPIOPin *clock_pin_;
   uint8_t num_chips_;
 
-  std::vector<uint16_t> pwm_amounts_;
+  uint16_t *pwm_amounts_;
   bool update_{true};
 };
 }  // namespace esphome::tlc5971

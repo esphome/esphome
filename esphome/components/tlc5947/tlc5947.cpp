@@ -16,8 +16,6 @@ void TLC5947::setup() {
     this->outenable_pin_->setup();
     this->outenable_pin_->digital_write(false);
   }
-
-  this->pwm_amounts_.resize(this->num_chips_ * N_CHANNELS_PER_CHIP, 0);
 }
 void TLC5947::dump_config() {
   ESP_LOGCONFIG(TAG,

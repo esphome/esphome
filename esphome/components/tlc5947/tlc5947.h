@@ -2,7 +2,6 @@
 // TLC5947 24-Channel, 12-Bit PWM LED Driver
 // https://www.ti.com/lit/ds/symlink/tlc5947.pdf
 
-#include <vector>
 #include "esphome/core/component.h"
 #include "esphome/core/hal.h"
 
@@ -10,13 +9,15 @@ namespace esphome::tlc5947 {
 
 class TLC5947 final : public Component {
  public:
-  const uint8_t N_CHANNELS_PER_CHIP = 24;
+  static constexpr uint8_t N_CHANNELS_PER_CHIP = 24;
+
+  /// `pwm_amounts` holds N_CHANNELS_PER_CHIP values per chip, a static array from code generation
+  TLC5947(uint8_t num_chips, uint16_t *pwm_amounts) : num_chips_(num_chips), pwm_amounts_(pwm_amounts) {}
 
   void set_data_pin(GPIOPin *data_pin) { data_pin_ = data_pin; }
   void set_clock_pin(GPIOPin *clock_pin) { clock_pin_ = clock_pin; }
   void set_lat_pin(GPIOPin *lat_pin) { lat_pin_ = lat_pin; }
   void set_outenable_pin(GPIOPin *outenable_pin) { outenable_pin_ = outenable_pin; }
-  void set_num_chips(uint8_t num_chips) { num_chips_ = num_chips; }
 
   void setup() override;
 
@@ -40,7 +41,7 @@ class TLC5947 final : public Component {
   GPIOPin *outenable_pin_{nullptr};
   uint8_t num_chips_;
 
-  std::vector<uint16_t> pwm_amounts_;
+  uint16_t *pwm_amounts_;
   bool update_{true};
 };
 

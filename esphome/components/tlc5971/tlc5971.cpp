@@ -10,8 +10,6 @@ void TLC5971::setup() {
   this->data_pin_->digital_write(true);
   this->clock_pin_->setup();
   this->clock_pin_->digital_write(true);
-
-  this->pwm_amounts_.resize(this->num_chips_ * N_CHANNELS_PER_CHIP, 0);
 }
 void TLC5971::dump_config() {
   ESP_LOGCONFIG(TAG,
@@ -55,8 +53,8 @@ void TLC5971::loop() {
     // 12 channels per TLC59711
     for (int8_t c = 11; c >= 0; c--) {
       // 16 bits per channel, send MSB first
-      this->transfer_(pwm_amounts_.at(n * 12 + c) >> 8);
-      this->transfer_(pwm_amounts_.at(n * 12 + c));
+      this->transfer_(this->pwm_amounts_[n * 12 + c] >> 8);
+      this->transfer_(this->pwm_amounts_[n * 12 + c]);
     }
   }
 
