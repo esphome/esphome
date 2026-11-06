@@ -126,10 +126,8 @@ void MQTTBackendESP32::loop() {
       break;
   }
 
-  // A DISCONNECTED event was dropped (pool full). Wait for the queue to drain so no older
-  // CONNECTED event can follow it, then handle it as if it had arrived.
-  // task_link_state_ is read before empty(): it is cleared after the push, so if a queued
-  // DISCONNECTED exists, seeing DISCONNECTED here guarantees empty() sees it too.
+  // A dropped DISCONNECTED, handled once the queue drains. Read task_link_state_ before empty():
+  // it is cleared after the push.
   if (this->is_connected_ && this->task_link_state_.load() == LinkState::LINK_STATE_DISCONNECTED &&
       this->mqtt_event_queue_.empty()) {
     ESP_LOGW(TAG, "Disconnect event was dropped, handling it now");
@@ -173,8 +171,7 @@ void MQTTBackendESP32::mqtt_event_handler_(const Event &event) {
     case MQTT_EVENT_CONNECTED:
       ESP_LOGV(TAG, "MQTT_EVENT_CONNECTED");
       if (this->requested_link_state_.load() == LinkState::LINK_STATE_DISCONNECTED) {
-        // Connect was already in progress when disconnect() ran; the MQTT task closes it
-        // right away, so don't report it as connected
+        // disconnect() ran while connecting; the MQTT task closes this link
         ESP_LOGV(TAG, "Ignoring CONNECTED, disconnect pending");
         break;
       }
@@ -258,7 +255,7 @@ void MQTTBackendESP32::mqtt_event_handler(void *handler_args, esp_event_base_t b
   bool listened = true;
   switch (event_id) {
     case MQTT_EVENT_BEFORE_CONNECT:
-      // The SDK clears a pending disconnect request just before this event, so ask again if one is still wanted
+      // The SDK clears a pending disconnect before this event, so request it again
       if (instance->requested_link_state_.load() == LinkState::LINK_STATE_DISCONNECTED)
         esp_mqtt_client_disconnect(mqtt_event->client);
       break;
@@ -305,8 +302,7 @@ void MQTTBackendESP32::mqtt_event_handler(void *handler_args, esp_event_base_t b
     ESP_LOGV(TAG, "Ack event_id=%" PRId32 ", msg_id=%d", event_id, mqtt_event->msg_id);
   }
   if (event_id == MQTT_EVENT_DISCONNECTED) {
-    // After the push: if DISCONNECTED was queued, loop() handles it normally; if it was
-    // dropped, loop() sees the link down and handles it once the queue drains
+    // After the push, so loop() handles a queued or dropped DISCONNECTED once
     instance->task_link_state_.store(LinkState::LINK_STATE_DISCONNECTED);
   }
   if (event_id == MQTT_EVENT_SUBSCRIBED) {
