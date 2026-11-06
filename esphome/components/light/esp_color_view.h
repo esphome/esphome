@@ -81,15 +81,21 @@ class BufferColorAccessor : public ESPColorAccessor {
   /// Allocate the color and effect data for `num_leds` LEDs as one zeroed block, followed by `extra_bytes` more
   /// for the caller, which start at `effect_data + num_leds`. Returns false if it failed.
   bool allocate(RAMAllocator<uint8_t> &allocator, size_t num_leds, size_t extra_bytes = 0) {
-    const size_t color_bytes = num_leds * this->channel_colors.bytes_per_led();
-    const size_t total_bytes = color_bytes + num_leds + extra_bytes;
+    const size_t total_bytes = num_leds * (this->channel_colors.bytes_per_led() + 1) + extra_bytes;
     uint8_t *buf = allocator.allocate(total_bytes);
     if (buf == nullptr)
       return false;
     memset(buf, 0, total_bytes);
-    this->color_data = buf;
-    this->effect_data = buf + color_bytes;
+    this->set_buffer(buf, num_leds);
     return true;
+  }
+
+  /// Use `buffer` for the color and effect data of `num_leds` LEDs, laid out as allocate() lays them out.
+  /// Returns the first byte after the effect data.
+  uint8_t *set_buffer(uint8_t *buffer, size_t num_leds) {
+    this->color_data = buffer;
+    this->effect_data = buffer + num_leds * this->channel_colors.bytes_per_led();
+    return this->effect_data + num_leds;
   }
 
   /// Zero the effect data of the first `num_leds` LEDs; does nothing before the effect data is allocated.

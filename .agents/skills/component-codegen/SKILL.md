@@ -232,6 +232,8 @@ Never a template per bit or a virtual listener base (a second vptr per entity).
 - A fixed buffer sized from the config is a file-scope static (BSS, not heap):
   `buf = cg.static_buffer(config[CONF_ID], cg.uint8, size)`, named after its owner so `esphome analyze-memory`
   counts it there; pass `buf` to the constructor.
+  A buffer that may live in PSRAM takes `psram=True`; the C++ then calls `static_or_heap(buf, count)`, which allocates
+  on the heap only in PSRAM builds.
 - `display.add_writer(var, config)` sets the lambda.
 - `MyEnum.options("on", prefix="MY_ENUM_")` builds an enum dict.
 - `button.restart_button_schema(cls)` (and `factory_reset_`, `query_`) are button presets.

@@ -8,10 +8,6 @@ ESPHOME_LOG_TAG(TAG, "addressable_light.display");
 int AddressableLightDisplay::get_width_internal() { return this->width_; }
 int AddressableLightDisplay::get_height_internal() { return this->height_; }
 
-void AddressableLightDisplay::setup() {
-  this->addressable_light_buffer_.resize(this->width_ * this->height_, {0, 0, 0, 0});
-}
-
 void AddressableLightDisplay::update() {
   if (!this->enabled_)
     return;

@@ -44,6 +44,10 @@ async def to_code(config: ConfigType) -> None:
     wrapped_light = await cg.get_variable(config[CONF_ADDRESSABLE_LIGHT_ID])
     cg.add(var.set_width(config[CONF_WIDTH]))
     cg.add(var.set_height(config[CONF_HEIGHT]))
+    buffer = cg.static_buffer(
+        config[CONF_ID], cg.esphome_ns.Color, config[CONF_WIDTH] * config[CONF_HEIGHT]
+    )
+    cg.add(var.set_buffer(buffer))
     cg.add(var.set_light(wrapped_light))
 
     await display.register_display(var, config)

@@ -19,9 +19,13 @@
 
 namespace esphome::i2s_clockless_led_strip {
 
+// Each byte of LED strip data becomes one 24-bit I2S sample
+static constexpr size_t I2S_BYTES_PER_SAMPLE = 3;
+
 class I2SClocklessLedStrip final : public light::AddressableLight {
  public:
-  I2SClocklessLedStrip(uint8_t pin, uint16_t num_leds, light::ChannelColors channel_colors);
+  /// `buffer` holds the color and effect data followed by I2S_BYTES_PER_SAMPLE bytes per color byte.
+  I2SClocklessLedStrip(uint8_t *buffer, uint8_t pin, uint16_t num_leds, light::ChannelColors channel_colors);
 
   void dump_config() override;
 
@@ -36,8 +40,6 @@ class I2SClocklessLedStrip final : public light::AddressableLight {
 
  protected:
   static bool i2s_on_sent_callback(i2s_chan_handle_t handle, i2s_event_data_t *event, void *user_ctx);
-
-  bool allocate_buffers_();
 
   light::CorrectedBufferColorAccessor internal_accessor_;
   const size_t color_data_bytes_;

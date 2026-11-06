@@ -8,7 +8,7 @@ from esphome.const import CONF_ID, CONF_KEY
 from esphome.cpp_generator import MockObj
 from esphome.types import ConfigType
 
-from . import ENCRYPTION, PacketInterface, packet_interface_ns
+from . import ENCRYPTION, Layer, PacketInterface, PacketSize, packet_interface_ns
 
 CONF_ROLLING_CODE_ENABLE = "rolling_code_enable"
 
@@ -42,9 +42,21 @@ def derive_key(text: str) -> list[int]:
     needs_session=lambda config: config[CONF_ROLLING_CODE_ENABLE],
     auto_load=lambda config: ["xxtea"],
 )
-async def build_xxtea(config: ConfigType, lower: MockObj) -> MockObj:
+async def build_xxtea(
+    config: ConfigType, lower: MockObj, lower_size: PacketSize
+) -> Layer:
     cg.add_define("USE_PACKET_INTERFACE_XXTEA")
-    var = cg.new_Pvariable(config[CONF_ID], lower, config[CONF_ROLLING_CODE_ENABLE])
+    rolling_code = config[CONF_ROLLING_CODE_ENABLE]
+    buffers = cg.static_buffer(
+        config[CONF_ID],
+        cg.uint32,
+        f"{XxteaEncryption}::buffer_words({lower_size})",
+        psram=True,
+    )
+    var = cg.new_Pvariable(config[CONF_ID], lower, rolling_code, buffers)
     cg.add(var.set_key(derive_key(config[CONF_KEY])))
     await cg.register_component(var, config)
-    return var
+    return (
+        var,
+        f"{XxteaEncryption}::packet_size({lower_size}, {str(rolling_code).lower()})",
+    )

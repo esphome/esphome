@@ -47,8 +47,9 @@ class TestHdlc : public HdlcReliability {
 };
 
 struct Peer {
-  explicit Peer(uint8_t queue_length = 4) {
-    this->hdlc = std::make_unique<TestHdlc>(&this->link);
+  explicit Peer(uint8_t queue_length = 4)
+      : tx_slots(HdlcReliability::send_queue_size(this->link.get_max_packet_size(), queue_length)) {
+    this->hdlc = std::make_unique<TestHdlc>(&this->link, this->tx_slots.data());
     this->hdlc->set_max_queue_length(queue_length);
     this->hdlc->set_max_retries(3);
     this->hdlc->setup();
@@ -64,6 +65,7 @@ struct Peer {
   bool send(const Frame &data) { return this->hdlc->send_to_interface(PacketBuffer(data), {}); }
 
   MockLink link;
+  std::vector<uint8_t> tx_slots;
   std::unique_ptr<TestHdlc> hdlc;
   std::vector<Frame> received;
   std::vector<bool> states;
@@ -408,7 +410,7 @@ TEST_F(HdlcReliabilityTest, OversizedFrameDropped) {
 
 TEST_F(HdlcReliabilityTest, LinkTooSmallFailsSetup) {
   MockLink link(HdlcReliability::FRAME_OVERHEAD);
-  TestHdlc hdlc(&link);
+  TestHdlc hdlc(&link, nullptr);
   EXPECT_EQ(hdlc.get_max_packet_size(), 0);
   hdlc.setup();
   EXPECT_TRUE(hdlc.is_failed());

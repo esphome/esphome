@@ -13,6 +13,7 @@ from esphome.const import (
     PLATFORM_ESP8266,
 )
 from esphome.core import CORE, ID, LINE_DIRECTIVE_RESET, DocumentLocation, EsphomeError
+from esphome.types import ConfigType
 from esphome.yaml_util import parse_yaml
 
 
@@ -956,6 +957,24 @@ class TestStaticBuffer:
             "static uint8_t uart__hub_buffer_3__pstorage[8];",
         ]
         assert str(b) == "uart__hub_buffer_3__pstorage"
+
+    @pytest.mark.parametrize(
+        ("config", "expected"),
+        [
+            ({}, "uart__hub_buffer__pstorage"),
+            ({"psram": {"disabled": True}}, "uart__hub_buffer__pstorage"),
+            ({"psram": {"disabled": False}}, "nullptr"),
+        ],
+    )
+    def test_psram_builds_get_nullptr(self, config: ConfigType, expected: str) -> None:
+        hub = ID(
+            "hub",
+            is_declaration=True,
+            type=ct.esphome_ns.namespace("uart").class_("Hub"),
+        )
+        CORE.config = config
+        assert str(cg.static_buffer(hub, ct.uint8, 8, psram=True)) == expected
+        assert len(CORE.global_statements) == (0 if expected == "nullptr" else 1)
 
     def test_owner_must_be_an_id(self) -> None:
         with pytest.raises(EsphomeError, match="owning component's ID"):
