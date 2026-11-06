@@ -1042,9 +1042,7 @@ def _check_esphome_idf_framework_install(
                 try:
                     tarball_path.unlink(missing_ok=True)
                 except OSError as err:
-                    _LOGGER.debug(
-                        "Could not remove archive %s: %s", tarball_path, err
-                    )
+                    _LOGGER.debug("Could not remove archive %s: %s", tarball_path, err)
         extracted_marker.touch()
 
     # Idempotent post-extract patch: written every invocation so a build
