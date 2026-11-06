@@ -2783,6 +2783,45 @@ def test_enum_valid_with_hyphen() -> None:
     assert result.enum_value == 1
 
 
+@pytest.mark.parametrize(
+    ("unit", "value", "expected"),
+    [
+        ("ms", "100ms", 100),
+        ("ms", "0.2s", 200),
+        ("ms", {"milliseconds": 200}, 200),
+        ("us", "1100 us", 1100),
+        ("us", "1.1ms", 1100),
+    ],
+)
+def test_time_period_enum_valid(unit: str, value: object, expected: int) -> None:
+    mapping = {100: "A", 200: "B", 1100: "C"}
+    result = cv.time_period_enum(mapping, unit=unit)(value)
+    reference = cv.enum(mapping, int=True)(expected)
+    assert result == reference
+    assert type(result) is type(reference)
+    assert result.enum_value == reference.enum_value
+
+
+@pytest.mark.parametrize(
+    ("unit", "value", "match"),
+    [
+        ("ms", "150ms", "Unknown value '150ms', valid options are 100ms, 200ms"),
+        ("ms", "1100us", "Maximum precision is milliseconds"),
+        ("ms", "-100ms", "value must be at least"),
+        ("ms", 100, "has no time"),
+        ("us", "100ns", "Maximum precision is microseconds"),
+    ],
+)
+def test_time_period_enum_invalid(unit: str, value: object, match: str) -> None:
+    with pytest.raises(Invalid, match=match):
+        cv.time_period_enum({100: "A", 200: "B"}, unit=unit)(value)
+
+
+def test_time_period_enum_schema_extract() -> None:
+    extracted = cv.time_period_enum({100: "A", 200: "B"})(SCHEMA_EXTRACT)
+    assert list(extracted) == ["100ms", "200ms"]
+
+
 # ---------------------------------------------------------------------------
 # lambda_ / returning_lambda
 # ---------------------------------------------------------------------------
