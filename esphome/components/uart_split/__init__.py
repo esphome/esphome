@@ -4,13 +4,11 @@ import esphome.config_validation as cv
 from esphome.const import (
     CONF_DEBUG,
     CONF_DIRECTION,
-    CONF_DUMMY_RECEIVER,
     CONF_ID,
     CONF_OUTPUTS,
     CONF_RX_ONLY,
     CONF_UART_ID,
 )
-import esphome.final_validate as fv
 from esphome.types import ConfigType
 
 CODEOWNERS = ["@Bascht74"]
@@ -89,38 +87,9 @@ CONFIG_SCHEMA = cv.All(
 )
 
 
-def _reject_dummy_receiver(uart_conf: ConfigType) -> ConfigType:
-    debug = uart_conf.get(CONF_DEBUG)
-    if isinstance(debug, dict) and debug.get(CONF_DUMMY_RECEIVER):
-        raise cv.Invalid(
-            "dummy_receiver reads this UART and takes the bytes uart_split should copy.",
-            [CONF_DEBUG, CONF_DUMMY_RECEIVER],
-        )
-    return uart_conf
-
-
-def _final_validate(config: ConfigType) -> ConfigType:
+def _final_validate(config: ConfigType) -> None:
     # This component is the only reader. A second consumer would take the bytes.
-    full_config = fv.full_config.get()
-    owned = full_config.data.setdefault("uart_split", set())
-    uart_id = str(config[CONF_UART_ID])
-    if uart_id in owned:
-        raise cv.Invalid(
-            f"The UART '{uart_id}' is already read by another uart_split.",
-            [CONF_UART_ID],
-        )
-    owned.add(uart_id)
-    for domain, domain_conf in full_config.items():
-        if domain == "uart_split":
-            continue
-        if uart.subtree_references_uart(domain_conf, uart_id):
-            raise cv.Invalid(
-                f"The UART '{uart_id}' is also used by '{domain}'. "
-                "uart_split has to be the only reader; use one of its outputs.",
-                [CONF_UART_ID],
-            )
-    fv.id_declaration_match_schema(_reject_dummy_receiver)(config[CONF_UART_ID])
-    return config
+    uart.claim_exclusive(config, DOMAIN)
 
 
 FINAL_VALIDATE_SCHEMA = _final_validate
