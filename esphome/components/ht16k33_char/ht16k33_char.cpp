@@ -233,8 +233,8 @@ void HT16K33CharDisplay::set_blink(uint8_t blink) {
   this->send_(this->display_setup_command_());
 }
 
-void HT16K33CharDisplay::display_off(bool turn_off) {
-  assign_bits(this->display_setup_, DISPLAY_ON, !turn_off);
+void HT16K33CharDisplay::display_power(bool power_status) {
+  assign_bits(this->display_setup_, DISPLAY_ON, power_status);
   this->send_(this->display_setup_command_());
 }
 

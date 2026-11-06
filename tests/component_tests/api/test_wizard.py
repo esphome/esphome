@@ -13,7 +13,7 @@ import pytest
 from esphome.components.api import wizard
 from esphome.components.homeassistant.switch import SUPPORTED_DOMAINS as SWITCH_DOMAINS
 from esphome.config import load_config
-from esphome.core import CORE
+from esphome.core import CORE, ID
 from esphome.helpers import fnv1_hash, fnv1a_32bit_hash, zstd_module
 from tests.component_tests.helpers import get_define_value
 
@@ -1053,3 +1053,77 @@ def test_inputs_without_multiple_keep_the_two_field_table(
 
     assert f"{{{fnv1_hash('single')}u, api_wizard_input_single}}" in main_cpp
     assert "MULTIPLE_INPUTS" not in {d.name for d in CORE.defines}
+
+
+def wizard_entities(main_cpp: str) -> list[dict[str, object]]:
+    """The entities of the first page of the wizard that the generated code puts in flash."""
+    document = json.loads(zstd_module().decompress(blob_in(main_cpp)))
+    return document["pages"][0]["entities"]
+
+
+def test_an_entity_role_is_sent_with_the_entity(
+    tmp_path: Path, generate_main: Callable[[str | Path], str]
+) -> None:
+    wizard.register_entity_role(ID("sw", is_declaration=True), "example.enable")
+
+    main_cpp = generate_main(
+        write_config(tmp_path, DEVICES_HEADER, wizard_api(JSON_PAGES), JSON_ENTITIES)
+    )
+
+    # Only the entity with a role gets one
+    assert wizard_entities(main_cpp) == [
+        {
+            "key": entity_hash(main_cpp, "sw"),
+            "description": "Enable",
+            "role": "example.enable",
+        },
+        {
+            "key": entity_hash(main_cpp, "sw2"),
+            "device_id": fnv1a_32bit_hash("kitchen_dev"),
+        },
+    ]
+
+
+def test_an_entity_with_a_role_may_be_in_the_wizard_twice(tmp_path: Path) -> None:
+    wizard.register_entity_role(ID("sw", is_declaration=True), "example.enable")
+
+    assert config_errors(write_input_config(tmp_path, ESP32_HEADER)) == []
+
+
+def test_two_entities_with_the_same_role_are_rejected(tmp_path: Path) -> None:
+    wizard.register_entity_role(ID("sw", is_declaration=True), "example.enable")
+    wizard.register_entity_role(ID("sw2", is_declaration=True), "example.enable")
+    path = write_config(tmp_path, DEVICES_HEADER, wizard_api(JSON_PAGES), JSON_ENTITIES)
+
+    assert config_errors(path) == [
+        (
+            "Wizard entities 'sw' and 'sw2' both have the role 'example.enable', "
+            "so only one of them can be in the wizard"
+        )
+    ]
+
+
+@pytest.mark.parametrize(
+    "role",
+    [
+        "enable",
+        "Example.enable",
+        "example.enable.more",
+        "example-x.enable",
+        "example.",
+        "example." + "a" * (wizard.WIZARD_ROLE_MAX_LENGTH - len("example.") + 1),
+    ],
+)
+def test_an_invalid_role_is_rejected(role: str) -> None:
+    with pytest.raises(ValueError, match="Invalid wizard role"):
+        wizard.register_entity_role(ID("sw", is_declaration=True), role)
+
+    assert wizard._wizard_roles() == {}
+
+
+def test_the_longest_role_is_accepted() -> None:
+    role = "example." + "a" * (wizard.WIZARD_ROLE_MAX_LENGTH - len("example."))
+
+    wizard.register_entity_role(ID("sw", is_declaration=True), role)
+
+    assert wizard._wizard_roles() == {"sw": role}
