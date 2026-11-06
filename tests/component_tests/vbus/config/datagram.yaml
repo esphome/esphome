@@ -1,0 +1,20 @@
+esphome:
+  name: vbus-datagram-codegen
+host:
+uart:
+  id: test_uart
+  baud_rate: 9600
+  port: /dev/null
+vbus:
+  id: test_bus
+  uart_id: test_uart
+  on_datagram:
+    - then:
+        - lambda: |-
+            ESP_LOGI("datagram", "%04x %04x %04x %04x %08" PRIx32,
+                     command, source, destination, value_id, value);
+    - then:
+        - delay: 1ms
+        - lambda: |-
+            ESP_LOGI("datagram", "%04x %04x %04x %04x %08" PRIx32,
+                     command, source, destination, value_id, value);
