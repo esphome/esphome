@@ -2,6 +2,7 @@
 
 #include <cstddef>
 #include <cstdint>
+#include <span>
 
 #include "esphome/components/select/select.h"
 #include "esphome/core/component.h"
@@ -17,11 +18,11 @@ namespace esphome::homeassistant {
  */
 class HomeassistantSelect final : public select::Select, public Component {
  public:
-  HomeassistantSelect(char *options_buffer, uint16_t options_buffer_size, const char **option_list, uint8_t max_options)
-      : options_buffer_(options_buffer),
-        option_list_(option_list),
-        options_buffer_size_(options_buffer_size),
-        max_options_(max_options) {}
+  HomeassistantSelect(std::span<char> options_buffer, std::span<const char *> option_list)
+      : options_buffer_(options_buffer.data()),
+        option_list_(option_list.data()),
+        options_buffer_size_(options_buffer.size()),
+        max_options_(option_list.size()) {}
 
   void set_entity_id(const char *entity_id) { this->entity_id_ = entity_id; }
 
@@ -38,8 +39,7 @@ class HomeassistantSelect final : public select::Select, public Component {
   const char *entity_id_{nullptr};
 
  private:
-  // The traits point at option_list_, whose entries point into options_buffer_; their sizes are
-  // options_buffer_size_ and max_options_
+  // The traits point at option_list_, whose entries point into options_buffer_
   char *const options_buffer_;
   const char **const option_list_;
   uint16_t options_buffer_size_;
