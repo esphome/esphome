@@ -2,10 +2,6 @@
 #include "esphome/core/log.h"
 #include "esphome/core/application.h"
 
-#ifdef USE_ZEPHYR
-#include "spi_zephyr.h"
-#endif
-
 namespace esphome::spi {
 
 ESPHOME_LOG_TAG(TAG, "spi");
@@ -20,29 +16,29 @@ GPIOPin *const NullPin::NULL_PIN = new NullPin();  // NOLINT(cppcoreguidelines-a
 
 SPIDelegate *SPIComponent::register_device(SPIClient *device, SPIMode mode, SPIBitOrder bit_order, uint32_t data_rate,
                                            GPIOPin *cs_pin, bool release_device, bool write_only) {
-  if (this->devices_.contains(device)) {
+  if (device->delegate_ != SPIDelegate::NULL_DELEGATE) {
     ESP_LOGE(TAG, "Device already registered");
-    return this->devices_[device];
+    return device->delegate_;
   }
-  if (this->spi_bus_ == nullptr) {
+  if (!this->is_ready()) {
     return SPIDelegate::NULL_DELEGATE;  // the bus failed in setup(); the device stays not ready
   }
-  SPIDelegate *delegate =
-      this->spi_bus_->get_delegate(data_rate, bit_order, mode, cs_pin, release_device, write_only);  // NOLINT
-  this->devices_[device] = delegate;
-  return delegate;
+  if (this->using_hw_) {
+    return this->new_hw_delegate_(data_rate, bit_order, mode, cs_pin, release_device, write_only);
+  }
+  return new SPIDelegateBitBash(data_rate, bit_order, mode, cs_pin, this->clk_pin_, this->sdo_pin_,  // NOLINT
+                                this->sdi_pin_);
 }
 
 void SPIComponent::unregister_device(SPIClient *device) {
-  if (this->spi_bus_ == nullptr) {
-    return;  // nothing was registered on a failed bus
-  }
-  if (!this->devices_.contains(device)) {
-    esph_log_e(TAG, "Device not registered");
+  if (device->delegate_ == SPIDelegate::NULL_DELEGATE) {
+    if (this->is_ready()) {
+      ESP_LOGE(TAG, "Device not registered");
+    }
     return;
   }
-  delete this->devices_[device];  // NOLINT
-  this->devices_.erase(device);
+  delete device->delegate_;  // NOLINT
+  device->delegate_ = SPIDelegate::NULL_DELEGATE;
 }
 
 void SPIComponent::setup() {
@@ -57,14 +53,11 @@ void SPIComponent::setup() {
   }
 
   if (this->using_hw_) {
-    this->spi_bus_ =
-        SPIComponent::get_bus(this->interface_, this->clk_pin_, this->sdo_pin_, this->sdi_pin_, this->data_pins_);
-    if (this->spi_bus_ == nullptr) {
-      ESP_LOGE(TAG, "Unable to allocate SPI interface");
-      this->mark_failed();
+    if (!this->setup_hw_bus_()) {
+      this->mark_failed(LOG_STR("Unable to allocate SPI interface"));
+      return;
     }
   } else {
-    this->spi_bus_ = new SPIBus(this->clk_pin_, this->sdo_pin_, this->sdi_pin_);  // NOLINT
     this->clk_pin_->setup();
     this->clk_pin_->digital_write(true);
     this->sdo_pin_->setup();
@@ -80,10 +73,10 @@ void SPIComponent::dump_config() {
   for (size_t i = 0; i != this->data_pins_.size(); i++) {
     ESP_LOGCONFIG(TAG, "  Data pin %zu: GPIO%d", i, this->data_pins_[i]);
   }
-  if (this->spi_bus_ == nullptr) {
+  if (!this->is_ready()) {
     return;
   }
-  if (this->spi_bus_->is_hw()) {
+  if (this->using_hw_) {
     ESP_LOGCONFIG(TAG, "  Using HW SPI: %s", this->interface_name_);
   } else {
     ESP_LOGCONFIG(TAG, "  Using software SPI");
@@ -131,22 +124,13 @@ uint16_t SPIDelegateBitBash::transfer_(uint16_t data, size_t num_bits) {
   return out_data;
 }
 
-#if defined(USE_ZEPHYR)
-
-SPIBus *SPIComponent::get_bus(SPIInterface interface, GPIOPin *clk, GPIOPin *sdo, GPIOPin *sdi,
-                              const std::vector<uint8_t> &data_pins) {
-  if (!device_is_ready(interface)) {
-    ESP_LOGE(TAG, "SPI device is not ready");
-    return nullptr;
-  }
-  return new ZephyrSPIBus(interface);  // NOLINT
-}
-
-#elif !defined(USE_ESP32) && !defined(USE_ARDUINO)
+#if !defined(USE_ESP32) && !defined(USE_ARDUINO) && !defined(USE_ZEPHYR)
 // Stub for unsupported platforms (host, etc.) - hardware SPI is unavailable
-SPIBus *SPIComponent::get_bus(SPIInterface interface, GPIOPin *clk, GPIOPin *sdo, GPIOPin *sdi,
-                              const std::vector<uint8_t> &data_pins) {
-  return nullptr;
+bool SPIComponent::setup_hw_bus_() { return false; }
+
+SPIDelegate *SPIComponent::new_hw_delegate_(uint32_t data_rate, SPIBitOrder bit_order, SPIMode mode, GPIOPin *cs_pin,
+                                            bool release_device, bool write_only) {
+  return SPIDelegate::NULL_DELEGATE;
 }
 #endif
 
