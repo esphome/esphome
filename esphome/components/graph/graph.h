@@ -87,12 +87,13 @@ class GraphLegend final {
 class HistoryData {
  public:
   void init();
-  ~HistoryData();
   void set_samples(std::span<float> samples) { this->samples_ = samples; }
   void set_update_time_ms(uint32_t update_time_ms) { update_time_ = update_time_ms; }
   void take_sample(float data);
-  int get_length() const { return length_; }
-  float get_value(int idx) const { return samples_[(count_ + length_ - 1 - idx) % length_]; }
+  int get_length() const { return static_cast<int>(this->samples_.size()); }
+  float get_value(int idx) const {
+    return this->samples_[(this->count_ + this->get_length() - 1 - idx) % this->get_length()];
+  }
   float get_recent_max() const { return recent_max_; }
   float get_recent_min() const { return recent_min_; }
 
@@ -100,7 +101,6 @@ class HistoryData {
   uint32_t last_sample_;
   uint32_t period_{0};       /// in ms
   uint32_t update_time_{0};  /// in ms
-  int length_;
   int count_{0};
   float recent_min_{NAN};
   float recent_max_{NAN};

@@ -13,7 +13,6 @@ ESPHOME_LOG_TAG(TAG, "graph");
 ESPHOME_LOG_TAG(TAGL, "graphlegend");
 
 void HistoryData::init() {
-  this->length_ = static_cast<int>(this->samples_.size());
   std::fill(this->samples_.begin(), this->samples_.end(), NAN);
   this->last_sample_ = millis();
 }
@@ -28,14 +27,14 @@ void HistoryData::take_sample(float data) {
   while (this->period_ >= this->update_time_) {
     this->samples_[this->count_] = data;
     this->period_ -= this->update_time_;
-    this->count_ = (this->count_ + 1) % this->length_;
+    this->count_ = (this->count_ + 1) % this->get_length();
     ESP_LOGV(TAG, "Updating trace with value: %f", data);
   }
   if (!std::isnan(data)) {
     // Recalc recent max/min
     this->recent_min_ = data;
     this->recent_max_ = data;
-    for (int i = 0; i < this->length_; i++) {
+    for (int i = 0; i < this->get_length(); i++) {
       if (!std::isnan(this->samples_[i])) {
         if (this->recent_max_ < this->samples_[i])
           this->recent_max_ = this->samples_[i];
