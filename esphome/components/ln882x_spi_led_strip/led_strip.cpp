@@ -30,8 +30,6 @@ ESPHOME_LOG_TAG(TAG, "ln882x_spi_led_strip");
 
 // light.py derives the SPI encoding from this APB0 clock, which the SDK's SystemInit() sets.
 static constexpr uint32_t APB0_HZ = 40000000;
-// Each LED data bit is sent as one SPI byte, MSB first: the leading 1-bits are the high time.
-static constexpr uint8_t SPI_BITS_PER_LED_BIT = 8;
 // SPI0 TX is hard-wired to DMA channel 4 (see hal_dma.h).
 static constexpr uint32_t LED_STRIP_DMA_CH = DMA_CH_4;
 
@@ -93,7 +91,7 @@ LN882xSPILEDStripLightOutput::LN882xSPILEDStripLightOutput(uint8_t *buffer, uint
     : internal_accessor_(nullptr, nullptr, channel_colors, &this->correction_),
       color_data_bytes_(num_leds * channel_colors.bytes_per_led()),
       // The tail of the DMA buffer stays zero: it is the reset gap.
-      dma_data_bytes_(color_data_bytes_ * SPI_BITS_PER_LED_BIT + reset_bytes),
+      dma_data_bytes_(dma_data_bytes(color_data_bytes_, reset_bytes)),
       num_leds_(num_leds),
       pin_(pin),
       prescaler_(prescaler),
