@@ -5,15 +5,9 @@
 
 namespace esphome::mk2pvrouter {
 
-// Component before Sensor so the flag lands in Sensor's tail padding
-class Mk2PVRouterSensor final : public Mk2PVRouterListener, public Component, public sensor::Sensor {
- public:
-  Mk2PVRouterSensor(const char *tag, bool scale_centi);
-  void publish_val(const char *val) override;
-  void dump_config() override;
-
- protected:
-  bool scale_centi_;
-};
+// Publishes `val` when `tag` is `own_tag`; with `scale_centi` the device sent the value x100
+void publish_sensor_value(sensor::Sensor *sensor, const char *own_tag, bool scale_centi, const char *tag,
+                          const char *val);
+void dump_sensor(const char *log_tag, sensor::Sensor *sensor, const char *own_tag);
 
 }  // namespace esphome::mk2pvrouter
