@@ -77,6 +77,7 @@ CONF_RELATION = "relation"
 CONF_SBOM = "sbom"
 CONF_SUPPLIER = "supplier"
 CONF_SUSPEND_LOOP = "suspend_loop"
+CONF_FRIENDLY_NAME_SEPARATOR = "friendly_name_separator"
 
 # Application::loop_interval_ when loop_interval is not set. Make sure to align with application.h
 DEFAULT_LOOP_INTERVAL = TimePeriodMilliseconds(milliseconds=16)
@@ -161,6 +162,23 @@ def validate_hostname(config):
             "as it can cause problems with some DHCP and local name services. "
             "For more information, see https://esphome.io/guides/faq/#why-shouldnt-i-use-underscores-in-my-device-name",
             config[CONF_NAME],
+        )
+    return config
+
+
+# DeviceInfoResponse sends the friendly name as a short string (encode_short_string_force in api/proto.h)
+FRIENDLY_NAME_WITH_SUFFIX_MAX_LEN = 127
+
+
+def validate_friendly_name_with_suffix(config: ConfigType) -> ConfigType:
+    if not config[CONF_NAME_ADD_MAC_SUFFIX] or not config[CONF_FRIENDLY_NAME]:
+        return config
+    full = f"{config[CONF_FRIENDLY_NAME]}{config[CONF_FRIENDLY_NAME_SEPARATOR]}{_MAC_SUFFIX_PLACEHOLDER}"
+    if (length := len(full.encode("utf-8"))) > FRIENDLY_NAME_WITH_SUFFIX_MAX_LEN:
+        raise cv.Invalid(
+            f"friendly_name with {CONF_FRIENDLY_NAME_SEPARATOR} and the MAC suffix is {length} "
+            f"bytes; at most {FRIENDLY_NAME_WITH_SUFFIX_MAX_LEN} fit",
+            path=[CONF_FRIENDLY_NAME],
         )
     return config
 
@@ -448,6 +466,9 @@ CONFIG_SCHEMA = cv.All(
                 CONF_LIBRARIES, default=[], visibility=cv.Visibility.YAML_ONLY
             ): cv.ensure_list(cv.string_strict),
             cv.Optional(CONF_NAME_ADD_MAC_SUFFIX, default=False): cv.boolean,
+            cv.Optional(
+                CONF_FRIENDLY_NAME_SEPARATOR, default=_APP_FRIENDLY_NAME_MAC_SEP
+            ): cv.All(cv.string_no_slash, cv.ByteLength(max=3)),
             cv.Optional(CONF_MERGE_WARNINGS, default=True): cv.boolean,
             cv.Optional(
                 CONF_DEBUG_SCHEDULER, default=False, visibility=cv.Visibility.YAML_ONLY
@@ -500,6 +521,7 @@ CONFIG_SCHEMA = cv.All(
         }
     ),
     validate_hostname,
+    validate_friendly_name_with_suffix,
 )
 
 
@@ -899,7 +921,9 @@ async def to_code(config: ConfigType) -> None:
 
     name_expr, name_len = _emit_app_name(name, _APP_NAME_BUF_VAR, _APP_NAME_MAC_SEP)
     friendly_expr, friendly_len = _emit_app_name(
-        friendly_name, _APP_FRIENDLY_NAME_BUF_VAR, _APP_FRIENDLY_NAME_MAC_SEP
+        friendly_name,
+        _APP_FRIENDLY_NAME_BUF_VAR,
+        config[CONF_FRIENDLY_NAME_SEPARATOR],
     )
     if name_add_mac_suffix:
         cg.add_define("ESPHOME_NAME_ADD_MAC_SUFFIX")
