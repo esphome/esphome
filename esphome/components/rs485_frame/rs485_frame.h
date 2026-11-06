@@ -37,6 +37,8 @@ constexpr uint8_t crc_length(CrcType type) {
 }
 enum QueuePolicy : uint8_t { QUEUE_REPLACE_LATEST, QUEUE_FIFO };
 enum TxGateMode : uint8_t { TX_GATE_FRAME_TRIGGER, TX_GATE_IDLE_GAP, TX_GATE_FIXED_DELAY };
+/// RX framer state; the _DLE states mean the last byte was a DLE whose meaning the next byte decides.
+enum RxState : uint8_t { RX_STATE_IDLE, RX_STATE_IDLE_DLE, RX_STATE_FRAME, RX_STATE_FRAME_DLE };
 
 /// True when payload starts with the len-byte prefix, which may live in PROGMEM.
 inline bool frame_has_prefix(std::span<const uint8_t> payload, const uint8_t *prefix, size_t len) {
@@ -73,8 +75,8 @@ class RS485FrameHub : public Component, public uart::UARTDevice {
   void loop() override;
   void dump_config() override;
 
-  void set_accept_header_crc(bool accept) { this->accept_header_crc_ = accept; }
-  void set_accept_payload_crc(bool accept) { this->accept_payload_crc_ = accept; }
+  void set_accept_header_crc(bool accept) { this->flags_.accept_header_crc = accept; }
+  void set_accept_payload_crc(bool accept) { this->flags_.accept_payload_crc = accept; }
   void set_tx_crc_variant(CrcVariant variant) { this->tx_crc_variant_ = variant; }
   void set_tx_gate_mode(TxGateMode mode) { this->tx_gate_mode_ = mode; }
   /// frame_type may live in PROGMEM.
@@ -82,12 +84,12 @@ class RS485FrameHub : public Component, public uart::UARTDevice {
     this->tx_gate_frame_type_ = frame_type;
     this->tx_gate_frame_type_len_ = len;
   }
-  void set_tx_gate_delay(uint32_t delay) { this->tx_gate_delay_ = delay; }
+  void set_tx_gate_delay(uint16_t delay) { this->tx_gate_delay_ = delay; }
   /// idle_gap's min_silence or fixed_delay's interval.
-  void set_tx_gate_interval(uint32_t interval) { this->tx_gate_interval_ = interval; }
+  void set_tx_gate_interval(uint16_t interval) { this->tx_gate_interval_ = interval; }
   void set_queue_policy(QueuePolicy policy) { this->queue_policy_ = policy; }
-  void set_dump_frames(bool dump_frames) { this->dump_frames_ = dump_frames; }
-  void set_in_frame_timeout(uint32_t ms) { this->in_frame_timeout_ms_ = ms; }
+  void set_dump_frames(bool dump_frames) { this->flags_.dump_frames = dump_frames; }
+  void set_in_frame_timeout(uint16_t ms) { this->in_frame_timeout_ms_ = ms; }
 
   /// Frame and queue an unframed payload; data may live in PROGMEM.
   bool queue_frame(const uint8_t *data, size_t len) { return this->queue_raw_frame({data, len}, {}); }
@@ -146,18 +148,18 @@ class RS485FrameHub : public Component, public uart::UARTDevice {
   // The unescaped frame being received, then the `payload` on_frame receives.
   uint8_t *const rx_payload_;
   // Ring of max_queue_size_ slots holding the unescaped frame and its CRC, escaped as it is written.
-  // While tx_start_pending_ the head slot is the frame released by the gate, waiting out the gate delay.
+  // While flags_.tx_start_pending the head slot is the frame released by the gate, waiting out the gate delay.
   uint8_t *const tx_queue_;
   uint16_t *const tx_queue_len_;
   const uint8_t *tx_gate_frame_type_{nullptr};
   LazyCallbackManager<void(std::span<const uint8_t>)> frame_callback_;
-  uint32_t tx_gate_delay_{0};
-  uint32_t tx_gate_interval_{0};
-  uint32_t in_frame_timeout_ms_{50};
   uint32_t last_rx_time_{0};
   uint32_t last_tx_time_{0};
   uint32_t last_activity_time_{0};  // RX or our own TX, seeded in setup()
   uint32_t tx_delay_start_{0};      // When the frame waiting out the gate delay was released
+  uint16_t tx_gate_delay_{0};
+  uint16_t tx_gate_interval_{0};
+  uint16_t in_frame_timeout_ms_{50};
   uint16_t max_frame_length_;
   uint16_t rx_payload_len_{0};
   // How long the last frame takes on the wire; the gates count from its end, not from write_array()
@@ -179,13 +181,14 @@ class RS485FrameHub : public Component, public uart::UARTDevice {
   uint8_t tx_queue_count_{0};
   // The slot transmit_head_() is sending, which queue_raw_frame() must not overwrite.
   uint8_t tx_sending_slot_{NO_SLOT};
-  bool accept_header_crc_{true};
-  bool accept_payload_crc_{true};
-  bool dump_frames_{false};
-  bool in_frame_{false};
-  // The last byte was a DLE whose meaning the next byte decides.
-  bool after_dle_{false};
-  bool tx_start_pending_{false};
+  RxState rx_state_{RX_STATE_IDLE};
+  struct Flags {
+    uint8_t accept_header_crc : 1;
+    uint8_t accept_payload_crc : 1;
+    uint8_t dump_frames : 1;
+    uint8_t tx_start_pending : 1;
+    uint8_t reserved : 4;
+  } flags_{.accept_header_crc = true, .accept_payload_crc = true};
 };
 
 }  // namespace esphome::rs485_frame

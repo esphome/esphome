@@ -28,7 +28,8 @@ void RS485FrameHub::loop() {
   const uint32_t now = App.get_loop_component_start_time();
   // A partial frame left by a cable pull or noise burst would otherwise stall reception. Checked before
   // draining, since the new bytes refresh last_rx_time_ and could complete the stale frame.
-  if (this->in_frame_ && this->in_frame_timeout_ms_ > 0 && now - this->last_rx_time_ >= this->in_frame_timeout_ms_) {
+  if (this->rx_state_ >= RX_STATE_FRAME && this->in_frame_timeout_ms_ > 0 &&
+      now - this->last_rx_time_ >= this->in_frame_timeout_ms_) {
     ESP_LOGV(TAG, "Intra-frame timeout, resetting receive state");
     this->reset_rx_();
   }
@@ -37,8 +38,9 @@ void RS485FrameHub::loop() {
   // Transmits only after this pass's RX is drained, so frame_trigger sees any byte that followed the gate frame.
   this->maybe_tx_(now);
   // Bytes that arrived while an on_frame callback ran are still waiting; the next pass reads them before sending.
-  if (this->tx_start_pending_ && now - this->tx_delay_start_ >= this->tx_gate_delay_ && this->gate_allows_send_(now)) {
-    this->tx_start_pending_ = false;
+  if (this->flags_.tx_start_pending && now - this->tx_delay_start_ >= this->tx_gate_delay_ &&
+      this->gate_allows_send_(now)) {
+    this->flags_.tx_start_pending = false;
     this->transmit_head_(now);
   }
 }
@@ -52,19 +54,19 @@ void RS485FrameHub::dump_config() {
                 "RS485 Frame:\n"
                 "  Framing: DLE=0x%02x STX=0x%02x ETX=0x%02x, escape=0x%02x\n"
                 "  CRC type: %s, TX CRC variant: %s, accept header CRC: %s, accept payload CRC: %s\n"
-                "  TX gate: %s, gate frame: %s, gate delay: %" PRIu32 "ms\n"
-                "  TX gate interval: %" PRIu32 "ms\n"
+                "  TX gate: %s, gate frame: %s, gate delay: %ums\n"
+                "  TX gate interval: %ums\n"
                 "  Queue policy: %s, queue size: %u\n"
-                "  Max frame length: %u, frame timeout: %" PRIu32 "ms\n"
+                "  Max frame length: %u, frame timeout: %ums\n"
                 "  Sniffer only: %s, dump frames: %s",
                 this->dle_, this->stx_, this->etx_, this->escape_marker_,
                 LOG_STR_ARG(CrcTypeStrings::get_log_str(this->crc_type_, 0)),
-                LOG_STR_ARG(CrcVariantStrings::get_log_str(this->tx_crc_variant_, 0)), YESNO(this->accept_header_crc_),
-                YESNO(this->accept_payload_crc_), LOG_STR_ARG(GateModeStrings::get_log_str(this->tx_gate_mode_, 0)),
-                gate_hex, this->tx_gate_delay_, this->tx_gate_interval_,
-                LOG_STR_ARG(QueuePolicyStrings::get_log_str(this->queue_policy_, 0)), this->max_queue_size_,
-                this->max_frame_length_, this->in_frame_timeout_ms_, YESNO(this->tx_queue_ == nullptr),
-                YESNO(this->dump_frames_));
+                LOG_STR_ARG(CrcVariantStrings::get_log_str(this->tx_crc_variant_, 0)),
+                YESNO(this->flags_.accept_header_crc), YESNO(this->flags_.accept_payload_crc),
+                LOG_STR_ARG(GateModeStrings::get_log_str(this->tx_gate_mode_, 0)), gate_hex, this->tx_gate_delay_,
+                this->tx_gate_interval_, LOG_STR_ARG(QueuePolicyStrings::get_log_str(this->queue_policy_, 0)),
+                this->max_queue_size_, this->max_frame_length_, this->in_frame_timeout_ms_,
+                YESNO(this->tx_queue_ == nullptr), YESNO(this->flags_.dump_frames));
 }
 
 bool RS485FrameHub::queue_raw_frame(std::span<const uint8_t> frame_type, std::span<const uint8_t> payload) {
@@ -109,41 +111,50 @@ bool RS485FrameHub::queue_raw_frame(std::span<const uint8_t> frame_type, std::sp
   return true;
 }
 
-void RS485FrameHub::reset_rx_() {
-  this->in_frame_ = false;
-  this->after_dle_ = false;
-}
+void RS485FrameHub::reset_rx_() { this->rx_state_ = RX_STATE_IDLE; }
 
 void RS485FrameHub::handle_rx_byte_(uint8_t byte, uint32_t now) {
   this->last_rx_time_ = now;
   this->last_activity_time_ = now;
   // frame_trigger answers in the gap right after the gate frame; a later byte means another node took it.
   if (this->tx_gate_mode_ == TX_GATE_FRAME_TRIGGER)
-    this->tx_start_pending_ = false;
-  if (!this->after_dle_) {
-    if (byte == this->dle_) {
-      this->after_dle_ = true;
-    } else if (this->in_frame_) {
-      this->append_rx_(byte);
-    }
-    return;
-  }
-  // The byte after a DLE: STX starts a frame (also inside one, since the escape marker is never
-  // STX), ETX ends it, the escape marker makes a literal DLE and anything else drops the frame.
-  this->after_dle_ = false;
-  if (byte == this->stx_) {
-    this->in_frame_ = true;
-    this->rx_payload_len_ = 0;
-  } else if (!this->in_frame_) {
-    this->after_dle_ = byte == this->dle_;
-  } else if (byte == this->etx_) {
-    this->reset_rx_();
-    this->process_frame_(now);
-  } else if (byte == this->escape_marker_) {
-    this->append_rx_(this->dle_);
-  } else {
-    this->reset_rx_();
-    this->after_dle_ = byte == this->dle_;
+    this->flags_.tx_start_pending = false;
+  // After a DLE: STX starts a frame (also inside one, since the escape marker is never STX), ETX ends it,
+  // the escape marker makes a literal DLE and anything else drops the frame.
+  const RxState after_other_dle = byte == this->dle_ ? RX_STATE_IDLE_DLE : RX_STATE_IDLE;
+  switch (this->rx_state_) {
+    case RX_STATE_IDLE:
+      this->rx_state_ = after_other_dle;
+      return;
+    case RX_STATE_FRAME:
+      if (byte == this->dle_) {
+        this->rx_state_ = RX_STATE_FRAME_DLE;
+      } else {
+        this->append_rx_(byte);
+      }
+      return;
+    case RX_STATE_IDLE_DLE:
+      if (byte == this->stx_) {
+        this->rx_state_ = RX_STATE_FRAME;
+        this->rx_payload_len_ = 0;
+      } else {
+        this->rx_state_ = after_other_dle;
+      }
+      return;
+    default:  // RX_STATE_FRAME_DLE
+      if (byte == this->stx_) {
+        this->rx_state_ = RX_STATE_FRAME;
+        this->rx_payload_len_ = 0;
+      } else if (byte == this->etx_) {
+        this->reset_rx_();
+        this->process_frame_(now);
+      } else if (byte == this->escape_marker_) {
+        this->rx_state_ = RX_STATE_FRAME;
+        this->append_rx_(this->dle_);
+      } else {
+        this->rx_state_ = after_other_dle;
+      }
+      return;
   }
 }
 
@@ -162,7 +173,7 @@ void RS485FrameHub::process_frame_(uint32_t now) {
   this->rx_payload_len_ -= this->crc_len_;
   if (!this->check_crc_())
     return;
-  if (this->dump_frames_)
+  if (this->flags_.dump_frames)
     this->log_frame_(LOG_STR("RX"), this->rx_payload_, this->rx_payload_len_ + this->crc_len_);
 
   const std::span<const uint8_t> payload(this->rx_payload_, this->rx_payload_len_);
@@ -173,8 +184,8 @@ void RS485FrameHub::process_frame_(uint32_t now) {
 }
 
 bool RS485FrameHub::check_crc_() const {
-  return this->crc_len_ == 0 || (this->accept_header_crc_ && this->crc_matches_(true)) ||
-         (this->accept_payload_crc_ && this->crc_matches_(false));
+  return this->crc_len_ == 0 || (this->flags_.accept_header_crc && this->crc_matches_(true)) ||
+         (this->flags_.accept_payload_crc && this->crc_matches_(false));
 }
 
 bool RS485FrameHub::crc_matches_(bool include_header) const {
@@ -208,7 +219,7 @@ void RS485FrameHub::encode_crc_(const uint8_t *data, size_t len, bool include_he
 }
 
 void RS485FrameHub::maybe_tx_(uint32_t now) {
-  if (this->tx_queue_count_ == 0 || this->tx_start_pending_ || this->tx_gate_mode_ == TX_GATE_FRAME_TRIGGER)
+  if (this->tx_queue_count_ == 0 || this->flags_.tx_start_pending || this->tx_gate_mode_ == TX_GATE_FRAME_TRIGGER)
     return;
   // Both gates count the interval from the end of our last frame on the wire.
   if (now - this->last_tx_time_ < this->last_tx_wire_ms_ + this->tx_gate_interval_)
@@ -218,10 +229,10 @@ void RS485FrameHub::maybe_tx_(uint32_t now) {
 }
 
 void RS485FrameHub::send_next_(uint32_t now) {
-  if (this->tx_start_pending_ || this->tx_queue_count_ == 0)
+  if (this->flags_.tx_start_pending || this->tx_queue_count_ == 0)
     return;
   this->tx_delay_start_ = now;
-  this->tx_start_pending_ = true;
+  this->flags_.tx_start_pending = true;
 }
 
 void RS485FrameHub::transmit_head_(uint32_t now) {
@@ -255,7 +266,7 @@ void RS485FrameHub::transmit_head_(uint32_t now) {
   // wire before returning; ESP32 drives DE in hardware RS485 mode.
   this->flush();
 #endif
-  if (this->dump_frames_)
+  if (this->flags_.dump_frames)
     this->log_frame_(LOG_STR("TX"), frame, len);
   this->tx_sending_slot_ = NO_SLOT;
   this->last_tx_time_ = now;

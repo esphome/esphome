@@ -193,8 +193,14 @@ CRC_SCHEMA = cv.Schema(
     }
 )
 
+# The hub stores these as 16-bit milliseconds.
+_MS16 = cv.All(
+    cv.positive_time_period_milliseconds,
+    cv.Range(max=cv.TimePeriod(milliseconds=65535)),
+)
+
 _GATE_DELAY = {
-    cv.Optional(CONF_DELAY, default="0ms"): cv.positive_time_period_milliseconds,
+    cv.Optional(CONF_DELAY, default="0ms"): _MS16,
 }
 
 TX_SCHEMA = cv.Schema(
@@ -207,15 +213,11 @@ TX_SCHEMA = cv.Schema(
                     **_GATE_DELAY,
                 },
                 "idle_gap": {
-                    cv.Optional(
-                        CONF_MIN_SILENCE, default="4ms"
-                    ): cv.positive_time_period_milliseconds,
+                    cv.Optional(CONF_MIN_SILENCE, default="4ms"): _MS16,
                     **_GATE_DELAY,
                 },
                 "fixed_delay": {
-                    cv.Optional(
-                        CONF_INTERVAL, default="100ms"
-                    ): cv.positive_time_period_milliseconds,
+                    cv.Optional(CONF_INTERVAL, default="100ms"): _MS16,
                     **_GATE_DELAY,
                 },
             },
@@ -276,9 +278,7 @@ CONFIG_SCHEMA = cv.All(
             cv.Optional(CONF_MAX_FRAME_LENGTH, default=128): cv.int_range(
                 min=MIN_FRAME_LENGTH, max=MAX_FRAME_LENGTH_UPPER
             ),
-            cv.Optional(
-                CONF_FRAME_TIMEOUT, default="50ms"
-            ): cv.positive_time_period_milliseconds,
+            cv.Optional(CONF_FRAME_TIMEOUT, default="50ms"): _MS16,
             # payload is a view into the RX buffer, which the next frame overwrites.
             cv.Optional(CONF_ON_FRAME): automation.validate_synchronous_automation(
                 "rs485_frame on_frame",
