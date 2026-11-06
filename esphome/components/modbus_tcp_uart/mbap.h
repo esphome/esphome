@@ -1,8 +1,8 @@
 #pragma once
 
-#include "esphome/components/modbus/modbus_helpers.h"
 #include "esphome/core/helpers.h"
 
+#include <algorithm>
 #include <cstddef>
 #include <cstdint>
 #include <cstring>
@@ -89,8 +89,10 @@ inline size_t write_rtu(uint8_t *dst, uint8_t unit, const uint8_t *pdu, size_t p
   return pdu_len + 3;
 }
 
-// Unit, PDU and CRC.
-static constexpr size_t RTU_MAX_SIZE = modbus::MAX_PDU_SIZE + 3;
+// Unit, PDU of at most 253 bytes, and CRC.
+static constexpr size_t RTU_MAX_SIZE = 256;
+// An exception reply sets this bit in its function code.
+static constexpr uint8_t EXCEPTION_FLAG = 0x80;
 
 inline bool rtu_crc_ok(const uint8_t *frame, size_t len) {
   return len >= 4 && len <= RTU_MAX_SIZE && crc16(frame, static_cast<uint16_t>(len)) == 0;
@@ -102,6 +104,47 @@ enum class RtuTake : uint8_t {
   FRAME,
 };
 
+/// Length of the RTU frame at the start of buf as its function code gives it, or 0 for a code without a known length.
+/// replies: buf holds what a server sends. buf holds at least 2 bytes. A link without a modbus hub needs this copy of
+/// the modbus component's server_frame_length() and client_frame_length(); only the Read FIFO Queue reply differs.
+inline size_t rtu_frame_length(const uint8_t *buf, size_t len, bool replies) {
+  static constexpr uint8_t MAX_READ_BYTES = 250;         // 2000 coils or 125 registers
+  static constexpr uint8_t MAX_WRITE_BYTES = 246;        // 1968 coils or 123 registers
+  static constexpr uint8_t MAX_FILE_RECORD_BYTES = 251;  // a 253-byte PDU less function code and byte count
+  static constexpr uint8_t MAX_READ_WRITE_BYTES = 242;   // 121 registers to write
+  static constexpr uint8_t MAX_FIFO_BYTES = 64;          // FIFO count and 31 values
+  // A byte count is 0 until it arrives, and capped at these limits.
+  const auto count = [buf, len](size_t at, uint8_t max) -> size_t { return len > at ? std::min(buf[at], max) : 0; };
+  // Every frame has unit, function code and CRC: 4 bytes.
+  if ((buf[1] & EXCEPTION_FLAG) != 0) {
+    return 5;  // plus the exception code
+  }
+  switch (buf[1]) {
+    case 0x01:  // reads: address and quantity; the reply has a byte count and data
+    case 0x02:
+    case 0x03:
+    case 0x04:
+      return replies ? 5 + count(2, MAX_READ_BYTES) : 8;
+    case 0x05:  // single writes: address and value, echoed
+    case 0x06:
+      return 8;
+    case 0x0F:  // multiple writes: address, quantity, byte count and data; the reply has address and quantity
+    case 0x10:
+      return replies ? 8 : 9 + count(6, MAX_WRITE_BYTES);
+    case 0x14:  // file records: byte count and data
+    case 0x15:
+      return 5 + count(2, MAX_FILE_RECORD_BYTES);
+    case 0x16:  // mask write: address, AND mask and OR mask, echoed
+      return 10;
+    case 0x17:  // read/write multiple: two addresses and quantities, byte count and data; the reply as a read
+      return replies ? 5 + count(2, MAX_READ_BYTES) : 13 + count(10, MAX_READ_WRITE_BYTES);
+    case 0x18:  // read FIFO queue: the request has its pointer address; the reply has a 2-byte byte count, at most 64
+      return replies ? 6 + count(3, MAX_FIFO_BYTES) : 6;
+    default:
+      return 0;
+  }
+}
+
 /// Finds the RTU frame at the start of buf: by the length its function code gives, else at the first CRC match.
 /// replies: buf holds what a server sends; else what a client sends. *frame_len is set for FRAME.
 inline RtuTake take_rtu(const uint8_t *buf, size_t len, bool replies, size_t *frame_len) {
@@ -109,9 +152,8 @@ inline RtuTake take_rtu(const uint8_t *buf, size_t len, bool replies, size_t *fr
   if (len < 2) {
     return RtuTake::NEED_MORE;
   }
-  if (!modbus::helpers::is_function_code_unknown_length(buf[1])) {
-    const size_t want =
-        replies ? modbus::helpers::server_frame_length(buf, len) : modbus::helpers::client_frame_length(buf, len);
+  const size_t want = rtu_frame_length(buf, len, replies);
+  if (want != 0) {
     if (len < want) {
       return RtuTake::NEED_MORE;
     }
