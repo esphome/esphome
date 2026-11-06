@@ -1,6 +1,7 @@
 """Tabulate run.sh's res.txt files: settle times, opposite DC per channel, DC plus tone, square wave levels.
 
 usage: sum.py RES_TXT...   Judge by the tail values: a segment's min and max include the end of the previous one.
+Exits 1 when a file lacks the three channel 0 segments of each signal mode.
 """
 
 from itertools import zip_longest
@@ -17,6 +18,7 @@ def seg(lines: list[str], mode: int, ch: int) -> list[str]:
     return [x for x in lines if x.startswith(f"SEG mode={mode} ") and f" ch{ch} " in x]
 
 
+bad = False
 for path in sys.argv[1:]:
     lines = pathlib.Path(path).read_text(encoding="utf-8").splitlines()
     st = [line for line in lines if line.startswith("SETTLE")]
@@ -36,3 +38,7 @@ for path in sys.argv[1:]:
         f" dc+tone tail mean, ac rms {tone}\n fullscale square rms,min,max {squares[4]}\n"
         f" half square rms,min,max {squares[5]}"
     )
+    if short := [m for m in range(1, 6) if len(seg(lines, m, 0)) < 3]:
+        print(f" FAIL: fewer than 3 segments for modes {short}")
+        bad = True
+sys.exit(1 if bad else 0)

@@ -15,7 +15,7 @@ for arg in "$@"; do
     $PY "$D/drive.py" "$DEV" "$K" "${DELAY:-3.5}" "$O/run$r.txt" > /dev/null 2>&1 || FAIL=1
     echo "== $v run $r"
     grep -v "sensor:\|wifi\|Free Memory\|api.connection\|Event Type\|Desired" "$O/run$r.txt" |
-      grep -E "PRESS|HTTP|State changed from (STREAMING_RESPONSE|IDLE|RESPONSE_FINISHED)|STREAMING_MICROPHONE$|micro_decoder|media_player|announc|Error" |
+      grep -E "PRESS|HTTP|VA |State changed from (STREAMING_RESPONSE|IDLE|RESPONSE_FINISHED)|STREAMING_MICROPHONE$|micro_decoder|media_player|announc|Error" |
       cut -c1-140 | head -24
   done
 done

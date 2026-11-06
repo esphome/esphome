@@ -3,8 +3,9 @@
 usage: drive.py HOST KEY DELAY OUT [SECONDS]   env: FLAC (file to serve, default tone.flac), SRV_PORT (default 18090)
 
 Serves FLAC on SRV_PORT (any path), presses the "hwtest slow announce" button from slow-announce.yaml, whose URL
-points here, and writes the HTTP events and device logs with times from the press to OUT. Exits 1 when the device
-never fetched the URL.
+points here, and writes the HTTP events and device logs with times from the press to OUT. It holds the voice
+assistant subscription throughout, since without a subscriber the device drops the announcement state at once.
+Exits 1 when the device never fetched the URL.
 """
 
 import asyncio
@@ -61,7 +62,20 @@ async def main() -> None:
         if "runtime_stats" not in line:
             mark("LOG " + line[:150])
 
+    async def start(*a: object) -> int:
+        mark("VA start (follow-up microphone)")
+        return 0
+
+    async def stop(abort: bool) -> None:
+        mark(f"VA stop abort={abort}")
+
+    async def audio(d1: bytes, d2: bytes) -> None:
+        """Audio is not needed here."""
+
     cli.subscribe_logs(on_log, log_level=LogLevel.LOG_LEVEL_DEBUG)
+    cli.subscribe_voice_assistant(
+        handle_start=start, handle_stop=stop, handle_audio=audio
+    )
     await asyncio.sleep(1)
     ents, _ = await cli.list_entities_services()
     key = next(e.key for e in ents if e.object_id == "hwtest_slow_announce")

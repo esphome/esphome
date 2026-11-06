@@ -3,7 +3,8 @@
 Opens N concurrent GET /audio/microphones/STREAM_ID readers. Each reports its HTTP status, format headers, sample
 count and rate, the longest gap between reads, and, with --pattern, every break in the fake microphone's uint16
 counter. --stall K makes reader K stop reading after 2 s (the device should drop it, not the others).
-Exits 1 when a reader other than the stalled one got no 200, no samples or (with --pattern) a broken counter.
+Exits 1 when a reader other than the stalled one got no 200, no samples, an early EOF, a read error or (with
+--pattern) a broken counter.
 """
 
 import argparse
@@ -126,7 +127,11 @@ def main() -> None:
     for i, r in enumerate(res):
         print(f"C{i}", json.dumps(r))
         if i != a.stall and (
-            r["status"] != 200 or not r["samples"] or (a.pattern and r["breaks"])
+            r["status"] != 200
+            or not r["samples"]
+            or r["eof"] is not None
+            or "error" in r
+            or (a.pattern and r["breaks"])
         ):
             bad = True
     sys.exit(1 if bad else 0)

@@ -1,5 +1,6 @@
 #pragma once
 // I2S test signal generator on I2S1 (master) and a capture analyzer for the microphone data callback.
+#include <atomic>
 #include <cmath>
 #include <cstring>
 #include <climits>
@@ -89,7 +90,7 @@ inline int32_t trace[TRACE_MS], rtrace[TRACE_MS];
 inline uint32_t n = 0, rn = 0, seen = 0, blkn = 0, blki = 0, rblki = 0, chans = 0, rchans = 0, sr = 0;
 inline int64_t blk = 0;
 inline int seg_mode = 0, rmode = 0;
-inline volatile bool ready = false;
+inline std::atomic<bool> ready{false};  // hands the res snapshot between the two tasks
 
 inline void on_data(const esphome::microphone::AudioCapture &c) {
   chans = c.stream_info.get_channels();
