@@ -2,33 +2,28 @@
 
 #include "esphome/core/component.h"
 #include "esphome/core/hal.h"
-#include <vector>
 
 namespace esphome::sm16716 {
 
 class SM16716 final : public Component {
  public:
-  void set_data_pin(GPIOPin *data_pin) { data_pin_ = data_pin; }
-  void set_clock_pin(GPIOPin *clock_pin) { clock_pin_ = clock_pin; }
-  void set_num_channels(uint8_t num_channels) { num_channels_ = num_channels; }
-  void set_num_chips(uint8_t num_chips) { num_chips_ = num_chips; }
+  /// @param pwm_amounts storage for num_channels duty values, owned by the caller for the life of the program.
+  SM16716(GPIOPin *data_pin, GPIOPin *clock_pin, uint8_t *pwm_amounts, uint8_t num_channels)
+      : data_pin_(data_pin), clock_pin_(clock_pin), pwm_amounts_(pwm_amounts), num_channels_(num_channels) {}
 
   void setup() override;
-
   void dump_config() override;
-
   float get_setup_priority() const override { return setup_priority::HARDWARE; }
-
-  /// Send new values if they were updated.
+  /// Send the new duty values, then sleep until write_channel() changes one.
   void loop() override;
 
   void write_channel(uint8_t channel, float state) {
     auto value = uint8_t(state * 0xFF);
     uint8_t index = this->num_channels_ - channel - 1;
     if (this->pwm_amounts_[index] != value) {
-      this->update_ = true;
+      this->pwm_amounts_[index] = value;
+      this->enable_loop();
     }
-    this->pwm_amounts_[index] = value;
   }
 
  protected:
@@ -43,12 +38,10 @@ class SM16716 final : public Component {
     }
   }
 
-  GPIOPin *data_pin_;
-  GPIOPin *clock_pin_;
-  uint8_t num_channels_;
-  uint8_t num_chips_;
-  std::vector<uint8_t> pwm_amounts_;
-  bool update_{true};
+  GPIOPin *const data_pin_;
+  GPIOPin *const clock_pin_;
+  uint8_t *const pwm_amounts_;
+  const uint8_t num_channels_;
 };
 
 }  // namespace esphome::sm16716
