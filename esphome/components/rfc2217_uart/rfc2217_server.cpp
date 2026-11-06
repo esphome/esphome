@@ -50,7 +50,7 @@ void Rfc2217Server::on_link(bool up) {
   this->dtr_on_ = false;
   this->rts_on_ = false;
   this->refusal_logged_ = false;
-  if (this->ending_) {
+  if (this->ending_ || this->restore_failed_) {
     this->ending_ = false;
     this->restore_line_();
   }
@@ -145,7 +145,8 @@ bool Rfc2217Server::set_line_(const Line &line) {
 }
 
 void Rfc2217Server::restore_line_() {
-  if (!this->set_line_(this->configured_)) {
+  this->restore_failed_ = !this->set_line_(this->configured_);
+  if (this->restore_failed_) {
     ESP_LOGW(TAG, "Could not restore the configured line");
   }
 }
@@ -207,16 +208,11 @@ void Rfc2217Server::on_command(uint8_t code, const uint8_t *value, size_t len) {
     default:
       break;
   }
-  if (len == 0) {
-    return;
-  }
-  const uint8_t v = value[0];
+  // A value too short to read counts as 0: a SET-* command then asks for the value in use.
+  const uint8_t v = len == 0 ? 0 : value[0];
   switch (code) {
     case COM_SET_BAUDRATE: {
-      if (len < 4) {
-        return;
-      }
-      const uint32_t asked = encode_uint32(value[0], value[1], value[2], value[3]);
+      const uint32_t asked = len < 4 ? 0 : encode_uint32(value[0], value[1], value[2], value[3]);
       Line &line = this->pending_();
       // 0 asks for the value in use.
       if (asked != 0 && asked <= MAX_BAUD_RATE) {

@@ -180,6 +180,8 @@ class Rfc2217Server : public Rfc2217Base, public uart::UARTDevice {
   uint8_t answers_due_[4]{};
   // The peer closed and the configured line is not back yet.
   bool ending_{false};
+  // The last restore of the configured line failed; the next connect tries again.
+  bool restore_failed_{false};
   // The DTR and RTS states the client set; the UART has neither line.
   bool dtr_on_{false};
   bool rts_on_{false};
