@@ -50,7 +50,8 @@ I2SClocklessLedStrip::I2SClocklessLedStrip(uint8_t *buffer, uint8_t pin, uint16_
       color_data_bytes_(num_leds * channel_colors.bytes_per_led()),
       num_leds_(num_leds),
       pin_(pin) {
-  this->i2s_data_ = this->internal_accessor_.set_buffer(buffer, num_leds);
+  this->internal_accessor_.set_buffer(buffer, num_leds);
+  this->i2s_data_ = buffer + i2s_data_offset(num_leds, channel_colors.bytes_per_led());
 }
 
 void I2SClocklessLedStrip::dump_config() {
