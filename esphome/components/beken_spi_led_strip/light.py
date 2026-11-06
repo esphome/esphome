@@ -120,7 +120,9 @@ async def to_code(config: ConfigType) -> None:
     )
     num_leds = config[CONF_NUM_LEDS]
     channel_colors = config[CONF_CHANNEL_COLORS]
-    led_data = light.static_led_buffer(config[CONF_OUTPUT_ID], num_leds, channel_colors)
+    led_data = light.static_led_buffer(
+        config[CONF_OUTPUT_ID], num_leds, len(channel_colors)
+    )
     dma_buf = cg.static_buffer(
         config[CONF_OUTPUT_ID],
         cg.uint8,

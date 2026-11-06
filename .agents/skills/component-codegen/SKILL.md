@@ -232,9 +232,9 @@ Never a template per bit or a virtual listener base (a second vptr per entity).
 - A fixed buffer sized from the config is a file-scope static (BSS, not heap):
   `buf = cg.static_buffer(config[CONF_ID], cg.uint8, size)`, named after its owner so `esphome analyze-memory`
   counts it there; pass `buf` to the constructor.
-  A buffer that may live in PSRAM takes `psram=True`; the C++ then calls `static_or_heap(buf, count)`, which allocates
-  on the heap only in PSRAM builds; both paths start zeroed. `align=4` emits `alignas(4)`, so a word-aligned byte
-  buffer stays `uint8`. `size` may be an expression such as `MyClass.static_("buffer_size")(n)`, which renders
+  A buffer that may live in PSRAM takes `psram=True`: PSRAM builds get a zeroed `psram_buffer<T>(size)` allocation
+  instead, so pass `buf` once and mark the component failed in `setup()` if it is nullptr. `align=4` emits
+  `alignas(4)`, so a word-aligned byte buffer stays `uint8`. `size` may be an expression such as `MyClass.static_("buffer_size")(n)`, which renders
   `ns::MyClass::buffer_size(n)`.
 - `display.add_writer(var, config)` sets the lambda.
 - `MyEnum.options("on", prefix="MY_ENUM_")` builds an enum dict.

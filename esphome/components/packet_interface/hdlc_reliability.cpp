@@ -39,7 +39,6 @@ HdlcReliability::HdlcReliability(PacketInterface *lower, uint8_t *tx_slots, uint
 void HdlcReliability::setup() {
   if (!this->setup_check(this->max_packet_size_ != 0, LOG_STR("max_packet_size too small for the configured layers")))
     return;
-  this->tx_slots_ = static_or_heap(this->tx_slots_, size_t{this->max_queue_length_} * this->max_packet_size_);
   if (!this->setup_check(this->tx_slots_ != nullptr, LOG_STR("Not enough memory for the send queue")))
     return;
   this->lower_->add_packet_interface_listener(

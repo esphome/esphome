@@ -112,9 +112,7 @@ class LD600XComponent : public Component, public uart::UARTDevice {
   void loop() override;
   void dump_config() override;
 
-  void set_frame_buffer(uint8_t *buffer, uint16_t capacity) {
-    this->parser_.init(static_or_heap(buffer, capacity), capacity);
-  }
+  void set_frame_buffer(uint8_t *buffer, uint16_t capacity) { this->parser_.init(buffer, capacity); }
 
 #ifdef USE_SENSOR
   SUB_SENSOR_WITH_DEDUP(target_count, uint32_t)

@@ -66,11 +66,9 @@ static size_t IRAM_ATTR HOT encoder_callback(const void *data, size_t size, size
 #endif
 
 void ESP32RMTLEDStripLightOutput::set_buffers(uint8_t *led_data, RmtBuffer *rmt_buf) {
-  led_data = static_or_heap(led_data, this->num_leds_ * (this->internal_accessor_.channel_colors.bytes_per_led() + 1));
-  this->rmt_buf_ = static_or_heap(rmt_buf, rmt_buffer_size(this->get_buffer_size_()));
-  if (led_data == nullptr)
-    return;
-  this->internal_accessor_.set_buffer(led_data, this->num_leds_);
+  this->rmt_buf_ = rmt_buf;
+  if (led_data != nullptr)
+    this->internal_accessor_.set_buffer(led_data, this->num_leds_);
 }
 
 void ESP32RMTLEDStripLightOutput::setup() {
