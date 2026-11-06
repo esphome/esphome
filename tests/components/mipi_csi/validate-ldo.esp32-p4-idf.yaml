@@ -1,0 +1,3 @@
+packages:
+  i2c: !include ../../test_build_components/common/i2c/esp32-p4-idf.yaml
+  mipi_csi: !include common-ldo.yaml
