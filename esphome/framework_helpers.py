@@ -1332,7 +1332,12 @@ def local_path_from_url(url: str) -> Path:
     Handles ``file:///home/me/x`` and ``file:///C:/x`` (no host), ``file://localhost/x``
     and ``file://server/share/x`` (a UNC path).
     """
-    parsed = urlparse(url)
+    from esphome.core import EsphomeError
+
+    try:
+        parsed = urlparse(url)
+    except ValueError as e:
+        raise EsphomeError(f"invalid file URL {url}: {e}") from e
     path = url2pathname(parsed.path)
     if parsed.netloc and parsed.netloc.lower() != "localhost":
         path = f"//{parsed.netloc}{path}"
@@ -1351,24 +1356,25 @@ def _copy_local_mirror(
     from esphome.core import EsphomeError
 
     source = local_path_from_url(url)
-    if not source.is_file():
-        raise EsphomeError(f"not a file: {source}")
+    if not source.is_file() or not os.access(source, os.R_OK):
+        raise EsphomeError(f"not a readable file: {source}")
     path_target.parent.mkdir(parents=True, exist_ok=True)
     # An archive already at the target sits in the download cache, which is
     # consumed by the install anyway, so it is used in place.
     if not (path_target.is_file() and source.samefile(path_target)):
-        # Stage through the .part name so an interrupted copy never leaves
-        # a truncated file where a complete archive is expected.
-        part = _part_path(path_target)
+        # A staging name of its own: an interrupted copy never leaves a
+        # truncated archive at the target, and never touches the .part
+        # file and sidecar the HTTP download resumes from.
+        staged = path_target.with_name(path_target.name + ".copy")
         try:
-            shutil.copyfile(source, part)
-            part.replace(path_target)
+            shutil.copyfile(source, staged)
+            rename_with_retry(staged, path_target, overwrite=True)
         except shutil.SameFileError:
             # The mirror names the staging file itself; nothing was written,
             # so there is nothing to clean up and the user's file stays.
             raise
         except BaseException:
-            part.unlink(missing_ok=True)
+            staged.unlink(missing_ok=True)
             raise
     if progress is not None:
         progress(path_target.stat().st_size)

@@ -1811,7 +1811,7 @@ class TestDownloadFromMirrors:
             pytest.raises(EsphomeError, match="all mirrors") as ei,
         ):
             download_from_mirrors([missing.as_uri()], {}, tmp_path / "f.bin")
-        assert f"not a file: {missing}" in str(ei.value)
+        assert f"not a readable file: {missing}" in str(ei.value)
         mock_sleep.assert_not_called()
 
     def test_directory_file_mirror_is_not_a_file(self, tmp_path: Path) -> None:
@@ -1819,7 +1819,7 @@ class TestDownloadFromMirrors:
         real problem, not a missing path."""
         with pytest.raises(EsphomeError, match="all mirrors") as ei:
             download_from_mirrors([tmp_path.as_uri()], {}, tmp_path / "f.bin")
-        assert f"not a file: {tmp_path}" in str(ei.value)
+        assert f"not a readable file: {tmp_path}" in str(ei.value)
 
     def test_file_mirror_at_target_is_used_in_place(self, tmp_path: Path) -> None:
         """An archive pre-seeded at the download target itself is not copied
@@ -1830,19 +1830,72 @@ class TestDownloadFromMirrors:
         url = download_from_mirrors([target.as_uri()], {}, target)
         assert url == target.as_uri()
         assert target.read_bytes() == b"archive"
-        assert not (tmp_path / "dist" / "esp-idf-1.2.3.tar.xz.part").exists()
+        assert not (tmp_path / "dist" / "esp-idf-1.2.3.tar.xz.copy").exists()
 
     def test_file_mirror_at_staging_path_is_kept(self, tmp_path: Path) -> None:
         """A mirror that names the staging file itself cannot be copied onto
         itself; it is reported as a failed mirror and the file is left alone."""
         target = tmp_path / "f.bin"
-        staged = tmp_path / "f.bin.part"
+        staged = tmp_path / "f.bin.copy"
         staged.write_bytes(b"archive")
         with pytest.raises(EsphomeError, match="all mirrors") as ei:
             download_from_mirrors([staged.as_uri()], {}, target)
         assert "are the same file" in str(ei.value)
         assert staged.read_bytes() == b"archive"
         assert not target.exists()
+
+    def test_malformed_file_url_falls_back_to_next_mirror(self, tmp_path: Path) -> None:
+        """Urlparse rejects the authority; that is a mirror failure, not an
+        abort of the whole download."""
+        second = tmp_path / "second.bin"
+        second.write_bytes(b"second")
+        target = tmp_path / "f.bin"
+        url = download_from_mirrors(
+            ["file://[bad/archive.bin", second.as_uri()], {}, target
+        )
+        assert url == second.as_uri()
+        assert target.read_bytes() == b"second"
+
+    def test_unreadable_in_place_archive_is_a_mirror_failure(
+        self, tmp_path: Path
+    ) -> None:
+        """A pre-seeded archive the process cannot read is refused before it
+        is accepted in place, so the next mirror gets its turn."""
+        target = tmp_path / "f.bin"
+        target.write_bytes(b"archive")
+        with (
+            patch("esphome.framework_helpers.os.access", return_value=False),
+            pytest.raises(EsphomeError, match="all mirrors") as ei,
+        ):
+            download_from_mirrors([target.as_uri()], {}, target)
+        assert f"not a readable file: {target}" in str(ei.value)
+
+    def test_local_copy_rename_retries_sharing_violation(self, tmp_path: Path) -> None:
+        """The staged copy is renamed into place with the same retry the
+        HTTP download uses, so a transient Windows handle does not fail the
+        mirror."""
+        source = tmp_path / "local.bin"
+        source.write_bytes(b"local")
+        target = tmp_path / "f.bin"
+        real_replace = Path.replace
+        calls: list[int] = []
+
+        def flaky_replace(self: Path, dst: Path) -> Path:
+            calls.append(1)
+            if len(calls) == 1:
+                raise PermissionError("sharing violation")
+            return real_replace(self, dst)
+
+        with (
+            patch.object(Path, "replace", flaky_replace),
+            patch("esphome.framework_helpers.time.sleep") as mock_sleep,
+        ):
+            url = download_from_mirrors([source.as_uri()], {}, target)
+        assert url == source.as_uri()
+        assert target.read_bytes() == b"local"
+        assert not (tmp_path / "f.bin.copy").exists()
+        assert len(calls) == 2
+        mock_sleep.assert_called_once()
 
     def test_failed_copy_leaves_no_partial_target_and_warns(
         self, tmp_path: Path, caplog: pytest.LogCaptureFixture
@@ -1869,7 +1922,7 @@ class TestDownloadFromMirrors:
             )
         assert url == "https://mirror2.com/f"
         assert target.read_bytes() == b"second"
-        assert not (tmp_path / "f.bin.part").exists()
+        assert not (tmp_path / "f.bin.copy").exists()
         assert f"Local mirror {source.as_uri()} is unusable: denied" in caplog.text
         mock_sleep.assert_not_called()
 
