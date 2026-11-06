@@ -49,7 +49,7 @@
 #include "esphome/components/wifi/wifi_component.h"
 #endif
 
-#ifdef USE_WEBSERVER_LOCAL
+#if defined(USE_WEBSERVER_LOCAL) && !defined(USE_WEBSERVER_JS_INCLUDE)
 #if USE_WEBSERVER_VERSION == 2
 #include "server_index_v2.h"
 #elif USE_WEBSERVER_VERSION == 3
@@ -512,7 +512,12 @@ float WebServer::get_setup_priority() const { return setup_priority::WIFI - 1.0f
 
 #ifdef USE_WEBSERVER_LOCAL
 void WebServer::handle_index_request(AsyncWebServerRequest *request) {
+#ifdef USE_WEBSERVER_JS_INCLUDE
+  AsyncWebServerResponse *response = request->beginResponse(200, ESPHOME_F("text/html"), ESPHOME_WEBSERVER_INDEX_HTML,
+                                                            ESPHOME_WEBSERVER_INDEX_HTML_SIZE);
+#else
   AsyncWebServerResponse *response = request->beginResponse(200, ESPHOME_F("text/html"), INDEX_GZ, sizeof(INDEX_GZ));
+#endif
 #ifdef USE_WEBSERVER_GZIP
   response->addHeader(ESPHOME_F("Content-Encoding"), ESPHOME_F("gzip"));
 #else
