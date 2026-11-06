@@ -6,11 +6,20 @@
 #include "ezbee/zha.h"
 
 ezb_err_t esphome_zb_cluster_add_or_update_attr(uint16_t cluster_id, ezb_zcl_cluster_desc_t cluster_desc,
-                                                uint16_t attr_id, void *value_p) {
+                                                uint16_t attr_id, uint8_t attr_type, uint8_t attr_access,
+                                                void *value_p) {
   ezb_zcl_attr_desc_t attr_desc = ezb_zcl_cluster_get_attr_desc(cluster_desc, attr_id, EZB_ZCL_STD_MANUF_CODE);
   if (attr_desc != NULL) {
-    return ezb_zcl_attr_desc_set_value(attr_desc, value_p);
+    ezb_err_t ret;
+    ret = ezb_zcl_attr_desc_set_value(attr_desc, value_p);
+    if (ret == EZB_ERR_NONE && attr_access > 0) {
+      ret = ezb_zcl_attr_desc_set_access(attr_desc, attr_access);
+    }
+    return ret;
   }
+  if (attr_access > 0)
+    return ezb_zcl_cluster_desc_add_manuf_attr(cluster_desc, attr_id, attr_type, attr_access, EZB_ZCL_STD_MANUF_CODE,
+                                               value_p);
   return esphome_zb_cluster_add_attr(cluster_id, cluster_desc, attr_id, value_p);
 }
 
@@ -64,6 +73,8 @@ ezb_zcl_cluster_desc_t esphome_zb_default_cluster_dscr_create(uint16_t cluster_i
   switch (cluster_id) {
     case EZB_ZCL_CLUSTER_ID_BASIC:
       return ezb_zcl_basic_create_cluster_desc(NULL, role_mask);
+    case EZB_ZCL_CLUSTER_ID_POWER_CONFIG:
+      return ezb_zcl_power_config_create_cluster_desc(NULL, role_mask);
     case EZB_ZCL_CLUSTER_ID_IDENTIFY:
       return ezb_zcl_identify_create_cluster_desc(NULL, role_mask);
     case EZB_ZCL_CLUSTER_ID_ON_OFF:
@@ -107,6 +118,8 @@ ezb_err_t esphome_zb_cluster_add_attr(uint16_t cluster_id, ezb_zcl_cluster_desc_
   switch (cluster_id) {
     case EZB_ZCL_CLUSTER_ID_BASIC:
       return ezb_zcl_basic_cluster_desc_add_attr(cluster_desc, attr_id, value_p);
+    case EZB_ZCL_CLUSTER_ID_POWER_CONFIG:
+      return ezb_zcl_power_config_cluster_desc_add_attr(cluster_desc, attr_id, value_p);
     case EZB_ZCL_CLUSTER_ID_IDENTIFY:
       return ezb_zcl_identify_cluster_desc_add_attr(cluster_desc, attr_id, value_p);
     case EZB_ZCL_CLUSTER_ID_ON_OFF:

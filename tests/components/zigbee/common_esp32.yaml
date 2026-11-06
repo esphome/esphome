@@ -48,6 +48,14 @@ sensor:
     unit_of_measurement: L/h
     device_class: volume_flow_rate
     cluster: device_class
+  - platform: template
+    name: "battery"
+    device_class: battery
+    cluster: power_config
+  - platform: template
+    name: "battery voltage"
+    device_class: voltage
+    cluster: power_config
 
 switch:
   - platform: template
