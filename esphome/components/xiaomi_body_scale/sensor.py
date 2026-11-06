@@ -12,7 +12,6 @@ from esphome.const import (
     STATE_CLASS_MEASUREMENT,
     UNIT_BEATS_PER_MINUTE,
     UNIT_KILOGRAM,
-    UNIT_OHM,
 )
 from esphome.types import ConfigType
 
@@ -30,10 +29,7 @@ XiaomiBodyScale = xiaomi_body_scale_ns.class_(
 )
 
 IMPEDANCE_SCHEMA = sensor.sensor_schema(
-    unit_of_measurement=UNIT_OHM,
-    icon=ICON_OMEGA,
-    accuracy_decimals=1,
-    state_class=STATE_CLASS_MEASUREMENT,
+    kind=sensor.RESISTANCE, icon=ICON_OMEGA, accuracy_decimals=1
 )
 
 CONFIG_SCHEMA = (

@@ -11,7 +11,6 @@ from esphome.const import (
     ICON_SCALE_BATHROOM,
     STATE_CLASS_MEASUREMENT,
     UNIT_KILOGRAM,
-    UNIT_OHM,
 )
 from esphome.types import ConfigType
 
@@ -37,10 +36,7 @@ CONFIG_SCHEMA = cv.All(
                 state_class=STATE_CLASS_MEASUREMENT,
             ),
             cv.Optional(CONF_IMPEDANCE): sensor.sensor_schema(
-                unit_of_measurement=UNIT_OHM,
-                icon=ICON_OMEGA,
-                accuracy_decimals=0,
-                state_class=STATE_CLASS_MEASUREMENT,
+                kind=sensor.RESISTANCE, icon=ICON_OMEGA
             ),
         }
     )

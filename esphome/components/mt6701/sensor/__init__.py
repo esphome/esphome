@@ -5,7 +5,6 @@ from esphome.const import (
     CONF_ID,
     ICON_ROTATE_RIGHT,
     STATE_CLASS_MEASUREMENT,
-    UNIT_DEGREES,
     UNIT_EMPTY,
 )
 from esphome.types import ConfigType
@@ -20,11 +19,7 @@ CONF_RAW_COUNT = "raw_count"
 
 CONFIG_SCHEMA = (
     sensor.sensor_schema(
-        MT6701Sensor,
-        unit_of_measurement=UNIT_DEGREES,
-        accuracy_decimals=2,
-        icon=ICON_ROTATE_RIGHT,
-        state_class=STATE_CLASS_MEASUREMENT,
+        MT6701Sensor, kind=sensor.ANGLE, accuracy_decimals=2, icon=ICON_ROTATE_RIGHT
     )
     .extend(
         {

@@ -1,13 +1,7 @@
 import esphome.codegen as cg
 from esphome.components import sensor
 import esphome.config_validation as cv
-from esphome.const import (
-    DEVICE_CLASS_SIGNAL_STRENGTH,
-    ENTITY_CATEGORY_DIAGNOSTIC,
-    STATE_CLASS_MEASUREMENT,
-    UNIT_DECIBEL_MILLIWATT,
-    UNIT_PERCENT,
-)
+from esphome.const import ENTITY_CATEGORY_DIAGNOSTIC
 from esphome.types import ConfigType
 
 from . import CONF_MODEM_ID, ModemComponent, request_polling
@@ -21,17 +15,12 @@ CONFIG_SCHEMA = cv.Schema(
     {
         cv.GenerateID(CONF_MODEM_ID): cv.use_id(ModemComponent),
         cv.Optional(CONF_RSSI): sensor.sensor_schema(
-            unit_of_measurement=UNIT_DECIBEL_MILLIWATT,
-            accuracy_decimals=0,
-            device_class=DEVICE_CLASS_SIGNAL_STRENGTH,
-            state_class=STATE_CLASS_MEASUREMENT,
-            entity_category=ENTITY_CATEGORY_DIAGNOSTIC,
+            kind=sensor.SIGNAL_STRENGTH, entity_category=ENTITY_CATEGORY_DIAGNOSTIC
         ),
         cv.Optional(CONF_BER): sensor.sensor_schema(
-            unit_of_measurement=UNIT_PERCENT,
+            kind=sensor.PERCENT,
             accuracy_decimals=2,
             icon="mdi:signal",
-            state_class=STATE_CLASS_MEASUREMENT,
             entity_category=ENTITY_CATEGORY_DIAGNOSTIC,
         ),
     }

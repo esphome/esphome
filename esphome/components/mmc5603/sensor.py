@@ -11,7 +11,6 @@ from esphome.const import (
     ICON_MAGNET,
     ICON_SCREEN_ROTATION,
     STATE_CLASS_MEASUREMENT,
-    UNIT_DEGREES,
     UNIT_MICROTESLA,
 )
 from esphome.cpp_generator import MockObj
@@ -43,10 +42,7 @@ field_strength_schema = sensor.sensor_schema(
     state_class=STATE_CLASS_MEASUREMENT,
 )
 heading_schema = sensor.sensor_schema(
-    unit_of_measurement=UNIT_DEGREES,
-    icon=ICON_SCREEN_ROTATION,
-    accuracy_decimals=1,
-    state_class=STATE_CLASS_MEASUREMENT,
+    kind=sensor.ANGLE, icon=ICON_SCREEN_ROTATION, accuracy_decimals=1
 )
 
 CONFIG_SCHEMA = (

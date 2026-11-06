@@ -7,9 +7,6 @@ from esphome.const import (
     CONF_IBEACON_UUID,
     CONF_MAC_ADDRESS,
     CONF_SERVICE_UUID,
-    DEVICE_CLASS_SIGNAL_STRENGTH,
-    STATE_CLASS_MEASUREMENT,
-    UNIT_DECIBEL_MILLIWATT,
 )
 from esphome.types import ConfigType
 
@@ -33,13 +30,7 @@ def _validate(config: ConfigType) -> ConfigType:
 
 CONFIG_SCHEMA = cv.All(
     ble_device_base.rename_legacy_hub_id("ble_rssi"),
-    sensor.sensor_schema(
-        BLERSSISensor,
-        unit_of_measurement=UNIT_DECIBEL_MILLIWATT,
-        accuracy_decimals=0,
-        device_class=DEVICE_CLASS_SIGNAL_STRENGTH,
-        state_class=STATE_CLASS_MEASUREMENT,
-    )
+    sensor.sensor_schema(BLERSSISensor, kind=sensor.SIGNAL_STRENGTH)
     .extend(
         {
             cv.Optional(CONF_MAC_ADDRESS): cv.mac_address,

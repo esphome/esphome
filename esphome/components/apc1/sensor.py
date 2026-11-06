@@ -23,12 +23,6 @@ from esphome.const import (
     CONF_TEMPERATURE,
     CONF_TVOC,
     DEVICE_CLASS_AQI,
-    DEVICE_CLASS_CARBON_DIOXIDE,
-    DEVICE_CLASS_HUMIDITY,
-    DEVICE_CLASS_PM1,
-    DEVICE_CLASS_PM10,
-    DEVICE_CLASS_PM25,
-    DEVICE_CLASS_TEMPERATURE,
     DEVICE_CLASS_VOLATILE_ORGANIC_COMPOUNDS_PARTS,
     ENTITY_CATEGORY_DIAGNOSTIC,
     ICON_CHEMICAL_WEAPON,
@@ -36,13 +30,8 @@ from esphome.const import (
     ICON_OMEGA,
     ICON_RADIATOR,
     STATE_CLASS_MEASUREMENT,
-    UNIT_CELSIUS,
     UNIT_COUNT_DECILITRE,
-    UNIT_MICROGRAMS_PER_CUBIC_METER,
-    UNIT_OHM,
     UNIT_PARTS_PER_BILLION,
-    UNIT_PARTS_PER_MILLION,
-    UNIT_PERCENT,
 )
 from esphome.types import ConfigType
 
@@ -60,51 +49,26 @@ apc1_ns = cg.esphome_ns.namespace("apc1")
 APC1Component = apc1_ns.class_("APC1Component", uart.UARTDevice, cg.Component)
 
 
-def _pm_mass_schema(device_class: str) -> cv.Schema:
-    return sensor.sensor_schema(
-        unit_of_measurement=UNIT_MICROGRAMS_PER_CUBIC_METER,
-        icon=ICON_CHEMICAL_WEAPON,
-        accuracy_decimals=0,
-        device_class=device_class,
-        state_class=STATE_CLASS_MEASUREMENT,
-    )
-
-
 _PM_COUNT_SCHEMA = sensor.sensor_schema(
     unit_of_measurement=UNIT_COUNT_DECILITRE,
     icon=ICON_CHEMICAL_WEAPON,
     accuracy_decimals=0,
     state_class=STATE_CLASS_MEASUREMENT,
 )
-_TEMPERATURE_SCHEMA = sensor.sensor_schema(
-    unit_of_measurement=UNIT_CELSIUS,
-    accuracy_decimals=1,
-    device_class=DEVICE_CLASS_TEMPERATURE,
-    state_class=STATE_CLASS_MEASUREMENT,
-)
-_HUMIDITY_SCHEMA = sensor.sensor_schema(
-    unit_of_measurement=UNIT_PERCENT,
-    accuracy_decimals=1,
-    device_class=DEVICE_CLASS_HUMIDITY,
-    state_class=STATE_CLASS_MEASUREMENT,
-)
-_RESISTANCE_SCHEMA = sensor.sensor_schema(
-    unit_of_measurement=UNIT_OHM,
-    icon=ICON_OMEGA,
-    accuracy_decimals=0,
-    state_class=STATE_CLASS_MEASUREMENT,
-)
+_TEMPERATURE_SCHEMA = sensor.sensor_schema(kind=sensor.TEMPERATURE)
+_HUMIDITY_SCHEMA = sensor.sensor_schema(kind=sensor.HUMIDITY)
+_RESISTANCE_SCHEMA = sensor.sensor_schema(kind=sensor.RESISTANCE, icon=ICON_OMEGA)
 
 CONFIG_SCHEMA = (
     cv.Schema(
         {
             cv.GenerateID(): cv.declare_id(APC1Component),
-            cv.Optional(CONF_PM_1_0): _pm_mass_schema(DEVICE_CLASS_PM1),
-            cv.Optional(CONF_PM_2_5): _pm_mass_schema(DEVICE_CLASS_PM25),
-            cv.Optional(CONF_PM_10_0): _pm_mass_schema(DEVICE_CLASS_PM10),
-            cv.Optional(CONF_PM_1_0_STD): _pm_mass_schema(DEVICE_CLASS_PM1),
-            cv.Optional(CONF_PM_2_5_STD): _pm_mass_schema(DEVICE_CLASS_PM25),
-            cv.Optional(CONF_PM_10_0_STD): _pm_mass_schema(DEVICE_CLASS_PM10),
+            cv.Optional(CONF_PM_1_0): sensor.sensor_schema(kind=sensor.PM1),
+            cv.Optional(CONF_PM_2_5): sensor.sensor_schema(kind=sensor.PM25),
+            cv.Optional(CONF_PM_10_0): sensor.sensor_schema(kind=sensor.PM10),
+            cv.Optional(CONF_PM_1_0_STD): sensor.sensor_schema(kind=sensor.PM1),
+            cv.Optional(CONF_PM_2_5_STD): sensor.sensor_schema(kind=sensor.PM25),
+            cv.Optional(CONF_PM_10_0_STD): sensor.sensor_schema(kind=sensor.PM10),
             cv.Optional(CONF_PM_0_3UM): _PM_COUNT_SCHEMA,
             cv.Optional(CONF_PM_0_5UM): _PM_COUNT_SCHEMA,
             cv.Optional(CONF_PM_1_0UM): _PM_COUNT_SCHEMA,
@@ -119,11 +83,7 @@ CONFIG_SCHEMA = (
                 state_class=STATE_CLASS_MEASUREMENT,
             ),
             cv.Optional(CONF_ECO2): sensor.sensor_schema(
-                unit_of_measurement=UNIT_PARTS_PER_MILLION,
-                icon=ICON_MOLECULE_CO2,
-                accuracy_decimals=0,
-                device_class=DEVICE_CLASS_CARBON_DIOXIDE,
-                state_class=STATE_CLASS_MEASUREMENT,
+                kind=sensor.CARBON_DIOXIDE, icon=ICON_MOLECULE_CO2
             ),
             cv.Optional(CONF_AQI): sensor.sensor_schema(
                 icon=ICON_CHEMICAL_WEAPON,

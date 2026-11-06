@@ -24,10 +24,7 @@ CONFIG_SCHEMA = (
         {
             cv.GenerateID(): cv.declare_id(KMeterISOComponent),
             cv.Optional(CONF_TEMPERATURE): sensor.sensor_schema(
-                unit_of_measurement=UNIT_CELSIUS,
-                accuracy_decimals=2,
-                device_class=DEVICE_CLASS_TEMPERATURE,
-                state_class=STATE_CLASS_MEASUREMENT,
+                kind=sensor.TEMPERATURE, accuracy_decimals=2
             ),
             cv.Optional(CONF_INTERNAL_TEMPERATURE): sensor.sensor_schema(
                 unit_of_measurement=UNIT_CELSIUS,

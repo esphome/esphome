@@ -7,13 +7,9 @@ from esphome.const import (
     CONF_MAC_ADDRESS,
     CONF_MOISTURE,
     CONF_TEMPERATURE,
-    DEVICE_CLASS_ILLUMINANCE,
-    DEVICE_CLASS_TEMPERATURE,
     ICON_FLOWER,
     ICON_WATER_PERCENT,
     STATE_CLASS_MEASUREMENT,
-    UNIT_CELSIUS,
-    UNIT_LUX,
     UNIT_MICROSIEMENS_PER_CENTIMETER,
     UNIT_PERCENT,
 )
@@ -33,10 +29,7 @@ CONFIG_SCHEMA = cv.All(
             cv.GenerateID(): cv.declare_id(XiaomiGCLS002),
             cv.Required(CONF_MAC_ADDRESS): cv.mac_address,
             cv.Optional(CONF_TEMPERATURE): sensor.sensor_schema(
-                unit_of_measurement=UNIT_CELSIUS,
-                accuracy_decimals=1,
-                device_class=DEVICE_CLASS_TEMPERATURE,
-                state_class=STATE_CLASS_MEASUREMENT,
+                kind=sensor.TEMPERATURE
             ),
             cv.Optional(CONF_MOISTURE): sensor.sensor_schema(
                 unit_of_measurement=UNIT_PERCENT,
@@ -45,10 +38,7 @@ CONFIG_SCHEMA = cv.All(
                 state_class=STATE_CLASS_MEASUREMENT,
             ),
             cv.Optional(CONF_ILLUMINANCE): sensor.sensor_schema(
-                unit_of_measurement=UNIT_LUX,
-                accuracy_decimals=0,
-                device_class=DEVICE_CLASS_ILLUMINANCE,
-                state_class=STATE_CLASS_MEASUREMENT,
+                kind=sensor.ILLUMINANCE
             ),
             cv.Optional(CONF_CONDUCTIVITY): sensor.sensor_schema(
                 unit_of_measurement=UNIT_MICROSIEMENS_PER_CENTIMETER,

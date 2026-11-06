@@ -1,11 +1,6 @@
 import esphome.codegen as cg
 from esphome.components import sensor, uart
 import esphome.config_validation as cv
-from esphome.const import (
-    DEVICE_CLASS_DISTANCE,
-    STATE_CLASS_MEASUREMENT,
-    UNIT_MILLIMETER,
-)
 from esphome.types import ConfigType
 
 CODEOWNERS = ["@JakeLC15"]
@@ -16,13 +11,7 @@ DS1603L = ds1603l_ns.class_("DS1603L", sensor.Sensor, cg.Component, uart.UARTDev
 
 
 CONFIG_SCHEMA = (
-    sensor.sensor_schema(
-        DS1603L,
-        unit_of_measurement=UNIT_MILLIMETER,
-        accuracy_decimals=0,
-        device_class=DEVICE_CLASS_DISTANCE,
-        state_class=STATE_CLASS_MEASUREMENT,
-    )
+    sensor.sensor_schema(DS1603L, kind=sensor.DISTANCE_MM)
     .extend(uart.UART_DEVICE_SCHEMA)
     .extend(cv.COMPONENT_SCHEMA)
 )

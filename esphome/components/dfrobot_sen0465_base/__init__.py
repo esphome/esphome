@@ -12,11 +12,9 @@ from esphome.const import (
     CONF_THRESHOLD,
     CONF_TYPE,
     DEVICE_CLASS_CARBON_MONOXIDE,
-    DEVICE_CLASS_TEMPERATURE,
     ICON_GAS_CYLINDER,
     ICON_MOLECULE_CO,
     STATE_CLASS_MEASUREMENT,
-    UNIT_CELSIUS,
     UNIT_PARTS_PER_MILLION,
     UNIT_PERCENT,
 )
@@ -183,12 +181,7 @@ def _model_schema(
             device_class=model.device_class,
             state_class=STATE_CLASS_MEASUREMENT,
         ),
-        cv.Optional(CONF_TEMPERATURE): sensor.sensor_schema(
-            unit_of_measurement=UNIT_CELSIUS,
-            accuracy_decimals=1,
-            device_class=DEVICE_CLASS_TEMPERATURE,
-            state_class=STATE_CLASS_MEASUREMENT,
-        ),
+        cv.Optional(CONF_TEMPERATURE): sensor.sensor_schema(kind=sensor.TEMPERATURE),
     }
     if model.compensation:
         schema[cv.Optional(CONF_TEMPERATURE_COMPENSATION, default=False)] = cv.boolean
