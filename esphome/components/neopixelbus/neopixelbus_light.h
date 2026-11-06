@@ -60,6 +60,8 @@ class NeoPixelBusLightOutputBase : public light::AddressableLight {
   void add_leds(uint16_t count_pixels, uint8_t pin_clock, uint8_t pin_data) {
     this->add_leds(new NeoPixelBus<T_COLOR_FEATURE, T_METHOD>(count_pixels, pin_clock, pin_data));
   }
+  /// `effect_data` holds one byte per LED, a static array from code generation
+  void set_effect_data(uint8_t *effect_data) { this->internal_accessor_.effect_data = effect_data; }
   void add_leds(uint16_t count_pixels) { this->add_leds(new NeoPixelBus<T_COLOR_FEATURE, T_METHOD>(count_pixels)); }
   void add_leds(NeoPixelBus<T_COLOR_FEATURE, T_METHOD> *controller) {
     this->controller_ = controller;
@@ -69,7 +71,6 @@ class NeoPixelBusLightOutputBase : public light::AddressableLight {
 
   // ========== INTERNAL METHODS ==========
   void setup() override {
-    this->internal_accessor_.effect_data = new uint8_t[this->size()];  // NOLINT
     this->controller_->Begin();
     this->internal_accessor_.color_data = this->controller_->Pixels();
     this->accessor_ = &this->internal_accessor_;
