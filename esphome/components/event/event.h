@@ -9,6 +9,8 @@
 #include "esphome/core/helpers.h"
 #include "esphome/core/string_ref.h"
 
+#include "event_data.h"
+
 namespace esphome::event {
 
 /// A codegen table in flash, or a heap copy of a runtime list (see ConstVector).
@@ -25,11 +27,31 @@ class Event : public EntityBase {
   /// Trigger an event; the type is matched against the configured types by string compare.
   void trigger(const char *event_type);
   void trigger(const std::string &event_type) { this->trigger(event_type.c_str()); }
+#ifdef USE_EVENT_DATA
+  /// Trigger an event with values, e.g. trigger("rotate_left", {{STEPS, 3}}). Each value must belong to a
+  /// variable the event type may carry; variables without a value are missing from the event.
+  void trigger(const char *event_type, std::initializer_list<EventArg> args);
+  void trigger(const std::string &event_type, std::initializer_list<EventArg> args) {
+    this->trigger(event_type.c_str(), args);
+  }
+
+  /// Codegen only: the event's data block and its variables in flash.
+  template<size_t N> void set_data(EventDataBlock<N> *block, const EventVariable *variables, uint8_t count) {
+    block->header.variables = variables;
+    block->header.count = count;
+    this->data_ = &block->header;
+  }
+  /// The values of the last event; empty when the event declares no variables.
+  EventData get_last_event_data() const { return EventData(this->data_); }
+#endif
 
   /// Codegen only: points at a table that outlives the event (see ConstVector::assign_static).
   void set_event_types_static(const char *const *event_types, size_t count) {
     this->types_.assign_static(event_types, count);
     this->last_event_type_ = nullptr;
+#ifdef USE_EVENT_DATA
+    this->clear_data_();
+#endif
   }
   /// Runtime lists are copied; the strings must still outlive the event.
   void set_event_types(std::initializer_list<const char *> event_types) {
@@ -80,6 +102,13 @@ class Event : public EntityBase {
 
  protected:
   void set_event_types_copy_(const char *const *event_types, size_t count);
+#ifdef USE_EVENT_DATA
+  void store_data_(const char *event_type, std::initializer_list<EventArg> args);
+  void clear_data_() {
+    if (this->data_ != nullptr)
+      this->data_->present = 0;
+  }
+#endif
 
   LazyCallbackManager<void(StringRef event_type)> event_callback_;
   EventTypes types_;
@@ -88,6 +117,10 @@ class Event : public EntityBase {
   /// Last triggered event type - must point to entry in types_ to ensure valid lifetime.
   /// Set by trigger() after validation, reset to nullptr when types_ changes.
   const char *last_event_type_{nullptr};
+#ifdef USE_EVENT_DATA
+  /// Values of the last event; nullptr when the event declares no variables.
+  EventDataHeader *data_{nullptr};
+#endif
 };
 
 }  // namespace esphome::event
