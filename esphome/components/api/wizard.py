@@ -44,6 +44,7 @@ API_DOMAIN = "api"
 CONF_ENTITIES = "entities"
 CONF_ENTITY = "entity"
 CONF_INPUTS = "inputs"
+CONF_BUFFER_ID = "buffer_id"
 CONF_INTEGRATION = "integration"
 CONF_SUPPORTED_FEATURES = "supported_features"
 CONF_TITLE = "title"
@@ -83,7 +84,7 @@ class WizardData:
 
     # The entities that components gave a role, and the role, in the order they were registered
     roles: list[tuple[ID, str]] = field(default_factory=list)
-    # The RAM buffer of each input, by input ID, made by whichever of api and homeassistant asks first
+    # The RAM buffer of each input, by buffer ID, made by whichever of api and homeassistant asks first
     buffers: dict[str, cg.MockObj] = field(default_factory=dict)
 
 
@@ -165,6 +166,8 @@ WIZARD_INPUT_SCHEMA = cv.All(
         {
             cv.Optional(CONF_ID): cv.declare_id(WizardInput),
             cv.Optional(CONF_ENTITY): cv.use_id(cg.EntityBase),
+            # The RAM buffer that holds the entity id the wizard sets
+            cv.GenerateID(CONF_BUFFER_ID): cv.declare_id(cg.char),
             cv.Optional(CONF_DESCRIPTION): _wizard_text(WIZARD_DESCRIPTION_MAX_LENGTH),
             cv.Optional(CONF_MULTIPLE, default=False): cv.boolean,
             cv.Optional(CONF_MAX_LENGTH): cv.int_range(
@@ -274,13 +277,11 @@ def _wizard_buffer_size(conf: ConfigType) -> int:
 
 def _wizard_buffer(conf: ConfigType) -> cg.MockObj:
     """The RAM buffer of an input, which starts empty until the wizard sets it."""
-    input_id = _wizard_input_id(conf)
+    buffer_id = conf[CONF_BUFFER_ID]
     buffers = _get_data().buffers
-    if (buffer := buffers.get(input_id.id)) is None:
-        buffer = cg.static_buffer(
-            f"api_wizard_input_{input_id.id}", cg.char, _wizard_buffer_size(conf)
-        )
-        buffers[input_id.id] = buffer
+    if (buffer := buffers.get(buffer_id.id)) is None:
+        buffer = cg.static_buffer(buffer_id, _wizard_buffer_size(conf))
+        buffers[buffer_id.id] = buffer
     return buffer
 
 

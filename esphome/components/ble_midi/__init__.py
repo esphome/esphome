@@ -113,7 +113,7 @@ CONFIG_SCHEMA = (
 async def to_code(config: ConfigType) -> None:
     size = config[CONF_MAX_SYSEX_SIZE]
     # SysEx messages are reassembled in a static array, so nothing is allocated at run time
-    buf = cg.static_buffer(config[CONF_SYSEX_BUFFER_ID], cg.uint8, size)
+    buf = cg.static_buffer(config[CONF_SYSEX_BUFFER_ID], size)
     var = await ble_client.new_ble_node_component(config, buf, size, config[CONF_PAIR])
     await automation.build_callback_automations(var, config, _CALLBACK_AUTOMATIONS)
 

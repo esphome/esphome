@@ -639,6 +639,11 @@ def test_number_input_accepts_input_number(tmp_path: Path) -> None:
     assert config_errors(write_config(tmp_path, ESP32_HEADER, api)) == []
 
 
+def _buffer(main_cpp: str, input_id: str) -> str:
+    """The generated name of an input's buffer, from its row in the input table."""
+    return re.search(rf"\{{{fnv1_hash(input_id)}u, (\w+)", main_cpp)[1]
+
+
 def test_text_select_and_button_default_to_their_domains(
     tmp_path: Path, generate_main: Callable[[str | Path], str]
 ) -> None:
@@ -658,7 +663,7 @@ def test_text_select_and_button_default_to_their_domains(
     assert filters[fnv1_hash("ha_number")] == [{"domain": ["input_number", "number"]}]
     assert filters[fnv1_hash("ha_binary")] is None
     for entity in ("ha_txt", "ha_select", "ha_button"):
-        assert f"{entity}->set_entity_id(api_wizard_input_{entity});" in main_cpp
+        assert f"{entity}->set_entity_id({_buffer(main_cpp, entity)});" in main_cpp
 
 
 @pytest.mark.parametrize(
@@ -852,7 +857,7 @@ def test_inputs_have_buffers_hashes_and_a_table(
     main_cpp = generate_main(write_input_config(tmp_path, ESP32_HEADER))
 
     # The buffer holds the YAML entity ID until the wizard sets another
-    assert "static char api_wizard_input_ha_sensor[256];" in main_cpp
+    assert f"static char {_buffer(main_cpp, 'ha_sensor')}[256];" in main_cpp
     entities = (
         "ha_sensor",
         "ha_binary",
@@ -865,14 +870,14 @@ def test_inputs_have_buffers_hashes_and_a_table(
         "weather_input",
         "unset_input",
     )
-    for entity in entities:
-        assert f"{{{fnv1_hash(entity)}u, api_wizard_input_{entity}}}" in main_cpp
+    buffers = {entity: _buffer(main_cpp, entity) for entity in entities}
+    assert len(set(buffers.values())) == len(entities)
     assert get_define_value("API_WIZARD_INPUT_COUNT") == str(len(entities))
     for entity in entities[:-2]:
-        assert f"{entity}->set_entity_id(api_wizard_input_{entity});" in main_cpp
+        assert f"{entity}->set_entity_id({buffers[entity]});" in main_cpp
     # The standalone inputs are objects that read the same buffer
-    assert "WizardInput(api_wizard_input_weather_input)" in main_cpp
-    assert "WizardInput(api_wizard_input_unset_input)" in main_cpp
+    assert f"WizardInput({buffers['weather_input']})" in main_cpp
+    assert f"WizardInput({buffers['unset_input']})" in main_cpp
     # Not an input, so it keeps its constant
     assert 'ha_plain_sensor->set_entity_id("sensor.plain");' in main_cpp
 
@@ -954,7 +959,7 @@ def test_an_entity_with_an_entity_id_that_is_no_input_is_valid(
 
     # Static entries keep their literal and are kept apart from the wizard buffers
     assert 'ha_plain_sensor->set_entity_id("sensor.plain");' in main_cpp
-    assert "api_wizard_input_ha_plain_sensor" not in main_cpp
+    assert f"{fnv1_hash('ha_plain_sensor')}u" not in main_cpp
     # Every buffer starts empty
     assert '] = "sensor.' not in main_cpp.split("API_WIZARD_INPUTS")[0]
 
@@ -1033,15 +1038,11 @@ def test_multiple_input_document_and_table(
         {"key": fnv1_hash("single")},
     ]
     # Only a multiple entry names its buffer size
-    assert "static char api_wizard_input_cals[1024];" in main_cpp
-    assert "static char api_wizard_input_cals_default[256];" in main_cpp
-    assert "static char api_wizard_input_single[256];" in main_cpp
-    assert f"{{{fnv1_hash('cals')}u, api_wizard_input_cals, 1024}}" in main_cpp
-    assert (
-        f"{{{fnv1_hash('cals_default')}u, api_wizard_input_cals_default, 256}}"
-        in main_cpp
-    )
-    assert f"{{{fnv1_hash('single')}u, api_wizard_input_single}}" in main_cpp
+    for input_id, size in (("cals", 1024), ("cals_default", 256), ("single", 256)):
+        assert f"static char {_buffer(main_cpp, input_id)}[{size}];" in main_cpp
+    assert f"{_buffer(main_cpp, 'cals')}, 1024}}" in main_cpp
+    assert f"{_buffer(main_cpp, 'cals_default')}, 256}}" in main_cpp
+    assert f"{_buffer(main_cpp, 'single')}}}" in main_cpp
 
 
 def test_inputs_without_multiple_keep_the_two_field_table(
@@ -1051,7 +1052,7 @@ def test_inputs_without_multiple_keep_the_two_field_table(
         write_config(tmp_path, ESP32_HEADER, wizard_inputs("- id: single"))
     )
 
-    assert f"{{{fnv1_hash('single')}u, api_wizard_input_single}}" in main_cpp
+    assert f"{_buffer(main_cpp, 'single')}}}" in main_cpp
     assert "MULTIPLE_INPUTS" not in {d.name for d in CORE.defines}
 
 
