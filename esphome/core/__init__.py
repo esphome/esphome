@@ -1039,6 +1039,10 @@ class EsphomeCore:
         return self.toolchain == Toolchain.SDK_NRF
 
     @property
+    def using_toolchain_sdk_zephyr(self):
+        return self.toolchain == Toolchain.SDK_ZEPHYR
+
+    @property
     def using_toolchain_arduino(self):
         """The native ESP8266 Arduino build toolchain (unlike
         ``using_arduino``, which is the target framework)."""
