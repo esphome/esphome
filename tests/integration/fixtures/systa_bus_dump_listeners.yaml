@@ -1,0 +1,25 @@
+esphome:
+  name: systa-bus-dump-listeners
+
+host:
+api:
+logger:
+  level: DEBUG
+
+uart:
+  baud_rate: 9600
+  port: /dev/null
+
+systa_bus:
+
+sensor:
+  - platform: systa_bus
+    model: systasolar_aqua
+    temperature_tsa:
+      name: Collector
+
+text_sensor:
+  - platform: systa_bus
+    model: systasolar_aqua
+    error_code:
+      name: Aqua Error
