@@ -24,10 +24,8 @@ void BMP085Component::update() {
 }
 void BMP085Component::setup() {
   uint8_t data[22];
-  if (!this->read_bytes(BMP085_REGISTER_AC1_H, data, 22)) {
-    this->mark_failed(LOG_STR(ESP_LOG_MSG_COMM_FAIL));
+  if (!this->setup_check(this->read_bytes(BMP085_REGISTER_AC1_H, data, 22)))
     return;
-  }
 
   // Load calibration
   this->calibration_.ac1 = encode_uint16(data[0], data[1]);

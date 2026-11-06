@@ -7,9 +7,14 @@
 
 #include "bluedroid_hex.h"
 
-// Set with Bluedroid's private include dirs for this file only (native ESP-IDF toolchain)
-#ifdef USE_ESP32_BLE_BLUEDROID_HEADERS
+// Set with Bluedroid's private include dirs for this file only (native ESP-IDF toolchain).
+// The headers only feed the drift checks below. On Windows the include dirs come through with backslashes,
+// which GCC reads as escapes in the Ninja response file, so the checks are skipped where they are unreachable.
+#if defined(USE_ESP32_BLE_BLUEDROID_HEADERS) && __has_include("btc/btc_config.h")
+#define ESPHOME_BLUEDROID_DRIFT_CHECKS
 #include <type_traits>
+// stack/bt_types.h redefines PACKED from esphome/core/helpers.h; nothing below uses it.
+#undef PACKED
 extern "C" {
 #include "btc/btc_config.h"
 #include "device/bdaddr.h"
@@ -36,7 +41,7 @@ bool __wrap_string_to_bdaddr(const char *string, uint8_t *addr) {
 }  // extern "C"
 // NOLINTEND(bugprone-reserved-identifier,cert-dcl37-c,cert-dcl51-cpp,readability-identifier-naming)
 
-#ifdef USE_ESP32_BLE_BLUEDROID_HEADERS
+#ifdef ESPHOME_BLUEDROID_DRIFT_CHECKS
 // ESP-IDF drift checks: if one fails, re-check the wraps against espressif/esp-idf#19235 and Bluedroid's sources.
 static_assert(std::is_same_v<decltype(&btc_config_get_bin), decltype(&__wrap_btc_config_get_bin)>,
               "btc_config_get_bin signature changed");

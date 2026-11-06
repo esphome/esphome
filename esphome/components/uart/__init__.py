@@ -439,6 +439,7 @@ UART_DEVICE_SCHEMA = cv.Schema(
 )
 
 KEY_UART_DEVICES = "uart_devices"
+KEY_UART_EXCLUSIVE = "uart_exclusive"
 
 
 @dataclass
@@ -595,22 +596,21 @@ def final_validate_device_schema(
     )
 
 
-def subtree_references_uart(
-    node: object, uart_id: str, conf_key: str = CONF_UART_ID
-) -> bool:
-    """Return True if any dict in the subtree has a conf_key entry naming this bus.
+def subtree_references_uart(node: object, uart_id: str, *conf_keys: str) -> bool:
+    """Return True if any dict in the subtree has a conf_keys entry (uart_id by default) naming this bus.
 
     For the final validation of a component that needs a UART for itself. Bare
     `id:` references (a uart.write action) and lambdas are not found.
     """
+    conf_keys = conf_keys or (CONF_UART_ID,)
     if isinstance(node, dict):
         return any(
-            (key == conf_key and str(value) == uart_id)
-            or subtree_references_uart(value, uart_id, conf_key)
+            (key in conf_keys and str(value) == uart_id)
+            or subtree_references_uart(value, uart_id, *conf_keys)
             for key, value in node.items()
         )
     if isinstance(node, list):
-        return any(subtree_references_uart(item, uart_id, conf_key) for item in node)
+        return any(subtree_references_uart(item, uart_id, *conf_keys) for item in node)
     return False
 
 
@@ -621,12 +621,12 @@ def claim_exclusive(
 
     Fails on a second owner entry for that UART, on another domain that names it by
     uart_id or conf_key (skipped in testing mode) and on a dummy_receiver in its debug.
-    owner must be the caller's top-level config key: the scan skips that domain, and
-    the claims are kept in full_config.data[owner][conf_key], one set per key.
+    owner must be the caller's top-level config key: the scan skips that domain.
     """
     full_config = fv.full_config.get()
     uart_id = str(config[conf_key])
-    used = full_config.data.setdefault(owner, {}).setdefault(conf_key, set())
+    # Per owner, not per key: one UART named under two of the owner's keys is two readers
+    used = full_config.data.setdefault(KEY_UART_EXCLUSIVE, {}).setdefault(owner, set())
     if uart_id in used:
         raise cv.Invalid(
             f"The UART '{uart_id}' is already used by another '{owner}' entry. "
@@ -637,9 +637,8 @@ def claim_exclusive(
     # Grouped CI builds share buses, like final_validate_device_schema()'s pin check.
     if not CORE.testing_mode:
         for domain, domain_conf in full_config.items():
-            if domain != owner and any(
-                subtree_references_uart(domain_conf, uart_id, key)
-                for key in (CONF_UART_ID, conf_key)
+            if domain != owner and subtree_references_uart(
+                domain_conf, uart_id, CONF_UART_ID, conf_key
             ):
                 raise cv.Invalid(
                     f"The UART '{uart_id}' is also used by '{domain}'. "
