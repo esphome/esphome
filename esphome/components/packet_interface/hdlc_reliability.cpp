@@ -28,8 +28,11 @@ static uint16_t frame_crc(uint8_t control, const uint8_t *payload, size_t length
   return crc16(payload, length, crc);
 }
 
-HdlcReliability::HdlcReliability(PacketInterface *lower, uint8_t *tx_slots)
-    : PacketInterface(packet_size(lower->get_max_packet_size())), lower_(lower), tx_slots_(tx_slots) {
+HdlcReliability::HdlcReliability(PacketInterface *lower, uint8_t *tx_slots, uint8_t max_queue_length)
+    : PacketInterface(packet_size(lower->get_max_packet_size())),
+      lower_(lower),
+      tx_slots_(tx_slots),
+      max_queue_length_(max_queue_length) {
   this->stack_on_(lower, CAPABILITY_RELIABILITY);
 }
 
