@@ -352,8 +352,6 @@ void VoiceAssistant::handle_channel_stall_(size_t available, size_t available2) 
 void VoiceAssistant::loop() {
   if (this->api_client_ == nullptr && this->state_ != State::IDLE && this->state_ != State::STOP_MICROPHONE &&
       this->state_ != State::STOPPING_MICROPHONE) {
-    // on_client_connected re-arms the wake word, so no on_end for a client that went away
-    this->end_pending_ = false;
     if (this->mic_source_->is_running() || (this->mic_source2_ && this->mic_source2_->is_running()) ||
         this->state_ == State::STARTING_MICROPHONE) {
       this->set_state_(State::STOP_MICROPHONE, State::IDLE);
@@ -718,6 +716,8 @@ void VoiceAssistant::client_subscription(api::APIConnection *client, bool subscr
       return;
     }
     this->api_client_ = nullptr;
+    // on_client_connected re-arms the wake word, so a pipeline cut off by the disconnect fires no on_end
+    this->end_pending_ = false;
 #ifdef USE_VOICE_ASSISTANT_WAKE_WORD_AUDIO
     this->wake_word_audio_requested_ = false;
 #endif
