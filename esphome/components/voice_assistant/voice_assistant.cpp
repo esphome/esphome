@@ -481,7 +481,7 @@ void VoiceAssistant::loop() {
       }
 #endif
 
-      this->end_pending_ = true;
+      this->end_pending_ = this->api_client_ != nullptr;  // no client: on_client_connected re-arms instead
       if (this->api_client_ == nullptr || !this->api_client_->send_message(msg)) {
         ESP_LOGW(TAG, "Could not request start");
         this->error_trigger_.trigger("not-connected", "Could not request start");
