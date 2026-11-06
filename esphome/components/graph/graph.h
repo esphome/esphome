@@ -1,5 +1,6 @@
 #pragma once
 #include <cstdint>
+#include <span>
 #include <vector>
 #include "esphome/components/sensor/sensor.h"
 #include "esphome/core/color.h"
@@ -85,8 +86,9 @@ class GraphLegend final {
 
 class HistoryData {
  public:
-  void init(int length);
+  void init();
   ~HistoryData();
+  void set_samples(std::span<float> samples) { this->samples_ = samples; }
   void set_update_time_ms(uint32_t update_time_ms) { update_time_ = update_time_ms; }
   void take_sample(float data);
   int get_length() const { return length_; }
@@ -102,7 +104,7 @@ class HistoryData {
   int count_{0};
   float recent_min_{NAN};
   float recent_max_{NAN};
-  std::vector<float> samples_;
+  std::span<float> samples_;
 };
 
 class GraphTrace final {
@@ -110,6 +112,8 @@ class GraphTrace final {
 
  public:
   void init(Graph *g);
+  // One sample per pixel of the graph width.
+  void set_samples(std::span<float> samples) { this->data_.set_samples(samples); }
   void set_name(const char *name) { this->name_ = name; }
   uint8_t get_line_thickness() { return this->line_thickness_; }
   void set_line_thickness(uint8_t val) { this->line_thickness_ = val; }

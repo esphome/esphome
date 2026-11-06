@@ -12,9 +12,9 @@ using namespace display;
 ESPHOME_LOG_TAG(TAG, "graph");
 ESPHOME_LOG_TAG(TAGL, "graphlegend");
 
-void HistoryData::init(int length) {
-  this->length_ = length;
-  this->samples_.resize(length, NAN);
+void HistoryData::init() {
+  this->length_ = static_cast<int>(this->samples_.size());
+  std::fill(this->samples_.begin(), this->samples_.end(), NAN);
   this->last_sample_ = millis();
 }
 
@@ -48,7 +48,7 @@ void HistoryData::take_sample(float data) {
 
 void GraphTrace::init(Graph *g) {
   ESP_LOGI(TAG, "Init trace for sensor %s", this->name_);
-  this->data_.init(g->get_width());
+  this->data_.init();
   this->source_sensor_->add_on_state_callback([this](float state) { this->data_.take_sample(state); });
   this->data_.set_update_time_ms(g->get_duration() * 1000 / g->get_width());
 }
