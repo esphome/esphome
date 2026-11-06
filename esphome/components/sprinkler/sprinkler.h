@@ -8,6 +8,7 @@
 #include "esphome/components/switch/switch.h"
 
 #include <array>
+#include <span>
 #include <vector>
 
 namespace esphome::sprinkler {
@@ -175,8 +176,7 @@ class SprinklerValveRunRequest {
 
 class Sprinkler final : public Component {
  public:
-  Sprinkler();
-  Sprinkler(const char *name);
+  Sprinkler(const char *name, std::span<SprinklerValve> valves);
   void setup() override;
   void loop() override;
   void dump_config() override;
@@ -563,7 +563,7 @@ class Sprinkler final : public Component {
   std::vector<switch_::Switch *> pump_;
 
   /// Sprinkler valve objects
-  std::vector<SprinklerValve> valve_;
+  StaticFixedVector<SprinklerValve> valve_;
 
   /// Sprinkler valve operator objects
   std::vector<SprinklerValveOperator> valve_op_{2};

@@ -60,6 +60,7 @@ CONF_VALVES = "valves"
 
 sprinkler_ns = cg.esphome_ns.namespace("sprinkler")
 Sprinkler = sprinkler_ns.class_("Sprinkler", cg.Component)
+SprinklerValve = sprinkler_ns.struct("SprinklerValve")
 SprinklerControllerNumber = sprinkler_ns.class_(
     "SprinklerControllerNumber", number.Number, cg.Component
 )
@@ -504,7 +505,12 @@ async def to_code(config):
         else:
             name = sprinkler_controller[CONF_VALVES][0][CONF_VALVE_SWITCH][CONF_NAME]
         name = sprinkler_controller.get(CONF_NAME, name)
-        var = cg.new_Pvariable(sprinkler_controller[CONF_ID], name)
+        valves = cg.static_storage(
+            sprinkler_controller[CONF_ID],
+            SprinklerValve,
+            len(sprinkler_controller[CONF_VALVES]),
+        )
+        var = cg.new_Pvariable(sprinkler_controller[CONF_ID], name, valves)
 
         await cg.register_component(var, sprinkler_controller)
 
