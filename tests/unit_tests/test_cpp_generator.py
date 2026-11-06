@@ -954,6 +954,13 @@ class TestStaticBuffer:
         CORE.config = {"sensor": [{"id": ID("hub__rx", is_declaration=True)}]}
         assert str(cg.static_buffer("hub__rx", ct.uint8, 8)) == "hub__rx_2"
 
+    def test_declared_id_is_used_as_is(self) -> None:
+        id_ = ID("sysex_buffer", is_declaration=True, type=ct.uint8)
+        CORE.config = {"ble_midi": [{"sysex_buffer_id": id_}]}
+        buffer = cg.static_buffer(id_, ct.uint8, 16)
+        assert str(buffer) == "sysex_buffer"
+        assert CORE.variables[id_] is buffer
+
     def test_same_name_twice_gets_two_buffers(self) -> None:
         CORE.config = {}
         a = cg.static_buffer("hub__rx", ct.uint8, 8)
