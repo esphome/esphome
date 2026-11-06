@@ -5,6 +5,7 @@ import esphome.config_validation as cv
 from esphome.const import (
     CONF_CHANNEL,
     CONF_DATA,
+    CONF_ID,
     CONF_ON_CONNECT,
     CONF_ON_DISCONNECT,
     CONF_ON_MESSAGE,
@@ -29,7 +30,6 @@ CONF_ON_PROGRAM_CHANGE = "on_program_change"
 CONF_ON_SYSEX = "on_sysex"
 CONF_PAIR = "pair"
 CONF_PROGRAM = "program"
-CONF_SYSEX_BUFFER_ID = "sysex_buffer_id"
 CONF_VELOCITY = "velocity"
 
 ble_midi_ns = cg.esphome_ns.namespace("ble_midi")
@@ -88,7 +88,6 @@ CONFIG_SCHEMA = (
     cv.Schema(
         {
             cv.GenerateID(): cv.declare_id(BLEMidi),
-            cv.GenerateID(CONF_SYSEX_BUFFER_ID): cv.declare_id(cg.uint8),
             cv.Optional(CONF_MAX_SYSEX_SIZE, default=256): cv.int_range(
                 min=8, max=2048
             ),
@@ -112,12 +111,8 @@ CONFIG_SCHEMA = (
 
 async def to_code(config: ConfigType) -> None:
     size = config[CONF_MAX_SYSEX_SIZE]
-    # SysEx messages are reassembled in a static array, so nothing is allocated at run time
-    buf = config[CONF_SYSEX_BUFFER_ID].id
-    cg.add_global(cg.RawStatement(f"static uint8_t {buf}[{size}];"))
-    var = await ble_client.new_ble_node_component(
-        config, cg.RawExpression(buf), size, config[CONF_PAIR]
-    )
+    buf = cg.static_buffer(config[CONF_ID], cg.uint8, size)
+    var = await ble_client.new_ble_node_component(config, buf, size, config[CONF_PAIR])
     await automation.build_callback_automations(var, config, _CALLBACK_AUTOMATIONS)
 
 
