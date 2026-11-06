@@ -942,19 +942,16 @@ class TestSharedProgmemArray:
 
 
 class TestStaticBuffer:
-    def test_emits_a_static_array_of_the_declared_type(self) -> None:
-        id_ = ID("rx_buffer", is_declaration=True, type=ct.uint8)
-        buffer = cg.static_buffer(id_, 64)
-        assert str(buffer) == "rx_buffer"
-        assert CORE.variables[id_] is buffer
+    def test_each_call_emits_its_own_array(self) -> None:
+        CORE.config = {"sensor": [{"id": ID("uint8_t_buffer", is_declaration=True)}]}
+        a = cg.static_buffer(ct.uint8, 64)
+        b = cg.static_buffer(ct.uint8, 8)
         assert [str(st) for st in CORE.global_statements] == [
-            "static uint8_t rx_buffer[64];"
+            "static uint8_t uint8_t_buffer_2[64];",
+            "static uint8_t uint8_t_buffer_3[8];",
         ]
-
-    @pytest.mark.parametrize("id_", ["rx_buffer", ID("rx_buffer", type=ct.uint8)])
-    def test_only_a_declared_id_is_accepted(self, id_: str | ID) -> None:
-        with pytest.raises(EsphomeError, match="must be an ID from cv.declare_id"):
-            cg.static_buffer(id_, 8)
+        assert CORE.variables[a.base] is a
+        assert str(b) == "uint8_t_buffer_3"
 
 
 class TestProgmemString:
