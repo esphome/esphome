@@ -77,11 +77,13 @@ async def to_code(config: ConfigType) -> None:
 
     num_leds = config[CONF_NUM_LEDS]
     channel_colors = config[CONF_CHANNEL_COLORS]
-    i2s_data_bytes = f"{num_leds * len(channel_colors)} * {i2s_clockless_led_strip_ns.I2S_BYTES_PER_SAMPLE}"
     var = cg.new_Pvariable(
         config[CONF_OUTPUT_ID],
-        light.static_led_buffer(
-            config[CONF_OUTPUT_ID], num_leds, channel_colors, i2s_data_bytes
+        cg.static_buffer(
+            config[CONF_OUTPUT_ID],
+            cg.uint8,
+            i2s_clockless_led_strip_ns.buffer_bytes(num_leds, len(channel_colors)),
+            align=4,
         ),
         config[CONF_PIN],
         num_leds,

@@ -52,7 +52,7 @@ from esphome.core.entity_helpers import (
     queue_entity_register,
     setup_entity,
 )
-from esphome.cpp_generator import MockObj, MockObjClass
+from esphome.cpp_generator import Expression, MockObj, MockObjClass
 import esphome.final_validate as fv
 from esphome.types import ConfigType
 
@@ -260,7 +260,7 @@ def static_led_buffer(
     output_id: ID,
     num_leds: int,
     channel_colors: str,
-    extra_bytes: int | str = 0,
+    extra_bytes: int | Expression = 0,
     *,
     psram: bool = False,
 ) -> MockObj:
@@ -268,11 +268,7 @@ def static_led_buffer(
 
     With `psram=True` a build with PSRAM gets nullptr, for the C++ to pass to `static_or_heap()`.
     """
-    size = num_leds * (len(channel_colors) + 1)
-    if isinstance(extra_bytes, str):
-        size = f"{size} + {extra_bytes}"
-    else:
-        size += extra_bytes
+    size = num_leds * (len(channel_colors) + 1) + extra_bytes
     return cg.static_buffer(output_id, cg.uint8, size, psram=psram)
 
 
