@@ -957,6 +957,22 @@ class TestStaticBuffer:
         ]
         assert str(b) == "uart__hub_buffer_3__pstorage"
 
+    @pytest.mark.parametrize(
+        ("loaded", "expected"),
+        [(False, "uart__hub_buffer__pstorage"), (True, "nullptr")],
+    )
+    def test_psram_builds_get_nullptr(self, loaded: bool, expected: str) -> None:
+        hub = ID(
+            "hub",
+            is_declaration=True,
+            type=ct.esphome_ns.namespace("uart").class_("Hub"),
+        )
+        CORE.config = {}
+        if loaded:
+            CORE.loaded_integrations.add("psram")
+        assert str(cg.static_buffer(hub, ct.uint8, 8, psram=True)) == expected
+        assert len(CORE.global_statements) == (0 if loaded else 1)
+
     def test_owner_must_be_an_id(self) -> None:
         with pytest.raises(EsphomeError, match="owning component's ID"):
             cg.static_buffer("hub", ct.uint8, 8)

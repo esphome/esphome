@@ -2584,6 +2584,16 @@ template<class T> class RAMAllocator {
   uint8_t flags_{ALLOC_INTERNAL | ALLOC_EXTERNAL};
 };
 
+/// The static buffer from `cg.static_buffer(..., psram=True)`, or, when that returned nullptr because the build has
+/// PSRAM, `count` elements allocated with RAMAllocator so they may live in PSRAM. Returns nullptr if allocation fails.
+template<class T> T *static_or_heap(T *buffer, size_t count) {
+#ifdef USE_PSRAM
+  if (buffer == nullptr)
+    return RAMAllocator<T>().allocate(count);
+#endif
+  return buffer;
+}
+
 template<class T> using ExternalRAMAllocator = RAMAllocator<T>;
 
 /// Destroys and frees RAMAllocator storage. Not convertible: free() needs the address malloc returned
