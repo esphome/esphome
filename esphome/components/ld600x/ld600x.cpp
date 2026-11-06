@@ -175,6 +175,8 @@ static bool is_expected_control_report(uint32_t command, uint16_t type) {
 #endif
 
 void LD600XComponent::setup() {
+  // Without PSRAM, codegen passes a static frame buffer instead.
+#ifdef USE_PSRAM
   // Only the point cloud stream needs the larger frame; nothing resizes the buffer after setup.
   bool point_cloud_configured = false;
 #ifdef USE_SENSOR
@@ -190,6 +192,7 @@ void LD600XComponent::setup() {
   if (!this->setup_check(buffer != nullptr, LOG_STR("Failed to allocate frame buffer")))
     return;
   this->parser_.init(buffer, capacity);
+#endif
 
   this->set_timeout(SETUP_DELAY_MS, [this]() {
     bool want_target_stream = false;
