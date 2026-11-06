@@ -275,7 +275,8 @@ def _wizard_buffer_size(conf: ConfigType) -> int:
 def _wizard_buffer(input_id: ID, size: int) -> cg.MockObj:
     buffers = _get_data().buffers
     if (buffer := buffers.get(input_id.id)) is None:
-        buffer = buffers[input_id.id] = cg.static_buffer(cg.char, size)
+        owner = ID(input_id.id, type=WizardInput)
+        buffer = buffers[input_id.id] = cg.static_buffer(owner, cg.char, size)
     return buffer
 
 

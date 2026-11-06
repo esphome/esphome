@@ -361,7 +361,7 @@ async def to_code(config: ConfigType) -> None:
         # one frame half captures while the loop dispatches the other; the 65535 byte
         # buffer_size cap keeps frame_entries within the store's uint16_t
         frame_entries = config[CONF_BUFFER_SIZE] // 4 // 2
-        frames = cg.static_buffer(cg.int32, frame_entries * 2)
+        frames = cg.static_buffer(config[CONF_ID], cg.int32, frame_entries * 2)
         cg.add(var.set_frame_buffer(frames, frame_entries))
 
 
