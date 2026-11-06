@@ -72,6 +72,9 @@ bool HostPreferences::sync_key(uint32_t key) {
   auto it = this->data_.find(key);
   if (it == this->data_.end())
     return true;
+  auto cit = this->committed_.find(key);
+  if (cit != this->committed_.end() && cit->second == it->second)
+    return true;
   auto committed = this->committed_;
   committed[key] = it->second;
   if (!this->write_file_(committed))

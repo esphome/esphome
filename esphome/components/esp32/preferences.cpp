@@ -289,7 +289,7 @@ bool ESP32Preferences::sync_key(uint32_t key) {
       if (err == ESP_OK)
         err = nvs_commit(this->nvs_handle);
       if (err != ESP_OK) {
-        ESP_LOGV(TAG, "sync_key('%s', len=%zu) failed: %s", key_str, it->data.size(), esp_err_to_name(err));
+        ESP_LOGE(TAG, "sync_key('%s', len=%zu) failed: %s", key_str, it->data.size(), esp_err_to_name(err));
         return false;
       }
       ESP_LOGV(TAG, "sync_key: key: %s, len: %zu", key_str, it->data.size());
