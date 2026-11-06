@@ -124,6 +124,14 @@ script:
           id: rs485_frame_hub
           frame_type: [0x00, 0xA3]
           payload: [0x01, 0x10]
+      - rs485_frame.send_frame:
+          id: rs485_frame_hub
+          frame_type: [0x00, 0xA4]
+          payload: []
+      - rs485_frame.send_frame:
+          id: rs485_frame_hub
+          frame_type: []
+          payload: [0x00, 0xA5]
 
   - id: handle_frame_later
     mode: queued

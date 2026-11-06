@@ -361,6 +361,8 @@ async def to_code(config: ConfigType) -> None:
 
 
 def _progmem_span(config: ConfigType, value: list[int]) -> str:
+    if not value:
+        return "{}"
     table = automation.progmem_bytes(f"{config[CONF_ID]}_send", value)
     return str(_BYTE_SPAN(table, len(value)))
 
