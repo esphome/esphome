@@ -106,7 +106,7 @@ class Sx126xRadio {
     this->state_ = state;
     this->busy_ = false;
   }
-  static RadioEffects comm_report_(bool ok);
+  static RadioEffects comm_report(bool ok);
   const LogString *apply_configuration_(const RadioProfile &requested, std::span<char, 16> version);
   bool restore_();
   RadioEffects finish_transmit_(SX126xError result);

@@ -48,7 +48,7 @@ ConfigurationResult Sx126xCommands::configure(const RadioProfile &profile, std::
   applied.payload_length = profile.payload_length;
   applied.modulation = profile.modulation;
   applied.rx_start = profile.rx_start;
-  encode_packet_params_(profile, applied);
+  encode_packet_params(profile, applied);
   uint8_t buf[8];
   // wakeup
   this->read_opcode_(RADIO_GET_STATUS, nullptr, 0);
@@ -197,7 +197,7 @@ ConfigurationResult Sx126xCommands::configure(const RadioProfile &profile, std::
                                 : ConfigurationResult::CONFIGURATION_RESULT_BUSY_TIMEOUT;
 }
 
-void Sx126xCommands::encode_packet_params_(const RadioProfile &profile, AppliedProfile &applied) {
+void Sx126xCommands::encode_packet_params(const RadioProfile &profile, AppliedProfile &applied) {
   auto &buf = applied.packet_params;
   const uint8_t payload_length = profile.max_packet_size();
   if (profile.modulation == PACKET_TYPE_LORA) {

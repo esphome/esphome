@@ -10,7 +10,7 @@ static constexpr uint32_t RESET_DELAY_HIGH_US = 5000;
 static constexpr uint32_t RESET_DELAY_LOW_US = 2000;
 static constexpr uint32_t RECEIVE_RETRY_INTERVAL_MS = 200;
 
-RadioEffects Sx126xRadio::comm_report_(bool ok) {
+RadioEffects Sx126xRadio::comm_report(bool ok) {
   RadioEffects effects;
   effects.report = true;
   effects.warning = ok ? nullptr : LOG_STR("Wait busy timeout");
@@ -78,7 +78,7 @@ RadioEffects Sx126xRadio::change_mode(ModeCommand command, uint8_t arg) {
   // Cold sleep loses the configuration, and a failed command leaves the chip state unknown.
   this->commit_(ok && command != ModeCommand::MODE_COMMAND_COLD_SLEEP ? RadioState::RADIO_STATE_IDLE
                                                                       : RadioState::RADIO_STATE_NEEDS_CONFIGURATION);
-  return comm_report_(ok);
+  return comm_report(ok);
 }
 
 RadioEffects Sx126xRadio::start_transmit(SX126xTransmitListener *listener, const uint8_t *data, size_t len,
@@ -116,7 +116,7 @@ RadioEffects Sx126xRadio::start_transmit(SX126xTransmitListener *listener, const
   if (!this->bus().ok()) {
     const bool restored = this->restore_();
     this->commit_(restored ? RadioState::RADIO_STATE_IDLE : RadioState::RADIO_STATE_NEEDS_CONFIGURATION);
-    effects = comm_report_(restored);
+    effects = comm_report(restored);
     effects.result = SX126xError::SX126X_ERROR_BUSY_TIMEOUT;
     return effects;
   }
@@ -169,7 +169,7 @@ RadioEffects Sx126xRadio::finish_transmit_(SX126xError result) {
   this->busy_ = true;
   const bool restored = this->restore_();
   this->commit_(restored ? RadioState::RADIO_STATE_IDLE : RadioState::RADIO_STATE_NEEDS_CONFIGURATION);
-  RadioEffects effects = comm_report_(restored);
+  RadioEffects effects = comm_report(restored);
   effects.result = restored ? result : SX126xError::SX126X_ERROR_BUSY_TIMEOUT;
   effects.listener = std::exchange(this->tx_.listener, nullptr);
   effects.finished = true;
@@ -235,7 +235,7 @@ RadioEffects Sx126xRadio::receive_(bool holding, uint32_t now, std::vector<uint8
     next = this->restore_() ? RadioState::RADIO_STATE_IDLE : RadioState::RADIO_STATE_NEEDS_CONFIGURATION;
   }
   this->commit_(next);
-  RadioEffects effects = comm_report_(read && next != RadioState::RADIO_STATE_NEEDS_CONFIGURATION);
+  RadioEffects effects = comm_report(read && next != RadioState::RADIO_STATE_NEEDS_CONFIGURATION);
   effects.received = read && received;
   effects.rssi = rssi;
   effects.snr = snr;
