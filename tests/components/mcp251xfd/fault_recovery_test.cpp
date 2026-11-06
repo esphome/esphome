@@ -73,10 +73,11 @@ class RegisterDelegate : public spi::SPIDelegate {
     this->writes.push_back({address, {data + 2, data + length}});
     for (size_t i = 2; i < length; i++) {
       const uint16_t reg = address + i - 2;
-      if (reg == REG_INT || reg == REG_INT + 1 || reg == REG_RX_FIFO_STA || reg == REG_CRC + 2)
+      if (reg == REG_INT || reg == REG_INT + 1 || reg == REG_RX_FIFO_STA || reg == REG_CRC + 2) {
         this->registers[reg] &= data[i];
-      else
+      } else {
         this->registers[reg] = data[i];
+      }
     }
   }
 
