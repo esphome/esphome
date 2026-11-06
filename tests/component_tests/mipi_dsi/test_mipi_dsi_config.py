@@ -132,6 +132,23 @@ def test_configuration_success(set_core_config: SetCoreConfigCallable) -> None:
         CONFIG_SCHEMA(config)
 
 
+def test_jc1060p470_defaults(set_core_config: SetCoreConfigCallable) -> None:
+    """The JC1060P470 resets the panel, enables the backlight, and waits after reset."""
+    set_core_config(
+        PlatformFramework.ESP32_IDF,
+        platform_data={KEY_BOARD: "esp32-p4-evboard", KEY_VARIANT: VARIANT_ESP32P4},
+    )
+
+    from esphome.components.mipi import delay
+    from esphome.components.mipi_dsi.display import CONFIG_SCHEMA, MODELS
+
+    config = CONFIG_SCHEMA({"model": "JC1060P470"})
+    assert config["reset_pin"]["number"] == 27
+    assert [pin["number"] for pin in config["enable_pin"]] == [23]
+    # The JD9165 ignores commands for 120 ms after reset
+    assert MODELS["JC1060P470"].initsequence[0] == delay(120)
+
+
 def test_deprecated_model_warning(
     set_core_config: SetCoreConfigCallable,
     caplog: pytest.LogCaptureFixture,
