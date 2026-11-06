@@ -10,9 +10,9 @@ namespace esphome::spi {
 
 ESPHOME_LOG_TAG(TAG, "spi");
 
-SPIDelegate *const SPIDelegate::NULL_DELEGATE =  // NOLINT(cppcoreguidelines-avoid-non-const-global-variables)
-    new SPIDelegateDummy();
-// https://bugs.llvm.org/show_bug.cgi?id=48040
+static SPIDelegateDummy null_delegate;  // NOLINT(cppcoreguidelines-avoid-non-const-global-variables)
+// The address is a constant, so NULL_DELEGATE is valid before any dynamic initialization runs.
+SPIDelegate *const SPIDelegate::NULL_DELEGATE = &null_delegate;
 
 bool SPIDelegate::is_ready() { return true; }
 
