@@ -8,6 +8,7 @@ import sys
 def main() -> int:
     phases: list[tuple[str, dict[str, int]]] = []
     cur, c = "boot", {}
+    fired = (0, 0)
 
     def bump(k: str) -> None:
         c[k] = c.get(k, 0) + 1
@@ -25,6 +26,8 @@ def main() -> int:
             bump("nan" if m.group(1) == "nan" else "ok")
         if m := re.search(r"PROBE (\w+)", line):
             bump("probe_" + m.group(1))
+        if m := re.search(r"fired a=(\d+) b=(\d+)", line):
+            fired = (int(m.group(1)), int(m.group(2)))
         if "update called before prior reading" in line:
             bump("pending_warn")
         if "Running through setup" in line:
@@ -34,12 +37,22 @@ def main() -> int:
     phases.append((cur, c))
     for i, (p, counts) in enumerate(phases):
         print(i, p, counts)
-    # quiet phases after a fault phase must read again, and nothing may crash
+    print(f"fired a={fired[0]} b={fired[1]}")
+    seq = [p for p, _ in phases[1:]]
+    if seq != ["quiet", "faultA", "quiet", "faultB", "quiet"]:
+        print(
+            f"FAIL: phase sequence {seq}, the capture ended early or the board restarted"
+        )
+        return 1
+    # quiet phases after a fault phase must read again, nothing may crash or reboot, and both faults must fire
     bad = [p for p, counts in phases if counts.get("crash")]
     bad += [p for p, counts in phases[1:] if p == "quiet" and not counts.get("ok")]
-    if len(phases) < 5:
-        print(f"FAIL: only {len(phases) - 1} PHASE lines, the capture ended early")
-        return 1
+    bad += [
+        f"{p} reboot"
+        for i, (p, counts) in enumerate(phases)
+        if counts.get("boot", 0) > (1 if i == 0 else 0)
+    ]
+    bad += [f"fault {k} never fired" for k, n in zip("AB", fired, strict=True) if not n]
     if bad:
         print(f"FAIL: {bad}")
         return 1

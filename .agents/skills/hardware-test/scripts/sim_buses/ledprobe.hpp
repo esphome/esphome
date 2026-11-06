@@ -13,6 +13,7 @@ inline volatile uint8_t edge_v[MAX_EDGES];
 inline volatile size_t n = 0;
 inline volatile int last = -1;
 inline volatile uint32_t samples = 0;
+inline volatile uint32_t dropped = 0;  // edges lost after the buffer filled
 
 inline void sample(void *) {
   int v = gpio_get_level(PIN);
@@ -24,6 +25,8 @@ inline void sample(void *) {
       edge_t[i] = (uint32_t) (esp_timer_get_time() / 1000);
       edge_v[i] = v;
       n = i + 1;
+    } else {
+      dropped++;
     }
   }
 }
@@ -34,8 +37,8 @@ inline void start() {
   a.callback = sample;
   a.name = "ledprobe";
   esp_timer_handle_t h;
-  esp_timer_create(&a, &h);
-  esp_timer_start_periodic(h, 2000);
+  ESP_ERROR_CHECK(esp_timer_create(&a, &h));
+  ESP_ERROR_CHECK(esp_timer_start_periodic(h, 2000));
 }
 
 inline uint32_t now_ms() { return (uint32_t) (esp_timer_get_time() / 1000); }
@@ -77,11 +80,12 @@ inline void report(const char *label, size_t mark, uint32_t t0, uint32_t t1) {
   }
   if (t1 - prev_edge > max_gap)
     max_gap = t1 - prev_edge;
-  ESP_LOGI(
-      "probe",
-      "%s: window %u ms, blinks %u, on %u/%u/%u ms (min/avg/max), period %u/%u/%u ms, longest gap %u ms, level now %d",
-      label, (unsigned) (t1 - t0), (unsigned) ons, ons ? (unsigned) on_min : 0, ons ? (unsigned) (on_sum / ons) : 0,
-      (unsigned) on_max, pers ? (unsigned) per_min : 0, pers ? (unsigned) (per_sum / pers) : 0, (unsigned) per_max,
-      (unsigned) max_gap, (int) last);
+  ESP_LOGI("probe",
+           "%s: window %u ms, blinks %u, on %u/%u/%u ms (min/avg/max), period %u/%u/%u ms, longest gap %u ms, level "
+           "now %d, samples %u, dropped edges %u",
+           label, (unsigned) (t1 - t0), (unsigned) ons, ons ? (unsigned) on_min : 0,
+           ons ? (unsigned) (on_sum / ons) : 0, (unsigned) on_max, pers ? (unsigned) per_min : 0,
+           pers ? (unsigned) (per_sum / pers) : 0, (unsigned) per_max, (unsigned) max_gap, (int) last,
+           (unsigned) samples, (unsigned) dropped);
 }
 }  // namespace ledprobe

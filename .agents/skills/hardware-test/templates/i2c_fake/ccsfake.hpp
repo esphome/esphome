@@ -19,8 +19,14 @@ struct Bus final : public esphome::i2c::I2CBus {
     if (size == 0)
       return esphome::i2c::ERROR_OK;
     uint8_t reg = data[0];
-    if (reg == 0x05 && size == 5)
+    if (reg == 0x05 && size == 5) {
       this->check_(data + 1);
+    } else if (reg == 0x05) {
+      this->writes++;
+      this->checked++;
+      this->bad++;
+      ESP_LOGI(TAG, "ENV write of %u bytes, want 4 BAD", (unsigned) (size - 1));
+    }
     static const uint8_t ALG[4] = {0x01, 0xC2, 0x00, 0x0C};  // 450 ppm, 12 ppb
     for (size_t i = 0; i < out_size; i++) {
       switch (reg) {
@@ -75,12 +81,18 @@ struct Bus final : public esphome::i2c::I2CBus {
 };
 inline Bus bus;
 
-// Set the compensation inputs, run one update and return whether ENV_DATA was right.
+// Set the compensation inputs and run one update; an update without an ENV_DATA write counts as bad.
 template<typename C, typename S> void run(C *ccs, S *hs, S *ts, float h, float t) {
   hs->state = h;
   ts->state = t;
   bus.hum = h;
   bus.temp = t;
+  uint32_t w0 = bus.writes;
   ccs->update();
+  if (bus.writes == w0) {
+    bus.checked++;
+    bus.bad++;
+    ESP_LOGI(TAG, "ENV in h=%.4f t=%.4f no ENV_DATA write BAD", h, t);
+  }
 }
 }  // namespace ccsfake

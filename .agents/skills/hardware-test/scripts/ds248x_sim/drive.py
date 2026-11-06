@@ -3,7 +3,8 @@
 usage: SC=path/to/serial_capture.py drive.py TAG SIM_PORT DUT_PORT [PHASES]
 PHASES is a comma list of c, cd, z, b, k, dead (default c,z,b,k,dead). Holds the simulator port for the whole run
 (log and commands); the DUT log is captured per phase into TAG-<phase>.log, each phase starting with a DUT reset.
-Exits 1 when the simulator never reports or a phase got no readings at all.
+Exits 1 when the simulator never reports, the simulator port fails, a phase ends without a fresh simulator report or
+a phase got no readings at all.
 """
 
 import os
@@ -37,12 +38,18 @@ sim = serial.Serial(SIM, 115200, timeout=0.2)
 sim_lines: list[tuple[float, str]] = []
 stop = threading.Event()
 failed: list[str] = []
+reader_error: list[BaseException] = []
 
 
 def sim_reader() -> None:
     buf = bytearray()
     while not stop.is_set():
-        buf += sim.read(4096)
+        try:
+            buf += sim.read(4096)
+        except Exception as err:  # noqa: BLE001 - reported by main() and per phase
+            reader_error.append(err)
+            print(f"FAIL: simulator port read failed: {err!r}", flush=True)
+            return
         *lines, rest = buf.split(b"\n")
         buf = bytearray(rest)
         now = time.time()
@@ -88,6 +95,7 @@ def phase(
         "CNT " in line for _, line in sim_lines[n0:]
     ):
         time.sleep(0.05)
+    fresh = any("CNT " in line for _, line in sim_lines[n0:])
     a, b = last_cnt(t0), last_cnt(time.time())
     delta = {k: b.get(k, 0) - a.get(k, 0) for k in COUNTERS}
     log = pathlib.Path(out).read_text(encoding="utf-8", errors="replace")
@@ -114,7 +122,10 @@ def phase(
         flush=True,
     )
     if not temps:
-        failed.append(name)
+        failed.append(f"{name} (no readings)")
+    if not fresh or not a or reader_error:
+        print(f"{TAG} {name}: no fresh simulator report, sim counters are not valid")
+        failed.append(f"{name} (no simulator report)")
 
 
 # name: (seconds, actions, pre)
@@ -143,7 +154,7 @@ def main() -> int:
     send("X")
     stop.set()
     if failed:
-        print(f"FAIL: no readings at all in {failed}")
+        print(f"FAIL: {failed}")
         return 1
     return 0
 

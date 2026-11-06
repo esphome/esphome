@@ -5,7 +5,8 @@ Plaintext API on port 6053 (no encryption key in the DUT config). Answers the de
 "Dump" button after each step and records device logs, select states and action calls. The DUT has two
 homeassistant selects, "Small" (select.speed, 4 options / 16 bytes of storage) and "Big" (input_select.mode,
 16 options / 240 bytes), and a "Dump" button logging "DUMP <name> n=<count> state=<state> opts=<a|b|c>" for each
-plus a "HEAP" line. Exits 1 when a step fails.
+plus a "HEAP" line whose first number is the free heap in bytes. Exits 1 when a step fails, including a churn
+that loses more than HEAP_TOLERANCE bytes of free heap.
 """
 
 import asyncio
@@ -18,6 +19,7 @@ from aioesphomeapi import APIClient, ButtonInfo, LogLevel, SelectInfo, SelectSta
 
 DEV, OUT = sys.argv[1], sys.argv[2]
 SMALL, BIG = "select.speed", "input_select.mode"
+HEAP_TOLERANCE = 1024
 table = {
     (SMALL, "options"): repr(["low", "medium", "high"]),
     (SMALL, None): "medium",
@@ -214,7 +216,13 @@ async def main() -> None:
     await asyncio.sleep(1)
     heaps = [line[line.find("HEAP") :] for line in lines[mark:] if "HEAP" in line]
     got = sum(1 for line in lines[mark:] if "Got " in line and "options" in line)
-    ev(f"STEP churn 600 option updates: got_options_lines={got} heap={heaps}")
+    free = [int(m.group(1)) for h in heaps if (m := re.search(r"(\d+)", h))]
+    ok = got > 0 and len(free) >= 2 and free[0] - free[-1] <= HEAP_TOLERANCE
+    if not ok:
+        fails.append("churn")
+    ev(
+        f"STEP churn 600 option updates: {'PASS' if ok else 'FAIL'} got_options_lines={got} heap={heaps}"
+    )
     await cli.disconnect()
 
     # Reconnect: entity info carries the options the traits point at
