@@ -131,7 +131,8 @@ helper; `AGENTS.md` section 4 and the `component-codegen` skill have the detail.
 
 ## Naming user-facing functions
 
-Lambda methods, actions and config keys are hard to rename once released. Flag:
+Documented lambda methods, actions and config keys are public API, so a bad name
+is hard to fix once released. Flag:
 
 - A boolean where `true` means off (`display_off(true)`): name the positive
   state, e.g. `set_power(bool on)`.
