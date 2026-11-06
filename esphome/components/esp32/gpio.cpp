@@ -74,18 +74,19 @@ static inline void IRAM_ATTR isr_refresh_hold(gpio_num_t pin, uint8_t rtc_io, bo
 }
 #endif
 
-void ESP32InternalGPIOPin::set_pin(gpio_num_t pin) {
-  this->pin_ = static_cast<uint8_t>(pin);
+ISRInternalGPIOPin ESP32InternalGPIOPin::to_isr() const {
 #ifdef ISR_PIN_USE_RTC
+  // Only the ISR code reads rtc_io, so pins never handed to an ISR skip the lookup.
+  auto *self = const_cast<ESP32InternalGPIOPin *>(this);  // NOLINT(cppcoreguidelines-pro-type-const-cast)
+  const gpio_num_t pin = this->get_pin_num();
 #ifdef RTCIO_NEED_MAPPING
-  this->pin_flags_.rtc_io = rtc_gpio_is_valid_gpio(pin) ? rtc_io_number_get(pin) + 1 : 0;
+  self->pin_flags_.rtc_io = rtc_gpio_is_valid_gpio(pin) ? rtc_io_number_get(pin) + 1 : 0;
 #else
-  this->pin_flags_.rtc_io = rtc_gpio_is_valid_gpio(pin) ? pin + 1 : 0;
+  self->pin_flags_.rtc_io = rtc_gpio_is_valid_gpio(pin) ? pin + 1 : 0;
 #endif
 #endif
+  return ISRInternalGPIOPin(this);
 }
-
-ISRInternalGPIOPin ESP32InternalGPIOPin::to_isr() const { return ISRInternalGPIOPin(this); }
 
 void ESP32InternalGPIOPin::attach_interrupt_(void (*func)(void *), void *arg, gpio::InterruptType type) const {
   gpio_int_type_t idf_type = GPIO_INTR_ANYEDGE;

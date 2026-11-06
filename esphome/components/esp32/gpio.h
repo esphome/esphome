@@ -16,7 +16,7 @@ class ESP32InternalGPIOPin final : public GPIOPin {
   friend class esphome::ISRInternalGPIOPin;
 
  public:
-  void set_pin(gpio_num_t pin);
+  void set_pin(gpio_num_t pin) { this->pin_ = static_cast<uint8_t>(pin); }
   void set_inverted(bool inverted) { this->pin_flags_.inverted = inverted; }
   void set_drive_strength(gpio_drive_cap_t drive_strength) {
     this->pin_flags_.drive_strength = static_cast<uint8_t>(drive_strength);
@@ -59,7 +59,7 @@ class ESP32InternalGPIOPin final : public GPIOPin {
   struct PinFlags {
     uint8_t inverted : 1;        // Invert pin logic (1 bit)
     uint8_t drive_strength : 2;  // Drive strength 0-3 (2 bits)
-    uint8_t rtc_io : 5;          // RTC IO number + 1, 0 when not an RTC IO; set by set_pin()
+    uint8_t rtc_io : 5;          // RTC IO number + 1, 0 when not an RTC IO; set by to_isr()
   } pin_flags_{};                // Total: 1 byte
   gpio::Flags isr_flags_{};      // Mode last set by ISRInternalGPIOPin::pin_mode()
   // NOLINTNEXTLINE(cppcoreguidelines-avoid-non-const-global-variables)
