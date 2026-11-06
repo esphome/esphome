@@ -21,6 +21,7 @@ from esphome.components.esp32 import (
     VARIANT_ESP32S31,
 )
 from esphome.const import CONF_WAKEUP_PIN, PlatformFramework
+from esphome.core import CORE
 
 from ..types import SetCoreConfigCallable
 
@@ -368,3 +369,17 @@ def test_deep_sleep_ext1_wakeup_rejected_on_variant_without_ext1(
     }
     with pytest.raises(cv.Invalid, match="Wakeup from ext1"):
         deep_sleep.CONFIG_SCHEMA(config)
+
+
+@pytest.mark.parametrize(
+    ("config_file", "count"),
+    [("test_deep_sleep_bk72xx_timer.yaml", 0), ("test_deep_sleep_bk72xx_pins.yaml", 2)],
+)
+def test_bk72xx_wakeup_pin_count(
+    generate_main: Callable[[str | Path], str], config_file: str, count: int
+) -> None:
+    """The BK72xx wake-up pin list is sized to the configured pins."""
+    main_cpp = generate_main(f"tests/component_tests/deep_sleep/{config_file}")
+    defines = {define.name: define.value for define in CORE.defines}
+    assert str(defines["DEEP_SLEEP_WAKEUP_PIN_COUNT"]) == str(count)
+    assert main_cpp.count("deepsleep->add_wakeup_pin(") == count

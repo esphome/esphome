@@ -1,0 +1,13 @@
+esphome:
+  name: test
+
+bk72xx:
+  board: cb2s
+
+deep_sleep:
+  id: deepsleep
+  sleep_duration: 1min
+  wakeup_pin:
+    - pin: P6
+    - pin: P7
+      wakeup_pin_mode: KEEP_AWAKE
