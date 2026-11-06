@@ -1,7 +1,7 @@
 import esphome.codegen as cg
 from esphome.components.nrf52 import TESTING_FLASH_SIZE
 from esphome.components.nrf52.boards import BOARDS_ZEPHYR, BOOTLOADER_CONFIG
-from esphome.components.nrf52.const import VARIANT_FLASH_SIZE
+from esphome.components.nrf52.const import FLASH_SECTOR_SIZE, VARIANT_FLASH_SIZE
 from esphome.components.nrf52.framework import get_nrf52_variant
 from esphome.components.zephyr import (
     Section,
@@ -45,13 +45,13 @@ def _framework_version() -> cv.Version:
 
 
 def _partition_address() -> int:
-    """Place the partition directly below the lowest section reserved above the
-    SoftDevice (the bootloader), or at the end of flash with MCUboot."""
+    """Place the partition below the lowest section reserved above the SoftDevice
+    (the bootloader), or at the end of flash with MCUboot, on an erase page boundary."""
     data = zephyr_data()
     # The SoftDevice (or MBR) is the only section that can start at 0
     reserved = [s.address for s in data[KEY_PM_STATIC] if s.address > 0]
     if reserved:
-        return min(reserved) - PARTITION_SIZE
+        return (min(reserved) - PARTITION_SIZE) // FLASH_SECTOR_SIZE * FLASH_SECTOR_SIZE
     if (bootloader := data[KEY_BOOTLOADER]) != BOOTLOADER_MCUBOOT:
         raise cv.Invalid(
             f"{DOMAIN} does not know the flash layout of bootloader '{bootloader}', "
@@ -59,10 +59,14 @@ def _partition_address() -> int:
         )
     # MCUboot reserves nothing, so the flash size has to come from the board
     board = data[KEY_BOARD]
-    if "nrf52840" not in board and board not in BOARDS_ZEPHYR:
+    # Boards that do not name their SoC are taken as an nRF52840, so only trust the known ones
+    if board not in BOARDS_ZEPHYR and not any(
+        variant.lower() in board for variant in VARIANT_FLASH_SIZE
+    ):
+        known = " or ".join(f"n{v[1:]}" for v in VARIANT_FLASH_SIZE)
         raise cv.Invalid(
             f"{DOMAIN} does not know the flash size of board '{board}', "
-            "only nRF52840 boards are supported"
+            f"only {known} boards are supported"
         )
     if CORE.testing_mode:
         return TESTING_FLASH_SIZE - PARTITION_SIZE
@@ -98,9 +102,16 @@ async def to_code(config: ConfigType) -> None:
         cg.add_build_flag("-Wl,--wrap=z_arm_fault")
     zephyr_add_prj_conf("PARTITION_MANAGER_ENABLED", True)
     addr = _partition_address()
-    zephyr_add_pm_static(
-        [Section("coredump_partition", addr, PARTITION_SIZE, "flash_primary")]
+    end = addr + PARTITION_SIZE
+    sections = [Section("coredump_partition", addr, PARTITION_SIZE, "flash_primary")]
+    # Reserve what page alignment left below the next section, so the app keeps one gap
+    above = min(
+        (s.address for s in zephyr_data()[KEY_PM_STATIC] if s.address >= end),
+        default=end,
     )
+    if above > end:
+        sections.append(Section("coredump_padding", end, above - end, "flash_primary"))
+    zephyr_add_pm_static(sections)
     zephyr_add_overlay(
         f"""
         &flash0 {{

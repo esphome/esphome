@@ -8,6 +8,8 @@ import re
 import pytest
 
 from esphome.components.nrf52 import set_core_data
+from esphome.components.nrf52.boards import BOOTLOADER_CONFIG
+from esphome.components.nrf52.const import FLASH_SECTOR_SIZE
 from esphome.components.zephyr import zephyr_data
 from esphome.components.zephyr.const import KEY_OVERLAY, KEY_PM_STATIC
 from esphome.components.zephyr_coredump import (
@@ -45,6 +47,13 @@ def _core_data(
         # Testing mode moves the bootloader to the end of the faked 4 MB flash
         ("adafruit_itsybitsy_nrf52840", "adafruit_nrf52_sd140_v6", True, 0x3EC000),
         ("adafruit_feather_nrf52840", "mcuboot", True, 0x3F8000),
+        # Below the Adafruit bootloader at 0x74000 on the 512 KB nRF52832
+        ("adafruit_feather_nrf52832", "adafruit_nrf52_sd132_v6", False, 0x6C000),
+        # Bank 1 starts mid page at 0x44800, so the partition moves down to the page below
+        ("adafruit_feather_nrf52832", "adafruit_nrf52_sd132_v2", False, 0x3C000),
+        ("adafruit_feather_nrf52832", "adafruit_nrf52_sd132_v2", True, 0x3BC000),
+        # Nothing reserved: the end of the 512 KB flash
+        ("nrf52dk/nrf52832", "mcuboot", False, 0x78000),
     ],
 )
 def test_partition_address(
@@ -52,7 +61,19 @@ def test_partition_address(
 ) -> None:
     _core_data(board, bootloader, testing_mode)
     assert _partition_address() == expected
-    assert PARTITION_SIZE % 0x1000 == 0
+    assert PARTITION_SIZE % FLASH_SECTOR_SIZE == 0
+
+
+@pytest.mark.parametrize("testing_mode", [False, True])
+@pytest.mark.parametrize("bootloader", sorted(BOOTLOADER_CONFIG))
+def test_partition_is_page_aligned(bootloader: str, testing_mode: bool) -> None:
+    board = (
+        "adafruit_feather_nrf52832"
+        if "sd132_v" in bootloader
+        else "adafruit_itsybitsy_nrf52840"
+    )
+    _core_data(board, bootloader, testing_mode)
+    assert _partition_address() % FLASH_SECTOR_SIZE == 0
 
 
 def test_partition_size_is_the_same_on_every_sdk() -> None:
@@ -62,8 +83,38 @@ def test_partition_size_is_the_same_on_every_sdk() -> None:
 
 def test_unknown_flash_size_rejected() -> None:
     _core_data("bbc_microbit", "mcuboot")
-    with pytest.raises(cv.Invalid, match="only nRF52840 boards are supported"):
+    with pytest.raises(
+        cv.Invalid, match="only nRF52832 or nRF52840 boards are supported"
+    ):
         _partition_address()
+
+
+def test_unknown_variant_flash_size_rejected() -> None:
+    _core_data("nrf54l15dk", "mcuboot")
+    with pytest.raises(cv.Invalid, match="does not know the flash size of board"):
+        _partition_address()
+
+
+def test_padding_keeps_one_app_gap(
+    generate_main: Callable[[str | Path], str],
+    component_config_path: Callable[[str], Path],
+) -> None:
+    """Page alignment leaves a gap below bank 1, which stays reserved."""
+    generate_main(component_config_path("feather52832_sd132_v2.yaml"))
+    sections = {s.name: s for s in zephyr_data()[KEY_PM_STATIC]}
+    coredump = sections["coredump_partition"]
+    padding = sections["coredump_padding"]
+    assert coredump.address % FLASH_SECTOR_SIZE == 0
+    assert padding.address == coredump.end_address
+    assert padding.end_address == sections["Adafruit_nRF52_Bootloader_bank1"].address
+
+
+def test_no_padding_when_aligned(
+    generate_main: Callable[[str | Path], str],
+    component_config_path: Callable[[str], Path],
+) -> None:
+    generate_main(component_config_path("mcumgr_adafruit.yaml"))
+    assert all(s.name != "coredump_padding" for s in zephyr_data()[KEY_PM_STATIC])
 
 
 def test_bootloader_without_layout_rejected() -> None:
