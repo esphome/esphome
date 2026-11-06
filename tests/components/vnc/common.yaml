@@ -3,6 +3,7 @@ vnc:
     display_id: test_display_screen
     host: 192.0.2.10
     port: 5901
+    password: secret12
     reconnect_interval: 10s
     update_delay: 300ms
     max_update_delay: 2s
@@ -15,6 +16,9 @@ vnc:
 interval:
   - interval: 60s
     then:
+      - vnc.connect: vnc_client
+      - vnc.disconnect:
+          id: vnc_client
       - vnc.refresh: vnc_client
       - vnc.send_pointer:
           id: vnc_client

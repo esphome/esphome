@@ -5,6 +5,8 @@ Supported models:
 - waveshare-7.5in-v2-gray4: the same panel in four-level grayscale
 - seeed-reterminal-e1001: Seeed reTerminal E1001, which uses the same
   7.5" 800x480 panel on an integrated ESP32-S3 board
+- goodisplay-gdey0583t81-5.83: Good Display GDEY0583T81 5.83" mono display,
+  648x480 pixels, also sold by Seeed as 0583BN-T81-D2
 
 Panel configuration and power-on (0x04) are both sent during the INITIALISE
 state; the state machine's built-in busy wait then covers the power-on delay

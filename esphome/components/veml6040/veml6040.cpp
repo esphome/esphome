@@ -31,10 +31,8 @@ void VEML6040Component::setup() {
   // Auto mode (AF = 0, TRIG = 0) with shutdown bit cleared: the device measures continuously.
   // The high byte of the configuration register is reserved and must be written as zero.
   const uint8_t config[] = {static_cast<uint8_t>(this->integration_time_ << CONFIG_REG_IT_BIT), 0x00};
-  if (this->write_register(CONFIG_REG, config, sizeof config) != i2c::ERROR_OK) {
-    this->mark_failed(LOG_STR(ESP_LOG_MSG_COMM_FAIL));
+  if (!this->setup_check(this->write_register(CONFIG_REG, config, sizeof config) == i2c::ERROR_OK))
     return;
-  }
   // The data registers hold zeros until the first integration period has finished; publish as soon as it has
   this->set_timeout(this->integration_time_ms_(), [this]() {
     this->data_ready_ = true;
@@ -70,14 +68,10 @@ void VEML6040Component::update() {
 
   ESP_LOGV(TAG, "Counts: red=%u green=%u blue=%u white=%u", red, green, blue, white);
 
-  if (this->red_sensor_ != nullptr)
-    this->red_sensor_->publish_state(red);
-  if (this->green_sensor_ != nullptr)
-    this->green_sensor_->publish_state(green);
-  if (this->blue_sensor_ != nullptr)
-    this->blue_sensor_->publish_state(blue);
-  if (this->white_sensor_ != nullptr)
-    this->white_sensor_->publish_state(white);
+  PUBLISH_STATE(this->red_sensor_, red);
+  PUBLISH_STATE(this->green_sensor_, green);
+  PUBLISH_STATE(this->blue_sensor_, blue);
+  PUBLISH_STATE(this->white_sensor_, white);
 
   const bool saturated = red == MAX_COUNTS || green == MAX_COUNTS || blue == MAX_COUNTS;
   if (saturated) {

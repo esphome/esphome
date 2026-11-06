@@ -20,7 +20,7 @@ from pytest import CaptureFixture
 import serial
 from zeroconf import ServiceStateChange
 
-from esphome import __main__ as main, yaml_util
+from esphome import __main__ as main, platform_hooks, yaml_util
 from esphome.__main__ import (
     Purpose,
     _get_configured_xtal_freq,
@@ -57,6 +57,7 @@ from esphome.__main__ import (
     has_name_add_mac_suffix,
     has_non_ip_address,
     has_ota,
+    has_platform_network_ota,
     has_resolvable_address,
     has_web_server_logging,
     has_web_server_ota,
@@ -117,7 +118,6 @@ from esphome.const import (
     PLATFORM_ESP32,
     PLATFORM_ESP8266,
     PLATFORM_HOST,
-    PLATFORM_LN882X,
     PLATFORM_NRF52,
     PLATFORM_RP2,
     ErrorFormat,
@@ -4244,6 +4244,38 @@ def test_has_ota() -> None:
     assert has_ota() is False
 
 
+@pytest.mark.parametrize(
+    ("ota", "platform", "expected"),
+    [
+        ({"transport": {"udp": True}}, PLATFORM_NRF52, True),
+        ({"transport": {"ble": True}}, PLATFORM_NRF52, False),
+        ({}, PLATFORM_NRF52, False),
+        ({"transport": {"udp": True}}, PLATFORM_ESP32, False),
+        ({"transport": {"udp": True}}, None, False),
+    ],
+)
+def test_has_platform_network_ota(
+    ota: dict[str, Any], platform: str | None, expected: bool
+) -> None:
+    """Only nRF52 zephyr_mcumgr with the UDP transport is a network OTA."""
+    setup_core(
+        config={CONF_OTA: [{CONF_PLATFORM: "zephyr_mcumgr", **ota}]},
+        platform=platform,
+    )
+    assert has_platform_network_ota() is expected
+    assert has_ota() is expected
+
+
+def test_has_platform_network_ota_external_platform(
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    """An external target platform's has_network_ota hook is probed too."""
+    module = SimpleNamespace(has_network_ota=lambda config: True)
+    monkeypatch.setattr(platform_hooks, "import_module", lambda name: module)
+    setup_core(config={}, platform="my_external_chip")
+    assert has_platform_network_ota() is True
+
+
 def test_get_port_type() -> None:
     """Test get_port_type function."""
 
@@ -6304,7 +6336,7 @@ def test_run_miniterm_no_stacktrace_analyzer(
     """Platforms without a stacktrace analyzer log an info and stream anyway."""
     mock_serial = MockSerial([b"[I][app:100]: Line 1\r\n", MOCK_SERIAL_END])
 
-    CORE.data[KEY_CORE] = {KEY_TARGET_PLATFORM: PLATFORM_LN882X}
+    CORE.data[KEY_CORE] = {KEY_TARGET_PLATFORM: PLATFORM_HOST}
     config = {
         CONF_LOGGER: {
             CONF_BAUD_RATE: 115200,

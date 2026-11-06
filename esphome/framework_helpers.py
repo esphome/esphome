@@ -74,6 +74,74 @@ def get_project_cxx_compile_flags() -> list[str]:
     return sorted(CORE.cxx_build_flags)
 
 
+DOMAIN = "framework_helpers"
+_KEY_WARNED_BUILD_FLAGS = "warned_build_flags"
+
+
+def lex_cmake_build_flags(build_name: str) -> list[list[str]]:
+    """Shell-lex each build flag entry as the other generators do and return
+    the flags of each entry that a native CMake build passes on. Warns once
+    per entry about each flag that is dropped."""
+    from esphome.core import CORE  # local import to avoid circular dependency
+    from esphome.platformio.library import lex_build_flags
+
+    warned: set[tuple[str, str]] = CORE.data.setdefault(DOMAIN, {}).setdefault(
+        _KEY_WARNED_BUILD_FLAGS, set()
+    )
+    entries: list[list[str]] = []
+    for entry in sorted(CORE.build_flags):
+        kept: list[str] = []
+        for flag in lex_build_flags(entry, "esphome build_flags"):
+            if ";" in flag:
+                reason = "CMake splits arguments at ';'"
+            elif get_project_compile_flags([flag]) or get_project_link_flags([flag]):
+                kept.append(flag)
+                continue
+            else:
+                reason = f"native {build_name} builds only pass -D, -W and -Wl, flags"
+            if (flag, entry) not in warned:
+                warned.add((flag, entry))
+                _LOGGER.warning(
+                    "Build flag '%s'%s is ignored: %s",
+                    flag,
+                    "" if flag == entry else f" in '{entry}'",
+                    reason,
+                )
+        entries.append(kept)
+    return entries
+
+
+def get_cmake_compile_flags(entries: list[list[str]]) -> list[str]:
+    """Return the -D and -W flags of ``entries`` in order. CMake keeps only
+    the first copy of a repeated option, so only the last copy is returned
+    and the last definition wins, as on the command line."""
+    flags = get_project_compile_flags(flag for entry in entries for flag in entry)
+    return list(reversed(dict.fromkeys(reversed(flags))))
+
+
+def get_cmake_link_flags(entries: list[list[str]]) -> list[str]:
+    """Return the -Wl, flags of ``entries``, joining those of one entry into a
+    single -Wl, flag. GCC splits -Wl, at commas, so the linker gets the same
+    arguments, and CMake does not drop a repeated -Wl,--start-group from a
+    later entry."""
+    return [
+        "-Wl," + ",".join(flag.removeprefix("-Wl,") for flag in link_flags)
+        for entry in entries
+        if (link_flags := get_project_link_flags(entry))
+    ]
+
+
+def cmake_escape(flag: str) -> str:
+    """Escape ``flag`` for a quoted CMake argument so quotes, backslashes and
+    $ survive."""
+    return flag.replace("\\", "\\\\").replace('"', '\\"').replace("$", "\\$")
+
+
+def quote_cmake_args(flags: Iterable[str]) -> list[str]:
+    """Quote each flag as a CMake argument."""
+    return [f'"{cmake_escape(flag)}"' for flag in flags]
+
+
 def str_to_lst_of_str(a: str | list[str]) -> list[str]:
     """
     Convert a string to a list of string
