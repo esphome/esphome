@@ -12,9 +12,11 @@ class LCDDisplay;
 
 class LCDDisplay : public PollingComponent {
  public:
-  void set_dimensions(uint8_t columns, uint8_t rows) {
+  /// `buffer` holds `columns * rows` characters, a static array from code generation
+  void set_dimensions(uint8_t columns, uint8_t rows, uint8_t *buffer) {
     this->columns_ = columns;
     this->rows_ = rows;
+    this->buffer_ = buffer;
   }
 
   void set_user_defined_char(uint8_t pos, const std::vector<uint8_t> &data) { this->user_defined_chars_[pos] = data; }
