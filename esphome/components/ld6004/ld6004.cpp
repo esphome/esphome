@@ -81,8 +81,7 @@ bool LD6004Component::handle_model_report(uint16_t type, const uint8_t *data, ui
       PUBLISH_STATE(this->work_mode_select_, mode);
 #endif
 #ifdef USE_TEXT_SENSOR
-      if (this->work_mode_text_sensor_ != nullptr)
-        this->work_mode_text_sensor_->publish_state(WorkModeStrings::get_progmem_str(static_cast<uint8_t>(mode), 0));
+      PUBLISH_STATE(this->work_mode_text_sensor_, WorkModeStrings::get_progmem_str(static_cast<uint8_t>(mode), 0));
 #endif
       return true;
     }
