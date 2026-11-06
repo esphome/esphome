@@ -1,0 +1,27 @@
+esphome:
+  name: one-wire-device-test
+  on_boot:
+    then:
+      - one_wire_device.set_value:
+          id: emulated_temperature
+          value: 23.5
+      - one_wire_device.set_value:
+          id: emulated_temperature
+          value: !lambda return -10.125;
+
+esp32:
+  board: esp32dev
+  framework:
+    type: esp-idf
+
+logger:
+
+sensor:
+  - platform: template
+    id: one_wire_device_source
+    lambda: return 21.0;
+
+one_wire_device:
+  id: emulated_temperature
+  pin: GPIO4
+  value: !lambda return id(one_wire_device_source).state;

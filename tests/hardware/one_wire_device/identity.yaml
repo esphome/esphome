@@ -1,0 +1,17 @@
+substitutions:
+  device_type: DS2401
+
+esphome:
+  name: ow-model-io-device
+  on_boot:
+    then:
+      - logger.log: "HIL_IMAGE models-v3 ${device_type}"
+esp32:
+  board: esp32dev
+  framework:
+    type: esp-idf
+logger:
+  level: DEBUG
+one_wire_device:
+  pin: GPIO4
+  type: ${device_type}

@@ -1,0 +1,59 @@
+# Exercise Read ROM -> function and signed alarm semantics through the real bridge.
+esphome:
+  name: ow-model-protocol-controller
+esp32:
+  board: esp32dev
+  framework:
+    type: esp-idf
+logger:
+  level: DEBUG
+i2c:
+  sda: GPIO21
+  scl: GPIO22
+  frequency: 50kHz
+  scan: false
+ds248x:
+  id: bridge
+  type: ds2482-800
+  address: 0x18
+  active_pullup: true
+one_wire:
+  - platform: ds248x
+    id: bench_bus
+    ds248x_id: bridge
+    channel: 2
+interval:
+  - interval: 3s
+    then:
+      - lambda: |-
+          auto *bus = id(bench_bus);
+          const auto &devices = bus->get_devices();
+          bool ok = devices.size() == 1;
+          uint64_t rom = ok ? devices[0] : 0;
+          unsigned family = rom & 0xff;
+          bool presence = false;
+          ok &= id(bridge).select_channel(2) && id(bridge).ow_reset(presence) && presence;
+          bus->write8(0x33);
+          ok &= bus->read64() == rom;
+          bus->write8(0x44);  // Function immediately after Read ROM; no intervening reset.
+          ok &= bus->read8() == 0xff;
+          ok &= bus->select(rom);
+          bus->write8(0x4e);
+          bus->write8(100); bus->write8(static_cast<uint8_t>(-11));
+          if (family != 0x10) bus->write8(0x7f);
+          ok &= bus->select(rom); bus->write8(0x44);
+          ok &= bus->read8() == 0xff;
+          ok &= bus->select(rom); bus->write8(0xbe);
+          uint8_t pad[9];
+          for (auto &byte : pad) byte = bus->read8();
+          ok &= esphome::crc8(pad, 8) == pad[8];
+          int16_t raw = pad[0] | (pad[1] << 8);
+          int whole = family == 0x10 ? raw >> 1 : raw >> 4;
+          bool alarm = whole >= 100 || whole <= -11;
+          ok &= id(bridge).ow_reset(presence) && presence;
+          bus->write8(0xec);
+          uint8_t status = 0;
+          ok &= id(bridge).search_triplet(false, status);
+          bool observed_alarm = (status & 0x60) != 0x60;
+          ok &= observed_alarm == alarm;
+          ESP_LOGI("hil", "HIL_THERMO family=%02X ok=%d raw=%d alarm=%d", family, ok, raw, observed_alarm);

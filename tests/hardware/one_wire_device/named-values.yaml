@@ -1,0 +1,54 @@
+esphome:
+  name: ow-named-values
+  on_boot:
+    priority: -100
+    then:
+      - component.update: emulated
+      - logger.log: "HIL_IMAGE named-values-v1"
+      - lambda: ESP_LOGI("hil", "HIL_DIGITAL a=%d b=%d path=0", id(a), id(b));
+esp32:
+  board: esp32dev
+  framework:
+    type: esp-idf
+logger:
+  level: DEBUG
+globals:
+  - id: a
+    type: bool
+    initial_value: 'false'
+  - id: b
+    type: bool
+    initial_value: 'true'
+  - id: phase
+    type: int
+    initial_value: '0'
+one_wire_device:
+  id: emulated
+  pin: GPIO4
+  type: DS2413
+  update_interval: never
+  values:
+    pio_a: !lambda return id(a);
+    pio_b: !lambda return id(b);
+interval:
+  - interval: 8s
+    then:
+      - lambda: |-
+          id(phase) = (id(phase) + 1) % 4;
+          id(a) = id(phase) == 1 || id(phase) == 2;
+          id(b) = id(phase) == 0 || id(phase) == 2;
+      - if:
+          condition:
+            lambda: return id(phase) % 2 == 0;
+          then:
+            - component.update: emulated
+          else:
+            - one_wire_device.set_value:
+                id: emulated
+                channel: pio_a
+                value: !lambda return id(a);
+            - one_wire_device.set_value:
+                id: emulated
+                channel: pio_b
+                value: !lambda return id(b);
+      - lambda: ESP_LOGI("hil", "HIL_DIGITAL a=%d b=%d path=%d", id(a), id(b), id(phase) % 2);
