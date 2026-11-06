@@ -942,36 +942,18 @@ class TestSharedProgmemArray:
 
 
 class TestStaticBuffer:
-    def test_emits_a_static_array(self) -> None:
-        CORE.config = {}
-        buffer = cg.static_buffer("hub__rx", ct.uint8, 64)
-        assert str(buffer) == "hub__rx"
+    def test_emits_a_static_array_of_the_declared_type(self) -> None:
+        id_ = ID("rx_buffer", is_declaration=True, type=ct.uint8)
+        buffer = cg.static_buffer(id_, 64)
+        assert str(buffer) == "rx_buffer"
+        assert CORE.variables[id_] is buffer
         assert [str(st) for st in CORE.global_statements] == [
-            "static uint8_t hub__rx[64];"
+            "static uint8_t rx_buffer[64];"
         ]
 
-    def test_name_avoids_config_ids(self) -> None:
-        CORE.config = {"sensor": [{"id": ID("hub__rx", is_declaration=True)}]}
-        assert str(cg.static_buffer("hub__rx", ct.uint8, 8)) == "hub__rx_2"
-
-    def test_declared_id_is_used_as_is(self) -> None:
-        id_ = ID("sysex_buffer", is_declaration=True, type=ct.uint8)
-        CORE.config = {"ble_midi": [{"sysex_buffer_id": id_}]}
-        buffer = cg.static_buffer(id_, ct.uint8, 16)
-        assert str(buffer) == "sysex_buffer"
-        assert CORE.variables[id_] is buffer
-
-    def test_declared_id_of_another_type_is_rejected(self) -> None:
-        id_ = ID("sysex_buffer", is_declaration=True, type=ct.uint16)
-        with pytest.raises(EsphomeError, match="declared as uint16_t, not uint8_t"):
-            cg.static_buffer(id_, ct.uint8, 16)
-
-    def test_same_name_twice_gets_two_buffers(self) -> None:
-        CORE.config = {}
-        a = cg.static_buffer("hub__rx", ct.uint8, 8)
-        b = cg.static_buffer("hub__rx", ct.uint8, 8)
-        assert str(a) != str(b)
-        assert len(CORE.global_statements) == 2
+    def test_id_without_a_type_is_rejected(self) -> None:
+        with pytest.raises(EsphomeError, match="needs an element type"):
+            cg.static_buffer(ID("rx_buffer", is_declaration=True), 8)
 
 
 class TestProgmemString:

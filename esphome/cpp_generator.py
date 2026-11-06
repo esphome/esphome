@@ -567,22 +567,16 @@ def shared_progmem_string(value: str) -> Expression:
     return text
 
 
-def static_buffer(name: str | ID, type_: "MockObjClass", size: int) -> "MockObj":
-    """Emit a zeroed file-scope ``static type_ name[size];`` and return it.
+def static_buffer(id_: ID, size: int) -> "MockObj":
+    """Emit a zeroed file-scope ``static <id_.type> <id_>[size];`` and return it.
 
     For a buffer whose size is known from the config, so it lives in BSS instead of the heap.
-    A ``str`` name is made unique against config ids and variables, like ``shared_progmem_array``;
-    an ``ID`` declared in the schema is used as is and must be declared with ``type_``.
+    ``id_`` comes from ``cv.GenerateID(...): cv.declare_id(<element type>)`` in the schema,
+    so the ID system keeps its name unique.
     """
-    if isinstance(name, ID):
-        if name.type is not None and str(name.type) != str(type_):
-            raise EsphomeError(
-                f"Buffer '{name}' is declared as {name.type}, not {type_}"
-            )
-        id_ = name
-    else:
-        id_ = unique_global_id(name, type_)
-    CORE.add_global(RawStatement(f"static {type_} {id_}[{size}];"))
+    if id_.type is None:
+        raise EsphomeError(f"Buffer '{id_}' needs an element type in cv.declare_id")
+    CORE.add_global(RawStatement(f"static {id_.type} {id_}[{size}];"))
     buffer = MockObj(id_, ".")
     CORE.register_variable(id_, buffer)
     return buffer
