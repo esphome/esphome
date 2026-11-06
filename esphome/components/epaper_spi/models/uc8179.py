@@ -2,6 +2,7 @@
 
 Supported models:
 - waveshare-7.5in-v2: 7.5" mono display, 800x480 pixels (EPD_7in5_V2)
+- waveshare-7.5in-v2-gray4: the same panel in four-level grayscale
 - seeed-reterminal-e1001: Seeed reTerminal E1001, which uses the same
   7.5" 800x480 panel on an integrated ESP32-S3 board
 - goodisplay-gdey0583t81-5.83: Good Display GDEY0583T81 5.83" mono display,
@@ -77,16 +78,20 @@ waveshare_7_5_v2 = uc8179.extend(
     height=480,
 )
 
-# Good Display GDEY0583T81, 5.83" mono 648x480, UC8179; also sold by Seeed as 0583BN-T81-D2.
-# Replaces the waveshare_epaper model gdey0583t81. Busy is low while busy, so set inverted: true.
-goodisplay_gdey0583t81 = uc8179.extend(
-    "goodisplay-gdey0583t81-5.83",
-    width=648,
-    height=480,
+# Four-level grayscale using the panel's OTP waveform (EPD_7IN5_V2_Init_4Gray). Also fits the
+# GDEY075T7 panel used by the TRMNL 7.5" kits. The waveform has no partial form.
+waveshare_7_5_v2.extend(
+    "waveshare-7.5in-v2-gray4",
+    class_name="EPaperUC8179Gray4",
+    source_files=(
+        "epaper_spi_ultrachip.cpp",
+        "epaper_spi_uc8179.cpp",
+        "epaper_spi_uc8179_gray4.cpp",
+    ),
+    partial_update=False,
+    # each plane byte is built from two whole buffer bytes
+    width_multiple=8,
 )
-
-# Name printed on the panel's label as sold by Seeed
-goodisplay_gdey0583t81.extend("0583bn-t81-d2")
 
 # Seeed reTerminal E1001 — 7.5" mono e-paper (800x480), same panel as the
 # Waveshare 7.5" V2, driven by an integrated ESP32-S3 board
