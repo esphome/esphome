@@ -13,6 +13,7 @@ from esphome.const import (
     CONF_VALUE,
     CONF_WAIT_TIME,
 )
+from esphome.types import ConfigType
 
 CODEOWNERS = ["@lygris", "@gabest11"]
 DEPENDENCIES = ["spi"]
@@ -241,20 +242,27 @@ CONFIG_MAP = {
     cv.Optional(CONF_BS_POST_KI): cv.enum(BS_POST_KI, upper=False),
     cv.Optional(CONF_BS_POST_KP): cv.enum(BS_POST_KP, upper=False),
     cv.Optional(CONF_PACKET_MODE, default=False): cv.boolean,
-    cv.Optional(CONF_PACKET_LENGTH): cv.uint8_t,
     cv.Optional(CONF_CRC_ENABLE, default=False): cv.boolean,
     cv.Optional(CONF_WHITENING, default=False): cv.boolean,
 }
 
 
-def _validate_packet_mode(config):
+def _validate_packet_mode(config: ConfigType) -> ConfigType:
+    packet_length_is_lambda = cg.is_template(config.get(CONF_PACKET_LENGTH))
     if config.get(CONF_PACKET_MODE, False):
         if CONF_GDO0_PIN not in config:
             raise cv.Invalid("gdo0_pin is required when packet_mode is enabled")
         if CONF_PACKET_LENGTH not in config:
             raise cv.Invalid("packet_length is required when packet_mode is enabled")
-        if config[CONF_PACKET_LENGTH] > 64:
-            raise cv.Invalid("packet_length must be <= 64 (FIFO size)")
+    if packet_length_is_lambda and not config.get(CONF_PACKET_MODE, False):
+        raise cv.Invalid("packet_mode is required when packet_length is a lambda")
+    is_long_packet = config.get(CONF_PACKET_MODE, False) and (
+        packet_length_is_lambda or config.get(CONF_PACKET_LENGTH, 0) > 64
+    )
+    if is_long_packet and config.get(CONF_CRC_ENABLE, False):
+        raise cv.Invalid(
+            "crc_enable is not supported with packet_length > 64 or a lambda"
+        )
     return config
 
 
@@ -263,6 +271,9 @@ CONFIG_SCHEMA = cv.All(
         {
             cv.GenerateID(): cv.declare_id(CC1101Component),
             cv.Optional(CONF_GDO0_PIN): pins.internal_gpio_input_pin_schema,
+            cv.Optional(CONF_PACKET_LENGTH): cv.templatable(
+                cv.int_range(min=0, max=1024)
+            ),
             cv.Optional(CONF_ON_PACKET): automation.validate_automation(single=True),
         }
     )
@@ -282,6 +293,23 @@ async def to_code(config):
             cg.add(getattr(var, f"set_{key}")(config[key]))
 
     await cg.add_pin(var.set_gdo0_pin, config.get(CONF_GDO0_PIN))
+    if (packet_length := config.get(CONF_PACKET_LENGTH)) is not None:
+        if cg.is_template(packet_length):
+            lambda_ = await cg.process_lambda(
+                packet_length,
+                [
+                    (
+                        cg.std_vector.template(cg.uint8)
+                        .operator("ref")
+                        .operator("const"),
+                        "x",
+                    )
+                ],
+                return_type=cg.int32,
+            )
+            cg.add(var.set_packet_length_lambda(lambda_))
+        else:
+            cg.add(var.set_packet_length(packet_length))
     if CONF_ON_PACKET in config:
         await automation.build_automation(
             var.get_packet_trigger(),
