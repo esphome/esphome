@@ -84,7 +84,7 @@ CONFIG_SCHEMA = cv.All(
 async def to_code(config: ConfigType) -> None:
     capacity = config[CONF_MAX_BUFFER_LENGTH]
     # Room for the terminator
-    message = cg.static_buffer(config[CONF_MESSAGE_ID], cg.char, capacity + 1)
+    message = cg.static_buffer(config[CONF_MESSAGE_ID], capacity + 1)
     var = cg.new_Pvariable(config[CONF_ID], message, capacity, config[CONF_INTENSITY])
     await display.register_display(var, config)
     await i2c.register_i2c_device(var, config)
