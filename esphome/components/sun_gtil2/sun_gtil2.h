@@ -1,5 +1,6 @@
 #pragma once
 
+#include <array>
 #include <span>
 
 #include "esphome/core/component.h"
@@ -31,18 +32,19 @@ class SunGTIL2 final : public Component, public uart::UARTDevice {
 
  public:
   float get_setup_priority() const override { return setup_priority::LATE; }
-  void setup() override;
   void loop() override;
   void dump_config() override;
 
   static constexpr size_t STATE_BUFFER_SIZE = 32;
+  static constexpr uint16_t MESSAGE_SIZE = 350;
 
  protected:
   const char *state_to_string_(uint8_t state, std::span<char, STATE_BUFFER_SIZE> buffer);
 
   float calculate_temperature_(uint16_t adc_value);
   void handle_char_(uint8_t c);
-  std::vector<uint8_t> rx_message_;
+  std::array<uint8_t, MESSAGE_SIZE> rx_message_{};
+  uint16_t rx_length_{0};
 };
 
 }  // namespace esphome::sun_gtil2
