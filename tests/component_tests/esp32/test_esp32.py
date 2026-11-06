@@ -2574,3 +2574,30 @@ def test_require_idf_version_rejects_other_platforms(
     set_core_config(PlatformFramework.ESP8266_ARDUINO)
     with pytest.raises(cv.Invalid, match="only available on"):
         require_idf_version(cv.Version(5, 5, 3))("x")
+
+
+@pytest.mark.parametrize("framework", ["idf", "arduino"])
+@pytest.mark.parametrize(
+    ("config_name", "timeout"),
+    [("watchdog_disabled", None), ("watchdog_default", 5), ("watchdog_custom", 10)],
+)
+def test_task_watchdog_sdkconfig_and_define(
+    generate_main: Callable[[str | Path], str],
+    component_config_path: Callable[[str], Path],
+    framework: str,
+    config_name: str,
+    timeout: int | None,
+) -> None:
+    """watchdog_timeout: 0s turns the task watchdog off; any other value configures it."""
+    generate_main(component_config_path(f"{config_name}_{framework}.yaml"))
+    sdkconfig = CORE.data[KEY_ESP32][KEY_SDKCONFIG_OPTIONS]
+    defines = {define.name for define in CORE.defines}
+    assert sdkconfig["CONFIG_ESP_TASK_WDT_INIT"] is (timeout is not None)
+    assert ("USE_ESP32_TASK_WDT" in defines) is (timeout is not None)
+    if timeout is None:
+        assert "CONFIG_ESP_TASK_WDT_TIMEOUT_S" not in sdkconfig
+        return
+    assert sdkconfig["CONFIG_ESP_TASK_WDT_TIMEOUT_S"] == timeout
+    assert sdkconfig["CONFIG_ESP_TASK_WDT_PANIC"] is True
+    assert sdkconfig["CONFIG_ESP_TASK_WDT_CHECK_IDLE_TASK_CPU0"] is False
+    assert sdkconfig["CONFIG_ESP_TASK_WDT_CHECK_IDLE_TASK_CPU1"] is False

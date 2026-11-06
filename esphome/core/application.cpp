@@ -250,6 +250,10 @@ void Application::feed_wdt_if_watched() {
 #ifdef USE_ESP32_TASK_WDT
   if (esp_task_wdt_status(nullptr) != ESP_OK)
     return;
+#elif defined(USE_ESP32) && defined(USE_STATUS_LED)
+  // No watchdog, but the loop task keeps the status LED blinking through a long blocking call
+  if (xTaskGetCurrentTaskHandle() != esphome_main_task_handle)
+    return;
 #elif defined(USE_ESP32)
   return;
 #endif

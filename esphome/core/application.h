@@ -279,7 +279,7 @@ class Application {
   void feed_wdt();
 #endif
   /// Feed from code that may run off the loop task (a long download or image decode): on ESP32 only a task the
-  /// watchdog watches feeds it, and with watchdog_timeout: 0s nothing does.
+  /// watchdog watches feeds it. With watchdog_timeout: 0s only the loop task calls through, to run the status LED.
   void feed_wdt_if_watched();
 
 #ifdef USE_STATUS_LED
