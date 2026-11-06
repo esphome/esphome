@@ -19,6 +19,7 @@ from esphome.const import (
     CONF_RMT_SYMBOLS,
     CONF_USE_DMA,
 )
+from esphome.core import CORE
 from esphome.types import ConfigType
 
 CODEOWNERS = ["@jesserockz"]
@@ -175,7 +176,8 @@ async def to_code(config: ConfigType) -> None:
     cg.add(
         var.set_channel_colors(light.channel_colors_struct(config[CONF_CHANNEL_COLORS]))
     )
-    if not config[CONF_USE_PSRAM]:
+    # Without PSRAM the heap buffers would be in internal RAM anyway
+    if not config[CONF_USE_PSRAM] or "psram" not in CORE.loaded_integrations:
         num_leds = config[CONF_NUM_LEDS]
         led_data = light.static_led_buffer(
             config[CONF_OUTPUT_ID], num_leds, config[CONF_CHANNEL_COLORS]

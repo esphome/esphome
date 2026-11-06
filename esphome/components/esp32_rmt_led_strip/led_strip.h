@@ -49,7 +49,7 @@ class ESP32RMTLEDStripLightOutput final : public light::AddressableLight {
   }
   void set_use_dma(bool use_dma) { this->use_dma_ = use_dma; }
   /// Static internal RAM buffers, set after set_num_leds() and set_channel_colors(); without them, setup()
-  /// allocates the buffers, in PSRAM when available.
+  /// allocates the buffers in PSRAM.
   void set_buffers(uint8_t *led_data, RmtBuffer *rmt_buf) {
     this->internal_accessor_.set_buffer(led_data, this->num_leds_);
     this->rmt_buf_ = rmt_buf;
