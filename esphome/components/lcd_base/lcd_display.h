@@ -18,6 +18,10 @@ class LCDDisplay : public PollingComponent {
     this->rows_ = rows;
     this->buffer_ = buffer;
   }
+  ESPDEPRECATED("Pass a columns * rows buffer, e.g. from cg.static_buffer(). Removed in 2027.6.0.", "2026.12.0")
+  void set_dimensions(uint8_t columns, uint8_t rows) {
+    this->set_dimensions(columns, rows, new uint8_t[columns * rows]);  // NOLINT
+  }
 
   void set_user_defined_char(uint8_t pos, const std::vector<uint8_t> &data) { this->user_defined_chars_[pos] = data; }
 
