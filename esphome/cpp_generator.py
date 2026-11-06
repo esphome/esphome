@@ -567,6 +567,19 @@ def shared_progmem_string(value: str) -> Expression:
     return text
 
 
+def static_buffer(name: str, type_: "MockObjClass", size: int) -> "MockObj":
+    """Emit a zeroed file-scope ``static type_ name[size];`` and return it.
+
+    For a buffer whose size is known from the config, so it lives in BSS instead of the heap.
+    ``name`` is made unique against config ids and variables, like ``shared_progmem_array``.
+    """
+    id_ = unique_global_id(name, type_)
+    CORE.add_global(RawStatement(f"static {type_} {id_}[{size}];"))
+    buffer = MockObj(id_, ".")
+    CORE.register_variable(id_, buffer)
+    return buffer
+
+
 def static_const_array(id_, rhs) -> "MockObj":
     rhs = safe_exp(rhs)
     obj = MockObj(id_, ".")

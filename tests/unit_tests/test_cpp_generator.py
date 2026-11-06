@@ -941,6 +941,27 @@ class TestSharedProgmemArray:
         assert str(array) == "table_2"
 
 
+class TestStaticBuffer:
+    def test_emits_a_static_array(self) -> None:
+        CORE.config = {}
+        buffer = cg.static_buffer("hub__rx", ct.uint8, 64)
+        assert str(buffer) == "hub__rx"
+        assert [str(st) for st in CORE.global_statements] == [
+            "static uint8_t hub__rx[64];"
+        ]
+
+    def test_name_avoids_config_ids(self) -> None:
+        CORE.config = {"sensor": [{"id": ID("hub__rx", is_declaration=True)}]}
+        assert str(cg.static_buffer("hub__rx", ct.uint8, 8)) == "hub__rx_2"
+
+    def test_same_name_twice_gets_two_buffers(self) -> None:
+        CORE.config = {}
+        a = cg.static_buffer("hub__rx", ct.uint8, 8)
+        b = cg.static_buffer("hub__rx", ct.uint8, 8)
+        assert str(a) != str(b)
+        assert len(CORE.global_statements) == 2
+
+
 class TestProgmemString:
     @staticmethod
     def _set_platform(platform: str) -> None:
