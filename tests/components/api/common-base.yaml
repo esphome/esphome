@@ -98,6 +98,8 @@ esphome:
 api:
   port: 8000
   reboot_timeout: 0min
+  # Without homeassistant entities, so no subscription count is emitted
+  homeassistant_states: true
   actions:
     - action: hello_world
       description: Log a greeting
