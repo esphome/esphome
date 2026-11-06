@@ -12,6 +12,14 @@
 
 namespace esphome::ln882x_spi_led_strip {
 
+// Each LED data bit is sent as one SPI byte, MSB first: the leading 1-bits are the high time.
+static constexpr uint8_t SPI_BITS_PER_LED_BIT = 8;
+
+/// DMA bytes for `color_bytes` of LED data plus the zero bytes of the reset gap; light.py sizes the buffer with it.
+constexpr size_t dma_data_bytes(size_t color_bytes, uint16_t reset_bytes) {
+  return color_bytes * SPI_BITS_PER_LED_BIT + reset_bytes;
+}
+
 class LN882xSPILEDStripLightOutput final : public light::AddressableLight {
  public:
   /// The SPI encoding comes from light.py: SPI clock APB0 / 2^prescaler, the number of high SPI bits for a
