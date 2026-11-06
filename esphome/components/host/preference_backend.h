@@ -12,6 +12,7 @@ class HostPreferenceBackend final {
 
   bool save(const uint8_t *data, size_t len) const;
   bool load(uint8_t *data, size_t len) const;
+  bool sync() const;
 
  protected:
   uint32_t key_{};

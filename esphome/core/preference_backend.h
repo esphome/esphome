@@ -41,6 +41,13 @@ concept PreferenceBackendContract = requires(T backend, const uint8_t *src, uint
   { backend.load(dest, len) } -> std::same_as<bool>;
 };
 
+// Backends that can write one preference to permanent storage on its own also
+// provide sync(). Platforms that keep all preferences in one flash block do not.
+template<typename T>
+concept PreferenceBackendSyncContract = requires(T backend) {
+  { backend.sync() } -> std::same_as<bool>;
+};
+
 #if !defined(USE_ESP32) && !defined(USE_ESP8266) && !defined(USE_RP2) && !defined(USE_LIBRETINY) && \
     !defined(USE_HOST) && !(defined(USE_ZEPHYR) && defined(CONFIG_SETTINGS))
 // Stub for static analysis when no platform is defined.
@@ -75,6 +82,16 @@ class ESPPreferenceObject {
     if (this->backend_ == nullptr)
       return false;
     return this->backend_->load(dest, len);
+  }
+
+  /// Write this preference's pending save to permanent storage now, leaving the other pending saves queued.
+  /// Each call is a flash write, so use it only for rare saves. Not available on every platform.
+  template<typename B = PreferenceBackend>
+    requires PreferenceBackendSyncContract<B>
+  bool sync() {
+    if (this->backend_ == nullptr)
+      return false;
+    return this->backend_->sync();
   }
 
  protected:

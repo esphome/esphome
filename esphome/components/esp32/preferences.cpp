@@ -89,6 +89,14 @@ bool ESP32PreferenceBackend::save(const uint8_t *data, size_t len) {
   return true;
 }
 
+bool ESP32PreferenceBackend::sync() {
+#ifdef USE_ESP32_RTC_PREFERENCES_STORAGE
+  if (!this->in_flash)
+    return false;  // RTC memory does not survive a power loss
+#endif
+  return get_preferences()->sync_key(this->key);
+}
+
 bool ESP32PreferenceBackend::load(uint8_t *data, size_t len) {
 #ifdef USE_ESP32_RTC_PREFERENCES_STORAGE
   if (!this->in_flash)
@@ -267,6 +275,29 @@ bool ESP32Preferences::sync() {
   }
 
   return failed == 0;
+}
+
+bool ESP32Preferences::sync_key(uint32_t key) {
+  for (auto it = s_pending_save.begin(); it != s_pending_save.end(); ++it) {
+    if (it->key != key)
+      continue;
+    char key_str[UINT32_MAX_STR_SIZE];
+    uint32_to_str(key_str, key);
+    if (this->is_changed_(this->nvs_handle, *it, key_str)) {
+      // On failure the save stays queued, so the global sync retries it
+      esp_err_t err = nvs_set_blob(this->nvs_handle, key_str, it->data.data(), it->data.size());
+      if (err == ESP_OK)
+        err = nvs_commit(this->nvs_handle);
+      if (err != ESP_OK) {
+        ESP_LOGV(TAG, "sync_key('%s', len=%zu) failed: %s", key_str, it->data.size(), esp_err_to_name(err));
+        return false;
+      }
+      ESP_LOGV(TAG, "sync_key: key: %s, len: %zu", key_str, it->data.size());
+    }
+    s_pending_save.erase(it);
+    return true;
+  }
+  return true;
 }
 
 bool ESP32Preferences::is_changed_(uint32_t nvs_handle, const NVSData &to_save, const char *key_str) {

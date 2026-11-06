@@ -1,5 +1,7 @@
 #ifdef USE_HOST
 
+#include <unistd.h>
+#include <cstdio>
 #include <filesystem>
 #include <fstream>
 #include <utility>
@@ -53,28 +55,57 @@ void HostPreferences::setup_() {
     }
     fclose(fp);
   }
+  this->committed_ = this->data_;
   this->setup_complete_ = true;
 }
 
 bool HostPreferences::sync() {
   this->setup_();
+  if (!this->write_file_(this->data_))
+    return false;
+  this->committed_ = this->data_;
+  return true;
+}
+
+bool HostPreferences::sync_key(uint32_t key) {
+  this->setup_();
+  auto it = this->data_.find(key);
+  if (it == this->data_.end())
+    return true;
+  auto committed = this->committed_;
+  committed[key] = it->second;
+  if (!this->write_file_(committed))
+    return false;
+  this->committed_ = std::move(committed);
+  return true;
+}
+
+bool HostPreferences::write_file_(const std::map<uint32_t, std::vector<uint8_t>> &data) {
   if (this->filename_.empty()) {
     ESP_LOGE(TAG, "Preferences filename not set, unable to save preferences");
     return false;
   }
-  FILE *fp = fopen(this->filename_.c_str(), "wb");
+  // Written to a temporary file and renamed over the old one, so a crash never leaves a partial file
+  const std::string tmp = this->filename_ + ".tmp";
+  FILE *fp = fopen(tmp.c_str(), "wb");
   if (fp == nullptr) {
-    ESP_LOGE(TAG, "Failed to open preferences file for writing: %s", this->filename_.c_str());
+    ESP_LOGE(TAG, "Failed to open preferences file for writing: %s", tmp.c_str());
     return false;
   }
 
-  for (auto &it : this->data_) {
-    fwrite(&it.first, sizeof(uint32_t), 1, fp);
+  bool ok = true;
+  for (const auto &it : data) {
     uint8_t len = it.second.size();
-    fwrite(&len, sizeof(len), 1, fp);
-    fwrite(it.second.data(), sizeof(uint8_t), it.second.size(), fp);
+    ok = ok && fwrite(&it.first, sizeof(uint32_t), 1, fp) == 1 && fwrite(&len, sizeof(len), 1, fp) == 1 &&
+         fwrite(it.second.data(), sizeof(uint8_t), len, fp) == len;
   }
-  fclose(fp);
+  ok = ok && fflush(fp) == 0 && fsync(fileno(fp)) == 0;
+  ok = fclose(fp) == 0 && ok;
+  if (!ok || rename(tmp.c_str(), this->filename_.c_str()) != 0) {
+    ESP_LOGE(TAG, "Failed to write preferences file: %s", this->filename_.c_str());
+    remove(tmp.c_str());
+    return false;
+  }
   return true;
 }
 
@@ -104,6 +135,8 @@ bool HostPreferenceBackend::save(const uint8_t *data, size_t len) const {
 bool HostPreferenceBackend::load(uint8_t *data, size_t len) const {
   return host_preferences->load(this->key_, data, len);
 }
+
+bool HostPreferenceBackend::sync() const { return host_preferences->sync_key(this->key_); }
 
 HostPreferences *host_preferences;  // NOLINT(cppcoreguidelines-avoid-non-const-global-variables)
 
