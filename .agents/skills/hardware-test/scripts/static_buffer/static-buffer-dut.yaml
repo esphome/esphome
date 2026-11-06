@@ -1,0 +1,27 @@
+# cg.static_buffer probes: two sbtest instances (each fills its three buffers and checks the other's are untouched)
+# and one sbpsram buffer. On a board with PSRAM add a psram: block; the buffer then comes from psram_buffer() and
+# SBPSRAM logs external=1. Expect "SBTEST setup zero=1 aligned=1", "SBTEST intact=1" twice and "SBPSRAM readback=1".
+esphome:
+  name: static-buffer
+
+external_components:
+  - source:
+      type: local
+      path: .
+    components: [sbtest, sbpsram]
+
+esp32:
+  board: esp32dev
+  framework:
+    type: esp-idf
+
+logger:
+  level: DEBUG
+
+sbtest:
+  - id: sb_a
+  - id: sb_b
+
+sbpsram:
+  - id: sb_p
+    size: 4096

@@ -1,0 +1,67 @@
+# Fake Daikin BRC1H (Madoka): the GATT service of the real remote, answered by ext/madoka_fake.
+esphome:
+  name: madokafake
+  on_boot:
+    priority: -100
+    then:
+      - lambda: id(fake).set_chars(id(madoka_nfy));
+esp32:
+  board: esp32dev
+  framework:
+    type: esp-idf
+
+logger:
+  level: DEBUG
+
+wifi:
+  ssid: !secret wifi_ssid
+  password: !secret wifi_password
+  power_save_mode: none
+
+api:
+  reboot_timeout: 0s
+ota:
+  - platform: esphome
+
+external_components:
+  - source: {type: local, path: ext}
+    components: [madoka_fake]
+
+esp32_ble:
+  io_capability: display_yes_no
+  auth_req_mode: sc_mitm_bond
+
+esp32_ble_server:
+  manufacturer: Daikin
+  model: BRC1H
+  services:
+    - uuid: 2141e110-213a-11e6-b67b-9e71128cae77
+      advertise: true
+      characteristics:
+        - id: madoka_nfy
+          uuid: 2141e111-213a-11e6-b67b-9e71128cae77
+          notify: true
+          read: false
+          value: [0]
+        - id: madoka_wwr
+          uuid: 2141e112-213a-11e6-b67b-9e71128cae77
+          read: false
+          write: false
+          write_no_response: true
+          value: [0]
+          on_write:
+            then:
+              - lambda: id(fake).on_chunk(x);
+
+madoka_fake:
+  id: fake
+
+select:
+  - platform: template
+    name: Fault
+    id: fault
+    optimistic: true
+    options: [none, delay_100, delay_300, ff_record, out_of_order, drop_sensor, drop_setpoint, slow_1s, tail_late]
+    initial_option: none
+    on_value:
+      - lambda: id(fake).set_fault(i);

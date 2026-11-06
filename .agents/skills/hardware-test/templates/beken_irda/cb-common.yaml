@@ -1,0 +1,156 @@
+# Shared by every build: self-drive cases, receive logging. The receiver block lives in the per-build file.
+esphome:
+  includes: [irsim.hpp]
+  on_boot:
+    priority: -100
+    then:
+      - delay: 25s
+      - lambda: irsim::claim(${drive_pin});
+      - script.execute: cases
+
+bk72xx:
+  board: cb3s
+
+api:
+  reboot_timeout: 0s
+
+logger:
+  hardware_uart: UART1
+  level: DEBUG
+  tx_buffer_size: 1024
+  logs:
+    remote.nec: INFO
+    remote.raw: INFO
+    remote.samsung: INFO
+    remote.sony: INFO
+    remote.rc5: INFO
+    remote.lg: INFO
+    remote.panasonic: INFO
+    remote.jvc: INFO
+
+wifi:
+  ssid: !secret wifi_ssid
+  password: !secret wifi_password
+
+ota:
+  - platform: esphome
+
+globals:
+  - id: rnd
+    type: uint32_t
+    initial_value: "12345"
+
+interval:
+  - interval: 10s
+    then:
+      - lambda: |-
+          ESP_LOGI("irsim", "ALIVE up=%us wifi=%d heap=%u sent=%u", (unsigned) (millis() / 1000),
+                   (int) wifi::global_wifi_component->is_connected(), (unsigned) lt_heap_get_free(),
+                   (unsigned) irsim::sent);
+
+script:
+  - id: gap
+    then:
+      - delay: 150ms
+  - id: cases
+    then:
+      - logger.log: {level: INFO, tag: irsim, format: "CASE nec24"}
+      - repeat:
+          count: 24
+          then:
+            - lambda: |-
+                auto d = irsim::nec(0xEF00, (uint16_t) ((~iteration & 0xFF) << 8 | iteration));
+                ESP_LOGI("irsim", "TX nec a=0xEF00 c=0x%04X", (unsigned) ((~iteration & 0xFF) << 8 | iteration));
+                irsim::send(d);
+            - delay: 150ms
+      - logger.log: {level: INFO, tag: irsim, format: "CASE repeat5"}
+      - lambda: |-
+          auto d = irsim::nec(0xEF00, 0xF708);
+          ESP_LOGI("irsim", "TX nec a=0xEF00 c=0xF708");
+          irsim::send(d);
+      - delay: 40ms
+      - repeat:
+          count: 5
+          then:
+            - lambda: |-
+                ESP_LOGI("irsim", "TX repeat");
+                irsim::send(irsim::nec_repeat());
+            - delay: 108ms
+      - delay: 300ms
+      - logger.log: {level: INFO, tag: irsim, format: "CASE protos"}
+      - repeat:
+          count: 3
+          then:
+            - lambda: |-
+                using namespace esphome::remote_base;
+                RemoteTransmitData d;
+                SamsungProtocol().encode(&d, {.data = 0xE0E040BF, .nbits = 32});
+                ESP_LOGI("irsim", "TX samsung 0xE0E040BF");
+                irsim::send(d.get_data());
+            - delay: 150ms
+            - lambda: |-
+                using namespace esphome::remote_base;
+                RemoteTransmitData d;
+                SonyProtocol().encode(&d, {.data = 0xA90, .nbits = 12});
+                ESP_LOGI("irsim", "TX sony 0xA90");
+                irsim::send(d.get_data());
+            - delay: 150ms
+            - lambda: |-
+                using namespace esphome::remote_base;
+                RemoteTransmitData d;
+                RC5Protocol().encode(&d, {.address = 0x05, .command = 0x23});
+                ESP_LOGI("irsim", "TX rc5 a=0x05 c=0x23");
+                irsim::send(d.get_data());
+            - delay: 150ms
+            - lambda: |-
+                using namespace esphome::remote_base;
+                RemoteTransmitData d;
+                LGProtocol().encode(&d, {.data = 0x20DF10EF, .nbits = 32});
+                ESP_LOGI("irsim", "TX lg 0x20DF10EF");
+                irsim::send(d.get_data());
+            - delay: 150ms
+            - lambda: |-
+                using namespace esphome::remote_base;
+                RemoteTransmitData d;
+                PanasonicProtocol().encode(&d, {.address = 0x4004, .command = 0x0100BCBD});
+                ESP_LOGI("irsim", "TX panasonic a=0x4004 c=0x0100BCBD");
+                irsim::send(d.get_data());
+            - delay: 150ms
+            - lambda: |-
+                using namespace esphome::remote_base;
+                RemoteTransmitData d;
+                JVCProtocol().encode(&d, {.data = 0xC5E8});
+                ESP_LOGI("irsim", "TX jvc 0xC5E8");
+                irsim::send(d.get_data());
+            - delay: 150ms
+      - logger.log: {level: INFO, tag: irsim, format: "CASE glitch10"}
+      - repeat:
+          count: 10
+          then:
+            - lambda: |-
+                ESP_LOGI("irsim", "TX nec a=0xEF00 c=0xFA05 glitch30");
+                irsim::send(irsim::nec(0xEF00, 0xFA05), 30);
+            - delay: 150ms
+      - logger.log: {level: INFO, tag: irsim, format: "CASE long700"}
+      - lambda: |-
+          std::vector<int32_t> d;
+          for (int i = 0; i < 350; i++) { d.push_back(400); d.push_back(-400); }
+          d.push_back(400);
+          ESP_LOGI("irsim", "TX long n=%u", (unsigned) d.size());
+          irsim::send(d);
+      - delay: 300ms
+      - lambda: |-
+          ESP_LOGI("irsim", "TX nec a=0xEF00 c=0xF609 after_long");
+          irsim::send(irsim::nec(0xEF00, 0xF609));
+      - delay: 300ms
+      - logger.log: {level: INFO, tag: irsim, format: "CASE random200"}
+      - repeat:
+          count: 200
+          then:
+            - lambda: |-
+                id(rnd) = id(rnd) * 1664525u + 1013904223u;
+                uint16_t a = id(rnd) >> 16, c = id(rnd) & 0xFFFF;
+                ESP_LOGI("irsim", "TX nec a=0x%04X c=0x%04X", a, c);
+                irsim::send(irsim::nec(a, c));
+            - delay: 150ms
+      - logger.log: {level: INFO, tag: irsim, format: "CASE done"}

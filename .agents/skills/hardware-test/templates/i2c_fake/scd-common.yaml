@@ -1,0 +1,79 @@
+esp32:
+  board: esp32dev
+  framework:
+    type: esp-idf
+
+esphome:
+  includes:
+    - scdfake.hpp
+  on_boot:
+    - priority: 700
+      then:
+        - lambda: |-
+            id(scd)->set_i2c_bus(&scdfake::bus);
+            id(scd_fixed)->set_i2c_bus(&scdfake::bus);
+
+logger:
+  level: DEBUG
+  logs:
+    sensor: INFO
+
+wifi:
+  ssid: !secret wifi_ssid
+  password: !secret wifi_password
+  power_save_mode: none
+
+api:
+  reboot_timeout: 0s
+
+i2c:
+  sda: GPIO21
+  scl: GPIO22
+  scan: false
+
+sensor:
+  - platform: template
+    id: press
+    update_interval: never
+  - platform: scd4x
+    id: scd
+    address: 0x62
+    update_interval: never
+    ambient_pressure_compensation_source: press
+    co2:
+      name: SCD CO2
+  - platform: scd4x
+    id: scd_fixed
+    address: 0x63
+    update_interval: never
+    ambient_pressure_compensation: 1013.6mbar
+    co2:
+      name: SCD Fixed CO2
+
+button:
+  - platform: template
+    name: Next
+    on_press:
+      - lambda: |-
+          float p = scdfake::CASES[scdfake::idx++ % (sizeof(scdfake::CASES) / sizeof(scdfake::CASES[0]))];
+          uint32_t before = scdfake::bus.e000_writes;
+          id(press).state = p;
+          ESP_LOGI("scdfake", "CASE source %.2f", p);
+          id(scd).update();
+          ESP_LOGI("scdfake", "CASE source %.2f -> %u E000 writes", p, scdfake::bus.e000_writes - before);
+  - platform: template
+    name: Show
+    on_press:
+      - lambda: |-
+          ESP_LOGI("scdfake", "SHOW 0x62 last E000 %d (%u writes), 0x63 last E000 %d (%u writes), scd failed %d, fixed failed %d",
+                   scdfake::bus.last_e000[0], scdfake::bus.count_e000[0], scdfake::bus.last_e000[1], scdfake::bus.count_e000[1],
+                   id(scd)->is_failed(), id(scd_fixed)->is_failed());
+  - platform: template
+    name: Direct
+    on_press:
+      - lambda: |-
+          for (float p : {101325.0f, 1013.6f, 450.0f, 1100.2f}) {
+            uint32_t before = scdfake::bus.e000_writes;
+            id(scd)->set_ambient_pressure_compensation(p);
+            ESP_LOGI("scdfake", "CASE direct %.2f -> %u E000 writes", p, scdfake::bus.e000_writes - before);
+          }

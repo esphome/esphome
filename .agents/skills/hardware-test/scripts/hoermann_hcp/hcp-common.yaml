@@ -1,0 +1,72 @@
+esp32:
+  board: esp32dev
+  framework:
+    type: esp-idf
+
+esphome:
+  includes: [hcpsim.hpp]
+  on_boot:
+    priority: -100
+    then:
+      - lambda: hcpsim::master.start(id(u_master));
+
+logger:
+  level: DEBUG
+
+uart:
+  - id: u_hub
+    tx_pin: {number: GPIO25, allow_other_uses: true}
+    rx_pin: {number: GPIO26, allow_other_uses: true}
+    baud_rate: 57600
+    parity: EVEN
+  - id: u_master
+    tx_pin: {number: GPIO26, allow_other_uses: true}
+    rx_pin: {number: GPIO25, allow_other_uses: true}
+    baud_rate: 57600
+    parity: EVEN
+    rx_buffer_size: 512
+
+modbus:
+  - id: bus
+    uart_id: u_hub
+    role: server
+
+hoermann_hcp:
+  id: hub
+  modbus_id: bus
+
+cover:
+  - platform: hoermann_hcp
+    name: Garage Door
+    device_class: garage
+
+binary_sensor:
+  - platform: hoermann_hcp
+    is_connected:
+      name: Garage Connected
+    actuator_error:
+      name: Garage Actuator Error
+
+light:
+  - platform: hoermann_hcp
+    name: Garage Light
+
+text_sensor:
+  - platform: hoermann_hcp
+    door_state:
+      name: Garage Door State
+
+interval:
+  - interval: 20ms
+    then:
+      - lambda: |-
+          int w = hcpsim::master.want.exchange(0);
+          if (w == 1) ESP_LOGI("hcpsim", "main: open_door() -> %d", id(hub).open_door());
+          if (w == 2) ESP_LOGI("hcpsim", "main: set_light(true) -> %d", id(hub).set_light(true));
+          static int last = -1;
+          int now = (int) id(hub).get_door_state() | (id(hub).is_valid() << 4) | (id(hub).is_light_on() << 5);
+          if (now != last) {
+            last = now;
+            ESP_LOGI("hcpsim", "STATE door=%d pos=%.2f valid=%d light=%d", (int) id(hub).get_door_state(),
+                     id(hub).get_current_position(), id(hub).is_valid(), id(hub).is_light_on());
+          }

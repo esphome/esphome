@@ -1,0 +1,11 @@
+substitutions: {drive_pin: "24"}
+esphome: {name: irf}
+packages: {common: !include ir-common.yaml}
+beken_irda:
+  pin: P24
+  mode: timer
+  sample_period: 50us
+  filter: 200us
+  idle: 12ms
+  buffer_size: 128
+  <<: !include rx-triggers.yaml

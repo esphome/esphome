@@ -1,0 +1,38 @@
+hlk_fm22x:
+  id: fm
+  uart_id: u_fm
+  on_face_scan_matched:
+    - logger.log:
+        format: "EV matched id=%d name='%s' len=%u is_admin_face=%d"
+        args: ["face_id", "name.c_str()", "(unsigned) name.size()", "name == \"Admin\""]
+  on_face_scan_unmatched:
+    - logger.log: "EV unmatched"
+  on_face_scan_invalid:
+    - logger.log: {format: "EV invalid error=%u", args: [error]}
+  on_face_info:
+    - logger.log: {format: "EV info status=%d left=%d top=%d right=%d bottom=%d yaw=%d", args: [status, left, top, right, bottom, yaw]}
+  on_enrollment_done:
+    - logger.log: {format: "EV enrolled id=%d dir=0x%02X", args: [face_id, direction]}
+  on_enrollment_failed:
+    - logger.log: {format: "EV enroll_failed error=%u", args: [error]}
+
+binary_sensor:
+  - platform: hlk_fm22x
+    name: Face Enrolling
+    on_state: {logger.log: {format: "ENT enrolling %d", args: [x]}}
+
+text_sensor:
+  - platform: hlk_fm22x
+    version:
+      name: Version
+      on_value: {logger.log: {format: "ENT version '%s' len=%u", args: ["x.c_str()", "(unsigned) x.size()"]}}
+    last_face_name:
+      name: Last Face Name
+      on_value: {logger.log: {format: "ENT last_name '%s' len=%u", args: ["x.c_str()", "(unsigned) x.size()"]}}
+
+script:
+  - id: run_all
+    then:
+      - script.execute: common_cases
+      - script.wait: common_cases
+      - lambda: 'ESP_LOGI("fm22sim", "DONE frames=%d bad=%d", fm22sim::mod.rx_frames.load(), fm22sim::mod.rx_bad.load());'

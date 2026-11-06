@@ -1,0 +1,159 @@
+#pragma once
+// Fake MS8607s (PT at 0x76.., humidity at 0x40..) on an in-firmware I2C bus, with per-device faults.
+#include "esphome/components/i2c/i2c_bus.h"
+#include "esphome/core/log.h"
+
+namespace msfake {
+static const char *const TAG = "msfake";
+using esphome::i2c::ErrorCode;
+
+struct Pt {
+  uint8_t addr;
+  uint32_t d1, d2;
+  int reset_nacks;  // NACK this many resets first
+  bool bad_prom_crc;
+  int zero_d1_every;  // every Nth pressure ADC read returns 0
+  uint16_t prom[7]{0, 46372, 43981, 29059, 27842, 31553, 28165};
+  uint8_t pending{0};  // 0x4A or 0x5A
+  uint8_t last{0xFF};  // last command, for a read in its own transaction
+  uint32_t resets{0}, conv_t{0}, conv_p{0}, adc{0}, prom_reads{0}, d1_reads{0};
+};
+struct Hd {
+  uint8_t addr;
+  uint16_t raw;
+  int bad_crc_every;  // every Nth read has a wrong CRC
+  uint32_t resets{0}, measures{0}, reads{0};
+};
+
+inline uint8_t crc4(const uint16_t *w) {
+  uint16_t r = 0;
+  auto add = [&r](uint8_t b) {
+    r ^= b;
+    for (int i = 0; i < 8; i++)
+      r = (r & 0x8000) ? (r << 1) ^ 0x3000 : (r << 1);
+  };
+  for (int i = 0; i < 7; i++) {
+    add(w[i] >> 8);
+    add(w[i] & 0xFF);
+  }
+  add(0);
+  add(0);
+  return (r >> 12) & 0xF;
+}
+inline uint8_t crc8(uint8_t a, uint8_t b) {
+  uint8_t c = 0;
+  for (uint8_t v : {a, b}) {
+    c ^= v;
+    for (int i = 0; i < 8; i++)
+      c = (c & 0x80) ? (c << 1) ^ 0x31 : (c << 1);
+  }
+  return c;
+}
+
+struct Bus final : public esphome::i2c::I2CBus {
+  Pt pts[8] = {
+      {0x76, 6465444, 8077636, 0, false, 0},   // A all sensors
+      {0x77, 6465444, 8077636, 0, false, 0},   // B no humidity
+      {0x78, 6465444, 8077636, 0, false, 0},   // C humidity only
+      {0x79, 6465444, 8077636, 0, false, 0},   // D temperature + humidity, humidity CRC faults
+      {0x7A, 6465444, 8077636, 0, true, 0},    // E bad PROM CRC
+      {0x7B, 6465444, 8077636, 2, false, 3},   // F reset NACKs twice, every 3rd D1 is zero
+      {0x7C, 6465444, 16000000, 0, false, 0},  // G temperature out of range
+      {0x7D, 6465444, 8077636, 0, false, 0},   // I humidity at full scale
+  };
+  Hd hds[8] = {{0x40, 31872, 0}, {0x00, 0, 0},     {0x41, 31872, 0}, {0x42, 31872, 2},
+               {0x43, 31872, 0}, {0x44, 31872, 0}, {0x45, 31872, 0}, {0x46, 0xFFFE, 0}};
+
+  void init() {
+    for (auto &p : pts) {
+      p.prom[0] = 0;
+      p.prom[0] = (crc4(p.prom) << 12) | 0x0123;
+      // CRC is over word 0 with its top nibble zeroed
+      uint16_t w[7];
+      for (int i = 0; i < 7; i++)
+        w[i] = p.prom[i];
+      w[0] &= 0x0FFF;
+      p.prom[0] = (uint16_t(crc4(w) ^ (p.bad_prom_crc ? 0x5 : 0)) << 12) | 0x0123;
+    }
+  }
+
+  ErrorCode write_readv(uint8_t address, const uint8_t *data, size_t size, uint8_t *out, size_t out_size) override {
+    for (auto &p : pts)
+      if (p.addr == address)
+        return pt_(p, data, size, out, out_size);
+    for (auto &h : hds)
+      if (h.addr == address && h.addr != 0)
+        return hd_(h, data, size, out, out_size);
+    return esphome::i2c::ERROR_NOT_ACKNOWLEDGED;
+  }
+
+  ErrorCode pt_(Pt &p, const uint8_t *data, size_t size, uint8_t *out, size_t out_size) {
+    if (size >= 1 || out_size > 0) {
+      uint8_t c = size >= 1 ? data[0] : p.last;
+      if (size >= 1)
+        p.last = c;
+      if (size >= 1 && out_size == 0 && ((c >= 0xA0 && c <= 0xAE) || c == 0x00))
+        return esphome::i2c::ERROR_OK;  // register pointer only, data follows in a read
+      if (c == 0x1E) {
+        if (p.reset_nacks > 0) {
+          p.reset_nacks--;
+          return esphome::i2c::ERROR_NOT_ACKNOWLEDGED;
+        }
+        p.resets++;
+      } else if (c == 0x4A || c == 0x5A) {
+        p.pending = c;
+        (c == 0x5A ? p.conv_t : p.conv_p)++;
+      } else if (c >= 0xA0 && c <= 0xAE && out_size == 2) {
+        uint16_t v = p.prom[(c - 0xA0) / 2];
+        out[0] = v >> 8;
+        out[1] = v & 0xFF;
+        p.prom_reads++;
+        return esphome::i2c::ERROR_OK;
+      } else if (c == 0x00 && out_size == 3) {
+        uint32_t v = 0;
+        if (p.pending == 0x5A)
+          v = p.d2;
+        if (p.pending == 0x4A) {
+          p.d1_reads++;
+          v = (p.zero_d1_every && p.d1_reads % p.zero_d1_every == 0) ? 0 : p.d1;
+        }
+        p.pending = 0;
+        p.adc++;
+        out[0] = v >> 16;
+        out[1] = v >> 8;
+        out[2] = v;
+        return esphome::i2c::ERROR_OK;
+      }
+    }
+    for (size_t i = 0; i < out_size; i++)
+      out[i] = 0;
+    return esphome::i2c::ERROR_OK;
+  }
+
+  ErrorCode hd_(Hd &h, const uint8_t *data, size_t size, uint8_t *out, size_t out_size) {
+    if (size >= 1 && data[0] == 0xFE)
+      h.resets++;
+    if (size >= 1 && data[0] == 0xF5)
+      h.measures++;
+    if (size == 0 && out_size == 3) {
+      h.reads++;
+      uint16_t v = (h.raw & ~0x3) | 0x2;
+      out[0] = v >> 8;
+      out[1] = v & 0xFF;
+      out[2] = crc8(out[0], out[1]) ^ ((h.bad_crc_every && h.reads % h.bad_crc_every == 0) ? 0xFF : 0);
+    }
+    return esphome::i2c::ERROR_OK;
+  }
+
+  void report() {
+    for (auto &p : pts)
+      ESP_LOGI(TAG, "PT 0x%02X resets=%u prom=%u convT=%u convP=%u adc=%u", p.addr, (unsigned) p.resets,
+               (unsigned) p.prom_reads, (unsigned) p.conv_t, (unsigned) p.conv_p, (unsigned) p.adc);
+    for (auto &h : hds)
+      if (h.addr)
+        ESP_LOGI(TAG, "H 0x%02X resets=%u measures=%u reads=%u", h.addr, (unsigned) h.resets, (unsigned) h.measures,
+                 (unsigned) h.reads);
+  }
+};
+inline Bus bus;
+}  // namespace msfake
