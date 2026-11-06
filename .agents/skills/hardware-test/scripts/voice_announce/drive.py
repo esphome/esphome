@@ -98,3 +98,8 @@ pathlib.Path(OUT).write_text(text, encoding="utf-8")
 print(text)
 if not any(w.startswith("HTTP request") for _, w in ev):
     sys.exit("FAIL: the device never fetched the announcement URL")
+sent = [t for t, w in ev if w == "HTTP body sent"]
+if not sent:
+    sys.exit("FAIL: the announcement body was never sent")
+if not any(w == "VA start (follow-up microphone)" and t > sent[0] for t, w in ev):
+    sys.exit("FAIL: no follow-up microphone start after the body was sent")
