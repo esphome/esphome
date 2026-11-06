@@ -37,13 +37,9 @@ void XxteaEncryption::setup() {
   if (!this->setup_check(this->max_packet_size_ != 0, LOG_STR("max_packet_size too small for the configured layers")))
     return;
   size_t words = this->lower_->get_max_packet_size() / 4;
-  // Without PSRAM, codegen passes static buffers instead.
-#ifdef USE_PSRAM
-  RAMAllocator<uint32_t> allocator;
-  this->rx_buffer_ = allocator.allocate(words * 2);
+  this->rx_buffer_ = static_or_heap(this->rx_buffer_, words * 2);
   if (!this->setup_check(this->rx_buffer_ != nullptr, LOG_STR("Not enough memory for the packet buffers")))
     return;
-#endif
   this->tx_buffer_ = this->rx_buffer_ + words;
   if (this->rolling_code_) {
     this->pref_ = global_preferences->make_preference<uint32_t>(fnv1a_hash_extend(PREF_HASH, this->name_), true);

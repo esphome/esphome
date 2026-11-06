@@ -3,7 +3,6 @@
 import esphome.codegen as cg
 import esphome.config_validation as cv
 from esphome.const import CONF_ID, CONF_TIMEOUT
-from esphome.core import CORE
 from esphome.cpp_generator import MockObj
 from esphome.types import ConfigType
 
@@ -54,15 +53,11 @@ async def build_hdlc(
 ) -> Layer:
     cg.add_define("USE_PACKET_INTERFACE_HDLC")
     queue_length = config[CONF_MAX_QUEUE_LENGTH]
-    # With PSRAM the queue is allocated in setup(), where PSRAM may hold it
-    tx_slots = (
-        cg.nullptr
-        if "psram" in CORE.loaded_integrations
-        else cg.static_buffer(
-            config[CONF_ID],
-            cg.uint8,
-            f"{HdlcReliability}::send_queue_size({lower_size}, {queue_length})",
-        )
+    tx_slots = cg.static_buffer(
+        config[CONF_ID],
+        cg.uint8,
+        f"{HdlcReliability}::send_queue_size({lower_size}, {queue_length})",
+        psram=True,
     )
     var = cg.new_Pvariable(config[CONF_ID], lower, tx_slots)
     cg.add(var.set_ack_timeout(config[CONF_TIMEOUT]))
