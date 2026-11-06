@@ -2,6 +2,7 @@ import esphome.codegen as cg
 from esphome.components import light, spi
 import esphome.config_validation as cv
 from esphome.const import CONF_NUM_LEDS, CONF_OUTPUT_ID
+from esphome.core import CORE
 from esphome.types import ConfigType
 
 spi_led_strip_ns = cg.esphome_ns.namespace("spi_led_strip")
@@ -22,3 +23,9 @@ async def to_code(config: ConfigType) -> None:
     await light.register_light(var, config)
     await spi.register_spi_device(var, config)
     await cg.register_component(var, config)
+    # Without a static buffer, setup() allocates one, in PSRAM when available
+    if "psram" not in CORE.loaded_integrations:
+        buffer = cg.static_buffer(
+            config[CONF_OUTPUT_ID], cg.uint8, config[CONF_NUM_LEDS] * 5 + 8
+        )
+        cg.add(var.set_buffer(buffer))

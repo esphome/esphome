@@ -13,6 +13,8 @@ class SpiLedStrip final : public light::AddressableLight,
                                                 spi::CLOCK_PHASE_TRAILING, spi::DATA_RATE_1MHZ> {
  public:
   SpiLedStrip(uint16_t num_leds);
+  /// A static block of num_leds * 5 + 8 bytes; without one, setup() allocates it, in PSRAM when available.
+  void set_buffer(uint8_t *buffer);
   void setup() override;
   float get_setup_priority() const override { return setup_priority::IO; }
 

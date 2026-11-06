@@ -7,16 +7,22 @@ constexpr size_t COLOR_DATA_OFFSET = 5;
 constexpr size_t BUFFER_PADDING = 8;
 
 SpiLedStrip::SpiLedStrip(uint16_t num_leds) : buffer_size_(num_leds * 4 + BUFFER_PADDING), num_leds_(num_leds) {}
+void SpiLedStrip::set_buffer(uint8_t *buffer) {
+  this->internal_accessor_.color_data = buffer + COLOR_DATA_OFFSET;
+  this->internal_accessor_.effect_data = buffer + this->buffer_size_;
+}
 void SpiLedStrip::setup() {
-  RAMAllocator<uint8_t> allocator;
-  uint8_t *buf = allocator.allocate(this->buffer_size_ + this->num_leds_);
-  if (!this->setup_check(buf != nullptr, LOG_STR(ESP_LOG_MSG_ALLOC_FAIL)))
-    return;
+  if (this->internal_accessor_.color_data == nullptr) {
+    RAMAllocator<uint8_t> allocator;
+    uint8_t *buf = allocator.allocate(this->buffer_size_ + this->num_leds_);
+    if (!this->setup_check(buf != nullptr, LOG_STR(ESP_LOG_MSG_ALLOC_FAIL)))
+      return;
+    this->set_buffer(buf);
+    this->internal_accessor_.clear_effect_data(this->num_leds_);
+  }
+  uint8_t *buf = this->internal_accessor_.color_data - COLOR_DATA_OFFSET;
   memset(buf, 0xFF, this->buffer_size_);
   memset(buf, 0, 4);
-  this->internal_accessor_.color_data = buf + COLOR_DATA_OFFSET;
-  this->internal_accessor_.effect_data = buf + this->buffer_size_;
-  this->internal_accessor_.clear_effect_data(this->num_leds_);
   this->accessor_ = &this->internal_accessor_;
 
   this->spi_setup();
