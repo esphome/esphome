@@ -4,6 +4,8 @@
 #include "esphome/core/hal.h"
 #include "esphome/core/helpers.h"
 
+#include <span>
+
 namespace esphome::sn74hc165 {
 
 class SN74HC165Component final : public Component {
@@ -20,10 +22,7 @@ class SN74HC165Component final : public Component {
   void set_load_pin(GPIOPin *pin) { this->load_pin_ = pin; }
   void set_clock_inhibit_pin(GPIOPin *pin) { this->clock_inhibit_pin_ = pin; }
   /// `input_bytes` holds one byte per register, a static array from code generation
-  void set_sr_count(uint8_t count, uint8_t *input_bytes) {
-    this->sr_count_ = count;
-    this->input_bytes_ = input_bytes;
-  }
+  void set_input_bytes(std::span<uint8_t> input_bytes) { this->input_bytes_ = input_bytes; }
 
  protected:
   friend class SN74HC165GPIOPin;
@@ -34,8 +33,7 @@ class SN74HC165Component final : public Component {
   GPIOPin *clock_pin_;
   GPIOPin *load_pin_;
   GPIOPin *clock_inhibit_pin_;
-  uint8_t sr_count_;
-  uint8_t *input_bytes_;
+  std::span<uint8_t> input_bytes_;
 };
 
 /// Helper class to expose a SC74HC165 pin as an internal input GPIO pin.

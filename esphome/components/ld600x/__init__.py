@@ -70,7 +70,7 @@ def add_frame_buffer(hub: MockObj, config: ConfigType, hub_id_key: str) -> None:
         if point_cloud
         else ld600x_ns.DEFAULT_MAX_DATA_LEN
     )
-    buffer = cg.static_buffer(config[CONF_ID], cg.uint8, str(size), psram=True)
+    buffer = cg.static_buffer(config[CONF_ID], cg.uint8, size, psram=True)
     cg.add(hub.set_frame_buffer(buffer, size))
 
 

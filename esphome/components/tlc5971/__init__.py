@@ -25,13 +25,12 @@ CONFIG_SCHEMA = cv.Schema(
 
 
 async def to_code(config: ConfigType) -> None:
-    num_chips = config[CONF_NUM_CHIPS]
     pwm_amounts = cg.static_buffer(
         config[CONF_ID],
         cg.uint16,
-        f"{num_chips} * {TLC5971}::N_CHANNELS_PER_CHIP",
+        config[CONF_NUM_CHIPS] * TLC5971.static_("N_CHANNELS_PER_CHIP"),
     )
-    var = cg.new_Pvariable(config[CONF_ID], num_chips, pwm_amounts)
+    var = cg.new_Pvariable(config[CONF_ID], pwm_amounts)
     await cg.register_component(var, config)
 
     await cg.add_pin(var.set_data_pin, config[CONF_DATA_PIN])
