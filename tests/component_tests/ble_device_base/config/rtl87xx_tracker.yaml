@@ -1,0 +1,11 @@
+wifi:
+  ssid: MySSID
+  password: password1
+
+esphome:
+  name: slotcount-tracker
+
+rtl87xx:
+  board: bw15
+
+rtl87xx_ble_tracker:
