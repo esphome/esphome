@@ -209,7 +209,7 @@ INSTANTIATE_TEST_SUITE_P(LoRaAndFSKWithRxOrSleepAndFixedOrVariablePayload, SX126
 
 class SX126xBusyReceive : public ::testing::TestWithParam<bool> {};
 
-TEST_P(SX126xBusyReceive, DropsFailedReadsAndRecoversOnNextPacket) {
+TEST_P(SX126xBusyReceive, KeepsAPacketWhoseReadFailedAndRetries) {
   const bool lora = GetParam();
   for (size_t fault = 1; fault <= 5; fault++) {
     SCOPED_TRACE(fault);
@@ -225,8 +225,8 @@ TEST_P(SX126xBusyReceive, DropsFailedReadsAndRecoversOnNextPacket) {
     EXPECT_TRUE(listener.packets.empty());
     EXPECT_TRUE(hardware.radio.status_has_warning());
     EXPECT_FALSE(hardware.radio.is_failed());
+    EXPECT_EQ(hardware.irq, IRQ_RX_DONE);  // Not cleared, so DIO1 stays high.
     hardware.clear_trace();
-    hardware.irq = IRQ_RX_DONE;
     LoopBlockingGuard retry{nullptr, nullptr, App.get_loop_component_start_time() + 200};
     hardware.radio.loop();
     ASSERT_EQ(listener.packets.size(), 1u);

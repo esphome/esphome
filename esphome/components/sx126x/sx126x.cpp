@@ -51,11 +51,7 @@ void SX126x::apply_(const RadioEffects &effects) {
     this->rx_dispatching_ = true;
   }
   if (effects.report) {
-    if (effects.warning == nullptr) {
-      this->status_clear_warning();
-    } else {
-      this->status_set_warning(effects.warning);
-    }
+    this->status_comm_result(effects.warning == nullptr, effects.warning);
   }
   if (effects.listener != nullptr) {
     effects.listener->on_transmit_complete(effects.result);

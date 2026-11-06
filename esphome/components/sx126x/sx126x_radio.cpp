@@ -218,16 +218,18 @@ RadioEffects Sx126xRadio::receive_(bool holding, uint32_t now, std::vector<uint8
   this->busy_ = true;
   this->bus().begin();
   const uint16_t status = this->commands_.read_irq();
-  if (!holding) {
-    this->commands_.clear_irqs(status);  // A held packet keeps its IRQ until restoration.
-  }
   const bool received = (status & IRQ_RX_DONE) && !(status & IRQ_CRC_ERROR);
   float rssi = 0, snr = 0;
   if (received) {
     this->commands_.read_packet(this->applied_.modulation, packet, rssi, snr);
   }
+  if (!holding) {
+    // Cleared only after a successful read, so a failed read leaves DIO1 high and retries.
+    // A held packet keeps its IRQ until restoration.
+    this->commands_.clear_irqs(status);
+  }
   const bool read = this->bus().ok();
-  // Keep a failed packet's IRQ/FIFO, but do not spend a BUSY timeout on every loop.
+  // Do not spend a BUSY timeout on every loop while a read keeps failing.
   this->rx_retry_pending_ = !read;
   this->rx_retry_started_ms_ = now;
   RadioState next = this->state_;
