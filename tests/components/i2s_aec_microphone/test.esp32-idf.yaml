@@ -1,0 +1,48 @@
+psram:
+  mode: quad
+
+i2s_audio:
+  id: audio_bus
+  i2s_bclk_pin: GPIO5
+  i2s_lrclk_pin: GPIO25
+  i2s_mclk_pin: GPIO0
+  full_duplex: true
+  keep_tx_active: true
+
+microphone:
+  - platform: i2s_audio
+    id: raw_microphone
+    i2s_audio_id: audio_bus
+    adc_type: external
+    i2s_din_pin: GPIO35
+    sample_rate: 48000
+    bits_per_sample: 16bit
+    channel: stereo
+  - platform: resampler
+    id: voice_microphone
+    microphone:
+      microphone: raw_microphone
+      channels: 0
+    sample_rate: 16000
+    fast_decimation: true
+
+speaker:
+  - platform: i2s_audio
+    id: audio_speaker
+    i2s_audio_id: audio_bus
+    dac_type: external
+    i2s_dout_pin: GPIO26
+    sample_rate: 48000
+    bits_per_sample: 16bit
+    channel: stereo
+
+i2s_aec_microphone:
+  id: echo_cancelled_microphone
+  i2s_audio_id: audio_bus
+  microphone: voice_microphone
+  filter_length: 4
+  fast_reference_decimation: true
+
+logger:
+  logs:
+    i2s_aec_microphone: DEBUG
