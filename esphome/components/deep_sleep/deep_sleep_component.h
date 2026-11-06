@@ -145,9 +145,8 @@ class DeepSleepComponent final : public Component {
 #endif  // USE_ESP32
 
 #if defined(USE_BK72XX)
-  void init_wakeup_pins(size_t capacity) { this->wakeup_pins_.init(capacity); }
   void add_wakeup_pin(InternalGPIOPin *wakeup_pin, WakeupPinMode wakeup_pin_mode) {
-    this->wakeup_pins_.emplace_back(WakeUpPinItem{wakeup_pin, wakeup_pin_mode, !wakeup_pin->is_inverted()});
+    this->wakeup_pins_.push_back(WakeUpPinItem{wakeup_pin, wakeup_pin_mode, !wakeup_pin->is_inverted()});
   }
 #endif  // USE_BK72XX
 
@@ -203,7 +202,7 @@ class DeepSleepComponent final : public Component {
   optional<uint64_t> sleep_duration_;
 
 #ifdef USE_BK72XX
-  FixedVector<WakeUpPinItem> wakeup_pins_;
+  [[no_unique_address]] SlotList<WakeUpPinItem, DEEP_SLEEP_WAKEUP_PIN_COUNT> wakeup_pins_;
 #endif  // USE_BK72XX
 
 #ifdef USE_ESP32
