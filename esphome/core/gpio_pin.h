@@ -94,7 +94,7 @@ class GPIOPin {
 #endif
 };
 
-/// Copy of GPIOPin that is safe to use from ISRs (with no virtual functions)
+/// ISR-safe handle to an internal pin (no virtual calls); every handle points at the pin itself and shares its state
 class ISRInternalGPIOPin {
  public:
   ISRInternalGPIOPin() = default;
