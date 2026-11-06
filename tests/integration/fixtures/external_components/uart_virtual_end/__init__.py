@@ -9,20 +9,33 @@ DEPENDENCIES = ["uart"]
 MULTI_CONF = True
 
 CONF_PEER_ID = "peer_id"
+CONF_COPIES_PEER = "copies_peer"
 
 uart_virtual_end_ns = cg.esphome_ns.namespace("uart_virtual_end")
 UartVirtualEnd = uart_virtual_end_ns.class_(
     "UartVirtualEnd", uart.VirtualUARTComponent, cg.Component
 )
 
+
+def _copies_peer(config: ConfigType) -> ConfigType:
+    # This end then passes on its peer's writes like a UART that copies another one.
+    if config[CONF_COPIES_PEER]:
+        uart.inherit_settings(config[CONF_ID], config[CONF_PEER_ID])
+    return config
+
+
 # One end of a wireless null-modem pair: what one end writes, its peer receives.
-CONFIG_SCHEMA = cv.Schema(
-    {
-        cv.GenerateID(): cv.declare_id(UartVirtualEnd),
-        cv.Required(CONF_PEER_ID): cv.use_id(UartVirtualEnd),
-        cv.Optional(CONF_BAUD_RATE, default=9600): cv.int_range(min=1),
-    }
-).extend(cv.COMPONENT_SCHEMA)
+CONFIG_SCHEMA = cv.All(
+    cv.Schema(
+        {
+            cv.GenerateID(): cv.declare_id(UartVirtualEnd),
+            cv.Required(CONF_PEER_ID): cv.use_id(UartVirtualEnd),
+            cv.Optional(CONF_BAUD_RATE, default=9600): cv.int_range(min=1),
+            cv.Optional(CONF_COPIES_PEER, default=False): cv.boolean,
+        }
+    ).extend(cv.COMPONENT_SCHEMA),
+    _copies_peer,
+)
 
 
 async def to_code(config: ConfigType) -> None:

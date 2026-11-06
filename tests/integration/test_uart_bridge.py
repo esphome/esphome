@@ -13,6 +13,10 @@ test_uart_bridge_polled:
   quiet for a frame gap. uart_mock reports a baud rate of 115200, so it is timed as a line: 3.5 characters
   are less than 1.75 ms there, so the gap is 1750 us. uart_mock cannot report its free room, so every
   frame leaves in one write.
+
+test_uart_bridge_copy:
+  meter ~ end_a - bridge - end_b. end_a is virtual but passes on what meter writes, piece by piece, like
+  a UART that copies another one, so the bridge reads it like a line at 115200 baud; end_b is a uart_mock.
 """
 
 from __future__ import annotations
@@ -105,3 +109,32 @@ async def test_uart_bridge_polled(
     assert 8 in log.tx["end_b"]
     assert 209 in log.tx["end_b"]
     assert 255 in log.tx["end_a"]
+
+
+@pytest.mark.asyncio
+async def test_uart_bridge_copy(
+    yaml_config: str,
+    run_compiled: RunCompiledFunction,
+    api_client_connected: APIClientConnectedFactory,
+) -> None:
+    """An end that copies a UART: a frame in pieces leaves whole, a telegram loses no byte."""
+    log = _BridgeLog()
+    done = asyncio.get_running_loop().create_future()
+
+    def on_line(line: str) -> None:
+        log.on_line(line)
+        if "METER DONE" in line and not done.done():
+            done.set_result(None)
+
+    async with (
+        run_compiled(yaml_config, line_callback=on_line),
+        api_client_connected(),
+    ):
+        await asyncio.wait_for(done, timeout=15.0)
+
+    assert log.end_kinds == {"A": ("polled", 1750), "B": ("polled", 1750)}
+    # 30: the three pieces of 10 bytes leave as one frame.
+    # 256: each later step writes four pieces of 64 at once; they fill end_a's 256-byte
+    # buffer and one bridge block exactly and leave as that block.
+    # Four times 256 = 1024: no byte of the telegram is lost.
+    assert log.tx["end_b"] == [30, 256, 256, 256, 256]

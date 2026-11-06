@@ -6,7 +6,7 @@ from esphome.const import CONF_DEBUG, CONF_DUMMY_RECEIVER, CONF_ID, CONF_UART_ID
 import esphome.final_validate as fv
 from esphome.types import ConfigType
 
-from .. import uart_ns
+from .. import _settings_source, uart_ns
 
 CODEOWNERS = ["@Bascht74"]
 DEPENDENCIES = ["uart"]
@@ -51,12 +51,16 @@ async def to_code(config: ConfigType) -> None:
     b_id, b = await cg.get_variable_with_full_id(config[CONF_PEER_ID])
     var = cg.new_Pvariable(config[CONF_ID], a, b)
     await cg.register_component(var, config)
-    # A virtual end is not polled; any other end not marked unclocked is a line.
-    if a_id.type.inherits_from(uart.VirtualUARTComponent):
+    # A virtual end is not polled, except one passing on another UART's bytes as they
+    # come (uart.inherit_settings()), so pieces within a frame gap leave as one frame.
+    # A polled end is a line unless marked unclocked; a copy takes that UART's mark.
+    a_source = _settings_source(a_id)
+    if a_source is None and a_id.type.inherits_from(uart.VirtualUARTComponent):
         cg.add(var.set_virtual_a(a))
-    elif not uart.is_unclocked(a_id):
+    elif not uart.is_unclocked(a_source or a_id):
         cg.add(var.set_wire_a())
-    if b_id.type.inherits_from(uart.VirtualUARTComponent):
+    b_source = _settings_source(b_id)
+    if b_source is None and b_id.type.inherits_from(uart.VirtualUARTComponent):
         cg.add(var.set_virtual_b(b))
-    elif not uart.is_unclocked(b_id):
+    elif not uart.is_unclocked(b_source or b_id):
         cg.add(var.set_wire_b())

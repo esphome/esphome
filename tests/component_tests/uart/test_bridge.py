@@ -155,6 +155,10 @@ _VIRTUAL = uart.uart_ns.class_("TestVirtualUart", uart.VirtualUARTComponent)
 _OTHER = uart.uart_ns.class_("TestOtherUart", uart.UARTComponent)
 # A UART that marks its id with uart.mark_unclocked(), e.g. tcp_uart or a usb_uart channel.
 _UNCLOCKED = uart.uart_ns.class_("TestUnclockedUart", uart.UARTComponent)
+# Virtual UARTs that pass on the bytes of another UART as they arrive (uart.inherit_settings()):
+# of a line, and of an unclocked UART.
+_COPY_OF_LINE = uart.uart_ns.class_("TestLineCopy", uart.VirtualUARTComponent)
+_COPY_OF_UNCLOCKED = uart.uart_ns.class_("TestUnclockedCopy", uart.VirtualUARTComponent)
 _SETTERS = ("set_virtual_a", "set_virtual_b", "set_wire_a", "set_wire_b")
 
 
@@ -171,6 +175,9 @@ _SETTERS = ("set_virtual_a", "set_virtual_b", "set_wire_a", "set_wire_b")
         (_UNCLOCKED, _HARDWARE, ["set_wire_b"]),
         (_OTHER, _UNCLOCKED, ["set_wire_a"]),
         (_UNCLOCKED, _VIRTUAL, ["set_virtual_b"]),
+        # Read like the UART they copy, not handed over block by block.
+        (_COPY_OF_LINE, _HARDWARE, ["set_wire_a", "set_wire_b"]),
+        (_HARDWARE, _COPY_OF_UNCLOCKED, ["set_wire_a"]),
     ],
 )
 async def test_to_code_tells_the_bridge_what_each_end_is(
@@ -183,6 +190,10 @@ async def test_to_code_tells_the_bridge_what_each_end_is(
     for end in ends.values():
         if end.type is _UNCLOCKED:
             uart.mark_unclocked(end)
+        if end.type is _COPY_OF_LINE:
+            uart.inherit_settings(end, ID("line"))
+        if end.type is _COPY_OF_UNCLOCKED:
+            uart.inherit_settings(end, uart.mark_unclocked(ID("tcp_line")))
 
     async def full_id(id_: ID) -> tuple[ID, mock.MagicMock]:
         return ends[id_.id], mock.MagicMock(name=id_.id)
