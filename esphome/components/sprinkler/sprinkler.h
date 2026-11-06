@@ -566,7 +566,7 @@ class Sprinkler final : public Component {
   StaticFixedVector<SprinklerValve> valve_;
 
   /// Sprinkler valve operator objects
-  std::vector<SprinklerValveOperator> valve_op_{2};
+  std::array<SprinklerValveOperator, 2> valve_op_{};
 
   /// Valve control timers, indexed by SprinklerTimerIndex (also used as the scheduler id)
   std::array<SprinklerTimer, 2> timer_;
