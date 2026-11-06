@@ -66,6 +66,7 @@ void AudioPipeline::start_url(const std::string &uri, bool is_announcement) {
   this->current_uri_ = uri;
   this->pending_is_announcement_ = is_announcement;
   this->pending_url_ = true;
+  this->pending_file_ = false;
 }
 
 void AudioPipeline::start_file(const audio::AudioFile *audio_file, bool is_announcement) {
@@ -75,9 +76,17 @@ void AudioPipeline::start_file(const audio::AudioFile *audio_file, bool is_annou
   this->current_audio_file_ = audio_file;
   this->pending_is_announcement_ = is_announcement;
   this->pending_file_ = true;
+  this->pending_url_ = false;
 }
 
 esp_err_t AudioPipeline::stop() {
+  if (this->waiting_for_start_condition_) {
+    // No tasks were started. A paused wait must not remain PAUSED after STOP.
+    this->set_pause_state(false);
+  }
+  this->pending_url_ = false;
+  this->pending_file_ = false;
+  this->waiting_for_start_condition_ = false;
   xEventGroupSetBits(this->event_group_, EventGroupBits::PIPELINE_COMMAND_STOP);
 
   return ESP_OK;
@@ -160,25 +169,38 @@ AudioPipelineState AudioPipeline::process_state() {
   if (this->pending_url_ || this->pending_file_) {
     // Init command pending
     if (!(event_bits & EventGroupBits::PIPELINE_COMMAND_STOP)) {
-      // Only start if there is no pending stop command
-      if (!this->read_task_.is_created() || !this->decode_task_.is_created()) {
-        // At least one task isn't running
-        this->start_tasks_();
-      }
+      if (this->start_condition_ && !this->start_condition_()) {
+        // Report playback as active so on_play/on_announcement can release a shared resource.
+        // No reader or decoder task may start until the condition is true.
+        if (!this->read_task_.is_created() && !this->decode_task_.is_created()) {
+          if (!this->waiting_for_start_condition_) {
+            ESP_LOGD(TAG, "Waiting for playback start condition");
+            this->waiting_for_start_condition_ = true;
+          }
+          return this->pause_state_ ? AudioPipelineState::PAUSED : AudioPipelineState::PLAYING;
+        }
+      } else {
+        this->waiting_for_start_condition_ = false;
+        // Only start if there is no pending stop command
+        if (!this->read_task_.is_created() || !this->decode_task_.is_created()) {
+          // At least one task isn't running
+          this->start_tasks_();
+        }
 
-      this->current_is_announcement_ = this->pending_is_announcement_;
-      if (this->pending_url_) {
-        xEventGroupSetBits(this->event_group_, EventGroupBits::READER_COMMAND_INIT_HTTP);
-        this->playback_ms_ = 0;
-        this->pending_url_ = false;
-      } else if (this->pending_file_) {
-        xEventGroupSetBits(this->event_group_, EventGroupBits::READER_COMMAND_INIT_FILE);
-        this->playback_ms_ = 0;
-        this->pending_file_ = false;
-      }
+        this->current_is_announcement_ = this->pending_is_announcement_;
+        if (this->pending_url_) {
+          xEventGroupSetBits(this->event_group_, EventGroupBits::READER_COMMAND_INIT_HTTP);
+          this->playback_ms_ = 0;
+          this->pending_url_ = false;
+        } else if (this->pending_file_) {
+          xEventGroupSetBits(this->event_group_, EventGroupBits::READER_COMMAND_INIT_FILE);
+          this->playback_ms_ = 0;
+          this->pending_file_ = false;
+        }
 
-      this->is_playing_ = true;
-      return AudioPipelineState::PLAYING;
+        this->is_playing_ = true;
+        return AudioPipelineState::PLAYING;
+      }
     }
   }
 
