@@ -6,6 +6,8 @@
 #include "esphome/components/http_request/ota/ota_http_request.h"
 #include "esphome/components/http_request/update/http_request_update.h"
 #include "esphome/components/json/json_util.h"
+#include "esphome/core/application.h"
+#include "esphome/core/hal.h"
 
 namespace esphome::http_request::testing {
 
@@ -213,6 +215,8 @@ TEST_F(HttpRequestUpdateCheckTest, ResultIsDiscardedWhileATargetIsInstalling) {
 
   EXPECT_EQ(update.state, update::UPDATE_STATE_INSTALLING);
   EXPECT_EQ(update.update_info.latest_version, "2.0.0");
+  // Run the deferred install while update is still alive
+  App.scheduler.call(millis());
 }
 
 // Without the guard this dereferences the unset request parent and crashes.
