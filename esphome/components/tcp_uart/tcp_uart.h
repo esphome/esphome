@@ -33,6 +33,7 @@ class TcpUart : public uart::UARTComponent, public Component {
   void set_host(const char *host) { this->link_.set_host(host); }
   void set_port(uint16_t port) { this->link_.set_port(port); }
   void set_reconnect_interval(uint32_t ms) { this->link_.set_reconnect_interval(ms); }
+  void set_timeout(uint32_t ms) { this->link_.set_idle_timeout(ms); }
 #ifdef USE_SOCKET_TCP_LISTENER
   void set_server(bool server) { this->server_ = server; }
 #ifdef USE_SOCKET_IPV4_ALLOW
