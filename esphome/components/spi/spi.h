@@ -272,7 +272,7 @@ class SPIDelegate {
   SPIBitOrder bit_order_{BIT_ORDER_MSB_FIRST};
   uint32_t data_rate_{1000000};
   SPIMode mode_{MODE0};
-  GPIOPin *cs_pin_{NullPin::NULL_PIN};
+  GPIOPin *cs_pin_{&NullPin::instance};  // the address is constant, unlike NULL_PIN's value
 #ifdef USE_SPI_PSRAM_DMA
   bool psram_dma_{false};
 #endif
