@@ -253,16 +253,12 @@ void VL53L1XSensor::setup() {
     this->set_i2c_address(final_address);
   }
 
-  if (!this->configure_()) {
-    this->mark_failed(LOG_STR(ESP_LOG_MSG_COMM_FAIL));
+  if (!this->setup_check(this->configure_()))
     return;
-  }
 
   // The ULD ranges once during init to calibrate; loop() finishes that from the first result.
-  if (!this->start_ranging_()) {
-    this->mark_failed(LOG_STR(ESP_LOG_MSG_COMM_FAIL));
+  if (!this->setup_check(this->start_ranging_()))
     return;
-  }
   this->measurement_start_ = millis();
 }
 

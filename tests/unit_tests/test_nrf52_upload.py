@@ -154,6 +154,129 @@ class TestUploadProgramPyocd:
 
 
 # ---------------------------------------------------------------------------
+# JLINK upload path
+# ---------------------------------------------------------------------------
+
+
+class TestUploadProgramJlink:
+    def test_jlink_assembles_west_command(
+        self, setup_core: Path, tmp_path: Path
+    ) -> None:
+        """West flash must use the jlink runner with the J-Link Commander that was found."""
+        from esphome.components.nrf52 import upload_program
+
+        _setup_nrf52_core(build_path=tmp_path / "build")
+        CORE.config_path = tmp_path / "test.yaml"
+        paths = _make_paths(tmp_path)
+        commander = tmp_path / "JLink" / "JLinkExe"
+
+        with (
+            patch(
+                "esphome.components.nrf52.jlink.find_jlink_commander",
+                return_value=commander,
+            ),
+            patch("esphome.components.nrf52.jlink.check_and_install"),
+            patch("esphome.components.nrf52.jlink.get_build_paths", return_value=paths),
+            patch("esphome.components.nrf52.jlink.get_build_env", return_value={}),
+            patch(
+                "esphome.components.nrf52.jlink.run_command_ok", return_value=True
+            ) as mock_run,
+        ):
+            assert upload_program(config={}, args=None, host="JLINK") is True
+
+        cmd = mock_run.call_args[0][0]
+        assert cmd == [
+            str(paths["python_executable"]),
+            "-m",
+            "west",
+            "flash",
+            "--runner",
+            "jlink",
+            "-d",
+            str(CORE.relative_pioenvs_path(CORE.name)),
+            "--commander",
+            str(commander),
+            "--reset",
+        ]
+
+    def test_jlink_names_the_nrf54l15_device(
+        self, setup_core: Path, tmp_path: Path
+    ) -> None:
+        """The board's generic cortex-m33 device cannot program the nRF54L15's RRAM."""
+        from esphome.components.nrf52 import upload_program
+        from esphome.components.nrf52.const import VARIANT_NRF54L15
+        from esphome.components.nrf52.framework import set_nrf52_variant
+
+        _setup_nrf52_core(build_path=tmp_path / "build")
+        set_nrf52_variant(VARIANT_NRF54L15)
+        CORE.config_path = tmp_path / "test.yaml"
+
+        with (
+            patch(
+                "esphome.components.nrf52.jlink.find_jlink_commander",
+                return_value=tmp_path / "JLinkExe",
+            ),
+            patch("esphome.components.nrf52.jlink.check_and_install"),
+            patch(
+                "esphome.components.nrf52.jlink.get_build_paths",
+                return_value=_make_paths(tmp_path),
+            ),
+            patch("esphome.components.nrf52.jlink.get_build_env", return_value={}),
+            patch(
+                "esphome.components.nrf52.jlink.run_command_ok", return_value=True
+            ) as mock_run,
+        ):
+            assert upload_program(config={}, args=None, host="JLINK") is True
+
+        assert mock_run.call_args[0][0][-2:] == ["--device", "nRF54L15_M33"]
+
+    def test_jlink_not_installed_raises(self, setup_core: Path, tmp_path: Path) -> None:
+        """Without SEGGER's software the upload stops before running west."""
+        from esphome.components.nrf52 import upload_program
+
+        _setup_nrf52_core(build_path=tmp_path / "build")
+
+        with (
+            patch(
+                "esphome.components.nrf52.jlink.find_jlink_commander", return_value=None
+            ),
+            patch("esphome.components.nrf52.jlink.run_command_ok") as mock_run,
+            pytest.raises(EsphomeError, match="J-Link software was not found"),
+        ):
+            upload_program(config={}, args=None, host="JLINK")
+        mock_run.assert_not_called()
+
+    def test_jlink_platformio_raises(self, setup_core: Path, tmp_path: Path) -> None:
+        from esphome.components.nrf52 import upload_program
+
+        _setup_nrf52_core(toolchain=Toolchain.PLATFORMIO, build_path=tmp_path / "build")
+        with pytest.raises(EsphomeError, match="sdk-nrf"):
+            upload_program(config={}, args=None, host="JLINK")
+
+    def test_jlink_failure_raises(self, setup_core: Path, tmp_path: Path) -> None:
+        from esphome.components.nrf52 import upload_program
+
+        _setup_nrf52_core(build_path=tmp_path / "build")
+        CORE.config_path = tmp_path / "test.yaml"
+
+        with (
+            patch(
+                "esphome.components.nrf52.jlink.find_jlink_commander",
+                return_value=tmp_path / "JLinkExe",
+            ),
+            patch("esphome.components.nrf52.jlink.check_and_install"),
+            patch(
+                "esphome.components.nrf52.jlink.get_build_paths",
+                return_value=_make_paths(tmp_path),
+            ),
+            patch("esphome.components.nrf52.jlink.get_build_env", return_value={}),
+            patch("esphome.components.nrf52.jlink.run_command_ok", return_value=False),
+            pytest.raises(EsphomeError, match="J-Link could not flash the device"),
+        ):
+            upload_program(config={}, args=None, host="JLINK")
+
+
+# ---------------------------------------------------------------------------
 # PlatformIO toolchain paths
 # ---------------------------------------------------------------------------
 

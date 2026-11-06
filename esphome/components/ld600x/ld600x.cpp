@@ -187,10 +187,8 @@ void LD600XComponent::setup() {
   // One allocation for the component lifetime; the parser reuses it for every payload.
   RAMAllocator<uint8_t> allocator;
   uint8_t *buffer = allocator.allocate(capacity);
-  if (buffer == nullptr) {
-    this->mark_failed(LOG_STR("Failed to allocate frame buffer"));
+  if (!this->setup_check(buffer != nullptr, LOG_STR("Failed to allocate frame buffer")))
     return;
-  }
   this->parser_.init(buffer, capacity);
 
   this->set_timeout(SETUP_DELAY_MS, [this]() {

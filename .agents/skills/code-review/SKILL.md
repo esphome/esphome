@@ -30,8 +30,8 @@ performance nit, because it fragments a small shared heap. Flag:
   `StaticVector<T, N>` when a `push_back` API is needed) or fixed at runtime
   init (use `FixedVector<T>`).
 - Listener / child-entity registration lists stored as `std::vector`; these have
-  a compile-time-known count and should use `cg.slot_counter()` plus
-  `StaticVector`.
+  a compile-time-known count and should use `cg.slot_list()` plus
+  `SLOT_LIST` (or `cg.slot_counter()` plus `StaticVector`).
 - `std::vector<uint8_t>` for a byte buffer that never grows: prefer
   `std::unique_ptr<uint8_t[]>` or `std::array`.
 - `std::map` / `std::set` / `std::unordered_map` for small datasets (1-16
@@ -41,6 +41,12 @@ performance nit, because it fragments a small shared heap. Flag:
   literal already lives in flash).
 - `std::string` / `std::to_string` / string-returning helpers on hot paths where
   a buffer or view API exists.
+- A `set_timeout` / `set_interval` / `defer` lambda whose captures exceed 8 bytes
+  on 32-bit or are not trivially copyable (`this` plus two 4-byte values, `this`
+  plus a member function pointer, a `std::string`, a `std::function`):
+  `std::function` then heap-allocates each time it is scheduled. Flag it on
+  retries, re-armed timeouts and hot-path `defer`; a `set_interval` set up once
+  in `setup()` is a single allocation. `[this]` plus one 4-byte value fits.
 
 ## C++ conventions
 

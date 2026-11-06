@@ -10,10 +10,8 @@ SpiLedStrip::SpiLedStrip(uint16_t num_leds) : buffer_size_(num_leds * 4 + BUFFER
 void SpiLedStrip::setup() {
   RAMAllocator<uint8_t> allocator;
   uint8_t *buf = allocator.allocate(this->buffer_size_ + this->num_leds_);
-  if (buf == nullptr) {
-    this->mark_failed(LOG_STR(ESP_LOG_MSG_ALLOC_FAIL));
+  if (!this->setup_check(buf != nullptr, LOG_STR(ESP_LOG_MSG_ALLOC_FAIL)))
     return;
-  }
   memset(buf, 0xFF, this->buffer_size_);
   memset(buf, 0, 4);
   this->internal_accessor_.color_data = buf + COLOR_DATA_OFFSET;

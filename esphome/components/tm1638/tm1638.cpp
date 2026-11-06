@@ -48,12 +48,10 @@ void TM1638Component::dump_config() {
 }
 
 void TM1638Component::loop() {
-  if (this->listeners_.empty())
-    return;
-
-  uint8_t keys = this->get_keys();
-  for (auto &listener : this->listeners_)
-    listener->keys_update(keys);
+#ifdef USE_TM1638_KEYS_PUBLISHER
+  if (this->keys_publisher_ != nullptr)
+    this->keys_publisher_(this->get_keys());
+#endif
 }
 
 uint8_t TM1638Component::get_keys() {
