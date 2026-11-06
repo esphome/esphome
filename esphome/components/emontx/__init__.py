@@ -34,6 +34,8 @@ LOCK_ON_REBOOT_MODES = {
 
 DOMAIN = "emontx"
 
+_register_sensor = cg.slot_list("EMONTX_SENSOR_COUNT", "register_sensor", DOMAIN)
+
 MINIMUM_RX_BUFFER_SIZE = 2048
 
 

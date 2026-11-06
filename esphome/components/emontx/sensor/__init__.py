@@ -30,11 +30,9 @@ from esphome.const import (
 )
 from esphome.types import ConfigType
 
-from .. import CONF_EMONTX_ID, CONF_TAG_NAME, EmonTx, emontx_ns
+from .. import CONF_EMONTX_ID, CONF_TAG_NAME, EmonTx, _register_sensor, emontx_ns
 
 EmonTxSensor = emontx_ns.class_("EmonTxSensor", sensor.Sensor, cg.Component)
-
-_request_sensor_slot = cg.slot_counter("EMONTX_SENSOR_COUNT")
 
 # Known emonTx/avrdb JSON tag conventions, gathered from real firmware
 # (see https://github.com/openenergymonitor/avrdb_firmware), used to decide
@@ -212,5 +210,4 @@ async def to_code(config: ConfigType) -> None:
     await cg.register_component(var, config)
     await sensor.register_sensor(var, config)
     hub = await cg.get_variable(config[CONF_EMONTX_ID])
-    _request_sensor_slot()
-    cg.add(hub.register_sensor(config[CONF_TAG_NAME], var))
+    cg.add(_register_sensor(hub, config[CONF_TAG_NAME], var))

@@ -19,11 +19,6 @@
 
 namespace esphome::emontx {
 
-// Sized by codegen; no sensor platform means no define
-#ifndef EMONTX_SENSOR_COUNT
-static constexpr uint8_t EMONTX_SENSOR_COUNT = 0;
-#endif
-
 /// Maximum line length in characters
 static constexpr size_t MAX_LINE_LENGTH = 1024;
 
