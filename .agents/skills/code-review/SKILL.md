@@ -137,8 +137,8 @@ Lambda methods, actions and config keys are hard to rename once released. Flag:
   state, e.g. `set_power(bool on)`.
 - A name that differs from a sibling component's name for the same operation.
 
-Before a release, rename outright; after, deprecate (`ESPDEPRECATED`,
-`cv.rename_key`).
+Before a release, rename outright; after, follow the breaking-change policy
+below.
 
 ## Breaking changes and public API
 
