@@ -352,6 +352,8 @@ void VoiceAssistant::handle_channel_stall_(size_t available, size_t available2) 
 void VoiceAssistant::loop() {
   if (this->api_client_ == nullptr && this->state_ != State::IDLE && this->state_ != State::STOP_MICROPHONE &&
       this->state_ != State::STOPPING_MICROPHONE) {
+    // on_client_connected re-arms the wake word, so no on_end for a client that went away
+    this->end_pending_ = false;
     if (this->mic_source_->is_running() || (this->mic_source2_ && this->mic_source2_->is_running()) ||
         this->state_ == State::STARTING_MICROPHONE) {
       this->set_state_(State::STOP_MICROPHONE, State::IDLE);
@@ -481,6 +483,7 @@ void VoiceAssistant::loop() {
       }
 #endif
 
+      this->end_pending_ = true;
       if (this->api_client_ == nullptr || !this->api_client_->send_message(msg)) {
         ESP_LOGW(TAG, "Could not request start");
         this->error_trigger_.trigger("not-connected", "Could not request start");
@@ -796,6 +799,16 @@ void VoiceAssistant::set_state_(State state) {
     this->end_wake_word_audio_stream_();
   }
 #endif
+  // RUN_END fires on_end at its usual time; a pipeline that ends any other way fires it here
+  if (state == State::IDLE)
+    this->end_session_();
+}
+
+void VoiceAssistant::end_session_() {
+  if (!this->end_pending_)
+    return;
+  this->end_pending_ = false;
+  this->defer([this]() { this->end_trigger_.trigger(); });
 }
 
 void VoiceAssistant::set_state_(State state, State desired_state) {
@@ -1174,7 +1187,7 @@ void VoiceAssistant::on_event(const api::VoiceAssistantEventResponse &msg) {
         // No TTS start event while the microphone is still stopping
         this->set_state_after_mic_stop_(State::IDLE);
       }
-      this->defer([this]() { this->end_trigger_.trigger(); });
+      this->end_session_();
       break;
     }
     case api::enums::VOICE_ASSISTANT_ERROR: {
