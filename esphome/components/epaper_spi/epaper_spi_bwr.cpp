@@ -29,20 +29,13 @@ void HOT EPaperBWR::draw_pixel_at(int x, int y, Color color) {
   assign_bits(this->buffer_[red_offset + pos], bit, bwr == BwrColor::BWR_COLOR_RED);
 }
 
-void EPaperBWR::fill(Color color) {
-  if (this->get_clipping().is_set()) {
-    EPaperBase::fill(color);
-    return;
-  }
-
+void EPaperBWR::fill_buffer(Color color) {
   const size_t half_buffer = this->buffer_length_ / 2u;
   const auto bwr =
       color_to_bwr<BwrColor>(color, BwrColor::BWR_COLOR_BLACK, BwrColor::BWR_COLOR_WHITE, BwrColor::BWR_COLOR_RED);
 
   this->fill_range_(0, half_buffer, sets_bw_bit(bwr, this->red_sets_black_) ? 0xFF : 0x00);
   this->fill_range_(half_buffer, this->buffer_length_, bwr == BwrColor::BWR_COLOR_RED ? 0xFF : 0x00);
-
-  this->mark_all_drawn_();
 }
 
 void EPaperBWR::fill_range_(size_t index, size_t end, uint8_t value) {

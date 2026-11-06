@@ -6,19 +6,11 @@ namespace esphome::epaper_spi {
 
 ESPHOME_LOG_TAG(TAG, "epaper_spi.4bpp");
 
-void EPaper4bpp::fill(Color color) {
-  // If clipping is active, fall back to base implementation
-  if (this->get_clipping().is_set()) {
-    EPaperBase::fill(color);
-    return;
-  }
-
+void EPaper4bpp::fill_buffer(Color color) {
   auto pixel_color = this->color_to_native(color);
 
   // We store 2 pixels per byte
   this->buffer_.fill(pixel_color + (pixel_color << 4));
-
-  this->mark_all_drawn_();
 }
 
 void HOT EPaper4bpp::draw_pixel_at(int x, int y, Color color) {
