@@ -838,6 +838,28 @@ void WiFiComponent::loop() {
     this->update_connected_state_();
   }
 
+#if defined(USE_WIFI_AP_START_TRIGGER) || defined(USE_WIFI_AP_STOP_TRIGGER)
+  // Read the AP state here rather than where the platforms write ap_started_. On ESP8266, LibreTiny
+  // and Pico W that write happens inside wifi_mode_(), which wifi_start_ap_() and wifi_ap_ip_config_()
+  // call before the SSID, the AP IP and the DHCP server exist - and it happens even when the start
+  // then fails. Firing from loop() gives every platform the semantics ESP-IDF already has with its
+  // AP_START event: after the AP is fully up, from a top-level context, so an action cannot re-enter
+  // the state machine while setup_ap_config_() is still running.
+  if (this->is_ap_active() != this->handled_ap_state_) {
+#ifdef USE_WIFI_AP_STOP_TRIGGER
+    if (this->handled_ap_state_) {
+      this->ap_stop_trigger_.trigger();
+    }
+#endif
+#ifdef USE_WIFI_AP_START_TRIGGER
+    if (!this->handled_ap_state_) {
+      this->ap_start_trigger_.trigger();
+    }
+#endif
+    this->handled_ap_state_ = this->is_ap_active();
+  }
+#endif  // USE_WIFI_AP_START_TRIGGER || USE_WIFI_AP_STOP_TRIGGER
+
   if (this->has_sta()) {
 #if defined(USE_WIFI_CONNECT_TRIGGER) || defined(USE_WIFI_DISCONNECT_TRIGGER)
     if (this->is_connected() != this->handled_connected_state_) {
