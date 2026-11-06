@@ -3,6 +3,7 @@
 #include "esphome/components/motion/motion_component.h"
 #include "esphome/components/i2c/i2c.h"
 #include "esphome/core/component.h"
+#include "esphome/core/gpio.h"
 #include "esphome/core/helpers.h"
 
 namespace esphome::lis3dh {
@@ -23,6 +24,12 @@ static constexpr uint8_t LIS3DH_REG_INT1_CFG = 0x30;
 static constexpr uint8_t LIS3DH_REG_INT1_SRC = 0x31;
 static constexpr uint8_t LIS3DH_REG_INT1_THS = 0x32;
 static constexpr uint8_t LIS3DH_REG_INT1_DURATION = 0x33;
+static constexpr uint8_t LIS3DH_REG_CLICK_CFG = 0x38;
+static constexpr uint8_t LIS3DH_REG_CLICK_SRC = 0x39;
+static constexpr uint8_t LIS3DH_REG_CLICK_THS = 0x3A;
+static constexpr uint8_t LIS3DH_REG_TIME_LIMIT = 0x3B;
+static constexpr uint8_t LIS3DH_REG_TIME_LATENCY = 0x3C;
+static constexpr uint8_t LIS3DH_REG_TIME_WINDOW = 0x3D;
 
 static constexpr uint8_t LIS3DH_WHO_AM_I_VALUE = 0x33;
 
@@ -33,7 +40,8 @@ static constexpr uint8_t LIS3DH_AUTO_INCREMENT = 0x80;
 static constexpr uint8_t LIS3DH_CTRL_REG1_AXES_EN = 0x07;  // Xen | Yen | Zen
 static constexpr uint8_t LIS3DH_CTRL_REG1_LPEN = 0x08;     // low-power enable
 // CTRL_REG2
-static constexpr uint8_t LIS3DH_CTRL_REG2_HP_IA1 = 0x01;  // high-pass filter the IA1 interrupt
+static constexpr uint8_t LIS3DH_CTRL_REG2_HP_IA1 = 0x01;   // high-pass filter the IA1 interrupt
+static constexpr uint8_t LIS3DH_CTRL_REG2_HPCLICK = 0x04;  // high-pass filter the click detector
 // CTRL_REG4
 static constexpr uint8_t LIS3DH_CTRL_REG4_HR = 0x08;   // high-resolution enable
 static constexpr uint8_t LIS3DH_CTRL_REG4_BDU = 0x80;  // block data update
@@ -43,9 +51,28 @@ static constexpr uint8_t LIS3DH_CTRL_REG5_LIR_INT1 = 0x08;  // latch IA1 interru
 static constexpr uint8_t LIS3DH_CTRL_REG3_I1_IA1 = 0x40;        // route IA1 to INT1 pad
 static constexpr uint8_t LIS3DH_CTRL_REG6_I2_IA1 = 0x40;        // route IA1 to INT2 pad
 static constexpr uint8_t LIS3DH_CTRL_REG6_INT_POLARITY = 0x02;  // 1 = active low
+static constexpr uint8_t LIS3DH_CTRL_REG3_I1_CLICK = 0x80;      // route click to INT1 pad
+static constexpr uint8_t LIS3DH_CTRL_REG6_I2_CLICK = 0x80;      // route click to INT2 pad
+// CLICK_CFG
+static constexpr uint8_t LIS3DH_CLICK_CFG_SINGLE = 0x15;  // XS | YS | ZS
+static constexpr uint8_t LIS3DH_CLICK_CFG_DOUBLE = 0x2A;  // XD | YD | ZD
+// CLICK_THS
+static constexpr uint8_t LIS3DH_CLICK_THS_MAX = 0x7F;
+// CLICK_SRC
+static constexpr uint8_t LIS3DH_CLICK_SRC_X = 0x01;
+static constexpr uint8_t LIS3DH_CLICK_SRC_Y = 0x02;
+static constexpr uint8_t LIS3DH_CLICK_SRC_SIGN = 0x08;  // 1 = tap in the negative direction
+static constexpr uint8_t LIS3DH_CLICK_SRC_SCLICK = 0x10;
+static constexpr uint8_t LIS3DH_CLICK_SRC_DCLICK = 0x20;
+static constexpr uint8_t LIS3DH_CLICK_SRC_IA = 0x40;
 // TEMP_CFG_REG
 static constexpr uint8_t LIS3DH_TEMP_CFG_ADC_EN = 0x80;
 static constexpr uint8_t LIS3DH_TEMP_CFG_TEMP_EN = 0x40;
+
+#ifdef USE_LIS3DH_TAP
+// Unlatched CLICK_SRC bits stay set for as little as 15 ms, so poll faster than the 16 ms loop
+static constexpr uint32_t LIS3DH_TAP_POLL_INTERVAL_MS = 10;
+#endif
 
 // The temperature sensor is uncalibrated and reports relative changes only,
 // so this fixed reference is just a rough starting point for the °C output.
@@ -89,6 +116,9 @@ enum LIS3DHInterruptPin : uint8_t {
 class LIS3DHComponent : public motion::MotionComponent, public i2c::I2CDevice {
  public:
   void setup() override;
+#ifdef USE_LIS3DH_TAP
+  void loop() override;
+#endif
   void dump_config() override;
   void on_shutdown() override;
 
@@ -107,6 +137,24 @@ class LIS3DHComponent : public motion::MotionComponent, public i2c::I2CDevice {
     this->interrupt_high_pass_ = high_pass;
   }
 
+#ifdef USE_LIS3DH_TAP
+  // Times in samples; hold_ms holds a single tap back when double taps are enabled
+  void set_tap(uint8_t axes_cfg, uint8_t time_limit, uint8_t latency, uint8_t window, bool high_pass,
+               uint32_t hold_ms) {
+    this->tap_axes_cfg_ = axes_cfg;
+    this->tap_time_limit_ = time_limit;
+    this->tap_latency_ = latency;
+    this->tap_window_ = window;
+    this->tap_high_pass_ = high_pass;
+    this->tap_hold_ms_ = hold_ms + LIS3DH_TAP_POLL_INTERVAL_MS;
+  }
+  void set_tap_interrupt(InternalGPIOPin *pin, LIS3DHInterruptPin pad) {
+    this->tap_interrupt_pin_ = pin;
+    this->tap_pad_ = pad;
+  }
+  void set_tap_threshold(float threshold_g) override;
+#endif
+
   template<typename F> void add_temperature_listener(F &&cb) { this->temperature_callback_.add(std::forward<F>(cb)); }
 
  protected:
@@ -114,6 +162,12 @@ class LIS3DHComponent : public motion::MotionComponent, public i2c::I2CDevice {
   bool setup_accelerometer_();
   bool setup_temperature_();
   bool setup_interrupt_();
+  bool setup_tap_();
+#ifdef USE_LIS3DH_TAP
+  void read_tap_(uint32_t now);
+  // Wakes loop() on the tap pad's edge. Runs in interrupt context.
+  static void tap_interrupt_handler(LIS3DHComponent *arg);
+#endif
   bool publish_temperature_();
 
   LIS3DHRange range_{LIS3DH_RANGE_2G};
@@ -130,6 +184,19 @@ class LIS3DHComponent : public motion::MotionComponent, public i2c::I2CDevice {
   bool interrupt_high_pass_{false};
 
   LazyCallbackManager<void(float)> temperature_callback_{};
+
+#ifdef USE_LIS3DH_TAP
+  // A zero CLICK_CFG mask means this instance has tap detection off.
+  InternalGPIOPin *tap_interrupt_pin_{nullptr};
+  LIS3DHInterruptPin tap_pad_{LIS3DH_INT_PIN_INT1};
+  uint8_t tap_axes_cfg_{0};
+  uint8_t tap_threshold_{1};
+  uint8_t tap_time_limit_{0};
+  uint8_t tap_latency_{0};
+  uint8_t tap_window_{0};
+  uint8_t last_tap_src_{0};
+  bool tap_high_pass_{true};
+#endif
 };
 
 }  // namespace esphome::lis3dh
