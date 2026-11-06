@@ -145,6 +145,7 @@ class DeepSleepComponent final : public Component {
 #endif  // USE_ESP32
 
 #if defined(USE_BK72XX)
+  SLOT_LIST_REQUIRES(DEEP_SLEEP_WAKEUP_PIN_COUNT)
   void add_wakeup_pin(InternalGPIOPin *wakeup_pin, WakeupPinMode wakeup_pin_mode) {
     this->wakeup_pins_.push_back(WakeUpPinItem{wakeup_pin, wakeup_pin_mode, !wakeup_pin->is_inverted()});
   }
