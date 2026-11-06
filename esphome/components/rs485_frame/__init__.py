@@ -3,20 +3,16 @@ from dataclasses import dataclass, field
 from esphome import automation
 import esphome.codegen as cg
 from esphome.components import uart
-from esphome.components.const import CONF_DATA_BITS, CONF_PARITY, CONF_STOP_BITS
 import esphome.config_validation as cv
 from esphome.const import (
-    CONF_BAUD_RATE,
     CONF_DELAY,
     CONF_ID,
     CONF_INTERVAL,
     CONF_MODE,
     CONF_PAYLOAD,
     CONF_TYPE,
-    CONF_UART_ID,
 )
 from esphome.core import CORE, ID, HexInt, Lambda
-import esphome.final_validate as fv
 from esphome.schema_extractors import SCHEMA_EXTRACT, schema_extractor
 from esphome.types import ConfigType
 
@@ -195,7 +191,7 @@ CRC_SCHEMA = cv.Schema(
     }
 )
 
-# Upper bound for every bus timing, including how long the longest frame takes to send.
+# Upper bound for every bus timing.
 MAX_BUS_TIME_MS = 10000
 _BUS_TIME = cv.All(
     cv.positive_time_period_milliseconds,
@@ -382,17 +378,6 @@ def _final_validate(config: ConfigType) -> ConfigType:
         require_rx=True,
         require_tx=not config[CONF_SNIFFER_ONLY],
     )(config)
-    if not config[CONF_SNIFFER_ONLY]:
-        bus = fv.get_declaring_config(config[CONF_UART_ID])
-        # Worst case: every byte escaped, plus DLE STX and DLE ETX.
-        wire_bytes = 2 * (config[CONF_MAX_FRAME_LENGTH] + _crc_len(config)) + 4
-        # usb_uart channels keep stop_bits as a string such as "1.5"
-        bits = 1 + bus[CONF_DATA_BITS] + float(bus[CONF_STOP_BITS])
-        bits += bus[CONF_PARITY] != "NONE"
-        if wire_bytes * bits * 1000 > MAX_BUS_TIME_MS * bus[CONF_BAUD_RATE]:
-            raise cv.Invalid(
-                f"max_frame_length takes over {MAX_BUS_TIME_MS}ms to send at this baud rate"
-            )
     for hub_id, length in _data().send_frames:
         if hub_id.id == config[CONF_ID].id:
             check_frame_length(

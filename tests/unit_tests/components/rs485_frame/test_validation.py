@@ -25,7 +25,6 @@ from esphome.core import CORE
         ),
         ("rs485_frame_on_frame_empty_alt_prefix.yaml", "length of value must be"),
         ("rs485_frame_on_frame_null_frame_type.yaml", "frame_type needs a value"),
-        ("rs485_frame_wire_time_too_long.yaml", "takes over 10000ms to send"),
         ("rs485_frame_uart_without_tx.yaml", "to declare a tx_pin"),
         ("rs485_frame_uart_without_rx.yaml", "to declare a rx_pin"),
         (
@@ -45,16 +44,11 @@ def test_invalid_config_raises(fixture_path: Path, fixture: str, expected: str) 
     ]
 
 
-@pytest.mark.parametrize(
-    "fixture",
-    [
-        "rs485_frame_sniffer_rx_only_uart.yaml",
-        "rs485_frame_usb_uart_stop_bits.yaml",
-    ],
-)
-def test_valid_config_passes(fixture_path: Path, fixture: str) -> None:
+def test_sniffer_accepts_rx_only_uart(fixture_path: Path) -> None:
     CORE.config_path = fixture_path / "dummy.yaml"
-    raw_config = yaml_util.load_yaml(fixture_path / fixture)
+    raw_config = yaml_util.load_yaml(
+        fixture_path / "rs485_frame_sniffer_rx_only_uart.yaml"
+    )
 
     result = esphome_config.validate_config(raw_config, {})
 
