@@ -992,7 +992,6 @@ class WiFiComponent final : public Component {
 #endif
 
   // Large/pointer-aligned members first
-  StaticVector<WiFiAP, WIFI_NETWORK_COUNT> sta_;
   std::vector<WiFiSTAPriority> sta_priorities_;
   // Guarded by ScanResultsLock (see below this class)
   wifi_scan_vector_t<WiFiScanResult> scan_result_;
@@ -1222,6 +1221,8 @@ class WiFiComponent final : public Component {
   FreeRTOSQueue<LTWiFiEvent, LT_EVENT_QUEUE_SIZE> event_queue_;
 #endif
 #endif
+  // Last, so the inline network slots do not push the other members past short load offsets
+  StaticVector<WiFiAP, WIFI_NETWORK_COUNT> sta_;
 
  private:
   // Stores a pointer to a string literal (static storage duration).
