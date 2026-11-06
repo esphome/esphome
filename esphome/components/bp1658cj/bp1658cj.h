@@ -2,7 +2,7 @@
 
 #include "esphome/core/component.h"
 #include "esphome/core/hal.h"
-#include <vector>
+#include <array>
 
 namespace esphome::bp1658cj {
 
@@ -38,7 +38,7 @@ class BP1658CJ final : public Component {
   uint8_t max_power_color_channels_{4};
   uint8_t max_power_white_channels_{6};
   uint8_t update_channel_;
-  std::vector<uint16_t> pwm_amounts_;
+  std::array<uint16_t, 5> pwm_amounts_{};
   bool update_{true};
 };
 
