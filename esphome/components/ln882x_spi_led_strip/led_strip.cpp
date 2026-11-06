@@ -99,8 +99,7 @@ LN882xSPILEDStripLightOutput::LN882xSPILEDStripLightOutput(uint8_t *buffer, uint
       prescaler_(prescaler),
       bit0_high_bits_(bit0_high_bits),
       bit1_high_bits_(bit1_high_bits) {
-  this->internal_accessor_.set_buffer(buffer, num_leds);
-  this->dma_data_ = this->internal_accessor_.effect_data + num_leds;
+  this->dma_data_ = this->internal_accessor_.set_buffer(buffer, num_leds);
 }
 
 void LN882xSPILEDStripLightOutput::setup() {

@@ -11,9 +11,6 @@ from esphome.types import ConfigType
 
 from . import DOMAIN
 
-# Matches I2S_BYTES_PER_SAMPLE in i2s_clockless_led_strip.cpp
-I2S_BYTES_PER_SAMPLE = 3
-
 CODEOWNERS = ["@j9brown"]
 DEPENDENCIES = ["esp32"]
 
@@ -80,7 +77,7 @@ async def to_code(config: ConfigType) -> None:
 
     num_leds = config[CONF_NUM_LEDS]
     channel_colors = config[CONF_CHANNEL_COLORS]
-    i2s_data_bytes = num_leds * len(channel_colors) * I2S_BYTES_PER_SAMPLE
+    i2s_data_bytes = f"{num_leds * len(channel_colors)} * {i2s_clockless_led_strip_ns.I2S_BYTES_PER_SAMPLE}"
     var = cg.new_Pvariable(
         config[CONF_OUTPUT_ID],
         light.static_led_buffer(

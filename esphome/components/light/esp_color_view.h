@@ -91,9 +91,11 @@ class BufferColorAccessor : public ESPColorAccessor {
   }
 
   /// Use `buffer` for the color and effect data of `num_leds` LEDs, laid out as allocate() lays them out.
-  void set_buffer(uint8_t *buffer, size_t num_leds) {
+  /// Returns the first byte after the effect data.
+  uint8_t *set_buffer(uint8_t *buffer, size_t num_leds) {
     this->color_data = buffer;
     this->effect_data = buffer + num_leds * this->channel_colors.bytes_per_led();
+    return this->effect_data + num_leds;
   }
 
   /// Zero the effect data of the first `num_leds` LEDs; does nothing before the effect data is allocated.

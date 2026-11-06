@@ -22,7 +22,6 @@ constexpr const char *const ERROR_I2S = "I2S error";
 // (1/3 duty cycle) and a 1-bit expands into 110 (2/3 duty cycle.  Each byte of LED strip data becomes
 // one 24-bit I2S sample to be transmitted at a rate of 100000 samples per second in I2S TDM mode.
 constexpr uint32_t I2S_SAMPLE_RATE_HZ = 100000;
-constexpr size_t I2S_BYTES_PER_SAMPLE = 3;
 
 // Determine how many I2S samples are needed to feed the output for the specified duration and vice-versa.
 constexpr size_t num_i2s_samples_from_duration_us(uint32_t duration_us) {
@@ -51,8 +50,7 @@ I2SClocklessLedStrip::I2SClocklessLedStrip(uint8_t *buffer, uint8_t pin, uint16_
       color_data_bytes_(num_leds * channel_colors.bytes_per_led()),
       num_leds_(num_leds),
       pin_(pin) {
-  this->internal_accessor_.set_buffer(buffer, num_leds);
-  this->i2s_data_ = this->internal_accessor_.effect_data + num_leds;
+  this->i2s_data_ = this->internal_accessor_.set_buffer(buffer, num_leds);
 }
 
 void I2SClocklessLedStrip::dump_config() {
