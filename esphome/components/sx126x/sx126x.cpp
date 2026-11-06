@@ -15,7 +15,8 @@ PROGMEM_STRING_TABLE(SX126xErrorStrings, "none", "timeout", "invalid payload", "
                      "radio busy", "cancelled");
 
 void SX126x::setup() {
-  this->packet_.reserve(SX126X_MAX_PACKET_SIZE);
+  // Sized once so later packet reads never reallocate; read_packet() sets the length.
+  this->packet_.resize(SX126X_MAX_PACKET_SIZE);
   // setup pins
   GPIOPin *dio1 = this->radio_.get_dio1_pin();
   this->radio_.bus().get_busy_pin()->setup();
