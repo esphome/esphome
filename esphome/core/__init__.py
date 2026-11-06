@@ -349,6 +349,10 @@ class Lambda:
             self._value = value
         self._parts = None
         self._requires_ids = None
+        # Set by the `argument:` shorthand to the raw parameter name it referenced, so
+        # `process_lambda` can check it against the parameters actually available at the
+        # call site (only known there, not at config-validation time).
+        self.argument_name: str | None = None
 
     # https://stackoverflow.com/a/241506/229052
     @staticmethod
@@ -379,6 +383,14 @@ class Lambda:
             ]
         return self._requires_ids
 
+    def set_requires_ids(self, ids: list["ID"]) -> None:
+        """Override the ids this lambda requires, bypassing the normal parsing of
+        `id(...)` references out of the source text. Used by validators (e.g. the
+        `entity_state:` shorthand) that already know the single id this lambda
+        references, with a type the text-derived parse can't recover.
+        """
+        self._requires_ids = ids
+
     @property
     def value(self):
         return self._value
@@ -406,7 +418,8 @@ class ID:
         else:
             self.is_manual = is_manual
         self.is_declaration = is_declaration
-        self.type: MockObjClass | None = type
+        # A tuple lists alternative types, as set by the `entity_state:` shorthand
+        self.type: MockObjClass | tuple[MockObjClass, ...] | None = type
         # When set, an unnamed (id=None) searching ID is disambiguated among same-type
         # candidates by matching these key/value pairs against each candidate's own
         # declared config, instead of requiring exactly one candidate to exist.
