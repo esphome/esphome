@@ -135,14 +135,14 @@ class NullPin : public GPIOPin {
   }
 
  protected:
-  static NullPin instance_;        // NOLINT(cppcoreguidelines-avoid-non-const-global-variables)
+  static NullPin instance;         // NOLINT(cppcoreguidelines-avoid-non-const-global-variables)
   static GPIOPin *const NULL_PIN;  // NOLINT(cppcoreguidelines-avoid-non-const-global-variables)
   // https://bugs.llvm.org/show_bug.cgi?id=48040
 };
 
 // Constant-initialized, so both are valid before any dynamic initialization runs.
-inline constinit NullPin NullPin::instance_;  // NOLINT(cppcoreguidelines-avoid-non-const-global-variables)
-inline GPIOPin *const NullPin::NULL_PIN = &NullPin::instance_;
+inline constinit NullPin NullPin::instance;  // NOLINT(cppcoreguidelines-avoid-non-const-global-variables)
+inline GPIOPin *const NullPin::NULL_PIN = &NullPin::instance;
 
 class Utility {
  public:
