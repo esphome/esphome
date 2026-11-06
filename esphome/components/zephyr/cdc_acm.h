@@ -8,6 +8,8 @@
 
 namespace esphome::zephyr {
 
+#define ESPHOME_CDC_ACM_DEVICE(node_id) DEVICE_DT_GET(node_id),
+
 /// Passes the bit rate a USB host sets on a CDC ACM port from the USB driver's thread to the main loop.
 class CdcAcm final {
  public:
@@ -18,9 +20,9 @@ class CdcAcm final {
       this->start_();
     } else {
       // The first report may already have run (the scheduler runs while a setup() waits)
-      for (size_t i = 0; i < this->rates_.size(); i++) {
+      for (size_t i = 0; i < DEVICES.size(); i++) {
         if (this->rates_[i] != 0)
-          callback(device_at(i), this->rates_[i]);
+          callback(DEVICES[i], this->rates_[i]);
       }
     }
     this->rate_callbacks_.add(std::forward<F>(callback));
@@ -31,14 +33,18 @@ class CdcAcm final {
   static void rate_changed(const device *dev, uint32_t rate);
 
  protected:
+  // Every zephyr,cdc-acm-uart port, in device tree order
+  static constexpr std::array<const device *, DT_NUM_INST_STATUS_OKAY(zephyr_cdc_acm_uart)> DEVICES{
+      DT_FOREACH_STATUS_OKAY(zephyr_cdc_acm_uart, ESPHOME_CDC_ACM_DEVICE)};
+
   void start_();
-  static const device *device_at(size_t index);
-  void report_current_rates_();
   void report_rate_(const device *dev, uint32_t rate);
   CallbackManager<void(const device *, uint32_t)> rate_callbacks_;
-  // Last bit rate reported for each zephyr,cdc-acm-uart port, in device tree order
-  std::array<uint32_t, DT_NUM_INST_STATUS_OKAY(zephyr_cdc_acm_uart)> rates_{};
+  // Last bit rate reported for each port in DEVICES
+  std::array<uint32_t, DEVICES.size()> rates_{};
 };
+
+#undef ESPHOME_CDC_ACM_DEVICE
 
 extern CdcAcm *global_cdc_acm;  // NOLINT(cppcoreguidelines-avoid-non-const-global-variables)
 
