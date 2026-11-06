@@ -48,12 +48,9 @@ class ESP32RMTLEDStripLightOutput final : public light::AddressableLight {
     this->internal_accessor_.channel_colors = channel_colors;
   }
   void set_use_dma(bool use_dma) { this->use_dma_ = use_dma; }
-  /// Static internal RAM buffers, set after set_num_leds() and set_channel_colors(); without them, setup()
-  /// allocates the buffers in PSRAM.
-  void set_buffers(uint8_t *led_data, RmtBuffer *rmt_buf) {
-    this->internal_accessor_.set_buffer(led_data, this->num_leds_);
-    this->rmt_buf_ = rmt_buf;
-  }
+  /// Buffers from cg.static_buffer(..., psram=...), or nullptr to allocate them in PSRAM. Call after
+  /// set_num_leds() and set_channel_colors().
+  void set_buffers(uint8_t *led_data, RmtBuffer *rmt_buf);
 
   /// Set a maximum refresh rate in µs as some lights do not like being updated too often.
   void set_max_refresh_rate(uint32_t interval_us) { this->max_refresh_rate_ = interval_us; }

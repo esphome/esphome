@@ -19,7 +19,6 @@ from esphome.const import (
     CONF_RMT_SYMBOLS,
     CONF_USE_DMA,
 )
-from esphome.core import CORE
 from esphome.types import ConfigType
 
 CODEOWNERS = ["@jesserockz"]
@@ -176,18 +175,18 @@ async def to_code(config: ConfigType) -> None:
     cg.add(
         var.set_channel_colors(light.channel_colors_struct(config[CONF_CHANNEL_COLORS]))
     )
-    # Without PSRAM the heap buffers would be in internal RAM anyway
-    if not config[CONF_USE_PSRAM] or "psram" not in CORE.loaded_integrations:
-        num_leds = config[CONF_NUM_LEDS]
-        led_data = light.static_led_buffer(
-            config[CONF_OUTPUT_ID], num_leds, config[CONF_CHANNEL_COLORS]
-        )
-        color_bytes = num_leds * len(config[CONF_CHANNEL_COLORS])
-        rmt_buf = cg.static_buffer(
-            config[CONF_OUTPUT_ID],
-            RmtBuffer,
-            str(esp32_rmt_led_strip_ns.rmt_buffer_size(color_bytes)),
-        )
-        cg.add(var.set_buffers(led_data, rmt_buf))
+    num_leds = config[CONF_NUM_LEDS]
+    psram = config[CONF_USE_PSRAM]
+    led_data = light.static_led_buffer(
+        config[CONF_OUTPUT_ID], num_leds, config[CONF_CHANNEL_COLORS], psram=psram
+    )
+    color_bytes = num_leds * len(config[CONF_CHANNEL_COLORS])
+    rmt_buf = cg.static_buffer(
+        config[CONF_OUTPUT_ID],
+        RmtBuffer,
+        str(esp32_rmt_led_strip_ns.rmt_buffer_size(color_bytes)),
+        psram=psram,
+    )
+    cg.add(var.set_buffers(led_data, rmt_buf))
     cg.add(var.set_rmt_symbols(config[CONF_RMT_SYMBOLS]))
     cg.add_optional(var.set_use_dma, config.get(CONF_USE_DMA))

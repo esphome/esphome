@@ -65,16 +65,24 @@ static size_t IRAM_ATTR HOT encoder_callback(const void *data, size_t size, size
 }
 #endif
 
+void ESP32RMTLEDStripLightOutput::set_buffers(uint8_t *led_data, RmtBuffer *rmt_buf) {
+  const size_t led_bytes = this->num_leds_ * (this->internal_accessor_.channel_colors.bytes_per_led() + 1);
+  led_data = static_or_heap(led_data, led_bytes);
+  this->rmt_buf_ = static_or_heap(rmt_buf, rmt_buffer_size(this->get_buffer_size_()));
+  if (led_data == nullptr)
+    return;
+#ifdef USE_PSRAM
+  memset(led_data, 0, led_bytes);
+#endif
+  this->internal_accessor_.set_buffer(led_data, this->num_leds_);
+}
+
 void ESP32RMTLEDStripLightOutput::setup() {
   size_t buffer_size = this->get_buffer_size_();
 
-  if (this->rmt_buf_ == nullptr) {
-    RAMAllocator<uint8_t> allocator;
-    if (!this->setup_check(this->internal_accessor_.allocate(allocator, this->num_leds_),
-                           LOG_STR(ESP_LOG_MSG_ALLOC_FAIL)))
-      return;
-    this->rmt_buf_ = RAMAllocator<RmtBuffer>().allocate(rmt_buffer_size(buffer_size));
-  }
+  if (!this->setup_check(this->internal_accessor_.color_data != nullptr && this->rmt_buf_ != nullptr,
+                         LOG_STR(ESP_LOG_MSG_ALLOC_FAIL)))
+    return;
 
   const uint32_t resolution_hz = rmt_resolution_hz();
   // Longest wire time of one frame; write_state() defers instead of blocking until it has elapsed
