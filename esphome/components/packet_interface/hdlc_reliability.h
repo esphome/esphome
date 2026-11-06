@@ -26,15 +26,21 @@ class HdlcReliability : public PacketInterface {
   /// Control byte plus CRC-16.
   static constexpr size_t FRAME_OVERHEAD = 3;
 
-  explicit HdlcReliability(PacketInterface *lower);
+  static constexpr size_t packet_size(size_t lower_size) { return remaining_packet_size(lower_size, FRAME_OVERHEAD); }
+  static constexpr size_t send_queue_size(size_t lower_size, uint8_t queue_length) {
+    return size_t{queue_length} * packet_size(lower_size);
+  }
+
+  /// @param tx_slots send_queue_size() bytes for the send queue
+  HdlcReliability(PacketInterface *lower, uint8_t *tx_slots);
 
   void setup() override;
   void loop() override;
   void dump_config() override;
   bool send_to_interface(const PacketBuffer &data, const PacketMetaData &meta_data) override;
-  /// No room while the layer has no send queue: before setup(), or when setup() failed.
+  /// No room when the layer below leaves none for a packet.
   size_t get_send_capacity() const override {
-    return this->tx_slots_ == nullptr ? 0 : this->max_queue_length_ - this->outstanding_();
+    return this->max_packet_size_ == 0 ? 0 : this->max_queue_length_ - this->outstanding_();
   }
 
   void set_ack_timeout(uint32_t timeout_ms) { this->timeout_ms_ = timeout_ms; }
@@ -72,9 +78,8 @@ class HdlcReliability : public PacketInterface {
   uint8_t *slot_(uint8_t seq) { return this->tx_slots_ + this->slot_index_(seq) * this->max_packet_size_; }
 
   PacketInterface *lower_;
-  // max_queue_length_ slots of max_packet_size_ bytes, a ring starting at head_ which holds frame va_; allocated in
-  // setup() and never freed
-  uint8_t *tx_slots_{nullptr};
+  // max_queue_length_ slots of max_packet_size_ bytes, a ring starting at head_ which holds frame va_
+  uint8_t *tx_slots_;
   std::array<uint16_t, MAX_WINDOW> tx_lengths_{};  // indexed like the slots
   uint32_t timeout_ms_{200};
   uint32_t ack_delay_ms_{0};
