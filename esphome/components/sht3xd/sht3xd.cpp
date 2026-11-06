@@ -34,10 +34,9 @@ void SHT3XDComponent::setup() {
   }
   this->serial_number_ = (uint32_t(raw_serial_number[0]) << 16) | uint32_t(raw_serial_number[1]);
 
-  if (!this->write_command(this->heater_enabled_ ? SHT3XD_COMMAND_HEATER_ENABLE : SHT3XD_COMMAND_HEATER_DISABLE)) {
-    this->mark_failed(LOG_STR("Failed to set heater mode"));
-    return;
-  }
+  this->setup_check(
+      this->write_command(this->heater_enabled_ ? SHT3XD_COMMAND_HEATER_ENABLE : SHT3XD_COMMAND_HEATER_DISABLE),
+      LOG_STR("Failed to set heater mode"));
 }
 
 void SHT3XDComponent::dump_config() {
