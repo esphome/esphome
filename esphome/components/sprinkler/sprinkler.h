@@ -565,8 +565,6 @@ class Sprinkler final : public Component {
   /// Sprinkler valve objects
   StaticFixedVector<SprinklerValve> valve_;
 
-  /// Sprinkler valve operator objects
-
   /// Valve control timers, indexed by SprinklerTimerIndex (also used as the scheduler id)
   std::array<SprinklerTimer, 2> timer_;
 
@@ -591,7 +589,8 @@ class Sprinkler final : public Component {
   std::unique_ptr<Automation<>> sprinkler_turn_off_automation_;
   std::unique_ptr<Automation<>> sprinkler_turn_on_automation_;
   std::unique_ptr<Automation<>> sprinkler_standby_turn_on_automation_;
-  // Last, so the inline storage does not push the other members past short load offsets
+  /// Sprinkler valve operator objects, last so the inline storage does not push the other members past short
+  /// load offsets
   std::array<SprinklerValveOperator, 2> valve_op_{};
 };
 
