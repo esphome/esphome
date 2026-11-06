@@ -61,7 +61,7 @@ def test_timer_sampling_codegen(
     # the default 4000 byte buffer becomes two static halves of 500 pulses
     frames = re.search(r"rcvr->set_frame_buffer\((\w+), 500\);", main_cpp)[1]
     assert f"static int32_t {frames}[1000];" in main_cpp
-    assert "set_buffer_size" not in main_cpp
+    assert "set_buffer(" not in main_cpp
 
 
 def test_timer_frame_buffer_avoids_config_ids(
