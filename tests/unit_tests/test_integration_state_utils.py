@@ -2,25 +2,31 @@
 
 from __future__ import annotations
 
-from unittest.mock import AsyncMock
+import asyncio
+from unittest.mock import AsyncMock, MagicMock
 
 from aioesphomeapi import (
     BinarySensorInfo,
+    BinarySensorState,
     ButtonInfo,
     DeviceInfo,
     EntityInfo,
     LightInfo,
     SensorInfo,
+    SensorState,
     UserService,
 )
 import pytest
 
 from tests.integration.state_utils import (
+    InitialStateHelper,
+    SensorStateCollector,
     assert_device_name,
     find_entity,
     require_entity,
     require_only_entity,
     require_service,
+    wait_for_state,
 )
 
 ENTITIES: list[EntityInfo] = [
@@ -75,3 +81,48 @@ async def test_assert_device_name() -> None:
     client.device_info.return_value = None
     with pytest.raises(AssertionError, match="returned None"):
         await assert_device_name(client, "host-test")
+
+
+@pytest.mark.asyncio
+async def test_wait_for_initial_states_fails_naming_missing_entities() -> None:
+    helper = InitialStateHelper(ENTITIES)
+    wrapper = helper.on_state_wrapper(lambda state: None)
+    wrapper(SensorState(key=1, state=1.0))
+    wrapper(BinarySensorState(key=3, state=True))
+    with pytest.raises(pytest.fail.Exception) as err:
+        await helper.wait_for_initial_states(timeout=0.01)
+    assert str(err.value) == (
+        "Timed out waiting for initial states (after 0.01s)\n"
+        "still_waiting (last 1 of 1):\n  SensorInfo temperature"
+    )
+
+
+@pytest.mark.asyncio
+async def test_wait_for_all_fails_naming_missing_sensors() -> None:
+    collector = SensorStateCollector(
+        ["temperature_raw", "temperature"], ["Motion"], entities=ENTITIES
+    )
+    collector.on_state(SensorState(key=1, state=1.5))
+    with pytest.raises(pytest.fail.Exception) as err:
+        await collector.wait_for_all(timeout=0.01)
+    message = str(err.value)
+    assert message.startswith("Timed out waiting for every sensor to report")
+    assert "still_waiting (last 2 of 2):\n  temperature\n  Motion" in message
+    assert message.endswith("received (last 1 of 1):\n  temperature_raw: [1.5]")
+
+
+@pytest.mark.asyncio
+async def test_wait_for_state_fails_listing_received_states() -> None:
+    client = MagicMock()
+    waiting = asyncio.ensure_future(
+        wait_for_state(client, lambda state: state.state == 2.0, 0.01, "no 2.0")
+    )
+    await asyncio.sleep(0)
+    on_state = client.subscribe_states.call_args.args[0]
+    on_state(SensorState(key=1, state=1.0))
+    with pytest.raises(pytest.fail.Exception) as err:
+        await waiting
+    message = str(err.value)
+    assert message.startswith("no 2.0 (after 0.01s)\nreceived (last 1 of 1):")
+    assert "state=1.0" in message
+    on_state(SensorState(key=1, state=2.0))

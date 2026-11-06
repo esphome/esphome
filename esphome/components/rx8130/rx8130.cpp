@@ -25,30 +25,20 @@ ESPHOME_LOG_TAG(TAG, "rx8130");
 
 void RX8130Component::setup() {
   // Set digital offset to disabled with no offset
-  if (this->write_register(RX8130_REG_DIG_OFFSET, &RX8130_CLEAR_FLAGS, 1) != i2c::ERROR_OK) {
-    this->mark_failed();
+  if (!this->setup_check(this->write_register(RX8130_REG_DIG_OFFSET, &RX8130_CLEAR_FLAGS, 1) == i2c::ERROR_OK))
     return;
-  }
   // Disable wakeup timers
-  if (this->write_register(RX8130_REG_EXTEN, &RX8130_CLEAR_FLAGS, 1) != i2c::ERROR_OK) {
-    this->mark_failed();
+  if (!this->setup_check(this->write_register(RX8130_REG_EXTEN, &RX8130_CLEAR_FLAGS, 1) == i2c::ERROR_OK))
     return;
-  }
   // Clear VLF flag in case there has been data loss
-  if (this->write_register(RX8130_REG_FLAG, &RX8130_CLEAR_FLAGS, 1) != i2c::ERROR_OK) {
-    this->mark_failed();
+  if (!this->setup_check(this->write_register(RX8130_REG_FLAG, &RX8130_CLEAR_FLAGS, 1) == i2c::ERROR_OK))
     return;
-  }
   // Clear test flag and disable interrupts
-  if (this->write_register(RX8130_REG_CTRL0, &RX8130_CLEAR_FLAGS, 1) != i2c::ERROR_OK) {
-    this->mark_failed();
+  if (!this->setup_check(this->write_register(RX8130_REG_CTRL0, &RX8130_CLEAR_FLAGS, 1) == i2c::ERROR_OK))
     return;
-  }
   // Enable battery charging and switching
-  if (this->write_register(RX8130_REG_CTRL1, &RX8130_BAT_FLAGS, 1) != i2c::ERROR_OK) {
-    this->mark_failed();
+  if (!this->setup_check(this->write_register(RX8130_REG_CTRL1, &RX8130_BAT_FLAGS, 1) == i2c::ERROR_OK))
     return;
-  }
   // Clear STOP bit
   this->stop_(false);
 }
@@ -67,7 +57,7 @@ void RX8130Component::read_time() {
     this->status_set_warning(LOG_STR(ESP_LOG_MSG_COMM_FAIL));
     return;
   }
-  ESPTime rtc_time = time::decode_bcd_calendar(date);
+  ESPTime rtc_time = time::decode_bcd_calendar<time::EPSON_BCD_CALENDAR>(date);
   if (!rtc_time.is_valid(/*check_day_of_week=*/true, /*check_day_of_year=*/false)) {
     ESP_LOGE(TAG, "Invalid RTC time, not syncing to system clock.");
     return;
@@ -84,7 +74,7 @@ void RX8130Component::write_time() {
     return;
   }
   uint8_t buff[7];
-  time::encode_bcd_calendar(now, buff);
+  time::encode_bcd_calendar<time::EPSON_BCD_CALENDAR>(now, buff);
   this->stop_(true);
   if (this->write_register(RX8130_REG_SEC, buff, 7) != i2c::ERROR_OK) {
     this->status_set_warning(LOG_STR(ESP_LOG_MSG_COMM_FAIL));

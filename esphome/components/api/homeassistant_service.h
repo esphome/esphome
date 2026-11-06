@@ -20,7 +20,8 @@ namespace esphome::api {
 
 // Converts a lambda result to the string sent to Home Assistant
 template<typename T>
-requires(!std::is_pointer_v<std::remove_cvref_t<T>>) std::string field_to_string(T &&val) {
+  requires(!std::is_pointer_v<std::remove_cvref_t<T>>)
+std::string field_to_string(T &&val) {
   return to_string(std::forward<T>(val));  // NOLINT
 }
 inline std::string field_to_string(const char *val) { return val ? std::string(val) : std::string(); }

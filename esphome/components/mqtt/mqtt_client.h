@@ -8,8 +8,11 @@
 #include "esphome/components/network/ip_address.h"
 #include "esphome/core/automation.h"
 #include "esphome/core/component.h"
+#include "esphome/core/entity_base.h"
 #include "esphome/core/helpers.h"
 #include "esphome/core/log.h"
+#include "esphome/core/progmem.h"
+#include "esphome/core/string_ref.h"
 #ifdef USE_LOGGER
 #include "esphome/components/logger/logger.h"
 #endif
@@ -20,8 +23,12 @@
 #elif defined(USE_LIBRETINY)
 #include "mqtt_backend_libretiny.h"
 #endif
+#if defined(USE_MQTT_SESSION_PERSISTENCE) && !defined(USE_ESP32)
+#include "mqtt_subscription_fingerprint.h"
+#endif
 #include "lwip/ip_addr.h"
 
+#include <span>
 #include <vector>
 
 // The crash log replay needs the logger, which mqtt does not depend on
@@ -30,6 +37,18 @@
 #endif
 
 namespace esphome::mqtt {
+
+// Max lengths for stack-based topic building.
+// These limits are enforced at Python config validation time in mqtt/__init__.py
+// using cv.Length() validators for topic_prefix.
+// This ensures the stack buffers are always large enough.
+static constexpr size_t MQTT_COMPONENT_TYPE_MAX_LEN = 20;
+static constexpr size_t MQTT_SUFFIX_MAX_LEN = 32;
+static constexpr size_t MQTT_TOPIC_PREFIX_MAX_LEN = 64;  // Validated in Python: cv.Length(max=64)
+// Stack buffer size - safe because all inputs are length-validated at config time
+// Format: prefix + "/" + type + "/" + object_id + "/" + suffix + null
+static constexpr size_t MQTT_DEFAULT_TOPIC_MAX_LEN =
+    MQTT_TOPIC_PREFIX_MAX_LEN + 1 + MQTT_COMPONENT_TYPE_MAX_LEN + 1 + OBJECT_ID_MAX_LEN + 1 + MQTT_SUFFIX_MAX_LEN + 1;
 
 /** Callback for MQTT events.
  */
@@ -46,15 +65,33 @@ using mqtt_json_callback_t ESPDEPRECATED(
     "subscribe_json() takes any callable; pass the lambda directly. Removed in 2027.5.0",
     "2026.11.0") = std::function<void(const std::string &, JsonObject)>;
 
+/// Returns a subscription's topic, written into buf or referring to storage that outlives the subscription.
+/// Never a null c_str(); an empty topic is "".
+using mqtt_topic_builder_t = StringRef (*)(const void *context, std::span<char, MQTT_DEFAULT_TOPIC_MAX_LEN> buf);
+
+/// Where a subscription's topic comes from. The topic is rebuilt whenever it is needed, so nothing is stored.
+struct MQTTTopicSource {
+  mqtt_topic_builder_t builder;
+  const void *context;
+  StringRef build(std::span<char, MQTT_DEFAULT_TOPIC_MAX_LEN> buf) const { return this->builder(this->context, buf); }
+};
+
+/// A topic string that outlives the subscription, such as a literal; it is referenced, not copied.
+MQTTTopicSource static_topic(const char *topic);
+#ifdef USE_ESP8266
+/// A topic in flash, copied into the buffer when needed, so at most MQTT_DEFAULT_TOPIC_MAX_LEN - 1 characters.
+MQTTTopicSource progmem_topic(ProgmemStr topic);
+#endif
+
 /// internal struct for MQTT subscriptions.
 struct MQTTSubscription {
-  std::string topic;
+  MQTTTopicSource topic;
+  mqtt_subscription_callback_t callback;
+  uint32_t resubscribe_timeout;
   uint8_t qos;
   bool subscribed;
   bool boxed;    // made by create_boxed(), freed on unsubscribe
   bool removed;  // unsubscribed while a callback ran, erased once dispatch returns
-  mqtt_subscription_callback_t callback;
-  uint32_t resubscribe_timeout;
 };
 
 /// internal struct for MQTT credentials.
@@ -147,11 +184,13 @@ class MQTTClientComponent final : public Component {
   bool is_discovery_enabled() const;
   bool is_discovery_ip_enabled() const;
 
-#ifdef USE_ESP32
+#if defined(USE_ESP32) && defined(USE_MQTT_TLS)
   void set_ca_certificate(const char *cert) { this->mqtt_backend_.set_ca_certificate(cert); }
   void set_cl_certificate(const char *cert) { this->mqtt_backend_.set_cl_certificate(cert); }
   void set_cl_key(const char *key) { this->mqtt_backend_.set_cl_key(key); }
   void set_skip_cert_cn_check(bool skip_check) { this->mqtt_backend_.set_skip_cert_cn_check(skip_check); }
+#endif
+#ifdef USE_ESP32
   void set_transport(MQTTTransport transport) { this->mqtt_backend_.set_transport(transport); }
   void set_ws_path(const char *path) { this->mqtt_backend_.set_ws_path(path); }
 #endif
@@ -165,7 +204,7 @@ class MQTTClientComponent final : public Component {
    *
    * @param topic_prefix The topic prefix. The last "/" is appended automatically.
    */
-  void set_topic_prefix(const std::string &topic_prefix, const std::string &check_topic_prefix);
+  void set_topic_prefix(std::string topic_prefix);
   /// Get the topic prefix of this device, using default if necessary
   const std::string &get_topic_prefix() const;
 
@@ -181,32 +220,44 @@ class MQTTClientComponent final : public Component {
    * A callback that fits in a pointer (capture at most `this`) is stored inline; a larger one is
    * boxed on the heap and freed by unsubscribe().
    *
+   * @param topic Where the topic comes from; it is rebuilt when needed instead of stored.
+   * @param callback The callback function.
+   * @param qos The QoS of this subscription.
+   */
+  template<typename F> void subscribe(MQTTTopicSource topic, F &&callback, uint8_t qos = 0) {
+    constexpr bool boxed = !mqtt_subscription_callback_t::fits_inline<F>();
+    this->add_subscription_(topic,
+                            boxed ? mqtt_subscription_callback_t::create_boxed(std::forward<F>(callback))
+                                  : mqtt_subscription_callback_t::create(std::forward<F>(callback)),
+                            boxed, qos);
+  }
+
+  /** Subscribe to an MQTT topic and call callback when a message is received.
+   *
+   * The topic is copied to the heap and freed by unsubscribe().
+   *
    * @param topic The topic. Wildcards are currently not supported.
    * @param callback The callback function.
    * @param qos The QoS of this subscription.
    */
-  template<typename F> void subscribe(std::string topic, F &&callback, uint8_t qos = 0) {
-    constexpr bool boxed = !mqtt_subscription_callback_t::fits_inline<F>();
-    this->add_subscription_(std::move(topic),
-                            boxed ? mqtt_subscription_callback_t::create_boxed(std::forward<F>(callback))
-                                  : mqtt_subscription_callback_t::create(std::forward<F>(callback)),
-                            boxed, qos);
+  template<typename F> void subscribe(const std::string &topic, F &&callback, uint8_t qos = 0) {
+    this->subscribe(copy_topic(StringRef(topic)), std::forward<F>(callback), qos);
   }
 
   /** Subscribe to a MQTT topic and automatically parse JSON payload.
    *
    * If an invalid JSON payload is received, the callback will not be called.
    *
-   * @param topic The topic. Wildcards are currently not supported.
+   * @param topic An MQTTTopicSource, or a string that is copied to the heap.
    * @param callback The callback with a parsed JsonObject that will be called when a message with matching topic is
    * received.
    * @param qos The QoS of this subscription.
    */
-  template<typename F> void subscribe_json(std::string topic, F &&callback, uint8_t qos = 0) {
+  template<typename T, typename F> void subscribe_json(T &&topic, F &&callback, uint8_t qos = 0) {
     static_assert(std::is_invocable_v<const std::decay_t<F> &, const std::string &, JsonObject>,
                   "subscribe_json() needs a callback that does not mutate its captures");
     this->subscribe(
-        std::move(topic),
+        std::forward<T>(topic),
         [cb = std::forward<F>(callback)](const std::string &topic, const std::string &payload) {
           call_json(cb, topic, payload);
         },
@@ -282,6 +333,7 @@ class MQTTClientComponent final : public Component {
   void disable();
 
   void on_shutdown() override;
+  bool teardown() override;
 
   void set_broker_address(const std::string &address) { this->credentials_.address = address; }
   void set_broker_port(uint16_t port) { this->credentials_.port = port; }
@@ -299,6 +351,12 @@ class MQTTClientComponent final : public Component {
   void set_wait_for_connection(bool wait_for_connection) { this->wait_for_connection_ = wait_for_connection; }
 
  protected:
+  // For the lambda command topic, which is copied once
+  friend class MQTTComponent;
+
+  /// A heap copy of topic, owned by the one subscription it is passed to and freed when that is erased.
+  static MQTTTopicSource copy_topic(StringRef topic);
+
   void send_device_info_();
 
   /// Reconnect to the MQTT broker if not already connected.
@@ -315,6 +373,7 @@ class MQTTClientComponent final : public Component {
   void recalculate_availability_();
 
   bool subscribe_(const char *topic, uint8_t qos);
+  bool subscribe_topic_(const MQTTTopicSource &topic, uint8_t qos);
   void resubscribe_subscription_(MQTTSubscription *sub);
   template<typename F> static void call_json(const F &callback, const std::string &topic, const std::string &payload) {
     JsonDocument doc = json::parse_json(payload);
@@ -324,10 +383,18 @@ class MQTTClientComponent final : public Component {
   }
   void erase_removed_subscriptions_();
 #ifdef USE_MQTT_CRASH_LOG
+  void subscribe_crash_log_();
   void handle_crash_log_request_(const std::string &topic, const std::string &payload);
 #endif
-  void add_subscription_(std::string &&topic, mqtt_subscription_callback_t callback, bool boxed, uint8_t qos);
-  void resubscribe_subscriptions_();
+  void add_subscription_(MQTTTopicSource topic, mqtt_subscription_callback_t callback, bool boxed, uint8_t qos);
+  /// Returns true when every subscription is subscribed
+  bool resubscribe_subscriptions_();
+#ifdef USE_MQTT_SESSION_PERSISTENCE
+  uint32_t subscriptions_fingerprint_();
+  /// Once every SUBACK of this connection is in, saves the fingerprint if all were granted
+  void check_subacks_();
+  void set_session_fingerprint_(uint32_t fingerprint);
+#endif
 
   MQTTCredentials credentials_;
   /// The last will message. Disabled optional denotes it being default and
@@ -337,6 +404,7 @@ class MQTTClientComponent final : public Component {
   /// See last_will_ for what different values denote.
   MQTTMessage birth_message_;
   bool sent_birth_message_{false};
+  bool shutdown_message_sent_{false};
   MQTTMessage shutdown_message_;
   /// Caches availability.
   Availability availability_{};
@@ -383,6 +451,18 @@ class MQTTClientComponent final : public Component {
   bool wait_for_connection_{false};
   bool dispatching_{false};
   bool removed_while_dispatching_{false};
+#ifdef USE_MQTT_SESSION_PERSISTENCE
+  bool session_present_{false};
+  /// Set once every SUBACK of this connection is in (or the session was resumed without subscribing)
+  bool subacks_settled_{false};
+  /// SUBSCRIBEs sent on this connection for the subscriptions the fingerprint covers
+  uint16_t subscribes_sent_{0};
+#ifndef USE_ESP32
+  SubackCounter subacks_;
+#endif
+  /// Fingerprint of the set the broker session is known to hold in full; 0 while a rebuild is in progress
+  uint32_t session_fingerprint_{0};
+#endif
 };
 
 extern MQTTClientComponent *global_mqtt_client;  // NOLINT(cppcoreguidelines-avoid-non-const-global-variables)
@@ -400,8 +480,7 @@ template<typename... Ts> class MQTTPublishJsonAction final : public Action<Ts...
     auto topic = this->topic_.value(x...);
     auto qos = this->qos_.value(x...);
     auto retain = this->retain_.value(x...);
-    this->parent_->publish_json(
-        topic, [this, x...](JsonObject root) { this->payload_(x..., root); }, qos, retain);
+    this->parent_->publish_json(topic, [this, x...](JsonObject root) { this->payload_(x..., root); }, qos, retain);
   }
 
  protected:

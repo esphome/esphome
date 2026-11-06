@@ -20,7 +20,7 @@ void log_number(const char *tag, const char *prefix, const char *type, Number *o
 void Number::publish_state(float state) {
   this->set_has_state(true);
   this->state = state;
-  ESP_LOGV(TAG, "'%s' >> %.2f", this->get_name().c_str(), state);
+  ESP_LOGV(TAG, "'%s' >> %.2f", LOG_STR_ARG(this->get_log_name()), state);
   this->state_callback_.call(state);
 #if defined(USE_NUMBER) && defined(USE_CONTROLLER_REGISTRY)
   ControllerRegistry::notify_number_update(this);

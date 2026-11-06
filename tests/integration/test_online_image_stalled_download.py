@@ -7,6 +7,7 @@ import struct
 
 import pytest
 
+from .log_utils import LineWaiter
 from .online_image_utils import BMP_IMAGE
 from .types import APIClientConnectedFactory, RunCompiledFunction
 
@@ -72,24 +73,7 @@ async def test_online_image_stalled_download(
     api_client_connected: APIClientConnectedFactory,
 ) -> None:
     """Esphome should report an error when a download can never complete."""
-    loop = asyncio.get_running_loop()
-    expected_logs = {
-        "truncated_reason": "Download ended with 1 bytes the decoder could not use",
-        "truncated_error": "download error: truncated",
-        "large_header_reason": "Image does not fit in the 256 byte download buffer",
-        "large_header_error": "download error: large_header",
-        "empty_reason": "Server sent an empty response",
-        "empty_error": "download error: empty",
-    }
-    log_futures = {key: loop.create_future() for key in expected_logs}
-    finished_lines: list[str] = []
-
-    def check_output(line: str) -> None:
-        for key, text in expected_logs.items():
-            if text in line and not log_futures[key].done():
-                log_futures[key].set_result(True)
-        if "download finished" in line:
-            finished_lines.append(line)
+    waiter = LineWaiter()
 
     server = await asyncio.start_server(handle_http, "127.0.0.1", 0)
     http_server_port = server.sockets[0].getsockname()[1]
@@ -97,7 +81,7 @@ async def test_online_image_stalled_download(
 
     async with (
         server,
-        run_compiled(config, line_callback=check_output),
+        run_compiled(config, line_callback=waiter.callback),
         api_client_connected() as client,
     ):
         _, services = await client.list_entities_services()
@@ -105,17 +89,23 @@ async def test_online_image_stalled_download(
 
         await client.execute_service(actions["fetch_truncated"], {})
         async with asyncio.timeout(2.0):
-            await log_futures["truncated_reason"]
-            await log_futures["truncated_error"]
+            await waiter.wait_for_each(
+                "Download ended with 1 bytes the decoder could not use",
+                "download error: truncated",
+            )
 
         await client.execute_service(actions["fetch_large_header"], {})
         async with asyncio.timeout(2.0):
-            await log_futures["large_header_reason"]
-            await log_futures["large_header_error"]
+            await waiter.wait_for_each(
+                "Image does not fit in the 256 byte download buffer",
+                "download error: large_header",
+            )
 
         await client.execute_service(actions["fetch_empty"], {})
         async with asyncio.timeout(2.0):
-            await log_futures["empty_reason"]
-            await log_futures["empty_error"]
+            await waiter.wait_for_each(
+                "Server sent an empty response", "download error: empty"
+            )
 
+    finished_lines = [line for line in waiter.lines if "download finished" in line]
     assert not finished_lines, f"Unexpected successful download: {finished_lines}"

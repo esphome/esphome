@@ -32,6 +32,13 @@ ListEntitiesServicesResponse UserServiceStatic::encode_list_service_response_(
     arg.description = this->str_(base + 1);
     arg.example = this->str_(base + 2);
 #endif
+#ifdef USE_API_USER_DEFINED_ACTION_OPTIONAL_ARGS
+    // The default slot doubles as the optional flag: nullptr is required, "" optional without a default
+    const char *d = progmem_read_ptr(&this->strings_[base + USER_ACTION_ARG_BASE_STRINGS]);
+    arg.optional = d != nullptr;
+    if (d != nullptr)
+      arg.default_value = ProgmemStringRef(d, ESPHOME_strlen_P(d));
+#endif
   }
   return msg;
 }

@@ -1,0 +1,7 @@
+esphome:
+  name: test-device-missing-relation
+  devices:
+    - id: test_device
+      name: Test Device
+
+host:

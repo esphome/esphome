@@ -4,7 +4,6 @@ import pytest
 
 from esphome import config_validation as cv
 from esphome.components.uart import claim_exclusive, subtree_references_uart
-from esphome.config import Config
 from esphome.const import (
     CONF_DEBUG,
     CONF_DUMMY_RECEIVER,
@@ -13,7 +12,9 @@ from esphome.const import (
     PlatformFramework,
 )
 from esphome.core import CORE, ID
+import esphome.final_validate as fv
 from esphome.types import ConfigType
+from tests.component_tests.helpers import uart_full_config
 from tests.component_tests.types import SetCoreConfigCallable
 
 
@@ -22,14 +23,9 @@ def _set(
     uarts: list[ConfigType] | None = None,
     **domains: list[ConfigType],
 ) -> None:
-    """A full config declaring uart_0 and uart_1, as the ID pass leaves it."""
-    uarts = uarts or [{CONF_ID: ID("uart_0")}, {CONF_ID: ID("uart_1")}]
-    full = Config()
-    full["uart"] = uarts
-    for index, uart_conf in enumerate(uarts):
-        full.declare_ids.append((uart_conf[CONF_ID], ["uart", index, CONF_ID]))
-    full.update(domains)
-    set_core_config(PlatformFramework.ESP32_IDF, full_config=full)
+    set_core_config(
+        PlatformFramework.ESP32_IDF, full_config=uart_full_config(uarts, **domains)
+    )
 
 
 def _entry(uart_id: str, conf_key: str = CONF_UART_ID) -> ConfigType:
@@ -46,24 +42,47 @@ def test_ignores_other_uarts_and_other_keys() -> None:
     assert not subtree_references_uart(config, "bus")
 
 
-def test_finds_another_key() -> None:
+def test_finds_any_of_the_keys() -> None:
     config = {"modbus_tcp_uart": [{"tcp_uart_id": ID("bus")}]}
     assert subtree_references_uart(config, "bus", "tcp_uart_id")
+    assert subtree_references_uart(config, "bus", CONF_UART_ID, "tcp_uart_id")
     assert not subtree_references_uart(config, "bus")
+
+
+def test_matches_whole_keys_only() -> None:
+    # A key that is part of another key's name must not match it
+    config = {"sensor": [{"id": ID("bus"), "uart_id": ID("bus")}]}
+    assert not subtree_references_uart(config, "bus", "tcp_uart_id")
 
 
 def test_handles_scalars() -> None:
     assert not subtree_references_uart("bus", "bus")
 
 
-def test_claims_distinct_uarts_and_keys(
+def test_claims_distinct_uarts(
     set_core_config: SetCoreConfigCallable,
 ) -> None:
     _set(set_core_config)
     claim_exclusive(_entry("uart_0"), "owner")
     claim_exclusive(_entry("uart_1"), "owner")
-    claim_exclusive(_entry("uart_0", "link_id"), "owner", "link_id")
     claim_exclusive(_entry("uart_0"), "other_owner")
+
+
+def test_rejects_one_uart_under_two_keys(
+    set_core_config: SetCoreConfigCallable,
+) -> None:
+    _set(set_core_config)
+    claim_exclusive(_entry("uart_0"), "owner")
+    with pytest.raises(cv.Invalid, match="already used by another 'owner' entry"):
+        claim_exclusive(_entry("uart_0", "link_id"), "owner", "link_id")
+
+
+def test_claims_ignore_the_owner_data(
+    set_core_config: SetCoreConfigCallable,
+) -> None:
+    _set(set_core_config)
+    fv.full_config.get().data["owner"] = {CONF_UART_ID: {"uart_0"}}
+    claim_exclusive(_entry("uart_0"), "owner")
 
 
 def test_rejects_a_second_entry_of_the_owner(
@@ -100,10 +119,10 @@ def test_ignores_the_owner_other_uarts_and_other_keys(
 
 
 def test_testing_mode_allows_a_shared_bus(
-    set_core_config: SetCoreConfigCallable, monkeypatch: pytest.MonkeyPatch
+    set_core_config: SetCoreConfigCallable,
 ) -> None:
     # Grouped CI builds put several components on one bus package.
-    monkeypatch.setattr(CORE, "testing_mode", True)
+    CORE.testing_mode = True
     _set(set_core_config, modbus=[_entry("uart_0")])
     claim_exclusive(_entry("uart_0"), "owner")
     with pytest.raises(cv.Invalid, match="already used by another 'owner'"):
