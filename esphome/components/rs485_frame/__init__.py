@@ -386,7 +386,8 @@ def _final_validate(config: ConfigType) -> ConfigType:
         bus = fv.get_declaring_config(config[CONF_UART_ID])
         # Worst case: every byte escaped, plus DLE STX and DLE ETX.
         wire_bytes = 2 * (config[CONF_MAX_FRAME_LENGTH] + _crc_len(config)) + 4
-        bits = 1 + bus[CONF_DATA_BITS] + bus[CONF_STOP_BITS]
+        # usb_uart channels keep stop_bits as a string such as "1.5"
+        bits = 1 + bus[CONF_DATA_BITS] + float(bus[CONF_STOP_BITS])
         bits += bus[CONF_PARITY] != "NONE"
         if wire_bytes * bits * 1000 > MAX_BUS_TIME_MS * bus[CONF_BAUD_RATE]:
             raise cv.Invalid(

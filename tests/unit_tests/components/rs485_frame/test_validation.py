@@ -45,11 +45,16 @@ def test_invalid_config_raises(fixture_path: Path, fixture: str, expected: str) 
     ]
 
 
-def test_sniffer_accepts_rx_only_uart(fixture_path: Path) -> None:
+@pytest.mark.parametrize(
+    "fixture",
+    [
+        "rs485_frame_sniffer_rx_only_uart.yaml",
+        "rs485_frame_usb_uart_stop_bits.yaml",
+    ],
+)
+def test_valid_config_passes(fixture_path: Path, fixture: str) -> None:
     CORE.config_path = fixture_path / "dummy.yaml"
-    raw_config = yaml_util.load_yaml(
-        fixture_path / "rs485_frame_sniffer_rx_only_uart.yaml"
-    )
+    raw_config = yaml_util.load_yaml(fixture_path / fixture)
 
     result = esphome_config.validate_config(raw_config, {})
 

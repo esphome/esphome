@@ -1,0 +1,31 @@
+esphome:
+  name: test-device
+
+esp32:
+  board: esp32-s3-devkitc-1
+  framework:
+    type: esp-idf
+
+# usb_uart channels keep stop_bits as a string such as "1.5".
+usb_host:
+
+usb_uart:
+  - id: usb_bridge
+    type: cp210x
+    channels:
+      - id: usb_bus
+        baud_rate: 9600
+        stop_bits: 1.5
+
+rs485_frame:
+  - id: hub
+    uart_id: usb_bus
+    framing:
+      escape:
+        mode: escape_byte
+        byte: 0x00
+    crc:
+      type: sum8
+    tx:
+      gate:
+        mode: fixed_delay
