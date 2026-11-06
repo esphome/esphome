@@ -16,12 +16,14 @@ void TLC5947::setup() {
     this->outenable_pin_->setup();
     this->outenable_pin_->digital_write(false);
   }
+
+  this->pwm_amounts_.resize(this->num_chips_ * N_CHANNELS_PER_CHIP, 0);
 }
 void TLC5947::dump_config() {
   ESP_LOGCONFIG(TAG,
                 "TLC5947:\n"
-                "  Number of chips: %zu",
-                this->pwm_amounts_.size() / N_CHANNELS_PER_CHIP);
+                "  Number of chips: %u",
+                this->num_chips_);
   LOG_PIN("  Data Pin: ", this->data_pin_);
   LOG_PIN("  Clock Pin: ", this->clock_pin_);
   LOG_PIN("  LAT Pin: ", this->lat_pin_);
@@ -35,8 +37,8 @@ void TLC5947::loop() {
   this->lat_pin_->digital_write(false);
 
   // push the data out, MSB first, 12 bit word per channel, 24 channels per chip
-  for (auto ch = static_cast<int32_t>(this->pwm_amounts_.size()) - 1; ch >= 0; ch--) {
-    uint16_t word = this->pwm_amounts_[ch];
+  for (int32_t ch = N_CHANNELS_PER_CHIP * num_chips_ - 1; ch >= 0; ch--) {
+    uint16_t word = pwm_amounts_[ch];
     for (uint8_t bit = 0; bit < 12; bit++) {
       this->clock_pin_->digital_write(false);
       this->data_pin_->digital_write(word & 0x800);
@@ -58,7 +60,7 @@ void TLC5947::loop() {
 }
 
 void TLC5947::set_channel_value(uint16_t channel, uint16_t value) {
-  if (channel >= this->pwm_amounts_.size())
+  if (channel >= this->num_chips_ * N_CHANNELS_PER_CHIP)
     return;
   if (this->pwm_amounts_[channel] != value) {
     this->update_ = true;

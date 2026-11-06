@@ -18,6 +18,7 @@ void BP1658CJ::setup() {
   this->data_pin_->digital_write(false);
   this->clock_pin_->setup();
   this->clock_pin_->digital_write(false);
+  this->pwm_amounts_.resize(5, 0);
 }
 void BP1658CJ::dump_config() {
   ESP_LOGCONFIG(TAG,
