@@ -290,10 +290,12 @@ canbus::Error MCP251XFD::send_message(canbus::CanFrame *frame) {
   if (frame->bit_rate_switch)
     message[4] |= MESSAGE_BRS;
 #endif
-  if (!frame->remote_transmission_request)
-    std::memcpy(message.data() + 8, frame->data, frame->payload_length());
+  const size_t payload_length = frame->remote_transmission_request ? 0 : frame->payload_length();
+  if (payload_length != 0)
+    std::memcpy(message.data() + 8, frame->data, payload_length);
 
-  this->write_registers_(address, message.data(), message.size());
+  // RAM writes must contain whole words. Unused bytes in the last word stay zero.
+  this->write_registers_(address, message.data(), 8 + ((payload_length + 3) & ~size_t{3}));
   this->write_byte_(REG_TX_FIFO_CON + 1, FIFO_INCREMENT | FIFO_TX_REQUEST);
   return canbus::ERROR_OK;
 }
