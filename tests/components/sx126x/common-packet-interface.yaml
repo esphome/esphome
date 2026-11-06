@@ -1,0 +1,19 @@
+sx126x:
+  cs_pin: ${cs_pin}
+  rst_pin: ${rst_pin}
+  busy_pin: ${busy_pin}
+  dio1_pin: ${dio1_pin}
+  hw_version: sx1262
+  rf_switch: true
+  frequency: 917MHz
+  modulation: LORA
+  crc_enable: true
+
+packet_interface:
+  - platform: sx126x
+    id: sx126x_packet_interface
+    addressing:
+      address: 0x0001
+      destination: 0x0002
+    reliability:
+      timeout: 500ms
