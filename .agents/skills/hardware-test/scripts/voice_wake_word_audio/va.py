@@ -5,7 +5,8 @@ MODE: accept | reject | timeout | noflag (the whole session without the wake_wor
 
 Say the wake word near the device for every run (run.sh plays it). Each run's two audio channels are saved as
 OUTDIR/run<N>-<mode>-ch<1|2>.wav with a JSON summary (wake word id, probability, wake word audio sizes); every
-summary is also printed as a RESULT line, followed by "SUMMARY MODE CH1_MS". Needs aioesphomeapi 46.27.0 or later.
+summary is also printed as a RESULT line, followed by "SUMMARY MODE CH1_MS". Exits 1 when a run's audio stream never
+ended, a verdict task failed or the session timed out. Needs aioesphomeapi 46.27.0 or later.
 """
 
 import asyncio
@@ -48,6 +49,8 @@ class State:
     pending: list[str] = field(default_factory=list)
     events: list[str] = field(default_factory=list)
     done_all: asyncio.Event = field(default_factory=asyncio.Event)
+    tasks: list[asyncio.Task] = field(default_factory=list)
+    failures: list[str] = field(default_factory=list)
 
 
 S = State()
@@ -81,6 +84,7 @@ def save(r: Run) -> None:
             "p": ww.probability,
             "cutoff": ww.probability_cutoff,
         },
+        "stopped": r.stopped.is_set(),
         "start_to_first_audio_ms": round((r.first_audio - r.started) * 1000)
         if r.first_audio
         else None,
@@ -112,6 +116,7 @@ async def verdict(r: Run) -> None:
         await asyncio.wait_for(r.stopped.wait(), 8)
     except TimeoutError:
         mark(f"RUN {r.n} device never ended the audio stream")
+        S.failures.append(f"run {r.n} stream never ended")
     await asyncio.sleep(1.0)
     if S.run is r:
         save(r)
@@ -136,7 +141,7 @@ async def handle_start(
     S.count += 1
     S.run = Run(S.count, mode, ww)
     mark(f"START run {S.count} mode={mode} phrase={phrase!r} flags={flags} ww={ww}")
-    asyncio.get_running_loop().create_task(verdict(S.run))  # noqa: RUF006
+    S.tasks.append(asyncio.get_running_loop().create_task(verdict(S.run)))
     return 0
 
 
@@ -159,7 +164,7 @@ async def handle_audio(d1: bytes, d2: bytes) -> None:
     r.a2 += d2
 
 
-async def main() -> None:
+async def main() -> int:
     S.cli = cli = await connect(HOST, KEY)
     keep = re.compile(
         r"voice_assistant|micro_wake_word|wake|hwt|Free Memory|\[E\]|\[W\]"
@@ -188,9 +193,17 @@ async def main() -> None:
         await asyncio.wait_for(S.done_all.wait(), 600)
     except TimeoutError:
         mark("session timed out")
+        S.failures.append("session timed out")
     await asyncio.sleep(3)
+    for res in await asyncio.gather(*S.tasks, return_exceptions=True):
+        if isinstance(res, BaseException):
+            S.failures.append(f"verdict task failed: {res!r}")
     await cli.disconnect()
+    if S.failures:
+        mark(f"FAIL: {S.failures}")
+    return 1 if S.failures else 0
 
 
-asyncio.run(main())
+rc = asyncio.run(main())
 (OUT / "events.txt").write_text("\n".join(S.events) + "\n", encoding="utf-8")
+sys.exit(rc)

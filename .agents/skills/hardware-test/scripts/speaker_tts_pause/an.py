@@ -3,7 +3,8 @@
 usage: an.py SRV_LOG WWW_DIR LABEL=SERIAL_CAPTURE...
 SRV_LOG is srv.py's output with "=== LABEL ..." lines that run.sh writes before each build's requests. The serial
 capture needs --ms timestamps and the "[frames" lines from tts-common.yaml. The fifth request of a build is media,
-the others announcements. Exits 1 when a build did not get all five requests or a request played nothing.
+the others announcements. Exits 1 when a build did not get all five requests, a request played nothing, or the
+server logged an error or never sent the rest of a request.
 """
 
 import datetime as dt
@@ -27,22 +28,27 @@ def tod(epoch: float) -> float:
     return t.hour * 3600 + t.minute * 60 + t.second + t.microsecond / 1e6
 
 
-sections: dict[str, list[list[str]]] = {}
-cur: list[list[str]] | None = None
+# per build label, one dict per REQ with the send events that follow it (requests are sequential)
+sections: dict[str, list[dict]] = {}
+cur: list[dict] | None = None
 for line in SRV.read_text(encoding="utf-8").splitlines():
     if line.startswith("=== "):
         cur = sections.setdefault(line.split()[1], [])
-    elif line and cur is not None:
-        cur.append(line.split(None, 2))
+        continue
+    e = line.split(None, 2)
+    if cur is None or len(e) < 2 or not re.fullmatch(r"\d+\.\d+", e[0]):
+        continue  # tracebacks and other stray output
+    if e[1] == "REQ" and len(e) == 3:
+        cur.append({"t": tod(float(e[0])), "name": e[2].split()[0].lstrip("/")})
+    elif e[1] in ("INTRO_SENT", "REST_SENT", "ERR") and cur:
+        cur[-1].setdefault(e[1], tod(float(e[0])))
 bad = False
 for arg in sys.argv[3:]:
     label, serial = arg.split("=", 1)
     sec = sections.get(label, [])
-    reqs = [
-        (tod(float(e[0])), e[2].split()[0].lstrip("/")) for e in sec if e[1] == "REQ"
-    ]
-    intro = [tod(float(e[0])) for e in sec if e[1] == "INTRO_SENT"]
-    rest = [tod(float(e[0])) for e in sec if e[1] == "REST_SENT"]
+    reqs = [(r["t"], r["name"]) for r in sec]
+    intro = [r.get("INTRO_SENT") for r in sec]
+    rest = [r.get("REST_SENT") for r in sec]
     ev = []
     for line in (
         pathlib.Path(serial).read_bytes().decode("utf8", "replace").splitlines()
@@ -66,15 +72,13 @@ for arg in sys.argv[3:]:
             print(f"  {i} {kind} {name}: nothing played")
             bad = True
             continue
-        at_rest = max(
-            [e[2] for e in seg if i < len(rest) and e[0] <= rest[i]], default=0
-        )
+        at_rest = max([e[2] for e in seg if rest[i] and e[0] <= rest[i]], default=0)
         tail = next((round(e[0] - rt, 2) for e in seg if e[2] >= isamp), None)
-        sent = (
-            f"intro sent {intro[i] - rt:4.2f} s, rest sent {rest[i] - rt:5.2f} s"
-            if i < len(rest)
-            else "rest not sent"
-        )
+        if rest[i] and intro[i]:
+            sent = f"intro sent {intro[i] - rt:4.2f} s, rest sent {rest[i] - rt:5.2f} s"
+        else:
+            sent = "rest not sent" + (" (server ERR)" if "ERR" in sec[i] else "")
+            bad = True
         print(
             f"  {i} {kind:5} {name}: first audio {seg[0][0] - rt:5.2f} s | {sent} | played before rest "
             f"{at_rest / RATE:5.2f} s of {isamp / RATE:4.2f} s intro | intro fully played at {tail} s | "

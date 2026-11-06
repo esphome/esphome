@@ -11,13 +11,15 @@
 - `mh-usb.yaml`: the stream fed by a USB microphone on `usb_audio` (48 kHz, 16-bit stereo, channel 0 streamed).
 
 Copy the directory next to a `secrets.yaml` with `api_key`, flash, then run
-`mhclient.py HOST STREAM_ID [--clients N] [--seconds S] [--pattern] [--stall K] [--stagger S]`. Each reader prints
-its HTTP status, format headers, sample count and rate, the longest gap between reads and, with `--pattern`, every
-break in the counter. `--stall K` makes reader K stop reading after 2 s while keeping its socket open.
-The script exits 1 when any other reader got no 200, no samples or a broken counter.
+`mhclient.py HOST STREAM_ID [--clients N] [--seconds S] [--pattern] [--stall K] [--stagger S] [--expect-reject R]`.
+Each reader prints its HTTP status, format headers, sample count and rate, the longest gap between reads and, with
+`--pattern`, every break in the counter. `--stall K` makes reader K stop reading after 2 s while keeping its socket
+open, then checks that the device closed it. `--expect-reject R` marks the last R readers as past `max_clients`.
+The script exits 1 when the listing is not a 200 naming the stream, the stalled reader was not dropped, a reader past
+the limit was served, or any other reader got no 200, no samples, an early EOF, a read error or a broken counter.
 
 Cases worth running on each head: one reader with `--pattern` (rate must match the sample rate, 0 breaks), the
-`max_clients` limit plus one (note what the extra one gets; the others must be unaffected), a stalled reader among
+`max_clients` limit plus one with `--expect-reject 1` (note what the extra one gets; the others must be unaffected), a stalled reader among
 three (the device should drop the stalled one only), the "Mic stall" button during a read (a gap of about 6 s, then
 the counter continues), mic start and stop while readers are attached, and the heap line after many connect and
 disconnect cycles. On the USB microphone, check the rate and `rms` (non-zero) instead of the pattern.

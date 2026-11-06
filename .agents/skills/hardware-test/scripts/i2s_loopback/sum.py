@@ -1,7 +1,8 @@
 """Tabulate run.sh's res.txt files: settle times, opposite DC per channel, DC plus tone, square wave levels.
 
 usage: sum.py RES_TXT...   Judge by the tail values: a segment's min and max include the end of the previous one.
-Exits 1 when a file lacks the three channel 0 segments of each signal mode.
+Exits 1 when a file lacks the three channel 0 segments of each signal mode, or the full-scale square never reaches
+an rms of 8000 on channel 0 (no loopback signal: a missing jumper or a dead generator).
 """
 
 from itertools import zip_longest
@@ -40,5 +41,8 @@ for path in sys.argv[1:]:
     )
     if short := [m for m in range(1, 6) if len(seg(lines, m, 0)) < 3]:
         print(f" FAIL: fewer than 3 segments for modes {short}")
+        bad = True
+    if max((float(rms) for rms, _, _ in squares[4]), default=0) < 8000:
+        print(" FAIL: the full-scale square never reached rms 8000, no loopback signal")
         bad = True
 sys.exit(1 if bad else 0)

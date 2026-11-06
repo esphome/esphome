@@ -149,6 +149,8 @@ capture decoder, RTL8720C ROM dump versus report matcher), `api_outgoing/` (wake
   Wi-Fi boot checks), `ble_midi/` (fake BLE MIDI instrument and the client), `http_request_action/` (request
   action package with per-board files and an OTA flash variant) `uart_sim/` (simulator header, common package, per-build parts and run files) and `remote_base/` (common
   package, transmit script, per-board templates and the ESP8266 software sender).
+- `microphone_http_stream/`: base config, fake counter and USB microphone variants and the multi-reader client,
+  described in `reference/recipes/microphone_http_stream.md`.
 
 ## When the PR keeps moving
 

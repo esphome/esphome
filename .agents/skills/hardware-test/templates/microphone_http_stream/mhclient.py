@@ -1,10 +1,11 @@
-"""mhclient.py HOST STREAM_ID [--clients N] [--seconds S] [--pattern] [--stall K] [--stagger S]
+"""mhclient.py HOST STREAM_ID [--clients N] [--seconds S] [--pattern] [--stall K] [--stagger S] [--expect-reject R]
 
 Opens N concurrent GET /audio/microphones/STREAM_ID readers. Each reports its HTTP status, format headers, sample
 count and rate, the longest gap between reads, and, with --pattern, every break in the fake microphone's uint16
 counter. --stall K makes reader K stop reading after 2 s (the device should drop it, not the others).
-Exits 1 when a reader other than the stalled one got no 200, no samples, an early EOF, a read error or (with
---pattern) a broken counter.
+--expect-reject R says the last R readers are past max_clients and must be refused.
+Exits 1 when the listing is not a 200 naming the stream, the stalled reader was not dropped, a refused reader was
+served, or any other reader got no 200, no samples, an early EOF, a read error or (with --pattern) a broken counter.
 """
 
 import argparse
@@ -58,6 +59,7 @@ def reader(
         while time.time() - t0 < secs:
             if stall and time.time() - t0 > 2:
                 time.sleep(secs)  # stop reading, keep the socket open
+                r["dropped"] = dropped(c, resp)
                 break
             data = resp.read1(8192)
             now = time.time()
@@ -89,6 +91,21 @@ def reader(
         c.close()
 
 
+def dropped(c: http.client.HTTPConnection, resp: http.client.HTTPResponse) -> bool:
+    """Drain what the device sent before it gave up; True when it then closed or reset the socket."""
+    c.sock.settimeout(2)
+    end = time.time() + 10
+    try:
+        while time.time() < end:
+            if not resp.read1(65536):
+                return True
+    except TimeoutError:
+        return False
+    except OSError:
+        return True
+    return False
+
+
 def main() -> None:
     p = argparse.ArgumentParser()
     p.add_argument("host")
@@ -98,11 +115,15 @@ def main() -> None:
     p.add_argument("--pattern", action="store_true")
     p.add_argument("--stall", type=int, default=-1)
     p.add_argument("--stagger", type=float, default=0.2)
+    p.add_argument("--expect-reject", type=int, default=0)
     a = p.parse_args()
     c = http.client.HTTPConnection(a.host, 80, timeout=10)
     c.request("GET", "/audio/microphones")
     m = c.getresponse()
-    print("META", m.status, m.read().decode(errors="replace")[:400])
+    body = m.read().decode(errors="replace")
+    c.close()
+    print("META", m.status, body[:400])
+    bad = m.status != 200 or a.stream not in body
     res: list[dict | None] = [None] * a.clients
     th = []
     for i in range(a.clients):
@@ -123,17 +144,21 @@ def main() -> None:
         th.append(t)
     for t in th:
         t.join()
-    bad = False
     for i, r in enumerate(res):
         print(f"C{i}", json.dumps(r))
-        if i != a.stall and (
+        failed = (
             r["status"] != 200
             or not r["samples"]
             or r["eof"] is not None
             or "error" in r
             or (a.pattern and r["breaks"])
-        ):
-            bad = True
+        )
+        if i == a.stall:
+            bad |= not r.get("dropped")
+        elif i >= a.clients - a.expect_reject:
+            bad |= not failed
+        else:
+            bad |= bool(failed)
     sys.exit(1 if bad else 0)
 
 

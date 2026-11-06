@@ -12,7 +12,8 @@ class FakeMicrophone : public microphone::Microphone, public Component {
   explicit FakeMicrophone(uint32_t rate) : rate_(rate) {}
   void setup() override {
     this->audio_stream_info_ = audio::AudioStreamInfo(16, 1, this->rate_);
-    xTaskCreate(task_, "fakemic", 4096, this, 18, nullptr);
+    if (xTaskCreate(task_, "fakemic", 4096, this, 18, nullptr) != pdPASS)
+      this->mark_failed(LOG_STR("fakemic task not created"));
   }
   void start() override {
     this->starts_++;

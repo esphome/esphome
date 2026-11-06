@@ -6,10 +6,16 @@ D=$(cd "$(dirname "$0")" && pwd); H=${1:?host}; G=${2:?tag}; N=${3:-4}; PY=${PY:
 WAKE=${WAKE_AUDIO:-wake.aiff}; PLAY=${PLAY:-afplay}; O=$D/out-ww$G; rm -rf "$O"; mkdir -p "$O"
 [ -f "$WAKE" ] || { echo "FAIL: no $WAKE (see the recipe)"; exit 1; }
 M=$(for _ in $(seq "$N"); do printf 'reject,timeout,'; done); M=${M%,}
-(timeout 300 $PY "$D/va.py" "$H" "$K" "$O" "$M" > "$O/va.log" 2>&1; touch "$O/done") &
+(timeout 300 $PY "$D/va.py" "$H" "$K" "$O" "$M" > "$O/va.log" 2>&1; echo $? > "$O/rc"; touch "$O/done") &
 sleep 9; i=0
 until [ -e "$O/done" ] || [ $i -ge $((N * 2 + 17)) ]; do $PLAY "$WAKE"; i=$((i + 1)); sleep 9; done
 wait
 grep SUMMARY "$O/va.log" | awk '{print $3, $4, "ms"}'
 echo "rejected logs: $(grep -c 'Wake word rejected' "$O/va.log")  timeout logs: $(grep -c 'was not accepted' "$O/va.log")"
-[ "$(grep -c RESULT "$O/va.log")" -ge $((N * 2)) ] || { echo "FAIL: fewer runs than modes"; exit 1; }
+[ "$(cat "$O/rc")" = 0 ] || { echo "FAIL: va.py exited $(cat "$O/rc"): $(grep -a 'FAIL' "$O/va.log" | tail -1)"; exit 1; }
+for m in reject timeout; do
+  [ "$(grep -c "RESULT .*\"mode\": \"$m\"" "$O/va.log")" -ge "$N" ] || { echo "FAIL: fewer than $N $m runs"; exit 1; }
+done
+[ "$(grep -c 'Wake word rejected' "$O/va.log")" -ge "$N" ] && [ "$(grep -c 'was not accepted' "$O/va.log")" -ge "$N" ] ||
+  { echo "FAIL: the device did not log every reject or timeout verdict"; exit 1; }
+echo PASS

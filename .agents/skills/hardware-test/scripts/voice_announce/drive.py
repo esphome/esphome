@@ -78,7 +78,12 @@ async def main() -> None:
     )
     await asyncio.sleep(1)
     ents, _ = await cli.list_entities_services()
-    key = next(e.key for e in ents if e.object_id == "hwtest_slow_announce")
+    key = next((e.key for e in ents if e.object_id == "hwtest_slow_announce"), None)
+    if key is None:
+        await cli.disconnect()
+        sys.exit(
+            "FAIL: no hwtest_slow_announce button (slow-announce.yaml not in the config?)"
+        )
     T0 = time.monotonic()
     mark(f"PRESS announce button, url delay {DELAY}s")
     cli.button_command(key)

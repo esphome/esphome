@@ -55,7 +55,11 @@ inline void gen_task(void *) {
       buf[2 * i + 1] = (int16_t) r;
     }
     size_t w;
-    i2s_channel_write(tx, buf, sizeof(buf), &w, portMAX_DELAY);
+    const esp_err_t err = i2s_channel_write(tx, buf, sizeof(buf), &w, portMAX_DELAY);
+    if (err != ESP_OK) {
+      ESP_LOGE("dc", "i2s write failed: %s", esp_err_to_name(err));
+      vTaskDelay(pdMS_TO_TICKS(1000));
+    }
   }
 }
 
@@ -75,7 +79,8 @@ inline void start(uint32_t sr, int bclk, int ws, int dout) {
   };
   ESP_ERROR_CHECK(i2s_channel_init_std_mode(tx, &sc));
   ESP_ERROR_CHECK(i2s_channel_enable(tx));
-  xTaskCreate(gen_task, "dcgen", 4096, nullptr, 10, nullptr);
+  if (xTaskCreate(gen_task, "dcgen", 4096, nullptr, 10, nullptr) != pdPASS)
+    ESP_LOGE("dc", "generator task not created");
 }
 
 // ---- analyzer (runs on the microphone task) ----

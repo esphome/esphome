@@ -10,6 +10,10 @@ pkill -f "[s]erial_capture.py $P"
 (cd "$T" && $PY -m esphome run --no-logs "$D/$NAME.yaml" --device "$P" > "$O/upload.log" 2>&1) || { echo "FAIL: build or upload"; exit 1; }
 $PY "$SC" "$P" 60 "$O/serial.txt" > /dev/null 2>&1 || { echo "FAIL: capture got nothing"; exit 1; }
 grep -a -E "SEG|SETTLE" "$O/serial.txt" | sed -E 's/^\[[0-9:]+\]\[I\]\[dc:[0-9]+\]: //' > "$O/res.txt"
-echo "== $NAME $(grep -a -c 'SEQ DONE' "$O/serial.txt") done, $(grep -a -c -i -E 'Guru|abort|wdt|rst:' "$O/serial.txt") resets"
-python3 "$D/sum.py" "$O/res.txt" || { echo "FAIL: missing segment measurements"; exit 1; }
+RESETS=$(sed -n '/SEG mode/,$p' "$O/serial.txt" | grep -a -c -i -E 'Guru|abort|wdt|rst:')
+echo "== $NAME $(grep -a -c 'SEQ DONE' "$O/serial.txt") done, $RESETS resets"
+python3 "$D/sum.py" "$O/res.txt" || { echo "FAIL: missing segment measurements or no signal"; exit 1; }
 grep -a -q 'SEQ DONE' "$O/serial.txt" || { echo "FAIL: the sequence never finished"; exit 1; }
+[ "$RESETS" = 0 ] || { echo "FAIL: $RESETS crash or reset lines after the first segment"; exit 1; }
+grep -a -q 'generator task not created\|i2s write failed' "$O/serial.txt" && { echo "FAIL: the generator did not run"; exit 1; }
+echo PASS

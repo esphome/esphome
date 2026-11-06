@@ -12,11 +12,13 @@ for arg in "$@"; do
     { echo "FAIL: $v build or upload"; exit 1; }
   sleep 45
   for r in 1 2; do
-    $PY "$D/drive.py" "$DEV" "$K" "${DELAY:-3.5}" "$O/run$r.txt" > /dev/null 2>&1 || FAIL=1
     echo "== $v run $r"
-    grep -v "sensor:\|wifi\|Free Memory\|api.connection\|Event Type\|Desired" "$O/run$r.txt" |
+    $PY "$D/drive.py" "$DEV" "$K" "${DELAY:-3.5}" "$O/run$r.txt" > "$O/drive$r.log" 2>&1 ||
+      { echo "FAIL: drive.py exited $?:"; tail -5 "$O/drive$r.log"; FAIL=1; }
+    [ -f "$O/run$r.txt" ] && grep -v "sensor:\|wifi\|Free Memory\|api.connection\|Event Type\|Desired" "$O/run$r.txt" |
       grep -E "PRESS|HTTP|VA |State changed from (STREAMING_RESPONSE|IDLE|RESPONSE_FINISHED)|STREAMING_MICROPHONE$|micro_decoder|media_player|announc|Error" |
       cut -c1-140 | head -24
   done
 done
-[ "$FAIL" = 0 ] || { echo "FAIL: a run never fetched the URL"; exit 1; }
+[ "$FAIL" = 0 ] || { echo "FAIL: a run failed, see out-va*/drive*.log"; exit 1; }
+echo PASS

@@ -35,6 +35,7 @@ class Trial:
     ww: object = None
     audio: bytearray | None = None  # None until the run starts
     reject_task: asyncio.Task | None = None
+    waiting: bool = False  # a START only belongs to this trial while it waits for one
 
 
 def mark(w: str) -> None:
@@ -64,6 +65,11 @@ async def main() -> int:
     async def start(
         conv: str, flags: int, settings: object, phrase: str | None, ww: object = None
     ) -> int:
+        if not cur.waiting:
+            mark("START outside a trial window, rejected and ignored")
+            loop.create_task(reject())  # noqa: RUF006
+            return 0
+        cur.waiting = False
         cur.ww = ww
         cur.audio = bytearray()
         mark(f"START ww bytes={ww.audio_bytes if ww else None}")
@@ -91,10 +97,12 @@ async def main() -> int:
         await asyncio.sleep(3)
         cli.button_command(bstart.key)
         await asyncio.sleep(0.3)
+        cur.waiting = True
         await play(WAKE)
         try:
             await asyncio.wait_for(cur.started.wait(), 4)
         except TimeoutError:
+            cur.waiting = False
             mark(f"RESULT {json.dumps({'t': t, 'detected': False})}")
             await asyncio.sleep(3)
             continue
