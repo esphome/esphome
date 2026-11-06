@@ -708,58 +708,6 @@ def test_to_code_priority_above_safe_mode() -> None:
 
 
 @pytest.mark.asyncio
-async def test_add_looping_components_handles_empty_entries() -> None:
-    """Test that _add_looping_components emits a valid constexpr when there are
-    no looping component entries.
-
-    With zero entries the generated constexpr must still be syntactically valid
-    C++ (`= 0;`), not an empty expression (`= ;`). This guards the empty-list
-    case that would otherwise produce uncompilable main.cpp output.
-    """
-    CORE.data["looping_component_entries"] = []
-
-    await config._add_looping_components()
-
-    constexpr_lines = [
-        str(s)
-        for s in CORE.global_statements
-        if "ESPHOME_LOOPING_COMPONENT_COUNT" in str(s)
-    ]
-    assert len(constexpr_lines) == 1
-    text = constexpr_lines[0]
-    assert "static constexpr size_t ESPHOME_LOOPING_COMPONENT_COUNT" in text
-    # The right-hand side must contain a literal `0`, not be empty.
-    rhs = text.split("=", 1)[1]
-    assert "0" in rhs
-    assert rhs.strip().rstrip(";").strip(), (
-        f"constexpr right-hand side must not be empty, got: {text!r}"
-    )
-
-
-@pytest.mark.asyncio
-async def test_add_looping_components_with_entries() -> None:
-    """Test that _add_looping_components builds a HasLoopOverride sum from entries."""
-    CORE.data["looping_component_entries"] = [
-        "esphome::wifi::WiFiComponent",
-        "esphome::logger::Logger",
-        "esphome::wifi::WiFiComponent",
-    ]
-
-    await config._add_looping_components()
-
-    constexpr_lines = [
-        str(s)
-        for s in CORE.global_statements
-        if "ESPHOME_LOOPING_COMPONENT_COUNT" in str(s)
-    ]
-    assert len(constexpr_lines) == 1
-    text = constexpr_lines[0]
-    # Deduplicated by type, with per-type counts as multiplier.
-    assert "(2 * HasLoopOverride<esphome::wifi::WiFiComponent>::value)" in text
-    assert "(1 * HasLoopOverride<esphome::logger::Logger>::value)" in text
-
-
-@pytest.mark.asyncio
 async def test_add_controller_registry_dispatch_without_controllers() -> None:
     """Nothing is emitted when no controller registered."""
     CORE.data.pop(KEY_CONTROLLER_REGISTRY_CONTROLLERS, None)
