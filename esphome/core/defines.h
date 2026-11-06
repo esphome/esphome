@@ -452,6 +452,7 @@
 #define USE_OTA_VERSION 2
 #define USE_TIME_TIMEZONE
 #define USE_WIFI
+#define WIFI_NETWORK_COUNT 2
 #define USE_WIFI_AP
 #define USE_WIFI_MANUAL_IP
 #endif
