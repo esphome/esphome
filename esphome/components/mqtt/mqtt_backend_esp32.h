@@ -179,7 +179,8 @@ class MQTTBackendESP32 final : public MQTTBackend {
   bool connected() const final { return this->is_connected_; }
 
   void connect() final {
-    this->requested_link_state_.store(LinkState::LINK_STATE_CONNECTED);  // before start/reconnect, so the MQTT task sees it
+    this->requested_link_state_.store(
+        LinkState::LINK_STATE_CONNECTED);  // before start/reconnect, so the MQTT task sees it
     if (!is_initalized_) {
       if (initialize_()) {
         esp_mqtt_client_start(handler_.get());

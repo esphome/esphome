@@ -130,8 +130,7 @@ void MQTTBackendESP32::loop() {
   // CONNECTED event can follow it, then handle it as if it had arrived.
   // task_link_state_ is read before empty(): it is cleared after the push, so if a queued
   // DISCONNECTED exists, seeing DISCONNECTED here guarantees empty() sees it too.
-  if (this->is_connected_ &&
-      this->task_link_state_.load() == LinkState::LINK_STATE_DISCONNECTED &&
+  if (this->is_connected_ && this->task_link_state_.load() == LinkState::LINK_STATE_DISCONNECTED &&
       this->mqtt_event_queue_.empty()) {
     ESP_LOGW(TAG, "Disconnect event was dropped, handling it now");
     this->handle_disconnected_();
