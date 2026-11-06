@@ -37,6 +37,10 @@ def get_nops(timing: float) -> list[float | str]:
     return nops
 
 
+# The state machine clock every timing is counted in
+PIO_CLOCK_HZ = 57_500_000
+
+
 def generate_assembly_code(name: str, t0h: int, t0l: int, t1h: int, t1l: int) -> str:
     """
     Generate assembly code with the given timing values.
@@ -69,12 +73,10 @@ static inline void rp2040_pio_led_strip_driver_{name}_init(PIO pio, uint sm, uin
     sm_config_set_out_shift(&c, false, true, 8);
     sm_config_set_fifo_join(&c, PIO_FIFO_JOIN_TX);
 
-    // target frequency is 57.5MHz
-    long clk = clock_get_hz(clk_sys);
-    long target_freq = 57500000;
-    int n = 2;
-    int f = round(((clk / target_freq) - n ) * 256);
-    sm_config_set_clkdiv_int_frac(&c, n, f);
+    // The divider is 8.8 fixed point, rounded to the nearest step
+    uint32_t clk = clock_get_hz(clk_sys);
+    uint32_t div = (uint32_t) (((uint64_t) clk * 256 + {PIO_CLOCK_HZ // 2}) / {PIO_CLOCK_HZ});
+    sm_config_set_clkdiv_int_frac(&c, div >> 8, div & 0xFF);
 
 
     pio_sm_init(pio, sm, offset, &c);
@@ -124,8 +126,7 @@ writezero:
 
 
 def time_to_cycles(time_us: float) -> int:
-    cycles_per_us = 57.5
-    return round(float(time_us) * cycles_per_us)
+    return round(float(time_us) * (PIO_CLOCK_HZ / 1_000_000))
 
 
 CONF_PIO = "pio"
