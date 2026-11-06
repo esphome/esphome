@@ -282,17 +282,4 @@ void EmonTx::send_command(const char *command) {
   this->write_byte('\n');
 }
 
-#ifdef USE_SENSOR
-/**
- * @brief Registers a sensor to receive updates for a specific JSON tag.
- *
- * @param tag_name The JSON key to monitor for this sensor (must be a string literal).
- * @param sensor Pointer to the sensor that will receive value updates.
- */
-void EmonTx::register_sensor(const char *tag_name, sensor::Sensor *sensor) {
-  ESP_LOGCONFIG(TAG, "Registering sensor for tag: %s", tag_name);
-  this->sensors_.push_back({tag_name, sensor});
-}
-#endif
-
 }  // namespace esphome::emontx

@@ -66,7 +66,9 @@ class EmonTx final : public Component, public uart::UARTDevice {
   void set_lock_on_reboot(LockOnReboot lock_on_reboot) { this->lock_on_reboot_ = lock_on_reboot; }
 
 #ifdef USE_SENSOR
-  void register_sensor(const char *tag_name, sensor::Sensor *sensor);
+  /// Route the JSON value under `tag_name` (a string literal) to `sensor`
+  SLOT_LIST_REQUIRES(EMONTX_SENSOR_COUNT)
+  void register_sensor(const char *tag_name, sensor::Sensor *sensor) { this->sensors_.push_back({tag_name, sensor}); }
 #endif
 
  protected:
