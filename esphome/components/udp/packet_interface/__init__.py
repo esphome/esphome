@@ -32,7 +32,6 @@ async def to_code(config: ConfigType) -> None:
     cg.add(udp_var.set_should_listen())
     # The udp component sends to its addresses through its broadcast socket
     cg.add(udp_var.set_should_broadcast())
-    # The copy buffer's size is known here, so it is a static array rather than allocated at run time
     tx_buffer = cg.static_buffer(
         config[CONF_ID], cg.uint8, config[CONF_MAX_PACKET_SIZE]
     )
