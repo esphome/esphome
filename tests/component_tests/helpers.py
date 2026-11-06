@@ -26,6 +26,17 @@ def extract_packed_value(main_cpp: str, var_name: str) -> int:
     return int(match.group(1))
 
 
+def static_function_body(main_cpp: str, name: str) -> str:
+    """Body of the generated ``static void name(...)`` function, without its braces."""
+    match = re.search(
+        rf"static void {re.escape(name)}\([^;{{]*\) \{{\n(.*?)\n\}}",
+        main_cpp,
+        re.DOTALL,
+    )
+    assert match is not None, f"{name} not defined"
+    return match.group(1)
+
+
 def get_define_value(name: str) -> str | None:
     """Rendered value of a CORE define, or None when absent.
 

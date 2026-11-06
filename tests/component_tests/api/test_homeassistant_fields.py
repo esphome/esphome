@@ -19,10 +19,12 @@ def test_field_tables(generate_main: Callable[[str | Path], str]) -> None:
     assert main_cpp.count('PROGMEM = "notify.notify";') == 1
     assert 'ESPHOME_F("message")' not in main_cpp
 
-    assert main_cpp.count("(api_apiserver_id, false, ha_action_fields, 1, 0, 0);") == 2
+    assert (
+        main_cpp.count("(::api_apiserver_id, false, ::ha_action_fields, 1, 0, 0);") == 2
+    )
 
-    assert "(api_apiserver_id, true, ha_action_fields_2, 1, 0, 0);" in main_cpp
-    assert "(api_apiserver_id, true, ha_action_fields_3, 1, 0, 0);" in main_cpp
+    assert "(::api_apiserver_id, true, ::ha_action_fields_2, 1, 0, 0);" in main_cpp
+    assert "(::api_apiserver_id, true, ::ha_action_fields_3, 1, 0, 0);" in main_cpp
 
 
 @pytest.mark.parametrize("schema", [DATA_FIELDS_SCHEMA, VARIABLES_FIELDS_SCHEMA])
