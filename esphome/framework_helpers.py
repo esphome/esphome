@@ -1374,7 +1374,11 @@ def _copy_local_mirror(
             # so there is nothing to clean up and the user's file stays.
             raise
         except BaseException:
-            staged.unlink(missing_ok=True)
+            # Best-effort: a failed cleanup must not replace the copy error
+            try:
+                staged.unlink(missing_ok=True)
+            except OSError as err:
+                _LOGGER.debug("Could not remove %s: %s", staged, err)
             raise
     if progress is not None:
         progress(path_target.stat().st_size)

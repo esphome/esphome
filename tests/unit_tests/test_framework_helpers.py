@@ -1897,6 +1897,28 @@ class TestDownloadFromMirrors:
         assert len(calls) == 2
         mock_sleep.assert_called_once()
 
+    def test_failed_cleanup_keeps_the_copy_error(
+        self, tmp_path: Path, caplog: pytest.LogCaptureFixture
+    ) -> None:
+        """When removing the staging file fails too, the copy error is the one
+        reported and the cleanup failure is only logged."""
+        source = tmp_path / "local.bin"
+        source.write_bytes(b"local")
+        target = tmp_path / "f.bin"
+        with (
+            patch(
+                "esphome.framework_helpers.shutil.copyfile",
+                side_effect=OSError("disk full"),
+            ),
+            patch.object(Path, "unlink", side_effect=OSError("busy")),
+            caplog.at_level(logging.DEBUG),
+            pytest.raises(EsphomeError, match="all mirrors") as ei,
+        ):
+            download_from_mirrors([source.as_uri()], {}, target)
+        assert "disk full" in str(ei.value)
+        assert "busy" not in str(ei.value)
+        assert f"Could not remove {tmp_path / 'f.bin.copy'}: busy" in caplog.text
+
     def test_failed_copy_leaves_no_partial_target_and_warns(
         self, tmp_path: Path, caplog: pytest.LogCaptureFixture
     ) -> None:
