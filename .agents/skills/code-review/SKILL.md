@@ -131,25 +131,14 @@ helper; `AGENTS.md` section 4 and the `component-codegen` skill have the detail.
 
 ## Naming user-facing functions
 
-Methods users call from lambdas (`it.` in a display lambda, `id(x).` elsewhere),
-actions and config keys are hard to rename once released: users' configs depend
-on them, even on undocumented methods (an undocumented C++ API change). Get the
-name right before the release. Flag:
+Lambda methods, actions and config keys are hard to rename once released. Flag:
 
-- A boolean that means off or disabled, so `true` turns something off:
-  `display_off(true)` turns the display off and `display_off(false)` turns it on.
-  Name it for the positive state so `true` means on, e.g. `set_power(bool on)`,
-  `set_on(bool on)` (tm1637) or `set_enabled(bool enabled)`.
-- Other negated names (`disable_x`, `no_x`, `skip_x` taking a bool): use the
-  positive form.
-- A name that differs from what a sibling component calls the same operation
-  (other display drivers, other climate devices): reuse their name.
-- Methods whose names do not explain how they differ (`display_off` next to
-  `display_standby`).
+- A boolean where `true` means off (`display_off(true)`): name the positive
+  state, e.g. `set_power(bool on)`.
+- A name that differs from a sibling component's name for the same operation.
 
-A name not yet in a release can be renamed outright (check the release tag);
-a released C++ method keeps the old name as an `ESPDEPRECATED` alias, and a
-released config key uses `cv.rename_key(..., removed_in=...)`.
+Before a release, rename outright; after, deprecate (`ESPDEPRECATED`,
+`cv.rename_key`).
 
 ## Breaking changes and public API
 
