@@ -26,13 +26,15 @@ class CdcAcm final {
     this->rate_callbacks_.add(std::forward<F>(callback));
   }
 
-  /// Called by the USB driver, from its own thread, when the host sets a bit rate.
-  static void rate_changed();
+  /// Called by the USB driver, from its own thread, when the host sets a bit rate. Each call is passed on, in
+  /// order, so a short change such as the 1200 bps DFU touch is not lost if the host sets another rate quickly.
+  static void rate_changed(const device *dev, uint32_t rate);
 
  protected:
   void start_();
   static const device *device_at(size_t index);
-  void report_rates_();
+  void report_current_rates_();
+  void report_rate_(const device *dev, uint32_t rate);
   CallbackManager<void(const device *, uint32_t)> rate_callbacks_;
   // Last bit rate reported for each zephyr,cdc-acm-uart port, in device tree order
   std::array<uint32_t, DT_NUM_INST_STATUS_OKAY(zephyr_cdc_acm_uart)> rates_{};

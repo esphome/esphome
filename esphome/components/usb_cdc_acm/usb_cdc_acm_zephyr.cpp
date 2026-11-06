@@ -97,7 +97,11 @@ void USBCDCACMInstance::setup() {
     this->get_parent()->mark_failed();
     return;
   }
-  zephyr::usb_device_enable();
+  if (int err = zephyr::usb_device_enable(); err != 0) {
+    ESP_LOGE(TAG, "USB device setup failed: %d", err);
+    this->get_parent()->mark_failed();
+    return;
+  }
   ring_buf_init(&this->rx_ringbuf_, ESPHOME_CDC_RX_RING_BUFFER_SIZE, this->rx_ringbuf_data_);
   ring_buf_init(&this->tx_ringbuf_, ESPHOME_CDC_TX_RING_BUFFER_SIZE, this->tx_ringbuf_data_);
   // The driver only reports the bit rate; the frame format is fixed on USB
@@ -210,7 +214,12 @@ uart::UARTFlushResult USBCDCACMInstance::flush() {
     // ring_buf_is_empty() is not enough: it is already true while the IRQ handler holds
     // claimed bytes that it has not yet copied into the driver.
     if (this->tx_drained_ && ring_buf_space_get(&this->tx_ringbuf_) == ESPHOME_CDC_TX_RING_BUFFER_SIZE) {
+#ifdef CONFIG_USB_DEVICE_STACK_NEXT
+      // The new stack reports an empty buffer while its last USB packet may still be in flight
+      return uart::UARTFlushResult::UART_FLUSH_RESULT_ASSUMED_SUCCESS;
+#else
       return uart::UARTFlushResult::UART_FLUSH_RESULT_SUCCESS;
+#endif
     }
     // USB device suspended or not configured (see uart_tx_process_()): nothing will drain
     if (this->tx_irq_disabled_) {

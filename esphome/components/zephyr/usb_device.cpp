@@ -8,8 +8,10 @@
 #include <initializer_list>
 #ifdef USE_ZEPHYR_CDC_ACM_RATE_CALLBACK
 #include "cdc_acm.h"
+#include <zephyr/drivers/uart.h>
 #endif
 #else
+#include <cerrno>
 #include <zephyr/usb/usb_device.h>
 #endif
 
@@ -30,48 +32,76 @@ USBD_DESC_MANUFACTURER_DEFINE(esphome_usbd_mfr, "ZEPHYR");
 USBD_DESC_PRODUCT_DEFINE(esphome_usbd_product, "USB-DEV");
 USBD_DESC_SERIAL_NUMBER_DEFINE(esphome_usbd_sn);
 USBD_CONFIGURATION_DEFINE(esphome_usbd_fs_config, USB_SCD_SELF_POWERED, USB_MAX_POWER, nullptr);
+#if USBD_SUPPORTS_HIGH_SPEED
+USBD_CONFIGURATION_DEFINE(esphome_usbd_hs_config, USB_SCD_SELF_POWERED, USB_MAX_POWER, nullptr);
+#endif
 // NOLINTEND(cppcoreguidelines-avoid-non-const-global-variables)
 
-#ifdef USE_ZEPHYR_CDC_ACM_RATE_CALLBACK
 // Runs on the system work queue, which also runs all USB transfers: keep it short
-static void usbd_msg_callback(usbd_context *const /*ctx*/, const usbd_msg *const msg) {
-  if (msg->type == USBD_MSG_CDC_ACM_LINE_CODING)
-    CdcAcm::rate_changed();
-}
-#endif
-
-static void usbd_setup() {
-  for (usbd_desc_node *desc : {&esphome_usbd_lang, &esphome_usbd_mfr, &esphome_usbd_product, &esphome_usbd_sn}) {
-    if (usbd_add_descriptor(&esphome_usbd, desc) != 0)
-      return;
+static void usbd_msg_callback(usbd_context *const ctx, const usbd_msg *const msg) {
+  // Run the controller only while VBUS is present, so it and its clock stop when the cable is removed
+  if (usbd_can_detect_vbus(ctx)) {
+    if (msg->type == USBD_MSG_VBUS_READY) {
+      usbd_enable(ctx);
+    } else if (msg->type == USBD_MSG_VBUS_REMOVED) {
+      usbd_disable(ctx);
+    }
   }
-  // nRF52 has a full-speed controller only, so a single full-speed configuration is enough
-  if (usbd_add_configuration(&esphome_usbd, USBD_SPEED_FS, &esphome_usbd_fs_config) != 0 ||
-      usbd_register_all_classes(&esphome_usbd, USBD_SPEED_FS, 1, nullptr) != 0 ||
-      // Each CDC ACM function has an Interface Association Descriptor
-      usbd_device_set_code_triple(&esphome_usbd, USBD_SPEED_FS, USB_BCC_MISCELLANEOUS, 0x02, 0x01) != 0)
-    return;
-  usbd_self_powered(&esphome_usbd, true);
 #ifdef USE_ZEPHYR_CDC_ACM_RATE_CALLBACK
-  if (usbd_msg_register_cb(&esphome_usbd, usbd_msg_callback) != 0)
-    return;
+  uint32_t rate = 0;
+  if (msg->type == USBD_MSG_CDC_ACM_LINE_CODING && uart_line_ctrl_get(msg->dev, UART_LINE_CTRL_BAUD_RATE, &rate) == 0)
+    CdcAcm::rate_changed(msg->dev, rate);
 #endif
-  if (usbd_init(&esphome_usbd) == 0)
-    usbd_enable(&esphome_usbd);
 }
 
-void usb_device_enable() {
-  static bool enabled = false;
-  if (enabled)
-    return;
-  enabled = true;
-  usbd_setup();
+static int usbd_add_speed(usbd_speed speed, usbd_config_node *config) {
+  int err = usbd_add_configuration(&esphome_usbd, speed, config);
+  if (err == 0)
+    err = usbd_register_all_classes(&esphome_usbd, speed, 1, nullptr);
+  // Each CDC ACM function has an Interface Association Descriptor
+  if (err == 0)
+    err = usbd_device_set_code_triple(&esphome_usbd, speed, USB_BCC_MISCELLANEOUS, 0x02, 0x01);
+  return err;
+}
+
+static int usbd_setup() {
+  for (usbd_desc_node *desc : {&esphome_usbd_lang, &esphome_usbd_mfr, &esphome_usbd_product, &esphome_usbd_sn}) {
+    if (int err = usbd_add_descriptor(&esphome_usbd, desc); err != 0)
+      return err;
+  }
+#if USBD_SUPPORTS_HIGH_SPEED
+  // A high-speed controller (nRF54LM20) needs a high-speed configuration too
+  if (usbd_caps_speed(&esphome_usbd) == USBD_SPEED_HS) {
+    if (int err = usbd_add_speed(USBD_SPEED_HS, &esphome_usbd_hs_config); err != 0)
+      return err;
+  }
+#endif
+  if (int err = usbd_add_speed(USBD_SPEED_FS, &esphome_usbd_fs_config); err != 0)
+    return err;
+  usbd_self_powered(&esphome_usbd, true);
+  if (int err = usbd_msg_register_cb(&esphome_usbd, usbd_msg_callback); err != 0)
+    return err;
+  if (int err = usbd_init(&esphome_usbd); err != 0)
+    return err;
+  // Otherwise the message callback enables the device once VBUS is present
+  if (!usbd_can_detect_vbus(&esphome_usbd))
+    return usbd_enable(&esphome_usbd);
+  return 0;
+}
+
+int usb_device_enable() {
+  // Setup cannot be repeated after a failure: the parts added before it stay registered
+  static const int result = usbd_setup();
+  return result;
 }
 
 #else  // legacy USB device stack
 
-// usb_enable() itself returns -EALREADY on later calls
-void usb_device_enable() { usb_enable(nullptr); }
+int usb_device_enable() {
+  int err = usb_enable(nullptr);
+  // Later calls, or a board that starts USB at boot
+  return err == -EALREADY ? 0 : err;
+}
 
 #endif
 

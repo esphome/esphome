@@ -26,7 +26,8 @@ void DeviceFirmwareUpdate::setup() {
   }
 #ifdef CONFIG_USB_DEVICE_STACK_NEXT
   // Needed when no other component uses USB (logger on a hardware UART or off)
-  zephyr::usb_device_enable();
+  if (int err = zephyr::usb_device_enable(); err != 0)
+    ESP_LOGE(TAG, "USB device setup failed: %d", err);
 #endif
 #if defined(USE_ZEPHYR_CDC_ACM_RATE_CALLBACK)
   zephyr::global_cdc_acm->add_on_rate_callback([this](const device *, uint32_t rate) {
