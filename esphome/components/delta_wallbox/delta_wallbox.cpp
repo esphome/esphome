@@ -1,5 +1,6 @@
 #include "delta_wallbox.h"
 #include "esphome/core/log.h"
+#include "esphome/core/helpers.h"
 #include "esphome/core/progmem.h"
 #include <algorithm>
 #include <array>
@@ -92,9 +93,7 @@ static const esp32_ble_tracker::ESPBTUUID RX_UUID =
 
 // Appends the little-endian Modbus CRC-16 to the len bytes in frame and returns the new length.
 static size_t append_crc(uint8_t *frame, size_t len) {
-  const uint16_t crc = crc16(frame, static_cast<uint16_t>(len));
-  frame[len] = static_cast<uint8_t>(crc & 0xFF);
-  frame[len + 1] = static_cast<uint8_t>(crc >> 8);
+  put_le16(frame + len, crc16(frame, static_cast<uint16_t>(len)));
   return len + 2;
 }
 

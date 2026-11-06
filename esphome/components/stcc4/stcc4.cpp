@@ -76,17 +76,13 @@ void STCC4Component::poll_until_ready_for_setup_or_timeout_(uint32_t start_time)
       uint64_t serial_number = (uint64_t(raw_product_id[2]) << 48) | (uint64_t(raw_product_id[3]) << 32) |
                                (uint64_t(raw_product_id[4]) << 16) | raw_product_id[5];
       ESP_LOGD(TAG, "Product ID: 0x%08" PRIX32 ", Serial: 0x%016" PRIX64, product_id, serial_number);
-      if (product_id != STCC4_PRODUCT_ID) {
-        this->mark_failed(LOG_STR("Unsupported product ID"));
+      if (!this->setup_check(product_id == STCC4_PRODUCT_ID, LOG_STR("Unsupported product ID")))
         return;
-      }
 
       // Set static ambient pressure compensation if configured
       if (this->ambient_pressure_in_pa_2_ != 0) {
-        if (!this->write_ambient_pressure_compensation_(this->ambient_pressure_in_pa_2_)) {
-          this->mark_failed(LOG_STR(ESP_LOG_MSG_COMM_FAIL));
+        if (!this->setup_check(this->write_ambient_pressure_compensation_(this->ambient_pressure_in_pa_2_)))
           return;
-        }
       }
 
       // Apply the dynamic compensation sources' current values, if configured
@@ -104,10 +100,9 @@ void STCC4Component::poll_until_ready_for_setup_or_timeout_(uint32_t start_time)
       }
 
       // Start continuous measurement
-      if (!this->write_command(STCC4_CMD_START_CONTINUOUS_MEASUREMENT)) {
-        this->mark_failed(LOG_STR("Failed to start continuous measurement"));
+      if (!this->setup_check(this->write_command(STCC4_CMD_START_CONTINUOUS_MEASUREMENT),
+                             LOG_STR("Failed to start continuous measurement")))
         return;
-      }
       this->schedule_continuous_update_(false);
       this->finish_setup_();
       return;
