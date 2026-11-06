@@ -572,9 +572,16 @@ def static_buffer(name: str | ID, type_: "MockObjClass", size: int) -> "MockObj"
 
     For a buffer whose size is known from the config, so it lives in BSS instead of the heap.
     A ``str`` name is made unique against config ids and variables, like ``shared_progmem_array``;
-    an ``ID`` declared in the schema is used as is.
+    an ``ID`` declared in the schema is used as is and must be declared with ``type_``.
     """
-    id_ = name if isinstance(name, ID) else unique_global_id(name, type_)
+    if isinstance(name, ID):
+        if name.type is not None and str(name.type) != str(type_):
+            raise EsphomeError(
+                f"Buffer '{name}' is declared as {name.type}, not {type_}"
+            )
+        id_ = name
+    else:
+        id_ = unique_global_id(name, type_)
     CORE.add_global(RawStatement(f"static {type_} {id_}[{size}];"))
     buffer = MockObj(id_, ".")
     CORE.register_variable(id_, buffer)
