@@ -71,13 +71,7 @@ from esphome.helpers import rmtree, write_file_if_changed
 from esphome.storage_json import StorageJSON
 from esphome.types import ConfigType
 
-from .boards import (
-    BOARD_ALIASES,
-    BOARDS_ZEPHYR,
-    BOOTLOADER_CONFIG,
-    SELF_RESET_PINS,
-    ZEPHYR_BOARD_TARGETS,
-)
+from .boards import BOARD_ALIASES, BOARDS_ZEPHYR, BOOTLOADER_CONFIG, SELF_RESET_PINS
 from .const import (
     BOOTLOADER_ADAFRUIT,
     BOOTLOADER_ADAFRUIT_NRF52_SD132,
@@ -155,23 +149,29 @@ FAKE_BOARD_MANIFEST = """
 """
 
 
+_SOC_QUALIFIER_VARIANTS = (
+    ("nrf52832", VARIANT_NRF52832),
+    ("nrf54lm20", VARIANT_NRF54LM20),
+    ("nrf54l15", VARIANT_NRF54L15),
+)
+
+
 def _board_variant(board: str) -> str:
     """Take the SoC from the board qualifiers, e.g. nrf54lm20dk/nrf54lm20a/cpuapp."""
     if board == "bbc_microbit":
         return VARIANT_NRF51822
     qualifiers = BOARD_ALIASES.get(board, board).lower().split("/")
-    if len(qualifiers) > 1 and qualifiers[1].startswith("nrf52832"):
-        return VARIANT_NRF52832
-    if len(qualifiers) > 1 and qualifiers[1].startswith("nrf54lm20"):
-        return VARIANT_NRF54LM20
-    if len(qualifiers) > 1 and qualifiers[1].startswith("nrf54l15"):
-        return VARIANT_NRF54L15
+    if len(qualifiers) > 1:
+        for prefix, variant in _SOC_QUALIFIER_VARIANTS:
+            if qualifiers[1].startswith(prefix):
+                return variant
     return VARIANT_NRF52840
 
 
 def set_core_data(config: ConfigType) -> ConfigType:
     zephyr_set_core_data(config)
-    if (target := ZEPHYR_BOARD_TARGETS.get(config[CONF_BOARD])) is not None:
+    # West gets the Zephyr board a board without its own definition builds on
+    if (target := BOARDS_ZEPHYR.get(config[CONF_BOARD], {}).get(KEY_BOARD)) is not None:
         zephyr_data()[KEY_BOARD] = target
     set_nrf52_variant(_board_variant(zephyr_data()[KEY_BOARD]))
     CORE.data[KEY_CORE][KEY_TARGET_PLATFORM] = PLATFORM_NRF52
@@ -189,22 +189,23 @@ def set_core_data(config: ConfigType) -> ConfigType:
 # In testing mode, fake a larger flash to allow linking grouped component
 # tests. The nRF52840 has 1 MB and a mcumgr OTA config halves the app slot,
 # which an openthread config alone fills; CI images are never flashed.
-NRF52840_FLASH_SIZE = VARIANT_FLASH_SIZE[VARIANT_NRF52840]
 TESTING_FLASH_SIZE = 0x400000
 
 
 def _testing_mode_sections(sections: list[Section]) -> list[Section]:
-    """Move a bootloader pinned to the end of the real flash to the end of the
-    faked one, so the partition manager still sees a single gap for the app."""
-    flash_size = VARIANT_FLASH_SIZE.get(get_nrf52_variant(), NRF52840_FLASH_SIZE)
+    """Move the sections that run up to the end of the real flash to the end of
+    the faked one, so the partition manager still sees a single gap for the app."""
+    flash_size = VARIANT_FLASH_SIZE.get(
+        get_nrf52_variant(), VARIANT_FLASH_SIZE[VARIANT_NRF52840]
+    )
+    start = flash_size
+    for section in sorted(sections, key=lambda s: s.address, reverse=True):
+        if section.end_address == start:
+            start = section.address
+    shift = TESTING_FLASH_SIZE - flash_size
     return [
-        Section(
-            section.name,
-            section.address + TESTING_FLASH_SIZE - flash_size,
-            section.size,
-            section.region,
-        )
-        if section.end_address == flash_size
+        Section(section.name, section.address + shift, section.size, section.region)
+        if section.address >= start
         else section
         for section in sections
     ]
@@ -345,6 +346,16 @@ def _default_self_reset_pin(config: ConfigType) -> ConfigType:
     return config
 
 
+def _default_dcdc(config: ConfigType) -> ConfigType:
+    if (
+        CONF_DCDC not in config
+        and (dcdc := BOARDS_ZEPHYR.get(config[CONF_BOARD], {}).get(CONF_DCDC))
+        is not None
+    ):
+        return {**config, CONF_DCDC: dcdc}
+    return config
+
+
 def _dfu_schema(value: bool | ConfigType) -> ConfigType:
     if isinstance(value, bool):
         if not value:
@@ -395,6 +406,7 @@ CONFIG_SCHEMA = cv.All(
         }
     ),
     _default_self_reset_pin,
+    _default_dcdc,
     _resolve_toolchain,
     set_framework,
     network.require_ipv6(PLATFORM_NRF52),
@@ -585,10 +597,7 @@ async def to_code(config: ConfigType) -> None:
     if dfu_config := config.get(CONF_DFU):
         CORE.add_job(_dfu_to_code, dfu_config)
     framework_ver: cv.Version = CORE.data[KEY_CORE][KEY_FRAMEWORK_VERSION]
-    dcdc = config.get(
-        CONF_DCDC, BOARDS_ZEPHYR.get(config[CONF_BOARD], {}).get(CONF_DCDC)
-    )
-    if dcdc is not None:
+    if (dcdc := config.get(CONF_DCDC)) is not None:
         if framework_ver < cv.Version(2, 9, 2):
             zephyr_add_prj_conf("BOARD_ENABLE_DCDC", dcdc)
         else:

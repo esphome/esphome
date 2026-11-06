@@ -1,5 +1,5 @@
 from esphome.components.zephyr import Section
-from esphome.components.zephyr.const import KEY_BOOTLOADER
+from esphome.components.zephyr.const import KEY_BOARD, KEY_BOOTLOADER
 
 from .const import (
     BOOTLOADER_ADAFRUIT,
@@ -38,22 +38,19 @@ BOARDS_ZEPHYR = {
         ]
     },
     # Adafruit Feather nRF52832: current bootloader with S132 6.1.1, or the original 0.5.0 with S132 2.0.1.
-    # Its bootloader leaves the regulator in LDO mode, while the nRF52 DK it builds on turns DCDC on
+    # Zephyr has no board for it, so it builds on the nRF52 DK, whose console UART uses the same pins;
+    # the config keeps the ESPHome name. Its bootloader leaves the regulator in LDO mode, while the DK
+    # turns DCDC on
     "adafruit_feather_nrf52832": {
         KEY_BOOTLOADER: [
             BOOTLOADER_ADAFRUIT_NRF52_SD132_V6,
             BOOTLOADER_ADAFRUIT_NRF52_SD132_V2,
         ],
+        KEY_BOARD: "nrf52dk/nrf52832",
         CONF_DCDC: False,
     },
     # Nordic nRF52840 Dongle (PCA10059): factory Open DFU bootloader at 0xE0000, kept in place
     "nrf52840dongle": {KEY_BOOTLOADER: [BOOTLOADER_NRF]},
-}
-
-# Boards Zephyr has no definition for, built on one with the same console UART pins. Unlike
-# BOARD_ALIASES, the config keeps the ESPHome name, which selects the bootloaders above
-ZEPHYR_BOARD_TARGETS = {
-    "adafruit_feather_nrf52832": "nrf52dk/nrf52832",
 }
 
 # Boards with a GPIO wired to their RESET pin: driving it low is a pin reset, which the factory

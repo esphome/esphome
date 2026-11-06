@@ -481,8 +481,8 @@ class TestUploadProgramSerialDfu:
     def test_serial_dfu_without_native_usb_skips_the_touch(
         self, setup_core: Path, tmp_path: Path, bootloader: str, single_bank: bool
     ) -> None:
-        """adafruit-nrfutil resets an nRF52832 through the USB serial chip's DTR line itself, and
-        the dual bank bootloader needs the longer wait for its copy after the transfer."""
+        """adafruit-nrfutil resets an nRF52832 through the USB serial chip's DTR line itself;
+        only the dual bank bootloader is flashed without --singlebank."""
         import serial
 
         from esphome.components.nrf52 import upload_program

@@ -1,6 +1,8 @@
 import esphome.codegen as cg
-from esphome.components.nrf52 import NRF52840_FLASH_SIZE, TESTING_FLASH_SIZE
+from esphome.components.nrf52 import TESTING_FLASH_SIZE
 from esphome.components.nrf52.boards import BOARDS_ZEPHYR, BOOTLOADER_CONFIG
+from esphome.components.nrf52.const import VARIANT_FLASH_SIZE
+from esphome.components.nrf52.framework import get_nrf52_variant
 from esphome.components.zephyr import (
     Section,
     zephyr_add_overlay,
@@ -62,7 +64,11 @@ def _partition_address() -> int:
             f"{DOMAIN} does not know the flash size of board '{board}', "
             "only nRF52840 boards are supported"
         )
-    flash_size = TESTING_FLASH_SIZE if CORE.testing_mode else NRF52840_FLASH_SIZE
+    if CORE.testing_mode:
+        return TESTING_FLASH_SIZE - PARTITION_SIZE
+    variant = get_nrf52_variant()
+    if (flash_size := VARIANT_FLASH_SIZE.get(variant)) is None:
+        raise cv.Invalid(f"{DOMAIN} does not know the flash size of the {variant}")
     return flash_size - PARTITION_SIZE
 
 
