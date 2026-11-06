@@ -83,6 +83,7 @@ QUEUE_POLICIES = QueuePolicy.options("replace_latest", "fifo", prefix="QUEUE_")
 TX_GATE_MODES = TxGateMode.options(
     "frame_trigger", "idle_gap", "fixed_delay", prefix="TX_GATE_"
 )
+_BYTE_SPAN = cg.std_span.template(cg.uint8.operator("const"))
 
 MAX_COMMAND_VALUES = 8
 # Must agree with MAX_FRAME_TYPE_LEN in rs485_frame.h, which sizes a stack buffer.
@@ -343,7 +344,6 @@ async def to_code(config: ConfigType) -> None:
         if tx_config[CONF_QUEUE_POLICY] != "replace_latest":
             cg.add(var.set_queue_policy(QUEUE_POLICIES[tx_config[CONF_QUEUE_POLICY]]))
 
-    payload_type = cg.std_span.template(cg.uint8.operator("const"))
     for conf in config.get(CONF_ON_FRAME, []):
         checks = [
             f"rs485_frame::frame_has_prefix(payload, "
@@ -353,16 +353,16 @@ async def to_code(config: ConfigType) -> None:
         await automation.build_callback_automation(
             var,
             "add_on_frame_callback",
-            [(payload_type, "payload")],
+            [(_BYTE_SPAN, "payload")],
             conf,
-            params=[(payload_type, "payload")],
+            params=[(_BYTE_SPAN, "payload")],
             when=" || ".join(checks) or None,
         )
 
 
 def _progmem_span(config: ConfigType, value: list[int]) -> str:
     table = automation.progmem_bytes(f"{config[CONF_ID]}_send", value)
-    return f"std::span<const uint8_t>({table}, {len(value)})"
+    return str(_BYTE_SPAN(table, len(value)))
 
 
 def _validate_send_frame(config: ConfigType) -> ConfigType:
