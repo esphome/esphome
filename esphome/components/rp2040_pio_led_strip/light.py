@@ -227,7 +227,7 @@ async def to_code(config: ConfigType) -> None:
             light.static_led_buffer(
                 config[CONF_OUTPUT_ID],
                 config[CONF_NUM_LEDS],
-                config[CONF_CHANNEL_COLORS],
+                len(config[CONF_CHANNEL_COLORS]),
             )
         )
     )

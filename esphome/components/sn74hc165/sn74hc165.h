@@ -10,7 +10,8 @@ namespace esphome::sn74hc165 {
 
 class SN74HC165Component final : public Component {
  public:
-  SN74HC165Component() = default;
+  /// `input_bytes` holds one byte per register, a static array from code generation
+  explicit SN74HC165Component(std::span<uint8_t> input_bytes) : input_bytes_(input_bytes) {}
 
   void setup() override;
   void loop() override;
@@ -21,8 +22,6 @@ class SN74HC165Component final : public Component {
   void set_clock_pin(GPIOPin *pin) { this->clock_pin_ = pin; }
   void set_load_pin(GPIOPin *pin) { this->load_pin_ = pin; }
   void set_clock_inhibit_pin(GPIOPin *pin) { this->clock_inhibit_pin_ = pin; }
-  /// `input_bytes` holds one byte per register, a static array from code generation
-  void set_input_bytes(std::span<uint8_t> input_bytes) { this->input_bytes_ = input_bytes; }
 
  protected:
   friend class SN74HC165GPIOPin;

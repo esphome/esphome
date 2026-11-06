@@ -963,10 +963,10 @@ class TestStaticBuffer:
         [
             ({}, "uart__hub_buffer__pstorage"),
             ({"psram": {"disabled": True}}, "uart__hub_buffer__pstorage"),
-            ({"psram": {"disabled": False}}, "nullptr"),
+            ({"psram": {"disabled": False}}, "psram_buffer<uint8_t>(8)"),
         ],
     )
-    def test_psram_builds_get_nullptr(self, config: ConfigType, expected: str) -> None:
+    def test_psram_builds_allocate(self, config: ConfigType, expected: str) -> None:
         hub = ID(
             "hub",
             is_declaration=True,
@@ -974,7 +974,7 @@ class TestStaticBuffer:
         )
         CORE.config = config
         assert str(cg.static_buffer(hub, ct.uint8, 8, psram=True)) == expected
-        assert len(CORE.global_statements) == (0 if expected == "nullptr" else 1)
+        assert len(CORE.global_statements) == (0 if "psram_buffer" in expected else 1)
 
     def test_align_and_expression_size(self) -> None:
         hub_class = ct.esphome_ns.namespace("uart").class_("Hub")

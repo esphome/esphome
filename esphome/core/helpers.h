@@ -2629,18 +2629,12 @@ template<class T> class RAMAllocator {
   uint8_t flags_{ALLOC_INTERNAL | ALLOC_EXTERNAL};
 };
 
-/// The static buffer from `cg.static_buffer(..., psram=True)`, or, when that returned nullptr because the build has
-/// PSRAM, `count` elements allocated with RAMAllocator so they may live in PSRAM. Returns nullptr if allocation fails.
-/// Both start zeroed, like BSS.
-template<class T> T *static_or_heap(T *buffer, size_t count) {
-#ifdef USE_PSRAM
-  if (buffer == nullptr) {
-    T *heap = RAMAllocator<T>().allocate(count);
-    if (heap != nullptr)
-      memset(heap, 0, count * sizeof(T));
-    return heap;
-  }
-#endif
+/// `count` zeroed elements from RAMAllocator, so they may live in PSRAM; nullptr if allocation fails.
+/// What `cg.static_buffer(..., psram=True)` emits in place of a static array when the build has PSRAM.
+template<class T> T *psram_buffer(size_t count) {
+  T *buffer = RAMAllocator<T>().allocate(count);
+  if (buffer != nullptr)
+    memset(buffer, 0, count * sizeof(T));
   return buffer;
 }
 
