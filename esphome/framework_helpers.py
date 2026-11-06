@@ -9,11 +9,14 @@ import json
 import logging
 import os
 from pathlib import Path
+import shutil
 import subprocess
 import sys
 import threading
 import time
 from typing import IO, TYPE_CHECKING
+import urllib.parse
+import urllib.request
 
 from esphome.helpers import ProgressBar, get_usable_cpu_count, rmtree
 from esphome.net_retry import (
@@ -1323,12 +1326,62 @@ def failure_reason(e: BaseException) -> str:
     return str(e).split(" for url: ", maxsplit=1)[0] or repr(e)
 
 
+def _local_path_from_url(url: str) -> Path:
+    """Resolve a ``file://`` mirror URL to a local filesystem path."""
+    parsed = urllib.parse.urlparse(url)
+    path = urllib.request.url2pathname(parsed.path)
+    if parsed.netloc and parsed.netloc.lower() != "localhost":
+        # file://server/share/... - a UNC path
+        path = f"//{parsed.netloc}{path}"
+    return Path(path)
+
+
+def _copy_local_mirror(
+    url: str,
+    path_target: Path,
+    sha256: str | None,
+    size: int | None,
+    progress: Callable[[int], None] | None = None,
+) -> None:
+    """Satisfy a download from a local archive instead of the network.
+
+    Letting a mirror be a ``file://`` URL is what makes an offline or
+    firewalled install possible: point ``ESPHOME_IDF_FRAMEWORK_MIRRORS`` at
+    an archive that is already on disk. The source is verified with whatever
+    sha256/size the caller provided, then copied to the target so callers
+    keep the "the target now holds the archive" contract, and the user's own
+    file is never touched (the framework installer unlinks the target after
+    extracting it).
+    """
+    from esphome.core import EsphomeError
+
+    source = _local_path_from_url(url)
+    if not source.is_file():
+        raise EsphomeError(f"local file does not exist: {source}")
+
+    # An earlier run that used this mirror already left a verified copy.
+    if path_target.is_file() and (sha256 is not None or size is not None):
+        try:
+            _verify_file(path_target, sha256, size)
+            return
+        except EsphomeError:
+            path_target.unlink(missing_ok=True)
+    # Verify the source, not the copy: a bad archive must not be copied.
+    _verify_file(source, sha256, size)
+    path_target.parent.mkdir(parents=True, exist_ok=True)
+    shutil.copyfile(source, path_target)
+    if progress is not None:
+        progress(path_target.stat().st_size)
+
+
 def _try_mirrors_once(
     urls: list[str],
     path_target: Path,
     timeout: int,
     failures: list[tuple[str, Exception]],
     progress: Callable[[int], None] | None = None,
+    sha256: str | None = None,
+    size: int | None = None,
 ) -> str | None:
     """Single pass over the resolved mirror ``urls``, one try per URL.
 
@@ -1344,12 +1397,26 @@ def _try_mirrors_once(
     for url in urls:
         _LOGGER.debug("Trying to download from %s", url)
 
+        # A ``file://`` mirror is an archive already on disk: no network is
+        # involved, so a bad local file is reported like any other mirror
+        # failure without retrying into the same broken file.
+        if url.lower().startswith("file:"):
+            try:
+                _copy_local_mirror(url, path_target, sha256, size, progress)
+                return url
+            except (OSError, EsphomeError) as e:
+                _LOGGER.debug("Failed to use local mirror %s: %s", url, str(e))
+                failures.append((url, e))
+                continue
+
         # Delegate to download_with_resume so a partial download persists
         # (and resumes) across esphome runs.
         try:
             download_with_resume(
                 url,
                 path_target,
+                sha256=sha256,
+                size=size,
                 attempts=_MIRROR_ATTEMPTS,
                 timeout=timeout,
                 # Pre-body failures (connect/HTTP errors) fall to the
@@ -1413,6 +1480,8 @@ def download_from_mirrors(
     target: PathType,
     timeout: int = 30,
     progress: Callable[[int], None] | None = None,
+    sha256: str | None = None,
+    size: int | None = None,
 ) -> str:
     """
     Download file from multiple mirrors with substitution support.
@@ -1424,6 +1493,10 @@ def download_from_mirrors(
         timeout: Download timeout in seconds
         progress: Passed through to the download (see ``download_with_resume``);
             replaces the built-in per-file bar
+        sha256: Expected SHA-256 of the file, when the caller has one; a
+            mismatch makes the download restart from scratch
+        size: Expected size in bytes, when the caller has one; a mismatch
+            makes the download restart from scratch
 
     Returns:
         The source URL.
@@ -1478,7 +1551,7 @@ def download_from_mirrors(
         sweep_failures: list[tuple[str, Exception]] = []
         if (
             url := _try_mirrors_once(
-                urls, path_target, timeout, sweep_failures, progress
+                urls, path_target, timeout, sweep_failures, progress, sha256, size
             )
         ) is not None:
             return url
