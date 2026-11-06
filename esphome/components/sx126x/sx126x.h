@@ -15,6 +15,9 @@ static constexpr size_t SX126X_MAX_PACKET_SIZE = 255;
 
 class SX126xListener {
  public:
+  // Called from loop(). The packet is borrowed until this returns; copy what you keep.
+  // Listeners may send, change mode or configure. A send returns BUSY if another packet
+  // is already waiting, which is then delivered by the next loop().
   virtual void on_packet(const std::vector<uint8_t> &packet, float rssi, float snr) = 0;
 };
 

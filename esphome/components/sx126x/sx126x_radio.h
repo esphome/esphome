@@ -24,11 +24,18 @@ class SX126xTransmitListener {
   virtual void on_transmit_complete(SX126xError result) = 0;
 };
 
+// Who may use the radio between operations. This is driver state, not the chip's mode.
 enum class RadioState : uint8_t {
+  // Startup, cold sleep, or a failed configuration, mode command or restoration. Only
+  // configure() is accepted; sends return NOT_READY and the loop sleeps.
   RADIO_STATE_NEEDS_CONFIGURATION,
+  // Available. The chip is receiving or sleeping, as configured.
   RADIO_STATE_IDLE,
+  // A send is on air. SPI is free between polls; only polling and cancellation are accepted.
   RADIO_STATE_TRANSMITTING,
-  // Standby with a received packet left in the FIFO for the next poll() to deliver.
+  // Standby with a received packet left in the FIFO, found when a send entered standby.
+  // The send was rejected with BUSY; the next poll() delivers the packet and restores the
+  // radio. configure() may discard it to recover from repeated read failures.
   RADIO_STATE_HOLDING_RX,
 };
 
@@ -60,10 +67,23 @@ struct RadioEffects {
   bool sleep_loop{false};
 };
 
-// Owns the radio state and every SPI command sequence. It has no access to component status
-// or to listeners, so no user code can run while a sequence or state change is in progress;
-// each operation returns RadioEffects instead. Do not log here either: log listeners are user
-// code. busy() is true only during a sequence, for re-entry from GPIO pin implementations.
+// Owns the radio state and every SPI command sequence.
+//
+// Status reports, completions and packet listeners can run user code, which may call back
+// into the driver. Every operation therefore does its SPI work with busy() set, commits the
+// next state, and returns RadioEffects; SX126x::apply_() then reports status and calls the
+// listeners. This class has no access to component status or listeners, so callbacks only
+// ever see a committed state. Do not log here either: log listeners are user code. busy()
+// covers re-entry during a sequence, for example from a GPIO pin that logs.
+//
+// Each sequence starts with bus().begin(); after a BUSY timeout the rest is skipped and
+// bus().ok() is false. A failed send preparation restores the radio in a new sequence. A
+// failed restoration needs configuration, and its result overrides the send result. A
+// successful send start reports nothing, so no user code runs before the caller has the
+// result. Every send ends in finish_transmit_(), exactly once.
+//
+// A failed receive read keeps the packet and retries after RECEIVE_RETRY_INTERVAL_MS, so a
+// stuck BUSY line does not cost a 20 ms wait on every loop.
 class Sx126xRadio {
  public:
   Sx126xRadio() = default;
