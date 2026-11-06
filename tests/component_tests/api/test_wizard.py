@@ -852,7 +852,7 @@ def test_inputs_have_buffers_hashes_and_a_table(
     main_cpp = generate_main(write_input_config(tmp_path, ESP32_HEADER))
 
     # The buffer holds the YAML entity ID until the wizard sets another
-    assert 'static char api_wizard_input_ha_sensor[256] = "";' in main_cpp
+    assert "static char api_wizard_input_ha_sensor[256];" in main_cpp
     entities = (
         "ha_sensor",
         "ha_binary",
@@ -1033,9 +1033,9 @@ def test_multiple_input_document_and_table(
         {"key": fnv1_hash("single")},
     ]
     # Only a multiple entry names its buffer size
-    assert 'static char api_wizard_input_cals[1024] = "";' in main_cpp
-    assert 'static char api_wizard_input_cals_default[256] = "";' in main_cpp
-    assert 'static char api_wizard_input_single[256] = "";' in main_cpp
+    assert "static char api_wizard_input_cals[1024];" in main_cpp
+    assert "static char api_wizard_input_cals_default[256];" in main_cpp
+    assert "static char api_wizard_input_single[256];" in main_cpp
     assert f"{{{fnv1_hash('cals')}u, api_wizard_input_cals, 1024}}" in main_cpp
     assert (
         f"{{{fnv1_hash('cals_default')}u, api_wizard_input_cals_default, 256}}"
