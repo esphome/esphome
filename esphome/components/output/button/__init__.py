@@ -1,5 +1,4 @@
-from esphome.automation import parent_ref
-import esphome.codegen as cg
+from esphome.automation import apply_parent
 from esphome.components import button, output
 import esphome.config_validation as cv
 from esphome.const import CONF_DURATION, CONF_OUTPUT
@@ -14,7 +13,7 @@ CONFIG_SCHEMA = button.button_schema(button.ApplyButton).extend(
 
 
 async def to_code(config: ConfigType) -> None:
-    out = parent_ref(await cg.get_variable(config[CONF_OUTPUT]))
+    out = await apply_parent(config, CONF_OUTPUT)
     duration = config[CONF_DURATION].total_milliseconds
     await button.sub_buttons(config).create(
         config,
