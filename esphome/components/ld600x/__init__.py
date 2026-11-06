@@ -7,14 +7,14 @@ another report format) and gets its own component, so it does not build on this 
 from dataclasses import dataclass, field
 
 import esphome.codegen as cg
-from esphome.components import sensor, switch, uart
+from esphome.components import uart
 import esphome.config_validation as cv
 from esphome.const import CONF_ID
 from esphome.core import CORE
 from esphome.cpp_generator import MockObj, MockObjClass
 from esphome.types import ConfigType
 
-from .const import CONF_POINT_CLOUD, CONF_POINT_COUNT, MAX_TARGETS
+from .const import MAX_TARGETS, POINT_CLOUD_ENTITIES
 
 CODEOWNERS = ["@hepter", "@wolph"]
 DEPENDENCIES = ["uart"]
@@ -56,13 +56,9 @@ def request_model_sizes(hub: MockObj, *, area_kinds: int) -> None:
 
 def add_frame_buffer(hub: MockObj, config: ConfigType, hub_id_key: str) -> None:
     """Give the parser its frame buffer: static, or allocated at boot when PSRAM may hold it."""
-    # Only the point cloud stream needs the larger frame.
     point_cloud = any(
         conf.get(hub_id_key) == config[CONF_ID] and key in conf
-        for domain, key in (
-            (sensor.DOMAIN, CONF_POINT_COUNT),
-            (switch.DOMAIN, CONF_POINT_CLOUD),
-        )
+        for domain, key in POINT_CLOUD_ENTITIES
         for conf in CORE.config.get(domain, [])
     )
     size = (
