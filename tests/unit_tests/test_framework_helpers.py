@@ -1811,7 +1811,53 @@ class TestDownloadFromMirrors:
             pytest.raises(EsphomeError, match="all mirrors") as ei,
         ):
             download_from_mirrors([missing.as_uri()], {}, tmp_path / "f.bin")
-        assert f"local file does not exist: {missing}" in str(ei.value)
+        assert f"not a file: {missing}" in str(ei.value)
+        mock_sleep.assert_not_called()
+
+    def test_directory_file_mirror_is_not_a_file(self, tmp_path: Path) -> None:
+        """Pointing at the mirror folder instead of the archive names the
+        real problem, not a missing path."""
+        with pytest.raises(EsphomeError, match=f"not a file: {tmp_path}"):
+            download_from_mirrors([tmp_path.as_uri()], {}, tmp_path / "f.bin")
+
+    def test_file_mirror_at_target_is_used_in_place(self, tmp_path: Path) -> None:
+        """An archive pre-seeded at the download target itself is not copied
+        onto itself; it is accepted where it sits."""
+        target = tmp_path / "dist" / "esp-idf-1.2.3.tar.xz"
+        target.parent.mkdir()
+        target.write_bytes(b"archive")
+        url = download_from_mirrors([target.as_uri()], {}, target)
+        assert url == target.as_uri()
+        assert target.read_bytes() == b"archive"
+        assert not (tmp_path / "dist" / "esp-idf-1.2.3.tar.xz.part").exists()
+
+    def test_failed_copy_leaves_no_partial_target_and_warns(
+        self, tmp_path: Path, caplog: pytest.LogCaptureFixture
+    ) -> None:
+        """A copy that fails midway (disk full, permissions) leaves neither a
+        truncated target nor a .part file, warns, and falls to the next
+        mirror without a backoff sleep."""
+        source = tmp_path / "local.bin"
+        source.write_bytes(b"local")
+        target = tmp_path / "f.bin"
+
+        def fail_copy(src: object, dst: object) -> None:
+            Path(dst).write_bytes(b"lo")
+            raise PermissionError("denied")
+
+        with (
+            patch("esphome.framework_helpers.shutil.copyfile", side_effect=fail_copy),
+            patch("esphome.framework_helpers.time.sleep") as mock_sleep,
+            patch("requests.get", return_value=_mock_response(b"second")),
+            caplog.at_level(logging.WARNING),
+        ):
+            url = download_from_mirrors(
+                [source.as_uri(), "https://mirror2.com/f"], {}, target
+            )
+        assert url == "https://mirror2.com/f"
+        assert target.read_bytes() == b"second"
+        assert not (tmp_path / "f.bin.part").exists()
+        assert f"Local mirror {source.as_uri()} is unusable: denied" in caplog.text
         mock_sleep.assert_not_called()
 
     @pytest.mark.parametrize(

@@ -1352,9 +1352,20 @@ def _copy_local_mirror(
 
     source = local_path_from_url(url)
     if not source.is_file():
-        raise EsphomeError(f"local file does not exist: {source}")
+        raise EsphomeError(f"not a file: {source}")
     path_target.parent.mkdir(parents=True, exist_ok=True)
-    shutil.copyfile(source, path_target)
+    # An archive already at the target sits in the download cache, which is
+    # consumed by the install anyway, so it is used in place.
+    if not (path_target.is_file() and source.samefile(path_target)):
+        # Stage through the .part name so an interrupted copy never leaves
+        # a truncated file where a complete archive is expected.
+        part = _part_path(path_target)
+        try:
+            shutil.copyfile(source, part)
+            part.replace(path_target)
+        except BaseException:
+            part.unlink(missing_ok=True)
+            raise
     if progress is not None:
         progress(path_target.stat().st_size)
 
@@ -1388,7 +1399,12 @@ def _try_mirrors_once(
                 _copy_local_mirror(url, path_target, progress)
                 return url
             except (OSError, EsphomeError) as e:
-                _LOGGER.debug("Failed to copy %s: %s", url, str(e))
+                # A warning, not debug: a local mirror is deliberate setup
+                # for an offline install, and a later network mirror
+                # succeeding would otherwise hide the broken path.
+                _LOGGER.warning(
+                    "Local mirror %s is unusable: %s", url, failure_reason(e)
+                )
                 failures.append((url, e))
             continue
 
