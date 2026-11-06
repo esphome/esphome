@@ -19,6 +19,8 @@ CONF_LOW_POWER_SLEEP_TIME = "low_power_sleep_time"
 CONF_OTA_VERSION = "ota_version"
 CONF_POINT_CLOUD = "point_cloud"
 CONF_POINT_COUNT = "point_count"
+# The (domain, key) of every entity that needs the point cloud frame; add_frame_buffer sizes the buffer from it
+POINT_CLOUD_ENTITIES = (("sensor", CONF_POINT_COUNT), ("switch", CONF_POINT_CLOUD))
 CONF_RESET_DETECTION_AREA = "reset_detection_area"
 CONF_RESET_UNATTENDED = "reset_unattended"
 CONF_TARGET_DISPLAY = "target_display"
