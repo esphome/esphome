@@ -13,10 +13,9 @@ ESPHOME_LOG_TAG(TAG, "spi.zephyr");
 
 // Words swapped per transceive for MSB-first 16-bit writes
 static constexpr size_t SWAP_BUFFER_WORDS = 64;
-// The lowest rate the SPIM driver accepts; only ever applied with no device selected
-static constexpr uint32_t IDLE_FREQUENCY = 125000;
-// Applied when the active delegate is deleted, so the driver never keeps a pointer to a freed config
-static const spi_config IDLE_CONFIG{.frequency = IDLE_FREQUENCY, .operation = SPI_OP_MODE_MASTER | SPI_WORD_SET(8)};
+// Applied when the active delegate is deleted, so the driver never keeps a pointer to a freed config.
+// 125 kHz is the lowest rate the SPIM driver accepts; it only ever runs with no device selected.
+static constexpr spi_config IDLE_CONFIG{.frequency = 125000, .operation = SPI_OP_MODE_MASTER | SPI_WORD_SET(8)};
 
 static spi_operation_t build_operation(SPIBitOrder bit_order, SPIMode mode) {
   spi_operation_t op = SPI_OP_MODE_MASTER | SPI_WORD_SET(8);
@@ -50,8 +49,7 @@ ZephyrSPIDelegate::ZephyrSPIDelegate(SPIComponent *bus, uint32_t data_rate, SPIB
   this->cfg_.operation = build_operation(bit_order, mode);
 }
 
-// The driver skips a config at the address it applied last, so a delegate created later in this allocation
-// would run with the old settings: hand it the bus's own config before this one goes away.
+// The driver skips a config at the address it applied last, so switch it to IDLE_CONFIG before cfg_ is freed.
 ZephyrSPIDelegate::~ZephyrSPIDelegate() {
   if (this->bus_->active_delegate_ != this)
     return;

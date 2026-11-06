@@ -1,5 +1,4 @@
 #include "spi.h"
-#include <vector>
 
 namespace esphome::spi {
 #if defined(USE_ARDUINO) && !defined(USE_ESP32)

@@ -1,5 +1,4 @@
 #include "spi.h"
-#include <vector>
 
 #ifdef USE_SPI_PSRAM_DMA
 #include <esp_memory_utils.h>

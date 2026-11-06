@@ -368,7 +368,6 @@ class SPIComponent final : public Component {
 
   SPIInterface interface_{};
   bool using_hw_{false};
-  bool bus_ready_{false};
   const char *interface_name_{nullptr};
 #ifdef USE_ZEPHYR
   friend class ZephyrSPIDelegate;
@@ -406,10 +405,7 @@ class SPIClient {
 #endif
   }
 
-  virtual void spi_teardown() {
-    this->parent_->unregister_device(this);
-    this->delegate_ = SPIDelegate::NULL_DELEGATE;
-  }
+  virtual void spi_teardown() { this->parent_->unregister_device(this); }
 
   bool spi_is_ready() { return this->delegate_->is_ready(); }
   void set_release_device(bool release) { this->release_device_ = release; }

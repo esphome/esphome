@@ -20,7 +20,7 @@ SPIDelegate *SPIComponent::register_device(SPIClient *device, SPIMode mode, SPIB
     ESP_LOGE(TAG, "Device already registered");
     return device->delegate_;
   }
-  if (!this->bus_ready_) {
+  if (!this->is_ready()) {
     return SPIDelegate::NULL_DELEGATE;  // the bus failed in setup(); the device stays not ready
   }
   if (this->using_hw_) {
@@ -32,8 +32,9 @@ SPIDelegate *SPIComponent::register_device(SPIClient *device, SPIMode mode, SPIB
 
 void SPIComponent::unregister_device(SPIClient *device) {
   if (device->delegate_ == SPIDelegate::NULL_DELEGATE) {
-    if (this->bus_ready_)
+    if (this->is_ready()) {
       ESP_LOGE(TAG, "Device not registered");
+    }
     return;
   }
   delete device->delegate_;  // NOLINT
@@ -63,7 +64,6 @@ void SPIComponent::setup() {
     this->sdo_pin_->setup();
     this->sdi_pin_->setup();
   }
-  this->bus_ready_ = true;
 }
 
 void SPIComponent::dump_config() {
@@ -74,7 +74,7 @@ void SPIComponent::dump_config() {
   for (size_t i = 0; i != this->data_pins_.size(); i++) {
     ESP_LOGCONFIG(TAG, "  Data pin %zu: GPIO%d", i, this->data_pins_[i]);
   }
-  if (!this->bus_ready_) {
+  if (!this->is_ready()) {
     return;
   }
   if (this->using_hw_) {
