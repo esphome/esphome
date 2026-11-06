@@ -14,8 +14,8 @@ void TLC5971::setup() {
 void TLC5971::dump_config() {
   ESP_LOGCONFIG(TAG,
                 "TLC5971:\n"
-                "  Number of chips: %u",
-                this->num_chips_);
+                "  Number of chips: %zu",
+                this->pwm_amounts_.size() / N_CHANNELS_PER_CHIP);
   LOG_PIN("  Data Pin: ", this->data_pin_);
   LOG_PIN("  Clock Pin: ", this->clock_pin_);
 }
@@ -44,7 +44,7 @@ void TLC5971::loop() {
   command <<= 7;
   command |= 0x7F;  // default 100% brigthness
 
-  for (uint8_t n = 0; n < num_chips_; n++) {
+  for (size_t n = 0; n < this->pwm_amounts_.size() / N_CHANNELS_PER_CHIP; n++) {
     this->transfer_(command >> 24);
     this->transfer_(command >> 16);
     this->transfer_(command >> 8);
@@ -78,7 +78,7 @@ void TLC5971::transfer_(uint8_t send) {
   }
 }
 void TLC5971::set_channel_value(uint16_t channel, uint16_t value) {
-  if (channel >= this->num_chips_ * N_CHANNELS_PER_CHIP)
+  if (channel >= this->pwm_amounts_.size())
     return;
   if (this->pwm_amounts_[channel] != value) {
     this->update_ = true;

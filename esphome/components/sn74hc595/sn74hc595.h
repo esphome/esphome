@@ -5,6 +5,8 @@
 #include "esphome/core/hal.h"
 #include "esphome/core/helpers.h"
 
+#include <span>
+
 #ifdef USE_SPI
 #include "esphome/components/spi/spi.h"
 #endif
@@ -20,17 +22,9 @@ class SN74HC595Component : public Component {
   void dump_config() override;
 
   void set_latch_pin(GPIOPin *pin) { this->latch_pin_ = pin; }
-  void set_oe_pin(GPIOPin *pin) {
-    this->oe_pin_ = pin;
-    this->have_oe_pin_ = true;
-  }
+  void set_oe_pin(GPIOPin *pin) { this->oe_pin_ = pin; }
   /// `output_bytes` holds one byte per register, a static array from code generation
-  void set_sr_count(uint8_t count, uint8_t *output_bytes) {
-    this->sr_count_ = count;
-    this->output_bytes_ = output_bytes;
-  }
-  ESPDEPRECATED("Pass a sr_count buffer, e.g. from cg.static_buffer(). Removed in 2027.6.0.", "2026.12.0")
-  void set_sr_count(uint8_t count) { this->set_sr_count(count, new uint8_t[count]()); }  // NOLINT
+  void set_output_bytes(std::span<uint8_t> output_bytes) { this->output_bytes_ = output_bytes; }
 
  protected:
   friend class SN74HC595GPIOPin;
@@ -41,10 +35,8 @@ class SN74HC595Component : public Component {
   void post_setup_();
 
   GPIOPin *latch_pin_;
-  GPIOPin *oe_pin_;
-  uint8_t sr_count_;
-  bool have_oe_pin_{false};
-  uint8_t *output_bytes_;
+  GPIOPin *oe_pin_{nullptr};
+  std::span<uint8_t> output_bytes_;
 };
 
 /// Helper class to expose a SC74HC595 pin as an internal output GPIO pin.
