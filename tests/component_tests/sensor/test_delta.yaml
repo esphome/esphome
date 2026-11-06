@@ -1,0 +1,44 @@
+esphome:
+  name: test
+
+esp8266:
+  board: d1_mini_lite
+
+sensor:
+  - platform: template
+    id: s_1
+    filters:
+      - delta: 0.1
+  - platform: template
+    id: s_2
+    filters:
+      - delta: 0.1
+      - delta:
+          min_value: 1
+          max_value: 10%
+  - platform: template
+    id: s_3
+    filters:
+      - delta:
+          min_value: 5%
+      - delta:
+          min_value: 1
+          max_value: 10
+      # A baseline lambda is inlined and never shared, even when identical
+      - delta:
+          max_value: 10
+          baseline: !lambda return id(value).state;
+      - delta:
+          max_value: 10
+          baseline: !lambda return id(value).state;
+  - platform: template
+    id: s_4
+    filters:
+      - delta:
+          max_value: 10
+          baseline: 0
+      - delta:
+          max_value: 10
+          baseline: 20.0
+  - platform: template
+    id: value

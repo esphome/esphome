@@ -134,7 +134,7 @@ from esphome.core.entity_helpers import (
     setup_entity,
     setup_unit_of_measurement,
 )
-from esphome.cpp_generator import MockObj, MockObjClass
+from esphome.cpp_generator import MockObj, MockObjClass, SafeExpType, call_lambda
 from esphome.schema_extractors import SCHEMA_EXTRACT, schema_extractor
 from esphome.types import ConfigType
 from esphome.util import Registry
@@ -670,29 +670,48 @@ DELTA_SCHEMA = cv.Any(
 )
 
 
-def _get_delta(value):
+# Any plain name could be a user id that a baseline lambda reads, which this parameter would hide
+DELTA_VALUE = "esphome_delta_value_"
+
+
+def _delta_bound(value: float | str) -> tuple[float, bool]:
+    """Return a delta bound and whether it is a fraction of the baseline."""
     if isinstance(value, str):
-        assert value.endswith("%")
-        return 0.0, float(value[:-1]) / 100.0
-    return value, 0.0
+        return float(value[:-1]) / 100.0, True
+    return value, False
 
 
 @FILTER_REGISTRY.register("delta", DeltaFilter, DELTA_SCHEMA)
-async def delta_filter_to_code(config, filter_id):
-    # The config could be just the min_value, or it could be a dict.
-    max = MockObj("std::numeric_limits<float>::infinity()"), 0
-    if isinstance(config, dict):
-        min = _get_delta(config[CONF_MIN_VALUE])
-        if CONF_MAX_VALUE in config:
-            max = _get_delta(config[CONF_MAX_VALUE])
-    else:
-        min = _get_delta(config)
-    var = cg.new_Pvariable(filter_id, *min, *max)
-    if isinstance(config, dict) and (baseline := config.get(CONF_BASELINE)) is not None:
-        # A plain number is wrapped in a lambda that returns it
-        baseline = await cg.templatable(baseline, [(float, "x")], float)
-        cg.add(var.set_baseline(baseline))
-    return var
+async def delta_filter_to_code(config: Any, filter_id: ID) -> MockObj:
+    if not isinstance(config, dict):
+        config = {CONF_MIN_VALUE: config}
+    ref: SafeExpType = MockObj("x")
+    lambda_ = None
+    if (baseline := config.get(CONF_BASELINE)) is not None:
+        if isinstance(baseline, Lambda):
+            lambda_ = await cg.process_lambda(
+                baseline, [(float, "x")], return_type=float
+            )
+            ref = call_lambda(lambda_)
+        else:
+            ref = baseline
+    bounds = [_delta_bound(config[CONF_MIN_VALUE])]
+    if (max_value := config.get(CONF_MAX_VALUE)) is not None:
+        bounds.append(_delta_bound(max_value))
+    pcts = [pct for _, pct in bounds]
+    while pcts and not pcts[-1]:
+        pcts.pop()
+    passes = sensor_ns.delta_passes.template(*pcts) if pcts else sensor_ns.delta_passes
+    call = passes(MockObj(DELTA_VALUE), ref, *(v for v, _ in bounds))
+    # A baseline lambda may keep static state, so its function is never shared.
+    fn = automation.apply_static_function(
+        filter_id,
+        bool,
+        [(float, "x"), (float, DELTA_VALUE)],
+        [f"return {call};"],
+        share=lambda_ is None,
+    )
+    return cg.new_Pvariable(filter_id, fn)
 
 
 @FILTER_REGISTRY.register("or", OrFilter, validate_filters)
