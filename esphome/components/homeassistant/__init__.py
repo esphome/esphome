@@ -88,7 +88,7 @@ def setup_home_assistant_entity(
 
     if (buffer := wizard.wizard_input_buffer(config[CONF_ID])) is not None:
         # The entity ID is chosen in the wizard and lives in a buffer the API owns
-        cg.add(var.set_entity_id(cg.RawExpression(buffer)))
+        cg.add(var.set_entity_id(buffer))
     else:
         cg.add(var.set_entity_id(config[CONF_ENTITY_ID]))
     cg.add_optional(var.set_attribute, config.get(CONF_ATTRIBUTE))
