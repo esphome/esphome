@@ -173,10 +173,11 @@ void RS485FrameHub::process_frame_(uint32_t now) {
     this->log_frame_(LOG_STR("RX"), this->rx_payload_, this->rx_payload_len_ + this->crc_len_);
 
   const std::span<const uint8_t> payload(this->rx_payload_, this->rx_payload_len_);
+  // Released after the callbacks, so a reply they queue goes out in this gap.
+  this->frame_callback_.call(payload);
   if (this->tx_gate_mode_ == TX_GATE_FRAME_TRIGGER &&
       frame_has_prefix(payload, this->tx_gate_frame_type_, this->tx_gate_frame_type_len_))
     this->send_next_(now);
-  this->frame_callback_.call(payload);
 }
 
 bool RS485FrameHub::check_crc_() const {
