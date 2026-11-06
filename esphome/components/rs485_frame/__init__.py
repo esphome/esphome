@@ -299,11 +299,6 @@ CONFIG_SCHEMA = cv.All(
 CRC_LENGTHS = {"none": 0, "sum8": 1, "xor8": 1}
 
 
-def _static_buffer(name: str, ctype: str, size: int) -> cg.RawExpression:
-    cg.add_global(cg.RawStatement(f"static {ctype} {name}[{size}];"))
-    return cg.RawExpression(name)
-
-
 async def to_code(config: ConfigType) -> None:
     hub_id = config[CONF_ID]
     framing = config[CONF_FRAMING]
@@ -313,11 +308,11 @@ async def to_code(config: ConfigType) -> None:
     max_queue_size = tx_config[CONF_MAX_QUEUE_SIZE]
     # Buffer sizes are known here, so they are static arrays rather than allocated at run time
     frame_size = config[CONF_MAX_FRAME_LENGTH] + crc_len
-    rx = _static_buffer(f"{hub_id}__rx", "uint8_t", frame_size)
+    rx = cg.static_buffer(hub_id, cg.uint8, frame_size)
     tx = tx_len = cg.nullptr
     if not (sniffer_only := config[CONF_SNIFFER_ONLY]):
-        tx = _static_buffer(f"{hub_id}__tx", "uint8_t", max_queue_size * frame_size)
-        tx_len = _static_buffer(f"{hub_id}__tx_len", "uint16_t", max_queue_size)
+        tx = cg.static_buffer(hub_id, cg.uint8, max_queue_size * frame_size)
+        tx_len = cg.static_buffer(hub_id, cg.uint16, max_queue_size)
     var = await uart.new_uart_component(
         config,
         framing[CONF_DLE],
