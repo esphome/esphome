@@ -567,6 +567,22 @@ def shared_progmem_string(value: str) -> Expression:
     return text
 
 
+def static_buffer(owner: ID, type_: "MockObjClass", size: int | str) -> "MockObj":
+    """Emit a zeroed file-scope ``static type_ <component>__<owner>_buffer__pstorage[size];``.
+
+    Named like placement new storage, so ``esphome analyze-memory`` counts it under the owner.
+    ``size`` may be a C++ constant expression.
+    """
+    if not isinstance(owner, ID) or owner.type is None:
+        raise EsphomeError(f"Buffer owner '{owner}' must be the owning component's ID")
+    base = unique_global_id(f"{owner.id}_buffer", type_)
+    name = _pstorage_name(owner.type, base)
+    CORE.add_global(RawStatement(f"static {type_} {name}[{size}];"))
+    buffer = MockObj(name, ".")
+    CORE.register_variable(base, buffer)
+    return buffer
+
+
 def static_const_array(id_, rhs) -> "MockObj":
     rhs = safe_exp(rhs)
     obj = MockObj(id_, ".")
@@ -669,6 +685,11 @@ def new_variable(
     return obj
 
 
+def _pstorage_name(type_: Any, name: Any) -> str:
+    """``<component>__<name>__pstorage``, the static storage name ``esphome analyze-memory`` attributes."""
+    return f"{_extract_component_ns(str(type_))}__{name}__pstorage"
+
+
 def _extract_component_ns(type_str: str) -> str:
     """Extract the component namespace from a fully-qualified C++ type string.
 
@@ -726,9 +747,7 @@ def Pvariable(id_: ID, rhs: SafeExpType, type_: "MockObj" = None) -> "MockObj":
         if call_expr.template_args is not None:
             actual_type = f"{actual_type}{call_expr.template_args}"
         pointer_type = id_.type
-        # Extract component namespace from type for memory analysis attribution
-        component_ns = _extract_component_ns(str(actual_type))
-        storage_name = f"{component_ns}__{id_.id}__pstorage"
+        storage_name = _pstorage_name(actual_type, id_.id)
 
         # Declare aligned byte array for the object storage
         CORE.add_global(
