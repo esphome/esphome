@@ -318,7 +318,10 @@ canbus::Error MCP251XFD::read_message(canbus::CanFrame *frame) {
     return canbus::ERROR_FAIL;
 
   std::array<uint8_t, MESSAGE_SIZE> message;
-  if (!this->read_registers_(address, message.data(), message.size()))
+  // Read the maximum for the mode in one transaction. A second SPI transaction costs more than the extra bytes.
+  const size_t read_size =
+      this->mcp_mode_ == CanMode::CAN_MODE_CLASSIC ? 8 + canbus::CAN_MAX_DATA_LENGTH : MESSAGE_SIZE;
+  if (!this->read_registers_(address, message.data(), read_size))
     return canbus::ERROR_FAIL;
   this->write_byte_(REG_RX_FIFO_CON + 1, FIFO_INCREMENT);
 
@@ -331,6 +334,8 @@ canbus::Error MCP251XFD::read_message(canbus::CanFrame *frame) {
   }
 #ifdef USE_CANBUS_FD
   frame->fd = (message[4] & MESSAGE_FDF) != 0;
+  if (frame->fd && this->mcp_mode_ == CanMode::CAN_MODE_CLASSIC)
+    return canbus::ERROR_FAIL;
   // In a CAN FD frame the RTR position is the reserved RRS bit
   frame->remote_transmission_request = !frame->fd && (message[4] & MESSAGE_RTR);
   // The base clears the other CAN FD flags before each read
