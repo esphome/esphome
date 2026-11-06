@@ -71,7 +71,7 @@ from esphome.helpers import rmtree, write_file_if_changed
 from esphome.storage_json import StorageJSON
 from esphome.types import ConfigType
 
-from .boards import BOARDS_ZEPHYR, BOOTLOADER_CONFIG, SELF_RESET_PINS
+from .boards import BOARD_ALIASES, BOARDS_ZEPHYR, BOOTLOADER_CONFIG, SELF_RESET_PINS
 from .const import (
     BOOTLOADER_ADAFRUIT,
     BOOTLOADER_ADAFRUIT_NRF52_SD132,
@@ -82,12 +82,19 @@ from .const import (
     CONF_UDP,
     FLASH_SECTOR_SIZE,
     SMP_UDP_PORT,
+    VARIANT_NRF54L15,
+    VARIANT_NRF54LM20,
+    VARIANT_NRF51822,
+    VARIANT_NRF52840,
 )
 from .framework import (
     check_and_install,
     ensure_nordic_nrfutil,
     get_build_env,
     get_build_paths,
+    get_nrf52_variant,
+    include_west_project,
+    set_nrf52_variant,
     setup_platformio_python_env,
     toolchain_tool,
     wanted_west_projects,
@@ -95,6 +102,7 @@ from .framework import (
 
 # force import gpio to register pin schema
 from .gpio import nrf52_pin_to_code  # noqa: F401
+from .jlink import upload_using_jlink
 
 CODEOWNERS = ["@tomaszduda23"]
 AUTO_LOAD = ["zephyr", "preferences"]
@@ -106,6 +114,8 @@ _LOGGER = logging.getLogger(__name__)
 # sdk-nrf install cache and pins the clang-tidy project's SDK.
 RECOMMENDED_PLATFORMIO_VERSION = "2.6.1-b"
 RECOMMENDED_SDK_NRF_VERSION = "2.9.2"
+# The oldest sdk-nrf version that supports an SoC
+MIN_SDK_NRF_VERSIONS = {VARIANT_NRF54LM20: "3.4.1"}
 
 FAKE_BOARD_MANIFEST = """
 {
@@ -132,8 +142,21 @@ FAKE_BOARD_MANIFEST = """
 """
 
 
+def _board_variant(board: str) -> str:
+    """Take the SoC from the board qualifiers, e.g. nrf54lm20dk/nrf54lm20a/cpuapp."""
+    if board == "bbc_microbit":
+        return VARIANT_NRF51822
+    qualifiers = BOARD_ALIASES.get(board, board).lower().split("/")
+    if len(qualifiers) > 1 and qualifiers[1].startswith("nrf54lm20"):
+        return VARIANT_NRF54LM20
+    if len(qualifiers) > 1 and qualifiers[1].startswith("nrf54l15"):
+        return VARIANT_NRF54L15
+    return VARIANT_NRF52840
+
+
 def set_core_data(config: ConfigType) -> ConfigType:
     zephyr_set_core_data(config)
+    set_nrf52_variant(_board_variant(config[CONF_BOARD]))
     CORE.data[KEY_CORE][KEY_TARGET_PLATFORM] = PLATFORM_NRF52
     CORE.data[KEY_CORE][KEY_TARGET_FRAMEWORK] = KEY_ZEPHYR
 
@@ -173,13 +196,32 @@ _TOOLCHAINS = (Toolchain.PLATFORMIO, Toolchain.SDK_NRF)
 _resolve_toolchain = cv.resolve_toolchain("nRF52", _TOOLCHAINS, Toolchain.SDK_NRF)
 
 
-def set_framework(config: ConfigType) -> ConfigType:
-    if CONF_VERSION not in config[CONF_FRAMEWORK]:
-        default_version = (
-            RECOMMENDED_PLATFORMIO_VERSION
-            if CORE.using_toolchain_platformio
-            else RECOMMENDED_SDK_NRF_VERSION
+def _check_min_sdk_version(config: ConfigType, minimum: str) -> None:
+    if CORE.using_toolchain_platformio:
+        raise cv.Invalid(
+            f"{get_nrf52_variant()} is not supported by PlatformIO",
+            path=[CONF_TOOLCHAIN],
         )
+    if (version := config[CONF_FRAMEWORK].get(CONF_VERSION)) is not None and (
+        cv.Version.parse(cv.version_number(version)) < cv.Version.parse(minimum)
+    ):
+        raise cv.Invalid(
+            f"{get_nrf52_variant()} needs sdk-nrf {minimum} or newer",
+            path=[CONF_FRAMEWORK, CONF_VERSION],
+        )
+
+
+def set_framework(config: ConfigType) -> ConfigType:
+    minimum = MIN_SDK_NRF_VERSIONS.get(get_nrf52_variant())
+    if minimum is not None:
+        _check_min_sdk_version(config, minimum)
+    if CONF_VERSION not in config[CONF_FRAMEWORK]:
+        if CORE.using_toolchain_platformio:
+            default_version = RECOMMENDED_PLATFORMIO_VERSION
+        else:
+            default_version = RECOMMENDED_SDK_NRF_VERSION
+            if minimum is not None:
+                default_version = max(default_version, minimum, key=cv.Version.parse)
         config = {
             **config,
             CONF_FRAMEWORK: {**config[CONF_FRAMEWORK], CONF_VERSION: default_version},
@@ -216,6 +258,12 @@ BOOTLOADERS = [*SERIAL_DFU_BOOTLOADERS, BOOTLOADER_MCUBOOT]
 
 
 _validate_toolchain = cv.toolchain_enum(_TOOLCHAINS)
+
+
+def _resolve_board_alias(config: ConfigType) -> ConfigType:
+    if (board := BOARD_ALIASES.get(config.get(CONF_BOARD))) is not None:
+        return {**config, CONF_BOARD: board}
+    return config
 
 
 def _detect_bootloader(config: ConfigType) -> ConfigType:
@@ -285,6 +333,7 @@ def _dfu_schema(value: bool | ConfigType) -> ConfigType:
 
 
 CONFIG_SCHEMA = cv.All(
+    _resolve_board_alias,
     _detect_bootloader,
     set_core_data,
     cv.Schema(
@@ -430,11 +479,25 @@ async def to_code(config: ConfigType) -> None:
     """Convert the configuration to code."""
     cg.add_build_flag("-DUSE_NRF52")
     cg.add_define("ESPHOME_BOARD", config[CONF_BOARD])
-    cg.add_define("ESPHOME_VARIANT", "NRF52")
+    variant = get_nrf52_variant()
+    cg.add_define("ESPHOME_VARIANT", variant)
+    cg.add_build_flag(f"-DUSE_NRF52_VARIANT_{variant}")
+    if variant in (VARIANT_NRF54L15, VARIANT_NRF54LM20):
+        # The entropy driver runs on the CRACEN crypto unit, which needs Nordic's PSA crypto
+        include_west_project("mbedtls")
+        include_west_project("oberon-psa-crypto")
+        # The board aliases watchdog0 to wdt31 but leaves it disabled
+        zephyr_add_overlay(
+            """
+                &wdt31 {
+                    status = "okay";
+                };
+            """
+        )
     # Zephyr is a preemptive RTOS: BLE, Thread, USB and workqueue callbacks
     # run in other threads, so the scheduler must be thread-safe.
-    if config[CONF_BOARD] == "bbc_microbit":
-        # micro:bit v1 is an nRF51822 (Cortex-M0, ARMv6-M) without LDREX/STREX;
+    if variant == VARIANT_NRF51822:
+        # nRF51822 (micro:bit v1) is a Cortex-M0 (ARMv6-M) without LDREX/STREX;
         # std::atomic RMW would need libatomic, so use k_mutex-based locking.
         cg.add_define(ThreadModel.MULTI_NO_ATOMICS)
     else:
@@ -858,6 +921,10 @@ def upload_program(config: ConfigType, args, host: str) -> bool:
             if not run_command_ok(dfu_cmd, env=env, stream_output=True):
                 raise EsphomeError("nRF52 serial DFU upload failed")
             return True
+
+    if host == "JLINK":
+        upload_using_jlink()
+        return True
 
     if host == "PYOCD":
         if not CORE.using_toolchain_platformio:
