@@ -17,7 +17,7 @@ from typing import Any
 import esphome.codegen as cg
 import esphome.config_validation as cv
 from esphome.const import CONF_ENCRYPTION, CONF_KEY, CONF_TYPE
-from esphome.cpp_generator import MockObj
+from esphome.cpp_generator import Expression, MockObj
 from esphome.types import ConfigType
 
 packet_interface_ns = cg.esphome_ns.namespace("packet_interface")
@@ -27,7 +27,7 @@ CONF_RELIABILITY = "reliability"
 CONF_SESSION = "session"
 
 # A layer's maximum packet size, as a number or a C++ constant expression
-PacketSize = int | str
+PacketSize = int | Expression
 # Builds a layer above lower, given the largest packet lower accepts, and returns it with its own largest packet
 Layer = tuple[MockObj, PacketSize]
 LayerBuilder = Callable[[ConfigType, MockObj, PacketSize], Awaitable[Layer]]
