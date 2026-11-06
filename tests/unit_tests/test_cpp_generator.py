@@ -951,9 +951,10 @@ class TestStaticBuffer:
             "static uint8_t rx_buffer[64];"
         ]
 
-    def test_id_without_a_type_is_rejected(self) -> None:
-        with pytest.raises(EsphomeError, match="needs an element type"):
-            cg.static_buffer(ID("rx_buffer", is_declaration=True), 8)
+    @pytest.mark.parametrize("id_", ["rx_buffer", ID("rx_buffer", type=ct.uint8)])
+    def test_only_a_declared_id_is_accepted(self, id_: str | ID) -> None:
+        with pytest.raises(EsphomeError, match="must be an ID from cv.declare_id"):
+            cg.static_buffer(id_, 8)
 
 
 class TestProgmemString:

@@ -574,8 +574,8 @@ def static_buffer(id_: ID, size: int) -> "MockObj":
     ``id_`` comes from ``cv.GenerateID(...): cv.declare_id(<element type>)`` in the schema,
     so the ID system keeps its name unique.
     """
-    if id_.type is None:
-        raise EsphomeError(f"Buffer '{id_}' needs an element type in cv.declare_id")
+    if not (isinstance(id_, ID) and id_.is_declaration):
+        raise EsphomeError(f"Buffer '{id_}' must be an ID from cv.declare_id")
     CORE.add_global(RawStatement(f"static {id_.type} {id_}[{size}];"))
     buffer = MockObj(id_, ".")
     CORE.register_variable(id_, buffer)
