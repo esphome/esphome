@@ -9,7 +9,9 @@
 
 namespace esphome::rs485_frame {
 
+// Must agree with MAX_FRAME_TYPE_LEN in __init__.py, which caps frame_type.
 static constexpr size_t MAX_FRAME_TYPE_LEN = 8;
+// Must agree with MIN_FRAME_LENGTH in __init__.py.
 static constexpr size_t MIN_FRAME_LENGTH = 2;
 static constexpr uint8_t NO_SLOT = 0xFF;
 

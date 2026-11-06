@@ -85,9 +85,11 @@ TX_GATE_MODES = TxGateMode.options(
 )
 
 MAX_COMMAND_VALUES = 8
+# Must agree with MAX_FRAME_TYPE_LEN in rs485_frame.h, which sizes a stack buffer.
 MAX_FRAME_TYPE_LEN = 8
 MAX_FRAME_TYPE_ALTS = 4
 MAX_FRAME_LENGTH_UPPER = 1024
+# Must agree with MIN_FRAME_LENGTH in rs485_frame.h.
 MIN_FRAME_LENGTH = 2
 MAX_QUEUE_SIZE_UPPER = 32
 ESCAPE_MODE_BYTE = "escape_byte"
