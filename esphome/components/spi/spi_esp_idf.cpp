@@ -300,8 +300,10 @@ SPIBus *SPIComponent::get_bus(SPIInterface interface, GPIOPin *clk, GPIOPin *sdo
   }
   buscfg.max_transfer_sz = MAX_TRANSFER_SIZE;
   auto err = spi_bus_initialize(interface, &buscfg, SPI_DMA_CH_AUTO);
-  // ESP_ERR_INVALID_STATE: another driver already initialized this host, so the bus is usable
-  if (err != ESP_OK && err != ESP_ERR_INVALID_STATE) {
+  if (err == ESP_ERR_INVALID_STATE) {
+    // The host stays usable, but with the other driver's pins
+    ESP_LOGW(TAG, "Bus already initialized by another driver, configured pins ignored");
+  } else if (err != ESP_OK) {
     ESP_LOGE(TAG, "Bus init failed: %s", esp_err_to_name(err));
     return nullptr;
   }
