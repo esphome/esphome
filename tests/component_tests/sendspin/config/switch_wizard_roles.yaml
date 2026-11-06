@@ -1,0 +1,30 @@
+esphome:
+  name: test
+
+esp32:
+  variant: esp32
+  framework:
+    type: esp-idf
+
+wifi:
+  ap:
+
+api:
+  wizard:
+    pages:
+      - entities:
+          - id: sendspin_enabled
+          - id: sendspin_unpaired_access
+
+sendspin:
+  static_pairing_code: "12345678"
+
+switch:
+  - platform: sendspin
+    type: enabled
+    id: sendspin_enabled
+    name: Sendspin Enabled
+  - platform: sendspin
+    type: unpaired_access
+    id: sendspin_unpaired_access
+    name: Sendspin Unpaired Access
