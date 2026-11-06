@@ -16,8 +16,6 @@ SPIDelegate *const SPIDelegate::NULL_DELEGATE =  // NOLINT(cppcoreguidelines-avo
 
 bool SPIDelegate::is_ready() { return true; }
 
-GPIOPin *const NullPin::NULL_PIN = new NullPin();  // NOLINT(cppcoreguidelines-avoid-non-const-global-variables)
-
 SPIDelegate *SPIComponent::register_device(SPIClient *device, SPIMode mode, SPIBitOrder bit_order, uint32_t data_rate,
                                            GPIOPin *cs_pin, bool release_device, bool write_only) {
   if (this->devices_.contains(device)) {
