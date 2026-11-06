@@ -1,5 +1,3 @@
-from typing import Any
-
 import esphome.codegen as cg
 from esphome.components import i2c
 import esphome.config_validation as cv
@@ -37,19 +35,14 @@ MEASUREMENT_TIMES = {
 }
 
 
-def validate_measurement_time(value: Any) -> Any:
-    value = cv.positive_time_period_milliseconds(value).total_milliseconds
-    return cv.enum(MEASUREMENT_TIMES, int=True)(value)
-
-
 CONFIG_SCHEMA = (
     cv.Schema(
         {
             cv.GenerateID(): cv.declare_id(BH1745Component),
             cv.Optional(CONF_GAIN, default="1X"): cv.enum(ADC_GAINS, upper=True),
-            cv.Optional(
-                CONF_INTEGRATION_TIME, default="160ms"
-            ): validate_measurement_time,
+            cv.Optional(CONF_INTEGRATION_TIME, default="160ms"): cv.time_period_enum(
+                MEASUREMENT_TIMES
+            ),
             cv.Optional(CONF_GLASS_ATTENUATION_FACTOR, default=1.0): cv.float_range(
                 min=1.0
             ),
