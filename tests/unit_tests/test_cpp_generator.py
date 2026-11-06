@@ -941,6 +941,29 @@ class TestSharedProgmemArray:
         assert str(array) == "table_2"
 
 
+class TestStaticBuffer:
+    def test_is_named_after_its_owner_and_unique(self) -> None:
+        hub = ID(
+            "hub",
+            is_declaration=True,
+            type=ct.esphome_ns.namespace("uart").class_("Hub"),
+        )
+        CORE.config = {"sensor": [{"id": ID("hub_buffer", is_declaration=True)}]}
+        cg.static_buffer(hub, ct.uint8, 64)
+        b = cg.static_buffer(hub, ct.uint8, 8)
+        assert [str(st) for st in CORE.global_statements] == [
+            "static uint8_t uart__hub_buffer_2__pstorage[64];",
+            "static uint8_t uart__hub_buffer_3__pstorage[8];",
+        ]
+        assert str(b) == "uart__hub_buffer_3__pstorage"
+
+    def test_owner_must_be_an_id(self) -> None:
+        with pytest.raises(EsphomeError, match="owning component's ID"):
+            cg.static_buffer("hub", ct.uint8, 8)
+        with pytest.raises(EsphomeError, match="owning component's ID"):
+            cg.static_buffer(ID("hub"), ct.uint8, 8)
+
+
 class TestProgmemString:
     @staticmethod
     def _set_platform(platform: str) -> None:
