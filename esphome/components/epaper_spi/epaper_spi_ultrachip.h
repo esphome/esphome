@@ -5,7 +5,7 @@
 namespace esphome::epaper_spi {
 
 /**
- * Shared base for the UltraChip UC81xx mono controllers (UC8179, UC8279).
+ * Shared base for the UltraChip UC81xx mono controllers (UC8151, UC8179, UC8279).
  *
  * They use the same command set and the same deep-sleep and partial-window handling; the
  * concrete drivers differ only in how each refresh is configured and which planes are sent.
@@ -37,7 +37,7 @@ class EPaperUltraChip : public EPaperBase {
   // Sends the deep-sleep command unconditionally; deep_sleep() skips it while partial updates are in use
   void send_deep_sleep_();
   // Enters partial mode and sets the refresh window; x is rounded out to whole bytes
-  void set_partial_window_(uint16_t x_start, uint16_t x_end, uint16_t y_start, uint16_t y_end);
+  virtual void set_partial_window_(uint16_t x_start, uint16_t x_end, uint16_t y_start, uint16_t y_end);
 };
 
 }  // namespace esphome::epaper_spi
