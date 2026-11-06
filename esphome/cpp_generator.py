@@ -567,15 +567,20 @@ def shared_progmem_string(value: str) -> Expression:
     return text
 
 
-def static_buffer(type_: "MockObjClass", size: int) -> "MockObj":
-    """Emit a zeroed file-scope ``static type_ <name>[size];`` under a unique name and return it.
+def static_buffer(owner: ID, type_: "MockObjClass", size: int) -> "MockObj":
+    """Emit a zeroed file-scope ``static type_ <name>[size];`` for ``owner`` and return it.
 
     For a buffer whose size is known from the config, so it lives in BSS instead of the heap.
+    Named like placement new storage, ``<component>__<owner>_buffer__pstorage``, so
+    ``esphome analyze-memory`` counts it under the owning component.
     """
-    id_ = unique_global_id(f"{type_}_buffer", type_)
-    CORE.add_global(RawStatement(f"static {type_} {id_}[{size}];"))
-    buffer = MockObj(id_, ".")
-    CORE.register_variable(id_, buffer)
+    if not isinstance(owner, ID) or owner.type is None:
+        raise EsphomeError(f"Buffer owner '{owner}' must be the owning component's ID")
+    base = unique_global_id(f"{owner.id}_buffer", type_)
+    name = f"{_extract_component_ns(str(owner.type))}__{base}__pstorage"
+    CORE.add_global(RawStatement(f"static {type_} {name}[{size}];"))
+    buffer = MockObj(name, ".")
+    CORE.register_variable(base, buffer)
     return buffer
 
 
