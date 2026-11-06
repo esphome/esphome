@@ -287,10 +287,8 @@ class SPIDelegateDummy : public SPIDelegate {
   void begin_transaction() override;
 };
 
-/**
- * An implementation of SPI that relies only on software toggling of pins.
- *
- */
+#ifdef USE_SPI_SOFTWARE
+/// An implementation of SPI that relies only on software toggling of pins.
 class SPIDelegateBitBash : public SPIDelegate {
  public:
   SPIDelegateBitBash(uint32_t clock, SPIBitOrder bit_order, SPIMode mode, GPIOPin *cs_pin, GPIOPin *clk_pin,
@@ -324,6 +322,7 @@ class SPIDelegateBitBash : public SPIDelegate {
   }
   uint16_t transfer_(uint16_t data, size_t num_bits);
 };
+#endif  // USE_SPI_SOFTWARE
 
 class SPIClient;
 

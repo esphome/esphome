@@ -23,11 +23,13 @@ SPIDelegate *SPIComponent::register_device(SPIClient *device, SPIMode mode, SPIB
   if (!this->is_ready()) {
     return SPIDelegate::NULL_DELEGATE;  // the bus failed in setup(); the device stays not ready
   }
-  if (this->using_hw_) {
-    return this->new_hw_delegate_(data_rate, bit_order, mode, cs_pin, release_device, write_only);
+#ifdef USE_SPI_SOFTWARE
+  if (!this->using_hw_) {
+    return new SPIDelegateBitBash(data_rate, bit_order, mode, cs_pin, this->clk_pin_, this->sdo_pin_,  // NOLINT
+                                  this->sdi_pin_);
   }
-  return new SPIDelegateBitBash(data_rate, bit_order, mode, cs_pin, this->clk_pin_, this->sdo_pin_,  // NOLINT
-                                this->sdi_pin_);
+#endif
+  return this->new_hw_delegate_(data_rate, bit_order, mode, cs_pin, release_device, write_only);
 }
 
 void SPIComponent::unregister_device(SPIClient *device) {
@@ -52,17 +54,17 @@ void SPIComponent::setup() {
     return;
   }
 
-  if (this->using_hw_) {
-    if (!this->setup_hw_bus_()) {
-      this->mark_failed(LOG_STR("Unable to allocate SPI interface"));
-      return;
-    }
-  } else {
+#ifdef USE_SPI_SOFTWARE
+  if (!this->using_hw_) {
     this->clk_pin_->setup();
     this->clk_pin_->digital_write(true);
     this->sdo_pin_->setup();
     this->sdi_pin_->setup();
+    return;
   }
+#endif
+  if (!this->setup_hw_bus_())
+    this->mark_failed(LOG_STR("Unable to allocate SPI interface"));
 }
 
 void SPIComponent::dump_config() {
@@ -85,6 +87,7 @@ void SPIComponent::dump_config() {
 
 void SPIDelegateDummy::begin_transaction() { ESP_LOGE(TAG, "SPIDevice not initialised - did you call spi_setup()?"); }
 
+#ifdef USE_SPI_SOFTWARE
 uint8_t SPIDelegateBitBash::transfer(uint8_t data) { return this->transfer_(data, 8); }
 
 void SPIDelegateBitBash::write(uint16_t data, size_t num_bits) { this->transfer_(data, num_bits); }
@@ -123,6 +126,7 @@ uint16_t SPIDelegateBitBash::transfer_(uint16_t data, size_t num_bits) {
   App.feed_wdt();
   return out_data;
 }
+#endif  // USE_SPI_SOFTWARE
 
 #if !defined(USE_ESP32) && !defined(USE_ARDUINO) && !defined(USE_ZEPHYR)
 // Stub for unsupported platforms (host, etc.) - hardware SPI is unavailable
