@@ -71,19 +71,30 @@ from esphome.helpers import rmtree, write_file_if_changed
 from esphome.storage_json import StorageJSON
 from esphome.types import ConfigType
 
-from .boards import BOARDS_ZEPHYR, BOOTLOADER_CONFIG, SELF_RESET_PINS
+from .boards import BOARD_ALIASES, BOARDS_ZEPHYR, BOOTLOADER_CONFIG, SELF_RESET_PINS
 from .const import (
     BOOTLOADER_ADAFRUIT,
     BOOTLOADER_ADAFRUIT_NRF52_SD132,
     BOOTLOADER_ADAFRUIT_NRF52_SD140_V6,
     BOOTLOADER_ADAFRUIT_NRF52_SD140_V7,
     BOOTLOADER_NRF,
+    CONF_TRANSPORT,
+    CONF_UDP,
+    FLASH_SECTOR_SIZE,
+    SMP_UDP_PORT,
+    VARIANT_NRF54L15,
+    VARIANT_NRF54LM20,
+    VARIANT_NRF51822,
+    VARIANT_NRF52840,
 )
 from .framework import (
     check_and_install,
     ensure_nordic_nrfutil,
     get_build_env,
     get_build_paths,
+    get_nrf52_variant,
+    include_west_project,
+    set_nrf52_variant,
     setup_platformio_python_env,
     toolchain_tool,
     wanted_west_projects,
@@ -91,6 +102,7 @@ from .framework import (
 
 # force import gpio to register pin schema
 from .gpio import nrf52_pin_to_code  # noqa: F401
+from .jlink import upload_using_jlink
 
 CODEOWNERS = ["@tomaszduda23"]
 AUTO_LOAD = ["zephyr", "preferences"]
@@ -102,6 +114,8 @@ _LOGGER = logging.getLogger(__name__)
 # sdk-nrf install cache and pins the clang-tidy project's SDK.
 RECOMMENDED_PLATFORMIO_VERSION = "2.6.1-b"
 RECOMMENDED_SDK_NRF_VERSION = "2.9.2"
+# The oldest sdk-nrf version that supports an SoC
+MIN_SDK_NRF_VERSIONS = {VARIANT_NRF54LM20: "3.4.1"}
 
 FAKE_BOARD_MANIFEST = """
 {
@@ -128,8 +142,21 @@ FAKE_BOARD_MANIFEST = """
 """
 
 
+def _board_variant(board: str) -> str:
+    """Take the SoC from the board qualifiers, e.g. nrf54lm20dk/nrf54lm20a/cpuapp."""
+    if board == "bbc_microbit":
+        return VARIANT_NRF51822
+    qualifiers = BOARD_ALIASES.get(board, board).lower().split("/")
+    if len(qualifiers) > 1 and qualifiers[1].startswith("nrf54lm20"):
+        return VARIANT_NRF54LM20
+    if len(qualifiers) > 1 and qualifiers[1].startswith("nrf54l15"):
+        return VARIANT_NRF54L15
+    return VARIANT_NRF52840
+
+
 def set_core_data(config: ConfigType) -> ConfigType:
     zephyr_set_core_data(config)
+    set_nrf52_variant(_board_variant(config[CONF_BOARD]))
     CORE.data[KEY_CORE][KEY_TARGET_PLATFORM] = PLATFORM_NRF52
     CORE.data[KEY_CORE][KEY_TARGET_FRAMEWORK] = KEY_ZEPHYR
 
@@ -169,13 +196,32 @@ _TOOLCHAINS = (Toolchain.PLATFORMIO, Toolchain.SDK_NRF)
 _resolve_toolchain = cv.resolve_toolchain("nRF52", _TOOLCHAINS, Toolchain.SDK_NRF)
 
 
-def set_framework(config: ConfigType) -> ConfigType:
-    if CONF_VERSION not in config[CONF_FRAMEWORK]:
-        default_version = (
-            RECOMMENDED_PLATFORMIO_VERSION
-            if CORE.using_toolchain_platformio
-            else RECOMMENDED_SDK_NRF_VERSION
+def _check_min_sdk_version(config: ConfigType, minimum: str) -> None:
+    if CORE.using_toolchain_platformio:
+        raise cv.Invalid(
+            f"{get_nrf52_variant()} is not supported by PlatformIO",
+            path=[CONF_TOOLCHAIN],
         )
+    if (version := config[CONF_FRAMEWORK].get(CONF_VERSION)) is not None and (
+        cv.Version.parse(cv.version_number(version)) < cv.Version.parse(minimum)
+    ):
+        raise cv.Invalid(
+            f"{get_nrf52_variant()} needs sdk-nrf {minimum} or newer",
+            path=[CONF_FRAMEWORK, CONF_VERSION],
+        )
+
+
+def set_framework(config: ConfigType) -> ConfigType:
+    minimum = MIN_SDK_NRF_VERSIONS.get(get_nrf52_variant())
+    if minimum is not None:
+        _check_min_sdk_version(config, minimum)
+    if CONF_VERSION not in config[CONF_FRAMEWORK]:
+        if CORE.using_toolchain_platformio:
+            default_version = RECOMMENDED_PLATFORMIO_VERSION
+        else:
+            default_version = RECOMMENDED_SDK_NRF_VERSION
+            if minimum is not None:
+                default_version = max(default_version, minimum, key=cv.Version.parse)
         config = {
             **config,
             CONF_FRAMEWORK: {**config[CONF_FRAMEWORK], CONF_VERSION: default_version},
@@ -199,19 +245,25 @@ def set_framework(config: ConfigType) -> ConfigType:
     )(config)
 
 
-# Bootloaders flashed over USB serial DFU: the Adafruit ones with adafruit-nrfutil, the factory Open
-# DFU bootloader with Nordic's nrfutil; mcuboot uses mcumgr instead
-SERIAL_DFU_BOOTLOADERS = (
+ADAFRUIT_BOOTLOADERS = (
     BOOTLOADER_ADAFRUIT,
     BOOTLOADER_ADAFRUIT_NRF52_SD132,
     BOOTLOADER_ADAFRUIT_NRF52_SD140_V6,
     BOOTLOADER_ADAFRUIT_NRF52_SD140_V7,
-    BOOTLOADER_NRF,
 )
+# Bootloaders flashed over USB serial DFU: the Adafruit ones with adafruit-nrfutil, the factory Open
+# DFU bootloader with Nordic's nrfutil; mcuboot uses mcumgr instead
+SERIAL_DFU_BOOTLOADERS = (*ADAFRUIT_BOOTLOADERS, BOOTLOADER_NRF)
 BOOTLOADERS = [*SERIAL_DFU_BOOTLOADERS, BOOTLOADER_MCUBOOT]
 
 
 _validate_toolchain = cv.toolchain_enum(_TOOLCHAINS)
+
+
+def _resolve_board_alias(config: ConfigType) -> ConfigType:
+    if (board := BOARD_ALIASES.get(config.get(CONF_BOARD))) is not None:
+        return {**config, CONF_BOARD: board}
+    return config
 
 
 def _detect_bootloader(config: ConfigType) -> ConfigType:
@@ -281,6 +333,7 @@ def _dfu_schema(value: bool | ConfigType) -> ConfigType:
 
 
 CONFIG_SCHEMA = cv.All(
+    _resolve_board_alias,
     _detect_bootloader,
     set_core_data,
     cv.Schema(
@@ -343,6 +396,23 @@ def _validate_open_dfu_toolchain(config: ConfigType) -> None:
         )
 
 
+def _warn_old_framework_version(config: ConfigType) -> None:
+    # The PlatformIO toolchain already warns that it is deprecated as a whole
+    if CORE.using_toolchain_platformio:
+        return
+    if (version := config[CONF_FRAMEWORK].get(CONF_VERSION)) is None:
+        return
+    # Remove before 2027.5.0
+    if cv.Version.parse(cv.version_number(version)) < cv.Version(2, 9, 2):
+        _LOGGER.warning(
+            "nRF52 framework version %s is deprecated and will be removed in ESPHome 2027.5.0. "
+            "Please use version 2.9.2 or newer, or remove 'version:' under 'framework:' "
+            "to use the recommended version (%s).",
+            version,
+            RECOMMENDED_SDK_NRF_VERSION,
+        )
+
+
 def _final_validate(config):
 
     # Remove before 2027.2.0
@@ -351,6 +421,7 @@ def _final_validate(config):
             "The 'platformio' toolchain for nRF52 is deprecated and will be removed in ESPHome 2027.2.0. "
             "Please use 'toolchain: sdk-nrf' instead."
         )
+    _warn_old_framework_version(config)
     _validate_open_dfu_toolchain(config)
 
     if CONF_DFU in config:
@@ -408,11 +479,25 @@ async def to_code(config: ConfigType) -> None:
     """Convert the configuration to code."""
     cg.add_build_flag("-DUSE_NRF52")
     cg.add_define("ESPHOME_BOARD", config[CONF_BOARD])
-    cg.add_define("ESPHOME_VARIANT", "NRF52")
+    variant = get_nrf52_variant()
+    cg.add_define("ESPHOME_VARIANT", variant)
+    cg.add_build_flag(f"-DUSE_NRF52_VARIANT_{variant}")
+    if variant in (VARIANT_NRF54L15, VARIANT_NRF54LM20):
+        # The entropy driver runs on the CRACEN crypto unit, which needs Nordic's PSA crypto
+        include_west_project("mbedtls")
+        include_west_project("oberon-psa-crypto")
+        # The board aliases watchdog0 to wdt31 but leaves it disabled
+        zephyr_add_overlay(
+            """
+                &wdt31 {
+                    status = "okay";
+                };
+            """
+        )
     # Zephyr is a preemptive RTOS: BLE, Thread, USB and workqueue callbacks
     # run in other threads, so the scheduler must be thread-safe.
-    if config[CONF_BOARD] == "bbc_microbit":
-        # micro:bit v1 is an nRF51822 (Cortex-M0, ARMv6-M) without LDREX/STREX;
+    if variant == VARIANT_NRF51822:
+        # nRF51822 (micro:bit v1) is a Cortex-M0 (ARMv6-M) without LDREX/STREX;
         # std::atomic RMW would need libatomic, so use k_mutex-based locking.
         cg.add_define(ThreadModel.MULTI_NO_ATOMICS)
     else:
@@ -458,6 +543,8 @@ async def to_code(config: ConfigType) -> None:
         if (len(bootloader)) > 3:
             sd_version = bootloader[3][1:]
             cg.add_define("USE_SOFTDEVICE_VERSION", int(sd_version))
+    if config[KEY_BOOTLOADER] in ADAFRUIT_BOOTLOADERS:
+        cg.add_define("USE_BOOTLOADER_ADAFRUIT")
 
     zephyr_setup_preferences()
     zephyr_to_code(config)
@@ -756,6 +843,15 @@ def _enter_open_dfu(host: str) -> str:
     )
 
 
+def has_network_ota(config: ConfigType) -> bool:
+    """True when zephyr_mcumgr OTA listens on UDP."""
+    return any(
+        ota.get(CONF_PLATFORM) == "zephyr_mcumgr"
+        and ota.get(CONF_TRANSPORT, {}).get(CONF_UDP)
+        for ota in config.get(CONF_OTA, [])
+    )
+
+
 def upload_program(config: ConfigType, args, host: str) -> bool:
     from esphome.__main__ import check_permissions
     from esphome.upload_targets import PortType, get_port_type
@@ -826,6 +922,10 @@ def upload_program(config: ConfigType, args, host: str) -> bool:
                 raise EsphomeError("nRF52 serial DFU upload failed")
             return True
 
+    if host == "JLINK":
+        upload_using_jlink()
+        return True
+
     if host == "PYOCD":
         if not CORE.using_toolchain_platformio:
             check_and_install()
@@ -855,32 +955,91 @@ def upload_program(config: ConfigType, args, host: str) -> bool:
                 raise EsphomeError(f"Upload failed with result: {result}")
         return True  # Handled: PYOCD upload
 
+    file = getattr(args, "file", None)
     if mcumgr_device:
         # MCUboot over USB CDC: the serial port speaks the MCUmgr SMP protocol
-        asyncio.run(_smpmgr_upload(mcumgr_device))
+        asyncio.run(_smpmgr_upload(mcumgr_device, file))
         return True  # Handled: mcumgr serial upload
 
     # Deferred imports: bleak and friends are heavy, only load for BLE paths
     from .ble_logger import is_ble_address
 
     if host == "BLE" or is_ble_address(host):
-        asyncio.run(_upload_over_ble(config, host))
+        asyncio.run(_upload_over_ble(config, host, file))
         return True  # Handled: BLE OTA upload
+
+    if get_port_type(host) == PortType.NETWORK and has_network_ota(config):
+        ipv4 = config.get(network.DOMAIN, {}).get(network.CONF_ENABLE_IPV4, False)
+        addresses = _resolve_smp_udp_hosts(host, ipv4)
+        asyncio.run(_upload_over_udp(host, addresses, file))
+        return True  # Handled: mcumgr UDP upload
 
     return False  # Not handled: let caller try default upload methods
 
 
-async def _smpmgr_upload(device: str) -> None:
-    """Upload the MCUboot application image over the MCUmgr SMP protocol."""
+async def _smpmgr_upload(
+    device: str, file: str | None = None, udp: bool = False
+) -> None:
+    """Upload the MCUboot application image (or --file) over the MCUmgr SMP protocol."""
     from .ota import smpmgr_upload
 
     firmware = Path(
-        CORE.relative_pioenvs_path(CORE.name, "zephyr", "app_update.bin")
+        file or CORE.relative_pioenvs_path(CORE.name, "zephyr", "app_update.bin")
     ).resolve()
-    await smpmgr_upload(device, firmware)
+    await smpmgr_upload(device, firmware, udp)
 
 
-async def _upload_over_ble(config: ConfigType, host: str) -> None:
+def _resolve_smp_udp_hosts(host: str, ipv4: bool) -> list[str]:
+    """Every address for the host through the address cache, in resolve_ip_address order.
+
+    The device listens on IPv6, and on IPv4 only with network enable_ipv4.
+    """
+    import socket
+
+    from esphome.helpers import resolve_ip_address
+
+    # The CLI hands over only the first address it expanded from the cache
+    cache = CORE.address_cache
+    if cache and CORE.address and host in (cache.get_addresses(CORE.address) or ()):
+        host = CORE.address
+    resolved = resolve_ip_address(host, SMP_UDP_PORT, cache)
+    if not resolved:
+        raise EsphomeError(f"No addresses to connect to for {host}")
+    if not ipv4:
+        resolved = [addr for addr in resolved if addr[0] == socket.AF_INET6]
+        if not resolved:
+            raise EsphomeError(
+                f"{host} has no IPv6 address; the device listens for OTA on IPv6 "
+                "unless 'network: enable_ipv4: true' is set"
+            )
+    addresses: list[str] = []
+    for family, _, _, _, sockaddr in resolved:
+        address = sockaddr[0]
+        if family == socket.AF_INET6 and sockaddr[3]:
+            address = f"{address}%{sockaddr[3]}"
+        if address not in addresses:
+            addresses.append(address)
+    return addresses
+
+
+async def _upload_over_udp(host: str, addresses: list[str], file: str | None) -> None:
+    """Try each address until one answers; a failure after that is final."""
+    from .ota_udp import SMPUnreachableError
+
+    for index, address in enumerate(addresses, 1):
+        _LOGGER.info("Uploading to %s at %s", host, address)
+        try:
+            await _smpmgr_upload(address, file, udp=True)
+            return
+        except SMPUnreachableError as err:
+            if index == len(addresses):
+                raise
+            _LOGGER.warning("%s, trying the next address", err)
+
+
+async def _upload_over_ble(
+    config: ConfigType, host: str, file: str | None = None
+) -> None:
     """Upload over the OTA protocol the firmware was built with."""
     from .ota import smpmgr_scan
 
@@ -890,7 +1049,7 @@ async def _upload_over_ble(config: ConfigType, host: str) -> None:
         ota.get(CONF_PLATFORM) == "adafruit_ble" for ota in config.get(CONF_OTA, [])
     ):
         address = await smpmgr_scan(CORE.name) if host == "BLE" else host
-        await _smpmgr_upload(address)
+        await _smpmgr_upload(address, file)
         return
 
     from esphome.components.adafruit_ble import dfu
@@ -1058,9 +1217,11 @@ def _generate_cmake_lists(pch_on: bool) -> bool:
     # modules and discover them through EXTRA_ZEPHYR_MODULES (a CMake list, set
     # before find_package(Zephyr) so the modules are picked up). Only
     # framework-agnostic libraries actually compile under Zephyr.
-    from esphome.components.zephyr.library import generate_zephyr_modules
+    from esphome.components.zephyr.library import DEFINES_VAR, generate_zephyr_modules
 
     module_dirs = generate_zephyr_modules(list(CORE.platformio_libraries.values()))
+    defines = [flag for flag in compile_flags if flag.startswith("-D")]
+    options = [flag for flag in compile_flags if not flag.startswith("-D")]
 
     lines = [
         "cmake_minimum_required(VERSION 3.20.0)",
@@ -1072,6 +1233,9 @@ def _generate_cmake_lists(pch_on: bool) -> bool:
     if module_dirs:
         modules = ";".join(str(d).replace("\\", "/") for d in module_dirs)
         lines += [f'set(EXTRA_ZEPHYR_MODULES "{modules}")', ""]
+        if defines:
+            escaped = ";".join(cmake_escape(flag) for flag in defines)
+            lines += [f'set({DEFINES_VAR} "{escaped}")', ""]
 
     lines += [
         "find_package(Zephyr REQUIRED)",
@@ -1084,8 +1248,6 @@ def _generate_cmake_lists(pch_on: bool) -> bool:
         'target_include_directories(app PRIVATE "${CMAKE_CURRENT_LIST_DIR}/../src")',
     ]
 
-    defines = [flag for flag in compile_flags if flag.startswith("-D")]
-    options = [flag for flag in compile_flags if not flag.startswith("-D")]
     if defines:
         lines += [
             "",
@@ -1123,6 +1285,74 @@ def _generate_cmake_lists(pch_on: bool) -> bool:
 def _copy_if_exists(src: Path, dst: Path) -> None:
     if src.is_file():
         shutil.copy2(src, dst)
+
+
+# nRF52 flash write size and MCUboot's trailer layout (bootutil_misc.c)
+FLASH_WRITE_SIZE = 4
+MCUBOOT_SWAP_MOVE_STATES = 3
+MCUBOOT_TRAILER_INFO_SIZE = 4 * 8 + 16  # swap info fields and magic
+
+
+def _mcuboot_swap_limit(partitions: dict, mcuboot_config: str) -> int | None:
+    """The largest image MCUboot's swap using move can swap in, or None for other modes.
+
+    Mirrors app_max_size() in swap_move.c: the primary slot less its trailer sectors
+    and the sector the move needs, and no more than the secondary slot.
+    """
+    if "CONFIG_BOOT_SWAP_USING_MOVE=y" not in mcuboot_config.splitlines():
+        return None
+    match = re.search(
+        r"^CONFIG_BOOT_MAX_IMG_SECTORS=(\d+)$", mcuboot_config, re.MULTILINE
+    )
+    if match is None:
+        _LOGGER.warning(
+            "Skipping the MCUboot slot size check: BOOT_MAX_IMG_SECTORS is not set"
+        )
+        return None
+    trailer = (
+        int(match.group(1)) * MCUBOOT_SWAP_MOVE_STATES * FLASH_WRITE_SIZE
+        + MCUBOOT_TRAILER_INFO_SIZE
+    )
+    trailer_sectors = -(-trailer // FLASH_SECTOR_SIZE)
+    primary_sectors = partitions["mcuboot_primary"]["size"] // FLASH_SECTOR_SIZE
+    primary = (primary_sectors - trailer_sectors - 1) * FLASH_SECTOR_SIZE
+    return min(primary, partitions["mcuboot_secondary"]["size"])
+
+
+def _check_mcuboot_swap_limit(build_dir: Path, image: Path) -> None:
+    """Fail a build whose image MCUboot would refuse to swap in.
+
+    The linker only checks the app partition. MCUboot then boots the old image and
+    leaves the new one pending, which blocks every later OTA update.
+    """
+    partitions_file = build_dir / "partitions.yml"
+    mcuboot_config = build_dir / "mcuboot" / "zephyr" / ".config"
+    if not image.is_file():
+        # A stale app_update.bin from an earlier build could otherwise go out unnoticed
+        _LOGGER.warning("Skipping the MCUboot slot size check: %s is missing", image)
+        return
+    if not (partitions_file.is_file() and mcuboot_config.is_file()):
+        _LOGGER.warning(
+            "Skipping the MCUboot slot size check: %s or %s is missing",
+            partitions_file,
+            mcuboot_config,
+        )
+        return
+    import yaml
+
+    limit = _mcuboot_swap_limit(
+        yaml.safe_load(partitions_file.read_text()), mcuboot_config.read_text()
+    )
+    if limit is None:
+        return
+    size = image.stat().st_size
+    if size > limit:
+        raise EsphomeError(
+            f"The application image is {size} bytes, but MCUboot can only swap in "
+            f"{limit} bytes on this board. Remove at least {size - limit} bytes, for "
+            "example by leaving out components or lowering the log level."
+        )
+    _LOGGER.info("Application image: %d of %d bytes MCUboot can swap in", size, limit)
 
 
 def _west_build_command(
@@ -1230,6 +1460,9 @@ def run_compile(args, config: ConfigType) -> bool:
         west_out = zephyr_dir
     else:
         west_out = zephyr_dir / "zephyr"
+        if zephyr_data().get(KEY_SYSBUILD):
+            # Before the copies, so a failed check leaves no oversized app_update.bin
+            _check_mcuboot_swap_limit(build_dir, west_out / "zephyr.signed.bin")
         _copy_if_exists(west_out / "zephyr.uf2", zephyr_dir / "zephyr.uf2")
         _copy_if_exists(west_out / "zephyr.signed.bin", zephyr_dir / "app_update.bin")
         _copy_if_exists(west_out / "zephyr.hex", zephyr_dir / "zephyr.hex")
