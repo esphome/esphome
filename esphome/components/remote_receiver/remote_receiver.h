@@ -134,7 +134,19 @@ class RemoteReceiverComponent final : public remote_base::RemoteReceiverBase,
     this->store_.frame_entries = frame_entries;
   }
 #else
-  void set_buffer_size(uint32_t buffer_size) { this->buffer_size_ = buffer_size; }
+#if defined(USE_ESP32) && SOC_RMT_SUPPORTED
+  /// A static array of `size` bytes from code generation; uint32_t words keep the RMT symbols aligned.
+  void set_buffer(uint32_t *buffer, uint32_t size) {
+    this->store_.buffer = reinterpret_cast<uint8_t *>(buffer);
+    this->store_.buffer_size = size;
+  }
+#else
+  /// A static array of `entries` pulses from code generation.
+  void set_buffer(int32_t *buffer, uint32_t entries) {
+    this->store_.buffer = buffer;
+    this->store_.buffer_entries = entries;
+  }
+#endif
   void set_filter_us(uint32_t filter_us) { this->filter_us_ = filter_us; }
   void set_idle_us(uint32_t idle_us) { this->idle_us_ = idle_us; }
 #endif
@@ -164,7 +176,6 @@ class RemoteReceiverComponent final : public remote_base::RemoteReceiverBase,
 #endif
 
 #ifndef USE_REMOTE_RECEIVER_TIMER_SAMPLING
-  uint32_t buffer_size_{};  // 0 on RMT targets: sized from receive_symbols in setup()
   uint32_t filter_us_{10};
   uint32_t idle_us_{10000};
 #endif
