@@ -106,12 +106,22 @@ bool MQTTBackendESP32::initialize_() {
 }
 
 void MQTTBackendESP32::loop() {
-  // process new events
-  // handle only 1 message per loop iteration
-  Event *event = this->mqtt_event_queue_.pop();
-  if (event != nullptr) {
-    this->mqtt_event_handler_(*event);
+  // Capped by count and time so slow on_message automations cannot hold the loop
+  const uint32_t start = App.get_loop_component_start_time();
+  for (uint8_t i = 0; i < MQTT_EVENT_POOL_SIZE; i++) {
+    Event *event = this->mqtt_event_queue_.pop();
+    if (event == nullptr)
+      break;
+    const auto event_id = event->event_id;
+    {
+      DispatchGuard dispatching(this->dispatching_);
+      this->mqtt_event_handler_(*event);
+    }
     this->mqtt_event_pool_.release(event);
+    // Let the client handle a connection change first
+    if (event_id == MQTT_EVENT_CONNECTED || event_id == MQTT_EVENT_DISCONNECTED ||
+        millis() - start >= EVENT_DRAIN_BUDGET_MS)
+      break;
   }
 
   // Log dropped inbound events (check is cheap - single atomic load in common case)
@@ -151,7 +161,10 @@ void MQTTBackendESP32::mqtt_event_handler_(const Event &event) {
     case MQTT_EVENT_CONNECTED:
       ESP_LOGV(TAG, "MQTT_EVENT_CONNECTED");
       this->is_connected_ = true;
+      // The MQTT task already reset subacks_
+      this->subscribes_sent_ = 0;
 #if defined(USE_MQTT_IDF_ENQUEUE)
+      this->subscribes_lost_at_connect_ = this->subscribes_lost_.load(std::memory_order_relaxed);
       this->last_dropped_log_time_ = 0;
       xTaskNotifyGive(this->task_handle_);
 #endif
@@ -218,42 +231,59 @@ void MQTTBackendESP32::mqtt_event_handler(void *handler_args, esp_event_base_t b
   MQTTBackendESP32 *instance = static_cast<MQTTBackendESP32 *>(handler_args);
   if (instance == nullptr)
     return;
-  // Recorded here, not in loop(), so teardown can see the confirmation without dispatching other events
-  if (event_id == MQTT_EVENT_PUBLISHED) {
-    auto msg_id = static_cast<uint16_t>(static_cast<esp_mqtt_event_t *>(event_data)->msg_id);
-    instance->acked_msg_id_.store(msg_id);
-    if (msg_id == instance->tracked_msg_id_.load())
-      instance->tracked_acked_.store(1);
+  const auto *mqtt_event = static_cast<esp_mqtt_event_t *>(event_data);
+  // Acks are queued only when a callback wants them
+  bool listened = true;
+  switch (event_id) {
+    case MQTT_EVENT_CONNECTED:
+      instance->subacks_.reset();
+      break;
+    case MQTT_EVENT_SUBSCRIBED:
+      listened = instance->on_subscribe_.size() != 0;
+      break;
+    case MQTT_EVENT_UNSUBSCRIBED:
+      listened = instance->on_unsubscribe_.size() != 0;
+      break;
+    case MQTT_EVENT_PUBLISHED: {
+      // Also seen by teardown without dispatching
+      auto msg_id = static_cast<uint16_t>(mqtt_event->msg_id);
+      instance->acked_msg_id_.store(msg_id);
+      if (msg_id == instance->tracked_msg_id_.load())
+        instance->tracked_acked_.store(1);
+      listened = instance->on_publish_.size() != 0;
+      break;
+    }
+    case MQTT_EVENT_DATA:
+      // Queue only the first chunk of an oversized message, so the client logs the drop
+      if (mqtt_event->total_data_len > MQTT_MAX_PAYLOAD_SIZE && mqtt_event->current_data_offset != 0)
+        return;
+      break;
+    default:
+      break;
   }
-#ifdef USE_MQTT_SESSION_PERSISTENCE
-  // Also counted here: the queue holds 31 events, too few for the SUBACKs of a device with many command topics
-  if (event_id == MQTT_EVENT_CONNECTED) {
-    instance->subacks_.reset();
-  } else if (event_id == MQTT_EVENT_SUBSCRIBED) {
-    const auto *mqtt_event = static_cast<esp_mqtt_event_t *>(event_data);
+  if (listened) {
+    // queue event to decouple processing from ESP-IDF MQTT task to main loop
+    auto *event = instance->mqtt_event_pool_.allocate();
+    if (event != nullptr) {
+      event->populate(*mqtt_event);
+      // Push always succeeds: pool is sized to queue capacity (SIZE-1), so if
+      // allocate() returned non-null, the queue cannot be full.
+      instance->mqtt_event_queue_.push(event);
+    } else {
+      // Pool exhausted, drop event (counted via queue's dropped counter)
+      instance->mqtt_event_queue_.increment_dropped_count();
+    }
+  } else {
+    ESP_LOGV(TAG, "Ack event_id=%" PRId32 ", msg_id=%d", event_id, mqtt_event->msg_id);
+  }
+  if (event_id == MQTT_EVENT_SUBSCRIBED) {
+    // Counted after queueing so its slot stays reserved
     // One topic per SUBSCRIBE, so data[0] is its return code
     instance->subacks_.add(mqtt_event->data_len > 0 ? static_cast<uint8_t>(mqtt_event->data[0]) : SUBACK_FAILURE);
-  }
-#endif
-  if (event_id == MQTT_EVENT_DATA) {
-    const auto *mqtt_event = static_cast<esp_mqtt_event_t *>(event_data);
-    // Only the first chunk of an oversized message is queued, so the client logs the drop
-    if (mqtt_event->total_data_len > MQTT_MAX_PAYLOAD_SIZE && mqtt_event->current_data_offset != 0)
-      return;
-  }
-  // queue event to decouple processing from ESP-IDF MQTT task to main loop
-  auto *event = instance->mqtt_event_pool_.allocate();
-  if (event == nullptr) {
-    // Pool exhausted, drop event (counted via queue's dropped counter)
-    instance->mqtt_event_queue_.increment_dropped_count();
+  } else if (!listened) {
     return;
   }
-  event->populate(*static_cast<esp_mqtt_event_t *>(event_data));
-  // Push always succeeds: pool is sized to queue capacity (SIZE-1), so if
-  // allocate() returned non-null, the queue cannot be full.
-  instance->mqtt_event_queue_.push(event);
-
-  // Wake main loop immediately to process MQTT event
+  // A filtered SUBACK may still let the next SUBSCRIBE go out
   App.wake_loop_threadsafe();
 }
 
@@ -285,7 +315,8 @@ void MQTTBackendESP32::esphome_mqtt_task(void *params) {
       if (this_mqtt->is_connected_) {
         switch (elem->type) {
           case MQTT_QUEUE_TYPE_SUBSCRIBE:
-            esp_mqtt_client_subscribe(this_mqtt->handler_.get(), elem->topic, elem->qos);
+            if (esp_mqtt_client_subscribe(this_mqtt->handler_.get(), elem->topic, elem->qos) == -1)
+              this_mqtt->count_lost_subscribe_();
             break;
 
           case MQTT_QUEUE_TYPE_UNSUBSCRIBE:
@@ -301,6 +332,8 @@ void MQTTBackendESP32::esphome_mqtt_task(void *params) {
             ESP_LOGE(TAG, "Invalid operation type from MQTT queue");
             break;
         }
+      } else if (elem->type == MQTT_QUEUE_TYPE_SUBSCRIBE) {
+        this_mqtt->count_lost_subscribe_();
       }
       this_mqtt->mqtt_outbound_pool_.release(elem);
     }
