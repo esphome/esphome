@@ -255,41 +255,7 @@ class SPIDelegateHw : public SPIDelegate {
 
 class SPIBusHw : public SPIBus {
  public:
-  SPIBusHw(GPIOPin *clk, GPIOPin *sdo, GPIOPin *sdi, SPIInterface channel, std::vector<uint8_t> data_pins)
-      : SPIBus(clk, sdo, sdi), channel_(channel) {
-    spi_bus_config_t buscfg = {};
-    buscfg.sclk_io_num = Utility::get_pin_no(clk);
-    buscfg.flags = SPICOMMON_BUSFLAG_MASTER | SPICOMMON_BUSFLAG_SCLK;
-    if (data_pins.empty()) {
-      buscfg.mosi_io_num = Utility::get_pin_no(sdo);
-      buscfg.miso_io_num = Utility::get_pin_no(sdi);
-      buscfg.quadwp_io_num = -1;
-      buscfg.quadhd_io_num = -1;
-    } else {
-      buscfg.data0_io_num = data_pins[0];
-      buscfg.data1_io_num = data_pins[1];
-      buscfg.data2_io_num = data_pins[2];
-      buscfg.data3_io_num = data_pins[3];
-      if (data_pins.size() == 8) {
-        buscfg.data4_io_num = data_pins[4];
-        buscfg.data5_io_num = data_pins[5];
-        buscfg.data6_io_num = data_pins[6];
-        buscfg.data7_io_num = data_pins[7];
-        buscfg.flags |= SPICOMMON_BUSFLAG_OCTAL;
-      } else {
-        buscfg.data4_io_num = -1;
-        buscfg.data5_io_num = -1;
-        buscfg.data6_io_num = -1;
-        buscfg.data7_io_num = -1;
-        buscfg.flags |= SPICOMMON_BUSFLAG_QUAD;
-      }
-    }
-    buscfg.max_transfer_sz = MAX_TRANSFER_SIZE;
-    auto err = spi_bus_initialize(channel, &buscfg, SPI_DMA_CH_AUTO);
-    if (err != ESP_OK) {
-      ESP_LOGE(TAG, "Bus init failed - err %X", err);
-    }
-  }
+  SPIBusHw(GPIOPin *clk, GPIOPin *sdo, GPIOPin *sdi, SPIInterface channel) : SPIBus(clk, sdo, sdi), channel_(channel) {}
 
   SPIDelegate *get_delegate(uint32_t data_rate, SPIBitOrder bit_order, SPIMode mode, GPIOPin *cs_pin,
                             bool release_device, bool write_only) override {
@@ -305,7 +271,43 @@ class SPIBusHw : public SPIBus {
 
 SPIBus *SPIComponent::get_bus(SPIInterface interface, GPIOPin *clk, GPIOPin *sdo, GPIOPin *sdi,
                               const std::vector<uint8_t> &data_pins) {
-  return new SPIBusHw(clk, sdo, sdi, interface, data_pins);
+  spi_bus_config_t buscfg = {};
+  buscfg.sclk_io_num = Utility::get_pin_no(clk);
+  buscfg.flags = SPICOMMON_BUSFLAG_MASTER | SPICOMMON_BUSFLAG_SCLK;
+  if (data_pins.empty()) {
+    buscfg.mosi_io_num = Utility::get_pin_no(sdo);
+    buscfg.miso_io_num = Utility::get_pin_no(sdi);
+    buscfg.quadwp_io_num = -1;
+    buscfg.quadhd_io_num = -1;
+  } else {
+    buscfg.data0_io_num = data_pins[0];
+    buscfg.data1_io_num = data_pins[1];
+    buscfg.data2_io_num = data_pins[2];
+    buscfg.data3_io_num = data_pins[3];
+    if (data_pins.size() == 8) {
+      buscfg.data4_io_num = data_pins[4];
+      buscfg.data5_io_num = data_pins[5];
+      buscfg.data6_io_num = data_pins[6];
+      buscfg.data7_io_num = data_pins[7];
+      buscfg.flags |= SPICOMMON_BUSFLAG_OCTAL;
+    } else {
+      buscfg.data4_io_num = -1;
+      buscfg.data5_io_num = -1;
+      buscfg.data6_io_num = -1;
+      buscfg.data7_io_num = -1;
+      buscfg.flags |= SPICOMMON_BUSFLAG_QUAD;
+    }
+  }
+  buscfg.max_transfer_sz = MAX_TRANSFER_SIZE;
+  auto err = spi_bus_initialize(interface, &buscfg, SPI_DMA_CH_AUTO);
+  if (err == ESP_ERR_INVALID_STATE) {
+    // The host stays usable, but with the other driver's pins
+    ESP_LOGW(TAG, "Bus already initialized by another driver, configured pins ignored");
+  } else if (err != ESP_OK) {
+    ESP_LOGE(TAG, "Bus init failed: %s", esp_err_to_name(err));
+    return nullptr;
+  }
+  return new SPIBusHw(clk, sdo, sdi, interface);  // NOLINT
 }
 
 #endif  // USE_ESP32
