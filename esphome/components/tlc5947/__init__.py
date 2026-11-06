@@ -39,7 +39,7 @@ async def to_code(config: ConfigType) -> None:
     pwm_amounts = cg.static_buffer(
         config[CONF_ID],
         cg.uint16,
-        f"{num_chips} * tlc5947::TLC5947::N_CHANNELS_PER_CHIP",
+        f"{num_chips} * {TLC5947}::N_CHANNELS_PER_CHIP",
     )
     var = cg.new_Pvariable(config[CONF_ID], num_chips, pwm_amounts)
     await cg.register_component(var, config)

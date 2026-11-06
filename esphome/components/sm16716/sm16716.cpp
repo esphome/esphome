@@ -14,9 +14,9 @@ void SM16716::setup() {
 void SM16716::dump_config() {
   ESP_LOGCONFIG(TAG,
                 "SM16716:\n"
-                "  Total number of channels: %u\n"
+                "  Total number of channels: %zu\n"
                 "  Number of chips: %u",
-                static_cast<unsigned>(this->pwm_amounts_.size()), this->num_chips_);
+                this->pwm_amounts_.size(), this->num_chips_);
   LOG_PIN("  Data Pin: ", this->data_pin_);
   LOG_PIN("  Clock Pin: ", this->clock_pin_);
 }
