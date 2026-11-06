@@ -234,6 +234,8 @@ Never a template per bit or a virtual listener base (a second vptr per entity).
   counts it there; pass `buf` to the constructor.
   A buffer that may live in PSRAM takes `psram=True`; the C++ then calls `static_or_heap(buf, count)`, which allocates
   on the heap only in PSRAM builds.
+- `cg.static_storage(config[CONF_ID], T, count)` is raw aligned storage for `count` objects as a `std::span<T>`,
+  for `StaticFixedVector::init()` when codegen knows the count.
 - `display.add_writer(var, config)` sets the lambda.
 - `MyEnum.options("on", prefix="MY_ENUM_")` builds an enum dict.
 - `button.restart_button_schema(cls)` (and `factory_reset_`, `query_`) are button presets.

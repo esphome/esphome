@@ -227,7 +227,12 @@ async def to_code(config: ConfigType) -> None:
             var.set_addresses(
                 cg.shared_progmem_array(
                     "udp_addresses", cg.const_char_ptr, [*addresses, cg.nullptr]
-                )
+                ),
+                cg.static_storage(
+                    config[CONF_ID],
+                    UDPComponent.class_("SockaddrEntry"),
+                    len(addresses),
+                ),
             )
         )
     for conf in config.get(CONF_ON_RECEIVE, []):
