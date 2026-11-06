@@ -1,0 +1,141 @@
+"""MQ gas sensor library for ESPHome.
+
+A native ESPHome port of the MQUnifiedsensor PPM model
+(``PPM = a * ratio^b`` with ``ratio = RS / R0``) for the sensor types with
+built-in curves (see ``coefficients.py``).
+
+The analog signal is either taken from an existing ESPHome voltage-sampler
+sensor (``voltage:``) or from a pin owned by this component (``pin:``, which
+creates a hidden, internal ``adc`` sensor for you).
+"""
+
+import logging
+
+import esphome.codegen as cg
+from esphome.components import sensor
+from esphome.components.esp32.const import (
+    VARIANT_ESP32,
+    VARIANT_ESP32C3,
+    VARIANT_ESP32C6,
+    VARIANT_ESP32S2,
+    VARIANT_ESP32S3,
+)
+
+CODEOWNERS = ["@nliaudat"]
+DOMAIN = "mq_gas_sensors"
+
+_LOGGER = logging.getLogger(__name__)
+
+# No ``AUTO_LOAD`` here: for a platform component ESPHome processes the list of the
+# platform module, and ``sensor.py`` declares ``sensor`` and ``voltage_sampler``,
+# plus ``adc`` (the internal ADC sensor of a ``pin:`` configuration) and
+# ``text_sensor`` (the ``log_sensor:`` mirror) only for the configurations that use
+# them.
+
+mq_gas_sensors_ns = cg.esphome_ns.namespace("mq_gas_sensors")
+
+# C++ class: class MQGasSensor : public sensor::Sensor, public PollingComponent
+MQGasSensor = mq_gas_sensors_ns.class_(
+    "MQGasSensor", sensor.Sensor, cg.PollingComponent
+)
+
+# ---------------------------------------------------------------------------
+# Configuration keys
+# ---------------------------------------------------------------------------
+CONF_SENSOR_TYPE = "sensor_type"
+CONF_GAS = "gas"
+CONF_VOLTAGE_MULTIPLIER = "voltage_multiplier"
+CONF_R1 = "r1"
+CONF_R2 = "r2"
+CONF_ADC_INPUT_MAX = "adc_input_max"
+CONF_ADC_PIN_MAX = "adc_pin_max"
+CONF_ADC_ATTENUATION = "adc_attenuation"
+CONF_ADC_SAMPLES = "adc_samples"
+CONF_RL = "rl"
+CONF_R0 = "r0"
+CONF_VCC = "vcc"
+CONF_COEFFICIENT_A = "coefficient_a"
+CONF_COEFFICIENT_B = "coefficient_b"
+CONF_REGRESSION_METHOD = "regression_method"
+CONF_RATIO_MODE = "ratio_mode"
+CONF_RATIO_IN_CLEAN_AIR = "ratio_in_clean_air"
+CONF_SAMPLE_COUNT = "sample_count"
+CONF_SAMPLE_INTERVAL = "sample_interval"
+CONF_MIN_PPM = "min_ppm"
+CONF_MAX_PPM = "max_ppm"
+CONF_CORRECTION_FACTOR = "correction_factor"
+CONF_LOG_SENSOR = "log_sensor"
+CONF_LOG_PPM = "log_ppm"
+CONF_RATIO_SENSOR = "ratio_sensor"
+CONF_RS_SENSOR = "rs_sensor"
+CONF_VOLTAGE_SENSOR = "voltage_sensor"
+
+# MQUnifiedsensor::setRegressionMethod() values.
+REGRESSION_METHODS = {
+    "exponential": 1,  # _PPM = a * ratio^b
+    "linear": 2,  # log10(_PPM) = (log10(ratio) - b) / a
+    "inverse": 3,  # _PPM = (ratio / a)^(1 / b)
+}
+
+# MQUnifiedsensor uses R0/RS (see readSensorR0Rs(), "INVERTED for MQ-131"),
+# while the published datasheet coefficients are fitted against RS/R0.
+RATIO_MODES = {
+    "rs_r0": 0,  # datasheet convention (default)
+    "r0_rs": 1,  # MQUnifiedsensor readSensorR0Rs() convention
+}
+
+# Default ADC input limits used by the divider guard when the attenuation of an
+# owned ESP32 pin does not apply (an external sampler, or a non-ESP32 target):
+# the recommended maximum input voltage (VDD) and the datasheet's absolute
+# maximum (VDD + 0.3 V). Override them per sensor for other samplers, e.g.
+# `adc_input_max: 6.144` / `adc_pin_max: 6.144` for an ADS1115 at the widest gain.
+ESP32_ADC_INPUT_MAX_V = 3.3
+ESP32_ADC_PIN_MAX_V = 3.6
+
+# The ESP8266 A0 is a fixed 0 - 1.0 V input rather than a supply referenced one,
+# so the divider guard uses this range when the component owns the pin.
+ESP8266_ADC_INPUT_MAX_V = 1.0
+
+# Top of the recommended input range of each ESP32 ADC attenuation, in volts, from
+# the ESP-IDF ADC calibration documentation; above it the reading flattens.
+_ESP32_ATTENUATION_INPUT_MAX_V = {
+    VARIANT_ESP32: {"0db": 0.95, "2.5db": 1.25, "6db": 1.75, "12db": 2.45},
+    VARIANT_ESP32S2: {"0db": 0.75, "2.5db": 1.05, "6db": 1.3, "12db": 2.5},
+    VARIANT_ESP32S3: {"0db": 0.95, "2.5db": 1.25, "6db": 1.75, "12db": 3.1},
+    VARIANT_ESP32C3: {"0db": 0.75, "2.5db": 1.05, "6db": 1.3, "12db": 2.5},
+    VARIANT_ESP32C6: {"0db": 0.95, "2.5db": 1.25, "6db": 1.75, "12db": 3.3},
+}
+
+#: Row used for a variant the table has no entry for: it is the narrowest one, so
+#: an unverified range can only make the divider guard stricter, never let a wiring
+#: that clips the top of the reading through.
+_ESP32_NARROWEST_INPUT_MAX_V = _ESP32_ATTENUATION_INPUT_MAX_V[VARIANT_ESP32S2]
+
+
+def esp32_attenuation_input_max(variant: str, attenuation: str) -> float:
+    """Largest input the internal ADC measures at the attenuation, for the variant."""
+    if attenuation in ("11db", "auto"):
+        attenuation = "12db"
+    table = _ESP32_ATTENUATION_INPUT_MAX_V.get(variant)
+    if table is None:
+        table = _ESP32_NARROWEST_INPUT_MAX_V
+        _LOGGER.warning(
+            "the ADC measuring range of '%s' is not known to this component, so the "
+            "divider is checked against the narrowest known range (%.2f V at %s) - "
+            "declare 'adc_input_max:' if this variant measures more",
+            variant,
+            table[attenuation],
+            attenuation,
+        )
+    return table[attenuation]
+
+
+def esp32_attenuation_range_is_known(variant: str) -> bool:
+    """Whether the attenuation table has a row for this ESP32 variant."""
+    return variant in _ESP32_ATTENUATION_INPUT_MAX_V
+
+
+#: Comparison margin of the divider guard (V): a declared limit is honoured even
+#: when the divider arithmetic lands a few millivolts above it, so that
+#: `adc_input_max: 3.33` accepts the 5 V * (20/30) = 3.3333 V of a 10k/20k divider.
+ADC_LIMIT_MARGIN_V = 0.01
