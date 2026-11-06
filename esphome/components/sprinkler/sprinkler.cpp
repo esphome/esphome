@@ -381,8 +381,6 @@ void Sprinkler::add_valve(SprinklerControllerSwitch *valve_sw, SprinklerControll
   }
 }
 
-void Sprinkler::add_controller(Sprinkler *other_controller) { this->other_controllers_.push_back(other_controller); }
-
 void Sprinkler::set_controller_main_switch(SprinklerControllerSwitch *controller_switch) {
   this->controller_sw_ = controller_switch;
   controller_switch->set_state_lambda([this]() -> optional<bool> {

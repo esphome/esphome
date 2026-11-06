@@ -6,10 +6,9 @@
 #include "esphome/core/component.h"
 #include "esphome/core/defines.h"
 #include "esphome/core/hal.h"
+#include "esphome/core/helpers.h"
 #include "bedjet_child.h"
 #include "bedjet_codec.h"
-
-#include <vector>
 
 #ifdef USE_TIME
 #include "esphome/components/time/real_time_clock.h"
@@ -92,8 +91,7 @@ class BedJetHub final : public esphome::ble_client::BLEClientNode, public Pollin
   bool has_status() { return this->codec_->has_status(); }
   const BedjetStatusPacket *get_status_packet() const { return this->codec_->get_status_packet(); }
 
-  /** Register a `BedJetClient` child component. */
-  void register_child(BedJetClient *obj);
+  SLOT_LIST(BedJetClient, children_, register_child, BEDJET_CHILD_COUNT)
 
   /** Set the status timeout.
    *
@@ -127,7 +125,6 @@ class BedJetHub final : public esphome::ble_client::BLEClientNode, public Pollin
                            esp_ble_gattc_cb_param_t *param) override;
 
  protected:
-  std::vector<BedJetClient *> children_;
   void dispatch_status_();
   void dispatch_state_(bool is_ready);
 

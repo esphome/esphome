@@ -3,9 +3,8 @@
 #ifdef USE_ESP32
 
 #include "esphome/core/component.h"
+#include "esphome/core/helpers.h"
 #include "esphome/components/binary_sensor/binary_sensor.h"
-
-#include <vector>
 
 #include <driver/touch_sens.h>
 #include <freertos/FreeRTOS.h>
@@ -28,7 +27,7 @@ class ESP32TouchBinarySensor;
 
 class ESP32TouchComponent final : public Component {
  public:
-  void register_touch_pad(ESP32TouchBinarySensor *pad) { this->children_.push_back(pad); }
+  SLOT_LIST(ESP32TouchBinarySensor, children_, register_touch_pad, ESP32_TOUCH_PAD_COUNT)
 
   void set_setup_mode(bool setup_mode) { this->setup_mode_ = setup_mode; }
   void set_meas_interval_us(float meas_interval_us) { this->meas_interval_us_ = meas_interval_us; }
@@ -118,7 +117,6 @@ class ESP32TouchComponent final : public Component {
   static bool on_inactive_cb(touch_sensor_handle_t handle, const touch_inactive_event_data_t *event, void *ctx);
 
   // Common members
-  std::vector<ESP32TouchBinarySensor *> children_;
   bool setup_mode_{false};
   uint32_t setup_mode_last_log_print_{0};
 

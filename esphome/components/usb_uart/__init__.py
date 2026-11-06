@@ -239,6 +239,9 @@ CONFIG_SCHEMA = cv.ensure_list(
 )
 
 
+_add_channel = cg.slot_list("USB_UART_CHANNEL_COUNT", "add_channel", DOMAIN)
+
+
 async def to_code(config: list[ConfigType]) -> None:
     # The output chunk pool/queue are compile-time-sized templates shared by all
     # USBUartChannel instances, so use the largest buffer_size across every channel
@@ -271,6 +274,6 @@ async def to_code(config: list[ConfigType]) -> None:
             cg.add(chvar.set_debug(channel[CONF_DEBUG]))
             if channel[CONF_DEBUG_PREFIX]:
                 cg.add(chvar.set_debug_prefix(channel[CONF_DEBUG_PREFIX]))
-            cg.add(var.add_channel(chvar))
+            cg.add(_add_channel(var, chvar))
             if channel[CONF_DEBUG]:
                 cg.add_define("USE_UART_DEBUGGER")

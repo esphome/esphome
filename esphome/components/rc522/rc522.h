@@ -3,6 +3,7 @@
 #include "esphome/core/component.h"
 #include "esphome/core/hal.h"
 #include "esphome/core/automation.h"
+#include "esphome/core/helpers.h"
 #include "esphome/components/binary_sensor/binary_sensor.h"
 
 #include <vector>
@@ -20,7 +21,7 @@ class RC522 : public PollingComponent {
 
   void loop() override;
 
-  void register_tag(RC522BinarySensor *tag) { this->binary_sensors_.push_back(tag); }
+  SLOT_LIST(RC522BinarySensor, binary_sensors_, register_tag, RC522_BINARY_SENSOR_COUNT)
 #ifdef RC522_ON_TAG_COUNT
   void add_on_tag_automation(Automation<std::string> *automation) { this->tag_automations_.add(automation); }
 #endif
@@ -245,7 +246,6 @@ class RC522 : public PollingComponent {
   GPIOPin *reset_pin_{nullptr};
   uint8_t reset_count_{0};
   uint32_t reset_timeout_{0};
-  std::vector<RC522BinarySensor *> binary_sensors_;
 #ifdef RC522_ON_TAG_COUNT
   AutomationList<RC522_ON_TAG_COUNT, std::string> tag_automations_;
 #endif

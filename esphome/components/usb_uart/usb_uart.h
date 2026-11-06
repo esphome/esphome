@@ -243,9 +243,9 @@ class USBUartComponent : public usb_host::USBClient {
   void setup() override;
   void loop() override;
   void dump_config() override;
-  std::vector<USBUartChannelBase *> get_channels() { return this->channels_; }
+  const auto &get_channels() const { return this->channels_; }
 
-  void add_channel(USBUartChannelBase *channel) { this->channels_.push_back(channel); }
+  SLOT_LIST(USBUartChannelBase, channels_, add_channel, USB_UART_CHANNEL_COUNT)
 
   virtual void start_input(USBUartChannelBase *channel);
   void start_output(USBUartChannelBase *channel);
@@ -305,8 +305,6 @@ class USBUartComponent : public usb_host::USBClient {
   // Called at the end of on_connected(); continues in on_interface_string().
   void read_interface_descriptions_();
   void on_interface_string(uint8_t interface_number, const usb_str_desc_t *desc) override;
-
-  std::vector<USBUartChannelBase *> channels_{};
 
   // Config state machine
   USBUartChannelBase *cfg_single_{nullptr};  // non-null: single-channel run (RELOAD or MODEM)
