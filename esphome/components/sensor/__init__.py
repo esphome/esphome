@@ -1034,14 +1034,10 @@ _CALLBACK_AUTOMATIONS = (
 async def _build_sensor_automations(var, config):
     await automation.build_callback_automations(var, config, _CALLBACK_AUTOMATIONS)
     for conf in config.get(CONF_ON_VALUE_RANGE, []):
-        trigger = cg.new_Pvariable(conf[CONF_TRIGGER_ID], var)
+        trigger = await automation.new_value_range_trigger(
+            conf[CONF_TRIGGER_ID], var, conf
+        )
         await cg.register_component(trigger, conf)
-        if (above := conf.get(CONF_ABOVE)) is not None:
-            template_ = await cg.templatable(above, [(float, "x")], cg.float_)
-            cg.add(trigger.set_min(template_))
-        if (below := conf.get(CONF_BELOW)) is not None:
-            template_ = await cg.templatable(below, [(float, "x")], cg.float_)
-            cg.add(trigger.set_max(template_))
         await automation.build_automation(trigger, [(float, "x")], conf)
 
 
