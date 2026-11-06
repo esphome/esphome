@@ -27,6 +27,12 @@ class BekenSPILEDStripLightOutput final : public light::AddressableLight {
   }
 
   /// Set a maximum refresh rate in µs as some lights do not like being updated too often.
+  /// Call after set_num_leds() and set_channel_colors(); `dma_buf` holds 2 words per color byte plus 32.
+  void set_buffers(uint8_t *led_data, uint32_t *dma_buf) {
+    this->internal_accessor_.set_buffer(led_data, this->num_leds_);
+    this->dma_buf_ = reinterpret_cast<uint8_t *>(dma_buf);
+  }
+
   void set_max_refresh_rate(uint32_t interval_us) { this->max_refresh_rate_ = interval_us; }
 
   void set_led_params(uint8_t bit0, uint8_t bit1, uint32_t spi_frequency);
