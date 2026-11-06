@@ -259,6 +259,8 @@ bool MCP251XFD::validate_fifo_address_(uint32_t offset, uint32_t start, uint32_t
 canbus::Error MCP251XFD::send_message(canbus::CanFrame *frame) {
   if (this->is_failed() || this->mcp_mode_ == CanMode::CAN_MODE_LISTEN_ONLY)
     return canbus::ERROR_FAILTX;
+  if (frame->can_data_length_code > MESSAGE_DLC_MASK)
+    return canbus::ERROR_FAILTX;
 
   std::array<uint8_t, 8> fifo;
   if (!this->read_registers_(REG_TX_FIFO_STA, fifo.data(), fifo.size()))
