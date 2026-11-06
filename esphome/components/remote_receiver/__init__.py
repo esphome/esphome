@@ -355,8 +355,9 @@ async def to_code(config: ConfigType) -> None:
     cg.add(var.set_filter_us(config[CONF_FILTER]))
     cg.add(var.set_idle_us(config[CONF_IDLE]))
     if rmt:
-        receive, size = config[CONF_RECEIVE_SYMBOLS], config.get(CONF_BUFFER_SIZE, 0)
-        words = f"remote_receiver::rmt_buffer_words({receive}, {size})"
+        words = remote_receiver_ns.rmt_buffer_words(
+            config[CONF_RECEIVE_SYMBOLS], config.get(CONF_BUFFER_SIZE, 0)
+        )
         cg.add(var.set_buffer(cg.static_buffer(config[CONF_ID], cg.uint32, words)))
     elif config.get(CONF_SAMPLING) != SAMPLING_TIMER:
         entries = (config[CONF_BUFFER_SIZE] + 3) // 4
