@@ -1793,11 +1793,14 @@ class TestDownloadFromMirrors:
         self, tmp_path: Path
     ) -> None:
         missing = (tmp_path / "missing.bin").as_uri()
+        second = tmp_path / "second.bin"
+        second.write_bytes(b"second")
         target = tmp_path / "f.bin"
-        with patch("requests.get", return_value=_mock_response(b"second")):
-            url = download_from_mirrors([missing, "https://mirror2.com/f"], {}, target)
-        assert url == "https://mirror2.com/f"
+        with patch("requests.get") as mock_get:
+            url = download_from_mirrors([missing, second.as_uri()], {}, target)
+        assert url == second.as_uri()
         assert target.read_bytes() == b"second"
+        mock_get.assert_not_called()
 
     def test_missing_file_mirror_fails_fast(self, tmp_path: Path) -> None:
         """A local file that is not there is a permanent failure: no backoff
