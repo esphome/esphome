@@ -1,0 +1,300 @@
+"""Short controller configurations preserve explicit settings and generic TX."""
+
+from collections.abc import Callable
+from pathlib import Path
+
+import pytest
+
+from esphome import config, yaml_util
+from esphome.components import vbus
+from esphome.components.vbus.cs_plus_numbers import NUMBER_PARAMETERS
+import esphome.config_validation as cv
+from esphome.core import CORE
+
+
+@pytest.mark.parametrize("explicit", [False, True])
+def test_controller_address_defaults_preserve_explicit_addresses(
+    explicit: bool,
+) -> None:
+    source = {"transactions": {"controller": {"model": "deltasol_cs_plus"}}}
+    if explicit:
+        source.update(destination=8721, source=32)
+    result = vbus.TRANSMIT_SCHEMA(source)
+    assert result["destination"] == 8721
+    assert result["source"] == 32
+
+
+def test_generic_tx_still_requires_an_explicit_destination() -> None:
+    with pytest.raises(cv.Invalid, match="Set destination for generic TX"):
+        vbus.TRANSMIT_SCHEMA({})
+    assert vbus.TRANSMIT_SCHEMA({"destination": 16913})["destination"] == 16913
+
+
+@pytest.mark.parametrize(
+    "value,armed",
+    [
+        ("direct", False),
+        ("armed", True),
+        ({}, True),
+        ({"require_write_arm": False}, False),
+    ],
+)
+def test_write_modes_normalize_to_the_existing_configuration(
+    value: object, armed: bool
+) -> None:
+    result = vbus.CONTROLLER_SCHEMA({"model": "deltasol_cs_plus", "writes": value})
+    assert result["writes"]["require_write_arm"] is armed
+
+
+@pytest.mark.parametrize("value", [True, False, "automatic"])
+def test_write_modes_do_not_enable_writes_implicitly(value: object) -> None:
+    with pytest.raises(cv.Invalid, match="writes must be"):
+        vbus.CONTROLLER_SCHEMA({"model": "deltasol_cs_plus", "writes": value})
+
+
+def test_short_and_nested_controller_generate_the_same_operations(
+    generate_main: Callable[[str | Path], str],
+    component_config_path: Callable[[str], Path],
+    tmp_path: Path,
+) -> None:
+    path = component_config_path("controller.yaml")
+    before = generate_main(path)
+    source = yaml_util.load_yaml(path)
+    hub = source["vbus"]
+    hub["controller"] = hub.pop("transmit")["transactions"]["controller"]
+    shortened = tmp_path / "short.yaml"
+    shortened.write_text(yaml_util.dump(source))
+    CORE.reset()
+    after = generate_main(shortened)
+    for call in [
+        "set_destination(8721)",
+        "set_source(32)",
+        "vbus::ResolDeltaSolCSPlus(controller_bus,",
+        "add_on_snapshot_callback(",
+        "start_scan()",
+        "suspend_polling()",
+        "resume_polling()",
+    ]:
+        assert before.count(call) == after.count(call) > 0
+
+
+def test_controller_cannot_be_declared_twice() -> None:
+    with pytest.raises(cv.Invalid, match="not both"):
+        vbus.CONFIG_SCHEMA(
+            {
+                "controller": {"model": "deltasol_cs_plus"},
+                "transmit": {
+                    "transactions": {"controller": {"model": "deltasol_cs_plus"}}
+                },
+            }
+        )
+
+
+@pytest.mark.parametrize(
+    "platform,fixture,parameters", [("number", "numbers.yaml", NUMBER_PARAMETERS)]
+)
+def test_grouped_controls_preserve_every_entity_property(
+    platform: str,
+    fixture: str,
+    parameters: dict,
+    component_config_path: Callable[[str], Path],
+) -> None:
+    source = yaml_util.load_yaml(component_config_path(fixture))
+    expected = config.validate_config(source, {})
+    assert not expected.errors, expected.errors
+    group = {"platform": "vbus"}
+    for entry in source[platform]:
+        group[entry["parameter"]] = {
+            k: v
+            for k, v in entry.items()
+            if k not in ["platform", "controller_id", "parameter"]
+        }
+    config_path = CORE.config_path
+    CORE.reset()
+    CORE.config_path = config_path
+    source[platform] = [group]
+    actual = config.validate_config(source, {})
+    assert not actual.errors, actual.errors
+    controller = actual[platform][0]["controller_id"]
+    expanded = list(vbus.setting_configs(actual[platform][0], parameters))
+    assert len(expanded) == len(expected[platform])
+    by_parameter = {item["parameter"]: item for item in expected[platform]}
+    for entity in expanded:
+        before = by_parameter[entity["parameter"]]
+        assert str(before["controller_id"]) == str(controller)
+        for key, value in entity.items():
+            assert str(before[key]) == str(value), (key, before[key], value)
+
+
+@pytest.mark.parametrize("platform,fixture", [("number", "numbers.yaml")])
+def test_grouped_controls_generate_one_listener_per_setting(
+    platform: str,
+    fixture: str,
+    generate_main: Callable[[str | Path], str],
+    component_config_path: Callable[[str], Path],
+    tmp_path: Path,
+) -> None:
+    source = yaml_util.load_yaml(component_config_path(fixture))
+    group = {"platform": "vbus"}
+    for entry in source[platform]:
+        group[entry["parameter"]] = {
+            k: v
+            for k, v in entry.items()
+            if k not in ["platform", "controller_id", "parameter"]
+        }
+    count = len(source[platform])
+    source[platform] = [group]
+    path = tmp_path / "grouped.yaml"
+    path.write_text(yaml_util.dump(source))
+    code = generate_main(path)
+    assert code.count("->register_setting_listener(") == count
+    assert code.count(f"vbus::VBusSetting{platform.capitalize()}(") == count
+
+
+@pytest.mark.parametrize("platform,parameter", [("number", "min_pump_speed_1")])
+@pytest.mark.parametrize("writes", [True, False])
+def test_grouped_controls_infer_defaults_and_require_write_access(
+    platform: str,
+    parameter: str,
+    writes: bool,
+    component_config_path: Callable[[str], Path],
+) -> None:
+    source = yaml_util.load_yaml(component_config_path("numbers.yaml"))
+    source.pop("number")
+    source[platform] = [{"platform": "vbus", parameter: {}}]
+    if not writes:
+        del source["vbus"]["transmit"]["transactions"]["controller"]["writes"]
+    result = config.validate_config(source, {})
+    if not writes:
+        assert any("controller.writes" in str(e) for e in result.errors)
+        return
+    assert not result.errors, result.errors
+    assert result[platform][0][parameter]["name"]
+    if platform == "number":
+        assert result[platform][0][parameter]["unit_of_measurement"] == "%"
+
+
+@pytest.mark.parametrize("platform", ["number"])
+@pytest.mark.parametrize(
+    "fields",
+    [
+        {},
+        {"unknown_parameter": {}},
+        {"parameter": "display_language", "display_language": {}},
+    ],
+)
+def test_empty_unknown_or_mixed_groups_are_rejected(
+    platform: str, fields: dict, component_config_path: Callable[[str], Path]
+) -> None:
+    source = yaml_util.load_yaml(component_config_path("numbers.yaml"))
+    source.pop("number")
+    source[platform] = [{"platform": "vbus", **fields}]
+    result = config.validate_config(source, {})
+    assert result.errors
+
+
+@pytest.mark.parametrize("platform,fixture", [("number", "numbers.yaml")])
+def test_single_controller_is_inferred_for_all_controls(
+    platform: str, fixture: str, component_config_path: Callable[[str], Path]
+) -> None:
+    source = yaml_util.load_yaml(component_config_path(fixture))
+    original = [entry.pop("controller_id") for entry in source[platform]]
+    result = config.validate_config(source, {})
+    assert not result.errors, result.errors
+    assert [str(entry["controller_id"]) for entry in result[platform]] == original
+
+
+@pytest.mark.parametrize("platform,fixture", [("number", "numbers.yaml")])
+def test_inferred_controller_still_requires_explicit_write_access(
+    platform: str, fixture: str, component_config_path: Callable[[str], Path]
+) -> None:
+    source = yaml_util.load_yaml(component_config_path(fixture))
+    del source["vbus"]["transmit"]["transactions"]["controller"]["writes"]
+    for entry in source[platform]:
+        del entry["controller_id"]
+    result = config.validate_config(source, {})
+    assert any("controller.writes" in str(e) for e in result.errors), result.errors
+
+
+@pytest.mark.parametrize("platform,fixture", [("number", "numbers.yaml")])
+def test_defaults_keep_existing_names_ids_and_custom_metadata(
+    platform: str, fixture: str, component_config_path: Callable[[str], Path]
+) -> None:
+    source = yaml_util.load_yaml(component_config_path(fixture))
+    entry = source[platform][0]
+    entry["name"] = "My existing control"
+    entry["id"] = "existing_control"
+    if platform == "number":
+        entry["unit_of_measurement"] = ""
+    result = config.validate_config(source, {})
+    assert not result.errors, result.errors
+    actual = result[platform][0]
+    assert actual["name"] == "My existing control"
+    assert str(actual["id"]) == "existing_control"
+    if platform == "number":
+        assert actual["unit_of_measurement"] == ""
+
+
+def test_id_only_controls_remain_internal(
+    component_config_path: Callable[[str], Path],
+) -> None:
+    source = yaml_util.load_yaml(component_config_path("numbers.yaml"))
+    source["number"] = [
+        {"platform": "vbus", "parameter": "system_time", "id": "private_clock"}
+    ]
+    result = config.validate_config(source, {})
+    assert not result.errors, result.errors
+    assert result["number"][0]["name"] == "private_clock"
+    assert result["number"][0]["internal"]
+
+
+def test_all_numeric_units_are_defined() -> None:
+    assert len(NUMBER_PARAMETERS) == 58
+    assert {p.unit for p in NUMBER_PARAMETERS.values()} == {
+        "min",
+        "s",
+        "h",
+        "%",
+        "K",
+        "°C",
+        "L/min",
+    }
+
+
+@pytest.mark.parametrize("explicit", [False, True])
+@pytest.mark.parametrize("grouped", [False, True])
+def test_multiple_controllers_require_an_explicit_binding(
+    explicit: bool, grouped: bool, component_config_path: Callable[[str], Path]
+) -> None:
+    source = yaml_util.load_yaml(component_config_path("numbers.yaml"))
+    source["uart"] = [
+        {"id": "first_uart", "port": "/dev/null", "baud_rate": 9600},
+        {"id": "second_uart", "port": "/dev/null", "baud_rate": 9600},
+    ]
+    first = source["vbus"]
+    first["uart_id"] = "first_uart"
+    source["vbus"] = [
+        first,
+        {
+            "id": "second_bus",
+            "uart_id": "second_uart",
+            "controller": {
+                "id": "second_controller",
+                "model": "deltasol_cs_plus",
+                "writes": {},
+            },
+        },
+    ]
+    source["number"] = [
+        {"platform": "vbus", "name": "Pump", "parameter": "min_pump_speed_1"}
+    ]
+    if grouped:
+        source["number"] = [{"platform": "vbus", "min_pump_speed_1": {"name": "Pump"}}]
+    if explicit:
+        source["number"][0]["controller_id"] = "second_controller"
+    result = config.validate_config(source, {})
+    if explicit:
+        assert not result.errors, result.errors
+        assert str(result["number"][0]["controller_id"]) == "second_controller"
+    else:
+        assert result.errors
