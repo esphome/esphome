@@ -567,10 +567,11 @@ def shared_progmem_string(value: str) -> Expression:
     return text
 
 
-def static_buffer(owner: ID, type_: "MockObjClass", size: int) -> "MockObj":
+def static_buffer(owner: ID, type_: "MockObjClass", size: int | str) -> "MockObj":
     """Emit a zeroed file-scope ``static type_ <component>__<owner>_buffer__pstorage[size];``.
 
     Named like placement new storage, so ``esphome analyze-memory`` counts it under the owner.
+    ``size`` may be a C++ constant expression.
     """
     if not isinstance(owner, ID) or owner.type is None:
         raise EsphomeError(f"Buffer owner '{owner}' must be the owning component's ID")
