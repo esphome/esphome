@@ -631,14 +631,29 @@ TEST(Rfc2217Server, OptionTurnedOffIsConfirmedOnce) {
   expect_only(pipe, want);
 }
 
-TEST(Rfc2217Server, ShortAndForeignSubnegotiationsAreIgnored) {
+TEST(Rfc2217Server, ShortCommandsAreAnsweredWithTheValueInUse) {
   Pipe pipe;
   FakeSerial serial;
   Server server(&pipe, &serial);
   accept(pipe, server);
-  // SET-BAUDRATE with two bytes, SET-DATASIZE without a value, an unknown command, TERMINAL-TYPE.
-  const uint8_t stream[] = {0xFF, 0xFA, 0x2C, 0x01, 0x00, 0x00, 0xFF, 0xF0, 0xFF, 0xFA, 0x2C, 0x02, 0xFF, 0xF0,
-                            0xFF, 0xFA, 0x2C, 0x30, 0x41, 0xFF, 0xF0, 0xFF, 0xFA, 0x18, 0x01, 0xFF, 0xF0};
+  // SET-BAUDRATE with two bytes and SET-DATASIZE without a value count as queries.
+  const uint8_t stream[] = {0xFF, 0xFA, 0x2C, 0x01, 0x00, 0x00, 0xFF, 0xF0, 0xFF, 0xFA, 0x2C, 0x02, 0xFF, 0xF0};
+  pipe.feed(stream);
+  server.loop();
+  EXPECT_EQ(server.reloads_, 0);
+  // The line in use: 9600 baud, 8 data bits.
+  const uint8_t want[] = {0xFF, 0xFA, 0x2C, 101,  0x00, 0x00, 0x25, 0x80, 0xFF,
+                          0xF0, 0xFF, 0xFA, 0x2C, 102,  0x08, 0xFF, 0xF0};
+  expect_only(pipe, want);
+}
+
+TEST(Rfc2217Server, ForeignSubnegotiationsAreIgnored) {
+  Pipe pipe;
+  FakeSerial serial;
+  Server server(&pipe, &serial);
+  accept(pipe, server);
+  // An unknown command and TERMINAL-TYPE.
+  const uint8_t stream[] = {0xFF, 0xFA, 0x2C, 0x30, 0x41, 0xFF, 0xF0, 0xFF, 0xFA, 0x18, 0x01, 0xFF, 0xF0};
   pipe.feed(stream);
   server.loop();
   EXPECT_EQ(pipe.n_, 0u);
@@ -657,6 +672,31 @@ TEST(Rfc2217Server, SessionEndRestoresTheConfiguredLine) {
   server.loop();
   EXPECT_EQ(serial.get_baud_rate(), 9600u);
   EXPECT_EQ(server.reloads_, 2);
+}
+
+TEST(Rfc2217Server, FailedRestoreIsTriedAgainOnTheNextConnect) {
+  Pipe pipe;
+  FakeSerial serial;
+  Server server(&pipe, &serial);
+  accept(pipe, server);
+  set_baud(pipe, 19200);
+  server.loop();
+  // The UART refuses the restore when the client closes.
+  server.can_reload_ = false;
+  pipe.up_ = false;
+  server.loop();
+  // No later pass tries again: without a client the line is not used.
+  server.loop();
+  // Two reloads so far: the change to 19200 and the refused restore, so the line stays on 19200.
+  EXPECT_EQ(server.reloads_, 2);
+  EXPECT_EQ(serial.get_baud_rate(), 19200u);
+  // The next client connects: the restore is tried again and the UART takes it.
+  server.can_reload_ = true;
+  pipe.up_ = true;
+  server.loop();
+  // The third reload brings back the configured 9600 baud.
+  EXPECT_EQ(server.reloads_, 3);
+  EXPECT_EQ(serial.get_baud_rate(), 9600u);
 }
 
 TEST(Rfc2217Server, PayloadSentBeforeTheCloseReachesTheUart) {
