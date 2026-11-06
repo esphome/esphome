@@ -67,9 +67,6 @@ void RemoteReceiverComponent::setup() {
   this->store_.idle_us = this->idle_us_;
   this->store_.filter_us = this->filter_us_;
   this->store_.pin = this->pin_->to_isr();
-  // rounded up so a size that is not a multiple of four never holds less than requested
-  this->store_.buffer_entries = (this->buffer_size_ + sizeof(int32_t) - 1) / sizeof(int32_t);
-  this->store_.buffer = new int32_t[this->store_.buffer_entries];
   this->store_.prev_micros = micros();
   this->store_.commit_micros = this->store_.prev_micros;
   this->store_.prev_level = this->pin_->digital_read();
@@ -87,8 +84,8 @@ void RemoteReceiverComponent::dump_config() {
   const uint32_t filter_us = this->store_.filter_ticks / TIMER_TICKS_PER_US;
   const uint32_t idle_us = this->store_.idle_ticks / TIMER_TICKS_PER_US;
 #else
-  const uint32_t buffer_size = this->buffer_size_;
   const uint32_t pulses = this->store_.buffer_entries;
+  const uint32_t buffer_size = pulses * sizeof(int32_t);
   const uint32_t filter_us = this->filter_us_;
   const uint32_t idle_us = this->idle_us_;
 #endif
