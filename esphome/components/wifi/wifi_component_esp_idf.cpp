@@ -41,15 +41,13 @@
 #include "lwip/apps/sntp.h"
 #include "lwip/dns.h"
 #include "lwip/err.h"
-#if USE_NETWORK_IPV6
+#if USE_NETWORK_IPV6 || defined(USE_WIFI_LEASE_CACHE)
 #include <esp_netif_net_stack.h>  // esp_netif_get_netif_impl()
 #include "lwip/netif.h"
 #endif
 #ifdef USE_WIFI_LEASE_CACHE
-#include <esp_netif_net_stack.h>  // esp_netif_get_netif_impl()
-#include <esp_rtc_time.h>         // esp_rtc_get_time_us() -- RTC-domain clock for lease age
+#include <esp_rtc_time.h>  // esp_rtc_get_time_us() -- RTC-domain clock for lease age
 #include "lwip/dhcp.h"
-#include "lwip/netif.h"
 #endif
 
 #include "esphome/core/application.h"
