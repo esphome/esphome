@@ -1,6 +1,6 @@
 from esphome.components import output
 import esphome.config_validation as cv
-from esphome.const import CONF_CHANNEL, CONF_ID
+from esphome.const import CONF_CHANNEL, CONF_ID, CONF_NUM_CHANNELS
 from esphome.types import ConfigType
 
 from . import MY9231OutputComponent
@@ -19,7 +19,10 @@ CONFIG_SCHEMA = output.FLOAT_OUTPUT_SCHEMA.extend(
 
 
 FINAL_VALIDATE_SCHEMA = output.final_validate_unique_channel(
-    platform="my9231", hub_key=CONF_MY9231_ID
+    platform="my9231",
+    hub_key=CONF_MY9231_ID,
+    # write_channel indexes the hub's num_channels values without a bounds check
+    channel_count=lambda hub: hub[CONF_NUM_CHANNELS],
 )
 
 
