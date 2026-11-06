@@ -60,13 +60,14 @@ case, and `T1 X` shows which frames got through.
 - Garbage that contains `01` right before a frame loses that frame on dev and on the PR (a false header, no rescan).
 - Full component A/B: `ld6sim.hpp` also answers every query with a fixed report (delay, sensitivity, trigger,
   installation, Z range, low power, low power sleep, both area reports, version); `ld6x-common.yaml` has the full
-  entity set and runs the parser cases too; `ld6drive.py HOST` presses every button, sets every number and select
-  and toggles every switch over the API. Run it with `ERASE=1 DRIVER=ld6drive.py scripts/uart_sim/run.sh NAME TREE
-  100`: switch and select states and the area id are stored preferences, and a previous build's run changes the
+  entity set and runs the parser cases too (`ld6x.yaml` is its run file); `ld6drive.py HOST` presses every button,
+  sets every number and select and toggles every switch over the API. Run it with `ERASE=1 DRIVER=ld6drive.py
+  scripts/uart_sim/run.sh NAME TREE 100`: switch and select states and the area id are stored preferences, and a previous build's run changes the
   next build's boot state.
 - `m4-common.yaml` and `m5-common.yaml` run the same fake against `ld6004`: target and area reports, work status and
   radar on/off reports, malformed reports, and the point cloud and target display switches across a reboot
-  (`m5` reboots once and checks the restored switch states). Run m5 with `ERASE=1 run.sh NAME TREE 75`: the boot
+  (`m5` reboots once and checks the restored switch states). `m4.yaml` and `m5.yaml` are the run files, and like
+  `ld6p.yaml` each can be copied with another name for the base build. Run m5 with `ERASE=1 run.sh NAME TREE 75`: the boot
   counter and switch states are stored preferences that survive a flash, and the second boot's `CASE done` comes
   about 49 s after reset. Only the second boot logs `CASE done`, so a skipped reboot fails the run.
 
