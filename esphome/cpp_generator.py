@@ -607,7 +607,7 @@ def static_storage(
 
     For ``StaticFixedVector::init()``, which constructs the elements in place and never frees it.
     """
-    if count == 0:
+    if isinstance(count, int) and count == 0:
         return MockObj(f"std::span<{type_}>()", ".")
     base, name = _owned_static_name(owner, "storage", type_)
     CORE.add_global(
