@@ -3,8 +3,9 @@
 usage: SC=path/to/serial_capture.py drive.py TAG SIM_PORT DUT_PORT [PHASES]
 PHASES is a comma list of c, cd, z, b, k, dead (default c,z,b,k,dead). Holds the simulator port for the whole run
 (log and commands); the DUT log is captured per phase into TAG-<phase>.log, each phase starting with a DUT reset.
-Exits 1 when the simulator never reports, the simulator port fails, a phase ends without a fresh simulator report or
-a phase got no readings at all or any wrong temperature, or a fault phase never moved its injection counter.
+Exits 1 when the simulator never reports, the simulator port fails, the DUT capture fails, a phase ends without a
+fresh simulator report, a sensor got no readings in a phase, any temperature is wrong, a fault phase never moved its
+injection counter, or the simulator never confirmed going dead. DUT capture stderr goes to TAG-<phase>.err.
 """
 
 import os
@@ -20,6 +21,7 @@ import serial
 TAG, SIM, DUT = sys.argv[1:4]
 PHASES = sys.argv[4].split(",") if len(sys.argv) > 4 else ["c", "z", "b", "k", "dead"]
 CAP = [sys.executable, os.environ["SC"]]
+# every sensor dspd.yaml configures, with the temperature the simulator serves
 EXPECT = {"t0": 21.5, "t1": 33.0, "t2a": -5.25, "t2b": 40.0}
 ANSI = re.compile(r"\x1b\[[0-9;]*m")
 COUNTERS = (
@@ -75,19 +77,32 @@ def phase(
     name: str, seconds: int, actions: list[tuple[float, str]], pre: str = ""
 ) -> None:
     if pre:
+        n_pre = len(sim_lines)
         send(pre)
         time.sleep(0.3)
-    out = f"{TAG}-{name}.log"
-    p = subprocess.Popen(
-        [*CAP, DUT, str(seconds), out, "--reset"],
-        stdout=subprocess.DEVNULL,
-        stderr=subprocess.DEVNULL,
-    )
-    t0 = time.time()
-    for at, c in actions:
-        time.sleep(max(0.0, t0 + at - time.time()))
-        send(c)
-    p.wait()
+        if want := CONFIRMED_BY.get(pre):
+            deadline = time.time() + 3
+            while not any(line.endswith(want) for _, line in sim_lines[n_pre:]):
+                if time.time() > deadline:
+                    failed.append(
+                        f"{name} (simulator never logged {want} after {pre!r})"
+                    )
+                    break
+                time.sleep(0.05)
+    out = pathlib.Path(f"{TAG}-{name}.log")
+    out.unlink(missing_ok=True)
+    with pathlib.Path(f"{TAG}-{name}.err").open("wb") as err:
+        p = subprocess.Popen(
+            [*CAP, DUT, str(seconds), str(out), "--reset"],
+            stdout=subprocess.DEVNULL,
+            stderr=err,
+        )
+        t0 = time.time()
+        for at, c in actions:
+            time.sleep(max(0.0, t0 + at - time.time()))
+            send(c)
+        if rc := p.wait():
+            failed.append(f"{name} (DUT capture exited {rc}, see {TAG}-{name}.err)")
     n0 = len(sim_lines)
     send("s")  # one more simulator report
     deadline = time.time() + 6
@@ -98,7 +113,7 @@ def phase(
     fresh = any("CNT " in line for _, line in sim_lines[n0:])
     a, b = last_cnt(t0), last_cnt(time.time())
     delta = {k: b.get(k, 0) - a.get(k, 0) for k in COUNTERS}
-    log = pathlib.Path(out).read_text(encoding="utf-8", errors="replace")
+    log = out.read_text(encoding="utf-8", errors="replace") if out.exists() else ""
     temps = re.findall(r"'(\w+)': Got Temperature=(-?[\d.]+)", log)
     per = dict.fromkeys(EXPECT, 0)
     wrong = []
@@ -121,8 +136,8 @@ def phase(
         f"{TAG} {name}: readings={per} wrong={wrong[:6]}{more} n_wrong={len(wrong)} {counts} sim={delta}",
         flush=True,
     )
-    if not temps:
-        failed.append(f"{name} (no readings)")
+    if silent := [s for s, n in per.items() if s in EXPECT and not n]:
+        failed.append(f"{name} (no readings from {silent})")
     if wrong:
         failed.append(f"{name} ({len(wrong)} wrong temperatures)")
     if (inj := INJECTED_BY.get(name)) and not delta[inj]:
@@ -134,6 +149,8 @@ def phase(
 
 # fault phase -> simulator counter that must move during it
 INJECTED_BY = {"c": "inj_c", "cd": "inj_c", "z": "inj_z", "b": "inj_b", "k": "inj_k"}
+# pre command -> simulator log line that confirms it took effect
+CONFIRMED_BY = {"x": "DEAD"}
 
 # name: (seconds, actions, pre)
 RUNS: dict[str, tuple[int, list[tuple[float, str]], str]] = {

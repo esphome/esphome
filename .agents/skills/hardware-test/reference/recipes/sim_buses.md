@@ -14,7 +14,8 @@ address they do not simulate.
 - `mxsim.hpp`: `MxSniff`, an `spi::SPIDelegate` in front of the real one that keeps what each MAX7219 in a chain
   latches. Swap it in at `on_boot` priority 399 through `DelegatePeek::of(id(x))`:
   `auto &d = DelegatePeek::of(id(x)); d = new MxSniff(d, chips);`. `mx_an.py SERIAL` summarizes the reports and
-  fails on malformed transactions (byte count not two per chip).
+  fails on malformed transactions (byte count not two per chip) or a chain whose transaction count stays 0 or stops
+  growing.
 - `spysim.hpp`: the same delegate trick (both headers carry `DelegatePeek`, so one config can include both), logging length and FNV-1a hash of every transaction over 1000 bytes (whole
   frames, used for `pixoo`).
 - `pisim.hpp`: drives two `packet_interface` stacks on cross-wired UARTs through `top()`, with payloads whose bytes

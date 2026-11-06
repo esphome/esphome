@@ -65,10 +65,12 @@ on the Pico's USB console: `c` NACKs the read pointer write after the next chann
 after the next 0xBE, `b` and `k` stick busy with a failed reset or config write, `x` and `X` make it dead and alive.
 `SC=<serial_capture.py> python3 drive.py TAG SIM_PORT DUT_PORT [c,z,b,k,dead]` resets the DUT per phase and prints
 readings, wrong values, log counts and the simulator's counters (`wrong_ch` counts ROM matches on the wrong
-channel).
+channel). A phase fails when any of the four sensors got no readings, a temperature is wrong, the DUT capture
+failed (stderr in `TAG-<phase>.err`), a fault never moved its injection counter or the simulator never logged
+`DEAD` for the `dead` phase.
 
 - Sensors polled at the same interval go through the channels in blocks, so a stale channel cache never shows.
-  Poll two sensors at 1 s and 1.3 s, as `dspd.yaml` does.
+  Poll them at different intervals, as `dspd.yaml` does (1, 1.3, 1.7 and 2.3 s).
 - The NACKs use the RP2350 `slv_data_nack_only` register, set at STOP.
 
 ## I2C fault injection in software (vl53l0x)
@@ -78,8 +80,9 @@ channel).
 arms the faults. `vlpf.yaml` runs a VL53L0X on an ESP32-S3 (GPIO8/GPIO9) through quiet, fault A (the next
 measurement-in-progress read fails), quiet, fault B (the next measurement start fails) and quiet phases over 150 s,
 with a model ID probe every 10 s to tell a driver stall from a dead chip. `run.sh LABEL` builds, flashes, captures
-and runs `an.py`, which counts readings per `PHASE` line and fails when a quiet phase has no readings or anything
-crashed.
+and runs `an.py`, which counts readings per `PHASE` line. It fails when the phases are not quiet, faultA, quiet,
+faultB, quiet (a short capture or a restart), the first quiet phase has no readings, a later quiet phase reads less
+than half as often as the first, anything crashed or rebooted, or a fault never fired.
 
 Prefer this to glitching the wire. Holding SDA low by rerouting the pin (`esp_rom_gpio_connect_out_signal` to
 `SIG_GPIO_OUT_IDX` and back to `I2CEXT0_SDA_OUT_IDX`) wedges the ESP-IDF controller, which then needs
