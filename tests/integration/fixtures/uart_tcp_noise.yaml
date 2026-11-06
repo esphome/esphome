@@ -1,0 +1,61 @@
+esphome:
+  name: uart-tcp-noise-test
+
+host:
+
+api:
+
+logger:
+  level: DEBUG
+
+uart:
+  - id: uart_bus
+    baud_rate: 115200
+    port: PTY_PATH
+  # uart_tcp needs its own UART.
+  - id: locked_bus
+    baud_rate: 115200
+    port: LOCKED_PTY_PATH
+
+uart_tcp:
+  # Closes a session after 5s without traffic, more than the test needs to
+  # start writing; the client then connects again.
+  - id: bridge
+    uart_id: uart_bus
+    role: server
+    port: 18133
+    timeout: 5s
+    encryption:
+      key: "dWFydF90Y3Agbm9pc2UgdGVzdCBicmlkZ2Uga2V5IDE="
+  # Its client holds another key, and the test connects as a plaintext peer.
+  - id: locked_bridge
+    uart_id: locked_bus
+    role: server
+    port: 18134
+    encryption:
+      key: "bG9ja2VkIGJyaWRnZSBrZXkgZm9yIHRoZSBub2lzZSE="
+
+tcp_uart:
+  - id: remote
+    host: 127.0.0.1
+    port: 18133
+    reconnect_interval: 1s
+    encryption:
+      key: "dWFydF90Y3Agbm9pc2UgdGVzdCBicmlkZ2Uga2V5IDE="
+  - id: wrong_key
+    host: 127.0.0.1
+    port: 18134
+    reconnect_interval: 1s
+    encryption:
+      key: "d3Jvbmcga2V5IGZvciB0aGUgbG9ja2VkIGJyaWRnZSE="
+
+interval:
+  # Echoes what the tcp_uart client reads.
+  - interval: 20ms
+    then:
+      - lambda: |-
+          uint8_t buf[64];
+          size_t n = std::min<size_t>(id(remote).available(), sizeof(buf));
+          if (n != 0 && id(remote).read_array(buf, n)) {
+            id(remote).write_array(buf, n);
+          }
