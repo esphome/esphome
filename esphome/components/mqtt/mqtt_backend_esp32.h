@@ -186,7 +186,8 @@ class MQTTBackendESP32 final : public MQTTBackend {
         esp_mqtt_client_start(handler_.get());
       }
     } else {
-      // Auto-reconnect is off, so wake the task parked in WAIT_RECONNECT
+      // Auto-reconnect is off, so wake the task parked in WAIT_RECONNECT. In any other esp-mqtt state
+      // this does nothing, and the state machine retries after the DISCONNECTED event.
       esp_mqtt_client_reconnect(this->handler_.get());
     }
   }
@@ -301,8 +302,8 @@ class MQTTBackendESP32 final : public MQTTBackend {
   enum class LinkState : uint8_t { LINK_STATE_DISCONNECTED = 0, LINK_STATE_CONNECTED };
 
   // The link state the component last requested via connect()/disconnect()
-  // (follows mqtt.enable/disable). is_connected_ tracks the actual state.
-  // Read by the MQTT task in mqtt_event_handler().
+  // (follows mqtt.enable/disable). is_connected_ is the state reported to the component.
+  // Read by both the MQTT task and the main loop.
   std::atomic<LinkState> requested_link_state_{LinkState::LINK_STATE_DISCONNECTED};
 
   // The link state as the MQTT task sees it, written in mqtt_event_handler() so it can't be
