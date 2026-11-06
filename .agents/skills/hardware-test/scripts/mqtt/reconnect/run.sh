@@ -1,7 +1,7 @@
 #!/bin/bash
 # run.sh LABEL CYCLES: build the reconnect config as rk<LABEL> from TREE, seed the retained burst, flash over PORT,
-# capture the serial log and run kick.py for CYCLES kick and leave-alone pairs. Prints one RESULT per connection;
-# the left-alone connections show whether the burst after a forced reconnect arrived in full.
+# capture the serial log and run kick.py for CYCLES kick and leave-alone pairs. Prints one RESULT per connection and
+# PASS when every left-alone connection got the whole burst after the forced reconnect, FAIL otherwise.
 # A mosquitto must listen on BROKER_PORT with allow_anonymous true, log_type all and log_dest file BROKER_LOG.
 # Run it from a scratch copy of this directory with a secrets.yaml (wifi_ssid, wifi_password).
 # env: TREE, PORT, SC (path to serial_capture.py), PY (checkout python), BROKER (this host's address as the board
@@ -33,7 +33,15 @@ $PY "$SC" "$P" $((60 + N * 25)) "$O/serial.txt" --reset > /dev/null 2>&1 & CAP=$
 for _ in $(seq 60); do grep -a -q 'EV CONNECTED' "$O/serial.txt" 2>/dev/null && break; sleep 1; done
 grep -a -q 'EV CONNECTED' "$O/serial.txt" || { echo "FAIL: no MQTT connect within 60 s"; exit 1; }
 sleep 8
-timeout $((N * 25 + 30)) $PY "$D/kick.py" "$BL" "$BP" "$NAME" "$N" | tee "$O/kick.txt" || { echo "FAIL: kick.py"; exit 1; }
+timeout $((N * 25 + 30)) $PY "$D/kick.py" "$BL" "$BP" "$NAME" "$N" | tee "$O/kick.txt"
+rc=${PIPESTATUS[0]}
+[ "$rc" = 0 ] || { echo "FAIL: kick.py exited $rc"; exit 1; }
 sleep 8
 grep -a -E 'CONN [0-9]+|RESULT' "$O/serial.txt" | sed 's/.*\]: //' | paste - - | tee "$O/results.txt"
-[ -s "$O/results.txt" ] || { echo "FAIL: no RESULT lines"; exit 1; }
+# The kicker takes over every other connection; the even ones are left alone and must get the whole burst
+ALONE=$(awk '$1 == "CONN" && $2 % 2 == 0' "$O/results.txt")
+FULL=$(echo "$ALONE" | grep -c 'got=25/25 .*switches_on=15/15 ')
+TOTAL=$(echo "$ALONE" | grep -c 'RESULT')
+echo "left-alone connections with the full burst: $FULL/$TOTAL"
+[ "$TOTAL" -ge "$N" ] || { echo "FAIL: only $TOTAL left-alone RESULT lines for $N cycles"; exit 1; }
+[ "$FULL" = "$TOTAL" ] && echo PASS || { echo "FAIL: a left-alone connection missed messages"; exit 1; }

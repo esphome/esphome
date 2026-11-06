@@ -30,9 +30,12 @@ def req(path: str, data: dict | None = None) -> dict | list:
 
 
 def ents() -> dict[str, dict]:
+    states = req("/api/states")
+    if isinstance(states, dict) and "http_error" in states:
+        sys.exit(f"/api/states failed: HTTP {states['http_error']} {states['body']}")
     return {
         s["entity_id"]: s
-        for s in req("/api/states")
+        for s in states
         if s["entity_id"].split(".")[0] in ("time", "date", "datetime")
         and NAME in s["entity_id"]
     }
