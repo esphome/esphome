@@ -351,7 +351,9 @@ void Sprinkler::loop() {
 
 void Sprinkler::add_valve(SprinklerControllerSwitch *valve_sw, SprinklerControllerSwitch *enable_sw) {
   auto new_valve_number = this->number_of_valves();
-  SprinklerValve *new_valve = &this->valve_.emplace_back();
+  SprinklerValve *new_valve = this->valve_.emplace_back();
+  if (new_valve == nullptr)
+    return;
 
   new_valve->controller_switch = valve_sw;
   new_valve->controller_switch->set_state_lambda([this, new_valve_number]() -> optional<bool> {
