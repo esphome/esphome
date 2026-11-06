@@ -1,10 +1,10 @@
 #pragma once
 
-#include <array>
 #include <span>
 
 #include "esphome/core/component.h"
 #include "esphome/core/defines.h"
+#include "esphome/core/frame_reader.h"
 
 #ifdef USE_SENSOR
 #include "esphome/components/sensor/sensor.h"
@@ -43,8 +43,7 @@ class SunGTIL2 final : public Component, public uart::UARTDevice {
 
   float calculate_temperature_(uint16_t adc_value);
   void handle_char_(uint8_t c);
-  std::array<uint8_t, MESSAGE_SIZE> rx_message_{};
-  uint16_t rx_length_{0};
+  FrameReader<MESSAGE_SIZE, 0x07, 0x07> reader_;
 };
 
 }  // namespace esphome::sun_gtil2

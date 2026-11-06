@@ -62,18 +62,12 @@ float SunGTIL2::calculate_temperature_(uint16_t adc_value) {
 }
 
 void SunGTIL2::handle_char_(uint8_t c) {
-  if (this->rx_length_ > 1 || c == 0x07) {
-    this->rx_message_[this->rx_length_++] = c;
-  } else {
-    this->rx_length_ = 0;
-  }
-  if (this->rx_length_ < MESSAGE_SIZE) {
+  const uint8_t *frame = this->reader_.feed(c);
+  if (frame == nullptr)
     return;
-  }
 
   SunGTIL2Message msg;
-  memcpy(&msg, this->rx_message_.data(), MESSAGE_SIZE);
-  this->rx_length_ = 0;
+  memcpy(&msg, frame, MESSAGE_SIZE);
 
   if ((msg.end[0] != 0) || (msg.end[38] != 0x08))
     return;
