@@ -1973,6 +1973,13 @@ class TestDownloadFromMirrors:
     def test_local_path_from_url(self, url: str, expected: str) -> None:
         assert framework_helpers.local_path_from_url(url) == Path(expected)
 
+    def test_relative_file_url_is_a_mirror_failure(self, tmp_path: Path) -> None:
+        """A relative file URL would be read from the current directory;
+        it is refused with the reason instead."""
+        with pytest.raises(EsphomeError, match="all mirrors") as ei:
+            download_from_mirrors(["file:archive.tar.xz"], {}, tmp_path / "f.bin")
+        assert "not an absolute path: file:archive.tar.xz" in str(ei.value)
+
 
 class TestDownloadAndExtract:
     def test_downloads_extracts_and_deletes_archive(self, tmp_path: Path) -> None:

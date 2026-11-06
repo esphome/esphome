@@ -1342,7 +1342,11 @@ def local_path_from_url(url: str) -> Path:
     path = url2pathname(parsed.path)
     if parsed.netloc and parsed.netloc.lower() != "localhost":
         path = f"//{parsed.netloc}{path}"
-    return Path(path)
+    result = Path(path)
+    # A relative URL would resolve against the current directory
+    if not result.is_absolute():
+        raise EsphomeError(f"not an absolute path: {url}")
+    return result
 
 
 def _copy_local_mirror(
