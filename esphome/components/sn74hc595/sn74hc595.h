@@ -9,7 +9,7 @@
 #include "esphome/components/spi/spi.h"
 #endif
 
-#include <vector>
+#include <span>
 
 namespace esphome::sn74hc595 {
 
@@ -26,10 +26,13 @@ class SN74HC595Component : public Component {
     this->oe_pin_ = pin;
     this->have_oe_pin_ = true;
   }
-  void set_sr_count(uint8_t count) {
+  /// `output_bytes` holds one byte per register, a static array from code generation
+  void set_sr_count(uint8_t count, uint8_t *output_bytes) {
     this->sr_count_ = count;
-    this->output_bytes_.resize(count);
+    this->output_bytes_ = {output_bytes, count};
   }
+  ESPDEPRECATED("Pass a sr_count buffer, e.g. from cg.static_buffer(). Removed in 2027.6.0.", "2026.12.0")
+  void set_sr_count(uint8_t count) { this->set_sr_count(count, new uint8_t[count]()); }  // NOLINT
 
  protected:
   friend class SN74HC595GPIOPin;
@@ -43,7 +46,7 @@ class SN74HC595Component : public Component {
   GPIOPin *oe_pin_;
   uint8_t sr_count_;
   bool have_oe_pin_{false};
-  std::vector<uint8_t> output_bytes_;
+  std::span<uint8_t> output_bytes_;
 };
 
 /// Helper class to expose a SC74HC595 pin as an internal output GPIO pin.

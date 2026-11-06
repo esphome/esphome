@@ -79,7 +79,12 @@ async def to_code(config: ConfigType) -> None:
 
     await cg.add_pin(var.set_latch_pin, config[CONF_LATCH_PIN])
     await cg.add_pin(var.set_oe_pin, config.get(CONF_OE_PIN))
-    cg.add(var.set_sr_count(config[CONF_SR_COUNT]))
+    sr_count = config[CONF_SR_COUNT]
+    cg.add(
+        var.set_sr_count(
+            sr_count, cg.static_buffer(config[CONF_ID], cg.uint8, sr_count)
+        )
+    )
 
 
 def _validate_output_mode(value: ConfigType) -> ConfigType:
