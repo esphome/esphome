@@ -26,8 +26,7 @@ void RS485FrameHub::setup() {
 
 void RS485FrameHub::loop() {
   const uint32_t now = App.get_loop_component_start_time();
-  // A partial frame left by a cable pull or noise burst would otherwise stall reception. Checked before
-  // draining, since the new bytes refresh last_rx_time_ and could complete the stale frame.
+  // Checked before draining, since new bytes refresh last_rx_time_ and could complete the stale frame.
   if (this->rx_state_ >= RX_STATE_FRAME && this->in_frame_timeout_ms_ > 0 &&
       now - this->last_rx_time_ >= this->in_frame_timeout_ms_) {
     ESP_LOGV(TAG, "Intra-frame timeout, resetting receive state");
@@ -37,7 +36,6 @@ void RS485FrameHub::loop() {
 
   // Transmits only after this pass's RX is drained, so frame_trigger sees any byte that followed the gate frame.
   this->maybe_tx_(now);
-  // Bytes that arrived while an on_frame callback ran are still waiting; the next pass reads them before sending.
   if (this->flags_.tx_start_pending && now - this->tx_delay_start_ >= this->tx_gate_delay_ &&
       this->gate_allows_send_(now)) {
     this->flags_.tx_start_pending = false;
@@ -90,16 +88,14 @@ bool RS485FrameHub::queue_raw_frame(std::span<const uint8_t> frame_type, std::sp
     if (index >= this->max_queue_size_)
       index -= this->max_queue_size_;
   }
-  // Queued from a UART debug or log callback while that slot is still being sent.
+  // A UART debug or log callback queued while that slot is being sent.
   if (index == this->tx_sending_slot_) {
     ESP_LOGW(TAG, "Frame queued while the previous frame was being sent; dropping frame");
     return false;
   }
   if (this->queue_policy_ == QUEUE_REPLACE_LATEST) {
-    // The only slot; a frame waiting out the gate delay is replaced and keeps its start time.
-    if (this->tx_queue_count_ > 0) {
+    if (this->tx_queue_count_ > 0)
       ESP_LOGV(TAG, "Replacing pending frame before it was transmitted");
-    }
     this->tx_queue_count_ = 0;
   }
   uint8_t *slot = this->tx_slot_(index);
@@ -119,8 +115,7 @@ void RS485FrameHub::handle_rx_byte_(uint8_t byte, uint32_t now) {
   // frame_trigger answers in the gap right after the gate frame; a later byte means another node took it.
   if (this->tx_gate_mode_ == TX_GATE_FRAME_TRIGGER)
     this->flags_.tx_start_pending = false;
-  // After a DLE: STX starts a frame (also inside one, since the escape marker is never STX), ETX ends it,
-  // the escape marker makes a literal DLE and anything else drops the frame.
+  // After a DLE: STX (re)starts a frame, ETX ends it, the escape marker is a literal DLE, anything else drops it.
   const RxState after_other_dle = byte == this->dle_ ? RX_STATE_IDLE_DLE : RX_STATE_IDLE;
   switch (this->rx_state_) {
     case RX_STATE_IDLE:
@@ -221,7 +216,6 @@ void RS485FrameHub::encode_crc_(const uint8_t *data, size_t len, bool include_he
 void RS485FrameHub::maybe_tx_(uint32_t now) {
   if (this->tx_queue_count_ == 0 || this->flags_.tx_start_pending || this->tx_gate_mode_ == TX_GATE_FRAME_TRIGGER)
     return;
-  // Both gates count the interval from the end of our last frame on the wire.
   if (now - this->last_tx_time_ < this->last_tx_wire_ms_ + this->tx_gate_interval_)
     return;
   if (this->tx_gate_mode_ == TX_GATE_FIXED_DELAY || this->bus_silent_(now))
@@ -244,7 +238,6 @@ void RS485FrameHub::transmit_head_(uint32_t now) {
     this->tx_queue_head_ = 0;
   this->tx_queue_count_--;
   this->tx_sending_slot_ = slot;
-  // Escaped into a stack chunk on the way out, so the queue only holds the unescaped bytes.
   static constexpr size_t TX_CHUNK_SIZE = 32;
   uint8_t chunk[TX_CHUNK_SIZE];
   size_t pos = 0;
@@ -262,8 +255,7 @@ void RS485FrameHub::transmit_head_(uint32_t now) {
     this->write_array(chunk, pos);
   wire_len += pos;
 #if defined(USE_ESP8266) || defined(USE_RP2)
-  // These UARTs do not drive flow_control_pin, so an auto-DE transceiver needs the bytes on the
-  // wire before returning; ESP32 drives DE in hardware RS485 mode.
+  // No hardware DE control here, so an auto-DE transceiver needs the bytes out before returning.
   this->flush();
 #endif
   if (this->flags_.dump_frames)
@@ -278,17 +270,14 @@ uint16_t RS485FrameHub::wire_time_ms_(size_t len) const {
   const uint32_t baud = this->parent_->get_baud_rate();
   if (baud == 0)
     return 0;
-  // Start bit, data bits, parity bit and stop bits
   const uint32_t bits = 1 + this->parent_->get_data_bits() +
                         (this->parent_->get_parity() != uart::UART_CONFIG_PARITY_NONE ? 1 : 0) +
                         this->parent_->get_stop_bits();
-  // Saturates only at a baud rate far below anything RS485 runs at.
   return std::min<uint32_t>((len * bits * 1000 + baud - 1) / baud, UINT16_MAX);
 }
 
 void RS485FrameHub::log_frame_(const LogString *dir, const uint8_t *data, size_t len) {
 #if ESPHOME_LOG_LEVEL >= ESPHOME_LOG_LEVEL_DEBUG
-  // Logged as the wire bytes, over several lines for long frames to keep the buffer on the stack.
   static constexpr size_t BYTES_PER_LINE = 32;
   uint8_t line[BYTES_PER_LINE];
   char hex[format_hex_size(BYTES_PER_LINE)];

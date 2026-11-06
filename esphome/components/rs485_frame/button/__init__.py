@@ -77,8 +77,7 @@ def _final_validate(config: ConfigType) -> ConfigType:
         and CONF_COMMAND_FORMAT not in hub_config
     ):
         raise cv.Invalid(
-            "rs485_frame button 'value' requires a 'command_format:' block on the button or "
-            f"the referenced hub, or use the raw 'frame_type' + 'payload' form. See {DOC_COMMAND_FORMAT_URL}"
+            f"rs485_frame button 'value' needs a command_format on the button or hub. See {DOC_COMMAND_FORMAT_URL}"
         )
     frame = _resolve_frame(config, hub_config)
     check_frame_length(

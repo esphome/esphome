@@ -85,11 +85,9 @@ TX_GATE_MODES = TxGateMode.options(
 )
 
 MAX_COMMAND_VALUES = 8
-# Must agree with MAX_FRAME_TYPE_LEN in rs485_frame.h.
 MAX_FRAME_TYPE_LEN = 8
 MAX_FRAME_TYPE_ALTS = 4
 MAX_FRAME_LENGTH_UPPER = 1024
-# Must agree with MIN_FRAME_LENGTH in rs485_frame.h; shorter frames are neither received nor sent.
 MIN_FRAME_LENGTH = 2
 MAX_QUEUE_SIZE_UPPER = 32
 ESCAPE_MODE_BYTE = "escape_byte"
@@ -167,7 +165,6 @@ FRAMING_SCHEMA = cv.Schema(
         cv.Optional(CONF_STX, default=0x02): cv.hex_uint8_t,
         cv.Optional(CONF_ETX, default=0x03): cv.hex_uint8_t,
         # No default: the wrong scheme silently corrupts every frame containing a DLE.
-        # escape_byte sends a literal DLE as DLE followed by byte; double sends DLE DLE.
         cv.Required(CONF_ESCAPE): cv.typed_schema(
             {
                 ESCAPE_MODE_BYTE: {cv.Required(CONF_BYTE): cv.hex_uint8_t},
@@ -241,19 +238,13 @@ def validate_hub(config: ConfigType) -> ConfigType:
     if len({int(framing[CONF_DLE]), stx, etx}) != 3:
         raise cv.Invalid("framing dle, stx and etx must all be distinct byte values")
     if int(framing[CONF_ESCAPE].get(CONF_BYTE, framing[CONF_DLE])) in (stx, etx):
-        raise cv.Invalid(
-            "framing.escape.byte must differ from stx and etx; otherwise an escaped DLE "
-            "is indistinguishable from a frame start/end terminator"
-        )
+        raise cv.Invalid("framing.escape.byte must differ from stx and etx")
     tx = config[CONF_TX]
     gate = tx[CONF_GATE]
     if gate[CONF_MODE] == "frame_trigger" and not config[CONF_SNIFFER_ONLY]:
         frame_type = gate.get(CONF_FRAME_TYPE)
         if not frame_type:
-            raise cv.Invalid(
-                "tx.gate.frame_type is required (a non-empty byte list) when tx.gate.mode is "
-                "frame_trigger; the gate would never fire and queued commands would not transmit"
-            )
+            raise cv.Invalid("tx.gate.frame_type is required for frame_trigger")
         if len(frame_type) > config[CONF_MAX_FRAME_LENGTH]:
             raise cv.Invalid(
                 f"tx.gate.frame_type is {len(frame_type)} bytes, longer than max_frame_length "
@@ -279,7 +270,6 @@ CONFIG_SCHEMA = cv.All(
                 min=MIN_FRAME_LENGTH, max=MAX_FRAME_LENGTH_UPPER
             ),
             cv.Optional(CONF_FRAME_TIMEOUT, default="50ms"): _MS16,
-            # payload is a view into the RX buffer, which the next frame overwrites.
             cv.Optional(CONF_ON_FRAME): automation.validate_synchronous_automation(
                 "rs485_frame on_frame",
                 "payload",
@@ -305,7 +295,6 @@ async def to_code(config: ConfigType) -> None:
     tx_config = config[CONF_TX]
     crc_len = CRC_LENGTHS.get(crc[CONF_TYPE], 2)
     max_queue_size = tx_config[CONF_MAX_QUEUE_SIZE]
-    # Buffer sizes are known here, so they are static arrays rather than allocated at run time
     frame_size = config[CONF_MAX_FRAME_LENGTH] + crc_len
     rx = cg.static_buffer(hub_id, cg.uint8, frame_size)
     tx = tx_len = cg.nullptr
@@ -377,14 +366,12 @@ def _progmem_span(config: ConfigType, value: list[int]) -> str:
 def _validate_send_frame(config: ConfigType) -> ConfigType:
     parts = (config[CONF_FRAME_TYPE], config[CONF_PAYLOAD])
     if not any(isinstance(part, Lambda) for part in parts):
-        # The hub's max_frame_length is only known once the whole config is validated
         _data().send_frames.append((config[CONF_ID], sum(map(len, parts))))
     return config
 
 
 def _final_validate(config: ConfigType) -> ConfigType:
-    # Each hub drains its UART's receive stream, so the RX pin cannot be shared with another reader;
-    # a hub that transmits also needs the TX pin to itself.
+    # Each hub needs its UART's RX pin to itself, and its TX pin unless sniffer_only.
     uart.final_validate_device_schema(
         f"rs485_frame {config[CONF_ID].id}",
         require_rx=True,

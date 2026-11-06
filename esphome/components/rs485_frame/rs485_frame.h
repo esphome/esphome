@@ -9,9 +9,7 @@
 
 namespace esphome::rs485_frame {
 
-// Must agree with the cv.Length(max=8) frame_type cap in __init__.py.
 static constexpr size_t MAX_FRAME_TYPE_LEN = 8;
-// Must agree with MIN_FRAME_LENGTH in __init__.py; shorter frames are neither received nor sent.
 static constexpr size_t MIN_FRAME_LENGTH = 2;
 static constexpr uint8_t NO_SLOT = 0xFF;
 
@@ -25,19 +23,11 @@ enum CrcType : uint8_t {
   CRC_TYPE_CRC16_MODBUS,
 };
 constexpr uint8_t crc_length(CrcType type) {
-  switch (type) {
-    case CRC_TYPE_NONE:
-      return 0;
-    case CRC_TYPE_SUM8:
-    case CRC_TYPE_XOR8:
-      return 1;
-    default:
-      return 2;
-  }
+  return type == CRC_TYPE_NONE ? 0 : (type == CRC_TYPE_SUM8 || type == CRC_TYPE_XOR8) ? 1 : 2;
 }
 enum QueuePolicy : uint8_t { QUEUE_REPLACE_LATEST, QUEUE_FIFO };
 enum TxGateMode : uint8_t { TX_GATE_FRAME_TRIGGER, TX_GATE_IDLE_GAP, TX_GATE_FIXED_DELAY };
-/// RX framer state; the _DLE states mean the last byte was a DLE whose meaning the next byte decides.
+/// The _DLE states mean the last byte was a DLE.
 enum RxState : uint8_t { RX_STATE_IDLE, RX_STATE_IDLE_DLE, RX_STATE_FRAME, RX_STATE_FRAME_DLE };
 
 /// True when payload starts with the len-byte prefix, which may live in PROGMEM.
@@ -54,8 +44,7 @@ inline bool frame_has_prefix(std::span<const uint8_t> payload, const uint8_t *pr
 /// Hub for a DLE-framed RS485 bus: RX framer, CRC engine, gated TX queue and on_frame callbacks.
 class RS485FrameHub : public Component, public uart::UARTDevice {
  public:
-  /// rx_payload holds max_frame_length + crc_length(crc_type) bytes. tx_queue holds max_queue_size slots of that
-  /// size and tx_queue_len max_queue_size entries; both are nullptr on a sniffer_only hub.
+  /// Buffers are sized by codegen; tx_queue and tx_queue_len are nullptr on a sniffer_only hub.
   RS485FrameHub(uint8_t dle, uint8_t stx, uint8_t etx, uint8_t escape_marker, CrcType crc_type,
                 uint16_t max_frame_length, uint8_t max_queue_size, uint8_t *rx_payload, uint8_t *tx_queue,
                 uint16_t *tx_queue_len)
@@ -79,13 +68,11 @@ class RS485FrameHub : public Component, public uart::UARTDevice {
   void set_accept_payload_crc(bool accept) { this->flags_.accept_payload_crc = accept; }
   void set_tx_crc_variant(CrcVariant variant) { this->tx_crc_variant_ = variant; }
   void set_tx_gate_mode(TxGateMode mode) { this->tx_gate_mode_ = mode; }
-  /// frame_type may live in PROGMEM.
   void set_tx_gate_frame_type(const uint8_t *frame_type, size_t len) {
     this->tx_gate_frame_type_ = frame_type;
     this->tx_gate_frame_type_len_ = len;
   }
   void set_tx_gate_delay(uint16_t delay) { this->tx_gate_delay_ = delay; }
-  /// idle_gap's min_silence or fixed_delay's interval.
   void set_tx_gate_interval(uint16_t interval) { this->tx_gate_interval_ = interval; }
   void set_queue_policy(QueuePolicy policy) { this->queue_policy_ = policy; }
   void set_dump_frames(bool dump_frames) { this->flags_.dump_frames = dump_frames; }
@@ -105,16 +92,12 @@ class RS485FrameHub : public Component, public uart::UARTDevice {
   void append_rx_(uint8_t byte);
   void process_frame_(uint32_t now);
   void reset_rx_();
-  /// Checks the CRC that follows the rx_payload_len_ payload bytes.
   bool check_crc_() const;
   bool crc_matches_(bool include_header) const;
-  /// Writes the crc_len_ CRC bytes of data to out in wire order.
   void encode_crc_(const uint8_t *data, size_t len, bool include_header, uint8_t *out) const;
   uint8_t *tx_slot_(size_t index) const { return this->tx_queue_ + index * (this->max_frame_length_ + this->crc_len_); }
   void maybe_tx_(uint32_t now);
-  /// idle_gap: nothing was received or sent for min_silence.
   bool bus_silent_(uint32_t now) const { return now - this->last_activity_time_ >= this->tx_gate_interval_; }
-  /// Releases the head frame; loop() sends it once the gate delay has passed.
   void send_next_(uint32_t now);
   void transmit_head_(uint32_t now);
   /// Passes the wire bytes of an unescaped frame to put: DLE STX, the escaped frame, DLE ETX.
@@ -129,26 +112,16 @@ class RS485FrameHub : public Component, public uart::UARTDevice {
     put(this->dle_);
     put(this->etx_);
   }
-  /// Whether the released frame may go out now that its gate delay has passed.
+  /// Whether the released frame may go out once its gate delay has passed.
   bool gate_allows_send_(uint32_t now) {
-    switch (this->tx_gate_mode_) {
-      case TX_GATE_FIXED_DELAY:
-        return true;
-      case TX_GATE_IDLE_GAP:
-        // RX during the delay may be a frame in progress.
-        return this->bus_silent_(now) && this->available() == 0;
-      default:
-        return this->available() == 0;
-    }
+    return this->tx_gate_mode_ == TX_GATE_FIXED_DELAY ||
+           ((this->tx_gate_mode_ != TX_GATE_IDLE_GAP || this->bus_silent_(now)) && this->available() == 0);
   }
-  /// How long len bytes take on the wire at the UART's baud rate and frame format.
   uint16_t wire_time_ms_(size_t len) const;
   void log_frame_(const LogString *dir, const uint8_t *data, size_t len);
 
-  // The unescaped frame being received, then the `payload` on_frame receives.
   uint8_t *const rx_payload_;
-  // Ring of max_queue_size_ slots holding the unescaped frame and its CRC, escaped as it is written.
-  // While flags_.tx_start_pending the head slot is the frame released by the gate, waiting out the gate delay.
+  // Ring of unescaped frames plus CRC; while tx_start_pending the head is waiting out the gate delay.
   uint8_t *const tx_queue_;
   uint16_t *const tx_queue_len_;
   const uint8_t *tx_gate_frame_type_{nullptr};
@@ -162,14 +135,12 @@ class RS485FrameHub : public Component, public uart::UARTDevice {
   uint16_t in_frame_timeout_ms_{50};
   uint16_t max_frame_length_;
   uint16_t rx_payload_len_{0};
-  // How long the last frame takes on the wire; the gates count from its end, not from write_array()
-  uint16_t last_tx_wire_ms_{0};
+  uint16_t last_tx_wire_ms_{0};  // The gates count from the end of the last frame on the wire
 
   uint8_t dle_;
   uint8_t stx_;
   uint8_t etx_;
-  // Equals dle_ in doubling mode (a literal DLE is sent as DLE DLE).
-  uint8_t escape_marker_;
+  uint8_t escape_marker_;  // Equals dle_ in doubling mode
   CrcType crc_type_;
   uint8_t crc_len_;
   CrcVariant tx_crc_variant_{CRC_HEADER_INCLUSIVE};
@@ -179,8 +150,7 @@ class RS485FrameHub : public Component, public uart::UARTDevice {
   uint8_t max_queue_size_;
   uint8_t tx_queue_head_{0};
   uint8_t tx_queue_count_{0};
-  // The slot transmit_head_() is sending, which queue_raw_frame() must not overwrite.
-  uint8_t tx_sending_slot_{NO_SLOT};
+  uint8_t tx_sending_slot_{NO_SLOT};  // queue_raw_frame() must not overwrite it
   RxState rx_state_{RX_STATE_IDLE};
   struct Flags {
     uint8_t accept_header_crc : 1;
