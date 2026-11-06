@@ -8,8 +8,8 @@ D=$(cd "$(dirname "$0")" && pwd); DEV=${1:?device}; shift; PY=${PY:?set PY}; K=$
 for arg in "$@"; do
   v=${arg%%=*}; rest=${arg#*=}; C=${rest%%=*}; T=${rest#*=}; O=$D/out-va$v; rm -rf "$O"; mkdir -p "$O"
   case $C in /*) ;; *) C=$PWD/$C;; esac
-  (cd "$T" && PYTHONUNBUFFERED=1 timeout 2400 $PY -m esphome compile "$C" > "$O/compile.log" 2>&1) || { echo "FAIL: $v compile"; exit 1; }
-  (cd "$T" && timeout 600 $PY -m esphome upload "$C" --device "$DEV" > "$O/upload.log" 2>&1) || { echo "FAIL: $v upload"; exit 1; }
+  (cd "$T" && PYTHONUNBUFFERED=1 timeout 3000 $PY -m esphome run --no-logs "$C" --device "$DEV" > "$O/upload.log" 2>&1) ||
+    { echo "FAIL: $v build or upload"; exit 1; }
   sleep 45
   for r in 1 2; do
     $PY "$D/drive.py" "$DEV" "$K" "${DELAY:-3.5}" "$O/run$r.txt" > /dev/null 2>&1 || FAIL=1

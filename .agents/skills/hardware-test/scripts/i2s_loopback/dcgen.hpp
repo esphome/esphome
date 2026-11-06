@@ -18,6 +18,9 @@ inline void set_mode(int m) {
   seq = seq + 1;
 }
 
+// 50 Hz square phase for sample n
+inline bool square_hi(uint32_t n) { return ((uint64_t) n * 100 / rate) % 2; }
+
 inline void gen_task(void *) {
   static int16_t buf[2 * 256];
   uint32_t n = 0;
@@ -25,7 +28,6 @@ inline void gen_task(void *) {
     const int m = mode;
     for (int i = 0; i < 256; i++, n++) {
       int32_t l = 0, r = 0;
-      const bool hi = ((uint64_t) n * 100 / rate) % 2;  // 50 Hz square
       switch (m) {
         case 1:
           l = r = 8000;
@@ -40,10 +42,10 @@ inline void gen_task(void *) {
           break;
         }
         case 4:
-          l = r = hi ? 32767 : -32768;
+          l = r = square_hi(n) ? 32767 : -32768;
           break;  // full-scale square
         case 5:
-          l = r = hi ? 16000 : -16000;
+          l = r = square_hi(n) ? 16000 : -16000;
           break;  // half-scale square
         default:
           break;
@@ -144,12 +146,14 @@ inline void on_data(const esphome::microphone::AudioCapture &c) {
 inline void report() {
   if (!ready)
     return;
+  if (rn == 0) {
+    ready = false;
+    return;
+  }
   static constexpr const char *NAMES[] = {"silence",   "dc+8000",          "dc L+8000 R-8000",
                                           "dc+tone1k", "square fullscale", "square half"};
   for (uint32_t k = 0; k < rchans && k < 2; k++) {
     const Ch &x = res[k];
-    if (rn == 0)
-      break;
     const double mean = (double) x.sum / rn, rms = sqrt((double) x.sq / rn);
     const double tmean = x.tn ? (double) x.tsum / x.tn : 0, trms = x.tn ? sqrt((double) x.tsq / x.tn) : 0;
     const double tac = sqrt(fmax(0.0, trms * trms - tmean * tmean));

@@ -60,12 +60,8 @@ for arg in sys.argv[3:]:
             int, (WWW / f"{name}.cut").read_text(encoding="utf-8").split()
         )
         end = resets[i + 1] if i + 1 < len(resets) else 1e9
-        kind = "media" if i == 4 else "ann"
-        seg = [
-            e
-            for e in ev
-            if rt - 0.5 < e[0] < end and e[1] == ("med" if kind == "media" else "ann")
-        ]
+        kind, tag = ("media", "med") if i == 4 else ("ann", "ann")
+        seg = [e for e in ev if rt - 0.5 < e[0] < end and e[1] == tag]
         if not seg:
             print(f"  {i} {kind} {name}: nothing played")
             bad = True

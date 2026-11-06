@@ -9,6 +9,10 @@ esphome:
       - lambda: |-
           dcgen::start(${sr}, 4, 5, 6);
           id(mic)->add_data_callback([](const microphone::AudioCapture &c) { dcgen::on_data(c); });
+      - delay: 4s
+      - microphone.capture: mic
+      - delay: 1s
+      - script.execute: seq
 
 esp32:
   board: esp32-s3-devkitc-1
@@ -67,9 +71,3 @@ interval:
   - interval: 100ms
     then:
       - lambda: dcgen::report();
-  - interval: 1000s
-    startup_delay: 4s
-    then:
-      - microphone.capture: mic
-      - delay: 1s
-      - script.execute: seq

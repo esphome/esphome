@@ -22,6 +22,7 @@ def reader(
     pattern: bool,
     stall: bool,
     res: list,
+    idx: int,
     start_delay: float,
 ) -> None:
     time.sleep(start_delay)
@@ -34,9 +35,9 @@ def reader(
         "eof": None,
         "rms": 0.0,
     }
-    res.append(r)
+    res[idx] = r
+    c = http.client.HTTPConnection(host, 80, timeout=10)
     try:
-        c = http.client.HTTPConnection(host, 80, timeout=10)
         c.request("GET", path)
         resp = c.getresponse()
         r["status"] = resp.status
@@ -57,7 +58,7 @@ def reader(
             if stall and time.time() - t0 > 2:
                 time.sleep(secs)  # stop reading, keep the socket open
                 break
-            data = resp.read1(8192) if hasattr(resp, "read1") else resp.read(4096)
+            data = resp.read1(8192)
             now = time.time()
             if not data:
                 r["eof"] = round(now - t0, 2)
@@ -81,9 +82,10 @@ def reader(
         r["secs"] = round(time.time() - t0, 2)
         r["rate"] = round(r["samples"] / max(r["secs"], 0.001))
         r["rms"] = round((sq / max(r["samples"], 1)) ** 0.5, 1)
-        c.close()
     except Exception as e:  # noqa: BLE001  report and keep the other readers going
         r["error"] = repr(e)
+    finally:
+        c.close()
 
 
 def main() -> None:
@@ -100,7 +102,8 @@ def main() -> None:
     c.request("GET", "/audio/microphones")
     m = c.getresponse()
     print("META", m.status, m.read().decode(errors="replace")[:400])
-    res, th = [], []
+    res: list[dict | None] = [None] * a.clients
+    th = []
     for i in range(a.clients):
         t = threading.Thread(
             target=reader,
@@ -111,6 +114,7 @@ def main() -> None:
                 a.pattern,
                 i == a.stall,
                 res,
+                i,
                 i * a.stagger,
             ),
         )

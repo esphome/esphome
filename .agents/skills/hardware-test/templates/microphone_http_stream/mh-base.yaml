@@ -1,5 +1,6 @@
 # Waveshare ESP32-S3-ETH on PoE, logs over the API on Ethernet (the native USB port is the USB host port), web_server
-# on 80, mic start and stop buttons and a heap line every 5 s. Used by mh-fake.yaml and mh-usb.yaml.
+# on 80, mic start and stop buttons and a heap line every 5 s. Used by mh-fake.yaml and mh-usb.yaml. The board block
+# is the one in ../usb-audio-waveshare-s3-eth-dut.yaml; keep the two in step.
 esp32:
   board: esp32-s3-devkitc-1
   variant: esp32s3

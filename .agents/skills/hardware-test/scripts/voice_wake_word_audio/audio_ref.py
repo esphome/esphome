@@ -1,5 +1,6 @@
 """Shared helpers: 16-bit WAV loading and the normalised 10 ms envelope used to find the wake phrase."""
 
+import functools
 import os
 import pathlib
 import wave
@@ -26,9 +27,14 @@ def norm(e: np.ndarray) -> np.ndarray:
     return (e - e.mean()) / (e.std() + 1e-9)
 
 
+@functools.cache
+def _ref() -> np.ndarray:
+    return norm(env(load(WAKE_REF)))
+
+
 def find_phrase(x: np.ndarray) -> tuple[int, float, int]:
     """Return (start in 10 ms steps, correlation, reference length in steps) of the best match."""
-    ref = norm(env(load(WAKE_REF)))
+    ref = _ref()
     c = np.correlate(norm(env(x)), ref, mode="valid") / len(ref)
     k = int(c.argmax())
     return k, float(c[k]), len(ref)

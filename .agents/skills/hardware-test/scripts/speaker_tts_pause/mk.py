@@ -9,35 +9,23 @@ TOTAL_SAMPLES": the byte offset of the first frame after the intro, which srv.py
 import pathlib
 import subprocess
 import sys
-import tempfile
-import wave
 
 INTRO, CONT, OUT = sys.argv[1], sys.argv[2], sys.argv[3]
 BLOCK = 4096
+RAW = ["-f", "s16le", "-ac", "1", "-ar", "48000"]
 
 
-def pcm(src: str, tmp: pathlib.Path) -> bytes:
-    dst = tmp / (pathlib.Path(src).stem + ".wav")
-    subprocess.run(
-        [
-            "ffmpeg",
-            "-loglevel",
-            "error",
-            "-y",
-            "-i",
-            src,
-            "-ac",
-            "1",
-            "-ar",
-            "48000",
-            "-sample_fmt",
-            "s16",
-            str(dst),
-        ],
+def ffmpeg(args: list[str], data: bytes | None = None) -> bytes:
+    return subprocess.run(
+        ["ffmpeg", "-loglevel", "error", *args],
+        input=data,
         check=True,
-    )
-    with wave.open(str(dst)) as w:
-        return w.readframes(w.getnframes())
+        capture_output=True,
+    ).stdout
+
+
+def pcm(src: str) -> bytes:
+    return ffmpeg(["-i", src, *RAW, "pipe:1"])
 
 
 def crc8(b: bytes) -> int:
@@ -49,33 +37,25 @@ def crc8(b: bytes) -> int:
     return c
 
 
-with tempfile.TemporaryDirectory() as td:
-    tmp = pathlib.Path(td)
-    a, b = pcm(INTRO, tmp), pcm(CONT, tmp)
-    blocks = -(-len(a) // 2 // BLOCK)
-    n = blocks * BLOCK
-    a += b"\0" * (n * 2 - len(a))
-    with wave.open(str(tmp / "f.wav"), "wb") as w:
-        w.setnchannels(1)
-        w.setsampwidth(2)
-        w.setframerate(48000)
-        w.writeframes(a + b)
-    d = subprocess.run(
-        [
-            "ffmpeg",
-            "-loglevel",
-            "error",
-            "-i",
-            str(tmp / "f.wav"),
-            "-c:a",
-            "flac",
-            "-frame_size",
-            str(BLOCK),
-        ]
-        + ["-f", "flac", "pipe:1"],
-        check=True,
-        capture_output=True,
-    ).stdout
+a, b = pcm(INTRO), pcm(CONT)
+blocks = -(-len(a) // 2 // BLOCK)
+n = blocks * BLOCK
+a += b"\0" * (n * 2 - len(a))
+d = ffmpeg(
+    [
+        *RAW,
+        "-i",
+        "pipe:0",
+        "-c:a",
+        "flac",
+        "-frame_size",
+        str(BLOCK),
+        "-f",
+        "flac",
+        "pipe:1",
+    ],
+    a + b,
+)
 # Find the frame header whose frame number equals the intro's block count (fixed blocksize, 1 byte UTF-8 number)
 first = d.find(b"\xff\xf8")
 h = d[first : first + 4]

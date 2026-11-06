@@ -5,20 +5,21 @@ MODE: accept | reject | timeout | noflag (the whole session without the wake_wor
 
 Say the wake word near the device for every run (run.sh plays it). Each run's two audio channels are saved as
 OUTDIR/run<N>-<mode>-ch<1|2>.wav with a JSON summary (wake word id, probability, wake word audio sizes); every
-summary is also printed as a RESULT line. Needs aioesphomeapi 46.27.0 or later.
+summary is also printed as a RESULT line, followed by "SUMMARY MODE CH1_MS". Needs aioesphomeapi 46.27.0 or later.
 """
 
 import asyncio
+from dataclasses import dataclass, field
 import json
 import pathlib
 import re
-import socket
 import sys
 import time
 import wave
 
 from aioesphomeapi import APIClient, VoiceAssistantEventType as E
 from aioesphomeapi.model import LogLevel
+from va_common import connect, log_text
 
 HOST, KEY, MODES = sys.argv[1], sys.argv[2], sys.argv[4].split(",")
 OUT = pathlib.Path(sys.argv[3])
@@ -27,23 +28,26 @@ OUT.mkdir(parents=True, exist_ok=True)
 T0 = time.monotonic()
 
 
+@dataclass
 class Run:
-    def __init__(self, n: int, mode: str, ww: object) -> None:
-        self.n, self.mode, self.ww = n, mode, ww
-        self.a1 = bytearray()
-        self.a2 = bytearray()
-        self.started = time.monotonic()
-        self.first_audio: float | None = None
-        self.stopped = asyncio.Event()
+    n: int
+    mode: str
+    ww: object
+    a1: bytearray = field(default_factory=bytearray)
+    a2: bytearray = field(default_factory=bytearray)
+    started: float = field(default_factory=time.monotonic)
+    first_audio: float | None = None
+    stopped: asyncio.Event = field(default_factory=asyncio.Event)
 
 
+@dataclass
 class State:
-    cli: APIClient
+    cli: APIClient | None = None
     run: Run | None = None
-    count = 0
-    pending: list[str] = []
-    events: list[str] = []
-    done_all = asyncio.Event()
+    count: int = 0
+    pending: list[str] = field(default_factory=list)
+    events: list[str] = field(default_factory=list)
+    done_all: asyncio.Event = field(default_factory=asyncio.Event)
 
 
 S = State()
@@ -83,6 +87,7 @@ def save(r: Run) -> None:
     }
     (OUT / f"run{r.n}-{r.mode}.json").write_text(json.dumps(meta), encoding="utf-8")
     mark(f"RESULT {json.dumps(meta)}")
+    mark(f"SUMMARY {r.mode} {round(len(r.a1) / 32)}")
 
 
 async def verdict(r: Run) -> None:
@@ -151,21 +156,17 @@ async def handle_audio(d1: bytes, d2: bytes) -> None:
         r.first_audio = time.monotonic()
         mark(f"first audio chunk run {r.n} ({len(d1)} B)")
     r.a1 += d1
-    if d2:
-        r.a2 += d2
+    r.a2 += d2
 
 
 async def main() -> None:
-    S.cli = cli = APIClient(
-        socket.gethostbyname(HOST), 6053, None, noise_psk=None if KEY == "-" else KEY
-    )
-    await cli.connect(login=True)
+    S.cli = cli = await connect(HOST, KEY)
     keep = re.compile(
         r"voice_assistant|micro_wake_word|wake|hwt|Free Memory|\[E\]|\[W\]"
     )
 
     def on_log(msg) -> None:
-        line = re.sub(r"\x1b\[[0-9;]*m", "", msg.message.decode(errors="replace"))
+        line = log_text(msg)
         if keep.search(line) and "runtime_stats" not in line:
             mark("LOG " + line[:170])
 

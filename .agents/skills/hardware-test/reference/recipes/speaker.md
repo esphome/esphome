@@ -28,12 +28,12 @@ waiting for the whole file. `scripts/speaker_tts_pause/`:
 - `srv.py PORT www` serves the file chunked: the header and intro at once, then it holds the connection open for
   `PAUSE` seconds (8), then the rest.
 - `tts-common.yaml` swaps the AUX-2's `speaker_source` player for the `speaker` platform player and counts played
-  frames with `add_audio_output_callback` on both resampler speakers (one `[frames` log line per change, read over
-  serial with `--ms`). Its `on_boot` must be a list entry: a dict `on_boot` replaces the package's list and the AUX-2
-  never starts Wi-Fi or Ethernet.
+  frames with `add_audio_output_callback` on both resampler speakers into the counters in `frames.h` (one `[frames`
+  log line per change, read over serial with `--ms`). Its `on_boot` must be a list entry: a dict `on_boot` replaces
+  the package's list and the AUX-2 never starts Wi-Fi or Ethernet.
 - `run.sh LABEL=TREE...` flashes each build and drives two short-intro and two long-intro announcements and one
-  media play through `scripts/speaker_media_player/drive.py`; `an.py` prints first audio, the server's send times and
-  how much of the intro played before the rest arrived, per request.
+  media play through `scripts/speaker_media_player/drive.py` (set `DRIVE` when running from a scratch copy); `an.py`
+  prints first audio, the server's send times and how much of the intro played before the rest arrived, per request.
 
 Before the two PRs the player waited for the rest of the stream (8.2 s) for both a 22.5 KB and a 50 KB intro; with
 both it starts at about 1 s.

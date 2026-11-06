@@ -10,6 +10,6 @@ M=$(for _ in $(seq "$N"); do printf 'reject,timeout,'; done); M=${M%,}
 sleep 9; i=0
 until [ -e "$O/done" ] || [ $i -ge $((N * 2 + 17)) ]; do $PLAY "$WAKE"; i=$((i + 1)); sleep 9; done
 wait
-grep RESULT "$O/va.log" | sed 's/.*"mode": "\([a-z]*\)", "a1": \([0-9]*\).*/\1 \2/' | awk '{printf "%s %.0f ms\n", $1, $2/32}'
+grep SUMMARY "$O/va.log" | awk '{print $3, $4, "ms"}'
 echo "rejected logs: $(grep -c 'Wake word rejected' "$O/va.log")  timeout logs: $(grep -c 'was not accepted' "$O/va.log")"
 [ "$(grep -c RESULT "$O/va.log")" -ge $((N * 2)) ] || { echo "FAIL: fewer runs than modes"; exit 1; }

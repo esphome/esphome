@@ -11,14 +11,14 @@ import asyncio
 from http.server import BaseHTTPRequestHandler, ThreadingHTTPServer
 import os
 import pathlib
-import re
-import socket
 import sys
 import threading
 import time
 
-from aioesphomeapi import APIClient
 from aioesphomeapi.model import LogLevel
+
+sys.path.insert(0, str(pathlib.Path(__file__).parent.parent / "voice_wake_word_audio"))
+from va_common import connect, log_text  # noqa: E402
 
 HOST, KEY, DELAY, OUT = sys.argv[1], sys.argv[2], float(sys.argv[3]), sys.argv[4]
 WAIT = float(sys.argv[5]) if len(sys.argv) > 5 else 30
@@ -54,13 +54,10 @@ threading.Thread(target=srv.serve_forever, daemon=True).start()
 
 async def main() -> None:
     global T0  # noqa: PLW0603
-    cli = APIClient(
-        socket.gethostbyname(HOST), 6053, None, noise_psk=None if KEY == "-" else KEY
-    )
-    await cli.connect(login=True)
+    cli = await connect(HOST, KEY)
 
     def on_log(msg) -> None:
-        line = re.sub(r"\x1b\[[0-9;]*m", "", msg.message.decode(errors="replace"))
+        line = log_text(msg)
         if "runtime_stats" not in line:
             mark("LOG " + line[:150])
 

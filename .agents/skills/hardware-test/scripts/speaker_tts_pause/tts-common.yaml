@@ -56,36 +56,31 @@ media_player:
       sample_rate: 48000
 
 globals:
-  - {id: ann_frames, type: "std::atomic<uint32_t>*", initial_value: "nullptr"}
   - {id: ann_logged, type: uint32_t, initial_value: "0"}
-  - {id: med_frames, type: "std::atomic<uint32_t>*", initial_value: "nullptr"}
   - {id: med_logged, type: uint32_t, initial_value: "0"}
 
 esphome:
+  includes:
+    - frames.h
   on_boot:
     - priority: 600
       then:
         - lambda: |-
-            id(ann_frames) = new std::atomic<uint32_t>(0);
-            auto *f = id(ann_frames);
             id(announcement_resampling_speaker).add_audio_output_callback(
-                [f](uint32_t frames, int64_t) { f->fetch_add(frames); });
-            id(med_frames) = new std::atomic<uint32_t>(0);
-            auto *m = id(med_frames);
+                [](uint32_t frames, int64_t) { hwt_frames::ann.fetch_add(frames); });
             id(media_resampling_speaker).add_audio_output_callback(
-                [m](uint32_t frames, int64_t) { m->fetch_add(frames); });
+                [](uint32_t frames, int64_t) { hwt_frames::med.fetch_add(frames); });
 
 interval:
   - interval: 20ms
     then:
       - lambda: |-
-          if (id(ann_frames) == nullptr) return;
-          uint32_t v = id(ann_frames)->load();
+          uint32_t v = hwt_frames::ann.load();
           if (v != id(ann_logged)) {
             ESP_LOGI("frames", "played %u", (unsigned) v);
             id(ann_logged) = v;
           }
-          uint32_t w = id(med_frames)->load();
+          uint32_t w = hwt_frames::med.load();
           if (w != id(med_logged)) {
             ESP_LOGI("frames", "media played %u", (unsigned) w);
             id(med_logged) = w;
@@ -96,8 +91,8 @@ button:
     name: Reset frames
     on_press:
       - lambda: |-
-          id(ann_frames)->store(0);
+          hwt_frames::ann.store(0);
           id(ann_logged) = 0;
-          id(med_frames)->store(0);
+          hwt_frames::med.store(0);
           id(med_logged) = 0;
           ESP_LOGI("frames", "reset");

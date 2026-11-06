@@ -4,13 +4,13 @@
 # print the timings with an.py. Serve www/s1.flac (short intro) and www/s2.flac (long intro) made by mk.py.
 # Run it from a scratch copy of this directory holding secrets.yaml (wifi_ssid, wifi_password, api_key),
 # aux-2-pre-prod.yaml and www/.
-# env: PORT, SC (path to serial_capture.py), PY (python with esphome's requirements), HOST_IP (this host's address
-# as the board sees it), API_KEY, SRV_PORT (default 18765), PAUSE (seconds the server holds the stream, default 8)
+# env: PORT, SC (path to serial_capture.py), PY (python with esphome's requirements), DRIVE (path to
+# scripts/speaker_media_player/drive.py, needed from a scratch copy), HOST_IP (this host's address as the board
+# sees it), API_KEY, SRV_PORT (default 18765), PAUSE (seconds the server holds the stream, default 8)
 D=$(cd "$(dirname "$0")" && pwd); P=${PORT:?set PORT}; SC=${SC:?set SC}; PY=${PY:?set PY}; K=${API_KEY:?set API_KEY}
-SP=${SRV_PORT:-18765}; U=http://${HOST_IP:?set HOST_IP}:$SP; DRIVE=$D/../speaker_media_player/drive.py
+SP=${SRV_PORT:-18765}; U=http://${HOST_IP:?set HOST_IP}:$SP; DRIVE=${DRIVE:-$D/../speaker_media_player/drive.py}
+[ -f "$DRIVE" ] || { echo "FAIL: set DRIVE to scripts/speaker_media_player/drive.py"; exit 1; }
 [ -f "$D/www/s1.flac.cut" ] && [ -f "$D/www/s2.flac.cut" ] || { echo "FAIL: make www/s1.flac and www/s2.flac with mk.py"; exit 1; }
-[ -f "$DRIVE" ] || DRIVE=$D/drive.py
-[ -f "$DRIVE" ] || { echo "FAIL: copy scripts/speaker_media_player/drive.py next to this script"; exit 1; }
 pgrep -f "[s]rv.py $SP" > /dev/null || { (cd "$D" && exec python3 srv.py "$SP" www >> srv.log 2>&1 < /dev/null) & sleep 1; }
 : > "$D/srv.log"; ARGS=(); FAIL=0
 for arg in "$@"; do

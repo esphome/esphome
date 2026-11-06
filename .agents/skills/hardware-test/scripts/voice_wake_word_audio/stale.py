@@ -9,25 +9,32 @@ rejected 0.6 s after the start. Needs the buttons from mww-buttons.yaml. Exits 1
 """
 
 import asyncio
+from dataclasses import dataclass, field
 import json
 import os
 import pathlib
 import re
-import socket
-import subprocess
 import sys
 import time
 
-from aioesphomeapi import APIClient, VoiceAssistantEventType as E
+from aioesphomeapi import VoiceAssistantEventType as E
 from aioesphomeapi.model import LogLevel
+from va_common import connect, log_text, mww_buttons, play
 
 HOST, KEY, OUT, N = sys.argv[1], sys.argv[2], sys.argv[3], int(sys.argv[4])
 MARKER = os.environ.get("MARKER_AUDIO", "marker.aiff")
 WAKE = os.environ.get("WAKE_AUDIO", "wake.aiff")
-PLAY = os.environ.get("PLAY", "afplay").split()
 T0 = time.monotonic()
 LOG = pathlib.Path(OUT).open("w", encoding="utf-8")  # noqa: SIM115  open for the whole run
 LOG_RE = re.compile(r"voice_assistant|micro_wake_word|hwt")
+
+
+@dataclass
+class Trial:
+    started: asyncio.Event = field(default_factory=asyncio.Event)
+    ww: object = None
+    audio: bytearray | None = None  # None until the run starts
+    reject_task: asyncio.Task | None = None
 
 
 def mark(w: str) -> None:
@@ -36,26 +43,18 @@ def mark(w: str) -> None:
     LOG.write(line + "\n")
 
 
-async def play(f: str) -> None:
-    await asyncio.to_thread(subprocess.run, [*PLAY, f], check=True)
-
-
 async def main() -> int:
-    cli = APIClient(
-        socket.gethostbyname(HOST), 6053, None, noise_psk=None if KEY == "-" else KEY
-    )
-    await cli.connect(login=True)
+    cli = await connect(HOST, KEY)
 
     def on_log(m) -> None:
-        line = re.sub(r"\x1b\[[0-9;]*m", "", m.message.decode(errors="replace"))
+        line = log_text(m)
         if LOG_RE.search(line):
             mark("LOG " + line[:150])
 
     cli.subscribe_logs(on_log, log_level=LogLevel.LOG_LEVEL_DEBUG)
     ents, _ = await cli.list_entities_services()
-    bstop = next(e for e in ents if e.object_id == "hwtest_mww_stop")
-    bstart = next(e for e in ents if e.object_id == "hwtest_mww_start")
-    cur: dict = {}
+    bstop, bstart = mww_buttons(ents)
+    cur = Trial()
     loop = asyncio.get_running_loop()
 
     async def reject() -> None:
@@ -65,19 +64,19 @@ async def main() -> int:
     async def start(
         conv: str, flags: int, settings: object, phrase: str | None, ww: object = None
     ) -> int:
-        cur["ww"] = ww
-        cur["a"] = bytearray()
+        cur.ww = ww
+        cur.audio = bytearray()
         mark(f"START ww bytes={ww.audio_bytes if ww else None}")
-        cur["ev"].set()
-        cur["task"] = loop.create_task(reject())
+        cur.started.set()
+        cur.reject_task = loop.create_task(reject())
         return 0
 
     async def stop(abort: bool) -> None:
         """The run ends on our rejection."""
 
     async def audio(d1: bytes, d2: bytes) -> None:
-        if "a" in cur:
-            cur["a"] += d1
+        if cur.audio is not None:
+            cur.audio += d1
 
     cli.subscribe_voice_assistant(
         handle_start=start, handle_stop=stop, handle_audio=audio, wake_word_audio=True
@@ -85,8 +84,7 @@ async def main() -> int:
     await asyncio.sleep(5)
     detected = 0
     for t in range(N):
-        cur.clear()
-        cur["ev"] = asyncio.Event()
+        cur = Trial()
         mark(f"TRIAL {t}")
         await play(MARKER)
         cli.button_command(bstop.key)
@@ -95,15 +93,15 @@ async def main() -> int:
         await asyncio.sleep(0.3)
         await play(WAKE)
         try:
-            await asyncio.wait_for(cur["ev"].wait(), 4)
+            await asyncio.wait_for(cur.started.wait(), 4)
         except TimeoutError:
             mark(f"RESULT {json.dumps({'t': t, 'detected': False})}")
             await asyncio.sleep(3)
             continue
         await asyncio.sleep(1.5)
         detected += 1
-        pathlib.Path(f"{OUT}.t{t}.pcm").write_bytes(bytes(cur["a"]))
-        ww_ms = cur["ww"].audio_bytes // 32 if cur["ww"] else 0
+        pathlib.Path(f"{OUT}.t{t}.pcm").write_bytes(bytes(cur.audio))
+        ww_ms = cur.ww.audio_bytes // 32 if cur.ww else 0
         mark(f"RESULT {json.dumps({'t': t, 'detected': True, 'ww_ms': ww_ms})}")
         await asyncio.sleep(7)
     await cli.disconnect()

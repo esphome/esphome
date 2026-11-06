@@ -6,18 +6,14 @@ Needs the buttons from mww-buttons.yaml. Expect no START while stopped and one a
 
 import asyncio
 import os
-import re
-import socket
-import subprocess
 import sys
 import time
 
-from aioesphomeapi import APIClient
 from aioesphomeapi.model import LogLevel
+from va_common import connect, log_text, mww_buttons, play
 
 HOST, KEY = sys.argv[1], sys.argv[2]
 WAKE = os.environ.get("WAKE_AUDIO", "wake.aiff")
-PLAY = os.environ.get("PLAY", "afplay").split()
 T0 = time.monotonic()
 
 
@@ -25,25 +21,13 @@ def mark(w: str) -> None:
     print(f"{time.monotonic() - T0:8.3f}  {w}", flush=True)
 
 
-async def say() -> None:
-    await asyncio.to_thread(subprocess.run, [*PLAY, WAKE], check=True)
-
-
 async def main() -> int:
-    cli = APIClient(
-        socket.gethostbyname(HOST), 6053, None, noise_psk=None if KEY == "-" else KEY
-    )
-    await cli.connect(login=True)
+    cli = await connect(HOST, KEY)
     cli.subscribe_logs(
-        lambda m: mark(
-            "LOG "
-            + re.sub(r"\x1b\[[0-9;]*m", "", m.message.decode(errors="replace"))[:170]
-        ),
-        log_level=LogLevel.LOG_LEVEL_DEBUG,
+        lambda m: mark("LOG " + log_text(m)[:170]), log_level=LogLevel.LOG_LEVEL_DEBUG
     )
     ents, _ = await cli.list_entities_services()
-    bstop = next(e for e in ents if e.object_id == "hwtest_mww_stop")
-    bstart = next(e for e in ents if e.object_id == "hwtest_mww_start")
+    bstop, bstart = mww_buttons(ents)
     starts: list[float] = []
 
     async def start(*a: object) -> int:
@@ -65,14 +49,14 @@ async def main() -> int:
     cli.button_command(bstop.key)
     await asyncio.sleep(4)
     mark("SAY while stopped")
-    await say()
+    await play(WAKE)
     await asyncio.sleep(3)
     stopped_starts = len(starts)
     mark("MWW start")
     cli.button_command(bstart.key)
     await asyncio.sleep(4)
     mark("SAY running")
-    await say()
+    await play(WAKE)
     await asyncio.sleep(5)
     mark("UNSUBSCRIBE")
     unsub()
