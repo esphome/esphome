@@ -34,7 +34,7 @@ class AddressableLightState final : public LightState {
 };
 
 #ifdef USE_LIGHT_POWER_ESTIMATION
-// Codegen provides the storage, only for a strip with power_estimation configured
+// Static storage from codegen, only for a strip with power_estimation configured
 struct PowerEstimation {
   float ma_per_level[4];
   float idle_ma_per_led;
@@ -86,7 +86,7 @@ class AddressableLight : public LightOutput, public Component {
         Color(to_uint8_scale(red), to_uint8_scale(green), to_uint8_scale(blue), to_uint8_scale(white)));
   }
 #ifdef USE_LIGHT_POWER_ESTIMATION
-  // Per-channel draw at full level and idle draw per LED, kept in the given storage
+  // Per-channel draw at full level and idle draw per LED
   void set_power_estimation(PowerEstimation *storage, float ma_red, float ma_green, float ma_blue, float ma_white,
                             float idle_ma_per_led) {
     this->power_estimation_ = storage;
