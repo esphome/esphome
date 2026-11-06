@@ -19,6 +19,7 @@ sleep 5; RC=0
 $PY "$D/stall.py" "$H" | tee "$O/stall.txt"; [ "${PIPESTATUS[0]}" = 0 ] || RC=1
 "$D/t2.sh" "$H" | tee "$O/t2.txt"; [ "${PIPESTATUS[0]}" = 0 ] || RC=1
 sleep 3
+kill -0 $CAP 2>/dev/null || { echo "FAIL: the serial capture ended before the tests finished"; RC=1; }
 grep -a -E 'SWITCH to mode|https_server|httpd|Guru|abort\(\)|Backtrace|task_wdt' "$O/serial.txt" | cut -c1-160
 sed -n '/IP Address/,$p' "$O/serial.txt" | grep -a -q -E 'Guru|abort\(\)|Backtrace|rst:0x|task_wdt' &&
   { echo "FAIL: reset or watchdog"; RC=1; }

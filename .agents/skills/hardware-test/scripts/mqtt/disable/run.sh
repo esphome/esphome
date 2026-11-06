@@ -35,7 +35,10 @@ packages:
 YAML
 printf 'listener %s\nallow_anonymous true\nlog_type all\nlog_timestamp_format %%H:%%M:%%S\nlog_dest file %s\n' "$BP" "$O/mosq.log" > "$O/mosq.conf"
 broker_up() { "$MQ" -c "$O/mosq.conf" -d && echo "$(date +%T) BROKER START" >> "$O/driver.txt"; }
-broker_down() { pkill -f "[m]osquitto -c $O/mosq.conf"; echo "$(date +%T) BROKER STOP" >> "$O/driver.txt"; }
+broker_down() {
+  pkill -f "[m]osquitto -c $O/mosq.conf" || { echo "FAIL: mosquitto was not running when it was to be stopped"; exit 1; }
+  echo "$(date +%T) BROKER STOP" >> "$O/driver.txt"
+}
 broker_up || { echo "FAIL: mosquitto did not start on $BP"; exit 1; }
 trap 'kill $CAP $SUB $PUB 2>/dev/null; pkill -f "[m]osquitto -c $O/mosq.conf"' EXIT
 pkill -f "[s]erial_capture.py $P"
@@ -46,6 +49,7 @@ sub
 if [ "$MODE" = outage ]; then
   (end=$((SECONDS + S)); i=0; while [ $SECONDS -lt $end ]; do i=$((i + 1)); mosquitto_pub -p "$BP" -t "$NAME/in" -m "p$i" 2>/dev/null; sleep 1; done) & PUB=$!
   until grep -a -q "CYCLE 3 " "$O/serial.txt" 2>/dev/null; do sleep 1; kill -0 $CAP 2>/dev/null || break; done
+  grep -a -q "CYCLE 3 " "$O/serial.txt" 2>/dev/null || { echo "FAIL: CYCLE 3 never appeared"; exit 1; }
   sleep 45; broker_down; sleep 25; broker_up || { echo "FAIL: mosquitto did not restart"; exit 1; }; sleep 1; kill $SUB 2>/dev/null; sub
 else
   seen=0
