@@ -22,8 +22,8 @@ from esphome.build_helpers.tools_cache import IDF_TOOLS_CACHE, tools_cache_path
 from esphome.core import CORE, Version
 from esphome.framework_helpers import (
     PathType,
+    archive_extract_all,
     create_venv,
-    download_and_extract,
     download_from_mirrors,
     extract_workers,
     failure_reason,
@@ -97,6 +97,14 @@ ESPHOME_IDF_FRAMEWORK_MIRRORS = str_to_lst_of_str(
         "https://github.com/esphome-libs/esp-idf/releases/download/v{VERSION}/esp-idf-v{VERSION}.tar.xz",
         "https://github.com/esphome-libs/esp-idf/releases/download/v{SHORT_VERSION}/esp-idf-v{SHORT_VERSION}.tar.xz",
     ]
+)
+
+# Optional SHA-256 of the framework archive. When it is set, an archive that
+# is already present in the download cache (for example one placed there by
+# hand, or one fetched from a ``file://`` mirror) is verified and reused
+# instead of being downloaded again.
+ESPHOME_IDF_FRAMEWORK_SHA256 = (
+    os.environ.get("ESPHOME_IDF_FRAMEWORK_SHA256", "").strip().lower() or None
 )
 
 ESP_IDF_CONSTRAINTS_MIRRORS = str_to_lst_of_str(
@@ -1015,13 +1023,28 @@ def _check_esphome_idf_framework_install(
             # a temp file) so an interrupted download resumes on the next
             # run; the cache is pruned after a successful install anyway.
             tarball_path = get_idf_tools_path() / "dist" / f"esp-idf-{version}.tar.xz"
-            download_and_extract(
+            download_from_mirrors(
                 mirrors,
                 substitutions,
                 tarball_path,
-                framework_path,
-                progress_header="Extracting",
+                sha256=ESPHOME_IDF_FRAMEWORK_SHA256,
             )
+
+            _LOGGER.info("Extracting ESP-IDF %s framework ...", version)
+            try:
+                archive_extract_all(
+                    tarball_path, framework_path, progress_header="Extracting"
+                )
+            finally:
+                # Best-effort, as download_and_extract() does: a virus scanner
+                # still holding the archive on Windows must not replace the
+                # real extraction error or fail an otherwise successful run.
+                try:
+                    tarball_path.unlink(missing_ok=True)
+                except OSError as err:
+                    _LOGGER.debug(
+                        "Could not remove archive %s: %s", tarball_path, err
+                    )
         extracted_marker.touch()
 
     # Idempotent post-extract patch: written every invocation so a build
