@@ -40,7 +40,8 @@ class XxteaEncryption : public PacketInterface {
   }
   static constexpr size_t buffer_words(size_t lower_size) { return lower_size / 4 * 2; }
 
-  /// @param buffers buffer_words() words for the send and receive buffers, or nullptr to allocate them in setup()
+  /// @param buffers buffer_words() words for the send and receive buffers;
+  /// nullptr on PSRAM builds, which allocate them in setup()
   XxteaEncryption(PacketInterface *lower, bool rolling_code, uint32_t *buffers);
 
   void setup() override;

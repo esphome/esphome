@@ -59,10 +59,9 @@ async def build_hdlc(
         HdlcReliability.static_("send_queue_size")(lower_size, queue_length),
         psram=True,
     )
-    var = cg.new_Pvariable(config[CONF_ID], lower, tx_slots)
+    var = cg.new_Pvariable(config[CONF_ID], lower, tx_slots, queue_length)
     cg.add(var.set_ack_timeout(config[CONF_TIMEOUT]))
     cg.add(var.set_ack_delay(config[CONF_ACK_DELAY]))
-    cg.add(var.set_max_queue_length(queue_length))
     cg.add(var.set_max_retries(config[CONF_MAX_RETRIES]))
     await cg.register_component(var, config)
     return var, HdlcReliability.static_("packet_size")(lower_size)

@@ -31,8 +31,9 @@ class HdlcReliability : public PacketInterface {
     return size_t{queue_length} * packet_size(lower_size);
   }
 
-  /// @param tx_slots send_queue_size() bytes for the send queue, or nullptr to allocate it in setup()
-  HdlcReliability(PacketInterface *lower, uint8_t *tx_slots);
+  /// @param tx_slots send_queue_size() bytes for the send queue; nullptr on PSRAM builds, which allocate it in setup()
+  /// @param max_queue_length the queue_length the send queue was sized for
+  HdlcReliability(PacketInterface *lower, uint8_t *tx_slots, uint8_t max_queue_length);
 
   void setup() override;
   void loop() override;
@@ -45,7 +46,6 @@ class HdlcReliability : public PacketInterface {
 
   void set_ack_timeout(uint32_t timeout_ms) { this->timeout_ms_ = timeout_ms; }
   void set_ack_delay(uint32_t ack_delay_ms) { this->ack_delay_ms_ = ack_delay_ms; }
-  void set_max_queue_length(uint8_t length) { this->max_queue_length_ = length; }
   void set_max_retries(uint8_t retries) { this->max_retries_ = retries; }
 
   bool is_connected() const { return this->state_ == LinkState::LINK_STATE_CONNECTED; }
@@ -84,7 +84,7 @@ class HdlcReliability : public PacketInterface {
   std::array<uint16_t, MAX_WINDOW> tx_lengths_{};  // indexed like the slots
   uint32_t timeout_ms_{200};
   uint32_t ack_delay_ms_{0};
-  uint8_t max_queue_length_{4};
+  const uint8_t max_queue_length_;
   uint8_t max_retries_{5};
   uint8_t retries_{0};
   uint8_t head_{0};
