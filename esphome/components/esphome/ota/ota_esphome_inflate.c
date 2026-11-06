@@ -36,7 +36,10 @@
  * Altered for ESPHome: this is the raw deflate decoder from uzlib's
  * tinflate.c (v2.9.5) with the gzip/zlib header parsers, checksums,
  * runtime table builder and in-memory (non ring window) output path
- * removed, and the public names prefixed with ota_inflate.
+ * removed, and the public names prefixed with ota_inflate. Symbols are
+ * decoded from a 32 bit bit buffer through 9 bit lookup tables, with a
+ * fast loop for when a whole symbol fits in both the input and the output,
+ * and the output is written straight into the ring window.
  */
 
 #include "ota_esphome_inflate.h"
@@ -49,16 +52,6 @@
 #define TINF_DICT_ERROR OTA_INFLATE_DICT_ERROR
 #define TINF_DATA struct OtaInflateState
 #define TINF_TREE struct OtaInflateTree
-#define TINF_ARRAY_SIZE(arr) (sizeof(arr) / sizeof(*(arr)))
-
-/* every output byte also goes into the ring window */
-#define TINF_PUT(d, c) \
-  { \
-    *d->dest++ = c; \
-    d->dict_ring[d->dict_idx++] = c; \
-    if (d->dict_idx == d->dict_size) \
-      d->dict_idx = 0; \
-  }
 
 /* --------------------------------------------------- *
  * -- constant tables (upstream builds them at runtime) -- *
@@ -82,34 +75,52 @@ static const unsigned char CLCIDX[] = {16, 17, 18, 0, 8, 7, 9, 6, 10, 5, 11, 4, 
  * -- utility functions -- *
  * ----------------------- */
 
-/* given an array of code lengths, build a tree */
-static void tinf_build_tree(TINF_TREE *t, const unsigned char *lengths, unsigned int num) {
-  unsigned short offs[16];
-  unsigned int i, sum;
+enum {
+  LIT_FAST_BITS = OTA_INFLATE_LIT_FAST_BITS,
+  DIST_FAST_BITS = OTA_INFLATE_DIST_FAST_BITS,
+  /* a lookup table entry is (code length << SYM_BITS) | symbol; 0 marks a longer code */
+  SYM_BITS = 9,
+  SYM_MASK = (1 << SYM_BITS) - 1,
+  /* input bytes one pass of the fast loop may take: three refills of up to 4 bytes */
+  FAST_IN_MIN = 12,
+};
 
-  /* clear code length count table */
+/* given an array of code lengths, build a tree and its lookup table */
+static void tinf_build_tree(TINF_TREE *t, const unsigned char *lengths, unsigned int num, unsigned int fast_bits) {
+  const unsigned int fast_size = 1u << fast_bits;
+  unsigned short offs[16], next[16];
+  unsigned int i, sum, code;
+
   for (i = 0; i < 16; ++i)
     t->table[i] = 0;
-
-  /* scan symbol lengths, and sum code length counts */
   for (i = 0; i < num; ++i)
     t->table[lengths[i]]++;
-
-  /* In the lengths array, 0 means unused code. So, t->table[0] now contains
-     number of unused codes. But table's purpose is to contain # of codes of
-     particular length, and there're 0 codes of length 0. */
   t->table[0] = 0;
 
-  /* compute offset table for distribution sort */
-  for (sum = 0, i = 0; i < 16; ++i) {
+  for (sum = 0, code = 0, i = 0; i < 16; ++i) {
     offs[i] = sum;
     sum += t->table[i];
+    if (i > 0)
+      code = (code + t->table[i - 1]) << 1;
+    next[i] = code;
   }
 
-  /* create code->symbol translation table (symbols sorted by code) */
+  for (i = 0; i < fast_size; ++i)
+    t->fast[i] = 0;
+
   for (i = 0; i < num; ++i) {
-    if (lengths[i])
-      t->trans[offs[lengths[i]]++] = i;
+    unsigned int len = lengths[i];
+    if (!len)
+      continue;
+    t->trans[offs[len]++] = i;
+    if (len <= fast_bits) {
+      /* codes arrive MSB first, the bit buffer is LSB first */
+      unsigned int c = next[len]++, rev = 0, j;
+      for (j = 0; j < len; ++j, c >>= 1)
+        rev = (rev << 1) | (c & 1);
+      for (j = rev; j < fast_size; j += 1u << len)
+        t->fast[j] = (unsigned short) ((len << SYM_BITS) | i);
+    }
   }
 }
 
@@ -117,89 +128,78 @@ static void tinf_build_tree(TINF_TREE *t, const unsigned char *lengths, unsigned
  * -- decode functions -- *
  * ---------------------- */
 
-static unsigned char uzlib_get_byte(TINF_DATA *d) {
-  /* If end of source buffer is not reached, return next byte from source
-     buffer. */
-  if (d->source < d->source_limit) {
-    return *d->source++;
+/* top the bit buffer up from the input buffer, without blocking for more */
+static inline void tinf_refill(TINF_DATA *d) {
+  while (d->bitcount <= 24 && d->source < d->source_limit) {
+    d->tag |= (unsigned int) *d->source++ << d->bitcount;
+    d->bitcount += 8;
   }
-
-  /* Otherwise if there's callback and we haven't seen EOF yet, try to
-     read next byte using it. (Note: the callback can also update ->source
-     and ->source_limit). */
-  if (!d->eof) {
-    int val = d->source_read_cb(d);
-    if (val >= 0) {
-      return (unsigned char) val;
-    }
-  }
-
-  /* Otherwise, we hit EOF (either from ->source_read_cb() or from exhaustion
-     of the buffer), and it will be "sticky", i.e. further calls to this
-     function will end up here too. */
-  d->eof = true;
-
-  return 0;
 }
 
-/* get one bit from source stream */
-static int tinf_getbit(TINF_DATA *d) {
-  unsigned int bit;
-
-  /* check if tag is empty */
-  if (!d->bitcount--) {
-    /* load next tag */
-    d->tag = uzlib_get_byte(d);
-    d->bitcount = 7;
+/* make at least num (<= 16) bits available; past the end of input reads zeros and sets eof */
+static inline void tinf_need(TINF_DATA *d, unsigned int num) {
+  while (d->bitcount < num) {
+    int val = -1;
+    if (d->source < d->source_limit) {
+      val = *d->source++;
+    } else if (!d->eof) {
+      val = d->source_read_cb(d);
+    }
+    if (val < 0) {
+      d->eof = true;
+      val = 0;
+    }
+    d->tag |= (unsigned int) val << d->bitcount;
+    d->bitcount += 8;
   }
+}
 
-  /* shift bit out of tag */
-  bit = d->tag & 0x01;
-  d->tag >>= 1;
-
-  return bit;
+static inline unsigned int tinf_take(TINF_DATA *d, unsigned int num) {
+  unsigned int val = d->tag & ((1u << num) - 1);
+  d->tag >>= num;
+  d->bitcount -= num;
+  return val;
 }
 
 /* read a num bit value from a stream and add base */
-static unsigned int tinf_read_bits(TINF_DATA *d, int num, int base) {
-  unsigned int val = 0;
-
-  /* read num bits */
-  if (num) {
-    unsigned int limit = 1 << (num);
-    unsigned int mask;
-
-    for (mask = 1; mask < limit; mask *= 2)
-      if (tinf_getbit(d))
-        val += mask;
-  }
-
-  return val + base;
+static inline unsigned int tinf_read_bits(TINF_DATA *d, unsigned int num, unsigned int base) {
+  tinf_need(d, num);
+  return tinf_take(d, num) + base;
 }
 
-/* given a data stream and a tree, decode a symbol */
-static int tinf_decode_symbol(TINF_DATA *d, TINF_TREE *t) {
-  int sum = 0, cur = 0, len = 0;
-
-  /* get more bits while code value is above sum */
-  do {
-    cur = 2 * cur + tinf_getbit(d);
-
-    if (++len == TINF_ARRAY_SIZE(t->table)) {
-      return TINF_DATA_ERROR;
+/* canonical decode of the code at the bottom of tag; len gets the code length.
+   The trans index stays below the tree's symbol count, which trans always holds */
+static int tinf_decode_long(const TINF_TREE *t, unsigned int tag, unsigned int *len) {
+  unsigned int code = 0, first = 0, index = 0, l;
+  for (l = 1; l < 16; ++l, tag >>= 1) {
+    unsigned int count = t->table[l];
+    code |= tag & 1;
+    if (code - first < count) {
+      *len = l;
+      return t->trans[index + code - first];
     }
-
-    sum += t->table[len];
-    cur -= t->table[len];
-
-  } while (cur >= 0);
-
-  sum += cur;
-  if (sum < 0 || sum >= t->size) {
-    return TINF_DATA_ERROR;
+    index += count;
+    first = (first + count) << 1;
+    code <<= 1;
   }
+  return TINF_DATA_ERROR;
+}
 
-  return t->trans[sum];
+/* decode a symbol, reading more input only while the code is not all in the bit
+   buffer; bits above bitcount are zero, so a code no longer than bitcount is real */
+static int tinf_decode_symbol(TINF_DATA *d, const TINF_TREE *t) {
+  tinf_refill(d);
+  for (;;) {
+    unsigned int len;
+    int sym = tinf_decode_long(t, d->tag, &len);
+    if (sym >= 0 && len <= d->bitcount) {
+      tinf_take(d, len);
+      return sym;
+    }
+    if (d->bitcount >= 15)
+      return TINF_DATA_ERROR;
+    tinf_need(d, d->bitcount + 1);
+  }
 }
 
 /* given a data stream, decode dynamic trees from it */
@@ -230,7 +230,7 @@ static int tinf_decode_trees(TINF_DATA *d, TINF_TREE *lt, TINF_TREE *dt) {
   }
 
   /* build code length tree, temporarily use length tree */
-  tinf_build_tree(lt, lengths, 19);
+  tinf_build_tree(lt, lengths, 19, LIT_FAST_BITS);
 
   /* decode code lengths for the dynamic trees */
   hlimit = hlit + hdist;
@@ -282,8 +282,8 @@ static int tinf_decode_trees(TINF_DATA *d, TINF_TREE *lt, TINF_TREE *dt) {
   }
 
   /* build dynamic trees */
-  tinf_build_tree(lt, lengths, hlit);
-  tinf_build_tree(dt, lengths + hlit, hdist);
+  tinf_build_tree(lt, lengths, hlit, LIT_FAST_BITS);
+  tinf_build_tree(dt, lengths + hlit, hdist, DIST_FAST_BITS);
 
   return TINF_OK;
 }
@@ -302,84 +302,189 @@ static void tinf_build_fixed_trees(TINF_TREE *lt, TINF_TREE *dt) {
     lengths[i] = 7;
   for (; i < 288; ++i)
     lengths[i] = 8;
-  tinf_build_tree(lt, lengths, 288);
+  tinf_build_tree(lt, lengths, 288, LIT_FAST_BITS);
 
   for (i = 0; i < 32; ++i)
     lengths[i] = 5;
-  tinf_build_tree(dt, lengths, 32);
+  tinf_build_tree(dt, lengths, 32, DIST_FAST_BITS);
+}
+
+/* inflate with the bit buffer and both cursors in locals while the input holds a
+   whole symbol; a match that runs past the end of the ring is left in curlen */
+static int tinf_inflate_fast(TINF_DATA *d, const TINF_TREE *lt, const TINF_TREE *dt) {
+  const unsigned char *src = d->source;
+  const unsigned char *const src_end = d->source_limit;
+  unsigned char *const ring = d->dict_ring;
+  unsigned char *const ring_end = ring + d->dict_size;
+  unsigned char *out = d->dest;
+  const uint16_t *const lfast = lt->fast;
+  const uint16_t *const dfast = dt->fast;
+  unsigned int tag = d->tag, bits = d->bitcount;
+  int res = TINF_OK;
+
+#define REFILL() \
+  while (bits <= 24) { \
+    tag |= (unsigned int) *src++ << bits; \
+    bits += 8; \
+  }
+#define DROP(n) (tag >>= (n), bits -= (n))
+
+  while (src_end - src >= FAST_IN_MIN && out < ring_end) {
+    unsigned int e, len;
+    int sym;
+
+    REFILL();
+    e = lfast[tag & ((1u << LIT_FAST_BITS) - 1)];
+    if (e) {
+      len = e >> SYM_BITS;
+      sym = e & SYM_MASK;
+    } else {
+      sym = tinf_decode_long(lt, tag, &len);
+      if (sym < 0) {
+        res = sym;
+        break;
+      }
+    }
+    DROP(len);
+
+    if (sym < 256) {
+      *out++ = sym;
+      continue;
+    }
+    if (sym == 256) {
+      res = TINF_DONE;
+      break;
+    }
+    sym -= 257;
+    if (sym >= 29) {
+      res = TINF_DATA_ERROR;
+      break;
+    }
+    /* the lit/len code and its extra bits fit the refilled buffer together */
+    unsigned int length = LENGTH_BASE[sym] + (tag & ((1u << LENGTH_BITS[sym]) - 1));
+    DROP(LENGTH_BITS[sym]);
+
+    REFILL();
+    e = dfast[tag & ((1u << DIST_FAST_BITS) - 1)];
+    if (e) {
+      len = e >> SYM_BITS;
+      sym = e & SYM_MASK;
+    } else {
+      sym = tinf_decode_long(dt, tag, &len);
+    }
+    if (sym < 0 || sym >= 30) {
+      res = TINF_DATA_ERROR;
+      break;
+    }
+    DROP(len);
+    REFILL();
+    unsigned int offs = DIST_BASE[sym] + (tag & ((1u << DIST_BITS[sym]) - 1));
+    DROP(DIST_BITS[sym]);
+    if (offs > d->dict_size) {
+      res = TINF_DICT_ERROR;
+      break;
+    }
+
+    /* wrap as an index: a pointer before the ring would be undefined */
+    unsigned int at = out - ring;
+    const unsigned char *from = ring + (at >= offs ? at - offs : at + d->dict_size - offs);
+    unsigned int n = ring_end - out;
+    if (n > length)
+      n = length;
+    length -= n;
+    /* at most two runs: up to the end of the ring, then on from its start */
+    while (n) {
+      unsigned int run = ring_end - from;
+      if (run > n)
+        run = n;
+      n -= run;
+      do {
+        *out++ = *from++;
+      } while (--run);
+      if (from == ring_end)
+        from = ring;
+    }
+    if (length) {
+      d->curlen = length;
+      d->lz_off = from - ring;
+    }
+  }
+#undef REFILL
+#undef DROP
+
+  d->source = src;
+  d->dest = out;
+  d->tag = tag;
+  d->bitcount = bits;
+  return res;
 }
 
 /* ----------------------------- *
  * -- block inflate functions -- *
  * ----------------------------- */
 
-/* given a stream and two trees, inflate next chunk of output (a byte or more) */
+/* given a stream and two trees, inflate until the ring is full or the block ends */
 static int tinf_inflate_block_data(TINF_DATA *d, TINF_TREE *lt, TINF_TREE *dt) {
-  if (d->curlen == 0) {
+  unsigned char *const ring_end = d->dict_ring + d->dict_size;
+  while (d->dest < ring_end) {
+    if (d->curlen != 0) {
+      unsigned int n = ring_end - d->dest;
+      if (n > d->curlen)
+        n = d->curlen;
+      d->curlen -= n;
+      do {
+        *d->dest++ = d->dict_ring[d->lz_off];
+        if ((unsigned) ++d->lz_off == d->dict_size)
+          d->lz_off = 0;
+      } while (--n);
+      continue;
+    }
+
+    if (d->source_limit - d->source >= FAST_IN_MIN) {
+      int res = tinf_inflate_fast(d, lt, dt);
+      if (res != TINF_OK)
+        return res;
+      continue;
+    }
+
     unsigned int offs;
     int dist;
     int sym = tinf_decode_symbol(d, lt);
 
-    if (d->eof) {
+    if (d->eof)
       return TINF_DATA_ERROR;
-    }
-
-    if (sym < 0) {
+    if (sym < 0)
       return sym;
-    }
 
     /* literal byte */
     if (sym < 256) {
-      TINF_PUT(d, sym);
-      return TINF_OK;
+      *d->dest++ = sym;
+      continue;
     }
 
     /* end of block */
-    if (sym == 256) {
+    if (sym == 256)
       return TINF_DONE;
-    }
 
     /* substring from sliding dictionary */
     sym -= 257;
-    if (sym >= 29) {
+    if (sym >= 29)
       return TINF_DATA_ERROR;
-    }
 
-    /* possibly get more bits from length code */
     d->curlen = tinf_read_bits(d, LENGTH_BITS[sym], LENGTH_BASE[sym]);
 
     dist = tinf_decode_symbol(d, dt);
-    if (dist < 0 || dist >= 30) {
+    if (dist < 0 || dist >= 30)
       return TINF_DATA_ERROR;
-    }
 
-    /* possibly get more bits from distance code */
     offs = tinf_read_bits(d, DIST_BITS[dist], DIST_BASE[dist]);
-
-    /* calculate and validate actual LZ offset to use */
-    if (offs > d->dict_size) {
+    if (offs > d->dict_size)
       return TINF_DICT_ERROR;
-    }
-    /* Note: we don't try to catch offset which points to not yet filled
-       part of the dictionary here. Doing so would require keeping another
-       variable to track "filled in" size of the dictionary. Appearance of
-       such an offset cannot lead to accessing memory outside of the
-       dictionary buffer, and clients which don't want to leak unrelated
-       information, should explicitly initialize dictionary buffer passed
-       to uzlib. */
 
-    d->lz_off = d->dict_idx - offs;
-    if (d->lz_off < 0) {
+    d->lz_off = (int) (d->dest - d->dict_ring) - (int) offs;
+    if (d->lz_off < 0)
       d->lz_off += d->dict_size;
-    }
   }
-
-  /* copy next byte from dict substring */
-  TINF_PUT(d, d->dict_ring[d->lz_off]);
-  if ((unsigned) ++d->lz_off == d->dict_size) {
-    d->lz_off = 0;
-  }
-  d->curlen--;
   return TINF_OK;
 }
 
@@ -388,30 +493,22 @@ static int tinf_inflate_uncompressed_block(TINF_DATA *d) {
   if (d->curlen == 0) {
     unsigned int length, invlength;
 
-    /* get length */
-    length = uzlib_get_byte(d);
-    length += 256 * uzlib_get_byte(d);
-    /* get one's complement of length */
-    invlength = uzlib_get_byte(d);
-    invlength += 256 * uzlib_get_byte(d);
-    /* check length */
+    /* the block starts on a byte boundary */
+    tinf_take(d, d->bitcount & 7);
+    length = tinf_read_bits(d, 16, 0);
+    invlength = tinf_read_bits(d, 16, 0);
     if (length != (~invlength & 0x0000ffff))
       return TINF_DATA_ERROR;
 
-    /* increment length to properly return TINF_DONE below, without
-       producing data at the same time */
     d->curlen = length + 1;
-
-    /* make sure we start next block on a byte boundary */
-    d->bitcount = 0;
   }
 
-  if (--d->curlen == 0) {
+  if (--d->curlen == 0)
     return TINF_DONE;
-  }
 
-  unsigned char c = uzlib_get_byte(d);
-  TINF_PUT(d, c);
+  /* read first: a read that needs input may flush the output up to dest */
+  unsigned char c = tinf_read_bits(d, 8, 0);
+  *d->dest++ = c;
   return TINF_OK;
 }
 
@@ -419,10 +516,10 @@ static int tinf_inflate_uncompressed_block(TINF_DATA *d) {
  * -- public functions -- *
  * ---------------------- */
 
-/* initialize decompression structure */
 void ota_inflate_init(TINF_DATA *d, unsigned char *dict, unsigned int dict_len) {
   d->source = NULL;
   d->source_limit = NULL;
+  d->dest = dict;
   d->tag = 0;
   d->eof = 0;
   d->bitcount = 0;
@@ -431,68 +528,56 @@ void ota_inflate_init(TINF_DATA *d, unsigned char *dict, unsigned int dict_len) 
   d->btype = -1;
   d->dict_size = dict_len;
   d->dict_ring = dict;
-  d->dict_idx = 0;
   d->curlen = 0;
   d->ltree.trans = d->ltrans;
-  d->ltree.size = TINF_ARRAY_SIZE(d->ltrans);
+  d->ltree.fast = d->lfast;
   d->dtree.trans = d->dtrans;
-  d->dtree.size = TINF_ARRAY_SIZE(d->dtrans);
+  d->dtree.fast = d->dfast;
 }
 
-/* inflate next output bytes from compressed stream */
 int ota_inflate(TINF_DATA *d) {
+  /* the caller has taken the previous ringful */
+  if (d->dest == d->dict_ring + d->dict_size)
+    d->dest = d->dict_ring;
+
   do {
     int res;
 
-    /* start a new block */
     if (d->btype == -1) {
       int old_btype;
     next_blk:
       old_btype = d->btype;
-      /* read final block flag */
-      d->bfinal = tinf_getbit(d);
-      /* read block type (2 bits) */
+      d->bfinal = tinf_read_bits(d, 1, 0);
       d->btype = tinf_read_bits(d, 2, 0);
 
       if (d->btype == 1 && old_btype != 1) {
-        /* build fixed huffman trees */
         tinf_build_fixed_trees(&d->ltree, &d->dtree);
       } else if (d->btype == 2) {
-        /* decode trees from stream */
         res = tinf_decode_trees(d, &d->ltree, &d->dtree);
-        if (res != TINF_OK) {
+        if (res != TINF_OK)
           return res;
-        }
       }
     }
 
-    /* process current block */
     switch (d->btype) {
       case 0:
-        /* decompress uncompressed block */
         res = tinf_inflate_uncompressed_block(d);
         break;
       case 1:
       case 2:
-        /* decompress block with fixed/dynamic huffman trees */
-        /* trees were decoded previously, so it's the same routine for both */
         res = tinf_inflate_block_data(d, &d->ltree, &d->dtree);
         break;
       default:
         return TINF_DATA_ERROR;
     }
 
-    if (res == TINF_DONE && !d->bfinal) {
-      /* the block has ended (without producing more data), but we
-         can't return without data, so start procesing next block */
+    if (res == TINF_DONE && !d->bfinal)
       goto next_blk;
-    }
 
-    if (res != TINF_OK) {
+    if (res != TINF_OK)
       return res;
-    }
 
-  } while (d->dest < d->dest_limit);
+  } while (d->dest < d->dict_ring + d->dict_size);
 
   return TINF_OK;
 }
