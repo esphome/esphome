@@ -20,6 +20,17 @@ bool ZephyrPreferenceBackend::save(const uint8_t *data, size_t len) {
   return true;
 }
 
+bool ZephyrPreferenceBackend::sync() {
+  char key_buf[KEY_BUFFER_SIZE];
+  this->format_key(key_buf, sizeof(key_buf));
+  int err = settings_save_one(key_buf, this->data.data(), this->data.size());
+  if (err) {
+    ESP_LOGE(TAG, "Cannot save setting %s, err: %d", key_buf, err);
+    return false;
+  }
+  return true;
+}
+
 bool ZephyrPreferenceBackend::load(uint8_t *data, size_t len) {
   if (len != this->data.size()) {
     char key_buf[KEY_BUFFER_SIZE];

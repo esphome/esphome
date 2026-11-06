@@ -23,6 +23,7 @@ class ZephyrPreferenceBackend final {
 
   bool save(const uint8_t *data, size_t len);
   bool load(uint8_t *data, size_t len);
+  bool sync();
 
   uint32_t get_type() const { return this->type_; }
   void format_key(char *buf, size_t size) const {

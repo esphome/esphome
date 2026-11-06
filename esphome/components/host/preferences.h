@@ -13,6 +13,8 @@ class HostPreferences final : public PreferencesMixin<HostPreferences> {
  public:
   using PreferencesMixin<HostPreferences>::make_preference;
   bool sync();
+  /// Write only this key's pending save, see ESPPreferenceObject::sync()
+  bool sync_key(uint32_t key);
   bool reset();
 
   ESPPreferenceObject make_preference(size_t length, uint32_t type, bool in_flash);
@@ -46,9 +48,12 @@ class HostPreferences final : public PreferencesMixin<HostPreferences> {
 
  protected:
   void setup_();
+  bool write_file_(const std::map<uint32_t, std::vector<uint8_t>> &data);
   bool setup_complete_{};
   std::string filename_{};
   std::map<uint32_t, std::vector<uint8_t>> data_{};
+  // Contents of the file, so sync_key() can leave the other pending saves out
+  std::map<uint32_t, std::vector<uint8_t>> committed_{};
 };
 
 void setup_preferences();
