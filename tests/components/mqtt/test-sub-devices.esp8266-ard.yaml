@@ -1,0 +1,3 @@
+packages:
+  common: !include common.yaml
+  sub_devices: !include common-sub-devices.yaml

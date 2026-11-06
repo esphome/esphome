@@ -59,7 +59,7 @@ def _run(
     monkeypatch.setitem(CORE.data, KEY_CORE, {KEY_TARGET_PLATFORM: platform})
     monkeypatch.setattr(CORE, "name", "dev")
     monkeypatch.setattr(CORE, "friendly_name", None)
-    config = {"topic_prefix": "dev", **(mqtt or {})}
+    config = {"topic_prefix": "dev", "sub_device_topics": False, **(mqtt or {})}
     token = fv.full_config.set({CONF_ESPHOME: {}, **full_config})
     try:
         return _validate_topic_lengths(config)
