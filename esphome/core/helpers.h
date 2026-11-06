@@ -937,11 +937,7 @@ template<typename T> class StaticFixedVector {
   }
 
   /// Ignores pushes beyond the storage
-  void push_back(const T &value) {
-    if (this->size_ < this->storage_.size())
-      new (&this->storage_[this->size_++]) T(value);
-  }
-  void push_back(T &&value) {
+  void push_back(T value) {
     if (this->size_ < this->storage_.size())
       new (&this->storage_[this->size_++]) T(std::move(value));
   }

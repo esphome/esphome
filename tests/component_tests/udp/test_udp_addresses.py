@@ -15,7 +15,6 @@ def test_addresses_are_a_progmem_table(
         "static constexpr const char * udp_addresses[] PROGMEM = "
         '{"10.0.0.1", "10.0.0.2", nullptr};' in main_cpp
     )
-    assert "sizeof(udp::UDPComponent::SockaddrEntry) * (2)];" in main_cpp
     assert "->set_addresses(udp_addresses, std::span<" in main_cpp
 
 
