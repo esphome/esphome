@@ -1,0 +1,39 @@
+# Three homeassistant buttons (a button entity, an input_button helper, a wizard input with no entity_id) and a
+# press from on_boot before any client connects. secrets.yaml (wifi_ssid, wifi_password) goes next to this file.
+logger:
+  level: DEBUG
+
+wifi:
+  ssid: !secret wifi_ssid
+  password: !secret wifi_password
+
+api:
+  reboot_timeout: 0s
+  wizard:
+    pages:
+      - inputs:
+          - entity: hab_wiz
+
+# homeassistant entities are internal by default; internal: false lets the API client list and press them
+button:
+  - platform: homeassistant
+    id: hab_btn
+    internal: false
+    name: HA button
+    entity_id: button.doorbell
+  - platform: homeassistant
+    id: hab_input
+    internal: false
+    name: HA input
+    entity_id: input_button.chime
+  - platform: homeassistant
+    id: hab_wiz
+    internal: false
+    name: HA wizard
+
+esphome:
+  on_boot:
+    priority: -100
+    then:
+      - delay: 2s
+      - button.press: hab_btn

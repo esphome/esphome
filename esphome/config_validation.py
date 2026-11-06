@@ -2361,6 +2361,11 @@ class SplitDefault(Optional):
                 keys += _get_default_key(variant, framework)
                 keys += _get_default_key(variant)
             keys += _get_default_key(framework)
+        elif CORE.is_nrf52:
+            # Strip "NRF" like rp2 strips "RP": ``nrf52_54l15``
+            from esphome.components.nrf52.framework import get_nrf52_variant
+
+            keys += _get_default_key(get_nrf52_variant().removeprefix("NRF").lower())
         keys += _get_default_key()
         for key in keys:
             if self._defaults.get(key) is not None:
