@@ -1,0 +1,39 @@
+esphome:
+  name: test
+  on_boot:
+    # Below tcp_uart's setup priority, so the entry has loaded its key record
+    priority: 100
+    then:
+      - tcp_uart.set_encryption_key:
+          id: remote_link
+          key: "MDEyMzQ1Njc4OWFiY2RlZjAxMjM0NTY3ODlhYmNkZWY="
+
+esp32:
+  board: nodemcu-32s
+
+wifi:
+  ssid: MySSID
+  password: password1
+
+# The api key is set at runtime too
+api:
+  encryption:
+  actions:
+    - action: set_link_key
+      variables:
+        key: string
+      then:
+        - tcp_uart.set_encryption_key:
+            id: remote_link
+            key: !lambda return key;
+
+ota:
+  - platform: esphome
+    encryption:
+      key: "ZmVkY2JhOTg3NjU0MzIxMGZlZGNiYTk4NzY1NDMyMTA="
+
+tcp_uart:
+  - id: remote_link
+    host: 192.0.2.10
+    port: 8899
+    encryption:

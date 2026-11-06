@@ -42,9 +42,8 @@ class NoiseContext {
 const LogString *noise_err_to_logstr(int err);
 
 #ifdef USE_NOISE_SPARE_EPHEMERAL
-// One responder ephemeral key pair made ahead of time (about 60 ms on ESP8266), refilled by the api server
-// while idle and consumed by the next noise handshake of any transport; empty means the handshake generates
-// its own. Private key then public key; the private key stays in RAM until consumed.
+// Responder ephemeral key pair made ahead of time (about 60 ms on ESP8266) and taken by the next handshake;
+// empty means the handshake generates its own. The api server refills it, or a stream responder without api.
 static constexpr size_t SPARE_EPHEMERAL_KEY_SIZE = 32;
 static constexpr size_t SPARE_EPHEMERAL_SIZE = 2 * SPARE_EPHEMERAL_KEY_SIZE;
 extern uint8_t spare_ephemeral[SPARE_EPHEMERAL_SIZE];  // NOLINT(cppcoreguidelines-avoid-non-const-global-variables)
