@@ -66,6 +66,8 @@ case, and `T1 X` shows which frames got through.
   next build's boot state.
 - `m4-common.yaml` and `m5-common.yaml` run the same fake against `ld6004`: target and area reports, work status and
   radar on/off reports, malformed reports, and the point cloud and target display switches across a reboot
-  (`m5` reboots once and checks the restored switch states).
+  (`m5` reboots once and checks the restored switch states). Run m5 with `ERASE=1 run.sh NAME TREE 75`: the boot
+  counter and switch states are stored preferences that survive a flash, and the second boot's `CASE done` comes
+  about 49 s after reset. Only the second boot logs `CASE done`, so a skipped reboot fails the run.
 
 See `rs485_frame.md` for the same cross-wired UART trick on an ESP32-C3.

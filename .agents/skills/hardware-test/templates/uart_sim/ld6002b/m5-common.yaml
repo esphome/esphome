@@ -81,6 +81,14 @@ script:
       - switch.turn_on: sw_pc
       - switch.turn_off: sw_td
       - delay: 3s
+      # CASE done only on the second boot, so a skipped reboot fails run.sh; boots > 2 means stale preferences.
       - lambda: |-
-          ESP_LOGI("ld6sim", "CASE done boot=%d", id(boots));
-          if (id(boots) == 1) { global_preferences->sync(); App.safe_reboot(); }
+          if (id(boots) == 1) {
+            ESP_LOGI("ld6sim", "CASE reboot boot=1");
+            global_preferences->sync();
+            App.safe_reboot();
+          } else if (id(boots) == 2) {
+            ESP_LOGI("ld6sim", "CASE done boot=2");
+          } else {
+            ESP_LOGE("ld6sim", "CASE stale boot=%d, rerun with ERASE=1", id(boots));
+          }
