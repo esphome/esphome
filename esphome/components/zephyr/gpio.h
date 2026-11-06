@@ -17,6 +17,9 @@ struct ZephyrGPIOInterrupt {
 };
 
 class ZephyrGPIOPin final : public GPIOPin {
+  // Its arg_ points at this pin, so the ISR-safe calls read the fields below directly.
+  friend class esphome::ISRInternalGPIOPin;
+
  public:
   ZephyrGPIOPin(const device *gpio, int gpio_size, const char *pin_name_prefix) {
     this->gpio_ = gpio;
