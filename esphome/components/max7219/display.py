@@ -29,9 +29,7 @@ CONFIG_SCHEMA = (
 
 
 async def to_code(config: ConfigType) -> None:
-    chips = config[CONF_NUM_CHIPS]
-    buffer = cg.static_buffer(config[CONF_ID], cg.uint8, chips * 8)
-    var = cg.new_Pvariable(config[CONF_ID], chips, buffer)
+    var = cg.new_Pvariable(config[CONF_ID], config[CONF_NUM_CHIPS])
     await spi.register_spi_device(var, config, write_only=True)
     await display.register_display(var, config)
 
