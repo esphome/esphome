@@ -77,7 +77,7 @@ void HomeassistantSelect::options_changed_(StringRef options) {
         this->option_list_[index++] = buffer + option_start;
         option_start = offset;
       });
-  // The traits only point at the list, which this select owns; set_options() would copy it to the heap
+  // The traits only point at the static list; set_options() would copy it to the heap
   this->traits.set_options_static(this->option_list_, count);
 
   // The active option may have moved to another index, or may be gone
