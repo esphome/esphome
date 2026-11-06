@@ -1,2 +1,0 @@
-esphome: {name: ld6p}
-packages: {c: !include ld6-common.yaml}

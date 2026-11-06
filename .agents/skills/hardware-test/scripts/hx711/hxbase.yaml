@@ -1,5 +1,0 @@
-esphome:
-  name: hxbase
-packages:
-  common: !include hx-common.yaml
-  parts: !include hxbase-parts.yaml

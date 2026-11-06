@@ -1,5 +1,0 @@
-esphome:
-  name: hxpr1
-packages:
-  common: !include hx-common.yaml
-  parts: !include hxpr1-parts.yaml

@@ -1,9 +1,0 @@
-substitutions: {drive_pin: "26"}
-esphome: {name: irr}
-packages: {common: !include ir-common.yaml}
-remote_receiver:
-  pin:
-    number: P26
-    inverted: true
-  tolerance: 30%
-  <<: !include rx-triggers.yaml

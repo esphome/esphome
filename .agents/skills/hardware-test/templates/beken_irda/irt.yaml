@@ -1,7 +1,0 @@
-substitutions: {drive_pin: "26"}
-esphome: {name: irt}
-packages: {common: !include ir-common.yaml}
-beken_irda:
-  pin: P26
-  mode: timer
-  <<: !include rx-triggers.yaml

@@ -1,4 +1,7 @@
-"""Test-only component: a cg.static_buffer(psram=True) buffer resolved through static_or_heap() at setup."""
+"""Test-only component: a cg.static_buffer(psram=True) buffer.
+
+With PSRAM enabled, codegen passes psram_buffer() instead of the static array.
+"""
 
 import esphome.codegen as cg
 import esphome.config_validation as cv

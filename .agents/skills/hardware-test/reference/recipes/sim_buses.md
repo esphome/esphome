@@ -40,8 +40,8 @@ address they do not simulate.
 - `sbtest` allocates three buffers with `cg.static_buffer` (37 `uint8_t`, 5 `uint32_t`, and `const char *` sized by
   a C++ expression) and checks at setup that they are zeroed and aligned, then fills each completely; at
   `dump_config()` it checks no other instance's fill reached them. Two instances prove the buffers are distinct.
-- `sbpsram` asks for `psram=True` and resolves the buffer through `static_or_heap()`. Without PSRAM the static
-  buffer is used; with a `psram:` block it comes from PSRAM and logs `external=1`.
+- `sbpsram` asks for `psram=True` and uses the pointer codegen hands it: the static buffer without PSRAM, or a
+  zeroed `psram_buffer<T>()` with a `psram:` block, which logs `external=1` (nullptr if the allocation failed).
 
 ## Gotchas
 

@@ -1,4 +1,0 @@
-esphome:
-  name: hcppr
-packages:
-  common: !include hcp-common.yaml

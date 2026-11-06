@@ -1,7 +1,0 @@
-substitutions: {drive_pin: "26"}
-esphome: {name: cbh}
-packages: {common: !include cb-common.yaml}
-beken_irda:
-  pin: P26
-  mode: hardware
-  <<: !include rx-triggers-net.yaml

@@ -1,6 +1,0 @@
-esphome:
-  name: fm22pr
-packages:
-  common: !include fm22-common.yaml
-  cases: !include fm22-cases.yaml
-  parts: !include fm22pr-parts.yaml

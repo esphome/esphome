@@ -15,7 +15,8 @@ class SBPsram : public Component {
   SBPsram(uint8_t *maybe, size_t n, uint32_t *plain) : given_(maybe), n_(n), plain_(plain) {}
   float get_setup_priority() const override { return setup_priority::HARDWARE; }
   void setup() override {
-    this->buf_ = static_or_heap(this->given_, this->n_);
+    // codegen already picked the storage: the static array, or psram_buffer<T>() (nullptr if it failed)
+    this->buf_ = this->given_;
     size_t nonzero = 0;
     if (this->buf_ != nullptr)
       for (size_t i = 0; i < this->n_; i++)
