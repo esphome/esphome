@@ -631,3 +631,118 @@ def test_hub_functions_with_one_name_on_one_hub_raise() -> None:
         ValueError, match="two functions named esphome__hub_a__status_fn"
     ):
         ch.CORE.flush_tasks()
+
+
+@pytest.mark.parametrize(
+    ("mask", "on"),
+    [(0x01, (1,)), (0x01, (0,)), (0x03, (1,)), (0x07, (1, 2, 3, 4, 5, 6))],
+)
+def test_register_field_is_on_matches_the_on_values(
+    mask: int, on: tuple[int, ...]
+) -> None:
+    """The generated test, also valid Python, is true for exactly the field values in on."""
+    field = cg.RegisterField(register=0, shift=2, mask=mask, on=on)
+    expr = str(field.is_on(MockObj("status")))
+    for value in range(256):
+        result = eval(expr, {"__builtins__": {}}, {"status": [value]})  # noqa: S307
+        assert (result != 0) == (((value >> 2) & mask) in on), value
+
+
+def test_register_field_is_on_reads_a_set_bit_directly() -> None:
+    """Only a one-bit field that is on at 1 skips the bitmap."""
+    status = MockObj("status")
+    one_bit = cg.RegisterField(register=1, shift=3)
+    assert str(one_bit.is_on(status)) == "((status[1] >> 3) & 0x01)"
+    two_bit = cg.RegisterField(register=1, shift=3, mask=0x03)
+    assert str(two_bit.is_on(status)) == "((0b0010 >> ((status[1] >> 3) & 0x03)) & 1)"
+    assert str(cg.RegisterField(register=2).shifted(status)) == "(status[2] >> 0)"
+
+
+@pytest.mark.parametrize(("mask", "on"), [(0x3F, (1,)), (0x01, (2,)), (0x03, (4,))])
+def test_register_field_rejects_values_outside_the_field(
+    mask: int, on: tuple[int, ...]
+) -> None:
+    """A mask over 0x1F or an on value outside the field would be an undefined C++ shift."""
+    with pytest.raises(ValueError, match="at most 0x1F"):
+        cg.RegisterField(register=0, mask=mask, on=on)
+
+
+def test_add_table_on_change_declares_last_and_publishes() -> None:
+    """Each text sensor gets its own 0xFF-initialised last value and one call; fallback defaults to the last string."""
+    from esphome.components import text_sensor
+
+    fn = _status_function()
+    status = fn.param("status")
+    table = cg.esphome_ns.namespace("hub").namespace("HubStrings")
+    hub = cg.MockObj("hub_a", "->")
+    text_sensor.add_table_on_change(
+        fn,
+        hub,
+        MockObj("tx_a"),
+        status,
+        cg.RegisterField(register=0, mask=0x03),
+        table=table,
+    )
+    text_sensor.add_table_on_change(
+        fn,
+        hub,
+        MockObj("tx_b"),
+        status,
+        cg.RegisterField(register=1, shift=4, mask=0x07),
+        table=table,
+        first=8,
+        fallback=5,
+    )
+    ch.CORE.flush_tasks()
+    assert _after_includes() == [
+        (
+            "static void esphome__hub_a__status_fn(const hub::Regs & esphome__arg_status) {\n"
+            "  static uint8_t esphome__tx_a__last = 0xFF;\n"
+            "  text_sensor::publish_table_on_change<hub::HubStrings, 0x03, hub::HubStrings::LAST_INDEX>("
+            "::tx_a, esphome__tx_a__last, (esphome__arg_status[0] >> 0), 0);\n"
+            "  static uint8_t esphome__tx_b__last = 0xFF;\n"
+            "  text_sensor::publish_table_on_change<hub::HubStrings, 0x07, 5>("
+            "::tx_b, esphome__tx_b__last, (esphome__arg_status[1] >> 4), 8);\n}"
+        )
+    ]
+
+
+def test_add_table_on_change_rejects_an_index_past_255() -> None:
+    """The C++ index is a uint8_t, so first + mask past 255 would wrap round the fallback."""
+    from esphome.components import text_sensor
+
+    fn = _status_function()
+    table = cg.esphome_ns.namespace("hub").namespace("HubStrings")
+    with pytest.raises(ValueError, match="past the 255 string index"):
+        text_sensor.add_table_on_change(
+            fn,
+            cg.MockObj("hub_a", "->"),
+            MockObj("tx_a"),
+            fn.param("status"),
+            cg.RegisterField(register=0, mask=0x1F),
+            table=table,
+            first=240,
+        )
+
+
+@pytest.mark.asyncio
+async def test_publish_children_publishes_only_configured_children() -> None:
+    """Each configured child publishes its state in states order."""
+    fn = _status_function()
+    status = fn.param("status")
+    hub = cg.MockObj("hub_a", "->")
+
+    async def sub_entities(key: str, _: None) -> MockObj | None:
+        return None if key == "absent" else MockObj(f"bs_{key}", "->")
+
+    await fn.publish_children(
+        hub, sub_entities, {"b": status[1], "absent": status[2], "a": status[0]}
+    )
+    ch.CORE.flush_tasks()
+    assert _after_includes() == [
+        (
+            "static void esphome__hub_a__status_fn(const hub::Regs & esphome__arg_status) {\n"
+            "  ::bs_b->publish_state(esphome__arg_status[1]);\n"
+            "  ::bs_a->publish_state(esphome__arg_status[0]);\n}"
+        )
+    ]

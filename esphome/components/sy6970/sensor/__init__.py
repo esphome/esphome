@@ -12,7 +12,7 @@ from esphome.const import (
 )
 from esphome.types import ConfigType
 
-from .. import CONF_SY6970_ID, REGISTERS, SY6970Component, publish_children, sy6970_ns
+from .. import CONF_SY6970_ID, DATA_PUBLISHER, REGISTERS, SY6970Component, sy6970_ns
 
 DEPENDENCIES = ["sy6970"]
 
@@ -112,4 +112,4 @@ CONFIG_SCHEMA = cv.Schema(
 async def to_code(config: ConfigType) -> None:
     hub = await cg.get_variable(config[CONF_SY6970_ID])
 
-    await publish_children(hub, sensor.sub_sensors(config), STATES)
+    await DATA_PUBLISHER.publish_children(hub, sensor.sub_sensors(config), STATES)

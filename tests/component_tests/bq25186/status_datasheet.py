@@ -1,8 +1,5 @@
 """The BQ25186 status fields from the datasheet, for checking the entity decode."""
 
-from pathlib import Path
-import re
-
 # Offsets into the status registers the hub reads from STAT0
 STAT0 = 0
 STAT1 = 1
@@ -56,19 +53,3 @@ TEXT_SENSORS: dict[str, tuple[int, int, tuple[str, ...]]] = {
         ),
     ),
 }
-
-
-def field_value(value: int, bits: int) -> int:
-    """The field `bits` of the register `value`, shifted down."""
-    return (value & bits) >> ((bits & -bits).bit_length() - 1)
-
-
-def status_strings() -> list[str]:
-    """The strings of the component's PROGMEM_STRING_TABLE, in table order."""
-    component = Path(__file__).parents[3] / "esphome" / "components" / "bq25186"
-    for path in sorted(component.glob("*.[ch]*")):
-        if match := re.search(
-            r"PROGMEM_STRING_TABLE\(\w+,(.*?)\);", path.read_text(), re.DOTALL
-        ):
-            return re.findall(r'"([^"]*)"', match[1])
-    raise AssertionError("no PROGMEM_STRING_TABLE in the bq25186 component")
