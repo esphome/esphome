@@ -42,7 +42,21 @@ def dc(v):
     L(f"sdp::lvl_ = {float(v)}f; sdp::set_mode(sdp::M_DC);")
 
 
-def render(name: str, tpl_path: str) -> str:
-    """The template with NAME and the collected steps filled in."""
+def RAW(action):
+    STEPS.append(f"      - {action}")
+
+
+def W(cond, timeout):
+    RAW(f"wait_until: {{condition: {{lambda: 'return {cond};'}}, timeout: {timeout}}}")
+
+
+def burn(label):
+    L("sdp::burn_start(200);")
+    D(400)
+    L(f'ESP_LOGI("sdp", "RES burn_{label} iters=%u", (unsigned) sdp::burn_iters_);')
+
+
+def render(tpl_path: str) -> str:
+    """The template with the collected steps filled in; the name comes from esphome -s name."""
     tpl = pathlib.Path(tpl_path).read_text(encoding="utf-8")
-    return tpl.replace("NAME", name).replace("      # @STEPS@", "\n".join(STEPS))
+    return tpl.replace("      # @STEPS@", "\n".join(STEPS))

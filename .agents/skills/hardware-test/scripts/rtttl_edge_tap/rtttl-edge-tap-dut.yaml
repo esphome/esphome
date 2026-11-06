@@ -1,12 +1,16 @@
-# Needs packages/aux-2-pre-prod.yaml from NabuCasa/aux-2 next to this file (see reference/recipes/usb_audio.md).
+# Needs aux-2-pre-prod.yaml (packages/ in NabuCasa/aux-2) copied next to this file (see reference/recipes/usb_audio.md).
 # rtttl click test on the AUX-2 with a USB speaker on the host port as the mixer output: EdgeTap (edgetap.hpp) sits
 # between rtttl and the announcement speaker and logs each note's onset and release level every 12 s.
+substitutions:
+  # run.sh sets it with -s; not "name", which the AUX-2 package may use itself
+  dut_name: rtttl-edge-tap
+
 packages:
   core: !include aux-2-pre-prod.yaml
 
 esphome:
   includes: [edgetap.hpp]
-  name: rtttl-edge-tap
+  name: ${dut_name}
   name_add_mac_suffix: false
 
 wifi:

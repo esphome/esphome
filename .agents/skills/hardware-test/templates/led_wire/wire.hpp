@@ -9,6 +9,7 @@
 #include "esp_rom_sys.h"
 #include "soc/spi_periph.h"
 #include "esp_heap_caps.h"
+#include "esphome/core/helpers.h"
 #include "esphome/core/log.h"
 #include "esphome/components/light/addressable_light.h"
 #include <algorithm>
@@ -104,6 +105,26 @@ inline void arm() {
   gpio_set_level((gpio_num_t) CS, 0);
 }
 
+// Bit = high time over the chipset threshold (ws2812 0.4/0.8 us, sk6812 0.3/0.6 us); on_bit(high, one) sees each bit.
+template<typename F> inline size_t decode(const Rx &r, uint8_t (&bytes)[64], F &&on_bit) {
+  size_t bits = 0;
+  for (size_t i = 0; i < r.n && bits < 64 * 8; i++) {
+    if (r.sym[i].level0 != 1)
+      continue;
+    unsigned high = r.sym[i].duration0;
+    bool one = high > r.thr;
+    on_bit(high, one);
+    if (one)
+      bytes[bits / 8] |= 0x80 >> (bits % 8);
+    bits++;
+  }
+  return bits;
+}
+inline void rx_cancel(Rx &r) {
+  rmt_disable(r.h);  // cancels the pending receive
+  rmt_enable(r.h);
+}
+
 inline void report(const char *step) {
   char hex[2 * 64 + 1];
   for (auto &r : rx_) {
@@ -113,39 +134,20 @@ inline void report(const char *step) {
       ESP_LOGI(TAG, "RMT %s %s none", step, r.name);
       continue;
     }
-    // Bit = high time over the chipset threshold (ws2812 0.4/0.8 us, sk6812 0.3/0.6 us). Keep the high and low ranges
-    // seen, so timing changes show up as well.
+    // Keep the high ranges seen for 0 and 1 bits, so timing changes show up as well.
     uint8_t bytes[64] = {0};
-    size_t bits = 0;
-    unsigned h0min = 999, h0max = 0, h1min = 999, h1max = 0;
-    for (size_t i = 0; i < r.n && bits < 64 * 8; i++) {
-      if (r.sym[i].level0 != 1)
-        continue;
-      unsigned high = r.sym[i].duration0;
-      bool one = high > r.thr;
-      if (one) {
-        h1min = std::min(h1min, high);
-        h1max = std::max(h1max, high);
-      } else {
-        h0min = std::min(h0min, high);
-        h0max = std::max(h0max, high);
-      }
-      if (one)
-        bytes[bits / 8] |= 0x80 >> (bits % 8);
-      bits++;
-    }
-    size_t nb = bits / 8;
-    for (size_t i = 0; i < nb; i++)
-      sprintf(hex + 2 * i, "%02x", bytes[i]);
-    hex[2 * nb] = 0;
-    ESP_LOGI(TAG, "RMT %s %s bits=%u high0=%u-%u high1=%u-%u (0.1us) %s", step, r.name, (unsigned) bits, h0min, h0max,
-             h1min, h1max, hex);
+    unsigned hmin[2] = {999, 999}, hmax[2] = {0, 0};
+    size_t bits = decode(r, bytes, [&](unsigned high, bool one) {
+      hmin[one] = std::min(hmin[one], high);
+      hmax[one] = std::max(hmax[one], high);
+    });
+    esphome::format_hex_to(hex, bytes, bits / 8);
+    ESP_LOGI(TAG, "RMT %s %s bits=%u high0=%u-%u high1=%u-%u (0.1us) %s", step, r.name, (unsigned) bits, hmin[0],
+             hmax[0], hmin[1], hmax[1], hex);
   }
   for (auto &r : rx_) {
-    if (r.h != nullptr && !r.done) {
-      rmt_disable(r.h);  // cancels the pending receive
-      rmt_enable(r.h);
-    }
+    if (r.h != nullptr && !r.done)
+      rx_cancel(r);
   }
   esp_rom_delay_us(20);
   gpio_set_level((gpio_num_t) CS, 1);
@@ -153,12 +155,8 @@ inline void report(const char *step) {
   int len = -1;
   if (spi_slave_get_trans_result(SPI2_HOST, &res, pdMS_TO_TICKS(500)) == ESP_OK)
     len = res->trans_len;
-  char sh[2 * 64 + 1];
-  int nb = len > 0 ? std::min(len / 8, 64) : 0;
-  for (int i = 0; i < nb; i++)
-    sprintf(sh + 2 * i, "%02x", spi_buf_[i]);
-  sh[2 * nb] = 0;
-  ESP_LOGI(TAG, "SPI %s bits=%d %s", step, len, sh);
+  esphome::format_hex_to(hex, spi_buf_, len > 0 ? std::min(len / 8, 64) : 0);
+  ESP_LOGI(TAG, "SPI %s bits=%d %s", step, len, hex);
 }
 inline void readback(const char *step, const char *name, esphome::light::LightState *ls) {
   auto *a = static_cast<esphome::light::AddressableLight *>(ls->get_output());
@@ -176,7 +174,7 @@ struct Stats {
   uint8_t ref[64];
   size_t ref_bits{0};
   uint32_t frames{0}, missing{0}, bad_bytes{0}, bad_timing{0};
-  unsigned nom0{0}, nom1{0};
+  unsigned nom[2]{0, 0};  // first high seen for a 0 and a 1 bit
 };
 static Stats st_[2];
 inline void stress_step() {
@@ -187,28 +185,17 @@ inline void stress_step() {
       continue;
     if (!r.done) {
       s.missing++;
-      rmt_disable(r.h);
-      rmt_enable(r.h);
+      rx_cancel(r);
       continue;
     }
     uint8_t bytes[64] = {0};
-    size_t bits = 0;
     bool off = false;
-    for (size_t i = 0; i < r.n && bits < 64 * 8; i++) {
-      if (r.sym[i].level0 != 1)
-        continue;
-      unsigned high = r.sym[i].duration0;
-      bool one = high > r.thr;
-      if (s.frames == 0 && !one && s.nom0 == 0)
-        s.nom0 = high;
-      if (s.frames == 0 && one && s.nom1 == 0)
-        s.nom1 = high;
-      if (high != (one ? s.nom1 : s.nom0))
+    size_t bits = decode(r, bytes, [&](unsigned high, bool one) {
+      if (s.frames == 0 && s.nom[one] == 0)
+        s.nom[one] = high;
+      if (high != s.nom[one])
         off = true;
-      if (one)
-        bytes[bits / 8] |= 0x80 >> (bits % 8);
-      bits++;
-    }
+    });
     if (s.frames == 0) {
       memcpy(s.ref, bytes, sizeof(bytes));
       s.ref_bits = bits;
@@ -228,8 +215,8 @@ inline void stress_report() {
   for (int k = 0; k < 2; k++) {
     auto &s = st_[k];
     ESP_LOGI(TAG, "STRESS %s frames=%u missing=%u bad_bytes=%u bad_timing=%u nominal=%u/%u", rx_[k].name,
-             (unsigned) s.frames, (unsigned) s.missing, (unsigned) s.bad_bytes, (unsigned) s.bad_timing, s.nom0,
-             s.nom1);
+             (unsigned) s.frames, (unsigned) s.missing, (unsigned) s.bad_bytes, (unsigned) s.bad_timing, s.nom[0],
+             s.nom[1]);
   }
 }
 }  // namespace wire

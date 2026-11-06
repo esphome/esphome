@@ -115,26 +115,17 @@ inline void decode(const char *label, size_t words, size_t expect_bits) {
   }
   float thr = (hmin + hmax) / 2.0f;
   // per-class average high and low (low of the last bit is the reset gap, skip it)
-  double h0 = 0, h1 = 0, l0 = 0, l1 = 0;
-  unsigned n0 = 0, n1 = 0, m0 = 0, m1 = 0;
+  double h[2] = {0, 0}, l[2] = {0, 0};
+  unsigned nh[2] = {0, 0}, nl[2] = {0, 0};
   uint8_t bytes[64] = {0};
   size_t nbytes = 0;
   for (size_t i = 0; i < pulses; i++) {
     bool one = hi[i] > thr;
-    if (one) {
-      h1 += hi[i];
-      n1++;
-      if (i + 1 < pulses) {
-        l1 += lo[i];
-        m1++;
-      }
-    } else {
-      h0 += hi[i];
-      n0++;
-      if (i + 1 < pulses) {
-        l0 += lo[i];
-        m0++;
-      }
+    h[one] += hi[i];
+    nh[one]++;
+    if (i + 1 < pulses) {
+      l[one] += lo[i];
+      nl[one]++;
     }
     if (i / 8 < sizeof(bytes)) {
       bytes[i / 8] |= (one ? 1 : 0) << (7 - i % 8);
@@ -145,8 +136,8 @@ inline void decode(const char *label, size_t words, size_t expect_bits) {
   esphome::format_hex_to(hex, sizeof(hex), bytes, nbytes);
   float ns = ns_per_sample;
   ESP_LOGI(TAG, "RESULT %s: %u pulses (expect %u), bit0 high %.0f low %.0f ns, bit1 high %.0f low %.0f ns, bytes %s",
-           label, (unsigned) pulses, (unsigned) expect_bits, n0 ? h0 / n0 * ns : 0, m0 ? l0 / m0 * ns : 0,
-           n1 ? h1 / n1 * ns : 0, m1 ? l1 / m1 * ns : 0, hex);
+           label, (unsigned) pulses, (unsigned) expect_bits, nh[0] ? h[0] / nh[0] * ns : 0,
+           nl[0] ? l[0] / nl[0] * ns : 0, nh[1] ? h[1] / nh[1] * ns : 0, nl[1] ? l[1] / nl[1] * ns : 0, hex);
 }
 
 // Sets every LED of the strip to c, writes it now and decodes the pin.

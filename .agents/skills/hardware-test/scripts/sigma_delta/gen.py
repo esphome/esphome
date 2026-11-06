@@ -1,4 +1,4 @@
-"""gen.py NAME tpl.yaml > NAME.yaml: the full sigma_delta speaker sequence as the seq script of tpl.yaml.
+"""gen.py tpl.yaml > NAME.yaml: the full sigma_delta speaker sequence as the seq script of tpl.yaml.
 
 DC levels, volume, mute, sample formats, stereo, 2 Hz and 50 Hz sines with DUMP lines, CPU while playing, sample
 rates, underrun, stop mid-play, finish, rtttl and a play/stop hammer; the run ends with ALLDONE.
@@ -6,7 +6,7 @@ rates, underrun, stop mid-play, finish, rtttl and a play/stop hammer; the run en
 
 import sys
 
-from steps import DUMP, STEPS, D, L, M, dc, fmt, log, render, stopall
+from steps import DUMP, RAW, D, L, M, W, burn, dc, fmt, log, render, stopall
 
 log("idle_before_play")
 M("idle_boot")
@@ -63,14 +63,10 @@ DUMP("sine50Hz")
 # CPU while playing a sine vs idle
 L("sdp::freq_ = 440; sdp::set_mode(sdp::M_SINE);")
 D(500)
-L("sdp::burn_start(200);")
-D(400)
-L('ESP_LOGI("sdp", "RES burn_playing44100 iters=%u", (unsigned) sdp::burn_iters_);')
+burn("playing44100")
 stopall()
 D(500)
-L("sdp::burn_start(200);")
-D(400)
-L('ESP_LOGI("sdp", "RES burn_idle iters=%u", (unsigned) sdp::burn_iters_);')
+burn("idle")
 # sample rate check through played-frame reports
 for rate in [44100, 48000, 22050, 16000, 8000]:
     fmt(16, 1, rate)
@@ -100,9 +96,7 @@ D(100)
 L(
     'sdp::set_mode(sdp::M_OFF); id(spk).stop(); id(tstop) = esp_timer_get_time(); ESP_LOGI("sdp", "STOPCALL");'
 )
-STEPS.append(
-    "      - wait_until: {condition: {lambda: 'return sdp::capture_done();'}, timeout: 20s}"
-)
+W("sdp::capture_done()", "20s")
 L(
     'ESP_LOGI("sdp", "RES stopcall_offset_us=%lld", (long long) (id(tstop) - sdp::cap_t_[0])); sdp::summary("stop_mid"); sdp::dump("stop_mid");'
 )
@@ -117,9 +111,7 @@ D(100)
 L(
     'sdp::set_mode(sdp::M_OFF); vTaskDelay(25); id(spk).finish(); id(tstop) = esp_timer_get_time(); ESP_LOGI("sdp", "FINISHCALL");'
 )
-STEPS.append(
-    "      - wait_until: {condition: {lambda: 'return sdp::capture_done();'}, timeout: 20s}"
-)
+W("sdp::capture_done()", "20s")
 L(
     'ESP_LOGI("sdp", "RES finishcall_offset_us=%lld state=%d", (long long) (id(tstop) - sdp::cap_t_[0]), sdp::st()); sdp::summary("finish"); sdp::dump("finish");'
 )
@@ -127,21 +119,19 @@ L(
 log("rtttl")
 D(300)
 L("id(f0) = sdp::frames_played_; id(t0) = esp_timer_get_time();")
-STEPS.append("      - rtttl.play: 'scale:d=4,o=5,b=100:c,d,e,f,g,a,b,c6'")
+RAW("rtttl.play: 'scale:d=4,o=5,b=100:c,d,e,f,g,a,b,c6'")
 D(300)
 M("rtttl", 400)
-STEPS.append(
-    "      - wait_until: {condition: {lambda: 'return !id(tone).is_playing();'}, timeout: 30s}"
-)
+W("!id(tone).is_playing()", "30s")
 L(
     'ESP_LOGI("sdp", "RES rtttl frames=%u in %.2fs state=%d", (unsigned) (sdp::frames_played_ - id(f0)), (esp_timer_get_time() - id(t0)) / 1e6, sdp::st());'
 )
 D(500)
 M("after_rtttl")
 # rtttl stop mid tune
-STEPS.append("      - rtttl.play: 'long:d=1,o=5,b=60:c,d,e,f'")
+RAW("rtttl.play: 'long:d=1,o=5,b=60:c,d,e,f'")
 D(800)
-STEPS.append("      - rtttl.stop: {id: tone}")
+RAW("rtttl.stop: {id: tone}")
 D(500)
 L('ESP_LOGI("sdp", "RES rtttl_stop state=%d", sdp::st());')
 M("after_rtttl_stop")
@@ -161,4 +151,4 @@ L(
 M("after_hammer")
 L('ESP_LOGI("sdp", "ALLDONE");')
 
-print(render(sys.argv[1], sys.argv[2]))
+print(render(sys.argv[1]))

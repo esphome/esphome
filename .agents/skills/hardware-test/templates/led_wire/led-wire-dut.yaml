@@ -204,9 +204,7 @@ script:
           (*a)[-1] = Color(1, 2, 3);
           a->schedule_show();
           ESP_LOGI("peek", "PART size %d", (int) a->size());
-          char b[300]; size_t o = 0;
-          for (int i = 0; i < a->size(); i++) { Color c = (*a)[i].get(); o += snprintf(b + o, sizeof(b) - o, "%02x%02x%02x%02x ", c.r, c.g, c.b, c.w); }
-          ESP_LOGI("peek", "GET S5_partlambda part %s", b);
+          wire::readback("S5_partlambda", "part", id(part));
       - script.execute: {id: dump, step: S5_partlambda}
       - script.wait: dump
       - light.turn_on: {id: s_grb, effect: Pattern}

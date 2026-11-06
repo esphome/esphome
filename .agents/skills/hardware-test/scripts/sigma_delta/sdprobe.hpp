@@ -11,6 +11,7 @@
 #include "freertos/FreeRTOS.h"
 #include "freertos/task.h"
 #include "esphome/core/log.h"
+#include "esphome/components/audio/audio.h"
 #include "esphome/components/speaker/speaker.h"
 
 namespace sdp {
@@ -71,7 +72,6 @@ static volatile float lvl_ = 0, lvl_r_ = 0, freq_ = 2, amp_ = 0.8f;
 static volatile int burst_left_ = 0;  // frames still to write in M_BURST
 static esphome::speaker::Speaker *spk_ = nullptr;
 static uint64_t phase_frames_ = 0;
-static volatile uint32_t play_calls_zero_ = 0;
 
 static void put(uint8_t *p, int bytes, float v) {
   if (v > 1.0f)
@@ -79,13 +79,9 @@ static void put(uint8_t *p, int bytes, float v) {
   if (v < -1.0f)
     v = -1.0f;
   int64_t q = (int64_t) llroundf(v * 2147483647.0f);
-  if (q > 2147483647LL)
+  if (q > 2147483647LL)  // the float constant is 2^31, so +1.0 rounds one past INT32_MAX
     q = 2147483647LL;
-  int32_t s = (int32_t) q;
-  uint32_t u = (uint32_t) s;
-  // little-endian, most significant bytes kept
-  for (int b = 0; b < bytes; b++)
-    p[b] = (uint8_t) (u >> (8 * (4 - bytes + b)));
+  esphome::audio::pack_q31_as_audio_sample((int32_t) q, p, bytes);
 }
 
 static void feeder_task(void *) {
@@ -103,11 +99,13 @@ static void feeder_task(void *) {
     int frames = 256;
     if (m == M_BURST && burst_left_ < frames)
       frames = burst_left_;
+    // float per frame (the P4 FPU is single precision only); the chunk start phase is exact
+    const float ph = (float) (2 * M_PI * fmod((double) freq_ * phase_frames_ / rate, 1.0));
+    const float step = 2 * (float) M_PI * freq_ / rate;
     for (int f = 0; f < frames; f++) {
       float l = lvl_, r = lvl_r_;
       if (m == M_SINE) {
-        double t = (double) (phase_frames_ + f) / rate;
-        l = r = amp_ * (float) sin(2 * M_PI * freq_ * t);
+        l = r = amp_ * sinf(ph + f * step);
       } else if (m != M_STEREO) {
         r = l;
       }
@@ -117,10 +115,7 @@ static void feeder_task(void *) {
     }
     size_t len = (size_t) frames * bps * ch, off = 0;
     while (off < len && mode_.load() == m) {
-      size_t w = spk_->play(buf + off, len - off, pdMS_TO_TICKS(20));
-      if (w == 0)
-        play_calls_zero_++;
-      off += w;
+      off += spk_->play(buf + off, len - off, pdMS_TO_TICKS(20));
     }
     uint32_t done = off / (bps * ch);
     phase_frames_ += done;
@@ -189,7 +184,6 @@ static int st() { return spk_->is_stopped() ? 0 : (spk_->is_running() ? 2 : 1); 
 
 // CPU left on core 1 for a task above the loop task: spin for ms, return iterations.
 static volatile uint32_t burn_iters_ = 0;
-static volatile bool burn_done_ = false;
 static int burn_ms_ = 50;
 static void burn_task(void *) {
   uint32_t n = 0;
@@ -197,12 +191,10 @@ static void burn_task(void *) {
   while (esp_timer_get_time() < end)
     n++;
   burn_iters_ = n;
-  burn_done_ = true;
   vTaskDelete(nullptr);
 }
 static void burn_start(int ms) {
   burn_ms_ = ms;
-  burn_done_ = false;
   xTaskCreatePinnedToCore(burn_task, "sdp_burn", 2048, nullptr, 10, nullptr, 1);
 }
 }  // namespace sdp

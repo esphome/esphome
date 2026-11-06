@@ -9,21 +9,19 @@ import pathlib
 import re
 import sys
 
-TXT = pathlib.Path(sys.argv[1]).read_text(encoding="utf-8", errors="replace")
-
-
-def get(label: str) -> list[tuple[float, float]]:
-    pts = []
-    for m in re.finditer(rf"DUMP {re.escape(label)} \d+((?: \d+:\d+)+)", TXT):
-        for p in m.group(1).split():
-            t, d = p.split(":")
-            pts.append((int(t) / 1e6, int(d) / 100))
-    return pts
+DUMPS: dict[str, list[tuple[float, float]]] = {}
+for _m in re.finditer(
+    r"DUMP (\S+) \d+((?: \d+:\d+)+)",
+    pathlib.Path(sys.argv[1]).read_text(encoding="utf-8", errors="replace"),
+):
+    for _p in _m.group(2).split():
+        _t, _d = _p.split(":")
+        DUMPS.setdefault(_m.group(1), []).append((int(_t) / 1e6, int(_d) / 100))
 
 
 def fit(label: str, f0: float) -> bool:
     """Scan +-10% around f0 for the strongest sine; print frequency, amplitude, mean and residual."""
-    pts = get(label)
+    pts = DUMPS.get(label, [])
     if not pts:
         print(f"{label}: no DUMP lines")
         return False
@@ -32,16 +30,16 @@ def fit(label: str, f0: float) -> bool:
     best = None
     for k in range(-200, 201):
         f = f0 * (1 + k * 0.0005)
-        s = sum((d - mean) * math.sin(2 * math.pi * f * t) for t, d in pts)
-        c = sum((d - mean) * math.cos(2 * math.pi * f * t) for t, d in pts)
+        s = c = 0.0
+        for t, d in pts:
+            w = 2 * math.pi * f * t
+            s += (d - mean) * math.sin(w)
+            c += (d - mean) * math.cos(w)
         a = 2 * math.hypot(s, c) / n
         if best is None or a > best[1]:
-            best = (f, a)
-    f, a = best
-    ph = math.atan2(
-        sum((d - mean) * math.cos(2 * math.pi * f * t) for t, d in pts),
-        sum((d - mean) * math.sin(2 * math.pi * f * t) for t, d in pts),
-    )
+            best = (f, a, s, c)
+    f, a, s, c = best
+    ph = math.atan2(c, s)
     res = math.sqrt(
         sum((d - mean - a * math.sin(2 * math.pi * f * t + ph)) ** 2 for t, d in pts)
         / n
@@ -55,7 +53,7 @@ def fit(label: str, f0: float) -> bool:
 
 def edges(label: str) -> bool:
     """Print each change between high (>70%), mid (45 to 55%) and low (<30%) density."""
-    pts = get(label)
+    pts = DUMPS.get(label, [])
     print(label, "n", len(pts))
     prev = None
     for t, d in pts:

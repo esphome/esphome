@@ -7,9 +7,8 @@
 R=$(cd "$(dirname "$0")" && pwd); C=${1:?pa or pc}; L=${2:?label}; T=${TREE:?set TREE}; P=${PORT:?set PORT}
 PY=${PY:-$T/venv/bin/python}; SC=${SC:?set SC}; NAME=$C$L; OUT=$R/out-$NAME; rm -rf "$OUT"; mkdir -p "$OUT"
 [ -f "$R/$C.yaml" ] || { echo "no $C.yaml"; exit 1; }
-sed -E "s/^  name: $C$/  name: $NAME/" "$R/$C.yaml" > "$R/$NAME.yaml"
 pkill -f "[s]erial_capture.py $P"
-(cd "$T" && $PY -m esphome run --no-logs "$R/$NAME.yaml" --device "$P" > "$OUT/upload.log" 2>&1) || { echo "build or upload failed"; exit 1; }
+(cd "$T" && $PY -m esphome -s name "$NAME" run --no-logs "$R/$C.yaml" --device "$P" > "$OUT/upload.log" 2>&1) || { echo "build or upload failed"; exit 1; }
 # USB CDC: no reset line, the capture follows the port back after the flash reboot
 $PY "$SC" "$P" 40 "$OUT/serial.txt" > /dev/null 2>&1
 [ -s "$OUT/serial.txt" ] || { echo "serial capture got nothing (a panic before USB comes up leaves no port: BOOTSEL)"; exit 1; }

@@ -1,7 +1,7 @@
-# ESP32-P4 sigma_delta speaker sequence template: gen.py or gen2.py fill in the name and the seq steps.
+# ESP32-P4 sigma_delta speaker sequence template: gen.py or gen2.py fill in the seq steps, run.sh passes -s name.
 # For the gen2.py run, change the speaker pin to {number: GPIO21, inverted: true}.
 esphome:
-  name: NAME
+  name: ${name}
   includes: [sdprobe.hpp]
   on_boot:
     priority: -100

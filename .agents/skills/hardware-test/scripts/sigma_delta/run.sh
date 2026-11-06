@@ -5,9 +5,9 @@
 # env: TREE (esphome checkout), PORT (P4 serial port), SC (path to serial_capture.py), PY (checkout python)
 R=$(cd "$(dirname "$0")" && pwd); L=${1:?label}; G=${2:-gen}; S=${3:-240}; T=${TREE:?set TREE}; P=${PORT:?set PORT}
 PY=${PY:-$T/venv/bin/python}; SC=${SC:?set SC}; NAME=sd$L; OUT=$R/out-$NAME; rm -rf "$OUT"; mkdir -p "$OUT"
-python3 "$R/$G.py" "$NAME" "$R/tpl.yaml" > "$R/$NAME.yaml" || { echo "$G.py failed"; exit 1; }
+python3 "$R/$G.py" "$R/tpl.yaml" > "$R/$NAME.yaml" || { echo "$G.py failed"; exit 1; }
 pkill -f "[s]erial_capture.py $P"
-(cd "$T" && $PY -m esphome run --no-logs "$R/$NAME.yaml" --device "$P" > "$OUT/upload.log" 2>&1) || { echo "build or upload failed"; exit 1; }
+(cd "$T" && $PY -m esphome -s name "$NAME" run --no-logs "$R/$NAME.yaml" --device "$P" > "$OUT/upload.log" 2>&1) || { echo "build or upload failed"; exit 1; }
 $PY "$SC" "$P" "$S" "$OUT/serial.txt" --reset --ms > /dev/null 2>&1
 [ -s "$OUT/serial.txt" ] || { echo "serial capture got nothing"; exit 1; }
 grep -a -o -E "RES .*" "$OUT/serial.txt"

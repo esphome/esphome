@@ -1,8 +1,11 @@
 # Pico 2 W: claims DMA channels 0 to 11 at on_boot priority 900, then probes one PIO LED strip.
-esphome:
+substitutions:
   name: pc
-  includes:
-    - pioscope.hpp
+
+packages:
+  common: !include pio-common.yaml
+
+esphome:
   on_boot:
     - priority: 900
       then:
@@ -23,17 +26,6 @@ esphome:
               - delay: 2s
         - lambda: 'ESP_LOGI("hwt", "DONE");'
 
-rp2040:
-  board: rpipico2w
-
-logger:
-  level: DEBUG
-
-interval:
-  - interval: 2s
-    then:
-      - lambda: 'static int n = 0; ESP_LOGI("hwt", "ALIVE %d", ++n);'
-
 script:
   - id: probe_all
     then:
@@ -41,14 +33,3 @@ script:
       - delay: 500ms
       - lambda: |-
           pioscope::probe("s_ws_p0", id(s_ws_p0), 2, esphome::Color(0xA5, 0x3C, 0x0F));
-
-light:
-  - platform: rp2040_pio_led_strip
-    id: s_ws_p0
-    pin: 2
-    num_leds: 2
-    pio: 0
-    channel_colors: GRB
-    gamma_correct: 1.0
-    default_transition_length: 0s
-    chipset: WS2812

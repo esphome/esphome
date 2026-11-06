@@ -7,7 +7,8 @@ R=$(cd "$(dirname "$0")" && pwd); T=${TREE:?set TREE}; PY=${PY:-$T/venv/bin/pyth
 [ $# -gt 0 ] || { echo "usage: run.sh CASE..."; exit 1; }
 OUT=$R/out; mkdir -p "$OUT"; MISSING=""
 for c in "$@"; do
-  case $c in s3*) b=s3; P=${PORT_S3:?set PORT_S3};; c6*) b=c6; P=${PORT_C6:?set PORT_C6};; *) echo "$c: unknown board"; exit 1;; esac
+  b=$(awk -v c="$c" '$1 == c {print $2}' "$R/cases.txt")
+  case $b in s3) P=${PORT_S3:?set PORT_S3};; c6) P=${PORT_C6:?set PORT_C6};; *) echo "$c: not in cases.txt"; exit 1;; esac
   python3 "$R/gen_case.py" "$c" > "$R/rmt$b.yaml" || exit 1
   pkill -f "[s]erial_capture.py $P"
   (cd "$T" && $PY -m esphome run --no-logs "$R/rmt$b.yaml" --device "$P" > "$OUT/$c-upload.log" 2>&1) || { echo "$c build or upload failed"; MISSING="$MISSING $c"; continue; }

@@ -55,9 +55,6 @@ class EdgeTap : public esphome::speaker::Speaker {
         this->end_note_();
       return;
     }
-    if (this->zeros_ > 0 && this->in_note_) {
-      // short zero run inside a note: keep the last samples window going
-    }
     if (!this->in_note_ && this->zeros_ >= 8) {
       this->in_note_ = true;
       this->count_ = 0;

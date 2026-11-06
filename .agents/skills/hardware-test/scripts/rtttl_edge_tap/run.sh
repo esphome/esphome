@@ -5,9 +5,8 @@
 R=$(cd "$(dirname "$0")" && pwd); L=${1:?label}; T=${TREE:?set TREE}; P=${PORT:?set PORT}
 PY=${PY:-$T/venv/bin/python}; SC=${SC:?set SC}; NAME=rtttl$L; OUT=$R/out-$NAME; rm -rf "$OUT"; mkdir -p "$OUT"
 [ -f "$R/aux-2-pre-prod.yaml" ] || { echo "aux-2-pre-prod.yaml from NabuCasa/aux-2 must sit next to this script"; exit 1; }
-sed -E "s/^  name: rtttl-edge-tap$/  name: $NAME/" "$R/rtttl-edge-tap-dut.yaml" > "$R/$NAME.yaml"
 pkill -f "[s]erial_capture.py $P"
-(cd "$T" && $PY -m esphome run --no-logs "$R/$NAME.yaml" --device "$P" > "$OUT/upload.log" 2>&1) || { echo "build or upload failed"; exit 1; }
+(cd "$T" && $PY -m esphome -s dut_name "$NAME" run --no-logs "$R/rtttl-edge-tap-dut.yaml" --device "$P" > "$OUT/upload.log" 2>&1) || { echo "build or upload failed"; exit 1; }
 $PY "$SC" "$P" 135 "$OUT/serial.txt" --reset > /dev/null 2>&1
 [ -s "$OUT/serial.txt" ] || { echo "serial capture got nothing"; exit 1; }
 grep -a -o -E "M play [0-9]+|notes=.*" "$OUT/serial.txt"
