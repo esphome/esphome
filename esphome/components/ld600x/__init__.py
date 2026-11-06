@@ -55,9 +55,7 @@ def request_model_sizes(hub: MockObj, *, area_kinds: int) -> None:
 
 
 def add_frame_buffer(hub: MockObj, config: ConfigType, hub_id_key: str) -> None:
-    """Give the parser a static frame buffer unless PSRAM may hold the allocated one."""
-    if "psram" in CORE.loaded_integrations:
-        return
+    """Give the parser its frame buffer: static, or allocated at boot when PSRAM may hold it."""
     # Only the point cloud stream needs the larger frame.
     point_cloud = any(
         conf.get(hub_id_key) == config[CONF_ID] and key in conf
@@ -72,8 +70,8 @@ def add_frame_buffer(hub: MockObj, config: ConfigType, hub_id_key: str) -> None:
         if point_cloud
         else ld600x_ns.DEFAULT_MAX_DATA_LEN
     )
-    buffer = cg.static_buffer(config[CONF_ID], cg.uint8, str(size))
-    cg.add(hub.set_frame_buffer(buffer))
+    buffer = cg.static_buffer(config[CONF_ID], cg.uint8, str(size), psram=True)
+    cg.add(hub.set_frame_buffer(buffer, size))
 
 
 def ld600x_hub_schema(component_class: MockObjClass) -> cv.Schema:

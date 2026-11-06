@@ -37,7 +37,7 @@ template<typename T> class WorkModeTest : public ::testing::Test {
     global_preferences = &this->prefs_;
 
     this->sut_.set_uart_parent(&this->uart_);
-    this->sut_.set_frame_buffer(this->frame_buffer_);
+    this->sut_.set_frame_buffer(this->frame_buffer_, sizeof(this->frame_buffer_));
     this->sut_.set_work_mode_text_sensor(&this->work_mode_);
     this->sut_.setup();
     std::this_thread::sleep_for(std::chrono::milliseconds(120));

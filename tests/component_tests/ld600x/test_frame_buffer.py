@@ -34,6 +34,9 @@ def test_point_cloud_size(domain: str, key: str) -> None:
     ]
 
 
-def test_psram_keeps_the_heap_buffer() -> None:
+def test_psram_allocates_at_boot() -> None:
     CORE.loaded_integrations.add("psram")
     assert _buffers() == []
+    assert "radar.set_frame_buffer(nullptr, ld600x::DEFAULT_MAX_DATA_LEN);" in [
+        str(s) for s in CORE.main_statements
+    ]

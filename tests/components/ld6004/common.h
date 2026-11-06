@@ -159,7 +159,7 @@ class LD6004Test : public ::testing::Test {
     test_hub() = &this->sut_;
 
     this->sut_.set_uart_parent(&this->uart_);
-    this->sut_.set_frame_buffer(this->frame_buffer_);
+    this->sut_.set_frame_buffer(this->frame_buffer_, sizeof(this->frame_buffer_));
     this->configure_();
 
     this->sut_.setup();
