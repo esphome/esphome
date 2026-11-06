@@ -123,6 +123,12 @@ AudioDecoderState AudioDecoder::decode(bool stop_gracefully) {
     return AudioDecoderState::FAILED;
   }
 
+  if (this->audio_stream_info_.has_value() &&
+      !this->output_transfer_buffer_->supports_audio_stream(this->audio_stream_info_.value())) {
+    ESP_LOGE(TAG, "Speaker does not support the decoded audio format");
+    return AudioDecoderState::FAILED;
+  }
+
   if (stop_gracefully) {
     if (this->output_transfer_buffer_->available() == 0) {
       if (this->end_of_file_) {

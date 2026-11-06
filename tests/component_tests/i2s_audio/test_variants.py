@@ -27,7 +27,12 @@ def _set_variant(
         platform_data={KEY_VARIANT: variant},
         full_config={
             i2s_audio.DOMAIN: [
-                {CONF_ID: ID(f"bus_{n}"), CONF_FULL_DUPLEX: False} for n in range(buses)
+                {
+                    CONF_ID: ID(f"bus_{n}"),
+                    CONF_FULL_DUPLEX: False,
+                    i2s_audio.CONF_KEEP_ALIVE: False,
+                }
+                for n in range(buses)
             ]
         },
     )

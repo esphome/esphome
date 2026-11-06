@@ -1,6 +1,7 @@
 #pragma once
 
 #ifdef USE_ESP32
+#include "audio.h"
 #include "esphome/components/ring_buffer/ring_buffer.h"
 #include "esphome/core/defines.h"
 #include "esphome/core/helpers.h"  // for ESPDEPRECATED
@@ -117,6 +118,14 @@ class AudioSinkTransferBuffer : public AudioTransferBuffer {
   /// @brief Adds a callback as the transfer buffer's sink.
   /// @param callback Pointer to the AudioSinkCallback implementation
   void set_sink(AudioSinkCallback *callback) { this->sink_callback_ = callback; }
+
+  bool supports_audio_stream(const AudioStreamInfo &stream_info) const {
+#ifdef USE_SPEAKER
+    return this->speaker_ == nullptr || this->speaker_->supports_audio_stream(stream_info);
+#else
+    return true;
+#endif
+  }
 
   void clear_buffered_data() override;
 
