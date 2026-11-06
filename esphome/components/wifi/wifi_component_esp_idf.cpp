@@ -41,15 +41,16 @@
 #include "lwip/apps/sntp.h"
 #include "lwip/dns.h"
 #include "lwip/err.h"
+#if USE_NETWORK_IPV6 || defined(USE_WIFI_LEASE_CACHE)
+#include <esp_netif_net_stack.h>  // esp_netif_get_netif_impl()
+#include "lwip/netif.h"
+#endif
 #if !USE_NETWORK_IPV4 && LWIP_IPV6_DHCP6
-#include <esp_netif_net_stack.h>
 #include "lwip/dhcp6.h"
 #endif
 #ifdef USE_WIFI_LEASE_CACHE
-#include <esp_netif_net_stack.h>  // esp_netif_get_netif_impl()
-#include <esp_rtc_time.h>         // esp_rtc_get_time_us() -- RTC-domain clock for lease age
+#include <esp_rtc_time.h>  // esp_rtc_get_time_us() -- RTC-domain clock for lease age
 #include "lwip/dhcp.h"
-#include "lwip/netif.h"
 #endif
 
 #include "esphome/core/application.h"
@@ -1111,21 +1112,25 @@ void WiFiComponent::wifi_process_event_(IDFWiFiEvent *data) {
     s_sta_connected = true;
 #if USE_NETWORK_IPV6
     // Start SLAAC on association, not after a DHCPv4 lease that may never arrive.
-    if (esp_err_t ll_err = esp_netif_create_ip6_linklocal(s_sta_netif); ll_err != ESP_OK) {
-      ESP_LOGW(TAG, "esp_netif_create_ip6_linklocal failed: %s", esp_err_to_name(ll_err));
-    }
-#if !USE_NETWORK_IPV4 && LWIP_IPV6_DHCP6
-    // Without DHCPv4, DNS servers come from RDNSS or stateless DHCPv6; esp_netif never starts the latter
+    // Not esp_netif_create_ip6_linklocal(): it returns ESP_FAIL while the netif is down, and this queued event
+    // can be handled before esp-netif's own STA_CONNECTED handler brings the netif up. lwIP accepts the
+    // address on a down netif and starts DAD and router solicitation once it comes up.
+    // LwIPLock is a no-op without core locking; esp_netif_tcpip_exec always runs in the TCP/IP context.
     if (auto *netif = static_cast<struct netif *>(esp_netif_get_netif_impl(s_sta_netif)); netif != nullptr) {
-      // LwIPLock is a no-op without core locking; esp_netif_tcpip_exec always runs in the TCP/IP context.
       esp_netif_tcpip_exec(
           [](void *ctx) -> esp_err_t {
-            dhcp6_enable_stateless(static_cast<struct netif *>(ctx));
+            auto *netif = static_cast<struct netif *>(ctx);
+            netif_create_ip6_linklocal_address(netif, 1);
+#if !USE_NETWORK_IPV4 && LWIP_IPV6_DHCP6
+            // Without DHCPv4, DNS servers come from RDNSS or stateless DHCPv6; esp_netif never starts the latter
+            dhcp6_enable_stateless(netif);
+#endif
             return ESP_OK;
           },
           netif);
+    } else {
+      ESP_LOGW(TAG, "No lwIP netif, IPv6 link-local not created");
     }
-#endif
 #endif /* USE_NETWORK_IPV6 */
     if (this->state_ == WIFI_COMPONENT_STATE_STA_CONNECTED) {
       // Driver-initiated roam: the WIFI_REASON_ROAMING disconnect was ignored,
