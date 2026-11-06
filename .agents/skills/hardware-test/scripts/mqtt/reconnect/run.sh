@@ -38,9 +38,10 @@ rc=${PIPESTATUS[0]}
 [ "$rc" = 0 ] || { echo "FAIL: kick.py exited $rc"; exit 1; }
 sleep 8
 grep -a -E 'CONN [0-9]+|RESULT' "$O/serial.txt" | sed 's/.*\]: //' | paste - - | tee "$O/results.txt"
-# The kicker takes over every other connection; the even ones are left alone and must get the whole burst
+# The kicker takes over every other connection; the even ones are left alone and must get all 25 retained topics
+# (retained switch commands only fire on the first connection, so switches_on is not judged)
 ALONE=$(awk '$1 == "CONN" && $2 % 2 == 0' "$O/results.txt")
-FULL=$(echo "$ALONE" | grep -c 'got=25/25 .*switches_on=15/15 ')
+FULL=$(echo "$ALONE" | grep -c 'got=25/25 ')
 TOTAL=$(echo "$ALONE" | grep -c 'RESULT')
 echo "left-alone connections with the full burst: $FULL/$TOTAL"
 [ "$TOTAL" -ge "$N" ] || { echo "FAIL: only $TOTAL left-alone RESULT lines for $N cycles"; exit 1; }
