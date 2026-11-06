@@ -97,6 +97,15 @@ VALIDATE_LP_I2C = {
 }
 LP_I2C_VARIANT = list(VALIDATE_LP_I2C.keys())
 
+# Variants without SOC_I2C_SUPPORT_HW_FSM_RST
+ESP32_I2C_NO_FSM_RESET = {
+    VARIANT_ESP32,
+    VARIANT_ESP32C2,
+    VARIANT_ESP32C3,
+    VARIANT_ESP32S2,
+    VARIANT_ESP32S3,
+}
+
 CONF_SDA_PULLUP_ENABLED = "sda_pullup_enabled"
 CONF_SCL_PULLUP_ENABLED = "scl_pullup_enabled"
 MULTI_CONF = True
@@ -325,8 +334,9 @@ async def to_code(config: ConfigType) -> None:
 
         # Re-enable the I2C driver (excluded by default to save compile time)
         include_builtin_idf_component("esp_driver_i2c")
-        if get_esp32_variant() == VARIANT_ESP32:
-            # Classic ESP32 storms on ACK_ERR after a NACK; see i2c_bus_esp_idf.cpp
+        if get_esp32_variant() in ESP32_I2C_NO_FSM_RESET:
+            # ACK_ERR interrupt storm after a NACK; see i2c_bus_esp_idf.cpp
+            cg.add_define("USE_I2C_ISR_GUARD")
             cg.add_build_flag("-Wl,--wrap=esp_intr_alloc_intrstatus")
     if CORE.is_host:
         var = cg.new_Pvariable(config[CONF_ID])

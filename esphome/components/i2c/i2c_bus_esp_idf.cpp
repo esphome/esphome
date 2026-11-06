@@ -10,14 +10,14 @@
 #include "esphome/core/helpers.h"
 #include "esphome/core/log.h"
 
-#ifdef USE_ESP32_VARIANT_ESP32
+#ifdef USE_I2C_ISR_GUARD
 #include <esp_intr_alloc.h>
 #include <hal/i2c_ll.h>
 #include <soc/i2c_periph.h>
 
-// Classic ESP32 has no I2C FSM reset: after a NACK the controller can keep raising ACK_ERR, and the IDF
-// i2c_master ISR clears it without masking it, so the interrupt fires forever and starves the CPU
-// (esphome#22270, espressif/esp-idf#17690). The driver needs no interrupt after a NACK, timeout or
+// Chips without an I2C FSM reset (ESP32, S2, S3, C2, C3): after a NACK the controller can keep raising
+// ACK_ERR, and the IDF i2c_master ISR clears it without masking it, so the interrupt fires forever and starves
+// the CPU (esphome#22270, espressif/esp-idf#17690). The driver needs no interrupt after a NACK, timeout or
 // arbitration loss, so mask the master events then; it re-enables them at the next transaction start.
 namespace {
 struct I2CIsrGuard {
@@ -55,7 +55,7 @@ esp_err_t __wrap_esp_intr_alloc_intrstatus(int source, int flags, uint32_t reg, 
 }
 }  // extern "C"
 // NOLINTEND(bugprone-reserved-identifier,cert-dcl37-c,cert-dcl51-cpp,readability-identifier-naming)
-#endif  // USE_ESP32_VARIANT_ESP32
+#endif  // USE_I2C_ISR_GUARD
 
 namespace esphome::i2c {
 
