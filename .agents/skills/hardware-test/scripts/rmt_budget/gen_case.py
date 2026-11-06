@@ -14,7 +14,11 @@ BOARDS = {
         "  hardware_uart: USB_SERIAL_JTAG\n",
         [4, 5, 6, 7, 15, 16],
     ),
-    "c6": ("esp32-c6-devkitc-1", "", [4, 5, 6, 7, 0, 1]),
+    "c6": (
+        "esp32-c6-devkitc-1",
+        "  hardware_uart: UART0\n",
+        [4, 5, 6, 7, 0, 1],
+    ),
 }
 
 

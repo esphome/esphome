@@ -14,7 +14,14 @@ $PY "$SC" "$P" 40 "$OUT/serial.txt" > /dev/null 2>&1
 [ -s "$OUT/serial.txt" ] || { echo "serial capture got nothing (a panic before USB comes up leaves no port: BOOTSEL)"; exit 1; }
 grep -a -o "DMA claimed.*" "$OUT/serial.txt"
 grep -a -o "RESULT .*" "$OUT/serial.txt" | sort | uniq -c
-N=$(grep -a -c "RESULT " "$OUT/serial.txt"); G=$(grep -a -i -c "bytes 3ca50f3ca50f" "$OUT/serial.txt")
+OK='bytes 3ca50f3ca50f([^0-9a-f]|$)'
+N=$(grep -a -c "RESULT " "$OUT/serial.txt"); G=$(grep -a -i -E -c "$OK" "$OUT/serial.txt")
 echo "$NAME: $N results, $G with the expected frame"
 grep -a -q DONE "$OUT/serial.txt" || { echo "FAIL: no DONE"; exit 1; }
 [ "$N" -gt 0 ] || { echo "FAIL: no RESULT lines"; exit 1; }
+# the FIFO overruns now and then, so each strip needs one correct capture, not all of them
+BAD=""
+for s in $(grep -a -o "RESULT [^:]*" "$OUT/serial.txt" | cut -d' ' -f2 | sort -u); do
+  grep -a -i -q -E "RESULT $s: .*$OK" "$OUT/serial.txt" || BAD="$BAD $s"
+done
+[ -z "$BAD" ] || { echo "FAIL: no correct frame from$BAD"; exit 1; }

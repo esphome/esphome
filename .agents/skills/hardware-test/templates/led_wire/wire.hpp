@@ -85,7 +85,11 @@ inline void init(int pin_a, const char *name_a, unsigned thr_a, int pin_b, const
   ESP_LOGI(TAG, "wire capture ready");
 }
 
+static bool armed_{false};  // a queued SPI transaction owns t_ and spi_buf_ until it is collected
 inline void arm() {
+  if (armed_)
+    return;
+  armed_ = true;
   for (auto &r : rx_) {
     if (r.h == nullptr)
       continue;
@@ -155,6 +159,7 @@ inline void report(const char *step) {
   int len = -1;
   if (spi_slave_get_trans_result(SPI2_HOST, &res, pdMS_TO_TICKS(500)) == ESP_OK)
     len = res->trans_len;
+  armed_ = false;
   esphome::format_hex_to(hex, spi_buf_, len > 0 ? std::min(len / 8, 64) : 0);
   ESP_LOGI(TAG, "SPI %s bits=%d %s", step, len, hex);
 }
@@ -210,6 +215,7 @@ inline void stress_step() {
   gpio_set_level((gpio_num_t) CS, 1);
   spi_slave_transaction_t *res;
   spi_slave_get_trans_result(SPI2_HOST, &res, pdMS_TO_TICKS(100));
+  armed_ = false;
 }
 inline void stress_report() {
   for (int k = 0; k < 2; k++) {

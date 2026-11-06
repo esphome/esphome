@@ -56,7 +56,8 @@ DMA channels 0 to 11. `run.sh pa|pc LABEL` builds, flashes, captures 40 s and pr
 frame of two LEDs set to `Color(0xA5, 0x3C, 0x0F)` reads `3ca50f3ca50f`.
 
 - Turn the light on at full brightness before probing, or color correction writes zeros.
-- The probe FIFO overruns once in a while: count only full captures.
+- The probe FIFO overruns once in a while: count only full captures. `run.sh` fails unless every strip gave at least
+  one correct frame.
 - An RP2350 `panic()` escalates to a HardFault and the rp2 crash handler reboots within about a second, so a panic
   during component setup boot-loops before USB CDC enumerates and the board looks dead (no port, no BOOTSEL drive).
   Hold BOOTSEL while plugging it in and flash the UF2 drive. To see such a fault, trigger it after boot.

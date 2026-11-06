@@ -81,7 +81,7 @@ for rate in [44100, 48000, 22050, 16000, 8000]:
 fmt(16, 1, 44100)
 # underrun: 22050 frames (0.5 s) of +50% then nothing, keep sampling across the gap, then resume
 log("underrun")
-L("sdp::burst_left_ = 22050; sdp::set_mode(sdp::M_BURST);")
+L("sdp::lvl_ = 0.5f; sdp::burst_left_ = 22050; sdp::set_mode(sdp::M_BURST);")
 D(200)
 M("underrun", 900)
 DUMP("underrun")
@@ -137,13 +137,16 @@ L('ESP_LOGI("sdp", "RES rtttl_stop state=%d", sdp::st());')
 M("after_rtttl_stop")
 # play/stop hammer
 log("hammer")
-L("""for (int i = 0; i < 200; i++) {
-            sdp::lvl_ = 0.5f; sdp::set_mode(sdp::M_DC);
-            vTaskDelay(pdMS_TO_TICKS(3 + (i % 7)));
-            sdp::set_mode(sdp::M_OFF);
-            if (i & 1) id(spk).stop(); else id(spk).finish();
-            vTaskDelay(pdMS_TO_TICKS(1 + (i % 5)));
-          }""")
+# separate actions, so the speaker loop() runs between each start and stop
+RAW("""repeat:
+          count: 200
+          then:
+            - lambda: 'sdp::lvl_ = 0.5f; sdp::set_mode(sdp::M_DC);'
+            - delay: !lambda 'return 3 + iteration % 7;'
+            - lambda: |-
+                sdp::set_mode(sdp::M_OFF);
+                if (iteration & 1) id(spk).stop(); else id(spk).finish();
+            - delay: !lambda 'return 1 + iteration % 5;'""")
 D(1000)
 L(
     'ESP_LOGI("sdp", "RES hammer_done state=%d heap=%u", sdp::st(), (unsigned) esp_get_free_heap_size());'
