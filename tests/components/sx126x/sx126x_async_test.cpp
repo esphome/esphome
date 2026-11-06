@@ -612,6 +612,8 @@ TEST_P(SX126xReceiveActions, ModeAndConfigurationPreserveBorrowedPacket) {
       case 5:
         hw.radio.run_image_cal();
         break;
+      default:
+        FAIL() << "Unknown action " << selected_action;
     }
     EXPECT_FALSE(hw.transactions.empty());  // The requested operation must actually reach the chip.
     EXPECT_EQ(hw.receiving, selected_action >= 4);
