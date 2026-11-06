@@ -57,7 +57,7 @@ class SPIDelegateHw : public SPIDelegate {
 };
 
 bool SPIComponent::setup_hw_bus_() {
-  const SPIInterface channel = this->interface_;
+  SPIInterface channel = this->interface_;
   const int clk = Utility::get_pin_no(this->clk_pin_);
   const int sdi = Utility::get_pin_no(this->sdi_pin_);
   const int sdo = Utility::get_pin_no(this->sdo_pin_);
