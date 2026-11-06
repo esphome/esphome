@@ -1,5 +1,6 @@
 #pragma once
 // Frame builders for the gcja5, pm1006 and sds011 simulation (esphome#21939 stack).
+#include "esphome/core/helpers.h"
 #include "sim.hpp"
 
 namespace sim {
@@ -20,10 +21,7 @@ inline std::vector<uint8_t> gcja5(uint32_t pm1, uint32_t pm25, uint32_t pm10, bo
   f[23] = 2;    // pmc 5.0
   f[25] = 1;    // pmc 10
   f[29] = 0x00;
-  uint8_t x = 0;
-  for (int i = 1; i < 30; i++)
-    x ^= f[i];
-  f[30] = x ^ (bad_ck ? 0x01 : 0);
+  f[30] = esphome::xor_bytes(f.data() + 1, 29) ^ (bad_ck ? 0x01 : 0);
   f[31] = bad_end ? 0x04 : 0x03;
   return f;
 }

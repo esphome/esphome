@@ -20,7 +20,7 @@ class FakeEzoBus : public esphome::i2c::I2CBus {
   uint32_t writes_{0};
 
   esphome::i2c::ErrorCode write_readv(uint8_t address, const uint8_t *wb, size_t wn, uint8_t *rb, size_t rn) override {
-    uint32_t now = (esphome::millis) ();  // ESP8266 main.cpp defines a millis() macro
+    uint32_t now = millis();
     if (wn > 0) {
       size_t n = wn < sizeof(this->last_) - 1 ? wn : sizeof(this->last_) - 1;
       memcpy(this->last_, wb, n);

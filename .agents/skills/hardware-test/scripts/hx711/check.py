@@ -16,7 +16,7 @@ def check(path: str) -> bool:
     bad = [v for v in got if v not in served]
     nan = len(re.findall(r"ENT [AB] nan", t))
     short = len(re.findall(r"short transfer", t))
-    crash = len(re.findall(r"Guru|abort\(\)|wdt reset|task_wdt: Task", t))
+    crash = len(re.findall(r"Guru|abort\(\)|Backtrace:|task_wdt: Task", t))
     print(
         f"{path} published {len(got)} matching {len(got) - len(bad)} unmatched {bad[:5]} nan {nan} short {short}"
         f" pd {t.count('HX power down')} pu {t.count('HX power up')} crash {crash}"

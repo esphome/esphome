@@ -79,8 +79,10 @@ static IRAM_ATTR __attribute__((noinline)) int arm_and_shift(bool arm, uint32_t 
 
 enum Mode : int { NORMAL = 0, STUCK_BUSY = 1, DOUT_STAYS_LOW = 2 };
 
+enum EventKind : uint8_t { EV_TRANSFER = 1, EV_POWER_DOWN = 2, EV_POWER_UP = 3, EV_SHORT = 4 };
+
 struct Event {
-  uint8_t kind;  // 1 transfer, 2 power down, 3 power up, 4 short transfer
+  uint8_t kind;  // EventKind
   uint8_t pulses;
   uint8_t chan_gain;  // conversion that was read: 1 A128, 2 B32, 3 A64
   uint8_t next;
@@ -102,10 +104,6 @@ struct Chip {
   int32_t value{0};
   uint32_t cyc_per_us{240};
 
-  static inline uint32_t in() { return REG_READ(GPIO_IN1_REG); }
-  static inline void dout(bool high) { REG_WRITE(high ? GPIO_OUT1_W1TS_REG : GPIO_OUT1_W1TC_REG, DOUT_BIT); }
-  static inline uint32_t cyc() { return esp_cpu_get_cycle_count(); }
-
   void push(uint8_t kind, uint8_t pulses, uint8_t cg, uint8_t next, int32_t v) {
     uint32_t h = head.load();
     ring[h % 64] = Event{kind, pulses, cg, next, v, (uint32_t) (esp_timer_get_time() / 1000)};
@@ -126,7 +124,7 @@ struct Chip {
     sel = 1;  // power-up resets to channel A gain 128
     dout(true);
     power_downs++;
-    push(2, 0, 0, 0, 0);
+    push(EV_POWER_DOWN, 0, 0, 0, 0);
   }
 
   // Bookkeeping after shift_out, interrupts on again.
@@ -134,7 +132,7 @@ struct Chip {
     uint8_t read_sel = sel;
     if (held_high) {
       if (pulses > 0)
-        push(pulses >= 24 ? 1 : 4, pulses, read_sel, 0, value);
+        push(pulses >= 24 ? EV_TRANSFER : EV_SHORT, pulses, read_sel, 0, value);
       if (pulses > 0 && pulses < 24)
         short_transfers++;
       power_down();
@@ -142,13 +140,13 @@ struct Chip {
     }
     if (pulses < 25) {
       short_transfers++;
-      push(4, pulses, read_sel, 0, value);
+      push(EV_SHORT, pulses, read_sel, 0, value);
       start_conversion(conv_ms);
       return;
     }
     sel = pulses >= 27 ? 3 : pulses == 26 ? 2 : 1;
     transfers++;
-    push(1, pulses, read_sel, sel, value);
+    push(EV_TRANSFER, pulses, read_sel, sel, value);
     if (mode == DOUT_STAYS_LOW) {
       dout(false);
       ready_at = esp_timer_get_time();  // never shows the busy state
@@ -171,7 +169,7 @@ struct Chip {
           powered = true;
           sel = 1;
           power_ups++;
-          push(3, 0, 0, 0, 0);
+          push(EV_POWER_UP, 0, 0, 0, 0);
           start_conversion(conv_ms);
         } else {
           vTaskDelay(1);
@@ -195,8 +193,8 @@ struct Chip {
       }
       if (sck) {
         // SCK high outside a transfer: a power down once it holds for 60 us
-        uint32_t s = cyc();
-        while ((in() & SCK_BIT) && cyc() - s < 70 * cyc_per_us) {
+        uint32_t s = esp_cpu_get_cycle_count();
+        while ((in() & SCK_BIT) && esp_cpu_get_cycle_count() - s < 70 * cyc_per_us) {
         }
         if (in() & SCK_BIT)
           power_down();
@@ -213,17 +211,17 @@ struct Chip {
       Event &e = ring[tail % 64];
       tail++;
       switch (e.kind) {
-        case 1:
+        case EV_TRANSFER:
           ESP_LOGI(TAG, "HX read %s value %d, %u pulses -> next %s (t=%u)", CG[e.chan_gain & 3], (int) e.value,
                    e.pulses, CG[e.next & 3], (unsigned) e.t_ms);
           break;
-        case 2:
+        case EV_POWER_DOWN:
           ESP_LOGI(TAG, "HX power down (t=%u)", (unsigned) e.t_ms);
           break;
-        case 3:
+        case EV_POWER_UP:
           ESP_LOGI(TAG, "HX power up (t=%u)", (unsigned) e.t_ms);
           break;
-        case 4:
+        case EV_SHORT:
           ESP_LOGW(TAG, "HX short transfer %u pulses (t=%u)", e.pulses, (unsigned) e.t_ms);
           break;
       }

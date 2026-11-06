@@ -1,4 +1,7 @@
-"""ld6drive.py HOST: press every button, set every number and select, toggle every switch; print states as they change."""
+"""ld6drive.py HOST [...]: press every button, set every number and select, toggle every switch; print states.
+
+Further arguments are ignored, so scripts/uart_sim/run.sh can call it with DRIVER=ld6drive.py.
+"""
 
 import asyncio
 import math

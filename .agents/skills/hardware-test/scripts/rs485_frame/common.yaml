@@ -1,88 +1,24 @@
-esphome:
-  includes:
-    - simrs.hpp
-  on_boot:
-    priority: -100
-    then:
-      - lambda: simrs::bus = id(sim_uart);
-      - delay: 2s
-      - script.execute: cases
-
-esp32:
-  variant: esp32c3
-  board: esp32-c3-devkitm-1
-  framework:
-    type: esp-idf
-
-logger:
-  hardware_uart: USB_SERIAL_JTAG
-
-# the hub's UART and the simulated bus device, cross-wired through the GPIO matrix
-uart:
-  - id: rs_uart
-    tx_pin:
-      number: GPIO3
-      allow_other_uses: true
-    rx_pin:
-      number: GPIO4
-      allow_other_uses: true
-    baud_rate: 9600
-  - id: sim_uart
-    tx_pin:
-      number: GPIO4
-      allow_other_uses: true
-    rx_pin:
-      number: GPIO3
-      allow_other_uses: true
-    baud_rate: 9600
+packages:
+  base: !include rs-base.yaml
+  buttons: !include buttons.yaml
 
 rs485_frame:
-  id: hub
-  uart_id: rs_uart
   framing:
     escape:
       mode: escape_byte
       byte: 0x00
-  crc:
-    type: sum16_big_endian
   tx:
     gate:
       frame_type: [0x01, 0x01]
-  dump_frames: true
-  frame_timeout: 50ms
   on_frame:
-    - frame_type: []
-      then:
-        - lambda: |-
-            char hex[300];
-            format_hex_to(hex, sizeof(hex), payload.data(), payload.size() > 140 ? 140 : payload.size());
-            ESP_LOGI("hwt", "FRAME %u B %s", (unsigned) payload.size(), hex);
     - frame_type: [0x01, 0x02]
       then:
         - lambda: 'ESP_LOGI("hwt", "MATCH 0102 case %02X", payload.size() > 2 ? payload[2] : 0);'
 
-button:
-  - platform: rs485_frame
-    id: cmd_a
-    rs485_frame_id: hub
-    name: cmd a
-    frame_type: [0x00, 0x83]
-    payload: [0x01, 0x10, 0xA1]
-  - platform: rs485_frame
-    id: cmd_b
-    rs485_frame_id: hub
-    name: cmd b
-    frame_type: [0x00, 0x83]
-    payload: [0x01, 0x10, 0xB2]
-
-interval:
-  - interval: 10ms
-    then:
-      - lambda: simrs::poll();
-
 script:
   - id: cases
     then:
+      - delay: 2s
       - lambda: 'simrs::send("C1 good with a stuffed 0x10", simrs::frame({0x01, 0x02, 0xC1, 0x10, 0x55}));'
       - delay: 300ms
       - lambda: 'simrs::send("C2 bad crc", simrs::frame({0x01, 0x02, 0xC2, 0x00}, true));'
@@ -92,7 +28,9 @@ script:
       - lambda: |-
           auto f = simrs::frame({0x01, 0x02, 0xC4, 0x11, 0x22, 0x33});
           simrs::send("C4 first half", std::vector<uint8_t>(f.begin(), f.begin() + 5));
-          delay(25);
+      - delay: 25ms
+      - lambda: |-
+          auto f = simrs::frame({0x01, 0x02, 0xC4, 0x11, 0x22, 0x33});
           simrs::send("C4 second half after 25 ms", std::vector<uint8_t>(f.begin() + 5, f.end()));
       - delay: 300ms
       - lambda: |-
@@ -103,10 +41,7 @@ script:
           auto f = simrs::frame({0x01, 0x02, 0xC5, 0x11, 0x22, 0x33});
           simrs::send("C5 second half after 150 ms", std::vector<uint8_t>(f.begin() + 5, f.end()));
       - delay: 300ms
-      - lambda: |-
-          std::vector<uint8_t> body{0x01, 0x02, 0xC6};
-          body.resize(150, 0x5A);
-          simrs::send("C6 overlong 150 B", simrs::frame(body));
+      - lambda: 'simrs::send("C6 overlong 150 B", simrs::frame(simrs::filled({0x01, 0x02, 0xC6}, 150, 0x5A)));'
       - delay: 600ms
       - lambda: 'simrs::send("C7 two frames in one write", simrs::cat(simrs::frame({0x01, 0x02, 0xC7, 0x0A}), simrs::frame({0x01, 0x02, 0xC7, 0x0B})));'
       - delay: 300ms
@@ -114,7 +49,7 @@ script:
       - delay: 300ms
       - lambda: 'simrs::send("C9 DLE followed by junk inside a frame", {0x10, 0x02, 0x01, 0x02, 0xC9, 0x10, 0x44, 0x00, 0x00, 0x10, 0x03});'
       - delay: 300ms
-      - lambda: 'simrs::send("C10 max length 128 B payload", simrs::frame([]{ std::vector<uint8_t> b{0x01, 0x02, 0xCA}; b.resize(128, 0x10); return b; }()));'
+      - lambda: 'simrs::send("C10 max length 128 B payload", simrs::frame(simrs::filled({0x01, 0x02, 0xCA}, 128, 0x10)));'
       - delay: 800ms
       - logger.log: "T1 press cmd a, then nothing for 1 s (frame_trigger must hold it)"
       - button.press: cmd_a

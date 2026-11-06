@@ -10,12 +10,12 @@ T=${TREE:?set TREE}; P=${PORT:?set PORT}; SC=${SC:?set SC}; PY=${PY:-$T/venv/bin
 NAME=rs$C$L; OUT=$R/out-$NAME; rm -rf "$OUT"; mkdir -p "$OUT"
 printf 'esphome:\n  name: %s\npackages:\n  cases: !include %s.yaml\n' "$NAME" "$C" > "$R/$NAME.yaml"
 pkill -f "[s]erial_capture.py $P"
-(cd "$T" && $PY -m esphome compile "$R/$NAME.yaml" > "$OUT/compile.log" 2>&1) || { echo "build failed"; exit 1; }
-(cd "$T" && $PY -m esphome upload "$R/$NAME.yaml" --device "$P" > "$OUT/flash.log" 2>&1) || { echo "flash failed"; exit 1; }
+(cd "$T" && $PY -m esphome run --no-logs "$R/$NAME.yaml" --device "$P" > "$OUT/build.log" 2>&1) ||
+  { echo "build or flash failed, see $OUT/build.log"; exit 1; }
 $PY "$SC" "$P" "$S" "$OUT/serial.txt" --reset > /dev/null 2>&1 || { echo "serial capture failed"; exit 1; }
 grep -a -E '\[(sim|hwt|rs485_frame)[]:]' "$OUT/serial.txt" | sed -E 's/^\[[0-9:.]*\]//; s/\[(sim|hwt|rs485_frame):[0-9]+\]/[\1]/' > "$R/out-$NAME.log"
 echo "$NAME: $(grep -c '\[sim\]' "$R/out-$NAME.log") simulator lines, $(grep -c '\[hwt\]' "$R/out-$NAME.log") test lines"
-CRASH=$(LC_ALL=C grep -a -c -E 'Guru|abort\(\)|Backtrace:' "$OUT/serial.txt")
+CRASH=$(LC_ALL=C grep -a -c -E 'Guru|abort\(\)|Backtrace:|task_wdt: Task' "$OUT/serial.txt")
 [ "$CRASH" = 0 ] || { echo "FAIL: $CRASH crash lines"; exit 1; }
 grep -q DONE "$R/out-$NAME.log" || { echo "FAIL: no DONE (the case script did not finish)"; exit 1; }
 echo PASS

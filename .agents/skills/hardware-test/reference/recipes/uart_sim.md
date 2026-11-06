@@ -15,8 +15,10 @@ packages; copy them with a different name (`frabase` and so on) for the base bui
 - Polled readers: run `update()` from a script and log `micros()` around it to measure blocking
   (sm300d2 on dev blocks about 104 ms on an empty buffer).
 - The logger stays on UART0, so three builds cover five components. Drive with `scripts/uart_sim/frdrive.py HOST
-  LOG press:NAME sel:NAME=OPT num:NAME=V wait:S`, or `scripts/uart_sim/run.sh NAME TREE SECONDS OPS...` (build
-  and flash from TREE with `esphome run --no-logs`, capture, drive; `PORT` and `SC` in the environment).
+  LOG press:NAME sel:NAME=OPT num:NAME=V wait:S @FILE` (`@FILE` reads one op per line), or
+  `scripts/uart_sim/run.sh NAME TREE SECONDS OPS...` (build and flash from TREE with `esphome run --no-logs`,
+  capture, drive; `PORT` and `SC` in the environment, `ERASE=1` erases the flash first, `DRIVER` picks another
+  API driver).
 
 ## Particulate sensors: gcja5, pm1006, sds011 (#21939)
 
@@ -28,8 +30,8 @@ checksum or bad end flag. `fp-parts.yaml` puts gcja5 on UART1 (9600 8E1, with a 
 - Every button injects one case with its own PM value, so each published state names its case: good, two frames,
   bad checksum, end or tail, garbage before a frame, a cut-off frame followed by a good one, a repeated first header
   byte, and splits of 300 and 700 ms (either side of the 500 ms gap reset).
-- `templates/uart_sim/go.sh NAME TREE fp-ops.txt` runs `run.sh` with the op list from the file (copy it next to
-  `run.sh`); `fs-ops.txt`, `fd-ops.txt` and `fj-ops.txt` are the other lists.
+- `run.sh NAME TREE 150 @fp-ops.txt` runs the op list from the file; `fs-ops.txt`, `fd-ops.txt` and `fj-ops.txt`
+  are the other lists.
 - The loopback also feeds each component its own writes (pm1006 request, sds011 setup and sleep/work commands),
   which must not disturb the next frame.
 - The API coalesces two states published in the same loop pass, so "two frames" shows only the second value.
@@ -37,7 +39,7 @@ checksum or bad end flag. `fp-parts.yaml` puts gcja5 on UART1 (9600 8E1, with a 
 
 ## 4-byte distance sensors: a01nyub, a02yyuw, jsn_sr04t (#21948)
 
-`distsim.hpp` (`sim::d4(mm, bad_ck)`), `fd-parts.yaml` (a01nyub on UART1, a02yyuw on UART2) and `fj-parts.yaml`
+`sim::ds1603l(mm, bad_ck)` builds the same `FF H L sum` frame; `fd-parts.yaml` (a01nyub on UART1, a02yyuw on UART2) and `fj-parts.yaml`
 (jsn_sr04t, polled every 15 s), with the same case list as above plus a reading below the minimum distance. With
 loopback the jsn_sr04t request byte `55` can land inside a split frame and break it; check the `Request read out`
 timestamps before calling a difference between builds.
@@ -45,20 +47,23 @@ timestamps before calling a difference between builds.
 ## LD6002B TinyFrame parser (#19836, #19837)
 
 `templates/uart_sim/ld6002b/`: `ld6sim.hpp` is a fake module on a UART cross-wired to the component's UART (UART1
-tx 25 rx 26, UART2 tx 26 rx 25). It ACKs every command with an empty frame of the same type and logs the bytes it
-received (`MOD RX`), so the bytes on the wire can be diffed between builds. Target reports carry a distinct X per
+tx 25 rx 26, UART2 tx 26 rx 25), set up by the shared `ld6-base.yaml` package. It ACKs every command with an empty
+frame of the same type and logs the bytes it received (`MOD RX`), so the bytes on the wire can be diffed between
+builds. Target reports carry a distinct X per
 case, and `T1 X` shows which frames got through.
 
-- `ld6-common.yaml` cases: good, byte by byte, garbage before a frame, bad and lost header or data checksums, an
-  oversized payload, a burst of 20. The script runs by itself from `on_boot`; `ld6p.yaml` is the run file
+- `ld6-parser-cases.yaml` (used by `ld6-common.yaml`, which turns the query answers off): good, byte by byte (one
+  byte per poll, so the component's loop runs in between), garbage before a frame, bad and lost header or data
+  checksums, an oversized payload, a burst of 20. The script runs by itself from `on_boot`; `ld6p.yaml` is the run file
   (copy it with another name for the base build). `run.sh NAME TREE` builds, flashes over serial and captures,
   and fails without a `CASE done` line.
 - Garbage that contains `01` right before a frame loses that frame on dev and on the PR (a false header, no rescan).
-- Full component A/B: `ld6sim2.hpp` also answers every query with a fixed report (delay, sensitivity, trigger,
+- Full component A/B: `ld6sim.hpp` also answers every query with a fixed report (delay, sensitivity, trigger,
   installation, Z range, low power, low power sleep, both area reports, version); `ld6x-common.yaml` has the full
-  entity set; `ld6drive.py HOST` presses every button, sets every number and select and toggles every switch over
-  the API. `run-full.sh NAME TREE` erases the flash first: switch and select states and the area id are stored
-  preferences, and a previous build's run changes the next build's boot state.
+  entity set and runs the parser cases too; `ld6drive.py HOST` presses every button, sets every number and select
+  and toggles every switch over the API. Run it with `ERASE=1 DRIVER=ld6drive.py scripts/uart_sim/run.sh NAME TREE
+  100`: switch and select states and the area id are stored preferences, and a previous build's run changes the
+  next build's boot state.
 - `m4-common.yaml` and `m5-common.yaml` run the same fake against `ld6004`: target and area reports, work status and
   radar on/off reports, malformed reports, and the point cloud and target display switches across a reboot
   (`m5` reboots once and checks the restored switch states).

@@ -8,7 +8,7 @@ cd "$D" && PYTHONPATH=$T PYTHONUNBUFFERED=1 timeout 300 $PY -m esphome upload "$
   { echo "upload failed"; tail -5 "$D/$N-upload.log"; exit 1; }
 $PY "$SC" "$P" "$S" "$D/$N-cap.txt" --reset --ms > "$D/$N-cap.err" 2>&1 || { echo "serial capture failed"; exit 1; }
 C=$D/$N-cap.txt
-CRASH=$(LC_ALL=C grep -a -c -E 'Guru|abort\(\)|task_wdt: Task' "$C")
+CRASH=$(LC_ALL=C grep -a -c -E 'Guru|abort\(\)|Backtrace:|task_wdt: Task' "$C")
 [ "$CRASH" = 0 ] || { echo "FAIL: $CRASH crash lines in $C"; exit 1; }
 DONE=$(grep -a -m1 -o 'DONE .*' "$C") || { echo "FAIL: no DONE line in $C (raise SECONDS?)"; exit 1; }
 echo "$N: $DONE"

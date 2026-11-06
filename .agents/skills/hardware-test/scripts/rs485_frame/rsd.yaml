@@ -1,59 +1,19 @@
 esphome:
   name: rsd
-  includes:
-    - simrs2.hpp
-  on_boot:
-    priority: -100
-    then:
-      - lambda: 'simrs::bus = id(sim_uart); simrs::double_mode = true;'
-      - script.execute: cases
 
-esp32:
-  variant: esp32c3
-  board: esp32-c3-devkitm-1
-  framework:
-    type: esp-idf
-
-logger:
-  hardware_uart: USB_SERIAL_JTAG
-
-uart:
-  - id: rs_uart
-    tx_pin: {number: GPIO3, allow_other_uses: true}
-    rx_pin: {number: GPIO4, allow_other_uses: true}
-    baud_rate: 9600
-  - id: sim_uart
-    tx_pin: {number: GPIO4, allow_other_uses: true}
-    rx_pin: {number: GPIO3, allow_other_uses: true}
-    baud_rate: 9600
-
-interval:
-  - interval: 5ms
-    then:
-      - lambda: simrs::poll();
+packages:
+  base: !include rs-base.yaml
 
 rs485_frame:
-  id: hub
-  uart_id: rs_uart
   sniffer_only: true
   framing:
     escape:
       mode: double
-  crc:
-    type: sum16_big_endian
-  dump_frames: true
-  frame_timeout: 50ms
-  on_frame:
-    - frame_type: []
-      then:
-        - lambda: |-
-            char hex[300];
-            format_hex_to(hex, sizeof(hex), payload.data(), payload.size() > 140 ? 140 : payload.size());
-            ESP_LOGI("hwt", "FRAME t=%u %u B %s", (unsigned) millis(), (unsigned) payload.size(), hex);
 
 script:
   - id: cases
     then:
+      - lambda: simrs::double_mode = true;
       - delay: 1s
       - lambda: 'simrs::send("D1 good with a literal 0x10", simrs::frame({0x01, 0x02, 0xD1, 0x10, 0x55}));'
       - delay: 600ms
