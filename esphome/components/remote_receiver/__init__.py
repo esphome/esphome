@@ -183,7 +183,7 @@ _RECEIVER_SCHEMA = remote_base.validate_triggers(
             cv.SplitDefault(
                 CONF_BUFFER_SIZE,
                 esp32=cv.UNDEFINED,
-                # RMT targets size their ring from receive_symbols
+                # the pulse ring needs a size; only RMT targets size themselves in setup()
                 **{
                     f"esp32_{variant.removeprefix('ESP32').lower()}": "4000b"
                     for variant in esp32_rmt.VARIANTS_NO_RMT
@@ -321,8 +321,7 @@ FINAL_VALIDATE_SCHEMA = cv.All(
 
 async def to_code(config: ConfigType) -> None:
     pin = await cg.gpio_pin_expression(config[CONF_PIN])
-    rmt = CORE.is_esp32 and esp32.get_esp32_variant() not in esp32_rmt.VARIANTS_NO_RMT
-    if rmt:
+    if CORE.is_esp32 and esp32.get_esp32_variant() not in esp32_rmt.VARIANTS_NO_RMT:
         # Re-enable ESP-IDF's RMT driver (excluded by default to save compile time)
         esp32.include_builtin_idf_component("esp_driver_rmt")
 
@@ -354,14 +353,8 @@ async def to_code(config: ConfigType) -> None:
     )
     cg.add(var.set_filter_us(config[CONF_FILTER]))
     cg.add(var.set_idle_us(config[CONF_IDLE]))
-    if rmt:
-        words = remote_receiver_ns.rmt_buffer_words(
-            config[CONF_RECEIVE_SYMBOLS], config.get(CONF_BUFFER_SIZE, 0)
-        )
-        cg.add(var.set_buffer(cg.static_buffer(config[CONF_ID], cg.uint32, words)))
-    elif config.get(CONF_SAMPLING) != SAMPLING_TIMER:
-        entries = (config[CONF_BUFFER_SIZE] + 3) // 4
-        cg.add(var.set_buffer(cg.static_buffer(config[CONF_ID], cg.int32, entries)))
+    if config.get(CONF_SAMPLING) != SAMPLING_TIMER:
+        cg.add_optional(var.set_buffer_size, config.get(CONF_BUFFER_SIZE))
     else:
         cg.add_define("USE_REMOTE_RECEIVER_TIMER_SAMPLING")
         cg.add(var.set_sample_period_us(config[CONF_SAMPLE_PERIOD]))
