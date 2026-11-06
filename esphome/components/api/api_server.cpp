@@ -256,9 +256,11 @@ void APIServer::remove_client_(uint8_t client_index) {
 
 #ifdef USE_API_CLIENT_DISCONNECTED_TRIGGER
   // Save client info before closing socket and removal for the trigger
-  char peername_buf[socket::SOCKADDR_STR_LEN];
-  std::string client_name(client->get_name());
-  std::string client_peername(client->get_peername_to(peername_buf));
+  char client_name[CLIENT_INFO_NAME_MAX_LEN];
+  strncpy(client_name, client->get_name(), sizeof(client_name) - 1);
+  client_name[sizeof(client_name) - 1] = '\0';
+  char peername[socket::SOCKADDR_STR_LEN];
+  client->get_peername_to(peername);
 #endif
 
   // Read before the swap-and-reset below destroys the connection
@@ -301,7 +303,7 @@ void APIServer::remove_client_(uint8_t client_index) {
 
 #ifdef USE_API_CLIENT_DISCONNECTED_TRIGGER
   // Fire trigger after client is removed so api.connected reflects the true state
-  this->client_disconnected_trigger_.trigger(client_name, client_peername);
+  this->client_disconnected_callback_.call(StringRef(client_name), StringRef(peername));
 #endif
 }
 
