@@ -6,14 +6,14 @@
 
 namespace esphome::tx20 {
 
-static constexpr uint8_t MAX_BUFFER_SIZE = 41;
+static constexpr uint8_t TX20_BUFFER_SIZE = 41;
 
 /// Store data in a class that doesn't use multiple-inheritance (vtables in flash)
 struct Tx20ComponentStore {
   volatile uint32_t start_time;
   volatile uint32_t spent_time;
   ISRInternalGPIOPin pin;
-  volatile uint16_t buffer[MAX_BUFFER_SIZE];
+  volatile uint16_t buffer[TX20_BUFFER_SIZE];
   volatile uint8_t buffer_index;
   volatile bool tx20_available;
   volatile bool pin_state;
