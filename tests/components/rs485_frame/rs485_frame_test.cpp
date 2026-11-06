@@ -4,6 +4,7 @@
 
 #include <algorithm>
 #include <cstdint>
+#include <functional>
 #include <vector>
 
 #include "esphome/components/rs485_frame/rs485_frame.h"
@@ -19,6 +20,11 @@ class FakeUART : public uart::UARTComponent {
  public:
   void write_array(const uint8_t *data, size_t len) override {
     this->written.insert(this->written.end(), data, data + len);
+    // Stands in for a UART debug callback that queues a frame mid-send; runs once.
+    if (auto hook = std::move(this->on_write)) {
+      this->on_write = nullptr;
+      hook();
+    }
   }
   bool peek_byte(uint8_t *data) override { return false; }
   bool read_array(uint8_t *data, size_t len) override {
@@ -36,6 +42,7 @@ class FakeUART : public uart::UARTComponent {
 #endif
   std::vector<uint8_t> written;
   std::vector<uint8_t> rx;
+  std::function<void()> on_write;
 };
 
 struct HubConfig {
@@ -92,6 +99,12 @@ class RS485FrameHubProbe : public ProbeStorage, public RS485FrameHub {
     }
     out.push_back(this->dle_);
     out.push_back(this->etx_);
+    return out;
+  }
+  // What dump_frames logs for an unescaped frame.
+  std::vector<uint8_t> logged_wire_for_test(const std::vector<uint8_t> &frame) const {
+    std::vector<uint8_t> out;
+    this->encode_wire_(frame.data(), frame.size(), [&](uint8_t b) { out.push_back(b); });
     return out;
   }
   void feed_for_test(const std::vector<uint8_t> &bytes) {
@@ -220,6 +233,17 @@ TEST(RS485FrameHubTest, DumpFramesLogsLongFrames) {
   EXPECT_EQ(hub.rx_payload_for_test(), payload);
 }
 
+// dump_frames logs the wire bytes the docs describe: DLE STX, the escaped frame and CRC, DLE ETX.
+TEST(RS485FrameHubTest, DumpFramesLogsWireBytes) {
+  RS485FrameHubProbe hub;
+  hub.setup();
+  const std::vector<uint8_t> payload = {0x01, 0x10, 0x02};
+  std::vector<uint8_t> frame = payload;
+  for (uint8_t b : hub.crc_for_test(payload, true))
+    frame.push_back(b);
+  EXPECT_EQ(hub.logged_wire_for_test(frame), hub.build_frame_for_test(payload));
+}
+
 // A DLE followed by anything but STX, ETX or the escape marker drops the frame.
 TEST(RS485FrameHubTest, RxFramerDropsBadEscape) {
   RS485FrameHubProbe hub({.crc_type = CRC_TYPE_NONE});
@@ -268,6 +292,21 @@ TEST(RS485FrameHubTest, TransmitEscapesLargestFrame) {
     EXPECT_EQ(hub.frames, 1u) << "escape " << int(escape_marker);
     EXPECT_EQ(hub.rx_payload_for_test(), payload);
   }
+}
+
+// A frame queued from a callback while replace_latest's only slot is sent must not change the bytes in flight.
+TEST(RS485FrameHubTest, ReplaceLatestKeepsFrameInFlight) {
+  RS485FrameHubProbe hub({.crc_type = CRC_TYPE_NONE, .max_frame_length = 64});
+  hub.setup();
+  const std::vector<uint8_t> first(40, 0x01);
+  static const uint8_t SECOND[] = {0x02, 0x02};
+  ASSERT_TRUE(hub.queue_frame(first.data(), first.size()));
+  bool queued = true;
+  hub.fake_uart.on_write = [&]() { queued = hub.queue_frame(SECOND, sizeof(SECOND)); };
+
+  EXPECT_EQ(hub.transmit_for_test(), hub.build_frame_for_test(first));
+  EXPECT_FALSE(queued);
+  EXPECT_EQ(hub.queue_depth_for_test(), 0u);
 }
 
 TEST(RS485FrameHubTest, FifoQueueKeepsOrderAndDropsWhenFull) {

@@ -82,19 +82,26 @@ bool RS485FrameHub::queue_raw_frame(std::span<const uint8_t> frame_type, std::sp
     return false;
   }
   size_t index = this->tx_queue_head_;
+  if (this->queue_policy_ == QUEUE_FIFO) {
+    if (this->tx_queue_count_ >= this->max_queue_size_) {
+      ESP_LOGW(TAG, "Frame queue full; dropping frame");
+      return false;
+    }
+    index += this->tx_queue_count_;
+    if (index >= this->max_queue_size_)
+      index -= this->max_queue_size_;
+  }
+  // Queued from a UART debug or log callback while that slot is still being sent.
+  if (index == this->tx_sending_slot_) {
+    ESP_LOGW(TAG, "Frame queued while the previous frame was being sent; dropping frame");
+    return false;
+  }
   if (this->queue_policy_ == QUEUE_REPLACE_LATEST) {
     // The only slot; a frame waiting out the gate delay is replaced and keeps its start time.
     if (this->tx_queue_count_ > 0) {
       ESP_LOGW(TAG, "Replacing pending frame before it was transmitted");
     }
     this->tx_queue_count_ = 0;
-  } else if (this->tx_queue_count_ >= this->max_queue_size_) {
-    ESP_LOGW(TAG, "Frame queue full; dropping frame");
-    return false;
-  } else {
-    index += this->tx_queue_count_;
-    if (index >= this->max_queue_size_)
-      index -= this->max_queue_size_;
   }
   uint8_t *slot = this->tx_slot_(index);
   progmem_memcpy(slot, frame_type.data(), frame_type.size());
@@ -223,8 +230,14 @@ void RS485FrameHub::send_next_(uint32_t now) {
 }
 
 void RS485FrameHub::transmit_head_(uint32_t now) {
-  const uint8_t *frame = this->tx_slot_(this->tx_queue_head_);
-  const size_t len = this->tx_queue_len_[this->tx_queue_head_];
+  const uint8_t slot = this->tx_queue_head_;
+  const uint8_t *frame = this->tx_slot_(slot);
+  const size_t len = this->tx_queue_len_[slot];
+  // Dequeued before any callback runs, so a frame they queue is kept; the slot stays reserved until sent and logged.
+  if (++this->tx_queue_head_ == this->max_queue_size_)
+    this->tx_queue_head_ = 0;
+  this->tx_queue_count_--;
+  this->tx_sending_slot_ = slot;
   // Escaped into a stack chunk on the way out, so the queue only holds the unescaped bytes.
   static constexpr size_t TX_CHUNK_SIZE = 32;
   uint8_t chunk[TX_CHUNK_SIZE];
@@ -238,15 +251,7 @@ void RS485FrameHub::transmit_head_(uint32_t now) {
       pos = 0;
     }
   };
-  put(this->dle_);
-  put(this->stx_);
-  for (size_t i = 0; i < len; i++) {
-    put(frame[i]);
-    if (frame[i] == this->dle_)
-      put(this->escape_marker_);
-  }
-  put(this->dle_);
-  put(this->etx_);
+  this->encode_wire_(frame, len, put);
   if (pos > 0)
     this->write_array(chunk, pos);
   wire_len += pos;
@@ -257,9 +262,7 @@ void RS485FrameHub::transmit_head_(uint32_t now) {
 #endif
   if (this->dump_frames_)
     this->log_frame_(LOG_STR("TX"), frame, len);
-  if (++this->tx_queue_head_ == this->max_queue_size_)
-    this->tx_queue_head_ = 0;
-  this->tx_queue_count_--;
+  this->tx_sending_slot_ = NO_SLOT;
   this->last_tx_time_ = now;
   this->last_tx_wire_ms_ = this->wire_time_ms_(wire_len);
   this->last_activity_time_ = now;
@@ -279,13 +282,23 @@ uint16_t RS485FrameHub::wire_time_ms_(size_t len) const {
 
 void RS485FrameHub::log_frame_(const LogString *dir, const uint8_t *data, size_t len) {
 #if ESPHOME_LOG_LEVEL >= ESPHOME_LOG_LEVEL_DEBUG
-  // Long frames are logged over several lines to keep the buffer on the stack.
+  // Logged as the wire bytes, over several lines for long frames to keep the buffer on the stack.
   static constexpr size_t BYTES_PER_LINE = 32;
+  uint8_t line[BYTES_PER_LINE];
   char hex[format_hex_size(BYTES_PER_LINE)];
-  for (size_t pos = 0; pos < len; pos += BYTES_PER_LINE) {
-    format_hex_to(hex, data + pos, std::min(len - pos, BYTES_PER_LINE));
+  size_t pos = 0;
+  auto log_line = [&]() {
+    format_hex_to(hex, line, pos);
     ESP_LOGD(TAG, "%s %s", LOG_STR_ARG(dir), hex);
-  }
+    pos = 0;
+  };
+  this->encode_wire_(data, len, [&](uint8_t byte) {
+    line[pos++] = byte;
+    if (pos == BYTES_PER_LINE)
+      log_line();
+  });
+  if (pos > 0)
+    log_line();
 #endif
 }
 

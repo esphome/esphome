@@ -13,6 +13,7 @@ namespace esphome::rs485_frame {
 static constexpr size_t MAX_FRAME_TYPE_LEN = 8;
 // Must agree with MIN_FRAME_LENGTH in __init__.py; shorter frames are neither received nor sent.
 static constexpr size_t MIN_FRAME_LENGTH = 2;
+static constexpr uint8_t NO_SLOT = 0xFF;
 
 enum CrcVariant : uint8_t { CRC_HEADER_INCLUSIVE, CRC_PAYLOAD_ONLY };
 enum CrcType : uint8_t {
@@ -103,6 +104,18 @@ class RS485FrameHub : public Component, public uart::UARTDevice {
   /// Releases the head frame; loop() sends it once the gate delay has passed.
   void send_next_(uint32_t now);
   void transmit_head_(uint32_t now);
+  /// Passes the wire bytes of an unescaped frame to put: DLE STX, the escaped frame, DLE ETX.
+  template<typename F> void encode_wire_(const uint8_t *data, size_t len, F &&put) const {
+    put(this->dle_);
+    put(this->stx_);
+    for (size_t i = 0; i < len; i++) {
+      put(data[i]);
+      if (data[i] == this->dle_)
+        put(this->escape_marker_);
+    }
+    put(this->dle_);
+    put(this->etx_);
+  }
   /// How long len bytes take on the wire at the UART's baud rate and frame format.
   uint16_t wire_time_ms_(size_t len) const;
   void log_frame_(const LogString *dir, const uint8_t *data, size_t len);
@@ -141,6 +154,8 @@ class RS485FrameHub : public Component, public uart::UARTDevice {
   uint8_t max_queue_size_;
   uint8_t tx_queue_head_{0};
   uint8_t tx_queue_count_{0};
+  // The slot transmit_head_() is sending, which queue_raw_frame() must not overwrite.
+  uint8_t tx_sending_slot_{NO_SLOT};
   bool accept_header_crc_{true};
   bool accept_payload_crc_{true};
   bool dump_frames_{false};
