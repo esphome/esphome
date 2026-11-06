@@ -112,6 +112,69 @@ from esphome.core import CORE
             "Image format 'RGB111' cannot have transparency: chroma_key",
             id="rgb111_with_chroma_key_transparency",
         ),
+        pytest.param(
+            {
+                "id": "image_id",
+                "file": "image.png",
+                "type": "rgb111",
+                "dither": {"type": "None"},
+            },
+            "Unknown value 'NONE', valid options are 'FLOYDSTEINBERG'",
+            id="rgb111_with_invalid_none_dithering",
+        ),
+        pytest.param(
+            {
+                "id": "image_id",
+                "file": "image.png",
+                "type": "rgb111",
+                "dither": {"type": "FloydSteinberg", "palette": []},
+            },
+            "length of value must be at least 2",
+            id="rgb111_with_invalid_empty_palette",
+        ),
+        pytest.param(
+            {
+                "id": "image_id",
+                "file": "image.png",
+                "type": "rgb111",
+                "dither": {"type": "FloydSteinberg", "palette": [0x000000]},
+            },
+            "length of value must be at least 2",
+            id="rgb111_with_invalid_small_palette",
+        ),
+        pytest.param(
+            {
+                "id": "image_id",
+                "file": "image.png",
+                "type": "rgb111",
+                "dither": {
+                    "type": "FloydSteinberg",
+                    "palette": [1, 2, 3, 4, 5, 6, 7, 8, 9],
+                },
+            },
+            "length of value must be at most 8",
+            id="rgb111_with_invalid_large_palette",
+        ),
+        pytest.param(
+            {
+                "id": "image_id",
+                "file": "image.png",
+                "type": "rgb111",
+                "dither": {"palette": [0xFFFFFF, 0xFFFFFFCC, 0x000000]},
+            },
+            "value must be at most 16777215",
+            id="rgb111_with_invalid_color_in_palette",
+        ),
+        pytest.param(
+            {
+                "id": "image_id",
+                "file": "image.png",
+                "type": "rgb111",
+                "dither": {"palette": [0xFF, 0xCC, 0x00]},
+            },
+            "Color 0x0000cc in dither palette would overwrite color 0x0000ff when quantized to 3bpp",
+            id="rgb111_with_invalid_duplicate_color_in_palette",
+        ),
     ],
 )
 def test_file_platform_configuration_errors(
@@ -123,21 +186,60 @@ def test_file_platform_configuration_errors(
         file_image.CONFIG_SCHEMA(config)
 
 
-def test_file_platform_configuration_success() -> None:
+@pytest.mark.parametrize(
+    ("config", "expected"),
+    [
+        pytest.param(
+            {
+                "type": "rgb565",
+                "transparency": "chroma_key",
+                "byte_order": "little_endian",
+                "dither": "none",
+                "invert_alpha": False,
+            },
+            [CONF_TYPE, CONF_ID, CONF_TRANSPARENCY, CONF_BYTE_ORDER, CONF_RAW_DATA_ID],
+            id="valid_rgb565_config",
+        ),
+        pytest.param(
+            {
+                "type": "binary",
+                "transparency": "opaque",
+                "dither": "FloydSteinberg",
+                "invert_alpha": True,
+            },
+            [CONF_TYPE, CONF_ID, CONF_TRANSPARENCY, CONF_DITHER, CONF_RAW_DATA_ID],
+            id="valid_binary_config",
+        ),
+        pytest.param(
+            {
+                "type": "rgb111",
+                "transparency": "alpha_channel",
+                "dither": {
+                    "type": "FloydSteinberg",
+                    "palette": [0x000000, 0xFF0000, 0xFFFFFF],
+                },
+                "invert_alpha": True,
+            },
+            [CONF_TYPE, CONF_ID, CONF_TRANSPARENCY, CONF_DITHER, CONF_RAW_DATA_ID],
+            id="valid_rgb111_dither_config",
+        ),
+        pytest.param(
+            {
+                "id": "image_id",
+                "file": "image.png",
+                "type": "rgb111",
+                "dither": {"palette": [0xFFFFFF, 0xFF0000, 0x000000]},
+            },
+            [CONF_TYPE, CONF_ID, CONF_TRANSPARENCY, CONF_DITHER, CONF_RAW_DATA_ID],
+            id="valid_rgb111_dither_shortcut_config",
+        ),
+    ],
+)
+def test_file_platform_configuration_success(config: dict, expected: list) -> None:
     """A fully-specified ``platform: file`` entry validates and keeps its keys."""
-    result = file_image.CONFIG_SCHEMA(
-        {
-            "id": "image_id",
-            "file": "image.png",
-            "type": "rgb565",
-            "transparency": "chroma_key",
-            "byte_order": "little_endian",
-            "dither": "FloydSteinberg",
-            "resize": "100x100",
-            "invert_alpha": False,
-        }
-    )
-    for key in (CONF_TYPE, CONF_ID, CONF_TRANSPARENCY, CONF_RAW_DATA_ID):
+    config = {"id": "image_id", "file": "image.png", "resize": "100x100", **config}
+    result = file_image.CONFIG_SCHEMA(config)
+    for key in expected:
         assert key in result, f"Missing key {key} in validated image configuration"
 
 
@@ -878,14 +980,13 @@ async def test_svg_with_mm_dimensions_succeeds(
         CONF_FILE: component_config_path("mm_dimensions.svg"),
         CONF_TYPE: "BINARY",
         CONF_TRANSPARENCY: CONF_OPAQUE,
-        CONF_DITHER: "NONE",
+        CONF_DITHER: {CONF_TYPE: "NONE"},
         CONF_INVERT_ALPHA: False,
         CONF_RAW_DATA_ID: "test_raw_data_id",
     }
 
     # This should succeed without raising an error
     result = await write_image(config)
-
     # Verify that write_image returns the expected tuple
     assert isinstance(result, tuple), "write_image should return a tuple"
     assert len(result) == 6, "write_image should return 6 values"
@@ -941,7 +1042,7 @@ async def test_rgb565_alpha_animation_layout_per_frame(
         CONF_FILE: str(apng_path),
         CONF_TYPE: "RGB565",
         CONF_TRANSPARENCY: CONF_ALPHA_CHANNEL,
-        CONF_DITHER: "NONE",
+        CONF_DITHER: {CONF_TYPE: "NONE"},
         CONF_INVERT_ALPHA: False,
         CONF_RAW_DATA_ID: "test_raw_data_id",
     }
@@ -973,6 +1074,45 @@ async def test_rgb565_alpha_animation_layout_per_frame(
     assert all(a == 0x00 for a in frame1_alpha), (
         f"Frame 1 alpha plane should be transparent, got {frame1_alpha}"
     )
+
+
+@pytest.mark.asyncio
+async def test_rgb111_palette_dither_uses_custom_palette(
+    tmp_path: Path,
+    mock_progmem_array: MagicMock,
+) -> None:
+    """Solid colors should be remapped to configured dither palette colors."""
+    image_path = tmp_path / "solid.png"
+    original_color = (0xCC, 0xCC, 0x00)
+    PILImage.new("RGB", (2, 2), original_color).save(image_path)
+
+    config = file_image.CONFIG_SCHEMA(
+        {
+            CONF_ID: "test_rgb111_palette_dither",
+            CONF_FILE: str(image_path),
+            CONF_TYPE: "RGB111",
+            CONF_TRANSPARENCY: CONF_OPAQUE,
+            CONF_DITHER: {
+                "type": "FLOYDSTEINBERG",
+                "palette": [0x0000FF, 0xFF0000, 0xFFFFFF],
+            },
+            CONF_INVERT_ALPHA: False,
+            CONF_RAW_DATA_ID: "test_raw_data_id",
+        }
+    )
+
+    await write_image(config)
+
+    _, raw_data = mock_progmem_array.call_args.args
+    pixels: list[tuple[int, int, int]] = []
+    for row in range(2):
+        row_bits = "".join(f"{byte:08b}" for byte in raw_data[row : row + 1])[: 2 * 3]
+        for col in range(2):
+            bits = row_bits[col * 3 : (col + 1) * 3]
+            pixels.append((int(bits[0]) * 255, int(bits[1]) * 255, int(bits[2]) * 255))
+
+    allowed = {(0, 0, 255), (255, 0, 0), (255, 255, 255)}
+    assert set(pixels) <= allowed
 
 
 @pytest.mark.asyncio
@@ -1038,7 +1178,7 @@ async def test_rgb111_layout_per_frame(
         CONF_FILE: str(apng_path),
         CONF_TYPE: "RGB111",
         CONF_TRANSPARENCY: transparency,
-        CONF_DITHER: "NONE",
+        CONF_DITHER: {CONF_TYPE: "NONE"},
         CONF_INVERT_ALPHA: False,
         CONF_RAW_DATA_ID: "test_raw_data_id",
     }

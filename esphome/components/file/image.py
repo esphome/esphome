@@ -68,6 +68,9 @@ MDI_SOURCES = {
 # drift.
 _MDI_ICON_RE = re.compile(r"^[a-zA-Z0-9\-]+$")
 
+# Dither configuration constants
+CONF_PALETTE = "palette"
+
 
 def compute_local_image_path(value: str | ConfigType) -> Path:
     url = value[CONF_URL] if isinstance(value, dict) else value
@@ -198,10 +201,54 @@ TYPED_FILE_SCHEMA = cv.typed_schema(
 )
 
 
+def normalize_dither(value: str | dict[str, Any]) -> dict[str, Any]:
+    """Normalize a dither configuration to a dict with type and optional palette.
+
+    Accepts a string (dither type) or a dict with type and optional palette.
+    """
+    if isinstance(value, str):
+        return {CONF_TYPE: value}
+    if isinstance(value, dict):
+        return value
+    raise cv.Invalid(f"Invalid dither configuration: {value}")
+
+
+def validate_dither_palette(value: list[int]) -> list[int]:
+    """Validate a dither palette list.
+
+    Ensures that the colors are translatable to 3bpp colors.
+    """
+    color_map = {}
+    for color in value:
+        quantized_color = color & 0x808080  # Mask to 3bpp
+        if quantized_color not in color_map:
+            color_map[quantized_color] = color
+        else:
+            raise cv.Invalid(
+                f"Color {color:#08x} in dither palette would overwrite color {color_map[quantized_color]:#08x} when quantized to 3bpp."
+            )
+    return value
+
+
+DITHER_SCHEMA = {
+    cv.Optional(CONF_TYPE, default="FLOYDSTEINBERG"): cv.one_of(
+        "FLOYDSTEINBERG", upper=True
+    ),
+    cv.Optional(CONF_PALETTE): cv.All(
+        cv.ensure_list(cv.hex_uint32_t, cv.hex_int_range(min=0, max=0xFFFFFF)),
+        cv.Length(min=2, max=8),
+        validate_dither_palette,
+    ),
+}
+
 OPTIONS_SCHEMA = {
     cv.Optional(CONF_RESIZE): cv.dimensions,
-    cv.Optional(CONF_DITHER, default="NONE"): cv.one_of(
-        "NONE", "FLOYDSTEINBERG", upper=True
+    cv.Optional(CONF_DITHER, default="NONE"): cv.All(
+        cv.Any(
+            cv.one_of("NONE", "FLOYDSTEINBERG", upper=True),
+            cv.Schema(DITHER_SCHEMA),
+        ),
+        normalize_dither,
     ),
     cv.Optional(CONF_INVERT_ALPHA, default=False): cv.boolean,
     cv.Optional(CONF_BYTE_ORDER): validate_byte_order,
@@ -308,11 +355,12 @@ async def write_image(
             path,
         )
 
-    dither = (
-        Image.Dither.NONE
-        if config[CONF_DITHER] == "NONE"
-        else Image.Dither.FLOYDSTEINBERG
-    )
+    # Parse dither configuration
+    dither_config = config.get(CONF_DITHER, {"type": "NONE"})
+    dither_type = dither_config[CONF_TYPE]
+    dither = Image.Dither.NONE if dither_type == "NONE" else Image.Dither.FLOYDSTEINBERG
+    palette = dither_config.get(CONF_PALETTE, None)
+
     type = config[CONF_TYPE]
     transparency = config.get(CONF_TRANSPARENCY, CONF_OPAQUE)
     invert_alpha = config[CONF_INVERT_ALPHA]
@@ -332,7 +380,9 @@ async def write_image(
     encoder: ImageEncoder | None = None
     for frame_index in range(frame_count):
         image.seek(frame_index)
-        encoder = IMAGE_TYPE[type](width, height, transparency, dither, invert_alpha)
+        encoder = IMAGE_TYPE[type](
+            width, height, transparency, dither, invert_alpha, palette=palette
+        )
         if byte_order is not None:
             # Check for valid type has already been done in validate_settings
             encoder.set_big_endian(byte_order == "BIG_ENDIAN")
