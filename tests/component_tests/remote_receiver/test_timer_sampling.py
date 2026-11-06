@@ -3,6 +3,7 @@
 from collections.abc import Callable
 import logging
 from pathlib import Path
+import re
 
 import pytest
 
@@ -58,9 +59,9 @@ def test_timer_sampling_codegen(
     # 1.5 sample periods by default
     assert "rcvr->set_filter_us(150);" in main_cpp
     # the default 4000 byte buffer becomes two static halves of 500 pulses
-    assert "static int32_t rcvr__frames[1000];" in main_cpp
-    assert "rcvr->set_frame_buffer(rcvr__frames, 500);" in main_cpp
-    assert "set_buffer_size" not in main_cpp
+    frames = re.search(r"rcvr->set_frame_buffer\((\w+), 500\);", main_cpp)[1]
+    assert f"static int32_t {frames}[1000];" in main_cpp
+    assert "set_buffer(" not in main_cpp
 
 
 def test_timer_frame_buffer_avoids_config_ids(
@@ -70,8 +71,9 @@ def test_timer_frame_buffer_avoids_config_ids(
     main_cpp = generate_main(
         component_config_path("receiver_bk72xx_timer_id_clash.yaml")
     )
-    assert "static int32_t rcvr__frames_2[1000];" in main_cpp
-    assert "rcvr->set_frame_buffer(rcvr__frames_2, 500);" in main_cpp
+    frames = "remote_receiver__rcvr_buffer_2__pstorage"
+    assert f"static int32_t {frames}[1000];" in main_cpp
+    assert f"rcvr->set_frame_buffer({frames}, 500);" in main_cpp
 
 
 def test_edge_sampling_keeps_defaults(
@@ -80,7 +82,7 @@ def test_edge_sampling_keeps_defaults(
 ) -> None:
     main_cpp = generate_main(component_config_path("receiver_bk72xx.yaml"))
     assert "set_sample_period_us" not in main_cpp
-    assert "__frames" not in main_cpp
+    assert "set_frame_buffer" not in main_cpp
     assert "rcvr->set_filter_us(50);" in main_cpp
 
 
