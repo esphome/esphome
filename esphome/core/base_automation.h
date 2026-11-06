@@ -275,6 +275,17 @@ template<auto Fn, typename... Ts> class ApplyAction final : public Action<Ts...>
   void play(const Ts &...x) override { Fn(x...); }
 };
 
+/// Runs several adjacent actions merged by codegen into one generated function. The function
+/// reads num_running_ between actions: a stop during one action zeroes it, and the rest must not run.
+template<auto Fn, typename... Ts> class ApplyRunAction final : public Action<Ts...> {
+ public:
+  void play(const Ts &...x) override {
+    // Any other type would bind the function's const int & to a temporary that never sees a stop
+    static_assert(std::is_same_v<decltype(this->num_running_), int>);
+    Fn(this->num_running_, x...);
+  }
+};
+
 /// Condition counterpart of ApplyAction: one codegen-generated predicate with the parent baked in.
 template<auto Fn, typename... Ts> class ApplyCondition final : public Condition<Ts...> {
  public:

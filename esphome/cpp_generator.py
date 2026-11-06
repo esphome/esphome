@@ -567,6 +567,40 @@ def shared_progmem_string(value: str) -> Expression:
     return text
 
 
+def static_buffer(
+    owner: ID,
+    type_: "MockObjClass",
+    size: "int | str | Expression",
+    *,
+    psram: bool = False,
+    align: int | None = None,
+) -> "MockObj":
+    """Emit a zeroed file-scope ``static type_ <component>__<owner>_buffer__pstorage[size];``.
+
+    Named like placement new storage, so ``esphome analyze-memory`` counts it under the owner.
+    ``size`` may be a C++ constant expression. With ``psram=True`` a build with PSRAM enabled
+    gets a ``psram_buffer<type_>(size)`` call instead, which allocates each time it is
+    evaluated, so pass the result once; it is nullptr if the allocation fails.
+    ``align`` prefixes the declaration with ``alignas(align)``.
+    """
+    if not isinstance(owner, ID) or owner.type is None:
+        raise EsphomeError(f"Buffer owner '{owner}' must be the owning component's ID")
+    if psram and align is not None and align > 4:
+        raise EsphomeError(
+            "A PSRAM buffer can only be aligned to 4 bytes, the heap alignment"
+        )
+    # Same condition as the USE_PSRAM define: psram is configured and not disabled
+    if psram and not CORE.config.get("psram", {"disabled": True}).get("disabled"):
+        return MockObj(f"psram_buffer<{type_}>({size})", ".")
+    base = unique_global_id(f"{owner.id}_buffer", type_)
+    name = _pstorage_name(owner.type, base)
+    prefix = "" if align is None else f"alignas({align}) "
+    CORE.add_global(RawStatement(f"{prefix}static {type_} {name}[{size}];"))
+    buffer = MockObj(name, ".")
+    CORE.register_variable(base, buffer)
+    return buffer
+
+
 def static_const_array(id_, rhs) -> "MockObj":
     rhs = safe_exp(rhs)
     obj = MockObj(id_, ".")
@@ -669,6 +703,11 @@ def new_variable(
     return obj
 
 
+def _pstorage_name(type_: Any, name: Any) -> str:
+    """``<component>__<name>__pstorage``, the static storage name ``esphome analyze-memory`` attributes."""
+    return f"{_extract_component_ns(str(type_))}__{name}__pstorage"
+
+
 def _extract_component_ns(type_str: str) -> str:
     """Extract the component namespace from a fully-qualified C++ type string.
 
@@ -726,9 +765,7 @@ def Pvariable(id_: ID, rhs: SafeExpType, type_: "MockObj" = None) -> "MockObj":
         if call_expr.template_args is not None:
             actual_type = f"{actual_type}{call_expr.template_args}"
         pointer_type = id_.type
-        # Extract component namespace from type for memory analysis attribution
-        component_ns = _extract_component_ns(str(actual_type))
-        storage_name = f"{component_ns}__{id_.id}__pstorage"
+        storage_name = _pstorage_name(actual_type, id_.id)
 
         # Declare aligned byte array for the object storage
         CORE.add_global(
@@ -793,7 +830,7 @@ def static_function(
     name: str,
     return_type: SafeExpType,
     parameters: TemplateArgsType,
-    body: list[str],
+    body: list[str | Statement],
 ) -> RawExpression:
     """Emit ``static <return_type> <name>(parameters) { body }`` at global scope and return an
     expression naming it, for use as a template argument or a function pointer.
@@ -807,7 +844,7 @@ def static_function(
     )
     add_global(RawStatement(f"{signature};"))
     add_global_after_includes(
-        RawStatement(f"{signature} {{\n{indent(chr(10).join(body))}\n}}")
+        RawStatement(f"{signature} {{\n{indent(chr(10).join(map(str, body)))}\n}}")
     )
     return RawExpression(name)
 
@@ -1343,6 +1380,14 @@ class MockObjClass(MockObj):
             return True
         return any(str(parent) == str(other) for parent in self._parents)
 
+    def const_ref(self) -> MockObj:
+        """``const T &``, for a parameter that takes this type by reference."""
+        return self.operator("const").operator("ref")
+
+    def static_(self, name: str) -> MockObj:
+        """The static member ``Class::name``; call it for ``Class::name(args)``."""
+        return MockObj(f"{self.base}::{name}", "::")
+
     def template(self, *args: SafeExpType) -> "MockObjClass":
         if len(args) != 1 or not isinstance(args[0], TemplateArguments):
             args = TemplateArguments(*args)
@@ -1372,6 +1417,7 @@ def call_lambda(lamb: LambdaExpression) -> Expression:
     Given a lambda, either reduce to a simple expression or call it, possibly with parameters
     from the surrounding context.
     This is for use only with value-returning lambdas, used in places where the value of a lambda call is needed.
+    Use only where the surrounding scope declares the lambda's parameters with the same types.
     :param lamb: The LambdaExpression to call or reduce
     :return: An Expression representing the result of calling the lambda or reducing it to a simple expression
     """

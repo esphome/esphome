@@ -80,6 +80,15 @@ rp2:
   board: {board}
 """
 
+BOARD_LINKS: dict[str, str] = {
+    "ESP32": "https://docs.platformio.org/en/latest/platforms/espressif32.html#boards",
+    "ESP8266": "https://docs.platformio.org/en/latest/platforms/espressif8266.html#boards",
+    "RP2": "https://www.raspberrypi.com/documentation/microcontrollers/silicon.html#rp2040",
+    "BK72XX": "https://docs.libretiny.eu/docs/status/supported/",
+    "LN882X": "https://docs.libretiny.eu/docs/status/supported/",
+    "RTL87XX": "https://docs.libretiny.eu/docs/status/supported/",
+}
+
 BK72XX_CONFIG = """
 bk72xx:
   board: {board}
@@ -399,20 +408,7 @@ def wizard(path: Path) -> int:
     safe_print()
     sleep(1)
 
-    if platform == "ESP32":
-        board_link = (
-            "https://docs.platformio.org/en/latest/platforms/espressif32.html#boards"
-        )
-    elif platform == "ESP8266":
-        board_link = (
-            "https://docs.platformio.org/en/latest/platforms/espressif8266.html#boards"
-        )
-    elif platform == "RP2":
-        board_link = "https://www.raspberrypi.com/documentation/microcontrollers/silicon.html#rp2040"
-    elif platform in ["BK72XX", "LN882X", "RTL87XX"]:
-        board_link = "https://docs.libretiny.eu/docs/status/supported/"
-    else:
-        raise NotImplementedError("Unknown platform!")
+    board_link = BOARD_LINKS[platform]
 
     safe_print(
         f"Next, I need to know what {color(AnsiFore.GREEN, 'board')} you're using."

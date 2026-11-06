@@ -114,12 +114,12 @@ class Sim800LComponent final : public uart::UARTDevice, public PollingComponent 
   bool dtmf_ready_{false};
   uint8_t call_state_{6};
 
-  CallbackManager<void(std::string, std::string)> sms_received_callback_;
-  CallbackManager<void(std::string)> incoming_call_callback_;
+  CallbackManager<void(const std::string &, const std::string &)> sms_received_callback_;
+  CallbackManager<void(const std::string &)> incoming_call_callback_;
   CallbackManager<void()> call_connected_callback_;
   CallbackManager<void()> call_disconnected_callback_;
-  CallbackManager<void(std::string)> ussd_received_callback_;
-  CallbackManager<void(std::string)> dtmf_received_callback_;
+  CallbackManager<void(const std::string &)> ussd_received_callback_;
+  CallbackManager<void(const std::string &)> dtmf_received_callback_;
 };
 
 }  // namespace esphome::sim800l

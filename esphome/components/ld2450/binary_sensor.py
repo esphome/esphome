@@ -12,23 +12,17 @@ from esphome.const import (
     DEVICE_CLASS_MOTION,
     DEVICE_CLASS_OCCUPANCY,
     ENTITY_CATEGORY_DIAGNOSTIC,
+    ICON_MOTION_SENSOR,
 )
 from esphome.types import ConfigType
 
-from . import (  # noqa: F401  pylint: disable=unused-import
-    CONF_LD2450_ID,
-    CONF_POLYGON_ZONE_ID,
-    CONF_POLYGON_ZONES,
-    FILTER_SOURCE_FILES,
-    LD2450Component,
-)
+from . import CONF_LD2450_ID, CONF_POLYGON_ZONE_ID, CONF_POLYGON_ZONES, LD2450Component
 from .text import PolygonZone
 
 DEPENDENCIES = ["ld2450"]
 
 ICON_MEDITATION = "mdi:meditation"
 ICON_SHIELD_ACCOUNT = "mdi:shield-account"
-ICON_TARGET_ACCOUNT = "mdi:target-account"
 
 
 def _reject_filters(config: ConfigType) -> ConfigType:
@@ -53,7 +47,7 @@ CONFIG_SCHEMA = {
     cv.Optional(CONF_HAS_MOVING_TARGET): binary_sensor.binary_sensor_schema(
         device_class=DEVICE_CLASS_MOTION,
         filters=[{"settle": cv.TimePeriod(milliseconds=1000)}],
-        icon=ICON_TARGET_ACCOUNT,
+        icon=ICON_MOTION_SENSOR,
     ),
     cv.Optional(CONF_HAS_STILL_TARGET): binary_sensor.binary_sensor_schema(
         device_class=DEVICE_CLASS_OCCUPANCY,
