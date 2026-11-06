@@ -44,9 +44,15 @@ def test_ignores_other_uarts_and_other_keys() -> None:
 
 def test_finds_any_of_the_keys() -> None:
     config = {"modbus_tcp_uart": [{"tcp_uart_id": ID("bus")}]}
-    assert subtree_references_uart(config, "bus", {"tcp_uart_id"})
-    assert subtree_references_uart(config, "bus", {CONF_UART_ID, "tcp_uart_id"})
+    assert subtree_references_uart(config, "bus", "tcp_uart_id")
+    assert subtree_references_uart(config, "bus", CONF_UART_ID, "tcp_uart_id")
     assert not subtree_references_uart(config, "bus")
+
+
+def test_matches_whole_keys_only() -> None:
+    # A key that is part of another key's name must not match it
+    config = {"sensor": [{"id": ID("bus"), "uart_id": ID("bus")}]}
+    assert not subtree_references_uart(config, "bus", "tcp_uart_id")
 
 
 def test_handles_scalars() -> None:
