@@ -301,8 +301,8 @@ STROBE_COLOR_SCHEMA = cv.Schema(
         cv.Optional(CONF_BLUE): cv.percentage,
         cv.Optional(CONF_WHITE, default=1.0): cv.percentage,
         cv.Optional(CONF_COLOR_TEMPERATURE): cv.color_temperature,
-        cv.Optional(CONF_COLD_WHITE, default=1.0): cv.percentage,
-        cv.Optional(CONF_WARM_WHITE, default=1.0): cv.percentage,
+        cv.Optional(CONF_COLD_WHITE): cv.percentage,
+        cv.Optional(CONF_WARM_WHITE): cv.percentage,
         cv.Required(CONF_DURATION): cv.positive_time_period_milliseconds,
         cv.Optional(
             CONF_TRANSITION_LENGTH, default="0s"
@@ -359,11 +359,17 @@ async def strobe_effect_to_code(config, effect_id):
             ("blue", color[CONF_BLUE]),
             ("white", color[CONF_WHITE]),
             ("color_temperature", color.get(CONF_COLOR_TEMPERATURE, 0.0)),
-            ("cold_white", color[CONF_COLD_WHITE]),
-            ("warm_white", color[CONF_WARM_WHITE]),
+            ("cold_white", color.get(CONF_COLD_WHITE, 1.0)),
+            ("warm_white", color.get(CONF_WARM_WHITE, 1.0)),
             ("duration", color[CONF_DURATION]),
             ("transition_length", color[CONF_TRANSITION_LENGTH]),
             ("color_mode", color.get(CONF_COLOR_MODE, ColorMode.UNKNOWN)),
+            (
+                "use_color_temperature",
+                CONF_COLOR_TEMPERATURE in color
+                and CONF_COLD_WHITE not in color
+                and CONF_WARM_WHITE not in color,
+            ),
         )
         for color in config.get(CONF_COLORS, [])
     ]
