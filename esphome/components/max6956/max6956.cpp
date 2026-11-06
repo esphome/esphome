@@ -20,10 +20,8 @@ const uint8_t MASK_CURRENT_PIN = 0x0F;
  **************************************/
 void MAX6956::setup() {
   uint8_t configuration;
-  if (!this->read_reg_(MAX6956_CONFIGURATION, &configuration)) {
-    this->mark_failed();
+  if (!this->setup_check(this->read_reg_(MAX6956_CONFIGURATION, &configuration)))
     return;
-  }
 
   write_brightness_global();
   write_brightness_mode();

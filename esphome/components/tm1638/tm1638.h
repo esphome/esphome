@@ -4,17 +4,18 @@
 #include "esphome/core/component.h"
 #include "esphome/core/defines.h"
 #include "esphome/core/hal.h"
+#include "esphome/core/helpers.h"
 #include "esphome/core/time.h"
 #include "esphome/components/display/display.h"
 
-#include <vector>
-
 namespace esphome::tm1638 {
 
-class KeyListener {
- public:
-  virtual void keys_update(uint8_t keys) {};
-};
+// A template on the sensor type keeps binary_sensor.h out of this hub header
+template<typename T> inline void publish_key(T *sensor, uint8_t keys, uint8_t key) {
+  bool pressed = keys & (1 << key);
+  if (pressed != sensor->state)
+    sensor->publish_state(pressed);
+}
 
 class TM1638Component;
 
@@ -34,7 +35,9 @@ class TM1638Component final : public PollingComponent {
   void set_dio_pin(GPIOPin *pin) { this->dio_pin_ = pin; }
   void set_stb_pin(GPIOPin *pin) { this->stb_pin_ = pin; }
 
-  void register_listener(KeyListener *listener) { this->listeners_.push_back(listener); }
+#ifdef USE_TM1638_KEYS_PUBLISHER
+  HUB_PUBLISHER(keys, uint8_t)
+#endif
 
   /// Evaluate the printf-format and print the result at the given position.
   uint8_t printf(uint8_t pos, const char *format, ...) __attribute__((format(printf, 3, 4)));
@@ -71,7 +74,6 @@ class TM1638Component final : public PollingComponent {
   GPIOPin *dio_pin_;
   uint8_t buffer_[8]{};
   tm1638_writer_t writer_{};
-  std::vector<KeyListener *> listeners_{};
 };
 
 }  // namespace esphome::tm1638

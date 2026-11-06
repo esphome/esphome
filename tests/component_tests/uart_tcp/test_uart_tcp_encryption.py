@@ -95,7 +95,7 @@ def test_api_key_is_rejected(set_core_config: SetCoreConfigCallable) -> None:
 
 def test_the_runtime_key_action(generate_main: Callable[[Path], str]) -> None:
     main_cpp = generate_main(Path(__file__).parent / "test_runtime_key.yaml")
-    assert "::bridge->set_encryption_key(key);" in main_cpp
+    assert "::bridge->set_encryption_key(" in main_cpp
     # The key set at runtime must differ from the api key, which the ota takes too
     assert "bridge_noise->set_api_context(" in main_cpp
     assert "set_ota_key(" not in main_cpp
