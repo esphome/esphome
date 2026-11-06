@@ -18,19 +18,17 @@
 #error "This chip has an I2C FSM reset; remove NO_FSM_RST for it in i2c/__init__.py"
 #endif
 
-// Chips without an I2C FSM reset (ESP32, S2, S3, C2, C3): after a NACK the controller can keep raising
-// ACK_ERR, and the IDF i2c_master ISR clears it without masking it, so the interrupt fires forever and starves
-// the CPU (esphome#22270, espressif/esp-idf#17690). The driver needs no interrupt after a NACK, timeout or
-// arbitration loss, so mask the master events then; it re-enables them at the next transaction start.
-namespace {
+namespace esphome::i2c {
+// Without an FSM reset ACK_ERR can stay raised and the IDF ISR never masks it (esp-idf#17690); mask the
+// master events after an error, the driver re-enables them at the next transaction start.
 struct I2CIsrGuard {
   intr_handler_t handler;
   void *arg;
   i2c_dev_t *dev;
 };
-I2CIsrGuard i2c_isr_guards[SOC_HP_I2C_NUM];  // NOLINT(cppcoreguidelines-avoid-non-const-global-variables)
+static I2CIsrGuard i2c_isr_guards[SOC_HP_I2C_NUM];  // NOLINT(cppcoreguidelines-avoid-non-const-global-variables)
 
-void IRAM_ATTR i2c_isr_guard(void *arg) {
+static void IRAM_ATTR i2c_isr_guard(void *arg) {
   auto *guard = static_cast<I2CIsrGuard *>(arg);
   uint32_t status;
   i2c_ll_get_intr_mask(guard->dev, &status);
@@ -38,7 +36,7 @@ void IRAM_ATTR i2c_isr_guard(void *arg) {
   if (status & (I2C_LL_INTR_NACK | I2C_LL_INTR_TIMEOUT | I2C_LL_INTR_ARBITRATION))
     i2c_ll_disable_intr_mask(guard->dev, I2C_LL_MASTER_EVENT_INTR);
 }
-}  // namespace
+}  // namespace esphome::i2c
 
 // NOLINTBEGIN(bugprone-reserved-identifier,cert-dcl37-c,cert-dcl51-cpp,readability-identifier-naming)
 extern "C" {
@@ -49,9 +47,9 @@ esp_err_t __wrap_esp_intr_alloc_intrstatus(int source, int flags, uint32_t reg, 
                                            void *arg, intr_handle_t *ret_handle) {
   for (int port = 0; port < SOC_HP_I2C_NUM; port++) {
     if (source == i2c_periph_signal[port].irq) {
-      i2c_isr_guards[port] = {handler, arg, I2C_LL_GET_HW(port)};
-      handler = i2c_isr_guard;
-      arg = &i2c_isr_guards[port];
+      esphome::i2c::i2c_isr_guards[port] = {handler, arg, I2C_LL_GET_HW(port)};
+      handler = esphome::i2c::i2c_isr_guard;
+      arg = &esphome::i2c::i2c_isr_guards[port];
       break;
     }
   }
