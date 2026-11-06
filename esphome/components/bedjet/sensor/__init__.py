@@ -20,7 +20,7 @@ DEPENDENCIES = ["bedjet"]
 CONF_OUTLET_TEMPERATURE = "outlet_temperature"
 CONF_AMBIENT_TEMPERATURE = "ambient_temperature"
 
-BedjetSensor = bedjet_ns.class_("BedjetSensor", cg.Component)
+BedjetSensor = bedjet_ns.class_("BedjetSensor")
 
 CONFIG_SCHEMA = cv.Schema(
     {
@@ -41,7 +41,6 @@ CONFIG_SCHEMA = cv.Schema(
 
 async def to_code(config: ConfigType) -> None:
     var = cg.new_Pvariable(config[CONF_ID])
-    await cg.register_component(var, config)
     await register_bedjet_child(var, config)
 
     sensors = sensor.sub_sensors(config)

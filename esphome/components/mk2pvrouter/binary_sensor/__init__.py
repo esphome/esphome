@@ -11,7 +11,7 @@ from .. import (
 )
 
 Mk2PVRouterBinarySensor = mk2pvrouter_ns.class_(
-    "Mk2PVRouterBinarySensor", binary_sensor.BinarySensor, cg.Component
+    "Mk2PVRouterBinarySensor", binary_sensor.BinarySensor
 )
 
 CONFIG_SCHEMA = binary_sensor.binary_sensor_schema(Mk2PVRouterBinarySensor).extend(
@@ -21,7 +21,6 @@ CONFIG_SCHEMA = binary_sensor.binary_sensor_schema(Mk2PVRouterBinarySensor).exte
 
 async def to_code(config: ConfigType) -> None:
     var = cg.new_Pvariable(config[CONF_ID], config[CONF_TAG])
-    await cg.register_component(var, config)
     await binary_sensor.register_binary_sensor(var, config)
     mk2pvrouter = await cg.get_variable(config[CONF_MK2PVROUTER_ID])
     await register_mk2pvrouter_listener(mk2pvrouter, var)
