@@ -22,8 +22,8 @@ from esphome.build_helpers.tools_cache import IDF_TOOLS_CACHE, tools_cache_path
 from esphome.core import CORE, Version
 from esphome.framework_helpers import (
     PathType,
-    archive_extract_all,
     create_venv,
+    download_and_extract,
     download_from_mirrors,
     extract_workers,
     failure_reason,
@@ -99,13 +99,13 @@ ESPHOME_IDF_FRAMEWORK_MIRRORS = str_to_lst_of_str(
     ]
 )
 
-# Optional SHA-256 of the framework archive. When it is set, an archive that
-# is already present in the download cache (for example one placed there by
-# hand, or one fetched from a ``file://`` mirror) is verified and reused
-# instead of being downloaded again.
+# SHA-256 of the ESP-IDF framework archive, when the user knows it. Without
+# it a verified local mirror archive cannot be recognised as complete and is
+# downloaded again on every run (see ESPHOME_IDF_FRAMEWORK_MIRRORS).
 ESPHOME_IDF_FRAMEWORK_SHA256 = (
     os.environ.get("ESPHOME_IDF_FRAMEWORK_SHA256", "").strip().lower() or None
 )
+
 
 ESP_IDF_CONSTRAINTS_MIRRORS = str_to_lst_of_str(
     os.environ.get(
@@ -919,6 +919,18 @@ def _preinstall_idf_tool_archives(
         _LOGGER.debug("Pre-extraction failure detail", exc_info=True)
 
 
+def _normalize_mirror_url(url: str) -> str:
+    """Rewrite ``local://`` mirror URLs into ``file://`` ones.
+
+    ``local:///D:/firmware`` is a lot easier to type on Windows than
+    ``file:///D:/firmware``, and everything downstream only understands the
+    ``file:`` scheme.
+    """
+    if url.lower().startswith("local:"):
+        return "file:" + url[len("local:") :]
+    return url
+
+
 def _check_esphome_idf_framework_install(
     version: str,
     targets: list[str],
@@ -1019,30 +1031,19 @@ def _check_esphome_idf_framework_install(
                 )
 
             mirrors = [source_url] if source_url else ESPHOME_IDF_FRAMEWORK_MIRRORS
+            mirrors = [_normalize_mirror_url(mirror) for mirror in mirrors]
             # Download to a persistent file in the tool download cache (not
             # a temp file) so an interrupted download resumes on the next
             # run; the cache is pruned after a successful install anyway.
             tarball_path = get_idf_tools_path() / "dist" / f"esp-idf-{version}.tar.xz"
-            download_from_mirrors(
+            download_and_extract(
                 mirrors,
                 substitutions,
                 tarball_path,
+                framework_path,
+                progress_header="Extracting",
                 sha256=ESPHOME_IDF_FRAMEWORK_SHA256,
             )
-
-            _LOGGER.info("Extracting ESP-IDF %s framework ...", version)
-            try:
-                archive_extract_all(
-                    tarball_path, framework_path, progress_header="Extracting"
-                )
-            finally:
-                # Best-effort, as download_and_extract() does: a virus scanner
-                # still holding the archive on Windows must not replace the
-                # real extraction error or fail an otherwise successful run.
-                try:
-                    tarball_path.unlink(missing_ok=True)
-                except OSError as err:
-                    _LOGGER.debug("Could not remove archive %s: %s", tarball_path, err)
         extracted_marker.touch()
 
     # Idempotent post-extract patch: written every invocation so a build
