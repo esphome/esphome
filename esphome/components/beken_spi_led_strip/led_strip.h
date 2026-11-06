@@ -11,6 +11,9 @@
 
 namespace esphome::beken_spi_led_strip {
 
+/// 8 SPI bytes per color byte plus 2 * 64 bytes of padding, as 32-bit words for the DMA source
+static constexpr size_t dma_buffer_words(size_t color_bytes) { return (color_bytes * 8 + 2 * 64) / 4; }
+
 class BekenSPILEDStripLightOutput final : public light::AddressableLight {
  public:
   void setup() override;
@@ -24,6 +27,12 @@ class BekenSPILEDStripLightOutput final : public light::AddressableLight {
   void set_num_leds(uint16_t num_leds) { this->num_leds_ = num_leds; }
   void set_channel_colors(light::ChannelColors channel_colors) {
     this->internal_accessor_.channel_colors = channel_colors;
+  }
+
+  /// Call after set_num_leds() and set_channel_colors(); `dma_buf` holds dma_buffer_words() words.
+  void set_buffers(uint8_t *led_data, uint32_t *dma_buf) {
+    this->internal_accessor_.set_buffer(led_data, this->num_leds_);
+    this->dma_buf_ = reinterpret_cast<uint8_t *>(dma_buf);
   }
 
   /// Set a maximum refresh rate in µs as some lights do not like being updated too often.

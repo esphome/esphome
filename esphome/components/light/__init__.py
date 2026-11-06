@@ -256,6 +256,26 @@ def channel_colors_struct(value: str) -> cg.MockObj:
     )
 
 
+def static_led_buffer(
+    output_id: ID,
+    num_leds: int,
+    channel_colors: str,
+    extra_bytes: int | str = 0,
+    *,
+    psram: bool = False,
+) -> MockObj:
+    """Static block for `BufferColorAccessor::set_buffer`: color data, one effect byte per LED, then `extra_bytes`.
+
+    With `psram=True` a build with PSRAM gets nullptr, for the C++ to pass to `static_or_heap()`.
+    """
+    size = num_leds * (len(channel_colors) + 1)
+    if isinstance(extra_bytes, str):
+        size = f"{size} + {extra_bytes}"
+    else:
+        size += extra_bytes
+    return cg.static_buffer(output_id, cg.uint8, size, psram=psram)
+
+
 def _quote_and_join(keys: list[str]) -> str:
     """Quote each key and join them into a readable list, e.g. "'a', 'b' and 'c'"."""
     quoted = [f"'{key}'" for key in keys]

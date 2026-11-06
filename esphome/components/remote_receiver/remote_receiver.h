@@ -149,7 +149,7 @@ class RemoteReceiverComponent final : public remote_base::RemoteReceiverBase,
     this->store_.buffer = reinterpret_cast<uint8_t *>(buffer.data());
     this->store_.buffer_size = buffer.size_bytes();
   }
-#else
+#elif defined(USE_ESP8266) || defined(USE_LIBRETINY) || defined(USE_RP2) || defined(USE_ESP32)
   void set_buffer(std::span<int32_t> buffer) {
     this->store_.buffer = buffer.data();
     this->store_.buffer_entries = buffer.size();

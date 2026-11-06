@@ -15,9 +15,9 @@ namespace esphome::ln882x_spi_led_strip {
 class LN882xSPILEDStripLightOutput final : public light::AddressableLight {
  public:
   /// The SPI encoding comes from light.py: SPI clock APB0 / 2^prescaler, the number of high SPI bits for a
-  /// 0 and a 1 bit, and the zero bytes of the reset gap.
-  LN882xSPILEDStripLightOutput(uint8_t pin, uint16_t num_leds, light::ChannelColors channel_colors, uint8_t prescaler,
-                               uint8_t bit0_high_bits, uint8_t bit1_high_bits, uint16_t reset_bytes);
+  /// 0 and a 1 bit, and the zero bytes of the reset gap. `buffer` holds the color, effect and DMA data.
+  LN882xSPILEDStripLightOutput(uint8_t *buffer, uint8_t pin, uint16_t num_leds, light::ChannelColors channel_colors,
+                               uint8_t prescaler, uint8_t bit0_high_bits, uint8_t bit1_high_bits, uint16_t reset_bytes);
 
   void setup() override;
   void dump_config() override;

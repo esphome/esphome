@@ -7,12 +7,14 @@ another report format) and gets its own component, so it does not build on this 
 from dataclasses import dataclass, field
 
 import esphome.codegen as cg
-from esphome.components import uart
+from esphome.components import sensor, switch, uart
 import esphome.config_validation as cv
+from esphome.const import CONF_ID
 from esphome.core import CORE
 from esphome.cpp_generator import MockObj, MockObjClass
+from esphome.types import ConfigType
 
-from .const import MAX_TARGETS
+from .const import CONF_POINT_CLOUD, CONF_POINT_COUNT, MAX_TARGETS
 
 CODEOWNERS = ["@hepter", "@wolph"]
 DEPENDENCIES = ["uart"]
@@ -50,6 +52,26 @@ def request_model_sizes(hub: MockObj, *, area_kinds: int) -> None:
     for _ in range(requested.get(key, 0), area_kinds):
         _request_area_kind_slot(key)
     requested[key] = max(requested.get(key, 0), area_kinds)
+
+
+def add_frame_buffer(hub: MockObj, config: ConfigType, hub_id_key: str) -> None:
+    """Give the parser its frame buffer: static, or allocated at boot when PSRAM may hold it."""
+    # Only the point cloud stream needs the larger frame.
+    point_cloud = any(
+        conf.get(hub_id_key) == config[CONF_ID] and key in conf
+        for domain, key in (
+            (sensor.DOMAIN, CONF_POINT_COUNT),
+            (switch.DOMAIN, CONF_POINT_CLOUD),
+        )
+        for conf in CORE.config.get(domain, [])
+    )
+    size = (
+        ld600x_ns.DEFAULT_MAX_DATA_LEN_POINT_CLOUD
+        if point_cloud
+        else ld600x_ns.DEFAULT_MAX_DATA_LEN
+    )
+    buffer = cg.static_buffer(config[CONF_ID], cg.uint8, str(size), psram=True)
+    cg.add(hub.set_frame_buffer(buffer, size))
 
 
 def ld600x_hub_schema(component_class: MockObjClass) -> cv.Schema:
