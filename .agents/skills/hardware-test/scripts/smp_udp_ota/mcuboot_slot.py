@@ -2,7 +2,7 @@
 
 usage: mcuboot_slot.py limit BUILD          image size against the largest image MCUboot will swap in
        mcuboot_slot.py blank-uf2 BUILD OUT  UF2 that writes 0xFF over the secondary slot's header page
-       mcuboot_slot.py active ADDR BIN [--wait S] [--expect running|pending]
+       mcuboot_slot.py active ADDR BIN [--wait S] [--expect running|confirmed|pending]
 
 BUILD is .esphome/build/<name>/.pioenvs/<name> (it holds partitions.yml, mcuboot/zephyr/.config and
 zephyr/app_update.bin). Read the layout from partitions.yml: the partition manager overrides zephyr.dts.
@@ -10,7 +10,9 @@ zephyr/app_update.bin). Read the layout from partitions.yml: the partition manag
 limit exits 1 when the image is over the swap limit: such an image links and uploads, but MCUboot never swaps it in
 and it then blocks every later upload with NO_FREE_SLOT. blank-uf2 is the way out of that state over USB: the SMP
 image erase is refused while the image is pending. active polls the image states over SMP UDP until the image in BIN
-runs (or is still pending with --expect pending), exit 1 otherwise.
+runs (or is still pending with --expect pending), exit 1 otherwise. running passes as soon as the image is active and
+says whether it has confirmed itself yet; --expect confirmed waits for that too, so give it a --wait longer than the
+image takes to confirm (about 4 minutes in the nRF52 recipe), or a test-mode image that resets first passes.
 """
 
 import argparse
@@ -118,7 +120,17 @@ async def cmd_active(args: argparse.Namespace) -> None:
             continue
         ours = next((im for im in images if im.hash == want), None)
         if args.expect == "running" and ours is not None and ours.active:
-            print(f"PASS: the new image runs (slot {ours.slot})")
+            state = "confirmed" if ours.confirmed else "not yet confirmed"
+            print(f"PASS: the new image runs (slot {ours.slot}), {state}")
+            return
+        # A test-mode image that resets before confirming itself is reverted at the next boot
+        if (
+            args.expect == "confirmed"
+            and ours is not None
+            and ours.active
+            and ours.confirmed
+        ):
+            print(f"PASS: the new image runs and is confirmed (slot {ours.slot})")
             return
         if (
             args.expect == "pending"
@@ -152,7 +164,9 @@ def main() -> None:
     p.add_argument("addr")
     p.add_argument("bin")
     p.add_argument("--wait", type=float, default=90)
-    p.add_argument("--expect", choices=("running", "pending"), default="running")
+    p.add_argument(
+        "--expect", choices=("running", "confirmed", "pending"), default="running"
+    )
     args = parser.parse_args()
     if args.cmd == "limit":
         cmd_limit(args)

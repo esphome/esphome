@@ -182,7 +182,9 @@ def main() -> None:
             158,
             f_fixed32(1, fnv1_hash(WIZARD_INPUT_ID)) + f_bytes(2, entity_id.encode()),
         )
-        c.pump(1)
+        # No press is outstanding, so any action call here is a stray one
+        if actions := print_actions(c.pump(1)):
+            failures.append(f"wizard set {entity_id}: unexpected {actions}")
 
     doorbell = "button.press entity_id=button.doorbell"
     for r in range(3):

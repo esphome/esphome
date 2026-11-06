@@ -60,7 +60,8 @@ logs its build label every 10 s. The first image goes in over UF2, every later o
   secondary slot, and every later upload and the SMP image erase fail with `NO_FREE_SLOT`. OTA stays stuck until
   the slot is cleared over USB. Measured: 388,787 B swapped in, 392,155 B did not. `ota.sh` checks `app_update.bin`
   against this limit with `mcuboot_slot.py limit` before it uploads, and afterwards asks the device which image runs
-  (`mcuboot_slot.py active`, by the image's SHA-256), since the CLI's exit code alone is not proof.
+  (`mcuboot_slot.py active`, by the image's SHA-256), since the CLI's exit code alone is not proof. That check passes once the
+  new image runs and says whether it has confirmed itself; add `--expect confirmed --wait 300` to prove it stays.
 - With #17245 at 03d45d1aaa the build itself fails above the limit (`The application image is N bytes, but MCUboot
   can only swap in L bytes on this board`), and after a confirmed reset the client waits for the device and logs
   `runs the new image` or fails with `rebooted but did not swap in the new image`. After a dropped reset reply it still

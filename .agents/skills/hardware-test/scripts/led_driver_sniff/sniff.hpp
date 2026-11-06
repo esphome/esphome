@@ -59,16 +59,18 @@ inline void mk_unit(Unit &x, int pin, bool rising) {
   cc.edge_gpio_num = pin;
   cc.level_gpio_num = -1;
   ESP_ERROR_CHECK(pcnt_new_channel(x.u, &cc, &x.c));
-  pcnt_channel_set_edge_action(x.c, rising ? PCNT_CHANNEL_EDGE_ACTION_INCREASE : PCNT_CHANNEL_EDGE_ACTION_HOLD,
-                               rising ? PCNT_CHANNEL_EDGE_ACTION_HOLD : PCNT_CHANNEL_EDGE_ACTION_INCREASE);
-  pcnt_unit_enable(x.u);
-  pcnt_unit_clear_count(x.u);
-  pcnt_unit_start(x.u);
+  // A unit that failed to start would count 0 edges, which compare.py would take as a clean empty window
+  ESP_ERROR_CHECK(
+      pcnt_channel_set_edge_action(x.c, rising ? PCNT_CHANNEL_EDGE_ACTION_INCREASE : PCNT_CHANNEL_EDGE_ACTION_HOLD,
+                                   rising ? PCNT_CHANNEL_EDGE_ACTION_HOLD : PCNT_CHANNEL_EDGE_ACTION_INCREASE));
+  ESP_ERROR_CHECK(pcnt_unit_enable(x.u));
+  ESP_ERROR_CHECK(pcnt_unit_clear_count(x.u));
+  ESP_ERROR_CHECK(pcnt_unit_start(x.u));
 }
 inline int count(Unit &x) {
   int v = 0;
   if (x.u != nullptr)
-    pcnt_unit_get_count(x.u, &v);
+    ESP_ERROR_CHECK(pcnt_unit_get_count(x.u, &v));
   return v;
 }
 
