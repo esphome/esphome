@@ -71,21 +71,34 @@ from esphome.helpers import rmtree, write_file_if_changed
 from esphome.storage_json import StorageJSON
 from esphome.types import ConfigType
 
-from .boards import BOARD_ALIASES, BOARDS_ZEPHYR, BOOTLOADER_CONFIG, SELF_RESET_PINS
+from .boards import (
+    BOARD_ALIASES,
+    BOARDS_ZEPHYR,
+    BOOTLOADER_CONFIG,
+    SELF_RESET_PINS,
+    ZEPHYR_BOARD_TARGETS,
+)
 from .const import (
     BOOTLOADER_ADAFRUIT,
     BOOTLOADER_ADAFRUIT_NRF52_SD132,
+    BOOTLOADER_ADAFRUIT_NRF52_SD132_V2,
+    BOOTLOADER_ADAFRUIT_NRF52_SD132_V6,
     BOOTLOADER_ADAFRUIT_NRF52_SD140_V6,
     BOOTLOADER_ADAFRUIT_NRF52_SD140_V7,
     BOOTLOADER_NRF,
+    CONF_DCDC,
     CONF_TRANSPORT,
     CONF_UDP,
     FLASH_SECTOR_SIZE,
     SMP_UDP_PORT,
+    VARIANT_FLASH_SIZE,
     VARIANT_NRF54L15,
     VARIANT_NRF54LM20,
     VARIANT_NRF51822,
+    VARIANT_NRF52832,
     VARIANT_NRF52840,
+    VARIANT_REGULATOR,
+    VARIANTS_WITHOUT_USB,
 )
 from .framework import (
     check_and_install,
@@ -114,8 +127,8 @@ _LOGGER = logging.getLogger(__name__)
 # sdk-nrf install cache and pins the clang-tidy project's SDK.
 RECOMMENDED_PLATFORMIO_VERSION = "2.6.1-b"
 RECOMMENDED_SDK_NRF_VERSION = "2.9.2"
-# The oldest sdk-nrf version that supports an SoC
-MIN_SDK_NRF_VERSIONS = {VARIANT_NRF54LM20: "3.4.1"}
+# The oldest sdk-nrf version that supports an SoC; the nRF52832 boards need the board/SoC names of 2.9.2
+MIN_SDK_NRF_VERSIONS = {VARIANT_NRF52832: "2.9.2", VARIANT_NRF54LM20: "3.4.1"}
 
 FAKE_BOARD_MANIFEST = """
 {
@@ -147,6 +160,8 @@ def _board_variant(board: str) -> str:
     if board == "bbc_microbit":
         return VARIANT_NRF51822
     qualifiers = BOARD_ALIASES.get(board, board).lower().split("/")
+    if len(qualifiers) > 1 and qualifiers[1].startswith("nrf52832"):
+        return VARIANT_NRF52832
     if len(qualifiers) > 1 and qualifiers[1].startswith("nrf54lm20"):
         return VARIANT_NRF54LM20
     if len(qualifiers) > 1 and qualifiers[1].startswith("nrf54l15"):
@@ -156,7 +171,9 @@ def _board_variant(board: str) -> str:
 
 def set_core_data(config: ConfigType) -> ConfigType:
     zephyr_set_core_data(config)
-    set_nrf52_variant(_board_variant(config[CONF_BOARD]))
+    if (target := ZEPHYR_BOARD_TARGETS.get(config[CONF_BOARD])) is not None:
+        zephyr_data()[KEY_BOARD] = target
+    set_nrf52_variant(_board_variant(zephyr_data()[KEY_BOARD]))
     CORE.data[KEY_CORE][KEY_TARGET_PLATFORM] = PLATFORM_NRF52
     CORE.data[KEY_CORE][KEY_TARGET_FRAMEWORK] = KEY_ZEPHYR
 
@@ -172,21 +189,22 @@ def set_core_data(config: ConfigType) -> ConfigType:
 # In testing mode, fake a larger flash to allow linking grouped component
 # tests. The nRF52840 has 1 MB and a mcumgr OTA config halves the app slot,
 # which an openthread config alone fills; CI images are never flashed.
-NRF52840_FLASH_SIZE = 0x100000
+NRF52840_FLASH_SIZE = VARIANT_FLASH_SIZE[VARIANT_NRF52840]
 TESTING_FLASH_SIZE = 0x400000
 
 
 def _testing_mode_sections(sections: list[Section]) -> list[Section]:
     """Move a bootloader pinned to the end of the real flash to the end of the
     faked one, so the partition manager still sees a single gap for the app."""
+    flash_size = VARIANT_FLASH_SIZE.get(get_nrf52_variant(), NRF52840_FLASH_SIZE)
     return [
         Section(
             section.name,
-            section.address + TESTING_FLASH_SIZE - NRF52840_FLASH_SIZE,
+            section.address + TESTING_FLASH_SIZE - flash_size,
             section.size,
             section.region,
         )
-        if section.end_address == NRF52840_FLASH_SIZE
+        if section.end_address == flash_size
         else section
         for section in sections
     ]
@@ -248,9 +266,13 @@ def set_framework(config: ConfigType) -> ConfigType:
 ADAFRUIT_BOOTLOADERS = (
     BOOTLOADER_ADAFRUIT,
     BOOTLOADER_ADAFRUIT_NRF52_SD132,
+    BOOTLOADER_ADAFRUIT_NRF52_SD132_V2,
+    BOOTLOADER_ADAFRUIT_NRF52_SD132_V6,
     BOOTLOADER_ADAFRUIT_NRF52_SD140_V6,
     BOOTLOADER_ADAFRUIT_NRF52_SD140_V7,
 )
+# Adafruit bootloaders that receive an image into a second bank before copying it over the app
+DUAL_BANK_BOOTLOADERS = (BOOTLOADER_ADAFRUIT_NRF52_SD132_V2,)
 # Bootloaders flashed over USB serial DFU: the Adafruit ones with adafruit-nrfutil, the factory Open
 # DFU bootloader with Nordic's nrfutil; mcuboot uses mcumgr instead
 SERIAL_DFU_BOOTLOADERS = (*ADAFRUIT_BOOTLOADERS, BOOTLOADER_NRF)
@@ -296,7 +318,6 @@ nrf52_ns = cg.esphome_ns.namespace("nrf52")
 DeviceFirmwareUpdate = nrf52_ns.class_("DeviceFirmwareUpdate", cg.Component)
 
 CONF_DFU = "dfu"
-CONF_DCDC = "dcdc"
 CONF_LIBC_NANO = "libc_nano"
 CONF_REG0 = "reg0"
 CONF_UICR_ERASE = "uicr_erase"
@@ -385,6 +406,9 @@ def _validate_mcumgr(config):
     bootloader = zephyr_data()[KEY_BOOTLOADER]
     if bootloader == BOOTLOADER_MCUBOOT:
         raise cv.Invalid(f"'{bootloader}' bootloader does not support DFU")
+    # The touch that enters DFU is a baud rate change on the USB CDC port
+    if (variant := get_nrf52_variant()) in VARIANTS_WITHOUT_USB:
+        raise cv.Invalid(f"'{CONF_DFU}' needs USB, which the {variant} does not have")
 
 
 def _validate_open_dfu_toolchain(config: ConfigType) -> None:
@@ -561,14 +585,18 @@ async def to_code(config: ConfigType) -> None:
     if dfu_config := config.get(CONF_DFU):
         CORE.add_job(_dfu_to_code, dfu_config)
     framework_ver: cv.Version = CORE.data[KEY_CORE][KEY_FRAMEWORK_VERSION]
-    if CONF_DCDC in config:
+    dcdc = config.get(
+        CONF_DCDC, BOARDS_ZEPHYR.get(config[CONF_BOARD], {}).get(CONF_DCDC)
+    )
+    if dcdc is not None:
         if framework_ver < cv.Version(2, 9, 2):
-            zephyr_add_prj_conf("BOARD_ENABLE_DCDC", config[CONF_DCDC])
+            zephyr_add_prj_conf("BOARD_ENABLE_DCDC", dcdc)
         else:
+            regulator = VARIANT_REGULATOR.get(variant, "reg1")
             zephyr_add_overlay(
                 f"""
-                    &reg1 {{
-                        regulator-initial-mode = <{"NRF5X_REG_MODE_DCDC" if config[CONF_DCDC] else "NRF5X_REG_MODE_LDO"}>;
+                    &{regulator} {{
+                        regulator-initial-mode = <{"NRF5X_REG_MODE_DCDC" if dcdc else "NRF5X_REG_MODE_LDO"}>;
                     }};
                 """
             )
@@ -902,8 +930,11 @@ def upload_program(config: ConfigType, args, host: str) -> bool:
             else:
                 check_and_install()
                 paths = get_build_paths()
-                _reset_into_bootloader(host)
-                _wait_for_port_permissions(host)
+                # Without native USB, adafruit-nrfutil resets into the bootloader through the USB serial
+                # chip's DTR line, and the port never goes away
+                if get_nrf52_variant() not in VARIANTS_WITHOUT_USB:
+                    _reset_into_bootloader(host)
+                    _wait_for_port_permissions(host)
                 dfu_cmd = [
                     str(paths["python_executable"]),
                     "-m",
@@ -916,8 +947,9 @@ def upload_program(config: ConfigType, args, host: str) -> bool:
                     host,
                     "-b",
                     "115200",
-                    "--singlebank",
                 ]
+                if bootloader not in DUAL_BANK_BOOTLOADERS:
+                    dfu_cmd.append("--singlebank")
             if not run_command_ok(dfu_cmd, env=env, stream_output=True):
                 raise EsphomeError("nRF52 serial DFU upload failed")
             return True
@@ -1443,6 +1475,9 @@ def run_compile(args, config: ConfigType) -> bool:
     # so v7 accepts S140 7.0.1, 7.2.0 and 7.3.0 (e.g. Seeed XIAO nRF52840).
     _GENPKG_PARAMS = {
         BOOTLOADER_ADAFRUIT_NRF52_SD132: ("0x0051", "0x009D"),
+        # S132 2.0.1 and 6.1.1, as the Adafruit Arduino BSP packages for the Feather nRF52832
+        BOOTLOADER_ADAFRUIT_NRF52_SD132_V2: ("0x0052", "0x0088"),
+        BOOTLOADER_ADAFRUIT_NRF52_SD132_V6: ("0x0052", "0x00B7"),
         BOOTLOADER_ADAFRUIT_NRF52_SD140_V6: ("0x0052", "0x00B6"),
         BOOTLOADER_ADAFRUIT_NRF52_SD140_V7: ("0x0052", "0x00CA,0x0100,0x0123"),
     }

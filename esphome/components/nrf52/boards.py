@@ -4,9 +4,12 @@ from esphome.components.zephyr.const import KEY_BOOTLOADER
 from .const import (
     BOOTLOADER_ADAFRUIT,
     BOOTLOADER_ADAFRUIT_NRF52_SD132,
+    BOOTLOADER_ADAFRUIT_NRF52_SD132_V2,
+    BOOTLOADER_ADAFRUIT_NRF52_SD132_V6,
     BOOTLOADER_ADAFRUIT_NRF52_SD140_V6,
     BOOTLOADER_ADAFRUIT_NRF52_SD140_V7,
     BOOTLOADER_NRF,
+    CONF_DCDC,
 )
 
 BOARDS_ZEPHYR = {
@@ -34,8 +37,23 @@ BOARDS_ZEPHYR = {
             BOOTLOADER_ADAFRUIT_NRF52_SD140_V7,
         ]
     },
+    # Adafruit Feather nRF52832: current bootloader with S132 6.1.1, or the original 0.5.0 with S132 2.0.1.
+    # Its bootloader leaves the regulator in LDO mode, while the nRF52 DK it builds on turns DCDC on
+    "adafruit_feather_nrf52832": {
+        KEY_BOOTLOADER: [
+            BOOTLOADER_ADAFRUIT_NRF52_SD132_V6,
+            BOOTLOADER_ADAFRUIT_NRF52_SD132_V2,
+        ],
+        CONF_DCDC: False,
+    },
     # Nordic nRF52840 Dongle (PCA10059): factory Open DFU bootloader at 0xE0000, kept in place
     "nrf52840dongle": {KEY_BOOTLOADER: [BOOTLOADER_NRF]},
+}
+
+# Boards Zephyr has no definition for, built on one with the same console UART pins. Unlike
+# BOARD_ALIASES, the config keeps the ESPHome name, which selects the bootloaders above
+ZEPHYR_BOARD_TARGETS = {
+    "adafruit_feather_nrf52832": "nrf52dk/nrf52832",
 }
 
 # Boards with a GPIO wired to their RESET pin: driving it low is a pin reset, which the factory
@@ -58,6 +76,18 @@ BOOTLOADER_CONFIG = {
     BOOTLOADER_ADAFRUIT_NRF52_SD132: [
         Section("SoftDevice", 0x0, 0x26000, "flash_primary"),
         Section("Adafruit_nRF52_Bootloader", 0xF4000, 0xC000, "flash_primary"),
+    ],
+    # nRF52832, dual bank 0.5.0: app at most 0x28800 at 0x1C000, second bank above it; settings in the
+    # app data pages it keeps
+    BOOTLOADER_ADAFRUIT_NRF52_SD132_V2: [
+        Section("SoftDevice", 0x0, 0x1C000, "flash_primary"),
+        Section("Adafruit_nRF52_Bootloader_bank1", 0x44800, 0x2D800, "flash_primary"),
+        Section("settings_storage", 0x72000, 0x2000, "flash_primary"),
+        Section("Adafruit_nRF52_Bootloader", 0x74000, 0xC000, "flash_primary"),
+    ],
+    BOOTLOADER_ADAFRUIT_NRF52_SD132_V6: [
+        Section("SoftDevice", 0x0, 0x26000, "flash_primary"),
+        Section("Adafruit_nRF52_Bootloader", 0x74000, 0xC000, "flash_primary"),
     ],
     BOOTLOADER_ADAFRUIT_NRF52_SD140_V6: [
         Section("SoftDevice", 0x0, 0x26000, "flash_primary"),

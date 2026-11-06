@@ -1,18 +1,27 @@
 """Tests for the nRF52 configuration validation."""
 
 from collections.abc import Generator
+import itertools
 
 import pytest
 
 from esphome.components.nrf52 import (
     _default_self_reset_pin,
     _detect_bootloader,
+    _validate_mcumgr,
     _validate_open_dfu_toolchain,
     set_core_data,
 )
 from esphome.components.nrf52.boards import BOOTLOADER_CONFIG
-from esphome.components.nrf52.const import BOOTLOADER_NRF
-from esphome.components.zephyr.const import KEY_PM_STATIC, KEY_ZEPHYR
+from esphome.components.nrf52.const import (
+    BOOTLOADER_ADAFRUIT_NRF52_SD132_V2,
+    BOOTLOADER_ADAFRUIT_NRF52_SD132_V6,
+    BOOTLOADER_NRF,
+    VARIANT_NRF52832,
+)
+from esphome.components.nrf52.framework import get_nrf52_variant
+from esphome.components.zephyr import Section
+from esphome.components.zephyr.const import KEY_BOARD, KEY_PM_STATIC, KEY_ZEPHYR
 from esphome.components.zephyr_mcumgr.ota import _validate_bootloader
 from esphome.config import path_context
 import esphome.config_validation as cv
@@ -109,3 +118,77 @@ def test_other_boards_get_no_reset_pin() -> None:
         {"board": "adafruit_itsybitsy_nrf52840", "dfu": {}}
     )
     assert "reset_pin" not in config["dfu"]
+
+
+FEATHER_NRF52832 = "adafruit_feather_nrf52832"
+
+
+def _feather_core_data(bootloader: str, testing: bool = False) -> dict[str, Section]:
+    CORE.data[KEY_CORE] = {}
+    CORE.testing_mode = testing
+    set_core_data({"board": FEATHER_NRF52832, "bootloader": bootloader})
+    return {s.name: s for s in CORE.data[KEY_ZEPHYR][KEY_PM_STATIC]}
+
+
+@pytest.mark.parametrize(
+    ("given", "selected"),
+    [
+        ({}, BOOTLOADER_ADAFRUIT_NRF52_SD132_V6),
+        (
+            {"bootloader": BOOTLOADER_ADAFRUIT_NRF52_SD132_V2},
+            BOOTLOADER_ADAFRUIT_NRF52_SD132_V2,
+        ),
+    ],
+)
+def test_feather_nrf52832_bootloaders(given: dict[str, str], selected: str) -> None:
+    """The current bootloader is the default; the original one can be selected."""
+    config = _detect_bootloader({"board": FEATHER_NRF52832, **given})
+    assert config["bootloader"] == selected
+
+
+def test_feather_nrf52832_rejects_an_nrf52840_bootloader() -> None:
+    with pytest.raises(cv.Invalid, match="adafruit_feather_nrf52832 does not support"):
+        _detect_bootloader(
+            {"board": FEATHER_NRF52832, "bootloader": "adafruit_nrf52_sd140_v6"}
+        )
+
+
+def test_feather_nrf52832_builds_on_the_nrf52_dk() -> None:
+    """Zephyr has no Feather nRF52832 board; the nRF52 DK has its console UART on the same pins."""
+    _feather_core_data(BOOTLOADER_ADAFRUIT_NRF52_SD132_V6)
+    assert CORE.data[KEY_ZEPHYR][KEY_BOARD] == "nrf52dk/nrf52832"
+    assert get_nrf52_variant() == VARIANT_NRF52832
+
+
+def test_feather_nrf52832_current_bootloader_layout() -> None:
+    """S132 6.1.1 ends at 0x26000, and the bootloader fills 0x74000 to the end of the 512 KB flash."""
+    registered = _feather_core_data(BOOTLOADER_ADAFRUIT_NRF52_SD132_V6)
+    assert registered["SoftDevice"].end_address == 0x26000
+    assert registered["Adafruit_nRF52_Bootloader"].address == 0x74000
+    assert registered["Adafruit_nRF52_Bootloader"].end_address == 0x80000
+
+
+def test_feather_nrf52832_original_bootloader_layout() -> None:
+    """The dual bank bootloader takes at most 0x28800 bytes at 0x1C000, after S132 2.0.1."""
+    registered = _feather_core_data(BOOTLOADER_ADAFRUIT_NRF52_SD132_V2)
+    assert registered["SoftDevice"].end_address == 0x1C000
+    assert registered["Adafruit_nRF52_Bootloader_bank1"].address == 0x1C000 + 0x28800
+    # The sections above the app are contiguous, so the partition manager sees one gap for it
+    above = sorted(
+        (s for s in registered.values() if s.address > 0), key=lambda s: s.address
+    )
+    assert all(a.end_address == b.address for a, b in itertools.pairwise(above))
+    assert above[-1].end_address == 0x80000
+
+
+def test_testing_mode_moves_the_nrf52832_bootloader_to_the_end() -> None:
+    registered = _feather_core_data(BOOTLOADER_ADAFRUIT_NRF52_SD132_V6, testing=True)
+    assert registered["Adafruit_nRF52_Bootloader"].end_address == 0x400000
+    assert registered["SoftDevice"].address == 0
+
+
+def test_dfu_component_needs_usb() -> None:
+    """The touch that enters DFU is a baud rate change on a USB CDC port."""
+    _feather_core_data(BOOTLOADER_ADAFRUIT_NRF52_SD132_V6)
+    with pytest.raises(cv.Invalid, match="'dfu' needs USB"):
+        _validate_mcumgr({})
