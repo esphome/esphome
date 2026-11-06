@@ -94,8 +94,9 @@ bool RS485FrameHub::queue_raw_frame(std::span<const uint8_t> frame_type, std::sp
     return false;
   }
   if (this->queue_policy_ == QUEUE_REPLACE_LATEST) {
-    if (this->tx_queue_count_ > 0)
+    if (this->tx_queue_count_ > 0) {
       ESP_LOGV(TAG, "Replacing pending frame before it was transmitted");
+    }
     this->tx_queue_count_ = 0;
   }
   uint8_t *slot = this->tx_slot_(index);
