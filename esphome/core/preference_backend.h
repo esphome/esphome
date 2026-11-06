@@ -91,7 +91,8 @@ class ESPPreferenceObject {
   bool sync() {
     if (this->backend_ == nullptr)
       return false;
-    return this->backend_->sync();
+    // Through B so that platforms without sync() only fail when it is called
+    return static_cast<B *>(this->backend_)->sync();
   }
 
  protected:
