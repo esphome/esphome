@@ -1,0 +1,24 @@
+esphome:
+  name: test-device
+
+esp32:
+  board: esp32dev
+  framework:
+    type: esp-idf
+
+# Even a sniffer_only hub must receive. Must be rejected.
+uart:
+  id: uart_bus
+  tx_pin: GPIO17
+  baud_rate: 9600
+
+rs485_frame:
+  - id: hub
+    uart_id: uart_bus
+    framing:
+      escape:
+        mode: escape_byte
+        byte: 0x00
+    crc:
+      type: sum8
+    sniffer_only: true
