@@ -9,16 +9,9 @@ namespace host {
 
 ESPHOME_LOG_TAG(TAG, "host");
 
-struct ISRPinArg {
-  uint8_t pin;
-  bool inverted;
-};
-
+// The ISR pin is the pin itself; pins are never freed.
 ISRInternalGPIOPin HostGPIOPin::to_isr() const {
-  auto *arg = new ISRPinArg{};  // NOLINT(cppcoreguidelines-owning-memory)
-  arg->pin = pin_;
-  arg->inverted = inverted_;
-  return ISRInternalGPIOPin((void *) arg);
+  return ISRInternalGPIOPin(const_cast<HostGPIOPin *>(this));  // NOLINT(cppcoreguidelines-pro-type-const-cast)
 }
 
 void HostGPIOPin::attach_interrupt_(void (*func)(void *), void *arg, gpio::InterruptType type) const {
@@ -39,16 +32,12 @@ void HostGPIOPin::detach_interrupt() const {}
 
 using namespace host;
 
-bool IRAM_ATTR ISRInternalGPIOPin::digital_read() {
-  auto *arg = reinterpret_cast<ISRPinArg *>(arg_);
-  return arg->inverted;
-}
+bool IRAM_ATTR ISRInternalGPIOPin::digital_read() { return static_cast<HostGPIOPin *>(this->arg_)->is_inverted(); }
 void IRAM_ATTR ISRInternalGPIOPin::digital_write(bool value) {
   // pass
 }
 void IRAM_ATTR ISRInternalGPIOPin::clear_interrupt() {
-  auto *arg = reinterpret_cast<ISRPinArg *>(arg_);
-  ESP_LOGD(TAG, "Clearing interrupt for pin %d", arg->pin);
+  ESP_LOGD(TAG, "Clearing interrupt for pin %d", static_cast<HostGPIOPin *>(this->arg_)->get_pin());
 }
 
 }  // namespace esphome

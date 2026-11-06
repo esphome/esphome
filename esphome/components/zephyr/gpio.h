@@ -41,6 +41,14 @@ class ZephyrGPIOPin final : public GPIOPin {
   bool is_inverted() const { return this->inverted_; }
   bool is_internal() override { return true; }
   gpio::Flags get_flags() const override { return flags_; }
+  /// ISR-safe reads and writes for ISRInternalGPIOPin, which points at this pin.
+  bool isr_digital_read() const {
+    return this->gpio_ != nullptr && bool(gpio_pin_get(this->gpio_, this->pin_ % this->gpio_size_) != this->inverted_);
+  }
+  void isr_digital_write(bool value) const {
+    if (this->gpio_ != nullptr)
+      gpio_pin_set(this->gpio_, this->pin_ % this->gpio_size_, value != this->inverted_ ? 1 : 0);
+  }
 
  protected:
   void attach_interrupt_(void (*func)(void *), void *arg, gpio::InterruptType type) const;
