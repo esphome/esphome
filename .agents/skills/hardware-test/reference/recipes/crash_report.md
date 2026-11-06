@@ -9,7 +9,8 @@ put `scripts/` on `PYTHONPATH`):
 - `drive.py HOST BUTTON_OBJECT_ID` (for example `crash_abort`) reads the capability, presses the button, reconnects
   after the reboot and fetches the report twice (reason, PC, cause, fault address, build time, per-core backtrace),
   subscribes to logs with `dump_config` to see what is replayed, and checks the capability from a second client.
-  It exits 1 when the device does not offer a report after the crash, or the report has no reason or a PC of 0.
+  It reads an earlier report first, so a stale one cannot pass. It exits 1 when the device still answers after the
+  press, does not offer a report after the crash, or the report has no reason or a PC of 0.
 - `peek.py HOST` prints only the capability and how many replayed `CRASH DETECTED` lines a new log client gets. To
   only press a button, use `scripts/api_button.py HOST - press "crash abort"`.
 - Decode the PC and the backtrace with the build's ELF (`addr2line -e firmware.elf`). On RTL8720C a noreturn

@@ -42,6 +42,7 @@ def send(name: str, rtype: int, query_id: int) -> None:
 
 
 def ask(name: str, rtype: int) -> list | None:
+    """The answers for NAME and RTYPE only (empty when the reply has none of them), or None without a reply."""
     global qid  # noqa: PLW0603
     qid = (qid + 1) & 0xFFFF
     send(name, rtype, qid)
@@ -53,7 +54,11 @@ def ask(name: str, rtype: int) -> list | None:
             return None
         msg = DNSIncoming(data)
         if msg.id == qid:
-            return msg.answers()
+            return [
+                a
+                for a in msg.answers()
+                if a.type == rtype and a.name.lower() == name.lower()
+            ]
     return None
 
 
@@ -92,7 +97,7 @@ if mode == "dump":
     for key, (name, rtype) in QUESTIONS.items():
         ans = ask(name, rtype)
         if not ans:
-            print(f"{key}: {'no answer' if ans is None else 'empty answer'}")
+            print(f"{key}: {'no answer' if ans is None else 'no matching record'}")
             missing += 1
             continue
         for rec in ans:

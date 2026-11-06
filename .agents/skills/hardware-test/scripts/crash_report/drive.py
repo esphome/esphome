@@ -1,7 +1,8 @@
 """Press a crash button, reconnect, fetch the crash report twice; print capabilities around it and the replayed log.
 
 usage: drive.py HOST BUTTON_OBJECT_ID   env: API_KEY (unset for a plaintext API)
-Exits 1 when the device does not offer a crash report after the crash, or the report has no reason or a PC of 0.
+An earlier report is read first so it cannot pass for this crash. Exits 1 when the device still answers after the
+press, does not offer a crash report after the crash, or the report has no reason or a PC of 0.
 """
 
 import asyncio
@@ -31,12 +32,26 @@ async def connect() -> APIClient:
 async def main() -> str | None:
     """Run the flow; returns why it failed, or None."""
     c = await connect()
-    mark(f"before: crash_report={(await c.device_capabilities()).crash_report}")
+    before = (await c.device_capabilities()).crash_report
+    mark(f"before: crash_report={before}")
+    if before:
+        # reading it drops the record at the next reboot, so only a new crash leaves one
+        old = await c.crash_report()
+        mark(f"read the earlier report first: reason={old.reason}")
     ents, _ = await c.list_entities_services()
     key = next(e.key for e in ents if e.object_id == BTN)
     mark(f"PRESS {BTN}")
     c.button_command(key)
     await asyncio.sleep(2)
+    try:
+        await asyncio.wait_for(c.device_info(), 3)
+    except Exception:  # noqa: BLE001
+        mark("no answer after the press (expected)")
+    else:
+        await c.disconnect()
+        return (
+            "the device still answers after the press, so the button did not crash it"
+        )
     try:
         await c.disconnect()
     except Exception:  # noqa: BLE001

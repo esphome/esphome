@@ -13,9 +13,23 @@ import sys
 D, NAME = pathlib.Path(sys.argv[1]), sys.argv[2]
 
 
+DAY = 86400.0
+
+
 def t(s: str) -> float:
     h, m, rest = s.split(":")
     return int(h) * 3600 + int(m) * 60 + float(rest)
+
+
+def unwrap(times: list[float], ref: float) -> list[float]:
+    """Add whole days so the clock times run on past midnight, starting from the day nearest REF."""
+    out: list[float] = []
+    prev = ref
+    for x in times:
+        x += round((prev - x) / DAY) * DAY
+        out.append(x)
+        prev = x
+    return out
 
 
 def lines(name: str) -> list[str]:
@@ -31,6 +45,8 @@ ser = [
 ]
 if not ser:
     sys.exit("serial.txt is empty")
+REF = ser[0][0]
+ser = list(zip(unwrap([ts for ts, _ in ser], REF), [s for _, s in ser], strict=True))
 wins: list[list] = []
 cur = None
 cyc = 0
@@ -48,17 +64,27 @@ for ts, s in ser:
 if cur:
     cur[1] = ser[-1][0]
     wins.append(cur)
-broker = [
-    t(m.group(1))
-    for line in lines("mosq.log")
-    if (m := re.match(r"(\d+:\d+:\d+): New client connected from \S+ as (\S+)", line))
-    and m.group(2).startswith(NAME)
-]
-ticks = [
-    t(m.group(1))
-    for line in lines("sub.txt")
-    if (m := re.match(r"(\d+:\d+:\d+) \S+/tick", line))
-]
+broker = unwrap(
+    [
+        t(m.group(1))
+        for line in lines("mosq.log")
+        if (
+            m := re.match(
+                r"(\d+:\d+:\d+): New client connected from \S+ as (\S+)", line
+            )
+        )
+        and m.group(2).startswith(NAME)
+    ],
+    REF,
+)
+ticks = unwrap(
+    [
+        t(m.group(1))
+        for line in lines("sub.txt")
+        if (m := re.match(r"(\d+:\d+:\d+) \S+/tick", line))
+    ],
+    REF,
+)
 
 
 connects = [ts for ts, s in ser if "EV CONNECT" in s]

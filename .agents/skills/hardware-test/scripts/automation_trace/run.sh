@@ -32,7 +32,9 @@ done
 [ -n "$H" ] || { echo "FAIL: no IP address in the serial log"; exit 1; }
 PYTHONPATH=$(dirname "$SC") $PY "$R/drive.py" "$H" "$OUT/markers.txt"; RC=$?
 sed -n '/^DRIVER press Run All/,$p' "$OUT/markers.txt" > "$R/out-$NAME.trace"
-echo "$NAME: $(wc -l < "$R/out-$NAME.trace") trace lines, crashes $(grep -a -c -E 'Guru|abort\(\)|Backtrace|task_wdt' "$OUT/serial.txt")"
+CR=$(grep -a -c -E 'Guru|abort\(\)|Backtrace|task_wdt' "$OUT/serial.txt")
+echo "$NAME: $(wc -l < "$R/out-$NAME.trace") trace lines, crashes $CR"
+[ "$CR" = 0 ] || { echo "FAIL: a crash or watchdog in the serial log"; exit 1; }
 [ "$RC" = 0 ] || { echo "FAIL: Run All never reached M done"; exit 1; }
 grep -q -E "SHOULD_NOT_RUN|NOT_REACHED" "$R/out-$NAME.trace" && { echo "FAIL: a step that must be skipped ran"; exit 1; }
 echo PASS

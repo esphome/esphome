@@ -109,6 +109,9 @@ private mosquitto so it can stop and start it, flashes and captures:
   `esp_mqtt_client_stop()` while the esp-mqtt task sleeps in WAIT_RECONNECT blocks the caller for up to
   reconnect_timeout/2 (5 s), 6 of 6 task watchdog resets on an S3 and a C6.
 
+Both modes also fail when the device never connects or the broker was never stopped, and `outage` when no inbound
+message arrived.
+
 Use the host's current address for `BROKER`: a stale one gives `esp-tls select() timeout`. Before #22230 the client
 reconnects on its own during disable (14 of 16 windows). Results:
 https://github.com/esphome/esphome/pull/22230#issuecomment-6614854671

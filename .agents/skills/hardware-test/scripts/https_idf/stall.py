@@ -1,7 +1,7 @@
-"""Hold idle TCP connections on the HTTPS port (no ClientHello), switch the listener and time it.
+"""Hold idle TCP connections on the HTTPS port (no ClientHello) while an armed listener switch runs.
 
-usage: stall.py HOST   Exits 1 when a switch did not take effect while the idle clients were open, or when an idle
-client was not closed by the server.
+usage: stall.py HOST   Exits 1 when a switch request was refused, a switch did not take effect while the idle clients
+were open, or an idle client was not closed by the server.
 """
 
 import socket
@@ -16,11 +16,11 @@ CTX.check_hostname = False
 CTX.verify_mode = ssl.CERT_NONE
 
 
-def get(url: str) -> tuple[bool, str]:
+def get(url: str, want: int = 200) -> tuple[bool, str]:
     t = time.monotonic()
     try:
         with urllib.request.urlopen(url, context=CTX, timeout=10) as r:
-            return r.status == 200, f"{r.status} {time.monotonic() - t:.2f}s"
+            return r.status == want, f"{r.status} {time.monotonic() - t:.2f}s"
     except Exception as e:  # noqa: BLE001
         return False, f"fail {type(e).__name__} {time.monotonic() - t:.2f}s"
 
@@ -30,12 +30,13 @@ for target, url, back in (
     ("http", f"http://{HOST}/hw", f"http://{HOST}/hw/switch/https"),
     ("https8443", f"https://{HOST}:8443/hw", f"https://{HOST}:8443/hw/switch/https"),
 ):
+    # an idle client holds the server task, so the switch is armed 3 s ahead on the main loop before they open
+    ok, text = get(f"https://{HOST}/hw/switch/{target}/later", 202)
+    ok_all &= ok
+    print(f"switch to {target} armed: {text}")
     idle = [socket.create_connection((HOST, 443), timeout=5) for _ in range(2)]
-    time.sleep(1)
-    print(
-        f"2 idle TCP clients open on 443; switch to {target}: {get(f'https://{HOST}/hw/switch/{target}')[1]}"
-    )
-    time.sleep(3)
+    print("  2 idle TCP clients open on 443")
+    time.sleep(5)
     ok, text = get(url)
     ok_all &= ok
     print(f"  after the switch {url}: {text}")
@@ -52,7 +53,9 @@ for target, url, back in (
             print("  idle client: still open,", type(e).__name__)
         ok_all &= closed
         s.close()
-    print(f"  switch back: {get(back)[1]}")
+    ok, text = get(back, 202)
+    ok_all &= ok
+    print(f"  switch back: {text}")
     time.sleep(3)
     ok, text = get(f"https://{HOST}/hw")
     ok_all &= ok

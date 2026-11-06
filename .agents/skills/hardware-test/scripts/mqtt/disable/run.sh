@@ -4,9 +4,10 @@
 #   outage: publish md<LABEL>/in every second, stop the broker 45 s after CYCLE 3 and start it 25 s later (inside a
 #           disabled window), then count per disabled window with analyze.py
 #   drop:   stop the broker 6 s after every EV ENABLE for 15 s (a drop while the client reconnects)
-# Exits 1 on a reset or task watchdog, when no cycle ran, when the broker did not restart, or in outage mode when
-# analyze.py found a connect or an inbound message inside a disabled window. Run it from a scratch copy of this directory with a
-# secrets.yaml (wifi_ssid, wifi_password).
+# Exits 1 on a reset or task watchdog, when no cycle ran, the device never connected, the broker was never stopped or
+# did not restart, or in outage mode when no inbound message arrived or analyze.py found a connect or an inbound
+# message inside a disabled window. Run it from a scratch copy of this directory with a secrets.yaml (wifi_ssid,
+# wifi_password).
 # env: TREE, PORT, SC (path to serial_capture.py), PY (checkout python), BROKER (this host's address as the board
 # sees it: a stale one gives esp-tls select() timeout), BROKER_PORT (default 18831), ASYNC (idf_send_async, default
 # false), BOARD (default esp32-s3-devkitc-1), VARIANT (default esp32s3), UART (default USB_SERIAL_JTAG), MOSQUITTO
@@ -60,5 +61,8 @@ echo "$NAME $MODE: cycles $(c 'CYCLE '), connects $(c 'EV CONNECT'), disconnects
 grep -a 'mqtt took a long time' "$O/serial.txt" | sed 's/.*took/took/' | sort | uniq -c
 if [ "$MODE" = outage ]; then python3 "$D/analyze.py" "$O" "$NAME" || { echo "FAIL: activity inside a disabled window"; exit 1; }; fi
 [ "$(c 'CYCLE ')" -gt 0 ] || { echo "FAIL: no disable cycle ran"; exit 1; }
+[ "$(c 'EV CONNECT')" -gt 0 ] || { echo "FAIL: the device never connected to the broker"; exit 1; }
+[ "$MODE" = drop ] || [ "$(c 'EV MSG')" -gt 0 ] || { echo "FAIL: no inbound message arrived"; exit 1; }
+grep -q 'BROKER STOP' "$O/driver.txt" 2> /dev/null || { echo "FAIL: the broker was never stopped"; exit 1; }
 [ "$(c task_wdt)" = 0 ] && [ "$(grep -a -c -E 'Guru|abort\(\)|Backtrace|rst:0x' "$O/serial.txt")" = 0 ] || { echo "FAIL: reset or task watchdog"; exit 1; }
 echo PASS
