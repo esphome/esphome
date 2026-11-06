@@ -19,7 +19,7 @@ ESPHOME_LOG_TAG(TAG, "rp2040_pio_led_strip");
 // DMA interrupt service routine
 void RP2040PIOLEDStripLightOutput::dma_write_complete_handler() {
   uint32_t channel = dma_hw->ints0;
-  for (uint dma_chan = 0; dma_chan < 12; ++dma_chan) {
+  for (uint dma_chan = 0; dma_chan < NUM_DMA_CHANNELS; ++dma_chan) {
     if (RP2040PIOLEDStripLightOutput::dma_chan_active[dma_chan] && (channel & (1u << dma_chan))) {
       dma_hw->ints0 = (1u << dma_chan);                                              // Clear the interrupt
       sem_release(&RP2040PIOLEDStripLightOutput::dma_write_complete_sem[dma_chan]);  // Handle the interrupt
@@ -64,20 +64,21 @@ void RP2040PIOLEDStripLightOutput::setup() {
   }
 
   // Configure the state machine's PIO, and start it
-  this->sm_ = pio_claim_unused_sm(this->pio_, true);
-  if (this->sm_ < 0) {
-    // in theory this code should never be reached
+  int sm = pio_claim_unused_sm(this->pio_, false);
+  if (sm < 0) {
     this->mark_failed(LOG_STR("Failed to claim PIO state machine"));
     return;
   }
+  this->sm_ = sm;
 
-  // Initalize the DMA channel (Note: There are 12 DMA channels and 8 state machines so we won't run out)
-
-  this->dma_chan_ = dma_claim_unused_channel(true);
-  if (this->dma_chan_ < 0) {
+  // Other code may already hold every DMA channel
+  int dma_chan = dma_claim_unused_channel(false);
+  if (dma_chan < 0) {
+    pio_sm_unclaim(this->pio_, this->sm_);
     this->mark_failed(LOG_STR("Failed to claim DMA channel"));
     return;
   }
+  this->dma_chan_ = dma_chan;
 
   // Mark the DMA channel as active
   RP2040PIOLEDStripLightOutput::dma_chan_active[this->dma_chan_] = true;
