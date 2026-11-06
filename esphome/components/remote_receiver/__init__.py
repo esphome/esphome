@@ -361,12 +361,7 @@ async def to_code(config: ConfigType) -> None:
         # one frame half captures while the loop dispatches the other; the 65535 byte
         # buffer_size cap keeps frame_entries within the store's uint16_t
         frame_entries = config[CONF_BUFFER_SIZE] // 4 // 2
-        frames_id = cg.unique_global_id(f"{config[CONF_ID].id}__frames", cg.int32)
-        frames = cg.MockObj(frames_id, ".")
-        CORE.register_variable(frames_id, frames)
-        cg.add_global(
-            cg.RawStatement(f"static int32_t {frames_id}[{frame_entries * 2}];")
-        )
+        frames = cg.static_buffer(config[CONF_ID], cg.int32, frame_entries * 2)
         cg.add(var.set_frame_buffer(frames, frame_entries))
 
 
