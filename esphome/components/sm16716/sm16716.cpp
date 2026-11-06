@@ -29,7 +29,7 @@ void SM16716::loop() {
   }
 
   // send 25 bits (1 start bit plus 24 data bits) for each chip
-  for (uint8_t index = 0; index < this->pwm_amounts_.size(); index++) {
+  for (size_t index = 0; index < this->pwm_amounts_.size(); index++) {
     // send a start bit initially and after every 3 channels
     if (index % 3 == 0) {
       this->write_bit_(true);
