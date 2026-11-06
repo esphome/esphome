@@ -25,16 +25,14 @@ class Pixoo : public display::Display,
               public spi::SPIDevice<spi::BIT_ORDER_MSB_FIRST, spi::CLOCK_POLARITY_LOW, spi::CLOCK_PHASE_LEADING,
                                     spi::DATA_RATE_8MHZ> {
  public:
-  // frame_buffer holds frame_words(model) words; word-aligned for the SPI DMA transfer.
-  Pixoo(PixooModel model, uint32_t *frame_buffer)
-      : model_(model), frame_buffer_(reinterpret_cast<uint8_t *>(frame_buffer)) {}
+  // frame_buffer holds frame_size(model) bytes, word-aligned for the SPI DMA transfer.
+  Pixoo(PixooModel model, uint8_t *frame_buffer) : model_(model), frame_buffer_(frame_buffer) {}
 
   // RGB888 image bytes.
   static constexpr size_t data_size(PixooModel model) { return static_cast<size_t>(model) * model * 3; }
   // Full SPI frame: a DATA packet (header + RGB888 + tail), then a DMA-chunk-sized UNUSED packet so the
   // LED board completes its final DMA block.
   static constexpr size_t frame_size(PixooModel model) { return data_size(model) + PACKET_STATIC_LEN + DMA_CHUNK; }
-  static constexpr size_t frame_words(PixooModel model) { return (frame_size(model) + 3) / 4; }
 
   void setup() override;
   void update() override;

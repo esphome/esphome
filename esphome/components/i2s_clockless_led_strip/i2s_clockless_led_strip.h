@@ -21,10 +21,18 @@ namespace esphome::i2s_clockless_led_strip {
 
 // Each byte of LED strip data becomes one 24-bit I2S sample
 static constexpr size_t I2S_BYTES_PER_SAMPLE = 3;
+/// The color and effect data rounded up to a word, so the I2S data after it that the ISR copies is word aligned
+static constexpr size_t i2s_data_offset(uint16_t num_leds, uint8_t bytes_per_led) {
+  return (num_leds * (bytes_per_led + 1) + 3) / 4 * 4;
+}
+/// The whole block for the constructor, the I2S data holding I2S_BYTES_PER_SAMPLE bytes per color byte
+static constexpr size_t buffer_bytes(uint16_t num_leds, uint8_t bytes_per_led) {
+  return i2s_data_offset(num_leds, bytes_per_led) + num_leds * bytes_per_led * I2S_BYTES_PER_SAMPLE;
+}
 
 class I2SClocklessLedStrip final : public light::AddressableLight {
  public:
-  /// `buffer` holds the color and effect data followed by I2S_BYTES_PER_SAMPLE bytes per color byte.
+  /// `buffer` is a word aligned block of buffer_bytes().
   I2SClocklessLedStrip(uint8_t *buffer, uint8_t pin, uint16_t num_leds, light::ChannelColors channel_colors);
 
   void dump_config() override;

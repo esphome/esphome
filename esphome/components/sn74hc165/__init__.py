@@ -49,10 +49,9 @@ async def to_code(config: ConfigType) -> None:
     await cg.add_pin(var.set_load_pin, config[CONF_LOAD_PIN])
     await cg.add_pin(var.set_clock_inhibit_pin, config.get(CONF_CLOCK_INHIBIT_PIN))
 
-    sr_count = config[CONF_SR_COUNT]
     cg.add(
-        var.set_sr_count(
-            sr_count, cg.static_buffer(config[CONF_ID], cg.uint8, sr_count)
+        var.set_input_bytes(
+            cg.static_buffer(config[CONF_ID], cg.uint8, config[CONF_SR_COUNT])
         )
     )
 
