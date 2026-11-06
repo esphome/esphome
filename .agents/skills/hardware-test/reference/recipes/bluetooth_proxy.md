@@ -18,8 +18,9 @@ that session. `scripts/bluetooth_proxy_half_open/` reproduces it with:
 case C (old client killed, new client after 4 s), case H (old client frozen with `SIGSTOP`, so the socket stays open
 with no FIN; new client after 4 s, watched 300 s, then it asks to connect and releases) and case N (frozen and nobody
 reconnects for 200 s). `cases.sh PROXY_HOST LABEL swap` instead repeats H three times with the new client
-connecting at once (`ha.py ... swap ADDR`) and retrying on the first advert. Both exit 1 when the owner never got the
-link (a rig problem, not a result).
+connecting at once (`ha.py ... swap ADDR`) and retrying on the first advert. Both end with PASS or FAIL: the cases
+fail when an observer exits non-zero, never sees the peripheral advertise (the held link) or the proxy resets, and
+swap fails when a round never connects. An owner that never got the link also fails (a rig problem, not a result).
 
 - The proxy drops a frozen session as unresponsive after about 144 s.
 - Before #22077, case H holds the link for good: 0 adverts, and the address stays in the slot report. With #22077 the

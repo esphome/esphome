@@ -4,8 +4,10 @@ usage: kick.py BROKER_LOG BROKER_PORT PREFIX CYCLES
 
 Tails the mosquitto log (log_type all), so mosquitto drops the device's session with "session taken over". The
 connection after each kick is left alone for 8 s (the device logs its RESULT 6 s after a connect), then ended to
-start the next cycle. The first kick hits the connection that is already up. The kicker's own connections come from
-127.0.0.1 with the same id and are skipped.
+start the next cycle. The first kick hits the connection that is already up (the device's CONN 1), so connection n
+seen here is the device's CONN n + 1. The kicker's own connections come from 127.0.0.1 with the same id and are
+skipped. Each left-alone connection prints "HH:MM:SS connection n left alone (device CONN n+1)" for run.sh to pair
+with the device's RESULT lines.
 """
 
 import pathlib
@@ -65,7 +67,10 @@ with pathlib.Path(LOG).open("rb") as log:
                 flush=True,
             )
         else:
-            print(f"{time.strftime('%H:%M:%S')} connection {n} left alone", flush=True)
+            print(
+                f"{time.strftime('%H:%M:%S')} connection {n} left alone (device CONN {n + 1})",
+                flush=True,
+            )
             time.sleep(8)
             kick(m.group(1))
             log.seek(0, 2)

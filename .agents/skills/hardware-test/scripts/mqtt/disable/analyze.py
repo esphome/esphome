@@ -2,6 +2,7 @@
 
 usage: analyze.py OUTDIR NAME   (reads serial.txt, mosq.log and sub.txt written by run.sh)
 The broker log has 1 s resolution, so a connect in the second of the enable can show up inside the window.
+Exits 1 when no window was found or a window has a device on_connect or an inbound message.
 """
 
 import bisect
@@ -72,6 +73,7 @@ def within(times: list[float], w: list, slack: float) -> int:
 
 
 print(f"{NAME}: {len(wins)} disabled windows, heap at cycles {heaps}")
+bad = 0
 for w in wins:
     con = within(connects, w, 0.5)
     msg = within(msgs, w, 1.0)
@@ -83,4 +85,9 @@ for w in wins:
     print(
         f"  cycle {w[2]}: disabled {w[1] - w[0]:.0f} s  device on_connect={con} inbound msgs={msg} "
         f"broker connects={bc} ticks at broker={tk}  enable->connect {lat}"
+    )
+    bad += con > 0 or msg > 0
+if not wins or bad:
+    sys.exit(
+        f"{bad} of {len(wins)} disabled windows had a device connect or an inbound message"
     )

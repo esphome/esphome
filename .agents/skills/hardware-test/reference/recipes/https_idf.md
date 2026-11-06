@@ -15,7 +15,7 @@ takes the address from the serial log and runs:
   (an event stream request on HTTPS is answered 501).
 - `stall.py HOST`: two idle TCP clients (no ClientHello) on 443 while the listener moves to HTTP and to 8443 and
   back; the switch must work and the idle clients must be closed.
-- `t2.sh HOST`: HTTP and back, 8443 with a client that streams zeros and never finishes the handshake, 60 requests
+- `t2.sh HOST`: HTTP and back, 8443 with a client that sends a handshake record header and never the rest, 60 requests
   for a heap check (compare the `/hw` heap before and after), then the bad key. The server must log the error and
   stay off, without falling back to plain HTTP; reset the board afterwards.
 

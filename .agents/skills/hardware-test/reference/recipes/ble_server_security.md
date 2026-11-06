@@ -38,7 +38,8 @@ comparison accepted automatically) and a classic ESP32 devkit runs `esp32central
   `esp_ble_set_encryption(remote_bda, ESP_BLE_SEC_ENCRYPT_MITM)` instead.
 - `esp32central-flow.sh TAG` erases both boards, flashes them, captures a fresh pairing with three link cycles
   (phase A), then resets both together so each loads its bond (phase B), and prints per phase the connects, numeric
-  comparisons (a fresh pairing), MITM reads, server writes and `Deleting unpaired device` lines.
+  comparisons (a fresh pairing), MITM reads, server writes and `Deleting unpaired device` lines. It passes when
+  phase B reads the MITM characteristic with no numeric comparison and no `Deleting unpaired device` line.
 - On ESP-IDF 5.5.6 every other reconnect pairs again (`Deleting unpaired device` on the disconnect after a bonded
   reconnect), the regression #22081 describes.
 

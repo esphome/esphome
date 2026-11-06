@@ -87,8 +87,8 @@ server_port: 8129`, `api:`, `config:`, `onboarding:` and MQTT debug logging, plu
 `scripts/mqtt/ha_discovery/`, `onboard.py DIR` creates a generated test user (the credentials stay in DIR) and a
 token, `flow.py TOKENFILE` adds the MQTT entry (the `protocol` and `other_settings: {set_client_cert: false,
 set_ca_cert: "off", transport: tcp}` fields are required), and `hadrive.py TOKENFILE NAME` reads the device's time,
-date and datetime entities, calls `set_value` on each and reads again; it exits 1 on a missing entity or a failed
-call. The three share the REST calls in `ha_rest.py`. `dt-common.yaml` is the device side (classic ESP32, three
+date and datetime entities, calls `set_value` on each and reads again; it exits 1 on a missing entity, a failed
+call or a state that does not read back the value that was set. The three share the REST calls in `ha_rest.py`. `dt-common.yaml` is the device side (classic ESP32, three
 template datetime entities, `${broker}`).
 
 - The HA dev branch keeps a YAML port change as a pending HTTP config and reverts it after 5 minutes. Before
@@ -104,7 +104,7 @@ toggles, a disable while connecting), publishes a tick every 2 s and logs `EV CO
 private mosquitto so it can stop and start it, flashes and captures:
 - `outage` publishes to `md<LABEL>/in` every second and stops the broker inside a disabled window; `analyze.py`
   prints per window the device connects, inbound messages, broker connects, ticks that reached the broker and the
-  time from enable to connect.
+  time from enable to connect, and fails the run on a device connect or an inbound message inside a window.
 - `drop` stops the broker 6 s after every enable for 15 s. This is the case that found a watchdog reset: calling
   `esp_mqtt_client_stop()` while the esp-mqtt task sleeps in WAIT_RECONNECT blocks the caller for up to
   reconnect_timeout/2 (5 s), 6 of 6 task watchdog resets on an S3 and a C6.
@@ -131,5 +131,8 @@ PREFIX CYCLES` tails the broker log and takes over the device's client id 0 to 4
 (mosquitto drops it with "session taken over"), then leaves the next connection alone for 8 s and ends it. It
 starts by kicking the connection that is already up and skips its own connections (from 127.0.0.1 with the same id).
 `run.sh LABEL CYCLES` (env as above plus `BROKER_LOG`) seeds, flashes, waits for the first connect and runs the
-kicker. Retained switch commands fire `on_turn_on` only on the first connection, so compare the left-alone
-connections' `got` counts between builds.
+kicker. The device counts its first connection as CONN 1, so the kicked ones are the even CONN numbers and the
+left-alone ones the odd numbers from 3 up; kick.py prints each left-alone connection with its time and CONN number,
+and `judge.py` pairs those with the RESULT lines by time and passes when every one has `got=25/25`. A reset after
+the first connect fails the run. Retained switch commands fire `on_turn_on` only on the first connection, so
+`switches_on` is not judged.

@@ -1,7 +1,8 @@
 #!/bin/bash
 # run.sh LABEL CYCLES: build the reconnect config as rk<LABEL> from TREE, seed the retained burst, flash over PORT,
 # capture the serial log and run kick.py for CYCLES kick and leave-alone pairs. Prints one RESULT per connection and
-# PASS when every left-alone connection got the whole burst after the forced reconnect, FAIL otherwise.
+# PASS when every left-alone connection got the whole burst after the forced reconnect, FAIL otherwise
+# (judge.py) or on a reset after the first connect.
 # A mosquitto must listen on BROKER_PORT with allow_anonymous true, log_type all and log_dest file BROKER_LOG.
 # Run it from a scratch copy of this directory with a secrets.yaml (wifi_ssid, wifi_password).
 # env: TREE, PORT, SC (path to serial_capture.py), PY (checkout python), BROKER (this host's address as the board
@@ -38,11 +39,9 @@ rc=${PIPESTATUS[0]}
 [ "$rc" = 0 ] || { echo "FAIL: kick.py exited $rc"; exit 1; }
 sleep 8
 grep -a -E 'CONN [0-9]+|RESULT' "$O/serial.txt" | sed 's/.*\]: //' | paste - - | tee "$O/results.txt"
-# The kicker takes over every other connection; the even ones are left alone and must get all 25 retained topics
-# (retained switch commands only fire on the first connection, so switches_on is not judged)
-ALONE=$(awk '$1 == "CONN" && $2 % 2 == 0' "$O/results.txt")
-FULL=$(echo "$ALONE" | grep -c 'got=25/25 ')
-TOTAL=$(echo "$ALONE" | grep -c 'RESULT')
-echo "left-alone connections with the full burst: $FULL/$TOTAL"
-[ "$TOTAL" -ge "$N" ] || { echo "FAIL: only $TOTAL left-alone RESULT lines for $N cycles"; exit 1; }
-[ "$FULL" = "$TOTAL" ] && echo PASS || { echo "FAIL: a left-alone connection missed messages"; exit 1; }
+# only after the first connect: the capture starts with a reset of its own
+R=$(sed -n '/EV CONNECTED/,$p' "$O/serial.txt" | grep -a -c -E 'Guru|abort\(\)|Backtrace|rst:0x|task_wdt')
+[ "$R" = 0 ] || { echo "FAIL: $R reset or task watchdog lines (a reboot also restarts the CONN count)"; exit 1; }
+# kick.py prints each left-alone connection with its time and the device's CONN number; judge.py pairs them with the
+# RESULT lines (retained switch commands only fire on the first connection, so switches_on is not judged)
+python3 "$D/judge.py" "$O/kick.txt" "$O/serial.txt" "$N"

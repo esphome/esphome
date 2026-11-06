@@ -1,7 +1,7 @@
 """Press a crash button, reconnect, fetch the crash report twice; print capabilities around it and the replayed log.
 
 usage: drive.py HOST BUTTON_OBJECT_ID   env: API_KEY (unset for a plaintext API)
-Exits 1 when the device does not offer a crash report after the crash.
+Exits 1 when the device does not offer a crash report after the crash, or the report has no reason or a PC of 0.
 """
 
 import asyncio
@@ -11,7 +11,7 @@ import sys
 import time
 
 from aioesphomeapi import APIClient
-from aioesphomeapi.model import LogLevel
+from aioesphomeapi.model import CrashReason, LogLevel
 
 sys.path.insert(0, str(pathlib.Path(__file__).resolve().parents[1]))
 import apiconn  # noqa: E402
@@ -28,7 +28,8 @@ async def connect() -> APIClient:
     return await apiconn.connect(HOST, tries=90)
 
 
-async def main() -> bool:
+async def main() -> str | None:
+    """Run the flow; returns why it failed, or None."""
     c = await connect()
     mark(f"before: crash_report={(await c.device_capabilities()).crash_report}")
     ents, _ = await c.list_entities_services()
@@ -73,9 +74,14 @@ async def main() -> bool:
     r3 = await c.crash_report()
     mark(f"REPORT3 flags={r3.flags!r}")
     await c.disconnect()
-    return bool(offered)
+    if not offered:
+        return "no crash report offered after the crash"
+    if r.reason in (None, CrashReason.UNKNOWN) or r.pc == 0:
+        return f"the report has reason {r.reason} and PC {r.pc:#010x}"
+    return None
 
 
-if not asyncio.run(main()):
-    print("FAIL: no crash report offered after the crash")
+if err := asyncio.run(main()):
+    print(f"FAIL: {err}")
     sys.exit(1)
+print("PASS")

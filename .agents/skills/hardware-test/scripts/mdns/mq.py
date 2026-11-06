@@ -91,8 +91,8 @@ def latency(n: int) -> None:
 if mode == "dump":
     for key, (name, rtype) in QUESTIONS.items():
         ans = ask(name, rtype)
-        if ans is None:
-            print(f"{key}: no answer")
+        if not ans:
+            print(f"{key}: {'no answer' if ans is None else 'empty answer'}")
             missing += 1
             continue
         for rec in ans:

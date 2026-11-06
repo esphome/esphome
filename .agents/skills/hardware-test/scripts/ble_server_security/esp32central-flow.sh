@@ -3,7 +3,8 @@
 # esp32central-cli.yaml (CLIENT_PORT, from TREE), then
 #   A: capture a fresh pairing and three link cycles (170 s)
 #   B: reset both together so each loads its bond from NVS, capture 130 s
-# and count pairings, bond reuse and dropped bonds per phase. Logs go to out-ec<TAG>/.
+# and count pairings, bond reuse and dropped bonds per phase. Logs go to out-ec<TAG>/. PASS when phase A read the MITM
+# characteristic and phase B read it on the stored bond (no numeric comparison, no "Deleting unpaired device").
 # env: TREE, SERVER_TREE (checkout with #17562, default TREE), SERVER_PORT, CLIENT_PORT, SERVER_BLE_MAC (from the
 # server's esp32_ble dump), SC (path to serial_capture.py), PY (checkout python)
 D=$(cd "$(dirname "$0")" && pwd); G=${1:?tag}; T=${TREE:?set TREE}; ST=${SERVER_TREE:-$T}; PY=${PY:-$T/venv/bin/python}
@@ -31,3 +32,7 @@ phase() {  # phase NAME SECONDS
 phase A 170
 phase B 130
 grep -a -q 'CLI value mitm' "$O/A-cli.txt" || { echo "FAIL: the client never read the MITM characteristic"; exit 1; }
+grep -a -q 'CLI value mitm' "$O/B-cli.txt" || { echo "FAIL: phase B never read the MITM characteristic"; exit 1; }
+NB=$(grep -a -c 'CLI numeric comparison' "$O/B-cli.txt"); UB=$(cat "$O/B-cli.txt" "$O/B-srv.txt" | grep -a -c 'Deleting unpaired device')
+[ "$NB" = 0 ] && [ "$UB" = 0 ] || { echo "FAIL: phase B paired again ($NB numeric comparisons, $UB unpaired deletes)"; exit 1; }
+echo PASS

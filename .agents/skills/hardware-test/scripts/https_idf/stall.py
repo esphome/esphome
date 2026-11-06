@@ -1,6 +1,7 @@
 """Hold idle TCP connections on the HTTPS port (no ClientHello), switch the listener and time it.
 
-usage: stall.py HOST   Exits 1 when a switch did not take effect while the idle clients were open.
+usage: stall.py HOST   Exits 1 when a switch did not take effect while the idle clients were open, or when an idle
+client was not closed by the server.
 """
 
 import socket
@@ -41,11 +42,15 @@ for target, url, back in (
     for s in idle:
         s.settimeout(2)
         try:
-            print(
-                "  idle client:", "closed by server" if s.recv(1) == b"" else "got data"
-            )
+            closed = s.recv(1) == b""
+            print("  idle client:", "closed by server" if closed else "got data")
+        except ConnectionResetError:
+            closed = True
+            print("  idle client: reset by server")
         except OSError as e:
-            print("  idle client:", type(e).__name__)
+            closed = False
+            print("  idle client: still open,", type(e).__name__)
+        ok_all &= closed
         s.close()
     print(f"  switch back: {get(back)[1]}")
     time.sleep(3)
