@@ -178,6 +178,7 @@ class ESP32BLETracker final : public Component,
   void set_scan_active(bool scan_active) { scan_active_ = scan_active; }
   bool get_scan_active() const { return scan_active_; }
   void set_scan_continuous(bool scan_continuous) { scan_continuous_ = scan_continuous; }
+  bool get_scan_continuous() const { return scan_continuous_; }
 
   /// Setup the FreeRTOS task and the Bluetooth stack.
   void setup() override;
