@@ -48,6 +48,8 @@ CONF_MEDIA_PIPELINE = "media_pipeline"
 CONF_ON_MUTE = "on_mute"
 CONF_ON_UNMUTE = "on_unmute"
 CONF_ON_VOLUME = "on_volume"
+CONF_PRECONNECT_SPEAKER = "preconnect_speaker"
+CONF_PRECONNECT_TIMEOUT = "preconnect_timeout"
 CONF_STREAM = "stream"
 
 
@@ -91,6 +93,14 @@ def _validate_repeated_speaker(config):
     return config
 
 
+def _validate_preconnect_speaker(config):
+    if CONF_PRECONNECT_SPEAKER in config and CONF_MEDIA_PIPELINE in config:
+        raise cv.Invalid(
+            "preconnect_speaker currently requires a single announcement pipeline"
+        )
+    return config
+
+
 def _final_validate(config):
     # Request codecs based on pipeline formats. Codecs needed by local files are
     # already requested during CONFIG_SCHEMA validation (via audio_files_schema).
@@ -129,6 +139,10 @@ CONFIG_SCHEMA = cv.All(
         {
             cv.Required(CONF_ANNOUNCEMENT_PIPELINE): PIPELINE_SCHEMA,
             cv.Optional(CONF_MEDIA_PIPELINE): PIPELINE_SCHEMA,
+            cv.Optional(CONF_PRECONNECT_SPEAKER): cv.use_id(speaker.Speaker),
+            cv.Optional(
+                CONF_PRECONNECT_TIMEOUT, default="20s"
+            ): cv.positive_time_period_milliseconds,
             cv.Optional(CONF_BUFFER_SIZE, default=1000000): cv.int_range(
                 min=4000, max=4000000
             ),
@@ -152,6 +166,7 @@ CONFIG_SCHEMA = cv.All(
     ),
     cv.only_on_esp32,
     _validate_repeated_speaker,
+    _validate_preconnect_speaker,
     _request_high_performance_networking,
 )
 
@@ -178,6 +193,10 @@ async def to_code(config):
     ota.request_ota_state_listeners()
 
     cg.add(var.set_buffer_size(config[CONF_BUFFER_SIZE]))
+
+    if preconnect_speaker := config.get(CONF_PRECONNECT_SPEAKER):
+        cg.add(var.set_preconnect_speaker(await cg.get_variable(preconnect_speaker)))
+        cg.add(var.set_preconnect_timeout(config[CONF_PRECONNECT_TIMEOUT]))
 
     if config.get(CONF_TASK_STACK_IN_PSRAM):
         cg.add(var.set_task_stack_in_psram(True))
