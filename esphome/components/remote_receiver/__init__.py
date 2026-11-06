@@ -45,7 +45,6 @@ DEFAULT_FILTER = "50us"
 DEFAULT_SAMPLE_PERIOD = "100us"
 # Below the 560us NEC mark, so a coarse sample period does not filter out every bit
 MAX_TIMER_DEFAULT_FILTER_US = 400
-DEFAULT_RMT_BUFFER_SLOTS = 4
 
 AUTO_LOAD = ["remote_base"]
 DOMAIN = "remote_receiver"
@@ -184,7 +183,7 @@ _RECEIVER_SCHEMA = remote_base.validate_triggers(
             cv.SplitDefault(
                 CONF_BUFFER_SIZE,
                 esp32=cv.UNDEFINED,
-                # the pulse ring needs a size; only RMT targets size themselves in setup()
+                # RMT targets size their ring from receive_symbols
                 **{
                     f"esp32_{variant.removeprefix('ESP32').lower()}": "4000b"
                     for variant in esp32_rmt.VARIANTS_NO_RMT
@@ -356,23 +355,12 @@ async def to_code(config: ConfigType) -> None:
     cg.add(var.set_filter_us(config[CONF_FILTER]))
     cg.add(var.set_idle_us(config[CONF_IDLE]))
     if rmt:
-        # One slot per pending rmt_receive: two are the floor (one filling while one is decoded), and
-        # the default of four covers a few frames queued across a stalled loop pass
-        slot = f"(sizeof(rmt_rx_done_event_data_t) + {config[CONF_RECEIVE_SYMBOLS]} * sizeof(rmt_symbol_word_t))"
-        if (size := config.get(CONF_BUFFER_SIZE)) is not None:
-            size = f"std::max<uint32_t>({slot} * 2, {size})"
-        else:
-            size = f"{slot} * {DEFAULT_RMT_BUFFER_SLOTS}"
-        # uint32_t words keep the RMT symbols aligned
-        buffer = cg.static_buffer(config[CONF_ID], cg.uint32, f"({size} + 3) / 4")
-        cg.add(var.set_buffer(buffer, cg.RawExpression(f"sizeof({buffer})")))
+        receive, size = config[CONF_RECEIVE_SYMBOLS], config.get(CONF_BUFFER_SIZE, 0)
+        words = f"remote_receiver::rmt_buffer_words({receive}, {size})"
+        cg.add(var.set_buffer(cg.static_buffer(config[CONF_ID], cg.uint32, words)))
     elif config.get(CONF_SAMPLING) != SAMPLING_TIMER:
         entries = (config[CONF_BUFFER_SIZE] + 3) // 4
-        cg.add(
-            var.set_buffer(
-                cg.static_buffer(config[CONF_ID], cg.int32, entries), entries
-            )
-        )
+        cg.add(var.set_buffer(cg.static_buffer(config[CONF_ID], cg.int32, entries)))
     else:
         cg.add_define("USE_REMOTE_RECEIVER_TIMER_SAMPLING")
         cg.add(var.set_sample_period_us(config[CONF_SAMPLE_PERIOD]))
