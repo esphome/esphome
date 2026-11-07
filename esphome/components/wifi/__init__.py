@@ -303,7 +303,7 @@ STA_MANUAL_IP_SCHEMA = cv.All(
             cv.Optional(CONF_DNS2, default="0.0.0.0"): cv.ipv4address,
         }
     ),
-    require_ipv4(f"{DOMAIN} {CONF_MANUAL_IP}"),
+    require_ipv4(DOMAIN, CONF_MANUAL_IP),
 )
 
 TTLS_PHASE_2 = {
@@ -389,7 +389,7 @@ def wifi_network_ap(value):
     if value is None:
         value = {}
     config = WIFI_NETWORK_AP(value)
-    require_ipv4(f"{DOMAIN} {CONF_AP}")(config)
+    require_ipv4(DOMAIN, CONF_AP)(config)
     ap_mode = config[CONF_AP_MODE]
     if ap_mode == WIFI_AP_MODE_WISP and not config.get(CONF_PASSWORD):
         raise cv.Invalid(

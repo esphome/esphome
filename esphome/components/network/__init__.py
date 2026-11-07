@@ -292,9 +292,9 @@ def _ip_request(
     return validator
 
 
-def require_ipv4(name: str) -> Callable[[ConfigType], ConfigType]:
-    """Return a validator declaring that component `name` needs IPv4."""
-    return _ip_request(lambda data: data.require_ipv4.add(name))
+def require_ipv4(*path: str) -> Callable[[ConfigType], ConfigType]:
+    """Return a validator declaring that the component or option at `path` needs IPv4."""
+    return _ip_request(lambda data: data.require_ipv4.add(": ".join(path)))
 
 
 def require_ipv6(name: str) -> Callable[[ConfigType], ConfigType]:

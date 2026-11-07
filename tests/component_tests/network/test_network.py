@@ -104,14 +104,17 @@ def test_require_ipv4_registration_rejects_explicit_disable(
     [
         ("tcp_uart_ipv4_disabled_rejected.yaml", "tcp_uart"),
         ("uart_tcp_ipv4_disabled_rejected.yaml", "uart_tcp"),
+        ("wifi_manual_ip_ipv4_disabled_rejected.yaml", "wifi: manual_ip"),
+        ("wifi_ap_ipv4_disabled_rejected.yaml", "wifi: ap"),
+        ("ethernet_manual_ip_ipv4_disabled_rejected.yaml", "ethernet: manual_ip"),
     ],
 )
-def test_tcp_link_users_named_in_ipv4_error(
+def test_ipv4_error_names_the_requirer(
     component_config_path: Callable[[str], Path],
     config_file: str,
     component: str,
 ) -> None:
-    """The IPv4 requirement registered by the socket helper names the component."""
+    """The IPv4 error names the component or option that needs it."""
     CORE.config_path = component_config_path(config_file)
     res = load_config({})
     assert any(f"IPv4 is required by {component}" in str(err) for err in res.errors)

@@ -22,7 +22,7 @@ from esphome.const import (
     CONF_DNS2,
     CONF_DOMAIN,
     CONF_ENABLE_ON_BOOT,
-    CONF_ETHERNET,
+    CONF_ETHERNET as CONF_ETHERNET,
     CONF_GATEWAY,
     CONF_ID,
     CONF_INTERRUPT_PIN,
@@ -398,7 +398,7 @@ BASE_SCHEMA = cv.Schema(
     {
         cv.GenerateID(): cv.declare_id(EthernetComponent),
         cv.Optional(CONF_MANUAL_IP, visibility=cv.Visibility.ADVANCED): cv.All(
-            MANUAL_IP_SCHEMA, require_ipv4(f"{CONF_ETHERNET} {CONF_MANUAL_IP}")
+            MANUAL_IP_SCHEMA, require_ipv4(DOMAIN, CONF_MANUAL_IP)
         ),
         cv.Optional(CONF_DOMAIN, default=".local"): cv.domain_name,
         cv.Optional(CONF_USE_ADDRESS): cv.string_strict,
