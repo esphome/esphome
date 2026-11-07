@@ -1,0 +1,7 @@
+packages:
+  espectre: !include common.yaml
+
+espectre:
+  detection_algorithm: high_accuracy
+  csi_capture_profile: ht_vht
+  traffic_generator_mode: dns_tcp

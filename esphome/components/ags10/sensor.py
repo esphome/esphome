@@ -17,8 +17,6 @@ from esphome.const import (
     UNIT_OHM,
     UNIT_PARTS_PER_BILLION,
 )
-from esphome.core import ID
-from esphome.cpp_generator import MockObj, TemplateArgsType
 from esphome.types import ConfigType
 
 CONF_RESISTANCE = "resistance"
@@ -27,12 +25,6 @@ DEPENDENCIES = ["i2c"]
 
 ags10_ns = cg.esphome_ns.namespace("ags10")
 AGS10Component = ags10_ns.class_("AGS10Component", cg.PollingComponent, i2c.I2CDevice)
-
-# Actions
-AGS10NewI2cAddressAction = ags10_ns.class_(
-    "AGS10NewI2cAddressAction", automation.Action
-)
-AGS10SetZeroPointAction = ags10_ns.class_("AGS10SetZeroPointAction", automation.Action)
 
 CONFIG_SCHEMA = (
     cv.Schema(
@@ -70,16 +62,10 @@ async def to_code(config: ConfigType) -> None:
     await cg.register_component(var, config)
     await i2c.register_i2c_device(var, config)
 
-    sens = await sensor.new_sensor(config[CONF_TVOC])
-    cg.add(var.set_tvoc(sens))
-
-    if version_config := config.get(CONF_VERSION):
-        sens = await sensor.new_sensor(version_config)
-        cg.add(var.set_version(sens))
-
-    if resistance_config := config.get(CONF_RESISTANCE):
-        sens = await sensor.new_sensor(resistance_config)
-        cg.add(var.set_resistance(sens))
+    sensors = sensor.sub_sensors(config)
+    await sensors(CONF_TVOC, var.set_tvoc)
+    await sensors(CONF_VERSION, var.set_version)
+    await sensors(CONF_RESISTANCE, var.set_resistance)
 
 
 AGS10_NEW_I2C_ADDRESS_SCHEMA = cv.maybe_simple_value(
@@ -91,24 +77,11 @@ AGS10_NEW_I2C_ADDRESS_SCHEMA = cv.maybe_simple_value(
 )
 
 
-@automation.register_action(
+automation.register_apply_action(
     "ags10.new_i2c_address",
-    AGS10NewI2cAddressAction,
     AGS10_NEW_I2C_ADDRESS_SCHEMA,
-    synchronous=True,
+    automation.ApplyField(CONF_ADDRESS, "new_i2c_address", cg.uint8),
 )
-async def ags10newi2caddress_to_code(
-    config: ConfigType,
-    action_id: ID,
-    template_arg: cg.TemplateArguments,
-    args: TemplateArgsType,
-) -> MockObj:
-    var = cg.new_Pvariable(action_id, template_arg)
-    await cg.register_parented(var, config[CONF_ID])
-    address = await cg.templatable(config[CONF_ADDRESS], args, cg.uint8)
-    cg.add(var.set_new_address(address))
-    return var
-
 
 AGS10SetZeroPointActionMode = ags10_ns.enum("AGS10SetZeroPointActionMode")
 AGS10_SET_ZERO_POINT_ACTION_MODE = {
@@ -128,24 +101,11 @@ AGS10_SET_ZERO_POINT_SCHEMA = cv.Schema(
 )
 
 
-@automation.register_action(
+automation.register_apply_action(
     "ags10.set_zero_point",
-    AGS10SetZeroPointAction,
     AGS10_SET_ZERO_POINT_SCHEMA,
-    synchronous=True,
+    automation.ApplyCall(
+        "set_zero_point({}, {})",
+        ((CONF_MODE, AGS10SetZeroPointActionMode), (CONF_VALUE, cg.uint16)),
+    ),
 )
-async def ags10setzeropoint_to_code(
-    config: ConfigType,
-    action_id: ID,
-    template_arg: cg.TemplateArguments,
-    args: TemplateArgsType,
-) -> MockObj:
-    var = cg.new_Pvariable(action_id, template_arg)
-    await cg.register_parented(var, config[CONF_ID])
-    mode = await cg.templatable(
-        config.get(CONF_MODE), args, AGS10SetZeroPointActionMode
-    )
-    cg.add(var.set_mode(mode))
-    value = await cg.templatable(config[CONF_VALUE], args, cg.uint16)
-    cg.add(var.set_value(value))
-    return var

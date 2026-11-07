@@ -1,5 +1,6 @@
 sensor:
   - platform: ltr501
+    i2c_id: i2c_bus
     address: 0x23
     type: ALS_PS
     gain: 1X

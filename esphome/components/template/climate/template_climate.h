@@ -50,8 +50,7 @@ class TemplateClimate final : public climate::Climate, public Component {
   Trigger<climate::ClimatePreset> *get_set_preset_trigger() { return &this->set_preset_trigger_; }
   Trigger<StringRef> *get_set_custom_preset_trigger() { return &this->set_custom_preset_trigger_; }
 
-  // Used by TemplateClimatePublishAction, which is not a Climate subclass and so cannot reach the
-  // protected setters, and by codegen to apply `initial_state:` before setup() runs.
+  // Public so the climate.template.publish action and the initial_state codegen can set them.
   void set_target_temperature(float value) { this->target_temperature = value; }
   void set_target_temperature_low(float value) { this->target_temperature_low = value; }
   void set_target_temperature_high(float value) { this->target_temperature_high = value; }

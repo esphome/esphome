@@ -7,7 +7,6 @@ from esphome.components import modbus
 import esphome.config_validation as cv
 from esphome.const import (
     CONF_ADDRESS,
-    CONF_CONTINUOUS,
     CONF_COUNT,
     CONF_ID,
     CONF_ON_ERROR,
@@ -158,24 +157,6 @@ _ACTION_BASE_SCHEMA = cv.Schema(
 )
 
 
-def _no_continuous_on_write(config: ConfigType) -> ConfigType:
-    """Reject `continuous: true` on a static write PDU: continuous polling only applies to reads.
-    Only the fully-static case is decidable here; the hub strips the flag from mutating PDUs at
-    runtime, so a templated pdu or continuous falls through to that backstop."""
-    pdu = config[CONF_PDU]
-    if (
-        isinstance(pdu, list)
-        and config.get(CONF_CONTINUOUS) is True
-        and modbus.is_function_code_write(pdu[0])
-    ):
-        raise cv.Invalid(
-            f"'{CONF_CONTINUOUS}: true' does not apply to a write PDU (function code "
-            f"0x{pdu[0]:02X}); continuous polling only applies to reads",
-            path=[CONF_CONTINUOUS],
-        )
-    return config
-
-
 MODBUS_CLIENT_SEND_SCHEMA = cv.All(
     _ACTION_BASE_SCHEMA.extend(
         {
@@ -186,10 +167,12 @@ MODBUS_CLIENT_SEND_SCHEMA = cv.All(
                 )
             ),
             **modbus.command_options_schema(direction="read", templatable=True),
+            **modbus.command_options_schema(direction="write", templatable=True),
             cv.Optional(CONF_ON_RESPONSE): _handler_schema(),
         }
     ),
-    _no_continuous_on_write,
+    modbus.reject_inapplicable_command_options(CONF_PDU),
+    modbus.reject_broadcast_options_for_unicast(CONF_ADDRESS),
 )
 
 
@@ -261,8 +244,7 @@ async def register_client_action(
             var.get_not_sent_trigger(), [(_PDU_SPAN, "request")], not_sent_conf
         )
     # Wire any command options the action's schema opted into (e.g. continuous on reads). Pass the
-    # matching direction so a write action never generates a read option's setter; the write side
-    # has no options yet, so this is a no-op there.
+    # matching direction so a write action never generates a read option's setter.
     await modbus.register_templatable_command_options(
         var, config, args, command_direction
     )
@@ -279,6 +261,8 @@ async def modbus_client_send_to_code(config, action_id, template_arg, args):
     var = cg.new_Pvariable(action_id, template_arg)
     template_ = await cg.templatable(config[CONF_PDU], args, _PDU_BUFFER)
     cg.add(var.set_pdu(template_))
+    # The read set is wired by register_client_action() below.
+    await modbus.register_templatable_command_options(var, config, args, "write")
     return await register_client_action(
         var,
         config,
@@ -353,6 +337,7 @@ def _read_schema(max_count: int) -> cv.All:
             }
         ),
         _no_address_overflow(CONF_COUNT),
+        modbus.reject_broadcast_options_for_unicast(CONF_ADDRESS),
     )
 
 
@@ -364,21 +349,35 @@ def _write_multiple_schema(item: Callable[[Any], Any], max_values: int) -> cv.Al
                 cv.Required(CONF_VALUES): cv.templatable(
                     cv.All(cv.ensure_list(item), cv.Length(min=1, max=max_values))
                 ),
+                **modbus.command_options_schema(direction="write", templatable=True),
             }
         ),
         _no_address_overflow(CONF_VALUES),
+        modbus.reject_broadcast_options_for_unicast(CONF_ADDRESS),
     )
 
 
 _READ_REGISTERS_SCHEMA = _read_schema(modbus.MAX_NUM_OF_REGISTERS_TO_READ)
 
-_WRITE_SINGLE_REGISTER_SCHEMA = _TYPED_ACTION_SCHEMA.extend(
-    {cv.Required(CONF_VALUE): cv.templatable(cv.hex_uint16_t)}
+_WRITE_SINGLE_REGISTER_SCHEMA = cv.All(
+    _TYPED_ACTION_SCHEMA.extend(
+        {
+            cv.Required(CONF_VALUE): cv.templatable(cv.hex_uint16_t),
+            **modbus.command_options_schema(direction="write", templatable=True),
+        }
+    ),
+    modbus.reject_broadcast_options_for_unicast(CONF_ADDRESS),
 )
 
 # A coil is one bit, so the value is a boolean - the wire only carries 0x0000 or 0xFF00.
-_WRITE_SINGLE_COIL_SCHEMA = _TYPED_ACTION_SCHEMA.extend(
-    {cv.Required(CONF_VALUE): cv.templatable(cv.boolean)}
+_WRITE_SINGLE_COIL_SCHEMA = cv.All(
+    _TYPED_ACTION_SCHEMA.extend(
+        {
+            cv.Required(CONF_VALUE): cv.templatable(cv.boolean),
+            **modbus.command_options_schema(direction="write", templatable=True),
+        }
+    ),
+    modbus.reject_broadcast_options_for_unicast(CONF_ADDRESS),
 )
 
 
@@ -542,10 +541,15 @@ _READ_WRITE_MULTIPLE_REGISTERS_SCHEMA = cv.All(
                     cv.Length(min=1, max=modbus.MAX_NUM_OF_REGISTERS_TO_WRITE_RW),
                 )
             ),
+            # 0x17 counts as a read at address 0, so it takes allow_broadcast_read only.
+            **modbus.command_options_schema(
+                direction="read", templatable=True, function_code=0x17
+            ),
         }
     ),
     _no_address_overflow(CONF_READ_COUNT, CONF_READ_ADDRESS),
     _no_address_overflow(CONF_VALUES, CONF_WRITE_ADDRESS),
+    modbus.reject_broadcast_options_for_unicast(CONF_ADDRESS),
 )
 
 

@@ -21,17 +21,5 @@ class BLEServer final : public Component {
   CallbackManager<void(uint32_t)> passkey_cb_;
 };
 
-template<typename... Ts> class BLENumericComparisonReplyAction final : public Action<Ts...> {
- public:
-  explicit BLENumericComparisonReplyAction(BLEServer *parent) : parent_(parent) {}
-
-  TEMPLATABLE_VALUE(bool, accept)
-
-  void play(const Ts &...x) override { this->parent_->numeric_comparison_reply(this->accept_.value(x...)); }
-
- protected:
-  BLEServer *parent_;
-};
-
 }  // namespace esphome::zephyr_ble_server
 #endif

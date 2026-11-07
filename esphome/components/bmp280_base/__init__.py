@@ -75,14 +75,13 @@ async def to_code_base(config: ConfigType) -> MockObj:
     var = cg.new_Pvariable(config[CONF_ID])
     await cg.register_component(var, config)
 
-    if temperature_config := config.get(CONF_TEMPERATURE):
-        sens = await sensor.new_sensor(temperature_config)
-        cg.add(var.set_temperature_sensor(sens))
+    sensors = sensor.sub_sensors(config)
+    if await sensors(CONF_TEMPERATURE, var.set_temperature_sensor):
+        temperature_config = config[CONF_TEMPERATURE]
         cg.add(var.set_temperature_oversampling(temperature_config[CONF_OVERSAMPLING]))
 
-    if pressure_config := config.get(CONF_PRESSURE):
-        sens = await sensor.new_sensor(pressure_config)
-        cg.add(var.set_pressure_sensor(sens))
+    if await sensors(CONF_PRESSURE, var.set_pressure_sensor):
+        pressure_config = config[CONF_PRESSURE]
         cg.add(var.set_pressure_oversampling(pressure_config[CONF_OVERSAMPLING]))
 
     cg.add(var.set_iir_filter(config[CONF_IIR_FILTER]))

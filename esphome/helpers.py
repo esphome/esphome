@@ -2,6 +2,7 @@ from __future__ import annotations
 
 from collections.abc import Callable, Iterable, MutableMapping
 from contextlib import suppress
+import importlib
 import ipaddress
 import logging
 import os
@@ -10,6 +11,7 @@ import platform
 import re
 import stat
 import sys
+from types import ModuleType
 from typing import TYPE_CHECKING, TextIO
 
 from esphome.const import __version__ as ESPHOME_VERSION
@@ -199,6 +201,21 @@ def cpp_string_escape(string, encoding="utf-8"):
         else:
             result += chr(character)
     return f'"{result}"'
+
+
+def cpp_u16string_escape(string: str) -> str:
+    """Escape a string as a C++ u"..." literal, which the compiler encodes as UTF-16."""
+    result = ""
+    for character in string:
+        code = ord(character)
+        if code >= 127:
+            # Surrogate escapes are ill-formed in C++; the compiler splits astral code points
+            result += f"\\U{code:08X}"
+        elif code < 32 or character in ("\\", '"'):
+            result += f"\\{code:03o}"
+        else:
+            result += character
+    return f'u"{result}"'
 
 
 def run_system_command(*args):
@@ -812,3 +829,11 @@ def docs_url(path: str) -> str:
 
     path = path.removeprefix("/")
     return docs_format.format(path=path)
+
+
+def zstd_module() -> ModuleType:
+    """The zstd module: the standard library one from Python 3.14, otherwise the backport."""
+    try:
+        return importlib.import_module("compression.zstd")
+    except ImportError:
+        return importlib.import_module("backports.zstd")

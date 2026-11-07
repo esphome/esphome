@@ -11,7 +11,7 @@ namespace esphome::espnow {
 
 template<typename... Ts> class SendAction final : public Action<Ts...>, public Parented<ESPNowComponent> {
   TEMPLATABLE_VALUE(peer_address_t, address);
-  TEMPLATABLE_VALUE(std::vector<uint8_t>, data);
+  TEMPLATABLE_BYTES(data)
 
  public:
   void add_on_sent(const std::initializer_list<Action<Ts...> *> &actions) {
@@ -58,8 +58,10 @@ template<typename... Ts> class SendAction final : public Action<Ts...>, public P
       }
     };
     peer_address_t address = this->address_.value(x...);
-    std::vector<uint8_t> data = this->data_.value(x...);
-    esp_err_t err = this->parent_->send(address.data(), data, send_callback);
+    esp_err_t err = ESP_OK;
+    this->data_.visit(
+        [&](const uint8_t *data, size_t len) { err = this->parent_->send(address.data(), data, len, send_callback); },
+        x...);
     if (err != ESP_OK) {
       send_callback(err);
     } else if (!this->flags_.wait_for_sent) {
@@ -84,39 +86,6 @@ template<typename... Ts> class SendAction final : public Action<Ts...>, public P
     uint8_t continue_on_error : 1;  // Continue automation even if the send operation fails
     uint8_t reserved : 6;           // Reserved for future use
   } flags_{0};
-};
-
-template<typename... Ts> class AddPeerAction final : public Action<Ts...>, public Parented<ESPNowComponent> {
-  TEMPLATABLE_VALUE(peer_address_t, address);
-
- protected:
-  void play(const Ts &...x) override {
-    peer_address_t address = this->address_.value(x...);
-    this->parent_->add_peer(address.data());
-  }
-};
-
-template<typename... Ts> class DeletePeerAction final : public Action<Ts...>, public Parented<ESPNowComponent> {
-  TEMPLATABLE_VALUE(peer_address_t, address);
-
- protected:
-  void play(const Ts &...x) override {
-    peer_address_t address = this->address_.value(x...);
-    this->parent_->del_peer(address.data());
-  }
-};
-
-template<typename... Ts> class SetChannelAction final : public Action<Ts...>, public Parented<ESPNowComponent> {
-  TEMPLATABLE_VALUE(uint8_t, channel)
-
- protected:
-  void play(const Ts &...x) override {
-    if (this->parent_->is_wifi_enabled()) {
-      return;
-    }
-    this->parent_->set_wifi_channel(this->channel_.value(x...));
-    this->parent_->apply_wifi_channel();
-  }
 };
 
 class OnReceiveTrigger final : public Trigger<const ESPNowRecvInfo &, const uint8_t *, uint16_t>,

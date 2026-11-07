@@ -7,9 +7,9 @@ from esphome.types import ConfigType
 DEPENDENCIES = ["rp2"]
 
 
-PIOASM_REPO_VERSION = "1.5.0-b"
+PIOASM_REPO_VERSION = "4.1.0"
 PIOASM_REPO_BASE = f"https://github.com/earlephilhower/pico-quick-toolchain/releases/download/{PIOASM_REPO_VERSION}"
-PIOASM_VERSION = "pioasm-2e6142b.230216"
+PIOASM_VERSION = "pioasm-9fdfe11.250530"
 PIOASM_DOWNLOADS = {
     "linux": {
         "aarch64": f"aarch64-linux-gnu.{PIOASM_VERSION}.tar.gz",
@@ -20,8 +20,8 @@ PIOASM_DOWNLOADS = {
         "amd64": f"x86_64-w64-mingw32.{PIOASM_VERSION}.zip",
     },
     "darwin": {
-        "x86_64": f"x86_64-apple-darwin14.{PIOASM_VERSION}.tar.gz",
-        "arm64": f"x86_64-apple-darwin14.{PIOASM_VERSION}.tar.gz",
+        "x86_64": f"x86_64-apple-darwin20.4.{PIOASM_VERSION}.tar.gz",
+        "arm64": f"aarch64-apple-darwin20.4.{PIOASM_VERSION}.tar.gz",
     },
 }
 

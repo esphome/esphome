@@ -48,14 +48,12 @@ void Image::draw(int x, int y, display::Display *display, Color color_on, Color 
                 continue;  // skip drawing
               }
               break;
-            case TRANSPARENCY_ALPHA_CHANNEL: {
-              auto on = (float) gray / 255.0f;
-              auto off = 1.0f - on;
-              // blend color_on and color_off
-              color = Color(color_on.r * on + color_off.r * off, color_on.g * on + color_off.g * off,
-                            color_on.b * on + color_off.b * off, 0xFF);
+            case TRANSPARENCY_ALPHA_CHANNEL:
+              // gray is the alpha: blend from color_off to color_on, drawn opaque
+              color = Color(Color::blend_channel(color_off.r, color_on.r, gray),
+                            Color::blend_channel(color_off.g, color_on.g, gray),
+                            Color::blend_channel(color_off.b, color_on.b, gray), 0xFF);
               break;
-            }
             default:
               break;
           }

@@ -131,24 +131,15 @@ async def to_code(config: ConfigType) -> None:
     await cg.register_component(var, config)
     await i2c.register_i2c_device(var, config)
 
-    if temperature_config := config.get(CONF_TEMPERATURE):
-        sens = await sensor.new_sensor(temperature_config)
-        cg.add(var.set_temperature_sensor(sens))
-        cg.add(var.set_temperature_oversampling(temperature_config[CONF_OVERSAMPLING]))
-
-    if pressure_config := config.get(CONF_PRESSURE):
-        sens = await sensor.new_sensor(pressure_config)
-        cg.add(var.set_pressure_sensor(sens))
-        cg.add(var.set_pressure_oversampling(pressure_config[CONF_OVERSAMPLING]))
-
-    if humidity_config := config.get(CONF_HUMIDITY):
-        sens = await sensor.new_sensor(humidity_config)
-        cg.add(var.set_humidity_sensor(sens))
-        cg.add(var.set_humidity_oversampling(humidity_config[CONF_OVERSAMPLING]))
-
-    if gas_resistance_config := config.get(CONF_GAS_RESISTANCE):
-        sens = await sensor.new_sensor(gas_resistance_config)
-        cg.add(var.set_gas_resistance_sensor(sens))
+    sensors = sensor.sub_sensors(config)
+    if await sensors(CONF_TEMPERATURE, var.set_temperature_sensor):
+        oversampling = config[CONF_TEMPERATURE][CONF_OVERSAMPLING]
+        cg.add(var.set_temperature_oversampling(oversampling))
+    if await sensors(CONF_PRESSURE, var.set_pressure_sensor):
+        cg.add(var.set_pressure_oversampling(config[CONF_PRESSURE][CONF_OVERSAMPLING]))
+    if await sensors(CONF_HUMIDITY, var.set_humidity_sensor):
+        cg.add(var.set_humidity_oversampling(config[CONF_HUMIDITY][CONF_OVERSAMPLING]))
+    await sensors(CONF_GAS_RESISTANCE, var.set_gas_resistance_sensor)
 
     cg.add(var.set_iir_filter(IIR_FILTER_OPTIONS[config[CONF_IIR_FILTER]]))
 

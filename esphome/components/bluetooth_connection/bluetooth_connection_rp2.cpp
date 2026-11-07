@@ -626,7 +626,7 @@ void RP2GattClient::handle_connected_(uint8_t status, uint16_t con_handle) {
   // explicit kick the MTU would only be exchanged on the first GATT query,
   // which never happens on a V3_WITH_CACHE connection.
   // Both registration calls above return void (BTstack 075a078, arduino-pico
-  // 6.0.0); failures surface as a missing GATT_EVENT_MTU and are reclaimed by
+  // 6.1.0); failures surface as a missing GATT_EVENT_MTU and are reclaimed by
   // the connect timeout in loop().
   gatt_client_send_mtu_negotiation(&RP2GattClient::gatt_packet_handler, this->con_handle_);
 }

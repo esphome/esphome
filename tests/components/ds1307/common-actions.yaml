@@ -1,0 +1,7 @@
+button:
+  - platform: template
+    name: DS1307 Actions
+    on_press:
+      - ds1307.write_time:
+          id: ds1307_time
+      - ds1307.read_time: ds1307_time

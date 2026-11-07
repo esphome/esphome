@@ -191,9 +191,9 @@ class ABBWelcomeData {
 
 class ABBWelcomeProtocol : public RemoteProtocol<ABBWelcomeData> {
  public:
-  void encode(RemoteTransmitData *dst, const ABBWelcomeData &src) override;
-  optional<ABBWelcomeData> decode(RemoteReceiveData src) override;
-  void dump(const ABBWelcomeData &data) override;
+  void encode(RemoteTransmitData *dst, const ABBWelcomeData &src);
+  optional<ABBWelcomeData> decode(RemoteReceiveData src);
+  void dump(const ABBWelcomeData &data);
 
  protected:
   void encode_byte_(RemoteTransmitData *dst, uint8_t data) const;

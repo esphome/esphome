@@ -170,7 +170,7 @@ class WebServerBase final {
 
  protected:
   uint8_t initialized_{0};
-  uint16_t port_{80};
+  uint16_t port_{80};  // Keep in sync with DEFAULT_PORT in web_server/__init__.py
   AsyncWebServer *server_{nullptr};
   std::vector<AsyncWebHandler *> handlers_;
 #ifdef USE_WEBSERVER_AUTH

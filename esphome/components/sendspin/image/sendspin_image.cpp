@@ -1,6 +1,6 @@
 #include "sendspin_image.h"
 
-#if defined(USE_ESP32) && defined(USE_SENDSPIN_ARTWORK)
+#if defined(USE_ESP_IDF) && defined(USE_SENDSPIN_ARTWORK)
 
 #include "esphome/core/log.h"
 
@@ -125,7 +125,7 @@ bool SendspinImageSlot::decode_frame_(const uint8_t *data, size_t length, const 
   }
 
   // A decode that asked for other dimensions had the buffer taken away from it, so it painted
-  // nothing (or stopped partway). JPEG and BMP report that as an error above; PNG carries on
+  // nothing (or stopped partway). JPEG reports that as an error above; PNG carries on
   // regardless, so the frame is dropped here.
   return this->decode_sink_.decoded_into(target);
 }

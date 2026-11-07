@@ -43,6 +43,11 @@ class OnlineImage final : public PollingComponent,
               bool is_big_endian = false);
 
   void update() override;
+  /** Download now when `update` is true (the `update` flag of `online_image.set_url`). */
+  void update_if(bool update) {
+    if (update)
+      this->update();
+  }
   void loop() override;
 
   /** Set the URL to download the image from. */
@@ -102,31 +107,6 @@ class OnlineImage final : public PollingComponent,
   std::string last_modified_;
 
   uint32_t start_time_{0};
-};
-
-template<typename... Ts> class OnlineImageSetUrlAction final : public Action<Ts...> {
- public:
-  OnlineImageSetUrlAction(OnlineImage *parent) : parent_(parent) {}
-  TEMPLATABLE_VALUE(std::string, url)
-  TEMPLATABLE_VALUE(bool, update)
-  void play(const Ts &...x) override {
-    this->parent_->set_url(this->url_.value(x...));
-    if (this->update_.value(x...)) {
-      this->parent_->update();
-    }
-  }
-
- protected:
-  OnlineImage *parent_;
-};
-
-template<typename... Ts> class OnlineImageReleaseAction final : public Action<Ts...> {
- public:
-  OnlineImageReleaseAction(OnlineImage *parent) : parent_(parent) {}
-  void play(const Ts &...x) override { this->parent_->release(); }
-
- protected:
-  OnlineImage *parent_;
 };
 
 }  // namespace esphome::online_image

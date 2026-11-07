@@ -26,6 +26,11 @@ esphome:
     - snapshot.take:
         id: snapshot_rotated
         filename: !lambda 'return "rotated.bmp";'
+    - snapshot.take:
+        id: snapshot_display
+        filename: animation.gif
+        frames: 5
+        frame_rate: 10fps
 
 interval:
   # A generated name has the time in it, so this one can repeat.

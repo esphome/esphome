@@ -1,3 +1,6 @@
+from collections.abc import Callable
+from typing import Any
+
 from esphome import automation
 import esphome.codegen as cg
 import esphome.config_validation as cv
@@ -11,17 +14,12 @@ from esphome.const import (
     CONF_TARGET,
 )
 from esphome.core import CORE, CoroPriority, coroutine_with_priority
+from esphome.types import SafeExpType
 
 IS_PLATFORM_COMPONENT = True
 
 stepper_ns = cg.esphome_ns.namespace("stepper")
 Stepper = stepper_ns.class_("Stepper")
-
-SetTargetAction = stepper_ns.class_("SetTargetAction", automation.Action)
-ReportPositionAction = stepper_ns.class_("ReportPositionAction", automation.Action)
-SetSpeedAction = stepper_ns.class_("SetSpeedAction", automation.Action)
-SetAccelerationAction = stepper_ns.class_("SetAccelerationAction", automation.Action)
-SetDecelerationAction = stepper_ns.class_("SetDecelerationAction", automation.Action)
 
 
 def validate_acceleration(value):
@@ -90,99 +88,53 @@ async def register_stepper(var, config):
     await setup_stepper_core_(var, config)
 
 
-@automation.register_action(
-    "stepper.set_target",
-    SetTargetAction,
-    cv.Schema(
-        {
-            cv.Required(CONF_ID): cv.use_id(Stepper),
-            cv.Required(CONF_TARGET): cv.templatable(cv.int_),
-        }
-    ),
-    synchronous=True,
+def _register_stepper_action(
+    name: str,
+    key: str,
+    validator: Callable[[Any], Any],
+    target: str,
+    type_: SafeExpType,
+    *extra: automation.ApplyCall,
+) -> None:
+    automation.register_apply_action(
+        f"stepper.{name}",
+        cv.Schema(
+            {
+                cv.Required(CONF_ID): cv.use_id(Stepper),
+                cv.Required(key): cv.templatable(validator),
+            }
+        ),
+        automation.ApplyField(key, target, type_),
+        *extra,
+    )
+
+
+_register_stepper_action("set_target", CONF_TARGET, cv.int_, "set_target", cg.int32)
+_register_stepper_action(
+    "report_position", CONF_POSITION, cv.int_, "report_position", cg.int32
 )
-async def stepper_set_target_to_code(config, action_id, template_arg, args):
-    paren = await cg.get_variable(config[CONF_ID])
-    var = cg.new_Pvariable(action_id, template_arg, paren)
-    template_ = await cg.templatable(config[CONF_TARGET], args, cg.int32)
-    cg.add(var.set_target(template_))
-    return var
-
-
-@automation.register_action(
-    "stepper.report_position",
-    ReportPositionAction,
-    cv.Schema(
-        {
-            cv.Required(CONF_ID): cv.use_id(Stepper),
-            cv.Required(CONF_POSITION): cv.templatable(cv.int_),
-        }
-    ),
-    synchronous=True,
+_register_stepper_action(
+    "set_speed",
+    CONF_SPEED,
+    validate_speed,
+    "set_max_speed",
+    cg.float_,
+    automation.ApplyCall("on_update_speed()"),
 )
-async def stepper_report_position_to_code(config, action_id, template_arg, args):
-    paren = await cg.get_variable(config[CONF_ID])
-    var = cg.new_Pvariable(action_id, template_arg, paren)
-    template_ = await cg.templatable(config[CONF_POSITION], args, cg.int32)
-    cg.add(var.set_position(template_))
-    return var
-
-
-@automation.register_action(
-    "stepper.set_speed",
-    SetSpeedAction,
-    cv.Schema(
-        {
-            cv.Required(CONF_ID): cv.use_id(Stepper),
-            cv.Required(CONF_SPEED): cv.templatable(validate_speed),
-        }
-    ),
-    synchronous=True,
+_register_stepper_action(
+    "set_acceleration",
+    CONF_ACCELERATION,
+    validate_acceleration,
+    "set_acceleration",
+    cg.float_,
 )
-async def stepper_set_speed_to_code(config, action_id, template_arg, args):
-    paren = await cg.get_variable(config[CONF_ID])
-    var = cg.new_Pvariable(action_id, template_arg, paren)
-    template_ = await cg.templatable(config[CONF_SPEED], args, cg.float_)
-    cg.add(var.set_speed(template_))
-    return var
-
-
-@automation.register_action(
-    "stepper.set_acceleration",
-    SetAccelerationAction,
-    cv.Schema(
-        {
-            cv.Required(CONF_ID): cv.use_id(Stepper),
-            cv.Required(CONF_ACCELERATION): cv.templatable(validate_acceleration),
-        }
-    ),
-    synchronous=True,
+_register_stepper_action(
+    "set_deceleration",
+    CONF_DECELERATION,
+    validate_acceleration,
+    "set_deceleration",
+    cg.float_,
 )
-async def stepper_set_acceleration_to_code(config, action_id, template_arg, args):
-    paren = await cg.get_variable(config[CONF_ID])
-    var = cg.new_Pvariable(action_id, template_arg, paren)
-    template_ = await cg.templatable(config[CONF_ACCELERATION], args, cg.float_)
-    cg.add(var.set_acceleration(template_))
-    return var
-
-
-@automation.register_action(
-    "stepper.set_deceleration",
-    SetDecelerationAction,
-    cv.Schema(
-        {
-            cv.Required(CONF_ID): cv.use_id(Stepper),
-            cv.Required(CONF_DECELERATION): cv.templatable(validate_acceleration),
-        }
-    ),
-    synchronous=True,
-)
-async def stepper_set_deceleration_to_code(config, action_id, template_arg, args):
-    paren = await cg.get_variable(config[CONF_ID])
-    var = cg.new_Pvariable(action_id, template_arg, paren)
-    template_ = await cg.templatable(config[CONF_DECELERATION], args, cg.float_)
-    cg.add(var.set_deceleration(template_))
-    return var
 
 
 @coroutine_with_priority(CoroPriority.CORE)

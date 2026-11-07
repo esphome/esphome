@@ -42,7 +42,6 @@ RP2BLETracker = rp2_ble_tracker_ns.class_(
 )
 
 StartScanAction = rp2_ble_tracker_ns.class_("StartScanAction", automation.Action)
-StopScanAction = rp2_ble_tracker_ns.class_("StopScanAction", automation.Action)
 
 ESPBTAdvertiseTrigger = ble_automation.ESPBTAdvertiseTrigger
 BLEServiceDataAdvertiseTrigger = ble_automation.BLEServiceDataAdvertiseTrigger
@@ -156,9 +155,8 @@ async def start_scan_action_to_code(
     return var
 
 
-@automation.register_action(
+automation.register_apply_action(
     "rp2_ble_tracker.stop_scan",
-    StopScanAction,
     automation.maybe_simple_id(
         cv.Schema(
             {
@@ -166,14 +164,5 @@ async def start_scan_action_to_code(
             }
         )
     ),
-    synchronous=True,
+    automation.ApplyCall("stop_scan()"),
 )
-async def stop_scan_action_to_code(
-    config: ConfigType,
-    action_id: ID,
-    template_arg: cg.TemplateArguments,
-    args: list,
-) -> cg.MockObj:
-    var = cg.new_Pvariable(action_id, template_arg)
-    await cg.register_parented(var, config[CONF_ID])
-    return var

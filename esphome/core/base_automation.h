@@ -11,6 +11,8 @@
 
 #include <array>
 #include <list>
+#include <tuple>
+#include <type_traits>
 #include <vector>
 
 namespace esphome {
@@ -180,7 +182,9 @@ class ProjectUpdateTrigger : public Trigger<std::string>, public Component {
 
 template<typename... Ts> class DelayAction : public Action<Ts...> {
  public:
-  explicit DelayAction() = default;
+  // User provided, not "= default": `new(p) DelayAction()` would zero-fill .bss that is already zero.
+  // constexpr and noexcept keep the rest of the implicit constructor's contract.
+  constexpr explicit DelayAction() noexcept {}
 
   TEMPLATABLE_VALUE(uint32_t, delay)
 
@@ -248,6 +252,21 @@ template<typename... Ts> class StatelessLambdaAction : public Action<Ts...> {
 
  protected:
   void (*f_)(Ts...);
+};
+
+/// Runs one codegen-generated function that has the parent and every field baked in. The
+/// function is a template argument, so play() calls it directly and the object is just the
+/// Action base. Args pass by const reference so a std::string arg is never copied;
+/// StatelessLambdaAction keeps by-value parameters because user `lambda:` code owns them.
+template<auto Fn, typename... Ts> class ApplyAction final : public Action<Ts...> {
+ public:
+  void play(const Ts &...x) override { Fn(x...); }
+};
+
+/// Condition counterpart of ApplyAction: one codegen-generated predicate with the parent baked in.
+template<auto Fn, typename... Ts> class ApplyCondition final : public Condition<Ts...> {
+ public:
+  bool check(const Ts &...x) override { return Fn(x...); }
 };
 
 /// Simple continuation action that calls play_next_ on a parent action.
@@ -482,7 +501,7 @@ template<typename... Ts> class WaitUntilAction : public Action<Ts...>, public Co
     // Store for later processing
     auto now = millis();
     auto timeout = this->timeout_value_.optional_value(x...);
-    this->var_queue_.emplace_back(now, timeout, std::make_tuple(x...));
+    this->var_queue_.emplace_back(now, timeout, x...);
 
     // Do immediate check with fresh timestamp - don't call loop() synchronously!
     // Let the event loop call it to avoid reentrancy issues
@@ -514,7 +533,13 @@ template<typename... Ts> class WaitUntilAction : public Action<Ts...>, public Co
   }
 
  protected:
-  using QueueItem = std::tuple<uint32_t, optional<uint32_t>, std::tuple<Ts...>>;
+  struct QueueItem {
+    QueueItem(uint32_t start, optional<uint32_t> timeout, const Ts &...x)
+        : start(start), timeout(timeout), args(x...) {}
+    uint32_t start;
+    optional<uint32_t> timeout;
+    std::tuple<stored_trigger_arg_t<Ts>...> args;
+  };
 
   // Helper: Process queue, triggering completed items and removing them
   // Returns true if queue still has pending items
@@ -528,14 +553,14 @@ template<typename... Ts> class WaitUntilAction : public Action<Ts...>, public Co
     std::list<QueueItem> pending;
     while (!queue.empty()) {
       auto it = queue.begin();
-      auto start = std::get<uint32_t>(*it);
-      auto timeout = std::get<optional<uint32_t>>(*it);
+      auto start = it->start;
+      auto timeout = it->timeout;
 
       // Check if timeout has expired
       auto expired = timeout && (now - start) >= *timeout;
 
       // Keep waiting if not expired and condition not met
-      if (!expired && !this->condition_->check_tuple(std::get<std::tuple<Ts...>>(*it))) {
+      if (!expired && !std::apply([this](auto &...args) { return this->condition_->check(args...); }, it->args)) {
         pending.splice(pending.end(), queue, it);
         continue;
       }
@@ -546,7 +571,7 @@ template<typename... Ts> class WaitUntilAction : public Action<Ts...>, public Co
       std::list<QueueItem> completed;
       completed.splice(completed.begin(), queue, it);
       uint8_t generation = this->stop_generation_;
-      this->play_next_tuple_(std::get<std::tuple<Ts...>>(completed.front()));
+      std::apply([this](auto &...args) { this->play_next_(args...); }, completed.front().args);
       if (generation != this->stop_generation_) {
         // stop() ran inside the chain - the items still held locally were cancelled
         pending.clear();
@@ -563,7 +588,7 @@ template<typename... Ts> class WaitUntilAction : public Action<Ts...>, public Co
 
   Condition<Ts...> *condition_;
   std::list<QueueItem> var_queue_{};
-  // Bumped by stop() so process_queue_() can detect a stop from inside play_next_tuple_()
+  // Bumped by stop() so process_queue_() can detect a stop from inside play_next_()
   uint8_t stop_generation_{0};
 };
 

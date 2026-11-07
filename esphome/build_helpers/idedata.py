@@ -11,6 +11,7 @@ consumers (IDE integration, clang-tidy) expect:
 
 from __future__ import annotations
 
+from collections.abc import Callable
 import json
 import logging
 import os
@@ -20,6 +21,8 @@ import subprocess
 
 from esphome.core import EsphomeError
 from esphome.helpers import write_file
+
+_LOGGER = logging.getLogger(__name__)
 
 # Everything idedata generation may raise after a successful link; idedata
 # is a bonus artifact, so consumers warn instead of failing the build
@@ -31,7 +34,21 @@ IDEDATA_BEST_EFFORT_ERRORS = (
     ValueError,
 )
 
-_LOGGER = logging.getLogger(__name__)
+
+def warn_if_idedata_missing(get_idedata: Callable[[], dict | None]) -> None:
+    """Run an idedata generator, downgrading any failure to a warning:
+    the firmware already built."""
+    try:
+        if get_idedata() is None:
+            _LOGGER.warning("No idedata was generated for this build")
+    except IDEDATA_BEST_EFFORT_ERRORS as err:
+        _LOGGER.warning(
+            "Could not generate idedata: %s (IDE, clang-tidy, and "
+            "memory-analysis data will be unavailable for this build)",
+            err,
+        )
+        _LOGGER.debug("Idedata failure detail", exc_info=True)
+
 
 # C++ translation-unit suffixes used to identify ESPHome source files.
 _CXX_SUFFIXES = (".cpp", ".cc")
@@ -133,6 +150,15 @@ _LAUNCHER_STEMS = frozenset({"ccache", "sccache", "distcc", "icecc", "buildcache
 
 def _is_launcher(token: str) -> bool:
     return Path(token).stem.lower() in _LAUNCHER_STEMS
+
+
+def is_joined_include(tok: str) -> bool:
+    """The joined ``-includefoo.h`` spelling; excludes clang's -include-pch."""
+    return (
+        tok.startswith("-include")
+        and tok != "-include"
+        and not tok.startswith("-include-")
+    )
 
 
 def parse_entry(

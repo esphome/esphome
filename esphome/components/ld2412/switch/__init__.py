@@ -37,12 +37,7 @@ CONFIG_SCHEMA = {
 
 
 async def to_code(config: ConfigType) -> None:
-    LD2412_component = await cg.get_variable(config[CONF_LD2412_ID])
-    if bluetooth_config := config.get(CONF_BLUETOOTH):
-        s = await switch.new_switch(bluetooth_config)
-        await cg.register_parented(s, config[CONF_LD2412_ID])
-        cg.add(LD2412_component.set_bluetooth_switch(s))
-    if engineering_mode_config := config.get(CONF_ENGINEERING_MODE):
-        s = await switch.new_switch(engineering_mode_config)
-        await cg.register_parented(s, config[CONF_LD2412_ID])
-        cg.add(LD2412_component.set_engineering_mode_switch(s))
+    hub = await cg.get_variable(config[CONF_LD2412_ID])
+    switches = switch.sub_switches(config, parent=hub)
+    await switches(CONF_BLUETOOTH, hub.set_bluetooth_switch)
+    await switches(CONF_ENGINEERING_MODE, hub.set_engineering_mode_switch)

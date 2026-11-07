@@ -33,9 +33,9 @@ struct lwip_sock *esphome_lwip_get_sock(int fd);
 /// per-call `memw` that volatile would emit on Xtensa under default
 /// -mserialize-volatile. Without atomics (e.g. BK72xx), the fence is skipped
 /// and the volatile load provides ordering on its own.
-/// Stale reads are harmless either way: the hooked event_callback
-/// xTaskNotifyGives on RCVPLUS, so the next iteration re-snapshots and
-/// ulTaskNotifyTake never loses a wake.
+/// Stale reads are harmless either way: the hooked event_callback calls
+/// esphome_main_task_notify() on RCVPLUS, so the next iteration re-snapshots and
+/// esphome_main_task_wait() never loses a wake.
 /// The offset and size are verified at compile time in lwip_fast_select.c.
 static inline bool esphome_lwip_socket_has_data(struct lwip_sock *sock) {
 #ifdef ESPHOME_THREAD_MULTI_ATOMICS
@@ -46,7 +46,7 @@ static inline bool esphome_lwip_socket_has_data(struct lwip_sock *sock) {
 }
 
 /// Hook a socket's netconn callback to notify the main loop task on receive events.
-/// Wraps the original event_callback with one that also calls xTaskNotifyGive().
+/// Wraps the original event_callback with one that also calls esphome_main_task_notify().
 /// Must be called from the main loop after socket creation.
 /// The sock pointer must have been obtained from esphome_lwip_get_sock().
 void esphome_lwip_hook_socket(struct lwip_sock *sock);

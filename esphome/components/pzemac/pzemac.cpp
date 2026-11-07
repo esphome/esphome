@@ -77,7 +77,7 @@ void PZEMAC::dump_config() {
   LOG_SENSOR("", "Power Factor", this->power_factor_sensor_);
 }
 
-void PZEMAC::reset_energy_() {
+void PZEMAC::reset_energy() {
   const uint8_t pdu[] = {PZEM_CMD_RESET_ENERGY};
   this->queue_pdu(pdu);
 }

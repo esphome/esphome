@@ -1,0 +1,19 @@
+# The hub on its own, with no other sendspin platforms, to build the pairing options.
+#
+# Deliberately does not include common.yaml: that file pulls in the shared hub package, and
+# the point here is a separate hub configuration. sendspin depends on network, so the interface
+# has to be declared locally instead.
+wifi:
+  ap:
+
+# Also the static-pairing-code build.
+sendspin:
+  id: sendspin_hub_id
+  static_pairing_code: "01234567"
+  # Covers the hub's unpaired access option, which is only valid without an unpaired access switch.
+  unpaired_access: false
+
+# Builds the API request for the Sendspin pairing token.
+api:
+  encryption:
+    key: bOFFzzvfpg5DB94DuBGLXD/hMnhpDKgP9UQyBulwWVU=

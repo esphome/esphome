@@ -100,20 +100,6 @@ class TimeCall {
 
 inline TimeCall TimeEntity::make_call() { return TimeCall(this); }
 
-template<typename... Ts> class TimeSetAction final : public Action<Ts...>, public Parented<TimeEntity> {
- public:
-  TEMPLATABLE_VALUE(ESPTime, time)
-
-  void play(const Ts &...x) override {
-    auto call = this->parent_->make_call();
-
-    if (this->time_.has_value()) {
-      call.set_time(this->time_.value(x...));
-    }
-    call.perform();
-  }
-};
-
 #ifdef USE_TIME
 class OnTimeTrigger final : public Trigger<>, public Component, public Parented<TimeEntity> {
  public:

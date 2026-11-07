@@ -803,6 +803,112 @@ def test_generate_idf_components_lib_ignore_filters_top_level_and_dependencies(
     assert download_salts == [hashlib.sha256(b"b,c").hexdigest()[:8]]
 
 
+def test_generate_idf_components_managed_filters_top_level_and_dependencies(
+    tmp_path: Path,
+    monkeypatch: pytest.MonkeyPatch,
+    esp32_idf_core: None,
+) -> None:
+    # managed (e.g. noise-c/libsodium already declared via add_idf_component)
+    # must drop B at the top level and C when discovered as a dependency of A,
+    # exactly like lib_ignore -- neither may be resolved, downloaded, or wired
+    # into a manifest.
+    manifests = {
+        "esphome/A": {
+            "name": "A",
+            "dependencies": [
+                {"owner": "esphome", "name": "C", "version": "==1.10021.0"}
+            ],
+        },
+        "esphome/B": {"name": "B"},
+    }
+
+    download_salts: list[str] = []
+
+    def fake_download(self, force=False, salt="", namespace=""):
+        download_salts.append(salt)
+        self.path = tmp_path / self.get_sanitized_name().replace("/", "__")
+        (self.path / "src").mkdir(parents=True, exist_ok=True)
+        (self.path / "src" / "x.c").write_text("int x;")
+        (self.path / "library.json").write_text(json.dumps(manifests[self.name]))
+
+    monkeypatch.setattr(IDFComponent, "download", fake_download)
+
+    resolve_calls: list[str] = []
+
+    def fake_resolve(owner, pkgname, requirements):
+        resolve_calls.append(pkgname)
+        return owner, pkgname, "1.0.0", f"http://x/{pkgname}.tar.gz", None
+
+    monkeypatch.setattr(
+        esphome.platformio.library, "_resolve_registry_version", fake_resolve
+    )
+
+    top = generate_idf_components(
+        [Library("esphome/A", "1.0.0", None), Library("esphome/B", "1.0.0", None)],
+        managed={"esphome/B", "esphome/C"},
+    )
+
+    assert [c.name for c in top] == ["esphome/A"]
+    # Managed libraries were never resolved (and therefore never downloaded).
+    assert resolve_calls == ["A"]
+    # The managed dependency is not wired into A's manifest.
+    assert top[0].dependencies == []
+    # managed changes the generated wiring just like lib_ignore, so the cache
+    # path is salted the same way.
+    assert download_salts == [hashlib.sha256(b"b,c").hexdigest()[:8]]
+
+
+def test_generate_idf_components_lib_ignore_and_managed_combine_into_salt(
+    tmp_path: Path,
+    monkeypatch: pytest.MonkeyPatch,
+    esp32_idf_core: None,
+) -> None:
+    # lib_ignore and managed both contribute to the same exclusion set, so a
+    # config using both gets a salt reflecting the union of the two sources
+    # rather than either alone.
+    manifests = {
+        "esphome/A": {"name": "A"},
+        "esphome/D": {"name": "D"},
+        "esphome/E": {"name": "E"},
+    }
+
+    download_salts: list[str] = []
+
+    def fake_download(self, force=False, salt="", namespace=""):
+        download_salts.append(salt)
+        self.path = tmp_path / self.get_sanitized_name().replace("/", "__")
+        (self.path / "src").mkdir(parents=True, exist_ok=True)
+        (self.path / "src" / "x.c").write_text("int x;")
+        (self.path / "library.json").write_text(json.dumps(manifests[self.name]))
+
+    monkeypatch.setattr(IDFComponent, "download", fake_download)
+
+    resolve_calls: list[str] = []
+
+    def fake_resolve(owner, pkgname, requirements):
+        resolve_calls.append(pkgname)
+        return owner, pkgname, "1.0.0", f"http://x/{pkgname}.tar.gz", None
+
+    monkeypatch.setattr(
+        esphome.platformio.library, "_resolve_registry_version", fake_resolve
+    )
+    monkeypatch.setattr(CORE, "platformio_options", {"lib_ignore": ["D"]})
+
+    top = generate_idf_components(
+        [
+            Library("esphome/A", "1.0.0", None),
+            Library("esphome/D", "1.0.0", None),
+            Library("esphome/E", "1.0.0", None),
+        ],
+        managed={"esphome/E"},
+    )
+
+    assert [c.name for c in top] == ["esphome/A"]
+    assert resolve_calls == ["A"]
+    # The salt reflects BOTH lib_ignore's "D" and managed's "E" together.
+    assert download_salts == [hashlib.sha256(b"d,e").hexdigest()[:8]]
+
+
 def test_generate_idf_components_handles_dependency_cycle(
     tmp_path: Path,
     monkeypatch: pytest.MonkeyPatch,

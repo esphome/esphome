@@ -57,10 +57,6 @@ async def to_code(config: ConfigType) -> None:
     await i2c.register_i2c_device(var, config)
     cg.add(var.set_variant(config[CONF_VARIANT]))
 
-    if temperature := config.get(CONF_TEMPERATURE):
-        sens = await sensor.new_sensor(temperature)
-        cg.add(var.set_temperature_sensor(sens))
-
-    if humidity := config.get(CONF_HUMIDITY):
-        sens = await sensor.new_sensor(humidity)
-        cg.add(var.set_humidity_sensor(sens))
+    sensors = sensor.sub_sensors(config)
+    await sensors(CONF_TEMPERATURE, var.set_temperature_sensor)
+    await sensors(CONF_HUMIDITY, var.set_humidity_sensor)

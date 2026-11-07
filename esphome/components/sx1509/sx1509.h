@@ -51,7 +51,8 @@ class SX1509Component final : public Component,
     this->cols_ = cols;
     this->has_keypad_ = true;
   };
-  void set_keys(std::string keys) { this->keys_ = std::move(keys); };  // NOLINT(performance-unnecessary-value-param)
+  /// `keys` is a codegen PROGMEM table with one key code per button.
+  void set_keys(const uint8_t *keys) { this->keys_ = keys; }
   void set_sleep_time(uint16_t sleep_time) { this->sleep_time_ = sleep_time; };
   void set_scan_time(uint8_t scan_time) { this->scan_time_ = scan_time; };
   void set_debounce_time(uint8_t debounce_time = 1) { this->debounce_time_ = debounce_time; };
@@ -76,7 +77,7 @@ class SX1509Component final : public Component,
   bool has_keypad_ = false;
   uint8_t rows_ = 0;
   uint8_t cols_ = 0;
-  std::string keys_;
+  const uint8_t *keys_{nullptr};
   uint16_t sleep_time_ = 128;
   uint8_t scan_time_ = 1;
   uint8_t debounce_time_ = 1;

@@ -225,10 +225,10 @@ def model_schema(config: ConfigType) -> cv.All | cv.Schema:
         )
         .extend({model.option(x): cv.boolean for x in other_options})
     )
-    if brightness := model.get_default(CONF_BRIGHTNESS):
+    if model.get_default(CONF_BRIGHTNESS, None) is not None or model.name == "CUSTOM":
         schema = schema.extend(
             {
-                cv.Optional(CONF_BRIGHTNESS, default=brightness): cv.int_range(
+                model.option(CONF_BRIGHTNESS, cv.UNDEFINED): cv.int_range(
                     0, 0xFF, min_included=True, max_included=True
                 ),
             }
@@ -401,7 +401,8 @@ async def to_code(config: ConfigType) -> None:
     init_sequence = model.get_sequence(config, add_madctl=False, add_reset=True)
     var_id.type, templateargs = get_instance(config)
     var = cg.new_Pvariable(var_id, TemplateArguments(*templateargs))
-    cg.add(var.set_init_sequence(init_sequence))
+    table = cg.shared_progmem_array("mipi_spi_init_sequence", cg.uint8, init_sequence)
+    cg.add(var.set_init_sequence(table, len(init_sequence)))
     cg.add(var.set_model(config[CONF_MODEL]))
     if enable_pin := config.get(CONF_ENABLE_PIN):
         enable = [await cg.gpio_pin_expression(pin) for pin in enable_pin]

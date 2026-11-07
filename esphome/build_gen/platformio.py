@@ -1,6 +1,8 @@
+from esphome.build_helpers.pch import pch_script_enabled
 from esphome.const import __version__
 from esphome.core import CORE
 from esphome.helpers import mkdir_p, read_file, write_file_if_changed
+from esphome.platformio.toolchain import copy_pch_script
 from esphome.writer import find_begin_end
 
 INI_AUTO_GENERATE_BEGIN = "; ========== AUTO GENERATED CODE BEGIN ==========="
@@ -62,6 +64,8 @@ def get_ini_content():
 
     # Add extra script for C++ flags
     CORE.add_platformio_option("extra_scripts", [f"pre:{CXX_FLAGS_FILE_NAME}"])
+    if pch_script_enabled():
+        CORE.add_platformio_option("extra_scripts", ["post:pch.py"])
 
     # Add CMake args. A user-supplied value (str or list) is deliberately
     # replaced; this option was always overwritten at FINAL priority.
@@ -106,6 +110,8 @@ def write_project():
 
     # Write extra script for C++ specific flags
     write_cxx_flags_script()
+    if pch_script_enabled():
+        copy_pch_script()
 
 
 CXX_FLAGS_FILE_NAME = "cxx_flags.py"

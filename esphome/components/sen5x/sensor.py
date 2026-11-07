@@ -43,8 +43,6 @@ from esphome.const import (
     UNIT_MICROGRAMS_PER_CUBIC_METER,
     UNIT_PERCENT,
 )
-from esphome.core import ID
-from esphome.cpp_generator import MockObj, TemplateArgsType
 from esphome.types import ConfigType
 
 CODEOWNERS = ["@martgras"]
@@ -61,9 +59,6 @@ Sen5xType = sen5x_ns.enum("Sen5xType", is_class=True)
 CONF_ACCELERATION_MODE = "acceleration_mode"
 CONF_AUTO_CLEANING_INTERVAL = "auto_cleaning_interval"
 
-
-# Actions
-StartFanAction = sen5x_ns.class_("StartFanAction", automation.Action)
 
 ACCELERATION_MODES = {
     "low": RhtAccelerationMode.LOW_ACCELERATION,
@@ -282,17 +277,8 @@ SEN5X_ACTION_SCHEMA = maybe_simple_id(
 )
 
 
-@automation.register_action(
+automation.register_apply_action(
     "sen5x.start_fan_autoclean",
-    StartFanAction,
     SEN5X_ACTION_SCHEMA,
-    synchronous=True,
+    automation.ApplyCall("start_fan_cleaning()"),
 )
-async def sen54_fan_to_code(
-    config: ConfigType,
-    action_id: ID,
-    template_arg: cg.TemplateArguments,
-    args: TemplateArgsType,
-) -> MockObj:
-    paren = await cg.get_variable(config[CONF_ID])
-    return cg.new_Pvariable(action_id, template_arg, paren)

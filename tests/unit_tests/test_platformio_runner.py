@@ -4,6 +4,7 @@ from __future__ import annotations
 
 from collections.abc import Callable
 import io
+from pathlib import Path
 import sys
 from types import ModuleType
 from unittest.mock import Mock
@@ -108,6 +109,20 @@ def test_main_applies_registry_private_packages_patch(
 
     assert runner.main() == 0
     assert order == ["patch", "pio"]
+
+
+def test_ensure_http_cache_dir_is_idempotent(
+    monkeypatch: pytest.MonkeyPatch, tmp_path: Path
+) -> None:
+    """The dir exists before PlatformIO's non-exist_ok makedirs, and a
+    second caller (another thread or build) does not trip over it."""
+    from platformio.project import helpers
+
+    monkeypatch.setattr(helpers, "get_project_cache_dir", lambda: str(tmp_path / "c"))
+
+    runner.ensure_http_cache_dir()
+    assert (tmp_path / "c" / "http").is_dir()
+    runner.ensure_http_cache_dir()
 
 
 # Snapshot PlatformIO's own probe at import, before any test can patch it

@@ -1,0 +1,3 @@
+packages:
+  alarm_control_panel: !include common.yaml
+  actions: !include common-actions.yaml

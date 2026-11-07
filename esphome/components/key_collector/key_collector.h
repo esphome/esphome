@@ -54,12 +54,4 @@ class KeyCollector final : public Component {
   bool enabled_{};
 };
 
-template<typename... Ts> class EnableAction final : public Action<Ts...>, public Parented<KeyCollector> {
-  void play(const Ts &...x) override { this->parent_->set_enabled(true); }
-};
-
-template<typename... Ts> class DisableAction final : public Action<Ts...>, public Parented<KeyCollector> {
-  void play(const Ts &...x) override { this->parent_->set_enabled(false); }
-};
-
 }  // namespace esphome::key_collector

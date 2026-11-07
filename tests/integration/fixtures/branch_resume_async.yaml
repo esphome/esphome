@@ -1,0 +1,261 @@
+esphome:
+  name: test-branch-resume-async
+
+host:
+
+logger:
+  level: DEBUG
+
+script:
+  - id: delay_in_if
+    then:
+      - if:
+          condition:
+            lambda: 'return true;'
+          then:
+            - delay: 50ms
+            - logger.log: "if-branch-after-delay"
+          else:
+            - logger.log: "if-else-should-not-run"
+      - logger.log: "after-if"
+
+  - id: delay_in_else
+    then:
+      - if:
+          condition:
+            lambda: 'return false;'
+          then:
+            - logger.log: "if-then-should-not-run"
+          else:
+            - delay: 50ms
+            - logger.log: "else-branch-after-delay"
+      - logger.log: "after-else"
+
+  - id: delay_in_while
+    then:
+      - lambda: 'id(counter) = 0;'
+      - while:
+          condition:
+            lambda: 'return id(counter) < 3;'
+          then:
+            - delay: 20ms
+            - lambda: 'id(counter) += 1;'
+            - logger.log:
+                format: "while-body-%d"
+                args: ['id(counter)']
+      - logger.log: "after-while"
+
+  - id: stop_in_branch
+    then:
+      - if:
+          condition:
+            lambda: 'return true;'
+          then:
+            - delay: 500ms
+            - logger.log: "stopped-branch-should-not-run"
+      - logger.log: "stopped-after-if-should-not-run"
+
+  - id: parallel_branch
+    mode: parallel
+    parameters:
+      run: int
+    then:
+      - if:
+          condition:
+            lambda: 'return run >= 0;'
+          then:
+            - delay: 100ms
+            - logger.log:
+                format: "parallel-branch-done-%d"
+                args: ['run']
+      - logger.log:
+          format: "parallel-after-if-%d"
+          args: ['run']
+
+  - id: nested_if_last_in_while
+    then:
+      - lambda: 'id(counter) = 0;'
+      - while:
+          condition:
+            lambda: 'return id(counter) < 2;'
+          then:
+            - lambda: 'id(counter) += 1;'
+            - if:
+                condition:
+                  lambda: 'return true;'
+                then:
+                  - delay: 20ms
+                  - logger.log:
+                      format: "nested-if-in-while-%d"
+                      args: ['id(counter)']
+      - logger.log: "after-nested-while"
+
+  - id: stop_mid_while
+    then:
+      - lambda: 'id(counter) = 0;'
+      - while:
+          condition:
+            lambda: 'return id(counter) < 5;'
+          then:
+            - delay: 200ms
+            - lambda: 'id(counter) += 1;'
+            - logger.log:
+                format: "stop-while-body-%d"
+                args: ['id(counter)']
+      - logger.log: "stop-while-done"
+
+  - id: queued_branch
+    mode: queued
+    parameters:
+      run: int
+    then:
+      - if:
+          condition:
+            lambda: 'return true;'
+          then:
+            - delay: 30ms
+            - logger.log:
+                format: "queued-branch-%d"
+                args: ['run']
+      - logger.log:
+          format: "queued-after-if-%d"
+          args: ['run']
+
+  - id: restart_branch
+    mode: restart
+    parameters:
+      run: int
+    then:
+      - if:
+          condition:
+            lambda: 'return true;'
+          then:
+            - delay: 100ms
+            - logger.log:
+                format: "restart-branch-%d"
+                args: ['run']
+      - logger.log:
+          format: "restart-after-if-%d"
+          args: ['run']
+
+  - id: delay_last_in_branch
+    then:
+      - if:
+          condition:
+            lambda: 'return true;'
+          then:
+            - logger.log: "delay-last-start"
+            - delay: 30ms
+      - logger.log: "after-delay-last"
+
+  - id: stop_in_if_condition
+    then:
+      - if:
+          condition:
+            lambda: |-
+              id(stop_in_if_condition).stop();
+              return true;
+          then:
+            - logger.log: "if-stopped-by-condition-should-not-run"
+          else:
+            - logger.log: "if-else-stopped-by-condition-should-not-run"
+      - logger.log: "after-if-stopped-by-condition-should-not-run"
+  - id: stop_in_if_else_condition
+    then:
+      - if:
+          condition:
+            lambda: |-
+              id(stop_in_if_else_condition).stop();
+              return false;
+          else:
+            - logger.log: "else-stopped-by-condition-should-not-run"
+      - logger.log: "after-else-stopped-by-condition-should-not-run"
+  - id: stop_in_while_condition
+    then:
+      - while:
+          condition:
+            lambda: |-
+              id(stop_in_while_condition).stop();
+              return true;
+          then:
+            - logger.log: "while-stopped-by-condition-should-not-run"
+      - logger.log: "after-while-stopped-by-condition-should-not-run"
+
+globals:
+  - id: counter
+    type: int
+    initial_value: '0'
+
+api:
+  actions:
+    - action: run_delay_in_if
+      then:
+        - script.execute: delay_in_if
+    - action: run_delay_in_else
+      then:
+        - script.execute: delay_in_else
+    - action: run_delay_in_while
+      then:
+        - script.execute: delay_in_while
+    - action: run_stop_in_branch
+      then:
+        - script.execute: stop_in_branch
+        - delay: 100ms
+        - script.stop: stop_in_branch
+        - lambda: |-
+            ESP_LOGI("test", "stop-running=%d", id(stop_in_branch).is_running() ? 1 : 0);
+        - delay: 600ms
+        - logger.log: "stop-check-done"
+    - action: run_nested_if_last_in_while
+      then:
+        - script.execute: nested_if_last_in_while
+    - action: run_stop_mid_while
+      then:
+        - script.execute: stop_mid_while
+        - delay: 300ms
+        - script.stop: stop_mid_while
+        - lambda: |-
+            ESP_LOGI("test", "stop-while-running=%d", id(stop_mid_while).is_running() ? 1 : 0);
+        - delay: 400ms
+        - script.execute: stop_mid_while
+    - action: run_queued_branch
+      then:
+        - script.execute:
+            id: queued_branch
+            run: 1
+        - script.execute:
+            id: queued_branch
+            run: 2
+        - script.execute:
+            id: queued_branch
+            run: 3
+    - action: run_restart_branch
+      then:
+        - script.execute:
+            id: restart_branch
+            run: 1
+        - delay: 30ms
+        - script.execute:
+            id: restart_branch
+            run: 2
+    - action: run_delay_last_in_branch
+      then:
+        - script.execute: delay_last_in_branch
+    - action: run_stop_in_conditions
+      then:
+        - script.execute: stop_in_if_condition
+        - script.execute: stop_in_if_else_condition
+        - script.execute: stop_in_while_condition
+        - delay: 200ms
+        - logger.log: "stop-in-conditions-done"
+    - action: run_parallel_branch
+      then:
+        - script.execute:
+            id: parallel_branch
+            run: 1
+        - script.execute:
+            id: parallel_branch
+            run: 2
+        - script.execute:
+            id: parallel_branch
+            run: 3

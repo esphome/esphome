@@ -39,15 +39,6 @@ DisplayPage = display_ns.class_("DisplayPage")
 DisplayPagePtr = DisplayPage.operator("ptr")
 DisplayRef = Display.operator("ref")
 DisplayPageShowAction = display_ns.class_("DisplayPageShowAction", automation.Action)
-DisplayPageShowNextAction = display_ns.class_(
-    "DisplayPageShowNextAction", automation.Action
-)
-DisplayPageShowPrevAction = display_ns.class_(
-    "DisplayPageShowPrevAction", automation.Action
-)
-DisplayIsDisplayingPageCondition = display_ns.class_(
-    "DisplayIsDisplayingPageCondition", automation.Condition
-)
 DisplayOnPageChangeTrigger = display_ns.class_(
     "DisplayOnPageChangeTrigger", automation.Trigger
 )
@@ -288,39 +279,27 @@ async def display_page_show_to_code(config, action_id, template_arg, args):
     return var
 
 
-@automation.register_action(
+# The id is the display itself, so it cannot be a lambda; a plain use_id rejects one clearly.
+DISPLAY_PAGE_CYCLE_ACTION_SCHEMA = maybe_simple_id(
+    {
+        cv.GenerateID(CONF_ID): cv.use_id(Display),
+    }
+)
+
+automation.register_apply_action(
     "display.page.show_next",
-    DisplayPageShowNextAction,
-    maybe_simple_id(
-        {
-            cv.GenerateID(CONF_ID): cv.templatable(cv.use_id(Display)),
-        }
-    ),
-    synchronous=True,
+    DISPLAY_PAGE_CYCLE_ACTION_SCHEMA,
+    automation.ApplyCall("show_next_page()"),
 )
-async def display_page_show_next_to_code(config, action_id, template_arg, args):
-    paren = await cg.get_variable(config[CONF_ID])
-    return cg.new_Pvariable(action_id, template_arg, paren)
-
-
-@automation.register_action(
+automation.register_apply_action(
     "display.page.show_previous",
-    DisplayPageShowPrevAction,
-    maybe_simple_id(
-        {
-            cv.GenerateID(CONF_ID): cv.templatable(cv.use_id(Display)),
-        }
-    ),
-    synchronous=True,
+    DISPLAY_PAGE_CYCLE_ACTION_SCHEMA,
+    automation.ApplyCall("show_prev_page()"),
 )
-async def display_page_show_previous_to_code(config, action_id, template_arg, args):
-    paren = await cg.get_variable(config[CONF_ID])
-    return cg.new_Pvariable(action_id, template_arg, paren)
 
 
-@automation.register_condition(
+automation.register_apply_condition(
     "display.is_displaying_page",
-    DisplayIsDisplayingPageCondition,
     cv.maybe_simple_value(
         {
             cv.GenerateID(CONF_ID): cv.use_id(Display),
@@ -328,13 +307,8 @@ async def display_page_show_previous_to_code(config, action_id, template_arg, ar
         },
         key=CONF_PAGE_ID,
     ),
+    automation.ApplyCall("get_active_page() == {}", ((CONF_PAGE_ID, DisplayPagePtr),)),
 )
-async def display_is_displaying_page_to_code(config, condition_id, template_arg, args):
-    paren = await cg.get_variable(config[CONF_ID])
-    page = await cg.get_variable(config[CONF_PAGE_ID])
-    var = cg.new_Pvariable(condition_id, template_arg, paren)
-    cg.add(var.set_page(page))
-    return var
 
 
 @coroutine_with_priority(CoroPriority.CORE)

@@ -17,12 +17,22 @@ CONF_HEALTH = "health"
 CONF_XFAN = "xfan"
 CONF_GREE_ID = "gree_id"
 
-# Switch configurations: (config_key, display_name, bit_mask, icon)
+# Switch configurations: (config_key, display_name, mode_bit, icon)
 SWITCH_CONFIGS = (
-    (CONF_TURBO, "Gree Turbo Switch", 0x10, "mdi:car-turbocharger"),
-    (CONF_LIGHT, "Gree Light Switch", 0x20, "mdi:led-outline"),
-    (CONF_HEALTH, "Gree Health Switch", 0x40, "mdi:pine-tree"),
-    (CONF_XFAN, "Gree X-FAN Switch", 0x80, "mdi:wall-sconce-flat"),
+    (
+        CONF_TURBO,
+        "Gree Turbo Switch",
+        gree_ns.GREE_MODE_BIT_TURBO,
+        "mdi:car-turbocharger",
+    ),
+    (CONF_LIGHT, "Gree Light Switch", gree_ns.GREE_MODE_BIT_LIGHT, "mdi:led-outline"),
+    (CONF_HEALTH, "Gree Health Switch", gree_ns.GREE_MODE_BIT_HEALTH, "mdi:pine-tree"),
+    (
+        CONF_XFAN,
+        "Gree X-FAN Switch",
+        gree_ns.GREE_MODE_BIT_XFAN,
+        "mdi:wall-sconce-flat",
+    ),
 )
 
 SUPPORTED_MODELS = {
@@ -39,7 +49,10 @@ CONFIG_SCHEMA = cv.Schema(
             cv.Optional(key): switch.switch_schema(
                 GreeModeBitSwitch,
                 icon=icon,
-                default_restore_mode="RESTORE_DEFAULT_OFF",
+                # The display light was on before the switches existed, so it stays on by default
+                default_restore_mode="RESTORE_DEFAULT_ON"
+                if key == CONF_LIGHT
+                else "RESTORE_DEFAULT_OFF",
                 device_class=DEVICE_CLASS_SWITCH,
                 entity_category=ENTITY_CATEGORY_CONFIG,
             )

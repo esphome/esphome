@@ -13,9 +13,9 @@ struct DishData {
 
 class DishProtocol : public RemoteProtocol<DishData> {
  public:
-  void encode(RemoteTransmitData *dst, const DishData &data) override;
-  optional<DishData> decode(RemoteReceiveData src) override;
-  void dump(const DishData &data) override;
+  void encode(RemoteTransmitData *dst, const DishData &data);
+  optional<DishData> decode(RemoteReceiveData src);
+  void dump(const DishData &data);
 };
 
 DECLARE_REMOTE_PROTOCOL(Dish)

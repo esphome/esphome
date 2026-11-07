@@ -50,6 +50,8 @@ class LWIPRawCommon {
 
  protected:
   int ip2sockaddr_(ip_addr_t *ip, uint16_t port, struct sockaddr *name, socklen_t *addrlen);
+  /// sockaddr of this socket's family to lwip address and port; false with errno on mismatch
+  bool sockaddr2ip_(const struct sockaddr *name, socklen_t addrlen, ip_addr_t *ip, uint16_t *port) const;
 
   // Member ordering optimized to minimize padding on 32-bit systems
   struct tcp_pcb *pcb_;
@@ -58,7 +60,14 @@ class LWIPRawCommon {
   bool nodelay_ = false;
   sa_family_t family_ = 0;
   uint8_t recv_timeout_cs_ = 0;  // SO_RCVTIMEO in centiseconds (0 = no timeout, max 2.55s)
+  // 0 before connect(), EINPROGRESS while pending, EISCONN once established,
+  // else the failure errno the callbacks recorded; fills the padding byte
+  uint8_t connect_err_ = 0;
+  static_assert(EINPROGRESS < 256 && EISCONN < 256 && ECONNREFUSED < 256 && ECONNRESET < 256 && ETIMEDOUT < 256,
+                "connect_err_ stores errno values in a byte");
 };
+// The connect state must stay in the padding so no socket pays RAM for it
+static_assert(sizeof(LWIPRawCommon) == sizeof(struct tcp_pcb *) + 4, "LWIPRawCommon grew past one word of flags");
 
 /// Connected socket implementation for LWIP raw TCP.
 /// No virtual methods — callers always use the concrete type.
@@ -83,6 +92,12 @@ class LWIPRawImpl : public LWIPRawCommon {
     errno = EOPNOTSUPP;
     return -1;
   }
+  /// Non-blocking: returns -1/EINPROGRESS once the SYN is queued, see poll_connect().
+  /// addr must match the socket family; an IPv4 peer on AF_INET6 arrives v4-mapped.
+  int connect(const struct sockaddr *addr, socklen_t addrlen);
+  // Unlocked like ready(): the callbacks write the error byte before pcb_,
+  // so a torn read only costs one extra poll
+  ConnectPollResult poll_connect(int &err_out) const;
   ssize_t read(void *buf, size_t len);
   ssize_t readv(const struct iovec *iov, int iovcnt);
   ssize_t recvfrom(void *, size_t, sockaddr *, socklen_t *) {
@@ -120,6 +135,7 @@ class LWIPRawImpl : public LWIPRawCommon {
 
   static void s_err_fn(void *arg, err_t err);
   static err_t s_recv_fn(void *arg, struct tcp_pcb *pcb, struct pbuf *pb, err_t err);
+  static err_t s_connected_fn(void *arg, struct tcp_pcb *pcb, err_t err);
 
  protected:
   // True when the socket could receive data but none has arrived yet.
@@ -137,6 +153,9 @@ class LWIPRawImpl : public LWIPRawCommon {
   size_t rx_buf_offset_ = 0;
   bool rx_closed_ = false;
 };
+// rx_buf_, rx_buf_offset_, then rx_closed_ padded to a word
+static_assert(sizeof(LWIPRawImpl) == sizeof(LWIPRawCommon) + sizeof(pbuf *) + sizeof(size_t) + 4,
+              "LWIPRawImpl layout changed");
 
 /// Listening socket implementation for LWIP raw TCP.
 /// Separate from LWIPRawImpl — no virtual dispatch needed.

@@ -1,0 +1,468 @@
+#if defined(USE_ESP32_VARIANT_ESP32P4) || defined(USE_ESP32_VARIANT_ESP32S2) || defined(USE_ESP32_VARIANT_ESP32S3)
+#include "cdc_acm_uart_bridge.h"
+#include "esphome/core/application.h"
+#include "esphome/core/hal.h"
+#include "esphome/core/log.h"
+
+#include <algorithm>
+#include "freertos/FreeRTOS.h"
+#include "freertos/task.h"
+#include "freertos/ringbuf.h"
+#include "driver/uart.h"
+#include "soc/soc_caps.h"
+
+namespace esphome::cdc_acm_uart {
+
+static const char *const TAG = "cdc_acm_uart";
+
+static constexpr size_t UART_TASK_STACK_SIZE = 4096;
+static constexpr size_t RINGBUF_RETRY_CHUNK_SIZE = 64;
+static constexpr uint32_t LOG_THROTTLE_MS = 1000;
+static constexpr uint32_t UART_RELOAD_SETTLE_MS = 20;
+// Above the default priority but below the USB/Wi-Fi system tasks.
+static constexpr UBaseType_t TASK_PRIORITY = 4;
+
+static bool should_log_now(uint32_t *last_ms, uint32_t interval_ms) {
+  uint32_t now = millis();
+  if ((now - *last_ms) >= interval_ms) {
+    *last_ms = now;
+    return true;
+  }
+  return false;
+}
+
+static bool ringbuf_send_with_retry(RingbufHandle_t ringbuf, const uint8_t *data, size_t len, uint32_t *log_ms) {
+  if (len == 0) {
+    return true;
+  }
+
+  if (xRingbufferSend(ringbuf, data, len, pdMS_TO_TICKS(1)) == pdTRUE) {
+    return true;
+  }
+
+  size_t offset = 0;
+  while (offset < len) {
+    size_t chunk = std::min(RINGBUF_RETRY_CHUNK_SIZE, len - offset);
+    if (xRingbufferSend(ringbuf, data + offset, chunk, pdMS_TO_TICKS(1)) != pdTRUE) {
+      if (should_log_now(log_ms, LOG_THROTTLE_MS)) {
+        ESP_LOGW(TAG, "USB TX buffer full; some data is lost");
+      }
+      return false;
+    }
+    offset += chunk;
+  }
+  return true;
+}
+
+void CDCACMUARTBridge::setup() {
+  // Line state starts deasserted (no host yet); active-low DTR#/RTS# wiring is
+  // handled by configuring the pins inverted, so deasserted idles HIGH.
+  if (this->dtr_pin_ != nullptr) {
+    this->dtr_pin_->setup();
+    this->dtr_pin_->digital_write(false);
+  }
+
+  if (this->rts_pin_ != nullptr) {
+    this->rts_pin_->setup();
+    this->rts_pin_->digital_write(false);
+  }
+
+  // A failed UART never assigned its port number, so the worker tasks would run
+  // against an indeterminate port.
+  if (this->uart_parent_->is_failed()) {
+    ESP_LOGE(TAG, "UART parent failed; aborting");
+    this->mark_failed();
+    return;
+  }
+
+  this->configured_baud_rate_ = this->uart_parent_->get_baud_rate();
+  this->configured_parity_ = this->uart_parent_->get_parity();
+  this->configured_stop_bits_ = this->uart_parent_->get_stop_bits();
+  this->configured_data_bits_ = this->uart_parent_->get_data_bits();
+
+  // usb_cdc_acm sets up first (priority IO > HARDWARE). Any interface failing marks
+  // the hub failed, and a failed hub no longer runs loop(), so line coding and line
+  // state events would never reach this bridge even if its own interface is healthy.
+  if (this->usb_cdc_parent_->get_parent()->is_failed()) {
+    ESP_LOGE(TAG, "USB CDC ACM failed; aborting");
+    this->mark_failed();
+    return;
+  }
+
+  // Per-instance task names (keyed on the CDC interface number) keep task dumps
+  // unambiguous with multiple bridges.
+  char tx_task_name[] = "cdc_uart_tx_0";
+  char rx_task_name[] = "cdc_uart_rx_0";
+  const char itf_char = format_hex_char(this->usb_cdc_parent_->get_itf());
+  tx_task_name[sizeof(tx_task_name) - 2] = itf_char;
+  rx_task_name[sizeof(rx_task_name) - 2] = itf_char;
+
+  xTaskCreate(uart_tx_task_fn, tx_task_name, UART_TASK_STACK_SIZE, this, TASK_PRIORITY, &this->uart_tx_task_handle_);
+  if (this->uart_tx_task_handle_ == nullptr) {
+    ESP_LOGE(TAG, "Failed to create UART TX task");
+    this->mark_failed();
+    return;
+  }
+
+  xTaskCreate(uart_rx_task_fn, rx_task_name, UART_TASK_STACK_SIZE, this, TASK_PRIORITY, &this->uart_rx_task_handle_);
+  if (this->uart_rx_task_handle_ == nullptr) {
+    ESP_LOGE(TAG, "Failed to create UART RX task");
+    vTaskDelete(this->uart_tx_task_handle_);
+    this->uart_tx_task_handle_ = nullptr;
+    this->mark_failed();
+    return;
+  }
+
+  // Only register callbacks once both tasks exist, so a failed setup never drives
+  // DTR/RTS from a dead bridge.
+  this->usb_cdc_parent_->set_line_state_callback([this](bool dtr, bool rts) { this->set_line_state(dtr, rts); });
+  this->usb_cdc_parent_->set_line_coding_callback([this](uint32_t, uint8_t, uint8_t, uint8_t) {
+    this->host_coding_seen_ = true;
+    // Another component owns the UART's framing while paused; resume() re-syncs.
+    if (this->paused_ == 0) {
+      this->set_line_coding();
+    }
+  });
+
+  // Release the workers only now: until here a failed setup may still delete the TX
+  // task, which is safe only while it is parked and owns nothing in the driver.
+  xTaskNotifyGive(this->uart_tx_task_handle_);
+  xTaskNotifyGive(this->uart_rx_task_handle_);
+
+  // loop() only services line-coding reloads; stay off the main loop until one is
+  // scheduled.
+  this->disable_loop();
+}
+
+void CDCACMUARTBridge::dump_config() {
+  ESP_LOGCONFIG(TAG,
+                "CDC-ACM UART Bridge:\n"
+                "  UART Bus: %u\n"
+                "  USB CDC Interface: %u",
+                this->uart_parent_->get_hw_serial_number(), this->usb_cdc_parent_->get_itf());
+  LOG_PIN("  DTR Pin: ", this->dtr_pin_);
+  LOG_PIN("  RTS Pin: ", this->rts_pin_);
+}
+
+void CDCACMUARTBridge::on_shutdown() {
+  // The UART (BUS) shuts down after this component (HARDWARE) and deletes its driver,
+  // freeing the ring buffer and mutexes the worker tasks block on. Suspending the
+  // tasks unlinks them from those objects first.
+  if (this->uart_rx_task_handle_ != nullptr) {
+    vTaskSuspend(this->uart_rx_task_handle_);
+  }
+  if (this->uart_tx_task_handle_ != nullptr) {
+    vTaskSuspend(this->uart_tx_task_handle_);
+  }
+}
+
+void CDCACMUARTBridge::loop() {
+  switch (this->state_) {
+    case MainState::MAIN_STATE_RELOAD_PENDING:
+      if ((App.get_loop_component_start_time() - this->reload_requested_at_) < UART_RELOAD_SETTLE_MS) {
+        return;
+      }
+      // Deliberately not gated on tx_idle_(): a host that re-codes the line mid-stream
+      // wants the new framing now, and its own in-flight bytes are its concern.
+      // apply_settings_live() rewrites the framing registers without reinstalling the
+      // driver, so the worker tasks blocked inside it are undisturbed.
+      this->uart_parent_->apply_settings_live();
+      this->state_ = MainState::MAIN_STATE_RUNNING;
+      break;
+    case MainState::MAIN_STATE_PAUSING:
+    case MainState::MAIN_STATE_RESUMING:
+      // Let a host write that was in flight drain, FIFO included, before a reload
+      // flushes the FIFOs and truncates it.
+      if (!this->tx_idle_()) {
+        return;
+      }
+      if (this->state_ == MainState::MAIN_STATE_PAUSING) {
+        this->restore_configured_framing_();
+        this->state_ = MainState::MAIN_STATE_PAUSED;
+      } else {
+        this->finish_resume_();
+      }
+      break;
+    default:
+      break;
+  }
+  this->disable_loop();
+}
+
+void CDCACMUARTBridge::set_line_coding() {
+  if (!this->sync_host_framing_()) {
+    return;
+  }
+  // Coalesce rapid line-coding updates from the host.
+  this->reload_requested_at_ = App.get_loop_component_start_time();
+  this->state_ = MainState::MAIN_STATE_RELOAD_PENDING;
+  // Main-loop context (via USBCDCACMInstance::process_events_).
+  this->enable_loop();
+}
+
+bool CDCACMUARTBridge::sync_host_framing_() {
+  // usb_cdc_acm has already translated the wire coding onto the CDC instance (main
+  // loop); mirror it here so the framing translation has a single source of truth.
+  bool changed = false;
+
+  // Reject 0 (the CDC B0/hang-up encoding; older IDF revisions divide by the rate)
+  // and rates above the SoC ceiling. Anything in between is the driver's call,
+  // matching what a YAML-configured UART accepts.
+  const uint32_t baud = this->usb_cdc_parent_->get_baud_rate();
+  if (baud == 0 || baud > SOC_UART_BITRATE_MAX) {
+    ESP_LOGW(TAG, "Ignoring unsupported baud rate %" PRIu32 " from host; keeping %" PRIu32, baud,
+             this->uart_parent_->get_baud_rate());
+  } else if (this->uart_parent_->get_baud_rate() != baud) {
+    this->uart_parent_->set_baud_rate(baud);
+    changed = true;
+  }
+
+  const uint8_t stop_bits = this->usb_cdc_parent_->get_stop_bits();
+  if (this->uart_parent_->get_stop_bits() != stop_bits) {
+    this->uart_parent_->set_stop_bits(stop_bits);
+    changed = true;
+  }
+
+  const auto parity = this->usb_cdc_parent_->get_parity();
+  if (this->uart_parent_->get_parity() != parity) {
+    this->uart_parent_->set_parity(parity);
+    changed = true;
+  }
+
+  // USB CDC permits data-bit counts the UART cannot represent (up to 16).
+  const uint8_t data_bits = this->usb_cdc_parent_->get_data_bits();
+  if (data_bits < 5 || data_bits > 8) {
+    ESP_LOGW(TAG, "Ignoring unsupported data bits %u from host; keeping %u", data_bits,
+             this->uart_parent_->get_data_bits());
+  } else if (this->uart_parent_->get_data_bits() != data_bits) {
+    this->uart_parent_->set_data_bits(data_bits);
+    changed = true;
+  }
+
+  if (changed) {
+    ESP_LOGV(TAG, "Line coding: baud=%" PRIu32 ", data_bits=%u, stop_bits=%u, parity=%u",
+             this->uart_parent_->get_baud_rate(), this->uart_parent_->get_data_bits(),
+             this->uart_parent_->get_stop_bits(), static_cast<uint8_t>(this->uart_parent_->get_parity()));
+  }
+  return changed;
+}
+
+void CDCACMUARTBridge::pause() {
+  if (this->state_ == MainState::MAIN_STATE_PAUSING || this->state_ == MainState::MAIN_STATE_PAUSED) {
+    return;
+  }
+  this->paused_ = 1;
+  // A null RX task means setup() has not completed (or failed): nothing to stop, and
+  // the framing snapshot does not exist yet. Should setup() run later, the RX task
+  // starts parked.
+  if (this->uart_rx_task_handle_ == nullptr) {
+    this->state_ = MainState::MAIN_STATE_PAUSED;
+    return;
+  }
+  // Drops a coalesced host reload or a pending resume; loop() restores the framing
+  // once any host write in flight has drained.
+  this->state_ = MainState::MAIN_STATE_PAUSING;
+  this->enable_loop();
+}
+
+void CDCACMUARTBridge::resume() {
+  if (this->state_ != MainState::MAIN_STATE_PAUSING && this->state_ != MainState::MAIN_STATE_PAUSED) {
+    return;
+  }
+  if (this->uart_rx_task_handle_ == nullptr) {
+    this->paused_ = 0;
+    this->state_ = MainState::MAIN_STATE_RUNNING;
+    return;
+  }
+  // A restore still waiting on the TX side is moot: the host's framing is kept.
+  if (!this->tx_idle_()) {
+    this->state_ = MainState::MAIN_STATE_RESUMING;
+    this->enable_loop();
+    return;
+  }
+  this->finish_resume_();
+  this->disable_loop();
+}
+
+void CDCACMUARTBridge::finish_resume_() {
+  // Take the bus back at a known framing before either task runs again: the host's
+  // if it ever sent one, else the YAML framing (the other owner may have changed it).
+  if (this->host_coding_seen_) {
+    this->sync_host_framing_();
+    this->uart_parent_->apply_settings_live();
+  } else {
+    this->restore_configured_framing_();
+  }
+  this->paused_ = 0;
+  this->state_ = MainState::MAIN_STATE_RUNNING;
+  this->drive_line_state_();
+  xTaskNotifyGive(this->uart_rx_task_handle_);
+}
+
+bool CDCACMUARTBridge::tx_idle_() {
+  const auto uart_num = static_cast<uart_port_t>(this->uart_parent_->get_hw_serial_number());
+  return this->tx_busy_ == 0 && uart_wait_tx_done(uart_num, 0) == ESP_OK;
+}
+
+void CDCACMUARTBridge::restore_configured_framing_() {
+  // Always applied: the cached settings can lead the hardware by a pending reload,
+  // so they are no proof of what is live.
+  this->uart_parent_->set_baud_rate(this->configured_baud_rate_);
+  this->uart_parent_->set_parity(this->configured_parity_);
+  this->uart_parent_->set_stop_bits(this->configured_stop_bits_);
+  this->uart_parent_->set_data_bits(this->configured_data_bits_);
+  this->uart_parent_->apply_settings_live();
+}
+
+void CDCACMUARTBridge::set_line_state(bool dtr, bool rts) {
+  ESP_LOGV(TAG, "Line state: DTR=%d, RTS=%d", dtr, rts);
+  this->host_dtr_ = dtr;
+  this->host_rts_ = rts;
+  // Frozen while paused: a host opening the port must not reset a peer that another
+  // component is talking to.
+  if (this->paused_ == 0) {
+    this->drive_line_state_();
+  }
+}
+
+void CDCACMUARTBridge::drive_line_state_() {
+  if (this->dtr_pin_ != nullptr) {
+    this->dtr_pin_->digital_write(this->host_dtr_);
+  }
+  if (this->rts_pin_ != nullptr) {
+    this->rts_pin_->digital_write(this->host_rts_);
+  }
+}
+
+void CDCACMUARTBridge::uart_rx_task_fn(void *arg) {
+  auto *bridge = static_cast<CDCACMUARTBridge *>(arg);
+  bridge->uart_rx_task_();
+}
+
+void CDCACMUARTBridge::uart_tx_task_fn(void *arg) {
+  auto *bridge = static_cast<CDCACMUARTBridge *>(arg);
+  bridge->uart_tx_task_();
+}
+
+void CDCACMUARTBridge::uart_rx_task_() {
+  TaskHandle_t usb_tx_handle = this->usb_cdc_parent_->get_tx_task_handle();
+  RingbufHandle_t usb_tx_ringbuf = this->usb_cdc_parent_->get_tx_ringbuf();
+  uart_port_t uart_num = static_cast<uart_port_t>(this->uart_parent_->get_hw_serial_number());
+  // Back-dated so a problem within the first LOG_THROTTLE_MS of uptime still logs.
+  uint32_t tx_full_log_ms = millis() - LOG_THROTTLE_MS;
+  uint32_t err_log_ms = millis() - LOG_THROTTLE_MS;
+
+  uint8_t *data = this->uart_rx_buffer_.data();
+  const size_t buf_size = this->uart_rx_buffer_.size();
+
+  // Released by setup() once both tasks exist.
+  ulTaskNotifyTake(pdTRUE, portMAX_DELAY);
+
+  while (true) {
+    if (this->paused_ != 0) {
+      // Parked until resume() notifies; nothing is read, so the other owner sees
+      // every byte.
+      this->rx_parked_ = 1;
+      ulTaskNotifyTake(pdTRUE, portMAX_DELAY);
+      this->rx_parked_ = 0;
+      continue;
+    }
+
+    // Block until at least one byte is available from UART.
+    int total_rx_size = uart_read_bytes(uart_num, data, 1, pdMS_TO_TICKS(UART_RX_WAIT_MS));
+    if (total_rx_size < 0) {
+      if (should_log_now(&err_log_ms, LOG_THROTTLE_MS)) {
+        ESP_LOGE(TAG, "UART read failed: %d", total_rx_size);
+      }
+      vTaskDelay(pdMS_TO_TICKS(10));
+      continue;
+    }
+    if (total_rx_size == 0) {
+      continue;
+    }
+    // pause() landed during the read: don't forward a byte to a host that is gone.
+    if (this->paused_ != 0) {
+      continue;
+    }
+
+    // Drain the currently buffered burst without waiting.
+    while (true) {
+      int rx_data_size = uart_read_bytes(uart_num, data + total_rx_size, buf_size - total_rx_size, 0);
+      if (rx_data_size < 0) {
+        if (should_log_now(&err_log_ms, LOG_THROTTLE_MS)) {
+          ESP_LOGE(TAG, "UART read failed: %d", rx_data_size);
+        }
+        break;
+      }
+      if (rx_data_size == 0) {
+        break;
+      }
+      ESP_LOGV(TAG, "UART RX: %d bytes", rx_data_size);
+      total_rx_size += rx_data_size;
+      if (total_rx_size >= (int) buf_size) {
+        break;
+      }
+    }
+
+    ringbuf_send_with_retry(usb_tx_ringbuf, data, total_rx_size, &tx_full_log_ms);
+
+    ESP_LOGV(TAG, "UART RX: waking up USB TX task");
+    xTaskNotifyGive(usb_tx_handle);
+  }
+}
+
+void CDCACMUARTBridge::uart_tx_task_() {
+  RingbufHandle_t usb_rx_ringbuf = this->usb_cdc_parent_->get_rx_ringbuf();
+  uart_port_t uart_num = static_cast<uart_port_t>(this->uart_parent_->get_hw_serial_number());
+  uint8_t *data_to_uart = this->uart_tx_buffer_.data();
+  const size_t buf_size = this->uart_tx_buffer_.size();
+  size_t rx_size;
+  // Back-dated so a problem within the first LOG_THROTTLE_MS of uptime still logs.
+  uint32_t err_log_ms = millis() - LOG_THROTTLE_MS;
+  uint32_t drop_log_ms = millis() - LOG_THROTTLE_MS;
+
+  // Released by setup() once both tasks exist.
+  ulTaskNotifyTake(pdTRUE, portMAX_DELAY);
+
+  while (true) {
+    ESP_LOGV(TAG, "Waiting for data to send to UART");
+    esp_err_t ret = usb_cdc_acm::ringbuf_read_bytes(usb_rx_ringbuf, data_to_uart, buf_size, &rx_size, portMAX_DELAY);
+
+    if (ret != ESP_OK) {
+      if (should_log_now(&err_log_ms, LOG_THROTTLE_MS)) {
+        ESP_LOGE(TAG, "USB RX RingBuf read failed");
+      }
+      // Yield: this task runs above the main loop, so a persistent failure must not
+      // become a tight loop.
+      vTaskDelay(pdMS_TO_TICKS(10));
+      continue;
+    }
+
+    // Another component owns the UART; host bytes must not interleave with its traffic.
+    // tx_busy_ goes up before the check so is_paused() cannot miss a write in flight.
+    this->tx_busy_ = 1;
+    if (this->paused_ != 0) {
+      this->tx_busy_ = 0;
+      if (should_log_now(&drop_log_ms, LOG_THROTTLE_MS)) {
+        ESP_LOGW(TAG, "Paused; dropping %zu bytes from host", rx_size);
+      }
+      continue;
+    }
+
+    ESP_LOGV(TAG, "Sending %zu bytes to UART", rx_size);
+    // Signed: uart_write_bytes() returns -1 on error.
+    int xfer_size = uart_write_bytes(uart_num, data_to_uart, rx_size);
+    this->tx_busy_ = 0;
+
+    if (xfer_size < 0) {
+      if (should_log_now(&err_log_ms, LOG_THROTTLE_MS)) {
+        ESP_LOGE(TAG, "UART write failed: %d", xfer_size);
+      }
+    } else if (static_cast<size_t>(xfer_size) != rx_size) {
+      ESP_LOGW(TAG, "UART write incomplete (%d/%zu bytes)", xfer_size, rx_size);
+    }
+  }
+}
+
+}  // namespace esphome::cdc_acm_uart
+#endif

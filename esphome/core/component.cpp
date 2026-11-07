@@ -12,7 +12,7 @@
 
 namespace esphome {
 
-static const char *const TAG = "component";
+ESPHOME_LOG_TAG(TAG, "component");
 
 // Global vectors for component data that doesn't belong in every instance.
 // Using vector instead of unordered_map for both because:

@@ -1304,8 +1304,6 @@ void ThermostatClimate::set_default_preset(const char *custom_preset) {
   this->default_custom_preset_ = nullptr;
 }
 
-void ThermostatClimate::set_default_preset(climate::ClimatePreset preset) { this->default_preset_ = preset; }
-
 void ThermostatClimate::set_timer_duration_in_sec_(ThermostatClimateTimerIndex timer_index, uint32_t time) {
   uint32_t new_duration_ms = 1000 * (time < this->min_timer_duration_ ? this->min_timer_duration_ : time);
 

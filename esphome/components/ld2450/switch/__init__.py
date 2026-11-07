@@ -37,12 +37,7 @@ CONFIG_SCHEMA = {
 
 
 async def to_code(config: ConfigType) -> None:
-    ld2450_component = await cg.get_variable(config[CONF_LD2450_ID])
-    if bluetooth_config := config.get(CONF_BLUETOOTH):
-        s = await switch.new_switch(bluetooth_config)
-        await cg.register_parented(s, config[CONF_LD2450_ID])
-        cg.add(ld2450_component.set_bluetooth_switch(s))
-    if multi_target_config := config.get(CONF_MULTI_TARGET):
-        s = await switch.new_switch(multi_target_config)
-        await cg.register_parented(s, config[CONF_LD2450_ID])
-        cg.add(ld2450_component.set_multi_target_switch(s))
+    hub = await cg.get_variable(config[CONF_LD2450_ID])
+    switches = switch.sub_switches(config, parent=hub)
+    await switches(CONF_BLUETOOTH, hub.set_bluetooth_switch)
+    await switches(CONF_MULTI_TARGET, hub.set_multi_target_switch)

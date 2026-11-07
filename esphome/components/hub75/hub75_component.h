@@ -5,7 +5,6 @@
 #include <utility>
 
 #include "esphome/components/display/display_buffer.h"
-#include "esphome/core/automation.h"
 #include "esphome/core/component.h"
 #include "esphome/core/hal.h"
 #include "esphome/core/log.h"
@@ -49,13 +48,6 @@ class HUB75Display final : public display::Display {
   // Runtime state (mutable)
   uint8_t brightness_{128};
   bool enabled_{false};
-};
-
-template<typename... Ts> class SetBrightnessAction final : public Action<Ts...>, public Parented<HUB75Display> {
- public:
-  TEMPLATABLE_VALUE(uint8_t, brightness)
-
-  void play(const Ts &...x) override { this->parent_->set_brightness(this->brightness_.value(x...)); }
 };
 
 }  // namespace esphome::hub75

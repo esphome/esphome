@@ -13,19 +13,4 @@ class TextStateTrigger final : public Trigger<std::string> {
   }
 };
 
-template<typename... Ts> class TextSetAction final : public Action<Ts...> {
- public:
-  explicit TextSetAction(Text *text) : text_(text) {}
-  TEMPLATABLE_VALUE(std::string, value)
-
-  void play(const Ts &...x) override {
-    auto call = this->text_->make_call();
-    call.set_value(this->value_.value(x...));
-    call.perform();
-  }
-
- protected:
-  Text *text_;
-};
-
 }  // namespace esphome::text

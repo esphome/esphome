@@ -66,7 +66,7 @@ void AudioPipeline::start_url(const std::string &uri) {
   this->pending_url_ = true;
 }
 
-void AudioPipeline::start_file(audio::AudioFile *audio_file) {
+void AudioPipeline::start_file(const audio::AudioFile *audio_file) {
   if (this->is_playing_) {
     xEventGroupSetBits(this->event_group_, PIPELINE_COMMAND_STOP);
   }

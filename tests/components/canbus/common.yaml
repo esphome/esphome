@@ -5,6 +5,7 @@ canbus:
     tx_pin: 5
     can_id: 4
     bit_rate: 50kbps
+    max_frames_per_loop: 100
     on_frame:
       - can_id: 500
         then:

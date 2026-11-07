@@ -2,6 +2,9 @@ esphome:
   on_boot:
     then:
       - voice_assistant.start
+      - voice_assistant.start:
+          wake_word: okay_nabu
+          silence_detection: false
       - voice_assistant.start_continuous
       - voice_assistant.stop
 

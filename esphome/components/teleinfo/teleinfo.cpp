@@ -116,8 +116,7 @@ void TeleInfo::loop() {
        * 0xa | Tag | 0x9 | Timestamp | 0x9 | 0x9 | CRC | 0xd
        *
        */
-      while ((buf_finger = static_cast<char *>(memchr(buf_finger, (int) 0xa, buf_index_ - 1))) &&
-             ((buf_finger - buf_) < buf_index_)) {  // NOLINT(clang-diagnostic-sign-compare)
+      while ((buf_finger = static_cast<char *>(memchr(buf_finger, (int) 0xa, buf_end - buf_finger)))) {
         /*
          * Make sure timesamp is nullified between each tag as some tags don't
          * have a timestamp
@@ -168,8 +167,8 @@ void TeleInfo::loop() {
           continue;
         }
 
-        /* Advance buf_finger to end of group */
-        buf_finger += field_len + 1 + 1 + 1;
+        /* Resume after the group's 0xd; grp_end < buf_end, so this stays in bounds. */
+        buf_finger = grp_end + 1;
 
         publish_value_(std::string(tag_), std::string(val_));
       }

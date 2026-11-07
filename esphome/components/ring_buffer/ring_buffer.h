@@ -115,7 +115,9 @@ class RingBuffer {
   /// @return True if all bytes were successfully discarded, false otherwise
   bool discard_bytes_(size_t discard_bytes);
 
-  RingbufHandle_t handle_{nullptr};
+  // xRingbufferCreateStatic() returns the static structure itself as the handle
+  RingbufHandle_t handle_() const { return const_cast<StaticRingbuffer_t *>(&this->structure_); }
+
   StaticRingbuffer_t structure_;
   uint8_t *storage_{nullptr};
   size_t size_{0};

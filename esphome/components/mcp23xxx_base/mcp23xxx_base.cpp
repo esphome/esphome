@@ -4,6 +4,8 @@
 
 namespace esphome::mcp23xxx_base {
 
+void IRAM_ATTR mcp23xxx_gpio_intr(Component *arg) { arg->enable_loop_soon_any_context(); }
+
 template<uint8_t N> void MCP23XXXGPIOPin<N>::setup() {
   this->pin_mode(flags_);
   // When interrupt_pin is configured, pin_mode() already auto-enables CHANGE

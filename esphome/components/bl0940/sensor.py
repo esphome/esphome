@@ -231,24 +231,13 @@ async def to_code(config: ConfigType) -> None:
     await cg.register_component(var, config)
     await uart.register_uart_device(var, config)
 
-    if voltage_config := config.get(CONF_VOLTAGE):
-        sens = await sensor.new_sensor(voltage_config)
-        cg.add(var.set_voltage_sensor(sens))
-    if current_config := config.get(CONF_CURRENT):
-        sens = await sensor.new_sensor(current_config)
-        cg.add(var.set_current_sensor(sens))
-    if power_config := config.get(CONF_POWER):
-        sens = await sensor.new_sensor(power_config)
-        cg.add(var.set_power_sensor(sens))
-    if energy_config := config.get(CONF_ENERGY):
-        sens = await sensor.new_sensor(energy_config)
-        cg.add(var.set_energy_sensor(sens))
-    if internal_temperature_config := config.get(CONF_INTERNAL_TEMPERATURE):
-        sens = await sensor.new_sensor(internal_temperature_config)
-        cg.add(var.set_internal_temperature_sensor(sens))
-    if external_temperature_config := config.get(CONF_EXTERNAL_TEMPERATURE):
-        sens = await sensor.new_sensor(external_temperature_config)
-        cg.add(var.set_external_temperature_sensor(sens))
+    sensors = sensor.sub_sensors(config)
+    await sensors(CONF_VOLTAGE, var.set_voltage_sensor)
+    await sensors(CONF_CURRENT, var.set_current_sensor)
+    await sensors(CONF_POWER, var.set_power_sensor)
+    await sensors(CONF_ENERGY, var.set_energy_sensor)
+    await sensors(CONF_INTERNAL_TEMPERATURE, var.set_internal_temperature_sensor)
+    await sensors(CONF_EXTERNAL_TEMPERATURE, var.set_external_temperature_sensor)
 
     # enable legacy mode
     cg.add(var.set_legacy_mode(config.get(CONF_LEGACY_MODE)))

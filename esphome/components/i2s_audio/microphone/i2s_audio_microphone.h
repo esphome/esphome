@@ -60,11 +60,11 @@ class I2SAudioMicrophone final : public I2SAudioIn, public microphone::Microphon
 
   gpio_num_t din_pin_{I2S_GPIO_UNUSED};
   i2s_chan_handle_t rx_handle_;
-  bool pdm_{false};
 #if SOC_I2S_SUPPORTS_PDM_RX
   i2s_pdm_dsr_t pdm_dsr_{I2S_PDM_DSR_8S};
 #endif
 
+  bool pdm_{false};
   bool correct_dc_offset_;
   bool locked_driver_{false};
   int32_t dc_offset_prev_input_{0};

@@ -25,18 +25,12 @@ from __future__ import annotations
 
 import asyncio
 import re
-import struct
 
 import pytest
 
 from .conftest import run_binary
-from .host_prefs import clear_host_prefs, write_host_pref
+from .host_prefs import clear_host_prefs, force_safe_mode
 from .types import CompileFunction, ConfigWriter
-
-# Must match esphome::safe_mode::RTC_KEY in safe_mode.h
-SAFE_MODE_RTC_KEY = 233825507
-# Must match esphome::safe_mode::SafeModeComponent::ENTER_SAFE_MODE_MAGIC
-ENTER_SAFE_MODE_MAGIC = 0x5AFE5AFE
 
 DEVICE_NAME = "safe-mode-loop-runs"
 THREAD_LOG_MARKER = "looping component ran in safe mode"
@@ -56,9 +50,7 @@ async def test_safe_mode_loop_runs(
 
     # Compile finished successfully; pre-populate prefs so the *next* run
     # enters safe mode immediately.
-    write_host_pref(
-        DEVICE_NAME, SAFE_MODE_RTC_KEY, struct.pack("<I", ENTER_SAFE_MODE_MAGIC)
-    )
+    force_safe_mode(DEVICE_NAME)
 
     try:
         loop = asyncio.get_running_loop()

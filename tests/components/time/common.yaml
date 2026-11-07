@@ -12,3 +12,12 @@ time:
           - logger.log: "CronTrigger fired (every 10 seconds)"
   - platform: sntp
     id: sntp_time
+
+esphome:
+  on_boot:
+    - if:
+        condition:
+          time.has_time:
+            id: sntp_time
+        then:
+          - logger.log: "sntp_time has valid time"

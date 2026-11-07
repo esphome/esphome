@@ -31,6 +31,18 @@ esphome:
           id: yard_sprinkler_ctrlr
           valve_number: 0
           run_duration: 600s
+      # Templated values, including both keys of the two-key calls
+      - sprinkler.set_multiplier:
+          id: yard_sprinkler_ctrlr
+          multiplier: !lambda return 1.5f;
+      - sprinkler.queue_valve:
+          id: yard_sprinkler_ctrlr
+          valve_number: !lambda return 1;
+          run_duration: !lambda return 300;
+      - sprinkler.set_valve_run_duration:
+          id: yard_sprinkler_ctrlr
+          valve_number: !lambda return 1;
+          run_duration: !lambda return 120;
 
 switch:
   - platform: template

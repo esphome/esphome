@@ -27,7 +27,6 @@ from esphome.framework_helpers import (
     _7z_extract_all,
     _BatchDownloadProgress,
     _detect_archive_root,
-    _rename_with_retry,
     _tar_extract_all,
     _zip_extract_all,
     archive_extract_all,
@@ -40,6 +39,7 @@ from esphome.framework_helpers import (
     get_project_link_flags,
     get_python_env_executable_path,
     get_system_python_path,
+    rename_with_retry,
     rmdir,
     run_batch_downloads,
     run_command,
@@ -523,6 +523,17 @@ class TestArchiveExtractAll:
         archive_extract_all(archive, dest)
         assert (dest / "file.txt").read_text() == "hi"
 
+    def test_progress_callback_passed_through(self, tmp_path: Path) -> None:
+        """The progress kwarg reaches the dispatched extractor."""
+        archive = tmp_path / "test.tar.gz"
+        archive.write_bytes(_gzip_tar_bytes({"file.txt": b"hello"}))
+        dest = tmp_path / "out"
+        dest.mkdir()
+        fractions: list[float] = []
+        archive_extract_all(archive, dest, progress=fractions.append)
+        assert fractions[-1] == 1
+        assert (dest / "file.txt").read_bytes() == b"hello"
+
     def test_invalid_type_raises_type_error(self) -> None:
         with pytest.raises(TypeError, match="archive must be"):
             archive_extract_all(42, ".")  # type: ignore[arg-type]
@@ -1002,7 +1013,7 @@ class TestDownloadWithResume:
         with (
             patch("requests.get", return_value=_mock_response(b"data")) as mock_get,
             patch(
-                "esphome.framework_helpers._rename_with_retry",
+                "esphome.framework_helpers.rename_with_retry",
                 side_effect=[PermissionError("locked"), None],
             ) as rename,
         ):
@@ -1019,7 +1030,7 @@ class TestDownloadWithResume:
         with (
             patch("requests.get", return_value=_mock_response(b"data")),
             patch(
-                "esphome.framework_helpers._rename_with_retry",
+                "esphome.framework_helpers.rename_with_retry",
                 side_effect=PermissionError("locked"),
             ),
             pytest.raises(EsphomeError, match="after 1 attempts"),
@@ -1951,6 +1962,19 @@ class TestTarExtractAllBranches:
         mock_pb.assert_called_once_with("Extracting")
         mock_pb.return_value.update.assert_called()
 
+    def test_progress_callback_replaces_bar(self, tmp_path: Path) -> None:
+        """A progress callback wins over progress_header and ends at 1.0."""
+        buf = _make_tar([_reg("a.txt"), _reg("b.txt")], {"a.txt": b"x", "b.txt": b"y"})
+        fractions: list[float] = []
+        with patch("esphome.framework_helpers.ProgressBar") as mock_pb:
+            _tar_extract_all(
+                buf, tmp_path, progress_header="Extracting", progress=fractions.append
+            )
+        mock_pb.assert_not_called()
+        assert fractions == sorted(fractions)
+        assert fractions[-1] == 1
+        assert (tmp_path / "a.txt").is_file()
+
 
 # ---------------------------------------------------------------------------
 # _zip_extract_all — additional branch coverage
@@ -1980,9 +2004,22 @@ class TestZipExtractAllBranches:
         mock_pb.assert_called_once_with("Unzipping")
         mock_pb.return_value.update.assert_called()
 
+    def test_progress_callback_replaces_bar(self, tmp_path: Path) -> None:
+        """A progress callback wins over progress_header and ends at 1.0."""
+        buf = _make_zip([("a.txt", "aaa"), ("b.txt", "bbb")])
+        fractions: list[float] = []
+        with patch("esphome.framework_helpers.ProgressBar") as mock_pb:
+            _zip_extract_all(
+                buf, tmp_path, progress_header="Unzipping", progress=fractions.append
+            )
+        mock_pb.assert_not_called()
+        assert fractions == sorted(fractions)
+        assert fractions[-1] == 1
+        assert (tmp_path / "a.txt").is_file()
+
 
 # ---------------------------------------------------------------------------
-# _rename_with_retry
+# rename_with_retry
 # ---------------------------------------------------------------------------
 
 
@@ -1991,7 +2028,7 @@ class TestRenameWithRetry:
         src = tmp_path / "src.txt"
         src.write_text("data")
         dst = tmp_path / "dst.txt"
-        _rename_with_retry(src, dst)
+        rename_with_retry(src, dst)
         assert dst.read_text() == "data"
         assert not src.exists()
 
@@ -2013,7 +2050,7 @@ class TestRenameWithRetry:
             patch.object(Path, "rename", flaky_rename),
             patch("esphome.framework_helpers.time.sleep"),
         ):
-            _rename_with_retry(src, dst, attempts=3)
+            rename_with_retry(src, dst, attempts=3)
         assert dst.read_text() == "data"
 
     def test_raises_after_all_attempts_fail(self, tmp_path: Path) -> None:
@@ -2025,14 +2062,14 @@ class TestRenameWithRetry:
             patch("esphome.framework_helpers.time.sleep"),
             pytest.raises(PermissionError),
         ):
-            _rename_with_retry(src, dst, attempts=3)
+            rename_with_retry(src, dst, attempts=3)
 
     def test_attempts_zero_is_noop(self, tmp_path: Path) -> None:
         """Zero attempts means the for-loop body never runs; src is untouched."""
         src = tmp_path / "src.txt"
         src.write_text("data")
         dst = tmp_path / "dst.txt"
-        _rename_with_retry(src, dst, attempts=0)
+        rename_with_retry(src, dst, attempts=0)
         assert src.exists()
         assert not dst.exists()
 
@@ -2136,6 +2173,20 @@ class TestSevenZipExtractAll:
             _7z_extract_all(buf, out, progress_header="Unpacking 7z")
         mock_pb.assert_called_once_with("Unpacking 7z")
         mock_pb.return_value.update.assert_called()
+
+    def test_progress_callback_replaces_bar(self, tmp_path: Path) -> None:
+        """A progress callback wins over progress_header; 7z reports 1.0 once."""
+        buf = self._make_7z({"file.txt": b"x"})
+        out = tmp_path / "out"
+        out.mkdir()
+        fractions: list[float] = []
+        with patch("esphome.framework_helpers.ProgressBar") as mock_pb:
+            _7z_extract_all(
+                buf, out, progress_header="Unpacking 7z", progress=fractions.append
+            )
+        mock_pb.assert_not_called()
+        assert fractions == [1]
+        assert (out / "file.txt").is_file()
 
     def test_absolute_path_in_names_skipped(self, tmp_path: Path) -> None:
         """Names that resolve as absolute are silently skipped."""
@@ -2294,16 +2345,48 @@ def test_resume_fetch_job_threads_tracker(tmp_path: Path) -> None:
     )
 
 
-def test_warn_prefetch_failures_names_each_failure(
+def test_warn_batch_failures_names_each_failure(
     caplog: pytest.LogCaptureFixture,
 ) -> None:
     """The shared failure loop warns per job with the failure reason."""
-    from esphome.framework_helpers import warn_prefetch_failures
+    from esphome.framework_helpers import warn_batch_failures
 
-    warn_prefetch_failures([("toolchain-x@1", OSError("down"))])
+    warn_batch_failures(
+        [("toolchain-x@1", OSError("down"))], "Could not prefetch %s: %s"
+    )
     assert "Could not prefetch toolchain-x@1: down" in caplog.text
-    warn_prefetch_failures([("lib", OSError("gone"))], "Prefetch of %s failed: %s")
+    warn_batch_failures([("lib", OSError("gone"))], "Prefetch of %s failed: %s")
     assert "Prefetch of lib failed: gone" in caplog.text
+
+
+def test_extract_workers_caps_and_clamps() -> None:
+    """Extraction stops scaling well before high core counts, and a batch
+    never asks for more workers than it has archives."""
+    from esphome.framework_helpers import BATCH_EXTRACT_WORKERS, extract_workers
+
+    with patch("esphome.framework_helpers.get_usable_cpu_count", return_value=64):
+        assert extract_workers() == BATCH_EXTRACT_WORKERS
+        assert extract_workers(2) == 2
+    with patch("esphome.framework_helpers.get_usable_cpu_count", return_value=1):
+        assert extract_workers(8) == 1
+
+
+def test_warn_batch_failures_unexpected_error_keeps_traceback(
+    caplog: pytest.LogCaptureFixture,
+) -> None:
+    """An unexpected error type is not reduced to a bare message; expected
+    download failures stay message-only at WARNING."""
+    from esphome.framework_helpers import warn_batch_failures
+
+    with caplog.at_level(logging.DEBUG):
+        warn_batch_failures(
+            [("pkg", TypeError("bad call")), ("lib", OSError("down"))],
+            "Could not install %s: %s",
+        )
+    warnings = {r.getMessage(): r for r in caplog.records if r.levelname == "WARNING"}
+    assert warnings["Could not install pkg: bad call"].exc_info is not None
+    assert warnings["Could not install lib: down"].exc_info is None
+    assert "Failure detail" in caplog.text
 
 
 @pytest.mark.parametrize(

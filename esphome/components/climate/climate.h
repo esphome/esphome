@@ -82,6 +82,10 @@ class ClimateCall {
   ClimateCall &set_fan_mode(optional<std::string> fan_mode);
   /// Set the custom fan mode of the climate device.
   ClimateCall &set_fan_mode(const char *custom_fan_mode);
+  /// Set the custom fan mode of the climate device (StringRef overload to resolve ambiguity, zero-copy).
+  ClimateCall &set_fan_mode(StringRef custom_fan_mode) {
+    return this->set_fan_mode(custom_fan_mode.c_str(), custom_fan_mode.size());
+  }
   /// Set the custom fan mode of the climate device (zero-copy API path).
   ClimateCall &set_fan_mode(const char *custom_fan_mode, size_t len);
   /// Set the swing mode of the climate device.
@@ -102,6 +106,10 @@ class ClimateCall {
   ClimateCall &set_preset(optional<std::string> preset);
   /// Set the custom preset of the climate device.
   ClimateCall &set_preset(const char *custom_preset);
+  /// Set the custom preset of the climate device (StringRef overload to resolve ambiguity, zero-copy).
+  ClimateCall &set_preset(StringRef custom_preset) {
+    return this->set_preset(custom_preset.c_str(), custom_preset.size());
+  }
   /// Set the custom preset of the climate device (zero-copy API path).
   ClimateCall &set_preset(const char *custom_preset, size_t len);
 

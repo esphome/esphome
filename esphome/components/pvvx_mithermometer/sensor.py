@@ -85,18 +85,9 @@ async def to_code(config: ConfigType) -> None:
 
     cg.add(var.set_address(config[CONF_MAC_ADDRESS].as_hex))
 
-    if CONF_TEMPERATURE in config:
-        sens = await sensor.new_sensor(config[CONF_TEMPERATURE])
-        cg.add(var.set_temperature(sens))
-    if CONF_HUMIDITY in config:
-        sens = await sensor.new_sensor(config[CONF_HUMIDITY])
-        cg.add(var.set_humidity(sens))
-    if CONF_BATTERY_LEVEL in config:
-        sens = await sensor.new_sensor(config[CONF_BATTERY_LEVEL])
-        cg.add(var.set_battery_level(sens))
-    if CONF_BATTERY_VOLTAGE in config:
-        sens = await sensor.new_sensor(config[CONF_BATTERY_VOLTAGE])
-        cg.add(var.set_battery_voltage(sens))
-    if CONF_SIGNAL_STRENGTH in config:
-        sens = await sensor.new_sensor(config[CONF_SIGNAL_STRENGTH])
-        cg.add(var.set_signal_strength(sens))
+    sensors = sensor.sub_sensors(config)
+    await sensors(CONF_TEMPERATURE, var.set_temperature)
+    await sensors(CONF_HUMIDITY, var.set_humidity)
+    await sensors(CONF_BATTERY_LEVEL, var.set_battery_level)
+    await sensors(CONF_BATTERY_VOLTAGE, var.set_battery_voltage)
+    await sensors(CONF_SIGNAL_STRENGTH, var.set_signal_strength)

@@ -29,7 +29,7 @@ class RealTimeClock : public PollingComponent {
   ESPTime utcnow() { return ESPTime::from_epoch_utc(this->timestamp_now()); }
 
   /// Get the current time as the UTC epoch since January 1st 1970.
-  time_t timestamp_now() { return ::time(nullptr); }
+  virtual time_t timestamp_now() { return ::time(nullptr); }
 
   template<typename F> void add_on_time_sync_callback(F &&callback) {
     this->time_sync_callback_.add(std::forward<F>(callback));
@@ -42,15 +42,6 @@ class RealTimeClock : public PollingComponent {
   void synchronize_epoch_(uint32_t epoch);
 
   LazyCallbackManager<void()> time_sync_callback_;
-};
-
-template<typename... Ts> class TimeHasTimeCondition final : public Condition<Ts...> {
- public:
-  TimeHasTimeCondition(RealTimeClock *parent) : parent_(parent) {}
-  bool check(const Ts &...x) override { return this->parent_->now().is_valid(); }
-
- protected:
-  RealTimeClock *parent_;
 };
 
 }  // namespace esphome::time

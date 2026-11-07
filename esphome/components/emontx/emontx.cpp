@@ -94,9 +94,9 @@ void EmonTx::dump_config() {
  *
  * @param command The command string to send (LF will be appended automatically).
  */
-void EmonTx::send_command(const std::string &command) {
-  ESP_LOGD(TAG, "Sending command to emonTx: %s", command.c_str());
-  this->write_str(command.c_str());
+void EmonTx::send_command(const char *command) {
+  ESP_LOGD(TAG, "Sending command to emonTx: %s", command);
+  this->write_str(command);
   this->write_byte('\n');
 }
 

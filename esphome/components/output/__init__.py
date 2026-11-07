@@ -1,3 +1,5 @@
+from dataclasses import dataclass
+
 from esphome import automation
 from esphome.automation import maybe_simple_id
 import esphome.codegen as cg
@@ -12,11 +14,25 @@ from esphome.const import (
     CONF_POWER_SUPPLY,
 )
 from esphome.core import CORE
+from esphome.types import ConfigType
 
 CODEOWNERS = ["@esphome/core"]
 IS_PLATFORM_COMPONENT = True
+DOMAIN = "output"
 
 CONF_ZERO_MEANS_ZERO = "zero_means_zero"
+
+
+@dataclass
+class OutputData:
+    power_scaling: bool = False
+
+
+def _get_data() -> OutputData:
+    if DOMAIN not in CORE.data:
+        CORE.data[DOMAIN] = OutputData()
+    return CORE.data[DOMAIN]
+
 
 BINARY_OUTPUT_SCHEMA = cv.Schema(
     {
@@ -39,13 +55,6 @@ BinaryOutputPtr = BinaryOutput.operator("ptr")
 FloatOutput = output_ns.class_("FloatOutput", BinaryOutput)
 FloatOutputPtr = FloatOutput.operator("ptr")
 
-# Actions
-TurnOffAction = output_ns.class_("TurnOffAction", automation.Action)
-TurnOnAction = output_ns.class_("TurnOnAction", automation.Action)
-SetLevelAction = output_ns.class_("SetLevelAction", automation.Action)
-SetMinPowerAction = output_ns.class_("SetMinPowerAction", automation.Action)
-SetMaxPowerAction = output_ns.class_("SetMaxPowerAction", automation.Action)
-
 
 async def setup_output_platform_(obj, config):
     if CONF_INVERTED in config:
@@ -53,12 +62,17 @@ async def setup_output_platform_(obj, config):
     if CONF_POWER_SUPPLY in config:
         power_supply_ = await cg.get_variable(config[CONF_POWER_SUPPLY])
         cg.add(obj.set_power_supply(power_supply_))
-    if CONF_MAX_POWER in config:
+    # The C++ initializers are max_power 1.0 and min_power 0.0; skip the setter when
+    # the config matches them. The define stays whenever the key is present because
+    # platforms such as ac_dimmer read the scaling fields directly.
+    if (max_power := config.get(CONF_MAX_POWER)) is not None:
         cg.add_define("USE_OUTPUT_FLOAT_POWER_SCALING")
-        cg.add(obj.set_max_power(config[CONF_MAX_POWER]))
-    if CONF_MIN_POWER in config:
+        if max_power != 1.0:
+            cg.add(obj.set_max_power(max_power))
+    if (min_power := config.get(CONF_MIN_POWER)) is not None:
         cg.add_define("USE_OUTPUT_FLOAT_POWER_SCALING")
-        cg.add(obj.set_min_power(config[CONF_MIN_POWER]))
+        if min_power != 0.0:
+            cg.add(obj.set_min_power(min_power))
     # Only emit when zero_means_zero is actually enabled. The schema defaults to False
     # so this key is always present; emitting unconditionally would force
     # USE_OUTPUT_FLOAT_POWER_SCALING on for every output, defeating the gate.
@@ -80,81 +94,49 @@ BINARY_OUTPUT_ACTION_SCHEMA = maybe_simple_id(
 )
 
 
-@automation.register_action(
-    "output.turn_on", TurnOnAction, BINARY_OUTPUT_ACTION_SCHEMA, synchronous=True
-)
-async def output_turn_on_to_code(config, action_id, template_arg, args):
-    paren = await cg.get_variable(config[CONF_ID])
-    return cg.new_Pvariable(action_id, template_arg, paren)
+def _enable_power_scaling(config: ConfigType) -> ConfigType:
+    # set_min_power/set_max_power only exist with the define; to_code emits it from this fact.
+    _get_data().power_scaling = True
+    return config
 
 
-@automation.register_action(
-    "output.turn_off", TurnOffAction, BINARY_OUTPUT_ACTION_SCHEMA, synchronous=True
-)
-async def output_turn_off_to_code(config, action_id, template_arg, args):
-    paren = await cg.get_variable(config[CONF_ID])
-    return cg.new_Pvariable(action_id, template_arg, paren)
+for _name, _call in (
+    ("output.turn_on", "turn_on()"),
+    ("output.turn_off", "turn_off()"),
+):
+    automation.register_apply_action(
+        _name, BINARY_OUTPUT_ACTION_SCHEMA, automation.ApplyCall(_call)
+    )
 
-
-@automation.register_action(
+automation.register_apply_action(
     "output.set_level",
-    SetLevelAction,
     cv.Schema(
         {
             cv.Required(CONF_ID): cv.use_id(FloatOutput),
             cv.Required(CONF_LEVEL): cv.templatable(cv.percentage),
         }
     ),
-    synchronous=True,
+    automation.ApplyField(CONF_LEVEL, "set_level", cg.float_),
 )
-async def output_set_level_to_code(config, action_id, template_arg, args):
-    paren = await cg.get_variable(config[CONF_ID])
-    var = cg.new_Pvariable(action_id, template_arg, paren)
-    template_ = await cg.templatable(config[CONF_LEVEL], args, cg.float_)
-    cg.add(var.set_level(template_))
-    return var
 
-
-@automation.register_action(
-    "output.set_min_power",
-    SetMinPowerAction,
-    cv.Schema(
-        {
-            cv.Required(CONF_ID): cv.use_id(FloatOutput),
-            cv.Required(CONF_MIN_POWER): cv.templatable(cv.percentage),
-        }
-    ),
-    synchronous=True,
-)
-async def output_set_min_power_to_code(config, action_id, template_arg, args):
-    cg.add_define("USE_OUTPUT_FLOAT_POWER_SCALING")
-    paren = await cg.get_variable(config[CONF_ID])
-    var = cg.new_Pvariable(action_id, template_arg, paren)
-    template_ = await cg.templatable(config[CONF_MIN_POWER], args, cg.float_)
-    cg.add(var.set_min_power(template_))
-    return var
-
-
-@automation.register_action(
-    "output.set_max_power",
-    SetMaxPowerAction,
-    cv.Schema(
-        {
-            cv.Required(CONF_ID): cv.use_id(FloatOutput),
-            cv.Required(CONF_MAX_POWER): cv.templatable(cv.percentage),
-        }
-    ),
-    synchronous=True,
-)
-async def output_set_max_power_to_code(config, action_id, template_arg, args):
-    cg.add_define("USE_OUTPUT_FLOAT_POWER_SCALING")
-    paren = await cg.get_variable(config[CONF_ID])
-    var = cg.new_Pvariable(action_id, template_arg, paren)
-    template_ = await cg.templatable(config[CONF_MAX_POWER], args, cg.float_)
-    cg.add(var.set_max_power(template_))
-    return var
+for _name, _key, _target in (
+    ("output.set_min_power", CONF_MIN_POWER, "set_min_power"),
+    ("output.set_max_power", CONF_MAX_POWER, "set_max_power"),
+):
+    automation.register_apply_action(
+        _name,
+        cv.Schema(
+            {
+                cv.Required(CONF_ID): cv.use_id(FloatOutput),
+                cv.Required(_key): cv.templatable(cv.percentage),
+            }
+        ).add_extra(_enable_power_scaling),
+        automation.ApplyField(_key, _target, cg.float_),
+    )
 
 
 async def to_code(config):
     cg.add_define("USE_OUTPUT")
+    if _get_data().power_scaling:
+        cg.add_define("USE_OUTPUT_FLOAT_POWER_SCALING")
     cg.add_global(output_ns.using)

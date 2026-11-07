@@ -1,0 +1,8 @@
+button:
+  - platform: template
+    name: Duck media
+    on_press:
+      - mixer_speaker.apply_ducking:
+          id: source_speaker_1_id
+          decibel_reduction: !lambda return 20;
+          duration: !lambda return 250;

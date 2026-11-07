@@ -1,5 +1,6 @@
 from esphome import automation
 import esphome.codegen as cg
+from esphome.components.const import CONF_ON_STATE_CHANGE
 from esphome.config_helpers import (
     filter_source_files_from_defines,
     filter_source_files_from_platform,
@@ -38,7 +39,6 @@ CONF_ON_ABORT = "on_abort"
 CONF_ON_BEGIN = "on_begin"
 CONF_ON_END = "on_end"
 CONF_ON_PROGRESS = "on_progress"
-CONF_ON_STATE_CHANGE = "on_state_change"
 
 
 ota_ns = cg.esphome_ns.namespace("ota")

@@ -26,8 +26,8 @@ class Lc709203f final : public sensor::Sensor, public PollingComponent, public i
   void dump_config() override;
 
   void set_pack_size(uint16_t pack_size);
-  void set_thermistor_b_constant(uint16_t b_constant);
-  void set_pack_voltage(LC709203FBatteryVoltage pack_voltage);
+  void set_thermistor_b_constant(uint16_t b_constant) { this->b_constant_ = b_constant; }
+  void set_pack_voltage(LC709203FBatteryVoltage pack_voltage) { this->pack_voltage_ = pack_voltage; }
   void set_voltage_sensor(sensor::Sensor *voltage_sensor) { voltage_sensor_ = voltage_sensor; }
   void set_battery_remaining_sensor(sensor::Sensor *battery_remaining_sensor) {
     battery_remaining_sensor_ = battery_remaining_sensor;

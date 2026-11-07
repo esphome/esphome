@@ -101,6 +101,13 @@ button:
           payload: Hello
           qos: 2
           retain: true
+      - mqtt.publish:
+          topic: !lambda return "some/topic/button/lambda";
+          payload: !lambda |-
+            std::string payload = "Hello";
+            return payload;
+          qos: !lambda return 1;
+          retain: !lambda return false;
 
 climate:
   - platform: thermostat

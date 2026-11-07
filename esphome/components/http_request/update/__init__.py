@@ -37,7 +37,7 @@ async def to_code(config: ConfigType) -> None:
     request_parent = await cg.get_variable(config[CONF_HTTP_REQUEST_ID])
     cg.add(var.set_request_parent(request_parent))
 
-    cg.add(var.set_source_url(config[CONF_SOURCE]))
+    cg.add(var.set_source_url_static(config[CONF_SOURCE]))
 
     ota.request_ota_state_listeners()
 

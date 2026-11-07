@@ -176,6 +176,10 @@ class LD2450Component : public Component, public uart::UARTDevice {
   bool bluetooth_on_{false};
   Target target_info_[MAX_TARGETS];
   Zone zone_config_[MAX_ZONES];
+#ifdef USE_TEXT_SENSOR
+  // Byte aligned, so it packs after zone_config_ instead of padding before data_callback_
+  std::array<Deduplicator<uint8_t>, MAX_TARGETS> direction_dedup_{};
+#endif
 
 #ifdef USE_NUMBER
   ESPPreferenceObject pref_;  // only used when numbers are in use
@@ -194,7 +198,6 @@ class LD2450Component : public Component, public uart::UARTDevice {
 #endif
 #ifdef USE_TEXT_SENSOR
   std::array<text_sensor::TextSensor *, MAX_TARGETS> direction_text_sensors_{};
-  std::array<Deduplicator<uint8_t>, MAX_TARGETS> direction_dedup_{};
 #endif
 
   LazyCallbackManager<void()> data_callback_;

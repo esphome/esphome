@@ -30,19 +30,13 @@ CONFIG_SCHEMA = cv.All(
 
 
 async def to_code(config: ConfigType) -> None:
-    parent = await cg.get_variable(config[CONF_ES8388_ID])
-    if dac_output_config := config.get(CONF_DAC_OUTPUT):
-        s = await select.new_select(
-            dac_output_config,
-            options=["LINE1", "LINE2", "BOTH"],
-        )
-        await cg.register_parented(s, parent)
-        cg.add(parent.set_dac_output_select(s))
-
-    if adc_input_mic_config := config.get(CONF_ADC_INPUT_MIC):
-        s = await select.new_select(
-            adc_input_mic_config,
-            options=["LINE1", "LINE2", "DIFFERENCE"],
-        )
-        await cg.register_parented(s, parent)
-        cg.add(parent.set_adc_input_mic_select(s))
+    hub = await cg.get_variable(config[CONF_ES8388_ID])
+    selects = select.sub_selects(config, parent=hub)
+    await selects(
+        CONF_DAC_OUTPUT, hub.set_dac_output_select, options=["LINE1", "LINE2", "BOTH"]
+    )
+    await selects(
+        CONF_ADC_INPUT_MIC,
+        hub.set_adc_input_mic_select,
+        options=["LINE1", "LINE2", "DIFFERENCE"],
+    )

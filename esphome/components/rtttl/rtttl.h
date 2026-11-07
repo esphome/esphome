@@ -1,6 +1,5 @@
 #pragma once
 
-#include "esphome/core/automation.h"
 #include "esphome/core/component.h"
 #include "esphome/core/defines.h"
 #include "esphome/core/helpers.h"
@@ -83,14 +82,14 @@ class Rtttl final : public Component {
   uint16_t note_duration_{0};
   /// The duration of a whole note in milliseconds.
   uint16_t wholenote_duration_;
+  /// The current state of the RTTTL player.
+  State state_{State::STOPPED};
   /// The time in milliseconds since microcontroller boot when the last note was started.
   uint32_t last_note_start_time_;
   /// The frequency of the current note in Hz.
   uint32_t output_freq_{0};
   /// The gain of the output.
   float gain_{0.6f};
-  /// The current state of the RTTTL player.
-  State state_{State::STOPPED};
 
 #ifdef USE_OUTPUT
   /// The output to write the sound to.
@@ -114,27 +113,6 @@ class Rtttl final : public Component {
   /// The callback to call when playback is finished.
   CallbackManager<void()> on_finished_playback_callback_;
 #endif
-};
-
-template<typename... Ts> class PlayAction final : public Action<Ts...> {
- public:
-  PlayAction(Rtttl *rtttl) : rtttl_(rtttl) {}
-  TEMPLATABLE_VALUE(std::string, value)
-
-  void play(const Ts &...x) override { this->rtttl_->play(this->value_.value(x...)); }
-
- protected:
-  Rtttl *rtttl_;
-};
-
-template<typename... Ts> class StopAction final : public Action<Ts...>, public Parented<Rtttl> {
- public:
-  void play(const Ts &...x) override { this->parent_->stop(); }
-};
-
-template<typename... Ts> class IsPlayingCondition final : public Condition<Ts...>, public Parented<Rtttl> {
- public:
-  bool check(const Ts &...x) override { return this->parent_->is_playing(); }
 };
 
 }  // namespace esphome::rtttl

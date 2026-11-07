@@ -145,8 +145,6 @@ float TSL2561Sensor::get_integration_time_ms_() {
 void TSL2561Sensor::set_integration_time(TSL2561IntegrationTime integration_time) {
   this->integration_time_ = integration_time;
 }
-void TSL2561Sensor::set_gain(TSL2561Gain gain) { this->gain_ = gain; }
-void TSL2561Sensor::set_is_cs_package(bool package_cs) { this->package_cs_ = package_cs; }
 
 bool TSL2561Sensor::tsl2561_write_byte(uint8_t a_register, uint8_t value) {
   return this->write_byte(a_register | TSL2561_COMMAND_BIT, value);

@@ -1,5 +1,10 @@
+from collections.abc import Callable
+import logging
+from typing import Any, NamedTuple
+
 from esphome import automation
 import esphome.codegen as cg
+from esphome.components.const.css_colors import CSS_COLORS
 from esphome.config import path_context
 import esphome.config_validation as cv
 from esphome.const import (
@@ -7,6 +12,7 @@ from esphome.const import (
     CONF_BRIGHTNESS,
     CONF_BRIGHTNESS_LIMITS,
     CONF_COLD_WHITE,
+    CONF_COLOR,
     CONF_COLOR_BRIGHTNESS,
     CONF_COLOR_MODE,
     CONF_COLOR_TEMPERATURE,
@@ -27,7 +33,8 @@ from esphome.const import (
     CONF_WHITE,
 )
 from esphome.core import CORE, ID, EsphomeError, Lambda
-from esphome.cpp_generator import LambdaExpression, MockObj, TemplateArgsType
+from esphome.cpp_generator import MockObj, TemplateArgsType
+from esphome.schema_extractors import SCHEMA_EXTRACT, schema_extractor
 from esphome.types import ConfigType
 
 from .types import (
@@ -37,16 +44,36 @@ from .types import (
     AddressableSet,
     ColorMode,
     DimRelativeAction,
-    LightCall,
-    LightControlAction,
     LightEffectCycleAction,
-    LightIsOffCondition,
-    LightIsOnCondition,
     LightState,
     ToggleAction,
 )
 
+_LOGGER = logging.getLogger(__name__)
+
 CONF_INCLUDE_NONE = "include_none"
+
+_STATE_ON_OFF = cv.one_of("ON", "OFF", upper=True)
+
+
+@schema_extractor("one_of")
+def validate_light_state(value: Any) -> Any:
+    """Validate a light on/off state.
+
+    Documented as 'ON'/'OFF', but accepts all boolean forms for backward compatibility.
+    """
+    if value == SCHEMA_EXTRACT:
+        return ("ON", "OFF")
+    try:
+        return _STATE_ON_OFF(value) == "ON"
+    except cv.Invalid:
+        pass
+    try:
+        return cv.boolean(value)
+    except cv.Invalid as err:
+        raise cv.Invalid(
+            f"Expected 'ON', 'OFF', or a boolean value, got {value!r}"
+        ) from err
 
 
 @automation.register_action(
@@ -75,21 +102,103 @@ async def light_toggle_to_code(config, action_id, template_arg, args):
     return var
 
 
+class LightStateField(NamedTuple):
+    """One field of a light's state: the single source for the schemas and boot-time
+    codegen that deal with it."""
+
+    conf_key: str
+    # Member of LightStateRTCState holding this field.
+    member: str
+    validator: Callable[[Any], Any]
+    # The color mode providing this field, if it implies one.
+    color_mode: MockObj | None = None
+    templatable: bool = True
+
+
+# In LightStateRTCState member order.
+LIGHT_STATE_FIELDS: tuple[LightStateField, ...] = (
+    LightStateField(CONF_STATE, "state", validate_light_state),
+    LightStateField(
+        CONF_COLOR_MODE,
+        "color_mode",
+        cv.enum(COLOR_MODES, upper=True, space="_"),
+        templatable=False,
+    ),
+    LightStateField(CONF_BRIGHTNESS, "brightness", cv.percentage, ColorMode.BRIGHTNESS),
+    LightStateField(
+        CONF_COLOR_BRIGHTNESS, "color_brightness", cv.percentage, ColorMode.RGB
+    ),
+    LightStateField(CONF_RED, "red", cv.percentage, ColorMode.RGB),
+    LightStateField(CONF_GREEN, "green", cv.percentage, ColorMode.RGB),
+    LightStateField(CONF_BLUE, "blue", cv.percentage, ColorMode.RGB),
+    LightStateField(CONF_WHITE, "white", cv.percentage, ColorMode.WHITE),
+    LightStateField(
+        CONF_COLOR_TEMPERATURE,
+        "color_temp",
+        cv.color_temperature,
+        ColorMode.COLOR_TEMPERATURE,
+    ),
+    LightStateField(
+        CONF_COLD_WHITE, "cold_white", cv.percentage, ColorMode.COLD_WARM_WHITE
+    ),
+    LightStateField(
+        CONF_WARM_WHITE, "warm_white", cv.percentage, ColorMode.COLD_WARM_WHITE
+    ),
+)
+
+
+@schema_extractor("one_of")
+def validate_color(value: Any) -> str | int:
+    """Validate a CSS color name or a 0xRRGGBB value."""
+    if value == SCHEMA_EXTRACT:
+        return ["CSS color name", "hex color value"]
+    if isinstance(value, int) or (
+        isinstance(value, str) and value.lower().startswith("0x")
+    ):
+        return cv.hex_int_range(0, 0xFFFFFF)(value)
+    return cv.one_of(*CSS_COLORS, lower=True)(value)
+
+
+COLOR_SCHEMA: dict[cv.Optional, Any] = {cv.Optional(CONF_COLOR): validate_color}
+
+
+def color_to_rgb(config: ConfigType) -> ConfigType:
+    """Replace a `color` CSS name or 0xRRGGBB value with red, green and blue values.
+
+    The light scales its color so the brightest channel is at full level, so a dark
+    color is given as a full-level color plus a color brightness.
+    """
+    if (color := config.pop(CONF_COLOR, None)) is None:
+        return config
+    if any(key in config for key in (CONF_RED, CONF_GREEN, CONF_BLUE)):
+        raise cv.Invalid(
+            f"'{CONF_COLOR}' cannot be used with '{CONF_RED}', '{CONF_GREEN}' or '{CONF_BLUE}'"
+        )
+    rgb = color if isinstance(color, int) else CSS_COLORS[color]
+    channels = (rgb >> 16 & 0xFF, rgb >> 8 & 0xFF, rgb & 0xFF)
+    peak = max(channels)
+    if CONF_COLOR_BRIGHTNESS not in config:
+        config[CONF_COLOR_BRIGHTNESS] = peak / 255
+    elif peak < 0xFF:
+        _LOGGER.warning(
+            "'%s' overrides the brightness of color '%s'",
+            CONF_COLOR_BRIGHTNESS,
+            f"0x{color:06X}" if isinstance(color, int) else color,
+        )
+    for key, value in zip((CONF_RED, CONF_GREEN, CONF_BLUE), channels, strict=True):
+        config[key] = value / peak if peak else 0.0
+    return config
+
+
 LIGHT_STATE_SCHEMA = cv.Schema(
     {
-        cv.Optional(CONF_COLOR_MODE): cv.enum(COLOR_MODES, upper=True, space="_"),
-        cv.Optional(CONF_STATE): cv.templatable(cv.boolean),
-        cv.Optional(CONF_BRIGHTNESS): cv.templatable(cv.percentage),
-        cv.Optional(CONF_COLOR_BRIGHTNESS): cv.templatable(cv.percentage),
-        cv.Optional(CONF_RED): cv.templatable(cv.percentage),
-        cv.Optional(CONF_GREEN): cv.templatable(cv.percentage),
-        cv.Optional(CONF_BLUE): cv.templatable(cv.percentage),
-        cv.Optional(CONF_WHITE): cv.templatable(cv.percentage),
-        cv.Optional(CONF_COLOR_TEMPERATURE): cv.templatable(cv.color_temperature),
-        cv.Optional(CONF_COLD_WHITE): cv.templatable(cv.percentage),
-        cv.Optional(CONF_WARM_WHITE): cv.templatable(cv.percentage),
+        cv.Optional(field.conf_key): (
+            cv.templatable(field.validator) if field.templatable else field.validator
+        )
+        for field in LIGHT_STATE_FIELDS
     }
-)
+).extend(COLOR_SCHEMA)
+LIGHT_STATE_SCHEMA.add_extra(color_to_rgb)
 
 LIGHT_CONTROL_ACTION_SCHEMA = LIGHT_STATE_SCHEMA.extend(
     {
@@ -147,7 +256,7 @@ LIGHT_TURN_ON_ACTION_SCHEMA = automation.maybe_simple_id(
 )
 
 
-def _resolve_effect_index(config: ConfigType) -> int:
+def _resolve_effect_index(config: ConfigType, original_name: str) -> int:
     """Resolve a static effect name to its 1-based index at codegen time.
 
     Effect index 0 means "None" (no effect). Effects are 1-indexed matching
@@ -155,7 +264,6 @@ def _resolve_effect_index(config: ConfigType) -> int:
     """
     from . import available_effects_str, find_effect_index
 
-    original_name = config[CONF_EFFECT]
     if original_name.lower() == "none":
         return 0
     light_id = config[CONF_ID]
@@ -173,87 +281,49 @@ def _resolve_effect_index(config: ConfigType) -> int:
     )
 
 
-@automation.register_action(
-    "light.turn_off", LightControlAction, LIGHT_TURN_OFF_ACTION_SCHEMA, synchronous=True
+def _effect_index(config: ConfigType, value: str) -> str:
+    # Resolved at codegen time; the cast picks set_effect(uint32_t) over the optional overload.
+    return f"static_cast<uint32_t>({_resolve_effect_index(config, value)})"
+
+
+_LIGHT_CONTROL_FIELDS = (
+    automation.ApplyField(CONF_COLOR_MODE, "set_color_mode", ColorMode),
+    automation.ApplyField(CONF_STATE, "set_state", cg.bool_),
+    automation.ApplyField(CONF_TRANSITION_LENGTH, "set_transition_length", cg.uint32),
+    automation.ApplyField(CONF_FLASH_LENGTH, "set_flash_length", cg.uint32),
+    automation.ApplyField(CONF_BRIGHTNESS, "set_brightness", cg.float_),
+    automation.ApplyField(CONF_COLOR_BRIGHTNESS, "set_color_brightness", cg.float_),
+    automation.ApplyField(CONF_RED, "set_red", cg.float_),
+    automation.ApplyField(CONF_GREEN, "set_green", cg.float_),
+    automation.ApplyField(CONF_BLUE, "set_blue", cg.float_),
+    automation.ApplyField(CONF_WHITE, "set_white", cg.float_),
+    automation.ApplyField(CONF_COLOR_TEMPERATURE, "set_color_temperature", cg.float_),
+    automation.ApplyField(CONF_COLD_WHITE, "set_cold_white", cg.float_),
+    automation.ApplyField(CONF_WARM_WHITE, "set_warm_white", cg.float_),
+    automation.ApplyField(
+        CONF_EFFECT, "set_effect", cg.std_string, const_fn=_effect_index
+    ),
 )
-@automation.register_action(
-    "light.turn_on", LightControlAction, LIGHT_TURN_ON_ACTION_SCHEMA, synchronous=True
+
+automation.register_apply_action(
+    "light.turn_off",
+    LIGHT_TURN_OFF_ACTION_SCHEMA,
+    automation.ApplyField(CONF_STATE, "set_state", cg.bool_),
+    automation.ApplyField(CONF_TRANSITION_LENGTH, "set_transition_length", cg.uint32),
+    call="make_call",
 )
-@automation.register_action(
-    "light.control", LightControlAction, LIGHT_CONTROL_ACTION_SCHEMA, synchronous=True
+automation.register_apply_action(
+    "light.turn_on",
+    LIGHT_TURN_ON_ACTION_SCHEMA,
+    *_LIGHT_CONTROL_FIELDS,
+    call="make_call",
 )
-async def light_control_to_code(config, action_id, template_arg, args):
-    paren = await cg.get_variable(config[CONF_ID])
-
-    # All configured fields are folded into a single stateless lambda whose
-    # constants live in flash; the action stores only a function pointer.
-    FIELDS = (
-        (CONF_COLOR_MODE, "set_color_mode", ColorMode),
-        (CONF_STATE, "set_state", cg.bool_),
-        (CONF_TRANSITION_LENGTH, "set_transition_length", cg.uint32),
-        (CONF_FLASH_LENGTH, "set_flash_length", cg.uint32),
-        (CONF_BRIGHTNESS, "set_brightness", cg.float_),
-        (CONF_COLOR_BRIGHTNESS, "set_color_brightness", cg.float_),
-        (CONF_RED, "set_red", cg.float_),
-        (CONF_GREEN, "set_green", cg.float_),
-        (CONF_BLUE, "set_blue", cg.float_),
-        (CONF_WHITE, "set_white", cg.float_),
-        (CONF_COLOR_TEMPERATURE, "set_color_temperature", cg.float_),
-        (CONF_COLD_WHITE, "set_cold_white", cg.float_),
-        (CONF_WARM_WHITE, "set_warm_white", cg.float_),
-    )
-
-    # Normalize trigger args to `const std::remove_cvref_t<T> &` so the
-    # apply lambda and any inner field lambdas (generated below via
-    # `process_lambda`) share one parameter spelling that's well-formed for
-    # any T (value, ref, or const-ref). Matches LightControlAction::ApplyFn.
-    normalized_args = [
-        (cg.RawExpression(f"const std::remove_cvref_t<{cg.safe_exp(t)}> &"), n)
-        for t, n in args
-    ]
-
-    fwd_args = ", ".join(name for _, name in args)
-    body_lines: list[str] = []
-
-    for conf_key, setter, type_ in FIELDS:
-        if conf_key not in config:
-            continue
-        value = config[conf_key]
-        if isinstance(value, Lambda):
-            inner = await cg.process_lambda(value, normalized_args, return_type=type_)
-            body_lines.append(f"call.{setter}(({inner})({fwd_args}));")
-        else:
-            body_lines.append(f"call.{setter}({cg.safe_exp(value)});")
-
-    if CONF_EFFECT in config:
-        if isinstance(config[CONF_EFFECT], Lambda):
-            inner_lambda = await cg.process_lambda(
-                config[CONF_EFFECT], normalized_args, return_type=cg.std_string
-            )
-            body_lines.append(
-                f"{{ auto __effect_s = ({inner_lambda})({fwd_args});\n"
-                f"call.set_effect(parent->get_effect_index("
-                f"__effect_s.c_str(), __effect_s.size())); }}"
-            )
-        else:
-            # Cast disambiguates between set_effect(uint32_t) and
-            # set_effect(optional<uint32_t>) when the literal is an int.
-            body_lines.append(
-                f"call.set_effect(static_cast<uint32_t>({_resolve_effect_index(config)}));"
-            )
-
-    apply_args = [
-        (LightState.operator("ptr"), "parent"),
-        (LightCall.operator("ref"), "call"),
-        *normalized_args,
-    ]
-    apply_lambda = LambdaExpression(
-        ["\n".join(body_lines)],
-        apply_args,
-        capture="",
-        return_type=cg.void,
-    )
-    return cg.new_Pvariable(action_id, template_arg, paren, apply_lambda)
+automation.register_apply_action(
+    "light.control",
+    LIGHT_CONTROL_ACTION_SCHEMA,
+    *_LIGHT_CONTROL_FIELDS,
+    call="make_call",
+)
 
 
 def _record_effect_cycle_ref(config: ConfigType) -> ConfigType:
@@ -385,7 +455,8 @@ LIGHT_ADDRESSABLE_SET_ACTION_SCHEMA = cv.Schema(
         cv.Optional(CONF_BLUE): cv.templatable(cv.percentage),
         cv.Optional(CONF_WHITE): cv.templatable(cv.percentage),
     }
-)
+).extend(COLOR_SCHEMA)
+LIGHT_ADDRESSABLE_SET_ACTION_SCHEMA.add_extra(color_to_rgb)
 
 
 @automation.register_action(
@@ -422,24 +493,15 @@ async def light_addressable_set_to_code(config, action_id, template_arg, args):
     return var
 
 
-@automation.register_condition(
-    "light.is_on",
-    LightIsOnCondition,
-    automation.maybe_simple_id(
-        {
-            cv.Required(CONF_ID): cv.use_id(LightState),
-        }
-    ),
+LIGHT_CONDITION_SCHEMA = automation.maybe_simple_id(
+    {
+        cv.Required(CONF_ID): cv.use_id(LightState),
+    }
 )
-@automation.register_condition(
-    "light.is_off",
-    LightIsOffCondition,
-    automation.maybe_simple_id(
-        {
-            cv.Required(CONF_ID): cv.use_id(LightState),
-        }
-    ),
+
+automation.register_apply_condition(
+    "light.is_on", LIGHT_CONDITION_SCHEMA, "current_values.is_on()"
 )
-async def light_is_on_off_to_code(config, condition_id, template_arg, args):
-    paren = await cg.get_variable(config[CONF_ID])
-    return cg.new_Pvariable(condition_id, template_arg, paren)
+automation.register_apply_condition(
+    "light.is_off", LIGHT_CONDITION_SCHEMA, "current_values.is_on() == false"
+)

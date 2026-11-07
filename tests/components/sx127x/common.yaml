@@ -25,6 +25,8 @@ sx127x:
     then:
       - sx127x.send_packet:
           data: [0xC5, 0x51, 0x78, 0x82, 0xB7, 0xF9, 0x9C, 0x5C]
+      - sx127x.send_packet: !lambda |-
+          return x;
 
 number:
   - platform: template
@@ -34,6 +36,10 @@ number:
     min_value: 0
     max_value: 100
     step: 1
+    on_value:
+      then:
+        - sx127x.send_packet: !lambda |-
+            return {0x03, (uint8_t) x};
 
 button:
   - platform: template
@@ -49,3 +55,5 @@ button:
             data: [0xC5, 0x51, 0x78, 0x82, 0xB7, 0xF9, 0x9C, 0x5C]
         - sx127x.send_packet: !lambda |-
             return {0x01, 0x02, (uint8_t)id(sx127x_my_number).state};
+        - sx127x.send_packet: [0xC5, 0x51, 0x78, 0x82, 0xB7, 0xF9, 0x9C, 0x5C]
+        - sx127x.send_packet: "hello"

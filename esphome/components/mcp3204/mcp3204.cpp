@@ -18,19 +18,18 @@ void MCP3204::dump_config() {
 }
 
 float MCP3204::read_data(uint8_t pin, bool differential) {
-  uint8_t command, b0, b1;
-
-  command = (1 << 6) |                       // start bit
-            ((differential ? 0 : 1) << 5) |  // single or differential bit
-            ((pin & 0x07) << 2);             // pin
+  const uint8_t command = (1 << 6) |                       // start bit
+                          ((differential ? 0 : 1) << 5) |  // single or differential bit
+                          ((pin & 0x07) << 2);             // pin
+  // One full-duplex transaction: command out, 12-bit result back in bytes 1 and 2.
+  // Word aligned so ESP-IDF DMA uses the buffer in place; only ESP32-P4 also checks the length and bounces.
+  alignas(4) uint8_t buffer[3] = {command, 0x00, 0x00};
 
   this->enable();
-  this->transfer_byte(command);
-  b0 = this->transfer_byte(0x00);
-  b1 = this->transfer_byte(0x00);
+  this->transfer_array(buffer, sizeof(buffer));
   this->disable();
 
-  uint16_t digital_value = encode_uint16(b0, b1) >> 4;
+  uint16_t digital_value = encode_uint16(buffer[1], buffer[2]) >> 4;
   return float(digital_value) / 4096.000f * this->reference_voltage_;  // in V
 }
 

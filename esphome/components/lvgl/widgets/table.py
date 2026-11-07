@@ -274,6 +274,4 @@ async def table_cell_update_to_code(
                 )
             await set_cell_ctrl(w, row, column, config)
 
-    return await action_to_code(
-        widgets, do_update, action_id, template_arg, args, config
-    )
+    return await action_to_code(widgets, do_update, action_id, template_arg, args)

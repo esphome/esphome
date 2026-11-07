@@ -21,9 +21,9 @@ struct DysonData {
 
 class DysonProtocol : public RemoteProtocol<DysonData> {
  public:
-  void encode(RemoteTransmitData *dst, const DysonData &data) override;
-  optional<DysonData> decode(RemoteReceiveData src) override;
-  void dump(const DysonData &data) override;
+  void encode(RemoteTransmitData *dst, const DysonData &data);
+  optional<DysonData> decode(RemoteReceiveData src);
+  void dump(const DysonData &data);
 };
 
 DECLARE_REMOTE_PROTOCOL(Dyson)

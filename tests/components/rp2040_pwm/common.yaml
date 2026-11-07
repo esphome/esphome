@@ -1,3 +1,13 @@
+esphome:
+  on_boot:
+    then:
+      - output.rp2040_pwm.set_frequency:
+          id: rp2040_pwm_light_output_1
+          frequency: 100Hz
+      - output.rp2040_pwm.set_frequency:
+          id: rp2040_pwm_light_output_2
+          frequency: !lambda return 200.0f;
+
 output:
   - platform: rp2040_pwm
     id: rp2040_pwm_light_output_1

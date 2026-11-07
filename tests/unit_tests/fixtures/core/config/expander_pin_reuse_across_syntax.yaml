@@ -1,0 +1,30 @@
+esphome:
+  name: test
+
+esp32:
+  board: esp32dev
+
+i2c:
+  sda: GPIO21
+  scl: GPIO22
+
+xl9535:
+  - id: xl9535_a
+    address: 0x20
+
+binary_sensor:
+  - platform: gpio
+    name: "Expander Pin By Id"
+    pin:
+      xl9535: xl9535_a
+      number: 5
+      mode:
+        input: true
+  - platform: gpio
+    name: "Expander Pin By Address"
+    pin:
+      xl9535:
+        address: 0x20
+      number: 5
+      mode:
+        input: true

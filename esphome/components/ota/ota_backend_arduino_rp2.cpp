@@ -9,6 +9,12 @@
 
 #include <Updater.h>
 
+// LittleFS region bounds, provided by the arduino-pico linker script.
+// NOLINTNEXTLINE(bugprone-reserved-identifier,cert-dcl37-c,cert-dcl51-cpp)
+extern "C" uint8_t _FS_start;
+// NOLINTNEXTLINE(bugprone-reserved-identifier,cert-dcl37-c,cert-dcl51-cpp)
+extern "C" uint8_t _FS_end;
+
 namespace esphome::ota {
 
 static const char *const TAG = "ota";
@@ -19,8 +25,11 @@ OTAResponseTypes ArduinoRP2OTABackend::begin(size_t image_size, OTAType ota_type
   if (ota_type != OTA_TYPE_UPDATE_APP) {
     return OTA_RESPONSE_ERROR_UNSUPPORTED_OTA_TYPE;
   }
-  // OTA size of 0 is not currently handled, but
-  // web_server is not supported for RP2040, so this is not an issue.
+  // 0 means the size is unknown (web_server upload). The updater only checks the size
+  // against the LittleFS region it stages the image in, so ask for all of it.
+  if (image_size == 0) {
+    image_size = reinterpret_cast<uintptr_t>(&_FS_end) - reinterpret_cast<uintptr_t>(&_FS_start);
+  }
   bool ret = Update.begin(image_size, U_FLASH);
   if (ret) {
     rp2::preferences_prevent_write(true);
@@ -34,7 +43,7 @@ OTAResponseTypes ArduinoRP2OTABackend::begin(size_t image_size, OTAType ota_type
     return OTA_RESPONSE_ERROR_WRONG_NEW_FLASH_CONFIG;
   if (error == UPDATE_ERROR_FLASH_CONFIG)
     return OTA_RESPONSE_ERROR_WRONG_CURRENT_FLASH_CONFIG;
-  if (error == UPDATE_ERROR_SPACE)
+  if (error == UPDATE_ERROR_SPACE || error == UPDATE_ERROR_SIZE)
     return OTA_RESPONSE_ERROR_RP2040_NOT_ENOUGH_SPACE;
 
   ESP_LOGE(TAG, "Begin error: %d", error);

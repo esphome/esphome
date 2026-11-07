@@ -12,6 +12,7 @@ from pathlib import Path
 import socket
 import struct
 from unittest.mock import Mock, call, patch
+import zlib
 
 import pytest
 from pytest import CaptureFixture
@@ -354,6 +355,7 @@ def test_perform_ota_successful_md5_auth(
                 espota2.CLIENT_FEATURE_SUPPORTS_COMPRESSION
                 | espota2.CLIENT_FEATURE_SUPPORTS_SHA256_AUTH
                 | espota2.CLIENT_FEATURE_SUPPORTS_EXTENDED_PROTOCOL
+                | espota2.CLIENT_FEATURE_SUPPORTS_DEFLATE
             ]
         )
     )
@@ -601,12 +603,16 @@ def test_perform_ota_upload_error(mock_socket: Mock, mock_file: io.BytesIO) -> N
         espota2.perform_ota(mock_socket, None, mock_file, "test.bin")
 
 
-def _no_auth_handshake(version: int) -> list[bytes]:
+def _no_auth_handshake(version: int, server_features: int | None = None) -> list[bytes]:
     """Recv responses for a handshake without auth, up to the MD5 check."""
+    if server_features is None:
+        features = [bytes([espota2.RESPONSE_HEADER_OK])]
+    else:
+        features = [bytes([espota2.RESPONSE_FEATURE_FLAGS]), bytes([server_features])]
     return [
         bytes([espota2.RESPONSE_OK]),  # First byte of version response
         bytes([version]),  # Version number
-        bytes([espota2.RESPONSE_HEADER_OK]),  # Features response
+        *features,
         bytes([espota2.RESPONSE_AUTH_OK]),  # No auth required
         bytes([espota2.RESPONSE_UPDATE_PREPARE_OK]),  # Binary size OK
         bytes([espota2.RESPONSE_BIN_MD5_OK]),  # MD5 checksum OK
@@ -1054,6 +1060,7 @@ def test_perform_ota_successful_sha256_auth(
                 espota2.CLIENT_FEATURE_SUPPORTS_COMPRESSION
                 | espota2.CLIENT_FEATURE_SUPPORTS_SHA256_AUTH
                 | espota2.CLIENT_FEATURE_SUPPORTS_EXTENDED_PROTOCOL
+                | espota2.CLIENT_FEATURE_SUPPORTS_DEFLATE
             ]
         )
     )
@@ -1110,6 +1117,7 @@ def test_perform_ota_sha256_fallback_to_md5(
                 espota2.CLIENT_FEATURE_SUPPORTS_COMPRESSION
                 | espota2.CLIENT_FEATURE_SUPPORTS_SHA256_AUTH
                 | espota2.CLIENT_FEATURE_SUPPORTS_EXTENDED_PROTOCOL
+                | espota2.CLIENT_FEATURE_SUPPORTS_DEFLATE
             ]
         )
     )
@@ -1219,6 +1227,7 @@ def test_perform_ota_extended_protocol_app(
                 espota2.CLIENT_FEATURE_SUPPORTS_COMPRESSION
                 | espota2.CLIENT_FEATURE_SUPPORTS_SHA256_AUTH
                 | espota2.CLIENT_FEATURE_SUPPORTS_EXTENDED_PROTOCOL
+                | espota2.CLIENT_FEATURE_SUPPORTS_DEFLATE
             ]
         )
     )
@@ -1279,6 +1288,7 @@ def test_perform_ota_successful_partition_table(
                 espota2.CLIENT_FEATURE_SUPPORTS_COMPRESSION
                 | espota2.CLIENT_FEATURE_SUPPORTS_SHA256_AUTH
                 | espota2.CLIENT_FEATURE_SUPPORTS_EXTENDED_PROTOCOL
+                | espota2.CLIENT_FEATURE_SUPPORTS_DEFLATE
             ]
         )
     )
@@ -1507,3 +1517,99 @@ def test_check_error_passes_non_error_when_expect_is_none() -> None:
     espota2.check_error([espota2.RESPONSE_OK], None)
     espota2.check_error([espota2.RESPONSE_HEADER_OK], None)
     espota2.check_error([espota2.RESPONSE_FEATURE_FLAGS], None)
+
+
+# Device replies after the MD5 check for a one-chunk upload
+_UPLOAD_TAIL = [
+    bytes([espota2.RESPONSE_CHUNK_OK]),
+    bytes([espota2.RESPONSE_RECEIVE_OK]),
+    bytes([espota2.RESPONSE_UPDATE_END_OK]),
+]
+
+
+def _uf2_image(family: int, flags: int = 0x2000) -> bytes:
+    header = struct.pack("<8I", 0x0A324655, 0x9E5D5157, flags, 0, 256, 0, 1, family)
+    return header + b"firmware" * 100
+
+
+@pytest.mark.parametrize(
+    ("image", "expected"),
+    [
+        (_uf2_image(0x22E0D6FC), True),
+        (_uf2_image(0xE08F7564), False),
+        (_uf2_image(0x22E0D6FC, flags=0), False),
+        (b"\xe9" + bytes(31), False),
+    ],
+    ids=["rtl8710b", "rtl8720c", "no-family", "esp"],
+)
+def test_is_rtl8710b_image(image: bytes, expected: bool) -> None:
+    assert espota2._is_rtl8710b_image(image) is expected
+
+
+@pytest.mark.usefixtures("mock_time")
+def test_perform_ota_rtl8710b_deflate_with_fixed_firmware(
+    mock_socket: Mock, caplog: pytest.LogCaptureFixture
+) -> None:
+    """An RTL8710B image asks for deflate with the bit only fixed firmware knows."""
+    original_content = _uf2_image(0x22E0D6FC)
+    mock_socket.recv.side_effect = (
+        _no_auth_handshake(
+            espota2.OTA_VERSION_2_0, espota2.SERVER_FEATURE_SUPPORTS_DEFLATE
+        )
+        + _UPLOAD_TAIL
+    )
+
+    espota2.perform_ota(mock_socket, None, io.BytesIO(original_content), "test.uf2")
+
+    sent = [c[0][0] for c in mock_socket.sendall.call_args_list]
+    assert sent[1][0] & espota2.CLIENT_FEATURE_SUPPORTS_DEFLATE_RTL8710B
+    assert not sent[1][0] & espota2.CLIENT_FEATURE_SUPPORTS_DEFLATE
+    assert zlib.decompress(sent[6], -espota2.DEFLATE_WINDOW_BITS) == original_content
+    assert espota2.RTL8710B_DEFLATE_NOTICE not in caplog.text
+
+
+@pytest.mark.usefixtures("mock_time")
+def test_perform_ota_rtl8710b_uncompressed_with_old_firmware(
+    mock_socket: Mock, caplog: pytest.LogCaptureFixture
+) -> None:
+    """2026.10 firmware does not know the RTL8710B bit, so the image goes as it is."""
+    original_content = _uf2_image(0x22E0D6FC)
+    mock_socket.recv.side_effect = (
+        _no_auth_handshake(espota2.OTA_VERSION_2_0, 0) + _UPLOAD_TAIL
+    )
+
+    espota2.perform_ota(mock_socket, None, io.BytesIO(original_content), "test.uf2")
+
+    sent = [c[0][0] for c in mock_socket.sendall.call_args_list]
+    assert not sent[1][0] & espota2.CLIENT_FEATURE_SUPPORTS_DEFLATE
+    assert original_content in sent
+    assert espota2.RTL8710B_DEFLATE_NOTICE in caplog.text
+
+
+@pytest.mark.usefixtures("mock_time")
+@pytest.mark.parametrize(
+    "server_features",
+    [
+        espota2.SERVER_FEATURE_SUPPORTS_DEFLATE,
+        # Binding offer: deflate wins over gzip
+        espota2.SERVER_FEATURE_SUPPORTS_DEFLATE
+        | espota2.SERVER_FEATURE_SUPPORTS_COMPRESSION,
+    ],
+)
+def test_perform_ota_with_deflate(mock_socket: Mock, server_features: int) -> None:
+    """The device gets a raw deflate stream, both sizes and the image MD5."""
+    original_content = b"firmware" * 100
+    mock_socket.recv.side_effect = (
+        _no_auth_handshake(espota2.OTA_VERSION_2_0, server_features) + _UPLOAD_TAIL
+    )
+
+    espota2.perform_ota(mock_socket, None, io.BytesIO(original_content), "test.bin")
+
+    sent = [c[0][0] for c in mock_socket.sendall.call_args_list]
+    # magic, features, ota type, size, image size, md5, data, end ack
+    sent_size = struct.unpack(">I", sent[3])[0]
+    assert sent[4] == len(original_content).to_bytes(espota2.SIZE_FIELD_BYTES, "big")
+    payload = sent[6]
+    assert len(payload) == sent_size < len(original_content)
+    assert zlib.decompress(payload, -espota2.DEFLATE_WINDOW_BITS) == original_content
+    assert sent[5] == hashlib.md5(original_content).hexdigest().encode()
