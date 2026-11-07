@@ -22,6 +22,28 @@ static constexpr const char *SOURCE_OPTIONS[] = {"Automatic", "Gas", "DirectCurr
 static constexpr const char *TYPE_OPTIONS[] = {"None", "DometicAbsorberFridge", "HobbyCompressorRMVOC90",
                                                "DOMETICRC104Compressor", "DOMETIC_RUC"};
 
+void FridgeDeviceHub::setup() {
+  if (this->fridge_status_switch_) {
+    this->fridge_status_switch_->add_on_state_callback(
+        [this](bool state) { this->parent_->send_command(Commands::update_toggle("FRIDGE_ON_OFF")); });
+  }
+  if (this->fridge_mode_select_) {
+    this->fridge_mode_select_->add_on_state_callback([this](size_t state) {
+      if (state > 0)
+        state += 1;
+      this->parent_->send_command(Commands::update_int("FRIDGE_MODE", state));
+    });
+  }
+  if (this->fridge_temperature_select_) {
+    this->fridge_temperature_select_->add_on_state_callback([this](size_t state) {
+      int temp_idx = static_cast<int>(state);
+      if (temp_idx >= 1 && temp_idx <= 5) {
+        this->parent_->send_command(Commands::update_int("FRIDGE_TEMP", temp_idx));
+      }
+    });
+  }
+}
+
 void FridgeDeviceHub::dump_config() {
   ESP_LOGCONFIG(TAG, " -Fendt Fridge Device-");
   LOG_BINARY_SENSOR(TAG, "  Fridge status", this->fridge_status_binary_sensor_);

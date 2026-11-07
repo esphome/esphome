@@ -15,6 +15,7 @@
 namespace esphome::fendt_caravan {
 class FridgeDeviceHub : public FendtCaravanHubBase, public Parented<FendtCaravan> {
  public:
+  void setup() override;
   void dump_config() override;
   bool decode(const char *key, const char *value) override;
 
@@ -24,7 +25,6 @@ class FridgeDeviceHub : public FendtCaravanHubBase, public Parented<FendtCaravan
   SUB_TEXT_SENSOR(fridge_power_source);
   SUB_TEXT_SENSOR(fridge_type);
   SUB_SELECT(fridge_temperature);
-  void write_state(switch_::Switch *sw, bool state) override {};
 };
 
 }  // namespace esphome::fendt_caravan

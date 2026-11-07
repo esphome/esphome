@@ -18,9 +18,10 @@ namespace esphome::fendt_caravan {
 
 class MainControlUnitHub : public FendtCaravanHubBase, public Parented<FendtCaravan> {
  public:
+  void setup() override;
   void dump_config() override;
   void update() override;
-  void write_state(switch_::Switch *sw, bool state) override;
+  void write_state(switch_::Switch *sw, bool state);
 
   SUB_SWITCH(main_switch);
   SUB_SENSOR(temp_in);

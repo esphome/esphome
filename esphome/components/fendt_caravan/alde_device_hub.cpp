@@ -19,6 +19,22 @@ static constexpr const char *KEY_NAMES[] = {
 };
 
 void AldeDeviceHub::setup() {
+  if (this->alde_heater_switch_) {
+    this->alde_heater_switch_->add_on_state_callback(
+        [this](bool state) { this->write_state(this->alde_heater_switch_, state); });
+  }
+  if (this->alde_water_heater_switch_) {
+    this->alde_water_heater_switch_->add_on_state_callback(
+        [this](bool state) { this->write_state(this->alde_water_heater_switch_, state); });
+  }
+  if (this->alde_water_heater_boost_switch_) {
+    this->alde_water_heater_boost_switch_->add_on_state_callback(
+        [this](bool state) { this->write_state(this->alde_water_heater_boost_switch_, state); });
+  }
+  if (this->alde_heater_gas_switch_) {
+    this->alde_heater_gas_switch_->add_on_state_callback(
+        [this](bool state) { this->write_state(this->alde_heater_gas_switch_, state); });
+  }
   if (this->alde_climate_) {
     this->alde_climate_->add_on_control_callback([this](climate::ClimateCall &call) {
       if (call.get_target_temperature().has_value()) {

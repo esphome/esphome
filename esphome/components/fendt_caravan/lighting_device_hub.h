@@ -24,7 +24,6 @@ class LightingDeviceHub : public FendtCaravanHubBase, public Parented<FendtCarav
 
   void set_binary_light_state(const char *key_name, light::LightState *state);
   void set_float_light_state(const char *key_name, light::LightState *state);
-  void write_state(switch_::Switch *sw, bool state) override {};
   bool decode(const char *key, const char *value) override;
 
  protected:

@@ -14,7 +14,6 @@ class FendtCaravanHubBase : public PollingComponent {
   void loop() override {};
   void dump_config() override = 0;
   void update() override {};
-  virtual void write_state(switch_::Switch *sw, bool state) = 0;
 };
 
 }  // namespace esphome::fendt_caravan
