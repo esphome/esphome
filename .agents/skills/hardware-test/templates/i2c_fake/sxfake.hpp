@@ -78,7 +78,7 @@ struct Bus final : public esphome::i2c::I2CBus {
       }
     }
     if (this->dropped)
-      ESP_LOGW(TAG, "dropped %u writes", this->dropped);
+      ESP_LOGW(TAG, "dropped %u writes", (unsigned) this->dropped);
     if (this->bad)
       ESP_LOGW(TAG, "%u transfers without a register or past 0x7F, NACKed", (unsigned) this->bad);
   }

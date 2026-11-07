@@ -9,7 +9,8 @@ using esphome::packet_interface::PacketMetaData;
 struct Side {
   const char *name;
   PacketInterface *top{nullptr};
-  uint32_t rx_ok{0}, rx_bad{0}, rx_bytes{0}, tx_ok{0}, tx_refused{0};
+  uint32_t rx_ok{0}, rx_bad{0}, rx_lost{0}, rx_bytes{0}, tx_ok{0}, tx_refused{0};
+  uint16_t rx_next{0};       // next index expected from the peer, which sends 0, 1, 2, ...
   uint16_t sent_len[256]{};  // length sent for index i, at i & 0xFF; the peer checks received sizes against it
   bool up{false};
 };
@@ -38,6 +39,14 @@ inline void attach(Side &s, PacketInterface *link) {
       return;
     }
     uint16_t i = (p[0] << 8) | p[1];
+    // a skipped index is a packet that never arrived; an old or repeated one counts as bad
+    uint16_t gap = i - s.rx_next;
+    if (gap >= 0x8000) {
+      s.rx_bad++;
+      return;
+    }
+    s.rx_lost += gap;
+    s.rx_next = i + 1;
     bool ok = n == peer(s).sent_len[i & 0xFF];  // a truncated or split packet fails here
     for (size_t k = 2; k < n; k++)
       ok &= p[k] == pat(i, k);
@@ -59,10 +68,16 @@ inline bool send(Side &s, uint16_t i, size_t n) {
   ok ? s.tx_ok++ : s.tx_refused++;
   return ok;
 }
-inline void report(const char *tag) {
-  for (Side *s : {&a, &b})
-    ESP_LOGI("pisim", "PI %s %s up=%d tx_ok=%u refused=%u rx_ok=%u rx_bad=%u rx_bytes=%u", tag, s->name, s->up,
-             (unsigned) s->tx_ok, (unsigned) s->tx_refused, (unsigned) s->rx_ok, (unsigned) s->rx_bad,
-             (unsigned) s->rx_bytes);
+// idle: both links have drained, so a packet sent but neither received nor counted lost is lost too, and the line
+// ends in PASS or FAIL
+inline void report(const char *tag, bool idle = false) {
+  for (Side *s : {&a, &b}) {
+    uint32_t sent = peer(*s).tx_ok;
+    int32_t missing = (int32_t) (sent - s->rx_ok - s->rx_bad - s->rx_lost);
+    const char *verdict = !idle ? "" : (sent && s->rx_ok == sent && !s->rx_bad ? " PASS" : " FAIL");
+    ESP_LOGI("pisim", "PI %s %s up=%d tx_ok=%u refused=%u rx_ok=%u rx_bad=%u rx_lost=%u missing=%d rx_bytes=%u%s", tag,
+             s->name, s->up, (unsigned) s->tx_ok, (unsigned) s->tx_refused, (unsigned) s->rx_ok, (unsigned) s->rx_bad,
+             (unsigned) s->rx_lost, (int) missing, (unsigned) s->rx_bytes, verdict);
+  }
 }
 }  // namespace pisim

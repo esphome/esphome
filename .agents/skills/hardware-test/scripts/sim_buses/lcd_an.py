@@ -2,9 +2,10 @@
 
 Expects three lcd_pcf8574 displays on LcdSimBus: 0x27 20x4 whose lambda writes row i as 16 x chr(97 + i) plus a 4
 digit counter (or only an "x" in the last cell), 0x26 16x2 writing 16 x "B" and "frame N", and 0x25 64x4 writing 64 x
-chr(107 + i) per row. Exits 1 when a display reported no frames, a report comes from another address, a report does
-not match, a segment holds more characters than its rows (2 x cols on a 4 row display, cols otherwise) or the
-simulator counted overflow bytes or reads (the driver never reads).
+chr(107 + i) per row. Exits 1 when a display reported no frames, its frame count did not grow between its first and
+last report (fewer than two reports included), a report comes from another address, a report does not match, a
+segment holds more characters than its rows (2 x cols on a 4 row display, cols otherwise) or the simulator counted
+overflow bytes or reads (the driver never reads).
 """
 
 import pathlib
@@ -78,6 +79,10 @@ def main() -> int:
         print("    last:", lst[-1][2])
         if good != len(lst):
             bad.append(f"0x{a} {len(lst) - good} bad reports")
+        if len(lst) < 2 or lst[-1][0] <= lst[0][0]:
+            bad.append(
+                f"0x{a} frame count never grew ({len(lst)} reports), the display stopped updating"
+            )
         if long.get(a):
             bad.append(f"0x{a} {long[a]} reports with a segment longer than its rows")
         if overflow.get(a):

@@ -52,4 +52,5 @@ interval:
       - lambda: |-
           uint8_t v = 0;
           bool ok = id(d)->read_byte(0xC0, &v);
-          ESP_LOGI("vlt", "PROBE %s 0x%02X fired a=%u b=%u", ok ? "ok" : "err", v, g_fb->fired_a, g_fb->fired_b);
+          ESP_LOGI("vlt", "PROBE %s 0x%02X fired a=%u b=%u", ok ? "ok" : "err", v, (unsigned) g_fb->fired_a,
+                   (unsigned) g_fb->fired_b);

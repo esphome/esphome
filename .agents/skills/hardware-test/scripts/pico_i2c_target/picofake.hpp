@@ -11,7 +11,8 @@ static const char *const TAG = "picofake";
 static uint8_t regs[256];
 static volatile uint8_t ptr = 0;
 static volatile bool first = true;
-static volatile uint32_t n_rd = 0, n_data = 0, n_ctrl = 0, n_hum = 0, n_abrt = 0;
+static volatile uint32_t n_rd = 0, n_data = 0, n_ctrl = 0, n_hum = 0, n_abrt = 0, n_bad = 0;
+static bool bme = false;  // BME280 adds the humidity registers
 static volatile int mode = 0;
 // A mode change is staged and copied in at STOP, so a burst never mixes the two modes
 static uint8_t staged[8];
@@ -28,6 +29,18 @@ inline void set_mode(int m) {
   staged_ready = true;
   mode = m;
   ESP_LOGI(TAG, "MODE %d", m);
+}
+
+// Registers the BME280/BMP280 drivers read and write; any other access counts in n_bad
+static bool readable(uint8_t a) {
+  if (a == 0xD0 || (a >= 0x88 && a <= 0x9F))
+    return true;
+  if (bme)
+    return a == 0xA1 || (a >= 0xE1 && a <= 0xE7) || (a >= 0xF2 && a <= 0xFE);
+  return a >= 0xF3 && a <= 0xFC;
+}
+static bool writable(uint8_t a, uint8_t b) {
+  return (a == 0xE0 && b == 0xB6) || a == 0xF4 || a == 0xF5 || (bme && a == 0xF2);
 }
 
 static void apply_staged() {
@@ -56,7 +69,9 @@ static void irq() {
           n_ctrl++;
         else if (a == 0xF2)
           n_hum++;
-        if (a >= 0xF2 && a <= 0xF5)
+        if (!writable(a, b))
+          n_bad++;
+        else if (a != 0xE0)
           regs[a] = b;
       }
     }
@@ -65,6 +80,8 @@ static void irq() {
     if (ptr == 0xF7 || ptr == 0xFA)
       n_data++;
     n_rd++;
+    if (!readable(ptr))
+      n_bad++;
     hw->data_cmd = regs[ptr++];
     hw->clr_rd_req;
   }
@@ -85,6 +102,7 @@ static void irq() {
 
 inline void start(uint8_t chip_id) {
   memset(regs, 0, sizeof(regs));
+  bme = chip_id == 0x60;
   regs[0xD0] = chip_id;
   put16(0x88, 27504);
   put16(0x8A, 26435);
@@ -126,7 +144,7 @@ inline void start(uint8_t chip_id) {
 }
 
 inline void report() {
-  ESP_LOGI(TAG, "STAT mode=%d rd=%u data=%u ctrl=%u hum=%u abrt=%u", mode, (unsigned) n_rd, (unsigned) n_data,
-           (unsigned) n_ctrl, (unsigned) n_hum, (unsigned) n_abrt);
+  ESP_LOGI(TAG, "STAT mode=%d rd=%u data=%u ctrl=%u hum=%u abrt=%u bad=%u", mode, (unsigned) n_rd, (unsigned) n_data,
+           (unsigned) n_ctrl, (unsigned) n_hum, (unsigned) n_abrt, (unsigned) n_bad);
 }
 }  // namespace picofake

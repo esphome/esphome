@@ -14,9 +14,11 @@ loops in a button lambda must call `App.feed_wdt()` and keep their per-iteration
 that includes its `.hpp` (add `esphome: name:` for the `-common` ones):
 - `ccsfake.hpp`, `ccs-common.yaml`: CCS811 at 0x5A (#21927). Answers setup and update reads and checks every
   ENV_DATA write against the humidity and temperature the case set; "CCS Cases" runs edge values, "CCS Sweep" 2000
-  random ones and logs `SWEEP checked N bad M bad_reads R`. A read without a register, or of a register the fake
-  does not model, gets a NACK and counts in `bad_reads`. The CASES and SWEEP lines end in PASS only when something
-  was checked and `bad` and `bad_reads` stayed 0, and in FAIL otherwise.
+  random ones and logs `SWEEP checked N bad M bad_reads R bad_writes W`. A read without a register, of a register
+  the fake does not model or of the wrong length gets a NACK and counts in `bad_reads`; a write other than the
+  driver's SW_RESET, APP_START, MEAS_MODE and BASELINE writes (each with its own length) gets a NACK and counts in
+  `bad_writes`. The CASES and SWEEP lines end in PASS only when something was checked and `bad`, `bad_reads` and
+  `bad_writes` stayed 0, and in FAIL otherwise.
 - `eefake.hpp`, `ee-common.yaml`: HTE501 (0x40) and TEE501 (0x48) with CRC words; "Next" steps through raw
   temperature words and logs the value a signed hundredths decode should give (#21930). A command other than
   identification and measure, and a read longer than the reply, gets a NACK and counts as `bad` on the RAW line.
@@ -61,11 +63,15 @@ Check the PR head again just before posting results: a head that moves during a 
 `scripts/pico_i2c_target/`: `picofake.hpp` is a raw RP2350 I2C0 interrupt handler on GP4 (SDA) and GP5 (SCL) at 0x76 that
 answers one byte per read request from a 256 byte register file, so any read length is byte exact. `picofake.yaml`
 plays a BME280 (`chip_id` 0x60) or BMP280 (0x58) with the datasheet calibration; every 15 s it switches between the
-datasheet example readings and the 0x80000 "no measurement" values, and logs `STAT` counters every 5 s. The DUT is
+datasheet example readings and the 0x80000 "no measurement" values, and logs `STAT` counters every 5 s. `bad`
+counts reads and writes of registers the drivers do not use (soft reset only with 0xB6, read pointer wrapping past
+0xFF). The DUT is
 an ESP32-C3 (`dut-common.yaml`, GPIO6/GPIO7) with two sensors on the one fake (`dut-bme280.yaml`,
-`dut-bmp280.yaml`), the second with oversampling NONE. `run.sh bme280|bmp280 LABEL` flashes the DUT, captures both
-boards and prints the distinct values per sensor, then PASS when every sensor gave a numeric state and the fake's
-`abrt` count (read replies the controller aborted) did not move during the run; diff the output of dev and the PR.
+`dut-bmp280.yaml`), the second with oversampling NONE. `run.sh bme280|bmp280 LABEL` flashes the DUT, starts the
+fake capture and waits for a `STAT` line as the baseline, then resets and captures the DUT and prints the distinct
+values per sensor. It prints PASS when every sensor gave a numeric state, a `STAT` line came after the reset, and the
+fake's `abrt` (read replies the controller aborted) and `bad` counts did not move from the baseline; diff the output
+of dev and the PR.
 
 The ESP32-S3 I2C slave v2 driver cannot emulate a register device: answering from a task and straight from the ISR
 both gave shifted multi-byte reads. Use the Pico.

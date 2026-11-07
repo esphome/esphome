@@ -8,7 +8,8 @@ address they do not simulate.
   driving HD44780 controllers. It decodes the EN-strobed nibbles and rebuilds the rows written after each 0x80 and
   0xC0 address command. `add()` up to three addresses, hand it to each `lcd_pcf8574` with `set_i2c_bus()` at
   `on_boot` priority 800, and call `report()` from an interval. `lcd_an.py SERIAL` checks the rows against the
-  patterns its docstring lists (0x27 20x4, 0x26 16x2, 0x25 64x4), and fails on a segment longer than its rows or on
+  patterns its docstring lists (0x27 20x4, 0x26 16x2, 0x25 64x4), and fails on a display whose frame count does not
+  grow between its first and last report, on a segment longer than its rows or on
   data past the 128 byte segment buffer, which the report counts as `overflow`, on a report from an address it does
   not expect, or on any read (`reads`; the driver never reads, so the simulator NACKs them). A 64x4 display hangs the
   code before #22331 in
@@ -19,13 +20,16 @@ address they do not simulate.
   `auto &d = DelegatePeek::of(id(x)); d = new MxSniff(d, chips);`. `mx_an.py SERIAL CHAIN...`
   summarizes the reports, CHAIN being each name passed to `report()`, and fails on a named chain with no report line,
   on malformed transactions (byte count not two per chip, or a partial byte from `write()` or
-  `write_cmd_addr_data()`, which are recorded and forwarded too) or a chain whose transaction count stays 0 or stops
-  growing, and prints PASS otherwise.
+  `write_cmd_addr_data()`, which are recorded and forwarded too), on a named chain with fewer than two report lines,
+  or a chain whose transaction count stays 0 or stops growing, and prints PASS otherwise.
 - `spysim.hpp`: the same delegate trick (both headers carry `DelegatePeek`, so one config can include both), logging length and FNV-1a hash of every transaction over 1000 bytes (whole
   frames, used for `pixoo`). `write()` and `write_cmd_addr_data()` are hashed and forwarded like `write_array()`.
 - `pisim.hpp`: drives two `packet_interface` stacks on cross-wired UARTs through `top()`, with payloads whose bytes
   are a function of their index so every byte is checked, and the length each side sent per index (last 256) so a
-  truncated or split packet counts as `rx_bad`. `packet_transport` drops packets carrying its own device
+  truncated or split packet counts as `rx_bad`. Send indices 0, 1, 2 and so on from each side: a skipped index
+  counts as `rx_lost` and an old or repeated one as `rx_bad`. `report(tag, true)` once both links are idle ends each
+  line in PASS only when that side received every packet the peer sent intact; `missing` is the rest, packets still
+  in flight or lost at the tail. `packet_transport` drops packets carrying its own device
   name, so a one-board test must use the layers directly.
 - `hcsim.hpp`: a software SN74HC165 chain on ESP-IDF (data GPIO6, clock GPIO7, load GPIO10). A falling load edge
   latches the pattern and each rising clock edge drives the next bit onto the data pad, which is in

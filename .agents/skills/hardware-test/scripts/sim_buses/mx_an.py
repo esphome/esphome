@@ -1,8 +1,8 @@
 """mx_an.py SERIAL CHAIN...: per MAX7219 chain, the transaction counts and how the latched digits evolve.
 
-Reads the MxSniff report lines (mxsim.hpp); CHAIN is each name passed to report(). Exits 1 when a named chain has no
-report line, a chain had malformed transactions, or a chain's transaction count is 0 or never grew between its first
-and last report.
+Reads the MxSniff report lines (mxsim.hpp); CHAIN is each name passed to report(). Exits 1 when a named chain has
+fewer than two report lines, a chain had malformed transactions, or a chain's transaction count is 0 or never grew
+between its first and last report.
 """
 
 import collections
@@ -31,6 +31,11 @@ def main() -> int:
     if missing := [k for k in expected if k not in seen]:
         print(f"FAIL: no MX report lines from {missing}")
         return 1
+    reports = {k: sum(c.values()) for k, c in seen.items()}
+    # growth needs a first and a last report; one line means the capture or the chain stopped early
+    if short := [k for k in expected if reports[k] < 2]:
+        print(f"FAIL: fewer than two MX report lines from {short}")
+        return 1
     for k in sorted(seen):
         print(
             f"{k}: transactions={last[k][0]} malformed={last[k][1]} distinct digit sets={len(seen[k])}"
@@ -41,12 +46,7 @@ def main() -> int:
     if bad:
         print(f"FAIL: malformed transactions on {bad}")
         return 1
-    reports = {k: sum(c.values()) for k, c in seen.items()}
-    stuck = [
-        k
-        for k, (tx, _) in last.items()
-        if not tx or (reports[k] > 1 and tx <= first[k])
-    ]
+    stuck = [k for k, (tx, _) in last.items() if not tx or tx <= first[k]]
     if stuck:
         print(f"FAIL: no new transactions on {stuck}")
         return 1

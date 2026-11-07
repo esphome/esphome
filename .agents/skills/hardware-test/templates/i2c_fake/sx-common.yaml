@@ -92,7 +92,7 @@ button:
     name: Boot Log
     on_press:
       - lambda: |-
-          ESP_LOGI("sxfake", "BOOT writes %u", sxfake::bus.n);
+          ESP_LOGI("sxfake", "BOOT writes %u", (unsigned) sxfake::bus.n);
           sxfake::bus.dump_log(0);
           sxfake::bus.dump_regs();
           id(wcount).update();
