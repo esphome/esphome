@@ -1,0 +1,38 @@
+esphome:
+  name: modbus-tcp-uart-client-test
+
+host:
+
+api:
+
+logger:
+  level: INFO
+
+# The firmware is the Modbus TCP client; pytest plays the meter on this port.
+tcp_uart:
+  - id: meter_link
+    host: 127.0.0.1
+    port: 18128
+
+modbus_tcp_uart:
+  - id: meter_uart
+    tcp_uart_id: meter_link
+
+modbus:
+  - id: meter_bus
+    uart_id: meter_uart
+
+modbus_controller:
+  - id: meter
+    modbus_id: meter_bus
+    address: 1
+    # Poll every second; with the default 60s the first poll can start up to 5s late.
+    update_interval: 1s
+
+sensor:
+  - platform: modbus_controller
+    modbus_controller_id: meter
+    name: Grid power
+    register_type: holding
+    address: 0x0000
+    value_type: S_WORD

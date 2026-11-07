@@ -1,0 +1,2 @@
+packages:
+  modbus_tcp_uart: !include common.yaml
