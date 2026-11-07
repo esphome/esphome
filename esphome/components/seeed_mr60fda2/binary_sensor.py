@@ -2,6 +2,7 @@ import esphome.codegen as cg
 from esphome.components import binary_sensor
 import esphome.config_validation as cv
 from esphome.const import DEVICE_CLASS_OCCUPANCY, DEVICE_CLASS_SAFETY
+from esphome.types import ConfigType
 
 from . import CONF_MR60FDA2_ID, MR60FDA2Component
 
@@ -21,7 +22,7 @@ CONFIG_SCHEMA = {
 }
 
 
-async def to_code(config):
+async def to_code(config: ConfigType) -> None:
     mr60fda2_component = await cg.get_variable(config[CONF_MR60FDA2_ID])
 
     if people_exist_config := config.get(CONF_PEOPLE_EXIST):

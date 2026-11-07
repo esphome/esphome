@@ -11,6 +11,7 @@ from esphome.const import (
     CONF_LAMBDA,
     CONF_LENGTH,
 )
+from esphome.types import ConfigType
 
 CODEOWNERS = ["@glmnet"]
 
@@ -32,7 +33,7 @@ CONFIG_SCHEMA = display.BASIC_DISPLAY_SCHEMA.extend(
 ).extend(cv.polling_component_schema("1s"))
 
 
-async def to_code(config):
+async def to_code(config: ConfigType) -> None:
     var = cg.new_Pvariable(config[CONF_ID])
     await display.register_display(var, config)
 

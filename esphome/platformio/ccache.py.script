@@ -1,5 +1,4 @@
 import os
-import shutil
 
 # pylint: disable=E0602
 Import("env")  # noqa
@@ -9,15 +8,17 @@ Import("env")  # noqa
 # esphome/platformio/toolchain.py); this script only supplies the SCons-level
 # mechanism.
 #
+# The binary comes pre-resolved in ESPHOME_CCACHE_PATH; _ccache_env() has
+# already stripped the Windows \\?\ prefix that cmd.exe cannot run.
+#
 # This is a "pre" script, so the platform's builder (which sets CC/CXX and
 # clones the construction environment for framework and library builds) runs
 # after it. Replacing CC/CXX here would be overwritten, and replacing them in
 # a "post" script would miss the already-cloned library environments. Wrapping
 # SPAWN instead is ordering-proof: clones copy the wrapper, and every compiler
 # invocation from every environment funnels through it at execution time.
-if (
-    os.environ.get("ESPHOME_CCACHE_ENABLE") == "1"
-    and (ccache_path := shutil.which("ccache")) is not None
+if os.environ.get("ESPHOME_CCACHE_ENABLE") == "1" and (
+    ccache_path := os.environ.get("ESPHOME_CCACHE_PATH")
 ):
     original_spawn = env["SPAWN"]
 

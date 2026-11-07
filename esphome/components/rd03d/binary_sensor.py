@@ -2,6 +2,7 @@ import esphome.codegen as cg
 from esphome.components import binary_sensor
 import esphome.config_validation as cv
 from esphome.const import CONF_TARGET, DEVICE_CLASS_OCCUPANCY
+from esphome.types import ConfigType
 
 from . import CONF_RD03D_ID, RD03DComponent
 
@@ -26,7 +27,7 @@ CONFIG_SCHEMA = cv.Schema(
 )
 
 
-async def to_code(config):
+async def to_code(config: ConfigType) -> None:
     hub = await cg.get_variable(config[CONF_RD03D_ID])
 
     if target_config := config.get(CONF_TARGET):

@@ -25,6 +25,27 @@ esphome:
         away: !lambda "return true;"
         is_on: !lambda "return false;"
 
+    - climate.template.publish:
+        id: template_climate
+        current_temperature: 21.0
+        mode: HEAT
+        fan_mode: AUTO
+        swing_mode: "OFF"
+        preset: NONE
+        target_temperature: 22.0
+
+    # Templated
+    - climate.template.publish:
+        id: template_climate
+        current_temperature: !lambda "return 21.5f;"
+        mode: !lambda "return climate::CLIMATE_MODE_COOL;"
+        target_temperature: !lambda "return 23.0f;"
+
+    - climate.template.publish:
+        id: template_climate_custom_modes
+        custom_fan_mode: "turbo"
+        custom_preset: "eco_plus"
+
     # Test C++ API: set_template() with stateless lambda (no captures)
     # NOTE: set_template() is not intended to be a public API, but we test it to ensure it doesn't break.
     - lambda: |-
@@ -512,6 +533,98 @@ alarm_control_panel:
     name: Alarm Panel
     codes:
       - "1234"
+
+climate:
+  - platform: template
+    id: template_climate
+    name: "Template Climate"
+    optimistic: true
+    sensor: template_template_sens
+    supports_action: true
+    supports_current_humidity: true
+    restore_mode: NO_RESTORE
+    initial_state:
+      mode: HEAT
+      target_temperature: 21.0
+      fan_mode: LOW
+    supported_modes:
+      - "OFF"
+      - HEAT
+      - COOL
+    supported_fan_modes:
+      - AUTO
+      - LOW
+      - HIGH
+    supported_swing_modes:
+      - "OFF"
+      - VERTICAL
+    supported_presets:
+      - NONE
+      - ECO
+    visual:
+      min_temperature: 16.0
+      max_temperature: 30.0
+      temperature_step: 0.5
+    set_mode_action:
+      - logger.log:
+          format: "set_mode_action %d"
+          args: ["(int) x"]
+    set_target_temperature_action:
+      - logger.log:
+          format: "set_target_temperature_action %.1f"
+          args: ["x"]
+    set_target_humidity_action:
+      - logger.log:
+          format: "set_target_humidity_action %.1f"
+          args: ["x"]
+    set_fan_mode_action:
+      - logger.log:
+          format: "set_fan_mode_action %d"
+          args: ["(int) x"]
+    set_swing_mode_action:
+      - logger.log:
+          format: "set_swing_mode_action %d"
+          args: ["(int) x"]
+    set_preset_action:
+      - logger.log:
+          format: "set_preset_action %d"
+          args: ["(int) x"]
+    on_control:
+      - logger.log: "on_control fired"
+    on_state:
+      - logger.log: "on_state fired"
+
+  - platform: template
+    id: template_climate_custom_modes
+    name: "Template Climate Custom Modes"
+    optimistic: true
+    sensor: template_template_sens
+    supported_modes:
+      - "OFF"
+      - HEAT
+    custom_fan_modes:
+      - turbo
+      - silent
+      - eco
+    custom_presets:
+      - eco_plus
+      - power_save
+      - max
+    set_custom_fan_mode_action:
+      - logger.log:
+          format: "set_custom_fan_mode_action %s"
+          args: ["x.c_str()"]
+    set_custom_preset_action:
+      - logger.log:
+          format: "set_custom_preset_action %s"
+          args: ["x.c_str()"]
+    initial_state:
+      custom_fan_mode: eco
+      custom_preset: max
+    visual:
+      min_temperature: 16.0
+      max_temperature: 30.0
+      temperature_step: 0.5
 
 water_heater:
   - platform: template

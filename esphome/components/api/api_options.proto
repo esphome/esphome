@@ -116,4 +116,10 @@ extend google.protobuf.FieldOptions {
     // the per-byte loop when the upper bits are non-zero (the common case
     // for real MAC addresses, since OUIs occupy the top 24 bits).
     optional bool mac_address = 50019 [default=false];
+
+    // track_presence: Track whether this message-typed field was present on the wire.
+    // Generates a `bool has_<field>{false};` member on the decoding side that is set
+    // to true when the field arrives, so an all-default submessage can be told apart
+    // from an absent one (e.g. a UTC ParsedTimezone, which is all zeros).
+    optional bool track_presence = 50020 [default=false];
 }

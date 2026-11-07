@@ -190,18 +190,7 @@ class WidgetType:
             await self.on_create(var, config)
 
         w = Widget.create(wid, var, self, config)
-        if theme := get_theme_widget_map().get(self.name):
-            for part, states in theme.items():
-                part = "LV_PART_" + part.upper()
-                for state, style in states.items():
-                    state = "LV_STATE_" + state.upper()
-                    if state == "LV_STATE_DEFAULT":
-                        lv_state = literal(part)
-                    elif part == "LV_PART_MAIN":
-                        lv_state = literal(state)
-                    else:
-                        lv_state = join_enums((state, part))
-                    w.add_style(style, lv_state)
+        apply_theme_styles(w)
         await set_obj_properties(w, config)
         await add_widgets(w, config)
         await self.to_code(w, config)
@@ -230,7 +219,7 @@ class WidgetType:
         :param config: Its configuration
         """
 
-    def get_uses(self):
+    def get_uses(self) -> tuple:
         """
         Get a list of other widgets used by this one
         :return:
@@ -265,6 +254,21 @@ class WidgetType:
         :param widget_config: The configuration for the widget itself
         :param path: The path to the widget, for error reporting
         """
+
+
+def apply_theme_styles(w: "Widget") -> None:
+    """Apply the current theme's styles for this widget's type"""
+    for part, states in get_theme_widget_map().get(w.type.name, {}).items():
+        part = "LV_PART_" + part.upper()
+        for state, style in states.items():
+            state = "LV_STATE_" + state.upper()
+            if state == "LV_STATE_DEFAULT":
+                lv_state = literal(part)
+            elif part == "LV_PART_MAIN":
+                lv_state = literal(state)
+            else:
+                lv_state = join_enums((state, part))
+            w.add_style(style, lv_state)
 
 
 class Widget:

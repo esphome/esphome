@@ -10,16 +10,33 @@ namespace esphome::network {
 // an AP that uses a previous interface for NAT).
 
 bool is_disabled() {
+  // The network is disabled only when every configured interface with a
+  // disable() lifecycle is disabled; one enabled interface means traffic can flow.
+  bool disabled = false;
 #ifdef USE_MODEM
-  if (modem::global_modem_component != nullptr)
-    return modem::global_modem_component->is_disabled();
+  if (modem::global_modem_component != nullptr) {
+    if (!modem::global_modem_component->is_disabled())
+      return false;
+    disabled = true;
+  }
 #endif
 
 #ifdef USE_WIFI
-  if (wifi::global_wifi_component != nullptr)
-    return wifi::global_wifi_component->is_disabled();
+  if (wifi::global_wifi_component != nullptr) {
+    if (!wifi::global_wifi_component->is_disabled())
+      return false;
+    disabled = true;
+  }
 #endif
-  return false;
+
+#ifdef USE_ETHERNET
+  if (ethernet::global_eth_component != nullptr) {
+    if (!ethernet::global_eth_component->is_disabled())
+      return false;
+    disabled = true;
+  }
+#endif
+  return disabled;
 }
 
 const char *get_use_address_to(std::span<char, USE_ADDRESS_BUFFER_SIZE> buf) {

@@ -14,7 +14,7 @@
 
 namespace esphome::http_request {
 
-static const char *const TAG = "http_request.host";
+static const char *const TAG = "http_request";
 
 std::shared_ptr<HttpContainer> HttpRequestHost::perform(const std::string &url, const std::string &method,
                                                         const std::string &body,

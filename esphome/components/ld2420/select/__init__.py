@@ -1,11 +1,12 @@
 import esphome.codegen as cg
 from esphome.components import select
+from esphome.components.const import CONF_OPERATING_MODE
 import esphome.config_validation as cv
 from esphome.const import ENTITY_CATEGORY_CONFIG
+from esphome.types import ConfigType
 
 from .. import CONF_LD2420_ID, LD2420Component, ld2420_ns
 
-CONF_OPERATING_MODE = "operating_mode"
 CONF_SELECTS = [
     "Normal",
     "Calibrate",
@@ -23,7 +24,7 @@ CONFIG_SCHEMA = {
 }
 
 
-async def to_code(config):
+async def to_code(config: ConfigType) -> None:
     LD2420_component = await cg.get_variable(config[CONF_LD2420_ID])
     if operating_mode_config := config.get(CONF_OPERATING_MODE):
         sel = await select.new_select(

@@ -2,6 +2,7 @@ import esphome.codegen as cg
 from esphome.components import uart
 import esphome.config_validation as cv
 from esphome.const import CONF_ID
+from esphome.types import ConfigType
 
 CODEOWNERS = ["@ljungqvist"]
 
@@ -29,12 +30,13 @@ FINAL_VALIDATE_SCHEMA = uart.final_validate_device_schema(
     require_tx=True,
     require_rx=True,
     baud_rate=2400,
+    data_bits=8,
     parity="EVEN",
     stop_bits=1,
 )
 
 
-async def to_code(config):
+async def to_code(config: ConfigType) -> None:
     var = cg.new_Pvariable(config[CONF_ID])
     await cg.register_component(var, config)
     await uart.register_uart_device(var, config)

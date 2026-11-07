@@ -37,8 +37,8 @@ class TextSensor : public EntityBase {
   /// Returns the raw (pre-filter) state.
   const std::string &get_raw_state() const;
 
-  void publish_state(const std::string &state);
-  void publish_state(const char *state);
+  void publish_state(const std::string &state) { this->publish_state(state.data(), state.size()); }
+  void publish_state(const char *state) { this->publish_state(state, strlen(state)); }
   void publish_state(const char *state, size_t len);
 
 #ifdef USE_TEXT_SENSOR_FILTER
@@ -70,7 +70,9 @@ class TextSensor : public EntityBase {
   // ========== INTERNAL METHODS ==========
   // (In most use cases you won't need these)
 
-  void internal_send_state_to_frontend(const std::string &state);
+  void internal_send_state_to_frontend(const std::string &state) {
+    this->internal_send_state_to_frontend(state.data(), state.size());
+  }
   void internal_send_state_to_frontend(const char *state, size_t len);
 
  protected:

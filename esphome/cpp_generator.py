@@ -699,6 +699,11 @@ def add_build_flag(build_flag: str):
     CORE.add_build_flag(build_flag)
 
 
+def add_cmake_arg(name: str, value: str) -> None:
+    """Add a CMake arg for CMake-based toolchains; see ``EsphomeCore.add_cmake_arg``."""
+    CORE.add_cmake_arg(name, value)
+
+
 def add_cxx_build_flag(build_flag: str) -> None:
     """Add a global build flag that applies to C++ compiles only.
 

@@ -16,6 +16,7 @@ from esphome.const import (
     STATE_CLASS_MEASUREMENT,
     UNIT_MICROGRAMS_PER_CUBIC_METER,
 )
+from esphome.types import ConfigType
 
 DEPENDENCIES = ["i2c"]
 CODEOWNERS = ["@andrewjswan"]
@@ -65,7 +66,7 @@ CONFIG_SCHEMA = cv.All(
 )
 
 
-async def to_code(config) -> None:
+async def to_code(config: ConfigType) -> None:
     """Code generation entry point."""
     var = cg.new_Pvariable(config[CONF_ID])
     await cg.register_component(var, config)

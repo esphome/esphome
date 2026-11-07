@@ -7,6 +7,8 @@ import esphome.config_validation as cv
 from esphome.const import CONF_ID
 from esphome.core import CORE, coroutine_with_priority
 from esphome.coroutine import CoroPriority
+from esphome.cpp_generator import MockObj
+from esphome.types import ConfigType
 
 CODEOWNERS = ["@jorre05", "@edenhaus"]
 
@@ -63,7 +65,7 @@ def MICRONOVA_ADDRESS_SCHEMA(
     default_memory_location: int | None = None,
     default_memory_address: int | None = None,
     is_polling_component: bool,
-):
+) -> cv.Schema:
     location_key = (
         cv.Optional(CONF_MEMORY_LOCATION, default=default_memory_location)
         if default_memory_location is not None
@@ -91,7 +93,9 @@ def register_micronova_writer() -> None:
     _get_data().has_writer = True
 
 
-async def to_code_micronova_listener(mv, var, config):
+async def to_code_micronova_listener(
+    mv: MockObj, var: MockObj, config: ConfigType
+) -> None:
     _get_data().listener_count += 1
     await cg.register_component(var, config)
     cg.add(var.set_memory_location(config[CONF_MEMORY_LOCATION]))
@@ -100,7 +104,7 @@ async def to_code_micronova_listener(mv, var, config):
     cg.add(mv.register_micronova_listener(var))
 
 
-async def to_code(config):
+async def to_code(config: ConfigType) -> None:
     enable_rx_pin = await cg.gpio_pin_expression(config[CONF_ENABLE_RX_PIN])
     var = cg.new_Pvariable(config[CONF_ID], enable_rx_pin)
     await cg.register_component(var, config)

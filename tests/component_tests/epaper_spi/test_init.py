@@ -439,6 +439,23 @@ def test_enable_pin_multiple(
     assert all(pin["mode"]["output"] is True for pin in enable_pins)
 
 
+def test_uc8179_e1001_code_generation(
+    generate_main: Callable[[str | Path], str],
+    component_config_path: Callable[[str], Path],
+) -> None:
+    """Test that the reTerminal E1001 model generates the UC8179 driver and init sequence."""
+    main_cpp = generate_main(component_config_path("uc8179_e1001_test.yaml"))
+
+    # The model must instantiate the UC8179 driver class with the panel dimensions
+    assert "epaper_spi::EPaperUC8179" in main_cpp
+    assert re.search(r'"SEEED-RETERMINAL-E1001",\s*800,\s*480', main_cpp)
+
+    # The generated init sequence must contain the UC8179 resolution setting
+    # for 800x480: command 0x61, 4 data bytes 0x03 0x20 0x01 0xE0
+    # (rendered as decimal in the generated array)
+    assert "97, 4, 3, 32, 1, 224" in main_cpp
+
+
 def test_enable_pin_code_generation(
     generate_main: Callable[[str | Path], str],
     component_config_path: Callable[[str], Path],

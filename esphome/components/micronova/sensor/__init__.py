@@ -8,6 +8,7 @@ from esphome.const import (
     UNIT_CELSIUS,
     UNIT_REVOLUTIONS_PER_MINUTE,
 )
+from esphome.types import ConfigType
 
 from .. import (
     CONF_MICRONOVA_ID,
@@ -125,7 +126,7 @@ CONFIG_SCHEMA = cv.Schema(
 )
 
 
-async def to_code(config):
+async def to_code(config: ConfigType) -> None:
     mv = await cg.get_variable(config[CONF_MICRONOVA_ID])
 
     for key, divisor in {

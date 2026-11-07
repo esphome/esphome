@@ -209,7 +209,8 @@ void INA2XX::dump_config() {
                 "  CURRENT_LSB = %f\n"
                 "  SHUNT_CAL = %d",
                 this->shunt_resistance_ohm_, this->max_current_a_, this->shunt_tempco_ppm_c_,
-                (uint8_t) this->adc_range_, this->adc_range_ ? "±40.96 mV" : "±163.84 mV", this->current_lsb_,
+                (uint8_t) this->adc_range_,
+                this->adc_range_ ? LOG_STR_LITERAL("±40.96 mV") : LOG_STR_LITERAL("±163.84 mV"), this->current_lsb_,
                 this->shunt_cal_);
 
   ESP_LOGCONFIG(TAG, "  ADC Samples = %d; ADC times: Bus = %d μs, Shunt = %d μs, Temp = %d μs",

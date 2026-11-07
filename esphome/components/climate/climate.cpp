@@ -368,8 +368,8 @@ optional<ClimateDeviceRestoreState> Climate::restore_state_() {
 }
 
 void Climate::save_state_(const ClimateTraits &traits) {
-#if (defined(USE_ESP32) || (defined(USE_ESP8266) && USE_ARDUINO_VERSION_CODE >= VERSION_CODE(3, 0, 0))) && \
-    !defined(CLANG_TIDY)
+#if (defined(USE_ESP32) || defined(USE_ESP8266)) && !defined(CLANG_TIDY)
+#pragma GCC diagnostic push
 #pragma GCC diagnostic ignored "-Wclass-memaccess"
 #define TEMP_IGNORE_MEMACCESS
 #endif
@@ -511,29 +511,6 @@ ClimateTraits Climate::get_traits() {
   return traits;
 }
 
-#ifdef USE_CLIMATE_VISUAL_OVERRIDES
-void Climate::set_visual_min_temperature_override(float visual_min_temperature_override) {
-  this->visual_min_temperature_override_ = visual_min_temperature_override;
-}
-
-void Climate::set_visual_max_temperature_override(float visual_max_temperature_override) {
-  this->visual_max_temperature_override_ = visual_max_temperature_override;
-}
-
-void Climate::set_visual_temperature_step_override(float target, float current) {
-  this->visual_target_temperature_step_override_ = target;
-  this->visual_current_temperature_step_override_ = current;
-}
-
-void Climate::set_visual_min_humidity_override(float visual_min_humidity_override) {
-  this->visual_min_humidity_override_ = visual_min_humidity_override;
-}
-
-void Climate::set_visual_max_humidity_override(float visual_max_humidity_override) {
-  this->visual_max_humidity_override_ = visual_max_humidity_override;
-}
-#endif
-
 ClimateCall Climate::make_call() { return ClimateCall(this); }
 
 ClimateCall ClimateDeviceRestoreState::to_call(Climate *climate) {
@@ -574,7 +551,14 @@ ClimateCall ClimateDeviceRestoreState::to_call(Climate *climate) {
 
 void ClimateDeviceRestoreState::apply(Climate *climate) {
   auto traits = climate->get_traits();
-  climate->mode = this->mode;
+  // A saved mode the device no longer offers cannot be selected again, so skip it and leave the
+  // entity on the mode it already has. The other saved fields are still restored.
+  if (traits.supports_mode(this->mode)) {
+    climate->mode = this->mode;
+  } else {
+    ESP_LOGW(TAG, "'%s' - Saved mode %s is no longer supported, keeping %s", climate->get_name().c_str(),
+             LOG_STR_ARG(climate_mode_to_string(this->mode)), LOG_STR_ARG(climate_mode_to_string(climate->mode)));
+  }
   if (traits.has_feature_flags(CLIMATE_SUPPORTS_TWO_POINT_TARGET_TEMPERATURE |
                                CLIMATE_REQUIRES_TWO_POINT_TARGET_TEMPERATURE)) {
     climate->target_temperature_low = this->target_temperature_low;
@@ -765,33 +749,39 @@ void Climate::dump_traits_(const char *tag) {
   }
   if (!traits.get_supported_modes().empty()) {
     ESP_LOGCONFIG(tag, "  Supported modes:");
-    for (ClimateMode m : traits.get_supported_modes())
+    for (ClimateMode m : traits.get_supported_modes()) {
       ESP_LOGCONFIG(tag, "  - %s", LOG_STR_ARG(climate_mode_to_string(m)));
+    }
   }
   if (!traits.get_supported_fan_modes().empty()) {
     ESP_LOGCONFIG(tag, "  Supported fan modes:");
-    for (ClimateFanMode m : traits.get_supported_fan_modes())
+    for (ClimateFanMode m : traits.get_supported_fan_modes()) {
       ESP_LOGCONFIG(tag, "  - %s", LOG_STR_ARG(climate_fan_mode_to_string(m)));
+    }
   }
   if (!traits.get_supported_custom_fan_modes().empty()) {
     ESP_LOGCONFIG(tag, "  Supported custom fan modes:");
-    for (const char *s : traits.get_supported_custom_fan_modes())
+    for (const char *s : traits.get_supported_custom_fan_modes()) {
       ESP_LOGCONFIG(tag, "  - %s", s);
+    }
   }
   if (!traits.get_supported_presets().empty()) {
     ESP_LOGCONFIG(tag, "  Supported presets:");
-    for (ClimatePreset p : traits.get_supported_presets())
+    for (ClimatePreset p : traits.get_supported_presets()) {
       ESP_LOGCONFIG(tag, "  - %s", LOG_STR_ARG(climate_preset_to_string(p)));
+    }
   }
   if (!traits.get_supported_custom_presets().empty()) {
     ESP_LOGCONFIG(tag, "  Supported custom presets:");
-    for (const char *s : traits.get_supported_custom_presets())
+    for (const char *s : traits.get_supported_custom_presets()) {
       ESP_LOGCONFIG(tag, "  - %s", s);
+    }
   }
   if (!traits.get_supported_swing_modes().empty()) {
     ESP_LOGCONFIG(tag, "  Supported swing modes:");
-    for (ClimateSwingMode m : traits.get_supported_swing_modes())
+    for (ClimateSwingMode m : traits.get_supported_swing_modes()) {
       ESP_LOGCONFIG(tag, "  - %s", LOG_STR_ARG(climate_swing_mode_to_string(m)));
+    }
   }
 }
 

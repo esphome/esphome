@@ -3,6 +3,9 @@ import esphome.codegen as cg
 modbus_ns = cg.esphome_ns.namespace("modbus")
 modbus_helpers_ns = modbus_ns.namespace("helpers")
 
+RegisterValues = modbus_ns.class_("RegisterValues")
+PduBuffer = modbus_helpers_ns.class_("PduBuffer")
+
 FunctionCode_ns = modbus_ns.namespace("FunctionCode")
 FunctionCode = FunctionCode_ns.enum("FunctionCode")
 

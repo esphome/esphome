@@ -15,6 +15,9 @@ from esphome.const import (
     UNIT_CELSIUS,
     UNIT_PARTS_PER_MILLION,
 )
+from esphome.core import ID
+from esphome.cpp_generator import MockObj, TemplateArgsType
+from esphome.types import ConfigType
 
 DEPENDENCIES = ["uart"]
 
@@ -77,8 +80,16 @@ CONFIG_SCHEMA = (
     .extend(uart.UART_DEVICE_SCHEMA)
 )
 
+FINAL_VALIDATE_SCHEMA = uart.final_validate_device_schema(
+    "mhz19",
+    baud_rate=9600,
+    data_bits=8,
+    parity="NONE",
+    stop_bits=1,
+)
 
-async def to_code(config):
+
+async def to_code(config: ConfigType) -> None:
     var = cg.new_Pvariable(config[CONF_ID])
     await cg.register_component(var, config)
     await uart.register_uart_device(var, config)
@@ -129,7 +140,12 @@ NO_ARGS_ACTION_SCHEMA = maybe_simple_id(
     NO_ARGS_ACTION_SCHEMA,
     synchronous=True,
 )
-async def mhz19_no_args_action_to_code(config, action_id, template_arg, args):
+async def mhz19_no_args_action_to_code(
+    config: ConfigType,
+    action_id: ID,
+    template_arg: cg.TemplateArguments,
+    args: TemplateArgsType,
+) -> MockObj:
     var = cg.new_Pvariable(action_id, template_arg)
     await cg.register_parented(var, config[CONF_ID])
     return var
@@ -151,7 +167,12 @@ RANGE_ACTION_SCHEMA = maybe_simple_id(
     RANGE_ACTION_SCHEMA,
     synchronous=True,
 )
-async def mhz19_detection_range_set_to_code(config, action_id, template_arg, args):
+async def mhz19_detection_range_set_to_code(
+    config: ConfigType,
+    action_id: ID,
+    template_arg: cg.TemplateArguments,
+    args: TemplateArgsType,
+) -> MockObj:
     var = cg.new_Pvariable(action_id, template_arg)
     await cg.register_parented(var, config[CONF_ID])
     detection_range = config.get(CONF_DETECTION_RANGE)

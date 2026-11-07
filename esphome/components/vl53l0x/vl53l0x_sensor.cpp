@@ -31,7 +31,8 @@ void VL53L0XSensor::dump_config() {
   ESP_LOGCONFIG(TAG,
                 "  Timeout: %" PRIu32 "%s\n"
                 "  Timing Budget %" PRIu32 "us ",
-                this->timeout_us_, this->timeout_us_ > 0 ? "us" : " (no timeout)", this->measurement_timing_budget_us_);
+                this->timeout_us_, this->timeout_us_ > 0 ? LOG_STR_LITERAL("us") : LOG_STR_LITERAL(" (no timeout)"),
+                this->measurement_timing_budget_us_);
 }
 
 void VL53L0XSensor::setup() {

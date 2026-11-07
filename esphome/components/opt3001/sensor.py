@@ -2,6 +2,7 @@ import esphome.codegen as cg
 from esphome.components import i2c, sensor
 import esphome.config_validation as cv
 from esphome.const import DEVICE_CLASS_ILLUMINANCE, STATE_CLASS_MEASUREMENT, UNIT_LUX
+from esphome.types import ConfigType
 
 DEPENDENCIES = ["i2c"]
 CODEOWNERS = ["@ccutrer"]
@@ -25,7 +26,7 @@ CONFIG_SCHEMA = (
 )
 
 
-async def to_code(config):
+async def to_code(config: ConfigType) -> None:
     var = await sensor.new_sensor(config)
     await cg.register_component(var, config)
     await i2c.register_i2c_device(var, config)

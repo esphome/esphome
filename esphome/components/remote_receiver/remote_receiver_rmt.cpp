@@ -9,7 +9,7 @@
 
 namespace esphome::remote_receiver {
 
-static const char *const TAG = "remote_receiver.esp32";
+static const char *const TAG = "remote_receiver";
 
 static bool IRAM_ATTR HOT rmt_callback(rmt_channel_handle_t channel, const rmt_rx_done_event_data_t *event, void *arg) {
   RemoteReceiverComponentStore *store = (RemoteReceiverComponentStore *) arg;

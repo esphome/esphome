@@ -26,6 +26,9 @@ runs:
       # The native-IDF version is pinned in code, not in any file that feeds the
       # other cache keys, so resolve it explicitly. Keying on it means the cache
       # invalidates on a version bump (actions/cache never overwrites a key).
+      # Also key on the Python version: the cached IDF venv links to the
+      # runner's toolcache interpreter and is reinstalled every run after a
+      # runner image bump.
       id: version
       shell: bash
       run: |
@@ -36,19 +39,32 @@ runs:
           version=$(python -c 'from esphome.components.esp32 import ESP_IDF_FRAMEWORK_VERSION_LOOKUP as L; print(L["recommended"])')
         fi
         echo "version=$version" >> "$GITHUB_OUTPUT"
+        echo "python-version=$(python -c 'import platform; print(platform.python_version())')" >> "$GITHUB_OUTPUT"
     # Mirror the adjacent PlatformIO cache: only dev-branch runs write the
     # shared cache (so it lives in the default-branch scope readable by all
     # PRs), and PRs are restore-only -- they never push multi-GB artifacts into
-    # their own scope / the repo quota (e.g. on a version-bump PR).
+    # their own scope / the repo quota (e.g. on a version-bump PR). The
+    # ci-cache-write label lets a PR write into its own scope to test the hit path;
+    # that costs about 1GB of the repo cache quota per run, so remove it when done.
+    # -slim: bump when prune-esp-idf changes what it removes; a key is never overwritten.
     - name: Cache ESP-IDF install (write on dev)
-      if: github.ref == 'refs/heads/dev' && inputs.restore-only != 'true'
+      if: (github.ref == 'refs/heads/dev' || contains(github.event.pull_request.labels.*.name, 'ci-cache-write')) && inputs.restore-only != 'true'
       uses: actions/cache@27d5ce7f107fe9357f9df03efb73ab90386fccae # v5.0.5
       with:
         path: ~/.esphome-idf
-        key: ${{ runner.os }}-esphome-idf-${{ steps.version.outputs.version }}
+        key: ${{ runner.os }}-esphome-idf-${{ steps.version.outputs.version }}-py${{ steps.version.outputs.python-version }}-slim
     - name: Cache ESP-IDF install (restore-only off dev)
-      if: github.ref != 'refs/heads/dev' || inputs.restore-only == 'true'
+      if: github.ref != 'refs/heads/dev' && !contains(github.event.pull_request.labels.*.name, 'ci-cache-write') || inputs.restore-only == 'true'
       uses: actions/cache/restore@27d5ce7f107fe9357f9df03efb73ab90386fccae # v5.0.5
       with:
         path: ~/.esphome-idf
-        key: ${{ runner.os }}-esphome-idf-${{ steps.version.outputs.version }}
+        key: ${{ runner.os }}-esphome-idf-${{ steps.version.outputs.version }}-py${{ steps.version.outputs.python-version }}-slim
+    # Install explicitly so the prune below sees the toolchains on a cache miss
+    # too, instead of the install happening inside the first build step.
+    - name: Install ESP-IDF
+      shell: bash
+      run: |
+        . venv/bin/activate
+        python -c 'from esphome.espidf.framework import check_esp_idf_install; check_esp_idf_install("${{ steps.version.outputs.version }}")'
+    - name: Prune ESP-IDF install
+      uses: ./.github/actions/prune-esp-idf

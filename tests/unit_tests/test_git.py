@@ -714,6 +714,25 @@ def test_run_git_command_without_git_dir_raises_error(
         git.run_git_command(["git", "clone", "https://invalid.url/repo.git"])
 
 
+def test_has_complete_clone(tmp_path: Path) -> None:
+    """The lock-free probe tracks the completion marker, subpath included."""
+    CORE.config_path = tmp_path / "test.yaml"
+
+    url = "https://github.com/test/repo"
+    subpath = Path("lib")
+    assert not git.has_complete_clone(url, "v1", "test_domain", subpath)
+
+    repo_dir = _compute_repo_dir(url, "v1", "test_domain") / subpath
+    (repo_dir / ".git").mkdir(parents=True)
+    # A directory without the marker is an incomplete clone
+    assert not git.has_complete_clone(url, "v1", "test_domain", subpath)
+
+    _mark_clone_complete(repo_dir)
+    assert git.has_complete_clone(url, "v1", "test_domain", subpath)
+    # The ref is part of the cache key
+    assert not git.has_complete_clone(url, "v2", "test_domain", subpath)
+
+
 def test_clone_or_update_with_never_refresh(
     tmp_path: Path, mock_run_git_command: Mock
 ) -> None:

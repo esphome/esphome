@@ -16,7 +16,7 @@
 
 namespace esphome::uart {
 
-static const char *const TAG = "uart.lt";
+static const char *const TAG = "uart";
 
 static const char *const UART_TYPE[] = {
     "hardware",

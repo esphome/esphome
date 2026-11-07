@@ -2,6 +2,7 @@ import esphome.codegen as cg
 from esphome.components import time as time_
 import esphome.config_validation as cv
 from esphome.const import CONF_ID, CONF_TIMEZONE
+from esphome.types import ConfigType
 
 from .. import homeassistant_ns
 
@@ -16,7 +17,7 @@ CONFIG_SCHEMA = time_.TIME_SCHEMA.extend(
 ).extend(cv.COMPONENT_SCHEMA)
 
 
-async def to_code(config):
+async def to_code(config: ConfigType) -> None:
     var = cg.new_Pvariable(config[CONF_ID])
     await time_.register_time(var, config)
     await cg.register_component(var, config)

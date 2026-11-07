@@ -8,6 +8,7 @@ from esphome.components.const import (
 )
 from esphome.components.motion import motion_schema, new_motion_component
 import esphome.config_validation as cv
+from esphome.types import ConfigType
 
 from . import LSM6DSComponent, lsm6ds_ns
 
@@ -93,7 +94,7 @@ CONFIG_SCHEMA = (
 
 
 # ── Code generation ──────────────────────────────────────────────────────────
-async def to_code(config):
+async def to_code(config: ConfigType) -> None:
     var = await new_motion_component(config)
 
     # Let the motion platform handle sensor wiring, axis mapping, and polling

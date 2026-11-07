@@ -93,7 +93,7 @@ void Emc2101Component::dump_config() {
   if (this->is_failed()) {
     ESP_LOGE(TAG, ESP_LOG_MSG_COMM_FAIL);
   }
-  ESP_LOGCONFIG(TAG, "  Mode: %s", this->dac_mode_ ? "DAC" : "PWM");
+  ESP_LOGCONFIG(TAG, "  Mode: %s", this->dac_mode_ ? LOG_STR_LITERAL("DAC") : LOG_STR_LITERAL("PWM"));
   if (this->dac_mode_) {
     ESP_LOGCONFIG(TAG, "  DAC Conversion Rate: %X", this->dac_conversion_rate_);
   } else {

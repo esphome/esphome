@@ -1,0 +1,32 @@
+esphome:
+  name: test
+  on_boot:
+    then:
+      # Plain strings with a return statement compile as lambdas
+      - homeassistant.event:
+          event: esphome.test_event
+          data_template:
+            message: "{{ lambda_var }} {{ static_var }} {{ tagged_var }}"
+          variables:
+            lambda_var: |-
+              return millis();
+            static_var: static value
+            tagged_var: !lambda return App.get_name();
+            hint_var: id(test_sensor).state
+      - homeassistant.action:
+          action: notify.notify
+          data_template:
+            message: "{{ lambda_var }} {{ static_var }}"
+          variables:
+            lambda_var: |-
+              return millis();
+            static_var: static value
+
+esp32:
+  board: esp32dev
+
+wifi:
+  ssid: SomeNetwork
+  password: SomePassword
+
+api:

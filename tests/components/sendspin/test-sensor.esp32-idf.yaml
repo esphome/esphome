@@ -1,1 +1,2 @@
-<<: !include common-sensor.yaml
+packages:
+  sendspin: !include common-sensor.yaml

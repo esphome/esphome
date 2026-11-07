@@ -1,0 +1,17 @@
+esphome:
+  name: test
+
+esp32:
+  board: esp32dev
+
+binary_sensor:
+  - platform: gpio
+    pin: 5
+    name: "Interrupt Sensor"
+    id: bs_interrupt
+
+  - platform: gpio
+    pin: 4
+    name: "Polling Sensor"
+    id: bs_polling
+    use_interrupt: false

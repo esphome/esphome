@@ -109,7 +109,7 @@ CONFIG_SCHEMA = cv.All(
 FINAL_VALIDATE_SCHEMA = _sntp_final_validate
 
 
-async def to_code(config):
+async def to_code(config: ConfigType) -> None:
     servers = config[CONF_SERVERS]
 
     # Define server count at compile time

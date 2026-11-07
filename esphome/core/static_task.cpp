@@ -40,16 +40,31 @@ bool StaticTask::create(TaskFunction_t fn, const char *name, uint32_t stack_size
   return true;
 }
 
-void StaticTask::destroy() {
-  if (this->handle_ != nullptr) {
-    TaskHandle_t handle = this->handle_;
-    this->handle_ = nullptr;
-    vTaskDelete(handle);
+bool StaticTask::destroy() {
+  if (this->handle_ == nullptr) {
+    return true;
   }
+
+  // Suspending takes the task off the ready and event lists, so nothing can schedule it again. It only asks
+  // the other core to yield though, so the task may still be running on it for a moment.
+  vTaskSuspend(this->handle_);
+  if (eTaskGetState(this->handle_) != eSuspended) {
+    // The task is still running on the other core and using its stack. Deleting it now would only put it on
+    // the termination list and return, so the caller has to try again once it has been swapped out.
+    return false;
+  }
+
+  // The task cannot run again, so the delete completes right away instead of being left to the idle task.
+  TaskHandle_t handle = this->handle_;
+  this->handle_ = nullptr;
+  vTaskDelete(handle);
+  return true;
 }
 
-void StaticTask::deallocate() {
-  this->destroy();
+bool StaticTask::deallocate() {
+  if (!this->destroy()) {
+    return false;
+  }
   if (this->stack_buffer_ != nullptr) {
     RAMAllocator<StackType_t> allocator(this->use_psram_ ? RAMAllocator<StackType_t>::ALLOC_EXTERNAL
                                                          : RAMAllocator<StackType_t>::ALLOC_INTERNAL);
@@ -57,6 +72,7 @@ void StaticTask::deallocate() {
     this->stack_buffer_ = nullptr;
     this->stack_size_ = 0;
   }
+  return true;
 }
 
 }  // namespace esphome

@@ -1,3 +1,5 @@
+from typing import Any
+
 from esphome import automation, pins
 import esphome.codegen as cg
 from esphome.components import sensor
@@ -17,7 +19,9 @@ from esphome.const import (
     UNIT_PULSES,
     UNIT_PULSES_PER_MINUTE,
 )
-from esphome.core import CORE
+from esphome.core import CORE, ID, TimePeriodMicroseconds
+from esphome.cpp_generator import MockObj, TemplateArgsType
+from esphome.types import ConfigType
 
 CODEOWNERS = ["@stevebaxter", "@cstaahl", "@TrentHouliston"]
 
@@ -37,18 +41,18 @@ FILTER_MODES = {
 SetTotalPulsesAction = pulse_meter_ns.class_("SetTotalPulsesAction", automation.Action)
 
 
-def validate_internal_filter(value):
+def validate_internal_filter(value: Any) -> TimePeriodMicroseconds:
     return cv.positive_time_period_microseconds(value)
 
 
-def validate_timeout(value):
+def validate_timeout(value: Any) -> TimePeriodMicroseconds:
     value = cv.positive_time_period_microseconds(value)
     if value.total_minutes > 70:
         raise cv.Invalid("Maximum timeout is 70 minutes")
     return value
 
 
-def validate_pulse_meter_pin(value):
+def validate_pulse_meter_pin(value: Any) -> ConfigType:
     value = pins.internal_gpio_input_pin_schema(value)
     if CORE.is_esp8266 and value[CONF_NUMBER] >= 16:
         raise cv.Invalid(
@@ -81,7 +85,7 @@ CONFIG_SCHEMA = sensor.sensor_schema(
 )
 
 
-async def to_code(config):
+async def to_code(config: ConfigType) -> None:
     var = await sensor.new_sensor(config)
     await cg.register_component(var, config)
 
@@ -107,7 +111,12 @@ async def to_code(config):
     ),
     synchronous=True,
 )
-async def set_total_action_to_code(config, action_id, template_arg, args):
+async def set_total_action_to_code(
+    config: ConfigType,
+    action_id: ID,
+    template_arg: cg.TemplateArguments,
+    args: TemplateArgsType,
+) -> MockObj:
     paren = await cg.get_variable(config[CONF_ID])
     var = cg.new_Pvariable(action_id, template_arg, paren)
     template_ = await cg.templatable(config[CONF_VALUE], args, cg.uint32)

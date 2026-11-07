@@ -1,5 +1,6 @@
 """Shared codegen for the neutral BLE advertisement triggers (automation.h)."""
 
+from collections.abc import Callable
 from typing import Any
 
 from esphome import automation
@@ -52,7 +53,7 @@ _UUID_WIDTHS = {
 
 def uuid_trigger_schema(
     trigger_class: MockObjClass, extra: dict[Any, Any] | None = None
-):
+) -> Callable[[Any], Any]:
     """Schema for a UUID-filtered trigger — pairs with uuid_trigger_to_code().
 
     `extra` carries the required UUID key (a cv marker, so a dict rather than
@@ -68,7 +69,7 @@ def uuid_trigger_schema(
     )
 
 
-def advertise_trigger_schema(trigger_class: MockObjClass):
+def advertise_trigger_schema(trigger_class: MockObjClass) -> Callable[[Any], Any]:
     """on_ble_advertise schema: multi-mac list filter, unlike the single-mac
     uuid_trigger_schema() — pairs with advertise_trigger_to_code()."""
     return automation.validate_automation(
@@ -79,7 +80,7 @@ def advertise_trigger_schema(trigger_class: MockObjClass):
     )
 
 
-def scan_end_trigger_schema(trigger_class: MockObjClass):
+def scan_end_trigger_schema(trigger_class: MockObjClass) -> Callable[[Any], Any]:
     """on_scan_end schema: id only — pairs with scan_end_trigger_to_code()."""
     return automation.validate_automation(
         {cv.GenerateID(CONF_TRIGGER_ID): cv.declare_id(trigger_class)}

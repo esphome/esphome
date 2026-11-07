@@ -30,6 +30,8 @@ ezb_zcl_cluster_desc_t esphome_zb_default_cluster_dscr_create(uint16_t cluster_i
       return ezb_zcl_basic_create_cluster_desc(NULL, role_mask);
     case EZB_ZCL_CLUSTER_ID_IDENTIFY:
       return ezb_zcl_identify_create_cluster_desc(NULL, role_mask);
+    case EZB_ZCL_CLUSTER_ID_TIME:
+      return ezb_zcl_time_create_cluster_desc(NULL, role_mask);
     case EZB_ZCL_CLUSTER_ID_ANALOG_INPUT:
       return ezb_zcl_analog_input_create_cluster_desc(NULL, role_mask);
     case EZB_ZCL_CLUSTER_ID_BINARY_INPUT:
@@ -49,6 +51,8 @@ ezb_err_t esphome_zb_cluster_add_attr(uint16_t cluster_id, ezb_zcl_cluster_desc_
       return ezb_zcl_basic_cluster_desc_add_attr(cluster_desc, attr_id, value_p);
     case EZB_ZCL_CLUSTER_ID_IDENTIFY:
       return ezb_zcl_identify_cluster_desc_add_attr(cluster_desc, attr_id, value_p);
+    case EZB_ZCL_CLUSTER_ID_TIME:
+      return ezb_zcl_time_cluster_desc_add_attr(cluster_desc, attr_id, value_p);
     case EZB_ZCL_CLUSTER_ID_ANALOG_INPUT:
       return ezb_zcl_analog_input_cluster_desc_add_attr(cluster_desc, attr_id, value_p);
     case EZB_ZCL_CLUSTER_ID_BINARY_INPUT:

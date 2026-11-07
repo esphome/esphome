@@ -16,7 +16,7 @@
 
 namespace esphome::http_request {
 
-static const char *const TAG = "http_request.idf";
+static const char *const TAG = "http_request";
 static constexpr uint32_t ERROR_DURATION_MS = 1000;
 
 void HttpRequestIDF::dump_config() {
@@ -142,12 +142,13 @@ std::shared_ptr<HttpContainer> HttpRequestIDF::perform(const std::string &url, c
     const char *buf = body.c_str();
     while (write_left > 0) {
       int written = esp_http_client_write(client, buf + write_index, write_left);
-      if (written < 0) {
+      if (written <= 0) {
         err = ESP_FAIL;
         break;
       }
       write_left -= written;
       write_index += written;
+      container->feed_wdt();
     }
   }
 
@@ -196,6 +197,9 @@ std::shared_ptr<HttpContainer> HttpRequestIDF::perform(const std::string &url, c
       }
 
       container->feed_wdt();
+      // IDF is the only backend reusing the container across redirect hops;
+      // drop the previous hop's headers (Arduino/host collect only the final response)
+      container->response_headers_.clear();
       container->content_length = esp_http_client_fetch_headers(client);
       container->set_chunked(esp_http_client_is_chunked_response(client));
       container->feed_wdt();

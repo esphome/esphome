@@ -46,56 +46,63 @@ void ModbusSelect::control(size_t index) {
   const char *option = this->option_at(index);
   ESP_LOGD(TAG, "Found value %lld for option '%s'", *mapval, option);
 
-  std::vector<uint16_t> data;
+  this->clear_dispatched_();
+  // A new write supersedes this entity's own not-yet-sent writes: drop them (and detach any in-flight one)
+  // so a rapidly-changing value writes the latest, not every intermediate.
+  this->clear_tx_queue_for_device();
+  modbus::RegisterValues data;
 
   if (this->write_transform_func_.has_value()) {
-    // Transform func requires string parameter for backward compatibility
+    // The lambda may drive the write itself via item->write_*(), override the mapping value (return a value),
+    // or (deprecated) fill `data` with the register words to write. Transform func requires string parameter
+    // for backward compatibility.
     auto val = (*this->write_transform_func_)(this, std::string(option), *mapval, data);
-    if (val.has_value()) {
-      mapval = val;
-      ESP_LOGV(TAG, "write_lambda returned mapping value %lld", *mapval);
-    } else {
+    if (this->dispatched()) {
+      if (this->optimistic_)
+        this->publish_state(index);
+      return;
+    }
+    if (!data.empty()) {
+      // Deprecated buffer path (frozen): the lambda supplied the register words for the shared write below.
+      this->warn_write_buffer_deprecated_(LOG_STR("select"), this->start_address);
+    } else if (!val.has_value()) {
       ESP_LOGD(TAG, "Communication handled by write_lambda - exiting control");
       return;
+    } else {
+      mapval = val;
+      ESP_LOGV(TAG, "write_lambda returned mapping value %lld", *mapval);
     }
   }
 
   if (data.empty()) {
     modbus::helpers::number_to_payload(data, *mapval, this->sensor_value_type);
-  } else {
-    ESP_LOGV(TAG, "Using payload from write lambda");
+    // number_to_payload() appends nothing for RAW.
+    if (data.empty()) {
+      ESP_LOGW(TAG, "No payload was created for updating select");
+      return;
+    }
   }
 
-  if (data.empty()) {
-    ESP_LOGW(TAG, "No payload was created for updating select");
-    return;
-  }
-
-  // The command declares register_count registers, so the payload must be exactly that many words:
-  // a value type narrower than the declared width is zero-padded (the config deliberately allows
-  // register_count larger than the value type). Anything else would put a byte count on the wire
-  // that disagrees with the quantity field, which conformant devices reject.
-  // register_count declares the READ range width - it may pull neighboring registers into one poll -
-  // so a write covers exactly the registers the value occupies: the quantity comes from the payload,
-  // never from register_count (padding to it would zero registers the user only declared for reading).
-  // A payload wider than the declared range means the config and the lambda disagree - drop it.
-  if (data.size() > this->register_count) {
-    ESP_LOGE(TAG, "Payload has %zu registers but register_count is %u; dropping write", data.size(),
-             this->register_count);
+  // A write covers exactly the registers the value occupies: the quantity comes from the payload. A
+  // payload wider than the value type's register width means the config and the lambda disagree - drop it.
+  if (data.size() > this->entity_count()) {
+    ESP_LOGE(TAG, "Payload has %zu registers but the value type only spans %u; dropping write", data.size(),
+             this->entity_count());
     return;
   }
 
   const uint16_t write_address = this->write_address();
-  optional<ModbusCommandItem> write_cmd;
-  if ((this->register_count == 1) && (!this->use_write_multiple_)) {
-    write_cmd.emplace(ModbusCommandItem::create_write_single_command(this->parent_, write_address, data[0]));
+  bool queued;
+  if ((this->entity_count() == 1) && (!this->use_write_multiple_)) {
+    queued = this->write_single_register(write_address, data[0]);
   } else {
-    write_cmd.emplace(
-        ModbusCommandItem::create_write_multiple_command(this->parent_, write_address, data.size(), data));
+    queued = this->write_multiple_registers(write_address, data);
   }
 
-  this->parent_->queue_command(std::move(*write_cmd));
-
+  if (!queued) {
+    ESP_LOGW(TAG, "Modbus write for '%s' was refused by the hub; state not published", this->get_name().c_str());
+    return;
+  }
   if (this->optimistic_)
     this->publish_state(index);
 }

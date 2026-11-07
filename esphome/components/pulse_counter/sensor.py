@@ -1,3 +1,5 @@
+from typing import Any
+
 from esphome import automation, pins
 import esphome.codegen as cg
 from esphome.components import sensor
@@ -19,7 +21,9 @@ from esphome.const import (
     UNIT_PULSES,
     UNIT_PULSES_PER_MINUTE,
 )
-from esphome.core import CORE
+from esphome.core import CORE, ID
+from esphome.cpp_generator import MockObj, TemplateArgsType
+from esphome.types import ConfigType
 
 CONF_USE_PCNT = "use_pcnt"
 
@@ -42,7 +46,7 @@ SetTotalPulsesAction = pulse_counter_ns.class_(
 )
 
 
-def validate_internal_filter(value):
+def validate_internal_filter(value: ConfigType) -> ConfigType:
     use_pcnt = value.get(CONF_USE_PCNT)
     if CORE.is_esp8266 and use_pcnt:
         raise cv.Invalid(
@@ -63,7 +67,7 @@ def validate_internal_filter(value):
     return value
 
 
-def validate_pulse_counter_pin(value):
+def validate_pulse_counter_pin(value: Any) -> ConfigType:
     value = pins.internal_gpio_input_pin_schema(value)
     if CORE.is_esp8266 and value[CONF_NUMBER] >= 16:
         raise cv.Invalid(
@@ -72,7 +76,7 @@ def validate_pulse_counter_pin(value):
     return value
 
 
-def validate_count_mode(value):
+def validate_count_mode(value: ConfigType) -> ConfigType:
     rising_edge = value[CONF_RISING_EDGE]
     falling_edge = value[CONF_FALLING_EDGE]
     if rising_edge == "DISABLE" and falling_edge == "DISABLE":
@@ -126,7 +130,7 @@ CONFIG_SCHEMA = cv.All(
 )
 
 
-async def to_code(config):
+async def to_code(config: ConfigType) -> None:
     use_pcnt = config.get(CONF_USE_PCNT)
     if CORE.is_esp32 and use_pcnt:
         include_builtin_idf_component("esp_driver_pcnt")
@@ -157,7 +161,12 @@ async def to_code(config):
     ),
     synchronous=True,
 )
-async def set_total_action_to_code(config, action_id, template_arg, args):
+async def set_total_action_to_code(
+    config: ConfigType,
+    action_id: ID,
+    template_arg: cg.TemplateArguments,
+    args: TemplateArgsType,
+) -> MockObj:
     paren = await cg.get_variable(config[CONF_ID])
     var = cg.new_Pvariable(action_id, template_arg, paren)
     template_ = await cg.templatable(config[CONF_VALUE], args, cg.uint32)

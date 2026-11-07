@@ -1,0 +1,10 @@
+esphome:
+  name: ota-runtime-key
+
+host:
+
+api:
+  encryption:
+
+ota:
+  - platform: esphome

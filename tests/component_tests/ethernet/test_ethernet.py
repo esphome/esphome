@@ -27,14 +27,6 @@ _CH390_CONFIG = {
 }
 
 
-@pytest.fixture(autouse=True)
-def _reset_full_config():
-    """Reset fv.full_config so each test starts with a clean slate."""
-    token = fv.full_config.set({})
-    yield
-    fv.full_config.reset(token)
-
-
 def test_rejects_wifi_and_ethernet_without_priority() -> None:
     """Wi-Fi + ethernet without a network: priority: list must be rejected."""
     fv.full_config.set({"wifi": {}, "ethernet": {}})

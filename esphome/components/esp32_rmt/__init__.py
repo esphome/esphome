@@ -1,17 +1,23 @@
+from collections.abc import Callable, Iterable
+from typing import Any
+
 from esphome.components import esp32
 import esphome.config_validation as cv
 from esphome.core import CORE
+from esphome.types import ConfigType
 
 CODEOWNERS = ["@jesserockz"]
 
 VARIANTS_NO_RMT = {esp32.VARIANT_ESP32C2, esp32.VARIANT_ESP32C61}
 
 
-def validate_rmt_not_supported(rmt_only_keys):
+def validate_rmt_not_supported(
+    rmt_only_keys: Iterable[str],
+) -> Callable[[ConfigType], ConfigType]:
     """Validate that RMT-only config keys are not used on variants without RMT hardware."""
     rmt_only_keys = set(rmt_only_keys)
 
-    def _validator(config):
+    def _validator(config: ConfigType) -> ConfigType:
         if CORE.is_esp32:
             variant = esp32.get_esp32_variant()
             if variant in VARIANTS_NO_RMT:
@@ -26,8 +32,8 @@ def validate_rmt_not_supported(rmt_only_keys):
     return _validator
 
 
-def validate_clock_resolution():
-    def _validator(value):
+def validate_clock_resolution() -> Callable[[Any], int]:
+    def _validator(value: Any) -> int:
         cv.only_on_esp32(value)
         value = cv.int_(value)
         variant = esp32.get_esp32_variant()

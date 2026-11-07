@@ -115,6 +115,8 @@ bool WiFiComponent::wifi_mode_(optional<bool> sta, optional<bool> ap) {
 
   if (enable_sta && !current_sta) {
     ESP_LOGV(TAG, "Enabling STA");
+    // Fresh STA stack: skip the pre-attempt teardown again.
+    this->lt_first_connect_attempt_ = true;
   } else if (!enable_sta && current_sta) {
     ESP_LOGV(TAG, "Disabling STA");
   }
@@ -202,10 +204,21 @@ bool WiFiComponent::wifi_sta_connect_(const WiFiAP &ap) {
   if (!this->wifi_mode_(true, {}))
     return false;
 
-  String ssid = WiFi.SSID();
-  if (ssid && strcmp(ssid.c_str(), ap.ssid_.c_str()) != 0) {
-    WiFi.disconnect();
+  // Tear down any live session so begin() re-fires its events; skipped on the
+  // first attempt after STA-up (nothing to tear down, and BK7231N on the older
+  // Beken SDK did not come back from it). The flag is per-attempt and armed
+  // only for a live session: an idle disconnect may emit no event, and a stale
+  // flag would swallow this attempt's first real failure.
+  this->lt_teardown_event_pending_ = false;
+  if (!this->lt_first_connect_attempt_) {
+    const bool was_live = WiFi.status() == WL_CONNECTED;
+    if (WiFi.disconnect()) {
+      this->lt_teardown_event_pending_ = was_live;
+    } else {
+      ESP_LOGD(TAG, "Pre-connect teardown returned false");
+    }
   }
+  this->lt_first_connect_attempt_ = false;
 
 #ifdef USE_WIFI_MANUAL_IP
   if (!this->wifi_sta_ip_config_(ap.get_manual_ip())) {
@@ -227,7 +240,10 @@ bool WiFiComponent::wifi_sta_connect_(const WiFiAP &ap) {
                                  ap.get_channel(),  // 0 = auto
                                  ap.has_bssid() ? ap.get_bssid().data() : NULL);
   if (status != WL_CONNECTED) {
-    ESP_LOGW(TAG, "esp_wifi_connect failed: %d", status);
+    ESP_LOGW(TAG, "WiFi.begin failed: %d", status);
+    // Without this reset the state machine stays at CONNECTING and each retry
+    // stalls for the full connect timeout (46 s).
+    this->sta_state_ = static_cast<uint8_t>(LTWiFiSTAState::ERROR_FAILED);
     return false;
   }
 
@@ -455,6 +471,9 @@ void WiFiComponent::wifi_process_event_(LTWiFiEvent *event) {
       break;
     }
     case ESPHOME_EVENT_ID_WIFI_STA_CONNECTED: {
+      // Processed in queue order, so a teardown event still ahead of this
+      // CONNECTED was already consumed; a leftover flag is stale.
+      this->lt_teardown_event_pending_ = false;
       auto &it = event->data.sta_connected;
       char bssid_buf[MAC_ADDRESS_PRETTY_BUFFER_SIZE];
       format_mac_addr_upper(it.bssid, bssid_buf);
@@ -481,6 +500,14 @@ void WiFiComponent::wifi_process_event_(LTWiFiEvent *event) {
     }
     case ESPHOME_EVENT_ID_WIFI_STA_DISCONNECTED: {
       auto &it = event->data.sta_disconnected;
+
+      // Consume the disconnect our own teardown queued, without spending an
+      // ignore slot. Ungated on SSID and state: the flag is armed only for this
+      // attempt's teardown of a live session.
+      if (this->lt_teardown_event_pending_ && it.reason != WIFI_REASON_NO_AP_FOUND) {
+        this->lt_teardown_event_pending_ = false;
+        break;
+      }
 
       // LibreTiny can send spurious disconnect events with empty ssid/bssid during connection.
       // These are typically "Association Leave" events that don't indicate actual failures:
@@ -762,7 +789,6 @@ bssid_t WiFiComponent::wifi_bssid() {
   }
   return bssid;
 }
-std::string WiFiComponent::wifi_ssid() { return WiFi.SSID().c_str(); }
 const char *WiFiComponent::wifi_ssid_to(std::span<char, SSID_BUFFER_SIZE> buffer) {
 #ifdef USE_BK72XX
   LinkStatusTypeDef link_status{};

@@ -184,10 +184,7 @@ void TeleInfo::publish_value_(const std::string &tag, const std::string &val) {
     element->publish_val(val);
   }
 }
-void TeleInfo::dump_config() {
-  ESP_LOGCONFIG(TAG, "TeleInfo:");
-  this->check_uart_settings(baud_rate_, 1, uart::UART_CONFIG_PARITY_EVEN, 7);
-}
+void TeleInfo::dump_config() { ESP_LOGCONFIG(TAG, "TeleInfo:"); }
 TeleInfo::TeleInfo(bool historical_mode) {
   if (historical_mode) {
     /*
@@ -195,11 +192,9 @@ TeleInfo::TeleInfo(bool historical_mode) {
      */
     checksum_area_end_ = 2;
     separator_ = 0x20;
-    baud_rate_ = 1200;
   } else {
     checksum_area_end_ = 1;
     separator_ = 0x9;
-    baud_rate_ = 9600;
   }
 }
 void TeleInfo::register_teleinfo_listener(TeleInfoListener *listener) { teleinfo_listeners_.push_back(listener); }

@@ -13,6 +13,9 @@ from esphome.const import (
     CONF_RESTORE,
     CONF_TRANSITION_LENGTH,
 )
+from esphome.core import ID
+from esphome.cpp_generator import MockObj, TemplateArgsType
+from esphome.types import ConfigType
 
 servo_ns = cg.esphome_ns.namespace("servo")
 Servo = servo_ns.class_("Servo", cg.Component)
@@ -39,7 +42,7 @@ CONFIG_SCHEMA = cv.Schema(
 ).extend(cv.COMPONENT_SCHEMA)
 
 
-async def to_code(config):
+async def to_code(config: ConfigType) -> None:
     var = cg.new_Pvariable(config[CONF_ID])
     await cg.register_component(var, config)
 
@@ -64,7 +67,12 @@ async def to_code(config):
     ),
     synchronous=True,
 )
-async def servo_write_to_code(config, action_id, template_arg, args):
+async def servo_write_to_code(
+    config: ConfigType,
+    action_id: ID,
+    template_arg: cg.TemplateArguments,
+    args: TemplateArgsType,
+) -> MockObj:
     paren = await cg.get_variable(config[CONF_ID])
     var = cg.new_Pvariable(action_id, template_arg, paren)
     template_ = await cg.templatable(config[CONF_LEVEL], args, cg.float_)
@@ -82,6 +90,11 @@ async def servo_write_to_code(config, action_id, template_arg, args):
     ),
     synchronous=True,
 )
-async def servo_detach_to_code(config, action_id, template_arg, args):
+async def servo_detach_to_code(
+    config: ConfigType,
+    action_id: ID,
+    template_arg: cg.TemplateArguments,
+    args: TemplateArgsType,
+) -> MockObj:
     paren = await cg.get_variable(config[CONF_ID])
     return cg.new_Pvariable(action_id, template_arg, paren)

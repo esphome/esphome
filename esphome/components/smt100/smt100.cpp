@@ -65,7 +65,6 @@ void SMT100Component::dump_config() {
   LOG_SENSOR(TAG, "Temperature", this->temperature_sensor_);
   LOG_SENSOR(TAG, "Moisture", this->moisture_sensor_);
   LOG_UPDATE_INTERVAL(this);
-  this->check_uart_settings(9600);
 }
 
 int SMT100Component::readline_(int readch, char *buffer, int len) {

@@ -105,9 +105,9 @@ CONFIG_SCHEMA = cv.Schema(
 )
 
 
-def final_validate(config: ConfigType) -> ConfigType:
+def final_validate(config: ConfigType) -> None:
     if config.get(CONF_AREA_CONFIG) is None:
-        return config
+        return
 
     full_config = fv.full_config.get()
     hub_id = config[CONF_LD6002B_ID]
@@ -132,13 +132,11 @@ def final_validate(config: ConfigType) -> ConfigType:
             path=[CONF_AREA_CONFIG],
         )
 
-    return config
-
 
 FINAL_VALIDATE_SCHEMA = final_validate
 
 
-async def to_code(config):
+async def to_code(config: ConfigType) -> None:
     hub = await cg.get_variable(config[CONF_LD6002B_ID])
 
     for key, number_type, setter, min_value, max_value, step in (

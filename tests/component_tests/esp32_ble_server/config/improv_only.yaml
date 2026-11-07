@@ -1,0 +1,13 @@
+esphome:
+  name: test
+
+esp32:
+  variant: esp32
+
+wifi:
+  ssid: MySSID
+  password: password1
+
+# esp32_ble_server is only auto-loaded here, so it has no services of its own.
+esp32_improv:
+  authorizer: none

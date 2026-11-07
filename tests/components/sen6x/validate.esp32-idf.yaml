@@ -1,0 +1,18 @@
+# Config-only: partial algorithm_tuning blocks, so the schema defaults fill in the
+# keys that are left out.
+packages:
+  i2c: !include ../../test_build_components/common/i2c/esp32-idf.yaml
+
+sensor:
+  - platform: sen6x
+    id: sen6x_partial_tuning
+    type: SEN65
+    i2c_id: i2c_bus
+    voc_index:
+      name: VOC Index
+      algorithm_tuning:
+        index_offset: 60
+    nox_index:
+      name: NOx Index
+      algorithm_tuning:
+        gain_factor: 45

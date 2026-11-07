@@ -2,29 +2,9 @@
 
 #include "esphome/components/hoermann_hcp/binary_sensor/hoermann_hcp_binary_sensor.h"
 
-namespace esphome::hoermann_hcp {
+#include "../common.h"
 
-using modbus::RegisterValues;
-
-namespace {
-
-constexpr uint16_t COMMAND_REG = 0x9C41;
-constexpr uint16_t BROADCAST_REG = 0x9D31;
-
-RegisterValues make_registers(std::initializer_list<uint16_t> values) {
-  RegisterValues registers;
-  for (uint16_t value : values)
-    registers.push_back(value);
-  return registers;
-}
-
-// Exposes the connection bookkeeping so a drop can be driven without waiting one out.
-class TestableHoermannHcp : public HoermannHcp {
- public:
-  using HoermannHcp::set_valid_;
-};
-
-}  // namespace
+namespace esphome::hoermann_hcp::testing {
 
 // Nothing has been heard from the bus controller yet, so the sensor starts out seeded as disconnected.
 TEST(HoermannHcpBinarySensorTest, StartsDisconnected) {
@@ -42,7 +22,7 @@ TEST(HoermannHcpBinarySensorTest, FollowsTheConnectionState) {
   sensor.setup();
   ASSERT_FALSE(sensor.state);
 
-  door.on_write_registers(COMMAND_REG, make_registers({0x0000, 0x0000}));
+  connect_controller(door);
   door.update();
   EXPECT_TRUE(sensor.state);
 
@@ -59,7 +39,7 @@ TEST(HoermannHcpBinarySensorTest, UnchangedConnectionIsPublishedOnce) {
   int publishes = 0;
   sensor.add_on_state_callback([&publishes](bool /*state*/) { publishes++; });
 
-  door.on_write_registers(COMMAND_REG, make_registers({0x0000, 0x0000}));
+  connect_controller(door);
   door.update();
   ASSERT_EQ(publishes, 1);
 
@@ -69,4 +49,4 @@ TEST(HoermannHcpBinarySensorTest, UnchangedConnectionIsPublishedOnce) {
   EXPECT_EQ(publishes, 1);
 }
 
-}  // namespace esphome::hoermann_hcp
+}  // namespace esphome::hoermann_hcp::testing

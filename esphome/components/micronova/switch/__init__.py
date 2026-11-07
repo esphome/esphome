@@ -2,6 +2,7 @@ import esphome.codegen as cg
 from esphome.components import switch
 import esphome.config_validation as cv
 from esphome.const import ICON_POWER
+from esphome.types import ConfigType
 
 from .. import (
     CONF_MICRONOVA_ID,
@@ -49,7 +50,7 @@ CONFIG_SCHEMA = cv.Schema(
 )
 
 
-async def to_code(config):
+async def to_code(config: ConfigType) -> None:
     mv = await cg.get_variable(config[CONF_MICRONOVA_ID])
 
     if stove_config := config.get(CONF_STOVE):

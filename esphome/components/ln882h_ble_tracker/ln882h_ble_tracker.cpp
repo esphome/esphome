@@ -116,7 +116,8 @@ bool LN882HBLETracker::request_scan_mode(bool active) {
   if (this->scan_active_ == active)
     return true;
   this->scan_active_ = active;
-  ESP_LOGD(TAG, "Scan mode %s", active ? "active" : "passive");
+  // V: the proxy's "Setting scanner mode" line already narrates this at D.
+  ESP_LOGV(TAG, "Scan mode %s", active ? "active" : "passive");
   // scan_start() re-enters cleanly (stops + GAPM settle). No on_scan_end and
   // no period reset: the scan logically continues, only the mode changes.
   if (this->scan_running_) {

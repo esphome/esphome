@@ -1,0 +1,36 @@
+esphome:
+  name: test-list-on-add-lvgl-action
+
+esp32:
+  board: lolin_c3_mini
+
+spi:
+  mosi_pin:
+    number: GPIO2
+    ignore_strapping_warning: true
+  clk_pin: GPIO1
+
+display:
+  - platform: mipi_spi
+    data_rate: 20MHz
+    model: st7735
+    cs_pin:
+      number: GPIO8
+      ignore_strapping_warning: true
+    dc_pin: GPIO3
+
+lvgl:
+  widgets:
+    - label:
+        id: later_label
+        text: orig
+    - list:
+        id: test_list
+        on_add:
+          - lvgl.label.update:
+              id: later_label
+              text: "changed"
+        on_remove:
+          - lvgl.label.update:
+              id: later_label
+              text: "removed"

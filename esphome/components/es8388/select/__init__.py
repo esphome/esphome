@@ -2,6 +2,7 @@ import esphome.codegen as cg
 from esphome.components import select
 import esphome.config_validation as cv
 from esphome.const import ENTITY_CATEGORY_CONFIG, ICON_CHIP  # noqa: F401
+from esphome.types import ConfigType
 
 from ..audio_dac import CONF_ES8388_ID, ES8388, es8388_ns
 
@@ -28,7 +29,7 @@ CONFIG_SCHEMA = cv.All(
 )
 
 
-async def to_code(config):
+async def to_code(config: ConfigType) -> None:
     parent = await cg.get_variable(config[CONF_ES8388_ID])
     if dac_output_config := config.get(CONF_DAC_OUTPUT):
         s = await select.new_select(

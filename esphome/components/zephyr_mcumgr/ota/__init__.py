@@ -177,7 +177,7 @@ async def to_code(config: ConfigType) -> None:
         slot1_start = slot0_start + slot_size
 
         def _mcuboot_partition_overlay() -> str:
-            def part(name, start, size):
+            def part(name: str, start: int, size: int) -> str:
                 return f"""
                 {name}: partition@{start:x} {{
                     reg = <0x{start:x} 0x{size:x}>;

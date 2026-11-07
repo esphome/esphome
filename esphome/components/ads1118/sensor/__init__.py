@@ -11,6 +11,7 @@ from esphome.const import (
     UNIT_CELSIUS,
     UNIT_VOLT,
 )
+from esphome.types import ConfigType
 
 from .. import ADS1118, CONF_ADS1118_ID, ads1118_ns
 
@@ -86,7 +87,7 @@ CONFIG_SCHEMA = cv.typed_schema(
 )
 
 
-async def to_code(config):
+async def to_code(config: ConfigType) -> None:
     var = await sensor.new_sensor(config)
     await cg.register_component(var, config)
     await cg.register_parented(var, config[CONF_ADS1118_ID])

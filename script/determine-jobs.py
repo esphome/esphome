@@ -53,20 +53,28 @@ from collections import Counter
 from enum import StrEnum
 from functools import cache
 import json
+import math
 import os
 from pathlib import Path
+import statistics
 import sys
 from typing import Any
 
-from clang_tidy_hash import CLANG_TIDY_GLOBAL_FILES, SDKCONFIG_DEFAULTS_PREFIX
+from clang_tidy_hash import (
+    CLANG_TIDY_GLOBAL_FILES,
+    ESP_IDF_INFRA_TRIGGER_FILES,
+    ESP_IDF_INFRA_TRIGGER_PATH_PREFIXES,
+    SDKCONFIG_DEFAULTS_PREFIX,
+)
 from helpers import (
     CPP_FILE_EXTENSIONS,
     ESPHOME_TESTS_COMPONENTS_PATH,
+    INTEGRATION_TESTS_PATH,
     PYTHON_FILE_EXTENSIONS,
+    all_integration_test_files,
     base_python_changed,
     changed_files,
     core_changed,
-    filter_component_and_test_cpp_files,
     filter_component_and_test_files,
     get_changed_components,
     get_component_from_path,
@@ -79,6 +87,8 @@ from helpers import (
     get_target_branch,
     git_ls_files,
     is_validate_only_file,
+    load_integration_durations,
+    lpt_partition,
     root_path,
 )
 from split_components_for_ci import create_intelligent_batches
@@ -92,24 +102,24 @@ CLANG_TIDY_SPLIT_THRESHOLD = 65
 # Isolated components count as 10x, groupable components count as 1x
 COMPONENT_TEST_BATCH_SIZE = 40
 
-# Integration test bucketing: when more than the threshold tests are scheduled,
-# fan out across this many parallel jobs. Below the threshold, a single job runs.
+# Above the threshold, fan out across up to this many jobs, balanced by the
+# recorded per-file durations. The target is serial junit-time weight per
+# bucket, not wall time (calibrated with the conftest compile cap); it
+# sizes the bucket count for small subsets.
 INTEGRATION_TESTS_SPLIT_THRESHOLD = 10
-INTEGRATION_TESTS_SPLIT_BUCKETS = 3
+INTEGRATION_TESTS_SPLIT_BUCKETS = 5
+INTEGRATION_TESTS_TARGET_BUCKET_WEIGHT = 360.0
 
-
-def _split_list(items: list[str], n: int) -> list[list[str]]:
-    """Split a list into n roughly-equal contiguous parts (matches script/clang-tidy)."""
-    k, m = divmod(len(items), n)
-    return [items[i * k + min(i, m) : (i + 1) * k + min(i + 1, m)] for i in range(n)]
-
-
-def _all_integration_test_files() -> list[str]:
-    """Return all integration test file paths, sorted, relative to repo root."""
-    return sorted(
-        str(p.relative_to(root_path))
-        for p in (Path(root_path) / "tests" / "integration").glob("test_*.py")
-    )
+# platformio and aioesphomeapi (requirements.txt), the pytest stack
+# (requirements_test.txt) and the fixture every session compiles; a change
+# to any runs the full matrix
+INTEGRATION_TESTS_TRIGGER_FILES = frozenset(
+    {
+        "requirements.txt",
+        "requirements_test.txt",
+        "tests/integration/fixtures/cache_init.yaml",
+    }
+)
 
 
 def _compute_integration_test_buckets(
@@ -118,7 +128,7 @@ def _compute_integration_test_buckets(
 ) -> tuple[bool, list[dict[str, Any]]]:
     """Compute (run_integration, buckets) from the determine_integration_tests result.
 
-    Pure function for unit testing — no I/O beyond `_all_integration_test_files`
+    Pure function for unit testing — no I/O beyond `all_integration_test_files`
     when `integration_run_all` is set.
 
     `buckets` is a list of `{name, tests}` dicts where `tests` is a JSON-friendly
@@ -126,7 +136,7 @@ def _compute_integration_test_buckets(
     shell word-splitting / glob hazards.
     """
     if integration_run_all:
-        files = _all_integration_test_files()
+        files = all_integration_test_files()
     else:
         files = sorted(integration_test_files)
 
@@ -137,12 +147,23 @@ def _compute_integration_test_buckets(
         return False, []
 
     if len(files) > INTEGRATION_TESTS_SPLIT_THRESHOLD:
-        parts = [
-            part for part in _split_list(files, INTEGRATION_TESTS_SPLIT_BUCKETS) if part
-        ]
+        durations = load_integration_durations()
+        # Unrecorded files weigh the recording's median; with no recording a
+        # file weighs a whole bucket, which keeps the full fan-out
+        default = (
+            statistics.median(durations.values())
+            if durations
+            else INTEGRATION_TESTS_TARGET_BUCKET_WEIGHT
+        )
+        weights = {f: durations.get(f, default) for f in files}
+        count = min(
+            INTEGRATION_TESTS_SPLIT_BUCKETS,
+            math.ceil(sum(weights.values()) / INTEGRATION_TESTS_TARGET_BUCKET_WEIGHT),
+        )
+        # count <= SPLIT_BUCKETS < threshold < len(files): no group is empty
+        parts = [sorted(part) for part in lpt_partition(files, weights, count)]
         buckets = [
-            {"name": f"{i + 1}/{len(parts)}", "tests": part}
-            for i, part in enumerate(parts)
+            {"name": f"{i + 1}/{count}", "tests": part} for i, part in enumerate(parts)
         ]
     else:
         buckets = [{"name": "1/1", "tests": files}]
@@ -217,12 +238,15 @@ def determine_integration_tests(branch: str | None = None) -> tuple[bool, list[s
     3. Integration test infrastructure files changed
        - conftest.py, types.py, const.py, entity_utils.py, state_utils.py, etc.
 
+    4. A file in INTEGRATION_TESTS_TRIGGER_FILES changed
+       - The dependency pins and the session init fixture affect every test
+
     Returns (run_all=False, [test_files...]) when:
 
-    4. Specific integration test files changed
+    5. Specific integration test files changed
        - Only those specific test files are returned
 
-    5. Components used by integration tests (or their dependencies) changed
+    6. Components used by integration tests (or their dependencies) changed
        - Only test files whose fixtures use the changed components are returned
 
     Args:
@@ -240,12 +264,15 @@ def determine_integration_tests(branch: str | None = None) -> tuple[bool, list[s
         # If any core files changed, run all integration tests
         return (True, [])
 
+    if any(f in INTEGRATION_TESTS_TRIGGER_FILES for f in files):
+        return (True, [])
+
     # If infrastructure Python files changed (conftest, utils, etc.), run all tests
     # Excludes test files (test_*.py), fixtures, and non-Python files (README.md)
     if any(
-        f.startswith("tests/integration/")
+        f.startswith(INTEGRATION_TESTS_PATH)
         and f.endswith(".py")
-        and not f.startswith("tests/integration/test_")
+        and not f.startswith(f"{INTEGRATION_TESTS_PATH}test_")
         and "/fixtures/" not in f
         for f in files
     ):
@@ -256,9 +283,9 @@ def determine_integration_tests(branch: str | None = None) -> tuple[bool, list[s
     fixture_to_test_files = get_fixture_to_test_files()
 
     for f in files:
-        if f.startswith("tests/integration/test_") and f.endswith(".py"):
+        if f.startswith(f"{INTEGRATION_TESTS_PATH}test_") and f.endswith(".py"):
             test_files.add(f)
-        elif f.startswith("tests/integration/fixtures/"):
+        elif f.startswith(f"{INTEGRATION_TESTS_PATH}fixtures/"):
             if f.endswith(".yaml"):
                 # Fixture YAML changed - add corresponding test file(s)
                 test_files.update(fixture_to_test_files.get(Path(f).stem, ()))
@@ -525,15 +552,6 @@ def _esp32_platformio_path_or_file_trigger(files: list[str]) -> bool:
     return False
 
 
-# ESP-IDF infra: changes under esphome/espidf/ or to the IDF build generator
-# affect every esp32 IDF build (now the default toolchain) but aren't
-# components, so the component matrix wouldn't otherwise force any esp32
-# compile. When they change we fold the `esp32` component into the matrix so
-# the default native-IDF build path is still compiled on an infra-only PR.
-ESP_IDF_INFRA_TRIGGER_PATH_PREFIXES = ("esphome/espidf/",)
-ESP_IDF_INFRA_TRIGGER_FILES = frozenset({"esphome/build_gen/espidf.py"})
-
-
 def _esp_idf_infra_changed(files: list[str]) -> bool:
     """Whether any changed file is ESP-IDF build/runner infrastructure."""
     for file in files:
@@ -620,12 +638,17 @@ def determine_cpp_unit_tests(
 
     C++ unit tests will run when any of the following conditions are met:
 
-    1. Any C++ core source files changed (esphome/core/*), in which case
+    1. Any core C++ or Python files changed (esphome/core/*), in which case
        all cpp unit tests run.
     2. A test file for a component changed, which triggers tests for that
        component.
     3. The code for a component changed, which triggers tests for that
-       component and all components that depend on it.
+       component and all components that depend on it. Python files count
+       too: a component's Python decides which sources and defines go into
+       the host test build, so a Python-only change can break the link.
+
+    Components without C++ test sources are dropped from the list, so the
+    job is only scheduled when there is something to build.
 
     Args:
         branch: Branch to compare against. If None, uses default.
@@ -639,9 +662,7 @@ def determine_cpp_unit_tests(
     if core_changed(files):
         return (True, [])
 
-    # Filter to only C++ files
-    cpp_files = list(filter(filter_component_and_test_cpp_files, files))
-    return (False, get_cpp_changed_components(cpp_files))
+    return (False, get_cpp_changed_components(files))
 
 
 # Paths within tests/benchmarks/ that contain component benchmark files
@@ -1400,6 +1421,7 @@ def main() -> None:
     output: dict[str, Any] = {
         "core_ci": run_core_ci,
         "integration_tests": run_integration,
+        "integration_run_all": integration_run_all,
         "integration_test_buckets": integration_test_buckets,
         "clang_tidy": run_clang_tidy,
         "clang_tidy_mode": clang_tidy_mode,

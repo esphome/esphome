@@ -2,6 +2,7 @@ import esphome.codegen as cg
 from esphome.components import sensor, voltage_sampler
 import esphome.config_validation as cv
 from esphome.const import CONF_CHANNEL, CONF_ID
+from esphome.types import ConfigType
 
 from .. import ADC128S102, adc128s102_ns
 
@@ -28,7 +29,7 @@ CONFIG_SCHEMA = (
 )
 
 
-async def to_code(config):
+async def to_code(config: ConfigType) -> None:
     var = cg.new_Pvariable(
         config[CONF_ID],
         config[CONF_CHANNEL],

@@ -10,6 +10,7 @@ from esphome.const import (
     CONF_STEP_DELAY,
     CONF_UD_PIN,
 )
+from esphome.types import ConfigType
 
 CODEOWNERS = ["@EtienneMD"]
 
@@ -39,7 +40,7 @@ CONFIG_SCHEMA = cv.All(
 )
 
 
-async def to_code(config):
+async def to_code(config: ConfigType) -> None:
     var = cg.new_Pvariable(config[CONF_ID])
     await cg.register_component(var, config)
     await output.register_output(var, config)

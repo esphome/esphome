@@ -2,6 +2,6 @@ esphome:
   name: slotcount-tracker
 
 bk72xx:
-  board: generic-bk7252
+  board: cb2s
 
 bk72xx_ble_tracker:

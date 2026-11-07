@@ -3,6 +3,8 @@ from esphome.const import CONF_TEXT, CONF_VALUE
 from esphome.cpp_generator import MockObj
 from esphome.cpp_types import Component, esphome_ns
 
+from .defines import CONF_SELECTED_INDEX
+
 
 class LvType(cg.MockObjClass):
     def __init__(self, *args, **kwargs):
@@ -112,3 +114,4 @@ class LvSelect(LvType):
             parents=parens,
             **kwargs,
         )
+        self.value_property = CONF_SELECTED_INDEX

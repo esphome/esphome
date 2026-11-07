@@ -270,7 +270,7 @@ std::vector<CdcEps> USBUartTypeFT23XX::parse_descriptors(usb_device_handle_t dev
   return cdc_devs;
 }
 
-void USBUartTypeFT23XX::start_input(USBUartChannel *channel) {
+void USBUartTypeFT23XX::start_input(USBUartChannelBase *channel) {
   if (!channel->initialised_.load())
     return;
 
@@ -336,12 +336,12 @@ void USBUartTypeFT23XX::start_input(USBUartChannel *channel) {
   }
 }
 
-void USBUartTypeFT23XX::on_rx_overflow(USBUartChannel *channel) {
+void USBUartTypeFT23XX::on_rx_overflow(USBUartChannelBase *channel) {
   ESP_LOGW(TAG, "RX buffer overflow on channel %d, clearing to resync", channel->index_);
   channel->input_buffer_.clear();
 }
 
-bool USBUartTypeFT23XX::config_step(USBUartChannel *channel, uint8_t step, bool reload, bool ok,
+bool USBUartTypeFT23XX::config_step(USBUartChannelBase *channel, uint8_t step, bool reload, bool ok,
                                     const uint8_t *response) {
   // On reload (settings change on an open channel) skip the SIO reset; the FTDI set_termios
   // path only re-applies baud + line properties and does not re-assert DTR/RTS.

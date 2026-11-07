@@ -424,7 +424,7 @@ async def power_action_to_code(config, action_id, template_arg, args):
     return cg.new_Pvariable(action_id, template_arg, paren)
 
 
-def _final_validate(config):
+def _final_validate(config) -> None:
     full_config = fv.full_config.get()
     if CONF_LOGGER in full_config:
         _level = "NONE"
@@ -448,7 +448,6 @@ def _final_validate(config):
         raise cv.Invalid(
             f"No WiFi configured, if you want to use haier climate without WiFi add {CONF_WIFI_SIGNAL}: false to climate configuration"
         )
-    return config
 
 
 FINAL_VALIDATE_SCHEMA = _final_validate

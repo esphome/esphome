@@ -6,12 +6,13 @@ from esphome.const import CONF_ID
 from esphome.core import CORE, coroutine_with_priority
 from esphome.coroutine import CoroPriority
 from esphome.helpers import copy_file_if_changed
+from esphome.types import ConfigType
 
 CODEOWNERS = ["@esphome/core"]
 DEPENDENCIES = ["network"]
 
 
-def AUTO_LOAD():
+def AUTO_LOAD() -> list[str]:
     if CORE.is_esp32:
         return ["web_server_idf"]
     if CORE.using_arduino:
@@ -25,7 +26,7 @@ WebServerBase = web_server_base_ns.class_("WebServerBase")
 CONF_WEB_SERVER_BASE_ID = "web_server_base_id"
 
 
-def _consume_web_server_base_sockets(config):
+def _consume_web_server_base_sockets(config: ConfigType) -> ConfigType:
     """Register the shared listening socket for the HTTP server.
 
     web_server_base is the shared HTTP server used by web_server and captive_portal.
@@ -48,7 +49,7 @@ CONFIG_SCHEMA = cv.All(
 
 
 @coroutine_with_priority(CoroPriority.WEB_SERVER_BASE)
-async def to_code(config):
+async def to_code(config: ConfigType) -> None:
     var = cg.new_Pvariable(config[CONF_ID])
     cg.add(cg.RawExpression(f"{web_server_base_ns}::global_web_server_base = {var}"))
 

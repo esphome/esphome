@@ -15,6 +15,7 @@ from esphome.const import (
     CONF_ID,
     CONF_TRIGGER_ID,
 )
+from esphome.types import ConfigType
 
 CONF_MENU_ITEM_VALUE = "menu_item_value"
 CONF_ON_REDRAW = "on_redraw"
@@ -59,7 +60,7 @@ CONFIG_SCHEMA = DISPLAY_MENU_BASE_SCHEMA.extend(
 )
 
 
-async def to_code(config):
+async def to_code(config: ConfigType) -> None:
     var = cg.new_Pvariable(config[CONF_ID])
     await cg.register_component(var, config)
 

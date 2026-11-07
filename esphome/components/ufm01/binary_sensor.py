@@ -2,6 +2,7 @@ import esphome.codegen as cg
 from esphome.components import binary_sensor
 import esphome.config_validation as cv
 from esphome.const import DEVICE_CLASS_PROBLEM, ENTITY_CATEGORY_DIAGNOSTIC
+from esphome.types import ConfigType
 
 from . import CONF_UFM01_ID, UFM01Component
 
@@ -32,7 +33,7 @@ CONFIG_SCHEMA = {
 }
 
 
-async def to_code(config):
+async def to_code(config: ConfigType) -> None:
     ufm01_component = await cg.get_variable(config[CONF_UFM01_ID])
 
     if ufc_chip_error_config := config.get(CONF_UFC_CHIP_ERROR):

@@ -3,7 +3,7 @@
 #pragma once
 
 #include "esphome/core/defines.h"
-#ifdef USE_BLUETOOTH_PROXY
+#if defined(USE_BLUETOOTH_PROXY) || defined(USE_BLUETOOTH_PROXY_CONNECTIONS)
 #ifndef USE_API_VARINT64
 #define USE_API_VARINT64
 #endif

@@ -23,8 +23,8 @@ class Text : public EntityBase {
   std::string state;
   TextTraits traits;
 
-  void publish_state(const std::string &state);
-  void publish_state(const char *state);
+  void publish_state(const std::string &state) { this->publish_state(state.data(), state.size()); }
+  void publish_state(const char *state) { this->publish_state(state, strlen(state)); }
   void publish_state(const char *state, size_t len);
 
   /// Instantiate a TextCall object to modify this text component's state.

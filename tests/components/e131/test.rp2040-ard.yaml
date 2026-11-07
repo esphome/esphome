@@ -6,7 +6,7 @@ light:
     pin: 2
     pio: 0
     num_leds: 256
-    rgb_order: GRB
+    channel_colors: GRB
     chipset: WS2812
     effects:
       - e131:

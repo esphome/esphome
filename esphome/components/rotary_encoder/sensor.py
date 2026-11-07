@@ -15,6 +15,9 @@ from esphome.const import (
     STATE_CLASS_MEASUREMENT,
     UNIT_STEPS,
 )
+from esphome.core import ID
+from esphome.cpp_generator import MockObj, TemplateArgsType
+from esphome.types import ConfigType
 
 rotary_encoder_ns = cg.esphome_ns.namespace("rotary_encoder")
 
@@ -44,7 +47,7 @@ RotaryEncoderSetValueAction = rotary_encoder_ns.class_(
 )
 
 
-def validate_min_max_value(config):
+def validate_min_max_value(config: ConfigType) -> ConfigType:
     if CONF_MIN_VALUE in config and CONF_MAX_VALUE in config:
         min_val = config[CONF_MIN_VALUE]
         max_val = config[CONF_MAX_VALUE]
@@ -92,7 +95,7 @@ _CALLBACK_AUTOMATIONS = (
 )
 
 
-async def to_code(config):
+async def to_code(config: ConfigType) -> None:
     var = await sensor.new_sensor(config)
     await cg.register_component(var, config)
 
@@ -126,7 +129,12 @@ async def to_code(config):
     ),
     synchronous=True,
 )
-async def sensor_template_publish_to_code(config, action_id, template_arg, args):
+async def sensor_template_publish_to_code(
+    config: ConfigType,
+    action_id: ID,
+    template_arg: cg.TemplateArguments,
+    args: TemplateArgsType,
+) -> MockObj:
     paren = await cg.get_variable(config[CONF_ID])
     var = cg.new_Pvariable(action_id, template_arg, paren)
     template_ = await cg.templatable(config[CONF_VALUE], args, cg.int_)

@@ -90,10 +90,8 @@ void OpenThreadComponent::ot_main() {}
 otInstance *OpenThreadComponent::get_openthread_instance_() { return openthread_get_default_instance(); }
 
 int OpenThreadComponent::openthread_stop_() {
-  // OT stack is intentionally left running — no Zephyr stop API. The state callback stays
-  // registered but is safe (null-checks global_openthread_component). nRF52840 never
-  // re-enters setup() after teardown so this is functionally correct.
-  this->teardown_complete_ = true;
+  // Zephyr has no stack-stop API, so stop is synchronous here; mark complete immediately.
+  this->teardown_stage_ = TeardownStage::TEARDOWN_STAGE_COMPLETED;
   return 0;
 }
 

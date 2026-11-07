@@ -1,3 +1,5 @@
+from typing import Any
+
 from esphome import pins
 import esphome.codegen as cg
 import esphome.config_validation as cv
@@ -14,6 +16,8 @@ from esphome.const import (
     CONF_PULLUP,
 )
 from esphome.core import CORE
+from esphome.cpp_generator import MockObj
+from esphome.types import ConfigType
 
 from . import boards
 from .const import KEY_BOARD, KEY_RP2, rp2_ns
@@ -21,7 +25,7 @@ from .const import KEY_BOARD, KEY_RP2, rp2_ns
 RP2GPIOPin = rp2_ns.class_("RP2GPIOPin", cg.InternalGPIOPin)
 
 
-def _lookup_pin(value):
+def _lookup_pin(value: str) -> int:
     board = CORE.data[KEY_RP2][KEY_BOARD]
     board_pins = boards.RP2_BOARD_PINS.get(board, {})
 
@@ -35,7 +39,7 @@ def _lookup_pin(value):
     raise cv.Invalid(f"Cannot resolve pin name '{value}' for board {board}.")
 
 
-def _translate_pin(value):
+def _translate_pin(value: Any) -> int:
     if isinstance(value, dict) or value is None:
         raise cv.Invalid(
             "This variable only supports pin numbers, not full pin schemas "
@@ -54,12 +58,12 @@ def _translate_pin(value):
     return _lookup_pin(value)
 
 
-def _board_max_virtual_pin(board):
+def _board_max_virtual_pin(board: str) -> int | None:
     """Get the max CYW43 virtual pin for this board, or None if no virtual pins."""
     return boards.BOARDS.get(board, {}).get("max_virtual_pin")
 
 
-def validate_gpio_pin(value):
+def validate_gpio_pin(value: Any) -> int:
     value = _translate_pin(value)
     board = CORE.data[KEY_RP2][KEY_BOARD]
     max_virtual = _board_max_virtual_pin(board)
@@ -71,7 +75,7 @@ def validate_gpio_pin(value):
     return value
 
 
-def validate_supports(value):
+def validate_supports(value: ConfigType) -> ConfigType:
     board = CORE.data[KEY_RP2][KEY_BOARD]
     if (
         _board_max_virtual_pin(board) is None
@@ -100,7 +104,7 @@ RP2_PIN_SCHEMA = cv.All(
 
 
 @pins.PIN_SCHEMA_REGISTRY.register("rp2", RP2_PIN_SCHEMA)
-async def rp2_pin_to_code(config):
+async def rp2_pin_to_code(config: ConfigType) -> MockObj:
     var = cg.new_Pvariable(config[CONF_ID])
     num = config[CONF_NUMBER]
     cg.add(var.set_pin(num))

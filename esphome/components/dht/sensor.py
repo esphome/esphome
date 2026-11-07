@@ -15,6 +15,7 @@ from esphome.const import (
     UNIT_PERCENT,
 )
 from esphome.cpp_helpers import gpio_pin_expression
+from esphome.types import ConfigType
 
 dht_ns = cg.esphome_ns.namespace("dht")
 DHTModel = dht_ns.enum("DHTModel")
@@ -53,7 +54,7 @@ CONFIG_SCHEMA = cv.Schema(
 ).extend(cv.polling_component_schema("60s"))
 
 
-async def to_code(config):
+async def to_code(config: ConfigType) -> None:
     var = cg.new_Pvariable(config[CONF_ID])
     await cg.register_component(var, config)
 

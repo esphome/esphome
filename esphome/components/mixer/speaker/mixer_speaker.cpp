@@ -218,7 +218,7 @@ size_t SourceSpeaker::play(const uint8_t *data, size_t length, TickType_t ticks_
   }
   size_t bytes_written = 0;
   std::shared_ptr<ring_buffer::RingBuffer> temp_ring_buffer = this->ring_buffer_.lock();
-  if (temp_ring_buffer.use_count() > 0) {
+  if (temp_ring_buffer != nullptr) {
     // Only write to the ring buffer if the reference is valid
     bytes_written = temp_ring_buffer->write_without_replacement(data, length, ticks_to_wait);
     if (bytes_written > 0) {
@@ -250,14 +250,14 @@ esp_err_t SourceSpeaker::start_() {
   // avoids unnecessary single-frame splices.
   const size_t ring_buffer_size =
       (this->audio_stream_info_.ms_to_bytes(this->buffer_duration_ms_) / bytes_per_frame) * bytes_per_frame;
-  if (this->audio_source_.use_count() == 0) {
+  if (this->audio_source_ == nullptr) {
     std::shared_ptr<ring_buffer::RingBuffer> temp_ring_buffer = this->ring_buffer_.lock();
-    if (!temp_ring_buffer) {
+    if (temp_ring_buffer == nullptr) {
       temp_ring_buffer = ring_buffer::RingBuffer::create(ring_buffer_size);
       this->ring_buffer_ = temp_ring_buffer;
     }
 
-    if (!temp_ring_buffer) {
+    if (temp_ring_buffer == nullptr) {
       return ESP_ERR_NO_MEM;
     }
 
@@ -278,7 +278,7 @@ void SourceSpeaker::stop() { this->send_command_(SOURCE_SPEAKER_COMMAND_STOP); }
 void SourceSpeaker::finish() { this->send_command_(SOURCE_SPEAKER_COMMAND_FINISH); }
 
 bool SourceSpeaker::has_buffered_data() const {
-  return ((this->audio_source_.use_count() > 0) && this->audio_source_->has_buffered_data());
+  return ((this->audio_source_ != nullptr) && this->audio_source_->has_buffered_data());
 }
 
 void SourceSpeaker::set_mute_state(bool mute_state) {
@@ -382,8 +382,8 @@ void MixerSpeaker::loop() {
     ESP_LOGV(TAG, "Stopping");
     xEventGroupClearBits(this->event_group_, MIXER_TASK_STATE_STOPPING);
   }
-  if (event_group_bits & MIXER_TASK_STATE_STOPPED) {
-    this->task_.deallocate();
+  // Retries on a subsequent loop if the task is still running on the other core
+  if ((event_group_bits & MIXER_TASK_STATE_STOPPED) && this->task_.deallocate()) {
     ESP_LOGD(TAG, "Stopped");
     xEventGroupClearBits(this->event_group_, MIXER_TASK_ALL_BITS);
     this->all_stopped_since_ms_ = 0;
@@ -496,7 +496,7 @@ void MixerSpeaker::audio_mixer_task(void *params) {
         if (speaker->is_running() && !speaker->get_pause_state()) {
           // Speaker is running and not paused, so it possibly can provide audio data
           std::shared_ptr<audio::RingBufferAudioSource> audio_source = speaker->get_audio_source().lock();
-          if (audio_source.use_count() == 0) {
+          if (audio_source == nullptr) {
             // No audio source allocated, so skip processing this speaker
             continue;
           }

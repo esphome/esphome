@@ -313,9 +313,10 @@ FileDecoderState AudioDecoder::decode_mp3_() {
       this->output_transfer_buffer_->increase_buffer_length(
           this->audio_stream_info_.value().frames_to_bytes(samples_decoded));
     }
-  } else if (result == micro_mp3::MP3_STREAM_INFO_READY) {
-    // First successful header parse: capture stream info and resize the output buffer to fit one full frame.
-    // microMP3 always outputs 16-bit PCM.
+  } else if (result == micro_mp3::MP3_STREAM_INFO_READY || result == micro_mp3::MP3_STREAM_INFO_CHANGED) {
+    // Header parsed: capture stream info and resize the output buffer to fit one full frame.
+    // microMP3 always outputs 16-bit PCM. MP3_STREAM_INFO_CHANGED is handled identically: despite its
+    // negative value it is documented as recoverable, so it must not reach the catch-all below.
     this->audio_stream_info_ =
         audio::AudioStreamInfo(16, this->mp3_decoder_->get_channels(), this->mp3_decoder_->get_sample_rate());
     this->free_buffer_required_ =

@@ -11,6 +11,9 @@ from esphome.const import (
     STATE_CLASS_MEASUREMENT,
     UNIT_DECIBEL,
 )
+from esphome.core import ID
+from esphome.cpp_generator import MockObj, TemplateArgsType
+from esphome.types import ConfigType
 
 AUTO_LOAD = ["audio"]
 CODEOWNERS = ["@kahrendt"]
@@ -63,7 +66,7 @@ CONFIG_SCHEMA = cv.All(
 )
 
 
-async def to_code(config):
+async def to_code(config: ConfigType) -> None:
     var = cg.new_Pvariable(config[CONF_ID])
     await cg.register_component(var, config)
 
@@ -95,7 +98,12 @@ SOUND_LEVEL_ACTION_SCHEMA = automation.maybe_simple_id(
 @automation.register_action(
     "sound_level.stop", StopAction, SOUND_LEVEL_ACTION_SCHEMA, synchronous=True
 )
-async def sound_level_action_to_code(config, action_id, template_arg, args):
+async def sound_level_action_to_code(
+    config: ConfigType,
+    action_id: ID,
+    template_arg: cg.TemplateArguments,
+    args: TemplateArgsType,
+) -> MockObj:
     var = cg.new_Pvariable(action_id, template_arg)
     await cg.register_parented(var, config[CONF_ID])
     return var

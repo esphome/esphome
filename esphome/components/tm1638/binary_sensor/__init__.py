@@ -2,6 +2,7 @@ import esphome.codegen as cg
 from esphome.components import binary_sensor
 import esphome.config_validation as cv
 from esphome.const import CONF_KEY
+from esphome.types import ConfigType
 
 from ..display import CONF_TM1638_ID, TM1638Component, tm1638_ns
 
@@ -15,7 +16,7 @@ CONFIG_SCHEMA = binary_sensor.binary_sensor_schema(TM1638Key).extend(
 )
 
 
-async def to_code(config):
+async def to_code(config: ConfigType) -> None:
     var = await binary_sensor.new_binary_sensor(config)
     cg.add(var.set_keycode(config[CONF_KEY]))
     hub = await cg.get_variable(config[CONF_TM1638_ID])

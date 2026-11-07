@@ -11,6 +11,7 @@ from esphome.const import (
     ENTITY_CATEGORY_DIAGNOSTIC,
 )
 import esphome.final_validate as fv
+from esphome.types import ConfigType
 
 from . import (
     CONF_ENCRYPTION,
@@ -44,10 +45,10 @@ CONFIG_SCHEMA = cv.typed_schema(
 )
 
 
-def _final_validate(config):
+def _final_validate(config: ConfigType) -> None:
     if config[CONF_TYPE] != CONF_STATUS:
         # Only run this validation if a status sensor is being configured
-        return config
+        return
     full_config = fv.full_config.get()
     transport_path = full_config.get_path_for_id(config[CONF_TRANSPORT_ID])[:-1]
     transport_config = full_config.get_config_for_path(transport_path)
@@ -56,7 +57,7 @@ def _final_validate(config):
         for p in transport_config[CONF_PROVIDERS]
         if p[CONF_NAME] == config[CONF_PROVIDER]
     ):
-        return config
+        return
     raise cv.Invalid(
         "Status sensor requires ping-pong to be enabled and the nominated provider to use encryption."
     )
@@ -65,7 +66,7 @@ def _final_validate(config):
 FINAL_VALIDATE_SCHEMA = _final_validate
 
 
-async def to_code(config):
+async def to_code(config: ConfigType) -> None:
     var = await binary_sensor.new_binary_sensor(config)
     comp = await cg.get_variable(config[CONF_TRANSPORT_ID])
     if config[CONF_TYPE] == CONF_STATUS:

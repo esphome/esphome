@@ -7,7 +7,7 @@
 
 namespace esphome::adc {
 
-static const char *const TAG = "adc.zephyr";
+static const char *const TAG = "adc";
 
 void ADCSensor::setup() {
   if (!adc_is_ready_dt(this->channel_)) {

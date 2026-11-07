@@ -13,8 +13,6 @@ ESPColorView ESPRangeView::operator[](int32_t index) const {
   index = interpret_index(index, this->size()) + this->begin_;
   return (*this->parent_)[index];
 }
-ESPRangeIterator ESPRangeView::begin() { return {*this, this->begin_}; }
-ESPRangeIterator ESPRangeView::end() { return {*this, this->end_}; }
 
 void ESPRangeView::set(const Color &color) {
   for (int32_t i = this->begin_; i < this->end_; i++) {

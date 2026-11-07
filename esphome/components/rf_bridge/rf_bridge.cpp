@@ -18,6 +18,16 @@ void RFBridgeComponent::ack_() {
 }
 
 bool RFBridgeComponent::parse_bridge_byte_(uint8_t byte) {
+  if (this->bucket_frame_candidate_ && byte == RF_CODE_START) {
+    // A queued next frame proves the trailing 0x55 really was the bucket
+    // frame's terminator: Portisch builds pulse entries from alternating
+    // signal edges, so the two level bits inside one pulse byte are always
+    // opposite — 0xAA (two high-level nibbles) cannot occur in pulse data.
+    // Finalize before this byte starts the new frame, so back-to-back
+    // deliveries are split even when loop() never observed a quiet gap
+    // between them.
+    this->finish_bucket_frame_();
+  }
   size_t at = this->rx_buffer_.size();
   this->rx_buffer_.push_back(byte);
   const uint8_t *raw = &this->rx_buffer_[0];
@@ -84,26 +94,21 @@ bool RFBridgeComponent::parse_bridge_byte_(uint8_t byte) {
       break;
     }
     case RF_CODE_RFIN_BUCKET: {
-      if (byte != RF_CODE_STOP) {
-        return true;
+      if (at == 2) {
+        // The count byte: Portisch sends at most 7 buckets + sync, so 0 or
+        // >8 cannot be a genuine capture — reject before it can occupy the
+        // buffer for a full frame timeout.
+        return byte != 0 && byte <= B1_MAX_BUCKET_COUNT;
       }
-
-      uint8_t buckets = raw[2] << 1;
-      std::string str;
-      char next_byte[3];  // 2 hex chars + null
-
-      for (uint32_t i = 0; i <= at; i++) {
-        buf_append_printf(next_byte, sizeof(next_byte), 0, "%02X", raw[i]);
-        str += next_byte;
-        if ((i > 3) && buckets) {
-          buckets--;
-        }
-        if ((i < 3) || (buckets % 2) || (i == at - 1)) {
-          str += " ";
-        }
-      }
-      ESP_LOGI(TAG, "Received RFBridge Bucket: %s", str.c_str());
-      break;
+      // 0x55 is legal DATA inside a B1 frame: bucket durations are sent
+      // with only their HIGH byte masked to 7 bits, so a duration such as
+      // 0x0155 puts a raw 0x55 low byte inside the table — the first 0x55
+      // must therefore not end the capture. The header declares the table
+      // length (raw[2] pairs), so a 0x55 there is always data; one at or
+      // past the first pulse index is a terminator CANDIDATE, confirmed
+      // once the UART goes quiet (finish_bucket_frame_ in loop()).
+      this->bucket_frame_candidate_ = byte == RF_CODE_STOP && at >= 3 + static_cast<size_t>(raw[2]) * 2;
+      return true;
     }
     default:
       ESP_LOGW(TAG, "Unknown action: 0x%02X", action);
@@ -119,6 +124,47 @@ bool RFBridgeComponent::parse_bridge_byte_(uint8_t byte) {
   return false;
 }
 
+void RFBridgeComponent::finish_bucket_frame_() {
+  if (this->rx_buffer_.size() < 4) {
+    // The candidate flag requires a header + non-empty bucket table, so
+    // this cannot happen while flag and buffer stay consistent; guard the
+    // raw[2] / size-1 reads against any future divergence anyway.
+    this->rx_buffer_.clear();
+    this->bucket_frame_candidate_ = false;
+    return;
+  }
+  const uint8_t *raw = this->rx_buffer_.data();
+  const size_t at = this->rx_buffer_.size() - 1;
+
+  uint8_t buckets = raw[2] << 1;
+  std::string str;
+  char next_byte[3];  // 2 hex chars + null
+
+  for (uint32_t i = 0; i <= at; i++) {
+    buf_append_printf(next_byte, sizeof(next_byte), 0, "%02X", raw[i]);
+    str += next_byte;
+    if ((i > 3) && buckets) {
+      buckets--;
+    }
+    if ((i < 3) || (buckets % 2) || (i == at - 1)) {
+      str += " ";
+    }
+  }
+  ESP_LOGI(TAG, "Received RFBridge Bucket: %s", str.c_str());
+
+  // Deliberately NOT ACKed: Portisch's B1 command handler leaves its
+  // last_sniffing_command at the previous mode (RF_CODE_RFIN), and its
+  // host-ACK handler re-arms sniffing from that stale value — so ACKing a
+  // bucket delivery silently reverts the radio to standard sniffing and
+  // ends bucket capture. Its delivery path is fire-and-forget and never
+  // waits for a host ACK. Stock Itead firmware never sends B1 frames, so
+  // suppressing this ACK cannot change stock-firmware behavior.
+  // https://github.com/esphome/esphome/issues/17682
+
+  this->rx_buffer_.clear();
+  this->bucket_frame_candidate_ = false;
+}
+
 void RFBridgeComponent::write_byte_str_(const std::string &codes) {
   uint8_t code;
   int size = codes.length();
@@ -130,12 +176,31 @@ void RFBridgeComponent::write_byte_str_(const std::string &codes) {
 
 void RFBridgeComponent::loop() {
   const uint32_t now = App.get_loop_component_start_time();
-  if (now - this->last_bridge_byte_ > 50) {
+  size_t avail = this->available();
+  if (avail == 0 && this->bucket_frame_candidate_ && now - this->last_bridge_byte_ > BUCKET_CANDIDATE_QUIET_MS) {
+    // The trailing 0x55 was followed by UART quiet, so it really was the
+    // frame terminator and not an interior data byte.
+    this->finish_bucket_frame_();
+    this->last_bridge_byte_ = now;
+  }
+  const bool receiving_bucket = this->rx_buffer_.size() >= 2 && this->rx_buffer_[1] == RF_CODE_RFIN_BUCKET;
+  if (receiving_bucket) {
+    // Never declare an in-progress bucket frame dead while its continuation
+    // bytes are already queued: a stalled loop() otherwise discards a live
+    // frame that the UART buffer proves is still arriving.
+    if (avail == 0 && now - this->last_bridge_byte_ > BUCKET_FRAME_TIMEOUT_MS) {
+      ESP_LOGD(TAG, "Discarding incomplete RFBridge Bucket frame (%u bytes)",
+               static_cast<unsigned>(this->rx_buffer_.size()));
+      this->rx_buffer_.clear();
+      this->bucket_frame_candidate_ = false;
+      this->last_bridge_byte_ = now;
+    }
+  } else if (now - this->last_bridge_byte_ > 50) {
     this->rx_buffer_.clear();
+    this->bucket_frame_candidate_ = false;
     this->last_bridge_byte_ = now;
   }
 
-  size_t avail = this->available();
   while (avail > 0) {
     uint8_t buf[64];
     size_t to_read = std::min(avail, sizeof(buf));
@@ -146,12 +211,14 @@ void RFBridgeComponent::loop() {
     for (size_t i = 0; i < to_read; i++) {
       if (this->rx_buffer_.size() > MAX_RX_BUFFER_SIZE) {
         this->rx_buffer_.clear();
+        this->bucket_frame_candidate_ = false;
       }
       if (this->parse_bridge_byte_(buf[i])) {
         ESP_LOGVV(TAG, "Parsed: 0x%02X", buf[i]);
         this->last_bridge_byte_ = now;
       } else {
         this->rx_buffer_.clear();
+        this->bucket_frame_candidate_ = false;
       }
     }
   }

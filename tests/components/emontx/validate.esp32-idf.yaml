@@ -1,0 +1,88 @@
+packages:
+  uart_115200: !include ../../test_build_components/common/uart_115200/esp32-idf.yaml
+  emontx: !include common.yaml
+
+# Validate that each sensor type gets the correct default state_class,
+# unit_of_measurement, device_class, and accuracy_decimals when NO overrides
+# are provided. The values are intentionally omitted so apply_tag_defaults is
+# exercised, not the user-override path.
+
+sensor:
+  # Energy sensor (E prefix): expects state_class=total_increasing, unit=Wh,
+  # device_class=energy, accuracy_decimals=0
+  - platform: emontx
+    tag_name: E1
+    name: Energy 1
+    emontx_id: test_emontx
+
+  # Power sensor (P prefix): expects state_class=measurement, unit=W,
+  # device_class=power, accuracy_decimals=0
+  - platform: emontx
+    tag_name: P1
+    name: Power 1
+    emontx_id: test_emontx
+
+  # Voltage sensor (V prefix): expects state_class=measurement, unit=V,
+  # device_class=voltage, accuracy_decimals=2
+  - platform: emontx
+    tag_name: V1
+    name: Voltage 1
+    emontx_id: test_emontx
+
+  # Current sensor (I prefix): expects state_class=measurement, unit=A,
+  # device_class=current, accuracy_decimals=2
+  - platform: emontx
+    tag_name: I1
+    name: Current 1
+    emontx_id: test_emontx
+
+  # Temperature sensor (T prefix): expects state_class=measurement, unit=°C,
+  # device_class=temperature, accuracy_decimals=2
+  - platform: emontx
+    tag_name: T1
+    name: Temperature 1
+    emontx_id: test_emontx
+
+  # Pulse sensor (PULSE pattern): expects state_class=total_increasing,
+  # unit=pulses, device_class=energy, accuracy_decimals=0
+  - platform: emontx
+    tag_name: PULSE1
+    name: Pulse 1
+    emontx_id: test_emontx
+
+  # Power factor sensor (PF pattern): expects state_class=measurement,
+  # device_class=power_factor, accuracy_decimals=2
+  - platform: emontx
+    tag_name: PF1
+    name: Power Factor 1
+    emontx_id: test_emontx
+
+  # Apparent power sensor (AP pattern): expects state_class=measurement,
+  # unit=VA, device_class=apparent_power, accuracy_decimals=2
+  - platform: emontx
+    tag_name: AP1
+    name: Apparent Power 1
+    emontx_id: test_emontx
+
+  # Frequency sensor (F, matched exactly, not as a prefix): expects
+  # state_class=measurement, unit=Hz, device_class=frequency,
+  # accuracy_decimals=2
+  - platform: emontx
+    tag_name: F
+    name: Frequency
+    emontx_id: test_emontx
+
+  # Unknown tag: no prefix match, falls back to state_class=measurement,
+  # accuracy_decimals=0
+  - platform: emontx
+    tag_name: CUSTOM1
+    name: Custom sensor
+    emontx_id: test_emontx
+
+  # User override: verify that explicit values are respected and not clobbered
+  - platform: emontx
+    tag_name: E2
+    name: Energy 2 (user override)
+    emontx_id: test_emontx
+    state_class: measurement
+    accuracy_decimals: 3

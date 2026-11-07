@@ -2,6 +2,8 @@ import esphome.codegen as cg
 from esphome.components import i2c
 import esphome.config_validation as cv
 from esphome.const import CONF_ID
+from esphome.cpp_generator import MockObj
+from esphome.types import ConfigType
 
 AUTO_LOAD = ["output"]
 CODEOWNERS = ["@NickB1"]
@@ -24,7 +26,7 @@ CONFIG_SCHEMA = (
 )
 
 
-async def to_code(config):
+async def to_code(config: ConfigType) -> MockObj:
     var = cg.new_Pvariable(config[CONF_ID])
     await cg.register_component(var, config)
     cg.add(var.set_internal_reference(config[CONF_INTERNAL_REFERENCE]))

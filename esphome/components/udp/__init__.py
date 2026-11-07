@@ -1,3 +1,5 @@
+from typing import Any
+
 from esphome import automation
 from esphome.automation import Trigger
 import esphome.codegen as cg
@@ -13,7 +15,7 @@ from esphome.components.packet_transport import (
 import esphome.config_validation as cv
 from esphome.const import CONF_DATA, CONF_ID, CONF_PORT, CONF_TRIGGER_ID
 from esphome.core import ID
-from esphome.cpp_generator import MockObj
+from esphome.cpp_generator import MockObj, TemplateArgsType
 from esphome.types import ConfigType
 
 CODEOWNERS = ["@clydebarrow"]
@@ -45,17 +47,10 @@ UDP_SCHEMA = cv.Schema(
 )
 
 
-def is_relocated(option):
-    def validator(value):
-        raise cv.Invalid(
-            f"The '{option}' option should now be configured in the 'packet_transport' component"
-        )
-
-    return validator
-
-
 RELOCATED = {
-    cv.Optional(x): is_relocated(x)
+    cv.Optional(x): cv.invalid(
+        f"The '{x}' option should now be configured in the 'packet_transport' component"
+    )
     for x in (
         CONF_PROVIDERS,
         CONF_ENCRYPTION,
@@ -109,13 +104,13 @@ CONFIG_SCHEMA = cv.All(
 )
 
 
-async def register_udp_client(var, config):
+async def register_udp_client(var: MockObj, config: ConfigType) -> MockObj:
     udp_var = await cg.get_variable(config[CONF_UDP_ID])
     cg.add(var.set_parent(udp_var))
     return udp_var
 
 
-async def to_code(config):
+async def to_code(config: ConfigType) -> None:
     cg.add_define("USE_UDP")
     cg.add_global(udp_ns.using)
     var = cg.new_Pvariable(config[CONF_ID])
@@ -147,7 +142,7 @@ async def to_code(config):
         cg.add(var.set_should_listen())
 
 
-def validate_raw_data(value):
+def validate_raw_data(value: Any) -> bytes | list[int]:
     if isinstance(value, str):
         return value.encode("utf-8")
     if isinstance(value, str):
@@ -171,7 +166,12 @@ def validate_raw_data(value):
     ),
     synchronous=True,
 )
-async def udp_write_to_code(config, action_id, template_arg, args):
+async def udp_write_to_code(
+    config: ConfigType,
+    action_id: ID,
+    template_arg: cg.TemplateArguments,
+    args: TemplateArgsType,
+) -> MockObj:
     var = cg.new_Pvariable(action_id, template_arg)
     udp_var = await cg.get_variable(config[CONF_ID])
     await cg.register_parented(var, udp_var)

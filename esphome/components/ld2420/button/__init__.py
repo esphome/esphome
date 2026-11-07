@@ -10,6 +10,7 @@ from esphome.const import (
     ICON_RESTART,
     ICON_RESTART_ALERT,
 )
+from esphome.types import ConfigType
 
 from .. import CONF_LD2420_ID, LD2420Component, ld2420_ns
 
@@ -50,7 +51,7 @@ CONFIG_SCHEMA = {
 }
 
 
-async def to_code(config):
+async def to_code(config: ConfigType) -> None:
     ld2420_component = await cg.get_variable(config[CONF_LD2420_ID])
     if apply_config := config.get(CONF_APPLY_CONFIG):
         b = await button.new_button(apply_config)

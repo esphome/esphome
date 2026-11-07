@@ -3,6 +3,7 @@ import logging
 import esphome.codegen as cg
 from esphome.components import sensor, voltage_sampler
 from esphome.components.esp32 import (
+    VARIANT_ESP32S31,
     get_esp32_variant,
     include_builtin_idf_component,
     require_adc_oneshot_iram,
@@ -52,9 +53,17 @@ _attenuation = cv.enum(ATTENUATION_MODES, lower=True)
 _sampling_mode = cv.enum(SAMPLING_MODES, lower=True)
 
 
-def validate_config(config):
+def validate_config(config: ConfigType) -> ConfigType:
     if config[CONF_RAW] and config.get(CONF_ATTENUATION, None) == "auto":
         raise cv.Invalid("Automatic attenuation cannot be used when raw output is set")
+
+    # The S31 ADC supports a single attenuation level (SOC_ADC_ATTEN_NUM is 1)
+    if (
+        CORE.is_esp32
+        and get_esp32_variant() == VARIANT_ESP32S31
+        and config.get(CONF_ATTENUATION, "0db") != "0db"
+    ):
+        raise cv.Invalid("ESP32-S31 only supports 'attenuation: 0db'")
 
     if config.get(CONF_ATTENUATION, None) == "auto" and config.get(CONF_SAMPLES, 1) > 1:
         raise cv.Invalid(
@@ -66,6 +75,13 @@ def validate_config(config):
         )
         # Alter value here so `config` command prints the recommended change
         config[CONF_ATTENUATION] = _attenuation("12db")
+
+    # Remove before 2027.2.0
+    if config[CONF_PIN] == "TEMPERATURE":
+        _LOGGER.warning(
+            "[adc] `pin: TEMPERATURE` is deprecated, use the `internal_temperature` "
+            "sensor platform instead. Will be removed in 2027.2.0"
+        )
 
     return config
 
@@ -113,7 +129,7 @@ CONFIG_SCHEMA = cv.All(
 CONF_ADC_CHANNEL_ID = "adc_channel_id"
 
 
-def _overlay_io_channels():
+def _overlay_io_channels() -> str:
     channel_count = CORE.data[CONF_ADC_CHANNEL_ID]
     entries = ", ".join(f"<&adc {channel_id}>" for channel_id in range(channel_count))
     return f"""
@@ -125,7 +141,7 @@ def _overlay_io_channels():
             """
 
 
-async def to_code(config):
+async def to_code(config: ConfigType) -> None:
     var = cg.new_Pvariable(config[CONF_ID])
     await cg.register_component(var, config)
     await sensor.register_sensor(var, config)
@@ -133,6 +149,7 @@ async def to_code(config):
     if config[CONF_PIN] == "VCC":
         cg.add_define("USE_ADC_SENSOR_VCC")
     elif config[CONF_PIN] == "TEMPERATURE":
+        # Remove before 2027.2.0
         cg.add(var.set_is_temperature())
     elif not CORE.is_nrf52 or config[CONF_PIN][CONF_NUMBER] not in EXTRA_ADC:
         pin = await cg.gpio_pin_expression(config[CONF_PIN])

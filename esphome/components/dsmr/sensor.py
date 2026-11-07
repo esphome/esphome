@@ -27,6 +27,7 @@ from esphome.const import (
     UNIT_SECOND,
     UNIT_VOLT,
 )
+from esphome.types import ConfigType
 
 from . import CONF_DSMR_ID, Dsmr
 
@@ -812,7 +813,7 @@ CONFIG_SCHEMA = cv.Schema(
 ).extend(cv.COMPONENT_SCHEMA)
 
 
-async def to_code(config):
+async def to_code(config: ConfigType) -> None:
     hub = await cg.get_variable(config[CONF_DSMR_ID])
 
     sensors = []

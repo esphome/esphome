@@ -8,6 +8,7 @@ from esphome.const import (
     ICON_ROTATE_RIGHT,
     STATE_CLASS_MEASUREMENT,
 )
+from esphome.types import ConfigType
 
 from .. import (
     CONF_M5STACK_8ANGLE_ID,
@@ -55,7 +56,7 @@ CONFIG_SCHEMA = cv.All(
 )
 
 
-async def to_code(config):
+async def to_code(config: ConfigType) -> None:
     var = await sensor.new_sensor(config)
     await cg.register_component(var, config)
     await cg.register_parented(var, config[CONF_M5STACK_8ANGLE_ID])

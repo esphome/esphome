@@ -10,14 +10,6 @@ EthernetComponent *global_eth_component;  // NOLINT(cppcoreguidelines-avoid-non-
 
 EthernetComponent::EthernetComponent() { global_eth_component = this; }
 
-float EthernetComponent::get_setup_priority() const { return setup_priority::WIFI; }
-
-void EthernetComponent::set_type(EthernetType type) { this->type_ = type; }
-
-#ifdef USE_ETHERNET_MANUAL_IP
-void EthernetComponent::set_manual_ip(const ManualIP &manual_ip) { this->manual_ip_ = manual_ip; }
-#endif
-
 #ifdef USE_ETHERNET_IP_STATE_LISTENERS
 void EthernetComponent::notify_ip_state_listeners_() {
   auto ips = this->get_ip_addresses();

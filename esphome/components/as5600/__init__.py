@@ -1,3 +1,6 @@
+from collections.abc import Callable
+from typing import Any
+
 from esphome import pins
 import esphome.codegen as cg
 from esphome.components import i2c
@@ -11,6 +14,7 @@ from esphome.const import (
     CONF_RANGE,
     CONF_WATCHDOG,
 )
+from esphome.types import ConfigType
 
 CODEOWNERS = ["@ammmze"]
 DEPENDENCIES = ["i2c"]
@@ -72,13 +76,13 @@ POSITION_TO_ANGLE = 360 / RESOLUTION
 MIN_RANGE = round(18 * ANGLE_TO_POSITION)
 
 
-def angle(min=-360, max=360):
+def angle(min: float = -360, max: float = 360) -> Callable[[Any], Any]:
     return cv.All(
         cv.float_with_unit("angle", "(°|deg)"), cv.float_range(min=min, max=max)
     )
 
 
-def angle_to_position(value, min=-360, max=360):
+def angle_to_position(value: Any, min: float = -360, max: float = 360) -> int:
     try:
         value = angle(min=min, max=max)(value)
         return (RESOLUTION + round(value * ANGLE_TO_POSITION)) % RESOLUTION
@@ -86,17 +90,17 @@ def angle_to_position(value, min=-360, max=360):
         raise cv.Invalid(f"When using angle, {e.error_message}") from e
 
 
-def percent_to_position(value):
+def percent_to_position(value: Any) -> int:
     value = cv.possibly_negative_percentage(value)
     return (RESOLUTION + round(value * RESOLUTION)) % RESOLUTION
 
 
-def position(min=-MAX_POSITION, max=MAX_POSITION):
+def position(min: int = -MAX_POSITION, max: int = MAX_POSITION) -> Callable[[Any], Any]:
     """Validate that the config option is a position.
     Accepts integers, degrees, or percentage (of 360 degrees).
     """
 
-    def validator(value):
+    def validator(value: Any) -> int:
         if isinstance(value, str) and value.endswith("%"):
             value = percent_to_position(value)
 
@@ -112,7 +116,7 @@ def position(min=-MAX_POSITION, max=MAX_POSITION):
     return validator
 
 
-def position_range():
+def position_range() -> Callable[[Any], Any]:
     """Validate that value given is a valid range for the device.
     A valid range is one of the following:
     - a value of 0 (meaning full range)
@@ -129,7 +133,7 @@ def position_range():
         zero_validator,
     )
 
-    def validator(value):
+    def validator(value: Any) -> Any:
         is_negative_str = isinstance(value, str) and value.startswith("-")
         is_negative_num = isinstance(value, (float, int)) and value < 0
         if is_negative_str or is_negative_num:
@@ -139,13 +143,13 @@ def position_range():
     return validator
 
 
-def has_valid_range_config():
+def has_valid_range_config() -> Callable[[ConfigType], ConfigType]:
     """Validate that that the config start + end position results in a valid
     positional range, which must be >= 18degrees
     """
     range_validator = position_range()
 
-    def validator(config):
+    def validator(config: ConfigType) -> ConfigType:
         # if we don't have an end position, then there is nothing to do
         if CONF_END_POSITION not in config:
             return config
@@ -203,7 +207,7 @@ CONFIG_SCHEMA = cv.All(
 )
 
 
-async def to_code(config):
+async def to_code(config: ConfigType) -> None:
     var = cg.new_Pvariable(config[CONF_ID])
     await cg.register_component(var, config)
     await i2c.register_i2c_device(var, config)

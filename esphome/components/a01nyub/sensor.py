@@ -6,6 +6,7 @@ from esphome.const import (
     STATE_CLASS_MEASUREMENT,
     UNIT_METER,
 )
+from esphome.types import ConfigType
 
 CODEOWNERS = ["@MrSuicideParrot"]
 DEPENDENCIES = ["uart"]
@@ -35,7 +36,7 @@ FINAL_VALIDATE_SCHEMA = uart.final_validate_device_schema(
 )
 
 
-async def to_code(config):
+async def to_code(config: ConfigType) -> None:
     var = await sensor.new_sensor(config)
     await cg.register_component(var, config)
     await uart.register_uart_device(var, config)

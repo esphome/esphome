@@ -1,0 +1,20 @@
+esphome:
+  name: get-time-tz-test
+host:
+api:
+logger:
+
+time:
+  - platform: homeassistant
+    id: ha_time
+
+sensor:
+  # Exposes the standard offset of the effective timezone so the test can
+  # observe which GetTimeResponse messages changed it
+  - platform: template
+    name: "TZ Offset"
+    id: tz_offset
+    accuracy_decimals: 0
+    update_interval: 100ms
+    lambda: |-
+      return time::get_global_tz().std_offset_seconds;

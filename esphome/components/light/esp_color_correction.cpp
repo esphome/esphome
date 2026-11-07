@@ -5,7 +5,11 @@ namespace esphome::light {
 uint8_t ESPColorCorrection::gamma_correct_(uint8_t value) const {
   if (this->gamma_table_ == nullptr)
     return value;
-  return static_cast<uint8_t>((progmem_read_uint16(&this->gamma_table_[value]) + 128) / 257);
+  uint16_t table_value = progmem_read_uint16(&this->gamma_table_[value]);
+  uint8_t result = (table_value + 128) / 257;
+  if (result == 0 && table_value != 0)
+    return 1;
+  return result;
 }
 
 uint8_t ESPColorCorrection::gamma_uncorrect_(uint8_t value) const {

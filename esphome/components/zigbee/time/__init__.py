@@ -1,13 +1,15 @@
 import esphome.codegen as cg
 from esphome.components import time as time_
 import esphome.config_validation as cv
-from esphome.const import CONF_ID
+from esphome.const import CONF_ID, CONF_UPDATE_INTERVAL
 from esphome.core import CORE
 from esphome.types import ConfigType
 
 from .. import consume_endpoint
 from ..const import zigbee_ns
+from ..const_esp32 import ROLE
 from ..const_zephyr import CONF_ZIGBEE_ID
+from ..zigbee_ep_esp32 import add_clusters_to_first_ep, get_first_ep_num
 from ..zigbee_zephyr import (
     ZigbeeClusterDesc,
     ZigbeeComponent,
@@ -22,26 +24,52 @@ DEPENDENCIES = ["zigbee"]
 
 ZigbeeTime = zigbee_ns.class_("ZigbeeTime", time_.RealTimeClock)
 
+
+def _validate_zigbee_time(config: ConfigType) -> ConfigType:
+    if CORE.is_nrf52:
+        return consume_endpoint(config)
+    if CORE.is_esp32:
+        cl = [
+            {
+                CONF_ID: "TIME",
+                ROLE: "CLIENT",
+            },
+            {
+                CONF_ID: "TIME",
+                ROLE: "SERVER",
+            },
+        ]
+        add_clusters_to_first_ep(cl)
+    return config
+
+
 CONFIG_SCHEMA = cv.All(
     time_.TIME_SCHEMA.extend(
         {
             cv.GenerateID(): cv.declare_id(ZigbeeTime),
-            cv.OnlyWith(CONF_ZIGBEE_ID, ["nrf52", "zigbee"]): cv.use_id(
-                ZigbeeComponent
-            ),
+            cv.GenerateID(CONF_ZIGBEE_ID): cv.use_id(ZigbeeComponent),
+            cv.SplitDefault(
+                CONF_UPDATE_INTERVAL,
+                nrf52="1s",
+                esp32="15min",
+            ): cv.update_interval,  # override default from TIME_SCHEMA. Remove once nrf52 implementation is aligned.
         }
-    )
-    .extend(cv.COMPONENT_SCHEMA)
-    .extend(cv.polling_component_schema("1s")),
-    consume_endpoint,
+    ).extend(cv.COMPONENT_SCHEMA),
+    _validate_zigbee_time,
 )
 
 
 async def to_code(config: ConfigType) -> None:
-    CORE.add_job(_add_time, config)
+    if CORE.using_zephyr:
+        CORE.add_job(_add_time_zephyr, config)
+    if CORE.is_esp32:
+        zb = await cg.get_variable(config[CONF_ZIGBEE_ID])
+        var = cg.new_Pvariable(config[CONF_ID], zb, get_first_ep_num())
+        await cg.register_component(var, config)
+        await time_.register_time(var, config)
 
 
-async def _add_time(config: ConfigType) -> None:
+async def _add_time_zephyr(config: ConfigType) -> None:
     slot_index = get_slot_index()
 
     # Create unique names for this sensor's variables based on slot index

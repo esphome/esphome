@@ -1,10 +1,12 @@
 import re
+from typing import Any
 
 from esphome import automation
 import esphome.codegen as cg
 from esphome.components import uart
 import esphome.config_validation as cv
 from esphome.const import CONF_ID, CONF_ON_DATA
+from esphome.types import ConfigType
 
 CODEOWNERS = ["@alengwenus"]
 
@@ -46,14 +48,14 @@ _CALLBACK_AUTOMATIONS = (
 )
 
 
-async def to_code(config):
+async def to_code(config: ConfigType) -> None:
     var = cg.new_Pvariable(config[CONF_ID])
     await cg.register_component(var, config)
     await uart.register_uart_device(var, config)
     await automation.build_callback_automations(var, config, _CALLBACK_AUTOMATIONS)
 
 
-def obis_code(value):
+def obis_code(value: Any) -> str:
     value = cv.string(value)
     match = re.match(r"^\d{1,3}-\d{1,3}:\d{1,3}\.\d{1,3}\.\d{1,3}$", value)
     if match is None:

@@ -1,0 +1,21 @@
+# `platform: animation` entry exercising the shared `defaults:`/`files:` expansion.
+display:
+  - platform: sdl
+    id: animation_display
+    auto_clear_enabled: false
+    dimensions:
+      width: 480
+      height: 480
+
+image:
+  - platform: animation
+    defaults:
+      type: rgb565
+      transparency: opaque
+      resize: 50x50
+    files:
+      - id: platform_defaults_animation
+        file: $component_dir/anim.gif
+      - id: platform_defaults_animation_rgb
+        file: $component_dir/anim.apng
+        type: rgb

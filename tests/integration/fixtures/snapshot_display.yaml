@@ -1,0 +1,28 @@
+esphome:
+  name: snapshot-display-test
+host:
+
+api:
+  actions:
+    # The name comes from the test so it can ask for several in a row and check what each one
+    # does with it.
+    - action: take_snapshot
+      variables:
+        name: string
+      then:
+        - snapshot.take:
+            id: snapshot_display
+            filename: !lambda return name;
+
+logger:
+  level: DEBUG
+
+display:
+  - platform: snapshot
+    id: snapshot_display
+    show_test_card: true
+    update_interval: 100ms
+    # An odd width exercises the row padding in the BMP writer
+    dimensions:
+      width: 101
+      height: 64

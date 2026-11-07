@@ -86,7 +86,7 @@ AudioFileType detect_audio_file_type(const char *content_type, const char *url) 
     // Match "audio/ogg" with a codecs parameter containing "opus"
     // Valid forms: audio/ogg;codecs=opus, audio/ogg; codecs="opus", etc.
     // Plain "audio/ogg" without opus is not matched (almost always Ogg Vorbis)
-    if (strncasecmp(content_type, "audio/ogg", 9) == 0 && strcasestr(content_type + 9, "opus") != nullptr) {
+    if (strncasecmp(content_type, "audio/ogg", 9) == 0 && str_contains_ignore_case(content_type + 9, "opus")) {
       return AudioFileType::OPUS;
     }
 #endif

@@ -2,7 +2,9 @@ from esphome import automation
 import esphome.codegen as cg
 import esphome.config_validation as cv
 from esphome.const import CONF_ID, CONF_MIC_GAIN
-from esphome.core import CoroPriority, coroutine_with_priority
+from esphome.core import ID, CoroPriority, coroutine_with_priority
+from esphome.cpp_generator import MockObj, TemplateArgsType
+from esphome.types import ConfigType
 
 CODEOWNERS = ["@kbx81"]
 IS_PLATFORM_COMPONENT = True
@@ -28,7 +30,12 @@ SET_MIC_GAIN_ACTION_SCHEMA = cv.maybe_simple_value(
     SET_MIC_GAIN_ACTION_SCHEMA,
     synchronous=True,
 )
-async def audio_adc_set_mic_gain_to_code(config, action_id, template_arg, args):
+async def audio_adc_set_mic_gain_to_code(
+    config: ConfigType,
+    action_id: ID,
+    template_arg: cg.TemplateArguments,
+    args: TemplateArgsType,
+) -> MockObj:
     paren = await cg.get_variable(config[CONF_ID])
     var = cg.new_Pvariable(action_id, template_arg, paren)
 
@@ -39,6 +46,6 @@ async def audio_adc_set_mic_gain_to_code(config, action_id, template_arg, args):
 
 
 @coroutine_with_priority(CoroPriority.CORE)
-async def to_code(config):
+async def to_code(config: ConfigType) -> None:
     cg.add_define("USE_AUDIO_ADC")
     cg.add_global(audio_adc_ns.using)
