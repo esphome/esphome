@@ -3,7 +3,6 @@
 from __future__ import annotations
 
 import asyncio
-from itertools import groupby
 
 from aioesphomeapi import ButtonInfo, EntityState, TextSensorInfo, TextSensorState
 import pytest
@@ -12,19 +11,16 @@ from .state_utils import require_entity, subscribe_after_initial_states
 from .types import APIClientConnectedFactory, RunCompiledFunction
 
 # The positions of target 1 in the fixture, one per radar frame (100 ms apart)
-POSITIONS = [f"{-600 + 100 * i},{1000 + 50 * i}" for i in range(12)]
+POSITIONS = [f"{-600 + 100 * i},{1000 + 50 * i}" for i in range(14)]
 # The frames of each group, as the fixture sends them
 GROUP_A_FRAMES = POSITIONS[0:4]  # at 0.1 s, in the first window
 GROUP_B_FRAMES = POSITIONS[4:8]  # at 11 s: only in the window the second press extended
 GROUP_C_FRAMES = POSITIONS[8:12]  # at 17 s: the window is over
+# at 19.5 s: the filters hold back the second one
+GROUP_D_FRAMES = POSITIONS[12:14]
 # The first press is just before the scenario starts: its window ends at about 10 s. The second press extends it
 # to about 16 s.
 SECOND_PRESS_AFTER_S = 6.0
-
-
-def _distinct(states: list[str]) -> list[str]:
-    """Drop the repeat that the timeout filter sends after a pause."""
-    return [state for state, _ in groupby(states)]
 
 
 @pytest.mark.asyncio
@@ -45,6 +41,8 @@ async def test_uart_mock_ld2450_target_xy_unfiltered(
         history: list[str] = []
         loop = asyncio.get_running_loop()
         group_a_published = loop.create_future()
+        first_of_d_published = loop.create_future()
+        second_of_d_published = loop.create_future()
         target_left = loop.create_future()
 
         def on_state(state: EntityState) -> None:
@@ -53,6 +51,10 @@ async def test_uart_mock_ld2450_target_xy_unfiltered(
             history.append(state.state)
             if len(history) == len(GROUP_A_FRAMES) and not group_a_published.done():
                 group_a_published.set_result(None)
+            if state.state == GROUP_D_FRAMES[0] and not first_of_d_published.done():
+                first_of_d_published.set_result(None)
+            if state.state == GROUP_D_FRAMES[1] and not second_of_d_published.done():
+                second_of_d_published.set_result(None)
             if state.state == "NA" and not target_left.done():
                 target_left.set_result(None)
 
@@ -68,16 +70,29 @@ async def test_uart_mock_ld2450_target_xy_unfiltered(
         await asyncio.sleep(SECOND_PRESS_AFTER_S)
         client.button_command(unfiltered_btn.key)
 
-        await asyncio.wait_for(target_left, timeout=20.0)
-
+        await asyncio.wait_for(first_of_d_published, timeout=20.0)
+        before_c = len(GROUP_A_FRAMES) + len(GROUP_B_FRAMES)
         # Group B came after the first window: only the second press can have kept the filters off
-        assert history[: len(GROUP_A_FRAMES) + len(GROUP_B_FRAMES)] == [
-            *GROUP_A_FRAMES,
-            *GROUP_B_FRAMES,
-        ]
+        assert history[:before_c] == [*GROUP_A_FRAMES, *GROUP_B_FRAMES]
         # Group C: the filters are back, and work as at boot. The first position passes at once, the others are
-        # held back, and "NA" passes at once and drops them.
-        assert _distinct(history[len(GROUP_A_FRAMES) + len(GROUP_B_FRAMES) :]) == [
+        # held back, and the last one is sent when updates pause.
+        assert history[before_c:] == [
             GROUP_C_FRAMES[0],
+            GROUP_C_FRAMES[-1],
+            GROUP_D_FRAMES[0],
+        ]
+
+        # Group D: the filters hold the second position back, and the target stops there. Pressing the button
+        # sends it at once, long before the filters would have.
+        await asyncio.sleep(0.3)
+        assert history[-1] == GROUP_D_FRAMES[0]
+        client.button_command(unfiltered_btn.key)
+        await asyncio.wait_for(second_of_d_published, timeout=0.6)
+
+        await asyncio.wait_for(target_left, timeout=10.0)
+        assert history[before_c:] == [
+            GROUP_C_FRAMES[0],
+            GROUP_C_FRAMES[-1],
+            *GROUP_D_FRAMES,
             "NA",
         ]

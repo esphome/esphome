@@ -228,7 +228,9 @@ void LD2450Component::dump_config() {
   ESP_LOGCONFIG(TAG, "Buttons:");
   LOG_BUTTON("  ", "FactoryReset", this->factory_reset_button_);
   LOG_BUTTON("  ", "Restart", this->restart_button_);
+#ifdef USE_LD2450_XY_UNFILTERED
   LOG_BUTTON("  ", "XYUnfiltered", this->xy_unfiltered_button_);
+#endif
 #endif
 #ifdef LD2450_POLYGON_ZONE_COUNT
   ESP_LOGCONFIG(TAG, "Polygon Zones:");
@@ -1032,9 +1034,14 @@ void TargetXYTextSensor::set_bypass_filters(bool bypass) {
     this->filter_list_->reset_chain();
     this->bypassed_filters_ = this->filter_list_;
     this->filter_list_ = nullptr;
+    // The filters may have been holding back the newest position
+    if (this->raw_state_ != this->state)
+      this->internal_send_state_to_frontend(this->raw_state_);
   } else if (!bypass && this->bypassed_filters_ != nullptr) {
     this->filter_list_ = this->bypassed_filters_;
     this->bypassed_filters_ = nullptr;
+    // Positions published while bypassed set only the state
+    this->raw_state_ = this->state;
   }
 #endif
 }

@@ -159,7 +159,9 @@ class LD2450Component : public Component, public uart::UARTDevice {
 #ifdef USE_BUTTON
   SUB_BUTTON(factory_reset)
   SUB_BUTTON(restart)
+#ifdef USE_LD2450_XY_UNFILTERED
   SUB_BUTTON(xy_unfiltered)
+#endif
 #endif
 
  public:

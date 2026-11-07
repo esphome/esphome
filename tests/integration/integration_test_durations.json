@@ -205,7 +205,7 @@
   "tests/integration/test_uart_mock_ld2450_polygon_zone_timeout.py": 5.16,
   "tests/integration/test_uart_mock_ld2450_polygon_zones.py": 4.94,
   "tests/integration/test_uart_mock_ld2450_target_xy.py": 5.59,
-  "tests/integration/test_uart_mock_ld2450_target_xy_unfiltered.py": 21.33,
+  "tests/integration/test_uart_mock_ld2450_target_xy_unfiltered.py": 24.9,
   "tests/integration/test_uart_mock_ld2460.py": 4.51,
   "tests/integration/test_uart_mock_modbus.py": 129.72,
   "tests/integration/test_uart_mock_pipsolar_switches.py": 8.46,

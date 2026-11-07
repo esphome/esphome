@@ -39,7 +39,7 @@ async def to_code(config: ConfigType) -> None:
     await buttons(
         CONF_RESTART, hub.set_restart_button, apply="restart_and_read_all_info()"
     )
-    if config.get(CONF_XY_UNFILTERED):
+    if CONF_XY_UNFILTERED in config:
         cg.add_define("USE_LD2450_XY_UNFILTERED")
     await buttons(
         CONF_XY_UNFILTERED, hub.set_xy_unfiltered_button, apply="start_xy_unfiltered()"
