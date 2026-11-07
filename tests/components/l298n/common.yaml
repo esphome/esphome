@@ -1,0 +1,29 @@
+esphome:
+  on_boot:
+    then:
+      - stepper.report_position:
+          id: l298n_stepper
+          position: 250
+      - stepper.set_target:
+          id: l298n_stepper
+          target: 250
+      - stepper.set_acceleration:
+          id: l298n_stepper
+          acceleration: 250 steps/s^2
+      - stepper.set_deceleration:
+          id: l298n_stepper
+          deceleration: 250 steps/s^2
+      - stepper.set_speed:
+          id: l298n_stepper
+          speed: 250 steps/s
+
+stepper:
+  - platform: l298n
+    id: l298n_stepper
+    pin_a: ${pin_a}
+    pin_b: ${pin_b}
+    pin_c: ${pin_c}
+    pin_d: ${pin_d}
+    max_speed: 250 steps/s
+    acceleration: 100 steps/s^2
+    deceleration: 200 steps/s^2

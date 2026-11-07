@@ -22,7 +22,7 @@
 #include <utility>
 #include <vector>
 #include <concepts>
-#include <strings.h>
+#include <string.h>
 
 #include "esphome/core/optional.h"
 #include "esphome/core/time_conversion.h"
