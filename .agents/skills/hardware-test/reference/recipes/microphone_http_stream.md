@@ -23,4 +23,4 @@ Cases worth running on each head: one reader with `--pattern` (rate must match t
 `max_clients` limit plus one with `--expect-reject 1` (note what the extra one gets; the others must be unaffected), a stalled reader among
 three (the device should drop the stalled one only), the "Mic stall" button during a read (a gap of about 6 s, then
 the counter continues), mic start and stop while readers are attached, and the heap line after many connect and
-disconnect cycles. On the USB microphone, check the rate and `rms` (non-zero) instead of the pattern.
+disconnect cycles. On the USB microphone, check the rate and `rms` instead of the pattern with `--rate 16000 --min-rms 1`, and add `--max-gap-ms` to fail on long gaps; these set the exit code.

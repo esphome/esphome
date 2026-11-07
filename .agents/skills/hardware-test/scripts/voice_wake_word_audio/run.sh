@@ -21,7 +21,13 @@ grep SUMMARY "$O/va.log" | awk '{print $3, $4, "ms"}'
 echo "rejected logs: $(grep -c 'Wake word rejected' "$O/va.log")  timeout logs: $(grep -c 'was not accepted' "$O/va.log")"
 [ "$(cat "$O/rc")" = 0 ] || { echo "FAIL: va.py exited $(cat "$O/rc"): $(grep -a 'FAIL' "$O/va.log" | tail -1)"; exit 1; }
 for m in reject timeout; do
-  [ "$(grep -c "RESULT .*\"mode\": \"$m\".*\"incomplete\": false" "$O/va.log")" -ge "$N" ] || { echo "FAIL: fewer than $N complete $m runs"; exit 1; }
+  # a complete run only counts when its START carried wake word audio
+  C=$(grep -a -o 'RESULT {.*' "$O/va.log" | sed 's/^RESULT //' | $PY -c '
+import json, sys
+print(sum(1 for line in sys.stdin
+          if (r := json.loads(line))["mode"] == sys.argv[1] and not r.get("incomplete")
+          and r.get("ww") and r["ww"].get("bytes", 0) > 0))' "$m")
+  [ "$C" -ge "$N" ] || { echo "FAIL: fewer than $N complete $m runs with wake word audio ($C)"; exit 1; }
 done
 [ "$(grep -c 'Wake word rejected' "$O/va.log")" -ge "$N" ] && [ "$(grep -c 'was not accepted' "$O/va.log")" -ge "$N" ] ||
   { echo "FAIL: the device did not log every reject or timeout verdict"; exit 1; }

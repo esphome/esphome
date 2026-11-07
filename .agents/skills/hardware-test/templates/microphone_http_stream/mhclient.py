@@ -1,4 +1,5 @@
 """mhclient.py HOST STREAM_ID [--clients N] [--seconds S] [--pattern] [--stall K] [--stagger S] [--expect-reject R]
+                   [--rate HZ [--rate-tol F]] [--max-gap-ms MS] [--min-rms X]
 
 Opens N concurrent GET /audio/microphones/STREAM_ID readers. Each reports its HTTP status, format headers, sample
 count and rate, the longest gap between reads, and, with --pattern, every break in the fake microphone's uint16
@@ -6,7 +7,8 @@ counter. --stall K makes reader K stop reading after 2 s (the device should drop
 --expect-reject R says the last R readers are past max_clients and must be refused: a non-200 status, or the
 connection closed or reset before any samples. A timeout, any other error, or a 200 with samples fails those readers.
 Exits 1 when the listing is not a 200 naming the stream, the stalled reader was not dropped, a reader past the limit
-was not refused, or any other reader got no 200, no samples, an early EOF, a read error or (with --pattern) a broken counter.
+was not refused, or any other reader got no 200, no samples, an early EOF, a read error, (with --pattern) a broken counter, or a rate,
+longest gap or rms outside the --rate, --max-gap-ms or --min-rms limits.
 """
 
 import argparse
@@ -119,6 +121,22 @@ def main() -> None:
     p.add_argument("--stall", type=int, default=-1)
     p.add_argument("--stagger", type=float, default=0.2)
     p.add_argument("--expect-reject", type=int, default=0)
+    p.add_argument(
+        "--rate",
+        type=float,
+        help="expected samples per second (fail outside --rate-tol)",
+    )
+    p.add_argument("--rate-tol", type=float, default=0.05)
+    p.add_argument(
+        "--max-gap-ms",
+        type=float,
+        help="fail when the longest gap between reads is larger",
+    )
+    p.add_argument(
+        "--min-rms",
+        type=float,
+        help="fail when the rms is lower (0 catches an all zero stream)",
+    )
     a = p.parse_args()
     c = http.client.HTTPConnection(a.host, 80, timeout=10)
     c.request("GET", "/audio/microphones")
@@ -155,6 +173,9 @@ def main() -> None:
             or r["eof"] is not None
             or "error" in r
             or (a.pattern and r["breaks"])
+            or (a.rate and abs(r.get("rate", 0) - a.rate) > a.rate * a.rate_tol)
+            or (a.max_gap_ms is not None and r.get("max_gap_ms", 0) > a.max_gap_ms)
+            or (a.min_rms is not None and r.get("rms", 0.0) < a.min_rms)
         )
         if i == a.stall:
             bad |= not r.get("dropped")
