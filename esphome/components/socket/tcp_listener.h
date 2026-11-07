@@ -46,6 +46,7 @@ class TcpListener {
     return this->listen_->ready();
   }
   /// Accepts a waiting connection that the allow list admits, or returns nullptr.
+  /// It needs the open listen socket, so call it only after poll_listen() returned true.
   /// Running out of sockets or memory keeps the listen socket for the next call and logs only the first failure
   /// until an accept succeeds; any other listener error closes it until clock's backoff has passed.
   std::unique_ptr<Socket> accept(TcpClientLink &clock);

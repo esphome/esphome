@@ -231,10 +231,11 @@ void TcpUart::slot_edge_(uint8_t i) {
       this->rx_start_ = this->rx_end_ = 0;
       this->rx_pending_ = false;
       this->holder_ = NO_SLOT;
-      this->turn_++;
     }
     if (i == this->tx_slot_) {
+      // The holder or the last holder closed: the turn that writes belong to is over.
       this->tx_slot_ = NO_SLOT;
+      this->turn_++;
     }
     this->count_disconnect_();
   }

@@ -38,7 +38,7 @@ class TcpUartTwoClients : public ::testing::Test {
     this->port_ = free_port();
     this->uart_.set_server(true);
     this->uart_.set_port(this->port_);
-    this->uart_.set_max_connections(2);
+    this->uart_.set_max_connections(this->slots_);
     this->uart_.set_turn_timeout(100);
     this->uart_.set_disconnects_sensor(&this->disconnects_);
     this->uart_.setup();
@@ -49,7 +49,7 @@ class TcpUartTwoClients : public ::testing::Test {
     ASSERT_EQ(this->uart_.open_connections(), 2);
   }
   void TearDown() override {
-    for (int fd : {this->a_, this->b_, this->c_}) {
+    for (int fd : {this->a_, this->b_, this->c_, this->d_}) {
       if (fd >= 0) {
         ::close(fd);
       }
@@ -120,9 +120,11 @@ class TcpUartTwoClients : public ::testing::Test {
   TcpUartConnectionsUnderTest uart_;
   sensor::Sensor disconnects_;
   uint16_t port_{0};
+  uint8_t slots_{2};
   int a_{-1};
   int b_{-1};
   int c_{-1};
+  int d_{-1};
 };
 
 TEST_F(TcpUartTwoClients, ReplyGoesOnlyToTheClientThatAsked) {
@@ -373,11 +375,14 @@ TEST_F(TcpUartTwoClients, WriteAfterTheLastHolderClosedNeverReachesTheNextClient
   this->read_all();
   this->at(1100);
   this->loops(1);
+  const uint16_t turn_of_a = this->uart_.turn();
   ::close(this->a_);
   this->a_ = -1;
   for (int i = 0; i < 50 && this->uart_.open_connections() == 2; i++) {
     this->loops(1);
   }
+  // A's turn ended at 1100, but writes went to A until it closed, so the close changes the turn.
+  EXPECT_NE(this->uart_.turn(), turn_of_a);
   // C takes the slot A left.
   this->c_ = this->connect_client();
   this->write("late");
@@ -394,6 +399,7 @@ TEST_F(TcpUartTwoClients, FullPoolClosesTheClientQuietLongest) {
   this->read_all();
   this->at(2100);
   this->loops(1);
+  const uint16_t turn_of_b = this->uart_.turn();
 
   this->at(3000);
   this->c_ = this->connect_client();
@@ -401,10 +407,45 @@ TEST_F(TcpUartTwoClients, FullPoolClosesTheClientQuietLongest) {
   EXPECT_EQ(received(this->b_), "");
   EXPECT_EQ(this->uart_.open_connections(), 2);
   EXPECT_FLOAT_EQ(this->disconnects_.state, 1);
+  // Writes still go to B, so closing A keeps the turn.
+  EXPECT_EQ(this->uart_.turn(), turn_of_b);
 
   send(this->c_, "new");
   this->wait_for_bytes(3);
   EXPECT_EQ(this->read_all(), "new");
+}
+
+// The same server with three connection slots. Clients A and B connected at 1000 ms.
+class TcpUartThreeSlots : public TcpUartTwoClients {
+ protected:
+  TcpUartThreeSlots() { this->slots_ = 3; }
+};
+
+TEST_F(TcpUartThreeSlots, FullPoolSparesTheClientWhoseRequestWaits) {
+  // A has the turn and holds it for its reply; B's request waits for its turn.
+  send(this->a_, "ping");
+  this->wait_for_bytes(4);
+  this->uart_.hold_turn();
+  EXPECT_EQ(this->read_all(), "ping");
+  send(this->b_, "hi");
+  this->loops(3);
+  EXPECT_EQ(this->uart_.available(), 0u);
+  // C connects at 1500 and sends nothing.
+  this->at(1500);
+  this->c_ = this->connect_client();
+
+  // D connects at 2000 to the full pool. B has been connected longer than C, but its request waits, so C is closed.
+  this->at(2000);
+  this->d_ = this->connect_client();
+  EXPECT_EQ(received(this->c_), "<closed>");
+  EXPECT_EQ(received(this->b_), "");
+  EXPECT_EQ(this->uart_.open_connections(), 3);
+  EXPECT_FLOAT_EQ(this->disconnects_.state, 1);
+
+  // A is answered; B's request is still there and gets the next turn.
+  this->uart_.release_turn();
+  this->wait_for_bytes(2);
+  EXPECT_EQ(this->read_all(), "hi");
 }
 
 }  // namespace esphome::tcp_uart::testing

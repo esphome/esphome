@@ -48,7 +48,7 @@ class TcpUart : public uart::UARTComponent, public Component {
   void set_turn_timeout(uint32_t ms) { this->turn_timeout_ms_ = ms; }
 #endif
 
-  /// Changes whenever another connection, or a new session, gets the turn.
+  /// Changes whenever another connection, or a new session, gets the turn, and when that connection closes.
   /// Reads come from that connection only, writes go to it.
   uint16_t turn() const { return this->turn_; }
   /// Keeps a started turn on its connection until release_turn(). Held after a release, the turn reads nothing new.
