@@ -11,6 +11,11 @@ FROM base-source-${BUILD_TYPE} AS base
 RUN git config --system --add safe.directory "*" \
     && git config --system advice.detachedHead false
 
+# libsdl2-dev is required by `display: platform: sdl` at compile time (sdl2-config).
+RUN apt-get update \
+    && apt-get install -y --no-install-recommends libsdl2-dev \
+    && rm -rf /var/lib/apt/lists/*
+
 ENV PIP_DISABLE_PIP_VERSION_CHECK=1
 
 RUN pip install --no-cache-dir -U pip uv==0.10.1
