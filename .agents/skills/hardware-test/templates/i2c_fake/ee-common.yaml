@@ -40,9 +40,11 @@ sensor:
     id: hte
     update_interval: never
     temperature:
+      id: hte_t
       name: HTE Temperature
       filters: []
     humidity:
+      id: hte_h
       name: HTE Humidity
       filters: []
   - platform: tee501
@@ -59,10 +61,24 @@ button:
           uint16_t r = eefake::RAWS[eefake::idx++ % (sizeof(eefake::RAWS) / sizeof(eefake::RAWS[0]))];
           eefake::bus.raw = r;
           ESP_LOGI("eefake", "RAW 0x%04X expect %.2f", r, (int16_t) r / 100.0f);
+          eefake::case_measures[0] = eefake::bus.measures[0];
+          eefake::case_measures[1] = eefake::bus.measures[1];
+          id(hte_t).state = NAN;
+          id(hte_h).state = NAN;
+          id(tee).state = NAN;
           id(hte).update();
           id(tee).update();
       # both drivers read their reply 50 ms after the measure command
       - delay: 200ms
+      # PASS needs both drivers to have read a measure reply this case and published the expected decode
       - lambda: |-
           unsigned bad = eefake::bus.bad;
-          ESP_LOGI("eefake", "DONE 0x%04X bad=%u%s", eefake::bus.raw, bad, bad ? " FAIL" : " PASS");
+          unsigned hte_reads = eefake::bus.measures[0] - eefake::case_measures[0];
+          unsigned tee_reads = eefake::bus.measures[1] - eefake::case_measures[1];
+          float expect = (int16_t) eefake::bus.raw / 100.0f;
+          float hum = eefake::bus.hum / 100.0f;
+          float ht = id(hte_t).state, hh = id(hte_h).state, tt = id(tee).state;
+          bool ok = bad == 0 && hte_reads > 0 && tee_reads > 0 && fabsf(ht - expect) < 0.005f &&
+                    fabsf(hh - hum) < 0.005f && fabsf(tt - expect) < 0.005f;
+          ESP_LOGI("eefake", "DONE 0x%04X bad=%u reads hte=%u tee=%u HTE %.2f/%.2f%% TEE %.2f%s", eefake::bus.raw,
+                   bad, hte_reads, tee_reads, ht, hh, tt, ok ? " PASS" : " FAIL");

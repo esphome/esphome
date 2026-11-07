@@ -26,6 +26,9 @@ struct Hd {
   uint32_t resets{0}, measures{0}, reads{0}, bad_reads{0}, bad_cmds{0};
 };
 
+// PROM words 0 to 6 sit at the even addresses 0xA0 to 0xAC
+inline bool is_prom(uint8_t c) { return c >= 0xA0 && c <= 0xAC && (c & 1) == 0; }
+
 inline uint8_t crc4(const uint16_t *w) {
   uint16_t r = 0;
   auto add = [&r](uint8_t b) {
@@ -88,7 +91,7 @@ struct Bus final : public esphome::i2c::I2CBus {
       uint8_t c = size >= 1 ? data[0] : p.last;
       if (size >= 1)
         p.last = c;
-      if (size >= 1 && out_size == 0 && ((c >= 0xA0 && c <= 0xAE) || c == 0x00))
+      if (size >= 1 && out_size == 0 && (is_prom(c) || c == 0x00))
         return esphome::i2c::ERROR_OK;  // register pointer only, data follows in a read
       if (c == 0x1E) {
         if (p.reset_nacks > 0) {
@@ -99,7 +102,7 @@ struct Bus final : public esphome::i2c::I2CBus {
       } else if (c == 0x4A || c == 0x5A) {
         p.pending = c;
         (c == 0x5A ? p.conv_t : p.conv_p)++;
-      } else if (c >= 0xA0 && c <= 0xAE && out_size == 2) {
+      } else if (is_prom(c) && out_size == 2) {
         esphome::put_be16(out, p.prom[(c - 0xA0) / 2]);
         p.prom_reads++;
         return esphome::i2c::ERROR_OK;

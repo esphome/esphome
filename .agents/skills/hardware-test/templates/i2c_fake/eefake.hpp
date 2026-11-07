@@ -1,7 +1,7 @@
 #pragma once
 // Fake HTE501 (0x40) and TEE501 (0x48) on an in-firmware I2C bus; the temperature word comes from `raw`.
 // A command other than 0x7029 (identification) and 0x2C1B (measure), and a read longer than the command's reply, get a
-// NACK and count in bad.
+// NACK and count in bad; measures counts the measure replies each address returned.
 #include "esphome/components/i2c/i2c_bus.h"
 #include "esphome/core/helpers.h"
 #include "esphome/core/log.h"
@@ -14,6 +14,7 @@ struct Bus final : public esphome::i2c::I2CBus {
   uint16_t hum{4512};
   uint8_t last_cmd[2][2]{};  // per address: 0 = 0x40, 1 = 0x48
   uint32_t bad{0};
+  uint32_t measures[2]{};  // measure replies read, per address
 
   static void word(uint8_t *out, uint16_t v) {
     esphome::put_be16(out, v);
@@ -56,6 +57,8 @@ struct Bus final : public esphome::i2c::I2CBus {
       return esphome::i2c::ERROR_NOT_ACKNOWLEDGED;
     }
     memcpy(out, buf, out_size);
+    if (cmd[0] == 0x2C)
+      this->measures[address == 0x48]++;
     return esphome::i2c::ERROR_OK;
   }
 };
@@ -64,4 +67,5 @@ inline Bus bus;
 // Raw temperature words to step through and the value a signed hundredths decode gives
 inline const uint16_t RAWS[] = {2400, 13500, 0xFFFF, 0xF060, 0xD8F1, 0xD8F0, 0xC568, 0x8000, 0x0000, 0x7FFF};
 inline int idx = 0;
+inline uint32_t case_measures[2]{};
 }  // namespace eefake

@@ -125,18 +125,18 @@ esphome:
             int bad = 0; for (auto &c : bus.chips) bad += c.bad;
             check("malformed transfers", bad, 0);
             check("unknown address", bus.unknown, 0);
-            ESP_LOGI("htfake", "D1 DONE pass=%u fail=%u", pass_n, fail_n);
+            ESP_LOGI("htfake", "D1 DONE pass=%u fail=%u", (unsigned) pass_n, (unsigned) fail_n);
         - delay: 3500ms
         - lambda: |-
             using namespace htfake;
             // d2 redraws from its lambda every second; buffer is emptied before each call
             std::string d2 = bus.render(0x73);
             check("d2 lambda", d2.substr(0, 1) == " " && d2.substr(3, 1) != " ", 1);
-            ESP_LOGI("htfake", "d2 now [%s] frames=%u cnt=%d", d2.c_str(), bus.chips[3].frames, id(cnt));
+            ESP_LOGI("htfake", "d2 now [%s] frames=%u cnt=%d", d2.c_str(), (unsigned) bus.chips[3].frames, id(cnt));
             check("d2 frames", bus.chips[3].frames >= 4, 1);
             check("d3 d4 no transfers after setup", bus.chips[4].nacked + bus.chips[6].nacked, id(nack_mark));
             check("d4 no frames", bus.chips[5].frames, 0);
-            ESP_LOGI("htfake", "ALL DONE pass=%u fail=%u", pass_n, fail_n);
+            ESP_LOGI("htfake", "ALL DONE pass=%u fail=%u", (unsigned) pass_n, (unsigned) fail_n);
 
 esp32:
   board: esp32-s3-devkitc-1

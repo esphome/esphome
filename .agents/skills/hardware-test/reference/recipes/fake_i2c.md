@@ -21,8 +21,10 @@ that includes its `.hpp` (add `esphome: name:` for the `-common` ones):
   `bad_writes` stayed 0, and in FAIL otherwise.
 - `eefake.hpp`, `ee-common.yaml`: HTE501 (0x40) and TEE501 (0x48) with CRC words; "Next" steps through raw
   temperature words and logs the value a signed hundredths decode should give (#21930). A command other than
-  identification and measure, and a read longer than the reply, gets a NACK and counts as `bad`; the DONE line
-  200 ms later, after both reads, shows the running `bad` total and ends in PASS only while it is 0.
+  identification and measure, and a read longer than the reply, gets a NACK and counts as `bad`. The DONE line
+  200 ms later, after both reads, shows the running `bad` total, the measure replies each driver read and the
+  published values; it ends in PASS only while `bad` is 0, both drivers read a reply this case and both published
+  the expected temperature (and HTE501 the fixed humidity).
 - `scdfake.hpp`, `scd-common.yaml`: SCD4x at 0x62 and 0x63 with Sensirion CRC; logs every `0xE000` ambient pressure
   write, and the CASE and SHOW lines count writes with a bad CRC apart from the good ones. A write that is neither a
   bare command (2 bytes) nor a command with one CRC word (5 bytes), or any other command with a bad CRC, gets a
@@ -34,14 +36,13 @@ that includes its `.hpp` (add `esphome: name:` for the `-common` ones):
   count. Compare per address: hub setup order can legitimately move between hubs (#21897). Outputs of an Apply
   platform are distinct template types, so a lambda list of them needs
   `std::initializer_list<output::FloatOutput *>{...}`.
-- `msfake.hpp`: eight MS8607 pressure/temperature fakes at 0x76 and up and humidity fakes at 0x40 and up, with
-  faults per device (reset NACKs, bad PROM CRC4, zero D1 every Nth read, humidity CRC8 errors, out of range D2, full
-  scale humidity). It counts every command, so skipped conversions show in `report()`; a humidity read of any shape
-  but a bare 3 byte read, and a pressure/temperature read that is not a 2 byte PROM or 3 byte ADC read, gets a NACK
-  and counts as `bad_reads`; a command write the fake does not know, or one longer than a byte, gets a NACK and
-  counts as `bad_cmds`. Point both the component and its `humidity_i2c_id` device at the bus. That driver logs no
-  values, so give each sensor an INFO `on_value` log
-  (#16487).
+- `msfake.hpp`: eight MS8607 pressure/temperature fakes at 0x76 and up and humidity fakes at 0x40 and up, with faults
+  per device (reset NACKs, bad PROM CRC4, zero D1 every Nth read, humidity CRC8 errors, out of range D2, full scale
+  humidity). It counts every command, so skipped conversions show in `report()`; a humidity read of any shape but a bare
+  3 byte read, and a pressure/temperature read that is not a 2 byte read of a PROM word (even addresses 0xA0 to 0xAC) or
+  a 3 byte ADC read, gets a NACK and counts as `bad_reads`; a command write the fake does not know, or one longer than a
+  byte, gets a NACK and counts as `bad_cmds`. Point both the component and its `humidity_i2c_id` device at the bus. That
+  driver logs no values, so give each sensor an INFO `on_value` log (#16487).
 - `htfake.hpp`, `ht16k33-char-test.yaml`: HT16K33 chips at 0x70 to 0x77 (0x74 and 0x76 NACK) keeping the 16 byte
   display RAM and a command trace, rendered back as text for the Adafruit 0.56" 7-segment backpack ("12:34",
   decimal points, "!" for stray bytes); a read gets a NACK and counts as malformed. The test runs 64 checks (setup order, font, colon and dots, chained chips,
