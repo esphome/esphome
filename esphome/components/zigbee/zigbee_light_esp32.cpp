@@ -142,9 +142,8 @@ void ZigbeeLight::set_attr_internal() {
     ESP_LOGI(TAG, "Set %s", values.is_on() ? "ON" : "OFF");
     if (color_mode & light::ColorCapability::BRIGHTNESS) {
       uint8_t level = static_cast<uint8_t>(roundf(253.0f * values.get_brightness()) + 1);  // 1 to 254
-      ezb_zcl_status_t state =
-          ezb_zcl_set_attr_value(this->endpoint_id_, EZB_ZCL_CLUSTER_ID_LEVEL, EZB_ZCL_CLUSTER_SERVER,
-                                 EZB_ZCL_ATTR_LEVEL_CURRENT_LEVEL_ID, EZB_ZCL_STD_MANUF_CODE, &level, false);
+      ezb_zcl_set_attr_value(this->endpoint_id_, EZB_ZCL_CLUSTER_ID_LEVEL, EZB_ZCL_CLUSTER_SERVER,
+                             EZB_ZCL_ATTR_LEVEL_CURRENT_LEVEL_ID, EZB_ZCL_STD_MANUF_CODE, &level, false);
     }
     // cleared before report_() so it can disable the loop
     // when the report has to wait for join
