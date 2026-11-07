@@ -100,7 +100,7 @@ class ImageDecoder {
     this->size_valid_ = true;
     this->draw_width_ = 0;
     this->draw_height_ = 0;
-    this->direct_rgb565_ = false;
+    this->direct_bpp_ = 0;
   }
 
   /**
@@ -196,18 +196,23 @@ class ImageDecoder {
   virtual bool knows_end() const { return this->expected_size_ > 0; }
 
   /// The image is opaque RGB565, so draw() writes it straight into the buffer
-  bool uses_direct_rgb565() const { return this->direct_rgb565_; }
+  bool uses_direct_rgb565() const { return this->direct_bpp_ == 2; }
+  /// The image is opaque grayscale, so draw() writes it straight into the buffer
+  bool uses_direct_gray() const { return this->direct_bpp_ == 1; }
 
  protected:
   /// Resize the image for a width x height source, without preparing to draw. prepare_draw_() must follow.
   bool resize_image_(int width, int height);
   /**
-   * Draw a source of width x height over the whole buffer from now on. For an opaque RGB565 image this builds the
-   * tables of where each source column and row lands; without the memory for them it draws pixel by pixel instead.
+   * Draw a source of width x height over the whole buffer from now on. For an opaque image whose storage a decoder
+   * can write directly this builds the tables of where each source column and row lands; without the memory for them
+   * it draws pixel by pixel instead.
    */
   void prepare_draw_(int width, int height);
   /// Paint a block of source pixels in one color straight into the buffer. Only while uses_direct_rgb565().
   void draw_rgb565_(int x, int y, int w, int h, uint16_t rgb565);
+  /// Paint a block of source pixels in one gray level straight into the buffer. Only while uses_direct_gray().
+  void draw_gray_(int x, int y, int w, int h, uint8_t gray);
 
   /// The image's pixel buffer, for decoders that write their output straight into it
   uint8_t *image_buffer_() const;
@@ -225,7 +230,9 @@ class ImageDecoder {
   const ImageFormat format_;
   bool active_ = false;     // A decoding session is in progress
   bool size_valid_ = true;  // Last set_size() result; draw() no-ops while false
-  bool direct_rgb565_ = false;
+  // Bytes per pixel of the image's storage when a decoder can write it directly, else 0: 2 for opaque RGB565,
+  // 1 for opaque grayscale. Both use the boundary tables, so they share prepare_draw_().
+  uint8_t direct_bpp_ = 0;
 };
 
 }  // namespace esphome::runtime_image
