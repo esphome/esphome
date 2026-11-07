@@ -852,6 +852,7 @@ void VoiceAssistant::set_state_after_mic_stop_(State state) {
 void VoiceAssistant::failed_to_start() {
   ESP_LOGE(TAG, "Failed to start server. See Home Assistant logs for more details.");
   this->error_trigger_.trigger("failed-to-start", "Failed to start server. See Home Assistant logs for more details.");
+  this->end_run_();  // a rejected start has no run, so no RUN_END follows
   this->set_state_(State::STOP_MICROPHONE, State::IDLE);
 }
 
