@@ -284,11 +284,13 @@ interval:
               a.enc[1] = INT32_MIN + 2;
               break;
             case 32:
-              ESP_LOGI(TAG, "enc1 after big jump %.0f", id(enc1).state);
-              a.enc[1] = INT32_MAX - 1;  // wraps by 3 steps the other way on the chip
+              check("enc1 big jump clamps at min", (int64_t) id(enc1).state, INT32_MIN);
+              a.enc[1] = INT32_MAX - 1;  // wraps by 4 steps the other way on the chip
               break;
             case 34:
-              ESP_LOGI(TAG, "enc1 after wrap %.0f", id(enc1).state);
+              // INT32_MIN + 4 rounds to INT32_MIN as a float; the jump back to 0 below checks the 4 exactly
+              check("enc1 after wrap", (int64_t) id(enc1).state, INT32_MIN);
+              a.enc[1] = 0;  // INT32_MAX - 1 up from the wrapped position, read once the NACK clears
               // fault: hub A NACKs while the button is pressed
               a.nack = true;
               a.ext_mask |= 1UL << 24;
@@ -307,6 +309,7 @@ interval:
               check("hub A recovered", id(ssa)->status_has_warning(), 0);
               check("btnA pressed", id(btna).state, 1);
               check("enc0 after nack", (int) id(enc0).state, 10);
+              check("enc1 back from wrap", (int) id(enc1).state, 2);
               a.ext_mask &= ~(1UL << 24);
               id(mark) = a.bulk_reads;
               id(mark_t) = millis();

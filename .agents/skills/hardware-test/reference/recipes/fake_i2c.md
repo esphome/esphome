@@ -141,7 +141,7 @@ with a model ID probe every 10 s to tell a driver stall from a dead chip. `run.s
 and runs `an.py`, which counts readings per `PHASE` line. Each `PHASE` line clears a fault that was armed and has
 not fired yet and logs the fired totals so far, so `an.py` counts the fires of each phase. It fails when the phases are not quiet, faultA, quiet,
 faultB, quiet (a short capture or a restart), the first quiet phase has no readings, a later quiet phase reads less
-than half as often as the first, a later quiet phase reads NaN or logs the driver's "update called before prior
+than half as often as the first, a later quiet phase reads NaN (`nan` or `-nan`) or logs the driver's "update called before prior
 reading" warning when the first did not (a target out of range reads NaN in every phase), a quiet phase has a failed
 model ID probe, one that did not return 0xEE or no successful probe at all,
 anything crashed or rebooted, or a fault did not fire in its own phase or fired in another one.

@@ -31,7 +31,8 @@ def main() -> int:
             cur, c = m.group(1), {}
             continue
         if m := re.search(r"READ (\S+)", line):
-            bump("nan" if m.group(1) == "nan" else "ok")
+            # newlib prints a NaN as "nan" or "-nan"
+            bump("nan" if "nan" in m.group(1).lower() else "ok")
         if m := re.search(r"PROBE (\w+) 0x([0-9A-Fa-f]{2})", line):
             bump("probe_" + m.group(1))
             if m.group(1) == "ok" and m.group(2).upper() != "EE":
