@@ -22,28 +22,6 @@ static constexpr const char *SOURCE_OPTIONS[] = {"Automatic", "Gas", "DirectCurr
 static constexpr const char *TYPE_OPTIONS[] = {"None", "DometicAbsorberFridge", "HobbyCompressorRMVOC90",
                                                "DOMETICRC104Compressor", "DOMETIC_RUC"};
 
-void FridgeDeviceHub::setup() {
-  if (this->fridge_status_switch_) {
-    this->fridge_status_switch_->add_on_state_callback(
-        [this](bool state) { this->parent_->send_command(Commands::update_toggle("FRIDGE_ON_OFF")); });
-  }
-  if (this->fridge_mode_select_) {
-    this->fridge_mode_select_->add_on_state_callback([this](size_t state) {
-      if (state > 0)
-        state += 1;
-      this->parent_->send_command(Commands::update_int("FRIDGE_MODE", state));
-    });
-  }
-  if (this->fridge_temperature_select_) {
-    this->fridge_temperature_select_->add_on_state_callback([this](size_t state) {
-      int temp_idx = static_cast<int>(state);
-      if (temp_idx >= 1 && temp_idx <= 5) {
-        this->parent_->send_command(Commands::update_int("FRIDGE_TEMP", temp_idx));
-      }
-    });
-  }
-}
-
 void FridgeDeviceHub::dump_config() {
   ESP_LOGCONFIG(TAG, " -Fendt Fridge Device-");
   LOG_BINARY_SENSOR(TAG, "  Fridge status", this->fridge_status_binary_sensor_);
@@ -113,6 +91,28 @@ bool FridgeDeviceHub::decode(const char *key, const char *value) {
       break;
   }
   return true;
+}
+
+void FridgeDeviceHub::write_state(switch_::Switch *sw, bool state) {
+  if (sw == this->fridge_status_switch_) {
+    this->parent_->send_command(Commands::update_toggle("FRIDGE_ON_OFF"));
+  }
+}
+void FridgeDeviceHub::select_control(select::Select *sel, size_t state) {
+  if (sel == this->fridge_mode_select_) {
+    int mode_idx = state;
+    // Apply same mapping as in setup(): if state > 0, state += 1
+    // Maps: 0→0 (Performance), 1→2 (Quiet), 2→3 (Boost)
+    if (mode_idx > 0)
+      mode_idx += 1;
+    this->parent_->send_command(Commands::update_int("FRIDGE_MODE", mode_idx));
+  } else if (sel == this->fridge_temperature_select_) {
+    // Convert index to int (options are 0, 1, 2, 3, 4 corresponding to "1", "2", "3", "4", "5")
+    int temp_idx = static_cast<int>(state) + 1;
+    if (temp_idx >= 1 && temp_idx <= 5) {
+      this->parent_->send_command(Commands::update_int("FRIDGE_TEMP", temp_idx));
+    }
+  }
 }
 
 }  // namespace esphome::fendt_caravan

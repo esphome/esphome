@@ -3,13 +3,7 @@ from esphome.components import switch
 import esphome.config_validation as cv
 from esphome.const import CONF_TYPE
 
-from .. import CONF_PARENT_ID, FendtCaravanHubBase, fendt_caravan_ns
-
-FendtSwitch = fendt_caravan_ns.class_(
-    "FendtSwitch",
-    switch.Switch,
-    cg.Parented.template(FendtCaravanHubBase),
-)
+from .. import CONF_PARENT_ID, FendtCaravanHubBase
 
 CONF_MAIN_SWITCH = "main_switch"
 CONF_ALL_LIGHTS = "all_lights"
@@ -22,7 +16,10 @@ CONF_FRIDGE_STATUS = "fridge_status"
 
 
 def _switch_schema(icon: str = cv.UNDEFINED) -> cv.Schema:
-    return switch.switch_schema(FendtSwitch).extend(
+    return switch.switch_schema(
+        switch.ApplySwitch,
+        icon=icon,
+    ).extend(
         {
             cv.Required(CONF_PARENT_ID): cv.use_id(FendtCaravanHubBase),
         }
@@ -44,7 +41,10 @@ CONFIG_SCHEMA = cv.typed_schema(
 
 
 async def to_code(config):
-    parent = await cg.get_variable(config[CONF_PARENT_ID])
-    var = await switch.new_switch(config)
-    await cg.register_parented(var, parent)
-    cg.add(getattr(parent, f"set_{config[CONF_TYPE]}_switch")(var))
+    hub = await cg.get_variable(config[CONF_PARENT_ID])
+    switches = switch.sub_switches(config, parent=hub)
+    await switches.create(
+        config,
+        setter=getattr(hub, f"set_{config[CONF_TYPE]}_switch"),
+        apply="write_state(entity, state)",
+    )

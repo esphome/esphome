@@ -39,6 +39,7 @@ class FendtCaravan : public Component, public ble_client::BLEClientNode {
 
  private:
   volatile bool wait_buffer_ = false;
+  volatile bool wait_handshake_ = false;
   uint16_t char_handle_ = 0;
   StaticRingBuffer<std::string, QUEUE_SIZE> commands_;
   uint32_t last_command_time_ = 0;

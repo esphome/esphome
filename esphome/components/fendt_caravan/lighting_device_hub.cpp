@@ -22,27 +22,23 @@ bool LightingDeviceHub::decode(const char *key, const char *value) {
 #ifdef LIGHTING_DEVICE_BINARY_LIGHT_COUNT
   for (auto &entry : this->binary_states_) {
     if (entry.key == key) {
-      if (entry.state) {
-        int decoded_value = DeviceDecoders::decode_int(value);
-        entry.state->remote_values.set_state(decoded_value != 0);
-        entry.state->current_values.set_state(decoded_value != 0);
-        entry.state->publish_state();
-        return true;
-      }
+      int decoded_value = DeviceDecoders::decode_int(value);
+      light::LightColorValues values;
+      values.set_state(decoded_value != 0);
+      entry.state->set_external_state(values);
+      return true;
     }
   }
 #endif  // LIGHTING_DEVICE_BINARY_LIGHT_COUNT
 #ifdef LIGHTING_DEVICE_FLOAT_LIGHT_COUNT
   for (auto &entry : this->float_states_) {
     if (entry.key == key) {
-      if (entry.state) {
-        int decoded_value = DeviceDecoders::decode_int(value);
-        entry.state->remote_values.set_state(decoded_value != 0);
-        entry.state->current_values.set_state(decoded_value != 0);
-        entry.state->remote_values.set_brightness((float) decoded_value / 15.0f);
-        entry.state->publish_state();
-        return true;
-      }
+      int decoded_value = DeviceDecoders::decode_int(value);
+      light::LightColorValues values;
+      values.set_state(decoded_value != 0);
+      values.set_brightness((float) decoded_value / 15.0f);
+      entry.state->set_external_state(values);
+      return true;
     }
   }
 #endif  // LIGHTING_DEVICE_FLOAT_LIGHT_COUNT

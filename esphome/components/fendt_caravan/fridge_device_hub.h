@@ -15,9 +15,10 @@
 namespace esphome::fendt_caravan {
 class FridgeDeviceHub : public FendtCaravanHubBase, public Parented<FendtCaravan> {
  public:
-  void setup() override;
   void dump_config() override;
   bool decode(const char *key, const char *value) override;
+  void write_state(switch_::Switch *sw, bool state);
+  void select_control(select::Select *sel, size_t state);
 
   SUB_BINARY_SENSOR(fridge_status);
   SUB_SWITCH(fridge_status);

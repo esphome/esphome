@@ -3,21 +3,15 @@ from esphome.components import select
 import esphome.config_validation as cv
 from esphome.const import CONF_OPTIONS, CONF_TYPE
 
-from .. import CONF_PARENT_ID, FendtCaravanHubBase, fendt_caravan_ns
+from .. import CONF_PARENT_ID, FendtCaravanHubBase
 
 CONF_ALDE_HEATER_ELECTRICITY = "alde_heater_electricity"
 CONF_FRIDGE_MODE = "fridge_mode"
 CONF_FRIDGE_TEMPERATURE = "fridge_temperature"
 
-FendtSelect = fendt_caravan_ns.class_(
-    "FendtSelect",
-    select.Select,
-    cg.Parented.template(FendtCaravanHubBase),
-)
-
 
 def _select_schema(icon: str = cv.UNDEFINED) -> cv.Schema:
-    return select.select_schema(FendtSelect).extend(
+    return select.select_schema(select.ApplySelect).extend(
         {
             cv.Required(CONF_PARENT_ID): cv.use_id(FendtCaravanHubBase),
         }
@@ -52,7 +46,11 @@ CONFIG_SCHEMA = cv.typed_schema(
 
 
 async def to_code(config):
-    parent = await cg.get_variable(config[CONF_PARENT_ID])
-    var = await select.new_select(config, options=config[CONF_OPTIONS])
-    await cg.register_parented(var, parent)
-    cg.add(getattr(parent, f"set_{config[CONF_TYPE]}_select")(var))
+    hub = await cg.get_variable(config[CONF_PARENT_ID])
+    selects = select.sub_selects(config, parent=hub)
+    await selects.create(
+        config,
+        setter=getattr(hub, f"set_{config[CONF_TYPE]}_select"),
+        options=config[CONF_OPTIONS],
+        apply="select_control(entity, index)",
+    )

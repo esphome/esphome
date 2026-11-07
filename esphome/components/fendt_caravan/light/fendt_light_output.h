@@ -22,7 +22,7 @@ class FendtLightOutput : public light::LightOutput, public Component, public Par
 
  protected:
   std::string variable_name_{};
-  bool is_on_{false};
+  bool is_on_ = false;
 
  private:
   light::ColorMode color_mode_ = light::ColorMode::ON_OFF;

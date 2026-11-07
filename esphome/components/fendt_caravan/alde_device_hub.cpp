@@ -19,6 +19,7 @@ static constexpr const char *KEY_NAMES[] = {
 };
 
 void AldeDeviceHub::setup() {
+  /*
   if (this->alde_heater_switch_) {
     this->alde_heater_switch_->add_on_state_callback(
         [this](bool state) { this->write_state(this->alde_heater_switch_, state); });
@@ -35,20 +36,13 @@ void AldeDeviceHub::setup() {
     this->alde_heater_gas_switch_->add_on_state_callback(
         [this](bool state) { this->write_state(this->alde_heater_gas_switch_, state); });
   }
+        */
   if (this->alde_climate_) {
     this->alde_climate_->add_on_control_callback([this](climate::ClimateCall &call) {
       if (call.get_target_temperature().has_value()) {
         float target_temp = call.get_target_temperature().value();
         this->parent_->send_command(Commands::update_temp_10("HEATER_TEMP", target_temp));
       }
-    });
-  }
-  if (this->alde_heater_electricity_select_) {
-    this->alde_heater_electricity_select_->add_on_state_callback([this](size_t state) {
-      ESP_LOGV(TAG, "Heater electricity select state: %d", state);
-      std::string cmd =
-          Commands::update_heater_el("HEATER_EL", this->alde_heater_electricity_select_->at(state).value());
-      this->parent_->send_command(cmd);
     });
   }
 }
@@ -79,6 +73,15 @@ void AldeDeviceHub::write_state(switch_::Switch *sw, bool state) {
     std::string cmd = Commands::update_run("HEATER_GAS");
     this->parent_->send_command(cmd);
   }
+}
+
+void AldeDeviceHub::select_control(select::Select *sel, size_t state) {
+  if (sel == this->alde_heater_electricity_select_) {
+    ESP_LOGV(TAG, "Heater electricity select state: %d", state);
+    std::string sel_state = this->alde_heater_electricity_select_->at(state).value();
+    std::string cmd = Commands::update_heater_el("HEATER_EL", sel_state);
+    this->parent_->send_command(cmd);
+  };
 }
 
 bool AldeDeviceHub::decode(const char *key, const char *value) {

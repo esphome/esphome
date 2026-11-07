@@ -16,6 +16,7 @@ enum class Key : uint8_t {
 static constexpr const char *KEY_NAMES[] = {
     "TEMP_IN", "TEMP_OUT", "WATER_LEVEL", "LINE_EN", "HS_KEY_STATE", "FLOOR_HEATER_ON", "SOFTWARE_VERSION",
 };
+/*
 void MainControlUnitHub::setup() {
   if (this->main_switch_switch_) {
     this->main_switch_switch_->add_on_state_callback(
@@ -30,6 +31,8 @@ void MainControlUnitHub::setup() {
         [this](bool state) { this->write_state(this->floor_heater_switch_, state); });
   }
 }
+*/
+
 void MainControlUnitHub::dump_config() {
   ESP_LOGCONFIG(TAG, "Fendt Control Unit");
   LOG_SWITCH(TAG, "  Main Switch", this->main_switch_switch_);

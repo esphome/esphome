@@ -17,7 +17,7 @@ void FendtCaravan::loop() {
     return;
 
   uint32_t time_stamp = App.get_loop_component_start_time();
-  if (this->commands_.empty())
+  if (this->commands_.empty() || this->wait_handshake_)
     return;
 
   if ((time_stamp - this->last_command_time_) >= WAIT_COMMAND && !this->wait_buffer_) {
@@ -69,7 +69,6 @@ void FendtCaravan::gattc_event_handler(esp_gattc_cb_event_t event, esp_gatt_if_t
         ESP_LOGW(TAG, "Error sending CCC descriptor write request, status=%d", status);
         break;
       }
-
       this->add_command_("net-BT_ID-c0:ee:fb:90:b0:a7");
       this->add_command_("net-BT_VARS");
       break;
@@ -103,7 +102,7 @@ void FendtCaravan::dump_config() {
 
 void FendtCaravan::send_command(const std::string &command) {
   ESP_LOGV(TAG, "on_command_send called. Command: %s", command.c_str());
-  if (command.empty())
+  if (command.empty() || this->wait_handshake_)
     return;
   this->add_command_(command);
 }
@@ -136,6 +135,15 @@ void FendtCaravan::on_data_received_(const char *data) {
   }
   *value++ = '\0';
   ESP_LOGD(TAG, "Data: '%s', Value: '%s'", data, value);
+
+  if (!strncmp(data, "BT_START", 8)) {
+    this->wait_handshake_ = true;
+    return;
+  }
+  if (!strncmp(data, "BT_STOP", 7)) {
+    this->wait_handshake_ = false;
+    return;
+  }
 
   if (this->mcu_hub_) {
     bool result = this->mcu_hub_->decode(data, value);
