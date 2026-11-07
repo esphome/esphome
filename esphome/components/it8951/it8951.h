@@ -222,6 +222,7 @@ class IT8951Display : public Display,
 
   // --- Recovery ---
   void recover_();
+  void power_cycle_rails_();
 
   // --- State ---
   static constexpr uint32_t BUSY_TIMEOUT_MS = 5000;

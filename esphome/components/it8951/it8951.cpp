@@ -679,6 +679,16 @@ void IT8951Display::op_set_1bpp_() {
 // --- Update prep / public API ------------------------------------------------
 
 bool IT8951Display::prepare_update_region_(UpdateMode &mode) {
+  // Nothing was drawn since the last update: there is no region to refresh, so bail out
+  // before touching the counters. set_full_update_every() seeds partial_update_count_ to
+  // the threshold, which makes the very first update() of a boot look like a periodic
+  // full refresh; with an empty framebuffer that pushes a blank (white) screen over
+  // whatever the panel is currently holding. Writers that skip redrawing unchanged
+  // content (a wake-up that keeps the existing image, for example) hit this every wake.
+  if (this->x_high_ <= this->x_low_ || this->y_high_ <= this->y_low_) {
+    this->reset_dirty_region_();
+    return false;
+  }
   this->partial_update_count_++;
   const bool full_update = this->partial_update_count_ >= this->full_update_every_;
   if (full_update) {
@@ -792,18 +802,34 @@ void IT8951Display::update_mode(UpdateMode mode) {
 
 // --- Recovery ----------------------------------------------------------------
 
+// Power-cycle the panel rails when they are wired to GPIOs, then give the controller
+// time to come back up. Used by recover_(): a controller stuck mid-transfer only clears
+// after its supply drops (see the comment inside recover_()).
+void IT8951Display::power_cycle_rails_() {
+  if (this->enable_pins_.empty())
+    return;
+  for (auto *pin : this->enable_pins_)
+    pin->digital_write(false);
+  delay(250);  // NOLINT - recovery path only, runs at most once per 30 s
+  for (auto *pin : this->enable_pins_)
+    pin->digital_write(true);
+  delay(300);  // NOLINT - let the controller boot before the reset pulse
+}
+
 void IT8951Display::recover_() {
   if (++this->recovery_attempts_ > 3) {
-    ESP_LOGE(TAG, "Recovery failed after %u attempts; giving up. Check BUSY pin wiring and power.",
-             this->recovery_attempts_);
-    this->mark_failed(LOG_STR("IT8951 recovery exhausted"));
-    this->queue_.clear();
-    this->set_phase_(Phase::IDLE);
-    this->disable_loop();
-    return;
+    // Do not fail the component here. An IT8951 interrupted in the middle of an image
+    // load (deep sleep, a dropped SPI transfer, a busy-poll timeout) can stop
+    // acknowledging commands until its supply is cycled; a reset pulse alone is not
+    // enough. mark_failed() removes the component from the scheduler for good, which
+    // turns a transient controller hang into a permanently dead panel. Cycle the rails
+    // and keep retrying instead.
+    ESP_LOGW(TAG, "Recovery failed after %u attempts; power-cycling the panel and retrying", this->recovery_attempts_);
+    this->recovery_attempts_ = 0;
   }
   ESP_LOGW(TAG, "Recovering (attempt %u): hardware-resetting controller (was in phase %u)", this->recovery_attempts_,
            static_cast<unsigned>(this->phase_));
+  this->power_cycle_rails_();
   this->queue_.clear();
   this->update_pending_ = false;
   this->transfer_row_ = 0;
