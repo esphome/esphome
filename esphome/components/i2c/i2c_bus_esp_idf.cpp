@@ -20,6 +20,10 @@
 namespace esphome::i2c {
 // Without an FSM reset ACK_ERR can stay raised and the IDF ISR never masks it (esp-idf#17690). Mask the master
 // events until the next transaction when an error is raised both before and after the handler clears it.
+static constexpr uint32_t I2C_ERROR_INTR = I2C_LL_INTR_NACK | I2C_LL_INTR_TIMEOUT | I2C_LL_INTR_ARBITRATION;
+static_assert((I2C_LL_MASTER_EVENT_INTR & I2C_ERROR_INTR) == I2C_ERROR_INTR,
+              "Masking the master events must silence the error interrupts");
+
 struct I2CIsrGuard {
   intr_handler_t handler;
   void *arg;
@@ -34,7 +38,7 @@ static void IRAM_ATTR i2c_isr_guard(void *arg) {
   guard->handler(guard->arg);
   uint32_t after;
   i2c_ll_get_intr_mask(guard->dev, &after);
-  if (before & after & (I2C_LL_INTR_NACK | I2C_LL_INTR_TIMEOUT | I2C_LL_INTR_ARBITRATION))
+  if (before & after & I2C_ERROR_INTR)
     i2c_ll_disable_intr_mask(guard->dev, I2C_LL_MASTER_EVENT_INTR);
 }
 
@@ -126,6 +130,12 @@ void IDFI2CBus::setup() {
     this->mark_failed();
     return;
   }
+#ifdef USE_I2C_ISR_GUARD
+  // The guard is installed by wrapping the driver's esp_intr_alloc_intrstatus() call
+  if (i2c_isr_guards[this->port_].handler == nullptr) {
+    ESP_LOGW(TAG, "I2C interrupt guard not installed; the IDF driver no longer allocates through the wrap");
+  }
+#endif
 
   this->dev_ = this->add_device_(this->frequency_);
   if (this->dev_ == nullptr) {
