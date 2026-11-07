@@ -12,8 +12,10 @@
 
 #ifdef USE_I2C_ISR_GUARD
 #include <esp_intr_alloc.h>
-#include <hal/i2c_ll.h>
-#include <soc/i2c_periph.h>
+#include <soc/i2c_reg.h>
+#include <soc/i2c_struct.h>
+#include <soc/interrupts.h>
+#include <soc/soc_caps.h>
 #if SOC_I2C_SUPPORT_HW_FSM_RST
 #error "This chip has an I2C FSM reset; remove NO_FSM_RST for it in i2c/__init__.py"
 #endif
@@ -21,6 +23,23 @@
 namespace esphome::i2c {
 // Without an FSM reset ACK_ERR can stay raised and the IDF ISR never masks it (esp-idf#17690); mask the
 // master events after an error, the driver re-enables them at the next transaction start.
+// Registers are used directly: hal/i2c_ll.h pulls in soc/regdma.h, which clang cannot parse as C++20.
+#ifdef I2C_NACK_INT_ENA_M
+static constexpr uint32_t I2C_NACK_MASK = I2C_NACK_INT_ENA_M;
+#else
+static constexpr uint32_t I2C_NACK_MASK = I2C_ACK_ERR_INT_ENA_M;
+#endif
+static constexpr uint32_t I2C_ERROR_MASK = I2C_NACK_MASK | I2C_TIME_OUT_INT_ENA_M | I2C_ARBITRATION_LOST_INT_ENA_M;
+// I2C_LL_MASTER_EVENT_INTR
+static constexpr uint32_t I2C_MASTER_EVENT_MASK =
+    I2C_ERROR_MASK | I2C_TRANS_COMPLETE_INT_ENA_M | I2C_END_DETECT_INT_ENA_M;
+static constexpr int I2C_IRQ_SOURCES[SOC_HP_I2C_NUM] = {
+    ETS_I2C_EXT0_INTR_SOURCE,
+#if SOC_HP_I2C_NUM > 1
+    ETS_I2C_EXT1_INTR_SOURCE,
+#endif
+};
+
 struct I2CIsrGuard {
   intr_handler_t handler;
   void *arg;
@@ -30,17 +49,20 @@ static I2CIsrGuard i2c_isr_guards[SOC_HP_I2C_NUM];  // NOLINT(cppcoreguidelines-
 
 static void IRAM_ATTR i2c_isr_guard(void *arg) {
   auto *guard = static_cast<I2CIsrGuard *>(arg);
-  uint32_t status;
-  i2c_ll_get_intr_mask(guard->dev, &status);
+  uint32_t status = guard->dev->int_status.val;
   guard->handler(guard->arg);
-  if (status & (I2C_LL_INTR_NACK | I2C_LL_INTR_TIMEOUT | I2C_LL_INTR_ARBITRATION))
-    i2c_ll_disable_intr_mask(guard->dev, I2C_LL_MASTER_EVENT_INTR);
+  if (status & I2C_ERROR_MASK)
+    guard->dev->int_ena.val &= ~I2C_MASTER_EVENT_MASK;
 }
 
 static void install_isr_guard(int source, intr_handler_t &handler, void *&arg) {
   for (int port = 0; port < SOC_HP_I2C_NUM; port++) {
-    if (source == i2c_periph_signal[port].irq) {
-      i2c_isr_guards[port] = {handler, arg, I2C_LL_GET_HW(port)};
+    if (source == I2C_IRQ_SOURCES[port]) {
+#if SOC_HP_I2C_NUM > 1
+      i2c_isr_guards[port] = {handler, arg, port == 0 ? &I2C0 : &I2C1};
+#else
+      i2c_isr_guards[port] = {handler, arg, &I2C0};
+#endif
       handler = i2c_isr_guard;
       arg = &i2c_isr_guards[port];
       return;
