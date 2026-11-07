@@ -138,6 +138,12 @@ def main() -> None:
         help="fail when the rms is lower (0 catches an all zero stream)",
     )
     a = p.parse_args()
+    if a.stall >= a.clients:
+        p.error("--stall must name one of the readers (0 to clients - 1)")
+    if not 0 <= a.expect_reject < a.clients - (a.stall >= 0):
+        p.error("--expect-reject must leave at least one normal reader")
+    if a.stall >= a.clients - a.expect_reject:
+        p.error("--stall must not name a reader that is expected to be refused")
     c = http.client.HTTPConnection(a.host, 80, timeout=10)
     c.request("GET", "/audio/microphones")
     m = c.getresponse()
@@ -178,7 +184,9 @@ def main() -> None:
             or (a.min_rms is not None and r.get("rms", 0.0) < a.min_rms)
         )
         if i == a.stall:
-            bad |= not r.get("dropped")
+            # judged on the drop, plus anything that went wrong before it stopped reading
+            bad |= not r.get("dropped") or r["status"] != 200 or not r["samples"]
+            bad |= bool(a.pattern and r["breaks"])
         elif i >= a.clients - a.expect_reject:
             refused = (r["status"] is not None and r["status"] != 200) or (
                 not r["samples"] and (r["eof"] is not None or r.get("closed"))

@@ -204,7 +204,7 @@ async def main() -> int:
     S.ready = True
     mark(f"READY for run 1 {S.pending[0]}")
     try:
-        await asyncio.wait_for(S.done_all.wait(), max(600, 60 + 30 * len(S.pending)))
+        await asyncio.wait_for(S.done_all.wait(), 30 + 30 * len(S.pending))
     except TimeoutError:
         mark("session timed out")
         S.failures.append("session timed out")
