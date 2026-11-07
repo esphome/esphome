@@ -79,8 +79,12 @@ void ArduinoInternalGPIOPin::attach_interrupt_(void (*func)(void *), void *arg, 
   if (arduino_mode == CHANGE) {
     PinInfo *info = pinInfo(this->pin_);
     if (info != nullptr && info->data != nullptr && info->data->irq != nullptr) {
+      // The interrupt is already live: keep it from arming an edge between the level read and the write below
+      const uint32_t primask = __get_PRIMASK();
+      __disable_irq();
       GPIO_UserRegIrq(info->data->irq->pin, reinterpret_cast<void *>(rtl8710b_change_handler), info->data);
       rtl8710b_arm_next_edge(info->data->irq);
+      __set_PRIMASK(primask);
     }
   }
 #endif
