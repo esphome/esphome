@@ -26,8 +26,10 @@ float ADS1115Component::request_measurement(uint16_t config_bits, uint8_t conver
                           (this->continuous_mode_ ? 0 : ads1xxx::CONFIG_SINGLE_SHOT | ads1xxx::CONFIG_START);
 
   if (!this->continuous_mode_ || this->prev_config_ != config) {
-    if (!this->status_comm_result(this->write_byte_16(REGISTER_CONFIG, config)))
+    if (!this->write_byte_16(REGISTER_CONFIG, config)) {
+      this->status_comm_result(false);
       return NAN;
+    }
     this->prev_config_ = config;
     delay(conversion_delay_ms);
 
