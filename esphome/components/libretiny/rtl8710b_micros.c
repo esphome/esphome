@@ -38,7 +38,8 @@ unsigned long __wrap_micros(void) {  // NOLINT(readability-identifier-naming)
       cur = SYST_CVR;
     }
   } while (tick != tick_count(in_isr));
-  // A tick that is due but not counted yet (interrupts masked, or called from a higher priority interrupt)
+  // One tick that is due but not counted yet (interrupts masked, or called from a higher priority interrupt); millis()
+  // does not count it, so micros() / 1000 is one ahead there. Masked for over 1 ms, the extra wraps are not seen.
   if (pending)
     tick++;
   // The tick comes due when the counter reaches 0, so 0 starts the millisecond and 1 ends it
@@ -51,7 +52,8 @@ void __wrap_delayMicroseconds(unsigned int us) {  // NOLINT(readability-identifi
   DEMCR |= DEMCR_TRCENA;
   DWT_CTRL |= 1;
   const uint32_t start = DWT_CYCCNT;
-  const uint32_t cycles = us * (SystemCoreClock / 1000000);
+  // Round up so a clock that is not a whole number of MHz (62.5 MHz on the BW12) never shortens a delay
+  const uint32_t cycles = us * ((SystemCoreClock + 999999) / 1000000);
   while (DWT_CYCCNT - start < cycles) {
   }
 }
