@@ -56,10 +56,10 @@ void ZigbeeLight::connect(light::LightState *device) {
     return;
   }
   // on_off endpoint is already set up, update device id for others
-  if (0 && level && color) {
-    // this->zb_->update_device_id(this->endpoint_id_, EZB_ZHA_COLOR_DIMMABLE_LIGHT_DEVICE_ID);
+  if (level && color) {
+    this->zb_->update_device_id(this->endpoint_id_, EZB_ZHA_COLOR_DIMMABLE_LIGHT_DEVICE_ID);
   } else if (level) {
-    // this->zb_->update_device_id(this->endpoint_id_, EZB_ZHA_DIMMABLE_LIGHT_DEVICE_ID);
+    this->zb_->update_device_id(this->endpoint_id_, EZB_ZHA_DIMMABLE_LIGHT_DEVICE_ID);
   }
 
   this->light_state_->add_remote_values_listener(this);
