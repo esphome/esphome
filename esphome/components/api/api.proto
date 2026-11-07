@@ -22,6 +22,7 @@ service APIConnection {
   rpc device_capabilities (DeviceCapabilitiesRequest) returns (DeviceCapabilitiesResponse) {}
   rpc device_wizard (DeviceWizardRequest) returns (DeviceWizardResponse) {}
   rpc wizard_input_set (WizardInputSetRequest) returns (void) {}
+  rpc crash_report (CrashReportRequest) returns (CrashReportResponse) {}
   rpc list_entities (ListEntitiesRequest) returns (void) {}
   rpc subscribe_states (SubscribeStatesRequest) returns (void) {}
   rpc subscribe_logs (SubscribeLogsRequest) returns (void) {}
@@ -420,6 +421,12 @@ message SendspinCapabilities {
   string client_id = 2 [(max_data_length) = 43];
 }
 
+message CrashReportCapabilities {
+  // Bitmask of CrashReportFlag. ESP32 checks BUILD_MATCHES against the build time stored with the record;
+  // ESP8266, RP2 and LibreTiny store none and assume it.
+  uint32 flags = 1;
+}
+
 message DeviceCapabilitiesResponse {
   option (id) = 150;
   option (source) = SOURCE_SERVER;
@@ -432,6 +439,7 @@ message DeviceCapabilitiesResponse {
   WizardCapabilities wizard = 5 [(field_ifdef) = "USE_API_WIZARD"];
   SendspinCapabilities sendspin = 6 [(field_ifdef) = "USE_SENDSPIN"];
   StoreYamlCapabilities store_yaml = 7 [(field_ifdef) = "USE_STORE_YAML"];
+  CrashReportCapabilities crash_report = 8 [(field_ifdef) = "USE_CRASH_REPORT"];
 }
 
 // ==================== DEVICE WIZARD ====================
@@ -459,7 +467,7 @@ message DeviceWizardRequest {
 //
 //   {"version": 1,
 //    "pages": [{"title": "...", "description": "...",
-//      "entities": [{"key": 123, "device_id": 456, "description": "..."}],
+//      "entities": [{"key": 123, "device_id": 456, "description": "...", "role": "..."}],
 //      "inputs": [{"key": 789, "description": "...", "multiple": true, "max_length": 1023,
 //        "entity_filters": [{"integration": "...", "domain": ["..."],
 //                            "device_class": ["..."], "supported_features": ["..."]}]}]}]}
@@ -472,6 +480,9 @@ message DeviceWizardRequest {
 // An entity is an entity of this device that the page shows to the user (for example to
 // turn it on or off). Its key is the key ListEntitiesResponse sends for it. Its
 // device_id is the device_id ListEntitiesResponse sends, and is left out when that is 0.
+// Its role, when set, is a stable name that the device's firmware gives the entity
+// (always <component>.<name>), so a client can recognise it. The user cannot change it,
+// and no two entities of a wizard share one.
 //
 // An input is filled in by the user with the id of a Home Assistant entity. It either
 // stands for one entity of the device's homeassistant platform (sensor, binary_sensor,
@@ -543,6 +554,36 @@ message SubscribeStatesRequest {
   option (id) = 20;
   option (source) = SOURCE_CLIENT;
   // Empty
+}
+
+// ==================== CRASH REPORT ====================
+
+// Send only when crash_report.flags has PRESENT. The report is dropped once sent.
+message CrashReportRequest {
+  option (id) = 163;
+  option (source) = SOURCE_CLIENT;
+  option (ifdef) = "USE_CRASH_REPORT";
+  // Empty
+}
+
+message CrashReportCore {
+  uint32 core = 1;
+  repeated uint32 backtrace = 2 [(fixed_array_with_length_define) = "CRASH_REPORT_MAX_BACKTRACE"];
+}
+
+message CrashReportResponse {
+  option (id) = 164;
+  option (source) = SOURCE_SERVER;
+  option (ifdef) = "USE_CRASH_REPORT";
+
+  uint32 flags = 1;  // Bitmask of CrashReportFlag
+  uint32 reason = 2;  // CrashReason
+  uint32 pc = 3;
+  uint32 cause = 4;
+  uint32 fault_address = 5;
+  uint32 build_time = 6;
+  uint32 crashed_core = 7;
+  repeated CrashReportCore cores = 8 [(fixed_array_with_length_define) = "CRASH_REPORT_MAX_CORES"];
 }
 
 // ==================== COMMON =====================
