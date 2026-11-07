@@ -472,32 +472,33 @@ inline void set_dead(bool d) {
 
 inline void report();
 
+// I2C0_IRQ masked, so its own arm_lost++ and arm clears cannot interleave with this one
+inline void arm(volatile bool &flag) {
+  irq_set_enabled(I2C0_IRQ, false);
+  if (flag)
+    cnt.arm_lost++;
+  flag = true;
+  irq_set_enabled(I2C0_IRQ, true);
+}
+
 inline void poll_serial() {
   while (Serial.available()) {
     int c = Serial.read();
     switch (c) {
       case 'c':
-        if (arm_c)
-          cnt.arm_lost++;
-        arm_c = true;
+        arm(arm_c);
         ESP_LOGI("sim", "ARM c");
         break;
       case 'z':
-        if (arm_z)
-          cnt.arm_lost++;
-        arm_z = true;
+        arm(arm_z);
         ESP_LOGI("sim", "ARM z");
         break;
       case 'b':
-        if (arm_b)
-          cnt.arm_lost++;
-        arm_b = true;
+        arm(arm_b);
         ESP_LOGI("sim", "ARM b");
         break;
       case 'k':
-        if (arm_k)
-          cnt.arm_lost++;
-        arm_k = true;
+        arm(arm_k);
         ESP_LOGI("sim", "ARM k");
         break;
       case 'x':

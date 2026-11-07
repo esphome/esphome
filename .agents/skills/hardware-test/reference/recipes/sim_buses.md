@@ -62,8 +62,9 @@ address they do not simulate.
   Both `SBTEST` lines end in `PASS` or `FAIL`; the `dump_config()` one passes only when the setup checks passed too.
 - `sbpsram` asks for `psram=True` and uses the pointer codegen hands it: the static buffer without PSRAM, or a
   zeroed `psram_buffer<T>()` with a `psram:` block, which logs `external=1` (nullptr if the allocation failed).
-  Its `dump_config()` line ends in `PASS` only when the readback matches, the buffer was zeroed at start and, with
-  PSRAM, it is in external RAM.
+  It also gets a plain 8 word `uint32_t` static buffer, which must be non-null, aligned and zeroed at start and read
+  back its fill (`plain=1`). Its `dump_config()` line ends in `PASS` only when both readbacks match, both buffers
+  were zeroed at start and, with PSRAM, the PSRAM one is in external RAM.
 
 ## Gotchas
 
