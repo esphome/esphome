@@ -1,5 +1,5 @@
-"""RTL8710B builds wrap the timing functions that rtl8710b_micros.c replaces; that file defines the wrappers only
-for RTL8710B, so a flag on another family would fail the link."""
+"""RTL8710B builds wrap the timing functions that rtl8710b_micros.c replaces and compile that file; other families
+get neither, since a flag without the wrappers fails the link."""
 
 from __future__ import annotations
 
@@ -8,7 +8,7 @@ from pathlib import Path
 
 import pytest
 
-from esphome.components.libretiny import RTL8710B_TIME_WRAPS
+from esphome.components.libretiny import FILTER_SOURCE_FILES, RTL8710B_TIME_WRAPS
 from esphome.core import CORE
 
 
@@ -31,3 +31,4 @@ def test_rtl8710b_time_wraps(
     generate_main(component_config_path(config))
     for func in RTL8710B_TIME_WRAPS:
         assert (f"-Wl,--wrap={func}" in CORE.build_flags) is wrapped
+    assert ("rtl8710b_micros.c" not in FILTER_SOURCE_FILES()) is wrapped

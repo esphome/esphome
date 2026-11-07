@@ -160,6 +160,16 @@ def _update_core_data(config):
     return config
 
 
+def FILTER_SOURCE_FILES() -> list[str]:
+    """Leave the RTL8710B timing wrappers out of every other family's build."""
+    if (data := CORE.data.get(KEY_LIBRETINY)) is None or data.get(KEY_FAMILY) in (
+        None,
+        FAMILY_RTL8710B,
+    ):
+        return []
+    return ["rtl8710b_micros.c"]
+
+
 def get_libretiny_component(core_obj=None):
     return (core_obj or CORE).data[KEY_LIBRETINY][KEY_COMPONENT]
 
