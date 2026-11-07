@@ -24,12 +24,17 @@ drive-by cleanup of pre-existing code the PR did not touch.
 
 Check the file list first. A PR titled for one component (`[ld2450] ...`) must
 not also change code other components build on: `esphome/core/`, the entity
-platforms (`sensor`, `binary_sensor`, `text_sensor`, `number`, `select`, `switch`,
-...) and their filters, buses (`i2c`, `spi`, `uart`), `network`, `socket`,
+platform components (`esphome/components/sensor/`, `esphome/components/text_sensor/`
+including its `filter.*`, `binary_sensor/`, `number/`, ...), the buses
+(`esphome/components/{i2c,spi,uart}/`), `network/`, `socket/`,
 `esphome/automation.py`, `esphome/cpp_generator.py` or `esphome/config_validation.py`.
 Flag it and ask for the shared change to move into its own PR, which lands first
 and is reviewed by that code's owners; the component PR then builds on it. This
 holds even when the shared change is small or only the component uses it today.
+
+Not shared code: the component's own platform files (`esphome/components/<c>/sensor.py`,
+`text_sensor/__init__.py`, ...), its new `USE_*` lines in `esphome/core/defines.h`,
+and its `CODEOWNERS` entry.
 
 ## Memory and embedded constraints (highest value)
 
