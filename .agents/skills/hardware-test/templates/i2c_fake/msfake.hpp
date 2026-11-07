@@ -23,7 +23,7 @@ struct Hd {
   uint8_t addr;
   uint16_t raw;
   int bad_crc_every;  // every Nth read has a wrong CRC
-  uint32_t resets{0}, measures{0}, reads{0};
+  uint32_t resets{0}, measures{0}, reads{0}, bad_reads{0};
 };
 
 inline uint8_t crc4(const uint16_t *w) {
@@ -123,13 +123,18 @@ struct Bus final : public esphome::i2c::I2CBus {
       h.resets++;
     if (size >= 1 && data[0] == 0xF5)
       h.measures++;
-    if (size == 0 && out_size == 3) {
-      h.reads++;
-      uint16_t v = (h.raw & ~0x3) | 0x2;
-      esphome::put_be16(out, v);
-      out[2] =
-          esphome::crc8(out, 2, 0x00, 0x31, true) ^ ((h.bad_crc_every && h.reads % h.bad_crc_every == 0) ? 0xFF : 0);
+    if (out_size == 0)
+      return esphome::i2c::ERROR_OK;
+    if (size != 0 || out_size != 3) {
+      // a read shape the fake does not model: fail it visibly instead of returning garbage
+      memset(out, 0, out_size);
+      h.bad_reads++;
+      return esphome::i2c::ERROR_NOT_ACKNOWLEDGED;
     }
+    h.reads++;
+    uint16_t v = (h.raw & ~0x3) | 0x2;
+    esphome::put_be16(out, v);
+    out[2] = esphome::crc8(out, 2, 0x00, 0x31, true) ^ ((h.bad_crc_every && h.reads % h.bad_crc_every == 0) ? 0xFF : 0);
     return esphome::i2c::ERROR_OK;
   }
 
@@ -139,8 +144,8 @@ struct Bus final : public esphome::i2c::I2CBus {
                (unsigned) p.prom_reads, (unsigned) p.conv_t, (unsigned) p.conv_p, (unsigned) p.adc);
     for (auto &h : hds)
       if (h.addr)
-        ESP_LOGI(TAG, "H 0x%02X resets=%u measures=%u reads=%u", h.addr, (unsigned) h.resets, (unsigned) h.measures,
-                 (unsigned) h.reads);
+        ESP_LOGI(TAG, "H 0x%02X resets=%u measures=%u reads=%u bad_reads=%u", h.addr, (unsigned) h.resets,
+                 (unsigned) h.measures, (unsigned) h.reads, (unsigned) h.bad_reads);
   }
 };
 inline Bus bus;

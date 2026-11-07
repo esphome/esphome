@@ -27,7 +27,7 @@ address they do not simulate.
 - `ledprobe.hpp`: samples a status LED (or any output) pin every 2 ms from an `esp_timer`, off the loop task, and
   prints blink count, on time, period and the longest gap per window. It measures `status_led` while the loop is
   blocked (#16407). Pass `ledprobe::n` from the window start as the mark; a window with more than 400 edges logs
-  `INVALID` instead of passing for a stalled LED.
+  `INVALID` and no result line instead of passing for a stalled LED.
 - `fakeha.py HOST OUT_PREFIX`: an aioesphomeapi client standing in for Home Assistant for `homeassistant` select
   mirrors. It answers state subscriptions from a table, pushes option and state changes (full, overfull, quoted,
   unparseable), checks each step through a "Dump" button, captures the action calls, churns 600 option updates

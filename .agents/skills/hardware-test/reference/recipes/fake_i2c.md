@@ -25,7 +25,8 @@ that includes its `.hpp` (add `esphome: name:` for the `-common` ones):
   `std::initializer_list<output::FloatOutput *>{...}`.
 - `msfake.hpp`: eight MS8607 pressure/temperature fakes at 0x76 and up and humidity fakes at 0x40 and up, with
   faults per device (reset NACKs, bad PROM CRC4, zero D1 every Nth read, humidity CRC8 errors, out of range D2, full
-  scale humidity). It counts every command, so skipped conversions show in `report()`. Point both the component and
+  scale humidity). It counts every command, so skipped conversions show in `report()`; a humidity read of any shape
+  but a bare 3 byte read gets a NACK and counts as `bad_reads`. Point both the component and
   its `humidity_i2c_id` device at the bus. That driver logs no values, so give each sensor an INFO `on_value` log
   (#16487).
 - `htfake.hpp`, `ht16k33-char-test.yaml`: HT16K33 chips at 0x70 to 0x77 (0x74 and 0x76 NACK) keeping the 16 byte
@@ -68,7 +69,8 @@ readings, wrong values, log counts and the simulator's counters (`wrong_ch` coun
 channel). A phase fails when any of the four sensors got no readings, a temperature is wrong, the DUT capture
 failed (stderr in `TAG-<phase>.err`), a fault never moved its injection counter (counted when the DUT meets the
 fault, not when it is armed), a NACK fault never moved `nacked`, a fault is still pending (`pend=1`) at the end of the
-phase, or the simulator never logged `DEAD` for the `dead` phase.
+phase, the simulator never logged `DEAD` for the `dead` phase, or the DUT log of the `dead` phase has no sign of the
+outage (`did not respond`, a ds248x warning, `DS248x hub failed` or a component marked failed).
 
 - Sensors polled at the same interval go through the channels in blocks, so a stale channel cache never shows.
   Poll them at different intervals, as `dspd.yaml` does (1, 1.3, 1.7 and 2.3 s).

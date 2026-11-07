@@ -29,6 +29,10 @@ struct Bus final : public esphome::i2c::I2CBus {
     if (out_size == 0)
       return esphome::i2c::ERROR_OK;
     uint8_t buf[9] = {};
+    if (out_size > sizeof(buf)) {
+      memset(out, 0, out_size);
+      return esphome::i2c::ERROR_NOT_ACKNOWLEDGED;  // longer than any read the chips answer
+    }
     if (cmd[0] == 0x70 && cmd[1] == 0x29) {
       const uint8_t serial[8] = {0x11, 0x22, 0x33, 0x44, 0x55, 0x66, 0x77, address};
       memcpy(buf, serial, 8);
@@ -37,7 +41,7 @@ struct Bus final : public esphome::i2c::I2CBus {
       word(buf, this->raw);
       word(buf + 3, this->hum);
     }
-    memcpy(out, buf, out_size < sizeof(buf) ? out_size : sizeof(buf));
+    memcpy(out, buf, out_size);
     return esphome::i2c::ERROR_OK;
   }
 };

@@ -48,13 +48,13 @@ inline void report(const char *label, size_t mark, uint32_t t0, uint32_t t1) {
   uint32_t ons = 0, on_min = UINT32_MAX, on_max = 0, on_sum = 0;
   uint32_t per_min = UINT32_MAX, per_max = 0, per_sum = 0, pers = 0, prev_rise = 0, rise = 0, max_gap = 0;
   uint32_t prev_edge = t0;
-  size_t end = n, first = mark, lost = 0;
+  size_t end = n;
   if (end - mark > MAX_EDGES) {
-    lost = end - mark - MAX_EDGES;
-    first = end - MAX_EDGES;
-    ESP_LOGW("probe", "%s: INVALID, %u edges overwritten, use a shorter window", label, (unsigned) lost);
+    ESP_LOGW("probe", "%s: INVALID, %u edges overwritten, use a shorter window", label,
+             (unsigned) (end - mark - MAX_EDGES));
+    return;
   }
-  for (size_t i = first; i < end; i++) {
+  for (size_t i = mark; i < end; i++) {
     uint32_t t = edge_t[i % MAX_EDGES];
     if (t < t0 || t > t1)
       continue;
@@ -83,14 +83,19 @@ inline void report(const char *label, size_t mark, uint32_t t0, uint32_t t1) {
       rise = 0;
     }
   }
+  // the timer task kept writing while we read; slots read may have been overwritten
+  if (n - mark > MAX_EDGES) {
+    ESP_LOGW("probe", "%s: INVALID, %u edges came in while reading, use a shorter window", label, (unsigned) (n - end));
+    return;
+  }
   if (t1 - prev_edge > max_gap)
     max_gap = t1 - prev_edge;
   ESP_LOGI("probe",
            "%s: window %u ms, blinks %u, on %u/%u/%u ms (min/avg/max), period %u/%u/%u ms, longest gap %u ms, level "
-           "now %d, samples %u, lost edges %u",
+           "now %d, samples %u",
            label, (unsigned) (t1 - t0), (unsigned) ons, ons ? (unsigned) on_min : 0,
            ons ? (unsigned) (on_sum / ons) : 0, (unsigned) on_max, pers ? (unsigned) per_min : 0,
            pers ? (unsigned) (per_sum / pers) : 0, (unsigned) per_max, (unsigned) max_gap, (int) last,
-           (unsigned) samples, (unsigned) lost);
+           (unsigned) samples);
 }
 }  // namespace ledprobe
