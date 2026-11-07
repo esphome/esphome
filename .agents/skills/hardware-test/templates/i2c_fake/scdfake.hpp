@@ -1,5 +1,6 @@
 #pragma once
 // Fake SCD4x (0x62 and 0x63) on an in-firmware I2C bus, Sensirion words with CRC; logs every 0xE000 write.
+// A 0xE000 write with a bad CRC counts in bad_crc_e000, not count_e000.
 #include "esphome/components/i2c/i2c_bus.h"
 #include "esphome/core/helpers.h"
 #include "esphome/core/log.h"
@@ -11,7 +12,9 @@ struct Bus final : public esphome::i2c::I2CBus {
   uint16_t cmd[2]{};
   int last_e000[2]{-1, -1};
   uint32_t count_e000[2]{};
+  uint32_t bad_crc_e000[2]{};
   uint32_t e000_writes() const { return this->count_e000[0] + this->count_e000[1]; }
+  uint32_t e000_bad_crc() const { return this->bad_crc_e000[0] + this->bad_crc_e000[1]; }
 
   static void put(uint8_t *out, size_t &n, size_t max, uint16_t v) {
     uint8_t w[3];
@@ -30,10 +33,14 @@ struct Bus final : public esphome::i2c::I2CBus {
     if (size >= 2) {
       this->cmd[a] = (data[0] << 8) | data[1];
       if (this->cmd[a] == 0xE000 && size >= 5) {
-        this->last_e000[a] = (data[2] << 8) | data[3];
-        this->count_e000[a]++;
-        ESP_LOGI(TAG, "0x%02X E000 <- %u hPa (crc %s)", address, (data[2] << 8) | data[3],
-                 data[4] == esphome::crc8(data + 2, 2, 0xFF, 0x31, true) ? "ok" : "BAD");
+        bool crc_ok = data[4] == esphome::crc8(data + 2, 2, 0xFF, 0x31, true);
+        if (crc_ok) {
+          this->last_e000[a] = (data[2] << 8) | data[3];
+          this->count_e000[a]++;
+        } else {
+          this->bad_crc_e000[a]++;
+        }
+        ESP_LOGI(TAG, "0x%02X E000 <- %u hPa (crc %s)", address, (data[2] << 8) | data[3], crc_ok ? "ok" : "BAD");
       }
     }
     size_t n = 0;

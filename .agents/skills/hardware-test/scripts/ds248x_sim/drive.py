@@ -5,7 +5,8 @@ PHASES is a comma list of c, cd, z, b, k, dead (default c,z,b,k,dead). Holds the
 (log and commands); the DUT log is captured per phase into TAG-<phase>.log, each phase starting with a DUT reset.
 Exits 1 when the simulator never reports, the simulator port fails, the DUT capture fails, a phase ends without a
 fresh simulator report, a sensor got no readings in a phase, any temperature is wrong, a fault phase never moved its
-injection counter, or the simulator never confirmed going dead. DUT capture stderr goes to TAG-<phase>.err.
+injection counter (counted when the DUT meets the fault) or, for a NACK fault, the nacked counter, a fault is still
+pending at the end of a phase, or the simulator never confirmed going dead. DUT capture stderr goes to TAG-<phase>.err.
 """
 
 import os
@@ -142,6 +143,10 @@ def phase(
         failed.append(f"{name} ({len(wrong)} wrong temperatures)")
     if (inj := INJECTED_BY.get(name)) and not delta[inj]:
         failed.append(f"{name} ({inj} never moved, the fault was not injected)")
+    if name in NACK_PHASES and not delta["nacked"]:
+        failed.append(f"{name} (nacked never moved, the DUT never got the NACK)")
+    if b.get("pend"):
+        failed.append(f"{name} (a fault was still pending at the end of the phase)")
     if not fresh or not a or reader_error:
         print(f"{TAG} {name}: no fresh simulator report, sim counters are not valid")
         failed.append(f"{name} (no simulator report)")
@@ -149,6 +154,8 @@ def phase(
 
 # fault phase -> simulator counter that must move during it
 INJECTED_BY = {"c": "inj_c", "cd": "inj_c", "z": "inj_z", "b": "inj_b", "k": "inj_k"}
+# fault phases whose fault is a NACK
+NACK_PHASES = {"c", "cd", "z", "k"}
 # pre command -> simulator log line that confirms it took effect
 CONFIRMED_BY = {"x": "DEAD"}
 

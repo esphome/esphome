@@ -1,5 +1,6 @@
 #pragma once
-// Samples the status LED pin from an esp_timer every 2 ms, off the loop task, and records edges.
+// Samples the status LED pin from an esp_timer every 2 ms, off the loop task, and records edges in a ring.
+// n counts every edge; take n as the mark when a window starts.
 #include "driver/gpio.h"
 #include "esp_timer.h"
 #include "esphome/core/hal.h"
@@ -10,10 +11,9 @@ static constexpr gpio_num_t PIN = GPIO_NUM_25;
 static constexpr size_t MAX_EDGES = 400;
 inline volatile uint32_t edge_t[MAX_EDGES];
 inline volatile uint8_t edge_v[MAX_EDGES];
-inline volatile size_t n = 0;
+inline volatile size_t n = 0;  // edges seen so far, the ring keeps the last MAX_EDGES
 inline volatile int last = -1;
 inline volatile uint32_t samples = 0;
-inline volatile uint32_t dropped = 0;  // edges lost after the buffer filled
 
 inline void sample(void *) {
   int v = gpio_get_level(PIN);
@@ -21,13 +21,9 @@ inline void sample(void *) {
   if (v != last) {
     last = v;
     size_t i = n;
-    if (i < MAX_EDGES) {
-      edge_t[i] = (uint32_t) (esp_timer_get_time() / 1000);
-      edge_v[i] = v;
-      n = i + 1;
-    } else {
-      dropped++;
-    }
+    edge_t[i % MAX_EDGES] = (uint32_t) (esp_timer_get_time() / 1000);
+    edge_v[i % MAX_EDGES] = v;
+    n = i + 1;
   }
 }
 
@@ -41,8 +37,8 @@ inline void start() {
   a.callback = sample;
   a.name = "ledprobe";
   esp_timer_handle_t h;
-  ESP_ERROR_CHECK(esp_timer_create(&a, &h));
-  ESP_ERROR_CHECK(esp_timer_start_periodic(h, 2000));
+  if ((err = esp_timer_create(&a, &h)) != ESP_OK || (err = esp_timer_start_periodic(h, 2000)) != ESP_OK)
+    ESP_LOGE("probe", "LED probe timer failed: %s", esp_err_to_name(err));
 }
 
 inline uint32_t now_ms() { return (uint32_t) (esp_timer_get_time() / 1000); }
@@ -52,15 +48,20 @@ inline void report(const char *label, size_t mark, uint32_t t0, uint32_t t1) {
   uint32_t ons = 0, on_min = UINT32_MAX, on_max = 0, on_sum = 0;
   uint32_t per_min = UINT32_MAX, per_max = 0, per_sum = 0, pers = 0, prev_rise = 0, rise = 0, max_gap = 0;
   uint32_t prev_edge = t0;
-  size_t end = n;
-  for (size_t i = mark; i < end; i++) {
-    uint32_t t = edge_t[i];
+  size_t end = n, first = mark, lost = 0;
+  if (end - mark > MAX_EDGES) {
+    lost = end - mark - MAX_EDGES;
+    first = end - MAX_EDGES;
+    ESP_LOGW("probe", "%s: INVALID, %u edges overwritten, use a shorter window", label, (unsigned) lost);
+  }
+  for (size_t i = first; i < end; i++) {
+    uint32_t t = edge_t[i % MAX_EDGES];
     if (t < t0 || t > t1)
       continue;
     if (t - prev_edge > max_gap)
       max_gap = t - prev_edge;
     prev_edge = t;
-    if (edge_v[i]) {
+    if (edge_v[i % MAX_EDGES]) {
       if (prev_rise) {
         uint32_t p = t - prev_rise;
         per_sum += p;
@@ -86,10 +87,10 @@ inline void report(const char *label, size_t mark, uint32_t t0, uint32_t t1) {
     max_gap = t1 - prev_edge;
   ESP_LOGI("probe",
            "%s: window %u ms, blinks %u, on %u/%u/%u ms (min/avg/max), period %u/%u/%u ms, longest gap %u ms, level "
-           "now %d, samples %u, dropped edges %u",
+           "now %d, samples %u, lost edges %u",
            label, (unsigned) (t1 - t0), (unsigned) ons, ons ? (unsigned) on_min : 0,
            ons ? (unsigned) (on_sum / ons) : 0, (unsigned) on_max, pers ? (unsigned) per_min : 0,
            pers ? (unsigned) (per_sum / pers) : 0, (unsigned) per_max, (unsigned) max_gap, (int) last,
-           (unsigned) samples, (unsigned) dropped);
+           (unsigned) samples, (unsigned) lost);
 }
 }  // namespace ledprobe

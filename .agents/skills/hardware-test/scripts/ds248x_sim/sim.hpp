@@ -5,6 +5,7 @@
 //   b  stuck busy on the next 1-Wire command, and the next device reset reports no RST bit
 //   k  stuck busy on the next 1-Wire command, and NACK the config write after the next device reset
 //   x  dead (address NACK)   X  alive again   s  print counters now
+// inj_* count a fault when the DUT meets it, not when it is armed; pend=1 while one has not been met yet.
 #pragma once
 #include <Arduino.h>
 #include "hardware/i2c.h"
@@ -51,6 +52,7 @@ static volatile bool arm_c = false, arm_z = false, arm_b = false, arm_k = false;
 static volatile bool stuck = false, bad_reset = false, nack_cfg_after_reset = false;
 static volatile uint8_t nack_left = 0;  // writes still to NACK
 static volatile bool nack_on = false, z_pending = false, dead = false;
+static volatile char nack_src = 0;  // fault whose NACK is pending: 'c', 'z' or 'k'
 
 // counters
 struct Cnt {
@@ -77,12 +79,10 @@ static void ow_cmd_started() {
     arm_b = false;
     stuck = true;
     bad_reset = true;
-    cnt.inject_b++;
   } else if (arm_k) {
     arm_k = false;
     stuck = true;
     nack_cfg_after_reset = true;
-    cnt.inject_k++;
   }
 }
 
@@ -139,7 +139,6 @@ static void ow_write(uint8_t b) {
         if (arm_z) {
           arm_z = false;
           z_pending = true;
-          cnt.inject_z++;
         }
       } else if (b == 0x4E) {
         ow = OW_WRITESP;
@@ -236,12 +235,14 @@ static void process(const uint8_t *b, uint8_t n) {
       if (bad_reset) {
         bad_reset = false;
         status = 0x08;
+        cnt.inject_b++;
       } else {
         status = 0x18;
       }
       if (nack_cfg_after_reset) {
         nack_cfg_after_reset = false;
         nack_left = 1;
+        nack_src = 'k';
       }
       break;
     case 0xE1:  // set read pointer
@@ -281,7 +282,7 @@ static void process(const uint8_t *b, uint8_t n) {
         if (arm_c) {
           arm_c = false;
           nack_left = 1;
-          cnt.inject_c++;
+          nack_src = 'c';
           trn = 0;
         }
       }
@@ -373,10 +374,18 @@ static void irq() {
       if (nack_left)
         nack_left--;
       cnt.nacked++;
+      if (nack_src == 'c')
+        cnt.inject_c++;
+      else if (nack_src == 'z')
+        cnt.inject_z++;
+      else if (nack_src == 'k')
+        cnt.inject_k++;
+      nack_src = 0;
     }
     if (z_pending) {  // armed by 0xBE: start NACKing after that write
       z_pending = false;
       nack_left = 9;
+      nack_src = 'z';
     }
     bool want = nack_left > 0;
     if (want != nack_on) {
@@ -450,6 +459,7 @@ inline void poll_serial() {
 }
 
 inline void report() {
+  bool pend = arm_c || arm_z || arm_b || arm_k || stuck || bad_reset || nack_cfg_after_reset || nack_left || z_pending;
   if (trlen) {
     char buf[24 * 9 + 1];
     int o = 0;
@@ -458,12 +468,13 @@ inline void report() {
     ESP_LOGI("sim", "TRACE %s", buf);
     trlen = 0;
   }
-  ESP_LOGI("sim",
-           "CNT txn=%u drst=%u chsl=%u owreset=%u wbyte=%u rbyte=%u trip=%u match=%u wrong_ch=%u nacked=%u "
-           "cfgw=%u ops_no_apu=%u convert=%u readsp=%u inj_c=%u inj_z=%u inj_b=%u inj_k=%u ch=%u cfg=%u dead=%d",
-           cnt.txn, cnt.drst, cnt.chsl, cnt.owreset, cnt.wbyte, cnt.rbyte, cnt.trip, cnt.match, cnt.wrong_ch,
-           cnt.nacked, cnt.cfg_writes, cnt.ops_no_apu, cnt.convert, cnt.readsp, cnt.inject_c, cnt.inject_z,
-           cnt.inject_b, cnt.inject_k, channel, config, dead);
+  ESP_LOGI(
+      "sim",
+      "CNT txn=%u drst=%u chsl=%u owreset=%u wbyte=%u rbyte=%u trip=%u match=%u wrong_ch=%u nacked=%u "
+      "cfgw=%u ops_no_apu=%u convert=%u readsp=%u inj_c=%u inj_z=%u inj_b=%u inj_k=%u ch=%u cfg=%u dead=%d pend=%d",
+      cnt.txn, cnt.drst, cnt.chsl, cnt.owreset, cnt.wbyte, cnt.rbyte, cnt.trip, cnt.match, cnt.wrong_ch, cnt.nacked,
+      cnt.cfg_writes, cnt.ops_no_apu, cnt.convert, cnt.readsp, cnt.inject_c, cnt.inject_z, cnt.inject_b, cnt.inject_k,
+      channel, config, dead, pend);
 }
 
 }  // namespace sim

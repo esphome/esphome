@@ -18,7 +18,7 @@ that includes its `.hpp` (add `esphome: name:` for the `-common` ones):
 - `eefake.hpp`, `ee-common.yaml`: HTE501 (0x40) and TEE501 (0x48) with CRC words; "Next" steps through raw
   temperature words and logs the value a signed hundredths decode should give (#21930).
 - `scdfake.hpp`, `scd-common.yaml`: SCD4x at 0x62 and 0x63 with Sensirion CRC; logs every `0xE000` ambient pressure
-  write. The second instance has a fixed `ambient_pressure_compensation` to cover the setup path (#21935).
+  write, and the CASE and SHOW lines count writes with a bad CRC apart from the good ones. The second instance has a fixed `ambient_pressure_compensation` to cover the setup path (#21935).
 - `sxfake.hpp`, `sx-common.yaml`: two SX1509 register files with reset values and the `7D 12/34` reset, recording
   every write. Compare per address: hub setup order can legitimately move between hubs (#21897). Outputs of an Apply
   platform are distinct template types, so a lambda list of them needs
@@ -66,8 +66,9 @@ after the next 0xBE, `b` and `k` stick busy with a failed reset or config write,
 `SC=<serial_capture.py> python3 drive.py TAG SIM_PORT DUT_PORT [c,z,b,k,dead]` resets the DUT per phase and prints
 readings, wrong values, log counts and the simulator's counters (`wrong_ch` counts ROM matches on the wrong
 channel). A phase fails when any of the four sensors got no readings, a temperature is wrong, the DUT capture
-failed (stderr in `TAG-<phase>.err`), a fault never moved its injection counter or the simulator never logged
-`DEAD` for the `dead` phase.
+failed (stderr in `TAG-<phase>.err`), a fault never moved its injection counter (counted when the DUT meets the
+fault, not when it is armed), a NACK fault never moved `nacked`, a fault is still pending (`pend=1`) at the end of the
+phase, or the simulator never logged `DEAD` for the `dead` phase.
 
 - Sensors polled at the same interval go through the channels in blocks, so a stale channel cache never shows.
   Poll them at different intervals, as `dspd.yaml` does (1, 1.3, 1.7 and 2.3 s).
