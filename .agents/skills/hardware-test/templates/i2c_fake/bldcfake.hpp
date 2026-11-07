@@ -15,11 +15,16 @@ struct Unit {
   uint16_t pwm{0};
   float set_rpm{0}, rpm{0};
   int32_t pid[3]{0, 0, 0};
+  bool started{false};  // last_ms is seeded on the first transfer, not at static init
   uint32_t last_ms{0}, saves{0}, writes{0};
   uint32_t bad_writes{0}, bad_reads{0};  // unknown register or wrong length, NACKed
   uint8_t reg{0};
   void step() {
     uint32_t now = (esphome::millis) ();
+    if (!this->started) {
+      this->started = true;
+      this->last_ms = now;
+    }
     float dt = (now - this->last_ms) / 1000.0f;
     this->last_ms = now;
     float target = this->mode ? this->set_rpm : this->pwm * 2.0f;
@@ -71,15 +76,12 @@ inline size_t read_width(uint8_t reg) {
   }
 }
 struct Bus final : public esphome::i2c::I2CBus {
-  Unit units[3] = {{0x65, false}, {0x66, false}, {0x67, false}};
-  void init() {
-    // Unit A was left running backward at 800 PWM before this boot; C never stops
-    units[0].pwm = 800;
-    units[0].rpm = 1600;
-    units[0].dir_reg = units[0].dir_latched = 1;
-    units[2].stuck = true;
-    for (auto &u : units)
-      u.last_ms = (esphome::millis) ();
+  Unit units[3] = {{0x65, false}, {0x66, false}, {0x67, true}};  // C never stops
+  Bus() {
+    // Unit A was left running backward at 800 PWM before this boot
+    this->units[0].pwm = 800;
+    this->units[0].rpm = 1600;
+    this->units[0].dir_reg = this->units[0].dir_latched = 1;
   }
   esphome::i2c::ErrorCode write_readv(uint8_t address, const uint8_t *data, size_t size, uint8_t *out,
                                       size_t out_size) override {

@@ -36,7 +36,8 @@ that includes its `.hpp` (add `esphome: name:` for the `-common` ones):
   outside 700 to 1200 hPa and rounds as #21935 did. The SHOW line ends in PASS when nothing bad was counted, neither
   instance failed and 0x63 got exactly one write of its fixed value.
 - `sxfake.hpp`, `sx-common.yaml`: two SX1509 register files with reset values and the `7D 12/34` reset, recording
-  every write. A read without a register, or a transfer past 0x7F, gets a NACK and `dump_log()` warns with the
+  every write. Only a byte that lands on RegReset (0x7D) drives the reset, so a burst through it keeps the bytes for
+  0x7E and 0x7F. A read without a register, or a transfer past 0x7F, gets a NACK and `dump_log()` warns with the
   count. Compare per address: hub setup order can legitimately move between hubs (#21897). Outputs of an Apply
   platform are distinct template types, so a lambda list of them needs
   `std::initializer_list<output::FloatOutput *>{...}`. Each case ends with an END line, PASS only while no write was
@@ -44,7 +45,8 @@ that includes its `.hpp` (add `esphome: name:` for the `-common` ones):
 - `msfake.hpp`: eight MS8607 pressure/temperature fakes at 0x76 and up and humidity fakes at 0x40 and up, with faults
   per device (reset NACKs, bad PROM CRC4, zero D1 every Nth read, humidity CRC8 errors, out of range D2, full scale
   humidity). It counts every command, so skipped conversions show in `report()`, and an ADC read with no conversion
-  pending answers 0 like the real chip and counts as `adc_no_conv`; a humidity read of any shape but a bare
+  pending answers 0 like the real chip and counts as `adc_no_conv`; a PROM read, conversion or humidity measure
+  before that device's first reset counts as `no_reset`; a humidity read of any shape but a bare
   3 byte read, and a pressure/temperature read that is not a 2 byte read of a PROM word (even addresses 0xA0 to 0xAC) or
   a 3 byte ADC read, gets a NACK and counts as `bad_reads`; a bare read answers the last PROM or ADC pointer and never
   repeats a reset or conversion; a command write the fake does not know, or one longer than a
@@ -61,7 +63,8 @@ that includes its `.hpp` (add `esphome: name:` for the `-common` ones):
 - `bldcfake.hpp` (three M5Unit-BLDC units at 0x65 to 0x67 with simple motor physics, one that never spins down),
   `gtfake.hpp` (GT911 at 0x5D: switches, max values, touch points and key byte) and `sdpfake.hpp` (SDP3x/SDP8xx at
   0x21 to 0x26: product IDs, an unknown product, a failing read every third time, a failing ID read, stop refused
-  while idle) have no config yet; wire them the same way. Each NACKs a read it does not model or one of the wrong
+  while idle) have no config yet; wire them the same way. Each fake sets up its own faults in its constructor, so
+  there is no init step to call. Each NACKs a read it does not model or one of the wrong
   length, and a write or command it does not know, and counts them as `bad_reads` and `bad_writes` (`bad_cmds` for
   the SDP) in `report()`; check those are 0.
 

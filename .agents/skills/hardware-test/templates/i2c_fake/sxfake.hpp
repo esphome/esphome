@@ -49,10 +49,10 @@ struct Bus final : public esphome::i2c::I2CBus {
     uint8_t r = start;
     for (size_t i = 1; i < size; i++, r++) {
       if (this->n < 600)
-        this->log[this->n++] = {address, (uint8_t) (data[0] + i - 1), data[i]};
+        this->log[this->n++] = {address, r, data[i]};
       else
         this->dropped++;
-      if (data[0] == 0x7D) {  // RegReset: 0x12 then 0x34 resets the chip
+      if (r == 0x7D) {  // RegReset: 0x12 then 0x34 resets the chip
         if (data[i] == 0x12)
           this->reset_step[a] = 1;
         else if (data[i] == 0x34 && this->reset_step[a] == 1)

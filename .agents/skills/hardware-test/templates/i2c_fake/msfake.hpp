@@ -19,12 +19,14 @@ struct Pt {
   uint8_t last{0xFF};  // last command, for a read in its own transaction
   uint32_t resets{0}, conv_t{0}, conv_p{0}, adc{0}, prom_reads{0}, d1_reads{0}, bad_reads{0}, bad_cmds{0};
   uint32_t adc_no_conv{0};  // ADC reads with no conversion pending, which answer 0 like the real chip
+  uint32_t no_reset{0};     // PROM reads and conversions before the first reset, which loads the PROM
 };
 struct Hd {
   uint8_t addr;
   uint16_t raw;
   int bad_crc_every;  // every Nth read has a wrong CRC
   uint32_t resets{0}, measures{0}, reads{0}, bad_reads{0}, bad_cmds{0};
+  uint32_t no_reset{0};  // measures before the first reset
 };
 
 // PROM words 0 to 6 sit at the even addresses 0xA0 to 0xAC
@@ -60,10 +62,8 @@ struct Bus final : public esphome::i2c::I2CBus {
   Hd hds[8] = {{0x40, 31872, 0}, {0x00, 0, 0},     {0x41, 31872, 0}, {0x42, 31872, 2},
                {0x43, 31872, 0}, {0x44, 31872, 0}, {0x45, 31872, 0}, {0x46, 0xFFFE, 0}};
 
-  void init() {
-    for (auto &p : pts) {
-      p.prom[0] = 0;
-      p.prom[0] = (crc4(p.prom) << 12) | 0x0123;
+  Bus() {
+    for (auto &p : this->pts) {
       // CRC is over word 0 with its top nibble zeroed
       uint16_t w[7];
       for (int i = 0; i < 7; i++)
@@ -100,6 +100,8 @@ struct Bus final : public esphome::i2c::I2CBus {
         }
         p.resets++;
       } else if (c == 0x4A || c == 0x5A) {
+        if (p.resets == 0)
+          p.no_reset++;
         p.pending = c;
         (c == 0x5A ? p.conv_t : p.conv_p)++;
       } else if (out_size == 0) {
@@ -113,6 +115,8 @@ struct Bus final : public esphome::i2c::I2CBus {
     if (is_prom(c) && out_size == 2) {
       esphome::put_be16(out, p.prom[(c - 0xA0) / 2]);
       p.prom_reads++;
+      if (p.resets == 0)
+        p.no_reset++;
       return esphome::i2c::ERROR_OK;
     }
     if (c == 0x00 && out_size == 3) {
@@ -147,6 +151,8 @@ struct Bus final : public esphome::i2c::I2CBus {
       h.resets++;
     } else if (size >= 1 && data[0] == 0xF5) {
       h.measures++;
+      if (h.resets == 0)
+        h.no_reset++;
     } else if (size >= 1 && out_size == 0) {
       // a command the fake does not know
       h.bad_cmds++;
@@ -169,13 +175,17 @@ struct Bus final : public esphome::i2c::I2CBus {
 
   void report() {
     for (auto &p : pts)
-      ESP_LOGI(TAG, "PT 0x%02X resets=%u prom=%u convT=%u convP=%u adc=%u adc_no_conv=%u bad_reads=%u bad_cmds=%u",
+      ESP_LOGI(TAG,
+               "PT 0x%02X resets=%u prom=%u convT=%u convP=%u adc=%u adc_no_conv=%u no_reset=%u bad_reads=%u "
+               "bad_cmds=%u",
                p.addr, (unsigned) p.resets, (unsigned) p.prom_reads, (unsigned) p.conv_t, (unsigned) p.conv_p,
-               (unsigned) p.adc, (unsigned) p.adc_no_conv, (unsigned) p.bad_reads, (unsigned) p.bad_cmds);
+               (unsigned) p.adc, (unsigned) p.adc_no_conv, (unsigned) p.no_reset, (unsigned) p.bad_reads,
+               (unsigned) p.bad_cmds);
     for (auto &h : hds)
       if (h.addr)
-        ESP_LOGI(TAG, "H 0x%02X resets=%u measures=%u reads=%u bad_reads=%u bad_cmds=%u", h.addr, (unsigned) h.resets,
-                 (unsigned) h.measures, (unsigned) h.reads, (unsigned) h.bad_reads, (unsigned) h.bad_cmds);
+        ESP_LOGI(TAG, "H 0x%02X resets=%u measures=%u reads=%u no_reset=%u bad_reads=%u bad_cmds=%u", h.addr,
+                 (unsigned) h.resets, (unsigned) h.measures, (unsigned) h.reads, (unsigned) h.no_reset,
+                 (unsigned) h.bad_reads, (unsigned) h.bad_cmds);
   }
 };
 inline Bus bus;
