@@ -1002,19 +1002,22 @@ def test_model_with_no_default_init_sequence_generates(
 ) -> None:
     """Test that code generation succeeds for a model with no default init sequence.
 
-    The base "t133a01" model (used directly, not via one of its `.extend()`
-    variants) doesn't override `get_init_sequence()` or pass `initsequence` to
-    its constructor, and the user didn't supply `init_sequence:` either.
+    The "jd79660" model doesn't override `get_init_sequence()` or pass
+    `initsequence` to its constructor, and the user didn't supply
+    `init_sequence:` either.
     `EpaperModel.get_init_sequence()` used to default to `None` in this case,
     which made `flatten_sequence()` raise a `TypeError` during code
     generation. Regression test for that crash.
     """
-    main_cpp = generate_main(component_config_path("t133a01_no_init_sequence.yaml"))
+    main_cpp = generate_main(component_config_path("jd79660_no_init_sequence.yaml"))
 
     # The generated constructor call takes (name, width, height, init_sequence,
-    # init_sequence_length, ...); a length of 0 confirms the empty init
-    # sequence array was generated instead of raising during code generation.
-    assert re.search(r"epaper_spi::EPaperT133A01\([^;]*,\s*\w+,\s*0\);", main_cpp)
+    # init_sequence_length, fast_update, fast_update_length); a length of 0
+    # confirms the empty init sequence array was generated instead of raising
+    # during code generation.
+    assert re.search(
+        r"epaper_spi::EPaperJD79660\([^;]*,\s*\w+,\s*0,\s*nullptr,\s*0\);", main_cpp
+    )
 
 
 def test_test_card_overrides_update_interval(
@@ -1027,3 +1030,101 @@ def test_test_card_overrides_update_interval(
     match = re.search(r"epaper_display->set_update_interval\((\d+)\);", main_cpp)
     assert match is not None
     assert int(match.group(1)) != 4294967295
+
+
+def test_t133a01_code_generation(
+    generate_main: Callable[[str | Path], str],
+    component_config_path: Callable[[str], Path],
+) -> None:
+    """Both T133A01 models fill in the resolution and invert the active low busy pin."""
+    main_cpp = generate_main(component_config_path("t133a01_test.yaml"))
+
+    assert re.search(
+        r'"SEEED-RETERMINAL-E1004",\s*1200,\s*1600,\s*\w+,\s*75\)', main_cpp
+    )
+    assert re.search(r'"13.3IN-SPECTRA-E6",\s*1200,\s*1600,\s*\w+,\s*70\)', main_cpp)
+    # Each controller drives half the rows: 0x61 with width 1200 and 800 gates
+    assert main_cpp.count("97, 4, 4, 176, 3, 32") == 2
+    assert re.search(r"set_pin\(::GPIO_NUM_4\);\s*\w+->set_inverted\(true\);", main_cpp)
+
+
+@pytest.mark.parametrize(
+    ("busy_pin", "inverted"),
+    [
+        (4, True),
+        ({"number": 4}, True),
+        ({"number": 4, "inverted": False}, False),
+    ],
+)
+def test_t133a01_busy_pin_inverted_by_default(
+    busy_pin: Any,
+    inverted: bool,
+    set_core_config: SetCoreConfigCallable,
+    set_component_config: Callable[[str, Any], None],
+) -> None:
+    """The busy pin is inverted unless the config sets inverted itself."""
+    set_core_config(
+        PlatformFramework.ESP32_IDF,
+        platform_data={KEY_BOARD: "esp32dev", KEY_VARIANT: VARIANT_ESP32},
+    )
+    set_component_config("spi", {"id": "spi_bus", "clk_pin": 18, "mosi_pin": 19})
+
+    result = run_schema_validation(
+        {
+            "id": "test_display",
+            "model": "13.3in-spectra-e6",
+            "cs_pin": 5,
+            "cs1_pin": 21,
+            "busy_pin": busy_pin,
+        }
+    )
+    assert result[CONF_BUSY_PIN]["inverted"] is inverted
+
+
+def test_t133a01_needs_cs_pin(
+    set_core_config: SetCoreConfigCallable,
+    set_component_config: Callable[[str, Any], None],
+) -> None:
+    """The driver drives CS itself, so a model without a default needs cs_pin."""
+    set_core_config(
+        PlatformFramework.ESP32_IDF,
+        platform_data={KEY_BOARD: "esp32dev", KEY_VARIANT: VARIANT_ESP32},
+    )
+    set_component_config("spi", {"id": "spi_bus", "clk_pin": 18, "mosi_pin": 19})
+
+    with pytest.raises(cv.Invalid, match="cs_pin"):
+        run_schema_validation(
+            {"id": "test_display", "model": "13.3in-spectra-e6", "cs1_pin": 21}
+        )
+
+
+@pytest.mark.parametrize(
+    ("width", "match"),
+    [
+        (1202, "multiple of 4"),
+        (1604, "at most 1600"),
+    ],
+)
+def test_t133a01_rejects_unsupported_width(
+    width: int,
+    match: str,
+    set_core_config: SetCoreConfigCallable,
+    set_component_config: Callable[[str, Any], None],
+) -> None:
+    """The row buffer holds a quarter of the width in bytes, up to 1600 pixels."""
+    set_core_config(
+        PlatformFramework.ESP32_IDF,
+        platform_data={KEY_BOARD: "esp32dev", KEY_VARIANT: VARIANT_ESP32},
+    )
+    set_component_config("spi", {"id": "spi_bus", "clk_pin": 18, "mosi_pin": 19})
+
+    with pytest.raises(cv.Invalid, match=match):
+        run_schema_validation(
+            {
+                "id": "test_display",
+                "model": "13.3in-spectra-e6",
+                "cs_pin": 5,
+                "cs1_pin": 21,
+                "dimensions": {"width": width, "height": 1600},
+            }
+        )

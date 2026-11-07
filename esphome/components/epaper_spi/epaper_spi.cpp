@@ -75,8 +75,10 @@ void EPaperBase::setup_pins_() const {
     pin->setup();
     pin->digital_write(true);
   }
-  this->dc_pin_->setup();  // OUTPUT
-  this->dc_pin_->digital_write(false);
+  if (this->dc_pin_ != nullptr) {
+    this->dc_pin_->setup();  // OUTPUT
+    this->dc_pin_->digital_write(false);
+  }
 
   if (this->reset_pin_ != nullptr) {
     this->reset_pin_->setup();  // OUTPUT
