@@ -42,8 +42,15 @@ unsigned long __wrap_millis(void) {  // NOLINT(readability-identifier-naming)
 }
 
 void __wrap_delay(uint32_t ms) {  // NOLINT(readability-identifier-naming)
-  // A tick is 1/1024 s: wait enough whole ticks to cover ms
-  vTaskDelay((TickType_t) (((uint64_t) ms * 1024 + 999) / 1000));
+  if (ms == 0) {
+    vTaskDelay(0);
+    return;
+  }
+  // vTaskDelay() counts the tick already under way, so sleep to a deadline on the timer and again if woken early;
+  // a tick is 32 timer counts
+  const uint64_t deadline = timer_ticks() + ((uint64_t) ms * 32768 + 999) / 1000;
+  for (uint64_t now = timer_ticks(); now < deadline; now = timer_ticks())
+    vTaskDelay((TickType_t) ((deadline - now + 31) / 32));
 }
 
 void __wrap_delayMicroseconds(unsigned int us) {  // NOLINT(readability-identifier-naming)
