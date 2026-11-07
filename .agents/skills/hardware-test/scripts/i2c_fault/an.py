@@ -8,7 +8,12 @@ import sys
 def main() -> int:
     phases: list[tuple[str, dict[str, int]]] = []
     cur, c = "boot", {}
-    fired = (0, 0)
+    # fired totals at the start of the current phase and the latest seen; PHASE lines carry the totals so far
+    start = fired = (0, 0)
+
+    def close(totals: tuple[int, int]) -> None:
+        c["fired_a"], c["fired_b"] = (n - s for n, s in zip(totals, start, strict=True))
+        phases.append((cur, c))
 
     def bump(k: str) -> None:
         c[k] = c.get(k, 0) + 1
@@ -18,8 +23,11 @@ def main() -> int:
         .read_text(encoding="utf-8", errors="replace")
         .splitlines()
     ):
-        if m := re.search(r"PHASE (\w+)", line):
-            phases.append((cur, c))
+        if m := re.search(r"PHASE (\w+)(?: fired a=(\d+) b=(\d+))?", line):
+            if m.group(2) is not None:
+                fired = (int(m.group(2)), int(m.group(3)))
+            close(fired)
+            start = fired
             cur, c = m.group(1), {}
             continue
         if m := re.search(r"READ (\S+)", line):
@@ -36,7 +44,7 @@ def main() -> int:
             bump("boot")
         if re.search(r"CRASH|Guru", line):
             bump("crash")
-    phases.append((cur, c))
+    close(fired)
     for i, (p, counts) in enumerate(phases):
         print(i, p, counts)
     print(f"fired a={fired[0]} b={fired[1]}")
@@ -47,7 +55,7 @@ def main() -> int:
         )
         return 1
     # quiet phases after a fault phase must read at least half as often as the first quiet phase, nothing may crash
-    # or reboot, and both faults must fire
+    # or reboot, and each fault must fire in its own phase and nowhere else
     bad = [p for p, counts in phases if counts.get("crash")]
     base_ok = phases[1][1].get("ok", 0)
     if not base_ok:
@@ -90,7 +98,13 @@ def main() -> int:
             or not counts.get("probe_ok")
         )
     ]
-    bad += [f"fault {k} never fired" for k, n in zip("AB", fired, strict=True) if not n]
+    for i, (p, counts) in enumerate(phases):
+        for k in "ab":
+            n = counts.get(f"fired_{k}", 0)
+            if p == f"fault{k.upper()}" and not n:
+                bad.append(f"fault {k.upper()} never fired in its phase {i}")
+            elif p != f"fault{k.upper()}" and n:
+                bad.append(f"fault {k.upper()} fired {n} times in {p} {i}")
     if bad:
         print(f"FAIL: {bad}")
         return 1

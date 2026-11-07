@@ -99,8 +99,9 @@ channel). The DUT is captured with `--ms` so the log can be split at the last fa
 window, the DUT logged a CRC, held low, busy timeout or no response line in it, a temperature is wrong, a phase other
 than `dead` logged `recovery failed`, `DS248x hub failed` or a component marked failed, a ds248x warning is still
 set at the end of the phase, the DUT capture
-failed (stderr in `TAG-<phase>.err`), a fault never moved its injection counter (counted when the DUT meets the
-fault, not when it is armed), a NACK fault never moved `nacked`, a write delivered data while a NACK was armed
+failed (stderr in `TAG-<phase>.err`), a fault moved its injection counter (counted when the DUT meets the
+fault, not when it is armed) by other than the number of faults sent (`arm_lost` counts arms that landed while one
+of the same fault was still pending and merged into it), a NACK fault never moved `nacked`, a write delivered data while a NACK was armed
 (`nack_miss`, the NACK never reached the wire and stays pending), the DUT sent an address-only write (`empty_wr`), a write was cut off by a repeated start into another write and
 never processed (`dropped`),
 a fault is still pending (`pend=1`) at the end of the
@@ -128,12 +129,13 @@ phase CRC, held low, busy timeout and no response counts are printed for informa
 arms the faults. `vlpf.yaml` runs a VL53L0X on an ESP32-S3 (GPIO8/GPIO9) through quiet, fault A (the next
 measurement-in-progress read fails), quiet, fault B (the next measurement start fails) and quiet phases over 150 s,
 with a model ID probe every 10 s to tell a driver stall from a dead chip. `run.sh LABEL` builds, flashes, captures
-and runs `an.py`, which counts readings per `PHASE` line. It fails when the phases are not quiet, faultA, quiet,
+and runs `an.py`, which counts readings per `PHASE` line. Each `PHASE` line clears a fault that was armed and has
+not fired yet and logs the fired totals so far, so `an.py` counts the fires of each phase. It fails when the phases are not quiet, faultA, quiet,
 faultB, quiet (a short capture or a restart), the first quiet phase has no readings, a later quiet phase reads less
 than half as often as the first, a later quiet phase reads NaN or logs the driver's "update called before prior
 reading" warning when the first did not (a target out of range reads NaN in every phase), a quiet phase has a failed
 model ID probe, one that did not return 0xEE or no successful probe at all,
-anything crashed or rebooted, or a fault never fired.
+anything crashed or rebooted, or a fault did not fire in its own phase or fired in another one.
 
 Prefer this to glitching the wire. Holding SDA low by rerouting the pin (`esp_rom_gpio_connect_out_signal` to
 `SIG_GPIO_OUT_IDX` and back to `I2CEXT0_SDA_OUT_IDX`) wedges the ESP-IDF controller, which then needs

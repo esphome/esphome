@@ -1,4 +1,5 @@
 # VL53L0X behind FaultBus (faultbus.h): an interval arms one NACK every 3 s in the faultA and faultB phases.
+# Each PHASE line clears any unfired arm and logs the fired totals so far, so an.py counts fires per phase.
 esphome:
   name: vlpf
   build_path: build-vlpf
@@ -38,7 +39,13 @@ interval:
           const char *ph = s < 20 ? "quiet" : s < 60 ? "faultA" : s < 80 ? "quiet" : s < 120 ? "faultB" : "quiet";
           static const char *last = "";
           if (strcmp(ph, last) != 0) {
-            ESP_LOGI("vlt", "PHASE %s", ph);
+            if (g_fb != nullptr) {
+              g_fb->arm_a = false;
+              g_fb->arm_b = false;
+              ESP_LOGI("vlt", "PHASE %s fired a=%u b=%u", ph, (unsigned) g_fb->fired_a, (unsigned) g_fb->fired_b);
+            } else {
+              ESP_LOGI("vlt", "PHASE %s", ph);
+            }
             last = ph;
           }
           if (g_fb == nullptr || s % 3 != 0)

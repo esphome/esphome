@@ -10,6 +10,7 @@
 // A NACKed write and an address-only write look the same at STOP (no data), so empty_wr counts address-only
 // writes outside a NACK window; dspd.yaml turns the bus scan off, so it stays 0 unless the DUT sends them.
 // dropped counts writes thrown away by a repeated start into another write before any read or STOP.
+// arm_lost counts arms merged into one of the same fault that the DUT had not met yet.
 #pragma once
 #include <Arduino.h>
 #include "hardware/i2c.h"
@@ -67,6 +68,7 @@ struct Cnt {
   uint32_t nack_miss;         // writes that ended with data while a NACK was armed, so the NACK never reached the wire
   uint32_t empty_wr;          // address-only writes while no NACK was armed
   uint32_t dropped;           // writes cut off by a repeated start into another write, never processed
+  uint32_t arm_lost;          // arms merged into a pending one of the same fault
 };
 static volatile Cnt cnt;
 static volatile uint8_t last_wrong_rom1 = 0, last_wrong_on = 0;
@@ -147,6 +149,8 @@ static void ow_write(uint8_t b) {
         spidx = 0;
         if (arm_z) {
           arm_z = false;
+          if (z_pending || nack_left)
+            cnt.arm_lost++;
           z_pending = true;
         }
       } else if (b == 0x4E) {
@@ -304,6 +308,8 @@ static void process(const uint8_t *b, uint8_t n) {
         rp = RP_CHANNEL;
         if (arm_c) {
           arm_c = false;
+          if (nack_left)
+            cnt.arm_lost++;
           nack_left = 1;
           nack_src = 'c';
           trn = 0;
@@ -468,18 +474,26 @@ inline void poll_serial() {
     int c = Serial.read();
     switch (c) {
       case 'c':
+        if (arm_c)
+          cnt.arm_lost++;
         arm_c = true;
         ESP_LOGI("sim", "ARM c");
         break;
       case 'z':
+        if (arm_z)
+          cnt.arm_lost++;
         arm_z = true;
         ESP_LOGI("sim", "ARM z");
         break;
       case 'b':
+        if (arm_b)
+          cnt.arm_lost++;
         arm_b = true;
         ESP_LOGI("sim", "ARM b");
         break;
       case 'k':
+        if (arm_k)
+          cnt.arm_lost++;
         arm_k = true;
         ESP_LOGI("sim", "ARM k");
         break;
@@ -513,15 +527,16 @@ inline void report() {
   }
   ESP_LOGI("sim",
            "CNT txn=%u drst=%u chsl=%u owreset=%u wbyte=%u rbyte=%u trip=%u match=%u wrong_ch=%u nacked=%u "
-           "nack_miss=%u empty_wr=%u dropped=%u cfgw=%u cfg_bad=%u bad_cmd=%u ops_no_apu=%u convert=%u readsp=%u "
+           "nack_miss=%u empty_wr=%u dropped=%u arm_lost=%u cfgw=%u cfg_bad=%u bad_cmd=%u ops_no_apu=%u convert=%u "
+           "readsp=%u "
            "inj_c=%u inj_z=%u inj_b=%u inj_k=%u tx_abrt=%u ch=%u cfg=%u dead=%d pend=%d",
            (unsigned) cnt.txn, (unsigned) cnt.drst, (unsigned) cnt.chsl, (unsigned) cnt.owreset, (unsigned) cnt.wbyte,
            (unsigned) cnt.rbyte, (unsigned) cnt.trip, (unsigned) cnt.match, (unsigned) cnt.wrong_ch,
            (unsigned) cnt.nacked, (unsigned) cnt.nack_miss, (unsigned) cnt.empty_wr, (unsigned) cnt.dropped,
-           (unsigned) cnt.cfg_writes, (unsigned) cnt.cfg_bad, (unsigned) cnt.bad_cmd, (unsigned) cnt.ops_no_apu,
-           (unsigned) cnt.convert, (unsigned) cnt.readsp, (unsigned) cnt.inject_c, (unsigned) cnt.inject_z,
-           (unsigned) cnt.inject_b, (unsigned) cnt.inject_k, (unsigned) cnt.tx_abrt, (unsigned) channel,
-           (unsigned) config, (int) dead, (int) pend);
+           (unsigned) cnt.arm_lost, (unsigned) cnt.cfg_writes, (unsigned) cnt.cfg_bad, (unsigned) cnt.bad_cmd,
+           (unsigned) cnt.ops_no_apu, (unsigned) cnt.convert, (unsigned) cnt.readsp, (unsigned) cnt.inject_c,
+           (unsigned) cnt.inject_z, (unsigned) cnt.inject_b, (unsigned) cnt.inject_k, (unsigned) cnt.tx_abrt,
+           (unsigned) channel, (unsigned) config, (int) dead, (int) pend);
 }
 
 }  // namespace sim

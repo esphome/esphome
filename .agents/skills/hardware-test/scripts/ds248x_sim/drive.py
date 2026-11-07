@@ -7,8 +7,9 @@ Exits 1 when the simulator never reports, the simulator port fails, the DUT capt
 fresh simulator report, a sensor got no correct reading after the last fault of the phase had SETTLE seconds to clear
 (the recovery window), the DUT logged a CRC, held low, busy timeout or no response line in the recovery window, any
 temperature is wrong, a phase other than dead logged a failed recovery, a failed hub or a component marked failed, a
-ds248x warning was still set at the end of a phase, a fault phase never moved its
-injection counter (counted when the DUT meets the fault) or, for a NACK fault, the nacked counter, a write delivered
+ds248x warning was still set at the end of a phase, a fault phase moved its injection counter (counted when the
+DUT meets the fault) by other than the number of faults sent (arm_lost counts arms merged into a pending one) or,
+for a NACK fault, never moved the nacked counter, a write delivered
 data while a NACK was armed (nack_miss), the DUT sent an address-only write (empty_wr, which would make
 nacked ambiguous), a write was cut off by a repeated start into another write and never processed
 (dropped), a fault is still pending at the end of a phase, the simulator counted a config write with a wrong complement (cfg_bad) or an unknown
@@ -45,6 +46,7 @@ COUNTERS = (
     "nack_miss",
     "empty_wr",
     "dropped",
+    "arm_lost",
     "drst",
     "ops_no_apu",
     "inj_c",
@@ -206,8 +208,12 @@ def phase(
         failed.append(f"{name} (ds248x warning still set at the end of the phase)")
     if wrong:
         failed.append(f"{name} ({len(wrong)} wrong temperatures)")
-    if (inj := INJECTED_BY.get(name)) and not delta[inj]:
-        failed.append(f"{name} ({inj} never moved, the fault was not injected)")
+    if (inj := INJECTED_BY.get(name)) and delta[inj] != (
+        sent := sum(c == inj[-1] for _, c in actions)
+    ):
+        failed.append(
+            f"{name} ({inj} moved {delta[inj]} for {sent} faults sent, arm_lost={delta['arm_lost']})"
+        )
     if name in NACK_PHASES and not delta["nacked"]:
         failed.append(f"{name} (nacked never moved, the DUT never got the NACK)")
     if name in DUT_SAW and not any(counts[k] for k in DUT_SAW[name]):

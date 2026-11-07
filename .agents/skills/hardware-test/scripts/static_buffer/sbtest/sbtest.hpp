@@ -29,8 +29,10 @@ class SBTest : public Component {
     for (size_t i = 0; i < this->nc_; i++)
       this->c_[i] = "x";
     this->seed_ = seed++;
-    ESP_LOGI("sbtest", "SBTEST setup zero=%d aligned=%d a=%p/%u b=%p/%u c=%p/%u", zero, aligned, this->a_,
-             (unsigned) this->na_, this->b_, (unsigned) this->nb_, this->c_, (unsigned) this->nc_);
+    this->setup_ok_ = zero && aligned;
+    ESP_LOGI("sbtest", "SBTEST setup zero=%d aligned=%d a=%p/%u b=%p/%u c=%p/%u %s", zero, aligned, this->a_,
+             (unsigned) this->na_, this->b_, (unsigned) this->nb_, this->c_, (unsigned) this->nc_,
+             this->setup_ok_ ? "PASS" : "FAIL");
   }
   void dump_config() override {
     bool ok = true;
@@ -40,7 +42,8 @@ class SBTest : public Component {
       ok &= this->b_[i] == (0xA5000000u | this->seed_);
     for (size_t i = 0; i < this->nc_; i++)
       ok &= this->c_[i] != nullptr && this->c_[i][0] == 'x';
-    ESP_LOGI("sbtest", "SBTEST intact=%d seed=0x%02X", ok, this->seed_);
+    ESP_LOGI("sbtest", "SBTEST intact=%d setup_ok=%d seed=0x%02X %s", ok, this->setup_ok_, this->seed_,
+             ok && this->setup_ok_ ? "PASS" : "FAIL");
   }
 
  protected:
@@ -51,6 +54,7 @@ class SBTest : public Component {
   const char **c_;
   size_t nc_;
   uint8_t seed_{0};
+  bool setup_ok_{false};
 };
 
 }  // namespace esphome::sbtest
