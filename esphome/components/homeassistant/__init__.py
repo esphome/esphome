@@ -6,7 +6,7 @@ import esphome.config_validation as cv
 from esphome.const import CONF_ATTRIBUTE, CONF_ENTITY_ID, CONF_ID, CONF_INTERNAL
 from esphome.core import CORE, coroutine_with_priority
 from esphome.coroutine import CoroPriority
-from esphome.cpp_generator import MockObj
+from esphome.cpp_generator import Expression, MockObj
 import esphome.final_validate as fv
 from esphome.types import ConfigType
 
@@ -81,11 +81,19 @@ async def _emit_state_subscription_count_define() -> None:
         cg.add_define("HOMEASSISTANT_STATE_SUBSCRIPTION_COUNT", count)
 
 
+def home_assistant_entity_id(config: ConfigType) -> Expression:
+    """The entity ID as a C string: a literal, or the API's buffer for a wizard input."""
+    from esphome.components.api import wizard
+
+    if (buffer := wizard.wizard_input_buffer(config[CONF_ID])) is not None:
+        return buffer
+    return cg.safe_exp(config[CONF_ENTITY_ID])
+
+
 def setup_home_assistant_entity(
     var: MockObj, config: ConfigType, state_subscription_count: int = 1
 ) -> None:
-    # A wizard input has no entity_id; the api wizard sets it
-    cg.add_optional(var.set_entity_id, config.get(CONF_ENTITY_ID))
+    cg.add(var.set_entity_id(home_assistant_entity_id(config)))
     cg.add_optional(var.set_attribute, config.get(CONF_ATTRIBUTE))
     cg.add_define("USE_API_HOMEASSISTANT_STATES")
     if state_subscription_count > 0:
