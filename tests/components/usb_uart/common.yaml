@@ -86,3 +86,18 @@ usb_uart:
     product: ZWA-2
     channels:
       - id: channel_10_1
+  # A HUSBZB-1: one CP2105 whose two ports are told apart by their interface strings
+  - id: uart_11
+    type: cp210x
+    pid: 0x8A2A
+    interface_description: HubZ Z-Wave Com Port
+    channels:
+      - id: channel_11_1
+        baud_rate: 115200
+  - id: uart_12
+    type: cp210x
+    pid: 0x8A2A
+    interface_description: HubZ ZigBee Com Port
+    channels:
+      - id: channel_12_1
+        baud_rate: 57600

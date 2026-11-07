@@ -202,30 +202,32 @@ bool USBUartTypeCP210X::config_step(USBUartChannelBase *channel, uint8_t step, b
       step++;
     }
   }
+  // Requests name the port by its interface number
+  const uint8_t intf = channel->cdc_dev_.bulk_interface_number;
   switch (step) {
     case 0:
-      this->config_transfer_(USB_VENDOR_IFC | usb_host::USB_DIR_OUT, IFC_ENABLE, 1, channel->index_);
+      this->config_transfer_(USB_VENDOR_IFC | usb_host::USB_DIR_OUT, IFC_ENABLE, 1, intf);
       return true;
     case 1: {
       uint16_t line_control = static_cast<uint8_t>(channel->line_stop_bits_());
       line_control |= static_cast<uint8_t>(channel->line_parity_()) << 4;
       line_control |= channel->data_bits_ << 8;
       ESP_LOGD(TAG, "Line control value 0x%X", line_control);
-      this->config_transfer_(USB_VENDOR_IFC | usb_host::USB_DIR_OUT, SET_LINE_CTL, line_control, channel->index_);
+      this->config_transfer_(USB_VENDOR_IFC | usb_host::USB_DIR_OUT, SET_LINE_CTL, line_control, intf);
       return true;
     }
     case 2: {
       auto baud = ByteBuffer::wrap(channel->baud_rate_, LITTLE);
-      this->config_transfer_(USB_VENDOR_IFC | usb_host::USB_DIR_OUT, SET_BAUDRATE, 0, channel->index_, baud.get_data());
+      this->config_transfer_(USB_VENDOR_IFC | usb_host::USB_DIR_OUT, SET_BAUDRATE, 0, intf, baud.get_data());
       return true;
     }
     case 3:
-      this->config_transfer_(USB_VENDOR_IFC | usb_host::USB_DIR_OUT, SET_CHARS, 0, channel->index_,
+      this->config_transfer_(USB_VENDOR_IFC | usb_host::USB_DIR_OUT, SET_CHARS, 0, intf,
                              std::vector<uint8_t>(std::begin(SPECIAL_CHARS), std::end(SPECIAL_CHARS)));
       return true;
     case 4: {
       // Read into the channel's cached block, which the next step edits and writes back
-      this->config_transfer_(USB_VENDOR_IFC | usb_host::USB_DIR_IN, GET_FLOW, 0, channel->index_,
+      this->config_transfer_(USB_VENDOR_IFC | usb_host::USB_DIR_IN, GET_FLOW, 0, intf,
                              std::vector<uint8_t>(sizeof(CP210xFlowBlock)),
                              reinterpret_cast<uint8_t *>(&this->flow_blocks_[channel->index_]));
       return true;
@@ -269,7 +271,8 @@ void USBUartTypeCP210X::modem_control_transfer(USBUartChannelBase *channel) {
   const uint16_t value =
       CONTROL_WRITE_DTR | CONTROL_WRITE_RTS | (channel->dtr_ ? CONTROL_DTR : 0) | (channel->rts_ ? CONTROL_RTS : 0);
   ESP_LOGD(TAG, "SET_MHS: DTR=%s RTS=%s", ONOFF(channel->dtr_), ONOFF(channel->rts_));
-  this->config_transfer_(USB_VENDOR_IFC | usb_host::USB_DIR_OUT, SET_MHS, value, channel->index_);
+  this->config_transfer_(USB_VENDOR_IFC | usb_host::USB_DIR_OUT, SET_MHS, value,
+                         channel->cdc_dev_.bulk_interface_number);
 }
 
 void USBUartTypeCP210X::set_flow_transfer_(USBUartChannelBase *channel) {
@@ -277,7 +280,7 @@ void USBUartTypeCP210X::set_flow_transfer_(USBUartChannelBase *channel) {
   ESP_LOGD(TAG, "SET_FLOW: control handshake 0x%02" PRIX32 ", flow replace 0x%02" PRIX32, block.control_handshake,
            block.flow_replace);
   const auto *bytes = reinterpret_cast<const uint8_t *>(&block);
-  this->config_transfer_(USB_VENDOR_IFC | usb_host::USB_DIR_OUT, SET_FLOW, 0, channel->index_,
+  this->config_transfer_(USB_VENDOR_IFC | usb_host::USB_DIR_OUT, SET_FLOW, 0, channel->cdc_dev_.bulk_interface_number,
                          std::vector<uint8_t>(bytes, bytes + sizeof(block)));
 }
 }  // namespace esphome::usb_uart

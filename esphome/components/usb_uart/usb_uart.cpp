@@ -43,12 +43,14 @@ static optional<CdcEps> get_cdc(const usb_config_desc_t *config_desc, uint8_t in
         eps.interrupt_interface_number = intf_desc->bInterfaceNumber;
         eps.interrupt_interface_class = intf_desc->bInterfaceClass;
       } else if (ep->bmAttributes == USB_BM_ATTRIBUTES_XFER_BULK && ep->bEndpointAddress & usb_host::USB_DIR_IN &&
-                 (eps.bulk_interface_number == 0xFF || eps.bulk_interface_number == intf_desc->bInterfaceNumber)) {
+                 (eps.bulk_interface_number == usb_host::NO_INTERFACE ||
+                  eps.bulk_interface_number == intf_desc->bInterfaceNumber)) {
         eps.in_ep = ep;
         eps.bulk_interface_number = intf_desc->bInterfaceNumber;
         eps.bulk_interface_class = intf_desc->bInterfaceClass;
       } else if (ep->bmAttributes == USB_BM_ATTRIBUTES_XFER_BULK && !(ep->bEndpointAddress & usb_host::USB_DIR_IN) &&
-                 (eps.bulk_interface_number == 0xFF || eps.bulk_interface_number == intf_desc->bInterfaceNumber)) {
+                 (eps.bulk_interface_number == usb_host::NO_INTERFACE ||
+                  eps.bulk_interface_number == intf_desc->bInterfaceNumber)) {
         eps.out_ep = ep;
         eps.bulk_interface_number = intf_desc->bInterfaceNumber;
         eps.bulk_interface_class = intf_desc->bInterfaceClass;
@@ -382,6 +384,22 @@ void USBUartTypeCdcAcm::on_connected() {
     return;
   }
   ESP_LOGD(TAG, "Found %zu CDC-ACM devices", cdc_devs.size());
+  // Numbered before the filter drops any: a driver may address a port by its place on the chip
+  for (size_t port = 0; port != cdc_devs.size(); port++)
+    cdc_devs[port].device_port = port;
+  if (this->interface_filter_ != nullptr) {
+    // Bind only the port whose interface carries the filter's string
+    std::erase_if(cdc_devs, [this](const CdcEps &eps) {
+      return eps.bulk_interface_number != this->matched_interface_ &&
+             eps.interrupt_interface_number != this->matched_interface_;
+    });
+    if (cdc_devs.empty()) {
+      ESP_LOGE(TAG, "Interface %u matches the filter but is not a serial port", this->matched_interface_);
+      this->status_set_error(LOG_STR("Filtered interface is not a serial port"));
+      this->disconnect();
+      return;
+    }
+  }
   size_t i = 0;
   for (auto *channel : this->channels_) {
     if (i == cdc_devs.size()) {
@@ -395,7 +413,7 @@ void USBUartTypeCdcAcm::on_connected() {
     // Claim the communication (interrupt) interface so CDC class requests are accepted
     // by the device. Some CDC ACM implementations (e.g. EFR32 NCP) require this before
     // they enable data flow on the bulk endpoints.
-    if (channel->cdc_dev_.interrupt_interface_number != 0xFF &&
+    if (channel->cdc_dev_.interrupt_interface_number != usb_host::NO_INTERFACE &&
         channel->cdc_dev_.interrupt_interface_number != channel->cdc_dev_.bulk_interface_number) {
       if (!this->claim_comm_interface_) {
         ESP_LOGD(TAG, "Comm interface %d left unclaimed", channel->cdc_dev_.interrupt_interface_number);
