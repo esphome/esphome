@@ -722,6 +722,9 @@
 #define USE_UDP_OMR_SOURCE
 #define USE_ZIGBEE
 #endif
+#if defined(USE_ESP32_VARIANT_ESP32)
+#define USE_I2C_ISR_GUARD
+#endif
 #if defined(USE_ESP32_VARIANT_ESP32S3)
 // Border router with a UART RCP; a native-radio border router (C5/C6) adds only the coexistence call
 #define USE_OPENTHREAD
