@@ -1,0 +1,25 @@
+esphome:
+  name: tcp-uart-connections
+
+host:
+
+api:
+
+logger:
+  level: INFO
+
+tcp_uart:
+  - id: shared_bus
+    role: server
+    port: 18128
+    max_connections: 2
+    turn_timeout: 100ms
+
+interval:
+  - interval: 20ms
+    then:
+      - lambda: |-
+          uint8_t b;
+          while (id(shared_bus).read_byte(&b)) {
+            id(shared_bus).write_byte(b);
+          }
