@@ -12,9 +12,8 @@
 
 #ifdef USE_I2C_ISR_GUARD
 #include <esp_intr_alloc.h>
-#include <hal/i2c_ll.h>
-#include <soc/i2c_periph.h>
-#if SOC_I2C_SUPPORT_HW_FSM_RST
+#include <hal/i2c_ll.h>  // also brings i2c_periph_signal, from soc/ on IDF 5 and hal/ on IDF 6
+#if SOC_I2C_SUPPORT_HW_FSM_RST || I2C_LL_SUPPORT_HW_FSM_RST
 #error "This chip has an I2C FSM reset; remove NO_FSM_RST for it in i2c/__init__.py"
 #endif
 
@@ -37,15 +36,12 @@ static void IRAM_ATTR i2c_isr_guard(void *arg) {
     i2c_ll_disable_intr_mask(guard->dev, I2C_LL_MASTER_EVENT_INTR);
 }
 
-static void install_isr_guard(int source, intr_handler_t &handler, void *&arg) {
+static int i2c_port_for_source(int source) {
   for (int port = 0; port < SOC_HP_I2C_NUM; port++) {
-    if (source == i2c_periph_signal[port].irq) {
-      i2c_isr_guards[port] = {handler, arg, I2C_LL_GET_HW(port)};
-      handler = i2c_isr_guard;
-      arg = &i2c_isr_guards[port];
-      return;
-    }
+    if (source == i2c_periph_signal[port].irq)
+      return port;
   }
+  return -1;
 }
 }  // namespace esphome::i2c
 
@@ -56,8 +52,17 @@ esp_err_t __real_esp_intr_alloc_intrstatus(int source, int flags, uint32_t reg, 
 
 esp_err_t __wrap_esp_intr_alloc_intrstatus(int source, int flags, uint32_t reg, uint32_t mask, intr_handler_t handler,
                                            void *arg, intr_handle_t *ret_handle) {
-  esphome::i2c::install_isr_guard(source, handler, arg);
-  return __real_esp_intr_alloc_intrstatus(source, flags, reg, mask, handler, arg, ret_handle);
+  int port = esphome::i2c::i2c_port_for_source(source);
+  if (port < 0)
+    return __real_esp_intr_alloc_intrstatus(source, flags, reg, mask, handler, arg, ret_handle);
+  auto &guard = esphome::i2c::i2c_isr_guards[port];
+  auto previous = guard;
+  guard = {handler, arg, I2C_LL_GET_HW(port)};
+  esp_err_t err =
+      __real_esp_intr_alloc_intrstatus(source, flags, reg, mask, esphome::i2c::i2c_isr_guard, &guard, ret_handle);
+  if (err != ESP_OK)
+    guard = previous;  // a failed allocation leaves the live guard alone
+  return err;
 }
 }  // extern "C"
 // NOLINTEND(bugprone-reserved-identifier,cert-dcl37-c,cert-dcl51-cpp,readability-identifier-naming)
