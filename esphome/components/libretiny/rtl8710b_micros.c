@@ -45,8 +45,11 @@ void __wrap_delay(uint32_t ms) {  // NOLINT(readability-identifier-naming)
   }
   // vTaskDelay() counts the partial tick, so sleep to a deadline; +1 covers the elapsed part of the current count
   const uint64_t deadline = timer_ticks() + ((uint64_t) ms * 32768 + 999) / 1000 + 1;
-  for (uint64_t now = timer_ticks(); now < deadline; now = timer_ticks())
-    vTaskDelay((TickType_t) ((deadline - now + 31) / 32));
+  // Sleeps are capped at 1024 s so a delay longer than the 36.4 hour timer wrap still sees every wrap
+  for (uint64_t now = timer_ticks(); now < deadline; now = timer_ticks()) {
+    const uint64_t ticks = (deadline - now + 31) / 32;
+    vTaskDelay((TickType_t) (ticks < 0x100000 ? ticks : 0x100000));
+  }
 }
 
 RTL8710B_RAM_TEXT void __wrap_delayMicroseconds(unsigned int us) {  // NOLINT(readability-identifier-naming)
