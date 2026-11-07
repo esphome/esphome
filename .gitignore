@@ -154,5 +154,3 @@ sdkconfig.*
 /dependencies.lock
 
 api-docs/
-
-configs/
