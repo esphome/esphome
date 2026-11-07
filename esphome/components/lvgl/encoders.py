@@ -1,5 +1,6 @@
 import esphome.codegen as cg
 from esphome.components.binary_sensor import BinarySensor
+from esphome.components.rotary_encoder import DOMAIN as ROTARY_ENCODER_DOMAIN
 from esphome.components.rotary_encoder.sensor import RotaryEncoderSensor
 import esphome.config_validation as cv
 from esphome.const import CONF_GROUP, CONF_ID, CONF_SENSOR
@@ -27,7 +28,7 @@ ENCODERS_CONFIG = cv.ensure_list(
             cv.Required(CONF_SENSOR): cv.Any(
                 cv.All(
                     cv.use_id(RotaryEncoderSensor),
-                    cv.requires_component("rotary_encoder"),
+                    cv.requires_component(ROTARY_ENCODER_DOMAIN),
                 ),
                 cv.Schema(
                     {

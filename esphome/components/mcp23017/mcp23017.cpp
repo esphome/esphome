@@ -3,17 +3,15 @@
 
 namespace esphome::mcp23017 {
 
-static const char *const TAG = "mcp23017";
+ESPHOME_LOG_TAG(TAG, "mcp23017");
 
 static constexpr uint8_t IOCON_MIRROR = 0x40;  // Mirror INTA/INTB pins
 static constexpr uint8_t IOCON_ODR = 0x04;     // Open-drain output for INT pin
 
 void MCP23017::setup() {
   uint8_t iocon;
-  if (!this->read_reg(mcp23x17_base::MCP23X17_IOCONA, &iocon)) {
-    this->mark_failed();
+  if (!this->setup_check(this->read_reg(mcp23x17_base::MCP23X17_IOCONA, &iocon)))
     return;
-  }
 
   // Read current output register state
   this->read_reg(mcp23x17_base::MCP23X17_OLATA, &this->olat_a_);

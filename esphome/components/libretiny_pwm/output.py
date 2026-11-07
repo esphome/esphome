@@ -1,27 +1,28 @@
 from esphome import automation, pins
 import esphome.codegen as cg
-from esphome.components import output
+from esphome.components import libretiny, output
+from esphome.components.libretiny.const import FAMILY_LN882H
 import esphome.config_validation as cv
 from esphome.const import CONF_FREQUENCY, CONF_ID, CONF_PIN
-from esphome.core import ID
-from esphome.cpp_generator import MockObj, TemplateArgsType
 from esphome.types import ConfigType
 
 DEPENDENCIES = ["libretiny"]
 
 libretinypwm_ns = cg.esphome_ns.namespace("libretiny_pwm")
 LibreTinyPWM = libretinypwm_ns.class_("LibreTinyPWM", output.FloatOutput, cg.Component)
-SetFrequencyAction = libretinypwm_ns.class_("SetFrequencyAction", automation.Action)
 
-CONFIG_SCHEMA = output.FLOAT_OUTPUT_SCHEMA.extend(
-    {
-        cv.Required(CONF_ID): cv.declare_id(LibreTinyPWM),
-        cv.Required(CONF_PIN): pins.internal_gpio_output_pin_schema,
-        cv.Optional(CONF_FREQUENCY, default="1kHz"): cv.All(
-            cv.frequency, cv.float_range(min=0, min_included=False)
-        ),
-    }
-).extend(cv.COMPONENT_SCHEMA)
+validate_frequency = cv.All(cv.frequency, cv.float_range(min=0, min_included=False))
+
+CONFIG_SCHEMA = cv.All(
+    libretiny.only_on_family(unsupported=FAMILY_LN882H),
+    output.FLOAT_OUTPUT_SCHEMA.extend(
+        {
+            cv.Required(CONF_ID): cv.declare_id(LibreTinyPWM),
+            cv.Required(CONF_PIN): pins.internal_gpio_output_pin_schema,
+            cv.Optional(CONF_FREQUENCY, default="1kHz"): validate_frequency,
+        }
+    ).extend(cv.COMPONENT_SCHEMA),
+)
 
 
 async def to_code(config: ConfigType) -> None:
@@ -32,25 +33,13 @@ async def to_code(config: ConfigType) -> None:
     cg.add(var.set_frequency(config[CONF_FREQUENCY]))
 
 
-@automation.register_action(
+automation.register_apply_action(
     "output.libretiny_pwm.set_frequency",
-    SetFrequencyAction,
     cv.Schema(
         {
             cv.Required(CONF_ID): cv.use_id(LibreTinyPWM),
-            cv.Required(CONF_FREQUENCY): cv.templatable(cv.int_),
+            cv.Required(CONF_FREQUENCY): cv.templatable(validate_frequency),
         }
     ),
-    synchronous=True,
+    automation.ApplyField(CONF_FREQUENCY, "update_frequency", cg.float_),
 )
-async def libretiny_pwm_set_frequency_to_code(
-    config: ConfigType,
-    action_id: ID,
-    template_arg: cg.TemplateArguments,
-    args: TemplateArgsType,
-) -> MockObj:
-    paren = await cg.get_variable(config[CONF_ID])
-    var = cg.new_Pvariable(action_id, template_arg, paren)
-    template_ = await cg.templatable(config[CONF_FREQUENCY], args, cg.float_)
-    cg.add(var.set_frequency(template_))
-    return var

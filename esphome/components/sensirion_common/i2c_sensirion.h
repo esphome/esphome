@@ -16,6 +16,9 @@ namespace esphome::sensirion_common {
  */
 static const uint8_t CRC_POLYNOMIAL = 0x31;  // default for Sensirion
 
+/// When reading a register and the device reports NACK because the value is not ready yet, don't log it as an error.
+static constexpr uint8_t SENSIRION_OPTION_READ_MAY_NACK = 1u << 0;
+
 class SensirionI2CDevice : public i2c::I2CDevice {
  public:
   enum CommandLen : uint8_t { ADDR_8_BIT = 1, ADDR_16_BIT = 2 };
@@ -139,9 +142,11 @@ class SensirionI2CDevice : public i2c::I2CDevice {
    * @param data pointer to raw result
    * @param len number of words to read
    * @param delay milliseconds to to wait between sending the I2C command and reading the result
+   * @param sensirion_options options for the request
    * @return true if reading succeeded
    */
-  bool get_register_(uint16_t reg, CommandLen command_len, uint16_t *data, uint8_t len, uint8_t delay);
+  bool get_register_(uint16_t reg, CommandLen command_len, uint16_t *data, uint8_t len, uint8_t delay,
+                     uint8_t sensirion_options = 0);
 
   /** last error code from I2C operation
    */

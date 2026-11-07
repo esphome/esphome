@@ -5,7 +5,7 @@
 
 namespace esphome::tuya {
 
-static const char *const TAG = "tuya.number";
+ESPHOME_LOG_TAG(TAG, "tuya.number");
 
 void TuyaNumber::setup() {
   if (this->restore_value_) {

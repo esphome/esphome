@@ -5,7 +5,7 @@
 
 namespace esphome::sm2135 {
 
-static const char *const TAG = "sm2135";
+ESPHOME_LOG_TAG(TAG, "sm2135");
 
 static const uint8_t SM2135_ADDR_MC = 0xC0;  // Max current register
 static const uint8_t SM2135_ADDR_CH = 0xC1;  // RGB or CW channel select register
@@ -98,9 +98,10 @@ void SM2135::loop() {
   this->write_byte_(current_mask_);
 
   if (this->separate_modes_) {
-    if (this->update_channel_ == 3 || this->update_channel_ == 4) {
-      // No color so must be Cold/Warm
-
+    const bool color_on = this->pwm_amounts_[0] || this->pwm_amounts_[1] || this->pwm_amounts_[2];
+    const bool white_on = this->pwm_amounts_[3] || this->pwm_amounts_[4];
+    // Both groups only hold a value without color_interlock; the last updated channel then decides
+    if (!color_on || (white_on && this->update_channel_ >= 3)) {
       this->write_byte_(SM2135_CW);
       this->sm2135_stop_();
       delay(1);
@@ -109,8 +110,6 @@ void SM2135::loop() {
       this->write_byte_(this->pwm_amounts_[3]);
       this->write_byte_(this->pwm_amounts_[4]);
     } else {
-      // Color
-
       this->write_byte_(SM2135_RGB);
       this->write_byte_(this->pwm_amounts_[0]);
       this->write_byte_(this->pwm_amounts_[1]);
@@ -130,7 +129,8 @@ void SM2135::loop() {
   this->update_ = false;
 }
 
-void SM2135::set_channel_value_(uint8_t channel, uint8_t value) {
+void SM2135::write_channel(uint8_t channel, float state) {
+  auto value = static_cast<uint8_t>(state * 0xff);
   if (this->pwm_amounts_[channel] != value) {
     this->update_ = true;
     this->update_channel_ = channel;

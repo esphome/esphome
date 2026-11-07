@@ -110,7 +110,7 @@ class ST7789V final : public display::DisplayBuffer,
                       public spi::SPIDevice<spi::BIT_ORDER_MSB_FIRST, spi::CLOCK_POLARITY_LOW, spi::CLOCK_PHASE_LEADING,
                                             spi::DATA_RATE_20MHZ> {
  public:
-  void set_model_str(const char *model_str);
+  void set_model_str(const char *model_str) { this->model_str_ = model_str; }
   void set_dc_pin(GPIOPin *dc_pin) { this->dc_pin_ = dc_pin; }
   void set_reset_pin(GPIOPin *reset_pin) { this->reset_pin_ = reset_pin; }
   void set_backlight_pin(GPIOPin *backlight_pin) { this->backlight_pin_ = backlight_pin; }

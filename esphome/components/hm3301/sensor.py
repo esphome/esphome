@@ -2,10 +2,10 @@ import logging
 
 import esphome.codegen as cg
 from esphome.components import i2c, sensor
-from esphome.components.aqi import AQI_CALCULATION_TYPE, CONF_AQI, CONF_CALCULATION_TYPE
+from esphome.components.aqi import AQI_CALCULATION_TYPE, CONF_CALCULATION_TYPE
+from esphome.components.const import CONF_AQI
 import esphome.config_validation as cv
 from esphome.const import (
-    CONF_ID,
     CONF_PM_1_0,
     CONF_PM_2_5,
     CONF_PM_10_0,
@@ -88,21 +88,12 @@ CONFIG_SCHEMA = cv.All(
 
 
 async def to_code(config: ConfigType) -> None:
-    var = cg.new_Pvariable(config[CONF_ID])
-    await cg.register_component(var, config)
-    await i2c.register_i2c_device(var, config)
+    var = await i2c.new_i2c_component(config)
 
-    if CONF_PM_1_0 in config:
-        sens = await sensor.new_sensor(config[CONF_PM_1_0])
-        cg.add(var.set_pm_1_0_sensor(sens))
-
-    if CONF_PM_2_5 in config:
-        sens = await sensor.new_sensor(config[CONF_PM_2_5])
-        cg.add(var.set_pm_2_5_sensor(sens))
-
-    if CONF_PM_10_0 in config:
-        sens = await sensor.new_sensor(config[CONF_PM_10_0])
-        cg.add(var.set_pm_10_0_sensor(sens))
+    sensors = sensor.sub_sensors(config)
+    await sensors(CONF_PM_1_0, var.set_pm_1_0_sensor)
+    await sensors(CONF_PM_2_5, var.set_pm_2_5_sensor)
+    await sensors(CONF_PM_10_0, var.set_pm_10_0_sensor)
 
     # Remove before 2026.12.0
     if CONF_AQI in config:

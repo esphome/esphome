@@ -1,4 +1,9 @@
+import itertools
+import logging
+from typing import NamedTuple
+
 import esphome.codegen as cg
+from esphome.components.const import CONF_MANUFACTURER, CONF_MAX_PACKET_SIZE
 from esphome.components.esp32 import (
     VARIANT_ESP32H4,
     VARIANT_ESP32P4,
@@ -7,15 +12,21 @@ from esphome.components.esp32 import (
     VARIANT_ESP32S31,
     add_idf_component,
     add_idf_sdkconfig_option,
+    get_esp32_variant,
     idf_version,
     only_on_variant,
+    require_idf_version,
 )
 import esphome.config_validation as cv
-from esphome.const import CONF_DEVICES, CONF_ID
+from esphome.const import CONF_DEVICES, CONF_FRAMEWORK, CONF_ID
 from esphome.core import CORE
 from esphome.cpp_generator import MockObj
 from esphome.cpp_types import Component
+import esphome.final_validate as fv
+from esphome.helpers import cpp_u16string_escape
 from esphome.types import ConfigType
+
+_LOGGER = logging.getLogger(__name__)
 
 AUTO_LOAD = ["bytebuffer"]
 CODEOWNERS = ["@clydebarrow"]
@@ -26,9 +37,20 @@ USBClient = usb_host_ns.class_("USBClient", Component)
 DOMAIN = "usb_host"
 CONF_VID = "vid"
 CONF_PID = "pid"
+CONF_PRODUCT = "product"
+CONF_INTERFACE_DESCRIPTION = "interface_description"
 CONF_ENABLE_HUBS = "enable_hubs"
 CONF_MAX_TRANSFER_REQUESTS = "max_transfer_requests"
-CONF_MAX_PACKET_SIZE = "max_packet_size"
+
+
+# VID/PID set to 0 or `None` strings are wildcards
+_FILTER_WILDCARDS = {
+    CONF_VID: 0,
+    CONF_PID: 0,
+    CONF_MANUFACTURER: None,
+    CONF_PRODUCT: None,
+    CONF_INTERFACE_DESCRIPTION: None,
+}
 
 
 def usb_device_schema(
@@ -47,7 +69,185 @@ def usb_device_schema(
         schema = schema.extend({cv.Optional(CONF_PID, default=pid): cv.hex_uint16_t})
     else:
         schema = schema.extend({cv.Required(CONF_PID): cv.hex_uint16_t})
-    return schema
+
+    return schema.extend(
+        {
+            cv.Optional(CONF_MANUFACTURER): cv.string_strict,
+            cv.Optional(CONF_PRODUCT): cv.string_strict,
+            cv.Optional(CONF_INTERFACE_DESCRIPTION): cv.string_strict,
+        }
+    )
+
+
+def _clients_overlap(first: ConfigType, second: ConfigType) -> bool:
+    # Two entries overlap when no field they both constrain tells them apart
+    for key, wildcard in _FILTER_WILDCARDS.items():
+        a = first.get(key)
+        b = second.get(key)
+        if wildcard not in (a, b) and a != b:
+            return False
+    return True
+
+
+def validate_usb_clients(configs: list[ConfigType]) -> list[ConfigType]:
+    for first, second in itertools.combinations(configs, 2):
+        if _clients_overlap(first, second):
+            raise cv.Invalid(
+                f"USB configs overlap: {first[CONF_ID]}, {second[CONF_ID]}"
+            )
+    return configs
+
+
+def _final_validate(config: ConfigType) -> ConfigType:
+    # Any two overlapping clients could otherwise open the same device
+    devices = config.get(CONF_DEVICES) or []
+    uarts = fv.full_config.get().get("usb_uart") or []
+    validate_usb_clients(devices)
+    validate_usb_clients(uarts)
+    # Remove before 2027.10.0, then pool devices and uarts in one validate_usb_clients call
+    for device, uart in itertools.product(devices, uarts):
+        if not _clients_overlap(device, uart):
+            continue
+        # The device matches nothing the usb_uart entry does not already claim
+        redundant = all(
+            uart.get(key) in (wildcard, device.get(key))
+            for key, wildcard in _FILTER_WILDCARDS.items()
+        )
+        _LOGGER.warning(
+            "usb_host device '%s' matches the same USB device as usb_uart '%s'; %s. "
+            "This will be an error in 2027.10.0",
+            device[CONF_ID],
+            uart[CONF_ID],
+            "remove it from usb_host devices"
+            if redundant
+            else "narrow its filter so it no longer matches that device",
+        )
+    _reconcile_fifo()
+    return config
+
+
+FINAL_VALIDATE_SCHEMA = _final_validate
+
+
+class FifoGeometry(NamedTuple):
+    """FIFO lines of the USB host controller usb_host_install() picks on a variant."""
+
+    # Nominal depth ESP-IDF scales its splits by, picked from the PHY type: 256 on full-speed, 1024 on high-speed
+    depth: int
+    # GHWCFG3 depth: the lines left for RX, NPTX and PTX once EPINFO takes 4 per endpoint direction
+    usable: int
+    # Largest bulk OUT packet at the controller's speed; ESP-IDF rejects bulk endpoints larger than NPTX
+    bulk_mps: int
+
+    @property
+    def nptx(self) -> int:
+        """NPTX lines of a custom split: one bulk packet."""
+        return self.bulk_mps // FIFO_LINE_BYTES
+
+    @property
+    def ptx_min(self) -> int:
+        return self.depth // 8
+
+    @property
+    def rx_min(self) -> int:
+        return self.depth // 8 + FIFO_RX_STATUS_LINES
+
+    def bias_split(self, bias: str | None) -> tuple[int, int, int]:
+        """(RX, NPTX, PTX) lines ESP-IDF picks for a CONFIG_USB_HOST_HW_BUFFER_BIAS_* option."""
+        nptx = self.depth // 16
+        if bias == "CONFIG_USB_HOST_HW_BUFFER_BIAS_IN":
+            return self.usable - nptx - self.ptx_min, nptx, self.ptx_min
+        if bias == "CONFIG_USB_HOST_HW_BUFFER_BIAS_PERIODIC_OUT":
+            return self.rx_min, nptx, self.usable - nptx - self.rx_min
+        nptx = self.depth // 4
+        return self.usable - nptx - self.ptx_min, nptx, self.ptx_min
+
+
+FIFO_LINE_BYTES = 4
+FIFO_RX_STATUS_LINES = 2
+FIFO_BIAS_OPTIONS = (
+    "CONFIG_USB_HOST_HW_BUFFER_BIAS_IN",
+    "CONFIG_USB_HOST_HW_BUFFER_BIAS_PERIODIC_OUT",
+)
+# usb_host_install() takes the high-speed controller on the P4 and the only one elsewhere
+FIFO_GEOMETRY = {
+    # Full-speed: 256 lines, 7 endpoints
+    VARIANT_ESP32S2: FifoGeometry(depth=256, usable=200, bulk_mps=64),
+    VARIANT_ESP32S3: FifoGeometry(depth=256, usable=200, bulk_mps=64),
+    # High-speed: 1024 lines, 16 endpoints
+    VARIANT_ESP32P4: FifoGeometry(depth=1024, usable=896, bulk_mps=512),
+}
+# usb_host_config_t::fifo_settings_custom; USB host is not reliable on older releases
+FIFO_CUSTOM_MIN_IDF = cv.Version(5, 5, 0)
+KEY_PERIODIC_FIFO = "periodic_fifo"
+
+
+def request_periodic_fifo(in_bytes: int = 0, out_bytes: int = 0) -> None:
+    """Request FIFO space for the largest periodic IN/OUT packet. Call from CONFIG_SCHEMA validation."""
+    requested = CORE.data.setdefault(DOMAIN, {}).setdefault(KEY_PERIODIC_FIFO, [0, 0])
+    requested[0] = max(requested[0], in_bytes)
+    requested[1] = max(requested[1], out_bytes)
+
+
+def _fifo_lines(size: int) -> int:
+    return -(-size // FIFO_LINE_BYTES)
+
+
+def _bias_option() -> str | None:
+    framework = fv.full_config.get().get("esp32", {}).get(CONF_FRAMEWORK, {})
+    options = framework.get("sdkconfig_options", {})
+    return next((o for o in FIFO_BIAS_OPTIONS if options.get(o) in ("y", True)), None)
+
+
+def fifo_split() -> tuple[int, int, int] | None:
+    """(RX, NPTX, PTX) lines for the requests, or None when the default split fits them."""
+    requested = CORE.data.get(DOMAIN, {}).get(KEY_PERIODIC_FIFO)
+    if requested is None:
+        return None
+    if (geometry := FIFO_GEOMETRY.get(get_esp32_variant())) is None:
+        return None
+    in_bytes, out_bytes = requested
+    rx = _fifo_lines(in_bytes) + FIFO_RX_STATUS_LINES
+    ptx = _fifo_lines(out_bytes)
+    bias = _bias_option()
+    default_rx, _, default_ptx = geometry.bias_split(bias)
+    if rx <= default_rx and ptx <= default_ptx:
+        return None
+    if bias:
+        raise cv.Invalid(
+            f"The requested USB packets don't fit the FIFO split {bias} selects; remove it from "
+            "sdkconfig_options so usb_host can size the FIFO"
+        )
+    rx = max(geometry.rx_min, rx)
+    ptx = max(geometry.ptx_min, ptx)
+    spare = geometry.usable - geometry.nptx - rx - ptx
+    if spare < 0:
+        raise cv.Invalid(
+            f"The requested USB packets need {(rx + ptx + geometry.nptx) * FIFO_LINE_BYTES} bytes of USB FIFO, "
+            f"but the {get_esp32_variant()} has {geometry.usable * FIFO_LINE_BYTES} usable"
+        )
+    # Devices may declare a larger max packet size, so the requested directions share the rest
+    if in_bytes and out_bytes:
+        rx += spare // 2
+        ptx += spare - spare // 2
+    elif out_bytes:
+        ptx += spare
+    else:
+        rx += spare
+    return rx, geometry.nptx, ptx
+
+
+def _reconcile_fifo() -> None:
+    if (split := fifo_split()) is None:
+        return
+    require_idf_version(
+        FIFO_CUSTOM_MIN_IDF, f"Sizing the USB FIFO on the {get_esp32_variant()}"
+    )(None)
+    rx, nptx, ptx = split
+    cg.add_define("USE_USB_HOST_FIFO_CONFIG")
+    cg.add_define("USB_HOST_FIFO_RX_LINES", rx)
+    cg.add_define("USB_HOST_FIFO_NPTX_LINES", nptx)
+    cg.add_define("USB_HOST_FIFO_PTX_LINES", ptx)
 
 
 def _set_max_packet_size(config: dict) -> dict:
@@ -91,6 +291,19 @@ CONFIG_SCHEMA = cv.All(
 async def register_usb_client(config: ConfigType) -> MockObj:
     var = cg.new_Pvariable(config[CONF_ID], config[CONF_VID], config[CONF_PID])
     await cg.register_component(var, config)
+    # UTF-16 literals, the encoding the descriptors use, so the device compares code units
+    if (manufacturer := config.get(CONF_MANUFACTURER)) is not None:
+        cg.add(
+            var.set_manufacturer_filter(
+                cg.RawExpression(cpp_u16string_escape(manufacturer))
+            )
+        )
+    if (product := config.get(CONF_PRODUCT)) is not None:
+        cg.add(var.set_product_filter(cg.RawExpression(cpp_u16string_escape(product))))
+    if (interface := config.get(CONF_INTERFACE_DESCRIPTION)) is not None:
+        cg.add(
+            var.set_interface_filter(cg.RawExpression(cpp_u16string_escape(interface)))
+        )
     return var
 
 

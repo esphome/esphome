@@ -24,6 +24,8 @@
 
 namespace esphome::micro_wake_word {
 
+static constexpr uint16_t DEFAULT_RING_BUFFER_DURATION_MS = 120;
+
 enum State {
   STARTING,
   DETECTING_WAKE_WORD,
@@ -54,6 +56,8 @@ class MicroWakeWord final : public Component
 
   void set_features_step_size(uint8_t step_size) { this->features_step_size_ = step_size; }
 
+  void set_ring_buffer_duration_ms(uint16_t duration_ms) { this->ring_buffer_duration_ms_ = duration_ms; }
+
   void set_microphone_source(microphone::MicrophoneSource *microphone_source) {
     this->microphone_source_ = microphone_source;
   }
@@ -63,6 +67,11 @@ class MicroWakeWord final : public Component
   void set_task_stack_in_psram(bool task_stack_in_psram) { this->task_stack_in_psram_ = task_stack_in_psram; }
 
   Trigger<std::string> *get_wake_word_detected_trigger() { return &this->wake_word_detected_trigger_; }
+
+  /// The event's string pointers are only valid during the call.
+  template<typename F> void add_on_wake_word_detected_callback(F &&callback) {
+    this->wake_word_detected_callback_.add(std::forward<F>(callback));
+  }
 
   void add_wake_word_model(WakeWordModel *model);
 
@@ -93,11 +102,19 @@ class MicroWakeWord final : public Component
   uint8_t get_features_step_size() const { return this->features_step_size_; }
 
 #ifdef USE_MICRO_WAKE_WORD_VAD
-  void add_vad_model(const uint8_t *model_start, uint8_t probability_cutoff, size_t sliding_window_size,
-                     size_t tensor_arena_size);
+  void add_vad_model(const uint8_t *model_start, size_t model_size, uint8_t probability_cutoff,
+                     size_t sliding_window_size, size_t tensor_arena_size);
 
   // Intended for the voice assistant component to fetch VAD status
   bool get_vad_state() { return this->vad_state_; }
+
+  void set_vad_enabled(bool enabled) {
+    if (enabled) {
+      this->vad_model_->enable();
+    } else {
+      this->vad_model_->disable();
+    }
+  }
 #endif
 
   // Intended for the voice assistant component to access which wake words are available
@@ -107,6 +124,7 @@ class MicroWakeWord final : public Component
  protected:
   microphone::MicrophoneSource *microphone_source_{nullptr};
   Trigger<std::string> wake_word_detected_trigger_;
+  LazyCallbackManager<void(const DetectionEvent &)> wake_word_detected_callback_;
   State state_{State::STOPPED};
 
   std::weak_ptr<ring_buffer::RingBuffer> ring_buffer_;
@@ -126,6 +144,7 @@ class MicroWakeWord final : public Component
   bool task_stack_in_psram_{false};
 
   uint8_t features_step_size_;
+  uint16_t ring_buffer_duration_ms_{DEFAULT_RING_BUFFER_DURATION_MS};  // at most a second, see the schema
 
   // Audio frontend handles generating spectrogram features
   struct FrontendConfig frontend_config_;

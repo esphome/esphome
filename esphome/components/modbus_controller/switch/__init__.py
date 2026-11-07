@@ -1,5 +1,5 @@
 import esphome.codegen as cg
-from esphome.components import switch
+from esphome.components import modbus, switch
 from esphome.components.modbus.helpers import MODBUS_REGISTER_TYPE, PduBuffer
 import esphome.config_validation as cv
 from esphome.const import CONF_ADDRESS, CONF_ASSUMED_STATE, CONF_ID
@@ -13,9 +13,9 @@ from .. import (
     modbus_calc_properties,
     modbus_controller_ns,
     reject_odd_holding_write_offset,
-    validate_custom_pdu_item,
     validate_modbus_register,
     validate_range_reuse_migration,
+    validate_writer_item,
 )
 from ..const import (
     CONF_BITMASK,
@@ -51,6 +51,7 @@ CONFIG_SCHEMA = cv.All(
             cv.Optional(CONF_ASSUMED_STATE, default=False): cv.boolean,
             cv.Optional(CONF_REGISTER_TYPE): cv.enum(MODBUS_REGISTER_TYPE),
             cv.Optional(CONF_USE_WRITE_MULTIPLE, default=False): cv.boolean,
+            **modbus.command_options_schema(direction="write"),
             cv.Optional(CONF_WRITE_LAMBDA): cv.returning_lambda,
         }
     ),
@@ -59,7 +60,7 @@ CONFIG_SCHEMA = cv.All(
     validate_range_reuse_migration,
 )
 
-FINAL_VALIDATE_SCHEMA = validate_custom_pdu_item
+FINAL_VALIDATE_SCHEMA = validate_writer_item
 
 
 async def to_code(config: ConfigType) -> None:
@@ -78,6 +79,7 @@ async def to_code(config: ConfigType) -> None:
     paren = await cg.get_variable(config[CONF_MODBUS_CONTROLLER_ID])
     cg.add(var.set_parent(paren))
     cg.add(var.set_use_write_mutiple(config[CONF_USE_WRITE_MULTIPLE]))
+    modbus.add_command_options(var, "set_write_options", config, direction="write")
     assumed_state = config[CONF_ASSUMED_STATE]
     cg.add(var.set_assumed_state(assumed_state))
     if not assumed_state:

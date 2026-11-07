@@ -1,0 +1,3 @@
+packages:
+  remote_transmitter: !include ../../test_build_components/common/remote_transmitter/esp32-idf.yaml
+  whirlpool: !include common-dg11j1.yaml

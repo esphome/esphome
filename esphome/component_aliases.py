@@ -6,5 +6,6 @@ See the component-alias section of esphome/loader.py.
 
 # alias -> (canonical component, removal version or None)
 COMPONENT_ALIASES: dict[str, tuple[str, str | None]] = {
+    "esp32_improv": ("improv_ble", "2027.4.0"),
     "rp2040": ("rp2", "2027.7.0"),
 }

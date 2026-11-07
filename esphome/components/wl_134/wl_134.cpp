@@ -6,7 +6,7 @@
 
 namespace esphome::wl_134 {
 
-static const char *const TAG = "wl_134.sensor";
+ESPHOME_LOG_TAG(TAG, "wl_134.sensor");
 static const uint8_t ASCII_CR = 0x0D;
 static const uint8_t ASCII_NBSP = 0xFF;
 static const int MAX_DATA_LENGTH_BYTES = 6;

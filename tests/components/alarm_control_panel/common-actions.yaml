@@ -1,0 +1,16 @@
+button:
+  - platform: template
+    name: Alarm Calls
+    on_press:
+      - alarm_control_panel.pending: alarmcontrolpanel1
+      - alarm_control_panel.triggered: alarmcontrolpanel1
+      - if:
+          condition:
+            alarm_control_panel.is_armed: alarmcontrolpanel1
+          then:
+            - logger.log: Armed
+      - if:
+          condition:
+            alarm_control_panel.ready: alarmcontrolpanel1
+          then:
+            - logger.log: Ready

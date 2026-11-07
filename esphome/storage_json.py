@@ -155,7 +155,7 @@ class StorageJSON:
         self.framework = framework
         # The core platform of this firmware. Like "esp32", "rp2", "host" etc.
         self.core_platform = core_platform
-        # The toolchain used for the build ("platformio" / "esp-idf")
+        # The toolchain used for the build ("platformio" / "esp-idf" / "host")
         self.toolchain = toolchain
         # The area of the node
         self.area = area

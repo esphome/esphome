@@ -61,13 +61,10 @@ class TemplateAlarmControlPanel final : public alarm_control_panel::AlarmControl
   void setup() override;
   void loop() override;
   uint32_t get_supported_features() const override;
-  bool get_requires_code() const override { return !this->codes_.empty(); }
+  bool get_requires_code() const override { return this->codes_ != nullptr; }
   bool get_requires_code_to_arm() const override { return this->requires_code_to_arm_; }
   bool get_all_sensors_ready() { return this->sensors_ready_; };
   void set_restore_mode(TemplateAlarmControlPanelRestoreMode restore_mode) { this->restore_mode_ = restore_mode; }
-  // Remove before 2026.10.0
-  ESPDEPRECATED("bypass_before_arming() is deprecated and will be removed in 2026.10.0", "2026.4.0")
-  void bypass_before_arming() { this->auto_bypass_sensors_(); }
 
 #ifdef USE_BINARY_SENSOR
   /** Initialize the sensors vector with the specified capacity.
@@ -86,14 +83,11 @@ class TemplateAlarmControlPanel final : public alarm_control_panel::AlarmControl
                   AlarmSensorType type = ALARM_SENSOR_TYPE_DELAYED);
 #endif
 
-  /** Set the codes (from initializer list).
+  /** Set the codes.
    *
-   * @param codes The list of valid codes
+   * @param codes nullptr-terminated table of valid codes; must outlive the panel
    */
-  void set_codes(std::initializer_list<const char *> codes) { this->codes_ = codes; }
-
-  // Deleted overload to catch incorrect std::string usage at compile time
-  void set_codes(std::initializer_list<std::string> codes) = delete;
+  void set_codes(const char *const *codes) { this->codes_ = codes; }
 
   /** set requires a code to arm
    *
@@ -153,8 +147,8 @@ class TemplateAlarmControlPanel final : public alarm_control_panel::AlarmControl
   uint32_t pending_time_;
   // the time in trigger
   uint32_t trigger_time_;
-  // a list of codes (const char* pointers to string literals in flash)
-  FixedVector<const char *> codes_;
+  // nullptr-terminated table of codes, shared in flash
+  const char *const *codes_{nullptr};
   // requires a code to arm
   bool requires_code_to_arm_ = false;
   bool supports_arm_home_ = false;

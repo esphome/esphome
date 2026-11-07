@@ -1,10 +1,11 @@
 #include "grove_tb6612fng.h"
 #include "esphome/core/log.h"
 #include "esphome/core/hal.h"
+#include "esphome/core/helpers.h"
 
 namespace esphome::grove_tb6612fng {
 
-static const char *const TAG = "GroveMotorDriveTB6612FNG";
+ESPHOME_LOG_TAG(TAG, "GroveMotorDriveTB6612FNG");
 
 static const uint8_t GROVE_MOTOR_DRIVER_I2C_CMD_BRAKE = 0x00;
 static const uint8_t GROVE_MOTOR_DRIVER_I2C_CMD_STOP = 0x01;
@@ -22,12 +23,7 @@ void GroveMotorDriveTB6612FNG::dump_config() {
   LOG_I2C_DEVICE(this);
 }
 
-void GroveMotorDriveTB6612FNG::setup() {
-  if (!this->standby()) {
-    this->mark_failed();
-    return;
-  }
-}
+void GroveMotorDriveTB6612FNG::setup() { this->setup_check(this->standby()); }
 
 bool GroveMotorDriveTB6612FNG::standby() {
   uint8_t status = 0;
@@ -125,10 +121,8 @@ void GroveMotorDriveTB6612FNG::stepper_run(StepperModeTypeT mode, int16_t steps,
   ms_per_step = (uint16_t) (3000.0f / (float) rpm);
   buffer_[0] = mode;
   buffer_[1] = cw;  //(cw=1) => cw; (cw=0) => ccw
-  buffer_[2] = steps;
-  buffer_[3] = (steps >> 8);
-  buffer_[4] = ms_per_step;
-  buffer_[5] = (ms_per_step >> 8);
+  put_le16(this->buffer_ + 2, steps);
+  put_le16(this->buffer_ + 4, ms_per_step);
 
   if (this->write_register(GROVE_MOTOR_DRIVER_I2C_CMD_STEPPER_RUN, buffer_, 6) != i2c::ERROR_OK) {
     ESP_LOGW(TAG, "Run stepper failed!");
@@ -157,8 +151,7 @@ void GroveMotorDriveTB6612FNG::stepper_keep_run(StepperModeTypeT mode, uint16_t 
 
   buffer_[0] = mode;
   buffer_[1] = cw;  //(cw=1) => cw; (cw=0) => ccw
-  buffer_[2] = ms_per_step;
-  buffer_[3] = (ms_per_step >> 8);
+  put_le16(this->buffer_ + 2, ms_per_step);
 
   if (this->write_register(GROVE_MOTOR_DRIVER_I2C_CMD_STEPPER_KEEP_RUN, buffer_, 4) != i2c::ERROR_OK) {
     ESP_LOGW(TAG, "Write stepper keep run failed");

@@ -1,0 +1,174 @@
+#include "tfluna.h"
+#include <cstddef>
+#include "esphome/core/log.h"
+#include "esphome/core/helpers.h"
+
+namespace esphome::tfluna {
+
+// see https://files.waveshare.com/upload/a/ac/SJ-PM-TF-Luna_A05_Product_Manual.pdf
+static constexpr uint8_t SAVE_REGISTER = 0x20;
+static constexpr uint8_t VERSION_REVISION_REGISTER = 0x0A;
+static constexpr uint8_t DISTANCE_LOW_REGISTER = 0x00;
+static constexpr uint8_t RESTORE_FACTORY_DEFAULTS_REGISTER = 0x29;
+static constexpr uint8_t SHUTDOWN_REBOOT_REGISTER = 0x21;
+static constexpr uint8_t MODE_REGISTER = 0x23;
+static constexpr uint8_t MODE_TRIGGER = 0x01;
+static constexpr uint8_t TRIGGER_ONESHOT_REGISTER = 0x24;
+static constexpr uint8_t MAX_READ_ATTEMPTS = 5;
+static constexpr uint8_t READ_RETRY_MS = 5;
+ESPHOME_LOG_TAG(TAG, "tfluna");
+
+static constexpr uint32_t SETUP_TIMEOUT_ID = 0;
+static constexpr uint32_t READ_RETRY_TIMEOUT_ID = 1;
+
+void TFLuna::dump_config() {
+  ESP_LOGCONFIG(TAG, "TF-Luna (i2c):");
+  LOG_I2C_DEVICE(this);
+  LOG_UPDATE_INTERVAL(this);
+  ESP_LOGCONFIG(TAG, "  Firmware: %s", this->version_);
+
+#ifdef USE_SENSOR
+  LOG_SENSOR("  ", "Distance:", this->distance_sensor_);
+  LOG_SENSOR("  ", "Temperature:", this->temperature_sensor_);
+  LOG_SENSOR("  ", "Signal Strength:", this->signal_strength_sensor_);
+  LOG_SENSOR("  ", "Timestamp:", this->timestamp_sensor_);
+#endif
+#ifdef USE_TEXT_SENSOR
+  LOG_TEXT_SENSOR("  ", "Version:", this->version_text_sensor_);
+#endif
+#ifdef USE_BUTTON
+  LOG_BUTTON("  ", "Factory Reset:", this->reset_button_);
+  LOG_BUTTON("  ", "Restart:", this->restart_button_);
+#endif
+}
+
+bool TFLuna::configure_() {
+  uint8_t mode;
+  if (!this->read_byte(MODE_REGISTER, &mode)) {
+    return false;
+  }
+  if (mode != MODE_TRIGGER) {
+    if (!this->write_byte(MODE_REGISTER, MODE_TRIGGER)) {
+      return false;
+    }
+
+    if (!this->write_byte(SAVE_REGISTER, 1)) {
+      return false;
+    }
+  }
+
+  uint8_t raw_version[3];
+  if (!this->read_bytes(VERSION_REVISION_REGISTER, raw_version, sizeof(raw_version))) {
+    this->status_set_warning(LOG_STR(ESP_LOG_MSG_COMM_FAIL));
+    return true;
+  } else {
+    snprintf(this->version_, sizeof(this->version_), "%d.%d.%d", raw_version[2], raw_version[1], raw_version[0]);
+#ifdef USE_TEXT_SENSOR
+    PUBLISH_STATE(this->version_text_sensor_, this->version_);
+#endif
+  }
+  return true;
+}
+
+void TFLuna::setup() {
+  if (!this->configure_()) {
+    this->mark_failed(LOG_STR(ESP_LOG_MSG_COMM_FAIL));
+  }
+}
+
+void TFLuna::reconfigure_() {
+  this->reconfigure_pending_ = !this->configure_();
+  if (this->reconfigure_pending_) {
+    this->status_set_warning(LOG_STR(ESP_LOG_MSG_COMM_FAIL));
+  }
+}
+
+bool TFLuna::read_data_() {
+  uint8_t buf[8];
+  if (!this->read_bytes(DISTANCE_LOW_REGISTER, buf, sizeof(buf))) {
+    this->status_set_warning(LOG_STR(ESP_LOG_MSG_COMM_FAIL));
+    return false;
+  }
+  // Layout:
+  // buf[0..1] = distance (LE), buf[2..3] = signal (LE),
+  // buf[4..5] = temperature (LE), buf[6..7] = timestamp (LE)
+  uint16_t distance = encode_value_le<uint16_t>(buf);
+  uint16_t signal_strength = encode_value_le<uint16_t>(&buf[2]);
+  int16_t temperature_raw = encode_value_le<int16_t>(&buf[4]);
+  uint16_t timestamp = encode_value_le<uint16_t>(&buf[6]);
+
+  if (timestamp == this->previous_timestamp_) {
+    return false;
+  }
+
+#ifdef USE_SENSOR
+  PUBLISH_STATE(this->timestamp_sensor_, timestamp);
+  // distance is unreliable when strength is below 100 or saturated at 0xFFFF
+  PUBLISH_STATE(this->distance_sensor_, signal_strength < 100 || signal_strength == 0xFFFF ? NAN : distance);
+
+  PUBLISH_STATE(this->temperature_sensor_, temperature_raw / (float) 100);
+
+  PUBLISH_STATE(this->signal_strength_sensor_, signal_strength);
+#endif
+  this->status_clear_warning();
+  this->previous_timestamp_ = timestamp;
+  return true;
+}
+
+void TFLuna::read_data_timeout_() {
+  if (this->read_data_()) {
+    this->attempt_ = 0;
+  } else {
+    if (this->attempt_ < MAX_READ_ATTEMPTS) {
+      this->attempt_++;
+      this->set_timeout(READ_RETRY_TIMEOUT_ID, READ_RETRY_MS, [this]() { this->read_data_timeout_(); });
+    } else {
+      this->status_set_warning(LOG_STR("Hung device, restarting..."));
+      this->restart();
+    }
+  }
+}
+
+void TFLuna::update() {
+  if (this->is_failed()) {
+    return;
+  }
+  this->cancel_timeout(READ_RETRY_TIMEOUT_ID);
+  this->attempt_ = 0;
+  if (this->reconfigure_pending_) {
+    this->reconfigure_();
+    if (this->reconfigure_pending_) {
+      return;
+    }
+  }
+  if (!this->write_byte(TRIGGER_ONESHOT_REGISTER, 0x01)) {
+    this->status_set_warning(LOG_STR(ESP_LOG_MSG_COMM_FAIL));
+    return;
+  }
+  this->read_data_timeout_();
+}
+
+void TFLuna::factory_reset() {
+  if (this->is_failed()) {
+    return;
+  }
+  if (!this->write_byte(RESTORE_FACTORY_DEFAULTS_REGISTER, 1)) {
+    this->status_set_warning(LOG_STR(ESP_LOG_MSG_COMM_FAIL));
+    return;
+  }
+  this->reconfigure_pending_ = false;
+  this->status_set_warning(LOG_STR("Factory reset issued; waiting for device to become ready"));
+  this->set_timeout(SETUP_TIMEOUT_ID, 100, [this]() { this->reconfigure_(); });
+}
+
+void TFLuna::restart() {
+  if (this->is_failed()) {
+    return;
+  }
+  if (!this->write_byte(SHUTDOWN_REBOOT_REGISTER, 0x02)) {
+    this->status_set_warning(LOG_STR(ESP_LOG_MSG_COMM_FAIL));
+    return;
+  }
+}
+
+}  // namespace esphome::tfluna

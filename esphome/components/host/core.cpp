@@ -59,8 +59,8 @@ namespace esphome::host {
 char **get_argv() { return s_argv; }
 
 const std::string &get_exe_path() {
-  static const std::string empty;
-  return s_exe_path != nullptr ? *s_exe_path : empty;
+  static const std::string EMPTY;
+  return s_exe_path != nullptr ? *s_exe_path : EMPTY;
 }
 
 void arm_reexec(const std::string &path) {
@@ -90,6 +90,8 @@ int main(int argc, char **argv) {
   // Install signal handlers for graceful shutdown (flushes preferences to disk)
   std::signal(SIGINT, signal_handler);
   std::signal(SIGTERM, signal_handler);
+  // A write to a closed peer must fail with EPIPE, as on the embedded stacks, not kill the process
+  std::signal(SIGPIPE, SIG_IGN);
 
   esphome::host::setup_preferences();
   setup();

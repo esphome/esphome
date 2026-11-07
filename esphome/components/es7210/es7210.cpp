@@ -6,14 +6,14 @@
 
 namespace esphome::es7210 {
 
-static const char *const TAG = "es7210";
+ESPHOME_LOG_TAG(TAG, "es7210");
 
 static const size_t MCLK_DIV_FRE = 256;
 
 // Mark the component as failed; use only in setup
 #define ES7210_ERROR_FAILED(func) \
   if (!(func)) { \
-    this->mark_failed(); \
+    this->mark_failed(LOG_STR("Failed to initialize")); \
     return; \
   }
 
@@ -27,68 +27,81 @@ void ES7210::dump_config() {
   ESP_LOGCONFIG(TAG,
                 "ES7210 audio ADC:\n"
                 "  Bits Per Sample: %" PRIu8 "\n"
-                "  Sample Rate: %" PRIu32,
-                this->bits_per_sample_, this->sample_rate_);
-
-  if (this->is_failed()) {
-    ESP_LOGE(TAG, "  Failed to initialize");
-    return;
-  }
+                "  Sample Rate: %" PRIu32 "\n"
+                "  Channel Gains: %.1f dB, %.1f dB, %.1f dB, %.1f dB",
+                this->bits_per_sample_, this->sample_rate_, this->channel_gains_[0], this->channel_gains_[1],
+                this->channel_gains_[2], this->channel_gains_[3]);
 }
 
+static constexpr i2c::I2CRegValue ES7210_RESET[] PROGMEM = {
+    // Software reset
+    {ES7210_RESET_REG00, 0xff},
+    {ES7210_RESET_REG00, 0x32},
+    {ES7210_CLOCK_OFF_REG01, 0x3f},
+    // Set initialization time when device powers up
+    {ES7210_TIME_CONTROL0_REG09, 0x30},
+    {ES7210_TIME_CONTROL1_REG0A, 0x30},
+    // Configure HFP for all ADC channels
+    {ES7210_ADC12_HPF2_REG23, 0x2a},
+    {ES7210_ADC12_HPF1_REG22, 0x0a},
+    {ES7210_ADC34_HPF2_REG20, 0x0a},
+    {ES7210_ADC34_HPF1_REG21, 0x2a},
+};
+
+static constexpr i2c::I2CRegValue ES7210_ANALOG[] PROGMEM = {
+    // Configure analog power
+    {ES7210_ANALOG_REG40, 0xC3},
+    // Set mic bias
+    {ES7210_MIC12_BIAS_REG41, 0x70},
+    {ES7210_MIC34_BIAS_REG42, 0x70},
+};
+
+static constexpr i2c::I2CRegValue ES7210_POWER_ON[] PROGMEM = {
+    // Power on mics 1 through 4
+    {ES7210_MIC1_POWER_REG47, 0x08},
+    {ES7210_MIC2_POWER_REG48, 0x08},
+    {ES7210_MIC3_POWER_REG49, 0x08},
+    {ES7210_MIC4_POWER_REG4A, 0x08},
+    // Power down DLL
+    {ES7210_POWER_DOWN_REG06, 0x04},
+    // Power on MIC1-4 bias & ADC1-4 & PGA1-4 Power
+    {ES7210_MIC12_POWER_REG4B, 0x0F},
+    {ES7210_MIC34_POWER_REG4C, 0x0F},
+    // Enable device
+    {ES7210_RESET_REG00, 0x71},
+    {ES7210_RESET_REG00, 0x41},
+};
+
 void ES7210::setup() {
-  // Software reset
-  ES7210_ERROR_FAILED(this->write_byte(ES7210_RESET_REG00, 0xff));
-  ES7210_ERROR_FAILED(this->write_byte(ES7210_RESET_REG00, 0x32));
-  ES7210_ERROR_FAILED(this->write_byte(ES7210_CLOCK_OFF_REG01, 0x3f));
-
-  // Set initialization time when device powers up
-  ES7210_ERROR_FAILED(this->write_byte(ES7210_TIME_CONTROL0_REG09, 0x30));
-  ES7210_ERROR_FAILED(this->write_byte(ES7210_TIME_CONTROL1_REG0A, 0x30));
-
-  // Configure HFP for all ADC channels
-  ES7210_ERROR_FAILED(this->write_byte(ES7210_ADC12_HPF2_REG23, 0x2a));
-  ES7210_ERROR_FAILED(this->write_byte(ES7210_ADC12_HPF1_REG22, 0x0a));
-  ES7210_ERROR_FAILED(this->write_byte(ES7210_ADC34_HPF2_REG20, 0x0a));
-  ES7210_ERROR_FAILED(this->write_byte(ES7210_ADC34_HPF1_REG21, 0x2a));
+  ES7210_ERROR_FAILED(this->write_registers(ES7210_RESET));
 
   // Secondary I2S mode settings
-  ES7210_ERROR_FAILED(this->es7210_update_reg_bit_(ES7210_MODE_CONFIG_REG08, 0x01, 0x00));
+  ES7210_ERROR_FAILED(this->update_register(ES7210_MODE_CONFIG_REG08, 0x01, 0x00));
 
-  // Configure analog power
-  ES7210_ERROR_FAILED(this->write_byte(ES7210_ANALOG_REG40, 0xC3));
-
-  // Set mic bias
-  ES7210_ERROR_FAILED(this->write_byte(ES7210_MIC12_BIAS_REG41, 0x70));
-  ES7210_ERROR_FAILED(this->write_byte(ES7210_MIC34_BIAS_REG42, 0x70));
+  ES7210_ERROR_FAILED(this->write_registers(ES7210_ANALOG));
 
   // Configure I2S settings, sample rate, and microphone gains
   ES7210_ERROR_FAILED(this->configure_i2s_format_());
   ES7210_ERROR_FAILED(this->configure_sample_rate_());
   ES7210_ERROR_FAILED(this->configure_mic_gain_());
 
-  // Power on mics 1 through 4
-  ES7210_ERROR_FAILED(this->write_byte(ES7210_MIC1_POWER_REG47, 0x08));
-  ES7210_ERROR_FAILED(this->write_byte(ES7210_MIC2_POWER_REG48, 0x08));
-  ES7210_ERROR_FAILED(this->write_byte(ES7210_MIC3_POWER_REG49, 0x08));
-  ES7210_ERROR_FAILED(this->write_byte(ES7210_MIC4_POWER_REG4A, 0x08));
-
-  // Power down DLL
-  ES7210_ERROR_FAILED(this->write_byte(ES7210_POWER_DOWN_REG06, 0x04));
-
-  // Power on MIC1-4 bias & ADC1-4 & PGA1-4 Power
-  ES7210_ERROR_FAILED(this->write_byte(ES7210_MIC12_POWER_REG4B, 0x0F));
-  ES7210_ERROR_FAILED(this->write_byte(ES7210_MIC34_POWER_REG4C, 0x0F));
-
-  // Enable device
-  ES7210_ERROR_FAILED(this->write_byte(ES7210_RESET_REG00, 0x71));
-  ES7210_ERROR_FAILED(this->write_byte(ES7210_RESET_REG00, 0x41));
+  ES7210_ERROR_FAILED(this->write_registers(ES7210_POWER_ON));
 
   this->setup_complete_ = true;
 }
 
 bool ES7210::set_mic_gain(float mic_gain) {
-  this->mic_gain_ = clamp<float>(mic_gain, ES7210_MIC_GAIN_MIN, ES7210_MIC_GAIN_MAX);
+  this->channel_gains_.fill(clamp<float>(mic_gain, ES7210_MIC_GAIN_MIN, ES7210_MIC_GAIN_MAX));
+  if (this->setup_complete_) {
+    return this->configure_mic_gain_();
+  }
+  return true;
+}
+
+bool ES7210::set_channel_gain(uint8_t channel, float gain) {
+  if (channel >= this->channel_gains_.size())
+    return false;
+  this->channel_gains_[channel] = clamp<float>(gain, ES7210_MIC_GAIN_MIN, ES7210_MIC_GAIN_MAX);
   if (this->setup_complete_) {
     return this->configure_mic_gain_();
   }
@@ -133,36 +146,40 @@ bool ES7210::configure_sample_rate_() {
 }
 
 bool ES7210::configure_mic_gain_() {
-  auto regv = this->es7210_gain_reg_value_(this->mic_gain_);
   for (uint8_t i = 0; i < 4; ++i) {
-    ES7210_ERROR_CHECK(this->es7210_update_reg_bit_(ES7210_MIC1_GAIN_REG43 + i, 0x10, 0x00));
+    ES7210_ERROR_CHECK(this->update_register(ES7210_MIC1_GAIN_REG43 + i, 0x10, 0x00));
   }
   ES7210_ERROR_CHECK(this->write_byte(ES7210_MIC12_POWER_REG4B, 0xff));
   ES7210_ERROR_CHECK(this->write_byte(ES7210_MIC34_POWER_REG4C, 0xff));
 
   // Configure mic 1
-  ES7210_ERROR_CHECK(this->es7210_update_reg_bit_(ES7210_CLOCK_OFF_REG01, 0x0b, 0x00));
+  ES7210_ERROR_CHECK(this->update_register(ES7210_CLOCK_OFF_REG01, 0x0b, 0x00));
   ES7210_ERROR_CHECK(this->write_byte(ES7210_MIC12_POWER_REG4B, 0x00));
-  ES7210_ERROR_CHECK(this->es7210_update_reg_bit_(ES7210_MIC1_GAIN_REG43, 0x10, 0x10));
-  ES7210_ERROR_CHECK(this->es7210_update_reg_bit_(ES7210_MIC1_GAIN_REG43, 0x0f, regv));
+  ES7210_ERROR_CHECK(this->update_register(ES7210_MIC1_GAIN_REG43, 0x10, 0x10));
+  ES7210_ERROR_CHECK(
+      this->update_register(ES7210_MIC1_GAIN_REG43, 0x0f, this->es7210_gain_reg_value_(this->channel_gains_[0])));
 
   // Configure mic 2
-  ES7210_ERROR_CHECK(this->es7210_update_reg_bit_(ES7210_CLOCK_OFF_REG01, 0x0b, 0x00));
+  ES7210_ERROR_CHECK(this->update_register(ES7210_CLOCK_OFF_REG01, 0x0b, 0x00));
   ES7210_ERROR_CHECK(this->write_byte(ES7210_MIC12_POWER_REG4B, 0x00));
-  ES7210_ERROR_CHECK(this->es7210_update_reg_bit_(ES7210_MIC2_GAIN_REG44, 0x10, 0x10));
-  ES7210_ERROR_CHECK(this->es7210_update_reg_bit_(ES7210_MIC2_GAIN_REG44, 0x0f, regv));
+  ES7210_ERROR_CHECK(this->update_register(ES7210_MIC2_GAIN_REG44, 0x10, 0x10));
+  ES7210_ERROR_CHECK(
+      this->update_register(ES7210_MIC2_GAIN_REG44, 0x0f, this->es7210_gain_reg_value_(this->channel_gains_[1])));
 
   // Configure mic 3
-  ES7210_ERROR_CHECK(this->es7210_update_reg_bit_(ES7210_CLOCK_OFF_REG01, 0x0b, 0x00));
+  // MIC3 uses the ADC3/4 and MIC3/4 clock domains (bits 2 and 4), not the MIC1/2 domains.
+  ES7210_ERROR_CHECK(this->update_register(ES7210_CLOCK_OFF_REG01, 0x15, 0x00));
   ES7210_ERROR_CHECK(this->write_byte(ES7210_MIC34_POWER_REG4C, 0x00));
-  ES7210_ERROR_CHECK(this->es7210_update_reg_bit_(ES7210_MIC3_GAIN_REG45, 0x10, 0x10));
-  ES7210_ERROR_CHECK(this->es7210_update_reg_bit_(ES7210_MIC3_GAIN_REG45, 0x0f, regv));
+  ES7210_ERROR_CHECK(this->update_register(ES7210_MIC3_GAIN_REG45, 0x10, 0x10));
+  ES7210_ERROR_CHECK(
+      this->update_register(ES7210_MIC3_GAIN_REG45, 0x0f, this->es7210_gain_reg_value_(this->channel_gains_[2])));
 
   // Configure mic 4
-  ES7210_ERROR_CHECK(this->es7210_update_reg_bit_(ES7210_CLOCK_OFF_REG01, 0x0b, 0x00));
+  ES7210_ERROR_CHECK(this->update_register(ES7210_CLOCK_OFF_REG01, 0x15, 0x00));
   ES7210_ERROR_CHECK(this->write_byte(ES7210_MIC34_POWER_REG4C, 0x00));
-  ES7210_ERROR_CHECK(this->es7210_update_reg_bit_(ES7210_MIC4_GAIN_REG46, 0x10, 0x10));
-  ES7210_ERROR_CHECK(this->es7210_update_reg_bit_(ES7210_MIC4_GAIN_REG46, 0x0f, regv));
+  ES7210_ERROR_CHECK(this->update_register(ES7210_MIC4_GAIN_REG46, 0x10, 0x10));
+  ES7210_ERROR_CHECK(
+      this->update_register(ES7210_MIC4_GAIN_REG46, 0x0f, this->es7210_gain_reg_value_(this->channel_gains_[3])));
 
   return true;
 }
@@ -214,13 +231,6 @@ bool ES7210::configure_i2s_format_() {
   }
 
   return true;
-}
-
-bool ES7210::es7210_update_reg_bit_(uint8_t reg_addr, uint8_t update_bits, uint8_t data) {
-  uint8_t regv;
-  ES7210_ERROR_CHECK(this->read_byte(reg_addr, &regv));
-  regv = (regv & (~update_bits)) | (update_bits & data);
-  return this->write_byte(reg_addr, regv);
 }
 
 }  // namespace esphome::es7210

@@ -44,12 +44,6 @@ class QwiicPIRComponent final : public Component, public i2c::I2CDevice, public 
 
   DebounceMode debounce_mode_{};
 
-  enum ErrorCode {
-    NONE = 0,
-    ERROR_COMMUNICATION_FAILED,
-    ERROR_WRONG_CHIP_ID,
-  } error_code_{NONE};
-
   union {
     struct {
       bool raw_reading : 1;      // raw state of PIR sensor

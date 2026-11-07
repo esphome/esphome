@@ -4,6 +4,8 @@ Supported models:
 - waveshare-7.5in-v2: 7.5" mono display, 800x480 pixels (EPD_7in5_V2)
 - seeed-reterminal-e1001: Seeed reTerminal E1001, which uses the same
   7.5" 800x480 panel on an integrated ESP32-S3 board
+- goodisplay-gdey0583t81-5.83: Good Display GDEY0583T81 5.83" mono display,
+  648x480 pixels, also sold by Seeed as 0583BN-T81-D2
 
 Panel configuration and power-on (0x04) are both sent during the INITIALISE
 state; the state machine's built-in busy wait then covers the power-on delay
@@ -18,11 +20,16 @@ from typing import Any
 
 from esphome.const import CONF_DATA_RATE
 
-from . import EpaperModel
+from . import EpaperModel, ultrachip_resolution
 
 
 class UC8179(EpaperModel):
     """EpaperModel class for monochrome displays using the UC8179 controller."""
+
+    source_files = (
+        "epaper_spi_ultrachip.cpp",
+        "epaper_spi_uc8179.cpp",
+    )
 
     def __init__(
         self,
@@ -32,7 +39,8 @@ class UC8179(EpaperModel):
         **defaults: Any,
     ) -> None:
         defaults.setdefault(CONF_DATA_RATE, data_rate)
-        super().__init__(name, class_name, **defaults)
+        defaults.setdefault("partial_update", True)
+        super().__init__(name, class_name=class_name, **defaults)
 
     def get_init_sequence(self, config: dict) -> tuple:
         """Generate the initialization sequence for UC8179 mono displays.
@@ -50,13 +58,7 @@ class UC8179(EpaperModel):
             # PANEL SETTING (black/white mode, LUT from OTP)
             (0x00, 0x1F),
             # RESOLUTION SETTING (width x height)
-            (
-                0x61,
-                (width >> 8) & 0xFF,
-                width & 0xFF,
-                (height >> 8) & 0xFF,
-                height & 0xFF,
-            ),
+            ultrachip_resolution(width, height),
             # DUAL SPI MODE (disabled)
             (0x15, 0x00),
             # VCOM AND DATA INTERVAL SETTING
@@ -74,6 +76,17 @@ waveshare_7_5_v2 = uc8179.extend(
     width=800,
     height=480,
 )
+
+# Good Display GDEY0583T81, 5.83" mono 648x480, UC8179; also sold by Seeed as 0583BN-T81-D2.
+# Replaces the waveshare_epaper model gdey0583t81. Busy is low while busy, so set inverted: true.
+goodisplay_gdey0583t81 = uc8179.extend(
+    "goodisplay-gdey0583t81-5.83",
+    width=648,
+    height=480,
+)
+
+# Name printed on the panel's label as sold by Seeed
+goodisplay_gdey0583t81.extend("0583bn-t81-d2")
 
 # Seeed reTerminal E1001 — 7.5" mono e-paper (800x480), same panel as the
 # Waveshare 7.5" V2, driven by an integrated ESP32-S3 board

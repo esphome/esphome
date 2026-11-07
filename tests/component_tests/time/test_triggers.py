@@ -1,5 +1,5 @@
-"""automation.cpp (CronTrigger and SyncTrigger) is only compiled when an
-on_time or on_time_sync automation exists, so the define must follow them."""
+"""automation.cpp (CronTrigger) is only compiled when an on_time automation
+exists, so the define must follow it; on_time_sync needs no class."""
 
 from collections.abc import Callable
 from pathlib import Path
@@ -14,7 +14,7 @@ from esphome.core import CORE
     [
         ("no_triggers.yaml", False),
         ("on_time.yaml", True),
-        ("on_time_sync.yaml", True),
+        ("on_time_sync.yaml", False),
     ],
 )
 def test_triggers_define_follows_automations(

@@ -7,6 +7,7 @@ import base64
 from aioesphomeapi import InvalidEncryptionKeyAPIError
 import pytest
 
+from .state_utils import assert_device_name
 from .types import APIClientConnectedFactory, RunCompiledFunction
 
 
@@ -40,9 +41,7 @@ async def test_noise_encryption_key_protection(
         # Reconnect with the original key to verify it still works
         async with api_client_connected(noise_psk=noise_psk) as client:
             # Verify connection is still successful with original key
-            device_info = await client.device_info()
-            assert device_info is not None
-            assert device_info.name == "noise-key-test"
+            await assert_device_name(client, "noise-key-test")
 
         # Verify that connecting with a wrong key fails
         wrong_key = base64.b64encode(b"y" * 32).decode()  # Different key
@@ -79,9 +78,7 @@ async def test_noise_encryption_key_clear_protection(
         # Reconnect with the original key to verify it still works
         async with api_client_connected(noise_psk=noise_psk) as client:
             # Verify connection is still successful with original key
-            device_info = await client.device_info()
-            assert device_info is not None
-            assert device_info.name == "noise-key-test"
+            await assert_device_name(client, "noise-key-test")
 
         # Verify that connecting with a wrong key fails
         wrong_key = base64.b64encode(b"y" * 32).decode()  # Different key

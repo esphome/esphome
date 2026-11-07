@@ -1,0 +1,30 @@
+esphome:
+  name: tcp-uart-server-test
+
+host:
+
+api:
+
+logger:
+  level: INFO
+
+tcp_uart:
+  - id: allowed_bus
+    role: server
+    port: 18126
+    allowed_ips:
+      - 127.0.0.1
+  - id: denied_bus
+    role: server
+    port: 18127
+    allowed_ips:
+      - 192.0.2.1
+
+interval:
+  - interval: 50ms
+    then:
+      - lambda: |-
+          uint8_t b;
+          while (id(allowed_bus).read_byte(&b)) {
+            id(allowed_bus).write_byte(b);
+          }

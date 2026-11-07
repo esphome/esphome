@@ -7,7 +7,6 @@ from esphome.components import modbus
 import esphome.config_validation as cv
 from esphome.const import (
     CONF_ADDRESS,
-    CONF_CONTINUOUS,
     CONF_COUNT,
     CONF_ID,
     CONF_ON_ERROR,
@@ -19,6 +18,7 @@ from esphome.types import ConfigType, TemplateArgsType
 
 CODEOWNERS = ["@exciton"]
 DEPENDENCIES = ["modbus"]
+DOMAIN = "modbus_client"
 MULTI_CONF = True
 # The modbus hub auto-loads this component to make the actions available. Without this, that auto-load
 # would try to create a device with no address.
@@ -69,9 +69,10 @@ PackedBits = modbus.modbus_ns.class_("PackedBits")
 # The exception code passed to on_error handlers.
 ExceptionCode = modbus.modbus_ns.enum("ExceptionCode")
 
-# Lambda argument types for the reply handlers: the device address the send targeted, and the
-# request/response PDUs (function code + data). The spans are only valid for the duration of the handler.
-_PDU_SPAN = cg.std_span.template(cg.uint8.operator("const"))
+# Lambda arguments: the shared handlers and send's on_response get the address of their own request first,
+# then the request/response PDUs (function code + data). The spans are only valid for the duration of the handler.
+_ADDRESS_ARG = (cg.uint8, "address")
+_PDU_SPAN = modbus.PDU_SPAN
 
 # The pdu lambda's return type: a stack-allocated StaticVector capped at the Modbus PDU limit
 # (modbus.MAX_PDU_SIZE). Lambdas can return a byte list or a modbus::helpers::create_*_pdu() result.
@@ -113,20 +114,18 @@ def _packed_bit_bytes(bits: int) -> int:
     return (bits + 7) // 8
 
 
-def _synchronous_handler(value: ConfigType) -> ConfigType:
-    """Reject deferring actions in a handler: its PDU spans point into hub buffers that are reused
-    once the handler returns, and DelayAction and friends capture the trigger args for later replay."""
-    if automation.has_non_synchronous_actions(value):
-        raise cv.Invalid(
-            "Deferring actions (delay, wait_until, script.wait, ...) are not allowed in modbus_client "
-            "handlers: the request/response data is only valid while the handler runs. Copy what you "
-            "need into globals first, then defer in a separate script or automation."
-        )
-    return value
+# Handler PDU spans point into hub buffers that are reused once the handler returns.
+_HANDLER_CONTEXT = "modbus_client handlers"
+_HANDLER_DATA = "the request/response data"
+_synchronous_handler = automation.validate_no_deferring_actions(
+    _HANDLER_CONTEXT, _HANDLER_DATA
+)
 
 
 def _handler_schema() -> cv.All:
-    return cv.All(automation.validate_automation(single=True), _synchronous_handler)
+    return automation.validate_synchronous_automation(
+        _HANDLER_CONTEXT, _HANDLER_DATA, single=True
+    )
 
 
 # Each action is its own hub device: the modbus hub routes the reply straight back to the action that
@@ -137,11 +136,11 @@ _ACTION_BASE_SCHEMA = cv.Schema(
         cv.GenerateID(modbus.CONF_MODBUS_ID): cv.use_id(modbus.ModbusClient),
         cv.Required(CONF_ADDRESS): cv.templatable(cv.hex_uint8_t),
         # Optional handlers. on_sent fires when the frame reaches the wire; the reply handlers arrive
-        # later (fire-and-continue), so all run with the request/reply available - not the outer
-        # automation's variables.
+        # later (fire-and-continue), so all run with the address and request/reply available - not the
+        # outer automation's variables.
         cv.Optional(CONF_ON_SENT): _handler_schema(),
         cv.Optional(CONF_ON_ERROR): _handler_schema(),
-        # on_no_response takes either a returning lambda (`!lambda "return <bool>;"`, gets `request`,
+        # on_no_response takes either a returning lambda (`!lambda "return <bool>;"`, gets `address`/`request`,
         # returns true to have the hub retry the frame) OR a `then:` automation of actions; the automation
         # form may also carry an optional `retry:` returning lambda to run actions AND decide the retry.
         cv.Optional(CONF_ON_NO_RESPONSE): cv.All(
@@ -158,24 +157,6 @@ _ACTION_BASE_SCHEMA = cv.Schema(
 )
 
 
-def _no_continuous_on_write(config: ConfigType) -> ConfigType:
-    """Reject `continuous: true` on a static write PDU: continuous polling only applies to reads.
-    Only the fully-static case is decidable here; the hub strips the flag from mutating PDUs at
-    runtime, so a templated pdu or continuous falls through to that backstop."""
-    pdu = config[CONF_PDU]
-    if (
-        isinstance(pdu, list)
-        and config.get(CONF_CONTINUOUS) is True
-        and modbus.is_function_code_write(pdu[0])
-    ):
-        raise cv.Invalid(
-            f"'{CONF_CONTINUOUS}: true' does not apply to a write PDU (function code "
-            f"0x{pdu[0]:02X}); continuous polling only applies to reads",
-            path=[CONF_CONTINUOUS],
-        )
-    return config
-
-
 MODBUS_CLIENT_SEND_SCHEMA = cv.All(
     _ACTION_BASE_SCHEMA.extend(
         {
@@ -186,10 +167,12 @@ MODBUS_CLIENT_SEND_SCHEMA = cv.All(
                 )
             ),
             **modbus.command_options_schema(direction="read", templatable=True),
+            **modbus.command_options_schema(direction="write", templatable=True),
             cv.Optional(CONF_ON_RESPONSE): _handler_schema(),
         }
     ),
-    _no_continuous_on_write,
+    modbus.reject_inapplicable_command_options(CONF_PDU),
+    modbus.reject_broadcast_options_for_unicast(CONF_ADDRESS),
 )
 
 
@@ -204,8 +187,7 @@ async def register_client_action(
 
     response_args are the on_response handler's arguments, which differ per action.
     """
-    parent = await cg.get_variable(config[modbus.CONF_MODBUS_ID])
-    cg.add(var.set_parent(parent))
+    await cg.register_parented(var, config[modbus.CONF_MODBUS_ID])
     cg.add(
         var.set_target_address(
             await cg.templatable(config[CONF_ADDRESS], args, cg.uint8)
@@ -218,7 +200,7 @@ async def register_client_action(
         )
     if sent_conf := config.get(CONF_ON_SENT):
         await automation.build_automation(
-            var.get_sent_trigger(), [(_PDU_SPAN, "request")], sent_conf
+            var.get_sent_trigger(), [_ADDRESS_ARG, (_PDU_SPAN, "request")], sent_conf
         )
     if response_conf := config.get(CONF_ON_RESPONSE):
         await automation.build_automation(
@@ -236,7 +218,7 @@ async def register_client_action(
     if error_conf := config.get(CONF_ON_ERROR):
         await automation.build_automation(
             var.get_error_trigger(),
-            [(_PDU_SPAN, "request"), (ExceptionCode, "exception_code")],
+            [_ADDRESS_ARG, (_PDU_SPAN, "request"), (ExceptionCode, "exception_code")],
             error_conf,
         )
     if (no_response_conf := config.get(CONF_ON_NO_RESPONSE)) is not None:
@@ -247,22 +229,23 @@ async def register_client_action(
         else:
             await automation.build_automation(
                 var.get_no_response_trigger(),
-                [(_PDU_SPAN, "request")],
+                [_ADDRESS_ARG, (_PDU_SPAN, "request")],
                 no_response_conf,
             )
             retry_conf = no_response_conf.get(CONF_RETRY)
         if retry_conf is not None:
             retry_lambda = await cg.process_lambda(
-                retry_conf, [(_PDU_SPAN, "request")], return_type=cg.bool_
+                retry_conf, [_ADDRESS_ARG, (_PDU_SPAN, "request")], return_type=cg.bool_
             )
             cg.add(var.set_retry(retry_lambda))
     if not_sent_conf := config.get(CONF_ON_NOT_SENT):
         await automation.build_automation(
-            var.get_not_sent_trigger(), [(_PDU_SPAN, "request")], not_sent_conf
+            var.get_not_sent_trigger(),
+            [_ADDRESS_ARG, (_PDU_SPAN, "request")],
+            not_sent_conf,
         )
     # Wire any command options the action's schema opted into (e.g. continuous on reads). Pass the
-    # matching direction so a write action never generates a read option's setter; the write side
-    # has no options yet, so this is a no-op there.
+    # matching direction so a write action never generates a read option's setter.
     await modbus.register_templatable_command_options(
         var, config, args, command_direction
     )
@@ -279,11 +262,13 @@ async def modbus_client_send_to_code(config, action_id, template_arg, args):
     var = cg.new_Pvariable(action_id, template_arg)
     template_ = await cg.templatable(config[CONF_PDU], args, _PDU_BUFFER)
     cg.add(var.set_pdu(template_))
+    # The read set is wired by register_client_action() below.
+    await modbus.register_templatable_command_options(var, config, args, "write")
     return await register_client_action(
         var,
         config,
         args,
-        [(_PDU_SPAN, "request"), (_PDU_SPAN, "response")],
+        [_ADDRESS_ARG, (_PDU_SPAN, "request"), (_PDU_SPAN, "response")],
     )
 
 
@@ -353,6 +338,7 @@ def _read_schema(max_count: int) -> cv.All:
             }
         ),
         _no_address_overflow(CONF_COUNT),
+        modbus.reject_broadcast_options_for_unicast(CONF_ADDRESS),
     )
 
 
@@ -364,21 +350,35 @@ def _write_multiple_schema(item: Callable[[Any], Any], max_values: int) -> cv.Al
                 cv.Required(CONF_VALUES): cv.templatable(
                     cv.All(cv.ensure_list(item), cv.Length(min=1, max=max_values))
                 ),
+                **modbus.command_options_schema(direction="write", templatable=True),
             }
         ),
         _no_address_overflow(CONF_VALUES),
+        modbus.reject_broadcast_options_for_unicast(CONF_ADDRESS),
     )
 
 
 _READ_REGISTERS_SCHEMA = _read_schema(modbus.MAX_NUM_OF_REGISTERS_TO_READ)
 
-_WRITE_SINGLE_REGISTER_SCHEMA = _TYPED_ACTION_SCHEMA.extend(
-    {cv.Required(CONF_VALUE): cv.templatable(cv.hex_uint16_t)}
+_WRITE_SINGLE_REGISTER_SCHEMA = cv.All(
+    _TYPED_ACTION_SCHEMA.extend(
+        {
+            cv.Required(CONF_VALUE): cv.templatable(cv.hex_uint16_t),
+            **modbus.command_options_schema(direction="write", templatable=True),
+        }
+    ),
+    modbus.reject_broadcast_options_for_unicast(CONF_ADDRESS),
 )
 
 # A coil is one bit, so the value is a boolean - the wire only carries 0x0000 or 0xFF00.
-_WRITE_SINGLE_COIL_SCHEMA = _TYPED_ACTION_SCHEMA.extend(
-    {cv.Required(CONF_VALUE): cv.templatable(cv.boolean)}
+_WRITE_SINGLE_COIL_SCHEMA = cv.All(
+    _TYPED_ACTION_SCHEMA.extend(
+        {
+            cv.Required(CONF_VALUE): cv.templatable(cv.boolean),
+            **modbus.command_options_schema(direction="write", templatable=True),
+        }
+    ),
+    modbus.reject_broadcast_options_for_unicast(CONF_ADDRESS),
 )
 
 
@@ -542,10 +542,15 @@ _READ_WRITE_MULTIPLE_REGISTERS_SCHEMA = cv.All(
                     cv.Length(min=1, max=modbus.MAX_NUM_OF_REGISTERS_TO_WRITE_RW),
                 )
             ),
+            # 0x17 counts as a read at address 0, so it takes allow_broadcast_read only.
+            **modbus.command_options_schema(
+                direction="read", templatable=True, function_code=0x17
+            ),
         }
     ),
     _no_address_overflow(CONF_READ_COUNT, CONF_READ_ADDRESS),
     _no_address_overflow(CONF_VALUES, CONF_WRITE_ADDRESS),
+    modbus.reject_broadcast_options_for_unicast(CONF_ADDRESS),
 )
 
 

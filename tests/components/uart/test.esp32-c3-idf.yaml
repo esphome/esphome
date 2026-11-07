@@ -24,5 +24,6 @@ uart:
     tx_pin: 18
     rx_pin: 19
     baud_rate: 115200
+    clock_source: XTAL
     debug:
       debug_prefix: "[UART1] "

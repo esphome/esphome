@@ -6,7 +6,9 @@
 
 namespace esphome::hdc302x {
 
-static const char *const TAG = "hdc302x.sensor";
+ESPHOME_LOG_TAG(TAG, "hdc302x.sensor");
+
+static constexpr uint32_t HEATER_OFF_TIMEOUT_ID = 0;
 
 // Commands (per datasheet Table 7-4)
 static const uint8_t HDC302X_CMD_SOFT_RESET[2] = {0x30, 0xa2};
@@ -20,18 +22,15 @@ static const uint8_t HDC302X_CMD_HEATER_CONFIGURE[2] = {0x30, 0x6e};
 
 void HDC302XComponent::setup() {
   // Soft reset the device
-  if (this->write(HDC302X_CMD_SOFT_RESET, 2) != i2c::ERROR_OK) {
-    this->mark_failed(LOG_STR("Soft reset failed"));
+  if (!this->setup_check(this->write(HDC302X_CMD_SOFT_RESET, 2) == i2c::ERROR_OK, LOG_STR("Soft reset failed")))
     return;
-  }
   // Delay SensorRR (reset ready), per datasheet, 6.5.
   delay(3);
 
   // Clear status register
-  if (this->write(HDC302X_CMD_CLEAR_STATUS_REGISTER, 2) != i2c::ERROR_OK) {
-    this->mark_failed(LOG_STR("Clear status failed"));
+  if (!this->setup_check(this->write(HDC302X_CMD_CLEAR_STATUS_REGISTER, 2) == i2c::ERROR_OK,
+                         LOG_STR("Clear status failed")))
     return;
-  }
 }
 
 void HDC302XComponent::dump_config() {
@@ -41,7 +40,7 @@ void HDC302XComponent::dump_config() {
                 this->heater_active_ ? LOG_STR_LITERAL("active") : LOG_STR_LITERAL("inactive"));
   LOG_I2C_DEVICE(this);
   LOG_UPDATE_INTERVAL(this);
-  LOG_SENSOR("  ", "Temperature", this->temp_sensor_);
+  LOG_SENSOR("  ", "Temperature", this->temperature_sensor_);
   LOG_SENSOR("  ", "Humidity", this->humidity_sensor_);
 }
 
@@ -68,14 +67,14 @@ void HDC302XComponent::start_heater(uint16_t power, uint32_t duration_ms) {
     return;
   }
   this->heater_active_ = true;
-  this->cancel_timeout("heater_off");
+  this->cancel_timeout(HEATER_OFF_TIMEOUT_ID);
   if (duration_ms > 0) {
-    this->set_timeout("heater_off", duration_ms, [this]() { this->stop_heater(); });
+    this->set_timeout(HEATER_OFF_TIMEOUT_ID, duration_ms, [this]() { this->stop_heater(); });
   }
 }
 
 void HDC302XComponent::stop_heater() {
-  this->cancel_timeout("heater_off");
+  this->cancel_timeout(HEATER_OFF_TIMEOUT_ID);
   if (!this->disable_heater_()) {
     ESP_LOGW(TAG, "Heater stop failed");
   }
@@ -131,26 +130,13 @@ void HDC302XComponent::read_data_() {
   }
 
   // Check checksums
-  if (crc8(buf, 2, 0xff, 0x31, true) != buf[2] || crc8(buf + 3, 2, 0xff, 0x31, true) != buf[5]) {
-    this->status_set_warning(LOG_STR("Read data: invalid CRC"));
+  const bool crc_ok = crc8(buf, 2, 0xff, 0x31, true) == buf[2] && crc8(buf + 3, 2, 0xff, 0x31, true) == buf[5];
+  if (!this->status_comm_result(crc_ok, LOG_STR("Read data: invalid CRC")))
     return;
-  }
 
-  this->status_clear_warning();
-
-  if (this->temp_sensor_ != nullptr) {
-    uint16_t raw_t = encode_uint16(buf[0], buf[1]);
-    // Calculate temperature in Celsius per datasheet section 7.3.3.
-    float temp = -45 + 175 * (float(raw_t) / 65535.0f);
-    this->temp_sensor_->publish_state(temp);
-  }
-
-  if (this->humidity_sensor_ != nullptr) {
-    uint16_t raw_rh = encode_uint16(buf[3], buf[4]);
-    // Calculate RH% per datasheet section 7.3.3.
-    float humidity = 100 * (float(raw_rh) / 65535.0f);
-    this->humidity_sensor_->publish_state(humidity);
-  }
+  // Temperature in Celsius and RH% per datasheet section 7.3.3.
+  PUBLISH_STATE(this->temperature_sensor_, -45 + 175 * (encode_uint16(buf[0], buf[1]) / 65535.0f));
+  PUBLISH_STATE(this->humidity_sensor_, 100 * (encode_uint16(buf[3], buf[4]) / 65535.0f));
 }
 
 uint32_t HDC302XComponent::conversion_delay_ms_() {

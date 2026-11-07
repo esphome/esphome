@@ -4,27 +4,20 @@
 
 namespace esphome::pipsolar {
 
-static const char *const TAG = "pipsolar";
+ESPHOME_LOG_TAG(TAG, "pipsolar");
+
+// value_or(NAN) on an integer optional converts NaN to int, which is undefined
+static float int_or_nan(optional<int32_t> value) { return value.has_value() ? static_cast<float>(*value) : NAN; }
 
 void Pipsolar::setup() {
   this->state_ = STATE_IDLE;
   this->command_start_millis_ = 0;
 }
 
-void Pipsolar::empty_uart_buffer_() {
-  uint8_t buf[64];
-  size_t avail;
-  while ((avail = this->available()) > 0) {
-    if (!this->read_array(buf, std::min(avail, sizeof(buf)))) {
-      break;
-    }
-  }
-}
-
 void Pipsolar::loop() {
   // Read message
   if (this->state_ == STATE_IDLE) {
-    this->empty_uart_buffer_();
+    this->discard_available();
 
     if (this->send_next_command_()) {
       // command sent
@@ -96,47 +89,31 @@ void Pipsolar::loop() {
   }
 
   if (this->state_ == STATE_COMMAND || this->state_ == STATE_POLL) {
-    size_t avail = this->available();
-    while (avail > 0) {
-      uint8_t buf[64];
-      size_t to_read = std::min(avail, sizeof(buf));
-      if (!this->read_array(buf, to_read)) {
-        break;
+    this->read_available([this](uint8_t byte) {
+      // make sure data and null terminator fit in buffer
+      if (this->read_pos_ >= PIPSOLAR_READ_BUFFER_LENGTH - 1) {
+        this->read_pos_ = 0;
+        this->discard_available();
+        ESP_LOGW(TAG, "response data too long, discarding.");
+        return false;
       }
-      avail -= to_read;
-      bool done = false;
-      for (size_t i = 0; i < to_read; i++) {
-        uint8_t byte = buf[i];
+      this->read_buffer_[this->read_pos_] = byte;
+      this->read_pos_++;
 
-        // make sure data and null terminator fit in buffer
-        if (this->read_pos_ >= PIPSOLAR_READ_BUFFER_LENGTH - 1) {
-          this->read_pos_ = 0;
-          this->empty_uart_buffer_();
-          ESP_LOGW(TAG, "response data too long, discarding.");
-          done = true;
-          break;
+      // end of answer
+      if (byte == 0x0D) {
+        this->read_buffer_[this->read_pos_] = 0;
+        this->discard_available();
+        if (this->state_ == STATE_POLL) {
+          this->state_ = STATE_POLL_COMPLETE;
         }
-        this->read_buffer_[this->read_pos_] = byte;
-        this->read_pos_++;
-
-        // end of answer
-        if (byte == 0x0D) {
-          this->read_buffer_[this->read_pos_] = 0;
-          this->empty_uart_buffer_();
-          if (this->state_ == STATE_POLL) {
-            this->state_ = STATE_POLL_COMPLETE;
-          }
-          if (this->state_ == STATE_COMMAND) {
-            this->state_ = STATE_COMMAND_COMPLETE;
-          }
-          done = true;
-          break;
+        if (this->state_ == STATE_COMMAND) {
+          this->state_ = STATE_COMMAND_COMPLETE;
         }
+        return false;
       }
-      if (done) {
-        break;
-      }
-    }
+      return true;
+    });
   }
   if (this->state_ == STATE_COMMAND) {
     if (millis() - this->command_start_millis_ > esphome::pipsolar::Pipsolar::COMMAND_TIMEOUT) {
@@ -173,14 +150,14 @@ uint8_t Pipsolar::check_incoming_crc_() {
   uint16_t crc16;
   crc16 = this->pipsolar_crc_(read_buffer_, read_pos_ - 3);
   if (((uint8_t) ((crc16) >> 8)) == read_buffer_[read_pos_ - 3] &&
-      ((uint8_t) ((crc16) &0xff)) == read_buffer_[read_pos_ - 2]) {
+      ((uint8_t) ((crc16) & 0xff)) == read_buffer_[read_pos_ - 2]) {
     ESP_LOGD(TAG, "CRC OK");
     read_buffer_[read_pos_ - 1] = 0;
     read_buffer_[read_pos_ - 2] = 0;
     read_buffer_[read_pos_ - 3] = 0;
     return 1;
   }
-  ESP_LOGD(TAG, "CRC NOK expected: %X %X but got: %X %X", ((uint8_t) ((crc16) >> 8)), ((uint8_t) ((crc16) &0xff)),
+  ESP_LOGD(TAG, "CRC NOK expected: %X %X but got: %X %X", ((uint8_t) ((crc16) >> 8)), ((uint8_t) ((crc16) & 0xff)),
            read_buffer_[read_pos_ - 3], read_buffer_[read_pos_ - 2]);
   return 0;
 }
@@ -202,13 +179,13 @@ bool Pipsolar::send_next_command_() {
     }
     this->state_ = STATE_COMMAND;
     this->command_start_millis_ = millis();
-    this->empty_uart_buffer_();
+    this->discard_available();
     this->read_pos_ = 0;
     crc16 = this->pipsolar_crc_(byte_command, length);
     this->write_str(command);
     // checksum
-    this->write(((uint8_t) ((crc16) >> 8)));   // highbyte
-    this->write(((uint8_t) ((crc16) &0xff)));  // lowbyte
+    this->write(((uint8_t) ((crc16) >> 8)));    // highbyte
+    this->write(((uint8_t) ((crc16) & 0xff)));  // lowbyte
     // end Byte
     this->write(0x0D);
     ESP_LOGD(TAG, "Sending command from queue: %s with length %d", command, length);
@@ -231,15 +208,15 @@ bool Pipsolar::send_next_poll_() {
     }
     this->state_ = STATE_POLL;
     this->command_start_millis_ = millis();
-    this->empty_uart_buffer_();
+    this->discard_available();
     this->read_pos_ = 0;
     crc16 = this->pipsolar_crc_(this->enabled_polling_commands_[this->last_polling_command_].command,
                                 this->enabled_polling_commands_[this->last_polling_command_].length);
     this->write_array(this->enabled_polling_commands_[this->last_polling_command_].command,
                       this->enabled_polling_commands_[this->last_polling_command_].length);
     // checksum
-    this->write(((uint8_t) ((crc16) >> 8)));   // highbyte
-    this->write(((uint8_t) ((crc16) &0xff)));  // lowbyte
+    this->write(((uint8_t) ((crc16) >> 8)));    // highbyte
+    this->write(((uint8_t) ((crc16) & 0xff)));  // lowbyte
     // end Byte
     this->write(0x0D);
     ESP_LOGD(TAG, "Sending polling command: %s with length %d",
@@ -250,17 +227,23 @@ bool Pipsolar::send_next_poll_() {
   return false;
 }
 
-void Pipsolar::queue_command(const std::string &command) {
+void Pipsolar::write_switch(bool state, const char *on, const char *off) {
+  const char *command = state ? on : off;
+  if (command != nullptr)
+    this->queue_command(command);
+}
+
+void Pipsolar::queue_command(const char *command) {
   uint8_t next_position = command_queue_position_;
   for (uint8_t i = 0; i < COMMAND_QUEUE_LENGTH; i++) {
     uint8_t testposition = (next_position + i) % COMMAND_QUEUE_LENGTH;
     if (command_queue_[testposition].empty()) {
       command_queue_[testposition] = command;
-      ESP_LOGD(TAG, "Command queued successfully: %s at position %d", command.c_str(), testposition);
+      ESP_LOGD(TAG, "Command queued successfully: %s at position %d", command, testposition);
       return;
     }
   }
-  ESP_LOGD(TAG, "Command queue full dropping command: %s", command.c_str());
+  ESP_LOGD(TAG, "Command queue full dropping command: %s", command);
 }
 
 void Pipsolar::handle_poll_response_(ENUMPollingCommand polling_command, const char *message) {
@@ -286,6 +269,12 @@ void Pipsolar::handle_poll_response_(ENUMPollingCommand polling_command, const c
     case POLLING_QMN:
       handle_qmn_(message);
       break;
+    case POLLING_QET:
+      handle_single_int_(message, this->last_qet_, this->total_pv_generated_energy_);
+      break;
+    case POLLING_QLT:
+      handle_single_int_(message, this->last_qlt_, this->total_output_load_energy_);
+      break;
     default:
       break;
   }
@@ -296,9 +285,7 @@ void Pipsolar::handle_poll_error_(ENUMPollingCommand polling_command) {
 }
 
 void Pipsolar::handle_qpiri_(const char *message) {
-  if (this->last_qpiri_) {
-    this->last_qpiri_->publish_state(message);
-  }
+  PUBLISH_STATE(this->last_qpiri_, message);
 
   size_t pos = 0;
   this->skip_start_(message, &pos);
@@ -336,17 +323,13 @@ void Pipsolar::handle_qpiri_(const char *message) {
   esphome::optional<int> pv_ok_condition_for_parallel = parse_number<int32_t>(this->read_field_(message, &pos));
   esphome::optional<int> pv_power_balance = parse_number<int32_t>(this->read_field_(message, &pos));
 
-  if (this->input_voltage_range_) {
-    this->input_voltage_range_->publish_state(input_voltage_range.value_or(NAN));
-  }
+  PUBLISH_STATE(this->input_voltage_range_, int_or_nan(input_voltage_range));
   // special for input voltage range switch
   if (this->input_voltage_range_switch_ && input_voltage_range.has_value()) {
     this->input_voltage_range_switch_->publish_state(input_voltage_range.value() == 1);
   }
 
-  if (this->output_source_priority_) {
-    this->output_source_priority_->publish_state(output_source_priority.value_or(NAN));
-  }
+  PUBLISH_STATE(this->output_source_priority_, int_or_nan(output_source_priority));
   // special for output source priority switches
   if (this->output_source_priority_utility_switch_ && output_source_priority.has_value()) {
     this->output_source_priority_utility_switch_->publish_state(output_source_priority.value() == 0);
@@ -361,17 +344,13 @@ void Pipsolar::handle_qpiri_(const char *message) {
     this->output_source_priority_hybrid_switch_->publish_state(output_source_priority.value() == 3);
   }
 
-  if (this->pv_ok_condition_for_parallel_) {
-    this->pv_ok_condition_for_parallel_->publish_state(pv_ok_condition_for_parallel.value_or(NAN));
-  }
+  PUBLISH_STATE(this->pv_ok_condition_for_parallel_, int_or_nan(pv_ok_condition_for_parallel));
   // special for pv ok condition switch
   if (this->pv_ok_condition_for_parallel_switch_ && pv_ok_condition_for_parallel.has_value()) {
     this->pv_ok_condition_for_parallel_switch_->publish_state(pv_ok_condition_for_parallel.value() == 1);
   }
 
-  if (this->pv_power_balance_) {
-    this->pv_power_balance_->publish_state(pv_power_balance.value_or(NAN));
-  }
+  PUBLISH_STATE(this->pv_power_balance_, int_or_nan(pv_power_balance));
   // special for power balance switch
   if (this->pv_power_balance_switch_ && pv_power_balance.has_value()) {
     this->pv_power_balance_switch_->publish_state(pv_power_balance.value() == 1);
@@ -379,9 +358,7 @@ void Pipsolar::handle_qpiri_(const char *message) {
 }
 
 void Pipsolar::handle_qpigs_(const char *message) {
-  if (this->last_qpigs_) {
-    this->last_qpigs_->publish_state(message);
-  }
+  PUBLISH_STATE(this->last_qpigs_, message);
 
   size_t pos = 0;
   this->skip_start_(message, &pos);
@@ -419,9 +396,7 @@ void Pipsolar::handle_qpigs_(const char *message) {
   this->publish_binary_sensor_(this->get_bit_(device_status_1, 7), this->ac_charging_status_);
 
   esphome::optional<int> battery_voltage_offset_for_fans_on = parse_number<int32_t>(this->read_field_(message, &pos));
-  if (this->battery_voltage_offset_for_fans_on_) {
-    this->battery_voltage_offset_for_fans_on_->publish_state(battery_voltage_offset_for_fans_on.value_or(NAN) / 10.0f);
-  }
+  PUBLISH_STATE(this->battery_voltage_offset_for_fans_on_, int_or_nan(battery_voltage_offset_for_fans_on) / 10.0f);
   this->read_int_sensor_(message, &pos, this->eeprom_version_);
   this->read_int_sensor_(message, &pos, this->pv_charging_power_);
 
@@ -432,27 +407,19 @@ void Pipsolar::handle_qpigs_(const char *message) {
 }
 
 void Pipsolar::handle_qmod_(const char *message) {
-  if (this->last_qmod_) {
-    this->last_qmod_->publish_state(message);
-  }
+  PUBLISH_STATE(this->last_qmod_, message);
   // QMOD response is "(M" where M is the device-mode character. Bail out if the
   // message is shorter than 2 chars (e.g. empty error response from
   // handle_poll_error_) — reading message[1] would otherwise be out of bounds.
   if (message[0] == '\0' || message[1] == '\0')
     return;
-  if (this->device_mode_) {
-    std::string mode;
-    mode = char(message[1]);
-    this->device_mode_->publish_state(mode);
-  }
+  PUBLISH_STATE(this->device_mode_, &message[1], 1);
 }
 
 void Pipsolar::handle_qflag_(const char *message) {
   // result like:"(EbkuvxzDajy"
   // get through all char: ignore first "(" Enable flag on 'E', Disable on 'D') else set the corresponding value
-  if (this->last_qflag_) {
-    this->last_qflag_->publish_state(message);
-  }
+  PUBLISH_STATE(this->last_qflag_, message);
 
   QFLAGValues values = QFLAGValues();
   bool enabled = true;
@@ -509,9 +476,7 @@ void Pipsolar::handle_qflag_(const char *message) {
 void Pipsolar::handle_qpiws_(const char *message) {
   // '(00000000000000000000000000000000'
   // iterate over all available flag (as not all models have all flags, but at least in the same order)
-  if (this->last_qpiws_) {
-    this->last_qpiws_->publish_state(message);
-  }
+  PUBLISH_STATE(this->last_qpiws_, message);
 
   size_t pos = 0;
   this->skip_start_(message, &pos);
@@ -660,6 +625,8 @@ void Pipsolar::handle_qpiws_(const char *message) {
         this->publish_binary_sensor_(enabled, this->warning_battery_equalization_);
         value_warnings_present |= enabled.value_or(false);
         break;
+      default:
+        break;
     }
   }
 
@@ -667,25 +634,26 @@ void Pipsolar::handle_qpiws_(const char *message) {
   this->publish_binary_sensor_(value_faults_present, this->faults_present_);
 
   if (this->fault_code_) {
-    if (flags.length() < 33) {
-      this->fault_code_->publish_state(NAN);
-    } else {
-      std::string fc(flags, 31, 2);
-      this->fault_code_->publish_state(parse_number<int>(fc).value_or(NAN));
+    optional<bool> fault;
+    if (flags.length() >= 33) {
+      if (auto code = parse_number<int>(std::string(flags, 31, 2)))
+        fault = *code != 0;
     }
+    this->publish_binary_sensor_(fault, this->fault_code_);
   }
 }
 
-void Pipsolar::handle_qt_(const char *message) {
-  if (this->last_qt_) {
-    this->last_qt_->publish_state(message);
-  }
-}
+void Pipsolar::handle_qt_(const char *message) { PUBLISH_STATE(this->last_qt_, message); }
 
-void Pipsolar::handle_qmn_(const char *message) {
-  if (this->last_qmn_) {
-    this->last_qmn_->publish_state(message);
-  }
+void Pipsolar::handle_qmn_(const char *message) { PUBLISH_STATE(this->last_qmn_, message); }
+
+// QET and QLT each answer with one integer
+void Pipsolar::handle_single_int_(const char *message, text_sensor::TextSensor *raw, sensor::Sensor *value) {
+  PUBLISH_STATE(raw, message);
+
+  size_t pos = 0;
+  this->skip_start_(message, &pos);
+  this->read_int_sensor_(message, &pos, value);
 }
 
 void Pipsolar::skip_start_(const char *message, size_t *pos) {
@@ -734,8 +702,7 @@ void Pipsolar::read_float_sensor_(const char *message, size_t *pos, sensor::Sens
 void Pipsolar::read_int_sensor_(const char *message, size_t *pos, sensor::Sensor *sensor) {
   if (sensor != nullptr) {
     std::string field = this->read_field_(message, pos);
-    esphome::optional<int32_t> parsed = parse_number<int32_t>(field);
-    sensor->publish_state(parsed.has_value() ? parsed.value() : NAN);
+    sensor->publish_state(int_or_nan(parse_number<int32_t>(field)));
   } else {
     this->skip_field_(message, pos);
   }

@@ -4,7 +4,7 @@
 
 namespace esphome::radon_eye_ble {
 
-static const char *const TAG = "radon_eye_ble";
+ESPHOME_LOG_TAG(TAG, "radon_eye_ble");
 
 bool RadonEyeListener::parse_device(const ble_device_base::ESPBTDevice &device) {
   // Radon Eye devices have names starting with "FR:"

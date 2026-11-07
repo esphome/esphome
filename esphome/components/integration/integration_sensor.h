@@ -23,10 +23,11 @@ enum IntegrationMethod {
 };
 
 class IntegrationSensor final : public sensor::Sensor, public Component {
+  SUB_SENSOR(source)
+
  public:
   void setup() override;
   void dump_config() override;
-  void set_sensor(Sensor *sensor) { sensor_ = sensor; }
   void set_time(IntegrationSensorTime time) { time_ = time; }
   void set_method(IntegrationMethod method) { method_ = method; }
   void set_restore(bool restore) { restore_ = restore; }
@@ -60,7 +61,6 @@ class IntegrationSensor final : public sensor::Sensor, public Component {
     }
   }
 
-  sensor::Sensor *sensor_;
   IntegrationSensorTime time_;
   IntegrationMethod method_;
   bool restore_;
@@ -69,18 +69,6 @@ class IntegrationSensor final : public sensor::Sensor, public Component {
   uint32_t last_update_;
   double result_{0.0f};
   float last_value_{0.0f};
-};
-
-template<typename... Ts> class ResetAction final : public Action<Ts...>, public Parented<IntegrationSensor> {
- public:
-  void play(const Ts &...x) override { this->parent_->reset(); }
-};
-
-template<typename... Ts> class SetValueAction final : public Action<Ts...>, public Parented<IntegrationSensor> {
- public:
-  TEMPLATABLE_VALUE(float, value)
-
-  void play(const Ts &...x) override { this->parent_->set_value(this->value_.value(x...)); }
 };
 
 }  // namespace esphome::integration

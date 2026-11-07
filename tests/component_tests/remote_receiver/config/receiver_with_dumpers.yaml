@@ -1,0 +1,24 @@
+esphome:
+  name: test
+
+esp32:
+  board: esp32dev
+
+logger:
+
+remote_receiver:
+  - id: rcvr
+    pin: GPIO4
+    dump:
+      - nec
+      - rc_switch
+    on_nec:
+      then:
+        - logger.log: nec
+
+binary_sensor:
+  - platform: remote_receiver
+    name: Remote Input
+    nec:
+      address: 0x1234
+      command: 0x5678

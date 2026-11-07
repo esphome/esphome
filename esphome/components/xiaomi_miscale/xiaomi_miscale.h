@@ -15,19 +15,18 @@ struct ParseResult {
 };
 
 class XiaomiMiscale final : public Component, public ble_device_base::ESPBTDeviceListener {
+  SUB_SENSOR(weight)
+  SUB_SENSOR(impedance)
+
  public:
   void set_address(uint64_t address) { address_ = address; };
 
   bool parse_device(const ble_device_base::ESPBTDevice &device) override;
   void dump_config() override;
-  void set_weight(sensor::Sensor *weight) { weight_ = weight; }
-  void set_impedance(sensor::Sensor *impedance) { impedance_ = impedance; }
   void set_clear_impedance(bool clear_impedance) { clear_impedance_ = clear_impedance; }
 
  protected:
   uint64_t address_;
-  sensor::Sensor *weight_{nullptr};
-  sensor::Sensor *impedance_{nullptr};
   bool clear_impedance_{false};
 
   optional<ParseResult> parse_header_(const ble_device_base::ServiceData &service_data);

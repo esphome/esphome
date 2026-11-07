@@ -1,0 +1,10 @@
+esphome:
+  name: improv-ble-esp8266
+esp8266:
+  board: nodemcuv2
+logger:
+wifi:
+  ssid: MySSID
+  password: password1
+improv_ble:
+  authorizer: none

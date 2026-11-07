@@ -1,13 +1,14 @@
 #include "tof10120_sensor.h"
 #include "esphome/core/log.h"
 #include "esphome/core/hal.h"
+#include "esphome/core/helpers.h"
 #include <cinttypes>
 
 // Very basic support for TOF10120 distance sensor
 
 namespace esphome::tof10120 {
 
-static const char *const TAG = "tof10120";
+ESPHOME_LOG_TAG(TAG, "tof10120");
 static const uint8_t TOF10120_READ_DISTANCE_CMD[] = {0x00};
 static const uint8_t TOF10120_DEFAULT_DELAY = 30;
 
@@ -26,8 +27,7 @@ void TOF10120Sensor::setup() {}
 
 void TOF10120Sensor::update() {
   if (!this->write_bytes(TOF10120_DISTANCE_REGISTER, TOF10120_READ_DISTANCE_CMD, sizeof(TOF10120_READ_DISTANCE_CMD))) {
-    ESP_LOGE(TAG, ESP_LOG_MSG_COMM_FAIL);
-    this->status_set_warning();
+    this->status_set_warning(LOG_STR(ESP_LOG_MSG_COMM_FAIL));
     return;
   }
 
@@ -38,12 +38,11 @@ void TOF10120Sensor::update() {
   }
   delay(TOF10120_DEFAULT_DELAY);
   if (this->read(data, 2) != i2c::ERROR_OK) {
-    ESP_LOGE(TAG, ESP_LOG_MSG_COMM_FAIL);
-    this->status_set_warning();
+    this->status_set_warning(LOG_STR(ESP_LOG_MSG_COMM_FAIL));
     return;
   }
 
-  uint32_t distance_mm = (data[0] << 8) | data[1];
+  uint32_t distance_mm = encode_uint16(data[0], data[1]);
   ESP_LOGI(TAG, "Data read: %" PRIu32 "mm", distance_mm);
 
   if (distance_mm == TOF10120_OUT_OF_RANGE_VALUE) {

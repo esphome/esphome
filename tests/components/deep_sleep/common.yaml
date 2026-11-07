@@ -4,9 +4,31 @@ esphome:
       - deep_sleep.prevent
       - delay: 1s
       - deep_sleep.allow
+      - deep_sleep.prevent:
+          id: deep_sleep_1
+      - deep_sleep.allow:
+          id: deep_sleep_1
       - if:
           condition:
             lambda: 'return false;'
           then:
             - deep_sleep.enter:
                 sleep_duration: 60min
+            - deep_sleep.enter:
+                sleep_duration: !lambda return 60000;
+      - if:
+          condition:
+            lambda: 'return deep_sleep::woke_from_deep_sleep();'
+          then:
+            - logger.log: Woke from deep sleep
+
+script:
+  - id: deep_sleep_for_seconds
+    parameters:
+      seconds: uint32_t
+    then:
+      # The lambdas modify their by-value parameter
+      - deep_sleep.enter:
+          sleep_duration: !lambda "seconds *= 1000; return seconds;"
+      - deep_sleep.enter:
+          sleep_duration: !lambda "return seconds *= 1000;"

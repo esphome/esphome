@@ -15,9 +15,7 @@ lv_button_t = LvBoolean("lv_button_t")
 
 class ButtonType(WidgetType):
     def __init__(self):
-        super().__init__(
-            CONF_BUTTON, lv_button_t, (CONF_MAIN,), schema=TEXT_SCHEMA, lv_name="btn"
-        )
+        super().__init__(CONF_BUTTON, lv_button_t, (CONF_MAIN,), schema=TEXT_SCHEMA)
 
     def validate(self, value):
         if CONF_TEXT in value:
@@ -25,9 +23,6 @@ class ButtonType(WidgetType):
                 raise cv.Invalid("Cannot use both text and widgets in a button")
             add_lv_use("label")
         return value
-
-    def get_uses(self):
-        return ("btn",)
 
     async def on_create(self, var: MockObj, config: dict):
         if CONF_TEXT in config:

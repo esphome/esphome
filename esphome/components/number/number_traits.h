@@ -31,7 +31,7 @@ class NumberTraits {
   float min_value_ = NAN;
   float max_value_ = NAN;
   float step_ = NAN;
-  NumberMode mode_{NUMBER_MODE_AUTO};
+  NumberMode mode_{NUMBER_MODE_AUTO};  // Keep in sync with DEFAULT_MODE in __init__.py
 };
 
 }  // namespace esphome::number

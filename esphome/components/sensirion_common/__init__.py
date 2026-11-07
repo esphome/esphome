@@ -2,6 +2,7 @@ import esphome.codegen as cg
 from esphome.components import i2c
 
 CODEOWNERS = ["@martgras"]
+DOMAIN = "sensirion_common"
 
 sensirion_common_ns = cg.esphome_ns.namespace("sensirion_common")
 
