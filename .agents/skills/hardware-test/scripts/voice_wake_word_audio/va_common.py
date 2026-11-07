@@ -30,4 +30,5 @@ def mww_buttons(ents: list) -> tuple[object, object]:
 
 
 async def play(path: str) -> None:
-    await asyncio.to_thread(subprocess.run, [*PLAY, path], check=True)
+    """Play a clip on the host; raises when the player fails or hangs (afplay without audio permission)."""
+    await asyncio.to_thread(subprocess.run, [*PLAY, path], check=True, timeout=30)

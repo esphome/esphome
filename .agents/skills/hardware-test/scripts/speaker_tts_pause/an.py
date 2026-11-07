@@ -3,8 +3,9 @@
 usage: an.py SRV_LOG WWW_DIR LABEL=SERIAL_CAPTURE...
 SRV_LOG is srv.py's output with "=== LABEL ..." lines that run.sh writes before each build's requests. The serial
 capture needs --ms timestamps and the "[frames" lines from tts-common.yaml. The fifth request of a build is media,
-the others announcements. Exits 1 when a build did not get all five requests, a request played nothing, or the
-server logged an error or never sent the rest of a request.
+the others announcements. Exits 1 when a build did not get all five requests, a request played nothing, never played
+the whole intro or stopped short of 95 % of the stream, or the server logged an error or never sent the rest of a
+request.
 """
 
 import datetime as dt
@@ -78,6 +79,8 @@ for arg in sys.argv[3:]:
             sent = f"intro sent {intro[i] - rt:4.2f} s, rest sent {rest[i] - rt:5.2f} s"
         else:
             sent = "rest not sent" + (" (server ERR)" if "ERR" in sec[i] else "")
+            bad = True
+        if tail is None or seg[-1][2] < 0.95 * total:
             bad = True
         print(
             f"  {i} {kind:5} {name}: first audio {seg[0][0] - rt:5.2f} s | {sent} | played before rest "

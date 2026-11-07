@@ -10,4 +10,5 @@ with `add_data_callback`) keeps per-segment and last 500 ms stats plus a 1 ms tr
 logs `SEG` and `SETTLE` lines from an interval. `run.sh LABEL [SAMPLE_RATE] [CHANNEL]` flashes and captures 60 s,
 and `sum.py` tabulates. The segment min and max include the tail of the previous pattern (capture latency), so judge
 with the tail values. The runner fails on a missing segment, a full-scale square under rms 8000 (no signal through the
-jumpers) or a crash after the first segment. Results: https://github.com/esphome/esphome/pull/22130#issuecomment-6615554179
+jumpers), on either channel for a stereo run, or a crash after the first segment.
+Results: https://github.com/esphome/esphome/pull/22130#issuecomment-6615554179

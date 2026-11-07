@@ -5,6 +5,7 @@
 # Assistant cannot hold the voice assistant subscription).
 # env: PY (python with esphome's requirements), API_KEY, DELAY (seconds before the first byte, default 3.5), FLAC
 D=$(cd "$(dirname "$0")" && pwd); DEV=${1:?device}; shift; PY=${PY:?set PY}; K=${API_KEY:?set API_KEY}; FAIL=0
+[ $# -gt 0 ] || { echo "FAIL: no builds given (LABEL=CONFIG=TREE...)"; exit 1; }
 for arg in "$@"; do
   v=${arg%%=*}; rest=${arg#*=}; C=${rest%%=*}; T=${rest#*=}; O=$D/out-va$v; rm -rf "$O"; mkdir -p "$O"
   case $C in /*) ;; *) C=$PWD/$C;; esac

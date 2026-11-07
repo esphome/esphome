@@ -7,6 +7,7 @@
 # env: PORT, SC (path to serial_capture.py), PY (python with esphome's requirements), DRIVE (path to
 # scripts/speaker_media_player/drive.py, needed from a scratch copy), HOST_IP (this host's address as the board
 # sees it), API_KEY, SRV_PORT (default 18765), PAUSE (seconds the server holds the stream, default 8)
+[ $# -gt 0 ] || { echo "FAIL: no builds given (LABEL=TREE...)"; exit 1; }
 D=$(cd "$(dirname "$0")" && pwd); P=${PORT:?set PORT}; SC=${SC:?set SC}; PY=${PY:?set PY}; K=${API_KEY:?set API_KEY}
 SP=${SRV_PORT:-18765}; U=http://${HOST_IP:?set HOST_IP}:$SP; DRIVE=${DRIVE:-$D/../speaker_media_player/drive.py}
 [ -f "$DRIVE" ] || { echo "FAIL: set DRIVE to scripts/speaker_media_player/drive.py"; exit 1; }

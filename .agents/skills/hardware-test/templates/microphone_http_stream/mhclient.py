@@ -106,8 +106,8 @@ def dropped(c: http.client.HTTPConnection, resp: http.client.HTTPResponse) -> bo
                 return True
     except TimeoutError:
         return False
-    except OSError:
-        return True
+    except (OSError, http.client.HTTPException):
+        return True  # reset, or closed mid-chunk (IncompleteRead)
     return False
 
 

@@ -34,6 +34,7 @@ waiting for the whole file. `scripts/speaker_tts_pause/`:
 - `run.sh LABEL=TREE...` flashes each build and drives two short-intro and two long-intro announcements and one
   media play through `scripts/speaker_media_player/drive.py` (set `DRIVE` when running from a scratch copy); `an.py`
   prints first audio, the server's send times and how much of the intro played before the rest arrived, per request.
+  A request fails when it never played the whole intro or stopped short of 95 % of the stream.
 
 Before the two PRs the player waited for the rest of the stream (8.2 s) for both a 22.5 KB and a 50 KB intro; with
 both it starts at about 1 s.
@@ -44,8 +45,8 @@ both it starts at about 1 s.
 (aioesphomeapi 46.27.0 or later, `wake_word_audio=True`), answers each run by mode and saves both channels as WAV;
 `locate.py OUTDIR` finds the played phrase in them by envelope cross-correlation against `wake16k.wav`.
 `run.sh HOST TAG [ROUNDS]` runs reject and timeout rounds while playing the phrase every 9 s, starting once `va.py`
-is READY. `va.py` fails a START before READY or during a run, and `run.sh` fails at once when the player fails or
-hangs for 30 s.
+is READY. `va.py` fails a START before READY or during a run, and `run.sh`, `stale.py` and `mww.py` fail at once
+when the player fails or hangs for 30 s.
 
 - Give the test build its own API key so Home Assistant cannot hold the voice assistant subscription.
 - Make the phrase with any TTS (`say -o wake.aiff "Okay Nabu"`, then `ffmpeg -i wake.aiff -ac 1 -ar 16000
@@ -55,5 +56,7 @@ hangs for 30 s.
   `micro_wake_word.stop` and `start`); `mww.py` checks that no run starts while it is stopped.
 - Stale clip check: `stale.py` says a spoken marker word (`marker.aiff`), stops microWakeWord for 3 s, starts it and
   says the wake word; `stalean.py` measures loud audio before the phrase in each clip and exits 1 above
-  `MAX_LOUD_MS` (default 100). A steady 1 kHz beep never reaches the PE stream (the XMOS processing removes it), so
-  the marker has to be speech.
+  `MAX_LOUD_MS` (default 100). The loud level has no default: calibrate `LOUD_LEVEL` on each setup from the phrase
+  and pre-phrase peaks it prints (a run without it prints them and fails), somewhere between room noise and the
+  marker's peak. A trial whose phrase peak is under twice `LOUD_LEVEL` fails as too quiet to judge. A steady 1 kHz
+  beep never reaches the PE stream (the XMOS processing removes it), so the marker has to be speech.
