@@ -1146,8 +1146,8 @@ def zigbee_base_entity_schema(cluster_options: list[str] | None = None) -> cv.Sc
 
 ZIGBEE_BASE_ENTITY_SCHEMA = zigbee_base_entity_schema()
 
-# Entity platform -> (config key, zigbee C++ class, esp32 cluster options). A
-# unit test checks each class against the owning declaration in zigbee_zephyr.
+# Entity platform -> (config key, zigbee C++ class, esp32 cluster options). The
+# light class is declared by zigbee_esp32; the other classes are in zigbee_zephyr.
 _ZIGBEE_ENTITY_CLASSES = {
     "binary_sensor": (
         CONF_ZIGBEE_BINARY_SENSOR,
