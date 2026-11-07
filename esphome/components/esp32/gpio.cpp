@@ -183,7 +183,8 @@ void disable_gpio_wakeups() {
   portEXIT_CRITICAL(&wakeup_args_mux);
   unregister_sleep_callback();
   const uint64_t armed_mask = ext1_armed_mask[0] | (static_cast<uint64_t>(ext1_armed_mask[1]) << 32);
-  esp_sleep_disable_ext1_wakeup_io(armed_mask);
+  if (armed_mask > 0)  // calling with 0 would disable all pins
+    esp_sleep_disable_ext1_wakeup_io(armed_mask);
 #else
   // disable gpio wakeup for all pins
   for (int pin = 0; pin < GPIO_NUM_MAX; pin++) {
