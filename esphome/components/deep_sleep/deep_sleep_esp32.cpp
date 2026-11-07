@@ -4,6 +4,7 @@
 #include "deep_sleep_component.h"
 #include "esphome/core/log.h"
 #include <esp_idf_version.h>
+#include "esphome/components/esp32/gpio.h"
 
 namespace esphome::deep_sleep {
 
@@ -121,6 +122,11 @@ void DeepSleepComponent::deep_sleep_() {
   if (this->wakeup_pin_ != nullptr)
     gpio_deep_sleep_hold_en();
 #endif
+#endif
+
+#ifdef CONFIG_FREERTOS_USE_TICKLESS_IDLE
+  // disable other gpio wakesources
+  esp32::disable_gpio_wakeups();
 #endif
 
   // Single pin wakeup (ext0) - ESP32, S2, S3
