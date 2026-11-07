@@ -1,0 +1,16 @@
+substitutions:
+  clk_pin: GPIO0
+  mosi_pin: GPIO2
+  miso_pin: GPIO16
+
+packages:
+  spi: !include ../../test_build_components/common/spi/esp8266-ard.yaml
+
+canbus:
+  - platform: mcp2515
+    id: can_bus
+    cs_pin: GPIO15
+    can_id: 0
+    bit_rate: 125kbps
+
+<<: !include common.yaml

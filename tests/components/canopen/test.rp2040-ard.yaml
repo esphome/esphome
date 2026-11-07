@@ -1,0 +1,16 @@
+substitutions:
+  clk_pin: GPIO2
+  mosi_pin: GPIO3
+  miso_pin: GPIO4
+
+packages:
+  spi: !include ../../test_build_components/common/spi/rp2040-ard.yaml
+
+canbus:
+  - platform: mcp2515
+    id: can_bus
+    cs_pin: GPIO5
+    can_id: 0
+    bit_rate: 125kbps
+
+<<: !include common.yaml
