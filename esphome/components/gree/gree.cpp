@@ -589,9 +589,8 @@ bool GreeClimate::on_receive(remote_base::RemoteReceiveData data) {
 
   auto decoded = GreeClimateCodec::decode(this->model_, *state);
   if (!decoded.has_value()) {
-    ESP_LOGD(TAG, "GREE frame rejected for model %u: %02X %02X %02X %02X %02X %02X %02X %02X",
-             static_cast<unsigned>(this->model_), (*state)[0], (*state)[1], (*state)[2], (*state)[3], (*state)[4],
-             (*state)[5], (*state)[6], (*state)[7]);
+    ESP_LOGD_HEX(TAG, state->data(), state->size(), GREE_STATE_FRAME_SIZE, "GREE frame rejected for model %u: %s",
+                 static_cast<unsigned>(this->model_));
     return false;
   }
 

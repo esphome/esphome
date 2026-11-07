@@ -26,10 +26,8 @@ struct SensorData {
 };
 
 void IAQCore::setup() {
-  if (this->write(nullptr, 0) != i2c::ERROR_OK) {
-    this->mark_failed(LOG_STR(ESP_LOG_MSG_COMM_FAIL));
+  if (!this->setup_check(this->write(nullptr, 0) == i2c::ERROR_OK))
     return;
-  }
 }
 
 void IAQCore::update() {

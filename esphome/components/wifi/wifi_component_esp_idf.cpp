@@ -835,7 +835,7 @@ void WiFiComponent::save_lease_settings_() {
     return;
 
 #ifdef USE_WIFI_MANUAL_IP
-  if (const WiFiAP *config = this->get_selected_sta_(); config && config->get_manual_ip().has_value())
+  if (const WiFiAP *config = this->get_selected_sta_(); config && config->has_manual_ip())
     return;
 #endif
 
@@ -1119,19 +1119,23 @@ void WiFiComponent::wifi_process_event_(IDFWiFiEvent *data) {
     // Not esp_netif_create_ip6_linklocal(): it returns ESP_FAIL while the netif is down, and this queued event
     // can be handled before esp-netif's own STA_CONNECTED handler brings the netif up. lwIP accepts the
     // address on a down netif and starts DAD and router solicitation once it comes up.
-    // LwIPLock is a no-op without core locking; esp_netif_tcpip_exec always runs in the TCP/IP context.
     if (auto *netif = static_cast<struct netif *>(esp_netif_get_netif_impl(s_sta_netif)); netif != nullptr) {
-      esp_netif_tcpip_exec(
-          [](void *ctx) -> esp_err_t {
-            auto *netif = static_cast<struct netif *>(ctx);
-            netif_create_ip6_linklocal_address(netif, 1);
+      if (esp_err_t err = esp_netif_tcpip_exec(
+              [](void *ctx) -> esp_err_t {
+                auto *netif = static_cast<struct netif *>(ctx);
+                netif_create_ip6_linklocal_address(netif, 1);
 #if !USE_NETWORK_IPV4 && LWIP_IPV6_DHCP6
-            // Without DHCPv4, DNS servers come from RDNSS or stateless DHCPv6; esp_netif never starts the latter
-            dhcp6_enable_stateless(netif);
+                // Without DHCPv4, DNS servers come from RDNSS or stateless DHCPv6; esp_netif never starts the latter
+                dhcp6_enable_stateless(netif);
 #endif
-            return ESP_OK;
-          },
-          netif);
+                return ESP_OK;
+              },
+              netif);
+          err != ESP_OK) {
+        ESP_LOGW(TAG, "IPv6 link-local not created: %s", esp_err_to_name(err));
+      } else {
+        ESP_LOGD(TAG, "IPv6 link-local address created");
+      }
     } else {
       ESP_LOGW(TAG, "No lwIP netif, IPv6 link-local not created");
     }
@@ -1168,7 +1172,7 @@ void WiFiComponent::wifi_process_event_(IDFWiFiEvent *data) {
     bool static_ip = false;
 #ifdef USE_WIFI_MANUAL_IP
     const WiFiAP *config = this->get_selected_sta_();
-    static_ip = config && config->get_manual_ip().has_value();
+    static_ip = config && config->has_manual_ip();
 #endif
 #ifdef USE_WIFI_LEASE_CACHE
     static_ip = static_ip || this->applied_cached_lease_;

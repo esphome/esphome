@@ -61,8 +61,14 @@ from .const import (
 _LOGGER = logging.getLogger(__name__)
 # Fault handlers the crash handler wraps (BK7238, BK7231N)
 BK_TRAP_HANDLERS = ("bk_trap_udef", "bk_trap_pabt", "bk_trap_dabt")
-# Families with a crash handler; the RTL8720C and LN882H install it at run time (no wraps).
-CRASH_HANDLER_FAMILIES = (FAMILY_BK7231N, FAMILY_BK7238, FAMILY_LN882H, FAMILY_RTL8720C)
+# Families with a crash handler; the Cortex-M ones install it at run time (no wraps).
+CRASH_HANDLER_FAMILIES = (
+    FAMILY_BK7231N,
+    FAMILY_BK7238,
+    FAMILY_LN882H,
+    FAMILY_RTL8710B,
+    FAMILY_RTL8720C,
+)
 
 CODEOWNERS = ["@kuba2k2"]
 AUTO_LOAD = ["preferences"]
@@ -562,6 +568,8 @@ async def component_to_code(config):
         # Crash handler (crash_handler.cpp)
         cg.add_define("USE_LIBRETINY_CRASH_HANDLER")
         cg.add_define("USE_CRASH_HANDLER")
+        cg.add_define("USE_CRASH_REPORT")
+        cg.add_build_flag("-Wl,--wrap=abort")
     if config[CONF_FAMILY] in (FAMILY_BK7231N, FAMILY_BK7238):
         for trap in BK_TRAP_HANDLERS:
             cg.add_build_flag(f"-Wl,--wrap={trap}")
