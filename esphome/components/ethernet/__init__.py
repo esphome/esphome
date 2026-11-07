@@ -22,7 +22,6 @@ from esphome.const import (
     CONF_DNS2,
     CONF_DOMAIN,
     CONF_ENABLE_ON_BOOT,
-    CONF_ETHERNET as CONF_ETHERNET,
     CONF_GATEWAY,
     CONF_ID,
     CONF_INTERRUPT_PIN,
