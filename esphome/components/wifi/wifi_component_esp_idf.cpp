@@ -1104,13 +1104,17 @@ void WiFiComponent::wifi_process_event_(IDFWiFiEvent *data) {
     // can be handled before esp-netif's own STA_CONNECTED handler brings the netif up. lwIP accepts the
     // address on a down netif and starts DAD and router solicitation once it comes up.
     if (auto *netif = static_cast<struct netif *>(esp_netif_get_netif_impl(s_sta_netif)); netif != nullptr) {
-      esp_netif_tcpip_exec(
-          [](void *ctx) -> esp_err_t {
-            netif_create_ip6_linklocal_address(static_cast<struct netif *>(ctx), 1);
-            return ESP_OK;
-          },
-          netif);
-      ESP_LOGD(TAG, "IPv6 link-local address created");
+      if (esp_err_t err = esp_netif_tcpip_exec(
+              [](void *ctx) -> esp_err_t {
+                netif_create_ip6_linklocal_address(static_cast<struct netif *>(ctx), 1);
+                return ESP_OK;
+              },
+              netif);
+          err != ESP_OK) {
+        ESP_LOGW(TAG, "IPv6 link-local not created: %s", esp_err_to_name(err));
+      } else {
+        ESP_LOGD(TAG, "IPv6 link-local address created");
+      }
     } else {
       ESP_LOGW(TAG, "No lwIP netif, IPv6 link-local not created");
     }
