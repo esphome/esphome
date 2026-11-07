@@ -14,13 +14,15 @@ from esphome.const import (
 )
 from esphome.types import ConfigType
 
-from . import CONF_LD2450_ID, LD2450Component
+from . import CONF_LD2450_ID, LD2450Component, ld2450_ns
 
 DEPENDENCIES = ["ld2450"]
 
 CONF_XY = "xy"
 
 ICON_CROSSHAIRS_GPS = "mdi:crosshairs-gps"
+
+TargetXYTextSensor = ld2450_ns.class_("TargetXYTextSensor", text_sensor.TextSensor)
 
 MAX_TARGETS = 3
 
@@ -48,6 +50,7 @@ CONFIG_SCHEMA = CONFIG_SCHEMA.extend(
                     icon=ICON_SIGN_DIRECTION,
                 ),
                 cv.Optional(CONF_XY): text_sensor.text_sensor_schema(
+                    TargetXYTextSensor,
                     entity_category=ENTITY_CATEGORY_NONE,
                     icon=ICON_CROSSHAIRS_GPS,
                     filters=text_sensor.timeout_throttle_filters("NA"),

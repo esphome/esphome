@@ -1,10 +1,19 @@
 import esphome.codegen as cg
 from esphome.components import button
 import esphome.config_validation as cv
-from esphome.const import CONF_FACTORY_RESET, CONF_ID, CONF_RESTART
+from esphome.const import (
+    CONF_FACTORY_RESET,
+    CONF_ID,
+    CONF_RESTART,
+    ENTITY_CATEGORY_CONFIG,
+)
 from esphome.types import ConfigType
 
 from . import CONF_LD2450_ID, LD2450Component
+
+CONF_XY_UNFILTERED = "xy_unfiltered"
+
+ICON_FILTER_OFF = "mdi:filter-off"
 
 CONFIG_SCHEMA = {
     cv.GenerateID(CONF_ID): cv.declare_id(cg.EntityBase),
@@ -13,6 +22,11 @@ CONFIG_SCHEMA = {
         button.ApplyButton
     ),
     cv.Optional(CONF_RESTART): button.restart_button_schema(button.ApplyButton),
+    cv.Optional(CONF_XY_UNFILTERED): button.button_schema(
+        button.ApplyButton,
+        entity_category=ENTITY_CATEGORY_CONFIG,
+        icon=ICON_FILTER_OFF,
+    ),
 }
 
 
@@ -24,4 +38,9 @@ async def to_code(config: ConfigType) -> None:
     )
     await buttons(
         CONF_RESTART, hub.set_restart_button, apply="restart_and_read_all_info()"
+    )
+    if CONF_XY_UNFILTERED in config:
+        cg.add_define("USE_LD2450_XY_UNFILTERED")
+    await buttons(
+        CONF_XY_UNFILTERED, hub.set_xy_unfiltered_button, apply="start_xy_unfiltered()"
     )
