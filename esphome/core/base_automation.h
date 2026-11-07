@@ -171,23 +171,30 @@ class LoopTrigger : public Trigger<>, public Component {
   float get_setup_priority() const override { return setup_priority::DATA; }
 };
 
-/// Calls Fn from setup(), for on_boot. PRIORITY_BITS is the setup priority's float bit pattern,
-/// since GCC 10 (ESP8266) has no float template parameters.
-template<void (*Fn)(), uint32_t PRIORITY_BITS> class StartupCallback final : public Component {
+/// Component whose setup priority is the float with bit pattern PRIORITY_BITS, since GCC 10 (ESP8266)
+/// has no float template parameters. Templated on the priority only, so each priority has one copy.
+template<uint32_t PRIORITY_BITS> class PriorityComponent : public Component {
+ public:
+  float get_setup_priority() const override { return bit_cast<float>(PRIORITY_BITS); }
+};
+
+/// 600.0f, setup_priority::DATA: the Component default, so no override.
+template<> class PriorityComponent<0x44160000> : public Component {};
+
+/// Calls Fn from setup(), for on_boot.
+template<auto Fn, uint32_t PRIORITY_BITS> class StartupCallback final : public PriorityComponent<PRIORITY_BITS> {
  public:
   void setup() override { Fn(); }
-  float get_setup_priority() const override { return bit_cast<float>(PRIORITY_BITS); }
 };
 
 /// Calls Fn from on_shutdown(), for on_shutdown.
-template<void (*Fn)(), uint32_t PRIORITY_BITS> class ShutdownCallback final : public Component {
+template<auto Fn, uint32_t PRIORITY_BITS> class ShutdownCallback final : public PriorityComponent<PRIORITY_BITS> {
  public:
   void on_shutdown() override { Fn(); }
-  float get_setup_priority() const override { return bit_cast<float>(PRIORITY_BITS); }
 };
 
 /// Calls Fn from loop(), for on_loop.
-template<void (*Fn)()> class LoopCallback final : public Component {
+template<auto Fn> class LoopCallback final : public Component {
  public:
   void loop() override { Fn(); }
 };

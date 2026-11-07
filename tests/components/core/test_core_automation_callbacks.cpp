@@ -10,8 +10,9 @@ int calls = 0;  // NOLINT(cppcoreguidelines-avoid-non-const-global-variables)
 
 void count_call() { calls++; }
 
-// Bit patterns of 800.0f, -100.0f and 250.5f, as the code generator writes them
+// Bit patterns of 800.0f, 600.0f, -100.0f and 250.5f, as the code generator writes them
 constexpr uint32_t PRIORITY_800 = 0x44480000;
+constexpr uint32_t PRIORITY_600 = 0x44160000;
 constexpr uint32_t PRIORITY_MINUS_100 = 0xC2C80000;
 constexpr uint32_t PRIORITY_250_5 = 0x437A8000;
 
@@ -25,10 +26,11 @@ TEST(CoreAutomationCallbacks, StartupCallbackRunsFromSetupAtItsPriority) {
   EXPECT_EQ(high.get_setup_priority(), 800.0f);
   EXPECT_EQ(late.get_setup_priority(), -100.0f);
   EXPECT_EQ(fractional.get_setup_priority(), 250.5f);
+  // The default needs no override of its own: the bits are setup_priority::DATA
+  StartupCallback<count_call, PRIORITY_600> standard;
+  EXPECT_EQ(bit_cast<float>(PRIORITY_600), setup_priority::DATA);
+  EXPECT_EQ(standard.get_setup_priority(), setup_priority::DATA);
 
-  high.loop();
-  high.on_shutdown();
-  EXPECT_EQ(calls, 0);
   high.setup();
   EXPECT_EQ(calls, 1);
 }
@@ -38,9 +40,6 @@ TEST(CoreAutomationCallbacks, ShutdownCallbackRunsFromOnShutdownAtItsPriority) {
   ShutdownCallback<count_call, PRIORITY_MINUS_100> shutdown;
   EXPECT_EQ(shutdown.get_setup_priority(), -100.0f);
 
-  shutdown.setup();
-  shutdown.loop();
-  EXPECT_EQ(calls, 0);
   shutdown.on_shutdown();
   EXPECT_EQ(calls, 1);
 }

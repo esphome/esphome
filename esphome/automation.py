@@ -1951,24 +1951,28 @@ def _is_direct(plan: list[MockObj | list[_InlineAction]], config: ConfigType) ->
     )
 
 
-def _direct_statements(
-    plan: list[MockObj | list[_InlineAction]], config: ConfigType
-) -> list[str] | None:
-    if not _is_direct(plan, config):
-        return None
-    return [line for line in _run_statements(plan[0]) if line != _STOP_CHECK]
-
-
 def _direct_function(
     plan: list[MockObj | list[_InlineAction]],
     args: TemplateArgsType,
     config: ConfigType,
 ) -> MockObj | None:
-    if (statements := _direct_statements(plan, config)) is None:
+    if not _is_direct(plan, config):
         return None
+    statements = [line for line in _run_statements(plan[0]) if line != _STOP_CHECK]
     return apply_static_function(
         plan[0][0].id_, cg.void, _apply_params(args), statements
     )
+
+
+def _call_target(
+    plan: list[MockObj | list[_InlineAction]],
+    args: TemplateArgsType,
+    config: ConfigType,
+) -> MockObj | str:
+    """What a generated callback calls: the direct function, else ``<automation>->trigger``."""
+    if (target := _direct_function(plan, args, config)) is None:
+        target = f"{parent_ref(_automation_from_plan(plan, args, config))}->trigger"
+    return target
 
 
 def _when_call(
@@ -2026,9 +2030,7 @@ async def build_component_automation(
     )
     await cg.register_component(var, config)
     plan = await _build_automation_plan([], config)
-    if (body := _direct_statements(plan, config)) is None:
-        body = [f"{parent_ref(_automation_from_plan(plan, [], config))}->trigger();"]
-    define(body)
+    define([f"{_call_target(plan, [], config)}();"])
     return var
 
 
@@ -2071,8 +2073,7 @@ async def _trigger_callback(
     call: ApplyCall | None,
     parent: MockObj | None,
 ) -> LambdaExpression:
-    if (target := _direct_function(plan, args, config)) is None:
-        target = f"{parent_ref(_automation_from_plan(plan, args, config))}->trigger"
+    target = _call_target(plan, args, config)
     statements: list[str] = []
     if call is not None:
         members = call.members

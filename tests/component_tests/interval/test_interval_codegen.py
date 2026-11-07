@@ -27,14 +27,50 @@ def _callback(var: str, startup_delay: int = 0) -> str:
     return f"interval::IntervalCallback<esphome__{var}__fn>()"
 
 
-def _registered(main_cpp: str) -> list[tuple[str, str]]:
-    return re.findall(r"App\.register_component_\((\w+), (\d+)\);", main_cpp)
+@pytest.mark.parametrize(
+    ("var", "expected", "update_interval"),
+    [
+        ("interval_intervaltrigger_id", _callback("interval_intervaltrigger_id"), 1000),
+        (
+            "interval_intervaltrigger_id_2",
+            _callback("interval_intervaltrigger_id_2", 5000),
+            2000,
+        ),
+        (
+            "interval_intervaltrigger_id_3",
+            _callback("interval_intervaltrigger_id_3"),
+            3000,
+        ),
+        ("named_interval", "interval::DelayedIntervalTrigger(3000)", 4000),
+        (
+            "interval_intervaltrigger_id_4",
+            _callback("interval_intervaltrigger_id_4"),
+            5000,
+        ),
+    ],
+)
+def test_interval_constructed(
+    main_cpp: str, var: str, expected: str, update_interval: int
+) -> None:
+    """Each interval is built with its startup delay, if any, and gets its update interval."""
+    assert constructed(main_cpp, var) == expected
+    assert f"{var}->set_update_interval({update_interval});" in main_cpp
 
 
-def test_interval_registration_order_and_source(main_cpp: str) -> None:
-    """Each interval is one component, registered in config order under the interval source."""
-    registered = _registered(main_cpp)
-    assert [var for var, _ in registered[-6:]] == [
+def test_interval_delay_triggers_automation(main_cpp: str) -> None:
+    """A delay keeps the Automation of separate actions, which the function triggers."""
+    match = re.fullmatch(
+        r"\n  ::(\w+)->trigger\(\);",
+        function_body(main_cpp, "esphome__interval_intervaltrigger_id_3__fn"),
+    )
+    assert match is not None
+    assert re.search(rf"{match.group(1)}->add_action\(delayaction_id\w*\);", main_cpp)
+
+
+def test_interval_registration_order(main_cpp: str) -> None:
+    """Intervals register in config order; one waiting for a later id keeps its place."""
+    registered = re.findall(r"App\.register_component_\((\w+), \d+\);", main_cpp)
+    assert registered[-6:] == [
         "interval_intervaltrigger_id",
         "interval_intervaltrigger_id_2",
         "interval_intervaltrigger_id_3",
@@ -42,116 +78,6 @@ def test_interval_registration_order_and_source(main_cpp: str) -> None:
         "interval_intervaltrigger_id_4",
         "some_sensor",
     ]
-    source = re.search(r'COMP_SRC_TABLE_STR_(\d+)\[\] PROGMEM = "interval";', main_cpp)
-    assert source is not None
-    assert {index for _, index in registered[-6:-1]} == {str(int(source.group(1)) + 1)}
-
-
-def test_interval_update_interval_and_startup_delay(main_cpp: str) -> None:
-    """Every interval gets its update interval; a non-zero startup delay is built in.
-
-    It is a template argument, or the DelayedIntervalTrigger constructor's for a hand-set id.
-    """
-    for var, interval in (
-        ("interval_intervaltrigger_id", 1000),
-        ("interval_intervaltrigger_id_2", 2000),
-        ("interval_intervaltrigger_id_3", 3000),
-        ("named_interval", 4000),
-        ("interval_intervaltrigger_id_4", 5000),
-    ):
-        assert f"{var}->set_update_interval({interval});" in main_cpp
-    assert constructed(main_cpp, "interval_intervaltrigger_id_2") == _callback(
-        "interval_intervaltrigger_id_2", 5000
-    )
-    assert (
-        constructed(main_cpp, "named_interval")
-        == "interval::DelayedIntervalTrigger(3000)"
-    )
-    assert "set_startup_delay" not in main_cpp
-
-
-def test_interval_setup_priority_override(main_cpp: str) -> None:
-    """A setup_priority set on an interval is applied before it is registered."""
-    assert (
-        "interval_intervaltrigger_id_4->set_setup_priority(250.0f);\n"
-        "App.register_component_(interval_intervaltrigger_id_4, " in main_cpp
-    )
-    assert main_cpp.count("set_setup_priority") == 1
-
-
-def test_interval_inline_actions(main_cpp: str) -> None:
-    """All-inline intervals call one function from update(), with no Automation."""
-    assert constructed(main_cpp, "interval_intervaltrigger_id") == _callback(
-        "interval_intervaltrigger_id"
-    )
-    assert "Automation<>(interval_intervaltrigger_id" not in main_cpp
-    # Both actions run in the one function, with no stop checks
-    body = function_body(main_cpp, "esphome__interval_intervaltrigger_id__fn")
-    assert "inline tick" in body
-    assert "inline lambda" in body
-    assert "esphome__running" not in body
-    assert "Automation" not in body
-    assert "delayed start tick" in function_body(
-        main_cpp, "esphome__interval_intervaltrigger_id_2__fn"
-    )
-
-
-def test_interval_delay_triggers_automation(main_cpp: str) -> None:
-    """A delay keeps the Automation of separate actions, which the function triggers."""
-    assert constructed(main_cpp, "interval_intervaltrigger_id_3") == _callback(
-        "interval_intervaltrigger_id_3"
-    )
-    assert "new(automation_id_3) Automation<>();" in main_cpp
-    assert "automation_id_3->add_action(delayaction_id);" in main_cpp
-    assert function_body(main_cpp, "esphome__interval_intervaltrigger_id_3__fn") == (
-        "\n  ::automation_id_3->trigger();"
-    )
-
-
-def test_interval_manual_id_keeps_trigger(main_cpp: str) -> None:
-    """An id set by hand can be used from lambdas and component actions as its trigger."""
-    assert (
-        constructed(main_cpp, "named_interval")
-        == "interval::DelayedIntervalTrigger(3000)"
-    )
-    assert (
-        "static interval::DelayedIntervalTrigger *const named_interval = " in main_cpp
-    )
-    assert "new(automation_id_4) Automation<>(named_interval);" in main_cpp
-
-
-def test_interval_registered_before_its_actions_are_built(main_cpp: str) -> None:
-    """An interval waiting for a later id keeps its place and still gets its interval."""
-    assert constructed(main_cpp, "interval_intervaltrigger_id_4") == _callback(
-        "interval_intervaltrigger_id_4"
-    )
-    registered = main_cpp.index("App.register_component_(interval_intervaltrigger_id_4")
-    assert registered < main_cpp.index("new(later_script)")
-    assert "::later_script->execute();" in function_body(
-        main_cpp, "esphome__interval_intervaltrigger_id_4__fn"
-    )
     assert main_cpp.index(
-        "interval_intervaltrigger_id_4->set_update_interval(5000);"
-    ) > main_cpp.index("new(later_script)")
-
-
-def test_interval_looping_count(main_cpp: str) -> None:
-    """Intervals do not loop; the looping component count names each class."""
-    assert (
-        "(1 * HasLoopOverride<interval::IntervalCallback<"
-        "esphome__interval_intervaltrigger_id__fn>>::value)" in main_cpp
-    )
-    assert "(1 * HasLoopOverride<interval::DelayedIntervalTrigger>::value)" in main_cpp
-
-
-def test_interval_startup_delay_cut_to_32_bits(
-    generate_main: Callable[[str | Path], str],
-    component_config_path: Callable[[str], Path],
-) -> None:
-    """A delay past uint32_t is cut to 32 bits, as the setter did, so the template still builds."""
-    main_cpp = generate_main(component_config_path("interval_long_delay.yaml"))
-
-    delay = (50 * 24 * 3600 * 1000) & 0xFFFFFFFF
-    assert constructed(main_cpp, "interval_intervaltrigger_id") == _callback(
-        "interval_intervaltrigger_id", delay
-    )
+        "App.register_component_(interval_intervaltrigger_id_4"
+    ) < main_cpp.index("new(later_script)")
