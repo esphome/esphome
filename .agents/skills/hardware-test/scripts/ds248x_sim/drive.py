@@ -10,7 +10,7 @@ temperature is wrong, a phase other than dead logged a failed recovery, a failed
 ds248x warning was still set at the end of a phase, a fault phase moved its injection counter (counted when the
 DUT meets the fault) by other than the number of faults sent (arm_lost counts arms merged into a pending one) or,
 for a NACK fault, never moved the nacked counter, a write delivered
-data while a NACK was armed (nack_miss), the DUT sent an address-only write (empty_wr, which would make
+data while a NACK was armed (nack_miss, including a write followed by a repeated start into a read), the DUT sent an address-only write (empty_wr, which would make
 nacked ambiguous), a write was cut off by a repeated start into another write and never processed
 (dropped), a fault is still pending at the end of a phase, the simulator counted a config write with a wrong complement (cfg_bad) or an unknown
 command or argument (bad_cmd), a counter is missing from the simulator CNT line, the simulator aborted a read reply

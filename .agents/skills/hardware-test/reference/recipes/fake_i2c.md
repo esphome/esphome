@@ -103,7 +103,7 @@ set at the end of the phase, the DUT capture
 failed (stderr in `TAG-<phase>.err`), a fault moved its injection counter (counted when the DUT meets the
 fault, not when it is armed) by other than the number of faults sent (`arm_lost` counts arms that landed while one
 of the same fault was still pending and merged into it), a NACK fault never moved `nacked`, a write delivered data while a NACK was armed
-(`nack_miss`, the NACK never reached the wire and stays pending), the DUT sent an address-only write (`empty_wr`), a write was cut off by a repeated start into another write and
+(`nack_miss`, also counted when the write is followed by a repeated start into a read; the NACK never reached the wire and stays pending), the DUT sent an address-only write (`empty_wr`), a write was cut off by a repeated start into another write and
 never processed (`dropped`),
 a fault is still pending (`pend=1`) at the end of the
 phase, the simulator counted a config write with a wrong complement (`cfg_bad`) or an unknown, short or overlong

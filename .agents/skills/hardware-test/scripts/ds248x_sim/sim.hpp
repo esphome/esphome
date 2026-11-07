@@ -6,7 +6,8 @@
 //   k  stuck busy on the next 1-Wire command, and NACK the config write after the next device reset
 //   x  dead (address NACK)   X  alive again   s  print counters now
 // inj_* count a fault when the DUT meets it, not when it is armed; pend=1 while one has not been met yet.
-// nack_miss counts writes that delivered data while a NACK was armed; that NACK stays pending.
+// nack_miss counts writes that delivered data while a NACK was armed, including one followed by a repeated
+// start into a read; that NACK stays pending.
 // A NACKed write and an address-only write look the same at STOP (no data), so empty_wr counts address-only
 // writes outside a NACK window; dspd.yaml turns the bus scan off, so it stays 0 unless the DUT sends them.
 // dropped counts writes thrown away by a repeated start into another write before any read or STOP.
@@ -389,6 +390,8 @@ static void irq() {
     drain_rx(h);
   if (st & I2C_IC_INTR_STAT_R_RD_REQ_BITS) {
     if (rxn) {
+      if (nack_on)  // a write before a repeated start got through the NACK; STOP sees only the read
+        cnt.nack_miss++;
       process(rx, rxn);
       rxn = 0;
     }
