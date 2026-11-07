@@ -24,8 +24,10 @@ def main() -> int:
             continue
         if m := re.search(r"READ (\S+)", line):
             bump("nan" if m.group(1) == "nan" else "ok")
-        if m := re.search(r"PROBE (\w+)", line):
+        if m := re.search(r"PROBE (\w+) 0x([0-9A-Fa-f]{2})", line):
             bump("probe_" + m.group(1))
+            if m.group(1) == "ok" and m.group(2).upper() != "EE":
+                bump("probe_bad_id")
         if m := re.search(r"fired a=(\d+) b=(\d+)", line):
             fired = (int(m.group(1)), int(m.group(2)))
         if "update called before prior reading" in line:
@@ -59,6 +61,12 @@ def main() -> int:
         f"{p} reboot"
         for i, (p, counts) in enumerate(phases)
         if counts.get("boot", 0) > (1 if i == 0 else 0)
+    ]
+    # the model ID probe tells a dead chip from a stalled driver: quiet phases must answer with 0xEE
+    bad += [
+        f"{p} {i} probe_err={counts.get('probe_err', 0)} probe_bad_id={counts.get('probe_bad_id', 0)}"
+        for i, (p, counts) in enumerate(phases)
+        if p == "quiet" and (counts.get("probe_err") or counts.get("probe_bad_id"))
     ]
     bad += [f"fault {k} never fired" for k, n in zip("AB", fired, strict=True) if not n]
     if bad:

@@ -83,7 +83,8 @@ measurement-in-progress read fails), quiet, fault B (the next measurement start 
 with a model ID probe every 10 s to tell a driver stall from a dead chip. `run.sh LABEL` builds, flashes, captures
 and runs `an.py`, which counts readings per `PHASE` line. It fails when the phases are not quiet, faultA, quiet,
 faultB, quiet (a short capture or a restart), the first quiet phase has no readings, a later quiet phase reads less
-than half as often as the first, anything crashed or rebooted, or a fault never fired.
+than half as often as the first, a quiet phase has a failed model ID probe or one that did not return 0xEE,
+anything crashed or rebooted, or a fault never fired.
 
 Prefer this to glitching the wire. Holding SDA low by rerouting the pin (`esp_rom_gpio_connect_out_signal` to
 `SIG_GPIO_OUT_IDX` and back to `I2CEXT0_SDA_OUT_IDX`) wedges the ESP-IDF controller, which then needs
