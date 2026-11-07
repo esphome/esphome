@@ -1,9 +1,5 @@
-/*
- * RTL8710B: the FreeRTOS tick is 32/32768 s, so tick based millis() runs 2.4% fast and micros() moves in ticks.
- * millis(), micros() and delay() use the free running 32.768 kHz system timer (TIM0), which keeps counting with
- * interrupts masked, the scheduler suspended or the tick stopped in tickless idle; delayMicroseconds() uses the DWT
- * cycle counter. Linked with -Wl,--wrap, so every caller outside LibreTiny's wiring.c gets these.
- */
+// RTL8710B: the FreeRTOS tick is 1/1024 s, so millis(), micros() and delay() use the 32.768 kHz system timer instead
+// and delayMicroseconds() the DWT cycle counter. Linked with -Wl,--wrap (RTL8710B_TIME_WRAPS in __init__.py).
 
 #ifdef USE_LIBRETINY_VARIANT_RTL8710B
 
@@ -18,9 +14,10 @@ __attribute__((long_call)) uint32_t SYSTIMER_TickGet(void);  // mask ROM, rtl871
 #define DEMCR_TRCENA (1UL << 24)
 #define DWT_CTRL (*(volatile uint32_t *) 0xE0001000)
 #define DWT_CYCCNT (*(volatile uint32_t *) 0xE0001004)
+// Interrupt handlers call these, so they live in RAM like IRAM_ATTR (hal.h)
+#define RTL8710B_RAM_TEXT __attribute__((noinline, section(".sram.text")))
 
-// The 32-bit timer wraps every 36.4 hours; extending it needs a call in between, which the main loop's millis() calls
-// always give.
+// Extends the 32-bit timer, which wraps every 36.4 hours; the main loop calls millis() far more often
 static inline __attribute__((always_inline)) uint64_t timer_ticks(void) {
   static uint64_t ticks;
   uint32_t primask;
@@ -31,12 +28,12 @@ static inline __attribute__((always_inline)) uint64_t timer_ticks(void) {
   return now;
 }
 
-unsigned long __wrap_micros(void) {  // NOLINT(readability-identifier-naming)
+RTL8710B_RAM_TEXT unsigned long __wrap_micros(void) {  // NOLINT(readability-identifier-naming)
   // 1000000 / 32768 = 15625 / 512
   return (uint32_t) ((timer_ticks() * 15625) >> 9);
 }
 
-unsigned long __wrap_millis(void) {  // NOLINT(readability-identifier-naming)
+RTL8710B_RAM_TEXT unsigned long __wrap_millis(void) {  // NOLINT(readability-identifier-naming)
   // 1000 / 32768 = 125 / 4096
   return (uint32_t) ((timer_ticks() * 125) >> 12);
 }
@@ -46,20 +43,19 @@ void __wrap_delay(uint32_t ms) {  // NOLINT(readability-identifier-naming)
     vTaskDelay(0);
     return;
   }
-  // vTaskDelay() counts the tick already under way, so sleep to a deadline on the timer and again if woken early;
-  // a tick is 32 timer counts
-  const uint64_t deadline = timer_ticks() + ((uint64_t) ms * 32768 + 999) / 1000;
+  // vTaskDelay() counts the partial tick, so sleep to a deadline; +1 covers the elapsed part of the current count
+  const uint64_t deadline = timer_ticks() + ((uint64_t) ms * 32768 + 999) / 1000 + 1;
   for (uint64_t now = timer_ticks(); now < deadline; now = timer_ticks())
     vTaskDelay((TickType_t) ((deadline - now + 31) / 32));
 }
 
-void __wrap_delayMicroseconds(unsigned int us) {  // NOLINT(readability-identifier-naming)
+RTL8710B_RAM_TEXT void __wrap_delayMicroseconds(unsigned int us) {  // NOLINT(readability-identifier-naming)
   DEMCR |= DEMCR_TRCENA;
   DWT_CTRL |= 1;
   uint32_t start = DWT_CYCCNT;
-  // Round up so a clock that is not a whole number of MHz (62.5 MHz on the BW12) never shortens a delay
+  // Rounded up: the BW12 runs at 62.5 MHz
   uint64_t cycles = (uint64_t) us * ((SystemCoreClock + 999999) / 1000000);
-  // Wait in steps of at most 2^31 cycles, so the 32-bit counter difference never wraps
+  // Steps of at most 2^31 cycles keep the 32-bit difference from wrapping
   while (cycles > 0) {
     const uint32_t step = cycles > 0x80000000UL ? 0x80000000UL : (uint32_t) cycles;
     while (DWT_CYCCNT - start < step) {
