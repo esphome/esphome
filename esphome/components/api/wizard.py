@@ -85,8 +85,6 @@ class WizardData:
     roles: list[tuple[ID, str]] = field(default_factory=list)
     # The entity ID buffer of each input, by input ID, created on first use
     buffers: dict[str, cg.MockObj] = field(default_factory=dict)
-    # Linked entities that read their buffer themselves, so they get no set_entity_id() call
-    buffer_readers: set[str] = field(default_factory=set)
 
 
 def _get_data() -> WizardData:
@@ -261,42 +259,41 @@ WIZARD_DOMAIN_LIMITED_PLATFORMS = (
 )
 
 
+def _wizard_input_size(conf: ConfigType) -> int:
+    return conf.get(CONF_MAX_LENGTH, WIZARD_ENTITY_ID_MAX_LENGTH) + 1
+
+
 def _wizard_input_buffer(conf: ConfigType) -> cg.MockObj:
     """The buffer an input's entity ID is written to, declared once by whichever caller comes first."""
     input_id = _wizard_input_id(conf)
     data = _get_data()
     if (buffer := data.buffers.get(input_id.id)) is None:
-        size = conf.get(CONF_MAX_LENGTH, WIZARD_ENTITY_ID_MAX_LENGTH) + 1
-        buffer = cg.static_buffer(ID(input_id.id, type=WizardInput), cg.char, size)
+        owner = ID(input_id.id, type=WizardInput)
+        buffer = cg.static_buffer(owner, cg.char, _wizard_input_size(conf))
         data.buffers[input_id.id] = buffer
     return buffer
 
 
-def register_buffer_reader(entity_id: ID) -> None:
-    """Mark an entity as reading its wizard input buffer itself, so the wizard gives it no set_entity_id().
-
-    For a component to call while its config is validated, before any code is generated.
-    """
-    _get_data().buffer_readers.add(entity_id.id)
+def _linked_inputs(api_config: ConfigType) -> dict[str, ConfigType]:
+    """The inputs linked to a homeassistant entity, by the entity's ID."""
+    if (wizard := api_config.get(CONF_WIZARD)) is None:
+        return {}
+    return {
+        conf[CONF_ENTITY].id: conf
+        for conf in _wizard_inputs(wizard)
+        if CONF_ENTITY in conf
+    }
 
 
 def wizard_input_buffer(entity_id: ID) -> cg.MockObj | None:
     """The buffer holding the entity ID of a linked wizard input, or None if the entity is not one."""
-    if (wizard := CORE.config.get(API_DOMAIN, {}).get(CONF_WIZARD)) is None:
-        return None
-    for conf in _wizard_inputs(wizard):
-        if CONF_ENTITY in conf and conf[CONF_ENTITY].id == entity_id.id:
-            return _wizard_input_buffer(conf)
-    return None
+    conf = _linked_inputs(CORE.config.get(API_DOMAIN, {})).get(entity_id.id)
+    return None if conf is None else _wizard_input_buffer(conf)
 
 
 def wizard_input_ids(api_config: ConfigType) -> set[str]:
     """The IDs of the entities that are linked inputs of the wizard in the given api config."""
-    if (wizard := api_config.get(CONF_WIZARD)) is None:
-        return set()
-    return {
-        conf[CONF_ENTITY].id for conf in _wizard_inputs(wizard) if CONF_ENTITY in conf
-    }
+    return set(_linked_inputs(api_config))
 
 
 def _wizard_input_declaration(
@@ -563,14 +560,13 @@ async def to_code(wizard: ConfigType) -> None:
     entries: list[cg.RawExpression] = []
     for conf in _wizard_inputs(wizard):
         input_id = _wizard_input_id(conf)
-        size = conf.get(CONF_MAX_LENGTH, WIZARD_ENTITY_ID_MAX_LENGTH) + 1
+        # A linked entity takes its buffer from wizard_input_buffer()
         buffer = _wizard_input_buffer(conf)
         if CONF_ID in conf:
             cg.new_Pvariable(input_id, buffer)
-        elif input_id.id not in _get_data().buffer_readers:
-            cg.add((await cg.get_variable(input_id)).set_entity_id(buffer))
         key = fnv1_hash(input_id.id)
         if conf[CONF_MULTIPLE]:
+            size = _wizard_input_size(conf)
             entries.append(cg.RawExpression(f"{{{key}u, {buffer}, {size}}}"))
         else:
             entries.append(cg.RawExpression(f"{{{key}u, {buffer}}}"))

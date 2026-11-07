@@ -93,8 +93,7 @@ def home_assistant_entity_id(config: ConfigType) -> Expression:
 def setup_home_assistant_entity(
     var: MockObj, config: ConfigType, state_subscription_count: int = 1
 ) -> None:
-    # A wizard input has no entity_id; the api wizard sets it
-    cg.add_optional(var.set_entity_id, config.get(CONF_ENTITY_ID))
+    cg.add(var.set_entity_id(home_assistant_entity_id(config)))
     cg.add_optional(var.set_attribute, config.get(CONF_ATTRIBUTE))
     cg.add_define("USE_API_HOMEASSISTANT_STATES")
     if state_subscription_count > 0:
