@@ -33,18 +33,12 @@ async def to_code(config: list[ConfigType]) -> None:
     for conf in config:
         # Cut to 32 bits, as the uint32_t setter always did
         if startup_delay := conf[CONF_STARTUP_DELAY].total_milliseconds & 0xFFFFFFFF:
+            # A hand-set id keeps the trigger, which takes the delay in its constructor
+            conf[CONF_ID].type = DelayedIntervalTrigger
             component_class, template_args = DelayedIntervalCallback, [startup_delay]
-            trigger_class = DelayedIntervalTrigger
         else:
             component_class, template_args = IntervalCallback, []
-            trigger_class = None
         var = await automation.build_component_automation(
-            conf,
-            component_class,
-            id_key=CONF_ID,
-            template_args=template_args,
-            # A hand-set id keeps a trigger, which takes the delay as a constructor argument
-            trigger_class=trigger_class,
-            trigger_args=template_args,
+            conf, component_class, id_key=CONF_ID, template_args=template_args
         )
         cg.add(var.set_update_interval(conf[CONF_INTERVAL]))

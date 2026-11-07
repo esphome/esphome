@@ -1999,23 +1999,17 @@ async def build_component_automation(
     *,
     id_key: str = CONF_TRIGGER_ID,
     template_args: Sequence[SafeExpType] = (),
-    trigger_class: MockObjClass | None = None,
-    trigger_args: Sequence[SafeExpType] = (),
 ) -> MockObj:
-    """Create and register the Component that runs a no-argument automation.
+    """Create and register ``component_class<function[, priority bits], *template_args>``,
+    whose function runs the actions of a no-argument automation.
 
-    That is ``component_class<function[, priority bits], *template_args>``, whose function runs
-    the actions directly when they are all inline, else triggers their Automation. An id under
-    ``id_key`` set by hand keeps its Trigger, or ``trigger_class`` if given, built with
-    ``priority`` if given and ``trigger_args`` instead of ``template_args``.
+    An id under ``id_key`` set by hand keeps its Trigger, built with ``priority`` if given and
+    ``template_args`` as constructor arguments.
     """
     trigger_id: ID = config[id_key]
+    priority_list = [] if priority is None else [priority]
     if trigger_id.is_manual:
-        if trigger_class is not None:
-            trigger_id.type = trigger_class
-        var = cg.new_Pvariable(
-            trigger_id, *([] if priority is None else [priority]), *trigger_args
-        )
+        var = cg.new_Pvariable(trigger_id, *priority_list, *template_args)
         await cg.register_component(var, config)
         await build_automation(var, [], config)
         return var

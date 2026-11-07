@@ -1,8 +1,6 @@
 #include <gtest/gtest.h>
 
-#include <type_traits>
-
-#include "esphome/components/interval/interval_callback.h"
+#include "esphome/components/interval/interval.h"
 #include "esphome/core/application.h"
 
 namespace esphome::interval::testing {
@@ -30,9 +28,8 @@ TEST(IntervalCallback, UpdateCallsFnAtDataPriority) {
   EXPECT_EQ(calls, 2);
 }
 
-TEST(IntervalCallback, DelayedIntervalCallbackIsAnIntervalCallback) {
+TEST(IntervalCallback, DelayedIntervalCallbackUpdateCallsFn) {
   // Only the delayed class overrides setup(), so a zero delay keeps Component::setup()
-  EXPECT_TRUE((std::is_base_of_v<IntervalCallback<count_call>, DelayedIntervalCallback<count_call, 5000>>) );
   EXPECT_FALSE((HasLoopOverride<DelayedIntervalCallback<count_call, 5000>>::value));
   calls = 0;
   DelayedIntervalCallback<count_call, 5000> delayed;

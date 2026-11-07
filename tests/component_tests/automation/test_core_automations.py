@@ -6,7 +6,7 @@ import re
 
 import pytest
 
-from tests.component_tests.helpers import constructed, function_body
+from tests.component_tests.helpers import actions_body, constructed, delayed_automation
 
 CONFIG = "core_automations.yaml"
 
@@ -44,26 +44,6 @@ def test_core_automations_registration_order(main_cpp: str) -> None:
     ]
 
 
-def _actions_body(main_cpp: str, function: str) -> str:
-    """The body of the function of inline actions that ``function`` calls."""
-    match = re.fullmatch(r"\n  (\w+)\(\);", function_body(main_cpp, function))
-    assert match is not None, function
-    return function_body(main_cpp, match.group(1))
-
-
-def _delayed_automation(main_cpp: str, function: str) -> str:
-    """The Automation that ``function`` triggers, checked to hold a delay; found through the
-    function rather than an id counter."""
-    match = re.fullmatch(
-        r"\n  ::(\w+)->trigger\(\);", function_body(main_cpp, function)
-    )
-    assert match is not None, function
-    automation = match.group(1)
-    assert f"new({automation}) Automation<>();" in main_cpp
-    assert re.search(rf"{automation}->add_action\(delayaction_id\w*\);", main_cpp)
-    return automation
-
-
 def test_on_boot_inline_priorities(main_cpp: str) -> None:
     """All-inline on_boot blocks call one function from setup() at their priority, default 600.
 
@@ -77,12 +57,12 @@ def test_on_boot_inline_priorities(main_cpp: str) -> None:
     )
     assert "Automation<>(startuptrigger_id" not in main_cpp
     # Both actions of the first block run in the one function, with no stop checks
-    body = _actions_body(main_cpp, "esphome__startuptrigger_id__fn")
+    body = actions_body(main_cpp, "esphome__startuptrigger_id__fn")
     assert "boot high" in body
     assert "boot high lambda" in body
     assert "esphome__running" not in body
     assert "Automation" not in body
-    assert "boot default" in _actions_body(main_cpp, "esphome__startuptrigger_id_2__fn")
+    assert "boot default" in actions_body(main_cpp, "esphome__startuptrigger_id_2__fn")
 
 
 def test_on_boot_delay_triggers_automation(main_cpp: str) -> None:
@@ -90,7 +70,7 @@ def test_on_boot_delay_triggers_automation(main_cpp: str) -> None:
     assert constructed(main_cpp, "startuptrigger_id_3") == (
         "StartupCallback<esphome__startuptrigger_id_3__fn, 0xC2C80000u>()"
     )
-    _delayed_automation(main_cpp, "esphome__startuptrigger_id_3__fn")
+    delayed_automation(main_cpp, "esphome__startuptrigger_id_3__fn")
 
 
 def test_on_boot_manual_trigger_id_keeps_trigger(main_cpp: str) -> None:
@@ -104,13 +84,13 @@ def test_on_shutdown_priorities(main_cpp: str) -> None:
     assert constructed(main_cpp, "shutdowntrigger_id") == (
         "ShutdownCallback<esphome__shutdowntrigger_id__fn, 0x442F0000u>()"
     )
-    assert "shutdown inline" in _actions_body(
+    assert "shutdown inline" in actions_body(
         main_cpp, "esphome__shutdowntrigger_id__fn"
     )
     assert constructed(main_cpp, "shutdowntrigger_id_2") == (
         "ShutdownCallback<esphome__shutdowntrigger_id_2__fn, 0x44160000u>()"
     )
-    _delayed_automation(main_cpp, "esphome__shutdowntrigger_id_2__fn")
+    delayed_automation(main_cpp, "esphome__shutdowntrigger_id_2__fn")
 
 
 def test_on_loop(main_cpp: str) -> None:
@@ -118,12 +98,12 @@ def test_on_loop(main_cpp: str) -> None:
     assert constructed(main_cpp, "looptrigger_id") == (
         "LoopCallback<esphome__looptrigger_id__fn>()"
     )
-    assert "loop inline" in _actions_body(main_cpp, "esphome__looptrigger_id__fn")
+    assert "loop inline" in actions_body(main_cpp, "esphome__looptrigger_id__fn")
     assert "HasLoopOverride<LoopCallback<esphome__looptrigger_id__fn>>" in main_cpp
     assert constructed(main_cpp, "looptrigger_id_2") == (
         "LoopCallback<esphome__looptrigger_id_2__fn>()"
     )
-    _delayed_automation(main_cpp, "esphome__looptrigger_id_2__fn")
+    delayed_automation(main_cpp, "esphome__looptrigger_id_2__fn")
 
 
 def test_on_boot_registered_before_its_actions_are_built(

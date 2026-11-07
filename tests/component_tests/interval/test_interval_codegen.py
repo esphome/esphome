@@ -6,7 +6,7 @@ import re
 
 import pytest
 
-from tests.component_tests.helpers import constructed, function_body
+from tests.component_tests.helpers import constructed, delayed_automation
 
 CONFIG = "interval_codegen.yaml"
 
@@ -59,12 +59,7 @@ def test_interval_constructed(
 
 def test_interval_delay_triggers_automation(main_cpp: str) -> None:
     """A delay keeps the Automation of separate actions, which the function triggers."""
-    match = re.fullmatch(
-        r"\n  ::(\w+)->trigger\(\);",
-        function_body(main_cpp, "esphome__interval_intervaltrigger_id_3__fn"),
-    )
-    assert match is not None
-    assert re.search(rf"{match.group(1)}->add_action\(delayaction_id\w*\);", main_cpp)
+    delayed_automation(main_cpp, "esphome__interval_intervaltrigger_id_3__fn")
 
 
 def test_interval_registration_order(main_cpp: str) -> None:
