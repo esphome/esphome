@@ -529,6 +529,9 @@ async def component_to_code(config):
     # RTL8720C (ambz2) requires FreeRTOS 10.x so this only applies to RTL8710B
     if config[CONF_FAMILY] == FAMILY_RTL8710B:
         cg.add_platformio_option("custom_versions.freertos", "8.2.3")
+        # Sub-millisecond micros() and delayMicroseconds() (see rtl8710b_micros.c)
+        cg.add_build_flag("-Wl,--wrap=micros")
+        cg.add_build_flag("-Wl,--wrap=delayMicroseconds")
 
     # LibreTiny bundles BDK 3.0.33 for these two but already builds BK7238 with 3.0.78,
     # where STA+AP works (esphome#19430), the web server OTA does not trip the watchdog
