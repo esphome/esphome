@@ -18,9 +18,8 @@
 #endif
 
 namespace esphome::i2c {
-// Without an FSM reset ACK_ERR can stay raised and the IDF ISR never masks it (esp-idf#17690). An error the
-// handler cleared that is already raised again is the storm: mask the master events, the driver re-enables
-// them at the next transaction start. A one-off error stays clear, so normal and queued transfers are untouched.
+// Without an FSM reset ACK_ERR can stay raised and the IDF ISR never masks it (esp-idf#17690). An error raised
+// again right after the handler cleared it is that storm: mask the master events until the next transaction.
 struct I2CIsrGuard {
   intr_handler_t handler;
   void *arg;
