@@ -14,6 +14,7 @@ i2c:
   sda: GPIO4
   scl: GPIO5
   frequency: 50kHz
+  scan: false
 ds248x:
   - id: hub
     type: ds2482-800

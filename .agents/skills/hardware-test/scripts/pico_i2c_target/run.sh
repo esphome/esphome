@@ -14,17 +14,23 @@ NAME=i2cfake$K$L; OUT=$R/out-$NAME; rm -rf "$OUT"; mkdir -p "$OUT"
 printf 'esphome:\n  name: %s\n\npackages:\n  common: !include dut-common.yaml\n  sensors: !include dut-%s.yaml\n' "$NAME" "$K" > "$R/$NAME.yaml"
 pkill -f "[s]erial_capture.py $P"; pkill -f "[s]erial_capture.py $FP"
 (cd "$T" && $PY -m esphome run --no-logs "$R/$NAME.yaml" --device "$P" > "$OUT/upload.log" 2>&1) || { echo "build or upload failed"; exit 1; }
-# the fake capture starts first; its last STAT line before the DUT reset is the baseline for abrt and bad
-$PY "$SC" "$FP" $((S + 15)) "$OUT/fake.txt" > /dev/null 2>&1 &
+# the fake capture starts first; its last STAT line before the DUT reset is the baseline for abrt and bad, and it
+# runs until a STAT line arrives after the DUT capture ends, so the comparison covers the whole DUT run
+$PY "$SC" "$FP" $((S + 60)) "$OUT/fake.txt" > /dev/null 2>&1 &
 FAKE_CAP=$!
 for _ in $(seq 20); do grep -a -q "STAT mode=" "$OUT/fake.txt" 2> /dev/null && break; sleep 0.5; done
 BASE=$(grep -a -o "STAT .*" "$OUT/fake.txt" 2> /dev/null | tail -1)
 [ -n "$BASE" ] || { kill $FAKE_CAP 2>/dev/null; echo "FAIL: no STAT line from the fake before the DUT reset (flashed? FAKE_PORT right?)"; exit 1; }
-NBASE=$(grep -a -c "STAT mode=" "$OUT/fake.txt")
 $PY "$SC" "$P" "$S" "$OUT/dut.txt" --reset > /dev/null 2>&1 || { kill $FAKE_CAP 2>/dev/null; echo "FAIL: DUT capture got nothing"; exit 1; }
-wait $FAKE_CAP || { echo "FAIL: fake capture got nothing (FAKE_PORT right?)"; exit 1; }
+NEND=$(grep -a -c "STAT mode=" "$OUT/fake.txt")
+for _ in $(seq 30); do
+  [ "$(grep -a -c "STAT mode=" "$OUT/fake.txt")" -gt "$NEND" ] && break
+  kill -0 $FAKE_CAP 2> /dev/null || break
+  sleep 0.5
+done
+kill $FAKE_CAP 2> /dev/null; wait $FAKE_CAP 2> /dev/null
+[ "$(grep -a -c "STAT mode=" "$OUT/fake.txt")" -gt "$NEND" ] || { echo "FAIL: no STAT line from the fake after the DUT capture ended (FAKE_PORT right?)"; exit 1; }
 LAST=$(grep -a -o "STAT .*" "$OUT/fake.txt" | tail -1)
-[ "$(grep -a -c "STAT mode=" "$OUT/fake.txt")" -gt "$NBASE" ] || { echo "FAIL: no STAT line from the fake after the DUT reset"; exit 1; }
 echo "$LAST"
 # abrt: a read reply that never reached the DUT; bad: a read or write of a register the fake does not model
 cnt() { echo "$1" | sed -nE "s/.* $2=([0-9]+).*/\1/p"; }

@@ -76,9 +76,10 @@ counts reads and writes of registers the drivers do not use (soft reset only wit
 an ESP32-C3 (`dut-common.yaml`, GPIO6/GPIO7) with two sensors on the one fake (`dut-bme280.yaml`,
 `dut-bmp280.yaml`), the second with oversampling NONE. `run.sh bme280|bmp280 LABEL` flashes the DUT, starts the
 fake capture and waits for a `STAT` line as the baseline, then resets and captures the DUT and prints the distinct
-values per sensor. It prints PASS when every sensor gave a numeric state, a `STAT` line came after the reset, and the
-fake's `abrt` (read replies the controller aborted) and `bad` counts did not move from the baseline; diff the output
-of dev and the PR.
+values per sensor. The fake capture runs on until a `STAT` line arrives after the DUT capture ends, so that line
+covers the whole run. It prints PASS when every sensor gave a numeric state, that `STAT` line came, and the fake's
+`abrt` (read replies the controller aborted) and `bad` counts did not move from the baseline; diff the output of dev
+and the PR.
 
 The ESP32-S3 I2C slave v2 driver cannot emulate a register device: answering from a task and straight from the ISR
 both gave shifted multi-byte reads. Use the Pico.
@@ -99,7 +100,8 @@ than `dead` logged `recovery failed`, `DS248x hub failed` or a component marked 
 set at the end of the phase, the DUT capture
 failed (stderr in `TAG-<phase>.err`), a fault never moved its injection counter (counted when the DUT meets the
 fault, not when it is armed), a NACK fault never moved `nacked`, a write delivered data while a NACK was armed
-(`nack_miss`, the NACK never reached the wire and stays pending), a fault is still pending (`pend=1`) at the end of the
+(`nack_miss`, the NACK never reached the wire and stays pending), the DUT sent an address-only write (`empty_wr`),
+a fault is still pending (`pend=1`) at the end of the
 phase, the simulator counted a config write with a wrong complement (`cfg_bad`) or an unknown, short or overlong
 command (`bad_cmd`), a counter is missing from the simulator's CNT line, the simulator aborted a read reply
 (`tx_abrt`, not gated in the `dead` phase, which switches the controller off), a phase other than `b` and `k` (which
@@ -112,6 +114,10 @@ phase CRC, held low, busy timeout and no response counts are printed for informa
 - Sensors polled at the same interval go through the channels in blocks, so a stale channel cache never shows.
   Poll them at different intervals, as `dspd.yaml` does (1, 1.3, 1.7 and 2.3 s).
 - The NACKs use the RP2350 `slv_data_nack_only` register, set at STOP.
+- A NACKed write and an address-only write both end with no data, so the simulator cannot tell them apart.
+  The ds248x driver never sends one, `dspd.yaml` sets `scan: false` and the simulator only sees STOPs after its
+  own address, so `empty_wr` (address-only writes outside a NACK window) stays 0; a nonzero count means `nacked`
+  may include writes that never carried a NACKed byte.
 
 ## I2C fault injection in software (vl53l0x)
 
