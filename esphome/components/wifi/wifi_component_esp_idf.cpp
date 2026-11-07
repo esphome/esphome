@@ -669,10 +669,14 @@ static void disable_dhcp_sntp() {
   sntp_servermode_dhcp(false);
 }
 
+#if USE_NETWORK_IPV6
+// How long after a driver roam SLAAC gets to settle before the IPv6 addresses are recounted.
+static constexpr uint32_t IPV6_ROAM_SETTLE_MS = 5000;
+#endif
+
 #ifdef USE_WIFI_LEASE_CACHE
 // Minimum lease time that must remain before a cached lease is applied.
 static constexpr uint32_t LEASE_APPLY_MARGIN_SECS = 60;
-static constexpr uint32_t IPV6_ROAM_SETTLE_MS = 5000;
 
 // Seconds since capture on the RTC-domain clock; UINT32_MAX if the clock was reset (age unknown).
 static uint32_t lease_cache_age_secs(const SavedWifiLeaseSettings &lease) {

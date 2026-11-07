@@ -675,7 +675,11 @@ async def to_code(config: ConfigType) -> None:
     cg.add_define("USE_NETWORK_IPV4", enable_ipv4)
     if CORE.is_esp32:
         add_idf_sdkconfig_option("CONFIG_LWIP_IPV4", enable_ipv4)
-        if not enable_ipv4:
+        # DNS over RDNSS or stateless DHCPv6 is for IPv6-only Wi-Fi and Ethernet; leave
+        # other IPv4-less builds (OpenThread) on the sdkconfig they already build with.
+        if not enable_ipv4 and (
+            CONF_WIFI in CORE.config or CONF_ETHERNET in CORE.config
+        ):
             add_idf_sdkconfig_option("CONFIG_LWIP_IPV6_RDNSS_MAX_DNS_SERVERS", 2)
             add_idf_sdkconfig_option("CONFIG_LWIP_IPV6_DHCP6", True)
 
