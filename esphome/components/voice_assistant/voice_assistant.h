@@ -280,6 +280,8 @@ class VoiceAssistant final : public Component {
   void set_state_after_mic_stop_(State state);
   /// Fires on_end once for the requested pipeline.
   void end_session_();
+  /// Marks Home Assistant's run as over and drops the RUN_END fallback timer.
+  void end_run_();
   /// Stop a playing or queued response and tell Home Assistant when the TTS stream is still open
   void cancel_response_();
   bool start_udp_socket_();

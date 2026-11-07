@@ -21,7 +21,7 @@ static constexpr uint32_t TIMER_TICK_INTERVAL_ID = 3;
 static constexpr uint32_t WAKE_WORD_VERDICT_TIMEOUT_ID = 4;
 static constexpr uint32_t RUN_END_TIMEOUT_ID = 5;
 
-// How long an ended pipeline waits for Home Assistant's RUN_END before firing on_end anyway
+// Fallback for a run whose RUN_END never arrives
 static constexpr uint32_t RUN_END_TIMEOUT_MS = 2000;
 
 #ifdef SAMPLE_RATE_HZ
@@ -486,8 +486,7 @@ void VoiceAssistant::loop() {
 #endif
 
       this->end_pending_ = this->api_client_ != nullptr;  // no client: on_client_connected re-arms instead
-      this->run_active_ = false;
-      this->cancel_timeout(RUN_END_TIMEOUT_ID);
+      this->end_run_();
       if (this->api_client_ == nullptr || !this->api_client_->send_message(msg)) {
         ESP_LOGW(TAG, "Could not request start");
         this->error_trigger_.trigger("not-connected", "Could not request start");
@@ -725,8 +724,7 @@ void VoiceAssistant::client_subscription(api::APIConnection *client, bool subscr
     this->api_client_ = nullptr;
     // on_client_connected re-arms the wake word, so a pipeline cut off by the disconnect fires no on_end
     this->end_pending_ = false;
-    this->run_active_ = false;
-    this->cancel_timeout(RUN_END_TIMEOUT_ID);
+    this->end_run_();
 #ifdef USE_VOICE_ASSISTANT_WAKE_WORD_AUDIO
     this->wake_word_audio_requested_ = false;
 #endif
@@ -808,8 +806,7 @@ void VoiceAssistant::set_state_(State state) {
     this->end_wake_word_audio_stream_();
   }
 #endif
-  // RUN_END fires on_end; a pipeline that ends any other way fires it here once the run is over, so a late
-  // RUN_END cannot stop a pipeline that on_end started
+  // A pipeline that ends without RUN_END fires on_end here, after RUN_END or its timeout
   if (state == State::IDLE && this->end_pending_) {
     if (this->run_active_) {
       this->set_timeout(RUN_END_TIMEOUT_ID, RUN_END_TIMEOUT_MS, [this]() {
@@ -820,6 +817,11 @@ void VoiceAssistant::set_state_(State state) {
       this->end_session_();
     }
   }
+}
+
+void VoiceAssistant::end_run_() {
+  this->run_active_ = false;
+  this->cancel_timeout(RUN_END_TIMEOUT_ID);
 }
 
 void VoiceAssistant::end_session_() {
@@ -1195,8 +1197,7 @@ void VoiceAssistant::on_event(const api::VoiceAssistantEventResponse &msg) {
     }
     case api::enums::VOICE_ASSISTANT_RUN_END: {
       ESP_LOGD(TAG, "Assist Pipeline ended");
-      this->run_active_ = false;
-      this->cancel_timeout(RUN_END_TIMEOUT_ID);
+      this->end_run_();
 #ifdef USE_VOICE_ASSISTANT_WAKE_WORD_AUDIO
       this->clear_wake_word_verdict_();
 #endif
