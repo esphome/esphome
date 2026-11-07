@@ -1,0 +1,17 @@
+usb_hid_keyboard:
+  id: keyboard
+
+esphome:
+  on_boot:
+    then:
+      - usb_hid_keyboard.press:
+          id: keyboard
+          keycode: ARROW_UP
+      - delay: 50ms
+      - usb_hid_keyboard.release: keyboard
+      - usb_hid_keyboard.press:
+          id: keyboard
+          keycode: ENTER
+          modifier: LEFT_CTRL
+      - delay: 50ms
+      - usb_hid_keyboard.release: keyboard

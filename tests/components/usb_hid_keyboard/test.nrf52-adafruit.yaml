@@ -1,0 +1,2 @@
+packages:
+  usb_hid_keyboard: !include common.yaml
