@@ -6,7 +6,8 @@ MODE: accept | reject | timeout | noflag (the whole session without the wake_wor
 Say the wake word near the device for every run (run.sh plays it). Each run's two audio channels are saved as
 OUTDIR/run<N>-<mode>-ch<1|2>.wav with a JSON summary (wake word id, probability, wake word audio sizes); every
 summary is also printed as a RESULT line, followed by "SUMMARY MODE CH1_MS". Exits 1 when a run's audio stream never
-ended, a verdict task failed or the session timed out. Needs aioesphomeapi 46.27.0 or later.
+ended, a verdict task failed, the session timed out, or a START came before READY or during a run (that run's RESULT
+says incomplete); a START after the last run is ignored. Needs aioesphomeapi 46.27.0 or later.
 """
 
 import asyncio
@@ -51,6 +52,7 @@ class State:
     done_all: asyncio.Event = field(default_factory=asyncio.Event)
     tasks: list[asyncio.Task] = field(default_factory=list)
     failures: list[str] = field(default_factory=list)
+    ready: bool = False
 
 
 S = State()
@@ -62,7 +64,7 @@ def mark(what: str) -> None:
     print(line, flush=True)
 
 
-def save(r: Run) -> None:
+def save(r: Run, incomplete: bool = False) -> None:
     for i, a in ((1, r.a1), (2, r.a2)):
         with wave.open(str(OUT / f"run{r.n}-{r.mode}-ch{i}.wav"), "wb") as w:
             w.setnchannels(1)
@@ -85,6 +87,7 @@ def save(r: Run) -> None:
             "cutoff": ww.probability_cutoff,
         },
         "stopped": r.stopped.is_set(),
+        "incomplete": incomplete,
         "start_to_first_audio_ms": round((r.first_audio - r.started) * 1000)
         if r.first_audio
         else None,
@@ -96,7 +99,7 @@ def save(r: Run) -> None:
 
 async def verdict(r: Run) -> None:
     cli = S.cli
-    if r.mode in ("accept", "noflag", "extra"):
+    if r.mode in ("accept", "noflag"):
         await asyncio.sleep(0.5)
         cli.send_voice_assistant_event(E.VOICE_ASSISTANT_RUN_START, None)
         cli.send_voice_assistant_event(E.VOICE_ASSISTANT_WAKE_WORD_END, None)
@@ -135,9 +138,19 @@ async def handle_start(
     ww: object = None,
 ) -> int:
     if S.run is not None:
-        mark(f"START while run {S.run.n} active, closing it")
-        save(S.run)
-    mode = S.pending.pop(0) if S.pending else "extra"
+        mark(f"START while run {S.run.n} active, closing it as incomplete")
+        S.failures.append(f"START during run {S.run.n}")
+        save(S.run, incomplete=True)
+        S.run = None
+    if not S.pending:
+        if S.ready:
+            mark(f"START after the last run, ignored phrase={phrase!r}")
+            S.done_all.set()  # the closed run may have been the last one
+        else:
+            mark(f"START before READY phrase={phrase!r}")
+            S.failures.append("START before READY")
+        return 0
+    mode = S.pending.pop(0)
     S.count += 1
     S.run = Run(S.count, mode, ww)
     mark(f"START run {S.count} mode={mode} phrase={phrase!r} flags={flags} ww={ww}")
@@ -188,9 +201,10 @@ async def main() -> int:
     )
     await asyncio.sleep(8)
     S.pending.extend(MODES * (2 if NOFLAG else 1))
+    S.ready = True
     mark(f"READY for run 1 {S.pending[0]}")
     try:
-        await asyncio.wait_for(S.done_all.wait(), 600)
+        await asyncio.wait_for(S.done_all.wait(), max(600, 60 + 30 * len(S.pending)))
     except TimeoutError:
         mark("session timed out")
         S.failures.append("session timed out")

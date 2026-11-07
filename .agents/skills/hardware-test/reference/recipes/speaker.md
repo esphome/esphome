@@ -43,7 +43,9 @@ both it starts at about 1 s.
 `scripts/voice_wake_word_audio/va.py HOST KEY OUTDIR accept,reject,timeout` stands in for Home Assistant
 (aioesphomeapi 46.27.0 or later, `wake_word_audio=True`), answers each run by mode and saves both channels as WAV;
 `locate.py OUTDIR` finds the played phrase in them by envelope cross-correlation against `wake16k.wav`.
-`run.sh HOST TAG [ROUNDS]` runs reject and timeout rounds while playing the phrase every 9 s.
+`run.sh HOST TAG [ROUNDS]` runs reject and timeout rounds while playing the phrase every 9 s, starting once `va.py`
+is READY. `va.py` fails a START before READY or during a run, and `run.sh` fails at once when the player fails or
+hangs for 30 s.
 
 - Give the test build its own API key so Home Assistant cannot hold the voice assistant subscription.
 - Make the phrase with any TTS (`say -o wake.aiff "Okay Nabu"`, then `ffmpeg -i wake.aiff -ac 1 -ar 16000

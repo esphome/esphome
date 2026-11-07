@@ -3,9 +3,10 @@
 Opens N concurrent GET /audio/microphones/STREAM_ID readers. Each reports its HTTP status, format headers, sample
 count and rate, the longest gap between reads, and, with --pattern, every break in the fake microphone's uint16
 counter. --stall K makes reader K stop reading after 2 s (the device should drop it, not the others).
---expect-reject R says the last R readers are past max_clients and must be refused.
-Exits 1 when the listing is not a 200 naming the stream, the stalled reader was not dropped, a refused reader was
-served, or any other reader got no 200, no samples, an early EOF, a read error or (with --pattern) a broken counter.
+--expect-reject R says the last R readers are past max_clients and must be refused: a non-200 status, or the
+connection closed or reset before any samples. A timeout, any other error, or a 200 with samples fails those readers.
+Exits 1 when the listing is not a 200 naming the stream, the stalled reader was not dropped, a reader past the limit
+was not refused, or any other reader got no 200, no samples, an early EOF, a read error or (with --pattern) a broken counter.
 """
 
 import argparse
@@ -87,6 +88,8 @@ def reader(
         r["rms"] = round((sq / max(r["samples"], 1)) ** 0.5, 1)
     except Exception as e:  # noqa: BLE001  report and keep the other readers going
         r["error"] = repr(e)
+        if isinstance(e, ConnectionError) and not r["samples"]:
+            r["closed"] = True  # closed or reset before any audio: a refusal
     finally:
         c.close()
 
@@ -156,7 +159,13 @@ def main() -> None:
         if i == a.stall:
             bad |= not r.get("dropped")
         elif i >= a.clients - a.expect_reject:
-            bad |= not failed
+            refused = (r["status"] is not None and r["status"] != 200) or (
+                not r["samples"] and (r["eof"] is not None or r.get("closed"))
+            )
+            if not refused:
+                why = r.get("error") or f"status {r['status']}, {r['samples']} samples"
+                print(f"C{i} is past max_clients but was not refused: {why}")
+            bad |= not refused
         else:
             bad |= bool(failed)
     sys.exit(1 if bad else 0)
