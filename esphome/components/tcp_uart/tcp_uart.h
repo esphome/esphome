@@ -51,20 +51,21 @@ class TcpUart : public uart::UARTComponent, public Component {
   /// Changes whenever another connection, or a new session, gets the turn.
   /// Reads come from that connection only, writes go to it.
   uint16_t turn() const { return this->turn_; }
-  /// Keeps a started turn on its connection until release_turn(). After a release_turn() it reads nothing new.
+  /// Keeps a started turn on its connection until release_turn(). Held after a release, the turn reads nothing new.
   void hold_turn() {
 #ifdef USE_TCP_UART_MAX_CONNECTIONS
     this->held_ = true;
-    this->rest_ = false;
+    this->rest_ = 0;
 #endif
   }
   /// Ends the turn as soon as the bytes already read from its connection are consumed and no hold is left.
-  /// A consumer that takes them without a new hold_turn() gets the rest of its request until turn_timeout of quiet.
-  void release_turn() {
+  /// Before that it reads only the `rest` bytes missing from a request started in them, until turn_timeout of quiet.
+  /// Pass `rest` no later than the loop() that takes the last available byte; each call replaces it.
+  void release_turn(uint16_t rest = 0) {
 #ifdef USE_TCP_UART_MAX_CONNECTIONS
     this->held_ = false;
     this->release_ = true;
-    this->rest_ = this->available() != 0;
+    this->rest_ = rest;
 #endif
   }
 
@@ -93,8 +94,8 @@ class TcpUart : public uart::UARTComponent, public Component {
  protected:
   void check_logger_conflict() override {}
   void sync_link_();
-  /// True when bytes arrived.
-  bool read_socket_(socket::TcpClientLink &link);
+  /// Reads at most limit bytes and returns how many arrived.
+  size_t read_socket_(socket::TcpClientLink &link, size_t limit = RX_BUFFER_SIZE);
   void publish_connected_(bool up);
   void count_disconnect_();
   /// The connection that writes go to, or nullptr.
@@ -148,8 +149,8 @@ class TcpUart : public uart::UARTComponent, public Component {
   uint8_t pending_mask_{0};
   bool held_{false};
   bool release_{false};
-  // release_turn() left bytes to consume and no hold_turn() came since; a request may start in them.
-  bool rest_{false};
+  // Bytes the released turn may still read: the rest of a request started in the bytes already read.
+  uint16_t rest_{0};
 #endif
   // rx_[rx_start_, rx_end_) holds unread bytes; read_socket_() compacts to the front.
   uint16_t rx_start_{0};

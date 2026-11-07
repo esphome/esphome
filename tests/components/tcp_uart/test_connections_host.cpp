@@ -243,10 +243,11 @@ TEST_F(TcpUartTwoClients, RequestSplitAfterAReleaseKeepsItsTurn) {
     this->loops(3);
   }
 
-  // The consumer takes "3" and waits for the rest, which A writes 20 ms later, within the 100 ms turn timeout.
+  // The consumer takes "3" and names the one byte it lacks. A writes it 20 ms later, within the 100 ms turn timeout.
   uint8_t first_byte;
   ASSERT_TRUE(this->uart_.read_byte(&first_byte));
   EXPECT_EQ(first_byte, '3');
+  this->uart_.release_turn(1);
   this->loops(3);
   this->at(1020);
   send(this->a_, ".");
@@ -261,6 +262,78 @@ TEST_F(TcpUartTwoClients, RequestSplitAfterAReleaseKeepsItsTurn) {
   this->uart_.release_turn();
   this->wait_for_bytes(2);
   EXPECT_EQ(this->read_all(), "hi");
+}
+
+TEST_F(TcpUartTwoClients, RestOfASplitRequestIsAllTheReleasedTurnReads) {
+  // Requests are two bytes. A writes "1." and the first byte of "2.", then B sends "hi".
+  send(this->a_, "1.2");
+  this->wait_for_bytes(3);
+  send(this->b_, "hi");
+  char request[3]{};
+  this->uart_.hold_turn();
+  ASSERT_TRUE(this->uart_.read_array(reinterpret_cast<uint8_t *>(request), 2));
+  EXPECT_STREQ(request, "1.");
+  this->uart_.release_turn();
+  this->loops(3);
+
+  // The consumer takes "2" and names the one byte it lacks. A sends that byte and its next request "3." at once.
+  uint8_t first_byte;
+  ASSERT_TRUE(this->uart_.read_byte(&first_byte));
+  EXPECT_EQ(first_byte, '2');
+  this->uart_.release_turn(1);
+  send(this->a_, ".3.");
+  // Loopback needs a moment; B's "hi" keeps select() ready, so the loop passes alone take no time.
+  std::this_thread::sleep_for(std::chrono::milliseconds(20));
+  this->loops(3);
+  // Only the missing "." is read. "3." stays in A's socket.
+  EXPECT_EQ(this->read_all(), ".");
+
+  // Request 2 is answered. B has the next turn, and A's "3." comes in the turn after it.
+  this->uart_.hold_turn();
+  this->uart_.release_turn();
+  this->wait_for_bytes(2);
+  EXPECT_EQ(this->read_all(), "hi");
+  this->uart_.hold_turn();
+  this->uart_.release_turn();
+  this->wait_for_bytes(2);
+  EXPECT_EQ(this->read_all(), "3.");
+}
+
+TEST_F(TcpUartTwoClients, ExactRestLeavesNoEmptyTurn) {
+  // Requests are two bytes. A writes "1." and the first byte of "2.", then B sends "hi".
+  send(this->a_, "1.2");
+  this->wait_for_bytes(3);
+  send(this->b_, "hi");
+  char request[3]{};
+  this->uart_.hold_turn();
+  ASSERT_TRUE(this->uart_.read_array(reinterpret_cast<uint8_t *>(request), 2));
+  EXPECT_STREQ(request, "1.");
+  this->uart_.release_turn();
+  this->loops(3);
+
+  // The consumer takes "2" and names the one byte it lacks. A sends that byte and nothing more.
+  uint8_t first_byte;
+  ASSERT_TRUE(this->uart_.read_byte(&first_byte));
+  EXPECT_EQ(first_byte, '2');
+  this->uart_.release_turn(1);
+  send(this->a_, ".");
+  // Loopback needs a moment; B's "hi" keeps select() ready, so the loop passes alone take no time.
+  std::this_thread::sleep_for(std::chrono::milliseconds(20));
+  this->loops(3);
+  EXPECT_EQ(this->read_all(), ".");
+
+  // Request 2 is answered, then B's "hi".
+  this->uart_.hold_turn();
+  this->uart_.release_turn();
+  this->wait_for_bytes(2);
+  EXPECT_EQ(this->read_all(), "hi");
+
+  // B is answered and asks again. A has nothing left, so B does not wait the 100 ms turn timeout for A.
+  this->uart_.hold_turn();
+  this->uart_.release_turn();
+  send(this->b_, "x");
+  this->wait_for_bytes(1);
+  EXPECT_EQ(this->read_all(), "x");
 }
 
 TEST_F(TcpUartTwoClients, ClosingDuringItsTurnDropsItsBytes) {
