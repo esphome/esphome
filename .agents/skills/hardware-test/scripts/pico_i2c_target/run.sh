@@ -24,6 +24,9 @@ grep -a -o "STAT .*" "$OUT/fake.txt" | tail -1
 VALS=$(grep -a -o -E "'[A-Z]{2}': Sending state [^ ]+" "$OUT/dut.txt" | sed -E "s/'([A-Z]{2})': Sending state /\1 /" | sort | uniq -c)
 [ -n "$VALS" ] || { echo "FAIL: no sensor states (check the wiring: C3 GPIO6/7 to Pico GP4/GP5 plus GND)"; exit 1; }
 echo "$VALS"
+NUM=$(echo "$VALS" | grep -v -i " nan$")
+NANS=$(echo "$VALS" | grep -i " nan$")
+[ -z "$NANS" ] || echo "NaN states: $(echo "$NANS" | awk '{printf "%s=%s ", $2, $1}')"
 case $K in bme280) WANT="AT AP AH BT BP BH" ;; *) WANT="AT AP BT BP" ;; esac
-MISSING=$(for s in $WANT; do echo "$VALS" | grep -q " $s " || printf '%s ' "$s"; done)
-[ -z "$MISSING" ] || { echo "FAIL: no states from $MISSING"; exit 1; }
+MISSING=$(for s in $WANT; do echo "$NUM" | grep -q " $s " || printf '%s ' "$s"; done)
+[ -z "$MISSING" ] || { echo "FAIL: no numeric states from $MISSING"; exit 1; }
