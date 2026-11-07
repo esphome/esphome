@@ -54,6 +54,13 @@ def _function_body(main_cpp: str, name: str) -> str:
     return match.group(1)
 
 
+def _actions_body(main_cpp: str, function: str) -> str:
+    """The body of the function of inline actions that ``function`` calls."""
+    match = re.fullmatch(r"\n  (\w+)\(\);", _function_body(main_cpp, function))
+    assert match is not None, function
+    return _function_body(main_cpp, match.group(1))
+
+
 def _delayed_automation(main_cpp: str, function: str) -> str:
     """The Automation that ``function`` triggers, checked to hold a delay; found through the
     function rather than an id counter."""
@@ -80,14 +87,12 @@ def test_on_boot_inline_priorities(main_cpp: str) -> None:
     )
     assert "Automation<>(startuptrigger_id" not in main_cpp
     # Both actions of the first block run in the one function, with no stop checks
-    body = _function_body(main_cpp, "esphome__startuptrigger_id__fn")
+    body = _actions_body(main_cpp, "esphome__startuptrigger_id__fn")
     assert "boot high" in body
     assert "boot high lambda" in body
     assert "esphome__running" not in body
     assert "Automation" not in body
-    assert "boot default" in _function_body(
-        main_cpp, "esphome__startuptrigger_id_2__fn"
-    )
+    assert "boot default" in _actions_body(main_cpp, "esphome__startuptrigger_id_2__fn")
 
 
 def test_on_boot_delay_triggers_automation(main_cpp: str) -> None:
@@ -109,7 +114,7 @@ def test_on_shutdown_priorities(main_cpp: str) -> None:
     assert _constructed(main_cpp, "shutdowntrigger_id") == (
         "ShutdownCallback<esphome__shutdowntrigger_id__fn, 0x442F0000u>()"
     )
-    assert "shutdown inline" in _function_body(
+    assert "shutdown inline" in _actions_body(
         main_cpp, "esphome__shutdowntrigger_id__fn"
     )
     assert _constructed(main_cpp, "shutdowntrigger_id_2") == (
@@ -123,7 +128,7 @@ def test_on_loop(main_cpp: str) -> None:
     assert _constructed(main_cpp, "looptrigger_id") == (
         "LoopCallback<esphome__looptrigger_id__fn>()"
     )
-    assert "loop inline" in _function_body(main_cpp, "esphome__looptrigger_id__fn")
+    assert "loop inline" in _actions_body(main_cpp, "esphome__looptrigger_id__fn")
     assert "HasLoopOverride<LoopCallback<esphome__looptrigger_id__fn>>" in main_cpp
     assert _constructed(main_cpp, "looptrigger_id_2") == (
         "LoopCallback<esphome__looptrigger_id_2__fn>()"
