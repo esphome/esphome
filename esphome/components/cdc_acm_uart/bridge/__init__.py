@@ -53,8 +53,8 @@ def _final_validate(config: ConfigType) -> ConfigType:
     # Bridges of any platform must own their interfaces exclusively; shared ring
     # buffers and overwritten callbacks would corrupt both streams silently. The
     # bridge domain owns the claims, so all bridge platforms share them.
-    # Other components bind either interface through the same uart_id key (the CDC
-    # instance is itself a uart::UARTComponent) and would race the worker tasks.
+    # Other components bind either interface through uart_id (the CDC instance is
+    # itself a uart::UARTComponent) or usb_cdc_acm_id and would race the worker tasks.
     # Bare `id:` references (a uart.write action) cannot be distinguished; not caught.
     uart.claim_exclusive(config, BRIDGE_DOMAIN)
     uart.claim_exclusive(config, BRIDGE_DOMAIN, CONF_USB_CDC_ACM_ID)
