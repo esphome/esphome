@@ -11,7 +11,7 @@
 #include <memory>
 #include <esp_image_format.h>
 #include <esp_partition.h>
-#include <esp_rom_crc.h>
+#include "esphome/components/crc32/crc32.h"
 
 #include <esp_idf_version.h>
 #if ESP_IDF_VERSION >= ESP_IDF_VERSION_VAL(6, 0, 0)
@@ -76,7 +76,7 @@ bool block_is_valid(const uint8_t *block) {
   }
   uint32_t stored_crc;
   memcpy(&stored_crc, block + OFFSET_CRC, sizeof(stored_crc));
-  return esp_rom_crc32_le(0, block, OFFSET_CRC) == stored_crc;
+  return crc32::crc32(0, block, OFFSET_CRC) == stored_crc;
 }
 
 bool key_digest_of(const uint8_t *block, KeyDigest &out) {
