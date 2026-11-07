@@ -11,6 +11,7 @@
 #include <unistd.h>
 #include <vector>
 
+#include "esphome/components/logger/logger.h"
 #include "esphome/components/modbus_tcp_uart/mbap.h"
 #include "esphome/components/modbus_tcp_uart/modbus_tcp_uart.h"
 #include "esphome/components/tcp_uart/tcp_uart.h"
@@ -137,6 +138,16 @@ class ModbusServerTwoClients : public ::testing::Test {
     rtu[6] = crc >> 8;
     this->link_.write_array(rtu, sizeof(rtu));
   }
+  // hub_answers(), returning what the link logged. The test logger only prints while it has a baud rate.
+  std::string hub_answers_logged(uint8_t value) {
+    const uint32_t baud_rate = logger::global_logger->get_baud_rate();
+    logger::global_logger->set_baud_rate(115200);
+    ::testing::internal::CaptureStdout();
+    this->hub_answers(value);
+    std::string log = ::testing::internal::GetCapturedStdout();
+    logger::global_logger->set_baud_rate(baud_rate);
+    return log;
+  }
 
   Socket socket_;
   ModbusTcpUart link_{&this->socket_};
@@ -198,6 +209,24 @@ TEST_F(ModbusServerTwoClients, LateReplyAfterTheClientLeftIsDropped) {
   this->hub_answers(20);
   this->loops(1);
   EXPECT_EQ(received(this->b_), read_reply(7, 20));
+}
+
+TEST_F(ModbusServerTwoClients, OverdueReplyAfterTheClientLeftIsDroppedAtOnce) {
+  // A asks at 1000. The reply timeout is 1000 ms, so at 2000 A's turn ends; then A leaves while B stays.
+  send(this->a_, read_request(1, 1));
+  EXPECT_EQ(this->hub_takes_request(), 1);
+  this->at(2000);
+  this->loops(3);
+  ::close(this->a_);
+  this->a_ = -1;
+  for (int i = 0; i < 50 && this->socket_.open_connections() == 2; i++) {
+    this->loops(1);
+  }
+
+  // The hub's reply comes after that. It is dropped at once, not held: all 256 bytes of the frame buffer are free.
+  const std::string log = this->hub_answers_logged(10);
+  EXPECT_NE(log.find("Reply to a connection whose turn ended, dropped"), std::string::npos) << log;
+  EXPECT_EQ(this->link_.available_for_write(), 256u);
 }
 
 TEST_F(ModbusServerTwoClients, RequestsSentAheadKeepTheirOrder) {
