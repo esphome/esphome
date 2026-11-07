@@ -38,17 +38,14 @@ bool M5StackUnitBldc::read_command_raw_(float *value) {
 }
 
 void M5StackUnitBldc::setup() {
-  if (!this->write_byte(REG_MODE, static_cast<uint8_t>(this->control_mode_))) {
-    this->mark_failed(LOG_STR("Failed to write control mode"));
+  if (!this->setup_check(this->write_byte(REG_MODE, static_cast<uint8_t>(this->control_mode_)),
+                         LOG_STR("Failed to write control mode")))
     return;
-  }
   // The unit keeps driving its last command across an ESP reboot, so the cache and the number start from it, and
   // a running motor only takes the direction through the stop and restore sequence
   float command;
-  if (!this->read_command_raw_(&command)) {
-    this->mark_failed(LOG_STR("Failed to read the motor command"));
+  if (!this->setup_check(this->read_command_raw_(&command), LOG_STR("Failed to read the motor command")))
     return;
-  }
   this->last_command_ = command;
   // REG_DIRECTION is readable (datasheet register 0x60, W/R), so a boot that already matches the configured
   // direction skips the stop-and-restore cycle entirely instead of spinning the motor down for no reason. A
@@ -71,10 +68,9 @@ void M5StackUnitBldc::setup() {
 #endif
 
   const uint8_t motor_config[2] = {static_cast<uint8_t>(this->motor_model_), this->pole_pairs_};
-  if (!this->write_reg_(REG_MOTOR_CONFIG, motor_config)) {
-    this->mark_failed(LOG_STR("Failed to write motor model/pole pairs"));
+  if (!this->setup_check(this->write_reg_(REG_MOTOR_CONFIG, motor_config),
+                         LOG_STR("Failed to write motor model/pole pairs")))
     return;
-  }
   if (this->has_pid_ && !this->write_reg_(REG_PID, this->pid_)) {
     this->mark_failed(LOG_STR("Failed to write PID gains"));
     return;

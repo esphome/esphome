@@ -41,17 +41,13 @@ void XxteaEncryption::set_key(std::initializer_list<uint32_t> key) {
 }
 
 void XxteaEncryption::setup() {
-  if (this->max_packet_size_ == 0) {
-    this->mark_failed(LOG_STR("max_packet_size too small for the configured layers"));
+  if (!this->setup_check(this->max_packet_size_ != 0, LOG_STR("max_packet_size too small for the configured layers")))
     return;
-  }
   size_t words = this->lower_->get_max_packet_size() / 4;
   RAMAllocator<uint32_t> allocator;
   this->tx_buffer_ = allocator.allocate(words * 2);
-  if (this->tx_buffer_ == nullptr) {
-    this->mark_failed(LOG_STR("Not enough memory for the packet buffers"));
+  if (!this->setup_check(this->tx_buffer_ != nullptr, LOG_STR("Not enough memory for the packet buffers")))
     return;
-  }
   this->rx_buffer_ = this->tx_buffer_ + words;
   if (this->rolling_code_) {
     this->pref_ = global_preferences->make_preference<uint32_t>(fnv1a_hash_extend(PREF_HASH, this->name_), true);
