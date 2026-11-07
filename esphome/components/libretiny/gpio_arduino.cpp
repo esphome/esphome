@@ -42,29 +42,26 @@ ISRInternalGPIOPin ArduinoInternalGPIOPin::to_isr() const {
 // from the current level and flip it on every interrupt. Mirrors attachInterruptParam() in LibreTiny 1.14.0
 // (cores/realtek-amb/arduino/src/wiring_irq.c), which passes the PinData as the SDK handler id; drop this once
 // LibreTiny arms both edges itself (libretiny-eu/libretiny#155).
-// Returns true when the level moved while arming, which the read after arming catches.
-static bool rtl8710b_arm_next_edge(gpio_irq_t *irq) {
-  const uint32_t level = GPIO_ReadDataBit(irq->pin);
-  gpio_irq_set(irq, level ? IRQ_FALL : IRQ_RISE, 1);
-  const uint32_t now = GPIO_ReadDataBit(irq->pin);
-  if (now == level)
-    return false;
-  gpio_irq_set(irq, now ? IRQ_FALL : IRQ_RISE, 1);
-  return true;
+// Re-reads the level after each write so a change in between is caught; a pin still bouncing after four tries is
+// corrected at its following edge.
+static void rtl8710b_arm_next_edge(gpio_irq_t *irq) {
+  uint32_t level = GPIO_ReadDataBit(irq->pin);
+  for (int i = 0; i < 4; i++) {
+    gpio_irq_set(irq, level ? IRQ_FALL : IRQ_RISE, 1);
+    const uint32_t now = GPIO_ReadDataBit(irq->pin);
+    if (now == level)
+      return;
+    level = now;
+  }
 }
 
 static void rtl8710b_change_handler(uint32_t id, gpio_irq_event event) {
   auto *data = reinterpret_cast<PinData *>(id);  // NOLINT(performance-no-int-to-ptr)
   // A later attach with another mode keeps this handler
-  const bool moved = data->irqMode == CHANGE && rtl8710b_arm_next_edge(data->irq);
-  if (data->irqHandler == nullptr)
-    return;
-  auto *handler = reinterpret_cast<void (*)(void *)>(data->irqHandler);
-  handler(data->irqParam);
-  // The edge that moved the level while arming may have raised no interrupt: run the handler again so a level
-  // reader catches up (if it was latched as well, the handler runs once more for it)
-  if (moved)
-    handler(data->irqParam);
+  if (data->irqMode == CHANGE)
+    rtl8710b_arm_next_edge(data->irq);
+  if (data->irqHandler != nullptr)
+    reinterpret_cast<void (*)(void *)>(data->irqHandler)(data->irqParam);
 }
 #endif
 
