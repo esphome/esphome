@@ -1,6 +1,7 @@
 #pragma once
 // Fake SCD4x (0x62 and 0x63) on an in-firmware I2C bus, Sensirion words with CRC; logs every 0xE000 write.
 // A 0xE000 write with a bad CRC counts in bad_crc_e000, not count_e000.
+#include <cstring>
 #include "esphome/components/i2c/i2c_bus.h"
 #include "esphome/core/helpers.h"
 #include "esphome/core/log.h"
@@ -13,6 +14,7 @@ struct Bus final : public esphome::i2c::I2CBus {
   int last_e000[2]{-1, -1};
   uint32_t count_e000[2]{};
   uint32_t bad_crc_e000[2]{};
+  uint32_t unknown_reads{0};  // reads after a command the fake does not answer, NACKed
   uint32_t e000_writes() const { return this->count_e000[0] + this->count_e000[1]; }
   uint32_t e000_bad_crc() const { return this->bad_crc_e000[0] + this->bad_crc_e000[1]; }
 
@@ -59,6 +61,11 @@ struct Bus final : public esphome::i2c::I2CBus {
         put(out, n, out_size, 0x7333);
         break;
       default:
+        if (out_size > 0) {
+          memset(out, 0, out_size);
+          this->unknown_reads++;
+          return esphome::i2c::ERROR_NOT_ACKNOWLEDGED;
+        }
         break;
     }
     while (n < out_size)

@@ -195,6 +195,7 @@ def main() -> int:
     if failed:
         print(f"FAIL: {failed}")
         return 1
+    print("PASS")
     return 0
 
 

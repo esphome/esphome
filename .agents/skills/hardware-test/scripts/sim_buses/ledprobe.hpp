@@ -14,10 +14,13 @@ inline volatile uint8_t edge_v[MAX_EDGES];
 inline volatile size_t n = 0;  // edges seen so far, the ring keeps the last MAX_EDGES
 inline volatile int last = -1;
 inline volatile uint32_t samples = 0;
+inline volatile uint32_t last_sample_ms = 0;
+inline bool started = false;  // pin and timer set up
 
 inline void sample(void *) {
   int v = gpio_get_level(PIN);
   samples++;
+  last_sample_ms = (uint32_t) (esp_timer_get_time() / 1000);
   if (v != last) {
     last = v;
     size_t i = n;
@@ -37,8 +40,11 @@ inline void start() {
   a.callback = sample;
   a.name = "ledprobe";
   esp_timer_handle_t h;
-  if ((err = esp_timer_create(&a, &h)) != ESP_OK || (err = esp_timer_start_periodic(h, 2000)) != ESP_OK)
+  if ((err = esp_timer_create(&a, &h)) != ESP_OK || (err = esp_timer_start_periodic(h, 2000)) != ESP_OK) {
     ESP_LOGE("probe", "LED probe timer failed: %s", esp_err_to_name(err));
+    return;
+  }
+  started = true;
 }
 
 inline uint32_t now_ms() { return (uint32_t) (esp_timer_get_time() / 1000); }
@@ -48,6 +54,15 @@ inline void report(const char *label, size_t mark, uint32_t t0, uint32_t t1) {
   uint32_t ons = 0, on_min = UINT32_MAX, on_max = 0, on_sum = 0;
   uint32_t per_min = UINT32_MAX, per_max = 0, per_sum = 0, pers = 0, prev_rise = 0, rise = 0, max_gap = 0;
   uint32_t prev_edge = t0;
+  if (!started) {
+    ESP_LOGW("probe", "%s: INVALID, the probe never started (see the setup error at boot)", label);
+    return;
+  }
+  uint32_t stale = now_ms() - last_sample_ms;
+  if (stale > 100) {
+    ESP_LOGW("probe", "%s: INVALID, no pin sample for %u ms, the probe timer stopped", label, (unsigned) stale);
+    return;
+  }
   size_t end = n;
   if (end - mark > MAX_EDGES) {
     ESP_LOGW("probe", "%s: INVALID, %u edges overwritten, use a shorter window", label,

@@ -14,11 +14,13 @@ loops in a button lambda must call `App.feed_wdt()` and keep their per-iteration
 that includes its `.hpp` (add `esphome: name:` for the `-common` ones):
 - `ccsfake.hpp`, `ccs-common.yaml`: CCS811 at 0x5A (#21927). Answers setup and update reads and checks every
   ENV_DATA write against the humidity and temperature the case set; "CCS Cases" runs edge values, "CCS Sweep" 2000
-  random ones and logs `SWEEP checked N bad M`.
+  random ones and logs `SWEEP checked N bad M`. A read without a register gets a NACK and counts in `bad_reads`,
+  shown on the CASES line.
 - `eefake.hpp`, `ee-common.yaml`: HTE501 (0x40) and TEE501 (0x48) with CRC words; "Next" steps through raw
   temperature words and logs the value a signed hundredths decode should give (#21930).
 - `scdfake.hpp`, `scd-common.yaml`: SCD4x at 0x62 and 0x63 with Sensirion CRC; logs every `0xE000` ambient pressure
-  write, and the CASE and SHOW lines count writes with a bad CRC apart from the good ones. The second instance has a fixed `ambient_pressure_compensation` to cover the setup path (#21935).
+  write, and the CASE and SHOW lines count writes with a bad CRC apart from the good ones. A read after a command the
+  fake does not answer gets a NACK and counts as `unknown reads` on the SHOW line. The second instance has a fixed `ambient_pressure_compensation` to cover the setup path (#21935).
 - `sxfake.hpp`, `sx-common.yaml`: two SX1509 register files with reset values and the `7D 12/34` reset, recording
   every write. Compare per address: hub setup order can legitimately move between hubs (#21897). Outputs of an Apply
   platform are distinct template types, so a lambda list of them needs
@@ -26,7 +28,8 @@ that includes its `.hpp` (add `esphome: name:` for the `-common` ones):
 - `msfake.hpp`: eight MS8607 pressure/temperature fakes at 0x76 and up and humidity fakes at 0x40 and up, with
   faults per device (reset NACKs, bad PROM CRC4, zero D1 every Nth read, humidity CRC8 errors, out of range D2, full
   scale humidity). It counts every command, so skipped conversions show in `report()`; a humidity read of any shape
-  but a bare 3 byte read gets a NACK and counts as `bad_reads`. Point both the component and
+  but a bare 3 byte read, and a pressure/temperature read that is not a 2 byte PROM or 3 byte ADC read, gets a NACK
+  and counts as `bad_reads`. Point both the component and
   its `humidity_i2c_id` device at the bus. That driver logs no values, so give each sensor an INFO `on_value` log
   (#16487).
 - `htfake.hpp`, `ht16k33-char-test.yaml`: HT16K33 chips at 0x70 to 0x77 (0x74 and 0x76 NACK) keeping the 16 byte
@@ -52,7 +55,8 @@ plays a BME280 (`chip_id` 0x60) or BMP280 (0x58) with the datasheet calibration;
 datasheet example readings and the 0x80000 "no measurement" values, and logs `STAT` counters every 5 s. The DUT is
 an ESP32-C3 (`dut-common.yaml`, GPIO6/GPIO7) with two sensors on the one fake (`dut-bme280.yaml`,
 `dut-bmp280.yaml`), the second with oversampling NONE. `run.sh bme280|bmp280 LABEL` flashes the DUT, captures both
-boards and prints the distinct values per sensor; diff the output of dev and the PR.
+boards and prints the distinct values per sensor, then PASS when every sensor gave a numeric state; diff the output
+of dev and the PR.
 
 The ESP32-S3 I2C slave v2 driver cannot emulate a register device: answering from a task and straight from the ISR
 both gave shifted multi-byte reads. Use the Pico.
@@ -70,7 +74,8 @@ channel). A phase fails when any of the four sensors got no readings, a temperat
 failed (stderr in `TAG-<phase>.err`), a fault never moved its injection counter (counted when the DUT meets the
 fault, not when it is armed), a NACK fault never moved `nacked`, a fault is still pending (`pend=1`) at the end of the
 phase, the simulator never logged `DEAD` for the `dead` phase, or the DUT log of the `dead` phase has no sign of the
-outage (`did not respond`, a ds248x warning, `DS248x hub failed` or a component marked failed).
+outage (`did not respond`, a ds248x warning, `DS248x hub failed` or a component marked failed). It ends with PASS or
+`FAIL:` and the failed phases.
 
 - Sensors polled at the same interval go through the channels in blocks, so a stale channel cache never shows.
   Poll them at different intervals, as `dspd.yaml` does (1, 1.3, 1.7 and 2.3 s).

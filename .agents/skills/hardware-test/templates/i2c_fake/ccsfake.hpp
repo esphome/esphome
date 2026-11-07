@@ -1,6 +1,7 @@
 #pragma once
 // Fake CCS811 on an in-firmware I2C bus: answers setup and update reads, checks every ENV_DATA write.
 #include <cmath>
+#include <cstring>
 #include "esphome/components/i2c/i2c_bus.h"
 #include "esphome/core/log.h"
 
@@ -9,15 +10,21 @@ static const char *const TAG = "ccsfake";
 
 struct Bus final : public esphome::i2c::I2CBus {
   float hum{NAN}, temp{NAN};  // inputs of the update being checked
-  uint32_t checked{0}, bad{0}, writes{0};
+  uint32_t checked{0}, bad{0}, writes{0}, bad_reads{0};
   bool quiet{false};
 
   esphome::i2c::ErrorCode write_readv(uint8_t address, const uint8_t *data, size_t size, uint8_t *out,
                                       size_t out_size) override {
     if (address != 0x5A)
       return esphome::i2c::ERROR_NOT_ACKNOWLEDGED;
-    if (size == 0)
+    if (size == 0 && out_size == 0)
       return esphome::i2c::ERROR_OK;
+    if (size == 0) {
+      // a read without a register the fake does not model: fail it visibly
+      memset(out, 0, out_size);
+      this->bad_reads++;
+      return esphome::i2c::ERROR_NOT_ACKNOWLEDGED;
+    }
     uint8_t reg = data[0];
     if (reg == 0x05 && size == 5) {
       this->check_(data + 1);

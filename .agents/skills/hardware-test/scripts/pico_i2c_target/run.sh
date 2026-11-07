@@ -30,3 +30,4 @@ NANS=$(echo "$VALS" | grep -i " nan$")
 case $K in bme280) WANT="AT AP AH BT BP BH" ;; *) WANT="AT AP BT BP" ;; esac
 MISSING=$(for s in $WANT; do echo "$NUM" | grep -q " $s " || printf '%s ' "$s"; done)
 [ -z "$MISSING" ] || { echo "FAIL: no numeric states from $MISSING"; exit 1; }
+echo PASS

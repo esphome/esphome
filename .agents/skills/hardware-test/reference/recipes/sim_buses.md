@@ -14,10 +14,11 @@ address they do not simulate.
 - `mxsim.hpp`: `MxSniff`, an `spi::SPIDelegate` in front of the real one that keeps what each MAX7219 in a chain
   latches. Swap it in at `on_boot` priority 399 through `DelegatePeek::of(id(x))`:
   `auto &d = DelegatePeek::of(id(x)); d = new MxSniff(d, chips);`. `mx_an.py SERIAL` summarizes the reports and
-  fails on malformed transactions (byte count not two per chip) or a chain whose transaction count stays 0 or stops
-  growing.
+  fails on malformed transactions (byte count not two per chip, or a partial byte from `write()` or
+  `write_cmd_addr_data()`, which are recorded and forwarded too) or a chain whose transaction count stays 0 or stops
+  growing, and prints PASS otherwise.
 - `spysim.hpp`: the same delegate trick (both headers carry `DelegatePeek`, so one config can include both), logging length and FNV-1a hash of every transaction over 1000 bytes (whole
-  frames, used for `pixoo`).
+  frames, used for `pixoo`). `write()` and `write_cmd_addr_data()` are hashed and forwarded like `write_array()`.
 - `pisim.hpp`: drives two `packet_interface` stacks on cross-wired UARTs through `top()`, with payloads whose bytes
   are a function of their index so every byte is checked. `packet_transport` drops packets carrying its own device
   name, so a one-board test must use the layers directly.
@@ -27,11 +28,13 @@ address they do not simulate.
 - `ledprobe.hpp`: samples a status LED (or any output) pin every 2 ms from an `esp_timer`, off the loop task, and
   prints blink count, on time, period and the longest gap per window. It measures `status_led` while the loop is
   blocked (#16407). Pass `ledprobe::n` from the window start as the mark; a window with more than 400 edges logs
-  `INVALID` and no result line instead of passing for a stalled LED.
+  `INVALID` and no result line instead of passing for a stalled LED. So does every window when the pin or timer
+  setup failed or the timer has not sampled for 100 ms, so a dead probe cannot read as a quiet LED.
 - `fakeha.py HOST OUT_PREFIX`: an aioesphomeapi client standing in for Home Assistant for `homeassistant` select
   mirrors. It answers state subscriptions from a table, pushes option and state changes (full, overfull, quoted,
   unparseable), checks each step through a "Dump" button, captures the action calls, churns 600 option updates
-  while watching the heap, and checks the entity options after a reconnect. Exits 1 on a failed step.
+  while watching the heap, and checks the entity options after a reconnect. Exits 1 on a failed step and prints PASS
+  otherwise.
 - `wizard_drive.py HOST`: finishes the device wizard through aioesphomeapi 46.28 (`device_wizard`,
   `wizard_input_set`), answers the subscriptions the inputs create and checks the values reached the entities.
 

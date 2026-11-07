@@ -60,7 +60,8 @@ button:
           ccsfake::bus.quiet = false;
           for (auto &c : cases)
             ccsfake::run(id(ccs), id(hum), id(tmp), c[0], c[1]);
-          ESP_LOGI("ccsfake", "CASES checked %u bad %u", ccsfake::bus.checked, ccsfake::bus.bad);
+          ESP_LOGI("ccsfake", "CASES checked %u bad %u bad_reads %u", ccsfake::bus.checked, ccsfake::bus.bad,
+                   ccsfake::bus.bad_reads);
   - platform: template
     name: CCS Sweep
     on_press:

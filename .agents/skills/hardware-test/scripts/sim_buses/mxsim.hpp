@@ -15,12 +15,13 @@ class MxSniff : public esphome::spi::SPIDelegate {
   uint32_t transactions{0}, bad{0};
   void begin_transaction() override {
     this->n_ = 0;
+    this->odd_ = false;
     this->real_->begin_transaction();
   }
   void end_transaction() override {
     this->real_->end_transaction();
     this->transactions++;
-    if (this->chips_ > MAX_CHIPS || this->n_ != this->chips_ * 2) {
+    if (this->chips_ > MAX_CHIPS || this->odd_ || this->n_ != this->chips_ * 2) {
       this->bad++;
       return;
     }
@@ -42,6 +43,20 @@ class MxSniff : public esphome::spi::SPIDelegate {
       this->rec_(ptr[i]);
     this->real_->write_array(ptr, length);
   }
+  void write(uint16_t data, size_t num_bits) override {
+    this->rec_bits_(data, num_bits);
+    this->real_->write(data, num_bits);
+  }
+  void write_cmd_addr_data(size_t cmd_bits, uint32_t cmd, size_t addr_bits, uint32_t address, const uint8_t *data,
+                           size_t length, uint8_t bus_width) override {
+    this->odd_ |= bus_width != 1;
+    this->rec_bits_(cmd, cmd_bits);
+    this->rec_bits_(address, addr_bits);
+    for (size_t i = 0; i < length; i++)
+      this->rec_(data[i]);
+    this->real_->write_cmd_addr_data(cmd_bits, cmd, addr_bits, address, data, length, bus_width);
+  }
+  bool is_ready() override { return this->real_->is_ready(); }
   void report(const char *name) {
     char line[MAX_CHIPS * 8 * 3 + 1];
     char *o = line;
@@ -60,10 +75,17 @@ class MxSniff : public esphome::spi::SPIDelegate {
       this->bytes_[this->n_] = b;
     this->n_++;
   }
+  // whole bytes MSB first; a partial byte makes the transaction bad
+  void rec_bits_(uint32_t v, size_t bits) {
+    this->odd_ |= bits % 8 != 0;
+    for (size_t s = bits - bits % 8; s >= 8; s -= 8)
+      this->rec_(v >> (s - 8));
+  }
   esphome::spi::SPIDelegate *real_;
   uint8_t chips_;
   uint8_t bytes_[MAX_CHIPS * 2]{};
   size_t n_{0};
+  bool odd_{false};
 };
 
 // Shared by mxsim.hpp and spysim.hpp, so a config can include both.

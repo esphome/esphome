@@ -241,3 +241,4 @@ asyncio.run(main())
 if fails:
     print(f"FAIL: {fails}")
     sys.exit(1)
+print("PASS")

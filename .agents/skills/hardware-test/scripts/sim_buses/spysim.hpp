@@ -30,12 +30,31 @@ class SpySniff : public esphome::spi::SPIDelegate {
     this->rec_(ptr, length);
     this->real_->write_array(ptr, length);
   }
+  void write(uint16_t data, size_t num_bits) override {
+    this->rec_bits_(data, num_bits);
+    this->real_->write(data, num_bits);
+  }
+  void write_cmd_addr_data(size_t cmd_bits, uint32_t cmd, size_t addr_bits, uint32_t address, const uint8_t *data,
+                           size_t length, uint8_t bus_width) override {
+    this->rec_bits_(cmd, cmd_bits);
+    this->rec_bits_(address, addr_bits);
+    this->rec_(data, length);
+    this->real_->write_cmd_addr_data(cmd_bits, cmd, addr_bits, address, data, length, bus_width);
+  }
+  bool is_ready() override { return this->real_->is_ready(); }
 
  protected:
   void rec_(const uint8_t *p, size_t n) {
     for (size_t i = 0; i < n; i++)
       this->hash_ = (this->hash_ ^ p[i]) * esphome::FNV1_PRIME;
     this->len_ += n;
+  }
+  // a partial byte is hashed as a whole one
+  void rec_bits_(uint32_t v, size_t bits) {
+    for (size_t s = (bits + 7) / 8 * 8; s >= 8; s -= 8) {
+      uint8_t b = v >> (s - 8);
+      this->rec_(&b, 1);
+    }
   }
   esphome::spi::SPIDelegate *real_;
   uint32_t len_{0}, hash_{0};

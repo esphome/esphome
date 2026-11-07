@@ -45,6 +45,7 @@ def main() -> int:
     if stuck:
         print(f"FAIL: no new transactions on {stuck}")
         return 1
+    print("PASS")
     return 0
 
 
