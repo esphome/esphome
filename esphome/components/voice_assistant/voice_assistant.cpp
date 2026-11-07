@@ -485,8 +485,8 @@ void VoiceAssistant::loop() {
       }
 #endif
 
-      // A start while the last run still waits for RUN_END merges both into one on_end, at RUN_END as on dev
-      this->end_pending_ = this->api_client_ != nullptr;  // no client: on_client_connected re-arms instead
+      // No client: on_client_connected re-arms instead. A start during the RUN_END wait shares one on_end.
+      this->end_pending_ = this->api_client_ != nullptr;
       this->end_run_();
       if (this->api_client_ == nullptr || !this->api_client_->send_message(msg)) {
         ESP_LOGW(TAG, "Could not request start");
@@ -807,13 +807,10 @@ void VoiceAssistant::set_state_(State state) {
     this->end_wake_word_audio_stream_();
   }
 #endif
-  // A pipeline that ends without RUN_END fires on_end here, after RUN_END or its timeout
+  // Fire on_end now, or once RUN_END or its timeout arrives if Home Assistant's run is still open
   if (state == State::IDLE && this->end_pending_) {
     if (this->run_active_) {
-      this->set_timeout(RUN_END_TIMEOUT_ID, RUN_END_TIMEOUT_MS, [this]() {
-        this->run_active_ = false;
-        this->end_session_();
-      });
+      this->set_timeout(RUN_END_TIMEOUT_ID, RUN_END_TIMEOUT_MS, [this]() { this->end_session_(); });
     } else {
       this->end_session_();
     }
