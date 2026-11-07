@@ -78,9 +78,11 @@ void AldeDeviceHub::write_state(switch_::Switch *sw, bool state) {
 void AldeDeviceHub::select_control(select::Select *sel, size_t state) {
   if (sel == this->alde_heater_electricity_select_) {
     ESP_LOGV(TAG, "Heater electricity select state: %d", state);
-    std::string sel_state = this->alde_heater_electricity_select_->at(state).value();
-    std::string cmd = Commands::update_heater_el("HEATER_EL", sel_state);
-    this->parent_->send_command(cmd);
+    auto option_state = this->alde_heater_electricity_select_->at(state);
+    if (option_state.has_value()) {
+      std::string cmd = Commands::update_heater_el("HEATER_EL", option_state.value());
+      this->parent_->send_command(cmd);
+    }
   };
 }
 
