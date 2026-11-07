@@ -129,6 +129,18 @@ helper; `AGENTS.md` section 4 and the `component-codegen` skill have the detail.
 - Config-only checks use the `validate.*.yaml` prefix; compiled checks use
   `test.*.yaml`.
 
+## Naming user-facing functions
+
+Documented lambda methods, actions and config keys are public API, so a bad name
+is hard to fix once released. Flag:
+
+- A boolean where `true` means off (`display_off(true)`): name the positive
+  state, e.g. `set_power(bool on)`.
+- A name that differs from a sibling component's name for the same operation.
+
+Before a release, rename outright; after, follow the breaking-change policy
+below.
+
 ## Breaking changes and public API
 
 - Base classes under `esphome/core/` and documented config options are public
