@@ -18,8 +18,8 @@
 #endif
 
 namespace esphome::i2c {
-// Without an FSM reset ACK_ERR can stay raised and the IDF ISR never masks it (esp-idf#17690). An error still
-// raised after the handler cleared it is that storm: mask the master events until the next transaction.
+// Without an FSM reset ACK_ERR can stay raised and the IDF ISR never masks it (esp-idf#17690). Mask the master
+// events until the next transaction when an error is raised both before and after the handler clears it.
 struct I2CIsrGuard {
   intr_handler_t handler;
   void *arg;
@@ -31,10 +31,9 @@ static void IRAM_ATTR i2c_isr_guard(void *arg) {
   auto *guard = static_cast<I2CIsrGuard *>(arg);
   uint32_t before;
   i2c_ll_get_intr_mask(guard->dev, &before);
-  guard->handler(guard->arg);  // clears the status, and may start the next transfer
+  guard->handler(guard->arg);
   uint32_t after;
   i2c_ll_get_intr_mask(guard->dev, &after);
-  // Only an error seen on both sides: a new transfer's first error is left for the driver
   if (before & after & (I2C_LL_INTR_NACK | I2C_LL_INTR_TIMEOUT | I2C_LL_INTR_ARBITRATION))
     i2c_ll_disable_intr_mask(guard->dev, I2C_LL_MASTER_EVENT_INTR);
 }
