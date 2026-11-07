@@ -3,6 +3,8 @@
 #include "esphome/core/defines.h"
 #include "esphome/core/helpers.h"
 #include "esphome/core/log.h"
+
+#include <utility>
 #ifdef USE_NETWORK
 
 namespace esphome::network {
