@@ -1,0 +1,23 @@
+display:
+  - platform: ssd1306_i2c
+    i2c_id: i2c_bus
+    id: gt9895_ssd1306_i2c_display
+    model: SSD1306_128X64
+    reset_pin: ${display_reset_pin}
+    pages:
+      - id: gt9895_page1
+        lambda: |-
+          it.rectangle(0, 0, it.get_width(), it.get_height());
+
+touchscreen:
+  - platform: gt9895
+    i2c_id: i2c_bus
+    id: gt9895_touchscreen
+    display: gt9895_ssd1306_i2c_display
+    interrupt_pin: ${interrupt_pin}
+    reset_pin: ${reset_pin}
+    calibration:
+      x_min: 0
+      x_max: 1060
+      y_min: 0
+      y_max: 2400
