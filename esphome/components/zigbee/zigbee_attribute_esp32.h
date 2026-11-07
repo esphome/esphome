@@ -60,8 +60,8 @@ class ZigbeeAttribute final : public ZigbeeDeviceBase {
 #endif
 
  protected:
-  void set_attr_() override;
-  void report_(bool has_lock) override;
+  void set_attr_internal() override;
+  void report_internal(bool has_lock) override;
   uint16_t cluster_id_;
   uint8_t role_;
   uint16_t attr_id_;

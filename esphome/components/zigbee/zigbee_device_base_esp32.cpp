@@ -33,11 +33,11 @@ void ZigbeeDeviceBase::report() {
 
 void ZigbeeDeviceBase::loop() {
   if (this->set_attr_requested_) {
-    this->set_attr_();
+    this->set_attr_internal();
   }
 
   if (this->report_requested_) {
-    this->report_(false);
+    this->report_internal(false);
   }
 
   if (!this->report_requested_ && !this->set_attr_requested_) {

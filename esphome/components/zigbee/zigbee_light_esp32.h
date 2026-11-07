@@ -49,8 +49,8 @@ class ZigbeeLight final : public ZigbeeDeviceBase, public light::LightRemoteValu
   void connect(light::LightState *light_state);
 
  protected:
-  void set_attr_() override;
-  void report_(bool has_lock) override;
+  void set_attr_internal() override;
+  void report_internal(bool has_lock) override;
   void apply_on_off_(bool on);
   void apply_level_(uint8_t level);
   ZigbeeOnValueForwarder<bool, ZigbeeLight> on_off_forwarder_;

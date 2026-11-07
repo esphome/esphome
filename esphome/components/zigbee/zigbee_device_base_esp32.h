@@ -29,8 +29,8 @@ class ZigbeeDeviceBase : public Component, public ZigbeeAttributeInterface {
 
  protected:
   ZigbeeDeviceBase(ZigbeeComponent *parent, uint8_t endpoint_id) : zb_(parent), endpoint_id_(endpoint_id) {}
-  virtual void set_attr_() = 0;
-  virtual void report_(bool has_lock) = 0;
+  virtual void set_attr_internal() = 0;
+  virtual void report_internal(bool has_lock) = 0;
   ZigbeeComponent *zb_;
   uint8_t endpoint_id_;
   bool set_attr_requested_{false};

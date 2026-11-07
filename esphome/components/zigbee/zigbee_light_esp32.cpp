@@ -11,7 +11,7 @@ ESPHOME_LOG_TAG(TAG, "zigbee.light");
 void ZigbeeLight::on_light_remote_values_update() {
   if (this->synchronizing_from_zigbee_)
     return;  // TODO: Fix this race-condition
-  this->set_attr_();
+  this->set_attr_internal();
   // auto values = light_state_->remote_values;
   // const auto color_mode = values.get_color_mode();
   //  set attributes
@@ -42,10 +42,10 @@ void ZigbeeLight::on_light_remote_values_update() {
     }*/
 }
 
-void ZigbeeLight::connect(light::LightState *device) {
-  this->light_state_ = device;
-  auto values = device->remote_values;
-  light::LightTraits traits = device->get_traits();
+void ZigbeeLight::connect(light::LightState *light_state) {
+  this->light_state_ = light_state;
+  auto values = this->light_state_->remote_values;
+  light::LightTraits traits = this->light_state_->get_traits();
   bool onoff = traits.supports_color_capability(light::ColorCapability::ON_OFF);
   bool level = traits.supports_color_capability(light::ColorCapability::BRIGHTNESS);
   bool color = traits.supports_color_capability(light::ColorCapability::RGB) ||
@@ -66,17 +66,17 @@ void ZigbeeLight::connect(light::LightState *device) {
 
   bool value = values.is_on();
   this->zb_->add_attr(&this->on_off_forwarder_, this->endpoint_id_, EZB_ZCL_CLUSTER_ID_ON_OFF, EZB_ZCL_CLUSTER_SERVER,
-                      EZB_ZCL_ATTR_ON_OFF_ON_OFF_ID, 0, std::move(value));
+                      EZB_ZCL_ATTR_ON_OFF_ON_OFF_ID, 0, value);
 
   // setup level cluster
   if (level) {
     this->zb_->add_cluster(this->endpoint_id_, EZB_ZCL_CLUSTER_ID_LEVEL, EZB_ZCL_CLUSTER_SERVER);
     uint8_t value = light::to_uint8_scale(values.get_brightness());
     this->zb_->add_attr(&this->level_forwarder_, this->endpoint_id_, EZB_ZCL_CLUSTER_ID_LEVEL, EZB_ZCL_CLUSTER_SERVER,
-                        EZB_ZCL_ATTR_LEVEL_CURRENT_LEVEL_ID, 0, std::move(value));
+                        EZB_ZCL_ATTR_LEVEL_CURRENT_LEVEL_ID, 0, value);
 
     // static attributes for level cluster
-    uint16_t transition_time = (uint16_t) (device->get_default_transition_length() / 100);  // in 1/10s
+    uint16_t transition_time = (uint16_t) (this->light_state_->get_default_transition_length() / 100);  // in 1/10s
     this->zb_->add_attr(this->endpoint_id_, EZB_ZCL_CLUSTER_ID_LEVEL, EZB_ZCL_CLUSTER_SERVER,
                         EZB_ZCL_ATTR_LEVEL_ON_OFF_TRANSITION_TIME_ID, 0, transition_time);
 
@@ -128,7 +128,7 @@ void ZigbeeLight::apply_level_(uint8_t level) {
   this->synchronizing_from_zigbee_ = false;
 }
 
-void ZigbeeLight::set_attr_() {
+void ZigbeeLight::set_attr_internal() {
   if (!this->zb_->is_started()) {
     return;
   }
@@ -150,7 +150,7 @@ void ZigbeeLight::set_attr_() {
     // when the report has to wait for join
     this->set_attr_requested_ = false;
     if (this->force_report_) {
-      this->report_(true);
+      this->report_internal(true);
     }
     esp_zigbee_lock_release();
   } else {
@@ -159,7 +159,7 @@ void ZigbeeLight::set_attr_() {
   }
 }
 
-void ZigbeeLight::report_(bool has_lock) {
+void ZigbeeLight::report_internal(bool has_lock) {
   if (!this->report_enabled) {
     return;
   }
