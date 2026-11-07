@@ -34,16 +34,12 @@ HdlcReliability::HdlcReliability(PacketInterface *lower)
 }
 
 void HdlcReliability::setup() {
-  if (this->max_packet_size_ == 0) {
-    this->mark_failed(LOG_STR("max_packet_size too small for the configured layers"));
+  if (!this->setup_check(this->max_packet_size_ != 0, LOG_STR("max_packet_size too small for the configured layers")))
     return;
-  }
   RAMAllocator<uint8_t> allocator;
   this->tx_slots_ = allocator.allocate(size_t{this->max_queue_length_} * this->max_packet_size_);
-  if (this->tx_slots_ == nullptr) {
-    this->mark_failed(LOG_STR("Not enough memory for the send queue"));
+  if (!this->setup_check(this->tx_slots_ != nullptr, LOG_STR("Not enough memory for the send queue")))
     return;
-  }
   this->lower_->add_packet_interface_listener(
       [this](const PacketBuffer &data, const PacketMetaData &meta_data) { this->receive_(data, meta_data); });
 }
