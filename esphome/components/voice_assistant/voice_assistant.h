@@ -404,7 +404,7 @@ class VoiceAssistant final : public Component {
   bool continuous_{false};
   // A pipeline was requested and on_end has not fired for it yet
   bool end_pending_{false};
-  // Set when Home Assistant accepts a run; cleared by its RUN_END, the next start or an unsubscribe
+  // Set on RUN_START; cleared by RUN_END, the next start or an unsubscribe
   bool run_active_{false};
   bool silence_detection_;
   bool continue_conversation_{false};

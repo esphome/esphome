@@ -495,7 +495,6 @@ void VoiceAssistant::loop() {
         this->set_state_(State::IDLE, State::IDLE);
         break;
       }
-      this->run_active_ = true;
       this->set_timeout(RESET_CONVERSATION_TIMEOUT_ID, this->conversation_timeout_,
                         [this]() { this->reset_conversation_id(); });
 #ifdef USE_VOICE_ASSISTANT_WAKE_WORD_AUDIO
@@ -852,7 +851,6 @@ void VoiceAssistant::set_state_after_mic_stop_(State state) {
 void VoiceAssistant::failed_to_start() {
   ESP_LOGE(TAG, "Failed to start server. See Home Assistant logs for more details.");
   this->error_trigger_.trigger("failed-to-start", "Failed to start server. See Home Assistant logs for more details.");
-  this->end_run_();  // a rejected start has no run, so no RUN_END follows
   this->set_state_(State::STOP_MICROPHONE, State::IDLE);
 }
 
@@ -1042,6 +1040,7 @@ void VoiceAssistant::on_event(const api::VoiceAssistantEventResponse &msg) {
   switch (msg.event_type) {
     case api::enums::VOICE_ASSISTANT_RUN_START:
       ESP_LOGD(TAG, "Assist Pipeline running");
+      this->run_active_ = true;  // Home Assistant sends RUN_END only for a run it sent RUN_START for
 #ifdef USE_MEDIA_PLAYER
       this->started_streaming_tts_ = false;
       for (const auto &arg : msg.data) {
