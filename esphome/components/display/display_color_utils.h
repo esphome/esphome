@@ -7,7 +7,9 @@
 namespace esphome::display {
 enum ColorOrder : uint8_t { COLOR_ORDER_RGB = 0, COLOR_ORDER_BGR = 1, COLOR_ORDER_GRB = 2 };
 enum ColorBitness : uint8_t { COLOR_BITNESS_888 = 0, COLOR_BITNESS_565 = 1, COLOR_BITNESS_332 = 2 };
-inline static uint8_t esp_scale(uint8_t i, uint8_t scale, uint8_t max_value = 255) { return (max_value * i / scale); }
+inline static constexpr uint8_t esp_scale(uint8_t i, uint8_t scale, uint8_t max_value = 255) {
+  return (max_value * i / scale);
+}
 
 /// esp_scale(value, (1 << bits) - 1) for a field of 2, 3, 5, 6 or 8 bits, as a multiply and shift that gives the
 /// same result for every field value. With bits a constant this avoids a division.
@@ -220,7 +222,7 @@ constexpr uint8_t color_to_mono(Color color) { return rec601_luma(color) >= 128 
  */
 class Rgb565ToMono {
  public:
-  Rgb565ToMono() { this->fill_tables_(REC601_LUMA_R, REC601_LUMA_G, REC601_LUMA_B); }
+  constexpr Rgb565ToMono() { this->fill_tables_(REC601_LUMA_R, REC601_LUMA_G, REC601_LUMA_B); }
   // Remove before 2027.5.0
   ESPDEPRECATED("Packed colors are always RGB, drop the ColorOrder argument. Removed in 2027.5.0", "2026.11.0")
   explicit Rgb565ToMono(ColorOrder order) {
@@ -229,14 +231,14 @@ class Rgb565ToMono {
     this->fill_tables_(weights.r, weights.g, weights.b);
   }
 
-  uint8_t operator()(uint16_t value) const {
+  constexpr uint8_t operator()(uint16_t value) const {
     const uint32_t weighted = this->high_[value >> 11] + this->middle_[(value >> 5) & 0x3F] + this->low_[value & 0x1F];
     return ((weighted + 128u) >> 8) >= 128 ? 1 : 0;
   }
 
  protected:
   // Each field value scaled to 0..255, then weighted
-  void fill_tables_(uint16_t high, uint16_t middle, uint16_t low) {
+  constexpr void fill_tables_(uint16_t high, uint16_t middle, uint16_t low) {
     for (unsigned i = 0; i != 32; i++) {
       this->high_[i] = high * esp_scale(i, 31);
       this->low_[i] = low * esp_scale(i, 31);
