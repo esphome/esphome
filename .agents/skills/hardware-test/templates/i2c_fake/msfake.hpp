@@ -17,13 +17,13 @@ struct Pt {
   uint16_t prom[7]{0, 46372, 43981, 29059, 27842, 31553, 28165};
   uint8_t pending{0};  // 0x4A or 0x5A
   uint8_t last{0xFF};  // last command, for a read in its own transaction
-  uint32_t resets{0}, conv_t{0}, conv_p{0}, adc{0}, prom_reads{0}, d1_reads{0}, bad_reads{0};
+  uint32_t resets{0}, conv_t{0}, conv_p{0}, adc{0}, prom_reads{0}, d1_reads{0}, bad_reads{0}, bad_cmds{0};
 };
 struct Hd {
   uint8_t addr;
   uint16_t raw;
   int bad_crc_every;  // every Nth read has a wrong CRC
-  uint32_t resets{0}, measures{0}, reads{0}, bad_reads{0};
+  uint32_t resets{0}, measures{0}, reads{0}, bad_reads{0}, bad_cmds{0};
 };
 
 inline uint8_t crc4(const uint16_t *w) {
@@ -111,6 +111,10 @@ struct Bus final : public esphome::i2c::I2CBus {
         p.adc++;
         esphome::put_be24(out, v);
         return esphome::i2c::ERROR_OK;
+      } else if (size >= 1 && out_size == 0) {
+        // a command the fake does not know
+        p.bad_cmds++;
+        return esphome::i2c::ERROR_NOT_ACKNOWLEDGED;
       }
     }
     if (out_size == 0)
@@ -122,10 +126,15 @@ struct Bus final : public esphome::i2c::I2CBus {
   }
 
   ErrorCode hd_(Hd &h, const uint8_t *data, size_t size, uint8_t *out, size_t out_size) {
-    if (size >= 1 && data[0] == 0xFE)
+    if (size >= 1 && data[0] == 0xFE) {
       h.resets++;
-    if (size >= 1 && data[0] == 0xF5)
+    } else if (size >= 1 && data[0] == 0xF5) {
       h.measures++;
+    } else if (size >= 1 && out_size == 0) {
+      // a command the fake does not know
+      h.bad_cmds++;
+      return esphome::i2c::ERROR_NOT_ACKNOWLEDGED;
+    }
     if (out_size == 0)
       return esphome::i2c::ERROR_OK;
     if (size != 0 || out_size != 3) {
@@ -143,13 +152,13 @@ struct Bus final : public esphome::i2c::I2CBus {
 
   void report() {
     for (auto &p : pts)
-      ESP_LOGI(TAG, "PT 0x%02X resets=%u prom=%u convT=%u convP=%u adc=%u bad_reads=%u", p.addr, (unsigned) p.resets,
-               (unsigned) p.prom_reads, (unsigned) p.conv_t, (unsigned) p.conv_p, (unsigned) p.adc,
-               (unsigned) p.bad_reads);
+      ESP_LOGI(TAG, "PT 0x%02X resets=%u prom=%u convT=%u convP=%u adc=%u bad_reads=%u bad_cmds=%u", p.addr,
+               (unsigned) p.resets, (unsigned) p.prom_reads, (unsigned) p.conv_t, (unsigned) p.conv_p, (unsigned) p.adc,
+               (unsigned) p.bad_reads, (unsigned) p.bad_cmds);
     for (auto &h : hds)
       if (h.addr)
-        ESP_LOGI(TAG, "H 0x%02X resets=%u measures=%u reads=%u bad_reads=%u", h.addr, (unsigned) h.resets,
-                 (unsigned) h.measures, (unsigned) h.reads, (unsigned) h.bad_reads);
+        ESP_LOGI(TAG, "H 0x%02X resets=%u measures=%u reads=%u bad_reads=%u bad_cmds=%u", h.addr, (unsigned) h.resets,
+                 (unsigned) h.measures, (unsigned) h.reads, (unsigned) h.bad_reads, (unsigned) h.bad_cmds);
   }
 };
 inline Bus bus;

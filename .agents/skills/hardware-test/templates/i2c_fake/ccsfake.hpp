@@ -34,6 +34,13 @@ struct Bus final : public esphome::i2c::I2CBus {
       this->bad++;
       ESP_LOGI(TAG, "ENV write of %u bytes, want 4 BAD", (unsigned) (size - 1));
     }
+    if (out_size > 0 && reg != 0x00 && reg != 0x02 && reg != 0x11 && reg != 0x20 && reg != 0x21 && reg != 0x23 &&
+        reg != 0x24) {
+      // a register the fake does not model
+      memset(out, 0, out_size);
+      this->bad_reads++;
+      return esphome::i2c::ERROR_NOT_ACKNOWLEDGED;
+    }
     static const uint8_t ALG[4] = {0x01, 0xC2, 0x00, 0x0C};  // 450 ppm, 12 ppb
     for (size_t i = 0; i < out_size; i++) {
       switch (reg) {
@@ -55,11 +62,9 @@ struct Bus final : public esphome::i2c::I2CBus {
         case 0x23:
           out[i] = i == 0 ? 0x10 : 0x00;
           break;
-        case 0x24:
+        default:  // 0x24
           out[i] = i == 0 ? 0x20 : 0x00;
           break;  // app 2.0.0
-        default:
-          out[i] = 0;
       }
     }
     return esphome::i2c::ERROR_OK;

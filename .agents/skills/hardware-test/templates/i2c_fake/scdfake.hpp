@@ -14,7 +14,7 @@ struct Bus final : public esphome::i2c::I2CBus {
   int last_e000[2]{-1, -1};
   uint32_t count_e000[2]{};
   uint32_t bad_crc_e000[2]{};
-  uint32_t unknown_reads{0};  // reads after a command the fake does not answer, NACKed
+  uint32_t unknown_reads{0};  // reads after a command the fake does not answer, or longer than its reply, NACKed
   uint32_t e000_writes() const { return this->count_e000[0] + this->count_e000[1]; }
   uint32_t e000_bad_crc() const { return this->bad_crc_e000[0] + this->bad_crc_e000[1]; }
 
@@ -68,8 +68,11 @@ struct Bus final : public esphome::i2c::I2CBus {
         }
         break;
     }
-    while (n < out_size)
-      put(out, n, out_size, 0);
+    if (n < out_size) {
+      memset(out, 0, out_size);
+      this->unknown_reads++;
+      return esphome::i2c::ERROR_NOT_ACKNOWLEDGED;
+    }
     return esphome::i2c::ERROR_OK;
   }
 };

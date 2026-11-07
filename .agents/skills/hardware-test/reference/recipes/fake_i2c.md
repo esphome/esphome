@@ -14,13 +14,14 @@ loops in a button lambda must call `App.feed_wdt()` and keep their per-iteration
 that includes its `.hpp` (add `esphome: name:` for the `-common` ones):
 - `ccsfake.hpp`, `ccs-common.yaml`: CCS811 at 0x5A (#21927). Answers setup and update reads and checks every
   ENV_DATA write against the humidity and temperature the case set; "CCS Cases" runs edge values, "CCS Sweep" 2000
-  random ones and logs `SWEEP checked N bad M`. A read without a register gets a NACK and counts in `bad_reads`,
-  shown on the CASES line.
+  random ones and logs `SWEEP checked N bad M`. A read without a register, or of a register the fake does not
+  model, gets a NACK and counts in `bad_reads`, shown on the CASES line.
 - `eefake.hpp`, `ee-common.yaml`: HTE501 (0x40) and TEE501 (0x48) with CRC words; "Next" steps through raw
   temperature words and logs the value a signed hundredths decode should give (#21930).
 - `scdfake.hpp`, `scd-common.yaml`: SCD4x at 0x62 and 0x63 with Sensirion CRC; logs every `0xE000` ambient pressure
   write, and the CASE and SHOW lines count writes with a bad CRC apart from the good ones. A read after a command the
-  fake does not answer gets a NACK and counts as `unknown reads` on the SHOW line. The second instance has a fixed `ambient_pressure_compensation` to cover the setup path (#21935).
+  fake does not answer, or one longer than the command's reply, gets a NACK and counts as `unknown reads` on the
+  SHOW line. The second instance has a fixed `ambient_pressure_compensation` to cover the setup path (#21935).
 - `sxfake.hpp`, `sx-common.yaml`: two SX1509 register files with reset values and the `7D 12/34` reset, recording
   every write. Compare per address: hub setup order can legitimately move between hubs (#21897). Outputs of an Apply
   platform are distinct template types, so a lambda list of them needs
@@ -29,7 +30,7 @@ that includes its `.hpp` (add `esphome: name:` for the `-common` ones):
   faults per device (reset NACKs, bad PROM CRC4, zero D1 every Nth read, humidity CRC8 errors, out of range D2, full
   scale humidity). It counts every command, so skipped conversions show in `report()`; a humidity read of any shape
   but a bare 3 byte read, and a pressure/temperature read that is not a 2 byte PROM or 3 byte ADC read, gets a NACK
-  and counts as `bad_reads`. Point both the component and
+  and counts as `bad_reads`; a command write the fake does not know gets a NACK and counts as `bad_cmds`. Point both the component and
   its `humidity_i2c_id` device at the bus. That driver logs no values, so give each sensor an INFO `on_value` log
   (#16487).
 - `htfake.hpp`, `ht16k33-char-test.yaml`: HT16K33 chips at 0x70 to 0x77 (0x74 and 0x76 NACK) keeping the 16 byte
@@ -73,7 +74,8 @@ readings, wrong values, log counts and the simulator's counters (`wrong_ch` coun
 channel). A phase fails when any of the four sensors got no readings, a temperature is wrong, the DUT capture
 failed (stderr in `TAG-<phase>.err`), a fault never moved its injection counter (counted when the DUT meets the
 fault, not when it is armed), a NACK fault never moved `nacked`, a fault is still pending (`pend=1`) at the end of the
-phase, the simulator never logged `DEAD` for the `dead` phase, or the DUT log of the `dead` phase has no sign of the
+phase, the simulator counted a config write with a wrong complement (`cfg_bad`) or an unknown command or argument
+(`bad_cmd`), the simulator never logged `DEAD` for the `dead` phase, or the DUT log of the `dead` phase has no sign of the
 outage (`did not respond`, a ds248x warning, `DS248x hub failed` or a component marked failed). It ends with PASS or
 `FAIL:` and the failed phases.
 
@@ -90,7 +92,8 @@ measurement-in-progress read fails), quiet, fault B (the next measurement start 
 with a model ID probe every 10 s to tell a driver stall from a dead chip. `run.sh LABEL` builds, flashes, captures
 and runs `an.py`, which counts readings per `PHASE` line. It fails when the phases are not quiet, faultA, quiet,
 faultB, quiet (a short capture or a restart), the first quiet phase has no readings, a later quiet phase reads less
-than half as often as the first, a quiet phase has a failed model ID probe or one that did not return 0xEE,
+than half as often as the first, a later quiet phase reads NaN when the first did not (a target out of range
+reads NaN in every phase), a quiet phase has a failed model ID probe or one that did not return 0xEE,
 anything crashed or rebooted, or a fault never fired.
 
 Prefer this to glitching the wire. Holding SDA low by rerouting the pin (`esp_rom_gpio_connect_out_signal` to

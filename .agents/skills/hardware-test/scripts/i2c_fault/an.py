@@ -57,6 +57,14 @@ def main() -> int:
         for i, (p, counts) in enumerate(phases)
         if i > 1 and p == "quiet" and counts.get("ok", 0) * 2 < base_ok
     ]
+    # a target out of range reads NaN in every phase; when the first quiet phase had none, a NaN later means the
+    # driver had not recovered from the fault
+    if not phases[1][1].get("nan"):
+        bad += [
+            f"{p} {i} nan={counts['nan']}"
+            for i, (p, counts) in enumerate(phases)
+            if i > 1 and p == "quiet" and counts.get("nan")
+        ]
     bad += [
         f"{p} reboot"
         for i, (p, counts) in enumerate(phases)

@@ -58,6 +58,7 @@ static volatile char nack_src = 0;  // fault whose NACK is pending: 'c', 'z' or 
 struct Cnt {
   uint32_t txn, drst, chsl, owreset, wbyte, rbyte, trip, match, wrong_ch, nacked, cfg_writes, ops_no_apu, convert,
       readsp, inject_c, inject_z, inject_b, inject_k;
+  uint32_t cfg_bad, bad_cmd;  // config writes with a wrong complement; unknown commands or arguments
 };
 static volatile Cnt cnt;
 static volatile uint8_t last_wrong_rom1 = 0, last_wrong_on = 0;
@@ -260,7 +261,11 @@ static void process(const uint8_t *b, uint8_t n) {
           case 0xD2:
             rp = RP_CHANNEL;
             break;
+          default:
+            cnt.bad_cmd++;
         }
+      } else {
+        cnt.bad_cmd++;
       }
       break;
     case 0xD2:  // write config
@@ -269,15 +274,20 @@ static void process(const uint8_t *b, uint8_t n) {
         cnt.cfg_writes++;
         status = status & ~0x10;
         rp = RP_CONFIG;
+      } else {
+        cnt.cfg_bad++;
       }
       break;
     case 0xC3:  // channel select
       if (n >= 2) {
+        uint32_t before = cnt.chsl;
         for (int i = 0; i < 8; i++)
           if (CH_WRITE[i] == b[1]) {
             channel = i;
             cnt.chsl++;
           }
+        if (cnt.chsl == before)
+          cnt.bad_cmd++;
         rp = RP_CHANNEL;
         if (arm_c) {
           arm_c = false;
@@ -301,6 +311,8 @@ static void process(const uint8_t *b, uint8_t n) {
         ow_write(b[1]);
         set_status_idle(keep & 0x02);
         rp = RP_STATUS;
+      } else {
+        cnt.bad_cmd++;
       }
       break;
     case 0x96:  // read byte
@@ -314,8 +326,12 @@ static void process(const uint8_t *b, uint8_t n) {
         ow_cmd_started();
         set_status_idle(ow_triplet(b[1] & 0x80));
         rp = RP_STATUS;
+      } else {
+        cnt.bad_cmd++;
       }
       break;
+    default:
+      cnt.bad_cmd++;
   }
 }
 
@@ -468,13 +484,13 @@ inline void report() {
     ESP_LOGI("sim", "TRACE %s", buf);
     trlen = 0;
   }
-  ESP_LOGI(
-      "sim",
-      "CNT txn=%u drst=%u chsl=%u owreset=%u wbyte=%u rbyte=%u trip=%u match=%u wrong_ch=%u nacked=%u "
-      "cfgw=%u ops_no_apu=%u convert=%u readsp=%u inj_c=%u inj_z=%u inj_b=%u inj_k=%u ch=%u cfg=%u dead=%d pend=%d",
-      cnt.txn, cnt.drst, cnt.chsl, cnt.owreset, cnt.wbyte, cnt.rbyte, cnt.trip, cnt.match, cnt.wrong_ch, cnt.nacked,
-      cnt.cfg_writes, cnt.ops_no_apu, cnt.convert, cnt.readsp, cnt.inject_c, cnt.inject_z, cnt.inject_b, cnt.inject_k,
-      channel, config, dead, pend);
+  ESP_LOGI("sim",
+           "CNT txn=%u drst=%u chsl=%u owreset=%u wbyte=%u rbyte=%u trip=%u match=%u wrong_ch=%u nacked=%u "
+           "cfgw=%u cfg_bad=%u bad_cmd=%u ops_no_apu=%u convert=%u readsp=%u inj_c=%u inj_z=%u inj_b=%u inj_k=%u ch=%u "
+           "cfg=%u dead=%d pend=%d",
+           cnt.txn, cnt.drst, cnt.chsl, cnt.owreset, cnt.wbyte, cnt.rbyte, cnt.trip, cnt.match, cnt.wrong_ch,
+           cnt.nacked, cnt.cfg_writes, cnt.cfg_bad, cnt.bad_cmd, cnt.ops_no_apu, cnt.convert, cnt.readsp, cnt.inject_c,
+           cnt.inject_z, cnt.inject_b, cnt.inject_k, channel, config, dead, pend);
 }
 
 }  // namespace sim

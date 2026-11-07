@@ -6,7 +6,8 @@ PHASES is a comma list of c, cd, z, b, k, dead (default c,z,b,k,dead). Holds the
 Exits 1 when the simulator never reports, the simulator port fails, the DUT capture fails, a phase ends without a
 fresh simulator report, a sensor got no readings in a phase, any temperature is wrong, a fault phase never moved its
 injection counter (counted when the DUT meets the fault) or, for a NACK fault, the nacked counter, a fault is still
-pending at the end of a phase, the simulator never confirmed going dead, or the DUT log shows no sign of the dead hub
+pending at the end of a phase, the simulator counted a config write with a wrong complement (cfg_bad) or an unknown
+command or argument (bad_cmd), the simulator never confirmed going dead, or the DUT log shows no sign of the dead hub
 (no response, warning, failed hub or failed component) in the dead phase. DUT capture stderr goes to TAG-<phase>.err.
 """
 
@@ -36,6 +37,8 @@ COUNTERS = (
     "inj_b",
     "inj_k",
     "readsp",
+    "cfg_bad",
+    "bad_cmd",
 )
 
 sim = serial.Serial(SIM, 115200, timeout=0.2)
@@ -151,6 +154,8 @@ def phase(
         failed.append(
             f"{name} (no {'/'.join(DUT_SAW[name])} in the DUT log, the DUT never saw the fault)"
         )
+    if malformed := {k: delta[k] for k in ("cfg_bad", "bad_cmd") if delta[k]}:
+        failed.append(f"{name} (malformed writes {malformed})")
     if b.get("pend"):
         failed.append(f"{name} (a fault was still pending at the end of the phase)")
     if not fresh or not a or reader_error:
