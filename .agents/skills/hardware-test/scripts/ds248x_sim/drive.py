@@ -10,7 +10,8 @@ temperature is wrong, a phase other than dead logged a failed recovery, a failed
 ds248x warning was still set at the end of a phase, a fault phase never moved its
 injection counter (counted when the DUT meets the fault) or, for a NACK fault, the nacked counter, a write delivered
 data while a NACK was armed (nack_miss), the DUT sent an address-only write (empty_wr, which would make
-nacked ambiguous), a fault is still pending at the end of a phase, the simulator counted a config write with a wrong complement (cfg_bad) or an unknown
+nacked ambiguous), a write was cut off by a repeated start into another write and never processed
+(dropped), a fault is still pending at the end of a phase, the simulator counted a config write with a wrong complement (cfg_bad) or an unknown
 command or argument (bad_cmd), a counter is missing from the simulator CNT line, the simulator aborted a read reply
 (tx_abrt, not gated in the dead phase), a phase that does not reset the chip (all but b and k) counted a ROM match on
 the wrong channel (wrong_ch) or a 1-Wire command without the active pull-up bit (ops_no_apu), the simulator never
@@ -43,6 +44,7 @@ COUNTERS = (
     "nacked",
     "nack_miss",
     "empty_wr",
+    "dropped",
     "drst",
     "ops_no_apu",
     "inj_c",
@@ -219,6 +221,10 @@ def phase(
     if delta["empty_wr"]:
         failed.append(
             f"{name} ({delta['empty_wr']} address-only writes, nacked cannot tell them from NACKs)"
+        )
+    if delta["dropped"]:
+        failed.append(
+            f"{name} ({delta['dropped']} writes cut off by a repeated start, never processed)"
         )
     if malformed := {k: delta[k] for k in ("cfg_bad", "bad_cmd") if delta[k]}:
         failed.append(f"{name} (malformed writes {malformed})")

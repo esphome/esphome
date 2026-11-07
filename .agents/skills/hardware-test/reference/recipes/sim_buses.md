@@ -58,6 +58,8 @@ address they do not simulate.
   `dump_config()` it checks no other instance's fill reached them. Two instances prove the buffers are distinct.
 - `sbpsram` asks for `psram=True` and uses the pointer codegen hands it: the static buffer without PSRAM, or a
   zeroed `psram_buffer<T>()` with a `psram:` block, which logs `external=1` (nullptr if the allocation failed).
+  Its `dump_config()` line ends in `PASS` only when the readback matches, the buffer was zeroed at start and, with
+  PSRAM, it is in external RAM.
 
 ## Gotchas
 

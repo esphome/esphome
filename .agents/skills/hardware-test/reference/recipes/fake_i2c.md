@@ -91,7 +91,8 @@ with four DS18B20s: channel 0 at 21.5 °C, channel 1 at 33.0 °C, channel 2 at -
 ESP32-C3 (`dspd.yaml`, GPIO4/GPIO5 plus GND); the internal pull-ups are enough at 50 kHz. Faults are one character
 on the Pico's USB console: `c` NACKs the read pointer write after the next channel select, `z` NACKs the 9 reads
 after the next 0xBE, `b` and `k` stick busy with a failed reset or config write, `x` and `X` make it dead and alive.
-`SC=<serial_capture.py> python3 drive.py TAG SIM_PORT DUT_PORT [c,z,b,k,dead]` resets the DUT per phase and prints
+`SC=<serial_capture.py> python3 drive.py TAG SIM_PORT DUT_PORT [c,cd,z,b,k,dead]` (default `c,z,b,k,dead`; `cd`
+runs the `c` fault densely, 28 times about 3 s apart) resets the DUT per phase and prints
 readings, wrong values, log counts and the simulator's counters (`wrong_ch` counts ROM matches on the wrong
 channel). The DUT is captured with `--ms` so the log can be split at the last fault: the recovery window starts
 `SETTLE` (3) seconds after it. A phase fails when any of the four sensors got no correct reading in the recovery
@@ -100,7 +101,8 @@ than `dead` logged `recovery failed`, `DS248x hub failed` or a component marked 
 set at the end of the phase, the DUT capture
 failed (stderr in `TAG-<phase>.err`), a fault never moved its injection counter (counted when the DUT meets the
 fault, not when it is armed), a NACK fault never moved `nacked`, a write delivered data while a NACK was armed
-(`nack_miss`, the NACK never reached the wire and stays pending), the DUT sent an address-only write (`empty_wr`),
+(`nack_miss`, the NACK never reached the wire and stays pending), the DUT sent an address-only write (`empty_wr`), a write was cut off by a repeated start into another write and
+never processed (`dropped`),
 a fault is still pending (`pend=1`) at the end of the
 phase, the simulator counted a config write with a wrong complement (`cfg_bad`) or an unknown, short or overlong
 command (`bad_cmd`), a counter is missing from the simulator's CNT line, the simulator aborted a read reply
@@ -130,7 +132,7 @@ and runs `an.py`, which counts readings per `PHASE` line. It fails when the phas
 faultB, quiet (a short capture or a restart), the first quiet phase has no readings, a later quiet phase reads less
 than half as often as the first, a later quiet phase reads NaN or logs the driver's "update called before prior
 reading" warning when the first did not (a target out of range reads NaN in every phase), a quiet phase has a failed
-model ID probe or one that did not return 0xEE,
+model ID probe, one that did not return 0xEE or no successful probe at all,
 anything crashed or rebooted, or a fault never fired.
 
 Prefer this to glitching the wire. Holding SDA low by rerouting the pin (`esp_rom_gpio_connect_out_signal` to

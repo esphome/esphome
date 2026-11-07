@@ -77,11 +77,18 @@ def main() -> int:
         for i, (p, counts) in enumerate(phases)
         if counts.get("boot", 0) > (1 if i == 0 else 0)
     ]
-    # the model ID probe tells a dead chip from a stalled driver: quiet phases must answer with 0xEE
+    # the model ID probe tells a dead chip from a stalled driver: quiet phases must answer with 0xEE, and the 10 s
+    # probe interval gives every quiet phase at least one PROBE line
     bad += [
-        f"{p} {i} probe_err={counts.get('probe_err', 0)} probe_bad_id={counts.get('probe_bad_id', 0)}"
+        f"{p} {i} probe_ok={counts.get('probe_ok', 0)} probe_err={counts.get('probe_err', 0)} "
+        f"probe_bad_id={counts.get('probe_bad_id', 0)}"
         for i, (p, counts) in enumerate(phases)
-        if p == "quiet" and (counts.get("probe_err") or counts.get("probe_bad_id"))
+        if p == "quiet"
+        and (
+            counts.get("probe_err")
+            or counts.get("probe_bad_id")
+            or not counts.get("probe_ok")
+        )
     ]
     bad += [f"fault {k} never fired" for k, n in zip("AB", fired, strict=True) if not n]
     if bad:

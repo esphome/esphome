@@ -21,12 +21,14 @@ class SBPsram : public Component {
     if (this->buf_ != nullptr)
       for (size_t i = 0; i < this->n_; i++)
         nonzero += this->buf_[i] != 0;
+    this->zeroed_ = nonzero == 0;
     int ext = -1;
 #ifdef USE_ESP32
     ext = this->buf_ ? esp_ptr_external_ram(this->buf_) : -1;
 #endif
 #ifdef USE_PSRAM
     const int psram = 1;
+    this->placed_ = ext == 1;  // with PSRAM the buffer must not fall back to internal RAM
 #else
     const int psram = 0;
 #endif
@@ -41,7 +43,9 @@ class SBPsram : public Component {
     bool ok = this->buf_ != nullptr;
     for (size_t i = 0; ok && i < this->n_; i++)
       ok = this->buf_[i] == (uint8_t) (i * 7 + 3);
-    ESP_LOGI("sbpsram", "SBPSRAM readback=%d", ok);
+    bool pass = ok && this->zeroed_ && this->placed_;
+    ESP_LOGI("sbpsram", "SBPSRAM readback=%d zeroed=%d placed=%d %s", ok, this->zeroed_, this->placed_,
+             pass ? "PASS" : "FAIL");
   }
 
  protected:
@@ -49,6 +53,8 @@ class SBPsram : public Component {
   size_t n_;
   uint32_t *plain_;
   uint8_t *buf_{nullptr};
+  bool zeroed_{false};
+  bool placed_{true};
 };
 
 }  // namespace esphome::sbpsram

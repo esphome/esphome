@@ -9,6 +9,7 @@
 // nack_miss counts writes that delivered data while a NACK was armed; that NACK stays pending.
 // A NACKed write and an address-only write look the same at STOP (no data), so empty_wr counts address-only
 // writes outside a NACK window; dspd.yaml turns the bus scan off, so it stays 0 unless the DUT sends them.
+// dropped counts writes thrown away by a repeated start into another write before any read or STOP.
 #pragma once
 #include <Arduino.h>
 #include "hardware/i2c.h"
@@ -65,6 +66,7 @@ struct Cnt {
   uint32_t tx_abrt;           // read replies the controller aborted, so the DUT did not get them
   uint32_t nack_miss;         // writes that ended with data while a NACK was armed, so the NACK never reached the wire
   uint32_t empty_wr;          // address-only writes while no NACK was armed
+  uint32_t dropped;           // writes cut off by a repeated start into another write, never processed
 };
 static volatile Cnt cnt;
 static volatile uint8_t last_wrong_rom1 = 0, last_wrong_on = 0;
@@ -361,18 +363,24 @@ static uint8_t read_reg() {
   }
 }
 
+static void drain_rx(i2c_hw_t *h) {
+  while (h->rxflr) {
+    uint32_t d = h->data_cmd;
+    if (d & I2C_IC_DATA_CMD_FIRST_DATA_BYTE_BITS) {
+      if (rxn)
+        cnt.dropped++;
+      rxn = 0;
+    }
+    if (rxn < sizeof(rx))
+      rx[rxn++] = d & 0xFF;
+  }
+}
+
 static void irq() {
   i2c_hw_t *h = hw();
   uint32_t st = h->intr_stat;
-  if (st & I2C_IC_INTR_STAT_R_RX_FULL_BITS) {
-    while (h->rxflr) {
-      uint32_t d = h->data_cmd;
-      if (d & I2C_IC_DATA_CMD_FIRST_DATA_BYTE_BITS)
-        rxn = 0;
-      if (rxn < sizeof(rx))
-        rx[rxn++] = d & 0xFF;
-    }
-  }
+  if (st & I2C_IC_INTR_STAT_R_RX_FULL_BITS)
+    drain_rx(h);
   if (st & I2C_IC_INTR_STAT_R_RD_REQ_BITS) {
     if (rxn) {
       process(rx, rxn);
@@ -387,13 +395,7 @@ static void irq() {
     cnt.tx_abrt++;
   }
   if (st & I2C_IC_INTR_STAT_R_STOP_DET_BITS) {
-    while (h->rxflr) {
-      uint32_t d = h->data_cmd;
-      if (d & I2C_IC_DATA_CMD_FIRST_DATA_BYTE_BITS)
-        rxn = 0;
-      if (rxn < sizeof(rx))
-        rx[rxn++] = d & 0xFF;
-    }
+    drain_rx(h);
     (void) h->clr_stop_det;
     bool was_write = !had_rd;
     bool got_data = rxn > 0;
@@ -509,17 +511,17 @@ inline void report() {
     ESP_LOGI("sim", "TRACE %s", buf);
     trlen = 0;
   }
-  ESP_LOGI(
-      "sim",
-      "CNT txn=%u drst=%u chsl=%u owreset=%u wbyte=%u rbyte=%u trip=%u match=%u wrong_ch=%u nacked=%u "
-      "nack_miss=%u empty_wr=%u cfgw=%u cfg_bad=%u bad_cmd=%u ops_no_apu=%u convert=%u readsp=%u inj_c=%u inj_z=%u "
-      "inj_b=%u inj_k=%u tx_abrt=%u ch=%u cfg=%u dead=%d pend=%d",
-      (unsigned) cnt.txn, (unsigned) cnt.drst, (unsigned) cnt.chsl, (unsigned) cnt.owreset, (unsigned) cnt.wbyte,
-      (unsigned) cnt.rbyte, (unsigned) cnt.trip, (unsigned) cnt.match, (unsigned) cnt.wrong_ch, (unsigned) cnt.nacked,
-      (unsigned) cnt.nack_miss, (unsigned) cnt.empty_wr, (unsigned) cnt.cfg_writes, (unsigned) cnt.cfg_bad,
-      (unsigned) cnt.bad_cmd, (unsigned) cnt.ops_no_apu, (unsigned) cnt.convert, (unsigned) cnt.readsp,
-      (unsigned) cnt.inject_c, (unsigned) cnt.inject_z, (unsigned) cnt.inject_b, (unsigned) cnt.inject_k,
-      (unsigned) cnt.tx_abrt, (unsigned) channel, (unsigned) config, (int) dead, (int) pend);
+  ESP_LOGI("sim",
+           "CNT txn=%u drst=%u chsl=%u owreset=%u wbyte=%u rbyte=%u trip=%u match=%u wrong_ch=%u nacked=%u "
+           "nack_miss=%u empty_wr=%u dropped=%u cfgw=%u cfg_bad=%u bad_cmd=%u ops_no_apu=%u convert=%u readsp=%u "
+           "inj_c=%u inj_z=%u inj_b=%u inj_k=%u tx_abrt=%u ch=%u cfg=%u dead=%d pend=%d",
+           (unsigned) cnt.txn, (unsigned) cnt.drst, (unsigned) cnt.chsl, (unsigned) cnt.owreset, (unsigned) cnt.wbyte,
+           (unsigned) cnt.rbyte, (unsigned) cnt.trip, (unsigned) cnt.match, (unsigned) cnt.wrong_ch,
+           (unsigned) cnt.nacked, (unsigned) cnt.nack_miss, (unsigned) cnt.empty_wr, (unsigned) cnt.dropped,
+           (unsigned) cnt.cfg_writes, (unsigned) cnt.cfg_bad, (unsigned) cnt.bad_cmd, (unsigned) cnt.ops_no_apu,
+           (unsigned) cnt.convert, (unsigned) cnt.readsp, (unsigned) cnt.inject_c, (unsigned) cnt.inject_z,
+           (unsigned) cnt.inject_b, (unsigned) cnt.inject_k, (unsigned) cnt.tx_abrt, (unsigned) channel,
+           (unsigned) config, (int) dead, (int) pend);
 }
 
 }  // namespace sim
