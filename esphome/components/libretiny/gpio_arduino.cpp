@@ -120,6 +120,12 @@ size_t ArduinoInternalGPIOPin::dump_summary(char *buffer, size_t len) const {
 }
 
 bool ArduinoInternalGPIOPin::digital_read() {
+#if defined(USE_LIBRETINY_VARIANT_RTL8720C) && !defined(CLANG_TIDY)
+  // The Arduino read switches the pin back to GPIO and frees its interrupt, so read through the interrupt instead
+  PinInfo *info = pinInfo(this->pin_);
+  if (info != nullptr && pinEnabled(info, PIN_IRQ))
+    return bool(gpio_irq_read(pinData(info)->irq)) ^ this->inverted_;
+#endif
   return bool(digitalRead(this->pin_)) ^ this->inverted_;  // NOLINT
 }
 void ArduinoInternalGPIOPin::digital_write(bool value) {
