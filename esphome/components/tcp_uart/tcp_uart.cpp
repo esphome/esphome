@@ -3,6 +3,7 @@
 #include "esphome/core/application.h"
 #include "esphome/core/log.h"
 
+#include <algorithm>
 #include <cinttypes>
 #include <cstring>
 
@@ -127,16 +128,16 @@ void TcpUart::sync_link_() {
   }
 }
 
-bool TcpUart::read_socket_(socket::TcpClientLink &link) {
+size_t TcpUart::read_socket_(socket::TcpClientLink &link, size_t limit) {
   if (this->rx_start_ != 0) {
     this->rx_end_ -= this->rx_start_;
     std::memmove(this->rx_, this->rx_ + this->rx_start_, this->rx_end_);
     this->rx_start_ = 0;
   }
-  size_t room = RX_BUFFER_SIZE - this->rx_end_;
+  size_t room = std::min(RX_BUFFER_SIZE - this->rx_end_, limit);
   if (room == 0) {
     // Only a read that filled all free space gets here, so rx_pending_ is already set.
-    return false;
+    return 0;
   }
   ssize_t count = link.read(this->rx_ + this->rx_end_, room);
   if (count <= 0) {
@@ -144,11 +145,11 @@ bool TcpUart::read_socket_(socket::TcpClientLink &link) {
     if (count == 0) {
       this->rx_pending_ = false;
     }
-    return false;
+    return 0;
   }
   this->rx_end_ += static_cast<uint16_t>(count);
   this->rx_pending_ = static_cast<size_t>(count) == room;
-  return true;
+  return static_cast<size_t>(count);
 }
 
 void TcpUart::loop() {
@@ -199,12 +200,12 @@ void TcpUart::loop_pool_(bool waiting) {
   }
   if (this->holder_ != NO_SLOT) {
     // After release_turn() only the bytes already read are left to consume, and the rest of a request started in them.
-    const bool rest = this->rest_ && !this->held_ && this->available() == 0;
+    const bool rest = this->rest_ != 0 && !this->held_ && this->available() == 0;
     if ((!this->release_ || rest) && (this->rx_pending_ || this->slot_(this->holder_).ready())) {
       this->read_holder_(now);
     }
     if (this->available() == 0 && !this->held_ &&
-        ((this->release_ && !this->rest_) || now - this->last_traffic_ms_ >= this->turn_timeout_ms_)) {
+        ((this->release_ && this->rest_ == 0) || now - this->last_traffic_ms_ >= this->turn_timeout_ms_)) {
       this->end_turn_();
     }
   }
@@ -293,24 +294,34 @@ void TcpUart::pick_holder_(uint32_t now) {
       continue;
     }
     this->holder_ = i;
-    this->tx_slot_ = i;
-    this->turn_++;
     this->held_ = false;
     this->release_ = false;
-    this->rest_ = false;
+    this->rest_ = 0;
     this->rx_start_ = this->rx_end_ = 0;
     this->rx_pending_ = (this->pending_mask_ & bit) != 0;
     this->pending_mask_ &= ~bit;
     this->last_traffic_ms_ = now;
     this->read_holder_(now);
+    if (this->available() == 0 && !this->rx_pending_) {
+      // A read that stopped exactly at the rest of a request marks bytes pending that may not be there: no empty turn.
+      this->holder_ = NO_SLOT;
+      continue;
+    }
+    this->tx_slot_ = i;
+    this->turn_++;
     return;
   }
 }
 
 void TcpUart::read_holder_(uint32_t now) {
-  if (this->read_socket_(this->slot_(this->holder_))) {
+  // A released turn reads no more than the rest that release_turn() named.
+  const size_t count = this->read_socket_(this->slot_(this->holder_), this->release_ ? this->rest_ : RX_BUFFER_SIZE);
+  if (count != 0) {
     this->last_traffic_ms_ = now;
     this->seen_ms_[this->holder_] = now;
+    if (this->release_) {
+      this->rest_ -= static_cast<uint16_t>(count);
+    }
   }
 }
 
@@ -324,7 +335,7 @@ void TcpUart::end_turn_() {
   this->holder_ = NO_SLOT;
   this->held_ = false;
   this->release_ = false;
-  this->rest_ = false;
+  this->rest_ = 0;
 }
 #endif
 
