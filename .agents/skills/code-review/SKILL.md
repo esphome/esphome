@@ -30,8 +30,8 @@ performance nit, because it fragments a small shared heap. Flag:
   `StaticVector<T, N>` when a `push_back` API is needed) or fixed at runtime
   init (use `FixedVector<T>`).
 - Listener / child-entity registration lists stored as `std::vector`; these have
-  a compile-time-known count and should use `cg.slot_counter()` plus
-  `StaticVector`.
+  a compile-time-known count and should use `cg.slot_list()` plus
+  `SLOT_LIST` (or `cg.slot_counter()` plus `StaticVector`).
 - `std::vector<uint8_t>` for a byte buffer that never grows: prefer
   `std::unique_ptr<uint8_t[]>` or `std::array`.
 - `std::map` / `std::set` / `std::unordered_map` for small datasets (1-16
@@ -128,6 +128,18 @@ helper; `AGENTS.md` section 4 and the `component-codegen` skill have the detail.
   group builds. List-style packages or top-level merge keys block grouping.
 - Config-only checks use the `validate.*.yaml` prefix; compiled checks use
   `test.*.yaml`.
+
+## Naming user-facing functions
+
+Documented lambda methods, actions and config keys are public API, so a bad name
+is hard to fix once released. Flag:
+
+- A boolean where `true` means off (`display_off(true)`): name the positive
+  state, e.g. `set_power(bool on)`.
+- A name that differs from a sibling component's name for the same operation.
+
+Before a release, rename outright; after, follow the breaking-change policy
+below.
 
 ## Breaking changes and public API
 
