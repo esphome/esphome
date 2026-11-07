@@ -8,6 +8,7 @@ before any dependency has been installed.
 
 import os
 from pathlib import Path
+import shlex
 import shutil
 import subprocess
 import sys
@@ -159,6 +160,46 @@ def install_git_hooks(env: dict[str, str]) -> None:
         installed.chmod(0o755)
 
 
+SHIM_TEMPLATE = """#!/bin/sh
+# esphome-tree-aware-shim: run the esphome checkout the cwd is inside, if any.
+root=$(git -C "$PWD" rev-parse --show-toplevel 2>/dev/null)
+if [ -n "$root" ] && [ -f "$root/esphome/__main__.py" ]; then
+  export PYTHONPATH="$root${{PYTHONPATH:+:$PYTHONPATH}}"
+fi
+# -P keeps the cwd off sys.path, where esphome/enum.py would shadow the stdlib.
+exec {python} -P -c '{entry_point}' "$@"
+"""
+SHIM_ENTRY_POINT = (
+    "import sys; from esphome.__main__ import main; "
+    'sys.argv[0] = "esphome"; sys.exit(main())'
+)
+
+
+def install_tree_aware_shim(venv: Path) -> None:
+    """Replace the esphome console script with one that runs the cwd's checkout.
+
+    An editable install pins the tree it was installed from; without this,
+    `esphome` run from another worktree silently compiles the wrong tree's code.
+    The wrapper is a POSIX shell script, so it is not installed on Windows.
+    """
+    if os.name == "nt":
+        return
+    esphome_bin = bin_dir(venv) / "esphome"
+    if not esphome_bin.is_file():
+        raise SystemExit(
+            "esphome console script not found after install; "
+            "cannot install the tree-aware wrapper"
+        )
+    shim = esphome_bin.with_name(".esphome-shim.tmp")
+    shim.write_text(
+        SHIM_TEMPLATE.format(
+            python=shlex.quote(str(venv_python(venv))), entry_point=SHIM_ENTRY_POINT
+        )
+    )
+    shim.chmod(0o755)
+    shim.replace(esphome_bin)
+
+
 def activate_hint() -> str:
     """Return the command that activates the environment this script creates."""
     activate = bin_dir(DEFAULT_VENV).relative_to(ROOT) / "activate"
@@ -214,6 +255,7 @@ def main() -> None:
     env = venv_environment(venv)
     install_dependencies(venv, env)
     install_git_hooks(env)
+    install_tree_aware_shim(venv)
     (ROOT / ".temp").mkdir(exist_ok=True)
     report(state, venv)
 
