@@ -37,6 +37,23 @@ ISRInternalGPIOPin ArduinoInternalGPIOPin::to_isr() const {
       const_cast<ArduinoInternalGPIOPin *>(this));  // NOLINT(cppcoreguidelines-pro-type-const-cast)
 }
 
+#if defined(USE_LIBRETINY_VARIANT_RTL8710B) && !defined(CLANG_TIDY)
+// The RTL8710B interrupts on one edge only and LibreTiny maps CHANGE to rising edges, so wait for the edge away
+// from the current level and flip it on every interrupt
+static void rtl8710b_arm_next_edge(gpio_irq_t *irq) {
+  gpio_irq_set(irq, GPIO_ReadDataBit(irq->pin) ? IRQ_FALL : IRQ_RISE, 1);
+}
+
+static void rtl8710b_change_handler(uint32_t id, gpio_irq_event event) {
+  auto *data = reinterpret_cast<PinData *>(id);  // NOLINT(performance-no-int-to-ptr)
+  // A later attach with another mode keeps this handler
+  if (data->irqMode == CHANGE)
+    rtl8710b_arm_next_edge(data->irq);
+  if (data->irqHandler != nullptr)
+    reinterpret_cast<void (*)(void *)>(data->irqHandler)(data->irqParam);
+}
+#endif
+
 void ArduinoInternalGPIOPin::attach_interrupt_(void (*func)(void *), void *arg, gpio::InterruptType type) const {
   PinStatus arduino_mode = (PinStatus) 255;
   switch (type) {
@@ -58,6 +75,15 @@ void ArduinoInternalGPIOPin::attach_interrupt_(void (*func)(void *), void *arg, 
   }
 
   attachInterruptParam(pin_, func, arduino_mode, arg);
+#if defined(USE_LIBRETINY_VARIANT_RTL8710B) && !defined(CLANG_TIDY)
+  if (arduino_mode == CHANGE) {
+    PinInfo *info = pinInfo(this->pin_);
+    if (info != nullptr && info->data != nullptr && info->data->irq != nullptr) {
+      GPIO_UserRegIrq(info->data->irq->pin, reinterpret_cast<void *>(rtl8710b_change_handler), info->data);
+      rtl8710b_arm_next_edge(info->data->irq);
+    }
+  }
+#endif
 }
 
 #ifdef USE_BK72XX
