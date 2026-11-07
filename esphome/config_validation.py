@@ -614,7 +614,7 @@ def icon(value):
     value = string_strict(value)
     if not value:
         return value
-    if not re.match("^[\\w\\-]+:[\\w\\-]+$", value):
+    if not re.fullmatch(r"[\w\-]+:[\w\-]+", value):
         raise Invalid(
             'Icons must match the format "[icon pack]:[icon]", e.g. "mdi:home-assistant"'
         )
@@ -1677,7 +1677,7 @@ def hostname(value):
     esphome/core/helpers.h to accommodate the new maximum length.
     """
     value = string(value)
-    if re.match(r"^[a-z0-9-]{1,63}$", value, re.IGNORECASE) is not None:
+    if re.fullmatch(r"[a-z0-9-]{1,63}", value, re.IGNORECASE) is not None:
         return value
     raise Invalid(f"Invalid hostname: {value}")
 
