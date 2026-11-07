@@ -30,7 +30,8 @@ def AUTO_LOAD() -> list[str]:
     if not CORE.using_zephyr:
         components.extend(["md5"])
     if CORE.is_esp32:
-        components.extend(["watchdog"])
+        # crc32 for the app-descriptor check in signed OTA verification
+        components.extend(["watchdog", "crc32"])
     return components
 
 
