@@ -217,6 +217,7 @@ class ATM90E32Component final : public PollingComponent,
   void set_publish_interval_flag_(bool flag) { publish_interval_flag_ = flag; };
   void restore_offset_calibrations_(OffsetCalibrationType type);
   void restore_gain_calibrations_();
+  bool calibration_action_allowed_();
   void start_offset_calibration_(OffsetCalibrationType type);
   void sample_offset_calibration_(OffsetCalibrationType type);
   void complete_offset_calibration_(OffsetCalibrationType type, CalibrationOperation operation);

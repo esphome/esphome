@@ -57,11 +57,17 @@ void ATM90E32Component::loop() {
       if (this->phase_[phase].apparent_power_sensor_ != nullptr)
         this->phase_[phase].apparent_power_ = this->get_phase_apparent_power_(phase);
 
-      if (this->phase_[phase].forward_active_energy_sensor_ != nullptr)
-        this->phase_[phase].forward_active_energy_ = this->get_phase_forward_active_energy_(phase);
+      const float forward_energy = this->phase_[phase].forward_active_energy_sensor_ != nullptr
+                                       ? this->get_phase_forward_active_energy_(phase)
+                                       : NAN;
+      if (!std::isnan(forward_energy))
+        this->phase_[phase].forward_active_energy_ = forward_energy;
 
-      if (this->phase_[phase].reverse_active_energy_sensor_ != nullptr)
-        this->phase_[phase].reverse_active_energy_ = this->get_phase_reverse_active_energy_(phase);
+      const float reverse_energy = this->phase_[phase].reverse_active_energy_sensor_ != nullptr
+                                       ? this->get_phase_reverse_active_energy_(phase)
+                                       : NAN;
+      if (!std::isnan(reverse_energy))
+        this->phase_[phase].reverse_active_energy_ = reverse_energy;
 
       if (this->phase_[phase].phase_angle_sensor_ != nullptr)
         this->phase_[phase].phase_angle_ = this->get_phase_angle_(phase);
@@ -85,11 +91,13 @@ void ATM90E32Component::loop() {
 
       PUBLISH_STATE(this->phase_[phase].apparent_power_sensor_, this->get_local_phase_apparent_power_(phase));
 
-      PUBLISH_STATE(this->phase_[phase].forward_active_energy_sensor_,
-                    this->get_local_phase_forward_active_energy_(phase));
+      if (!std::isnan(forward_energy))
+        PUBLISH_STATE(this->phase_[phase].forward_active_energy_sensor_,
+                      this->get_local_phase_forward_active_energy_(phase));
 
-      PUBLISH_STATE(this->phase_[phase].reverse_active_energy_sensor_,
-                    this->get_local_phase_reverse_active_energy_(phase));
+      if (!std::isnan(reverse_energy))
+        PUBLISH_STATE(this->phase_[phase].reverse_active_energy_sensor_,
+                      this->get_local_phase_reverse_active_energy_(phase));
 
       PUBLISH_STATE(this->phase_[phase].phase_angle_sensor_, this->get_local_phase_angle_(phase));
 
@@ -265,6 +273,9 @@ void ATM90E32Component::configure_chip_() {
 }
 
 void ATM90E32Component::log_calibration_status_() {
+  // Pending calibration tables contain temporary offsets, not verified restored values.
+  if (this->offset_calibration_pending_)
+    return;
   const char *cs = this->get_calibration_id_();
 
   bool offset_mismatch = false;
@@ -443,7 +454,6 @@ uint16_t ATM90E32Component::read16_(uint16_t a_register) {
   uint8_t data[4] = {addrh, addrl, 0x00, 0x00};
   this->transfer_array(data, 4);
   uint16_t output = encode_uint16(data[2], data[3]);
-  ESP_LOGVV(TAG, "read16_ 0x%04" PRIX16 " output 0x%04" PRIX16, a_register, output);
   delay_microseconds_safe(1);  // allow the last clock to propagate before releasing CS
   this->disable();
   delay_microseconds_safe(1);  // meet minimum CS high time before next transaction
@@ -451,17 +461,24 @@ uint16_t ATM90E32Component::read16_(uint16_t a_register) {
 }
 
 int32_t ATM90E32Component::read16_checked_(uint16_t a_register) {
+  // Logging callbacks may access this meter: capture LastSPIData before emitting any diagnostics.
   const uint16_t value = this->read16_(a_register);
-  if (!this->validate_spi_read_(value)) {
+  const uint16_t last = this->read16_(ATM90E32_REGISTER_LASTSPIDATA);
+  if (last != value) {
     if (a_register >= ATM90E32_REGISTER_APENERGY && a_register <= ATM90E32_REGISTER_ANENERGY + 2) {
       // Read-clear energy survives in LastSPIData; require two matching reads without clearing energy again.
       const uint16_t recovered = this->read16_(ATM90E32_REGISTER_LASTSPIDATA);
-      if (this->validate_spi_read_(recovered))
+      if (this->read16_(ATM90E32_REGISTER_LASTSPIDATA) == recovered) {
+        ESP_LOGW(TAG, "Recovered energy register 0x%04" PRIX16 " after SPI read mismatch", a_register);
         return recovered;
+      }
+      // The untrustworthy delta is already cleared; discard it and leave the published total unchanged.
     }
     this->status_set_warning();
+    ESP_LOGW(TAG, "SPI read mismatch: expected 0x%04X, got 0x%04X", value, last);
     return -1;
   }
+  ESP_LOGVV(TAG, "read16_ 0x%04" PRIX16 " output 0x%04" PRIX16, a_register, value);
   return value;
 }
 
@@ -673,8 +690,20 @@ void ATM90E32Component::press_calibration_button(EntityBase *entity, void (ATM90
   (this->*action)();
 }
 
+bool ATM90E32Component::calibration_action_allowed_() {
+  if (this->is_failed()) {
+    ESP_LOGW(TAG, "[CALIBRATION][%s] Component failed; calibration action unavailable", this->get_calibration_id_());
+    return false;
+  }
+  if (this->offset_calibration_pending_) {
+    ESP_LOGW(TAG, "[CALIBRATION][%s] Calibration in progress; try again shortly", this->get_calibration_id_());
+    return false;
+  }
+  return true;
+}
+
 void ATM90E32Component::run_gain_calibrations() {
-  if (this->is_failed() || this->offset_calibration_pending_)
+  if (!this->calibration_action_allowed_())
     return;
   const char *cs = this->get_calibration_id_();
   if (!this->enable_gain_calibration_) {
@@ -901,7 +930,7 @@ void ATM90E32Component::run_power_offset_calibrations() {
 }
 
 void ATM90E32Component::start_offset_calibration_(OffsetCalibrationType type) {
-  if (this->is_failed() || this->offset_calibration_pending_)
+  if (!this->calibration_action_allowed_())
     return;
   const char *cs = this->get_calibration_id_();
   if (!this->enable_offset_calibration_) {
@@ -917,14 +946,17 @@ void ATM90E32Component::start_offset_calibration_(OffsetCalibrationType type) {
     this->previous_offsets_[phase] = offsets[phase];
   this->offset_calibration_pending_ = true;
   this->set_publish_interval_flag_(false);
-  for (uint8_t phase = 0; phase < 3; phase++)
-    this->write_offsets_to_registers_(phase, 0, 0, type);
-  if (!this->verify_offset_writes_(type)) {
-    this->complete_offset_calibration_(type, CalibrationOperation::CALIBRATION_OPERATION_ABORT);
-    return;
-  }
-  // Allow fresh 16-cycle measurements after removing the previous correction.
-  this->set_timeout(1000, [this, type]() { this->sample_offset_calibration_(type); });
+  // A sensor or logging callback can request calibration during a measurement/publication pass.
+  this->defer([this, type]() {
+    for (uint8_t phase = 0; phase < 3; phase++)
+      this->write_offsets_to_registers_(phase, 0, 0, type);
+    if (!this->verify_offset_writes_(type)) {
+      this->complete_offset_calibration_(type, CalibrationOperation::CALIBRATION_OPERATION_ABORT);
+      return;
+    }
+    // Allow fresh 16-cycle measurements after removing the previous correction.
+    this->set_timeout(1000, [this, type]() { this->sample_offset_calibration_(type); });
+  });
 }
 
 void ATM90E32Component::sample_offset_calibration_(OffsetCalibrationType type) {
@@ -1180,7 +1212,7 @@ void ATM90E32Component::restore_offset_calibrations_(OffsetCalibrationType type)
 }
 
 void ATM90E32Component::clear_gain_calibrations() {
-  if (this->is_failed() || this->offset_calibration_pending_)
+  if (!this->calibration_action_allowed_())
     return;
   const char *cs = this->get_calibration_id_();
   if (!this->has_stored_gain_calibration_) {
@@ -1220,7 +1252,7 @@ void ATM90E32Component::clear_gain_calibrations() {
 }
 
 void ATM90E32Component::clear_offset_calibrations() {
-  if (this->is_failed() || this->offset_calibration_pending_)
+  if (!this->calibration_action_allowed_())
     return;
   const char *cs = this->get_calibration_id_();
   if (!this->has_stored_offset_calibration_) {
@@ -1262,7 +1294,7 @@ void ATM90E32Component::clear_offset_calibrations() {
 }
 
 void ATM90E32Component::clear_power_offset_calibrations() {
-  if (this->is_failed() || this->offset_calibration_pending_)
+  if (!this->calibration_action_allowed_())
     return;
   const char *cs = this->get_calibration_id_();
   if (!this->has_stored_power_offset_calibration_) {
