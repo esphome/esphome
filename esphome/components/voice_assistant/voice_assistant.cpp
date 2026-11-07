@@ -485,6 +485,7 @@ void VoiceAssistant::loop() {
       }
 #endif
 
+      // A start while the last run still waits for RUN_END merges both into one on_end, at RUN_END as on dev
       this->end_pending_ = this->api_client_ != nullptr;  // no client: on_client_connected re-arms instead
       this->end_run_();
       if (this->api_client_ == nullptr || !this->api_client_->send_message(msg)) {
