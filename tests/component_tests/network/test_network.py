@@ -6,6 +6,7 @@ from pathlib import Path
 import pytest
 from voluptuous import Invalid
 
+from esphome.components.esp32.const import KEY_ESP32, KEY_SDKCONFIG_OPTIONS
 from esphome.components.network import (
     CONF_ENABLE_IPV4,
     _final_validate,
@@ -199,3 +200,28 @@ def test_no_ip_defines_without_network_component(
     generate_main(component_config_path(config_file))
     assert _define_value("USE_NETWORK_IPV4") is None
     assert _define_value("USE_NETWORK_IPV6") is None
+
+
+@pytest.mark.parametrize(
+    ("config_file", "min_count", "ipv6_dns"),
+    [
+        ("wifi_ipv6_only.yaml", "1", True),
+        ("ethernet_ipv6_only.yaml", "1", True),
+        ("wifi_ipv6_only_min_2.yaml", "2", True),
+        ("ipv6_only.yaml", "0", False),
+        ("openthread_no_explicit_network.yaml", "1", False),
+    ],
+)
+def test_ipv6_minimum_and_dns_options(
+    generate_main: Callable[[str | Path], str],
+    component_config_path: Callable[[str], Path],
+    config_file: str,
+    min_count: str,
+    ipv6_dns: bool,
+) -> None:
+    """Without IPv4 a link needs an IPv6 address; IPv6 DNS options are only for IPv6-only Wi-Fi and Ethernet."""
+    generate_main(component_config_path(config_file))
+    assert _define_value("USE_NETWORK_MIN_IPV6_ADDR_COUNT") == min_count
+    options = CORE.data[KEY_ESP32][KEY_SDKCONFIG_OPTIONS]
+    assert ("CONFIG_LWIP_IPV6_DHCP6" in options) is ipv6_dns
+    assert ("CONFIG_LWIP_IPV6_RDNSS_MAX_DNS_SERVERS" in options) is ipv6_dns

@@ -455,7 +455,10 @@ def _final_validate(config: ConfigType) -> None:
         CONF_ENABLE_IPV4,
         "IPv4",
         data.require_ipv4,
-        default=not data.request_ipv4_off,
+        # Wi-Fi and Ethernet keep IPv4 unless the config turns it off explicitly
+        default=not data.request_ipv4_off
+        or CONF_WIFI in full_config
+        or CONF_ETHERNET in full_config,
     )
 
     if not config[CONF_ENABLE_IPV4] and not config[CONF_ENABLE_IPV6]:
