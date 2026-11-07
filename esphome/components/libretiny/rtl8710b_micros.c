@@ -1,12 +1,8 @@
 /*
- * RTL8710B: the FreeRTOS tick is 32 periods of the 32.768 kHz clock (SysTick reload 31), so a "1 ms" tick is
- * 976.6 us and the tick count runs 2.4% fast. LibreTiny's micros() also scales the SysTick counter by the CPU clock,
- * so it moves in whole ticks, and its delayMicroseconds() waits on that micros() above 100 us.
- *
- * millis(), micros() and delay() here run on the free running 32.768 kHz system timer (TIM0) instead, which keeps
- * counting while interrupts are masked, the scheduler is suspended or the tick is stopped in tickless idle.
- * delayMicroseconds() waits on the CPU cycle counter. Linked with -Wl,--wrap for each, so every caller outside
- * LibreTiny's own wiring.c gets these.
+ * RTL8710B: the FreeRTOS tick is 32/32768 s, so tick based millis() runs 2.4% fast and micros() moves in ticks.
+ * millis(), micros() and delay() use the free running 32.768 kHz system timer (TIM0), which keeps counting with
+ * interrupts masked, the scheduler suspended or the tick stopped in tickless idle; delayMicroseconds() uses the DWT
+ * cycle counter. Linked with -Wl,--wrap, so every caller outside LibreTiny's wiring.c gets these.
  */
 
 #ifdef USE_LIBRETINY_VARIANT_RTL8710B
@@ -16,27 +12,23 @@
 #include <task.h>
 
 extern uint32_t SystemCoreClock;
-uint32_t SYSTIMER_TickGet(void);  // mask ROM, rtl8710b_delay.h
+__attribute__((long_call)) uint32_t SYSTIMER_TickGet(void);  // mask ROM, rtl8710b_delay.h
 
 #define DEMCR (*(volatile uint32_t *) 0xE000EDFC)
 #define DEMCR_TRCENA (1UL << 24)
 #define DWT_CTRL (*(volatile uint32_t *) 0xE0001000)
 #define DWT_CYCCNT (*(volatile uint32_t *) 0xE0001004)
 
-// The 32-bit timer wraps every 36.4 hours; counting the wraps needs a call in between, which the main loop's
-// millis() calls always give.
-static uint64_t timer_ticks(void) {
-  static uint32_t last;
-  static uint32_t wraps;
+// The 32-bit timer wraps every 36.4 hours; extending it needs a call in between, which the main loop's millis() calls
+// always give.
+static inline __attribute__((always_inline)) uint64_t timer_ticks(void) {
+  static uint64_t ticks;
   uint32_t primask;
   __asm volatile("mrs %0, primask\n cpsid i" : "=r"(primask)::"memory");
-  const uint32_t now = SYSTIMER_TickGet();
-  if (now < last)
-    wraps++;
-  last = now;
-  const uint64_t ticks = ((uint64_t) wraps << 32) | now;
+  ticks += (uint32_t) (SYSTIMER_TickGet() - (uint32_t) ticks);
+  const uint64_t now = ticks;
   __asm volatile("msr primask, %0" ::"r"(primask) : "memory");
-  return ticks;
+  return now;
 }
 
 unsigned long __wrap_micros(void) {  // NOLINT(readability-identifier-naming)
