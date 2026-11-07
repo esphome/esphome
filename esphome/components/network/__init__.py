@@ -679,8 +679,8 @@ async def to_code(config: ConfigType) -> None:
         add_idf_sdkconfig_option("CONFIG_LWIP_IPV4", enable_ipv4)
         # DNS over RDNSS or stateless DHCPv6 is for IPv6-only Wi-Fi and Ethernet; leave
         # other IPv4-less builds (OpenThread) on the sdkconfig they already build with.
-        if not enable_ipv4 and (
-            CONF_WIFI in CORE.config or CONF_ETHERNET in CORE.config
+        if not enable_ipv4 and CORE.has_at_least_one_component(
+            CONF_WIFI, CONF_ETHERNET
         ):
             add_idf_sdkconfig_option("CONFIG_LWIP_IPV6_RDNSS_MAX_DNS_SERVERS", 2)
             add_idf_sdkconfig_option("CONFIG_LWIP_IPV6_DHCP6", True)
