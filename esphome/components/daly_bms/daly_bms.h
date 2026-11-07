@@ -83,8 +83,9 @@ class DalyBmsComponent final : public PollingComponent, public uart::UARTDevice 
   bool receiving_{false};
   uint8_t data_count_;
   uint32_t last_transmission_{0};
-  bool trigger_next_;
-  uint8_t next_request_;
+  bool trigger_next_{false};
+  bool frame_received_{false};
+  uint8_t next_request_{0};
 };
 
 }  // namespace esphome::daly_bms
