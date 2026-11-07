@@ -7,8 +7,10 @@ Exits 1 when the simulator never reports, the simulator port fails, the DUT capt
 fresh simulator report, a sensor got no readings in a phase, any temperature is wrong, a fault phase never moved its
 injection counter (counted when the DUT meets the fault) or, for a NACK fault, the nacked counter, a fault is still
 pending at the end of a phase, the simulator counted a config write with a wrong complement (cfg_bad) or an unknown
-command or argument (bad_cmd), the simulator never confirmed going dead, or the DUT log shows no sign of the dead hub
-(no response, warning, failed hub or failed component) in the dead phase. DUT capture stderr goes to TAG-<phase>.err.
+command or argument (bad_cmd), a phase that does not reset the chip (all but b and k) counted a ROM match on the wrong
+channel (wrong_ch) or a 1-Wire command without the active pull-up bit (ops_no_apu), the simulator never confirmed
+going dead, or the DUT log shows no sign of the dead hub (no response, warning, failed hub or failed component) in the
+dead phase. DUT capture stderr goes to TAG-<phase>.err.
 """
 
 import os
@@ -156,6 +158,10 @@ def phase(
         )
     if malformed := {k: delta[k] for k in ("cfg_bad", "bad_cmd") if delta[k]}:
         failed.append(f"{name} (malformed writes {malformed})")
+    if name not in RESET_PHASES and (
+        stale := {k: delta[k] for k in ("wrong_ch", "ops_no_apu") if delta[k]}
+    ):
+        failed.append(f"{name} (stale channel or lost active pull-up {stale})")
     if b.get("pend"):
         failed.append(f"{name} (a fault was still pending at the end of the phase)")
     if not fresh or not a or reader_error:
@@ -167,6 +173,9 @@ def phase(
 INJECTED_BY = {"c": "inj_c", "cd": "inj_c", "z": "inj_z", "b": "inj_b", "k": "inj_k"}
 # fault phases whose fault is a NACK
 NACK_PHASES = {"c", "cd", "z", "k"}
+# fault phases that reset the chip (channel 0, config cleared) under the driver; the 1-Wire commands left in the
+# interrupted transaction may then run on the wrong channel or without APU, so wrong_ch and ops_no_apu are not gated
+RESET_PHASES = {"b", "k"}
 # phase -> DUT log counts of which at least one must be non-zero
 DUT_SAW = {"dead": ("no_resp", "warn_set", "hub_failed_bus", "marked_failed")}
 # pre command -> simulator log line that confirms it took effect

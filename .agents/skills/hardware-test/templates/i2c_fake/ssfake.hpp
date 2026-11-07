@@ -85,7 +85,7 @@ struct Bus final : public esphome::i2c::I2CBus {
       }
       if (n < 2) {
         c.bad++;
-        return esphome::i2c::ERROR_OK;
+        return esphome::i2c::ERROR_NOT_ACKNOWLEDGED;
       }
       if (d[0] == 0x0E && c.nack_np > 0) {
         c.nack_np--;
@@ -200,8 +200,10 @@ struct Bus final : public esphome::i2c::I2CBus {
           esphome::put_be32(out, c.options);
         else if (c.reg == 0x04 && out_size == 4)
           esphome::put_be32(out, c.temp_raw);
-        else
+        else {
           c.bad++;
+          return esphome::i2c::ERROR_NOT_ACKNOWLEDGED;
+        }
       } else if (c.mod == 0x01 && c.reg == 0x04 && out_size == 4) {
         esphome::put_be32(out, gpio_in(c));
         c.bulk_reads++;
@@ -217,6 +219,7 @@ struct Bus final : public esphome::i2c::I2CBus {
         esphome::put_be32(out, (uint32_t) c.enc[c.reg - 0x30]);
       } else {
         c.bad++;
+        return esphome::i2c::ERROR_NOT_ACKNOWLEDGED;
       }
     }
     return esphome::i2c::ERROR_OK;

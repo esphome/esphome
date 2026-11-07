@@ -58,6 +58,6 @@ button:
       - lambda: |-
           uint16_t r = eefake::RAWS[eefake::idx++ % (sizeof(eefake::RAWS) / sizeof(eefake::RAWS[0]))];
           eefake::bus.raw = r;
-          ESP_LOGI("eefake", "RAW 0x%04X expect %.2f", r, (int16_t) r / 100.0f);
+          ESP_LOGI("eefake", "RAW 0x%04X expect %.2f bad=%u", r, (int16_t) r / 100.0f, (unsigned) eefake::bus.bad);
           id(hte).update();
           id(tee).update();

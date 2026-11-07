@@ -17,13 +17,15 @@ that includes its `.hpp` (add `esphome: name:` for the `-common` ones):
   random ones and logs `SWEEP checked N bad M`. A read without a register, or of a register the fake does not
   model, gets a NACK and counts in `bad_reads`, shown on the CASES line.
 - `eefake.hpp`, `ee-common.yaml`: HTE501 (0x40) and TEE501 (0x48) with CRC words; "Next" steps through raw
-  temperature words and logs the value a signed hundredths decode should give (#21930).
+  temperature words and logs the value a signed hundredths decode should give (#21930). A command other than
+  identification and measure, and a read longer than the reply, gets a NACK and counts as `bad` on the RAW line.
 - `scdfake.hpp`, `scd-common.yaml`: SCD4x at 0x62 and 0x63 with Sensirion CRC; logs every `0xE000` ambient pressure
   write, and the CASE and SHOW lines count writes with a bad CRC apart from the good ones. A read after a command the
   fake does not answer, or one longer than the command's reply, gets a NACK and counts as `unknown reads` on the
   SHOW line. The second instance has a fixed `ambient_pressure_compensation` to cover the setup path (#21935).
 - `sxfake.hpp`, `sx-common.yaml`: two SX1509 register files with reset values and the `7D 12/34` reset, recording
-  every write. Compare per address: hub setup order can legitimately move between hubs (#21897). Outputs of an Apply
+  every write. A read without a register, or a transfer past 0x7F, gets a NACK and `dump_log()` warns with the
+  count. Compare per address: hub setup order can legitimately move between hubs (#21897). Outputs of an Apply
   platform are distinct template types, so a lambda list of them needs
   `std::initializer_list<output::FloatOutput *>{...}`.
 - `msfake.hpp`: eight MS8607 pressure/temperature fakes at 0x76 and up and humidity fakes at 0x40 and up, with
@@ -35,16 +37,18 @@ that includes its `.hpp` (add `esphome: name:` for the `-common` ones):
   (#16487).
 - `htfake.hpp`, `ht16k33-char-test.yaml`: HT16K33 chips at 0x70 to 0x77 (0x74 and 0x76 NACK) keeping the 16 byte
   display RAM and a command trace, rendered back as text for the Adafruit 0.56" 7-segment backpack ("12:34",
-  decimal points, "!" for stray bytes). The test runs 64 checks (setup order, font, colon and dots, chained chips,
+  decimal points, "!" for stray bytes); a read gets a NACK and counts as malformed. The test runs 64 checks (setup order, font, colon and dots, chained chips,
   printf/strftime/clock, dimming, blink, standby, NACK) and ends with `ALL DONE pass=N fail=M` (#8520). It found a
   crash (null glyph table) when one display had `add_characters` and another did not.
 - `ssfake.hpp`, `seesaw-test.yaml`: Adafruit seesaw at 0x36 (ATtiny817), 0x49 (SAMD09) and 0x4A (NACK): status,
   GPIO bulk with the pull latch, ADC, touch, encoder and NeoPixel with chunk offsets, and the write to read gap per
-  module. A 100 ms interval step machine drives it and ends with `ALL DONE` (#13538).
+  module. A read it does not model and a write without a register get a NACK and count in `bad`. A 100 ms interval step machine drives it and ends with `ALL DONE` (#13538).
 - `bldcfake.hpp` (three M5Unit-BLDC units at 0x65 to 0x67 with simple motor physics, one that never spins down),
   `gtfake.hpp` (GT911 at 0x5D: switches, max values, touch points and key byte) and `sdpfake.hpp` (SDP3x/SDP8xx at
   0x21 to 0x26: product IDs, an unknown product, a failing read every third time, a failing ID read, stop refused
-  while idle) have no config yet; wire them the same way.
+  while idle) have no config yet; wire them the same way. Each NACKs a read it does not model or one of the wrong
+  length, and a write or command it does not know, and counts them as `bad_reads` and `bad_writes` (`bad_cmds` for
+  the SDP) in `report()`; check those are 0.
 
 Check the PR head again just before posting results: a head that moves during a run means a retest.
 
@@ -74,10 +78,11 @@ readings, wrong values, log counts and the simulator's counters (`wrong_ch` coun
 channel). A phase fails when any of the four sensors got no readings, a temperature is wrong, the DUT capture
 failed (stderr in `TAG-<phase>.err`), a fault never moved its injection counter (counted when the DUT meets the
 fault, not when it is armed), a NACK fault never moved `nacked`, a fault is still pending (`pend=1`) at the end of the
-phase, the simulator counted a config write with a wrong complement (`cfg_bad`) or an unknown command or argument
-(`bad_cmd`), the simulator never logged `DEAD` for the `dead` phase, or the DUT log of the `dead` phase has no sign of the
-outage (`did not respond`, a ds248x warning, `DS248x hub failed` or a component marked failed). It ends with PASS or
-`FAIL:` and the failed phases.
+phase, the simulator counted a config write with a wrong complement (`cfg_bad`) or an unknown, short or overlong
+command (`bad_cmd`), a phase other than `b` and `k` (which reset the chip under the driver) counted `wrong_ch` or a
+1-Wire command without the active pull-up bit (`ops_no_apu`), the simulator never logged `DEAD` for the `dead`
+phase, or the DUT log of the `dead` phase has no sign of the outage (`did not respond`, a ds248x warning,
+`DS248x hub failed` or a component marked failed). It ends with PASS or `FAIL:` and the failed phases.
 
 - Sensors polled at the same interval go through the channels in blocks, so a stale channel cache never shows.
   Poll them at different intervals, as `dspd.yaml` does (1, 1.3, 1.7 and 2.3 s).

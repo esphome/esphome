@@ -9,7 +9,8 @@ address they do not simulate.
   0xC0 address command. `add()` up to three addresses, hand it to each `lcd_pcf8574` with `set_i2c_bus()` at
   `on_boot` priority 800, and call `report()` from an interval. `lcd_an.py SERIAL` checks the rows against the
   patterns its docstring lists (0x27 20x4, 0x26 16x2, 0x25 64x4), and fails on a segment longer than its rows or on
-  data past the 128 byte segment buffer, which the report counts as `overflow`. A 64x4 display hangs the code before #22331 in
+  data past the 128 byte segment buffer, which the report counts as `overflow`, or on any read (`reads`; the driver
+  never reads, so the simulator NACKs them). A 64x4 display hangs the code before #22331 in
   setup.
 - HT16K33: use `templates/i2c_fake/htfake.hpp` with its test runner (see [fake_i2c.md](fake_i2c.md)).
 - `mxsim.hpp`: `MxSniff`, an `spi::SPIDelegate` in front of the real one that keeps what each MAX7219 in a chain

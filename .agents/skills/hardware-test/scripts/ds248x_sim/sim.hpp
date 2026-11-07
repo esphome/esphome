@@ -58,7 +58,7 @@ static volatile char nack_src = 0;  // fault whose NACK is pending: 'c', 'z' or 
 struct Cnt {
   uint32_t txn, drst, chsl, owreset, wbyte, rbyte, trip, match, wrong_ch, nacked, cfg_writes, ops_no_apu, convert,
       readsp, inject_c, inject_z, inject_b, inject_k;
-  uint32_t cfg_bad, bad_cmd;  // config writes with a wrong complement; unknown commands or arguments
+  uint32_t cfg_bad, bad_cmd;  // config writes with a wrong complement; unknown, short or overlong commands
 };
 static volatile Cnt cnt;
 static volatile uint8_t last_wrong_rom1 = 0, last_wrong_on = 0;
@@ -66,7 +66,7 @@ static volatile uint8_t last_wrong_rom1 = 0, last_wrong_on = 0;
 // trace of the commands after an injection: cmd, arg, channel
 static volatile uint8_t tr[24][3];
 static volatile uint8_t trn = 24, trlen = 0;
-static uint8_t rx[4];
+static uint8_t rx[4];  // no command is longer than 2 bytes, so a full rx is an overlong write
 static uint8_t rxn = 0;
 static bool had_rd = false;
 
@@ -217,6 +217,11 @@ static void set_status_idle(uint8_t extra) { status = (uint8_t) (0x08 | extra | 
 
 static void process(const uint8_t *b, uint8_t n) {
   cnt.txn++;
+  bool no_arg = b[0] == 0xF0 || b[0] == 0xB4 || b[0] == 0x96;  // device reset, 1-Wire reset, read byte
+  if (n > 2 || (no_arg && n != 1)) {
+    cnt.bad_cmd++;
+    return;
+  }
   if (trn < 24 && b[0] != 0xE1) {
     tr[trn][0] = b[0];
     tr[trn][1] = n > 1 ? b[1] : 0;
@@ -295,6 +300,8 @@ static void process(const uint8_t *b, uint8_t n) {
           nack_src = 'c';
           trn = 0;
         }
+      } else {
+        cnt.bad_cmd++;
       }
       break;
     case 0xB4:  // 1-Wire reset

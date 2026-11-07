@@ -1,5 +1,6 @@
 #pragma once
-// Fake Sensirion SDP3x / SDP8xx sensors on an in-firmware I2C bus.
+// Fake Sensirion SDP3x / SDP8xx sensors on an in-firmware I2C bus. A command the fake does not know and a read it
+// does not answer get a NACK and count in bad_cmds and bad_reads.
 #include "esphome/components/i2c/i2c_bus.h"
 #include "esphome/core/helpers.h"
 #include "esphome/core/log.h"
@@ -16,7 +17,7 @@ struct Dev {
   bool fail_id;         // the ID read NACKs
   bool measuring{false};
   uint16_t last{0}, start{0};
-  uint32_t stops{0}, stop_nak{0}, resets{0}, reset_nak{0}, reads{0}, read_fail{0};
+  uint32_t stops{0}, stop_nak{0}, resets{0}, reset_nak{0}, reads{0}, read_fail{0}, bad_cmds{0}, bad_reads{0};
 };
 
 struct Bus final : public esphome::i2c::I2CBus {
@@ -43,7 +44,11 @@ struct Bus final : public esphome::i2c::I2CBus {
   }
 
   ErrorCode dev_(Dev &d, const uint8_t *data, size_t size, uint8_t *out, size_t out_size) {
-    if (size >= 2) {
+    if (size == 1 || size > 2) {
+      d.bad_cmds++;
+      return esphome::i2c::ERROR_NOT_ACKNOWLEDGED;
+    }
+    if (size == 2) {
       uint16_t c = (data[0] << 8) | data[1];
       if (c == 0x3FF9) {  // stop: refused while idle
         d.stops++;
@@ -61,6 +66,9 @@ struct Bus final : public esphome::i2c::I2CBus {
         d.measuring = true;
         ESP_LOGI(TAG, "0x%02X start 0x%04X", d.addr, c);
       } else if (c == 0xE102 && d.fail_id) {
+        return esphome::i2c::ERROR_NOT_ACKNOWLEDGED;
+      } else if (c != 0x367C && c != 0xE102) {
+        d.bad_cmds++;
         return esphome::i2c::ERROR_NOT_ACKNOWLEDGED;
       }
       d.last = c;
@@ -86,6 +94,7 @@ struct Bus final : public esphome::i2c::I2CBus {
         put(out, o, (uint16_t) d.temp);
         put(out, o, (uint16_t) d.scale);
       } else {
+        d.bad_reads++;
         return esphome::i2c::ERROR_NOT_ACKNOWLEDGED;
       }
     }
@@ -94,9 +103,9 @@ struct Bus final : public esphome::i2c::I2CBus {
 
   void report() {
     for (auto &d : devs)
-      ESP_LOGI(TAG, "0x%02X start=0x%04X stops=%u(nak %u) resets=%u(nak %u) reads=%u fail=%u", d.addr, d.start,
-               (unsigned) d.stops, (unsigned) d.stop_nak, (unsigned) d.resets, (unsigned) d.reset_nak,
-               (unsigned) d.reads, (unsigned) d.read_fail);
+      ESP_LOGI(TAG, "0x%02X start=0x%04X stops=%u(nak %u) resets=%u(nak %u) reads=%u fail=%u bad_cmds=%u bad_reads=%u",
+               d.addr, d.start, (unsigned) d.stops, (unsigned) d.stop_nak, (unsigned) d.resets, (unsigned) d.reset_nak,
+               (unsigned) d.reads, (unsigned) d.read_fail, (unsigned) d.bad_cmds, (unsigned) d.bad_reads);
   }
 };
 inline Bus bus;

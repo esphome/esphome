@@ -1,6 +1,8 @@
 #pragma once
 // Fake SX1509 hubs (0x3E, 0x3F) on an in-firmware I2C bus: register files with reset values, every write recorded.
+// A read without a register, and a transfer that runs past 0x7F, gets a NACK and counts in bad.
 #include <cstring>
+#include <initializer_list>
 #include "esphome/components/i2c/i2c_bus.h"
 #include "esphome/core/log.h"
 
@@ -16,7 +18,7 @@ struct Bus final : public esphome::i2c::I2CBus {
   uint8_t reset_step[2]{};
   Write log[600];
   uint16_t n{0};
-  uint32_t dropped{0};
+  uint32_t dropped{0}, bad{0};
 
   Bus() { this->reset_(0), this->reset_(1); }
   void reset_(int a) {
@@ -24,6 +26,9 @@ struct Bus final : public esphome::i2c::I2CBus {
     this->regs[a][0x0E] = this->regs[a][0x0F] = 0xFF;  // RegDirB/A
     this->regs[a][0x10] = this->regs[a][0x11] = 0xFF;  // RegDataB/A
     this->regs[a][0x12] = this->regs[a][0x13] = 0xFF;  // RegInterruptMaskB/A
+    this->regs[a][0x27] = this->regs[a][0x28] = 0xFF;  // RegKeyData1/2
+    for (uint8_t r : {0x2A, 0x2D, 0x30, 0x33, 0x36, 0x3B, 0x40, 0x45, 0x4A, 0x4D, 0x50, 0x53, 0x56, 0x5B, 0x60, 0x65})
+      this->regs[a][r] = 0xFF;  // RegIOn0..15
   }
 
   esphome::i2c::ErrorCode write_readv(uint8_t address, const uint8_t *data, size_t size, uint8_t *out,
@@ -33,10 +38,16 @@ struct Bus final : public esphome::i2c::I2CBus {
     int a = address - 0x3E;
     if (size == 0 && out_size == 0)
       return esphome::i2c::ERROR_OK;
-    const uint8_t start = size ? data[0] : 0;
-    uint8_t reg = start;
-    for (size_t i = 1; i < size; i++, reg++) {
-      uint8_t r = reg & 0x7F;
+    // the fake keeps no register pointer between transfers, and the chip has no register past 0x7F
+    if (size == 0 || data[0] > 0x7F || data[0] + (size - 1) > 0x80 || data[0] + out_size > 0x80) {
+      this->bad++;
+      if (out_size)
+        memset(out, 0, out_size);
+      return esphome::i2c::ERROR_NOT_ACKNOWLEDGED;
+    }
+    const uint8_t start = data[0];
+    uint8_t r = start;
+    for (size_t i = 1; i < size; i++, r++) {
       if (this->n < 600)
         this->log[this->n++] = {address, (uint8_t) (data[0] + i - 1), data[i]};
       else
@@ -51,7 +62,7 @@ struct Bus final : public esphome::i2c::I2CBus {
       this->regs[a][r] = data[i];
     }
     for (size_t i = 0; i < out_size; i++)
-      out[i] = this->regs[a][(start + i) & 0x7F];
+      out[i] = this->regs[a][start + i];
     return esphome::i2c::ERROR_OK;
   }
 
@@ -68,6 +79,8 @@ struct Bus final : public esphome::i2c::I2CBus {
     }
     if (this->dropped)
       ESP_LOGW(TAG, "dropped %u writes", this->dropped);
+    if (this->bad)
+      ESP_LOGW(TAG, "%u transfers without a register or past 0x7F, NACKed", (unsigned) this->bad);
   }
 
   void dump_regs() {

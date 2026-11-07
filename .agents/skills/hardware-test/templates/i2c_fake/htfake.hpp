@@ -118,9 +118,10 @@ struct Bus final : public esphome::i2c::I2CBus {
     }
     if (c->nack)
       return esphome::i2c::ERROR_NOT_ACKNOWLEDGED;
-    if (out_size) {
+    if (out_size) {  // the driver never reads
       c->bad++;
       memset(out, 0, out_size);
+      return esphome::i2c::ERROR_NOT_ACKNOWLEDGED;
     }
     if (size == 0)
       return esphome::i2c::ERROR_OK;

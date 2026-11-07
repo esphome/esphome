@@ -5,7 +5,8 @@
 
 // Fake PCF8574 backpacks (P0 RS, P2 EN, P4..P7 D4..D7) driving HD44780 controllers, on top of the real bus.
 // Each simulated display keeps the data written after the last 0x80 (row 0, then row 2) and 0xC0 (row 1, then row 3)
-// address commands. Data past 128 bytes in a segment counts in overflow.
+// address commands. Data past 128 bytes in a segment counts in overflow. lcd_pcf8574 never reads, so a read gets a NACK
+// and counts in reads.
 struct LcdSim {
   uint8_t addr{0};
   uint8_t prev{0};
@@ -14,7 +15,7 @@ struct LcdSim {
   uint8_t seg{0};
   char segs[2][129]{};
   uint8_t len[2]{};
-  uint32_t frames{0}, cmds{0}, data{0}, cgram_bytes{0}, overflow{0};
+  uint32_t frames{0}, cmds{0}, data{0}, cgram_bytes{0}, overflow{0}, reads{0};
   void byte(uint8_t rs, uint8_t v) {
     if (!rs) {
       this->cmds++;
@@ -83,8 +84,11 @@ class LcdSimBus : public esphome::i2c::I2CBus {
       if (this->sims[i].addr == address) {
         for (size_t k = 0; k < wn; k++)
           this->sims[i].wire(w[k]);
-        if (rn)
+        if (rn) {
           memset(r, 0xFF, rn);
+          this->sims[i].reads++;
+          return esphome::i2c::ERROR_NOT_ACKNOWLEDGED;
+        }
         return esphome::i2c::ERROR_OK;
       }
     }
@@ -93,9 +97,9 @@ class LcdSimBus : public esphome::i2c::I2CBus {
   void report(uint8_t cols) {
     for (uint8_t i = 0; i < this->n; i++) {
       auto &s = this->sims[i];
-      ESP_LOGI("lcdsim", "LCD 0x%02X frames=%u cmds=%u data=%u cgram=%u overflow=%u seg0=[%s] seg1=[%s]", s.addr,
-               (unsigned) s.frames, (unsigned) s.cmds, (unsigned) s.data, (unsigned) s.cgram_bytes,
-               (unsigned) s.overflow, s.segs[0], s.segs[1]);
+      ESP_LOGI("lcdsim", "LCD 0x%02X frames=%u cmds=%u data=%u cgram=%u overflow=%u reads=%u seg0=[%s] seg1=[%s]",
+               s.addr, (unsigned) s.frames, (unsigned) s.cmds, (unsigned) s.data, (unsigned) s.cgram_bytes,
+               (unsigned) s.overflow, (unsigned) s.reads, s.segs[0], s.segs[1]);
     }
   }
 

@@ -1,5 +1,7 @@
 #pragma once
 // Fake HTE501 (0x40) and TEE501 (0x48) on an in-firmware I2C bus; the temperature word comes from `raw`.
+// A command other than 0x7029 (identification) and 0x2C1B (measure), and a read longer than the command's reply, get a
+// NACK and count in bad.
 #include "esphome/components/i2c/i2c_bus.h"
 #include "esphome/core/helpers.h"
 #include "esphome/core/log.h"
@@ -11,6 +13,7 @@ struct Bus final : public esphome::i2c::I2CBus {
   uint16_t raw{2400};
   uint16_t hum{4512};
   uint8_t last_cmd[2][2]{};  // per address: 0 = 0x40, 1 = 0x48
+  uint32_t bad{0};
 
   static void word(uint8_t *out, uint16_t v) {
     esphome::put_be16(out, v);
@@ -22,24 +25,35 @@ struct Bus final : public esphome::i2c::I2CBus {
     if (address != 0x40 && address != 0x48)
       return esphome::i2c::ERROR_NOT_ACKNOWLEDGED;
     uint8_t *cmd = this->last_cmd[address == 0x48];
-    if (size >= 2) {
+    if (size == 1 || size > 2 ||
+        (size == 2 && !((data[0] == 0x70 && data[1] == 0x29) || (data[0] == 0x2C && data[1] == 0x1B)))) {
+      this->bad++;
+      if (out_size)
+        memset(out, 0, out_size);
+      return esphome::i2c::ERROR_NOT_ACKNOWLEDGED;
+    }
+    if (size == 2) {
       cmd[0] = data[0];
       cmd[1] = data[1];
     }
     if (out_size == 0)
       return esphome::i2c::ERROR_OK;
     uint8_t buf[9] = {};
-    if (out_size > sizeof(buf)) {
-      memset(out, 0, out_size);
-      return esphome::i2c::ERROR_NOT_ACKNOWLEDGED;  // longer than any read the chips answer
-    }
+    size_t len = 0;
     if (cmd[0] == 0x70 && cmd[1] == 0x29) {
       const uint8_t serial[8] = {0x11, 0x22, 0x33, 0x44, 0x55, 0x66, 0x77, address};
       memcpy(buf, serial, 8);
       buf[8] = esphome::crc8(buf, 8, 0xFF, 0x31, true);
+      len = 9;
     } else if (cmd[0] == 0x2C && cmd[1] == 0x1B) {
       word(buf, this->raw);
       word(buf + 3, this->hum);
+      len = 6;
+    }
+    if (out_size > len) {  // no command yet, or longer than the reply
+      memset(out, 0, out_size);
+      this->bad++;
+      return esphome::i2c::ERROR_NOT_ACKNOWLEDGED;
     }
     memcpy(out, buf, out_size);
     return esphome::i2c::ERROR_OK;
