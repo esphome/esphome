@@ -409,7 +409,6 @@
 // The Improv library is not in the Zephyr tidy environment
 #define USE_IMPROV_SERIAL
 #define USE_IMPROV_NEXT_URL
-#define USE_CRC32
 #define USE_MD5
 #define USE_NOISE
 #define USE_NOISE_SPARE_EPHEMERAL

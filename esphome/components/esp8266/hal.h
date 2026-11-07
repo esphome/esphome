@@ -62,6 +62,9 @@ __attribute__((always_inline)) inline const char *progmem_read_ptr(const char *c
 __attribute__((always_inline)) inline uint16_t progmem_read_uint16(const uint16_t *addr) {
   return pgm_read_word(addr);  // NOLINT
 }
+__attribute__((always_inline)) inline uint32_t progmem_read_uint32(const uint32_t *addr) {
+  return pgm_read_dword(addr);  // NOLINT
+}
 // Bulk PROGMEM copy: routes to the SDK's aligned-flash `memcpy_P` so callers
 // don't have to drop to a byte-by-byte `progmem_read_byte` loop, which on
 // ESP8266 is ~4x as many flash accesses as the bulk path.

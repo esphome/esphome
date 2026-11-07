@@ -981,6 +981,13 @@ uint16_t crc16(const uint8_t *data, uint16_t len, uint16_t crc = 0xffff, uint16_
 uint16_t crc16be(const uint8_t *data, uint16_t len, uint16_t crc = 0, uint16_t poly = 0x1021, bool refin = false,
                  bool refout = false);
 
+/// Calculate a CRC-32 checksum of \p data with size \p len.
+/// Standard reflected CRC-32 (polynomial 0xEDB88320, as zlib and the ESP32
+/// ROM compute it). Seed with 0 for a fresh checksum, or with a previous
+/// return value to continue one across chunks. Big-endian CRC-32 variants
+/// (polynomial 0x04C11DB7, e.g. STM32 hardware) are not supported.
+uint32_t crc32(uint32_t crc, const uint8_t *data, size_t len);
+
 /// Calculate a FNV-1 hash of \p str.
 /// Note: FNV-1a (fnv1a_hash) is preferred for new code due to better avalanche characteristics.
 uint32_t fnv1_hash(const char *str);

@@ -2,8 +2,6 @@ import esphome.codegen as cg
 import esphome.config_validation as cv
 from esphome.const import CONF_ID
 
-AUTO_LOAD = ["crc32"]
-
 crc32_test_component_ns = cg.esphome_ns.namespace("crc32_test_component")
 CRC32TestComponent = crc32_test_component_ns.class_("CRC32TestComponent", cg.Component)
 

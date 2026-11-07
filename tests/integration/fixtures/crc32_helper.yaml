@@ -1,5 +1,5 @@
 esphome:
-  name: crc32-component-test
+  name: crc32-helper-test
 
 host:
 

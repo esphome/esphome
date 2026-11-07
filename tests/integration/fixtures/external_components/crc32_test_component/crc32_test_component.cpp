@@ -1,5 +1,5 @@
 #include "crc32_test_component.h"
-#include "esphome/components/crc32/crc32.h"
+#include "esphome/core/helpers.h"
 #include "esphome/core/log.h"
 
 #include <cstring>
@@ -8,10 +8,8 @@ namespace esphome::crc32_test_component {
 
 static const char *const TAG = "crc32_test";
 
-using esphome::crc32::crc32;
-
 void CRC32TestComponent::setup() {
-  ESP_LOGI(TAG, "CRC32 Component Integration Test Starting");
+  ESP_LOGI(TAG, "CRC32 Helper Integration Test Starting");
 
   this->test_check_value();
   this->test_known_vectors();

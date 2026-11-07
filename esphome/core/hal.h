@@ -51,6 +51,7 @@ void __attribute__((noreturn)) arch_restart();
 inline uint8_t progmem_read_byte(const uint8_t *addr) { return *addr; }
 inline const char *progmem_read_ptr(const char *const *addr) { return *addr; }
 inline uint16_t progmem_read_uint16(const uint16_t *addr) { return *addr; }
+inline uint32_t progmem_read_uint32(const uint32_t *addr) { return *addr; }
 // Bulk copy out of PROGMEM. PROGMEM is a no-op everywhere except ESP8266, so a
 // plain `std::memcpy` is correct and the fast path here.
 inline void progmem_memcpy(void *dst, const void *src, size_t len) { std::memcpy(dst, src, len); }
