@@ -1,0 +1,41 @@
+esphome:
+  name: uart-mock-uart-split
+
+host:
+api:
+logger:
+  level: DEBUG
+
+external_components:
+  - source:
+      type: local
+      path: EXTERNAL_COMPONENT_PATH
+
+# Dummy uart entry to satisfy uart_split's DEPENDENCIES = ["uart"]
+# The UART that is split is the uart_mock component below
+uart:
+  baud_rate: 9600
+  port: /dev/null
+
+uart_mock:
+  id: mock_uart
+  baud_rate: 9600
+  injections:
+    # A Modbus RTU request: device 1, function 03 (read holding registers),
+    # register 0x0000, 1 register, CRC 0x0A84 (low byte first)
+    - inject_rx: [0x01, 0x03, 0x00, 0x00, 0x00, 0x01, 0x84, 0x0A]
+
+# bus may write, tap only receives. Each output reads its copy with a dummy
+# receiver, and its debugger logs it, e.g. "tap <<< 01:03:00:00:00:01:84:0A".
+uart_split:
+  - uart_id: mock_uart
+    outputs:
+      - id: bus
+        debug:
+          dummy_receiver: true
+          debug_prefix: "bus "
+      - id: tap
+        rx_only: true
+        debug:
+          dummy_receiver: true
+          debug_prefix: "tap "

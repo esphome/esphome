@@ -78,6 +78,8 @@ LibreTinyUARTComponent = uart_ns.class_(
     "LibreTinyUARTComponent", UARTComponent, cg.Component
 )
 HostUartComponent = uart_ns.class_("HostUartComponent", UARTComponent, cg.Component)
+# Base of UARTs without a wire; see require_virtual_uart().
+VirtualUARTComponent = uart_ns.class_("VirtualUARTComponent", UARTComponent)
 
 
 NATIVE_UART_CLASSES = (
@@ -444,6 +446,8 @@ KEY_UART_EXCLUSIVE = "uart_exclusive"
 class UARTData:
     # (UART, the UART whose settings it runs with), in the order they were declared.
     settings_sources: list[tuple[ID, ID]] = field(default_factory=list)
+    # UARTs that drop what is written to them.
+    receive_only: list[ID] = field(default_factory=list)
     # UARTs whose received bytes do not keep the timing of a serial line.
     unclocked: list[ID] = field(default_factory=list)
 
@@ -461,6 +465,19 @@ def inherit_settings(uart_id: ID, source_id: ID) -> None:
     CONFIG_SCHEMA: the devices' final validation can run before that of the caller.
     """
     _get_data().settings_sources.append((uart_id, source_id))
+
+
+def mark_receive_only(uart_id: ID) -> None:
+    """Reject devices that require TX on uart_id, a UART that drops what is written to it.
+
+    Call it from CONFIG_SCHEMA, like inherit_settings().
+    """
+    _get_data().receive_only.append(uart_id)
+
+
+def _is_receive_only(uart_id: ID) -> bool:
+    # By name: a generated id is named only after the schemas ran.
+    return any(str(uart) == str(uart_id) for uart in _get_data().receive_only)
 
 
 def _settings_source(uart_id: ID) -> ID | None:
@@ -549,6 +566,10 @@ def final_validate_device_schema(
         devices = fv.full_config.get().data.setdefault(KEY_UART_DEVICES, {})
         device = devices.setdefault(uart_id, {})
 
+        if require_tx and _is_receive_only(uart_id):
+            raise cv.Invalid(
+                f"Component {name} requires the uart referenced by {uart_bus} to transmit, but it is receive-only"
+            )
         if require_tx and uart_id_type_str in NATIVE_UART_CLASSES:
             hub_schema[
                 cv.Required(
@@ -656,6 +677,11 @@ def claim_exclusive(
     fv.id_declaration_match_schema(reject_dummy_receiver)(config[conf_key])
 
 
+def require_virtual_uart() -> None:
+    """Compile the VirtualUARTComponent base; call from the to_code of a class that derives from it."""
+    cg.add_define("USE_UART_VIRTUAL")
+
+
 async def register_uart_device(var, config):
     """Register a UART device, setting up all the internal values.
 
@@ -719,9 +745,12 @@ _platform_filter = filter_source_files_from_platform(
 )
 
 # uart_debugger.cpp is fully #ifdef'd on USE_UART_DEBUGGER, set only when a
-# debug block is configured.
+# debug block is configured; uart_virtual.cpp on USE_UART_VIRTUAL.
 _define_filter = filter_source_files_from_defines(
-    {"uart_debugger.cpp": "USE_UART_DEBUGGER"}
+    {
+        "uart_debugger.cpp": "USE_UART_DEBUGGER",
+        "uart_virtual.cpp": "USE_UART_VIRTUAL",
+    }
 )
 
 
