@@ -24,6 +24,8 @@ struct ISRFuncArg {
   void (*func)(void *);
   void *arg;
 };
+
+void disable_gpio_wakeups();
 #endif
 
 class ESP32InternalGPIOPin final : public GPIOPin {
