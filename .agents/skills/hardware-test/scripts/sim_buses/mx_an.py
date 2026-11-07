@@ -1,7 +1,8 @@
-"""mx_an.py SERIAL: per MAX7219 chain, the transaction counts and how the latched digits evolve.
+"""mx_an.py SERIAL CHAIN...: per MAX7219 chain, the transaction counts and how the latched digits evolve.
 
-Reads the MxSniff report lines (mxsim.hpp). Exits 1 when there are none, a chain had malformed transactions, or a
-chain's transaction count is 0 or never grew between its first and last report.
+Reads the MxSniff report lines (mxsim.hpp); CHAIN is each name passed to report(). Exits 1 when a named chain has no
+report line, a chain had malformed transactions, or a chain's transaction count is 0 or never grew between its first
+and last report.
 """
 
 import collections
@@ -11,6 +12,10 @@ import sys
 
 
 def main() -> int:
+    if len(sys.argv) < 3:
+        print("usage: mx_an.py SERIAL CHAIN...")
+        return 2
+    expected = sys.argv[2:]
     seen: dict[str, collections.Counter] = collections.defaultdict(collections.Counter)
     first: dict[str, int] = {}
     last: dict[str, tuple[int, int]] = {}
@@ -23,8 +28,8 @@ def main() -> int:
             seen[m.group(1)][m.group(4).strip()] += 1
             first.setdefault(m.group(1), int(m.group(2)))
             last[m.group(1)] = (int(m.group(2)), int(m.group(3)))
-    if not seen:
-        print("FAIL: no MX report lines")
+    if missing := [k for k in expected if k not in seen]:
+        print(f"FAIL: no MX report lines from {missing}")
         return 1
     for k in sorted(seen):
         print(

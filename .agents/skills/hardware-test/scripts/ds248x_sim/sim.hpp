@@ -59,6 +59,7 @@ struct Cnt {
   uint32_t txn, drst, chsl, owreset, wbyte, rbyte, trip, match, wrong_ch, nacked, cfg_writes, ops_no_apu, convert,
       readsp, inject_c, inject_z, inject_b, inject_k;
   uint32_t cfg_bad, bad_cmd;  // config writes with a wrong complement; unknown, short or overlong commands
+  uint32_t tx_abrt;           // read replies the controller aborted, so the DUT did not get them
 };
 static volatile Cnt cnt;
 static volatile uint8_t last_wrong_rom1 = 0, last_wrong_on = 0;
@@ -376,8 +377,10 @@ static void irq() {
     h->data_cmd = read_reg();
     (void) h->clr_rd_req;
   }
-  if (st & I2C_IC_INTR_STAT_R_TX_ABRT_BITS)
+  if (st & I2C_IC_INTR_STAT_R_TX_ABRT_BITS) {
     (void) h->clr_tx_abrt;
+    cnt.tx_abrt++;
+  }
   if (st & I2C_IC_INTR_STAT_R_STOP_DET_BITS) {
     while (h->rxflr) {
       uint32_t d = h->data_cmd;
@@ -493,11 +496,11 @@ inline void report() {
   }
   ESP_LOGI("sim",
            "CNT txn=%u drst=%u chsl=%u owreset=%u wbyte=%u rbyte=%u trip=%u match=%u wrong_ch=%u nacked=%u "
-           "cfgw=%u cfg_bad=%u bad_cmd=%u ops_no_apu=%u convert=%u readsp=%u inj_c=%u inj_z=%u inj_b=%u inj_k=%u ch=%u "
-           "cfg=%u dead=%d pend=%d",
+           "cfgw=%u cfg_bad=%u bad_cmd=%u ops_no_apu=%u convert=%u readsp=%u inj_c=%u inj_z=%u inj_b=%u inj_k=%u "
+           "tx_abrt=%u ch=%u cfg=%u dead=%d pend=%d",
            cnt.txn, cnt.drst, cnt.chsl, cnt.owreset, cnt.wbyte, cnt.rbyte, cnt.trip, cnt.match, cnt.wrong_ch,
            cnt.nacked, cnt.cfg_writes, cnt.cfg_bad, cnt.bad_cmd, cnt.ops_no_apu, cnt.convert, cnt.readsp, cnt.inject_c,
-           cnt.inject_z, cnt.inject_b, cnt.inject_k, channel, config, dead, pend);
+           cnt.inject_z, cnt.inject_b, cnt.inject_k, cnt.tx_abrt, channel, config, dead, pend);
 }
 
 }  // namespace sim

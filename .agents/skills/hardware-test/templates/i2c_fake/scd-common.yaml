@@ -56,27 +56,27 @@ button:
     on_press:
       - lambda: |-
           float p = scdfake::CASES[scdfake::idx++ % (sizeof(scdfake::CASES) / sizeof(scdfake::CASES[0]))];
-          uint32_t before = scdfake::bus.e000_writes(), bad = scdfake::bus.e000_bad_crc();
+          uint32_t before = scdfake::bus.e000_writes(), bad = scdfake::bus.e000_bad_crc(), bw = scdfake::bus.bad_writes;
           id(press).state = p;
           ESP_LOGI("scdfake", "CASE source %.2f", p);
           id(scd).update();
-          ESP_LOGI("scdfake", "CASE source %.2f -> %u E000 writes, %u bad CRC", p, scdfake::bus.e000_writes() - before,
-                   scdfake::bus.e000_bad_crc() - bad);
+          ESP_LOGI("scdfake", "CASE source %.2f -> %u E000 writes, %u bad CRC, %u bad writes", p,
+                   scdfake::bus.e000_writes() - before, scdfake::bus.e000_bad_crc() - bad, scdfake::bus.bad_writes - bw);
   - platform: template
     name: Show
     on_press:
       - lambda: |-
-          ESP_LOGI("scdfake", "SHOW 0x62 last E000 %d (%u writes, %u bad CRC), 0x63 last E000 %d (%u writes, %u bad CRC), unknown reads %u, scd failed %d, fixed failed %d",
+          ESP_LOGI("scdfake", "SHOW 0x62 last E000 %d (%u writes, %u bad CRC), 0x63 last E000 %d (%u writes, %u bad CRC), bad writes %u, unknown reads %u, scd failed %d, fixed failed %d",
                    scdfake::bus.last_e000[0], scdfake::bus.count_e000[0], scdfake::bus.bad_crc_e000[0],
                    scdfake::bus.last_e000[1], scdfake::bus.count_e000[1], scdfake::bus.bad_crc_e000[1],
-                   scdfake::bus.unknown_reads, id(scd)->is_failed(), id(scd_fixed)->is_failed());
+                   scdfake::bus.bad_writes, scdfake::bus.unknown_reads, id(scd)->is_failed(), id(scd_fixed)->is_failed());
   - platform: template
     name: Direct
     on_press:
       - lambda: |-
           for (float p : {101325.0f, 1013.6f, 450.0f, 1100.2f}) {
-            uint32_t before = scdfake::bus.e000_writes(), bad = scdfake::bus.e000_bad_crc();
+            uint32_t before = scdfake::bus.e000_writes(), bad = scdfake::bus.e000_bad_crc(), bw = scdfake::bus.bad_writes;
             id(scd)->set_ambient_pressure_compensation(p);
-            ESP_LOGI("scdfake", "CASE direct %.2f -> %u E000 writes, %u bad CRC", p, scdfake::bus.e000_writes() - before,
-                     scdfake::bus.e000_bad_crc() - bad);
+            ESP_LOGI("scdfake", "CASE direct %.2f -> %u E000 writes, %u bad CRC, %u bad writes", p,
+                     scdfake::bus.e000_writes() - before, scdfake::bus.e000_bad_crc() - bad, scdfake::bus.bad_writes - bw);
           }

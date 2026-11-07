@@ -9,14 +9,16 @@ address they do not simulate.
   0xC0 address command. `add()` up to three addresses, hand it to each `lcd_pcf8574` with `set_i2c_bus()` at
   `on_boot` priority 800, and call `report()` from an interval. `lcd_an.py SERIAL` checks the rows against the
   patterns its docstring lists (0x27 20x4, 0x26 16x2, 0x25 64x4), and fails on a segment longer than its rows or on
-  data past the 128 byte segment buffer, which the report counts as `overflow`, or on any read (`reads`; the driver
-  never reads, so the simulator NACKs them). A 64x4 display hangs the code before #22331 in
+  data past the 128 byte segment buffer, which the report counts as `overflow`, on a report from an address it does
+  not expect, or on any read (`reads`; the driver never reads, so the simulator NACKs them). A 64x4 display hangs the
+  code before #22331 in
   setup.
 - HT16K33: use `templates/i2c_fake/htfake.hpp` with its test runner (see [fake_i2c.md](fake_i2c.md)).
 - `mxsim.hpp`: `MxSniff`, an `spi::SPIDelegate` in front of the real one that keeps what each MAX7219 in a chain
   latches. Swap it in at `on_boot` priority 399 through `DelegatePeek::of(id(x))`:
-  `auto &d = DelegatePeek::of(id(x)); d = new MxSniff(d, chips);`. `mx_an.py SERIAL` summarizes the reports and
-  fails on malformed transactions (byte count not two per chip, or a partial byte from `write()` or
+  `auto &d = DelegatePeek::of(id(x)); d = new MxSniff(d, chips);`. `mx_an.py SERIAL CHAIN...`
+  summarizes the reports, CHAIN being each name passed to `report()`, and fails on a named chain with no report line,
+  on malformed transactions (byte count not two per chip, or a partial byte from `write()` or
   `write_cmd_addr_data()`, which are recorded and forwarded too) or a chain whose transaction count stays 0 or stops
   growing, and prints PASS otherwise.
 - `spysim.hpp`: the same delegate trick (both headers carry `DelegatePeek`, so one config can include both), logging length and FNV-1a hash of every transaction over 1000 bytes (whole

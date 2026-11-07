@@ -1,10 +1,10 @@
 """lcd_an.py SERIAL: rebuild each simulated LCD's rows from the lcdsim report lines and check them.
 
-Expects three lcd_pcf8574 displays on LcdSimBus: 0x27 20x4 whose lambda writes row i as 16 x chr(97 + i) plus a
-4 digit counter (or only an "x" in the last cell), 0x26 16x2 writing 16 x "B" and "frame N", and 0x25 64x4 writing
-64 x chr(107 + i) per row. Exits 1 when a display reported no frames, a report does not match, a segment holds more
-characters than its rows (2 x cols on a 4 row display, cols otherwise) or the simulator counted overflow bytes or
-reads (the driver never reads).
+Expects three lcd_pcf8574 displays on LcdSimBus: 0x27 20x4 whose lambda writes row i as 16 x chr(97 + i) plus a 4
+digit counter (or only an "x" in the last cell), 0x26 16x2 writing 16 x "B" and "frame N", and 0x25 64x4 writing 64 x
+chr(107 + i) per row. Exits 1 when a display reported no frames, a report comes from another address, a report does
+not match, a segment holds more characters than its rows (2 x cols on a 4 row display, cols otherwise) or the
+simulator counted overflow bytes or reads (the driver never reads).
 """
 
 import pathlib
@@ -43,6 +43,7 @@ def main() -> int:
     long: dict[str, int] = {}
     overflow: dict[str, int] = {}
     reads: dict[str, int] = {}
+    unknown: set[str] = set()
     for line in (
         pathlib.Path(sys.argv[1])
         .read_text(encoding="utf-8", errors="replace")
@@ -51,7 +52,10 @@ def main() -> int:
         if not (m := LINE.search(line)):
             continue
         a, frames, s0, s1 = m.group(1), int(m.group(2)), m.group(8), m.group(9)
-        if frames == 0 or a not in DIMS:
+        if a not in DIMS:
+            unknown.add(a)
+            continue
+        if frames == 0:
             continue
         c, r = DIMS[a]
         overflow[a] = int(m.group(6))
@@ -62,6 +66,7 @@ def main() -> int:
         got = [s0[:c], s1[:c], s0[c : 2 * c], s1[c : 2 * c]][:r]
         rows.setdefault(a, []).append((frames, int(m.group(5)), got))
     bad = [f"0x{a} never drew" for a in DIMS if a not in rows]
+    bad += [f"0x{a} is not an expected display" for a in sorted(unknown)]
     for a, lst in rows.items():
         c, r = DIMS[a]
         kinds = [check(a, got) for _, _, got in lst]

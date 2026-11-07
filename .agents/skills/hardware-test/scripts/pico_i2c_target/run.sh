@@ -20,6 +20,10 @@ $PY "$SC" "$P" "$S" "$OUT/dut.txt" --reset > /dev/null 2>&1 || { kill $FAKE_CAP 
 wait $FAKE_CAP || { echo "FAIL: fake capture got nothing (FAKE_PORT right?)"; exit 1; }
 grep -a -q "STAT mode=" "$OUT/fake.txt" || { echo "FAIL: no STAT lines from the fake (flashed? FAKE_PORT right?)"; exit 1; }
 grep -a -o "STAT .*" "$OUT/fake.txt" | tail -1
+# a transmit abort means a read reply never reached the DUT; the count runs since the fake booted, so take the delta
+ABRTS=$(grep -a -o "STAT .*" "$OUT/fake.txt" | sed -nE 's/.* abrt=([0-9]+).*/\1/p')
+[ -n "$ABRTS" ] || { echo "FAIL: no abrt count on the STAT lines"; exit 1; }
+ABRT=$(( $(echo "$ABRTS" | tail -1) - $(echo "$ABRTS" | head -1) ))
 # "'AT': Sending state 25.08200 °C ..." -> per sensor, the distinct values seen
 VALS=$(grep -a -o -E "'[A-Z]{2}': Sending state [^ ]+" "$OUT/dut.txt" | sed -E "s/'([A-Z]{2})': Sending state /\1 /" | sort | uniq -c)
 [ -n "$VALS" ] || { echo "FAIL: no sensor states (check the wiring: C3 GPIO6/7 to Pico GP4/GP5 plus GND)"; exit 1; }
@@ -30,4 +34,5 @@ NANS=$(echo "$VALS" | grep -i " nan$")
 case $K in bme280) WANT="AT AP AH BT BP BH" ;; *) WANT="AT AP BT BP" ;; esac
 MISSING=$(for s in $WANT; do echo "$NUM" | grep -q " $s " || printf '%s ' "$s"; done)
 [ -z "$MISSING" ] || { echo "FAIL: no numeric states from $MISSING"; exit 1; }
+[ "$ABRT" = 0 ] || { echo "FAIL: the fake aborted $ABRT read replies during the run"; exit 1; }
 echo PASS

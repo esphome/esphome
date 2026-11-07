@@ -80,6 +80,10 @@ struct Bus final : public esphome::i2c::I2CBus {
   }
 
   ErrorCode pt_(Pt &p, const uint8_t *data, size_t size, uint8_t *out, size_t out_size) {
+    if (size > 1) {  // every command is one byte
+      p.bad_cmds++;
+      return esphome::i2c::ERROR_NOT_ACKNOWLEDGED;
+    }
     if (size >= 1 || out_size > 0) {
       uint8_t c = size >= 1 ? data[0] : p.last;
       if (size >= 1)
@@ -126,6 +130,10 @@ struct Bus final : public esphome::i2c::I2CBus {
   }
 
   ErrorCode hd_(Hd &h, const uint8_t *data, size_t size, uint8_t *out, size_t out_size) {
+    if (size > 1) {  // every command is one byte
+      h.bad_cmds++;
+      return esphome::i2c::ERROR_NOT_ACKNOWLEDGED;
+    }
     if (size >= 1 && data[0] == 0xFE) {
       h.resets++;
     } else if (size >= 1 && data[0] == 0xF5) {

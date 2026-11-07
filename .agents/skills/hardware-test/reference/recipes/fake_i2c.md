@@ -14,14 +14,17 @@ loops in a button lambda must call `App.feed_wdt()` and keep their per-iteration
 that includes its `.hpp` (add `esphome: name:` for the `-common` ones):
 - `ccsfake.hpp`, `ccs-common.yaml`: CCS811 at 0x5A (#21927). Answers setup and update reads and checks every
   ENV_DATA write against the humidity and temperature the case set; "CCS Cases" runs edge values, "CCS Sweep" 2000
-  random ones and logs `SWEEP checked N bad M`. A read without a register, or of a register the fake does not
-  model, gets a NACK and counts in `bad_reads`, shown on the CASES line.
+  random ones and logs `SWEEP checked N bad M bad_reads R`. A read without a register, or of a register the fake
+  does not model, gets a NACK and counts in `bad_reads`. The CASES and SWEEP lines end in PASS only when something
+  was checked and `bad` and `bad_reads` stayed 0, and in FAIL otherwise.
 - `eefake.hpp`, `ee-common.yaml`: HTE501 (0x40) and TEE501 (0x48) with CRC words; "Next" steps through raw
   temperature words and logs the value a signed hundredths decode should give (#21930). A command other than
   identification and measure, and a read longer than the reply, gets a NACK and counts as `bad` on the RAW line.
 - `scdfake.hpp`, `scd-common.yaml`: SCD4x at 0x62 and 0x63 with Sensirion CRC; logs every `0xE000` ambient pressure
-  write, and the CASE and SHOW lines count writes with a bad CRC apart from the good ones. A read after a command the
-  fake does not answer, or one longer than the command's reply, gets a NACK and counts as `unknown reads` on the
+  write, and the CASE and SHOW lines count writes with a bad CRC apart from the good ones. A write that is neither a
+  bare command (2 bytes) nor a command with one CRC word (5 bytes), or any other command with a bad CRC, gets a
+  NACK and counts as `bad writes` on the CASE and SHOW lines. A read after a command the fake does not answer, or one
+  longer than the command's reply, gets a NACK and counts as `unknown reads` on the
   SHOW line. The second instance has a fixed `ambient_pressure_compensation` to cover the setup path (#21935).
 - `sxfake.hpp`, `sx-common.yaml`: two SX1509 register files with reset values and the `7D 12/34` reset, recording
   every write. A read without a register, or a transfer past 0x7F, gets a NACK and `dump_log()` warns with the
@@ -32,8 +35,9 @@ that includes its `.hpp` (add `esphome: name:` for the `-common` ones):
   faults per device (reset NACKs, bad PROM CRC4, zero D1 every Nth read, humidity CRC8 errors, out of range D2, full
   scale humidity). It counts every command, so skipped conversions show in `report()`; a humidity read of any shape
   but a bare 3 byte read, and a pressure/temperature read that is not a 2 byte PROM or 3 byte ADC read, gets a NACK
-  and counts as `bad_reads`; a command write the fake does not know gets a NACK and counts as `bad_cmds`. Point both the component and
-  its `humidity_i2c_id` device at the bus. That driver logs no values, so give each sensor an INFO `on_value` log
+  and counts as `bad_reads`; a command write the fake does not know, or one longer than a byte, gets a NACK and
+  counts as `bad_cmds`. Point both the component and its `humidity_i2c_id` device at the bus. That driver logs no
+  values, so give each sensor an INFO `on_value` log
   (#16487).
 - `htfake.hpp`, `ht16k33-char-test.yaml`: HT16K33 chips at 0x70 to 0x77 (0x74 and 0x76 NACK) keeping the 16 byte
   display RAM and a command trace, rendered back as text for the Adafruit 0.56" 7-segment backpack ("12:34",
@@ -60,8 +64,8 @@ plays a BME280 (`chip_id` 0x60) or BMP280 (0x58) with the datasheet calibration;
 datasheet example readings and the 0x80000 "no measurement" values, and logs `STAT` counters every 5 s. The DUT is
 an ESP32-C3 (`dut-common.yaml`, GPIO6/GPIO7) with two sensors on the one fake (`dut-bme280.yaml`,
 `dut-bmp280.yaml`), the second with oversampling NONE. `run.sh bme280|bmp280 LABEL` flashes the DUT, captures both
-boards and prints the distinct values per sensor, then PASS when every sensor gave a numeric state; diff the output
-of dev and the PR.
+boards and prints the distinct values per sensor, then PASS when every sensor gave a numeric state and the fake's
+`abrt` count (read replies the controller aborted) did not move during the run; diff the output of dev and the PR.
 
 The ESP32-S3 I2C slave v2 driver cannot emulate a register device: answering from a task and straight from the ISR
 both gave shifted multi-byte reads. Use the Pico.
@@ -79,8 +83,10 @@ channel). A phase fails when any of the four sensors got no readings, a temperat
 failed (stderr in `TAG-<phase>.err`), a fault never moved its injection counter (counted when the DUT meets the
 fault, not when it is armed), a NACK fault never moved `nacked`, a fault is still pending (`pend=1`) at the end of the
 phase, the simulator counted a config write with a wrong complement (`cfg_bad`) or an unknown, short or overlong
-command (`bad_cmd`), a phase other than `b` and `k` (which reset the chip under the driver) counted `wrong_ch` or a
-1-Wire command without the active pull-up bit (`ops_no_apu`), the simulator never logged `DEAD` for the `dead`
+command (`bad_cmd`), a counter is missing from the simulator's CNT line, the simulator aborted a read reply
+(`tx_abrt`, not gated in the `dead` phase, which switches the controller off), a phase other than `b` and `k` (which
+reset the chip under the driver) counted `wrong_ch` or a 1-Wire command without the active pull-up bit (`ops_no_apu`),
+the simulator never logged `DEAD` for the `dead`
 phase, or the DUT log of the `dead` phase has no sign of the outage (`did not respond`, a ds248x warning,
 `DS248x hub failed` or a component marked failed). It ends with PASS or `FAIL:` and the failed phases.
 
@@ -97,8 +103,9 @@ measurement-in-progress read fails), quiet, fault B (the next measurement start 
 with a model ID probe every 10 s to tell a driver stall from a dead chip. `run.sh LABEL` builds, flashes, captures
 and runs `an.py`, which counts readings per `PHASE` line. It fails when the phases are not quiet, faultA, quiet,
 faultB, quiet (a short capture or a restart), the first quiet phase has no readings, a later quiet phase reads less
-than half as often as the first, a later quiet phase reads NaN when the first did not (a target out of range
-reads NaN in every phase), a quiet phase has a failed model ID probe or one that did not return 0xEE,
+than half as often as the first, a later quiet phase reads NaN or logs the driver's "update called before prior
+reading" warning when the first did not (a target out of range reads NaN in every phase), a quiet phase has a failed
+model ID probe or one that did not return 0xEE,
 anything crashed or rebooted, or a fault never fired.
 
 Prefer this to glitching the wire. Holding SDA low by rerouting the pin (`esp_rom_gpio_connect_out_signal` to

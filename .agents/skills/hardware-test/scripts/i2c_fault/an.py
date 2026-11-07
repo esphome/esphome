@@ -65,6 +65,13 @@ def main() -> int:
             for i, (p, counts) in enumerate(phases)
             if i > 1 and p == "quiet" and counts.get("nan")
         ]
+    # same for the driver's "update called before prior reading" warning: a later quiet phase means a stall
+    if not phases[1][1].get("pending_warn"):
+        bad += [
+            f"{p} {i} pending_warn={counts['pending_warn']}"
+            for i, (p, counts) in enumerate(phases)
+            if i > 1 and p == "quiet" and counts.get("pending_warn")
+        ]
     bad += [
         f"{p} reboot"
         for i, (p, counts) in enumerate(phases)
