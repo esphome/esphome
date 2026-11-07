@@ -31,6 +31,9 @@ TEST(CoreAutomationCallbacks, StartupCallbackRunsFromSetupAtItsPriority) {
   EXPECT_EQ(bit_cast<float>(PRIORITY_600), setup_priority::DATA);
   EXPECT_EQ(standard.get_setup_priority(), setup_priority::DATA);
 
+  high.loop();
+  high.on_shutdown();
+  EXPECT_EQ(calls, 0);
   high.setup();
   EXPECT_EQ(calls, 1);
 }
@@ -40,6 +43,9 @@ TEST(CoreAutomationCallbacks, ShutdownCallbackRunsFromOnShutdownAtItsPriority) {
   ShutdownCallback<count_call, PRIORITY_MINUS_100> shutdown;
   EXPECT_EQ(shutdown.get_setup_priority(), -100.0f);
 
+  shutdown.setup();
+  shutdown.loop();
+  EXPECT_EQ(calls, 0);
   shutdown.on_shutdown();
   EXPECT_EQ(calls, 1);
 }
