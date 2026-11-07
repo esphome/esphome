@@ -1156,6 +1156,8 @@ void WiFiComponent::wifi_process_event_(IDFWiFiEvent *data) {
       // GOT_IP6 never counts down; once SLAAC settles drop addresses the new AP did not give back,
       // but never below the minimum, so a slow SLAAC does not read as a lost connection
       this->set_timeout(IPV6_RECOUNT_TIMEOUT_ID, IPV6_ROAM_SETTLE_MS, [this]() {
+        if (!s_sta_connected)
+          return;  // A disconnect already cleared the count
         esp_ip6_addr_t addresses[CONFIG_LWIP_IPV6_NUM_ADDRESSES];
         int count;
         {
