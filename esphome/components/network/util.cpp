@@ -15,6 +15,14 @@ void fill_ip6_addresses(esp_netif_t *netif, IPAddresses &addresses) {
   size_t count = esp_netif_get_all_ip6(netif, ip6s);
   // Slot 0 holds the IPv4 address; without IPv4 the first IPv6 address takes it, so it reads as the primary one
   constexpr size_t first = USE_NETWORK_IPV4 ? 1 : 0;
+  if constexpr (first == 0) {
+    // Lead with a routable address; the link-local one comes first from esp-netif and is useless off-link
+    for (size_t i = 1; i < count; i++) {
+      if (esp_netif_ip6_get_addr_type(&ip6s[0]) != ESP_IP6_ADDR_IS_LINK_LOCAL)
+        break;
+      std::swap(ip6s[0], ip6s[i]);
+    }
+  }
   if (count > addresses.size() - first) {
     // Warn once per interface
     static esp_netif_t *warned[3]{};

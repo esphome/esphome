@@ -57,6 +57,7 @@ def test_require_ipv6_and_request_ipv4_off_record_state() -> None:
         ("ipv4_and_ipv6_both_required.yaml", "true", "true"),
         ("openthread_with_wake_on_lan.yaml", "true", "true"),
         ("openthread_border_router_wifi.yaml", "true", "true"),
+        ("openthread_with_ethernet.yaml", "true", "true"),
         ("esp32_arduino_ipv6_no_ipv4_requirement.yaml", "true", "true"),
         ("host_ipv6_no_ipv4_requirement.yaml", "true", "true"),
         ("nrf52_network_no_openthread.yaml", "false", "true"),
