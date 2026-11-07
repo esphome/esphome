@@ -1,0 +1,19 @@
+esphome:
+  on_boot:
+    - lambda: |-
+        #ifdef USE_CRC32
+        // CRC-32 of "123456789" is the standard check value 0xCBF43926
+        const uint8_t data[] = "123456789";
+        uint32_t crc = esphome::crc32::crc32(0, data, 9);
+        // Chaining partial buffers must give the same result
+        uint32_t chunked = esphome::crc32::crc32(esphome::crc32::crc32(0, data, 4), data + 4, 5);
+        if (crc == 0xCBF43926 && chunked == crc) {
+          ESP_LOGI("crc32", "Test PASSED");
+        } else {
+          ESP_LOGE("crc32", "Test FAILED: %08" PRIx32 " / %08" PRIx32, crc, chunked);
+        }
+        #else
+        ESP_LOGW("crc32", "CRC32 not available");
+        #endif
+
+crc32:
