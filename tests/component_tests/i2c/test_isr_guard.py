@@ -1,6 +1,4 @@
-"""The I2C ISR guard define and its linker wrap are emitted together, only for chips without an FSM reset."""
-
-from __future__ import annotations
+"""The I2C ISR guard define and its linker wrap are emitted together, only for classic ESP32."""
 
 from collections.abc import Callable
 from pathlib import Path
@@ -17,8 +15,7 @@ _WRAP_FLAG = "-Wl,--wrap=esp_intr_alloc_intrstatus"
     ("config_file", "expected"),
     [
         pytest.param("isr_guard_esp32.yaml", True, id="esp32"),
-        pytest.param("isr_guard_esp32c3.yaml", True, id="esp32c3"),
-        pytest.param("isr_guard_esp32c6.yaml", False, id="esp32c6_has_fsm_reset"),
+        pytest.param("isr_guard_esp32c3.yaml", False, id="esp32c3"),
     ],
 )
 def test_guard_define_and_wrap_flag_go_together(
