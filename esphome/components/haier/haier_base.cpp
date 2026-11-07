@@ -343,12 +343,8 @@ void HaierClimateBase::initialization() {
   this->display_status_ = recovered.display_state ? SwitchState::PENDING_ON : SwitchState::PENDING_OFF;
   this->health_mode_ = recovered.health_mode ? SwitchState::PENDING_ON : SwitchState::PENDING_OFF;
 #ifdef USE_SWITCH
-  if (this->display_switch_ != nullptr) {
-    this->display_switch_->publish_state(this->get_display_state());
-  }
-  if (this->health_mode_switch_ != nullptr) {
-    this->health_mode_switch_->publish_state(this->get_health_mode());
-  }
+  PUBLISH_STATE(this->display_switch_, this->get_display_state());
+  PUBLISH_STATE(this->health_mode_switch_, this->get_health_mode());
 #endif
 }
 

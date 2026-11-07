@@ -217,8 +217,7 @@ void PulseCounterSensor::setup() {
 
 void PulseCounterSensor::set_total_pulses(uint32_t pulses) {
   this->current_total_ = pulses;
-  if (this->total_sensor_ != nullptr)
-    this->total_sensor_->publish_state(pulses);
+  PUBLISH_STATE(this->total_sensor_, pulses);
 }
 
 void PulseCounterSensor::dump_config() {

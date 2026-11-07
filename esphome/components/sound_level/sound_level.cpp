@@ -60,12 +60,8 @@ void SoundLevelComponent::loop() {
       this->stop_();
 
       // Reset sensor outputs
-      if (this->peak_sensor_ != nullptr) {
-        this->peak_sensor_->publish_state(NAN);
-      }
-      if (this->rms_sensor_ != nullptr) {
-        this->rms_sensor_->publish_state(NAN);
-      }
+      PUBLISH_STATE(this->peak_sensor_, NAN);
+      PUBLISH_STATE(this->rms_sensor_, NAN);
 
       // Reset accumulators
       this->squared_peak_ = 0;

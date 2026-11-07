@@ -1,5 +1,6 @@
 #include "delta_wallbox.h"
 #include "esphome/core/log.h"
+#include "esphome/core/helpers.h"
 #include "esphome/core/progmem.h"
 #include <algorithm>
 #include <array>
@@ -92,9 +93,7 @@ static const esp32_ble_tracker::ESPBTUUID RX_UUID =
 
 // Appends the little-endian Modbus CRC-16 to the len bytes in frame and returns the new length.
 static size_t append_crc(uint8_t *frame, size_t len) {
-  const uint16_t crc = crc16(frame, static_cast<uint16_t>(len));
-  frame[len] = static_cast<uint8_t>(crc & 0xFF);
-  frame[len + 1] = static_cast<uint8_t>(crc >> 8);
+  put_le16(frame + len, crc16(frame, static_cast<uint16_t>(len)));
   return len + 2;
 }
 
@@ -102,7 +101,7 @@ static bool verify_crc(const uint8_t *data, size_t len) {
   if (len < EXCEPTION_RESPONSE_LEN)
     return false;
   const uint16_t calculated = crc16(data, static_cast<uint16_t>(len - 2));
-  const uint16_t received = data[len - 2] | (data[len - 1] << 8);
+  const uint16_t received = encode_uint16(data[len - 1], data[len - 2]);
   return calculated == received;
 }
 
@@ -317,9 +316,7 @@ void DeltaWallbox::handle_frame_(const uint8_t *frame, size_t len) {
       }
       model[model_len] = '\0';
       ESP_LOGI(TAG, "Discovered Wallbox Model Name: %s", model);
-      if (this->model_name_text_sensor_ != nullptr) {
-        this->model_name_text_sensor_->publish_state(model);
-      }
+      PUBLISH_STATE(this->model_name_text_sensor_, model);
       this->advance_to_(DeltaState::DELTA_STATE_GET_BT_FW_VERSION);
       break;
     }
@@ -330,16 +327,14 @@ void DeltaWallbox::handle_frame_(const uint8_t *frame, size_t len) {
         char ver[16];
         snprintf(ver, sizeof(ver), "%d.%d", major, minor);
         ESP_LOGI(TAG, "Discovered Wallbox BT FW: %s", ver);
-        if (this->bt_fw_version_text_sensor_ != nullptr) {
-          this->bt_fw_version_text_sensor_->publish_state(ver);
-        }
+        PUBLISH_STATE(this->bt_fw_version_text_sensor_, ver);
       }
       this->advance_to_(DeltaState::DELTA_STATE_CHECK_PAIRING);
       break;
     }
     case DeltaState::DELTA_STATE_CHECK_PAIRING: {
       if (frame[2] >= REGISTER_BYTE_COUNT) {
-        uint16_t status = (frame[3] << 8) | frame[4];
+        uint16_t status = encode_uint16(frame[3], frame[4]);
         ESP_LOGI(TAG, "Pairing Status Register: 0x%04X", status);
         if (status == PAIRING_STATUS_READY) {
           this->pairing_in_progress_ = false;
@@ -418,9 +413,7 @@ void DeltaWallbox::handle_frame_(const uint8_t *frame, size_t len) {
         char ver[16];
         snprintf(ver, sizeof(ver), "%d.%d", frame[3], frame[4]);
         ESP_LOGI(TAG, "Discovered Charger Main FW: %s", ver);
-        if (this->fw_version_text_sensor_ != nullptr) {
-          this->fw_version_text_sensor_->publish_state(ver);
-        }
+        PUBLISH_STATE(this->fw_version_text_sensor_, ver);
       }
       this->advance_to_(DeltaState::DELTA_STATE_GET_SERIAL_NUMBER);
       break;
@@ -436,8 +429,7 @@ void DeltaWallbox::handle_frame_(const uint8_t *frame, size_t len) {
         }
         serial[serial_len] = '\0';
         ESP_LOGI(TAG, "Wallbox serial text: %s", serial);
-        if (this->serial_number_text_sensor_ != nullptr)
-          this->serial_number_text_sensor_->publish_state(serial);
+        PUBLISH_STATE(this->serial_number_text_sensor_, serial);
       }
       this->advance_to_(DeltaState::DELTA_STATE_CONNECTED);
       ESP_LOGI(TAG, "Authentication complete. Core parameters loaded.");
@@ -452,14 +444,10 @@ void DeltaWallbox::handle_frame_(const uint8_t *frame, size_t len) {
         if (byte_count == CHARGING_INFO_BYTE_COUNT) {
           // Parsing 0x011B charging info (9 registers)
           const ChargingInfo info = decode_charging_info(frame);
-          if (this->power_sensor_ != nullptr)
-            this->power_sensor_->publish_state(info.power_kw);
-          if (this->energy_sensor_ != nullptr)
-            this->energy_sensor_->publish_state(info.energy_kwh);
-          if (this->charging_time_sensor_ != nullptr)
-            this->charging_time_sensor_->publish_state(info.charging_minutes);
-          if (this->charger_state_sensor_ != nullptr)
-            this->charger_state_sensor_->publish_state(info.state);
+          PUBLISH_STATE(this->power_sensor_, info.power_kw);
+          PUBLISH_STATE(this->energy_sensor_, info.energy_kwh);
+          PUBLISH_STATE(this->charging_time_sensor_, info.charging_minutes);
+          PUBLISH_STATE(this->charger_state_sensor_, info.state);
 
           // Retrieve maximum current output setting next
           this->send_frame_(CMD_GET_MAX_CURRENT, sizeof(CMD_GET_MAX_CURRENT));
@@ -468,27 +456,23 @@ void DeltaWallbox::handle_frame_(const uint8_t *frame, size_t len) {
           // frame[4] is the configured max (set by DIP switch in device)
           // frame[5] the active limit
           this->max_current_limit_ = frame[4];
-          if (this->max_current_sensor_ != nullptr)
-            this->max_current_sensor_->publish_state(frame[5]);
-          if (this->max_current_number_ != nullptr)
-            this->max_current_number_->publish_state(frame[5]);
+          PUBLISH_STATE(this->max_current_sensor_, frame[5]);
+          PUBLISH_STATE(this->max_current_number_, frame[5]);
 
           // Poll the error code register every cycle
           this->send_frame_(CMD_GET_ERROR_CODE, sizeof(CMD_GET_ERROR_CODE));
         } else if (byte_count == REGISTER_BYTE_COUNT) {
           // Error status register (0x01B5)
-          uint16_t reg_val = (frame[3] << 8) | frame[4];
+          uint16_t reg_val = encode_uint16(frame[3], frame[4]);
           char hex_str[16];
           snprintf(hex_str, sizeof(hex_str), "%04X", reg_val);
-          if (this->error_code_text_sensor_ != nullptr)
-            this->error_code_text_sensor_->publish_state(hex_str);
+          PUBLISH_STATE(this->error_code_text_sensor_, hex_str);
         }
       } else if (frame[1] == FC_WRITE_SINGLE_REGISTER) {
-        const uint16_t register_addr = (static_cast<uint16_t>(frame[2]) << 8) | frame[3];
+        const uint16_t register_addr = encode_uint16(frame[2], frame[3]);
         if (register_addr == REG_MAX_CURRENT) {
           ESP_LOGI(TAG, "Wallbox max current command acknowledged: %u A", frame[5]);
-          if (this->max_current_number_ != nullptr)
-            this->max_current_number_->publish_state(frame[5]);
+          PUBLISH_STATE(this->max_current_number_, frame[5]);
         } else {
           // Confirmation frame of Start/Stop write actions
           ESP_LOGI(TAG, "Wallbox charging command successfully acknowledged.");

@@ -46,9 +46,7 @@ void DebugComponent::dump_config() {
   pos = get_device_info_(std::span<char, DEVICE_INFO_BUFFER_SIZE>(device_info_buffer), pos);
 
 #ifdef USE_TEXT_SENSOR
-  if (this->device_info_text_sensor_ != nullptr) {
-    this->device_info_text_sensor_->publish_state(device_info_buffer, pos);
-  }
+  PUBLISH_STATE(this->device_info_text_sensor_, device_info_buffer, pos);
   if (this->reset_reason_text_sensor_ != nullptr) {
     char reset_reason_buffer[RESET_REASON_BUFFER_SIZE];
     this->reset_reason_text_sensor_->publish_state(
@@ -83,17 +81,13 @@ void DebugComponent::loop() {
 
 void DebugComponent::update() {
 #ifdef USE_SENSOR
-  if (this->free_sensor_ != nullptr) {
-    this->free_sensor_->publish_state(get_free_heap_());
-  }
+  PUBLISH_STATE(this->free_sensor_, get_free_heap_());
 
   if (this->loop_time_sensor_ != nullptr) {
     this->loop_time_sensor_->publish_state(this->max_loop_time_);
     this->max_loop_time_ = 0;
   }
-  if (this->cpu_frequency_sensor_ != nullptr) {
-    this->cpu_frequency_sensor_->publish_state(arch_get_cpu_freq_hz());
-  }
+  PUBLISH_STATE(this->cpu_frequency_sensor_, arch_get_cpu_freq_hz());
 
 #endif  // USE_SENSOR
   update_platform_();

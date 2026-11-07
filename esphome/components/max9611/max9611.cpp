@@ -60,27 +60,22 @@ void MAX9611Component::update() {
     ESP_LOGW(TAG, "Update failed");
     return;
   }
-  uint16_t csa_register = ((register_map_[CSA_DATA_BYTE_MSB_ADRR] << 8) | (register_map_[CSA_DATA_BYTE_LSB_ADRR])) >> 4;
-  uint16_t rs_register = ((register_map_[RS_DATA_BYTE_MSB_ADRR] << 8) | (register_map_[RS_DATA_BYTE_LSB_ADRR])) >> 4;
-  uint16_t t_register = ((register_map_[TEMP_DATA_BYTE_MSB_ADRR] << 8) | (register_map_[TEMP_DATA_BYTE_LSB_ADRR])) >> 7;
+  uint16_t csa_register =
+      encode_uint16(this->register_map_[CSA_DATA_BYTE_MSB_ADRR], this->register_map_[CSA_DATA_BYTE_LSB_ADRR]) >> 4;
+  uint16_t rs_register =
+      encode_uint16(this->register_map_[RS_DATA_BYTE_MSB_ADRR], this->register_map_[RS_DATA_BYTE_LSB_ADRR]) >> 4;
+  uint16_t t_register =
+      encode_uint16(this->register_map_[TEMP_DATA_BYTE_MSB_ADRR], this->register_map_[TEMP_DATA_BYTE_LSB_ADRR]) >> 7;
   float voltage = rs_register * VOUT_LSB;
   float shunt_voltage = (csa_register * gain_to_lsb(gain_)) / MICRO_VOLTS_PER_VOLT;
   float temp = sign_extend<9>(t_register) * TEMP_LSB;
   float amps = shunt_voltage / current_resistor_;
   float watts = amps * voltage;
 
-  if (voltage_sensor_ != nullptr) {
-    voltage_sensor_->publish_state(voltage);
-  }
-  if (current_sensor_ != nullptr) {
-    current_sensor_->publish_state(amps);
-  }
-  if (watt_sensor_ != nullptr) {
-    watt_sensor_->publish_state(watts);
-  }
-  if (this->temp_sensor_ != nullptr) {
-    this->temp_sensor_->publish_state(temp);
-  }
+  PUBLISH_STATE(this->voltage_sensor_, voltage);
+  PUBLISH_STATE(this->current_sensor_, amps);
+  PUBLISH_STATE(this->watt_sensor_, watts);
+  PUBLISH_STATE(this->temp_sensor_, temp);
 
   ESP_LOGD(TAG, "V: %f, A: %f, W: %f, Deg C: %f", voltage, amps, watts, temp);
 }

@@ -46,10 +46,8 @@ void UFireECComponent::update() {
 }
 
 void UFireECComponent::update_internal_() {
-  if (this->temperature_sensor_ != nullptr)
-    this->temperature_sensor_->publish_state(this->measure_temperature_());
-  if (this->ec_sensor_ != nullptr)
-    this->ec_sensor_->publish_state(this->measure_ms_());
+  PUBLISH_STATE(this->temperature_sensor_, this->measure_temperature_());
+  PUBLISH_STATE(this->ec_sensor_, this->measure_ms_());
 }
 
 float UFireECComponent::measure_temperature_() { return this->read_data_(REGISTER_TEMP); }

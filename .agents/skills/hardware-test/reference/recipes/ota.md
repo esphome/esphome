@@ -54,3 +54,33 @@ over syslog and fails when a case did not reach the end of its stream.
   to `dest`); after that lands, remove the `dest_limit` line.
 
 Results: https://github.com/esphome/esphome/issues/21639#issuecomment-6409786224
+
+## Upload without a configuration (#21738)
+
+`esphome upload --file IMAGE --device IP` with no YAML picks the OTA port from the image header and takes the password
+from `--ota-password` or `ESPHOME_OTA_PASSWORD` and the key from `ESPHOME_OTA_KEY`. Test each chip family with its own
+current image (`build/firmware.ota.bin` for ESP-IDF, `.pioenvs/<name>/firmware.bin` for ESP8266, `firmware.uf2` for
+LibreTiny) and check the build over the API; switch one board between two builds to show a new image lands.
+
+Point every case that should be refused before connecting at an unroutable address (192.0.2.1), never at a board: a
+refusal prints no `Connecting to` line, and an image that slips through cannot reach a device. An ESP32-S3
+`firmware.factory.bin` slipped through on 2026-10-27 (its bootloader header at offset 0 looks like an app), the device
+reported `OTA successful` and its bootloader rejected the slot at boot; send the board its proper app image afterwards.
+A factory image has the partition table magic `AA 50` at 0x8000 and the app at 0x10000.
+
+## OTA automations on two OTA platforms (#21903)
+
+`scripts/ota_automations/ota-automations-common.yaml` (a package) puts `esphome` and `web_server` OTA in one config,
+each with all six automations (`on_begin`, `on_progress`, `on_end`, `on_abort`, `on_error`, `on_state_change`)
+logging a platform tag and the argument. `run.sh esp32|esp8266 LABEL` builds, flashes by serial, and runs four cases
+under one capture: a native upload, a native upload whose uploader is SIGKILLed after the first progress fire, a
+web_server upload of a random 64 KB file and a web_server upload of the real image. `summ.py OUT_DIR` prints each
+case's fires in order with progress collapsed to a count; diff dev against the PR.
+
+- `web_server: ota: false` removes `/update` (404), so leave it out when the web platform is under test.
+- A killed native uploader ends in `state 4` and `error 255`, not `abort`. `on_abort` only comes from a web upload
+  cut on the network. On ESP8266 those happen by themselves (1 in 4 uploads on dev), so count them on both builds with
+  `webrep.sh IP IMAGE COUNT` before blaming the PR.
+- A random file through web_server gives `error 128` on the ESP32 and `error 132` on the ESP8266.
+- A SIGTERM to the uploader lets it finish the transfer; use SIGKILL for the native error path.
+- Results: https://github.com/esphome/esphome/pull/21903#issuecomment-6516529409

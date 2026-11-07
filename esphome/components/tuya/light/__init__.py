@@ -81,8 +81,9 @@ async def to_code(config):
     await light.register_light(var, config)
 
     cg.add_optional(var.set_dimmer_id, config.get(CONF_DIMMER_DATAPOINT))
-    if CONF_MIN_VALUE_DATAPOINT in config:
-        cg.add(var.set_min_value_datapoint_id(config[CONF_MIN_VALUE_DATAPOINT]))
+    cg.add_optional(
+        var.set_min_value_datapoint_id, config.get(CONF_MIN_VALUE_DATAPOINT)
+    )
     cg.add_optional(var.set_switch_id, config.get(CONF_SWITCH_DATAPOINT))
     if CONF_COLOR_DATAPOINT in config:
         cg.add(var.set_color_id(config[CONF_COLOR_DATAPOINT]))
@@ -100,12 +101,10 @@ async def to_code(config):
         )
     cg.add_optional(var.set_min_value, config.get(CONF_MIN_VALUE))
     cg.add_optional(var.set_max_value, config.get(CONF_MAX_VALUE))
-    if CONF_COLOR_TEMPERATURE_MAX_VALUE in config:
-        cg.add(
-            var.set_color_temperature_max_value(
-                config[CONF_COLOR_TEMPERATURE_MAX_VALUE]
-            )
-        )
+    cg.add_optional(
+        var.set_color_temperature_max_value,
+        config.get(CONF_COLOR_TEMPERATURE_MAX_VALUE),
+    )
 
     cg.add(var.set_color_interlock(config[CONF_COLOR_INTERLOCK]))
     await cg.add_variable(var.set_tuya_parent, config[CONF_TUYA_ID])

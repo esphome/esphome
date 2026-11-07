@@ -14,11 +14,9 @@ DEPENDENCIES = ["time"]
 
 CONF_TIMESTAMP_RECORD_MODE = "timestamp_record_mode"
 TimestampMode = rx8111_ns.enum("TimestampMode")
-TIMESTAMP_MODES = {
-    "latest": TimestampMode.TIMESTAMP_MODE_LATEST,
-    "stop_when_full": TimestampMode.TIMESTAMP_MODE_STOP_WHEN_FULL,
-    "overwrite": TimestampMode.TIMESTAMP_MODE_OVERWRITE,
-}
+TIMESTAMP_MODES = TimestampMode.options(
+    "latest", "stop_when_full", "overwrite", prefix="TIMESTAMP_MODE_"
+)
 
 CONFIG_SCHEMA = text_sensor.text_sensor_schema(
     device_class=DEVICE_CLASS_TIMESTAMP

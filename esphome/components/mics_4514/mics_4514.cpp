@@ -45,7 +45,7 @@ void MICS4514Component::update() {
   uint8_t data[6];
   if (!this->status_comm_result(this->read_register(SENSOR_REGISTER, data, 6) == i2c::ERROR_OK))
     return;
-  ESP_LOGV(TAG, "Got data: %02X %02X %02X %02X %02X %02X", data[0], data[1], data[2], data[3], data[4], data[5]);
+  ESP_LOGV_HEX(TAG, data, sizeof(data), sizeof(data), "Got data: %s");
   uint16_t ox = encode_uint16(data[0], data[1]);
   uint16_t red = encode_uint16(data[2], data[3]);
   uint16_t power = encode_uint16(data[4], data[5]);
