@@ -31,7 +31,12 @@ from esphome.components.esp32 import (
     require_vfs_select,
 )
 from esphome.components.mdns import MDNSComponent, enable_mdns_storage
-from esphome.components.network import add_use_address, request_ipv4_off, require_ipv6
+from esphome.components.network import (
+    add_use_address,
+    request_ipv4_off,
+    require_ipv4,
+    require_ipv6,
+)
 from esphome.components.nrf52.framework import include_west_project
 from esphome.components.zephyr import zephyr_add_prj_conf, zephyr_add_prj_conf_min
 from esphome.config_helpers import filter_source_files_from_platform
@@ -297,7 +302,10 @@ _BORDER_ROUTER_SCHEMA = cv.Schema({cv.Optional(CONF_RCP): _RCP_SCHEMA})
 
 
 def _validate_border_router(value: object) -> ConfigType:
-    return _BORDER_ROUTER_SCHEMA({} if value is None else value)
+    # ESP-IDF's border router library resolves DNS and runs DHCP over IPv4
+    return require_ipv4(CONF_OPENTHREAD, CONF_BORDER_ROUTER)(
+        _BORDER_ROUTER_SCHEMA({} if value is None else value)
+    )
 
 
 _CONNECTION_SCHEMA = cv.Schema(
