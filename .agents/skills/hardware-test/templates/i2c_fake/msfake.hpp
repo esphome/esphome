@@ -18,8 +18,9 @@ struct Pt {
   uint8_t pending{0};  // 0x4A or 0x5A
   uint8_t last{0xFF};  // last command, for a read in its own transaction
   uint32_t resets{0}, conv_t{0}, conv_p{0}, adc{0}, prom_reads{0}, d1_reads{0}, bad_reads{0}, bad_cmds{0};
-  uint32_t adc_no_conv{0};  // ADC reads with no conversion pending, which answer 0 like the real chip
-  uint32_t no_reset{0};     // PROM reads and conversions before the first reset, which loads the PROM
+  uint32_t adc_no_conv{0};               // ADC reads with no conversion pending, which answer 0 like the real chip
+  uint32_t no_reset{0};                  // PROM reads and conversions before the first reset, which loads the PROM
+  uint32_t reset_nacked{0}, zero_d1{0};  // injected faults actually delivered
 };
 struct Hd {
   uint8_t addr;
@@ -27,6 +28,9 @@ struct Hd {
   int bad_crc_every;  // every Nth read has a wrong CRC
   uint32_t resets{0}, measures{0}, reads{0}, bad_reads{0}, bad_cmds{0};
   uint32_t no_reset{0};  // measures before the first reset
+  bool measuring{false};
+  uint32_t read_no_measure{0};  // reads with no measure pending, which the real chip NACKs in no-hold mode
+  uint32_t bad_crc{0};          // injected CRC faults actually delivered
 };
 
 // PROM words 0 to 6 sit at the even addresses 0xA0 to 0xAC
@@ -96,9 +100,11 @@ struct Bus final : public esphome::i2c::I2CBus {
       if (c == 0x1E) {
         if (p.reset_nacks > 0) {
           p.reset_nacks--;
+          p.reset_nacked++;
           return esphome::i2c::ERROR_NOT_ACKNOWLEDGED;
         }
         p.resets++;
+        p.pending = 0;  // a reset aborts a running conversion
       } else if (c == 0x4A || c == 0x5A) {
         if (p.resets == 0)
           p.no_reset++;
@@ -125,7 +131,11 @@ struct Bus final : public esphome::i2c::I2CBus {
         v = p.d2;
       if (p.pending == 0x4A) {
         p.d1_reads++;
-        v = (p.zero_d1_every && p.d1_reads % p.zero_d1_every == 0) ? 0 : p.d1;
+        if (p.zero_d1_every && p.d1_reads % p.zero_d1_every == 0) {
+          p.zero_d1++;
+        } else {
+          v = p.d1;
+        }
       }
       if (p.pending == 0)
         p.adc_no_conv++;
@@ -149,8 +159,10 @@ struct Bus final : public esphome::i2c::I2CBus {
     }
     if (size >= 1 && data[0] == 0xFE) {
       h.resets++;
+      h.measuring = false;
     } else if (size >= 1 && data[0] == 0xF5) {
       h.measures++;
+      h.measuring = true;
       if (h.resets == 0)
         h.no_reset++;
     } else if (size >= 1 && out_size == 0) {
@@ -166,10 +178,21 @@ struct Bus final : public esphome::i2c::I2CBus {
       h.bad_reads++;
       return esphome::i2c::ERROR_NOT_ACKNOWLEDGED;
     }
+    if (!h.measuring) {
+      // no measure pending: the real chip NACKs, so a driver that reads twice or without measuring fails here
+      memset(out, 0, out_size);
+      h.read_no_measure++;
+      return esphome::i2c::ERROR_NOT_ACKNOWLEDGED;
+    }
+    h.measuring = false;
     h.reads++;
     uint16_t v = (h.raw & ~0x3) | 0x2;
     esphome::put_be16(out, v);
-    out[2] = esphome::crc8(out, 2, 0x00, 0x31, true) ^ ((h.bad_crc_every && h.reads % h.bad_crc_every == 0) ? 0xFF : 0);
+    out[2] = esphome::crc8(out, 2, 0x00, 0x31, true);
+    if (h.bad_crc_every && h.reads % h.bad_crc_every == 0) {
+      out[2] ^= 0xFF;
+      h.bad_crc++;
+    }
     return esphome::i2c::ERROR_OK;
   }
 
@@ -177,15 +200,17 @@ struct Bus final : public esphome::i2c::I2CBus {
     for (auto &p : pts)
       ESP_LOGI(TAG,
                "PT 0x%02X resets=%u prom=%u convT=%u convP=%u adc=%u adc_no_conv=%u no_reset=%u bad_reads=%u "
-               "bad_cmds=%u",
+               "bad_cmds=%u inj_reset_nack=%u reset_nack_left=%d inj_zero_d1=%u",
                p.addr, (unsigned) p.resets, (unsigned) p.prom_reads, (unsigned) p.conv_t, (unsigned) p.conv_p,
                (unsigned) p.adc, (unsigned) p.adc_no_conv, (unsigned) p.no_reset, (unsigned) p.bad_reads,
-               (unsigned) p.bad_cmds);
+               (unsigned) p.bad_cmds, (unsigned) p.reset_nacked, p.reset_nacks, (unsigned) p.zero_d1);
     for (auto &h : hds)
       if (h.addr)
-        ESP_LOGI(TAG, "H 0x%02X resets=%u measures=%u reads=%u no_reset=%u bad_reads=%u bad_cmds=%u", h.addr,
-                 (unsigned) h.resets, (unsigned) h.measures, (unsigned) h.reads, (unsigned) h.no_reset,
-                 (unsigned) h.bad_reads, (unsigned) h.bad_cmds);
+        ESP_LOGI(TAG,
+                 "H 0x%02X resets=%u measures=%u reads=%u read_no_measure=%u no_reset=%u bad_reads=%u bad_cmds=%u "
+                 "inj_bad_crc=%u",
+                 h.addr, (unsigned) h.resets, (unsigned) h.measures, (unsigned) h.reads, (unsigned) h.read_no_measure,
+                 (unsigned) h.no_reset, (unsigned) h.bad_reads, (unsigned) h.bad_cmds, (unsigned) h.bad_crc);
   }
 };
 inline Bus bus;
