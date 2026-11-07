@@ -12,7 +12,7 @@
 
 #ifdef USE_I2C_ISR_GUARD
 #include <esp_intr_alloc.h>
-#include <hal/i2c_ll.h>  // also brings i2c_periph_signal, from soc/ on IDF 5 and hal/ on IDF 6
+#include <hal/i2c_ll.h>  // declares i2c_periph_signal (IDF 5: soc/, IDF 6: hal/)
 #if SOC_I2C_SUPPORT_HW_FSM_RST || I2C_LL_SUPPORT_HW_FSM_RST
 #error "This chip has an I2C FSM reset; remove NO_FSM_RST for it in i2c/__init__.py"
 #endif

@@ -212,8 +212,7 @@ def clang_options(idedata, environment):
         and not flag.startswith("-mtune=esp")
     )
     cmd.append("-std=gnu++20")
-    # GCC does not treat a line starting with `module` as a C++20 module directive; clang does, and then
-    # fails on IDF's soc/regdma.h (a `module:` bit-field), which every soc/*_periph.h pulls in.
+    # clang otherwise reads the `module:` bit-field in IDF's soc/regdma.h as a C++20 module directive
     cmd.append("-fno-cxx-modules")
 
     if environment.startswith(("bk72xx", "ln882h", "rtl87xx")):
