@@ -227,6 +227,10 @@ void ModbusTcpUart::read_parent_() {
     this->tcp_len_ += static_cast<uint16_t>(n);
   }
   this->deliver_mbap_();
+  // A request cut off where the parent's bytes end: name its rest, or a released turn ends without it.
+  if (this->server_ && this->tcp_len_ != 0 && !this->turn_held_ && this->parent_->available() == 0) {
+    this->parent_->release_turn(static_cast<uint16_t>(this->request_left_()));
+  }
 }
 
 void ModbusTcpUart::deliver_mbap_() {

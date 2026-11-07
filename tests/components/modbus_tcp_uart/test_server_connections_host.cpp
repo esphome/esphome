@@ -257,6 +257,39 @@ TEST_F(ModbusServerTwoClients, ClientThatAsksAheadLetsTheOtherClientIn) {
   EXPECT_EQ(this->hub_takes_request(), 3);
 }
 
+TEST_F(ModbusServerTwoClients, RequestWhoseRestFollowsTheReplyIsAnswered) {
+  // A sends register 1 and the first 5 of the 12 bytes of register 2 in one write, then B asks for register 9.
+  std::vector<uint8_t> second = read_request(2, 2);
+  std::vector<uint8_t> start = read_request(1, 1);
+  start.insert(start.end(), second.begin(), second.begin() + 5);
+  send(this->a_, start);
+  this->loops(1);
+  send(this->b_, read_request(1, 9));
+
+  EXPECT_EQ(this->hub_takes_request(), 1);
+  this->hub_answers(10);
+  this->loops(1);
+  EXPECT_EQ(received(this->a_), read_reply(1, 10));
+
+  // The other 7 bytes of register 2 come after the reply, within the 100 ms turn timeout, and register 3 with them.
+  std::vector<uint8_t> rest(second.begin() + 5, second.end());
+  std::vector<uint8_t> third = read_request(3, 3);
+  rest.insert(rest.end(), third.begin(), third.end());
+  send(this->a_, rest);
+  // Loopback needs a moment; B's request keeps select() ready, so the loop passes alone take no time.
+  std::this_thread::sleep_for(std::chrono::milliseconds(20));
+  EXPECT_EQ(this->hub_takes_request(), 2);
+  this->hub_answers(20);
+  this->loops(1);
+  EXPECT_EQ(received(this->a_), read_reply(2, 20));
+
+  // The turn read only the 7 missing bytes, so B's register 9 comes before A's register 3.
+  EXPECT_EQ(this->hub_takes_request(), 9);
+  this->hub_answers(90);
+  this->loops(1);
+  EXPECT_EQ(this->hub_takes_request(), 3);
+}
+
 }  // namespace
 }  // namespace esphome::modbus_tcp_uart::testing
 
