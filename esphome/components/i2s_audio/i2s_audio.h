@@ -24,7 +24,7 @@ class I2SAudioBase : public Parented<I2SAudioComponent> {
 
  protected:
   i2s_clock_src_t get_clock_source_() const {
-#ifdef I2S_CLK_SRC_APLL
+#if SOC_CLK_APLL_SUPPORTED
     if (this->use_apll_) {
       return I2S_CLK_SRC_APLL;
     }
