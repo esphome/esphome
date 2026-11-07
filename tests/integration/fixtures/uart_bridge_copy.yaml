@@ -1,0 +1,70 @@
+esphome:
+  name: uart-bridge-copy
+
+host:
+api:
+logger:
+  level: DEBUG
+
+external_components:
+  - source:
+      type: local
+      path: EXTERNAL_COMPONENT_PATH
+
+# Dummy uart entry to satisfy the uart DEPENDENCIES; every line below is virtual.
+uart:
+  baud_rate: 115200
+  port: /dev/null
+
+# meter ~ end_a - bridge - end_b.
+# end_a passes on what meter writes, piece by piece, like a UART that copies another one, so the
+# bridge reads it like a line at 115200 baud.
+uart_virtual_end:
+  - id: meter
+    peer_id: end_a
+    baud_rate: 115200
+  - id: end_a
+    peer_id: meter
+    baud_rate: 115200
+    copies_peer: true
+
+uart_mock:
+  - id: end_b
+    baud_rate: 115200
+    on_tx:
+      - then:
+          - logger.log:
+              format: "end_b TX %u"
+              args: ["(unsigned) data.size()"]
+
+bridge:
+  - platform: uart
+    id: uart_bridge
+    uart_id: end_a
+    peer_id: end_b
+
+# Every 100 ms meter writes, all within one loop pass:
+# first a 30-byte frame in three pieces of 10 bytes,
+# then a 1024-byte telegram, 256 bytes at a time in pieces of 64.
+interval:
+  - interval: 100ms
+    then:
+      - lambda: |-
+          static int step = 0;
+          step++;
+          uint8_t piece[64];
+          if (step == 1) {
+            for (int k = 0; k < 3; k++) {
+              for (int i = 0; i < 10; i++)
+                piece[i] = k * 10 + i;
+              id(meter).write_array(piece, 10);
+            }
+          } else if (step <= 5) {
+            for (int k = 0; k < 4; k++) {
+              for (int i = 0; i < 64; i++)
+                piece[i] = k * 64 + i;
+              id(meter).write_array(piece, 64);
+            }
+          } else if (step == 6) {
+            ESP_LOGI("meter", "METER DONE");
+          }
