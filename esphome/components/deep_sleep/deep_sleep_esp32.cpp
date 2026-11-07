@@ -124,8 +124,10 @@ void DeepSleepComponent::deep_sleep_() {
 #endif
 #endif
 
+#ifdef CONFIG_FREERTOS_USE_TICKLESS_IDLE
   // disable other gpio wakesources
   esp32::disable_gpio_wakeups();
+#endif
 
   // Single pin wakeup (ext0) - ESP32, S2, S3
 #if SOC_PM_SUPPORT_EXT0_WAKEUP
