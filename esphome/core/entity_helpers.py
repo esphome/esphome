@@ -35,6 +35,7 @@ from esphome.const import (
     CONF_WEB_SERVER_ID,
     CONF_ZIGBEE_BINARY_SENSOR,
     CONF_ZIGBEE_ID,
+    CONF_ZIGBEE_LIGHT,
     CONF_ZIGBEE_NUMBER,
     CONF_ZIGBEE_SENSOR,
     CONF_ZIGBEE_SWITCH,
@@ -1145,8 +1146,8 @@ def zigbee_base_entity_schema(cluster_options: list[str] | None = None) -> cv.Sc
 
 ZIGBEE_BASE_ENTITY_SCHEMA = zigbee_base_entity_schema()
 
-# Entity platform -> (config key, zigbee C++ class, esp32 cluster options). A
-# unit test checks each class against the owning declaration in zigbee_zephyr.
+# Entity platform -> (config key, zigbee C++ class, esp32 cluster options). The
+# light class is declared by zigbee_esp32; the other classes are in zigbee_zephyr.
 _ZIGBEE_ENTITY_CLASSES = {
     "binary_sensor": (
         CONF_ZIGBEE_BINARY_SENSOR,
@@ -1156,6 +1157,7 @@ _ZIGBEE_ENTITY_CLASSES = {
     "sensor": (CONF_ZIGBEE_SENSOR, "ZigbeeSensor", ["generic", "device_class"]),
     "switch": (CONF_ZIGBEE_SWITCH, "ZigbeeSwitch", ["generic", "on_off"]),
     "number": (CONF_ZIGBEE_NUMBER, "ZigbeeNumber", ["generic"]),
+    "light": (CONF_ZIGBEE_LIGHT, "ZigbeeLight", None),
 }
 
 
@@ -1177,6 +1179,7 @@ ZIGBEE_BINARY_SENSOR_SCHEMA = _zigbee_entity_schema("binary_sensor")
 ZIGBEE_SENSOR_SCHEMA = _zigbee_entity_schema("sensor")
 ZIGBEE_SWITCH_SCHEMA = _zigbee_entity_schema("switch")
 ZIGBEE_NUMBER_SCHEMA = _zigbee_entity_schema("number")
+ZIGBEE_LIGHT_SCHEMA = _zigbee_entity_schema("light")
 
 
 def lazy_load_validator(

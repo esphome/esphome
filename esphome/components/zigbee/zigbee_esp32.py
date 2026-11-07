@@ -40,6 +40,7 @@ from esphome.cpp_generator import MockObj
 import esphome.final_validate as fv
 from esphome.types import ConfigType
 
+# pylint:disable-next=unused-import
 from .const import (
     ANALOG_APPTYPE,
     BACNET_UNIT_NO_UNITS,
@@ -57,6 +58,7 @@ from .const import (
     POWER_SOURCE,
     ZigbeeAttribute,
     ZigbeeComponent,
+    ZigbeeLight,  # noqa:F401
 )
 from .const_esp32 import (
     ALLOWED_UNITS,
@@ -333,6 +335,10 @@ def validate_switch_esp32(config: ConfigType) -> ConfigType:
         ep = copy.deepcopy(BINARY_OUTPUT_EP)
     setup_attributes(config, ep[CONF_CLUSTERS])
     add_ep(ep, config.get(CONF_ENDPOINT), config.get(CONF_USE_DEVICE_TYPE))
+    return config
+
+
+def validate_light_esp32(config: ConfigType) -> ConfigType:
     return config
 
 
