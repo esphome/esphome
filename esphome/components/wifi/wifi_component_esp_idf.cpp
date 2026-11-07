@@ -45,7 +45,7 @@
 #include <esp_netif_net_stack.h>  // esp_netif_get_netif_impl()
 #include "lwip/netif.h"
 #endif
-#if !USE_NETWORK_IPV4 && LWIP_IPV6_DHCP6
+#if !USE_NETWORK_IPV4
 #include "lwip/dhcp6.h"
 #endif
 #ifdef USE_WIFI_LEASE_CACHE
@@ -656,7 +656,7 @@ bool WiFiComponent::wifi_sta_connect_(const WiFiAP &ap) {
 void WiFiComponent::clear_sta_session_() {
   s_sta_connected = false;
   this->got_ipv4_address_ = false;
-#if USE_NETWORK_IPV6
+#if USE_NETWORK_IPV6 && (USE_NETWORK_MIN_IPV6_ADDR_COUNT > 0)
   this->num_ipv6_addresses_ = 0;
 #endif
 }
@@ -669,7 +669,7 @@ static void disable_dhcp_sntp() {
   sntp_servermode_dhcp(false);
 }
 
-#if USE_NETWORK_IPV6
+#if USE_NETWORK_IPV6 && (USE_NETWORK_MIN_IPV6_ADDR_COUNT > 0)
 // How long after a driver roam SLAAC gets to settle before the IPv6 addresses are recounted.
 static constexpr uint32_t IPV6_ROAM_SETTLE_MS = 5000;
 #endif
@@ -1124,7 +1124,7 @@ void WiFiComponent::wifi_process_event_(IDFWiFiEvent *data) {
               [](void *ctx) -> esp_err_t {
                 auto *netif = static_cast<struct netif *>(ctx);
                 netif_create_ip6_linklocal_address(netif, 1);
-#if !USE_NETWORK_IPV4 && LWIP_IPV6_DHCP6
+#if !USE_NETWORK_IPV4
                 // Without DHCPv4, DNS servers come from RDNSS or stateless DHCPv6; esp_netif never starts the latter
                 dhcp6_enable_stateless(netif);
 #endif
@@ -1152,9 +1152,8 @@ void WiFiComponent::wifi_process_event_(IDFWiFiEvent *data) {
       bssid_t roam_bssid;
       std::copy(it.bssid, it.bssid + 6, roam_bssid.begin());
       this->handle_driver_roam_(roam_bssid, it.channel);
-#if USE_NETWORK_IPV6
-      // The count only rises (see GOT_IP6) so a roam can't read as a lost connection. Once SLAAC has
-      // settled, take the real count so addresses the new AP did not give back are not counted forever.
+#if USE_NETWORK_IPV6 && (USE_NETWORK_MIN_IPV6_ADDR_COUNT > 0)
+      // GOT_IP6 never counts down; recount once SLAAC settles so addresses the new AP did not give back are dropped
       this->set_timeout(IPV6_RECOUNT_TIMEOUT_ID, IPV6_ROAM_SETTLE_MS, [this]() {
         esp_ip6_addr_t addresses[CONFIG_LWIP_IPV6_NUM_ADDRESSES];
         LwIPLock lock;
@@ -1252,10 +1251,9 @@ void WiFiComponent::wifi_process_event_(IDFWiFiEvent *data) {
       return;
     }
     ESP_LOGV(TAG, "IPv6 address=" IPV6STR, IPV62STR(it.ip6_info.ip));
-    // Count the addresses on the interface, not the events: a roam re-creates the
-    // link-local and fires another event for the same address. Never count down
-    // while associated: a roam briefly clears every address before SLAAC re-adds
-    // them, and that must not read as a lost connection. wifi_sta_connect_() resets.
+#if USE_NETWORK_MIN_IPV6_ADDR_COUNT > 0
+    // Count addresses, not events (a roam re-fires the link-local). Never count down while associated:
+    // a roam briefly clears every address, which must not read as a lost connection.
     esp_ip6_addr_t addresses[CONFIG_LWIP_IPV6_NUM_ADDRESSES];
     uint8_t count;
     {
@@ -1263,6 +1261,7 @@ void WiFiComponent::wifi_process_event_(IDFWiFiEvent *data) {
       count = static_cast<uint8_t>(esp_netif_get_all_ip6(s_sta_netif, addresses));
     }
     this->num_ipv6_addresses_ = std::max(this->num_ipv6_addresses_, count);
+#endif
 #ifdef USE_WIFI_IP_STATE_LISTENERS
     this->notify_ip_state_listeners_();
 #endif
@@ -1449,22 +1448,15 @@ void WiFiComponent::wifi_process_event_(IDFWiFiEvent *data) {
 }
 
 WiFiSTAConnectStatus WiFiComponent::wifi_sta_connect_status_() const {
-#if !USE_NETWORK_IPV4
-  // Without IPv4 an IPv6 address is the connection, so wait for at least one
-  if (s_sta_connected && this->num_ipv6_addresses_ >= std::max(USE_NETWORK_MIN_IPV6_ADDR_COUNT, 1)) {
-    return WiFiSTAConnectStatus::CONNECTED;
-  }
-#else
-  if (s_sta_connected && this->got_ipv4_address_) {
+  if (s_sta_connected && (!USE_NETWORK_IPV4 || this->got_ipv4_address_)) {
 #if USE_NETWORK_IPV6 && (USE_NETWORK_MIN_IPV6_ADDR_COUNT > 0)
     if (this->num_ipv6_addresses_ >= USE_NETWORK_MIN_IPV6_ADDR_COUNT) {
       return WiFiSTAConnectStatus::CONNECTED;
     }
 #else
     return WiFiSTAConnectStatus::CONNECTED;
-#endif  /* USE_NETWORK_IPV6 */
+#endif /* USE_NETWORK_IPV6 */
   }
-#endif  // USE_NETWORK_IPV4
   if (s_sta_connect_error) {
     return WiFiSTAConnectStatus::ERROR_CONNECT_FAILED;
   }

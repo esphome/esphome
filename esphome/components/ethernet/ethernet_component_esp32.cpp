@@ -14,7 +14,7 @@
 #if USE_NETWORK_IPV6
 #include <esp_netif_net_stack.h>
 #include <lwip/netif.h>
-#if !USE_NETWORK_IPV4 && LWIP_IPV6_DHCP6
+#if !USE_NETWORK_IPV4
 #include <lwip/dhcp6.h>
 #endif
 #endif
@@ -827,13 +827,9 @@ void EthernetComponent::got_ip6_event_handler(void *arg, esp_event_base_t event_
   // after a link flap fires another event for the same address.
   struct esp_ip6_addr if_ip6s[CONFIG_LWIP_IPV6_NUM_ADDRESSES];
   global_eth_component->ipv6_count_ = esp_netif_get_all_ip6(global_eth_component->eth_netif_, if_ip6s);
-#if !USE_NETWORK_IPV4
-  // Without IPv4 an IPv6 address is the connection, so wait for at least one
-  global_eth_component->connected_ = global_eth_component->ipv6_count_ >= std::max(USE_NETWORK_MIN_IPV6_ADDR_COUNT, 1);
-  global_eth_component->enable_loop_soon_any_context();  // Enable loop when connection state changes
-#elif (USE_NETWORK_MIN_IPV6_ADDR_COUNT > 0)
-  global_eth_component->connected_ =
-      global_eth_component->got_ipv4_address_ && (global_eth_component->ipv6_count_ >= USE_NETWORK_MIN_IPV6_ADDR_COUNT);
+#if (USE_NETWORK_MIN_IPV6_ADDR_COUNT > 0)
+  global_eth_component->connected_ = (!USE_NETWORK_IPV4 || global_eth_component->got_ipv4_address_) &&
+                                     (global_eth_component->ipv6_count_ >= USE_NETWORK_MIN_IPV6_ADDR_COUNT);
   global_eth_component->enable_loop_soon_any_context();  // Enable loop when connection state changes
 #else
   global_eth_component->connected_ = global_eth_component->got_ipv4_address_;
@@ -850,31 +846,22 @@ void EthernetComponent::got_ip6_event_handler(void *arg, esp_event_base_t event_
 // duplicate address detection: recreating it would restart DAD. esp_netif_get_ip6_linklocal()
 // only reports a preferred address, so ask lwIP for the slot state instead.
 esp_err_t EthernetComponent::ensure_ip6_linklocal_() {
-  if (auto *netif = static_cast<struct netif *>(esp_netif_get_netif_impl(this->eth_netif_)); netif != nullptr) {
-    u8_t state;
-    {
-      LwIPLock lock;
-      state = netif_ip6_addr_state(netif, 0);
-    }
-    if (ip6_addr_istentative(state) || ip6_addr_isvalid(state)) {
-      this->enable_stateless_dhcp6_();
-      return ESP_OK;
-    }
+  auto *netif = static_cast<struct netif *>(esp_netif_get_netif_impl(this->eth_netif_));
+  u8_t state = IP6_ADDR_INVALID;
+  if (netif != nullptr) {
+    LwIPLock lock;
+    state = netif_ip6_addr_state(netif, 0);
   }
-  esp_err_t err = esp_netif_create_ip6_linklocal(this->eth_netif_);
-  if (err == ESP_OK) {
+  if (!ip6_addr_istentative(state) && !ip6_addr_isvalid(state)) {
+    if (esp_err_t err = esp_netif_create_ip6_linklocal(this->eth_netif_); err != ESP_OK) {
+      return err;
+    }
     ESP_LOGD(TAG, "IPv6 link-local address created");
-    this->enable_stateless_dhcp6_();
   }
-  return err;
-}
-
-// Without DHCPv4, DNS servers come from RDNSS or stateless DHCPv6; esp_netif never starts the latter.
-// Idempotent in lwIP, and the link-up handler may have created the link-local already, so hook it on both paths.
-void EthernetComponent::enable_stateless_dhcp6_() {
-#if !USE_NETWORK_IPV4 && LWIP_IPV6_DHCP6
-  if (auto *netif = static_cast<struct netif *>(esp_netif_get_netif_impl(this->eth_netif_)); netif != nullptr) {
-    // LwIPLock is a no-op without core locking; esp_netif_tcpip_exec always runs in the TCP/IP context.
+#if !USE_NETWORK_IPV4
+  // Without DHCPv4, DNS servers come from RDNSS or stateless DHCPv6; esp_netif never starts the latter.
+  // Idempotent in lwIP, so the link-up and connect paths can both call it.
+  if (netif != nullptr) {
     esp_netif_tcpip_exec(
         [](void *ctx) -> esp_err_t {
           dhcp6_enable_stateless(static_cast<struct netif *>(ctx));
@@ -883,6 +870,7 @@ void EthernetComponent::enable_stateless_dhcp6_() {
         netif);
   }
 #endif
+  return ESP_OK;
 }
 #endif /* USE_NETWORK_IPV6 */
 

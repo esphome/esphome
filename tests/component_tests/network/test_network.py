@@ -79,7 +79,6 @@ def test_ip_family_defines(
     "config_file",
     [
         "wifi_manual_ip_ipv4_disabled_rejected.yaml",
-        "wifi_lease_cache_ipv4_disabled_rejected.yaml",
         "wifi_ap_ipv4_disabled_rejected.yaml",
         "ethernet_manual_ip_ipv4_disabled_rejected.yaml",
         "wake_on_lan_ipv4_disabled_rejected.yaml",

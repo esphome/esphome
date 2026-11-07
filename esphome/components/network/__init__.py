@@ -656,9 +656,11 @@ async def to_code(config: ConfigType) -> None:
 
     cg.add_define("USE_NETWORK_IPV6", enable_ipv6)
     if enable_ipv6:
-        cg.add_define(
-            "USE_NETWORK_MIN_IPV6_ADDR_COUNT", config[CONF_MIN_IPV6_ADDR_COUNT]
-        )
+        # Without IPv4 an IPv6 address is the connection, so wait for at least one
+        min_count = config[CONF_MIN_IPV6_ADDR_COUNT]
+        if not enable_ipv4:
+            min_count = max(min_count, 1)
+        cg.add_define("USE_NETWORK_MIN_IPV6_ADDR_COUNT", min_count)
     if CORE.is_esp32:
         add_idf_sdkconfig_option("CONFIG_LWIP_IPV6", enable_ipv6)
         add_idf_sdkconfig_option("CONFIG_LWIP_IPV6_AUTOCONFIG", enable_ipv6)

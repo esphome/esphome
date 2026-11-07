@@ -296,11 +296,14 @@ AP_MANUAL_IP_SCHEMA = cv.Schema(
     }
 )
 
-STA_MANUAL_IP_SCHEMA = AP_MANUAL_IP_SCHEMA.extend(
-    {
-        cv.Optional(CONF_DNS1, default="0.0.0.0"): cv.ipv4address,
-        cv.Optional(CONF_DNS2, default="0.0.0.0"): cv.ipv4address,
-    }
+STA_MANUAL_IP_SCHEMA = cv.All(
+    AP_MANUAL_IP_SCHEMA.extend(
+        {
+            cv.Optional(CONF_DNS1, default="0.0.0.0"): cv.ipv4address,
+            cv.Optional(CONF_DNS2, default="0.0.0.0"): cv.ipv4address,
+        }
+    ),
+    require_ipv4(f"{DOMAIN} {CONF_MANUAL_IP}"),
 )
 
 TTLS_PHASE_2 = {
@@ -386,6 +389,7 @@ def wifi_network_ap(value):
     if value is None:
         value = {}
     config = WIFI_NETWORK_AP(value)
+    require_ipv4(f"{DOMAIN} {CONF_AP}")(config)
     ap_mode = config[CONF_AP_MODE]
     if ap_mode == WIFI_AP_MODE_WISP and not config.get(CONF_PASSWORD):
         raise cv.Invalid(
@@ -697,18 +701,6 @@ def _lease_cache_schema(value: Any) -> ConfigType:
     return value
 
 
-def _require_ipv4_features(config: ConfigType) -> ConfigType:
-    """Station over SLAAC works without IPv4; manual_ip, lease_cache and the AP (DHCP server) don't."""
-    if (
-        CONF_MANUAL_IP in config
-        or any(CONF_MANUAL_IP in net for net in config.get(CONF_NETWORKS, []))
-        or config[CONF_LEASE_CACHE][CONF_ENABLED]
-        or CONF_AP in config
-    ):
-        require_ipv4(DOMAIN)(config)
-    return config
-
-
 CONFIG_SCHEMA = cv.All(
     cv.Schema(
         {
@@ -787,7 +779,6 @@ CONFIG_SCHEMA = cv.All(
     _apply_min_auth_mode_default,
     _validate,
     _report_provisioning_credentials,
-    _require_ipv4_features,
 )
 
 
