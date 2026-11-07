@@ -100,6 +100,24 @@ def test_rejects_cdc_interface_shared_with_another_component(
         _final_validate(_bridge_config("uart_0", "cdc_acm_1"))
 
 
+def test_rejects_cdc_interface_shared_under_usb_cdc_acm_id(
+    set_core_config: SetCoreConfigCallable,
+) -> None:
+    # Naming the interface under usb_cdc_acm_id instead of uart_id is rejected too.
+    _set_esp32_s3(
+        set_core_config,
+        full_config=uart_full_config(
+            sensor=[{"platform": "pzemac", CONF_USB_CDC_ACM_ID: ID("cdc_acm_1")}],
+        ),
+    )
+    with pytest.raises(
+        cv.Invalid,
+        match="The UART 'cdc_acm_1' is also used by 'sensor'. "
+        "bridge requires exclusive use of that UART.",
+    ):
+        _final_validate(_bridge_config("uart_0", "cdc_acm_1"))
+
+
 def test_rejects_uart_referenced_from_nested_config(
     set_core_config: SetCoreConfigCallable,
 ) -> None:
