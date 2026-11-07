@@ -4,3 +4,15 @@ cover:
     name: Tormatic Garage Door
     open_duration: 15s
     close_duration: 22s
+
+switch:
+  - platform: tormatic
+    id: tormatic_garage_light
+    name: Tormatic Garage Light
+    tormatic_id: tormatic_garage_door
+
+button:
+  - platform: template
+    name: Ventilate Garage
+    on_press:
+      - tormatic.ventilate: tormatic_garage_door
