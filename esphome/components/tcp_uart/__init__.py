@@ -10,7 +10,7 @@ from esphome.components.const import (
     CONF_STOP_BITS,
 )
 import esphome.config_validation as cv
-from esphome.const import CONF_BAUD_RATE, CONF_ID, CONF_PORT
+from esphome.const import CONF_BAUD_RATE, CONF_ID, CONF_MAX_CONNECTIONS, CONF_PORT
 from esphome.types import ConfigType
 
 CODEOWNERS = ["@Bascht74"]
@@ -20,6 +20,7 @@ DOMAIN = "tcp_uart"
 MULTI_CONF = True
 
 CONF_TCP_UART_ID = "tcp_uart_id"
+CONF_TURN_TIMEOUT = "turn_timeout"
 
 tcp_uart_ns = cg.esphome_ns.namespace("tcp_uart")
 TcpUart = tcp_uart_ns.class_("TcpUart", uart.UARTComponent, cg.Component)
@@ -41,6 +42,23 @@ BASE_SCHEMA = cv.Schema(
     }
 ).extend(cv.COMPONENT_SCHEMA)
 
+
+def _consume_replacement_socket(config: ConfigType) -> ConfigType:
+    # A full pool accepts the new client before it closes the quietest one, so for a moment it
+    # holds max_connections + 1 sockets; without the spare that accept can fail with ENFILE.
+    if config.get(CONF_MAX_CONNECTIONS, 1) > 1:
+        socket.consume_sockets(1, "tcp_uart")(config)
+    return config
+
+
+def _validate_turn_timeout(config: ConfigType) -> ConfigType:
+    if CONF_TURN_TIMEOUT in config and config.get(CONF_MAX_CONNECTIONS, 1) == 1:
+        raise cv.Invalid(
+            "turn_timeout needs max_connections of 2 or more", [CONF_TURN_TIMEOUT]
+        )
+    return config
+
+
 CONFIG_SCHEMA = cv.All(
     cv.typed_schema(
         {
@@ -52,6 +70,14 @@ CONFIG_SCHEMA = cv.All(
             "server": BASE_SCHEMA.extend(
                 {
                     cv.Optional(CONF_ALLOWED_IPS): socket.IPV4_ALLOW_SCHEMA,
+                    cv.Optional(CONF_MAX_CONNECTIONS, default=1): cv.int_range(
+                        min=1, max=8
+                    ),
+                    # 0 would end every turn before its reply is written.
+                    cv.Optional(CONF_TURN_TIMEOUT): cv.All(
+                        cv.positive_not_null_time_period,
+                        cv.positive_time_period_milliseconds,
+                    ),
                 }
             ),
         },
@@ -59,7 +85,9 @@ CONFIG_SCHEMA = cv.All(
         default_type="client",
         lower=True,
     ),
-    socket.consume_role_sockets("tcp_uart"),
+    _validate_turn_timeout,
+    socket.consume_role_sockets("tcp_uart", CONF_MAX_CONNECTIONS),
+    _consume_replacement_socket,
 )
 
 
@@ -72,6 +100,10 @@ async def to_code(config: ConfigType) -> None:
         socket.add_ipv4_allow(
             var.set_allow, config.get(CONF_ALLOWED_IPS), config[CONF_ID]
         )
+        if (connections := config[CONF_MAX_CONNECTIONS]) > 1:
+            cg.add_define("USE_TCP_UART_MAX_CONNECTIONS")
+            cg.add(var.set_max_connections(connections))
+            cg.add_optional(var.set_turn_timeout, config.get(CONF_TURN_TIMEOUT))
     else:
         socket.require_tcp_client_link()
     cg.add(var.set_port(config[CONF_PORT]))
