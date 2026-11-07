@@ -101,6 +101,12 @@ struct Bus final : public esphome::i2c::I2CBus {
       c.t_write = esphome::micros();
       const uint8_t *v = d + 2;
       size_t vn = n - 2;
+      // a write the fake does not model is NACKed, so the driver sees it fail when it happens
+      auto nak = [&c]() {
+        c.bad++;
+        c.log += " ";
+        return esphome::i2c::ERROR_NOT_ACKNOWLEDGED;
+      };
       char tmp[24];
       snprintf(tmp, sizeof(tmp), "%02X.%02X", d[0], d[1]);
       c.log += tmp;
@@ -126,7 +132,7 @@ struct Bus final : public esphome::i2c::I2CBus {
             c.pull &= ~m;
             break;
           default:
-            c.bad++;
+            return nak();
         }
         snprintf(tmp, sizeof(tmp), "=%X", (unsigned) m);
         c.log += tmp;
@@ -139,31 +145,27 @@ struct Bus final : public esphome::i2c::I2CBus {
             if (vn == 1)
               c.np_pin = v[0];
             else
-              c.bad++;
+              return nak();
             break;
           case 0x02:
             if (vn == 1)
               c.np_speed = v[0];
             else
-              c.bad++;
+              return nak();
             break;
           case 0x03:
             if (vn == 2)
               c.np_len = (v[0] << 8) | v[1];
             else
-              c.bad++;
+              return nak();
             break;
           case 0x04: {
-            if (vn < 2) {
-              c.bad++;
-              break;
-            }
+            if (vn < 2)
+              return nak();
             uint16_t off = (v[0] << 8) | v[1];
-            for (size_t i = 2; i < vn; i++)
-              if (off + i - 2 < sizeof(c.np_buf))
-                c.np_buf[off + i - 2] = v[i];
-              else
-                c.bad++;
+            if (off + vn - 2 > sizeof(c.np_buf))
+              return nak();
+            memcpy(c.np_buf + off, v + 2, vn - 2);
             c.np_chunks++;
             break;
           }
@@ -171,13 +173,13 @@ struct Bus final : public esphome::i2c::I2CBus {
             if (vn == 0)
               c.np_shows++;
             else
-              c.bad++;
+              return nak();
             break;
           default:
-            c.bad++;
+            return nak();
         }
       } else if (vn != 0) {
-        c.bad++;
+        return nak();
       }
       c.log += " ";
     }

@@ -62,7 +62,8 @@ that includes its `.hpp` (add `esphome: name:` for the `-common` ones):
   crash (null glyph table) when one display had `add_characters` and another did not.
 - `ssfake.hpp`, `seesaw-test.yaml`: Adafruit seesaw at 0x36 (ATtiny817), 0x49 (SAMD09) and 0x4A (NACK): status,
   GPIO bulk with the pull latch, ADC, touch, encoder and NeoPixel with chunk offsets, and the write to read gap per
-  module. A read it does not model and a write without a register get a NACK and count in `bad`. A 100 ms interval step machine drives it and ends with `ALL DONE` and PASS or FAIL (#13538).
+  module. A read it does not model, a write without a register and a write to a module or register it does not model
+  (or with the wrong data length) get a NACK and count in `bad`. A 100 ms interval step machine drives it and ends with `ALL DONE` and PASS or FAIL (#13538).
 - `bldcfake.hpp` (three M5Unit-BLDC units at 0x65 to 0x67 with simple motor physics, one that never spins down),
   `gtfake.hpp` (GT911 at 0x5D: switches, max values, touch points and key byte) and `sdpfake.hpp` (SDP3x/SDP8xx at
   0x21 to 0x26: product IDs, an unknown product, a failing read every third time, a failing ID read, stop refused
