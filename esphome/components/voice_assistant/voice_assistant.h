@@ -400,8 +400,10 @@ class VoiceAssistant final : public Component {
   uint8_t noise_suppression_level_;
   uint8_t auto_gain_;
   bool continuous_{false};
-  // A pipeline was requested and on_end has not fired for it yet; never true while IDLE
+  // A pipeline was requested and on_end has not fired for it yet
   bool end_pending_{false};
+  // Home Assistant accepted the run and has not sent RUN_END yet
+  bool run_active_{false};
   bool silence_detection_;
   bool continue_conversation_{false};
   bool udp_socket_running_{false};
