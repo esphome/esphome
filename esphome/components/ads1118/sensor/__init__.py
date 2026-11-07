@@ -27,8 +27,6 @@ ADS1118Sensor = ads1118_ns.class_(
 
 TYPE_ADC = "adc"
 TYPE_TEMPERATURE = "temperature"
-# Config register TS_MODE bit, ADS1118_CONFIG_TEMPERATURE in C++
-CONFIG_TEMPERATURE = 1 << 4
 
 CONFIG_SCHEMA = cv.typed_schema(
     {
@@ -66,7 +64,9 @@ CONFIG_SCHEMA = cv.typed_schema(
 
 async def to_code(config: ConfigType) -> None:
     bits = (
-        mux_gain_bits(config) if config[CONF_TYPE] == TYPE_ADC else CONFIG_TEMPERATURE
+        mux_gain_bits(config)
+        if config[CONF_TYPE] == TYPE_ADC
+        else ads1118_ns.CONFIG_TEMPERATURE
     )
     var = await sensor.new_sensor(config, bits)
     await cg.register_component(var, config)

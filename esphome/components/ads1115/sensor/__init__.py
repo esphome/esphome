@@ -19,15 +19,12 @@ AUTO_LOAD = ["voltage_sampler"]
 DEPENDENCIES = ["ads1115"]
 
 RESOLUTION = {"16_BITS": 16, "12_BITS": 12}
-SAMPLERATE = {
-    name: i
-    for i, name in enumerate(("8", "16", "32", "64", "128", "250", "475", "860"))
-}
 # Samples per second of each data rate code; the ADS1015 (12 bits) runs faster
 DATA_RATES = {
     16: (8, 16, 32, 64, 128, 250, 475, 860),
     12: (128, 250, 490, 920, 1600, 2400, 3300, 3300),
 }
+SAMPLERATE = {str(sps): i for i, sps in enumerate(DATA_RATES[16])}
 
 ADS1115Sensor = ads1115_ns.class_(
     "ADS1115Sensor", sensor.Sensor, cg.PollingComponent, voltage_sampler.VoltageSampler
@@ -60,10 +57,7 @@ CONFIG_SCHEMA = (
 async def to_code(config: ConfigType) -> None:
     rate = config[CONF_SAMPLE_RATE].enum_value
     sps = DATA_RATES[config[CONF_RESOLUTION].enum_value][rate]
-    var = await sensor.new_sensor(
-        config,
-        mux_gain_bits(config) | rate << 5,
-        math.ceil(1000 / sps + 0.5),
-    )
+    delay_ms = math.ceil(1000 / sps + 0.5)
+    var = await sensor.new_sensor(config, mux_gain_bits(config) | rate << 5, delay_ms)
     await cg.register_component(var, config)
     await cg.register_parented(var, config[CONF_ADS1115_ID])

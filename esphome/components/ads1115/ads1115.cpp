@@ -5,17 +5,15 @@
 
 namespace esphome::ads1115 {
 
-using namespace ads1xxx;
-
 ESPHOME_LOG_TAG(TAG, "ads1115");
-static constexpr uint8_t ADS1115_REGISTER_CONVERSION = 0x00;
-static constexpr uint8_t ADS1115_REGISTER_CONFIG = 0x01;
-// AIN0/AIN1, +-6.144 V, 860 SPS, comparator disabled
-static constexpr uint16_t ADS1115_CONFIG_DEFAULT = 0x00E3;
+static constexpr uint8_t REGISTER_CONVERSION = 0x00;
+static constexpr uint8_t REGISTER_CONFIG = 0x01;
+static constexpr uint16_t CONFIG_COMPARATOR_DISABLE = 0b11;
 
 void ADS1115Component::setup() {
-  const uint16_t config = ADS1115_CONFIG_DEFAULT | (this->continuous_mode_ ? 0 : CONFIG_SINGLE_SHOT);
-  if (!this->setup_check(this->write_byte_16(ADS1115_REGISTER_CONFIG, config)))
+  const uint16_t config = ads1xxx::CONFIG_DATA_RATE | CONFIG_COMPARATOR_DISABLE |
+                          (this->continuous_mode_ ? 0 : ads1xxx::CONFIG_SINGLE_SHOT);
+  if (!this->setup_check(this->write_byte_16(REGISTER_CONFIG, config)))
     return;
   this->prev_config_ = config;
 }
@@ -24,12 +22,11 @@ void ADS1115Component::dump_config() {
   LOG_I2C_DEVICE(this);
 }
 float ADS1115Component::request_measurement(uint16_t config_bits, uint8_t conversion_delay_ms) {
-  uint16_t config = (this->prev_config_ & ~(CONFIG_MUX_GAIN | CONFIG_DATA_RATE)) | config_bits;
-  if (!this->continuous_mode_)
-    config |= CONFIG_START;
+  const uint16_t config = CONFIG_COMPARATOR_DISABLE | config_bits |
+                          (this->continuous_mode_ ? 0 : ads1xxx::CONFIG_SINGLE_SHOT | ads1xxx::CONFIG_START);
 
   if (!this->continuous_mode_ || this->prev_config_ != config) {
-    if (!this->status_comm_result(this->write_byte_16(ADS1115_REGISTER_CONFIG, config)))
+    if (!this->status_comm_result(this->write_byte_16(REGISTER_CONFIG, config)))
       return NAN;
     this->prev_config_ = config;
     delay(conversion_delay_ms);
@@ -38,7 +35,7 @@ float ADS1115Component::request_measurement(uint16_t config_bits, uint8_t conver
     if (!this->continuous_mode_) {
       uint32_t start = millis();
       uint16_t status;
-      while (this->read_byte_16(ADS1115_REGISTER_CONFIG, &status) && (status & CONFIG_START) == 0) {
+      while (this->read_byte_16(REGISTER_CONFIG, &status) && (status & ads1xxx::CONFIG_START) == 0) {
         if (millis() - start > 100) {
           this->status_comm_result(false, LOG_STR("Conversion timed out"));
           return NAN;
@@ -49,9 +46,9 @@ float ADS1115Component::request_measurement(uint16_t config_bits, uint8_t conver
   }
 
   uint16_t raw;
-  if (!this->status_comm_result(this->read_byte_16(ADS1115_REGISTER_CONVERSION, &raw)))
+  if (!this->status_comm_result(this->read_byte_16(REGISTER_CONVERSION, &raw)))
     return NAN;
-  return to_volts(static_cast<int16_t>(raw), config_bits);
+  return ads1xxx::to_volts(static_cast<int16_t>(raw), config_bits);
 }
 
 }  // namespace esphome::ads1115

@@ -5,20 +5,20 @@ from esphome.types import ConfigType
 CODEOWNERS = ["@bdraco"]
 DOMAIN = "ads1xxx"
 
-MUX = {
+_MUX = {
     name: i
     for i, name in enumerate(
         ("A0_A1", "A0_A3", "A1_A3", "A2_A3", "A0_GND", "A1_GND", "A2_GND", "A3_GND")
     )
 }
-GAIN = {
+_GAIN = {
     name: i
     for i, name in enumerate(("6.144", "4.096", "2.048", "1.024", "0.512", "0.256"))
 }
 
 MUX_GAIN_SCHEMA = {
-    cv.Required(CONF_MULTIPLEXER): cv.enum(MUX, upper=True, space="_"),
-    cv.Required(CONF_GAIN): cv.enum(GAIN, string=True),
+    cv.Required(CONF_MULTIPLEXER): cv.enum(_MUX, upper=True, space="_"),
+    cv.Required(CONF_GAIN): cv.enum(_GAIN, string=True),
 }
 
 
