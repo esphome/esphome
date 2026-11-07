@@ -49,13 +49,13 @@ static constexpr uint8_t MAX_ZONES = 3;    // Max 3 Zones in LD2450
 
 // Silence after our own commands (restart, Bluetooth toggle, ...) is not a link loss; a restart takes about 2.3 s
 static constexpr uint32_t LINK_GRACE_MS = 5000;
+// Caps the windows, so retried commands cannot hide a real loss
+static constexpr uint32_t LINK_GRACE_CAP_MS = 15000;
 #ifdef USE_LD2450_XY_UNFILTERED
 static constexpr uint32_t XY_UNFILTERED_DURATION_MS = 10000;
 // Scheduler ids of the component
 static constexpr uint32_t XY_UNFILTERED_TIMEOUT_ID = 0;
 #endif
-// Caps the windows, so retried commands cannot hide a real loss
-static constexpr uint32_t LINK_GRACE_CAP_MS = 15000;
 
 enum class LinkState : uint8_t {
   LINK_STATE_WAITING,  // no valid frame since boot
