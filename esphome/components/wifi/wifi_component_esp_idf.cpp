@@ -1153,11 +1153,14 @@ void WiFiComponent::wifi_process_event_(IDFWiFiEvent *data) {
       std::copy(it.bssid, it.bssid + 6, roam_bssid.begin());
       this->handle_driver_roam_(roam_bssid, it.channel);
 #if USE_NETWORK_IPV6 && (USE_NETWORK_MIN_IPV6_ADDR_COUNT > 0)
-      // GOT_IP6 never counts down; recount once SLAAC settles so addresses the new AP did not give back are dropped
+      // GOT_IP6 never counts down; once SLAAC settles drop addresses the new AP did not give back,
+      // but never below the minimum, so a slow SLAAC does not read as a lost connection
       this->set_timeout(IPV6_RECOUNT_TIMEOUT_ID, IPV6_ROAM_SETTLE_MS, [this]() {
         esp_ip6_addr_t addresses[CONFIG_LWIP_IPV6_NUM_ADDRESSES];
         LwIPLock lock;
-        this->num_ipv6_addresses_ = static_cast<uint8_t>(esp_netif_get_all_ip6(s_sta_netif, addresses));
+        const int count = esp_netif_get_all_ip6(s_sta_netif, addresses);
+        if (count >= USE_NETWORK_MIN_IPV6_ADDR_COUNT)
+          this->num_ipv6_addresses_ = static_cast<uint8_t>(count);
       });
 #endif
     }

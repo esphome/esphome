@@ -80,6 +80,7 @@ def test_ip_family_defines(
     [
         "wifi_manual_ip_ipv4_disabled_rejected.yaml",
         "wifi_ap_ipv4_disabled_rejected.yaml",
+        "wifi_lease_cache_ipv4_disabled_rejected.yaml",
         "ethernet_manual_ip_ipv4_disabled_rejected.yaml",
         "wake_on_lan_ipv4_disabled_rejected.yaml",
         "udp_ipv4_disabled_rejected.yaml",
@@ -106,6 +107,7 @@ def test_require_ipv4_registration_rejects_explicit_disable(
         ("uart_tcp_ipv4_disabled_rejected.yaml", "uart_tcp"),
         ("wifi_manual_ip_ipv4_disabled_rejected.yaml", "wifi: manual_ip"),
         ("wifi_ap_ipv4_disabled_rejected.yaml", "wifi: ap"),
+        ("wifi_lease_cache_ipv4_disabled_rejected.yaml", "wifi: lease_cache"),
         ("ethernet_manual_ip_ipv4_disabled_rejected.yaml", "ethernet: manual_ip"),
     ],
 )
