@@ -126,6 +126,9 @@ esp_err_t BLEAdvertising::services_advertisement_() {
 }
 
 void BLEAdvertising::start() {
+  if (this->current_adv_index_ == -1 && !this->advertise_services_ && !this->raw_advertisements_callbacks_.empty()) {
+    this->current_adv_index_ = 0;
+  }
   if (this->current_adv_index_ == -1) {
     this->services_advertisement_();
   } else {
@@ -145,7 +148,8 @@ void BLEAdvertising::stop() {
 }
 
 void BLEAdvertising::loop() {
-  if (this->raw_advertisements_callbacks_.empty()) {
+  // Nothing to rotate between: a lone raw advertisement without the services one.
+  if (this->raw_advertisements_callbacks_.size() < (this->advertise_services_ ? 1u : 2u)) {
     return;
   }
   const uint32_t now = App.get_loop_component_start_time();
@@ -153,7 +157,7 @@ void BLEAdvertising::loop() {
     this->stop();
     this->current_adv_index_ += 1;
     if (static_cast<size_t>(this->current_adv_index_) >= this->raw_advertisements_callbacks_.size()) {
-      this->current_adv_index_ = -1;
+      this->current_adv_index_ = this->advertise_services_ ? -1 : 0;
     }
     this->start();
     this->last_advertisement_time_ = now;

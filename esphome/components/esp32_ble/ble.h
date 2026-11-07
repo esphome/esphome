@@ -101,6 +101,9 @@ class ESP32BLE final : public Component {
     this->advertising_cycle_time_ = advertising_cycle_time;
   }
   uint32_t get_advertising_cycle_time() const { return this->advertising_cycle_time_; }
+#ifdef USE_ESP32_BLE_ADVERTISING
+  void set_advertise_services(bool advertise) { this->advertise_services_ = advertise; }
+#endif
 
   void enable() { this->request_state_(true); }
   void disable() { this->request_state_(false); }
@@ -251,6 +254,7 @@ class ESP32BLE final : public Component {
   esp_bd_addr_t conn_param_failed_bdas_[USE_ESP32_BLE_MAX_CONNECTIONS]{};
 #ifdef USE_ESP32_BLE_ADVERTISING
   uint8_t advertising_ref_count_{0};  // 1 byte, number of components requesting advertising
+  bool advertise_services_{true};     // 1 byte
 #endif
 
 #ifdef ESPHOME_ESP32_BLE_EXTENDED_AUTH_PARAMS
