@@ -521,17 +521,16 @@ void MQTTClientComponent::loop() {
         ESP_LOGW(TAG, "Lost client connection");
         this->start_dnslookup_();
       } else {
-        if (!this->birth_message_.topic.empty() && !this->sent_birth_message_) {
+        this->last_connected_ = now;
+        const bool all_subscribed = this->resubscribe_subscriptions_();
+#ifdef USE_MQTT_SESSION_PERSISTENCE
+        if (all_subscribed && !this->subacks_settled_)
+          this->check_subacks_();
+#endif
+        // Online only once every paced SUBSCRIBE is out, so no command for an unsubscribed topic is lost
+        if (all_subscribed && !this->birth_message_.topic.empty() && !this->sent_birth_message_) {
           this->sent_birth_message_ = this->publish(this->birth_message_);
         }
-
-        this->last_connected_ = now;
-#ifdef USE_MQTT_SESSION_PERSISTENCE
-        if (this->resubscribe_subscriptions_() && !this->subacks_settled_)
-          this->check_subacks_();
-#else
-        this->resubscribe_subscriptions_();
-#endif
 
         // Process pending resends for all MQTT components centrally
         // Limit work per loop iteration to avoid triggering task WDT on reconnect
@@ -586,7 +585,8 @@ void MQTTClientComponent::resubscribe_subscription_(MQTTSubscription *sub) {
   const uint32_t now = millis();
   bool do_resub = sub->resubscribe_timeout == 0 || now - sub->resubscribe_timeout > 1000;
 
-  if (do_resub) {
+  // Paced so the connect burst fits the backend queue
+  if (do_resub && this->mqtt_backend_.can_subscribe()) {
     sub->subscribed = this->subscribe_topic_(sub->topic, sub->qos);
     sub->resubscribe_timeout = now;
 #ifdef USE_MQTT_SESSION_PERSISTENCE
@@ -859,17 +859,18 @@ void MQTTClientComponent::on_message(const std::string &topic, const std::string
 #endif
     // Indexed with the count taken up front: a callback may subscribe, which can reallocate the
     // vector, and the new entry waits for the next message.
-    // Restored rather than cleared, so only the outermost dispatch erases what was unsubscribed meanwhile.
-    const bool was_dispatching = this->dispatching_;
-    this->dispatching_ = true;
-    const size_t count = this->subscriptions_.size();
-    for (size_t i = 0; i < count; i++) {
-      const auto &subscription = this->subscriptions_[i];
-      if (!subscription.removed && topic_matches(topic.c_str(), subscription.topic))
-        subscription.callback.call(topic, payload);
+    // Only the outermost dispatch erases what was unsubscribed meanwhile.
+    const bool outermost = !this->dispatching_;
+    {
+      DispatchGuard dispatching(this->dispatching_);
+      const size_t count = this->subscriptions_.size();
+      for (size_t i = 0; i < count; i++) {
+        const auto &subscription = this->subscriptions_[i];
+        if (!subscription.removed && topic_matches(topic.c_str(), subscription.topic))
+          subscription.callback.call(topic, payload);
+      }
     }
-    this->dispatching_ = was_dispatching;
-    if (!was_dispatching && this->removed_while_dispatching_) {
+    if (outermost && this->removed_while_dispatching_) {
       this->removed_while_dispatching_ = false;
       this->erase_removed_subscriptions_();
     }
