@@ -41,6 +41,7 @@ sensor:
     update_interval: never
     ambient_pressure_compensation_source: press
     co2:
+      id: scd_co2
       name: SCD CO2
   - platform: scd4x
     id: scd_fixed
@@ -56,38 +57,36 @@ button:
     on_press:
       - lambda: |-
           using namespace scdfake;
-          float p = case_p = CASES[idx++ % (sizeof(CASES) / sizeof(CASES[0]))];
-          case_e000 = bus.e000_writes();
-          case_bad_crc = bus.e000_bad_crc();
-          case_bad_writes = bus.bad_writes;
+          float p = CASES[idx++ % (sizeof(CASES) / sizeof(CASES[0]))];
+          start_case(p);
           id(press).state = p;
+          id(scd_co2).state = NAN;
           ESP_LOGI("scdfake", "CASE source %.2f", p);
           id(scd).update();
       # the measurement read runs from a timeout after update(), so count once it is done
       - delay: 200ms
       - lambda: |-
-          using namespace scdfake;
-          ESP_LOGI("scdfake", "CASE source %.2f -> %u E000 writes, %u bad CRC, %u bad writes", case_p,
-                   (unsigned) (bus.e000_writes() - case_e000), (unsigned) (bus.e000_bad_crc() - case_bad_crc),
-                   (unsigned) (bus.bad_writes - case_bad_writes));
+          scdfake::log_case("source", scdfake::case_p, id(scd_co2).state == 600.0f ? 1 : 0);
   - platform: template
     name: Show
     on_press:
       - lambda: |-
-          ESP_LOGI("scdfake", "SHOW 0x62 last E000 %d (%u writes, %u bad CRC), 0x63 last E000 %d (%u writes, %u bad CRC), bad writes %u, unknown reads %u, scd failed %d, fixed failed %d",
-                   scdfake::bus.last_e000[0], (unsigned) scdfake::bus.count_e000[0],
-                   (unsigned) scdfake::bus.bad_crc_e000[0], scdfake::bus.last_e000[1],
-                   (unsigned) scdfake::bus.count_e000[1], (unsigned) scdfake::bus.bad_crc_e000[1],
-                   (unsigned) scdfake::bus.bad_writes, (unsigned) scdfake::bus.unknown_reads, (int) id(scd)->is_failed(),
-                   (int) id(scd_fixed)->is_failed());
+          using namespace scdfake;
+          int fixed = RANGE_CHECKED ? (int) lroundf(FIXED_HPA) : (int) FIXED_HPA;
+          bool pass = bus.count_e000[1] == 1 && bus.last_e000[1] == fixed && bus.e000_bad_crc() == 0 &&
+                      bus.bad_writes == 0 && bus.unknown_reads == 0 && !id(scd)->is_failed() &&
+                      !id(scd_fixed)->is_failed();
+          ESP_LOGI("scdfake", "SHOW 0x62 last E000 %d (%u writes, %u bad CRC), 0x63 last E000 %d (%u writes, %u bad CRC, expected one of %d), bad writes %u, unknown reads %u, scd failed %d, fixed failed %d %s",
+                   bus.last_e000[0], (unsigned) bus.count_e000[0], (unsigned) bus.bad_crc_e000[0], bus.last_e000[1],
+                   (unsigned) bus.count_e000[1], (unsigned) bus.bad_crc_e000[1], fixed, (unsigned) bus.bad_writes,
+                   (unsigned) bus.unknown_reads, (int) id(scd)->is_failed(), (int) id(scd_fixed)->is_failed(),
+                   pass ? "PASS" : "FAIL");
   - platform: template
     name: Direct
     on_press:
       - lambda: |-
           for (float p : {101325.0f, 1013.6f, 450.0f, 1100.2f}) {
-            uint32_t before = scdfake::bus.e000_writes(), bad = scdfake::bus.e000_bad_crc(), bw = scdfake::bus.bad_writes;
+            scdfake::start_case(p);
             id(scd)->set_ambient_pressure_compensation(p);
-            ESP_LOGI("scdfake", "CASE direct %.2f -> %u E000 writes, %u bad CRC, %u bad writes", p,
-                     (unsigned) (scdfake::bus.e000_writes() - before), (unsigned) (scdfake::bus.e000_bad_crc() - bad),
-                     (unsigned) (scdfake::bus.bad_writes - bw));
+            scdfake::log_case("direct", p, -1);
           }

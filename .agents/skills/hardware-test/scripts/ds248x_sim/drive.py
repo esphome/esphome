@@ -4,14 +4,18 @@ usage: SC=path/to/serial_capture.py drive.py TAG SIM_PORT DUT_PORT [PHASES]
 PHASES is a comma list of c, cd, z, b, k, dead (default c,z,b,k,dead). Holds the simulator port for the whole run
 (log and commands); the DUT log is captured per phase into TAG-<phase>.log, each phase starting with a DUT reset.
 Exits 1 when the simulator never reports, the simulator port fails, the DUT capture fails, a phase ends without a
-fresh simulator report, a sensor got no readings in a phase, any temperature is wrong, a fault phase never moved its
+fresh simulator report, a sensor got no correct reading after the last fault of the phase had SETTLE seconds to clear
+(the recovery window), the DUT logged a CRC, held low, busy timeout or no response line in the recovery window, any
+temperature is wrong, a phase other than dead logged a failed recovery, a failed hub or a component marked failed, a
+ds248x warning was still set at the end of a phase, a fault phase never moved its
 injection counter (counted when the DUT meets the fault) or, for a NACK fault, the nacked counter, a write delivered
 data while a NACK was armed (nack_miss), a fault is still pending at the end of a phase, the simulator counted a config write with a wrong complement (cfg_bad) or an unknown
 command or argument (bad_cmd), a counter is missing from the simulator CNT line, the simulator aborted a read reply
 (tx_abrt, not gated in the dead phase), a phase that does not reset the chip (all but b and k) counted a ROM match on
 the wrong channel (wrong_ch) or a 1-Wire command without the active pull-up bit (ops_no_apu), the simulator never
 confirmed going dead, or the DUT log shows no sign of the dead hub (no response, warning, failed hub or failed
-component) in the dead phase. DUT capture stderr goes to TAG-<phase>.err.
+component) in the dead phase. DUT capture stderr goes to TAG-<phase>.err. The whole phase CRC, held low, busy
+timeout and no response counts are printed for information only: the faults cause them.
 """
 
 import os
@@ -27,6 +31,9 @@ import serial
 TAG, SIM, DUT = sys.argv[1:4]
 PHASES = sys.argv[4].split(",") if len(sys.argv) > 4 else ["c", "z", "b", "k", "dead"]
 CAP = [sys.executable, os.environ["SC"]]
+# seconds after the last fault action before the recovery window opens
+SETTLE = 3.0
+STAMP = re.compile(r"^\[(\d\d):(\d\d):(\d\d)(?:\.(\d{3}))?\]")
 # every sensor dspd.yaml configures, with the temperature the simulator serves
 EXPECT = {"t0": 21.5, "t1": 33.0, "t2a": -5.25, "t2b": 40.0}
 ANSI = re.compile(r"\x1b\[[0-9;]*m")
@@ -83,6 +90,19 @@ def last_cnt(before: float) -> dict[str, int]:
     return {}
 
 
+def after(log: str, when: float) -> str:
+    """Lines of a serial_capture --ms log stamped after the wall clock time `when`."""
+    lt = time.localtime(when)
+    ref = lt.tm_hour * 3600 + lt.tm_min * 60 + lt.tm_sec + when % 1
+    keep = []
+    for line in log.splitlines():
+        if m := STAMP.match(line):
+            sod = int(m[1]) * 3600 + int(m[2]) * 60 + int(m[3]) + int(m[4] or 0) / 1000
+            if 0 < (sod - ref) % 86400 < 43200:  # survives midnight
+                keep.append(line)
+    return "\n".join(keep)
+
+
 def phase(
     name: str, seconds: int, actions: list[tuple[float, str]], pre: str = ""
 ) -> None:
@@ -103,14 +123,15 @@ def phase(
     out.unlink(missing_ok=True)
     with pathlib.Path(f"{TAG}-{name}.err").open("wb") as err:
         p = subprocess.Popen(
-            [*CAP, DUT, str(seconds), str(out), "--reset"],
+            [*CAP, DUT, str(seconds), str(out), "--reset", "--ms"],
             stdout=subprocess.DEVNULL,
             stderr=err,
         )
-        t0 = time.time()
+        t0 = last_fault = time.time()
         for at, c in actions:
             time.sleep(max(0.0, t0 + at - time.time()))
             send(c)
+            last_fault = time.time()
         if rc := p.wait():
             failed.append(f"{name} (DUT capture exited {rc}, see {TAG}-{name}.err)")
     n0 = len(sim_lines)
@@ -133,24 +154,52 @@ def phase(
         per[s] = per.get(s, 0) + 1
         if abs(float(v) - EXPECT.get(s, 999)) > 0.01:
             wrong.append(f"{s}={v}")
-    counts = {
-        "crc": len(re.findall(r"[Cc]hecksum|CRC", log)),
-        "held_low": log.count("held low"),
-        "busy_to": log.count("busy timeout"),
+
+    def errors(text: str) -> dict[str, int]:
+        return {
+            "crc": len(re.findall(r"[Cc]hecksum|CRC", text)),
+            "held_low": text.count("held low"),
+            "busy_to": text.count("busy timeout"),
+            "no_resp": text.count("did not respond"),
+        }
+
+    counts = errors(log) | {
         "recov_fail": log.count("recovery failed"),
         "marked_failed": len(re.findall(r"was marked as failed", log)),
         "warn_set": len(re.findall(r"ds248x set Warning", log)),
         "warn_clear": len(re.findall(r"ds248x cleared Warning", log)),
         "hub_failed_bus": log.count("DS248x hub failed"),
-        "no_resp": log.count("did not respond"),
     }
+    # the recovery window: from SETTLE seconds after the last fault action to the end of the capture
+    tail = after(log, last_fault + SETTLE)
+    late_ok = dict.fromkeys(EXPECT, 0)
+    for s, v in re.findall(r"'(\w+)': Got Temperature=(-?[\d.]+)", tail):
+        if s in EXPECT and abs(float(v) - EXPECT[s]) <= 0.01:
+            late_ok[s] += 1
+    late_err = {k: n for k, n in errors(tail).items() if n}
     more = "..." if len(wrong) > 6 else ""
     print(
-        f"{TAG} {name}: readings={per} wrong={wrong[:6]}{more} n_wrong={len(wrong)} {counts} sim={delta}",
+        f"{TAG} {name}: readings={per} recovered={late_ok} wrong={wrong[:6]}{more} n_wrong={len(wrong)} {counts} "
+        f"late_errors={late_err} sim={delta}",
         flush=True,
     )
-    if silent := [s for s, n in per.items() if s in EXPECT and not n]:
-        failed.append(f"{name} (no readings from {silent})")
+    if silent := [s for s, n in late_ok.items() if not n]:
+        failed.append(
+            f"{name} (no correct reading from {silent} in the recovery window)"
+        )
+    if late_err:
+        failed.append(f"{name} (errors in the recovery window {late_err})")
+    if name not in DUT_SAW and (
+        hard := {
+            k: counts[k]
+            for k in ("recov_fail", "marked_failed", "hub_failed_bus")
+            if counts[k]
+        }
+    ):
+        failed.append(f"{name} (failed recovery, hub or component {hard})")
+    warn = re.findall(r"ds248x (set|cleared) Warning", log)
+    if warn and warn[-1] == "set":
+        failed.append(f"{name} (ds248x warning still set at the end of the phase)")
     if wrong:
         failed.append(f"{name} ({len(wrong)} wrong temperatures)")
     if (inj := INJECTED_BY.get(name)) and not delta[inj]:

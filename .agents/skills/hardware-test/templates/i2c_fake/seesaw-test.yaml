@@ -351,6 +351,7 @@ interval:
               check("hub C no transfers after setup", c.nacked, id(c_nacked));
               ESP_LOGI(TAG, "A writes=%u reads=%u chunks=%u shows=%u", (unsigned) a.writes, (unsigned) a.reads,
                        (unsigned) a.np_chunks, (unsigned) a.np_shows);
-              ESP_LOGI(TAG, "ALL DONE pass=%u fail=%u", (unsigned) pass_n, (unsigned) fail_n);
+              ESP_LOGI(TAG, "ALL DONE pass=%u fail=%u %s", (unsigned) pass_n, (unsigned) fail_n,
+                       pass_n && !fail_n ? "PASS" : "FAIL");
               break;
           }

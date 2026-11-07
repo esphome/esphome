@@ -28,14 +28,19 @@ that includes its `.hpp` (add `esphome: name:` for the `-common` ones):
 - `scdfake.hpp`, `scd-common.yaml`: SCD4x at 0x62 and 0x63 with Sensirion CRC; logs every `0xE000` ambient pressure
   write, and the CASE and SHOW lines count writes with a bad CRC apart from the good ones. A write that is neither a
   bare command (2 bytes) nor a command with one CRC word (5 bytes), or any other command with a bad CRC, gets a
-  NACK and counts as `bad writes` on the CASE and SHOW lines. A read after a command the fake does not answer, or one
-  longer than the command's reply, gets a NACK and counts as `unknown reads` on the
-  SHOW line. The second instance has a fixed `ambient_pressure_compensation` to cover the setup path (#21935).
+  NACK and counts as `bad writes`. A read after a command the fake does not answer, or one longer than the command's
+  reply, gets a NACK and counts as `unknown reads`. The second instance has a fixed `ambient_pressure_compensation`
+  to cover the setup path (#21935). Each CASE line ends in PASS only when bad CRC, bad writes and unknown reads did
+  not move, the `0xE000` writes match `expect_e000()` (none, or one with the expected value) and, for a source case,
+  CO2 was published. `RANGE_CHECKED` in `scdfake.hpp` picks the rule: false truncates as dev does, true skips values
+  outside 700 to 1200 hPa and rounds as #21935 did. The SHOW line ends in PASS when nothing bad was counted, neither
+  instance failed and 0x63 got exactly one write of its fixed value.
 - `sxfake.hpp`, `sx-common.yaml`: two SX1509 register files with reset values and the `7D 12/34` reset, recording
   every write. A read without a register, or a transfer past 0x7F, gets a NACK and `dump_log()` warns with the
   count. Compare per address: hub setup order can legitimately move between hubs (#21897). Outputs of an Apply
   platform are distinct template types, so a lambda list of them needs
-  `std::initializer_list<output::FloatOutput *>{...}`.
+  `std::initializer_list<output::FloatOutput *>{...}`. Each case ends with an END line, PASS only while no write was
+  dropped and no transfer was bad; the writes themselves are judged by the diff.
 - `msfake.hpp`: eight MS8607 pressure/temperature fakes at 0x76 and up and humidity fakes at 0x40 and up, with faults
   per device (reset NACKs, bad PROM CRC4, zero D1 every Nth read, humidity CRC8 errors, out of range D2, full scale
   humidity). It counts every command, so skipped conversions show in `report()`; a humidity read of any shape but a bare
@@ -46,11 +51,11 @@ that includes its `.hpp` (add `esphome: name:` for the `-common` ones):
 - `htfake.hpp`, `ht16k33-char-test.yaml`: HT16K33 chips at 0x70 to 0x77 (0x74 and 0x76 NACK) keeping the 16 byte
   display RAM and a command trace, rendered back as text for the Adafruit 0.56" 7-segment backpack ("12:34",
   decimal points, "!" for stray bytes); a read gets a NACK and counts as malformed. The test runs 64 checks (setup order, font, colon and dots, chained chips,
-  printf/strftime/clock, dimming, blink, standby, NACK) and ends with `ALL DONE pass=N fail=M` (#8520). It found a
+  printf/strftime/clock, dimming, blink, standby, NACK) and ends with `ALL DONE pass=N fail=M` and PASS or FAIL (#8520). It found a
   crash (null glyph table) when one display had `add_characters` and another did not.
 - `ssfake.hpp`, `seesaw-test.yaml`: Adafruit seesaw at 0x36 (ATtiny817), 0x49 (SAMD09) and 0x4A (NACK): status,
   GPIO bulk with the pull latch, ADC, touch, encoder and NeoPixel with chunk offsets, and the write to read gap per
-  module. A read it does not model and a write without a register get a NACK and count in `bad`. A 100 ms interval step machine drives it and ends with `ALL DONE` (#13538).
+  module. A read it does not model and a write without a register get a NACK and count in `bad`. A 100 ms interval step machine drives it and ends with `ALL DONE` and PASS or FAIL (#13538).
 - `bldcfake.hpp` (three M5Unit-BLDC units at 0x65 to 0x67 with simple motor physics, one that never spins down),
   `gtfake.hpp` (GT911 at 0x5D: switches, max values, touch points and key byte) and `sdpfake.hpp` (SDP3x/SDP8xx at
   0x21 to 0x26: product IDs, an unknown product, a failing read every third time, a failing ID read, stop refused
@@ -87,7 +92,11 @@ on the Pico's USB console: `c` NACKs the read pointer write after the next chann
 after the next 0xBE, `b` and `k` stick busy with a failed reset or config write, `x` and `X` make it dead and alive.
 `SC=<serial_capture.py> python3 drive.py TAG SIM_PORT DUT_PORT [c,z,b,k,dead]` resets the DUT per phase and prints
 readings, wrong values, log counts and the simulator's counters (`wrong_ch` counts ROM matches on the wrong
-channel). A phase fails when any of the four sensors got no readings, a temperature is wrong, the DUT capture
+channel). The DUT is captured with `--ms` so the log can be split at the last fault: the recovery window starts
+`SETTLE` (3) seconds after it. A phase fails when any of the four sensors got no correct reading in the recovery
+window, the DUT logged a CRC, held low, busy timeout or no response line in it, a temperature is wrong, a phase other
+than `dead` logged `recovery failed`, `DS248x hub failed` or a component marked failed, a ds248x warning is still
+set at the end of the phase, the DUT capture
 failed (stderr in `TAG-<phase>.err`), a fault never moved its injection counter (counted when the DUT meets the
 fault, not when it is armed), a NACK fault never moved `nacked`, a write delivered data while a NACK was armed
 (`nack_miss`, the NACK never reached the wire and stays pending), a fault is still pending (`pend=1`) at the end of the
@@ -97,7 +106,8 @@ command (`bad_cmd`), a counter is missing from the simulator's CNT line, the sim
 reset the chip under the driver) counted `wrong_ch` or a 1-Wire command without the active pull-up bit (`ops_no_apu`),
 the simulator never logged `DEAD` for the `dead`
 phase, or the DUT log of the `dead` phase has no sign of the outage (`did not respond`, a ds248x warning,
-`DS248x hub failed` or a component marked failed). It ends with PASS or `FAIL:` and the failed phases.
+`DS248x hub failed` or a component marked failed). It ends with PASS or `FAIL:` and the failed phases. The whole
+phase CRC, held low, busy timeout and no response counts are printed for information: the faults cause them.
 
 - Sensors polled at the same interval go through the channels in blocks, so a stale channel cache never shows.
   Poll them at different intervals, as `dspd.yaml` does (1, 1.3, 1.7 and 2.3 s).

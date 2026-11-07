@@ -81,6 +81,9 @@ struct Bus final : public esphome::i2c::I2CBus {
       ESP_LOGW(TAG, "dropped %u writes", (unsigned) this->dropped);
     if (this->bad)
       ESP_LOGW(TAG, "%u transfers without a register or past 0x7F, NACKed", (unsigned) this->bad);
+    // the fake's own verdict; whether the writes are right is decided by diffing them between builds
+    ESP_LOGI(TAG, "END dropped %u bad %u %s", (unsigned) this->dropped, (unsigned) this->bad,
+             this->dropped || this->bad ? "FAIL" : "PASS");
   }
 
   void dump_regs() {
