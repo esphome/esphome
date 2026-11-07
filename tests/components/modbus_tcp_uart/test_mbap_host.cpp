@@ -155,6 +155,23 @@ TEST(MbapTest, TakeRtuEndsAnUnknownFunctionAtItsCrc) {
   EXPECT_EQ(len, 6u);
 }
 
+TEST(MbapTest, TakeRtuTakesTheZeroThatEndsACrc) {
+  // Function 0x41 has no known length. With the data 00 10 its CRC ends in 0x00, the last byte on the wire.
+  uint8_t frame[6] = {0x01, 0x41, 0x00, 0x10};
+  const uint16_t crc = crc16(frame, 4);
+  frame[4] = crc & 0xFF;
+  frame[5] = crc >> 8;
+  ASSERT_EQ(crc >> 8, 0);
+  // So the CRC already matches one byte before the end.
+  ASSERT_TRUE(rtu_crc_ok(frame, sizeof(frame) - 1));
+  // Taken whole, as a reply and as a request.
+  size_t len = 0;
+  ASSERT_EQ(take_rtu(frame, sizeof(frame), true, &len), RtuTake::FRAME);
+  EXPECT_EQ(len, sizeof(frame));
+  ASSERT_EQ(take_rtu(frame, sizeof(frame), false, &len), RtuTake::FRAME);
+  EXPECT_EQ(len, sizeof(frame));
+}
+
 TEST(MbapTest, TakeRtuReadsTheByteCountOfAFifoReply) {
   // The Read FIFO Queue reply of [APP 6.18]: byte count 6, FIFO count 2, values 0x01B8 and 0x1284, CRC.
   const uint8_t reply[] = {0x01, 0x18, 0x00, 0x06, 0x00, 0x02, 0x01, 0xB8, 0x12, 0x84, 0x19, 0x18};
