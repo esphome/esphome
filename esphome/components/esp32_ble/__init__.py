@@ -268,6 +268,7 @@ CONF_MAX_KEY_SIZE = "max_key_size"
 CONF_MIN_KEY_SIZE = "min_key_size"
 CONF_ADVERTISING = "advertising"
 CONF_ADVERTISING_CYCLE_TIME = "advertising_cycle_time"
+CONF_ADVERTISE_SERVICES = "advertise_services"
 CONF_DISABLE_BT_LOGS = "disable_bt_logs"
 CONF_CONNECTION_TIMEOUT = "connection_timeout"
 CONF_MAX_NOTIFICATIONS = "max_notifications"
@@ -363,6 +364,7 @@ CONFIG_SCHEMA = cv.Schema(
         cv.Optional(
             CONF_ADVERTISING_CYCLE_TIME, default="10s"
         ): cv.positive_time_period_milliseconds,
+        cv.Optional(CONF_ADVERTISE_SERVICES, default=True): cv.boolean,
         cv.Optional(CONF_DISABLE_BT_LOGS, default=True): cv.boolean,
         cv.Optional(CONF_CONNECTION_TIMEOUT, default="20s"): cv.All(
             cv.positive_time_period_seconds,
@@ -550,6 +552,8 @@ async def to_code(config: ConfigType) -> None:
     cg.add_optional(var.set_min_key_size, config.get(CONF_MIN_KEY_SIZE))
 
     cg.add(var.set_advertising_cycle_time(config[CONF_ADVERTISING_CYCLE_TIME]))
+    if not config[CONF_ADVERTISE_SERVICES]:
+        cg.add(var.set_advertise_services(False))
     cg.add_optional(var.set_name, config.get(CONF_NAME))
     await cg.register_component(var, config)
 

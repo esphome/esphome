@@ -32,6 +32,9 @@ class BLEAdvertising {
   void set_service_data(std::span<const uint8_t> data);
   void set_include_name(bool include_name) { this->include_name_in_adv_ = include_name; }
   void register_raw_advertisement_callback(std::function<void(bool)> &&callback);
+  /// Whether the services advertisement takes a turn in the rotation with the raw
+  /// advertisements. Off, only the raw ones (e.g. a beacon) are sent.
+  void set_advertise_services(bool advertise) { this->advertise_services_ = advertise; }
 
   void start();
   void stop();
@@ -41,6 +44,7 @@ class BLEAdvertising {
 
   bool scan_response_;
   bool include_name_in_adv_{false};
+  bool advertise_services_{true};
   esp_ble_adv_data_t advertising_data_;
   esp_ble_adv_data_t scan_response_data_;
   esp_ble_adv_params_t advertising_params_;
