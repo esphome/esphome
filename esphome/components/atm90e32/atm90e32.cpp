@@ -91,13 +91,15 @@ void ATM90E32Component::loop() {
 
       PUBLISH_STATE(this->phase_[phase].apparent_power_sensor_, this->get_local_phase_apparent_power_(phase));
 
-      if (!std::isnan(forward_energy))
+      if (!std::isnan(forward_energy)) {
         PUBLISH_STATE(this->phase_[phase].forward_active_energy_sensor_,
                       this->get_local_phase_forward_active_energy_(phase));
+      }
 
-      if (!std::isnan(reverse_energy))
+      if (!std::isnan(reverse_energy)) {
         PUBLISH_STATE(this->phase_[phase].reverse_active_energy_sensor_,
                       this->get_local_phase_reverse_active_energy_(phase));
+      }
 
       PUBLISH_STATE(this->phase_[phase].phase_angle_sensor_, this->get_local_phase_angle_(phase));
 
