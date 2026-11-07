@@ -48,6 +48,8 @@ from esphome.core import (
 from esphome.core.entity_helpers import (
     RESTORE_STATE_NONE,
     entity_duplicate_validator,
+    lazy_load_setup,
+    lazy_load_validator,
     mqtt_component_class,
     queue_entity_register,
     setup_entity,
@@ -420,6 +422,7 @@ INITIAL_STATE_SCHEMA = LIGHT_STATE_SCHEMA.extend(
 LIGHT_SCHEMA = (
     cv.ENTITY_BASE_SCHEMA.extend(entity_helpers.WEBSERVER_SORTING_SCHEMA)
     .extend(cv.MQTT_COMMAND_COMPONENT_SCHEMA)
+    .extend(entity_helpers.ZIGBEE_LIGHT_SCHEMA)
     .extend(
         {
             cv.GenerateID(): cv.declare_id(LightState),
@@ -453,6 +456,7 @@ LIGHT_SCHEMA = (
 )
 
 LIGHT_SCHEMA.add_extra(entity_duplicate_validator("light"))
+LIGHT_SCHEMA.add_extra(lazy_load_validator("zigbee", "validate_light"))
 
 
 def _validate_initial_state_effect(config: ConfigType) -> ConfigType:
@@ -713,6 +717,7 @@ async def setup_light_core_(light_var, config, output_var):
             cg.add(output_var.set_max_current_ma(max_current_ma))
 
     await entity_helpers.setup_entity_integrations(light_var, config)
+    await lazy_load_setup("zigbee", "setup_light", light_var, config)
 
 
 async def register_light(output_var, config):

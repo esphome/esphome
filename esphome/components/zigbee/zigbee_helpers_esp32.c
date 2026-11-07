@@ -33,6 +33,24 @@ ezb_af_ep_desc_t esphome_zb_zha_default_ep_desc_create(uint8_t ep_id, uint16_t d
       ep_desc = ezb_zha_create_mains_power_outlet(ep_id, &config);
       break;
     }
+    case EZB_ZHA_ON_OFF_LIGHT_DEVICE_ID: {
+      ezb_zha_on_off_light_config_t config = EZB_ZHA_ON_OFF_LIGHT_CONFIG();
+      config.basic_cfg.power_source = power_source;
+      ep_desc = ezb_zha_create_on_off_light(ep_id, &config);
+      break;
+    }
+    case EZB_ZHA_DIMMABLE_LIGHT_DEVICE_ID: {
+      ezb_zha_dimmable_light_config_t config = EZB_ZHA_DIMMABLE_LIGHT_CONFIG();
+      config.basic_cfg.power_source = power_source;
+      ep_desc = ezb_zha_create_dimmable_light(ep_id, &config);
+      break;
+    }
+    case EZB_ZHA_COLOR_DIMMABLE_LIGHT_DEVICE_ID: {
+      ezb_zha_color_dimmable_light_config_t config = EZB_ZHA_COLOR_DIMMABLE_LIGHT_CONFIG();
+      config.basic_cfg.power_source = power_source;
+      ep_desc = ezb_zha_create_color_dimmable_light(ep_id, &config);
+      break;
+    }
     case EZB_ZHA_LIGHT_SENSOR_DEVICE_ID: {
       ezb_zha_light_sensor_config_t config = EZB_ZHA_LIGHT_SENSOR_CONFIG();
       config.basic_cfg.power_source = power_source;
@@ -68,6 +86,8 @@ ezb_zcl_cluster_desc_t esphome_zb_default_cluster_dscr_create(uint16_t cluster_i
       return ezb_zcl_identify_create_cluster_desc(NULL, role_mask);
     case EZB_ZCL_CLUSTER_ID_ON_OFF:
       return ezb_zcl_on_off_create_cluster_desc(NULL, role_mask);
+    case EZB_ZCL_CLUSTER_ID_LEVEL:
+      return ezb_zcl_level_create_cluster_desc(NULL, role_mask);
     case EZB_ZCL_CLUSTER_ID_TIME:
       return ezb_zcl_time_create_cluster_desc(NULL, role_mask);
     case EZB_ZCL_CLUSTER_ID_ANALOG_INPUT:
@@ -111,6 +131,8 @@ ezb_err_t esphome_zb_cluster_add_attr(uint16_t cluster_id, ezb_zcl_cluster_desc_
       return ezb_zcl_identify_cluster_desc_add_attr(cluster_desc, attr_id, value_p);
     case EZB_ZCL_CLUSTER_ID_ON_OFF:
       return ezb_zcl_on_off_cluster_desc_add_attr(cluster_desc, attr_id, value_p);
+    case EZB_ZCL_CLUSTER_ID_LEVEL:
+      return ezb_zcl_level_cluster_desc_add_attr(cluster_desc, attr_id, value_p);
     case EZB_ZCL_CLUSTER_ID_TIME:
       return ezb_zcl_time_cluster_desc_add_attr(cluster_desc, attr_id, value_p);
     case EZB_ZCL_CLUSTER_ID_ANALOG_INPUT:
