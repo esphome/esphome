@@ -858,9 +858,7 @@ def static_function(
     parameters: TemplateArgsType,
     body: list[str | Statement],
 ) -> RawExpression:
-    """Emit ``static <return_type> <name>(parameters) { body }`` at global scope and return an
-    expression naming it, for use as a template argument or a function pointer.
-    """
+    """``declare_static_function`` with the body known at once."""
     return declare_static_function(name, return_type, parameters)(body)
 
 
