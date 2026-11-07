@@ -178,8 +178,15 @@ template<uint32_t PRIORITY_BITS> class PriorityComponent : public Component {
   float get_setup_priority() const override { return bit_cast<float>(PRIORITY_BITS); }
 };
 
-/// 600.0f, setup_priority::DATA: the Component default, so no override.
-template<> class PriorityComponent<0x44160000> : public Component {};
+/// Bit pattern of setup_priority::DATA (600.0f), the Component default.
+static constexpr uint32_t SETUP_PRIORITY_DATA_BITS = 0x44160000;
+// bit_cast is constexpr only where std::bit_cast exists, which GCC 10 (ESP8266) lacks
+#if __cpp_lib_bit_cast >= 201806
+static_assert(bit_cast<uint32_t>(setup_priority::DATA) == SETUP_PRIORITY_DATA_BITS);
+#endif
+
+/// The default priority needs no override.
+template<> class PriorityComponent<SETUP_PRIORITY_DATA_BITS> : public Component {};
 
 /// Calls Fn from setup(), for on_boot.
 template<auto Fn, uint32_t PRIORITY_BITS> class StartupCallback final : public PriorityComponent<PRIORITY_BITS> {
