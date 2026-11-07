@@ -1356,3 +1356,31 @@ async def test_uart_mock_modbus_ranges(
         # text_block is not tracker-registered (non-numeric), so time out explicitly.
         await wait_or_fail(text_future, 5.0, "text_block never published 'ABCDEF'")
         _assert_no_modbus_errors(error_log_lines, warning_log_lines)
+
+
+@pytest.mark.asyncio
+async def test_uart_mock_modbus_crc_ends_in_zero(
+    yaml_config: str,
+    run_compiled: RunCompiledFunction,
+    api_client_connected: APIClientConnectedFactory,
+) -> None:
+    """Test that a reply whose CRC ends in 0x00 arrives whole.
+
+    Function code 0x49 has no known length, so the hub finds the end of the reply by its CRC.
+    The reply 02 49 02 AA 51 has the CRC 0x0055, sent low byte first, so its last byte is 0x00.
+    The handler must get the whole PDU: the function code 0x49 and all three data bytes. No byte
+    may be left over for the hub to clear with a warning.
+    """
+
+    line_callback, error_log_lines, warning_log_lines = _make_modbus_line_callback()
+
+    tracker = SensorTracker(["reply"])
+    futures = tracker.expect_all({"reply": "49 02 AA 51"})
+
+    async with (
+        run_compiled(yaml_config, line_callback=line_callback),
+        api_client_connected() as client,
+    ):
+        await tracker.setup_and_start_scenario(client)
+        await tracker.await_all(futures)
+        _assert_no_modbus_errors(error_log_lines, warning_log_lines)

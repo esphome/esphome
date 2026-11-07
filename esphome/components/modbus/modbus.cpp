@@ -252,16 +252,21 @@ uint16_t Modbus::find_frame_end_by_crc_(uint16_t min_length) const {
   const auto max_len = static_cast<uint16_t>(std::min(size, size_t(MAX_FRAME_SIZE)));
   if (min_length > max_len)
     return 0;
+  // After the CRC's low byte the running CRC equals its high byte, so a CRC ending in 0x00 matches one byte
+  // early: a 0x00 right behind the match is taken as the frame's last byte.
+  const auto frame_end = [raw, max_len](uint16_t len) -> uint16_t {
+    return len < max_len && raw[len] == 0 ? len + 1 : len;
+  };
   // The Modbus CRC (poly 0xa001, refin/refout false) keeps its running state in the returned value,
   // so we seed once over the first min_length bytes and extend one byte at a time instead of
   // recomputing the whole prefix for every candidate length.
   uint16_t crc = crc16(raw, min_length);
   if (crc == 0)
-    return min_length;
+    return frame_end(min_length);
   for (uint16_t len = min_length; len < max_len; len++) {
     crc = crc16(&raw[len], 1, crc);
     if (crc == 0)
-      return len + 1;
+      return frame_end(len + 1);
   }
   return 0;
 }

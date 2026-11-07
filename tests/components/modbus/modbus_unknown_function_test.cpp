@@ -29,6 +29,12 @@ class CustomRecordingDevice : public ModbusClientDevice {
 // Every handler keeps its ILLEGAL_FUNCTION default; the hub's dispatch is what is under test.
 class SilentServerDevice : public ModbusServerDevice {};
 
+// Shows whether a parsed frame left any of its bytes behind in the receive buffer.
+class TestClientHub : public ModbusClientHub {
+ public:
+  bool rx_buffer_empty() const { return this->rx_buffer_.empty(); }
+};
+
 // Drives full client frames through the server hub's receive path (same shape as the broadcast tests).
 class TestServerHub : public ModbusServerHub {
  public:
@@ -143,6 +149,57 @@ TEST(ModbusUnknownFunction, ServerRepliesIllegalFunctionToUnknownLengthRequest) 
 
   const uint8_t data[] = {0x02, 0xAA, 0xBB};
   ASSERT_TRUE(hub.run_receive_parser_for_test(0x02, 0x49, data));
+
+  // Expected reply: address + FC with exception flag + ILLEGAL_FUNCTION + CRC.
+  std::vector<uint8_t> expected = {0x02, 0xC9, 0x01};
+  uint16_t crc = crc16(expected.data(), expected.size());
+  expected.push_back(crc & 0xFF);
+  expected.push_back(crc >> 8);
+  EXPECT_EQ(uart.written, expected);
+}
+
+// After the CRC's low byte the running CRC equals its high byte, so a frame whose CRC ends in 0x00 already
+// matches one byte early. Frame 02 49 02 AA 51 has CRC 0x0055, sent low byte first: its last byte is 0x00.
+// The reply must still reach the device whole, with nothing left in the buffer.
+TEST(ModbusUnknownFunction, ClientTakesWholeResponseWhoseCrcEndsInZero) {
+  InjectableUART uart;
+  TestClientHub hub;
+  hub.set_uart_parent(&uart);
+  hub.setup();
+  CustomRecordingDevice device(&hub, 0x02);
+
+  const uint8_t request[] = {0x49, 0x01};
+  ASSERT_TRUE(device.queue_pdu(request));
+  hub.loop();  // transmit
+
+  const uint8_t frame_without_crc[] = {0x02, 0x49, 0x02, 0xAA, 0x51};
+  ASSERT_EQ(crc16(frame_without_crc, sizeof(frame_without_crc)) >> 8, 0x00);
+  const uint8_t response_pdu[] = {0x49, 0x02, 0xAA, 0x51};
+  uart.inject_frame(0x02, response_pdu);
+  hub.loop();  // receive + parse + match + dispatch
+
+  ASSERT_EQ(device.responses.size(), 1u);
+  EXPECT_EQ(device.responses[0], std::vector<uint8_t>(response_pdu, response_pdu + sizeof(response_pdu)));
+  EXPECT_TRUE(hub.rx_buffer_empty());
+}
+
+// The same frame as a request to a server hub. It must be taken whole: a byte left in the buffer holds the
+// device's ILLEGAL_FUNCTION reply back and then drops it, so the client would get no answer.
+TEST(ModbusUnknownFunction, ServerAnswersRequestWhoseCrcEndsInZero) {
+  InjectableUART uart;
+  ModbusServerHub hub;
+  hub.set_uart_parent(&uart);
+  hub.setup();
+
+  SilentServerDevice device;
+  device.set_address(0x02);
+  hub.register_device(&device);
+
+  const uint8_t frame_without_crc[] = {0x02, 0x49, 0x02, 0xAA, 0x51};
+  ASSERT_EQ(crc16(frame_without_crc, sizeof(frame_without_crc)) >> 8, 0x00);
+  const uint8_t request_pdu[] = {0x49, 0x02, 0xAA, 0x51};
+  uart.inject_frame(0x02, request_pdu);
+  hub.loop();  // receive + parse + reply
 
   // Expected reply: address + FC with exception flag + ILLEGAL_FUNCTION + CRC.
   std::vector<uint8_t> expected = {0x02, 0xC9, 0x01};
