@@ -373,11 +373,14 @@ TEST_F(TcpUartTwoClients, WriteAfterTheLastHolderClosedNeverReachesTheNextClient
   this->read_all();
   this->at(1100);
   this->loops(1);
+  const uint16_t turn_of_a = this->uart_.turn();
   ::close(this->a_);
   this->a_ = -1;
   for (int i = 0; i < 50 && this->uart_.open_connections() == 2; i++) {
     this->loops(1);
   }
+  // A's turn ended at 1100, but writes went to A until it closed, so the close changes the turn.
+  EXPECT_NE(this->uart_.turn(), turn_of_a);
   // C takes the slot A left.
   this->c_ = this->connect_client();
   this->write("late");
@@ -394,6 +397,7 @@ TEST_F(TcpUartTwoClients, FullPoolClosesTheClientQuietLongest) {
   this->read_all();
   this->at(2100);
   this->loops(1);
+  const uint16_t turn_of_b = this->uart_.turn();
 
   this->at(3000);
   this->c_ = this->connect_client();
@@ -401,6 +405,8 @@ TEST_F(TcpUartTwoClients, FullPoolClosesTheClientQuietLongest) {
   EXPECT_EQ(received(this->b_), "");
   EXPECT_EQ(this->uart_.open_connections(), 2);
   EXPECT_FLOAT_EQ(this->disconnects_.state, 1);
+  // Writes still go to B, so closing A keeps the turn.
+  EXPECT_EQ(this->uart_.turn(), turn_of_b);
 
   send(this->c_, "new");
   this->wait_for_bytes(3);
