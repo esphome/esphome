@@ -28,5 +28,5 @@ want "$N" 0 "non-200 answers in the 60 requests"
 c "https://$H:8443/hw"
 echo "== bad key"; want "$(st "https://$H:8443/hw/switch/bad")" 202 "switch to the bad key"; sleep 3
 want "$(st "https://$H/hw")" 000 https:443; want "$(st "https://$H:8443/hw")" 000 https:8443
-want "$(st "http://$H/hw")" 000 http:80; echo "  check the device log for the key error"
+want "$(st "http://$H/hw")" 000 http:80; echo "  run.sh checks the device log for the key error"
 [ "$FAIL" = 0 ] && echo PASS || { echo "FAIL: a listener did not answer or stay off as expected"; exit 1; }

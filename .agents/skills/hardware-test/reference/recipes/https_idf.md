@@ -21,6 +21,6 @@ takes the address from the serial log and runs:
   then the bad key. The server must log the error and stay off, without falling back to plain HTTP; reset the board
   afterwards.
 
-The runner fails on any unexpected status, a reset or a task watchdog. `https-soak.yaml` adds a switch between 443
+The runner fails on any unexpected status, a missing key error for the bad key, a reset or a task watchdog. `https-soak.yaml` adds a switch between 443
 and 8443 every 20 s for a long run with clients attached. Each HTTPS connection takes about 26 KB of internal RAM
 (no PSRAM on the C3), so watch the `ALIVE heap=... min=...` lines.

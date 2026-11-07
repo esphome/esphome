@@ -4,6 +4,7 @@ Import it with this directory on sys.path (the drivers add their parent director
 """
 
 import asyncio
+import contextlib
 import os
 import re
 import sys
@@ -43,6 +44,9 @@ async def connect(host: str, tries: int = 30, timeout: float = 10) -> APIClient:
             sys.exit(f"no API connection to {host}: {type(e).__name__}: {e}")
         except Exception as e:  # noqa: BLE001
             last = e
+            # release the half-open socket so retries do not use up the device's API slots
+            with contextlib.suppress(Exception):
+                await c.disconnect(force=True)
             await asyncio.sleep(1)
         else:
             return c

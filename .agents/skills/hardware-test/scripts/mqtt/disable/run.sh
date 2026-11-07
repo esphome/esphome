@@ -5,8 +5,9 @@
 #           disabled window), then count per disabled window with analyze.py
 #   drop:   stop the broker 6 s after every EV ENABLE for 15 s (a drop while the client reconnects)
 # Exits 1 on a reset or task watchdog, when no cycle ran, the device never connected, the broker was never stopped or
-# did not restart, or in outage mode when no inbound message arrived or analyze.py found a connect or an inbound
-# message inside a disabled window. Run it from a scratch copy of this directory with a secrets.yaml (wifi_ssid,
+# did not restart (start means the port answers a publish), or in outage mode when no inbound message arrived, the
+# device did not reconnect after the restart, or analyze.py found a connect or an inbound message inside a disabled
+# window. Run it from a scratch copy of this directory with a secrets.yaml (wifi_ssid,
 # wifi_password).
 # env: TREE, PORT, SC (path to serial_capture.py), PY (checkout python), BROKER (this host's address as the board
 # sees it: a stale one gives esp-tls select() timeout), BROKER_PORT (default 18831), ASYNC (idf_send_async, default
@@ -34,7 +35,15 @@ packages:
   common: !include disable-common.yaml
 YAML
 printf 'listener %s\nallow_anonymous true\nlog_type all\nlog_timestamp_format %%H:%%M:%%S\nlog_dest file %s\n' "$BP" "$O/mosq.log" > "$O/mosq.conf"
-broker_up() { "$MQ" -c "$O/mosq.conf" -d && echo "$(date +%T) BROKER START" >> "$O/driver.txt"; }
+# -d forks before the listener binds, so only a publish that gets through proves the broker is up
+broker_up() {
+  "$MQ" -c "$O/mosq.conf" -d || return 1
+  for _ in $(seq 20); do
+    mosquitto_pub -p "$BP" -t probe -n 2>/dev/null && { echo "$(date +%T) BROKER START" >> "$O/driver.txt"; return 0; }
+    sleep 0.5
+  done
+  return 1
+}
 broker_down() {
   pkill -f "[m]osquitto -c $O/mosq.conf" || { echo "FAIL: mosquitto was not running when it was to be stopped"; exit 1; }
   echo "$(date +%T) BROKER STOP" >> "$O/driver.txt"
@@ -51,6 +60,7 @@ if [ "$MODE" = outage ]; then
   until grep -a -q "CYCLE 3 " "$O/serial.txt" 2>/dev/null; do sleep 1; kill -0 $CAP 2>/dev/null || break; done
   grep -a -q "CYCLE 3 " "$O/serial.txt" 2>/dev/null || { echo "FAIL: CYCLE 3 never appeared"; exit 1; }
   sleep 45; broker_down; sleep 25; broker_up || { echo "FAIL: mosquitto did not restart"; exit 1; }; sleep 1; kill $SUB 2>/dev/null; sub
+  CONNECTS_AT_RESTART=$(grep -a -c 'EV CONNECT' "$O/serial.txt")
 else
   seen=0
   while kill -0 $CAP 2>/dev/null; do
@@ -67,6 +77,7 @@ if [ "$MODE" = outage ]; then python3 "$D/analyze.py" "$O" "$NAME" || { echo "FA
 [ "$(c 'CYCLE ')" -gt 0 ] || { echo "FAIL: no disable cycle ran"; exit 1; }
 [ "$(c 'EV CONNECT')" -gt 0 ] || { echo "FAIL: the device never connected to the broker"; exit 1; }
 [ "$MODE" = drop ] || [ "$(c 'EV MSG')" -gt 0 ] || { echo "FAIL: no inbound message arrived"; exit 1; }
+[ "$MODE" = drop ] || [ "$(c 'EV CONNECT')" -gt "$CONNECTS_AT_RESTART" ] || { echo "FAIL: no connect after the broker restart"; exit 1; }
 grep -q 'BROKER STOP' "$O/driver.txt" 2> /dev/null || { echo "FAIL: the broker was never stopped"; exit 1; }
 [ "$(c task_wdt)" = 0 ] && [ "$(grep -a -c -E 'Guru|abort\(\)|Backtrace|rst:0x' "$O/serial.txt")" = 0 ] || { echo "FAIL: reset or task watchdog"; exit 1; }
 echo PASS

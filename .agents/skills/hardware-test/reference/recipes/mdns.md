@@ -9,7 +9,7 @@ straight to the device's port 5353 with python-zeroconf packets:
 - `mq.py IP HOSTNAME dump` asks for the `_esphomelib` and `_hwtest` PTR records, the A record and the SRV and TXT
   records of both services, prints the answers and exits 1 when one is missing. Diff the dump between builds.
 - `mq.py IP HOSTNAME hammer N [TIMEOUT]` sends N questions back to back (0.5 s timeout each) and counts misses per
-  question.
+  question. It exits 1 when nothing was answered, or when more than `MAX_MISS_PCT` percent (env) were missed.
 - `mq.py IP HOSTNAME lat N` sends A queries 300 ms apart and prints the median, p90, p99 and maximum latency and how
   many answers came after 1.5 s or never.
 

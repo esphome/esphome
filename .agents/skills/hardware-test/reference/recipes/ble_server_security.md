@@ -59,8 +59,8 @@ with uint16 frame and empty notification rounds, set through `id(c)->set_value(.
 every 60 s). `run.sh LABEL` (env `TREE`, `SERVER_PORT`, `CLIENT_PORT`, `SERVER_BLE_MAC`, `SC`, `PY`) flashes both,
 captures the client 150 s and counts `on_notify` against `on_value` per sensor.
 
-- Also count `All clients established, services released`: before #21821 it never appears with a text sensor
-  `on_notify`.
+- `run.sh` also requires `All clients established, services released`: before #21821 it never appears with a text
+  sensor `on_notify`. The delayed txt `on_notify` may miss only the last notify of the capture.
 - The server takes one connection. Park any other client that would connect to it with
   `esptool --after no-reset chip_id` (the board stays in the bootloader).
 - An ESP32-C6 devkit whose native USB port refuses esptool can be flashed and logged through its UART bridge port

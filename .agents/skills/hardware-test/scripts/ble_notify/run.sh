@@ -1,6 +1,8 @@
 #!/bin/bash
 # run.sh LABEL: build and flash the notify server (SERVER_PORT) and the ble_client (CLIENT_PORT) from TREE, capture
-# the client 150 s (two link cycles) and count on_notify against on_value per sensor.
+# the client 150 s (two link cycles) and count on_notify against on_value per sensor. Fails on a crash, no notify, the
+# two triggers of a sensor firing a different number of times (the delayed txt one may miss the last notify), or no
+# `services released` line (#21821).
 # env: TREE (esphome checkout), SERVER_PORT, CLIENT_PORT, SERVER_BLE_MAC (from the server's esp32_ble dump; flash the
 # server once and read it), SC (path to serial_capture.py), PY (checkout python)
 R=$(cd "$(dirname "$0")" && pwd); L=${1:?label}; T=${TREE:?set TREE}; PY=${PY:-$T/venv/bin/python}; SC=${SC:?set SC}
@@ -20,4 +22,8 @@ CRASH=$(sed -n '/CLI connected/,$p' "$OUT/client.txt" | grep -a -c -E 'Guru|abor
 [ "$(c 'num notify A')" -gt 0 ] && [ "$(c 'txt notify A')" -gt 0 ] || { echo "FAIL: no on_notify fired"; exit 1; }
 [ "$(c 'txt notify B')" -gt 0 ] || { echo "FAIL: the delayed txt on_notify never fired"; exit 1; }
 [ "$(c 'num notify A')" = "$(c 'num notify B')" ] || { echo "FAIL: the two num on_notify triggers fired a different number of times"; exit 1; }
+# the 1 s delay can push the last txt notify B past the end of the capture
+TD=$(($(c 'txt notify A') - $(c 'txt notify B')))
+[ "$TD" -ge 0 ] && [ "$TD" -le 1 ] || { echo "FAIL: txt notify A and B differ by $TD"; exit 1; }
+[ "$(c 'All clients established, services released')" -gt 0 ] || { echo "FAIL: services were never released (#21821)"; exit 1; }
 echo PASS

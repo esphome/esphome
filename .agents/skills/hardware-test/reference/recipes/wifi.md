@@ -85,9 +85,10 @@ stops the other runs' captures.
 default; pick one your normal network does not use), and `dut-common.yaml` gives the device under test that AP at
 priority 10 plus your normal network, logs every `wifi_info` ssid and channel update (with the channel the component
 reports and whether it is connected), and cycles `wifi.disable` and `wifi.enable` every 90 s. `run.sh LABEL` (env
-`TREE`, `PORT`, `AP_PORT`, `SC`, `PY`) flashes the device and captures 420 s while it takes the AP down with
+`TREE`, `PORT`, `AP_PORT`, `SC`, `PY`, and `BENCH_CHANNEL` when the AP is not on 11) flashes the device and captures 420 s while it takes the AP down with
 `esptool --port <AP port> --after no-reset chip_id` (the board stays in the bootloader) and back with
-`--after hard-reset`. The channel sensor must follow every move between the two networks.
+`--after hard-reset`. The channel sensor must follow every move between the two networks: the run passes when the
+connected channel starts and ends on the bench channel with another channel in between.
 
 - Dropping the AP under a connected device gives a `Beacon Timeout` link loss.
 - The 90 s interval fires once right after boot.

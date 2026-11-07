@@ -1,11 +1,14 @@
 """Legacy unicast mDNS queries straight to a device, for networks where multicast from the host does not arrive.
 
 usage: mq.py IP HOSTNAME dump              ask each question once and print the answers (exit 1 if one is missing)
-       mq.py IP HOSTNAME hammer N [TIMEOUT]  N questions back to back, count misses per question
+       mq.py IP HOSTNAME hammer N [TIMEOUT]  N questions back to back, count misses per question (exit 1 when more
+                                           than MAX_MISS_PCT percent were missed; default 100, so only when none
+                                           was answered)
        mq.py IP HOSTNAME lat N             N A queries 300 ms apart; per-query latency, answers after 1.5 s are late
                                            (exit 1 when none was answered)
 """
 
+import os
 import select
 import socket
 import statistics
@@ -128,5 +131,8 @@ else:
     print(
         f"hammer {n} queries in {time.monotonic() - t0:.1f}s: answered {ok}, missed {miss}, worst {worst * 1000:.0f} ms, misses by question {per}"
     )
-    missing = 0 if ok else 1
+    max_miss_pct = float(os.environ.get("MAX_MISS_PCT", "100"))
+    missing = not ok or miss * 100 > max_miss_pct * n
+    if missing:
+        print(f"FAIL: missed {miss} of {n}, the limit is {max_miss_pct:g}%")
 sys.exit(1 if missing else 0)
