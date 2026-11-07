@@ -481,8 +481,7 @@ class WiFiComponent final : public Component {
   void set_sta(const WiFiAP &ap);
   // Returns a copy of the currently selected AP configuration
   WiFiAP get_sta() const;
-  // init_sta/add_sta kept out of line: inlining them into the generated setup() grows flash
-  void init_sta(size_t count);
+  // add_sta kept out of line: inlining it into the generated setup() grows flash
   void add_sta(const WiFiAP &ap);
   void clear_sta();
 
@@ -993,7 +992,6 @@ class WiFiComponent final : public Component {
 #endif
 
   // Large/pointer-aligned members first
-  FixedVector<WiFiAP> sta_;
   std::vector<WiFiSTAPriority> sta_priorities_;
   // Guarded by ScanResultsLock (see below this class)
   wifi_scan_vector_t<WiFiScanResult> scan_result_;
@@ -1223,6 +1221,8 @@ class WiFiComponent final : public Component {
   FreeRTOSQueue<LTWiFiEvent, LT_EVENT_QUEUE_SIZE> event_queue_;
 #endif
 #endif
+  // Last, so the inline network slots do not push the other members past short load offsets
+  StaticVector<WiFiAP, WIFI_NETWORK_COUNT> sta_;
 
  private:
   // Stores a pointer to a string literal (static storage duration).
