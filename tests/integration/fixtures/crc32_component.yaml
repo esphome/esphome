@@ -1,0 +1,17 @@
+esphome:
+  name: crc32-component-test
+
+host:
+
+api:
+
+logger:
+  level: INFO
+
+external_components:
+  - source:
+      type: local
+      path: EXTERNAL_COMPONENT_PATH
+    components: [crc32_test_component]
+
+crc32_test_component:
