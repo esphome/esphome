@@ -7,6 +7,7 @@
 #include "esphome/core/helpers.h"
 #include <esp_idf_version.h>
 #include <driver/i2s_std.h>
+#include <soc/soc_caps.h>
 
 namespace esphome::i2s_audio {
 
