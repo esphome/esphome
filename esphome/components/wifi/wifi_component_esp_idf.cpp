@@ -1219,6 +1219,7 @@ void WiFiComponent::wifi_process_event_(IDFWiFiEvent *data) {
              (data->event_id == IP_EVENT_ETH_GOT_IP || data->event_id == IP_EVENT_PPP_GOT_IP)) {
     this->apply_ap_dns_();
 #endif
+#if USE_NETWORK_IPV4
   } else if (data->event_base == IP_EVENT && data->event_id == IP_EVENT_STA_GOT_IP) {
     const auto &it = data->data.ip_got_ip;
     esp_netif_ip_info_t current_ip{};
@@ -1238,6 +1239,7 @@ void WiFiComponent::wifi_process_event_(IDFWiFiEvent *data) {
 #ifdef USE_WIFI_IP_STATE_LISTENERS
     this->notify_ip_state_listeners_();
 #endif
+#endif  // USE_NETWORK_IPV4
 
 #if USE_NETWORK_IPV6
   } else if (data->event_base == IP_EVENT && data->event_id == IP_EVENT_GOT_IP6) {
