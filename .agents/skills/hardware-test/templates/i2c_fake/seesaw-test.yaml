@@ -45,6 +45,9 @@ globals:
   - id: mark_t
     type: uint32_t
     initial_value: "0"
+  - id: c_nacked
+    type: uint32_t
+    initial_value: "0"
 
 i2c:
   sda: GPIO17
@@ -220,6 +223,8 @@ interval:
               check("hub C encoder failed", id(encc)->is_failed(), 1);
               check("hub C adc failed", id(ac)->is_failed(), 1);
               check("hub C light failed", id(pxc_out)->is_failed(), 1);
+              check_true("hub C setup tried", c.nacked > 0, std::to_string(c.nacked));
+              id(c_nacked) = c.nacked;
               check("enc0 initial", (int) id(enc0).state, 3);
               check("enc1 initial", (int) id(enc1).state, -100);
               check("encoder intenset", a.enc_inten, 3);
@@ -343,7 +348,7 @@ interval:
               check("no write over 32 bytes", a.np_big, 0);
               check("malformed A", a.bad, 0);
               check("malformed B", b.bad, 0);
-              check("hub C transfers", c.writes + c.reads, 0);
+              check("hub C no transfers after setup", c.nacked, id(c_nacked));
               ESP_LOGI(TAG, "A writes=%u reads=%u chunks=%u shows=%u", (unsigned) a.writes, (unsigned) a.reads,
                        (unsigned) a.np_chunks, (unsigned) a.np_shows);
               ESP_LOGI(TAG, "ALL DONE pass=%u fail=%u", (unsigned) pass_n, (unsigned) fail_n);

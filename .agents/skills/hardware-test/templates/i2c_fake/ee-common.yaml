@@ -58,6 +58,11 @@ button:
       - lambda: |-
           uint16_t r = eefake::RAWS[eefake::idx++ % (sizeof(eefake::RAWS) / sizeof(eefake::RAWS[0]))];
           eefake::bus.raw = r;
-          ESP_LOGI("eefake", "RAW 0x%04X expect %.2f bad=%u", r, (int16_t) r / 100.0f, (unsigned) eefake::bus.bad);
+          ESP_LOGI("eefake", "RAW 0x%04X expect %.2f", r, (int16_t) r / 100.0f);
           id(hte).update();
           id(tee).update();
+      # both drivers read their reply 50 ms after the measure command
+      - delay: 200ms
+      - lambda: |-
+          unsigned bad = eefake::bus.bad;
+          ESP_LOGI("eefake", "DONE 0x%04X bad=%u%s", eefake::bus.raw, bad, bad ? " FAIL" : " PASS");

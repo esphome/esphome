@@ -38,7 +38,7 @@ struct Chip {
   uint8_t mod{0xFF}, reg{0xFF};
   uint32_t t_write{0};
   uint32_t gap[0x20][2]{};  // last write to read gap in us, by module: [mod][0] gap, [1] reads
-  uint32_t bulk_reads{0}, writes{0}, reads{0}, bad{0};
+  uint32_t bulk_reads{0}, writes{0}, reads{0}, bad{0}, nacked{0};
   std::string log;
 };
 
@@ -76,8 +76,10 @@ struct Bus final : public esphome::i2c::I2CBus {
     if (cp == nullptr)
       return esphome::i2c::ERROR_NOT_ACKNOWLEDGED;
     Chip &c = *cp;
-    if (c.nack)
+    if (c.nack) {
+      c.nacked++;
       return esphome::i2c::ERROR_NOT_ACKNOWLEDGED;
+    }
     if (n > 0) {
       if (c.nack_writes > 0) {
         c.nack_writes--;

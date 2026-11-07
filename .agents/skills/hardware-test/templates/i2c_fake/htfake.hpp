@@ -17,7 +17,7 @@ struct Chip {
   bool osc{false};
   uint8_t disp{0};    // last display setup command
   uint8_t dim{0xFF};  // last dimming command
-  uint32_t frames{0}, cmds{0}, bad{0};
+  uint32_t frames{0}, cmds{0}, bad{0}, nacked{0};
   std::string log;  // command trace, cleared by the test
 };
 
@@ -116,8 +116,10 @@ struct Bus final : public esphome::i2c::I2CBus {
       unknown++;
       return esphome::i2c::ERROR_NOT_ACKNOWLEDGED;
     }
-    if (c->nack)
+    if (c->nack) {
+      c->nacked++;
       return esphome::i2c::ERROR_NOT_ACKNOWLEDGED;
+    }
     if (out_size) {  // the driver never reads
       c->bad++;
       memset(out, 0, out_size);

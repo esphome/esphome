@@ -28,8 +28,8 @@ address they do not simulate.
   are a function of their index so every byte is checked, and the length each side sent per index (last 256) so a
   truncated or split packet counts as `rx_bad`. Send indices 0, 1, 2 and so on from each side: a skipped index
   counts as `rx_lost` and an old or repeated one as `rx_bad`. `report(tag, true)` once both links are idle ends each
-  line in PASS only when that side received every packet the peer sent intact; `missing` is the rest, packets still
-  in flight or lost at the tail. `packet_transport` drops packets carrying its own device
+  line in PASS only when that side received every packet the peer sent intact and the peer had no send refused;
+  `missing` is the rest, packets still in flight or lost at the tail. `packet_transport` drops packets carrying its own device
   name, so a one-board test must use the layers directly.
 - `hcsim.hpp`: a software SN74HC165 chain on ESP-IDF (data GPIO6, clock GPIO7, load GPIO10). A falling load edge
   latches the pattern and each rising clock edge drives the next bit onto the data pad, which is in

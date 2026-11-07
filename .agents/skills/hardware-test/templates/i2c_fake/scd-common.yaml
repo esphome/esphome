@@ -55,13 +55,20 @@ button:
     name: Next
     on_press:
       - lambda: |-
-          float p = scdfake::CASES[scdfake::idx++ % (sizeof(scdfake::CASES) / sizeof(scdfake::CASES[0]))];
-          uint32_t before = scdfake::bus.e000_writes(), bad = scdfake::bus.e000_bad_crc(), bw = scdfake::bus.bad_writes;
+          using namespace scdfake;
+          float p = case_p = CASES[idx++ % (sizeof(CASES) / sizeof(CASES[0]))];
+          case_e000 = bus.e000_writes();
+          case_bad_crc = bus.e000_bad_crc();
+          case_bad_writes = bus.bad_writes;
           id(press).state = p;
           ESP_LOGI("scdfake", "CASE source %.2f", p);
           id(scd).update();
-          ESP_LOGI("scdfake", "CASE source %.2f -> %u E000 writes, %u bad CRC, %u bad writes", p,
-                   scdfake::bus.e000_writes() - before, scdfake::bus.e000_bad_crc() - bad, scdfake::bus.bad_writes - bw);
+      # the measurement read runs from a timeout after update(), so count once it is done
+      - delay: 200ms
+      - lambda: |-
+          using namespace scdfake;
+          ESP_LOGI("scdfake", "CASE source %.2f -> %u E000 writes, %u bad CRC, %u bad writes", case_p,
+                   bus.e000_writes() - case_e000, bus.e000_bad_crc() - case_bad_crc, bus.bad_writes - case_bad_writes);
   - platform: template
     name: Show
     on_press:

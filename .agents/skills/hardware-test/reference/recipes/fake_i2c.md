@@ -21,7 +21,8 @@ that includes its `.hpp` (add `esphome: name:` for the `-common` ones):
   `bad_writes` stayed 0, and in FAIL otherwise.
 - `eefake.hpp`, `ee-common.yaml`: HTE501 (0x40) and TEE501 (0x48) with CRC words; "Next" steps through raw
   temperature words and logs the value a signed hundredths decode should give (#21930). A command other than
-  identification and measure, and a read longer than the reply, gets a NACK and counts as `bad` on the RAW line.
+  identification and measure, and a read longer than the reply, gets a NACK and counts as `bad`; the DONE line
+  200 ms later, after both reads, shows the running `bad` total and ends in PASS only while it is 0.
 - `scdfake.hpp`, `scd-common.yaml`: SCD4x at 0x62 and 0x63 with Sensirion CRC; logs every `0xE000` ambient pressure
   write, and the CASE and SHOW lines count writes with a bad CRC apart from the good ones. A write that is neither a
   bare command (2 bytes) nor a command with one CRC word (5 bytes), or any other command with a bad CRC, gets a

@@ -74,7 +74,8 @@ inline void report(const char *tag, bool idle = false) {
   for (Side *s : {&a, &b}) {
     uint32_t sent = peer(*s).tx_ok;
     int32_t missing = (int32_t) (sent - s->rx_ok - s->rx_bad - s->rx_lost);
-    const char *verdict = !idle ? "" : (sent && s->rx_ok == sent && !s->rx_bad ? " PASS" : " FAIL");
+    bool clean = !peer(*s).tx_refused && !s->rx_bad && !s->rx_lost;
+    const char *verdict = !idle ? "" : (sent && s->rx_ok == sent && clean ? " PASS" : " FAIL");
     ESP_LOGI("pisim", "PI %s %s up=%d tx_ok=%u refused=%u rx_ok=%u rx_bad=%u rx_lost=%u missing=%d rx_bytes=%u%s", tag,
              s->name, s->up, (unsigned) s->tx_ok, (unsigned) s->tx_refused, (unsigned) s->rx_ok, (unsigned) s->rx_bad,
              (unsigned) s->rx_lost, (int) missing, (unsigned) s->rx_bytes, verdict);

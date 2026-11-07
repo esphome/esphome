@@ -92,4 +92,6 @@ inline Bus bus;
 inline const float CASES[] = {1013.6f, 101325.0f, 500.0f,  NAN,      700.0f,   1200.0f, 1013.4f,
                               1200.4f, 699.6f,    1012.5f, 1012.49f, 98000.0f, 0.0f,    1013.0f};
 inline int idx = 0;
+inline float case_p = NAN;
+inline uint32_t case_e000 = 0, case_bad_crc = 0, case_bad_writes = 0;  // counters when the case started
 }  // namespace scdfake

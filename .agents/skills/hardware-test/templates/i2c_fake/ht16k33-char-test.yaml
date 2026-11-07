@@ -26,6 +26,8 @@ esphome:
             check("d3 nack primary failed", id(d3)->is_failed(), 1);
             check("d4 nack secondary failed", id(d4)->is_failed(), 1);
             check("d4 primary trace", bus.chips[5].log, "21 ");
+            check("d3 d4 setup hit the nacking chips", bus.chips[4].nacked > 0 && bus.chips[6].nacked > 0, 1);
+            id(nack_mark) = bus.chips[4].nacked + bus.chips[6].nacked;
             bus.clear_logs();
 
             d->clear(); d->print("12:34"); d->update();
@@ -132,7 +134,7 @@ esphome:
             check("d2 lambda", d2.substr(0, 1) == " " && d2.substr(3, 1) != " ", 1);
             ESP_LOGI("htfake", "d2 now [%s] frames=%u cnt=%d", d2.c_str(), bus.chips[3].frames, id(cnt));
             check("d2 frames", bus.chips[3].frames >= 4, 1);
-            check("d3 no frames", bus.chips[4].frames, 0);
+            check("d3 d4 no transfers after setup", bus.chips[4].nacked + bus.chips[6].nacked, id(nack_mark));
             check("d4 no frames", bus.chips[5].frames, 0);
             ESP_LOGI("htfake", "ALL DONE pass=%u fail=%u", pass_n, fail_n);
 
@@ -150,6 +152,9 @@ logger:
 globals:
   - id: cnt
     type: int
+    initial_value: "0"
+  - id: nack_mark
+    type: uint32_t
     initial_value: "0"
 
 i2c:
