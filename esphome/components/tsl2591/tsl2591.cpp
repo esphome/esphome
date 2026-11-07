@@ -1,6 +1,7 @@
 #include "tsl2591.h"
 #include "esphome/core/log.h"
 #include "esphome/core/hal.h"
+#include "esphome/core/helpers.h"
 
 namespace esphome::tsl2591 {
 
@@ -130,26 +131,16 @@ void TSL2591Component::process_update_() {
   uint16_t actual_gain = this->get_actual_gain();
   ESP_LOGD(TAG, "Got illuminance: combined 0x%" PRIX32 ", full %d, IR %d, vis %d. Calc lux: %f. Actual gain: %d.",
            combined, full, infrared, visible, lux, actual_gain);
-  if (this->full_spectrum_sensor_ != nullptr) {
-    this->full_spectrum_sensor_->publish_state(full);
-  }
-  if (this->infrared_sensor_ != nullptr) {
-    this->infrared_sensor_->publish_state(infrared);
-  }
-  if (this->visible_sensor_ != nullptr) {
-    this->visible_sensor_->publish_state(visible);
-  }
-  if (this->calculated_lux_sensor_ != nullptr) {
-    this->calculated_lux_sensor_->publish_state(lux);
-  }
+  PUBLISH_STATE(this->full_spectrum_sensor_, full);
+  PUBLISH_STATE(this->infrared_sensor_, infrared);
+  PUBLISH_STATE(this->visible_sensor_, visible);
+  PUBLISH_STATE(this->calculated_lux_sensor_, lux);
 
   if (this->component_gain_ == TSL2591_CGAIN_AUTO) {
     this->automatic_gain_update(full);
   }
 
-  if (this->actual_gain_sensor_ != nullptr) {
-    this->actual_gain_sensor_->publish_state(actual_gain);
-  }
+  PUBLISH_STATE(this->actual_gain_sensor_, actual_gain);
   this->status_clear_warning();
 }
 
@@ -260,7 +251,7 @@ uint32_t TSL2591Component::get_combined_illuminance() {
     ESP_LOGE(TAG, "I2C read failed");
     return 0;
   }
-  ch0_16 = (ch0high << 8) | ch0low;
+  ch0_16 = encode_uint16(ch0high, ch0low);
   if (!this->read_byte(TSL2591_COMMAND_BIT | TSL2591_REGISTER_CHAN1_LOW, &ch1low)) {
     ESP_LOGE(TAG, "I2C read failed");
     return 0;
@@ -269,7 +260,7 @@ uint32_t TSL2591Component::get_combined_illuminance() {
     ESP_LOGE(TAG, "I2C read failed");
     return 0;
   }
-  ch1_16 = (ch1high << 8) | ch1low;
+  ch1_16 = encode_uint16(ch1high, ch1low);
   x32 = (ch1_16 << 16) | ch0_16;
 
   this->disable_if_power_saving_();

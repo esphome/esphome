@@ -23,6 +23,9 @@ class EPaperMono : public EPaperBase {
   virtual void set_window();
   // Bytes in the comparison frame; the buffer's size unless a subclass sends the frame in another layout
   virtual size_t sent_frame_length() const { return this->buffer_length_; }
+  // Allocates the comparison frame if the driver needs one and partial updates are on; also run on every reset,
+  // since full_update_every can be raised after setup
+  void init_previous_frame_();
   bool transfer_data() override;
   bool send_red_{true};
   bool software_reset_{true};  // send 0x12 after the hardware reset

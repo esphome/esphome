@@ -110,6 +110,7 @@ CONF_WAIT_FOR_CONNECTION = "wait_for_connection"
 CONF_PERSIST_SUBSCRIPTIONS = "persist_subscriptions"
 CONF_TRANSPORT = "transport"
 CONF_WS_PATH = "ws_path"
+CONF_MAX_PAYLOAD_SIZE = "max_payload_size"
 
 MQTT_TRANSPORT_TCP = "tcp"
 MQTT_TRANSPORT_WS = "ws"
@@ -405,6 +406,14 @@ CONFIG_SCHEMA = cv.All(
                 CONF_TRANSPORT, default=MQTT_TRANSPORT_TCP
             ): _validate_transport,
             cv.Optional(CONF_WS_PATH): cv.string,
+            cv.SplitDefault(
+                CONF_MAX_PAYLOAD_SIZE,
+                esp8266=8192,
+                esp32=32768,
+                bk72xx=16384,
+                rtl87xx=16384,
+                ln882x=16384,
+            ): cv.All(cv.validate_bytes, cv.int_range(min=512, max=1048576)),
             cv.SplitDefault(CONF_IDF_SEND_ASYNC, esp32=False): cv.All(
                 cv.boolean, cv.only_on_esp32
             ),
@@ -664,6 +673,7 @@ async def to_code(config):
         request_tls()
 
     cg.add_define("USE_MQTT")
+    cg.add_define("MQTT_MAX_PAYLOAD_SIZE", config[CONF_MAX_PAYLOAD_SIZE])
     cg.add_global(mqtt_ns.using)
 
     cg.add(var.set_broker_address(config[CONF_BROKER]))
