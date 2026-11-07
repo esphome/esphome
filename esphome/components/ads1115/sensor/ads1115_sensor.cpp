@@ -7,7 +7,7 @@ namespace esphome::ads1115 {
 ESPHOME_LOG_TAG(TAG, "ads1115.sensor");
 
 float ADS1115Sensor::sample() {
-  return this->parent_->request_measurement(this->multiplexer_, this->gain_, this->resolution_, this->samplerate_);
+  return this->parent_->request_measurement(this->config_bits_, this->conversion_delay_ms_);
 }
 
 void ADS1115Sensor::update() {
@@ -21,11 +21,9 @@ void ADS1115Sensor::update() {
 void ADS1115Sensor::dump_config() {
   LOG_SENSOR("  ", "ADS1115 Sensor", this);
   ESP_LOGCONFIG(TAG,
-                "    Multiplexer: %u\n"
-                "    Gain: %u\n"
-                "    Resolution: %u\n"
-                "    Sample rate: %u",
-                this->multiplexer_, this->gain_, this->resolution_, this->samplerate_);
+                "    Config: 0x%04X\n"
+                "    Conversion delay: %u ms",
+                this->config_bits_, this->conversion_delay_ms_);
 }
 
 }  // namespace esphome::ads1115
