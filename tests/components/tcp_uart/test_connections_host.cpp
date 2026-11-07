@@ -38,7 +38,7 @@ class TcpUartTwoClients : public ::testing::Test {
     this->port_ = free_port();
     this->uart_.set_server(true);
     this->uart_.set_port(this->port_);
-    this->uart_.set_max_connections(2);
+    this->uart_.set_max_connections(this->slots_);
     this->uart_.set_turn_timeout(100);
     this->uart_.set_disconnects_sensor(&this->disconnects_);
     this->uart_.setup();
@@ -49,7 +49,7 @@ class TcpUartTwoClients : public ::testing::Test {
     ASSERT_EQ(this->uart_.open_connections(), 2);
   }
   void TearDown() override {
-    for (int fd : {this->a_, this->b_, this->c_}) {
+    for (int fd : {this->a_, this->b_, this->c_, this->d_}) {
       if (fd >= 0) {
         ::close(fd);
       }
@@ -120,9 +120,11 @@ class TcpUartTwoClients : public ::testing::Test {
   TcpUartConnectionsUnderTest uart_;
   sensor::Sensor disconnects_;
   uint16_t port_{0};
+  uint8_t slots_{2};
   int a_{-1};
   int b_{-1};
   int c_{-1};
+  int d_{-1};
 };
 
 TEST_F(TcpUartTwoClients, ReplyGoesOnlyToTheClientThatAsked) {
@@ -411,6 +413,39 @@ TEST_F(TcpUartTwoClients, FullPoolClosesTheClientQuietLongest) {
   send(this->c_, "new");
   this->wait_for_bytes(3);
   EXPECT_EQ(this->read_all(), "new");
+}
+
+// The same server with three connection slots. Clients A and B connected at 1000 ms.
+class TcpUartThreeSlots : public TcpUartTwoClients {
+ protected:
+  TcpUartThreeSlots() { this->slots_ = 3; }
+};
+
+TEST_F(TcpUartThreeSlots, FullPoolSparesTheClientWhoseRequestWaits) {
+  // A has the turn and holds it for its reply; B's request waits for its turn.
+  send(this->a_, "ping");
+  this->wait_for_bytes(4);
+  this->uart_.hold_turn();
+  EXPECT_EQ(this->read_all(), "ping");
+  send(this->b_, "hi");
+  this->loops(3);
+  EXPECT_EQ(this->uart_.available(), 0u);
+  // C connects at 1500 and sends nothing.
+  this->at(1500);
+  this->c_ = this->connect_client();
+
+  // D connects at 2000 to the full pool. B has been connected longer than C, but its request waits, so C is closed.
+  this->at(2000);
+  this->d_ = this->connect_client();
+  EXPECT_EQ(received(this->c_), "<closed>");
+  EXPECT_EQ(received(this->b_), "");
+  EXPECT_EQ(this->uart_.open_connections(), 3);
+  EXPECT_FLOAT_EQ(this->disconnects_.state, 1);
+
+  // A is answered; B's request is still there and gets the next turn.
+  this->uart_.release_turn();
+  this->wait_for_bytes(2);
+  EXPECT_EQ(this->read_all(), "hi");
 }
 
 }  // namespace esphome::tcp_uart::testing
