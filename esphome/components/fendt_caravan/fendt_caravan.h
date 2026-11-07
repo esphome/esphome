@@ -15,6 +15,8 @@ using namespace std;
 
 class FendtCaravan : public Component, public ble_client::BLEClientNode {
  public:
+  /// `handshake` is the "net-BT_ID-..." line that opens the session; a string literal from codegen
+  explicit FendtCaravan(const char *handshake) : handshake_(handshake) {}
   void setup() override {};
   void loop() override;
 
@@ -38,6 +40,7 @@ class FendtCaravan : public Component, public ble_client::BLEClientNode {
   void on_data_received_(const char *data);
 
  private:
+  const char *handshake_;
   volatile bool wait_buffer_ = false;
   volatile bool wait_handshake_ = false;
   uint16_t char_handle_ = 0;

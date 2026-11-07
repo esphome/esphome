@@ -9,6 +9,7 @@ ble_client:
 fendt_caravan:
   id: my_caravan
   ble_client_id: my_ble_client
+  bt_id: C0:EE:FB:90:B0:A7
   main_control_unit:
     id: fendt_caravan_mcu
     update_interval: 60s

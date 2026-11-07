@@ -69,7 +69,7 @@ void FendtCaravan::gattc_event_handler(esp_gattc_cb_event_t event, esp_gatt_if_t
         ESP_LOGW(TAG, "Error sending CCC descriptor write request, status=%d", status);
         break;
       }
-      this->add_command_("net-BT_ID-c0:ee:fb:90:b0:a7");
+      this->add_command_(this->handshake_);
       this->add_command_("net-BT_VARS");
       break;
     }
