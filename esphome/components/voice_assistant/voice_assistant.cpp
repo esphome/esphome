@@ -1040,7 +1040,9 @@ void VoiceAssistant::on_event(const api::VoiceAssistantEventResponse &msg) {
   switch (msg.event_type) {
     case api::enums::VOICE_ASSISTANT_RUN_START:
       ESP_LOGD(TAG, "Assist Pipeline running");
-      this->run_active_ = true;  // Home Assistant sends RUN_END only for a run it sent RUN_START for
+      // Home Assistant sends RUN_END only for a run it sent RUN_START for. A local abort before RUN_START
+      // fires on_end at once, so a late RUN_START/RUN_END can still end a pipeline that on_end starts.
+      this->run_active_ = true;
 #ifdef USE_MEDIA_PLAYER
       this->started_streaming_tts_ = false;
       for (const auto &arg : msg.data) {
