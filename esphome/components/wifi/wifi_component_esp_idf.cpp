@@ -1157,10 +1157,17 @@ void WiFiComponent::wifi_process_event_(IDFWiFiEvent *data) {
       // but never below the minimum, so a slow SLAAC does not read as a lost connection
       this->set_timeout(IPV6_RECOUNT_TIMEOUT_ID, IPV6_ROAM_SETTLE_MS, [this]() {
         esp_ip6_addr_t addresses[CONFIG_LWIP_IPV6_NUM_ADDRESSES];
-        LwIPLock lock;
-        const int count = esp_netif_get_all_ip6(s_sta_netif, addresses);
-        if (count >= USE_NETWORK_MIN_IPV6_ADDR_COUNT)
-          this->num_ipv6_addresses_ = static_cast<uint8_t>(count);
+        int count;
+        {
+          LwIPLock lock;
+          count = esp_netif_get_all_ip6(s_sta_netif, addresses);
+        }
+        if (count < USE_NETWORK_MIN_IPV6_ADDR_COUNT || count == this->num_ipv6_addresses_)
+          return;
+        this->num_ipv6_addresses_ = static_cast<uint8_t>(count);
+#ifdef USE_WIFI_IP_STATE_LISTENERS
+        this->notify_ip_state_listeners_();
+#endif
       });
 #endif
     }
