@@ -12,13 +12,7 @@ ESPHOME_LOG_TAG(TAG, "modbus_controller.switch");
 // Maximum bytes to log in verbose hex output
 static constexpr size_t MODBUS_SWITCH_MAX_LOG_BYTES = 64;
 
-void ModbusSwitch::setup() {
-  optional<bool> initial_state = Switch::get_initial_state_with_restore_mode();
-  if (initial_state.has_value()) {
-    // if it has a value, restore_mode is not "DISABLED", therefore act on the switch:
-    this->control(initial_state.value());
-  }
-}
+void ModbusSwitch::setup() { this->restore(); }
 void ModbusSwitch::dump_config() { LOG_SWITCH(TAG, "Modbus Controller Switch", this); }
 
 bool ModbusSwitch::assumed_state() { return this->assumed_state_; }

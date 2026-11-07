@@ -23,6 +23,7 @@ import pytest
 from .log_utils import LineWaiter
 from .state_utils import require_entity, require_service
 from .types import APIClientConnectedFactory, RunCompiledFunction
+from .wait_utils import wait_or_fail
 
 ENTITY = "light.kitchen"
 SUBSCRIPTIONS = {
@@ -138,10 +139,12 @@ async def light_entity(
         client.subscribe_service_calls(calls.put_nowait)
         client.subscribe_states(on_state)
         client.subscribe_home_assistant_states(on_state_sub)
-        try:
-            await asyncio.wait_for(all_subscribed, timeout=5.0)
-        except TimeoutError:
-            pytest.fail(f"never subscribed: {SUBSCRIPTIONS - subscribed}")
+        await wait_or_fail(
+            all_subscribed,
+            5.0,
+            "never subscribed",
+            missing=lambda: SUBSCRIPTIONS - subscribed,
+        )
         ha = FakeHomeAssistant(client, key, services, waiter, calls, states)
         ha.report("supported_color_modes", modes)
         ha.report("min_color_temp_kelvin", "2000")

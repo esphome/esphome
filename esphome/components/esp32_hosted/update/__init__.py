@@ -2,6 +2,7 @@ import hashlib
 import logging
 from pathlib import Path
 from tempfile import TemporaryDirectory
+import time
 from typing import Any
 
 import voluptuous as vol
@@ -83,12 +84,25 @@ CONFIG_SCHEMA = cv.All(
 )
 
 
+# The other build's rename finishes within milliseconds; a few short checks cover it
+CACHE_RACE_RETRIES = 5
+CACHE_RACE_RETRY_S = 0.05
+
+
 def _check_firmware_hash(data: bytes, expected: str, source: str | Path) -> None:
     calculated = hashlib.sha256(data).hexdigest()
     if calculated != expected:
         raise cv.Invalid(
             f"SHA256 mismatch for {source}: expected {expected}, got {calculated}"
         )
+
+
+def _cached_image_digest(target: Path) -> str | None:
+    """The SHA256 of the cached image, or None while it is missing or another build still writes it."""
+    try:
+        return hashlib.sha256(target.read_bytes()).hexdigest()
+    except OSError:
+        return None
 
 
 def _firmware_path(config: ConfigType) -> Path:
@@ -109,10 +123,9 @@ def _validate_firmware(config: ConfigType) -> None:
         _check_firmware_hash(target.read_bytes(), expected, target)
         return
     # A pinned digest needs no remote freshness check.
-    if target.is_file():
-        actual = hashlib.sha256(target.read_bytes()).hexdigest()
-        if actual == expected:
-            return
+    if (actual := _cached_image_digest(target)) == expected:
+        return
+    if actual is not None:
         # Named after its digest, so a mismatch means the file was damaged or edited
         _LOGGER.warning(
             "Cached firmware %s hashes to %s, downloading it again", target, actual
@@ -123,10 +136,20 @@ def _validate_firmware(config: ConfigType) -> None:
         candidate = Path(temporary) / "firmware.bin"
         data = external_files.download_content(url, candidate, allow_stale=False)
         _check_firmware_hash(data, expected, url)
-        try:
-            candidate.replace(target)
-        except OSError as err:
-            raise cv.Invalid(f"Could not cache the firmware from {url}: {err}") from err
+        for attempt in range(CACHE_RACE_RETRIES + 1):
+            try:
+                candidate.replace(target)
+                return
+            except OSError as err:
+                # Windows refuses to replace a file another build holds at that moment; retry, or
+                # take that build's copy: named after its digest, a verified one is the same image
+                if _cached_image_digest(target) == expected:
+                    return
+                if attempt == CACHE_RACE_RETRIES:
+                    raise cv.Invalid(
+                        f"Could not cache the firmware from {url}: {err}"
+                    ) from err
+                time.sleep(CACHE_RACE_RETRY_S)
 
 
 FINAL_VALIDATE_SCHEMA = _validate_firmware

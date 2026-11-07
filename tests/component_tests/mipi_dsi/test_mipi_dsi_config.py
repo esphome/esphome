@@ -8,7 +8,7 @@ import re
 import pytest
 
 from esphome import config_validation as cv
-from esphome.components.esp32 import KEY_BOARD, VARIANT_ESP32P4
+from esphome.components.esp32 import KEY_BOARD, VARIANT_ESP32P4, VARIANT_ESP32S3
 
 # Importing the I/O expanders registers their pin schemas with
 # pins.PIN_SCHEMA_REGISTRY so that models whose defaults reference expander-backed
@@ -215,3 +215,20 @@ def test_code_generation(
     assert "p4_86->set_rotation(display::DISPLAY_ROTATION_0_DEGREES);" not in main_cpp
     assert "custom_id->set_rotation(display::DISPLAY_ROTATION_180_DEGREES);" in main_cpp
     # assert "backlight_id = new light::LightState(mipi_dsi_dsibacklight_id);" in main_cpp
+
+
+def test_unsupported_variant_reported_before_requirements(
+    set_core_config: SetCoreConfigCallable,
+) -> None:
+    """On an unsupported chip the variant error is shown, not the missing components."""
+    from esphome.components.mipi_dsi.display import CONFIG_SCHEMA
+    from esphome.core import CORE
+
+    set_core_config(
+        PlatformFramework.ESP32_IDF,
+        platform_data={KEY_BOARD: "esp32-s3-devkitc-1", KEY_VARIANT: VARIANT_ESP32S3},
+    )
+    CORE.raw_config = {}
+
+    with pytest.raises(cv.Invalid, match=r"This feature is only available on ESP32P4"):
+        CONFIG_SCHEMA({"model": "SEEED-RETERMINAL-D1001"})

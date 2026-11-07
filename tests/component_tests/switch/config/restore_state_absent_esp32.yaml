@@ -1,0 +1,12 @@
+---
+esphome:
+  name: test
+
+esp32:
+  board: esp32dev
+
+logger:
+
+switch:
+  - {platform: template, id: legacy, optimistic: true, restore_mode: RESTORE_DEFAULT_OFF}
+  - {platform: template, id: plain, optimistic: true}

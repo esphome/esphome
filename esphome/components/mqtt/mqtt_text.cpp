@@ -19,7 +19,7 @@ PROGMEM_STRING_TABLE(TextMqttModeStrings, "text", "password");
 MQTTTextComponent::MQTTTextComponent(Text *text) : text_(text) {}
 
 void MQTTTextComponent::setup() {
-  this->subscribe(this->get_command_topic_(), [this](const std::string &topic, const std::string &state) {
+  this->subscribe(this->command_topic_source_(), [this](const std::string &topic, const std::string &state) {
     auto call = this->text_->make_call();
     call.set_value(state);
     call.perform();

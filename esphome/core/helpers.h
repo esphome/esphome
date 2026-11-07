@@ -58,6 +58,18 @@
 #define ESPHOME_ALWAYS_INLINE __attribute__((always_inline))
 #define PACKED __attribute__((packed))
 
+/// Declares the `<name>_publisher_` function pointer and `set_<name>_publisher()` that a cg.HubFunction named
+/// `<name>` fills; the pointer stays nullptr when no child added an item, so check it before calling.
+/// Use it in a public section: it ends on `public:`.
+#define HUB_PUBLISHER(name, ...) HUB_PUBLISHER_RETURNING(void, name, __VA_ARGS__)
+/// HUB_PUBLISHER for a cg.HubFunction that returns `ret` (bool: whether any item was true).
+#define HUB_PUBLISHER_RETURNING(ret, name, ...) \
+ protected: \
+  ret (*name##_publisher_)(__VA_ARGS__){nullptr}; \
+\
+ public: \
+  void set_##name##_publisher(ret (*publisher)(__VA_ARGS__)) { this->name##_publisher_ = publisher; }
+
 namespace esphome {
 
 // Forward declaration to avoid circular dependency with string_ref.h
@@ -77,13 +89,14 @@ using std::is_invocable;
 using std::bit_cast;
 #else
 /// Convert data between types, without aliasing issues or undefined behaviour.
+/// Forced inline: GCC 10 for ESP8266 otherwise emits it out of line at -Os.
 template<
     typename To, typename From,
     enable_if_t<sizeof(To) == sizeof(From) && is_trivially_copyable<From>::value && is_trivially_copyable<To>::value,
                 int> = 0>
-To bit_cast(const From &src) {
+ESPHOME_ALWAYS_INLINE inline To bit_cast(const From &src) {
   To dst;
-  memcpy(&dst, &src, sizeof(To));
+  __builtin_memcpy(&dst, &src, sizeof(To));
   return dst;
 }
 #endif
@@ -149,10 +162,10 @@ template<typename T, bool Owning = false> class ConstVector {
 
 /// Owning variant: a codegen table that outlives it, or a heap copy of a runtime list it owns.
 /// Ownership is the top bit of the size; it is not copyable, so a copy can never outlive the owner.
-/// Elements must be whole words so ESP8266 can read a codegen table from flash.
+/// Elements must be whole words: on ESP8266, iterating or indexing a codegen table reads them straight from flash.
 template<typename T> class ConstVector<T, true> {
   static_assert(std::is_trivially_copyable_v<T> && sizeof(T) % sizeof(uint32_t) == 0,
-                "ConstVector elements must be whole words so ESP8266 can read them from flash");
+                "ConstVector elements must be whole words so ESP8266 can index them in flash");
 
  public:
   using value_type = T;
@@ -177,14 +190,13 @@ template<typename T> class ConstVector<T, true> {
     this->data_ = data;
     this->size_ = size;
   }
+  /// Appends count elements into one new heap array this owns; the current list and extra may be codegen tables in
+  /// flash.
+  void append_copy(const T *extra, size_t count) { this->merge_copy_(this->data_, this->size(), extra, count); }
+  /// Like append_copy(), with extra placed in front of the current list.
+  void prepend_copy(const T *extra, size_t count) { this->merge_copy_(extra, count, this->data_, this->size()); }
   /// Copies the list into a heap array this owns, freeing a previous owned copy.
-  void assign_copy(const T *data, size_t size) {
-    auto *table = new T[size];  // NOLINT(cppcoreguidelines-owning-memory)
-    std::copy(data, data + size, table);
-    this->release_();
-    this->data_ = table;
-    this->size_ = size | OWNED_BIT;
-  }
+  void assign_copy(const T *data, size_t size) { this->merge_copy_(data, size, nullptr, 0); }
 
  protected:
   static constexpr size_t OWNED_BIT = size_t{1} << (sizeof(size_t) * 8 - 1);
@@ -192,6 +204,24 @@ template<typename T> class ConstVector<T, true> {
   void release_() {
     if (this->size_ & OWNED_BIT)
       delete[] this->data_;  // NOLINT(cppcoreguidelines-owning-memory)
+  }
+  void merge_copy_(const T *first, size_t first_count, const T *second, size_t second_count) {
+    auto *table = new T[first_count + second_count];  // NOLINT(cppcoreguidelines-owning-memory)
+    copy_items(first, first_count, table);
+    copy_items(second, second_count, table + first_count);
+    this->release_();  // after the copies: first or second may be the current list
+    this->data_ = table;
+    this->size_ = (first_count + second_count) | OWNED_BIT;
+  }
+  // ESP8266: the source may be a table in flash
+  static void copy_items(const T *src, size_t count, T *dst) {
+    if (count == 0)
+      return;
+#ifdef USE_ESP8266
+    memcpy_P(dst, src, count * sizeof(T));
+#else
+    std::copy(src, src + count, dst);
+#endif
   }
 
   const T *data_{nullptr};
@@ -380,6 +410,35 @@ template<typename T, size_t N> class StaticVector {
   operator std::span<const T>() const { return std::span<const T>(data_.data(), count_); }
 };
 
+/// Always-empty `StaticVector` stand-in; takes no space as a `[[no_unique_address]]` member.
+template<typename T> class EmptyList {
+ public:
+  static constexpr T *begin() { return nullptr; }
+  static constexpr T *end() { return nullptr; }
+  static constexpr size_t size() { return 0; }
+  static constexpr bool empty() { return true; }
+  [[noreturn]] T &operator[](size_t /*i*/) const { __builtin_trap(); }
+  void push_back(const T & /*value*/) {}
+};
+
+/// `StaticVector<T, N>`, or `EmptyList<T>` when `N` is 0.
+template<typename T, size_t N> using SlotList = std::conditional_t<N == 0, EmptyList<T>, StaticVector<T, N>>;
+
+/// Put before a hand-written register method; it does not compile when `count` is 0.
+#define SLOT_LIST_REQUIRES(count) \
+  template<size_t SLOT_LIST_COUNT = (count)> \
+    requires(SLOT_LIST_COUNT > 0)
+
+/// Declare a `SlotList<type *, count>` member and a `register_fn(type *)` that appends to it.
+/// Use it in a public section; it ends on `public:`.
+#define SLOT_LIST(type, member, register_fn, count) \
+ protected: \
+  [[no_unique_address]] SlotList<type *, count> member; /* NOLINT(bugprone-macro-parentheses) */ \
+\
+ public: \
+  SLOT_LIST_REQUIRES(count) \
+  void register_fn(type *item) { /* NOLINT(bugprone-macro-parentheses) */ this->member.push_back(item); }
+
 /// Fixed-size circular buffer with FIFO semantics and iteration support.
 ///
 /// A tiny ring buffer that avoids dynamic allocations from std::deque/std::queue
@@ -431,6 +490,17 @@ template<typename T, size_t N> class StaticRingBuffer {
     return true;
   }
 
+  /// Insert `value` so it is popped next; returns false when full.
+  bool push_front(const T &value) {
+    if (this->count_ >= N) {
+      return false;
+    }
+    this->head_ = (this->head_ + N - 1) % N;
+    this->data_[this->head_] = value;
+    ++this->count_;
+    return true;
+  }
+
   void pop() {
     if (this->count_ > 0) {
       this->head_ = (this->head_ + 1) % N;
@@ -475,7 +545,7 @@ template<typename T, size_t MAX_CAPACITY = std::numeric_limits<uint16_t>::max()>
   class Iterator {
    public:
     Iterator(FixedRingBuffer *buf, index_type pos) : buf_(buf), pos_(pos) {}
-    T &operator*() { return buf_->data_[(buf_->head_ + pos_) % buf_->capacity_]; }
+    T &operator*() { return buf_->data_[buf_->wrap_(static_cast<size_t>(buf_->head_) + pos_)]; }
     Iterator &operator++() {
       ++pos_;
       return *this;
@@ -490,7 +560,7 @@ template<typename T, size_t MAX_CAPACITY = std::numeric_limits<uint16_t>::max()>
   class ConstIterator {
    public:
     ConstIterator(const FixedRingBuffer *buf, index_type pos) : buf_(buf), pos_(pos) {}
-    const T &operator*() const { return buf_->data_[(buf_->head_ + pos_) % buf_->capacity_]; }
+    const T &operator*() const { return buf_->data_[buf_->wrap_(static_cast<size_t>(buf_->head_) + pos_)]; }
     ConstIterator &operator++() {
       ++pos_;
       return *this;
@@ -532,7 +602,7 @@ template<typename T, size_t MAX_CAPACITY = std::numeric_limits<uint16_t>::max()>
     if (this->count_ >= this->capacity_)
       return false;
     this->data_[this->tail_] = value;
-    this->tail_ = (this->tail_ + 1) % this->capacity_;
+    this->tail_ = this->wrap_(static_cast<size_t>(this->tail_) + 1);
     ++this->count_;
     return true;
   }
@@ -540,7 +610,7 @@ template<typename T, size_t MAX_CAPACITY = std::numeric_limits<uint16_t>::max()>
   /// Push a value, overwriting the oldest if full.
   void push_overwrite(const T &value) {
     this->data_[this->tail_] = value;
-    this->tail_ = (this->tail_ + 1) % this->capacity_;
+    this->tail_ = this->wrap_(static_cast<size_t>(this->tail_) + 1);
     if (this->count_ >= this->capacity_) {
       // Buffer full - advance head to drop oldest, count stays at capacity
       this->head_ = this->tail_;
@@ -549,12 +619,40 @@ template<typename T, size_t MAX_CAPACITY = std::numeric_limits<uint16_t>::max()>
     }
   }
 
+  /// Push up to `len` values without overwriting. Returns how many fit.
+  size_t push(const T *data, size_t len) {
+    static_assert(std::is_trivially_copyable<T>::value, "bulk push copies with memcpy");
+    len = std::min<size_t>(len, this->free_space());
+    if (len == 0)
+      return 0;  // data_ may be null, and memcpy with a null pointer is undefined even for 0 bytes
+    const size_t first = std::min<size_t>(len, this->capacity_ - this->tail_);
+    std::memcpy(this->data_ + this->tail_, data, first * sizeof(T));
+    std::memcpy(this->data_, data + first, (len - first) * sizeof(T));
+    this->tail_ = this->wrap_(static_cast<size_t>(this->tail_) + len);
+    this->count_ += len;
+    return len;
+  }
+
   /// Remove the oldest element.
   void pop() {
     if (this->count_ > 0) {
-      this->head_ = (this->head_ + 1) % this->capacity_;
+      this->head_ = this->wrap_(static_cast<size_t>(this->head_) + 1);
       --this->count_;
     }
+  }
+
+  /// Move up to `len` of the oldest values into `out`. Returns how many were copied.
+  size_t pop(T *out, size_t len) {
+    static_assert(std::is_trivially_copyable<T>::value, "bulk pop copies with memcpy");
+    len = std::min<size_t>(len, this->count_);
+    if (len == 0)
+      return 0;
+    const size_t first = std::min<size_t>(len, this->capacity_ - this->head_);
+    std::memcpy(out, this->data_ + this->head_, first * sizeof(T));
+    std::memcpy(out + first, this->data_, (len - first) * sizeof(T));
+    this->head_ = this->wrap_(static_cast<size_t>(this->head_) + len);
+    this->count_ -= len;
+    return len;
   }
 
   T &front() { return this->data_[this->head_]; }
@@ -562,6 +660,7 @@ template<typename T, size_t MAX_CAPACITY = std::numeric_limits<uint16_t>::max()>
   index_type size() const { return this->count_; }
   bool empty() const { return this->count_ == 0; }
   index_type capacity() const { return this->capacity_; }
+  index_type free_space() const { return this->capacity_ - this->count_; }
   bool full() const { return this->count_ == this->capacity_; }
 
   /// Clear all elements (reset to empty, keep capacity)
@@ -577,14 +676,12 @@ template<typename T, size_t MAX_CAPACITY = std::numeric_limits<uint16_t>::max()>
   ConstIterator end() const { return ConstIterator(this, this->count_); }
 
   /// The element `pos` places after the oldest one; the sum is widened so a small index type cannot truncate it
-  const T &operator[](index_type pos) const {
-    size_t index = static_cast<size_t>(this->head_) + pos;
-    if (index >= this->capacity_)
-      index -= this->capacity_;
-    return this->data_[index];
-  }
+  const T &operator[](index_type pos) const { return this->data_[this->wrap_(static_cast<size_t>(this->head_) + pos)]; }
 
  protected:
+  /// Fold an index below 2 * capacity back into the buffer
+  index_type wrap_(size_t index) const { return index >= this->capacity_ ? index - this->capacity_ : index; }
+
   T *data_{nullptr};
   index_type head_{0};
   index_type tail_{0};
@@ -1062,6 +1159,39 @@ constexpr std::array<uint8_t, sizeof(T)> decode_value(T val) {
   return ret;
 }
 
+/// Write the low 16, 24 or 32 bits of \p value to \p dst, most significant byte first (be) or least
+/// significant byte first (le). Returns the pointer past the last byte written.
+constexpr uint8_t *put_be16(uint8_t *dst, uint16_t value) {
+  dst[0] = static_cast<uint8_t>(value >> 8);
+  dst[1] = static_cast<uint8_t>(value);
+  return dst + 2;
+}
+constexpr uint8_t *put_be24(uint8_t *dst, uint32_t value) {
+  dst[0] = static_cast<uint8_t>(value >> 16);
+  dst[1] = static_cast<uint8_t>(value >> 8);
+  dst[2] = static_cast<uint8_t>(value);
+  return dst + 3;
+}
+constexpr uint8_t *put_be32(uint8_t *dst, uint32_t value) {
+  dst[0] = static_cast<uint8_t>(value >> 24);
+  dst[1] = static_cast<uint8_t>(value >> 16);
+  dst[2] = static_cast<uint8_t>(value >> 8);
+  dst[3] = static_cast<uint8_t>(value);
+  return dst + 4;
+}
+constexpr uint8_t *put_le16(uint8_t *dst, uint16_t value) {
+  dst[0] = static_cast<uint8_t>(value);
+  dst[1] = static_cast<uint8_t>(value >> 8);
+  return dst + 2;
+}
+constexpr uint8_t *put_le32(uint8_t *dst, uint32_t value) {
+  dst[0] = static_cast<uint8_t>(value);
+  dst[1] = static_cast<uint8_t>(value >> 8);
+  dst[2] = static_cast<uint8_t>(value >> 16);
+  dst[3] = static_cast<uint8_t>(value >> 24);
+  return dst + 4;
+}
+
 /// Decode a two-digit packed BCD byte (tens in the high nibble) to its value, e.g. 0x59 to 59.
 constexpr uint8_t bcd_to_uint8(uint8_t bcd) { return (bcd >> 4) * 10 + (bcd & 0x0F); }
 /// Encode a value from 0 to 99 as a two-digit packed BCD byte, e.g. 59 to 0x59.
@@ -1110,6 +1240,16 @@ template<typename T> constexpr T convert_little_endian(T val) {
 #else
   return byteswap(val);
 #endif
+}
+
+/// Compare len bytes of a and b in a time that does not depend on where they first differ.
+/// Use this for digests, passwords and tokens, where memcmp's early exit leaks how many bytes matched.
+inline bool constant_time_equals(const uint8_t *a, const uint8_t *b, size_t len) {
+  volatile uint8_t diff = 0;
+  for (size_t i = 0; i < len; i++) {
+    diff = diff | (a[i] ^ b[i]);
+  }
+  return diff == 0;
 }
 
 ///@}
@@ -1782,6 +1922,15 @@ enum class TemperatureUnit : uint8_t {
   KELVIN = 2,
 };
 
+/// Convert degrees Celsius into the given unit.
+constexpr float celsius_to(float value, TemperatureUnit unit) {
+  if (unit == TemperatureUnit::FAHRENHEIT)
+    return celsius_to_fahrenheit(value);
+  if (unit == TemperatureUnit::KELVIN)
+    return value + 273.15f;
+  return value;
+}
+
 ///@}
 
 /// @name Utilities
@@ -2434,6 +2583,15 @@ template<class T> class RAMAllocator {
 
   uint8_t flags_{ALLOC_INTERNAL | ALLOC_EXTERNAL};
 };
+
+/// `count` zeroed elements from RAMAllocator, so they may live in PSRAM; nullptr if allocation fails.
+/// What `cg.static_buffer(..., psram=True)` emits in place of a static array when the build has PSRAM.
+template<class T> T *psram_buffer(size_t count) {
+  T *buffer = RAMAllocator<T>().make_unique_array_for_overwrite(count).release();
+  if (buffer != nullptr)
+    memset(buffer, 0, count * sizeof(T));
+  return buffer;
+}
 
 template<class T> using ExternalRAMAllocator = RAMAllocator<T>;
 

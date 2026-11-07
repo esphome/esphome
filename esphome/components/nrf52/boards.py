@@ -73,3 +73,9 @@ BOOTLOADER_CONFIG = {
         Section("open_bootloader", 0xE0000, 0x20000, "flash_primary"),
     ],
 }
+
+# Zephyr needs the SoC and CPU cluster for boards that have several; a short name picks the usual one
+BOARD_ALIASES = {
+    "nrf54lm20dk": "nrf54lm20dk/nrf54lm20a/cpuapp",
+    "nrf54l15dk": "nrf54l15dk/nrf54l15/cpuapp",
+}
