@@ -75,7 +75,7 @@ I2CDevice = i2c_ns.class_("I2CDevice")
 
 ESP32_I2C_CAPABILITIES = {
     # https://github.com/espressif/esp-idf/blob/master/components/soc/esp32/include/soc/soc_caps.h
-    # NO_FSM_RST: SOC_I2C_SUPPORT_HW_FSM_RST is not defined
+    # NO_FSM_RST: no hardware FSM reset (SOC_I2C_SUPPORT_HW_FSM_RST, I2C_LL_SUPPORT_HW_FSM_RST on IDF 6)
     VARIANT_ESP32: {"NUM": 2, "HP": 2, "NO_FSM_RST": True},
     VARIANT_ESP32C2: {"NUM": 1, "HP": 1, "NO_FSM_RST": True},
     VARIANT_ESP32C3: {"NUM": 1, "HP": 1, "NO_FSM_RST": True},
