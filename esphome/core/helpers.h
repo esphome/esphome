@@ -410,6 +410,35 @@ template<typename T, size_t N> class StaticVector {
   operator std::span<const T>() const { return std::span<const T>(data_.data(), count_); }
 };
 
+/// Always-empty `StaticVector` stand-in; takes no space as a `[[no_unique_address]]` member.
+template<typename T> class EmptyList {
+ public:
+  static constexpr T *begin() { return nullptr; }
+  static constexpr T *end() { return nullptr; }
+  static constexpr size_t size() { return 0; }
+  static constexpr bool empty() { return true; }
+  [[noreturn]] T &operator[](size_t /*i*/) const { __builtin_trap(); }
+  void push_back(const T & /*value*/) {}
+};
+
+/// `StaticVector<T, N>`, or `EmptyList<T>` when `N` is 0.
+template<typename T, size_t N> using SlotList = std::conditional_t<N == 0, EmptyList<T>, StaticVector<T, N>>;
+
+/// Put before a hand-written register method; it does not compile when `count` is 0.
+#define SLOT_LIST_REQUIRES(count) \
+  template<size_t SLOT_LIST_COUNT = (count)> \
+    requires(SLOT_LIST_COUNT > 0)
+
+/// Declare a `SlotList<type *, count>` member and a `register_fn(type *)` that appends to it.
+/// Use it in a public section; it ends on `public:`.
+#define SLOT_LIST(type, member, register_fn, count) \
+ protected: \
+  [[no_unique_address]] SlotList<type *, count> member; /* NOLINT(bugprone-macro-parentheses) */ \
+\
+ public: \
+  SLOT_LIST_REQUIRES(count) \
+  void register_fn(type *item) { /* NOLINT(bugprone-macro-parentheses) */ this->member.push_back(item); }
+
 /// Fixed-size circular buffer with FIFO semantics and iteration support.
 ///
 /// A tiny ring buffer that avoids dynamic allocations from std::deque/std::queue
@@ -2554,6 +2583,15 @@ template<class T> class RAMAllocator {
 
   uint8_t flags_{ALLOC_INTERNAL | ALLOC_EXTERNAL};
 };
+
+/// `count` zeroed elements from RAMAllocator, so they may live in PSRAM; nullptr if allocation fails.
+/// What `cg.static_buffer(..., psram=True)` emits in place of a static array when the build has PSRAM.
+template<class T> T *psram_buffer(size_t count) {
+  T *buffer = RAMAllocator<T>().make_unique_array_for_overwrite(count).release();
+  if (buffer != nullptr)
+    memset(buffer, 0, count * sizeof(T));
+  return buffer;
+}
 
 template<class T> using ExternalRAMAllocator = RAMAllocator<T>;
 
