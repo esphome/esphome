@@ -572,7 +572,6 @@
 #define USE_ESP32_CAMERA_JPEG_ENCODER
 #define USE_HTTP_REQUEST_RESPONSE
 #define USE_I2C
-#define USE_I2C_ISR_GUARD
 #define USE_IMPROV_BLE
 #define USE_MICROPHONE
 #define USE_PSRAM
@@ -722,6 +721,10 @@
 #define USE_OPENTHREAD_TLVS "0e080000000000010000"
 #define USE_UDP_OMR_SOURCE
 #define USE_ZIGBEE
+#endif
+#if defined(USE_ESP32_VARIANT_ESP32) || defined(USE_ESP32_VARIANT_ESP32C2) || defined(USE_ESP32_VARIANT_ESP32C3) || \
+    defined(USE_ESP32_VARIANT_ESP32S2) || defined(USE_ESP32_VARIANT_ESP32S3)
+#define USE_I2C_ISR_GUARD
 #endif
 #if defined(USE_ESP32_VARIANT_ESP32S3)
 // Border router with a UART RCP; a native-radio border router (C5/C6) adds only the coexistence call
