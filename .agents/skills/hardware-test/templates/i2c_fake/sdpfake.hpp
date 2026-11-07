@@ -1,6 +1,6 @@
 #pragma once
 // Fake Sensirion SDP3x / SDP8xx sensors on an in-firmware I2C bus. A command the fake does not know and a read it
-// does not answer get a NACK and count in bad_cmds and bad_reads.
+// does not answer get a NACK and count in bad_cmds and bad_reads; each injected ID read NACK counts in id_fail.
 #include "esphome/components/i2c/i2c_bus.h"
 #include "esphome/core/helpers.h"
 #include "esphome/core/log.h"
@@ -17,7 +17,8 @@ struct Dev {
   bool fail_id;         // the ID read NACKs
   bool measuring{false};
   uint16_t last{0}, start{0};
-  uint32_t stops{0}, stop_nak{0}, resets{0}, reset_nak{0}, reads{0}, read_fail{0}, bad_cmds{0}, bad_reads{0};
+  uint32_t stops{0}, stop_nak{0}, resets{0}, reset_nak{0}, reads{0}, read_fail{0}, bad_cmds{0}, bad_reads{0},
+      id_fail{0};
 };
 
 struct Bus final : public esphome::i2c::I2CBus {
@@ -66,6 +67,7 @@ struct Bus final : public esphome::i2c::I2CBus {
         d.measuring = true;
         ESP_LOGI(TAG, "0x%02X start 0x%04X", d.addr, c);
       } else if (c == 0xE102 && d.fail_id) {
+        d.id_fail++;
         return esphome::i2c::ERROR_NOT_ACKNOWLEDGED;
       } else if (c != 0x367C && c != 0xE102) {
         d.bad_cmds++;
@@ -76,8 +78,10 @@ struct Bus final : public esphome::i2c::I2CBus {
     if (out_size > 0) {
       size_t o = 0;
       if (d.last == 0xE102 && out_size == 18) {
-        if (d.fail_id)
+        if (d.fail_id) {
+          d.id_fail++;
           return esphome::i2c::ERROR_NOT_ACKNOWLEDGED;
+        }
         put(out, o, d.pn_hi);
         put(out, o, d.pn_lo);
         put(out, o, 0x1234);
@@ -103,9 +107,12 @@ struct Bus final : public esphome::i2c::I2CBus {
 
   void report() {
     for (auto &d : devs)
-      ESP_LOGI(TAG, "0x%02X start=0x%04X stops=%u(nak %u) resets=%u(nak %u) reads=%u fail=%u bad_cmds=%u bad_reads=%u",
+      ESP_LOGI(TAG,
+               "0x%02X start=0x%04X stops=%u(nak %u) resets=%u(nak %u) reads=%u fail=%u id_fail=%u "
+               "bad_cmds=%u bad_reads=%u",
                d.addr, d.start, (unsigned) d.stops, (unsigned) d.stop_nak, (unsigned) d.resets, (unsigned) d.reset_nak,
-               (unsigned) d.reads, (unsigned) d.read_fail, (unsigned) d.bad_cmds, (unsigned) d.bad_reads);
+               (unsigned) d.reads, (unsigned) d.read_fail, (unsigned) d.id_fail, (unsigned) d.bad_cmds,
+               (unsigned) d.bad_reads);
   }
 };
 inline Bus bus;

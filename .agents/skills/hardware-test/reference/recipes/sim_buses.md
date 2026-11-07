@@ -23,7 +23,9 @@ address they do not simulate.
   `write_cmd_addr_data()`, which are recorded and forwarded too), on a named chain with fewer than two report lines,
   or a chain whose transaction count stays 0 or stops growing, and prints PASS otherwise.
 - `spysim.hpp`: the same delegate trick (both headers carry `DelegatePeek`, so one config can include both), logging length and FNV-1a hash of every transaction over 1000 bytes (whole
-  frames, used for `pixoo`). `write()` and `write_cmd_addr_data()` are hashed and forwarded like `write_array()`.
+  frames, used for `pixoo`). `write()` and `write_cmd_addr_data()` are hashed and forwarded like `write_array()`;
+  a partial byte or a bus width other than 1 is hashed as whole bytes, so the SPY line carries `odd`, the count of
+  such transactions, and a dev vs PR hash match only holds when `odd` is 0 on both.
 - `pisim.hpp`: drives two `packet_interface` stacks on cross-wired UARTs through `top()`, with payloads whose bytes
   are a function of their index so every byte is checked, and the index and length each side sent (last 256) so a
   truncated or split packet, or one whose slot a later index reused, counts as `rx_bad`. Send indices 0, 1, 2 and so

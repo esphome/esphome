@@ -69,7 +69,8 @@ that includes its `.hpp` (add `esphome: name:` for the `-common` ones):
   while idle) have no config yet; wire them the same way. Each fake sets up its own faults in its constructor, so
   there is no init step to call. Each NACKs a read it does not model or one of the wrong
   length, and a write or command it does not know, and counts them as `bad_reads` and `bad_writes` (`bad_cmds` for
-  the SDP) in `report()`; check those are 0.
+  the SDP) in `report()`; check those are 0. The SDP report also counts each injected ID read NACK at 0x24 as
+  `id_fail`, so 0 there means the driver never reached that fault.
 
 Check the PR head again just before posting results: a head that moves during a run means a retest.
 
