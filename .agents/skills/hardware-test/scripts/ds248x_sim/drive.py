@@ -5,8 +5,8 @@ PHASES is a comma list of c, cd, z, b, k, dead (default c,z,b,k,dead). Holds the
 (log and commands); the DUT log is captured per phase into TAG-<phase>.log, each phase starting with a DUT reset.
 Exits 1 when the simulator never reports, the simulator port fails, the DUT capture fails, a phase ends without a
 fresh simulator report, a sensor got no readings in a phase, any temperature is wrong, a fault phase never moved its
-injection counter (counted when the DUT meets the fault) or, for a NACK fault, the nacked counter, a fault is still
-pending at the end of a phase, the simulator counted a config write with a wrong complement (cfg_bad) or an unknown
+injection counter (counted when the DUT meets the fault) or, for a NACK fault, the nacked counter, a write delivered
+data while a NACK was armed (nack_miss), a fault is still pending at the end of a phase, the simulator counted a config write with a wrong complement (cfg_bad) or an unknown
 command or argument (bad_cmd), a counter is missing from the simulator CNT line, the simulator aborted a read reply
 (tx_abrt, not gated in the dead phase), a phase that does not reset the chip (all but b and k) counted a ROM match on
 the wrong channel (wrong_ch) or a 1-Wire command without the active pull-up bit (ops_no_apu), the simulator never
@@ -33,6 +33,7 @@ ANSI = re.compile(r"\x1b\[[0-9;]*m")
 COUNTERS = (
     "wrong_ch",
     "nacked",
+    "nack_miss",
     "drst",
     "ops_no_apu",
     "inj_c",
@@ -159,6 +160,10 @@ def phase(
     if name in DUT_SAW and not any(counts[k] for k in DUT_SAW[name]):
         failed.append(
             f"{name} (no {'/'.join(DUT_SAW[name])} in the DUT log, the DUT never saw the fault)"
+        )
+    if delta["nack_miss"]:
+        failed.append(
+            f"{name} ({delta['nack_miss']} writes delivered data while a NACK was armed)"
         )
     if malformed := {k: delta[k] for k in ("cfg_bad", "bad_cmd") if delta[k]}:
         failed.append(f"{name} (malformed writes {malformed})")

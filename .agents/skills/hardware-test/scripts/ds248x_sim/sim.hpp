@@ -6,6 +6,7 @@
 //   k  stuck busy on the next 1-Wire command, and NACK the config write after the next device reset
 //   x  dead (address NACK)   X  alive again   s  print counters now
 // inj_* count a fault when the DUT meets it, not when it is armed; pend=1 while one has not been met yet.
+// nack_miss counts writes that delivered data while a NACK was armed; that NACK stays pending.
 #pragma once
 #include <Arduino.h>
 #include "hardware/i2c.h"
@@ -60,6 +61,7 @@ struct Cnt {
       readsp, inject_c, inject_z, inject_b, inject_k;
   uint32_t cfg_bad, bad_cmd;  // config writes with a wrong complement; unknown, short or overlong commands
   uint32_t tx_abrt;           // read replies the controller aborted, so the DUT did not get them
+  uint32_t nack_miss;         // writes that ended with data while a NACK was armed, so the NACK never reached the wire
 };
 static volatile Cnt cnt;
 static volatile uint8_t last_wrong_rom1 = 0, last_wrong_on = 0;
@@ -391,12 +393,15 @@ static void irq() {
     }
     (void) h->clr_stop_det;
     bool was_write = !had_rd;
+    bool got_data = rxn > 0;
     if (rxn) {
       process(rx, rxn);
       rxn = 0;
     }
-    // a write that got NACKed carries no data, so it ends here as a write with nothing received
-    if (nack_on && was_write) {
+    // a write that got NACKed carries no data; one that delivered data missed the NACK, which stays pending
+    if (nack_on && was_write && got_data) {
+      cnt.nack_miss++;
+    } else if (nack_on && was_write) {
       if (nack_left)
         nack_left--;
       cnt.nacked++;
@@ -490,17 +495,21 @@ inline void report() {
     char buf[24 * 9 + 1];
     int o = 0;
     for (int i = 0; i < trlen; i++)
-      o += snprintf(buf + o, sizeof(buf) - o, "%02X%02X/%u ", tr[i][0], tr[i][1], tr[i][2]);
+      o += snprintf(buf + o, sizeof(buf) - o, "%02X%02X/%u ", (unsigned) tr[i][0], (unsigned) tr[i][1],
+                    (unsigned) tr[i][2]);
     ESP_LOGI("sim", "TRACE %s", buf);
     trlen = 0;
   }
   ESP_LOGI("sim",
            "CNT txn=%u drst=%u chsl=%u owreset=%u wbyte=%u rbyte=%u trip=%u match=%u wrong_ch=%u nacked=%u "
-           "cfgw=%u cfg_bad=%u bad_cmd=%u ops_no_apu=%u convert=%u readsp=%u inj_c=%u inj_z=%u inj_b=%u inj_k=%u "
-           "tx_abrt=%u ch=%u cfg=%u dead=%d pend=%d",
-           cnt.txn, cnt.drst, cnt.chsl, cnt.owreset, cnt.wbyte, cnt.rbyte, cnt.trip, cnt.match, cnt.wrong_ch,
-           cnt.nacked, cnt.cfg_writes, cnt.cfg_bad, cnt.bad_cmd, cnt.ops_no_apu, cnt.convert, cnt.readsp, cnt.inject_c,
-           cnt.inject_z, cnt.inject_b, cnt.inject_k, cnt.tx_abrt, channel, config, dead, pend);
+           "nack_miss=%u cfgw=%u cfg_bad=%u bad_cmd=%u ops_no_apu=%u convert=%u readsp=%u inj_c=%u inj_z=%u "
+           "inj_b=%u inj_k=%u tx_abrt=%u ch=%u cfg=%u dead=%d pend=%d",
+           (unsigned) cnt.txn, (unsigned) cnt.drst, (unsigned) cnt.chsl, (unsigned) cnt.owreset, (unsigned) cnt.wbyte,
+           (unsigned) cnt.rbyte, (unsigned) cnt.trip, (unsigned) cnt.match, (unsigned) cnt.wrong_ch,
+           (unsigned) cnt.nacked, (unsigned) cnt.nack_miss, (unsigned) cnt.cfg_writes, (unsigned) cnt.cfg_bad,
+           (unsigned) cnt.bad_cmd, (unsigned) cnt.ops_no_apu, (unsigned) cnt.convert, (unsigned) cnt.readsp,
+           (unsigned) cnt.inject_c, (unsigned) cnt.inject_z, (unsigned) cnt.inject_b, (unsigned) cnt.inject_k,
+           (unsigned) cnt.tx_abrt, (unsigned) channel, (unsigned) config, (int) dead, (int) pend);
 }
 
 }  // namespace sim

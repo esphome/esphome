@@ -24,11 +24,15 @@ address they do not simulate.
 - `spysim.hpp`: the same delegate trick (both headers carry `DelegatePeek`, so one config can include both), logging length and FNV-1a hash of every transaction over 1000 bytes (whole
   frames, used for `pixoo`). `write()` and `write_cmd_addr_data()` are hashed and forwarded like `write_array()`.
 - `pisim.hpp`: drives two `packet_interface` stacks on cross-wired UARTs through `top()`, with payloads whose bytes
-  are a function of their index so every byte is checked. `packet_transport` drops packets carrying its own device
+  are a function of their index so every byte is checked, and the length each side sent per index (last 256) so a
+  truncated or split packet counts as `rx_bad`. `packet_transport` drops packets carrying its own device
   name, so a one-board test must use the layers directly.
 - `hcsim.hpp`: a software SN74HC165 chain on ESP-IDF (data GPIO6, clock GPIO7, load GPIO10). A falling load edge
   latches the pattern and each rising clock edge drives the next bit onto the data pad, which is in
-  `GPIO_MODE_INPUT_OUTPUT` so the component reads it from the same pin.
+  `GPIO_MODE_INPUT_OUTPUT` so the component reads it from the same pin. Call `hcsim::report(label, loads0, clocks0)`
+  after each window with `hcsim::loads` and `hcsim::clocks` from its start; it logs `INVALID` instead of a result
+  when the GPIO or interrupt setup failed or the window saw no load or no clock edge, so a dead simulator cannot pass
+  as a wrong but steady pattern.
 - `ledprobe.hpp`: samples a status LED (or any output) pin every 2 ms from an `esp_timer`, off the loop task, and
   prints blink count, on time, period and the longest gap per window. It measures `status_led` while the loop is
   blocked (#16407). Pass `ledprobe::n` from the window start as the mark; a window with more than 400 edges logs

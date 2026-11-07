@@ -10,9 +10,11 @@ struct Side {
   const char *name;
   PacketInterface *top{nullptr};
   uint32_t rx_ok{0}, rx_bad{0}, rx_bytes{0}, tx_ok{0}, tx_refused{0};
+  uint16_t sent_len[256]{};  // length sent for index i, at i & 0xFF; the peer checks received sizes against it
   bool up{false};
 };
 inline Side a{"A"}, b{"B"};
+inline Side &peer(const Side &s) { return &s == &a ? b : a; }
 // payload i: length n, byte k = pat(i, k), first two bytes carry i
 inline uint8_t pat(uint16_t i, size_t k) { return (uint8_t) ((i * 31 + k) & 0xFF); }
 inline void fill(uint8_t *buf, size_t n, uint16_t i) {
@@ -36,7 +38,7 @@ inline void attach(Side &s, PacketInterface *link) {
       return;
     }
     uint16_t i = (p[0] << 8) | p[1];
-    bool ok = true;
+    bool ok = n == peer(s).sent_len[i & 0xFF];  // a truncated or split packet fails here
     for (size_t k = 2; k < n; k++)
       ok &= p[k] == pat(i, k);
     ok ? s.rx_ok++ : s.rx_bad++;
@@ -51,6 +53,7 @@ inline bool send(Side &s, uint16_t i, size_t n) {
     return false;
   }
   fill(buf, n, i);
+  s.sent_len[i & 0xFF] = n;
   PacketBuffer p(buf, n);
   bool ok = s.top->send_to_interface(p, PacketMetaData{});
   ok ? s.tx_ok++ : s.tx_refused++;

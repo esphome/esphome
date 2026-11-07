@@ -9,6 +9,7 @@ static constexpr uint8_t PATTERNS[3][2] = {{0xA5, 0x3C}, {0x01, 0x80}, {0xFF, 0x
 inline volatile uint8_t pat = 0;
 inline volatile uint32_t loads = 0, clocks = 0;
 inline volatile uint8_t idx = 0;
+inline bool started = false;  // GPIO and interrupt setup succeeded
 inline void IRAM_ATTR put() {
   const uint8_t *p = PATTERNS[pat];
   uint8_t bit = idx < 16 ? (p[idx / 8] >> (7 - idx % 8)) & 1 : 0;
@@ -41,7 +42,23 @@ inline void start() {
               ok(gpio_isr_handler_add(LOAD, on_load, nullptr), "LOAD handler") &&
               ok(gpio_isr_handler_add(CLK, on_clk, nullptr), "CLK handler") &&
               ok(gpio_intr_enable(LOAD), "LOAD interrupt") && ok(gpio_intr_enable(CLK), "CLK interrupt");
+  started = good;
   if (good)
     ESP_LOGI("hcsim", "HC sim started");
+}
+// Call from the loop after each window with the counters taken at its start; a window with no load or no clock
+// edge logs INVALID, so a dead simulator cannot pass as a constant pattern.
+inline void report(const char *label, uint32_t loads0, uint32_t clocks0) {
+  if (!started) {
+    ESP_LOGW("hcsim", "%s: INVALID, the HC sim never started (see the setup error at boot)", label);
+    return;
+  }
+  uint32_t dl = loads - loads0, dc = clocks - clocks0;
+  if (!dl || !dc) {
+    ESP_LOGW("hcsim", "%s: INVALID, loads %u clocks %u in the window, the component never shifted", label,
+             (unsigned) dl, (unsigned) dc);
+    return;
+  }
+  ESP_LOGI("hcsim", "%s: pattern %u loads %u clocks %u", label, (unsigned) pat, (unsigned) dl, (unsigned) dc);
 }
 }  // namespace hcsim

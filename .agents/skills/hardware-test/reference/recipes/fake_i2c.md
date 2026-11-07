@@ -81,7 +81,8 @@ after the next 0xBE, `b` and `k` stick busy with a failed reset or config write,
 readings, wrong values, log counts and the simulator's counters (`wrong_ch` counts ROM matches on the wrong
 channel). A phase fails when any of the four sensors got no readings, a temperature is wrong, the DUT capture
 failed (stderr in `TAG-<phase>.err`), a fault never moved its injection counter (counted when the DUT meets the
-fault, not when it is armed), a NACK fault never moved `nacked`, a fault is still pending (`pend=1`) at the end of the
+fault, not when it is armed), a NACK fault never moved `nacked`, a write delivered data while a NACK was armed
+(`nack_miss`, the NACK never reached the wire and stays pending), a fault is still pending (`pend=1`) at the end of the
 phase, the simulator counted a config write with a wrong complement (`cfg_bad`) or an unknown, short or overlong
 command (`bad_cmd`), a counter is missing from the simulator's CNT line, the simulator aborted a read reply
 (`tx_abrt`, not gated in the `dead` phase, which switches the controller off), a phase other than `b` and `k` (which
