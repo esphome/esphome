@@ -1,7 +1,8 @@
 #pragma once
 // Fake SCD4x (0x62 and 0x63) on an in-firmware I2C bus, Sensirion words with CRC; logs every 0xE000 write.
 // A 0xE000 write with a bad CRC counts in bad_crc_e000, not count_e000. A write that is not a bare command (2 bytes)
-// or a command with one CRC word (5 bytes), or any other command with a bad CRC, gets a NACK and counts in bad_writes.
+// or a command with one CRC word (5 bytes), a command the scd4x driver does not send or sent with the wrong length,
+// or any other command with a bad CRC, gets a NACK and counts in bad_writes.
 #include <cmath>
 #include <cstring>
 #include "esphome/components/i2c/i2c_bus.h"
@@ -20,6 +21,30 @@ struct Bus final : public esphome::i2c::I2CBus {
   uint32_t unknown_reads{0};  // reads after a command the fake does not answer, or longer than its reply, NACKed
   uint32_t e000_writes() const { return this->count_e000[0] + this->count_e000[1]; }
   uint32_t e000_bad_crc() const { return this->bad_crc_e000[0] + this->bad_crc_e000[1]; }
+
+  // write length of each command the scd4x driver sends: 2 for a bare command, 5 for one with an argument; 0 unknown
+  static size_t cmd_size(uint16_t c) {
+    switch (c) {
+      case 0x3682:  // get serial number
+      case 0x21B1:  // start periodic measurement
+      case 0x21AC:  // start low power periodic measurement
+      case 0x219D:  // measure single shot
+      case 0x2196:  // measure single shot, RHT only
+      case 0xE4B8:  // get data ready status
+      case 0xEC05:  // read measurement
+      case 0x3F86:  // stop periodic measurement
+      case 0x3632:  // factory reset
+        return 2;
+      case 0x241D:  // temperature offset
+      case 0x2427:  // altitude compensation
+      case 0x2416:  // automatic self calibration
+      case 0x362F:  // forced recalibration
+      case 0xE000:  // ambient pressure
+        return 5;
+      default:
+        return 0;
+    }
+  }
 
   static void put(uint8_t *out, size_t &n, size_t max, uint16_t v) {
     uint8_t w[3];
@@ -41,7 +66,13 @@ struct Bus final : public esphome::i2c::I2CBus {
       return esphome::i2c::ERROR_NOT_ACKNOWLEDGED;
     }
     if (size >= 2) {
-      this->cmd[a] = (data[0] << 8) | data[1];
+      uint16_t c = (data[0] << 8) | data[1];
+      if (cmd_size(c) != size) {
+        ESP_LOGW(TAG, "0x%02X unknown command 0x%04X or wrong length %u", address, c, (unsigned) size);
+        this->bad_writes++;
+        return esphome::i2c::ERROR_NOT_ACKNOWLEDGED;
+      }
+      this->cmd[a] = c;
       bool crc_ok = size != 5 || data[4] == esphome::crc8(data + 2, 2, 0xFF, 0x31, true);
       if (!crc_ok && this->cmd[a] != 0xE000) {
         ESP_LOGW(TAG, "0x%02X command 0x%04X with a bad CRC", address, this->cmd[a]);

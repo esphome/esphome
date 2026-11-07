@@ -26,9 +26,9 @@ that includes its `.hpp` (add `esphome: name:` for the `-common` ones):
   published values; it ends in PASS only while `bad` is 0, both drivers read a reply this case and both published
   the expected temperature (and HTE501 the fixed humidity).
 - `scdfake.hpp`, `scd-common.yaml`: SCD4x at 0x62 and 0x63 with Sensirion CRC; logs every `0xE000` ambient pressure
-  write, and the CASE and SHOW lines count writes with a bad CRC apart from the good ones. A write that is neither a
-  bare command (2 bytes) nor a command with one CRC word (5 bytes), or any other command with a bad CRC, gets a
-  NACK and counts as `bad writes`. A read after a command the fake does not answer, or one longer than the command's
+  write, and the CASE and SHOW lines count writes with a bad CRC apart from the good ones. A command the scd4x driver
+  does not send, one sent with the wrong length (2 bytes bare, 5 bytes with one CRC word), or any other command with a
+  bad CRC, gets a NACK and counts as `bad writes`. A read after a command the fake does not answer, or one longer than the command's
   reply, gets a NACK and counts as `unknown reads`. The second instance has a fixed `ambient_pressure_compensation`
   to cover the setup path (#21935). Each CASE line ends in PASS only when bad CRC, bad writes and unknown reads did
   not move, the `0xE000` writes match `expect_e000()` (none, or one with the expected value) and, for a source case,
@@ -45,7 +45,8 @@ that includes its `.hpp` (add `esphome: name:` for the `-common` ones):
   per device (reset NACKs, bad PROM CRC4, zero D1 every Nth read, humidity CRC8 errors, out of range D2, full scale
   humidity). It counts every command, so skipped conversions show in `report()`; a humidity read of any shape but a bare
   3 byte read, and a pressure/temperature read that is not a 2 byte read of a PROM word (even addresses 0xA0 to 0xAC) or
-  a 3 byte ADC read, gets a NACK and counts as `bad_reads`; a command write the fake does not know, or one longer than a
+  a 3 byte ADC read, gets a NACK and counts as `bad_reads`; a bare read answers the last PROM or ADC pointer and never
+  repeats a reset or conversion; a command write the fake does not know, or one longer than a
   byte, gets a NACK and counts as `bad_cmds`. Point both the component and its `humidity_i2c_id` device at the bus. That
   driver logs no values, so give each sensor an INFO `on_value` log (#16487).
 - `htfake.hpp`, `ht16k33-char-test.yaml`: HT16K33 chips at 0x70 to 0x77 (0x74 and 0x76 NACK) keeping the 16 byte

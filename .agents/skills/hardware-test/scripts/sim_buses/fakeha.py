@@ -5,8 +5,9 @@ Plaintext API on port 6053 (no encryption key in the DUT config). Answers the de
 "Dump" button after each step and records device logs, select states and action calls. The DUT has two
 homeassistant selects, "Small" (select.speed, 4 options / 16 bytes of storage) and "Big" (input_select.mode,
 16 options / 240 bytes), and a "Dump" button logging "DUMP <name> n=<count> state=<state> opts=<a|b|c>" for each
-plus a "HEAP" line whose first number is the free heap in bytes. Exits 1 when a step fails, including a churn
-that loses more than HEAP_TOLERANCE bytes of free heap.
+plus a "HEAP" line whose first number is the free heap in bytes. A step fails when either DUMP line is missing, and
+a rejected update also needs the device's rejection log line. Exits 1 when a step fails, including a churn that loses
+more than HEAP_TOLERANCE bytes of free heap.
 """
 
 import asyncio
@@ -76,7 +77,10 @@ async def main() -> None:
     await asyncio.sleep(2)
     ev(f"SUBS {subs}")
 
-    async def step(name: str, sends=(), expect_small=None, expect_big=None) -> None:
+    async def step(
+        name: str, sends=(), expect_small=None, expect_big=None, evidence=None
+    ) -> None:
+        # evidence: regex a device log line from this step must match, so a rejected update proves it arrived
         mark = len(lines)
         for ent, attr, val in sends:
             table[(ent, attr)] = val
@@ -103,9 +107,13 @@ async def main() -> None:
             for line in lines[mark:]
             if "homeassistant.select" in line or "DUMP" in line or "HEAP" in line
         ]
-        ok = all(
-            exp is None or dumps.get(nm) == exp
-            for nm, exp in (("Small", expect_small), ("Big", expect_big))
+        ok = (
+            len(dumps) == 2
+            and all(
+                exp is None or dumps.get(nm) == exp
+                for nm, exp in (("Small", expect_small), ("Big", expect_big))
+            )
+            and (evidence is None or any(re.search(evidence, line) for line in new))
         )
         api = {names[k]: v for k, v in states.items()}
         if not ok:
@@ -138,16 +146,19 @@ async def main() -> None:
         "small 5 options rejected",
         [(SMALL, "options", repr(["a", "b", "c", "d", "e"]))],
         expect_small=("ccc", "aaa|bbb|ccc|ddd"),
+        evidence=rf"'{SMALL}': 5 options exceed max_options",
     )
     await step(
         "small 17 bytes rejected",
         [(SMALL, "options", repr(["aaaaa", "bbbbb", "cccc"]))],
         expect_small=("ccc", "aaa|bbb|ccc|ddd"),
+        evidence=rf"'{SMALL}': Options need 17 bytes",
     )
     await step(
         "small unparseable rejected",
         [(SMALL, "options", "not a list")],
         expect_small=("ccc", "aaa|bbb|ccc|ddd"),
+        evidence=rf"'{SMALL}': Can't parse options",
     )
     await step(
         "small active removed",
@@ -158,6 +169,7 @@ async def main() -> None:
         "small state not an option",
         [(SMALL, None, "zzz")],
         expect_small=("<none>", "aaa|bbb|ddd"),
+        evidence=rf"'{SMALL}': State 'zzz' is not one of the options",
     )
     await step(
         "small state set", [(SMALL, None, "bbb")], expect_small=("bbb", "aaa|bbb|ddd")
@@ -182,6 +194,7 @@ async def main() -> None:
         "big 17 options rejected",
         [(BIG, "options", repr(full + ["extra"]))],
         expect_big=(full[15], "|".join(full)),
+        evidence=rf"'{BIG}': 17 options exceed max_options",
     )
 
     calls.clear()

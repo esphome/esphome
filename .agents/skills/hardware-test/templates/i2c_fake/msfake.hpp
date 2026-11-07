@@ -87,11 +87,10 @@ struct Bus final : public esphome::i2c::I2CBus {
       p.bad_cmds++;
       return esphome::i2c::ERROR_NOT_ACKNOWLEDGED;
     }
-    if (size >= 1 || out_size > 0) {
-      uint8_t c = size >= 1 ? data[0] : p.last;
-      if (size >= 1)
-        p.last = c;
-      if (size >= 1 && out_size == 0 && (is_prom(c) || c == 0x00))
+    if (size == 1) {
+      uint8_t c = data[0];
+      p.last = c;
+      if (out_size == 0 && (is_prom(c) || c == 0x00))
         return esphome::i2c::ERROR_OK;  // register pointer only, data follows in a read
       if (c == 0x1E) {
         if (p.reset_nacks > 0) {
@@ -102,27 +101,31 @@ struct Bus final : public esphome::i2c::I2CBus {
       } else if (c == 0x4A || c == 0x5A) {
         p.pending = c;
         (c == 0x5A ? p.conv_t : p.conv_p)++;
-      } else if (is_prom(c) && out_size == 2) {
-        esphome::put_be16(out, p.prom[(c - 0xA0) / 2]);
-        p.prom_reads++;
-        return esphome::i2c::ERROR_OK;
-      } else if (c == 0x00 && out_size == 3) {
-        uint32_t v = 0;
-        if (p.pending == 0x5A)
-          v = p.d2;
-        if (p.pending == 0x4A) {
-          p.d1_reads++;
-          v = (p.zero_d1_every && p.d1_reads % p.zero_d1_every == 0) ? 0 : p.d1;
-        }
-        p.pending = 0;
-        p.adc++;
-        esphome::put_be24(out, v);
-        return esphome::i2c::ERROR_OK;
-      } else if (size >= 1 && out_size == 0) {
+      } else if (out_size == 0) {
         // a command the fake does not know
         p.bad_cmds++;
         return esphome::i2c::ERROR_NOT_ACKNOWLEDGED;
       }
+    }
+    // a bare read answers the last PROM or ADC pointer; it never repeats a reset or conversion command
+    uint8_t c = size == 1 ? data[0] : p.last;
+    if (is_prom(c) && out_size == 2) {
+      esphome::put_be16(out, p.prom[(c - 0xA0) / 2]);
+      p.prom_reads++;
+      return esphome::i2c::ERROR_OK;
+    }
+    if (c == 0x00 && out_size == 3) {
+      uint32_t v = 0;
+      if (p.pending == 0x5A)
+        v = p.d2;
+      if (p.pending == 0x4A) {
+        p.d1_reads++;
+        v = (p.zero_d1_every && p.d1_reads % p.zero_d1_every == 0) ? 0 : p.d1;
+      }
+      p.pending = 0;
+      p.adc++;
+      esphome::put_be24(out, v);
+      return esphome::i2c::ERROR_OK;
     }
     if (out_size == 0)
       return esphome::i2c::ERROR_OK;

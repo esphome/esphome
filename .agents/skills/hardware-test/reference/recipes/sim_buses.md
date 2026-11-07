@@ -45,8 +45,9 @@ address they do not simulate.
 - `fakeha.py HOST OUT_PREFIX`: an aioesphomeapi client standing in for Home Assistant for `homeassistant` select
   mirrors. It answers state subscriptions from a table, pushes option and state changes (full, overfull, quoted,
   unparseable), checks each step through a "Dump" button, captures the action calls, churns 600 option updates
-  while watching the heap, and checks the entity options after a reconnect. Exits 1 on a failed step and prints PASS
-  otherwise.
+  while watching the heap, and checks the entity options after a reconnect. A step fails when either DUMP line is
+  missing, and a rejected update also needs the device's rejection log line, so an update that never arrived cannot
+  pass. Exits 1 on a failed step and prints PASS otherwise.
 - `wizard_drive.py HOST`: finishes the device wizard through aioesphomeapi 46.28 (`device_wizard`,
   `wizard_input_set`), answers the subscriptions the inputs create and checks the values reached the entities.
 
