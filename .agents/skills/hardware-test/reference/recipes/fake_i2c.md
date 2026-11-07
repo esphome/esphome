@@ -43,7 +43,8 @@ that includes its `.hpp` (add `esphome: name:` for the `-common` ones):
   dropped and no transfer was bad; the writes themselves are judged by the diff.
 - `msfake.hpp`: eight MS8607 pressure/temperature fakes at 0x76 and up and humidity fakes at 0x40 and up, with faults
   per device (reset NACKs, bad PROM CRC4, zero D1 every Nth read, humidity CRC8 errors, out of range D2, full scale
-  humidity). It counts every command, so skipped conversions show in `report()`; a humidity read of any shape but a bare
+  humidity). It counts every command, so skipped conversions show in `report()`, and an ADC read with no conversion
+  pending answers 0 like the real chip and counts as `adc_no_conv`; a humidity read of any shape but a bare
   3 byte read, and a pressure/temperature read that is not a 2 byte read of a PROM word (even addresses 0xA0 to 0xAC) or
   a 3 byte ADC read, gets a NACK and counts as `bad_reads`; a bare read answers the last PROM or ADC pointer and never
   repeats a reset or conversion; a command write the fake does not know, or one longer than a

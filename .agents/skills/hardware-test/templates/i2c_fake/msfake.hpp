@@ -18,6 +18,7 @@ struct Pt {
   uint8_t pending{0};  // 0x4A or 0x5A
   uint8_t last{0xFF};  // last command, for a read in its own transaction
   uint32_t resets{0}, conv_t{0}, conv_p{0}, adc{0}, prom_reads{0}, d1_reads{0}, bad_reads{0}, bad_cmds{0};
+  uint32_t adc_no_conv{0};  // ADC reads with no conversion pending, which answer 0 like the real chip
 };
 struct Hd {
   uint8_t addr;
@@ -122,6 +123,8 @@ struct Bus final : public esphome::i2c::I2CBus {
         p.d1_reads++;
         v = (p.zero_d1_every && p.d1_reads % p.zero_d1_every == 0) ? 0 : p.d1;
       }
+      if (p.pending == 0)
+        p.adc_no_conv++;
       p.pending = 0;
       p.adc++;
       esphome::put_be24(out, v);
@@ -166,9 +169,9 @@ struct Bus final : public esphome::i2c::I2CBus {
 
   void report() {
     for (auto &p : pts)
-      ESP_LOGI(TAG, "PT 0x%02X resets=%u prom=%u convT=%u convP=%u adc=%u bad_reads=%u bad_cmds=%u", p.addr,
-               (unsigned) p.resets, (unsigned) p.prom_reads, (unsigned) p.conv_t, (unsigned) p.conv_p, (unsigned) p.adc,
-               (unsigned) p.bad_reads, (unsigned) p.bad_cmds);
+      ESP_LOGI(TAG, "PT 0x%02X resets=%u prom=%u convT=%u convP=%u adc=%u adc_no_conv=%u bad_reads=%u bad_cmds=%u",
+               p.addr, (unsigned) p.resets, (unsigned) p.prom_reads, (unsigned) p.conv_t, (unsigned) p.conv_p,
+               (unsigned) p.adc, (unsigned) p.adc_no_conv, (unsigned) p.bad_reads, (unsigned) p.bad_cmds);
     for (auto &h : hds)
       if (h.addr)
         ESP_LOGI(TAG, "H 0x%02X resets=%u measures=%u reads=%u bad_reads=%u bad_cmds=%u", h.addr, (unsigned) h.resets,

@@ -25,9 +25,9 @@ address they do not simulate.
 - `spysim.hpp`: the same delegate trick (both headers carry `DelegatePeek`, so one config can include both), logging length and FNV-1a hash of every transaction over 1000 bytes (whole
   frames, used for `pixoo`). `write()` and `write_cmd_addr_data()` are hashed and forwarded like `write_array()`.
 - `pisim.hpp`: drives two `packet_interface` stacks on cross-wired UARTs through `top()`, with payloads whose bytes
-  are a function of their index so every byte is checked, and the length each side sent per index (last 256) so a
-  truncated or split packet counts as `rx_bad`. Send indices 0, 1, 2 and so on from each side: a skipped index
-  counts as `rx_lost` and an old or repeated one as `rx_bad`. `report(tag, true)` once both links are idle ends each
+  are a function of their index so every byte is checked, and the index and length each side sent (last 256) so a
+  truncated or split packet, or one whose slot a later index reused, counts as `rx_bad`. Send indices 0, 1, 2 and so
+  on from each side: a skipped index counts as `rx_lost` and an old or repeated one as `rx_bad`. `report(tag, true)` once both links are idle ends each
   line in PASS only when that side received every packet the peer sent intact and the peer had no send refused;
   `missing` is the rest, packets still in flight or lost at the tail. `packet_transport` drops packets carrying its own device
   name, so a one-board test must use the layers directly.

@@ -10,8 +10,11 @@ struct Side {
   const char *name;
   PacketInterface *top{nullptr};
   uint32_t rx_ok{0}, rx_bad{0}, rx_lost{0}, rx_bytes{0}, tx_ok{0}, tx_refused{0};
-  uint16_t rx_next{0};       // next index expected from the peer, which sends 0, 1, 2, ...
-  uint16_t sent_len[256]{};  // length sent for index i, at i & 0xFF; the peer checks received sizes against it
+  uint16_t rx_next{0};  // next index expected from the peer, which sends 0, 1, 2, ...
+  // index and length sent, at i & 0xFF; the peer checks received sizes against it
+  struct Sent {
+    uint16_t idx, len;
+  } sent[256]{};
   bool up{false};
 };
 inline Side a{"A"}, b{"B"};
@@ -47,7 +50,9 @@ inline void attach(Side &s, PacketInterface *link) {
     }
     s.rx_lost += gap;
     s.rx_next = i + 1;
-    bool ok = n == peer(s).sent_len[i & 0xFF];  // a truncated or split packet fails here
+    // a truncated or split packet fails here, and so does one whose slot was reused by a later index
+    const auto &sent = peer(s).sent[i & 0xFF];
+    bool ok = sent.idx == i && n == sent.len;
     for (size_t k = 2; k < n; k++)
       ok &= p[k] == pat(i, k);
     ok ? s.rx_ok++ : s.rx_bad++;
@@ -62,7 +67,7 @@ inline bool send(Side &s, uint16_t i, size_t n) {
     return false;
   }
   fill(buf, n, i);
-  s.sent_len[i & 0xFF] = n;
+  s.sent[i & 0xFF] = {i, (uint16_t) n};
   PacketBuffer p(buf, n);
   bool ok = s.top->send_to_interface(p, PacketMetaData{});
   ok ? s.tx_ok++ : s.tx_refused++;
