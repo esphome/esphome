@@ -722,6 +722,7 @@
 #define USE_UDP_OMR_SOURCE
 #define USE_ZIGBEE
 #endif
+// Matches NO_FSM_RST in i2c/__init__.py
 #if defined(USE_ESP32_VARIANT_ESP32) || defined(USE_ESP32_VARIANT_ESP32C2) || defined(USE_ESP32_VARIANT_ESP32C3) || \
     defined(USE_ESP32_VARIANT_ESP32S2) || defined(USE_ESP32_VARIANT_ESP32S3)
 #define USE_I2C_ISR_GUARD

@@ -36,6 +36,17 @@ static void IRAM_ATTR i2c_isr_guard(void *arg) {
   if (status & (I2C_LL_INTR_NACK | I2C_LL_INTR_TIMEOUT | I2C_LL_INTR_ARBITRATION))
     i2c_ll_disable_intr_mask(guard->dev, I2C_LL_MASTER_EVENT_INTR);
 }
+
+static void install_isr_guard(int source, intr_handler_t &handler, void *&arg) {
+  for (int port = 0; port < SOC_HP_I2C_NUM; port++) {
+    if (source == i2c_periph_signal[port].irq) {
+      i2c_isr_guards[port] = {handler, arg, I2C_LL_GET_HW(port)};
+      handler = i2c_isr_guard;
+      arg = &i2c_isr_guards[port];
+      return;
+    }
+  }
+}
 }  // namespace esphome::i2c
 
 // NOLINTBEGIN(bugprone-reserved-identifier,cert-dcl37-c,cert-dcl51-cpp,readability-identifier-naming)
@@ -45,14 +56,7 @@ esp_err_t __real_esp_intr_alloc_intrstatus(int source, int flags, uint32_t reg, 
 
 esp_err_t __wrap_esp_intr_alloc_intrstatus(int source, int flags, uint32_t reg, uint32_t mask, intr_handler_t handler,
                                            void *arg, intr_handle_t *ret_handle) {
-  for (int port = 0; port < SOC_HP_I2C_NUM; port++) {
-    if (source == i2c_periph_signal[port].irq) {
-      esphome::i2c::i2c_isr_guards[port] = {handler, arg, I2C_LL_GET_HW(port)};
-      handler = esphome::i2c::i2c_isr_guard;
-      arg = &esphome::i2c::i2c_isr_guards[port];
-      break;
-    }
-  }
+  esphome::i2c::install_isr_guard(source, handler, arg);
   return __real_esp_intr_alloc_intrstatus(source, flags, reg, mask, handler, arg, ret_handle);
 }
 }  // extern "C"
