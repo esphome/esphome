@@ -8,6 +8,7 @@ from .. import CONF_PARENT_ID, FendtCaravanHubBase
 CONF_SOFTWARE_VERSION = "software_version"
 CONF_FRIDGE_POWER_SOURCE = "fridge_power_source"
 CONF_FRIDGE_TYPE = "fridge_type"
+CONF_PANEL_VERSION = "panel_version"
 
 
 def _text_schema(
@@ -31,6 +32,7 @@ CONFIG_SCHEMA = cv.typed_schema(
         CONF_SOFTWARE_VERSION: _text_schema(icon="mdi:application-braces-outline"),
         CONF_FRIDGE_POWER_SOURCE: _text_schema(icon="mdi:power-plug-battery"),
         CONF_FRIDGE_TYPE: _text_schema(icon="mdi:fridge-top"),
+        CONF_PANEL_VERSION: _text_schema(icon="mdi:monitor"),
     }
 )
 

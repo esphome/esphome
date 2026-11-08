@@ -22,7 +22,7 @@ bool LightingDeviceHub::decode(const char *key, const char *value) {
 #ifdef LIGHTING_DEVICE_BINARY_LIGHT_COUNT
   for (auto &entry : this->binary_states_) {
     if (entry.key == key) {
-      ESP_LOGD(TAG, "Decoding binary light key: %s, value: %s", key, value);
+      ESP_LOGD(TAG, "Handled key: %s, value: %s", key, value);
       bool cur_state = DeviceDecoders::decode_int(value) != 0;
       entry.is_on = cur_state;
       entry.state->remote_values.set_state(cur_state);
@@ -34,7 +34,7 @@ bool LightingDeviceHub::decode(const char *key, const char *value) {
 #ifdef LIGHTING_DEVICE_FLOAT_LIGHT_COUNT
   for (auto &entry : this->float_states_) {
     if (entry.key == key) {
-      ESP_LOGD(TAG, "Decoding float light key: %s, value: %s", key, value);
+      ESP_LOGD(TAG, "Handled key: %s, value: %s", key, value);
       int decoded_value = DeviceDecoders::decode_int(value);
       bool cur_state = decoded_value != 0;
       entry.is_on = cur_state;

@@ -12,26 +12,10 @@ enum class Key : uint8_t {
   KEY_HS_KEY_STATE,
   KEY_FLOOR_HEATER_ON,
   KEY_SOFTWARE_VERSION,
+  KEY_PANEL_VERSION,
 };
-static constexpr const char *KEY_NAMES[] = {
-    "TEMP_IN", "TEMP_OUT", "WATER_LEVEL", "LINE_EN", "HS_KEY_STATE", "FLOOR_HEATER_ON", "SOFTWARE_VERSION",
-};
-/*
-void MainControlUnitHub::setup() {
-  if (this->main_switch_switch_) {
-    this->main_switch_switch_->add_on_state_callback(
-        [this](bool state) { this->write_state(this->main_switch_switch_, state); });
-  }
-  if (this->all_lights_switch_) {
-    this->all_lights_switch_->add_on_state_callback(
-        [this](bool state) { this->write_state(this->all_lights_switch_, state); });
-  }
-  if (this->floor_heater_switch_) {
-    this->floor_heater_switch_->add_on_state_callback(
-        [this](bool state) { this->write_state(this->floor_heater_switch_, state); });
-  }
-}
-*/
+static constexpr const char *KEY_NAMES[] = {"TEMP_IN",      "TEMP_OUT",        "WATER_LEVEL",      "LINE_EN",
+                                            "HS_KEY_STATE", "FLOOR_HEATER_ON", "SOFTWARE_VERSION", "PANEL_VERSION"};
 
 void MainControlUnitHub::dump_config() {
   ESP_LOGCONFIG(TAG, "Fendt Control Unit");
@@ -42,6 +26,7 @@ void MainControlUnitHub::dump_config() {
   LOG_BINARY_SENSOR(TAG, "  Power Status", this->power_status_binary_sensor_);
   LOG_TEXT_SENSOR(TAG, "  Software Version", this->software_version_text_sensor_);
   LOG_SWITCH(TAG, "  Floor Heater", this->floor_heater_switch_);
+  LOG_TEXT_SENSOR(TAG, "  Panel Version", this->panel_version_text_sensor_);
 }
 
 void MainControlUnitHub::update() {
@@ -133,6 +118,11 @@ bool MainControlUnitHub::decode(const char *key, const char *value) {
     case Key::KEY_SOFTWARE_VERSION: {
       if (this->software_version_text_sensor_ != nullptr)
         this->software_version_text_sensor_->publish_state(value);
+      break;
+    }
+    case Key::KEY_PANEL_VERSION: {
+      if (this->panel_version_text_sensor_ != nullptr)
+        this->panel_version_text_sensor_->publish_state(value);
       break;
     }
     default:

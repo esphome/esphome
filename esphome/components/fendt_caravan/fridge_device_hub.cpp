@@ -38,6 +38,7 @@ bool FridgeDeviceHub::decode(const char *key, const char *value) {
     i++;
   if (i == std::size(KEY_NAMES))
     return false;
+  ESP_LOGD(TAG, "Handled key: %s, value: %s", key, value);
   Key key_value = static_cast<Key>(i);
   switch (key_value) {
     case Key::KEY_FRIDGE_AVAILABLE: {
