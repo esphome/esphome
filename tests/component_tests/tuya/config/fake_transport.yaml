@@ -7,7 +7,7 @@ esp32:
 external_components:
   - source:
       type: local
-      path: ../external_components
+      path: ../../../components/tuya/components
 
 fake_tuya_transport:
   id: my_tuya

@@ -1,0 +1,20 @@
+# Compile the tuya base class with a non-UART transport: no uart bus anywhere,
+# and the UART implementation filtered from the build.
+external_components:
+  - source: ../../components/tuya/components
+    components: [fake_tuya_transport]
+
+fake_tuya_transport:
+  id: fake_tuya
+
+switch:
+  - platform: tuya
+    tuya_id: fake_tuya
+    name: Fake Switch
+    switch_datapoint: 1
+
+sensor:
+  - platform: tuya
+    tuya_id: fake_tuya
+    name: Fake Sensor
+    sensor_datapoint: 2
