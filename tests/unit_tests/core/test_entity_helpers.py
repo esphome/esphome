@@ -1370,14 +1370,13 @@ def test_integration_class_handles_match_owning_definitions() -> None:
     assert web_server.WebServer.inherits_from(entity_helpers._WebServer)
 
     assert str(entity_helpers._ZigbeeComponent) == str(ZigbeeComponent)
-    for (
+    for platform, (
         _conf_key,
         class_name,
         _cluster_options,
-    ) in (
-        entity_helpers._ZIGBEE_ENTITY_CLASSES[platform]
-        for platform in ("binary_sensor", "sensor", "switch", "number")
-    ):
+    ) in entity_helpers._ZIGBEE_ENTITY_CLASSES.items():
+        if platform == "light":  # not supported by nrf52
+            continue
         owning = getattr(zigbee_zephyr, class_name)
         assert str(owning) == f"zigbee::{class_name}"
 

@@ -290,8 +290,7 @@ async def setup_light(entity: cg.MockObj, config: ConfigType) -> None:
         return
     if CORE.using_zephyr:
         return
-    # from .zigbee_esp32 import add_light
-    # CORE.add_job(add_light, entity, config)
+    # Implemented in #22283
     return
 
 
