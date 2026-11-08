@@ -323,8 +323,7 @@ const char *DfrobotSen0395Component::read_message_() {
 void DfrobotSen0395Component::set_detected_(bool detected) {
   this->detected_ = detected;
 #ifdef USE_BINARY_SENSOR
-  if (this->detected_binary_sensor_ != nullptr)
-    this->detected_binary_sensor_->publish_state(detected);
+  PUBLISH_STATE(this->detected_binary_sensor_, detected);
 #endif
 }
 

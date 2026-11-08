@@ -87,10 +87,8 @@ void TAS58xx::setup() {
     this->enable_pin_->digital_write(true);
     delay(PDN_TO_I2C_MS);
   }
-  if (!this->init_()) {
-    this->mark_failed();
+  if (!this->setup_check(this->init_()))
     return;
-  }
   this->publish_active_(true);  // init_() leaves the device in play
 #ifdef USE_SELECT
   // After init, so an on_value handler acts on a ready amplifier and init does not undo it
@@ -194,8 +192,7 @@ void TAS58xx::deactivate() {
 // to the device succeeded.
 void TAS58xx::publish_active_(bool active) {
 #ifdef USE_SWITCH
-  if (this->activate_switch_ != nullptr)
-    this->activate_switch_->publish_state(active);
+  PUBLISH_STATE(this->activate_switch_, active);
 #endif
 }
 
@@ -241,8 +238,7 @@ bool TAS58xx::read_faults_() {
   this->logged_faults_ = active;
 
 #ifdef USE_BINARY_SENSOR
-  if (this->have_fault_binary_sensor_ != nullptr)
-    this->have_fault_binary_sensor_->publish_state((active & model.fault_error_mask) != 0);
+  PUBLISH_STATE(this->have_fault_binary_sensor_, (active & model.fault_error_mask) != 0);
   for (uint8_t fault = 0; fault < FAULT_SENSOR_COUNT; fault++) {
     const uint8_t bit = model.fault_sensor_bits[fault];
     if (this->fault_binary_sensors_[fault] != nullptr && bit != NO_BIT)

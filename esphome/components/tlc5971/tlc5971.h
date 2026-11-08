@@ -5,6 +5,8 @@
 #include "esphome/core/component.h"
 #include "esphome/core/hal.h"
 
+#include <span>
+
 namespace esphome::tlc5971 {
 
 class TLC5971 final : public Component {
@@ -12,10 +14,9 @@ class TLC5971 final : public Component {
   // Must match CHANNELS_PER_CHIP in __init__.py, which sizes the duty buffer
   static constexpr uint8_t N_CHANNELS_PER_CHIP = 12;
 
-  /// @param pwm_amounts storage for num_chips * N_CHANNELS_PER_CHIP duty values, owned by the caller for the life
-  /// of the program.
-  TLC5971(GPIOPin *data_pin, GPIOPin *clock_pin, uint16_t *pwm_amounts, uint8_t num_chips)
-      : data_pin_(data_pin), clock_pin_(clock_pin), pwm_amounts_(pwm_amounts), num_chips_(num_chips) {}
+  /// @param pwm_amounts N_CHANNELS_PER_CHIP duty values per chip, a static buffer from code generation
+  TLC5971(GPIOPin *data_pin, GPIOPin *clock_pin, std::span<uint16_t> pwm_amounts)
+      : data_pin_(data_pin), clock_pin_(clock_pin), pwm_amounts_(pwm_amounts) {}
 
   void setup() override;
   void dump_config() override;
@@ -34,8 +35,7 @@ class TLC5971 final : public Component {
 
   GPIOPin *const data_pin_;
   GPIOPin *const clock_pin_;
-  uint16_t *const pwm_amounts_;
-  const uint8_t num_chips_;
+  const std::span<uint16_t> pwm_amounts_;
 };
 
 }  // namespace esphome::tlc5971
