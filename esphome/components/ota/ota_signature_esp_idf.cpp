@@ -3,6 +3,7 @@
 
 #ifdef USE_OTA_SIGNED_VERIFICATION_MULTI_KEY
 #include "esphome/components/watchdog/watchdog.h"
+#include "esphome/core/helpers.h"
 #include "esphome/core/log.h"
 
 #include <algorithm>
@@ -11,7 +12,6 @@
 #include <memory>
 #include <esp_image_format.h>
 #include <esp_partition.h>
-#include "esphome/core/helpers.h"
 
 #include <esp_idf_version.h>
 #if ESP_IDF_VERSION >= ESP_IDF_VERSION_VAL(6, 0, 0)
