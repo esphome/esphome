@@ -9,9 +9,10 @@ void TuyaSelect::setup() {
   this->parent_->register_listener(this->select_id_, [this](const TuyaDatapoint &datapoint) {
     // The parent dispatches by datapoint ID alone; a report of the wrong
     // type would otherwise be read from the wrong union field
-    if (datapoint.type != this->datapoint_type_ &&
-        !(datapoint.type == TuyaDatapointType::INTEGER && this->datapoint_type_ == TuyaDatapointType::ENUM) &&
-        !(datapoint.type == TuyaDatapointType::ENUM && this->datapoint_type_ == TuyaDatapointType::INTEGER)) {
+    auto is_numeric = [](TuyaDatapointType t) {
+      return t == TuyaDatapointType::INTEGER || t == TuyaDatapointType::ENUM;
+    };
+    if (datapoint.type != this->datapoint_type_ && !(is_numeric(datapoint.type) && is_numeric(this->datapoint_type_))) {
       ESP_LOGW(TAG, "Select %u got a report of unexpected type %u", this->select_id_, (unsigned) datapoint.type);
       return;
     }
@@ -35,7 +36,7 @@ void TuyaSelect::setup() {
       uint8_t enum_value = datapoint.value_enum;
       ESP_LOGV(TAG, "MCU reported select %u value %u", this->select_id_, enum_value);
       const auto &mappings = this->mappings_;
-      auto it = std::find(mappings.begin(), mappings.end(), enum_value);
+      const auto *it = std::find(mappings.begin(), mappings.end(), enum_value);
       if (it == mappings.end()) {
         ESP_LOGW(TAG, "Invalid value %u", enum_value);
         return;
