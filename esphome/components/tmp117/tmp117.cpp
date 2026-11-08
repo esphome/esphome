@@ -10,12 +10,13 @@ ESPHOME_LOG_TAG(TAG, "tmp117");
 
 void TMP117Component::update() {
   int16_t data;
-  if (!this->status_comm_result(this->read_data_(&data)))
+  if (!this->status_comm_check(this->read_data_(&data)))
     return;
   if ((uint16_t) data != 0x8000) {
     float temperature = data * 0.0078125f;
 
     this->publish_state(temperature);
+    this->status_clear_warning();
   } else {
     ESP_LOGD(TAG, "Not ready");
   }
