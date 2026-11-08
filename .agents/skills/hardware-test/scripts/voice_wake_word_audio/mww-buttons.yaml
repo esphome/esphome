@@ -1,0 +1,11 @@
+# Buttons to stop and start microWakeWord from an API client (the mute switch only mutes samples). Add to the
+# device's own config as a package (the only micro_wake_word is used).
+button:
+  - platform: template
+    name: hwtest mww stop
+    on_press:
+      - micro_wake_word.stop:
+  - platform: template
+    name: hwtest mww start
+    on_press:
+      - micro_wake_word.start:

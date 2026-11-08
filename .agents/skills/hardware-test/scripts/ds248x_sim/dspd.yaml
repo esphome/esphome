@@ -1,0 +1,52 @@
+# ESP32-C3 DUT for the DS2482-800 simulator: GPIO4 to GP4 (SDA), GPIO5 to GP5 (SCL) and GND. The four sensors poll
+# at different intervals so channel switches interleave; equal intervals hide a stale channel cache.
+esphome:
+  name: dspd
+  build_path: build-dspd
+esp32:
+  board: esp32-c3-devkitm-1
+  framework:
+    type: esp-idf
+logger:
+  level: DEBUG
+  hardware_uart: USB_SERIAL_JTAG
+i2c:
+  sda: GPIO4
+  scl: GPIO5
+  frequency: 50kHz
+  scan: false
+ds248x:
+  - id: hub
+    type: ds2482-800
+    active_pullup: true
+one_wire:
+  - platform: ds248x
+    id: ow0
+    channel: 0
+  - platform: ds248x
+    id: ow1
+    channel: 1
+  - platform: ds248x
+    id: ow2
+    channel: 2
+sensor:
+  - platform: dallas_temp
+    one_wire_id: ow0
+    address: 0xB200000068221028
+    name: t0
+    update_interval: 1s
+  - platform: dallas_temp
+    one_wire_id: ow1
+    address: 0x8500000068221128
+    name: t1
+    update_interval: 1300ms
+  - platform: dallas_temp
+    one_wire_id: ow2
+    address: 0xDC00000068221228
+    name: t2a
+    update_interval: 1700ms
+  - platform: dallas_temp
+    one_wire_id: ow2
+    address: 0xEB00000068221328
+    name: t2b
+    update_interval: 2300ms
