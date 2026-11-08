@@ -55,22 +55,23 @@ void TLV320DAC3100::on_audio_started() {
 }
 
 void TLV320DAC3100::power_up_dac_() {
-  if (this->dac_powered_ || this->dac_settling_ || !this->outputs_ready_ || !this->clock_running_ || this->is_failed())
+  if (this->dac_state_ != DacState::DAC_STATE_OFF || !this->outputs_ready_ || !this->clock_running_ ||
+      this->is_failed())
     return;
   if (!this->status_comm_result(this->write_registers(this->table_ + this->setup_count_, DATA_PATH_COUNT),
                                 LOG_STR("DAC power-up failed")))
     return;
-  this->dac_settling_ = true;
+  this->dac_state_ = DacState::DAC_STATE_SETTLING;
   this->set_timeout(DAC_SETTLE_TIMEOUT_ID, DAC_SETTLE_MS, [this]() { this->unmute_outputs_(); });
 }
 
 void TLV320DAC3100::unmute_outputs_() {
-  this->dac_settling_ = false;
-  // Levels last; on failure dac_powered_ stays false, so the next audio start retries
-  this->dac_powered_ = this->status_comm_result(
+  // Levels last; on failure the state returns to off, so the next audio start retries
+  const bool ok = this->status_comm_result(
       this->write_registers(this->table_ + this->setup_count_ + DATA_PATH_COUNT, DRIVERS_COUNT) &&
           this->write_levels_(),
       LOG_STR("DAC power-up failed"));
+  this->dac_state_ = ok ? DacState::DAC_STATE_ON : DacState::DAC_STATE_OFF;
 }
 
 void TLV320DAC3100::dump_config() {
@@ -106,7 +107,7 @@ bool TLV320DAC3100::write_levels_() {
   };
   const bool ok = this->write_registers(levels);
   // Until the DAC is up, power_up_dac_() owns the warning status
-  return this->dac_powered_ ? this->status_comm_result(ok) : ok;
+  return this->dac_state_ == DacState::DAC_STATE_ON ? this->status_comm_result(ok) : ok;
 }
 
 }  // namespace esphome::tlv320dac3100
