@@ -4,7 +4,6 @@
 #include "esphome/core/hal.h"
 #include "esphome/core/helpers.h"
 #include "esphome/core/log.h"
-#include <map>
 #include <utility>
 #include <vector>
 
@@ -288,10 +287,8 @@ class SPIDelegateDummy : public SPIDelegate {
   void begin_transaction() override;
 };
 
-/**
- * An implementation of SPI that relies only on software toggling of pins.
- *
- */
+#ifdef USE_SPI_SOFTWARE
+/// An implementation of SPI that relies only on software toggling of pins.
 class SPIDelegateBitBash : public SPIDelegate {
  public:
   SPIDelegateBitBash(uint32_t clock, SPIBitOrder bit_order, SPIMode mode, GPIOPin *cs_pin, GPIOPin *clk_pin,
@@ -325,25 +322,7 @@ class SPIDelegateBitBash : public SPIDelegate {
   }
   uint16_t transfer_(uint16_t data, size_t num_bits);
 };
-
-class SPIBus {
- public:
-  SPIBus() = default;
-
-  SPIBus(GPIOPin *clk, GPIOPin *sdo, GPIOPin *sdi) : clk_pin_(clk), sdo_pin_(sdo), sdi_pin_(sdi) {}
-
-  virtual SPIDelegate *get_delegate(uint32_t data_rate, SPIBitOrder bit_order, SPIMode mode, GPIOPin *cs_pin,
-                                    bool release_device, bool write_only) {
-    return new SPIDelegateBitBash(data_rate, bit_order, mode, cs_pin, this->clk_pin_, this->sdo_pin_, this->sdi_pin_);
-  }
-
-  virtual bool is_hw() { return false; }
-
- protected:
-  GPIOPin *clk_pin_{};
-  GPIOPin *sdo_pin_{};
-  GPIOPin *sdi_pin_{};
-};
+#endif  // USE_SPI_SOFTWARE
 
 class SPIClient;
 
@@ -389,11 +368,16 @@ class SPIComponent final : public Component {
   SPIInterface interface_{};
   bool using_hw_{false};
   const char *interface_name_{nullptr};
-  SPIBus *spi_bus_{};
-  std::map<SPIClient *, SPIDelegate *> devices_;
+#ifdef USE_ZEPHYR
+  friend class ZephyrSPIDelegate;
+  // Delegate whose mode and frequency the driver last applied
+  const SPIDelegate *active_delegate_{nullptr};
+#endif
 
-  static SPIBus *get_bus(SPIInterface interface, GPIOPin *clk, GPIOPin *sdo, GPIOPin *sdi,
-                         const std::vector<uint8_t> &data_pins);
+  // Platform hardware bus: initialise it once, and create a delegate for a device on it
+  bool setup_hw_bus_();
+  SPIDelegate *new_hw_delegate_(uint32_t data_rate, SPIBitOrder bit_order, SPIMode mode, GPIOPin *cs_pin,
+                                bool release_device, bool write_only);
 };
 
 using QuadSPIComponent = SPIComponent;
@@ -402,6 +386,8 @@ using OctalSPIComponent = SPIComponent;
  * Base class for SPIDevice, un-templated.
  */
 class SPIClient {
+  friend class SPIComponent;
+
  public:
   SPIClient(SPIBitOrder bit_order, SPIMode mode, uint32_t data_rate)
       : bit_order_(bit_order), mode_(mode), data_rate_(data_rate) {}
@@ -418,10 +404,7 @@ class SPIClient {
 #endif
   }
 
-  virtual void spi_teardown() {
-    this->parent_->unregister_device(this);
-    this->delegate_ = SPIDelegate::NULL_DELEGATE;
-  }
+  virtual void spi_teardown() { this->parent_->unregister_device(this); }
 
   bool spi_is_ready() { return this->delegate_->is_ready(); }
   void set_release_device(bool release) { this->release_device_ = release; }

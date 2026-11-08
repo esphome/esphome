@@ -57,6 +57,8 @@ One file per component, named after it:
 - [`ezo_fake_bus.md`](ezo_fake_bus.md): the ezo component against a fake I2C bus that answers like an EZO circuit
 - [`twai_self.md`](twai_self.md): esp32_can on_frame with the controller hearing its own transmit pad, no transceiver
 - [`buttons.md`](buttons.md): output button pad timing, homeassistant button through a raw API client with the wizard input, uart button on the UART0 loopback
+- [`rs485_frame.md`](rs485_frame.md): DLE/STX/ETX bus on an ESP32-C3 with a cross-wired simulated bus device (frame cases, gate timing)
+- [`hx711.md`](hx711.md): fake HX711 driven from the other core, every published value matched to the served conversion
 - [`microphone_http_stream.md`](microphone_http_stream.md): raw PCM over HTTP with a counter fake mic or a USB mic, multi-reader client
 - [`i2s_audio.md`](i2s_audio.md): I2S microphone fed by an I2S TX channel on the same S3 through three jumpers
 - [`voice_assistant.md`](voice_assistant.md): late TTS start on the Voice PE with a slow announcement URL
