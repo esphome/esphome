@@ -8,7 +8,7 @@ namespace esphome::sm16716 {
 
 class SM16716 final : public Component {
  public:
-  /// @param pwm_amounts one duty value per channel, a static array from code generation.
+  /// @param pwm_amounts one duty value per channel, a static buffer from code generation.
   SM16716(GPIOPin *data_pin, GPIOPin *clock_pin, std::span<uint8_t> pwm_amounts)
       : data_pin_(data_pin), clock_pin_(clock_pin), pwm_amounts_(pwm_amounts) {}
 
