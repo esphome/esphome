@@ -84,7 +84,7 @@ void CST816Touchscreen::update_touches() {
 
   uint16_t x = encode_uint16(data[REG_XPOS_HIGH] & 0xF, data[REG_XPOS_LOW]);
   uint16_t y = encode_uint16(data[REG_YPOS_HIGH] & 0xF, data[REG_YPOS_LOW]);
-  if (x == 0x0FFF || y == 0x0FFF || x > this->x_raw_max_ || y > this->y_raw_max_) {
+  if (x == 0x0FFF || y == 0x0FFF) {
     return;
   }
 
