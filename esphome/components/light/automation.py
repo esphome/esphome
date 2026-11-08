@@ -5,7 +5,6 @@ from typing import Any, NamedTuple
 from esphome import automation
 import esphome.codegen as cg
 from esphome.components.const.css_colors import CSS_COLORS
-from esphome.config import path_context
 import esphome.config_validation as cv
 from esphome.const import (
     CONF_BLUE,
@@ -34,6 +33,7 @@ from esphome.const import (
 )
 from esphome.core import CORE, ID, EsphomeError, Lambda
 from esphome.cpp_generator import MockObj, TemplateArgsType
+import esphome.final_validate as fv
 from esphome.schema_extractors import SCHEMA_EXTRACT, schema_extractor
 from esphome.types import ConfigType
 
@@ -212,6 +212,8 @@ def _record_effect_ref(config: ConfigType) -> ConfigType:
     if effect.lower() == "none":
         return config  # "None" is always valid
 
+    from esphome.config import path_context
+
     from . import EffectRef, _get_data
 
     _get_data().effect_refs.append(
@@ -253,8 +255,7 @@ def _resolve_effect_index(config: ConfigType, original_name: str) -> int:
     from . import effect_not_found_message, find_effect_index
 
     light_id = config[CONF_ID]
-    light_path = CORE.config.get_path_for_id(light_id)[:-1]
-    light_config = CORE.config.get_config_for_path(light_path)
+    light_config = fv.get_declaring_config(light_id, CORE.config)
     effects = light_config.get(CONF_EFFECTS, [])
     index = find_effect_index(effects, original_name)
     if index is not None:
@@ -313,6 +314,8 @@ automation.register_apply_action(
 
 def _record_effect_cycle_ref(config: ConfigType) -> ConfigType:
     """Record a cycle-action reference for later validation against the target light."""
+    from esphome.config import path_context
+
     from . import EffectCycleRef, _get_data
 
     _get_data().effect_cycle_refs.append(

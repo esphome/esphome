@@ -22,7 +22,7 @@ namespace esphome::ld2450 {
 class PolygonZone : public text::Text {
  public:
   /// Config validation guarantees every zone gets exactly one presence binary sensor.
-  void set_presence_binary_sensor(binary_sensor::BinarySensor *presence) { this->presence_ = presence; }
+  SUB_BINARY_SENSOR(presence)
 
   /// Load the saved polygon and publish it. Called from the hub's setup().
   void setup();
@@ -38,10 +38,15 @@ class PolygonZone : public text::Text {
       return;
     if (target_inside) {
       this->last_inside_ms_ = now;
-      this->presence_->publish_state(true);
+      this->presence_binary_sensor_->publish_state(true);
     } else if (timed_out) {
-      this->presence_->publish_state(false);
+      this->presence_binary_sensor_->publish_state(false);
     }
+  }
+  /// Link lost: presence becomes unknown and the hold is cleared.
+  void invalidate_presence() {
+    this->presence_binary_sensor_->invalidate_state();
+    this->last_inside_ms_ = 0;
   }
   /// When a target was last inside the zone, in ms; 0 if never since the polygon was set.
   uint32_t get_last_inside_ms() const { return this->last_inside_ms_; }
@@ -52,7 +57,6 @@ class PolygonZone : public text::Text {
   void control(const std::string &value) override;
   void publish_polygon_();
 
-  binary_sensor::BinarySensor *presence_{nullptr};
   Polygon polygon_;
   ESPPreferenceObject pref_;
   uint32_t last_inside_ms_{0};

@@ -1,17 +1,4 @@
-import logging
-from typing import Any
-
-from esphome.components.const import CONF_HOLD_STATE
-import esphome.config_validation as cv
-from esphome.const import (
-    CONF_INPUT,
-    CONF_MODE,
-    CONF_NUMBER,
-    CONF_OUTPUT,
-    CONF_PULLDOWN,
-    CONF_PULLUP,
-)
-from esphome.pins import check_strapping_pin
+from .gpio_common import ESP32PinSpec, unusable_errors
 
 _ESP_SDIO_PINS = {
     6: "Flash Clock",
@@ -20,66 +7,28 @@ _ESP_SDIO_PINS = {
     11: "Flash Command",
 }
 
-_ESP32_STRAPPING_PINS = {0, 2, 5, 12, 15}
-_LOGGER = logging.getLogger(__name__)
-
-
-def esp32_validate_gpio_pin(value: int) -> int:
-    if value < 0 or value > 39:
-        raise cv.Invalid(f"Invalid pin number: {value} (must be 0-39)")
-    if value in _ESP_SDIO_PINS:
-        raise cv.Invalid(
-            f"This pin cannot be used on ESP32s and is already used by the flash interface"
-            f" (function: {_ESP_SDIO_PINS[value]})."
-            f" If you are using an ESP32 module that uses a different flash pin"
-            f" configuration (e.g. ESP32-PICO-V3-02), you can set"
-            f" 'ignore_pin_validation_error: true' to bypass this check."
-        )
-    if 9 <= value <= 10:
-        _LOGGER.warning(
-            "Pin %s (9-10) might already be used by the flash interface in QUAD IO flash mode.",
-            value,
-        )
-    if value in (24, 28, 29, 30, 31):
+ESP32_PIN_SPEC = ESP32PinSpec(
+    max_pin=39,
+    strapping_pins=frozenset({0, 2, 5, 12, 15}),
+    error_pins={
+        **{
+            num: "This pin cannot be used on ESP32s and is already used by the flash interface"
+            f" (function: {function})."
+            " If you are using an ESP32 module that uses a different flash pin"
+            " configuration (e.g. ESP32-PICO-V3-02), you can set"
+            " 'ignore_pin_validation_error: true' to bypass this check."
+            for num, function in _ESP_SDIO_PINS.items()
+        },
         # These pins are not exposed in GPIO mux (reason unknown)
         # but they're missing from IO_MUX list in datasheet
-        raise cv.Invalid(f"The pin GPIO{value} is not usable on ESP32s.")
-    return value
-
-
-def esp32_validate_supports(value: dict[str, Any]) -> dict[str, Any]:
-    num = value[CONF_NUMBER]
-    mode = value[CONF_MODE]
-    is_input = mode[CONF_INPUT]
-    is_output = mode[CONF_OUTPUT]
-    is_pullup = mode[CONF_PULLUP]
-    is_pulldown = mode[CONF_PULLDOWN]
-    is_hold = value.get(CONF_HOLD_STATE)
-
-    if is_input:
-        # All ESP32 pins support input mode
-        pass
-    if is_output and 34 <= num <= 39:
-        raise cv.Invalid(
-            f"GPIO{num} (34-39) does not support output pin mode.",
-            [CONF_MODE, CONF_OUTPUT],
-        )
-    if is_pullup and 34 <= num <= 39:
-        raise cv.Invalid(
-            f"GPIO{num} (34-39) does not support pullups.", [CONF_MODE, CONF_PULLUP]
-        )
-    if is_pulldown and 34 <= num <= 39:
-        raise cv.Invalid(
-            f"GPIO{num} (34-39) does not support pulldowns.", [CONF_MODE, CONF_PULLDOWN]
-        )
-    if is_hold and 34 <= num <= 39:
-        raise cv.Invalid(
-            f"GPIO{num} (34-39) is input-only and cannot be held.",
-            [CONF_HOLD_STATE],
-        )
-    if is_hold and num == 20:
-        # Not in the digital hold mask and not an RTC pad, so the driver cannot hold it
-        raise cv.Invalid("GPIO20 has no hold function.", [CONF_HOLD_STATE])
-
-    check_strapping_pin(value, _ESP32_STRAPPING_PINS, _LOGGER)
-    return value
+        **unusable_errors("ESP32", (24, 28, 29, 30, 31)),
+    },
+    warning_pins={
+        num: f"Pin {num} (9-10) might already be used by the flash interface in QUAD IO flash mode."
+        for num in (9, 10)
+    },
+    input_only_pins=frozenset(range(34, 40)),
+    input_only_label=" (34-39)",
+    # Not in the digital hold mask and not an RTC pad, so the driver cannot hold it
+    no_hold_pins=frozenset({20}),
+)

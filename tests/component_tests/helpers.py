@@ -4,6 +4,11 @@ from __future__ import annotations
 
 import re
 
+from esphome.config import Config
+from esphome.const import CONF_ID
+from esphome.core import ID
+from esphome.types import ConfigType
+
 INTERNAL_BIT = 1 << 24
 
 
@@ -40,3 +45,16 @@ def get_define_value(name: str) -> str | None:
         if define.name == name:
             return str(define.value)
     return None
+
+
+def uart_full_config(
+    uarts: list[ConfigType] | None = None, **domains: list[ConfigType]
+) -> Config:
+    """A full config declaring uart_0 and uart_1 (or uarts), as the ID pass leaves it."""
+    uarts = uarts or [{CONF_ID: ID("uart_0")}, {CONF_ID: ID("uart_1")}]
+    full = Config()
+    full["uart"] = uarts
+    for index, uart_conf in enumerate(uarts):
+        full.declare_ids.append((uart_conf[CONF_ID], ["uart", index, CONF_ID]))
+    full.update(domains)
+    return full

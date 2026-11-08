@@ -1,0 +1,20 @@
+wait:3
+press:G Good
+press:G Two Frames
+press:G Bad Checksum
+press:G Good After
+press:G Bad End
+press:G Garbage Then Frame
+press:G Cut Then Frame
+press:G Split 300
+press:G Split 700
+press:G Good After
+press:P Good
+press:P Repeated Header
+press:P Bad Checksum
+press:P Cut Then Frame
+press:P Garbage Then Frame
+press:P Split
+press:P Two Frames
+press:P Good After
+wait:16

@@ -18,7 +18,6 @@ void BP1658CJ::setup() {
   this->data_pin_->digital_write(false);
   this->clock_pin_->setup();
   this->clock_pin_->digital_write(false);
-  this->pwm_amounts_.resize(5, 0);
 }
 void BP1658CJ::dump_config() {
   ESP_LOGCONFIG(TAG,
@@ -80,7 +79,8 @@ void BP1658CJ::loop() {
   this->update_ = false;
 }
 
-void BP1658CJ::set_channel_value_(uint8_t channel, uint16_t value) {
+void BP1658CJ::write_channel(uint8_t channel, float state) {
+  auto value = static_cast<uint16_t>(state * 0x3FF);
   if (this->pwm_amounts_[channel] != value) {
     this->update_ = true;
     this->update_channel_ = channel;

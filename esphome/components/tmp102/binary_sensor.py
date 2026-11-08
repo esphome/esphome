@@ -5,7 +5,7 @@ from esphome.components import binary_sensor
 import esphome.config_validation as cv
 from esphome.types import ConfigType
 
-from . import CONF_TMP102_ID, TMP102Component, validate_unique_child
+from . import CONF_TMP102_ID, TMP102Component, unique_child
 
 CONFIG_SCHEMA = binary_sensor.binary_sensor_schema().extend(
     {
@@ -14,11 +14,7 @@ CONFIG_SCHEMA = binary_sensor.binary_sensor_schema().extend(
 )
 
 
-def _final_validate(config: ConfigType) -> ConfigType:
-    return validate_unique_child(config, "binary_sensor")
-
-
-FINAL_VALIDATE_SCHEMA = _final_validate
+FINAL_VALIDATE_SCHEMA = unique_child("binary_sensor")
 
 
 async def to_code(config: ConfigType) -> None:

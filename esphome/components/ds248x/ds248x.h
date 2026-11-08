@@ -93,6 +93,8 @@ class DS248xComponent : public Component, public i2c::I2CDevice {
 
   /// Get the channel count (1 for DS2482-100/DS2484, 8 for DS2482-800)
   uint8_t get_channel_count() const { return this->channel_count_; }
+  /// True while a failed recovery waits to be retried before the next command
+  bool is_recovery_pending() const { return this->needs_recovery_; }
 
   // --- Core 1-Wire API (used by DS248xOneWireBus) ---
   bool select_channel(uint8_t channel);
@@ -120,6 +122,8 @@ class DS248xComponent : public Component, public i2c::I2CDevice {
   uint8_t ds2484_rwpu_{DS2484_PARAM_UNSET};
 
   int8_t current_channel_{-1};
+  bool needs_recovery_{false};
+  uint32_t last_recovery_ms_{0};
 
   // Internal helpers
   bool set_read_pointer_(uint8_t ptr);
@@ -128,6 +132,7 @@ class DS248xComponent : public Component, public i2c::I2CDevice {
   bool device_configure_();
   bool configure_ds2484_port_(uint8_t param, uint8_t val);
   bool write_config_();
+  bool recover_();
 };
 
 }  // namespace esphome::ds248x

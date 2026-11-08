@@ -108,8 +108,8 @@ void EndstopCover::dump_config() {
                 "  Open Duration: %.1fs\n"
                 "  Close Duration: %.1fs",
                 this->open_duration_ / 1e3f, this->close_duration_ / 1e3f);
-  LOG_BINARY_SENSOR("  ", "Open Endstop", this->open_endstop_);
-  LOG_BINARY_SENSOR("  ", "Close Endstop", this->close_endstop_);
+  LOG_BINARY_SENSOR("  ", "Open Endstop", this->open_endstop_binary_sensor_);
+  LOG_BINARY_SENSOR("  ", "Close Endstop", this->close_endstop_binary_sensor_);
 }
 
 void EndstopCover::stop_prev_trigger_() {
