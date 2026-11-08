@@ -300,8 +300,9 @@ class Component {
   /// For the last (or only) bus step; earlier steps of a multi-step poll use status_comm_check().
   bool status_comm_result(bool ok);
   bool status_comm_result(bool ok, const LogString *message);
-  /// Sets the warning ("Communication failed") when not `ok` but never clears it; returns `ok`. A clear logs, so an
-  /// earlier step clearing would log a clear/set pair each poll while a later step fails.
+  /// Sets the warning ("Communication failed") when not `ok` but never clears it; returns `ok`. For earlier steps of
+  /// a poll, where a clear would log a clear/set pair each time a later step fails; the last step must use
+  /// status_comm_result() so the warning clears.
   bool status_comm_check(bool ok) {
     if (!ok)
       this->status_comm_check_slow_path_();
