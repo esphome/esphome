@@ -9,7 +9,7 @@ namespace esphome::my9231 {
 /// MY9231 float output component.
 class MY9231OutputComponent final : public Component {
  public:
-  /// @param pwm_amounts one duty value per channel, a static array from code generation.
+  /// @param pwm_amounts one duty value per channel, a static buffer from code generation.
   MY9231OutputComponent(GPIOPin *pin_di, GPIOPin *pin_dcki, std::span<uint16_t> pwm_amounts, uint8_t num_chips,
                         uint8_t bit_depth)
       : pin_di_(pin_di), pin_dcki_(pin_dcki), pwm_amounts_(pwm_amounts), num_chips_(num_chips), bit_depth_(bit_depth) {}
