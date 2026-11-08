@@ -22,6 +22,9 @@ script:
     then:
       - delay: 20s
       - lambda: canlb::report();
+      # Pause the stream and let the frame in flight drain before the queue checks
+      - lambda: canlb::phase = canlb::PAUSED;
+      - delay: 200ms
       - lambda: canlb::rtr_test();
       - delay: 500ms
       - lambda: canlb::queue_report("rtr");

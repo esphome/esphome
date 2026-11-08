@@ -8,6 +8,5 @@ sed -E "s/^  name: .*/  name: $NAME/" "$R/example.yaml" > "$R/$NAME.yaml"
 pkill -f "[s]erial_capture.py $P"
 (cd "$T" && $PY -m esphome run --no-logs "$R/$NAME.yaml" --device "$P" > "$OUT/upload.log" 2>&1) || { echo "build or upload failed"; exit 1; }
 grep -a -E '^(RAM|Flash):' "$OUT/upload.log"
-$PY "$SC" "$P" "$S" "$OUT/serial.txt" --reset > /dev/null 2>&1
-[ -s "$OUT/serial.txt" ] || { echo "serial capture got nothing"; exit 1; }
+$PY "$SC" "$P" "$S" "$OUT/serial.txt" --reset > /dev/null 2>&1 || { echo "serial capture got nothing"; exit 1; }
 "$R/summary.sh" "$OUT/serial.txt"

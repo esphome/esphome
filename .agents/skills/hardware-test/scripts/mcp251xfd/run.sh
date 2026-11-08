@@ -8,8 +8,7 @@ sed -E "s/^  name: .*/  name: $NAME/" "$R/$C.yaml" > "$R/$NAME.yaml"
 pkill -f "[s]erial_capture.py $P"
 (cd "$T" && $PY -m esphome run --no-logs "$R/$NAME.yaml" --device "$P" > "$OUT/upload.log" 2>&1) || { echo "build or upload failed"; exit 1; }
 grep -a -E '^(RAM|Flash):' "$OUT/upload.log"
-$PY "$SC" "$P" "$S" "$OUT/serial.txt" --reset > /dev/null 2>&1
-[ -s "$OUT/serial.txt" ] || { echo "serial capture got nothing"; exit 1; }
+$PY "$SC" "$P" "$S" "$OUT/serial.txt" --reset > /dev/null 2>&1 || { echo "serial capture got nothing"; exit 1; }
 for b in 2 3; do $PY "$SC" "$P" 8 "$OUT/boot$b.txt" --reset > /dev/null 2>&1; done
 grep -a -h -o "BOOTFREE [0-9]* TOTAL [0-9]*" "$OUT/serial.txt" "$OUT/boot2.txt" "$OUT/boot3.txt"
 grep -a -E "canlb|mcp251xfd" "$OUT/serial.txt" | grep -a -v "failed with error" | sed 's/^.*\]\[/[/' | cut -c1-200
